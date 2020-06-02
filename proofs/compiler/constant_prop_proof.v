@@ -3229,12 +3229,13 @@ Section PROPER.
     rewrite /Mvarcl_eq. 
     rewrite /RelationPairs.RelProd /RelationPairs.RelCompFun /=.
     split. rewrite /=. split. rewrite /=. auto. rewrite /=. by rewrite -Hce -Hce'.
-    by rewrite /=. rewrite /Mvarcl_eq /=.
+    by subst => /=.
+    rewrite /Mvarcl_eq /=.
     rewrite /RelationPairs.RelProd /RelationPairs.RelCompFun /=.
     split. rewrite /=. split. by rewrite /=. auto. auto.
-    rewrite /Mvarcl_eq /=. rewrite /RelationPairs.RelProd /RelationPairs.RelCompFun /=.
+    rewrite /Mvarcl_eq /=. by subst; rewrite /RelationPairs.RelProd /RelationPairs.RelCompFun /=.
     split. rewrite /=. split. by rewrite /=. rewrite /=. by rewrite -Hce -Hce'.
-    by rewrite /=.
+    by subst. 
   Qed.
 
   Local Lemma Wcall i xs f es: Pr (Ccall i xs f es).
@@ -3286,32 +3287,12 @@ Proof.
   by rewrite Hm. by rewrite -Hm.
 Qed.
 
-Section LEAKAGES_PROOF.
-
-Lemma compile_ilp e v l:
- let m1 := ((const_prop_ir m ii i).1).1 in
- let c1 := ((const_prop_ir m ii i).1).2 in
- let lt1 := (const_prop_ir m ii i).2 in
- sem_c_i s1 c lc s2 ->
- exists m', exists c', exists lc', sem_pexpr_e gd s e' = ok (v', l') /\
- value_uincl (trans_sem t (v, l)).1 v' /\ (trans_sem t (v, l)).2 = l'.
-
-End LEAKAGES_PROOF.
-
- let e' := (const_prop_e m e).1 in
- let t := (const_prop_e m e).2 in
- sem_pexpr_e gd s e = ok (v, l) ->
- exists v', exists l', sem_pexpr_e gd s e' = ok (v', l') /\
- value_uincl (trans_sem t (v, l)).1 v' /\ (trans_sem t (v, l)).2 = l'.
-Proof.
-
-
 Section PROOF.
 
-  Variable p:prog.
+  Variable p p':prog.
   Notation gd := (p_globs p).
 
-  Let p' := const_prop_prog p.
+  Hypothesis (p'_def : p' = (const_prop_prog p).1).
 
   Let Pi s1 i li s2 :=
     forall m,
@@ -3320,7 +3301,8 @@ Section PROOF.
       forall vm1,
         vm_uincl (evm s1) vm1 ->
         exists vm2,
-          sem_c_i (p'.1) {|emem := emem s1; evm := vm1|} ((const_prop_i m i).1).2 li {|emem := emem s2; evm := vm2|} /\
+          sem_c_i p' {|emem := emem s1; evm := vm1|} ((const_prop_i m i).1).2 (leak_I (const_prop_i m i).2 li) 
+                         {|emem := emem s2; evm := vm2|} /\
           vm_uincl (evm s2) vm2.
 
   Let Pi_r s1 i li s2 :=
@@ -3330,8 +3312,9 @@ Section PROOF.
       forall vm1,
         vm_uincl (evm s1) vm1 ->
         exists vm2,
-          sem_c_i (p'.1) {|emem := emem s1; evm := vm1|} ((const_prop_ir m ii i).1).2
-          li {|emem := emem s2; evm := vm2|} /\ vm_uincl (evm s2) vm2.
+          sem_c_i p' {|emem := emem s1; evm := vm1|} ((const_prop_ir m ii i).1).2 (leak_I (const_prop_ir m ii i).2 li)
+                         {|emem := emem s2; evm := vm2|} /\ 
+          vm_uincl (evm s2) vm2.
 
   Let Pc s1 c lc s2 :=
     forall m,
@@ -3340,8 +3323,10 @@ Section PROOF.
       forall vm1,
         vm_uincl (evm s1) vm1 ->
         exists vm2,
-          sem_c_i (p'.1) {|emem := emem s1; evm := vm1|} ((const_prop const_prop_i m c).1).2 lc
-          {|emem := emem s2; evm := vm2|} /\ vm_uincl (evm s2) vm2.
+          sem_c_i p' {|emem := emem s1; evm := vm1|} ((const_prop const_prop_i m c).1).2 
+                         (leak_Is leak_I (const_prop const_prop_i m c).2 lc)
+                         {|emem := emem s2; evm := vm2|} /\
+          vm_uincl (evm s2) vm2.
 
   Let Pfor (i:var_i) zs s1 c lf s2 :=
     forall m,
@@ -3350,14 +3335,17 @@ Section PROOF.
       forall vm1,
         vm_uincl (evm s1) vm1 ->
         exists vm2,
-          sem_for_i (p'.1) i zs {|emem := emem s1; evm := vm1|} ((const_prop const_prop_i m c).1).2 lf
-                    {|emem := emem s2; evm := vm2|} /\  vm_uincl (evm s2) vm2.
+          sem_for_i p' i zs {|emem := emem s1; evm := vm1|} ((const_prop const_prop_i m c).1).2 
+                                (leak_Iss leak_I (const_prop const_prop_i m c).2 lf)
+                                {|emem := emem s2; evm := vm2|} /\
+          vm_uincl (evm s2) vm2.
 
+  (* Maybe fix this *)
   Let Pfun m1 fd vargs lf m2 vres :=
     forall vargs',
       List.Forall2 value_uincl vargs vargs' ->
       exists vres',
-        sem_call_i (p'.1) m1 fd vargs' lf m2 vres' /\
+        sem_call_i p' m1 fd vargs' lf m2 vres' /\
         List.Forall2 value_uincl vres vres'.
 
   Local Lemma Hskip : sem_Ind_nil_i Pc.
@@ -3365,10 +3353,13 @@ Section PROOF.
     by move=> s m /= ?;split=>// vm1 hu1;exists vm1;split => //; constructor.
   Qed.
 
-
- Local Lemma Hcons : sem_Ind_cons_i p Pc Pi.
+  Local Lemma Hcons : sem_Ind_cons_i p Pc Pi.
   Proof.
-    rewrite /sem_Ind_cons_i. move=> s1 s2 s3 i c li lc Hi Hpi Hc Hci [].
+    move=> s1 s2 s3 i c li lc Hi Hpi Hc Hci m /= hvm.
+    case heqi : const_prop_i => [mc lti]; case: mc heqi => mi ci heqi. 
+    case heqc : const_prop => [mc ltc]; case: mc heqc => mc cc heqc. 
+
+    
     move=> c1 c2 /= H. rewrite /Pi in Hpi.
     rewrite /Pc in Hci.
     move: (Hpi {| Mvar.Map.this := c1; Mvar.Map.is_bst := c2 |} H).
