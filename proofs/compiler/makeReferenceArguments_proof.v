@@ -405,15 +405,59 @@ Section Section.
     then Plvar y
     else e.
 
+  Section DiagonalInduction.
+  Context {Ta Tb : Type} (P : seq Ta -> seq Tb -> Prop).
+  Hypothesis Ps0 : forall a , P a [::].
+  Hypothesis P0s : forall b , P [::] b.
+  Hypothesis Pconscons : forall ha hb ta tb , P ta tb -> P (ha::ta) (hb::tb).
+
+  Lemma diagonal_induction a b:
+    P a b.
+  Proof.
+    elim : a b => // ha ta Ih [] // hb tb.
+    by apply : Pconscons.
+  Qed.
+
+  End DiagonalInduction.
+
   Lemma make_prologueE1 pp ii xs es :
       (make_prologue is_reg_ptr fresh_id pp ii xs es).1
     = rev (pmap (fun '(x, e) => make_prologue1_1 pp ii x e) (zip xs es)).
-  Proof. Admitted.      
+  Proof.
+    rewrite /make_prologue.
+    rewrite -[RHS]cats0.
+    move : es xs [::].
+    apply : diagonal_induction => [[] //|[] //|] e x es xs Ihc c /=.
+    rewrite Ihc.
+    rewrite /do_prologue {4}/make_prologue1_1.
+    case : is_reg_ptr_expr => //= y.
+    move : (pmap _ _) (MkI _ _) => c' i.
+    by rewrite rev_cons cat_rcons.
+  Qed.
 
   Lemma make_prologueE2 pp ii xs es :
       (make_prologue is_reg_ptr fresh_id pp ii xs es).2
+    = map (fun '(x, e) => make_prologue1_2 pp x e) (zip xs es) ++ drop (size xs) es.
+  Proof.
+    rewrite /make_prologue.
+    move : es xs [::].
+    apply : diagonal_induction => [[] //|[] //|] e x es xs Ihc c /=.
+    rewrite Ihc.
+    congr (_::_).
+    rewrite /do_prologue /make_prologue1_2.
+    by case : is_reg_ptr_expr.
+  Qed.
+
+  Lemma make_prologueE2_same_size pp ii xs es :
+    size xs = size es ->
+      (make_prologue is_reg_ptr fresh_id pp ii xs es).2
     = map (fun '(x, e) => make_prologue1_2 pp x e) (zip xs es).
-  Proof. Admitted.      
+  Proof.
+    move => Hsize.
+    rewrite make_prologueE2.
+    rewrite Hsize.
+    by rewrite drop_size cats0.
+  Qed.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
@@ -436,9 +480,16 @@ Section Section.
     case epE: (make_epilogue _ _ _ _ _ _) => [ep lvaout].
     t_xrbindP=> _ /assertP /and4P[uq_pl uq_ep /allP fs_pl /allP fs_ep] <-.
     rewrite (@write_vars_lvals (p_globs p')) in hwrinit.
-
-Search _ write_lvals.
-
+    (*Prove that (f_params fnd) and args have the same size using one of the ok above, vsE namely*)
+    Search _ truncate_val.
+    About writes_uincl.
+    case : (@writes_uincl _ _ _ vm1 _ _ vargs _ _ hwrinit) => /=.
+    (*Prove second using vsE*)
+    (*Then prove that ok (with_vm vm2 x) is what is given by the prologue*)
+    About value_uincl_truncate_val.
+    About write_lvals_eq_on.
+    Search _ write_lvals.
+    have H : (write_lvals_eq_on _ hwrinit eq_s1_vm1).
     case/sem_callE: h1 => fnd [fnE] [vs] [vm1'] [vm2] [vm3] [vres].
     move: sigE; rewrite /get_sig fnE.
 
