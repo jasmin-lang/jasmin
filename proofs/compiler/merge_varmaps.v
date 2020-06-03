@@ -169,7 +169,7 @@ Section CHECK.
           (all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd))
           (ii, Cerr_one_varmap "bad call dests") in
         let W := writefun_ra writefun fn in
-        let D1 := read_rvs_rec (Sv.diff D (vrvs xs)) xs in (* Remark read_rvs xs is empty since all variables *)
+        let D1 := Sv.diff D (vrvs xs) in
         let inter := Sv.inter D1 W in
         Let _ := assert (Sv.is_empty inter) (ii, Cerr_needspill fn (Sv.elements inter)) in
         ok (read_es_rec D1 es)
