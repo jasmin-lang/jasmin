@@ -459,6 +459,14 @@ Section Section.
     by rewrite drop_size cats0.
   Qed.
 
+  Lemma size_mapM2 v1 v2 v3 :
+    mapM2 ErrType truncate_val v1 v2 = ok v3 ->
+    size v1 = size v2.
+  Proof.
+    move : v1 v2.
+    apply : diagonal_induction => [[]|[]|hf_tyfnd hvargs tf_tyfnd tvargs] //=.
+  Abort.
+
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
     (* f(x1 : v1, ..., xn : vn) : unit
@@ -481,15 +489,40 @@ Section Section.
     t_xrbindP=> _ /assertP /and4P[uq_pl uq_ep /allP fs_pl /allP fs_ep] <-.
     rewrite (@write_vars_lvals (p_globs p')) in hwrinit.
     (*Prove that (f_params fnd) and args have the same size using one of the ok above, vsE namely*)
-    Search _ truncate_val.
-    About writes_uincl.
     case : (@writes_uincl _ _ _ vm1 _ _ vargs _ _ hwrinit) => /=.
-    (*Prove second using vsE*)
+    + apply wf_vm_uincl.
+      (*May have to use fs_pl, uq_pl and eq_s1_vm1, don't know what to do with the first two*)
+      rewrite /wf_vm /= => x.
+      Search _ wf_vm.
+      by admit.
+    + (*Prove second using vsE*)
+      Search _ List.Forall2.
+      About mapM2_truncate_val.
+      About mapM2_Forall2.
+      apply : (mapM2_Forall2 _ vsE) => a b r Hlist Htrunc.
+      Search value_uincl.
+      About truncate_value_uincl.
+      About value_uincl_truncate_val.
+      apply : (value_uincl_truncate_val Htrunc).
     (*Then prove that ok (with_vm vm2 x) is what is given by the prologue*)
+    move => vm2' Hwrinitwith Huincl.
+    have Hsize : size (f_tyin fnd) = size vargs.
+    + (*Any way to destruct these instead?*)
+      move : (f_tyin fnd) vargs {eval_args h2 Hwrinitwith} vsE.
+      apply : diagonal_induction => [[]|[]|hf_tyfnd hvargs tf_tyfnd tvargs] //=.
+    have Hpl : (make_prologueE1 p ii' (f_params fnd) args).
+    have Heargs
+
+
+    have H : (write_lvals_eq_on Hwrinitwith).
     About value_uincl_truncate_val.
     About write_lvals_eq_on.
     Search _ write_lvals.
-    have H : (write_lvals_eq_on _ hwrinit eq_s1_vm1).
+
+
+
+
+
     case/sem_callE: h1 => fnd [fnE] [vs] [vm1'] [vm2] [vm3] [vres].
     move: sigE; rewrite /get_sig fnE.
 
