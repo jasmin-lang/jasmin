@@ -481,7 +481,7 @@ Section LEMMA.
   Proof.
     move => s1 m2 s2 jj xs fn args vargs vs ok_vargs sexec ih ok_s2 ii I O t1 /check_CcallP[] fd ok_call pre sim.
     case: (checkP ok_p (ccc_fundef ok_call)) => ok_wrf.
-    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
+    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP checked_params _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
     have := ccc_I ok_call; rewrite /ccc_D => ?; subst I.
     have pre1 : merged_vmap_precondition (writefun_ra p wrf fn) (evm t1).
     { split; first exact: preserved_magic.
@@ -542,14 +542,23 @@ Section LEMMA.
       ii dsts eargs fd' I O vm1 t1 ok_call pre ok_vargs'' sim.
     move: (ccc_fundef ok_call); rewrite ok_fd => /Some_inj ?; subst fd'.
     case: (checkP ok_p ok_fd) => ok_wrf.
-    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
+    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP /allP checked_params _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
     have {preserved_RSP} preserved_RSP : if sf_save_stack (f_extra fd) is SavedStackReg r then ~~ Sv.mem r (wrf fn) else True.
     - by case: sf_save_stack preserved_RSP => // r /assertP.
-    have {checked_ra} checked_ra : if sf_return_address (f_extra fd) is RAreg ra then ~~ Sv.mem ra (wrf fn) && ~~ Sv.mem ra live' else True.
-    - by case: sf_return_address checked_ra => // ra; t_xrbindP => _ /assertP -> /assertP.
+    have {checked_ra} checked_ra : if sf_return_address (f_extra fd) is RAreg ra then ~~ Sv.mem ra (wrf fn) && ~~ Sv.mem ra (magic_variables p) && (ra \notin (map v_var fd.(f_params))) else True.
+    - case: sf_return_address checked_ra => // ra; t_xrbindP => _ /assertP -> /assertP.
+      by rewrite mem_set_of_var_i_seq Bool.negb_orb.
     have ra_neq_magic : if sf_return_address (f_extra fd) is RAreg ra then (ra != vgd) && (ra != vrsp) else True.
-    - have := not_written_magic preserved_magic; rewrite /writefun_ra ok_fd; clear.
-      case: sf_return_address => // ra ?; apply/andP; split; apply/eqP; SvD.fsetdec.
+    - case: sf_return_address checked_ra => // ra /andP[] /andP[] _ /negP; clear.
+      rewrite /magic_variables /is_true Sv.mem_spec => ? _; apply/andP; split; apply/eqP; SvD.fsetdec.
+    have read_args : ∀ x, Sv.mem x (read_es eargs) = (x \in map v_var (f_params fd)).
+    { move: (f_params fd) (ccc_eargs ok_call); clear; elim: eargs; first by case.
+      move => e es ih [] /=; t_xrbindP => // y xs ? ok_y ? rec ?? x; subst.
+      rewrite read_es_cons SvP.union_mem inE (ih _ rec) {ih rec}; congr (_ || _).
+      case: e ok_y => // - [] g [] // [<-{y}].
+      rewrite /read_e /= /read_gvar /= SvP.union_mem orbF eq_sym.
+      case: eqP; last exact: SvP.singleton_mem_2.
+      move => ->; exact: SvP.singleton_mem_1. }
     set t1' := with_vm s0 (set_RSP (emem s0) (if sf_return_address (f_extra fd) is RAreg ra then (evm t1).[ra <- undef_error] else evm t1)).
     have pre1 : merged_vmap_precondition (write_c (f_body fd)) (evm t1').
     - split.
@@ -565,9 +574,12 @@ Section LEMMA.
       + by rewrite emem_with_vm (write_vars_emem ok_s1).
       rewrite evm_with_vm /set_RSP.
       apply: vmap_uincl_onI; first exact: small_live'.
-      move => x; rewrite -Sv.mem_spec mem_set_of_var_i_seq orbX => /orP[].
-      + case/andP. rewrite {1}/is_true Sv.mem_spec !Sv.add_spec SvD.F.empty_iff.
-        case => [ -> | [ -> | [] ] ] {x} /negP not_param /=.
+      move => x; rewrite -Sv.mem_spec mem_set_of_var_i_seq => /orP[] hx.
+      + have not_param : ¬ x \in (map v_var fd.(f_params)).
+        * case/mapP => /= y /checked_params /negP hy xy.
+          by apply: hy; rewrite -xy.
+        move: hx not_param; rewrite {1}/is_true Sv.mem_spec !Sv.add_spec SvD.F.empty_iff.
+        case => [ -> | [ -> | [] ] ] {x} not_param /=.
         1-2: rewrite -(write_vars_eq_except ok_s1); last by rewrite -Sv.mem_spec mem_set_of_var_i_seq.
         * (* vrip *)
           rewrite vgd_v Fv.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
@@ -576,10 +588,30 @@ Section LEMMA.
           1-3: by rewrite (mvp_global_data pre).
         (* vrsp *)
         by rewrite vrsp_v Fv.setP_eq.
-      move => x_param.
-      admit.
+      have /= [y y_param ?] := mapP hx; subst x.
+      have /negP y_not_magic := checked_params _ y_param.
+      rewrite Fv.setP_neq; last first.
+      + apply/eqP; move: y_not_magic; rewrite /magic_variables /is_true Sv.mem_spec /=; clear; SvD.fsetdec.
+      suff: eval_uincl (evm s1).[y] (evm t1).[y].
+      + case: sf_return_address checked_ra => // ra /andP[] _ /mapP ra_not_param.
+        by rewrite Fv.setP_neq //; apply/eqP => ?; subst; apply: ra_not_param; exists y.
+      apply: (@eval_uincl_trans _ _ _ vm1.[y]); last first.
+      + apply: (mvm_vmap sim).
+        move: (ccc_I ok_call); rewrite /ccc_D => ?; subst I.
+        by rewrite -Sv.mem_spec read_esE SvP.union_mem read_args hx.
+      case: y hx {y_param} y_not_magic => /= y _ y_param y_not_magic.
+      move: (f_params fd) y_param ok_s1 (f_tyin fd) ok_vargs ok_vargs''; clear.
+      elim: vargs vargs' s0 => [ | v vs ih ] vs' s3 [] // x xs hy /=; t_xrbindP => s2 ok_s2 ok_s1 [ | ty tys ]; case: vs' => // v' vs' /=.
+      t_xrbindP => w ok_w ws ok_ws ?? w' ok_w' ws' ok_ws' [??]; subst.
+      have {ih} := ih _ _ _ _ ok_s1 _ ok_ws ok_ws'.
+      move: hy; rewrite /= inE orbX => /orP[]; last by move => ->; apply.
+      case/andP => /eqP ? /negP hx _; subst y.
+      rewrite -(write_vars_eq_except ok_s1); last by rewrite -Sv.mem_spec mem_set_of_var_i_seq => k; apply: hx.
+      rewrite (write_var_get_var ok_s2).
+      move: ok_w'; apply: on_vuP => // z -> ?; subst v'.
+      exact: pof_truncate_to_val ok_w.
     have [ t2 [ texec preserved sim2 ] ] := ih _ _ t1' checked_body pre1 sim1.
-    eexists _, _; split.
+    eexists _, (evm s2); split.
     - econstructor.
       + exact: ccc_fundef ok_call.
       + reflexivity.
@@ -598,18 +630,9 @@ Section LEMMA.
       rewrite /t1' evm_with_vm /set_RSP Fv.setP_neq //.
       move: x_not_written; rewrite /writefun_ra ok_fd.
       case: sf_return_address => // ra; clear => ?; rewrite Fv.setP_neq //; apply/eqP; SvD.fsetdec.
-    - admit.
+    - rewrite mapM_map.
     admit.
   Admitted.
-
-    have read_args : ∀ x, Sv.mem x (read_es args) = (x \in map v_var (f_params fd)).
-    { move: (f_params fd) (ccc_eargs ok_call); clear; elim: args; first by case.
-      move => e es ih [] /=; t_xrbindP => // y xs ? ok_y ? rec ?? x; subst.
-      rewrite read_es_cons SvP.union_mem inE (ih _ rec) {ih rec}; congr (_ || _).
-      case: e ok_y => // - [] g [] // [<-{y}].
-      rewrite /read_e /= /read_gvar /= SvP.union_mem orbF eq_sym.
-      case: eqP; last exact: SvP.singleton_mem_2.
-      move => ->; exact: SvP.singleton_mem_1. }
 
 (*
   Let Pfun (m: mem) (fn: funname) (args: seq value) (m': mem) (res: seq value) : Prop :=
