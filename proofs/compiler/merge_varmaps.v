@@ -193,6 +193,8 @@ Section CHECK.
     let: (fn, fd) := ffd in
     let O := live_after_fd fd in
     Let I := add_finfo fn fn (check_cmd fd.(f_body) O) in
+    Let _ := assert (all (λ x : var_i, ~~ Sv.mem x magic_variables) fd.(f_params))
+                    (Ferr_fun fn (Cerr_one_varmap "the function has RSP or global-data as parameter")) in
     Let _ := assert (Sv.subset I (set_of_var_i_seq magic_variables fd.(f_params)))
                     (Ferr_fun fn (Cerr_one_varmap_free fn (Sv.elements I))) in
     Let _ := assert (var.disjoint (writefun_ra writefun fn) magic_variables)
