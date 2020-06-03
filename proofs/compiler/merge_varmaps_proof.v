@@ -164,9 +164,9 @@ Record merged_vmap_precondition (W: Sv.t) (vm: vmap) : Prop :=
 Instance merged_vmap_precondition_m : Proper (Sv.Equal ==> eq ==> iff) merged_vmap_precondition.
 Proof. by move => W W' hW vm _ <-; split => -[??]; split => //; rewrite ?hW // -hW. Qed.
 
-Lemma not_written_vgd W :
+Lemma not_written_magic W :
   disjoint W (magic_variables p) →
-  ¬ Sv.In vgd W.
+  ¬ Sv.In vgd W ∧ ¬ Sv.In vrsp W.
 Proof. rewrite /disjoint /magic_variables /is_true Sv.is_empty_spec; SvD.fsetdec. Qed.
 
 Section LEMMA.
@@ -309,7 +309,7 @@ Section LEMMA.
     - split.
       + move: (mvp_not_written ok_W); rewrite write_c_cons; apply: disjoint_w; SvD.fsetdec.
       rewrite -(mvp_global_data ok_W) preserved_i //.
-      exact: not_written_vgd (mvp_not_written ok_W1).
+      by have [] := not_written_magic (mvp_not_written ok_W1).
     case: (hc _ _ _ ok_c ok_W2 sim2) => t3 [] texec_c preserved_c sim3.
     exists t3; split => //; first by econstructor; eassumption.
     rewrite write_c_cons; transitivity (evm t2); apply: vmap_eq_exceptI; only 2, 4: eassumption.
@@ -343,7 +343,7 @@ Section LEMMA.
       split; first by apply: disjoint_w dis; SvD.fsetdec.
       rewrite -(mvp_global_data ok_W).
       apply: kill_extra_register_vmap_eq_except.
-      apply: not_written_vgd.
+      apply: (proj1 (not_written_magic _)).
       apply: disjoint_w dis.
       SvD.fsetdec.
     have := h ii I O t1' ok_i ok_W'.
@@ -547,9 +547,9 @@ Section LEMMA.
     - by case: sf_save_stack preserved_RSP => // r /assertP.
     have {checked_ra} checked_ra : if sf_return_address (f_extra fd) is RAreg ra then ~~ Sv.mem ra (wrf fn) && ~~ Sv.mem ra live' else True.
     - by case: sf_return_address checked_ra => // ra; t_xrbindP => _ /assertP -> /assertP.
-    have ra_neq_vgd : if sf_return_address (f_extra fd) is RAreg ra then ra != vgd else True.
-    - have := not_written_vgd preserved_magic; rewrite /writefun_ra ok_fd; clear.
-      case: sf_return_address => // ra ?; apply/eqP; SvD.fsetdec.
+    have ra_neq_magic : if sf_return_address (f_extra fd) is RAreg ra then (ra != vgd) && (ra != vrsp) else True.
+    - have := not_written_magic preserved_magic; rewrite /writefun_ra ok_fd; clear.
+      case: sf_return_address => // ra ?; apply/andP; split; apply/eqP; SvD.fsetdec.
     set t1' := with_vm s0 (set_RSP (emem s0) (if sf_return_address (f_extra fd) is RAreg ra then (evm t1).[ra <- undef_error] else evm t1)).
     have pre1 : merged_vmap_precondition (write_c (f_body fd)) (evm t1').
     - split.
@@ -557,7 +557,7 @@ Section LEMMA.
         etransitivity; first by rewrite -Sv.subset_spec; exact: ok_wrf.
         rewrite /writefun_ra ok_fd; SvD.fsetdec.
       subst t1'; rewrite /set_RSP /= Fv.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
-      case: sf_return_address ra_neq_vgd => [ _ | ra ok_ra | _ _ ].
+      case: sf_return_address ra_neq_magic => [ _ | ra /andP[] ok_ra _ | _ _ ].
       2: rewrite (Fv.setP_neq _ _ ok_ra).
       1-3: exact: mvp_global_data pre.
     have sim1 : match_estate live' s1 t1'.
@@ -571,12 +571,13 @@ Section LEMMA.
         1-2: rewrite -(write_vars_eq_except ok_s1); last by rewrite -Sv.mem_spec mem_set_of_var_i_seq.
         * (* vrip *)
           rewrite vgd_v Fv.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
-          case: sf_return_address ra_neq_vgd => [ _ | ra ok_ra | _ _ ].
+          case: sf_return_address ra_neq_magic => [ _ | ra /andP[] ok_ra _ | _ _ ].
           2: rewrite (Fv.setP_neq _ _ ok_ra).
           1-3: by rewrite (mvp_global_data pre).
         (* vrsp *)
         by rewrite vrsp_v Fv.setP_eq.
       move => x_param.
+      admit.
     have [ t2 [ texec preserved sim2 ] ] := ih _ _ t1' checked_body pre1 sim1.
     eexists _, _; split.
     - econstructor.
@@ -587,8 +588,16 @@ Section LEMMA.
       + exact: texec.
       + reflexivity.
       reflexivity.
-    - rewrite /= /set_RSP.
-      admit.
+    - rewrite /= /set_RSP => x.
+      case: (vrsp =P x).
+      + move => <-{x} vrsp_not_written; rewrite Fv.setP_eq.
+        admit. (* needs precondition on t1/vrsp *)
+      move => /eqP vrsp_neq_x x_not_written; rewrite Fv.setP_neq //.
+      rewrite -preserved; last first.
+      + move: x_not_written ok_wrf; rewrite /writefun_ra ok_fd /valid_writefun /write_fd /= /is_true Sv.subset_spec; clear; SvD.fsetdec.
+      rewrite /t1' evm_with_vm /set_RSP Fv.setP_neq //.
+      move: x_not_written; rewrite /writefun_ra ok_fd.
+      case: sf_return_address => // ra; clear => ?; rewrite Fv.setP_neq //; apply/eqP; SvD.fsetdec.
     - admit.
     admit.
   Admitted.
