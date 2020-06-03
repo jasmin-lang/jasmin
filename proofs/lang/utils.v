@@ -348,6 +348,10 @@ case.
 by move => h; case: (ih _ rec h) => x hx ok_y; eauto.
 Qed.
 
+Lemma mapM_map {aT bT cT eT} (f: aT → bT) (g: bT → result eT cT) (xs: seq aT) :
+  mapM g (map f xs) = mapM (g \o f) xs.
+Proof. by elim: xs => // x xs ih /=; case: (g (f x)) => // y /=; rewrite ih. Qed.
+
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
