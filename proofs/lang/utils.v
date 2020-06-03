@@ -476,6 +476,11 @@ Lemma List_Forall2_inv_r A B (R: A → B → Prop) m n :
   end.
 Proof. case; eauto. Qed.
 
+Lemma List_Forall2_inv A B (R: A → B → Prop) m n :
+  List.Forall2 R m n →
+  if m is a :: m' then if n is b :: n' then R a b ∧ List.Forall2 R m' n' else False else if n is [::] then True else False.
+Proof. case; auto. Qed.
+
 Section All2.
 
   Variable A B:Type.
