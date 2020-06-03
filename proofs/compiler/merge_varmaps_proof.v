@@ -39,13 +39,13 @@ Qed.
 Lemma init_stk_stateI fex pex gd s s' :
   pex.(sp_rip) != string_of_register RSP →
   init_stk_state fex pex gd s = ok s' →
-  (evm s').[vid pex.(sp_rip)] = ok (pword_of_word gd) ∧
-  exists2 m,
-    alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) = ok m &
-    (evm s').[vid (string_of_register RSP)] = ok (pword_of_word (top_stack m)).
+  [/\
+    (evm s').[vid pex.(sp_rip)] = ok (pword_of_word gd),
+    alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) = ok (emem s') &
+    (evm s').[vid (string_of_register RSP)] = ok (pword_of_word (top_stack (emem s'))) ].
 Proof.
   move => checked_sp_rip.
-  apply: rbindP => m ok_m [<-]; split; last exists m => //.
+  apply: rbindP => m ok_m [<-] /=; split => //.
   2: rewrite Fv.setP_neq //.
   1-2: rewrite Fv.setP_eq /pword_of_word; repeat f_equal; exact: (Eqdep_dec.UIP_dec Bool.bool_dec).
 Qed.
@@ -101,6 +101,16 @@ Proof.
   move => y xs ih acc; rewrite /= ih{ih} inE eq_sym; case: eqP.
   - by move => ->; rewrite SvP.add_mem_1 orbT.
   by move => ?; rewrite SvP.add_mem_2.
+Qed.
+
+(* TODO: move *)
+Lemma write_vars_emem xs vs a z :
+  write_vars xs vs a = ok z →
+  emem a = emem z.
+Proof.
+  elim: xs vs a => [ | x xs ih ] [] //.
+  - by move => a [<-].
+  by move => v vs a /=; t_xrbindP => b; rewrite /write_var; t_xrbindP => vm ok_vm <-{b} /ih; rewrite emem_with_vm.
 Qed.
 
 Section PROG.
@@ -528,7 +538,60 @@ Section LEMMA.
 
   Lemma Hproc: sem_Ind_proc p global_data Pc Pfun.
   Proof.
-  Abort.
+    move => m _ fn fd vargs vargs' s0 s1 s2 vres vres' ok_fd ok_vargs /init_stk_stateI - /(_ vgd_neq_vrsp) [vgd_v ok_m' vrsp_v] ok_s1 sexec ih ok_vres ok_vres' ->
+      ii dsts eargs fd' I O vm1 t1 ok_call pre ok_vargs'' sim.
+    move: (ccc_fundef ok_call); rewrite ok_fd => /Some_inj ?; subst fd'.
+    case: (checkP ok_p ok_fd) => ok_wrf.
+    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
+    have {preserved_RSP} preserved_RSP : if sf_save_stack (f_extra fd) is SavedStackReg r then ~~ Sv.mem r (wrf fn) else True.
+    - by case: sf_save_stack preserved_RSP => // r /assertP.
+    have {checked_ra} checked_ra : if sf_return_address (f_extra fd) is RAreg ra then ~~ Sv.mem ra (wrf fn) && ~~ Sv.mem ra live' else True.
+    - by case: sf_return_address checked_ra => // ra; t_xrbindP => _ /assertP -> /assertP.
+    have ra_neq_vgd : if sf_return_address (f_extra fd) is RAreg ra then ra != vgd else True.
+    - have := not_written_vgd preserved_magic; rewrite /writefun_ra ok_fd; clear.
+      case: sf_return_address => // ra ?; apply/eqP; SvD.fsetdec.
+    set t1' := with_vm s0 (set_RSP (emem s0) (if sf_return_address (f_extra fd) is RAreg ra then (evm t1).[ra <- undef_error] else evm t1)).
+    have pre1 : merged_vmap_precondition (write_c (f_body fd)) (evm t1').
+    - split.
+      + apply: disjoint_w; last exact: preserved_magic.
+        etransitivity; first by rewrite -Sv.subset_spec; exact: ok_wrf.
+        rewrite /writefun_ra ok_fd; SvD.fsetdec.
+      subst t1'; rewrite /set_RSP /= Fv.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
+      case: sf_return_address ra_neq_vgd => [ _ | ra ok_ra | _ _ ].
+      2: rewrite (Fv.setP_neq _ _ ok_ra).
+      1-3: exact: mvp_global_data pre.
+    have sim1 : match_estate live' s1 t1'.
+    - subst t1'; split.
+      + by rewrite emem_with_vm (write_vars_emem ok_s1).
+      rewrite evm_with_vm /set_RSP.
+      apply: vmap_uincl_onI; first exact: small_live'.
+      move => x; rewrite -Sv.mem_spec mem_set_of_var_i_seq orbX => /orP[].
+      + case/andP. rewrite {1}/is_true Sv.mem_spec !Sv.add_spec SvD.F.empty_iff.
+        case => [ -> | [ -> | [] ] ] {x} /negP not_param /=.
+        1-2: rewrite -(write_vars_eq_except ok_s1); last by rewrite -Sv.mem_spec mem_set_of_var_i_seq.
+        * (* vrip *)
+          rewrite vgd_v Fv.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
+          case: sf_return_address ra_neq_vgd => [ _ | ra ok_ra | _ _ ].
+          2: rewrite (Fv.setP_neq _ _ ok_ra).
+          1-3: by rewrite (mvp_global_data pre).
+        (* vrsp *)
+        by rewrite vrsp_v Fv.setP_eq.
+      move => x_param.
+    have [ t2 [ texec preserved sim2 ] ] := ih _ _ t1' checked_body pre1 sim1.
+    eexists _, _; split.
+    - econstructor.
+      + exact: ccc_fundef ok_call.
+      + reflexivity.
+      + exact: ccc_rastack ok_call.
+      + rewrite -(mvm_mem sim); exact: ok_m'.
+      + exact: texec.
+      + reflexivity.
+      reflexivity.
+    - rewrite /= /set_RSP.
+      admit.
+    - admit.
+    admit.
+  Admitted.
 
     have read_args : ∀ x, Sv.mem x (read_es args) = (x \in map v_var (f_params fd)).
     { move: (f_params fd) (ccc_eargs ok_call); clear; elim: args; first by case.
