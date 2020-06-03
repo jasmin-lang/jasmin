@@ -462,10 +462,7 @@ Section Section.
   Lemma size_mapM2 v1 v2 v3 :
     mapM2 ErrType truncate_val v1 v2 = ok v3 ->
     size v1 = size v2.
-  Proof.
-    move : v1 v2.
-    apply : diagonal_induction => [[]|[]|hf_tyfnd hvargs tf_tyfnd tvargs] //=.
-  Abort.
+  Proof. by elim: v1 v2 v3 => [ | x xs ih ] [] // y ys /=; t_xrbindP => zs ? _ ? /ih ->. Qed.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
