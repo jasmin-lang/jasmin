@@ -136,5 +136,12 @@ Proof.
               Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
 Qed.
 
+Lemma sem_I_stack_stable s1 i s2 :
+  sem_I p gd s1 i s2 → stack_stable (emem s1) (emem s2).
+Proof.
+  exact:
+    (@sem_I_Ind _ _ _ p gd Pc Pi_r Pi Pfor Pfun
+              Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
+Qed.
 
 End STACK_STABLE.
