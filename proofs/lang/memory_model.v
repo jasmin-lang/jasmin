@@ -379,6 +379,7 @@ Section SPEC.
     ass_fresh    : forall p s, valid_pointer m p s ->
       (wunsigned p + wsize_size s <= wunsigned pstk \/
        wunsigned pstk + sz <= wunsigned p)%Z;
+    ass_root : stack_root m' = stack_root m;
     ass_frames : frames m' = (pstk, sz) :: frames m;
   }.
 
@@ -392,6 +393,7 @@ Section SPEC.
     fss_valid    : forall p s,
       valid_pointer m' p s <->
       (valid_pointer m p s /\ (disjoint_zrange (top_stack m) sz p (wsize_size s)));
+    fss_root : stack_root m' = stack_root m;
     fss_frames : frames m' = behead (frames m);
    }.
 

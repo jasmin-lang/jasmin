@@ -764,6 +764,11 @@ Module MemoryI : MemoryT.
     Psatz.lia.
   Qed.
 
+  Lemma ass_root m ws_stk sz m' :
+    alloc_stack m ws_stk sz = ok m' →
+    stack_root m' = stack_root m.
+  Proof. by rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-]. Qed.
+
   Lemma ass_frames m ws_stk sz m' :
     alloc_stack m ws_stk sz = ok m' →
     stack_frames m' = (top_stack m', sz) :: stack_frames m.
@@ -789,6 +794,7 @@ Module MemoryI : MemoryT.
     - exact: ass_valid o.
     - exact: ass_align o.
     - exact: ass_fresh o.
+    - exact: ass_root o.
     exact: ass_frames o.
   Qed.
 
@@ -883,6 +889,7 @@ Module MemoryI : MemoryT.
     move => o; split => *.
     - exact: fss_read_old.
     - rewrite top_stackE; exact: fss_valid.
+    - by [].
     rewrite /memory_model.frames /= /stack_frames /= /stack_blocks.
     case: (frames m) => //= f fr.
     by case: (stack_blocks_rec _ _).
