@@ -477,7 +477,7 @@ Section LEMMA.
   Proof.
     move => s1 m2 s2 jj xs fn args vargs vs ok_vargs sexec ih ok_s2 ii I O t1 /check_CcallP[] fd ok_call pre sim.
     case: (checkP ok_p (ccc_fundef ok_call)) => ok_wrf.
-    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP checked_params _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
+    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP checked_params _ /assertP RSP_not_result _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
     have := ccc_I ok_call; rewrite /ccc_D => ?; subst I.
     have pre1 : merged_vmap_precondition (writefun_ra p wrf fn) (evm t1).
     { split; first exact: preserved_magic.
@@ -513,7 +513,7 @@ Section LEMMA.
       ii dsts eargs fd' I O vm1 t1 vm2 ok_call pre ok_vargs'' sim ok_vm2.
     move: (ccc_fundef ok_call); rewrite ok_fd => /Some_inj ?; subst fd'.
     case: (checkP ok_p ok_fd) => ok_wrf.
-    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP /allP checked_params _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
+    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP /allP checked_params _ /assertP RSP_not_result _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
     have {preserved_RSP} preserved_RSP : if sf_save_stack (f_extra fd) is SavedStackReg r then ~~ Sv.mem r (wrf fn) else True.
     - by case: sf_save_stack preserved_RSP => // r /assertP.
     have {checked_ra} checked_ra : if sf_return_address (f_extra fd) is RAreg ra then ~~ Sv.mem ra (wrf fn) && ~~ Sv.mem ra (magic_variables p) && (ra \notin (map v_var fd.(f_params))) else True.
@@ -616,7 +616,8 @@ Section LEMMA.
     case: (vrsp =P x).
     - move => ?; subst x; rewrite Fv.setP_eq.
       have vrsp_not_return : ¬ Sv.In vrsp (vrvs dsts).
-      + admit. (* missing check *)
+      + rewrite (vrvs_vars (ccc_dsts ok_call)) -Sv.mem_spec mem_set_of_var_i_seq => /mapP [] y hy y_vrsp.
+        move/allP: RSP_not_result; rewrite -/vrsp => /(_ _ hy) /eqP; exact.
       rewrite -(mvm_mem sim2) top_stack2.
       have /= <- // := vrvsP ok_vm2.
       rewrite -t1_vrsp.
