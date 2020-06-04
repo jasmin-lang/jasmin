@@ -1,6 +1,6 @@
 (*
 *)
-Require Import sem_one_varmap merge_varmaps.
+Require Import sem_one_varmap merge_varmaps psem_facts.
 Import Utf8.
 Import all_ssreflect all_algebra.
 Import psem x86_variables.
@@ -22,6 +22,12 @@ Proof. rewrite /disjoint /is_true Sv.is_empty_spec; SvD.fsetdec. Qed.
 Lemma vrvs_rec_set_of_var_i_seq acc xs :
   vrvs_rec acc [seq Lvar x | x <- xs] = set_of_var_i_seq acc xs.
 Proof. by elim: xs acc => // x xs ih acc; rewrite /= ih. Qed.
+
+(* TODO: move *)
+Lemma stable_top_stack a b :
+  stack_stable a b →
+  top_stack a = top_stack b.
+Proof. by rewrite /top_stack => - [-> ->]. Qed.
 
 (* TODO: move *)
 Lemma write_var_get_var x v s s' :
@@ -101,16 +107,6 @@ Proof.
   move => y xs ih acc; rewrite /= ih{ih} inE eq_sym; case: eqP.
   - by move => ->; rewrite SvP.add_mem_1 orbT.
   by move => ?; rewrite SvP.add_mem_2.
-Qed.
-
-(* TODO: move *)
-Lemma write_vars_emem xs vs a z :
-  write_vars xs vs a = ok z →
-  emem a = emem z.
-Proof.
-  elim: xs vs a => [ | x xs ih ] [] //.
-  - by move => a [<-].
-  by move => v vs a /=; t_xrbindP => b; rewrite /write_var; t_xrbindP => vm ok_vm <-{b} /ih; rewrite emem_with_vm.
 Qed.
 
 Section PROG.
@@ -585,6 +581,15 @@ Section LEMMA.
       rewrite (write_var_get_var ok_s2).
       move: ok_w'; apply: on_vuP => // z -> ?; subst v'.
       exact: pof_truncate_to_val ok_w.
+    have top_stack2 : top_stack (free_stack (emem s2) (sf_stk_sz (f_extra fd))) = top_stack m.
+    - have frames2 : frames (emem s2) = (top_stack (emem s0), sf_stk_sz (f_extra fd)) :: frames m.
+      + by rewrite -(sem_stack_stable sexec).(ss_frames) -(write_vars_emem ok_s1) (Memory.alloc_stackP ok_m').(ass_frames).
+      have := @Memory.free_stackP (emem s2) (sf_stk_sz (f_extra fd)).
+      rewrite frames2 => /(_ erefl) ok_free.
+      rewrite {1}/top_stack (fss_frames ok_free) frames2 /=.
+      by rewrite (fss_root ok_free) -(sem_stack_stable sexec).(ss_root) -(write_vars_emem ok_s1) (Memory.alloc_stackP ok_m').(ass_root).
+    have t1_vrsp : (evm t1).[vrsp] = ok (pword_of_word (top_stack m)).
+    + admit. (* needs precondition on t1/vrsp *)
     have [ t2 [ texec preserved sim2 ] ] := ih _ _ t1' checked_body pre1 sim1.
     eexists _; split.
     - econstructor.
@@ -598,7 +603,8 @@ Section LEMMA.
     - rewrite /= /set_RSP => x.
       case: (vrsp =P x).
       + move => <-{x} vrsp_not_written; rewrite Fv.setP_eq.
-        admit. (* needs precondition on t1/vrsp *)
+        rewrite -(mvm_mem sim2) top_stack2.
+        exact: t1_vrsp.
       move => /eqP vrsp_neq_x x_not_written; rewrite Fv.setP_neq //.
       rewrite -preserved; last first.
       + move: x_not_written ok_wrf; rewrite /writefun_ra ok_fd /valid_writefun /write_fd /= /is_true Sv.subset_spec; clear; SvD.fsetdec.
@@ -609,7 +615,14 @@ Section LEMMA.
     rewrite /= /set_RSP => x hx.
     case: (vrsp =P x).
     - move => ?; subst x; rewrite Fv.setP_eq.
-      admit. (* vrsp ; check return values ≠ rsp *)
+      have vrsp_not_return : ¬ Sv.In vrsp (vrvs dsts).
+      + admit. (* missing check *)
+      rewrite -(mvm_mem sim2) top_stack2.
+      have /= <- // := vrvsP ok_vm2.
+      rewrite -t1_vrsp.
+      apply: (mvm_vmap sim).
+      rewrite (ccc_I ok_call) /ccc_D read_esE.
+      clear -hx vrsp_not_return; SvD.fsetdec.
     move => vrsp_neq_x; rewrite Fv.setP_neq; last by apply/eqP.
     move: (ccc_preserved ok_call); rewrite /ccc_D => O_spec.
     case: (Sv_memP x (vrvs dsts)).
