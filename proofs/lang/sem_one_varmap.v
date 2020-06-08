@@ -100,19 +100,17 @@ with sem_i : instr_info → estate → instr_r → estate → Prop :=
 | Ecall ii s1 s2 ini res f args xargs xres :
     mapM get_pvar args = ok xargs →
     mapM get_lvar res = ok xres →
-    sem_call ii s1 f xargs s2 xres →
+    sem_call ii s1 f s2 →
     sem_i ii s1 (Ccall ini res f args) s2
 
-with sem_call : instr_info → estate → funname → seq var → estate → seq var → Prop :=
-| EcallRun ii s1 s2 fn f xargs xres m1 s2' :
+with sem_call : instr_info → estate → funname → estate → Prop :=
+| EcallRun ii s1 s2 fn f m1 s2' :
     get_fundef (p_funcs p) fn = Some f →
-    map v_var f.(f_params) = xargs →
     (if f.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) →
     alloc_stack s1.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) = ok m1 →
     sem {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} f.(f_body) s2' →
     let m2 := free_stack s2'.(emem) f.(f_extra).(sf_stk_sz) in
     s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
-    map v_var f.(f_res) = xres →
-    sem_call ii s1 fn xargs s2 xres.
+    sem_call ii s1 fn s2.
 
 End SEM.

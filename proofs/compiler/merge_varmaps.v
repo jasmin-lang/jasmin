@@ -180,9 +180,6 @@ Section CHECK.
 
   Notation check_cmd := (check_c check_i).
 
-  Definition set_of_var_i_seq : Sv.t → seq var_i → Sv.t :=
-    foldl (λ acc x, Sv.add (v_var x) acc).
-
   Definition live_after_fd (fd: sfundef) : Sv.t :=
     set_of_var_i_seq Sv.empty fd.(f_res).
 

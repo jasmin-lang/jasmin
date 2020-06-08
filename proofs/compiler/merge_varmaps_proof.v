@@ -12,6 +12,29 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope vmap_scope.
 
+(* TODO: move *)
+Lemma pto_pof_uincl ty v ty' (v': psem_t ty') :
+  value_uincl v (pto_val v') →
+  match pof_val ty v with
+  | ok _ _ => True
+  | Error ErrAddrUndef => ty = sbool
+  | _ => False
+  end →
+  eval_uincl (pof_val ty' v) (ok v').
+Proof.
+  case: ty' v' => [ b' | z' | n' t' | sz' w' ]; case: v => //.
+  1-2, 6: by case.
+  2: by case => //; case: ty.
+  - move => n t [n_le_n' t_t'] _.
+    apply: (conj (Z.le_refl _)) => i b range.
+    rewrite WArray.zget_inject //; case: Z.ltb_spec => // i_lt_n.
+    apply: t_t'; Lia.lia.
+  move => sz w /value_uinclE [sz1] [w1] [].
+  case: w' => sz'' w'' sz''_le_sz /Vword_inj[??]; subst => /andP[sz_le_sz''] /eqP ?; subst w.
+  rewrite /= (sumbool_of_boolET (cmp_le_trans sz_le_sz'' sz''_le_sz)) => _.
+  exact: word_uincl_zero_ext.
+Qed.
+
 Lemma in_disjoint_diff x a b c :
   Sv.In x a →
   Sv.In x b →
@@ -32,7 +55,12 @@ Proof. by rewrite /top_stack => - [-> ->]. Qed.
 (* TODO: move *)
 Lemma write_var_get_var x v s s' :
   write_var x v s = ok s' →
-  (evm s').[x] = pof_val (vtype x) v.
+  (evm s').[x] = pof_val (vtype x) v ∧
+  match pof_val (vtype x) v with
+  | Ok _ => True
+  | Error ErrAddrUndef  => vtype x = sbool
+  | _ => False
+  end.
 Proof.
   apply: rbindP => vm; apply: on_vuP.
   - move => t -> <- [<-].
@@ -78,36 +106,6 @@ Qed.
 Lemma orbX (P Q: bool):
   P || Q = (P && ~~ Q) || Q.
 Proof. by case: Q; rewrite !(orbT, orbF, andbT). Qed.
-
-(* TODO: move *)
-Lemma pof_truncate_to_val ty' ty (z: psem_t ty) v :
-  truncate_val ty' (pto_val z) = ok v →
-  eval_uincl (pof_val ty v) (ok z).
-Proof.
-  apply: rbindP => z' h [<-{v}]; move: h.
-  case: ty' z' => /= [ b /to_boolI | i /to_intI | n t /to_arrI | sz w /to_wordI ].
-  1-2: by move => <-; rewrite pof_val_pto_val.
-  * case => n' [t'] [h n_le_n' ->] /=.
-    case: ty z h => // n'' t'' /Varr_inj[??]; subst => /=.
-    rewrite /pval_uincl /=.
-    apply: (conj (Z.le_refl _)).
-    move => i b range /=.
-    by rewrite WArray.zget_inject //; case: ifP.
-  case => sz' [w'] [sz_le_sz' h ->].
-  case: ty z h => // sz'' w'' /Vword_inj[??]; subst.
-  rewrite /= (sumbool_of_boolET (cmp_le_trans sz_le_sz' (pw_proof w''))).
-  exact: word_uincl_zero_ext.
-Qed.
-
-Lemma mem_set_of_var_i_seq x acc xs :
-  Sv.mem x (set_of_var_i_seq acc xs) = Sv.mem x acc || (x \in map v_var xs).
-Proof.
-  elim: xs acc.
-  - by move => acc; rewrite orbF.
-  move => y xs ih acc; rewrite /= ih{ih} inE eq_sym; case: eqP.
-  - by move => ->; rewrite SvP.add_mem_1 orbT.
-  by move => ?; rewrite SvP.add_mem_2.
-Qed.
 
 Section PROG.
 
@@ -176,6 +174,10 @@ Section LEMMA.
             !merge_varmaps.write_c_recE.
     SvD.fsetdec.
   Qed.
+
+  Lemma write_i_while aa c1 e c2 :
+    Sv.Equal (write_i (Cwhile aa c1 e c2)) (Sv.union (write_c c1) (write_c c2)).
+  Proof. etransitivity; last exact: (write_i_if e c1 c2). reflexivity. Qed.
 
   Notation check_instr := (check_i p extra_free_registers wrf).
   Notation check_instr_r := (check_ir p extra_free_registers wrf).
@@ -461,16 +463,18 @@ Section LEMMA.
   Proof. by []. Qed.
 
   Let Pfun (m: mem) (fn: funname) (args: seq value) (m': mem) (res: seq value) : Prop :=
-    ∀ ii dsts eargs fd I O vm1 t1 vm2,
-      checked_ccall ii dsts fn eargs fd O I →
-      merged_vmap_precondition (writefun_ra p wrf fn) m (evm t1) →
-      mapM (get_var vm1) (map v_var fd.(f_params)) = ok args →
-      match_estate I {| emem := m ; evm := vm1 |} t1 →
-      write_lvals (p_globs p) {| emem := m' ; evm := vm1 |} dsts res = ok {| emem := m' ; evm := vm2 |} →
-      ∃ (t2: estate),
-        [/\ sem_call ii t1 fn (map v_var fd.(f_params)) t2 (map v_var fd.(f_res)),
-         evm t1 = evm t2 [\writefun_ra p wrf fn] &
-         match_estate O {| emem := m' ; evm := vm2 |} t2
+    ∀ ii fd tvm1 args',
+      get_fundef (p_funcs p) fn = Some fd →
+      (if fd.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) →
+      tvm1.[vrsp] = ok (pword_of_word (top_stack m)) →
+      tvm1.[ vgd ] = ok (pword_of_word global_data) →
+      mapM (λ x : var_i, get_var tvm1 x) fd.(f_params) = ok args' →
+      List.Forall2 value_uincl args args' →
+      ∃ (tvm2: vmap) (res': seq value),
+        [/\ sem_call ii {| emem := m ; evm := tvm1 |} fn {| emem := m' ; evm := tvm2 |},
+         tvm1 = tvm2 [\writefun_ra p wrf fn],
+         mapM (λ x : var_i, get_var tvm2 x) fd.(f_res) = ok res' &
+         List.Forall2 value_uincl res res'
         ].
 
   Lemma Hcall: sem_Ind_call p global_data Pi_r Pfun.
@@ -479,40 +483,64 @@ Section LEMMA.
     case: (checkP ok_p (ccc_fundef ok_call)) => ok_wrf.
     rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP checked_params _ /assertP RSP_not_result _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
     have := ccc_I ok_call; rewrite /ccc_D => ?; subst I.
-    have pre1 : merged_vmap_precondition (writefun_ra p wrf fn) (emem s1) (evm t1).
-    { split; first exact: preserved_magic.
-      + exact: mvp_top_stack pre.
-      exact: mvp_global_data pre. }
-    have get_args : mapM (get_var (evm s1)) (map v_var fd.(f_params)) = ok vargs.
-    { elim: {ok_call pre sim} args vargs {sexec ih} (map v_var fd.(f_params)) ok_vargs (ccc_eargs ok_call); clear.
-      - by move => _ _ [<-] [<-].
-      move => e eargs ih vargs params /=; t_xrbindP => v ok_v vs ok_vs <-{vargs} x ok_x xs ok_xs <-{params} /=.
+    have get_args : mapM (λ x : var_i, get_var (evm s1) x) fd.(f_params) = ok vargs.
+    { elim: {ok_call pre sim} args vargs {sexec ih} fd.(f_params) ok_vargs (ccc_eargs ok_call); clear.
+      - by move => ? [].
+      move => e eargs ih vargs params /=; t_xrbindP => v ok_v vs ok_vs <-{vargs} x' ok_x xs' ok_xs.
+      case: params => // x xs [??]; subst x' xs' => /=.
       case: e ok_v ok_x => // - [] gv [] // ok_v [<-{x}].
       move: ok_v; rewrite /= /get_gvar /= => -> /=.
       by rewrite (ih _ _ ok_vs ok_xs). }
-    have ok_vm2 : write_lvals (p_globs p) {| emem := m2; evm := evm s1 |} xs vs = ok {| emem := m2; evm := evm s2 |}.
-    - have /= ? := write_lvars_emem (ccc_dsts ok_call) ok_s2; subst m2.
-      by case: (s2) ok_s2.
-    have := ih ii xs args fd _ O (evm s1) t1 (evm s2) ok_call pre1 get_args _ ok_vm2.
-    case; first by case: (s1) sim.
-    move => t2 [texec preserved sim2].
-    exists t2; split.
+    have read_args : ∀ x, Sv.mem x (read_es args) = (x \in map v_var (f_params fd)).
+    { move: (f_params fd) (ccc_eargs ok_call); clear; elim: args; first by case.
+      move => e es ih [] /=; t_xrbindP => // y xs ? ok_y ? rec ?? x; subst.
+      rewrite read_es_cons SvP.union_mem inE (ih _ rec) {ih rec}; congr (_ || _).
+      case: e ok_y => // - [] g [] // [<-{y}].
+      rewrite /read_e /= /read_gvar /= SvP.union_mem orbF eq_sym.
+      case: eqP; last exact: SvP.singleton_mem_2.
+      move => ->; exact: SvP.singleton_mem_1. }
+    have [ | vargs' get_args' args_uincl ] := get_vars_uincl_on (mvm_vmap sim) _ get_args.
+    - by move => /= x hx; rewrite read_esE SvP.union_mem read_args (map_f _ hx).
+    have [ tvm2 [res'] [texec preserved get_res res_uincl] ] :=
+      ih ii fd (evm t1) vargs' (ccc_fundef ok_call) (ccc_rastack ok_call) (mvp_top_stack pre) (mvp_global_data pre) get_args' args_uincl.
+    exists {| emem := m2 ; evm := tvm2 |}; split.
     { econstructor.
       - exact: ccc_eargs ok_call.
       - exact: ccc_dsts ok_call.
-      exact: texec. }
+      by move: texec; rewrite (mvm_mem sim); case: (t1). }
     - apply: vmap_eq_exceptI; last exact: preserved.
       rewrite /write_i /merge_varmaps.write_i_rec /writefun_ra (ccc_fundef ok_call); SvD.fsetdec.
     split.
-    - by rewrite -(mvm_mem sim2) /= (write_lvars_emem (ccc_dsts ok_call) ok_s2).
-    exact: mvm_vmap sim2.
+    - by rewrite /= (write_lvars_emem (ccc_dsts ok_call) ok_s2).
+    move: (ccc_preserved ok_call); rewrite /ccc_D (vrvs_vars (ccc_dsts ok_call)) /= => O_spec x x_in_O.
+    case: (Sv_memP x (set_of_var_i_seq Sv.empty (f_res fd))); last first.
+    -move => hx; rewrite -(vrvsP ok_s2); last by rewrite (vrvs_vars (ccc_dsts ok_call)).
+      rewrite /= -preserved; last by move => /in_disjoint_diff /(_ x_in_O O_spec); exact: hx.
+      apply: (mvm_vmap sim).
+      rewrite read_esE (vrvs_vars (ccc_dsts ok_call)); SvD.fsetdec.
+    rewrite -Sv.mem_spec mem_set_of_var_i_seq => /= x_result.
+    move: res_uincl (f_res fd) x_result get_res (ccc_dsts ok_call) (with_mem s1 m2) ok_s2; clear.
+    elim: xs vs res' => [ | d ds ih ] [] //.
+    + by move => _ /List_Forall2_inv_l -> [] // d ds _ /=; t_xrbindP.
+    move => v vs _ /List_Forall2_inv_l [v'] [vs'] [->] [vv' vs_vs'] [] // q qs hx /=; t_xrbindP => w ok_w ws ok_ws ??; subst w ws.
+    move => ? getl ? getls ?? s3 s4 w ws; subst.
+    move: hx; rewrite /= inE orbX; case/orP; last first.
+    + move => hx; exact: ih _ _ vs_vs' _ hx ok_ws getls _ ws.
+    case/andP => /eqP ? /negbTE x_not_in_ys; subst x.
+    have <- := vrvsP ws; last by rewrite (vrvs_vars getls) -Sv.mem_spec mem_set_of_var_i_seq /= x_not_in_ys.
+    clear vs_vs' ok_ws getls ws ih x_not_in_ys.
+    case: d getl w => // d [hd] w.
+    move: ok_w; apply: on_vuP => // z ok_z ?; subst.
+    rewrite ok_z.
+    move: w => /write_var_get_var[]; rewrite hd => ->.
+    exact: pto_pof_uincl vv'.
   Qed.
 
   Lemma Hproc: sem_Ind_proc p global_data Pc Pfun.
   Proof.
     move => m _ fn fd vargs vargs' s0 s1 s2 vres vres' ok_fd ok_vargs /init_stk_stateI - /(_ vgd_neq_vrsp) [vgd_v ok_m' vrsp_v] ok_s1 sexec ih ok_vres ok_vres' ->
-      ii dsts eargs fd' I O vm1 t1 vm2 ok_call pre ok_vargs'' sim ok_vm2.
-    move: (ccc_fundef ok_call); rewrite ok_fd => /Some_inj ?; subst fd'.
+      ii fd' tvm1 args' ok_fd' ok_rastack vrsp_tv vgd_tv ok_args' ok_args''.
+    move: ok_fd'; rewrite ok_fd => /Some_inj ?; subst fd'.
     case: (checkP ok_p ok_fd) => ok_wrf.
     rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP /allP checked_params _ /assertP RSP_not_result _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
     have {preserved_RSP} preserved_RSP : if sf_save_stack (f_extra fd) is SavedStackReg r then ~~ Sv.mem r (wrf fn) else True.
@@ -523,15 +551,7 @@ Section LEMMA.
     have ra_neq_magic : if sf_return_address (f_extra fd) is RAreg ra then (ra != vgd) && (ra != vrsp) else True.
     - case: sf_return_address checked_ra => // ra /andP[] /andP[] _ /negP; clear.
       rewrite /magic_variables /is_true Sv.mem_spec => ? _; apply/andP; split; apply/eqP; SvD.fsetdec.
-    have read_args : ∀ x, Sv.mem x (read_es eargs) = (x \in map v_var (f_params fd)).
-    { move: (f_params fd) (ccc_eargs ok_call); clear; elim: eargs; first by case.
-      move => e es ih [] /=; t_xrbindP => // y xs ? ok_y ? rec ?? x; subst.
-      rewrite read_es_cons SvP.union_mem inE (ih _ rec) {ih rec}; congr (_ || _).
-      case: e ok_y => // - [] g [] // [<-{y}].
-      rewrite /read_e /= /read_gvar /= SvP.union_mem orbF eq_sym.
-      case: eqP; last exact: SvP.singleton_mem_2.
-      move => ->; exact: SvP.singleton_mem_1. }
-    set t1' := with_vm s0 (set_RSP (emem s0) (if sf_return_address (f_extra fd) is RAreg ra then (evm t1).[ra <- undef_error] else evm t1)).
+    set t1' := with_vm s0 (set_RSP (emem s0) (if sf_return_address (f_extra fd) is RAreg ra then tvm1.[ra <- undef_error] else tvm1)).
     have pre1 : merged_vmap_precondition (write_c (f_body fd)) (emem s1) (evm t1').
     - split.
       + apply: disjoint_w; last exact: preserved_magic.
@@ -541,7 +561,7 @@ Section LEMMA.
       subst t1'; rewrite /set_RSP /= Fv.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
       case: sf_return_address ra_neq_magic => [ _ | ra /andP[] ok_ra _ | _ _ ].
       2: rewrite (Fv.setP_neq _ _ ok_ra).
-      1-3: exact: mvp_global_data pre.
+      1-3: exact: vgd_tv.
     have sim1 : match_estate live' s1 t1'.
     - subst t1'; split.
       + by rewrite emem_with_vm (write_vars_emem ok_s1).
@@ -558,31 +578,29 @@ Section LEMMA.
           rewrite vgd_v Fv.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
           case: sf_return_address ra_neq_magic => [ _ | ra /andP[] ok_ra _ | _ _ ].
           2: rewrite (Fv.setP_neq _ _ ok_ra).
-          1-3: by rewrite (mvp_global_data pre).
+          1-3: by rewrite vgd_tv.
         (* vrsp *)
         by rewrite vrsp_v Fv.setP_eq.
       have /= [y y_param ?] := mapP hx; subst x.
       have /negP y_not_magic := checked_params _ y_param.
       rewrite Fv.setP_neq; last first.
       + apply/eqP; move: y_not_magic; rewrite /magic_variables /is_true Sv.mem_spec /=; clear; SvD.fsetdec.
-      suff: eval_uincl (evm s1).[y] (evm t1).[y].
+      suff: eval_uincl (evm s1).[y] tvm1.[y].
       + case: sf_return_address checked_ra => // ra /andP[] _ /mapP ra_not_param.
         by rewrite Fv.setP_neq //; apply/eqP => ?; subst; apply: ra_not_param; exists y.
-      apply: (@eval_uincl_trans _ _ _ vm1.[y]); last first.
-      + apply: (mvm_vmap sim).
-        move: (ccc_I ok_call); rewrite /ccc_D => ?; subst I.
-        by rewrite -Sv.mem_spec read_esE SvP.union_mem read_args hx.
       case: y hx {y_param} y_not_magic => /= y _ y_param y_not_magic.
-      move: (f_params fd) y_param ok_s1 (f_tyin fd) ok_vargs ok_vargs''; clear.
+      move: (f_params fd) y_param ok_s1 (f_tyin fd) ok_vargs args' ok_args' ok_args''; clear.
       elim: vargs vargs' s0 => [ | v vs ih ] vs' s3 [] // x xs hy /=; t_xrbindP => s2 ok_s2 ok_s1 [ | ty tys ]; case: vs' => // v' vs' /=.
-      t_xrbindP => w ok_w ws ok_ws ?? w' ok_w' ws' ok_ws' [??]; subst.
-      have {ih} := ih _ _ _ _ ok_s1 _ ok_ws ok_ws'.
+      t_xrbindP => w ok_w ws ok_ws ?? _ w' ok_w' ws' ok_ws' <- /List_Forall2_inv[v'_w' vs'_ws']; subst.
+      have {ih} := ih _ _ _ _ ok_s1 _ ok_ws _ ok_ws' vs'_ws'.
       move: hy; rewrite /= inE orbX => /orP[]; last by move => ->; apply.
       case/andP => /eqP ? /negP hx _; subst y.
       rewrite -(write_vars_eq_except ok_s1); last by rewrite -Sv.mem_spec mem_set_of_var_i_seq => k; apply: hx.
-      rewrite (write_var_get_var ok_s2).
-      move: ok_w'; apply: on_vuP => // z -> ?; subst v'.
-      exact: pof_truncate_to_val ok_w.
+      clear ok_s1 ok_ws ok_ws' vs'_ws'.
+      move: ok_w'; apply: on_vuP => // z -> ?; subst w'.
+      have {ok_w} vv' := value_uincl_truncate_val ok_w.
+      have [->] := write_var_get_var ok_s2.
+      exact: pto_pof_uincl (value_uincl_trans vv' v'_w').
     have top_stack2 : top_stack (free_stack (emem s2) (sf_stk_sz (f_extra fd))) = top_stack m.
     - have frames2 : frames (emem s2) = (top_stack (emem s0), sf_stk_sz (f_extra fd)) :: frames m.
       + by rewrite -(sem_stack_stable sexec).(ss_frames) -(write_vars_emem ok_s1) (Memory.alloc_stackP ok_m').(ass_frames).
@@ -591,75 +609,44 @@ Section LEMMA.
       rewrite {1}/top_stack (fss_frames ok_free) frames2 /=.
       by rewrite (fss_root ok_free) -(sem_stack_stable sexec).(ss_root) -(write_vars_emem ok_s1) (Memory.alloc_stackP ok_m').(ass_root).
     have [ t2 [ texec preserved sim2 ] ] := ih _ _ t1' checked_body pre1 sim1.
-    eexists _; split.
+   have [ tres ok_tres res_uincl ] : exists2 tres,
+     mapM (λ x : var_i, get_var (set_RSP (free_stack (emem t2) (sf_stk_sz (f_extra fd))) (evm t2)) x) (f_res fd) = ok tres
+     & List.Forall2 value_uincl vres' tres.
+   - move: ok_vres RSP_not_result (f_tyout fd) vres' ok_vres'.
+     move: (mvm_vmap sim2); rewrite /live_after_fd; clear.
+     move: (evm s2) (evm t2) (free_stack _ _) => vm vm' m {s2 t2}.
+     elim: vres (f_res fd) Sv.empty => [ | v vres ih ] [] //=; t_xrbindP => //.
+     + by move => _ _ _ _ [] // _ [<-]; exists [::].
+     move => x xs dom hvm y ok_y vs ok_vs ??; subst => /andP[] hx hxs [] // ty tys /=; t_xrbindP => _ w ok_w vres' ok_vres' <-.
+     have {ih} [ tres -> /= res_uincl ] := ih _ _ hvm ok_vs hxs _ _ ok_vres'.
+     have ex : eval_uincl vm.[x] (set_RSP m vm').[x].
+     + rewrite /set_RSP Fv.setP_neq; last by rewrite eq_sym.
+       apply: hvm.
+       by rewrite -Sv.mem_spec mem_set_of_var_i_seq SvP.add_mem_1.
+     have [ tv -> /= v_uincl ] := get_var_uincl_at ex ok_y.
+     exists (tv :: tres); first reflexivity.
+     constructor; last exact: res_uincl.
+     exact: (value_uincl_trans (value_uincl_truncate_val ok_w) v_uincl).
+     exists (set_RSP (free_stack (emem t2) (sf_stk_sz (f_extra fd))) (evm t2)), tres; split.
     - econstructor.
-      + exact: ccc_fundef ok_call.
-      + reflexivity.
-      + exact: ccc_rastack ok_call.
-      + rewrite -(mvm_mem sim); exact: ok_m'.
+      + exact: ok_fd.
+      + exact: ok_rastack.
+      + exact: ok_m'.
       + exact: texec.
-      + reflexivity.
-      reflexivity.
+      rewrite (mvm_mem sim2); reflexivity.
     - rewrite /= /set_RSP => x.
       case: (vrsp =P x).
       + move => <-{x} vrsp_not_written; rewrite Fv.setP_eq.
         rewrite -(mvm_mem sim2) top_stack2.
-        exact: mvp_top_stack pre.
+        exact: vrsp_tv.
       move => /eqP vrsp_neq_x x_not_written; rewrite Fv.setP_neq //.
       rewrite -preserved; last first.
       + move: x_not_written ok_wrf; rewrite /writefun_ra ok_fd /valid_writefun /write_fd /= /is_true Sv.subset_spec; clear; SvD.fsetdec.
       rewrite /t1' evm_with_vm /set_RSP Fv.setP_neq //.
       move: x_not_written; rewrite /writefun_ra ok_fd.
       case: sf_return_address => // ra; clear => ?; rewrite Fv.setP_neq //; apply/eqP; SvD.fsetdec.
-    split; first by rewrite (mvm_mem sim2).
-    rewrite /= /set_RSP => x hx.
-    case: (vrsp =P x).
-    - move => ?; subst x; rewrite Fv.setP_eq.
-      have vrsp_not_return : ¬ Sv.In vrsp (vrvs dsts).
-      + rewrite (vrvs_vars (ccc_dsts ok_call)) -Sv.mem_spec mem_set_of_var_i_seq => /mapP [] y hy y_vrsp.
-        move/allP: RSP_not_result; rewrite -/vrsp => /(_ _ hy) /eqP; exact.
-      rewrite -(mvm_mem sim2) top_stack2.
-      have /= <- // := vrvsP ok_vm2.
-      rewrite -(mvp_top_stack pre).
-      apply: (mvm_vmap sim).
-      rewrite (ccc_I ok_call) /ccc_D read_esE.
-      clear -hx vrsp_not_return; SvD.fsetdec.
-    move => vrsp_neq_x; rewrite Fv.setP_neq; last by apply/eqP.
-    move: (ccc_preserved ok_call); rewrite /ccc_D => O_spec.
-    case: (Sv_memP x (vrvs dsts)).
-    - rewrite (vrvs_vars (ccc_dsts ok_call)) => x_result.
-      apply: (eval_uincl_trans); last exact: (mvm_vmap sim2) x_result.
-      move: x_result; rewrite -Sv.mem_spec mem_set_of_var_i_seq => /= x_result.
-      move: (finalize (f_extra fd) (emem s2)) ok_vm2 (f_res fd) x_result ok_vres (f_tyout fd) ok_vres' (ccc_dsts ok_call) => q; clear.
-      elim: dsts vres' vres vm1 => [ | d dsts ih ] [] //=; t_xrbindP.
-      + by move => ??? [].
-      move => ???? [??] w ws [] //= ?? hin; t_xrbindP => ? getv ? gets ? tys trunc ? getl ? getls [??]; subst.
-      have /= ? := write_lvars_emem getls ws; subst.
-      case: d w getl => //= d; rewrite /write_lval => w [hd].
-      case: tys trunc => // ty tys /=; t_xrbindP => ? trunc ? truncs ??; subst.
-      move: hin; rewrite inE orbX; case/orP; last by move => hx; exact: ih _ _ _ ws _ hx gets _ truncs getls.
-      case/andP => /eqP ? /negbTE x_not_in_ys; subst x.
-      have {ws} /= <- := vrvsP ws; last by rewrite (vrvs_vars getls) -Sv.mem_spec mem_set_of_var_i_seq /= x_not_in_ys.
-      rewrite -hd (write_var_get_var w).
-      move: getv; apply: on_vuP => // z ok_z ?; subst.
-      rewrite hd ok_z.
-      exact: pof_truncate_to_val trunc.
-    move => x_not_result.
-    have /= <- // := vrvsP ok_vm2.
-    have := in_disjoint_diff _ hx O_spec.
-    rewrite /writefun_ra ok_fd => x_not_written.
-    rewrite -preserved; last first.
-    - move => x_written; apply: x_not_result.
-      apply: x_not_written.
-      move: ok_wrf; rewrite /valid_writefun /write_fd /= /is_true Sv.subset_spec; clear -x_written; SvD.fsetdec.
-    rewrite /t1' /set_RSP /= Fv.setP_neq; last by apply/eqP.
-    move: (ccc_I ok_call); rewrite /ccc_D => ?; subst I.
-    move: (mvm_vmap sim) => /= /(_ x); rewrite read_esE.
-    case: sf_return_address x_not_written => [ | ra | _ ] x_not_written.
-    1, 3: apply; SvD.fsetdec.
-    rewrite Fv.setP_neq; first by apply; SvD.fsetdec.
-    apply/eqP => ?; subst ra; apply: x_not_result; apply: x_not_written.
-    SvD.fsetdec.
+    - exact: ok_tres.
+    exact: res_uincl.
   Qed.
 
   Definition merge_varmaps_callP :
@@ -671,21 +658,5 @@ Section LEMMA.
       @sem_call_Ind _ _ _ p global_data Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc.
 
 End LEMMA.
-
-
-
-(*
-(* A call context is a sequence of call-sites (instr_info) and saved local variables (vmap) *)
-Definition call_context : Type := seq (instr_info * vmap).
-
-Definition initial_vmap : vmap :=
-  (vmap0.[ vgd <- ok (pword_of_word global_data) ])%vmap.
-
-Theorem merge_varmaps_callP m fn args m' res :
-  psem.sem_call p global_data m fn args m' res →
-  sem_one_varmap.sem_call p extra_free_registers ii.
-Proof.
-Abort.
-*)
 
 End PROG.
