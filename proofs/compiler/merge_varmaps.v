@@ -176,6 +176,24 @@ Section CHECK.
       else cierror ii (Cerr_one_varmap "call to unknown function")
     end.
 
+  Lemma check_ir_CwhileP ii aa c e c' D D' :
+    check_ir ii (Cwhile aa c e c') D = ok D' →
+    if e == Pbool false
+    then check_c check_i c D = ok D'
+    else
+      ∃ D1 D2,
+        [/\ check_c check_i c (read_e_rec D1 e) = ok D',
+         check_c check_i c' D' = ok D2,
+         Sv.Subset D D1 &
+         Sv.Subset D2 D1 ].
+  Proof.
+    rewrite /check_ir; case: eqP => // _; rewrite -/check_i.
+    elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 D2 h2; case: (equivP idP (Sv.subset_spec _ _)) => cnd.
+    - by case => ?; subst D1; exists D, D2; split.
+    move => /ih{ih} [D4] [D3] [ h h' le le' ].
+    exists D4, D3; split => //; SvD.fsetdec.
+  Qed.
+
   End CHECK_i.
 
   Notation check_cmd := (check_c check_i).

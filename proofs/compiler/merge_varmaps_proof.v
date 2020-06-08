@@ -148,6 +148,15 @@ Record merged_vmap_precondition (W: Sv.t) (m: mem) (vm: vmap) : Prop :=
       mvp_global_data : vm.[ vgd ] = ok (pword_of_word global_data);
     }.
 
+Lemma merged_vmap_preconditionI W' W m vm :
+  Sv.Subset W W' →
+  merged_vmap_precondition W' m vm →
+  merged_vmap_precondition W m vm.
+Proof.
+  move => incl [*]; split => //.
+  eauto using disjoint_w.
+Qed.
+
 Instance merged_vmap_precondition_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) merged_vmap_precondition.
 Proof. by move => W W' hW m _ <- vm _ <-; split => -[??]; split => //; rewrite ?hW // -hW. Qed.
 
@@ -448,7 +457,36 @@ Section LEMMA.
   Proof. Admitted.
 
   Lemma Hwhile_false: sem_Ind_while_false p global_data Pc Pi_r.
-  Proof. Admitted.
+  Proof.
+    move => s1 s2 a c e c' sexec ih he ii I O t1 /check_ir_CwhileP checked pre sim.
+    have pre1 : merged_vmap_precondition (write_c c) (emem s1) (evm t1).
+    - apply: merged_vmap_preconditionI pre.
+      rewrite write_i_while; SvD.fsetdec.
+    case: eqP checked.
+    { (* Condition is litteral “false” *)
+      move => ? checked; subst e.
+      have [ t2 [ texec preserved sim2 ] ] := ih I O t1 checked pre1 sim.
+      exists t2; split; last exact: sim2.
+      + constructor; first exact: texec.
+        reflexivity.
+      apply: vmap_eq_exceptI preserved.
+      rewrite write_i_while; SvD.fsetdec.
+    }
+    move => _ [D1] [D2] [ check_e check_c' h1 h2 ].
+    have [ t2 [ texec preserved sim2 ] ] := ih _ _ _ check_e pre1 sim.
+    exists t2; split.
+    - constructor; first exact: texec.
+      have /(_ (evm t2)) := sem_pexpr_uincl_on _ he.
+      case.
+      + apply: vmap_uincl_onI; last exact: mvm_vmap sim2.
+        rewrite read_eE; SvD.fsetdec.
+      case => // b teval /= ?; subst b.
+      by rewrite -teval (with_vm_m (mvm_mem sim2)) with_vm_same.
+    - apply: vmap_eq_exceptI preserved.
+      rewrite write_i_while; SvD.fsetdec.
+    apply: match_estateI; last exact: sim2.
+    rewrite read_eE; SvD.fsetdec.
+  Qed.
 
   Let Pfor (_: var_i) (_: seq Z) (_: estate) (_: cmd) (_: estate) : Prop :=
     True.
