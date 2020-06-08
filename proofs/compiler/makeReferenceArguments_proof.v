@@ -613,15 +613,46 @@ Section Section.
       have := (size_mapM eval_args).
       move : (args) (vargs) (f_params fnd).
       (*Prove they all have the same size*)
-      apply : diagonal_induction_3_eq => /= [|hargs hvargs hfparams targs tvargs tfparams eqsargsvargs eqsvargsfparams Ih] vm1' vm2''.
-      - move => _.
-        by exists vm1'.
+      apply : diagonal_induction_3_eq => /= [|harg hvarg hfparam targs tvargs tfparams eqsargsvargs eqsvargsfparams Ih] vm1' vm2''.
+      - by move => _; exists vm1'.
       t_xrbindP => sx Hsx Hwrite_lvals.
       case FE : (F _) => [x|] /= ; last first.
+      - have [vmx ?]: exists vmx, sx = with_vm s1 vmx; last subst sx.
+        * move: Hsx; rewrite /write_var; t_xrbindP=> vmx _ <-.
+          by rewrite with_vm_idem; exists vmx.
+        case: (Ih _ _ Hwrite_lvals) => vmx' h.
+        have /(_ Sv.empty vm1')[]/= := write_lvals_eq_on _ h.
+        + set S' := read_rvs _; rewrite (_ : Sv.Equal S' Sv.empty).
+          - by SvD.fsetdec.
+          rewrite {}/S'; elim: (tfparams) (targs) => [|tf tfs ih] [|ta tas] //=.
+          case: (F (tf, ta)) => //= x; rewrite read_rvs_cons.
+          by rewrite ih /=; SvD.fsetdec.
+        + have /(_ (p_globs p')) := disjoint_eq_on (r := Lvar hfparam) _ Hsx.
+          by move=> h'; apply: eq_onS; apply: h'; SvD.fsetdec.
+        move=> vm'' [_ h']; exists vm''; move: h'.
+        by rewrite with_vm_idem.
+
+      - admit.
+
+
+
+
+
       - apply : (Ih vm1' vm2'').
         have Hwrvar:= (@write_var_eq_on X _ _ _ _ vm1' Hsx).
         rewrite evm_with_vm with_vm_idem in Hwrvar.
-        case : Hwrvar => //= vmx [eq_sx_vmx Hwrvarwvm].
+        case : Hwrvar => //= vmx [eq_sx_vmx].
+        have eq_sx_s1: emem sx = emem s1.
+        + by move: Hsx; rewrite /write_var; t_xrbindP=> ? _ <-.
+        rewrite {2}/with_vm eq_sx_s1 -/(with_vm _ _) => vm1'E.
+
+        
+
+        case: (Ih vm1' vm2'').
+Search _ write_lval.
+
+
+
 
       case : Ih.
       - have Hwrvar:= (@write_var_eq_on X _ _ _ _ vm1 Hsx).
