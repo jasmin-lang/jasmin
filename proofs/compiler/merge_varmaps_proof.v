@@ -451,14 +451,78 @@ Section LEMMA.
   Qed.
 
   Lemma Hif_false: sem_Ind_if_false p global_data Pc Pi_r.
-  Proof. Admitted.
+  Proof.
+    move => s1 s2 e c1 c2 eval_e exec_c1 ih ii live' live t1.
+    rewrite /check_instr_r -/check_instr; t_xrbindP => D1 ok_D1 D2 ok_D2 <-{live'} pre.
+    rewrite read_eE => sim.
+    have sim1 : match_estate D2 s1 t1.
+    { apply: match_estateI sim; SvD.fsetdec. }
+    have pre1 : merged_vmap_precondition (write_c c2) (emem s1) (evm t1).
+    - split; last exact: mvp_global_data pre.
+      2: exact: mvp_top_stack pre.
+      move: (mvp_not_written pre); rewrite write_i_if.
+      apply: disjoint_w; SvD.fsetdec.
+    case: (ih _ _ _ ok_D2 pre1 sim1) => t2 [] texec_c2 tvm2 sim2.
+    case/vmap_uincl_on_union: (mvm_vmap sim) => he _.
+    exists t2; split; last exact: sim2.
+    - apply: sem_one_varmap.Eif_false; last exact: texec_c2.
+      have [false'] := sem_pexpr_uincl_on he eval_e.
+      move => eval_e' /value_uincl_bool1 ?; subst false'.
+      by rewrite -(with_vm_same t1) -(with_vm_m sim.(mvm_mem)).
+    rewrite write_i_if.
+    apply: vmap_eq_exceptI tvm2.
+    SvD.fsetdec.
+  Qed.
 
   Lemma Hwhile_true: sem_Ind_while_true p global_data Pc Pi_r.
-  Proof. Admitted.
+  Proof.
+    move => s1 s2 s3 s4 a c e c' sexec ih he sexec' ih' sexec_loop rec ii I O t1 /dup[] checked /check_ir_CwhileP.
+    case: ifP; first by move => /eqP ?; subst e.
+    move => _ [D1] [D2] [ check_c check_c' X Y ] pre sim.
+    have pre1 : merged_vmap_precondition (write_c c) (emem s1) (evm t1).
+    - apply: merged_vmap_preconditionI pre.
+      rewrite write_i_while; SvD.fsetdec.
+    have {ih} [ t2 [ texec_c preserved sim2 ] ] := ih _ _ _ check_c pre1 sim.
+    have pre2 : merged_vmap_precondition (write_c c') (emem s2) (evm t2).
+    - have [ hgd hrsp ] := not_written_magic (mvp_not_written pre1).
+      split.
+      + move: (mvp_not_written pre).
+        apply disjoint_w; rewrite write_i_while; SvD.fsetdec.
+      + rewrite -(stable_top_stack (sem_stack_stable sexec)) -(mvp_top_stack pre); symmetry.
+        exact: preserved.
+      rewrite -preserved //.
+      exact: mvp_global_data pre1.
+    case: (ih' _ _ _ check_c' pre2).
+    - apply: match_estateI; last exact: sim2.
+      rewrite read_eE; SvD.fsetdec.
+    move => t3 [ texec_c' preserved' sim3 ].
+    case: (rec _ _ _ _ checked _ sim3).
+    - have [ hgd hrsp ] := not_written_magic (mvp_not_written pre2).
+      split.
+      + exact: mvp_not_written pre.
+      + by rewrite -preserved' // (mvp_top_stack pre2) (stable_top_stack (sem_stack_stable sexec')).
+      by rewrite -preserved' // (mvp_global_data pre2).
+    move => t4 [ texec preserved'' sim4 ].
+    exists t4; split; last exact: sim4.
+    - apply: sem_one_varmap.Ewhile_true.
+      + exact: texec_c.
+      + have /(_ (evm t2)) := sem_pexpr_uincl_on _ he.
+        case.
+        * apply: vmap_uincl_onI; last exact: mvm_vmap sim2.
+          rewrite read_eE; SvD.fsetdec.
+        move => b teval /value_uincl_bool1 ?; subst b.
+        by rewrite -teval (with_vm_m (mvm_mem sim2)) with_vm_same.
+      + exact: texec_c'.
+      exact: texec.
+    rewrite -preserved'' write_i_while.
+    transitivity (evm t2).
+    - apply: vmap_eq_exceptI; last exact: preserved. SvD.fsetdec.
+    apply: vmap_eq_exceptI; last exact: preserved'. SvD.fsetdec.
+  Qed.
 
   Lemma Hwhile_false: sem_Ind_while_false p global_data Pc Pi_r.
   Proof.
-    move => s1 s2 a c e c' sexec ih he ii I O t1 /check_ir_CwhileP checked pre sim.
+    move => s1 s2 a c e c' _ ih he ii I O t1 /check_ir_CwhileP checked pre sim.
     have pre1 : merged_vmap_precondition (write_c c) (emem s1) (evm t1).
     - apply: merged_vmap_preconditionI pre.
       rewrite write_i_while; SvD.fsetdec.
@@ -480,7 +544,7 @@ Section LEMMA.
       case.
       + apply: vmap_uincl_onI; last exact: mvm_vmap sim2.
         rewrite read_eE; SvD.fsetdec.
-      case => // b teval /= ?; subst b.
+      move => b teval /value_uincl_bool1 ?; subst b.
       by rewrite -teval (with_vm_m (mvm_mem sim2)) with_vm_same.
     - apply: vmap_eq_exceptI preserved.
       rewrite write_i_while; SvD.fsetdec.
