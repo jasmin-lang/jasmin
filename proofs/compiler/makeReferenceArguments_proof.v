@@ -376,60 +376,156 @@ Section Section.
   by apply: @read_e_eq_on gd X vm' (with_vm s vm) e.
   Qed.
 
-  Definition make_prologue1_1 pp ii x e :=
+  Definition make_prologue1_1 (pp : uprog) ii x e :=
     if   is_reg_ptr_expr is_reg_ptr fresh_id pp (v_var x) e is Some y
     then Some (MkI ii (Cassgn y AT_rename (vtype y) e))
     else None.
 
-  Definition make_prologue1_2 pp x e :=
+  Definition make_prologue1_2 (pp : uprog) x e :=
     if   is_reg_ptr_expr is_reg_ptr fresh_id pp (v_var x) e is Some y
     then Plvar y
     else e.
 
-  Section DiagonalInduction.
+  Section DiagonalInduction2.
   Context {Ta Tb : Type} (P : seq Ta -> seq Tb -> Prop).
-  Hypothesis Ps0 : forall a , P a [::].
-  Hypothesis P0s : forall b , P [::] b.
-  Hypothesis Pconscons : forall ha hb ta tb , P ta tb -> P (ha::ta) (hb::tb).
+  Hypothesis Pa0 : forall a , P a [::].
+  Hypothesis P0b : forall b , P [::] b.
+  Hypothesis Pcons2 : forall ha hb ta tb , P ta tb -> P (ha::ta) (hb::tb).
 
-  Lemma diagonal_induction a b:
+  Lemma diagonal_induction_2 a b:
     P a b.
   Proof.
     elim : a b => // ha ta Ih [] // hb tb.
-    by apply : Pconscons.
+    by apply : Pcons2.
   Qed.
 
-  End DiagonalInduction.
+  End DiagonalInduction2.
 
-  Lemma make_prologueE1 pp ii xs es :
+  Section DiagonalInduction2Eq.
+  Context {Ta Tb : Type} (P : seq Ta -> seq Tb -> Prop).
+  Hypothesis P00 : P [::] [::].
+  Hypothesis Pcons2 : forall ha hb ta tb , size ta = size tb -> P ta tb -> P (ha::ta) (hb::tb).
+
+  Lemma diagonal_induction_2_eq a b:
+    size a = size b -> P a b.
+  Proof.
+    elim : a b => [|ha ta ih] /= b.
+    + by move /esym /size0nil => ->.
+    case : b => //= hb tb [] eqsab.
+    apply Pcons2 => //.
+    by apply ih.
+  Qed.
+
+  End DiagonalInduction2Eq.
+
+  Section DiagonalInduction3.
+  Context {Ta Tb Tc : Type} (P : seq Ta -> seq Tb -> seq Tc -> Prop).
+  Hypothesis Pab0 : forall a b , P a b [::].
+  Hypothesis Pa0c : forall a c , P a [::] c.
+  Hypothesis P0bc : forall b c , P [::] b c.
+  Hypothesis Pcons3 : forall ha hb hc ta tb tc , P ta tb tc -> P (ha::ta) (hb::tb) (hc::tc).
+
+  Lemma diagonal_induction_3 a b c:
+    P a b c.
+  Proof.
+    move : a b c.
+    apply : diagonal_induction_2 => // ha hb ta tb Ihab.
+    elim => // hc tc Ihc.
+    apply : Pcons3.
+    by apply Ihab.
+  Qed.
+
+  End DiagonalInduction3.
+
+  Section DiagonalInduction3Eq.
+  Context {Ta Tb Tc : Type} (P : seq Ta -> seq Tb -> seq Tc -> Prop).
+  Hypothesis P000 : P [::] [::] [::].
+  Hypothesis Pcons3 : forall ha hb hc ta tb tc , size ta = size tb -> size tb = size tc -> P ta tb tc -> P (ha::ta) (hb::tb) (hc::tc).
+
+  Lemma diagonal_induction_3_eq a b c:
+    size a = size b -> size b = size c -> P a b c.
+  Proof.
+    elim : a b c => [|ha ta ih] /= b c.
+    + move /esym /size0nil => -> /=.
+      by move /esym /size0nil => ->.
+    case : b => //= hb tb [] eqsab.
+    case : c => //= hc tc [] eqsbc.
+    apply Pcons3 => //.
+    by apply ih.
+  Qed.
+
+  End DiagonalInduction3Eq.
+
+  Section DiagonalInduction4.
+  Context {Ta Tb Tc Td : Type} (P : seq Ta -> seq Tb -> seq Tc -> seq Td -> Prop).
+  Hypothesis Pabc0 : forall a b c , P a b c [::].
+  Hypothesis Pab0d : forall a b d , P a b [::] d.
+  Hypothesis Pa0cd : forall a c d , P a [::] c d.
+  Hypothesis P0bcd : forall b c d , P [::] b c d.
+  Hypothesis Pcons4 : forall ha hb hc hd ta tb tc td , P ta tb tc td -> P (ha::ta) (hb::tb) (hc::tc) (hd::td).
+
+  Lemma diagonal_induction_4 a b c d:
+    P a b c d.
+  Proof.
+    move : a b c d.
+    apply : diagonal_induction_2 => // ha hb ta tb Ihab.
+    apply : diagonal_induction_2 => // hc hd tc td Ihcd.
+    apply : Pcons4.
+    by apply Ihab.
+  Qed.
+
+  End DiagonalInduction4.
+
+  Section DiagonalInduction4Eq.
+  Context {Ta Tb Tc Td : Type} (P : seq Ta -> seq Tb -> seq Tc -> seq Td -> Prop).
+  Hypothesis P0000 : P [::] [::] [::] [::].
+  Hypothesis Pcons4 : forall ha hb hc hd ta tb tc td , size ta = size tb -> size tb = size tc -> size tc = size td -> P ta tb tc td -> P (ha::ta) (hb::tb) (hc::tc) (hd::td).
+
+  Lemma diagonal_induction_4_eq a b c d:
+    size a = size b -> size b = size c -> size c = size d -> P a b c d.
+  Proof.
+    elim : a b c d => [|ha ta ih] /= b c d.
+    + move /esym /size0nil => -> /=.
+      move /esym /size0nil => -> /=.
+      by move /esym /size0nil => ->.
+    case : b => //= hb tb [] eqsab.
+    case : c => //= hc tc [] eqsbc.
+    case : d => //= hd td [] eqscd.
+    apply Pcons4 => //.
+    by apply ih.
+  Qed.
+
+  End DiagonalInduction4Eq.
+
+  Lemma make_prologueE1 (pp : uprog) ii xs es :
       (make_prologue is_reg_ptr fresh_id pp ii xs es).1
     = rev (pmap (fun '(x, e) => make_prologue1_1 pp ii x e) (zip xs es)).
   Proof.
     rewrite /make_prologue.
     rewrite -[RHS]cats0.
     move : es xs [::].
-    apply : diagonal_induction => [[] //|[] //|] e x es xs Ihc c /=.
+    apply : diagonal_induction_2 => [[] //|[] //|] e x es xs Ihc c /=.
     rewrite Ihc.
     rewrite /do_prologue {4}/make_prologue1_1.
-    case : is_reg_ptr_expr => //= y.
+    case : (is_reg_ptr_expr _ _ pp) => //= y.
     move : (pmap _ _) (MkI _ _) => c' i.
     by rewrite rev_cons cat_rcons.
   Qed.
 
-  Lemma make_prologueE2 pp ii xs es :
+  Lemma make_prologueE2 (pp : uprog) ii xs es :
       (make_prologue is_reg_ptr fresh_id pp ii xs es).2
     = map (fun '(x, e) => make_prologue1_2 pp x e) (zip xs es) ++ drop (size xs) es.
   Proof.
     rewrite /make_prologue.
     move : es xs [::].
-    apply : diagonal_induction => [[] //|[] //|] e x es xs Ihc c /=.
+    apply : diagonal_induction_2 => [[] //|[] //|] e x es xs Ihc c /=.
     rewrite Ihc.
     congr (_::_).
     rewrite /do_prologue /make_prologue1_2.
-    by case : is_reg_ptr_expr.
+    by case : (is_reg_ptr_expr _ _ pp).
   Qed.
 
-  Lemma make_prologueE2_same_size pp ii xs es :
+  Lemma make_prologueE2_same_size (pp : uprog) ii xs es :
     size xs = size es ->
       (make_prologue is_reg_ptr fresh_id pp ii xs es).2
     = map (fun '(x, e) => make_prologue1_2 pp x e) (zip xs es).
@@ -440,10 +536,27 @@ Section Section.
     by rewrite drop_size cats0.
   Qed.
 
-  Lemma size_mapM2 v1 v2 v3 :
-    mapM2 ErrType truncate_val v1 v2 = ok v3 ->
+
+  Lemma size_mapM (E A B : Type) (f : (A → result E B)) v1 v2:
+    mapM f v1 = ok v2 ->
     size v1 = size v2.
-  Proof. by elim: v1 v2 v3 => [ | x xs ih ] [] // y ys /=; t_xrbindP => zs ? _ ? /ih ->. Qed.
+  Proof. by elim: v1 v2 => [ | x xs ih ] /= [] // ; t_xrbindP => // ????? /ih -> _ ->. Qed.
+
+  Lemma size_mapM2 (A B E R : Type) (e : E) (f : (A → B → result E R)) v1 v2 v3:
+    mapM2 e f v1 v2 = ok v3 ->
+    size v1 = size v3 /\ size v2 = size v3.
+  Proof.
+   elim: v1 v2 v3 => [ | x xs ih ] [|y ys] [|z zs] //= ; t_xrbindP => // t eqt ts /ih.
+   by case => -> -> _ ->.
+  Qed.
+
+  Print fold2.
+
+  Lemma size_fold2 (A B E R : Type) (e: E) (f : (A → B → R → result E R)) xs ys x0 v:
+    fold2 e f xs ys x0 = ok v -> size xs = size ys.
+  Proof.
+    by elim : xs ys x0 => [|x xs ih] [|y ys] x0 //= ; t_xrbindP => // t _ /ih ->.
+  Qed.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
@@ -471,34 +584,92 @@ Section Section.
       elim=> /= [|pa pas ih] [|v' vs'] // vm'; first by case=> <-.
       t_xrbindP=> s'; rewrite /write_var; t_xrbindP=> vm'' _ <- /=.
       by rewrite with_vm_idem => /ih.
-
-    (*Prove that (f_params fnd) and args have the same size using one of the ok above, vsE namely*)
-
     case: (@writes_uincl _ _ _ vm1 _ _ vargs _ _ hwrinit).
     + by apply wf_vm_uincl.
-    + (*Prove second using vsE*)
-      Search _ List.Forall2.
-      About mapM2_truncate_val.
-      About mapM2_Forall2.
-      apply : (mapM2_Forall2 _ vsE) => a b r Hlist Htrunc.
-      Search value_uincl.
-      About truncate_value_uincl.
-      About value_uincl_truncate_val.
-      apply : (value_uincl_truncate_val Htrunc).
-
+    + apply : (mapM2_Forall2 _ vsE) => a b r Hlist Htrunc.
+      by apply : (value_uincl_truncate_val Htrunc).
+    (*Prove that (f_params fnd) and args have the same size using one of the ok above, vsE namely*)
     (*Then prove that ok (with_vm vm2 x) is what is given by the prologue*)
     move => vm2' /= Hwrinitwith Huincl; move: Hwrinitwith.
     rewrite with_vm_idem /(with_vm s2') eq_s2'_s1 -/(with_vm s1 _).
-    move=> Hwrinitwith.    
+    move=> Hwrinitwith.
+    have Hmake_prologue1_1 := (make_prologueE1 p ii' (f_params fnd) args).
+    rewrite plE /= in Hmake_prologue1_1.
+    have Hmake_prologue1_2 := (make_prologueE2 p ii' (f_params fnd) args).
+    rewrite plE /= in Hmake_prologue1_2.
 
     pose F xe := is_reg_ptr_expr is_reg_ptr fresh_id p (v_var xe.1) xe.2.
     pose P := map F (zip (f_params fnd) args).
     pose M := [seq isSome x | x <- P].
     pose V := mask M vargs.
     pose S := write_vars (rev (pmap idfun P)) (rev V) (with_vm s1 vm1).
+    have : exists vmx , write_lvals (p_globs p') (with_vm s1 vm1) [seq Lvar i | i <- pmap idfun P] V = ok (with_vm s1 vmx).
+    + rewrite /V /M /P.
+      move : (vm1) (vm2') Hwrinitwith.
+      have [] := (size_mapM2 vsE).
+      have := (size_fold2 hwrinit).
+      rewrite size_map.
+      move => <- _.
+      have := (size_mapM eval_args).
+      move : (args) (vargs) (f_params fnd).
+      (*Prove they all have the same size*)
+      apply : diagonal_induction_3_eq => /= [|hargs hvargs hfparams targs tvargs tfparams eqsargsvargs eqsvargsfparams Ih] vm1' vm2''.
+      - move => _.
+        by exists vm1'.
+      t_xrbindP => sx Hsx Hwrite_lvals.
+      case FE : (F _) => [x|] /= ; last first.
+      - apply : (Ih vm1' vm2'').
+        have Hwrvar:= (@write_var_eq_on X _ _ _ _ vm1' Hsx).
+        rewrite evm_with_vm with_vm_idem in Hwrvar.
+        case : Hwrvar => //= vmx [eq_sx_vmx Hwrvarwvm].
+
+      case : Ih.
+      - have Hwrvar:= (@write_var_eq_on X _ _ _ _ vm1 Hsx).
+        rewrite evm_with_vm with_vm_idem in Hwrvar.
+        (*Likely vm2' instad of vm1, and the use eq_s2'_s1*)
+        case : Hwrvar => //= vmx [eq_sx_vmx Hwrvarwvm].
+        About write_var_eq_on.
+        About write_lvals_eq_on.
+        case : (@write_lvals_eq_on _ (Sv.add hfparams X) _ _ _ _ _ _ Hwrite_lvals eq_sx_vmx).
+        + Search _ read_rvs.
+          Search _ Sv.Subset Sv.add.
+          About SvP.MP.subset_add_2.
+          Search Sv.add.
+          (*Commutativity of Sv.add ?*)
+          About SvP.MP.add_add.
+          (*by SvD.fsetdec.*)
+          by admit.
+        move => vmy [? ?].
+
 
     have: exists s' : estate, (S = ok s' /\ wf_vm (evm s')).
-    + admit.
+    + rewrite {}/S (@write_vars_lvals (p_globs p')).
+      have [] := (@write_lvals_eq_on _ Sv.empty _ _ _ _ vm1 _ Hwrinitwith).
+      - by elim : (f_params _).
+      - by rewrite evm_with_vm.
+      move => x.
+      rewrite evm_with_vm !with_vm_idem.
+      case => vm2'E H.
+      exists (with_vm s1 x).
+      split.
+      Print write_lval.
+      Search write_lval.
+
+
+      exists (with_vm s1 vm2').
+      rewrite /S.
+      (*The first argument should be linked to Hmake_prologue1_1*)
+      Search _ write_vars.
+      About write_vars_lvals.
+      rewrite (@write_vars_lvals (p_globs p')).
+      rewrite - Hwrinitwith.
+      split.
+      - (*Why does this not work?*)
+        (*congr.*)
+        by admit.
+      - Search _ wf_vm.
+        (*I should not have split, but done something else in order to keep the LHS in the context to prove the RHS*)
+        About wf_write_vars.
 
 (*
     have Hsize : size (f_tyin fnd) = size vargs.
