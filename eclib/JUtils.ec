@@ -1,4 +1,5 @@
 require import AllCore IntDiv List Bool StdOrder.
+        import IntOrder.
 
 (* -------------------------------------------------------------------- *)
 
@@ -32,11 +33,7 @@ lemma bound_abs (i j:int) : 0 <= i < j => 0 <= i < `|j| by smt().
 hint solve 0 : bound_abs.
 
 lemma gt0_pow2 (p:int) : 0 < 2^p.
-proof.
-  case (p <= 0)=> [? | /ltzNge hp]; 1:by rewrite pow_le0.
-  apply (IntOrder.ltr_le_trans 1) => //.
-  by rewrite -(pow_le0 0 2) // pow_Mle /= ltzW.
-qed.
+proof. by apply expr_gt0. qed.
 
 lemma dvdmodz d m p : d %| m => d %| p => d %| (p%%m).
 proof. move=> h1 h2; rewrite /(%|);rewrite modz_dvd //. qed.
@@ -76,19 +73,12 @@ proof.
   by case: hp => [hp | <-//]; apply divz_ge0.
 qed.
 
-lemma modz_mod_pow2 i n k : i %% 2^n %% 2^k = i %% 2^(min n k).
+lemma modz_mod_pow2 i n k : 0 <= n => 0 <= k => i %% 2^n %% 2^k = i %% 2^(min n k).
 proof.
-  case: (0 <= n) => hn.
-  + rewrite /min;case (n < k) => hnk.
-    + rewrite (modz_small (i %% 2^n)) 2://;smt (modz_cmp gt0_pow2 pow_Mle).
-    case (0 <= k) => hk.
-    + rewrite modz_dvd 2://;1: by apply dvdz_exp2l => /#.
-    have hk0 : k <= 0 by smt().
-    by rewrite !(powNeg _ _ hk0) modz1.
-  rewrite /min;case (n < k) => hnk.
-  + by rewrite powNeg 1:/# (modz1 i).
-  have hk0 : (k <= 0) by smt().
-  by rewrite (powNeg _ _ hk0) modz1.
+  move=> hn hk;rewrite /min;case (n < k) => hnk.
+  + rewrite (modz_small (i %% 2^n)) 2://.
+    smt (modz_cmp gt0_pow2 ler_weexpn2l).
+  rewrite modz_dvd 2://;1: by apply dvdz_exp2l => /#.
 qed.
 
 (* FIXME: this is defined in IntDiv but with 0 <= i *)
@@ -100,16 +90,16 @@ proof.
   + by apply ltzW; apply gt0_pow2.
   + by apply ltzW; apply gt0_pow2.
   congr; have {1}->: n = (n - p) + p by ring.
-  by rewrite -pow_add 1:/# 1:// mulzK //; smt (gt0_pow2).
+  rewrite exprDn 1:/# 1:// mulzK //; smt (gt0_pow2).
 qed.
 
 (* -------------------------------------------------------------------- *)
 lemma powS_minus (x p:int) : 0 < p => x ^ p  = x * x ^ (p-1).
-proof. smt (powS). qed.
+proof. smt (exprS). qed.
 
-hint simplify pow_le0@1.
 hint simplify powS_minus@1.
 
+lemma pow2_0 : 2^0 = 1 by [].
 lemma pow2_1 : 2^1 = 2   by [].
 lemma pow2_2 : 2^2 = 4   by [].
 lemma pow2_3 : 2^3 = 8   by [].
@@ -125,7 +115,7 @@ lemma pow2_128 : 2 ^ 128 = 340282366920938463463374607431768211456 by [].
 lemma pow2_256 : 2 ^ 256 = 115792089237316195423570985008687907853269984665640564039457584007913129639936 by [].
 
 hint simplify
-  (pow2_1, pow2_2, pow2_3, pow2_4, pow2_5, pow2_6, pow2_7, pow2_8,
+  (pow2_0, pow2_1, pow2_2, pow2_3, pow2_4, pow2_5, pow2_6, pow2_7, pow2_8,
    pow2_16, pow2_32, pow2_64, pow2_128, pow2_256)@0.
 
 (* -------------------------------------------------------------------- *)
@@ -288,7 +278,7 @@ lemma powm1_mod k n:
 proof.
 move=> ?.
 have [i [Hi ->]]: exists i, 0<=i /\ k = n+i by exists (k-n); smt().
-rewrite -pow_add 1,2:/# mulzC (modzMDl (2^i) (-1) (2^n)) modNz //.
+rewrite exprDn 1,2:/# mulzC (modzMDl (2^i) (-1) (2^n)) modNz //.
 by apply gt0_pow2.
 qed.
 
@@ -323,11 +313,11 @@ proof.
 elim/last_ind : bs => // bs b /= IH.
 rewrite bs2int_rcons.
 move: (bs2int_ge0 bs) => ?.
-have T2: 0 <= 2 ^ size bs * b2i b by smt(powPos).
+have T2: 0 <= 2 ^ size bs * b2i b by smt(expr_gt0).
 move=> H1.
 have E1: bs2int bs = 0 by smt().
 have: 2 ^ size bs * b2i b = 0 by smt().
-rewrite Ring.IntID.mulf_eq0; move=> [?|]; first by smt(powPos).
+rewrite Ring.IntID.mulf_eq0; move=> [?|]; first by smt(expr_gt0).
 rewrite b2i_eq0 => ?.
 rewrite nth_rcons (IH E1) H0 /#.
 qed.
@@ -347,7 +337,7 @@ have ->: range (size bs1) (size (bs1 ++ bs2)) = range (size bs1+0) (size bs2+siz
  by rewrite addz0 addzC size_cat.
 rewrite range_addr big_map /(\o) /=.
 apply eq_big_int => /> *.
-rewrite -pow_add // mulzA nth_cat.
+rewrite exprDn // mulzA nth_cat.
 have ->: size bs1 + i < size bs1 = false by smt().
 rewrite /=; do 4! congr.
 smt().
@@ -358,21 +348,23 @@ lemma bs2int_cons x xs:
 proof.
 have ->: x::xs = [x]++xs by done.
 rewrite bs2int_cat /=; congr.
+by rewrite /bs2int /= big_int1.
 qed.
 
-lemma bs2int_nseq b k:
-  bs2int (nseq k b) = if b then 2^k - 1 else 0.
+lemma bs2int_nseq b k: 
+  bs2int (nseq k b) = if b /\ 0 <= k then 2^k - 1 else 0.
 proof.
-elim/natind: k b => /= [n Hn|n Hn IH] b.
- by rewrite nseq0_le //= bs2int_nil powNeg.
+case: (0 <= k) => /= hk; last by rewrite nseq0_le 1:/# /bs2int /= big_geq //.
+elim: k hk b => [| n Hn IH] b /=.
++ by rewrite bs2int_nil.
 rewrite nseqS // bs2int_cons ; case: b => ?.
- rewrite b2i1 -pow_add // pow2_1 /= (IH true) /=.
+ rewrite b2i1 exprDn // pow2_1 /= (IH true) /=.
  by ring.
 by rewrite (IH false) b2i0; ring.
 qed.
 
 lemma bs2int_pad sz bs:
- bs2int bs = bs2int (bs ++ nseq (sz - size bs) false).
+ bs2int bs = bs2int (bs ++ nseq sz false).
 proof. by rewrite bs2int_cat (bs2int_nseq false). qed.
 
 lemma bs2int_and0 i bs1 bs2:
@@ -391,7 +383,7 @@ move=> ?.
 rewrite /bs2int !Esz !size_map2 !Esz2 sumrN !sumrD.
 apply eq_big_int => ? /=.
 move=> ?; rewrite !map2_zip.
-rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz min_ler //.
+rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz /#.
 rewrite nth_zip //=.
 case: (nth false bs1 i); case: (nth false bs2 i) => //=.
 move=> *.
@@ -410,7 +402,7 @@ move=> ?.
 rewrite /bs2int !Esz !size_map2 !Esz2 !sumrD.
 apply eq_big_int => ? /=.
 move=> ?; rewrite !map2_zip.
-rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz min_ler //.
+rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz /#.
 rewrite nth_zip //=.
 case: (nth false bs1 i); case: (nth false bs2 i) => //=.
 move=> *.
@@ -429,7 +421,7 @@ have Esz2: min (size bs1) (size bs2) = size bs2 by smt().
 move=> ??.
 rewrite -bs2int_or_add // H.
 have:= bs2int_le2Xs (map2 (\/) bs1 bs2).
-by rewrite size_map2 Esz min_ler.
+by rewrite size_map2 Esz /#.
 qed.
 
 lemma bs2int_sub_common bs1 bs2:
