@@ -1,5 +1,6 @@
 sudo: required
 language: nix
+nix: 2.3.6
 cache:
   timeout: 1000
   directories:
