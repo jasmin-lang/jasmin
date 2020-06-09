@@ -218,10 +218,6 @@ Section CHECK.
     Let _ := assert (var.disjoint (writefun_ra writefun fn) magic_variables)
                     (Ferr_fun fn (Cerr_one_varmap "the function writes to RSP or global-data")) in
     let e := fd.(f_extra) in
-    Let _ := match e.(sf_save_stack) with SavedStackReg r => assert (~~Sv.mem r (writefun fn))
-                                                                    (Ferr_fun fn (Cerr_one_varmap "the function writes the saved RSP"))
-                                     | SavedStackStk _ | SavedStackNone => ok tt
-             end in
     match e.(sf_return_address) with
     | RAreg ra =>
       Let _ := assert (~~Sv.mem ra (writefun fn)) (Ferr_fun fn (Cerr_one_varmap "the function writes its return address")) in

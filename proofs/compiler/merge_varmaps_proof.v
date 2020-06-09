@@ -583,7 +583,7 @@ Section LEMMA.
   Proof.
     move => s1 m2 s2 jj xs fn args vargs vs ok_vargs sexec ih ok_s2 ii I O t1 /check_CcallP[] fd ok_call pre sim.
     case: (checkP ok_p (ccc_fundef ok_call)) => ok_wrf.
-    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP checked_params _ /assertP RSP_not_result _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
+    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP checked_params _ /assertP RSP_not_result _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic checked_ra.
     have := ccc_I ok_call; rewrite /ccc_D => ?; subst I.
     have get_args : mapM (λ x : var_i, get_var (evm s1) x) fd.(f_params) = ok vargs.
     { elim: {ok_call pre sim} args vargs {sexec ih} fd.(f_params) ok_vargs (ccc_eargs ok_call); clear.
@@ -644,9 +644,7 @@ Section LEMMA.
       ii fd' tvm1 args' ok_fd' ok_rastack vrsp_tv vgd_tv ok_args' ok_args''.
     move: ok_fd'; rewrite ok_fd => /Some_inj ?; subst fd'.
     case: (checkP ok_p ok_fd) => ok_wrf.
-    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP /allP checked_params _ /assertP RSP_not_result _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] preserved_RSP checked_ra.
-    have {preserved_RSP} preserved_RSP : if sf_save_stack (f_extra fd) is SavedStackReg r then ~~ Sv.mem r (wrf fn) else True.
-    - by case: sf_save_stack preserved_RSP => // r /assertP.
+    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP /allP checked_params _ /assertP RSP_not_result _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic checked_ra.
     have {checked_ra} checked_ra : if sf_return_address (f_extra fd) is RAreg ra then ~~ Sv.mem ra (wrf fn) && ~~ Sv.mem ra (magic_variables p) && (ra \notin (map v_var fd.(f_params))) else True.
     - case: sf_return_address checked_ra => // ra; t_xrbindP => _ /assertP -> /assertP.
       by rewrite mem_set_of_var_i_seq Bool.negb_orb.
