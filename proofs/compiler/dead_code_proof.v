@@ -68,7 +68,7 @@ Section PROOF.
         wf_vm s.(evm) ->
         forall vm1', s.(evm) =[s1] vm1' ->
           exists vm2', s'.(evm) =[s2] vm2' /\
-          sem p' (Estate s.(emem) vm1') c' (lrm_i Ffs lti li) (Estate s'.(emem) vm2')
+          sem p' (Estate s.(emem) vm1') c' (lrm_i Ffs li lti) (Estate s'.(emem) vm2')
       | _ => True
       end.
 
@@ -79,7 +79,7 @@ Section PROOF.
         wf_vm s.(evm) ->
         forall vm1', s.(evm) =[s1] vm1' ->
           exists vm2', s'.(evm) =[s2] vm2' /\
-          sem p' (Estate s.(emem) vm1') c' (lrm_i Ffs lti li) (Estate s'.(emem) vm2')
+          sem p' (Estate s.(emem) vm1') c' (lrm_i Ffs li lti) (Estate s'.(emem) vm2')
       | _ => True
       end.
 

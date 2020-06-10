@@ -3309,7 +3309,7 @@ Section PROOF.
       forall vm1,
         vm_uincl (evm s1) vm1 ->
         exists vm2,
-          sem_c_i p' {|emem := emem s1; evm := vm1|} ((const_prop_i m i).1).2 (leak_I (const_prop_i m i).2 li) 
+          sem_c_i p' {|emem := emem s1; evm := vm1|} ((const_prop_i m i).1).2 (leak_I li (const_prop_i m i).2)
                          {|emem := emem s2; evm := vm2|} /\
           vm_uincl (evm s2) vm2.
 
@@ -3320,7 +3320,7 @@ Section PROOF.
       forall vm1,
         vm_uincl (evm s1) vm1 ->
         exists vm2,
-          sem_c_i p' {|emem := emem s1; evm := vm1|} ((const_prop_ir m ii i).1).2 (leak_I (const_prop_ir m ii i).2 li)
+          sem_c_i p' {|emem := emem s1; evm := vm1|} ((const_prop_ir m ii i).1).2 (leak_I li (const_prop_ir m ii i).2)
                          {|emem := emem s2; evm := vm2|} /\ 
           vm_uincl (evm s2) vm2.
 
