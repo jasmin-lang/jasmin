@@ -65,6 +65,10 @@ Fixpoint sem_pexpr_e (s:estate) (e : pexpr) : exec (value * leak_e_tree) :=
     ok (if b then v1 else v2, LSub [:: vl.2 ; vl1.2; vl2.2])
   end.
 
+
+(* FIXME:
+  Definition sem_pexprs_e s es := mapM (sem_pexpr_e s) es.
+*)
 Definition sem_pexprs_e s es :=
   Let vls := mapM (sem_pexpr_e s) es in
   ok (unzip1 vls, LSub (unzip2 vls)).
@@ -705,15 +709,20 @@ Variable P:prog.
   
 Notation gd := (p_globs P).
 
+(* FIXME: Pci s1 c lc s2 := sem P s1 c (map lit_to_li lc) s2. *)
 Let Pci s1 c lc s2 := exists lc', sem P s1 c lc' s2 /\ lc' = map lit_to_li lc.
 
+(* FIXME: same here *)
 Let Pi_ri s1 i li s2 := exists li', sem_i P s1 i li' s2 /\ li' = lit_to_li li.
 
+(* FIXME: same here *)
 Let Pi_i s1 i li s2 := exists li', sem_I P s1 i li' s2 /\ li' =  lit_to_li li.
 
+(* FIXME: same here *)
 Let Pfor_i i zs s1 c lc s2 := exists lc', sem_for P i zs s1 c lc' s2
                                           /\ lc' = litss_to_liss lit_to_li lc.
 
+(* FIXME: same here *)
 Let Pfun_i m1 fd vargs lf m2 vres := exists lf', sem_call P m1 fd vargs (lf.1, lf') m2 vres
                                                  /\ lf' =  map lit_to_li lf.2.
 

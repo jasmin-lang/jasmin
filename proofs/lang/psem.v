@@ -1759,6 +1759,7 @@ Proof.
 Qed.
 
 
+(* FIXME: no need for “le'”; just use “le” *)
 Lemma sem_pexpr_uincl gd s1 vm2 e v1 le:
   vm_uincl s1.(evm) vm2 →
   sem_pexpr gd s1 e = ok (v1, le) →
@@ -1825,6 +1826,7 @@ move=> Hu; elim: e v1 le=>//=[z|b|n|x|g|ws x p Hp|sz x p Hp|o e He|o e1 He1 e2 H
   exists v''. by exists (zl ++ zl1 ++ zl2). auto.
 Qed.
 
+(* FIXME: no need for “les'” *)
 Lemma sem_pexprs_uincl gd s1 vm2 es vs1 les:
   vm_uincl s1.(evm) vm2 →
   sem_pexprs gd s1 es = ok (vs1, les) →
