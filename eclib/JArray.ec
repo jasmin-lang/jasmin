@@ -223,10 +223,10 @@ abstract theory MonoArray.
   proof.
     rewrite to_listE map2E map2_zip init_of_list /=;congr.
     apply (eq_from_nth dfl).
-    + by rewrite !size_map size_zip !size_map min_ler.
+    + by rewrite !size_map size_zip !size_map /#.
     move=> i; rewrite size_map => hi.
     rewrite (nth_map 0) 1:// (nth_map (dfl,dfl)).
-    + by rewrite size_zip min_ler !size_map.
+    + rewrite size_zip !size_map /#.
     by rewrite /= nth_zip ?size_map // !(nth_map 0).
   qed.
 

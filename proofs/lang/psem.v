@@ -1604,19 +1604,6 @@ Corollary get_var_uincl x vm1 vm2 v1:
   exists2 v2, get_var vm2 x = ok v2 & value_uincl v1 v2.
 Proof. by move => /(_ x); exact: get_var_uincl_at. Qed.
 
-Lemma  get_vars_uincl (xs:seq var_i) vm1 vm2 vs1:
-  vm_uincl vm1 vm2 ->
-  mapM (fun x => get_var vm1 (v_var x)) xs = ok vs1 ->
-  exists2 vs2,
-    mapM (fun x => get_var vm2 (v_var x)) xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
-Proof.
-  move=> Hvm;elim: xs vs1 => [ | x xs Hrec] /= ?.
-  + move=> [<-]; exists [::] => //; constructor.
-  apply: rbindP => v1 /(get_var_uincl Hvm) [v2 -> ?].
-  apply: rbindP => vs1 /Hrec [vs2 -> ?] [] <- /=; exists (v2::vs2) => //.
-  by constructor.
-Qed.
-
 Lemma get_gvar_uincl_at x gd vm1 vm2 v1:
   (if is_lvar x then eval_uincl vm1.[gv x] vm2.[gv x] else True)%vmap ->
   get_gvar gd vm1 x = ok v1 ->
@@ -2257,6 +2244,48 @@ Proof.
   rewrite /sem_pexprs;elim: xs=> //= x xs Hrec.
   rewrite /get_gvar /=.
   by case: get_var => //= v;rewrite Hrec.
+Qed.
+
+Lemma  get_vars_uincl_on dom (xs: seq var_i) vm1 vm2 vs1:
+  vmap_uincl_on dom vm1 vm2 ->
+  (∀ x, x \in xs → Sv.mem x dom) →
+  mapM (fun x => get_var vm1 (v_var x)) xs = ok vs1 ->
+  exists2 vs2,
+    mapM (fun x => get_var vm2 (v_var x)) xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
+Proof.
+  move => hvm; elim: xs vs1 => [ | x xs Hrec] /= ? hdom.
+  + by move=> [<-]; exists [::].
+  apply: rbindP => v1 /get_var_uincl_at - /(_ vm2) [ | v2 -> ? ].
+  + by apply: hvm; rewrite -Sv.mem_spec; apply: hdom; rewrite inE eqxx.
+  apply: rbindP => vs1 /Hrec{Hrec}ih [<-] /=.
+  case: ih.
+  + by move => y hy; apply: hdom; rewrite inE hy orbT.
+  move => vs2 -> ih; exists (v2 :: vs2); first reflexivity.
+  by constructor.
+Qed.
+
+Definition set_of_var_i_seq : Sv.t → seq var_i → Sv.t :=
+  foldl (λ acc x, Sv.add (v_var x) acc).
+
+Lemma mem_set_of_var_i_seq x acc xs :
+  Sv.mem x (set_of_var_i_seq acc xs) = Sv.mem x acc || (x \in map v_var xs).
+Proof.
+  elim: xs acc.
+  - by move => acc; rewrite orbF.
+  move => y xs ih acc; rewrite /= ih{ih} inE eq_sym; case: eqP.
+  - by move => ->; rewrite SvP.add_mem_1 orbT.
+  by move => ?; rewrite SvP.add_mem_2.
+Qed.
+
+Corollary  get_vars_uincl (xs:seq var_i) vm1 vm2 vs1:
+  vm_uincl vm1 vm2 ->
+  mapM (fun x => get_var vm1 (v_var x)) xs = ok vs1 ->
+  exists2 vs2,
+    mapM (fun x => get_var vm2 (v_var x)) xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
+Proof.
+  move => hvm; apply: (@get_vars_uincl_on (set_of_var_i_seq Sv.empty xs)).
+  + exact: vm_uincl_vmap_uincl_on hvm.
+  by move => /= y hy; rewrite mem_set_of_var_i_seq map_f.
 Qed.
 
 Section UNDEFINCL.
