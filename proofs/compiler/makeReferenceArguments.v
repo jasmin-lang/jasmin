@@ -87,7 +87,7 @@ Definition fresh_vars_in_prologue_rec acc c :=
   if c is MkI ii (Cassgn (Lvar x) _ _ _) then x.(v_var) :: acc else acc.
 
 Definition fresh_vars_in_prologue c :=
-  List.fold_left fresh_vars_in_prologue_rec c [::].
+  foldl fresh_vars_in_prologue_rec [::] c.
 
 Definition do_epilogue ii acc x r :=
   let x := x.(v_var) in
@@ -104,7 +104,7 @@ Definition fresh_vars_in_epilogue_rec acc c :=
   if c is MkI ii (Cassgn _ _ _ (Pvar (Gvar x _))) then x.(v_var) :: acc else acc.
 
 Definition fresh_vars_in_epilogue c :=
-  List.fold_left fresh_vars_in_epilogue_rec c [::].
+  foldl fresh_vars_in_epilogue_rec [::] c.
 
 Section SIG.
 

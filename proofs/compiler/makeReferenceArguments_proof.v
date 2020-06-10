@@ -605,34 +605,69 @@ Section Section.
     pose S := write_vars (rev (pmap idfun P)) (rev V) (with_vm s1 vm1).
     have : exists vmx , write_lvals (p_globs p') (with_vm s1 vm1) [seq Lvar i | i <- pmap idfun P] V = ok (with_vm s1 vmx).
     + rewrite /V /M /P.
-      move : (vm1) (vm2') Hwrinitwith.
+      move : (vm1) (vm2') Hwrinitwith (pl) Hmake_prologue1_1 fs_pl.
       have [] := (size_mapM2 vsE).
       have := (size_fold2 hwrinit).
       rewrite size_map.
       move => <- _.
       have := (size_mapM eval_args).
       move : (args) (vargs) (f_params fnd).
-      (*Prove they all have the same size*)
       apply : diagonal_induction_3_eq => /= [|harg hvarg hfparam targs tvargs tfparams eqsargsvargs eqsvargsfparams Ih] vm1' vm2''.
-      - by move => _; exists vm1'.
-      t_xrbindP => sx Hsx Hwrite_lvals.
-      case FE : (F _) => [x|] /= ; last first.
-      - have [vmx ?]: exists vmx, sx = with_vm s1 vmx; last subst sx.
+      - by move => _ _ _ _; exists vm1'.
+      t_xrbindP => sx Hsx Hwrite_lvals plx Hmake_prologue1_1 fs_plx.
+      have [vmx ?]: exists vmx, sx = with_vm s1 vmx; last subst sx.
         * move: Hsx; rewrite /write_var; t_xrbindP=> vmx _ <-.
           by rewrite with_vm_idem; exists vmx.
-        case: (Ih _ _ Hwrite_lvals) => vmx' h.
+      case FE : (F _) => [x|] /= ; last first.
+      - pose ply := rev (pmap (λ '(x, e), make_prologue1_1 p ii' x e) (zip tfparams targs)).
+        case : (Ih _ _ Hwrite_lvals ply) => // [x Hx|vmx' h].
+        * apply fs_plx.
+          rewrite Hmake_prologue1_1.
+          rewrite {3}/make_prologue1_1.
+          rewrite /F /= in FE.
+          by rewrite FE /=.
         have /(_ Sv.empty vm1')[]/= := write_lvals_eq_on _ h.
-        + set S' := read_rvs _; rewrite (_ : Sv.Equal S' Sv.empty).
+        * set S' := read_rvs _; rewrite (_ : Sv.Equal S' Sv.empty).
           - by SvD.fsetdec.
           rewrite {}/S'; elim: (tfparams) (targs) => [|tf tfs ih] [|ta tas] //=.
           case: (F (tf, ta)) => //= x; rewrite read_rvs_cons.
           by rewrite ih /=; SvD.fsetdec.
-        + have /(_ (p_globs p')) := disjoint_eq_on (r := Lvar hfparam) _ Hsx.
+        * have /(_ (p_globs p')) := disjoint_eq_on (r := Lvar hfparam) _ Hsx.
           by move=> h'; apply: eq_onS; apply: h'; SvD.fsetdec.
         move=> vm'' [_ h']; exists vm''; move: h'.
         by rewrite with_vm_idem.
-
-      - admit.
+      - (*Before all of this, I have to generalize fs_pl*)
+        (*It seems what I did did not change anything...*)
+        (*Because I also must generalize on pl.*)
+        (*Given the complexity of what I had to add in the first subgoal, I should do it for both at the same time*)
+        rewrite {3}/make_prologue1_1 in Hmake_prologue1_1.
+        rewrite /F /= in FE.
+        rewrite FE /= in Hmake_prologue1_1.
+        rewrite Hmake_prologue1_1 /fresh_vars_in_prologue /= in fs_plx.
+        rewrite foldl_rev /= - foldl_rev - /fresh_vars_in_prologue_rec - /(fresh_vars_in_prologue _) in fs_plx.
+        move : Hmake_prologue1_1.
+        rewrite rev_cons.
+        elim /last_ind : plx.
+        * by move /(congr1 size) => /= ; rewrite size_rcons.
+        move => plx plx1 _ /rcons_inj [] plxE ? ; subst plx1.
+        rewrite - plxE in fs_plx.
+        have /(_ Sv.empty vm1')[]//= := write_var_eq_on Hsx.
+        move => vmx'.
+        rewrite ! with_vm_idem => - [eq_vmx_vmx' Hwrite_var].
+        About write_lvals_eq_on.
+        case : (write_lvals_eq_on _ Hwrite_lvals eq_vmx_vmx').
+        * set S' := read_rvs _; rewrite (_ : Sv.Equal S' Sv.empty).
+          - by SvD.fsetdec.
+          by rewrite {}/S' ; elim: (tfparams)=> [|tf tfs ih] //=.
+        move => vmx'' ; rewrite ! with_vm_idem => - [eq_vmx'_vmx'' Hwrite_lvals'].
+        case : (Ih _ _ Hwrite_lvals' _ plxE).
+        * move => y yplx.
+          apply : fs_plx.
+          by rewrite in_cons yplx orbT.
+        move => vmx''' H ; exists vmx'''.
+        Search _ write_var.
+        t_xrbindP.
+        by admit.
 
 
 
