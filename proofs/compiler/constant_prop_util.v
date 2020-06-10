@@ -247,10 +247,17 @@ Definition const_prop_e_esP_sem_pexprs_e' gd s es v:=
     exists (LSub [:: l1; l2]). split.
     rewrite -Hl /=. rewrite Hs1 Hs2 /=. rewrite /lests_to_les /=. by rewrite cats0.
     rewrite Ho /=. by rewrite Hv.
-  + move=> op es He /=. t_xrbindP. move: (const_prop_e_esP_sem_pexprs_e) => H h1 h0 y0 Hm.
-    move: (H gd s es) => H1. move=> h2 Ho <- /= <- /=.
-    move: (const_prop_e_esP_sem_pexpr_e)=> H2. 
-    admit.
+  + move => op /= es ih; t_xrbindP => v _ vqs ok_vqs ? ok_v ? <-; subst.
+    suff [ tr [ size_tr eval_es ok_tr ] ] : ∃ tr, [/\ size tr = size vqs, mapM (sem_pexpr_e gd s) es = ok (zip (unzip1 vqs) tr) & flatten (unzip2 vqs) = lest_to_les (LSub tr) ].
+    * exists (LSub tr); split; first exact: ok_tr.
+      by rewrite eval_es /= unzip1_zip ?size_map ?size_tr // ok_v /= unzip2_zip // size_map size_tr.
+    elim: es ih {op v ok_v} vqs ok_vqs.
+    * by move => _ _ [<-]; exists [::].
+    move => e es ih rec /=; t_xrbindP => ? [v q] ok_v vs ok_vs ?; subst.
+    have := rec _ _ _ _ ok_v; rewrite inE eqxx => /(_ erefl) [t] [? ->]; subst q => /=.
+    have [] := ih _ _ ok_vs.
+    * by move => e' he'; apply: rec; rewrite inE he' orbT.
+    by move => tr [ <- -> -> ]; exists (t :: tr).
   + move=> t e He e1 He1 e2 He2 /=. t_xrbindP.
     move=> h h0 [yv yl] He' b Hb [yv' yl'] He1' [yv'' yl''] He2' h8 Ht h9 Ht' Hv Hl.
     move: (He yv yl He') => [] x [] Hs Hs'. rewrite Hs' /=.
@@ -259,18 +266,17 @@ Definition const_prop_e_esP_sem_pexprs_e' gd s es v:=
     rewrite Ht /=. rewrite Ht' /=. rewrite Hv /=.
     exists (LSub [:: x; x0; x0']). split. rewrite -Hl /=. rewrite Hs Hs1 Hs2 /=.
     rewrite /lests_to_les /=. by rewrite cats0. auto.
-  Admitted.
+  Qed.
 
   Lemma sem_pexprs_to_sem_pexprs_e s gd es vs:
     mapM (sem_pexpr gd s) es = ok vs ->
-    exists vs', vs =  (zip (unzip1 vs') (map (lest_to_les) (unzip2 vs'))) /\
+    exists2 vs', vs =  (zip (unzip1 vs') (map (lest_to_les) (unzip2 vs'))) &
                 mapM (sem_pexpr_e gd s) es = ok vs'.
   Proof.
-    elim: es vs.
-    - move=> vs Hm. exists [::]. rewrite /=. case: Hm.
-      move=> ->. by split.
-    - move=> a l vs Hm Hms.
-  Admitted.
+    elim: es vs; first by move => _ [<-]; exists [::].
+    move => e es ih /=; t_xrbindP => _ [??] /sem_pexpr_e_to_sem_pexpr [? [-> ->]] _ /ih [? -> -> /= <-].
+    eexists; last first; reflexivity.
+  Qed.
 
     Lemma sem_pexprs_to_sem_pexprs_e' s gd es vs:
     sem_pexprs gd s es = ok vs ->
@@ -318,10 +324,12 @@ Definition const_prop_e_esP_sem_pexprs_e' gd s es v:=
   write_lvals gd s1 xs vs = ok (s2, lest_to_les l).
   Proof.
   rewrite /write_lvals. rewrite /write_lvals_e.
-  elim: xs vs s1 [::] l s2 => [|x xs Hrec] [|v vs] s1 lw0 lw s2 //=.
-  + by move=> [] <- <- /=.
-  t_xrbindP => ? [s lw1] /write_lval_cp -> <- /=. move=> H.
-  Admitted.
+  change (@nil leakage_e) with (lest_to_les LEmpty).
+  elim: xs vs s1 LEmpty l.
+  - by case => // ??? [-> ->].
+  move => x xs ih [] // v vs s1 acc lk /=; t_xrbindP => _ [s ?] /write_lval_cp -> <- /= /ih {ih} <- /=.
+  by rewrite /lests_to_les /= cats0.
+  Qed.
 
   Lemma write_lval_e_cp gd s1 x v s2 l:
   write_lval gd x v s1 = ok (s2, l) ->
@@ -842,7 +850,8 @@ Proof.
   move: (Hws' gd {| emem := m2; evm := evm s1 |} xs vs s2 lw Hws). move=> Hws''.
   exists (Lcall (lest_to_les l1) (lf.1, lf') (lest_to_les lw)). split. apply Ecall with m2 vargs vs.
   auto. auto. auto. rewrite Hl /=. subst. auto.
-Admitted.
+  by case: (lf).
+Qed.
 
 Local Lemma Hproc_i : sem_Ind_proc_i P Pci Pfun_i.
 Proof.
@@ -885,18 +894,10 @@ Qed.
 
 Local Lemma Hcons : sem_Ind_cons P Pc Pi.
 Proof.
-  rewrite /sem_Ind_cons.
-  move=> s1 s2 s3 i c li lc Hi HPi Hc HPc.
-  rewrite /Pi in HPi. rewrite /Pc in HPc.
-  move: (HPi). move=> [] x [] Hx Hlx. move: (HPc).
-  move=> [] x' [] Hx' [] Hlx'. rewrite /Pc.
-  exists (x :: x'). split. rewrite /lits_to_lis /=.
-  rewrite /lits_to_lis in Hx'. by rewrite -Hx Hx' /=.
-  apply Eseq_i with s2. auto.
-  admit. 
-  (*apply Eseq with s2. auto. auto.
-  rewrite Hlx Hlx'. admit.*)
-Admitted.
+  move => s1 s2 s3 i c _ _ _ [li [-> hi]] _ [lc [-> hc]].
+  eexists (_ :: _); split; first reflexivity.
+  econstructor; eassumption.
+Qed.
 
 Local Lemma HmkI : sem_Ind_mkI P Pi_r Pi.
 Proof.
