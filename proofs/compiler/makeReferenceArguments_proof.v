@@ -48,6 +48,19 @@ Derive Inversion_clear sem_consI
   with (forall s1 i c s2,  @sem T pT cs p ev s1 (i :: c) s2)
   Sort Prop.
 
+Lemma set_var_rename (vm vm' : vmap) (x y : var) (v : value) :
+     vtype x = vtype y
+  -> set_var vm x v = ok vm'
+  -> exists vm'', set_var vm y v = ok vm''.
+Proof.
+case: x y => [ty nx] [_ ny] [/= <-].
+set x := {| vname := nx |}; set y := {| vname := ny |}.
+apply: set_varP => /=.
++ by move=> t okt /esym vm'E; exists vm.[y <- ok t]; rewrite /set_var okt.
++ move=> tybool tyvE /esym vm'E; exists vm.[y <- pundef_addr ty].
+  by rewrite /set_var tybool tyvE.
+Qed.
+
 Section SemInversionSeq1.
   Context (s1 : estate) (i : instr) (s2 : estate).
   Context
@@ -651,7 +664,11 @@ Section Section.
         * by move /(congr1 size) => /= ; rewrite size_rcons.
         move => plx plx1 _ /rcons_inj [] plxE ? ; subst plx1.
         rewrite - plxE in fs_plx.
-        have /(_ Sv.empty vm1')[]//= := write_var_eq_on Hsx.
+        have [vm1'' Hsx']:
+          exists vm1'', write_var x hvarg (with_vm s1 vm1') = ok (with_vm s1 vm1'').
+        + by admit.
+        have /(_ Sv.empty vm1'')[]//= := write_var_eq_on Hsx.
+        + admit.
         move => vmx'.
         rewrite ! with_vm_idem => - [eq_vmx_vmx' Hwrite_var].
         About write_lvals_eq_on.
@@ -665,6 +682,7 @@ Section Section.
           apply : fs_plx.
           by rewrite in_cons yplx orbT.
         move => vmx''' H ; exists vmx'''.
+        rewrite Hsx' /=.
         Search _ write_var.
         t_xrbindP.
         by admit.
