@@ -606,49 +606,72 @@ Section Section.
     move => vm2' /= Hwrinitwith Huincl; move: Hwrinitwith.
     rewrite with_vm_idem /(with_vm s2') eq_s2'_s1 -/(with_vm s1 _).
     move=> Hwrinitwith.
-    have Hmake_prologue1_1 := (make_prologueE1 p ii' (f_params fnd) args).
-    rewrite plE /= in Hmake_prologue1_1.
-    have Hmake_prologue1_2 := (make_prologueE2 p ii' (f_params fnd) args).
-    rewrite plE /= in Hmake_prologue1_2.
 
     pose F xe := is_reg_ptr_expr is_reg_ptr fresh_id p (v_var xe.1) xe.2.
     pose P := map F (zip (f_params fnd) args).
     pose M := [seq isSome x | x <- P].
     pose V := mask M vargs.
     pose S := write_vars (rev (pmap idfun P)) (rev V) (with_vm s1 vm1).
-    have : exists vmx , write_lvals (p_globs p') (with_vm s1 vm1) [seq Lvar i | i <- pmap idfun P] V = ok (with_vm s1 vmx).
+    have : exists vmx ,
+             write_lvals (p_globs p') (with_vm s1 vm1) [seq Lvar i | i <- pmap idfun P] V = ok (with_vm s1 vmx)
+             /\ sem_pexprs (p_globs p') (with_vm s1 vmx) eargs = ok vargs.
+    Search _ make_prologue.
     + rewrite /V /M /P.
-      move : (vm1) (vm2') Hwrinitwith (pl) Hmake_prologue1_1 fs_pl.
-      have [] := (size_mapM2 vsE).
+      have [eqsz1 eqsz2] := (size_mapM2 vsE).
       have := (size_fold2 hwrinit).
       rewrite size_map.
-      move => <- _.
-      have := (size_mapM eval_args).
-      move : (args) (vargs) (f_params fnd).
-      apply : diagonal_induction_3_eq => /= [|harg hvarg hfparam targs tvargs tfparams eqsargsvargs eqsvargsfparams Ih] vm1' vm2''.
-      - by move => _ _ _ _; exists vm1'.
-      t_xrbindP => sx Hsx Hwrite_lvals plx Hmake_prologue1_1 fs_plx.
+      move => eqsz3.
+      have eqsz4 := (size_mapM eval_args).
+      have eqsz5 : size eargs = size args.
+      - move : plE.
+        rewrite [make_prologue _ _ _ _ _ _]surjective_pairing.
+        case => _ <- ; rewrite make_prologueE2_same_size.
+        * by rewrite size_map size_zip eqsz3 - eqsz2 - eqsz4 minnn.
+        * by rewrite eqsz3 - eqsz2 - eqsz4.
+      have Hmake_prologue1_1 := (make_prologueE1 p ii' (f_params fnd) args).
+      rewrite plE /= in Hmake_prologue1_1.
+      have Hmake_prologue1_2 := (@make_prologueE2_same_size p ii' (f_params fnd) args _).
+      rewrite eqsz3 - eqsz2 - eqsz4 in Hmake_prologue1_2.
+      move /(_ (erefl _)) : Hmake_prologue1_2 => Hmake_prologue1_2.
+      rewrite plE /= in Hmake_prologue1_2.
+      move : (vm1) (vm2') Hwrinitwith (pl) Hmake_prologue1_1 Hmake_prologue1_2 fs_pl eval_args le_X.
+      move : eqsz2.
+      rewrite - eqsz3.
+      move : eqsz5 eqsz4.
+      move : (eargs) (args) (vargs) (f_params fnd).
+      apply : diagonal_induction_4_eq => /= [|hearg harg hvarg hfparam teargs targs tvargs tfparams eqeargsargs eqsargsvargs eqsvargsfparams Ih] vm1' vm2''.
+      - by move => _ _ _ _ _ ; exists vm1'.
+      t_xrbindP => sx Hsx Hwrite_lvals plx Hmake_prologue1_1 [Hmake_prologue1_2_h Hmake_prologue1_2_t] fs_plx vharg eval_harg vtargs eval_targs ? ? le_X ; subst hvarg tvargs.
       have [vmx ?]: exists vmx, sx = with_vm s1 vmx; last subst sx.
         * move: Hsx; rewrite /write_var; t_xrbindP=> vmx _ <-.
           by rewrite with_vm_idem; exists vmx.
       case FE : (F _) => [x|] /= ; last first.
       - pose ply := rev (pmap (λ '(x, e), make_prologue1_1 p ii' x e) (zip tfparams targs)).
-        case : (Ih _ _ Hwrite_lvals ply) => // [x Hx|vmx' h].
+        case : (Ih _ _ Hwrite_lvals ply) => // [x Hx||vmx' [ih1 ih2]].
         * apply fs_plx.
           rewrite Hmake_prologue1_1.
           rewrite {3}/make_prologue1_1.
           rewrite /F /= in FE.
           by rewrite FE /=.
-        have /(_ Sv.empty vm1')[]/= := write_lvals_eq_on _ h.
+        * move : le_X.
+          rewrite read_es_cons.
+          by SvD.fsetdec.
+        have /(_ X vm1')[]/= := write_lvals_eq_on _ ih1.
         * set S' := read_rvs _; rewrite (_ : Sv.Equal S' Sv.empty).
           - by SvD.fsetdec.
           rewrite {}/S'; elim: (tfparams) (targs) => [|tf tfs ih] [|ta tas] //=.
           case: (F (tf, ta)) => //= x; rewrite read_rvs_cons.
           by rewrite ih /=; SvD.fsetdec.
         * have /(_ (p_globs p')) := disjoint_eq_on (r := Lvar hfparam) _ Hsx.
-          by move=> h'; apply: eq_onS; apply: h'; SvD.fsetdec.
+          move=> h'; apply: eq_onS; apply: h'.
         move=> vm'' [_ h']; exists vm''; move: h'.
-        by rewrite with_vm_idem.
+        rewrite with_vm_idem => Hwr.
+        split => //.
+        rewrite /F /= in FE.
+        rewrite Hmake_prologue1_2_h /make_prologue1_2 FE.
+        rewrite (@read_e_eq_on _ X vm'') in eval_harg ; last first.
+        * rewrite read_eE.
+        have := (read_e_eq_on _ _ eval_harg).
       - rewrite {3}/make_prologue1_1 in Hmake_prologue1_1.
         rewrite /F /= in FE.
         rewrite FE /= in Hmake_prologue1_1.
