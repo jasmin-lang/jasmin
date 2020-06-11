@@ -348,6 +348,20 @@ case.
 by move => h; case: (ih _ rec h) => x hx ok_y; eauto.
 Qed.
 
+Lemma mapM_cat  {eT aT bT} (f: aT → result eT bT) (s1 s2: seq aT) :
+  mapM f (s1 ++ s2) = Let r1 := mapM f s1 in Let r2 := mapM f s2 in ok (r1 ++ r2).
+Proof.
+  elim: s1 s2; first by move => s /=; case (mapM f s).
+  move => a s1 ih s2 /=.
+  case: (f _) => // b; rewrite /= ih{ih}.
+  case: (mapM f s1) => // bs /=.
+  by case: (mapM f s2).
+Qed.
+
+Corollary mapM_rcons  {eT aT bT} (f: aT → result eT bT) (s: seq aT) (a: aT) :
+  mapM f (rcons s a) = Let r1 := mapM f s in Let r2 := f a in ok (rcons r1 r2).
+Proof. by rewrite -cats1 mapM_cat /=; case: (f a) => // b; case: (mapM _ _) => // bs; rewrite /= cats1. Qed.
+
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
