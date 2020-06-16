@@ -3357,63 +3357,42 @@ Section PROOF.
   Proof.
     move=> s1 s2 s3 i c li lc Hi Hpi Hc Hci m /= hvm.
     case heqi : const_prop_i => [mc lti]; case: mc heqi => mi ci heqi. 
-    case heqc : const_prop => [mc ltc]; case: mc heqc => mc cc heqc. 
-
+    case heqc : const_prop => [mc ltc]; case: mc heqc => mc cc heqc.
+    split. rewrite /=. rewrite /Pc in Hci. rewrite /Pi in Hpi.
+    move: (Hpi m hvm). rewrite heqi /=. move=> [] hvm2 Hpi'.
+    move: (Hci mi hvm2). rewrite heqc /=. by move=> [] hvm3 Hci'.
+    move=>vmi Hm. rewrite /Pi in Hpi. rewrite /Pc in Hci.
+    move: (Hpi m hvm). rewrite heqi /=. move=> [] hvm' H.
+    move: (H vmi Hm). move=> [] vm2 [] Hci' Hvm'.
+    move: (Hci mi hvm'). rewrite heqc /=. move=> [] hvm3 H'.
+    move: (H' vm2 Hvm'). move=> [] vm3 [] Hci'' Hvm''.
+    exists vm3. split => //.
+    by apply sem_app_i with  {| emem := emem s2; evm := vm2 |}.
+  Qed.
     
-    move=> c1 c2 /= H. rewrite /Pi in Hpi.
-    rewrite /Pc in Hci.
-    move: (Hpi {| Mvar.Map.this := c1; Mvar.Map.is_bst := c2 |} H).
-    move=> [] H1 H2.
-    move: (Hci (const_prop_i {|Mvar.Map.this := c1; Mvar.Map.is_bst := c2 |} i).1.1 H1).
-    move=> Ha /=. case: const_prop_i. move=> [m1 m2] li' /=. Admitted.
-    (*case: const_prop. move=> [cm' cm1'] l2 //.
-    
-    case: const_prop_i => m' i' /Hc [].
-    case: const_prop => m'' c' /= Hm'' Hc' Hi';split => //.
-    move=> vm1 /Hi' [vm2 [hi /Hc']] [vm3 [hc ?]];exists vm3;split => //.
-    by apply: sem_app hi hc.
-  Qed.*)
-
   Local Lemma HmkI : sem_Ind_mkI_i p Pi_r Pi.
   Proof.
-    rewrite /sem_Ind_mkI_i. move=> ii i s1 s2 li Hi Hpi.
+    move=> ii i s1 s2 li Hi Hpi.
     rewrite /Pi_r in Hpi. rewrite /Pi. move=> m H.
     move: (Hpi m ii H). move=> [] H' Hvm. split=> //.
   Qed.
 
   Local Lemma Hassgn : sem_Ind_assgn_i p Pi_r.
   Proof.
-    rewrite /sem_Ind_assgn_i.
-    move=> s1 s2 x tag ty e v v' le lw He Ht Hw m ii /= Hm.
-    move: const_prop_eP. move=> He'.
-    move: (He' gd e s1 m Hm v le He). move=> [] v'0 [] l' [] Hec [] Hv Hl.
-    move: const_prop_rvP. move=> Hw'.
-    move: (Hw' gd s1 (s2, lw) m x v' Hm Hw). move=> [] s2' [] l2' [] Hvm [] Hwc [] Hws Hwl.
-    case: const_prop_rv. move=> [c vl] lt /=.
-    + move: (add_cpmP). move=> Hcp.
-      move: (truncate_value_uincl). move=> Ht'. assert (value_uincl v v). auto.
-      move: (Ht' ty v (trans_sem (const_prop_e m e).2 (v, le)).1 v' H Ht). move=> [] x0 Htt Htv.
-      move: (write_lval_cp). move=> Hwc'. move: (Hwc' gd s1 (const_prop_rv m x).1.2 v' s2' l2' Hwc).
-      move=> Hwc''. move: (write_uincl). move=> Hwu. assert (vm_uincl (evm s1) (evm s1)). auto.
-      move: (Hwu gd s1 s2' (evm s1) (const_prop_rv m x).1.2 v' x0 (lest_to_les l2') H0 Htv Hwc'').
-      move=> [] x1 Hwu' Hvm'.
-      move: write_lval_e_cp. move=> Hwu''.
-      move: (Hwu'' gd  {| emem := emem s1; evm := evm s1 |}
-            (const_prop_rv m x).1.2 x0 {| emem := emem s2'; evm := x1 |} (lest_to_les l2') Hwu').
-      move=> [] l'0 [] Hle Hwe. replace {| emem := emem s1; evm := evm s1 |} with s1 in Hwe.
-      replace {| emem := emem s2'; evm := x1 |} with s2' in Hwe.
-      replace l'0 with l2' in Hwe.  rewrite /= in Hws. rewrite Hws in Hvm.
-      move: (Hcp gd s1 (s2', l2') (const_prop_rv m x).1.1 (const_prop_rv m x).1.2
-             (const_prop_e m e).1 tag ty (v'0, l')
-             (trans_sem (const_prop_e m e).2 (v, le)).1 x0 Hec Hv Htt Hwe Hvm).
-      move=> /= Hf. rewrite Hws /=.
-      split => //. case: const_prop_e. move=> a b.
-      rewrite /valid_cpm. rewrite /valid_cpm in Hf. move=> x2 n.
-      move: (Hf x2 n). rewrite /valid_cpm in Hvm. rewrite /valid_cpm in Hm.
-      move=> Hp. Admitted.
-
-    
-    (*have [v1 [H U]] := const_prop_eP Hm He.
+    move=> s1 s2 x tag ty e v v' le lw He Ht Hw m ii Hm.
+    move: (const_prop_eP). move=> Hcp.
+    move: (Hcp gd e s1 m Hm v le He). move=> [] v'0 [] l' [] He' [] Hv Hl.
+    move: (const_prop_rvP). move=> Hwp.
+    move: (Hwp gd s1 (s2, lw) m x v'). case heqv: const_prop_rv => [m' c'].
+    case: m' heqv=> mi ci heqv. rewrite /=. move=> H1.
+    move: (H1 Hm Hw). move=> [] s2' [] l2' [] Hm' [] Hw' [] Hwv Hwl.
+    case heqe: const_prop_e => [me l]. rewrite heqv /=; split. rewrite /= in Hv. 
+    + move: add_cpmP. move=> Ha. rewrite Hwv in Hm'.
+      move: (Ha gd s1 (s2', l2') mi ci (const_prop_e m e).1 tag ty (v'0, l') v v'
+                He' Hv Ht Hw' Hm'). rewrite heqe /=. rewrite Hwv. move=> H. auto.
+    move=> vm1 Hm1. move: (sem_pexpr_uincl). move: (const_prop_e_sem_pexprs_e')
+    Admitted.
+   (*have [v1 [H U]] := const_prop_eP Hm He.
     have [] := const_prop_rvP Hm Hw.
     case: const_prop_rv. move=> [m' cm'] x' /= Hm' Hw';split.
     + move: add_cpmP. move=> Ha.
@@ -3434,21 +3413,41 @@ Section PROOF.
 
   Local Lemma Hopn : sem_Ind_opn_i p Pi_r.
   Proof.
-    rewrite /sem_Ind_opn_i. move=> s1 s2 t o xs es lo Ho.
-    rewrite /Pi_r. move=> m ii Hm.
-    apply: rbindP Ho. t_xrbindP. move=> [vs l] Hes' ys Hex [s les] Hws Hes Hel.
-    move: (const_prop_esP'). move=> Hces. move: (Hces gd es s1 m Hm vs l Hes').
-    move=> [] v' [] l' [] Hces' [] Hfv [] Hm2 /=.
-    move: (const_prop_rvsP). move=> Hwc. move: (Hwc gd s1 (s, les) m xs ys Hm Hws).
-    move=> [] s2' [] l2' [] Hm' [] Hws' [] Htv Htl /=.
-    case: const_prop_rvs => a b; split => //.
-    case: a. rewrite Hes in Hm'. rewrite /=. move=> a la.
-    admit.
-    rewrite /= in Htv.
-    move=> vm1 Hvm. exists (evm s2). split=>//.
-    case: a. move=> a b0. apply sem_seq
-    
-    (*move=> s1 s2 t o xs es H m ii Hm; apply: rbindP H => vs.
+    move=> s1 s2 t o xs es lo H m ii Hm; apply : rbindP H. move=> [vs ls].
+    t_xrbindP=> Hes ves Hex [s le] Hw He Hl.
+    move:(const_prop_esP'). move=> Hes'. move: (Hes' gd es s1 m Hm vs ls Hes).
+    move=> [] v' [] l' [] Hess [] Hvv Hll.
+    move:(const_prop_rvsP). move=> Hw'. move: (Hw' gd s1 (s, le) m xs ves).
+    move=> Hw''. move: (Hw'' Hm Hw).
+    move=> [] s2' [] l2' [] Hmw [] Hws [] Hse Hlw /=.
+    case  hrvs: const_prop_rvs => [m' lt']. case: m' hrvs=> m' c' hrvs /=; split => //.   rewrite hrvs in Hmw. rewrite /= in Hmw. rewrite /= in He. rewrite -He. auto.
+    move=> vm1 hvm1. move: write_lvals_cp. move=> H.
+    move: (H gd s1 (const_prop_rvs m xs).1.2 ves s2' l2' Hws). move=> Hws'.
+    move: (writes_uincl). move=> H'.
+    move: (H' gd s1 s2' vm1 (const_prop_rvs m xs).1.2 ves _ (lest_to_les l2') hvm1
+              (List_Forall2_refl _ value_uincl_refl) Hws'). move=> [] x Hws'' Hvm'.
+    move: (write_lval_es_cp). move=> Hws3.
+    move: (Hws3 gd  {| emem := emem s1; evm := vm1 |} (const_prop_rvs m xs).1.2 ves
+                {| emem := emem s2'; evm := x |} (lest_to_les l2') Hws'').
+    move=> [] l'0 [] Hlee Hwe.
+    exists x. rewrite /=; split => //. apply sem_seq1_i. rewrite -Hl /=.
+    apply EmkI_i. apply Eopn_i. rewrite /=. rewrite /sem_sopn_e.
+    move: (const_prop_e_esP_sem_pexprs_e'). move=> Hess'.
+    move: (Hess' gd s1 (unzip1 [seq const_prop_e m i | i <- es]) (v', l') Hess).
+    move=> /= Hess''. move: sem_pexprs_uincl. move=> Hese.
+    move: (Hese gd s1 vm1 (unzip1 [seq const_prop_e m i | i <- es]) v' (lest_to_les l') hvm1 Hess''). move=> [] x0 [] x1 Hn Hne Hnl. move: (sem_pexprs_to_sem_pexprs_e').
+    move=> Hn'. move: (Hn' {| emem := emem s1; evm := vm1 |} gd (unzip1 [seq const_prop_e m i | i <- es]) (x0, x1) Hn). replace (p_globs p') with gd. move=> [] x2 [] /= Hex2 [] Hlx2 -> /=. move:  vuincl_exec_opn_eq. move=> Hex'. rewrite -Hex2.
+    move: (Hex' o vs v' ves Hvv Hex). move=> Hex''.
+    move:  vuincl_exec_opn_eq. move=> Hex1.
+    move: (Hex1 o v' x0 ves Hnl Hex''). move=> -> /=.  rewrite hrvs in Hwe.
+    rewrite /= in Hwe. rewrite Hwe /=.
+    rewrite /= in Hse. rewrite /= in He. rewrite He in Hse.
+    rewrite Hse. subst. rewrite /= in Hlee Hll Hlx2. rewrite hrvs in Hlee.
+    rewrite /= in Hlee. admit. by rewrite p'_def /=. rewrite /= in Hse.
+    rewrite /= in He. rewrite He in Hse. by rewrite Hse.
+Admitted.
+
+  (*move=> s1 s2 t o xs es H m ii Hm; apply: rbindP H => vs.
     apply: rbindP => ves Hes Ho Hw;move: (Hes) (Hw).
     move=> /(const_prop_esP Hm) [vs' Hes' Us] /(const_prop_rvsP Hm) [] /=.
     case: const_prop_rvs => m' rvs' /= h1 h2;split=>//.
@@ -3459,18 +3458,15 @@ Section PROOF.
     have [vs2 hs u2]:= sem_pexprs_uincl hvm1 Hes'.
     rewrite /sem_sopn hs /=.
     by have -> := vuincl_exec_opn_eq (Forall2_trans value_uincl_trans Us u2) Ho.
-  Qed.*) Admitted.
+  Qed.*)
 
   Local Lemma Hif_true : sem_Ind_if_true_i p Pc Pi_r.
   Proof.
-    rewrite /sem_Ind_if_true_i. move => s1 s2 e c1 c2 le lc He Hc Hp /=.
-    rewrite /Pc in Hp. move: (const_prop_eP). rewrite /Pi_r.
-    move=> Hce m ii Hm. move: (Hce gd e s1 m Hm (Vbool true) le He).
-    move=> [] v' [] l' [] Hce' [] Hve Hle.
-    move: (Hp m Hm). move=> [] Hm' Hm''. assert (vm_uincl (evm s1) (evm s1)). auto.
-    move: (Hm'' (evm s1) H). move=> [] vm2 [] Hc' Hvm' /=.
-    case: const_prop_e. move=> a b. case: is_boolP. move=> a0.
-    case: a0. case: const_prop. rewrite /=. move=> [a0 a1] b0 /=. split. subst.
+    move => s1 s2 e c1 c2 le lc He Hee Hc1 m ii Hm.
+    move: (const_prop_eP). move=> Hcp.
+    move: (Hcp gd e s1 m Hm (Vbool true) le He) =>
+    [] x [] l' [] He' [] /= Hev /= Hel /=.
+    case: (x) => // b {He}; subst.  case : is_boolP He'.
     Admitted.
    (* move => s1 s2 e c1 c2 He _ Hc1 m ii Hm.
     have  [v' [] ] /= := const_prop_eP Hm He.
@@ -3486,29 +3482,7 @@ Section PROOF.
 
   Local Lemma Hif_false : sem_Ind_if_false_i p Pc Pi_r.
   Proof.
-    rewrite /sem_Ind_if_false_i. move=> s1 s2 e c1 c2 le lc He Hc Hpi /=.
-    rewrite /Pc in Hpi. rewrite /Pi_r. move=> m ii Hm.
-    move: (const_prop_eP). move=> Hce.
-    move: (Hce gd e s1 m Hm (Vbool false) le He).
-    move=> [] v' [] l' [] He' [] Hev [] Ht. move: (Hpi m Hm).
-    move=> /= Hpi'. case: (v') => // b; subst. case: const_prop_e.
-    move=> a b0. case: is_boolP He. move=> a0 Hef. case: a0.
-    case Heq1: const_prop=> [a0 a0'].
-
-
-
-    
-    move => s1 s2 e c1 c2 He _ Hc1 m ii Hm.
-    have  [v' [] ] /= := const_prop_eP Hm He.
-    case: v' => // b {He} He ?;subst.
-    case : is_boolP He => [b [] ->| {e} e He];first by apply Hc1.
-    case: (Hc1 _ Hm).
-    case Heq1 : const_prop => [m1 c0]; case Heq2 : const_prop => [m2 c3] /= Hval Hs;split.
-    + by apply merge_cpmP;right.
-    move=> vm1 /dup[] h /Hs [vm2 [ hc u]];exists vm2;split => //.
-    apply sem_seq1; constructor;apply Eif_false => //.
-    by have [v2 -> /value_uincl_bool1 ->]:= sem_pexpr_uincl h He.
-  Qed.
+   Admitted.
 
   (* TODO: move this *)
   Lemma sem_seq1_iff (P : prog) (i : instr) (s1 s2 : estate):

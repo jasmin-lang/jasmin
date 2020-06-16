@@ -1040,3 +1040,10 @@ Lemma sem_seq1_i P i li s1 s2:
 Proof.
   move=> Hi. apply Eseq_i with s2. auto. constructor.
 Qed.
+
+Lemma sem_app_i P l1 l2 s1 s2 s3 ls1 ls2:
+  sem_c_i P s1 l1 ls1 s2 -> sem_c_i P s2 l2 ls2 s3 ->
+  sem_c_i P s1 (l1 ++ l2) (ls1 ++ ls2) s3.
+Proof.
+  elim: l1 s1 ls1. move=> s1 ls1 Hs1 Hs2 /=.
+Admitted.

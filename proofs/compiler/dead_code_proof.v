@@ -300,10 +300,19 @@ Section PROOF.
     move=> Hwf vm1' Hvm.
     have [ -> Hs ] : emem s1 = emem s2 ∧ evm s1 =v evm s2;
       last by eexists; split; last exact: Eskip; apply: eq_onT _ Hvm.
-    move: Hexpr Hopn.
-    (*move: x0 Hexpr Hopn => [] // x0 [] //=; last by move => ??;t_xrbindP.*)
+    (*move: x0 Hexpr Hopn=> [] // x0 [] //=; last by move => ??;t_xrbindP.
     rewrite /sem_pexprs /=.
-    apply: rbindP=> z. t_xrbindP. move=> [hv hl] h Hexpr [] Hh Hl Hz Hv Hel Hex. subst z.
+    apply: rbindP=> z Hexpr []?; subst z.
+    apply: rbindP => /= p0; rewrite /= /sopn_sem /=.
+    apply: rbindP => v0 /of_val_word [sz0] [v0'] [hle ? ?]; subst.
+    rewrite /x86_MOV;t_xrbindP => ? h; have ha := assertP h => ??;subst.
+    move:Hw; rewrite /= /write_var => - [<-] {s2}.
+    have [sz' /= [[? hle']]]:= get_var_word Hexpr;subst sz'.
+    have ? := cmp_le_antisym hle' hle; subst sz0.
+    rewrite sumbool_of_boolET zero_extend_u.
+    move: s1 Hwf Hvm Hexpr => [mem1 vm1] /= Hwf Hvm Hexpr; split => //.
+    have := set_get_word Hexpr; rewrite /set_var /= sumbool_of_boolET.
+    exact.*)
     admit.
     + case: He => <- <-. by apply Hopn_aux with x0 v.
     + case: He => <- <-. by apply Hopn_aux with x0 v.
@@ -389,7 +398,6 @@ Section PROOF.
     + by apply: eq_onI (eq_onS Hvm2'1);rewrite /sv4 !read_eE; SvD.fsetdec.
     by rewrite -eq_globs (read_e_eq_on _ (emem s2) Hvm');case: (s2) H.
     by case: x => _ <-. case: Hq => Hq1 Hq2. rewrite <- Hq1 in Hvm4'2. rewrite Hq2 in Hf.
-    unfold lrm_w. simpl.
     admit.
     Admitted.
 
@@ -507,19 +515,15 @@ Section PROOF.
   Local Lemma Hproc : sem_Ind_proc p Pc Pfun.
   Proof.
     move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hfun htra Hw Hsem Hc Hres Hfull.
-    (*have dcok : map_cfprog dead_code_fd (p_funcs p) = ok (p_funcs p').
-    + move: dead_code_ok; rewrite /dead_code_prog. t_xrbindP.
-    move=> y dcok Hep Hf.
+    + move: dead_code_ok; rewrite /dead_code_prog. t_xrbindP. move => y dcok Hep' Hfs.
     have [f' [Hf'1 Hf'2]] := get_map_cfprog dcok Hfun.
-    case: f Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
-    move=> f1 f2 f3 /= c f4 res Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
-    case: f' Hf'1 Hf'2. move=> a b. t_xrbindP. move => [[ys cs] fc] f'_res Hf'1 Hf'2.
-    case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- res])) Hf'1 => Heq.
+    case: f Hf'1 Hfun htra Hw Hsem Hc Hres Hfull. => ??? /= c ? res Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
+    case: f' Hf'1 Hf'2. move=> a b. t_xrbindP. move=> y0 Hdc f'_res Hf'1.
+    case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- res])) Hf'1 =>// /= Heq.
     rewrite /ciok in Heq.
-    move: Heq. move => H.
     move: Hc=> /(_ (read_es [seq Pvar i | i <- res])).
     have /= /(_ wf_vmap0) Hwf := wf_write_vars _ Hw.
-    rewrite Hd. simpl. => /(_ Hwf (evm s1)) [//|vm2' [Hvm2'1 /= Hvm2'2]] ??;subst.
+    rewrite Hd /=. simpl. move => /(_ Hwf (evm s1)). [//|vm2' [Hvm2'1 /= Hvm2'2]] ??;subst.
     case: s1 Hvm2'2 Hw Hsem Hwf => /= ?? Hvm2'2 Hw Hsem Hwf.
     econstructor.
     + exact: Hf'2. + exact htra. + exact Hw. + exact Hvm2'2.
@@ -527,8 +531,7 @@ Section PROOF.
     rewrite -Hres; have /= <- := (@sem_pexprs_get_var gd (Estate m2 vm2) f'_res).
     have /= <- := (@sem_pexprs_get_var gd (Estate m2 vm2') f'_res);symmetry.
     by apply: read_es_eq_on Hvm2'1.
-  Qed.*)
-  Admitted.
+
 
   Lemma dead_code_callP fn mem mem' va vr lf:
     sem_call p mem fn va lf mem' vr ->
