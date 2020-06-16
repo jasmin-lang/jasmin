@@ -48,16 +48,16 @@ Derive Inversion_clear sem_consI
   with (forall s1 i c s2,  @sem T pT cs p ev s1 (i :: c) s2)
   Sort Prop.
 
-Lemma set_var_rename (vm vm' : vmap) (x y : var) (v : value) :
+Lemma set_var_rename (vm vm' vm'' : vmap) (x y : var) (v : value) :
      vtype x = vtype y
   -> set_var vm x v = ok vm'
-  -> exists vm'', set_var vm y v = ok vm''.
+  -> exists vm''', set_var vm'' y v = ok vm'''.
 Proof.
 case: x y => [ty nx] [_ ny] [/= <-].
 set x := {| vname := nx |}; set y := {| vname := ny |}.
 apply: set_varP => /=.
-+ by move=> t okt /esym vm'E; exists vm.[y <- ok t]; rewrite /set_var okt.
-+ move=> tybool tyvE /esym vm'E; exists vm.[y <- pundef_addr ty].
++ by move=> t okt /esym vm'E ; exists vm''.[y <- ok t] ; rewrite /set_var okt.
++ move=> tybool tyvE /esym vm'E; exists vm''.[y <- pundef_addr ty].
   by rewrite /set_var tybool tyvE.
 Qed.
 
