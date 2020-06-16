@@ -96,7 +96,7 @@ Section Section.
   Lemma do_prologue_Some (p : uprog) ii st x pe y :
        is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = Some y
     -> do_prologue is_reg_ptr fresh_id p ii st x pe
-       = (MkI ii (Cassgn y AT_rename (vtype y) pe) :: st, Plvar y).
+       = (MkI ii (Cassgn y AT_rename (vtype x) pe) :: st, Plvar y).
   Proof. by rewrite /do_prologue => ->. Qed.
 
   Lemma make_prologue_tc (p : uprog) ii st xs pes :
@@ -134,7 +134,7 @@ Section Section.
        is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = Some y
     -> make_prologue is_reg_ptr fresh_id p ii (x :: xs) (pe :: pes)
        = (rcons (make_prologue is_reg_ptr fresh_id p ii xs pes).1
-                (MkI ii (Cassgn y AT_rename (vtype y) pe)),
+                (MkI ii (Cassgn y AT_rename (vtype x) pe)),
           Plvar y :: (make_prologue is_reg_ptr fresh_id p ii xs pes).2).
   Proof.
   move=> h; rewrite {1}/make_prologue /= (do_prologue_Some _ _ h).
@@ -391,7 +391,7 @@ Section Section.
 
   Definition make_prologue1_1 (pp : uprog) ii x e :=
     if   is_reg_ptr_expr is_reg_ptr fresh_id pp (v_var x) e is Some y
-    then Some (MkI ii (Cassgn y AT_rename (vtype y) e))
+    then Some (MkI ii (Cassgn y AT_rename (vtype x) e))
     else None.
 
   Definition make_prologue1_2 (pp : uprog) x e :=
@@ -720,6 +720,8 @@ Section Section.
             + move=> t pofE; rewrite -pofE /= => <-.
               t_xrbindP=> t' t'E ?; subst v1; rewrite /get_var.
               rewrite Fv.setP_eq /= pofE /=.
+
+
 Search _ of_val to_val.
 Search _ f_params f_tyin.
 
