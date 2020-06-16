@@ -75,8 +75,8 @@ Definition fmap2 {aT bT cT} (f : aT -> bT -> cT -> aT * cT) :
 Definition do_prologue ii acc x e :=
   let x := x.(v_var) in
   match is_reg_ptr_expr x e with
-  | Some x =>
-    (MkI ii (Cassgn (Lvar x) AT_rename (vtype x) e) :: acc, Plvar x)
+  | Some y =>
+    (MkI ii (Cassgn (Lvar y) AT_rename (vtype x) e) :: acc, Plvar y)
   | None => (acc, e)
   end.
 
