@@ -656,19 +656,19 @@ Section Section.
         * move : le_X.
           rewrite read_es_cons.
           by SvD.fsetdec.
-        have /(_ X vm1')[]/= := write_lvals_eq_on _ ih1.
+        have /(_ X vmx)[]/= := write_lvals_eq_on _ ih1.
         * set S' := read_rvs _; rewrite (_ : Sv.Equal S' Sv.empty).
           - by SvD.fsetdec.
           rewrite {}/S'; elim: (tfparams) (targs) => [|tf tfs ih] [|ta tas] //=.
           case: (F (tf, ta)) => //= x; rewrite read_rvs_cons.
           by rewrite ih /=; SvD.fsetdec.
-        * have /(_ (p_globs p')) := disjoint_eq_on (r := Lvar hfparam) _ Hsx.
-          move=> h'; apply: eq_onS; apply: h'.
+        * by done.
         move=> vm'' [_ h']; exists vm''; move: h'.
-        rewrite with_vm_idem => Hwr.
+        rewrite ! with_vm_idem => Hwr.
         split => //.
+        * 
         rewrite /F /= in FE.
-        rewrite Hmake_prologue1_2_h /make_prologue1_2 FE.
+        rewrite /make_prologue1_2.
         rewrite (@read_e_eq_on _ X vm'') in eval_harg ; last first.
         * rewrite read_eE.
         have := (read_e_eq_on _ _ eval_harg).
