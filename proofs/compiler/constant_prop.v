@@ -47,7 +47,7 @@ Local Open Scope Z_scope.
 Inductive leak_tr :=
 | LT_id (* preserve *)
 | LT_remove (* remove *)
-| LT_subi : Z -> leak_tr (* projection *) (* FIXME: Z → nat *)
+| LT_subi : Z -> leak_tr (* projection *) (* FIXME: change Z into nat *)
 | LT_seq : seq leak_tr -> leak_tr (* parallel transformations *)
 | LT_compose: leak_tr -> leak_tr -> leak_tr. (* compositon of transformations *)
 

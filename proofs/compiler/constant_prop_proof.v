@@ -2722,7 +2722,10 @@ Section CONST_PROP_EP.
                     let t := unzip2 et in
                     sem_pexprs_e gd s es = ok (v, l) ->
                     exists v', exists l', sem_pexprs_e gd s e' = ok (v', l') /\
+                    (* FIXME : map2 ... -> leak_F (LT_seq t) l = l' *)
                     List.Forall2 value_uincl v v' /\ map2 leak_F t [:: l] = [:: l'].
+                    (* better solution *)
+                    (* exists2 v', sem_pexprs_e gd s e' = ok (v', leak_F (LT_seq t) l) & List.Forall2 value_uincl v v'. *)
 
 
 Lemma const_prop_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
