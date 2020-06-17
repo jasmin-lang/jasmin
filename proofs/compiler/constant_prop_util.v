@@ -68,6 +68,7 @@ Fixpoint sem_pexpr_e (s:estate) (e : pexpr) : exec (value * leak_e_tree) :=
 
 (* FIXME:
   Definition sem_pexprs_e s es := mapM (sem_pexpr_e s) es.
+  In fact why do you use LSub ?
 *)
 Definition sem_pexprs_e s es :=
   Let vls := mapM (sem_pexpr_e s) es in
@@ -95,6 +96,12 @@ Definition write_lval_e (l:lval) (v:value) (s:estate) : exec (estate * leak_e_tr
     ok ({| emem := s.(emem); evm := vm |}, LSub [:: vl.2; (LIdx i)])
   end.
 
+(* FIXME 
+Definition write_lvals_e (s:estate) xs vs :=
+   fold2 ErrType (fun l v sl => Let sl' := write_lval_e l v sl.1 in ok (sl'.1, rcons sl.2 sl'.2))
+      xs vs (s, [::]).
+
+*)
 Definition write_lvals_e (s:estate) xs vs :=
    fold2 ErrType (fun l v sl => Let sl' := write_lval_e l v sl.1 in ok (sl'.1, LSub [:: sl.2 ; sl'.2]))
       xs vs (s, LEmpty).
@@ -381,6 +388,13 @@ Definition sem_range_e (s : estate) (r : range) :=
   Let i2 := to_int vl2.1 in
   ok (wrange d i1 i2, LSub [:: vl1.2 ; vl2.2]).
 
+(* FIXME: 
+Definition sem_sopn_e gd o m lvs args := 
+  Let vas := sem_pexprs_e gd m args in
+  Let vs := exec_sopn o vas.1 in 
+  Let ml := write_lvals_e gd m lvs vs in
+  ok (ml.1, LSub [ :: LSub vas.2 ; LSub ml.2]).
+*)
 Definition sem_sopn_e gd o m lvs args := 
   Let vas := sem_pexprs_e gd m args in
   Let vs := exec_sopn o vas.1 in 
