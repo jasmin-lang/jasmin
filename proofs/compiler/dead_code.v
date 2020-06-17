@@ -160,29 +160,16 @@ Definition dead_code_prog (p: prog) : cfexec (prog * leak_trans_fs) :=
   let funcs := map (fun p => (p.1, p.2.1)) funcs in
   ok ({| p_globs := p_globs p; p_funcs := funcs |}, Fs).
 
-(* This is boring, we need to define map2 struct on lb, 
-   else the guard condition reject the next definitions *)
-
-Definition map2b (A B C : Type) (f : A -> B -> C) :=
-fix map2 (la : seq A) (lb : seq B) {struct lb} : seq C :=
-  match la with
-  | [::] => [::]
-  | a :: la0 => match lb with
-                | [::] => [::]
-                | b :: lb0 => f a b :: map2 la0 lb0
-                end
-  end.
- 
 Section LEAK_TRANS.
 
 Variable (Ffs: seq (funname * leak_trans_c)).
 
 Section LEAK_TRANS_LOOP.
 
-  Variable (lrm_i : leak_trans_i -> leakage_i -> leakage_c).
+  Variable (lrm_i : leakage_i -> leak_trans_i -> leakage_c).
 
   Definition lrm_c (lt:leak_trans_c) (lc:leakage_c) : leakage_c := 
-    flatten (map2b lrm_i lt lc).
+    flatten (map2 lrm_i lc lt).
 
   Fixpoint lrm_w (lt1 lt2: leak_trans_c) (li: leakage_i) : leakage_i := 
     match li with
@@ -204,7 +191,7 @@ Section LEAK_TRANS_LOOP.
 
 End LEAK_TRANS_LOOP.
 
-Fixpoint lrm_i (lt:leak_trans_i) (li:leakage_i) {struct li} : leakage_c :=
+Fixpoint lrm_i (li: leakage_i) (lt: leak_trans_i) {struct li} : leakage_c :=
   match lt, li with
   | LTremove, _ => [::]
 

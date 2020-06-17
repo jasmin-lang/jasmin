@@ -293,8 +293,13 @@ case: e=> //= ;try auto.
   rewrite Hhv in Hh; rewrite -Hh. case: Hb1 => ->. by rewrite Hb2.
 + move=> s0 e. t_xrbindP.
   move=> h [yv yl] He /= h1 Ho <-. rewrite /sem_sop1 /=.
-  t_xrbindP. move=> h0 y Hb <- <- _.
-  admit.
+  t_xrbindP => h0 y /to_boolI ????; subst.
+  case hop: (if s0 is Onot then false else true).
+  * move => eval.
+    have {eval} : sem_pexpr_e gd s (Papp1 Onot (Papp1 s0 e), LT_id).1 = ok (v', l') by case: s0 hop eval {Ho}.
+    by rewrite /= He /= Ho /= /sem_sop1 /= => - [<- _].
+  case: s0 hop Ho => // _; rewrite /sem_sop1 /= He; t_xrbindP => ? /to_boolI -> <- <- _.
+  by rewrite negbK.
 + move=> s0 e e0. t_xrbindP.
   move=> y [yv yl] He [yv' yl'] He0 v0 Hs2 Hev v1 Hs1 Hev' Hl'.
   rewrite He /=. rewrite He0 /=. move=> h10 h11 [] <- h13 [] <-.
@@ -313,7 +318,7 @@ case: e=> //= ;try auto.
   rewrite Hb /=. rewrite He0 He1 /= => h10 [] <- h12 [] <- h14 [] <-.
   rewrite Ht Ht1 /= => h16 [] <- h18 [] <-. rewrite Hif /= => <-.
   rewrite Hb' /= => h21 h22 [] <- <- <- _. by rewrite -Hh.
-Admitted.
+Qed.
 
 Lemma snot_boolPl s e v l:
 let e' := (snot_bool e).1 in
@@ -403,10 +408,13 @@ case: e => //.
   case: Hev => <-. rewrite Hr /= => wr [] <-; rewrite He' /= => <-.
   rewrite Hb /=. move=> h17 h18 => [] Hb1 Hb2 <- Hl'.
   rewrite Hhv in Hh; rewrite -Hh. case: Hb1 => ->. by rewrite Hb2.
-+ move=> s0 e. rewrite /sneg_int /=. t_xrbindP.
-  move=> h [yv yl] He /= h1 Ho. rewrite /sem_sop1 /=.
-  t_xrbindP. move=> <- h2 y /of_val_int Hy <- <- Hl H /=.
-  admit.
++ move => op e /=; t_xrbindP => _ [??] he ? hop <-.
+  rewrite /sem_sop1 /=; t_xrbindP => ?? /to_intI ???? H; subst.
+  case k: (if op is Oneg Op_int then false else true).
+  * have {H} : sem_pexpr_e gd s (Papp1 (Oneg Op_int) (Papp1 op e)) = ok (v', l') by case: (op) k H => // - [].
+    by rewrite /= he /= hop => - [<- _].
+  case: op k hop H => // - [] // _.
+  rewrite /sem_sop1 he /=; t_xrbindP => ? /to_intI -> <- <- _; exact: Z.opp_involutive.
 + move=> s0 e e0 /=. t_xrbindP.
   move=> y [yv yl] He [yv' yl'] He0 v0 Hs2 Hev v1 Hs1 Hev' Hl'.
   rewrite He /=. rewrite He0 /=. move=> h10 h11 [] <- h13 [] <-.
@@ -425,7 +433,7 @@ case: e => //.
   rewrite Hb /=. rewrite He0 He1 /= => h10 [] <- h12 [] <- h14 [] <-.
   rewrite Ht Ht1 /= => h16 [] <- h18 [] <-. rewrite Hif /= => <-.
   rewrite Hb' /= => h21 h22 [] <- <- <- _. by rewrite -Hh.
-Admitted.
+Qed.
 
 Lemma sneg_intPl s e v l:
 let e' := (sneg_int e).1 in
@@ -3301,7 +3309,7 @@ Section PROOF.
       forall vm1,
         vm_uincl (evm s1) vm1 ->
         exists vm2,
-          sem_c_i p' {|emem := emem s1; evm := vm1|} ((const_prop_i m i).1).2 (leak_I (const_prop_i m i).2 li) 
+          sem_c_i p' {|emem := emem s1; evm := vm1|} ((const_prop_i m i).1).2 (leak_I li (const_prop_i m i).2)
                          {|emem := emem s2; evm := vm2|} /\
           vm_uincl (evm s2) vm2.
 
@@ -3312,7 +3320,7 @@ Section PROOF.
       forall vm1,
         vm_uincl (evm s1) vm1 ->
         exists vm2,
-          sem_c_i p' {|emem := emem s1; evm := vm1|} ((const_prop_ir m ii i).1).2 (leak_I (const_prop_ir m ii i).2 li)
+          sem_c_i p' {|emem := emem s1; evm := vm1|} ((const_prop_ir m ii i).1).2 (leak_I li (const_prop_ir m ii i).2)
                          {|emem := emem s2; evm := vm2|} /\ 
           vm_uincl (evm s2) vm2.
 

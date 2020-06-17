@@ -36,26 +36,28 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Local Unset Elimination Schemes.
+
 Local Open Scope seq_scope.
 Local Open Scope vmap_scope.
 Local Open Scope Z_scope.
-(* -------------------------------------------------------------------------- *)
-(* ** Smart constructors                                                      *)
-(* -------------------------------------------------------------------------- *)
 
+(* ------------------------------------------------------------------------ *)
+(* Leakage trees and leakage transformations. *)
 Inductive leak_tr :=
-| LT_id
-| LT_remove
-| LT_subi : Z -> leak_tr
-| LT_seq : seq leak_tr -> leak_tr
-| LT_compose: leak_tr -> leak_tr -> leak_tr.
+| LT_id (* preserve *)
+| LT_remove (* remove *)
+| LT_subi : Z -> leak_tr (* projection *) (* FIXME: Z → nat *)
+| LT_seq : seq leak_tr -> leak_tr (* parallel transformations *)
+| LT_compose: leak_tr -> leak_tr -> leak_tr. (* compositon of transformations *)
 
 Inductive leak_e_tree :=
-| LEmpty : leak_e_tree
-| LIdx : Z -> leak_e_tree
-| LAdr : pointer -> leak_e_tree
-| LSub: (seq leak_e_tree) -> leak_e_tree.
+| LEmpty : leak_e_tree (* no leak *)
+| LIdx : Z -> leak_e_tree (* array access at given index *)
+| LAdr : pointer -> leak_e_tree (* memory access at given address *)
+| LSub: (seq leak_e_tree) -> leak_e_tree. (* forest of leaks *)
 
+(* FIXME: this is “nth LEmpty” *)
 Fixpoint get_nth (ls : seq leak_e_tree) (i : Z) : leak_e_tree :=
 match ls with 
  | [::] => LEmpty 
@@ -89,6 +91,9 @@ Fixpoint lest_to_les (les : leak_e_tree) : leakages_e :=
   | LSub les => lests_to_les lest_to_les les
   end.
 
+(* -------------------------------------------------------------------------- *)
+(* ** Smart constructors                                                      *)
+(* -------------------------------------------------------------------------- *)
 Definition sword_of_int sz (e: pexpr) :=
   (Papp1 (Oword_of_int sz) e, LT_id).
 
@@ -572,10 +577,10 @@ Inductive leak_i_tr :=
 
 Section Leak_I.
 
-  Variable leak_I : leak_i_tr -> leak_i_tree -> seq leak_i_tree.
+  Variable leak_I : leak_i_tree -> leak_i_tr -> seq leak_i_tree.
 
   Definition leak_Is (lts : seq leak_i_tr) (ls : seq leak_i_tree) : seq leak_i_tree :=
-    flatten (map2b leak_I lts ls).
+    flatten (map2 leak_I ls lts).
 
   Definition leak_Iss (ltss : seq leak_i_tr) (ls : seq (seq leak_i_tree)) : seq (seq leak_i_tree) :=
     (map (leak_Is ltss) ls).
@@ -584,7 +589,7 @@ End Leak_I.
 
 Definition dummy_lit := LTassgn LEmpty.
 
-Fixpoint leak_I (lt : leak_i_tr) (l : leak_i_tree) : seq leak_i_tree :=
+Fixpoint leak_I (l : leak_i_tree) (lt : leak_i_tr) {struct l} : seq leak_i_tree :=
   match lt, l with
   | LT_ikeep, _ => [::l]
   | LT_ile lte, LTassgn le => [:: LTassgn (leak_F lte le) ]
@@ -595,7 +600,7 @@ Fixpoint leak_I (lt : leak_i_tr) (l : leak_i_tree) : seq leak_i_tree :=
     [:: LTwhile_true (leak_Is leak_I ltis lts)
                      (leak_F lte le)
                      (leak_Is leak_I ltis' lts')
-                     (head dummy_lit (leak_I lt lw))]
+                     (head dummy_lit (leak_I lw lt))]
   | LT_iwhile ltis lte ltis', LTwhile_false lts le => 
     [::LTwhile_false (leak_Is leak_I ltis lts)
                      (leak_F lte le)]

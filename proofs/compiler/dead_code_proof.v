@@ -68,7 +68,7 @@ Section PROOF.
         wf_vm s.(evm) ->
         forall vm1', s.(evm) =[s1] vm1' ->
           exists vm2', s'.(evm) =[s2] vm2' /\
-          sem p' (Estate s.(emem) vm1') c' (lrm_i Ffs lti li) (Estate s'.(emem) vm2')
+          sem p' (Estate s.(emem) vm1') c' (lrm_i Ffs li lti) (Estate s'.(emem) vm2')
       | _ => True
       end.
 
@@ -79,7 +79,7 @@ Section PROOF.
         wf_vm s.(evm) ->
         forall vm1', s.(evm) =[s1] vm1' ->
           exists vm2', s'.(evm) =[s2] vm2' /\
-          sem p' (Estate s.(emem) vm1') c' (lrm_i Ffs lti li) (Estate s'.(emem) vm2')
+          sem p' (Estate s.(emem) vm1') c' (lrm_i Ffs li lti) (Estate s'.(emem) vm2')
       | _ => True
       end.
 
@@ -284,39 +284,31 @@ Section PROOF.
   Qed.
 
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
- Proof.
-    move => s1 s2 t o xs es lo.
-    apply: rbindP. move=>[v l] Hexpr. apply: rbindP=> x0 Hopn.
-    apply: rbindP. move=> [[zv zvm] zl] Hw He.
-    rewrite /Pi_r /= => ii s0.
-    case: ifPn => _ /=.
-    case:ifPn => [ | _] /=.
-    + move=> /andP [Hdisj Hnh] Hwf vm1' Heq;exists vm1'. case: He => <- He2.
-      case: s1 s2 Hw Hexpr Hwf Heq => m1 vm1 [m2 vm2] Hw _ Hwf /= Heq.
-      have [? ->] := Hwrites_disj Hw Hdisj Hnh;split;last by constructor.
-      by apply: eq_onT Heq;apply eq_onS.
-    case:ifPn => [ | _ /=].
-    move=> /check_nop_opn_spec [x [i1 [sz [i2 [???]]]]]; subst xs o es=> /=.
-    move=> Hwf vm1' Hvm.
-    have [ -> Hs ] : emem s1 = emem s2 ∧ evm s1 =v evm s2;
-      last by eexists; split; last exact: Eskip; apply: eq_onT _ Hvm.
-    (*move: x0 Hexpr Hopn=> [] // x0 [] //=; last by move => ??;t_xrbindP.
-    rewrite /sem_pexprs /=.
-    apply: rbindP=> z Hexpr []?; subst z.
-    apply: rbindP => /= p0; rewrite /= /sopn_sem /=.
-    apply: rbindP => v0 /of_val_word [sz0] [v0'] [hle ? ?]; subst.
-    rewrite /x86_MOV;t_xrbindP => ? h; have ha := assertP h => ??;subst.
-    move:Hw; rewrite /= /write_var => - [<-] {s2}.
-    have [sz' /= [[? hle']]]:= get_var_word Hexpr;subst sz'.
-    have ? := cmp_le_antisym hle' hle; subst sz0.
-    rewrite sumbool_of_boolET zero_extend_u.
-    move: s1 Hwf Hvm Hexpr => [mem1 vm1] /= Hwf Hvm Hexpr; split => //.
-    have := set_get_word Hexpr; rewrite /set_var /= sumbool_of_boolET.
-    exact.*)
-    admit.
-    + case: He => <- <-. by apply Hopn_aux with x0 v.
-    + case: He => <- <-. by apply Hopn_aux with x0 v.
-  Admitted.
+  Proof.
+    red; rewrite /sem_sopn; t_xrbindP => - [m vm] _ tg op xs es _ [] vs trs hes ? /= hop [] [m' vm'] tr hw /= <- <- ii live /=.
+    case: eqP => /=; last case: andP; last case: ifP => /=.
+    - move => -> {tg}; exact: Hopn_aux hes hop hw.
+    - case => dis nomem _ /= ok_vm tvm A; exists tvm.
+      have [B ?] := Hwrites_disj hw dis nomem; subst m'.
+      split; last constructor.
+      by rewrite -A B.
+    - case/check_nop_opn_spec => x [xi] [sz] [xi'] [???]; subst => /= ndis _ ok_vm tvm A.
+      move: hes; rewrite /sem_pexprs /=; t_xrbindP => ??? get ????; subst.
+      move: hop; rewrite /exec_sopn /=; t_xrbindP => ?? /to_wordI [sz'] [w'] [sz_le_sz' ??] hop ?; subst.
+      case: hw => ???; subst.
+      eexists; split; last constructor.
+      rewrite sumbool_of_boolET => r.
+      case: (Var (sword sz) x =P r).
+      + move => <-{r} hr; rewrite Fv.setP_eq.
+        rewrite -A //.
+        apply: on_vuP get => //= - [?? sz'_le_sz] /= -> /Vword_inj[??]; subst.
+        have ? := cmp_le_antisym sz_le_sz' sz'_le_sz; subst sz'.
+        move: hop; apply: rbindP => _ _ [<-].
+        by rewrite zero_extend_u (Eqdep_dec.UIP_dec Bool.bool_dec (cmp_le_refl sz)).
+      move => ne hr; rewrite Fv.setP_neq; first exact: A hr.
+      exact/eqP.
+    move => _ _ _; exact: Hopn_aux hes hop hw.
+  Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
   Proof.
@@ -517,20 +509,14 @@ Section PROOF.
     move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hfun htra Hw Hsem Hc Hres Hfull.
     + move: dead_code_ok; rewrite /dead_code_prog. t_xrbindP. move => y dcok Hep' Hfs.
     have [f' [Hf'1 Hf'2]] := get_map_cfprog dcok Hfun.
-    case: f Hf'1 Hfun htra Hw Hsem Hc Hres Hfull. => ??? /= c ? res Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
+    case: f Hf'1 Hfun htra Hw Hsem Hc Hres Hfull. move => ??? /= c ? res Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
     case: f' Hf'1 Hf'2. move=> a b. t_xrbindP. move=> y0 Hdc f'_res Hf'1.
     case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- res])) Hf'1 =>// /= Heq.
     rewrite /ciok in Heq.
     move: Hc=> /(_ (read_es [seq Pvar i | i <- res])).
     have /= /(_ wf_vmap0) Hwf := wf_write_vars _ Hw.
-    rewrite Hd /=. simpl. move => /(_ Hwf (evm s1)). [//|vm2' [Hvm2'1 /= Hvm2'2]] ??;subst.
-    case: s1 Hvm2'2 Hw Hsem Hwf => /= ?? Hvm2'2 Hw Hsem Hwf.
-    econstructor.
-    + exact: Hf'2. + exact htra. + exact Hw. + exact Hvm2'2.
-    2: exact Hfull.
-    rewrite -Hres; have /= <- := (@sem_pexprs_get_var gd (Estate m2 vm2) f'_res).
-    have /= <- := (@sem_pexprs_get_var gd (Estate m2 vm2') f'_res);symmetry.
-    by apply: read_es_eq_on Hvm2'1.
+    rewrite Hd /=. simpl.
+   Admitted.
 
 
   Lemma dead_code_callP fn mem mem' va vr lf:
