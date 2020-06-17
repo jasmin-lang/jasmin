@@ -35,26 +35,32 @@ Unset Printing Implicit Defensive.
 Delimit Scope leakage_scope with leakage.
 Open Scope leakage_scope.
 
-Inductive leakage_e := 
+Inductive leak_e :=
+| LEmpty : leak_e (* no leak *)
+| LIdx : Z -> leak_e (* array access at given index *)
+| LAdr : pointer -> leak_e (* memory access at given address *)
+| LSub: (seq leak_e) -> leak_e. (* forest of leaks *)
+
+(*Inductive leakage_e := 
   | LeakAdr of pointer
   | LeakIdx of Z.
 
-Definition leakages_e := seq leakage_e.
+Definition leakages_e := seq leakage_e.*)
 
-Inductive leakage_i : Type :=
-  | Lassgn : leakages_e -> leakage_i
-  | Lopn  : leakages_e ->leakage_i
-  | Lcond  : leakages_e -> bool -> seq leakage_i -> leakage_i
-  | Lwhile_true : seq leakage_i -> leakages_e -> seq leakage_i -> leakage_i -> leakage_i 
-  | Lwhile_false : seq leakage_i -> leakages_e -> leakage_i
-  | Lfor : leakages_e -> seq (seq leakage_i) -> leakage_i
-  | Lcall : leakages_e -> (funname * seq leakage_i) -> leakages_e -> leakage_i.
+Inductive leak_i : Type :=
+  | Lassgn : leak_e -> leak_i
+  | Lopn  : leak_e ->leak_i
+  | Lcond  : leak_e -> bool -> seq leak_i -> leak_i
+  | Lwhile_true : seq leak_i -> leak_e -> seq leak_i -> leak_i -> leak_i 
+  | Lwhile_false : seq leak_i -> leak_e -> leak_i
+  | Lfor : leak_e -> seq (seq leak_i) -> leak_i
+  | Lcall : leak_e -> (funname * seq leak_i) -> leak_e -> leak_i.
 
-Notation leakage_c := (seq leakage_i).
+Notation leak_c := (seq leak_i).
 
-Notation leakage_for := (seq leakage_c) (only parsing).
+Notation leak_for := (seq leak_c) (only parsing).
 
-Notation leakage_fun := (funname * leakage_c)%type.
+Notation leak_fun := (funname * leak_c)%type.
 
 
 
