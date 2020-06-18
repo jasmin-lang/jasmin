@@ -151,11 +151,6 @@ Section SEM_PEXPR_SIM.
 
   Let Q es : Prop :=
     ∀ vs,
-      mapM (sem.sem_pexpr gd s) es = ok vs ->
-      mapM (psem.sem_pexpr gd s') es = ok vs.
-
-  Let Q' es : Prop :=
-    ∀ vs,
       sem.sem_pexprs gd s es = ok vs →
       psem.sem_pexprs gd s' es = ok vs.
 
@@ -188,16 +183,11 @@ Section SEM_PEXPR_SIM.
     + t_xrbindP=> *;sem_pexpr_sim_t.
     + t_xrbindP=> *;sem_pexpr_sim_t.
     + t_xrbindP=> *;sem_pexpr_sim_t.
-    + t_xrbindP=> *;sem_pexpr_sim_t.
+    + rewrite /sem.sem_pexprs. move=> op es H.
+      t_xrbindP.  move=> [hv hl] y Hm.
+      move: (H y Hm). rewrite /sem_pexprs. move=> -> /=.
+      by move=> h1 -> <- /=.
     t_xrbindP=> *;sem_pexpr_sim_t.
-Qed.
-
-  Lemma sem_pexpr_s_sim' : (∀ e, P e) ∧ (∀ es, Q' es).
-  Proof.
-    rewrite /Q'. rewrite /sem.sem_pexprs. rewrite /sem_pexprs.
-    move: (sem_pexpr_s_sim) => [] H1 H2. rewrite /Q in H2.
-    split; auto. move=> es vs. t_xrbindP => y Hm <-. move: (H2 es y) => H1'.
-    by rewrite H1' /=.
   Qed.
 
   End SEM_PEXPR_SIM.
@@ -206,8 +196,6 @@ Definition sem_pexpr_sim s e v s' h :=
   (@sem_pexpr_s_sim s s' h).1 e v.
 Definition sem_pexprs_sim s es vs s' h :=
   (@sem_pexpr_s_sim s s' h).2 es vs.
-Definition sem_pexprs_sim' s es vs s' h :=
-  (@sem_pexpr_s_sim' s s' h).2 es vs.
 
 Lemma write_var_sim s1 x v s2 s1' :
   estate_sim s1 s1' →
@@ -272,7 +260,7 @@ elim: xs vs s1 s1' [::] l2.
 move => x xs ih [] // v vs s1 s1' l0 l2 h /=.
 t_xrbindP. move=> y [hv hl] Hsem He H. subst.
 move: (write_lval_sim). move=> Hw. move: (Hw s1 x v hv hl s1' h Hsem) => [] x0 [] h' hw /=.
-rewrite hw /=. move: (ih vs hv x0 (l0 ++ hl) l2 h' H) => [] s2' [] H' Hf. exists s2'.
+rewrite hw /=. move: (ih vs hv x0 (rcons l0 (hv, hl).2) l2 h' H) => [] s2' [] H' Hf. exists s2'.
 split. auto. auto.
 Qed.
 
@@ -334,13 +322,15 @@ apply: (@sem.sem_call_Ind p Pc Pi_r Pi Pfor Pfun) => {m fn va l m' vr}.
   exists s2'; split; first exact: hss'2.
   by econstructor; eauto.
 - move => s1 s2 tg op xs es lo. rewrite /sem.sem_sopn. rewrite /sem.sem_pexprs.
-  t_xrbindP. move=> y h Hm He h2 Hex [hv hl] Hw <- /= <-.
+  t_xrbindP. move=> y Hm h2 Hex [hv hl] Hw <- /= <-.
   move=> s1' H.
-  move: (sem_pexprs_sim) => Hm'. move: (Hm' s1 es h s1' H Hm) => Hmm.
+  move: (sem_pexprs_sim) => Hm'. rewrite /sem.sem_pexprs in Hm'.
+  move: (Hm' s1 es y s1' H Hm) => Hmm.
   move: (write_lvals_sim) => Hw'. move: (Hw' s1 xs h2 hv hl s1' H Hw) => [] s2' [] Hvm' Hww. exists s2'.
   split. auto.
-  constructor. rewrite /sem_sopn. rewrite /sem_pexprs. rewrite Hmm /=. rewrite -He /= in Hex. rewrite Hex /=.
-  rewrite Hww /=. by rewrite -He /=.
+  constructor. rewrite /sem_sopn. rewrite /sem_pexprs.
+  rewrite /sem_pexprs in Hmm. rewrite Hmm /=. rewrite Hex /=.
+  by rewrite Hww /=.
 - move => s1 s2 e th el le lc /sem_pexpr_sim he _ ih s1' hss'1.
   case: (ih _ hss'1) => s2' [hss'2 hth].
   exists s2'; split; first exact hss'2.
@@ -370,7 +360,7 @@ apply: (@sem.sem_call_Ind p Pc Pi_r Pi Pfor Pfun) => {m fn va l m' vr}.
   case: (ih' _ hss'3) => s4' [hss'4 hf].
   exists s4'; split; first exact: hss'4.
   econstructor; eauto.
-- move => s1 m2 s2 ii xs fn args vargs vs l1 lf lw /sem_pexprs_sim' hargs _ ih /write_lvals_sim hres s1' [hm hvm].
+- move => s1 m2 s2 ii xs fn args vargs vs lf lw /sem_pexprs_sim hargs _ ih /write_lvals_sim hres s1' [hm hvm].
   rewrite hm in ih.
   case: (hres {| emem := m2 ; evm := evm s1' |} (conj erefl hvm)) => s2' [hss'2 hw].
   exists s2'; split; first exact: hss'2.
