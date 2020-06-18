@@ -171,28 +171,28 @@ Section SEM_PEXPR.
 
 Context (gd: glob_decls).
 
-Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leakages_e) :=
-  match e with
-  | Pconst z => ok (Vint z, [::])
-  | Pbool b  => ok (Vbool b, [::])
-  | Parr_init n => ok (Varr (WArray.empty n), [::])
+Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leak_e)  :=
+ match e with
+  | Pconst z => ok (Vint z, LEmpty)
+  | Pbool b  => ok (Vbool b, LEmpty)
+  | Parr_init n => ok (Varr (WArray.empty n), LEmpty)
   | Pvar x => Let v := get_var s.(evm) x in 
-              ok (v, [::])
+              ok (v, LEmpty)
   | Pglobal g => Let v := get_global gd g in 
-                 ok (v, [::])
+                 ok (v, LEmpty)
   | Pget ws x e =>
       Let (n, t) := s.[x] in
       Let vl := sem_pexpr s e in 
       Let i := to_int vl.1 in 
       Let w := WArray.get ws t i in
-      ok ((Vword w), rcons vl.2 (LeakIdx i))
+      ok ((Vword w), LSub [ :: vl.2 ; (LIdx i)])
   | Pload sz x e =>
     Let w1 := get_var s.(evm) x >>= to_pointer in
     Let vl2 := sem_pexpr s e in 
     Let w2 := to_pointer vl2.1 in
     let adr := (w1 + w2)%R in 
     Let w  := read_mem s.(emem) adr sz in
-    ok (@to_val (sword sz) w, rcons vl2.2 (LeakAdr adr))
+    ok (@to_val (sword sz) w, LSub [ :: vl2.2;  (LAdr adr)])
   | Papp1 o e1 =>
     Let vl := sem_pexpr s e1 in
     Let v := sem_sop1 o vl.1 in 
@@ -201,11 +201,11 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leakages_e) :=
     Let vl1 := sem_pexpr s e1 in
     Let vl2 := sem_pexpr s e2 in
     Let v := sem_sop2 o vl1.1 vl2.1 in
-    ok (v, vl1.2 ++ vl2.2)
+    ok (v, LSub [:: vl1.2; vl2.2])
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
     Let v := sem_opN op (unzip1 vs) in
-    ok (v, flatten (unzip2 vs))
+    ok (v, LSub (unzip2 vs))
   | Pif t e e1 e2 =>
     Let vl := sem_pexpr s e in
     Let b := to_bool vl.1in
@@ -213,12 +213,10 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leakages_e) :=
     Let vl2 := sem_pexpr s e2 in
     Let v1 := truncate_val t vl1.1 in
     Let v2 := truncate_val t vl2.1 in
-    ok (if b then v1 else v2, vl.2 ++ vl1.2 ++ vl2.2)
+    ok (if b then v1 else v2, LSub [:: vl.2 ; vl1.2; vl2.2])
   end.
 
-Definition sem_pexprs s es :=
-  Let vls := mapM (sem_pexpr s) es in
-  ok (unzip1 vls, flatten (unzip2 vls)). 
+Definition sem_pexprs s es := mapM (sem_pexpr s) es. 
 
 (** Suggestion: separate evaluation of expressions from computing the leakage resulting from such evaluation.
 
@@ -257,10 +255,10 @@ Fixpoint pexpr_leak (e: pexpr) : seq symbolic_expr_leakage :=
   | Pif _ a b c => pexpr_leak a ++ pexpr_leak b ++ pexpr_leak c
   end.
 
-Definition leakage_e_of_symbolic_expr_leakage (s: estate) (e: symbolic_expr_leakage) : exec leakage_e :=
+Definition leak_e_of_symbolic_expr_leakage (s: estate) (e: symbolic_expr_leakage) : exec leak_e :=
   match e with
-  | SLeakAddr x a => Let v := sem_pexpr s (Papp2 (Oadd (Op_w Uptr)) x a) in Let p := to_pointer v.1 in ok (LeakAdr p)
-  | SLeakIndex a => Let v := sem_pexpr s a in Let i := to_int v.1 in ok (LeakIdx i)
+  | SLeakAddr x a => Let v := sem_pexpr s (Papp2 (Oadd (Op_w Uptr)) x a) in Let p := to_pointer v.1 in ok (LAdr p)
+  | SLeakIndex a => Let v := sem_pexpr s a in Let i := to_int v.1 in ok (LIdx i)
   end.
 
 Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
@@ -274,18 +272,18 @@ Definition write_none (s:estate) ty v :=
   on_vu (fun v => s) (if is_sbool ty then ok s else type_error)
           (pof_val ty v).
 
-Definition write_lval (l:lval) (v:value) (s:estate) : exec (estate * leakages_e) :=
+Definition write_lval (l:lval) (v:value) (s:estate) : exec (estate * leak_e) :=
   match l with
-  | Lnone _ ty => Let x := write_none s ty v in ok (x, [::])
-  | Lvar x => Let v' := write_var x v s in ok(v', [::])
+  | Lnone _ ty => Let x := write_none s ty v in ok (x, LEmpty)
+  | Lvar x => Let v' := write_var x v s in ok(v', LEmpty)
   | Lmem sz x e =>
     Let vx := get_var (evm s) x >>= to_pointer in
     Let vl := sem_pexpr s e in 
     Let ve := to_pointer vl.1 in
-    let p := (vx + ve)%R in (* should we add the size of value, i.e vx + sz * se *)
+    let p := (vx + ve)%R in
     Let w := to_word sz v in
     Let m :=  write_mem s.(emem) p sz w in
-    ok ({| emem := m;  evm := s.(evm) |}, rcons vl.2 (LeakAdr p))
+    ok ({| emem := m;  evm := s.(evm) |}, LSub [:: vl.2; (LAdr p)])
   | Laset ws x i =>
     Let (n,t) := s.[x] in
     Let vl := sem_pexpr s i in 
@@ -293,11 +291,11 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec (estate * leakages_e)
     Let v := to_word ws v in
     Let t := WArray.set t i v in
     Let vm := set_var s.(evm) x (@to_val (sarr n) t) in
-    ok ({| emem := s.(emem); evm := vm |}, rcons vl.2 (LeakIdx i))
+    ok ({| emem := s.(emem); evm := vm |}, LSub [:: vl.2; (LIdx i)])
   end.
 
 Definition write_lvals (s:estate) xs vs :=
-   fold2 ErrType (fun l v sl => Let sl' := write_lval l v sl.1 in ok (sl'.1, sl.2 ++ sl'.2))
+   fold2 ErrType (fun l v sl => Let sl' := write_lval l v sl.1 in ok (sl'.1, rcons sl.2 sl'.2))
       xs vs (s, [::]).
 
 
@@ -317,33 +315,32 @@ Definition sem_range (s : estate) (r : range) :=
   Let i1 := to_int vl1.1 in 
   Let vl2 := sem_pexpr gd s pe2 in 
   Let i2 := to_int vl2.1 in
-  ok (wrange d i1 i2, vl1.2 ++ vl2.2).
+  ok (wrange d i1 i2, LSub [:: vl1.2 ; vl2.2]).
 
 Definition sem_sopn gd o m lvs args := 
   Let vas := sem_pexprs gd m args in
-  Let vs := exec_sopn o vas.1 in 
+  Let vs := exec_sopn o (unzip1 vas) in 
   Let ml := write_lvals gd m lvs vs in
-  ok (ml.1, vas.2 ++ ml.2).
+  ok (ml.1, LSub (unzip2 vas ++ ml.2)).
 
-
-Inductive sem : estate -> cmd -> leakage_c -> estate -> Prop :=
+Inductive sem : estate -> cmd -> leak_c -> estate -> Prop :=
 | Eskip s :
     sem s [::] [::] s
 
 | Eseq s1 s2 s3 i c li lc :
     sem_I s1 i li s2 -> sem s2 c lc s3 -> sem s1 (i::c) (li :: lc) s3
 
-with sem_I : estate -> instr -> leakage_i -> estate -> Prop :=
+with sem_I : estate -> instr -> leak_i -> estate -> Prop :=
 | EmkI ii i s1 s2 li:
     sem_i s1 i li s2 ->
     sem_I s1 (MkI ii i) li s2
 
-with sem_i : estate -> instr_r -> leakage_i -> estate -> Prop :=
+with sem_i : estate -> instr_r -> leak_i -> estate -> Prop :=
 | Eassgn s1 s2 (x:lval) tag ty e v v' l1 l2:
     sem_pexpr gd s1 e = ok (v,l1)  ->
     truncate_val ty v = ok v' →
     write_lval gd x v' s1 = ok (s2, l2) ->
-    sem_i s1 (Cassgn x tag ty e) (Lassgn (l1 ++ l2)) s2
+    sem_i s1 (Cassgn x tag ty e) (Lassgn (LSub [:: l1 ; l2])) s2
 
 | Eopn s1 s2 t o xs es lo:
     sem_sopn gd o s1 xs es = ok (s2, lo) ->
@@ -376,13 +373,13 @@ with sem_i : estate -> instr_r -> leakage_i -> estate -> Prop :=
     sem_for i wr s1 c lf s2 ->
     sem_i s1 (Cfor i r c) (Lfor lr lf) s2
 
-| Ecall s1 m2 s2 ii xs f args vargs vs l1 lf l2:
-    sem_pexprs gd s1 args = ok (vargs, l1) ->
-    sem_call s1.(emem) f vargs lf m2 vs ->
+| Ecall s1 m2 s2 ii xs f args vargs vs lf l2:
+    sem_pexprs gd s1 args = ok vargs ->
+    sem_call s1.(emem) f (unzip1 vargs) lf m2 vs ->
     write_lvals gd {|emem:= m2; evm := s1.(evm) |} xs vs = ok (s2, l2) ->
-    sem_i s1 (Ccall ii xs f args) (Lcall l1 lf l2) s2
+    sem_i s1 (Ccall ii xs f args) (Lcall (LSub (unzip2 vargs)) lf (LSub l2)) s2
 
-with sem_for : var_i -> seq Z -> estate -> cmd -> leakage_for -> estate -> Prop :=
+with sem_for : var_i -> seq Z -> estate -> cmd -> leak_for -> estate -> Prop :=
 | EForDone s i c :
     sem_for i [::] s c [::] s
 
@@ -392,7 +389,7 @@ with sem_for : var_i -> seq Z -> estate -> cmd -> leakage_for -> estate -> Prop 
     sem_for i ws s2 c lw s3 ->
     sem_for i (w :: ws) s1 c (lc :: lw) s3
 
-with sem_call : mem -> funname -> seq value -> leakage_fun -> mem -> seq value -> Prop :=
+with sem_call : mem -> funname -> seq value -> leak_fun -> mem -> seq value -> Prop :=
 | EcallRun m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc :
     get_fundef (p_funcs P) fn = Some f ->
     mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
@@ -438,8 +435,8 @@ Lemma sem_iE s i s' li:
        [/\ sem s c lc si, sem_pexpr gd si e = ok (Vbool b, le) &
                        if b then ∃ sj lc' lw, sem si c' lc' sj ∧ sem_i sj (Cwhile a c e c') lw s' else si = s' ]
   | Ccall _ xs f es =>
-    ∃ vs m2 rs l1 lf l2,
-    [/\ sem_pexprs gd s es = ok (vs, l1), sem_call s.(emem) f vs lf m2 rs &
+    ∃ vs m2 rs lf l2,
+    [/\ sem_pexprs gd s es = ok vs, sem_call s.(emem) f (unzip1 vs) lf m2 rs &
        write_lvals gd {|emem:= m2; evm := s.(evm) |} xs rs = ok (s', l2) ]
   end.
 Proof.
@@ -451,7 +448,7 @@ Proof.
   - by move =>  s si sj s' a c e c' lc le lc' lw hc he hc' hrec; exists si, true, lc, le; constructor => //; exists sj, lc', lw; constructor => //.
   - by move => s s' a c e c' lc le hc he; exists s', false, lc, le.
   - by move => s s' i r c wr lr lf hr hf; exists wr, lr, lf.
-  by move => s m s' _ xs f es vs rs l1 lf l2 hvs h hrs; exists vs, m, rs, l1, lf, l2.
+  by move => s m s' _ xs f es vs rs lf l2 hvs h hrs; exists vs, m, rs, lf, l2.
 Qed.
 
 Lemma sem_callE m1 fn vargs' m2 vres' lf:
@@ -484,17 +481,17 @@ with sem_call_Ind := Induction for sem_call Sort Prop.
 
 Section SEM_IND.
   Variables
-    (Pc   : estate -> cmd -> leakage_c -> estate -> Prop)
-    (Pi_r : estate -> instr_r -> leakage_i -> estate -> Prop)
-    (Pi : estate -> instr -> leakage_i -> estate -> Prop)
-    (Pfor : var_i -> seq Z -> estate -> cmd -> leakage_for -> estate -> Prop)
-    (Pfun : mem -> funname -> seq value -> leakage_fun -> mem -> seq value -> Prop).
+    (Pc   : estate -> cmd -> leak_c -> estate -> Prop)
+    (Pi_r : estate -> instr_r -> leak_i -> estate -> Prop)
+    (Pi : estate -> instr -> leak_i -> estate -> Prop)
+    (Pfor : var_i -> seq Z -> estate -> cmd -> leak_for -> estate -> Prop)
+    (Pfun : mem -> funname -> seq value -> leak_fun -> mem -> seq value -> Prop).
 
   Definition sem_Ind_nil : Prop :=
     forall s : estate, Pc s [::] [::] s.
 
   Definition sem_Ind_cons : Prop :=
-    forall (s1 s2 s3 : estate) (i : instr) (c : cmd) (li : leakage_i) (lc : leakage_c),
+    forall (s1 s2 s3 : estate) (i : instr) (c : cmd) (li : leak_i) (lc : leak_c),
       sem_I s1 i li s2 -> Pi s1 i li s2 -> sem s2 c lc s3 -> Pc s2 c lc s3 -> Pc s1 (i :: c) (li :: lc) s3.
 
   Hypotheses
@@ -503,36 +500,36 @@ Section SEM_IND.
   .
 
   Definition sem_Ind_mkI : Prop :=
-    forall (ii : instr_info) (i : instr_r) (s1 s2 : estate) (li : leakage_i),
+    forall (ii : instr_info) (i : instr_r) (s1 s2 : estate) (li : leak_i),
       sem_i s1 i li s2 -> Pi_r s1 i li s2 -> Pi s1 (MkI ii i) li s2.
 
   Hypothesis HmkI : sem_Ind_mkI.
 
   Definition sem_Ind_assgn : Prop :=
-    forall (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v' (le lw : leakages_e),
+    forall (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v' (le lw : leak_e),
       sem_pexpr gd s1 e = ok (v, le) ->
       truncate_val ty v = ok v' →
       write_lval gd x v' s1 = Ok error (s2, lw) ->
-      Pi_r s1 (Cassgn x tag ty e) (Lassgn (le ++ lw)) s2.
+      Pi_r s1 (Cassgn x tag ty e) (Lassgn (LSub ([:: le ; lw]))) s2.
 
   Definition sem_Ind_opn : Prop :=
-    forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs) (lo : leakages_e),
+    forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs) (lo : leak_e),
       sem_sopn gd o s1 xs es = Ok error (s2, lo) ->
       Pi_r s1 (Copn xs t o es) (Lopn lo) s2.
 
   Definition sem_Ind_if_true : Prop :=
-    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) (le : leakages_e) (lc : leakage_c),
+    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) (le : leak_e) (lc : leak_c),
       sem_pexpr gd s1 e = ok (Vbool true, le) ->
       sem s1 c1 lc s2 -> Pc s1 c1 lc s2 -> Pi_r s1 (Cif e c1 c2) (Lcond le true lc) s2.
 
   Definition sem_Ind_if_false : Prop :=
-    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) (le : leakages_e) (lc : leakage_c),
+    forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) (le : leak_e) (lc : leak_c),
       sem_pexpr gd s1 e = ok (Vbool false, le) ->
       sem s1 c2 lc s2 -> Pc s1 c2 lc s2 -> Pi_r s1 (Cif e c1 c2) (Lcond le false lc) s2.
 
   Definition sem_Ind_while_true : Prop :=
-    forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (c' : cmd) (lc : leakage_c) 
-           (le : leakages_e) (lc' : leakage_c) (li : leakage_i),
+    forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (c' : cmd) (lc : leak_c) 
+           (le : leak_e) (lc' : leak_c) (li : leak_i),
       sem s1 c lc s2 -> Pc s1 c lc s2 ->
       sem_pexpr gd s2 e = ok (Vbool true, le) ->
       sem s2 c' lc' s3 -> Pc s2 c' lc' s3 ->
@@ -541,7 +538,7 @@ Section SEM_IND.
       Pi_r s1 (Cwhile a c e c') (Lwhile_true lc le lc' li) s4.
 
   Definition sem_Ind_while_false : Prop :=
-    forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (c' : cmd) (lc : leakage_c) (le : leakages_e),
+    forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (c' : cmd) (lc : leak_c) (le : leak_e),
       sem s1 c lc s2 -> Pc s1 c lc s2 ->
       sem_pexpr gd s2 e = ok (Vbool false, le) ->
       Pi_r s1 (Cwhile a c e c') (Lwhile_false lc le) s2.
@@ -556,7 +553,7 @@ Section SEM_IND.
   .
 
   Definition sem_Ind_for : Prop :=
-    forall (s1 s2 : estate) (i : var_i) r wr (c : cmd) (lr : leakages_e) (lf: leakage_for),
+    forall (s1 s2 : estate) (i : var_i) r wr (c : cmd) (lr : leak_e) (lf: leak_for),
       sem_range s1 r = ok (wr, lr) ->
       sem_for i wr s1 c lf s2 ->
       Pfor i wr s1 c lf s2 -> Pi_r s1 (Cfor i r c) (Lfor lr lf) s2.
@@ -566,7 +563,7 @@ Section SEM_IND.
       Pfor i [::] s c [::] s.
 
   Definition sem_Ind_for_cons : Prop :=
-    forall (s1 s1' s2 s3 : estate) (i : var_i) (w : Z) (ws : seq Z) (c : cmd) (lc : leakage_c) (lf : leakage_for),
+    forall (s1 s1' s2 s3 : estate) (i : var_i) (w : Z) (ws : seq Z) (c : cmd) (lc : leak_c) (lf : leak_for),
       write_var i w s1 = Ok error s1' ->
       sem s1' c lc s2 -> Pc s1' c lc s2 ->
       sem_for i ws s2 c lf s3 -> Pfor i ws s2 c lf s3 -> Pfor i (w :: ws) s1 c (lc :: lf) s3.
@@ -580,15 +577,15 @@ Section SEM_IND.
   Definition sem_Ind_call : Prop :=
     forall (s1 : estate) (m2 : mem) (s2 : estate)
            (ii : inline_info) (xs : lvals)
-           (fn : funname) (args : pexprs) (vargs vs : seq value) (l1 : leakages_e) (lf : leakage_fun) (lw : leakages_e),
-      sem_pexprs gd s1 args = Ok error (vargs, l1) ->
-      sem_call (emem s1) fn vargs lf m2 vs -> Pfun (emem s1) fn vargs lf m2 vs ->
+           (fn : funname) (args : pexprs) (vargs : seq (value * leak_e)) (vs : seq value) (lf : leak_fun) (lw : seq leak_e),
+      sem_pexprs gd s1 args = Ok error vargs ->
+      sem_call (emem s1) fn (unzip1 vargs) lf m2 vs -> Pfun (emem s1) fn (unzip1 vargs) lf m2 vs ->
       write_lvals gd {| emem := m2; evm := evm s1 |} xs vs = Ok error (s2, lw) ->
-      Pi_r s1 (Ccall ii xs fn args) (Lcall l1 lf lw) s2.
+      Pi_r s1 (Ccall ii xs fn args) (Lcall (LSub (unzip2 vargs)) lf (LSub lw)) s2.
 
   Definition sem_Ind_proc : Prop :=
     forall (m1 m2 : mem) (fn:funname) (f : fundef) (vargs vargs': seq value)
-           (s1 : estate) (vm2 : vmap) (vres vres': seq value) (lc : leakage_c),
+           (s1 : estate) (vm2 : vmap) (vres vres': seq value) (lc : leak_c),
       get_fundef (p_funcs P) fn = Some f ->
       mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
       write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
@@ -603,7 +600,7 @@ Section SEM_IND.
     (Hproc: sem_Ind_proc)
   .
 
-  Fixpoint sem_Ind (e : estate) (l : cmd) (le : leakage_c) (e0 : estate) (s : sem e l le e0) {struct s} :
+  Fixpoint sem_Ind (e : estate) (l : cmd) (le : leak_c) (e0 : estate) (s : sem e l le e0) {struct s} :
     Pc e l le e0 :=
     match s in (sem e1 l0 l1 e2) return (Pc e1 l0 l1 e2) with
     | Eskip s0 => Hnil s0
@@ -611,7 +608,7 @@ Section SEM_IND.
         @Hcons s1 s2 s3 i c li lc s0 (@sem_I_Ind s1 i li s2 s0) s4 (@sem_Ind s2 c lc s3 s4) 
     end
 
-  with sem_i_Ind (e : estate) (i : instr_r) (li : leakage_i) (e0 : estate) (s : sem_i e i li e0) {struct s} :
+  with sem_i_Ind (e : estate) (i : instr_r) (li : leak_i) (e0 : estate) (s : sem_i e i li e0) {struct s} :
     Pi_r e i li e0 :=
     match s in (sem_i e1 i0 le1 e2) return (Pi_r e1 i0 le1 e2) with
     | @Eassgn s1 s2 x tag ty e1 v v' l1 l2 h1 h2 h3 => @Hasgn s1 s2 x tag ty e1 v v' l1 l2 h1 h2 h3
@@ -628,18 +625,18 @@ Section SEM_IND.
     | @Efor s1 s2 i0 r c wr lr lf s0 sf =>
       @Hfor s1 s2 i0 r wr c lr lf s0 sf
         (@sem_for_Ind i0 wr s1 c lf s2 sf)
-    | @Ecall s1 m2 s2 ii xs f13 args vargs vs l1 lf l2 e2 s0 e3 =>
-      @Hcall s1 m2 s2 ii xs f13 args vargs vs l1 lf l2 e2 s0
-        (@sem_call_Ind (emem s1) f13 vargs m2 vs lf s0) e3
+    | @Ecall s1 m2 s2 ii xs f13 args vargs vs lf l2 e2 s0 e3 =>
+      @Hcall s1 m2 s2 ii xs f13 args vargs vs lf l2 e2 s0
+        (@sem_call_Ind (emem s1) f13 (unzip1 vargs) m2 vs lf s0) e3
     end
 
-  with sem_I_Ind (e : estate) (i : instr) (li : leakage_i) (e0 : estate) (s : sem_I e i li e0) {struct s} :
+  with sem_I_Ind (e : estate) (i : instr) (li : leak_i) (e0 : estate) (s : sem_I e i li e0) {struct s} :
     Pi e i li e0 :=
     match s in (sem_I e1 i0 le e2) return (Pi e1 i0 le e2) with
     | @EmkI ii i0 s1 s2 li s0 => @HmkI ii i0 s1 s2 li s0 (@sem_i_Ind s1 i0 li s2 s0)
     end
 
-  with sem_for_Ind (v : var_i) (l : seq Z) (e : estate) (l0 : cmd) (lf : leakage_for) (e0 : estate)
+  with sem_for_Ind (v : var_i) (l : seq Z) (e : estate) (l0 : cmd) (lf : leak_for) (e0 : estate)
          (s : sem_for v l e l0 lf e0) {struct s} : Pfor v l e l0 lf e0 :=
     match s in (sem_for v0 l1 e1 l2 le e2) return (Pfor v0 l1 e1 l2 le e2) with
     | EForDone s0 i c => Hfor_nil s0 i c
@@ -649,12 +646,11 @@ Section SEM_IND.
     end
 
   with sem_call_Ind (m : mem) (f13 : funname) (l : seq value) (m0 : mem)
-         (l0 : seq value) (lf : leakage_fun) (s : sem_call m f13 l lf m0 l0) {struct s} : Pfun m f13 l lf m0 l0 :=
+         (l0 : seq value) (lf : leak_fun) (s : sem_call m f13 l lf m0 l0) {struct s} : Pfun m f13 l lf m0 l0 :=
     match s with
     | @EcallRun m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hget Hctin Hw Hsem Hvres Hctout =>
        @Hproc m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hget Hctin Hw Hsem (sem_Ind Hsem) Hvres Hctout
     end.
-
 
 
 End SEM_IND.
@@ -759,7 +755,8 @@ Proof.
   + by move=> [<-]. + by case: (e) => // -[<-].
 Qed.
 
-Lemma pexpr_leakE gd s :
+(* Fix Needed *)
+(*Lemma pexpr_leakE gd s :
   (∀ e r, sem_pexpr gd s e = ok r → mapM (leakage_e_of_symbolic_expr_leakage gd s) (pexpr_leak e) = ok r.2) ∧
   (∀ es rs, sem_pexprs gd s es = ok rs → mapM (leakage_e_of_symbolic_expr_leakage gd s) (flatten (map pexpr_leak es)) = ok rs.2).
 Proof.
@@ -784,7 +781,7 @@ Proof.
     by move: ih; rewrite /sem_pexprs he => /(_ _ erefl).
   - move => ? a ha b hb c hc /=; t_xrbindP => ?? /ha.
     by rewrite !mapM_cat => -> ??? /hb -> ? /hc -> ???? <-.
-Qed.
+Qed.*)
 
 Definition Varr_inj := Varr_inj.
 
@@ -1067,7 +1064,7 @@ Proof.
   + move=> s1 s2 x tag ty e v v'? hty Hw z w.
     by rewrite write_i_assgn;apply (vrvP w).
   + move=> s1 s2 t o xs es lo. rewrite /sem_sopn.
-    t_xrbindP => -[vs lwvs] /= Hes vs' Hvs' [s3 lw3] /vrvsP /= H1 <- _.
+    t_xrbindP => -vs /= Hes vs' Hvs' [s3 lw3] /vrvsP /= H1 <- _.
     by rewrite write_i_opn.
   + by move=> s1 s2 e c1 c2 l1 l2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
   + by move=> s1 s2 e c1 c2 l1 l2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
@@ -1078,7 +1075,7 @@ Proof.
   + by move=> s1 s2 i r wr c lr lf _ _ Hrec z;rewrite write_i_for;apply Hrec.
   + move=> s1 s1' s2 s3 i w ws c l1 l2 Hw _ Hc _ Hf z Hnin.
     by rewrite (vrvP_var Hw) ?Hc ?Hf //;SvD.fsetdec.
-  move=> s1 m2 s2 ii xs fn args vargs vs l1 l2 l3 _ _ _ Hw z.
+  move=> s1 m2 s2 ii xs fn args vargs vs l2 l3 _ _ _ Hw z.
   by rewrite write_i_call;apply (vrvsP Hw).
 Qed.
 
@@ -1318,22 +1315,18 @@ Qed.
 
 (*Lemma type_uincl_refl t : type_uincl t t.
 Proof. case: t => //=; move=> *; apply Z.leb_refl. Qed.
-
 Lemma type_uincl_trans t2 t1 t3:
   type_uincl t1 t2 -> type_uincl t2 t3 -> type_uincl t1 t3.
 Proof.
   case: t1 t2 t3 => [||n1| ?] [] //= n2 [] // n3 /ZleP h1 /ZleP h2.
   apply /ZleP; apply: Z.le_trans h1 h2.
 Qed.
-
 Lemma type_uincl_compat t1 t2 : type_uincl t1 t2 -> compat_type t1 t2.
 Proof. by case: t1 => //= ?;case: t2. Qed.
-
 Lemma subtype_type_uincl t1 t2 : subtype t1 t2 -> type_uincl t1 t2.
 Proof.
   by case: t1 => //= [/eqP ->| /eqP -> | ] //; case: t2.
 Qed.
-
 Lemma subtype_compat t1 t2 : subtype t1 t2 -> compat_type t1 t2.
 Proof.
   by move=> /subtype_type_uincl -/type_uincl_compat.
@@ -1754,7 +1747,8 @@ Lemma value_uincl_vundef_type_eq v1 v2 :
 Proof. move /value_uincl_subtype; exact: subtype_eq_vundef_type. Qed.
 *)
 
-Lemma sem_pexpr_map_rec_uincl gd s1 vm2 es vs1:
+(* We dont need this now *)
+(* Lemma sem_pexpr_map_rec_uincl gd s1 vm2 es vs1:
   vm_uincl s1.(evm) vm2 →
   mapM (sem_pexpr gd s1) es = ok vs1 ->
   (∀ e : pexpr, e \in es →
@@ -1784,126 +1778,112 @@ Proof.
  split. simpl. constructor. case hs => hs1 hs2.
  auto. case hs => hs1 hs2. auto.
  case hs => hs1 -> /=; auto.
-Qed.
+Qed.*)
 
-Lemma sem_pexpr_rec_uincl gd s1 vm2 es vs1 les1 :
+Lemma sem_pexpr_rec_uincl gd s1 vm2 es vs1:
   vm_uincl s1.(evm) vm2 →
-  sem_pexprs gd s1 es = ok (vs1, les1) →
+  sem_pexprs gd s1 es = ok vs1 →
   (∀ e : pexpr, e \in es →
-   ∀ v1 : value, ∀ le : leakages_e, sem_pexpr gd s1 e = ok (v1, le) →
-   exists2 v2 : value, exists2 le' : leakages_e,
-   sem_pexpr gd {| emem := emem s1; evm := vm2 |} e = ok (v2, le') &
-   le = le' &
+   ∀ v1 : value, ∀ le : leak_e, sem_pexpr gd s1 e = ok (v1, le) →
+   exists2 v2 : value,
+   sem_pexpr gd {| emem := emem s1; evm := vm2 |} e = ok (v2, le) &
    value_uincl v1 v2) →
-   exists2 vs2, exists2 les2,
-     sem_pexprs gd (Estate s1.(emem) vm2) es = ok (vs2, les2) 
-     & les1 = les2 
-     & List.Forall2 value_uincl vs1 vs2.
+   exists2 vs2,
+     sem_pexprs gd (Estate s1.(emem) vm2) es = ok vs2
+     & List.Forall2 value_uincl (unzip1 vs1) (unzip1 vs2)
+     /\ unzip2 vs1 = unzip2 vs2.
 Proof.
-  rewrite /sem_pexprs.
-  move => hvm; elim: es vs1 les1.
-  + by case => //; eauto.
-  move => e es ih vs1 les1 /=. t_xrbindP => y [v l] ok_v vs ok_vs hy <- <- rec.
-  rewrite ok_vs /= in ih.
-  move: ih => /(_ (unzip1 vs) (flatten (unzip2 vs)) erefl) [].
-  + by move => e' he'; apply: rec; rewrite in_cons he' orbT.
-    have Hh : ∀ e0 : pexpr,
-                e0 \in es
-                → ∀ (v1 : value) (le : leakages_e),
-                  sem_pexpr gd s1 e0 = ok (v1, le)
-                  → exists2 v2 : value, exists2 le' : leakages_e, 
-                    sem_pexpr gd {| emem := emem s1; evm := vm2 |} e0 = ok (v2, le') & le = le' & value_uincl v1 v2.
-   by move => e' he'; apply: rec; rewrite in_cons he' orbT.
-   move: (sem_pexpr_map_rec_uincl hvm ok_vs Hh). move=> Hm. case: Hm=> [] vs2 Hm' Hss.
-   move => vs' ok_vs' hs.
-   move: rec => /(_ e _ _ _ ok_v) [].
-   by rewrite in_cons eqxx.
-  move => v' ok_v' h.
-  case: ok_vs' => [] les2 H Hl.
-  case: ok_v' => [] le' He Hle.
-  rewrite He /=. rewrite Hm' /=. 
-  exists (v' :: unzip1 vs2). exists (le' ++ flatten (unzip2 vs)). case: Hss => Hss1 <-. auto.
-  rewrite -hy Hle /=. auto.
-  rewrite -hy /=. constructor. auto.
-  case: Hss => Hss1 Hss2. auto.
+ move=> hvm; elim: es vs1.
+ + move=> vs1 Hm He. case: Hm => <-. exists [::]; auto. split. constructor. auto.
+ move=> e es ih vs1 /=. t_xrbindP.
+ move=> [v l] ok_v vs ok_vs <-{vs1} rec.
+ move: ih => /(_ _ ok_vs) [].
+ + by move => e' he'; apply: rec; rewrite in_cons he' orbT.
+ move => vs' ok_vs' hs.
+ move: rec => /(_ e _ _ _ ok_v) [].
+ + by rewrite in_cons eqxx.
+ move => v' ok_v' h. rewrite ok_v' /=.
+ rewrite ok_vs' /=.
+ exists ((v', l) :: vs'). auto.
+ split. simpl. constructor. case hs => hs1 hs2.
+ auto. case hs => hs1 hs2. auto.
+ case hs => hs1 -> /=; auto.
 Qed.
 
 
-(* FIXME: no need for “le'”; just use “le” *)
+(* FIXME: no need for “le'”; just use “le” *) (** FIXED **)
 Lemma sem_pexpr_uincl gd s1 vm2 e v1 le:
   vm_uincl s1.(evm) vm2 →
   sem_pexpr gd s1 e = ok (v1, le) →
-  exists2 v2, exists2 le',
-  sem_pexpr gd (Estate s1.(emem) vm2) e = ok (v2, le')
-  & le = le' 
+  exists2 v2,
+  sem_pexpr gd (Estate s1.(emem) vm2) e = ok (v2, le)
   & value_uincl v1 v2.
 Proof.
 move=> Hu; elim: e v1 le=>//=[z|b|n|x|g|ws x p Hp|sz x p Hp|o e He|o e1 He1 e2 He2 | op es Hes | t e He e1 He1 e2 He2 ] v1 le.
-  + move=> Hok. case: Hok => <- <-. exists z. by exists [::]. constructor.
-  + move=> Hok; case: Hok => <- <-; exists b. by exists [::]. constructor.
-  + by case => <-; eauto.
+  + move=> Hok. case: Hok => <- <-. exists z; auto.
+  + move=> Hok; case: Hok => <- <-; exists b; auto.
+  + case => <- <-; eauto.
   + t_xrbindP => y Hget. apply get_var_uincl with x (evm s1) vm2 y in Hget.
-    case: Hget => [] v2 -> /= Hl /= <- Hel. exists v2.
-    by exists [::]. auto. auto.
+    case: Hget => [] v2 -> /= Hl /= <- <-. by exists v2. auto.
   + by eauto.
   + apply on_arr_varP => n t Htx;rewrite /on_arr_var=> /(get_var_uincl Hu) [v2 ->].
     case: v2 => //= n' t' hu.
     t_xrbindP. move => [zv zl] Hsem h0 Hi H2 Ha Hew Hl.
     move: (Hp zv zl). move=> Hsem'. move: (Hsem' Hsem).
-    move=> H. case: H => [] v2 [] le' -> /= Hel Hv.
+    move=> H. case: H => [] v2 -> /= Hv.
     case: (value_uincl_int Hv Hi) => ??;subst.
     move: (WArray.uincl_get hu Ha). rewrite Hi /=. move=> -> /=.
-    exists (Vword H2). by exists (rcons le' (LeakIdx h0)). auto.
+    exists (Vword H2);auto.
   + apply: rbindP => w1;apply: rbindP => vx /(get_var_uincl Hu) [vx' ->].
     move=> /value_uincl_word H/H{H} /= -> /=.
     t_xrbindP. move=> [zv zl] Hsem h0 Hi h2 Hr Hw Hl.
     move: (Hp zv zl). move=> Hsem'. move: (Hsem' Hsem).
-    move=> H. case: H => [] v2 [] le' -> /= <- Hv.
+    move=> H. case: H => [] v2 -> /= Hv.
     move: (value_uincl_word Hv Hi). move=> -> /=. rewrite Hr /=.
-    exists (Vword h2). exists (rcons zl (LeakAdr (w1 + h0))). auto.
+    exists (Vword h2); auto.
     by rewrite -Hl. by rewrite -Hw.
-  + t_xrbindP. move=> [zv zl] Hsem h0 Ho Hoe Hl.
+  + t_xrbindP. move=> [zv zl] Hsem h0 Ho <- <-.
     move: (He zv zl). move=> Hsem'. move: (Hsem' Hsem).
-    move=> H. case: H => [] v2 [] le' -> /= <- Hv.
+    move=> H. case: H => [] v2 -> /= Hv.
     move: (vuincl_sem_sop1 Hv Ho). move=> -> /=.
-    exists h0. by exists zl. by rewrite -Hoe.
-  + t_xrbindP. move=> [zv zl] Ho1 [zv' zl'] Ho2 h2 H2 He Hl.
+    exists h0; auto. auto.
+  + t_xrbindP. move=> [zv zl] Ho1 [zv' zl'] Ho2 h2 H2 <- <-.
     move: (He1 zv zl). move=> Hsem1'. move: (Hsem1' Ho1).
     move: (He2 zv' zl'). move=> Hsem2'. move: (Hsem2' Ho2).
-    move=> H. case: H => [] v2 [] l2' -> /= <- Hv.
-    move=> H'. case: H' => [] v3 [] l3' -> /= <- Hv'.
+    move=> H. case: H => [] v2 -> /= Hv.
+    move=> H'. case: H' => [] v3 -> /= Hv'.
     move: (vuincl_sem_sop2 Hv' Hv H2). move=> -> /=.
-    exists h2. by exists (zl++ zl'). by rewrite -He.
-  + t_xrbindP => vs ok_vs ok_v1 Ho <-; rewrite -/(sem_pexprs gd _).
-    have [vs' -> /=] := sem_pexpr_map_rec_uincl Hu ok_vs Hes. move=> [] Hf Hun Hl.
-    move: (vuincl_sem_opN Ho Hf) => Ho'. case: Ho' => [] v' -> Hv /=.
-    exists v'. exists (flatten (unzip2 vs)). rewrite -Hun. auto. auto. auto.
-  t_xrbindP. move=> [zv zl] H h0 Hb [zv1 zl1] He1' [zv2 zl2] He2' h6 Hv1 h8 Hv2 Hif Hl.
+    exists h2; auto. auto.
+  + t_xrbindP => vs ok_vs ok_v1 Ho <- <-; rewrite -/(sem_pexprs gd _).
+    move: (sem_pexpr_rec_uincl). move=> Hes'. rewrite /sem_pexprs in Hes'.
+    move: (Hes' gd s1 vm2 es vs Hu ok_vs Hes). move=> [] x -> [] Hv ->.
+    move: (vuincl_sem_opN Ho Hv) => /= Ho'. case: Ho' => [] v' -> Hv' /=.
+    by exists v'.
+  t_xrbindP. move=> [zv zl] H h0 Hb [zv1 zl1] He1' [zv2 zl2] He2' h6 Hv1 h8 Hv2 Hif <-.
   move: (He zv zl). move=> Hsem1'. move: (Hsem1' H).
-  move=> Hbo. case: Hbo => [] v2 [] l2 -> /= <- Hv.
+  move=> Hbo. case: Hbo => [] v2 -> /= Hv.
   move: (value_uincl_bool Hv Hb) => Hb'.
   case: Hb' => <- -> /=.
   move: (He1 zv1 zl1). move=> Hsem2'. move: (Hsem2' He1').
-  move=> Het. case: Het => [] v3 [] l3 -> /= <- H3.
+  move=> Het. case: Het => [] v3 -> /= H3.
   move: (He2 zv2 zl2). move=> Hsem3'. move: (Hsem3' He2').
-  move=> Hef. case: Hef => [] v4 [] l4 -> /= <- H4.
+  move=> Hef. case: Hef => [] v4 -> /= H4.
   move: (truncate_value_uincl H3 Hv1).
   move=> Ht. case: Ht => [] v' -> H5.
   move: (truncate_value_uincl H4 Hv2).
   move=> Ht'. case: Ht' => [] v'' -> H6.
   rewrite Hb /=. rewrite <- Hif. case h0.
-  exists v'. by exists (zl ++ zl1 ++ zl2). auto.
-  exists v''. by exists (zl ++ zl1 ++ zl2). auto.
+  by exists v'. by exists v''.
 Qed.
 
-(* FIXME: no need for “les'” *)
-Lemma sem_pexprs_uincl gd s1 vm2 es vs1 les:
+(* FIXME: no need for “les'” *) (** FIXED **)
+Lemma sem_pexprs_uincl gd s1 vm2 es vs1:
   vm_uincl s1.(evm) vm2 →
-  sem_pexprs gd s1 es = ok (vs1, les) →
-  exists2 vs2, exists2 les', 
-  sem_pexprs gd (Estate s1.(emem) vm2) es = ok (vs2, les')
-  & les = les'
-  & List.Forall2 value_uincl vs1 vs2.
+  sem_pexprs gd s1 es = ok vs1 →
+  exists2 vs2,
+  sem_pexprs gd (Estate s1.(emem) vm2) es = ok vs2
+  & List.Forall2 value_uincl (unzip1 vs1) (unzip1 vs2)
+  /\ unzip2 vs1 = unzip2 vs2.
 Proof.
  move=> heq ok_vs.
  apply: (sem_pexpr_rec_uincl heq ok_vs) => e he.
@@ -2030,14 +2010,12 @@ Qed.
 (*
 Lemma apply_undef_pundef_addr t : apply_undef (pundef_addr t) = pundef_addr t.
 Proof. by case: t. Qed.
-
 Lemma eval_uincl_undef t (v:psem_t t) : eval_uincl (pundef_addr t) (ok v).
 Proof.
   case: t v => //= p v. rewrite /pval_uincl /=; split.
   + by apply Z.le_refl.
   by move=> ??? /=; rewrite FArray.get0.
 Qed.
-
 Lemma eval_uincl_apply_undef t (v1 v2 : exec (psem_t t)):
   eval_uincl v1 v2 ->
   eval_uincl (apply_undef v1) (apply_undef v2).
@@ -2194,11 +2172,9 @@ Qed.
 Lemma vundef_type_nis_sword t:
   ~~ is_sword t -> vundef_type t = t.
 Proof. by case: t => //. Qed.
-
 Lemma vundef_type_is_sword t1 t2:
   vundef_type t1 = vundef_type t2 -> is_sword t1 = is_sword t2.
 Proof. by case: t1;case: t2. Qed.
-
 Lemma pof_val_type_of_val v:
   ~~ is_sword (type_of_val v) ->
   (∃ w : psem_t (type_of_val v), pof_val (type_of_val v) v = ok w) ∨
@@ -2290,7 +2266,7 @@ Proof.
     case: (get_var_uincl Hvm1 Hv') => x0 -> Hvm2 /=.
     move: (value_uincl_word Hvm2 Hp) => -> /=.
     case: (sem_pexpr_uincl Hvm1 Hs1). move=> x1 Hsem' Hzv.
-    case: Hsem'=> x2 -> <- /=. rewrite /= in Hp'.
+    rewrite Hsem' /=. rewrite /= in Hp'.
     move: (value_uincl_word Hzv Hp') => -> /=.
     move: (value_uincl_word Hv Hw) => -> /=. rewrite -> Hm => /=.
     rewrite <- Hs => /=.
@@ -2300,7 +2276,7 @@ Proof.
   case: vx => //= n0 t0 hu.
   t_xrbindP. move => [yv yl] Hsem h0 Hi /= h2 Hw h4 Ha h6 Hv' <- /= <- /=.
   case: (sem_pexpr_uincl Hvm1 Hsem). move=> x0 Hsem' Hl'.
-  case: Hsem' => x2 -> <- /=.
+  rewrite Hsem' /=.
   move: (value_uincl_int Hl' Hi) => Hii. case: Hii => <- ->.
   rewrite Hi => /=. move: (value_uincl_word Hv Hw) => -> /=.
   move: (WArray.uincl_set hu Ha) => Ha'.
@@ -2333,11 +2309,11 @@ Lemma write_vars_lvals gd xs vs s1 v l:
   write_vars xs vs s1 = ok v.
 Proof.
   rewrite /write_vars /write_lvals.
-  elim: xs vs s1 => [ | x xs Hrec] [ | v' vs] //= s1.
-  + move=> He. by case: He => -> _.
-  t_xrbindP. move=> y h h0 Hw <- He He' /=.
+  elim: xs vs s1 [::] l => [ | x xs Hrec] [ | v' vs] //= s1.
+  + move=> l l0 He. by case: He => -> _.
+  t_xrbindP. move=> h h0 y h1 h2 Hw <- He He' /=.
   rewrite -> Hw => /=. rewrite <- He in He'. rewrite /= in He'.
-  by move: (Hrec _ _ He') => Hr.
+  by move: (Hrec _ _ _ _ He') => Hr.
 Qed.
 
 Lemma sem_pexprs_map_get_var gd s xs vs:
@@ -2353,10 +2329,10 @@ elim: xs vs.
    by move=> -> /=.
 Qed.
 
-Fixpoint map_v_el (s : seq value) : seq (value * leakages_e) := 
+Fixpoint map_v_el (s : seq value) : seq (value * leak_e) := 
   match s with 
    | [::] => [::]
-   | [:: x & xs] => [:: (x, [::]) & map_v_el xs]
+   | [:: x & xs] => [:: (x, LEmpty) & map_v_el xs]
 end.
 
 Lemma sem_pexprs_get_var_map gd s xs vs:
@@ -2370,12 +2346,12 @@ elim: xs vs.
    by move: (Hm h1 erefl) => -> /=.
 Qed.
 
-Lemma sem_pexprs_get_var gd s xs v l:
-  sem_pexprs gd s [seq Pvar i | i <- xs] = ok (v, l) ->
-  mapM (fun x : var_i => get_var (evm s) x) xs = ok v.
+Lemma sem_pexprs_get_var gd s xs vs:
+  sem_pexprs gd s [seq Pvar i | i <- xs] = ok vs ->
+  mapM (fun x : var_i => get_var (evm s) x) xs = ok (unzip1 vs).
 Proof.
   rewrite /sem_pexprs. t_xrbindP.
-  move=> y Hm. by move: (sem_pexprs_map_get_var Hm) => -> <- /= Hf.
+  move=> Hm. by move: (sem_pexprs_map_get_var Hm) => -> /=.
 Qed.
 
 Section UNDEFINCL.
@@ -2436,22 +2412,21 @@ Proof.
   have [w hsem' hle]:= sem_pexpr_uincl Hvm1 hsem.
   have [w'' hty' hle'] := truncate_value_uincl hle hty.
   have  [vm2 Hw ?]:= write_uincl Hvm1 hle' hwr; exists vm2 ;split=> //.
-  case: hsem' => x0 hsem' ->.
   by econstructor;first exact hsem'; eauto.
 Qed.
 
 Local Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof.
   move=> s1 s2 t o xs es lo H vm1 Hvm1; apply: rbindP H.
-  move => [v l] Hsem.
-  move: (sem_pexprs_uincl Hvm1 Hsem) => [] vs' [] ls' H1 H2 H3.
-  t_xrbindP => y Hon [v' l'] Hw /= He Hl.
-  move: (vuincl_exec_opn H3 Hon) => [] x Hop. case: Hop=> Hop H3'.
+  move => vs Hsem.
+  move: (sem_pexprs_uincl Hvm1 Hsem) => [] vs' H1 [] H2 H3.
+  t_xrbindP => y Hon [v' l'] Hw /= He <-.
+  move: (vuincl_exec_opn H2 Hon) => [] x Hop. case: Hop=> Hop H3'.
   move: (writes_uincl Hvm1 H3' Hw) => [] vm2 Hws Hvms.
   exists vm2. split => //. constructor.
   rewrite /sem_sopn. rewrite H1 /= Hop /= Hws /=.
-  rewrite /= in He Hl.
-  by rewrite -He -Hl -H2. by rewrite -He.
+  rewrite /= in He.
+  by rewrite -He -H3. rewrite -He. auto.
 Qed.
 
 Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
@@ -2459,7 +2434,7 @@ Proof.
   move=> s1 s2 e c1 c2 le lc H _ Hc vm1 Hvm1.
   have [v' H1 /value_uincl_bool1 ?]:= sem_pexpr_uincl Hvm1 H;subst v'.
   have [vm2 [??]]:= Hc _ Hvm1;exists vm2;split=>//.
-  apply Eif_true. case H1 => le' Hsem ->. rewrite // Hsem. auto.
+  apply Eif_true. rewrite // Hsem. auto.
 Qed.
 
 Local Lemma Hif_false : sem_Ind_if_false p Pc Pi_r.
@@ -2467,7 +2442,7 @@ Proof.
   move=> s1 s2 e c1 c2 le lc H _ Hc vm1 Hvm1.
   have [v' H1 /value_uincl_bool1 ?]:= sem_pexpr_uincl Hvm1 H;subst v'.
   have [vm2 [??]]:= Hc _ Hvm1;exists vm2;split=>//.
-  apply Eif_false. case H1 => le' Hsem ->. rewrite // Hsem. auto.
+  apply Eif_false. rewrite // Hsem. auto.
 Qed.
 
 Local Lemma Hwhile_true : sem_Ind_while_true p Pc Pi_r.
@@ -2477,7 +2452,6 @@ Proof.
   have [v' H1 /value_uincl_bool1 ?]:= sem_pexpr_uincl Hvm2 H;subst.
   have [vm3 [H4 /Hw [vm4] [??]]]:= Hc' _ Hvm2;exists vm4;split => //.
   eapply Ewhile_true; eauto.
-  case: H1 => le' Hl ->; auto.
 Qed.
 
 Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
@@ -2486,7 +2460,6 @@ Proof.
   have [vm2 [Hs2 Hvm2]] := Hc _ Hvm1.
   have [v' H1 /value_uincl_bool1 ?]:= sem_pexpr_uincl Hvm2 H;subst.
   exists vm2; split => //; apply Ewhile_false => //.
-  case: H1 => le' Hl ->; auto.
 Qed.
 
 Lemma sem_range_uincl s1 vm2 r v1 le:
@@ -2498,14 +2471,14 @@ Proof.
  move=> [d p1] p2 v1 le /=.
  t_xrbindP. 
  move=> [v l] Hp h0 Hi [v' l'] Hp' h4 Hi' Hw Hle.
- move: (sem_pexpr_uincl Hvm Hp) => [] v3 [] le3 Hpsem Hle2 Hv2.
- move: (sem_pexpr_uincl Hvm Hp') => [] v4 [] le4 Hpsem' Hle3 Hv3.
+ move: (sem_pexpr_uincl Hvm Hp) => [] v3 Hpsem Hv2.
+ move: (sem_pexpr_uincl Hvm Hp') => [] v4 Hpsem' Hv3.
  rewrite Hpsem Hpsem' /=.
  move: (value_uincl_int Hv2 Hi) => Hvi.
  case: Hvi => Hv ->. rewrite Hv in Hi. rewrite Hi /=.
  move: (value_uincl_int Hv3 Hi') => Hvi'.
  case: Hvi' => Hv' ->. rewrite Hv' in Hi'. rewrite Hi' /=.
- by rewrite Hw -Hle -Hle2 -Hle3 /=.
+ by rewrite Hw -Hle /=.
 Qed.
 
 Local Lemma Hfor : sem_Ind_for p Pi_r Pfor.
@@ -2529,14 +2502,16 @@ Qed.
 
 Local Lemma Hcall : sem_Ind_call p Pi_r Pfun.
 Proof.
-  move=> s1 m2 s2 ii xs fn args vargs vs l1 lf lw Hargs Hcall Hfd Hxs vm1 Hvm1.
-  have [vargs' Hsa /Hfd [vs' [Hc Hvres]]]:= sem_pexprs_uincl Hvm1 Hargs.
+  move=> s1 m2 s2 ii xs fn args vargs vs lf lw Hargs Hcall Hfd Hxs vm1 Hvm1.
+  move: (sem_pexprs_uincl). move=>  Hargs'.
+  move: (Hargs' gd s1 vm1 args vargs Hvm1 Hargs). move=> [] x Hes [] Hv Hl.
   have Hvm1' : vm_uincl (evm {| emem := m2; evm := evm s1 |}) vm1 by done.
-  have [vm2' ??] := writes_uincl Hvm1' Hvres Hxs.
+  move: (writes_uincl). move=> Hxs'.
+  (*have [vm2' ??] := writes_uincl Hvm1' Hvres Hxs.
   exists vm2';split=>//.
   econstructor;eauto.
   by case: Hsa => les' -> ->.
-Qed.
+Qed.*) Admitted.
 
 Lemma check_ty_val_uincl v1 x v2 :
   check_ty_val x v1 → value_uincl v1 v2 → check_ty_val x v2.
@@ -2677,7 +2652,7 @@ Proof.
  rewrite /write_lvals.
  elim: ls1 ls2 vs [::] m => [ | l1 ls1 Hrec] [ | l2 ls2] //= [] // v vs m m'.
  move=> /andP [] /eq_lvalP -> /Hrec; case: write_lval => /=.
- move=> a Ha. move: (Ha vs (m ++ a.2)). move=>H. move: (H a.1). by move=> ->.
+ move=> a Ha. move: (Ha vs (m ++ [::a.2])). move=>H. move: (H a.1). move=>H'. auto.
  move=> e. by move=> H.
 Qed.
 
@@ -2791,8 +2766,8 @@ Local Open Scope vmap.
   Proof.
     rewrite /write_lvals.
     elim: xs vs s1 [::] l => [ | x xs Hrec] [ | v vs] s1 l0 l //= Hwf => [[<-]//| ].
-    t_xrbindP => p [y h] Hw. move: (wf_write_lval Hwf Hw) => Hy Hp Hf.
-    move: (Hrec vs y (l0++h) l Hy) => Hf'. rewrite -Hp in Hf. by move: (Hf' Hf) => H.
+    t_xrbindP => p [y h] Hw. move: (wf_write_lval Hwf Hw) => Hy /= Hp Hf. rewrite -Hp in Hf.
+    move: (Hrec vs y (rcons l0 h) l Hy) => Hf'. move: (Hf' Hf) => H. auto.
   Qed.
 
   Lemma wf_sem p s1 c lc s2 :
@@ -2811,7 +2786,7 @@ Local Open Scope vmap.
       by apply: wf_write_lval ok_s2.
     + move=> xs t o es s1 li s2 /sem_iE.
       t_xrbindP => Ho. case Ho. rewrite /sem_sopn. t_xrbindP.
-      by move=> h [yv yl] Hes h1 Hs [hv hl] /wf_write_lvals hvm <- Hl' /=.
+      by move=> h yvs Hes h1 Hs [hv hl] /wf_write_lvals hvm <- Hl' /=.
     + move=> e c1 c2 Hc1 Hc2 s1 lc0 s2 /sem_iE [b] [le] [lc1]. case: b => Hp. case Hp => Hp1 Hp2.
       by move: (Hc1 s1 lc1 s2 Hp2) => H. case Hp => Hp1 Hp2.
       by move: (Hc2 s1 lc1 s2 Hp2) => H.
@@ -2825,7 +2800,7 @@ Local Open Scope vmap.
       by move=> /(Hc' _ _ _ Hsc'); apply Hrec.
     + move=> ???????? Hsc ? [????];subst.
       exact: (Hc _ _ _ Hsc).
-    move=> i xs f es s1 li s2 /sem_iE [vs] [m2] [rs] [l1] [lf] [l2] [_ _ ok_s2] hw.
+    move=> i xs f es s1 li s2 /sem_iE [vs] [m2] [rs] [lf] [l2] [_ _ ok_s2] hw.
     by apply: wf_write_lvals ok_s2.
   Qed.
 
