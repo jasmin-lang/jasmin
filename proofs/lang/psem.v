@@ -2504,14 +2504,17 @@ Local Lemma Hcall : sem_Ind_call p Pi_r Pfun.
 Proof.
   move=> s1 m2 s2 ii xs fn args vargs vs lf lw Hargs Hcall Hfd Hxs vm1 Hvm1.
   move: (sem_pexprs_uincl). move=>  Hargs'.
-  move: (Hargs' gd s1 vm1 args vargs Hvm1 Hargs). move=> [] x Hes [] Hv Hl.
+  move: (Hargs' gd s1 vm1 args vargs Hvm1 Hargs).
+  move=> [] vargs' Hes [] Hv Hl {Hargs'}.
   have Hvm1' : vm_uincl (evm {| emem := m2; evm := evm s1 |}) vm1 by done.
+  rewrite /Pfun in Hfd. move: (Hfd (unzip1 vargs') Hv).
+  move=> [] vs' [] Hfd' Hv' {Hfd}.
   move: (writes_uincl). move=> Hxs'.
-  (*have [vm2' ??] := writes_uincl Hvm1' Hvres Hxs.
-  exists vm2';split=>//.
-  econstructor;eauto.
-  by case: Hsa => les' -> ->.
-Qed.*) Admitted.
+  move: (Hxs' gd {| emem := m2; evm := evm s1 |} s2 vm1 xs vs vs' lw Hvm1 Hv' Hxs).
+  move=> [] vm2 {Hxs'} /= Hxs' Hvm2'.
+  exists vm2;split=>//. rewrite Hl /=.
+  econstructor; eauto.
+Qed.
 
 Lemma check_ty_val_uincl v1 x v2 :
   check_ty_val x v1 → value_uincl v1 v2 → check_ty_val x v2.
