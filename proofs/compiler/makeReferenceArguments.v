@@ -72,16 +72,27 @@ Definition fmap2 {aT bT cT} (f : aT -> bT -> cT -> aT * cT) :
     | _, _ => (a, lc)
     end.
 
-Definition do_prologue ii acc x e :=
+Definition fmap3 {aT bT cT dT} (f : aT -> bT -> cT -> dT -> aT * dT) : 
+   aT -> seq bT -> seq cT -> seq dT -> aT * seq dT :=
+  fix map a lb lc ld :=
+    match lb, lc, ld with
+    | [:: b & bs], [:: c & cs], [:: d & ds] =>
+      let y := f a b c d in
+      let ys := map y.1 bs cs ds in
+      (ys.1, y.2 :: ys.2)
+    | _, _, _ => (a, ld)
+    end.
+
+Definition do_prologue ii acc fty x e :=
   let x := x.(v_var) in
   match is_reg_ptr_expr x e with
   | Some y =>
-    (MkI ii (Cassgn (Lvar y) AT_rename (vtype x) e) :: acc, Plvar y)
+    (MkI ii (Cassgn (Lvar y) AT_rename fty e) :: acc, Plvar y)
   | None => (acc, e)
   end.
 
-Definition make_prologue ii xs es := 
-  fmap2 (do_prologue ii) [::] xs es.
+Definition make_prologue ii ftys xs es := 
+  fmap3 (do_prologue ii) [::] ftys xs es.
 
 Definition fresh_vars_in_prologue_rec acc c :=
   if c is MkI ii (Cassgn (Lvar x) _ _ _) then x.(v_var) :: acc else acc.
@@ -108,7 +119,7 @@ Definition fresh_vars_in_epilogue c :=
 
 Section SIG.
 
-Context (get_sig : funname -> seq var_i * seq var_i).
+Context (get_sig : funname -> seq stype * seq var_i * seq var_i).
 
 Definition update_c (update_i : instr -> ciexec cmd) (c:cmd) :=
   Let ls := mapM update_i c in
@@ -137,8 +148,8 @@ Fixpoint update_i (i:instr) : ciexec cmd :=
     Let c' := update_c update_i c' in
     ok [::MkI ii (Cwhile a c e c')]
   | Ccall ini xs fn es =>
-    let: (params, returns) := get_sig fn in
-    let: (prologue, es) := make_prologue ii params es in
+    let: (ftyin, params, returns) := get_sig fn in
+    let: (prologue, es) := make_prologue ii ftyin params es in
     let: (epilogue, xs) := make_epilogue ii returns xs in
     let pv := fresh_vars_in_prologue prologue in
     let ev := fresh_vars_in_epilogue epilogue in
@@ -163,8 +174,8 @@ End SIG.
 Definition makereference_prog : cfexec prog :=
   let get_sig n :=
       if get_fundef p.(p_funcs) n is Some fd then
-        (fd.(f_params), fd.(f_res))
-      else ([::], [::])
+        (fd.(f_tyin), fd.(f_params), fd.(f_res))
+      else ([::], [::], [::])
   in
   Let funcs := map_cfprog (update_fd get_sig) p.(p_funcs) in
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.

@@ -88,15 +88,15 @@ Section Section.
     by rewrite /makereference_prog; t_xrbindP.
   Qed.
 
-  Lemma do_prologue_None (p : uprog) ii st x pe :
+  Lemma do_prologue_None (p : uprog) ii st fty x pe :
        is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = None
-    -> do_prologue is_reg_ptr fresh_id p ii st x pe = (st, pe).
+    -> do_prologue is_reg_ptr fresh_id p ii st fty x pe = (st, pe).
   Proof. by rewrite /do_prologue => ->. Qed.
 
-  Lemma do_prologue_Some (p : uprog) ii st x pe y :
+  Lemma do_prologue_Some (p : uprog) ii st fty x pe y :
        is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = Some y
-    -> do_prologue is_reg_ptr fresh_id p ii st x pe
-       = (MkI ii (Cassgn y AT_rename (vtype x) pe) :: st, Plvar y).
+    -> do_prologue is_reg_ptr fresh_id p ii st fty x pe
+       = (MkI ii (Cassgn y AT_rename fty pe) :: st, Plvar y).
   Proof.
     rewrite /do_prologue.
     case : pe => //= [g|a w p0 g p1].
@@ -105,45 +105,49 @@ Section Section.
     + by move => eq ; case : eq => <-.
   Qed.
 
-  Lemma make_prologue_tc (p : uprog) ii st xs pes :
-      fmap2 (do_prologue is_reg_ptr fresh_id p ii) st xs pes
-    = ((make_prologue is_reg_ptr fresh_id p ii xs pes).1 ++ st,
-       (make_prologue is_reg_ptr fresh_id p ii xs pes).2).
+  Lemma make_prologue_tc (p : uprog) ii st ftys xs pes :
+      fmap3 (do_prologue is_reg_ptr fresh_id p ii) st ftys xs pes
+    = ((make_prologue is_reg_ptr fresh_id p ii ftys xs pes).1 ++ st,
+       (make_prologue is_reg_ptr fresh_id p ii ftys xs pes).2).
   Proof.
   rewrite /make_prologue; set F := do_prologue is_reg_ptr fresh_id p ii.
   rewrite -{1}[st](cat0s); move: [::] => st'.
-  elim: xs pes st st' => [|x xs ih] // [|pe pes] // st st'.
+  elim: ftys xs pes st st' => [|fty ftys ih] [|x xs] [|pe pes] // st st'.
   case E: (is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe) => [y|].
-  + by rewrite /F /= !(do_prologue_Some ii _ E) /= -cat_cons !ih.
-  + by rewrite /F /= !(do_prologue_None ii _ E) /= !ih.
+  + by rewrite /F /= !(do_prologue_Some ii _ _ E) /= -cat_cons !ih.
+  + by rewrite /F /= !(do_prologue_None ii _ _ E) /= !ih.
   Qed.
 
-  Lemma make_prologue0 (p : uprog) ii args :
-    make_prologue is_reg_ptr fresh_id p ii [::] args = ([::], args).
+  Lemma make_prologue0_1 (p : uprog) ii xs args :
+    make_prologue is_reg_ptr fresh_id p ii [::] xs args = ([::], args).
   Proof. by []. Qed.
 
-  Lemma make_prologue0r (p : uprog) ii xs :
-    make_prologue is_reg_ptr fresh_id p ii xs [::] = ([::], [::]).
-  Proof. by case: xs. Qed.
+  Lemma make_prologue0_2 (p : uprog) ii ftys args :
+    make_prologue is_reg_ptr fresh_id p ii ftys [::] args = ([::], args).
+  Proof. by case: ftys args => [|??]. Qed.
 
-  Lemma make_prologueS_None (p : uprog) ii x xs pe pes :
+  Lemma make_prologue0_3 (p : uprog) ii ftys xs :
+    make_prologue is_reg_ptr fresh_id p ii ftys xs [::] = ([::], [::]).
+  Proof. by case: ftys xs => [|??] // []. Qed.
+
+  Lemma make_prologueS_None (p : uprog) ii fty ftys x xs pe pes :
        is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = None
-    -> make_prologue is_reg_ptr fresh_id p ii (x :: xs) (pe :: pes)
-       = ((make_prologue is_reg_ptr fresh_id p ii xs pes).1,
-          pe :: (make_prologue is_reg_ptr fresh_id p ii xs pes).2).
+    -> make_prologue is_reg_ptr fresh_id p ii (fty :: ftys) (x :: xs) (pe :: pes)
+       = ((make_prologue is_reg_ptr fresh_id p ii ftys xs pes).1,
+          pe :: (make_prologue is_reg_ptr fresh_id p ii ftys xs pes).2).
   Proof.
-  move=> h; rewrite {1}/make_prologue /= (do_prologue_None _ _ h) /=.
+  move=> h; rewrite {1}/make_prologue /= (do_prologue_None _ _ _ h) /=.
   by rewrite !make_prologue_tc /= cats0.
   Qed.
 
-  Lemma make_prologueS_Some (p : uprog) ii x xs pe pes y :
+  Lemma make_prologueS_Some (p : uprog) ii fty ftys x xs pe pes y :
        is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = Some y
-    -> make_prologue is_reg_ptr fresh_id p ii (x :: xs) (pe :: pes)
-       = (rcons (make_prologue is_reg_ptr fresh_id p ii xs pes).1
-                (MkI ii (Cassgn y AT_rename (vtype x) pe)),
-          Plvar y :: (make_prologue is_reg_ptr fresh_id p ii xs pes).2).
+    -> make_prologue is_reg_ptr fresh_id p ii (fty :: ftys) (x :: xs) (pe :: pes)
+       = (rcons (make_prologue is_reg_ptr fresh_id p ii ftys xs pes).1
+                (MkI ii (Cassgn y AT_rename fty pe)),
+          Plvar y :: (make_prologue is_reg_ptr fresh_id p ii ftys xs pes).2).
   Proof.
-  move=> h; rewrite {1}/make_prologue /= (do_prologue_Some _ _ h).
+  move=> h; rewrite {1}/make_prologue /= (do_prologue_Some _ _ _ h).
   by rewrite !make_prologue_tc /= cats1.
   Qed.
 
@@ -160,10 +164,10 @@ Section Section.
    by move => y _ <-.
   Qed.
 
-  Definition get_sig n :=
+  Definition get_sig n :=       (* FIXME: duplicated *)
    if get_fundef p.(p_funcs) n is Some fd then
-     (fd.(f_params), fd.(f_res))
-   else ([::], [::]).
+     (fd.(f_tyin), fd.(f_params), fd.(f_res))
+   else ([::], [::], [::]).
 
   Let Pi s1 (i:instr) s2:=
     forall (X:Sv.t) c', update_i is_reg_ptr fresh_id p get_sig X i = ok c' ->
@@ -391,9 +395,9 @@ Section Section.
   by apply: @read_e_eq_on gd X vm' (with_vm s vm) e.
   Qed.
 
-  Definition make_prologue1_1 (pp : uprog) ii x e :=
+  Definition make_prologue1_1 (pp : uprog) ii fty x e :=
     if   is_reg_ptr_expr is_reg_ptr fresh_id pp (v_var x) e is Some y
-    then Some (MkI ii (Cassgn y AT_rename (vtype x) e))
+    then Some (MkI ii (Cassgn y AT_rename fty e))
     else None.
 
   Definition make_prologue1_2 (pp : uprog) x e :=
@@ -535,18 +539,26 @@ Section Section.
 
   End DiagonalInduction5eq.
 
-  Lemma make_prologueE1 (pp : uprog) ii xs es :
-      (make_prologue is_reg_ptr fresh_id pp ii xs es).1
-    = rev (pmap (fun '(x, e) => make_prologue1_1 pp ii x e) (zip xs es)).
+  Lemma zip_nilL {T U : Type} (xs : seq U) : zip ([::] : seq T) xs = [::].
+  Proof. by case: xs. Qed.
+
+  Lemma zip_nilR {T U : Type} (xs : seq T) : zip xs ([::] : seq U) = [::].
+  Proof. by case: xs. Qed.
+
+  Definition zip_nil := (@zip_nilL, @zip_nilR).
+
+  Lemma make_prologueE1 (pp : uprog) ii ftys xs es :
+      (make_prologue is_reg_ptr fresh_id pp ii ftys xs es).1
+    = rev (pmap (fun '((fty, x), e) => make_prologue1_1 pp ii fty x e) (zip (zip ftys xs) es)).
   Proof.
-    rewrite /make_prologue.
-    rewrite -[RHS]cats0.
-    move : es xs [::].
-    apply : diagonal_induction_2 => [[] //|[] //|] e x es xs Ihc c /=.
-    rewrite Ihc.
+    rewrite /make_prologue; rewrite -[RHS]cats0; move: es xs ftys [::].
+    apply: diagonal_induction_3 => [es xs c|es xs c|es xs c|]; rewrite ?zip_nil //.
+    + by case: xs.
+    + by case: xs; case: es.
+    move=> e x fty es xs ftys ih c /=; rewrite ih.
     rewrite {4}/make_prologue1_1.
-    move : (@do_prologue_Some pp ii c x e).
-    move : (@do_prologue_None pp ii c x e).
+    move : (@do_prologue_Some pp ii c fty x e).
+    move : (@do_prologue_None pp ii c fty x e).
     case : (is_reg_ptr_expr _ _ _ _ _) => [a _ H|H _].
     + rewrite (H a) => //.
       move : (pmap _ _) (MkI _ _) => c' i.
@@ -554,30 +566,17 @@ Section Section.
     + by rewrite H.
   Qed.
 
-  Lemma make_prologueE2 (pp : uprog) ii xs es :
-      (make_prologue is_reg_ptr fresh_id pp ii xs es).2
-    = map (fun '(x, e) => make_prologue1_2 pp x e) (zip xs es) ++ drop (size xs) es.
-  Proof.
-    rewrite /make_prologue.
-    move : es xs [::].
-    apply : diagonal_induction_2 => [[] //|[] //|] e x es xs Ihc c /=.
-    rewrite Ihc.
-    congr (_::_).
-    rewrite /do_prologue /make_prologue1_2.
-    by case : (is_reg_ptr_expr _ _ pp).
-  Qed.
-
-  Lemma make_prologueE2_same_size (pp : uprog) ii xs es :
-    size xs = size es ->
-      (make_prologue is_reg_ptr fresh_id pp ii xs es).2
+  Lemma make_prologueE2_same_size (pp : uprog) ii ftys xs es :
+    size ftys = size xs -> size xs = size es ->
+      (make_prologue is_reg_ptr fresh_id pp ii ftys xs es).2
     = map (fun '(x, e) => make_prologue1_2 pp x e) (zip xs es).
   Proof.
-    move => Hsize.
-    rewrite make_prologueE2.
-    rewrite Hsize.
-    by rewrite drop_size cats0.
+    move=> eq1 eq2; rewrite /make_prologue; move: ftys xs es eq1 eq2 [::].
+    apply: diagonal_induction_3_eq => // fty x e ftys xs es eq_sz1 eq_sz2.
+    move=> ih c /=; rewrite ih; congr (_ :: _).
+    rewrite /do_prologue /make_prologue1_2.
+    by case: (is_reg_ptr_expr _ _ _).
   Qed.
-
 
   Lemma size_mapM (E A B : Type) (f : (A → result E B)) v1 v2:
     mapM f v1 = ok v2 ->
@@ -600,16 +599,41 @@ Section Section.
     by elim : xs ys x0 => [|x xs ih] [|y ys] x0 //= ; t_xrbindP => // t _ /ih ->.
   Qed.
 
+  Lemma truncate_val_idem (t : stype) (v v' : value) :
+    truncate_val t v = ok v' -> truncate_val t v' = ok v'.
+  Proof.
+  rewrite /truncate_val; case: t v => [||q|w].
+  + by move=> x; t_xrbindP=> b bE <-.
+  + by move=> x; t_xrbindP=> i iE <-.
+  + move=> x; t_xrbindP=> a aE <- /=.
+    by rewrite /WArray.cast Z.leb_refl /=; case: (a).
+  + move=> x; t_xrbindP=> w' w'E <- /=.
+    by rewrite truncate_word_u.
+  Qed.
+
+  Lemma get_set_var vm vm' x v v':      
+    ~is_sbool (vtype x) ->
+    truncate_val (vtype x) v = ok v' ->
+    set_var vm x v' = ok vm' ->
+    get_var vm' x = ok v'.
+  Proof.
+    rewrite /get_var /set_var => hty htr; apply on_vuP; last by case: is_sbool hty.
+    move=> vt hvt <-.
+    rewrite /on_vu Fv.setP_eq. 
+    case: (vtype x) vt htr hvt => /=.
+    + by move=> b _ /to_boolI ->.
+    + by move=> i _ /to_intI ->.
+    + move=> n t; case: v => //= [ n' t' | [] //]. 
+      rewrite /truncate_val /= /WArray.cast.
+      by case: ifP => //= ? [<-] /= [<-]; rewrite /WArray.inject Z.ltb_irrefl.
+    move => w vt; rewrite /truncate_val /=; t_xrbindP => w' h <-.
+    rewrite /to_pword.
+    assert (h1 := cmp_le_refl w); case: Sumbool.sumbool_of_bool; last by rewrite h1.
+    by move=> h2 [<-] /=.
+  Qed.
+
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    (* f(x1 : v1, ..., xn : vn) : unit
-     *
-     * f(e1, ..., en)
-     *
-     *
-     * y1 <- e1; ...; yn <- en; assert (forall i, [|yi|] = [|ei|]); body(f)
-     *)
-
     move=> s1 m s2 ii lv fn args vargs aout eval_args h1 h2 h3.
     move=> ii' X c' hupd; rewrite !(read_Ii, write_Ii).
     rewrite !(read_i_call, write_i_call) => le_X vm1 wf_vm1 eq_s1_vm1.
@@ -619,33 +643,6 @@ Section Section.
     case plE: (make_prologue _ _ _ _ _ _) => [pl eargs].
     case epE: (make_epilogue _ _ _ _ _ _) => [ep lvaout].
     t_xrbindP=> _ /assertP /and4P[uq_pl uq_ep /allP fs_pl /allP fs_ep] <-.
-
-(*
-    rewrite (@write_vars_lvals (p_globs p')) in hwrinit.
-    have eq_s2'_s1: emem s2' = emem s1.
-    + move: hwrinit; rewrite -/(with_vm s1 vmap0).
-      move: (f_params fnd) (vs) vmap0.
-      elim=> /= [|pa pas ih] [|v' vs'] // vm'; first by case=> <-.
-      t_xrbindP=> s'; rewrite /write_var; t_xrbindP=> vm'' _ <- /=.
-      by rewrite with_vm_idem => /ih.
-    case: (@writes_uincl _ _ _ vm1 _ _ vargs _ _ hwrinit).
-    + by apply wf_vm_uincl.
-    + apply : (mapM2_Forall2 _ vsE) => a b r Hlist Htrunc.
-      by apply : (value_uincl_truncate_val Htrunc).
-    (*Prove that (f_params fnd) and args have the same size using one of the ok above, vsE namely*)
-    (*Then prove that ok (with_vm vm2 x) is what is given by the prologue*)
-    move => vm2' /= Hwrinitwith Huincl; move: Hwrinitwith.
-    rewrite with_vm_idem /(with_vm s2') eq_s2'_s1 -/(with_vm s1 _).
-    move=> Hwrinitwith.
-*)
-
-(*
-    pose F xe := is_reg_ptr_expr is_reg_ptr fresh_id p (v_var xe.1) xe.2.
-    pose P  := map F (zip (f_params fnd) args).
-    pose M  := [seq isSome x | x <- P].
-    pose V  := mask M vargs.
-    pose S  := write_vars (rev (pmap idfun P)) (rev V) (with_vm s1 vm1).
-*)
 
     have eqglob: p_globs p = p_globs p'.
     + by apply: make_referenceprog_globs.
@@ -660,7 +657,8 @@ Section Section.
       have [eqsz1 eqsz2] := (size_mapM2 vsE).
       have eqsz3:= (size_fold2 hwrinit).
       have eqsz4 := (size_mapM eval_args).
-      rewrite !(make_prologueE1, make_prologueE2_same_size); last first.
+      have eqzs5 : size (f_tyin fnd) = size (f_params fnd) by rewrite eqsz1 -eqsz3.
+      rewrite !(make_prologueE1, make_prologueE2_same_size) //; last first.
       - by rewrite eqsz3 eqsz4 eqsz2.
       move=> /esym -> /esym -> {pl eargs}.
 
@@ -676,9 +674,7 @@ Section Section.
       + by move=> vm0 _ _ _ _ _ _; exists vm1, [::]; split=> //; constructor.
       move=> arg1 varg1 v1 f_param1 f_tyin1 args vargs vs f_params f_tyins.
       move=> eqsz1 eqsz2 eqsz3 eqsz4 ih vm0 le_X eval_args trunc_vargs wr_init.
-      move=> uq_pl fresh_pl.
-
-      move: eval_args; rewrite [_ = ok (varg1 :: _)]/=; t_xrbindP.
+      move=> uq_pl fresh_pl; move: eval_args; rewrite [_ = ok (varg1 :: _)]/=; t_xrbindP.
       move=> varg1' eval_arg1 vargs' eval_args ??; subst varg1' vargs'.
       move: trunc_vargs; rewrite [_ = ok (v1 :: _)]/=; t_xrbindP.
       move=> v1' trunc_varg1 vs' trunc_vargs ??; subst v1' vs'.
@@ -686,12 +682,8 @@ Section Section.
       have [vm0' ?]: exists vm0', svm0' = with_vm s1 vm0'; last subst svm0'.
       + move: wr_init1; rewrite /write_var; t_xrbindP.
         by move=> vm0' h <-; exists vm0'.
-
-      move : le_X.
-      rewrite read_es_cons.
-      move => le_X.
+      move: le_X; rewrite read_es_cons => le_X.
       case hE: (is_reg_ptr_expr is_reg_ptr fresh_id p f_param1 arg1) => [y|]; last first.
-
       + move: uq_pl fresh_pl; rewrite [pmap _ _]/=.
         rewrite [X in oapp _ _ X]/make_prologue1_1 hE [oapp _ _ _]/=.
         move=> uq_pl fresh_pl. case: (ih vm0') => //.
@@ -705,7 +697,6 @@ Section Section.
           - by SvD.fsetdec.
           - by apply: eq_onT ih4.
         * by rewrite trunc_varg1 /= ih3.
-
       + move: uq_pl fresh_pl; rewrite [pmap _ _]/=.
         rewrite [X in oapp _ _ X]/make_prologue1_1 hE [oapp _ _ _]/=.
         rewrite fresh_vars_in_prologueE rev_uniq rev_cons.
@@ -725,201 +716,52 @@ Section Section.
             + by move=> _ _ _ g _ [<-].
           by move=> vmx' vmx'E; exists vmx'; rewrite vmx'E.
         exists vmx', (v1 :: vargs'); split=> //.
-        * apply : (sem_app ih1).
-          apply : sem_seq1.
-          apply : EmkI.
-          (*have : vtype f_param1 = f_tyin1.*)
-          apply : (Eassgn) ; first 2 last.
-          + by apply : hvmx'.
-          + rewrite - eqglob.
-            rewrite - (@read_e_eq_on _ X).
-            apply : eval_arg1.
-            - apply : (@eq_onI _ X).
-              rewrite read_eE.
-              by SvD.fsetdec.
-            - by apply : (eq_onT eq_s1_vm1).
-          + Search _ set_var.
+        * apply/(sem_app ih1)/sem_seq1/EmkI/Eassgn; first 2 last.
+          + by apply: hvmx'.
+          + rewrite -eqglob -(@read_e_eq_on _ X).
+            - by apply: eval_arg1.
+            - apply : (@eq_onI _ X); first by rewrite read_eE; SvD.fsetdec.
+              by apply : (eq_onT eq_s1_vm1).
+          + done.
+        * rewrite {2}/make_prologue1_2 hE /=.
+          have ->/=: get_gvar (p_globs p') vmx' (mk_lvar y) = ok v1.
+          + move: hvmx'; rewrite /write_var; t_xrbindP=> /= vmx'' vmx'E ?; subst vmx''.
+            have /(_ varg1) := (get_set_var _ _ vmx'E); apply.
+            * admit.
+            * admit.
+          rewrite (@eq_on_sem_pexprs (with_vm s1 vmx)) //=; first by rewrite ih2.
+          set Y := (X in _ =[X] _); suff yNY: ~ (Sv.In y Y).
+          + move/vrvP_var: hvmx' => /= hvmx'.
+            have /(_ Y)/eq_onS := vmap_eq_except_eq_on hvmx' (fun x _ => (erefl _)).
+            by apply: eq_onI; SvD.fsetdec.
+          apply/Sv_memP; have: ~~ Sv.mem y X.
+          + by apply: fresh_pl; rewrite mem_rev mem_cat /= mem_seq1 eqxx orbT.
+          apply: contra; move: le_X y_fresh; rewrite /S /Y fresh_vars_in_prologueE.
+          have: size f_tyins = size args.
+          + by rewrite -eqsz4 -eqsz3 -eqsz2 -eqsz1.
+          move: (f_params) (f_tyins) (args) (eqsz4).
+          apply: diagonal_induction_3_eq => //=.
+          move=> param1 fty1 arg'1 params ftys args' eq1 eq2 {ih}ih le_X.
+          case E: (is_reg_ptr_expr is_reg_ptr fresh_id p param1 arg'1) => [z|].
+          + rewrite [_ arg'1]/make_prologue1_1 [X in read_es (X :: _)]/make_prologue1_2 E /=.
+            rewrite mem_rev rev_cons -cats1 pmap_cat mem_cat negb_or -mem_rev.
+            case/andP => {}/ih ih /=; rewrite mem_seq1 => ne_yz.
+            rewrite read_es_cons SvP.union_mem; case/orP.
+            - rewrite SvP.union_mem /read_gvar /= SvP.empty_mem orbF.
+              by move/SvP.singleton_mem_3/esym/eqP; rewrite (negbTE ne_yz).
+            - by apply: ih; move: le_X; rewrite read_es_cons; SvD.fsetdec.
+          + rewrite [_ arg'1]/make_prologue1_1 [X in read_es (X :: _)]/make_prologue1_2 E /=.
+            move=> {}/ih ih; rewrite read_es_cons SvP.union_mem; case/orP.
+            - move: le_X; rewrite read_es_cons => le_X.
+              by move/Sv_memP=> ?; apply/Sv_memP; SvD.fsetdec.
+            - by apply: ih; move: le_X; rewrite read_es_cons; SvD.fsetdec.
+        * by move/truncate_val_idem: trunc_varg1 => -> /=; rewrite ih3.
+        * apply: (eq_onT ih4); have /= /vmap_eq_except_eq_on := vrvP_var hvmx'.
+          move/(_ vmx' X (fun _ _ => (erefl _))); apply/eq_onI.
+          suff: ~(Sv.In y X) by SvD.fsetdec. move/Sv_memP; apply/negP.
+          by apply: fresh_pl; rewrite mem_rev /= mem_cat mem_seq1 eqxx orbT.
 
-        * rewrite {2}/make_prologue1_2 hE /= /get_gvar /=.
-          move: hvmx'; rewrite /write_var; t_xrbindP.
-          move=> vmx'' vmx'E ?; subst vmx''.
-          have ->: get_var vmx' y = ok v1.
-          - move: vmx'E trunc_varg1; rewrite /truncate_val; elim/set_varP.
-            + move=> t pofE; rewrite -pofE /= => <-.
-              t_xrbindP=> t' t'E ?; subst v1; rewrite /get_var.
-              rewrite Fv.setP_eq /= pofE /=.
-
-
-Search _ of_val to_val.
-Search _ f_params f_tyin.
-
-(* vmx'E => t.*)
-            * move=> pofE; rewrite -pofE /= => <-.
-              rewrite /get_var Fv.setP_eq /on_vu pofE.
-
-Search _ pof_val pto_val.
-
- _.[_ <- _].
-
-          - admit.
-
-Search _ set_var.
-
-
-        * admit.
-        * by rewrite trunc_varg1 /= ih3.
-
-
-
-
-    + rewrite /V /M /P.
-      have [eqsz1 eqsz2] := (size_mapM2 vsE).
-      have := (size_fold2 hwrinit).
-      rewrite size_map.
-      move => eqsz3.
-      have eqsz4 := (size_mapM eval_args).
-      have eqsz5 : size eargs = size args.
-      - move : plE.
-        rewrite [make_prologue _ _ _ _ _ _]surjective_pairing.
-        case => _ <- ; rewrite make_prologueE2_same_size.
-        * by rewrite size_map size_zip eqsz3 - eqsz2 - eqsz4 minnn.
-        * by rewrite eqsz3 - eqsz2 - eqsz4.
-      have Hmake_prologue1_1 := (make_prologueE1 p ii' (f_params fnd) args).
-      rewrite plE /= in Hmake_prologue1_1.
-      have Hmake_prologue1_2 := (@make_prologueE2_same_size p ii' (f_params fnd) args _).
-      rewrite eqsz3 - eqsz2 - eqsz4 in Hmake_prologue1_2.
-      move /(_ (erefl _)) : Hmake_prologue1_2 => Hmake_prologue1_2.
-      rewrite plE /= in Hmake_prologue1_2.
-      move : (vm1) (vm2') Hwrinitwith (pl) Hmake_prologue1_1 Hmake_prologue1_2 fs_pl eval_args le_X.
-      move : eqsz2.
-      rewrite - eqsz3.
-      move : eqsz5 eqsz4.
-      move : (eargs) (args) (vargs) (f_params fnd).
-      apply : diagonal_induction_4_eq => /= [|hearg harg hvarg hfparam teargs targs tvargs tfparams eqeargsargs eqsargsvargs eqsvargsfparams Ih] vm1' vm2''.
-      - by move => _ _ _ _ _ ; exists vm1'.
-      t_xrbindP => sx Hsx Hwrite_lvals plx Hmake_prologue1_1 [Hmake_prologue1_2_h Hmake_prologue1_2_t] fs_plx vharg eval_harg vtargs eval_targs ? ? le_X ; subst hvarg tvargs.
-      have [vmx ?]: exists vmx, sx = with_vm s1 vmx; last subst sx.
-        * move: Hsx; rewrite /write_var; t_xrbindP=> vmx _ <-.
-          by rewrite with_vm_idem; exists vmx.
-      case FE : (F _) => [x|] /= ; last first.
-      - pose ply := rev (pmap (λ '(x, e), make_prologue1_1 p ii' x e) (zip tfparams targs)).
-
-        
-
-        case : (Ih _ _ Hwrite_lvals ply) => // [x Hx||vmx' [ih1 ih2]].
-        * apply fs_plx.
-          rewrite Hmake_prologue1_1.
-          rewrite {3}/make_prologue1_1.
-          rewrite /F /= in FE.
-          by rewrite FE /=.
-        * move : le_X.
-          rewrite read_es_cons.
-          by SvD.fsetdec.
-        have /(_ X vm1') [] := write_lvals_eq_on _ ih1.
-
-        have /(_ X vmx)[]/= := write_lvals_eq_on _ ih1.
-        * set S' := read_rvs _; rewrite (_ : Sv.Equal S' Sv.empty).
-          - by SvD.fsetdec.
-          rewrite {}/S'; elim: (tfparams) (targs) => [|tf tfs ih] [|ta tas] //=.
-          case: (F (tf, ta)) => //= x; rewrite read_rvs_cons.
-          by rewrite ih /=; SvD.fsetdec.
-        * by done.
-        move=> vm''.
-
- [_ _].
-
-
-        have := write_lvals_eq_on.
-
-
-; exists vm''; move: h'.
-        split => //.
-        Search write_lvals.
-
-        rewrite /F /= in FE.
-        rewrite /make_prologue1_2.
-        rewrite (@read_e_eq_on _ X vm'') in eval_harg ; last first.
-        * rewrite read_eE.
-        have := (read_e_eq_on _ _ eval_harg).
-      - rewrite {3}/make_prologue1_1 in Hmake_prologue1_1.
-        rewrite /F /= in FE.
-        rewrite FE /= in Hmake_prologue1_1.
-        rewrite Hmake_prologue1_1 /fresh_vars_in_prologue /= in fs_plx.
-        rewrite foldl_rev /= - foldl_rev - /fresh_vars_in_prologue_rec - /(fresh_vars_in_prologue _) in fs_plx.
-        move : Hmake_prologue1_1.
-        rewrite rev_cons.
-        elim /last_ind : plx.
-        * by move /(congr1 size) => /= ; rewrite size_rcons.
-        move => plx plx1 _ /rcons_inj [] plxE ? ; subst plx1.
-        rewrite - plxE in fs_plx.
-        have [vm1'' Hsx']:
-          exists vm1'', write_var x hvarg (with_vm s1 vm1') = ok (with_vm s1 vm1'').
-        + move : Hsx.
-          rewrite {1}/write_var /=.
-          t_xrbindP => y Hset_var ? ; subst y.
-          move /set_var_rename : Hset_var.
-          move /(_ x).
-          case.
-          - move : FE.
-            rewrite /is_reg_ptr_expr.
-            case : harg => //.
-            * move => g.
-              case : ifP => //.
-              by move => _ [] <-.
-            by move => _ _ _ g _ [] <-.
-          move => vms Hset_var.
-          exists vms.
-          by rewrite /write_var Hset_var /= with_vm_idem.
-        have /(_ Sv.empty vm1'')[]//= := write_var_eq_on Hsx.
-        + rewrite /(_ =[_] _).
-          move => y yIn.
-          have := (SvD.F.empty_iff y) => yInEmpty.
-          exfalso.
-          by apply yInEmpty.
-        move => vmx'.
-        rewrite ! with_vm_idem => - [eq_vmx_vmx' Hwrite_var].
-        case : (write_lvals_eq_on _ Hwrite_lvals eq_vmx_vmx').
-        * set S' := read_rvs _; rewrite (_ : Sv.Equal S' Sv.empty).
-          - by SvD.fsetdec.
-          by rewrite {}/S' ; elim: (tfparams)=> [|tf tfs ih] //=.
-        move => vmx'' ; rewrite ! with_vm_idem => - [eq_vmx'_vmx'' Hwrite_lvals'].
-        case : (@write_lvals_eq_on (p_globs p') Sv.empty _ _ _ _ vm1'' _ Hwrite_lvals').
-        * by elim : (tfparams) => //=.
-        * rewrite /(_ =[_] _).
-          move => y yIn.
-          have := (SvD.F.empty_iff y) => yInEmpty.
-          exfalso.
-          by apply yInEmpty.
-        move => vm0 [H1vm0 H2vm0].
-        case : (Ih vm1'' vm0 _ _ plxE).
-        * by rewrite ! with_vm_idem in H2vm0.
-        * move => y yplx.
-          apply : fs_plx.
-          by rewrite in_cons yplx orbT.
-        move => vmx''' H ; exists vmx'''.
-        by rewrite Hsx' /=.
-    case => plvm Hwrite_lvals.
-    About sem_pexprs.
-    (*sem_pexprs (p_globs p') (with_vm s1 plvm) eargs = ok vargs*)
   Admitted.
-
-
-(*
-
-makereference_prog = 
-λ (is_reg_ptr : var → bool) (fresh_id : glob_decls → var → Ident.ident) (T : eqType) (pT : progT T) (p : prog),
-  let get_sig :=
-    λ n : funname,
-      match get_fundef (p_funcs p) n with
-      | Some fd => (f_params fd, f_res fd)
-      | None => ([::], [::])
-      end in
-  Let funcs := map_cfprog (update_fd is_reg_ptr fresh_id p get_sig) (p_funcs p)
-  in ok {| p_funcs := funcs; p_globs := p_globs p; p_extra := p_extra p |}
-     : (var → bool) → (glob_decls → var → Ident.ident) → ∀ (T : eqType) (pT : progT T), prog → cfexec prog
-
-*)
-*)
 
   Lemma eq_extra : p_extra p = p_extra p'.
     move : Hp.
