@@ -36,6 +36,149 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+  Section DiagonalInduction2.
+  Context {Ta Tb : Type} (P : seq Ta -> seq Tb -> Prop).
+  Hypothesis Pa0 : forall a , P a [::].
+  Hypothesis P0b : forall b , P [::] b.
+  Hypothesis Pcons2 : forall ha hb ta tb , P ta tb -> P (ha::ta) (hb::tb).
+
+  Lemma diagonal_induction_2 a b:
+    P a b.
+  Proof.
+    elim : a b => // ha ta Ih [] // hb tb.
+    by apply : Pcons2.
+  Qed.
+
+  End DiagonalInduction2.
+
+  Section DiagonalInduction2Eq.
+  Context {Ta Tb : Type} (P : seq Ta -> seq Tb -> Prop).
+  Hypothesis P00 : P [::] [::].
+  Hypothesis Pcons2 : forall ha hb ta tb , size ta = size tb -> P ta tb -> P (ha::ta) (hb::tb).
+
+  Lemma diagonal_induction_2_eq a b:
+    size a = size b -> P a b.
+  Proof.
+    elim : a b => [|ha ta ih] /= b.
+    + by move /esym /size0nil => ->.
+    case : b => //= hb tb [] eqsab.
+    apply Pcons2 => //.
+    by apply ih.
+  Qed.
+
+  End DiagonalInduction2Eq.
+
+  Section DiagonalInduction3.
+  Context {Ta Tb Tc : Type} (P : seq Ta -> seq Tb -> seq Tc -> Prop).
+  Hypothesis Pab0 : forall a b , P a b [::].
+  Hypothesis Pa0c : forall a c , P a [::] c.
+  Hypothesis P0bc : forall b c , P [::] b c.
+  Hypothesis Pcons3 : forall ha hb hc ta tb tc , P ta tb tc -> P (ha::ta) (hb::tb) (hc::tc).
+
+  Lemma diagonal_induction_3 a b c:
+    P a b c.
+  Proof.
+    move : a b c.
+    apply : diagonal_induction_2 => // ha hb ta tb Ihab.
+    elim => // hc tc Ihc.
+    apply : Pcons3.
+    by apply Ihab.
+  Qed.
+
+  End DiagonalInduction3.
+
+  Section DiagonalInduction3Eq.
+  Context {Ta Tb Tc : Type} (P : seq Ta -> seq Tb -> seq Tc -> Prop).
+  Hypothesis P000 : P [::] [::] [::].
+  Hypothesis Pcons3 : forall ha hb hc ta tb tc , size ta = size tb -> size tb = size tc -> P ta tb tc -> P (ha::ta) (hb::tb) (hc::tc).
+
+  Lemma diagonal_induction_3_eq a b c:
+    size a = size b -> size b = size c -> P a b c.
+  Proof.
+    elim : a b c => [|ha ta ih] /= b c.
+    + move /esym /size0nil => -> /=.
+      by move /esym /size0nil => ->.
+    case : b => //= hb tb [] eqsab.
+    case : c => //= hc tc [] eqsbc.
+    apply Pcons3 => //.
+    by apply ih.
+  Qed.
+
+  End DiagonalInduction3Eq.
+
+  Section DiagonalInduction4.
+  Context {Ta Tb Tc Td : Type} (P : seq Ta -> seq Tb -> seq Tc -> seq Td -> Prop).
+  Hypothesis Pabc0 : forall a b c , P a b c [::].
+  Hypothesis Pab0d : forall a b d , P a b [::] d.
+  Hypothesis Pa0cd : forall a c d , P a [::] c d.
+  Hypothesis P0bcd : forall b c d , P [::] b c d.
+  Hypothesis Pcons4 : forall ha hb hc hd ta tb tc td , P ta tb tc td -> P (ha::ta) (hb::tb) (hc::tc) (hd::td).
+
+  Lemma diagonal_induction_4 a b c d:
+    P a b c d.
+  Proof.
+    move : a b c d.
+    apply : diagonal_induction_2 => // ha hb ta tb Ihab.
+    apply : diagonal_induction_2 => // hc hd tc td Ihcd.
+    apply : Pcons4.
+    by apply Ihab.
+  Qed.
+
+  End DiagonalInduction4.
+
+  Section DiagonalInduction4Eq.
+  Context {Ta Tb Tc Td : Type} (P : seq Ta -> seq Tb -> seq Tc -> seq Td -> Prop).
+  Hypothesis P0000 : P [::] [::] [::] [::].
+  Hypothesis Pcons4 : forall ha hb hc hd ta tb tc td , size ta = size tb -> size tb = size tc -> size tc = size td -> P ta tb tc td -> P (ha::ta) (hb::tb) (hc::tc) (hd::td).
+
+  Lemma diagonal_induction_4_eq a b c d:
+    size a = size b -> size b = size c -> size c = size d -> P a b c d.
+  Proof.
+    elim : a b c d => [|ha ta ih] /= b c d.
+    + move /esym /size0nil => -> /=.
+      move /esym /size0nil => -> /=.
+      by move /esym /size0nil => ->.
+    case : b => //= hb tb [] eqsab.
+    case : c => //= hc tc [] eqsbc.
+    case : d => //= hd td [] eqscd.
+    apply Pcons4 => //.
+    by apply ih.
+  Qed.
+
+  End DiagonalInduction4Eq.
+
+  Section DiagonalInduction5eq.
+  Context {Ta Tb Tc Td Te : Type} (P : seq Ta -> seq Tb -> seq Tc -> seq Td -> seq Te -> Prop).
+  Hypothesis P00000 : P [::] [::] [::] [::] [::].
+  Hypothesis Pcons5 : forall ha hb hc hd he ta tb tc td te, size ta = size tb -> size tb = size tc -> size tc = size td -> size td = size te -> P ta tb tc td te -> P (ha::ta) (hb::tb) (hc::tc)  (hd::td) (he::te).
+
+  Lemma diagonal_induction_5_eq a b c d e:
+    size a = size b -> size b = size c -> size c = size d -> size d = size e -> P a b c d e.
+  Proof.
+    elim : a b c d e => [|ha ta ih] /= b c d e.
+    + move /esym /size0nil => -> /=.
+      move /esym /size0nil => -> /=.
+      move /esym /size0nil => -> /=.
+      by move /esym /size0nil => ->.
+    case : b => //= hb tb [] eqsab.
+    case : c => //= hc tc [] eqsbc.
+    case : d => //= hd td [] eqscd.
+    case : e => //= he te [] eqsde.
+    apply Pcons5 => //.
+    by apply ih.
+  Qed.
+
+  End DiagonalInduction5eq.
+
+  Lemma zip_nilL {T U : Type} (xs : seq U) : zip ([::] : seq T) xs = [::].
+  Proof. by case: xs. Qed.
+
+  Lemma zip_nilR {T U : Type} (xs : seq T) : zip xs ([::] : seq U) = [::].
+  Proof. by case: xs. Qed.
+
+  Definition zip_nil := (@zip_nilL, @zip_nilR).
+
+
 Section SemInversion.
 Context (T : eqType) (pT : progT T) (cs : semCallParams).
 Context (p : prog) (ev : extra_val_t).
@@ -88,67 +231,96 @@ Section Section.
     by rewrite /makereference_prog; t_xrbindP.
   Qed.
 
-  Lemma do_prologue_None (p : uprog) ii st fty x pe :
-       is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = None
-    -> do_prologue is_reg_ptr fresh_id p ii st fty x pe = (st, pe).
-  Proof. by rewrite /do_prologue => ->. Qed.
-
-  Lemma do_prologue_Some (p : uprog) ii st fty x pe y :
-       is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = Some y
-    -> do_prologue is_reg_ptr fresh_id p ii st fty x pe
-       = (MkI ii (Cassgn y AT_rename fty pe) :: st, Plvar y).
-  Proof.
-    rewrite /do_prologue.
-    case : pe => //= [g|a w p0 g p1].
-    + case : (is_reg_ptr x) => //=.
-      by case : (is_glob g) ; case : (is_reg_ptr (gv g)) => //= eq ; case : eq => <-.
-    + by move => eq ; case : eq => <-.
-  Qed.
-
-  Lemma make_prologue_tc (p : uprog) ii st ftys xs pes :
-      fmap3 (do_prologue is_reg_ptr fresh_id p ii) st ftys xs pes
-    = ((make_prologue is_reg_ptr fresh_id p ii ftys xs pes).1 ++ st,
-       (make_prologue is_reg_ptr fresh_id p ii ftys xs pes).2).
-  Proof.
-  rewrite /make_prologue; set F := do_prologue is_reg_ptr fresh_id p ii.
-  rewrite -{1}[st](cat0s); move: [::] => st'.
-  elim: ftys xs pes st st' => [|fty ftys ih] [|x xs] [|pe pes] // st st'.
-  case E: (is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe) => [y|].
-  + by rewrite /F /= !(do_prologue_Some ii _ _ E) /= -cat_cons !ih.
-  + by rewrite /F /= !(do_prologue_None ii _ _ E) /= !ih.
-  Qed.
-
-  Lemma make_prologue0_1 (p : uprog) ii xs args :
-    make_prologue is_reg_ptr fresh_id p ii [::] xs args = ([::], args).
+  Lemma make_prologue0 (p : uprog) ii X :
+    make_prologue is_reg_ptr fresh_id p ii X [::] [::] [::] = ok ([::], [::]).
   Proof. by []. Qed.
 
-  Lemma make_prologue0_2 (p : uprog) ii ftys args :
-    make_prologue is_reg_ptr fresh_id p ii ftys [::] args = ([::], args).
-  Proof. by case: ftys args => [|??]. Qed.
-
-  Lemma make_prologue0_3 (p : uprog) ii ftys xs :
-    make_prologue is_reg_ptr fresh_id p ii ftys xs [::] = ([::], [::]).
-  Proof. by case: ftys xs => [|??] // []. Qed.
-
-  Lemma make_prologueS_None (p : uprog) ii fty ftys x xs pe pes :
+  Lemma make_prologueS_None (p : uprog) ii X x xs fty ftys pe pes c args :
        is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = None
-    -> make_prologue is_reg_ptr fresh_id p ii (fty :: ftys) (x :: xs) (pe :: pes)
-       = ((make_prologue is_reg_ptr fresh_id p ii ftys xs pes).1,
-          pe :: (make_prologue is_reg_ptr fresh_id p ii ftys xs pes).2).
+    -> make_prologue is_reg_ptr fresh_id p ii X xs ftys pes = ok (c, args)
+    -> make_prologue is_reg_ptr fresh_id p ii X (x :: xs) (fty :: ftys) (pe :: pes)
+       = ok (c, pe :: args).
+  Proof. by move=> /= -> ->. Qed.
+
+  Lemma make_prologueS_Some (p : uprog) ii X x xs fty ftys pe pes (y : var_i) c args :
+       fty = vtype y -> ~~ is_sbool fty -> ~~Sv.mem y X
+    -> is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = Some y
+    -> make_prologue is_reg_ptr fresh_id p ii (Sv.add y X) xs ftys pes = ok (c, args)
+    -> make_prologue is_reg_ptr fresh_id p ii X (x :: xs) (fty :: ftys) (pe :: pes)
+       = ok ((MkI ii (Cassgn (Lvar y) AT_rename fty pe) :: c, Plvar y :: args)).
+  Proof. by move=> eq1 eq2 eq3 /= ->; rewrite eq2 eq1 eq3 eqxx /= => ->. Qed.
+
+  Section MakePrologueInd.
+  Variable P : Sv.t -> seq var_i -> seq stype -> pexprs -> cmd -> pexprs -> Prop.
+  Variable (p : uprog) (ii : instr_info).
+
+  Hypothesis P0 : forall X, P X [::] [::] [::] [::] [::].
+
+  Hypothesis PSNone :
+    forall X x xs fty ftys pe pes c args,
+         is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = None
+      -> make_prologue is_reg_ptr fresh_id p ii X xs ftys pes = ok (c, args)
+      -> P X xs ftys pes c args
+      -> P X (x :: xs) (fty :: ftys) (pe :: pes) c (pe :: args).
+
+  Hypothesis PSSome :
+    forall X x xs fty ftys pe pes (y : var_i) c args,
+       fty = vtype y -> ~~ is_sbool fty -> ~~Sv.mem y X
+    -> is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = Some y
+    -> make_prologue is_reg_ptr fresh_id p ii (Sv.add y X) xs ftys pes = ok (c, args)
+    -> P (Sv.add y X) xs ftys pes c args
+    -> P X (x :: xs) (fty :: ftys) (pe :: pes)
+         (MkI ii (Cassgn (Lvar y) AT_rename fty pe) :: c) (Plvar y :: args).
+
+  Lemma make_prologueW X xs ftys pes c args :
+       make_prologue is_reg_ptr fresh_id p ii X xs ftys pes = ok (c, args)
+    -> P X xs ftys pes c args.
   Proof.
-  move=> h; rewrite {1}/make_prologue /= (do_prologue_None _ _ _ h) /=.
-  by rewrite !make_prologue_tc /= cats0.
+  move: xs ftys pes X c args; apply: diagonal_induction_3;
+    last 1 [idtac] || by case=> [|??] [|??] //= X c args [<- <-].
+  move=> x fty pe xs ftys pes ih X c args /=.
+  case E: (is_reg_ptr_expr _ _ _ _ _) => [y|] /=; last first.
+  + by t_xrbindP; case=> c' args' h [<- <-]; apply/PSNone/ih.
+  + t_xrbindP=> /= _ /assertP /and3P[/eqP h1 h2 h3] [c' args'].
+    by move=> h [<- <-]; apply/PSSome/ih.
+  Qed.
+  End MakePrologueInd.
+
+  Variant make_prologue_spec (p : uprog) (ii : instr_info) :
+    Sv.t -> seq var_i -> seq stype -> pexprs -> cmd -> pexprs -> Prop
+  :=
+
+  | MakePrologue0 X :
+       make_prologue_spec p ii X [::] [::] [::] [::] [::]
+
+  | MakePrologueS_None X x xs fty ftys pe pes c args :
+       is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = None
+    -> make_prologue is_reg_ptr fresh_id p ii X xs ftys pes = ok (c, args)
+    -> make_prologue_spec p ii X (x :: xs) (fty :: ftys) (pe :: pes) c (pe :: args)
+
+  | MakePrologueS_Some X x xs fty ftys pe pes (y : var_i) c args :
+       fty = vtype y -> ~~ is_sbool fty -> ~~Sv.mem y X
+    -> is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = Some y
+    -> make_prologue is_reg_ptr fresh_id p ii (Sv.add y X) xs ftys pes = ok (c, args)
+    -> make_prologue_spec p ii X (x :: xs) (fty :: ftys) (pe :: pes)
+         (MkI ii (Cassgn (Lvar y) AT_rename fty pe) :: c) (Plvar y :: args).
+
+  Lemma make_prologueP p ii X xs ftys pes c args :
+       make_prologue is_reg_ptr fresh_id p ii X xs ftys pes = ok (c, args)
+    -> make_prologue_spec p ii X xs ftys pes c args.
+  Proof.
+  elim/make_prologueW=> {X xs ftys pes c args} X.
+  + by constructor.
+  + by move=> x xs fty ftys pe pes c args *; apply: MakePrologueS_None.
+  + by move=> x xs fty ftys pe pes c args *; apply: MakePrologueS_Some.
   Qed.
 
-  Lemma make_prologueS_Some (p : uprog) ii fty ftys x xs pe pes y :
-       is_reg_ptr_expr is_reg_ptr fresh_id p (v_var x) pe = Some y
-    -> make_prologue is_reg_ptr fresh_id p ii (fty :: ftys) (x :: xs) (pe :: pes)
-       = (rcons (make_prologue is_reg_ptr fresh_id p ii ftys xs pes).1
-                (MkI ii (Cassgn y AT_rename fty pe)),
-          Plvar y :: (make_prologue is_reg_ptr fresh_id p ii ftys xs pes).2).
+  Lemma make_prologue_size (p : uprog) ii X xs ftys pes c args :
+      make_prologue is_reg_ptr fresh_id p ii X xs ftys pes = ok (c, args)
+   -> (size xs = size ftys /\ size ftys = size pes).
   Proof.
-  move=> h; rewrite {1}/make_prologue /= (do_prologue_Some _ _ _ h).
-  by rewrite !make_prologue_tc /= cats1.
+  elim/make_prologueW=> {X xs ftys pes c args} X // x xs fty ftys pe pes c args.
+  + by move=> _ _ /= [-> ->]. + by move=> _ _ _ _ _ _ /= [-> ->].
   Qed.
 
   Context (p p' : uprog).
@@ -166,8 +338,8 @@ Section Section.
 
   Definition get_sig n :=       (* FIXME: duplicated *)
    if get_fundef p.(p_funcs) n is Some fd then
-     (fd.(f_tyin), fd.(f_params), fd.(f_res))
-   else ([::], [::], [::]).
+      (fd.(f_params), fd.(f_tyin), fd.(f_res), fd.(f_tyout))
+   else ([::], [::], [::], [::]).
 
   Let Pi s1 (i:instr) s2:=
     forall (X:Sv.t) c', update_i is_reg_ptr fresh_id p get_sig X i = ok c' ->
@@ -365,18 +537,6 @@ Section Section.
   by t_xrbindP=> v _ vs /ih -> <-.
   Qed.
 
-  Definition fresh_vars_in_prologue_i (i : instr) : option var :=
-    if i is MkI _ (Cassgn (Lvar x) _ _ _) then Some (v_var x) else None.
-
-  Lemma fresh_vars_in_prologueE c :
-    fresh_vars_in_prologue c = rev (pmap fresh_vars_in_prologue_i c).
-  Proof.
-  rewrite /fresh_vars_in_prologue -[rev _]cats0.
-  elim: c [::] => [|i c ih] acc //=.
-  rewrite ih; case: i => // ii [] // [] //= x _ _ _.
-  by rewrite rev_cons cat_rcons.
-  Qed.
-
   Lemma read_es_eq_on_sym
      (gd : glob_decls) (es : pexprs) (X : Sv.t) (s : estate) (vm vm' : vmap)
   :
@@ -400,184 +560,6 @@ Section Section.
     then Some (MkI ii (Cassgn y AT_rename fty e))
     else None.
 
-  Definition make_prologue1_2 (pp : uprog) x e :=
-    if   is_reg_ptr_expr is_reg_ptr fresh_id pp (v_var x) e is Some y
-    then Plvar y
-    else e.
-
-  Section DiagonalInduction2.
-  Context {Ta Tb : Type} (P : seq Ta -> seq Tb -> Prop).
-  Hypothesis Pa0 : forall a , P a [::].
-  Hypothesis P0b : forall b , P [::] b.
-  Hypothesis Pcons2 : forall ha hb ta tb , P ta tb -> P (ha::ta) (hb::tb).
-
-  Lemma diagonal_induction_2 a b:
-    P a b.
-  Proof.
-    elim : a b => // ha ta Ih [] // hb tb.
-    by apply : Pcons2.
-  Qed.
-
-  End DiagonalInduction2.
-
-  Section DiagonalInduction2Eq.
-  Context {Ta Tb : Type} (P : seq Ta -> seq Tb -> Prop).
-  Hypothesis P00 : P [::] [::].
-  Hypothesis Pcons2 : forall ha hb ta tb , size ta = size tb -> P ta tb -> P (ha::ta) (hb::tb).
-
-  Lemma diagonal_induction_2_eq a b:
-    size a = size b -> P a b.
-  Proof.
-    elim : a b => [|ha ta ih] /= b.
-    + by move /esym /size0nil => ->.
-    case : b => //= hb tb [] eqsab.
-    apply Pcons2 => //.
-    by apply ih.
-  Qed.
-
-  End DiagonalInduction2Eq.
-
-  Section DiagonalInduction3.
-  Context {Ta Tb Tc : Type} (P : seq Ta -> seq Tb -> seq Tc -> Prop).
-  Hypothesis Pab0 : forall a b , P a b [::].
-  Hypothesis Pa0c : forall a c , P a [::] c.
-  Hypothesis P0bc : forall b c , P [::] b c.
-  Hypothesis Pcons3 : forall ha hb hc ta tb tc , P ta tb tc -> P (ha::ta) (hb::tb) (hc::tc).
-
-  Lemma diagonal_induction_3 a b c:
-    P a b c.
-  Proof.
-    move : a b c.
-    apply : diagonal_induction_2 => // ha hb ta tb Ihab.
-    elim => // hc tc Ihc.
-    apply : Pcons3.
-    by apply Ihab.
-  Qed.
-
-  End DiagonalInduction3.
-
-  Section DiagonalInduction3Eq.
-  Context {Ta Tb Tc : Type} (P : seq Ta -> seq Tb -> seq Tc -> Prop).
-  Hypothesis P000 : P [::] [::] [::].
-  Hypothesis Pcons3 : forall ha hb hc ta tb tc , size ta = size tb -> size tb = size tc -> P ta tb tc -> P (ha::ta) (hb::tb) (hc::tc).
-
-  Lemma diagonal_induction_3_eq a b c:
-    size a = size b -> size b = size c -> P a b c.
-  Proof.
-    elim : a b c => [|ha ta ih] /= b c.
-    + move /esym /size0nil => -> /=.
-      by move /esym /size0nil => ->.
-    case : b => //= hb tb [] eqsab.
-    case : c => //= hc tc [] eqsbc.
-    apply Pcons3 => //.
-    by apply ih.
-  Qed.
-
-  End DiagonalInduction3Eq.
-
-  Section DiagonalInduction4.
-  Context {Ta Tb Tc Td : Type} (P : seq Ta -> seq Tb -> seq Tc -> seq Td -> Prop).
-  Hypothesis Pabc0 : forall a b c , P a b c [::].
-  Hypothesis Pab0d : forall a b d , P a b [::] d.
-  Hypothesis Pa0cd : forall a c d , P a [::] c d.
-  Hypothesis P0bcd : forall b c d , P [::] b c d.
-  Hypothesis Pcons4 : forall ha hb hc hd ta tb tc td , P ta tb tc td -> P (ha::ta) (hb::tb) (hc::tc) (hd::td).
-
-  Lemma diagonal_induction_4 a b c d:
-    P a b c d.
-  Proof.
-    move : a b c d.
-    apply : diagonal_induction_2 => // ha hb ta tb Ihab.
-    apply : diagonal_induction_2 => // hc hd tc td Ihcd.
-    apply : Pcons4.
-    by apply Ihab.
-  Qed.
-
-  End DiagonalInduction4.
-
-  Section DiagonalInduction4Eq.
-  Context {Ta Tb Tc Td : Type} (P : seq Ta -> seq Tb -> seq Tc -> seq Td -> Prop).
-  Hypothesis P0000 : P [::] [::] [::] [::].
-  Hypothesis Pcons4 : forall ha hb hc hd ta tb tc td , size ta = size tb -> size tb = size tc -> size tc = size td -> P ta tb tc td -> P (ha::ta) (hb::tb) (hc::tc) (hd::td).
-
-  Lemma diagonal_induction_4_eq a b c d:
-    size a = size b -> size b = size c -> size c = size d -> P a b c d.
-  Proof.
-    elim : a b c d => [|ha ta ih] /= b c d.
-    + move /esym /size0nil => -> /=.
-      move /esym /size0nil => -> /=.
-      by move /esym /size0nil => ->.
-    case : b => //= hb tb [] eqsab.
-    case : c => //= hc tc [] eqsbc.
-    case : d => //= hd td [] eqscd.
-    apply Pcons4 => //.
-    by apply ih.
-  Qed.
-
-  End DiagonalInduction4Eq.
-
-  Section DiagonalInduction5eq.
-  Context {Ta Tb Tc Td Te : Type} (P : seq Ta -> seq Tb -> seq Tc -> seq Td -> seq Te -> Prop).
-  Hypothesis P00000 : P [::] [::] [::] [::] [::].
-  Hypothesis Pcons5 : forall ha hb hc hd he ta tb tc td te, size ta = size tb -> size tb = size tc -> size tc = size td -> size td = size te -> P ta tb tc td te -> P (ha::ta) (hb::tb) (hc::tc)  (hd::td) (he::te).
-
-  Lemma diagonal_induction_5_eq a b c d e:
-    size a = size b -> size b = size c -> size c = size d -> size d = size e -> P a b c d e.
-  Proof.
-    elim : a b c d e => [|ha ta ih] /= b c d e.
-    + move /esym /size0nil => -> /=.
-      move /esym /size0nil => -> /=.
-      move /esym /size0nil => -> /=.
-      by move /esym /size0nil => ->.
-    case : b => //= hb tb [] eqsab.
-    case : c => //= hc tc [] eqsbc.
-    case : d => //= hd td [] eqscd.
-    case : e => //= he te [] eqsde.
-    apply Pcons5 => //.
-    by apply ih.
-  Qed.
-
-  End DiagonalInduction5eq.
-
-  Lemma zip_nilL {T U : Type} (xs : seq U) : zip ([::] : seq T) xs = [::].
-  Proof. by case: xs. Qed.
-
-  Lemma zip_nilR {T U : Type} (xs : seq T) : zip xs ([::] : seq U) = [::].
-  Proof. by case: xs. Qed.
-
-  Definition zip_nil := (@zip_nilL, @zip_nilR).
-
-  Lemma make_prologueE1 (pp : uprog) ii ftys xs es :
-      (make_prologue is_reg_ptr fresh_id pp ii ftys xs es).1
-    = rev (pmap (fun '((fty, x), e) => make_prologue1_1 pp ii fty x e) (zip (zip ftys xs) es)).
-  Proof.
-    rewrite /make_prologue; rewrite -[RHS]cats0; move: es xs ftys [::].
-    apply: diagonal_induction_3 => [es xs c|es xs c|es xs c|]; rewrite ?zip_nil //.
-    + by case: xs.
-    + by case: xs; case: es.
-    move=> e x fty es xs ftys ih c /=; rewrite ih.
-    rewrite {4}/make_prologue1_1.
-    move : (@do_prologue_Some pp ii c fty x e).
-    move : (@do_prologue_None pp ii c fty x e).
-    case : (is_reg_ptr_expr _ _ _ _ _) => [a _ H|H _].
-    + rewrite (H a) => //.
-      move : (pmap _ _) (MkI _ _) => c' i.
-      by rewrite rev_cons cat_rcons.
-    + by rewrite H.
-  Qed.
-
-  Lemma make_prologueE2_same_size (pp : uprog) ii ftys xs es :
-    size ftys = size xs -> size xs = size es ->
-      (make_prologue is_reg_ptr fresh_id pp ii ftys xs es).2
-    = map (fun '(x, e) => make_prologue1_2 pp x e) (zip xs es).
-  Proof.
-    move=> eq1 eq2; rewrite /make_prologue; move: ftys xs es eq1 eq2 [::].
-    apply: diagonal_induction_3_eq => // fty x e ftys xs es eq_sz1 eq_sz2.
-    move=> ih c /=; rewrite ih; congr (_ :: _).
-    rewrite /do_prologue /make_prologue1_2.
-    by case: (is_reg_ptr_expr _ _ _).
-  Qed.
-
   Lemma size_mapM (E A B : Type) (f : (A → result E B)) v1 v2:
     mapM f v1 = ok v2 ->
     size v1 = size v2.
@@ -590,8 +572,6 @@ Section Section.
    elim: v1 v2 v3 => [ | x xs ih ] [|y ys] [|z zs] //= ; t_xrbindP => // t eqt ts /ih.
    by case => -> -> _ ->.
   Qed.
-
-  Print fold2.
 
   Lemma size_fold2 (A B E R : Type) (e: E) (f : (A → B → R → result E R)) xs ys x0 v:
     fold2 e f xs ys x0 = ok v -> size xs = size ys.
@@ -640,9 +620,7 @@ Section Section.
     case/sem_callE: h1 hupd => fnd [fnE] [vs] [s1'] [s2'] [s3'] [vres].
     case=> vsE /= [[{s1'}<-] hwrinit] sem_body [vresE aoutE] mE.
     subst m; rewrite /get_sig fnE.
-    case plE: (make_prologue _ _ _ _ _ _) => [pl eargs].
-    case epE: (make_epilogue _ _ _ _ _ _) => [ep lvaout].
-    t_xrbindP=> _ /assertP /and4P[uq_pl uq_ep /allP fs_pl /allP fs_ep] <-.
+    t_xrbindP=> -[pl eargs] plE; t_xrbindP=> -[ep lvaout] epE [<-] {c'}.
 
     have eqglob: p_globs p = p_globs p'.
     + by apply: make_referenceprog_globs.
@@ -652,6 +630,14 @@ Section Section.
       , sem_pexprs (p_globs p') (with_vm s1 vmx) eargs = ok vargs'
       , mapM2 ErrType truncate_val (f_tyin fnd) vargs' = ok vs
       & vm1 =[X] vmx].
+
+    + move=> {epE lvaout ep aoutE vresE sem_body vres h3 h2 fnE wf_vm1 s3' aout}.
+      have: (Sv.Subset X X) by SvD.fsetdec. move: {1 3}X plE => Y plE le_XY.
+      move: plE le_XY vmap0 le_X eval_args vsE hwrinit.
+      elim/make_prologueW=> {Y args pl eargs} Y le_XY.
+      * by move=> vmap0 /= _ [<-] /= [<-] _; exists vm1, [::]; split=> //; constructor.
+
+
     + move=> {uq_ep fs_ep epE lvaout ep aoutE vresE sem_body vres h3 h2 c' fnE wf_vm1 s3' aout}.
       move: plE uq_pl fs_pl; rewrite [X in X = (pl, eargs)]surjective_pairing => -[].
       have [eqsz1 eqsz2] := (size_mapM2 vsE).
