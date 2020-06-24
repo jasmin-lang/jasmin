@@ -218,49 +218,6 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leak_e)  :=
 
 Definition sem_pexprs s es := mapM (sem_pexpr s) es. 
 
-(** Suggestion: separate evaluation of expressions from computing the leakage resulting from such evaluation.
-
-In order to define the leakage of an expression without evaluating it,
-we introduce a “symbolic” leakage which captures expressions whose value is leaked rather than the value itself.
-
-The symbolic leakage of an expression can be statically computed, independently of any environment.
-
-Given an environment, a symbolic leakage can be evaluated into the original “leakage_e”.
-
-Going through the symbolic leakage is the same as directly computing the leakage_e
-(see pexpr_leakE below) but has a few advantages.
-In particular it is then easier to define other leakages for expressions (e.g., using trees instead of flat lists):
-there is no need to define again the evaluation of expressions (cf. sem_pexpr_e in const_prop_util).
-Moreover, keeping the original definition for the semantics of expression make it possible to keep all the lemmas
-about this semantics that are not really related to the leakage (e.g., write_uincl).
-*)
-Variant symbolic_expr_leakage :=
-| SLeakAddr of var_i & pexpr
-| SLeakIndex of pexpr
-.
-
-Fixpoint pexpr_leak (e: pexpr) : seq symbolic_expr_leakage :=
-  match e with
-  | Pconst _
-  | Pbool _
-  | Parr_init _
-  | Pvar _
-  | Pglobal _
-    => [::]
-  | Pget _ _ i => rcons (pexpr_leak i) (SLeakIndex i)
-  | Pload _ x o => rcons (pexpr_leak o) (SLeakAddr x o)
-  | Papp1 _ a => pexpr_leak a
-  | Papp2 _ a b => pexpr_leak a ++ pexpr_leak b
-  | PappN _ es => flatten (map pexpr_leak es)
-  | Pif _ a b c => pexpr_leak a ++ pexpr_leak b ++ pexpr_leak c
-  end.
-
-Definition leak_e_of_symbolic_expr_leakage (s: estate) (e: symbolic_expr_leakage) : exec leak_e :=
-  match e with
-  | SLeakAddr x a => Let v := sem_pexpr s (Papp2 (Oadd (Op_w Uptr)) x a) in Let p := to_pointer v.1 in ok (LAdr p)
-  | SLeakIndex a => Let v := sem_pexpr s a in Let i := to_int v.1 in ok (LIdx i)
-  end.
-
 Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
   Let vm := set_var s.(evm) x v in
   ok ({| emem := s.(emem); evm := vm |}).
@@ -754,34 +711,6 @@ Proof.
   + by case: (e) => // -[<-].
   + by move=> [<-]. + by case: (e) => // -[<-].
 Qed.
-
-(* Fix Needed *)
-(*Lemma pexpr_leakE gd s :
-  (∀ e r, sem_pexpr gd s e = ok r → mapM (leakage_e_of_symbolic_expr_leakage gd s) (pexpr_leak e) = ok r.2) ∧
-  (∀ es rs, sem_pexprs gd s es = ok rs → mapM (leakage_e_of_symbolic_expr_leakage gd s) (flatten (map pexpr_leak es)) = ok rs.2).
-Proof.
-  apply: pexprs_ind_pair; split.
-  - by move => _ [<-].
-  - move => e he es hes; rewrite /sem_pexprs /=; t_xrbindP => _ _ ? /he{he}he ? ees <- <-.
-    move: hes; rewrite {1}/sem_pexprs ees => /(_ _ erefl).
-    by rewrite mapM_cat he => ->.
-  - by move => ? _ [<-].
-  - by move => ? _ [<-].
-  - by move => ? _ [<-].
-  - by move => ? /=; t_xrbindP => ?? _ <-.
-  - by move => ? /=; t_xrbindP => ?? _ <-.
-  - move => ??? h /= ?; apply: on_arr_varP; t_xrbindP => ????? eval_e ? hi ? ? <-.
-    by rewrite mapM_rcons (h _ eval_e) /= eval_e /= hi.
-  - move => ??? h /=; t_xrbindP => ??? hx hxp ? eval_e ? hp ?? <-.
-    by rewrite mapM_rcons (h _ eval_e) /= hx eval_e /sem_sop2 /= hxp hp /= zero_extend_u.
-  - by move => op e h /=; t_xrbindP => ?? /h{h} -> ? _ <-.
-  - move => op a ha b hb /=; t_xrbindP => ?? /ha.
-    by rewrite mapM_cat => -> ? /hb -> ? _ <-.
-  - move => op es ih /=; t_xrbindP => ? vs he ? _ <-.
-    by move: ih; rewrite /sem_pexprs he => /(_ _ erefl).
-  - move => ? a ha b hb c hc /=; t_xrbindP => ?? /ha.
-    by rewrite !mapM_cat => -> ??? /hb -> ? /hc -> ???? <-.
-Qed.*)
 
 Definition Varr_inj := Varr_inj.
 
