@@ -632,10 +632,75 @@ Section Section.
       & vm1 =[X] vmx].
 
     + move=> {epE lvaout ep aoutE vresE sem_body vres h3 h2 fnE wf_vm1 s3' aout}.
-      have: (Sv.Subset X X) by SvD.fsetdec. move: {1 3}X plE => Y plE le_XY.
+      have: (Sv.Subset X X) by SvD.fsetdec.
+      move: {1 3}X plE => Y plE le_XY.
       move: plE le_XY vmap0 le_X eval_args vsE hwrinit.
       elim/make_prologueW=> {Y args pl eargs} Y le_XY.
-      * by move=> vmap0 /= _ [<-] /= [<-] _; exists vm1, [::]; split=> //; constructor.
+      - by move=> vmap0 /= _ [<-] /= [<-] _; exists vm1, [::]; split=> //; constructor.
+      - move => xs fty ftys pe pes c args.
+        move => eq_ptr_expr eq_mk_prologue Hi.
+        move => subXY vmap0 subUX eq_sem_pexprs eq_mapM2 eq_write_vars.
+        (*Probably not vmap0, to change later.*)
+        case : (Hi subXY vmap0).
+        * move : subUX.
+          rewrite read_es_cons.
+          by SvD.fsetdec.
+        * rewrite - eq_sem_pexprs /sem_pexprs /mapM.
+          (*Wait: shouldn't vargs also be used in the recursion?*)
+          (*rewrite [X in Let _ := X in _](_ : _ = ok varg) /=.*)
+          pose mapMpes := (fix mapM (xs0 : pexprs) : result error (seq value) :=
+            match xs0 with
+            | [::] => ok [::]
+            | x :: xs1 => Let y0 := sem_pexpr (p_globs p) s1 x in (Let ys := mapM xs1 in ok (y0 :: ys))
+            end) pes.
+          rewrite - /mapMpes.
+          About eq_on_sem_pexpr.
+          About eq_onS.
+          About eq_onI.
+          (*This case was actually in the Some case, not the None case, which has much more branches*)
+          (*case : (pe) => //= [z|b|p0|g|a w g p0|w v p0|s p0|s p0 p1|o l|s p0 p1 p2] eq ; rewrite /is_reg_ptr_expr.*)
+      by admit.
+    by admit.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     + move=> {uq_ep fs_ep epE lvaout ep aoutE vresE sem_body vres h3 h2 c' fnE wf_vm1 s3' aout}.
@@ -670,6 +735,8 @@ Section Section.
         by move=> vm0' h <-; exists vm0'.
       move: le_X; rewrite read_es_cons => le_X.
       case hE: (is_reg_ptr_expr is_reg_ptr fresh_id p f_param1 arg1) => [y|]; last first.
+
+(**)
       + move: uq_pl fresh_pl; rewrite [pmap _ _]/=.
         rewrite [X in oapp _ _ X]/make_prologue1_1 hE [oapp _ _ _]/=.
         move=> uq_pl fresh_pl. case: (ih vm0') => //.
@@ -683,6 +750,8 @@ Section Section.
           - by SvD.fsetdec.
           - by apply: eq_onT ih4.
         * by rewrite trunc_varg1 /= ih3.
+(**)
+
       + move: uq_pl fresh_pl; rewrite [pmap _ _]/=.
         rewrite [X in oapp _ _ X]/make_prologue1_1 hE [oapp _ _ _]/=.
         rewrite fresh_vars_in_prologueE rev_uniq rev_cons.
