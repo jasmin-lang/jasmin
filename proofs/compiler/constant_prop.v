@@ -47,48 +47,18 @@ Local Open Scope Z_scope.
 Inductive leak_tr :=
 | LT_id (* preserve *)
 | LT_remove (* remove *)
-| LT_subi : Z -> leak_tr (* projection *) (* FIXME: change Z into nat *)
+| LT_subi : nat -> leak_tr (* projection *) (* FIXME: change Z into nat *) (** Fixed **)
 | LT_seq : seq leak_tr -> leak_tr (* parallel transformations *)
 | LT_compose: leak_tr -> leak_tr -> leak_tr. (* compositon of transformations *)
 
-Inductive leak_e_tree :=
-| LEmpty : leak_e_tree (* no leak *)
-| LIdx : Z -> leak_e_tree (* array access at given index *)
-| LAdr : pointer -> leak_e_tree (* memory access at given address *)
-| LSub: (seq leak_e_tree) -> leak_e_tree. (* forest of leaks *)
-
-(* FIXME: this is “nth LEmpty” *)
-Fixpoint get_nth (ls : seq leak_e_tree) (i : Z) : leak_e_tree :=
-match ls with 
- | [::] => LEmpty 
- | x :: xs => if (i == 0) then x else get_nth xs (i-1)
-end.
-
-Fixpoint leak_F (lt : leak_tr) (l : leak_e_tree) : leak_e_tree := 
+Fixpoint leak_F (lt : leak_tr) (l : leak_e) : leak_e := 
   match lt, l with
   | LT_seq lts, LSub xs => LSub (map2 leak_F lts xs)
   | LT_id, _ => l
   | LT_remove, _ => LEmpty
-  | LT_subi i, LSub xs => get_nth xs i
+  | LT_subi i, LSub xs => nth LEmpty xs i
   | LT_compose lt1 lt2, _ => leak_F lt2 (leak_F lt1 l)
   | _, _ => LEmpty
-  end.
-
-Section LEST_TO_LES.
-
-Variable (lest_to_les : leak_e_tree -> leakages_e).
-
-Definition lests_to_les (l : seq leak_e_tree) : leakages_e := 
-    flatten (map lest_to_les l).
-
-End LEST_TO_LES.
-
-Fixpoint lest_to_les (les : leak_e_tree) : leakages_e := 
-  match les with 
-  | LEmpty => [::]
-  | LIdx i => [:: LeakIdx i]
-  | LAdr p => [:: LeakAdr p]
-  | LSub les => lests_to_les lest_to_les les
   end.
 
 (* -------------------------------------------------------------------------- *)
@@ -526,13 +496,13 @@ Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval * leak_tr :=
                     (Mvar.remove m x, Laset sz x lte.1, LT_seq [:: lte.2; LT_id])
   end.
 
-Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals * leak_tr :=
+Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals * seq leak_tr :=
   match rvs with
-  | [::] => (m, [::], LT_id)
+  | [::] => (m, [::], [::])
   | rv::rvs =>
     let: (m,rv, lt)  := const_prop_rv m rv in
     let: (m,rvs, lts) := const_prop_rvs m rvs in
-    (m, rv::rvs, LT_compose lt lts)
+    (m, rv::rvs, ([::lt] ++ lts))
   end.
 
 Definition wsize_of_stype (ty: stype) : wsize :=
@@ -557,15 +527,7 @@ Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
     else m
   else m.
 
-Inductive leak_i_tree :=
-| LTassgn : leak_e_tree -> leak_i_tree
-| LTopn : leak_e_tree -> leak_i_tree
-| LTcond : leak_e_tree -> bool -> seq leak_i_tree -> leak_i_tree
-| LTwhile_true : seq leak_i_tree -> leak_e_tree -> seq leak_i_tree -> leak_i_tree -> leak_i_tree
-| LTwhile_false : seq leak_i_tree -> leak_e_tree -> leak_i_tree
-| LTfor : leak_e_tree -> seq (seq leak_i_tree) -> leak_i_tree
-| LTcall : leak_e_tree -> (funname * seq leak_i_tree) -> leak_e_tree -> leak_i_tree.
-
+(* Leakge transformer for instructions *)
 Inductive leak_i_tr :=
 | LT_ikeep : leak_i_tr
 | LT_ile : leak_tr -> leak_i_tr  (* assign and op *)
@@ -577,77 +539,47 @@ Inductive leak_i_tr :=
 
 Section Leak_I.
 
-  Variable leak_I : leak_i_tree -> leak_i_tr -> seq leak_i_tree.
+  Variable leak_I : leak_i -> leak_i_tr -> seq leak_i.
 
-  Definition leak_Is (lts : seq leak_i_tr) (ls : seq leak_i_tree) : seq leak_i_tree :=
+  Definition leak_Is (lts : seq leak_i_tr) (ls : seq leak_i) : seq leak_i :=
     flatten (map2 leak_I ls lts).
 
-  Definition leak_Iss (ltss : seq leak_i_tr) (ls : seq (seq leak_i_tree)) : seq (seq leak_i_tree) :=
+  Definition leak_Iss (ltss : seq leak_i_tr) (ls : seq (seq leak_i)) : seq (seq leak_i) :=
     (map (leak_Is ltss) ls).
 
 End Leak_I.
 
-Definition dummy_lit := LTassgn LEmpty.
+Definition dummy_lit := Lassgn LEmpty.
 
-Fixpoint leak_I (l : leak_i_tree) (lt : leak_i_tr) {struct l} : seq leak_i_tree :=
+Fixpoint leak_I (l : leak_i) (lt : leak_i_tr) {struct l} : seq leak_i :=
   match lt, l with
   | LT_ikeep, _ => [::l]
-  | LT_ile lte, LTassgn le => [:: LTassgn (leak_F lte le) ]
-  | LT_ile lte, LTopn le   => [:: LTopn (leak_F lte le) ]
-  | LT_icond lte ltt ltf, LTcond le b lti => 
-    [:: LTcond (leak_F lte le) b (leak_Is leak_I (if b then ltt else ltf) lti) ]
-  | LT_iwhile ltis lte ltis', LTwhile_true lts le lts' lw => 
-    [:: LTwhile_true (leak_Is leak_I ltis lts)
+  | LT_ile lte, Lassgn le => [:: Lassgn (leak_F lte le) ]
+  | LT_ile lte, Lopn le   => [:: Lopn (leak_F lte le) ]
+  | LT_icond lte ltt ltf, Lcond le b lti => 
+    [:: Lcond (leak_F lte le) b (leak_Is leak_I (if b then ltt else ltf) lti) ]
+  | LT_iwhile ltis lte ltis', Lwhile_true lts le lts' lw => 
+    [:: Lwhile_true (leak_Is leak_I ltis lts)
                      (leak_F lte le)
                      (leak_Is leak_I ltis' lts')
                      (head dummy_lit (leak_I lw lt))]
-  | LT_iwhile ltis lte ltis', LTwhile_false lts le => 
-    [::LTwhile_false (leak_Is leak_I ltis lts)
+  | LT_iwhile ltis lte ltis', Lwhile_false lts le => 
+    [::Lwhile_false (leak_Is leak_I ltis lts)
                      (leak_F lte le)]
-  | LT_icond_eval lts, LTcond _ _ lti => 
+  | LT_icond_eval lts, Lcond _ _ lti => 
     leak_Is leak_I lts lti
-  | LT_icond_eval lts, LTwhile_false lti le =>
+  | LT_icond_eval lts, Lwhile_false lti le =>
     leak_Is leak_I lts lti
-  | LT_ifor lte ltiss, LTfor le ltss => [:: LTfor (leak_F lte le)
+  | LT_ifor lte ltiss, Lfor le ltss => [:: Lfor (leak_F lte le)
                                                 (leak_Iss leak_I ltiss ltss) ]
-  | LT_icall lte ltis lte', LTcall le (f, lts) le' => [:: LTcall (leak_F lte le)
+  | LT_icall lte ltis lte', Lcall le (f, lts) le' => [:: Lcall (leak_F lte le)
                                                              (f, (leak_Is leak_I ltis lts))
                                                              (leak_F lte' le') ]
   | _, _ => [:: l]
   end.
 
-Section LIT_TO_LI.
-
-Variable (lit_to_li : leak_i_tree -> leakage_i).
-
-Definition lits_to_lis (l : seq leak_i_tree) : seq leakage_i := 
-  map lit_to_li l.
-
-Definition litss_to_liss (ls : seq (seq leak_i_tree)) : seq (seq leakage_i) :=
-  map lits_to_lis ls.
-
-End LIT_TO_LI.
-
-Fixpoint lit_to_li (li : leak_i_tree) : leakage_i :=
-  match li with
-  | LTassgn le => Lassgn (lest_to_les le)
-  | LTopn le => Lopn (lest_to_les le)
-  | LTcond le b lis => Lcond (lest_to_les le) b (map lit_to_li lis)
-  | LTwhile_true lis le lis' lw => Lwhile_true (map lit_to_li lis)
-                                                (lest_to_les le)
-                                                (map lit_to_li lis')
-                                                (lit_to_li lw)
-  | LTwhile_false lis le => Lwhile_false (map lit_to_li lis)
-                                          (lest_to_les le)
-  | LTfor le liss => Lfor (lest_to_les le)
-                          (litss_to_liss lit_to_li liss)
-  | LTcall le (f, lis) le' => Lcall (lest_to_les le)
-                                     (f, map lit_to_li lis)
-                                     (lest_to_les le')
-  end.
-
 Section CMD.
-  
+
   Variable const_prop_i : cpm -> instr -> cpm * cmd * leak_i_tr.
 
   Fixpoint const_prop (m:cpm) (c:cmd) : cpm * cmd * seq leak_i_tr :=
@@ -674,7 +606,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
     let es := map (const_prop_e m) es in
     let: (m,xs, lts) := const_prop_rvs m xs in
     (m, [:: MkI ii (Copn xs t o (unzip1 es)) ], 
-     LT_ile (LT_seq ((unzip2 es) ++ [::lts])))
+     LT_ile (LT_seq ((unzip2 es) ++ lts)))
             
   | Cif b c1 c2 =>
     let (b, ltb) := const_prop_e m b in
@@ -732,5 +664,5 @@ Definition const_prop_prog (p: prog) : (prog * leak_i_trf) :=
   let Fs := zip funnames rlts in
   let funcs := zip funnames rfds in 
   ({| p_globs := p_globs p; p_funcs := funcs|}, Fs).
-        
+
 (*Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p. *)

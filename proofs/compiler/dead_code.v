@@ -166,12 +166,12 @@ Variable (Ffs: seq (funname * leak_trans_c)).
 
 Section LEAK_TRANS_LOOP.
 
-  Variable (lrm_i : leakage_i -> leak_trans_i -> leakage_c).
+  Variable (lrm_i : leak_i -> leak_trans_i -> leak_c).
 
-  Definition lrm_c (lt:leak_trans_c) (lc:leakage_c) : leakage_c := 
+  Definition lrm_c (lt:leak_trans_c) (lc:leak_c) : leak_c := 
     flatten (map2 lrm_i lc lt).
 
-  Fixpoint lrm_w (lt1 lt2: leak_trans_c) (li: leakage_i) : leakage_i := 
+  Fixpoint lrm_w (lt1 lt2: leak_trans_c) (li: leak_i) : leak_i := 
     match li with
     | Lwhile_false lc1 le => 
       Lwhile_false (lrm_c lt1 lc1) le
@@ -181,17 +181,17 @@ Section LEAK_TRANS_LOOP.
       li
     end.
 
-  Definition lrm_for (lt:leak_trans_c) (lfor:leakage_for) :=
+  Definition lrm_for (lt:leak_trans_c) (lfor:leak_for) :=
     map (lrm_c lt) lfor.
 
-  Definition lrm_fun (lf: leakage_fun) := 
+  Definition lrm_fun (lf: leak_fun) := 
     let fn := lf.1 in
     let lt := odflt [::] (get_fundef Ffs fn) in
     (fn, lrm_c lt lf.2).
 
 End LEAK_TRANS_LOOP.
 
-Fixpoint lrm_i (li: leakage_i) (lt: leak_trans_i) {struct li} : leakage_c :=
+Fixpoint lrm_i (li: leak_i) (lt: leak_trans_i) {struct li} : leak_c :=
   match lt, li with
   | LTremove, _ => [::]
 
