@@ -614,7 +614,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
     | Some b =>
       if b then let: (v1, cm1, ltc1) := const_prop const_prop_i m c1 in 
                      (v1, cm1, LT_icond_eval ltc1)
-           else let: (v2, cm2, ltc2) := const_prop const_prop_i m c1 in 
+           else let: (v2, cm2, ltc2) := const_prop const_prop_i m c2 in 
                      (v2, cm2, LT_icond_eval ltc2) 
     | None =>
       let: (m1,c1,lt1) := const_prop const_prop_i m c1 in
@@ -664,5 +664,6 @@ Definition const_prop_prog (p: prog) : (prog * leak_i_trf) :=
   let Fs := zip funnames rlts in
   let funcs := zip funnames rfds in 
   ({| p_globs := p_globs p; p_funcs := funcs|}, Fs).
+
 
 (*Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p. *)
