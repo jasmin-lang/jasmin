@@ -634,116 +634,104 @@ Section Section.
     + move=> {epE lvaout ep aoutE vresE sem_body vres h3 h2 fnE wf_vm1 s3' aout}.
       have: (Sv.Subset X X) by SvD.fsetdec.
       move: {1 3}X plE => Y plE le_XY.
-      move: plE vargs vs le_XY vmap0 le_X eval_args vsE hwrinit.
+      move: plE vargs vs le_XY vmap0 s2' le_X eval_args vsE hwrinit.
       elim/make_prologueW=> {Y args pl eargs} Y.
-      - by move=> _ _ _ vmap0 /= _ [<-] /= [<-] _; exists vm1, [::]; split=> //; constructor.
+      - by move=> _ _ _ vmap0 _ /= _ [<-] /= [<-] _; exists vm1, [::]; split=> //; constructor.
       - move=> x xs fty ftys pe pes c args eq_ptr_expr eq_mk_prologue ih.
-        move=> vargs' vs' subXY vmap0 subUX.
+        move=> vargs' vs' subXY vmap0 s2' subUX.
         rewrite [X in X -> _]/=; t_xrbindP=> v vE vargs vargsE ?; subst vargs'.
         rewrite [X in X -> _]/=; t_xrbindP=> vt vtE vs vsE ?; subst vs'.
         rewrite [X in X -> _]/=; t_xrbindP=> svm0' wr_init1 wr_init.
         have [vm0' ?]: exists vm0', svm0' = with_vm s1 vm0'; last subst svm0'.
-        + move: wr_init1; rewrite /write_var; t_xrbindP.
+        * move: wr_init1; rewrite /write_var; t_xrbindP.
           by move=> vm0' h <-; exists vm0'.
-        case: (ih vargs vs subXY vm0') => //.
-        + by move: subUX; rewrite read_es_cons; SvD.fsetdec.
-        + move=> vmx [vargs'] [ih1 ih2 ih3 ih4]; exists vmx, (v :: vargs'); split => //=.
-          * rewrite [X in Let _ := X in _](_ : _ = ok v) 1?ih2 //=.
+        case: (ih vargs vs subXY vm0' s2') => //.
+        * by move: subUX; rewrite read_es_cons; SvD.fsetdec.
+        * move=> vmx [vargs'] [ih1 ih2 ih3 ih4]; exists vmx, (v :: vargs'); split => //=.
+          + rewrite [X in Let _ := X in _](_ : _ = ok v) 1?ih2 //=.
             rewrite -vE  eq_globs; apply: eq_on_sem_pexpr => //=.
             apply/eq_onS/(@eq_onI _ X).
             - by move: subUX; rewrite read_es_cons; SvD.fsetdec.
             - by apply: (eq_onT eq_s1_vm1).
-          * by rewrite vtE /= ih3.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    + move=> {uq_ep fs_ep epE lvaout ep aoutE vresE sem_body vres h3 h2 c' fnE wf_vm1 s3' aout}.
-      move: plE uq_pl fs_pl; rewrite [X in X = (pl, eargs)]surjective_pairing => -[].
-      have [eqsz1 eqsz2] := (size_mapM2 vsE).
-      have eqsz3:= (size_fold2 hwrinit).
-      have eqsz4 := (size_mapM eval_args).
-      have eqzs5 : size (f_tyin fnd) = size (f_params fnd) by rewrite eqsz1 -eqsz3.
-      rewrite !(make_prologueE1, make_prologueE2_same_size) //; last first.
-      - by rewrite eqsz3 eqsz4 eqsz2.
-      move=> /esym -> /esym -> {pl eargs}.
-
-      move: vmap0 le_X eval_args vsE hwrinit.
-      have: size (f_params fnd) = size (f_tyin fnd).
-      - by rewrite eqsz3 eqsz1.
-      have: size vs = size (f_params fnd).
-      - by rewrite eqsz3.
-      move : eqsz4 eqsz2.
-      move => {eqsz1 eqsz3}.
-      move: args vargs vs (f_params fnd) (f_tyin fnd); move: s2' => vminit.
-      apply: diagonal_induction_5_eq.
-      + by move=> vm0 _ _ _ _ _ _; exists vm1, [::]; split=> //; constructor.
-      move=> arg1 varg1 v1 f_param1 f_tyin1 args vargs vs f_params f_tyins.
-      move=> eqsz1 eqsz2 eqsz3 eqsz4 ih vm0 le_X eval_args trunc_vargs wr_init.
-      move=> uq_pl fresh_pl; move: eval_args; rewrite [_ = ok (varg1 :: _)]/=; t_xrbindP.
-      move=> varg1' eval_arg1 vargs' eval_args ??; subst varg1' vargs'.
-      move: trunc_vargs; rewrite [_ = ok (v1 :: _)]/=; t_xrbindP.
-      move=> v1' trunc_varg1 vs' trunc_vargs ??; subst v1' vs'.
-      move: wr_init; rewrite [_ = ok vminit]/=; t_xrbindP=> svm0' wr_init1 wr_init.
-      have [vm0' ?]: exists vm0', svm0' = with_vm s1 vm0'; last subst svm0'.
-      + move: wr_init1; rewrite /write_var; t_xrbindP.
-        by move=> vm0' h <-; exists vm0'.
-      move: le_X; rewrite read_es_cons => le_X.
-      case hE: (is_reg_ptr_expr is_reg_ptr fresh_id p f_param1 arg1) => [y|]; last first.
-
-(**)
-      + move: uq_pl fresh_pl; rewrite [pmap _ _]/=.
-        rewrite [X in oapp _ _ X]/make_prologue1_1 hE [oapp _ _ _]/=.
-        move=> uq_pl fresh_pl. case: (ih vm0') => //.
+          + by rewrite vtE /= ih3.
+      - move => x xs fty ftys pe pes y c args eq_fty notB_fty notM_y_Y eq_ptr_expr eq_mk_prologue ih.
+        move => vargs' vs' subXY vmap0 s2' subUX.
+        rewrite [X in X -> _]/=; t_xrbindP=> v vE vargs vargsE ?; subst vargs'.
+        rewrite [X in X -> _]/=; t_xrbindP=> vt vtE vs vsE ?; subst vs'.
+        rewrite [X in X -> _]/=; t_xrbindP=> svm0' wr_init1 wr_init.
+        have [vm0' ?]: exists vm0', svm0' = with_vm s1 vm0'; last subst svm0'.
+        * move: wr_init1; rewrite /write_var; t_xrbindP.
+          by move=> vm0' h <-; exists vm0'.
+        have [vmx' hvmx']: exists vmx', write_var y vt (with_vm s1 vm1) = ok (with_vm s1 vmx').
+        * move: wr_init1; rewrite /write_var /=; t_xrbindP.
+          move=> vm0'' vm0'E ?; subst vm0''.
+          have /(_ vm1)[] := set_var_rename (y := y) _ _ vm0'E.
+          - move: eq_ptr_expr; rewrite /is_reg_ptr_expr ; case: (pe) => //.
+            + by move=> g; case: ifP => // _ [<-].
+            + by move=> _ _ _ g _ [<-].
+          by move=> vmx' vmx'E; exists vmx' ; rewrite vmx'E.
+        move : wr_init.
+        Search _ write_var.
+        rewrite (@write_vars_lvals (p_globs p')) => /write_lvals_eq_on /= /(_ X vmx') [].
+        * by admit.
+        case: (ih vargs vs _ vmx') => //.
         * by SvD.fsetdec.
-        move=> vmx [vargs'] [ih1 ih2 ih3 ih4]; exists vmx, (varg1 :: vargs'); split => //=.
-        * rewrite {2}/make_prologue1_2 hE -!eq_globs.
-          rewrite [X in Let _ := X in _](_ : _ = ok varg1) /=.
-          - by rewrite eq_globs ih2.
-          rewrite -eval_arg1; apply: eq_on_sem_pexpr => //=.
-          apply/eq_onS/(@eq_onI _ X).
-          - by SvD.fsetdec.
-          - by apply: eq_onT ih4.
-        * by rewrite trunc_varg1 /= ih3.
-(**)
+        * by move: subUX; rewrite read_es_cons; SvD.fsetdec.
+        * 
+        move => vmx.
+        case => vargs' [ih1 ih2 ih3 ih4].
+        exists vmx' , (v :: vargs') ; split => //.
+        * apply/(sem_app ih1)/sem_seq1/EmkI/Eassgn; first 2 last.
+          + by apply: hvmx'.
+          + rewrite -eqglob -(@read_e_eq_on _ X).
+            - by apply: eval_arg1.
+            - apply : (@eq_onI _ X); first by rewrite read_eE; SvD.fsetdec.
+              by apply : (eq_onT eq_s1_vm1).
+          + done.
+
+        move : eq_ptr_expr.
+        rewrite /is_reg_ptr_expr.
+        case eq_pe : pe => // [g|a w p0 g p1].
+        * (*Some _ = Some _ should be simplified.*)
+          About negb_or.
+          About andP.
+          (*case/andP : (is_reg_ptr x && (is_glob g || ~~ is_reg_ptr (gv g))).*)
+          case E : (is_reg_ptr x && (is_glob g || ~~ is_reg_ptr (gv g))) => // eq_y.
+          by admit.
+        * move => eq_y.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
       + move: uq_pl fresh_pl; rewrite [pmap _ _]/=.
         rewrite [X in oapp _ _ X]/make_prologue1_1 hE [oapp _ _ _]/=.
@@ -755,6 +743,7 @@ Section Section.
         * rewrite -/S => x hx; apply: fresh_pl.
           by rewrite rev_cat mem_cat -!fresh_vars_in_prologueE hx orbT.
         move=> vmx [vargs'] [ih1 ih2 ih3 ih4].
+
         have [vmx' hvmx']: exists vmx', write_var y v1 (with_vm s1 vmx) = ok (with_vm s1 vmx').
         * move: wr_init1; rewrite /write_var /=; t_xrbindP.
           move=> vm0'' vm0'E ?; subst vm0''.
