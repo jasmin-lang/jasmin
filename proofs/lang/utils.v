@@ -348,6 +348,10 @@ case.
 by move => h; case: (ih _ rec h) => x hx ok_y; eauto.
 Qed.
 
+Lemma mapM_map {aT bT cT eT} (f: aT → bT) (g: bT → result eT cT) (xs: seq aT) :
+  mapM g (map f xs) = mapM (g \o f) xs.
+Proof. by elim: xs => // x xs ih /=; case: (g (f x)) => // y /=; rewrite ih. Qed.
+
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
@@ -471,6 +475,11 @@ Lemma List_Forall2_inv_r A B (R: A → B → Prop) m n :
   | b :: n' => ∃ a m', m = a :: m' ∧ R a b ∧ List.Forall2 R m' n'
   end.
 Proof. case; eauto. Qed.
+
+Lemma List_Forall2_inv A B (R: A → B → Prop) m n :
+  List.Forall2 R m n →
+  if m is a :: m' then if n is b :: n' then R a b ∧ List.Forall2 R m' n' else False else if n is [::] then True else False.
+Proof. case; auto. Qed.
 
 Section All2.
 

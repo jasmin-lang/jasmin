@@ -4,6 +4,7 @@ Require Import psem.
 Import Utf8.
 Import all_ssreflect.
 Import low_memory.
+Import x86_variables.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -24,18 +25,15 @@ The semantics also ensures some properties:
 
  - No for loop
  - Calls to “rastack” functions are annotated with free variables
+ - The RSP local variable always hold the pointer to the top of the stack
+ - The sp_rip local variable is assumed to hold the pointer to the static global data
  *)
 
-Definition get_pvar (e: pexpr) : exec var_i :=
-  if e is Pvar {| gv := x ; gs := Slocal |} then ok x else type_error.
+Definition get_pvar (e: pexpr) : exec var :=
+  if e is Pvar {| gv := x ; gs := Slocal |} then ok (v_var x) else type_error.
 
-Definition get_lvar (x: lval) : exec var_i :=
-  if x is Lvar x then ok x else type_error.
-
-(*
-Definition has_type ty v : Prop :=
-    truncate_val ty v = ok v.
-*)
+Definition get_lvar (x: lval) : exec var :=
+  if x is Lvar x then ok (v_var x) else type_error.
 
 Section SEM.
 
@@ -43,10 +41,16 @@ Context (p: sprog) (extra_free_registers: instr_info → option var).
 
 Local Notation gd := (p_globs p).
 
-Definition kill_extra_register ii (s: estate) : estate :=
+Definition kill_extra_register_vmap ii (vm: vmap) : vmap :=
   if extra_free_registers ii is Some x
-  then with_vm s (s.(evm).[x <- pundef_addr (vtype x) ])
-  else s.
+  then vm.[x <- pundef_addr (vtype x) ]
+  else vm.
+
+Definition kill_extra_register ii (s: estate) : estate :=
+  with_vm s (kill_extra_register_vmap ii s.(evm)).
+
+Definition set_RSP m vm : vmap :=
+  vm.[vid (string_of_register RSP) <- ok (pword_of_word (top_stack m))].
 
 Inductive sem : estate → cmd → estate → Prop :=
 | Eskip s :
@@ -96,21 +100,17 @@ with sem_i : instr_info → estate → instr_r → estate → Prop :=
 | Ecall ii s1 s2 ini res f args xargs xres :
     mapM get_pvar args = ok xargs →
     mapM get_lvar res = ok xres →
-    sem_call ii s1 f xargs s2 xres →
+    sem_call ii s1 f s2 →
     sem_i ii s1 (Ccall ini res f args) s2
 
-with sem_call : instr_info → estate → funname → seq var_i → estate → seq var_i → Prop :=
-| EcallRun ii s1 s2 fn f xargs xres m1 s2' :
+with sem_call : instr_info → estate → funname → estate → Prop :=
+| EcallRun ii s1 s2 fn f m1 s2' :
     get_fundef (p_funcs p) fn = Some f →
-    f.(f_params) = xargs →
-    (*mapM (λ (x: var_i), get_var s1.(evm) x) xargs = ok vargs →*)
-    (*List.Forall2 has_type f.(f_tyin) vargs →*)
-    (if f.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii ≠ None else True) →
+    (if f.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) →
     alloc_stack s1.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) = ok m1 →
-    sem {| emem := m1 ; evm := if f.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm) |} f.(f_body) s2' →
-    (*mapM (fun (x:var_i) => get_var s2.(evm) x) f.(f_res) = ok vres →*)
-    (*List.Forall2 has_type f.(f_tyout) vres →*)
-    s2 = with_mem s2' (free_stack s2'.(emem) f.(f_extra).(sf_stk_sz)) →
-    sem_call ii s1 fn xargs s2 xres.
+    sem {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} f.(f_body) s2' →
+    let m2 := free_stack s2'.(emem) f.(f_extra).(sf_stk_sz) in
+    s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
+    sem_call ii s1 fn s2.
 
 End SEM.

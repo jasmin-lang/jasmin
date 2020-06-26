@@ -61,112 +61,92 @@ Definition is_reg_ptr_lval x r :=
   | _      => None 
   end.
 
-Definition fmap2 {aT bT cT} (f : aT -> bT -> cT -> aT * cT) : 
-   aT -> seq bT -> seq cT -> aT * seq cT :=
-  fix map a lb lc :=
-    match lb, lc with
-    | [:: b & bs], [:: c & cs] =>
-      let y := f a b c in
-      let ys := map y.1 bs cs in
-      (ys.1, y.2 :: ys.2)
-    | _, _ => (a, lc)
-    end.
-
-Definition do_prologue ii acc x e :=
-  let x := x.(v_var) in
-  match is_reg_ptr_expr x e with
-  | Some x =>
-    (MkI ii (Cassgn (Lvar x) AT_rename (vtype x) e) :: acc, Plvar x)
-  | None => (acc, e)
+Fixpoint make_prologue ii (X:Sv.t) xs tys es := 
+  match xs, tys, es with
+  | [::], [::], [::] => ok ([::], [::])
+  | x::xs, ty::tys, e::es =>
+    let x := x.(v_var) in
+    match is_reg_ptr_expr x e with
+    | Some y => 
+      Let _ := assert ([&& ty == vtype y, ~~is_sbool ty & ~~Sv.mem y X ])
+                      (ii, Cerr_stk_alloc "makeReferenceArguments: bad fresh id") in
+      Let pes := make_prologue ii (Sv.add y X) xs tys es in
+      let: (p,es') := pes in 
+      ok (MkI ii (Cassgn (Lvar y) AT_rename ty e) :: p, Plvar y :: es')
+    | None =>
+      Let pes := make_prologue ii X xs tys es in
+      let: (p,es') := pes in
+      ok (p, e::es')
+    end
+  | _, _, _ => Error (ii, Cerr_stk_alloc "prologue : assert false")
   end.
 
-Definition make_prologue ii xs es := 
-  fmap2 (do_prologue ii) [::] xs es.
-
-Definition fresh_vars_in_prologue_rec acc c :=
-  if c is MkI ii (Cassgn (Lvar x) _ _ _) then x.(v_var) :: acc else acc.
-
-Definition fresh_vars_in_prologue c :=
-  List.fold_left fresh_vars_in_prologue_rec c [::].
-
-Definition do_epilogue ii acc x r :=
-  let x := x.(v_var) in
-  match is_reg_ptr_lval x r with
-  | Some x => 
-    (MkI ii (Cassgn r AT_rename (vtype x) (Plvar x)) :: acc, Lvar x)
-  | None => (acc, r)
-  end.
-
-Definition make_epilogue ii xs rs := 
-  fmap2 (do_epilogue ii) [::] xs rs.
-
-Definition fresh_vars_in_epilogue_rec acc c :=
-  if c is MkI ii (Cassgn _ _ _ (Pvar (Gvar x _))) then x.(v_var) :: acc else acc.
-
-Definition fresh_vars_in_epilogue c :=
-  List.fold_left fresh_vars_in_epilogue_rec c [::].
-
-Section SIG.
-
-Context (get_sig : funname -> seq var_i * seq var_i).
-
+Fixpoint make_epilogue ii (X:Sv.t) xs tys rs := 
+  match xs, tys, rs with
+  | [::], [::], [::] => ok ([::], [::])
+  | x::xs, ty::tys, r::rs =>
+    let x := x.(v_var) in
+     match is_reg_ptr_lval x r with
+     | Some y => 
+       Let _ := assert ([&& ty == vtype y, ~~is_sbool ty & ~~Sv.mem y X ])
+                        (ii, Cerr_stk_alloc "makeReferenceArguments: bad fresh id") in
+       Let prs := make_epilogue ii (Sv.add y X) xs tys rs in
+       let: (p,rs') := prs in 
+       ok (MkI ii (Cassgn r AT_rename ty (Plvar y)) :: p, Lvar y::rs')
+     | None =>
+       Let prs :=  make_epilogue ii X xs tys rs in
+       let: (p,rs') := prs in
+       ok (p, r::rs')
+     end
+   | _, _, _ => Error (ii, Cerr_stk_alloc "epilogue: assert false")
+   end.
+  
 Definition update_c (update_i : instr -> ciexec cmd) (c:cmd) :=
   Let ls := mapM update_i c in
   ok (flatten ls).
 
-Section Update_i.
-
-Context (X: Sv.t).
-
-Let is_fresh x := negb (Sv.mem x X).
-
-Fixpoint update_i (i:instr) : ciexec cmd :=
+Fixpoint update_i (get_sig : funname -> seq var_i * seq stype * seq var_i * seq stype) 
+                  (X:Sv.t) (i:instr) : ciexec cmd :=
   let (ii,ir) := i in
   match ir with
   | Cassgn _ _ _ _ |  Copn _ _ _ _ => 
     ok [::i]
   | Cif b c1 c2 =>
-    Let c1 := update_c update_i c1 in
-    Let c2 := update_c update_i c2 in
+    Let c1 := update_c (update_i get_sig X) c1 in
+    Let c2 := update_c (update_i get_sig X) c2 in
     ok [::MkI ii (Cif b c1 c2)]
   | Cfor x r c =>
-    Let c := update_c update_i c in
+    Let c := update_c (update_i get_sig X) c in
     ok [::MkI ii (Cfor x r c)]
   | Cwhile a c e c' =>
-    Let c  := update_c update_i c in
-    Let c' := update_c update_i c' in
+    Let c  := update_c (update_i get_sig X) c in
+    Let c' := update_c (update_i get_sig X) c' in
     ok [::MkI ii (Cwhile a c e c')]
   | Ccall ini xs fn es =>
-    let: (params, returns) := get_sig fn in
-    let: (prologue, es) := make_prologue ii params es in
-    let: (epilogue, xs) := make_epilogue ii returns xs in
-    let pv := fresh_vars_in_prologue prologue in
-    let ev := fresh_vars_in_epilogue epilogue in
-    Let _ := assert [&& uniq pv, uniq ev, all is_fresh pv & all is_fresh ev]
-                    (ii, Cerr_stk_alloc "makeReferenceArguments: bad fresh id") in
+    let: (params,tparams,returns,treturns) := get_sig fn in
+    Let pres := make_prologue ii X params tparams es in
+    let: (prologue, es) := pres in
+    Let epxs := make_epilogue ii X returns treturns xs in
+    let: (epilogue, xs) := epxs in 
     ok (prologue ++ MkI ii (Ccall ini xs fn es) :: epilogue)
   end.
 
-End Update_i.
-
-Definition update_fd (fd: fundef) :=
+Definition update_fd (get_sig : funname -> seq var_i * seq stype * seq var_i * seq stype) (fd: fundef) :=
   let body    := fd.(f_body) in
   let write   := write_c body in
   let read    := read_c  body in
   let returns := read_es (map Plvar fd.(f_res)) in
   let X := Sv.union returns (Sv.union write read) in
-  Let body := update_c (update_i X) body in
+  Let body := update_c (update_i get_sig X) body in
   ok (with_body fd body).
 
-End SIG.
+Definition get_sig (p:prog) n :=
+  if get_fundef p.(p_funcs) n is Some fd then
+        (fd.(f_params), fd.(f_tyin), fd.(f_res), fd.(f_tyout))
+  else ([::], [::], [::], [::]).
 
 Definition makereference_prog : cfexec prog :=
-  let get_sig n :=
-      if get_fundef p.(p_funcs) n is Some fd then
-        (fd.(f_params), fd.(f_res))
-      else ([::], [::])
-  in
-  Let funcs := map_cfprog (update_fd get_sig) p.(p_funcs) in
+  Let funcs := map_cfprog (update_fd (get_sig p)) p.(p_funcs) in
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
 
 End Section.

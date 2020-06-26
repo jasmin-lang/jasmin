@@ -4,6 +4,7 @@ Require Import psem.
 Import Utf8.
 Import all_ssreflect.
 Import compiler_util.
+Import x86_variables.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -82,6 +83,14 @@ Section WRITE1.
     move => i xs fn es s; rewrite /write_i /=; SvD.fsetdec.
   Qed.
 
+  Definition extra_free_registers_at ii : Sv.t :=
+    if extra_free_registers ii is Some r then Sv.singleton r else Sv.empty.
+
+  Lemma write_I_recE ii i s :
+    Sv.Equal (write_I_rec s (MkI ii i))
+             (Sv.union (write_i_rec s i) (extra_free_registers_at ii)).
+  Proof. rewrite /extra_free_registers_at /=; case: extra_free_registers => *; SvD.fsetdec. Qed.
+
 End WRITE1.
 
 Definition get_wmap (wmap: Mp.t Sv.t) (fn: funname) : Sv.t :=
@@ -128,6 +137,11 @@ Section CHECK.
 
   Fixpoint check_i (i: instr) (D: Sv.t) :=
     let: MkI ii ir := i in
+    Let D2 := check_ir ii ir D in
+    Let _ := assert (if extra_free_registers ii is Some r then negb (Sv.mem r D2) else true)
+                        (ii, Cerr_one_varmap "extra register (for rastack) is not free") in
+    ok D2
+  with check_ir ii ir D :=
     match ir with
     | Cassgn x tag ty e =>
       ok (read_rv_rec (read_e_rec (Sv.diff D (vrv x)) e) x)
@@ -149,34 +163,65 @@ Section CHECK.
         Let _ := assert (if sf_return_address (f_extra fd) is RAstack _ then extra_free_registers ii != None else true)
           (ii, Cerr_one_varmap "no extra free register to compute the return address") in
         Let _ := assert
-          (all2 (λ e a, if e is Pvar (Gvar v _) then v_var v == v_var a else false) es (f_params fd))
+          (all2 (λ e a, if e is Pvar (Gvar v Slocal) then v_var v == v_var a else false) es (f_params fd))
           (ii, Cerr_one_varmap "bad call args") in
         Let _ := assert
           (all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd))
           (ii, Cerr_one_varmap "bad call dests") in
         let W := writefun_ra writefun fn in
-        let D1 := read_rvs_rec (Sv.diff D (vrvs xs)) xs in (* Remark read_rvs xs is empty since all variables *)
+        let D1 := Sv.diff D (vrvs xs) in
         let inter := Sv.inter D1 W in
         Let _ := assert (Sv.is_empty inter) (ii, Cerr_needspill fn (Sv.elements inter)) in
-        let D2 := read_es_rec D1 es in
-        Let _ := assert (if extra_free_registers ii is Some r then negb (Sv.mem r D2) else true)
-                        (ii, Cerr_one_varmap "extra register for rastack is not free") in
-        ok D2
+        ok (read_es_rec D1 es)
       else cierror ii (Cerr_one_varmap "call to unknown function")
     end.
 
+  Lemma check_ir_CwhileP ii aa c e c' D D' :
+    check_ir ii (Cwhile aa c e c') D = ok D' →
+    if e == Pbool false
+    then check_c check_i c D = ok D'
+    else
+      ∃ D1 D2,
+        [/\ check_c check_i c (read_e_rec D1 e) = ok D',
+         check_c check_i c' D' = ok D2,
+         Sv.Subset D D1 &
+         Sv.Subset D2 D1 ].
+  Proof.
+    rewrite /check_ir; case: eqP => // _; rewrite -/check_i.
+    elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 D2 h2; case: (equivP idP (Sv.subset_spec _ _)) => cnd.
+    - by case => ?; subst D1; exists D, D2; split.
+    move => /ih{ih} [D4] [D3] [ h h' le le' ].
+    exists D4, D3; split => //; SvD.fsetdec.
+  Qed.
+
   End CHECK_i.
+
+  Notation check_cmd := (check_c check_i).
+
+  Definition live_after_fd (fd: sfundef) : Sv.t :=
+    set_of_var_i_seq Sv.empty fd.(f_res).
+
+  Definition magic_variables : Sv.t :=
+    Sv.add (vid p.(p_extra).(sp_rip)) (Sv.add (vid (string_of_register RSP)) Sv.empty).
 
   Definition check_fd (ffd: sfun_decl) :=
     let: (fn, fd) := ffd in
-    let saved_rsp := match fd.(f_extra).(sf_save_stack) with SavedStackNone | SavedStackStk _ => Sv.empty | SavedStackReg r => Sv.singleton r end in
-    let O := read_es_rec saved_rsp (map Plvar fd.(f_res)) in
-    Let I := add_finfo fn fn (check_c check_i fd.(f_body) O) in
+    let O := live_after_fd fd in
+    Let I := add_finfo fn fn (check_cmd fd.(f_body) O) in
+    Let _ := assert (all (λ x : var_i, ~~ Sv.mem x magic_variables) fd.(f_params))
+                    (Ferr_fun fn (Cerr_one_varmap "the function has RSP or global-data as parameter")) in
+    Let _ := assert (all (λ x : var_i, v_var x != vid (string_of_register RSP)) fd.(f_res))
+                    (Ferr_fun fn (Cerr_one_varmap "the functions returns RSP")) in
+    let J := set_of_var_i_seq magic_variables fd.(f_params) in
+    Let _ := assert (Sv.subset I J)
+                    (Ferr_fun fn (Cerr_one_varmap_free fn (Sv.elements I))) in
+    Let _ := assert (var.disjoint (writefun_ra writefun fn) magic_variables)
+                    (Ferr_fun fn (Cerr_one_varmap "the function writes to RSP or global-data")) in
     let e := fd.(f_extra) in
     match e.(sf_return_address) with
     | RAreg ra =>
       Let _ := assert (~~Sv.mem ra (writefun fn)) (Ferr_fun fn (Cerr_one_varmap "the function writes its return address")) in
-      assert(~~Sv.mem ra I)  (Ferr_fun fn (Cerr_one_varmap "the function depends of its return address"))
+      assert(~~Sv.mem ra J)  (Ferr_fun fn (Cerr_one_varmap "the function depends of its return address"))
     | RAnone | RAstack _ => ok tt
     end.
 
@@ -187,6 +232,7 @@ End CHECK.
 Definition check :=
   let wmap := mk_wmap in
   Let _ := assert (check_wmap wmap) (Ferr_msg (Cerr_one_varmap "invalid wmap")) in
+  Let _ := assert (p.(p_extra).(sp_rip) != string_of_register RSP) (Ferr_msg (Cerr_one_varmap "rip and rsp clash, please report")) in
   Let _ := check_prog (get_wmap wmap) in
   ok tt.
 
