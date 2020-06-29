@@ -323,6 +323,104 @@ Section Section.
   + by move=> _ _ /= [-> ->]. + by move=> _ _ _ _ _ _ /= [-> ->].
   Qed.
 
+
+
+
+  Lemma make_epilogue0 (p : uprog) ii X :
+    make_epilogue is_reg_ptr fresh_id p ii X [::] [::] [::] = ok ([::], [::]).
+  Proof. by []. Qed.
+
+  Lemma make_epilogueS_None (p : uprog) ii X x xs fty ftys lv lvs c args :
+       is_reg_ptr_lval is_reg_ptr fresh_id p (v_var x) lv = None
+    -> make_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok (c, args)
+    -> make_epilogue is_reg_ptr fresh_id p ii X (x :: xs) (fty :: ftys) (lv :: lvs)
+       = ok (c, lv :: args).
+  Proof. by move => /= -> -> /=. Qed.
+
+  Lemma make_epilogueS_Some (p : uprog) ii X x xs fty ftys lv lvs (y : var_i) c args :
+       fty = vtype y -> ~~ is_sbool fty -> ~~Sv.mem y X
+    -> is_reg_ptr_lval is_reg_ptr fresh_id p (v_var x) lv = Some y
+    -> make_epilogue is_reg_ptr fresh_id p ii (Sv.add y X) xs ftys lvs = ok (c, args)
+    -> make_epilogue is_reg_ptr fresh_id p ii X (x :: xs) (fty :: ftys) (lv :: lvs)
+       = ok ((MkI ii (Cassgn lv AT_rename fty (Plvar y)) :: c, (Lvar y) :: args)).
+  Proof. by move=> eq1 eq2 eq3 ; move => /= -> ; rewrite eq2 eq1 eq3 eqxx /= => -> /=. Qed.
+
+  Section MakeEpilogueInd.
+  Variable P : Sv.t -> seq var_i -> seq stype -> lvals -> cmd -> lvals -> Prop.
+  Variable (p : uprog) (ii : instr_info).
+
+  Hypothesis P0 : forall X, P X [::] [::] [::] [::] [::].
+
+  Hypothesis PSNone :
+    forall X x xs fty ftys lv lvs c args,
+         is_reg_ptr_lval is_reg_ptr fresh_id p (v_var x) lv = None
+      -> make_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok (c, args)
+      -> P X xs ftys lvs c args
+      -> P X (x :: xs) (fty :: ftys) (lv :: lvs) c (lv :: args).
+
+  Hypothesis PSSome :
+    forall X x xs fty ftys lv lvs (y : var_i) c args,
+       fty = vtype y -> ~~ is_sbool fty -> ~~Sv.mem y X
+    -> is_reg_ptr_lval is_reg_ptr fresh_id p (v_var x) lv = Some y
+    -> make_epilogue is_reg_ptr fresh_id p ii (Sv.add y X) xs ftys lvs = ok (c, args)
+    -> P (Sv.add y X) xs ftys lvs c args
+    -> P X (x :: xs) (fty :: ftys) (lv :: lvs)
+         (MkI ii (Cassgn lv AT_rename fty (Plvar y)) :: c) ((Lvar y) :: args).
+
+  Lemma make_epilogueW X xs ftys lvs c args :
+       make_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok (c, args)
+    -> P X xs ftys lvs c args.
+  Proof.
+  move: xs ftys lvs X c args; apply: diagonal_induction_3;
+    last 1 [idtac] || by case=> [|??] [|??] //= X c args [<- <-].
+  move=> x fty lv xs ftys lvs ih X c args /=.
+  case E: (is_reg_ptr_lval _ _ _ _ _) => [y|] /=; last first.
+  + by t_xrbindP; case=> c' args' h [<- <-]; apply/PSNone/ih.
+  + t_xrbindP=> /= _ /assertP /and3P[/eqP h1 h2 h3] [c' args'].
+    by move=> h [<- <-]; apply/PSSome/ih.
+  Qed.
+  End MakeEpilogueInd.
+
+  Variant make_epilogue_spec (p : uprog) (ii : instr_info) :
+    Sv.t -> seq var_i -> seq stype -> lvals -> cmd -> lvals -> Prop
+  :=
+
+  | MakeEpilogue0 X :
+       make_epilogue_spec p ii X [::] [::] [::] [::] [::]
+
+  | MakeEpilogueS_None X x xs fty ftys lv lvs c args :
+       is_reg_ptr_lval is_reg_ptr fresh_id p (v_var x) lv = None
+    -> make_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok (c, args)
+    -> make_epilogue_spec p ii X (x :: xs) (fty :: ftys) (lv :: lvs) c (lv :: args)
+
+  | MakeEpilogueS_Some X x xs fty ftys lv lvs (y : var_i) c args :
+       fty = vtype y -> ~~ is_sbool fty -> ~~Sv.mem y X
+    -> is_reg_ptr_lval is_reg_ptr fresh_id p (v_var x) lv = Some y
+    -> make_epilogue is_reg_ptr fresh_id p ii (Sv.add y X) xs ftys lvs = ok (c, args)
+    -> make_epilogue_spec p ii X (x :: xs) (fty :: ftys) (lv :: lvs)
+         (MkI ii (Cassgn lv AT_rename fty (Plvar y)) :: c) ((Lvar y) :: args).
+
+  Lemma make_epilogueP p ii X xs ftys lvs c args :
+       make_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok (c, args)
+    -> make_epilogue_spec p ii X xs ftys lvs c args.
+  Proof.
+  elim/make_epilogueW=> {X xs ftys lvs c args} X.
+  + by constructor.
+  + by move=> x xs fty ftys lv lvs c args *; apply: MakeEpilogueS_None.
+  + by move=> x xs fty ftys lv lvs c args *; apply: MakeEpilogueS_Some.
+  Qed.
+
+  Lemma make_epilogue_size (p : uprog) ii X xs ftys lvs c args :
+      make_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok (c, args)
+   -> (size xs = size ftys /\ size ftys = size lvs).
+  Proof.
+  elim/make_epilogueW=> {X xs ftys lvs c args} X // x xs fty ftys lv lvs c args.
+  + by move=> _ _ /= [-> ->]. + by move=> _ _ _ _ _ _ /= [-> ->].
+  Qed.
+
+
+
+
   Context (p p' : uprog).
   Context (ev : unit).
 
@@ -336,13 +434,23 @@ Section Section.
    by move => y _ <-.
   Qed.
 
+  (*Fix the get_sig duplication before.*)
+  Lemma eq_funcs : map_cfprog (update_fd is_reg_ptr fresh_id p (get_sig p)) (p_funcs p) = ok (p_funcs p').
+  Proof.
+    move : Hp.
+    rewrite /makereference_prog.
+    by t_xrbindP => fdecls Hmap_cfprog <- /=.
+  Qed.
+
+  (*
   Definition get_sig n :=       (* FIXME: duplicated *)
    if get_fundef p.(p_funcs) n is Some fd then
       (fd.(f_params), fd.(f_tyin), fd.(f_res), fd.(f_tyout))
    else ([::], [::], [::], [::]).
+  *)
 
   Let Pi s1 (i:instr) s2:=
-    forall (X:Sv.t) c', update_i is_reg_ptr fresh_id p get_sig X i = ok c' ->
+    forall (X:Sv.t) c', update_i is_reg_ptr fresh_id p (get_sig p) X i = ok c' ->
      Sv.Subset (Sv.union (read_I i) (write_I i)) X ->
      forall vm1, wf_vm vm1 -> evm s1 =[X] vm1 ->
      exists vm2, [/\ wf_vm vm2, evm s2 =[X] vm2 &
@@ -352,7 +460,7 @@ Section Section.
     forall ii, Pi s1 (MkI ii i) s2.
 
   Let Pc s1 (c:cmd) s2:=
-    forall (X:Sv.t) c', update_c (update_i is_reg_ptr fresh_id p get_sig X) c = ok c' ->
+    forall (X:Sv.t) c', update_c (update_i is_reg_ptr fresh_id p (get_sig p) X) c = ok c' ->
      Sv.Subset (Sv.union (read_c c) (write_c c)) X ->
      forall vm1, wf_vm vm1 -> evm s1 =[X] vm1 ->
      exists vm2, [/\ wf_vm vm2, evm s2 =[X] vm2 &
@@ -360,7 +468,7 @@ Section Section.
 
   Let Pfor (i:var_i) vs s1 c s2 :=
     forall X c',
-    update_c (update_i is_reg_ptr fresh_id p get_sig X) c = ok c' ->
+    update_c (update_i is_reg_ptr fresh_id p (get_sig p) X) c = ok c' ->
     Sv.Subset (Sv.add i (Sv.union (read_c c) (write_c c))) X ->
     forall vm1, wf_vm vm1 -> evm s1 =[X] vm1 ->
     exists vm2, [/\ wf_vm vm2, evm s2 =[X] vm2  &
@@ -380,7 +488,7 @@ Section Section.
     t_xrbindP => lc ci {}/hi hi cc hcc <- <-.
     rewrite read_c_cons write_c_cons => hsub vm1 wf_vm1 hvm1.
     have [|vm2 [wf_vm2 hvm2 hs2]]:= hi _ vm1 wf_vm1 hvm1; first by SvD.fsetdec.
-    have /hc : update_c (update_i is_reg_ptr fresh_id p get_sig X) c = ok (flatten cc).
+    have /hc : update_c (update_i is_reg_ptr fresh_id p (get_sig p) X) c = ok (flatten cc).
     + by rewrite /update_c hcc.
     move=> /(_ _ vm2 wf_vm2 hvm2) [|vm3 [wf_vm3 hvm3 hs3]]; first by SvD.fsetdec.
     by exists vm3; split => //=; apply: sem_app hs2 hs3.
@@ -591,7 +699,7 @@ Section Section.
     by rewrite truncate_word_u.
   Qed.
 
-  Lemma get_set_var vm vm' x v v':      
+  Lemma get_set_var vm vm' x v v':
     ~is_sbool (vtype x) ->
     truncate_val (vtype x) v = ok v' ->
     set_var vm x v' = ok vm' ->
@@ -599,11 +707,11 @@ Section Section.
   Proof.
     rewrite /get_var /set_var => hty htr; apply on_vuP; last by case: is_sbool hty.
     move=> vt hvt <-.
-    rewrite /on_vu Fv.setP_eq. 
+    rewrite /on_vu Fv.setP_eq.
     case: (vtype x) vt htr hvt => /=.
     + by move=> b _ /to_boolI ->.
     + by move=> i _ /to_intI ->.
-    + move=> n t; case: v => //= [ n' t' | [] //]. 
+    + move=> n t; case: v => //= [ n' t' | [] //].
       rewrite /truncate_val /= /WArray.cast.
       by case: ifP => //= ? [<-] /= [<-]; rewrite /WArray.inject Z.ltb_irrefl.
     move => w vt; rewrite /truncate_val /=; t_xrbindP => w' h <-.
@@ -619,7 +727,7 @@ Section Section.
     rewrite !(read_i_call, write_i_call) => le_X vm1 wf_vm1 eq_s1_vm1.
     case/sem_callE: h1 hupd => fnd [fnE] [vs] [s1'] [s2'] [s3'] [vres].
     case=> vsE /= [[{s1'}<-] hwrinit] sem_body [vresE aoutE] mE.
-    subst m; rewrite /get_sig fnE.
+    subst m; rewrite /(get_sig p) fnE.
     t_xrbindP=> -[pl eargs] plE; t_xrbindP=> -[ep lvaout] epE [<-] {c'}.
     have eqglob: p_globs p = p_globs p'.
     + by apply: make_referenceprog_globs.
@@ -696,7 +804,61 @@ Section Section.
 
     case=> [vmx] [vargs'] [sem_pl eval_vargs' trunc_vargs' eq_vm1_vmx].
 
-  Admitted.
+    (*
+    have : exists vmy , [/\
+        sem p' ev (with_vm s1 vm1) pl (with_vm s1 vmx)
+      , sem_pexprs (p_globs p') (with_vm s1 vmx) eargs = ok vargs'
+      , mapM2 ErrType truncate_val (f_tyin fnd) vargs' = ok vs
+      & vm1 =[X] vmx].
+    + by admit.
+    case=> [vmx] [vargs'] [sem_pl eval_vargs' trunc_vargs' eq_vm1_vmx].
+
+    have : exists vmx vargs', [/\
+        sem p' ev (with_vm s1 vm1) pl (with_vm s1 vmx)
+      , sem_pexprs (p_globs p') (with_vm s1 vmx) eargs = ok vargs'
+      , mapM2 ErrType truncate_val (f_tyin fnd) vargs' = ok vs
+      & vm1 =[X] vmx].
+    + by admit.
+    case=> [vmx] [vargs'] [sem_pl eval_vargs' trunc_vargs' eq_vm1_vmx].
+    *)
+
+    (*Modify the get_fundef with p' instead of p.*)
+    case : (get_map_cfprog eq_funcs fnE).
+    move => fdef Hfdef Hget_fundef.
+
+    eexists.
+    split.
+    + admit.
+    + admit.
+    apply : (sem_app sem_pl).
+    apply : Eseq.
+    + apply : EmkI.
+      inversion_clear h2.
+      have : fdef = f.
+      - rewrite Hget_fundef in H.
+        by case : H.
+      move => ? ; subst f => {H}.
+      move : Hfdef.
+      rewrite {1}/update_fd.
+      t_xrbindP => c' Hc' ? ; subst fdef.
+      move : (H0).
+      rewrite vsE.
+      case => ? ; subst vargs0.
+      apply : (Ecall _ eval_vargs').
+      - by econstructor ; eauto.
+
+have Hep:
+   forall tyout res ,
+   write_lvals (p_globs p) (with_mem s1 (emem s3')) lv aout = ok s2
+-> mapM2 ErrType truncate_val tyout vres0 = ok aout
+-> make_epilogue is_reg_ptr fresh_id p ii' X res tyout lv = ok (ep, lvaout)
+-> mapM (λ x : var_i, get_var (evm s4) x) res = ok vres0
+-> exists vm2 vm2' ,
+      write_lvals (p_globs p') (with_mem (with_vm s1 vmx) (emem s3')) lvaout aout = ok vm2'
+   /\ sem p' ev vm2' ep (with_vm s2 vm2).
+
+      by admit.
+  Qed.
 
   Lemma eq_extra : p_extra p = p_extra p'.
     move : Hp.
