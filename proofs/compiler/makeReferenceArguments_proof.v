@@ -831,28 +831,17 @@ Section Section.
     exists vm2 vm2' ,
        write_lvals (p_globs p') (with_mem (with_vm s1 vmx) (emem s3')) lvaout aout = ok vm2'
     /\ sem p' ev vm2' ep (with_vm s2 vm2).
-    + move : epE (X) le_X eq_s1_vm1 (f_tyin fnd) (f_res fnd) h3 trunc_vargs' vresE.
+    + clear h2.
+      move : epE (X) le_X eq_s1_vm1 aout aoutE (f_tyin fnd) (f_res fnd) h3 trunc_vargs' vresE.
       elim/make_epilogueW.
-      - (*Why do I have a seemingly useless type appearing here, that I remove using the _?*)
-        move => _ Y subUY eq_s1_vm1 f_tyin f_res Hfold2 HmapM2 HmapM.
+      - move => _ Y subUY eq_s1_vm1 aout aoutE f_tyin f_res Hfold2 HmapM2 HmapM.
         move : Hfold2.
         case : (aout) => //= -[<-].
         eexists ; eexists ; split => //=.
         by apply : Eskip.
-      - (*
-        move => Y x xs _ ftys lv1 lvs c args0 eq_ptr_lval epE ih Z.
+      - move => Y x xs fty ftys lv1 lvs c args0 eq_ptr_lval epE ih Z.
         rewrite read_rvs_cons vrvs_cons.
-        move => subUZ eq_s1_vm1 f_tyin f_res Hwrite_lvals HmapM2 HmapM.
-        (*Seems to me like ih can't be used because it would need lvs and aout to have the same size, but Hwrite_lvals ensures they do not.*)
-        case : (ih Z _ eq_s1_vm1 _ _ Hwrite_lvals HmapM2 HmapM).
-        * by SvD.fsetdec.
-        Search _ write_lvals (_ :: _).
-      *)
-
-      - (*Same goes here?*)
-        move => Y x xs _ ftys lv1 lvs c args0 eq_ptr_lval epE ih Z.
-        rewrite read_rvs_cons vrvs_cons.
-        move => subUZ eq_s1_vm1 f_tyin f_res Hfold2 HmapM2 HmapM.
+        move => subUZ eq_s1_vm1 aout aoutE f_tyin f_res Hfold2 HmapM2 HmapM.
         eexists ; eexists ; split.
         move : Hfold2.
         case : (aout) => //= val vals.
@@ -868,7 +857,7 @@ Section Section.
         move : Hwrite_lval_y.
         rewrite /with_mem /with_vm /=.
         move => -> /=.
-        rewrite -/with_vm.
+        case : (ih Z _ _ _ 
         (*Probably vmy here.*)
         case : (@write_lvals_eq_on _ Z _ _ _ _ vmy _ Hwrite_lvals).
         * by SvD.fsetdec.
