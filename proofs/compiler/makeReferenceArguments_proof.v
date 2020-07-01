@@ -196,7 +196,7 @@ Lemma set_var_rename (vm vm' vm'' : vmap) (x y : var) (v : value) :
   -> set_var vm x v = ok vm'
   -> exists vm''', set_var vm'' y v = ok vm'''.
 Proof.
-case: x y => [ty nx] [_ ny] [/= <-].
+case: x y => [ty nx] [_ ny] [/= <-]. (*Warning: nothing to inject because of the last []: why?*)
 set x := {| vname := nx |}; set y := {| vname := ny |}.
 apply: set_varP => /=.
 + by move=> t okt /esym vm'E ; exists vm''.[y <- ok t] ; rewrite /set_var okt.
@@ -740,7 +740,7 @@ Section Section.
       have: (Sv.Subset X X) by SvD.fsetdec.
       move: {1 3 4}X plE => Y plE le_XY.
       move: plE vargs vs le_XY vmap0 vm1 eq_s1_vm1 s2' le_X eval_args vsE hwrinit.
-      elim/make_prologueW=> {Y args pl eargs} Y.
+      elim/make_prologueW => {Y args pl eargs} Y.
       - move=> _ _ _ vmap0 vm1 _ _ /= _ [<-] /= [<-] _.
         by exists vm1, [::]; split=> //; constructor.
       - move=> x xs fty ftys pe pes c args eq_ptr_expr eq_mk_prologue ih.
@@ -804,27 +804,82 @@ Section Section.
 
     case=> [vmx] [vargs'] [sem_pl eval_vargs' trunc_vargs' eq_vm1_vmx].
 
-    (*
-    have : exists vmy , [/\
-        sem p' ev (with_vm s1 vm1) pl (with_vm s1 vmx)
-      , sem_pexprs (p_globs p') (with_vm s1 vmx) eargs = ok vargs'
-      , mapM2 ErrType truncate_val (f_tyin fnd) vargs' = ok vs
-      & vm1 =[X] vmx].
-    + by admit.
-    case=> [vmx] [vargs'] [sem_pl eval_vargs' trunc_vargs' eq_vm1_vmx].
-
-    have : exists vmx vargs', [/\
-        sem p' ev (with_vm s1 vm1) pl (with_vm s1 vmx)
-      , sem_pexprs (p_globs p') (with_vm s1 vmx) eargs = ok vargs'
-      , mapM2 ErrType truncate_val (f_tyin fnd) vargs' = ok vs
-      & vm1 =[X] vmx].
-    + by admit.
-    case=> [vmx] [vargs'] [sem_pl eval_vargs' trunc_vargs' eq_vm1_vmx].
-    *)
-
-    (*Modify the get_fundef with p' instead of p.*)
     case : (get_map_cfprog eq_funcs fnE).
     move => fdef Hfdef Hget_fundef.
+
+    (*
+    have Hep:
+    forall tyout res s4 vres0,
+       write_lvals (p_globs p) (with_mem s1 (emem s3')) lv aout = ok s2
+    -> mapM2 ErrType truncate_val tyout vres0 = ok aout
+    -> make_epilogue is_reg_ptr fresh_id p ii' X res tyout lv = ok (ep, lvaout)
+    -> mapM (λ x : var_i, get_var (evm s4) x) res = ok vres0
+    -> exists vm2 vm2' ,
+          write_lvals (p_globs p') (with_mem (with_vm s1 vmx) (emem s3')) lvaout aout = ok vm2'
+       /\ sem p' ev vm2' ep (with_vm s2 vm2).
+    + move : epE.
+      elim/make_epilogueW.
+      - move => _ _ _ _ _ Hfold2 _ _ _.
+        have := (@size0nil _ aout).
+        case : (size_fold2 Hfold2) => <- /= ->.
+        eexists ; eexists ; split => //=.
+        by apply Eskip.
+    *)
+
+
+    have Hep:
+    exists vm2 vm2' ,
+       write_lvals (p_globs p') (with_mem (with_vm s1 vmx) (emem s3')) lvaout aout = ok vm2'
+    /\ sem p' ev vm2' ep (with_vm s2 vm2).
+    + move : epE (X) le_X eq_s1_vm1 (f_tyin fnd) (f_res fnd) h3 trunc_vargs' vresE.
+      elim/make_epilogueW.
+      - (*Why do I have a seemingly useless type appearing here, that I remove using the _?*)
+        move => _ Y subUY eq_s1_vm1 f_tyin f_res Hfold2 HmapM2 HmapM.
+        move : Hfold2.
+        case : (aout) => //= -[<-].
+        eexists ; eexists ; split => //=.
+        by apply : Eskip.
+      - (*
+        move => Y x xs _ ftys lv1 lvs c args0 eq_ptr_lval epE ih Z.
+        rewrite read_rvs_cons vrvs_cons.
+        move => subUZ eq_s1_vm1 f_tyin f_res Hwrite_lvals HmapM2 HmapM.
+        (*Seems to me like ih can't be used because it would need lvs and aout to have the same size, but Hwrite_lvals ensures they do not.*)
+        case : (ih Z _ eq_s1_vm1 _ _ Hwrite_lvals HmapM2 HmapM).
+        * by SvD.fsetdec.
+        Search _ write_lvals (_ :: _).
+      *)
+
+      - (*Same goes here?*)
+        move => Y x xs _ ftys lv1 lvs c args0 eq_ptr_lval epE ih Z.
+        rewrite read_rvs_cons vrvs_cons.
+        move => subUZ eq_s1_vm1 f_tyin f_res Hfold2 HmapM2 HmapM.
+        eexists ; eexists ; split.
+        move : Hfold2.
+        case : (aout) => //= val vals.
+        rewrite eq_globs.
+        t_xrbindP => sy Hwrite_lval Hwrite_lvals.
+        (*Maybe vm1, maybe vmx...*)
+        case : (@write_lval_eq_on _ Z _ _ _ _ vmx _ Hwrite_lval).
+        * by SvD.fsetdec.
+        * move : eq_s1_vm1.
+          Search _ (_ =[_] _) with_mem.
+          by admit.
+        move => vmy [eq_sy_vmy Hwrite_lval_y].
+        move : Hwrite_lval_y.
+        rewrite /with_mem /with_vm /=.
+        move => -> /=.
+        rewrite -/with_vm.
+        (*Probably vmy here.*)
+        case : (@write_lvals_eq_on _ Z _ _ _ _ vmy _ Hwrite_lvals).
+        * by SvD.fsetdec.
+        * move : eq_sy_vmy.
+          rewrite SvP.MP.union_subset_equal => //.
+          by SvD.fsetdec.
+        move => vm2 [eq_s2_vm2 Hwrite_lvals2].
+        move : Hwrite_lvals2.
+        rewrite {1}/with_vm.
+        (*I have not yet used ih, it probably was a mistake,or maybe not?*)
+      by admit.
 
     eexists.
     split.
@@ -846,18 +901,8 @@ Section Section.
       case => ? ; subst vargs0.
       apply : (Ecall _ eval_vargs').
       - by econstructor ; eauto.
-
-have Hep:
-   forall tyout res ,
-   write_lvals (p_globs p) (with_mem s1 (emem s3')) lv aout = ok s2
--> mapM2 ErrType truncate_val tyout vres0 = ok aout
--> make_epilogue is_reg_ptr fresh_id p ii' X res tyout lv = ok (ep, lvaout)
--> mapM (λ x : var_i, get_var (evm s4) x) res = ok vres0
--> exists vm2 vm2' ,
-      write_lvals (p_globs p') (with_mem (with_vm s1 vmx) (emem s3')) lvaout aout = ok vm2'
-   /\ sem p' ev vm2' ep (with_vm s2 vm2).
-
-      by admit.
+      - by admit.
+    by admit.
   Qed.
 
   Lemma eq_extra : p_extra p = p_extra p'.
