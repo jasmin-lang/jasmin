@@ -858,10 +858,34 @@ Section Section.
         rewrite (_ : with_vm s1 (evm s4) = s4) in hwr1'; last first.
         - by rewrite /with_vm eq_s1_s4; case: (s4).
         by rewrite -eqglob hwr1' /= eqglob.
+      + move => x xs fty ftys lv lvs y c lvaout.
+        move => -> Nissbool Nmem Hptr_lval Hmk_epilogue Ih.
+        move => s1 s4 aout vres.
+        rewrite read_rvs_cons vrvs_cons.
+        case: aout=> // aout1 aout /=.
+        case: vres=> // vres1 vres /=.
+        move => Hsub eq_s1_s4 eq_mem_s1_s4 ; t_xrbindP.
+        move=> aout1' Htrunc aout' HmapM2 eq_aout1 eq_aout ; subst aout1' aout'.
+        move => s1' Hwrite_lval Hwrite_lvals.
+        (*Write y before using Ih.*)
+        Search _ truncate_val.
 
 
-        
 
+        (*Not this.*)
+        case : (Ih _ (with_vm s1' (evm s4)) _ _ _ _ _ HmapM2 Hwrite_lvals) => //=.
+        - by SvD.fsetdec.
+        - Search _ write_lval (_ =[_] _).
+          by admit.
+        move => vm2.
+        case => s2'' [Hwrite_lvals' Hsem] eq_s2''_vm2.
+
+        eexists ; eexists ; split.
+        - 
+
+
+
+      (*
       move : epE (X) le_X eq_s1_vm1 aout aoutE (f_tyin fnd) (f_res fnd) h3 trunc_vargs' vresE.
       elim/make_epilogueW.
       - move => _ Y subUY eq_s1_vm1 aout aoutE f_tyin f_res Hfold2 HmapM2 HmapM.
@@ -899,6 +923,7 @@ Section Section.
         rewrite {1}/with_vm.
         (*I have not yet used ih, it probably was a mistake,or maybe not?*)
       by admit.
+      *)
 
     eexists.
     split.
