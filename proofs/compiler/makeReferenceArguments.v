@@ -128,6 +128,8 @@ Fixpoint update_i (get_sig : funname -> seq var_i * seq stype * seq var_i * seq 
     let: (prologue, es) := pres in
     Let epxs := make_epilogue ii X returns treturns xs in
     let: (epilogue, xs) := epxs in 
+    Let _ := assert (disjoint (vrvs xs) (write_c epilogue))
+                    (ii, Cerr_stk_alloc "please report: makeReferenceArguments/epilogue") in
     ok (prologue ++ MkI ii (Ccall ini xs fn es) :: epilogue)
   end.
 
