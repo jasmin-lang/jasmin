@@ -81,26 +81,49 @@ Fixpoint make_prologue ii (X:Sv.t) xs tys es :=
   | _, _, _ => Error (ii, Cerr_stk_alloc "prologue : assert false")
   end.
 
-Fixpoint make_epilogue ii (X:Sv.t) xs tys rs := 
+Inductive pseudo_instr := 
+  | PI_lv of lval
+  | PI_i  of instr.
+
+Fixpoint make_pseudo_epilogue ii (X:Sv.t) xs tys rs := 
   match xs, tys, rs with
-  | [::], [::], [::] => ok ([::], [::])
+  | [::], [::], [::] => ok ([::])
   | x::xs, ty::tys, r::rs =>
     let x := x.(v_var) in
      match is_reg_ptr_lval x r with
      | Some y => 
        Let _ := assert ([&& ty == vtype y, ~~is_sbool ty & ~~Sv.mem y X ])
                         (ii, Cerr_stk_alloc "makeReferenceArguments: bad fresh id") in
-       Let prs := make_epilogue ii (Sv.add y X) xs tys rs in
-       let: (p,rs') := prs in 
-       ok (MkI ii (Cassgn r AT_rename ty (Plvar y)) :: p, Lvar y::rs')
+       Let pis := make_pseudo_epilogue ii X xs tys rs in
+       ok (PI_lv (Lvar y) :: PI_i (MkI ii (Cassgn r AT_rename ty (Plvar y))) :: pis)
      | None =>
-       Let prs :=  make_epilogue ii X xs tys rs in
-       let: (p,rs') := prs in
-       ok (p, r::rs')
+       Let pis :=  make_pseudo_epilogue ii X xs tys rs in
+       ok (PI_lv r :: pis) 
      end
    | _, _, _ => Error (ii, Cerr_stk_alloc "epilogue: assert false")
    end.
-  
+
+Fixpoint swapable (ii:instr_info) (pis : seq pseudo_instr) := 
+  match pis with
+  | [::] => ok ([::], [::])
+  | PI_lv lv :: pis => 
+    Let lvep := swapable ii pis in
+    let '(lvs,ep) := lvep in
+    ok (lv::lvs, ep)
+  | PI_i i :: pis =>
+    Let lvep := swapable ii pis in
+    let: (lvs,ep) := lvep in
+    Let _ := assert (disjoint (read_rvs lvs) (write_I i))
+                    (ii, Cerr_stk_alloc "cannot swap 1") in
+    Let _ := assert (disjoint (vrvs lvs) (read_I i))
+                    (ii, Cerr_stk_alloc "cannot swap 2") in
+    ok (lvs, i::ep)
+  end.
+
+Definition make_epilogue ii (X:Sv.t) xs tys rs := 
+  Let pis := make_pseudo_epilogue ii X xs tys rs in
+  swapable ii pis.
+      
 Definition update_c (update_i : instr -> ciexec cmd) (c:cmd) :=
   Let ls := mapM update_i c in
   ok (flatten ls).
@@ -126,10 +149,8 @@ Fixpoint update_i (get_sig : funname -> seq var_i * seq stype * seq var_i * seq 
     let: (params,tparams,returns,treturns) := get_sig fn in
     Let pres := make_prologue ii X params tparams es in
     let: (prologue, es) := pres in
-    Let epxs := make_epilogue ii X returns treturns xs in
-    let: (epilogue, xs) := epxs in 
-    Let _ := assert (disjoint (vrvs xs) (write_c epilogue))
-                    (ii, Cerr_stk_alloc "please report: makeReferenceArguments/epilogue") in
+    Let xsep := make_epilogue ii X returns treturns xs in
+    let: (xs, epilogue) := xsep in 
     ok (prologue ++ MkI ii (Ccall ini xs fn es) :: epilogue)
   end.
 

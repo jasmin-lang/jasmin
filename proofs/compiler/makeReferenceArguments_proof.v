@@ -323,108 +323,76 @@ Section Section.
   + by move=> _ _ /= [-> ->]. + by move=> _ _ _ _ _ _ /= [-> ->].
   Qed.
 
-
-
-
-  Lemma make_epilogue0 (p : uprog) ii X :
-    make_epilogue is_reg_ptr fresh_id p ii X [::] [::] [::] = ok ([::], [::]).
+  Lemma make_pseudo_epilogue0 (p : uprog) ii X :
+    make_pseudo_epilogue is_reg_ptr fresh_id p ii X [::] [::] [::] = ok ([::]).
   Proof. by []. Qed.
 
-  Lemma make_epilogueS_None (p : uprog) ii X x xs fty ftys lv lvs c args :
+  Lemma make_pseudo_epilogueS_None (p : uprog) ii X x xs fty ftys lv lvs args :
        is_reg_ptr_lval is_reg_ptr fresh_id p (v_var x) lv = None
-    -> make_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok (c, args)
-    -> make_epilogue is_reg_ptr fresh_id p ii X (x :: xs) (fty :: ftys) (lv :: lvs)
-       = ok (c, lv :: args).
+    -> make_pseudo_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok args
+    -> make_pseudo_epilogue is_reg_ptr fresh_id p ii X (x :: xs) (fty :: ftys) (lv :: lvs)
+       = ok (PI_lv lv :: args).
   Proof. by move => /= -> -> /=. Qed.
 
-  Lemma make_epilogueS_Some (p : uprog) ii X x xs fty ftys lv lvs (y : var_i) c args :
+  Lemma make_pseudo_epilogueS_Some (p : uprog) ii X x xs fty ftys lv lvs (y : var_i) args :
        fty = vtype y -> ~~ is_sbool fty -> ~~Sv.mem y X
     -> is_reg_ptr_lval is_reg_ptr fresh_id p (v_var x) lv = Some y
-    -> make_epilogue is_reg_ptr fresh_id p ii (Sv.add y X) xs ftys lvs = ok (c, args)
-    -> make_epilogue is_reg_ptr fresh_id p ii X (x :: xs) (fty :: ftys) (lv :: lvs)
-       = ok ((MkI ii (Cassgn lv AT_rename fty (Plvar y)) :: c, (Lvar y) :: args)).
-  Proof. by move=> eq1 eq2 eq3 ; move => /= -> ; rewrite eq2 eq1 eq3 eqxx /= => -> /=. Qed.
+    -> make_pseudo_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok args
+    -> make_pseudo_epilogue is_reg_ptr fresh_id p ii X (x :: xs) (fty :: ftys) (lv :: lvs)
+       = ok (PI_lv (Lvar y) :: (PI_i (MkI ii (Cassgn lv AT_rename fty (Plvar y)))) :: args).
+  Proof. by move=> eq1 eq2 eq3 /= ->; rewrite eq2 eq1 eq3 eqxx /= => ->. Qed.
 
   Section MakeEpilogueInd.
-  Variable P : Sv.t -> seq var_i -> seq stype -> lvals -> cmd -> lvals -> Prop.
-  Variable (p : uprog) (ii : instr_info).
+  Variable P : seq var_i -> seq stype -> lvals -> seq pseudo_instr -> Prop.
+  Variable (p : uprog) (ii : instr_info) (X:Sv.t).
 
-  Hypothesis P0 : forall X, P X [::] [::] [::] [::] [::].
+  Hypothesis P0 : P [::] [::] [::] [::].
 
   Hypothesis PSNone :
-    forall X x xs fty ftys lv lvs c args,
+    forall x xs fty ftys lv lvs args,
          is_reg_ptr_lval is_reg_ptr fresh_id p (v_var x) lv = None
-      -> make_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok (c, args)
-      -> P X xs ftys lvs c args
-      -> P X (x :: xs) (fty :: ftys) (lv :: lvs) c (lv :: args).
+      -> make_pseudo_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok args
+      -> P xs ftys lvs args
+      -> P (x :: xs) (fty :: ftys) (lv :: lvs) (PI_lv lv :: args).
 
   Hypothesis PSSome :
-    forall X x xs fty ftys lv lvs (y : var_i) c args,
+    forall x xs fty ftys lv lvs (y : var_i) args,
        fty = vtype y -> ~~ is_sbool fty -> ~~Sv.mem y X
     -> is_reg_ptr_lval is_reg_ptr fresh_id p (v_var x) lv = Some y
-    -> make_epilogue is_reg_ptr fresh_id p ii (Sv.add y X) xs ftys lvs = ok (c, args)
-    -> P (Sv.add y X) xs ftys lvs c args
-    -> P X (x :: xs) (fty :: ftys) (lv :: lvs)
-         (MkI ii (Cassgn lv AT_rename fty (Plvar y)) :: c) ((Lvar y) :: args).
+    -> make_pseudo_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok args
+    -> P xs ftys lvs args
+    -> P (x :: xs) (fty :: ftys) (lv :: lvs)
+         (PI_lv (Lvar y) :: (PI_i (MkI ii (Cassgn lv AT_rename fty (Plvar y)))) :: args).
 
-  Lemma make_epilogueW X xs ftys lvs c args :
-       make_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok (c, args)
-    -> P X xs ftys lvs c args.
+  Lemma make_pseudo_epilogueW xs ftys lvs args :
+       make_pseudo_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok args
+    -> P xs ftys lvs args.
   Proof.
-  move: xs ftys lvs X c args; apply: diagonal_induction_3;
-    last 1 [idtac] || by case=> [|??] [|??] //= X c args [<- <-].
-  move=> x fty lv xs ftys lvs ih X c args /=.
+  move: xs ftys lvs args; apply: diagonal_induction_3;
+    last 1 [idtac] || by case=> [|??] [|??] //= args [<-].
+  move=> x fty lv xs ftys lvs ih args /=.
   case E: (is_reg_ptr_lval _ _ _ _ _) => [y|] /=; last first.
-  + by t_xrbindP; case=> c' args' h [<- <-]; apply/PSNone/ih.
-  + t_xrbindP=> /= _ /assertP /and3P[/eqP h1 h2 h3] [c' args'].
-    by move=> h [<- <-]; apply/PSSome/ih.
+  + by t_xrbindP => args' h [<-]; apply/PSNone/ih.
+  + t_xrbindP=> /= _ /assertP /and3P[/eqP h1 h2 h3] args'.
+    by move=> h <-; apply/PSSome/ih.
   Qed.
   End MakeEpilogueInd.
-
-  Variant make_epilogue_spec (p : uprog) (ii : instr_info) :
-    Sv.t -> seq var_i -> seq stype -> lvals -> cmd -> lvals -> Prop
-  :=
-
-  | MakeEpilogue0 X :
-       make_epilogue_spec p ii X [::] [::] [::] [::] [::]
-
-  | MakeEpilogueS_None X x xs fty ftys lv lvs c args :
-       is_reg_ptr_lval is_reg_ptr fresh_id p (v_var x) lv = None
-    -> make_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok (c, args)
-    -> make_epilogue_spec p ii X (x :: xs) (fty :: ftys) (lv :: lvs) c (lv :: args)
-
-  | MakeEpilogueS_Some X x xs fty ftys lv lvs (y : var_i) c args :
-       fty = vtype y -> ~~ is_sbool fty -> ~~Sv.mem y X
-    -> is_reg_ptr_lval is_reg_ptr fresh_id p (v_var x) lv = Some y
-    -> make_epilogue is_reg_ptr fresh_id p ii (Sv.add y X) xs ftys lvs = ok (c, args)
-    -> make_epilogue_spec p ii X (x :: xs) (fty :: ftys) (lv :: lvs)
-         (MkI ii (Cassgn lv AT_rename fty (Plvar y)) :: c) ((Lvar y) :: args).
-
-  Lemma make_epilogueP p ii X xs ftys lvs c args :
-       make_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok (c, args)
-    -> make_epilogue_spec p ii X xs ftys lvs c args.
-  Proof.
-  elim/make_epilogueW=> {X xs ftys lvs c args} X.
-  + by constructor.
-  + by move=> x xs fty ftys lv lvs c args *; apply: MakeEpilogueS_None.
-  + by move=> x xs fty ftys lv lvs c args *; apply: MakeEpilogueS_Some.
-  Qed.
-
-  Lemma make_epilogue_size (p : uprog) ii X xs ftys lvs c args :
-      make_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok (c, args)
-   -> (size xs = size ftys /\ size ftys = size lvs).
-  Proof.
-  elim/make_epilogueW=> {X xs ftys lvs c args} X // x xs fty ftys lv lvs c args.
-  + by move=> _ _ /= [-> ->]. + by move=> _ _ _ _ _ _ /= [-> ->].
-  Qed.
-
-
-
 
   Context (p p' : uprog).
   Context (ev : unit).
 
   Hypothesis Hp : makereference_prog is_reg_ptr fresh_id p = ok p'.
+
+  Inductive sem_pis : estate -> seq pseudo_instr -> values -> estate -> Prop := 
+   | SPI_nil : forall s, sem_pis s [::] [::] s
+   | SPI_lv  : forall s1 s2 s3 lv pis v vs,
+     write_lval (p_globs p') lv v s1 = ok s2 ->
+     sem_pis s2 pis vs s3 ->
+     sem_pis s1 (PI_lv lv :: pis) (v::vs) s3
+   | SPI_i : forall s1 s2 s3 i pis vs,
+     sem_I p' ev s1 i s2 ->
+     sem_pis s2 pis vs s3 ->
+     sem_pis s1 (PI_i i :: pis) vs s3.
 
   Lemma eq_globs : p_globs p = p_globs p'.
   Proof.
@@ -434,13 +402,72 @@ Section Section.
    by move => y _ <-.
   Qed.
 
-  (*Fix the get_sig duplication before.*)
   Lemma eq_funcs : map_cfprog (update_fd is_reg_ptr fresh_id p (get_sig p)) (p_funcs p) = ok (p_funcs p').
   Proof.
     move : Hp.
     rewrite /makereference_prog.
     by t_xrbindP => fdecls Hmap_cfprog <- /=.
   Qed.
+
+  Lemma foo ii X xs tys lvs pis s1 s2 vm1 vs vst:
+    make_pseudo_epilogue is_reg_ptr fresh_id p ii X xs tys lvs = ok pis ->
+    mapM2 ErrType truncate_val tys vs = ok vst ->
+    Sv.Subset (Sv.union (read_rvs lvs) (vrvs lvs)) X -> 
+    write_lvals (p_globs p) s1 lvs vst = ok s2 ->
+    evm s1 =[X] vm1 ->
+    exists vm2, 
+      sem_pis (with_vm s1 vm1) pis vst (with_vm s2 vm2) /\
+      evm s2 =[X] vm2.
+  Proof.
+    move=> h; elim /make_pseudo_epilogueW : h s1 vm1 vs vst => {xs tys lvs pis}.
+    + by move=> s1 vm1 [] // _ [] <- _ [<-] ?; exists vm1; split => //; constructor.
+    + move=> x xs ty tys lv lvs pis hnone _ ih s1 vm1 [ //| v vs] vst' /=.
+      t_xrbindP => vt ht vst hts <- {vst'}.
+      rewrite read_rvs_cons vrvs_cons => leX /=.
+      t_xrbindP => s1' hw hws eqvm.
+      have [|vm1' [eqvm' hw']]:= write_lval_eq_on _ hw eqvm; first by SvD.fsetdec.
+      case: (ih _ vm1' _ _ hts _ hws _).
+      + by SvD.fsetdec.
+      + by apply: eq_onI eqvm'; SvD.fsetdec.
+      move=> vm2' [ih1 ih2]; exists vm2'; split => //. 
+      econstructor; eauto.
+      by rewrite -eq_globs.
+    move=> x xs ty tys lv lvs y pis -> hb hyX hsome _ ih s1 vm1 [ //| v vs] vst' /=.
+    t_xrbindP => vt ht vst hts <- {vst'}.
+    rewrite read_rvs_cons vrvs_cons => leX /=.
+    t_xrbindP => s1' hw hws eqvm.
+    have [vmy [hw' eqvmy semy]]: exists vmy, 
+      [/\ write_lval (p_globs p') y vt (with_vm s1 vm1) = ok (with_vm s1 vmy),
+          evm s1 =[X] vmy &
+          sem_pexpr (p_globs p') (with_vm s1 vmy) (Plvar y) = ok vt].
+    + admit.
+    set I := (X in PI_i X).
+    have [vm1' [semI eqvm1']]: exists vm1',
+     [/\ sem_I p' ev (with_vm s1 vmy) I (with_vm s1' vm1') &
+         evm s1' =[X]  vm1'].
+    + admit.         
+    have [|vm2 [sem2 eqvm2]]:= ih s1' vm1' vs vst hts _ hws eqvm1'; first by SvD.fsetdec.
+    exists vm2; split => //.
+    econstructor; eauto; econstructor; eauto.
+  Qed.
+      
+Lemma set_var_rename (vm vm' vm'' : vmap) (x y : var) (v : value) :
+     vtype x = vtype y
+  -> set_var vm x v = ok vm'
+  -> exists vm''', set_var vm'' y v = ok vm'''.
+Proof.
+      have [|vm1' [eqvm' hw']]:= write_lval_eq_on _ hw eqvm; first by SvD.fsetdec.
+      case: (ih _ vm1' _ _ hws _).
+      + by SvD.fsetdec.
+      + by apply: eq_onI eqvm'; SvD.fsetdec.
+      move=> vm2' [ih1 ih2]; exists vm2'; split => //. 
+      by econstructor; eauto.
+     
+ eqvm.
+        
+      c
+ hw eqvm.
+
 
   (*
   Definition get_sig n :=       (* FIXME: duplicated *)
