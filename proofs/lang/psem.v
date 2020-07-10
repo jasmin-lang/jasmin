@@ -1014,6 +1014,19 @@ Proof.
   by apply: vmap_eq_exceptI Hrvs;SvD.fsetdec.
 Qed.
 
+Lemma lv_write_memP gd (x:lval) v s1 s2:
+  ~~ lv_write_mem x ->
+  write_lval gd x v s1 = ok s2 ->
+  emem s1 = emem s2.
+Proof.
+  case: x=> //= [v0 t|v0|aa ws v0 p|aa ws len v0 p] _.
+  + by move => /write_noneP [-> _]. 
+  + by apply: rbindP=> z Hz [] <-.
+  + by apply: on_arr_varP=> n t Ht Hval; t_xrbindP => *; subst s2. 
+  by apply on_arr_varP => n t Ht Hval; t_xrbindP => *; subst s2.
+Qed.
+
+
 Section Write.
 
 Context {T} {pT:progT T} {sCP : semCallParams}.
