@@ -339,7 +339,7 @@ Section Section.
     -> is_reg_ptr_lval is_reg_ptr fresh_id p (v_var x) lv = Some y
     -> make_pseudo_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok args
     -> make_pseudo_epilogue is_reg_ptr fresh_id p ii X (x :: xs) (fty :: ftys) (lv :: lvs)
-       = ok (PI_lv (Lvar y) :: (PI_i (MkI ii (Cassgn lv AT_rename fty (Plvar y)))) :: args).
+       = ok (PI_lv (Lvar y) :: (PI_i lv fty y) :: args).
   Proof. by move=> eq1 eq2 eq3 /= ->; rewrite eq2 eq1 eq3 eqxx /= => ->. Qed.
 
   Section MakeEpilogueInd.
@@ -362,7 +362,7 @@ Section Section.
     -> make_pseudo_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok args
     -> P xs ftys lvs args
     -> P (x :: xs) (fty :: ftys) (lv :: lvs)
-         (PI_lv (Lvar y) :: (PI_i (MkI ii (Cassgn lv AT_rename fty (Plvar y)))) :: args).
+         (PI_lv (Lvar y) :: (PI_i lv fty y) :: args).
 
   Lemma make_pseudo_epilogueW xs ftys lvs args :
        make_pseudo_epilogue is_reg_ptr fresh_id p ii X xs ftys lvs = ok args
@@ -383,16 +383,16 @@ Section Section.
 
   Hypothesis Hp : makereference_prog is_reg_ptr fresh_id p = ok p'.
 
-  Inductive sem_pis : estate -> seq pseudo_instr -> values -> estate -> Prop := 
-   | SPI_nil : forall s, sem_pis s [::] [::] s
+  Inductive sem_pis ii : estate -> seq pseudo_instr -> values -> estate -> Prop := 
+   | SPI_nil : forall s, sem_pis ii s [::] [::] s
    | SPI_lv  : forall s1 s2 s3 lv pis v vs,
      write_lval (p_globs p') lv v s1 = ok s2 ->
-     sem_pis s2 pis vs s3 ->
-     sem_pis s1 (PI_lv lv :: pis) (v::vs) s3
-   | SPI_i : forall s1 s2 s3 i pis vs,
-     sem_I p' ev s1 i s2 ->
-     sem_pis s2 pis vs s3 ->
-     sem_pis s1 (PI_i i :: pis) vs s3.
+     sem_pis ii s2 pis vs s3 ->
+     sem_pis ii s1 (PI_lv lv :: pis) (v::vs) s3
+   | SPI_i : forall s1 s2 s3 lv ty y pis vs,
+     sem_I p' ev s1 (mk_ep_i ii lv ty y) s2 ->
+     sem_pis ii s2 pis vs s3 ->
+     sem_pis ii s1 (PI_i lv ty y :: pis) vs s3.
 
   Lemma eq_globs : p_globs p = p_globs p'.
   Proof.
@@ -409,14 +409,14 @@ Section Section.
     by t_xrbindP => fdecls Hmap_cfprog <- /=.
   Qed.
 
-  Lemma foo ii X xs tys lvs pis s1 s2 vm1 vs vst:
+  Lemma make_pseudo_codeP ii X xs tys lvs pis s1 s2 vm1 vs vst:
     make_pseudo_epilogue is_reg_ptr fresh_id p ii X xs tys lvs = ok pis ->
     mapM2 ErrType truncate_val tys vs = ok vst ->
     Sv.Subset (Sv.union (read_rvs lvs) (vrvs lvs)) X -> 
     write_lvals (p_globs p) s1 lvs vst = ok s2 ->
     evm s1 =[X] vm1 ->
     exists vm2, 
-      sem_pis (with_vm s1 vm1) pis vst (with_vm s2 vm2) /\
+      sem_pis ii (with_vm s1 vm1) pis vst (with_vm s2 vm2) /\
       evm s2 =[X] vm2.
   Proof.
     move=> h; elim /make_pseudo_epilogueW : h s1 vm1 vs vst => {xs tys lvs pis}.
@@ -441,7 +441,7 @@ Section Section.
           evm s1 =[X] vmy &
           sem_pexpr (p_globs p') (with_vm s1 vmy) (Plvar y) = ok vt].
     + admit.
-    set I := (X in PI_i X).
+    set I := mk_ep_i ii lv (vtype y) y.
     have [vm1' [semI eqvm1']]: exists vm1',
      [/\ sem_I p' ev (with_vm s1 vmy) I (with_vm s1' vm1') &
          evm s1' =[X]  vm1'].
@@ -449,32 +449,64 @@ Section Section.
     have [|vm2 [sem2 eqvm2]]:= ih s1' vm1' vs vst hts _ hws eqvm1'; first by SvD.fsetdec.
     exists vm2; split => //.
     econstructor; eauto; econstructor; eauto.
-  Qed.
+  Admitted.
       
-Lemma set_var_rename (vm vm' vm'' : vmap) (x y : var) (v : value) :
-     vtype x = vtype y
-  -> set_var vm x v = ok vm'
-  -> exists vm''', set_var vm'' y v = ok vm'''.
-Proof.
-      have [|vm1' [eqvm' hw']]:= write_lval_eq_on _ hw eqvm; first by SvD.fsetdec.
-      case: (ih _ vm1' _ _ hws _).
-      + by SvD.fsetdec.
-      + by apply: eq_onI eqvm'; SvD.fsetdec.
-      move=> vm2' [ih1 ih2]; exists vm2'; split => //. 
-      by econstructor; eauto.
-     
- eqvm.
-        
-      c
- hw eqvm.
+  Definition pi_nowrite_mem pi := 
+    match pi with
+    | PI_i lv _ _ => ~~ lv_write_mem lv
+    | _           => true
+    end.
 
+  Lemma make_pseudo_code_nowrite_mem ii X xs tys lvs pis :
+    make_pseudo_epilogue is_reg_ptr fresh_id p ii X xs tys lvs = ok pis ->
+    all pi_nowrite_mem pis.
+  Proof. by elim /make_pseudo_epilogueW => {xs tys lvs pis} => // x xs ty tys []. Qed.
 
-  (*
-  Definition get_sig n :=       (* FIXME: duplicated *)
-   if get_fundef p.(p_funcs) n is Some fd then
-      (fd.(f_params), fd.(f_tyin), fd.(f_res), fd.(f_tyout))
-   else ([::], [::], [::], [::]).
-  *)
+  (* Fixme : move this in psem *)
+  Lemma sem_eqv s1 c s2 vm1: 
+    sem p' ev s1 c s2 ->
+    evm s1 =v vm1 ->
+    exists vm2, sem p' ev (with_vm s1 vm1) c (with_vm s2 vm2) /\ evm s2 =v vm2.
+  Proof.
+  Admitted.
+
+  Lemma swapableP ii pis lvs vs c s1 s2:
+    all pi_nowrite_mem pis ->
+    swapable ii pis = ok (lvs, c) ->
+    sem_pis ii s1 pis vs s2 ->
+    exists s1' vm2, 
+      [/\ write_lvals (p_globs p') s1 lvs vs = ok s1',
+          sem p' ev s1' c (with_vm s2 vm2) & Fv.ext_eq (evm s2) vm2].
+  Proof. 
+    elim: pis lvs c vs s1 => /= [ | pi pis ih] lvs' c' vs s1.
+    + move => _ [??] h; subst lvs' c'.
+      inversion_clear h; exists s2, (evm s2); split => //.
+      by rewrite with_vm_same; constructor.
+    move=> /andP [nwm_pi nwm_pis]; case: pi nwm_pi => [lv | lv ty y] /= nwm_pi;
+      t_xrbindP => -[] lvs c /ih{ih}ih.
+    + move=> [??] h; subst lvs' c'.
+      inversion_clear h. 
+      have [s1' [vm2 [hws hsem]]] := ih _ _ nwm_pis H0.         
+      by exists s1', vm2 ; split => //=; rewrite H.
+    t_xrbindP => _ /assertP /Sv.is_empty_spec.
+    rewrite /mk_ep_i /= /write_I /read_I /= -/vrv -/read_rv -Sv.is_empty_spec.
+    move=> hrw _ /assertP hwr ?? h; subst c' lvs'.
+    inversion_clear h.
+    have [s1' [vm2 [hws hsem heqvm]]]:= ih _ _ nwm_pis H0.
+    inversion_clear H; inversion_clear H1.
+    have heqr := eq_onS (disjoint_eq_on hrw H3).
+    have heqm := lv_write_memP nwm_pi H3.
+    have [vm3 [hvm3 hw3]] := write_lvals_eq_on (@SvP.MP.subset_refl _) hws heqr.
+    set i := (MkI _ _).
+    have [vmi [hsemi heqv]]: exists vmi, sem_I p' ev (with_vm s1' vm3) i (with_vm s1' vmi) /\ evm s1' =v vmi.
+    + admit.
+    have [vm4 []]:= sem_eqv hsem heqv.
+    rewrite with_vm_idem => {hsem}hsem heqvm4.
+    exists (with_vm s1' vm3), vm4; split.
+    + by have -> // : s1 = (with_vm s3 (evm s1)); rewrite /with_vm -heqm; case: (s1).
+    + by econstructor;eauto.
+    by move=> x; rewrite (heqvm x) (heqvm4 x).
+  Admitted.
 
   Let Pi s1 (i:instr) s2:=
     forall (X:Sv.t) c', update_i is_reg_ptr fresh_id p (get_sig p) X i = ok c' ->

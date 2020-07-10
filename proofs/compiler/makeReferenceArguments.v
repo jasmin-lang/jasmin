@@ -83,9 +83,9 @@ Fixpoint make_prologue ii (X:Sv.t) xs tys es :=
 
 Inductive pseudo_instr := 
   | PI_lv of lval
-  | PI_i  of instr.
+  | PI_i  of lval & stype & var_i.
 
-Fixpoint make_pseudo_epilogue ii (X:Sv.t) xs tys rs := 
+Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) xs tys rs := 
   match xs, tys, rs with
   | [::], [::], [::] => ok ([::])
   | x::xs, ty::tys, r::rs =>
@@ -95,13 +95,15 @@ Fixpoint make_pseudo_epilogue ii (X:Sv.t) xs tys rs :=
        Let _ := assert ([&& ty == vtype y, ~~is_sbool ty & ~~Sv.mem y X ])
                         (ii, Cerr_stk_alloc "makeReferenceArguments: bad fresh id") in
        Let pis := make_pseudo_epilogue ii X xs tys rs in
-       ok (PI_lv (Lvar y) :: PI_i (MkI ii (Cassgn r AT_rename ty (Plvar y))) :: pis)
+       ok (PI_lv (Lvar y) :: (PI_i r ty y) :: pis)
      | None =>
        Let pis :=  make_pseudo_epilogue ii X xs tys rs in
        ok (PI_lv r :: pis) 
      end
    | _, _, _ => Error (ii, Cerr_stk_alloc "epilogue: assert false")
    end.
+
+Definition mk_ep_i ii r ty y :=  MkI ii (Cassgn r AT_rename ty (Plvar y)).
 
 Fixpoint swapable (ii:instr_info) (pis : seq pseudo_instr) := 
   match pis with
@@ -110,9 +112,10 @@ Fixpoint swapable (ii:instr_info) (pis : seq pseudo_instr) :=
     Let lvep := swapable ii pis in
     let '(lvs,ep) := lvep in
     ok (lv::lvs, ep)
-  | PI_i i :: pis =>
+  | PI_i r ty y :: pis =>
     Let lvep := swapable ii pis in
     let: (lvs,ep) := lvep in
+    let i := mk_ep_i ii r ty y in
     Let _ := assert (disjoint (read_rvs lvs) (write_I i))
                     (ii, Cerr_stk_alloc "cannot swap 1") in
     Let _ := assert (disjoint (vrvs lvs) (read_I i))
