@@ -105,6 +105,23 @@ Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) xs tys rs :=
 
 Definition mk_ep_i ii r ty y :=  MkI ii (Cassgn r AT_rename ty (Plvar y)).
 
+Fixpoint noload (e:pexpr) := 
+  match e with
+  | Pload _ _ _ => false 
+  | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => true
+  | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => noload e
+  | Papp2 _ e1 e2 => noload e1 && noload e2 
+  | PappN _ es => all noload es 
+  | Pif _ e1 e2 e3 => [&& noload e1, noload e2 & noload e3]
+  end.
+
+Definition wf_lv (lv:lval) :=
+  match lv with
+  | Lnone _ _ | Lmem _ _ _ | Laset _ _ _ _ => false 
+  | Lvar _ => true 
+  | Lasub _ _ _ _ e => noload e
+  end.
+
 Fixpoint swapable (ii:instr_info) (pis : seq pseudo_instr) := 
   match pis with
   | [::] => ok ([::], [::])
@@ -118,8 +135,9 @@ Fixpoint swapable (ii:instr_info) (pis : seq pseudo_instr) :=
     let i := mk_ep_i ii r ty y in
     Let _ := assert (disjoint (read_rvs lvs) (write_I i))
                     (ii, Cerr_stk_alloc "cannot swap 1") in
-    Let _ := assert (disjoint (vrvs lvs) (read_I i))
+    Let _ := assert (disjoint (vrvs lvs) (Sv.union (write_I i) (read_I i)))
                     (ii, Cerr_stk_alloc "cannot swap 2") in
+    Let _ := assert (wf_lv r) (ii, Cerr_stk_alloc "cannot swap 3") in
     ok (lvs, i::ep)
   end.
 

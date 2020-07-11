@@ -451,17 +451,6 @@ Section Section.
     econstructor; eauto; econstructor; eauto.
   Admitted.
       
-  Definition pi_nowrite_mem pi := 
-    match pi with
-    | PI_i lv _ _ => ~~ lv_write_mem lv
-    | _           => true
-    end.
-
-  Lemma make_pseudo_code_nowrite_mem ii X xs tys lvs pis :
-    make_pseudo_epilogue is_reg_ptr fresh_id p ii X xs tys lvs = ok pis ->
-    all pi_nowrite_mem pis.
-  Proof. by elim /make_pseudo_epilogueW => {xs tys lvs pis} => // x xs ty tys []. Qed.
-
   (* Fixme : move this in psem *)
   Lemma sem_eqv s1 c s2 vm1: 
     sem p' ev s1 c s2 ->
@@ -470,8 +459,69 @@ Section Section.
   Proof.
   Admitted.
 
+  Lemma set_var_spec x v vm1 vm2 vm1' : 
+    set_var vm1 x v = ok vm2 ->
+    exists vm2', [/\ set_var vm1' x v = ok vm2', vm1' = vm2' [\ Sv.singleton x] & vm2'.[x] = vm2.[x]  ].
+  Proof.
+    rewrite /set_var.
+    apply: set_varP => [ w -> | -> ->] /= <-.
+    + exists vm1'.[x <- ok w]; split => //; last by rewrite !Fv.setP_eq.
+      by move=> z hz; rewrite Fv.setP_neq //; apply/eqP; SvD.fsetdec.
+    exists vm1'.[x <- pundef_addr (vtype x)]; split => //; last by rewrite !Fv.setP_eq.
+    by move=> z hz; rewrite Fv.setP_neq //; apply/eqP; SvD.fsetdec.
+  Qed.
+
+  Lemma write_var_spec x v s1 s2 s1': 
+    write_var x v s1 = ok s2 ->
+    exists vmx, [/\ write_var x v s1' = ok (with_vm s1' vmx), 
+                    evm s1' = vmx [\ Sv.singleton x] & vmx.[x] = (evm s2).[x]].
+  Proof.
+    rewrite /write_var; t_xrbindP => vm hs <- {s2}.
+    by have [vmx [-> ?? /=]] := set_var_spec (evm s1') hs; exists vmx.
+  Qed.
+
+  Lemma sem_pexpr_noload s m e v: 
+    noload e -> 
+    sem_pexpr (p_globs p') s e = ok v ->
+    sem_pexpr (p_globs p') (with_mem s m) e = ok v.
+  Proof.
+    case: s => sm vm; rewrite /with_mem /=.
+    pose P e := 
+      forall v, 
+      noload e → sem_pexpr (p_globs p') {| emem := sm; evm := vm |} e = ok v → sem_pexpr (p_globs p') {| emem := m; evm := vm |} e = ok v.
+    pose Q es := 
+      forall vs,
+      all noload es -> sem_pexprs (p_globs p') {| emem := sm; evm := vm |} es = ok vs → 
+      sem_pexprs (p_globs p') {| emem := m; evm := vm |} es = ok vs.
+    apply: (pexpr_mut_ind (P:= P) (Q:= Q))=> {e v}; split; rewrite /P /Q //= => {P Q}.
+    + move=> e ihe es ihes vs /andP [] /ihe{ihe}ihe /ihes{ihes}ihes.
+      by t_xrbindP => ? /ihe -> /= ? /ihes -> /= <-.
+    + move=> aa sz x e ih v /ih{ih}ih.
+      apply: on_arr_gvarP => n t hx ->.
+      by rewrite /on_arr_var /=; t_xrbindP => ze ve /ih -> /= -> ? /= -> <-.
+    + move=> aa sz len x e ih v /ih{ih}ih.
+      apply: on_arr_gvarP => n t hx ->.
+      by rewrite /on_arr_var /=; t_xrbindP => ze ve /ih -> /= -> ? /= -> <-.
+    + by move=> o e ih v /ih{ih}ih; t_xrbindP => ve /ih -> /= ->.
+    + move=> o e1 ih1 e2 ih2 v /andP [] /ih1{ih1}ih1 /ih2{ih2}ih2.
+      by t_xrbindP => ve1 /ih1 -> /= ve2 /ih2 -> /=.
+    + move=> e es ihes v /ihes{ihes}ihes; t_xrbindP => ? /ihes.
+      by rewrite /sem_pexprs => -> /=.
+    move=> t e ihe e1 ihe1 e2 ihe2 v /and3P [] he he1 he2. 
+    by t_xrbindP => ?? /(ihe _ he) -> /= -> ?? /(ihe1 _ he1) -> /= -> ?? /(ihe2 _ he2) -> /= -> <-.
+  Qed.
+
+  Lemma sem_pexpr_noload_eq_on s1 s2 e v: 
+    noload e -> evm s1 =[read_e e] evm s2 ->
+    sem_pexpr (p_globs p') s1 e = ok v ->
+    sem_pexpr (p_globs p') s2 e = ok v.
+  Proof.
+    case: s2 => m2 vm2 hno heq he.
+    have <- := sem_pexpr_noload m2 hno he.
+    by apply eq_on_sem_pexpr => //=; apply eq_onS.
+  Qed.
+        
   Lemma swapableP ii pis lvs vs c s1 s2:
-    all pi_nowrite_mem pis ->
     swapable ii pis = ok (lvs, c) ->
     sem_pis ii s1 pis vs s2 ->
     exists s1' vm2, 
@@ -479,34 +529,72 @@ Section Section.
           sem p' ev s1' c (with_vm s2 vm2) & Fv.ext_eq (evm s2) vm2].
   Proof. 
     elim: pis lvs c vs s1 => /= [ | pi pis ih] lvs' c' vs s1.
-    + move => _ [??] h; subst lvs' c'.
+    + move => [??] h; subst lvs' c'.
       inversion_clear h; exists s2, (evm s2); split => //.
       by rewrite with_vm_same; constructor.
-    move=> /andP [nwm_pi nwm_pis]; case: pi nwm_pi => [lv | lv ty y] /= nwm_pi;
-      t_xrbindP => -[] lvs c /ih{ih}ih.
+    case: pi => [lv | lv ty y] /=; t_xrbindP => -[] lvs c /ih{ih}ih.
     + move=> [??] h; subst lvs' c'.
       inversion_clear h. 
-      have [s1' [vm2 [hws hsem]]] := ih _ _ nwm_pis H0.         
+      have [s1' [vm2 [hws hsem]]] := ih _ _ H0.         
       by exists s1', vm2 ; split => //=; rewrite H.
     t_xrbindP => _ /assertP /Sv.is_empty_spec.
     rewrite /mk_ep_i /= /write_I /read_I /= -/vrv -/read_rv -Sv.is_empty_spec.
-    move=> hrw _ /assertP hwr ?? h; subst c' lvs'.
+    move=> hrw _ /assertP hwr _ /assertP wflv ?? h; subst c' lvs'.
     inversion_clear h.
-    have [s1' [vm2 [hws hsem heqvm]]]:= ih _ _ nwm_pis H0.
+    have [s1' [vm2 [hws hsem heqvm]]]:= ih _ _ H0.
     inversion_clear H; inversion_clear H1.
     have heqr := eq_onS (disjoint_eq_on hrw H3).
-    have heqm := lv_write_memP nwm_pi H3.
-    have [vm3 [hvm3 hw3]] := write_lvals_eq_on (@SvP.MP.subset_refl _) hws heqr.
-    set i := (MkI _ _).
-    have [vmi [hsemi heqv]]: exists vmi, sem_I p' ev (with_vm s1' vm3) i (with_vm s1' vmi) /\ evm s1' =v vmi.
-    + admit.
+    have nwm_pi : ~~ lv_write_mem lv by case: (lv) wflv.
+    have heqm  := lv_write_memP nwm_pi H3.
+    have [{nwm_pi} vm3 [hvm3 hw3]] := write_lvals_eq_on (@SvP.MP.subset_refl _) hws heqr.
+    have hy : sem_pexpr (p_globs p') (with_vm s1' vm3) (Plvar y) = ok v.
+    + rewrite -H; rewrite /=; apply: (get_gvar_eq_on _ (@SvP.MP.subset_refl _)).
+      rewrite /read_gvar /= => y' /SvD.F.singleton_iff ?; subst y'.
+      have := (disjoint_eq_ons (s:= Sv.singleton y) _ hw3).
+      rewrite !evm_with_vm => <- //; last by SvD.fsetdec.
+      apply/Sv.is_empty_spec; move/Sv.is_empty_spec: hwr.
+      by rewrite read_rvE /read_gvar /=; SvD.fsetdec.
+    have heqnw: evm s1' = vm3 [\ Sv.union (vrv lv) (vrvs lvs)]. 
+    + move=> x hx; have /= <- := vrvsP hw3; last by SvD.fsetdec.
+      rewrite -(vrvsP hws); last by SvD.fsetdec.
+      by rewrite -(vrvP H3) //; SvD.fsetdec.
+    have [vmi [hsemi heqv]]: exists vmi, write_lval (p_globs p') lv v' (with_vm s1' vm3) = ok (with_vm s1' vmi) /\ evm s1' =v vmi.
+    + move: H3; rewrite /write_lval.
+      move /Sv.is_empty_spec: hwr; move /Sv.is_empty_spec: hrw. 
+      rewrite /read_gvar [X in (Sv.inter (vrvs _) X)]/= read_rvE.
+      case: lv wflv heqnw => //=.
+      + move=> x _ heqnw hrw hwr /write_var_spec -/(_ (with_vm s1' vm3)) [vmi] [-> hvmx hx].
+        exists vmi; rewrite with_vm_idem; split => //.
+        move=> z; case: ((v_var x) =P z) => hxz.
+        + by subst z;rewrite hx; have -> //:= vrvsP hws; SvD.fsetdec.
+        rewrite -hvmx; last by SvD.fsetdec.
+        rewrite evm_with_vm.
+        by case (Sv_memP z (vrvs lvs)) => hz; [apply hvm3 | apply heqnw]; SvD.fsetdec.
+      move=> aa ws sc x e hnoload heqnw hrw hwr.
+      apply: on_arr_varP => sz t htyx hget.
+      t_xrbindP=>  zi vi he hvi t1 -> t1' hsub vms3 hset ?; subst s3; rewrite /on_arr_var.
+      rewrite (@get_var_eq_on (Sv.singleton x) (evm s1)); first last.
+      + by move=> z hz; have := vrvsP hw3; rewrite !evm_with_vm => -> //; SvD.fsetdec.
+      + by SvD.fsetdec.
+      rewrite hget /=.
+      have -> := sem_pexpr_noload_eq_on hnoload _ he; last first.
+      + rewrite evm_with_vm; rewrite /with_vm /= in hw3 => z hz.
+        by have /= -> // := vrvsP hw3; move: hwr; rewrite read_eE; SvD.fsetdec.
+      rewrite /= hvi /= hsub /=.
+      have [vmi [-> hvmi hx]]:= set_var_spec vm3 hset; exists vmi; split => //.
+      move=> z; case: ((v_var x) =P z) => hxz.
+      + by subst z; rewrite hx; have /= -> // := vrvsP hws; SvD.fsetdec.
+      rewrite -hvmi; last by SvD.fsetdec.
+      by case (Sv_memP z (vrvs lvs)) => hz; [apply hvm3 | apply heqnw]; SvD.fsetdec.  
+    set I := (MkI _ _).
+    have hsemI : sem_I p' ev (with_vm s1' vm3) I (with_vm s1' vmi) by constructor; econstructor; eauto. 
     have [vm4 []]:= sem_eqv hsem heqv.
     rewrite with_vm_idem => {hsem}hsem heqvm4.
     exists (with_vm s1' vm3), vm4; split.
     + by have -> // : s1 = (with_vm s3 (evm s1)); rewrite /with_vm -heqm; case: (s1).
     + by econstructor;eauto.
     by move=> x; rewrite (heqvm x) (heqvm4 x).
-  Admitted.
+  Qed.
 
   Let Pi s1 (i:instr) s2:=
     forall (X:Sv.t) c', update_i is_reg_ptr fresh_id p (get_sig p) X i = ok c' ->
