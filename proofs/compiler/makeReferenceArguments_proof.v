@@ -409,6 +409,34 @@ Section Section.
     by t_xrbindP => fdecls Hmap_cfprog <- /=.
   Qed.
 
+  Lemma truncate_val_pof_val ty v vt: 
+    truncate_val ty v = ok vt ->
+    exists w, pof_val ty vt = ok w /\ pto_val w = vt.
+  Proof.
+    case: v => [b | z | len a | s ws | ty'].
+    + by move=> /truncate_val_bool [??]; subst ty vt => /=; exists b.
+    + by move=> /truncate_val_int [??]; subst ty vt => /=; exists z.
+    + rewrite /truncate_val; case: ty => //=.
+      move=> n; rewrite /WArray.cast; case: ifP => //= hlen [<-] /=.
+      rewrite /WArray.inject; case: ZltP => [/Z.lt_irrefl // | /= _ ]; eauto.
+    + move=> /truncate_val_word [ws' [? hsub ?]]; subst ty vt => /=.
+      case: Sumbool.sumbool_of_bool; first by eauto.
+      by rewrite cmp_le_refl.
+    by rewrite /truncate_val of_val_undef.
+  Qed.
+
+  Lemma truncate_val_idem (t : stype) (v v' : value) :
+    truncate_val t v = ok v' -> truncate_val t v' = ok v'.
+  Proof.
+  rewrite /truncate_val; case: t v => [||q|w].
+  + by move=> x; t_xrbindP=> b bE <-.
+  + by move=> x; t_xrbindP=> i iE <-.
+  + move=> x; t_xrbindP=> a aE <- /=.
+    by rewrite /WArray.cast Z.leb_refl /=; case: (a).
+  + move=> x; t_xrbindP=> w' w'E <- /=.
+    by rewrite truncate_word_u.
+  Qed.
+
   Lemma make_pseudo_codeP ii X xs tys lvs pis s1 s2 vm1 vs vst:
     make_pseudo_epilogue is_reg_ptr fresh_id p ii X xs tys lvs = ok pis ->
     mapM2 ErrType truncate_val tys vs = ok vst ->
@@ -432,7 +460,7 @@ Section Section.
       move=> vm2' [ih1 ih2]; exists vm2'; split => //. 
       econstructor; eauto.
       by rewrite -eq_globs.
-    move=> x xs ty tys lv lvs y pis -> hb hyX hsome _ ih s1 vm1 [ //| v vs] vst' /=.
+    move=> x xs ty tys lv lvs y pis -> hb /Sv_memP hyX hsome _ ih s1 vm1 [ //| v vs] vst' /=.
     t_xrbindP => vt ht vst hts <- {vst'}.
     rewrite read_rvs_cons vrvs_cons => leX /=.
     t_xrbindP => s1' hw hws eqvm.
@@ -440,16 +468,25 @@ Section Section.
       [/\ write_lval (p_globs p') y vt (with_vm s1 vm1) = ok (with_vm s1 vmy),
           evm s1 =[X] vmy &
           sem_pexpr (p_globs p') (with_vm s1 vmy) (Plvar y) = ok vt].
-    + admit.
+    + rewrite /write_lval /= /write_var evm_with_vm /set_var.
+      case: (truncate_val_pof_val ht) => w [-> /= ?]; subst vt.
+      exists (vm1.[y <- ok w]); split => //.
+      + move=> z hz; rewrite Fv.setP_neq; first by apply eqvm. 
+        by apply/eqP => ?;subst z;SvD.fsetdec.
+      by rewrite /get_gvar /= /get_var Fv.setP_eq.
     set I := mk_ep_i ii lv (vtype y) y.
     have [vm1' [semI eqvm1']]: exists vm1',
      [/\ sem_I p' ev (with_vm s1 vmy) I (with_vm s1' vm1') &
          evm s1' =[X]  vm1'].
-    + admit.         
+    + have [ | vm1' [eqvm1' hwvm1']]:= write_lval_eq_on (X:=X) _ hw eqvmy;first by SvD.fsetdec.
+      exists vm1'; split; last by apply: eq_onI eqvm1'; SvD.fsetdec.
+      constructor; apply Eassgn with vt vt => //.
+      + by apply: truncate_val_idem ht.
+      by rewrite -eq_globs.
     have [|vm2 [sem2 eqvm2]]:= ih s1' vm1' vs vst hts _ hws eqvm1'; first by SvD.fsetdec.
     exists vm2; split => //.
     econstructor; eauto; econstructor; eauto.
-  Admitted.
+  Qed.
     
   (* Move the section in psem *)
   Section Sem_eqv.
@@ -957,18 +994,6 @@ Section Section.
     fold2 e f xs ys x0 = ok v -> size xs = size ys.
   Proof.
     by elim : xs ys x0 => [|x xs ih] [|y ys] x0 //= ; t_xrbindP => // t _ /ih ->.
-  Qed.
-
-  Lemma truncate_val_idem (t : stype) (v v' : value) :
-    truncate_val t v = ok v' -> truncate_val t v' = ok v'.
-  Proof.
-  rewrite /truncate_val; case: t v => [||q|w].
-  + by move=> x; t_xrbindP=> b bE <-.
-  + by move=> x; t_xrbindP=> i iE <-.
-  + move=> x; t_xrbindP=> a aE <- /=.
-    by rewrite /WArray.cast Z.leb_refl /=; case: (a).
-  + move=> x; t_xrbindP=> w' w'E <- /=.
-    by rewrite truncate_word_u.
   Qed.
 
   Lemma get_set_var vm vm' x v v':
