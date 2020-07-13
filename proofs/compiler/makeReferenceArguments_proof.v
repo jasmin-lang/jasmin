@@ -888,6 +888,7 @@ Section Section.
 
       + move=> x xs fty ftys lv lvs y c lvaout ?; subst fty.
         move=> yNbool yNX E _ ih X s1 s2 s4 [] // vres1 vres [] // aout1 aout.
+        rewrite read_rvs_cons vrvs_cons.
         move=> le_X le_XY eq_s1_s4 eq_es1_es4 /=; t_xrbindP => v1 trunc_vres1 vs trunc_vres.
         move=> ??; subst v1 vs => s hwr1 hwr.
         have eq_s1_s: emem s1 = emem s.
@@ -903,16 +904,30 @@ y   <- v1; ys  <- vs; lv1 <- y; lvs <- ys
 *)
 
         have: exists vms, set_var (evm s4) y vres1 = ok vms.
-        - admit.
+        - eexists.
+          by admit.
         case=> vms hwr1'; have [s6 oks6]:
           exists s6, write_lval (p_globs p') lv vres1 (with_vm s4 vms) = ok s6.
-        - admit.
+        - eexists.
+          have := (@write_lval_eq_on _ X _ _ _ _ vms _ hwr1).
+          by admit.
         have /(_ s6)[]// :=
           ih X _ _ _ _ _ _ _ _ _ trunc_vres hwr.
-        - by move: le_X; rewrite read_rvs_cons vrvs_cons; SvD.fsetdec.
+        - by move: le_X ; SvD.fsetdec.
         - by SvD.fsetdec.
-        - admit.
-        - admit.
+        - by admit.
+        - rewrite - eq_s1_s eq_es1_es4.
+          Search _ write_lval emem.
+          move : E oks6.
+          case : (lv) => //=.
+          * move => v.
+            case [Ha Hb] : (is_reg_ptr x && ~~ is_reg_ptr v) => //= H.
+            inversion H ; rewrite - H1 //= in hwr1'.
+            rewrite /write_var.
+            move : hwr1'.
+            rewrite /set_var.
+            by admit.
+          by admit.
 
 (*rewrite /with_vm /=.
 
