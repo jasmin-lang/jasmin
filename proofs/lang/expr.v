@@ -1207,6 +1207,9 @@ Definition vrvs_rec s (rv:lvals) := foldl vrv_rec s rv.
 Definition vrv := (vrv_rec Sv.empty).
 Definition vrvs := (vrvs_rec Sv.empty).
 
+Definition lv_write_mem (r:lval) : bool :=
+  if r is Lmem _ _ _ then true else false.
+
 Fixpoint write_i_rec s i :=
   match i with
   | Cassgn x _ _ _    => vrv_rec s x

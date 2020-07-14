@@ -40,18 +40,6 @@ Section Section.
 
 Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
 
-Lemma write_memP gd (x:lval) v s1 s2:
-  ~~ write_mem x ->
-  write_lval gd x v s1 = ok s2 ->
-  emem s1 = emem s2.
-Proof.
-  case: x=> //= [v0 t|v0|aa ws v0 p|aa ws len v0 p] _.
-  + by move => /write_noneP [-> _]. 
-  + by apply: rbindP=> z Hz [] <-.
-  + by apply: on_arr_varP=> n t Ht Hval; t_xrbindP => *; subst s2. 
-  by apply on_arr_varP => n t Ht Hval; t_xrbindP => *; subst s2.
-Qed.
-
 Section PROOF.
 
   Hypothesis wf_init: wf_init sCP.
@@ -169,17 +157,17 @@ Section PROOF.
   Local Lemma Hwrite_disj s1 s2 s x v:
     write_lval gd x v s1 = ok s2 ->
     disjoint s (vrv x) ->
-    ~~ write_mem x ->
+    ~~ lv_write_mem x ->
     evm s1 =[s] evm s2 /\  emem s1 = emem s2.
   Proof.
-    move=> Hw Hdisj Hwmem; rewrite (write_memP Hwmem Hw); split => //.
+    move=> Hw Hdisj Hwmem; rewrite (lv_write_memP Hwmem Hw); split => //.
     by apply: disjoint_eq_on Hdisj Hw.
   Qed.
 
   Local Lemma Hwrites_disj s1 s2 s x v:
     write_lvals gd s1 x v = ok s2 ->
     disjoint s (vrvs x) ->
-    ~~ has write_mem x ->
+    ~~ has lv_write_mem x ->
     evm s1 =[s] evm s2 /\ emem s1 = emem s2.
   Proof.
     elim: x v s1 => [ | x xs Hrec] [ | v vs] //= s1.

@@ -71,9 +71,6 @@ Section LOOP.
 
 End LOOP.
 
-Definition write_mem (r:lval) : bool :=
-  if r is Lmem _ _ _ then true else false.
-
 Definition check_nop (rv:lval) ty (e:pexpr) :=
   match rv, e with
   | Lvar x1, Pvar x2 => is_lvar x2 && (x1.(v_var) == x2.(gv).(v_var)) && (ty == vtype x1.(v_var))
@@ -115,7 +112,7 @@ Fixpoint check_keep_only ii (xs:lvals) (tokeep: seq bool) s :=
       ok (read_rv_rec (Sv.diff s (vrv x)) x, x::xs)
     else
       let w := vrv x in
-      if disjoint s w && negb (write_mem x) then ok (s, xs)
+      if disjoint s w && negb (lv_write_mem x) then ok (s, xs)
       else cierror ii (Cerr_linear "dead code: check_keep_only")
   | _, _ => cierror ii (Cerr_linear "dead code: check_keep_only invalid size")
   end.
@@ -126,7 +123,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
   | Cassgn x tag ty e =>
     let w := write_i ir in
     if tag != AT_keep then
-      if disjoint s w && negb (write_mem x) then ciok (s, [::])
+      if disjoint s w && negb (lv_write_mem x) then ciok (s, [::])
       else if check_nop x ty e then ciok (s, [::])
       else ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
     else   ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
@@ -134,7 +131,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
   | Copn xs tag o es =>
     let w := vrvs xs in
     if tag != AT_keep then
-      if disjoint s w && negb (has write_mem xs) then ciok (s, [::])
+      if disjoint s w && negb (has lv_write_mem xs) then ciok (s, [::])
       else if check_nop_opn xs o es then ciok (s, [::])
       else ciok (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, [:: i])
     else ciok (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, [:: i])
