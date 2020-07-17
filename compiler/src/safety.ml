@@ -323,28 +323,31 @@ let ty_mvar = function
 
 let avar_of_mvar a = string_of_mvar a |> Var.of_string
 
-
-let u8_blast_at at = match at with
+(* Blasts array elements and arrays. *)
+let u8_blast_at ?(ignore_arrays=false) at = match at with
   | Aarray v ->
-    let iws = (int_of_ws (arr_size v)) / 8 in
-    let r = arr_range v in
-    let vi i = Mvalue (AarrayEl (v,U8,i)) in
-    List.init (r * iws) vi
+    if ignore_arrays then [Mvalue at]
+    else
+      let iws = (int_of_ws (arr_size v)) / 8 in
+      let r = arr_range v in
+      let vi i = Mvalue (AarrayEl (v,U8,i)) in
+      List.init (r * iws) vi
+        
   | AarrayEl (v,ws,j) ->
     let iws = (int_of_ws ws) / 8 in
     let vi i = Mvalue (AarrayEl (v,U8,i + iws * j )) in
     List.init iws vi
   | _ -> [Mvalue at]
 
-let u8_blast_var v = match v with
-  | Mvalue at -> u8_blast_at at
+let u8_blast_var ?(ignore_arrays=false) v = match v with
+  | Mvalue at -> u8_blast_at ~ignore_arrays at
   | _ -> [v]
 
-let u8_blast_ats ats =
-  List.flatten (List.map u8_blast_at ats)
+let u8_blast_ats ?(ignore_arrays=false) ats =
+  List.flatten (List.map (u8_blast_at ~ignore_arrays) ats)
 
-let u8_blast_vars vs =
-  List.flatten (List.map u8_blast_var vs)
+let u8_blast_vars ?(ignore_arrays=false) vs =
+  List.flatten (List.map (u8_blast_var ~ignore_arrays) vs)
 
 let rec expand_arr_vars = function
   | [] -> []
@@ -830,7 +833,7 @@ end = struct
       | Munop (_, a, _, _) -> aux acc a
       | Mbinop (_, a, b, _, _) -> aux (aux acc a) b in
     aux [] e
-    |> u8_blast_vars
+    |> u8_blast_vars ~ignore_arrays:false
     |> List.sort_uniq Stdlib.compare
 
   let rec contains_mod = function
@@ -2943,7 +2946,6 @@ module type AbsNumBoolType = sig
   val change_environment : t -> mvar list -> t
   val remove_vars : t -> mvar list -> t
 
-  val clear_init : t -> atype list -> t
   val is_init : t -> atype -> t
   val check_init : t -> atype -> bool
 
@@ -3264,19 +3266,23 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     and ptf x = Pt.forget_list x l in
     apply f df ptf { t with bool = b; init = init }
 
-
-  let clear_init : t -> atype list -> t = fun t l ->
-    let l_ext = u8_blast_ats l |> List.map string_of_mvar in
-    let init = EMs.removes l_ext t.init in
-    { t with init = init }
-
+  (* Initialize some variable. 
+     Note that an array is always initialized, even if its elements are not
+     initialized. *)
   let is_init : t -> atype -> t = fun t at ->
-    let vats = u8_blast_at at |> List.map string_of_mvar in
+    let vats = match at with
+      | Aarray _ -> []
+      | _ -> u8_blast_at at |> List.map string_of_mvar in
     { t with
       init = EMs.adds vats (AbsNum.R.bottom t.num |> AbsNum.downgrade) t.init }
 
+  (* Check that a variable is initialized. 
+     Note that an array is always initialized, even if its elements are
+     not initialized. *)
   let check_init : t -> atype -> bool = fun t at ->
-    let vats = u8_blast_at at |> List.map string_of_mvar in
+    let vats = match at with
+      | Aarray _ -> []
+      | _ -> u8_blast_at at |> List.map string_of_mvar in
     let dnum = AbsNum.downgrade t.num in
 
     let check x =
@@ -3392,11 +3398,9 @@ let get_wsize = function
 (* Safety conditions *)
 (*********************)
 
-(* TODO A: share this with toEC *)
 type safe_cond =
   | Initv of var
   | Initai of var * wsize * expr
-  | Inita of var * int
   | InBound of int * wsize * expr
   | Valid of wsize * ty gvar * expr
   | NotZero of wsize * expr
@@ -3410,7 +3414,6 @@ let pp_safety_cond fmt = function
   | Initv x -> Format.fprintf fmt "is_init %a" pp_var x
   | Initai(x,ws,e) ->
     Format.fprintf fmt "is_init (w%d)%a.[%a]" (int_of_ws ws) pp_var x pp_expr e
-  | Inita(x,n) -> Format.fprintf fmt "is_init[%i] %a" n pp_var x
   | NotZero(sz,e) -> Format.fprintf fmt "%a <>%a zero" pp_expr e pp_ws sz
   | InBound(n,ws,e)  ->
     Format.fprintf fmt "in_bound: %a-th block of (U%d) words in array of \
@@ -3476,12 +3479,12 @@ let safe_op2 e2 = function
   | E.Ovlsr _ | E.Ovlsl _ | E.Ovasr _ -> []
 
 let safe_var x = match (L.unloc x).v_ty with
-  | Arr(_,n) -> Inita (L.unloc x, n)
-  | _ -> Initv(L.unloc x)
+  | Arr _ -> []
+  | _ -> [Initv(L.unloc x)]
 
 let rec safe_e_rec safe = function
   | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ -> safe
-  | Pvar x -> safe_var x :: safe
+  | Pvar x -> safe_var x @ safe
 
   | Pload (ws,x,e) -> Valid (ws, L.unloc x, e) :: safe_e_rec safe e
   | Pget (ws, x, e) -> in_bound x ws e :: Initai(L.unloc x, ws, e) :: safe
@@ -3521,7 +3524,7 @@ let safe_instr ginstr = match ginstr.i_desc with
   | Cfor (_, (_, e1, e2), _) -> safe_es [e1;e2]
 
 let safe_return main_decl =
-  List.fold_left (fun acc v -> safe_var v :: acc) [] main_decl.f_ret
+  List.fold_left (fun acc v -> safe_var v @ acc) [] main_decl.f_ret
 
 
 (*********)
@@ -4255,14 +4258,6 @@ end = struct
   let rec is_safe state = function
     | Initv v -> begin match mvar_of_var v with
         | Mvalue at -> AbsDom.check_init state.abs at
-        | _ -> assert false end
-
-    | Inita (v,i) -> begin match mvar_of_var v with
-        | Mvalue (Aarray v) ->
-          let ws = arr_size v in
-          let vels = List.init i (fun n -> AarrayEl (v,ws,n)) in
-
-          List.for_all (AbsDom.check_init state.abs) vels
         | _ -> assert false end
 
     | Initai (v,ws,e) -> begin match mvar_of_var v with
