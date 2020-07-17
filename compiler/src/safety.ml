@@ -575,15 +575,15 @@ end = struct
                        (Printer.pp_var ~debug:true) v
                        (pp_list ( Printer.pp_var ~debug:true))
                        (List.sort (fun v v' ->
-                            Pervasives.compare v.v_name v'.v_name)
+                            Stdlib.compare v.v_name v'.v_name)
                            (Sv.elements sv))))
-          (List.sort (fun (v,_) (v',_) -> Pervasives.compare v.v_name v'.v_name)
+          (List.sort (fun (v,_) (v',_) -> Stdlib.compare v.v_name v'.v_name)
              (Mv.bindings st.dp)));
 
     { pa_dp = st.dp;
       pa_eq = st.eq;
       while_vars = st.while_vars;
-      if_conds = List.sort_uniq Pervasives.compare st.if_conds }
+      if_conds = List.sort_uniq Stdlib.compare st.if_conds }
 end
 
 
@@ -649,7 +649,7 @@ let coeff_add c c' = match Coeff.reduce c, Coeff.reduce c' with
 module Mmv = struct
   type t = mvar
 
-  let compare v v' = Pervasives.compare (avar_of_mvar v) (avar_of_mvar v')
+  let compare v v' = Stdlib.compare (avar_of_mvar v) (avar_of_mvar v')
   let equal v v' = avar_of_mvar v = avar_of_mvar v'
 end
 
@@ -789,7 +789,7 @@ end = struct
             let vars = ref [] in
             Linexpr1.iter (fun _ c -> vars := c :: !vars) l1;
             Linexpr1.iter (fun _ c -> vars := c :: !vars) l2;
-            let vs = List.sort_uniq Pervasives.compare !vars in
+            let vs = List.sort_uniq Stdlib.compare !vars in
 
             List.iter (fun v ->
                 let c1,c2 = Linexpr1.get_coeff l1 v, Linexpr1.get_coeff l2 v in
@@ -831,7 +831,7 @@ end = struct
       | Mbinop (_, a, b, _, _) -> aux (aux acc a) b in
     aux [] e
     |> u8_blast_vars
-    |> List.sort_uniq Pervasives.compare
+    |> List.sort_uniq Stdlib.compare
 
   let rec contains_mod = function
     | Mvar _ | Mcst _ -> false
@@ -1412,7 +1412,7 @@ let string_of_dom = function
 module Mdom = Map.Make(struct
     type t = v_dom
 
-    let compare = Pervasives.compare
+    let compare = Stdlib.compare
     let equal u v = u = v
   end)
 
@@ -2005,7 +2005,7 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
 
   let same_shape t t' = t.cnstrs = t'.cnstrs
 
-  let compare c c' = Pervasives.compare c.cpt_uniq c'.cpt_uniq
+  let compare c c' = Stdlib.compare c.cpt_uniq c'.cpt_uniq
 
   let equal c c' = compare c c' = 0
 
@@ -2326,7 +2326,7 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
 
   let pp_rel_vars fmt rel =
     (pp_list (Printer.pp_var ~debug:true)) fmt
-      (List.sort (fun v v' -> Pervasives.compare v.v_name v'.v_name)
+      (List.sort (fun v v' -> Stdlib.compare v.v_name v'.v_name)
          (Sv.elements rel))
 
   let () = debug(fun () ->
@@ -2635,7 +2635,7 @@ module PointsToImpl : PointsTo = struct
 
           | Some l, Some l' ->
             let l_inter = List.filter (fun x -> List.mem x l') l in
-            Some (List.sort_uniq Pervasives.compare l_inter )
+            Some (List.sort_uniq Stdlib.compare l_inter )
         ) t.pts t'.pts in
 
     { t with pts = pts'' }
@@ -2646,7 +2646,7 @@ module PointsToImpl : PointsTo = struct
           | None, _ | _, None -> None (* None corresponds to TopPtr *)
 
           | Some l, Some l' ->
-            Some (List.sort_uniq Pervasives.compare (l @ l'))
+            Some (List.sort_uniq Stdlib.compare (l @ l'))
         ) t.pts t'.pts in
 
     { t with pts = pts'' }
@@ -2676,7 +2676,7 @@ module PointsToImpl : PointsTo = struct
 
   let join_ptrs_list ptrss =
     let rec aux acc = function
-      | [] -> Ptrs (List.sort_uniq Pervasives.compare acc)
+      | [] -> Ptrs (List.sort_uniq Stdlib.compare acc)
       | TopPtr :: _ -> TopPtr
       | Ptrs l :: tail -> aux (l @ acc) tail in
 
@@ -2815,7 +2815,7 @@ module MakeEqMap (K : Ordered) : EqMap with type key = K.t = struct
 
       let s_binds x =
         Mk.bindings x.ktoc
-        |> List.stable_sort (fun (_,i) (_,i') -> Pervasives.compare i i')
+        |> List.stable_sort (fun (_,i) (_,i') -> Stdlib.compare i i')
         |> List.map (fun (x,y) -> (y,Sk.singleton x))
         |> grp in
 
@@ -3443,16 +3443,16 @@ let pp_violations fmt violations =
       (pp_list pp_violation) violations
 
 let vloc_compare v v' = match v, v' with
-  | InReturn fn, InReturn fn' -> Pervasives.compare fn fn'
+  | InReturn fn, InReturn fn' -> Stdlib.compare fn fn'
   | InProg _, InReturn _ -> 1
   | InReturn _, InProg _ -> -1
   | InProg l, InProg l' ->
-    Pervasives.compare (fst l.loc_start) (fst l'.loc_start)
+    Stdlib.compare (fst l.loc_start) (fst l'.loc_start)
 
 let v_compare v v' =
   let c = vloc_compare (fst v) (fst v') in
   if c <> 0 then c
-  else Pervasives.compare (snd v) (snd v')
+  else Stdlib.compare (snd v) (snd v')
 
 let add64 x e = Papp2 (E.Oadd ( E.Op_w U64), Pvar x, e)
 
@@ -3695,7 +3695,7 @@ type it_loc =
 module ItKey = struct
   type t = it_loc
 
-  let compare = Pervasives.compare
+  let compare = Stdlib.compare
 end
 
 module ItMap = Map.Make(ItKey)
@@ -4783,7 +4783,7 @@ end = struct
               | MLvars mlvs, _ -> (state, mlvs @ mlvs_forget))
             (state,[]) lvs assgns in
 
-        let mlvs_forget = List.sort_uniq Pervasives.compare mlvs_forget in
+        let mlvs_forget = List.sort_uniq Stdlib.compare mlvs_forget in
 
         { state with abs = AbsDom.forget_list state.abs mlvs_forget }
         |> init_lvs lvs
@@ -4869,12 +4869,13 @@ end = struct
               and test_into =
                 Interval.of_scalar (Scalar.of_int 1) (Scalar.of_infty 1) in
 
-              Format.eprintf "@[<v>@;Numerical quantity decreasing by:@;\
-                              @[%a@]@;\
-                              Initial numerical quantity in interval:@;\
-                              @[%a@]@;@]"
-                Interval.print int
-                Interval.print zint;
+              debug(fun () ->
+                  Format.eprintf "@[<v>@;Numerical quantity decreasing by:@;\
+                                  @[%a@]@;\
+                                  Initial numerical quantity in interval:@;\
+                                  @[%a@]@;@]"
+                    Interval.print int
+                    Interval.print zint;);
 
               if (Interval.is_leq int test_into) &&
                  (Interval.is_leq zint test_intz) then state_o
@@ -5165,7 +5166,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
       List.fold_left (fun acc p -> match p.pointers with
           | None -> acc
           | Some l -> l @ acc) [] ps
-      |> List.sort_uniq Pervasives.compare
+      |> List.sort_uniq Stdlib.compare
       |> List.map (fun pt ->
           try List.find (fun x -> x.v_name = pt) EW.main.f_args with
           | Not_found ->
