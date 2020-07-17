@@ -77,6 +77,10 @@ module Aparam = struct
 
   (* Turn on printing of unconstrained variables *)
   let ignore_unconstrained = true
+
+  (* Turn on printing of not initialized variables 
+     (i.e. it is not certain that the variable is initialized). *)
+  let is_init_no_print = true   (* defaul: true *)
 end
 
 (* Turn on printing of only the relational part *)
@@ -324,14 +328,14 @@ let ty_mvar = function
 let avar_of_mvar a = string_of_mvar a |> Var.of_string
 
 (* Blasts array elements and arrays. *)
-let u8_blast_at ?(ignore_arrays=false) at = match at with
+let u8_blast_at ~blast_arrays at = match at with
   | Aarray v ->
-    if ignore_arrays then [Mvalue at]
-    else
+    if blast_arrays then
       let iws = (int_of_ws (arr_size v)) / 8 in
       let r = arr_range v in
       let vi i = Mvalue (AarrayEl (v,U8,i)) in
       List.init (r * iws) vi
+    else [Mvalue at]
         
   | AarrayEl (v,ws,j) ->
     let iws = (int_of_ws ws) / 8 in
@@ -339,15 +343,15 @@ let u8_blast_at ?(ignore_arrays=false) at = match at with
     List.init iws vi
   | _ -> [Mvalue at]
 
-let u8_blast_var ?(ignore_arrays=false) v = match v with
-  | Mvalue at -> u8_blast_at ~ignore_arrays at
+let u8_blast_var ~blast_arrays v = match v with
+  | Mvalue at -> u8_blast_at ~blast_arrays at
   | _ -> [v]
 
-let u8_blast_ats ?(ignore_arrays=false) ats =
-  List.flatten (List.map (u8_blast_at ~ignore_arrays) ats)
+let u8_blast_ats ~blast_arrays ats =
+  List.flatten (List.map (u8_blast_at ~blast_arrays) ats)
 
-let u8_blast_vars ?(ignore_arrays=false) vs =
-  List.flatten (List.map (u8_blast_var ~ignore_arrays) vs)
+let u8_blast_vars ~blast_arrays vs =
+  List.flatten (List.map (u8_blast_var ~blast_arrays) vs)
 
 let rec expand_arr_vars = function
   | [] -> []
@@ -833,7 +837,7 @@ end = struct
       | Munop (_, a, _, _) -> aux acc a
       | Mbinop (_, a, b, _, _) -> aux (aux acc a) b in
     aux [] e
-    |> u8_blast_vars ~ignore_arrays:false
+    |> u8_blast_vars ~blast_arrays:true
     |> List.sort_uniq Stdlib.compare
 
   let rec contains_mod = function
@@ -1028,7 +1032,8 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
   let is_relational () = Ppl.manager_is_ppl man
 
   let make l =
-    let vars = u8_blast_vars l |> List.map avar_of_mvar |> Array.of_list
+    let vars = u8_blast_vars ~blast_arrays:true l |>
+               List.map avar_of_mvar |> Array.of_list
     and empty_var_array = Array.make 0 (Var.of_string "") in
     let env = Environment.make vars empty_var_array in
     Abstract1.top man env
@@ -1093,7 +1098,7 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
                                                  |> to_earray env )
 
   let forget_list a l =
-    let l = u8_blast_vars l in
+    let l = u8_blast_vars ~blast_arrays:true l in
     let env = Abstract1.env a in
     let al = List.filter
         (Environment.mem_var env) (List.map avar_of_mvar l) in
@@ -1179,7 +1184,9 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
      *   |> add_single (MvarOffset at) *)
 
     | Mvalue (AarrayEl _ ) ->
-      List.fold_left (fun x y -> add_single y x) env (u8_blast_var v)
+      List.fold_left
+        (fun x y -> add_single y x) env
+        (u8_blast_var ~blast_arrays:true v)
 
     | _ -> add_single v env
 
@@ -1376,7 +1383,7 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
   let unify a a' = Abstract1.unify man a a'
 
   let change_environment a mvars =
-    let env_vars = u8_blast_vars mvars
+    let env_vars = u8_blast_vars ~blast_arrays:true mvars
                    |> List.map avar_of_mvar
                    |> Array.of_list
     and empty_var_array = Array.make 0 (Var.of_string "") in
@@ -1387,7 +1394,7 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
     let vars = Environment.vars (Abstract1.env a)
                |> fst
                |> Array.to_list
-    and rem_vars = u8_blast_vars mvars
+    and rem_vars = u8_blast_vars ~blast_arrays:true mvars
                    |> List.map avar_of_mvar  in
 
     let nvars = List.filter (fun x -> not (List.mem x rem_vars)) vars
@@ -2661,7 +2668,12 @@ module PointsToImpl : PointsTo = struct
     else TopPtr
 
   let var_points_to : t -> mvar -> ptrs = fun t var ->
-    svar_points_to t (string_of_mvar var)
+    (* We correctly tracked points-to information only for 
+       variables (e.g. array elements are not properly handled, and
+       consequently can point to anybody.). *)
+    match var with
+    | Mvalue (Avar _) -> svar_points_to t (string_of_mvar var)
+    | _ -> TopPtr
 
   let forget_list : t -> mvar list -> t = fun t l_rem ->
     let vl_rem = List.map string_of_mvar l_rem in
@@ -2767,6 +2779,8 @@ module type EqMap = sig
 
   val removes: key list -> 'a t -> 'a t
 
+  val iter: (key -> 'a -> unit) -> 'a t -> unit
+      
   val map: ('a -> 'b) -> 'a t -> 'b t
 
   val map2 : ('a -> 'a -> 'c) -> 'a t -> 'a t -> 'c t
@@ -2802,6 +2816,8 @@ module MakeEqMap (K : Ordered) : EqMap with type key = K.t = struct
       List.fold_left (fun ktoc k -> Mk.add k i ktoc) t.ktoc ks in
     { t with ktoc = ktoc; ctov = Mc.add i a t.ctov }
 
+  let iter f t = Mk.iter (fun k c -> f k (Mc.find c t.ctov)) t.ktoc
+                
   let map f t = { t with ctov = Mc.map f t.ctov }
 
   (* This function unifies the equivalence classes of t and t' *)
@@ -2946,7 +2962,8 @@ module type AbsNumBoolType = sig
   val change_environment : t -> mvar list -> t
   val remove_vars : t -> mvar list -> t
 
-  val is_init : t -> atype -> t
+  val is_init    : t -> atype -> t
+  val copy_init  : t -> mvar -> mvar -> t
   val check_init : t -> atype -> bool
 
   val get_env : t -> Environment.t
@@ -2966,7 +2983,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
      is *not* initialized.
      Remark: we lazily populate init and bool*)
   type t = { bool : AbsNum.NR.t Ms.t;
-             init : AbsNum.NR.t EMs.t;
+             init : AbsNum.NR.t EMs.t; 
              num : AbsNum.R.t;
              points_to : Pt.t }
 
@@ -2993,7 +3010,8 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
                            num = f t.num;
                            points_to = fpt t.points_to }
 
-  (* Since init and bool are lazily populated, we merge the domains before applying f *)
+  (* Since init and bool are lazily populated, we merge the domains before 
+     applying f *)
   let apply2 f df fpt t t' =
     let t, t' = merge_init_dom t t' in
     let t, t' = merge_bool_dom t t' in
@@ -3269,38 +3287,70 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
   (* Initialize some variable. 
      Note that an array is always initialized, even if its elements are not
      initialized. *)
-  let is_init : t -> atype -> t = fun t at ->
+  let is_init t at =
     let vats = match at with
       | Aarray _ -> []
-      | _ -> u8_blast_at at |> List.map string_of_mvar in
+      | _ -> u8_blast_at ~blast_arrays:true at in
+    let vats = List.map string_of_mvar vats in
+    
     { t with
       init = EMs.adds vats (AbsNum.R.bottom t.num |> AbsNum.downgrade) t.init }
-
+    
+  (* Copy some variable initialization.
+     We only need this for elementary array elements. *)
+  let copy_init t l e = match l, e with
+    | Mvalue (AarrayEl (_, U8, _)),
+      Mvalue (AarrayEl (_, U8, _)) ->
+      let l = string_of_mvar l
+      and e = string_of_mvar e in
+      begin match EMs.find e t.init with
+        | x -> { t with init = EMs.adds [l] x t.init }
+        | exception Not_found -> t end
+    | _ -> assert false
+  
   (* Check that a variable is initialized. 
      Note that an array is always initialized, even if its elements are
      not initialized. *)
   let check_init : t -> atype -> bool = fun t at ->
     let vats = match at with
       | Aarray _ -> []
-      | _ -> u8_blast_at at |> List.map string_of_mvar in
+      | _ -> u8_blast_at ~blast_arrays:false at |> List.map string_of_mvar in    
     let dnum = AbsNum.downgrade t.num in
-
     let check x =
       try AbsNum.NR.meet dnum (EMs.find x t.init) |> AbsNum.NR.is_bottom with
       | Not_found -> AbsNum.R.is_bottom t.num in
+
     List.for_all check vats
 
   let get_env : t -> Environment.t = fun t -> AbsNum.R.get_env t.num
 
+  let print_init : Format.formatter -> t -> unit = fun fmt t ->
+    let dnum = AbsNum.downgrade t.num in
+    let check' a =
+      try AbsNum.NR.meet dnum a |> AbsNum.NR.is_bottom with
+      | Not_found -> AbsNum.R.is_bottom t.num in
+
+    let m = EMs.map (fun a -> check' a) t.init in
+    Format.fprintf fmt "@[<hv 2>* Init:@;";
+    EMs.iter (fun s b ->
+        if b then Format.fprintf fmt "%s@ " s else ()) m;
+    Format.fprintf fmt "@]@;"
+    
   let print : ?full:bool -> Format.formatter -> t -> unit =
     fun ?full:(full=false) fmt t ->
+    let print_init fmt =
+      if Aparam.is_init_no_print then
+        ()
+      else print_init fmt t in
+    
       if !only_rel_print then
         Format.fprintf fmt "@[<v 0>%a@]"
           (AbsNum.R.print ~full:full) t.num
       else
-        Format.fprintf fmt "@[<v 0>@[<v 0>%a@]@;%a@]"
+        Format.fprintf fmt "@[<v 0>@[<v 0>%a@]@;%a@;%t@]"
           (AbsNum.R.print ~full:full) t.num
           Pt.print t.points_to
+          print_init
 
   let new_cnstr_blck t = { t with num = AbsNum.R.new_cnstr_blck t.num }
 
@@ -3574,16 +3624,25 @@ let rec add_offsets3 assigns = match assigns with
     :: add_offsets3 tail
   | u :: tail -> u :: add_offsets3 tail
 
-let fun_locals f_decl =
+let fun_locals ~expand_arrays f_decl =
   let locals = Sv.elements (locals f_decl) in
-  List.map mvar_of_var locals
-  |> expand_arr_vars
-  |> add_offsets
+  let vars =
+    List.map mvar_of_var locals
+    |> add_offsets in
+
+  if expand_arrays
+  then expand_arr_vars vars
+  else vars
+
 
 let fun_args_no_offset f_decl = List.map mvar_of_var f_decl.f_args
-                                |> expand_arr_vars
 
-let fun_args f_decl = fun_args_no_offset f_decl |> add_offsets
+let fun_args ~expand_arrays f_decl =
+  let args = fun_args_no_offset f_decl
+             |> add_offsets in
+  if expand_arrays
+  then expand_arr_vars args
+  else args
 
 let in_cp_var v = match v with
   | Mvalue (Avar v) -> Some (MinValue v)
@@ -3594,21 +3653,24 @@ let fun_in_args_no_offset f_decl =
 
 let fun_rets_no_offsets f_decl =
   List.map (fun x -> L.unloc x |> mvar_of_var) f_decl.f_ret
-  |> expand_arr_vars
 
 let get_mem_range env = List.map (fun x -> MmemRange x) env.m_locs
 
-let prog_globals env =
-  List.map (fun (_,(s,ty)) -> Mglobal (s, Conv.ty_of_cty ty))
-    (Ms.bindings env.s_glob)
-  @ get_mem_range env
-  |> expand_arr_vars
-  |> add_offsets
+let prog_globals ~expand_arrays env =
+  let vars =
+    List.map (fun (_,(s,ty)) -> Mglobal (s, Conv.ty_of_cty ty))
+      (Ms.bindings env.s_glob)
+    @ get_mem_range env
+    |> add_offsets in
 
-let fun_vars f_decl env =
-  fun_args f_decl
-  @ prog_globals env
-  @ fun_locals f_decl
+  if expand_arrays
+  then expand_arr_vars vars
+  else vars
+
+let fun_vars ~expand_arrays f_decl env =
+  fun_args ~expand_arrays:expand_arrays f_decl
+  @ prog_globals ~expand_arrays:expand_arrays env
+  @ fun_locals ~expand_arrays:expand_arrays f_decl
 
 
 (****************************)
@@ -4157,9 +4219,10 @@ end = struct
                 env.s_glob f_decl.f_body })
         env fun_decls
 
-  let init_args f_args state =
+  let init_state_init_args f_args state =
     List.fold_left (fun state v -> match v with
-        | Mvalue at -> { state with abs = AbsDom.is_init state.abs at }
+        | Mvalue at ->
+          { state with abs = AbsDom.is_init state.abs at }
         | _ -> state )
       state f_args
 
@@ -4211,7 +4274,7 @@ end = struct
       let it = ItMap.empty in
 
       (* We add the initial variables *)
-      let f_args = fun_args main_decl in
+      let f_args = fun_args ~expand_arrays:true main_decl in
       (* If f_args is empty, we add a dummy variable to avoid having an
          empty relational abstraction *)
       let f_args = if f_args = [] then [dummy_mvar] else f_args in
@@ -4231,7 +4294,7 @@ end = struct
 
       (* We extend the environment to its local variables *)
       let f_vars = (List.map otolist f_in_args |> List.flatten)
-                   @ fun_vars main_decl env in
+                   @ fun_vars ~expand_arrays:true main_decl env in
 
       let abs = AbsDom.change_environment abs f_vars in
 
@@ -4252,7 +4315,9 @@ end = struct
         s_effects = [];
         violations = [] }
 
-      |> init_args (fun_args main_decl)
+      (* We initialize the arguments. Note that for exported function, we 
+         know that input arrays are initialized. *)
+      |> init_state_init_args (fun_args ~expand_arrays:true main_decl)
 
   (* Checks that all safety conditions hold, except for valid memory access. *)
   let rec is_safe state = function
@@ -4410,9 +4475,28 @@ end = struct
         | _ -> aeval_top_offset abs outmv end
 
     | _ -> aeval_top_offset abs outmv
+  
 
-  (* Array assignment. Does the numerical and points-to assignments. *)
-  let assign_arr_expr a v e = match v with
+  (* Initialize variable or array elements. *)
+  let a_init_mv_no_array mv abs = match mv with
+    |  Mvalue (AarrayEl _ as at) |  Mvalue (Avar _ as at) ->
+      AbsDom.is_init abs at
+    | _ -> assert false
+
+  (* Initialize variable or array elements lvalues. *)
+  let a_init_mlv_no_array mlv abs = match mlv with
+    | MLvar mv -> a_init_mv_no_array mv abs
+    | _ -> assert false
+
+  (* Initialize variable or array elements lvalues. *)
+  let init_mlv_no_array mlv state = 
+    { state with abs = a_init_mlv_no_array mlv state.abs }
+
+  (* Array assignment. Does the numerical assignments.
+     Remark: array elements do not need to be tracked in the point-to
+     abstraction. *)
+  let assign_arr_expr a v e =
+    match v with
     | Mvalue (Aarray gv) -> begin match Mtexpr.(e.mexpr) with
         | Mtexpr.Mvar (Mvalue (Aarray ge)) ->
           let n = arr_range gv in
@@ -4427,8 +4511,14 @@ end = struct
 
               (* Numerical abstraction *)
               let a = AbsDom.assign_sexpr a vi ei in
-              (* Points-to abstraction *)
-              AbsDom.assign_ptr_expr a vi (PtVars [eiv]))
+
+              (* Initialization *)
+              List.fold_left2 (fun a vi eiv ->
+                  AbsDom.copy_init a vi eiv)
+                a
+                (u8_blast_var ~blast_arrays:true vi)
+                (u8_blast_var ~blast_arrays:true eiv))
+
             a (List.init n (fun i -> i))
 
         | _ -> assert false end
@@ -4437,15 +4527,18 @@ end = struct
   let omvar_is_offset = function
     | MLvar (MvarOffset _) -> true
     | _ -> false
-
-  (* Abstract evaluation of an assignment *)
+      
+  (* Abstract evaluation of an assignment. 
+     Also handles variable initialization. *)
   let abs_assign : astate -> 'a gty -> mlvar -> ty gexpr -> astate =
     fun state out_ty out_mvar e ->
       assert (not (omvar_is_offset out_mvar));
       match ty_expr e, out_mvar with
       | _, MLnone -> state
 
-      | _, MLvars vs -> { state with abs = AbsDom.forget_list state.abs vs }
+      | _, MLvars vs ->
+        (* Here, we have no information on which elements are initialized. *)
+        { state with abs = AbsDom.forget_list state.abs vs }
 
       | Bty Int, MLvar mvar | Bty (U _), MLvar mvar ->
         (* Numerical abstraction *)
@@ -4461,14 +4554,18 @@ end = struct
         let abs = aeval_offset abs out_ty mvar e in
 
         { state with abs = abs }
+        |> init_mlv_no_array out_mvar
 
       | Bty Bool, MLvar mvar ->
-        begin let svar = string_of_mvar mvar in
-          match bexpr_to_btcons e state.abs with
-          | None -> { state with abs = AbsDom.forget_bvar state.abs svar }
-          | Some btcons ->
-            let abs' = AbsDom.assign_bexpr state.abs svar btcons in
-            { state with abs = abs' } end
+        begin
+          let svar = string_of_mvar mvar in
+          let state = match bexpr_to_btcons e state.abs with
+            | None -> { state with abs = AbsDom.forget_bvar state.abs svar }
+            | Some btcons ->
+              let abs' = AbsDom.assign_bexpr state.abs svar btcons in
+              { state with abs = abs' } in
+          init_mlv_no_array out_mvar state
+        end
 
       | Arr _, MLvar mvar ->
         match e with
@@ -4485,12 +4582,6 @@ end = struct
         | _ ->
           Format.eprintf "@[%a@]@." (Printer.pp_expr ~debug:true) e;
           assert false
-
-  let init_lv lv state = match mvar_of_lvar state.abs lv with
-    |  MLvar (Mvalue at) -> { state with abs = AbsDom.is_init state.abs at }
-    | _ -> state
-
-  let init_lvs lvs s = List.fold_left (fun s lv -> init_lv lv s) s lvs
 
   let offsets_of_mvars l = List.map ty_gvar_of_mvar l
                            |> List.filter (fun x -> x <> None)
@@ -4510,32 +4601,35 @@ end = struct
     let f_decl = get_fun_def state.prog f |> oget in
 
     let f_args = fun_args_no_offset f_decl
-    and exp_es = expand_arr_exprs es
-    and exp_in_tys = f_decl.f_tyin |> expand_arr_tys in
+    and exp_in_tys = f_decl.f_tyin in
 
-    let assigns = combine3 exp_in_tys f_args exp_es
+    let assigns = combine3 exp_in_tys f_args es
                   |> List.map (fun (x,y,z) -> (x, MLvar y, z)) in
 
     let state = List.fold_left (fun state (in_ty, mvar, e) ->
         abs_assign state in_ty mvar e)
         state assigns in
 
-    (f_args,state)
+    state
 
+  (* Remark: handles variable initialization. *)
   let aeval_f_return abs ret_assigns =
     List.fold_left (fun abs (out_ty,rvar,(lv,mlvo)) ->
         match mlvo with
         | MLnone -> abs
 
-        | MLvars mlvs -> AbsDom.forget_list abs mlvs
+        | MLvars mlvs ->
+          (* Here, we have no information on which elements are initialized. *)
+          AbsDom.forget_list abs mlvs
 
         | MLvar mlv -> match ty_mvar mlv with
           | Bty Bool ->
             let smlv = string_of_mvar mlv in
             let rconstr = BVar (string_of_mvar rvar, true) in
             AbsDom.assign_bexpr abs smlv rconstr
+            |> a_init_mlv_no_array mlvo
 
-          | _ ->
+          | Bty _ ->
             let mret = Mtexpr.var (AbsDom.get_env abs) rvar in
 
             let lv_size = wsize_of_ty (ty_lval lv)
@@ -4559,17 +4653,33 @@ end = struct
             let abs = AbsDom.assign_ptr_expr abs mlv ptr_expr in
 
             (* Offset abstraction *)
-            match ty_gvar_of_mvar rvar with
-            | None -> abs
-            | Some rv ->
-              let lrv = L.mk_loc L._dummy rv in
-              aeval_offset abs out_ty mlv (Pvar lrv))
+            let abs = match ty_gvar_of_mvar rvar with
+              | None -> abs
+              | Some rv ->
+                let lrv = L.mk_loc L._dummy rv in
+                aeval_offset abs out_ty mlv (Pvar lrv) in
+
+            a_init_mlv_no_array mlvo abs
+
+          | Arr _ ->
+            let mret = Mtexpr.var (AbsDom.get_env abs) rvar in
+
+            let lv_size = wsize_of_ty (ty_lval lv)
+            and ret_size = wsize_of_ty out_ty in
+            assert (lv_size = ret_size); (* may not be necessary *)
+
+            (* Numerical abstractions only.
+               Points-to and offset abstraction are not needed for array and 
+               array elements *)
+            assign_arr_expr abs mlv mret)
+      
       abs ret_assigns
 
 
   let forget_f_vars f state =
     let f_decl = get_fun_def state.prog f |> oget in
-    let f_vs =  fun_args f_decl @ fun_locals f_decl in
+    let f_vs = fun_args ~expand_arrays:true f_decl
+               @ fun_locals ~expand_arrays:true f_decl in
 
     (* We remove f variables *)
     { state with abs = AbsDom.remove_vars state.abs f_vs }
@@ -4584,7 +4694,7 @@ end = struct
      Remark: we only log side effects on memory locations, hence we always
      forget global variables. *)
   let forget_side_effect state s_effects =
-    let vs_globs = prog_globals state.env
+    let vs_globs = prog_globals ~expand_arrays:true state.env
                    |> List.filter (function
                        | MmemRange pt -> List.mem pt s_effects
                        | _ -> true) in
@@ -4603,10 +4713,9 @@ end = struct
      - The variables of the caller's caller have been *removed*.
      - s_effects is empty. *)
   let prepare_call state f es =
-    let (assign_vars,state) = aeval_f_args f es state in
+    let state = aeval_f_args f es state in
 
-    let state = init_args assign_vars state
-                |> forget_stack_vars in
+    let state = forget_stack_vars state in
 
     let state = { state with abs = AbsDom.new_cnstr_blck state.abs } in
 
@@ -4615,17 +4724,9 @@ end = struct
 
 
   let get_ret_assgns state f_decl lvs =
-    let f_map (x,y) = match y with
-      | MLnone | MLvars _ -> [x,y]
-      | MLvar u ->
-        let eu = expand_arr_vars [u] in
-        List.map (fun z -> (x, MLvar z)) eu in
-
     let f_rets_no_offsets = fun_rets_no_offsets f_decl
-    and out_tys = f_decl.f_tyout |> expand_arr_tys
-    and mlvs = List.map (fun x -> (x, mvar_of_lvar state.abs x)) lvs
-               |> List.map f_map
-               |> List.flatten in
+    and out_tys = f_decl.f_tyout
+    and mlvs = List.map (fun x -> (x, mvar_of_lvar state.abs x)) lvs in
 
     combine3 out_tys f_rets_no_offsets mlvs
     |> add_offsets_lv
@@ -4661,10 +4762,8 @@ end = struct
     let r_assgns = get_ret_assgns state f_decl lvs in
     let state = { state with abs = aeval_f_return state.abs r_assgns } in
 
-    (* We forget the variables of f to get a smaller abstract element,
-       and we know that variables in lvs are initialized *)
+    (* We forget the variables of f to get a smaller abstract element. *)
     forget_f_vars fname state
-    |> init_lvs lvs
 
   let simpl_obtcons = function
     | Some (BLeaf c) -> Some c
@@ -4676,6 +4775,8 @@ end = struct
     | Some Lincons0.SUPEQ | Some Lincons0.SUP -> omap Mtcons.get_expr sc
     | _ -> None
 
+  (* Remark: the n-ary operations we support are such that the parallel 
+     assignment can be done sequentially. *)
   let split_opn n opn es = match opn with
     | E.Oset0 ws -> [None;None;None;None;None;
                      Some (pcast ws (Pconst (B.of_int 0)))]
@@ -4762,16 +4863,20 @@ end = struct
     fun ginstr state -> match ginstr.i_desc with
       | Cassgn (lv, _, _, e) ->
         abs_assign state (ty_lval lv) (mvar_of_lvar state.abs lv) e
-        |> init_lv lv
 
       | Copn (lvs,_,opn,es) ->
+        (* Remark: the n-ary operations we support are such that the parallel 
+           assignment can be done sequentially. *)
         let assgns = split_opn (List.length lvs) opn es in
         let state, mlvs_forget =
           List.fold_left2 (fun (state, mlvs_forget) lv e_opt ->
               match mvar_of_lvar state.abs lv, e_opt with
               | MLnone,_ -> (state, mlvs_forget)
 
-              | MLvar mlv, None -> (state, mlv :: mlvs_forget)
+              | MLvar mlv as cmlv, None ->
+                (* Remark: n-ary operation cannot return arrays. *)
+                let state = init_mlv_no_array cmlv state in
+                (state, mlv :: mlvs_forget)
               | MLvar mlv, Some e ->
                 (abs_assign state (ty_lval lv) (MLvar mlv) e, mlvs_forget)
 
@@ -4781,7 +4886,6 @@ end = struct
         let mlvs_forget = List.sort_uniq Stdlib.compare mlvs_forget in
 
         { state with abs = AbsDom.forget_list state.abs mlvs_forget }
-        |> init_lvs lvs
 
       | Cif(e,c1,c2) ->
         let eval_cond state = function
@@ -4993,7 +5097,8 @@ end = struct
                               |> sexpr_from_simple_expr in
                 let abs = AbsDom.assign_sexpr state.abs mvari expr_ci in
                 let state =
-                  { state with abs = AbsDom.is_init abs (Avar (L.unloc i)) }
+                  { state with
+                    abs = AbsDom.is_init abs (Avar (L.unloc i)) }
                   |> aeval_gstmt c in
 
                 (* We pop the disjunctive constraint block *)
@@ -5071,7 +5176,7 @@ end = struct
                   |> List.map otolist
                   |> List.flatten in
     let vars_to_keep = in_vars @ get_mem_range state.env in
-    let vars = in_vars @ fun_vars f_decl state.env in
+    let vars = in_vars @ fun_vars ~expand_arrays:false f_decl state.env in
     let rem_vars = List.fold_left (fun acc v ->
         if (List.mem v vars_to_keep) then acc else v :: acc )
         [] vars in
