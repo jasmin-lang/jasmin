@@ -42,25 +42,6 @@ Local Open Scope seq_scope.
 Local Open Scope vmap_scope.
 Local Open Scope Z_scope.
 
-(* ------------------------------------------------------------------------ *)
-(* Leakage trees and leakage transformations. *)
-Inductive leak_tr :=
-| LT_id (* preserve *)
-| LT_remove (* remove *)
-| LT_subi : nat -> leak_tr (* projection *) (* FIXME: change Z into nat *) (** Fixed **)
-| LT_seq : seq leak_tr -> leak_tr (* parallel transformations *)
-| LT_compose: leak_tr -> leak_tr -> leak_tr. (* compositon of transformations *)
-
-Fixpoint leak_F (lt : leak_tr) (l : leak_e) : leak_e := 
-  match lt, l with
-  | LT_seq lts, LSub xs => LSub (map2 leak_F lts xs)
-  | LT_id, _ => l
-  | LT_remove, _ => LEmpty
-  | LT_subi i, LSub xs => nth LEmpty xs i
-  | LT_compose lt1 lt2, _ => leak_F lt2 (leak_F lt1 l)
-  | _, _ => LEmpty
-  end.
-
 (* -------------------------------------------------------------------------- *)
 (* ** Smart constructors                                                      *)
 (* -------------------------------------------------------------------------- *)
@@ -82,27 +63,27 @@ Definition szero_extend sz sz' (e: pexpr) :=
   then (Papp1 (Oword_of_int sz) (Pconst (wunsigned (zero_extend sz w))), LT_remove)
   else (Papp1 (Ozeroext sz sz') e, LT_id).
 
-Definition snot_bool (e:pexpr) : (pexpr * leak_tr) :=
+Definition snot_bool (e:pexpr) : (pexpr * leak_e_tr) :=
   match e with
   | Pbool b      => (Pbool (negb b), LT_remove)
   | Papp1 Onot e0 => (e0, LT_id)
   | _            => (Papp1 Onot e, LT_id)
   end.
 
-Definition snot_w (sz: wsize) (e:pexpr) : (pexpr*leak_tr) :=
+Definition snot_w (sz: wsize) (e:pexpr) : (pexpr * leak_e_tr) :=
   match is_wconst sz e with
   | Some n => (wconst (wnot n),LT_remove)
   | None   => (Papp1 (Olnot sz) e, LT_id)
   end.
 
-Definition sneg_int (e: pexpr) : (pexpr*leak_tr) :=
+Definition sneg_int (e: pexpr) : (pexpr * leak_e_tr) :=
   match e with
   | Pconst z => (Pconst (- z), LT_remove)
   | Papp1 (Oneg Op_int) e' => (e', LT_id)
   | _ => (Papp1 (Oneg Op_int) e, LT_id)
   end.
 
-Definition sneg_w (sz: wsize) (e:pexpr) : (pexpr*leak_tr) :=
+Definition sneg_w (sz: wsize) (e:pexpr) : (pexpr * leak_e_tr) :=
   match is_wconst sz e with
   | Some n => (wconst (- n)%R, LT_remove)
   | None   => (Papp1 (Oneg (Op_w sz)) e, LT_id)
@@ -445,7 +426,7 @@ Definition const v :=
   | Cword sz z => wconst z
   end.
 
-Fixpoint const_prop_e (m:cpm) e : (pexpr * leak_tr) :=
+Fixpoint const_prop_e (m:cpm) e : (pexpr * leak_e_tr) :=
   match e with
   | Pconst _
   | Pbool  _
@@ -486,7 +467,7 @@ Definition merge_cpm : cpm -> cpm -> cpm :=
 Definition remove_cpm (m:cpm) (s:Sv.t): cpm :=
   Sv.fold (fun x m => Mvar.remove m x) s m.
 
-Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval * leak_tr :=
+Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval * leak_e_tr :=
   match rv with
   | Lnone _ _    => (m, rv, LT_id)
   | Lvar  x      => (Mvar.remove m x, rv, LT_id)
@@ -496,14 +477,23 @@ Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval * leak_tr :=
                     (Mvar.remove m x, Laset sz x lte.1, LT_seq [:: lte.2; LT_id])
   end.
 
-Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals * seq leak_tr :=
+Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals * seq leak_e_tr :=
+  match rvs with
+  | [::] => (m, [::], [::])
+  | rv::rvs =>
+    let: (m,rv, lt)  := const_prop_rv m rv in
+    let: (m,rvs, lts) := const_prop_rvs m rvs in
+    (m, rv::rvs, (lt :: lts))
+  end.
+
+(*Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals * seq leak_tr :=
   match rvs with
   | [::] => (m, [::], [::])
   | rv::rvs =>
     let: (m,rv, lt)  := const_prop_rv m rv in
     let: (m,rvs, lts) := const_prop_rvs m rvs in
     (m, rv::rvs, ([::lt] ++ lts))
-  end.
+  end.*)
 
 Definition wsize_of_stype (ty: stype) : wsize :=
   if ty is sword sz then sz else U64.
@@ -527,62 +517,11 @@ Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
     else m
   else m.
 
-(* Leakge transformer for instructions *)
-Inductive leak_i_tr :=
-| LT_ikeep : leak_i_tr
-| LT_ile : leak_tr -> leak_i_tr  (* assign and op *)
-| LT_icond : leak_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr (* if *)
-| LT_iwhile : seq leak_i_tr -> leak_tr -> seq leak_i_tr -> leak_i_tr (* while *)
-| LT_icond_eval : seq leak_i_tr -> leak_i_tr
-| LT_ifor : leak_tr -> seq leak_i_tr -> leak_i_tr
-| LT_icall : leak_tr -> seq leak_i_tr -> leak_tr -> leak_i_tr.
-
-Section Leak_I.
-
-  Variable leak_I : leak_i -> leak_i_tr -> seq leak_i.
-
-  Definition leak_Is (lts : seq leak_i_tr) (ls : seq leak_i) : seq leak_i :=
-    flatten (map2 leak_I ls lts).
-
-  Definition leak_Iss (ltss : seq leak_i_tr) (ls : seq (seq leak_i)) : seq (seq leak_i) :=
-    (map (leak_Is ltss) ls).
-
-End Leak_I.
-
-Definition dummy_lit := Lassgn LEmpty.
-
-Fixpoint leak_I (l : leak_i) (lt : leak_i_tr) {struct l} : seq leak_i :=
-  match lt, l with
-  | LT_ikeep, _ => [::l]
-  | LT_ile lte, Lassgn le => [:: Lassgn (leak_F lte le) ]
-  | LT_ile lte, Lopn le   => [:: Lopn (leak_F lte le) ]
-  | LT_icond lte ltt ltf, Lcond le b lti => 
-    [:: Lcond (leak_F lte le) b (leak_Is leak_I (if b then ltt else ltf) lti) ]
-  | LT_iwhile ltis lte ltis', Lwhile_true lts le lts' lw => 
-    [:: Lwhile_true (leak_Is leak_I ltis lts)
-                     (leak_F lte le)
-                     (leak_Is leak_I ltis' lts')
-                     (head dummy_lit (leak_I lw lt))]
-  | LT_iwhile ltis lte ltis', Lwhile_false lts le => 
-    [::Lwhile_false (leak_Is leak_I ltis lts)
-                     (leak_F lte le)]
-  | LT_icond_eval lts, Lcond _ _ lti => 
-    leak_Is leak_I lts lti
-  | LT_icond_eval lts, Lwhile_false lti le =>
-    leak_Is leak_I lts lti
-  | LT_ifor lte ltiss, Lfor le ltss => [:: Lfor (leak_F lte le)
-                                                (leak_Iss leak_I ltiss ltss) ]
-  | LT_icall lte ltis lte', Lcall le (f, lts) le' => [:: Lcall (leak_F lte le)
-                                                             (f, (leak_Is leak_I ltis lts))
-                                                             (leak_F lte' le') ]
-  | _, _ => [:: l]
-  end.
-
 Section CMD.
 
   Variable const_prop_i : cpm -> instr -> cpm * cmd * leak_i_tr.
 
-  Fixpoint const_prop (m:cpm) (c:cmd) : cpm * cmd * seq leak_i_tr :=
+  Fixpoint const_prop (m:cpm) (c:cmd) : cpm * cmd * leak_c_tr :=
     match c with
     | [::] => (m, [::], [::])
     | i::c =>
@@ -641,7 +580,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
   | Ccall fi xs f es =>
     let es := map (const_prop_e m) es in
     let: (m,xs,lt) := const_prop_rvs m xs in
-    (m, [:: MkI ii (Ccall fi xs f (unzip1 es)) ], LT_ikeep)
+    (m, [:: MkI ii (Ccall fi xs f (unzip1 es)) ], (LT_icall (LT_seq (unzip2 es)) (LT_seq lt)))
   end
 
 with const_prop_i (m:cpm) (i:instr) : cpm * cmd * leak_i_tr :=
@@ -653,9 +592,7 @@ Definition const_prop_fun (f:fundef) :=
   let: (_, c, lt) := const_prop const_prop_i empty_cpm c in
   (MkFun ii tin p c tout r, lt).
 
-Definition leak_i_trf := seq (funname * seq leak_i_tr).
-
-Definition const_prop_prog (p: prog) : (prog * leak_i_trf) :=
+Definition const_prop_prog (p: prog) : (prog * leak_f_tr) :=
   let fundefs := map snd (p_funcs p) in (* seq of fundefs *)
   let funnames := map fst (p_funcs p) in
   let r := map const_prop_fun fundefs in (* output of applying const_prop_fun to the fundefs from p *)
