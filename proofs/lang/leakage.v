@@ -41,12 +41,6 @@ Inductive leak_e :=
 | LAdr : pointer -> leak_e (* memory access at given address *)
 | LSub: (seq leak_e) -> leak_e. (* forest of leaks *)
 
-(*Inductive leakage_e := 
-  | LeakAdr of pointer
-  | LeakIdx of Z.
-
-Definition leakages_e := seq leakage_e.*)
-
 Inductive leak_i : Type :=
   | Lassgn : leak_e -> leak_i
   | Lopn  : leak_e ->leak_i
@@ -61,6 +55,102 @@ Notation leak_c := (seq leak_i).
 Notation leak_for := (seq leak_c) (only parsing).
 
 Notation leak_fun := (funname * leak_c)%type.
+
+(* ------------------------------------------------------------------------ *)
+(* Leakage trees and leakage transformations. *)
+
+(* Leakage transformer for expressions *)
+Inductive leak_e_tr :=
+| LT_id (* preserve *)
+| LT_remove (* remove *)
+| LT_subi : nat -> leak_e_tr (* projection *) (* FIXME: change Z into nat *) (** Fixed **)
+| LT_seq : seq leak_e_tr -> leak_e_tr (* parallel transformations *)
+| LT_compose: leak_e_tr -> leak_e_tr -> leak_e_tr. (* compositon of transformations *)
+
+Fixpoint leak_E (lt : leak_e_tr) (l : leak_e) : leak_e := 
+  match lt, l with
+  | LT_seq lts, LSub xs => LSub (map2 leak_E lts xs)
+  | LT_id, _ => l
+  | LT_remove, _ => LEmpty
+  | LT_subi i, LSub xs => nth LEmpty xs i
+  | LT_compose lt1 lt2, _ => leak_E lt2 (leak_E lt1 l)
+  | _, _ => LEmpty
+  end.
+
+(* Leakge transformer for instructions *)
+Inductive leak_i_tr :=
+| LT_iremove : leak_i_tr
+| LT_ikeep : leak_i_tr
+| LT_ile : leak_e_tr -> leak_i_tr  (* assign and op *)
+| LT_icond : leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr (* if *)
+| LT_iwhile : seq leak_i_tr -> leak_e_tr -> seq leak_i_tr -> leak_i_tr (* while *)
+| LT_icond_eval : seq leak_i_tr -> leak_i_tr
+| LT_ifor : leak_e_tr -> seq leak_i_tr -> leak_i_tr
+| LT_icall : leak_e_tr -> leak_e_tr -> leak_i_tr.
+
+Section Leak_I.
+
+  Variable leak_I : leak_i -> leak_i_tr -> seq leak_i.
+
+  Definition leak_Is (lts : seq leak_i_tr) (ls : seq leak_i) : seq leak_i :=
+    flatten (map2 leak_I ls lts).
+
+  Definition leak_Iss (ltss : seq leak_i_tr) (ls : seq (seq leak_i)) : seq (seq leak_i) :=
+    (map (leak_Is ltss) ls).
+
+End Leak_I.
+
+Section Leak_Call.
+
+Variable leak_Fun : funname -> seq leak_i_tr.
+
+Definition dummy_lit := Lassgn LEmpty.
+
+Fixpoint leak_I (l : leak_i) (lt : leak_i_tr) {struct l} : seq leak_i :=
+  match lt, l with
+  | LT_iremove, _ => [::]
+  | LT_ikeep, _ => [::l]
+  | LT_ile lte, Lassgn le => [:: Lassgn (leak_E lte le) ]
+  | LT_ile lte, Lopn le   => [:: Lopn (leak_E lte le) ]
+  | LT_icond lte ltt ltf, Lcond le b lti => 
+    [:: Lcond (leak_E lte le) b (leak_Is leak_I (if b then ltt else ltf) lti) ]
+  | LT_iwhile ltis lte ltis', Lwhile_true lts le lts' lw => 
+    [:: Lwhile_true (leak_Is leak_I ltis lts)
+                     (leak_E lte le)
+                     (leak_Is leak_I ltis' lts')
+                     (head dummy_lit (leak_I lw lt))]
+  | LT_iwhile ltis lte ltis', Lwhile_false lts le => 
+    [::Lwhile_false (leak_Is leak_I ltis lts)
+                     (leak_E lte le)]
+  | LT_icond_eval lts, Lcond _ _ lti => 
+    leak_Is leak_I lts lti
+  | LT_icond_eval lts, Lwhile_false lti le =>
+    leak_Is leak_I lts lti
+  | LT_ifor lte ltiss, Lfor le ltss => [:: Lfor (leak_E lte le)
+                                                (leak_Iss leak_I ltiss ltss) ]
+  | LT_icall lte lte', Lcall le (f, lts) le' => [:: Lcall (leak_E lte le)
+                                                          (f, (leak_Is leak_I (leak_Fun f) lts))
+                                                          (leak_E lte' le') ]
+  | _, _ => [:: l]
+  end.
+
+End Leak_Call.
+
+Notation leak_c_tr := (seq leak_i_tr).
+
+Definition leak_f_tr := seq (funname * leak_c_tr).
+
+Section Leak_Call_Imp.
+
+Variable Fs: leak_f_tr.
+
+Definition leak_Fun (f: funname) : leak_c_tr := odflt [::] (assoc Fs f).
+
+End Leak_Call_Imp.
+
+
+
+
 
 
 
