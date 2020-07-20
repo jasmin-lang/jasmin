@@ -2852,9 +2852,6 @@ exists lw, fold2 ErrType (λ (l : lval) (v : value)
            Let sl' := write_lval gd l v sl.1
            in ok (sl'.1, rcons sl.2 sl'.2)) xs vs (s1, [::]) = ok (s2, lw) /\ lw2 = lw1 ++ lw.
 Proof.
-elim: xs.
-
-
 elim: xs vs s1 lw1 lw2 s2 => [|x xs Hrec] [|v vs] s1 lw1 lw2 s2 //=.
 + move=> [] <- <- /=. exists [::]. split. auto. by rewrite cats0.
 + t_xrbindP. move=> [s l] [s' l'] Hw [] <- <- Hws /=.

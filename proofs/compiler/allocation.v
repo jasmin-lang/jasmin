@@ -71,7 +71,7 @@ Module Type CheckB.
     eq_alloc r vm1 vm2 ->
     eq_alloc re vm1 vm2 /\
     forall m v1 l1,  sem_pexpr gd (Estate m vm1) e1 = ok (v1, l1) ->
-                     exists v2, sem_pexpr gd (Estate m vm2) e2 = ok (v2, l1) /\ value_uincl v1 v2.
+                     exists v2, sem_pexpr gd (Estate m vm2) e2 = ok (v2, leak_E lte l1) /\ value_uincl v1 v2.
 
   Parameter check_lvalP : forall gd r1 r1' ltr1' x1 x2 e2 s1 s1' l1' vm1 v1 v2,
     check_lval e2 x1 x2 r1 = ok (r1', ltr1') ->
@@ -83,7 +83,7 @@ Module Type CheckB.
         (*sem_pexpr gd (Estate s1.(emem) vm1) te2.2 >>= truncate_val te2.1 = ok v2) true e2 ->*)
     write_lval gd x1 v1 s1 = ok (s1', l1') ->
     exists vm1',
-      write_lval gd x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1', l1') /\
+      write_lval gd x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1', leak_E ltr1' l1') /\
       eq_alloc r1' s1'.(evm) vm1'.
 
 End CheckB.
@@ -141,17 +141,21 @@ Definition check_var x1 x2 r := check_lval None (Lvar x1) (Lvar x2) r.
 
 Definition check_vars xs1 xs2 r := check_lvals (map Lvar xs1) (map Lvar xs2) r.
 
+Check add_iinfo.
 
-(*Fixpoint check_i iinfo i1 i2 r : ciexec (M.t * leak_i_tr) :=
+Print add_iinfo.
+
+Fixpoint check_i iinfo i1 i2 r : ciexec (M.t * leak_i_tr) :=
   match i1, i2 with
   | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
     if ty1 == ty2 then
-      Let res := check_e e1 e2 r in
-      let: (res', res'') := res in
-      Let rls := check_lval (Some (ty2, e2)) x1 x2 res' in 
-      let: (rls', rls'') := rls in 
+      Let res := add_iinfo iinfo (check_e e1 e2 r) in
+      let: (res', lte) := res in
+      Let rls := add_iinfo iinfo (check_lval (Some (ty2, e2)) x1 x2 res') in 
+      let: (rls', ltlv) := rls in
+      (rls',  LT_ile (LT_seq [:: lte ; ltlv]))                  
       Let rs := add_iinfo iinfo (cok rls') in 
-      ciok (rs.1, LT_ile (LT_seq (res.2 :: [:: rls''])))
+      ciok (rs.1, LT_ile (LT_seq (res.2 :: [:: ltlv])))
     else Let rs := cierror iinfo (Cerr_neqty ty1 ty2 salloc) in
          ciok (rs, LT_iremove)
   | Copn xs1 _ o1 es1, Copn xs2 _ o2 es2 =>
