@@ -1133,241 +1133,51 @@ Section Section.
        & evm s2 =[X] vm2].
     + move=> {vs vsE hwrinit trunc_vargs' vargs' eval_args eval_vargs' eargs pl plE fnE}
              {sem_pl fdef Hfdef Hget_fundef h2 sem_body vargs}.
-      (*Introducing make_pseudo_epilogue and swapable.*)
       move : epE.
       rewrite /make_epilogue.
       t_xrbindP => pinstrs Hpseudo Hswap.
       have le_X' : Sv.Subset (Sv.union (read_rvs lv) (vrvs lv)) X by SvD.fsetdec.
       have eq_evm : evm (with_mem s1 (emem s3')) =[X] evm (with_vm s3' vmx) by apply: (eq_onT eq_s1_vm1).
       case : (make_pseudo_codeP Hpseudo aoutE le_X' h3 eq_evm).
-      move => vm2 [Hsem_pis eq_s2_vm2].
+      move => vm2 ; rewrite evm_with_vm => - [Hsem_pis eq_s2_vm2].
       case : (swapableP Hswap Hsem_pis).
       move => sy [vmy] [Hwrite_lvals Hsem].
-      (*What does =v mean?*)
-      (*move => /= ? ; subst vm2.*)
       move => /= eq_vm2_vmy.
-      move : le_X'.
-      move=> {le_X args} le_X ; move: h3.
-      move : eq_evm.
-      have: emem (with_mem s1 (emem s3')) = emem (with_vm s3' vmx) by [].
+      exists vmy, sy ; split => //.
+      move => z Hz.
+      by rewrite eq_s2_vm2.
+
+    case : Hep => vm2 [s3] [Hwr_lvals Hsem eq_s3_vm2].
 
 
-      move=> {eq_vm1_vmx eq_s1_vm1} ; move: (with_mem s1 _) (with_vm s3' _).
-      move=> {vmx wf_vm1 vm1 s1 vresE} s1 s4 eq_s1_s4 wr_lvals_s1.
-      have: (Sv.Subset X X) by SvD.fsetdec.
-      move: {1 3}X epE => Y epE le_XY.
-      move: epE X s1 s2 s4 aout vres le_X le_XY wr_lvals_s1 eq_s1_s4 aoutE.
-      rewrite /make_epilogue.
-      t_xrbindP => pinstrs hpseudo hswap.
-      have := (make_pseudo_codeP hpseudo).
-      have := (@swapableP _ _ _ _ _ _ _ hswap).
-
-
-
-
-
-      move : hpseudo.
-      elim/make_pseudo_epilogueW.
-      + (*Why are two [] needed?*)
-        rewrite /swapable /= => [] [] ?? ; subst lvaout ep.
-        move => X s1 s2 s4 [] // [] // _ _ /= eq_es1_es4 eq_s1_s4 _ [<-].
-        exists (evm s4); exists s4 ; split=> // ; rewrite /with_vm eq_s1_s4.
-        by case: (s4) => es4 vm4 /=; constructor.
-
-
-      + move=> x xs fty ftys lv1 lvs c args E ih hswap X s1 s2 s4 aout vres.
-        move=> le_X le_XY eq_es1_es4 eq_s1_s4 ; case: vres=> // vres1 vres.
-        case: aout=> // aout1 aout /=; t_xrbindP => v1 trunc_vres1 vs trunc_vres.
-        move=> ??; subst v1 vs => s hwr1 hwr.
-        case: (write_lval_eq_on _ hwr1 eq_es1_es4).
-        - by move: le_X; rewrite read_rvs_cons vrvs_cons; SvD.fsetdec.
-        move=> vms [eq_s_vms] hwr1'.
-        (*Seems like a genralization of ih will be needed, or maybe a use of swapableP.*)
-        move : hswap.
-        rewrite /swapable.
-        t_xrbindP => [[lvys cy] hswap] [] ?? ; subst lvaout cy.
-        rewrite - /swapable in hswap.
-
-
-
-
-        have /(_ (with_vm s vms))[]// := ih hswap X _ _ _ _ _ _ _ _ _ _ trunc_vres hwr.
-        - by move: le_X; rewrite read_rvs_cons vrvs_cons; SvD.fsetdec.
-        - apply/Sv.is_empty_spec; move/Sv.is_empty_spec: hdisj.
-          by rewrite vrvs_cons; SvD.fsetdec.
-        - by rewrite /with_vm /=; apply: eq_onI eq_s_vms; SvD.fsetdec.
-        move=> vm2 [s5] [ih1 ih2 ih3]; exists vm2, s5; split=> //.
-        rewrite (_ : with_vm s1 (evm s4) = s4) in hwr1'; last first.
-        - by rewrite /with_vm eq_s1_s4; case: (s4).
-        by rewrite -eqglob hwr1' /= eqglob.
-      + move=> x xs fty ftys lv lvs y c lvaout ?; subst fty.
-        move=> yNbool yNX E _ ih X s1 s2 s4 [] // vres1 vres [] // aout1 aout.
-        rewrite read_rvs_cons vrvs_cons => le_X le_XY hdisj eq_s1_s4 eq_es1_es4 /=.
-        t_xrbindP => v1 trunc_vres1 vs trunc_vres ??; subst v1 vs => s hwr1 hwr.
-        have eq_s1_s: emem s1 = emem s.
-        - case: {+}lv hwr1 E => //.
-          * by move=> z; rewrite /write_lval /write_var; t_xrbindP=> vm1 _ <-.
-          * move=> aa w q z ze; rewrite /write_lval.
-            by elim/on_arr_varP=> q' a _ _; t_xrbindP=> *; subst s.
-        have [s5 oks5]: exists s5, write_var y vres1 s4 = ok s5.
-        - admit.
-        have []// := ih X s s2 s5 vres aout.
-        - by SvD.fsetdec.
-        - by SvD.fsetdec.
-        - apply/Sv.is_empty_spec; move/Sv.is_empty_spec: hdisj.
-          by rewrite vrvs_cons write_c_cons; SvD.fsetdec.
-        - admit.
-        - admit.
-        - move=> vm6 [s6] [ih1 ih2 ih3]; exists vm6, s6; split=> //.
-          * by rewrite oks5.
-
-
-lvs -> valeurs gauches initiales
-lvs -> lvs1 U lvs2
-       ou lvs1 = { lv | une variable a ete generee }
-          lvs2 = tous les autres
-
-
-
-          * 
-
-        have eq_s_vms: evm s =[X] vms.
-        - have := @vrvP_var y vres1 s (with_vm s vms).
-          rewrite /write_var okvms /= => /(_ (erefl _)).
-          move/vmap_eq_except_eq_on=> /(_ vms X (fun _ _ => erefl _)).
-          by apply: eq_onI; move/Sv_memP: yNX; SvD.fsetdec.
-        case: (write_lvals_eq_on _ hwr eq_s_vms); first by SvD.fsetdec.
-        move=> vm2 []; rewrite [X in _ =[X] _](_ : Sv.Equal _ X); last by SvD.fsetdec.
-        move=> eq_s2_vm2 hwr'; have := ih _ _ _ _ _ _ _ _ _ _ trunc_vres hwr'.
-        
-
-
-        have /(_ (with_vm s vms))[]// := ih _ _ _ _ _ _ _ _ trunc_vres hwr'.
-
-
-(*
-lv1 <- v1; lvs <- vs
-
-y   <- v1; ys  <- vs; lv1 <- y; lvs <- ys
-*)
-        case=> vms hwr1'; have [s6 oks6]:
-          exists s6, write_lval (p_globs p') lv vres1 (with_vm s4 vms) = ok s6.
-        - eexists.
-          have := (@write_lval_eq_on _ X _ _ _ _ vms _ hwr1).
-          by admit.
-        have /(_ s6)[]// :=
-          ih X _ _ _ _ _ _ _ _ _ trunc_vres hwr.
-        - by move: le_X ; SvD.fsetdec.
-        - by SvD.fsetdec.
-        - by admit.
-        - rewrite - eq_s1_s eq_es1_es4.
-          Search _ write_lval emem.
-          move : E oks6.
-          case : (lv) => //=.
-          * move => v.
-            case [Ha Hb] : (is_reg_ptr x && ~~ is_reg_ptr v) => //= H.
-            inversion H ; rewrite - H1 //= in hwr1'.
-            rewrite /write_var.
-            move : hwr1'.
-            rewrite /set_var.
-            by admit.
-          by admit.
-
-(*rewrite /with_vm /=.
-
-have := @vrvP_var y aout1 (with_vm s4 (evm s4)) (with_vm s4 vms).
-          rewrite /write_var /= hwr1' /= => /(_ (erefl _)).
-          move/vmap_eq_except_eq_on => /(_ vms X (fun _ _ => erefl _)).
-          by apply: eq_onI; move/Sv_memP: yNX; SvD.fsetdec.*)
-(*        - by rewrite /with_vm /= -eq_es1_es4 eq_s1_s.*)
-        move=> vm2 [s5] [ih1 ih2 ih3].
-        exists vm2, s5; split.
-        - rewrite /write_var hwr1' /=. admit.
-        - 
-        - by apply: eq_onI ih3; SvD.fsetdec.
-
-
-
-
-
-      + move=> x xs fty ftys lv lvs y c args ? yNbool yNx; subst fty.
-        move=> E epE ih s1 s4 aout vres le_X eq_es1_es4 eq_s1_s4.
-        case: vres=> // vres1 vres; case: aout => // aout1 aout /=.
-        t_xrbindP=> v1 trunc_vres1 vs trunc_vres ??; subst v1 vs.
-        move=> s hwr1 hwr;
-
-
-        have /(_ (with_vm s vms))[]// := ih _ _ _ _ _ _ _ trunc_vres hwr.
-        - by move: le_X; rewrite read_rvs_cons vrvs_cons; SvD.fsetdec.
-        - admit.
-        move=> vm2 [s5] [ih1 ih2 ih3]; exists vm2, s5; split=> //.
-        - 
-
-rewrite /write_var hwr1' /=.
-
-
-      (*
-      move : epE (X) le_X eq_s1_vm1 aout aoutE (f_tyin fnd) (f_res fnd) h3 trunc_vargs' vresE.
-      elim/make_epilogueW.
-      - move => _ Y subUY eq_s1_vm1 aout aoutE f_tyin f_res Hfold2 HmapM2 HmapM.
-        move : Hfold2.
-        case : (aout) => //= -[<-].
-        eexists ; eexists ; split => //=.
-        by apply : Eskip.
-      - move => Y x xs fty ftys lv1 lvs c args0 eq_ptr_lval epE ih Z.
-        rewrite read_rvs_cons vrvs_cons.
-        move => subUZ eq_s1_vm1 aout aoutE f_tyin f_res Hfold2 HmapM2 HmapM.
-        eexists ; eexists ; split.
-        move : Hfold2.
-        case : (aout) => //= val vals.
-        rewrite eq_globs.
-        t_xrbindP => sy Hwrite_lval Hwrite_lvals.
-        (*Maybe vm1, maybe vmx...*)
-        case : (@write_lval_eq_on _ Z _ _ _ _ vmx _ Hwrite_lval).
-        * by SvD.fsetdec.
-        * move : eq_s1_vm1.
-          Search _ (_ =[_] _) with_mem.
-          by admit.
-        move => vmy [eq_sy_vmy Hwrite_lval_y].
-        move : Hwrite_lval_y.
-        rewrite /with_mem /with_vm /=.
-        move => -> /=.
-        case : (ih Z _ _ _ 
-        (*Probably vmy here.*)
-        case : (@write_lvals_eq_on _ Z _ _ _ _ vmy _ Hwrite_lvals).
-        * by SvD.fsetdec.
-        * move : eq_sy_vmy.
-          rewrite SvP.MP.union_subset_equal => //.
-          by SvD.fsetdec.
-        move => vm2 [eq_s2_vm2 Hwrite_lvals2].
-        move : Hwrite_lvals2.
-        rewrite {1}/with_vm.
-        (*I have not yet used ih, it probably was a mistake,or maybe not?*)
-      by admit.
-      *)
-
-    eexists.
-    split.
-    + admit.
+    exists vm2.
+    split => //.
     + admit.
     apply : (sem_app sem_pl).
-    apply : Eseq.
-    + apply : EmkI.
-      inversion_clear h2.
-      have : fdef = f.
-      - rewrite Hget_fundef in H.
-        by case : H.
-      move => ? ; subst f => {H}.
-      move : Hfdef.
-      rewrite {1}/update_fd.
-      t_xrbindP => c' Hc' ? ; subst fdef.
-      move : (H0).
-      rewrite vsE.
-      case => ? ; subst vargs0.
-      apply : (Ecall _ eval_vargs').
-      - by econstructor ; eauto.
-      - by admit.
-    by admit.
+    apply : (Eseq _ Hsem).
+    apply : EmkI.
+    econstructor.
+    + by apply eval_vargs'.
+    2 : by apply Hwr_lvals.
+    rewrite /Pfun in h2.
+    inversion_clear h2.
+    econstructor ; eauto.
+    move : vsE trunc_vargs'.
+    have : f_tyin fnd = f_tyin f.
+    + move : (p_funcs p) (p_funcs p') (mapM_size eq_funcs) eq_funcs fnE H.
+      apply : diagonal_induction_2_eq => //= [[hfp1 hfp2] [hfp'1 hfp'2]] tfp tfp' eq_size_tfp ih.
+      t_xrbindP => y h.
+      case Hupdate_fd : (update_fd _ _ _ _ _) => //= - [] hh.
+      rewrite hh in Hupdate_fd.
+      rewrite /cfok.
+      move => [] ? ; subst y.
+      move => tfp'c Hmap_cfprog [? ?] ? ; subst hfp'1 ; subst hfp'2 ; subst tfp'c.
+      case : (fn == hfp1) ; last by apply : ih.
+      move => [?] [?] ; subst fnd ; subst f.
+      move : Hupdate_fd.
+      by rewrite /update_fd ; t_xrbindP => c _ <-.
+    move => ->.
+    by rewrite H0 => - [] ->.
   Qed.
 
   Lemma eq_extra : p_extra p = p_extra p'.
