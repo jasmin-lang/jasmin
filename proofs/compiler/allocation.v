@@ -187,7 +187,7 @@ Fixpoint check_i iinfo i1 i2 r : ciexec (M.t * leak_i_tr) :=
     let check_c r :=
       Let rc := fold2 (iinfo, cmd2_error) (fun e1 e2 r1 => Let rs := check_I e1 e2 r1.1 in
                                                ok (rs.1, rcons r1.2 rs.2)) c1 c2 (r, [::]) in
-      Let re := add_iinfo iinfo (check_e e1 e2 r) in
+      Let re := add_iinfo iinfo (check_e e1 e2 rc.1) in
       Let rc' := fold2 (iinfo, cmd2_error) (fun e1 e2 r1 => Let rs := check_I e1 e2 r1.1 in
                                                ok (rs.1, rcons r1.2 rs.2)) c1' c2' (re.1, [::]) in 
       ok (re.1, rc'.1, (rc.2, re.2, rc'.2)) in
@@ -354,7 +354,8 @@ Section PROOF.
     forall ii r1 i2 r2 lti vm1, eq_alloc r1 (evm s1) vm1 ->
     check_i ii i1 i2 r1 = ok (r2, lti) ->
     exists vm2, eq_alloc r2 (evm s2) vm2 /\
-      sem p2 (Estate (emem s1) vm1) [:: (MkI ii i2)] (leak_I (leak_Fun Fs) li lti) (Estate (emem s2) vm2).
+                sem_i p2 (Estate (emem s1) vm1) i2 (head dummy_lit (leak_I (leak_Fun Fs) li lti))
+                                                         (Estate (emem s2) vm2).
 
   (*Let Pi s1 (i1:instr) s2:=
     forall r1 i2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
@@ -366,7 +367,8 @@ Section PROOF.
     forall r1 i2 r2 lti vm1, eq_alloc r1 (evm s1) vm1 ->
     check_I i1 i2 r1 = ok (r2, lti) ->
     exists vm2, eq_alloc r2 (evm s2) vm2 /\
-      sem p2 (Estate (emem s1) vm1) [:: i2] (leak_I (leak_Fun Fs) li lti) (Estate (emem s2) vm2).
+                sem_I p2 (Estate (emem s1) vm1) i2 (head dummy_lit (leak_I (leak_Fun Fs) li lti))
+                                                          (Estate (emem s2) vm2).
 
   Let Pc s1 (c1:cmd) lc s2:=
     forall ii r1 c2 r2 ltc vm1, eq_alloc r1.1 (evm s1) vm1 ->
@@ -403,7 +405,8 @@ Section PROOF.
     move: (Hi r1 i2 r2' lti' vm1 Hvm1 Hci). move=> {Hi} [] vm2 [] Hvm2 Hsc'.
     move: (Hc ii ((r2', lti').1,
                   rcons lr1 (r2', lti').2) c2 r2 ltc vm2 Hvm2 Hcc). move=> {Hc} [] vm3 [] Hvm3 Hsc''.
-    exists vm3. split=>//. rewrite /leak_Is. admit.
+    exists vm3. split=>//. rewrite /leak_Is.
+     admit.
   Admitted.
 
   Local Lemma HmkI : sem_Ind_mkI p1 Pi_r Pi.
@@ -425,8 +428,9 @@ Section PROOF.
     move: (Hcv' gd re rv ltv x x2 (Some (ty, e2)) {|emem := sm1; evm := svm1|}
                 s2 lw vm1 v' v''' Hcv Hvm2 Hv').
     move=> /= {Hcv'}. rewrite He' /=. move=> H. move: (H Htr' Hw). move=> {H} [] vm2 [] Hcv' Hvm3.
-    exists vm2. split=> // /=; econstructor. apply EmkI. apply Eassgn with v'' v'''. replace (p_globs p2) with gd.
-    auto. auto. replace (p_globs p2) with gd. apply Hcv'. constructor.
+    exists vm2. split=> // /=; econstructor. replace (p_globs p2) with gd.
+    auto. auto. replace (p_globs p2) with gd. apply He'. apply Htr'.
+     replace (p_globs p2) with gd. apply Hcv'.
   Qed.
 
   Lemma check_esP e1 e2 r re lte s vm:
@@ -466,9 +470,8 @@ Section PROOF.
     move=> [] vo' [] {Hex'} Hex' Hvo.
     move: (Hcvs' gd xs xs1 vo vo' yv rv ltv s1 vw vl vm1 Hcvs Hvm2 Hvo Hws).
     move=> {Hcvs'} [] vm2 [] Hws' Hvm3. exists vm2; split=> //. econstructor.
-    constructor. constructor. rewrite /sem_sopn /=. rewrite Hes /=. rewrite Hex' /=.
+    rewrite /sem_sopn /=. rewrite Hes /=. rewrite Hex' /=.
     replace (p_globs p2) with gd. rewrite Hws' /=. rewrite Hls /=. auto.
-    constructor.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p1 Pc Pi_r.
@@ -480,8 +483,8 @@ Section PROOF.
     move=> [r3 lt3] Hr3;move => [r4 lt4] Hr4 [] <- <-. rewrite /Pc in Hc1. rewrite /= in Hc1.
     have [vm2 [Hvm2 Hsem]]:= Hc1 ii (re, [::]) _ r3 lt3 _ Hr1' Hr3;exists vm2;split.
     + rewrite /=. apply eq_alloc_incl with r3. apply M.merge_incl_l. auto.
-    econstructor. constructor. apply Eif_true. replace (p_globs p2) with gd.
-    auto. apply Hsem. constructor.
+    econstructor. replace (p_globs p2) with gd.
+    auto. apply Hsem.
   Qed.
 
   Local Lemma Hif_false : sem_Ind_if_false p1 Pc Pi_r.
@@ -493,49 +496,55 @@ Section PROOF.
     move=> [r3 lt3] Hr3;move => [r4 lt4] Hr4 [] <- <-. rewrite /Pc in Hc1. rewrite /= in Hc1.
     have [vm2 [Hvm2 Hsem]]:= Hc1 ii (re, [::]) _ r4 lt4 _ Hr1' Hr4;exists vm2;split.
     + rewrite /=. apply eq_alloc_incl with r4. apply M.merge_incl_r. auto.
-    econstructor. constructor. apply Eif_false. replace (p_globs p2) with gd.
-    auto. apply Hsem. constructor.
-  Qed.
-  
-    apply: rbindP => r1';apply: add_iinfoP => /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
-    move=> /(_ _ _ Hve) [ve' [Hve' /value_uincl_bool1 ?]];subst ve'.
-    apply: rbindP => r3 Hr3;apply: rbindP => r4 Hr4 [] <-.
-    have [vm2 [Hvm2 Hsem]]:= Hc1 ii _ _ _ _ Hr1' Hr4;exists vm2;split.
-    + by eapply eq_alloc_incl;eauto;apply M.merge_incl_r.
-    by apply Eif_false => //;rewrite -eq_globs Hve'.
+    econstructor. replace (p_globs p2) with gd.
+    auto. apply Hsem.
   Qed.
 
-  Local Lemma loop2P ii check_c n r1 r2:
-    loop2 ii check_c n r1 = ok r2 ->
+  Local Lemma loop2P ii check_c n r1 r2 (ltc: leak_c_tr) (lte: leak_e_tr) (ltc': leak_c_tr):
+    loop2 ii check_c n r1 = ok (r2, (ltc, lte, ltc')) ->
       exists r2' r3,
-      [/\ check_c r2' = ok (r2, r3), M.incl r2' r1 & M.incl r2' r3].
+      [/\ check_c r2' = ok (r2, r3, (ltc, lte, ltc')), M.incl r2' r1 & M.incl r2' r3].
   Proof.
-    elim: n r1 r2 => //= n Hrec r1 r2.
-    apply: rbindP => -[r2_1 r2_2] Hc;case:ifPn => [? [] <- | _ /Hrec].
-    + exists r1, r2_2;split=>//;apply M.incl_refl.
-    move=> [r2' [r3 [H1 H2 H3]]];exists r2', r3;split=>//.
-    apply: (M.incl_trans H2); apply M.merge_incl_l.
+    elim: n r1 r2 ltc lte ltc'=> //= n Hrec r1 r2 ltc lte ltc'.
+    t_xrbindP. move=> -[[r2_1 r2_2] [[lt1 lt2] lt3]]. case:ifPn.
+    + move=> h hc [] <- <- <- <-. exists r1. exists r2_2.
+      split=> //. apply M.incl_refl.
+    move=> h1 h2 h3. move: (Hrec (M.merge r1 r2_2) r2 ltc lte ltc' h3).
+    move=> [] r1' [] r3' [] h2' h1' h2''. exists r1'. exists r3'.
+    split=> //. apply: (M.incl_trans h1'); apply M.merge_incl_l.
   Qed.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p1 Pc Pi_r.
   Proof.
-    move => s1 s2 s3 s4 a c e c'.
-    case: s2 => sm2 svm2 _ Hc Hse _ Hc' _ Hw ii r1 [] //= a2 c2 e2 c2' r2 vm1 Hvm1.
-    apply: rbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] [?];subst r.
-    have Hvmr2' := eq_alloc_incl Hir1 Hvm1.
-    apply: rbindP H=> r0 Cc2; move /Hc: (Hvmr2') (Cc2) => H /H {H} [vm2 [Hvm2 /= Hc2]].
-    apply: rbindP => re Hadd; apply: add_iinfoP (Hadd)=> Hre.
-    have /= [Hrevm2 /(_ _ _ Hse) [vb' [Hse2]]]:= check_eP gd Hre Hvm2.
-    move=> /value_uincl_bool1?;subst vb'.
-    apply: rbindP => r' Cc2' [??];subst r2 r3.
-    move /Hc': (Hrevm2) (Cc2')=> H /H {H} [vm3 [Hvm3 /= Hc2']].
-    have /(Hw ii) {Hw} Hw:= eq_alloc_incl Hir3 Hvm3.
-    have : check_i ii (Cwhile a c e c') (Cwhile a2 c2 e2 c2') r2' = ok re.
-    + by rewrite /= Loop.nbP /= Cc2 /= Hadd /= Cc2' /= Hir3 /=.
-    move=> /Hw [vm4 [Hvm4 Hsw]];exists vm4;split => //.
-    by apply: Ewhile_true Hsw;eauto;rewrite -eq_globs Hse2.
+    move => s1 s2 s3 s4 a c e c' lc le lc' li.
+    case: s2 => sm2 svm2 Hci Hc Hse Hci' Hc' Hwi Hw ii r1 [] //= a2 c2 e1 c2' r2 lti vm1 Hvm1.
+    t_xrbindP. move=> [r [[ltc lte] ltc']] /loop2P.
+    move=> [] r1' [] r2' [].
+    t_xrbindP. move=> [ri ltci] Hi [re lte']. apply: add_iinfoP.
+    move=> He [ri' ltci'] Hi' <- <- /= hl /= hl1 /= hl2 hi hi' <- <- /=.
+    move: eq_alloc_incl. move=> Hq. move: (Hq r1 r1' (evm s1) vm1 hi Hvm1).
+    move=> {Hq} Hvm1'. rewrite /Pc in Hc.
+    move: (Hc ii (r1', [::]) c2 ri ltci vm1 Hvm1' Hi).
+    move=> [] vm2 [] Hvm2 /= Hc1 {Hc}.
+    move: check_eP. move=> Hce. move: (Hce gd e e1 ri re lte' svm2 vm2 He Hvm2). 
+    move=> {Hce} [] Hvme He'. rewrite /Pc in Hc'.
+    move: (Hc' ii (re, [::]) c2' ri' ltci' vm2 Hvme Hi').
+    move=> {Hc'} [] vm3 [] Hvm3 Hc1'.
+    move: eq_alloc_incl. move=> Hq. move: (Hq ri' r1' (evm s3) vm3 hi' Hvm3).
+    move=> {Hq} Hvm4.
+    have : check_i ii (Cwhile a c e c') (Cwhile a2 c2 e1 c2') r1' =
+           ok (re, LT_iwhile ltci lte' ltci').
+    + rewrite /= Loop.nbP /=. rewrite Hi /=. rewrite He /=. rewrite Hi' /=.
+      rewrite hi' /=. auto. move=> Hw'. rewrite /Pi_r in Hw.
+    move: (Hw ii r1' (Cwhile a2 c2 e1 c2') re (LT_iwhile ltci lte' ltci') vm3 Hvm4 Hw').
+    move=> [] vm4 [] Hvm5 /= Hc1''. exists vm4. split=> //.
+    econstructor. rewrite hl in Hc1. apply Hc1.
+    move: (He' sm2 true le Hse). move=> {He'} [] v [] Hse' /value_uincl_bool1.
+    move=> <- /=. rewrite -hl1. by replace (p_globs p2) with gd.
+    rewrite hl2 in Hc1'. apply Hc1'. rewrite hl hl1 hl2 /= in Hc1''. apply Hc1''.
   Qed.
 
+  
   Local Lemma Hwhile_false : sem_Ind_while_false p1 Pc Pi_r.
   Proof.
     move => s1 s2 a c e c'.
