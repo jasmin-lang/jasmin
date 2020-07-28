@@ -2882,8 +2882,7 @@ Proof.
     apply helper in Hws. move: Hws. move=> [] lw0 [] Hr Hl.
     move:(Hrec vs m1 s' s2 lw0 Hm1 Hr). rewrite hcrvs /=.
     move=> {Hrec} [] Hm2 Hr'. split. auto.
-    rewrite Hw' Hl /=. apply helper.
-
+    rewrite Hw' Hl /=. Admitted.
 (*Lemma const_prop_rvsP s1 s2 m xs vs lw:
   let c' := ((const_prop_rvs m xs).1).1 in
   let e' := ((const_prop_rvs m xs).1).2 in

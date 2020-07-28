@@ -53,7 +53,7 @@ Module Type CheckB.
 
   End M.
 
-  Parameter check_e    : pexpr -> pexpr -> M.t -> cexec (M.t * leak_e_tr).
+  Parameter check_e : pexpr -> pexpr -> M.t -> cexec (M.t * leak_e_tr).
 
   Parameter check_lval : option (stype * pexpr) -> lval -> lval -> M.t -> cexec (M.t * leak_e_tr).
 
@@ -108,13 +108,15 @@ Section LOOP.
       else loop n (M.merge m m'.1)
     end.
 
-  Variable check_c2 : M.t -> ciexec (M.t * leak_c_tr * M.t * leak_c_tr).
+  Variable A : Type.
+  Variable check_c2 : M.t -> ciexec (M.t * M.t * A).
+  
   Fixpoint loop2 (n:nat) (m:M.t) :=
     match n with
     | O => cierror ii (Cerr_Loop "allocation")
     | S n =>
       Let rc := check_c2 m in
-      let: (m', ltm', m'', ltm'') := rc in 
+      let: (m', m'', ltm') := rc in 
       if M.incl m m'' then ok (m', ltm')
       else loop2 n (M.merge m m'')
     end.
@@ -141,52 +143,57 @@ Definition check_var x1 x2 r := check_lval None (Lvar x1) (Lvar x2) r.
 
 Definition check_vars xs1 xs2 r := check_lvals (map Lvar xs1) (map Lvar xs2) r.
 
-Check add_iinfo.
-
-Print add_iinfo.
+Check loop2.
 
 Fixpoint check_i iinfo i1 i2 r : ciexec (M.t * leak_i_tr) :=
   match i1, i2 with
   | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
     if ty1 == ty2 then
       Let res := add_iinfo iinfo (check_e e1 e2 r) in
-      let: (res', lte) := res in
-      Let rls := add_iinfo iinfo (check_lval (Some (ty2, e2)) x1 x2 res') in 
-      let: (rls', ltlv) := rls in
-      (rls',  LT_ile (LT_seq [:: lte ; ltlv]))                  
-      Let rs := add_iinfo iinfo (cok rls') in 
-      ciok (rs.1, LT_ile (LT_seq (res.2 :: [:: ltlv])))
-    else Let rs := cierror iinfo (Cerr_neqty ty1 ty2 salloc) in
-         ciok (rs, LT_iremove)
+      Let rls := add_iinfo iinfo (check_lval (Some (ty2, e2)) x1 x2 res.1) in 
+      ciok (rls.1, LT_ile (LT_seq [:: res.2 ; rls.2]))                  
+    else cierror iinfo (Cerr_neqty ty1 ty2 salloc)
   | Copn xs1 _ o1 es1, Copn xs2 _ o2 es2 =>
     if o1 == o2 then
-      add_iinfo iinfo (check_es es1 es2 r >>= check_lvals xs1 xs2)
+      Let res := add_iinfo iinfo (check_es es1 es2 r) in
+      Let rls := add_iinfo iinfo (check_lvals xs1 xs2 res.1) in
+      ciok (rls.1, LT_ile (LT_seq [:: LT_seq res.2 ; LT_seq rls.2]))
+      (*add_iinfo iinfo (check_es es1 es2 r >>= check_lvals xs1 xs2)*)
     else cierror iinfo (Cerr_neqop o1 o2 salloc)
   | Ccall _ x1 f1 arg1, Ccall _ x2 f2 arg2 =>
     if f1 == f2 then
-      add_iinfo iinfo (check_es arg1 arg2 r >>= check_lvals x1 x2)
+      Let res := add_iinfo iinfo (check_es arg1 arg2 r) in
+      Let rls := add_iinfo iinfo (check_lvals x1 x2 res.1) in 
+      ciok (rls.1, (LT_icall (LT_seq res.2) (LT_seq rls.2)))
     else cierror iinfo (Cerr_neqfun f1 f2 salloc)
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
-    Let re := add_iinfo iinfo (check_e e1 e2 r) in
-    Let r1 := fold2 (iinfo,cmd2_error) check_I c11 c21 re in
-    Let r2 := fold2 (iinfo,cmd2_error) check_I c12 c22 re in
-    ok (M.merge r1 r2)
+    Let res := add_iinfo iinfo (check_e e1 e2 r) in
+    Let r1 := fold2 (iinfo, cmd2_error) (fun e1 e2 r1 => Let rs := check_I e1 e2 r1.1 in
+                                               ok (rs.1, rcons r1.2 rs.2)) c11 c21 (res.1, [::]) in
+    Let r2 := fold2 (iinfo, cmd2_error) (fun e1 e2 r1 => Let rs := check_I e1 e2 r1.1 in
+                                         ok (rs.1, rcons r1.2 rs.2)) c12 c22 (res.1, [::]) in 
+    ok (M.merge r1.1 r2.1, LT_icond res.2 r1.2 r2.2)
   | Cfor x1 (d1,lo1,hi1) c1, Cfor x2 (d2,lo2,hi2) c2 =>
     if d1 == d2 then
-      Let rhi := add_iinfo iinfo (check_e lo1 lo2 r >>=check_e hi1 hi2) in
-      let check_c r :=
-          add_iinfo iinfo (check_var x1 x2 r) >>=
-          fold2 (iinfo,cmd2_error) check_I c1 c2 in
-      loop iinfo check_c Loop.nb rhi
+      Let rlo := add_iinfo iinfo (check_e lo1 lo2 r) in
+      Let rhi := add_iinfo iinfo (check_e hi1 hi2 rlo.1) in 
+      Let rv := add_iinfo iinfo (check_var x1 x2 r) in 
+      let check_c r := fold2 (iinfo, cmd2_error) (fun e1 e2 r1 => Let rs := check_I e1 e2 r1.1 in
+                                               ok (rs.1, rcons r1.2 rs.2)) c1 c2 (rv.1, [::]) in
+      Let res := loop iinfo check_c Loop.nb rhi.1 in
+      ok (r, LT_ifor (LT_seq [:: rlo.2; rhi.2]) res.2)
     else cierror iinfo (Cerr_neqdir salloc)
   | Cwhile a1 c1 e1 c1', Cwhile a2 c2 e2 c2' =>
     let check_c r :=
-      Let r := fold2 (iinfo,cmd2_error) check_I c1 c2 r in
+      Let rc := fold2 (iinfo, cmd2_error) (fun e1 e2 r1 => Let rs := check_I e1 e2 r1.1 in
+                                               ok (rs.1, rcons r1.2 rs.2)) c1 c2 (r, [::]) in
       Let re := add_iinfo iinfo (check_e e1 e2 r) in
-      Let r' := fold2 (iinfo,cmd2_error) check_I c1' c2' re in
-      ok (re, r') in
+      Let rc' := fold2 (iinfo, cmd2_error) (fun e1 e2 r1 => Let rs := check_I e1 e2 r1.1 in
+                                               ok (rs.1, rcons r1.2 rs.2)) c1' c2' (re.1, [::]) in 
+      ok (re.1, rc'.1, (rc.2, re.2, rc'.2)) in
     Let r := loop2 iinfo check_c Loop.nb r in
-    ok r
+    let: (r, (ltc, lte, ltc')) := r in
+    ok (r, LT_iwhile ltc lte ltc')
 
   | _, _ => cierror iinfo (Cerr_neqinstr i1 i2 salloc)
   end
@@ -195,7 +202,6 @@ with check_I i1 i2 r :=
   match i1, i2 with
   | MkI _ i1, MkI ii i2 => check_i ii i1 i2 r
   end.
-
 
 (*Fixpoint check_i iinfo i1 i2 r : ciexec M.t :=
   match i1, i2 with
@@ -241,27 +247,41 @@ with check_I i1 i2 r :=
   | MkI _ i1, MkI ii i2 => check_i ii i1 i2 r
   end.*)
 
-Definition check_cmd iinfo := fold2 (iinfo,cmd2_error) check_I.
+Definition check_cmd iinfo := fold2 (iinfo, cmd2_error) (fun e1 e2 r1 => Let rs := check_I e1 e2 r1.1 in
+                                                               ok (rs.1, rcons r1.2 rs.2)).
 
+(** NEED TO FIX **)
 Definition check_fundef (f1 f2: funname * fundef) (_:Datatypes.unit) :=
   let (f1,fd1) := f1 in
   let (f2,fd2) := f2 in
   if (f1 == f2) && (fd1.(f_tyin) == fd2.(f_tyin)) && (fd1.(f_tyout) == fd2.(f_tyout)) then
     add_finfo f1 f2 (
-    Let r := add_iinfo fd1.(f_iinfo) (check_vars fd1.(f_params) fd2.(f_params) M.empty) in
-    Let r := check_cmd fd1.(f_iinfo) fd1.(f_body) fd2.(f_body) r in
+    Let rvs := add_iinfo fd1.(f_iinfo) (check_vars fd1.(f_params) fd2.(f_params) M.empty) in
+    Let rcs := check_cmd fd1.(f_iinfo) fd1.(f_body) fd2.(f_body) (rvs.1, [:: LT_ile (LT_seq rvs.2)]) in
     let es1 := map Pvar fd1.(f_res) in
     let es2 := map Pvar fd2.(f_res) in
-    Let _r := add_iinfo fd1.(f_iinfo) (check_es es1 es2 r) in
-    ok tt)
+    Let res := add_iinfo fd1.(f_iinfo) (check_es es1 es2 rcs.1) in
+    ok (tt, (fd1, (rcs.2 ++ [:: LT_ile (LT_seq res.2)]))))
+    (*Let rcs := check_cmd fd1.(f_iinfo) fd1.(f_body) fd2.(f_body) rvs.1 in
+    let es1 := map Pvar fd1.(f_res) in
+    let es2 := map Pvar fd2.(f_res) in
+    Let res := add_iinfo fd1.(f_iinfo) (check_es es1 es2 rcs.1) in
+    ok tt)*)
   else cferror (Ferr_neqfun f1 f2).
 
 Definition check_prog_aux prog1 prog2 :=
-  fold2 Ferr_neqprog check_fundef (p_funcs prog1) (p_funcs prog2) tt.
+  Let rs := fold2 Ferr_neqprog (fun f1 f2 r1 => Let rs := check_fundef f1 f2 r1.1 in ok (tt, (rcons r1.2 rs.2)))
+                  (p_funcs prog1) (p_funcs prog2) (tt, [::]) in
+  let rslt := unzip2 rs.2 in
+  let funnames := map fst (p_funcs prog1) in
+  let rsfnlt := zip funnames rslt in
+  ok (rs.1, rsfnlt).
+
+(*Definition check_prog_aux prog1 prog2 :=  fold2 Ferr_neqprog check_fundef (p_funcs prog1) (p_funcs prog2) tt.*)
 
 Definition check_prog prog1 prog2 :=
   if prog1.(p_globs) == prog2.(p_globs) then check_prog_aux prog1 prog2
-  else cferror Ferr_glob_neq.*)
+  else cferror Ferr_glob_neq.
 
                          
 Lemma check_lvalsP gd xs1 xs2 vs1 vs2 r1 r2 lts s1 s2 l2 vm1 :
@@ -299,19 +319,21 @@ Proof.
   apply: Hrec Hcxs Hvm3 Hvs Hws.
 Qed.*)
 
-(*Section PROOF.
+Section PROOF.
 
 
   Variable p1 p2:prog.
+  Variable Fs: seq (funname * seq leak_i_tr).
   Notation gd := (p_globs p1).
-  Hypothesis Hcheck: check_prog_aux p1 p2 = ok tt.
+  Hypothesis Hcheck: check_prog_aux p1 p2 = ok (tt, Fs).
   Hypothesis eq_globs : p_globs p1 = p_globs p2.
 
   Lemma all_checked : forall fn fd1,
     get_fundef (p_funcs p1) fn = Some fd1 ->
-    exists fd2, get_fundef (p_funcs p2) fn = Some fd2 /\ check_fundef (fn,fd1) (fn,fd2) tt = ok tt.
+    exists fd2, exists ltc,  get_fundef (p_funcs p2) fn = Some fd2 /\ check_fundef (fn,fd1) (fn,fd2) tt = ok (tt, ltc).
   Proof.
-    move: Hcheck; rewrite /check_prog_aux;clear Hcheck eq_globs.
+    Admitted.
+    (*move: Hcheck; rewrite /check_prog_aux;clear Hcheck eq_globs.
     move: (p_funcs p1) (p_funcs p2);clear p1 p2.
     elim => [ | [fn1' fd1'] p1 Hrec] [ | [fn2 fd2] p2] //.
     apply: rbindP => -[] Hc /Hrec {Hrec} Hrec.
@@ -320,118 +342,161 @@ Qed.*)
     subst=> fn fd1;rewrite !get_fundef_cons.
     case:ifPn => [/eqP -> [] <-| _ /Hrec //].
     by exists fd2.
-  Qed.
+  Qed.*)
 
-  Let Pi_r s1 (i1:instr_r) s2:=
-    forall ii r1 i2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
-    check_i ii i1 i2 r1 = ok r2 ->
+ (* Let Pi_r s1 (i1:instr_r) li s2:=
+    forall ii r1 i2 r2 lti vm1, eq_alloc r1 (evm s1) vm1 ->
+    check_i ii i1 i2 r1 = ok (r2, lti) ->
     exists vm2, eq_alloc r2 (evm s2) vm2 /\
-      sem_i p2 (Estate (emem s1) vm1) i2 (Estate (emem s2) vm2).
+                sem_i p2 (Estate (emem s1) vm1) i2 (leak_I (leak_Fun Fs) li lti) (Estate (emem s2) vm2).*)
 
-  Let Pi s1 (i1:instr) s2:=
+  Let Pi_r s1 (i1:instr_r) li s2:=
+    forall ii r1 i2 r2 lti vm1, eq_alloc r1 (evm s1) vm1 ->
+    check_i ii i1 i2 r1 = ok (r2, lti) ->
+    exists vm2, eq_alloc r2 (evm s2) vm2 /\
+      sem p2 (Estate (emem s1) vm1) [:: (MkI ii i2)] (leak_I (leak_Fun Fs) li lti) (Estate (emem s2) vm2).
+
+  (*Let Pi s1 (i1:instr) s2:=
     forall r1 i2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
-    check_I i1 i2 r1 = ok r2 ->
+    check_I i1 i2 r1 = ok (r2) ->
     exists vm2, eq_alloc r2 (evm s2) vm2 /\
-      sem_I p2 (Estate (emem s1) vm1) i2 (Estate (emem s2) vm2).
+      sem_I p2 (Estate (emem s1) vm1) i2 (Estate (emem s2) vm2).*)
 
-  Let Pc s1 (c1:cmd) s2:=
-    forall ii r1 c2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
-    check_cmd ii c1 c2 r1 = ok r2 ->
+  Let Pi s1 (i1:instr) li s2:=
+    forall r1 i2 r2 lti vm1, eq_alloc r1 (evm s1) vm1 ->
+    check_I i1 i2 r1 = ok (r2, lti) ->
     exists vm2, eq_alloc r2 (evm s2) vm2 /\
-      sem p2 (Estate (emem s1) vm1) c2 (Estate (emem s2) vm2).
+      sem p2 (Estate (emem s1) vm1) [:: i2] (leak_I (leak_Fun Fs) li lti) (Estate (emem s2) vm2).
 
-  Let Pfor (i1:var_i) vs s1 c1 s2 :=
-    forall i2 ii r1 r1' c2 r2 vm1, eq_alloc r1 (evm s1) vm1 ->
-    check_var i1 i2 r1 = ok r1' ->
-    check_cmd ii c1 c2 r1' = ok r2 -> M.incl r1 r2 ->
+  Let Pc s1 (c1:cmd) lc s2:=
+    forall ii r1 c2 r2 ltc vm1, eq_alloc r1.1 (evm s1) vm1 ->
+    check_cmd ii c1 c2 r1 = ok (r2, ltc) ->
+    exists vm2, eq_alloc r2 (evm s2) vm2 /\
+      sem p2 (Estate (emem s1) vm1) c2 (leak_Is (leak_I (leak_Fun Fs)) ltc lc) (Estate (emem s2) vm2).
+
+  Let Pfor (i1:var_i) vs s1 c1 lf s2 :=
+    forall i2 ii r1 r1' ltv c2 r2 ltf vm1, eq_alloc r1 (evm s1) vm1 ->
+    check_var i1 i2 r1 = ok (r1', ltv) ->
+    check_cmd ii c1 c2 (r1', [:: LT_ile ltv]) = ok (r2, ltf) -> M.incl r1 r2 ->
     exists vm2, eq_alloc r1 (evm s2) vm2 /\
-      sem_for p2 i2 vs (Estate (emem s1) vm1) c2 (Estate (emem s2) vm2).
+                sem_for p2 i2 vs (Estate (emem s1) vm1) c2 (leak_Iss (leak_I (leak_Fun Fs)) ltf lf)
+                        (Estate (emem s2) vm2).
 
-  Let Pfun m fn vargs1 m' vres :=
+  Let Pfun m fn vargs1 lf m' vres :=
     forall vargs2, List.Forall2 value_uincl vargs1 vargs2 ->
     exists vres',
-       sem_call p2 m fn vargs2 m' vres' /\
+       sem_call p2 m fn vargs2 (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m' vres' /\
        List.Forall2 value_uincl vres vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof.
-    move=> s ii r1 [ | ??] //= r2 vm1 ? [] <-;exists vm1;split=>//;constructor.
+    move=> s ii r1 [ | ??] //= r2 ltc vm1 Heq [] Hr.
+    rewrite Hr in Heq. rewrite /= in Heq.
+    exists vm1. split=> //; constructor.
   Qed.
 
   Local Lemma Hcons : sem_Ind_cons p1 Pc Pi.
   Proof.
-    move=> s1 s2 s3 i c _ Hi _ Hc ? r1 [ | i2 c2] //= r2 vm1 /Hi Hvm1.
-    apply: rbindP => r3 /Hvm1 [vm2 []] /Hc Hvm2 ? /Hvm2.
-    by move=> [vm3 [??]];exists vm3;split=>//;econstructor;eauto.
-  Qed.
+    rewrite /sem_Ind_cons. rewrite /Pi. rewrite /Pc.
+    move=> s1 s2 s3 i c li lc Hsi Hi Hsc Hc ii [r1 lr1] [ | i2 c2] //= r2 ltc vm1 Hvm1.
+    t_xrbindP. move=> [r3' ltc'] [r2' lti'] Hci <- Hcc.
+    move: (Hi r1 i2 r2' lti' vm1 Hvm1 Hci). move=> {Hi} [] vm2 [] Hvm2 Hsc'.
+    move: (Hc ii ((r2', lti').1,
+                  rcons lr1 (r2', lti').2) c2 r2 ltc vm2 Hvm2 Hcc). move=> {Hc} [] vm3 [] Hvm3 Hsc''.
+    exists vm3. split=>//. rewrite /leak_Is. admit.
+  Admitted.
 
   Local Lemma HmkI : sem_Ind_mkI p1 Pi_r Pi.
   Proof.
-    move=> ii i s1 s2 _ Hi  r1 [? i2] r2 vm1 /Hi Hvm /= /Hvm [vm2 [??]].
+    move=> ii i s1 s2 li Hsi Hi r1 [i2i i2] r2 lti vm1 /Hi Hvm /= /Hvm [vm2 [Hvm2 Hsc]].
     by exists vm2;split=>//;constructor.
   Qed.
 
   Local Lemma Hassgn : sem_Ind_assgn p1 Pi_r.
   Proof.
-    move => s1 s2 x tag ty e v v'.
-    case: s1 => sm1 svm1 He Htr Hw ii r1 [] //= x2 tag2 ty2 e2 r2 vm1 Hvm1.
-    case: eqP => // <- {ty2}.
-    apply: add_iinfoP.
-    apply: rbindP => r1' /check_eP -/(_ (p_globs p1) _ _ Hvm1) [Hr1'] /(_ _ _ He) [v2 [He2 Hu2]] Hcx.
-    have [v2' Htr' Hu2']:= truncate_value_uincl Hu2 Htr.
-    have  /(_ _ Hr1') [|]:= check_lvalP Hcx _ Hu2' _ Hw.
-    + by rewrite /= He2 /= Htr'.
-    move=> vm2 [Hwv Hvm2].
-    by exists vm2; split=>//;econstructor;rewrite -?eq_globs;eauto.
+    move => s1 s2 x tag ty e v v' le lw.
+    case: s1 => sm1 svm1 He Htr Hw ii r1 [] //= x2 tag2 ty2 e2 r2 lti vm1 Hvm1.
+    case: eqP => // <- {ty2}. t_xrbindP. move=> [re lte]. apply: add_iinfoP.
+    move=> /check_eP Hce [rv ltv]. apply: add_iinfoP. move=>Hcv [] <- <-. 
+    move: (Hce gd svm1 vm1 Hvm1). move=> [] Hvm2 He'. move: (He' sm1 v le He).
+    move=> [] v'' [] {He'} He' Hv. move: truncate_value_uincl.
+    move=> Ht. move: (Ht ty v v'' v' Hv Htr). move=> [] v''' Htr' {Ht} Hv'.
+    move: check_lvalP. move=> Hcv'.
+    move: (Hcv' gd re rv ltv x x2 (Some (ty, e2)) {|emem := sm1; evm := svm1|}
+                s2 lw vm1 v' v''' Hcv Hvm2 Hv').
+    move=> /= {Hcv'}. rewrite He' /=. move=> H. move: (H Htr' Hw). move=> {H} [] vm2 [] Hcv' Hvm3.
+    exists vm2. split=> // /=; econstructor. apply EmkI. apply Eassgn with v'' v'''. replace (p_globs p2) with gd.
+    auto. auto. replace (p_globs p2) with gd. apply Hcv'. constructor.
   Qed.
 
-  Lemma check_esP e1 e2 r re s vm:
-    check_es e1 e2 r = ok re ->
+  Lemma check_esP e1 e2 r re lte s vm:
+    check_es e1 e2 r = ok (re, lte) ->
     eq_alloc r s.(evm) vm ->
     eq_alloc re s.(evm) vm /\
-    forall v1,  sem_pexprs gd s e1 = ok v1 ->
-    exists v2, sem_pexprs (p_globs p2) (Estate s.(emem) vm) e2 = ok v2 /\
-               List.Forall2 value_uincl v1 v2.
+    forall vs,  sem_pexprs gd s e1 = ok vs ->
+    exists vs', sem_pexprs (p_globs p2) (Estate s.(emem) vm) e2 = ok vs' /\
+               List.Forall2 value_uincl (unzip1 vs) (unzip1 vs') /\
+               LSub (unzip2 vs') = LSub (map2 leak_E lte (unzip2 vs)).
   Proof.
     rewrite -eq_globs;case: s => sm svm.
-    rewrite /check_es; elim: e1 e2 r => [ | e1 es1 Hrec] [ | e2 es2] r //=.
-    + by move=> [] <- ?;split=>// -[] //= ?;exists [::].
-    move=> H Hea;apply: rbindP H => r' /(check_eP gd) /(_ Hea) [] Hea' He.
-    move=> /Hrec /(_ Hea') [] Hre Hes;split=> // v1.
-    rewrite /sem_pexprs;apply: rbindP => ve1 /He [ve2 /=[-> Hve]].
-    apply:rbindP => ev2 /Hes [ves2 []];rewrite /sem_pexprs => -> Hves [] <- /=.
-    by exists (ve2 :: ves2);split => //;constructor.
-  Qed.
+    rewrite /check_es; elim: e1 e2 r [::] lte => [ | e1 es1 Hrec] [ | e2 es2] r lte1 lte2 //=.
+    + move=> [] <- <- Hvm. split=> // -[] //= ?; exists [::]. split. auto. split=> //.
+      rewrite /=. constructor. rewrite /=. case: lte1. constructor. constructor.
+    t_xrbindP. move=> [rh lth] [re' lte'] /(check_eP gd) /= He [] <- <- Hce Hvm.
+    move: (He svm vm Hvm). move=> {He} [] Hvm2 He. split.
+    move: (Hrec es2 re' (rcons lte1 lte') lte2 Hce Hvm2). move=> /= {Hrec} [] Hvm3 Hes. auto.
+    t_xrbindP. move=> vs' [yv yl] He' vs'' Hes <- /=. move: (He sm yv yl He').
+    move=> {He} [] yv' [] -> Hv /=. move: (Hrec es2 re' (rcons lte1 lte') lte2 Hce Hvm2).
+    move=> /= {Hrec} [] Hvm3 Hes'. move: (Hes' vs'' Hes). move=> [] vs''' [] -> [] Hvs Hl /=.
+    exists ((yv', leak_E lte' yl) :: vs'''). split=> //. split. rewrite /=.
+    constructor; auto. rewrite /=. case: Hl => -> /=. admit.
+  Admitted.
 
   Local Lemma Hopn : sem_Ind_opn p1 Pi_r.
   Proof.
-    move => s1 s2 t o xs es.
-    apply: rbindP => v.
-    apply: rbindP => ves He Ho Hw ii r1 [] //= xs2 t' o2 es2 r2 vm1 Hvm1.
-    case:ifPn => //= /eqP <-.
-    apply: add_iinfoP.
-    apply: rbindP => r1' /check_esP -/(_ _ _ Hvm1) [Hr1'] /(_ _ He) [v2 [He2 Hu2]].
-    have [v' [Ho' Hv] Hcxs]:= vuincl_exec_opn Hu2 Ho.
-    have /(_ _ Hr1') [vm2 [Hwv Hvm2]]:= check_lvalsP Hcxs _ Hv Hw.
-    by exists vm2;split=>//;constructor;rewrite /sem_sopn He2 /= Ho' -eq_globs.
+    move => s1 s2 t o xs es lo. rewrite /sem_sopn.
+    t_xrbindP. move=> ves Hes vo Hex [vw vl] Hws <- <- /=.
+    rewrite /Pi_r. move=> ii r1 [] //= xs1 t' o1 es1 r2 lti vm1 Hvm1.
+    case: ifPn => //= /eqP <-. t_xrbindP. move=> [yv yl]. apply: add_iinfoP.
+    move=> Hces [rv ltv]. apply: add_iinfoP. move=> Hcvs [] <- <-.
+    move: check_esP. move=> Hces'. move: (Hces' es es1 r1 yv yl s1 vm1 Hces Hvm1).
+    move=> {Hces'} [] Hvm2 Hes'. move: (Hes' ves Hes). move=> {Hes} [] ves' [] Hes [] Hvs Hls.
+    move: check_lvalsP. move=> Hcvs'.
+    move: vuincl_exec_opn. move=> Hex'. move: (Hex' o (unzip1 ves) (unzip1 ves') vo Hvs Hex).
+    move=> [] vo' [] {Hex'} Hex' Hvo.
+    move: (Hcvs' gd xs xs1 vo vo' yv rv ltv s1 vw vl vm1 Hcvs Hvm2 Hvo Hws).
+    move=> {Hcvs'} [] vm2 [] Hws' Hvm3. exists vm2; split=> //. econstructor.
+    constructor. constructor. rewrite /sem_sopn /=. rewrite Hes /=. rewrite Hex' /=.
+    replace (p_globs p2) with gd. rewrite Hws' /=. rewrite Hls /=. auto.
+    constructor.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p1 Pc Pi_r.
   Proof.
-    move => s1 s2 e c1 c2.
-    case: s1 => sm1 svm1 Hve _ Hc1 ii r1 [] //= e' c1' c2' r2 vm1 Hvm1.
-    apply: rbindP => r1';apply: add_iinfoP => /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
-    move=> /(_ _ _ Hve) [ve' [Hve' /value_uincl_bool1 ?]];subst ve'.
-    apply: rbindP => r3 Hr3;apply: rbindP => r4 Hr4 [] <-.
-    have [vm2 [Hvm2 Hsem]]:= Hc1 ii _ _ _ _ Hr1' Hr3;exists vm2;split.
-    + by eapply eq_alloc_incl;eauto;apply M.merge_incl_l.
-    by apply Eif_true => //;rewrite -eq_globs Hve'.
+    move => s1 s2 e c1 c2 le lc.
+    case: s1 => sm1 svm1 Hve Hc Hc1 ii r1 [] //= e' c1' c2' r2 lti vm1 /= Hvm1.
+    t_xrbindP. move=> [re lte]. apply: add_iinfoP. move=> /check_eP  -/(_ gd _ _ Hvm1) [] Hr1'.
+    move=> /(_ _ _ _ Hve) [ve' [Hve' /value_uincl_bool1 ?]];subst ve'.
+    move=> [r3 lt3] Hr3;move => [r4 lt4] Hr4 [] <- <-. rewrite /Pc in Hc1. rewrite /= in Hc1.
+    have [vm2 [Hvm2 Hsem]]:= Hc1 ii (re, [::]) _ r3 lt3 _ Hr1' Hr3;exists vm2;split.
+    + rewrite /=. apply eq_alloc_incl with r3. apply M.merge_incl_l. auto.
+    econstructor. constructor. apply Eif_true. replace (p_globs p2) with gd.
+    auto. apply Hsem. constructor.
   Qed.
 
   Local Lemma Hif_false : sem_Ind_if_false p1 Pc Pi_r.
   Proof.
-    move => s1 s2 e c1 c2.
-    case: s1 => sm1 svm1 Hve _ Hc1 ii r1 [] //= e' c1' c2' r2 vm1 Hvm1.
+    move => s1 s2 e c1 c2 le lc.
+    case: s1 => sm1 svm1 Hve Hc Hc1 ii r1 [] //= e' c1' c2' r2 lti vm1 /= Hvm1.
+    t_xrbindP. move=> [re lte]. apply: add_iinfoP. move=> /check_eP  -/(_ gd _ _ Hvm1) [] Hr1'.
+    move=> /(_ _ _ _ Hve) [ve' [Hve' /value_uincl_bool1 ?]];subst ve'.
+    move=> [r3 lt3] Hr3;move => [r4 lt4] Hr4 [] <- <-. rewrite /Pc in Hc1. rewrite /= in Hc1.
+    have [vm2 [Hvm2 Hsem]]:= Hc1 ii (re, [::]) _ r4 lt4 _ Hr1' Hr4;exists vm2;split.
+    + rewrite /=. apply eq_alloc_incl with r4. apply M.merge_incl_r. auto.
+    econstructor. constructor. apply Eif_false. replace (p_globs p2) with gd.
+    auto. apply Hsem. constructor.
+  Qed.
+  
     apply: rbindP => r1';apply: add_iinfoP => /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
     move=> /(_ _ _ Hve) [ve' [Hve' /value_uincl_bool1 ?]];subst ve'.
     apply: rbindP => r3 Hr3;apply: rbindP => r4 Hr4 [] <-.
@@ -1244,58 +1309,43 @@ Module CBAreg.
       end
     else cerror (Cerr_varalloc xi1 xi2 "type mismatch").
 
-  Fixpoint check_e (e1 e2:pexpr) (m:M.t) : cexec (M.t * leak_e_tr) :=
+  Fixpoint check_e_eval (e1 e2:pexpr) (m:M.t) : cexec M.t :=
     let err _ := cerror (Cerr_neqexpr e1 e2 salloc) in
     match e1, e2 with
     | Pconst n1, Pconst n2 =>
-      if n1 == n2 then cok (m, LT_id) else err (tt, LT_remove)
+      if n1 == n2 then cok m else err tt
     | Pbool  b1, Pbool  b2 =>
-      if b1 == b2 then cok (m, LT_id) else err (tt, LT_remove)
+      if b1 == b2 then cok m else err tt
     | Parr_init n1, Parr_init n2 =>
-      if n1 == n2 then cok (m, LT_id) else err (tt, LT_remove)
-    | Pvar   x1, Pvar   x2 => Let rs := check_v x1 x2 m in cok (rs, LT_id)
+      if n1 == n2 then cok m else err tt
+    | Pvar   x1, Pvar   x2 => check_v x1 x2 m
     | Pglobal g1, Pglobal g2 =>
-      if g1 == g2 then cok (m, LT_id) else err (tt, LT_remove)
+      if g1 == g2 then cok m else err tt
     | Pget w1 x1 e1, Pget w2 x2 e2 =>
-      if w1 == w2
-      then Let rv := check_v x1 x2 m in
-           Let res := check_e e1 e2 rv in
-           cok (res.1, (LT_seq [:: res.2; LT_id]))                
-      else err (tt, LT_remove)
+      if w1 == w2 then check_v x1 x2 m >>= check_e_eval e1 e2 else err tt
     | Pload w1 x1 e1, Pload w2 x2 e2 =>
-      if w1 == w2
-      then Let rv := check_v x1 x2 m in
-           Let res := check_e e1 e2 rv in
-           cok (res.1, (LT_seq [:: res.2; LT_id]))                
-      else err (tt, LT_remove)
+      if w1 == w2 then check_v x1 x2 m >>= check_e_eval e1 e2 else err tt
     | Papp1 o1 e1, Papp1 o2 e2 =>
-      if o1 == o2 then check_e e1 e2 m
+      if o1 == o2 then check_e_eval e1 e2 m
       else cerror (Cerr_neqop1 o1 o2 salloc)
      | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
-       if o1 == o2
-       then Let res := check_e e11 e21 m in
-            Let res' := check_e e12 e22 res.1 in 
-            cok(res'.1, (LT_seq [:: res.2; res'.2]))
-       else cerror (Cerr_neqop2 o1 o2 salloc)
+      if o1 == o2 then check_e_eval e11 e21 m >>= check_e_eval e12 e22
+      else cerror (Cerr_neqop2 o1 o2 salloc)
     | PappN o1 es1, PappN o2 es2 =>
       if o1 == o2
-      then Let rs := fold2 (Cerr_fold2 "allocation: check_e (appN)")
-                     (fun e1 e2 r1 => Let rs := check_e e1 e2 r1.1 in
-                            ok (rs.1, rcons r1.2 rs.2)) es1 es2 (m, [::]) in
-           cok (rs.1, LT_seq rs.2)
-        (*fold2 (Cerr_fold2 "allocation: check_e (appN)") check_e es1 es2 m*)
-      else Let rs := cerror (Cerr_neqopN o1 o2 salloc) in
-           cok (rs, LT_remove)
+      then fold2 (Cerr_fold2 "allocation: check_e (appN)") check_e_eval es1 es2 m
+      else cerror (Cerr_neqopN o1 o2 salloc)
     | Pif t e e1 e2, Pif t' e' e1' e2' =>
-      if t == t'
-      then Let res := check_e e e' m in
-           Let res' := check_e e1 e1' res.1 in 
-           Let res'' := check_e e2 e2' res'.1 in 
-           cok (res''.1, (LT_seq [:: res.2 ; res'.2; res''.2]))
-      (*check_e e e' m >>= check_e e1 e1' >>= check_e e2 e2'*)
-      else err (tt, LT_remove)
-    | _, _ => err (tt, LT_id)
+      if t == t' then
+        check_e_eval e e' m >>= check_e_eval e1 e1' >>= check_e_eval e2 e2'
+      else err tt
+    | _, _ => err tt
     end.
+
+  
+  Definition check_e (e1 e2 : pexpr) (m : M.t) : cexec (M.t * leak_e_tr) :=
+    Let rs := check_e_eval e1 e2 m in
+    cok (rs, LT_id).
 
   Definition check_var (x1 x2:var) m (h:M.vsubtype x1 x2): cexec (M.t) :=
     cok (M.set m x1 x2 h).
@@ -1315,42 +1365,35 @@ Module CBAreg.
   Lemma is_PvarP e ty x : is_Pvar e = Some (ty,x) -> e = Some (ty, Pvar x).
   Proof. by case: e => //= -[? []] //= v [<- <-]. Qed.
 
-  Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec (M.t * leak_e_tr) :=
+  Definition check_lval_eval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
     let err _ := cerror (Cerr_neqlval x1 x2 salloc) in
     match x1, x2 with
     | Lnone  _ t1, Lnone _ t2  =>
-      if subtype t1 t2 then cok (m, LT_id) else err (tt, LT_remove)
+      if subtype t1 t2 then cok m else err tt
     | Lnone  _ t1, Lvar x      =>
       if subtype t1 x.(v_var).(vtype) then
-        cok (M.remove m x.(v_var), LT_id)
-      else err (tt, LT_id)
+        cok (M.remove m x.(v_var))
+      else err tt
     | Lvar x1    , Lvar x2     =>
       match is_Pvar e2 with
       | Some (ty, x2') =>
         if M.vsubtypeP x1 x2 is left h then
-          if (vtype x1 == ty) && (vtype x1 == vtype x2) && (x2.(v_var) == x2')
-          then cok (M.add m x1 x2 h, LT_id)
-          else Let rs := check_var m h in
-               cok (rs, LT_id)
+          if (vtype x1 == ty) && (vtype x1 == vtype x2) && (x2.(v_var) == x2') then cok (M.add m x1 x2 h)
+          else check_var m h
         else cerror (Cerr_varalloc x1 x2 "type mismatch")
-      | _               => Let rs := check_varc x1 x2 m in
-                           cok (rs, LT_id)
+      | _               => check_varc x1 x2 m
       end
     | Lmem w1 x1 e1, Lmem w2 x2 e2  =>
-      if w1 == w2
-      then Let rs := check_v x1 x2 m in
-           Let res := check_e e1 e2 rs in
-           cok (res.1,  (LT_seq [:: res.2; LT_id]))
-      else err (tt, LT_id)
+      if w1 == w2 then check_v x1 x2 m >>= check_e_eval e1 e2 else err tt
     | Laset w1 x1 e1, Laset w2 x2 e2 =>
-      if w1 == w2
-      then Let rvs := check_v x1 x2 m in
-           Let res := check_e e1 e2 rvs in
-           Let rvcs := check_varc x1 x2 res.1 in 
-           cok (rvcs,  (LT_seq [:: res.2; LT_id]))
-      else err (tt, LT_remove)
-    | _          , _           => err (tt, LT_remove)
+      if w1 == w2 then check_v x1 x2 m >>= check_e_eval e1 e2 >>= check_varc x1 x2
+      else err tt
+    | _          , _           => err tt
     end.
+
+  Definition check_lval  (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec (M.t * leak_e_tr) :=
+    Let rs := check_lval_eval e2 x1 x2 m in
+    cok (rs, LT_id).
 
   Definition eq_alloc (r:M.t) (vm1 vm2:vmap) :=
     [/\ vm_uincl vmap0 vm2,
