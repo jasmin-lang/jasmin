@@ -77,6 +77,8 @@ Module CBEA.
 
     Definition empty_alloc : alloc_t := Mvar.empty array_info.
 
+    (* get_alloc access the array's information associated with variable x and then gives out 
+       the element's information stored at index p in the array *)
     Definition get_alloc (alloc:alloc_t) (x:var) (p:index) :=
       match Mvar.get alloc x with
       | Some ai =>
@@ -87,6 +89,7 @@ Module CBEA.
       | None => None
       end.
 
+    (* valid checks whether the information generated from get_alloc is a valid array information or not *)
     Definition valid (alloc: alloc_t) (allocated:Sv.t) :=
       forall x p wz id,
         get_alloc alloc x p = Some (wz, id) ->
@@ -414,54 +417,76 @@ Module CBEA.
   Definition check_var m (x1 x2:var) :=
     (x1 == x2) && ~~Sv.mem x1 (M.allocated m).
 
-  Fixpoint check_eb m (e1 e2:pexpr) : bool :=
+  Fixpoint and_seq bl : bool :=
+    match bl with
+    | [::] => true
+    | b :: bls => b && and_seq bls
+    end.
+  
+  Fixpoint check_eb m (e1 e2:pexpr) : bool * leak_e_tr :=
     match e1, e2 with
-    | Pconst   n1, Pconst   n2 => n1 == n2
-    | Pbool    b1, Pbool    b2 => b1 == b2
-    | Parr_init n1, Parr_init n2 => n1 == n2
-    | Pvar     x1, Pvar     x2 => check_var m x1 x2
-    | Pglobal g1, Pglobal g2 => g1 == g2
-    | Pget wz1 x1 e1, Pget wz2 x2 e2 => (wz1 == wz2) && check_var m x1 x2 && check_eb m e1 e2
+    | Pconst   n1, Pconst   n2 => (n1 == n2, LT_remove)
+    | Pbool    b1, Pbool    b2 => (b1 == b2, LT_remove)
+    | Parr_init n1, Parr_init n2 => (n1 == n2, LT_remove)
+    | Pvar     x1, Pvar     x2 => (check_var m x1 x2, LT_id)
+    | Pglobal g1, Pglobal g2 => (g1 == g2, LT_remove)
+    | Pget wz1 x1 e1, Pget wz2 x2 e2 => let bl := check_eb m e1 e2 in
+                            (((wz1 == wz2) && check_var m x1 x2 && bl.1), LT_seq [:: bl.2; LT_id])
     | Pget wz1 x1 e1, Pvar  x2    =>
       match is_const e1 with
-      | Some n1 => (M.get m x1.(v_var) n1 == Some (wz1, vname x2)) && (vtype x2 == sword wz1)
-      | _ => false
+      | Some n1 => ((M.get m x1.(v_var) n1 == Some (wz1, vname x2)) && (vtype x2 == sword wz1),
+                    LT_remove)
+      | _ => (false, LT_remove)
       end
-    | Pload sw1 x1 e1, Pload sw2 x2 e2 => (sw1 == sw2) && check_var m x1 x2 && check_eb m e1 e2
-    | Papp1 o1 e1, Papp1 o2 e2 => (o1 == o2) && check_eb m e1 e2
+    | Pload sw1 x1 e1, Pload sw2 x2 e2 => let bl := check_eb m e1 e2 in
+                             (((sw1 == sw2) && check_var m x1 x2 && bl.1), LT_seq [:: bl.2 ; LT_id])
+    | Papp1 o1 e1, Papp1 o2 e2 => let bl := check_eb m e1 e2 in
+                                  (((o1 == o2) && bl.1), bl.2)
     | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
-      (o1 == o2) && check_eb m e11 e21 && check_eb m e12 e22
+      let bl := check_eb m e11 e21 in
+      let bl' := check_eb m e12 e22 in 
+      (((o1 == o2) && bl.1 && bl'.1), LT_seq [:: bl.2; bl'.2])
     | PappN o1 es1, PappN o2 es2 =>
-      (o1 == o2) && all2 (check_eb m) es1 es2
+      let bl := map2 (check_eb m) es1 es2 in
+      let bl1 := unzip1 bl in
+      let bl2 := unzip2 bl in
+      let rb := and_seq bl1 in
+      ((o1 == o2) && rb, LT_seq bl2)
     | Pif t e e1 e2, Pif t' e' e1' e2' =>
-      (t == t') && check_eb m e e' && check_eb m e1 e1' && check_eb m e2 e2'
-    | _, _ => false
+      let bl1 := check_eb m e e' in
+      let bl2 := check_eb m e1 e1' in
+      let bl3 := check_eb m e2 e2' in 
+      ((t == t') && bl1.1 && bl2.1 && bl3.1, LT_seq [:: bl1.2; bl2.2; bl3.2])
+    | _, _ => (false, LT_remove)
     end.
-
+  
   Definition check_e (e1 e2:pexpr) m :=
-    if check_eb m e1 e2 then cok m else cerror (Cerr_arr_exp e1 e2).
+    let bl := check_eb m e1 e2 in 
+    if bl.1 then cok (m, bl.2) else cerror (Cerr_arr_exp e1 e2).
 
   Definition check_lval (_:option (stype * pexpr)) (r1 r2:lval) m :=
     match r1, r2 with
     | Lnone _ t1, Lnone _ t2 =>
-      if t1 == t2 then cok m
+      if t1 == t2 then cok (m, LT_remove)
       else cerror (Cerr_arr_exp_v r1 r2)
     | Lvar x1, Lvar x2 =>
-      if check_var m x1 x2 then cok m
+      if check_var m x1 x2 then cok (m, LT_id)
       else cerror (Cerr_arr_exp_v r1 r2)
     | Lmem sw1 x1 e1, Lmem sw2 x2 e2 =>
-      if (sw1 == sw2) && check_var m x1 x2 && check_eb m e1 e2 then cok m
+      let bl := check_eb m e1 e2 in 
+      if (sw1 == sw2) && check_var m x1 x2 && bl.1 then cok (m, bl.2)
       else cerror (Cerr_arr_exp_v r1 r2)
     | Laset sw1 x1 e1, Lvar x2 =>
       match is_const e1 with
       | Some n1 =>
         if vtype x2 == sword sw1 then
-          ok (M.set_arr sw1 x1 n1 (vname x2) m)
+          ok ((M.set_arr sw1 x1 n1 (vname x2) m), LT_id)
         else cerror (Cerr_arr_exp_v r1 r2)
       | None    => cerror (Cerr_arr_exp_v r1 r2)
       end
     | Laset sw1 x1 e1, Laset sw2 x2 e2 =>
-      if (sw1 == sw2) && check_var m x1 x2 && check_eb m e1 e2 then cok m
+      let bl := check_eb m e1 e2 in
+      if (sw1 == sw2) && check_var m x1 x2 && bl.1 then cok (m, bl.2)
       else cerror (Cerr_arr_exp_v r1 r2)
     | _, _ => cerror (Cerr_arr_exp_v r1 r2)
     end.
@@ -483,33 +508,45 @@ Module CBEA.
             (Hrn: eq_alloc r vm1 vm2).
 
     Let P e1 : Prop :=
-      ∀ e2 v1,
-        check_eb r e1 e2 →
-        sem_pexpr gd {| emem := m ; evm := vm1 |} e1 = ok v1 →
-        exists2 v2, sem_pexpr gd {| emem := m ; evm := vm2 |} e2 = ok v2 & value_uincl v1 v2.
+      ∀ e2 v1 l,
+        (check_eb r e1 e2).1 →
+        sem_pexpr gd {| emem := m ; evm := vm1 |} e1 = ok (v1, l) →
+        exists2 v2, sem_pexpr gd {| emem := m ; evm := vm2 |} e2 =
+                    ok (v2, leak_E  (check_eb r e1 e2).2 l)
+                    & value_uincl v1 v2.
 
     Let Q es1 : Prop :=
       ∀ es2 vs1,
-        all2 (check_eb r) es1 es2 →
+        and_seq (unzip1 (map2 (check_eb r) es1 es2)) ->
         sem_pexprs gd {| emem := m ; evm := vm1 |} es1 = ok vs1 →
-        exists2 vs2, sem_pexprs gd {| emem := m ; evm := vm2 |} es2 = ok vs2 &
-               List.Forall2 value_uincl vs1 vs2.
+        exists vs2, sem_pexprs gd {| emem := m ; evm := vm2 |} es2 = ok vs2 /\
+                    List.Forall2 value_uincl (unzip1 vs1) (unzip1 vs2) /\
+                    LSub (unzip2 vs1) = leak_E (LT_seq (unzip2 (map2 (check_eb r) es1 es2))) (LSub (unzip2 vs2)).
 
     Lemma check_e_esbP : (∀ e, P e) ∧ (∀ es, Q es).
     Proof.
       apply: pexprs_ind_pair; subst P Q; split => /=.
-      - by case => // _ _ [<-]; exists [::]; eauto.
-      - move => e rec es ih [] // e' es' q /andP [] he hes.
-        t_xrbindP => v ok_v vs ok_vs <-{q} /=.
-        move: rec => /(_ _ _ he ok_v) [] v' -> h.
-        by move: ih => /(_ _ _ hes ok_vs) [] vs' -> hs /=; eauto.
-      - by move => z1 [] // z2 _ /eqP <- [<-] /=; exists z1.
-      - by move => z1 [] // z2 _ /eqP <- [<-] /=; exists z1.
-      - by move => n1 [] // n2 _ /eqP <- [<-] /=; eexists => //=.
-      - by move => x1 [] // x2 v; exact: check_varP.
-      - by move => g1 [] // g2 v /eqP <- /= ->; eauto.
-      - move => sz1 [[ty1 x1] ii1] e1 ih1 [] //.
-        + move=> [[ty2 x2] ii2] v1.
+      - (* Base case *)
+        admit.
+      - admit.
+      - (* Pconst *)
+        move=> z [] // z1 v1 l /eqP <- [] <- <-. exists z. rewrite /=.
+        auto. auto.
+      - (* Pbool *)
+        move=> b [] //= b0 v l /eqP [] <- hl. exists b. auto. by case: hl => <-.
+      - (* Parr_init *)
+        move=> n [] //= p v l /eqP [] <- [] <- hl. exists (Varr (WArray.empty n)).
+        auto. auto.
+      - (* Pvar *)
+        move=> x [] //= x' v l /check_varP Hg. t_xrbindP. move=> v' Hg' <- <-.
+        move: (Hg vm1 vm2 v' Hrn Hg'). move=> [] v'' {Hg'} Hg' Hv. rewrite Hg' /=.
+        by exists v''.
+      - (* Pglobal *)
+        move=> g [] //= g' v l /eqP <-. t_xrbindP. move=> v' -> /= <- hl.
+        by exists v'. 
+      - (* Pget *)
+        move => sz1 [[ty1 x1] ii1] e1 ih1 [] //.
+        + move=> [[ty2 x2] ii2] v1 l.
           case: is_constP => //= ze /andP [] /eqP hget /eqP ?;subst ty2.
           apply: on_arr_varP => n t Htx1.
           rewrite /get_var /=; apply: on_vuP => //= x1t.
@@ -519,59 +556,77 @@ Module CBEA.
           t_xrbindP => w hg ?;subst v1.
           (move: h;rewrite hg /= => <- /=; eexists; first reflexivity) => /=.
           by apply word_uincl_refl.
-        move=> ws v p v1 /andP[] /andP[] /eqP ?;subst ws.
+        move=> ws v p v1 l /andP[] /andP[] /eqP ?;subst ws.
         move=> /(check_varP Hrn) /= hget /ih1 hrec {ih1}.
         apply: on_arr_varP => n t /= Htx1 /hget [v2 hget2 hincl].
-        t_xrbindP => n1 v3 /hrec [v4 -> hv3].
-        move=> /(value_uincl_int hv3) [??];subst v3 v4.
+        t_xrbindP. move=> [ve le] /hrec [v4 -> hv3].
+        move=> vi /(value_uincl_int hv3) [h1 h2]; subst ve v4.
         rewrite /on_arr_var hget2 /= => w1.
         have [n' [t' ? hu]]:= value_uinclE hincl;subst v2.
-        (move=> /(WArray.uincl_get hu) -> <- /=; eexists; first reflexivity) => /=.
-        by apply word_uincl_refl.
-
-    - move => sz1 x1 e1 He1 [] // sz2 x2 e2 v1.
-      move=> /andP[] /andP[] /eqP <- Hcv /He1 Hce;apply: rbindP => w1.
-      t_xrbindP => vx1 /(check_varP Hrn Hcv) [] vx2 /= ->.
-      move=> /value_uincl_word H/H{H} H.
-      move => w2 ve1 /Hce [] ve2 -> /=. rewrite H /= => {H}.
-      by move=>  /value_uincl_word H/H{H} -> /= h2 -> <- /=;exists (Vword h2) => //; exists erefl.
-    - move => op1 e1 He1 [] //= op2 e2 v1.
-      move=> /andP[]/eqP <- /He1 H; apply: rbindP => ve1 /H [ve2 ->].
-      by move=> /vuincl_sem_sop1 U /U;exists v1.
-    - move => op1 e11 He11 e12 He12 [] //= op2 e21 e22 v1.
-      move=> /andP[]/andP[]/eqP <- /He11 He1 /He12 He2.
-      apply: rbindP => ? /He1 [? -> U1] /=; apply: rbindP => ? /He2 [? -> U2].
-      by move=> /(vuincl_sem_sop2 U1 U2); exists v1.
-    - move => op1 es1 ih [] //= _ es2 v1 /andP [] /eqP <- rec.
-      t_xrbindP => vs ok_vs ok_v1; rewrite -!/(sem_pexprs _ _).
-      move: ih => /(_ _ _ rec ok_vs) [] vs' ->.
-      exact: (vuincl_sem_opN ok_v1).
-    move => t e He e11 He11 e12 He12 [] //= t' e2 e21 e22 v1.
-    move=> /andP[]/andP[]/andP[]/eqP? /He{He}He /He11{He11}He11 /He12{He12}He12;subst t'.
-    apply: rbindP => b;apply: rbindP => w /He [ve ->] /=.
-    move=> /value_uincl_bool H/H [_ ->] /=.
-    t_xrbindP => vt2 v2 /He11 [] v2' -> Hv2' ht2 vt3 v3 /He12 [] v3' -> Hv3' ht3 <- /=.
-    have [? -> ?]:= truncate_value_uincl Hv2' ht2.
-    have [? -> ? /=]:= truncate_value_uincl Hv3' ht3.
-    eexists; first reflexivity.
-    by case: (b).
-  Qed.
+        move=> /(WArray.uincl_get hu) -> <- <- /=. exists (Vword w1).
+        auto. by apply word_uincl_refl.    
+      - (* Pload *)
+        move=> sz x e He [] // sz1 x1 e1 v1 l.
+        move=> /andP [] /andP [] /eqP Hsz Hcv Hce. t_xrbindP.
+        move=> v1' v2' Hg /value_uincl_word Hp [ve le] He' v2 /value_uincl_word Hp' v3 Hr <- <- /=.
+        move: (He e1 ve le Hce He'). move=> [] ve'' He'' Hv {He}.
+        move: check_varP. move=> Hcv'. move: (Hcv' r vm1 vm2 x x1 v2' Hrn Hcv Hg).
+        move=> [] v4 -> /= Hv' {Hcv'}. move: (Hp v4 Hv'). move=> -> /=. rewrite He'' /=.
+        move: (Hp' ve'' Hv). move=> -> /=.  rewrite -Hsz. rewrite Hr /=.
+        exists (Vword v3). rewrite /=. auto. auto.
+      - (* Papp1 *)
+        move=> op e He [] // op1 e2 v1 l /=.
+        move=> /andP [] /eqP <- /= Hce. t_xrbindP.
+        move=> [ve le] He' vo Ho <- <-. move: (He e2 ve le Hce He'). move=> {He} [] ve' -> /= Hv.
+        move: vuincl_sem_sop1. move=> Ho'. move: (Ho' op ve ve' vo Hv Ho). move=> -> /=.
+        by exists vo.
+      - (* Papp2 *)
+        move=> op e1 He1 e2 He2 [] //= op1 e1' e2' v1 l.
+        move=> /andP [] /andP [] /eqP <- Hce1 Hce2. t_xrbindP.
+        move=> [ve le] He [ve' le'] He' vo Ho <- <- /=.
+        move: (He1 e1' ve le Hce1 He). move=> [] ve'' -> Hv.
+        move: (He2 e2' ve' le' Hce2 He'). move=> [] ve''' ->  Hv' /=.
+        move: vuincl_sem_sop2. move=> H. move: (H op ve ve'' ve' ve''' vo Hv Hv' Ho).
+        move=> -> /=. by exists vo.
+      - (* PappN *)
+        move=> op es Hes [] //= op' es' v1 l.
+        move=> /andP [] /eqP <- Ha. t_xrbindP.
+        move=> ys Hes' vn Hon <- <-. rewrite /sem_pexprs in Hes.
+        move: (Hes es' ys Ha Hes'). move=> [] vs' [] Hes'' [] Hv Hl.
+        rewrite Hes'' /=. move: vuincl_sem_opN. move=> H.
+        move: (H op (unzip1 ys) vn (unzip1 vs') Hon Hv). move=> [] vn' -> /= Hv'.
+        exists vn'. case: Hl=> Hl1. rewrite Hl1 /=. admit. auto.
+      (* Pif *)
+      move=> t e He e1 He1 e2 He2 [] //= t' e' e1' e2' v1 l.
+      move=> /andP [] /andP [] /andP [] /eqP <- Hce Hce1 Hce2.
+      t_xrbindP. move=> [ve le] He' b Hb [ve1 le1] He1' [ve2 le2] He2'.
+      move=> vt Ht vt' Ht' <- <- /=. move: (He e' ve le Hce He'). move=> [] ve' -> /= Hve.
+      move: value_uincl_bool. move=> Hb'. move: (Hb' ve ve' b Hve Hb). move=> [] h1 h2.
+      rewrite h1 in Hb. rewrite -h2 in Hb. rewrite Hb /=.
+      move: (He1 e1' ve1 le1 Hce1 He1').
+      move=> [] ve1' -> /= Hve1. move: (He2 e2' ve2 le2 Hce2 He2').
+      move=> [] ve2' -> /= Hve2. move: truncate_value_uincl. move=> Htt.
+      move: (Htt t ve1 ve1' vt Hve1 Ht). move=> {Htt} [] vt'' -> /= Htv.
+      move: truncate_value_uincl. move=> Htt.
+      move: (Htt t ve2 ve2' vt' Hve2 Ht'). move=> {Htt} [] vt''' -> /= Htv' /=.
+      case: (b). by exists vt''. by exists vt'''.
+     Admitted.
 
   End CHECK_EBP.
 
   Definition check_ebP gd r m vm1 vm2 e h :=
     (@check_e_esbP gd r m vm1 vm2 h).1 e.
 
-  Lemma check_eP gd e1 e2 r re vm1 vm2 :
-    check_e e1 e2 r = ok re ->
+  Lemma check_eP gd e1 e2 r re vm1 vm2 lte:
+    check_e e1 e2 r = ok (re, lte) ->
     eq_alloc r vm1 vm2 ->
     eq_alloc re vm1 vm2 /\
-    forall m v1,  sem_pexpr gd (Estate m vm1) e1 = ok v1 ->
-    exists v2, sem_pexpr gd (Estate m vm2) e2 = ok v2 /\ value_uincl v1 v2.
+    forall m v1 l,  sem_pexpr gd (Estate m vm1) e1 = ok (v1, l) ->
+    exists v2, sem_pexpr gd (Estate m vm2) e2 = ok (v2, leak_E lte l) /\ value_uincl v1 v2.
   Proof.
-    rewrite /check_e; case: ifP => //= h [<-] hr; split => // m v1 ok_v1.
-    have [] := check_ebP hr h ok_v1.
-    by eauto.
+    rewrite /check_e; case: ifP => //= h [<-] hr; split => // m v1 l1 ok_v1.
+    move: check_ebP. move=> Hce. move: (Hce gd r m vm1 vm2 e1 H e2 v1 l1 h ok_v1).
+    move=> [] v2 [] He Hv. exists v2. split. by rewrite -hr. auto.
   Qed.
 
   Lemma eq_alloc_set x1 (v1 v2:exec (psem_t (vtype x1))) r vm1 vm2  :
@@ -613,21 +668,29 @@ Module CBEA.
     by apply (@eq_alloc_set x1 undef_error (ok b)).
   Qed.
 
-  Lemma check_lvalP gd r1 r1' x1 x2 oe2 s1 s1' vm1 v1 v2 :
-    check_lval oe2 x1 x2 r1 = ok r1' ->
+  Lemma check_lvalP gd r1 r1' x1 x2 oe2 s1 s1' le1' vm1 v1 v2 ltr:
+    check_lval oe2 x1 x2 r1 = ok (r1', ltr) ->
     eq_alloc r1 s1.(evm) vm1 ->
     value_uincl v1 v2 ->
     oapp (fun te2 =>
-     sem_pexpr gd (Estate s1.(emem) vm1) te2.2 >>= truncate_val te2.1 = ok v2) true oe2 ->
-    write_lval gd x1 v1 s1 = ok s1' ->
+            Let vl := sem_pexpr gd (Estate s1.(emem) vm1) te2.2 in
+            truncate_val te2.1 vl.1 = ok v2) true oe2 ->
+    write_lval gd x1 v1 s1 = ok (s1', le1') ->
     exists vm1',
-      write_lval gd x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1') /\
+      write_lval gd x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1', leak_E ltr le1') /\
       eq_alloc r1' s1'.(evm) vm1'.
   Proof.
-    move=> H1 H2 H3 _; move: H1 H2 H3.
+    move=> H1 H2 H3 H; move: H1 H2 H3.
     case: x1 x2 => [vi1 t1 | x1 | sw1 x1 e1 | sw1 x1 e1] [vi2 t2 | x2 | sw2 x2 e2 | sw2 x2 e2] //=.
-    + case:ifP => //= /eqP <- [<-].
-      move=> Heqa Hv H; have [-> _]:= write_noneP H.
+    + (* Lone *)
+      case:ifP => //= /eqP <- [<-] <-.
+      move=> Heqa Hv. t_xrbindP. move=> vw H' <- <- /=.
+      move: write_noneP. move
+
+
+
+
+      have [-> _ _]:= write_noneP H'.
       by rewrite (uincl_write_none _ Hv H);exists vm1.
     + by case:ifP=>//= Hc [<-];apply check_rvarP.
     + case:ifP=>//= /andP[] /andP[] /eqP <- Hcx Hce [<-] Hea Hu.
