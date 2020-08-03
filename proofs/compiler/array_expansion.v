@@ -415,7 +415,7 @@ Module CBEA.
   Qed.
 
   Definition check_var m (x1 x2:var) :=
-    (x1 == x2) && ~~Sv.mem x1 (M.allocated m).
+    ((x1 == x2) && ~~Sv.mem x1 (M.allocated m), LT_id).
 
   Fixpoint and_seq bl : bool :=
     match bl with
@@ -428,10 +428,12 @@ Module CBEA.
     | Pconst   n1, Pconst   n2 => (n1 == n2, LT_remove)
     | Pbool    b1, Pbool    b2 => (b1 == b2, LT_remove)
     | Parr_init n1, Parr_init n2 => (n1 == n2, LT_remove)
-    | Pvar     x1, Pvar     x2 => (check_var m x1 x2, LT_id)
+    | Pvar     x1, Pvar     x2 => let bl := check_var m x1 x2 in
+                                  (bl.1, bl.2)
     | Pglobal g1, Pglobal g2 => (g1 == g2, LT_remove)
     | Pget wz1 x1 e1, Pget wz2 x2 e2 => let bl := check_eb m e1 e2 in
-                            (((wz1 == wz2) && check_var m x1 x2 && bl.1), LT_seq [:: bl.2; LT_id])
+                                        let bl' := check_var m x1 x2 in
+                            (((wz1 == wz2) && bl'.1 && bl.1), LT_seq [:: bl.2; bl'.2])
     | Pget wz1 x1 e1, Pvar  x2    =>
       match is_const e1 with
       | Some n1 => ((M.get m x1.(v_var) n1 == Some (wz1, vname x2)) && (vtype x2 == sword wz1),
@@ -439,7 +441,8 @@ Module CBEA.
       | _ => (false, LT_remove)
       end
     | Pload sw1 x1 e1, Pload sw2 x2 e2 => let bl := check_eb m e1 e2 in
-                             (((sw1 == sw2) && check_var m x1 x2 && bl.1), LT_seq [:: bl.2 ; LT_id])
+                                          let bl' := check_var m x1 x2 in 
+                             (((sw1 == sw2) && bl'.1 && bl.1), LT_seq [:: bl.2 ; bl'.2])
     | Papp1 o1 e1, Papp1 o2 e2 => let bl := check_eb m e1 e2 in
                                   (((o1 == o2) && bl.1), bl.2)
     | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
@@ -470,11 +473,13 @@ Module CBEA.
       if t1 == t2 then cok (m, LT_remove)
       else cerror (Cerr_arr_exp_v r1 r2)
     | Lvar x1, Lvar x2 =>
-      if check_var m x1 x2 then cok (m, LT_id)
+      let bl := check_var m x1 x2 in
+      if bl.1 then cok (m, LT_id)
       else cerror (Cerr_arr_exp_v r1 r2)
     | Lmem sw1 x1 e1, Lmem sw2 x2 e2 =>
-      let bl := check_eb m e1 e2 in 
-      if (sw1 == sw2) && check_var m x1 x2 && bl.1 then cok (m, bl.2)
+      let bl := check_eb m e1 e2 in
+      let bl' := check_var m x1 x2 in 
+      if (sw1 == sw2) && bl'.1 && bl.1 then cok (m, LT_seq [:: bl.2; bl'.2])
       else cerror (Cerr_arr_exp_v r1 r2)
     | Laset sw1 x1 e1, Lvar x2 =>
       match is_const e1 with
@@ -486,14 +491,15 @@ Module CBEA.
       end
     | Laset sw1 x1 e1, Laset sw2 x2 e2 =>
       let bl := check_eb m e1 e2 in
-      if (sw1 == sw2) && check_var m x1 x2 && bl.1 then cok (m, bl.2)
+      let bl' := check_var m x1 x2 in
+      if (sw1 == sw2) && bl'.1 && bl.1 then cok (m, LT_seq [:: bl.2; bl'.2])
       else cerror (Cerr_arr_exp_v r1 r2)
     | _, _ => cerror (Cerr_arr_exp_v r1 r2)
     end.
 
   Lemma check_varP r vm1 vm2 x1 x2 v1 :
     eq_alloc r vm1 vm2 ->
-    check_var r x1 x2 ->
+    (check_var r x1 x2).1 ->
     get_var vm1 x1 = ok v1 ->
     exists2 v2, get_var vm2 x2 = ok v2 & value_uincl v1 v2.
   Proof.
@@ -617,7 +623,7 @@ Module CBEA.
   Definition check_ebP gd r m vm1 vm2 e h :=
     (@check_e_esbP gd r m vm1 vm2 h).1 e.
 
-  Lemma check_eP gd e1 e2 r re vm1 vm2 lte:
+  Lemma check_eP gd e1 e2 r re lte vm1 vm2:
     check_e e1 e2 r = ok (re, lte) ->
     eq_alloc r vm1 vm2 ->
     eq_alloc re vm1 vm2 /\
@@ -646,7 +652,7 @@ Module CBEA.
   Qed.
 
   Lemma check_rvarP (x1 x2:var_i) r1 vm1 v1 v2 s1 s1' :
-    check_var r1 x1 x2 ->
+    (check_var r1 x1 x2).1 ->
     eq_alloc r1 (evm s1) vm1 ->
     value_uincl v1 v2 ->
     write_var x1 v1 s1 = ok s1' ->
@@ -668,74 +674,86 @@ Module CBEA.
     by apply (@eq_alloc_set x1 undef_error (ok b)).
   Qed.
 
-  Lemma check_lvalP gd r1 r1' x1 x2 oe2 s1 s1' le1' vm1 v1 v2 ltr:
-    check_lval oe2 x1 x2 r1 = ok (r1', ltr) ->
+  Lemma check_lvalP gd r1 r1' ltr x1 x2 e2 s1 s1' le1' vm1 v1 v2:
+    check_lval e2 x1 x2 r1 = ok (r1', ltr) ->
     eq_alloc r1 s1.(evm) vm1 ->
     value_uincl v1 v2 ->
     oapp (fun te2 =>
             Let vl := sem_pexpr gd (Estate s1.(emem) vm1) te2.2 in
-            truncate_val te2.1 vl.1 = ok v2) true oe2 ->
+            truncate_val te2.1 vl.1 = ok v2) true e2 ->
     write_lval gd x1 v1 s1 = ok (s1', le1') ->
     exists vm1',
       write_lval gd x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1', leak_E ltr le1') /\
       eq_alloc r1' s1'.(evm) vm1'.
   Proof.
-    move=> H1 H2 H3 H; move: H1 H2 H3.
-    case: x1 x2 => [vi1 t1 | x1 | sw1 x1 e1 | sw1 x1 e1] [vi2 t2 | x2 | sw2 x2 e2 | sw2 x2 e2] //=.
+    move=> H1 H2 H3 _; move: H1 H2 H3.
+    case: x1 x2 => [vi1 t1 | x1 | sw1 x1 e1 | sw1 x1 e1] [vi2 t2 | x2 | sw2 x2 e2' | sw2 x2 e2'] //=.
     + (* Lone *)
       case:ifP => //= /eqP <- [<-] <-.
-      move=> Heqa Hv. t_xrbindP. move=> vw H' <- <- /=.
-      move: write_noneP. move
-
-
-
-
-      have [-> _ _]:= write_noneP H'.
-      by rewrite (uincl_write_none _ Hv H);exists vm1.
-    + by case:ifP=>//= Hc [<-];apply check_rvarP.
-    + case:ifP=>//= /andP[] /andP[] /eqP <- Hcx Hce [<-] Hea Hu.
-      t_xrbindP => z1 vx1  /(check_varP Hea Hcx) [vx1' ->] /=.
-      move=> /value_uincl_word H/H{H} -> we ve.
-      case: s1 Hea=> sm1 svm1 Hea /(check_ebP Hea Hce) [ve2 ->].
-      move=> /value_uincl_word H/H{H} /= -> w /(value_uincl_word Hu) -> /=.
-      by move=> m -> <- /=;eexists;eauto.
-    + case:is_constP => //= i.
+      move=> Heqa Hv. t_xrbindP. move=> vw H <- <-.
+      have [-> _]:= write_noneP H.
+      rewrite (uincl_write_none _ Hv H) /=. by exists vm1.
+    + (* Lvar *)
+      case:ifP=> //= Hc [<- <-] Hvm Hv. t_xrbindP. move=> vw Hw <- <-.
+      move: check_rvarP. move=> Hcv. move: (Hcv x1 x2 r1 vm1 v1 v2 s1 vw Hc Hvm Hv Hw).
+      move=> [] vm1' [] -> Hvm1' /=. exists vm1'. by split.
+    + (* Lmem *)
+      case: ifP=> //=. move=> /andP [] /andP [] /eqP <- Hcx Hce [] <- <- Hvm Hv.
+      t_xrbindP. move=> vg vp Hg /value_uincl_word Hp [ve le] He
+                        vp' /value_uincl_word Hp' vw /value_uincl_word Hw vw' Hw' <- <-.
+      move: check_varP. move=> Hcc. move: (Hcc r1 (evm s1) vm1 x1 x2 vp Hvm Hcx Hg).
+      move=> [] vp'' -> /= Hv' {Hcc}. move: (Hp vp'' Hv' ). move=> -> /=.
+      move: check_ebP.  move=> Hce'. replace s1 with {| emem := emem s1; evm := evm s1 |} in He.
+      move: (Hce' gd r1 (emem s1) (evm s1) vm1 e1 Hvm e2' ve le Hce He).
+      move=> [] ve' -> {Hce'} /= Hve. move: (Hp' ve' Hve). move=> -> /=.
+      move: (Hw v2 Hv). move=> -> /=. rewrite Hw' /=. exists vm1. split. auto. auto.
+      case: (s1). by rewrite /=.
+    + (* Laset *)
+      case:is_constP => //= i.
       case: x1 x2 => -[tx1 nx1] ii1 [[tx2 nx2] ii2] /=.
       set x1 := {| vname := nx1 |}; set x2 := {|vname := nx2|}.
-      case:ifP=>//= /eqP ? [?] heqa huv; subst tx2 r1'.
+      case:ifP=>//= /eqP h [<- <-] heqa huv.
       apply: on_arr_varP => n t /subtypeEl [n' /= [? hnn']] Hget; subst tx1.
-      t_xrbindP=> w /(value_uincl_word huv) H => {huv} t' Ht' vm1' Hset <- /=.
+      t_xrbindP. move=> w /(value_uincl_word huv) H {huv} t' Ht' vm1' Hset <- <- /=.
       move: Hget Hset; rewrite /get_var/set_var/=;apply:on_vuP => //=.
-      move=> t'' Hget /Varr_inj [?]; subst n' => /= ? [?]; subst t'' vm1'.
-      rewrite /write_var /set_var /= (to_word_to_pword H) /=.
-      eexists;split;first reflexivity.
+      move=> t'' Hget /Varr_inj [n'']. subst n'. move=> /= Ht [] <-.
+      rewrite /write_var /set_var /=.  move: to_word_to_pword.
+      move=> Hww. move: (Hww sw1 v2 w H). move=> Hp /=. eexists.
+      split. admit.
       rewrite /WArray.inject Z.ltb_irrefl.
       have -> : {| WArray.arr_data := WArray.arr_data t' |} = t' by case: (t').
       case: heqa => Hina Hgeta.
       split.
-      + move=> x /= Hx;rewrite !Fv.setP_neq;
-        [by apply Hina;SvD.fsetdec | | ];apply /eqP; SvD.fsetdec.
+      + move=> x /= Hx. rewrite !Fv.setP_neq. apply Hina;SvD.fsetdec. apply /eqP;SvD.fsetdec.
       move=> x n0 wz id /M.get_set_arr.
       case: eqP => [? [? hi]| /eqP hnx].
       + subst x wz => /=; rewrite Fv.setP_eq; eexists; split; first reflexivity.
         rewrite (WArray.setP n0 Ht').
         case: eqP hi => [?? | /eqP hni].
-        + by subst n0 id; rewrite Fv.setP_eq.
+      + rewrite /=. subst n0 id. rewrite /=. 
+        admit.
         move=> [hnid] /Hgeta /= [t0]; rewrite Hget => -[[?]]; subst t0.
-        by rewrite Fv.setP_neq //; apply /eqP => -[].
+        move=> Hg. rewrite -Ht. apply Hg.
       move=> [hnid /Hgeta]; case: x hnx => -[]// px nx /= hnx.
       by rewrite !Fv.setP_neq //; apply /eqP => -[].
-
-    case:ifP=>//=/andP[] /andP[] /eqP ? Hca Hce [<-] Hea Hvu; subst sw2.
+    (* Laset *)
+    case:ifP=>//=/andP[] /andP[] /eqP ? Hca Hce [<- <-] Hea Hvu; subst sw2.
     apply: on_arr_varP;rewrite /on_arr_var => n t Htx1 /(check_varP Hea Hca) [v3 ->] /=.
-    case: v3=> //= n0 t' Ht;subst.
-    apply: rbindP => z;apply: rbindP => ve.
-    case: s1 Hea=> sm1 svm1 Hea /(check_ebP Hea Hce) [v3 ->] /value_uincl_int H /H [_ ->].
-    apply: rbindP => w /(value_uincl_word Hvu) -> /=.
-    apply: rbindP => t'' /(WArray.uincl_set Ht) [t2 [-> ht'']].
-    have /(check_rvarP Hca Hea) : value_uincl (Varr t'') (Varr t2) by done.
-    by rewrite /write_var /=;case: set_var => //= vm' H1 /H1.
-  Qed.
+    case: v3=> //= n0 t' Ht;subst. t_xrbindP.
+    move=> [ve le] He vi Hi vw /value_uincl_word Hw t''
+           /(WArray.uincl_set Ht) [] va [] Ha Ht' vs Hs <- <-.
+    replace s1 with {| emem := emem s1; evm := evm s1 |} in He. move: check_ebP.
+    move=> Hce'. move: (Hce' gd r1 (emem s1) (evm s1) vm1 e1 Hea e2' ve le Hce He).
+    move=> {Hce'} [] ve' -> /= Hv. move: value_uincl_int. move=> Hi'. move: (Hi' ve ve' vi Hv Hi).
+    move=> {Hi'} [] h1 h2. rewrite h1 in Hi. rewrite -h2 in Hi. rewrite Hi /=.
+    move: (Hw v2 Hvu). move=> -> /=. rewrite Ha /=.
+    move: check_rvarP. move=> Hcv. rewrite /write_var in Hcv.
+    have /(check_rvarP Hca Hea) : value_uincl (Varr t'') (Varr va) by done.
+    rewrite /write_var /=. move=> H. move: (H {| emem := emem s1; evm := vs |}).
+    rewrite Hs /=. move=> []. auto. move=> vs' []. t_xrbindP. move=> vs'' -> /= <- Hvm1.
+    exists vs''. by split. by case: (s1). 
+   Admitted.
+
 
 End CBEA.
 
