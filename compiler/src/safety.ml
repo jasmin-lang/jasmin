@@ -4402,7 +4402,11 @@ end = struct
     if unsafe <> [] then Format.eprintf "%a@." pp_violations unsafe;
     add_violations state unsafe
 
-  type mlvar = MLnone | MLvar of mvar | MLvars of mvar list
+  type mlvar =
+    | MLnone
+    | MLvar of mvar
+    | MLvars of mvar list       (* If there is uncertainty on the lvalue where 
+                                   the assignement takes place. *)
 
   let pp_mlvar fmt = function
     | MLnone -> Format.fprintf fmt "MLnone"
@@ -4759,7 +4763,8 @@ end = struct
 
     (* Finally, we assign the returned values in the corresponding lvalues *)
     let f_decl = get_fun_def fstate.prog fname |> oget in
-    let r_assgns = get_ret_assgns state f_decl lvs in
+    let r_assgns = get_ret_assgns state f_decl lvs in      
+    
     let state = { state with abs = aeval_f_return state.abs r_assgns } in
 
     (* We forget the variables of f to get a smaller abstract element. *)

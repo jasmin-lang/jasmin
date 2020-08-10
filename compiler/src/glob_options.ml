@@ -100,11 +100,12 @@ let options = [
     "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
     "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,
-    "parameter for automatic safety verification:\n\
-     format: f_1>p_1:...:p_l|f_2>p_1':...:p_l'|...\
-     where each p_i is of the form:\n\
-     v_1,...,v_n;v_1',...,v_k'\n\
-     v_1,...,v_n: list of pointer variables that have to be considered together\n\
+    "parameter for automatic safety verification:\n    \
+     format: f_1>p_1:...:p_l|f_2>p_1':...:p_l'|...    \
+     where each p_i is of the form:\n    \
+     v_1,...,v_n;v_1',...,v_k'\n    \
+     v_1,...,v_n: list of pointer variables that have to be considered \
+     together\n    \
      v_1',...,v_k': list of relational variables"
   ] @  List.map print_option poptions
 
