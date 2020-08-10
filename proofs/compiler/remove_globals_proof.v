@@ -45,23 +45,39 @@ Module INCL. Section INCL.
   Section INCL_E.
     Context (gd1 gd2: glob_decls) (s: estate) (hincl: gd_incl gd1 gd2).
     Let P e : Prop :=
-      ∀ v, sem_pexpr gd1 s e = ok v → sem_pexpr gd2 s e = ok v.
+      ∀ v le, sem_pexpr gd1 s e = ok (v, le) → sem_pexpr gd2 s e = ok (v, le).
     Let Q es : Prop :=
       ∀ vs, sem_pexprs gd1 s es = ok vs → sem_pexprs gd2 s es = ok vs.
 
     Lemma gd_incl_e_es : (∀ e, P e) ∧ (∀ es, Q es).
     Proof.
       apply: pexprs_ind_pair; split; subst P Q => //=.
-      - move => e rec es ih q; t_xrbindP => v ok_v vs ok_vs <- {q}.
-        by rewrite (rec _ ok_v) /= (ih _ ok_vs).
-      - move => sz x e rec v; apply: on_arr_varP => n t h1 h2; t_xrbindP => z v1 /rec -> hz w.
-         by rewrite /on_arr_var h2 /= hz /= => -> <-.
-      - by move => sz x e hrec v; t_xrbindP => ?? -> /= -> ?? /hrec -> /= -> ? /= -> <-.
-      - by move=> ? e hrec v; t_xrbindP => ? /hrec -> <-.
-      - by move=> ? e1 hrec1 e2 hrec2 v; t_xrbindP => ? /hrec1 -> ? /= /hrec2 -> <-.
-      - by move => op es rec v; rewrite -!/(sem_pexprs _ _); t_xrbindP => vs /rec ->.
-      move=> t e1 hrec1 e2 hrec2 e3 hrec3 v.
-      by t_xrbindP => ?? /hrec1 -> /= -> ?? /hrec2 -> /= -> ?? /hrec3 -> /= -> /= <-.
+      - move => e rec es ih q. t_xrbindP. move=> [ve le] ok_v vs ok_vs <-.
+        move: (rec ve le ok_v). move=> -> /=. move: (ih vs ok_vs).
+        by move=> -> /=.
+      (* Pglobal *)  
+      - move=> g v le. t_xrbindP. move=> v' Hg <- <-. move: hincl.
+        rewrite /gd_incl. move=> H. move:(H g v' Hg). by move=> -> /=.
+      (* Pget *)
+      - move => sz x e rec v l. apply: on_arr_varP => n t h1 h2.
+        t_xrbindP. move=> [ve le] He z Hi w Ha <- <- /=.
+        rewrite /on_arr_var. rewrite h2 /=. move: (rec ve le He).
+        move=> -> /=. rewrite Hi /=. by rewrite Ha /=.
+      (* Pload *)
+      - move=> sz x e rec v l. t_xrbindP.
+        by move=> vp vg -> /= -> /= [ve le] /rec -> /= vp' -> /= vw -> /= <- <- /=.
+      (* Papp1 *)
+      - move=> op e rec v l. t_xrbindP. by move=> [ve le] /rec -> /= vo -> <- <- /=.
+      (* Papp2 *)
+      - move=> op e1 rec1 e2 rec2 v l. t_xrbindP.
+        by move=> [ve le] /rec1 -> /= [ve' le'] /rec2 -> /= vo -> /= <- <- /=.
+      (* PappN *)
+      - move=> op es rec v le. t_xrbindP. rewrite /sem_pexprs in rec.
+        by move=> ys /rec -> /= vo -> /= <- <-.
+      (* Pif *)    
+      - move=> ty e rece e1 rece1 e2 rece2. t_xrbindP.
+        by move=> hv hl [ve le] /rece -> /= be -> /= [ve1 le1] /rece1 -> /=
+                  [ve2 le2] /rece2 -> /= tv -> /= tv' -> /= <- <-.
     Qed.
 
   End INCL_E.
@@ -72,24 +88,28 @@ Module INCL. Section INCL.
   Definition gd_incl_es gd1 gd2 s es vs h :=
     (@gd_incl_e_es gd1 gd2 s h).2 es vs.
 
-  Lemma gd_incl_wl gd1 gd2 x v s1 s2 :
+  Lemma gd_incl_wl gd1 gd2 x v s1 s2 lw:
     gd_incl gd1 gd2 ->
-    write_lval gd1 x v s1 = ok s2 ->
-    write_lval gd2 x v s1 = ok s2.
+    write_lval gd1 x v s1 = ok (s2, lw) ->
+    write_lval gd2 x v s1 = ok (s2, lw).
   Proof.
-    move=> hincl;case: x => //=.
-    + by move=> ws x e;t_xrbindP => ?? -> /= -> ?? /(gd_incl_e hincl) -> /= -> ? -> /= ? -> <-.
-    move=> sz x e; apply: on_arr_varP;rewrite /on_arr_var => ?? h1 ->.
-    by t_xrbindP => ?? /(gd_incl_e hincl) -> /= -> ? -> /= ? -> /= ? -> <-.
+    move=> hincl. case: x=> //=.
+    (* Lmem *)
+    + move=> ws x e. t_xrbindP. move=> vp vg -> /= -> /= [ve le] /(gd_incl_e hincl) -> /=.
+      by move=> vp' -> /= vw -> /= m -> /= <- <-.
+    (* Laset *)
+    move=> sz x e. apply: on_arr_varP;rewrite /on_arr_var => ?? h1 ->. t_xrbindP.
+    by move=> [ve le] /(gd_incl_e hincl) -> /= vi -> /= vw -> /= va -> /= vm -> /= <- <-.
   Qed.
 
-  Lemma gd_incl_wls gd1 gd2 xs vs s1 s2 :
+  Lemma gd_incl_wls gd1 gd2 xs vs s1 s2 lw:
     gd_incl gd1 gd2 ->
-    write_lvals gd1 s1 xs vs = ok s2 ->
-    write_lvals gd2 s1 xs vs = ok s2.
+    write_lvals gd1 s1 xs vs = ok (s2, lw) ->
+    write_lvals gd2 s1 xs vs = ok (s2, lw).
   Proof.
-    move=> hincl;elim: xs vs s1 s2 => //= x xs hrec [|v vs] s1 s2 //=.
-    by t_xrbindP => ? /(gd_incl_wl hincl) -> /hrec /= ->.
+    rewrite /write_lvals.
+    move=> hincl;elim: xs vs s1 s2 [::] lw => //= x xs hrec [|v vs] s1 s2 lw1 lw //=.
+    t_xrbindP. by move=> y [s' lw'] /(gd_incl_wl hincl) -> /= <- /hrec ->.
   Qed.
 
   Context (P1:prog) (gd2:glob_decls).
@@ -114,78 +134,96 @@ Module INCL. Section INCL.
   Proof. move=> s; constructor. Qed.
 
   Local Lemma Hcons : sem_Ind_cons P1 Pc Pi.
-  Proof. by move=> s1 s2 s3 i c ? h1 ?; apply: Eseq. Qed.
+  Proof. by move=> s1 s2 s3 i c li lc ? h1 ?; apply: Eseq. Qed.
 
   Local Lemma HmkI : sem_Ind_mkI P1 Pi_r Pi.
-  Proof. move=> ?????;apply: EmkI. Qed.
+  Proof. move=> ??????;apply: EmkI. Qed.
 
-  Local Lemma Hasgn : forall (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v',
-    sem_pexpr gd s1 e = ok v ->
+  Local Lemma Hasgn : forall (s1 s2 : estate) (x : lval) (tag : assgn_tag) ty (e : pexpr) v v' le lw,
+    sem_pexpr gd s1 e = ok (v, le) ->
     truncate_val ty v = ok v' ->
-    write_lval gd x v' s1 = ok s2 ->
-    Pi_r s1 (Cassgn x tag ty e) s2.
+    write_lval gd x v' s1 = ok (s2, lw) ->
+    Pi_r s1 (Cassgn x tag ty e) (Lassgn (LSub ([:: le ; lw]))) s2.
   Proof.
-    move=> ???????? /(gd_incl_e hincl) h1 h2 /(gd_incl_wl hincl) h3.
+    move=> ?????????? /(gd_incl_e hincl) h1 h2 /(gd_incl_wl hincl) h3.
     apply: Eassgn;eauto.
   Qed.
 
-  Local Lemma Hopn : forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs),
-    sem_sopn gd o s1 xs es = Ok error s2 ->
-    Pi_r s1 (Copn xs t o es) s2.
+  Local Lemma Hopn : forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs) lo,
+    sem_sopn gd o s1 xs es = Ok error (s2, lo) ->
+    Pi_r s1 (Copn xs t o es) (Lopn lo) s2.
   Proof.
-    move=> ??????;rewrite /sem_sopn.
-    t_xrbindP => ?? /(gd_incl_es hincl) h1 h2 /(gd_incl_wls hincl) h3.
-    by econstructor;eauto;rewrite /sem_sopn h1 /= h2.
+    move=> s1 s2 ty o xs es lo;rewrite /sem_sopn.
+    t_xrbindP. move=> ys /(gd_incl_es hincl) h1 ve h2 [vws lws] /(gd_incl_wls hincl) h3 <- <-.
+    econstructor. rewrite /sem_sopn. replace (p_globs P2) with gd2. rewrite h1 /=.
+    rewrite h2 /=. rewrite h3 /=. auto. constructor.
   Qed.
 
-  Local Lemma Hif_true : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
-    sem_pexpr gd s1 e = ok (Vbool true) ->
-    sem P1 s1 c1 s2 -> Pc s1 c1 s2 -> Pi_r s1 (Cif e c1 c2) s2.
-  Proof. by move=> ????? /(gd_incl_e hincl) h1 ? h2; apply Eif_true. Qed.
-
-  Local Lemma Hif_false : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
-    sem_pexpr gd s1 e = ok (Vbool false) ->
-    sem P1 s1 c2 s2 -> Pc s1 c2 s2 -> Pi_r s1 (Cif e c1 c2) s2.
-  Proof. by move=> ????? /(gd_incl_e hincl) h1 ? h2; apply Eif_false. Qed.
-
-  Local Lemma Hwhile_true : forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (c' : cmd),
-    sem P1 s1 c s2 -> Pc s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool true) ->
-    sem P1 s2 c' s3 -> Pc s2 c' s3 ->
-    sem_i P1 s3 (Cwhile a c e c') s4 -> Pi_r s3 (Cwhile a c e c') s4 -> Pi_r s1 (Cwhile a c e c') s4.
+  Local Lemma Hif_true : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) le lc,
+    sem_pexpr gd s1 e = ok (Vbool true, le) ->
+    sem P1 s1 c1 lc s2 -> Pc s1 c1 lc s2 -> Pi_r s1 (Cif e c1 c2) (Lcond le true lc) s2.
   Proof.
-    move=> ????????? h1 /(gd_incl_e hincl) h2 ? h3 ? h4; apply: Ewhile_true; eauto.
+    move=> s1 s2 e c1 c2 le lc /(gd_incl_e hincl) h1 ? h2; apply Eif_true.
+    replace (p_globs P2) with gd2. auto. constructor. auto.
   Qed.
 
-  Local Lemma Hwhile_false : forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (c' : cmd),
-    sem P1 s1 c s2 -> Pc s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool false) ->
-    Pi_r s1 (Cwhile a c e c') s2.
-  Proof. move=> ??????? h1 /(gd_incl_e hincl) ?; apply: Ewhile_false; eauto. Qed.
+  Local Lemma Hif_false : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) le lc,
+    sem_pexpr gd s1 e = ok (Vbool false, le) ->
+    sem P1 s1 c2 lc s2 -> Pc s1 c2 lc s2 -> Pi_r s1 (Cif e c1 c2) (Lcond le false lc) s2.
+  Proof.
+    move=> s1 s2 e c1 c2 le lc /(gd_incl_e hincl) h1 ? h2; apply Eif_false.
+    replace (p_globs P2) with gd2. auto. constructor. auto.
+  Qed.
+
+  Local Lemma Hwhile_true : forall (s1 s2 s3 s4 : estate) a (c : cmd) (e : pexpr) (c' : cmd) lc le lc' li,
+    sem P1 s1 c lc s2 -> Pc s1 c lc s2 ->
+    sem_pexpr gd s2 e = ok (Vbool true, le) ->
+    sem P1 s2 c' lc' s3 -> Pc s2 c' lc' s3 ->
+    sem_i P1 s3 (Cwhile a c e c') li s4 -> Pi_r s3 (Cwhile a c e c') li s4 ->
+    Pi_r s1 (Cwhile a c e c') (Lwhile_true lc le lc' li) s4.
+  Proof.
+    move=> s1 s2 s3 s4 a c e c' lc le lc' li h1 h2 /(gd_incl_e hincl) he h1' h2' h3 h4.
+    apply: Ewhile_true; eauto.
+  Qed.
+
+  Local Lemma Hwhile_false : forall (s1 s2 : estate) a (c : cmd) (e : pexpr) (c' : cmd) lc le,
+    sem P1 s1 c lc s2 -> Pc s1 c lc s2 ->
+    sem_pexpr gd s2 e = ok (Vbool false, le) ->
+    Pi_r s1 (Cwhile a c e c') (Lwhile_false lc le) s2.
+  Proof.
+    move=> s1 s2 a c e c' lc le h1 h1' /(gd_incl_e hincl) he.
+    apply: Ewhile_false; eauto.
+  Qed.
 
   Local Lemma Hfor : sem_Ind_for P1 Pi_r Pfor.
   Proof.
-    move=> ????????? /(gd_incl_e hincl) h1 /(gd_incl_e hincl) h2 h3.
-    apply: Efor;eauto.
-  Qed.
+    move=> s1 s2 i r wr c lr lf /= Hr Hf Hpf /=.
+    apply Efor with wr. move: Hr. rewrite /sem_range. t_xrbindP.
+    case: r. move=> [d lo] hi /=. t_xrbindP. move=> [ve le] /(gd_incl_e hincl) -> /=.
+    by move=> vi -> /= [ve' le'] /(gd_incl_e hincl) -> /= vi' -> /= <- <-. auto.
+  Qed. 
 
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
-  Proof. move=> ???;constructor. Qed.
+  Proof. move=> s1 i c;constructor. Qed.
 
   Local Lemma Hfor_cons : sem_Ind_for_cons P1 Pc Pfor.
-  Proof. move=> ???????? h1 ? h2 h3 h4;econstructor;eauto. Qed.
+  Proof.
+    move=> s1 s1' s2 s3 i sz c c' lc lf h1 hs1 hc1 hf hpf.
+    apply EForOne with s1' s2. auto. auto. auto.
+  Qed.
 
   Local Lemma Hcall : sem_Ind_call P1 Pi_r Pfun.
   Proof.
-    move=> ????????? /(gd_incl_es hincl) h1 ? h2 /(gd_incl_wls hincl) h3.
+    move=> s1 m2 s2 ii xs fn args vargs vs lf lw /(gd_incl_es hincl) hes hc hf /(gd_incl_wls hincl) hws.
     econstructor;eauto.
   Qed.
 
   Local Lemma Hproc : sem_Ind_proc P1 Pc Pfun.
-  Proof. move=> ?????????? h1 h2 h3 ? h4 h5 h6; econstructor;eauto. Qed.
+  Proof. move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' h1 h2 h3 h4 h5 h6 h7.
+         econstructor;eauto. Qed.
 
-  Lemma gd_incl_fun m (fn : funname) (l : seq value) m0 vs:
-      sem_call P1 m fn l m0 vs -> Pfun m fn l m0 vs.
+  Lemma gd_incl_fun m (fn : funname) (l : seq value) m0 vs lf:
+      sem_call P1 m fn l (fn, lf) m0 vs -> Pfun m fn l (fn, lf) m0 vs.
   Proof.
     apply: (@sem_call_Ind P1 Pc Pi_r Pi Pfor Pfun
              Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false
@@ -289,10 +327,21 @@ Module RGP. Section PROOFS.
 
   Context (fds: fun_decls).
   Notation gd := (p_globs P).
+  Variable Fs: seq (funname * seq leak_i_tr).
 
-  Hypothesis fds_ok : mapM (remove_glob_fundef is_glob gd) (p_funcs P) = ok fds.
+  (** NEED TO FIX **)
+  (*Hypothesis fds_ok : (mapM (remove_glob_fundef is_glob gd) (p_funcs P)) = ok fds.
+
+  Hypothesis fds_ok : mapM (remove_glob_fundef is_glob gd) (p_funcs P) = ok fds.*)
+  
   Hypothesis uniq_gd : uniq (map fst gd).
   Notation P' := {|p_globs := gd; p_funcs := fds |}.
+
+  (*Hypothesis (p'_def : P' = Let rs := (remove_glob_prog is_glob _ P) in rs.1).*)
+
+  Definition r := (remove_glob_prog is_glob fresh_id P).
+
+  Hypothesis (Fs_def : Fs = Let rs := (remove_glob_prog is_glob fresh_id P) in rs.2).
 
   Definition valid (m:venv) (s1 s2:estate) :=
     [/\ s1.(emem) = s2.(emem),
