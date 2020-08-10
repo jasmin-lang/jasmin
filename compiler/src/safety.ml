@@ -5240,8 +5240,18 @@ end
 
 module AbsAnalyzer (EW : ExportWrap) = struct
   let parse_pt_rel s = match String.split_on_char ';' s with
-    | [pts;rels] -> { relationals = String.split_on_char ',' rels |> some;
-                      pointers = String.split_on_char ',' pts |> some }
+    | [pts;rels] ->
+      let relationals =
+        if rels = ""
+        then None
+        else String.split_on_char ',' rels |> some in
+      let pointers =
+        if pts = ""
+        then None
+        else String.split_on_char ',' pts |> some in
+      { relationals = relationals;
+        pointers = pointers; }
+      
     | [_] ->
       raise (Failure "-safetyparam ill-formed (maybe you forgot a ';' ?)")
     | _ ->
