@@ -4733,7 +4733,6 @@ end = struct
     and mlvs = List.map (fun x -> (x, mvar_of_lvar state.abs x)) lvs in
 
     combine3 out_tys f_rets_no_offsets mlvs
-    |> add_offsets_lv
 
 
   let return_call state fstate lvs =
