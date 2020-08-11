@@ -2282,7 +2282,8 @@ let swap_op2 op e1 e2 =
 
 let opk_of_cmpk = function
   | E.Cmp_int -> E.Op_int
-  | E.Cmp_w (_,ws) -> E.Op_w ws
+  | E.Cmp_w (Unsigned,ws) -> E.Op_w ws
+  | E.Cmp_w (Signed,_ws) -> assert false (* TODO: signed word*)
 
 let mtexpr_of_bigint env z =
   let mpq_z = Mpq.init_set_str (B.to_string z) ~base:10 in
@@ -3581,7 +3582,7 @@ let safe_return main_decl =
 (* Utils *)
 (*********)
 
-let pcast ws e = match Conv.ty_of_cty (Conv.cty_of_ty (ty_expr e)) with
+let pcast ws e = match ty_expr e with
   | Bty Int -> Papp1 (E.Oword_of_int ws, e)
   | Bty (U ws') ->
     assert (int_of_ws ws' <= int_of_ws ws);
@@ -3684,21 +3685,33 @@ let op1_to_abs_unop op1 = match op1 with
   | _ -> None
 
 
+type abs_binop =
+  | AB_Unknown
+  | AB_Arith of Apron.Texpr1.binop
+  | AB_Shift of [`Unsigned_left | `Unsigned_right | `Signed_right ]
+  (* Remark: signed left is a synonymous for unsigned left *)               
+
+let abget = function AB_Arith a -> a | _ -> assert false
+  
 let op2_to_abs_binop op2 = match op2 with
-  | E.Oadd _ -> Some Texpr1.Add
-  | E.Omul _ -> Some Texpr1.Mul
-  | E.Osub _ -> Some Texpr1.Sub
-  | E.Omod _ -> Some Texpr1.Mod
+  | E.Oadd _ -> AB_Arith Texpr1.Add
+  | E.Omul _ -> AB_Arith Texpr1.Mul
+  | E.Osub _ -> AB_Arith Texpr1.Sub
+  | E.Omod _ -> AB_Arith Texpr1.Mod
 
-  | E.Odiv _ -> Some Texpr1.Div
+  | E.Odiv (Cmp_w (Signed, _)) -> assert false (* TODO: signed word *)
+  | E.Odiv _ -> AB_Arith Texpr1.Div
 
+  | E.Olsr _ -> AB_Shift `Unsigned_right
+  | E.Olsl _ -> AB_Shift `Unsigned_left
+  | E.Oasr _ -> AB_Shift `Signed_right
+      
   | E.Oand | E.Oor
   | E.Oland _ | E.Olor _ | E.Olxor _ (* bit-wise boolean connectives *)
-  | E.Olsr _ | E.Olsl _ | E.Oasr _
-  | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> None
+  | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> AB_Unknown
 
   | E.Ovadd (_, _) | E.Ovsub (_, _) | E.Ovmul (_, _)
-  | E.Ovlsr (_, _) | E.Ovlsl (_, _) | E.Ovasr (_, _) -> None
+  | E.Ovlsr (_, _) | E.Ovlsl (_, _) | E.Ovasr (_, _) -> AB_Unknown
 
 
 (* Return lin_expr mod 2^n *)
@@ -3803,8 +3816,8 @@ end = struct
 
     not (Interval.is_leq int ws_int)
 
-  (* TODO: signed words *)
-  let wrap_if_overflow abs e _ ws =
+  let wrap_if_overflow abs e signed ws =
+    assert (not signed);  (* TODO: signed words *)
     if linexpr_overflow abs e false ws then
       wrap_lin_expr ws e
     else e
@@ -3921,12 +3934,25 @@ end = struct
 
     | Papp2 (op2, e1, e2) ->
       begin match op2_to_abs_binop op2 with
-        | Some absop ->
+        | AB_Arith absop ->
           Mtexpr.(binop absop
                     (linearize_iexpr abs e1)
                     (linearize_iexpr abs e2))
 
-        | None -> raise (Binop_not_supported op2) end
+        | AB_Shift `Signed_right
+        | AB_Unknown ->
+          raise (Binop_not_supported op2)
+            
+        | AB_Shift stype  -> match aeval_cst_int abs e2 with
+          | None -> raise (Binop_not_supported op2)
+          | Some i ->
+            let absop = match stype with
+              | `Unsigned_right -> Texpr1.Div
+              | `Unsigned_left -> Texpr1.Mul
+              | _ -> assert false in
+            Mtexpr.(binop absop
+                    (linearize_iexpr abs e1)
+                    (cst_pow_minus apr_env i 0)) end
 
     | Pif _ -> raise If_not_supported
 
@@ -3966,9 +3992,11 @@ end = struct
 
     | Papp2 (op2, e1, e2) ->
       begin match op2_to_abs_binop op2 with
-        | Some Texpr1.Mod -> begin match op2 with
-            | E.Omod (Cmp_w (_,_))  ->
+        | AB_Arith Texpr1.Mod -> begin match op2 with
+            | E.Omod (Cmp_w (Signed,_))  -> assert false
               (* TODO: signed words *)
+
+            | E.Omod (Cmp_w (Unsigned,_))  ->
               let l_e1 = linearize_wexpr abs e1 in
               let l_e2 = linearize_wexpr abs e2 in
 
@@ -3978,14 +4006,31 @@ end = struct
             | _ ->
               raise (Aint_error "linearize_wexpr : Papp2 : bad type") end
 
-        | Some Texpr1.Add | Some Texpr1.Mul | Some Texpr1.Sub as absop->
-          let lin = Mtexpr.(binop (oget absop)
+        | AB_Arith Texpr1.Add | AB_Arith Texpr1.Mul | AB_Arith Texpr1.Sub
+          as absop->
+          let lin = Mtexpr.(binop (abget absop)
                               (linearize_wexpr abs e1)
                               (linearize_wexpr abs e2)) in
           wrap_if_overflow abs lin false (int_of_ws ws_e)
 
-        | Some Texpr1.Div | Some Texpr1.Pow | None ->
-          raise (Binop_not_supported op2) end
+        | AB_Shift `Signed_right
+        | AB_Arith Texpr1.Div
+        | AB_Arith Texpr1.Pow
+        | AB_Unknown ->
+          raise (Binop_not_supported op2)
+            
+        | AB_Shift stype  -> match aeval_cst_int abs e2 with
+          | Some i when i <= int_of_ws ws_e ->
+            let absop = match stype with
+              | `Unsigned_right -> Texpr1.Div
+              | `Unsigned_left -> Texpr1.Mul
+              | _ -> assert false in
+            Mtexpr.(binop absop
+                    (linearize_iexpr abs e1)
+                    (cst_pow_minus apr_env i 0))
+
+          | _ -> raise (Binop_not_supported op2)
+      end
 
     | Pget(ws,x,ei) ->
       begin match abs_arr_range abs (L.unloc x) ws ei with
@@ -4644,7 +4689,7 @@ end = struct
               | Bty Int, Bty Int -> mret
               | Bty (U _), Bty Int ->
                 (* TODO: Signed *)
-                wrap_if_overflow abs mret Unsigned lv_size
+                wrap_if_overflow abs mret false lv_size
               | Bty (U _), Bty (U _) ->
                 cast_if_overflows abs lv_size ret_size mret
               | _, _ -> assert false in
@@ -4778,30 +4823,199 @@ end = struct
     match omap Mtcons.get_typ sc with
     | Some Lincons0.SUPEQ | Some Lincons0.SUP -> omap Mtcons.get_expr sc
     | _ -> None
+  
 
-  (* Remark: the n-ary operations we support are such that the parallel 
-     assignment can be done sequentially. *)
+  (* -------------------------------------------------------------------- *)
+  (* Return flags for the different operations *)
+  
+  (* TODO *)
+  let sf_of_word _sz _w = None
+  (* msb w. *)
+
+  (* TODO *)
+  let pf_of_word _sz _w = None
+  (* lsb w. *) 
+
+  let zf_of_word sz w =
+    Some (Papp2 (E.Oeq (E.Op_w sz),
+                 w,
+                 Pconst (B.of_int 0)))
+      
+  let rflags_of_aluop sz w _vu _vs = 
+    let of_f = None               (* TODO *)
+    and cf   = None               (* TODO *)
+    and sf   = sf_of_word sz w
+    and pf   = pf_of_word sz w
+    and zf   = zf_of_word sz w in
+    [of_f;cf;sf;pf;zf]
+
+  let rflags_of_bwop sz w =
+    let of_f = Some (Pconst (B.of_int 0))
+    and cf   = Some (Pconst (B.of_int 0))
+    and sf   = sf_of_word sz w
+    and pf   = pf_of_word sz w
+    and zf   = zf_of_word sz w in
+    [of_f;cf;sf;pf;zf]
+
+  let rflags_of_neg sz w _vs = 
+    let of_f = None               (* TODO, same than for rflags_of_aluop *)
+    and cf   = None               (* TODO, must be (w != 0)*)
+    and sf   = sf_of_word sz w
+    and pf   = pf_of_word sz w
+    and zf   = zf_of_word sz w in
+    [of_f;cf;sf;pf;zf]
+
+  let rflags_of_mul (ov : bool option) =
+    (*  OF; CF; SF; PF; ZF *)
+    [Some ov; Some ov; None; None; None]
+    
+  let rflags_of_div =
+    (*  OF; CF; SF; PF; ZF *)
+    [None; None; None; None; None]
+
+  let rflags_of_andn sz w =
+    let of_f = Some (Pconst (B.of_int 0))
+    and cf   = Some (Pconst (B.of_int 0))
+    and sf   = sf_of_word sz w
+    and pf   = None
+    and zf   = zf_of_word sz w in
+    [of_f;cf;sf;pf;zf]
+
+  (* Remove the carry flag *)
+  let nocf = function
+    | [of_f;_;sf;pf;zf] -> [of_f;sf;pf;zf]
+    | _ -> assert false
+
+  let opn_dflt n = List.init n (fun _ -> None)
+
+  let opn_bin_gen f_flags ws op es =
+    let el,er = as_seq2 es in
+    let w = Papp2 (op, el, er) in
+    let vu = () in
+    let vs = () in
+    let rflags = f_flags ws w vu vs in
+    rflags @ [Some w]
+
+  let opn_bin_alu = opn_bin_gen rflags_of_aluop
+
+  (* Remark: the assignments must be done in the correct order.
+     Bitwise operators are ignored for now (result is soundly set to top).
+     See x86_instr_decl.v for a desciption of the operators. *)
   let split_opn n opn es = match opn with
     | E.Oset0 ws -> [None;None;None;None;None;
                      Some (pcast ws (Pconst (B.of_int 0)))]
 
     | E.Ox86 (X86_instr_decl.CMP ws) ->
       (* Input types: ws, ws *)
-      (* Return flags in order: of, cf, sf, ?, zf *)
-      let el,er = match es with [el;er] -> el,er | _ -> assert false in
-      let of_f = None
-      and cf = None
-      and sf = None
-      and unknown = None
-      and zf = Some (Papp2 (E.Oeq (E.Op_w ws),
-                            Papp2 (E.Osub (E.Op_w ws),
-                                   el,
-                                   er),
-                            Pconst (B.of_int 0))) in
-      [of_f;cf;sf;unknown;zf]
+      let el,er = as_seq2 es in
+      let w = Papp2 (E.Osub (E.Op_w ws), el, er) in
+      let vu = () in
+      let vs = () in
+      let rflags = rflags_of_aluop ws w vu vs in
+      rflags
+      
+    (* add unsigned / signed *)
+    | E.Ox86 (X86_instr_decl.ADD ws) ->
+      opn_bin_alu ws (E.Oadd (E.Op_w ws)) es
 
-    | _ -> List.init n (fun _ -> None)
+    (* sub unsigned / signed *)
+    | E.Ox86 (X86_instr_decl.SUB ws) ->
+      opn_bin_alu ws (E.Osub (E.Op_w ws)) es
+        
+    (* mul unsigned *)
+    | E.Ox86 (X86_instr_decl.MUL ws) ->
+      let el,er = as_seq2 es in
+      let w = Papp2 (E.Omul (E.Op_w ws), el, er) in
+      (* TODO: overflow bit to have the precise flags *)
+      (* let ov = ?? in
+       * let rflags = rflags_of_mul ov in *)
+      let rflags = [None; None; None; None; None] in
+      rflags @ [Some w]
+              
+    (* div unsigned *)
+    | E.Ox86 (X86_instr_decl.DIV ws) ->
+      let el,er = as_seq2 es in
+      let w = Papp2 (E.Odiv (E.Cmp_w (Unsigned, ws)), el, er) in
+      let rflags = rflags_of_div in
+      rflags @ [Some w]
 
+    (* div signed *)
+    | E.Ox86 (X86_instr_decl.IDIV ws) ->
+      let el,er = as_seq2 es in
+      let w = Papp2 (E.Odiv (E.Cmp_w (Signed, ws)), el, er) in
+      let rflags = rflags_of_div in
+      rflags @ [Some w]
+
+    (* increment *)
+    | E.Ox86 (X86_instr_decl.INC ws) ->
+      let e = as_seq1 es in
+      let w = Papp2 (E.Oadd (E.Op_w ws), e, Pconst (B.of_int 1)) in
+      let vu = () in
+      let vs = () in
+      let rflags = nocf (rflags_of_aluop ws w vu vs) in
+      rflags @ [Some w]
+
+    (* decrement *)
+    | E.Ox86 (X86_instr_decl.DEC ws) ->
+      let e = as_seq1 es in
+      let w = Papp2 (E.Osub (E.Op_w ws), e, Pconst (B.of_int 1)) in
+      let vu = () in
+      let vs = () in
+      let rflags = nocf (rflags_of_aluop ws w vu vs) in
+      rflags @ [Some w]
+
+    (* negation *)
+    | E.Ox86 (X86_instr_decl.NEG ws) ->
+      let e = as_seq1 es in
+      let w = Papp1 (E.Oneg (E.Op_w ws), e) in
+      let vs = () in
+      let rflags = rflags_of_neg ws w vs in
+      rflags @ [Some w]
+
+    (* copy *)
+    | E.Ox86 (X86_instr_decl.MOV _) ->
+      let e = as_seq1 es in 
+      [Some e]
+
+    (* TODO: improve precision by adding bit shift with flags *)
+    (* 
+    | ROR    of wsize    (* rotation / right *)
+    | ROL    of wsize    (* rotation / left  *)
+    | RCR    of wsize    (* rotation / right with carry *)
+    | RCL    of wsize    (* rotation / left  with carry *)
+    | SHL    of wsize    (* unsigned / left  *)
+    | SHR    of wsize    (* unsigned / right *)
+    | SAL    of wsize    (*   signed / left; synonym of SHL *)
+    | SAR    of wsize    (*   signed / right *)
+    | SHLD   of wsize    (* unsigned (double) / left *)
+    | SHRD   of wsize    (* unsigned (double) / right *)
+    | MULX    of wsize  (* mul unsigned, doesn't affect arithmetic flags *)
+    | ADCX    of wsize  (* add with carry flag, only writes carry flag *)
+    | ADOX    of wsize  (* add with overflow flag, only writes overflow flag *)
+    *)
+
+    (* (\* conditional copy *\)
+     * | E.Ox86 (X86_instr_decl.CMOVcc sz) ->
+     *   let c,el,er = as_seq3 es in 
+     *   if b then el else er *)
+        
+    (* bitwise operators *)
+    | E.Ox86 (X86_instr_decl.TEST _)
+    | E.Ox86 (X86_instr_decl.AND  _)
+    | E.Ox86 (X86_instr_decl.ANDN _)
+    | E.Ox86 (X86_instr_decl.OR   _)
+    | E.Ox86 (X86_instr_decl.NOT  _)        
+    | E.Ox86 (X86_instr_decl.XOR  _)
+
+    (* mul signed with truncation *)
+    | E.Ox86 (X86_instr_decl.IMUL _)
+    | E.Ox86 (X86_instr_decl.IMULr _)
+    | E.Ox86 (X86_instr_decl.IMULri _) 
+
+    | _ -> opn_dflt n
+
+
+  (* -------------------------------------------------------------------- *)
   let num_instr_evaluated = ref 0
 
   let print_ginstr ginstr abs () =
@@ -4869,8 +5083,7 @@ end = struct
         abs_assign state (ty_lval lv) (mvar_of_lvar state.abs lv) e
 
       | Copn (lvs,_,opn,es) ->
-        (* Remark: the n-ary operations we support are such that the parallel 
-           assignment can be done sequentially. *)
+        (* Remark: the assignments must be done in the correct order. *)
         let assgns = split_opn (List.length lvs) opn es in
         let state, mlvs_forget =
           List.fold_left2 (fun (state, mlvs_forget) lv e_opt ->
@@ -5243,11 +5456,11 @@ module AbsAnalyzer (EW : ExportWrap) = struct
     | [pts;rels] ->
       let relationals =
         if rels = ""
-        then None
+        then Some []
         else String.split_on_char ',' rels |> some in
       let pointers =
         if pts = ""
-        then None
+        then Some []
         else String.split_on_char ',' pts |> some in
       { relationals = relationals;
         pointers = pointers; }
@@ -5267,7 +5480,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           | [ps] -> (None, parse_pt_rels ps)
           | _ -> raise (Failure "-safetyparam ill-formed (too many '>' ?)"))
 
-  let analyze () =
+  let analyze () = 
     let ps_assoc = omap_dfl (fun s_p -> parse_params s_p)
         [ None, [ { relationals = None; pointers = None } ]]
         !Glob_options.safety_param in
