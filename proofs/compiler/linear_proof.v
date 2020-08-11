@@ -43,25 +43,28 @@ Unset Printing Implicit Defensive.
 Local Open Scope seq_scope.
 
 Lemma align_bind ii a p1 l :
-  Let p := align ii a p1 in ok (p.1, p.2 ++ l) =
-  align ii a (Let p := p1 in ok (p.1, p.2 ++ l)).
-Proof. by rewrite /align; case: a => //; case: p1. Qed.
+  (let: (lbl, lc) := align ii a p1 in (lbl, lc ++ l)) =
+  align ii a (let: (lbl, lc) := p1 in (lbl, lc ++ l)).
+Proof. by case: p1 a => lbl lc []. Qed.
 
 Section CAT.
 
+Context (p:sprog) (extra_free_registers: instr_info -> option var).
+
+Let linear_i := linear_i p extra_free_registers.
+
   Let Pi (i:instr) :=
-    forall lbl l ,
-     linear_i i lbl l =
-     linear_i i lbl [::] >>= (fun (p:label*lcmd) => ok (p.1, p.2 ++ l)).
+    forall fn lbl tail,
+     linear_i fn i lbl tail =
+     let: (lbl, lc) := linear_i fn i lbl [::] in (lbl, lc ++ tail).
 
   Let Pr (i:instr_r) :=
     forall ii, Pi (MkI ii i).
 
   Let Pc (c:cmd) :=
-    forall lbl l ,
-     linear_c linear_i c lbl l =
-     linear_c linear_i c lbl [::] >>=
-       (fun (p:label*lcmd) => ok (p.1, p.2 ++ l)).
+    forall fn lbl tail,
+     linear_c (linear_i fn) c lbl tail =
+     let: (lbl, lc) := linear_c (linear_i fn) c lbl [::] in (lbl, lc ++ tail).
 
   Let Pf (fd:fundef) := True.
 
@@ -73,9 +76,8 @@ Section CAT.
 
   Let Hseq : forall i c,  Pi i -> Pc c -> Pc (i::c).
   Proof.
-    move=> i c Hi Hc lbl l /=.
-    rewrite Hc !bindA;apply bind_eq => //= p.
-    by rewrite Hi (Hi p.1 p.2) bindA;apply bind_eq => //= p';rewrite catA.
+    move=> i c Hi Hc fn lbl l /=.
+    by rewrite Hc; case: linear_c => lbl1 lc1; rewrite Hi (Hi _ lbl1 lc1); case: linear_i => ??; rewrite catA.
   Qed.
 
   Let Hassgn : forall x tg ty e, Pr (Cassgn x tg ty e).
@@ -86,15 +88,15 @@ Section CAT.
 
   Let Hif   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
-    move=> e c1 c2 Hc1 Hc2 ii lbl l /=.
+    move=> e c1 c2 Hc1 Hc2 ii fn lbl l /=.
     case Heq1: (c1)=> [|i1 l1].
-    + by rewrite Hc2 (Hc2 _ [::_]) !bindA;apply bind_eq => //= p;rewrite -catA.
+    + by rewrite Hc2 (Hc2 _ _ [:: _]); case: linear_c => lbl1 lc1; rewrite cats1 /= cat_rcons.
     rewrite -Heq1=> {Heq1 i1 l1};case Heq2: (c2)=> [|i2 l2].
-    + by rewrite Hc1 (Hc1 _ [::_]) !bindA;apply bind_eq => //= p;rewrite -catA.
+    + by rewrite Hc1 (Hc1 _ _ [::_]); case: linear_c => lbl1 lc1; rewrite cats1 /= cat_rcons.
     rewrite -Heq2=> {Heq2 i2 l2}.
-    rewrite Hc1 (Hc1 _ [::_]) !bindA;apply bind_eq => //= p.
-    rewrite Hc2 (Hc2 _ [::_ & _])!bindA;apply bind_eq => //= p1.
-    by rewrite -!catA /= -catA.
+    rewrite Hc1 (Hc1 _ _ [::_]); case: linear_c => lbl1 lc1.
+    rewrite Hc2 (Hc2 _ _ [::_ & _]); case: linear_c => lbl2 lc2.
+    by rewrite /= !cats1 /= -!cat_rcons catA.
   Qed.
 
   Let Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir, lo, hi) c).
@@ -102,32 +104,39 @@ Section CAT.
 
   Let Hwhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
   Proof.
-    move=> a c e c' Hc Hc' ii lbl l /=.
+    move=> a c e c' Hc Hc' ii fn lbl l /=.
     case: is_bool => [ [] | ].
-    + rewrite Hc' (Hc' _ [:: _]) align_bind !bindA; f_equal;apply bind_eq => //= p.
-      by rewrite Hc (Hc _ ( _ ++ _)) !bindA;apply bind_eq => //= p';rewrite -catA /= -catA /=.
+    + rewrite Hc' (Hc' _ _ [:: _]) align_bind; f_equal; case: linear_c => lbl1 lc1.
+      by rewrite Hc (Hc _ _ (_ ++ _)); case: linear_c => lbl2 lc2; rewrite !catA cats1 -cat_rcons.
     + by apply Hc.
     case: c' Hc' => [ _ | i c' ].
-    + by rewrite Hc (Hc _ [:: _]) align_bind !bindA; f_equal; apply bind_eq => //= p; rewrite -catA.
+    + by rewrite Hc (Hc _ _ [:: _]) align_bind; case: linear_c => lbl1 lc1; rewrite /= cats1 cat_rcons.
     move: (i :: c') => { i c' } c' Hc'.
-    rewrite Hc (Hc _ [:: _]) !bindA; apply bind_eq => //= p.
-    rewrite Hc' (Hc' _ (_ :: _)) !bindA; apply bind_eq=> //= p'.
-    by case: a => /=; rewrite -catA /= -catA /=.
+    rewrite Hc (Hc _ _ [:: _]); case: linear_c => lbl1 lc1.
+    rewrite Hc' (Hc' _ _ (_ :: _)); case: linear_c => lbl2 lc2.
+    rewrite /=. f_equal. f_equal.
+    by case: a; rewrite /= cats1 -catA /= cat_rcons.
   Qed.
 
   Let Hcall : forall i xs f es, Pr (Ccall i xs f es).
-  Proof. by []. Qed.
+  Proof.
+    move => ini xs fn es ii fn' lbl tail /=.
+    case: get_fundef => // fd; case: ifP => //.
+    case: sf_return_address => // [ ra | ra_ofs ] _; first by rewrite cats0 -catA.
+    case: extra_free_registers => // ra.
+    by rewrite cats0 -catA.
+  Qed.
 
-  Lemma linear_i_nil i lbl l :
-     linear_i i lbl l =
-     linear_i i lbl [::] >>= (fun (p:label*lcmd) => ok (p.1, p.2 ++ l)).
+  Lemma linear_i_nil fn i lbl tail :
+     linear_i fn i lbl tail =
+     let: (lbl, lc) := linear_i fn i lbl [::] in (lbl, lc ++ tail).
   Proof.
     apply (@instr_Rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
-  Lemma linear_c_nil c lbl l :
-     linear_c linear_i c lbl l =
-     linear_c linear_i c lbl [::] >>= (fun (p:label*lcmd) => ok (p.1, p.2 ++ l)).
+  Lemma linear_c_nil fn c lbl tail :
+     linear_c (linear_i fn) c lbl tail =
+     let: (lbl, lc) := linear_c (linear_i fn) c lbl [::] in (lbl, lc ++ tail).
   Proof.
     apply (@cmd_rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
