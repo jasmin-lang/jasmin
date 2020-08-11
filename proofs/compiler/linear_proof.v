@@ -185,11 +185,6 @@ Proof.
   by rewrite find_cat size_cat has_find Hs (ltn_addr _ Hs).
 Qed.
 
-(* TODO move this *)
-Lemma onth_cat T (s1 s2 : seq T) n :
-  oseq.onth (s1 ++ s2) n = (if n < size s1 then oseq.onth s1 n else oseq.onth s2 (n - size s1)).
-Proof. by rewrite !oseq.onth_nth map_cat nth_cat size_map. Qed.
-
 Lemma find_instr_cat_tl c s i :
   find_instr s = Some i ->
   find_instr (setc s (lc s ++ c)) = Some i.
