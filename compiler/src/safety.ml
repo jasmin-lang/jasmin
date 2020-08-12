@@ -3959,6 +3959,9 @@ end = struct
     | _ -> assert false
 
   and linearize_wexpr abs (e : ty gexpr) =
+    Format.eprintf "## expr: %a\
+                    type: %a@." pp_expr e Printer.pp_ty (ty_expr e);
+    
     let apr_env = AbsDom.get_env abs in
     let ws_e = ws_of_ty (ty_expr e) in
 
@@ -4850,8 +4853,8 @@ end = struct
     [of_f;cf;sf;pf;zf]
 
   let rflags_of_bwop sz w =
-    let of_f = Some (Pconst (B.of_int 0))
-    and cf   = Some (Pconst (B.of_int 0))
+    let of_f = Some (Pbool false)
+    and cf   = Some (Pbool false)
     and sf   = sf_of_word sz w
     and pf   = pf_of_word sz w
     and zf   = zf_of_word sz w in
@@ -4874,8 +4877,8 @@ end = struct
     [None; None; None; None; None]
 
   let rflags_of_andn sz w =
-    let of_f = Some (Pconst (B.of_int 0))
-    and cf   = Some (Pconst (B.of_int 0))
+    let of_f = Some (Pbool false)
+    and cf   = Some (Pbool false)
     and sf   = sf_of_word sz w
     and pf   = None
     and zf   = zf_of_word sz w in
@@ -4949,7 +4952,8 @@ end = struct
     (* increment *)
     | E.Ox86 (X86_instr_decl.INC ws) ->
       let e = as_seq1 es in
-      let w = Papp2 (E.Oadd (E.Op_w ws), e, Pconst (B.of_int 1)) in
+      let w = Papp2 (E.Oadd (E.Op_w ws), e,
+                     Papp1(E.Oword_of_int ws,Pconst (B.of_int 1))) in
       let vu = () in
       let vs = () in
       let rflags = nocf (rflags_of_aluop ws w vu vs) in
@@ -4958,7 +4962,8 @@ end = struct
     (* decrement *)
     | E.Ox86 (X86_instr_decl.DEC ws) ->
       let e = as_seq1 es in
-      let w = Papp2 (E.Osub (E.Op_w ws), e, Pconst (B.of_int 1)) in
+      let w = Papp2 (E.Osub (E.Op_w ws), e,
+                     Papp1(E.Oword_of_int ws,Pconst (B.of_int 1))) in
       let vu = () in
       let vs = () in
       let rflags = nocf (rflags_of_aluop ws w vu vs) in
@@ -4977,7 +4982,7 @@ end = struct
       let e = as_seq1 es in 
       [Some e]
 
-    (* TODO: improve precision by adding bit shift with flags *)
+    (* TODO: adding bit shift with flags *)
     (* 
     | ROR    of wsize    (* rotation / right *)
     | ROL    of wsize    (* rotation / left  *)
