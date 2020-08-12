@@ -3189,11 +3189,17 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
                 (fun x -> AbsNum.NR.assign_expr ~force:force x v e)
                 (fun x -> x) t'
 
-            | None -> match constr with
-              | None -> t
-              | Some c ->
-                let dc = AbsNum.downgrade c in
-                apply (AbsNum.R.meet c) (AbsNum.NR.meet dc) (fun x -> x) t)
+            | None ->
+              let t' = match constr with
+                | None -> t
+                | Some c ->
+                  let dc = AbsNum.downgrade c in
+                  apply (AbsNum.R.meet c) (AbsNum.NR.meet dc) (fun x -> x) t in
+              apply
+                (fun x -> AbsNum.R.forget_list x [v])
+                (fun x -> AbsNum.NR.forget_list x [v])
+                (fun x -> x) t'              
+          ) 
           constr_expr_list in
 
       (* We compute the join of all the assignments *)
@@ -3876,6 +3882,24 @@ end = struct
 
     | _ -> None
 
+  (* Try to evaluate e to a constant expression (of type word) in abs.
+     Superficial checks only. *)
+  let rec aeval_cst_w abs e = match e with
+    | Pvar x -> begin match (L.unloc x).v_ty with
+        | Bty (U ws) ->
+          let env = AbsDom.get_env abs in
+          let line = Mtexpr.var env (mvar_of_var (L.unloc x)) in
+          if linexpr_overflow abs line Unsigned (int_of_ws ws) then None
+          else aeval_cst_var abs x
+        | _ -> raise (Aint_error "type error in aeval_cst_w") end
+
+    | Papp1 (E.Oword_of_int ws, e) ->
+      let c_e = aeval_cst_int abs e in
+      let pws = BatInt.pow 2 (int_of_ws ws) in
+      omap (fun c_e -> ((c_e mod pws) + pws) mod pws) c_e
+        
+    | _ -> None
+
 
   let arr_full_range x =
     List.init
@@ -4003,7 +4027,7 @@ end = struct
         | AB_Unknown ->
           raise (Binop_not_supported op2)
             
-        | AB_Shift stype  -> match aeval_cst_int abs e2 with
+        | AB_Shift stype  -> match aeval_cst_w abs e2 with
           | Some i when i <= int_of_ws ws_e ->
             let absop = match stype with
               | `Unsigned_right -> Texpr1.Div
@@ -4012,9 +4036,11 @@ end = struct
             let lin = Mtexpr.(binop absop
                                 (linearize_wexpr abs e1)
                                 (cst_pow_minus apr_env i 0)) in
+            
             wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
 
-          | _ -> raise (Binop_not_supported op2)
+          | _ ->
+            raise (Binop_not_supported op2)
       end
 
     | Pget(ws,x,ei) ->
