@@ -603,7 +603,7 @@ let mpq_pow n =
   let c_div = Mpq.of_int 1 in
   let mpq2 = Mpq.of_int 1 in
   Mpq.mul_2exp c_div mpq2 n;
-  c_div
+  Mpqf.of_mpq c_div 
 
 (* Return 2^n - y *)
 let mpq_pow_minus n y =
@@ -718,7 +718,7 @@ end = struct
   let rec build_term_array v offset len =
     let tv =
       Texpr1.Var (avar_of_mvar (Mvalue (AarrayEl (v,U8,offset + len - 1)))) in
-    let ptwo = Texpr1.Cst (Coeff.s_of_mpq (mpq_pow (8 * (len - 1)))) in
+    let ptwo = Texpr1.Cst (Coeff.s_of_mpqf (mpq_pow (8 * (len - 1)))) in
     let t = Texpr1.Binop (Texpr1.Mul, ptwo, tv, Texpr1.Int, Aparam.round_typ) in
     if len = 1 then tv
     else Texpr1.Binop (Texpr1.Add,
@@ -2280,11 +2280,6 @@ let swap_op2 op e1 e2 =
   | E.Oge   _ -> e2, e1
   | _         -> e1, e2
 
-let opk_of_cmpk = function
-  | E.Cmp_int -> E.Op_int
-  | E.Cmp_w (Unsigned,ws) -> E.Op_w ws
-  | E.Cmp_w (Signed,_ws) -> assert false (* TODO: signed word*)
-
 let mtexpr_of_bigint env z =
   let mpq_z = Mpq.init_set_str (B.to_string z) ~base:10 in
   Mtexpr.cst env (Coeff.s_of_mpq mpq_z)
@@ -3678,7 +3673,6 @@ let fun_vars ~expand_arrays f_decl env =
 (* Expression Linearization *)
 (****************************)
 
-(* TODO: careful with signed words. Look at jasmin_word.ec *)
 let op1_to_abs_unop op1 = match op1 with
   | E.Oneg _   -> Some Texpr1.Neg
   | E.Oword_of_int _ | E.Oint_of_word _ | E.Ozeroext _ -> assert false
@@ -3695,11 +3689,13 @@ let abget = function AB_Arith a -> a | _ -> assert false
   
 let op2_to_abs_binop op2 = match op2 with
   | E.Oadd _ -> AB_Arith Texpr1.Add
-  | E.Omul _ -> AB_Arith Texpr1.Mul
+  | E.Omul _ -> AB_Arith Texpr1.Mul                  
   | E.Osub _ -> AB_Arith Texpr1.Sub
+
+  | E.Omod (Cmp_w (Signed, _)) -> AB_Unknown
   | E.Omod _ -> AB_Arith Texpr1.Mod
 
-  | E.Odiv (Cmp_w (Signed, _)) -> assert false (* TODO: signed word *)
+  | E.Odiv (Cmp_w (Signed, _)) -> AB_Unknown
   | E.Odiv _ -> AB_Arith Texpr1.Div
 
   | E.Olsr _ -> AB_Shift `Unsigned_right
@@ -3719,27 +3715,40 @@ let expr_pow_mod apr_env n lin_expr =
   let mod_expr = cst_pow_minus apr_env n 0 in
   Mtexpr.binop Texpr1.Mod lin_expr mod_expr
 
-let word_interval signed ws =
-  if signed then
-    (* TODO: add signed words *)
-    assert false
-  else
+let word_interval sign ws = match sign with
+  | Signed ->
+    let pow_m_1 = mpq_pow (ws - 1) in
+    let up_mpq = Mpqf.sub pow_m_1 (Mpqf.of_int 1)         
+    and down_mpq = Mpqf.neg pow_m_1 in
+    Interval.of_mpqf down_mpq up_mpq 
+
+  | Unsigned ->
     let up_mpq = mpq_pow_minus ws 1 in
     Interval.of_mpqf (Mpqf.of_int 0) up_mpq
 
-(* We wrap lin_expr as an out_i word.
-   On unsigned word, we do: ((lin_expr % 2^n) + 2^n) % 2^n) *)
-(* TODO: this is correct only on unsigned words *)
-let wrap_lin_expr n lin_expr =
-  let env = Mtexpr.(lin_expr.env) in
-  let expr = expr_pow_mod env n lin_expr in
+(* We wrap expr as an out_i word.
+   On signed words: ((((lin_expr - 2^(n-1)) % 2^n) + 2^n) % 2^n) - 2^(n-1)
+   On unsigned word:  ((lin_expr            % 2^n) + 2^n) % 2^n)             
+*)
+let wrap_lin_expr sign n expr =
+  let env = Mtexpr.(expr.env) in
+  match sign with
+  | Signed -> 
+    let pow_n = cst_pow_minus env n 0 in
+    let pow_n_minus_1 = cst_pow_minus env (n - 1) 0 in
 
-  let pow_expr = cst_pow_minus env n 0 in
-  let expr' = Mtexpr.binop Texpr1.Add expr pow_expr in
+    let expr = Mtexpr.binop Texpr1.Sub expr pow_n_minus_1 in
+    let expr = expr_pow_mod env n expr in
+    let expr = Mtexpr.binop Texpr1.Add expr pow_n in
+    let expr = expr_pow_mod env n expr in
+    Mtexpr.binop Texpr1.Sub expr pow_n_minus_1 
 
-  expr_pow_mod env n expr'
-
-
+  | Unsigned ->
+    let pow_n = cst_pow_minus env n 0 in
+    
+    let expr = expr_pow_mod env n expr in
+    let expr = Mtexpr.binop Texpr1.Add expr pow_n in
+    expr_pow_mod env n expr
 
 let print_not_word_expr e =
   Format.eprintf "@[<v>Should be a word expression:@;\
@@ -3750,14 +3759,14 @@ let print_not_word_expr e =
 let check_is_int v = match v.v_ty with
   | Bty Int -> ()
   | _ ->
-    Format.eprintf "%s should be an int but is a %a"
+    Format.eprintf "%s should be an int but is a %a@."
       v.v_name Printer.pp_ty v.v_ty;
     raise (Aint_error "Bad type")
 
 let check_is_word v = match v.v_ty with
   | Bty (U _) -> ()
   | _ ->
-    Format.eprintf "%s should be a word but is a %a"
+    Format.eprintf "%s should be a word but is a %a@."
       v.v_name Printer.pp_ty v.v_ty;
     raise (Aint_error "Bad type")
 
@@ -3810,26 +3819,24 @@ end = struct
                   violations : violation list }
 
   (* Return true iff the linear expression overflows *)
-  let linexpr_overflow abs lin_expr signed ws =
+  let linexpr_overflow abs lin_expr sign ws =
     let int = AbsDom.bound_texpr abs lin_expr in
-    let ws_int = word_interval signed ws in
+    let ws_int = word_interval sign ws in
 
     not (Interval.is_leq int ws_int)
 
-  let wrap_if_overflow abs e signed ws =
-    assert (not signed);  (* TODO: signed words *)
-    if linexpr_overflow abs e false ws then
-      wrap_lin_expr ws e
+  let wrap_if_overflow abs e sign ws =
+    if linexpr_overflow abs e sign ws then
+      wrap_lin_expr sign ws e
     else e
 
   (* Casting: lin_expr is a in_i word, and we cast it as an out_i word. *)
-  (* TODO: signed words *)
   let cast_if_overflows abs out_i in_i lin_expr =
     assert ((out_i <> -1)  && (in_i <> -1));
     if out_i <= in_i then
-      wrap_if_overflow abs lin_expr false out_i
+      wrap_if_overflow abs lin_expr Unsigned out_i
     else
-      wrap_if_overflow abs lin_expr false in_i
+      wrap_if_overflow abs lin_expr Unsigned in_i
 
   let aeval_cst_var abs x =
     let int = AbsDom.bound_variable abs (mvar_of_var (L.unloc x)) in
@@ -3842,7 +3849,7 @@ end = struct
         | Bty (U ws) ->
           let env = AbsDom.get_env abs in
           let line = Mtexpr.var env (mvar_of_var (L.unloc x)) in
-          if linexpr_overflow abs line false (int_of_ws ws) then None
+          if linexpr_overflow abs line Unsigned (int_of_ws ws) then None
           else aeval_cst_var abs x
         | _ -> raise (Aint_error "type error in aeval_cst_int") end
 
@@ -3909,7 +3916,7 @@ end = struct
 
   let top_linexpr abs ws_e =
     let lin = Mtexpr.cst (AbsDom.get_env abs) (Coeff.Interval Interval.top) in
-    wrap_if_overflow abs lin false (int_of_ws ws_e)
+    wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
 
   let rec linearize_iexpr abs (e : expr) =
     let apr_env = AbsDom.get_env abs in
@@ -3923,7 +3930,7 @@ end = struct
     | Papp1(E.Oint_of_word sz,e1) ->
       assert (ty_expr e1 = tu sz);
       let abs_expr1 = linearize_wexpr abs e1 in
-      wrap_if_overflow abs abs_expr1 false (int_of_ws sz)
+      wrap_if_overflow abs abs_expr1 Unsigned (int_of_ws sz)
 
     | Papp1 (op1, e1) ->
       begin match op1_to_abs_unop op1 with
@@ -3939,29 +3946,15 @@ end = struct
                     (linearize_iexpr abs e1)
                     (linearize_iexpr abs e2))
 
-        | AB_Shift `Signed_right
-        | AB_Unknown ->
-          raise (Binop_not_supported op2)
-            
-        | AB_Shift stype  -> match aeval_cst_int abs e2 with
-          | None -> raise (Binop_not_supported op2)
-          | Some i ->
-            let absop = match stype with
-              | `Unsigned_right -> Texpr1.Div
-              | `Unsigned_left -> Texpr1.Mul
-              | _ -> assert false in
-            Mtexpr.(binop absop
-                    (linearize_iexpr abs e1)
-                    (cst_pow_minus apr_env i 0)) end
-
+        | AB_Unknown -> raise (Binop_not_supported op2)
+        | AB_Shift _ -> assert false (* shift only makes sense on bit-vectors *)
+      end
+      
     | Pif _ -> raise If_not_supported
 
     | _ -> assert false
 
   and linearize_wexpr abs (e : ty gexpr) =
-    Format.eprintf "## expr: %a\
-                    type: %a@." pp_expr e Printer.pp_ty (ty_expr e);
-    
     let apr_env = AbsDom.get_env abs in
     let ws_e = ws_of_ty (ty_expr e) in
 
@@ -3969,16 +3962,16 @@ end = struct
     | Pvar x ->
       check_is_word (L.unloc x);
       let lin = Mtexpr.var apr_env (Mvalue (Avar (L.unloc x))) in
-      wrap_if_overflow abs lin false (int_of_ws ws_e)
+      wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
 
     | Pglobal(ws, x) ->
       let lin = Mtexpr.var apr_env (Mglobal (x,Bty (U ws))) in
-      wrap_if_overflow abs lin false (int_of_ws ws)
+      wrap_if_overflow abs lin Unsigned (int_of_ws ws)
 
     | Papp1(E.Oword_of_int sz,e1) ->
       assert (ty_expr e1 = tint);
       let abs_expr1 = linearize_iexpr abs e1 in
-      wrap_if_overflow abs abs_expr1 false (int_of_ws sz)
+      wrap_if_overflow abs abs_expr1 Unsigned (int_of_ws sz)
 
     | Papp1(E.Ozeroext (osz,isz),e1) ->
       assert (ty_expr e1 = tu isz);
@@ -3989,32 +3982,20 @@ end = struct
       begin match op1_to_abs_unop op1 with
         | Some absop ->
           let lin = Mtexpr.unop absop (linearize_wexpr abs e1) in
-          wrap_if_overflow abs lin false (int_of_ws ws_e)
+          wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
 
         | None -> raise (Unop_not_supported op1) end
 
     | Papp2 (op2, e1, e2) ->
       begin match op2_to_abs_binop op2 with
-        | AB_Arith Texpr1.Mod -> begin match op2 with
-            | E.Omod (Cmp_w (Signed,_))  -> assert false
-              (* TODO: signed words *)
-
-            | E.Omod (Cmp_w (Unsigned,_))  ->
-              let l_e1 = linearize_wexpr abs e1 in
-              let l_e2 = linearize_wexpr abs e2 in
-
-              let lin = Mtexpr.(binop Texpr1.Mod l_e1 l_e2) in
-              wrap_if_overflow abs lin false (int_of_ws ws_e)
-
-            | _ ->
-              raise (Aint_error "linearize_wexpr : Papp2 : bad type") end
-
-        | AB_Arith Texpr1.Add | AB_Arith Texpr1.Mul | AB_Arith Texpr1.Sub
-          as absop->
+        | AB_Arith Texpr1.Mod
+        | AB_Arith Texpr1.Add
+        | AB_Arith Texpr1.Mul
+        | AB_Arith Texpr1.Sub as absop->
           let lin = Mtexpr.(binop (abget absop)
                               (linearize_wexpr abs e1)
                               (linearize_wexpr abs e2)) in
-          wrap_if_overflow abs lin false (int_of_ws ws_e)
+          wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
 
         | AB_Shift `Signed_right
         | AB_Arith Texpr1.Div
@@ -4028,9 +4009,10 @@ end = struct
               | `Unsigned_right -> Texpr1.Div
               | `Unsigned_left -> Texpr1.Mul
               | _ -> assert false in
-            Mtexpr.(binop absop
-                    (linearize_iexpr abs e1)
-                    (cst_pow_minus apr_env i 0))
+            let lin = Mtexpr.(binop absop
+                                (linearize_wexpr abs e1)
+                                (cst_pow_minus apr_env i 0)) in
+            wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
 
           | _ -> raise (Binop_not_supported op2)
       end
@@ -4040,7 +4022,7 @@ end = struct
         | [] -> assert false
         | [at] ->
           let lin = Mtexpr.var apr_env (Mvalue at) in
-          wrap_if_overflow abs lin false (int_of_ws ws_e)
+          wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
         | _ -> top_linexpr abs ws_e end
 
     (* We return top on loads and Opack *)
@@ -4100,20 +4082,23 @@ end = struct
           ((Papp1 (E.Onot,b)) :: l_bool,expr))
           (remove_if_expr er))
     | None -> [([],e)]
+                   
+  let op2_to_typ op2 =
+    let to_cmp_kind = function
+      | E.Op_int -> E.Cmp_int
+      | E.Op_w ws -> E.Cmp_w (Unsigned, ws) in
 
-
-  (* TODO: unsound on signed operations *)
-  let op2_to_typ op2 = match op2 with
+    match op2 with
     | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
     | E.Odiv _ | E.Omod _ | E.Oland _ | E.Olor _
     | E.Olxor _ | E.Olsr _ | E.Olsl _ | E.Oasr _ -> assert false
 
-    | E.Oeq k -> (Tcons1.EQ, k)
-    | E.Oneq k -> (Tcons1.DISEQ, k)
-    | E.Olt k -> (Tcons1.SUP, opk_of_cmpk k)
-    | E.Ole k -> (Tcons1.SUPEQ, opk_of_cmpk k)
-    | E.Ogt k -> (Tcons1.SUP, opk_of_cmpk k)
-    | E.Oge k -> (Tcons1.SUPEQ, opk_of_cmpk k)
+    | E.Oeq k -> (Tcons1.EQ, to_cmp_kind k)
+    | E.Oneq k -> (Tcons1.DISEQ, to_cmp_kind k)
+    | E.Olt k -> (Tcons1.SUP, k)
+    | E.Ole k -> (Tcons1.SUPEQ, k)
+    | E.Ogt k -> (Tcons1.SUP, k)
+    | E.Oge k -> (Tcons1.SUPEQ, k)
 
     | Ovadd (_, _) | Ovsub (_, _) | Ovmul (_, _)
     | Ovlsr (_, _) | Ovlsl (_, _) | Ovasr (_, _) -> assert false
@@ -4160,7 +4145,6 @@ end = struct
 
           | E.Oor -> BOr ( aux e1, aux e2 )
 
-          (* TODO: this is unsound on signed words *)
           | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ ->
             match remove_if_expr_aux e with
             | Some (ty,eb,el,er)  -> aux (Pif (ty,eb,el,er))
@@ -4170,16 +4154,16 @@ end = struct
 
   and flat_bexpr_to_btcons abs op2 e1 e2 =
     let e1',e2' = swap_op2 op2 e1 e2 in
-    let lincons, kind = op2_to_typ op2 in
+    let lincons, cmp_kind = op2_to_typ op2 in
 
-    try let expr = match kind with
-        | E.Op_int ->
+    try let expr = match cmp_kind with
+        | E.Cmp_int ->
           let lin1 = linearize_iexpr abs e1'
           and lin2 = linearize_iexpr abs e2' in
 
           Mtexpr.(binop Sub lin2 lin1)
 
-        | E.Op_w ws ->
+        | E.Cmp_w (sign, ws) ->
           let lin1 = match ty_expr e1' with
             | Bty Int   -> linearize_iexpr abs e1'
             | Bty (U _) -> linearize_wexpr abs e1'
@@ -4189,9 +4173,8 @@ end = struct
             | Bty (U _) -> linearize_wexpr abs e2'
             | _ -> assert false in
 
-          (* TODO: signed words *)
-          let lin1 = wrap_if_overflow abs lin1 false (int_of_ws ws)
-          and lin2 = wrap_if_overflow abs lin2 false (int_of_ws ws) in
+          let lin1 = wrap_if_overflow abs lin1 sign (int_of_ws ws)
+          and lin2 = wrap_if_overflow abs lin2 sign (int_of_ws ws) in
           Mtexpr.(binop Sub lin2 lin1) in
 
       BLeaf (Mtcons.make expr lincons)
@@ -4295,9 +4278,8 @@ end = struct
               | _ -> None end
           | _ -> None in
 
-        (* TODO: for signed words, set the correct bounds here *)
         if ws <> None then
-          let int = word_interval false (oget ws |> int_of_ws)
+          let int = word_interval Unsigned (oget ws |> int_of_ws)
           and env = AbsDom.get_env abs in
           let z_sexpr = Mtexpr.cst env (Coeff.Interval int)
                         |> sexpr_from_simple_expr in
@@ -4492,7 +4474,7 @@ end = struct
 
       let off_e = linearize_wexpr abs offset_expr
       and e_ws = ws_of_ty (ty_expr offset_expr) in
-      let wrap_off_e = wrap_if_overflow abs off_e false (int_of_ws e_ws) in
+      let wrap_off_e = wrap_if_overflow abs off_e Unsigned (int_of_ws e_ws) in
 
       let sexpr =
         Mtexpr.binop Texpr1.Add inv_os wrap_off_e
@@ -4691,8 +4673,7 @@ end = struct
             let expr = match ty_mvar mlv, ty_mvar rvar with
               | Bty Int, Bty Int -> mret
               | Bty (U _), Bty Int ->
-                (* TODO: Signed *)
-                wrap_if_overflow abs mret false lv_size
+                wrap_if_overflow abs mret Unsigned lv_size
               | Bty (U _), Bty (U _) ->
                 cast_if_overflows abs lv_size ret_size mret
               | _, _ -> assert false in
@@ -4831,11 +4812,11 @@ end = struct
   (* -------------------------------------------------------------------- *)
   (* Return flags for the different operations *)
   
-  (* TODO *)
+  (* FIXME *)
   let sf_of_word _sz _w = None
   (* msb w. *)
 
-  (* TODO *)
+  (* FIXME *)
   let pf_of_word _sz _w = None
   (* lsb w. *) 
 
@@ -4845,8 +4826,8 @@ end = struct
                  Pconst (B.of_int 0)))
       
   let rflags_of_aluop sz w _vu _vs = 
-    let of_f = None               (* TODO *)
-    and cf   = None               (* TODO *)
+    let of_f = None               (* FIXME *)
+    and cf   = None               (* FIXME *)
     and sf   = sf_of_word sz w
     and pf   = pf_of_word sz w
     and zf   = zf_of_word sz w in
@@ -4861,8 +4842,8 @@ end = struct
     [of_f;cf;sf;pf;zf]
 
   let rflags_of_neg sz w _vs = 
-    let of_f = None               (* TODO, same than for rflags_of_aluop *)
-    and cf   = None               (* TODO, must be (w != 0)*)
+    let of_f = None               (* FIXME, same than for rflags_of_aluop *)
+    and cf   = None               (* FIXME, must be (w != 0)*)
     and sf   = sf_of_word sz w
     and pf   = pf_of_word sz w
     and zf   = zf_of_word sz w in
@@ -4929,7 +4910,7 @@ end = struct
     | E.Ox86 (X86_instr_decl.MUL ws) ->
       let el,er = as_seq2 es in
       let w = Papp2 (E.Omul (E.Op_w ws), el, er) in
-      (* TODO: overflow bit to have the precise flags *)
+      (* FIXME: overflow bit to have the precise flags *)
       (* let ov = ?? in
        * let rflags = rflags_of_mul ov in *)
       let rflags = [None; None; None; None; None] in
@@ -4982,7 +4963,7 @@ end = struct
       let e = as_seq1 es in 
       [Some e]
 
-    (* TODO: adding bit shift with flags *)
+    (* FIXME: adding bit shift with flags *)
     (* 
     | ROR    of wsize    (* rotation / right *)
     | ROL    of wsize    (* rotation / left  *)
