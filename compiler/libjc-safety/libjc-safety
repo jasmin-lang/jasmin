@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x
+# set -x
 trap "exit" INT
 
 OPTION="-checksafety -debug"
@@ -18,18 +18,17 @@ SUBDIRS[crypto_stream/chacha20/avx2]="output;len|plain;len"
 SUBDIRS[crypto_scalarmult/curve25519/ref4]=";"
 SUBDIRS[crypto_scalarmult/curve25519/mulx]=";"
 
-rm -r japp
-rm -r results
-
 CURJOBS=0
 for i in "${!SUBDIRS[@]}"; do
-  mkdir -p japp/${i} 
-  mkdir -p results/${i} 
-  cp ${LIBJCPATH}/src/${i}/*.japp japp/${i}/in.japp
+  mkdir -p ${i} 
+  cp ${LIBJCPATH}/src/${i}/*.japp ${i}/in.japp
   # If true, wait until the next background job finishes to continue.
   ((cur_jobs >= MAXJOBS)) && wait -n
   echo "Starting ${i}"
-  ../jasminc ${OPTION} -safetyparam ${SUBDIRS[$i]} japp/${i}/in.japp &> results/${i}/out.res & ((++cur_jobs))
+  (../jasminc ${OPTION} -safetyparam ${SUBDIRS[$i]} ${i}/in.japp &> ${i}/out.res &&
+   echo "Done ${i}, results" &&
+   grep Safety ${i}/out.res | sed 's/^/  /'
+  ) & ((++cur_jobs))
 done
 
 wait
