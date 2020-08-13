@@ -4988,6 +4988,72 @@ end = struct
 
   let opn_bin_alu = opn_bin_gen rflags_of_aluop
 
+  (* -------------------------------------------------------------------- *)
+  (* FIXME: check this *)
+  let mk_addcarry ws es =
+    let el,er,eb = as_seq3 es in    
+    let w_no_carry = Papp2 (E.Oadd (E.Op_w ws), el, er) in
+    let w_carry = Papp2 (E.Oadd (E.Op_w ws), w_no_carry, Pconst (B.of_int 1)) in
+
+    let eli = Papp1 (E.Oint_of_word ws, el)    (* (int)el *)
+    and eri = Papp1 (E.Oint_of_word ws, er) in (* (int)er *)
+    let w_i =
+      Papp2 (E.Oadd E.Op_int, eli, eri) in (* (int)el + (int)er *)
+    let pow_ws = Pconst (B.pow (B.of_int 2) (int_of_ws ws)) in (* 2^ws *)
+
+    (* cf_no_carry is true <=> 2^ws <= el + er      (addition without modulo) *)
+    let cf_no_carry = Papp2 (E.Ole E.Cmp_int, pow_ws, w_i ) in
+    (* cf_carry    is true <=> 2^ws <= el + er + 1  (addition without modulo) *)
+    let cf_carry = Papp2 (E.Ole E.Cmp_int,
+                          pow_ws,
+                          Papp2 (E.Oadd E.Op_int,
+                                 w_i,
+                                 Pconst (B.of_int 1))) in
+
+    match eb with
+    | Pbool false ->         (* No carry *)
+      [Some cf_no_carry; Some w_no_carry] 
+
+    | Pbool true ->          (* Carry *)
+      [Some cf_carry; Some w_carry] 
+
+    | _ ->                   (* General case, potential carry *)
+      let w = Pif (Bty (U ws), eb, w_carry, w_no_carry) in
+      let cf = Pif (Bty Bool, eb, cf_carry, cf_no_carry) in
+
+      [Some cf; Some w] 
+
+  (* FIXME: check this *)
+  let mk_subcarry ws es =
+    let el,er,eb = as_seq3 es in    
+    let w_no_carry = Papp2 (E.Osub (E.Op_w ws), el, er) in
+    let w_carry = Papp2 (E.Osub (E.Op_w ws), w_no_carry, Pconst (B.of_int 1)) in
+
+    let eli = Papp1 (E.Oint_of_word ws, el)    (* (int)el *)
+    and eri = Papp1 (E.Oint_of_word ws, er) in (* (int)er *)
+
+    (* cf_no_carry is true <=> el < er *)
+    let cf_no_carry = Papp2 (E.Olt E.Cmp_int, eli, eri ) in
+    (* cf_carry    is true <=> el < er + 1  (sub without modulo) *)
+    let cf_carry = Papp2 (E.Ole E.Cmp_int,
+                          eli,
+                          Papp2 (E.Oadd E.Op_int, eri, Pconst (B.of_int 1))) in
+
+    match eb with
+    | Pbool false ->         (* No carry *)
+      [Some cf_no_carry; Some w_no_carry] 
+
+    | Pbool true ->          (* Carry *)
+      [Some cf_carry; Some w_carry] 
+
+    | _ ->                   (* General case, potential carry *)
+      let w = Pif (Bty (U ws), eb, w_carry, w_no_carry) in
+      let cf = Pif (Bty Bool, eb, cf_carry, cf_no_carry) in
+
+      [Some cf; Some w] 
+
+  
+  (* -------------------------------------------------------------------- *)
   (* Remark: the assignments must be done in the correct order.
      Bitwise operators are ignored for now (result is soundly set to top).
      See x86_instr_decl.v for a desciption of the operators. *)
@@ -4995,30 +5061,10 @@ end = struct
     | E.Oset0 ws -> [None;None;None;None;None;
                      Some (pcast ws (Pconst (B.of_int 0)))]
 
-    | E.Osubcarry ws ->
-      let el,er = as_seq2 es in
-      let w = Papp2 (E.Osub (E.Op_w ws), el, er) in
-      (* FIXME: check this *)
-      (* cf is true <=> el < er *)
-      let cf = Papp2 (E.Olt (E.Cmp_w (Unsigned, ws)), el, er) in 
-      [Some cf; Some w] 
+    | E.Osubcarry ws -> mk_subcarry ws es
       
-    | E.Oaddcarry ws ->
-      let el,er = as_seq2 es in
-      let w = Papp2 (E.Oadd (E.Op_w ws), el, er) in
-      (* FIXME: check this *)
-      (* cf is true <=> 2^ws <= el + er, 
-         where the addition is over N (i.e. not modulo) *)
-      let cf =
-        let el_i = Papp1 (E.Oint_of_word ws, el) 
-        and er_i = Papp1 (E.Oint_of_word ws, er) in
-        let pow_ws = Pconst (B.pow (B.of_int 2) (int_of_ws ws)) in        
-        Papp2 (E.Ole E.Cmp_int,
-               pow_ws,
-               Papp2 (E.Oadd E.Op_int, el_i, er_i)) in
-      
-      [Some cf; Some w] 
-      
+    | E.Oaddcarry ws -> mk_addcarry ws es
+                          
     | E.Ox86 (X86_instr_decl.CMP ws) ->
       (* Input types: ws, ws *)
       let el,er = as_seq2 es in
