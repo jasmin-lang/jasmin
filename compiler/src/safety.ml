@@ -4914,7 +4914,9 @@ end = struct
 
 
   (* -------------------------------------------------------------------- *)
-  (* Return flags for the different operations *)
+  (* Return flags for the different operations.
+     This covers a subset of the x86 flags, as described in the Coq
+     semantics (x86_instr_decl.v). *)
 
   (* FIXME *)
   let sf_of_word _sz _w = None
@@ -4993,6 +4995,30 @@ end = struct
     | E.Oset0 ws -> [None;None;None;None;None;
                      Some (pcast ws (Pconst (B.of_int 0)))]
 
+    | E.Osubcarry ws ->
+      let el,er = as_seq2 es in
+      let w = Papp2 (E.Osub (E.Op_w ws), el, er) in
+      (* FIXME: check this *)
+      (* cf is true <=> el < er *)
+      let cf = Papp2 (E.Olt (E.Cmp_w (Unsigned, ws)), el, er) in 
+      [Some cf; Some w] 
+      
+    | E.Oaddcarry ws ->
+      let el,er = as_seq2 es in
+      let w = Papp2 (E.Oadd (E.Op_w ws), el, er) in
+      (* FIXME: check this *)
+      (* cf is true <=> 2^ws <= el + er, 
+         where the addition is over N (i.e. not modulo) *)
+      let cf =
+        let el_i = Papp1 (E.Oint_of_word ws, el) 
+        and er_i = Papp1 (E.Oint_of_word ws, er) in
+        let pow_ws = Pconst (B.pow (B.of_int 2) (int_of_ws ws)) in        
+        Papp2 (E.Ole E.Cmp_int,
+               pow_ws,
+               Papp2 (E.Oadd E.Op_int, el_i, er_i)) in
+      
+      [Some cf; Some w] 
+      
     | E.Ox86 (X86_instr_decl.CMP ws) ->
       (* Input types: ws, ws *)
       let el,er = as_seq2 es in
@@ -5106,19 +5132,29 @@ end = struct
 
 
   (* -------------------------------------------------------------------- *)
-  type flags_heur = { fh_zf : Mtexpr.t;
-                      fh_cf : Mtexpr.t;}
+  type flags_heur = { fh_zf : Mtexpr.t option;
+                      fh_cf : Mtexpr.t option;}
   
   (* [v] is the variable receiving the assignment. *)
   let opn_heur apr_env opn v = match opn with 
-    (* decrement *)
-    | E.Ox86 (X86_instr_decl.SBB _)
+    (* sub carry *) 
+    | E.Osubcarry _ ->
+      (* FIXME: improve precision by allowing decrement by something else 
+         than 1 here. *)
+      Some { fh_zf = None;
+             fh_cf = Some (Mtexpr.binop Texpr1.Add
+                             (Mtexpr.var apr_env v)
+                             (Mtexpr.cst apr_env (Coeff.s_of_int 1))); }
+        
+    (* decrement *) 
     | E.Ox86 (X86_instr_decl.DEC _) ->
-      Some { fh_zf = Mtexpr.var apr_env v;
-             fh_cf = Mtexpr.binop Texpr1.Add
-                 (Mtexpr.var apr_env v)
-                 (Mtexpr.cst apr_env (Coeff.s_of_int 1)); }
+      Some { fh_zf = Some (Mtexpr.var apr_env v);
+             fh_cf = Some (Mtexpr.binop Texpr1.Add
+                             (Mtexpr.var apr_env v)
+                             (Mtexpr.cst apr_env (Coeff.s_of_int 1))); }
 
+    (* (\* sub with borrow *\)
+     * | E.Ox86 (X86_instr_decl.SBB _) *)
     | _ ->
       debug (fun () ->
           Format.eprintf "No heuristic for the return flags of %s@."
@@ -5131,9 +5167,9 @@ end = struct
     | None -> raise Heuristic_failed
     | Some heur ->
       if String.starts_with s "v_cf"
-      then heur.fh_cf
+      then Utils.oget ~exn:Heuristic_failed heur.fh_cf
       else if String.starts_with s "v_zf"
-      then heur.fh_zf
+      then Utils.oget ~exn:Heuristic_failed heur.fh_zf
       else raise Heuristic_failed
 
   (* Heuristic for the (candidate) decreasing quantity to prove while
@@ -5416,6 +5452,13 @@ end = struct
             { state with abs = AbsDom.meet_btcons state.abs neg_ec }
           | None -> state in
 
+        (* Simple heuristic for the widening threshold.
+           Basically, if the loop condition is a return flag, we use the 
+           candidate decreasing numerical quantity to make the threshold. *)
+        let smpl_thrs abs = match simpl_obtcons (oec abs) with
+          | Some _ as constr -> constr
+          | None -> omap (fun e -> Mtcons.make e Lincons1.SUP) ni_e in
+            
         let rec stabilize state pre_state =
           if is_stable state pre_state then exit_loop state
           else
@@ -5423,7 +5466,7 @@ end = struct
             let state' = unroll_once state in
             let w_abs =
               AbsDom.widening
-                (simpl_obtcons (oec state.abs)) (* this is used as a threshold *)
+                (smpl_thrs state.abs) (* this is used as a threshold *)
                 state.abs state'.abs in
             debug(print_while_widening cpt_instr state.abs state'.abs w_abs);
             stabilize { state' with abs = w_abs } (Some state) in
@@ -5438,7 +5481,7 @@ end = struct
 
             let w_abs =
               AbsDom.widening
-                (simpl_obtcons (oec state_i.abs)) (* this is used as a threshold *)
+                (smpl_thrs state_i.abs) (* this is used as a threshold *)
                 state_i.abs state_i'.abs in
             debug(print_while_widening cpt_i state_i.abs state_i'.abs w_abs);
             stabilize_b { state_i' with abs = w_abs } state in
