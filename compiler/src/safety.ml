@@ -61,6 +61,10 @@ module Aparam = struct
   (* Add disjunction with if statement when possible *)
   let if_disj = true
 
+  (* Pre-analysis looks for the variable corresponding to return boolean 
+     flags appearing in while loop condition (adding them to the set of 
+     variables in the relational domain). *)
+  let while_flags_setfrom_dep = true
 
   (***********************)
   (* Printing parameters *)
@@ -508,6 +512,52 @@ end = struct
     (* For memory stores, we are only interested in v and ei *)
     | Lmem (_, v, ei) -> pa_expr st (L.unloc v) ei
 
+
+  let rec flag_mem_lvs v = function
+    | [] -> false
+    | Lnone _ :: t | Lmem _ :: t | Laset _ :: t -> flag_mem_lvs v t
+    | Lvar v' :: t -> v = L.unloc v' || flag_mem_lvs v t
+                   
+  exception Flag_set_from_failure
+  (* Try to find the left variable of the last assignment(s) where the flag 
+     v was set. *)
+  let rec pa_flag_setfrom v = function
+    | [] -> None
+    | i :: t -> let i_opt = pa_flag_setfrom_i v i in
+      if is_none i_opt then pa_flag_setfrom v t else i_opt
+  
+  and pa_flag_setfrom_i v i = match i.i_desc with
+    | Cassgn _ -> None
+    | Copn (lvs, _, _, _) ->
+      if flag_mem_lvs v lvs then
+        match List.last lvs with
+        | Lnone _ -> raise Flag_set_from_failure
+        | Lvar r ->
+          let ru = L.unloc r in
+          debug(fun () -> Format.eprintf "flag %a set from %a (at %a)@."
+            (Printer.pp_var ~debug:false) v
+            (Printer.pp_var ~debug:false) ru
+            L.pp_sloc (fst i.i_loc));
+          Some ru
+        | _ -> assert false
+      else None
+
+    | Cif (_, c1, c2) ->
+      begin match pa_flag_setfrom v c1, pa_flag_setfrom v c2 with
+        | None, None -> None
+        | Some r1, Some r2 ->
+          if r1 = r2 then Some r1 else raise Flag_set_from_failure
+        | None, Some _ | Some _, None -> raise Flag_set_from_failure end
+
+    | Cfor (_, _, c) ->
+      pa_flag_setfrom v (List.rev c)
+
+    | Cwhile (_, c1, _, c2) ->
+      pa_flag_setfrom v ((List.rev c1) @ (List.rev c2))
+        
+    | Ccall (_, lvs, _, _) ->
+      if flag_mem_lvs v lvs then raise Flag_set_from_failure else None        
+      
   let rec pa_instr prog st instr = match instr.i_desc with
     | Cassgn (lv, _, _, e) -> pa_lv st lv e
     | Copn (lvs, _, _, es) -> List.fold_left (fun st lv ->
@@ -537,8 +587,24 @@ end = struct
           { st with ct = Sv.union st.ct (Sv.of_list vs) }
         else st in
 
-      let st' = { st' with
-                  while_vars = Sv.union st'.while_vars (Sv.of_list vs) } in
+      let bdy_rev = (List.rev c1) @ (List.rev c2) in
+      let flags_setfrom = List.fold_left (fun flags_setfrom v -> match v.v_ty with
+          | Bty Bool ->
+            let new_f =
+              match pa_flag_setfrom v bdy_rev with
+              | exception Flag_set_from_failure | None -> Sv.empty
+              | Some r -> Sv.singleton r in
+            Sv.union flags_setfrom new_f             
+          | _ -> flags_setfrom) Sv.empty vs
+      in
+
+      let while_vars = Sv.union st'.while_vars (Sv.of_list vs) in
+      let while_vars = 
+        if Aparam.while_flags_setfrom_dep
+        then Sv.union while_vars flags_setfrom
+        else while_vars in
+      
+      let st' = { st' with while_vars = while_vars } in
 
       (* Again, we reset the context after the merge *)
       pa_stmt prog st' (c1 @ c2)
@@ -1778,7 +1844,7 @@ end
 
 type btcons =
   | BLeaf of Mtcons.t
-  | BVar of string * bool
+  | BVar of string * bool       (* positive or negative boolean variable *)
   | BAnd of btcons * btcons
   | BOr of btcons * btcons
 
@@ -4128,7 +4194,7 @@ end = struct
 
     | Ovadd (_, _) | Ovsub (_, _) | Ovmul (_, _)
     | Ovlsr (_, _) | Ovlsl (_, _) | Ovasr (_, _) -> assert false
-
+  
   let rec bexpr_to_btcons_aux : AbsDom.t -> 'a Prog.gexpr -> btcons =
     fun abs e ->
       let aux = bexpr_to_btcons_aux abs in
@@ -4182,12 +4248,13 @@ end = struct
     let e1',e2' = swap_op2 op2 e1 e2 in
     let lincons, cmp_kind = op2_to_typ op2 in
 
-    try let expr = match cmp_kind with
+    (* (Sub lin2 lin1) lincos 0  *)
+    try let lin2,lin1 = match cmp_kind with
         | E.Cmp_int ->
           let lin1 = linearize_iexpr abs e1'
           and lin2 = linearize_iexpr abs e2' in
-
-          Mtexpr.(binop Sub lin2 lin1)
+          lin2, lin1
+          (* Mtexpr.(binop Sub lin2 lin1) *)
 
         | E.Cmp_w (sign, ws) ->
           let lin1 = match ty_expr e1' with
@@ -4201,9 +4268,22 @@ end = struct
 
           let lin1 = wrap_if_overflow abs lin1 sign (int_of_ws ws)
           and lin2 = wrap_if_overflow abs lin2 sign (int_of_ws ws) in
-          Mtexpr.(binop Sub lin2 lin1) in
+          (* Mtexpr.(binop Sub lin2 lin1)  *)
+          lin2, lin1
+      in
 
+      (* We do some basic simplifications.
+         [expr lincons 0] must be equivalent to [(Sub lin2 lin1) lincos 0] *)
+      let expr = match lincons, lin2, lin1 with
+        | (Tcons1.EQ | Tcons1.DISEQ), { mexpr = Mtexpr.Mcst cst }, lin
+        | (Tcons1.EQ | Tcons1.DISEQ), lin, { mexpr = Mtexpr.Mcst cst } ->      
+          if Coeff.equal_int cst 0
+          then lin
+          else Mtexpr.(binop Sub lin2 lin1) 
+        | _ -> Mtexpr.(binop Sub lin2 lin1) 
+      in
       BLeaf (Mtcons.make expr lincons)
+          
     with Unop_not_supported _ | Binop_not_supported _ ->
       raise Bop_not_supported
 
@@ -4471,9 +4551,7 @@ end = struct
       Format.fprintf fmt "MLvars @[<hov 2>%a@]"
         (pp_list pp_mvar) mvs
 
-  (* Return te mvar where the abstract assignment takes place. For now, no
-     abstraction of the memory. *)
-  let mvar_of_lvar abs lv = match lv with
+  let mvar_of_lvar_no_array lv = match lv with
     | Lnone _ -> MLnone
     | Lmem _ -> MLnone
     | Lvar x  ->
@@ -4482,6 +4560,12 @@ end = struct
         | Global,_ -> MLvar (Mglobal (ux.v_name,ux.v_ty))
         | _, Bty _ -> MLvar (Mvalue (Avar ux))
         | _, Arr _ -> MLvar (Mvalue (Aarray ux)) end
+    | Laset _ -> assert false
+      
+  (* Return te mvar where the abstract assignment takes place. For now, no
+     abstraction of the memory. *)
+  let mvar_of_lvar abs lv = match lv with
+    | Lnone _ | Lmem _ | Lvar _ -> mvar_of_lvar_no_array lv
 
     | Laset (ws, x, ei) ->
       match abs_arr_range abs (L.unloc x) ws ei
@@ -4828,16 +4912,10 @@ end = struct
     | Some (BLeaf c) -> Some c
     | _ -> None
 
-  let dec_num_of_mtcons c =
-    let sc = simpl_obtcons c in
-    match omap Mtcons.get_typ sc with
-    | Some Lincons0.SUPEQ | Some Lincons0.SUP -> omap Mtcons.get_expr sc
-    | _ -> None
-  
 
   (* -------------------------------------------------------------------- *)
   (* Return flags for the different operations *)
-  
+
   (* FIXME *)
   let sf_of_word _sz _w = None
   (* msb w. *)
@@ -4850,7 +4928,7 @@ end = struct
     Some (Papp2 (E.Oeq (E.Op_w sz),
                  w,
                  Pconst (B.of_int 0)))
-      
+
   let rflags_of_aluop sz w _vu _vs = 
     let of_f = None               (* FIXME *)
     and cf   = None               (* FIXME *)
@@ -4878,7 +4956,7 @@ end = struct
   let rflags_of_mul (ov : bool option) =
     (*  OF; CF; SF; PF; ZF *)
     [Some ov; Some ov; None; None; None]
-    
+
   let rflags_of_div =
     (*  OF; CF; SF; PF; ZF *)
     [None; None; None; None; None]
@@ -4923,7 +5001,7 @@ end = struct
       let vs = () in
       let rflags = rflags_of_aluop ws w vu vs in
       rflags
-      
+
     (* add unsigned / signed *)
     | E.Ox86 (X86_instr_decl.ADD ws) ->
       opn_bin_alu ws (E.Oadd (E.Op_w ws)) es
@@ -4931,7 +5009,7 @@ end = struct
     (* sub unsigned / signed *)
     | E.Ox86 (X86_instr_decl.SUB ws) ->
       opn_bin_alu ws (E.Osub (E.Op_w ws)) es
-        
+
     (* mul unsigned *)
     | E.Ox86 (X86_instr_decl.MUL ws) ->
       let el,er = as_seq2 es in
@@ -4941,7 +5019,7 @@ end = struct
        * let rflags = rflags_of_mul ov in *)
       let rflags = [None; None; None; None; None] in
       rflags @ [Some w]
-              
+
     (* div unsigned *)
     | E.Ox86 (X86_instr_decl.DIV ws) ->
       let el,er = as_seq2 es in
@@ -5010,7 +5088,7 @@ end = struct
      * | E.Ox86 (X86_instr_decl.CMOVcc sz) ->
      *   let c,el,er = as_seq3 es in 
      *   if b then el else er *)
-        
+
     (* bitwise operators *)
     | E.Ox86 (X86_instr_decl.TEST _)
     | E.Ox86 (X86_instr_decl.AND  _)
@@ -5025,6 +5103,89 @@ end = struct
     | E.Ox86 (X86_instr_decl.IMULri _) 
 
     | _ -> opn_dflt n
+
+
+  (* -------------------------------------------------------------------- *)
+  type flags_heur = { fh_zf : Mtexpr.t;
+                      fh_cf : Mtexpr.t;}
+  
+  (* [v] is the variable receiving the assignment. *)
+  let opn_heur apr_env opn v = match opn with 
+    (* decrement *)
+    | E.Ox86 (X86_instr_decl.SBB _)
+    | E.Ox86 (X86_instr_decl.DEC _) ->
+      Some { fh_zf = Mtexpr.var apr_env v;
+             fh_cf = Mtexpr.binop Texpr1.Add
+                 (Mtexpr.var apr_env v)
+                 (Mtexpr.cst apr_env (Coeff.s_of_int 1)); }
+
+    | _ ->
+      debug (fun () ->
+          Format.eprintf "No heuristic for the return flags of %s@."
+            (Printer.pp_opn opn));
+      None
+
+  exception Heuristic_failed
+
+  let find_heur (s,_) = function
+    | None -> raise Heuristic_failed
+    | Some heur ->
+      if String.starts_with s "v_cf"
+      then heur.fh_cf
+      else if String.starts_with s "v_zf"
+      then heur.fh_zf
+      else raise Heuristic_failed
+
+  (* Heuristic for the (candidate) decreasing quantity to prove while
+     loop termination. *)  
+  let dec_qnty_heuristic abs loop_body loop_cond =
+    let heur_leaf leaf = match Mtcons.get_typ leaf with
+      | Lincons0.SUPEQ | Lincons0.SUP -> Mtcons.get_expr leaf
+
+      (* We handle the exit condition "x <> 0" as if it was "x > 0" *)
+      | Lincons0.DISEQ -> Mtcons.get_expr leaf
+
+      | _ -> raise Heuristic_failed in
+
+    match loop_cond with
+    (* If the exit condition is a constraint (i.e. a leaf boolean term),
+       then we try to retrieve the expression inside. *)
+    | Some (BLeaf sc) -> heur_leaf sc
+
+    (* For boolean variables, we look whether it is a return flag. If that is
+       the case, we look for the instruction that set the flag, and use a
+       heuristic depending on the operation. *)
+    | Some (BVar (s,b)) ->
+      let brev = List.rev loop_body in 
+      begin try
+          List.find_map (fun ginstr -> match ginstr.i_desc with 
+              | Copn(lvs,_,opn,_) ->
+                List.find_map_opt (fun lv ->
+                    match lv with
+                    | Lvar x -> 
+                      let x_mv = Mvalue (Avar (L.unloc x)) in
+                      let x_s = string_of_mvar x_mv in
+                      if x_s = s
+                      (* We found the assignment where the flag is set *)
+                      then
+                        (* Register for which the flags are computed. *)
+                        let reg_assgn = match List.last lvs with
+                          | Lvar r -> Mvalue (Avar (L.unloc r))
+                          | Lnone _ -> raise Heuristic_failed
+                          | _ -> assert false in
+
+                        let apr_env = AbsDom.get_env abs in
+                        let heur = opn_heur apr_env opn reg_assgn in
+                        Some (find_heur (s,b) heur)
+                      else None
+                    | _ -> None) lvs
+
+              | _ -> None                
+            ) brev
+        with Not_found -> raise Heuristic_failed
+      end
+
+    | _ -> raise Heuristic_failed
 
 
   (* -------------------------------------------------------------------- *)
@@ -5151,17 +5312,23 @@ end = struct
         let conds = safe_e e in
         let state = check_safety state (InProg (fst ginstr.i_loc)) conds in
 
-        let oec = bexpr_to_btcons e state.abs in
+        (* Given an abstract state, compute the loop condition expression. *)
+        let oec abs = bexpr_to_btcons e abs in
 
+        (* Candidate decreasing quantity *)
+        let ni_e =
+          try Some (dec_qnty_heuristic state.abs (c2 @ c1) (oec state.abs))
+          with Heuristic_failed -> None in
+        
         let eval_body state_i state =
           let cpt_instr = !num_instr_evaluated - 1 in
 
-          let ni_e = dec_num_of_mtcons oec in
           (* We evaluate a quantity that we try to prove is decreasing. *)
           Format.eprintf "@[<v>Candidate decreasing numerical quantity:@;\
                           @[%a@]@;@;@]"
             (pp_opt Mtexpr.print) ni_e;
 
+          (* Initial value of the candidate decreasing quantity. *)
           let mvar_ni = MNumInv (fst ginstr.i_loc) in
           let state_i = match ni_e with
             | None -> state_i
@@ -5176,7 +5343,8 @@ end = struct
 
           let state_o = aeval_gstmt (c2 @ c1) state_i in
 
-          (* We check that ni_e decreased by at least one *)
+          (* We check that if the loop does not exit, then ni_e decreased by
+             at least one *)
           let state_o = match ni_e with
             | None -> (* Here, we cannot prove termination *)
               let violation = (InProg (fst ginstr.i_loc), Termination) in
@@ -5186,7 +5354,7 @@ end = struct
               let env = AbsDom.get_env state_o.abs in
               let nie = Mtexpr.extend_environment nie env in
 
-              (* (initial nie) - nie - 1 *)
+              (* (initial nie) - nie *)
               let e = Mtexpr.(binop Sub
                                 (var env mvar_ni) nie) in
 
@@ -5222,7 +5390,7 @@ end = struct
         let enter_loop state =
           debug (fun () -> Format.eprintf "Loop %d@;" !cpt);
           cpt := !cpt + 1;
-          match oec with
+          match oec state.abs with
           | Some ec ->
             debug (fun () -> Format.eprintf "Meet with %a@;" pp_btcons ec);
             { state with abs = AbsDom.meet_btcons state.abs ec }
@@ -5243,7 +5411,7 @@ end = struct
 
         let exit_loop state =
           debug (fun () -> Format.eprintf "Exit loop@;");
-          match obind flip_btcons oec with
+          match obind flip_btcons (oec state.abs) with
           | Some neg_ec ->
             { state with abs = AbsDom.meet_btcons state.abs neg_ec }
           | None -> state in
@@ -5254,7 +5422,9 @@ end = struct
             let cpt_instr = !num_instr_evaluated - 1 in
             let state' = unroll_once state in
             let w_abs =
-              AbsDom.widening (simpl_obtcons oec) state.abs state'.abs in
+              AbsDom.widening
+                (simpl_obtcons (oec state.abs)) (* this is used as a threshold *)
+                state.abs state'.abs in
             debug(print_while_widening cpt_instr state.abs state'.abs w_abs);
             stabilize { state' with abs = w_abs } (Some state) in
 
@@ -5267,7 +5437,9 @@ end = struct
             let state_i' = enter_loop state in
 
             let w_abs =
-              AbsDom.widening (simpl_obtcons oec) state_i.abs state_i'.abs in
+              AbsDom.widening
+                (simpl_obtcons (oec state_i.abs)) (* this is used as a threshold *)
+                state_i.abs state_i'.abs in
             debug(print_while_widening cpt_i state_i.abs state_i'.abs w_abs);
             stabilize_b { state_i' with abs = w_abs } state in
 

@@ -25,8 +25,8 @@ for i in "${!SUBDIRS[@]}"; do
   # If true, wait until the next background job finishes to continue.
   ((cur_jobs >= MAXJOBS)) && wait -n
   echo "Starting ${i}"
-  (../jasminc ${OPTION} -safetyparam ${SUBDIRS[$i]} ${i}/in.japp &> ${i}/out.res &&
-   echo "Done ${i}, results" &&
+  (../jasminc ${OPTION} -safetyparam ${SUBDIRS[$i]} ${i}/in.japp &> ${i}/out.res ;
+   echo "Done ${i}, results" ;
    grep Safety ${i}/out.res | sed 's/^/  /'
   ) & ((++cur_jobs))
 done
