@@ -1417,8 +1417,9 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
           let map,mexpr = Mtexpr.weak_transf map e.mexpr in
 
           (* We prepare the expression *)
+          let env = prepare_env (Abstract1.env a) e.mexpr in
           let ae = Mtexpr.to_aexpr { Mtexpr.mexpr = mexpr;
-                                     Mtexpr.env = Abstract1.env a } in
+                                     Mtexpr.env = env } in
           let c = Tcons1.make ae (Mtcons.get_typ c) in
           (map, c :: acc)
         ) (Mm.empty,[]) cs in
@@ -1430,6 +1431,7 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
       let c_array = Tcons1.array_make env (List.length cs) in
       List.iteri (fun i c -> Tcons1.array_set c_array i c) cs;
 
+      let a = Abstract1.change_environment man a env false in
       let a = Abstract1.meet_tcons_array man a c_array in
 
       (* We fold back the added variables *)
@@ -5326,7 +5328,7 @@ end = struct
                    abs_r)
 
   let print_while_widening cpt_instr abs abs' abs_r () =
-    Format.eprintf "@;@[<v 2>While Widening:@;%a@]"
+    Format.eprintf "@;@[<v 2>While Widening:@;%a@]@."
       print_binop (cpt_instr,
                    abs,
                    abs',
