@@ -4929,7 +4929,7 @@ end = struct
   let zf_of_word sz w =
     Some (Papp2 (E.Oeq (E.Op_w sz),
                  w,
-                 Pconst (B.of_int 0)))
+                 pcast sz (Pconst (B.of_int 0))))
 
   let rflags_of_aluop sz w _vu _vs = 
     let of_f = None               (* FIXME *)
@@ -4993,7 +4993,9 @@ end = struct
   let mk_addcarry ws es =
     let el,er,eb = as_seq3 es in    
     let w_no_carry = Papp2 (E.Oadd (E.Op_w ws), el, er) in
-    let w_carry = Papp2 (E.Oadd (E.Op_w ws), w_no_carry, Pconst (B.of_int 1)) in
+    let w_carry = Papp2 (E.Oadd (E.Op_w ws),
+                         w_no_carry,
+                         pcast ws (Pconst (B.of_int 1))) in
 
     let eli = Papp1 (E.Oint_of_word ws, el)    (* (int)el *)
     and eri = Papp1 (E.Oint_of_word ws, er) in (* (int)er *)
@@ -5027,7 +5029,9 @@ end = struct
   let mk_subcarry ws es =
     let el,er,eb = as_seq3 es in    
     let w_no_carry = Papp2 (E.Osub (E.Op_w ws), el, er) in
-    let w_carry = Papp2 (E.Osub (E.Op_w ws), w_no_carry, Pconst (B.of_int 1)) in
+    let w_carry = Papp2 (E.Osub (E.Op_w ws),
+                         w_no_carry,
+                         pcast ws (Pconst (B.of_int 1))) in
 
     let eli = Papp1 (E.Oint_of_word ws, el)    (* (int)el *)
     and eri = Papp1 (E.Oint_of_word ws, er) in (* (int)er *)
@@ -5110,7 +5114,7 @@ end = struct
     | E.Ox86 (X86_instr_decl.INC ws) ->
       let e = as_seq1 es in
       let w = Papp2 (E.Oadd (E.Op_w ws), e,
-                     Papp1(E.Oword_of_int ws,Pconst (B.of_int 1))) in
+                     Papp1(E.Oword_of_int ws, Pconst (B.of_int 1))) in
       let vu = () in
       let vs = () in
       let rflags = nocf (rflags_of_aluop ws w vu vs) in
@@ -5406,9 +5410,10 @@ end = struct
           let cpt_instr = !num_instr_evaluated - 1 in
 
           (* We evaluate a quantity that we try to prove is decreasing. *)
-          Format.eprintf "@[<v>Candidate decreasing numerical quantity:@;\
-                          @[%a@]@;@;@]"
-            (pp_opt Mtexpr.print) ni_e;
+          debug (fun () ->
+              Format.eprintf "@[<v>Candidate decreasing numerical quantity:@;\
+                              @[%a@]@;@;@]"
+                (pp_opt Mtexpr.print) ni_e);
 
           (* Initial value of the candidate decreasing quantity. *)
           let mvar_ni = MNumInv (fst ginstr.i_loc) in
