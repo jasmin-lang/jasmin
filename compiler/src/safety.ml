@@ -9,7 +9,7 @@ exception Aint_error of string
 let debug a = if !Glob_options.debug then a () else ()
 
 let () = debug (fun () ->
-    Format.eprintf "Debug on: record backtrace@;";
+    Format.eprintf "Debug: record backtrace@.";
     Printexc.record_backtrace true);;
 
 (* REM *)
@@ -18,7 +18,7 @@ let () = debug (fun () ->
 let hndl_apr_exc e = match e with
   | Manager.Error exclog as e ->
     Printexc.print_backtrace stderr;
-    Format.eprintf "@[<v>Apron Error Message:@;@[%a@]@;@]"
+    Format.eprintf "@[<v>Apron error message:@;@[%a@]@;@]@."
       Manager.print_exclog exclog;
     raise e
   | _ as e -> raise e
@@ -1376,8 +1376,10 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
     let env = box.box1_env in
     let vars,_ = Environment.vars env in
     let bman = BoxManager.man in
-    Abstract1.of_box bman env vars Abstract1.(box.interval_array)
-
+    if Array.length vars = 0
+    then Abstract1.top bman env 
+    else Abstract1.of_box bman env vars Abstract1.(box.interval_array)
+        
   let to_box :  t -> Box.t Abstract1.t = fun a ->
     to_box1 a |> box1_to_box
 
@@ -1531,7 +1533,7 @@ end
 module Ms = Map.Make(Scmp)
 
 (* For now we fixed the domains, and we use only two of them, one non-relational
-   and on Ppl. Still, we generalized to n different domains whenever possible
+   and one Ppl. Still, we generalized to n different domains whenever possible
    to help future possible extentions. *)
 module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
   : AbsNumType = struct
@@ -3038,6 +3040,9 @@ module type AbsNumBoolType = sig
 end
 
 
+(* Add boolean variable abstractions and keep track of initialized variables 
+   and points-to information.
+   The boolean abstraction use a non-relational abstract domain. *)
 module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
   : AbsNumBoolType = struct
 
@@ -3377,8 +3382,8 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     | _ -> assert false
   
   (* Check that a variable is initialized. 
-     Note that an array is always initialized, even if its elements are
-     not initialized. *)
+     Note that in Jasmin, an array is always initialized, even if its elements 
+     are not initialized. *)
   let check_init : t -> atype -> bool = fun t at ->
     let vats = match at with
       | Aarray _ -> []
@@ -3410,15 +3415,25 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
       if Aparam.is_init_no_print then
         ()
       else print_init fmt t in
-    
-      if !only_rel_print then
-        Format.fprintf fmt "@[<v 0>%a@]"
-          (AbsNum.R.print ~full:full) t.num
-      else
-        Format.fprintf fmt "@[<v 0>@[<v 0>%a@]@;%a@;%t@]"
-          (AbsNum.R.print ~full:full) t.num
-          Pt.print t.points_to
-          print_init
+
+    (* for debugging *)
+    (* let print_bool fmt =
+     *   Format.fprintf fmt "@[<v 0>* Bool:@;";
+     *   Ms.iter (fun name nrval ->
+     *       Format.fprintf fmt "@[<v 2>%s@;%a@]@;" name
+     *         (AbsNum.NR.print ~full:true) nrval;
+     *     ) t.bool;
+     *   Format.fprintf fmt "@]" in *)
+
+    if !only_rel_print then
+      Format.fprintf fmt "@[<v 0>%a@]"
+        (AbsNum.R.print ~full:full) t.num
+    else
+      (* Format.fprintf fmt "@[<v 0>@[<v 0>%a@]@;%a@;%t@]" *)
+      Format.fprintf fmt "@[<v 0>@[<v 0>%a@]@;%a@;%t@]"
+        (AbsNum.R.print ~full:full) t.num
+        Pt.print t.points_to
+        print_init
 
   let new_cnstr_blck t = { t with num = AbsNum.R.new_cnstr_blck t.num }
 
