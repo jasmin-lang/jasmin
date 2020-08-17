@@ -71,16 +71,16 @@ module Aparam = struct
   (***********************)
 
   (* Turn on printing of array variables *)
-  let arr_no_print = true
+  let arr_no_print = true       (* default: true*)
 
   (* Turn on printing of global variables *)
-  let glob_no_print = true
+  let glob_no_print = true      (* default: true *)
 
   (* Turn on printing of non-relational variables *)
-  let nrel_no_print = ref false
+  let nrel_no_print = ref false (* default: false *)
 
   (* Turn on printing of unconstrained variables *)
-  let ignore_unconstrained = true
+  let ignore_unconstrained = true (* default: true *)
 
   (* Turn on printing of not initialized variables 
      (i.e. it is not certain that the variable is initialized). *)
@@ -209,6 +209,7 @@ let rec assoc_up s f = function
 
 module Prof : sig
   val record : string -> unit
+  val is_recorded : string -> bool
   val call : string -> float -> unit
   val reset_all : unit -> unit
 
@@ -220,9 +221,11 @@ end = struct
     let () = assert (not (List.mem_assoc s !lrec)) in
     lrec := (s,(0,0.)) :: !lrec;;
 
+  let is_recorded s = List.mem_assoc s !lrec
+
   let call s t =
     lrec := assoc_up s (fun (x,t') -> (x + 1,t +. t')) !lrec;;
-
+  
   let reset_all () = lrec := []
 
   let print fmt () =
@@ -939,6 +942,7 @@ module Mtcons : sig
   val get_typ : t -> typ
 
   val print : Format.formatter -> t -> unit
+  val print_mexpr : Format.formatter -> t -> unit
 end = struct
   type typ = Apron.Lincons0.typ
 
@@ -957,6 +961,12 @@ end = struct
   let get_typ t = t.typ
 
   let print ppf t = to_atcons t |> Tcons1.print ppf
+
+  (* for debugging *)
+  let print_mexpr ppf t = 
+    Format.fprintf ppf "%a %s 0" 
+      Mtexpr.print_mexpr t.expr.mexpr
+      (Lincons1.string_of_typ t.typ)
 end
 
 
@@ -1511,7 +1521,8 @@ module type ProgWrap = sig
 end
 
 module type VDomWrap = sig
-  (* Associate a domain (ppl or non-relational to every variable *)
+  (* Associate a domain (ppl or non-relational) to every variable.
+     An array element must have the same domain that its blasted component. *)
   val vdom : mvar -> v_dom
 end
 
@@ -1554,10 +1565,17 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
   let vdom v =
     let r = VDW.vdom v in
     let vs = avar_of_mvar v |> Var.to_string in
-    if not (Hashtbl.mem log_index vs) then begin
-      Hashtbl.add log_index vs ();
-      Hashtbl.add log r vs
-    end;
+    (* We also need to add the blasted component of [t] to the log. *)
+    let vs_blasted = u8_blast_var ~blast_arrays:false v 
+                     |> List.map (fun v -> avar_of_mvar v
+                                            |> Var.to_string) in
+
+    let add_to_log vs =
+      if not (Hashtbl.mem log_index vs) then begin
+        Hashtbl.add log_index vs ();
+        Hashtbl.add log r vs
+      end in
+    List.iter add_to_log (vs :: vs_blasted);
     r
 
   let pp_dom fmt = function
@@ -1853,7 +1871,7 @@ type btcons =
   | BOr of btcons * btcons
 
 let rec pp_btcons ppf = function
-  | BLeaf t -> Mtcons.print ppf t
+  | BLeaf t -> Mtcons.print_mexpr ppf t
 
   | BVar (s,b) ->
     if b then Format.fprintf ppf "%s" s
@@ -2297,7 +2315,6 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
   let remove_vars t l = apply (fun _ x -> A.remove_vars x l) t
 
   let to_box = eval (fun _ -> Abstract1.join bman) (fun _ -> A.to_box)
-  let of_box _ = raise (Aint_error "not supported by disjunctive domain")
 
 
   let of_box bt tshape = apply (fun _ _ -> A.of_box bt) tshape
@@ -4882,6 +4899,21 @@ end = struct
     { state with cstack = f :: state.cstack;
                  s_effects = [] }
 
+
+  (* Profiling *)
+  let () = Prof.record "prepare_call"
+  let prepare_call abs f es =
+    let t = Sys.time () in
+    let r = prepare_call abs f es in
+    let t' = Sys.time () in
+    let sf = "prepare_call_" ^ f.fn_name in
+    let () = 
+      if Prof.is_recorded sf
+      then ()
+      else Prof.record sf in
+    let () = Prof.call "prepare_call" (t' -. t) in
+    let () = Prof.call sf (t' -. t) in
+    r
 
   let get_ret_assgns state f_decl lvs =
     let f_rets_no_offsets = fun_rets_no_offsets f_decl
