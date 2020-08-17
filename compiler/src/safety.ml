@@ -2393,7 +2393,7 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
   (* We compute the dependency heuristic graph *)
   let pa_res = Pa.pa_make PW.main PW.prog
 
-  (* We compute the reflexive and transitive cloture of dp *)
+  (* We compute the reflexive and transitive clojure of dp *)
   let f (dp : Pa.dp) =
     Mv.map (fun sv ->
         Sv.fold (fun v' s ->
@@ -2411,7 +2411,8 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
   (* We are relational on a variable v iff:
      - there is a direct flow from the intersection of PW.main.f_args and
      Glob_options.relational to v.
-     - the variable appears in while loops conditions. *)
+     - the variable is appears in while loops conditions,
+     or depends on one. *)
   let sv_ini =
     match PW.param.relationals with
     | None -> PW.main.f_args |> Sv.of_list
@@ -2421,7 +2422,8 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
 
   let v_rel : Sv.t =
     let v_rel = add_flow sv_ini in
-    Sv.union v_rel pa_res.while_vars
+    let v_while = add_flow pa_res.while_vars in
+    Sv.union v_rel v_while
 
   (* v is a pointer variable iff there is a direct flow from the intersection
      of PW.main.f_args and Glob_options.pointers to v. *)
