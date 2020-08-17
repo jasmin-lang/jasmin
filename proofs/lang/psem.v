@@ -1539,6 +1539,12 @@ Lemma vm_uincl_refl vm: @vm_uincl vm vm.
 Proof. by done. Qed.
 Hint Resolve vm_uincl_refl.
 
+Lemma vm_uincl_trans vm2 vm1 vm3 :
+  vm_uincl vm1 vm2 →
+  vm_uincl vm2 vm3 →
+  vm_uincl vm1 vm3.
+Proof. move => A B x; exact: (eval_uincl_trans (A x) (B x)). Qed.
+
 Lemma val_uincl_array n (a a' : WArray.array n) :
   (∀ (i : Z) (v : u8),
     0 <= i ∧ i < n →
