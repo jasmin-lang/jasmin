@@ -6,12 +6,29 @@ open Wsize
 
 exception Aint_error of string
 
-let debug a = if !Glob_options.debug then a () else ()
+(*------------------------------------------------------------*)
+let last_time = ref 0.;;
+
+let print_time a =
+  let t = Sys.time () in
+  let diff = t -. !last_time in
+  last_time := t;
+  Format.eprintf "Time: %1f s. (+ %1f s.)@." t diff;
+  a ()
+
+let debug_print_time = true
+
+let debug a = 
+  if !Glob_options.debug then
+    if debug_print_time then print_time a else a ()
+  else ()
 
 let () = debug (fun () ->
     Format.eprintf "Debug: record backtrace@.";
     Printexc.record_backtrace true);;
 
+
+(*------------------------------------------------------------*)
 (* REM *)
 (* Printexc.record_backtrace true *)
 
@@ -2616,6 +2633,40 @@ module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
   let new_cnstr_blck = A.Num.new_cnstr_blck
   let add_cnstr = A.Num.add_cnstr
   let pop_cnstr_blck = A.Num.pop_cnstr_blck
+
+  (*----------------------------------------------------------------*)
+  (* Profiling for the new functions. *)
+  let record s = Prof.record ("D."^s)
+  let call s = Prof.call ("D."^s)
+
+  let () = record "of_box"
+  let of_box x y =
+    let t = Sys.time () in
+    let r = of_box x y in
+    let () = call "of_box" (Sys.time () -. t) in
+    r
+
+  let () = record "new_cnstr_blck"
+  let new_cnstr_blck x =
+    let t = Sys.time () in
+    let r = new_cnstr_blck x in
+    let () = call "new_cnstr_blck" (Sys.time () -. t) in
+    r
+
+  let () = record "add_cnstr"
+  let add_cnstr x y z =
+    let t = Sys.time () in
+    let r = add_cnstr x y z in
+    let () = call "add_cnstr" (Sys.time () -. t) in
+    r
+
+  let () = record "pop_cnstr_blck"
+  let pop_cnstr_blck x =
+    let t = Sys.time () in
+    let r = pop_cnstr_blck x in
+    let () = call "pop_cnstr_blck" (Sys.time () -. t) in
+    r
+
 end
 
 
@@ -4889,6 +4940,7 @@ end = struct
      - The variables of the caller's caller have been *removed*.
      - s_effects is empty. *)
   let prepare_call state f es =
+    debug (fun () -> Format.eprintf "evaluating arguments ...@.");
     let state = aeval_f_args f es state in
 
     let state = forget_stack_vars state in
@@ -4934,7 +4986,7 @@ end = struct
     let fname = List.hd fstate.cstack in
 
     debug(fun () ->
-        Format.eprintf "@[<v 0>Side effects of %s: @[<hov 2>%a@]@]@."
+        Format.eprintf "@[<v 0>side effects of %s: @[<hov 2>%a@]@]@."
           fname.fn_name
           (pp_list pp_mvar) (List.map (fun x -> MmemRange x) fstate.s_effects));
 
@@ -4947,12 +4999,15 @@ end = struct
                   violations = List.sort_uniq v_compare
                       (state.violations @ fstate.violations) } in
 
+    debug(fun () -> Format.eprintf "evaluating returned values ...@.");
     (* Finally, we assign the returned values in the corresponding lvalues *)
     let f_decl = get_fun_def fstate.prog fname |> oget in
     let r_assgns = get_ret_assgns state f_decl lvs in      
     
     let state = { state with abs = aeval_f_return state.abs r_assgns } in
 
+    debug(fun () -> 
+        Format.eprintf "forgetting %s local variables ...@." fname.fn_name);
     (* We forget the variables of f to get a smaller abstract element. *)
     forget_f_vars fname state
 
@@ -5617,7 +5672,7 @@ end = struct
         let f_decl = get_fun_def state.prog f |> oget in
         let fn = f_decl.f_name in
 
-        debug (fun () -> Format.eprintf "@[<v>Call %s:@;@]" fn.fn_name);
+        debug (fun () -> Format.eprintf "@[<v>Call %s:@;@]%!" fn.fn_name);
 
         let fstate = match Aparam.abs_call_strategy with
           | CallDirect -> aeval_call f es state
@@ -5681,6 +5736,7 @@ end = struct
 
       let state = prepare_call state f es in
 
+      debug (fun () -> Format.eprintf "Evaluating the body ...@.");
       aeval_gstmt f_decl.f_body state
 
 
