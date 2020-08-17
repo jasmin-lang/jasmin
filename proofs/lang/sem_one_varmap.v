@@ -43,11 +43,21 @@ Local Notation gd := (p_globs p).
 
 Definition kill_extra_register_vmap ii (vm: vmap) : vmap :=
   if extra_free_registers ii is Some x
-  then vm.[x <- pundef_addr (vtype x) ]
+  then if vm.[x] is Ok _ then vm.[x <- pundef_addr (vtype x) ] else vm
   else vm.
 
 Definition kill_extra_register ii (s: estate) : estate :=
   with_vm s (kill_extra_register_vmap ii s.(evm)).
+
+Remark kill_extra_register_vm_uincl ii s :
+  vm_uincl (kill_extra_register ii s).(evm) (evm s).
+Proof.
+  rewrite /= /kill_extra_register_vmap.
+  case: extra_free_registers => // x y.
+  case hx: (evm s).[x] => [ v | ] //; case: (x =P y).
+  + move => <- {y}; rewrite hx Fv.setP_eq; apply: eval_uincl_undef; exact: subtype_refl.
+  by move => /eqP x_ne_y; rewrite Fv.setP_neq.
+Qed.
 
 Definition set_RSP m vm : vmap :=
   vm.[vid (string_of_register RSP) <- ok (pword_of_word (top_stack m))].

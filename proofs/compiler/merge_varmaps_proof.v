@@ -330,6 +330,7 @@ Section LEMMA.
     kill_extra_register_vmap extra_free_registers ii vm = vm [\extra_free_registers_at extra_free_registers ii].
   Proof.
     rewrite /extra_free_registers_at /kill_extra_register_vmap; case: extra_free_registers => //= r j /SvD.F.singleton_iff /eqP ne.
+    case: vm.[r] => // _.
     exact: Fv.setP_neq.
   Qed.
 
