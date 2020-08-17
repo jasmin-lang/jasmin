@@ -2486,7 +2486,7 @@ module MakeAbsNumProf (A : NumWrap) : AbsNumType with type t = A.Num.t = struct
 
   let () = record "meet_list"
   let meet_list x =
-    let t = Sys.time () in
+    let t = Sys.time () in 
     let r = A.Num.meet_list x in
     let () = call "meet_list" (Sys.time () -. t) in
     r
@@ -2650,7 +2650,6 @@ module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
       module Num = NRNum
       let prefix = "NR."
     end)
-
 
   let downgrade a = NR.of_box (R.to_box a)
 
@@ -5454,48 +5453,32 @@ end = struct
         let ni_e =
           try Some (dec_qnty_heuristic state.abs (c2 @ c1) (oec state.abs))
           with Heuristic_failed -> None in
-        
-        let eval_body state_i state =
-          let cpt_instr = !num_instr_evaluated - 1 in
+        (* Variable where we store its value before executing the loop body. *)
+        let mvar_ni = MNumInv (fst ginstr.i_loc) in
 
-          (* We evaluate a quantity that we try to prove is decreasing. *)
-          debug (fun () ->
-              Format.eprintf "@[<v>Candidate decreasing numerical quantity:@;\
-                              @[%a@]@;@;@]"
-                (pp_opt Mtexpr.print) ni_e);
-
-          (* Initial value of the candidate decreasing quantity. *)
-          let mvar_ni = MNumInv (fst ginstr.i_loc) in
-          let state_i = match ni_e with
-            | None -> state_i
-            | Some nie ->
-              { state_i with abs = AbsDom.assign_sexpr state_i.abs
-                                 mvar_ni
-                                 (sexpr_from_simple_expr nie) } in
-
-          (* We add a disjunctive constraint block *)
-          let state_i = { state_i with
-                          abs = AbsDom.new_cnstr_blck state_i.abs } in
-
-          let state_o = aeval_gstmt (c2 @ c1) state_i in
-
-          (* We check that if the loop does not exit, then ni_e decreased by
+        (* We check that if the loop does not exit, then ni_e decreased by
              at least one *)
-          let state_o = match ni_e with
+        let check_ni_dec state = match ni_e with
             | None -> (* Here, we cannot prove termination *)
               let violation = (InProg (fst ginstr.i_loc), Termination) in
-              add_violations state_o [violation]
+              add_violations state [violation]
 
             | Some nie ->
-              let env = AbsDom.get_env state_o.abs in
+              let env = AbsDom.get_env state.abs in
               let nie = Mtexpr.extend_environment nie env in
 
               (* (initial nie) - nie *)
-              let e = Mtexpr.(binop Sub
-                                (var env mvar_ni) nie) in
+              let e = Mtexpr.(binop Sub (var env mvar_ni) nie) in
 
-              let int = AbsDom.bound_texpr state_o.abs e
-              and zint = AbsDom.bound_variable state_o.abs mvar_ni
+              (* We assume the loop does not exit, and check whether the 
+                 candidate decreasing quantity indeed decreased. *)
+              let state_in = match oec state.abs with
+                | Some ec -> 
+                  { state with abs = AbsDom.meet_btcons state.abs ec }
+                | None -> state in
+
+              let int = AbsDom.bound_texpr state_in.abs e
+              and zint = AbsDom.bound_variable state_in.abs mvar_ni
               and test_intz =
                 Interval.of_scalar (Scalar.of_int 0) (Scalar.of_infty 1)
               and test_into =
@@ -5510,10 +5493,30 @@ end = struct
                     Interval.print zint;);
 
               if (Interval.is_leq int test_into) &&
-                 (Interval.is_leq zint test_intz) then state_o
+                 (Interval.is_leq zint test_intz) then state
               else
                 let violation = (InProg (fst ginstr.i_loc), Termination) in
-                add_violations state_o [violation] in
+                add_violations state [violation] in
+
+
+        (* [[body]]state_i U state*)
+        let eval_body state_i state =
+          let cpt_instr = !num_instr_evaluated - 1 in
+
+          (* We add a disjunctive constraint block *)
+          let state_i = { state_i with
+                          abs = AbsDom.new_cnstr_blck state_i.abs } in
+
+          let state_o = aeval_gstmt (c2 @ c1) state_i in
+
+          (* We check that if the loop does not exit, then ni_e decreased by
+             at least one *)
+          let state_o = check_ni_dec state_o in
+
+          (* We forget the variable storing the initial value of the 
+             candidate decreasing quantity *)
+          let state_o = { state_o with 
+                          abs = AbsDom.forget_list state_o.abs [mvar_ni] } in
 
           (* We pop the disjunctive constraint block *)
           let state_o = { state_o with
@@ -5526,13 +5529,28 @@ end = struct
         let enter_loop state =
           debug (fun () -> Format.eprintf "Loop %d@;" !cpt);
           cpt := !cpt + 1;
-          match oec state.abs with
-          | Some ec ->
-            debug (fun () -> Format.eprintf "Meet with %a@;" pp_btcons ec);
-            { state with abs = AbsDom.meet_btcons state.abs ec }
-          | None ->
-            debug (fun () -> Format.eprintf "No meet");
-            state in
+          let state = match oec state.abs with
+            | Some ec ->
+              debug (fun () -> Format.eprintf "Meet with %a@;" pp_btcons ec);
+              { state with abs = AbsDom.meet_btcons state.abs ec }
+            | None ->
+              debug (fun () -> Format.eprintf "No meet");
+              state in
+
+          (* We evaluate a quantity that we try to prove is decreasing. *)
+          debug (fun () ->
+              Format.eprintf "@[<v>Candidate decreasing numerical quantity:@;\
+                              @[%a@]@;@;@]"
+                (pp_opt Mtexpr.print) ni_e);
+
+          (* We evaluate the initial value of the candidate decreasing
+             quantity. *)
+          match ni_e with
+            | None -> state
+            | Some nie ->
+              { state with abs = AbsDom.assign_sexpr state.abs
+                                 mvar_ni
+                                 (sexpr_from_simple_expr nie) } in
 
         (* Unroll one time the loop. *)
         let unroll_once state = eval_body (enter_loop state) state in
