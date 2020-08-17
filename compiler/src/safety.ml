@@ -4611,6 +4611,7 @@ end = struct
 
 
   let add_violations : astate -> violation list -> astate = fun state ls ->
+    if ls <> [] then Format.eprintf "%a@." pp_violations ls;
     { state with violations = List.sort_uniq v_compare (ls @ state.violations) }
 
   let rec check_safety state loc conds =
@@ -4619,7 +4620,6 @@ end = struct
       mem_safety_rec (state.abs, [], state.s_effects) conds in
     let state = { state with abs = abs; s_effects = s_effects } in
     let unsafe = vsc @ mvsc |> List.map (fun x -> (loc,x)) in
-    if unsafe <> [] then Format.eprintf "%a@." pp_violations unsafe;
     add_violations state unsafe
 
   type mlvar =
@@ -5531,6 +5531,11 @@ end = struct
                 | Some ec -> 
                   { state with abs = AbsDom.meet_btcons state.abs ec }
                 | None -> state in
+
+              debug(fun () -> 
+                  Format.eprintf "@[<v 2>Checking the numerical quantity in:@;\
+                                  %a@]@."
+                    (AbsDom.print ~full:true) state_in.abs);
 
               let int = AbsDom.bound_texpr state_in.abs e
               and zint = AbsDom.bound_variable state_in.abs mvar_ni
