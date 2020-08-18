@@ -1733,7 +1733,7 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
   let is_bottom a =
     assert ((Mdom.cardinal a.nrd) + (Mdom.cardinal a.nrd) <> 0);
     (Mdom.exists (fun _ t -> NonRel.is_bottom t) a.nrd)
-    || (Mdom.exists (fun _ t -> PplDom.is_bottom t) a.ppl)
+    && (Mdom.exists (fun _ t -> PplDom.is_bottom t) a.ppl)
 
   let bottom a =
     let f1 _ x = NonRel.bottom x
