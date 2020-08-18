@@ -2199,7 +2199,7 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
   let merge_list l = match l with
     | [] -> []
     | t :: l' ->
-      let t_lce = List.fold_left (fun acc x -> tmerge acc x |> snd) t l' in
+      let t_lce = List.fold_left (fun acc x -> tmerge acc x |> fst) t l' in
       t_lce :: (List.map (fun x -> tmerge t_lce x |> snd) l')
 
   let apply_list f ts =
