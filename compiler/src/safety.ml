@@ -2825,6 +2825,7 @@ module PointsToImpl : PointsTo = struct
     | _ -> TopPtr
 
   let forget_list : t -> mvar list -> t = fun t l_rem ->
+    let l_rem = u8_blast_vars ~blast_arrays:true l_rem in
     let vl_rem = List.map string_of_mvar l_rem in
     { t with pts = Ms.filter (fun v _ -> not (List.mem v vl_rem)) t.pts }
 
@@ -3423,6 +3424,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
       points_to = Pt.unify t.points_to t'.points_to }
 
   let change_environment : t -> mvar list -> t = fun t l ->
+    let l = u8_blast_vars ~blast_arrays:true l in
     let bvars = bool_vars l
     and ivars = init_vars l in
     (* We remove the variables that are not in l *)
@@ -3441,6 +3443,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     apply f df (fun x -> x) { t with bool = b; init = init }
 
   let remove_vars : t -> mvar list -> t = fun t l ->
+    let l = u8_blast_vars ~blast_arrays:true l in
     let bvars = bool_vars l
     and ivars = init_vars l in
     (* We remove the variables in l *)
@@ -4987,6 +4990,7 @@ end = struct
     debug (fun () -> Format.eprintf "evaluating arguments ...@.");
     let state = aeval_f_args f es state in
 
+    debug (fun () -> Format.eprintf "forgetting variables ...@.");
     let state = forget_stack_vars state in
 
     let state = { state with abs = AbsDom.new_cnstr_blck state.abs } in
