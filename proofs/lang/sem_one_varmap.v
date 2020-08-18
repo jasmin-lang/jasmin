@@ -123,4 +123,62 @@ with sem_call : instr_info → estate → funname → estate → Prop :=
     s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
     sem_call ii s1 fn s2.
 
+(*---------------------------------------------------*)
+(* Small inversion principles *)
+Lemma semE s c s' :
+  sem s c s' →
+  match c with
+  | [::] => s = s'
+  | i :: c => exists2 si, sem_I s i si & sem si c s'
+  end.
+Proof. by case => // {s c s'} s si s' i c; exists si. Qed.
+
+Lemma sem_IE s i s' :
+  sem_I s i s' →
+  let: MkI ii r := i in
+  sem_i ii (kill_extra_register ii s) r s'.
+Proof. by case. Qed.
+
+Lemma sem_iE ii s i s' :
+  sem_i ii s i s' →
+  match i with
+  | Cassgn x tag ty e =>
+    exists2 v', sem_pexpr gd s e >>= truncate_val ty = ok v' & write_lval gd x v' s = ok s'
+  | Copn xs t o es => sem_sopn gd o s xs es = ok s'
+  | Cif e c1 c2 =>
+    exists2 b, sem_pexpr gd s e = ok (Vbool b) & sem s (if b then c1 else c2) s'
+  | Cwhile a c e c' =>
+    ∃ si b,
+       [/\ sem s c si, sem_pexpr gd si e = ok (Vbool b) &
+                       if b then ∃ sj, sem si c' sj ∧ sem_i ii sj (Cwhile a c e c') s' else si = s' ]
+  | Ccall ini res f args =>
+    exists2 xargs,
+    mapM get_pvar args = ok xargs &
+    exists2 xres,
+    mapM get_lvar res = ok xres &
+    sem_call ii s f s'
+  | Cfor _ _ _ => false
+  end.
+Proof.
+  case => { ii s i s' }; eauto.
+  - move => _ s s' x _ ty e v v' -> /= ->; eauto.
+  - move => ii s1 s2 s3 s4 a c e c' exec_c eval_e exec_c' rec; exists s2, true; split; eauto.
+  by move => ii s1 s2 a c e c' exec_c eval_e; exists s2, false.
+Qed.
+
+Lemma sem_callE ii s fn s' :
+  sem_call ii s fn s' →
+  ∃ f m1 s2',
+    [/\ get_fundef (p_funcs p) fn = Some f,
+     (if f.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) : bool,
+    alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) = ok m1,
+    sem {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s.(evm).[x <- undef_error] else s.(evm)) |} f.(f_body) s2' &
+    let m2 := free_stack s2'.(emem) f.(f_extra).(sf_stk_sz) in
+    s' = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}
+    ].
+Proof.
+  case => { ii s fn s' } ii s s' fn f m1 s2' => ok_f ok_ra ok_alloc exec_body /= ->.
+  by exists f, m1, s2'.
+Qed.
+
 End SEM.
