@@ -5055,7 +5055,7 @@ end = struct
     let state = { state with abs = aeval_f_return state.abs r_assgns } in
 
     debug(fun () -> 
-        Format.eprintf "forgetting %s local variables ...@." fname.fn_name);
+        Format.eprintf "forgetting %s local variables ...@.@." fname.fn_name);
     (* We forget the variables of f to get a smaller abstract element. *)
     forget_f_vars fname state
 
