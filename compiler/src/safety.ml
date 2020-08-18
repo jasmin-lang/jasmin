@@ -102,6 +102,9 @@ module Aparam = struct
   (* Turn on printing of not initialized variables 
      (i.e. it is not certain that the variable is initialized). *)
   let is_init_no_print = true   (* defaul: true *)
+
+  (* Turn on printing of boolean variables *)
+  let bool_no_print = true   (* defaul: true *)
 end
 
 (* Turn on printing of only the relational part *)
@@ -1791,13 +1794,24 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
     fun ?full:(full=false) fmt a ->
       let pp_map pp_el fmt l =
         pp_list pp_el fmt (List.map snd (Mdom.bindings l)) in
-
+      
       if Mdom.cardinal a.nrd = 0 || !only_rel_print then
         Format.fprintf fmt "@[<v 0>* Rel:@;%a@]"
           (pp_map (PplDom.print ~full:full)) a.ppl
       else
-        Format.fprintf fmt "@[<v 0>* NonRel:@;%a* Rel:@;%a@]"
+        let nrd_size = Mdom.fold (fun _ nrd size ->
+            size + Environment.size (NonRel.get_env nrd)
+          ) a.nrd 0 in
+        let ppl_size = Mdom.fold (fun _ nrd size ->
+            size + Environment.size (PplDom.get_env nrd)
+          ) a.ppl 0 in
+
+        Format.fprintf fmt "@[<v 0>\
+                            * NonRel (%d vars.):@;%a\
+                            * Rel (%d vars.):@;%a@]"
+          nrd_size
           (pp_map (NonRel.print ~full:full)) a.nrd
+          ppl_size
           (pp_map (PplDom.print ~full:full)) a.ppl
 
   let change_environment a mvars =
@@ -2349,7 +2363,7 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
 
   let print ?full:(full=false) fmt t =
     Ptree.pp_ptree (fun fmt a ->
-        if A.is_bottom a then Format.fprintf fmt "Bottom"
+        if A.is_bottom a then Format.fprintf fmt "Bottom@;"
         else A.print ~full:full fmt a) fmt (shrt_tree t)
 end
 
@@ -2906,6 +2920,12 @@ module type EqMap = sig
 
   val empty : 'a t
 
+  (* Number of equivalence classes. *)
+  val csize : 'a t -> int
+
+  (* Fold over equivalence classes *)
+  val cfold : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+
   val mem: key -> 'a t -> bool
 
   val find: key -> 'a t -> 'a
@@ -2939,6 +2959,8 @@ module MakeEqMap (K : Ordered) : EqMap with type key = K.t = struct
                 ctov = Mc.empty;
                 _cpt = 0 }
 
+  let csize t = Mc.cardinal t.ctov
+
   let newc t = ({ t with _cpt = t._cpt + 1 }, t._cpt)
 
   let mem k t = try Mc.mem (Mk.find k t.ktoc) t.ctov with Not_found -> false
@@ -2954,6 +2976,9 @@ module MakeEqMap (K : Ordered) : EqMap with type key = K.t = struct
   let iter f t = Mk.iter (fun k c -> f k (Mc.find c t.ctov)) t.ktoc
                 
   let map f t = { t with ctov = Mc.map f t.ctov }
+
+  (* Fold over classes. *)
+  let cfold f t a = Mc.fold (fun _ x y -> f x y) t.ctov a
 
   (* This function unifies the equivalence classes of t and t' *)
   let unify_classes : 'a t -> 'b t -> int * int Mk.t * 'a Mc.t * 'b Mc.t =
@@ -3487,23 +3512,40 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
         ()
       else print_init fmt t in
 
-    (* for debugging *)
-    (* let print_bool fmt =
-     *   Format.fprintf fmt "@[<v 0>* Bool:@;";
-     *   Ms.iter (fun name nrval ->
-     *       Format.fprintf fmt "@[<v 2>%s@;%a@]@;" name
-     *         (AbsNum.NR.print ~full:true) nrval;
-     *     ) t.bool;
-     *   Format.fprintf fmt "@]" in *)
+    let print_bool fmt =
+      if Aparam.bool_no_print then ()
+      else begin
+        Format.fprintf fmt "@[<v 0>* Bool:@;";
+        Ms.iter (fun name nrval ->
+            Format.fprintf fmt "@[<v 2>%s@;%a@]@;" name
+              (AbsNum.NR.print ~full:true) nrval;
+          ) t.bool;
+        Format.fprintf fmt "@]@;" 
+      end in
+
+    let bool_size = Ms.cardinal t.bool
+    and init_size = EMs.csize t.init in
+    let bool_nr_vars =  
+      Ms.fold (fun _ nrd size -> 
+          size + Environment.size (AbsNum.NR.get_env nrd))
+        t.bool 0
+      |> EMs.cfold (fun nrd size -> 
+          size + Environment.size (AbsNum.NR.get_env nrd))
+        t.init in
+    let print_bool_nums fmt = 
+      Format.fprintf fmt "* Bool (%d vars.) + Init (%d vars): \
+                          total of %d num. vars."
+        bool_size init_size bool_nr_vars in
 
     if !only_rel_print then
       Format.fprintf fmt "@[<v 0>%a@]"
         (AbsNum.R.print ~full:full) t.num
     else
-      (* Format.fprintf fmt "@[<v 0>@[<v 0>%a@]@;%a@;%t@]" *)
-      Format.fprintf fmt "@[<v 0>@[<v 0>%a@]@;%a@;%t@]"
+      Format.fprintf fmt "@[<v 0>@[<v 0>%a@]%a@;%t@;%t%t@]@."
         (AbsNum.R.print ~full:full) t.num
         Pt.print t.points_to
+        print_bool_nums
+        print_bool
         print_init
 
   let new_cnstr_blck t = { t with num = AbsNum.R.new_cnstr_blck t.num }
@@ -5743,7 +5785,7 @@ end = struct
 
       let state = prepare_call state f es in
 
-      debug (fun () -> Format.eprintf "Evaluating the body ...@.");
+      debug (fun () -> Format.eprintf "Evaluating the body ...@.@.");
       aeval_gstmt f_decl.f_body state
 
 
