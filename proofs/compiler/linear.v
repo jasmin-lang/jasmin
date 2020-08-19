@@ -92,163 +92,59 @@ Record lprog :=
 
 
 (* --------------------------------------------------------------------------- *)
-(* Uniq vmap                                                                   *)
-
 Section PROG.
 Context (p:sprog) (extra_free_registers: instr_info -> option var).
 
-Section WRITE1.
-
-  Context (writefun: funname -> Sv.t).
-
-  Definition writefun_ra (fn:funname) :=
-    let ra :=
-      match get_fundef (p_funcs p) fn with
-      | None => Sv.empty
-      | Some fd =>
-        match fd.(f_extra).(sf_return_address) with
-        | RAnone | RAstack _ => Sv.empty
-        | RAreg ra => Sv.singleton ra
-        end
-      end in
-    Sv.union (writefun fn) ra.
-
-  Fixpoint write_i_rec s i :=
-    match i with
-    | Cassgn x _ _ _  => vrv_rec s x
-    | Copn xs _ _ _   => vrvs_rec s xs
-    | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
-    | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
-    | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
-    | Ccall _ _ fn _  => writefun_ra fn
-    end
-  with write_I_rec s i :=
-    match i with
-    | MkI ii i =>
-      let result := write_i_rec s i in
-      if extra_free_registers ii is Some r
-      then Sv.add r result
-      else result
-    end.
-
-  Definition write_c := foldl write_I_rec (Sv.empty).
-
-  Definition write_fd (fd:sfundef) := write_c fd.(f_body).
-
-End WRITE1.
-
-(* We start by initialising the map of writefun, this does not need to be trusted *)
-
-Section WMAP.
-
-Definition get_wmap (wmap : Mp.t Sv.t) (fn:funname) := odflt Sv.empty (Mp.get wmap fn).
-
-Definition mk_wmap := 
-  foldr (fun ffd wmap => 
-           let: (f,fd) := ffd in
-           let w := write_fd (get_wmap wmap) fd in
-           Mp.set wmap f w) (Mp.empty _) p.(p_funcs).
-
-Definition check_wmap (wmap:Mp.t Sv.t) := 
-  all (fun ffd => Sv.subset (write_fd (get_wmap wmap) ffd.2) (get_wmap wmap ffd.1)) (p_funcs p).
-
-End WMAP.
-
 Section CHECK.
 
-  Context (writefun: funname -> Sv.t).
-  
   Section CHECK_c.
 
-    Context (check_i: instr -> Sv.t -> ciexec Sv.t).
+    Context (check_i: instr -> ciexec unit).
 
-    Fixpoint check_c (c:cmd) (s:Sv.t) := 
+    Fixpoint check_c (c:cmd) : ciexec unit :=
       match c with
-      | [::] => ok s
-      | i::c => 
-        Let s := check_c c s in
-        check_i i s
-      end.
-
-    Context (ii:instr_info) (c1:cmd) (e:pexpr) (c2:cmd).
-
-    Fixpoint wloop (n:nat) (s: Sv.t) := 
-      match n with
-      | 0 => cierror ii (Cerr_Loop "linear check")
-      | S n =>
-        (* while c1 e c2 = c1; while e do c2; c1 *)
-        let se := read_e_rec s e in
-        Let s1 := check_c c1 se in
-        Let s2 := check_c c2 s1 in
-        if Sv.subset s2 s then ok s1
-        else wloop n (Sv.union s2 s)
+      | [::] => ok tt
+      | i::c => check_c c >> check_i i
       end.
 
   End CHECK_c.
 
   Section CHECK_i.
- 
+
   Context (stack_align : wsize).
- 
-  Fixpoint check_i (i:instr) (D:Sv.t) := 
+
+  Fixpoint check_i (i:instr) : ciexec unit :=
     let (ii,ir) := i in
     match ir with
-    | Cassgn x tag ty e => 
-      if ty is sword sz then
-        ok (read_rv_rec (read_e_rec (Sv.diff D (vrv x)) e) x)
+    | Cassgn x tag ty e =>
+      if ty is sword sz then ok tt
       else cierror ii (Cerr_linear "assign not a word")
     | Copn xs tag o es =>
-      ok (read_es_rec (read_rvs_rec (Sv.diff D (vrvs xs)) xs) es)
+      ok tt
     | Cif b c1 c2 =>
-      Let D1 := check_c check_i c1 D in
-      Let D2 := check_c check_i c2 D in
-      ok (read_e_rec (Sv.union D1 D2) b)
-    | Cfor _ _ _ => 
+      check_c check_i c1 >> check_c check_i c2
+    | Cfor _ _ _ =>
       cierror ii (Cerr_linear "for found in linear")
     | Cwhile _ c e c' =>
-      if e == Pbool false then check_c check_i c D
-      else wloop check_i ii c e c' Loop.nb D
-    | Ccall _ xs fn es => 
+      if e == Pbool false then check_c check_i c
+      else check_c check_i c >> check_c check_i c'
+    | Ccall _ xs fn es =>
       if get_fundef (p_funcs p) fn is Some fd then
         Let _ := assert (sf_align (f_extra fd) <= stack_align)%CMP
           (ii, Cerr_linear "caller need alignment greater than callee") in
-        Let _ := assert (sf_return_address (f_extra fd) != RAnone)  
-          (ii, Cerr_linear "nowhere to store the return address") in
-        Let _ := assert (if sf_return_address (f_extra fd) is RAstack _ then extra_free_registers ii != None else true)
-          (ii, Cerr_linear "no extra free register to compute the return address") in
-        Let _ := assert 
-          (all2 (λ e a, if e is Pvar (Gvar v _) then v_var v == v_var a else false) es (f_params fd))
-          (ii, Cerr_linear "bad call args") in
-        Let _ := assert 
-          (all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd))
-          (ii, Cerr_linear "bad call dests") in
-        let W := writefun_ra writefun fn in
-        let D1 := read_rvs_rec (Sv.diff D (vrvs xs)) xs in (* Remark read_rvs xs is empty since all variables *)
-        let inter := Sv.inter D1 W in
-        Let _ := assert (Sv.is_empty inter) (ii, Cerr_needspill fn (Sv.elements inter)) in
-        let D2 := read_es_rec D1 es in
-        Let _ := assert (if extra_free_registers ii is Some r then negb (Sv.mem r D2) else true)
-                        (ii, Cerr_linear "extra register for rastack is not free") in
-        ok D2
+        ok tt
       else cierror ii (Cerr_linear "call to unknown function")
     end.
- 
+
   End CHECK_i.
 
-  Definition check_fd (ffd:sfun_decl) := 
+  Definition check_fd (ffd:sfun_decl) :=
     let (fn,fd) := ffd in
-    let saved_rsp := match fd.(f_extra).(sf_save_stack) with SavedStackNone | SavedStackStk _ => Sv.empty | SavedStackReg r => Sv.singleton r end in
-    let O := read_es_rec saved_rsp (map Plvar fd.(f_res)) in
     let stack_align := fd.(f_extra).(sf_align) in
-    Let I := add_finfo fn fn (check_c (check_i stack_align) fd.(f_body) O) in
+    Let _ := add_finfo fn fn (check_c (check_i stack_align) fd.(f_body)) in
     let e := fd.(f_extra) in
     Let _ := assert ((e.(sf_return_address) != RAnone) || (all (λ '(x, _), is_word_type x.(vtype) != None) e.(sf_to_save))) (Ferr_fun fn (Cerr_linear "bad to-save")) in
-    match e.(sf_return_address) with
-    | RAreg ra =>
-      Let _ := assert (~~Sv.mem ra (writefun fn)) (Ferr_fun fn (Cerr_linear "the function writes its return address")) in
-      assert(~~Sv.mem ra I)  (Ferr_fun fn (Cerr_linear "the function depends of its return address"))
-    | RAnone | RAstack _ => ok tt
-    end.
+    ok tt.
 
   Definition check_prog := 
     Let _ := mapM check_fd (p_funcs p) in
@@ -471,10 +367,8 @@ Definition linear_fd (fd: sfundef) :=
 End FUN.
 
 Definition linear_prog : cfexec lprog :=
-  let wmap := mk_wmap in
-  Let _ := assert (check_wmap wmap) (Ferr_msg (Cerr_linear "invalid wmap")) in 
-  Let _ := check_prog (get_wmap wmap) in
-  Let _ := assert (size p.(p_globs) == 0) 
+  Let _ := check_prog in
+  Let _ := assert (size p.(p_globs) == 0)
              (Ferr_msg (Cerr_linear "invalid p_globs, please report")) in
   let funcs := map (fun '(f,fd) => (f, linear_fd f fd)) p.(p_funcs) in
   ok {| lp_rip   := p.(p_extra).(sp_rip);
