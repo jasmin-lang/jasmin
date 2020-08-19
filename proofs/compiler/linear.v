@@ -111,7 +111,7 @@ Section CHECK.
 
   Section CHECK_i.
 
-  Context (stack_align : wsize).
+  Context (this: funname) (stack_align : wsize).
 
   Fixpoint check_i (i:instr) : ciexec unit :=
     let (ii,ir) := i in
@@ -129,6 +129,7 @@ Section CHECK.
       if e == Pbool false then check_c check_i c
       else check_c check_i c >> check_c check_i c'
     | Ccall _ xs fn es =>
+      if fn == this then cierror ii (Cerr_linear "call to self") else
       if get_fundef (p_funcs p) fn is Some fd then
         Let _ := assert (sf_align (f_extra fd) <= stack_align)%CMP
           (ii, Cerr_linear "caller need alignment greater than callee") in
@@ -141,7 +142,7 @@ Section CHECK.
   Definition check_fd (ffd:sfun_decl) :=
     let (fn,fd) := ffd in
     let stack_align := fd.(f_extra).(sf_align) in
-    Let _ := add_finfo fn fn (check_c (check_i stack_align) fd.(f_body)) in
+    Let _ := add_finfo fn fn (check_c (check_i fn stack_align) fd.(f_body)) in
     let e := fd.(f_extra) in
     Let _ := assert ((e.(sf_return_address) != RAnone) || (all (λ '(x, _), is_word_type x.(vtype) != None) e.(sf_to_save))) (Ferr_fun fn (Cerr_linear "bad to-save")) in
     ok tt.
@@ -301,8 +302,8 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       end
     end
 
-  | Ccall _ xs fn es =>
-    if get_fundef (p_funcs p) fn is Some fd then
+  | Ccall _ xs fn' es =>
+    if get_fundef (p_funcs p) fn' is Some fd then
       let e := f_extra fd in
       let ra := sf_return_address e in
       if ra == RAnone then (lbl, lc)
@@ -312,16 +313,17 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
         let after := allocate_stack_frame true ii sz in
         let lret := lbl in
         let lbl := next_lbl lbl in
+        let lcall := (fn', if fn' == fn then (* absurd case *) lret else xH (* entry point *)) in
         match sf_return_address e with
         | RAreg ra =>
-          (lbl, before ++ MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) :: MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: after ++ lc)
+          (lbl, before ++ MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) :: MkLI ii (Lgoto lcall) :: MkLI ii (Llabel lret) :: after ++ lc)
         | RAstack z =>
           if extra_free_registers ii is Some ra
           then (lbl,
                 before ++
                        MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) ::
                        MkLI ii (Lopn [::Lmem Uptr rspi (cast_const z)] (Ox86 (MOV Uptr)) [:: Pvar {| gv := VarI ra xH ; gs := Slocal |} ]) ::
-                       MkLI ii (Lgoto (fn, xH)) :: MkLI ii (Llabel lret) :: after ++ lc)
+                       MkLI ii (Lgoto lcall) :: MkLI ii (Llabel lret) :: after ++ lc)
           else (lbl, lc)
         | RAnone => (lbl, lc)
         end
