@@ -1961,6 +1961,54 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
 end
 
 
+(*********************)
+(* Boolean Variables *)
+(*********************)
+
+(* A boolean variable is a positive of negative variable (of type [mvar]). *)
+module Bvar : sig
+  type t
+  val compare : t -> t -> int
+  val equal : t -> t -> bool
+
+  (* the boolean is true if t is positive. *)
+  val make : mvar -> bool -> t
+
+  val not : t -> t
+
+  val var_name : t -> string
+
+  (* Force the boolean variable to be positive *)
+  val positive : t -> t
+
+  val print : Format.formatter -> t -> unit
+end = struct
+  type t = mvar * bool          (* the boolean is true if t is positive. *)
+
+  let compare (bv,b) (bv',b') = 
+    match Stdlib.compare b b' with
+    | 0 -> Stdlib.compare (avar_of_mvar bv) (avar_of_mvar bv')
+    | _ as r -> r
+
+  let equal (bv,b) (bv',b') = 
+    avar_of_mvar bv = avar_of_mvar bv' && b = b'
+
+  let make bv b = (bv,b)
+
+  let not (bv,b) = (bv,not b)
+
+  let positive (bv,_) = (bv,true)
+
+  let var_name (bv,_) = Var.to_string (avar_of_mvar bv)
+
+  let print fmt (bv,b) =
+    let v = Var.to_string (avar_of_mvar bv) in
+    if b then Format.fprintf fmt "%s" v
+    else Format.fprintf fmt "NOT %s" v
+end
+
+module Mbv = Map.Make(Bvar)
+
 
 (***************************************)
 (* Boolean combination of constraints. *)
@@ -1968,16 +2016,14 @@ end
 
 type btcons =
   | BLeaf of Mtcons.t
-  | BVar of string * bool       (* positive or negative boolean variable *)
+  | BVar of Bvar.t
   | BAnd of btcons * btcons
   | BOr of btcons * btcons
 
 let rec pp_btcons ppf = function
   | BLeaf t -> Mtcons.print_mexpr ppf t
 
-  | BVar (s,b) ->
-    if b then Format.fprintf ppf "%s" s
-    else Format.fprintf ppf "NOT %s" s
+  | BVar bv -> Bvar.print ppf bv
 
   | BAnd (bl,br) ->
     Format.fprintf ppf "(%a@ AND@ %a)"
@@ -1994,9 +2040,6 @@ let true_tcons1 env =
 let false_tcons1 env =
   let zero_t = Coeff.s_of_int 0 in
   Mtcons.make (Mtexpr.cst env zero_t) Tcons1.DISEQ
-
-let bvar_name v neg =
-  if neg then "f_" ^ v else "t_" ^ v
 
 (* Return the negation of c, except for EQMOD.
    For EQMOD, we return a constraint that always hold. *)
@@ -2023,7 +2066,7 @@ let rec flip_btcons : btcons -> btcons option = fun c ->
     | BLeaf c -> begin match flip_constr c with
         | Some fc -> BLeaf fc
         | None -> raise Bop_not_supported end
-    | BVar (s,bool) -> BVar (s, true <> bool)
+    | BVar bv -> BVar (Bvar.not bv)
     | BAnd (bl,br) -> BOr (flip_btcons_aux bl, flip_btcons_aux br)
     | BOr (bl,br) -> BAnd (flip_btcons_aux bl, flip_btcons_aux br) in
 
@@ -2955,6 +2998,7 @@ module PointsToImpl : PointsTo = struct
 end
 
 
+
 (*****************************************)
 (* Maps with Equivalence Classes of Keys *)
 (*****************************************)
@@ -3164,7 +3208,7 @@ module type AbsNumBoolType = sig
   val widening : Mtcons.t option -> t -> t -> t
 
   val forget_list : t -> mvar list -> t
-  val forget_bvar : t -> string -> t
+  val forget_bvar : t -> mvar -> t
 
   val is_included : t -> t -> bool
   val is_bottom : t -> bool
@@ -3179,7 +3223,7 @@ module type AbsNumBoolType = sig
 
   (* Does not change the points-to information *)
   val assign_sexpr : ?force:bool -> t -> mvar -> s_expr -> t
-  val assign_bexpr : t -> string -> btcons -> t
+  val assign_bexpr : t -> mvar -> btcons -> t
 
   val var_points_to : t -> mvar -> ptrs
   val assign_ptr_expr : t -> mvar -> ptr_expr -> t
@@ -3198,6 +3242,8 @@ module type AbsNumBoolType = sig
   val copy_init  : t -> mvar -> mvar -> t
   val check_init : t -> atype -> bool
 
+  (* Apron environment. This does not include the boolean variables, nor the
+     initialization variables. *)
   val get_env : t -> Environment.t
 
   val print : ?full:bool -> Format.formatter -> t -> unit
@@ -3217,15 +3263,15 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
   (* <Ms.find s init> is an over-approximation of the program state where s
      is *not* initialized.
      Remark: we lazily populate init and bool*)
-  type t = { bool : AbsNum.NR.t Ms.t;
+  type t = { bool : AbsNum.NR.t Mbv.t;
              init : AbsNum.NR.t EMs.t; 
              num : AbsNum.R.t;
              points_to : Pt.t }
 
-  module Ms2 = Map2(Ms)
+  module Mbv2 = Map2(Mbv)
 
   let merge_bool_dom t t' =
-    let eb,eb' = Ms2.merge2
+    let eb,eb' = Mbv2.merge2
         (fun () -> AbsNum.downgrade t.num)
         (fun () -> AbsNum.downgrade t'.num)
         t.bool t'.bool in
@@ -3240,7 +3286,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
         | Some _ -> x) t'.init t.init in
     ({ t with init = eb }, { t' with init = eb' })
 
-  let apply f df fpt t = { bool = Ms.map df t.bool;
+  let apply f df fpt t = { bool = Mbv.map df t.bool;
                            init = EMs.map df t.init;
                            num = f t.num;
                            points_to = fpt t.points_to }
@@ -3250,15 +3296,15 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
   let apply2 f df fpt t t' =
     let t, t' = merge_init_dom t t' in
     let t, t' = merge_bool_dom t t' in
-    { bool = Ms2.map2 df t.bool t'.bool;
+    { bool = Mbv2.map2 df t.bool t'.bool;
       init = EMs.map2 df t.init t'.init;
       num = f t.num t'.num;
       points_to = fpt t.points_to t'.points_to }
 
-  let for_all2 : ('a -> 'b -> 'c) -> 'a Ms.t -> 'b Ms.t -> bool =
+  let for_all2 : ('a -> 'b -> 'c) -> 'a Mbv.t -> 'b Mbv.t -> bool =
     fun f map_a map_b ->
-      Ms.for_all (fun k a ->
-          let b = Ms.find k map_b in
+      Mbv.for_all (fun k a ->
+          let b = Mbv.find k map_b in
           f a b)
         map_a
 
@@ -3266,8 +3312,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     | [] -> []
     | h :: t ->
       if ty_mvar h = Bty Bool then
-        let vh = string_of_mvar h in
-        (bvar_name vh true) :: (bvar_name vh false) :: bool_vars t
+        (Bvar.make h true) :: (Bvar.make h false) :: bool_vars t
       else bool_vars t
 
   let rec init_vars = function
@@ -3281,21 +3326,21 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     let dabs = AbsNum.downgrade abs in
 
     let bmap = List.fold_left (fun bmap bv ->
-        Ms.add bv dabs bmap) Ms.empty b_vars in
+        Mbv.add bv dabs bmap) Mbv.empty b_vars in
     { bool = bmap;
       init = EMs.empty;
       num = abs;
       points_to = Pt.make mls }
 
-  let unify_map : AbsNum.NR.t Ms.t -> AbsNum.NR.t Ms.t -> AbsNum.NR.t Ms.t =
+  let unify_map : AbsNum.NR.t Mbv.t -> AbsNum.NR.t Mbv.t -> AbsNum.NR.t Mbv.t =
     fun b b' ->
-      let eb = Ms.merge (fun _ x y -> match x with
+      let eb = Mbv.merge (fun _ x y -> match x with
           | None -> y
           | Some _ -> x) b b'
-      and eb' = Ms.merge (fun _ x y -> match x with
+      and eb' = Mbv.merge (fun _ x y -> match x with
           | None -> y
           | Some _ -> x) b' b in
-      Ms2.map2 AbsNum.NR.unify eb eb'
+      Mbv2.map2 AbsNum.NR.unify eb eb'
 
 
   let eunify_map : AbsNum.NR.t EMs.t -> AbsNum.NR.t EMs.t -> AbsNum.NR.t EMs.t =
@@ -3310,7 +3355,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
 
   let meet : t -> t -> t = fun t t' ->
     let t,t' = merge_bool_dom t t' in
-    { bool = Ms2.map2 AbsNum.NR.meet t.bool t'.bool;
+    { bool = Mbv2.map2 AbsNum.NR.meet t.bool t'.bool;
       init = eunify_map t.init t'.init;
       num = AbsNum.R.meet t.num t'.num;
       points_to = Pt.meet t.points_to t'.points_to }
@@ -3326,9 +3371,12 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     and f_pts x = Pt.forget_list x l in
     apply f df f_pts t
 
-  let forget_bvar : t -> string -> t  = fun t s ->
+  let forget_bvar : t -> mvar -> t  = fun t bv ->
     let dnum = AbsNum.downgrade t.num in
-    { t with bool = Ms.add s dnum t.bool }
+    let t_bv, f_bv = Bvar.make bv true, Bvar.make bv false in
+    let bool = Mbv.add t_bv dnum t.bool
+               |> Mbv.add f_bv dnum in
+    { t with bool = bool }
 
   (* No need to check anything on t.init and t'.init. *)
   let is_included : t -> t -> bool = fun t t' ->
@@ -3372,9 +3420,9 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
           abs_eval_btcons t (BOr (bexpr_pos,bexpr_neg))
         | _ -> AbsNum.R.meet_constr t.num c end
 
-    | BVar (v,neg) ->
+    | BVar bv ->
       begin try
-          let ab = Ms.find (bvar_name v neg) t.bool in
+          let ab = Mbv.find bv t.bool in
           AbsNum.upgrade ab t.num with
       | Not_found -> t.num end
 
@@ -3445,8 +3493,8 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
       let join_map b_list = match b_list with
         | [] -> assert false
         | h :: l ->
-          Ms.mapi (fun key x ->
-              let elems = x :: List.map (Ms.find key) l in
+          Mbv.mapi (fun key x ->
+              let elems = x :: List.map (Mbv.find key) l in
               AbsNum.NR.join_list elems) h in
 
       let b_list,n_list = List.map (fun x -> x.bool) t_list,
@@ -3465,12 +3513,12 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
 
     let t = { t with init = EMs.empty } in
 
-    let t_vb, f_vb = bvar_name vb true,
-                     bvar_name vb false in
+    let t_vb, f_vb = Bvar.make vb true,
+                     Bvar.make vb false in
 
     let new_b =
-      Ms.add t_vb (abs_eval_btcons t bexpr |> AbsNum.downgrade) t.bool
-      |> Ms.add f_vb (abs_eval_neg_btcons t bexpr |> AbsNum.downgrade) in
+      Mbv.add t_vb (abs_eval_btcons t bexpr |> AbsNum.downgrade) t.bool
+      |> Mbv.add f_vb (abs_eval_neg_btcons t bexpr |> AbsNum.downgrade) in
 
     { bool = new_b;
       init = s_init;
@@ -3499,14 +3547,14 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     let bvars = bool_vars l
     and ivars = init_vars l in
     (* We remove the variables that are not in l *)
-    let b = Ms.filter (fun s _ -> List.mem s bvars) t.bool
+    let b = Mbv.filter (fun s _ -> List.mem s bvars) t.bool
     and init = EMs.kfilter (fun s -> List.mem s ivars) t.init in
 
-    (* We add the variables that are in l but not in t.bool's domain.
-       We do not need to do it for t.init, since it is lazily populated *)
-    let b = List.fold_left (fun b s ->
-        if Ms.mem s b then b
-        else Ms.add s (AbsNum.downgrade t.num) b) b bvars in
+    (* (\* We add the variables that are in l but not in t.bool's domain.
+     *    We do not need to do it for t.init, since it is lazily populated *\)
+     * let b = List.fold_left (fun b s ->
+     *     if Mbv.mem s b then b
+     *     else Mbv.add s (AbsNum.downgrade t.num) b) b bvars in *)
 
     (* We change the environment of the underlying numerical domain *)
     let f x = AbsNum.R.change_environment x l
@@ -3518,7 +3566,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     let bvars = bool_vars l
     and ivars = init_vars l in
     (* We remove the variables in l *)
-    let b = Ms.filter (fun s _ -> not (List.mem s bvars)) t.bool
+    let b = Mbv.filter (fun s _ -> not (List.mem s bvars)) t.bool
     and init = EMs.kfilter (fun s -> not (List.mem s ivars)) t.init in
 
     (* We change the environment of the underlying numerical domain *)
@@ -3590,17 +3638,17 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
       if Aparam.bool_no_print then ()
       else begin
         Format.fprintf fmt "@[<v 0>* Bool:@;";
-        Ms.iter (fun name nrval ->
-            Format.fprintf fmt "@[<v 2>%s@;%a@]@;" name
+        Mbv.iter (fun bv nrval ->
+            Format.fprintf fmt "@[<v 2>%a@;%a@]@;" Bvar.print bv
               (AbsNum.NR.print ~full:true) nrval;
           ) t.bool;
         Format.fprintf fmt "@]@;" 
       end in
 
-    let bool_size = Ms.cardinal t.bool
+    let bool_size = Mbv.cardinal t.bool
     and init_size = EMs.csize t.init in
     let bool_nr_vars =  
-      Ms.fold (fun _ nrd size -> 
+      Mbv.fold (fun _ nrd size -> 
           size + Environment.size (AbsNum.NR.get_env nrd))
         t.bool 0
       |> EMs.cfold (fun nrd size -> 
@@ -4414,7 +4462,7 @@ end = struct
           else false_tcons1 (AbsDom.get_env abs) in
         BLeaf cons
 
-      | Pvar x -> BVar (string_of_mvar (Mvalue (Avar (L.unloc x))), true)
+      | Pvar x -> BVar (Bvar.make (Mvalue (Avar (L.unloc x))) true)
 
       | Pglobal _ -> assert false (* Global variables are of type word *)
 
@@ -4911,11 +4959,10 @@ end = struct
 
       | Bty Bool, MLvar mvar ->
         begin
-          let svar = string_of_mvar mvar in
           let state = match bexpr_to_btcons e state.abs with
-            | None -> { state with abs = AbsDom.forget_bvar state.abs svar }
+            | None -> { state with abs = AbsDom.forget_bvar state.abs mvar }
             | Some btcons ->
-              let abs' = AbsDom.assign_bexpr state.abs svar btcons in
+              let abs' = AbsDom.assign_bexpr state.abs mvar btcons in
               { state with abs = abs' } in
           init_mlv_no_array out_mvar state
         end
@@ -4977,9 +5024,8 @@ end = struct
 
         | MLvar mlv -> match ty_mvar mlv with
           | Bty Bool ->
-            let smlv = string_of_mvar mlv in
-            let rconstr = BVar (string_of_mvar rvar, true) in
-            AbsDom.assign_bexpr abs smlv rconstr
+            let rconstr = BVar (Bvar.make rvar true) in
+            AbsDom.assign_bexpr abs mlv rconstr
             |> a_init_mlv_no_array mlvo
 
           | Bty _ ->
@@ -5442,9 +5488,10 @@ end = struct
 
   exception Heuristic_failed
 
-  let find_heur (s,_) = function
+  let find_heur bv = function
     | None -> raise Heuristic_failed
     | Some heur ->
+      let s = Bvar.var_name bv in
       if String.starts_with s "v_cf"
       then Utils.oget ~exn:Heuristic_failed heur.fh_cf
       else if String.starts_with s "v_zf"
@@ -5470,7 +5517,7 @@ end = struct
     (* For boolean variables, we look whether it is a return flag. If that is
        the case, we look for the instruction that set the flag, and use a
        heuristic depending on the operation. *)
-    | Some (BVar (s,b)) ->
+    | Some (BVar bv) ->
       let brev = List.rev loop_body in 
       begin try
           List.find_map (fun ginstr -> match ginstr.i_desc with 
@@ -5479,8 +5526,7 @@ end = struct
                     match lv with
                     | Lvar x -> 
                       let x_mv = Mvalue (Avar (L.unloc x)) in
-                      let x_s = string_of_mvar x_mv in
-                      if x_s = s
+                      if Bvar.make x_mv true = Bvar.positive bv 
                       (* We found the assignment where the flag is set *)
                       then
                         (* Register for which the flags are computed. *)
@@ -5491,7 +5537,7 @@ end = struct
 
                         let apr_env = AbsDom.get_env abs in
                         let heur = opn_heur apr_env opn reg_assgn in
-                        Some (find_heur (s,b) heur)
+                        Some (find_heur bv heur)
                       else None
                     | _ -> None) lvs
 
