@@ -1442,29 +1442,54 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
         Format.fprintf fmt "@[<v 0>%a@]" (pp_list ~sep:pp_sep pp_abs) vars_p
       else ()
 
-
+  (* Precond: env is not empty
+     (Box1 seems to not behave correctly on empty env) *)
   let to_box1 : 'a Abstract1.t -> Abstract1.box1 = fun a ->
+    let vars,_ = Environment.vars (Abstract1.env a) in
+    assert (Array.length vars <> 0);
     Abstract1.to_box man a
 
+  (* Precond: env is not empty
+     (Box1 seems to not behave correctly on empty env) *)
   let box1_to_box : Abstract1.box1 -> Box.t Abstract1.t = fun box ->
     let env = box.box1_env in
     let vars,_ = Environment.vars env in
     let bman = BoxManager.man in
-    if Array.length vars = 0
-    then Abstract1.top bman env 
-    else Abstract1.of_box bman env vars Abstract1.(box.interval_array)
+    assert (Array.length vars <> 0);
+    Abstract1.of_box bman env vars Abstract1.(box.interval_array)
         
-  let to_box :  t -> Box.t Abstract1.t = fun a ->
-    to_box1 a |> box1_to_box
+  let top_box env = 
+    let bman = BoxManager.man in
+    Abstract1.top bman env
 
+  let bottom_box env = 
+    let bman = BoxManager.man in
+    Abstract1.bottom bman env
+
+  let to_box :  t -> Box.t Abstract1.t = fun a ->
+    (* We do this because box1 does not behave correctly on empty env *)
+    if Abstract1.is_top man a then 
+      top_box (Abstract1.env a)
+    else if Abstract1.is_bottom man a then 
+      bottom_box (Abstract1.env a)
+    else to_box1 a |> box1_to_box
+
+  (* Precond: env is not empty
+     (Box1 seems to not behave correctly on empty env) *)
   let of_box1 (box : Abstract1.box1) =
     let env = box.box1_env in
     let vars,_ = Environment.vars env in
+    assert (Array.length vars <> 0);
     Abstract1.of_box man env vars Abstract1.(box.interval_array)
 
   let of_box : Box.t Abstract1.t -> t = fun a ->
-    let bman = BoxManager.man in
-    Abstract1.to_box bman a |> of_box1
+    let bman = BoxManager.man in 
+    if Abstract1.is_top bman a then 
+      Abstract1.top man (Abstract1.env a)
+    else if Abstract1.is_bottom bman a then 
+      Abstract1.bottom man (Abstract1.env a)
+    else
+      Abstract1.to_box bman a |> of_box1
 
   let trivially_false man a c =
     let int = bound_texpr_man man a (Mtcons.get_expr c) in
@@ -1627,7 +1652,9 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
   let log = Hashtbl.create ~random:false 16
 
   let vdom v =
-    let r = VDW.vdom v in
+    let r =
+      if v= dummy_mvar then Ppl 0 
+      else VDW.vdom v in
     let vs = avar_of_mvar v |> Var.to_string in
     (* We also need to add the blasted component of [t] to the log. *)
     let vs_blasted = u8_blast_var ~blast_arrays:false v 
