@@ -420,12 +420,17 @@ module Pa : sig
 
   type dp = Sv.t Mv.t
 
+  type cfg = Sf.t Mf.t
+
   (* - pa_dp: for each variable, contains the set of variables that can modify
               it. Some dependencies are ignored depending on some heuristic.
      - pa_eq: for each variable v, contains a set of variables that can be equal
-              to v (function calls and direct assignments) *)
+              to v (function calls and direct assignments).
+     - pa_cfg: control-flow graph, where an entry f -> [f1;...;fn] means that 
+     f calls f1, ..., fn *)
   type pa_res = { pa_dp : dp;
                   pa_eq : dp;
+                  pa_cfg : cfg;
                   while_vars : Sv.t;
                   if_conds : ty gexpr list }
 
@@ -437,8 +442,11 @@ end = struct
      Some dependencies are ignored depending on some heuristic we have. *)
   type dp = Sv.t Mv.t
 
+  type cfg = Sf.t Mf.t
+
   type pa_res = { pa_dp : dp;
                   pa_eq : dp;
+                  pa_cfg : cfg;
                   while_vars : Sv.t;
                   if_conds : ty gexpr list }
 
@@ -449,6 +457,11 @@ end = struct
 
   let add_eq eq v v' =
     Mv.add v (Sv.union (Sv.singleton v') (dp_v eq v)) eq
+
+  let cfg_v cfg f = Mf.find_default Sf.empty f cfg
+
+  let add_call cfg f f' =
+    Mf.add f (Sf.union (Sf.singleton f') (cfg_v cfg f)) cfg
 
   (* Dependency heuristic for variable assignment *)
   let rec app_expr dp v e ct = match e with
@@ -474,10 +487,13 @@ end = struct
   (* State while building the dependency graph:
      - dp : dependency graph
      - dp : potential equalities graph
+     - cfg : control-flow graph: 
+             f -> [f1;...;fn] means that f calls f1, ..., fn
      - f_done : already analized functions
      - ct : variables in the context (for an example, look at the Cif case) *)
   type pa_st = { dp : dp;
                  eq : dp;
+                 cfg : cfg;
                  while_vars : Sv.t;
                  if_conds : ty gexpr list;
                  f_done : Ss.t;
@@ -509,8 +525,12 @@ end = struct
     let mdp = Mv.merge (fun _ osv1 osv2 ->
         let sv1,sv2 = odfl Sv.empty osv1, odfl Sv.empty osv2 in
         Sv.union sv1 sv2 |> some) in
+    let mcfg = Mf.merge (fun _ osf1 osf2 -> 
+        let sf1,sf2 = odfl Sf.empty osf1, odfl Sf.empty osf2 in
+        Sf.union sf1 sf2 |> some) in
     { dp = mdp st1.dp st2.dp;
       eq = mdp st1.eq st2.eq;
+      cfg = mcfg st1.cfg st2.cfg;
       while_vars = Sv.union st1.while_vars st2.while_vars;
       f_done = Ss.union st1.f_done st2.f_done;
       if_conds = st1.if_conds @ st2.if_conds;
@@ -581,7 +601,7 @@ end = struct
     | Ccall (_, lvs, _, _) ->
       if flag_mem_lvs v lvs then raise Flag_set_from_failure else None        
       
-  let rec pa_instr prog st instr = match instr.i_desc with
+  let rec pa_instr fn prog st instr = match instr.i_desc with
     | Cassgn (lv, _, _, e) -> pa_lv st lv e
     | Copn (lvs, _, _, es) -> List.fold_left (fun st lv ->
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
@@ -596,11 +616,11 @@ end = struct
         else st in
 
       (* Note that we reset the context after the merge *)
-      st_merge (pa_stmt prog st' c1) (pa_stmt prog st' c2) st.ct
+      st_merge (pa_stmt fn prog st' c1) (pa_stmt fn prog st' c2) st.ct
 
     | Cfor (_, _, c) ->
       (* We ignore the loop index, since we do not use widening for loops. *)
-      pa_stmt prog st c
+      pa_stmt fn prog st c
 
     | Cwhile (_, c1, b, c2) ->
       let vs,st = expr_vars st b in
@@ -630,15 +650,16 @@ end = struct
       let st' = { st' with while_vars = while_vars } in
 
       (* Again, we reset the context after the merge *)
-      pa_stmt prog st' (c1 @ c2)
+      pa_stmt fn prog st' (c1 @ c2)
       |> set_ct st.ct
 
-    | Ccall (_, lvs, fn, es) ->
-      let f_decl = get_fun_def prog fn |> oget in
+    | Ccall (_, lvs, fn', es) ->   
+      let st = { st with cfg = add_call st.cfg fn fn' } in
+      let f_decl = get_fun_def prog fn' |> oget in
 
       let st =
-        if Ss.mem fn.fn_name st.f_done then st
-        else pa_func prog st fn in
+        if Ss.mem fn'.fn_name st.f_done then st
+        else pa_func prog st fn' in
 
       let st = List.fold_left2 (fun st lv ret ->
           pa_lv st lv (Pvar ret))
@@ -652,13 +673,14 @@ end = struct
   and pa_func prog st fn =
     let f_decl = get_fun_def prog fn |> oget in
     let st = { st with f_done = Ss.add fn.fn_name st.f_done } in
-    pa_stmt prog st f_decl.f_body
+    pa_stmt fn prog st f_decl.f_body
 
-  and pa_stmt prog st instrs = List.fold_left (pa_instr prog) st instrs
+  and pa_stmt fn prog st instrs = List.fold_left (pa_instr fn prog) st instrs
 
   let pa_make func prog =
     let st = { dp = Mv.empty;
                eq = Mv.empty;
+               cfg = Mf.empty;
                while_vars = Sv.empty;
                f_done = Ss.empty;
                if_conds = [];
@@ -676,8 +698,17 @@ end = struct
           (List.sort (fun (v,_) (v',_) -> Stdlib.compare v.v_name v'.v_name)
              (Mv.bindings st.dp)));
 
+    debug (fun () ->
+        Format.eprintf "@[<v 2>Control-flow graph:@;%a@]@."
+          (pp_list (fun fmt (f, fs) -> Format.fprintf fmt "@[<hov 4>%a --> %a@]"
+                       pp_string f.fn_name
+                       (pp_list (fun fmt x -> pp_string fmt x.fn_name))
+                       (List.sort F.compare (Sf.elements fs))))
+          (List.sort (fun (v,_) (v',_) -> F.compare v v') (Mf.bindings st.cfg)));
+
     { pa_dp = st.dp;
-      pa_eq = st.eq;
+      pa_eq = st.eq;      
+      pa_cfg = st.cfg;
       while_vars = st.while_vars;
       if_conds = List.sort_uniq Stdlib.compare st.if_conds }
 end
