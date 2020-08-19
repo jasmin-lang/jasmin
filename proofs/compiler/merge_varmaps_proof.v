@@ -205,7 +205,6 @@ Section LEMMA.
   Record checked_ccall (ii: instr_info) (dsts: lvals) (fn: funname) (eargs: pexprs) (fd: sfundef) (O I: Sv.t) : Prop :=
     CCCall {
         ccc_fundef: get_fundef (p_funcs p) fn = Some fd;
-        ccc_ra : sf_return_address (f_extra fd) != RAnone;
         ccc_rastack : if sf_return_address (f_extra fd) is RAstack _ then extra_free_registers ii != None else true;
         ccc_eargs : mapM get_pvar eargs = ok (map v_var (f_params fd));
         ccc_dsts : mapM get_lvar dsts = ok (map v_var (f_res fd));
@@ -238,10 +237,9 @@ Section LEMMA.
     ∃ fd, checked_ccall ii dsts fn eargs fd D D'.
   Proof.
     rewrite /check_instr_r.
-    case ok_fd: (get_fundef _ fn) => [ fd | ] //; t_xrbindP => _ /assertP ok_ra _ /assertP ok_rastack _ /assertP ok_eargs _ /assertP ok_dsts _ /assertP ok_D <-{D'}.
+    case ok_fd: (get_fundef _ fn) => [ fd | ] //; t_xrbindP => _ /assertP ok_rastack _ /assertP ok_eargs _ /assertP ok_dsts _ /assertP ok_D <-{D'}.
     exists fd; split.
     - exact: ok_fd.
-    - exact: ok_ra.
     - exact: ok_rastack.
     - elim: eargs (f_params _) ok_eargs; clear; first by case.
       move => a eargs ih [] // x xs /= /andP[] ok_a /ih{ih}->.

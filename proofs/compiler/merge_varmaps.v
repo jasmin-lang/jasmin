@@ -158,8 +158,6 @@ Section CHECK.
       else wloop check_i ii c e c' Loop.nb D
     | Ccall _ xs fn es =>
       if get_fundef (p_funcs p) fn is Some fd then
-        Let _ := assert (sf_return_address (f_extra fd) != RAnone)
-          (ii, Cerr_one_varmap "nowhere to store the return address") in
         Let _ := assert (if sf_return_address (f_extra fd) is RAstack _ then extra_free_registers ii != None else true)
           (ii, Cerr_one_varmap "no extra free register to compute the return address") in
         Let _ := assert

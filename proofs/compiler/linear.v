@@ -131,6 +131,8 @@ Section CHECK.
     | Ccall _ xs fn es =>
       if fn == this then cierror ii (Cerr_linear "call to self") else
       if get_fundef (p_funcs p) fn is Some fd then
+        Let _ := assert (sf_return_address (f_extra fd) != RAnone)
+          (ii, Cerr_one_varmap "nowhere to store the return address") in
         Let _ := assert (sf_align (f_extra fd) <= stack_align)%CMP
           (ii, Cerr_linear "caller need alignment greater than callee") in
         ok tt
