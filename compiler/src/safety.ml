@@ -55,13 +55,26 @@ module Aparam = struct
   (* Rounding used. *)
   let round_typ = Texpr1.Zero
 
-  (* Analysis strategy for abstract calls.
-   ** CallWidening is untested ! ** *)
+  (* Analysis strategy for abstract calls:
+     - Call_Direct: normal abstract function call.
+     - Call_WideningByCallSite: normal abstact function call, but with
+     successive widenings of the initial states at each call to the same
+     function, from the same call-site.
+     - Call_TopByCallSite : function evaluated only once per call-site, with
+     an initial state over-approximated by top.
+     (FIXME: evaluates only once on top). *)
   type abs_call_strategy =
-    | CallDirect
-    | CallWidening
+    | Call_Direct 
+    | Call_WideningByCallSite
+    | Call_TopByCallSite 
 
-  let abs_call_strategy = CallDirect
+  (* Analysis policy for abstract calls. *)
+  type abs_call_policy =
+    | CallDirectAll
+    | CallWideningAll
+    | CallTopAll                (* TODO: change me with an heuristic *)
+
+  let abs_call_strategy = CallDirectAll
 
   (* Widening outside or inside loops.
      Remark: if the widening is done inside loops, then termination is not
@@ -4043,8 +4056,15 @@ end = struct
       let param = PW.param
     end)
 
+  (* Sound over-approximation of a function 'f' behavior:
+     for any initial state in [it_in], the state after executing the function
+     'f' is over-approximated by [it_out], the function's side-effects are at
+     most [it_s_effects]. *)
+  type it_entry = { it_in : AbsDom.t;
+                    it_out : AbsDom.t;
+                    it_s_effects : mem_loc list; }
 
-  type astate = { it : (AbsDom.t * AbsDom.t) ItMap.t;
+  type astate = { it : it_entry ItMap.t;
                   abs : AbsDom.t;
                   cstack : funname list;
                   env : s_env;
@@ -5757,13 +5777,12 @@ end = struct
         let fn = f_decl.f_name in
 
         debug (fun () -> Format.eprintf "@[<v>Call %s:@;@]%!" fn.fn_name);
+        
+        let state_i = prepare_call state f es in
 
-        let fstate = match Aparam.abs_call_strategy with
-          | CallDirect -> aeval_call f es state
+        let callsite,_ = ginstr.i_loc in
 
-          | CallWidening ->
-            let callsite,_ = ginstr.i_loc in
-            aeval_call_widening f es callsite state in
+        let fstate = aeval_call f f_decl callsite state_i in
 
         (* We check the safety conditions of the return *)
         let conds = safe_return f_decl in
@@ -5814,42 +5833,65 @@ end = struct
             (Printer.pp_expr ~debug:true) e2;
           assert false
 
-  and aeval_call : funname -> 'a gty gexprs -> astate -> astate =
-    fun f es state ->
-      let f_decl = get_fun_def state.prog f |> oget in
+  and aeval_call : funname -> unit func -> L.t -> astate -> astate =
+    fun f f_decl callsite st_in ->
+    let itk = ItFunIn (f,callsite) in
 
-      let state = prepare_call state f es in
+    (* st_in_abs must over-approximate st_in.abs. *)
+    let log_output, st_in_abs, st_out = 
+      match Aparam.abs_call_strategy with
+      | CallDirectAll -> false, st_in.abs, aeval_body f_decl.f_body st_in
 
-      debug (fun () -> Format.eprintf "Evaluating the body ...@.@.");
-      aeval_gstmt f_decl.f_body state
+      | CallWideningAll -> 
+        let accelerate it_abs_in st_in =
+          AbsDom.widening None it_abs_in (AbsDom.join it_abs_in st_in.abs) in
+        let strengthen st_in = st_in in
+        aeval_call_f_abstraction itk f_decl strengthen accelerate st_in
 
+      | CallTopAll ->
+        let accelerate _ _ = assert false in (* cannot happen *)
+        let strengthen st_in = st_in in
+        aeval_call_f_abstraction itk f_decl strengthen accelerate st_in
+    in
 
-  and aeval_call_widening : funname -> 'a gty gexprs -> L.t -> astate -> astate =
-    fun f es callsite state ->
-      let itk = ItFunIn (f,callsite) in
-      if ItMap.mem itk state.it then
-        (* f has been abstractly evaluated before *)
-        let (in_abs,out_abs) = ItMap.find itk state.it in
-        if AbsDom.is_included state.abs in_abs then
-          (* We meet with f output over-abstraction, taking care of
-             forgetting all variables that may be modified through side
-             effects during f evaluation. *)
-          let state = forget_side_effect state state.env.m_locs in
-          { state with abs = AbsDom.meet state.abs out_abs }
-        else
-          (* We do a widening to accelerate convergence *)
-          let n_in_abs =
-            AbsDom.widening None in_abs (AbsDom.join in_abs state.abs) in
-          let state = { state with abs = n_in_abs }
-                      |> aeval_call f es in
-          { state with
-            it = ItMap.add itk (n_in_abs,state.abs) state.it }
+    let st_out = 
+      if log_output then 
+        (* We log the result of an abstract call to f:
+           input |--> (output,effects) *)
+        let it_entry = { it_in = st_in_abs;
+                         it_out = st_out.abs;
+                         it_s_effects = st_out.s_effects; } in
+        { st_out with it = ItMap.add itk it_entry st_out.it } 
+      else st_out in
 
+    st_out
+    
+  and aeval_body f_body state =
+    debug (fun () -> Format.eprintf "Evaluating the body ...@.@.");
+    aeval_gstmt f_body state
+
+  (* [strengthen] is used on the first call.
+     [accelerate] is used on subsequent calls  *)
+  and aeval_call_f_abstraction itk f_decl strengthen accelerate st_in =
+    (* f has been abstractly evaluated before *)
+    if ItMap.mem itk st_in.it 
+    then 
+      let it_entry = ItMap.find itk st_in.it in
+      if AbsDom.is_included st_in.abs it_entry.it_in then
+        false, it_entry.it_in, { st_in with
+                                 abs = it_entry.it_out;
+                                 s_effects = it_entry.it_s_effects; }
+
+      (* We accelerate convergence *)
       else
-        (* We abstractly evaluate f for the first time *)
-        let in_abs = state.abs in
-        let state = aeval_call f es state in
-        { state with it = ItMap.add itk (in_abs,state.abs) state.it }
+        let st_in_abs = accelerate it_entry.it_in st_in in
+        let st_in = { st_in with abs = st_in_abs } in
+        true, st_in_abs, aeval_body f_decl.f_body st_in     
+
+    (* We abstractly evaluate f for the first time *)
+    else
+      let st_in = strengthen st_in in
+      true, st_in.abs, aeval_body f_decl.f_body st_in 
 
   and aeval_gstmt : ('ty,'i) gstmt -> astate -> astate =
     fun gstmt state ->
@@ -5862,6 +5904,21 @@ end = struct
               (AbsDom.print ~full:true) state.abs) in
       state
 
+
+  (*------------------------------------------------------------------------*)
+  (* Procedure analysis *)
+
+  (* (\* fa_pre: checks that the function abstraction applies.
+   *    fa_post: return an abstraction of the state after applying the function. *\)
+   * type fun_abs = { fa_pre  : astate -> Prog.ty gexprs -> bool;
+   *                  fa_post : astate -> Prog.ty gexprs -> astate; }   
+   * 
+   * (\* REM *\)
+   * let proc_analysis_heuristic prog f =
+   *   let _f_decl = get_fun_def prog f |> oget in
+   *   assert false *)
+  
+  (*------------------------------------------------------------------------*)
   let print_mem_ranges state =
     debug(fun () -> Format.eprintf
              "@[<v 0>@;Final offsets full abstract value:@;@[%a@]@]@."
