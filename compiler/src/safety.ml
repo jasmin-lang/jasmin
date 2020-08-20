@@ -5802,37 +5802,53 @@ end = struct
 
   (* -------------------------------------------------------------------- *)
   (* Check that there are no memory stores and loads. *)
-  let no_memory_access_aux f_decl = 
-    let rec nm_i i = match i.i_desc with
-      | Cassgn (lv, _, _, e)    -> nm_lv lv && nm_e e
-      | Copn (lvs, _, _, es)    -> nm_lvs lvs && nm_es es
-      | Cif (e, st, st')        -> nm_e e && nm_stmt st && nm_stmt st'
-      | Cfor (_, _, st)         -> nm_stmt st
-      | Cwhile (_, st1, e, st2) -> nm_e e && nm_stmt st1 && nm_stmt st2
+  let check_memory_access_aux f_decl = 
+
+    (* vs_for: integer variable from for loops, which will be inlined to
+       a constant integer value. *)
+    let rec nm_i vs_for i = match i.i_desc with
+      | Cassgn (lv, _, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
+      | Copn (lvs, _, _, es)    -> nm_lvs vs_for lvs && nm_es vs_for es
+      | Cif (e, st, st')        -> 
+        nm_e vs_for e && nm_stmt vs_for st && nm_stmt vs_for st'
+      | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
+      | Cwhile (_, st1, e, st2) -> 
+        nm_e vs_for e && nm_stmt vs_for st1 && nm_stmt vs_for st2
       | Ccall (_, lvs, fn, es)  -> 
         let f' = get_fun_def prog fn |> oget in
-        nm_lvs lvs && nm_es es && nm_fdecl f'
+        nm_lvs vs_for lvs && nm_es vs_for es && nm_fdecl f'
 
-    and nm_fdecl f = nm_stmt f.f_body
+    and nm_fdecl f = nm_stmt [] f.f_body
 
-    and nm_stmt stmt = List.for_all nm_i stmt
+    and nm_stmt vs_for stmt = List.for_all (nm_i vs_for) stmt
 
-    and nm_e = function
+    and nm_e vs_for = function
       | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ | Pvar _ -> true
-      | Pget (_, _, e)     -> nm_e e
+      | Pget (_, _, e)     -> know_offset vs_for e && nm_e vs_for e
       | Pload _            -> false
-      | Papp1 (_, e)       -> nm_e e
-      | Papp2 (_, e1, e2)  -> nm_es [e1; e2]
-      | PappN (_,es)       -> nm_es es
-      | Pif (_, e, el, er) -> nm_es [e; el; er]
+      | Papp1 (_, e)       -> nm_e vs_for e
+      | Papp2 (_, e1, e2)  -> nm_es vs_for [e1; e2]
+      | PappN (_,es)       -> nm_es vs_for es
+      | Pif (_, e, el, er) -> nm_es vs_for [e; el; er]
 
-    and nm_es es = List.for_all nm_e es
+    and nm_es vs_for es = List.for_all (nm_e vs_for) es
 
-    and nm_lv = function
-      | Lnone _ | Lvar _ | Laset _ -> true
+    and nm_lv vs_for = function
+      | Lnone _ | Lvar _ -> true
+      | Laset (_,_,e) -> know_offset vs_for e
       | Lmem _ -> false
 
-    and nm_lvs lvs = List.for_all nm_lv lvs 
+    and nm_lvs vs_for lvs = List.for_all (nm_lv vs_for) lvs 
+
+    and know_offset vs_for = function
+      | Pconst _ -> true
+      | Pvar v -> List.mem v vs_for
+      | Papp1 (E.Oneg Op_int, e) -> know_offset vs_for e
+
+      | Papp2 ((Osub Op_int | Omul Op_int | Oadd Op_int), e1, e2) ->
+        know_offset vs_for e1 && know_offset vs_for e2
+
+      | _ -> false
     in
 
     nm_fdecl f_decl 
@@ -5840,15 +5856,16 @@ end = struct
 
   (* Memoisation *)
   let nm_memo = Hf.create 16
-  let no_memory_access f_decl =
+  let check_memory_access f_decl =
     try Hf.find nm_memo f_decl.f_name with Not_found ->
-      let res = no_memory_access_aux f_decl in
+      let res = check_memory_access_aux f_decl in
       Hf.add nm_memo f_decl.f_name res;
       res
 
-
-  (* The function must not use memory loads/stores, and arrays in arguments
-     must be fully initialized (i.e. cells must be initialized). *)
+  
+  (* The function must not use memory loads/stores, array accesses must be 
+     fixed, and arrays in arguments must be fully initialized
+     (i.e. cells must be initialized). *)
   let check_valid_call_top st f_decl = 
     let cells_init = 
       List.for_all (fun v -> match mvar_of_var v with
@@ -5863,7 +5880,7 @@ end = struct
           | _ -> true
         ) f_decl.f_args in
 
-    cells_init && no_memory_access f_decl
+    cells_init && check_memory_access f_decl
 
 
   (* -------------------------------------------------------------------- *)
