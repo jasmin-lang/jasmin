@@ -48,22 +48,22 @@ let hndl_apr_exc e = match e with
 
 (* Analysis strategy for abstract calls:
    - Call_Direct: normal abstract function call.
-   - Call_WideningByCallSite: normal abstact function call, but with
-     successive widenings of the initial states at each call to the same
-     function, from the same call-site.
    - Call_TopByCallSite : function evaluated only once per call-site, with
      an initial state over-approximated by top.
      (FIXME: performance: evaluates only once on top). *)
 type abs_call_strategy =
   | Call_Direct 
-  | Call_WideningByCallSite
   | Call_TopByCallSite 
+   (* - Call_WideningByCallSite: normal abstact function call, but with
+    *   successive widenings of the initial states at each call to the same
+    *   function, from the same call-site.
+    *   | Call_WideningByCallSite *)
 
 (* Analysis policy for abstract calls. *)
 type abs_call_policy =
   | CallDirectAll
-  | CallWideningAll
   | CallTopHeuristic
+  (* | CallWideningAll *)
 
 module Aparam = struct
   (* Number of unrolling of a loop body before applying the widening. Higher
@@ -232,8 +232,8 @@ let pp_opt pp_el fmt = function
 
 let pp_call_strategy fmt = function
   | Call_Direct             -> Format.fprintf fmt "direct"
-  | Call_WideningByCallSite -> Format.fprintf fmt "widening"
   | Call_TopByCallSite      -> Format.fprintf fmt "top"
+  (* | Call_WideningByCallSite -> Format.fprintf fmt "widening" *)
 
 
 (*************)
@@ -835,6 +835,9 @@ module Mtexpr : sig
   val weak_cp : mvar -> int -> mvar
   val weak_transf : int Mm.t -> mexpr -> int Mm.t * mexpr
 
+  (* This does not check equality of the underlying Apron environments. *)
+  val equal_mexpr : t -> t -> bool
+
   val print : Format.formatter -> t -> unit
 
   val print_mexpr : Format.formatter -> mexpr -> unit
@@ -851,7 +854,7 @@ end = struct
     | Mbinop of binop * mexpr * mexpr * typ * round
 
   type t = { mexpr : mexpr;
-             env : apr_env }
+             env : apr_env } 
 
   (* Return sum_{j = 0}^{len - 1} (2^8)^(len - 1 - j) * (U8)v[offset + j] *)
   let rec build_term_array v offset len =
@@ -992,6 +995,19 @@ end = struct
     else begin
       Format.eprintf "@[%a@;%a@]@." pp_apr_env t.env pp_apr_env apr_env;
       raise (Aint_error "The environment is not compatible") end
+
+  let rec equal_mexpr_aux t t' = match t, t' with
+    | Mvar v, Mvar v' -> v = v'
+    | Mcst c, Mcst c' -> Coeff.equal c c'
+    | Munop (op, e, typ, rnd), Munop (op', e', typ', rnd') 
+      -> op = op' && typ = typ' && rnd = rnd' && equal_mexpr_aux e e'
+    | Mbinop (op, e1, e2, typ, rnd), Mbinop (op', e1', e2', typ', rnd') 
+      -> op = op' && typ = typ' && rnd = rnd' 
+         && equal_mexpr_aux e1 e1'
+         && equal_mexpr_aux e2 e2'
+    | _ -> false
+
+  let equal_mexpr t t' = equal_mexpr_aux t.mexpr t'.mexpr
 end
 
 
@@ -1011,6 +1027,9 @@ module Mtcons : sig
   val get_expr : t -> Mtexpr.t
   val get_typ : t -> typ
 
+  (* This does not check equality of the underlying Apron environments. *)
+  val equal_tcons : t -> t -> bool
+
   val print : Format.formatter -> t -> unit
   val print_mexpr : Format.formatter -> t -> unit
 end = struct
@@ -1029,6 +1048,10 @@ end = struct
 
   let get_expr t = t.expr
   let get_typ t = t.typ
+
+  let equal_tcons t t' =
+    Mtexpr.equal_mexpr t.expr t'.expr
+    && t.typ = t'.typ
 
   let print ppf t = to_atcons t |> Tcons1.print ppf
 
@@ -2128,7 +2151,7 @@ let pp_s_expr fmt (e : s_expr) =
 (* Partition Tree Domain *)
 (*************************)
 
-type cnstr = { mtcons : Mtcons.t;
+type cnstr = { mtcons : Mtcons.t; 
                cpt_uniq : int;
                loc : L.t }
 
@@ -2139,12 +2162,8 @@ let pp_cnstr fmt c =
     Mtcons.print c.mtcons
 
 let pp_cnstrs fmt =
-  Format.fprintf fmt "[%a]"
+  Format.fprintf fmt "%a"
     (pp_list ~sep:(fun fmt () -> Format.fprintf fmt ";@ ") pp_cnstr)
-
-let pp_cnstrss fmt =
-  Format.fprintf fmt "@[<v 0>%a@]"
-    (pp_list ~sep:(fun fmt () -> Format.fprintf fmt "@;") pp_cnstrs)
 
 module Ptree = struct
   type 'a t =
@@ -2254,39 +2273,86 @@ end
 module type AbsDisjType = sig
   include AbsNumType
 
+  (* Make a top value with *no* disjunction *)
+  val top_no_disj : t -> t
+
+  (* [to_shape t shp] : lifts [t] to the shape of [shp] 
+     Remark: [t] must be without disjunction. *)
+  val to_shape : t -> t -> t
+
+  val remove_disj : t -> t
+
   (* of_box uses an already existing disjunctive value to get its shape. *)
   val of_box : Box.t Abstract1.t -> t -> t
 
   (* Adds a block of constraints for the disjunctive domain *)
-  val new_cnstr_blck : t -> t
+  val new_cnstr_blck : t -> L.t -> t
 
   (* Add a constraint to the top-most block *)
   val add_cnstr : t -> Mtcons.t -> L.t -> t * t
 
   (* Pop the top-most block of constraints in the disjunctive domain *)
-  val pop_cnstr_blck : t -> t
+  val pop_cnstr_blck : t -> L.t -> t
 end
 
 (* Disjunctive domain. Leaves are already constrained under the branch
    conditions. *)
 module AbsDisj (A : AbsNumType) : AbsDisjType = struct
 
-  type t = { tree : A.t Ptree.t;
-             cnstrs : cnstr list list }
+  type cnstr_blk = { cblk_loc : L.t;
+                     cblk_cnstrs : cnstr list; }
 
+  type t = { tree : A.t Ptree.t;
+             cnstrs : cnstr_blk list }
+
+  (*---------------------------------------------------------------*)
+  (* hashconsing *)
+  module MC = struct
+    type t = Mtcons.t * L.t
+    let compare (t,l) (t',l') =
+      if Mtcons.equal_tcons t t' && l = l' 
+      then 0 
+      else Stdlib.compare (t,l) (t',l')
+
+    let equal (t,l) (t',l') =  Mtcons.equal_tcons t t' && l = l' 
+  end
+  module Mmc = Map.Make(MC)
+
+  let hc = ref Mmc.empty
   let _uniq = ref 0
 
   let make_cnstr c i =
-    incr _uniq;
-    { mtcons = c; cpt_uniq = !_uniq; loc = i }
+    try Mmc.find (c,i) !hc with
+    | Not_found ->
+      incr _uniq;
+      let res = { mtcons = c; cpt_uniq = !_uniq; loc = i } in
+      hc := Mmc.add (c,i) res !hc;
+      res
 
+  (*---------------------------------------------------------------*)
+  let pp_cblk fmt cb =
+    Format.fprintf fmt "[{%a} %a]"
+      L.pp_sloc cb.cblk_loc
+      pp_cnstrs cb.cblk_cnstrs 
+
+  let pp_cblcks fmt =
+    Format.fprintf fmt "@[<v 0>%a@]"
+      (pp_list ~sep:(fun fmt () -> Format.fprintf fmt "@;") pp_cblk)
+      
+  let cblk_equal cb cb' =
+    cb.cblk_loc = cb'.cblk_loc 
+    && List.for_all2 (fun c c' -> c.cpt_uniq = c'.cpt_uniq) 
+      cb.cblk_cnstrs cb'.cblk_cnstrs
+
+  (*---------------------------------------------------------------*)
   let same_shape t t' = t.cnstrs = t'.cnstrs
 
   let compare c c' = Stdlib.compare c.cpt_uniq c'.cpt_uniq
 
   let equal c c' = compare c c' = 0
 
-  let cnstrs_list l = List.rev l |> List.flatten
+  let cnstrs_list l = 
+    List.map (fun x -> x.cblk_cnstrs) l |> List.rev |> List.flatten
 
   let rec merge_blck mcs t t' = match mcs, t, t' with
     | [], Ptree.Leaf _, Ptree.Leaf _ -> t, t'
@@ -2325,9 +2391,24 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
     else match t.cnstrs, t'.cnstrs with
       | [], [] -> t,t'
       | cs :: l, cs' :: l' ->
-        assert (l = l');
-        let mcs = List.sort_uniq compare (cs @ cs') in
-        let mt, mt' = merge_last_blck mcs t.tree t'.tree (cnstrs_list l) in
+        if not (List.for_all2 cblk_equal l l') then begin
+          (* REM *)
+          Format.eprintf "error tmerg:@;l:@;%a@.@.@.l':@;%a@.@.@."
+            pp_cblcks l
+            pp_cblcks  l';
+          assert false
+        end;
+        if not (cs.cblk_loc = cs'.cblk_loc) then begin
+          Format.eprintf "%a and %a"
+            L.pp_sloc cs.cblk_loc L.pp_sloc cs'.cblk_loc;
+          assert false
+        end; 
+        let mcs_cnstrs = 
+          List.sort_uniq compare (cs.cblk_cnstrs @ cs'.cblk_cnstrs) in
+        let mcs = { cs with cblk_cnstrs = mcs_cnstrs } in
+        
+        let mt, mt' = 
+          merge_last_blck mcs_cnstrs t.tree t'.tree (cnstrs_list l) in
         ( { tree = mt; cnstrs = mcs :: l }, { tree = mt'; cnstrs = mcs :: l } )
       | _ -> assert false
 
@@ -2358,7 +2439,9 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
       { tree = Ptree.apply_list f tts;
         cnstrs = t.cnstrs }
 
-  let new_cnstr_blck : t -> t = fun t -> { t with cnstrs = [] :: t.cnstrs }
+  let new_cnstr_blck t l =
+    let blk = { cblk_loc = l; cblk_cnstrs = [] } in
+    { t with cnstrs = blk :: t.cnstrs }
 
   let tbottom a = Ptree.apply (fun _ x -> A.bottom x) a
 
@@ -2411,14 +2494,18 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
       and fn c (mtl,mtl') (mtr,mtr') = ( Ptree.Node (c, mtl, mtr),
                                          Ptree.Node (c, mtl', mtr') ) in
 
-      let ncs = (List.sort_uniq compare (cnstr :: cs)) :: l in
+      let sorted_cnstrs = 
+        List.sort_uniq compare (cnstr :: cs.cblk_cnstrs) in
+      let nblk = { cs with cblk_cnstrs = sorted_cnstrs } in
+      let ncs = nblk :: l in
       let tl,tr = apply_last_blck fn f t.tree (cnstrs_list l) in
       ( { tree = tl; cnstrs = ncs }, { tree = tr; cnstrs = ncs } )
 
     | _ -> raise (Aint_error "add_cnstr: empty list")
 
-  let pop_cnstr_blck : t -> t = fun t -> match t.cnstrs with
-    | _ :: l ->
+  let pop_cnstr_blck t loc = match t.cnstrs with
+    | blk :: l ->
+      assert (blk.cblk_loc = loc);
       let f x =
         let tree = Ptree.eval (fun _ a b -> A.join a b) (fun _ a -> a) x in
         Ptree.Leaf tree
@@ -2444,9 +2531,11 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
       | Ptree.Leaf x -> A.get_env x in
     aux t.tree
 
+  let init_blk = { cblk_loc = L._dummy; cblk_cnstrs = [] }
+
   (* Make a top value defined on the given variables *)
   let make l = { tree = Leaf (A.make l);
-                 cnstrs = [[]] }
+                 cnstrs = [ init_blk ]; }
 
   let meet = apply2 (fun _ -> A.meet)
   let meet_list = apply_list (fun _ -> A.meet_list)
@@ -2464,6 +2553,24 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
   let bottom a = apply (fun _ x -> A.bottom x) a
 
   let top a = apply (fun _ x -> A.top x) a
+
+  let rec get_leaf = function
+    | Ptree.Node (_,l,_) -> get_leaf l
+    | Ptree.Leaf x -> x 
+
+  (* All leaves should have the same environment *)
+  let top_no_disj a =
+    let leaf = A.top (get_leaf a.tree) in
+    { cnstrs = [init_blk]; tree = Ptree.Leaf leaf; }
+
+  let to_shape a shp =
+    assert (a.cnstrs = [init_blk]);
+    let leaf = get_leaf a.tree in
+    apply (fun _ _ -> leaf) shp
+
+  let remove_disj a = 
+    let a = eval (fun _ -> A.join) (fun _ x -> x) a in
+    {cnstrs = [init_blk]; tree = Ptree.Leaf a; }
 
   let expand t v l = apply (fun _ x -> A.expand x v l) t
 
@@ -2521,9 +2628,15 @@ end
 module Lift (A : AbsNumType) : AbsDisjType = struct
   include A
 
+  let top_no_disj a = A.top a
+
+  let to_shape a _ = a
+
+  let remove_disj a = a
+
   let of_box bt _ = A.of_box bt
 
-  let new_cnstr_blck t = t
+  let new_cnstr_blck t _ = t
 
   let add_cnstr t c _ =
     (A.meet_constr t c,
@@ -2531,7 +2644,7 @@ module Lift (A : AbsNumType) : AbsDisjType = struct
      | Some nc -> A.meet_constr t nc
      | None -> t)
 
-  let pop_cnstr_blck t = t
+  let pop_cnstr_blck t _ = t
 end
 
 (**************************************)
@@ -2807,6 +2920,9 @@ module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
   let new_cnstr_blck = A.Num.new_cnstr_blck
   let add_cnstr = A.Num.add_cnstr
   let pop_cnstr_blck = A.Num.pop_cnstr_blck
+  let to_shape = A.Num.to_shape
+  let top_no_disj = A.Num.top_no_disj
+  let remove_disj = A.Num.remove_disj
 
   (*----------------------------------------------------------------*)
   (* Profiling for the new functions. *)
@@ -2818,6 +2934,27 @@ module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
     let t = Sys.time () in
     let r = of_box x y in
     let () = call "of_box" (Sys.time () -. t) in
+    r
+
+  let () = record "to_shape"
+  let to_shape x y =
+    let t = Sys.time () in
+    let r = to_shape x y in
+    let () = call "to_shape" (Sys.time () -. t) in
+    r
+
+  let () = record "top_no_disj"
+  let top_no_disj x =
+    let t = Sys.time () in
+    let r = top_no_disj x in
+    let () = call "top_no_disj" (Sys.time () -. t) in
+    r
+
+  let () = record "remove_disj"
+  let remove_disj x =
+    let t = Sys.time () in
+    let r = remove_disj x in
+    let () = call "remove_disj" (Sys.time () -. t) in
     r
 
   let () = record "new_cnstr_blck"
@@ -2835,9 +2972,9 @@ module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
     r
 
   let () = record "pop_cnstr_blck"
-  let pop_cnstr_blck x =
+  let pop_cnstr_blck x loc =
     let t = Sys.time () in
-    let r = pop_cnstr_blck x in
+    let r = pop_cnstr_blck x loc in
     let () = call "pop_cnstr_blck" (Sys.time () -. t) in
     r
 
@@ -3282,8 +3419,15 @@ module type AbsNumBoolType = sig
 
   (* Make a top value define on the same variables that the argument.
      All variables are assumed *not* initialized.
-     All variables alias to everybody. *)
+     All variables alias to everybody. 
+     There are no disjunction. *)
   val top_ni : t -> t
+
+  (* [to_shape t shp] : lifts [t] to the shape of [shp] 
+     Remark: [t] must be without disjunction. *)
+  val to_shape : t -> t -> t
+
+  val remove_disj : t -> t
 
   val is_init    : t -> atype -> t
   val copy_init  : t -> mvar -> mvar -> t
@@ -3295,9 +3439,9 @@ module type AbsNumBoolType = sig
 
   val print : ?full:bool -> Format.formatter -> t -> unit
 
-  val new_cnstr_blck : t -> t
+  val new_cnstr_blck : t -> L.t -> t
   val add_cnstr : t -> Mtcons.t -> L.t -> t * t
-  val pop_cnstr_blck : t -> t
+  val pop_cnstr_blck : t -> L.t -> t
 end
 
 
@@ -3623,12 +3767,18 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     apply f df ptf { t with bool = b; init = init }
 
   let top_ni : t -> t = fun t ->
-    let top = AbsNum.R.top t.num in
+    let top = AbsNum.R.top_no_disj t.num in
     let bmap = Mbv.map (fun v -> AbsNum.NR.top v) t.bool in
     { bool = bmap;
       init = EMs.empty;
       num = top;
       points_to = Pt.make [] }
+
+  let to_shape t shp =
+    { t with num = AbsNum.R.to_shape t.num shp.num }
+
+  let remove_disj t =
+    { t with num = AbsNum.R.remove_disj t.num }
 
   (* Initialize some variable. 
      Note that an array is always initialized, even if its elements are not
@@ -3725,13 +3875,13 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
         print_bool
         print_init
 
-  let new_cnstr_blck t = { t with num = AbsNum.R.new_cnstr_blck t.num }
+  let new_cnstr_blck t l = { t with num = AbsNum.R.new_cnstr_blck t.num l }
 
   let add_cnstr t c i =
     let tl, tr = AbsNum.R.add_cnstr t.num c i in
     ( { t with num = tl }, { t with num = tr } )
 
-  let pop_cnstr_blck t = { t with num = AbsNum.R.pop_cnstr_blck t.num }
+  let pop_cnstr_blck t l = { t with num = AbsNum.R.pop_cnstr_blck t.num l }
 end
 
 
@@ -4159,7 +4309,11 @@ type it_loc =
 module ItKey = struct
   type t = it_loc
 
-  let compare = Stdlib.compare
+  let compare it it' = match it, it' with
+    | ItFunIn (fn,l), ItFunIn (fn',l') ->
+      match Prog.F.compare fn fn' with
+      | 0 -> Stdlib.compare l l'
+      | _ as res -> res
 end
 
 module ItMap = Map.Make(ItKey)
@@ -4186,20 +4340,60 @@ end = struct
       let param = PW.param
     end)
 
-  (* Sound over-approximation of a function 'f' behavior:
-     for any initial state in [it_in], the state after executing the function
-     'f' is over-approximated by [it_out], the function's side-effects are at
-     most [it_s_effects]. *)
-  type it_entry = { it_in : AbsDom.t;
-                    it_out : AbsDom.t;
-                    it_s_effects : mem_loc list; }
+  type side_effects = mem_loc list
 
-  type astate = { it : it_entry ItMap.t;
+  (* Function abstraction.
+     This is a bit messy because the same function abstraction can be used
+     with different call-stacks, but the underlying disjunctive domain we 
+     use is sensitive to the call-stack. *)
+  module FAbs : sig
+    type t
+
+    (* [make abs_in abs_out f_effects] *)
+    val make    : AbsDom.t -> AbsDom.t -> side_effects -> t
+
+    (* [ apply in fabs = (f_in, f_out, effects) ]:
+       Return the abstraction of the initial states that was used, the
+       abstract final state, and the side-effects of the function (if the
+       abstraction applies in state [in]).
+       Remarks: 
+       - the final state abstraction [f_out] uses the disjunctions of [in]. *)
+    val apply : AbsDom.t -> t -> (AbsDom.t * side_effects) option
+
+    val get_in : t -> AbsDom.t
+  end = struct
+    (* Sound over-approximation of a function 'f' behavior:
+       for any initial state in [it_in], the state after executing the function
+       'f' is over-approximated by [it_out], the function's side-effects are at
+       most [it_s_effects]. *)
+    type t = { fa_in        : AbsDom.t;
+               fa_out       : AbsDom.t;
+               fa_s_effects : mem_loc list; }
+
+    let make abs_in abs_out f_effects =
+      { fa_in        = AbsDom.remove_disj abs_in;
+        fa_out       = AbsDom.remove_disj abs_out;
+        fa_s_effects = f_effects; }
+
+    let apply abs_in fabs =
+      if AbsDom.is_included abs_in (AbsDom.to_shape fabs.fa_in abs_in) 
+      then begin
+        debug (fun () -> 
+            Format.eprintf "Reusing previous analysis of the body ...@.@.");
+        Some (AbsDom.to_shape fabs.fa_out abs_in, fabs.fa_s_effects)
+      end
+      else None
+
+    let get_in t = t.fa_in
+  end
+
+
+  type astate = { it : FAbs.t ItMap.t;
                   abs : AbsDom.t;
                   cstack : funname list;
                   env : s_env;
                   prog : unit prog;
-                  s_effects : mem_loc list;
+                  s_effects : side_effects;
                   violations : violation list }
 
   (* Return true iff the linear expression overflows *)
@@ -5165,14 +5359,15 @@ end = struct
      - The arguments of f have been evaluated.
      - The variables of the caller's caller have been *removed*.
      - s_effects is empty. *)
-  let prepare_call state f es =
+  let prepare_call state callsite f es =
     debug (fun () -> Format.eprintf "evaluating arguments ...@.");
     let state = aeval_f_args f es state in
 
     debug (fun () -> Format.eprintf "forgetting variables ...@.");
     let state = forget_stack_vars state in
 
-    let state = { state with abs = AbsDom.new_cnstr_blck state.abs } in
+    let state = { state with 
+                  abs = AbsDom.new_cnstr_blck state.abs callsite } in
 
     { state with cstack = f :: state.cstack;
                  s_effects = [] }
@@ -5180,9 +5375,9 @@ end = struct
 
   (* Profiling *)
   let () = Prof.record "prepare_call"
-  let prepare_call abs f es =
+  let prepare_call abs callsite f es =
     let t = Sys.time () in
-    let r = prepare_call abs f es in
+    let r = prepare_call abs callsite f es in
     let t' = Sys.time () in
     let sf = "prepare_call_" ^ f.fn_name in
     let () = 
@@ -5201,12 +5396,13 @@ end = struct
     combine3 out_tys f_rets_no_offsets mlvs
 
 
-  let return_call state fstate lvs =
+  let return_call state callsite fstate lvs =
     (* We forget side effects of f in the caller *)
     let state = forget_side_effect state fstate.s_effects in
 
     (* We pop the top-most block of constraints in the callee *)
-    let fstate = { fstate with abs = AbsDom.pop_cnstr_blck fstate.abs } in
+    let fstate = { fstate with 
+                   abs = AbsDom.pop_cnstr_blck fstate.abs callsite } in
 
     (* We forget variables untouched by f in the callee *)
     let fstate = forget_no_side_effect fstate fstate.s_effects in
@@ -5787,12 +5983,14 @@ end = struct
         { rstate with abs = abs_res }
 
       | Cwhile(_,c1, e, c2) ->
+        let prog_pt = fst ginstr.i_loc in
+
         let cpt = ref 0 in
         let state = aeval_gstmt c1 state in
 
         (* We now check that e is safe *)
         let conds = safe_e e in
-        let state = check_safety state (InProg (fst ginstr.i_loc)) conds in
+        let state = check_safety state (InProg prog_pt) conds in
 
         (* Given an abstract state, compute the loop condition expression. *)
         let oec abs = bexpr_to_btcons e abs in
@@ -5802,13 +6000,13 @@ end = struct
           try Some (dec_qnty_heuristic state.abs (c2 @ c1) (oec state.abs))
           with Heuristic_failed -> None in
         (* Variable where we store its value before executing the loop body. *)
-        let mvar_ni = MNumInv (fst ginstr.i_loc) in
+        let mvar_ni = MNumInv prog_pt in
 
         (* We check that if the loop does not exit, then ni_e decreased by
              at least one *)
         let check_ni_dec state = match ni_e with
             | None -> (* Here, we cannot prove termination *)
-              let violation = (InProg (fst ginstr.i_loc), Termination) in
+              let violation = (InProg prog_pt, Termination) in
               add_violations state [violation]
 
             | Some nie ->
@@ -5848,7 +6046,7 @@ end = struct
               if (Interval.is_leq int test_into) &&
                  (Interval.is_leq zint test_intz) then state
               else
-                let violation = (InProg (fst ginstr.i_loc), Termination) in
+                let violation = (InProg prog_pt, Termination) in
                 add_violations state [violation] in
 
 
@@ -5858,7 +6056,7 @@ end = struct
 
           (* We add a disjunctive constraint block *)
           let state_i = { state_i with
-                          abs = AbsDom.new_cnstr_blck state_i.abs } in
+                          abs = AbsDom.new_cnstr_blck state_i.abs prog_pt } in
 
           let state_o = aeval_gstmt (c2 @ c1) state_i in
 
@@ -5873,7 +6071,7 @@ end = struct
 
           (* We pop the disjunctive constraint block *)
           let state_o = { state_o with
-                          abs = AbsDom.pop_cnstr_blck state_o.abs } in
+                          abs = AbsDom.pop_cnstr_blck state_o.abs prog_pt } in
 
           let abs_r = AbsDom.join state.abs state_o.abs in
           debug (print_while_join cpt_instr state.abs state_o.abs abs_r);
@@ -5971,10 +6169,9 @@ end = struct
         let fn = f_decl.f_name in
 
         debug (fun () -> Format.eprintf "@[<v>Call %s:@;@]%!" fn.fn_name);
-        
-        let state_i = prepare_call state f es in
-
         let callsite,_ = ginstr.i_loc in
+
+        let state_i = prepare_call state callsite f es in
 
         let fstate = aeval_call f f_decl callsite state_i in
 
@@ -5984,9 +6181,11 @@ end = struct
 
         debug(print_return ginstr fstate.abs fn.fn_name);
 
-        return_call state fstate lvs
+        return_call state callsite fstate lvs
 
       | Cfor(i, (d,e1,e2), c) ->
+        let prog_pt = fst ginstr.i_loc in
+
         match aeval_cst_int state.abs e1, aeval_cst_int state.abs e2 with
         | Some z1, Some z2 ->
           if z1 = z2 then state else
@@ -6004,7 +6203,8 @@ end = struct
             List.fold_left ( fun state ci ->
                 (* We add a disjunctive constraint block *)
                 let state =
-                  { state with abs = AbsDom.new_cnstr_blck state.abs } in
+                  { state with 
+                    abs = AbsDom.new_cnstr_blck state.abs prog_pt } in
 
                 (* We set the integer variable i to ci. *)
                 let expr_ci = Mtexpr.cst apr_env (Coeff.s_of_int ci)
@@ -6016,7 +6216,7 @@ end = struct
                   |> aeval_gstmt c in
 
                 (* We pop the disjunctive constraint block *)
-                { state with abs = AbsDom.pop_cnstr_blck state.abs }
+                { state with abs = AbsDom.pop_cnstr_blck state.abs prog_pt }
               ) state range
 
         | _ ->
@@ -6031,26 +6231,30 @@ end = struct
     fun f f_decl callsite st_in ->
     let itk = ItFunIn (f,callsite) in
 
-    (* st_in_abs must over-approximate st_in.abs. *)
-    let log_output, st_in_abs, st_out = 
-      match aeval_call_strategy callsite f_decl st_in with 
-      | Call_Direct -> aeval_call_direct st_in f_decl
+    match aeval_call_strategy callsite f_decl st_in with 
+    | Call_Direct -> aeval_body f_decl.f_body st_in
 
-      | Call_WideningByCallSite -> 
-        let accelerate it_abs_in st_in =
-          AbsDom.widening None it_abs_in (AbsDom.join it_abs_in st_in.abs) in
-        let strengthen st_in = st_in in
-        aeval_call_f_abstraction itk f_decl strengthen accelerate st_in
+    (* Precond: [check_valid_call_top st_in] must hold:
+       the function must not use memory loads/stores, array accesses must be 
+       fixed, and arrays in arguments must be fully initialized
+       (i.e. cells must be initialized). *)
+    | Call_TopByCallSite ->
+      (* f has been abstractly evaluated at this callsite before *)
+      if ItMap.mem itk st_in.it then 
+        let fabs = ItMap.find itk st_in.it in
+        match FAbs.apply st_in.abs fabs with
+        | Some (f_abs_out, f_effects) ->
+          { st_in with abs = f_abs_out;
+                       s_effects = f_effects; } 
 
-      (* The function must not use memory loads/stores, and arrays in arguments
-         must be fully initialized (i.e. cells must be initialized). *)
-      | Call_TopByCallSite ->
-        let accelerate _ _ = assert false in (* cannot happen *)
+        | None -> assert false    (* that should not be possible *)
 
-        (* Precond: [check_valid_call_top st_in] must hold. *)
-        let strengthen st_in = 
-          (* Set the abstract state to top, and all arguments of [f_decl]
-             are assumed initialized (including array cells). *)
+      (* We abstractly evaluate f for the first time *)
+      else
+        (* Set the abstract state to top (and remove all disjunction).
+             Moreover, all arguments of [f_decl] are assumed
+             initialized (including array cells). *)
+        let st_in_ndisj = 
           let mvars = List.map mvar_of_var f_decl.f_args
                       |> u8_blast_vars ~blast_arrays:true in
           let abs = AbsDom.top_ni st_in.abs in
@@ -6058,57 +6262,26 @@ end = struct
               | Mvalue at -> AbsDom.is_init abs at
               | _ -> assert false
             ) abs mvars in
-
+          
           { st_in with abs = abs } 
         in
 
-        aeval_call_f_abstraction itk f_decl strengthen accelerate st_in
-    in
+        let st_out_ndisj = aeval_body f_decl.f_body st_in_ndisj in
 
-    let st_out = 
-      if log_output then 
-        (* We log the result of an abstract call to f:
+        (* We make a new function abstraction for f. Roughly, it is of the form:
            input |--> (output,effects) *)
-        let it_entry = { it_in = st_in_abs;
-                         it_out = st_out.abs;
-                         it_s_effects = st_out.s_effects; } in
-        { st_out with it = ItMap.add itk it_entry st_out.it } 
-      else st_out in
+        let fabs = 
+          FAbs.make st_in_ndisj.abs st_out_ndisj.abs st_out_ndisj.s_effects in
 
-    st_out
-    
+        let st_out_ndisj = { st_out_ndisj with
+                             it = ItMap.add itk fabs st_out_ndisj.it } in
+
+        (* It remains to add the disjunctions of the call_site to st_out *)
+        { st_out_ndisj with abs = AbsDom.to_shape st_out_ndisj.abs st_in.abs }
+
   and aeval_body f_body state =
     debug (fun () -> Format.eprintf "Evaluating the body ...@.@.");
     aeval_gstmt f_body state
-
-  and aeval_call_direct st_in f_decl =
-    false, st_in.abs, aeval_body f_decl.f_body st_in
-
-  (* [strengthen] is used on the first call.
-     [accelerate] is used on subsequent calls  *)
-  and aeval_call_f_abstraction itk f_decl strengthen accelerate st_in =
-    (* f has been abstractly evaluated before *)
-    if ItMap.mem itk st_in.it 
-    then 
-      let it_entry = ItMap.find itk st_in.it in
-      if AbsDom.is_included st_in.abs it_entry.it_in then begin
-        debug (fun () -> 
-            Format.eprintf "Reusing previous analysis of the body ...@.@.");
-        false, it_entry.it_in, { st_in with
-                                 abs = it_entry.it_out;
-                                 s_effects = it_entry.it_s_effects; } 
-      end
-
-      (* We accelerate convergence *)
-      else
-        let st_in_abs = accelerate it_entry.it_in st_in in
-        let st_in = { st_in with abs = st_in_abs } in
-        true, st_in_abs, aeval_body f_decl.f_body st_in     
-
-    (* We abstractly evaluate f for the first time *)
-    else
-      let st_in = strengthen st_in in
-      true, st_in.abs, aeval_body f_decl.f_body st_in 
 
   and aeval_gstmt : ('ty,'i) gstmt -> astate -> astate =
     fun gstmt state ->
@@ -6125,7 +6298,7 @@ end = struct
   and aeval_call_strategy callsite f_decl st_in =
     let strat = match Aparam.abs_call_strategy with
     | CallDirectAll -> Call_Direct
-    | CallWideningAll -> Call_WideningByCallSite
+    (* | CallWideningAll -> Call_WideningByCallSite *)
     | CallTopHeuristic ->
       if check_valid_call_top st_in f_decl
       then Call_TopByCallSite 
@@ -6172,8 +6345,11 @@ end = struct
         if (List.mem v vars_to_keep) then acc else v :: acc )
         [] vars in
 
-    let abs_proj = AbsDom.forget_list state.abs rem_vars
-                   |> AbsDom.pop_cnstr_blck in
+    let abs_proj = 
+      AbsDom.pop_cnstr_blck
+        (AbsDom.forget_list state.abs rem_vars) 
+        L._dummy                (* We use L._dummy for the initial block *)
+    in
 
     let sb = !only_rel_print in (* Not very clean *)
     only_rel_print := true;
