@@ -3492,10 +3492,12 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
       num = f t.num t'.num;
       points_to = fpt t.points_to t'.points_to }
 
-  let for_all2 : ('a -> 'b -> 'c) -> 'a Mbv.t -> 'b Mbv.t -> bool =
+  (* [for_all2 f a b b_dfl]
+     Iters over the first map *)
+  let for_all2 : ('a -> 'b option -> 'c) -> 'a Mbv.t -> 'b Mbv.t -> bool =
     fun f map_a map_b ->
       Mbv.for_all (fun k a ->
-          let b = Mbv.find k map_b in
+          let b = Mbv.find_opt k map_b in
           f a b)
         map_a
 
@@ -3571,8 +3573,14 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
 
   (* No need to check anything on t.init and t'.init. *)
   let is_included : t -> t -> bool = fun t t' ->
+    let check_b b b_opt' = 
+      let b' = match b_opt' with
+        | None -> AbsNum.downgrade t'.num
+        | Some b' -> b' in
+      AbsNum.NR.is_included b b' in
+
     (AbsNum.R.is_included t.num t'.num)
-    && (for_all2 AbsNum.NR.is_included t.bool t'.bool)
+    && (for_all2 check_b t.bool t'.bool)
     && (Pt.is_included t.points_to t'.points_to)
 
   (* let top_mem_loc : t -> mem_loc list = fun t -> Pt.top_mem_loc t.points_to *)
