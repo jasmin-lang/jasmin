@@ -75,7 +75,7 @@ module Aparam = struct
   (* Rounding used. *)
   let round_typ = Texpr1.Zero
 
-  let abs_call_strategy = CallTopHeuristic (* CallDirectAll *)
+  let abs_call_strategy = CallDirectAll (* CallTopHeuristic *) 
 
   (* Widening outside or inside loops.
      Remark: if the widening is done inside loops, then termination is not
