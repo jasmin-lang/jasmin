@@ -13,7 +13,7 @@ let print_time a =
   let t = Sys.time () in
   let diff = t -. !last_time in
   last_time := t;
-  Format.eprintf "Time: %1f s. (+ %1f s.)@." t diff;
+  Format.eprintf "Time: %1.3f s. (+ %1.3f s.)@." t diff;
   a ()
 
 let debug_print_time = true
@@ -45,6 +45,26 @@ let hndl_apr_exc e = match e with
 (* Analysis Parameters *)
 (***********************)
 
+
+(* Analysis strategy for abstract calls:
+   - Call_Direct: normal abstract function call.
+   - Call_WideningByCallSite: normal abstact function call, but with
+     successive widenings of the initial states at each call to the same
+     function, from the same call-site.
+   - Call_TopByCallSite : function evaluated only once per call-site, with
+     an initial state over-approximated by top.
+     (FIXME: performance: evaluates only once on top). *)
+type abs_call_strategy =
+  | Call_Direct 
+  | Call_WideningByCallSite
+  | Call_TopByCallSite 
+
+(* Analysis policy for abstract calls. *)
+type abs_call_policy =
+  | CallDirectAll
+  | CallWideningAll
+  | CallTopHeuristic
+
 module Aparam = struct
   (* Number of unrolling of a loop body before applying the widening. Higher
      values yield a more precise (and more costly) analysis. *)
@@ -55,26 +75,7 @@ module Aparam = struct
   (* Rounding used. *)
   let round_typ = Texpr1.Zero
 
-  (* Analysis strategy for abstract calls:
-     - Call_Direct: normal abstract function call.
-     - Call_WideningByCallSite: normal abstact function call, but with
-     successive widenings of the initial states at each call to the same
-     function, from the same call-site.
-     - Call_TopByCallSite : function evaluated only once per call-site, with
-     an initial state over-approximated by top.
-     (FIXME: evaluates only once on top). *)
-  type abs_call_strategy =
-    | Call_Direct 
-    | Call_WideningByCallSite
-    | Call_TopByCallSite 
-
-  (* Analysis policy for abstract calls. *)
-  type abs_call_policy =
-    | CallDirectAll
-    | CallWideningAll
-    | CallTopAll                (* TODO: change me with an heuristic *)
-
-  let abs_call_strategy = CallDirectAll
+  let abs_call_strategy = CallTopHeuristic (* CallDirectAll *)
 
   (* Widening outside or inside loops.
      Remark: if the widening is done inside loops, then termination is not
@@ -82,8 +83,8 @@ module Aparam = struct
      then this should always terminates. *)
   let widening_out = false
 
-  (* Widening with thresholds *)
-  let use_threshold = false
+  (* More thresholds for the widening. *)
+  let more_threshold = false
 
   (* Dependency graph includes flow dependencies *)
   let flow_dep = false
@@ -228,6 +229,11 @@ let rec pp_list ?sep:(msep = Format.pp_print_space) pp_el fmt l = match l with
 let pp_opt pp_el fmt = function
   | None -> Format.fprintf fmt "None"
   | Some el -> Format.fprintf fmt "Some @[%a@]" pp_el el
+
+let pp_call_strategy fmt = function
+  | Call_Direct             -> Format.fprintf fmt "direct"
+  | Call_WideningByCallSite -> Format.fprintf fmt "widening"
+  | Call_TopByCallSite      -> Format.fprintf fmt "top"
 
 
 (*************)
@@ -1054,11 +1060,12 @@ let cst_pow_minus apr_env n y =
 let int_thresholds =
   (* For unsigned *)
   List.map (fun i -> mpq_pow_minus i 1) [8;16;32;128;256]
-  (* For signed *)
-  @ List.map (fun i -> mpq_pow_minus i 1) [7;15;31;127;255]
-  @ List.map (fun i -> mpq_pow_minus i 0) [7;15;31;127;255]
+  (* (\* For signed *\)
+   * @ List.map (fun i -> mpq_pow_minus i 1) [7;15;31;127;255]
+   * @ List.map (fun i -> mpq_pow_minus i 0) [7;15;31;127;255] *)
 
 let neg i = Mpqf.neg i
+
 
 let lcons env v i vneg iminus =
   let e = Linexpr1.make env in
@@ -1067,7 +1074,16 @@ let lcons env v i vneg iminus =
   let () = Linexpr1.set_list e [cv,v] (Some ci) in
   e
 
-let thresholds env =
+(* Makes the bounds 'v >= 0' and 'v <= 2^N-1' for 'N' in {8;16;32;128;256} *)
+let thresholds_uint env v =
+  let acc = 
+    [Lincons1.make (lcons env v (Mpqf.of_int 0) false true) Lincons0.SUPEQ] in
+  List.fold_left (fun acc i ->
+      let lc = lcons env v i in
+      Lincons1.make (lc true false) Lincons0.SUPEQ :: acc
+    ) acc int_thresholds
+
+let thresholds_vars env =
   let vars = Environment.vars env
              |> fst
              |> Array.to_list in
@@ -1131,6 +1147,7 @@ module type AbsNumType = sig
   val is_included : t -> t -> bool
   val is_bottom : t -> bool
   val bottom : t -> t
+  val top : t -> t
 
   (* expand t v v_list : v and v_list cannot contain Mvalue (AarrayEl)
      elements *)
@@ -1219,23 +1236,33 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
   let thrs_of_oc oc env =
     match omap_dfl (fun x -> Mtcons.to_lincons x env) None oc with
     | None -> []
-    | Some lc ->
-      debug(fun () -> Format.eprintf "threshold: %a\n" Lincons1.print lc);
-      [lc]
-
+    | Some lc -> [lc]
 
   let widening oc a a' =
     let a,a' = lce a a' in
     let env = Abstract1.env a in
+    
+    let vars = 
+      omap_dfl (fun c -> 
+          Mtexpr.get_var_mexpr (Mtcons.get_expr c).mexpr
+        ) [] oc in
+    let thrs_vars = 
+      List.map (fun v -> thresholds_uint env (avar_of_mvar v)) vars 
+      |> List.flatten in
+    let thrs_oc = thrs_of_oc oc env in
+    let thrs = 
+      if Aparam.more_threshold 
+      then thresholds_vars env @ thrs_oc @ thrs_vars
+      else thrs_oc @ thrs_vars in
+    
+    if is_relational () then
+      debug(fun () -> Format.eprintf "@[<v 2>threshold(s):@; %a@."
+               (pp_list Lincons1.print) thrs);
+
     (* Be careful to join a and a' before calling widening. Some abstract domain,
        e.g. Polka, seem to assume that a is included in a'
        (and may segfault otherwise!). *)
-    if Aparam.use_threshold then
-      let thrs = (thresholds env @ thrs_of_oc oc env)
-                 |> to_earray env in
-      Abstract1.widening_threshold man a a' thrs
-    else Abstract1.widening_threshold man a a' ( thrs_of_oc oc env
-                                                 |> to_earray env )
+  Abstract1.widening_threshold man a a' (thrs |> to_earray env)
 
   let forget_list a l =
     let l = u8_blast_vars ~blast_arrays:true l in
@@ -1251,8 +1278,10 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
   let is_bottom a = Abstract1.is_bottom man a
 
   let bottom_man man a = Abstract1.bottom man (Abstract1.env a)
-
   let bottom = bottom_man man
+
+  let top_man man a = Abstract1.top man (Abstract1.env a)
+  let top = top_man man
 
   (* v and v_list should not contain Mvalue (AarrayEl) elements *)
   let expand_man man a v v_list =
@@ -1811,6 +1840,11 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
     and f2 _ x = PplDom.bottom x in
     un_app f1 f2 a
 
+  let top a =
+    let f1 _ x = NonRel.top x
+    and f2 _ x = PplDom.top x in
+    un_app f1 f2 a
+
   let expand a v v_list =
     let f1 d x = if vdom v = d then NonRel.expand x v v_list else x
     and f2 d x = if vdom v = d then PplDom.expand x v v_list else x in
@@ -2124,7 +2158,7 @@ module Ptree = struct
       Format.fprintf fmt "@[<v 0>@[<v 2># @[%a@] :@;\
                           @[%a@]@]@;\
                           @[<v 2># :@;\
-                          @[%a@]@]@]"
+                          @[%a@]@]@;@]"
         pp_cnstr c
         pp_leaf x
         pp_leaf r
@@ -2134,7 +2168,7 @@ module Ptree = struct
                           @[<v 2># @[%a@] :@;\
                           @[%a@]@]@;\
                           @[<v 2># :@;\
-                          @[%a@]@]@]"
+                          @[%a@]@]@;@]"
         pp_cnstr c
         (pp_ptree pp_leaf) l
         (pp_ptree pp_leaf) r
@@ -2429,6 +2463,8 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
 
   let bottom a = apply (fun _ x -> A.bottom x) a
 
+  let top a = apply (fun _ x -> A.top x) a
+
   let expand t v l = apply (fun _ x -> A.expand x v l) t
 
   let fold t l = apply (fun _ x -> A.fold x l) t
@@ -2530,17 +2566,25 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
 
   let dp = fpt f (Mv.equal Sv.equal) pa_res.pa_dp
 
+  (* Add variables where [sv_ini] flows to. *)
   let add_flow sv_ini =
     Mv.fold (fun v sv v_rel ->
         if Sv.disjoint sv sv_ini then v_rel
         else Sv.add v v_rel
       ) dp sv_ini
 
+  (* Add variables flowing to [sv_ini]. *)
+  let add_flow_rev sv_ini =
+    Mv.fold (fun v sv v_rel ->
+        if Sv.mem v sv_ini then Sv.union sv v_rel
+        else v_rel
+      ) dp sv_ini
+
   (* We are relational on a variable v iff:
      - there is a direct flow from the intersection of PW.main.f_args and
      Glob_options.relational to v.
      - the variable is appears in while loops conditions,
-     or depends on one. *)
+     or that modifiy a while loop condition variable. *)
   let sv_ini =
     match PW.param.relationals with
     | None -> PW.main.f_args |> Sv.of_list
@@ -2550,7 +2594,7 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
 
   let v_rel : Sv.t =
     let v_rel = add_flow sv_ini in
-    let v_while = add_flow pa_res.while_vars in
+    let v_while = add_flow_rev pa_res.while_vars in
     Sv.union v_rel v_while
 
   (* v is a pointer variable iff there is a direct flow from the intersection
@@ -2945,7 +2989,7 @@ module PointsToImpl : PointsTo = struct
 
   let is_included : t -> t -> bool = fun t t' ->
     Ms.for_all (fun v l ->
-        if Ms.mem v t'.pts then true
+        if not (Ms.mem v t'.pts) then true
         else
           let l' = Ms.find v t'.pts in
           List.for_all (fun x -> List.mem x l') l
@@ -3213,8 +3257,6 @@ module type AbsNumBoolType = sig
   val is_included : t -> t -> bool
   val is_bottom : t -> bool
 
-  (* val top_mem_loc : t -> mem_loc list *)
-
   val expand : t -> mvar -> mvar list -> t
   val fold : t -> mvar list -> t
 
@@ -3237,6 +3279,11 @@ module type AbsNumBoolType = sig
      variables that are introduced are unconstrained. *)
   val change_environment : t -> mvar list -> t
   val remove_vars : t -> mvar list -> t
+
+  (* Make a top value define on the same variables that the argument.
+     All variables are assumed *not* initialized.
+     All variables alias to everybody. *)
+  val top_ni : t -> t
 
   val is_init    : t -> atype -> t
   val copy_init  : t -> mvar -> mvar -> t
@@ -3574,6 +3621,14 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     and df x = AbsNum.NR.remove_vars x l
     and ptf x = Pt.forget_list x l in
     apply f df ptf { t with bool = b; init = init }
+
+  let top_ni : t -> t = fun t ->
+    let top = AbsNum.R.top t.num in
+    let bmap = Mbv.map (fun v -> AbsNum.NR.top v) t.bool in
+    { bool = bmap;
+      init = EMs.empty;
+      num = top;
+      points_to = Pt.make [] }
 
   (* Initialize some variable. 
      Note that an array is always initialized, even if its elements are not
@@ -5550,6 +5605,72 @@ end = struct
 
 
   (* -------------------------------------------------------------------- *)
+  (* Check that there are no memory stores and loads. *)
+  let no_memory_access_aux f_decl = 
+    let rec nm_i i = match i.i_desc with
+      | Cassgn (lv, _, _, e)    -> nm_lv lv && nm_e e
+      | Copn (lvs, _, _, es)    -> nm_lvs lvs && nm_es es
+      | Cif (e, st, st')        -> nm_e e && nm_stmt st && nm_stmt st'
+      | Cfor (_, _, st)         -> nm_stmt st
+      | Cwhile (_, st1, e, st2) -> nm_e e && nm_stmt st1 && nm_stmt st2
+      | Ccall (_, lvs, fn, es)  -> 
+        let f' = get_fun_def prog fn |> oget in
+        nm_lvs lvs && nm_es es && nm_fdecl f'
+
+    and nm_fdecl f = nm_stmt f.f_body
+
+    and nm_stmt stmt = List.for_all nm_i stmt
+
+    and nm_e = function
+      | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ | Pvar _ -> true
+      | Pget (_, _, e)     -> nm_e e
+      | Pload _            -> false
+      | Papp1 (_, e)       -> nm_e e
+      | Papp2 (_, e1, e2)  -> nm_es [e1; e2]
+      | PappN (_,es)       -> nm_es es
+      | Pif (_, e, el, er) -> nm_es [e; el; er]
+
+    and nm_es es = List.for_all nm_e es
+
+    and nm_lv = function
+      | Lnone _ | Lvar _ | Laset _ -> true
+      | Lmem _ -> false
+
+    and nm_lvs lvs = List.for_all nm_lv lvs 
+    in
+
+    nm_fdecl f_decl 
+
+
+  (* Memoisation *)
+  let nm_memo = Hf.create 16
+  let no_memory_access f_decl =
+    try Hf.find nm_memo f_decl.f_name with Not_found ->
+      let res = no_memory_access_aux f_decl in
+      Hf.add nm_memo f_decl.f_name res;
+      res
+
+
+  (* The function must not use memory loads/stores, and arrays in arguments
+     must be fully initialized (i.e. cells must be initialized). *)
+  let check_valid_call_top st f_decl = 
+    let cells_init = 
+      List.for_all (fun v -> match mvar_of_var v with
+          | Mvalue (Aarray _) as mv -> 
+            let vs = u8_blast_var ~blast_arrays:true mv in
+            List.for_all (function 
+                | Mvalue at -> AbsDom.check_init st.abs at
+                | _ -> assert false (* initialization of other arguments
+                                       should already have been checked
+                                       by the analyzer. *)
+              ) vs
+          | _ -> true
+        ) f_decl.f_args in
+
+    cells_init && no_memory_access f_decl
+
+
+  (* -------------------------------------------------------------------- *)
   let num_instr_evaluated = ref 0
 
   let print_ginstr ginstr abs () =
@@ -5912,18 +6033,35 @@ end = struct
 
     (* st_in_abs must over-approximate st_in.abs. *)
     let log_output, st_in_abs, st_out = 
-      match Aparam.abs_call_strategy with
-      | CallDirectAll -> false, st_in.abs, aeval_body f_decl.f_body st_in
+      match aeval_call_strategy callsite f_decl st_in with 
+      | Call_Direct -> aeval_call_direct st_in f_decl
 
-      | CallWideningAll -> 
+      | Call_WideningByCallSite -> 
         let accelerate it_abs_in st_in =
           AbsDom.widening None it_abs_in (AbsDom.join it_abs_in st_in.abs) in
         let strengthen st_in = st_in in
         aeval_call_f_abstraction itk f_decl strengthen accelerate st_in
 
-      | CallTopAll ->
+      (* The function must not use memory loads/stores, and arrays in arguments
+         must be fully initialized (i.e. cells must be initialized). *)
+      | Call_TopByCallSite ->
         let accelerate _ _ = assert false in (* cannot happen *)
-        let strengthen st_in = st_in in
+
+        (* Precond: [check_valid_call_top st_in] must hold. *)
+        let strengthen st_in = 
+          (* Set the abstract state to top, and all arguments of [f_decl]
+             are assumed initialized (including array cells). *)
+          let mvars = List.map mvar_of_var f_decl.f_args
+                      |> u8_blast_vars ~blast_arrays:true in
+          let abs = AbsDom.top_ni st_in.abs in
+          let abs = List.fold_left (fun abs mv -> match mv with
+              | Mvalue at -> AbsDom.is_init abs at
+              | _ -> assert false
+            ) abs mvars in
+
+          { st_in with abs = abs } 
+        in
+
         aeval_call_f_abstraction itk f_decl strengthen accelerate st_in
     in
 
@@ -5943,6 +6081,9 @@ end = struct
     debug (fun () -> Format.eprintf "Evaluating the body ...@.@.");
     aeval_gstmt f_body state
 
+  and aeval_call_direct st_in f_decl =
+    false, st_in.abs, aeval_body f_decl.f_body st_in
+
   (* [strengthen] is used on the first call.
      [accelerate] is used on subsequent calls  *)
   and aeval_call_f_abstraction itk f_decl strengthen accelerate st_in =
@@ -5950,10 +6091,13 @@ end = struct
     if ItMap.mem itk st_in.it 
     then 
       let it_entry = ItMap.find itk st_in.it in
-      if AbsDom.is_included st_in.abs it_entry.it_in then
+      if AbsDom.is_included st_in.abs it_entry.it_in then begin
+        debug (fun () -> 
+            Format.eprintf "Reusing previous analysis of the body ...@.@.");
         false, it_entry.it_in, { st_in with
                                  abs = it_entry.it_out;
-                                 s_effects = it_entry.it_s_effects; }
+                                 s_effects = it_entry.it_s_effects; } 
+      end
 
       (* We accelerate convergence *)
       else
@@ -5977,6 +6121,21 @@ end = struct
               (AbsDom.print ~full:true) state.abs) in
       state
 
+  (* Select the call strategy for [f_decl] in [st_in] *)
+  and aeval_call_strategy callsite f_decl st_in =
+    let strat = match Aparam.abs_call_strategy with
+    | CallDirectAll -> Call_Direct
+    | CallWideningAll -> Call_WideningByCallSite
+    | CallTopHeuristic ->
+      if check_valid_call_top st_in f_decl
+      then Call_TopByCallSite 
+      else Call_Direct in
+
+    debug(fun () -> Format.eprintf "Call strategy for %s at %a: %a@." 
+             f_decl.f_name.fn_name
+             L.pp_sloc callsite
+             pp_call_strategy strat);
+    strat
 
   (*------------------------------------------------------------------------*)
   (* Procedure analysis *)
