@@ -134,7 +134,7 @@ Section REMOVE.
         ok ((Papp2 o e1.1 e2.1), LT_seq [:: e1.2; e2.2]) 
       | PappN op es =>
         Let vs := mapM (remove_glob_e ii env) es in
-        ok ((PappN op es), LT_seq (unzip2 vs))
+        ok ((PappN op (unzip1 vs)), LT_seq (unzip2 vs))
       | Pif t e e1 e2 =>
         Let e := remove_glob_e ii env e in
         Let e1 := remove_glob_e ii env e1 in
@@ -273,7 +273,7 @@ Section REMOVE.
             let: (env1, c1, ltc1) := envc1 in
             Let e := remove_glob_e ii env1 e in
             Let envc2 := remove_glob remove_glob_i env1 c2 in
-            let: (env2, c2, ltc2) := envc2 in                
+            let: (env2, c2, ltc2) := envc2 in
             ok ((Check2_r e.1 (env1, c1) (env2, c2, (ltc1, e.2, ltc2)))) in
           Let lr := loop2 check_c Loop.nb env in
           let: (Loop2_r e c1 c2 (env, (ltc, lte, ltc'))) := lr in
@@ -305,7 +305,7 @@ Section REMOVE.
       Let _ := mapM check_var f.(f_params) in
       Let _ := mapM check_var f.(f_res) in
       Let envc := remove_glob (remove_glob_i fn) env f.(f_body) in
-      let: (env1, c1, ltc) := envc in               
+      let: (env1, c1, ltc) := envc in
       ok
         (fn, {| f_iinfo := f.(f_iinfo);
                 f_tyin  := f.(f_tyin);
@@ -315,16 +315,12 @@ Section REMOVE.
                 f_res   := f.(f_res); |}, ltc).
   End GD.
 
-  Definition fns gd p :=  Let rs := (mapM (remove_glob_fundef gd) (p_funcs p)) in ok (unzip1 rs).
-
-  Check fns.
-
   Definition remove_glob_prog (p:prog) : cfexec (prog * leak_f_tr) :=
     Let gd := extend_glob_prog p in
       if uniq (map fst gd) then
       Let fs := mapM (remove_glob_fundef gd) (p_funcs p) in
       let fnfds := unzip1 fs in
-      let rfns := unzip1 fnfds in       
+      let rfns := unzip1 fnfds in
       let rfds := unzip2 fnfds in
       let lts := unzip2 fs in
       let Fs := zip rfns lts in

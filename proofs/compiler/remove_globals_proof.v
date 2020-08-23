@@ -337,11 +337,7 @@ Module RGP. Section PROOFS.
   Hypothesis uniq_gd : uniq (map fst gd).
   Notation P' := {|p_globs := gd; p_funcs := fds |}.
 
-  (*Hypothesis (p'_def : P' = Let rs := (remove_glob_prog is_glob _ P) in rs.1).*)
-
-  Definition r := (remove_glob_prog is_glob fresh_id P).
-
-  Hypothesis (Fs_def : Fs = Let rs := (remove_glob_prog is_glob fresh_id P) in rs.2).
+  Hypothesis remove_glob_prog_ok : remove_glob_prog is_glob fresh_id P = ok (P', Fs).
 
   Definition valid (m:venv) (s1 s2:estate) :=
     [/\ s1.(emem) = s2.(emem),
@@ -356,45 +352,85 @@ Module RGP. Section PROOFS.
     Context (m: venv) (ii: instr_info) (s1 s2: estate) (hvalid: valid m s1 s2).
 
     Let Pe e : Prop :=
-      ∀ e' v,
-        remove_glob_e is_glob ii m e = ok e' →
-        sem_pexpr gd s1 e = ok v →
-        sem_pexpr gd s2 e' = ok v.
+      ∀ e' v le lte,
+        remove_glob_e is_glob ii m e = ok (e', lte) →
+        sem_pexpr gd s1 e = ok (v, le) →
+        exists v', sem_pexpr gd s2 e' = ok (v', (leak_E lte le)) /\
+                   value_uincl v v'.
 
     Let Pes es : Prop :=
       ∀ es' vs,
         mapM (remove_glob_e is_glob ii m) es = ok es' →
         sem_pexprs gd s1 es = ok vs →
-        sem_pexprs gd s2 es' = ok vs.
+        exists vs', sem_pexprs gd s2 (unzip1 es') = ok vs' /\
+        List.Forall2 value_uincl (unzip1 vs) (unzip1 vs') /\
+        LSub (unzip2 vs') = leak_E (LT_seq (unzip2 es')) (LSub (unzip2 vs)).
 
     Lemma remove_glob_e_esP : (∀ e, Pe e) ∧ (∀ es, Pes es).
     Proof.
       case: hvalid => hmem hm1 hm2 hm3.
       apply: pexprs_ind_pair; subst Pe Pes; split => //=.
-      - by move => _ _ [<-] [<-].
-      - move => e he es hes q qs; t_xrbindP => e' ok_e' es' ok_es' <- {q} v ok_v vs ok_vs <- {qs} /=.
-        by rewrite (he _ _ ok_e' ok_v) (hes _ _ ok_es' ok_vs).
-      - by move => z _ _ [<-] [<-].
-      - by move => b _ _ [<-] [<-].
-      - by move => n _ _ [<-] [<-].
-      - move => x e' v; case: ifP => hx.
-        + case heq: (Mvar.get _ _) => [ g | // ] [<-].
-          by move => /(hm3 _ _ _ heq); apply.
-        by case => <- h; rewrite /= -hm1 // hx.
-      - by move => g _ v [<-].
-      - move => ws x e he q v; case: ifPn => // hx; t_xrbindP => e' ok_e' <- {q}.
-        rewrite /= /on_arr_var (hm1 _ hx); t_xrbindP => -[] //= ?? -> /=.
-        by t_xrbindP => ?? /he /= -> //= -> ? /= -> <-.
-      - move => ??? ih ??; case: ifPn => // hn.
-        t_xrbindP => ? /ih h <- /= ??; rewrite (hm1 _ hn) => -> /= -> ?? /h -> /= -> ? /=.
-        by rewrite hmem => -> <-.
-      - by move=> ?? hrec ??; t_xrbindP => ? /hrec h <- /= ? /h -> /=.
-      - by move=> ?? hrec1 ? hrec2 ??; t_xrbindP=> ? /hrec1 h1 ? /hrec2 h2 <- ? /= /h1 -> ? /h2 ->.
-      - move => ?? ih ??; t_xrbindP => ? /ih{ih} ih <- ? /ih /=.
-        by rewrite -/(sem_pexprs _ _) => ->.
-      move=> ? ? hrec1 ? hrec2 ? hrec3 ??.
-      by t_xrbindP => ? /hrec1 h1 ? /hrec2 h2 ? /hrec3 h3 <- ?? /= /h1 -> /= -> ?? /h2 -> /= -> ?? /h3 -> /= -> <-.
-    Qed.
+      (* Base case *)
+      - move=> es' vs' [] <- [] <- /=. exists [::]. split => //=.
+      (* Inductive case *)
+      - move=> e rec es recs. t_xrbindP. move=> es' vs' [ve lte] Hr vs'' Hes <- [ve' le'] He ves'' Hes' <- /=.
+        move: (rec ve ve' le' lte Hr He). move=> [] ve'' [] -> Hv /=.
+        move: (recs vs'' ves'' Hes Hes'). move=> [] vs''' [] -> /= [] Hvs Hls.
+        exists ((ve'', leak_E lte le') :: vs'''). split=> //=. split. constructor.
+        auto. auto. by case: Hls=> ->.
+      (* Pconst *)
+      - move=> z e v le lte [] <- <- [] <- <- /=. by exists z.
+      (* Pbool *)
+      - move=> b e v le lte [] <- <- [] <- <- /=. by exists b.
+      (* Parr_init *)
+      - move=> n e v le lte [] <- <- [] <- <- /=. by exists (Varr (WArray.empty n)).
+      (* Pget *)
+      - move=> x e' v le lte. case: ifP => hx. case heq:(Mvar.get m x)=>[ g | // ] [<-].
+        + move=> <- /=. t_xrbindP. move=> vg hg <- <-. exists vg. split => //.
+          move: (hm3 x g vg heq hg). by move=> -> /=.
+        case => <- <-. t_xrbindP. rewrite /= -hm1 //. move=> vg -> <- <- /=. 
+        by exists vg. rewrite /is_true /= hx. auto.
+      - move=> g e' v le lte [] <- <- /=. t_xrbindP. move=> vg -> <- <- /=.            
+        by exists vg.
+      (* Pload *)            
+      - move=> sz x e he q v; case: ifPn => // hx; t_xrbindP;
+        move=> le lte [ve' lte'] he' <- <- /=. rewrite /= /on_arr_var.
+        t_xrbindP. move=> [] /= vg //= a hg. t_xrbindP. move=> [ve1 lte1] he1.
+        move=> z hi ws ha <- <- /=. move: (hm1 x hx). move=> <- /=. rewrite hg /=.
+        move: (he ve' ve1 lte1 lte' he' he1). move=> [] ve2 [] -> hv /=.
+        move: value_uincl_int. move=> hie. move: (hie ve1 ve2 z hv hi). move=> [] hieq ->.
+        rewrite hieq in hi. rewrite hi /=. rewrite ha /=. by exists (Vword ws).
+        move=> sz x e he q v. case: ifPn => // hx. t_xrbindP. move=> le lte [ve' lte'] hre <- <-.
+        move=> hp ve'' hg hp' [ve1 lte1] he1 vp /value_uincl_word hp'' ws hr <- <- /=. move: (he ve' ve1 lte1 lte' hre he1).
+        move=> [] ve2 [] -> hv. move: (hm1 x hx). move=> <- /=. rewrite hg /=. rewrite hp' /=.
+        move: (hp'' ve2 hv). move=> -> /=. rewrite -hmem /=. rewrite hr /=. by exists (Vword ws).
+      (* Pop1 *)
+      - move=> op1 e he. t_xrbindP. move=> h h0 le lte [ve lte'] hre <- <- [ve1 lte1] he' vo ho <- <- /=.
+        move: (he ve ve1 lte1 lte' hre he'). move=> [] ve2 [] -> hv /=. move: vuincl_sem_sop1.
+        move=> ho'. move: (ho' op1 ve1 ve2 vo hv ho). move=> -> /=. by exists vo.
+      (* Pop2 *)
+      - move=> op2 e1 he1 e2 he2. t_xrbindP. move=> h h0 le1 lte1 [ve1 lte1'] hr1 [ve2 lte2] hr2 <- <-.
+        move=> [vee1 ltee1] hee1 [vee2 ltee2] hee2 vo hop <- <- /=. move: (he1 ve1 vee1 ltee1 lte1' hr1 hee1).
+        move=> [] ve1' [] -> hv1 /=. move: (he2 ve2 vee2 ltee2 lte2 hr2 hee2). move=> [] ve2' [] -> hv' /=.
+        move: vuincl_sem_sop2. move=> ho'. move: (ho' op2 vee1 ve1' vee2 ve2' vo hv1 hv' hop). move=> -> /=.
+        by exists vo.
+      (* PopN *)
+      - move=> opN es hes e ve lte lte'. t_xrbindP. move=> ves hm <- <- ves' hm' vo ho <- <- /=. 
+        rewrite /sem_pexprs in hes. move: (hes ves ves' hm hm'). move=> [] ves'' [] -> [] hv hl /=.
+        move: vuincl_sem_opN. move=> ho'. move: (ho' opN (unzip1 ves') vo (unzip1 ves'') ho hv).
+        move=> [] vo' -> hv' /=. exists vo'. by rewrite -hl.
+      (* Pif *)
+      - move=> ty e he e1 he1 e2 he2. t_xrbindP. move=> e' ve le lte [ve' le'] hre [ve1 le1] hre1 [ve2 le2] hre2 <- <- /=.
+        move=> [v1 l1] hee b hb [v1' l1'] hee1 [v1'' l1''] hee2 vt ht vt' ht' <- <-.
+        move: (he ve' v1 l1 le' hre hee). move=> [] ve'' [] -> hv /=. move: value_uincl_bool.
+        move=> hb'. move: (hb' v1 ve'' b hv hb). move=> [] <- -> {hb'}. rewrite hb /=.
+        move: (he1 ve1 v1' l1' le1 hre1 hee1). move=> [] ve''' [] -> hv' /=.
+        move: (he2 ve2 v1'' l1'' le2 hre2 hee2). move=> [] ve'''' [] -> hv'' /=.
+        move: truncate_value_uincl. move=> htt. move: (htt ty v1' ve''' vt hv' ht).
+        move=> [] vt'' -> hvt /= {htt}. move: truncate_value_uincl. move=> htt.
+        move: (htt ty v1'' ve'''' vt' hv'' ht'). move=> {htt} [] vt''' -> hvt' /=.
+        case: (b). by exists vt''. by exists vt'''.
+     Qed.
 
   End REMOVE_GLOB_E.
 
