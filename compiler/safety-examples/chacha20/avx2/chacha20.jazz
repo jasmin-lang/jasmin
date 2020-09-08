@@ -925,10 +925,10 @@ fn rounds_x8(reg u256[16] k, stack u256 s_r16 s_r8) -> reg u256[16]
 
   c = 10;
   align while {
+	  c -= 1;
     k, k14 = column_round_x8(k, k15, s_r16, s_r8);
     k, k15 = diagonal_round_x8(k, k14, s_r16, s_r8);
-    (_,_,_,zf,c) = #DEC(c);
-  } (!zf)
+  } (c > 0)
 
   //c += 1;
   //}
@@ -976,7 +976,7 @@ fn chacha20_less_than_257(reg u64 output plain, reg u32 len, reg u64 key nonce, 
 
   st = init_x2(key, nonce, counter); 
 
-  if(len > 128)
+ if(len > 128)
   {
     k1, k2 = copy_state_x4(st);
     k1, k2 = rounds_x4(k1, k2);
@@ -986,7 +986,7 @@ fn chacha20_less_than_257(reg u64 output plain, reg u32 len, reg u64 key nonce, 
                              store_x2_last(output, plain, len, k2);
   }
   else
-  {
+  { 
     k1 = copy_state_x2(st);
     k1 = rounds_x2(k1);
     k1 = sum_states_x2(k1, st);

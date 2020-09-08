@@ -83,7 +83,13 @@ module Aparam = struct
      then this should always terminates. *)
   let widening_out = false
 
-  (* More thresholds for the widening. *)
+  (* Zero thresholds for the widening. *)
+  let zero_threshold = true
+
+  (* Thresholds from the analysis parameters for the widening. *)
+  let param_threshold = true
+
+    (* More thresholds for the widening. *)
   let more_threshold = false
 
   (* Dependency graph includes flow dependencies *)
@@ -91,6 +97,11 @@ module Aparam = struct
 
   (* Add disjunction with if statement when possible *)
   let if_disj = true
+
+  (* Handle top-level conditional move and if expressions as if statements.
+     Combinatorial explosion if there are many movecc and if expressions in the
+     same block. *)
+  let pif_movecc_as_if = true
 
   (* Pre-analysis looks for the variable corresponding to return boolean 
      flags appearing in while loop condition (adding them to the set of 
@@ -113,12 +124,20 @@ module Aparam = struct
   (* Turn on printing of unconstrained variables *)
   let ignore_unconstrained = true (* default: true *)
 
+  type init_print = IP_None | IP_NoArray | IP_All
   (* Turn on printing of not initialized variables 
      (i.e. it is not certain that the variable is initialized). *)
-  let is_init_no_print = true   (* defaul: true *)
+  let is_init_no_print = IP_None   (* defaul: IP_None *)
 
   (* Turn on printing of boolean variables *)
   let bool_no_print = true   (* defaul: true *)
+
+
+  (****************)
+  (* Miscelaneous *)
+  (****************)
+  (* Should the function name be appended to the variable name. *)
+  let var_append_fun_name = false
 end
 
 (* Turn on printing of only the relational part *)
@@ -150,16 +169,23 @@ end = struct
       f_ret = List.map (mk_v_loc f_decl.f_name.fn_name) f_decl.f_ret }
 
   and mk_v fn v =
-    if Hashtbl.mem htv (v.v_name, fn) then
-      Hashtbl.find htv (v.v_name, fn)
-    else if Hashtbl.mem ht_uniq v.v_name then
-      let nv = V.mk (v.v_name ^ "#" ^ fn) v.v_kind v.v_ty v.v_dloc in
-      let () = Hashtbl.add htv (v.v_name, fn) nv in
-      nv
-    else
-      let () = Hashtbl.add ht_uniq v.v_name () in
-      let () = Hashtbl.add htv (v.v_name, fn) v in
-      v
+    let short_name v = v.v_name ^ "." ^ (string_of_int (int_of_uid v.v_id)) in
+    let long_name v =
+      if Aparam.var_append_fun_name 
+      then (short_name v) ^ "#" ^ fn
+      else short_name v
+    in
+
+      if Hashtbl.mem htv (short_name v, fn) then
+        Hashtbl.find htv (short_name v, fn)
+      else if Hashtbl.mem ht_uniq v.v_name then
+        let nv = V.mk (long_name v) v.v_kind v.v_ty v.v_dloc in
+        let () = Hashtbl.add htv (short_name v, fn) nv in
+        nv
+      else
+        let () = Hashtbl.add ht_uniq v.v_name () in
+        let () = Hashtbl.add htv (short_name v, fn) v in
+        v
 
   and mk_v_loc fn v = L.mk_loc (L.loc v) (mk_v fn (L.unloc v))
 
@@ -300,13 +326,27 @@ type mvar =
   | MNumInv of L.t              (* Numerical Invariants *)
   | MmemRange of mem_loc        (* Memory location range *)
 
-let weak_update v = match v with
-  | Mvalue _
-  | MinValue _
-  | Mglobal _
+(* Must the variable [v] be handled as a weak variable. *)
+let weak_update v = 
+  let weak_update_kind = function
+    | Const -> assert false     (* should not happen *)
+    | Stack 
+    | Reg  
+    | Inline
+    | Global -> false in
+
+  match v with
+  | Mglobal _ -> false (* global variable are read-only. *)
   | Temp _
-  | MNumInv _
-  | MvarOffset _ -> false
+  | MNumInv _ -> false
+
+  | Mvalue at -> begin match at with
+      | Avar gv | Aarray gv | AarrayEl (gv,_,_) -> weak_update_kind gv.v_kind
+    end
+
+  | MinValue gv
+  | MvarOffset gv ->  weak_update_kind gv.v_kind 
+
   | MmemRange _ -> true
   | WTemp _ -> true
 
@@ -371,7 +411,24 @@ let ty_mvar = function
   | MNumInv _ -> Bty Int
   | MmemRange _ -> Bty Int
 
-let avar_of_mvar a = string_of_mvar a |> Var.of_string
+(* We log the result to be able to inverse it. *)
+let log_var = Hashtbl.create 16
+    
+let avar_of_mvar a =
+  let s = string_of_mvar a in
+  if not(Hashtbl.mem log_var s) then
+    Hashtbl.add log_var s a;
+  Var.of_string s
+
+let mvar_of_svar s =
+  try Hashtbl.find log_var s with
+  | Not_found ->
+    Format.eprintf "mvar_of_svar: unknown variable %s@." s;
+    assert false
+
+let mvar_of_avar v =
+  let s = Var.to_string v in
+  mvar_of_svar s
 
 (* Blasts array elements and arrays. *)
 let u8_blast_at ~blast_arrays at = match at with
@@ -856,23 +913,12 @@ end = struct
   type t = { mexpr : mexpr;
              env : apr_env } 
 
-  (* Return sum_{j = 0}^{len - 1} (2^8)^(len - 1 - j) * (U8)v[offset + j] *)
-  let rec build_term_array v offset len =
-    let tv =
-      Texpr1.Var (avar_of_mvar (Mvalue (AarrayEl (v,U8,offset + len - 1)))) in
-    let ptwo = Texpr1.Cst (Coeff.s_of_mpqf (mpq_pow (8 * (len - 1)))) in
-    let t = Texpr1.Binop (Texpr1.Mul, ptwo, tv, Texpr1.Int, Aparam.round_typ) in
-    if len = 1 then tv
-    else Texpr1.Binop (Texpr1.Add,
-                       t,
-                       build_term_array v offset (len - 1),
-                       Texpr1.Int, Aparam.round_typ)
-
   let rec e_aux = function
     | Mcst c -> Texpr1.Cst c
     | Mvar mvar -> begin match mvar with
-        | Mvalue (AarrayEl (v,ws,i)) ->
-          build_term_array v (((int_of_ws ws) / 8) * i) ((int_of_ws ws) / 8)
+        | Mvalue (AarrayEl (_,ws,_)) ->
+          assert (ws = U8);
+          Texpr1.Var (avar_of_mvar mvar)
         | _ -> Texpr1.Var (avar_of_mvar mvar) end
     | Munop (op1, a, t, r) -> Texpr1.Unop (op1, e_aux a, t, r)
     | Mbinop (op2, a, b, t, r) -> Texpr1.Binop (op2, e_aux a, e_aux b, t, r)
@@ -883,9 +929,26 @@ end = struct
 
   let print_mexpr ppf t = e_aux t |> Texpr1.print_expr ppf
 
+  (* Return sum_{j = 0}^{len - 1} (2^8)^(len - 1 - j) * (U8)v[offset + j] *)
+  let rec build_term_array v offset len =
+    let tv =
+      Mvar (Mvalue (AarrayEl (v,U8,offset + len - 1))) in
+    let ptwo = Mcst (Coeff.s_of_mpqf (mpq_pow (8 * (len - 1)))) in
+    let t = Mbinop (Texpr1.Mul, ptwo, tv, Texpr1.Int, Aparam.round_typ) in
+    if len = 1 then tv
+    else Mbinop (Texpr1.Add,
+                 t,
+                 build_term_array v offset (len - 1),
+                 Texpr1.Int, Aparam.round_typ)
+
   let cst env c = { mexpr = Mcst c; env = env }
 
-  let var env v = { mexpr = Mvar v; env = env }
+  let var env v = 
+    let mexpr = match v with
+      | Mvalue (AarrayEl (v,ws,i)) ->
+        build_term_array v (((int_of_ws ws) / 8) * i) ((int_of_ws ws) / 8)
+      | _ -> Mvar v in
+    { mexpr = mexpr; env = env }
 
   let unop op1 a = { a with
                      mexpr = Munop (op1, a.mexpr, Texpr1.Int, Aparam.round_typ) }
@@ -1076,16 +1139,25 @@ let cst_pow_minus apr_env n y =
   |> cst_of_mpqf apr_env
 
 
+
+(***********************)
+(* Analyzer parameters *)
+(***********************)
+
+type analyzer_param = { relationals : string list option;
+                        pointers : string list option }
+
+
 (**********************)
 (* Generic Thresholds *)
 (**********************)
 
 let int_thresholds =
   (* For unsigned *)
-  List.map (fun i -> mpq_pow_minus i 1) [8;16;32;128;256]
+  List.map (fun i -> mpq_pow_minus i 1) [8;16;32;64;128;256]
   (* (\* For signed *\)
-   * @ List.map (fun i -> mpq_pow_minus i 1) [7;15;31;127;255]
-   * @ List.map (fun i -> mpq_pow_minus i 0) [7;15;31;127;255] *)
+   * @ List.map (fun i -> mpq_pow_minus i 1) [7;15;31;63;127;255]
+   * @ List.map (fun i -> mpq_pow_minus i 0) [7;15;31;63;127;255] *)
 
 let neg i = Mpqf.neg i
 
@@ -1097,7 +1169,7 @@ let lcons env v i vneg iminus =
   let () = Linexpr1.set_list e [cv,v] (Some ci) in
   e
 
-(* Makes the bounds 'v >= 0' and 'v <= 2^N-1' for 'N' in {8;16;32;128;256} *)
+(* Makes the bounds 'v >= 0' and 'v <= 2^N-1' for 'N' in {8;16;32;64;128;256} *)
 let thresholds_uint env v =
   let acc = 
     [Lincons1.make (lcons env v (Mpqf.of_int 0) false true) Lincons0.SUPEQ] in
@@ -1106,6 +1178,18 @@ let thresholds_uint env v =
       Lincons1.make (lc true false) Lincons0.SUPEQ :: acc
     ) acc int_thresholds
 
+(* FIXME: rename *)
+let thresholds_zero env =
+  let vars = Environment.vars env
+             |> fst
+             |> Array.to_list in
+    List.fold_left (fun thrs v -> thresholds_uint env v @ thrs
+    ) [] vars
+
+  (* List.map (fun v ->
+   *     Lincons1.make (lcons env v (Mpqf.of_int 0) false true) Lincons0.SUPEQ
+   *   ) vars *)
+    
 let thresholds_vars env =
   let vars = Environment.vars env
              |> fst
@@ -1121,15 +1205,172 @@ let thresholds_vars env =
           :: acc) acc int_thresholds)
     [] vars
 
-(*******************)
-(* Abstract Values *)
-(*******************)
+
+let thresholds_param env param =
+  let param_pts  = Utils.odfl [] param.pointers
+  and param_rels = Utils.odfl [] param.relationals  in
+
+  let vars = fst (Environment.vars env)
+             |> Array.to_list in
+  
+  let param_rels = List.filter_map (fun v -> match mvar_of_avar v with
+      | MinValue gv ->
+        if List.mem gv.v_name param_rels then Some v else None
+      | _ -> None) vars in
+  
+  let thrs_v v =
+    List.map (fun inv ->
+        let e = Linexpr1.make env in
+        let cv, cinv = Coeff.s_of_int (-1), Coeff.s_of_int 1 in
+        let c0 = Coeff.s_of_int 0 in
+        let () = Linexpr1.set_list e [(cv,v);(cinv,inv)] (Some c0) in
+        Lincons1.make e Lincons0.SUPEQ
+      ) param_rels in
+                
+  List.fold_left (fun thrs v ->
+      match mvar_of_avar v with
+      | MmemRange (MemLoc gv) ->
+        if List.mem gv.v_name param_pts
+        then thrs_v v @ thrs
+        else thrs
+      | _ -> thrs
+    ) [] vars
+
+
+(************************************)
+(* Numerical Domain Pretty Printing *)
+(************************************)
 
 module type AprManager = sig
   type t
 
   val man : t Apron.Manager.t
 end
+
+module PP (Man : AprManager) : sig
+  val pp : Format.formatter -> Man.t Apron.Abstract1.t -> unit
+end = struct
+  let coeff_eq_1 (c: Coeff.t) = match c with
+    | Coeff.Scalar s when Scalar.cmp_int s 1 = 0 -> true
+    | Coeff.Interval i when
+        Scalar.cmp_int i.Interval.inf 1 = 0 &&
+        Scalar.cmp_int i.Interval.sup 1 = 0 -> true
+    | _ -> false
+
+  let coeff_eq_0 (c: Coeff.t) = match c with
+    | Coeff.Scalar s -> Scalar.cmp_int s 0 = 0
+    | Coeff.Interval i ->
+      Scalar.cmp_int i.Interval.inf 0 = 0
+      && Scalar.cmp_int i.Interval.sup 0 = 0
+
+  let coeff_cmp_0 (c: Coeff.t) = match c with
+    | Coeff.Scalar s -> Some (Scalar.cmp_int s 0)
+    | Coeff.Interval i ->
+      if Scalar.cmp_int i.Interval.inf 0 > 0 then Some 1
+      else if Scalar.cmp_int i.Interval.sup 0 < 0 then Some (-1)
+      else None
+
+  let pp_coef_var_list fmt l =
+    match l with
+    | [] -> Format.fprintf fmt "0"
+    | _ -> Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt " + ")
+             (fun fmt (c, v) ->
+                if coeff_eq_1 c then
+                  Format.fprintf fmt "%s" (Var.to_string v)
+                else
+                  Format.fprintf fmt "%a·%s" Coeff.print c (Var.to_string v)) fmt l
+
+  let pp_typ fmt (x, b) = match x, b with
+    | Lincons1.DISEQ, _ -> Format.fprintf fmt "!="
+    | Lincons1.EQ, _ -> Format.fprintf fmt "="
+    | Lincons1.SUP, false -> Format.fprintf fmt ">"
+    | Lincons1.SUP, true -> Format.fprintf fmt "<"
+    | Lincons1.SUPEQ, false -> Format.fprintf fmt "≥"
+    | Lincons1.SUPEQ, true -> Format.fprintf fmt "≤"
+    | Lincons1.EQMOD _, _ -> assert false
+
+  let neg_list l =
+    List.map (fun (c, v) -> Coeff.neg c, v) l
+
+  let linexpr_to_list_pair env (x: Linexpr1.t) =
+    let envi, _ = Environment.vars env in
+    Array.fold_left (fun (pos, neg) var ->
+        let c = Linexpr1.get_coeff x var in
+        if coeff_eq_0 c then (pos, neg)
+        else match coeff_cmp_0 c with
+          | None -> (c, var) :: pos, neg
+          | Some x when x > 0 -> (c, var) :: pos, neg
+          | Some _ -> pos, (c, var)::neg
+      ) ([], []) envi
+
+  let pp_lincons fmt lc =
+    let cst = Lincons1.get_cst lc in
+    let typ = Lincons1.get_typ lc in
+    let pos, neg =
+      linexpr_to_list_pair (Lincons1.get_env lc) (Lincons1.get_linexpr1 lc) in
+    if coeff_eq_0 (cst) then
+      Format.fprintf fmt "%a %a %a"
+        pp_coef_var_list pos
+        pp_typ (typ, false)
+        pp_coef_var_list (neg_list neg)
+    else
+      match coeff_cmp_0 (cst) with
+      | Some x when x > 0 ->
+        if pos = [] then
+          Format.fprintf fmt "%a %a %a"
+            pp_coef_var_list (neg_list neg)
+            pp_typ (typ, true)
+            Coeff.print cst
+        else if neg = [] then
+          Format.fprintf fmt "%a %a %a"
+            pp_coef_var_list pos pp_typ
+            (typ, false)
+            Coeff.print (Coeff.neg cst)
+        else 
+          Format.fprintf fmt "%a %a %a + %a"
+            pp_coef_var_list (neg_list neg)
+            pp_typ (typ, true) pp_coef_var_list pos Coeff.print cst
+      | _ ->
+        if neg = [] then
+          Format.fprintf fmt "%a %a %a"
+            pp_coef_var_list pos pp_typ (typ, false)
+            Coeff.print (Coeff.neg cst)
+        else if pos = [] then
+          Format.fprintf fmt "%a %a %a" pp_coef_var_list (neg_list neg)
+            pp_typ (typ, true) Coeff.print (cst)
+        else 
+          Format.fprintf fmt "%a %a %a + %a" pp_coef_var_list pos
+            pp_typ (typ, false) pp_coef_var_list (neg_list neg)
+            Coeff.print (Coeff.neg cst)
+
+  let pp_lincons_earray fmt ea =
+    let rec read n =
+      if n < 0 then []
+      else
+        let x = Lincons1.array_get ea n in
+        x :: (read (n-1))
+    in
+    let l = read (Lincons1.array_length ea -1) in
+    match l with
+    | [] -> Format.fprintf fmt "⊤"
+    | _ -> 
+      Format.fprintf fmt "{%a}"
+        (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ")
+                                   pp_lincons) l
+
+
+  let pp fmt x =
+    let man = Man.man in
+    if Abstract1.is_bottom man x then
+      Format.fprintf fmt "⊥"
+    else
+      let ea = Abstract1.to_lincons_array man x in
+      pp_lincons_earray fmt ea
+end
+
+(*******************)
+(* Abstract Values *)
+(*******************)
 
 module BoxManager : AprManager with type t = Box.t = struct
   type t = Box.t
@@ -1204,7 +1445,13 @@ module type AbsNumType = sig
 end
 
 
-module AbsNumI (Manager : AprManager) : AbsNumType = struct
+module type ProgWrap = sig
+  val main : unit Prog.func
+  val prog : unit Prog.prog
+  val param : analyzer_param
+end
+
+module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
 
   type t = Manager.t Abstract1.t
   let man = Manager.man
@@ -1250,7 +1497,11 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
     let a_list = lce_list a_list in
     Abstract1.join_array man (Array.of_list a_list)
 
-
+  let earray_to_list ea = 
+    List.init
+      (Lincons1.array_length ea)
+      (fun i -> Lincons1.array_get ea i)
+    
   let to_earray env l =
     let arr = Lincons1.array_make env (List.length l) in
     let () = List.iteri (fun i c -> Lincons1.array_set arr i c) l in
@@ -1261,31 +1512,50 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
     | None -> []
     | Some lc -> [lc]
 
-  let widening oc a a' =
-    let a,a' = lce a a' in
-    let env = Abstract1.env a in
-    
-    let vars = 
-      omap_dfl (fun c -> 
-          Mtexpr.get_var_mexpr (Mtcons.get_expr c).mexpr
-        ) [] oc in
+  (* let enrich_widening a a' res =
+   *   let env = Abstract1.env a in
+   *   let ea = Abstract1.to_lincons_array man a
+   *            |> earray_to_list in
+   *   let to_add = List.filter (fun lin -> Abstract1.sat_lincons man a' lin) ea
+   *                |> to_earray env in
+   *   Abstract1.meet_lincons_array man res to_add *)
+
+  let compute_thresholds env oc =
+    let vars = omap_dfl (fun c -> 
+        Mtexpr.get_var_mexpr (Mtcons.get_expr c).mexpr
+      ) [] oc in
     let thrs_vars = 
       List.map (fun v -> thresholds_uint env (avar_of_mvar v)) vars 
       |> List.flatten in
     let thrs_oc = thrs_of_oc oc env in
-    let thrs = 
-      if Aparam.more_threshold 
-      then thresholds_vars env @ thrs_oc @ thrs_vars
-      else thrs_oc @ thrs_vars in
-    
+    let thrs = thrs_oc @ thrs_vars in
+    let thrs =
+      if Aparam.more_threshold then thresholds_vars env @ thrs else thrs in
+    let thrs =
+      if Aparam.zero_threshold then thresholds_zero env @ thrs else thrs in
+    let thrs =
+      if Aparam.param_threshold
+      then thresholds_param env PW.param @ thrs
+      else thrs in
+
     if is_relational () then
       debug(fun () -> Format.eprintf "@[<v 2>threshold(s):@; %a@."
                (pp_list Lincons1.print) thrs);
+    thrs
 
+  let widening oc a a' =
+    let a,a' = lce a a' in
+    let env = Abstract1.env a in
+    
+    let thrs = compute_thresholds env oc in
+    
     (* Be careful to join a and a' before calling widening. Some abstract domain,
        e.g. Polka, seem to assume that a is included in a'
        (and may segfault otherwise!). *)
-  Abstract1.widening_threshold man a a' (thrs |> to_earray env)
+    let res = Abstract1.widening_threshold man a a' (thrs |> to_earray env) in
+    (* if Aparam.enrich_widening
+     * then enrich_widening a a' res
+     * else  *)res
 
   let forget_list a l =
     let l = u8_blast_vars ~blast_arrays:true l in
@@ -1306,16 +1576,50 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
   let top_man man a = Abstract1.top man (Abstract1.env a)
   let top = top_man man
 
-  (* v and v_list should not contain Mvalue (AarrayEl) elements *)
+  let check_u8 vs =
+    assert (List.for_all (function
+        | Mvalue (AarrayEl (_,ws,_)) -> ws = U8
+        | _ -> true) vs)
+      
+  (* v and v_list should not contain Mvalue (AarrayEl) elements
+     of size different than U8. *)
   let expand_man man a v v_list =
+    check_u8 (v :: v_list);
     let v_array = Array.of_list (List.map avar_of_mvar v_list) in
     Abstract1.expand man a (avar_of_mvar v) v_array
 
-  (* v and v_list should not contain Mvalue (AarrayEl) elements *)
+  (* v_list should not contain Mvalue (AarrayEl) elements
+     of size different than U8. *)
   let fold_man man a v_list =
-    let v_array = Array.of_list (List.map avar_of_mvar v_list) in
-    Abstract1.fold man a v_array
+    check_u8 (v_list);
+    (* PPL implementation of the fold operation is bugged. *)   
+    (* let v_array = Array.of_list (List.map avar_of_mvar v_list) in 
+     * Abstract1.fold man a v_array *)
 
+    (* We do it instead using assignments and joins. *)
+    let v, vs = match List.map avar_of_mvar v_list with
+      | v :: vs -> v, vs
+      | [] -> raise (Failure "fold_man: empty list") in
+    let env = Abstract1.env a in
+    
+    let ass = List.map (fun v' ->
+        let ev' = Texpr1.of_expr env (Texpr1.Var v') in
+        Abstract1.assign_texpr man a v ev' None) vs in
+    let arr = Array.of_list (a :: ass) in
+    let a = Abstract1.join_array man arr in
+
+    (* We remove the variables [vs]. *)
+    let vars = Environment.vars env
+               |> fst
+               |> Array.to_list in
+    let nvars = List.filter (fun x -> not (List.mem x vs)) vars
+                |> Array.of_list
+    and empty_var_array = Array.make 0 (Var.of_string "") in
+
+    let new_env = Environment.make nvars empty_var_array in
+    Abstract1.change_environment man a new_env false
+
+  
   let expand a v v_list = expand_man man a v v_list
 
   let fold a v_list = fold_man man a v_list
@@ -1468,17 +1772,22 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
 
     | _ -> assign_expr_aux force a v e
 
+  module PP = PP(Manager)
+      
   let print : ?full:bool -> Format.formatter -> t -> unit =
     fun ?full:(full=false) fmt a ->
       if full && (is_relational ()) then
-        Format.fprintf fmt "@[<v 0>@[%a@]@;@]" Abstract1.print a;
+        Format.fprintf fmt "@[<v 0>@[%a@]@;@]"
+          PP.pp a
+      (* Abstract1.print a *)
+      ;
 
       let (arr_vars, _) = Environment.vars (Abstract1.env a) in
       let vars = Array.to_list arr_vars in
 
       let pp_abs fmt v =
         let vi = Abstract1.bound_variable man a v in
-        Format.fprintf fmt "@[%s: %a@]"
+        Format.fprintf fmt "@[%s ∊ %a@]"
           (Var.to_string v)
           Interval.print vi in
 
@@ -1568,7 +1877,7 @@ module AbsNumI (Manager : AprManager) : AbsNumType = struct
           let map,mexpr = Mtexpr.weak_transf map e.mexpr in
 
           (* We prepare the expression *)
-          let env = prepare_env (Abstract1.env a) e.mexpr in
+          let env = prepare_env (Abstract1.env a) mexpr in
           let ae = Mtexpr.to_aexpr { Mtexpr.mexpr = mexpr;
                                      Mtexpr.env = env } in
           let c = Tcons1.make ae (Mtcons.get_typ c) in
@@ -1652,25 +1961,14 @@ let is_prefix u v =
     String.sub v 0 (String.length u) = u
   else false
 
-type analyzer_param = { relationals : string list option;
-                        pointers : string list option }
-
-module type ProgWrap = sig
-  val main : unit Prog.func
-  val prog : unit Prog.prog
-  val param : analyzer_param
-end
-
 module type VDomWrap = sig
   (* Associate a domain (ppl or non-relational) to every variable.
      An array element must have the same domain that its blasted component. *)
   val vdom : mvar -> v_dom
 end
 
-module DomNR : VDomWrap = struct
-  let vdom _ = Nrd 0
-end
 
+(*---------------------------------------------------------------*)
 (* Fix-point computation *)
 let rec fpt f eq x =
   let x' = f x in
@@ -2166,110 +2464,226 @@ let pp_cnstrs fmt =
     (pp_list ~sep:(fun fmt () -> Format.fprintf fmt ";@ ") pp_cnstr)
 
 module Ptree = struct
+  (* Trace partitionning, where:
+     - [constr] is a constraint, comprising a linear constraint and a 
+     program point.
+     - [n_true] and [n_false] are abstract states over-approximating traces 
+     that went through the constraint, and where it evaluated to, 
+     respectively, true and false.  
+     - [n_unknwn] over-approximates traces that did not go through the 
+     constraint. *)
+  type 'a node = { constr   : cnstr;
+                n_true   : 'a;
+                n_false  : 'a;
+                n_unknwn : 'a; }
+  
   type 'a t =
-    | Node of cnstr * 'a t * 'a t
+    | Node of 'a t node
     | Leaf of 'a
 
 
   let rec pp_ptree pp_leaf fmt = function
     | Leaf x -> pp_leaf fmt x
-    | Node (c,Leaf x,Leaf r) ->
+    | Node ({ n_true = Leaf nt;
+              n_false = Leaf nf;
+              n_unknwn = Leaf nu;} as node) ->
       Format.fprintf fmt "@[<v 0>@[<v 2># @[%a@] :@;\
                           @[%a@]@]@;\
-                          @[<v 2># :@;\
+                          @[<v 2># NOT @[%a@] :@;\
+                          @[%a@]@]@;\
+                          @[<v 2># UNKNOWN @[%a@] :@;\
                           @[%a@]@]@;@]"
-        pp_cnstr c
-        pp_leaf x
-        pp_leaf r
+        pp_cnstr node.constr
+        pp_leaf nt
+        pp_cnstr node.constr
+        pp_leaf nf
+        pp_cnstr node.constr
+        pp_leaf nu
 
-    | Node (c,l,r) ->
+    | Node node ->
       Format.fprintf fmt "@[<v 0>\
                           @[<v 2># @[%a@] :@;\
                           @[%a@]@]@;\
-                          @[<v 2># :@;\
+                          @[<v 2># NOT @[%a@] :@;\
+                          @[%a@]@]@;\
+                          @[<v 2># UNKNOWN @[%a@] :@;\
                           @[%a@]@]@;@]"
-        pp_cnstr c
-        (pp_ptree pp_leaf) l
-        (pp_ptree pp_leaf) r
+        pp_cnstr node.constr
+        (pp_ptree pp_leaf) node.n_true
+        pp_cnstr node.constr
+        (pp_ptree pp_leaf) node.n_false
+        pp_cnstr node.constr
+        (pp_ptree pp_leaf) node.n_unknwn
 
   let flip c = flip_constr c |> otolist
 
   let rec same_shape t1 t2 = match t1, t2 with
-    | Node (c1,l1,r1), Node (c2,l2,r2) when c1 = c2 ->
-      (same_shape l1 l2) && (same_shape r1 r2)
+    | Node n1, Node n2 -> same_shape_n n1 n2
     | Leaf _, Leaf _ -> true
     | _ -> false
 
-  let apply (f : Mtcons.t list -> 'a -> 'b) (t : 'a t) =
-    let rec aux cs t = match t with
-      | Node (c,l,r) -> Node (c,
-                              aux (c.mtcons :: cs) l,
-                              aux (flip c.mtcons @ cs ) r)
-      | Leaf x -> Leaf (f cs x) in
-    aux [] t
+  and same_shape_n n1 n2 =
+    n1.constr.cpt_uniq = n2.constr.cpt_uniq &&
+    same_shape n1.n_true n2.n_true &&
+    same_shape n1.n_false n2.n_false &&
+    same_shape n1.n_unknwn n2.n_unknwn
+    
+  let apply (f : 'a -> 'b) (t : 'a t) =
+    let rec aux t = match t with
+      | Node { constr = c; n_true = nt; n_false = nf; n_unknwn = nu; }
+        -> Node { constr   = c;
+                  n_true   = aux nt;
+                  n_false  = aux nf;
+                  n_unknwn = aux nu; } 
+      | Leaf x -> Leaf (f x) in
+    aux t
 
+    (* let apply (f : Mtcons.t list -> 'a -> 'b) (t : 'a t) =
+     * let rec aux cs t = match t with
+     *   | Node { constr = c; n_true = nt; n_false = nf; n_unknwn = nu; }
+     *     -> Node { constr = c;
+     *               n_true = aux (c.mtcons :: cs) nt;
+     *               n_false = aux (flip c.mtcons @ cs ) nf;
+     *               n_unknwn = nu; } (\* TODO: fixme ! *\)
+     *   | Leaf x -> Leaf (f cs x) in
+     * aux [] t *)
+      
   let apply2_merge (fmerge : 'a t -> 'b t -> ('a t * 'b t))
-      (f : Mtcons.t list -> 'a -> 'b -> 'c) t1 t2 =
-    let rec aux cs t1 t2 = match t1,t2 with
-      | Node (c1,l1,r1), Node (c2,l2,r2) when c1 = c2 ->
-        Node (c1,
-              aux (c1.mtcons :: cs) l1 l2,
-              aux (flip c1.mtcons @ cs) r1 r2)
-      | Leaf x1, Leaf x2 -> Leaf (f cs x1 x2)
+      (f : 'a -> 'b -> 'c) t1 t2 =
+    let rec aux t1 t2 = match t1,t2 with
+      | Node { constr = c ; n_true = nt ; n_false = nf ; n_unknwn = nu ; },
+        Node { constr = c'; n_true = nt'; n_false = nf'; n_unknwn = nu'; }
+        when c.cpt_uniq = c'.cpt_uniq ->
+        Node { constr   = c;
+               n_true   = aux nt nt';
+               n_false  = aux nf nf';
+               n_unknwn = aux nu nu'; }
+
+      | Leaf x1, Leaf x2 -> Leaf (f x1 x2)
       | _ -> raise (Aint_error "Ptree: Shape do not match") in
 
     let t1, t2 = if same_shape t1 t2 then t1,t2 else fmerge t1 t2 in
 
-    aux [] t1 t2
+    aux t1 t2
 
-  let apply_list (f : Mtcons.t list -> 'a list -> 'b) ts =
-    let rec aux cs ts = match ts with
+    (* let apply2_merge (fmerge : 'a t -> 'b t -> ('a t * 'b t))
+     *   (f : Mtcons.t list -> 'a -> 'b -> 'c) t1 t2 =
+     * let rec aux cs t1 t2 = match t1,t2 with
+     *   | Node { constr = c ; n_true = nt ; n_false = nf ; n_unknwn = nu ; },
+     *     Node { constr = c'; n_true = nt'; n_false = nf'; n_unknwn = nu'; }
+     *     when c.cpt_uniq = c'.cpt_uniq ->
+     *     Node { constr = c;
+     *            n_true = aux nt nt';
+     *            n_false = aux nf nf';
+     *            n_unknwn = aux nu nu'; }
+     * 
+     *   | Leaf x1, Leaf x2 -> Leaf (f cs x1 x2)
+     *   | _ -> raise (Aint_error "Ptree: Shape do not match") in
+     * 
+     * let t1, t2 = if same_shape t1 t2 then t1,t2 else fmerge t1 t2 in
+     * 
+     * aux [] t1 t2 *)
+
+  let apply_list (f : 'a list -> 'b) ts =
+    let rec aux ts = match ts with
       | [] -> raise (Aint_error "Ptree: apply_l empty list")
-      | Node (c,_,_) :: _ -> aux_node c cs ts [] []
-      | Leaf _ :: _ -> aux_leaf cs ts []
+      | Node { constr = c; } :: _ ->
+        aux_node c ts [] [] []
+      | Leaf _ :: _ -> aux_leaf ts []
 
-    and aux_node c cs ts lts rts = match ts with
-      | Node (c',l,r) :: ts' when c = c' ->
-        aux_node c cs ts' (l :: lts) (r :: rts)
-      | [] -> Node (c,
-                    aux (c.mtcons :: cs) lts,
-                    aux (flip c.mtcons @ cs ) rts)
+    and aux_node c ts tts fts uts = match ts with
+      | Node { constr = c'; n_true = nt; n_false = nf; n_unknwn = nu; } :: ts'
+        when c.cpt_uniq = c'.cpt_uniq ->
+        aux_node c ts' (nt :: tts) (nf :: fts) (nu :: uts)
+      | [] -> Node { constr   = c;
+                     n_true   = aux tts;
+                     n_false  = aux fts;
+                     n_unknwn = aux uts; }
       | _ -> raise (Aint_error "Ptree: aux_node bad shape")
 
-    and aux_leaf cs ts xts = match ts with
-      | Leaf x :: ts' -> aux_leaf cs ts' (x :: xts)
-      | [] -> Leaf (f cs xts)
+    and aux_leaf ts xts = match ts with
+      | Leaf x :: ts' -> aux_leaf ts' (x :: xts)
+      | [] -> Leaf (f xts)
       | _ -> raise (Aint_error "Ptree: aux_leaf bad shape") in
 
-    aux [] ts
+    aux ts
 
-  let eval (fn : cnstr -> 'a -> 'a -> 'a)
-      (fl : Mtcons.t list -> 'b -> 'a)
+    (* let apply_list (f : Mtcons.t list -> 'a list -> 'b) ts =
+     * let rec aux cs ts = match ts with
+     *   | [] -> raise (Aint_error "Ptree: apply_l empty list")
+     *   | Node (c,_,_) :: _ -> aux_node c cs ts [] []
+     *   | Leaf _ :: _ -> aux_leaf cs ts []
+     * 
+     * and aux_node c cs ts lts rts = match ts with
+     *   | Node (c',l,r) :: ts' when c = c' ->
+     *     aux_node c cs ts' (l :: lts) (r :: rts)
+     *   | [] -> Node (c,
+     *                 aux (c.mtcons :: cs) lts,
+     *                 aux (flip c.mtcons @ cs ) rts)
+     *   | _ -> raise (Aint_error "Ptree: aux_node bad shape")
+     * 
+     * and aux_leaf cs ts xts = match ts with
+     *   | Leaf x :: ts' -> aux_leaf cs ts' (x :: xts)
+     *   | [] -> Leaf (f cs xts)
+     *   | _ -> raise (Aint_error "Ptree: aux_leaf bad shape") in
+     * 
+     * aux [] ts *)
+
+  let eval (fn : cnstr -> 'a -> 'a -> 'a -> 'a)
+      (fl : 'b -> 'a)
       (t : 'b t) =
-    let rec aux cs = function
-      | Node (c,l,r) ->
-        fn c (aux (c.mtcons :: cs) l) (aux (flip c.mtcons @ cs) r)
-      | Leaf x -> fl cs x in
-    aux [] t
+    let rec aux = function
+      | Node { constr = c; n_true = nt; n_false = nf; n_unknwn = nu; } ->
+        fn c (aux nt) (aux nf) (aux nu)
+      | Leaf x -> fl x in
+    aux t
 
   let eval2_merge (fmerge : 'b t -> 'c t -> ('b t * 'c t))
-      (fn : Mtcons.t list -> 'a -> 'a -> 'a)
-      (fl : Mtcons.t list -> 'b -> 'c -> 'a)
+      (fn : cnstr -> 'a -> 'a -> 'a -> 'a)
+      (fl : 'b -> 'c -> 'a)
       (t1 : 'b t) (t2 : 'c t) =
-    let rec aux cs t1 t2 = match t1,t2 with
-      | Node (c1,l1,r1), Node (c2,l2,r2) when c1 = c2 ->
-        fn cs (aux (c1.mtcons :: cs) l1 l2) (aux (flip c1.mtcons @ cs) r1 r2)
-      | Leaf x1, Leaf x2 -> fl cs x1 x2
+    let rec aux t1 t2 = match t1,t2 with
+      | Node { constr = c ; n_true = nt ; n_false = nf ; n_unknwn = nu ; },
+        Node { constr = c'; n_true = nt'; n_false = nf'; n_unknwn = nu'; }
+        when c.cpt_uniq = c'.cpt_uniq ->
+        fn c (aux nt nt') (aux nf nf') (aux nu nu')
+      | Leaf x1, Leaf x2 -> fl x1 x2
       | _ -> raise (Aint_error "Ptree: eval2 : shape do not match") in
 
     let t1, t2 = if same_shape t1 t2 then t1,t2 else fmerge t1 t2 in
 
-    aux [] t1 t2
+    aux t1 t2
 
-  let ptree_size = eval (fun _ a b -> a + b) (fun _ _ -> 1)
+
+  (*   let eval (fn : cnstr -> 'a -> 'a -> 'a)
+   *     (fl : Mtcons.t list -> 'b -> 'a)
+   *     (t : 'b t) =
+   *   let rec aux cs = function
+   *     | Node (c,l,r) ->
+   *       fn c (aux (c.mtcons :: cs) l) (aux (flip c.mtcons @ cs) r)
+   *     | Leaf x -> fl cs x in
+   *   aux [] t
+   * 
+   * let eval2_merge (fmerge : 'b t -> 'c t -> ('b t * 'c t))
+   *     (fn : Mtcons.t list -> 'a -> 'a -> 'a)
+   *     (fl : Mtcons.t list -> 'b -> 'c -> 'a)
+   *     (t1 : 'b t) (t2 : 'c t) =
+   *   let rec aux cs t1 t2 = match t1,t2 with
+   *     | Node (c1,l1,r1), Node (c2,l2,r2) when c1 = c2 ->
+   *       fn cs (aux (c1.mtcons :: cs) l1 l2) (aux (flip c1.mtcons @ cs) r1 r2)
+   *     | Leaf x1, Leaf x2 -> fl cs x1 x2
+   *     | _ -> raise (Aint_error "Ptree: eval2 : shape do not match") in
+   * 
+   *   let t1, t2 = if same_shape t1 t2 then t1,t2 else fmerge t1 t2 in
+   * 
+   *   aux [] t1 t2 *)
+
+  let ptree_size = eval (fun _ a b c -> a + b + c) (fun _ -> 1)
 end
 
 
+(* Trace partitionning, see the description of the [node] type in 
+   the module [Ptree]. *)
 module type AbsDisjType = sig
   include AbsNumType
 
@@ -2288,46 +2702,68 @@ module type AbsDisjType = sig
   (* Adds a block of constraints for the disjunctive domain *)
   val new_cnstr_blck : t -> L.t -> t
 
-  (* Add a constraint to the top-most block *)
-  val add_cnstr : t -> Mtcons.t -> L.t -> t * t
+  (* Add a constraint to the top-most block.
+     If [meet] is true, meet the resulting branch with, respectively,
+     the constraint and its negation. *)
+  val add_cnstr : t -> meet:bool -> Mtcons.t -> L.t -> t * t
 
   (* Pop the top-most block of constraints in the disjunctive domain *)
   val pop_cnstr_blck : t -> L.t -> t
+
+  (* Pop all constraints in the disjunctive domain *)
+  val pop_all_blcks : t -> t
 end
+
+(*---------------------------------------------------------------*)
+type cnstr_blk = { cblk_loc : L.t;
+                   cblk_cnstrs : cnstr list; }
+
+(* hashconsing *)
+module OrdL = struct 
+  type t = L.t
+  let compare l l' = Stdlib.compare l.L.loc_start l'.L.loc_start
+
+  let equal l l' =  l.L.loc_start = l'.L.loc_start 
+end
+module ML = Map.Make (OrdL)
+    
+let hc = ref ML.empty
+let _uniq = ref 0
+
+(* Note that the *)
+let make_cnstr c i =
+  try
+    let constr = ML.find i !hc in
+    if Mtcons.equal_tcons constr.mtcons c
+    then constr
+    else begin
+      debug (fun () ->
+          Format.eprintf "make_cnstr for (%d, line %a):@.\
+                          changed constraint from %a to %a@."
+            constr.cpt_uniq L.pp_sloc i
+            Mtcons.print_mexpr constr.mtcons
+            Mtcons.print_mexpr c);
+          { constr with mtcons = c } end
+  with
+  | Not_found ->
+    incr _uniq;
+    let res = { mtcons = c; cpt_uniq = !_uniq; loc = i } in
+    hc := ML.add i res !hc;
+    res
 
 (* Disjunctive domain. Leaves are already constrained under the branch
    conditions. *)
 module AbsDisj (A : AbsNumType) : AbsDisjType = struct
 
-  type cnstr_blk = { cblk_loc : L.t;
-                     cblk_cnstrs : cnstr list; }
-
   type t = { tree : A.t Ptree.t;
              cnstrs : cnstr_blk list }
 
+
   (*---------------------------------------------------------------*)
-  (* hashconsing *)
-  module MC = struct
-    type t = Mtcons.t * L.t
-    let compare (t,l) (t',l') =
-      if Mtcons.equal_tcons t t' && l = l' 
-      then 0 
-      else Stdlib.compare (t,l) (t',l')
+  let init_blk = { cblk_loc = L._dummy; cblk_cnstrs = [] }
 
-    let equal (t,l) (t',l') =  Mtcons.equal_tcons t t' && l = l' 
-  end
-  module Mmc = Map.Make(MC)
-
-  let hc = ref Mmc.empty
-  let _uniq = ref 0
-
-  let make_cnstr c i =
-    try Mmc.find (c,i) !hc with
-    | Not_found ->
-      incr _uniq;
-      let res = { mtcons = c; cpt_uniq = !_uniq; loc = i } in
-      hc := Mmc.add (c,i) res !hc;
-      res
+  let make_abs a = { tree = Leaf a;
+                     cnstrs = [ init_blk ]; }
 
   (*---------------------------------------------------------------*)
   let pp_cblk fmt cb =
@@ -2335,17 +2771,20 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
       L.pp_sloc cb.cblk_loc
       pp_cnstrs cb.cblk_cnstrs 
 
-  let pp_cblcks fmt =
+  let pp_cblks fmt =
     Format.fprintf fmt "@[<v 0>%a@]"
       (pp_list ~sep:(fun fmt () -> Format.fprintf fmt "@;") pp_cblk)
       
   let cblk_equal cb cb' =
-    cb.cblk_loc = cb'.cblk_loc 
+    cb.cblk_loc = cb'.cblk_loc
+    && List.length cb.cblk_cnstrs = List.length cb'.cblk_cnstrs
     && List.for_all2 (fun c c' -> c.cpt_uniq = c'.cpt_uniq) 
       cb.cblk_cnstrs cb'.cblk_cnstrs
 
   (*---------------------------------------------------------------*)
-  let same_shape t t' = t.cnstrs = t'.cnstrs
+  let same_shape t t' =
+    List.length t.cnstrs = List.length t'.cnstrs
+    && List.for_all2 cblk_equal t.cnstrs t'.cnstrs
 
   let compare c c' = Stdlib.compare c.cpt_uniq c'.cpt_uniq
 
@@ -2354,24 +2793,46 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
   let cnstrs_list l = 
     List.map (fun x -> x.cblk_cnstrs) l |> List.rev |> List.flatten
 
+  let add_constr_unknwn c t =
+    Ptree.Node { constr   = c;
+                 n_true   = Ptree.apply A.bottom t;
+                 n_false  = Ptree.apply A.bottom t;
+                 n_unknwn = t; }
+      
+    
+  (* Merge two blocks [t] and [t']. If a constraint [c] appears on the left
+     but node on the right, replace [t'] by
+     [Node { constr = c; n_true = bottom; n_false = bottom; n_unknwn = t'] *)
   let rec merge_blck mcs t t' = match mcs, t, t' with
     | [], Ptree.Leaf _, Ptree.Leaf _ -> t, t'
-    | c0 :: mcs', Ptree.Node (c, tl, tr), Ptree.Node (c',tl',tr') ->
+    | c0 :: mcs',
+      Node { constr = c ; n_true = nt ; n_false = nf ; n_unknwn = nu ; },
+      Node { constr = c'; n_true = nt'; n_false = nf'; n_unknwn = nu'; } ->
       if equal c c' && equal c c0 then
-        let mtl,mtl' = merge_blck mcs' tl tl'
-        and mtr,mtr' = merge_blck mcs' tr tr' in
-        ( Ptree.Node (c, mtl, mtr), Ptree.Node (c,mtl', mtr') )
-      else if equal c c0 then merge_blck mcs t (Ptree.Node (c,t', t'))
-      else if equal c' c0 then merge_blck mcs (Ptree.Node (c,t, t)) t'
+        let mnt,mnt' = merge_blck mcs' nt nt'
+        and mnf,mnf' = merge_blck mcs' nf nf'
+        and mnu,mnu' = merge_blck mcs' nu nu' in
+        ( Ptree.Node { constr   = c;
+                       n_true   = mnt;
+                       n_false  = mnf;
+                       n_unknwn = mnu; },
+          Ptree.Node { constr   = c;
+                       n_true   = mnt';
+                       n_false  = mnf';
+                       n_unknwn = mnu'; } )
+      else if equal c c0
+      then merge_blck mcs t (add_constr_unknwn c t')
+      else if equal c' c0
+      then merge_blck mcs (add_constr_unknwn c t) t'
       else raise (Aint_error "merge_blck: bad shape")
 
-    | c0 :: _, Ptree.Node (c, _,_), Ptree.Leaf _ ->
+    | c0 :: _, Node { constr = c; }, Ptree.Leaf _ ->
       assert (equal c0 c);
-      merge_blck mcs t (Ptree.Node (c,t', t'))
+      merge_blck mcs t (add_constr_unknwn c t')
 
-    | c0 :: _, Ptree.Leaf _, Ptree.Node (c', _,_) ->
+    | c0 :: _, Ptree.Leaf _, Node { constr = c'; } ->
       assert (equal c0 c');
-      merge_blck mcs (Ptree.Node (c',t, t)) t'
+      merge_blck mcs (add_constr_unknwn c' t) t'
 
     | _ -> raise (Aint_error "merge_blck: bad shape")
 
@@ -2379,30 +2840,41 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
     | [] -> merge_blck mcs t t'
     | c0 :: l' ->
       match t,t' with
-      | Ptree.Node (c,tl,tr), Ptree.Node (c',tl',tr')
+      | Ptree.Node {constr = c ; n_true = nt ; n_false = nf ; n_unknwn = nu ;},
+        Ptree.Node {constr = c'; n_true = nt'; n_false = nf'; n_unknwn = nu';} 
         when equal c c' && equal c c0 ->
-        let mtl,mtl' = merge_last_blck mcs tl tl' l'
-        and mtr,mtr' = merge_last_blck mcs tr tr' l' in
-        Ptree.Node (c, mtl, mtr), Ptree.Node (c,mtl', mtr')
+        let mnt,mnt' = merge_last_blck mcs nt nt' l'
+        and mnf,mnf' = merge_last_blck mcs nf nf' l'
+        and mnu,mnu' = merge_last_blck mcs nu nu' l' in
+        ( Ptree.Node {constr   = c ;
+                      n_true   = mnt ;
+                      n_false  = mnf ;
+                      n_unknwn = mnu ;},
+          Ptree.Node {constr   = c;
+                      n_true   = mnt';
+                      n_false  = mnf';
+                      n_unknwn = mnu';} )
       | _ -> assert false
+
+  let tmerge_check cs l cs' l' =
+    if not (List.for_all2 cblk_equal l l') then begin
+      Format.eprintf "error tmerg:@;l:@;%a@.l':@;%a@."
+        pp_cblks l
+        pp_cblks  l';
+      assert false
+    end;
+    if not (cs.cblk_loc = cs'.cblk_loc) then begin
+      Format.eprintf "%a and %a"
+        L.pp_sloc cs.cblk_loc L.pp_sloc cs'.cblk_loc;
+      assert false
+    end
 
   let tmerge t t' =
     if same_shape t t' then t, t'
     else match t.cnstrs, t'.cnstrs with
       | [], [] -> t,t'
       | cs :: l, cs' :: l' ->
-        if not (List.for_all2 cblk_equal l l') then begin
-          (* REM *)
-          Format.eprintf "error tmerg:@;l:@;%a@.@.@.l':@;%a@.@.@."
-            pp_cblcks l
-            pp_cblcks  l';
-          assert false
-        end;
-        if not (cs.cblk_loc = cs'.cblk_loc) then begin
-          Format.eprintf "%a and %a"
-            L.pp_sloc cs.cblk_loc L.pp_sloc cs'.cblk_loc;
-          assert false
-        end; 
+        tmerge_check cs l cs' l';
         let mcs_cnstrs = 
           List.sort_uniq compare (cs.cblk_cnstrs @ cs'.cblk_cnstrs) in
         let mcs = { cs with cblk_cnstrs = mcs_cnstrs } in
@@ -2412,9 +2884,14 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
         ( { tree = mt; cnstrs = mcs :: l }, { tree = mt'; cnstrs = mcs :: l } )
       | _ -> assert false
 
+  
   let apply f t = { t with tree = Ptree.apply f t.tree }
 
   let eval fn fl t = Ptree.eval fn fl t.tree
+
+  let bottom a = apply (fun x -> A.bottom x) a
+      
+  let top a = apply (fun x -> A.top x) a
 
   let apply2 f t t' =
     let t,t' = tmerge t t' in
@@ -2443,77 +2920,158 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
     let blk = { cblk_loc = l; cblk_cnstrs = [] } in
     { t with cnstrs = blk :: t.cnstrs }
 
-  let tbottom a = Ptree.apply (fun _ x -> A.bottom x) a
+  let tbottom a = Ptree.apply (fun x -> A.bottom x) a
 
-  (* Insert the constraint in the current block at the correct place *)
-  let rec add_cnstr_blck c t = match t with
-    | Ptree.Leaf a ->
-      let ra = match flip_constr c.mtcons with
+  let build_tree_pair c (mnt,mnt') (mnf,mnf') (mnu,mnu') =
+    ( Ptree.Node {constr   = c;
+                  n_true   = mnt;
+                  n_false  = mnf;
+                  n_unknwn = mnu;},
+      Ptree.Node {constr   = c;
+                  n_true   = mnt';
+                  n_false  = mnf';
+                  n_unknwn = mnu';} )
+    
+  (* Insert the constraint in the current block at the correct place.
+     If [meet] is true, then meet the [n_true] branch with [c] and the 
+     [n_false] branch with [not c]. *)
+  let add_cnstr_blck ~meet c t =
+    let meet_true a =
+      if meet
+      then A.meet_constr a c.mtcons
+      else a 
+    and meet_false a =
+      if meet
+      then match flip_constr c.mtcons with
         | None -> a
-        | Some nc -> A.meet_constr a nc in
+        | Some nc -> A.meet_constr a nc
+      else a
+    in
+    
+    let rec add_cnstr_blck t = match t with
+    | Ptree.Leaf a ->
+      let nt = meet_true a
+      and nf = meet_false a in
 
-      ( Ptree.Node (c,
-                    Ptree.Leaf (A.meet_constr a c.mtcons),
-                    Ptree.Leaf (A.bottom a)),
-        Ptree.Node (c,
-                    Ptree.Leaf (A.bottom a),
-                    Ptree.Leaf ra) )
+      ( Ptree.Node { constr   = c ;
+                     n_true   = Ptree.Leaf nt ;
+                     n_false  = Ptree.Leaf (A.bottom a) ;
+                     n_unknwn = Ptree.Leaf (A.bottom a) ;},
+        Ptree.Node { constr   = c ;
+                     n_true   = Ptree.Leaf (A.bottom a) ;
+                     n_false  = Ptree.Leaf nf ;
+                     n_unknwn = Ptree.Leaf (A.bottom a) ;} )
 
-    | Ptree.Node (c', tl, tr) ->
+    | Ptree.Node {constr = c' ; n_true = nt ; n_false = nf ; n_unknwn = nu ;} ->
       let cc = compare c c' in
+
+      (* [c] must be inserted above [c'] *)
       if cc = -1 then
-        let tl' = Ptree.apply (fun _ a -> A.meet_constr a c.mtcons) t
-        and tr' = Ptree.apply (fun _ a -> match flip_constr c.mtcons with
-            | None -> a
-            | Some nc -> A.meet_constr a nc) t in
-        ( Ptree.Node (c, tl', tbottom t), Ptree.Node (c, tbottom t, tr') )
+        let nt' = Ptree.apply (fun a -> meet_true a ) t
+        and nf' = Ptree.apply (fun a -> meet_false a) t in
 
+      ( Ptree.Node { constr   = c ;
+                     n_true   = nt' ;
+                     n_false  = tbottom t ;
+                     n_unknwn = tbottom t ;},
+        Ptree.Node { constr   = c ;
+                     n_true   = tbottom t ;
+                     n_false  = nf' ;
+                     n_unknwn = tbottom t ;} )
+
+
+      (* [c] must be inserted below [c'] *)
       else if cc = 1 then
-        let fn c (mtl,mtl') (mtr,mtr') = ( Ptree.Node (c, mtl, mtr),
-                                           Ptree.Node (c, mtl', mtr') ) in
-        fn c' (add_cnstr_blck c tl) (add_cnstr_blck c tr)
+        build_tree_pair c'
+          (add_cnstr_blck nt) (add_cnstr_blck nf) (add_cnstr_blck nu)
 
-      else raise (Aint_error "add_cnstr_blck: bad shape")
+      (* [c] and [c'] are equal. We need to consider cross-cases here.
+          c                       c      
+          |---- t                 |---- ⟦c⟧ ∪ ⟦c⟧u ∪ ⟦c⟧f
+          |---- u       ===>      |---- ⟂
+          |---- f                 |---- ⟦¬c⟧ ∪ ⟦¬c⟧u ∪ ⟦¬c⟧f
+         which we then split as follows:
+         c                                  c                         
+         |---- ⟦c⟧ ∪ ⟦c⟧u ∪ ⟦c⟧f            |---- ⟂
+         |---- ⟂                      and   |---- ⟂                   
+         |---- ⟂                            |---- ⟦¬c⟧ ∪ ⟦¬c⟧u ∪ ⟦¬c⟧f
+      *)
+      else
+        let nt' = Ptree.apply_list (fun l ->
+            let l = List.map (fun a -> A.meet_constr a c.mtcons) l in
+            A.join_list l
+          ) [nt; nf; nu]
+        and nf' = Ptree.apply_list (fun l ->
+            let l = List.map (fun a -> match flip_constr c.mtcons with
+                | None -> a
+                | Some nc -> A.meet_constr a nc) l in
+            A.join_list l
+          ) [nt; nf; nu] in
+        ( Ptree.Node { constr   = c;
+                       n_true   = nt';
+                       n_false  = tbottom nu;
+                       n_unknwn = tbottom nu; },
+          Ptree.Node { constr   = c;
+                       n_true   = tbottom nu;
+                       n_false  = nf';
+                       n_unknwn = tbottom nu; } )
+    in
 
+    add_cnstr_blck t
+  
   (* Go down to the last block in t and apply f, then inductively combine the
      results using fn *)
   let rec apply_last_blck fn f t l = match l,t with
     | [], _ -> f t
-    | c0 :: l', Ptree.Node (c, tl, tr) when equal c c0 ->
-      let mtl = apply_last_blck fn f tl l'
-      and mtr = apply_last_blck fn f tr l' in
-      fn c mtl mtr
+    | c0 :: l',
+      Ptree.Node { constr = c; n_true = nt; n_false = nf; n_unknwn = nu; }
+      when equal c c0 ->
+      let mnt = apply_last_blck fn f nt l'
+      and mnf = apply_last_blck fn f nf l'
+      and mnu = apply_last_blck fn f nu l' in
+      fn c mnt mnf mnu
 
     | _ -> raise (Aint_error "apply_last_blck: bad shape err3")
 
-  let add_cnstr : t -> Mtcons.t -> L.t -> t * t = fun t c loc ->
+  let add_cnstr t ~meet c loc =
     match t.cnstrs with
-    | cs :: l ->
+    | cs :: l ->     
       let cnstr = make_cnstr c loc in
-      let f x = add_cnstr_blck cnstr x
-      and fn c (mtl,mtl') (mtr,mtr') = ( Ptree.Node (c, mtl, mtr),
-                                         Ptree.Node (c, mtl', mtr') ) in
+      let f x = add_cnstr_blck ~meet:meet cnstr x in
 
       let sorted_cnstrs = 
         List.sort_uniq compare (cnstr :: cs.cblk_cnstrs) in
       let nblk = { cs with cblk_cnstrs = sorted_cnstrs } in
       let ncs = nblk :: l in
-      let tl,tr = apply_last_blck fn f t.tree (cnstrs_list l) in
+      let tl,tr = apply_last_blck build_tree_pair f t.tree (cnstrs_list l) in
       ( { tree = tl; cnstrs = ncs }, { tree = tr; cnstrs = ncs } )
 
     | _ -> raise (Aint_error "add_cnstr: empty list")
 
   let pop_cnstr_blck t loc = match t.cnstrs with
     | blk :: l ->
+      (* This assert is to check that constraint blocks 'open' and 'close'
+         are properly nested. *)
       assert (blk.cblk_loc = loc);
       let f x =
-        let tree = Ptree.eval (fun _ a b -> A.join a b) (fun _ a -> a) x in
+        let tree =
+          Ptree.eval
+            (fun _ a1 a2 a3 -> A.join_list [a1; a2; a3])
+            (fun a -> a) x in
         Ptree.Leaf tree
-      and fn c mtl mtr = Ptree.Node (c, mtl, mtr) in
+      and fn c mnt mnf mnu = Ptree.Node {constr   = c;
+                                         n_true   = mnt;
+                                         n_false  = mnf;
+                                         n_unknwn = mnu; } in
 
       { tree =  apply_last_blck fn f t.tree (cnstrs_list l);
         cnstrs =  l }
     | _ -> raise (Aint_error "pop_cnstr_blck: empty list")
+
+  let pop_all_blcks t = 
+    let a = Ptree.eval
+        (fun _ a1 a2 a3 -> A.join_list [a1; a2; a3]) (fun a -> a) t.tree in
+    make_abs a
 
   let meet_constr_ne (a : A.t) l =
     let l_f = List.filter (fun c ->
@@ -2523,40 +3081,29 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
     match l_f with
     | [] -> a
     | _ :: _ -> A.meet_constr_list a l_f
-
-  (* All leaves should have the same environment *)
-  let get_env t =
-    let rec aux = function
-      | Ptree.Node (_,l,_) -> aux l
-      | Ptree.Leaf x -> A.get_env x in
-    aux t.tree
-
-  let init_blk = { cblk_loc = L._dummy; cblk_cnstrs = [] }
-
+                      
   (* Make a top value defined on the given variables *)
-  let make l = { tree = Leaf (A.make l);
-                 cnstrs = [ init_blk ]; }
+  let make l = make_abs (A.make l)
 
-  let meet = apply2 (fun _ -> A.meet)
-  let meet_list = apply_list (fun _ -> A.meet_list)
+  let meet = apply2 A.meet
+  let meet_list = apply_list A.meet_list
 
-  let join = apply2 (fun _ -> A.join)
-  let join_list = apply_list (fun _ -> A.join_list)
+  let join = apply2 A.join
+  let join_list = apply_list A.join_list
 
-  let widening oc = apply2 (fun _ -> A.widening oc)
+  let widening oc = apply2 (A.widening oc)
 
-  let forget_list t l = apply (fun _ x -> A.forget_list x l) t
+  let forget_list t l = apply (fun x -> A.forget_list x l) t
 
-  let is_included = eval2 (fun _ l b -> l && b) (fun _ -> A.is_included)
-  let is_bottom = eval (fun _ l b -> l && b) (fun _ -> A.is_bottom)
-
-  let bottom a = apply (fun _ x -> A.bottom x) a
-
-  let top a = apply (fun _ x -> A.top x) a
+  let is_included = eval2 (fun _ a1 a2 a3 -> a1 && a2 && a3) A.is_included
+  let is_bottom = eval (fun _ a1 a2 a3 -> a1 && a2 && a3) A.is_bottom
 
   let rec get_leaf = function
-    | Ptree.Node (_,l,_) -> get_leaf l
+    | Ptree.Node { n_true = nt } -> get_leaf nt
     | Ptree.Leaf x -> x 
+      
+  (* All leaves should have the same environment *)
+  let get_env t = A.get_env (get_leaf t.tree)
 
   (* All leaves should have the same environment *)
   let top_no_disj a =
@@ -2566,61 +3113,80 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
   let to_shape a shp =
     assert (a.cnstrs = [init_blk]);
     let leaf = get_leaf a.tree in
-    apply (fun _ _ -> leaf) shp
+    apply (fun _ -> leaf) shp 
 
-  let remove_disj a = 
-    let a = eval (fun _ -> A.join) (fun _ x -> x) a in
+  let remove_disj a =
+    (* Note that we could evaluate [a] into a list of abstract elements, and
+       do a single join at the end. It may be better. *)
+    let a = eval (fun _ b1 b2 b3 -> A.join_list [b1; b2; b3]) (fun x -> x) a in
     {cnstrs = [init_blk]; tree = Ptree.Leaf a; }
 
-  let expand t v l = apply (fun _ x -> A.expand x v l) t
+  let expand t v l = apply (fun x -> A.expand x v l) t
 
-  let fold t l = apply (fun _ x -> A.fold x l) t
+  let fold t l = apply (fun x -> A.fold x l) t
 
   let bman : Box.t Manager.t = BoxManager.man
   let box_of_int int = Abstract0.of_box bman 1 0 (Array.init 1 (fun _ -> int))
-  let box_join b1 b2 = Abstract0.join bman b1 b2
+  let box_join b1 b2 b3 =
+    let bs = Array.of_list [b1; b2; b3] in
+    Abstract0.join_array bman bs
   let int_of_box b = Abstract0.bound_dimension bman b 0
 
   (* Interval does not support joins, so we go through level 0 boxes. *)
   let bound_variable t v =
-    eval (fun _ -> box_join) (fun _ x -> A.bound_variable x v |> box_of_int ) t
+    eval (fun _ -> box_join) (fun x -> A.bound_variable x v |> box_of_int ) t
     |> int_of_box
 
   let bound_texpr t e =
-    eval (fun _ -> box_join) (fun _ x -> A.bound_texpr x e |> box_of_int ) t
+    eval (fun _ -> box_join) (fun x -> A.bound_texpr x e |> box_of_int ) t
     |> int_of_box
 
   let assign_expr ?force:(force=false) (t : t) (v : mvar) (e : Mtexpr.t) =
-    apply (fun _ x -> A.assign_expr ~force:force x v e) t
+    apply (fun x -> A.assign_expr ~force:force x v e) t
 
-  let meet_constr t c = apply (fun _ x -> A.meet_constr x c) t
-  let meet_constr_list t cs = apply (fun _ x -> A.meet_constr_list x cs) t
+  let meet_constr t c = apply (fun x -> A.meet_constr x c) t
+  let meet_constr_list t cs = apply (fun x -> A.meet_constr_list x cs) t
 
-  let unify = apply2 (fun _ -> A.unify)
+  let unify = apply2 A.unify
 
-  let change_environment t l = apply (fun _ x -> A.change_environment x l) t
+  let change_environment t l = apply (fun x -> A.change_environment x l) t
 
-  let remove_vars t l = apply (fun _ x -> A.remove_vars x l) t
+  let remove_vars t l = apply (fun x -> A.remove_vars x l) t
 
-  let to_box = eval (fun _ -> Abstract1.join bman) (fun _ -> A.to_box)
+  let to_box = eval
+      (fun _ a1 a2 a3 ->
+         let ass = Array.of_list [a1; a2; a3] in
+         Abstract1.join_array bman ass)
+      A.to_box
 
 
-  let of_box bt tshape = apply (fun _ _ -> A.of_box bt) tshape
+  let of_box bt tshape = apply (fun _ -> A.of_box bt) tshape
 
   let shrt_tree t =
-    let fn c l r = match l, r with
-      | Ptree.Leaf la, Ptree.Leaf lr ->
-        if A.is_bottom la && A.is_bottom lr then Ptree.Leaf la
-        else Ptree.Node (c, l, r)
-      | _ -> Ptree.Node (c, l, r) in
+    (* See Ptree.eval for the order *)
+    let fn c mnt mnf mnu = match mnt, mnf, mnu with
+      | Ptree.Leaf lmnt, Ptree.Leaf lmnf, Ptree.Leaf lmnu ->
+        if A.is_bottom lmnt && A.is_bottom lmnf && A.is_bottom lmnu
+        then Ptree.Leaf lmnt
+        else Ptree.Node { constr   = c;
+                          n_true   = mnt;
+                          n_false  = mnf;
+                          n_unknwn = mnu; }
+      | _ -> Ptree.Node { constr   = c;
+                          n_true   = mnt;
+                          n_false  = mnf;
+                          n_unknwn = mnu; } in
 
-    let fl _ a = Ptree.Leaf a in
-
+    let fl a = Ptree.Leaf a in
+    
     eval fn fl t
 
   let print ?full:(full=false) fmt t =
+    (* Useful to debug constrait blocks *)
+    (* Format.eprintf "debug: constraints:@; %a@.@."
+     *   pp_cblks t.cnstrs;     *)
     Ptree.pp_ptree (fun fmt a ->
-        if A.is_bottom a then Format.fprintf fmt "Bottom@;"
+        if A.is_bottom a then Format.fprintf fmt "⟂@;"
         else A.print ~full:full fmt a) fmt (shrt_tree t)
 end
 
@@ -2638,13 +3204,17 @@ module Lift (A : AbsNumType) : AbsDisjType = struct
 
   let new_cnstr_blck t _ = t
 
-  let add_cnstr t c _ =
-    (A.meet_constr t c,
-     match flip_constr c with
-     | Some nc -> A.meet_constr t nc
-     | None -> t)
+  let add_cnstr t ~meet c _ =
+    ( (if meet then A.meet_constr t c else t),
+      if meet then
+        match flip_constr c with
+        | Some nc -> A.meet_constr t nc
+        | None -> t
+      else t)
 
   let pop_cnstr_blck t _ = t
+
+  let pop_all_blcks t = t
 end
 
 (**************************************)
@@ -2722,7 +3292,7 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
   let v_pt : Sv.t = add_flow pt_ini
 
   let pp_rel_vars fmt rel =
-    (pp_list (Printer.pp_var ~debug:true)) fmt
+    (pp_list (Printer.pp_var ~debug:false)) fmt
       (List.sort (fun v v' -> Stdlib.compare v.v_name v'.v_name)
          (Sv.elements rel))
 
@@ -2764,9 +3334,16 @@ end
 module MakeAbsNumProf (A : NumWrap) : AbsNumType with type t = A.Num.t = struct
   include A.Num
 
-  let record s = Prof.record (A.prefix^s)
-  let call s = Prof.call (A.prefix^s)
+  let is_spec = ref None 
 
+  (*----------------------------------------------------------------*)
+  (* Profiling for the new functions. *)
+  let record s = Prof.record (A.prefix^s) 
+
+  let call s = Prof.call (A.prefix^s)   
+
+
+  (*----------------------------------------------------------------*)
   let () = record "make"
   let make x =
     let t = Sys.time () in
@@ -2908,7 +3485,7 @@ module type DisjWrap = sig
 end
 
 module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
-  include MakeAbsNumProf (struct
+  module AProf = MakeAbsNumProf (struct
       let prefix = A.prefix
       module Num = struct
         include A.Num
@@ -2916,19 +3493,26 @@ module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
       end
     end)
 
-  let of_box = A.Num.of_box
+  include AProf
+
+  let of_box         = A.Num.of_box
   let new_cnstr_blck = A.Num.new_cnstr_blck
-  let add_cnstr = A.Num.add_cnstr
+  let add_cnstr      = A.Num.add_cnstr
   let pop_cnstr_blck = A.Num.pop_cnstr_blck
-  let to_shape = A.Num.to_shape
-  let top_no_disj = A.Num.top_no_disj
-  let remove_disj = A.Num.remove_disj
+  let pop_all_blcks  = A.Num.pop_all_blcks
+  let to_shape       = A.Num.to_shape
+  let top_no_disj    = A.Num.top_no_disj
+  let remove_disj    = A.Num.remove_disj
+
+  let is_spec = ref None 
 
   (*----------------------------------------------------------------*)
   (* Profiling for the new functions. *)
-  let record s = Prof.record ("D."^s)
-  let call s = Prof.call ("D."^s)
+  let record s = Prof.record ("D."^s) 
 
+  let call s = Prof.call ("D."^s) 
+
+  (*----------------------------------------------------------------*)
   let () = record "of_box"
   let of_box x y =
     let t = Sys.time () in
@@ -2965,9 +3549,9 @@ module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
     r
 
   let () = record "add_cnstr"
-  let add_cnstr x y z =
+  let add_cnstr x ~meet y z =
     let t = Sys.time () in
-    let r = add_cnstr x y z in
+    let r = add_cnstr x ~meet y z in
     let () = call "add_cnstr" (Sys.time () -. t) in
     r
 
@@ -2976,6 +3560,13 @@ module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
     let t = Sys.time () in
     let r = pop_cnstr_blck x loc in
     let () = call "pop_cnstr_blck" (Sys.time () -. t) in
+    r
+
+  let () = record "pop_all_blcks"
+  let pop_all_blcks x =
+    let t = Sys.time () in
+    let r = pop_all_blcks x in
+    let () = call "pop_all_blcks" (Sys.time () -. t) in
     r
 
 end
@@ -2994,10 +3585,12 @@ module type AbsNumT = sig
   val upgrade : NR.t -> R.t -> R.t
 end
 
+
 module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
   module VDW = PIMake (PW)
 
-  module RProd = AbsNumProd (VDW) (AbsNumI(BoxManager)) (AbsNumI(PplManager))
+  module RProd =
+    AbsNumProd (VDW) (AbsNumI (BoxManager) (PW)) (AbsNumI (PplManager) (PW))
 
   module RNum = AbsDisj (RProd)
 
@@ -3006,7 +3599,7 @@ module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
       let prefix = "R."
     end)
 
-  module NRNum = AbsNumI(BoxManager)
+  module NRNum = AbsNumI (BoxManager) (PW)
 
   module NR = MakeAbsNumProf (struct
       module Num = NRNum
@@ -3440,8 +4033,9 @@ module type AbsNumBoolType = sig
   val print : ?full:bool -> Format.formatter -> t -> unit
 
   val new_cnstr_blck : t -> L.t -> t
-  val add_cnstr : t -> Mtcons.t -> L.t -> t * t
+  val add_cnstr      : t -> meet:bool -> Mtcons.t -> L.t -> t * t
   val pop_cnstr_blck : t -> L.t -> t
+  val pop_all_blcks  : t -> t
 end
 
 
@@ -3553,7 +4147,10 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
       num = AbsNum.R.meet t.num t'.num;
       points_to = Pt.meet t.points_to t'.points_to }
 
-  let join : t -> t -> t = apply2 AbsNum.R.join AbsNum.NR.join Pt.join
+  let join t t' =
+    if AbsNum.R.is_bottom t.num       then t'
+    else if AbsNum.R.is_bottom t'.num then t
+    else apply2 AbsNum.R.join AbsNum.NR.join Pt.join t t'
 
   let widening : Mtcons.t option -> t -> t -> t = fun oc ->
     apply2 (AbsNum.R.widening oc) (AbsNum.NR.widening oc) Pt.widening
@@ -3828,34 +4425,41 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
 
   let get_env : t -> Environment.t = fun t -> AbsNum.R.get_env t.num
 
-  let print_init : Format.formatter -> t -> unit = fun fmt t ->
-    let dnum = AbsNum.downgrade t.num in
-    let check' a =
-      try AbsNum.NR.meet dnum a |> AbsNum.NR.is_bottom with
-      | Not_found -> AbsNum.R.is_bottom t.num in
+  let print_init fmt t = match Aparam.is_init_no_print with
+    | Aparam.IP_None -> Format.fprintf fmt ""
+    | Aparam.IP_All | Aparam.IP_NoArray ->
+      let keep s =
+        match mvar_of_svar s with
+        | Mvalue (AarrayEl _)
+          when Aparam.is_init_no_print = Aparam.IP_NoArray -> false
+        | _ -> true
+      in
+      
+      let dnum = AbsNum.downgrade t.num in
+      let check' a =
+        try AbsNum.NR.meet dnum a |> AbsNum.NR.is_bottom with
+        | Not_found -> AbsNum.R.is_bottom t.num in
 
-    let m = EMs.map (fun a -> check' a) t.init in
-    Format.fprintf fmt "@[<hv 2>* Init:@;";
-    EMs.iter (fun s b ->
-        if b then Format.fprintf fmt "%s@ " s else ()) m;
-    Format.fprintf fmt "@]@;"
-    
+      let m = EMs.map (fun a -> check' a) t.init in
+      Format.fprintf fmt "@[<h 2>* Init:@;";
+      EMs.iter (fun s b ->
+          if b && keep s then Format.fprintf fmt "%s@ " s else ()) m;
+      Format.fprintf fmt "@]@;"
+
   let print : ?full:bool -> Format.formatter -> t -> unit =
     fun ?full:(full=false) fmt t ->
-    let print_init fmt =
-      if Aparam.is_init_no_print then
-        ()
-      else print_init fmt t in
+    let print_init fmt = print_init fmt t in
 
     let print_bool fmt =
-      if Aparam.bool_no_print then ()
+      if Aparam.bool_no_print then 
+        Format.fprintf fmt ""
       else begin
         Format.fprintf fmt "@[<v 0>* Bool:@;";
         Mbv.iter (fun bv nrval ->
             Format.fprintf fmt "@[<v 2>%a@;%a@]@;" Bvar.print bv
               (AbsNum.NR.print ~full:true) nrval;
           ) t.bool;
-        Format.fprintf fmt "@]@;" 
+        Format.fprintf fmt "@]@;>" 
       end in
 
     let bool_size = Mbv.cardinal t.bool
@@ -3876,7 +4480,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
       Format.fprintf fmt "@[<v 0>%a@]"
         (AbsNum.R.print ~full:full) t.num
     else
-      Format.fprintf fmt "@[<v 0>@[<v 0>%a@]%a@;%t@;%t%t@]@."
+      Format.fprintf fmt "@[<v 0>@[<v 0>%a@]%a@;%t@;%t%t@]@;"
         (AbsNum.R.print ~full:full) t.num
         Pt.print t.points_to
         print_bool_nums
@@ -3885,16 +4489,14 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
 
   let new_cnstr_blck t l = { t with num = AbsNum.R.new_cnstr_blck t.num l }
 
-  let add_cnstr t c i =
-    let tl, tr = AbsNum.R.add_cnstr t.num c i in
+  let add_cnstr t ~meet c i =
+    let tl, tr = AbsNum.R.add_cnstr t.num ~meet c i in
     ( { t with num = tl }, { t with num = tr } )
 
   let pop_cnstr_blck t l = { t with num = AbsNum.R.pop_cnstr_blck t.num l }
+
+  let pop_all_blcks t = { t with num = AbsNum.R.pop_all_blcks t.num }
 end
-
-
-module AbsDomMake (PW : ProgWrap) =
-  AbsBoolNoRel (AbsNumTMake (PW)) (PointsToImpl)
 
 
 (**********************)
@@ -4023,7 +4625,7 @@ let pp_violations fmt violations =
   if violations = [] then
     Format.fprintf fmt "@[<v>*** No Safety Violation@;@]"
   else
-    Format.fprintf fmt "@[<v 2>*** Safety Violation(s):@;@[<v>%a@]@;@]"
+    Format.fprintf fmt "@[<v 2>*** Safety Violation(s):@;@[<v>%a@]@]"
       (pp_list pp_violation) violations
 
 let vloc_compare v v' = match v, v' with
@@ -4033,17 +4635,33 @@ let vloc_compare v v' = match v, v' with
   | InProg l, InProg l' ->
     Stdlib.compare (fst l.loc_start) (fst l'.loc_start)
 
-let v_compare v v' =
-  let c = vloc_compare (fst v) (fst v') in
-  if c <> 0 then c
-  else Stdlib.compare (snd v) (snd v')
+let rec lex f = match f with
+  | f_cmp :: f_t ->
+    let c = f_cmp () in
+    if c = 0
+    then lex f_t
+    else c
+  | _ -> 0
+
+let v_compare (loc,c) (loc',c') =
+  lex [(fun () -> vloc_compare loc loc');
+       (fun () ->  Stdlib.compare c c')]
 
 let add64 x e = Papp2 (E.Oadd ( E.Op_w U64), Pvar x, e)
 
 let in_bound x ws e =
   match (L.unloc x).v_ty with
-  | Arr(ws',n) -> InBound(n * int_of_ws ws' / 8, ws, e)
+  | Arr(ws',n) -> [InBound(n * int_of_ws ws' / 8, ws, e)]
+  | Bty (U _)-> []                   (* TODO: check this *)
   | _ -> assert false
+
+
+let init_get x ws e =
+  match (L.unloc x).v_ty with
+  | Arr _ -> [Initai(L.unloc x, ws, e)]
+  | Bty (U _)-> [Initv (L.unloc x)] (* TODO: check this *)
+  | _ -> assert false
+
 
 let safe_op2 e2 = function
   | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
@@ -4068,7 +4686,7 @@ let rec safe_e_rec safe = function
   | Pvar x -> safe_var x @ safe
 
   | Pload (ws,x,e) -> Valid (ws, L.unloc x, e) :: safe_e_rec safe e
-  | Pget (ws, x, e) -> in_bound x ws e :: Initai(L.unloc x, ws, e) :: safe
+  | Pget (ws, x, e) -> (in_bound x ws e) @ (init_get x ws e) @ safe
   | Papp1 (_, e) -> safe_e_rec safe e
   | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
   | PappN (E.Opack _,_) -> safe
@@ -4085,7 +4703,7 @@ let safe_es = List.fold_left safe_e_rec []
 let safe_lval = function
   | Lnone _ | Lvar _ -> []
   | Lmem(ws, x, e) -> Valid (ws, L.unloc x, e) :: safe_e_rec [] e
-  | Laset(ws,x,e) -> in_bound x ws e :: safe_e_rec [] e
+  | Laset(ws,x,e) -> (in_bound x ws e) @ safe_e_rec [] e
 
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
 
@@ -4306,6 +4924,37 @@ let check_is_word v = match v.v_ty with
     raise (Aint_error "Bad type")
 
 
+(***************)
+(* Left Values *)
+(***************)
+
+type mlvar =
+  | MLnone
+  | MLvar of mvar
+  | MLvars of mvar list       (* If there is uncertainty on the lvalue where 
+                                 the assignement takes place. *)
+
+let pp_mlvar fmt = function
+  | MLnone -> Format.fprintf fmt "MLnone"
+  | MLvar mv -> Format.fprintf fmt "MLvar %a" pp_mvar mv
+  | MLvars mvs ->
+    Format.fprintf fmt "MLvars @[<hov 2>%a@]"
+      (pp_list pp_mvar) mvs
+
+let mvar_of_lvar_no_array lv = match lv with
+  | Lnone _ -> MLnone
+  | Lmem _ -> MLnone
+  | Lvar x  ->
+    let ux = L.unloc x in
+    begin match ux.v_kind, ux.v_ty with
+      | Global,_ -> assert false (* this case should not be possible *)
+      (* MLvar (Mglobal (ux.v_name,ux.v_ty)) *)
+      | _, Bty _ -> MLvar (Mvalue (Avar ux))
+      | _, Arr _ -> MLvar (Mvalue (Aarray ux)) end
+  | Laset _ -> assert false
+
+
+
 (*********************)
 (* Abstract Iterator *)
 (*********************)
@@ -4327,83 +4976,12 @@ end
 module ItMap = Map.Make(ItKey)
 
 
-(************************)
-(* Abstract Interpreter *)
-(************************)
+(***********************************)
+(* Abstract Expression Interpreter *)
+(***********************************)
 
-module AbsInterpreter (PW : ProgWrap) : sig
-  val analyze : unit -> violation list
-                        * (Format.formatter -> unit -> unit)
-                        * (Format.formatter -> mvar -> unit)
-end = struct
-
-  (* We ensure that all variable names are unique *)
-  let main_decl,prog = MkUniq.mk_uniq PW.main PW.prog;;
-
-  Prof.reset_all ();;
-
-  module AbsDom = AbsDomMake (struct
-      let main = main_decl
-      let prog = prog
-      let param = PW.param
-    end)
-
-  type side_effects = mem_loc list
-
-  (* Function abstraction.
-     This is a bit messy because the same function abstraction can be used
-     with different call-stacks, but the underlying disjunctive domain we 
-     use is sensitive to the call-stack. *)
-  module FAbs : sig
-    type t
-
-    (* [make abs_in abs_out f_effects] *)
-    val make    : AbsDom.t -> AbsDom.t -> side_effects -> t
-
-    (* [ apply in fabs = (f_in, f_out, effects) ]:
-       Return the abstraction of the initial states that was used, the
-       abstract final state, and the side-effects of the function (if the
-       abstraction applies in state [in]).
-       Remarks: 
-       - the final state abstraction [f_out] uses the disjunctions of [in]. *)
-    val apply : AbsDom.t -> t -> (AbsDom.t * side_effects) option
-
-    val get_in : t -> AbsDom.t
-  end = struct
-    (* Sound over-approximation of a function 'f' behavior:
-       for any initial state in [it_in], the state after executing the function
-       'f' is over-approximated by [it_out], the function's side-effects are at
-       most [it_s_effects]. *)
-    type t = { fa_in        : AbsDom.t;
-               fa_out       : AbsDom.t;
-               fa_s_effects : mem_loc list; }
-
-    let make abs_in abs_out f_effects =
-      { fa_in        = AbsDom.remove_disj abs_in;
-        fa_out       = AbsDom.remove_disj abs_out;
-        fa_s_effects = f_effects; }
-
-    let apply abs_in fabs =
-      if AbsDom.is_included abs_in (AbsDom.to_shape fabs.fa_in abs_in) 
-      then begin
-        debug (fun () -> 
-            Format.eprintf "Reusing previous analysis of the body ...@.@.");
-        Some (AbsDom.to_shape fabs.fa_out abs_in, fabs.fa_s_effects)
-      end
-      else None
-
-    let get_in t = t.fa_in
-  end
-
-
-  type astate = { it : FAbs.t ItMap.t;
-                  abs : AbsDom.t;
-                  cstack : funname list;
-                  env : s_env;
-                  prog : unit prog;
-                  s_effects : side_effects;
-                  violations : violation list }
-
+(* Builds and check properties of expressions for the abstract domain [AbsDom]. *)
+module AbsExpr (AbsDom : AbsNumBoolType) = struct
   (* Return true iff the linear expression overflows *)
   let linexpr_overflow abs lin_expr sign ws =
     let int = AbsDom.bound_texpr abs lin_expr in
@@ -4477,7 +5055,7 @@ end = struct
       let c_e = aeval_cst_int abs e in
       let pws = BatInt.pow 2 (int_of_ws ws) in
       omap (fun c_e -> ((c_e mod pws) + pws) mod pws) c_e
-        
+
     | _ -> None
 
 
@@ -4553,7 +5131,7 @@ end = struct
         | AB_Unknown -> raise (Binop_not_supported op2)
         | AB_Shift _ -> assert false (* shift only makes sense on bit-vectors *)
       end
-      
+
     | Pif _ -> raise If_not_supported
 
     | _ -> assert false
@@ -4606,7 +5184,7 @@ end = struct
         | AB_Arith Texpr1.Pow
         | AB_Unknown ->
           raise (Binop_not_supported op2)
-            
+
         | AB_Shift stype  -> match aeval_cst_w abs e2 with
           | Some i when i <= int_of_ws ws_e ->
             let absop = match stype with
@@ -4616,7 +5194,7 @@ end = struct
             let lin = Mtexpr.(binop absop
                                 (linearize_wexpr abs e1)
                                 (cst_pow_minus apr_env i 0)) in
-            
+
             wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
 
           | _ ->
@@ -4688,7 +5266,7 @@ end = struct
           ((Papp1 (E.Onot,b)) :: l_bool,expr))
           (remove_if_expr er))
     | None -> [([],e)]
-                   
+
   let op2_to_typ op2 =
     let to_cmp_kind = function
       | E.Op_int -> E.Cmp_int
@@ -4708,55 +5286,55 @@ end = struct
 
     | Ovadd (_, _) | Ovsub (_, _) | Ovmul (_, _)
     | Ovlsr (_, _) | Ovlsl (_, _) | Ovasr (_, _) -> assert false
-  
+
   let rec bexpr_to_btcons_aux : AbsDom.t -> 'a Prog.gexpr -> btcons =
     fun abs e ->
-      let aux = bexpr_to_btcons_aux abs in
-      match e with
-      | Pbool b ->
-        let cons =
-          if b then true_tcons1 (AbsDom.get_env abs)
-          else false_tcons1 (AbsDom.get_env abs) in
-        BLeaf cons
+    let aux = bexpr_to_btcons_aux abs in
+    match e with
+    | Pbool b ->
+      let cons =
+        if b then true_tcons1 (AbsDom.get_env abs)
+        else false_tcons1 (AbsDom.get_env abs) in
+      BLeaf cons
 
-      | Pvar x -> BVar (Bvar.make (Mvalue (Avar (L.unloc x))) true)
+    | Pvar x -> BVar (Bvar.make (Mvalue (Avar (L.unloc x))) true)
 
-      | Pglobal _ -> assert false (* Global variables are of type word *)
+    | Pglobal _ -> assert false (* Global variables are of type word *)
 
-      | Pif(_,e1,et,ef) ->
-        let bet, bef, be1 = aux et, aux ef, aux e1 in
-        let be1_f = match flip_btcons be1 with
-          | Some c -> c
-          | None -> raise Bop_not_supported in
+    | Pif(_,e1,et,ef) ->
+      let bet, bef, be1 = aux et, aux ef, aux e1 in
+      let be1_f = match flip_btcons be1 with
+        | Some c -> c
+        | None -> raise Bop_not_supported in
 
-        BOr ( BAnd(be1,bet), BAnd(be1_f,bef) )
+      BOr ( BAnd(be1,bet), BAnd(be1_f,bef) )
 
-      | Papp1 (op1, e1) -> begin match op1 with
-          | E.Onot ->
-            let be1 = aux e1 in
-            begin match flip_btcons be1 with
-              | Some c -> c
-              | None -> raise Bop_not_supported end
-          | _ -> assert false end
+    | Papp1 (op1, e1) -> begin match op1 with
+        | E.Onot ->
+          let be1 = aux e1 in
+          begin match flip_btcons be1 with
+            | Some c -> c
+            | None -> raise Bop_not_supported end
+        | _ -> assert false end
 
-      | Papp2 (op2, e1, e2) -> begin match op2 with
-          | E.Oadd _ | E.Omul _ | E.Osub _
-          | E.Odiv _ | E.Omod _ | E.Oland _ | E.Olor _
-          | E.Olxor _ | E.Olsr _ | E.Olsl _ | E.Oasr _ -> assert false
+    | Papp2 (op2, e1, e2) -> begin match op2 with
+        | E.Oadd _ | E.Omul _ | E.Osub _
+        | E.Odiv _ | E.Omod _ | E.Oland _ | E.Olor _
+        | E.Olxor _ | E.Olsr _ | E.Olsl _ | E.Oasr _ -> assert false
 
-          | Ovadd (_, _) | Ovsub (_, _) | Ovmul (_, _)
-          | Ovlsr (_, _) | Ovlsl (_, _) | Ovasr (_, _) -> assert false
+        | Ovadd (_, _) | Ovsub (_, _) | Ovmul (_, _)
+        | Ovlsr (_, _) | Ovlsl (_, _) | Ovasr (_, _) -> assert false
 
-          | E.Oand -> BAnd ( aux e1, aux e2 )
+        | E.Oand -> BAnd ( aux e1, aux e2 )
 
-          | E.Oor -> BOr ( aux e1, aux e2 )
+        | E.Oor -> BOr ( aux e1, aux e2 )
 
-          | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ ->
-            match remove_if_expr_aux e with
-            | Some (ty,eb,el,er)  -> aux (Pif (ty,eb,el,er))
-            | None -> flat_bexpr_to_btcons abs op2 e1 e2 end
+        | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ ->
+          match remove_if_expr_aux e with
+          | Some (ty,eb,el,er)  -> aux (Pif (ty,eb,el,er))
+          | None -> flat_bexpr_to_btcons abs op2 e1 e2 end
 
-      | _ -> assert false
+    | _ -> assert false
 
   and flat_bexpr_to_btcons abs op2 e1 e2 =
     let e1',e2' = swap_op2 op2 e1 e2 in
@@ -4768,7 +5346,7 @@ end = struct
           let lin1 = linearize_iexpr abs e1'
           and lin2 = linearize_iexpr abs e2' in
           lin2, lin1
-          (* Mtexpr.(binop Sub lin2 lin1) *)
+        (* Mtexpr.(binop Sub lin2 lin1) *)
 
         | E.Cmp_w (sign, ws) ->
           let lin1 = match ty_expr e1' with
@@ -4797,7 +5375,7 @@ end = struct
         | _ -> Mtexpr.(binop Sub lin2 lin1) 
       in
       BLeaf (Mtcons.make expr lincons)
-          
+
     with Unop_not_supported _ | Binop_not_supported _ ->
       raise Bop_not_supported
 
@@ -4809,73 +5387,53 @@ end = struct
 
   let linearize_if_iexpr : 'a Prog.gexpr -> AbsDom.t -> s_expr =
     fun e abs ->
-      List.map (fun (bexpr_list, expr) ->
-          let f x = bexpr_to_btcons x abs in
-          let b_list = List.map f bexpr_list in
+    List.map (fun (bexpr_list, expr) ->
+        let f x = bexpr_to_btcons x abs in
+        let b_list = List.map f bexpr_list in
 
-          let b_list =
-            if List.exists (fun x -> x = None) b_list then []
-            else List.map oget b_list in
+        let b_list =
+          if List.exists (fun x -> x = None) b_list then []
+          else List.map oget b_list in
 
-          let lin_expr = try Some (linearize_iexpr abs expr) with
-            | Unop_not_supported _ | Binop_not_supported _ -> None in
+        let lin_expr = try Some (linearize_iexpr abs expr) with
+          | Unop_not_supported _ | Binop_not_supported _ -> None in
 
-          (b_list, lin_expr))
-        (remove_if_expr e)
+        (b_list, lin_expr))
+      (remove_if_expr e)
 
   let linearize_if_wexpr : int -> ty gexpr -> AbsDom.t -> s_expr =
     fun out_sw e abs ->
-      List.map (fun (bexpr_list, expr) ->
-          let f x = bexpr_to_btcons x abs in
-          let b_list = List.map f bexpr_list in
+    List.map (fun (bexpr_list, expr) ->
+        let f x = bexpr_to_btcons x abs in
+        let b_list = List.map f bexpr_list in
 
-          let b_list =
-            if List.exists (fun x -> x = None) b_list then []
-            else List.map oget b_list in
+        let b_list =
+          if List.exists (fun x -> x = None) b_list then []
+          else List.map oget b_list in
 
-          let in_sw = ws_of_ty (ty_expr e) in
+        let in_sw = ws_of_ty (ty_expr e) in
 
-          let lin_expr =
-            try linearize_wexpr abs expr
-                |> cast_if_overflows abs out_sw (int_of_ws in_sw)
-                |> some
-            with | Unop_not_supported _ | Binop_not_supported _ -> None in
+        let lin_expr =
+          try linearize_wexpr abs expr
+              |> cast_if_overflows abs out_sw (int_of_ws in_sw)
+              |> some
+          with | Unop_not_supported _ | Binop_not_supported _ -> None in
 
-          (b_list, lin_expr))
-        (remove_if_expr e)
+        (b_list, lin_expr))
+      (remove_if_expr e)
 
   let rec linearize_if_expr : int -> 'a Prog.gexpr -> AbsDom.t -> s_expr =
     fun out_ws e abs ->
-      match ty_expr e with
-      | Bty Int ->
-        assert (out_ws = -1);
-        linearize_if_iexpr e abs
+    match ty_expr e with
+    | Bty Int ->
+      assert (out_ws = -1);
+      linearize_if_iexpr e abs
 
-      | Bty (U _) -> linearize_if_wexpr out_ws e abs
+    | Bty (U _) -> linearize_if_wexpr out_ws e abs
 
-      | Bty Bool -> assert false
-      | Arr _ -> assert false
+    | Bty Bool -> assert false
+    | Arr _ -> assert false
 
-
-  let init_env : 'info prog -> mem_loc list -> s_env =
-    fun (glob_decls, fun_decls) mem_locs ->
-      let env = { s_glob = Ms.empty; m_locs = mem_locs } in
-      let env =
-        List.fold_left (fun env (ws, x, _) -> add_glob env x ws)
-          env glob_decls in
-
-      List.fold_left (fun env f_decl ->
-          { env with s_glob = List.fold_left (fun s_glob ginstr ->
-                add_glob_instr s_glob ginstr)
-                env.s_glob f_decl.f_body })
-        env fun_decls
-
-  let init_state_init_args f_args state =
-    List.fold_left (fun state v -> match v with
-        | Mvalue at ->
-          { state with abs = AbsDom.is_init state.abs at }
-        | _ -> state )
-      state f_args
 
   let set_zeros f_args abs =
     List.fold_left (fun abs v -> match v with
@@ -4917,165 +5475,7 @@ end = struct
       abs globs
 
 
-  let init_state : unit func -> unit prog -> astate =
-    fun main_decl (glob_decls, fun_decls) ->
-      let mem_locs = List.map (fun x -> MemLoc x) main_decl.f_args in
-      let env = init_env (glob_decls, fun_decls) mem_locs in
-      let it = ItMap.empty in
-
-      (* We add the initial variables *)
-      let f_args = fun_args ~expand_arrays:true main_decl in
-      (* If f_args is empty, we add a dummy variable to avoid having an
-         empty relational abstraction *)
-      let f_args = if f_args = [] then [dummy_mvar] else f_args in
-
-      let f_in_args = List.map in_cp_var f_args
-      and m_locs = List.map (fun mloc -> MmemRange mloc ) env.m_locs in
-
-
-      (* We set the offsets and ranges to zero, and bound the variables using
-         their types. E.g. register of type U 64 is in [0;2^64]. *)
-      let abs = AbsDom.make (f_args @ m_locs) mem_locs
-                |> set_zeros (f_args @ m_locs)
-                |> set_bounds f_args in
-
-      (* We apply the global declarations *)
-      let abs = apply_glob glob_decls abs in
-
-      (* We extend the environment to its local variables *)
-      let f_vars = (List.map otolist f_in_args |> List.flatten)
-                   @ fun_vars ~expand_arrays:true main_decl env in
-
-      let abs = AbsDom.change_environment abs f_vars in
-
-      (* We keep track of the initial values. *)
-      let abs = List.fold_left2 (fun abs x oy -> match oy with
-          | None -> abs
-          | Some y ->
-            let sexpr = Mtexpr.var (AbsDom.get_env abs) x
-                        |> sexpr_from_simple_expr in
-            AbsDom.assign_sexpr abs y sexpr)
-          abs f_args f_in_args in
-
-      { it = it;
-        abs = abs;
-        cstack = [main_decl.f_name];
-        env = env;
-        prog = (glob_decls, fun_decls);
-        s_effects = [];
-        violations = [] }
-
-      (* We initialize the arguments. Note that for exported function, we 
-         know that input arrays are initialized. *)
-      |> init_state_init_args (fun_args ~expand_arrays:true main_decl)
-
-  (* Checks that all safety conditions hold, except for valid memory access. *)
-  let rec is_safe state = function
-    | Initv v -> begin match mvar_of_var v with
-        | Mvalue at -> AbsDom.check_init state.abs at
-        | _ -> assert false end
-
-    | Initai (v,ws,e) -> begin match mvar_of_var v with
-        | Mvalue (Aarray v) ->
-          let is = abs_arr_range state.abs v ws e in
-          List.for_all (AbsDom.check_init state.abs) is
-        | _ -> assert false end
-
-    | InBound (i,ws,e) ->
-      (* We check that (e + 1) * ws/8 is no larger than i *)
-      let epp = Papp2 (E.Oadd E.Op_int,
-                       e,
-                       Pconst (B.of_int 1)) in
-      let wse = Papp2 (E.Omul E.Op_int,
-                       epp,
-                       Pconst (B.of_int ((int_of_ws ws) / 8))) in
-      let be = Papp2 (E.Ogt E.Cmp_int, wse, Pconst (B.of_int i)) in
-
-      begin match bexpr_to_btcons be state.abs with
-        | None -> false
-        | Some c -> AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
-
-    | NotZero (ws,e) ->
-      (* We check that e is never 0 *)
-      let be = Papp2 (E.Oeq (E.Op_w ws), e, pcast ws (Pconst (B.of_int 0))) in
-      begin match bexpr_to_btcons be state.abs with
-        | None -> false
-        | Some c -> AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
-
-    | Valid _ | Termination -> true (* These are checked elsewhere *)
-
-  (* Update abs with the abstract memory range for memory accesses. *)
-  let rec mem_safety_apply (abs, violations, s_effect) = function
-    | Valid (ws,x,e) as pv ->
-      begin match AbsDom.var_points_to abs (mvar_of_var x) with
-        | Ptrs pts ->
-          if List.length pts = 1 then
-            let pt = List.hd pts in
-            let x_o = Mtexpr.var (AbsDom.get_env abs) (MvarOffset x) in
-            let lin_e = linearize_wexpr abs e in
-            let c_ws =
-              ((int_of_ws ws) / 8)
-              |> Coeff.s_of_int
-              |> Mtexpr.cst (AbsDom.get_env abs) in
-            let ws_plus_e = Mtexpr.binop Texpr1.Add c_ws lin_e in
-            let sexpr = Mtexpr.binop Texpr1.Add x_o ws_plus_e
-                        |> sexpr_from_simple_expr in
-
-            ( AbsDom.assign_sexpr abs (MmemRange pt) sexpr,
-              violations,
-              if List.mem pt s_effect then s_effect else pt :: s_effect)
-          else (abs, pv :: violations, s_effect)
-        | TopPtr -> (abs, pv :: violations, s_effect) end
-
-    | _ -> (abs, violations, s_effect)
-
-  let rec check_safety_rec state unsafe = function
-    | [] -> unsafe
-    | c :: t ->
-      if is_safe state c then check_safety_rec state unsafe t
-      else check_safety_rec state (c :: unsafe) t
-
-  let rec mem_safety_rec a = function
-    | [] -> a
-    | c :: t -> mem_safety_rec (mem_safety_apply a c) t
-
-
-  let add_violations : astate -> violation list -> astate = fun state ls ->
-    if ls <> [] then Format.eprintf "%a@." pp_violations ls;
-    { state with violations = List.sort_uniq v_compare (ls @ state.violations) }
-
-  let rec check_safety state loc conds =
-    let vsc = check_safety_rec state [] conds in
-    let abs, mvsc, s_effects =
-      mem_safety_rec (state.abs, [], state.s_effects) conds in
-    let state = { state with abs = abs; s_effects = s_effects } in
-    let unsafe = vsc @ mvsc |> List.map (fun x -> (loc,x)) in
-    add_violations state unsafe
-
-  type mlvar =
-    | MLnone
-    | MLvar of mvar
-    | MLvars of mvar list       (* If there is uncertainty on the lvalue where 
-                                   the assignement takes place. *)
-
-  let pp_mlvar fmt = function
-    | MLnone -> Format.fprintf fmt "MLnone"
-    | MLvar mv -> Format.fprintf fmt "MLvar %a" pp_mvar mv
-    | MLvars mvs ->
-      Format.fprintf fmt "MLvars @[<hov 2>%a@]"
-        (pp_list pp_mvar) mvs
-
-  let mvar_of_lvar_no_array lv = match lv with
-    | Lnone _ -> MLnone
-    | Lmem _ -> MLnone
-    | Lvar x  ->
-      let ux = L.unloc x in
-      begin match ux.v_kind, ux.v_ty with
-        | Global,_ -> MLvar (Mglobal (ux.v_name,ux.v_ty))
-        | _, Bty _ -> MLvar (Mvalue (Avar ux))
-        | _, Arr _ -> MLvar (Mvalue (Aarray ux)) end
-    | Laset _ -> assert false
-      
+  (*-------------------------------------------------------------------------*)
   (* Return te mvar where the abstract assignment takes place. For now, no
      abstraction of the memory. *)
   let mvar_of_lvar abs lv = match lv with
@@ -5087,7 +5487,6 @@ end = struct
       | [] -> assert false
       | [mv] -> MLvar (mv)
       | _ as mvs -> MLvars mvs
-
 
   let apply_offset_expr abs outmv inv offset_expr =
     match ty_gvar_of_mvar outmv with
@@ -5133,7 +5532,6 @@ end = struct
         | _ -> aeval_top_offset abs outmv end
 
     | _ -> aeval_top_offset abs outmv
-  
 
   (* Initialize variable or array elements. *)
   let a_init_mv_no_array mv abs = match mv with
@@ -5145,10 +5543,6 @@ end = struct
   let a_init_mlv_no_array mlv abs = match mlv with
     | MLvar mv -> a_init_mv_no_array mv abs
     | _ -> assert false
-
-  (* Initialize variable or array elements lvalues. *)
-  let init_mlv_no_array mlv state = 
-    { state with abs = a_init_mlv_no_array mlv state.abs }
 
   (* Array assignment. Does the numerical assignments.
      Remark: array elements do not need to be tracked in the point-to
@@ -5182,63 +5576,333 @@ end = struct
         | _ -> assert false end
     | _ -> assert false
 
+
   let omvar_is_offset = function
     | MLvar (MvarOffset _) -> true
     | _ -> false
-      
+
   (* Abstract evaluation of an assignment. 
      Also handles variable initialization. *)
-  let abs_assign : astate -> 'a gty -> mlvar -> ty gexpr -> astate =
-    fun state out_ty out_mvar e ->
+  let abs_assign : AbsDom.t -> 'a gty -> mlvar -> ty gexpr -> AbsDom.t =
+    fun abs out_ty out_mvar e ->
       assert (not (omvar_is_offset out_mvar));
       match ty_expr e, out_mvar with
-      | _, MLnone -> state
+      | _, MLnone -> abs
 
-      | _, MLvars vs ->
-        (* Here, we have no information on which elements are initialized. *)
-        { state with abs = AbsDom.forget_list state.abs vs }
+      (* Here, we have no information on which elements are initialized. *)
+      | _, MLvars vs -> AbsDom.forget_list abs vs 
 
       | Bty Int, MLvar mvar | Bty (U _), MLvar mvar ->
         (* Numerical abstraction *)
         let lv_s = wsize_of_ty out_ty in
-        let s_expr = linearize_if_expr lv_s e state.abs in
-        let abs = AbsDom.assign_sexpr state.abs mvar s_expr in
+        let s_expr = linearize_if_expr lv_s e abs in
+        let abs0 = abs in
+        let abs = AbsDom.assign_sexpr abs mvar s_expr in
 
         (* Points-to abstraction *)
-        let ptr_expr = ptr_expr_of_expr state.abs e in
+        let ptr_expr = ptr_expr_of_expr abs0 e in
         let abs = AbsDom.assign_ptr_expr abs mvar ptr_expr in
 
         (* Offset abstraction *)
         let abs = aeval_offset abs out_ty mvar e in
-
-        { state with abs = abs }
-        |> init_mlv_no_array out_mvar
+        
+        a_init_mlv_no_array out_mvar abs
 
       | Bty Bool, MLvar mvar ->
         begin
-          let state = match bexpr_to_btcons e state.abs with
-            | None -> { state with abs = AbsDom.forget_bvar state.abs mvar }
-            | Some btcons ->
-              let abs' = AbsDom.assign_bexpr state.abs mvar btcons in
-              { state with abs = abs' } in
-          init_mlv_no_array out_mvar state
+          let abs = match bexpr_to_btcons e abs with
+            | None -> AbsDom.forget_bvar abs mvar 
+            | Some btcons -> AbsDom.assign_bexpr abs mvar btcons in
+          a_init_mlv_no_array out_mvar abs
         end
 
       | Arr _, MLvar mvar ->
         match e with
         | Pvar x ->
-          let apr_env = AbsDom.get_env state.abs in
+          let apr_env = AbsDom.get_env abs in
           let se = Mtexpr.var apr_env (Mvalue (Aarray (L.unloc x))) in
           begin match mvar with
-            | Mvalue (Aarray _) | Temp _ ->
-              { state with abs = assign_arr_expr state.abs mvar se }
+            | Mvalue (Aarray _) -> assign_arr_expr abs mvar se 
+            | Temp _ -> assert false (* this case should not be possible *)
             | _ -> assert false end
 
-        | Parr_init _ -> state
+        | Parr_init _ -> abs
 
         | _ ->
           Format.eprintf "@[%a@]@." (Printer.pp_expr ~debug:true) e;
           assert false
+
+  let abs_assign_opn abs lvs assgns =
+    let abs, mlvs_forget =
+      List.fold_left2 (fun (abs, mlvs_forget) lv e_opt ->
+          match mvar_of_lvar abs lv, e_opt with
+          | MLnone,_ -> (abs, mlvs_forget)
+
+          | MLvar mlv as cmlv, None ->
+            (* Remark: n-ary operation cannot return arrays. *)
+            let abs = a_init_mlv_no_array cmlv abs in
+            (abs, mlv :: mlvs_forget)
+          | MLvar mlv, Some e ->
+            (abs_assign abs (ty_lval lv) (MLvar mlv) e, mlvs_forget)
+
+          | MLvars mlvs, _ -> (abs, mlvs @ mlvs_forget))
+        (abs,[]) lvs assgns in
+
+    let mlvs_forget = List.sort_uniq Stdlib.compare mlvs_forget in
+
+    AbsDom.forget_list abs mlvs_forget 
+
+end
+
+
+(************************)
+(* Abstract Interpreter *)
+(************************)
+
+module AbsInterpreter (PW : ProgWrap) : sig
+  val analyze : unit -> violation list
+                        * (Format.formatter -> unit -> unit)
+                        * (Format.formatter -> mvar -> unit)
+end = struct
+  
+  let main_decl,prog = PW.main, PW.prog;;
+
+  Prof.reset_all ();;
+
+  (*---------------------------------------------------------------*)
+  module AbsDom = AbsBoolNoRel (AbsNumTMake (PW)) (PointsToImpl)
+
+  module AbsExpr = AbsExpr (AbsDom)
+
+  (*---------------------------------------------------------------*)
+  type side_effects = mem_loc list
+
+  (* Function abstraction.
+     This is a bit messy because the same function abstraction can be used
+     with different call-stacks, but the underlying disjunctive domain we 
+     use is sensitive to the call-stack. *)
+  module FAbs : sig
+    type t
+
+    (* [make abs_in abs_out f_effects] *)
+    val make    : AbsDom.t -> AbsDom.t -> side_effects -> t
+
+    (* [ apply in fabs = (f_in, f_out, effects) ]:
+       Return the abstraction of the initial states that was used, the
+       abstract final state, and the side-effects of the function (if the
+       abstraction applies in state [in]).
+       Remarks: 
+       - the final state abstraction [f_out] uses the disjunctions of [in]. *)
+    val apply : AbsDom.t -> t -> (AbsDom.t * side_effects) option
+
+    val get_in : t -> AbsDom.t
+  end = struct
+    (* Sound over-approximation of a function 'f' behavior:
+       for any initial state in [it_in], the state after executing the function
+       'f' is over-approximated by [it_out], the function's side-effects are at
+       most [it_s_effects]. *)
+    type t = { fa_in        : AbsDom.t;
+               fa_out       : AbsDom.t;
+               fa_s_effects : mem_loc list; }
+
+    let make abs_in abs_out f_effects =
+      { fa_in        = AbsDom.remove_disj abs_in;
+        fa_out       = AbsDom.remove_disj abs_out;
+        fa_s_effects = f_effects; }
+
+    let apply abs_in fabs =
+      if AbsDom.is_included abs_in (AbsDom.to_shape fabs.fa_in abs_in) 
+      then begin
+        debug (fun () -> 
+            Format.eprintf "Reusing previous analysis of the body ...@.@.");
+        Some (AbsDom.to_shape fabs.fa_out abs_in, fabs.fa_s_effects)
+      end
+      else None
+
+    let get_in t = t.fa_in
+  end
+
+
+  (*---------------------------------------------------------------*)
+  type astate = { it : FAbs.t ItMap.t;
+                  abs : AbsDom.t; 
+                  cstack : funname list;
+                  env : s_env;
+                  prog : unit prog;
+                  s_effects : side_effects;
+                  violations : violation list }
+
+
+  let init_state_init_args f_args state =
+    List.fold_left (fun state v -> match v with
+        | Mvalue at ->
+          { state with abs = AbsDom.is_init state.abs at; }
+        | _ -> state )
+      state f_args
+
+  let init_env : 'info prog -> mem_loc list -> s_env =
+    fun (glob_decls, fun_decls) mem_locs ->
+    let env = { s_glob = Ms.empty; m_locs = mem_locs } in
+    let env =
+      List.fold_left (fun env (ws, x, _) -> add_glob env x ws)
+        env glob_decls in
+
+    List.fold_left (fun env f_decl ->
+        { env with s_glob = List.fold_left (fun s_glob ginstr ->
+              add_glob_instr s_glob ginstr)
+              env.s_glob f_decl.f_body })
+      env fun_decls
+
+  let init_state : unit func -> unit prog -> astate =
+    fun main_decl (glob_decls, fun_decls) ->
+      let mem_locs = List.map (fun x -> MemLoc x) main_decl.f_args in
+      let env = init_env (glob_decls, fun_decls) mem_locs in
+      let it = ItMap.empty in
+
+      (* We add the initial variables *)
+      let f_args = fun_args ~expand_arrays:true main_decl in
+      (* If f_args is empty, we add a dummy variable to avoid having an
+         empty relational abstraction *)
+      let f_args = if f_args = [] then [dummy_mvar] else f_args in
+
+      let f_in_args = List.map in_cp_var f_args
+      and m_locs = List.map (fun mloc -> MmemRange mloc ) env.m_locs in
+
+      (* We set the offsets and ranges to zero, and bound the variables using
+         their types. E.g. register of type U 64 is in [0;2^64]. *)
+      let abs = AbsDom.make (f_args @ m_locs) mem_locs
+                |> AbsExpr.set_zeros (f_args @ m_locs)
+                |> AbsExpr.set_bounds f_args in
+
+      (* We apply the global declarations *)
+      let abs = AbsExpr.apply_glob glob_decls abs in
+
+      (* We extend the environment to its local variables *)
+      let f_vars = (List.map otolist f_in_args |> List.flatten)
+                   @ fun_vars ~expand_arrays:true main_decl env in
+
+      let abs = AbsDom.change_environment abs f_vars in
+
+      (* We keep track of the initial values. *)
+      let abs = List.fold_left2 (fun abs x oy -> match oy with
+          | None -> abs
+          | Some y ->
+            let sexpr = Mtexpr.var (AbsDom.get_env abs) x
+                        |> sexpr_from_simple_expr in
+            AbsDom.assign_sexpr abs y sexpr)
+          abs f_args f_in_args in
+
+      { it = it;
+        abs = abs;
+        cstack = [main_decl.f_name];
+        env = env;
+        prog = (glob_decls, fun_decls);
+        s_effects = [];
+        violations = [] }
+
+      (* We initialize the arguments. Note that for exported function, we 
+         know that input arrays are initialized. *)
+      |> init_state_init_args (fun_args ~expand_arrays:true main_decl)
+
+
+  (*-------------------------------------------------------------------------*)
+  (* Checks that all safety conditions hold, except for valid memory access. *)
+  let is_safe state = function
+    | Initv v -> begin match mvar_of_var v with
+        | Mvalue at -> AbsDom.check_init state.abs at
+        | _ -> assert false end
+
+    | Initai (v,ws,e) -> begin match mvar_of_var v with
+        | Mvalue (Aarray v) ->
+          let is = AbsExpr.abs_arr_range state.abs v ws e in
+          List.for_all (AbsDom.check_init state.abs) is
+        | _ -> assert false end
+
+    | InBound (i,ws,e) ->
+      (* We check that (e + 1) * ws/8 is no larger than i *)
+      let epp = Papp2 (E.Oadd E.Op_int,
+                       e,
+                       Pconst (B.of_int 1)) in
+      let wse = Papp2 (E.Omul E.Op_int,
+                       epp,
+                       Pconst (B.of_int ((int_of_ws ws) / 8))) in
+      let be = Papp2 (E.Ogt E.Cmp_int, wse, Pconst (B.of_int i)) in
+
+      begin match AbsExpr.bexpr_to_btcons be state.abs with
+        | None -> false
+        | Some c -> 
+          AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
+
+    | NotZero (ws,e) ->
+      (* We check that e is never 0 *)
+      let be = Papp2 (E.Oeq (E.Op_w ws), e, pcast ws (Pconst (B.of_int 0))) in
+      begin match AbsExpr.bexpr_to_btcons be state.abs with
+        | None -> false
+        | Some c -> 
+          AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
+
+    | Valid _ | Termination -> true (* These are checked elsewhere *)
+
+  (* Update abs with the abstract memory range for memory accesses. *)
+  let mem_safety_apply (abs, violations, s_effect) = function
+    | Valid (ws,x,e) as pv ->
+      begin match AbsDom.var_points_to abs (mvar_of_var x) with
+        | Ptrs pts ->
+          if List.length pts = 1 then
+            let pt = List.hd pts in
+            let x_o = Mtexpr.var (AbsDom.get_env abs) (MvarOffset x) in
+            let lin_e = AbsExpr.linearize_wexpr abs e in
+            let c_ws =
+              ((int_of_ws ws) / 8)
+              |> Coeff.s_of_int
+              |> Mtexpr.cst (AbsDom.get_env abs) in
+            let ws_plus_e = Mtexpr.binop Texpr1.Add c_ws lin_e in
+            let sexpr = Mtexpr.binop Texpr1.Add x_o ws_plus_e
+                        |> sexpr_from_simple_expr in
+
+            ( AbsDom.assign_sexpr abs (MmemRange pt) sexpr,
+              violations,
+              if List.mem pt s_effect then s_effect else pt :: s_effect)
+          else (abs, pv :: violations, s_effect)
+        | TopPtr -> (abs, pv :: violations, s_effect) end
+
+    | _ -> (abs, violations, s_effect)
+
+
+  (*-------------------------------------------------------------------------*)
+  let rec check_safety_rec state unsafe = function
+    | [] -> unsafe
+    | c :: t ->
+      let unsafe = if is_safe state c then unsafe else c :: unsafe in
+      check_safety_rec state unsafe t 
+        
+  let rec mem_safety_rec a = function
+    | [] -> a
+    | c :: t ->       
+      mem_safety_rec (mem_safety_apply a c) t
+
+  let add_violations : astate -> violation list -> astate = fun state ls ->
+    if ls <> [] then Format.eprintf "%a@." pp_violations ls;
+    { state with violations = List.sort_uniq v_compare (ls @ state.violations) }
+    
+  let rec check_safety state loc conds =
+    let vsc = check_safety_rec state [] conds in
+    let abs, mvsc, s_effects =
+      mem_safety_rec (state.abs, [], state.s_effects) conds in
+    
+    let state = { state with abs = abs;
+                             s_effects = s_effects } in
+    
+    let unsafe = vsc @ mvsc
+                 |> List.map (fun x -> (loc,x)) in
+    add_violations state unsafe
+
+      
+  (*-------------------------------------------------------------------------*)
+  (* Initialize variable or array elements lvalues. *)
+  let init_mlv_no_array mlv state = 
+    { state with abs = AbsExpr.a_init_mlv_no_array mlv state.abs; }
+      
 
   let offsets_of_mvars l = List.map ty_gvar_of_mvar l
                            |> List.filter (fun x -> x <> None)
@@ -5263,11 +5927,11 @@ end = struct
     let assigns = combine3 exp_in_tys f_args es
                   |> List.map (fun (x,y,z) -> (x, MLvar y, z)) in
 
-    let state = List.fold_left (fun state (in_ty, mvar, e) ->
-        abs_assign state in_ty mvar e)
-        state assigns in
+    let abs = List.fold_left (fun abs (in_ty, mvar, e) ->
+        AbsExpr.abs_assign abs in_ty mvar e ) 
+        state.abs assigns in
 
-    state
+    { state with abs = abs }
 
   (* Remark: handles variable initialization. *)
   let aeval_f_return abs ret_assigns =
@@ -5283,7 +5947,7 @@ end = struct
           | Bty Bool ->
             let rconstr = BVar (Bvar.make rvar true) in
             AbsDom.assign_bexpr abs mlv rconstr
-            |> a_init_mlv_no_array mlvo
+            |> AbsExpr.a_init_mlv_no_array mlvo
 
           | Bty _ ->
             let mret = Mtexpr.var (AbsDom.get_env abs) rvar in
@@ -5295,9 +5959,9 @@ end = struct
             let expr = match ty_mvar mlv, ty_mvar rvar with
               | Bty Int, Bty Int -> mret
               | Bty (U _), Bty Int ->
-                wrap_if_overflow abs mret Unsigned lv_size
+                AbsExpr.wrap_if_overflow abs mret Unsigned lv_size
               | Bty (U _), Bty (U _) ->
-                cast_if_overflows abs lv_size ret_size mret
+                AbsExpr.cast_if_overflows abs lv_size ret_size mret
               | _, _ -> assert false in
 
             let s_expr = sexpr_from_simple_expr expr in
@@ -5312,9 +5976,9 @@ end = struct
               | None -> abs
               | Some rv ->
                 let lrv = L.mk_loc L._dummy rv in
-                aeval_offset abs out_ty mlv (Pvar lrv) in
+                AbsExpr.aeval_offset abs out_ty mlv (Pvar lrv) in
 
-            a_init_mlv_no_array mlvo abs
+            AbsExpr.a_init_mlv_no_array mlvo abs
 
           | Arr _ ->
             let mret = Mtexpr.var (AbsDom.get_env abs) rvar in
@@ -5326,10 +5990,9 @@ end = struct
             (* Numerical abstractions only.
                Points-to and offset abstraction are not needed for array and 
                array elements *)
-            assign_arr_expr abs mlv mret)
+            AbsExpr.assign_arr_expr abs mlv mret)
       
       abs ret_assigns
-
 
   let forget_f_vars f state =
     let f_decl = get_fun_def state.prog f |> oget in
@@ -5375,7 +6038,7 @@ end = struct
     let state = forget_stack_vars state in
 
     let state = { state with 
-                  abs = AbsDom.new_cnstr_blck state.abs callsite } in
+                  abs = AbsDom.new_cnstr_blck state.abs callsite; } in
 
     { state with cstack = f :: state.cstack;
                  s_effects = [] }
@@ -5396,10 +6059,11 @@ end = struct
     let () = Prof.call sf (t' -. t) in
     r
 
-  let get_ret_assgns state f_decl lvs =
+  let get_ret_assgns abs f_decl lvs =
     let f_rets_no_offsets = fun_rets_no_offsets f_decl
     and out_tys = f_decl.f_tyout
-    and mlvs = List.map (fun x -> (x, mvar_of_lvar state.abs x)) lvs in
+    and mlvs = List.map (fun x -> 
+        (x, AbsExpr.mvar_of_lvar abs x)) lvs in
 
     combine3 out_tys f_rets_no_offsets mlvs
 
@@ -5409,8 +6073,8 @@ end = struct
     let state = forget_side_effect state fstate.s_effects in
 
     (* We pop the top-most block of constraints in the callee *)
-    let fstate = { fstate with 
-                   abs = AbsDom.pop_cnstr_blck fstate.abs callsite } in
+    let fabs = AbsDom.pop_cnstr_blck fstate.abs callsite in
+    let fstate = { fstate with abs = fabs; } in
 
     (* We forget variables untouched by f in the callee *)
     let fstate = forget_no_side_effect fstate fstate.s_effects in
@@ -5433,7 +6097,7 @@ end = struct
     debug(fun () -> Format.eprintf "evaluating returned values ...@.");
     (* Finally, we assign the returned values in the corresponding lvalues *)
     let f_decl = get_fun_def fstate.prog fname |> oget in
-    let r_assgns = get_ret_assgns state f_decl lvs in      
+    let r_assgns = get_ret_assgns state.abs f_decl lvs in      
     
     let state = { state with abs = aeval_f_return state.abs r_assgns } in
 
@@ -5554,10 +6218,12 @@ end = struct
       [Some cf_carry; Some w_carry] 
 
     | _ ->                   (* General case, potential carry *)
-      let w = Pif (Bty (U ws), eb, w_carry, w_no_carry) in
-      let cf = Pif (Bty Bool, eb, cf_carry, cf_no_carry) in
+      let _w = Pif (Bty (U ws), eb, w_carry, w_no_carry) in
+      let _cf = Pif (Bty Bool, eb, cf_carry, cf_no_carry) in
 
-      [Some cf; Some w] 
+      (* FIXME: make this optional ?*)
+      [None; None]
+      (* [Some cf; Some w]  *)
 
   (* FIXME: check this *)
   let mk_subcarry ws es =
@@ -5585,10 +6251,12 @@ end = struct
       [Some cf_carry; Some w_carry] 
 
     | _ ->                   (* General case, potential carry *)
-      let w = Pif (Bty (U ws), eb, w_carry, w_no_carry) in
-      let cf = Pif (Bty Bool, eb, cf_carry, cf_no_carry) in
+      let _w = Pif (Bty (U ws), eb, w_carry, w_no_carry) in
+      let _cf = Pif (Bty Bool, eb, cf_carry, cf_no_carry) in
 
-      [Some cf; Some w] 
+      (* FIXME: make this optional ?*)
+      [None; None]
+      (* [Some cf; Some w]  *)
 
   
   (* -------------------------------------------------------------------- *)
@@ -5694,10 +6362,11 @@ end = struct
     | ADOX    of wsize  (* add with overflow flag, only writes overflow flag *)
     *)
 
-    (* (\* conditional copy *\)
-     * | E.Ox86 (X86_instr_decl.CMOVcc sz) ->
-     *   let c,el,er = as_seq3 es in 
-     *   if b then el else er *)
+    (* conditional copy *)
+    | E.Ox86 (X86_instr_decl.CMOVcc sz) ->
+      let c,el,er = as_seq3 es in
+      let e = Pif (Bty (U sz), c, el, er) in
+      [Some e] 
 
     (* bitwise operators *)
     | E.Ox86 (X86_instr_decl.TEST _)
@@ -5894,9 +6563,9 @@ end = struct
   (* -------------------------------------------------------------------- *)
   let num_instr_evaluated = ref 0
 
-  let print_ginstr ginstr abs () =
-    Format.eprintf "@[<v>@[<v>%a@]@;*** %d Instr: %a %a@;@]%!"
-      (AbsDom.print ~full:true) abs
+  let print_ginstr ginstr abs_vals =
+    Format.eprintf "@[<v>@[<v>%a@]@;*** %d Instr: %a %a@;@;@]%!"
+      (AbsDom.print ~full:true) abs_vals
       (let a = !num_instr_evaluated in incr num_instr_evaluated; a)
       L.pp_sloc (fst ginstr.i_loc)
       (Printer.pp_instr ~debug:false) ginstr
@@ -5911,42 +6580,43 @@ end = struct
       (AbsDom.print ~full:true) abs2
       (AbsDom.print ~full:true) abs3
 
-  let print_if_join cpt_instr ginstr labs rabs abs_r () =
+  let print_if_join cpt_instr ginstr labs rabs abs_r =
     Format.eprintf "@;@[<v 2>If join %a for Instr:@;%a @;@;%a@]@."
       L.pp_sloc (fst ginstr.i_loc)
       (Printer.pp_instr ~debug:false) ginstr
-      print_binop (cpt_instr,
-                   labs,
-                   rabs,
-                   abs_r)
+      (print_binop) (cpt_instr,
+                     labs,
+                     rabs,
+                     abs_r)
 
-  let print_while_join cpt_instr abs abs_o abs_r () =
+  let print_while_join cpt_instr abs abs_o abs_r =
     Format.eprintf "@;@[<v 2>While Join:@;%a@]@."
-      print_binop (cpt_instr,
-                   abs,
-                   abs_o,
-                   abs_r)
+      (print_binop) (cpt_instr,
+                             abs,
+                             abs_o,
+                             abs_r)
 
-  let print_while_widening cpt_instr abs abs' abs_r () =
+  let print_while_widening cpt_instr abs abs' abs_r =
     Format.eprintf "@;@[<v 2>While Widening:@;%a@]@."
-      print_binop (cpt_instr,
-                   abs,
-                   abs',
-                   abs_r)
+      (print_binop) (cpt_instr,
+                             abs,
+                             abs',
+                             abs_r)
 
-  let print_return ginstr fabs fname () =
+  let print_return ginstr fabs fname =
     Format.eprintf "@[<v>@[<v>%a@]Returning %s (called line %a):@;@]%!"
       (AbsDom.print ~full:true) fabs
       fname
       L.pp_sloc (fst ginstr.i_loc)
 
-
   let rec aeval_ginstr : ('ty,'info) ginstr -> astate -> astate =
     fun ginstr state ->
-      debug (print_ginstr ginstr state.abs);
+      debug (fun () ->
+        print_ginstr ginstr state.abs);
 
       (* We stop if the abstract state is bottom *)
-      if AbsDom.is_bottom state.abs then state
+      if AbsDom.is_bottom state.abs
+      then state
       else
         (* We check the safety conditions *)
         let conds = safe_instr ginstr in
@@ -5954,61 +6624,46 @@ end = struct
         aeval_ginstr_aux ginstr state
 
   and aeval_ginstr_aux : ('ty,'info) ginstr -> astate -> astate =
-    fun ginstr state -> match ginstr.i_desc with
+    fun ginstr state -> match ginstr.i_desc with 
+      | Cassgn (lv,tag,ty1, Pif (ty2, c, el, er))
+        when Aparam.pif_movecc_as_if ->
+        assert (ty1 = ty2);
+        let cl = { ginstr with i_desc = Cassgn (lv, tag, ty1, el) } in
+        let cr = { ginstr with i_desc = Cassgn (lv, tag, ty2, er) } in
+        aeval_if ginstr c [cl] [cr] state
+
+      | Copn (lvs,tag,E.Ox86 (X86_instr_decl.CMOVcc sz),es)
+        when Aparam.pif_movecc_as_if ->
+        let c,el,er = as_seq3 es in
+        let lv = as_seq1 lvs in
+        let cl = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), el) } in
+        let cr = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), er) } in
+        aeval_if ginstr c [cl] [cr] state
+
       | Cassgn (lv, _, _, e) ->
-        abs_assign state (ty_lval lv) (mvar_of_lvar state.abs lv) e
+        let abs = AbsExpr.abs_assign
+            state.abs 
+            (ty_lval lv)
+            (AbsExpr.mvar_of_lvar state.abs lv) 
+            e in
+        { state with abs = abs; }
 
       | Copn (lvs,_,opn,es) ->
         (* Remark: the assignments must be done in the correct order. *)
         let assgns = split_opn (List.length lvs) opn es in
-        let state, mlvs_forget =
-          List.fold_left2 (fun (state, mlvs_forget) lv e_opt ->
-              match mvar_of_lvar state.abs lv, e_opt with
-              | MLnone,_ -> (state, mlvs_forget)
+        let abs = AbsExpr.abs_assign_opn state.abs lvs assgns in
 
-              | MLvar mlv as cmlv, None ->
-                (* Remark: n-ary operation cannot return arrays. *)
-                let state = init_mlv_no_array cmlv state in
-                (state, mlv :: mlvs_forget)
-              | MLvar mlv, Some e ->
-                (abs_assign state (ty_lval lv) (MLvar mlv) e, mlvs_forget)
-
-              | MLvars mlvs, _ -> (state, mlvs @ mlvs_forget))
-            (state,[]) lvs assgns in
-
-        let mlvs_forget = List.sort_uniq Stdlib.compare mlvs_forget in
-
-        { state with abs = AbsDom.forget_list state.abs mlvs_forget }
+        { state with abs = abs; }
 
       | Cif(e,c1,c2) ->
-        let eval_cond state = function
-          | Some ec -> AbsDom.meet_btcons state.abs ec
-          | None -> state.abs in
-        let oec = bexpr_to_btcons e state.abs in
-
-        let labs, rabs =
-          if Aparam.if_disj && is_some (simpl_obtcons oec) then
-            let ec = simpl_obtcons oec |> oget in
-            AbsDom.add_cnstr state.abs ec (fst ginstr.i_loc)
-          else
-            let noec = obind flip_btcons oec in
-            ( eval_cond state oec, eval_cond state noec ) in
-
-        let lstate = aeval_gstmt c1 { state with abs = labs } in
-
-        let cpt_instr = !num_instr_evaluated - 1 in
-
-        (* We abstractly evaluate the right branch
-           Be careful the start from lstate, as we need to use the
-           updated abstract iterator. *)
-        let rstate = aeval_gstmt c2 { lstate with abs = rabs } in
-
-        let abs_res = AbsDom.join lstate.abs rstate.abs in
-        debug (print_if_join cpt_instr ginstr lstate.abs rstate.abs abs_res);
-        { rstate with abs = abs_res }
+        aeval_if ginstr e c1 c2 state
 
       | Cwhile(_,c1, e, c2) ->
         let prog_pt = fst ginstr.i_loc in
+
+        (* We add a disjunctive constraint block. *)
+        let abs = AbsDom.new_cnstr_blck state.abs prog_pt in
+        let state = { state with abs = abs; } in
 
         let cpt = ref 0 in
         let state = aeval_gstmt c1 state in
@@ -6018,18 +6673,23 @@ end = struct
         let state = check_safety state (InProg prog_pt) conds in
 
         (* Given an abstract state, compute the loop condition expression. *)
-        let oec abs = bexpr_to_btcons e abs in
+        let oec abs = AbsExpr.bexpr_to_btcons e abs in
 
         (* Candidate decreasing quantity *)
         let ni_e =
-          try Some (dec_qnty_heuristic state.abs (c2 @ c1) (oec state.abs))
+          try Some (dec_qnty_heuristic 
+                      state.abs (c2 @ c1) 
+                      (oec state.abs))
           with Heuristic_failed -> None in
         (* Variable where we store its value before executing the loop body. *)
         let mvar_ni = MNumInv prog_pt in
 
         (* We check that if the loop does not exit, then ni_e decreased by
-             at least one *)
-        let check_ni_dec state = match ni_e with
+             at least one. *)
+        let check_ni_dec state = 
+          if AbsDom.is_bottom state.abs then state
+          else
+            match ni_e with
             | None -> (* Here, we cannot prove termination *)
               let violation = (InProg prog_pt, Termination) in
               add_violations state [violation]
@@ -6045,13 +6705,15 @@ end = struct
                  candidate decreasing quantity indeed decreased. *)
               let state_in = match oec state.abs with
                 | Some ec -> 
-                  { state with abs = AbsDom.meet_btcons state.abs ec }
+                  { state with 
+                    abs = AbsDom.meet_btcons state.abs ec }
                 | None -> state in
 
               debug(fun () -> 
                   Format.eprintf "@[<v 2>Checking the numerical quantity in:@;\
                                   %a@]@."
-                    (AbsDom.print ~full:true) state_in.abs);
+                    (AbsDom.print ~full:true)
+                    state_in.abs);
 
               let int = AbsDom.bound_texpr state_in.abs e
               and zint = AbsDom.bound_variable state_in.abs mvar_ni
@@ -6075,13 +6737,9 @@ end = struct
                 add_violations state [violation] in
 
 
-        (* [[body]]state_i U state*)
+        (* ⟦body⟧state_i ∪ state *)
         let eval_body state_i state =
           let cpt_instr = !num_instr_evaluated - 1 in
-
-          (* We add a disjunctive constraint block *)
-          let state_i = { state_i with
-                          abs = AbsDom.new_cnstr_blck state_i.abs prog_pt } in
 
           let state_o = aeval_gstmt (c2 @ c1) state_i in
 
@@ -6090,17 +6748,14 @@ end = struct
           let state_o = check_ni_dec state_o in
 
           (* We forget the variable storing the initial value of the 
-             candidate decreasing quantity *)
+             candidate decreasing quantity. *)
           let state_o = { state_o with 
                           abs = AbsDom.forget_list state_o.abs [mvar_ni] } in
 
-          (* We pop the disjunctive constraint block *)
-          let state_o = { state_o with
-                          abs = AbsDom.pop_cnstr_blck state_o.abs prog_pt } in
-
           let abs_r = AbsDom.join state.abs state_o.abs in
-          debug (print_while_join cpt_instr state.abs state_o.abs abs_r);
-          { state_o with abs = abs_r } in
+          debug (fun () ->
+              print_while_join cpt_instr state.abs state_o.abs abs_r);
+          { state_o with abs = abs_r; } in
 
         let enter_loop state =
           debug (fun () -> Format.eprintf "Loop %d@;" !cpt);
@@ -6124,7 +6779,8 @@ end = struct
           match ni_e with
             | None -> state
             | Some nie ->
-              { state with abs = AbsDom.assign_sexpr state.abs
+              { state with 
+                abs = AbsDom.assign_sexpr state.abs
                                  mvar_ni
                                  (sexpr_from_simple_expr nie) } in
 
@@ -6162,8 +6818,11 @@ end = struct
               AbsDom.widening
                 (smpl_thrs state.abs) (* this is used as a threshold *)
                 state.abs state'.abs in
-            debug(print_while_widening cpt_instr state.abs state'.abs w_abs);
-            stabilize { state' with abs = w_abs } (Some state) in
+
+            debug(fun () ->
+                print_while_widening
+                  cpt_instr state.abs state'.abs w_abs);
+            stabilize { state' with abs = w_abs; } (Some state) in
 
         let rec stabilize_b state_i pre_state =
           let cpt_i = !num_instr_evaluated - 1 in
@@ -6177,16 +6836,23 @@ end = struct
               AbsDom.widening
                 (smpl_thrs state_i.abs) (* this is used as a threshold *)
                 state_i.abs state_i'.abs in
-            debug(print_while_widening cpt_i state_i.abs state_i'.abs w_abs);
-            stabilize_b { state_i' with abs = w_abs } state in
+            debug(fun () ->
+                print_while_widening cpt_i
+                  state_i.abs state_i'.abs w_abs);
+            stabilize_b { state_i' with abs = w_abs; } state in
 
-        (* We first unroll the loop k_unroll times. We then stabilize the
-           abstraction (in finite time) using AbsDom.widening.
-           (k_unroll is a parameter of the analysis). *)
+        (* We first unroll the loop k_unroll times. 
+           (k_unroll is a parameter of the analysis) *)
         let state, pre_state = unroll_times Aparam.k_unroll state None in
 
-        if Aparam.widening_out then stabilize state pre_state
-        else stabilize_b (enter_loop state) state
+        (* We stabilize the abstraction (in finite time) using widening. *)
+        let state =
+          if Aparam.widening_out then stabilize state pre_state
+          else stabilize_b (enter_loop state) state in
+
+        (* We pop the disjunctive constraint block *)
+        let abs = AbsDom.pop_cnstr_blck state.abs prog_pt in
+        { state with abs = abs; } 
 
 
       | Ccall(_, lvs, f, es) ->
@@ -6204,14 +6870,15 @@ end = struct
         let conds = safe_return f_decl in
         let fstate = check_safety fstate (InReturn fn) conds in
 
-        debug(print_return ginstr fstate.abs fn.fn_name);
+        debug(fun () ->
+            print_return ginstr fstate.abs fn.fn_name);
 
         return_call state callsite fstate lvs
 
       | Cfor(i, (d,e1,e2), c) ->
         let prog_pt = fst ginstr.i_loc in
-
-        match aeval_cst_int state.abs e1, aeval_cst_int state.abs e2 with
+        match AbsExpr.aeval_cst_int state.abs e1, 
+              AbsExpr.aeval_cst_int state.abs e2 with
         | Some z1, Some z2 ->
           if z1 = z2 then state else
             let init_i, final_i, op = match d with
@@ -6222,26 +6889,28 @@ end = struct
               if i = f then [i] else i :: mk_range (op i) f op in
 
             let range = mk_range init_i final_i op
-            and mvari = Mvalue (Avar (L.unloc i))
-            and apr_env = AbsDom.get_env state.abs in
+            and mvari = Mvalue (Avar (L.unloc i)) in
+            let apr_env = AbsDom.get_env state.abs in 
 
             List.fold_left ( fun state ci ->
-                (* We add a disjunctive constraint block *)
-                let state =
-                  { state with 
-                    abs = AbsDom.new_cnstr_blck state.abs prog_pt } in
+                (* We add a disjunctive constraint block. *)
+                let std = AbsDom.new_cnstr_blck state.abs prog_pt in
+                let state = { state with abs = std; } in
 
                 (* We set the integer variable i to ci. *)
                 let expr_ci = Mtexpr.cst apr_env (Coeff.s_of_int ci)
-                              |> sexpr_from_simple_expr in
-                let abs = AbsDom.assign_sexpr state.abs mvari expr_ci in
+                                  |> sexpr_from_simple_expr in
+                let abs = 
+                  AbsDom.assign_sexpr state.abs mvari expr_ci in
+
                 let state =
                   { state with
-                    abs = AbsDom.is_init abs (Avar (L.unloc i)) }
+                    abs = AbsDom.is_init abs (Avar (L.unloc i)); }
                   |> aeval_gstmt c in
 
-                (* We pop the disjunctive constraint block *)
-                { state with abs = AbsDom.pop_cnstr_blck state.abs prog_pt }
+                (* We pop the disjunctive constraint block. *)
+                let abs = AbsDom.pop_cnstr_blck state.abs prog_pt in
+                { state with abs = abs; } 
               ) state range
 
         | _ ->
@@ -6295,14 +6964,48 @@ end = struct
 
         (* We make a new function abstraction for f. Roughly, it is of the form:
            input |--> (output,effects) *)
-        let fabs = 
-          FAbs.make st_in_ndisj.abs st_out_ndisj.abs st_out_ndisj.s_effects in
+        let fabs = FAbs.make 
+            st_in_ndisj.abs
+            st_out_ndisj.abs
+            st_out_ndisj.s_effects in
 
         let st_out_ndisj = { st_out_ndisj with
                              it = ItMap.add itk fabs st_out_ndisj.it } in
 
         (* It remains to add the disjunctions of the call_site to st_out *)
-        { st_out_ndisj with abs = AbsDom.to_shape st_out_ndisj.abs st_in.abs }
+        { st_out_ndisj with 
+          abs = AbsDom.to_shape st_out_ndisj.abs st_in.abs }
+        
+  and aeval_if ginstr e c1 c2 state =
+    let eval_cond state = function
+      | Some ec -> AbsDom.meet_btcons state.abs ec
+      | None -> state.abs in
+    let oec = AbsExpr.bexpr_to_btcons e state.abs in
+
+    let labs, rabs =
+      if Aparam.if_disj && is_some (simpl_obtcons oec) then
+        let ec = simpl_obtcons oec |> oget in
+        AbsDom.add_cnstr state.abs ~meet:true ec (fst ginstr.i_loc)
+      else
+        (* FIXME: check that the fact that we do not introduce a 
+           disjunction node does not create issues. *)
+        let noec = obind flip_btcons oec in
+        ( eval_cond state oec, eval_cond state noec ) in
+
+    (* Branches evaluation *)
+    let lstate = aeval_gstmt c1 { state with abs = labs; } in
+
+    let cpt_instr = !num_instr_evaluated - 1 in
+
+    (* We abstractly evaluate the right branch
+       Be careful the start from lstate, as we need to use the
+       updated abstract iterator. *)
+    let rstate = aeval_gstmt c2 { lstate with abs = rabs; } in
+
+    let abs_res = AbsDom.join lstate.abs rstate.abs in
+    debug (fun () ->
+        print_if_join cpt_instr ginstr lstate.abs rstate.abs abs_res);
+    { rstate with abs = abs_res; }
 
   and aeval_body f_body state =
     debug (fun () -> Format.eprintf "Evaluating the body ...@.@.");
@@ -6310,14 +7013,13 @@ end = struct
 
   and aeval_gstmt : ('ty,'i) gstmt -> astate -> astate =
     fun gstmt state ->
-      let state = List.fold_left (fun state ginstr ->
-          aeval_ginstr ginstr state)
-          state gstmt in
-      let () = debug (fun () ->
-          if gstmt <> [] then
-            Format.eprintf "%a%!"
-              (AbsDom.print ~full:true) state.abs) in
-      state
+    let state = List.fold_left (fun state ginstr ->
+        aeval_ginstr ginstr state)
+        state gstmt in
+    let () = debug (fun () ->
+        if gstmt <> [] then
+          Format.eprintf "%a%!" (AbsDom.print ~full:true) state.abs) in
+    state
 
   (* Select the call strategy for [f_decl] in [st_in] *)
   and aeval_call_strategy callsite f_decl st_in =
@@ -6334,25 +7036,13 @@ end = struct
              L.pp_sloc callsite
              pp_call_strategy strat);
     strat
-
-  (*------------------------------------------------------------------------*)
-  (* Procedure analysis *)
-
-  (* (\* fa_pre: checks that the function abstraction applies.
-   *    fa_post: return an abstraction of the state after applying the function. *\)
-   * type fun_abs = { fa_pre  : astate -> Prog.ty gexprs -> bool;
-   *                  fa_post : astate -> Prog.ty gexprs -> astate; }   
-   * 
-   * (\* REM *\)
-   * let proc_analysis_heuristic prog f =
-   *   let _f_decl = get_fun_def prog f |> oget in
-   *   assert false *)
   
   (*------------------------------------------------------------------------*)
   let print_mem_ranges state =
     debug(fun () -> Format.eprintf
              "@[<v 0>@;Final offsets full abstract value:@;@[%a@]@]@."
-             (AbsDom.print ~full:true) state.abs)
+             (AbsDom.print ~full:true)
+             state.abs)
 
   let print_var_interval state fmt mvar =
     let int = AbsDom.bound_variable state.abs mvar in
@@ -6378,8 +7068,7 @@ end = struct
 
     let sb = !only_rel_print in (* Not very clean *)
     only_rel_print := true;
-    Format.fprintf fmt "@[%a@]"
-      (AbsDom.print ~full:true) abs_proj;
+    Format.fprintf fmt "@[%a@]" (AbsDom.print ~full:true) abs_proj;
     only_rel_print := sb
 
 
@@ -6415,7 +7104,7 @@ end = struct
 
       ( final_st.violations,
         mem_ranges_printer final_st main_decl,
-        print_var_interval final_st )
+        print_var_interval final_st)
     with
     | Manager.Error _ as e -> hndl_apr_exc e
 end
@@ -6427,6 +7116,12 @@ module type ExportWrap = sig
 end
 
 module AbsAnalyzer (EW : ExportWrap) = struct
+  
+  module EW = struct
+      (* We ensure that all variable names are unique *)
+    let main,prog = MkUniq.mk_uniq EW.main EW.prog
+  end
+
   let parse_pt_rel s = match String.split_on_char ';' s with
     | [pts;rels] ->
       let relationals =
@@ -6455,7 +7150,8 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           | [ps] -> (None, parse_pt_rels ps)
           | _ -> raise (Failure "-safetyparam ill-formed (too many '>' ?)"))
 
-  let analyze () = 
+  let analyze () =
+    try
     let ps_assoc = omap_dfl (fun s_p -> parse_params s_p)
         [ None, [ { relationals = None; pointers = None } ]]
         !Glob_options.safety_param in
@@ -6487,15 +7183,22 @@ module AbsAnalyzer (EW : ExportWrap) = struct
     match l_res with
     | [] -> raise (Failure "-safetyparam ill-formed (empty list of params)")
     | (violations, _, print_mvar_interval) :: _->
-      Format.eprintf "@.@[<v>%a@;@;\
-                      @[<v 2>Memory ranges:@;%a@]@;\
+      let pp_mem_range fmt = match npt with
+        | [] -> Format.fprintf fmt ""
+        | _ ->
+      Format.eprintf "@[<v 2>Memory ranges:@;%a@]@;"
+        (pp_list print_mvar_interval) npt in
+      
+      Format.eprintf "@.@[<v>%a@;\
+                      %t\
                       %a@]@."
         pp_violations violations
-        (pp_list print_mvar_interval) npt
+        pp_mem_range
         (pp_list (fun fmt (_,f,_) -> f fmt ())) l_res;
 
       if violations <> [] then begin
         Format.eprintf "@[<v>Program is not safe!@;@]@.";
         exit(2)
       end;
+    with | Manager.Error _ as e -> hndl_apr_exc e
 end
