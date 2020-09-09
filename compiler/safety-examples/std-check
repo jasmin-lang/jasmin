@@ -9,14 +9,14 @@ MAXJOBS="3"
 declare -A SUBDIRS
 declare -A SUBDIRS2
 
-SUBDIRS[sct-examples/chacha20/ref/chacha20.jazz]="plain;len"
-SUBDIRS2[sct-examples/chacha20/ref/chacha20.jazz]="output;len"
+SUBDIRS[chacha20/ref/chacha20.jazz]="plain;len"
+SUBDIRS2[chacha20/ref/chacha20.jazz]="output;len"
 
-SUBDIRS[sct-examples/poly1305/avx2/poly1305.japp]="in;inlen"
-SUBDIRS[sct-examples/poly1305/ref3/poly1305.japp]="in;inlen"
+SUBDIRS[poly1305/avx2/poly1305.japp]="in;inlen"
+SUBDIRS[poly1305/ref3/poly1305.japp]="in;inlen"
 
-SUBDIRS[sct-examples/chacha20/avx2/chacha20.jazz]="plain;len"
-SUBDIRS2[sct-examples/chacha20/avx2/chacha20.jazz]="output;len"
+SUBDIRS[chacha20/avx2/chacha20.jazz]="plain;len"
+SUBDIRS2[chacha20/avx2/chacha20.jazz]="output;len"
 
 
 CURJOBS=0
