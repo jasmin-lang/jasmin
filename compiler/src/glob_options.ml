@@ -11,6 +11,7 @@ let print_list = ref []
 let ecfile = ref ""
 let ec_list = ref []
 let check_safety = ref false
+let check_safety_pass = Compiler.ParamsExpansion
 let safety_param = ref None
 
 let lea = ref false

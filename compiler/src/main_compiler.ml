@@ -136,6 +136,30 @@ and pp_comp_ferr tbl fmt = function
 
 
 (* -------------------------------------------------------------------- *)
+let check_safety_p s p =
+  let s1,s2 = Glob_options.print_strings s in
+  Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
+                  %a@;@]@."
+    s1 s2
+    (Printer.pp_prog ~debug:true) p;
+
+  let () =
+    List.iter (fun f_decl ->
+        if f_decl.f_cc = Export then
+          let () = Format.eprintf "@[<v>Analyzing function %s@;@]@."
+              f_decl.f_name.fn_name in
+
+          let module AbsInt = Safety.AbsAnalyzer(struct
+              let main = f_decl
+              let prog = p
+            end) in
+
+          AbsInt.analyze ())
+      (snd p) in
+  exit 0 
+
+
+(* -------------------------------------------------------------------- *)
 let main () =
   try
 
@@ -160,6 +184,10 @@ let main () =
     let prog = Subst.remove_params pprog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
+    if check_safety_pass = Compiler.ParamsExpansion && !check_safety then
+      check_safety_p Compiler.ParamsExpansion prog
+    else
+            
     if !ec_list <> [] then begin
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
@@ -301,31 +329,14 @@ let main () =
         else x in
       Conv.string0_of_string x in
 
+    (* Check safety and calls exit(_). *)
+    let check_safety_cp s cp =
+      let p = Conv.prog_of_cprog tbl cp in
+      check_safety_p s p in
+    
     let pp_cprog s cp =
-      if s = Compiler.RemoveGlobal && !check_safety then begin
-        (* if s = Compiler.ParamsExpansion && !check_safety then begin *)
-        let p = Conv.prog_of_cprog tbl cp in
-        let s1,s2 = Glob_options.print_strings s in
-        Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
-                        %a@;@]@."
-          s1 s2
-          (Printer.pp_prog ~debug:true) p;
-
-        let () =
-          List.iter (fun f_decl ->
-              if f_decl.f_cc = Export then
-                let () = Format.eprintf "@[<v>Analyzing function %s@;@]@."
-                    f_decl.f_name.fn_name in
-
-                let module AbsInt = Safety.AbsAnalyzer(struct
-                    let main = f_decl
-                    let prog = p
-                  end) in
-
-                AbsInt.analyze ())
-            (snd p) in
-        exit 0;
-      end
+      if s = check_safety_pass && !check_safety then
+        check_safety_cp s cp
       else
         eprint s (fun fmt cp ->
             let p = Conv.prog_of_cprog tbl cp in
