@@ -1,4 +1,4 @@
-Speculative safety analysis
+Safety analysis
 --------------------------------------------------------------------
 
 - The implementations of poly1305 and chacha20 are in the ref/ sub-folder for
