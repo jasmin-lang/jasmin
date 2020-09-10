@@ -50,8 +50,8 @@ mem_in ∊ [0; 18446744073709551615]
 Explanation
 --------------------------------------------------------------------
 
-- the ranges below [* Standard semantics *] are an over-approximation of
- the memory accesses done at the end of the program execution.
+- the ranges obtained are an over-approximation of the memory accesses
+  done at the end of the program execution.
 
 - Note that some ranges are given using intervals:
     - e.g. `mem_k: [0; 32]` states that the pointer `k` (which points to the key)
