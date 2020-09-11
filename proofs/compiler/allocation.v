@@ -283,7 +283,7 @@ Definition check_prog prog1 prog2 :=
   if prog1.(p_globs) == prog2.(p_globs) then check_prog_aux prog1 prog2
   else cferror Ferr_glob_neq.
 
-                         
+
 Lemma check_lvalsP gd xs1 xs2 vs1 vs2 r1 r2 lts s1 s2 l2 vm1 :
   check_lvals xs1 xs2 r1 = ok (r2, lts) ->
   eq_alloc r1 s1.(evm) vm1 ->
@@ -1485,7 +1485,7 @@ Module CBAreg.
       ∀ m vs1, sem_pexprs gd {| emem := m ; evm := vm1 |} es1 = ok vs1 →
                ∃ vs2, sem_pexprs gd {| emem := m ; evm := vm2 |} es2 = ok vs2 
                       /\ List.Forall2 value_uincl (unzip1 vs1) (unzip1 vs2)
-                      /\ LSub (unzip2 vs1) = leak_E (LT_seq lte) (LSub (unzip2 vs2)).                
+                      /\ LSub (unzip2 vs1) = leak_E (LT_seq lte) (LSub (unzip2 vs2)).
 
     Lemma check_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
     Proof.

@@ -214,7 +214,7 @@ Section REMOVE.
         | Check2_r : pexpr -> (venv * cmd) -> (venv * cmd * A) -> check2_r.
 
       Variant loop2_r :=
-        | Loop2_r : pexpr -> cmd -> cmd -> (venv * A) ->loop2_r.
+        | Loop2_r : pexpr -> cmd -> cmd -> (venv * A) -> loop2_r.
 
       Variable check_c2 : venv -> cfexec check2_r.
 
@@ -258,13 +258,13 @@ Section REMOVE.
           Let rlvs := mapM (remove_glob_lv ii env) lvs in
           Let res  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Copn (unzip1 rlvs) tag o (unzip1 res))],
-                    LT_ile (LT_seq (unzip2 rlvs ++ unzip2 res)))
+              LT_ile (LT_seq [:: LT_seq (unzip2 res) ; LT_seq (unzip2 rlvs)]))
         | Cif e c1 c2 =>
           Let e := remove_glob_e ii env e in
           Let envc1 := remove_glob remove_glob_i env c1 in
           let: (env1, c1, ltc1) := envc1 in
           Let envc2 := remove_glob remove_glob_i env c2 in
-          let: (env2, c2, ltc2) := envc1 in
+          let: (env2, c2, ltc2) := envc2 in
           let env := merge_env env1 env2 in
           ok (env, [::MkI ii (Cif e.1 c1 c2)], LT_icond e.2 ltc1 ltc2)
         | Cwhile a c1 e c2 =>
@@ -329,3 +329,4 @@ Section REMOVE.
     else cferror Ferr_uniqglob.
 
 End REMOVE.
+

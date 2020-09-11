@@ -422,7 +422,7 @@ Module CBEA.
     | [::] => true
     | b :: bls => b && and_seq bls
     end.
-  
+
   Fixpoint check_eb m (e1 e2:pexpr) : bool * leak_e_tr :=
     match e1, e2 with
     | Pconst   n1, Pconst   n2 => (n1 == n2, LT_remove)
@@ -539,9 +539,9 @@ Module CBEA.
         move=> z [] // z1 v1 l /eqP <- [] <- <-. exists z. rewrite /=.
         auto. auto.
       - (* Pbool *)
-        move=> b [] //= b0 v l /eqP [] <- hl. exists b. auto. by case: hl => <-.
+        move=> b [] //= b0 v l /eqP <- [] <- hl. exists b; auto.
       - (* Parr_init *)
-        move=> n [] //= p v l /eqP [] <- [] <- hl. exists (Varr (WArray.empty n)).
+        move=> n [] //= p v l /eqP <- [] <- hl. exists (Varr (WArray.empty n)).
         auto. auto.
       - (* Pvar *)
         move=> x [] //= x' v l /check_varP Hg. t_xrbindP. move=> v' Hg' <- <-.
@@ -570,7 +570,7 @@ Module CBEA.
         rewrite /on_arr_var hget2 /= => w1.
         have [n' [t' ? hu]]:= value_uinclE hincl;subst v2.
         move=> /(WArray.uincl_get hu) -> <- <- /=. exists (Vword w1).
-        auto. by apply word_uincl_refl.    
+        auto. by apply word_uincl_refl.
       - (* Pload *)
         move=> sz x e He [] // sz1 x1 e1 v1 l.
         move=> /andP [] /andP [] /eqP Hsz Hcv Hce. t_xrbindP.
@@ -601,7 +601,7 @@ Module CBEA.
         move: (Hes es' ys Ha Hes'). move=> [] vs' [] Hes'' [] Hv Hl.
         rewrite Hes'' /=. move: vuincl_sem_opN. move=> H.
         move: (H op (unzip1 ys) vn (unzip1 vs') Hon Hv). move=> [] vn' -> /= Hv'.
-        exists vn'. case: Hl=> Hl1. rewrite Hl1 /=. admit. auto.
+        exists vn'. case: Hl=> Hl1. rewrite Hl1 /=. rewrite -Hl1. admit. auto.
       (* Pif *)
       move=> t e He e1 He1 e2 He2 [] //= t' e' e1' e2' v1 l.
       move=> /andP [] /andP [] /andP [] /eqP <- Hce Hce1 Hce2.
@@ -632,7 +632,7 @@ Module CBEA.
   Proof.
     rewrite /check_e; case: ifP => //= h [<-] hr; split => // m v1 l1 ok_v1.
     move: check_ebP. move=> Hce. move: (Hce gd r m vm1 vm2 e1 H e2 v1 l1 h ok_v1).
-    move=> [] v2 [] He Hv. exists v2. split. by rewrite -hr. auto.
+    move=> [] v2 He Hv. exists v2. split. by rewrite -hr. auto.
   Qed.
 
   Lemma eq_alloc_set x1 (v1 v2:exec (psem_t (vtype x1))) r vm1 vm2  :
@@ -730,7 +730,7 @@ Module CBEA.
       + subst x wz => /=; rewrite Fv.setP_eq; eexists; split; first reflexivity.
         rewrite (WArray.setP n0 Ht').
         case: eqP hi => [?? | /eqP hni].
-      + rewrite /=. subst n0 id. rewrite /=. 
+      + rewrite /=. subst n0 id. rewrite /=.
         admit.
         move=> [hnid] /Hgeta /= [t0]; rewrite Hget => -[[?]]; subst t0.
         move=> Hg. rewrite -Ht. apply Hg.
@@ -751,7 +751,7 @@ Module CBEA.
     have /(check_rvarP Hca Hea) : value_uincl (Varr t'') (Varr va) by done.
     rewrite /write_var /=. move=> H. move: (H {| emem := emem s1; evm := vs |}).
     rewrite Hs /=. move=> []. auto. move=> vs' []. t_xrbindP. move=> vs'' -> /= <- Hvm1.
-    exists vs''. by split. by case: (s1). 
+    exists vs''. by split. by case: (s1).
    Admitted.
 
 

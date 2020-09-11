@@ -469,82 +469,90 @@ Module RGP. Section PROOFS.
     by apply /eqP => ?;subst y; move: hglob; rewrite (hm2 _ _ hy).
   Qed.
 
-  Lemma remove_glob_lvP m ii s1 s1' s2 lv lv' v :
+  Lemma remove_glob_lvP m ii s1 s1' s2 lv lv' v lte le:
     valid m s1 s2 ->
-    remove_glob_lv is_glob ii m lv = ok lv' ->
-    write_lval gd lv v s1 = ok s1' ->
+    remove_glob_lv is_glob ii m lv = ok (lv', lte) ->
+    write_lval gd lv v s1 = ok (s1', le) ->
     exists s2',
-      valid m s1' s2' /\ write_lval gd lv' v s2 = ok s2'.
+      valid m s1' s2' /\ write_lval gd lv' v s2 = ok (s2', leak_E lte le).
   Proof.
-    move=> hval; case:(hval) => hmem hm1 hm2 hm3; case:lv => [vi ty|x|ws x e|ws x e] /=.
-    + move=> [<-]; apply on_vuP => [?|] hv /=;rewrite /write_none.
-      + by move=> <-;exists s2;split => //; rewrite hv.
-      by case : ifPn => // ? [<-]; exists s2; rewrite hv.
-    + case: ifPn => // hg [<-] /=; rewrite /write_var.
-      t_xrbindP => ? hset <-.
-      apply (write_var_remove hg hval hset).
-    + case: ifPn => hg //.
-      t_xrbindP => ? /(remove_glob_eP hval) h <- ??.
-      rewrite hmem (hm1 _ hg) /= => -> /= -> ?? /h -> /= -> ? -> ? /= -> <- /=.
-      by eexists;split;last reflexivity; split.
-    case: ifPn => hg //.
-    t_xrbindP => ? /(remove_glob_eP hval) h <-.
-    apply: on_arr_varP => ?? hty; rewrite (hm1 _ hg) => hget.
-    t_xrbindP => ?? /h /= -> /= -> ?.
-    rewrite /on_arr_var /= hget /= => -> ? /= -> ? /= hset <-.
-    apply (write_var_remove hg hval hset).
-  Qed.
-
-  Lemma remove_glob_lvsP  m ii s1 s1' s2 lv lv' v :
+    move=> hval; case:(hval) => hmem hm1 hm2 hm3. case:lv => [vi ty|x|ws x e|ws x e] /=.
+    (* Lnone *)
+    + move=> [<- <-]; rewrite /write_none. t_xrbindP. move=> s2' hu <- <- /=.
+      move: hu. apply on_vuP. move=> ty' hv <- /=. exists s2. split=> //.
+      rewrite /write_none. t_xrbindP. by rewrite hv /=. 
+      rewrite /write_none. move=> hv. case: ifPn=> // ? [<-]. exists s2. split=> //.
+      by rewrite hv /=.
+    (* Lvar *)
+    + case: ifPn=> // hg [<- <-]; rewrite /write_var. t_xrbindP.
+      move=> s2' vm hs <- <- <- /=. move: write_var_remove. move=> hw.
+      move: (hw x m s1 s2 v vm hg hval hs). move=> {hw} [] s2'' [] hval' -> /=.
+      exists s2''. by split.
+    (* Lmem *)
+    + case: ifPn=> hg //. t_xrbindP. move=> [ve' le'] /(remove_glob_eP hval).
+      move=> he <- <-. rewrite hmem (hm1 _ hg) /=. move=> u vu -> hp.
+      move=> [ve'' le''] /(he ve'' le'') [] ve1 [] -> hv vp /value_uincl_word hp'
+      vw hw vm hm <- <- /= {he}. rewrite hp /=. move: (hp' ve1 hv). move=> -> /=.
+      rewrite hw /= hm /=. exists {| emem := vm; evm := evm s2 |}. admit. auto.
+    case: ifPn=> hg //. t_xrbindP. move=> [ve' lte'] /(remove_glob_eP hval) h <- <- /=.
+    apply: on_arr_varP => n t' hty; rewrite (hm1 x hg). move=> hget.
+    t_xrbindP. move=> [ve le'] /(h ve le') [] ve'' [] -> hv /= z hi vw hw va ha vs hset <- <- /=.
+    move: (value_uincl_int hv hi). move=> [] hvv ->. rewrite hvv in hi.
+    rewrite hi /= hw /= /on_arr_var /= hget /= ha /=.
+    move: (write_var_remove hg hval hset). move=> [] s2' [] hvm hw'. 
+    exists s2'. split. auto. rewrite /write_var in hw'. move: hw'.
+    t_xrbindP. by move=> ? -> /= <- /=.
+  Admitted.
+   
+  Lemma remove_glob_lvsP  m ii s1 s1' s2 lv lv' v les:
     valid m s1 s2 ->
     mapM (remove_glob_lv is_glob ii m) lv = ok lv' ->
-    write_lvals gd s1 lv v = ok s1' ->
+    write_lvals gd s1 lv v = ok (s1', les) ->
     exists s2',
-      valid m s1' s2' /\ write_lvals gd s2 lv' v = ok s2'.
+      valid m s1' s2' /\
+      write_lvals gd s2 (unzip1 lv') v = ok (s2', map2 leak_E (unzip2 lv') les).
   Proof.
-    elim: lv lv' v s1 s1' s2 => //=.
-    + by move=> ? []// s1 s1' s2 ? [<-] [<-]; exists s2.
-    move=> x xs hrec lv' vs s1 s1' s2 hval.
-    t_xrbindP=> x' /(remove_glob_lvP hval) h1 xs' /hrec h2 <-.
-    case: vs => // v vs.
-    t_xrbindP => s3 /h1 [s4 [hs4 w4]] /(h2 _ _ _ _ hs4) [s5 [hs5 w5]].
-    exists s5;split => //.
-    by rewrite /write_lvals /= w4.
-  Qed.
+  Admitted.
 
-  Let Pc s1 c s2 :=
-    forall m m' c' fn, remove_glob (remove_glob_i is_glob gd fn) m c = ok (m', c') ->
+  Let Pc s1 c lc s2 :=
+    forall m m' c' ltc fn, remove_glob (remove_glob_i is_glob gd fn) m c = ok (m', c', ltc) ->
     forall s1', valid m s1 s1' ->
-    exists s2', valid m' s2 s2' /\ sem P' s1' c' s2'.
+    exists s2', valid m' s2 s2' /\
+                sem P' s1' c' (leak_Is (leak_I (leak_Fun Fs)) ltc lc) s2'.
 
-  Let Pi s1 i s2 :=
-    forall m m' c' fn, remove_glob_i is_glob gd fn m i = ok (m', c') ->
+  Let Pi s1 i li s2 :=
+    forall m m' c' lti fn, remove_glob_i is_glob gd fn m i = ok (m', c', lti) ->
     forall s1', valid m s1 s1' ->
-    exists s2', valid m' s2 s2' /\ sem P' s1' c' s2'.
+    exists s2', valid m' s2 s2' /\
+                sem P' s1' c' (leak_I (leak_Fun Fs) li lti) s2'.
 
-  Let Pi_r s1 i s2 := forall ii, Pi s1 (MkI ii i) s2.
+  Let Pi_r s1 i li s2 := forall ii, Pi s1 (MkI ii i) li s2.
 
-  Let Pfor xi vs s1 c s2 :=
+  Let Pfor xi vs s1 c lf s2 :=
     ~~is_glob xi.(v_var) ->
-    forall m m' c' fn, remove_glob (remove_glob_i is_glob gd fn) m c = ok (m', c') ->
+    forall m m' c' ltc' fn, remove_glob (remove_glob_i is_glob gd fn) m c = ok (m', c', ltc') ->
     Mincl m m' ->
     forall s1', valid m s1 s1' ->
-    exists s2', valid m s2 s2' /\ sem_for P' xi vs s1' c' s2'.
+    exists s2', valid m s2 s2' /\
+                sem_for P' xi vs s1' c' (leak_Iss (leak_I (leak_Fun Fs)) ltc' lf) s2'.
 
-  Let Pfun m fn vs m' vs' :=
-    sem_call P' m fn vs m' vs'.
+  Let Pfun m fn vs lf m' vs' :=
+    sem_call P' m fn vs (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m' vs'.
 
   Local Lemma Hnil : sem_Ind_nil Pc.
   Proof.
-    move=> s1 m m' c' fn /= [<- <-] s1' hv; exists s1';split => //.
+    move=> s1 m m' c' ltc fn /= [<- <- <-] s1' hv; exists s1';split => //.
     econstructor.
   Qed.
 
   Local Lemma Hcons : sem_Ind_cons P Pc Pi.
   Proof.
-    move=> s1 s2 s3 i c _ hi _ hc m m' c' fn /=.
-    t_xrbindP => -[mi ci] /hi{hi}hi [mc cc] /hc{hc}hc <- <- ? /hi [s2' [/hc [s3' [hv sc] si]]].
-    exists s3';split => //=; apply: sem_app si sc.
+    move=> s1 s2 s3 i c li lc hsi hi hsc hc m m' c' fn /=. t_xrbindP.
+    move=> fn' [[mi ci] lti] /hi{hi}hi. t_xrbindP.
+    move=> [[mc cc] ltc] /hc{hc}hc [] <- <- <- s1' hvm.
+    move: (hi s1' hvm). move=> [] s2' [] hvm' {hi} hi.
+    move: (hc s2' hvm'). move=> [] s3' [] hvm'' {hc} hc.
+    exists s3'; split => //=; apply sem_app with s2'; auto.
   Qed.
 
   Local Lemma HmkI : sem_Ind_mkI P Pi_r Pi.
@@ -565,8 +573,32 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hasgn : sem_Ind_assgn P Pi_r.
   Proof.
-    move=> s1 s2 x tag ty e v v' he hv hw ii m m' c' fn /= hrm s1' hval.
-    move: hrm; t_xrbindP => e' /(remove_glob_eP hval) -/(_ _ he) he'.
+    move=> s1 s2 x tag ty e v v' le lw he hv hw ii m m' c' lti fn /= hrm s1' hval.
+    move: hrm; t_xrbindP. move=> [e' lte'] /(remove_glob_eP hval) hee. move: (hee v le he).
+    move=> [] ve' [] he' hv'.
+    have: Let rlv := remove_glob_lv is_glob ii m x
+      in ok
+           (m, [:: MkI ii (Cassgn rlv.1 tag ty (e', lte').1)],
+           LT_ile (LT_seq [:: rlv.2; LT_id]))
+  = ok (m', c', lti)
+  → ∃ s2' : estate,
+      valid m' s2 s2'
+      ∧ sem P' s1' c'
+          match lti with
+          | LT_iremove => [::]
+          | LT_ile lte => [:: Lassgn (leak_E lte (LSub [:: le; lw]))]
+          | _ => [:: Lassgn (LSub [:: le; lw])]
+          end s2'.
+    + t_xrbindP. move=> [vr lr] /(remove_glob_lvP hval). move=> hww.
+      move: (hww s2 v' lw hw). move=> [] s2' [] hv2 {hww} hw' <- <- <-.
+      exists s2'. split=> //=. apply sem_seq1. apply EmkI. apply Eassgn with ve' v'.
+      replace gd with (p_globs P') in he'. 
+    Admitted.
+
+
+
+   (* . move: remove_glob_eP.
+    /(remove_glob_eP hval). -/(_ _ he) he'.
     have :
       (Let lv := remove_globals.remove_glob_lv is_glob ii m x in
       ok (m, [:: MkI ii (Cassgn lv tag ty e')])) = ok (m', c') ->
@@ -592,16 +624,18 @@ Module RGP. Section PROOFS.
     + move=> [<-]. rewrite /get_var Fv.setP_eq /= => -[<-].
       by apply: find_globP hfind.
     by rewrite /get_var Fv.setP_neq //; apply hm3.
-  Qed.
+  Qed.*)
 
   Local Lemma Hopn : sem_Ind_opn P Pi_r.
   Proof.
-   move=> s1 s2 t o xs es ho ii m m' c fn /= hrm s1' hval.
+   move=> s1 s2 t o xs es lo ho ii m m' c ltc fn /= hrm s1' hval.
    move: hrm; t_xrbindP.
-   move=> xs' /(remove_glob_lvsP hval) hxs' es' /(remove_glob_esP hval) hes' <- <-.
-   move: ho;rewrite /sem_sopn; t_xrbindP => vs vres /hes' h1 h2 /hxs' [s2' [hval' h]].
-   exists s2';split => //.
-   by apply sem_seq1; constructor; constructor; rewrite /sem_sopn h1 /= h2.
+   move=> xs' /(remove_glob_lvsP hval) hxs' es' /(remove_glob_esP hval) hes' <- <- <-.
+   move: ho;rewrite /sem_sopn; t_xrbindP. move=> vs /hes' [] vs' [] h1 [] h2 h3 vres hex.
+   move=> [s lw] /hxs' [s2' [hval' h]] <- <- /=.
+   exists s2';split => //. apply sem_seq1. apply EmkI. apply Eopn.
+   rewrite /sem_sopn h1 /=. move: (vuincl_exec_opn_eq h2 hex). move=> -> /=.
+   by rewrite h h3 /=.
   Qed.
 
   Lemma MinclP m1 m2 x g :
@@ -642,24 +676,29 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hif_true : sem_Ind_if_true P Pc Pi_r.
   Proof.
-    move=> s1 s2 e c1 c2 he _ hc ii m m' c' fn /= hrm s1' hval.
-    move: hrm; t_xrbindP => e' /(remove_glob_eP hval) -/(_ _ he) he'.
-    move=> [m1 c1'] /hc -/(_ _ hval) [s2' [hval' hc1']].
-    move=> [m2 c2'] h /= <- <-.
+    move=> s1 s2 e c1 c2 le lc he hsc hc ii m m' c' lti fn /= hrm s1' hval.
+    move: hrm; t_xrbindP. move=> [e' lte'] /(remove_glob_eP hval) -/(_ _ _ he) [] ve' [] he' hv.
+    move=> [[m1 c1'] lt1] /hc -/(_ _ hval) [s2' [hval' hc1']]. t_xrbindP.
+    move=> [[m2 c2'] lt2] h /= [] <- <- <- /=.
     exists s2'; split.
     + apply: valid_Mincl hval'; apply merge_incl_l.
-    by apply sem_seq1; constructor; apply Eif_true.
+    apply sem_seq1. apply EmkI. apply Eif_true.
+    replace gd with (p_globs P') in he'. apply value_uincl_bool1 in hv.
+    by rewrite hv in he'. auto. auto.
   Qed.
 
   Local Lemma Hif_false : sem_Ind_if_false P Pc Pi_r.
   Proof.
-    move=> s1 s2 e c1 c2 he _ hc ii m m' c' fn /= hrm s1' hval.
-    move: hrm; t_xrbindP => e' /(remove_glob_eP hval) -/(_ _ he) he'.
-    move=> [m1 c1'] h /= [m2 c2'] /hc -/(_ _ hval) [s2' [hval' hc1']] <- <-.
+    move=> s1 s2 e c1 c2 le lc he hsc hc ii m m' c' lti fn /= hrm s1' hval.
+    move: hrm; t_xrbindP. move=> [e' lte'] /(remove_glob_eP hval) -/(_ _ _ he) [] ve' [] he' hv.
+    move=> [[m1 c1'] lt1] h /=. t_xrbindP.
+    move=> [[m2 c2'] lt2] /hc -/(_ _ hval) [s2' [hval' hc1']] [] <- <- <- /=.
     exists s2'; split.
-    + apply: valid_Mincl hval'; apply merge_incl_r.
-    by apply sem_seq1; constructor; apply Eif_false.
-  Qed.
+    + apply: valid_Mincl hval'. apply merge_incl_r.
+    apply sem_seq1. apply EmkI. apply Eif_false.
+    replace gd with (p_globs P') in he'. apply value_uincl_bool1 in hv.
+    by rewrite hv in he'. auto. auto.
+  Qed.  
 
   Lemma MinclR m : Mincl m m.
   Proof. by apply /allP => -[x g] /Mvar.elementsP ->. Qed.
@@ -671,14 +710,15 @@ Module RGP. Section PROOFS.
     by apply h2; apply /Mvar.elementsP.
   Qed.
 
-  Lemma loop2P fn check_c2 n m e c1 c2 m1:
-    loop2 fn check_c2 n m = ok (Loop2_r e c1 c2 m1) ->
+
+  Lemma loop2P fn check_c2 n m e c1 c2 m1 (ltc: leak_c_tr) (lte: leak_e_tr) (ltc': leak_c_tr):
+    loop2 fn check_c2 n m = ok (Loop2_r e c1 c2 (m1, (ltc, lte, ltc'))) ->
     exists m2 m3,
-      [/\ check_c2 m3 = ok (Check2_r e (m1,c1) (m2,c2)), Mincl m3 m2 & Mincl m3 m].
+      [/\ check_c2 m3 = ok (Check2_r e (m1,c1) (m2,c2, (ltc, lte, ltc'))), Mincl m3 m2 & Mincl m3 m].
   Proof.
     elim: n m => //= n hrec m; t_xrbindP.
-    move=> [e' [m1' c1'] [m2' c2']] heq; case:ifPn => hincl.
-    + move=> [] ????; subst e' c1' c2' m1'.
+    move=> [e' [m1' c1'] [[m2' c2'] [[lt1 lt2] lt3]]] heq; case:ifPn => hincl.
+    + move=> [] <- <- <- <- <- <- <- /=.
       by exists m2', m; split => //; apply MinclR.
     move=> /hrec [m2 [m3 [h1 h2]]] hm3; exists m2, m3; split=>//.
     apply: (MinclT hm3); apply merge_incl_l.
@@ -686,47 +726,51 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hwhile_true : sem_Ind_while_true P Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 a c e c' _ hc he _ hc' _ hw ii m m' c'0 fn /= hrn s1' hval.
-    move: hrn; t_xrbindP => -[e' c1' c2' m1] /loop2P [m2 [m3 []]].
-    t_xrbindP => -[m4 c4] h1 /= e1 he1 [m5 c5] h2.
-    have h1' := hc _ _ _ _ h1.
-    have h2' := hc' _ _ _ _ h2.
-    move=> ? [??] [??] hm hm1 ? <-;subst e1 m4 c4 m5 c5 m1.
+    move=> s1 s2 s3 s4 a c e c' lc le lc' li hsc hc he hsc' hc' hsw hw ii m m' c'0 lti fn
+              /= hrn s1' hval. move: hrn. t_xrbindP.
+    move=> -[e' c1' c2' [m1 [[ltc lte] ltc']]] /loop2P [m2 [m3 []]].
+    t_xrbindP. move=> -[[m4 c4] ltc4] h1 /=. t_xrbindP.
+    move=> [e1 lte1] he1 [[m5 c5] ltc5] h2 [] <- <- <- <- <- <- <- <- /=.
+    have h1' := hc _ _ _ _ _ h1. have h2' := hc' _ _ _ _ _ h2.
+    move=> hm hm1 <- <- <-.
     have /h1' [s2' [hs2 hc1]]: valid m3 s1 s1' by apply: valid_Mincl hval.
-    have he' := remove_glob_eP hs2 he1 he.
-    have [s3' [hs3 hc2]]:= h2' _ hs2.
+    have he' := remove_glob_eP hs2 he1 he. have [s3' [hs3 hc2]]:= h2' _ hs2.
     have : remove_glob_i is_glob gd fn m3 (MkI ii (Cwhile a c e c')) =
-             ok (m', [::MkI ii (Cwhile a c1' e' c2')]).
-    + by rewrite /= Loop.nbP /= h1 /= he1 /= h2 /= hm.
+           ok (m4, [::MkI ii (Cwhile a c4 e1 c5)], (LT_iwhile ltc4 lte1 ltc5)).
+    + by rewrite /= Loop.nbP /= h1 /= he1 /= h2 /= hm /=.
     move=> /hw{hw}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
     move=> [s4' [hs4 hw']]; exists s4';split => //.
     apply sem_seq1; constructor; apply: Ewhile_true;eauto.
-    by inversion hw';subst => {hw'};inversion H2;subst; inversion H4;subst.
+    inversion hw'; subst => {hw'}; inversion H3; subst;
+    move: he'; move=> [ve'] [] -> hv; apply value_uincl_bool1 in hv;by rewrite hv.
+    inversion hw'; subst; inversion H3; subst. rewrite /=. by inversion H5; subst.
   Qed.
 
   Local Lemma Hwhile_false : sem_Ind_while_false P Pc Pi_r.
   Proof.
-    move=> s1 s2 a c e c' _ hc he ii m m' c'0 fn /= hrn s1' hval.
-    move: hrn; t_xrbindP => -[e' c1' c2' m1] /loop2P [m2 [m3 []]].
-    t_xrbindP => -[m4 c4] h1 /= e1 he1 [m5 c5] h2.
-    move=> ? [??] [??] hm hm1 ? <-;subst e1 m4 c4 m5 c5 m1.
-    have h1' := hc _ _ _ _ h1.
+    move=> s1 s2 a c e c' lc le hsc hc he ii m m' c'0 lti fn /= hrn s1' hval.
+    move: hrn; t_xrbindP. move=> -[e' c1' c2' [m1 [[ltc lte] ltc']]] /loop2P [m2 [m3 []]].
+    t_xrbindP. move=> -[[m4 c4] ltc4] h1 /=. t_xrbindP.
+    move=> [e1 lte1] he1 [[m5 c5] ltc5] h2 [] <- <- <- <- <- <- <- <- /=.
+    move=> hm hm1 <- <- <-.
+    have h1' := hc _ _ _ _ _ h1.
     have /h1' [s2' [hs2 hc1]]: valid m3 s1 s1' by apply: valid_Mincl hval.
     exists s2';split => //.
     apply sem_seq1;constructor;apply: Ewhile_false => //.
-    by apply: remove_glob_eP he1 he.
+    move: remove_glob_eP. move=> H. move: (H m4 ii s2 s2' e e1 false hs2 le lte1 he1 he).
+    move=> [] ve' [] -> hv. apply value_uincl_bool1 in hv;by rewrite hv.
   Qed.
 
-  Local Lemma loopP fn check_c n m m' c':
-    loop fn check_c n m = ok (m', c') ->
+  Local Lemma loopP fn check_c n m m' c' ltc':
+    loop fn check_c n m = ok (m', c', ltc') ->
       exists m1,
-      [/\ check_c m' = ok (m1,c'), Mincl m' m1 & Mincl m' m].
+      [/\ check_c m' = ok (m1,c',ltc'), Mincl m' m1 & Mincl m' m].
   Proof.
-    elim: n m => //= n hrec m; t_xrbindP => -[m2 c2] /= hc.
+    elim: n m => //= n hrec m; t_xrbindP. move=> -[[m2 c2] ltc2] /= hc.
     case:ifP => hincl.
-    + by move=> []??; subst m' c2; exists m2;split => //;apply MinclR.
-    move=> /hrec => -[m1 [hc' h1 h2]]. exists m1;split=>//.
-    apply: (MinclT h2);apply merge_incl_l.
+    + move=> [<- <- <-]; exists m2; split=> //; apply MinclR.
+    move=> /hrec=> -[m1 [hc' h1 h2]]. exists m1; split=> //.
+    apply: (MinclT h2); apply merge_incl_l.
   Qed.
 
   Local Lemma Hfor : sem_Ind_for P Pi_r Pfor.
