@@ -453,6 +453,14 @@ module List = struct
     | None   -> failwith "List.last"
     | Some x -> x
 
+  let rec find_map_opt f = function
+    | [] -> None
+    | x :: l ->
+      begin match f x with
+        | Some _ as result -> result
+        | None -> find_map f l
+      end
+  
   let mbfilter (p : 'a -> bool) (s : 'a list) =
     match s with [] | [_] -> s | _ -> List.filter p s
 

@@ -4091,7 +4091,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
   let for_all2 : ('a -> 'b option -> 'c) -> 'a Mbv.t -> 'b Mbv.t -> bool =
     fun f map_a map_b ->
       Mbv.for_all (fun k a ->
-          let b = Mbv.find_opt k map_b in
+          let b = try Some (Mbv.find k map_b) with Not_found -> None in
           f a b)
         map_a
 
