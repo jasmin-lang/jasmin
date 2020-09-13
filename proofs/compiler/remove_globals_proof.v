@@ -775,30 +775,40 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hfor : sem_Ind_for P Pi_r Pfor.
   Proof.
-    move=> s1 s2 i d lo hi c vlo vhi hlo hhi _ hfor ii m m' c' fn /= hrn s1' hval.
-    case : ifPn hrn => // hglob.
-    t_xrbindP => lo' /(remove_glob_eP hval) -/(_ _ hlo) hlo'.
-    move=> hi' /(remove_glob_eP hval) -/(_ _ hhi) hhi'.
-    move=> [m2 c2] /= /loopP [m1 [hc h1 h2]] [??];subst m2 c'.
-    have hval': valid m' s1 s1' by apply: valid_Mincl hval.
-    have [s2' [??]]:= hfor hglob _ _ _ _ hc h1 _ hval'.
-    exists s2';split => //.
-    apply sem_seq1;constructor;econstructor;eauto.
-  Qed.
+    move=> s1 s2 i r wr c li lr hr hsfor hfor ii m m' c' lti fn /=.
+    rewrite /sem_range in hr. move: hr. case: r => [[d e1] e2].
+    t_xrbindP. move=> [ve1 le1] he1 vi hi [ve2 le2] he2 vi'
+                                hi' hwr <- h s1' hval. move: h.
+    case: ifPn => // hglob.
+    t_xrbindP. move=> [e le] /(remove_glob_eP hval) he.
+    move=> [e' le'] /(remove_glob_eP hval) he'.
+    move=> [[m2 c2] ltc2] /= /loopP [m1 [hc h1 h2]] [<- <- <-].
+    have hval': valid m2 s1 s1'. by apply: valid_Mincl hval.
+    rewrite /Pfor in hfor. move: (hfor hglob m2 m1 c2 ltc2 fn hc h1 s1' hval').
+    move=> [] s2' [] hval'' {hfor} hfor. exists s2'; split=> //.
+    apply sem_seq1; constructor; econstructor.
+    rewrite /sem_range. move: (he ve1 le1 he1). move=> [] ve1' [] -> hv /=.
+    move: (value_uincl_int). move=> hvi.
+    move: (hvi ve1 ve1' vi hv hi). move=> [] hvv ->. rewrite hvv in hi.
+    rewrite hi /=. move: (he' ve2 le2 he2). move=> [] ve2' [] -> hvv' /=.
+    move: (value_uincl_int). move=> hvi'.
+    move: (hvi' ve2 ve2' vi' hvv' hi'). move=> [] hvv'' ->. rewrite hvv'' in hi'.
+    by rewrite hi' /=. rewrite -hwr in hfor. auto.
+  Qed.  
 
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
   Proof.
-    move=> s xi c ii m m' c' fn hrm hincl s1' hval; exists s1';split => //; constructor.
+    move=> s xi c ii m m' c' ltc' fn hrm hincl s1' hval; exists s1';split => //; constructor.
   Qed.
 
   Local Lemma Hfor_cons : sem_Ind_for_cons P Pc Pfor.
   Proof.
-    move=> s1 s2 s3 s4 xi w ws c hw _ hc _ hfor hglob m m' c' fn hrm hincl s1' hval.
+    move=> s1 s2 s3 s4 xi w ws c lc lf hw hsc hc hsfor hfor hglob m m' c' ltc' fn hrm hincl s1' hval.
     move: hw; rewrite /write_var; t_xrbindP => vm hvm ?;subst s2.
     have [s2' [hs2' ws2']]:= write_var_remove hglob hval hvm.
-    have [s3' [hs3' ws3']]:= hc _ _ _ _ hrm _ hs2'.
+    have [s3' [hs3' ws3']]:= hc _ _ _ _ _ hrm _ hs2'.
     have hval' := valid_Mincl hincl hs3'.
-    have [s4' [hs4' ws4']]:= hfor hglob _ _ _ _ hrm hincl _ hval'.
+    have [s4' [hs4' ws4']]:= hfor hglob _ _ _ _ _ hrm hincl _ hval'.
     exists s4'; split => //; econstructor; eauto.
   Qed.
 
