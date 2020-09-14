@@ -6116,6 +6116,15 @@ end = struct
      This covers a subset of the x86 flags, as described in the Coq
      semantics (x86_instr_decl.v). *)
 
+  (* Carry flag is true if [w] and [vu] are not equal. *)
+  let cf_of_word sz w vu =
+    Some (Papp2 (E.Oneq (E.Op_int),
+                 Papp1(E.Oint_of_word sz,w),
+                 vu))
+
+    
+  (* msb w. *)
+
   (* FIXME *)
   let sf_of_word _sz _w = None
   (* msb w. *)
@@ -6129,9 +6138,9 @@ end = struct
                  w,
                  pcast sz (Pconst (B.of_int 0))))
 
-  let rflags_of_aluop sz w _vu _vs = 
+  let rflags_of_aluop sz w vu _vs = 
     let of_f = None               (* FIXME *)
-    and cf   = None               (* FIXME *)
+    and cf   = cf_of_word sz w vu 
     and sf   = sf_of_word sz w
     and pf   = pf_of_word sz w
     and zf   = zf_of_word sz w in
@@ -6176,18 +6185,20 @@ end = struct
 
   let opn_dflt n = List.init n (fun _ -> None)
 
-  let opn_bin_gen f_flags ws op es =
+  let opn_bin_gen f_flags ws op op_int es =
     let el,er = as_seq2 es in
     let w = Papp2 (op, el, er) in
-    let vu = () in
-    let vs = () in
+    let vu = Papp2 (op_int,
+                    Papp1(E.Oint_of_word ws,el),
+                    Papp1(E.Oint_of_word ws,er)) in
+    let vs = () in              (* FIXME *)
     let rflags = f_flags ws w vu vs in
     rflags @ [Some w]
 
   let opn_bin_alu = opn_bin_gen rflags_of_aluop
 
   (* -------------------------------------------------------------------- *)
-  (* FIXME: check this *)
+  (* FIXME: redo using the generic flags definition above *)
   let mk_addcarry ws es =
     let el,er,eb = as_seq3 es in    
     let w_no_carry = Papp2 (E.Oadd (E.Op_w ws), el, er) in
@@ -6225,7 +6236,7 @@ end = struct
       [None; None]
       (* [Some cf; Some w]  *)
 
-  (* FIXME: check this *)
+  (* FIXME: idem *)
   let mk_subcarry ws es =
     let el,er,eb = as_seq3 es in    
     let w_no_carry = Papp2 (E.Osub (E.Op_w ws), el, er) in
@@ -6275,18 +6286,24 @@ end = struct
       (* Input types: ws, ws *)
       let el,er = as_seq2 es in
       let w = Papp2 (E.Osub (E.Op_w ws), el, er) in
-      let vu = () in
+
+      (* unsigned interpretations of [el] and [er], 
+         operation done over integers. *)
+      let vu = Papp2 (E.Osub (E.Op_w ws),
+                      Papp1(E.Oint_of_word ws,el),
+                      Papp1(E.Oint_of_word ws,er)) in
+      
       let vs = () in
       let rflags = rflags_of_aluop ws w vu vs in
       rflags
 
     (* add unsigned / signed *)
     | E.Ox86 (X86_instr_decl.ADD ws) ->
-      opn_bin_alu ws (E.Oadd (E.Op_w ws)) es
+      opn_bin_alu ws (E.Oadd (E.Op_w ws)) (E.Oadd E.Op_int) es
 
     (* sub unsigned / signed *)
     | E.Ox86 (X86_instr_decl.SUB ws) ->
-      opn_bin_alu ws (E.Osub (E.Op_w ws)) es
+      opn_bin_alu ws (E.Osub (E.Op_w ws)) (E.Osub (E.Op_int)) es
 
     (* mul unsigned *)
     | E.Ox86 (X86_instr_decl.MUL ws) ->
@@ -6317,7 +6334,9 @@ end = struct
       let e = as_seq1 es in
       let w = Papp2 (E.Oadd (E.Op_w ws), e,
                      Papp1(E.Oword_of_int ws, Pconst (B.of_int 1))) in
-      let vu = () in
+      let vu = Papp2 (E.Oadd E.Op_int,
+                      Papp1(E.Oint_of_word ws,e),
+                      Pconst (B.of_int 1)) in
       let vs = () in
       let rflags = nocf (rflags_of_aluop ws w vu vs) in
       rflags @ [Some w]
@@ -6327,7 +6346,9 @@ end = struct
       let e = as_seq1 es in
       let w = Papp2 (E.Osub (E.Op_w ws), e,
                      Papp1(E.Oword_of_int ws,Pconst (B.of_int 1))) in
-      let vu = () in
+      let vu = Papp2 (E.Osub E.Op_int,
+                      Papp1(E.Oint_of_word ws,e),
+                      Pconst (B.of_int 1)) in
       let vs = () in
       let rflags = nocf (rflags_of_aluop ws w vu vs) in
       rflags @ [Some w]
