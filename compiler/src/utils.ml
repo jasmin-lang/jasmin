@@ -458,7 +458,7 @@ module List = struct
     | x :: l ->
       begin match f x with
         | Some _ as result -> result
-        | None -> find_map f l
+        | None -> find_map_opt f l
       end
   
   let mbfilter (p : 'a -> bool) (s : 'a list) =
