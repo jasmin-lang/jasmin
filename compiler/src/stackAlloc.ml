@@ -40,6 +40,7 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
     let sao = Stack_alloc.{
         sao_align  = align;
         sao_size   = Conv.z_of_int size;
+        sao_extra_size = Z0;
         sao_params = List.map (omap conv_pi) sao.sao_params;
         sao_return = List.map (omap Conv.nat_of_int) sao.sao_return;
         sao_slots  = do_slots sao.sao_slots;
@@ -126,7 +127,7 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
     let csao = 
       Stack_alloc.{ csao with
         sao_align = align;
-        sao_size = Conv.z_of_int size;
+        sao_extra_size = Conv.z_of_int size;
         sao_to_save = List.map conv_to_save ro.ro_to_save;
         sao_rsp  = saved_stack;
         sao_return_address =

@@ -493,7 +493,7 @@ let extend_sao sao extra =
   let align, slots, size = alloc_local_stack sao.sao_size extra tbl in
   let align = if wsize_lt align sao.sao_align then sao.sao_align else align in
   let slots = List.map (fun (x,_,pos) -> (x,pos)) slots in
-  size, align, slots
+  size - sao.sao_size, align, slots
 
 
   

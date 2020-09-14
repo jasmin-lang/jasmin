@@ -1085,23 +1085,25 @@ Canonical  return_address_location_eqType := Eval hnf in EqType return_address_l
 Record stk_fun_extra := MkSFun {
   sf_align : wsize;
   sf_stk_sz : Z;
+  sf_stk_extra_sz : Z;
   sf_to_save: seq (var * Z);
   sf_save_stack: saved_stack;
   sf_return_address: return_address_location;
 }.
 
 Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=
-  (e1.(sf_align) == e2.(sf_align)) && 
+  (e1.(sf_align) == e2.(sf_align)) &&
   (e1.(sf_stk_sz) == e2.(sf_stk_sz)) &&
+  (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)) &&
   (e1.(sf_to_save) == e2.(sf_to_save)) &&
   (e1.(sf_save_stack) == e2.(sf_save_stack)) &&
   (e1.(sf_return_address) == e2.(sf_return_address)).
 
 Lemma sfe_eq_axiom : Equality.axiom sfe_beq.
 Proof.
-    case => a b c d e [] a' b' c' d' e'; apply: (equivP andP) => /=; split.
-    + by case => /andP[] /andP[] /andP[] /eqP <- /eqP <- /eqP <- /eqP <- /eqP <-.
-    by case => <- <- <- <- <-; rewrite !eqxx.
+    case => a b c d e f [] a' b' c' d' e' f'; apply: (equivP andP) => /=; split.
+    + by case => /andP[] /andP[] /andP[] /andP[] /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <-.
+    by case => <- <- <- <- <- <-; rewrite !eqxx.
 Qed.
 
 Definition sfe_eqMixin   := Equality.Mixin sfe_eq_axiom.
