@@ -6296,21 +6296,21 @@ end = struct
       (* let ov = ?? in
        * let rflags = rflags_of_mul ov in *)
       let rflags = [None; None; None; None; None] in
-      rflags @ [Some w]
+      rflags @ [None; Some w]
 
     (* div unsigned *)
     | E.Ox86 (X86_instr_decl.DIV ws) ->
       let el,er = as_seq2 es in
       let w = Papp2 (E.Odiv (E.Cmp_w (Unsigned, ws)), el, er) in
       let rflags = rflags_of_div in
-      rflags @ [Some w]
+      rflags @ [None; Some w]
 
     (* div signed *)
     | E.Ox86 (X86_instr_decl.IDIV ws) ->
       let el,er = as_seq2 es in
       let w = Papp2 (E.Odiv (E.Cmp_w (Signed, ws)), el, er) in
       let rflags = rflags_of_div in
-      rflags @ [Some w]
+      rflags @ [None; Some w]
 
     (* increment *)
     | E.Ox86 (X86_instr_decl.INC ws) ->
