@@ -6406,8 +6406,17 @@ end = struct
 
 
   (* -------------------------------------------------------------------- *)
+  (* Ugly handling of flags to build. 
+     When adding new flags, update [find_heur]. *)
   type flags_heur = { fh_zf : Mtexpr.t option;
-                      fh_cf : Mtexpr.t option;}
+                      fh_cf : Mtexpr.t option; }
+
+  let pp_flags_heur fmt fh =
+    let to_me = omap (fun x -> x.Mtexpr.mexpr) in
+    Format.fprintf fmt "@[<hv 0>zf: %a;@ cf %a@]"
+      (pp_opt Mtexpr.print_mexpr) (to_me fh.fh_zf)
+      (pp_opt Mtexpr.print_mexpr) (to_me fh.fh_cf)
+  
   
   (* [v] is the variable receiving the assignment. *)
   let opn_heur apr_env opn v es =
@@ -6455,10 +6464,12 @@ end = struct
 
   exception Heuristic_failed
 
+  (* Ugly, just tries to match the string name to a flag name. *)
   let find_heur bv = function
     | None -> raise Heuristic_failed
-    | Some heur ->
+    | Some heur ->     
       let s = Bvar.var_name bv in
+      let s = String.lowercase s in
       if String.starts_with s "v_cf"
       then Utils.oget ~exn:Heuristic_failed heur.fh_cf
       else if String.starts_with s "v_zf"
