@@ -6410,7 +6410,8 @@ end = struct
                       fh_cf : Mtexpr.t option;}
   
   (* [v] is the variable receiving the assignment. *)
-  let opn_heur apr_env opn v = match opn with 
+  let opn_heur apr_env opn v es =
+    match opn with 
     (* sub carry *) 
     | E.Osubcarry _ ->
       (* FIXME: improve precision by allowing decrement by something else 
@@ -6427,6 +6428,23 @@ end = struct
                              (Mtexpr.var apr_env v)
                              (Mtexpr.cst apr_env (Coeff.s_of_int 1))); }
 
+    (* compare *)
+    | E.Ox86 (X86_instr_decl.CMP _) ->
+      let exception Opn_heur_failed in
+      let rec to_mvar = function
+        | Pvar x ->
+          check_is_word (L.unloc x);
+          Mtexpr.var apr_env (Mvalue (Avar (L.unloc x)))
+        | Papp1 (E.Oword_of_int _, e) -> to_mvar e
+        | Papp1 (E.Oint_of_word _, e) -> to_mvar e 
+        | _ -> raise Opn_heur_failed in
+      let el, er = as_seq2 es in
+      begin try
+        let el, er = to_mvar el, to_mvar er in
+        Some { fh_zf = Some (Mtexpr.binop Texpr1.Sub el er);
+               fh_cf = Some (Mtexpr.binop Texpr1.Sub el er); }
+        with Opn_heur_failed -> None end
+      
     (* (\* sub with borrow *\)
      * | E.Ox86 (X86_instr_decl.SBB _) *)
     | _ ->
@@ -6470,7 +6488,7 @@ end = struct
       let brev = List.rev loop_body in 
       begin try
           List.find_map (fun ginstr -> match ginstr.i_desc with 
-              | Copn(lvs,_,opn,_) ->
+              | Copn(lvs,_,opn,es) ->
                 List.find_map_opt (fun lv ->
                     match lv with
                     | Lvar x -> 
@@ -6485,7 +6503,7 @@ end = struct
                           | _ -> assert false in
 
                         let apr_env = AbsDom.get_env abs in
-                        let heur = opn_heur apr_env opn reg_assgn in
+                        let heur = opn_heur apr_env opn reg_assgn es in
                         Some (find_heur bv heur)
                       else None
                     | _ -> None) lvs
