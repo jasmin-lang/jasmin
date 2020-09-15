@@ -7,8 +7,8 @@ open Wsize
 exception Aint_error of string
 
 (*------------------------------------------------------------*)
-let last_time = ref 0.;;
-
+let last_time = ref 0.
+    
 let print_time a =
   let t = Sys.time () in
   let diff = t -. !last_time in
@@ -25,9 +25,10 @@ let debug a =
 
 let () = debug (fun () ->
     Format.eprintf "Debug: record backtrace@.";
-    Printexc.record_backtrace true);;
+    Printexc.record_backtrace true)
 
-
+let ident = fun x -> x
+  
 (*------------------------------------------------------------*)
 (* REM *)
 (* Printexc.record_backtrace true *)
@@ -68,9 +69,9 @@ type abs_call_policy =
 module Aparam = struct
   (* Number of unrolling of a loop body before applying the widening. Higher
      values yield a more precise (and more costly) analysis. *)
-  let k_unroll = 1;;
-
-  assert (k_unroll >= 0)
+  let k_unroll = 1
+    
+  let () = assert (k_unroll >= 0)
 
   (* Rounding used. *)
   let round_typ = Texpr1.Zero
@@ -132,6 +133,8 @@ module Aparam = struct
   (* Turn on printing of boolean variables *)
   let bool_no_print = true   (* defaul: true *)
 
+  (* Print substitutions done by the symbolic equality domain *)
+  let print_symb_subst = true   (* default: false *)
 
   (****************)
   (* Miscelaneous *)
@@ -245,12 +248,12 @@ end
 (* Pretty Printers *)
 (*******************)
 
-let pp_apr_env ppf e = Environment.print ppf e;;
+let pp_apr_env ppf e = Environment.print ppf e
 
 let rec pp_list ?sep:(msep = Format.pp_print_space) pp_el fmt l = match l with
   | [] -> Format.fprintf fmt ""
   | h :: t -> Format.fprintf fmt "%a%a%a" pp_el h msep ()
-                (pp_list ~sep:msep pp_el) t;;
+                (pp_list ~sep:msep pp_el) t
 
 let pp_opt pp_el fmt = function
   | None -> Format.fprintf fmt "None"
@@ -284,12 +287,12 @@ end = struct
 
   let record s =
     let () = assert (not (List.mem_assoc s !lrec)) in
-    lrec := (s,(0,0.)) :: !lrec;;
-
+    lrec := (s,(0,0.)) :: !lrec
+              
   let is_recorded s = List.mem_assoc s !lrec
 
   let call s t =
-    lrec := assoc_up s (fun (x,t') -> (x + 1,t +. t')) !lrec;;
+    lrec := assoc_up s (fun (x,t') -> (x + 1,t +. t')) !lrec
   
   let reset_all () = lrec := []
 
@@ -857,6 +860,7 @@ module Mmv = struct
 end
 
 module Mm = Map.Make(Mmv)
+module Sm = Set.Make(Mmv)
 
 
 module Mtexpr : sig
@@ -2028,8 +2032,8 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
     Hashtbl.iter (fun dom v ->
         Format.fprintf fmt "%s --> %a@;" v pp_dom dom)
       log;
-    Format.fprintf fmt "@;@]@.";;
-
+    Format.fprintf fmt "@;@]@."
+      
   let expr_doms e =
     let rec aux acc = function
       | Mtexpr.Mcst _ -> acc
@@ -2333,6 +2337,8 @@ module Bvar : sig
 
   val var_name : t -> string
 
+  val get_mv : t -> mvar
+
   (* Force the boolean variable to be positive *)
   val positive : t -> t
 
@@ -2354,6 +2360,8 @@ end = struct
 
   let positive (bv,_) = (bv,true)
 
+  let get_mv (bv,_) = bv
+                  
   let var_name (bv,_) = Var.to_string (avar_of_mvar bv)
 
   let print fmt (bv,b) =
@@ -2388,6 +2396,14 @@ let rec pp_btcons ppf = function
     Format.fprintf ppf "(%a@ OR@ %a)"
       pp_btcons bl pp_btcons br
 
+let rec equal_btcons bt bt' = match bt, bt' with
+  | BOr (b1, b2),  BOr (b1', b2')
+  | BAnd (b1, b2), BOr (b1', b2') ->
+    equal_btcons b1 b1' && equal_btcons b2 b2'
+  | BLeaf t, BLeaf t' -> Mtcons.equal_tcons t t'
+  | BVar bv, BVar bv' -> bv = bv'
+  | _ -> false
+  
 let true_tcons1 env =
   let zero_t = Coeff.s_of_int 0 in
   Mtcons.make (Mtexpr.cst env zero_t) Tcons1.EQ
@@ -3118,7 +3134,7 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
   let remove_disj a =
     (* Note that we could evaluate [a] into a list of abstract elements, and
        do a single join at the end. It may be better. *)
-    let a = eval (fun _ b1 b2 b3 -> A.join_list [b1; b2; b3]) (fun x -> x) a in
+    let a = eval (fun _ b1 b2 b3 -> A.join_list [b1; b2; b3]) ident a in
     {cnstrs = [init_blk]; tree = Ptree.Leaf a; }
 
   let expand t v l = apply (fun x -> A.expand x v l) t
@@ -3612,6 +3628,189 @@ module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
 end
 
 
+(***************************************)
+(* Symbolic Expression Abstract Domain *)
+(***************************************)
+
+module type SymExpr = sig
+  type t
+
+  (* Make a top value. *)
+  val make : unit -> t
+
+  val assign_expr  : ?force:bool -> t -> mvar -> Mtexpr.t -> t
+  val assign_bexpr : t -> mvar -> btcons -> t
+    
+  val meet : t -> t -> t
+  val join : t -> t -> t
+  val widening : t -> t -> t
+
+  val forget_list : t -> mvar list -> t
+
+  val change_environment : t -> mvar list -> t
+
+  val support : t -> mvar list * Bvar.t list
+
+  (* (\* [subst_expr t e] returns an expression [e'] equivalent to
+   *    [e] in any state satisfying [t]. *\)
+   * val subst_expr : t -> Mtexpr.t -> Mtexpr.t *)
+
+  (* [subst_btcons t c] returns an constraint [c'] equivalent to
+     [c] in any state satisfying [t]. *)
+  val subst_btcons : t -> btcons -> btcons
+
+  val print : Format.formatter -> t -> unit
+end
+
+module SymExprImpl : SymExpr = struct
+  (* γ(x ↦ e)    = { m | 〚x〛(m) = 〚e〛(m) }
+     γ(x ↦ e, t) = γ(x ↦ e) ∩ γ(t)
+     γ(ε)        = ⊤        
+     
+     Remarks:
+     - there is not bottom
+     - we do not care about the environments in [vsym] and [bsym] *)
+  type t = { vsym : Mtexpr.t Mm.t;
+             bsym : Mtcons.t Mbv.t; }
+
+  let make () = { vsym = Mm.empty; bsym = Mbv.empty; }
+
+  let print ppf t =
+    Format.fprintf ppf "@[<v 0>\
+                        @[<hv 0>Sym (vars):%a@]@;\
+                        @[<hv 0>Sym (bool) Expr:%a@]@]"
+      (pp_list (fun ppf (v,e) ->
+           Format.fprintf ppf "(%a ↦ %a)"
+             pp_mvar v
+             Mtexpr.print_mexpr e.Mtexpr.mexpr))
+      (Mm.bindings t.vsym)
+      (pp_list (fun ppf (v,be) ->
+           Format.fprintf ppf "(%a ↦ %a)"
+             Bvar.print v
+             Mtcons.print_mexpr be))
+      (Mbv.bindings t.bsym)
+
+  let apply f g t    = { vsym = f t.vsym; 
+                         bsym = g t.bsym; }
+
+  let map f g t      = apply (Mm.map f) (Mbv.map g) t
+
+  let merge f g t t' = { vsym = Mm.merge f t.vsym t'.vsym;
+                         bsym = Mbv.merge g t.bsym t'.bsym; }
+    
+  let meet =
+    let f _ e e' = match e, e' with
+      | Some e, Some e' -> if Mtexpr.equal_mexpr e e' then Some e else None
+      | Some e, None | None, Some e -> Some e
+      | _ -> assert false
+    and g _ b b' = match b, b' with
+      | Some b, Some b' -> if Mtcons.equal_tcons b b' then Some b else None
+      | Some b, None | None, Some b -> Some b
+      | _ -> assert false in
+    merge f g
+
+  let join =
+    let f _ e e' = match e, e' with
+      | Some e, Some e' -> if Mtexpr.equal_mexpr e e' then Some e else None
+      | Some _, None | None, Some _ -> None
+      | _ -> assert false
+    and g _ b b' = match b, b' with
+      | Some b, Some b' -> if Mtcons.equal_tcons b b' then Some b else None
+      | Some _, None | None, Some _ -> None
+      | _ -> assert false in
+    merge f g
+
+  let widening = join
+    
+  let b_remove t v =
+    let bv_p, bv_n = Bvar.make v true, Bvar.make v false in
+    { t with bsym = Mbv.remove bv_p (Mbv.remove bv_n t.bsym); }
+    
+  (* Remove any entry in [t] using variable [v] *)
+  let v_clear t v =
+    let f = Mm.filter (fun _ e ->
+        not (List.mem v (Mtexpr.get_var_mexpr e.Mtexpr.mexpr)))
+    and g = Mbv.filter (fun _ be ->
+        let e = Mtcons.get_expr be in
+        not (List.mem v (Mtexpr.get_var_mexpr e.Mtexpr.mexpr))) in
+    let t = apply f g t in
+
+    let t = b_remove t v in
+    { t with vsym = Mm.remove v t.vsym }
+      
+  let assign_expr ?force:(force=false) t v e =
+    let t = v_clear t v in
+    if weak_update v && not force
+    then t
+
+    (* We add the binding [v ↦ e] *)
+    else { t with vsym = Mm.add v e t.vsym }
+
+  let assign_bexpr t v btcons =
+    let t = v_clear t v in
+    match btcons with
+    | BLeaf tcons ->
+      let bv_p, bv_n = Bvar.make v true, Bvar.make v false in
+
+      (* Add the positive variable symbolic expression *)
+      let bsym = Mbv.add bv_p tcons t.bsym in
+
+      (* Add the negative variable symbolic expression *)
+      let n_btcons = flip_constr tcons in
+      let bsym = omap_dfl (fun c -> Mbv.add bv_n c bsym) bsym n_btcons in
+      { t with bsym = bsym }
+      
+    | BVar _bv -> t               (* FIXME: we could use [_bv] 
+                                     symbolic expression here. *)
+    | BAnd _ | BOr _ -> t
+
+
+  (* FIXME: we are not changing the environments here. 
+     Check that this is ok. *)
+  let change_environment t vs =
+    let f = Mm.filter (fun v e ->
+        let vars = Mtexpr.get_var_mexpr e.Mtexpr.mexpr in 
+        List.mem v vs &&
+        List.for_all (fun v' -> List.mem v' vs) vars)
+    and g = Mbv.filter (fun bv be ->
+        let e = Mtcons.get_expr be in
+        let vars = Mtexpr.get_var_mexpr e.Mtexpr.mexpr in
+        List.mem (Bvar.get_mv bv) vs &&
+        List.for_all (fun v' -> List.mem v' vs) vars) in
+    apply f g t     
+
+
+  (* Implement if needed. *)
+  (* let subst_expr : t -> Mtexpr.t -> Mtexpr.t = fun t e -> assert false *)
+
+  let subst_btcons t bt =
+    let rec subst_btcons = function
+    | BVar bv ->
+      begin
+        try BLeaf (Mbv.find bv t.bsym)
+        with Not_found -> BVar bv
+      end
+    | BLeaf _ as bt -> bt       (* we could substitute in [bt] if needed. *)
+    | BAnd (b1,b2) -> BAnd (subst_btcons b1, subst_btcons b2)
+    | BOr (b1,b2)  -> BOr  (subst_btcons b1, subst_btcons b2) in
+
+    let bt' = subst_btcons bt in
+    if Aparam.print_symb_subst && not (equal_btcons bt bt') then
+      debug (fun () ->
+          Format.eprintf "@[<hov 0>Substituted@,   %a@ by %a@]@;"
+            pp_btcons bt pp_btcons bt'
+        );
+    bt'
+
+  
+  let forget_list = List.fold_left v_clear
+      
+  let support t = ( List.map fst (Mm.bindings t.vsym),
+                    List.map fst (Mbv.bindings t.bsym) )      
+end
+
+
+
 (*****************************)
 (* Points-to Abstract Domain *)
 (*****************************)
@@ -3987,8 +4186,8 @@ module type AbsNumBoolType = sig
   val is_included : t -> t -> bool
   val is_bottom : t -> bool
 
-  val expand : t -> mvar -> mvar list -> t
-  val fold : t -> mvar list -> t
+  (* val expand : t -> mvar -> mvar list -> t
+   * val fold : t -> mvar list -> t *)
 
   val bound_variable : t -> mvar -> Interval.t
   val bound_texpr : t -> Mtexpr.t -> Interval.t
@@ -4000,10 +4199,14 @@ module type AbsNumBoolType = sig
   val var_points_to : t -> mvar -> ptrs
   val assign_ptr_expr : t -> mvar -> ptr_expr -> t
 
+  (* [subst_btcons t c] returns an constraint [c'] equivalent to
+     [c] in any state satisfying [t]. *)
+  val subst_btcons : t -> btcons -> btcons
+
   val meet_btcons : t -> btcons -> t
 
-  (* Unify the two abstract values on their least common environment. *)
-  val unify : t -> t -> t
+  (* (\* Unify the two abstract values on their least common environment. *\)
+   * val unify : t -> t -> t *)
 
   (* Variables that are removed are first existentially quantified, and
      variables that are introduced are unconstrained. *)
@@ -4042,7 +4245,7 @@ end
 (* Add boolean variable abstractions and keep track of initialized variables 
    and points-to information.
    The boolean abstraction use a non-relational abstract domain. *)
-module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
+module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
   : AbsNumBoolType = struct
 
   (* <Ms.find s init> is an over-approximation of the program state where s
@@ -4051,7 +4254,8 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
   type t = { bool : AbsNum.NR.t Mbv.t;
              init : AbsNum.NR.t EMs.t; 
              num : AbsNum.R.t;
-             points_to : Pt.t }
+             points_to : Pt.t;
+             sym : Sym.t; }
 
   module Mbv2 = Map2(Mbv)
 
@@ -4071,20 +4275,22 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
         | Some _ -> x) t'.init t.init in
     ({ t with init = eb }, { t' with init = eb' })
 
-  let apply f df fpt t = { bool = Mbv.map df t.bool;
-                           init = EMs.map df t.init;
-                           num = f t.num;
-                           points_to = fpt t.points_to }
+  let apply f df fpt fsym t = { bool = Mbv.map df t.bool;
+                                init = EMs.map df t.init;
+                                num = f t.num;
+                                points_to = fpt t.points_to;
+                                sym = fsym t.sym; }
 
   (* Since init and bool are lazily populated, we merge the domains before 
      applying f *)
-  let apply2 f df fpt t t' =
+  let apply2 f df fpt fsym t t' =
     let t, t' = merge_init_dom t t' in
     let t, t' = merge_bool_dom t t' in
     { bool = Mbv2.map2 df t.bool t'.bool;
       init = EMs.map2 df t.init t'.init;
       num = f t.num t'.num;
-      points_to = fpt t.points_to t'.points_to }
+      points_to = fpt t.points_to t'.points_to;
+      sym = fsym t.sym t'.sym; }
 
   (* [for_all2 f a b b_dfl]
      Iters over the first map *)
@@ -4117,7 +4323,8 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     { bool = bmap;
       init = EMs.empty;
       num = abs;
-      points_to = Pt.make mls }
+      points_to = Pt.make mls;
+      sym = Sym.make (); }
 
   let unify_map : AbsNum.NR.t Mbv.t -> AbsNum.NR.t Mbv.t -> AbsNum.NR.t Mbv.t =
     fun b b' ->
@@ -4145,21 +4352,24 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     { bool = Mbv2.map2 AbsNum.NR.meet t.bool t'.bool;
       init = eunify_map t.init t'.init;
       num = AbsNum.R.meet t.num t'.num;
-      points_to = Pt.meet t.points_to t'.points_to }
+      points_to = Pt.meet t.points_to t'.points_to;
+      sym = Sym.meet t.sym t'.sym; }
 
   let join t t' =
     if AbsNum.R.is_bottom t.num       then t'
     else if AbsNum.R.is_bottom t'.num then t
-    else apply2 AbsNum.R.join AbsNum.NR.join Pt.join t t'
+    else apply2 AbsNum.R.join AbsNum.NR.join Pt.join Sym.join t t'
 
   let widening : Mtcons.t option -> t -> t -> t = fun oc ->
-    apply2 (AbsNum.R.widening oc) (AbsNum.NR.widening oc) Pt.widening
+    apply2 (AbsNum.R.widening oc) (AbsNum.NR.widening oc)
+      Pt.widening Sym.widening
 
   let forget_list : t -> mvar list -> t = fun t l ->
     let f x = AbsNum.R.forget_list x l
     and df x = AbsNum.NR.forget_list x l
-    and f_pts x = Pt.forget_list x l in
-    apply f df f_pts t
+    and f_pts x = Pt.forget_list x l
+    and fsym x = Sym.forget_list x l in
+    apply f df f_pts fsym t
 
   let forget_bvar : t -> mvar -> t  = fun t bv ->
     let dnum = AbsNum.downgrade t.num in
@@ -4190,17 +4400,17 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
   let bound_texpr : t -> Mtexpr.t -> Interval.t = fun t e ->
     AbsNum.R.bound_texpr t.num e
 
-  let expand : t -> mvar -> mvar list -> t = fun t v vl ->
-    let f x = AbsNum.R.expand x v vl
-    and df x = AbsNum.NR.expand x v vl
-    and f_pts x = Pt.expand x v vl in
-    apply f df f_pts t
+  (* let expand : t -> mvar -> mvar list -> t = fun t v vl ->
+   *   let f x = AbsNum.R.expand x v vl
+   *   and df x = AbsNum.NR.expand x v vl
+   *   and f_pts x = Pt.expand x v vl in
+   *   apply f df f_pts t *)
 
-  let fold : t -> mvar list -> t = fun t vl ->
-    let f x = AbsNum.R.fold x vl
-    and df x = AbsNum.NR.fold x vl in
-    let f_pts x = Pt.fold x vl in
-    apply f df f_pts t
+  (* let fold : t -> mvar list -> t = fun t vl ->
+   *   let f x = AbsNum.R.fold x vl
+   *   and df x = AbsNum.NR.fold x vl in
+   *   let f_pts x = Pt.fold x vl in
+   *   apply f df f_pts t *)
 
   (* abs_beval t bexpr : evaluate bexpr in t.
      We split disequalities in two cases to improve precision. *)
@@ -4266,22 +4476,24 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
                 | None -> t
                 | Some c ->
                   let dc = AbsNum.downgrade c in
-                  apply (AbsNum.R.meet c) (AbsNum.NR.meet dc) (fun x -> x) t in
+                  apply (AbsNum.R.meet c) (AbsNum.NR.meet dc)
+                    ident ident t in
               apply
                 (fun x -> AbsNum.R.assign_expr ~force:force x v e)
                 (fun x -> AbsNum.NR.assign_expr ~force:force x v e)
-                (fun x -> x) t'
+                ident ident t'
 
             | None ->
               let t' = match constr with
                 | None -> t
                 | Some c ->
                   let dc = AbsNum.downgrade c in
-                  apply (AbsNum.R.meet c) (AbsNum.NR.meet dc) (fun x -> x) t in
+                  apply (AbsNum.R.meet c) (AbsNum.NR.meet dc)
+                    ident ident t in
               apply
                 (fun x -> AbsNum.R.forget_list x [v])
                 (fun x -> AbsNum.NR.forget_list x [v])
-                (fun x -> x) t'              
+                ident ident t'              
           ) 
           constr_expr_list in
 
@@ -4296,14 +4508,22 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
       let b_list,n_list = List.map (fun x -> x.bool) t_list,
                           List.map (fun x -> x.num) t_list in
 
+      (* If we have only one assignment in [s_expr], we add the symbolic
+         equality. *)
+      let sym = match s_expr with
+        | [_, Some e] -> Sym.assign_expr ~force:force t.sym v e
+        | _ -> Sym.forget_list t.sym [v] in
+      
       { bool = join_map b_list;
         init = s_init;
         num = AbsNum.R.join_list n_list;
-        points_to = points_to_init }
+        points_to = points_to_init;
+        sym = sym; }
 
   (* Assign a boolean expression.
      As we did in assign_sexpr, we unpopulate init *)
   let assign_bexpr t vb bexpr =
+    let bexpr = Sym.subst_btcons t.sym bexpr in    
     let s_init = t.init in
     let points_to_init = t.points_to in
 
@@ -4316,27 +4536,35 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
       Mbv.add t_vb (abs_eval_btcons t bexpr |> AbsNum.downgrade) t.bool
       |> Mbv.add f_vb (abs_eval_neg_btcons t bexpr |> AbsNum.downgrade) in
 
+    let sym = Sym.assign_bexpr t.sym vb bexpr in
+
     { bool = new_b;
       init = s_init;
       num = t.num;
-      points_to = points_to_init }
+      points_to = points_to_init;
+      sym = sym; }
 
   let var_points_to t v = Pt.var_points_to t.points_to v
 
   let assign_ptr_expr t v pt_e =
     { t with points_to = Pt.assign_ptr_expr t.points_to v pt_e }
 
-  let meet_btcons : t -> btcons -> t = fun t c ->
+  (* [subst_btcons t c] returns an constraint [c'] equivalent to
+     [c] in any state satisfying [t]. *)
+  let subst_btcons t c = Sym.subst_btcons t.sym c
+
+  let meet_btcons : t -> btcons -> t = fun t c ->    
+    let c = Sym.subst_btcons t.sym c in
     let cn = abs_eval_btcons t c in
     let dcn = AbsNum.downgrade cn in
 
-    apply (AbsNum.R.meet cn) (AbsNum.NR.meet dcn) (fun x -> x) t
+    apply (AbsNum.R.meet cn) (AbsNum.NR.meet dcn) ident ident t
 
-  let unify : t -> t -> t = fun t t' ->
-    { bool = unify_map t.bool t'.bool;
-      init = eunify_map t.init t'.init;
-      num = AbsNum.R.unify t.num t'.num;
-      points_to = Pt.unify t.points_to t'.points_to }
+  (* let unify : t -> t -> t = fun t t' ->
+   *   { bool = unify_map t.bool t'.bool;
+   *     init = eunify_map t.init t'.init;
+   *     num = AbsNum.R.unify t.num t'.num;
+   *     points_to = Pt.unify t.points_to t'.points_to; } *)
 
   let change_environment : t -> mvar list -> t = fun t l ->
     let l = u8_blast_vars ~blast_arrays:true l in
@@ -4346,16 +4574,11 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     let b = Mbv.filter (fun s _ -> List.mem s bvars) t.bool
     and init = EMs.kfilter (fun s -> List.mem s ivars) t.init in
 
-    (* (\* We add the variables that are in l but not in t.bool's domain.
-     *    We do not need to do it for t.init, since it is lazily populated *\)
-     * let b = List.fold_left (fun b s ->
-     *     if Mbv.mem s b then b
-     *     else Mbv.add s (AbsNum.downgrade t.num) b) b bvars in *)
-
     (* We change the environment of the underlying numerical domain *)
     let f x = AbsNum.R.change_environment x l
-    and df x = AbsNum.NR.change_environment x l in
-    apply f df (fun x -> x) { t with bool = b; init = init }
+    and df x = AbsNum.NR.change_environment x l
+    and fsym x = Sym.change_environment x l in
+    apply f df ident fsym { t with bool = b; init = init }
 
   let remove_vars : t -> mvar list -> t = fun t l ->
     let l = u8_blast_vars ~blast_arrays:true l in
@@ -4368,8 +4591,9 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     (* We change the environment of the underlying numerical domain *)
     let f x = AbsNum.R.remove_vars x l
     and df x = AbsNum.NR.remove_vars x l
-    and ptf x = Pt.forget_list x l in
-    apply f df ptf { t with bool = b; init = init }
+    and ptf x = Pt.forget_list x l
+    and fsym x = Sym.forget_list x l in
+    apply f df ptf fsym { t with bool = b; init = init }
 
   let top_ni : t -> t = fun t ->
     let top = AbsNum.R.top_no_disj t.num in
@@ -4377,7 +4601,8 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo)
     { bool = bmap;
       init = EMs.empty;
       num = top;
-      points_to = Pt.make [] }
+      points_to = Pt.make [];
+      sym = Sym.make (); }
 
   let to_shape t shp =
     { t with num = AbsNum.R.to_shape t.num shp.num }
@@ -5381,8 +5606,12 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
 
   let bexpr_to_btcons : 'a Prog.gexpr -> AbsDom.t -> btcons option =
-    fun e abs -> try Some (bexpr_to_btcons_aux abs e) with
-        Bop_not_supported -> None
+    fun e abs ->
+    try let c = bexpr_to_btcons_aux abs e in
+      (* We substitute variables in [bexpr] using known symbolic 
+         equalities in [t.sym] *)
+      Some (AbsDom.subst_btcons abs c)
+    with Bop_not_supported -> None
 
 
   let linearize_if_iexpr : 'a Prog.gexpr -> AbsDom.t -> s_expr =
@@ -5665,12 +5894,12 @@ module AbsInterpreter (PW : ProgWrap) : sig
                         * (Format.formatter -> mvar -> unit)
 end = struct
   
-  let main_decl,prog = PW.main, PW.prog;;
+  let main_decl,prog = PW.main, PW.prog
 
-  Prof.reset_all ();;
+  let () = Prof.reset_all ()
 
   (*---------------------------------------------------------------*)
-  module AbsDom = AbsBoolNoRel (AbsNumTMake (PW)) (PointsToImpl)
+  module AbsDom = AbsBoolNoRel (AbsNumTMake (PW)) (PointsToImpl) (SymExprImpl)
 
   module AbsExpr = AbsExpr (AbsDom)
 
@@ -6122,9 +6351,6 @@ end = struct
                  Papp1(E.Oint_of_word sz,w),
                  vu))
 
-    
-  (* msb w. *)
-
   (* FIXME *)
   let sf_of_word _sz _w = None
   (* msb w. *)
@@ -6144,6 +6370,19 @@ end = struct
     and sf   = sf_of_word sz w
     and pf   = pf_of_word sz w
     and zf   = zf_of_word sz w in
+    [of_f;cf;sf;pf;zf]
+
+  (* For the SUB (without carry) and CMP operation, we manually set
+     the flags to have simpler and more precise expressions for the 
+     carry and zero flags. *)
+  let rflags_of_sub sz w1 w2 =
+    let sub = Papp2 (E.Osub (E.Op_w sz), w1, w2) in 
+    let of_f = None               (* FIXME *)
+    and cf   = Some (Papp2 (E.Olt (E.Cmp_w (Unsigned, sz)), w1,w2))
+    and sf   = sf_of_word sz sub
+    and pf   = pf_of_word sz sub
+    and zf   = Some (Papp2 (E.Oeq (E.Op_w sz), w1,w2))
+    in
     [of_f;cf;sf;pf;zf]
 
   let rflags_of_bwop sz w =
@@ -6196,6 +6435,12 @@ end = struct
     rflags @ [Some w]
 
   let opn_bin_alu = opn_bin_gen rflags_of_aluop
+
+  let opn_sub sz es =
+    let el,er = as_seq2 es in
+    let w = Papp2 (E.Osub (E.Op_w sz), el, er) in
+    let rflags = rflags_of_sub sz el er in
+    rflags @ [Some w]
 
   (* -------------------------------------------------------------------- *)
   (* FIXME: redo using the generic flags definition above *)
@@ -6281,21 +6526,12 @@ end = struct
     | E.Osubcarry ws -> mk_subcarry ws es
       
     | E.Oaddcarry ws -> mk_addcarry ws es
-                          
+
+    (* CMP flags are identical to SUB flags. *)
     | E.Ox86 (X86_instr_decl.CMP ws) ->
       (* Input types: ws, ws *)
       let el,er = as_seq2 es in
-      let w = Papp2 (E.Osub (E.Op_w ws), el, er) in
-
-      (* unsigned interpretations of [el] and [er], 
-         operation done over integers. *)
-      let vu = Papp2 (E.Osub (E.Op_w ws),
-                      Papp1(E.Oint_of_word ws,el),
-                      Papp1(E.Oint_of_word ws,er)) in
-      
-      let vs = () in
-      let rflags = rflags_of_aluop ws w vu vs in
-      rflags
+      rflags_of_sub ws el er
 
     (* add unsigned / signed *)
     | E.Ox86 (X86_instr_decl.ADD ws) ->
@@ -6303,7 +6539,7 @@ end = struct
 
     (* sub unsigned / signed *)
     | E.Ox86 (X86_instr_decl.SUB ws) ->
-      opn_bin_alu ws (E.Osub (E.Op_w ws)) (E.Osub (E.Op_int)) es
+      opn_sub ws es
 
     (* mul unsigned *)
     | E.Ox86 (X86_instr_decl.MUL ws) ->
@@ -6849,6 +7085,7 @@ end = struct
           debug (fun () -> Format.eprintf "Exit loop@;");
           match obind flip_btcons (oec state.abs) with
           | Some neg_ec ->
+            debug (fun () -> Format.eprintf "Meet with %a@;" pp_btcons neg_ec);
             { state with abs = AbsDom.meet_btcons state.abs neg_ec }
           | None -> state in
 
