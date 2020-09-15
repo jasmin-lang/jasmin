@@ -134,7 +134,7 @@ module Aparam = struct
   let bool_no_print = true   (* defaul: true *)
 
   (* Print substitutions done by the symbolic equality domain *)
-  let print_symb_subst = true   (* default: false *)
+  let print_symb_subst = true   (* default: true *)
 
   (****************)
   (* Miscelaneous *)
@@ -3845,15 +3845,8 @@ module type PointsTo = sig
   val forget_list : t -> mvar list -> t
   val is_included : t -> t -> bool
 
-  (* val top_mem_loc : t -> mem_loc list *)
-
-  val expand : t -> mvar -> mvar list -> t
-  val fold : t -> mvar list -> t
-
   val var_points_to : t -> mvar -> ptrs
   val assign_ptr_expr : t -> mvar -> ptr_expr -> t
-
-  val unify : t -> t -> t
 
   val print : Format.formatter -> t -> unit
 end
@@ -3947,18 +3940,6 @@ module PointsToImpl : PointsTo = struct
         |> join_ptrs_list in
 
       pt_assign t (string_of_mvar v) v_pts
-
-  let unify : t -> t -> t = meet
-
-  let expand : t -> mvar -> mvar list -> t = fun t v l ->
-    let v_pts = var_points_to t v in
-    List.fold_left (fun t v' -> pt_assign t (string_of_mvar v') v_pts ) t l
-
-  let fold : t -> mvar list -> t = fun t l -> match l with
-    | [] -> assert false
-    | v :: tail ->
-      let t' = assign_ptr_expr t v (PtVars l) in
-      forget_list t' tail
 
   let print ppf t =
     Format.fprintf ppf "@[<hov 4>* Points-to:@ %a@]@;"
@@ -4559,12 +4540,6 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     let dcn = AbsNum.downgrade cn in
 
     apply (AbsNum.R.meet cn) (AbsNum.NR.meet dcn) ident ident t
-
-  (* let unify : t -> t -> t = fun t t' ->
-   *   { bool = unify_map t.bool t'.bool;
-   *     init = eunify_map t.init t'.init;
-   *     num = AbsNum.R.unify t.num t'.num;
-   *     points_to = Pt.unify t.points_to t'.points_to; } *)
 
   let change_environment : t -> mvar list -> t = fun t l ->
     let l = u8_blast_vars ~blast_arrays:true l in
