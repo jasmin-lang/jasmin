@@ -775,6 +775,79 @@ end = struct
 end
 
 
+(* Flow-sensitive Pre-Analysis *)
+module FSPa : sig
+  type fs_pa_res
+    
+  val fs_pa_make : unit func -> unit prog -> fs_pa_res
+
+end = struct
+  type fs_pa_res = { fs_pa_dp : Pa.dp;
+                    fs_while_vars : Sv.t; }
+
+  exception Fcall
+  let rec collect_vars_e sv = function
+    | Pglobal _ | Pconst _ | Pbool _ | Parr_init _ -> sv
+    | Pvar v -> Sv.add (L.unloc v) sv
+    | Pget (_, v, e)
+    | Pload (_, v, e) -> collect_vars_e (Sv.add (L.unloc v) sv) e
+    | Papp1 (_,e) -> collect_vars_e sv e
+    | Papp2 (_,e1,e2) -> collect_vars_es sv [e1;e2]
+    | PappN (_, el)  -> collect_vars_es sv el
+    | Pif (_, e1, e2, e3) -> collect_vars_es sv [e1;e2;e3]
+  and collect_vars_es sv es = List.fold_left collect_vars_e sv es
+
+  let collect_vars_lv sv = function
+    | Lnone _ -> sv
+    | Lvar v -> Sv.add (L.unloc v) sv
+    | Laset (_, v, e) | Lmem (_, v, e) ->
+      collect_vars_e (Sv.add (L.unloc v) sv) e
+
+  let collect_vars_lvs sv = List.fold_left collect_vars_lv sv
+      
+  let rec collect_vars_i sv i = match i.i_desc with
+    | Cif (e, st1, st2)
+    | Cwhile (_,st1,e,st2) ->
+      let sv = collect_vars_is sv st1 in
+      let sv = collect_vars_is sv st2 in
+      collect_vars_e sv e
+    | Cfor (v,(_,e1,e2),st) ->
+      let sv = collect_vars_is (Sv.add (L.unloc v) sv) st in
+      collect_vars_es sv [e1;e2]
+    | Copn (lvs, _, _, es) ->
+      let sv = collect_vars_lvs sv lvs in
+      collect_vars_es sv es
+    | Cassgn (lv, _, _, e) ->
+      let sv = collect_vars_lv sv lv in
+      collect_vars_e sv e
+    | Ccall _ -> raise Fcall
+  and collect_vars_is sv is = List.fold_left collect_vars_i sv is
+
+
+  let check_uniq_names sv =
+    Sv.for_all (fun v -> not (Sv.exists (fun v' ->
+        v.v_id <> v'.v_id && v.v_name = v'.v_name) sv)) sv
+    
+  let fs_pa_make f prog =
+    let sv = Sv.of_list f.f_args in
+    let vars = try collect_vars_is sv f.f_body with
+      | Fcall ->
+        raise (Failure "Flow-sensitive packing error: some sub-procedures are \
+                        not inlined.\n\
+                        Maybe you are not at the correct compilation pass?");
+    in
+    (* We make sure that variable are uniquely defined by their names. *)
+    assert (check_uniq_names sv);
+    
+    let ssa_f = Ssa.split_live_ranges false f in
+    (* Remark: the program is not used by [Pa], since there are no function
+       calls in [f]. *)
+    let dp = Pa.pa_make ssa_f prog in
+    assert false
+  
+end
+
+
 (*************)
 (* Mpq Utils *)
 (*************)
