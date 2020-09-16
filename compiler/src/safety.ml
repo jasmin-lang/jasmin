@@ -503,12 +503,9 @@ module Pa : sig
 
   (* - pa_dp: for each variable, contains the set of variables that can modify
               it. Some dependencies are ignored depending on some heuristic.
-     - pa_eq: for each variable v, contains a set of variables that can be equal
-              to v (function calls and direct assignments).
      - pa_cfg: control-flow graph, where an entry f -> [f1;...;fn] means that 
      f calls f1, ..., fn *)
   type pa_res = { pa_dp : dp;
-                  pa_eq : dp;
                   pa_cfg : cfg;
                   while_vars : Sv.t;
                   if_conds : ty gexpr list }
@@ -524,7 +521,6 @@ end = struct
   type cfg = Sf.t Mf.t
 
   type pa_res = { pa_dp : dp;
-                  pa_eq : dp;
                   pa_cfg : cfg;
                   while_vars : Sv.t;
                   if_conds : ty gexpr list }
@@ -533,9 +529,6 @@ end = struct
 
   let add_dep dp v v' ct =
     Mv.add v (Sv.union (Sv.singleton v') (Sv.union ct (dp_v dp v))) dp
-
-  let add_eq eq v v' =
-    Mv.add v (Sv.union (Sv.singleton v') (dp_v eq v)) eq
 
   let cfg_v cfg f = Mf.find_default Sf.empty f cfg
 
@@ -565,13 +558,11 @@ end = struct
 
   (* State while building the dependency graph:
      - dp : dependency graph
-     - dp : potential equalities graph
      - cfg : control-flow graph: 
              f -> [f1;...;fn] means that f calls f1, ..., fn
      - f_done : already analized functions
      - ct : variables in the context (for an example, look at the Cif case) *)
   type pa_st = { dp : dp;
-                 eq : dp;
                  cfg : cfg;
                  while_vars : Sv.t;
                  if_conds : ty gexpr list;
@@ -608,7 +599,6 @@ end = struct
         let sf1,sf2 = odfl Sf.empty osf1, odfl Sf.empty osf2 in
         Sf.union sf1 sf2 |> some) in
     { dp = mdp st1.dp st2.dp;
-      eq = mdp st1.eq st2.eq;
       cfg = mcfg st1.cfg st2.cfg;
       while_vars = Sv.union st1.while_vars st2.while_vars;
       f_done = Ss.union st1.f_done st2.f_done;
@@ -622,10 +612,6 @@ end = struct
     | v' :: vs', e' :: es' -> if v' = v then e' else find_arg v vs' es'
 
   let pa_expr st v e = { st with dp = app_expr st.dp v e st.ct }
-
-  let pa_eq st v e = match e with
-    | Pvar v' -> { st with eq = add_eq st.eq v (L.unloc v')}
-    | _ -> st
 
   let pa_lv st lv e = match lv with
     | Lnone _ | Laset _ -> st   (* We ignore array stores *)
@@ -744,9 +730,7 @@ end = struct
           pa_lv st lv (Pvar ret))
           st lvs f_decl.f_ret in
 
-      let st = List.fold_left2 pa_expr st f_decl.f_args es in
-
-      List.fold_left2 pa_eq st f_decl.f_args es
+      List.fold_left2 pa_expr st f_decl.f_args es 
 
 
   and pa_func prog st fn =
@@ -758,7 +742,6 @@ end = struct
 
   let pa_make func prog =
     let st = { dp = Mv.empty;
-               eq = Mv.empty;
                cfg = Mf.empty;
                while_vars = Sv.empty;
                f_done = Ss.empty;
@@ -786,7 +769,6 @@ end = struct
           (List.sort (fun (v,_) (v',_) -> F.compare v v') (Mf.bindings st.cfg)));
 
     { pa_dp = st.dp;
-      pa_eq = st.eq;      
       pa_cfg = st.cfg;
       while_vars = st.while_vars;
       if_conds = List.sort_uniq Stdlib.compare st.if_conds }
@@ -2553,16 +2535,6 @@ module Ptree = struct
                   n_unknwn = aux nu; } 
       | Leaf x -> Leaf (f x) in
     aux t
-
-    (* let apply (f : Mtcons.t list -> 'a -> 'b) (t : 'a t) =
-     * let rec aux cs t = match t with
-     *   | Node { constr = c; n_true = nt; n_false = nf; n_unknwn = nu; }
-     *     -> Node { constr = c;
-     *               n_true = aux (c.mtcons :: cs) nt;
-     *               n_false = aux (flip c.mtcons @ cs ) nf;
-     *               n_unknwn = nu; } (\* TODO: fixme ! *\)
-     *   | Leaf x -> Leaf (f cs x) in
-     * aux [] t *)
       
   let apply2_merge (fmerge : 'a t -> 'b t -> ('a t * 'b t))
       (f : 'a -> 'b -> 'c) t1 t2 =
@@ -2581,24 +2553,6 @@ module Ptree = struct
     let t1, t2 = if same_shape t1 t2 then t1,t2 else fmerge t1 t2 in
 
     aux t1 t2
-
-    (* let apply2_merge (fmerge : 'a t -> 'b t -> ('a t * 'b t))
-     *   (f : Mtcons.t list -> 'a -> 'b -> 'c) t1 t2 =
-     * let rec aux cs t1 t2 = match t1,t2 with
-     *   | Node { constr = c ; n_true = nt ; n_false = nf ; n_unknwn = nu ; },
-     *     Node { constr = c'; n_true = nt'; n_false = nf'; n_unknwn = nu'; }
-     *     when c.cpt_uniq = c'.cpt_uniq ->
-     *     Node { constr = c;
-     *            n_true = aux nt nt';
-     *            n_false = aux nf nf';
-     *            n_unknwn = aux nu nu'; }
-     * 
-     *   | Leaf x1, Leaf x2 -> Leaf (f cs x1 x2)
-     *   | _ -> raise (Aint_error "Ptree: Shape do not match") in
-     * 
-     * let t1, t2 = if same_shape t1 t2 then t1,t2 else fmerge t1 t2 in
-     * 
-     * aux [] t1 t2 *)
 
   let apply_list (f : 'a list -> 'b) ts =
     let rec aux ts = match ts with
@@ -2624,27 +2578,6 @@ module Ptree = struct
 
     aux ts
 
-    (* let apply_list (f : Mtcons.t list -> 'a list -> 'b) ts =
-     * let rec aux cs ts = match ts with
-     *   | [] -> raise (Aint_error "Ptree: apply_l empty list")
-     *   | Node (c,_,_) :: _ -> aux_node c cs ts [] []
-     *   | Leaf _ :: _ -> aux_leaf cs ts []
-     * 
-     * and aux_node c cs ts lts rts = match ts with
-     *   | Node (c',l,r) :: ts' when c = c' ->
-     *     aux_node c cs ts' (l :: lts) (r :: rts)
-     *   | [] -> Node (c,
-     *                 aux (c.mtcons :: cs) lts,
-     *                 aux (flip c.mtcons @ cs ) rts)
-     *   | _ -> raise (Aint_error "Ptree: aux_node bad shape")
-     * 
-     * and aux_leaf cs ts xts = match ts with
-     *   | Leaf x :: ts' -> aux_leaf cs ts' (x :: xts)
-     *   | [] -> Leaf (f cs xts)
-     *   | _ -> raise (Aint_error "Ptree: aux_leaf bad shape") in
-     * 
-     * aux [] ts *)
-
   let eval (fn : cnstr -> 'a -> 'a -> 'a -> 'a)
       (fl : 'b -> 'a)
       (t : 'b t) =
@@ -2669,30 +2602,6 @@ module Ptree = struct
     let t1, t2 = if same_shape t1 t2 then t1,t2 else fmerge t1 t2 in
 
     aux t1 t2
-
-
-  (*   let eval (fn : cnstr -> 'a -> 'a -> 'a)
-   *     (fl : Mtcons.t list -> 'b -> 'a)
-   *     (t : 'b t) =
-   *   let rec aux cs = function
-   *     | Node (c,l,r) ->
-   *       fn c (aux (c.mtcons :: cs) l) (aux (flip c.mtcons @ cs) r)
-   *     | Leaf x -> fl cs x in
-   *   aux [] t
-   * 
-   * let eval2_merge (fmerge : 'b t -> 'c t -> ('b t * 'c t))
-   *     (fn : Mtcons.t list -> 'a -> 'a -> 'a)
-   *     (fl : Mtcons.t list -> 'b -> 'c -> 'a)
-   *     (t1 : 'b t) (t2 : 'c t) =
-   *   let rec aux cs t1 t2 = match t1,t2 with
-   *     | Node (c1,l1,r1), Node (c2,l2,r2) when c1 = c2 ->
-   *       fn cs (aux (c1.mtcons :: cs) l1 l2) (aux (flip c1.mtcons @ cs) r1 r2)
-   *     | Leaf x1, Leaf x2 -> fl cs x1 x2
-   *     | _ -> raise (Aint_error "Ptree: eval2 : shape do not match") in
-   * 
-   *   let t1, t2 = if same_shape t1 t2 then t1,t2 else fmerge t1 t2 in
-   * 
-   *   aux [] t1 t2 *)
 
   let ptree_size = eval (fun _ a b c -> a + b + c) (fun _ -> 1)
 end
@@ -2746,7 +2655,6 @@ module ML = Map.Make (OrdL)
 let hc = ref ML.empty
 let _uniq = ref 0
 
-(* Note that the *)
 let make_cnstr c i =
   try
     let constr = ML.find i !hc in
@@ -4371,8 +4279,6 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     && (for_all2 check_b t.bool t'.bool)
     && (Pt.is_included t.points_to t'.points_to)
 
-  (* let top_mem_loc : t -> mem_loc list = fun t -> Pt.top_mem_loc t.points_to *)
-
   let is_bottom : t -> bool = fun t -> AbsNum.R.is_bottom t.num
 
   let bound_variable : t -> mvar -> Interval.t = fun t v ->
@@ -4380,18 +4286,6 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
 
   let bound_texpr : t -> Mtexpr.t -> Interval.t = fun t e ->
     AbsNum.R.bound_texpr t.num e
-
-  (* let expand : t -> mvar -> mvar list -> t = fun t v vl ->
-   *   let f x = AbsNum.R.expand x v vl
-   *   and df x = AbsNum.NR.expand x v vl
-   *   and f_pts x = Pt.expand x v vl in
-   *   apply f df f_pts t *)
-
-  (* let fold : t -> mvar list -> t = fun t vl ->
-   *   let f x = AbsNum.R.fold x vl
-   *   and df x = AbsNum.NR.fold x vl in
-   *   let f_pts x = Pt.fold x vl in
-   *   apply f df f_pts t *)
 
   (* abs_beval t bexpr : evaluate bexpr in t.
      We split disequalities in two cases to improve precision. *)
