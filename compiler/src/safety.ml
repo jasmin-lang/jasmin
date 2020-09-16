@@ -513,6 +513,9 @@ module Pa : sig
   val dp_v : dp -> ty gvar -> Sv.t
   val pa_make : unit func -> unit prog -> pa_res
 
+  val print_dp  : Format.formatter -> dp -> unit
+  val print_cfg : Format.formatter -> cfg -> unit
+
 end = struct
   (* For each variable, we compute the set of variables that can modify it.
      Some dependencies are ignored depending on some heuristic we have. *)
@@ -740,6 +743,25 @@ end = struct
 
   and pa_stmt fn prog st instrs = List.fold_left (pa_instr fn prog) st instrs
 
+  let print_dp fmt dp =
+    Format.fprintf fmt "@[<v 2>Dependency heuristic graph:@;%a@]@."
+      (pp_list (fun fmt (v, sv) -> Format.fprintf fmt "@[<hov 4>%a <-- %a@]"
+                   (Printer.pp_var ~debug:true) v
+                   (pp_list ( Printer.pp_var ~debug:true))
+                   (List.sort (fun v v' ->
+                        Stdlib.compare v.v_name v'.v_name)
+                       (Sv.elements sv))))
+      (List.sort (fun (v,_) (v',_) -> Stdlib.compare v.v_name v'.v_name)
+         (Mv.bindings dp))
+
+  let print_cfg fmt cfg =
+    Format.fprintf fmt "@[<v 2>Control-flow graph:@;%a@]@."
+      (pp_list (fun fmt (f, fs) -> Format.fprintf fmt "@[<hov 4>%a --> %a@]"
+                   pp_string f.fn_name
+                   (pp_list (fun fmt x -> pp_string fmt x.fn_name))
+                   (List.sort F.compare (Sf.elements fs))))
+      (List.sort (fun (v,_) (v',_) -> F.compare v v') (Mf.bindings cfg))
+
   let pa_make func prog =
     let st = { dp = Mv.empty;
                cfg = Mf.empty;
@@ -749,24 +771,8 @@ end = struct
                ct = Sv.empty } in
     let st = pa_func prog st func.f_name in
 
-    debug (fun () ->
-        Format.eprintf "@[<v 2>Dependency heuristic graph:@;%a@]@."
-          (pp_list (fun fmt (v, sv) -> Format.fprintf fmt "@[<hov 4>%a <-- %a@]"
-                       (Printer.pp_var ~debug:true) v
-                       (pp_list ( Printer.pp_var ~debug:true))
-                       (List.sort (fun v v' ->
-                            Stdlib.compare v.v_name v'.v_name)
-                           (Sv.elements sv))))
-          (List.sort (fun (v,_) (v',_) -> Stdlib.compare v.v_name v'.v_name)
-             (Mv.bindings st.dp)));
-
-    debug (fun () ->
-        Format.eprintf "@[<v 2>Control-flow graph:@;%a@]@."
-          (pp_list (fun fmt (f, fs) -> Format.fprintf fmt "@[<hov 4>%a --> %a@]"
-                       pp_string f.fn_name
-                       (pp_list (fun fmt x -> pp_string fmt x.fn_name))
-                       (List.sort F.compare (Sf.elements fs))))
-          (List.sort (fun (v,_) (v',_) -> F.compare v v') (Mf.bindings st.cfg)));
+    debug (fun () -> Format.eprintf "%a" print_dp st.dp);
+    debug (fun () -> Format.eprintf "%a" print_cfg st.cfg);
 
     { pa_dp = st.dp;
       pa_cfg = st.cfg;
@@ -776,15 +782,9 @@ end
 
 
 (* Flow-sensitive Pre-Analysis *)
-module FSPa : sig
-  type fs_pa_res
-    
-  val fs_pa_make : unit func -> unit prog -> fs_pa_res
-
+module FSPa : sig    
+  val fs_pa_make : unit func -> unit prog -> unit func * Pa.pa_res
 end = struct
-  type fs_pa_res = { fs_pa_dp : Pa.dp;
-                    fs_while_vars : Sv.t; }
-
   exception Fcall
   let rec collect_vars_e sv = function
     | Pglobal _ | Pconst _ | Pbool _ | Parr_init _ -> sv
@@ -837,13 +837,13 @@ end = struct
                         Maybe you are not at the correct compilation pass?");
     in
     (* We make sure that variable are uniquely defined by their names. *)
-    assert (check_uniq_names sv);
+    assert (check_uniq_names vars);
     
     let ssa_f = Ssa.split_live_ranges false f in
     (* Remark: the program is not used by [Pa], since there are no function
        calls in [f]. *)
     let dp = Pa.pa_make ssa_f prog in
-    assert false
+    ssa_f, dp
   
 end
 
@@ -2022,8 +2022,14 @@ let is_prefix u v =
 
 module type VDomWrap = sig
   (* Associate a domain (ppl or non-relational) to every variable.
-     An array element must have the same domain that its blasted component. *)
-  val vdom : mvar -> v_dom
+     An array element must have the same domain that its blasted component. 
+     The second argument is a state, which allows to change a variable domain
+     during the analysis. 
+     Only [Mvalue (Avar _)] can change domain. *)
+  val vdom : mvar -> v_dom Mm.t -> v_dom
+
+  (* Initial state. *)
+  val dom_st_init : v_dom Mm.t
 end
 
 
@@ -2043,40 +2049,129 @@ end
 
 module Ms = Map.Make(Scmp)
 
+module type AbsNumProdT = sig
+  include AbsNumType
+
+  (* Overwrite [AbsNumType] signature for [of_box].
+     We use the domain information in the argument of type [t]. *)
+  val of_box : Box.t Abstract1.t -> t -> t
+    
+  val set_rel   : t -> mvar -> t
+  val set_unrel : t -> mvar -> t
+end
+    
 (* For now we fixed the domains, and we use only two of them, one non-relational
    and one Ppl. Still, we generalized to n different domains whenever possible
    to help future possible extentions. *)
 module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
-  : AbsNumType = struct
+  : AbsNumProdT = struct
 
   type t = { nrd : NonRel.t Mdom.t;
-             ppl : PplDom.t Mdom.t }
+             ppl : PplDom.t Mdom.t;
+             dom_st : v_dom Mm.t; }
 
   let nrddoms = [Nrd 0]
   let ppldoms = [Ppl 0]
 
+  let is_var = function
+    | Mvalue (Avar _) -> true
+    | _ -> false
+      
+  let is_in_dom_ppl v d t =
+    let a = Mdom.find d t.ppl in
+    let av = avar_of_mvar v in
+    Environment.mem_var (PplDom.get_env a) av
+
+  let is_in_dom_nrd v d t =
+    let a = Mdom.find d t.nrd in
+    let av = avar_of_mvar v in
+    Environment.mem_var (NonRel.get_env a) av
+      
+  (* This assumes that we only use [Nrd 0] and [Ppl 0]. *)
+  let set_rel t v =
+    assert (is_var v);
+    match Mm.find_opt v t.dom_st with
+    | Some (Ppl 0) -> t
+    | None ->
+      assert (not (is_in_dom_nrd v (Nrd 0) t) &&
+              not (is_in_dom_ppl v (Ppl 0) t)); 
+      { t with dom_st = Mm.add v (Ppl 0) t.dom_st; }
+    | Some (Nrd 0) ->
+      assert (not (is_in_dom_ppl v (Ppl 0) t)); 
+      let anrd = Mdom.find (Nrd 0) t.nrd in
+      let env = NonRel.get_env anrd in
+
+      (* The environment does not matter. *)
+      let int = NonRel.bound_variable anrd v in
+      let e = Mtexpr.cst env (Coeff.Interval int) in
+
+      let appl = Mdom.find (Ppl 0) t.ppl in
+      let appl = PplDom.assign_expr appl v e in
+
+      let anrd = NonRel.remove_vars anrd [v] in
+      
+      { t with ppl = Mdom.add (Ppl 0) appl t.ppl;
+               nrd = Mdom.add (Nrd 0) anrd t.nrd;
+               dom_st = Mm.add v (Ppl 0) t.dom_st; }
+
+    | _ -> assert false
+
+  (* This assumes that we only use [Nrd 0] and [Ppl 0]. *)
+  let set_unrel t v =
+    assert (is_var v);
+    match Mm.find_opt v t.dom_st with
+    | Some (Nrd 0) -> t
+    | None ->
+      assert (not (is_in_dom_nrd v (Nrd 0) t) &&
+              not (is_in_dom_ppl v (Ppl 0) t)); 
+      { t with dom_st = Mm.add v (Nrd 0) t.dom_st; }
+    | Some (Ppl 0) ->
+      assert (not (is_in_dom_nrd v (Nrd 0) t)); 
+      let appl = Mdom.find (Ppl 0) t.ppl in
+      let env = PplDom.get_env appl in
+
+      (* The environment does not matter. *)
+      let int = PplDom.bound_variable appl v in
+      let e = Mtexpr.cst env (Coeff.Interval int) in
+
+      let anrd = Mdom.find (Nrd 0) t.nrd in
+      let anrd = NonRel.assign_expr anrd v e in
+
+      let appl = PplDom.remove_vars appl [v] in
+
+      { t with ppl = Mdom.add (Ppl 0) appl t.ppl;
+               nrd = Mdom.add (Nrd 0) anrd t.nrd;
+               dom_st = Mm.add v (Nrd 0) t.dom_st; }
+
+    | _ -> assert false
+    
   (* We need log the result of VDW.vdom for the of_box function. This is not
-     clean, but I do not see a simpler way. *)
+     clean, but I do not see a simpler way. 
+     Note that we do not log call for variables, as these are covered
+     by the domain state [dom_st]. *)
   let log_index = Hashtbl.create ~random:false 16
   let log = Hashtbl.create ~random:false 16
 
-  let vdom v =
+  let vdom v dom_st =
     let r =
-      if v= dummy_mvar then Ppl 0 
-      else VDW.vdom v in
-    let vs = avar_of_mvar v |> Var.to_string in
-    (* We also need to add the blasted component of [t] to the log. *)
-    let vs_blasted = u8_blast_var ~blast_arrays:false v 
-                     |> List.map (fun v -> avar_of_mvar v
-                                            |> Var.to_string) in
+      if v = dummy_mvar then Ppl 0 
+      else VDW.vdom v dom_st in
+    match v with
+    | Mvalue (Avar _) -> r
+    | _ ->
+      let vs = avar_of_mvar v |> Var.to_string in
+      (* We also need to add the blasted component of [t] to the log. *)
+      let vs_blasted = u8_blast_var ~blast_arrays:false v 
+                       |> List.map (fun v -> avar_of_mvar v
+                                             |> Var.to_string) in
 
-    let add_to_log vs =
-      if not (Hashtbl.mem log_index vs) then begin
-        Hashtbl.add log_index vs ();
-        Hashtbl.add log r vs
-      end in
-    List.iter add_to_log (vs :: vs_blasted);
-    r
+      let add_to_log vs =
+        if not (Hashtbl.mem log_index vs) then begin
+          Hashtbl.add log_index vs ();
+          Hashtbl.add log r vs
+        end in
+      List.iter add_to_log (vs :: vs_blasted);
+      r
 
   let pp_dom fmt = function
     | Ppl i -> Format.fprintf fmt "Ppl %d" i
@@ -2089,11 +2184,11 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
       log;
     Format.fprintf fmt "@;@]@."
       
-  let expr_doms e =
+  let expr_doms e dom_st =
     let rec aux acc = function
       | Mtexpr.Mcst _ -> acc
       | Mtexpr.Mvar v ->
-        if List.mem (vdom v) acc then acc else (vdom v) :: acc
+        if List.mem (vdom v dom_st) acc then acc else (vdom v dom_st) :: acc
       | Mtexpr.Munop (_, e1, _, _) -> aux acc e1
       | Mtexpr.Mbinop (_, e1, e2, _, _) -> aux (aux acc e1) e2 in
 
@@ -2104,7 +2199,7 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
     let env = e.env in
     let m_make e = Mtexpr.({ mexpr = e; env = env }) in
 
-    let rec proj_mexpr (e : Mtexpr.mexpr) = match expr_doms e with
+    let rec proj_mexpr (e : Mtexpr.mexpr) = match expr_doms e a.dom_st with
       | [] -> m_make e
       | [d'] ->
         if d = d' then m_make e
@@ -2125,11 +2220,11 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
   let proj_constr a d (c : Mtcons.t) =
     Mtcons.make (proj_expr a d (Mtcons.get_expr c)) (Mtcons.get_typ c)
 
-  let split_doms l =
+  let split_doms l dom_st =
     let rec aux (ores,pres) = function
       | [] -> (ores, pres)
       | v :: tail ->
-        let res' = match vdom v with
+        let res' = match vdom v dom_st with
           | Ppl _ as d ->
             if List.mem_assoc d pres then
               (ores, assoc_up d (fun x -> v :: x) pres)
@@ -2148,21 +2243,31 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
          List.map (fun d -> (d,[])) ppldoms) l
 
   let make l =
-    let (ores,pres) = split_doms l in
-    let a = { nrd = Mdom.empty; ppl = Mdom.empty } in
+    let (ores,pres) = split_doms l VDW.dom_st_init in
+    let a = { nrd = Mdom.empty; ppl = Mdom.empty; dom_st = Mm.empty; } in
 
     let a = List.fold_left (fun a (d,lvs) ->
-        { a with nrd = Mdom.add d (NonRel.make lvs) a.nrd })
+        let dom_st = List.fold_left (fun dom_st lv ->
+            Mm.add lv d dom_st) a.dom_st lvs in
+        { a with nrd = Mdom.add d (NonRel.make lvs) a.nrd;
+                 dom_st = dom_st; })
         a ores in
 
     List.fold_left (fun a (d,lvs) ->
-        { a with ppl = Mdom.add d (PplDom.make lvs) a.ppl })
+        let dom_st = List.fold_left (fun dom_st lv ->
+            Mm.add lv d dom_st) a.dom_st lvs in
+        { a with ppl = Mdom.add d (PplDom.make lvs) a.ppl;
+                 dom_st = dom_st; })
       a pres
 
   let un_app fnrd fppl a =
     { nrd = Mdom.mapi fnrd a.nrd;
-      ppl = Mdom.mapi fppl a.ppl }
+      ppl = Mdom.mapi fppl a.ppl;
+      dom_st = a.dom_st; }
 
+  let unify_dom_st st1 st2 = assert false
+  let unify_dom_sts sts = assert false
+    
   let bin_app fnrd fppl a a' =
     let f_opt f k u v = match u,v with
       | None, _ | _, None ->
@@ -2172,7 +2277,8 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
       | Some x, Some y -> Some (f x y) in
 
     { nrd = Mdom.merge (f_opt fnrd) a.nrd a'.nrd;
-      ppl = Mdom.merge (f_opt fppl) a.ppl a'.ppl }
+      ppl = Mdom.merge (f_opt fppl) a.ppl a'.ppl;
+      dom_st = unify_dom_st a.dom_st a'.dom_st; }
 
   let list_app fnrd fppl (l : t list) =
     match l with
@@ -2184,7 +2290,8 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
             fnrd els) a.nrd;
         ppl = Mdom.mapi (fun k _ ->
             let els = List.map (fun x -> Mdom.find k x.ppl) l in
-            fppl els) a.ppl}
+            fppl els) a.ppl;
+        dom_st = unify_dom_sts l; }
 
   let meet = bin_app NonRel.meet PplDom.meet
 
@@ -2226,20 +2333,22 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
     un_app f1 f2 a
 
   let expand a v v_list =
-    let f1 d x = if vdom v = d then NonRel.expand x v v_list else x
-    and f2 d x = if vdom v = d then PplDom.expand x v v_list else x in
+    let f1 d x = if vdom v a.dom_st = d then NonRel.expand x v v_list else x
+    and f2 d x = if vdom v a.dom_st = d then PplDom.expand x v v_list else x in
     un_app f1 f2 a
 
   let fold a v_list = match v_list with
     | [] -> raise (Aint_error "fold of an empty list")
     | v :: _ ->
-      let f1 d x = if vdom v = d then NonRel.fold x v_list else x
-      and f2 d x = if vdom v = d then PplDom.fold x v_list else x in
+      let f1 d x = if vdom v a.dom_st = d then NonRel.fold x v_list else x
+      and f2 d x = if vdom v a.dom_st = d then PplDom.fold x v_list else x in
       un_app f1 f2 a
 
-  let bound_variable a v = match vdom v with
-    | Nrd _ -> NonRel.bound_variable (Mdom.find (vdom v) a.nrd) v
-    | Ppl _ -> PplDom.bound_variable (Mdom.find (vdom v) a.ppl) v
+  let bound_variable a v =
+    let d = vdom v a.dom_st in 
+    match d with
+    | Nrd _ -> NonRel.bound_variable (Mdom.find d a.nrd) v
+    | Ppl _ -> PplDom.bound_variable (Mdom.find d a.ppl) v
 
 
   (* This works only if there is only one Ppl domain (Ppl 0). *)
@@ -2249,7 +2358,7 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
 
   (* If force is true then we do a forced strong update on v. *)
   let assign_expr ?force:(force=false) a v (e : Mtexpr.t) =
-    let d = vdom v in
+    let d = vdom v a.dom_st in
     let p_e = proj_expr a d e in
     match d with
     | Nrd _ ->
@@ -2300,14 +2409,14 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
           (pp_map (PplDom.print ~full:full)) a.ppl
 
   let change_environment a mvars =
-    let (ores,pres) = split_doms mvars in
+    let (ores,pres) = split_doms mvars a.dom_st in
 
     let f1 d x = NonRel.change_environment x (List.assoc d ores)
     and f2 d x = PplDom.change_environment x (List.assoc d pres) in
     un_app f1 f2 a
 
   let remove_vars a mvars =
-    let (ores,pres) = split_doms mvars in
+    let (ores,pres) = split_doms mvars a.dom_st in
 
     let f1 d x = NonRel.remove_vars x (List.assoc d ores)
     and f2 d x = PplDom.remove_vars x (List.assoc d pres) in
@@ -2343,7 +2452,7 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
     Abstract1.meet_array bman (Array.of_list l)
 
   (* This is messy because we have to use the log to inverse avar_of_mvar *)
-  let of_box (box : Box.t Abstract1.t) =
+  let of_box (box : Box.t Abstract1.t) shape =
     let vars = Environment.vars (Abstract1.env box)
                |> fst
                |> Array.to_list
@@ -2683,7 +2792,7 @@ end
 (* Trace partitionning, see the description of the [node] type in 
    the module [Ptree]. *)
 module type AbsDisjType = sig
-  include AbsNumType
+  include AbsNumProdT
 
   (* Make a top value with *no* disjunction *)
   val top_no_disj : t -> t
@@ -2750,7 +2859,7 @@ let make_cnstr c i =
 
 (* Disjunctive domain. Leaves are already constrained under the branch
    conditions. *)
-module AbsDisj (A : AbsNumType) : AbsDisjType = struct
+module AbsDisj (A : AbsNumProdT) : AbsDisjType = struct
 
   type t = { tree : A.t Ptree.t;
              cnstrs : cnstr_blk list }
@@ -3157,7 +3266,10 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
       A.to_box
 
 
-  let of_box bt tshape = apply (fun _ -> A.of_box bt) tshape
+  let of_box bt tshape = apply (fun a -> A.of_box bt a) tshape
+
+  let set_rel   t v = apply (fun a -> A.set_rel a v) t
+  let set_unrel t v = apply (fun a -> A.set_unrel a v) t 
 
   let shrt_tree t =
     (* See Ptree.eval for the order *)
@@ -3188,35 +3300,6 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
 end
 
 
-module Lift (A : AbsNumType) : AbsDisjType = struct
-  include A
-
-  let top_no_disj a = A.top a
-
-  let to_shape a _ = a
-
-  let remove_disj a = a
-
-  let of_box bt _ = A.of_box bt
-
-  let new_cnstr_blck t _ = t
-
-  let add_cnstr t ~meet c _ =
-    ( (if meet then A.meet_constr t c else t),
-      if meet then
-        match flip_constr c with
-        | Some nc -> A.meet_constr t nc
-        | None -> t
-      else t)
-
-  let pop_cnstr_blck t _ = t
-
-  let pop_all_blcks t = t
-end
-
-(**************************************)
-(* Building of the partition skeleton *)
-(**************************************)
 
 let ty_gvar_of_mvar = function
   | Mvalue (Avar v) -> Some v
@@ -3232,39 +3315,51 @@ let mtexpr_of_bigint env z =
   let mpq_z = Mpq.init_set_str (B.to_string z) ~base:10 in
   Mtexpr.cst env (Coeff.s_of_mpq mpq_z)
 
-module PIMake (PW : ProgWrap) : VDomWrap = struct
 
-  (* We compute the dependency heuristic graph *)
-  let pa_res = Pa.pa_make PW.main PW.prog
+(****************)
+(* Pre-Analysis *)
+(****************)
 
-  (* We compute the reflexive and transitive clojure of dp *)
-  let f (dp : Pa.dp) =
-    Mv.map (fun sv ->
-        Sv.fold (fun v' s ->
-            Sv.union s (Pa.dp_v dp v'))
-          sv sv) dp
+(* Reflexive and transitive closure. *)
+let trans_closure (dp : Pa.dp) =
+  let f dp = Mv.map (fun sv ->
+      Sv.fold (fun v' s ->
+          Sv.union s (Pa.dp_v dp v'))
+        sv sv) dp in
 
-  let dp = fpt f (Mv.equal Sv.equal) pa_res.pa_dp
+  fpt f (Mv.equal Sv.equal) dp
 
-  (* Add variables where [sv_ini] flows to. *)
-  let add_flow sv_ini =
+(* Add variables where [sv_ini] flows to. *)
+let flow_to (dp : Pa.dp) (sv_ini : Sv.t) =
     Mv.fold (fun v sv v_rel ->
         if Sv.disjoint sv sv_ini then v_rel
         else Sv.add v v_rel
       ) dp sv_ini
 
-  (* Add variables flowing to [sv_ini]. *)
-  let add_flow_rev sv_ini =
+(* Add variables flowing to [sv_ini]. *)
+let flowing_to (dp : Pa.dp) (sv_ini : Sv.t) =
     Mv.fold (fun v sv v_rel ->
-        if Sv.mem v sv_ini then Sv.union sv v_rel
-        else v_rel
-      ) dp sv_ini
+        if Sv.disjoint sv sv_ini then v_rel
+        else Sv.add v v_rel
+    ) dp sv_ini
+      
+
+module PIMake (PW : ProgWrap) : VDomWrap = struct
+
+  (* We do not use the state in this heuristic *)
+  let dom_st_init = Mm.empty
+    
+  (* We compute the dependency heuristic graph *)
+  let pa_res = Pa.pa_make PW.main PW.prog
+
+  (* We compute the reflexive and transitive clojure of dp *)
+  let dp = trans_closure pa_res.pa_dp
 
   (* We are relational on a variable v iff:
      - there is a direct flow from the intersection of PW.main.f_args and
      Glob_options.relational to v.
-     - the variable is appears in while loops conditions,
-     or that modifiy a while loop condition variable. *)
+     - the variable appears in a while loops conditions,
+     or modifies a while loop condition variable. *)
   let sv_ini =
     match PW.param.relationals with
     | None -> PW.main.f_args |> Sv.of_list
@@ -3273,8 +3368,8 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
       |> Sv.of_list
 
   let v_rel : Sv.t =
-    let v_rel = add_flow sv_ini in
-    let v_while = add_flow_rev pa_res.while_vars in
+    let v_rel = flow_to dp sv_ini in
+    let v_while = flowing_to dp pa_res.while_vars in
     Sv.union v_rel v_while
 
   (* v is a pointer variable iff there is a direct flow from the intersection
@@ -3286,7 +3381,7 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
       List.filter (fun v -> List.mem v.v_name v_pt) PW.main.f_args
       |> Sv.of_list
 
-  let v_pt : Sv.t = add_flow pt_ini
+  let v_pt : Sv.t = flow_to dp pt_ini
 
   let pp_rel_vars fmt rel =
     (pp_list (Printer.pp_var ~debug:false)) fmt
@@ -3301,7 +3396,9 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
         (Sv.cardinal v_pt)
         pp_rel_vars v_pt)
 
-  let vdom = function
+  (* Arrays and array elements must always be non-relational. 
+     We do not use the state in this heuristic *)
+  let vdom v _ = match v with
     | Temp _ | WTemp _ -> assert false
 
     | MNumInv _ -> Ppl 0        (* Numerical invariant must be relational *)
@@ -3330,8 +3427,6 @@ end
 
 module MakeAbsNumProf (A : NumWrap) : AbsNumType with type t = A.Num.t = struct
   include A.Num
-
-  let is_spec = ref None 
 
   (*----------------------------------------------------------------*)
   (* Profiling for the new functions. *)
@@ -3500,9 +3595,9 @@ module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
   let to_shape       = A.Num.to_shape
   let top_no_disj    = A.Num.top_no_disj
   let remove_disj    = A.Num.remove_disj
-
-  let is_spec = ref None 
-
+  let set_rel        = A.Num.set_rel
+  let set_unrel      = A.Num.set_unrel
+                         
   (*----------------------------------------------------------------*)
   (* Profiling for the new functions. *)
   let record s = Prof.record ("D."^s) 
@@ -3564,6 +3659,20 @@ module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
     let t = Sys.time () in
     let r = pop_all_blcks x in
     let () = call "pop_all_blcks" (Sys.time () -. t) in
+    r
+
+  let () = record "set_rel"
+  let set_rel x v =
+    let t = Sys.time () in
+    let r = set_rel x v in
+    let () = call "set_rel" (Sys.time () -. t) in
+    r
+
+  let () = record "set_unrel"
+  let set_unrel x v =
+    let t = Sys.time () in
+    let r = set_unrel x v in
+    let () = call "set_unrel" (Sys.time () -. t) in
     r
 
 end
@@ -4154,8 +4263,12 @@ module type AbsNumBoolType = sig
   val bound_variable : t -> mvar -> Interval.t
   val bound_texpr : t -> Mtexpr.t -> Interval.t
 
-  (* Does not change the points-to information *)
-  val assign_sexpr : ?force:bool -> t -> mvar -> s_expr -> t
+  (* Does not change the points-to information.
+     The location option argument must be:
+     - [Some loc], where [loc] is the location where the assignment 
+     takes place if the [mvar] argument is a [Mvalue (Avar _)].
+     - anything otherwise. *)
+  val assign_sexpr : ?force:bool -> t -> mvar -> L.t option -> s_expr -> t
   val assign_bexpr : t -> mvar -> btcons -> t
 
   val var_points_to : t -> mvar -> ptrs
@@ -4399,8 +4512,8 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
      by the caller.
      We unpopulate init to be faster. This is sound if the evaluation of an
      expression neither modifies init not depend on it. *)
-  let assign_sexpr : ?force:bool -> t -> mvar -> s_expr -> t =
-    fun ?force:(force=false) t v s_expr ->
+  let assign_sexpr : ?force:bool -> t -> mvar -> L.t option -> s_expr -> t =
+    fun ?force:(force=false) t v loc s_expr ->
       let s_init = t.init in
       let points_to_init = t.points_to in
       let t = { t with init = EMs.empty } in
@@ -5097,18 +5210,20 @@ let check_is_word v = match v.v_ty with
 
 type mlvar =
   | MLnone
-  | MLvar of mvar
-  | MLvars of mvar list       (* If there is uncertainty on the lvalue where 
-                                 the assignement takes place. *)
-
+  | MLvar  of L.t * mvar
+  | MLvars of L.t * mvar list (* If there is uncertainty on the lvalue where 
+                                   the assignement takes place. *)
+ 
 let pp_mlvar fmt = function
   | MLnone -> Format.fprintf fmt "MLnone"
-  | MLvar mv -> Format.fprintf fmt "MLvar %a" pp_mvar mv
-  | MLvars mvs ->
-    Format.fprintf fmt "MLvars @[<hov 2>%a@]"
+  | MLvar (loc, mv) ->
+    Format.fprintf fmt "MLvar (%a) %a" L.pp_sloc loc pp_mvar mv
+  | MLvars (loc, mvs) ->
+    Format.fprintf fmt "MLvars (%a) @[<hov 2>%a@]"
+      L.pp_sloc loc
       (pp_list pp_mvar) mvs
 
-let mvar_of_lvar_no_array lv = match lv with
+let mvar_of_lvar_no_array loc lv = match lv with
   | Lnone _ -> MLnone
   | Lmem _ -> MLnone
   | Lvar x  ->
@@ -5116,8 +5231,8 @@ let mvar_of_lvar_no_array lv = match lv with
     begin match ux.v_kind, ux.v_ty with
       | Global,_ -> assert false (* this case should not be possible *)
       (* MLvar (Mglobal (ux.v_name,ux.v_ty)) *)
-      | _, Bty _ -> MLvar (Mvalue (Avar ux))
-      | _, Arr _ -> MLvar (Mvalue (Aarray ux)) end
+      | _, Bty _ -> MLvar (loc, Mvalue (Avar ux))
+      | _, Arr _ -> MLvar (loc, Mvalue (Aarray ux)) end
   | Laset _ -> assert false
 
 
@@ -5613,12 +5728,12 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           let z_expr = Mtexpr.cst env (Coeff.s_of_int 0) in
           let z_sexpr = sexpr_from_simple_expr z_expr in
 
-          AbsDom.assign_sexpr ~force:true abs v z_sexpr
+          AbsDom.assign_sexpr ~force:true abs v None z_sexpr
         | _ -> abs)
       abs f_args
 
 
-  let set_bounds f_args abs =
+  let set_bounds f_args loc abs =
     List.fold_left (fun abs v ->
         let ws = match v with
           | Mvalue (AarrayEl (_,ws,_)) -> Some ws
@@ -5633,7 +5748,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           let z_sexpr = Mtexpr.cst env (Coeff.Interval int)
                         |> sexpr_from_simple_expr in
 
-          AbsDom.assign_sexpr abs v z_sexpr
+          AbsDom.assign_sexpr abs v (Some loc) z_sexpr
         else abs)
       abs f_args
 
@@ -5642,22 +5757,22 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     List.fold_left (fun abs (ws,n,i) ->
         let env = AbsDom.get_env abs in
         let sexpr = mtexpr_of_bigint env i |> sexpr_from_simple_expr in
-        AbsDom.assign_sexpr abs (Mglobal (n, Bty (U ws))) sexpr)
+        AbsDom.assign_sexpr abs (Mglobal (n, Bty (U ws))) None sexpr)
       abs globs
 
 
   (*-------------------------------------------------------------------------*)
   (* Return te mvar where the abstract assignment takes place. For now, no
      abstraction of the memory. *)
-  let mvar_of_lvar abs lv = match lv with
-    | Lnone _ | Lmem _ | Lvar _ -> mvar_of_lvar_no_array lv
+  let mvar_of_lvar abs loc lv = match lv with
+    | Lnone _ | Lmem _ | Lvar _ -> mvar_of_lvar_no_array loc lv
 
     | Laset (ws, x, ei) ->
       match abs_arr_range abs (L.unloc x) ws ei
             |> List.map (fun v -> Mvalue v) with
       | [] -> assert false
-      | [mv] -> MLvar (mv)
-      | _ as mvs -> MLvars mvs
+      | [mv] -> MLvar (loc, mv)
+      | _ as mvs -> MLvars (loc, mvs)
 
   let apply_offset_expr abs outmv inv offset_expr =
     match ty_gvar_of_mvar outmv with
@@ -5674,7 +5789,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         Mtexpr.binop Texpr1.Add inv_os wrap_off_e
         |> sexpr_from_simple_expr in
 
-      AbsDom.assign_sexpr abs (MvarOffset outv) sexpr
+      AbsDom.assign_sexpr abs (MvarOffset outv) None sexpr
 
   let aeval_top_offset abs outmv = match ty_gvar_of_mvar outmv with
     | Some outv -> AbsDom.forget_list abs [MvarOffset outv]
@@ -5712,7 +5827,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
   (* Initialize variable or array elements lvalues. *)
   let a_init_mlv_no_array mlv abs = match mlv with
-    | MLvar mv -> a_init_mv_no_array mv abs
+    | MLvar (_,mv) -> a_init_mv_no_array mv abs
     | _ -> assert false
 
   (* Array assignment. Does the numerical assignments.
@@ -5733,7 +5848,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
                        |> sexpr_from_simple_expr in
 
               (* Numerical abstraction *)
-              let a = AbsDom.assign_sexpr a vi ei in
+              let a = AbsDom.assign_sexpr a vi None ei in
 
               (* Initialization *)
               List.fold_left2 (fun a vi eiv ->
@@ -5749,7 +5864,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
 
   let omvar_is_offset = function
-    | MLvar (MvarOffset _) -> true
+    | MLvar (_, MvarOffset _) -> true
     | _ -> false
 
   (* Abstract evaluation of an assignment. 
@@ -5761,14 +5876,14 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       | _, MLnone -> abs
 
       (* Here, we have no information on which elements are initialized. *)
-      | _, MLvars vs -> AbsDom.forget_list abs vs 
+      | _, MLvars (_, vs) -> AbsDom.forget_list abs vs 
 
-      | Bty Int, MLvar mvar | Bty (U _), MLvar mvar ->
+      | Bty Int, MLvar (loc, mvar) | Bty (U _), MLvar (loc, mvar) ->
         (* Numerical abstraction *)
         let lv_s = wsize_of_ty out_ty in
         let s_expr = linearize_if_expr lv_s e abs in
         let abs0 = abs in
-        let abs = AbsDom.assign_sexpr abs mvar s_expr in
+        let abs = AbsDom.assign_sexpr abs mvar (Some loc) s_expr in
 
         (* Points-to abstraction *)
         let ptr_expr = ptr_expr_of_expr abs0 e in
@@ -5779,7 +5894,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         
         a_init_mlv_no_array out_mvar abs
 
-      | Bty Bool, MLvar mvar ->
+      | Bty Bool, MLvar (_, mvar) ->
         begin
           let abs = match bexpr_to_btcons e abs with
             | None -> AbsDom.forget_bvar abs mvar 
@@ -5787,7 +5902,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           a_init_mlv_no_array out_mvar abs
         end
 
-      | Arr _, MLvar mvar ->
+      | Arr _, MLvar (_, mvar) ->
         match e with
         | Pvar x ->
           let apr_env = AbsDom.get_env abs in
@@ -5803,20 +5918,20 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           Format.eprintf "@[%a@]@." (Printer.pp_expr ~debug:true) e;
           assert false
 
-  let abs_assign_opn abs lvs assgns =
+  let abs_assign_opn abs loc lvs assgns =
     let abs, mlvs_forget =
       List.fold_left2 (fun (abs, mlvs_forget) lv e_opt ->
-          match mvar_of_lvar abs lv, e_opt with
-          | MLnone,_ -> (abs, mlvs_forget)
+          match mvar_of_lvar abs loc lv, e_opt with
+          | MLnone, _ -> (abs, mlvs_forget)
 
-          | MLvar mlv as cmlv, None ->
+          | MLvar (_,mlv) as cmlv, None ->
             (* Remark: n-ary operation cannot return arrays. *)
             let abs = a_init_mlv_no_array cmlv abs in
             (abs, mlv :: mlvs_forget)
-          | MLvar mlv, Some e ->
-            (abs_assign abs (ty_lval lv) (MLvar mlv) e, mlvs_forget)
+          | MLvar _ as mlv, Some e ->
+            (abs_assign abs (ty_lval lv) mlv e, mlvs_forget)
 
-          | MLvars mlvs, _ -> (abs, mlvs @ mlvs_forget))
+          | MLvars (_, mlvs), _ -> (abs, mlvs @ mlvs_forget))
         (abs,[]) lvs assgns in
 
     let mlvs_forget = List.sort_uniq Stdlib.compare mlvs_forget in
@@ -5943,7 +6058,9 @@ end = struct
          their types. E.g. register of type U 64 is in [0;2^64]. *)
       let abs = AbsDom.make (f_args @ m_locs) mem_locs
                 |> AbsExpr.set_zeros (f_args @ m_locs)
-                |> AbsExpr.set_bounds f_args in
+                (* We use the function location as location of the initial 
+                   assignment of the main procedure's arguments. *)
+                |> AbsExpr.set_bounds f_args main_decl.f_loc in
 
       (* We apply the global declarations *)
       let abs = AbsExpr.apply_glob glob_decls abs in
@@ -5960,7 +6077,7 @@ end = struct
           | Some y ->
             let sexpr = Mtexpr.var (AbsDom.get_env abs) x
                         |> sexpr_from_simple_expr in
-            AbsDom.assign_sexpr abs y sexpr)
+            AbsDom.assign_sexpr abs y None sexpr)
           abs f_args f_in_args in
 
       { it = it;
@@ -6031,7 +6148,7 @@ end = struct
             let sexpr = Mtexpr.binop Texpr1.Add x_o ws_plus_e
                         |> sexpr_from_simple_expr in
 
-            ( AbsDom.assign_sexpr abs (MmemRange pt) sexpr,
+            ( AbsDom.assign_sexpr abs (MmemRange pt) None sexpr,
               violations,
               if List.mem pt s_effect then s_effect else pt :: s_effect)
           else (abs, pv :: violations, s_effect)
@@ -6079,14 +6196,6 @@ end = struct
                            |> List.filter (fun x -> x <> None)
                            |> List.map (fun x -> MvarOffset (oget x))
 
-  let rec add_offsets_lv assigns = match assigns with
-    | [] -> []
-    | (ty, Mvalue (Avar v), (lvty, MLvar (Mvalue (Avar vr)))) :: tail ->
-      (ty, Mvalue (Avar v), (lvty, MLvar (Mvalue (Avar vr))))
-      :: (ty, MvarOffset v, (lvty, MLvar (MvarOffset vr)))
-      :: add_offsets_lv tail
-    | u :: tail -> u :: add_offsets_lv tail
-
   (* Prepare the caller for a function call. Returns the state with the
      arguments es evaluated in f input variables. *)
   let aeval_f_args f es state =
@@ -6096,7 +6205,12 @@ end = struct
     and exp_in_tys = f_decl.f_tyin in
 
     let assigns = combine3 exp_in_tys f_args es
-                  |> List.map (fun (x,y,z) -> (x, MLvar y, z)) in
+                  |> List.map (fun (x,y,z) ->
+                      (* The location on the [mlval] does not matter here,
+                         since the flow-sensitive packing heuristic we use 
+                         only makes sense for fully inlined Jasmin programs *)
+                      let y = MLvar (L._dummy, y) in
+                      (x, y, z)) in
 
     let abs = List.fold_left (fun abs (in_ty, mvar, e) ->
         AbsExpr.abs_assign abs in_ty mvar e ) 
@@ -6110,11 +6224,11 @@ end = struct
         match mlvo with
         | MLnone -> abs
 
-        | MLvars mlvs ->
+        | MLvars (_, mlvs) ->
           (* Here, we have no information on which elements are initialized. *)
           AbsDom.forget_list abs mlvs
 
-        | MLvar mlv -> match ty_mvar mlv with
+        | MLvar (_, mlv) -> match ty_mvar mlv with
           | Bty Bool ->
             let rconstr = BVar (Bvar.make rvar true) in
             AbsDom.assign_bexpr abs mlv rconstr
@@ -6136,7 +6250,10 @@ end = struct
               | _, _ -> assert false in
 
             let s_expr = sexpr_from_simple_expr expr in
-            let abs = AbsDom.assign_sexpr abs mlv s_expr in
+            (* The location of [mlv] does not matter here,
+               since the flow-sensitive packing heuristic we use 
+               only makes sense for fully inlined Jasmin programs *)
+            let abs = AbsDom.assign_sexpr abs mlv None s_expr in
 
             (* Points-to abstraction *)
             let ptr_expr = PtVars [rvar] in
@@ -6233,8 +6350,11 @@ end = struct
   let get_ret_assgns abs f_decl lvs =
     let f_rets_no_offsets = fun_rets_no_offsets f_decl
     and out_tys = f_decl.f_tyout
-    and mlvs = List.map (fun x -> 
-        (x, AbsExpr.mvar_of_lvar abs x)) lvs in
+    and mlvs = List.map (fun x ->
+        (* The location of [mlv] does not matter here,
+           since the flow-sensitive packing heuristic we use 
+           only makes sense for fully inlined Jasmin programs *)
+        (x, AbsExpr.mvar_of_lvar abs L._dummy x)) lvs in
 
     combine3 out_tys f_rets_no_offsets mlvs
 
@@ -6852,7 +6972,9 @@ end = struct
         aeval_ginstr_aux ginstr state
 
   and aeval_ginstr_aux : ('ty,'info) ginstr -> astate -> astate =
-    fun ginstr state -> match ginstr.i_desc with 
+    fun ginstr state ->
+    let i_loc = fst ginstr.i_loc in
+    match ginstr.i_desc with 
       | Cassgn (lv,tag,ty1, Pif (ty2, c, el, er))
         when Aparam.pif_movecc_as_if ->
         assert (ty1 = ty2);
@@ -6872,14 +6994,14 @@ end = struct
         let abs = AbsExpr.abs_assign
             state.abs 
             (ty_lval lv)
-            (AbsExpr.mvar_of_lvar state.abs lv) 
+            (AbsExpr.mvar_of_lvar state.abs i_loc lv) 
             e in
         { state with abs = abs; }
 
       | Copn (lvs,_,opn,es) ->
         (* Remark: the assignments must be done in the correct order. *)
         let assgns = split_opn (List.length lvs) opn es in
-        let abs = AbsExpr.abs_assign_opn state.abs lvs assgns in
+        let abs = AbsExpr.abs_assign_opn state.abs i_loc lvs assgns in
 
         { state with abs = abs; }
 
@@ -7009,7 +7131,7 @@ end = struct
             | Some nie ->
               { state with 
                 abs = AbsDom.assign_sexpr state.abs
-                                 mvar_ni
+                                 mvar_ni None
                                  (sexpr_from_simple_expr nie) } in
 
         (* Unroll one time the loop. *)
@@ -7130,7 +7252,7 @@ end = struct
                 let expr_ci = Mtexpr.cst apr_env (Coeff.s_of_int ci)
                                   |> sexpr_from_simple_expr in
                 let abs = 
-                  AbsDom.assign_sexpr state.abs mvari expr_ci in
+                  AbsDom.assign_sexpr state.abs mvari (Some i_loc) expr_ci in
 
                 let state =
                   { state with
