@@ -266,6 +266,22 @@ let fun_to_pipeline fd =
 (* Shortcuts for cost variable names *)
 let var_name min = if min then "costMin" else "costMax"
 
+(* Get a jasmin instruction preceeding instr i to initialize the cost variable
+   cost_var by value *)
+let get_cost_incr_init i cost_var =
+  let loc_cost_var = (L.mk_loc (fst i.i_loc) cost_var) in
+  let instr_desc = Cassgn(
+      Lvar loc_cost_var,
+      AT_none, 
+      Bty Int, 
+      Pconst (Bigint.of_int 0))
+  in
+  {
+    i_desc = instr_desc;
+    i_loc = i.i_loc;
+    i_info = i.i_info
+  }
+
 (* Get a jasmin instruction following instr i to increment the cost variable
    cost_var by value *)
 let get_cost_incr_instr value i cost_var =
@@ -373,13 +389,15 @@ let rec instr_cbloc c cmin cmax config =
 let instrument config fd =
   let cost_var_min = V.mk (var_name true) Reg (Bty Int) fd.f_loc in
   let cost_var_max = V.mk (var_name false) Reg (Bty Int) fd.f_loc in
+  let init_min = get_cost_incr_init (List.hd fd.f_body) cost_var_min in
+  let init_max = get_cost_incr_init (List.hd fd.f_body) cost_var_max in
   let instrumented = {
     f_loc   = fd.f_loc;
     f_cc    = fd.f_cc;
     f_name  = fd.f_name;
     f_tyin  = fd.f_tyin;
     f_args  = fd.f_args;
-    f_body  = instr_cbloc fd.f_body cost_var_min cost_var_max config;
+    f_body  = [init_min ; init_max] @ (instr_cbloc fd.f_body cost_var_min cost_var_max config);
     f_tyout = fd.f_tyout;
     f_ret   = fd.f_ret
   } in

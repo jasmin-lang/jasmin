@@ -700,7 +700,7 @@ end = struct
           | Bty Bool ->
             let new_f =
               match pa_flag_setfrom v bdy_rev with
-              | exception Flag_set_from_failure | None -> Sv.empty
+              | exception Flag_set_from_failure -> Sv.empty | None -> Sv.empty
               | Some r -> Sv.singleton r in
             Sv.union flags_setfrom new_f             
           | _ -> flags_setfrom) Sv.empty vs
@@ -755,9 +755,9 @@ end = struct
                        (Printer.pp_var ~debug:true) v
                        (pp_list ( Printer.pp_var ~debug:true))
                        (List.sort (fun v v' ->
-                            Stdlib.compare v.v_name v'.v_name)
+                            compare v.v_name v'.v_name)
                            (Sv.elements sv))))
-          (List.sort (fun (v,_) (v',_) -> Stdlib.compare v.v_name v'.v_name)
+          (List.sort (fun (v,_) (v',_) -> compare v.v_name v'.v_name)
              (Mv.bindings st.dp)));
 
     debug (fun () ->
@@ -771,7 +771,7 @@ end = struct
     { pa_dp = st.dp;
       pa_cfg = st.cfg;
       while_vars = st.while_vars;
-      if_conds = List.sort_uniq Stdlib.compare st.if_conds }
+      if_conds = List.sort_uniq compare st.if_conds }
 end
 
 
@@ -837,7 +837,7 @@ let coeff_add c c' = match Coeff.reduce c, Coeff.reduce c' with
 module Mmv = struct
   type t = mvar
 
-  let compare v v' = Stdlib.compare (avar_of_mvar v) (avar_of_mvar v')
+  let compare v v' = compare (avar_of_mvar v) (avar_of_mvar v')
   let equal v v' = avar_of_mvar v = avar_of_mvar v'
 end
 
@@ -987,7 +987,7 @@ end = struct
             let vars = ref [] in
             Linexpr1.iter (fun _ c -> vars := c :: !vars) l1;
             Linexpr1.iter (fun _ c -> vars := c :: !vars) l2;
-            let vs = List.sort_uniq Stdlib.compare !vars in
+            let vs = List.sort_uniq compare !vars in
 
             List.iter (fun v ->
                 let c1,c2 = Linexpr1.get_coeff l1 v, Linexpr1.get_coeff l2 v in
@@ -1029,7 +1029,7 @@ end = struct
       | Mbinop (_, a, b, _, _) -> aux (aux acc a) b in
     aux [] e
     |> u8_blast_vars ~blast_arrays:true
-    |> List.sort_uniq Stdlib.compare
+    |> List.sort_uniq compare
 
   let rec contains_mod = function
     | Mvar _ | Mcst _ -> false
@@ -1938,7 +1938,7 @@ let string_of_dom = function
 module Mdom = Map.Make(struct
     type t = v_dom
 
-    let compare = Stdlib.compare
+    let compare = compare
     let equal u v = u = v
   end)
 
@@ -2329,8 +2329,8 @@ end = struct
   type t = mvar * bool          (* the boolean is true if t is positive. *)
 
   let compare (bv,b) (bv',b') = 
-    match Stdlib.compare b b' with
-    | 0 -> Stdlib.compare (avar_of_mvar bv) (avar_of_mvar bv')
+    match compare b b' with
+    | 0 -> compare (avar_of_mvar bv) (avar_of_mvar bv')
     | _ as r -> r
 
   let equal (bv,b) (bv',b') = 
@@ -2646,7 +2646,7 @@ type cnstr_blk = { cblk_loc : L.t;
 (* hashconsing *)
 module OrdL = struct 
   type t = L.t
-  let compare l l' = Stdlib.compare l.L.loc_start l'.L.loc_start
+  let compare l l' = compare l.L.loc_start l'.L.loc_start
 
   let equal l l' =  l.L.loc_start = l'.L.loc_start 
 end
@@ -2710,7 +2710,7 @@ module AbsDisj (A : AbsNumType) : AbsDisjType = struct
     List.length t.cnstrs = List.length t'.cnstrs
     && List.for_all2 cblk_equal t.cnstrs t'.cnstrs
 
-  let compare c c' = Stdlib.compare c.cpt_uniq c'.cpt_uniq
+  let compare c c' = compare c.cpt_uniq c'.cpt_uniq
 
   let equal c c' = compare c c' = 0
 
@@ -3217,7 +3217,7 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
 
   let pp_rel_vars fmt rel =
     (pp_list (Printer.pp_var ~debug:false)) fmt
-      (List.sort (fun v v' -> Stdlib.compare v.v_name v'.v_name)
+      (List.sort (fun v v' -> compare v.v_name v'.v_name)
          (Sv.elements rel))
 
   let () = debug(fun () ->
@@ -3782,7 +3782,7 @@ module PointsToImpl : PointsTo = struct
 
           | Some l, Some l' ->
             let l_inter = List.filter (fun x -> List.mem x l') l in
-            Some (List.sort_uniq Stdlib.compare l_inter )
+            Some (List.sort_uniq compare l_inter )
         ) t.pts t'.pts in
 
     { t with pts = pts'' }
@@ -3793,7 +3793,7 @@ module PointsToImpl : PointsTo = struct
           | None, _ | _, None -> None (* None corresponds to TopPtr *)
 
           | Some l, Some l' ->
-            Some (List.sort_uniq Stdlib.compare (l @ l'))
+            Some (List.sort_uniq compare (l @ l'))
         ) t.pts t'.pts in
 
     { t with pts = pts'' }
@@ -3829,7 +3829,7 @@ module PointsToImpl : PointsTo = struct
 
   let join_ptrs_list ptrss =
     let rec aux acc = function
-      | [] -> Ptrs (List.sort_uniq Stdlib.compare acc)
+      | [] -> Ptrs (List.sort_uniq compare acc)
       | TopPtr :: _ -> TopPtr
       | Ptrs l :: tail -> aux (l @ acc) tail in
 
@@ -3972,7 +3972,7 @@ module MakeEqMap (K : Ordered) : EqMap with type key = K.t = struct
 
       let s_binds x =
         Mk.bindings x.ktoc
-        |> List.stable_sort (fun (_,i) (_,i') -> Stdlib.compare i i')
+        |> List.stable_sort (fun (_,i) (_,i') -> compare i i')
         |> List.map (fun (x,y) -> (y,Sk.singleton x))
         |> grp in
 
@@ -4723,11 +4723,11 @@ let pp_violations fmt violations =
       (pp_list pp_violation) violations
 
 let vloc_compare v v' = match v, v' with
-  | InReturn fn, InReturn fn' -> Stdlib.compare fn fn'
+  | InReturn fn, InReturn fn' -> compare fn fn'
   | InProg _, InReturn _ -> 1
   | InReturn _, InProg _ -> -1
   | InProg l, InProg l' ->
-    Stdlib.compare (fst l.loc_start) (fst l'.loc_start)
+    compare (fst l.loc_start) (fst l'.loc_start)
 
 let rec lex f = match f with
   | f_cmp :: f_t ->
@@ -4739,7 +4739,7 @@ let rec lex f = match f with
 
 let v_compare (loc,c) (loc',c') =
   lex [(fun () -> vloc_compare loc loc');
-       (fun () ->  Stdlib.compare c c')]
+       (fun () ->  compare c c')]
 
 let add64 x e = Papp2 (E.Oadd ( E.Op_w U64), Pvar x, e)
 
@@ -5063,7 +5063,7 @@ module ItKey = struct
   let compare it it' = match it, it' with
     | ItFunIn (fn,l), ItFunIn (fn',l') ->
       match Prog.F.compare fn fn' with
-      | 0 -> Stdlib.compare l l'
+      | 0 -> compare l l'
       | _ as res -> res
 end
 
@@ -5746,7 +5746,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           | MLvars mlvs, _ -> (abs, mlvs @ mlvs_forget))
         (abs,[]) lvs assgns in
 
-    let mlvs_forget = List.sort_uniq Stdlib.compare mlvs_forget in
+    let mlvs_forget = List.sort_uniq compare mlvs_forget in
 
     AbsDom.forget_list abs mlvs_forget 
 
@@ -7320,7 +7320,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
       List.fold_left (fun acc p -> match p.pointers with
           | None -> acc
           | Some l -> l @ acc) [] ps
-      |> List.sort_uniq Stdlib.compare
+      |> List.sort_uniq compare
       |> List.map (fun pt ->
           try List.find (fun x -> x.v_name = pt) EW.main.f_args with
           | Not_found ->
