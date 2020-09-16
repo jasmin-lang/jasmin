@@ -384,11 +384,12 @@ let rec instr_cbloc c cmin cmax config =
   in
   List.flatten (List.map aux c)
 
+let cost_var_min = V.mk (var_name true) Reg (Bty Int) Location._dummy
+let cost_var_max = V.mk (var_name false) Reg (Bty Int) Location._dummy
+
 (* Given a function fd and the cost information per bloc in config,
    returns the instrumented function *)
 let instrument config fd =
-  let cost_var_min = V.mk (var_name true) Reg (Bty Int) fd.f_loc in
-  let cost_var_max = V.mk (var_name false) Reg (Bty Int) fd.f_loc in
   let init_min = get_cost_incr_init (List.hd fd.f_body) cost_var_min in
   let init_max = get_cost_incr_init (List.hd fd.f_body) cost_var_max in
   let instrumented = {

@@ -3188,16 +3188,19 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
       ) dp sv_ini
 
   (* We are relational on a variable v iff:
-     - there is a direct flow from the intersection of PW.main.f_args and
-     Glob_options.relational to v.
+     - there is a direct flow from:
+          + the intersection of PW.main.f_args Glob_options.relational to v.
+          + costMin or costMax to v.
      - the variable is appears in while loops conditions,
      or that modifiy a while loop condition variable. *)
   let sv_ini =
-    match PW.param.relationals with
-    | None -> PW.main.f_args |> Sv.of_list
-    | Some v_rel ->
-      List.filter (fun v -> List.mem v.v_name v_rel) PW.main.f_args
-      |> Sv.of_list
+    let sv = match PW.param.relationals with
+      | None -> PW.main.f_args |> Sv.of_list
+      | Some v_rel ->
+        List.filter (fun v -> List.mem v.v_name v_rel) PW.main.f_args
+        |> Sv.of_list in
+    Sv.add (Pipeline_instrumentation.cost_var_max)
+      (Sv.add (Pipeline_instrumentation.cost_var_min) sv)
 
   let v_rel : Sv.t =
     let v_rel = add_flow sv_ini in
@@ -7207,10 +7210,14 @@ end = struct
       Interval.print int
 
   let mem_ranges_printer state f_decl fmt () =
+    let costMax = Mvalue (Avar Pipeline_instrumentation.cost_var_max)
+    and costMin = Mvalue (Avar Pipeline_instrumentation.cost_var_min) in
     let in_vars = fun_in_args_no_offset f_decl
                   |> List.map otolist
                   |> List.flatten in
-    let vars_to_keep = in_vars @ get_mem_range state.env in
+    let vars_to_keep =
+      costMin :: costMax ::
+      in_vars @ get_mem_range state.env in
     let vars = in_vars @ fun_vars ~expand_arrays:false f_decl state.env in
     let rem_vars = List.fold_left (fun acc v ->
         if (List.mem v vars_to_keep) then acc else v :: acc )
@@ -7342,7 +7349,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
       let pp_mem_range fmt = match npt with
         | [] -> Format.fprintf fmt ""
         | _ ->
-      Format.eprintf "@[<v 2>Memory ranges:@;%a@]@;"
+      Format.eprintf "@[<v 2>Memory and cost ranges:@;%a@]@;"
         (pp_list print_mvar_interval) npt in
       
       Format.eprintf "@.@[<v>%a@;\
