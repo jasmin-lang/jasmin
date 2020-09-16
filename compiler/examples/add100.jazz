@@ -1,0 +1,16 @@
+export fn add100(reg u64 in, reg u64 len) -> reg u64 {
+  reg u64 i;
+  reg u64 val;
+  reg u64 sum;
+
+  sum = 0;
+  i = 0;
+
+  while (i < len) {
+    val = (u64)[in + 4*i];
+    sum += val;
+    i += 1;
+  }
+
+  return sum;
+}

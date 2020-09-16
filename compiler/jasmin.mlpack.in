@@ -13,6 +13,7 @@ src/Glob_options
 src/Main_compiler
 src/Parseio
 src/Parser
+src/Pipeline_instrumentation
 src/Ppasm
 src/Printer
 src/PrintLinear

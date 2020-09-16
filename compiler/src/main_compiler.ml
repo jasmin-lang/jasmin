@@ -338,10 +338,15 @@ let main () =
       if s = check_safety_pass && !check_safety then
         check_safety_cp s cp
       else
-        eprint s (fun fmt cp ->
-            let p = Conv.prog_of_cprog tbl cp in
-            Printer.pp_prog ~debug:true fmt p) cp in
-
+        if !pipeline_instrumentation && s = Compiler.DeadCode_RegAllocation then begin
+          Format.eprintf "WARNING: Pipeline analyzer @.";
+          let p = Conv.prog_of_cprog tbl cp in
+          let ip = Pipeline_instrumentation.instrument_prog p in
+          Printer.pp_prog ~debug:true Format.std_formatter ip
+        end else
+          eprint s (fun fmt cp ->
+              let p = Conv.prog_of_cprog tbl cp in
+              Printer.pp_prog ~debug:true fmt p) cp in
 
     let cparams = {
       Compiler.rename_fd    = rename_fd;

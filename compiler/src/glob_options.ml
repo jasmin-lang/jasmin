@@ -11,8 +11,9 @@ let print_list = ref []
 let ecfile = ref ""
 let ec_list = ref []
 let check_safety = ref false
-let check_safety_pass = Compiler.ParamsExpansion
+let check_safety_pass = Compiler.DeadCode_RegAllocation
 let safety_param = ref None
+let pipeline_instrumentation = ref false
 
 let lea = ref false
 let set0 = ref false
@@ -107,7 +108,8 @@ let options = [
      v_1,...,v_n;v_1',...,v_k'\n    \
      v_1,...,v_n: list of pointer variables that have to be considered \
      together\n    \
-     v_1',...,v_k': list of relational variables"
+     v_1',...,v_k': list of relational variables";
+    "-pipeline"  , Arg.Set pipeline_instrumentation, ": instrument the program with cost variables"
   ] @  List.map print_option poptions
 
 let usage_msg = "Usage : jasminc [option] filename"
