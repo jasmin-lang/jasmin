@@ -536,8 +536,12 @@ Module RGP. Section PROOFS.
     exists s2', valid m s2 s2' /\
                 sem_for P' xi vs s1' c' (leak_Iss (leak_I (leak_Fun Fs)) ltc' lf) s2'.
 
-  Let Pfun m fn vs lf m' vs' :=
-    sem_call P' m fn vs (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m' vs'.
+  Let Pfun m fn vs lf m' vres :=
+    forall vs',
+    List.Forall2 value_uincl vs vs' ->
+    exists vres',  
+      sem_call P' m fn vs' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m' vres' /\
+      List.Forall2 value_uincl vres vres'.
 
   Local Lemma Hnil : sem_Ind_nil Pc.
   Proof.
@@ -814,24 +818,49 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hcall : sem_Ind_call P Pi_r Pfun.
   Proof.
-    move=> s1 m2 s2 fii xs fn args vargs rvs hargs _ hfun hres ii m m' c' fn0 /= hrm s1' hval.
-    move: hrm; t_xrbindP => xs' hxs es' hes ??;subst m' c'.
+   (* move=> s1 m2 s2 ii xs fn args vargs vs lf lw hargs hsfun hfun hres ii' m m' c' ltc' fn0 /= hrm s1' hval.
+    move: (remove_glob_esP). move=> Hargs'.
+    case hlf : lf=> [fn' lfn]. rewrite hlf in hfun.
+    move: hrm; t_xrbindP => xs' hxs es' hes <- <- <-.
     have hes' := remove_glob_esP hval hes hargs.
+    have hval' : valid m {| emem := m2; evm := evm s1 |} {| emem := m2; evm := evm s1' |}.
+    + by case: hval => hm hm1 hm2 hm3;split.
+*)
+
+
+    
+    move=> s1 m2 s2 fii xs fn args vargs rvs lf lw hargs hsfun hfun hres ii m m' c' ltc' fn0 /= hrm s1' hval.
+    case hlf : lf=> [fn' lfn]. rewrite hlf in hfun.
+    move: hrm; t_xrbindP => xs' hxs es' hes <- <- <-.
+    have hes' := remove_glob_esP hval hes hargs.
+    move: hes'. move=> [] vargs'' [] hes' [] hvl hl.
     have hval' : valid m {| emem := m2; evm := evm s1 |} {| emem := m2; evm := evm s1' |}.
     + by case: hval => hm hm1 hm2 hm3;split.
     have [s2' [hs2' hxs']]:= remove_glob_lvsP hval' hxs hres.
     exists s2';split => //.
-    apply sem_seq1;constructor;econstructor;eauto.
-    by case: hval => <-.
-  Qed.
+    apply sem_seq1;constructor.
+    move:Ecall.
+    replace gd with (p_globs P') in hxs'. replace gd with (p_globs P') in hes'.
+    rewrite /Pfun in hsfun.
+    move: (hfun (unzip1 vargs'') hvl). move=> {hsfun} [] vargs''' [] hsfun hvv.
+    move=> Hrec.
+    move: (Hrec P' s1' m2
+          s2' fii (unzip1 xs') fn
+          (unzip1 es') vargs'' rvs
+           ((fn', lfn).1,
+           leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs (fn', lfn).1)
+                   (fn', lfn).2) (map2 leak_E (unzip2 xs') lw) hes').
+    
+   admit. auto. auto.
+  Admitted.
 
-  Local Lemma get_fundefP fn f:
+  Local Lemma get_fundefP fn f ltc:
     get_fundef (p_funcs P) fn = Some f ->
     exists f',
        get_fundef (p_funcs P') fn = Some f' /\
-       remove_glob_fundef is_glob gd (fn,f) = ok (fn, f').
+       remove_glob_fundef is_glob gd (fn,f) = ok (fn, f', ltc).
   Proof.
-    change (p_funcs P') with fds.
+   (* change (p_funcs P') with fds.
     elim: (p_funcs P) fds fds_ok => //=.
     move => [fn1 fd1] fds1 hrec fds'; t_xrbindP => -[fn1' fd1'] hf1 fds1' hfds1' ?; subst fds'.
     move: hf1;rewrite /remove_glob_fundef;t_xrbindP.
@@ -840,30 +869,24 @@ Module RGP. Section PROOFS.
     + move=> [?]; subst fn1 fd1 => /=.
       rewrite eq_refl;eexists;split;first reflexivity.
       by rewrite hparams /= hres /= hmc.
-    by move=> /(hrec _ hfds1') /=;rewrite neq.
-  Qed.
+    by move=> /(hrec _ hfds1') /=;rewrite neq.*)
+  Admitted.
 
   Local Lemma Hproc : sem_Ind_proc P Pc Pfun.
   Proof.
-    move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' hget hargs hwa _ hc hres hres'.
-    rewrite /Pfun; have [f' [hget']]:= get_fundefP hget.
-    rewrite /remove_glob_fundef; t_xrbindP => ? hparams res1 hres1 [m' c'] hrm ?;subst f'.
-    have hval: valid (Mvar.empty global) s1 s1 by split.
-    have [[mem2 vm2'] [hs2' ws2]]:= hc _ _ _ _ hrm _ hval.
-    case: (hs2') => /= hmem hm _ _; subst mem2.
-    have hres2 : mapM (fun x : var_i => get_var vm2' x) (f_res f) = ok vres.
-    + elim: (f_res f) (vres) res1 hres1 hres => //= x xs hrec vres0 res1.
-      t_xrbindP => ?; case: ifPn => hglob // [<-] ? /hrec hres1 ? v hx vs /hres1 hxs ?.
-      by subst res1 vres0; rewrite -hm //= hx /= hxs.
-    econstructor; eauto.
-  Qed.
+    move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc hget hargs hwa _ hc hres hres'.
+    rewrite /Pfun. move: get_fundefP.
+    Admitted.
 
-  Local Lemma remove_glob_call m1 f vargs m2 vres :
-     sem_call P m1 f vargs m2 vres ->
-     Pfun m1 f vargs m2 vres.
+  Local Lemma remove_glob_call m1 f vargs m2 vres lf:
+     sem_call P m1 f vargs lf m2 vres ->
+     List.Forall2 value_uincl vargs vargs' ->
+     Pfun m1 f vargs' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m2 vres.
   Proof.
-    apply (@sem_call_Ind P Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
-              Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
+    move => /(@sem_call_Ind P Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
+                            Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) h.
+    rewrite /Pfun in h. move: (h vargs hv). move=> [] vres' [] /= h' Hv' {h}.
+    exists vres'. by split.
   Qed.
 
   End FDS.
