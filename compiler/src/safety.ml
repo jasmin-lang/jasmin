@@ -152,12 +152,22 @@ let only_rel_print = ref false
 (*************************)
 (* Unique Variable Names *)
 (*************************)
+      
+(* Information attached to instructions. *)
+type minfo = { i_instr_number : int; }
 
 module MkUniq : sig
 
-  val mk_uniq : unit func -> unit prog -> (unit func * unit prog)
+  val mk_uniq : unit func -> unit prog -> (minfo func * minfo prog)
 
 end = struct
+  let uniq_i_nb =
+    let cpt = ref 0 in
+    (fun () ->
+      let r = !cpt in
+      incr cpt;
+      r)
+  
   let ht_uniq = Hashtbl.create ~random:false 16
 
   let htv = Hashtbl.create ~random:false 16
@@ -205,7 +215,9 @@ end = struct
 
   and mk_lvals fn lvs = List.map (mk_lval fn) lvs
 
-  and mk_instr fn st = { st with i_desc = mk_instr_r fn st.i_desc }
+  and mk_instr fn st = { i_desc = mk_instr_r fn st.i_desc;
+                         i_loc = st.i_loc;
+                         i_info = { i_instr_number = uniq_i_nb ();}; }
 
   and mk_instr_r fn st = match st with
     | Cassgn (lv, tag, ty, e) ->
@@ -514,7 +526,7 @@ module Pa : sig
                   if_conds : ty gexpr list }
 
   val dp_v : dp -> ty gvar -> Sv.t
-  val pa_make : unit func -> unit prog -> pa_res
+  val pa_make : 'info func -> 'info prog option -> pa_res
 
   val print_dp  : Format.formatter -> dp -> unit
   val print_cfg : Format.formatter -> cfg -> unit
@@ -597,6 +609,26 @@ end = struct
 
     aux ([],st) e
 
+  (* Compute the list of variables occuring in an expression. *)
+  let expr_vars_smpl acc e =
+    let aux_v acc v = match (L.unloc v).v_ty with
+          | Bty _ -> (L.unloc v) :: acc
+          | Arr _ -> acc in
+    
+    let rec aux acc = function
+      | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ | Pget _ -> acc
+
+      | Pvar v' -> aux_v acc v'
+      (* We ignore loads for v, but we compute dependencies of v' in ei *)
+      | Pload (_,v',ei) -> aux (aux_v acc v') ei
+
+      | Papp1 (_,e1) -> aux acc e1
+      | Papp2  (_,e1,e2) -> aux (aux acc e1) e2
+      | PappN (_,es) -> List.fold_left aux acc es
+      | Pif (_,b,e1,e2) -> aux (aux (aux acc e1) e2) b in
+
+    aux acc e
+
   let st_merge st1 st2 ct =
     let mdp = Mv.merge (fun _ osv1 osv2 ->
         let sv1,sv2 = odfl Sv.empty osv1, odfl Sv.empty osv2 in
@@ -631,7 +663,13 @@ end = struct
     | [] -> false
     | Lnone _ :: t | Lmem _ :: t | Laset _ :: t -> flag_mem_lvs v t
     | Lvar v' :: t -> v = L.unloc v' || flag_mem_lvs v t
-                   
+
+  let print_flag_set_from v r loc =
+    debug(fun () -> Format.eprintf "flag %a set from %a (at %a)@."
+             (Printer.pp_var ~debug:false) v
+             (pp_list (Printer.pp_var ~debug:false)) r
+             L.pp_sloc loc)
+       
   exception Flag_set_from_failure
   (* Try to find the left variable of the last assignment(s) where the flag 
      v was set. *)
@@ -642,17 +680,22 @@ end = struct
   
   and pa_flag_setfrom_i v i = match i.i_desc with
     | Cassgn _ -> None
+
+    | Copn (lvs, _, E.Ox86 (X86_instr_decl.CMP _), es) ->
+      if flag_mem_lvs v lvs then
+        let rs = List.fold_left expr_vars_smpl [] es in
+        print_flag_set_from v rs (fst i.i_loc);
+        Some rs
+      else None
+
     | Copn (lvs, _, _, _) ->
       if flag_mem_lvs v lvs then
         match List.last lvs with
         | Lnone _ -> raise Flag_set_from_failure
         | Lvar r ->
           let ru = L.unloc r in
-          debug(fun () -> Format.eprintf "flag %a set from %a (at %a)@."
-            (Printer.pp_var ~debug:false) v
-            (Printer.pp_var ~debug:false) ru
-            L.pp_sloc (fst i.i_loc));
-          Some ru
+          print_flag_set_from v [ru] (fst i.i_loc); 
+          Some [ru]
         | _ -> assert false
       else None
 
@@ -672,7 +715,8 @@ end = struct
     | Ccall (_, lvs, _, _) ->
       if flag_mem_lvs v lvs then raise Flag_set_from_failure else None        
       
-  let rec pa_instr fn prog st instr = match instr.i_desc with
+  let rec pa_instr fn (prog : 'info prog option) st instr =
+    match instr.i_desc with
     | Cassgn (lv, _, _, e) -> pa_lv st lv e
     | Copn (lvs, _, _, es) -> List.fold_left (fun st lv ->
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
@@ -707,7 +751,7 @@ end = struct
             let new_f =
               match pa_flag_setfrom v bdy_rev with
               | exception Flag_set_from_failure | None -> Sv.empty
-              | Some r -> Sv.singleton r in
+              | Some r -> Sv.of_list r in
             Sv.union flags_setfrom new_f             
           | _ -> flags_setfrom) Sv.empty vs
       in
@@ -726,7 +770,7 @@ end = struct
 
     | Ccall (_, lvs, fn', es) ->   
       let st = { st with cfg = add_call st.cfg fn fn' } in
-      let f_decl = get_fun_def prog fn' |> oget in
+      let f_decl = get_fun_def (oget prog) fn' |> oget in
 
       let st =
         if Ss.mem fn'.fn_name st.f_done then st
@@ -739,22 +783,21 @@ end = struct
       List.fold_left2 pa_expr st f_decl.f_args es 
 
 
-  and pa_func prog st fn =
-    let f_decl = get_fun_def prog fn |> oget in
+  and pa_func (prog : 'info prog option) st fn =
+    let f_decl = get_fun_def (oget prog) fn |> oget in
     let st = { st with f_done = Ss.add fn.fn_name st.f_done } in
     pa_stmt fn prog st f_decl.f_body
 
-  and pa_stmt fn prog st instrs = List.fold_left (pa_instr fn prog) st instrs
-
+  and pa_stmt fn (prog : 'info prog option) st instrs =
+    List.fold_left (pa_instr fn prog) st instrs
+                                  
   let print_dp fmt dp =
     Format.fprintf fmt "@[<v 2>Dependency heuristic graph:@;%a@]@."
       (pp_list (fun fmt (v, sv) -> Format.fprintf fmt "@[<hov 4>%a <-- %a@]"
                    (Printer.pp_var ~debug:true) v
                    (pp_list ( Printer.pp_var ~debug:true))
-                   (List.sort (fun v v' ->
-                        Stdlib.compare v.v_name v'.v_name)
-                       (Sv.elements sv))))
-      (List.sort (fun (v,_) (v',_) -> Stdlib.compare v.v_name v'.v_name)
+                   (List.sort V.compare (Sv.elements sv))))
+      (List.sort (fun (v,_) (v',_) -> V.compare v v')
          (Mv.bindings dp))
 
   let print_cfg fmt cfg =
@@ -765,14 +808,14 @@ end = struct
                    (List.sort F.compare (Sf.elements fs))))
       (List.sort (fun (v,_) (v',_) -> F.compare v v') (Mf.bindings cfg))
 
-  let pa_make func prog =
+  let pa_make func (prog : 'info prog option) =
     let st = { dp = Mv.empty;
                cfg = Mf.empty;
                while_vars = Sv.empty;
                f_done = Ss.empty;
                if_conds = [];
                ct = Sv.empty } in
-    let st = pa_func prog st func.f_name in
+    let st = pa_stmt func.f_name prog st func.f_body in
 
     debug (fun () -> Format.eprintf "%a" print_dp st.dp);
     debug (fun () -> Format.eprintf "%a" print_cfg st.cfg);
@@ -786,7 +829,7 @@ end
 
 (* Flow-sensitive Pre-Analysis *)
 module FSPa : sig    
-  val fs_pa_make : unit func -> unit prog -> unit func * Pa.pa_res
+  val fs_pa_make : 'info func -> unit func * Pa.pa_res
 end = struct
   exception Fcall
   let rec collect_vars_e sv = function
@@ -831,7 +874,7 @@ end = struct
     Sv.for_all (fun v -> not (Sv.exists (fun v' ->
         v.v_id <> v'.v_id && v.v_name = v'.v_name) sv)) sv
     
-  let fs_pa_make f prog =
+  let fs_pa_make (f : 'info func) =
     let sv = Sv.of_list f.f_args in
     let vars = try collect_vars_is sv f.f_body with
       | Fcall ->
@@ -841,13 +884,17 @@ end = struct
     in
     (* We make sure that variable are uniquely defined by their names. *)
     assert (check_uniq_names vars);
-    
+     
     let ssa_f = Ssa.split_live_ranges false f in
+    debug (fun () ->
+        Format.eprintf "SSA transform of %s:@;%a"
+          f.f_name.fn_name
+          (Printer.pp_func ~debug:true) ssa_f);
     (* Remark: the program is not used by [Pa], since there are no function
        calls in [f]. *)
-    let dp = Pa.pa_make ssa_f prog in
+    let dp = Pa.pa_make ssa_f None in
     ssa_f, dp
-  
+
 end
 
 
@@ -1508,8 +1555,8 @@ end
 
 
 module type ProgWrap = sig
-  val main : unit Prog.func
-  val prog : unit Prog.prog
+  val main : minfo Prog.func
+  val prog : minfo Prog.prog
   val param : analyzer_param
 end
 
@@ -2041,9 +2088,9 @@ module type VDomWrap = sig
   (* Initial state. *)
   val dom_st_init : dom_st
 
-  (* [dom_st_update dom_st x loc] updates the packing partition to prepare for
-     the assignment [x <- ...] at program point [loc]. *)
-  val dom_st_update : dom_st -> mvar -> L.t -> dom_st
+  (* [dom_st_update dom_st x info] updates the packing partition to prepare for
+     the assignment [x <- ...]. *)
+  val dom_st_update : dom_st -> mvar -> minfo -> dom_st
 
   val merge_dom : dom_st -> dom_st -> dom_st
   val fold_dom_st : (mvar -> v_dom -> 'a -> 'a) -> dom_st -> 'a -> 'a
@@ -2076,9 +2123,9 @@ module type AbsNumProdT = sig
   val set_rel   : t -> mvar -> t
   val set_unrel : t -> mvar -> t
 
-  (* [dom_st_update a x loc] updates the packing partition to prepare for
-     the assignment [x <- ...] at program point [loc]. *)
-  val dom_st_update : t -> mvar -> L.t -> t
+  (* [dom_st_update a x info] updates the packing partition to prepare for
+     the assignment [x <- ...]. *)
+  val dom_st_update : t -> mvar -> minfo -> t
 end
 
 
@@ -2171,43 +2218,6 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
                nrd = Mdom.add (Nrd 0) anrd t.nrd; }
 
     | _ -> assert false
-
-  (* REM *)
-  (* (\* We need log the result of VDW.vdom for the of_box function. This is not
-   *    clean, but I do not see a simpler way. 
-   *    Note that we do not log call for variables, as these are covered
-   *    by the domain state [dom_st]. *\)
-   * let log_index = Hashtbl.create ~random:false 16
-   * let log = Hashtbl.create ~random:false 16 *)
-
-  (* REM *)
-    (* let r =
-     *   if v = dummy_mvar then Ppl 0 
-     *   else VDW.vdom v dom_st in
-     * match v with
-     * | Mvalue (Avar _) -> r
-     * | _ ->
-     *   let vs = avar_of_mvar v |> Var.to_string in
-     *   (\* We also need to add the blasted component of [t] to the log. *\)
-     *   let vs_blasted = u8_blast_var ~blast_arrays:false v 
-     *                    |> List.map (fun v -> avar_of_mvar v
-     *                                          |> Var.to_string) in
-     * 
-     *   let add_to_log vs =
-     *     if not (Hashtbl.mem log_index vs) then begin
-     *       Hashtbl.add log_index vs ();
-     *       Hashtbl.add log r vs
-     *     end in
-     *   List.iter add_to_log (vs :: vs_blasted);
-     *   r *)
-
-  (* REM *)
-  (* let pp_log fmt () =
-   *   Format.fprintf fmt "@[<v 0>";
-   *   Hashtbl.iter (fun dom v ->
-   *       Format.fprintf fmt "%s --> %a@;" v pp_dom dom)
-   *     log;
-   *   Format.fprintf fmt "@;@]@." *)
       
   let expr_doms e dom_st =
     let rec aux acc = function
@@ -2297,8 +2307,8 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
       ) dom_st a in
     { a with dom_st = dom_st }
 
-  let dom_st_update t v l =
-    let dom_st = VDW.dom_st_update t.dom_st v l in
+  let dom_st_update t v info =
+    let dom_st = VDW.dom_st_update t.dom_st v info in
     repack t dom_st
 
   (* Unify two abstract values with maybe different domain states. *)
@@ -2877,9 +2887,9 @@ module type AbsDisjType = sig
   (* Pop all constraints in the disjunctive domain *)
   val pop_all_blcks : t -> t
 
-  (* [dom_st_update a x loc] updates the packing partition to prepare for
-     the assignment [x <- ...] at program point [loc]. *)
-  val dom_st_update : t -> mvar -> L.t -> t
+  (* [dom_st_update a x info] updates the packing partition to prepare for
+     the assignment [x <- ...]. *)
+  val dom_st_update : t -> mvar -> minfo -> t
 end
 
 (*---------------------------------------------------------------*)
@@ -3332,7 +3342,7 @@ module AbsDisj (A : AbsNumProdT) : AbsDisjType = struct
   let set_rel   t v = apply (fun a -> A.set_rel a v) t
   let set_unrel t v = apply (fun a -> A.set_unrel a v) t 
 
-  let dom_st_update t v l = apply (fun a -> A.dom_st_update a v l) t 
+  let dom_st_update t v info = apply (fun a -> A.dom_st_update a v info) t 
     
   let shrt_tree t =
     (* See Ptree.eval for the order *)
@@ -3416,7 +3426,7 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
   let fold_dom_st _ _ a = a
     
   (* We compute the dependency heuristic graph *)
-  let pa_res = Pa.pa_make PW.main PW.prog
+  let pa_res = Pa.pa_make PW.main (Some PW.prog)
 
   (* We compute the reflexive and transitive clojure of dp *)
   let dp = trans_closure pa_res.pa_dp
@@ -3455,8 +3465,8 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
          (Sv.elements rel))
 
   let () = debug(fun () ->
-      Format.eprintf "@[<hov 2>%d relational variables:@ @,%a@]@;\
-                      @[<hov 2>%d pointers:@ @,%a@]@;@."
+      Format.eprintf "@[<v 0>@[<hov 2>%d relational variables:@ @,%a@]@;\
+                      @[<hov 2>%d pointers:@ @,%a@]@]@."
         (Sv.cardinal v_rel)
         pp_rel_vars v_rel
         (Sv.cardinal v_pt)
@@ -3481,14 +3491,6 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
     | Mvalue (Aarray _) -> Nrd 0
 end
 
-module Lcmp = struct
-  type t = L.t
-  let compare = Stdlib.compare
-end
-
-module Ml = Map.Make(Lcmp)
-
-
 (* Dynamic Packing *)
 module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   let merge_dom dom_st dom_st' =
@@ -3497,8 +3499,8 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
 
         | Some (Nrd 0), Some (Ppl 0)
         | Some (Ppl 0), Some (Nrd 0) ->
-          debug (fun () -> Format.eprintf "Warning: merge_dom: \
-                                          raised %a's precision"
+          debug (fun () -> Format.eprintf "Dynamic partitioning: \
+                                           raised %a's precision@."
                     pp_mvar v);         
           (* We change dynamically the packing only for variables. *)
           assert (is_var v);
@@ -3513,7 +3515,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   (* We compute the dependency heuristic graph on the SSA transform of main.
      Precondition: [PW.main] must not contain function calls, and variables 
      must be uniquely characterized by their names. *)
-  let ssa_main, pa_res = FSPa.fs_pa_make PW.main PW.prog
+  let ssa_main, pa_res = FSPa.fs_pa_make PW.main 
 
   (* We compute the reflexive and transitive clojure of dp *)
   let dp = trans_closure pa_res.pa_dp
@@ -3563,26 +3565,51 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
         Mm.add mv (Nrd 0) dom_st
     ) Mm.empty PW.main.f_args ssa_main.f_args    
 
+
+  (* (\* REM *\)
+   * let pp_rel_vars fmt rel =
+   *   (pp_list (Printer.pp_var ~debug:true)) fmt
+   *     (List.sort (fun v v' -> Stdlib.compare v.v_name v'.v_name)
+   *        (Sv.elements rel))
+   * 
+   * (\* REM *\)
+   * let () = Format.eprintf "ssa_v_rel: %a@." pp_rel_vars ssa_v_rel *)
+  
   (* We build a mapping from locations (where assignments take place) to
      pairs of [v,dom] where [v] is the left value, and [dom] states
      whether [v] must be handled precisely or not. *)
-  let build_lmap_i lmap i ssa_i = match i.i_desc, ssa_i.i_desc with
-    | Cassgn (lv,_,_,_), Cassgn (ssa_lv,_,_,_) ->
-      begin
-        match lv, ssa_lv with
-        | _, Lnone _ | _, Lmem _ | _, Laset _ -> lmap
-        | Lvar v, Lvar ssa_v ->
-          let v, ssa_v = L.unloc v, L.unloc ssa_v in
-          assert (v.v_name = ssa_v.v_name);
-          if Sv.mem ssa_v ssa_v_rel
-          then Ml.add (fst ssa_i.i_loc) (v, Ppl 0) lmap
-          else lmap
-        | _ -> assert false
-      end
+  let build_map_lv info lmap lv ssa_lv =
+    match lv, ssa_lv with
+    | _, Lnone _ | _, Lmem _ | _, Laset _ -> lmap
+    | Lvar v, Lvar ssa_v ->
+      let v, ssa_v = L.unloc v, L.unloc ssa_v in
+      assert (v.v_name = ssa_v.v_name);
+      if Sv.mem ssa_v ssa_v_rel
+      then Mint.add info.i_instr_number (v, Ppl 0) lmap
+      else Mint.add info.i_instr_number (v, Nrd 0) lmap
 
+    | _ -> assert false
+
+  let rec build_lmap_i lmap i ssa_i = match i.i_desc, ssa_i.i_desc with
+    | Copn (lvs,_,_,_), Copn (ssa_lvs,_,_,_) ->
+      List.fold_left2 (build_map_lv i.i_info) lmap lvs ssa_lvs
+        
+    | Cassgn (lv,_,_,_), Cassgn (ssa_lv,_,_,_) ->
+      build_map_lv i.i_info lmap lv ssa_lv
+
+    | Cwhile (_, is1, _, is2), Cwhile (_, ssa_is1, _, ssa_is2)         
+    | Cif (_, is1, is2), Cif (_, ssa_is1, ssa_is2) ->
+      let lmap = build_lmap lmap is1 ssa_is1 in
+      build_lmap lmap is2 ssa_is2
+
+    | Cfor (_, _, is), Cif (_, _, ssa_is) ->
+      build_lmap lmap is ssa_is
+
+    | Ccall _, _ | _, Ccall _ -> assert false
+      
     | _, _ -> lmap
 
-  let rec build_lmap lmap is ssa_is = match is, ssa_is with
+  and build_lmap lmap is ssa_is = match is, ssa_is with
     | _, { i_desc = Cassgn (_,AT_phinode,_,_) } :: ssa_is ->
       build_lmap lmap is ssa_is
     | i :: is, ssa_i :: ssa_is ->
@@ -3591,27 +3618,27 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
     | [], [] -> lmap
     | _ -> assert false
 
-  let lmap = build_lmap Ml.empty PW.main.f_body ssa_main.f_body
+  let lmap = build_lmap Mint.empty PW.main.f_body ssa_main.f_body
 
 
-  let print_update v gv v' dom dom_st =
+  let print_update v gv v' dom dom_st =    
     assert (gv.v_name = v'.v_name);
     debug (fun () -> match Mm.find v dom_st with 
         | exception Not_found ->
-          Format.eprintf "Dynamic partitioning: set %a to %a"
+          Format.eprintf "Dynamic partitioning: set %a to %a@;"
             pp_mvar v pp_dom dom                 
         | old_dom ->
           if old_dom <> dom then
-            Format.eprintf "Dynamic partitioning: change %a from %a to %a"
+            Format.eprintf "Dynamic partitioning: change %a from %a to %a@;"
               pp_mvar v
               pp_dom old_dom
               pp_dom dom)
 
-  let dom_st_update dom_st v loc =
+  let dom_st_update dom_st v info =
     try
       match v with
       | Mvalue (Avar gv) ->
-        let v', dom = Ml.find loc lmap in
+        let v', dom = Mint.find info.i_instr_number lmap in
         let () = print_update v gv v' dom dom_st in          
         Mm.add v dom dom_st
       | _ -> dom_st
@@ -3641,19 +3668,36 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
     | Mvalue (AarrayEl _)
     | Mvalue (Aarray _) -> Nrd 0
 
+  let print_lmap fmt lmap =
+    let bindings =
+      List.sort (fun (_, (_,d)) (_, (_,d')) -> - (Stdlib.compare d d'))
+        (Mint.bindings lmap) in
+    Format.fprintf fmt "@[<v 2>Dynamic packing table (%d entries):@;%a@]"
+      (Mint.cardinal lmap)
+      (pp_list
+         (fun fmt (i_nb, (v,d)) ->
+            Format.fprintf fmt "instr nb %d -> set %a to %a"
+              i_nb
+              (* L.pp_sloc l *)
+              (Printer.pp_var ~debug:false) v
+              pp_dom d))
+      bindings
+
   let pp_rel_vars fmt rel =
-    (pp_list (Printer.pp_var ~debug:false)) fmt
+    (pp_list (Printer.pp_var ~debug:true)) fmt
       (List.sort (fun v v' -> Stdlib.compare v.v_name v'.v_name)
          (Sv.elements rel))
   
   let () = debug(fun () ->
       Format.eprintf "@[<v 0>\
                       @[<hov 2>%d relational variables (initially):@ @,%a@]@;\
-                      @[<hov 2>%d pointers:@ @,%a@]@]@."
+                      @[<hov 2>%d pointers:@ @,%a@]@;\
+                      %a@]@."
         (Sv.cardinal sv_ini)
         pp_rel_vars sv_ini
         (Sv.cardinal v_pt)
-        pp_rel_vars v_pt)
+        pp_rel_vars v_pt
+        print_lmap lmap)
 end
 
 
@@ -4520,10 +4564,11 @@ module type AbsNumBoolType = sig
 
   (* Does not change the points-to information.
      The location option argument must be:
-     - [Some loc], where [loc] is the location where the assignment 
-     takes place if the [mvar] argument is a [Mvalue (Avar _)].
+     - [Some info], where [info] is the information attached to the location
+     where the assignment takes place, if the [mvar] argument is
+     a [Mvalue (Avar _)].
      - anything otherwise. *)
-  val assign_sexpr : ?force:bool -> t -> mvar -> L.t option -> s_expr -> t
+  val assign_sexpr : ?force:bool -> t -> mvar -> minfo option -> s_expr -> t
   val assign_bexpr : t -> mvar -> btcons -> t
 
   val var_points_to : t -> mvar -> ptrs
@@ -4767,15 +4812,15 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
      by the caller.
      We unpopulate init to be faster. This is sound if the evaluation of an
      expression neither modifies init not depend on it. *)
-  let assign_sexpr : ?force:bool -> t -> mvar -> L.t option -> s_expr -> t =
-    fun ?force:(force=false) t v loc s_expr ->
+  let assign_sexpr : ?force:bool -> t -> mvar -> minfo option -> s_expr -> t =
+    fun ?force:(force=false) t v info s_expr ->
       let s_init = t.init in
       let points_to_init = t.points_to in
       let t = { t with init = EMs.empty } in
       
-      let t = match loc with
+      let t = match info with
         | None -> t
-        | Some loc -> { t with num = AbsNum.R.dom_st_update t.num v loc; } in
+        | Some info -> { t with num = AbsNum.R.dom_st_update t.num v info; } in
       
       let n_env = AbsNum.R.get_env t.num in
       let constr_expr_list =
@@ -5469,17 +5514,17 @@ let check_is_word v = match v.v_ty with
 
 type mlvar =
   | MLnone
-  | MLvar  of L.t * mvar
-  | MLvars of L.t * mvar list (* If there is uncertainty on the lvalue where 
+  | MLvar  of minfo * mvar
+  | MLvars of minfo * mvar list (* If there is uncertainty on the lvalue where 
                                    the assignement takes place. *)
  
 let pp_mlvar fmt = function
   | MLnone -> Format.fprintf fmt "MLnone"
-  | MLvar (loc, mv) ->
-    Format.fprintf fmt "MLvar (%a) %a" L.pp_sloc loc pp_mvar mv
-  | MLvars (loc, mvs) ->
-    Format.fprintf fmt "MLvars (%a) @[<hov 2>%a@]"
-      L.pp_sloc loc
+  | MLvar (info, mv) ->
+    Format.fprintf fmt "MLvar (%d) %a" info.i_instr_number pp_mvar mv
+  | MLvars (info, mvs) ->
+    Format.fprintf fmt "MLvars (%d) @[<hov 2>%a@]"
+      info.i_instr_number
       (pp_list pp_mvar) mvs
 
 let mvar_of_lvar_no_array loc lv = match lv with
@@ -5992,7 +6037,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       abs f_args
 
 
-  let set_bounds f_args loc abs =
+  let set_bounds f_args abs =
     List.fold_left (fun abs v ->
         let ws = match v with
           | Mvalue (AarrayEl (_,ws,_)) -> Some ws
@@ -6007,7 +6052,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           let z_sexpr = Mtexpr.cst env (Coeff.Interval int)
                         |> sexpr_from_simple_expr in
 
-          AbsDom.assign_sexpr abs v (Some loc) z_sexpr
+          AbsDom.assign_sexpr abs v None z_sexpr
         else abs)
       abs f_args
 
@@ -6273,7 +6318,7 @@ end = struct
                   abs : AbsDom.t; 
                   cstack : funname list;
                   env : s_env;
-                  prog : unit prog;
+                  prog : minfo prog;
                   s_effects : side_effects;
                   violations : violation list }
 
@@ -6298,7 +6343,7 @@ end = struct
               env.s_glob f_decl.f_body })
       env fun_decls
 
-  let init_state : unit func -> unit prog -> astate =
+  let init_state : minfo func -> minfo prog -> astate =
     fun main_decl (glob_decls, fun_decls) ->
       let mem_locs = List.map (fun x -> MemLoc x) main_decl.f_args in
       let env = init_env (glob_decls, fun_decls) mem_locs in
@@ -6319,7 +6364,7 @@ end = struct
                 |> AbsExpr.set_zeros (f_args @ m_locs)
                 (* We use the function location as location of the initial 
                    assignment of the main procedure's arguments. *)
-                |> AbsExpr.set_bounds f_args main_decl.f_loc in
+                |> AbsExpr.set_bounds f_args in
 
       (* We apply the global declarations *)
       let abs = AbsExpr.apply_glob glob_decls abs in
@@ -6465,10 +6510,10 @@ end = struct
 
     let assigns = combine3 exp_in_tys f_args es
                   |> List.map (fun (x,y,z) ->
-                      (* The location on the [mlval] does not matter here,
+                      (* The info on the [mlval] does not matter here,
                          since the flow-sensitive packing heuristic we use 
                          only makes sense for fully inlined Jasmin programs *)
-                      let y = MLvar (L._dummy, y) in
+                      let y = MLvar ({ i_instr_number = -1 }, y) in
                       (x, y, z)) in
 
     let abs = List.fold_left (fun abs (in_ty, mvar, e) ->
@@ -6610,10 +6655,10 @@ end = struct
     let f_rets_no_offsets = fun_rets_no_offsets f_decl
     and out_tys = f_decl.f_tyout
     and mlvs = List.map (fun x ->
-        (* The location of [mlv] does not matter here,
+        (* The info of [mlv] does not matter here,
            since the flow-sensitive packing heuristic we use 
            only makes sense for fully inlined Jasmin programs *)
-        (x, AbsExpr.mvar_of_lvar abs L._dummy x)) lvs in
+        (x, AbsExpr.mvar_of_lvar abs { i_instr_number = -1 }  x)) lvs in
 
     combine3 out_tys f_rets_no_offsets mlvs
 
@@ -7171,9 +7216,10 @@ end = struct
   let num_instr_evaluated = ref 0
 
   let print_ginstr ginstr abs_vals =
-    Format.eprintf "@[<v>@[<v>%a@]@;*** %d Instr: %a %a@;@;@]%!"
+    Format.eprintf "@[<v>@[<v>%a@]@;*** %d Instr: nb %d, %a %a@;@;@]%!"
       (AbsDom.print ~full:true) abs_vals
       (let a = !num_instr_evaluated in incr num_instr_evaluated; a)
+      ginstr.i_info.i_instr_number
       L.pp_sloc (fst ginstr.i_loc)
       (Printer.pp_instr ~debug:false) ginstr
 
@@ -7216,7 +7262,7 @@ end = struct
       fname
       L.pp_sloc (fst ginstr.i_loc)
 
-  let rec aeval_ginstr : ('ty,'info) ginstr -> astate -> astate =
+  let rec aeval_ginstr : ('ty,minfo) ginstr -> astate -> astate =
     fun ginstr state ->
       debug (fun () ->
         print_ginstr ginstr state.abs);
@@ -7230,9 +7276,8 @@ end = struct
         let state = check_safety state (InProg (fst ginstr.i_loc)) conds in
         aeval_ginstr_aux ginstr state
 
-  and aeval_ginstr_aux : ('ty,'info) ginstr -> astate -> astate =
+  and aeval_ginstr_aux : ('ty,minfo) ginstr -> astate -> astate =
     fun ginstr state ->
-    let i_loc = fst ginstr.i_loc in
     match ginstr.i_desc with 
       | Cassgn (lv,tag,ty1, Pif (ty2, c, el, er))
         when Aparam.pif_movecc_as_if ->
@@ -7253,14 +7298,14 @@ end = struct
         let abs = AbsExpr.abs_assign
             state.abs 
             (ty_lval lv)
-            (AbsExpr.mvar_of_lvar state.abs i_loc lv) 
+            (AbsExpr.mvar_of_lvar state.abs ginstr.i_info lv) 
             e in
         { state with abs = abs; }
 
       | Copn (lvs,_,opn,es) ->
         (* Remark: the assignments must be done in the correct order. *)
         let assgns = split_opn (List.length lvs) opn es in
-        let abs = AbsExpr.abs_assign_opn state.abs i_loc lvs assgns in
+        let abs = AbsExpr.abs_assign_opn state.abs ginstr.i_info lvs assgns in
 
         { state with abs = abs; }
 
@@ -7511,7 +7556,8 @@ end = struct
                 let expr_ci = Mtexpr.cst apr_env (Coeff.s_of_int ci)
                                   |> sexpr_from_simple_expr in
                 let abs = 
-                  AbsDom.assign_sexpr state.abs mvari (Some i_loc) expr_ci in
+                  AbsDom.assign_sexpr
+                    state.abs mvari (Some ginstr.i_info) expr_ci in
 
                 let state =
                   { state with
@@ -7531,7 +7577,7 @@ end = struct
             (Printer.pp_expr ~debug:true) e2;
           assert false
 
-  and aeval_call : funname -> unit func -> L.t -> astate -> astate =
+  and aeval_call : funname -> minfo func -> L.t -> astate -> astate =
     fun f f_decl callsite st_in ->
     let itk = ItFunIn (f,callsite) in
 
