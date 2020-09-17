@@ -110,7 +110,7 @@ module Aparam = struct
   let while_flags_setfrom_dep = true
 
   (* Dynamic variable packing. *)
-  let dynamic_packing = true    (* default: false *)
+  let dynamic_packing = false    (* default: false *)
 
   (***********************)
   (* Printing parameters *)
