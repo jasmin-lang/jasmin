@@ -109,6 +109,9 @@ module Aparam = struct
      variables in the relational domain). *)
   let while_flags_setfrom_dep = true
 
+  (* Dynamic variable packing. *)
+  let dynamic_packing = true    (* default: false *)
+
   (***********************)
   (* Printing parameters *)
   (***********************)
@@ -2004,6 +2007,15 @@ end
 
 type v_dom = Nrd of int | Ppl of int
 
+let pp_dom fmt = function
+  | Ppl 0 -> Format.fprintf fmt "Rel"
+  | Nrd 0 -> Format.fprintf fmt "NonRel"
+  | _ -> assert false
+
+(* let pp_dom fmt = function
+ *   | Ppl i -> Format.fprintf fmt "Ppl %d" i
+ *   | Nrd i -> Format.fprintf fmt "Nrd %d" i *)
+
 let string_of_dom = function
   | Nrd i -> "Nrd" ^ string_of_int i
   | Ppl i -> "Ppl" ^ string_of_int i
@@ -2015,21 +2027,26 @@ module Mdom = Map.Make(struct
     let equal u v = u = v
   end)
 
-let is_prefix u v =
-  if String.length u <= String.length v then
-    String.sub v 0 (String.length u) = u
-  else false
 
+type dom_st = v_dom Mm.t
+    
 module type VDomWrap = sig
   (* Associate a domain (ppl or non-relational) to every variable.
      An array element must have the same domain that its blasted component. 
      The second argument is a state, which allows to change a variable domain
      during the analysis. 
      Only [Mvalue (Avar _)] can change domain. *)
-  val vdom : mvar -> v_dom Mm.t -> v_dom
+  val vdom : mvar -> dom_st -> v_dom
 
   (* Initial state. *)
-  val dom_st_init : v_dom Mm.t
+  val dom_st_init : dom_st
+
+  (* [dom_st_update dom_st x loc] updates the packing partition to prepare for
+     the assignment [x <- ...] at program point [loc]. *)
+  val dom_st_update : dom_st -> mvar -> L.t -> dom_st
+
+  val merge_dom : dom_st -> dom_st -> dom_st
+  val fold_dom_st : (mvar -> v_dom -> 'a -> 'a) -> dom_st -> 'a -> 'a
 end
 
 
@@ -2058,8 +2075,17 @@ module type AbsNumProdT = sig
     
   val set_rel   : t -> mvar -> t
   val set_unrel : t -> mvar -> t
+
+  (* [dom_st_update a x loc] updates the packing partition to prepare for
+     the assignment [x <- ...] at program point [loc]. *)
+  val dom_st_update : t -> mvar -> L.t -> t
 end
-    
+
+
+let is_var = function
+  | Mvalue (Avar _) -> true
+  | _ -> false
+
 (* For now we fixed the domains, and we use only two of them, one non-relational
    and one Ppl. Still, we generalized to n different domains whenever possible
    to help future possible extentions. *)
@@ -2068,14 +2094,15 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
 
   type t = { nrd : NonRel.t Mdom.t;
              ppl : PplDom.t Mdom.t;
-             dom_st : v_dom Mm.t; }
+             dom_st : dom_st; }
 
   let nrddoms = [Nrd 0]
   let ppldoms = [Ppl 0]
 
-  let is_var = function
-    | Mvalue (Avar _) -> true
-    | _ -> false
+  
+  let vdom v dom_st =
+    if v = dummy_mvar then Ppl 0 
+    else VDW.vdom v dom_st 
       
   let is_in_dom_ppl v d t =
     let a = Mdom.find d t.ppl in
@@ -2089,14 +2116,15 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
       
   (* This assumes that we only use [Nrd 0] and [Ppl 0]. *)
   let set_rel t v =
-    assert (is_var v);
-    match Mm.find_opt v t.dom_st with
-    | Some (Ppl 0) -> t
-    | None ->
-      assert (not (is_in_dom_nrd v (Nrd 0) t) &&
-              not (is_in_dom_ppl v (Ppl 0) t)); 
-      { t with dom_st = Mm.add v (Ppl 0) t.dom_st; }
-    | Some (Nrd 0) ->
+    match vdom v t.dom_st with
+    | Ppl 0 -> t
+    (* | None ->
+     *   assert (not (is_in_dom_nrd v (Nrd 0) t) &&
+     *           not (is_in_dom_ppl v (Ppl 0) t)); 
+     *   { t with dom_st = Mm.add v (Ppl 0) t.dom_st; } *)
+    | Nrd 0 ->
+      (* We change dynamically the packing only for variables. *)
+      assert (is_var v);
       assert (not (is_in_dom_ppl v (Ppl 0) t)); 
       let anrd = Mdom.find (Nrd 0) t.nrd in
       let env = NonRel.get_env anrd in
@@ -2111,21 +2139,21 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
       let anrd = NonRel.remove_vars anrd [v] in
       
       { t with ppl = Mdom.add (Ppl 0) appl t.ppl;
-               nrd = Mdom.add (Nrd 0) anrd t.nrd;
-               dom_st = Mm.add v (Ppl 0) t.dom_st; }
+               nrd = Mdom.add (Nrd 0) anrd t.nrd; }
 
     | _ -> assert false
 
   (* This assumes that we only use [Nrd 0] and [Ppl 0]. *)
   let set_unrel t v =
-    assert (is_var v);
-    match Mm.find_opt v t.dom_st with
-    | Some (Nrd 0) -> t
-    | None ->
-      assert (not (is_in_dom_nrd v (Nrd 0) t) &&
-              not (is_in_dom_ppl v (Ppl 0) t)); 
-      { t with dom_st = Mm.add v (Nrd 0) t.dom_st; }
-    | Some (Ppl 0) ->
+    match vdom v t.dom_st with
+    | Nrd 0 -> t
+    (* | None ->
+     *   assert (not (is_in_dom_nrd v (Nrd 0) t) &&
+     *           not (is_in_dom_ppl v (Ppl 0) t)); 
+     *   { t with dom_st = Mm.add v (Nrd 0) t.dom_st; } *)
+    | Ppl 0 ->
+      (* We change dynamically the packing only for variables. *)
+      assert (is_var v);
       assert (not (is_in_dom_nrd v (Nrd 0) t)); 
       let appl = Mdom.find (Ppl 0) t.ppl in
       let env = PplDom.get_env appl in
@@ -2140,49 +2168,46 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
       let appl = PplDom.remove_vars appl [v] in
 
       { t with ppl = Mdom.add (Ppl 0) appl t.ppl;
-               nrd = Mdom.add (Nrd 0) anrd t.nrd;
-               dom_st = Mm.add v (Nrd 0) t.dom_st; }
+               nrd = Mdom.add (Nrd 0) anrd t.nrd; }
 
     | _ -> assert false
-    
-  (* We need log the result of VDW.vdom for the of_box function. This is not
-     clean, but I do not see a simpler way. 
-     Note that we do not log call for variables, as these are covered
-     by the domain state [dom_st]. *)
-  let log_index = Hashtbl.create ~random:false 16
-  let log = Hashtbl.create ~random:false 16
 
-  let vdom v dom_st =
-    let r =
-      if v = dummy_mvar then Ppl 0 
-      else VDW.vdom v dom_st in
-    match v with
-    | Mvalue (Avar _) -> r
-    | _ ->
-      let vs = avar_of_mvar v |> Var.to_string in
-      (* We also need to add the blasted component of [t] to the log. *)
-      let vs_blasted = u8_blast_var ~blast_arrays:false v 
-                       |> List.map (fun v -> avar_of_mvar v
-                                             |> Var.to_string) in
+  (* REM *)
+  (* (\* We need log the result of VDW.vdom for the of_box function. This is not
+   *    clean, but I do not see a simpler way. 
+   *    Note that we do not log call for variables, as these are covered
+   *    by the domain state [dom_st]. *\)
+   * let log_index = Hashtbl.create ~random:false 16
+   * let log = Hashtbl.create ~random:false 16 *)
 
-      let add_to_log vs =
-        if not (Hashtbl.mem log_index vs) then begin
-          Hashtbl.add log_index vs ();
-          Hashtbl.add log r vs
-        end in
-      List.iter add_to_log (vs :: vs_blasted);
-      r
+  (* REM *)
+    (* let r =
+     *   if v = dummy_mvar then Ppl 0 
+     *   else VDW.vdom v dom_st in
+     * match v with
+     * | Mvalue (Avar _) -> r
+     * | _ ->
+     *   let vs = avar_of_mvar v |> Var.to_string in
+     *   (\* We also need to add the blasted component of [t] to the log. *\)
+     *   let vs_blasted = u8_blast_var ~blast_arrays:false v 
+     *                    |> List.map (fun v -> avar_of_mvar v
+     *                                          |> Var.to_string) in
+     * 
+     *   let add_to_log vs =
+     *     if not (Hashtbl.mem log_index vs) then begin
+     *       Hashtbl.add log_index vs ();
+     *       Hashtbl.add log r vs
+     *     end in
+     *   List.iter add_to_log (vs :: vs_blasted);
+     *   r *)
 
-  let pp_dom fmt = function
-    | Ppl i -> Format.fprintf fmt "Ppl %d" i
-    | Nrd i -> Format.fprintf fmt "Nrd %d" i
-
-  let pp_log fmt () =
-    Format.fprintf fmt "@[<v 0>";
-    Hashtbl.iter (fun dom v ->
-        Format.fprintf fmt "%s --> %a@;" v pp_dom dom)
-      log;
-    Format.fprintf fmt "@;@]@."
+  (* REM *)
+  (* let pp_log fmt () =
+   *   Format.fprintf fmt "@[<v 0>";
+   *   Hashtbl.iter (fun dom v ->
+   *       Format.fprintf fmt "%s --> %a@;" v pp_dom dom)
+   *     log;
+   *   Format.fprintf fmt "@;@]@." *)
       
   let expr_doms e dom_st =
     let rec aux acc = function
@@ -2244,20 +2269,18 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
 
   let make l =
     let (ores,pres) = split_doms l VDW.dom_st_init in
-    let a = { nrd = Mdom.empty; ppl = Mdom.empty; dom_st = Mm.empty; } in
+    let a = { nrd = Mdom.empty; ppl = Mdom.empty; dom_st = VDW.dom_st_init; } in
 
     let a = List.fold_left (fun a (d,lvs) ->
-        let dom_st = List.fold_left (fun dom_st lv ->
-            Mm.add lv d dom_st) a.dom_st lvs in
-        { a with nrd = Mdom.add d (NonRel.make lvs) a.nrd;
-                 dom_st = dom_st; })
+        (* let dom_st = List.fold_left (fun dom_st lv ->
+         *     Mm.add lv d dom_st) a.dom_st lvs in *)
+        { a with nrd = Mdom.add d (NonRel.make lvs) a.nrd; })
         a ores in
 
     List.fold_left (fun a (d,lvs) ->
-        let dom_st = List.fold_left (fun dom_st lv ->
-            Mm.add lv d dom_st) a.dom_st lvs in
-        { a with ppl = Mdom.add d (PplDom.make lvs) a.ppl;
-                 dom_st = dom_st; })
+        (* let dom_st = List.fold_left (fun dom_st lv ->
+         *     Mm.add lv d dom_st) a.dom_st lvs in *)
+        { a with ppl = Mdom.add d (PplDom.make lvs) a.ppl; })
       a pres
 
   let un_app fnrd fppl a =
@@ -2265,10 +2288,34 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
       ppl = Mdom.mapi fppl a.ppl;
       dom_st = a.dom_st; }
 
-  let unify_dom_st st1 st2 = assert false
-  let unify_dom_sts sts = assert false
+  (* Repack [a] according to the domain state [dom_st]. *)
+  let repack a dom_st =
+    let a = VDW.fold_dom_st (fun v d a -> match d with
+        | Ppl 0 -> set_rel a v
+        | Nrd 0 -> set_unrel a v
+        | _ -> assert false
+      ) dom_st a in
+    { a with dom_st = dom_st }
+
+  let dom_st_update t v l =
+    let dom_st = VDW.dom_st_update t.dom_st v l in
+    repack t dom_st
+
+  (* Unify two abstract values with maybe different domain states. *)
+  let unify_dom_st a a' =
+    let dom_st = VDW.merge_dom a.dom_st a'.dom_st in
+    repack a dom_st, repack a' dom_st
+
+  (* Unify a list of abstract values with maybe different domain states. *)
+  let unify_dom_sts = function
+    | [] -> raise (Aint_error "unify_dom_sts of an empty list")
+    | (a :: l) as alist ->
+      let dom_st = List.fold_left (fun dom_st x ->
+          VDW.merge_dom dom_st x.dom_st) a.dom_st l in
+      List.map (fun x -> repack x dom_st) alist    
     
   let bin_app fnrd fppl a a' =
+    let a, a' = unify_dom_st a a' in   
     let f_opt f k u v = match u,v with
       | None, _ | _, None ->
         let s = Printf.sprintf
@@ -2278,9 +2325,10 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
 
     { nrd = Mdom.merge (f_opt fnrd) a.nrd a'.nrd;
       ppl = Mdom.merge (f_opt fppl) a.ppl a'.ppl;
-      dom_st = unify_dom_st a.dom_st a'.dom_st; }
+      dom_st = a.dom_st; }
 
   let list_app fnrd fppl (l : t list) =
+    let l = unify_dom_sts l in
     match l with
     | [] -> raise (Aint_error "list_app of an empty list");
     | a :: _ ->
@@ -2291,7 +2339,7 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
         ppl = Mdom.mapi (fun k _ ->
             let els = List.map (fun x -> Mdom.find k x.ppl) l in
             fppl els) a.ppl;
-        dom_st = unify_dom_sts l; }
+        dom_st = a.dom_st; }
 
   let meet = bin_app NonRel.meet PplDom.meet
 
@@ -2451,21 +2499,28 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
 
     Abstract1.meet_array bman (Array.of_list l)
 
-  (* This is messy because we have to use the log to inverse avar_of_mvar *)
+  (* This is messy because we have to use the log to inverse avar_of_mvar. *)
   let of_box (box : Box.t Abstract1.t) shape =
     let vars = Environment.vars (Abstract1.env box)
                |> fst
-               |> Array.to_list
-               |> List.map Var.to_string in
+               |> Array.to_list in
     let bman = Box.manager_alloc () in
 
     let denv dom =
-      let dvars = Hashtbl.find_all log dom
-                  |> List.filter (fun x -> List.mem x vars)
-                  |> List.map Var.of_string
-                  |> Array.of_list
-      and empty_var_array = Array.make 0 (Var.of_string "") in
+      let dvars = List.filter (fun v ->
+          let mv = mvar_of_avar v in
+          vdom mv shape.dom_st = dom) vars in
+      let dvars = Array.of_list dvars in
+      let empty_var_array = Array.make 0 (Var.of_string "") in
       Environment.make dvars empty_var_array in
+
+    (* let denv dom =
+     *   let dvars = Hashtbl.find_all log dom
+     *               |> List.filter (fun x -> List.mem x vars)
+     *               |> List.map Var.of_string
+     *               |> Array.of_list
+     *   and empty_var_array = Array.make 0 (Var.of_string "") in
+     *   Environment.make dvars empty_var_array in *)
 
     let res = List.fold_left (fun a dom ->
         let penv = denv dom in
@@ -2474,12 +2529,14 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
         { a with nrd = Mdom.add dom av a.nrd }
       ) (make []) nrddoms in
 
-    List.fold_left (fun a dom ->
+    let res = List.fold_left (fun a dom ->
         let penv = denv dom in
         let av = Abstract1.change_environment bman box penv false
                  |> PplDom.of_box in
         { a with ppl = Mdom.add dom av a.ppl }
-      ) res ppldoms
+      ) res ppldoms in
+
+    { res with dom_st = shape.dom_st }
 
 end
 
@@ -2819,6 +2876,10 @@ module type AbsDisjType = sig
 
   (* Pop all constraints in the disjunctive domain *)
   val pop_all_blcks : t -> t
+
+  (* [dom_st_update a x loc] updates the packing partition to prepare for
+     the assignment [x <- ...] at program point [loc]. *)
+  val dom_st_update : t -> mvar -> L.t -> t
 end
 
 (*---------------------------------------------------------------*)
@@ -3271,6 +3332,8 @@ module AbsDisj (A : AbsNumProdT) : AbsDisjType = struct
   let set_rel   t v = apply (fun a -> A.set_rel a v) t
   let set_unrel t v = apply (fun a -> A.set_unrel a v) t 
 
+  let dom_st_update t v l = apply (fun a -> A.dom_st_update a v l) t 
+    
   let shrt_tree t =
     (* See Ptree.eval for the order *)
     let fn c mnt mnf mnu = match mnt, mnf, mnu with
@@ -3344,10 +3407,13 @@ let flowing_to (dp : Pa.dp) (sv_ini : Sv.t) =
     ) dp sv_ini
       
 
-module PIMake (PW : ProgWrap) : VDomWrap = struct
-
+(* Statique Packing *)
+module PIMake (PW : ProgWrap) : VDomWrap = struct 
   (* We do not use the state in this heuristic *)
   let dom_st_init = Mm.empty
+  let dom_st_update dom_st _ _ = dom_st
+  let merge_dom dom_st _ = dom_st
+  let fold_dom_st _ _ a = a
     
   (* We compute the dependency heuristic graph *)
   let pa_res = Pa.pa_make PW.main PW.prog
@@ -3413,6 +3479,181 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
     | Mglobal _
     | Mvalue (AarrayEl _)
     | Mvalue (Aarray _) -> Nrd 0
+end
+
+module Lcmp = struct
+  type t = L.t
+  let compare = Stdlib.compare
+end
+
+module Ml = Map.Make(Lcmp)
+
+
+(* Dynamic Packing *)
+module PIDynMake (PW : ProgWrap) : VDomWrap = struct
+  let merge_dom dom_st dom_st' =
+    Mm.merge (fun v d1 d2 -> match d1, d2 with
+        | Some d, None | None, Some d -> Some d
+
+        | Some (Nrd 0), Some (Ppl 0)
+        | Some (Ppl 0), Some (Nrd 0) ->
+          debug (fun () -> Format.eprintf "Warning: merge_dom: \
+                                          raised %a's precision"
+                    pp_mvar v);         
+          (* We change dynamically the packing only for variables. *)
+          assert (is_var v);
+          (* We default to the more precise abstraction. *)
+          Some (Ppl 0)
+
+        | Some d1, Some d2 when d1 = d2 -> Some d1
+        | _, _ -> assert false) dom_st dom_st'
+
+  let fold_dom_st = Mm.fold
+                      
+  (* We compute the dependency heuristic graph on the SSA transform of main.
+     Precondition: [PW.main] must not contain function calls, and variables 
+     must be uniquely characterized by their names. *)
+  let ssa_main, pa_res = FSPa.fs_pa_make PW.main PW.prog
+
+  (* We compute the reflexive and transitive clojure of dp *)
+  let dp = trans_closure pa_res.pa_dp
+
+  (* We are relational on a SSA variable [v] iff:
+     - there is a direct flow from the intersection of [ssa_main.f_args] and
+     [Glob_options.relational] to [v].
+     - the variable appears in a while loops conditions,
+     or modifies a while loop condition variable. *)
+  let ssa_sv_ini =
+    match PW.param.relationals with
+    | None -> ssa_main.f_args |> Sv.of_list
+    | Some v_rel ->
+      List.filter (fun v -> List.mem v.v_name v_rel) ssa_main.f_args
+      |> Sv.of_list
+
+  let sv_ini =
+    match PW.param.relationals with
+    | None -> PW.main.f_args |> Sv.of_list
+    | Some v_rel ->
+      List.filter (fun v -> List.mem v.v_name v_rel) PW.main.f_args
+      |> Sv.of_list
+
+  let ssa_v_rel : Sv.t =
+    let v_rel = flow_to dp ssa_sv_ini in
+    let v_while = flowing_to dp pa_res.while_vars in
+    Sv.union v_rel v_while
+
+  
+  (* [v] is a pointer variable iff there is a direct flow from the intersection
+     of [PW.main.f_args] and [Glob_options.pointers] to [v]. *)
+  let pt_ini =
+    match PW.param.pointers with
+    | None -> PW.main.f_args |> Sv.of_list
+    | Some v_pt ->
+      List.filter (fun v -> List.mem v.v_name v_pt) PW.main.f_args
+      |> Sv.of_list
+
+  let v_pt : Sv.t = flow_to dp pt_ini
+      
+  let dom_st_init = List.fold_left2 (fun dom_st v ssa_v ->
+      if Sv.mem ssa_v ssa_v_rel then
+        let mv = Mvalue (Avar v) in
+        Mm.add mv (Ppl 0) dom_st
+      else
+        let mv = Mvalue (Avar v) in
+        Mm.add mv (Nrd 0) dom_st
+    ) Mm.empty PW.main.f_args ssa_main.f_args    
+
+  (* We build a mapping from locations (where assignments take place) to
+     pairs of [v,dom] where [v] is the left value, and [dom] states
+     whether [v] must be handled precisely or not. *)
+  let build_lmap_i lmap i ssa_i = match i.i_desc, ssa_i.i_desc with
+    | Cassgn (lv,_,_,_), Cassgn (ssa_lv,_,_,_) ->
+      begin
+        match lv, ssa_lv with
+        | _, Lnone _ | _, Lmem _ | _, Laset _ -> lmap
+        | Lvar v, Lvar ssa_v ->
+          let v, ssa_v = L.unloc v, L.unloc ssa_v in
+          assert (v.v_name = ssa_v.v_name);
+          if Sv.mem ssa_v ssa_v_rel
+          then Ml.add (fst ssa_i.i_loc) (v, Ppl 0) lmap
+          else lmap
+        | _ -> assert false
+      end
+
+    | _, _ -> lmap
+
+  let rec build_lmap lmap is ssa_is = match is, ssa_is with
+    | _, { i_desc = Cassgn (_,AT_phinode,_,_) } :: ssa_is ->
+      build_lmap lmap is ssa_is
+    | i :: is, ssa_i :: ssa_is ->
+      let lmap = build_lmap_i lmap i ssa_i in
+      build_lmap lmap is ssa_is
+    | [], [] -> lmap
+    | _ -> assert false
+
+  let lmap = build_lmap Ml.empty PW.main.f_body ssa_main.f_body
+
+
+  let print_update v gv v' dom dom_st =
+    assert (gv.v_name = v'.v_name);
+    debug (fun () -> match Mm.find v dom_st with 
+        | exception Not_found ->
+          Format.eprintf "Dynamic partitioning: set %a to %a"
+            pp_mvar v pp_dom dom                 
+        | old_dom ->
+          if old_dom <> dom then
+            Format.eprintf "Dynamic partitioning: change %a from %a to %a"
+              pp_mvar v
+              pp_dom old_dom
+              pp_dom dom)
+
+  let dom_st_update dom_st v loc =
+    try
+      match v with
+      | Mvalue (Avar gv) ->
+        let v', dom = Ml.find loc lmap in
+        let () = print_update v gv v' dom dom_st in          
+        Mm.add v dom dom_st
+      | _ -> dom_st
+    with Not_found -> dom_st
+
+  (* Arrays and array elements must always be non-relational. 
+     We do not use the state in this heuristic *)
+  let vdom (v : mvar) (dom_st : dom_st) = match v with
+    | Temp _ | WTemp _ -> assert false
+
+    | MNumInv _ -> Ppl 0        (* Numerical invariant must be relational *)
+
+    | Mvalue (Avar _) ->
+      begin
+        try Mm.find v dom_st
+        with Not_found -> Nrd 0
+      end
+
+    | MinValue v ->
+      if Sv.mem v sv_ini then Ppl 0 else Nrd 0
+
+    | MvarOffset v
+    | MmemRange (MemLoc v) ->
+      if Sv.mem v v_pt then Ppl 0 else Nrd 0
+
+    | Mglobal _
+    | Mvalue (AarrayEl _)
+    | Mvalue (Aarray _) -> Nrd 0
+
+  let pp_rel_vars fmt rel =
+    (pp_list (Printer.pp_var ~debug:false)) fmt
+      (List.sort (fun v v' -> Stdlib.compare v.v_name v'.v_name)
+         (Sv.elements rel))
+  
+  let () = debug(fun () ->
+      Format.eprintf "@[<v 0>\
+                      @[<hov 2>%d relational variables (initially):@ @,%a@]@;\
+                      @[<hov 2>%d pointers:@ @,%a@]@]@."
+        (Sv.cardinal sv_ini)
+        pp_rel_vars sv_ini
+        (Sv.cardinal v_pt)
+        pp_rel_vars v_pt)
 end
 
 
@@ -3597,6 +3838,7 @@ module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
   let remove_disj    = A.Num.remove_disj
   let set_rel        = A.Num.set_rel
   let set_unrel      = A.Num.set_unrel
+  let dom_st_update  = A.Num.dom_st_update
                          
   (*----------------------------------------------------------------*)
   (* Profiling for the new functions. *)
@@ -3675,6 +3917,13 @@ module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
     let () = call "set_unrel" (Sys.time () -. t) in
     r
 
+  let () = record "dom_st_update"
+  let dom_st_update x v l =
+    let t = Sys.time () in
+    let r = dom_st_update x v l in
+    let () = call "dom_st_update" (Sys.time () -. t) in
+    r
+
 end
 
 
@@ -3693,7 +3942,13 @@ end
 
 
 module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
-  module VDW = PIMake (PW)
+
+  let vdw =
+    if Aparam.dynamic_packing
+    then (module PIDynMake (PW) : VDomWrap)
+    else (module PIMake (PW) : VDomWrap)
+
+  module VDW = (val vdw)
 
   module RProd =
     AbsNumProd (VDW) (AbsNumI (BoxManager) (PW)) (AbsNumI (PplManager) (PW))
@@ -4517,7 +4772,11 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       let s_init = t.init in
       let points_to_init = t.points_to in
       let t = { t with init = EMs.empty } in
-
+      
+      let t = match loc with
+        | None -> t
+        | Some loc -> { t with num = AbsNum.R.dom_st_update t.num v loc; } in
+      
       let n_env = AbsNum.R.get_env t.num in
       let constr_expr_list =
         List.map (fun (bexpr_list, expr) ->
