@@ -3384,8 +3384,11 @@ let swap_op2 op e1 e2 =
   | E.Oge   _ -> e2, e1
   | _         -> e1, e2
 
+let mpq_of_bigint z  = Mpq.init_set_str (B.to_string z) ~base:10
+let mpqf_of_bigint z = Mpqf.of_mpq (mpq_of_bigint z)
+    
 let mtexpr_of_bigint env z =
-  let mpq_z = Mpq.init_set_str (B.to_string z) ~base:10 in
+  let mpq_z = mpq_of_bigint z in
   Mtexpr.cst env (Coeff.s_of_mpq mpq_z)
 
 
@@ -5773,13 +5776,43 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Papp2 (op2, e1, e2) ->
       begin match op2_to_abs_binop op2 with
         | AB_Arith Texpr1.Mod
-        | AB_Arith Texpr1.Add
-        | AB_Arith Texpr1.Mul
-        | AB_Arith Texpr1.Sub as absop->
+        | AB_Arith Texpr1.Mul as absop->
           let lin = Mtexpr.(binop (abget absop)
                               (linearize_wexpr abs e1)
                               (linearize_wexpr abs e2)) in
           wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
+
+        | AB_Arith Texpr1.Add
+        | AB_Arith Texpr1.Sub as absop ->
+          let ws_out = int_of_ws ws_e in
+          let lin1, lin2 = linearize_wexpr abs e1, linearize_wexpr abs e2 in
+          let lin = Mtexpr.(binop (abget absop) lin1 lin2) in
+          
+          (* If the expression overflows, we try to rewrite differently *)
+          if linexpr_overflow abs lin Unsigned ws_out then
+            let alt_lin = match e2 with
+              | Papp1(E.Oword_of_int sz, Pconst z) when sz = ws_e ->
+                let z = mpqf_of_bigint z in
+                let mz = Mpqf.add (Mpqf.neg z) (mpq_pow ws_out) in
+                let c' = Mtexpr.cst apr_env (Coeff.s_of_mpqf mz) in
+                let alt_absop = match absop with
+                  | AB_Arith Texpr1.Add -> Texpr1.Sub
+                  | AB_Arith Texpr1.Sub -> Texpr1.Add
+                  | _ -> assert false in
+                Some Mtexpr.(binop alt_absop lin1 c')
+              | _ -> None in
+
+            if alt_lin <> None &&
+               not (linexpr_overflow abs (oget alt_lin) Unsigned ws_out) 
+            then
+              let () = debug (fun () ->
+                  Format.eprintf "@[<hov 0>Replaced the expression@   \
+                                  %a@ by %a@]@."
+                    Mtexpr.print_mexpr lin.mexpr
+                    Mtexpr.print_mexpr (oget alt_lin).mexpr) in
+              oget alt_lin
+            else wrap_lin_expr Unsigned ws_out lin
+          else lin
 
         | AB_Shift `Signed_right
         | AB_Arith Texpr1.Div
