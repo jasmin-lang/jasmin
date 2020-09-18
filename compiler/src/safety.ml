@@ -6924,9 +6924,13 @@ end = struct
     (*  OF; CF; SF; PF; ZF *)
     [Some ov; Some ov; None; None; None]
 
-  let rflags_of_div =
+  let rflags_unknwon =
     (*  OF; CF; SF; PF; ZF *)
     [None; None; None; None; None]
+
+  let rflags_of_div =
+    (*  OF; CF; SF; PF; ZF *)
+    rflags_unknwon
 
   let rflags_of_andn sz w =
     let of_f = Some (Pbool false)
@@ -7132,6 +7136,24 @@ end = struct
       let e = as_seq1 es in 
       [Some e]
 
+    (* shift, unsigned / left  *)
+    | E.Ox86 (X86_instr_decl.SHL ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Olsl ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+
+    (* shift, unsigned / right  *)
+    | E.Ox86 (X86_instr_decl.SHR ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Olsr ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+
+    (* shift, signed / right  *)
+    | E.Ox86 (X86_instr_decl.SAR ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Oasr ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+  
     (* FIXME: adding bit shift with flags *)
     (* 
     | ROR    of wsize    (* rotation / right *)
