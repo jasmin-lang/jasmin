@@ -110,7 +110,7 @@ module Aparam = struct
   let while_flags_setfrom_dep = true
 
   (* Dynamic variable packing. *)
-  let dynamic_packing = false    (* default: false *)
+  let dynamic_packing = true    (* default: false *)
 
   (***********************)
   (* Printing parameters *)
@@ -3526,6 +3526,15 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   (* We compute the reflexive and transitive clojure of dp *)
   let dp = trans_closure pa_res.pa_dp
 
+  (* All renaming of max and min in the SSA transform. *)
+  let ssa_max_min =
+    Mv.filter (fun v _ ->
+        v.v_name = Pipeline_instrumentation.cost_var_max.v_name ||
+        v.v_name = Pipeline_instrumentation.cost_var_min.v_name ) dp 
+    |> Mv.bindings
+    |> List.map fst
+    |> Sv.of_list
+         
   (* We are relational on a SSA variable [v] iff:
      - there is a direct flow from:
         + the intersection of ssa_main.f_args Glob_options.relational to v.
@@ -3539,8 +3548,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
     | Some v_rel ->
       List.filter (fun v -> List.mem v.v_name v_rel) ssa_main.f_args
       |> Sv.of_list in
-    Sv.add (Pipeline_instrumentation.cost_var_max)
-      (Sv.add (Pipeline_instrumentation.cost_var_min) sv)
+    Sv.union ssa_max_min sv
 
   let sv_ini =
     let sv =
