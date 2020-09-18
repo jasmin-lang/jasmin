@@ -5699,7 +5699,6 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       Mtexpr.var apr_env (Mvalue (Avar (L.unloc x)))
 
     | Papp1(E.Oint_of_word sz,e1) ->
-      assert (ty_expr e1 = tu sz);
       let abs_expr1 = linearize_wexpr abs e1 in
       wrap_if_overflow abs abs_expr1 Unsigned (int_of_ws sz)
 
