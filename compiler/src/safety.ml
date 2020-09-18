@@ -5889,17 +5889,23 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           (* If the expression overflows, we try to rewrite differently *)
           if linexpr_overflow abs lin Unsigned ws_out then
             let alt_lin = match e2 with
-              | Papp1(E.Oword_of_int sz, Pconst z) when sz = ws_e ->
+              | Papp1(E.Oword_of_int sz, Pconst z) ->
                 let z = mpqf_of_bigint z in
-                let mz = Mpqf.add (Mpqf.neg z) (mpq_pow ws_out) in
-                let c' = Mtexpr.cst apr_env (Coeff.s_of_mpqf mz) in
-                let alt_absop = match absop with
-                  | AB_Arith Texpr1.Add -> Texpr1.Sub
-                  | AB_Arith Texpr1.Sub -> Texpr1.Add
-                  | _ -> assert false in
-                Some Mtexpr.(binop alt_absop lin1 c')
-              | _ -> None in
-
+                let mz = Mpqf.add (Mpqf.neg z) (mpq_pow (int_of_ws sz)) in
+                (* We check that [mz] is in [0; 2^{ws_out - 1}] *)
+                if (Mpqf.cmp (mpq_pow ws_out) mz > 0) &&
+                   (Mpqf.cmp (Mpqf.of_int 0) mz <= 0) then
+                  let c' = Mtexpr.cst apr_env (Coeff.s_of_mpqf mz) in
+                  let alt_absop = match absop with
+                    | AB_Arith Texpr1.Add -> Texpr1.Sub
+                    | AB_Arith Texpr1.Sub -> Texpr1.Add
+                    | _ -> assert false in
+                  Some Mtexpr.(binop alt_absop lin1 c')
+                else None
+                  
+              | _ -> None
+            in
+            
             if alt_lin <> None &&
                not (linexpr_overflow abs (oget alt_lin) Unsigned ws_out) 
             then
@@ -7040,6 +7046,17 @@ end = struct
       
     | E.Oaddcarry ws -> mk_addcarry ws es
 
+    | E.Ox86MOVZX32 ->
+      let e = as_seq1 es in
+      (* Cast [e], seen as an U32, to an integer, and then back to an U64. *)
+      [Some (Papp1(E.Oword_of_int U64, Papp1(E.Oint_of_word U32, e)))]
+
+    (* Idem than Ox86MOVZX32, but with different sizes. *)      
+    | E.Ox86 (X86_instr_decl.MOVZX (sz_o, sz_i)) ->
+      assert (int_of_ws sz_o >= int_of_ws sz_i);
+      let e = as_seq1 es in
+      [Some (Papp1(E.Oword_of_int sz_o, Papp1(E.Oint_of_word sz_i, e)))]
+
     (* CMP flags are identical to SUB flags. *)
     | E.Ox86 (X86_instr_decl.CMP ws) ->
       (* Input types: ws, ws *)
@@ -7151,7 +7168,11 @@ end = struct
     | E.Ox86 (X86_instr_decl.IMULr _)
     | E.Ox86 (X86_instr_decl.IMULri _) 
 
-    | _ -> opn_dflt n
+    | _ ->
+      debug (fun () ->
+          Format.eprintf "Warning: unknown opn %s, default to ⊤.@."
+            (Printer.pp_opn opn));
+      opn_dflt n
 
 
   (* -------------------------------------------------------------------- *)
@@ -7524,10 +7545,14 @@ end = struct
                 Interval.of_scalar (Scalar.of_int 1) (Scalar.of_infty 1) in
 
               debug(fun () ->
-                  Format.eprintf "@[<v>@;Numerical quantity decreasing by:@;\
+                  Format.eprintf "@[<v>@;Candidate decreasing numerical \
+                                  quantity:@;\
+                                  @[%a@]@;\
+                                  Numerical quantity decreasing by:@;\
                                   @[%a@]@;\
                                   Initial numerical quantity in interval:@;\
                                   @[%a@]@;@]"
+                    (pp_opt Mtexpr.print) ni_e
                     Interval.print int
                     Interval.print zint;);
 
