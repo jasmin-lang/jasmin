@@ -3596,7 +3596,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   (* (\* REM *\)
    * let pp_rel_vars fmt rel =
    *   (pp_list (Printer.pp_var ~debug:true)) fmt
-   *     (List.sort (fun v v' -> Stdlib.compare v.v_name v'.v_name)
+   *     (List.sort (fun v v' -> compare v.v_name v'.v_name)
    *        (Sv.elements rel))
    * 
    * (\* REM *\)
@@ -3697,7 +3697,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
 
   let print_lmap fmt lmap =
     let bindings =
-      List.sort (fun (_, (_,d)) (_, (_,d')) -> - (Stdlib.compare d d'))
+      List.sort (fun (_, (_,d)) (_, (_,d')) -> - (compare d d'))
         (Mint.bindings lmap) in
     Format.fprintf fmt "@[<v 2>Dynamic packing table (%d entries):@;%a@]"
       (Mint.cardinal lmap)
@@ -3712,7 +3712,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
 
   let pp_rel_vars fmt rel =
     (pp_list (Printer.pp_var ~debug:true)) fmt
-      (List.sort (fun v v' -> Stdlib.compare v.v_name v'.v_name)
+      (List.sort (fun v v' -> compare v.v_name v'.v_name)
          (Sv.elements rel))
   
   let () = debug(fun () ->

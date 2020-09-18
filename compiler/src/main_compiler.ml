@@ -342,8 +342,6 @@ let main () =
           Format.eprintf "WARNING: Pipeline analyzer @.";
           let p = Conv.prog_of_cprog tbl cp in
           let ip = Pipeline_instrumentation.instrument_prog p in
-          Printer.pp_prog ~debug:true Format.std_formatter ip;
-          Format.fprintf Format.std_formatter "@.";
           check_safety_p s ip
         end else
           eprint s (fun fmt cp ->

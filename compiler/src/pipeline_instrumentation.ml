@@ -305,17 +305,7 @@ let rec instr_cbloc c cmin cmax config =
   let in_bloc = ref false in
   let rec aux i =
     match i.i_desc with
-    | Cassgn (_,_,_,_) -> begin
-        if !in_bloc
-        then [i]
-        else 
-            let b = get_fresh_checkpoint () in
-            let vmin = (fst config.(b)) in
-            let vmax = (snd config.(b)) in
-            let instr = get_cost_incr_instr vmin i cmin in
-            let instr' = get_cost_incr_instr vmax i cmax in
-            in_bloc := true; [instr; instr'; i]
-      end
+    | Cassgn (_,_,_,_)
     | Copn (_,_,_,_) -> begin
         if !in_bloc
         then [i]
@@ -365,14 +355,14 @@ let rec instr_cbloc c cmin cmax config =
         let instr3 = get_cost_incr_instr 1 i cmin in
         let instr4 = get_cost_incr_instr 5 i cmax in
         (* First the body and precondition, possibly in the same bloc *)
-        let body = List.flatten (List.map aux (c' @ c)) in
+        let body = List.flatten (List.map aux c') in
         in_bloc := false;
         precond_cost @ [instr1; instr2] @ [
           {
           i_desc = Cwhile(t,
               c,
               e,
-              [instr3; instr4] @ body
+              [instr3; instr4] @ body @ c
             );
           i_loc = i.i_loc;
           i_info = i.i_info
