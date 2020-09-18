@@ -1002,7 +1002,8 @@ module Mtexpr : sig
   val weak_transf : int Mm.t -> mexpr -> int Mm.t * mexpr
 
   (* This does not check equality of the underlying Apron environments. *)
-  val equal_mexpr : t -> t -> bool
+  val equal_mexpr1 : mexpr -> mexpr -> bool
+  val equal_mexpr  : t -> t -> bool
 
   val print : Format.formatter -> t -> unit
 
@@ -1179,7 +1180,8 @@ end = struct
          && equal_mexpr_aux e2 e2'
     | _ -> false
 
-  let equal_mexpr t t' = equal_mexpr_aux t.mexpr t'.mexpr
+  let equal_mexpr1 t t' = equal_mexpr_aux t t'
+  let equal_mexpr  t t' = equal_mexpr_aux t.mexpr t'.mexpr
 end
 
 
@@ -2566,6 +2568,8 @@ module Bvar : sig
 
   val not : t -> t
 
+  val is_neg : t -> bool
+
   val var_name : t -> string
 
   val get_mv : t -> mvar
@@ -2587,8 +2591,10 @@ end = struct
 
   let make bv b = (bv,b)
 
-  let not (bv,b) = (bv,not b)
-
+  let is_neg (_,b) = not b
+      
+  let not (bv,b) = (bv,not b)                  
+    
   let positive (bv,_) = (bv,true)
 
   let get_mv (bv,_) = bv
@@ -3998,6 +4004,112 @@ module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
 end
 
 
+
+
+(************************************)
+(* Simple Rewriting and Decompiling *)
+(************************************)
+
+exception Rewrite_failed
+let neg_e env e =
+  let open Mtexpr in
+  let mk e = { mexpr = e; env = env } in
+  let rec neg_e = function
+    | Munop (Texpr1.Neg, e', _, _) -> mk e'
+    | Mbinop (Texpr1.Add, e1, e2, _, _) ->
+      binop Texpr1.Add (neg_e e1) (neg_e e2)
+    | Mbinop (Texpr1.Sub, e1, e2, _, _) ->
+      binop Texpr1.Add (neg_e e1) (mk e2)
+    | Mbinop (Texpr1.Mul, e1, e2, _, _) ->
+      binop Texpr1.Mul (neg_e e1) (mk e2)
+    | Mcst c -> cst env (Coeff.neg c)
+    | Mvar _ as e -> unop Texpr1.Neg (mk e)
+    | _ -> raise Rewrite_failed
+  in
+  neg_e e
+
+let is_var = function Mtexpr.Mvar _ -> true | _ -> false
+let is_cst = function Mtexpr.Mcst _ -> true | _ -> false
+
+(* Tries to do trivial rewritings. *)
+let rec rewrite_e e =
+  let open Mtexpr in
+  let mk e' = { mexpr = e'; env = e.env } in
+  match e.mexpr with
+  | Munop (Texpr1.Neg, e', _, _) when not (is_var e.mexpr) ->
+    begin
+      try rewrite_e (neg_e e.env e') with Rewrite_failed -> e
+    end
+
+  | Mbinop (Texpr1.Add, Mcst i, e', _, _) when Coeff.equal_int i 0 ->
+    rewrite_e (mk e')
+
+  | Mbinop (Texpr1.Add, e', Mcst i, _, _)
+  | Mbinop (Texpr1.Sub, e', Mcst i, _, _) when Coeff.equal_int i 0 ->
+    rewrite_e (mk e')
+
+  | Mbinop (Texpr1.Sub, Mcst i, e', _, _) when Coeff.equal_int i 0 ->
+    rewrite_e (unop Texpr1.Neg (mk e'))
+
+  | Mbinop (Texpr1.Sub, e1, e2, _, _) ->
+    begin
+      try
+        let e2 = neg_e e.env e2 in
+        binop Texpr1.Add (mk e1) e2
+      with Rewrite_failed ->
+        let e1, e2 = rewrite_e (mk e1), rewrite_e (mk e2) in
+        binop Texpr1.Sub e1 e2
+    end
+
+  | Mbinop (op, e1, e2, _, _) ->
+    let e1, e2 = rewrite_e (mk e1), rewrite_e (mk e2) in
+    binop op e1 e2
+  | Munop (op, e', _, _) ->
+    let e' = rewrite_e (mk e') in
+    unop op e'
+
+  | Mcst _ | Mvar _ -> e
+
+let rewrite_c bt =
+  Mtcons.make (rewrite_e (Mtcons.get_expr bt)) (Mtcons.get_typ bt)
+
+let cmp_cst bt =
+  let open Mtexpr in
+  let e = Mtcons.get_expr bt in
+  match e.mexpr with
+  | Mbinop (Texpr1.Add, a, b, _, _) -> Some (e.env, a, b, Mtcons.get_typ bt)
+  | Mvar _ as e' ->
+    Some (e.env, e', (cst e.env (Coeff.s_of_int 0)).mexpr, Mtcons.get_typ bt)
+  | _ -> None
+
+let rec rewrite bt = match bt with
+  | BAnd (BLeaf bt1, BLeaf bt2) ->
+    let bt1, bt2 = rewrite_c bt1, rewrite_c bt2 in
+    begin
+      match cmp_cst bt1, cmp_cst bt2 with
+      | None, _ | _, None -> bt
+      | Some (env, a, b, typ), Some (_, a', b', typ') ->
+        if (Mtexpr.equal_mexpr1 a a' && Mtexpr.equal_mexpr1 b b') ||
+           (Mtexpr.equal_mexpr1 a b' && Mtexpr.equal_mexpr1 b a')
+        then
+          let mk e = Mtexpr.({ mexpr = e; env = env }) in
+          begin match typ, typ' with
+            | Tcons1.SUPEQ, Tcons1.DISEQ
+            | Tcons1.DISEQ, Tcons1.SUPEQ ->
+              (* (a + b <> 0 /\ a + b >= 0) <=> a + b > 0 *)
+              BLeaf (Mtcons.make
+                       (Mtexpr.binop Texpr1.Add (mk a) (mk b))
+                       Tcons1.SUP)
+            | _ -> bt
+          end
+        else bt
+    end
+
+  | BAnd (b1,b2) -> BAnd ( rewrite b1, rewrite b2 )
+  | BOr (b1,b2)  -> BOr  ( rewrite b1, rewrite b2 ) 
+  | BVar _ | BLeaf _ -> bt
+
+
 (*************************************************)
 (* Numerical Domain with Two Levels of Precision *)
 (*************************************************)
@@ -4199,6 +4311,8 @@ module SymExprImpl : SymExpr = struct
   (* Implement if needed. *)
   (* let subst_expr : t -> Mtexpr.t -> Mtexpr.t = fun t e -> assert false *)
 
+  (* This substitute boolean flags by an equivalent constraint.
+     Also, tries to decompile what [lowering.v] did. *)
   let subst_btcons t bt =
     let rec subst_btcons = function
     | BVar bv ->
@@ -4210,7 +4324,8 @@ module SymExprImpl : SymExpr = struct
     | BAnd (b1,b2) -> BAnd (subst_btcons b1, subst_btcons b2)
     | BOr (b1,b2)  -> BOr  (subst_btcons b1, subst_btcons b2) in
 
-    let bt' = subst_btcons bt in
+    (* We try to simplify [bt] after the substitution. *)
+    let bt' = rewrite (subst_btcons bt) in
     if Aparam.print_symb_subst && not (equal_btcons bt bt') then
       debug (fun () ->
           Format.eprintf "@[<hov 0>Substituted@,   %a@ by %a@]@;"
@@ -5723,7 +5838,6 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       Mtexpr.var apr_env (Mvalue (Avar (L.unloc x)))
 
     | Papp1(E.Oint_of_word sz,e1) ->
-      assert (ty_expr e1 = tu sz);
       let abs_expr1 = linearize_wexpr abs e1 in
       wrap_if_overflow abs abs_expr1 Unsigned (int_of_ws sz)
 
@@ -5799,17 +5913,23 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           (* If the expression overflows, we try to rewrite differently *)
           if linexpr_overflow abs lin Unsigned ws_out then
             let alt_lin = match e2 with
-              | Papp1(E.Oword_of_int sz, Pconst z) when sz = ws_e ->
+              | Papp1(E.Oword_of_int sz, Pconst z) ->
                 let z = mpqf_of_bigint z in
-                let mz = Mpqf.add (Mpqf.neg z) (mpq_pow ws_out) in
-                let c' = Mtexpr.cst apr_env (Coeff.s_of_mpqf mz) in
-                let alt_absop = match absop with
-                  | AB_Arith Texpr1.Add -> Texpr1.Sub
-                  | AB_Arith Texpr1.Sub -> Texpr1.Add
-                  | _ -> assert false in
-                Some Mtexpr.(binop alt_absop lin1 c')
-              | _ -> None in
-
+                let mz = Mpqf.add (Mpqf.neg z) (mpq_pow (int_of_ws sz)) in
+                (* We check that [mz] is in [0; 2^{ws_out - 1}] *)
+                if (Mpqf.cmp (mpq_pow ws_out) mz > 0) &&
+                   (Mpqf.cmp (Mpqf.of_int 0) mz <= 0) then
+                  let c' = Mtexpr.cst apr_env (Coeff.s_of_mpqf mz) in
+                  let alt_absop = match absop with
+                    | AB_Arith Texpr1.Add -> Texpr1.Sub
+                    | AB_Arith Texpr1.Sub -> Texpr1.Add
+                    | _ -> assert false in
+                  Some Mtexpr.(binop alt_absop lin1 c')
+                else None
+                  
+              | _ -> None
+            in
+            
             if alt_lin <> None &&
                not (linexpr_overflow abs (oget alt_lin) Unsigned ws_out) 
             then
@@ -6828,9 +6948,13 @@ end = struct
     (*  OF; CF; SF; PF; ZF *)
     [Some ov; Some ov; None; None; None]
 
-  let rflags_of_div =
+  let rflags_unknwon =
     (*  OF; CF; SF; PF; ZF *)
     [None; None; None; None; None]
+
+  let rflags_of_div =
+    (*  OF; CF; SF; PF; ZF *)
+    rflags_unknwon
 
   let rflags_of_andn sz w =
     let of_f = Some (Pbool false)
@@ -6950,6 +7074,17 @@ end = struct
       
     | E.Oaddcarry ws -> mk_addcarry ws es
 
+    | E.Ox86MOVZX32 ->
+      let e = as_seq1 es in
+      (* Cast [e], seen as an U32, to an integer, and then back to an U64. *)
+      [Some (Papp1(E.Oword_of_int U64, Papp1(E.Oint_of_word U32, e)))]
+
+    (* Idem than Ox86MOVZX32, but with different sizes. *)      
+    | E.Ox86 (X86_instr_decl.MOVZX (sz_o, sz_i)) ->
+      assert (int_of_ws sz_o >= int_of_ws sz_i);
+      let e = as_seq1 es in
+      [Some (Papp1(E.Oword_of_int sz_o, Papp1(E.Oint_of_word sz_i, e)))]
+
     (* CMP flags are identical to SUB flags. *)
     | E.Ox86 (X86_instr_decl.CMP ws) ->
       (* Input types: ws, ws *)
@@ -7025,6 +7160,24 @@ end = struct
       let e = as_seq1 es in 
       [Some e]
 
+    (* shift, unsigned / left  *)
+    | E.Ox86 (X86_instr_decl.SHL ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Olsl ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+
+    (* shift, unsigned / right  *)
+    | E.Ox86 (X86_instr_decl.SHR ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Olsr ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+
+    (* shift, signed / right  *)
+    | E.Ox86 (X86_instr_decl.SAR ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Oasr ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+  
     (* FIXME: adding bit shift with flags *)
     (* 
     | ROR    of wsize    (* rotation / right *)
@@ -7061,7 +7214,11 @@ end = struct
     | E.Ox86 (X86_instr_decl.IMULr _)
     | E.Ox86 (X86_instr_decl.IMULri _) 
 
-    | _ -> opn_dflt n
+    | _ ->
+      debug (fun () ->
+          Format.eprintf "Warning: unknown opn %s, default to ⊤.@."
+            (Printer.pp_opn opn));
+      opn_dflt n
 
 
   (* -------------------------------------------------------------------- *)
@@ -7434,10 +7591,14 @@ end = struct
                 Interval.of_scalar (Scalar.of_int 1) (Scalar.of_infty 1) in
 
               debug(fun () ->
-                  Format.eprintf "@[<v>@;Numerical quantity decreasing by:@;\
+                  Format.eprintf "@[<v>@;Candidate decreasing numerical \
+                                  quantity:@;\
+                                  @[%a@]@;\
+                                  Numerical quantity decreasing by:@;\
                                   @[%a@]@;\
                                   Initial numerical quantity in interval:@;\
                                   @[%a@]@;@]"
+                    (pp_opt Mtexpr.print) ni_e
                     Interval.print int
                     Interval.print zint;);
 
