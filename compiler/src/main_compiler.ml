@@ -136,7 +136,7 @@ and pp_comp_ferr tbl fmt = function
 
 
 (* -------------------------------------------------------------------- *)
-let check_safety_p s p =
+let check_safety_p s p source_p =
   let s1,s2 = Glob_options.print_strings s in
   Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
                   %a@;@]@."
@@ -149,7 +149,11 @@ let check_safety_p s p =
           let () = Format.eprintf "@[<v>Analyzing function %s@;@]@."
               f_decl.f_name.fn_name in
 
+          let source_f_decl = List.find (fun source_f_decl ->
+              f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
+            ) (snd source_p) in
           let module AbsInt = Safety.AbsAnalyzer(struct
+              let main_source = source_f_decl
               let main = f_decl
               let prog = p
             end) in
@@ -184,8 +188,11 @@ let main () =
     let prog = Subst.remove_params pprog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
+    (* The source program, before any compilation pass. *)
+    let source_prog = prog in
+    
     if check_safety_pass = Compiler.ParamsExpansion && !check_safety then
-      check_safety_p Compiler.ParamsExpansion prog
+      check_safety_p Compiler.ParamsExpansion prog source_prog
     else
             
     if !ec_list <> [] then begin
@@ -332,7 +339,7 @@ let main () =
     (* Check safety and calls exit(_). *)
     let check_safety_cp s cp =
       let p = Conv.prog_of_cprog tbl cp in
-      check_safety_p s p in
+      check_safety_p s p source_prog in
     
     let pp_cprog s cp =
       if s = check_safety_pass && !check_safety then
@@ -342,7 +349,7 @@ let main () =
           Format.eprintf "WARNING: Pipeline analyzer @.";
           let p = Conv.prog_of_cprog tbl cp in
           let ip = Pipeline_instrumentation.instrument_prog p in
-          check_safety_p s ip
+          check_safety_p s ip source_prog
         end else
           eprint s (fun fmt cp ->
               let p = Conv.prog_of_cprog tbl cp in
