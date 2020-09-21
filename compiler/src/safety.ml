@@ -7930,23 +7930,29 @@ end = struct
     let in_vars = fun_in_args_no_offset f_decl
                   |> List.map otolist
                   |> List.flatten in
-    let vars_to_keep =
-      costMin :: costMax ::
-      in_vars @ get_mem_range state.env in
+    let v_keep_min = costMin :: in_vars @ get_mem_range state.env 
+    and v_keep_max = costMax :: in_vars @ get_mem_range state.env in
     let vars = in_vars @ fun_vars ~expand_arrays:false f_decl state.env in
-    let rem_vars = List.fold_left (fun acc v ->
-        if (List.mem v vars_to_keep) then acc else v :: acc )
-        [] vars in
 
-    let abs_proj = 
+    let v_rem v_keep = List.fold_left (fun acc v ->
+        if (List.mem v v_keep) then acc else v :: acc )
+        [] vars in
+    let v_rem_min, v_rem_max = v_rem v_keep_min, v_rem v_keep_max in
+
+    let a_proj v_rem = 
       AbsDom.pop_cnstr_blck
-        (AbsDom.forget_list state.abs rem_vars) 
+        (AbsDom.forget_list state.abs v_rem) 
         L._dummy                (* We use L._dummy for the initial block *)
     in
 
+    let a_proj_min, a_proj_max = a_proj v_rem_min, a_proj v_rem_max in
+
     let sb = !only_rel_print in (* Not very clean *)
     only_rel_print := true;
-    Format.fprintf fmt "@[%a@]" (AbsDom.print ~full:true) abs_proj;
+    Format.fprintf fmt "Cost Max:@;@[%a@]@;\
+                        Cost Min:@;@[%a@]@;"
+      (AbsDom.print ~full:true) a_proj_max
+      (AbsDom.print ~full:true) a_proj_min;
     only_rel_print := sb
 
 
