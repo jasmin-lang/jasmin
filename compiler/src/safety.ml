@@ -1557,6 +1557,7 @@ end
 
 
 module type ProgWrap = sig
+  val main_source : unit Prog.func
   val main : minfo Prog.func
   val prog : minfo Prog.prog
   val param : analyzer_param
@@ -6220,24 +6221,53 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       abs f_args
 
 
-  let set_bounds f_args abs =
-    List.fold_left (fun abs v ->
-        let ws = match v with
-          | Mvalue (AarrayEl (_,ws,_)) -> Some ws
-          | Mvalue (Avar gv) -> begin match gv.v_ty with
-              | Bty (U ws) -> Some ws
-              | _ -> None end
-          | _ -> None in
+  let bound_warning gv ws fmt =
+    Format.fprintf fmt
+      "We assume, as in the source program, that only the lower %d \
+       bits of %a are initially set"
+      (int_of_ws ws) (Printer.pp_var ~debug:false) gv 
+      
+  (* We set bounds for the arguments, according to the register sizes
+     in the source program. E.g., if a U32 register variable is
+     allocated to a U64 register, then we assume that it contains a
+     value in [0; 2^32 - 1].  We print a warning at the end of the
+     analysis, to make this assumption clear. *)
+  let set_bounds f_args source_f_args abs =
+    assert (List.length f_args = List.length source_f_args);
+    let abs, warns =
+      List.fold_left2 (fun (abs, warns) v source_v ->
+          let ws, warn = match v, source_v with
+            | Mvalue (AarrayEl (_,_ws,_)), _ ->
+              (* Export function cannot have arrays as input. *)
+              assert false (* Some ws *)
 
-        if ws <> None then
-          let int = word_interval Unsigned (oget ws |> int_of_ws)
-          and env = AbsDom.get_env abs in
-          let z_sexpr = Mtexpr.cst env (Coeff.Interval int)
-                        |> sexpr_from_simple_expr in
+            | Mvalue (Avar gv), Mvalue (Avar source_gv) ->
+              begin match gv.v_ty, source_gv.v_ty with
+                | Bty (U ws), Bty (U ws') ->
+                  if ws = ws'
+                  then Some ws, None
+                  else
+                    let () = assert (int_of_ws ws > int_of_ws ws') in
+                    Some ws', Some (bound_warning gv ws')
 
-          AbsDom.assign_sexpr abs v None z_sexpr
-        else abs)
-      abs f_args
+                | _ -> None, None end
+            | _ -> None, None in
+
+          let warns = match warn with
+            | None -> warns
+            | Some warn -> warn :: warns in
+          
+          if ws <> None then
+            let int = word_interval Unsigned (oget ws |> int_of_ws)
+            and env = AbsDom.get_env abs in
+            let z_sexpr = Mtexpr.cst env (Coeff.Interval int)
+                          |> sexpr_from_simple_expr in
+
+            (AbsDom.assign_sexpr abs v None z_sexpr, warns)
+          else (abs, warns))
+        (abs, []) f_args source_f_args
+    in
+    abs, warns
 
 
   let apply_glob globs abs =
@@ -6433,12 +6463,19 @@ end
 (* Abstract Interpreter *)
 (************************)
 
+type warnings = (Format.formatter -> unit) list
+    
+type analyse_res =
+  { violations : violation list;
+    print_var_interval : (Format.formatter -> mvar -> unit);
+    mem_ranges_printer : (Format.formatter -> unit -> unit);
+    warnings : warnings; }
+                     
 module AbsInterpreter (PW : ProgWrap) : sig
-  val analyze : unit -> violation list
-                        * (Format.formatter -> unit -> unit)
-                        * (Format.formatter -> mvar -> unit)
+  val analyze : unit -> analyse_res
 end = struct
-  
+
+  let source_main_decl = PW.main_source
   let main_decl,prog = PW.main, PW.prog
 
   let () = Prof.reset_all ()
@@ -6506,7 +6543,6 @@ end = struct
                   s_effects : side_effects;
                   violations : violation list }
 
-
   let init_state_init_args f_args state =
     List.fold_left (fun state v -> match v with
         | Mvalue at ->
@@ -6527,28 +6563,32 @@ end = struct
               env.s_glob f_decl.f_body })
       env fun_decls
 
-  let init_state : minfo func -> minfo prog -> astate =
-    fun main_decl (glob_decls, fun_decls) ->
+  let init_state : unit func -> minfo func -> minfo prog -> astate * warnings =
+    fun main_source main_decl (glob_decls, fun_decls) ->
       let mem_locs = List.map (fun x -> MemLoc x) main_decl.f_args in
       let env = init_env (glob_decls, fun_decls) mem_locs in
       let it = ItMap.empty in
 
       (* We add the initial variables *)
-      let f_args = fun_args ~expand_arrays:true main_decl in
-      (* If f_args is empty, we add a dummy variable to avoid having an
-         empty relational abstraction *)
-      let f_args = if f_args = [] then [dummy_mvar] else f_args in
-
+      let comp_f_args decl =
+        let f_args = fun_args ~expand_arrays:true decl in
+        (* If f_args is empty, we add a dummy variable to avoid having an
+           empty relational abstraction *)
+        if f_args = [] then [dummy_mvar] else f_args
+      in
+      let f_args        = comp_f_args main_decl in
+      let source_f_args = comp_f_args main_source in
+      
       let f_in_args = List.map in_cp_var f_args
       and m_locs = List.map (fun mloc -> MmemRange mloc ) env.m_locs in
 
       (* We set the offsets and ranges to zero, and bound the variables using
          their types. E.g. register of type U 64 is in [0;2^64]. *)
-      let abs = AbsDom.make (f_args @ m_locs) mem_locs
+      let abs, warns = AbsDom.make (f_args @ m_locs) mem_locs
                 |> AbsExpr.set_zeros (f_args @ m_locs)
                 (* We use the function location as location of the initial 
                    assignment of the main procedure's arguments. *)
-                |> AbsExpr.set_bounds f_args in
+                |> AbsExpr.set_bounds f_args source_f_args in
 
       (* We apply the global declarations *)
       let abs = AbsExpr.apply_glob glob_decls abs in
@@ -6568,17 +6608,18 @@ end = struct
             AbsDom.assign_sexpr abs y None sexpr)
           abs f_args f_in_args in
 
-      { it = it;
-        abs = abs;
-        cstack = [main_decl.f_name];
-        env = env;
-        prog = (glob_decls, fun_decls);
-        s_effects = [];
-        violations = [] }
+      let state = { it = it;
+                    abs = abs;
+                    cstack = [main_decl.f_name];
+                    env = env;
+                    prog = (glob_decls, fun_decls);
+                    s_effects = [];
+                    violations = []; } in
 
       (* We initialize the arguments. Note that for exported function, we 
          know that input arrays are initialized. *)
-      |> init_state_init_args (fun_args ~expand_arrays:true main_decl)
+      ( init_state_init_args (fun_args ~expand_arrays:true main_decl) state,
+        warns )
 
 
   (*-------------------------------------------------------------------------*)
@@ -7971,7 +8012,7 @@ end = struct
       let hndl = Sys.Signal_handle (fun _ -> print_stats (); raise UserInterupt) in
       let old_handler = Sys.signal Sys.sigint hndl in
 
-      let state = init_state main_decl prog in
+      let state, warnings = init_state source_main_decl main_decl prog in
 
       (* We abstractly evaluate the main function *)
       let final_st = aeval_gstmt main_decl.f_body state in
@@ -7986,15 +8027,19 @@ end = struct
       let () = debug (fun () -> print_stats ()) in
       let () = Sys.set_signal Sys.sigint old_handler in
 
-      ( final_st.violations,
-        mem_ranges_printer final_st main_decl,
-        print_var_interval final_st)
+      { violations = final_st.violations;
+        mem_ranges_printer = mem_ranges_printer final_st main_decl;
+        print_var_interval = print_var_interval final_st;
+        warnings = warnings; }
     with
     | Manager.Error _ as e -> hndl_apr_exc e
 end
 
 
 module type ExportWrap = sig
+  (* main function, before any compilation pass *)
+  val main_source : unit Prog.func
+      
   val main : unit Prog.func
   val prog : unit Prog.prog
 end
@@ -8002,7 +8047,9 @@ end
 module AbsAnalyzer (EW : ExportWrap) = struct
   
   module EW = struct
-      (* We ensure that all variable names are unique *)
+    let main_source = EW.main_source
+    
+    (* We ensure that all variable names are unique *)
     let main,prog = MkUniq.mk_uniq EW.main EW.prog
   end
 
@@ -8066,21 +8113,27 @@ module AbsAnalyzer (EW : ExportWrap) = struct
 
     match l_res with
     | [] -> raise (Failure "-safetyparam ill-formed (empty list of params)")
-    | (violations, _, print_mvar_interval) :: _->
+    | res :: _->
       let pp_mem_range fmt = match npt with
         | [] -> Format.fprintf fmt ""
-        | _ ->
-      Format.eprintf "@[<v 2>Memory ranges:@;%a@]@;"
-        (pp_list print_mvar_interval) npt in
+        | _ ->          
+          Format.eprintf "@[<v 2>Memory ranges:@;%a@]@;"
+            (pp_list res.print_var_interval) npt in
+
+      let pp_warnings fmt warns =
+        Format.fprintf fmt "@[<v 2>Warnings:@;%a@]@;"
+          (pp_list (fun fmt x -> x fmt)) warns in
       
       Format.eprintf "@.@[<v>%a@;\
+                      %a@;\
                       %t\
                       %a@]@."
-        pp_violations violations
+        pp_warnings res.warnings
+        pp_violations res.violations
         pp_mem_range
-        (pp_list (fun fmt (_,f,_) -> f fmt ())) l_res;
+        (pp_list (fun fmt res -> res.mem_ranges_printer fmt ())) l_res;
 
-      if violations <> [] then begin
+      if res.violations <> [] then begin
         Format.eprintf "@[<v>Program is not safe!@;@]@.";
         exit(2)
       end;
