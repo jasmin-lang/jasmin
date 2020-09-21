@@ -1,6 +1,9 @@
 (** Pipeline representation **)
 open Pipeline_program
 
+exception UnknownConfigFormat
+exception InstructionUnsupported of string
+
 type pipeline = string
 
 (* The order, from head to tail, defines the priority, from high to low *)
@@ -13,7 +16,6 @@ type processor = (step array) PipelineMap.t
 
 (* Current state *)
 val current_cycle : int ref
-val data_file : out_channel ref
 val alias_analysis : operand -> operand -> bool
 
 (* Pipeline managment *)
@@ -46,8 +48,6 @@ type instrumentation_program =
   | ICond of instrumentation_program * instrumentation_program
   | ILoop of instrumentation_program
 
-val open_new_data : string -> unit
-val close_data : unit -> unit
 val instrument : program -> processor -> instrumentation_program
 val display : instrumentation_program -> unit
 val display_checkpoints : instrumentation_program -> unit

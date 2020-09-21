@@ -41,7 +41,7 @@ let instr_to_string i =
 
 let rec store_prgm p = match p with
   | Skip -> "\"Skip\""
-  | Bloc (_, l) -> "[" ^ List.fold_left (fun buf -> fun i -> buf ^ "\"" ^ instr_to_string i ^ "\", ") "" l ^ "]"
+  | Bloc (_, l) -> "Bloc [" ^ List.fold_left (fun buf -> fun i -> buf ^ "\"" ^ instr_to_string i ^ "\", ") "" l ^ "]"
   | Seq l -> "[" ^ List.fold_left (fun buf -> fun p' -> buf ^ (store_prgm p') ^ ", ") "" l ^ "]"
   | Cond (c :: _, t, e) -> "{ if: \"" ^ (operand_to_string c) ^ "\", then:" ^ (store_prgm t) ^ ", else: " ^ (store_prgm e) ^ "}"
   | Cond ([], t, e) -> "{ if: \"\", then:" ^ (store_prgm t) ^ ", else: " ^ (store_prgm e) ^ "}"

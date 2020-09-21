@@ -145,7 +145,7 @@ let blockify c =
   let in_bloc = ref false in
   let end_current_bloc () =
       if !current_bloc <> []
-      then blocs := !current_bloc :: !blocs
+      then blocs := (List.rev !current_bloc) :: !blocs
   in
   let aux i =
     if is_atomic i then begin
@@ -168,7 +168,7 @@ let blockify c =
   in
   List.iter aux c;
   end_current_bloc ();
-  !blocs
+  List.rev !blocs
 
 (* Returns an atomic instruction for the analyzer corresponding to the assign
    instruction x = e at pos l *)
@@ -225,9 +225,10 @@ let rec gi_to_pipeline i =
 
   | Cwhile(_, c, e, c') ->
       let _, reade = op_read_expr l e in
-      let precond = cblock_to_pipeline c in
+      let precond_pre = cblock_to_pipeline c in
       let body = cblock_to_pipeline c' in
-      precond @ [ PP.Loop (reade, PP.Seq (body @ precond))]
+      let precond_in = cblock_to_pipeline c in
+      precond_pre @ [ PP.Loop (reade, PP.Seq (body @ precond_in))]
 
   | Ccall(_, _, _, _) ->
     not_supported_error l "Function call not supported"
@@ -335,8 +336,8 @@ let rec instr_cbloc c cmin cmax config =
     | Cwhile(t, c, e, c') -> begin
         (* If there is a precondition, we put its cost first
            and we are no longer in a bloc *)
-        let precond_cost =
-          if c <> []
+        let precond_cost_pre =
+          if c <> [] && not !in_bloc
           then begin
             in_bloc := false;
             let b = get_fresh_checkpoint () in
@@ -355,14 +356,28 @@ let rec instr_cbloc c cmin cmax config =
         let instr3 = get_cost_incr_instr 1 i cmin in
         let instr4 = get_cost_incr_instr 5 i cmax in
         (* First the body and precondition, possibly in the same bloc *)
-        let body = List.flatten (List.map aux c') in
         in_bloc := false;
-        precond_cost @ [instr1; instr2] @ [
+        let body = List.flatten (List.map aux c') in
+        (* *)
+        let precond_cost_in =
+          if c <> []
+          then begin
+            let b = get_fresh_checkpoint () in
+            let vmin = (fst config.(b)) in
+            let vmax = (snd config.(b)) in
+            let instr = get_cost_incr_instr vmin i cmin in
+            let instr' = get_cost_incr_instr vmax i cmax in
+            [instr; instr']
+          end
+          else []
+        in
+        in_bloc := false;
+        precond_cost_pre @ [instr1; instr2] @ [
           {
           i_desc = Cwhile(t,
               c,
               e,
-              [instr3; instr4] @ body @ c
+              precond_cost_in @ [instr3; instr4] @ body
             );
           i_loc = i.i_loc;
           i_info = i.i_info
@@ -417,10 +432,6 @@ let instrument_prog (gd, funcs) =
   let functions = List.map fun_to_pipeline funcs in
   Format.eprintf "Program functions : %d@." (List.length functions);
   let current_program = List.hd functions in
-    (* For information *)
-    Format.printf "All instructions needed by this program:\n@[<h>";
-    List.iter (fun i -> Format.printf "%s@ " i) (PP.get_all_instr_in current_program);
-    Format.printf "@]@ ";
   let proc = Pipeline.new_processor () in
   let instr_blocs = Pipeline.instrument current_program proc in
   let checkpoints_bounds = extract_checkpoints_values instr_blocs in

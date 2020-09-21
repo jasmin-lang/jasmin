@@ -410,5 +410,21 @@ let main () =
         Typing.pp_tyerror code;
       exit 1
 
+  | Pipeline_instrumentation.NotSupportedError (loc, msg) ->
+      Format.eprintf "%s: unsupported feature error: %s\n%!"
+        (Location.tostring loc)
+        msg;
+      exit 1
+
+  | Pipeline_instrumentation.LogicalError msg ->
+      Format.eprintf "The pipeline printer has made a logical error: %s\n%!"
+        msg;
+      exit 1
+
+  | Pipeline.InstructionUnsupported msg ->
+      Format.eprintf "The pipeline simulator configuration file is incomplete: %s\n%!"
+        msg;
+      exit 1
+
 (* -------------------------------------------------------------------- *)
 let () = main ()
