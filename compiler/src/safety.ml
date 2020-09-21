@@ -5704,6 +5704,10 @@ module ItMap = Map.Make(ItKey)
 (* Abstract Expression Interpreter *)
 (***********************************)
 
+let string_of_sign = function
+  | Unsigned -> "Unsigned"
+  | Signed -> "Signed"
+  
 (* Builds and check properties of expressions for the abstract domain [AbsDom]. *)
 module AbsExpr (AbsDom : AbsNumBoolType) = struct
   (* Return true iff the linear expression overflows *)
@@ -5715,6 +5719,12 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
   let wrap_if_overflow abs e sign ws =
     if linexpr_overflow abs e sign ws then
+      let () = debug (fun () ->
+          Format.eprintf "@[<hv 0>Warning: (sub-)expression@ @[%a@]@ \
+                          overflowed U%d (as %sx)@]@."
+            Mtexpr.print_mexpr e.Mtexpr.mexpr
+            ws
+            (string_of_sign sign)) in
       wrap_lin_expr sign ws e
     else e
 
