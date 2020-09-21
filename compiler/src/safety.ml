@@ -1786,10 +1786,6 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
           (Array.make 0 (Var.of_string "")) in
 
     match v with
-    (* | Mvalue (Avar at) | MvarOffset at ->
-     *   add_single (Mvalue (Avar at)) env
-     *   |> add_single (MvarOffset at) *)
-
     | Mvalue (AarrayEl _ ) ->
       List.fold_left
         (fun x y -> add_single y x) env
@@ -2084,7 +2080,7 @@ module type VDomWrap = sig
      An array element must have the same domain that its blasted component. 
      The second argument is a state, which allows to change a variable domain
      during the analysis. 
-     Only [Mvalue (Avar _)] can change domain. *)
+     Only [Mvalue (Avar _)] and [MvarOffset _] can change domain. *)
   val vdom : mvar -> dom_st -> v_dom
 
   (* Initial state. *)
@@ -2135,6 +2131,10 @@ let is_var = function
   | Mvalue (Avar _) -> true
   | _ -> false
 
+let is_offset = function
+  | MvarOffset _ -> true
+  | _ -> false
+
 (* For now we fixed the domains, and we use only two of them, one non-relational
    and one Ppl. Still, we generalized to n different domains whenever possible
    to help future possible extentions. *)
@@ -2167,13 +2167,10 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
   let set_rel t v =
     match vdom v t.dom_st with
     | Ppl 0 -> t
-    (* | None ->
-     *   assert (not (is_in_dom_nrd v (Nrd 0) t) &&
-     *           not (is_in_dom_ppl v (Ppl 0) t)); 
-     *   { t with dom_st = Mm.add v (Ppl 0) t.dom_st; } *)
+
     | Nrd 0 ->
-      (* We change dynamically the packing only for variables. *)
-      assert (is_var v);
+      (* We change dynamically the packing only for variables and offsets. *)
+      assert (is_var v || is_offset v);
       assert (not (is_in_dom_ppl v (Ppl 0) t)); 
       let anrd = Mdom.find (Nrd 0) t.nrd in
       let env = NonRel.get_env anrd in
@@ -2196,13 +2193,10 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
   let set_unrel t v =
     match vdom v t.dom_st with
     | Nrd 0 -> t
-    (* | None ->
-     *   assert (not (is_in_dom_nrd v (Nrd 0) t) &&
-     *           not (is_in_dom_ppl v (Ppl 0) t)); 
-     *   { t with dom_st = Mm.add v (Nrd 0) t.dom_st; } *)
+
     | Ppl 0 ->
-      (* We change dynamically the packing only for variables. *)
-      assert (is_var v);
+      (* We change dynamically the packing only for variables and offsets. *)
+      assert (is_var v || is_offset v);
       assert (not (is_in_dom_nrd v (Nrd 0) t)); 
       let appl = Mdom.find (Ppl 0) t.ppl in
       let env = PplDom.get_env appl in
@@ -3509,12 +3503,12 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
         | Some (Nrd 0), Some (Ppl 0)
         | Some (Ppl 0), Some (Nrd 0) ->
           debug (fun () -> Format.eprintf "Dynamic partitioning: \
-                                           raised %a's precision@."
+                                           lowered %a's precision@."
                     pp_mvar v);         
-          (* We change dynamically the packing only for variables. *)
-          assert (is_var v);
-          (* We default to the more precise abstraction. *)
-          Some (Ppl 0)
+          (* We change dynamically the packing only for variables or offsets. *)
+          assert (is_var v || is_offset v);
+          (* We default to the less precise abstraction. *)
+          Some (Nrd 0)
 
         | Some d1, Some d2 when d1 = d2 -> Some d1
         | _, _ -> assert false) dom_st dom_st'
@@ -3554,8 +3548,15 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
     Sv.union v_rel v_while
 
   
-  (* [v] is a pointer variable iff there is a direct flow from the intersection
+  (* [v] is a SSA pointer variable iff there is a direct flow from the intersection
      of [PW.main.f_args] and [Glob_options.pointers] to [v]. *)
+  let ssa_pt_ini =
+    match PW.param.pointers with
+    | None -> ssa_main.f_args |> Sv.of_list
+    | Some v_pt ->
+      List.filter (fun v -> List.mem v.v_name v_pt) ssa_main.f_args
+      |> Sv.of_list
+
   let pt_ini =
     match PW.param.pointers with
     | None -> PW.main.f_args |> Sv.of_list
@@ -3563,27 +3564,26 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
       List.filter (fun v -> List.mem v.v_name v_pt) PW.main.f_args
       |> Sv.of_list
 
-  let v_pt : Sv.t = flow_to dp pt_ini
+  let ssa_v_pt : Sv.t = flow_to dp ssa_pt_ini
       
   let dom_st_init = List.fold_left2 (fun dom_st v ssa_v ->
-      if Sv.mem ssa_v ssa_v_rel then
-        let mv = Mvalue (Avar v) in
-        Mm.add mv (Ppl 0) dom_st
-      else
-        let mv = Mvalue (Avar v) in
-        Mm.add mv (Nrd 0) dom_st
+      (* Value entry *)
+      let dom_st = if Sv.mem ssa_v ssa_v_rel then
+          let mv = Mvalue (Avar v) in
+          Mm.add mv (Ppl 0) dom_st
+        else
+          let mv = Mvalue (Avar v) in
+          Mm.add mv (Nrd 0) dom_st
+      in
+      (* Pointer (offset) entry *)
+      if Sv.mem ssa_v ssa_v_pt then
+          let mv = MvarOffset v in
+          Mm.add mv (Ppl 0) dom_st
+        else
+          let mv = MvarOffset v in
+          Mm.add mv (Nrd 0) dom_st
     ) Mm.empty PW.main.f_args ssa_main.f_args    
 
-
-  (* (\* REM *\)
-   * let pp_rel_vars fmt rel =
-   *   (pp_list (Printer.pp_var ~debug:true)) fmt
-   *     (List.sort (fun v v' -> Stdlib.compare v.v_name v'.v_name)
-   *        (Sv.elements rel))
-   * 
-   * (\* REM *\)
-   * let () = Format.eprintf "ssa_v_rel: %a@." pp_rel_vars ssa_v_rel *)
-  
   (* We build a mapping from locations (where assignments take place) to
      pairs of [v,dom] where [v] is the left value, and [dom] states
      whether [v] must be handled precisely or not. *)
@@ -3593,9 +3593,17 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
     | Lvar v, Lvar ssa_v ->
       let v, ssa_v = L.unloc v, L.unloc ssa_v in
       assert (v.v_name = ssa_v.v_name);
-      if Sv.mem ssa_v ssa_v_rel
-      then Mint.add info.i_instr_number (v, Ppl 0) lmap
-      else Mint.add info.i_instr_number (v, Nrd 0) lmap
+      (* We raise the value of [v] if needed *)
+      let mv = Mvalue (Avar v) in
+      let rel =
+        if Sv.mem ssa_v ssa_v_rel then [mv, Ppl 0] else [mv, Nrd 0]  in
+
+      (* We raise the offset of [v] if needed *)
+      let mv_pt = MvarOffset v in
+      let pt =
+        if Sv.mem ssa_v ssa_v_pt then [mv_pt, Ppl 0] else [mv_pt, Nrd 0] in
+
+      Mint.add info.i_instr_number (rel @ pt) lmap
 
     | _ -> assert false
 
@@ -3630,8 +3638,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   let lmap = build_lmap Mint.empty PW.main.f_body ssa_main.f_body
 
 
-  let print_update v gv v' dom dom_st =    
-    assert (gv.v_name = v'.v_name);
+  let print_update v dom dom_st =    
     debug (fun () -> match Mm.find v dom_st with 
         | exception Not_found ->
           Format.eprintf "Dynamic partitioning: set %a to %a@;"
@@ -3646,10 +3653,15 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   let dom_st_update dom_st v info =
     try
       match v with
-      | Mvalue (Avar gv) ->
-        let v', dom = Mint.find info.i_instr_number lmap in
-        let () = print_update v gv v' dom dom_st in          
-        Mm.add v dom dom_st
+      | MvarOffset _ | Mvalue (Avar _) ->
+        let entries = Mint.find info.i_instr_number lmap in
+        begin
+          try
+            let dom = List.assoc v entries in
+            let () = print_update v dom dom_st in          
+            Mm.add v dom dom_st
+          with Not_found -> dom_st
+        end
       | _ -> dom_st
     with Not_found -> dom_st
 
@@ -3660,6 +3672,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
 
     | MNumInv _ -> Ppl 0        (* Numerical invariant must be relational *)
 
+    | MvarOffset _
     | Mvalue (Avar _) ->
       begin
         try Mm.find v dom_st
@@ -3668,28 +3681,35 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
 
     | MinValue v ->
       if Sv.mem v sv_ini then Ppl 0 else Nrd 0
-
-    | MvarOffset v
+      
     | MmemRange (MemLoc v) ->
-      if Sv.mem v v_pt then Ppl 0 else Nrd 0
+      if Sv.mem v pt_ini then Ppl 0 else Nrd 0
 
     | Mglobal _
     | Mvalue (AarrayEl _)
     | Mvalue (Aarray _) -> Nrd 0
 
   let print_lmap fmt lmap =
-    let bindings =
-      List.sort (fun (_, (_,d)) (_, (_,d')) -> - (Stdlib.compare d d'))
-        (Mint.bindings lmap) in
+    let pp_one fmt (v,d) =
+      Format.fprintf fmt "set %a to %a"
+        pp_mvar v
+        pp_dom d in
+
+    (* Ordering for printing. *)
+    let my_compare (_,l) (_,l') =
+      let nrd_l  = List.for_all (fun (_,d) -> d = Nrd 0) l
+      and nrd_l' = List.for_all (fun (_,d) -> d = Nrd 0) l' in
+      if nrd_l && not nrd_l' then -1
+      else if not nrd_l && nrd_l' then 1
+      else 0 in
+    let bindings = List.sort my_compare (Mint.bindings lmap) in
     Format.fprintf fmt "@[<v 2>Dynamic packing table (%d entries):@;%a@]"
       (Mint.cardinal lmap)
       (pp_list
-         (fun fmt (i_nb, (v,d)) ->
-            Format.fprintf fmt "instr nb %d -> set %a to %a"
+         (fun fmt (i_nb, l) ->
+            Format.fprintf fmt "instr nb %d -> @[<v 0>%a@]"
               i_nb
-              (* L.pp_sloc l *)
-              (Printer.pp_var ~debug:false) v
-              pp_dom d))
+              (pp_list pp_one) l))
       bindings
 
   let pp_rel_vars fmt rel =
@@ -3700,12 +3720,12 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   let () = debug(fun () ->
       Format.eprintf "@[<v 0>\
                       @[<hov 2>%d relational variables (initially):@ @,%a@]@;\
-                      @[<hov 2>%d pointers:@ @,%a@]@;\
+                      @[<hov 2>%d pointers (initially):@ @,%a@]@;\
                       %a@]@."
         (Sv.cardinal sv_ini)
         pp_rel_vars sv_ini
-        (Sv.cardinal v_pt)
-        pp_rel_vars v_pt
+        (Sv.cardinal pt_ini)
+        pp_rel_vars pt_ini
         print_lmap lmap)
 end
 
@@ -6231,7 +6251,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       | [mv] -> MLvar (loc, mv)
       | _ as mvs -> MLvars (loc, mvs)
 
-  let apply_offset_expr abs outmv inv offset_expr =
+  let apply_offset_expr abs outmv info inv offset_expr =
     match ty_gvar_of_mvar outmv with
     | None -> abs
     | Some outv ->
@@ -6246,7 +6266,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         Mtexpr.binop Texpr1.Add inv_os wrap_off_e
         |> sexpr_from_simple_expr in
 
-      AbsDom.assign_sexpr abs (MvarOffset outv) None sexpr
+      AbsDom.assign_sexpr abs (MvarOffset outv) info sexpr
 
   let aeval_top_offset abs outmv = match ty_gvar_of_mvar outmv with
     | Some outv -> AbsDom.forget_list abs [MvarOffset outv]
@@ -6260,16 +6280,17 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     else false
 
   (* Evaluate the offset abstraction *)
-  let aeval_offset abs ws_o outmv e = match e with
+  let aeval_offset abs ws_o outmv info e = match e with
     | Pvar y ->
       if valid_offset_var abs ws_o y then
-        apply_offset_expr abs outmv (L.unloc y) (pcast U64 (Pconst(B.of_int 0)))
+        let o = pcast U64 (Pconst(B.of_int 0)) in
+        apply_offset_expr abs outmv info (L.unloc y) o
       else aeval_top_offset abs outmv
 
     | Papp2 (op2,el,er) -> begin match op2,el with
         | E.Oadd ( E.Op_w U64), Pvar y ->
           if valid_offset_var abs ws_o y then
-            apply_offset_expr abs outmv (L.unloc y) er
+            apply_offset_expr abs outmv info (L.unloc y) er
           else aeval_top_offset abs outmv
 
         | _ -> aeval_top_offset abs outmv end
@@ -6347,7 +6368,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         let abs = AbsDom.assign_ptr_expr abs mvar ptr_expr in
 
         (* Offset abstraction *)
-        let abs = aeval_offset abs out_ty mvar e in
+        let abs = aeval_offset abs out_ty mvar (Some loc) e in
         
         a_init_mlv_no_array out_mvar abs
 
@@ -6707,9 +6728,9 @@ end = struct
               | _, _ -> assert false in
 
             let s_expr = sexpr_from_simple_expr expr in
-            (* The location of [mlv] does not matter here,
-               since the flow-sensitive packing heuristic we use 
-               only makes sense for fully inlined Jasmin programs *)
+            (* We use [None] as minfo here, since the flow-sensitive
+               packing heuristic we use only makes sense for fully
+               inlined Jasmin programs *)
             let abs = AbsDom.assign_sexpr abs mlv None s_expr in
 
             (* Points-to abstraction *)
@@ -6721,7 +6742,10 @@ end = struct
               | None -> abs
               | Some rv ->
                 let lrv = L.mk_loc L._dummy rv in
-                AbsExpr.aeval_offset abs out_ty mlv (Pvar lrv) in
+                (* We use [None] as minfo here, since the flow-sensitive
+                   packing heuristic we use only makes sense for fully
+                   inlined Jasmin programs *)
+                AbsExpr.aeval_offset abs out_ty mlv None (Pvar lrv) in
 
             AbsExpr.a_init_mlv_no_array mlvo abs
 
