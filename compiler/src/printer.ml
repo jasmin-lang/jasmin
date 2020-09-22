@@ -323,6 +323,10 @@ let pp_stmt ~debug fmt i =
   let pp_var = pp_var ~debug in
   pp_gc pp_noinfo pp_ty pp_var fmt i
 
+let pp_istmt ~debug pp_info fmt i =
+  let pp_var = pp_var ~debug in
+  pp_gc pp_info pp_ty pp_var fmt i
+
 let pp_ifunc ~debug pp_info fmt fd =
   let pp_var = pp_var ~debug in
   pp_fun ~pp_info pp_var fmt fd

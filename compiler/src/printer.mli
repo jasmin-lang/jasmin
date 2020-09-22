@@ -37,6 +37,9 @@ val pp_instr : debug:bool -> Format.formatter -> 'info instr -> unit
 
 val pp_stmt  : debug:bool -> Format.formatter -> 'info stmt  -> unit
 
+val pp_istmt  : debug:bool -> (Format.formatter -> 'info -> unit) ->
+                Format.formatter -> 'info stmt  -> unit
+
 val pp_ifunc : debug:bool -> (Format.formatter -> 'info -> unit) ->
                Format.formatter -> 'info func -> unit
 

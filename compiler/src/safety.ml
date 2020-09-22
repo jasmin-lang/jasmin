@@ -5805,7 +5805,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     if linexpr_overflow abs e sign ws then
       let () = debug (fun () ->
           Format.eprintf "@[<hv 0>Warning: (sub-)expression@ @[%a@]@ \
-                          overflowed U%d (as %sx)@]@."
+                          overflowed U%d (as %s)@]@."
             Mtexpr.print_mexpr e.Mtexpr.mexpr
             ws
             (string_of_sign sign)) in
@@ -6547,12 +6547,69 @@ end
 (************************)
 
 type warnings = (Format.formatter -> unit) list
-    
+
+
+(*---------------------------------------------------------------*)
+module Overlap = struct                     
+  type overlap = { program_point    : int;
+                   never_overlaps   : Sint.t;
+                   always_overlaps  : Sint.t;
+                   overlaps_checked : Sint.t; }
+
+  let merge o o' =
+    assert (o.program_point = o'.program_point);
+    { program_point    = o.program_point;
+      never_overlaps   = Sint.inter o.never_overlaps  o'.never_overlaps;
+      always_overlaps  = Sint.inter o.always_overlaps o'.always_overlaps;
+      overlaps_checked = Sint.union o.overlaps_checked o'.overlaps_checked}
+
+  let pp_overlap fmt o =
+    let pp_pp fmt i =
+      if i = -2
+      then  Format.fprintf fmt "[Return]"
+      else Format.fprintf fmt "%d" i in
+
+    let pp_set s fmt si =
+      if Sint.is_empty si then ()
+      else
+        Format.fprintf fmt "@[<hov 2>%s: %a@]@;" s
+          (pp_list (fun fmt i -> Format.fprintf fmt "%d" i))
+          (Sint.elements si)
+    in
+
+    if Sint.is_empty o.overlaps_checked then
+      Format.fprintf fmt "%a: "
+        pp_pp o.program_point
+    else
+      Format.fprintf fmt "@;@[<v 0>overlap for %a:@;%a%a%a@]"
+        pp_pp o.program_point
+        (pp_set "Never") o.never_overlaps
+        (pp_set "Always") o.always_overlaps
+        (pp_set "Program point in the block") o.overlaps_checked
+end
+open Overlap
+
+type annot_prog =
+  { annot_stmt : (ty, (minfo * overlap)) Prog.gstmt;
+    annot_return : overlap; }
+
+let pp_annot_prog fmt p =
+  let pp_ret_info fmt =
+    Overlap.pp_overlap fmt p.annot_return in
+  
+  let pp_info fmt (_,overlap) =
+    Overlap.pp_overlap fmt overlap in
+  
+  Format.fprintf fmt "%a@;%t"    
+  (Printer.pp_istmt ~debug:false pp_info) p.annot_stmt
+  pp_ret_info
+
 type analyse_res =
   { violations : violation list;
     print_var_interval : (Format.formatter -> mvar -> unit);
     mem_ranges_printer : (Format.formatter -> unit -> unit);
-    warnings : warnings; }
+    warnings : warnings;
+    annotated_prog : annot_prog }
                      
 module AbsInterpreter (PW : ProgWrap) : sig
   val analyze : unit -> analyse_res
@@ -6616,31 +6673,6 @@ end = struct
     let get_in t = t.fa_in
   end
 
-
-  (*---------------------------------------------------------------*)
-  module Overlap = struct                     
-    type overlap = { program_point   : int;
-                     never_overlaps  : Sint.t;
-                     always_overlaps : Sint.t; }
-
-    let merge o o' =
-      assert (o.program_point = o'.program_point);
-      { program_point   = o.program_point;
-        never_overlaps  = Sint.inter o.never_overlaps  o'.never_overlaps;
-        always_overlaps = Sint.inter o.always_overlaps o'.always_overlaps; }
-
-    let pp_overlap fmt o =
-      Format.fprintf fmt "@[<v 0>\
-                          @[<hov 2>Never: %a@]@;\
-                          @[<hov 2>Always: %a@]@;\
-                          @]"
-        (pp_list (fun fmt i -> Format.fprintf fmt "%d" i))
-        (Sint.elements o.never_overlaps)
-        (pp_list (fun fmt i -> Format.fprintf fmt "%d" i))
-        (Sint.elements o.always_overlaps)
-  end
-  open Overlap
-  
   (*---------------------------------------------------------------*)
   (* [blk_mem_accesses] is a map from instruction numbers in the current block, 
      to the list of memory accesses at this instruction.
@@ -6800,13 +6832,13 @@ end = struct
         and l', r' = mk_offsets abs m' in
         (* [l; r[ ∩ [l'; r'[ ≠ ∅ 
            if and only if
-           (l ≤ l' ∧ l' ≤ r) ∨ (l' ≤ l ∧ l ≤ r')
+           (l ≤ l' ∧ l' < r) ∨ (l' ≤ l ∧ l < r')
            if and only if
-           (0 ≤ l' - l ∧ 0 ≤ r - l') ∨ (0 ≤ l - l' ∧ 0 ≤ r' - l) *)
+           (0 ≤ l' - l ∧ 0 < r - l') ∨ (0 ≤ l - l' ∧ 0 < r' - l) *)
         let l'_m_l = Mtcons.make (Mtexpr.binop Texpr1.Sub l' l) Tcons1.SUPEQ
         and l_m_l' = Mtcons.make (Mtexpr.binop Texpr1.Sub l l') Tcons1.SUPEQ
-        and r_m_l' = Mtcons.make (Mtexpr.binop Texpr1.Sub r l') Tcons1.SUPEQ
-        and r'_m_l = Mtcons.make (Mtexpr.binop Texpr1.Sub r' l) Tcons1.SUPEQ
+        and r_m_l' = Mtcons.make (Mtexpr.binop Texpr1.Sub r l') Tcons1.SUP
+        and r'_m_l = Mtcons.make (Mtexpr.binop Texpr1.Sub r' l) Tcons1.SUP
         in
         let overlap    = BOr (BAnd (BLeaf l'_m_l, BLeaf r_m_l'),
                               BAnd (BLeaf l_m_l', BLeaf r'_m_l)) in
@@ -6838,9 +6870,10 @@ end = struct
       let abs = AbsDom.assign_sexpr abs (MmemAccess ma) None sexpr in
       let state = { state with abs = abs } in
 
-      let overlap = { program_point   = nb;
-                      never_overlaps  = Sint.empty;
-                      always_overlaps = Sint.empty; } in
+      let overlap = { program_point    = nb;
+                      never_overlaps   = Sint.empty;
+                      always_overlaps  = Sint.empty;
+                      overlaps_checked = Sint.empty; } in
       let overlap = Mint.fold (fun nb' mas overlap ->
           let os = List.map (check_overlap abs ma) mas in
           let never  = List.for_all (fun (never,_) -> never) os
@@ -6853,7 +6886,8 @@ end = struct
             always_overlaps =
               if always
               then Sint.add nb' overlap.always_overlaps
-              else overlap.always_overlaps;}
+              else overlap.always_overlaps;
+            overlaps_checked = Sint.add nb' overlap.overlaps_checked; }
         ) state.blk_mem_accesses overlap in
 
       (* Merge with the previously known overlaps. *)
@@ -6865,14 +6899,18 @@ end = struct
       let blk_mem_accesses =
         Mint.add nb (ma :: nb_mem_accesses) state.blk_mem_accesses in
       { state with overlaps = Mint.add nb overlap state.overlaps;
-                   blk_mem_accesses  =blk_mem_accesses; }
+                   blk_mem_accesses = blk_mem_accesses; }
 
-  
+
+  let empty_overlap nb =
+    { program_point    = nb;
+      never_overlaps   = Sint.empty;
+      always_overlaps  = Sint.empty;
+      overlaps_checked = Sint.empty; } 
+
   (* We have no information on possible overlaps. *)
   let set_empty state nb =
-    let set_empty = { program_point = nb;
-                      never_overlaps = Sint.empty;
-                      always_overlaps = Sint.empty; } in
+    let set_empty = empty_overlap nb in
     { state with overlaps = Mint.add nb set_empty state.overlaps; }
     
   (* Update the state with the abstract memory range for memory accesses
@@ -6943,6 +6981,41 @@ end = struct
     let unsafe = vsc @ mvsc
                  |> List.map (fun x -> (loc,x)) in
     add_violations state unsafe
+
+
+  (*-------------------------------------------------------------------------*)
+      
+  let annot_prog state prog =    
+    let rec annot_i i =
+      let nb = i.i_info.i_instr_number in
+      let overlap =
+        try Mint.find nb state.overlaps
+        with Not_found -> empty_overlap nb in
+      ( { i_desc = annot_ir i.i_desc;
+          i_info = ( i.i_info, overlap );
+          i_loc = i.i_loc; } : (ty, minfo * Overlap.overlap) Prog.ginstr)
+
+    and annot_ir = function
+      | Cif(e, stmt1, stmt2) ->
+        let stmt1, stmt2 = annot_stmt stmt1, annot_stmt stmt2 in
+        Cif (e, stmt1, stmt2)
+      | Cwhile (a,stmt1, e, stmt2) ->
+        let stmt1, stmt2 = annot_stmt stmt1, annot_stmt stmt2 in
+        Cwhile (a,stmt1, e, stmt2)
+      | Ccall(_, _, _, _) -> assert false (* we are after inlining. *)
+      | Cfor (i, r, stmt) ->
+        let stmt = annot_stmt stmt in
+        Cfor (i, r, stmt)
+      | Cassgn _ | Copn _ as i -> i
+
+  and annot_stmt stmt = List.map annot_i stmt
+  in
+
+  (* We use program point -2 as a default for the return. *)
+  let annot_ret =
+    try Mint.find (-2) state.overlaps with Not_found -> empty_overlap (-2) in
+  { annot_stmt   = List.map annot_i prog;
+    annot_return = annot_ret; }
 
       
   (*-------------------------------------------------------------------------*)
@@ -8280,6 +8353,8 @@ end = struct
       let nb = -2 in
       let final_st = check_safety final_st nb (InReturn main_decl.f_name) conds in
 
+      let annot_p = annot_prog final_st main_decl.f_body in
+      
       debug(fun () -> Format.eprintf "%a" pp_violations final_st.violations);
       print_mem_ranges final_st;
 
@@ -8289,7 +8364,8 @@ end = struct
       { violations = final_st.violations;
         mem_ranges_printer = mem_ranges_printer final_st main_decl;
         print_var_interval = print_var_interval final_st;
-        warnings = warnings; }
+        warnings = warnings;
+        annotated_prog = annot_p; }
     with
     | Manager.Error _ as e -> hndl_apr_exc e
 end
@@ -8369,7 +8445,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
             let param = p
           end) in
         AbsInt.analyze ()) ps in
-
+ 
     match l_res with
     | [] -> raise (Failure "-safetyparam ill-formed (empty list of params)")
     | res :: _->
@@ -8384,10 +8460,12 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           Format.fprintf fmt "@[<v 2>Warnings:@;%a@]@;"
             (pp_list (fun fmt x -> x fmt)) warns in
       
-      Format.eprintf "@.@[<v>%a@;\
+      Format.eprintf "@.@[<v 0>*** Annotated program:@;@[<v 0>%a@]@;\
+                      %a@;\
                       %a@;\
                       %t\
                       %a@]@."
+        pp_annot_prog res.annotated_prog
         pp_warnings res.warnings
         pp_violations res.violations
         pp_mem_range
