@@ -112,6 +112,9 @@ module Aparam = struct
   (* Dynamic variable packing. *)
   let dynamic_packing = true    (* default: false *)
 
+  (* Check overlaps of memory accesses. *)
+  let check_overlaps = true
+
   (***********************)
   (* Printing parameters *)
   (***********************)
@@ -329,6 +332,50 @@ end
 (* Memory locations *)
 type mem_loc = MemLoc of ty gvar
 
+module MemAccess : sig
+  type kind = Load | Store
+              
+  type mem_access = { line_number : int;
+                      size        : wsize;                      
+                      var         : Prog.var;
+                      offset_expr : Prog.expr;
+                      kind        : kind;
+                      base_var    : mem_loc option; }
+
+  type t
+
+  val make : mem_access -> t
+  val unwrap : t -> mem_access 
+  val to_string   : t -> string
+  val pp_kind : Format.formatter -> kind -> unit
+end = struct
+
+  type kind = Load | Store
+              
+  type mem_access = { line_number : int;
+                      size        : wsize;
+                      var         : Prog.var;
+                      offset_expr : Prog.expr;
+                      kind        : kind;
+                      base_var    : mem_loc option; }
+
+  type t = { uid : int; content : mem_access option }
+      
+  let make =
+    let cpt = ref (-1) in
+    fun ma ->
+      incr cpt;
+      let k = { uid = !cpt; content = Some ma; } in
+      k
+
+  let unwrap t = oget t.content
+  let to_string t = string_of_int t.uid
+  let pp_kind fmt = function
+    | Load  -> Format.fprintf fmt "Load"
+    | Store -> Format.fprintf fmt "Store"
+end
+
+
 type atype =
   | Avar of ty gvar                     (* Variable *)
   | Aarray of ty gvar                   (* Array *)
@@ -343,6 +390,7 @@ type mvar =
   | MvarOffset of ty gvar       (* Variable offset *)
   | MNumInv of L.t              (* Numerical Invariants *)
   | MmemRange of mem_loc        (* Memory location range *)
+  | MmemAccess of MemAccess.t   (* Offset of an old memory access *)
 
 (* Must the variable [v] be handled as a weak variable. *)
 let weak_update v = 
@@ -355,9 +403,10 @@ let weak_update v =
 
   match v with
   | Mglobal _ -> false (* global variable are read-only. *)
+  | MmemAccess _
   | Temp _
   | MNumInv _ -> false
-
+    
   | Mvalue at -> begin match at with
       | Avar gv | Aarray gv | AarrayEl (gv,_,_) -> weak_update_kind gv.v_kind
     end
@@ -386,6 +435,7 @@ let string_of_mvar = function
   | MvarOffset s -> "o_" ^ s.v_name
   | MNumInv lt -> "ni_" ^ string_of_int (fst lt.loc_start)
   | MmemRange loc -> "mem_" ^ string_of_mloc loc
+  | MmemAccess ma -> "ma_" ^ MemAccess.to_string ma
 
 let pp_mvar fmt v = Format.fprintf fmt "%s" (string_of_mvar v)
 
@@ -428,7 +478,8 @@ let ty_mvar = function
   | MvarOffset _ -> Bty Int
   | MNumInv _ -> Bty Int
   | MmemRange _ -> Bty Int
-
+  | MmemAccess _ -> Bty Int
+                      
 (* We log the result to be able to inverse it. *)
 let log_var = Hashtbl.create 16
     
@@ -531,6 +582,7 @@ module Pa : sig
   val print_dp  : Format.formatter -> dp -> unit
   val print_cfg : Format.formatter -> cfg -> unit
 
+  val vars_in_expr : 'a Prog.gty Prog.gexpr -> 'a Prog.gty Prog.gvar list
 end = struct
   (* For each variable, we compute the set of variables that can modify it.
      Some dependencies are ignored depending on some heuristic we have. *)
@@ -629,6 +681,8 @@ end = struct
 
     aux acc e
 
+  let vars_in_expr e = expr_vars_smpl [] e
+      
   let st_merge st1 st2 ct =
     let mdp = Mv.merge (fun _ osv1 osv2 ->
         let sv1,sv2 = odfl Sv.empty osv1, odfl Sv.empty osv2 in
@@ -1169,7 +1223,8 @@ end = struct
       Format.eprintf "@[%a@;%a@]@." pp_apr_env t.env pp_apr_env apr_env;
       raise (Aint_error "The environment is not compatible") end
 
-  let rec equal_mexpr_aux t t' = match t, t' with
+  let rec equal_mexpr_aux t t' =
+    match t, t' with
     | Mvar v, Mvar v' -> v = v'
     | Mcst c, Mcst c' -> Coeff.equal c c'
     | Munop (op, e, typ, rnd), Munop (op', e', typ', rnd') 
@@ -1178,7 +1233,7 @@ end = struct
       -> op = op' && typ = typ' && rnd = rnd' 
          && equal_mexpr_aux e1 e1'
          && equal_mexpr_aux e2 e2'
-    | _ -> false
+    | _ -> false 
 
   let equal_mexpr1 t t' = equal_mexpr_aux t t'
   let equal_mexpr  t t' = equal_mexpr_aux t.mexpr t'.mexpr
@@ -2630,7 +2685,7 @@ let rec pp_btcons ppf = function
 
 let rec equal_btcons bt bt' = match bt, bt' with
   | BOr (b1, b2),  BOr (b1', b2')
-  | BAnd (b1, b2), BOr (b1', b2') ->
+  | BAnd (b1, b2), BAnd (b1', b2') ->
     equal_btcons b1 b1' && equal_btcons b2 b2'
   | BLeaf t, BLeaf t' -> Mtcons.equal_tcons t t'
   | BVar bv, BVar bv' -> bv = bv'
@@ -3484,7 +3539,8 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
   let vdom v _ = match v with
     | Temp _ | WTemp _ -> assert false
 
-    | MNumInv _ -> Ppl 0        (* Numerical invariant must be relational *)
+    | MmemAccess _ | MNumInv _ -> Ppl 0
+    (* Numerical invariant and stored offsets must be relational *)
 
     | Mvalue (Avar v) | MinValue v ->
       if Sv.mem v v_rel then Ppl 0 else Nrd 0
@@ -3693,7 +3749,8 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   let vdom (v : mvar) (dom_st : dom_st) = match v with
     | Temp _ | WTemp _ -> assert false
 
-    | MNumInv _ -> Ppl 0        (* Numerical invariant must be relational *)
+    | MmemAccess _ | MNumInv _ -> Ppl 0
+    (* Numerical invariant and stored offsets must be relational *)
 
     | MvarOffset _
     | Mvalue (Avar _) ->
@@ -5326,11 +5383,13 @@ let get_wsize = function
 (* Safety conditions *)
 (*********************)
 
+type mem_access = wsize * ty gvar * expr * MemAccess.kind
+                    
 type safe_cond =
   | Initv of var
   | Initai of var * wsize * expr
   | InBound of int * wsize * expr
-  | Valid of wsize * ty gvar * expr
+  | Valid of mem_access
   | NotZero of wsize * expr
   | Termination
 
@@ -5347,8 +5406,10 @@ let pp_safety_cond fmt = function
     Format.fprintf fmt "in_bound: %a-th block of (U%d) words in array of \
                         length %i U8"
       pp_expr e (int_of_ws ws) n
-  | Valid (sz, x, e) ->
-    Format.fprintf fmt "is_valid %s + %a W%a" x.v_name pp_expr e pp_ws sz
+  | Valid (sz, x, e, kind) ->
+    Format.fprintf fmt "%a is_valid %s + %a W%a"
+      MemAccess.pp_kind kind
+      x.v_name pp_expr e pp_ws sz
   | Termination -> Format.fprintf fmt "termination"
 
 type violation_loc =
@@ -5430,7 +5491,7 @@ let rec safe_e_rec safe = function
   | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ -> safe
   | Pvar x -> safe_var x @ safe
 
-  | Pload (ws,x,e) -> Valid (ws, L.unloc x, e) :: safe_e_rec safe e
+  | Pload (ws,x,e) -> Valid (ws, L.unloc x, e, Load) :: safe_e_rec safe e
   | Pget (ws, x, e) -> (in_bound x ws e) @ (init_get x ws e) @ safe
   | Papp1 (_, e) -> safe_e_rec safe e
   | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
@@ -5447,7 +5508,7 @@ let safe_es = List.fold_left safe_e_rec []
 
 let safe_lval = function
   | Lnone _ | Lvar _ -> []
-  | Lmem(ws, x, e) -> Valid (ws, L.unloc x, e) :: safe_e_rec [] e
+  | Lmem(ws, x, e) -> Valid (ws, L.unloc x, e, Store) :: safe_e_rec [] e
   | Laset(ws,x,e) -> (in_bound x ws e) @ safe_e_rec [] e
 
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
@@ -6557,13 +6618,43 @@ end = struct
 
 
   (*---------------------------------------------------------------*)
+  module Overlap = struct                     
+    type overlap = { program_point   : int;
+                     never_overlaps  : Sint.t;
+                     always_overlaps : Sint.t; }
+
+    let merge o o' =
+      assert (o.program_point = o'.program_point);
+      { program_point   = o.program_point;
+        never_overlaps  = Sint.inter o.never_overlaps  o'.never_overlaps;
+        always_overlaps = Sint.inter o.always_overlaps o'.always_overlaps; }
+
+    let pp_overlap fmt o =
+      Format.fprintf fmt "@[<v 0>\
+                          @[<hov 2>Never: %a@]@;\
+                          @[<hov 2>Always: %a@]@;\
+                          @]"
+        (pp_list (fun fmt i -> Format.fprintf fmt "%d" i))
+        (Sint.elements o.never_overlaps)
+        (pp_list (fun fmt i -> Format.fprintf fmt "%d" i))
+        (Sint.elements o.always_overlaps)
+  end
+  open Overlap
+  
+  (*---------------------------------------------------------------*)
+  (* [blk_mem_accesses] is a map from instruction numbers in the current block, 
+     to the list of memory accesses at this instruction.
+     [overlaps] is a maps from instruction numbers (in the whole program) to
+     the overlaps of the memory accesses of this instruction. *)
   type astate = { it : FAbs.t ItMap.t;
                   abs : AbsDom.t; 
                   cstack : funname list;
                   env : s_env;
                   prog : minfo prog;
                   s_effects : side_effects;
-                  violations : violation list }
+                  violations : violation list;
+                  blk_mem_accesses : MemAccess.t list Mint.t; 
+                  overlaps : overlap Mint.t }
 
   let init_state_init_args f_args state =
     List.fold_left (fun state v -> match v with
@@ -6636,7 +6727,9 @@ end = struct
                     env = env;
                     prog = (glob_decls, fun_decls);
                     s_effects = [];
-                    violations = []; } in
+                    violations = [];
+                    blk_mem_accesses = Mint.empty;
+                    overlaps = Mint.empty; } in
 
       (* We initialize the arguments. Note that for exported function, we 
          know that input arrays are initialized. *)
@@ -6682,12 +6775,116 @@ end = struct
 
     | Valid _ | Termination -> true (* These are checked elsewhere *)
 
-  (* Update abs with the abstract memory range for memory accesses. *)
-  let mem_safety_apply (abs, violations, s_effect) = function
-    | Valid (ws,x,e) as pv ->
+  let mk_offsets abs m =
+    let open MemAccess in
+    let ma = unwrap m in
+    let env = AbsDom.get_env abs in
+    let o = Mtexpr.var env (MmemAccess m) in 
+    let c_ws = ((int_of_ws ma.size) / 8)
+               |> Coeff.s_of_int
+               |> Mtexpr.cst env in 
+    let o_plus_c = Mtexpr.binop Texpr1.Add o c_ws in
+    o, o_plus_c
+
+  (* never, always *)
+  let check_overlap abs m m' =
+    let open MemAccess in
+    let ma, ma' = unwrap m, unwrap m' in
+    match ma.base_var, ma'.base_var with
+    | None, _ | _, None -> false, false
+    | Some base, Some base' ->
+      if base <> base'
+      then true, false
+      else
+        let l,  r  = mk_offsets abs m
+        and l', r' = mk_offsets abs m' in
+        (* [l; r[ ∩ [l'; r'[ ≠ ∅ 
+           if and only if
+           (l ≤ l' ∧ l' ≤ r) ∨ (l' ≤ l ∧ l ≤ r')
+           if and only if
+           (0 ≤ l' - l ∧ 0 ≤ r - l') ∨ (0 ≤ l - l' ∧ 0 ≤ r' - l) *)
+        let l'_m_l = Mtcons.make (Mtexpr.binop Texpr1.Sub l' l) Tcons1.SUPEQ
+        and l_m_l' = Mtcons.make (Mtexpr.binop Texpr1.Sub l l') Tcons1.SUPEQ
+        and r_m_l' = Mtcons.make (Mtexpr.binop Texpr1.Sub r l') Tcons1.SUPEQ
+        and r'_m_l = Mtcons.make (Mtexpr.binop Texpr1.Sub r' l) Tcons1.SUPEQ
+        in
+        let overlap    = BOr (BAnd (BLeaf l'_m_l, BLeaf r_m_l'),
+                              BAnd (BLeaf l_m_l', BLeaf r'_m_l)) in
+        let no_overlap = oget (flip_btcons overlap) in
+        let overlap    = AbsDom.meet_btcons abs overlap
+        and no_overlap = AbsDom.meet_btcons abs no_overlap in
+        AbsDom.is_bottom overlap, AbsDom.is_bottom no_overlap
+      
+
+  (* Checks memory accesses overlaps *)
+  let mem_access_update state nb (ws, x, e, kind) mem_loc =
+    if not Aparam.check_overlaps then state
+    else    
+      let ma = MemAccess.{ line_number = nb;
+                           size        = ws;
+                           var         = x;
+                           offset_expr = e;
+                           kind        = kind;
+                           base_var    = Some mem_loc; } in
+      let ma = MemAccess.make ma in
+
+      (* We store the offset where the memory access took place. *)
+      let abs = state.abs in
+      let env = AbsDom.get_env abs in
+      let x_o = Mtexpr.var env (MvarOffset x) in
+      let lin_e = AbsExpr.linearize_wexpr abs e in
+      let sexpr = Mtexpr.binop Texpr1.Add x_o lin_e
+                  |> sexpr_from_simple_expr in
+      let abs = AbsDom.assign_sexpr abs (MmemAccess ma) None sexpr in
+      let state = { state with abs = abs } in
+
+      let overlap = { program_point   = nb;
+                      never_overlaps  = Sint.empty;
+                      always_overlaps = Sint.empty; } in
+      let overlap = Mint.fold (fun nb' mas overlap ->
+          let os = List.map (check_overlap abs ma) mas in
+          let never  = List.for_all (fun (never,_) -> never) os
+          and always = List.exists  (fun (_, always) -> always) os in
+          { overlap with
+            never_overlaps =
+              if never
+              then Sint.add nb' overlap.never_overlaps
+              else overlap.never_overlaps;
+            always_overlaps =
+              if always
+              then Sint.add nb' overlap.always_overlaps
+              else overlap.always_overlaps;}
+        ) state.blk_mem_accesses overlap in
+
+      (* Merge with the previously known overlaps. *)
+      let overlap =
+        try Overlap.merge overlap (Mint.find nb state.overlaps)
+        with Not_found -> overlap in
+      let nb_mem_accesses =
+        try Mint.find nb state.blk_mem_accesses with Not_found -> [] in
+      let blk_mem_accesses =
+        Mint.add nb (ma :: nb_mem_accesses) state.blk_mem_accesses in
+      { state with overlaps = Mint.add nb overlap state.overlaps;
+                   blk_mem_accesses  =blk_mem_accesses; }
+
+  
+  (* We have no information on possible overlaps. *)
+  let set_empty state nb =
+    let set_empty = { program_point = nb;
+                      never_overlaps = Sint.empty;
+                      always_overlaps = Sint.empty; } in
+    { state with overlaps = Mint.add nb set_empty state.overlaps; }
+    
+  (* Update the state with the abstract memory range for memory accesses
+     + memory accesses overlaps. *)
+  let mem_safety_apply (state, violations) nb = function
+    | Valid (ws,x,e,kind) as pv ->
+      let abs = state.abs in
       begin match AbsDom.var_points_to abs (mvar_of_var x) with
         | Ptrs pts ->
-          if List.length pts = 1 then
+          if List.length pts <> 1
+          then (set_empty state nb, pv :: violations)
+          else
             let pt = List.hd pts in
             let x_o = Mtexpr.var (AbsDom.get_env abs) (MvarOffset x) in
             let lin_e = AbsExpr.linearize_wexpr abs e in
@@ -6699,13 +6896,20 @@ end = struct
             let sexpr = Mtexpr.binop Texpr1.Add x_o ws_plus_e
                         |> sexpr_from_simple_expr in
 
-            ( AbsDom.assign_sexpr abs (MmemRange pt) None sexpr,
-              violations,
-              if List.mem pt s_effect then s_effect else pt :: s_effect)
-          else (abs, pv :: violations, s_effect)
-        | TopPtr -> (abs, pv :: violations, s_effect) end
+            let abs = AbsDom.assign_sexpr abs (MmemRange pt) None sexpr in
+            let s_effects =
+              if List.mem pt state.s_effects
+              then state.s_effects
+              else pt :: state.s_effects in
+            let state = { state with abs = abs; s_effects = s_effects; } in
 
-    | _ -> (abs, violations, s_effect)
+            (* We add possible memory accesses overlaps *)
+            let state = mem_access_update state nb (ws,x,e,kind) pt in
+            (state, violations )
+
+        | TopPtr -> (set_empty state nb, pv :: violations) end
+
+    | _ -> (state, violations)
 
 
   (*-------------------------------------------------------------------------*)
@@ -6715,22 +6919,26 @@ end = struct
       let unsafe = if is_safe state c then unsafe else c :: unsafe in
       check_safety_rec state unsafe t 
         
-  let rec mem_safety_rec a = function
+  let rec mem_safety_rec a nb = function
     | [] -> a
-    | c :: t ->       
-      mem_safety_rec (mem_safety_apply a c) t
+    | c :: t ->
+      let a = mem_safety_apply a nb c in
+      mem_safety_rec a nb t
 
   let add_violations : astate -> violation list -> astate = fun state ls ->
     if ls <> [] then Format.eprintf "%a@." pp_violations ls;
     { state with violations = List.sort_uniq v_compare (ls @ state.violations) }
     
-  let rec check_safety state loc conds =
+  let rec check_safety state nb loc conds =
     let vsc = check_safety_rec state [] conds in
-    let abs, mvsc, s_effects =
-      mem_safety_rec (state.abs, [], state.s_effects) conds in
-    
-    let state = { state with abs = abs;
-                             s_effects = s_effects } in
+    let state, mvsc =
+      mem_safety_rec (state, []) nb conds in
+
+    (* Print updated overlap information *)
+    let () = debug (fun () ->
+        try Format.eprintf "@[<v 0>* Overlap:@;%a@]@."
+              Overlap.pp_overlap (Mint.find nb state.overlaps)
+        with Not_found -> ()) in
     
     let unsafe = vsc @ mvsc
                  |> List.map (fun x -> (loc,x)) in
@@ -6868,6 +7076,13 @@ end = struct
                      | _ -> true) in
     { fstate with abs = AbsDom.forget_list fstate.abs nse_vs }
 
+  (* Forget all stored memory accesses. *)
+  let forget_blk_mem_accesses state =
+    let rem = Mint.fold (fun _ l acc -> l @ acc) state.blk_mem_accesses []
+              |> List.map (fun x -> MmemAccess x) in
+    { state with blk_mem_accesses = Mint.empty;
+                 abs = AbsDom.forget_list state.abs rem; }
+  
   (* Prepare a function call. Returns the state where:
      - The arguments of f have been evaluated.
      - The variables of the caller's caller have been *removed*.
@@ -6937,7 +7152,12 @@ end = struct
                   s_effects = List.unique (state.s_effects @ fstate.s_effects);
                   cstack = state.cstack;
                   violations = List.sort_uniq v_compare
-                      (state.violations @ fstate.violations) } in
+                      (state.violations @ fstate.violations);
+
+                  (* not implemented for function calls *) 
+                  blk_mem_accesses = assert false;
+                  overlaps = assert false;
+                } in
 
     debug(fun () -> Format.eprintf "evaluating returned values ...@.");
     (* Finally, we assign the returned values in the corresponding lvalues *)
@@ -7560,7 +7780,8 @@ end = struct
       else
         (* We check the safety conditions *)
         let conds = safe_instr ginstr in
-        let state = check_safety state (InProg (fst ginstr.i_loc)) conds in
+        let nb = ginstr.i_info.i_instr_number in
+        let state = check_safety state nb (InProg (fst ginstr.i_loc)) conds in
         aeval_ginstr_aux ginstr state
 
   and aeval_ginstr_aux : ('ty,minfo) ginstr -> astate -> astate =
@@ -7611,7 +7832,8 @@ end = struct
 
         (* We now check that e is safe *)
         let conds = safe_e e in
-        let state = check_safety state (InProg prog_pt) conds in
+        let nb = ginstr.i_info.i_instr_number in
+        let state = check_safety state nb (InProg prog_pt) conds in
 
         (* Given an abstract state, compute the loop condition expression. *)
         let oec abs = AbsExpr.bexpr_to_btcons e abs in
@@ -7814,7 +8036,8 @@ end = struct
 
         (* We check the safety conditions of the return *)
         let conds = safe_return f_decl in
-        let fstate = check_safety fstate (InReturn fn) conds in
+        let nb = ginstr.i_info.i_instr_number in
+        let fstate = check_safety fstate nb (InReturn fn) conds in
 
         debug(fun () ->
             print_return ginstr fstate.abs fn.fn_name);
@@ -7960,6 +8183,8 @@ end = struct
 
   and aeval_gstmt : ('ty,'i) gstmt -> astate -> astate =
     fun gstmt state ->
+    let state = forget_blk_mem_accesses state in
+    
     let state = List.fold_left (fun state ginstr ->
         aeval_ginstr ginstr state)
         state gstmt in
@@ -8051,7 +8276,9 @@ end = struct
 
       (* We check the safety conditions of the return *)
       let conds = safe_return main_decl in
-      let final_st = check_safety final_st (InReturn main_decl.f_name) conds in
+      (* We use -2 to refer to the return expression *)
+      let nb = -2 in
+      let final_st = check_safety final_st nb (InReturn main_decl.f_name) conds in
 
       debug(fun () -> Format.eprintf "%a" pp_violations final_st.violations);
       print_mem_ranges final_st;
@@ -8153,8 +8380,9 @@ module AbsAnalyzer (EW : ExportWrap) = struct
             (pp_list res.print_var_interval) npt in
 
       let pp_warnings fmt warns =
-        Format.fprintf fmt "@[<v 2>Warnings:@;%a@]@;"
-          (pp_list (fun fmt x -> x fmt)) warns in
+        if warns <> [] then
+          Format.fprintf fmt "@[<v 2>Warnings:@;%a@]@;"
+            (pp_list (fun fmt x -> x fmt)) warns in
       
       Format.eprintf "@.@[<v>%a@;\
                       %a@;\
