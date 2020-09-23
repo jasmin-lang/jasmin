@@ -6,6 +6,8 @@ open Wsize
 
 exception Aint_error of string
 
+let () = ignore(Sint.cardinal (Sint.empty))
+
 (*------------------------------------------------------------*)
 let last_time = ref 0.
     
@@ -113,7 +115,7 @@ module Aparam = struct
   let dynamic_packing = true    (* default: false *)
 
   (* Check overlaps of memory accesses. *)
-  let check_overlaps = true
+  let check_overlaps = ref true
 
   (***********************)
   (* Printing parameters *)
@@ -940,10 +942,10 @@ end = struct
     assert (check_uniq_names vars);
      
     let ssa_f = Ssa.split_live_ranges false f in
-    debug (fun () ->
-        Format.eprintf "SSA transform of %s:@;%a"
-          f.f_name.fn_name
-          (Printer.pp_func ~debug:true) ssa_f);
+    (* debug (fun () ->
+     *     Format.eprintf "SSA transform of %s:@;%a"
+     *       f.f_name.fn_name
+     *       (Printer.pp_func ~debug:true) ssa_f); *)
     (* Remark: the program is not used by [Pa], since there are no function
        calls in [f]. *)
     let dp = Pa.pa_make ssa_f None in
@@ -6550,12 +6552,13 @@ type warnings = (Format.formatter -> unit) list
 
 
 (*---------------------------------------------------------------*)
-module Overlap = struct                     
-  type overlap = { program_point    : int;
-                   never_overlaps   : Sint.t;
-                   always_overlaps  : Sint.t;
-                   overlaps_checked : Sint.t; }
 
+type overlap = { program_point    : int;
+                 never_overlaps   : Sint.t;
+                 always_overlaps  : Sint.t;
+                 overlaps_checked : Sint.t; }
+
+module Overlap = struct                     
   let merge o o' =
     assert (o.program_point = o'.program_point);
     { program_point    = o.program_point;
@@ -6572,7 +6575,8 @@ module Overlap = struct
     let pp_set s fmt si =
       if Sint.is_empty si then ()
       else
-        Format.fprintf fmt "@[<hov 2>%s: %a@]@;" s
+        Format.fprintf fmt "@[<hov 2>%a: %s: %a@]@;"
+          pp_pp o.program_point s
           (pp_list (fun fmt i -> Format.fprintf fmt "%d" i))
           (Sint.elements si)
     in
@@ -6581,13 +6585,12 @@ module Overlap = struct
       Format.fprintf fmt "%a: "
         pp_pp o.program_point
     else
-      Format.fprintf fmt "@;@[<v 0>overlap for %a:@;%a%a%a@]"
+      Format.fprintf fmt "@;@[<v 0>%a%a%a%a: @]"
+        (pp_set "never aliases") o.never_overlaps
+        (pp_set "always aliases") o.always_overlaps
+        (pp_set "checked aliasing with") o.overlaps_checked
         pp_pp o.program_point
-        (pp_set "Never") o.never_overlaps
-        (pp_set "Always") o.always_overlaps
-        (pp_set "Program point in the block") o.overlaps_checked
 end
-open Overlap
 
 type annot_prog =
   { annot_stmt : (ty, (minfo * overlap)) Prog.gstmt;
@@ -6609,7 +6612,7 @@ type analyse_res =
     print_var_interval : (Format.formatter -> mvar -> unit);
     mem_ranges_printer : (Format.formatter -> unit -> unit);
     warnings : warnings;
-    annotated_prog : annot_prog }
+    annotated_prog : annot_prog option }
                      
 module AbsInterpreter (PW : ProgWrap) : sig
   val analyze : unit -> analyse_res
@@ -6850,7 +6853,7 @@ end = struct
 
   (* Checks memory accesses overlaps *)
   let mem_access_update state nb (ws, x, e, kind) mem_loc =
-    if not Aparam.check_overlaps then state
+    if not !Aparam.check_overlaps then state
     else    
       let ma = MemAccess.{ line_number = nb;
                            size        = ws;
@@ -6993,7 +6996,7 @@ end = struct
         with Not_found -> empty_overlap nb in
       ( { i_desc = annot_ir i.i_desc;
           i_info = ( i.i_info, overlap );
-          i_loc = i.i_loc; } : (ty, minfo * Overlap.overlap) Prog.ginstr)
+          i_loc = i.i_loc; } : (ty, minfo * overlap) Prog.ginstr)
 
     and annot_ir = function
       | Cif(e, stmt1, stmt2) ->
@@ -8345,7 +8348,8 @@ end = struct
       let state, warnings = init_state source_main_decl main_decl prog in
 
       (* We abstractly evaluate the main function *)
-      let final_st = aeval_gstmt main_decl.f_body state in
+      let final_st = aeval_gstmt main_decl.f_body state
+                     |> forget_blk_mem_accesses in
 
       (* We check the safety conditions of the return *)
       let conds = safe_return main_decl in
@@ -8353,7 +8357,11 @@ end = struct
       let nb = -2 in
       let final_st = check_safety final_st nb (InReturn main_decl.f_name) conds in
 
-      let annot_p = annot_prog final_st main_decl.f_body in
+      let annot_p =
+        if !Aparam.check_overlaps
+        then Some (annot_prog final_st main_decl.f_body)
+        else None
+      in
       
       debug(fun () -> Format.eprintf "%a" pp_violations final_st.violations);
       print_mem_ranges final_st;
@@ -8388,6 +8396,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
     let main,prog = MkUniq.mk_uniq EW.main EW.prog
   end
 
+  (*----------------------------------------------------------------*)
   let parse_pt_rel s = match String.split_on_char ';' s with
     | [pts;rels] ->
       let relationals =
@@ -8416,8 +8425,57 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           | [ps] -> (None, parse_pt_rels ps)
           | _ -> raise (Failure "-safetyparam ill-formed (too many '>' ?)"))
 
-  let analyze () =
+
+  (*----------------------------------------------------------------*)
+  let print_results ~annot l_res npt =
+    match l_res with
+    | [] -> raise (Failure "-safetyparam ill-formed (empty list of params)")
+    | res :: _->
+      let pp_mem_range fmt = match npt with
+        | [] -> Format.fprintf fmt ""
+        | _ ->          
+          Format.eprintf "@[<v 2>Memory and cost ranges:@;%a@]@;"
+            (pp_list res.print_var_interval) npt in
+
+      let pp_warnings fmt warns =
+        if warns <> [] then
+          Format.fprintf fmt "@[<v 2>Warnings:@;%a@]@;"
+            (pp_list (fun fmt x -> x fmt)) warns in
+
+      let pp_annot_prog fmt = function
+        | None -> ()
+        | Some prog ->
+          Format.fprintf fmt "*** Annotated program:@;@[<v 0>%a@]@;"
+            pp_annot_prog prog in
+
+      let () = if annot then
+          Format.eprintf "@.@[<v 0>\
+                          *-----------------------------*@;\
+                          |  Aliasing Analysis Results  |@;\
+                          *-----------------------------*@;@;@]@."
+        else
+          Format.eprintf "@.@[<v 0>\
+                          *--------------------*@;\
+                          |  Analysis Results  |@;\
+                          *--------------------*@;@;@]@." in
+
+      Format.eprintf "@[<v 0>%a%a@;%a@;%t%a@]@."
+        pp_annot_prog res.annotated_prog
+        pp_warnings res.warnings
+        pp_violations res.violations
+        pp_mem_range
+        (pp_list (fun fmt res -> res.mem_ranges_printer fmt ())) l_res;
+
+      let () = if res.violations <> [] then begin
+        Format.eprintf "@[<v>Program is not safe!@;@]@.";
+        exit(2)
+      end
+      in ()
+         
+  let run_analysis ~annot =
     try
+      Aparam.check_overlaps := annot;
+      
     let ps_assoc = omap_dfl (fun s_p -> parse_params s_p)
         [ None, [ { relationals = None; pointers = None } ]]
         !Glob_options.safety_param in
@@ -8445,35 +8503,27 @@ module AbsAnalyzer (EW : ExportWrap) = struct
             let param = p
           end) in
         AbsInt.analyze ()) ps in
- 
-    match l_res with
-    | [] -> raise (Failure "-safetyparam ill-formed (empty list of params)")
-    | res :: _->
-      let pp_mem_range fmt = match npt with
-        | [] -> Format.fprintf fmt ""
-        | _ ->          
-          Format.eprintf "@[<v 2>Memory and cost ranges:@;%a@]@;"
-            (pp_list res.print_var_interval) npt in
 
-      let pp_warnings fmt warns =
-        if warns <> [] then
-          Format.fprintf fmt "@[<v 2>Warnings:@;%a@]@;"
-            (pp_list (fun fmt x -> x fmt)) warns in
-      
-      Format.eprintf "@.@[<v 0>*** Annotated program:@;@[<v 0>%a@]@;\
-                      %a@;\
-                      %a@;\
-                      %t\
-                      %a@]@."
-        pp_annot_prog res.annotated_prog
-        pp_warnings res.warnings
-        pp_violations res.violations
-        pp_mem_range
-        (pp_list (fun fmt res -> res.mem_ranges_printer fmt ())) l_res;
-
-      if res.violations <> [] then begin
-        Format.eprintf "@[<v>Program is not safe!@;@]@.";
-        exit(2)
-      end;
+    print_results ~annot l_res npt;
+    
+    if !Aparam.check_overlaps
+    then Some (List.map (fun x -> oget x.annotated_prog) l_res)        
+    else None       
     with | Manager.Error _ as e -> hndl_apr_exc e
+
+  let analyze () = assert (run_analysis ~annot:false = None)
+
+  let annotate_exports () = oget (run_analysis ~annot:true)
+
+  let annotate_export () =
+    match annotate_exports () with
+    | [ap] -> ap
+    | [] -> raise (Failure "no export procedure")
+    | _ -> raise (Failure "multiple export procedures")
+
+  let analyze () =
+    ignore (annotate_export ());
+    analyze ();
+
+
 end
