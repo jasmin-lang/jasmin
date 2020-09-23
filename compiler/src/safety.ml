@@ -8521,9 +8521,9 @@ module AbsAnalyzer (EW : ExportWrap) = struct
     | [] -> raise (Failure "no export procedure")
     | _ -> raise (Failure "multiple export procedures")
 
-  let analyze () =
-    ignore (annotate_export ());
-    analyze ();
+  (* let analyze () =
+   *   ignore (annotate_export ());
+   *   analyze (); *)
 
 
 end
