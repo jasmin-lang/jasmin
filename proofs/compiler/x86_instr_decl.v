@@ -130,6 +130,7 @@ Variant asm_op : Type :=
 | VPSHUFLW `(wsize)
 | VPBLENDD `(wsize)
 | VPBROADCAST of velem & wsize
+| VPALIGNR  `(wsize)
 | VBROADCASTI128
 | VPUNPCKH `(velem) `(wsize)
 | VPUNPCKL `(velem) `(wsize)
@@ -678,6 +679,16 @@ Definition x86_VPERM2I128 (v1 v2: u256) (m: u8) : ex_tpl (w_ty U256) :=
 Definition x86_VPERMQ (v: u256) (m: u8) : ex_tpl (w_ty U256) :=
   ok (wpermq v m).
 
+(* ---------------------------------------------------------------- *)
+Definition x86_VPALIGNR128 (m:u8) (v1 v2: word U128) : word U128 := 
+  let v := make_vec U256 [::v2;v1] in
+  let v' := wshr v (wunsigned m * 8) in
+  @nth (word U128) 0%R (split_vec U128 v') 0.
+ 
+Definition x86_VPALIGNR sz (v1 v2: word sz) (m:u8) : ex_tpl (w_ty sz) := 
+  Let _ := check_size_128_256 sz in
+  ok (lift2_vec U128 (x86_VPALIGNR128 m) sz v1 v2).
+
 (* ----------------------------------------------------------------------------- *)
 Coercion F f := ADImplicit (IArflag f).
 Coercion R r := ADImplicit (IAreg r).
@@ -1203,6 +1214,11 @@ Definition check_xmm_xmmm (_:wsize) := [:: [:: xmm; xmmm true]].
 Definition Ox86_VPBROADCAST_instr       :=
   mk_ve_instr_w_w_10 "VPBROADCAST" x86_VPBROADCAST check_xmm_xmmm no_imm (PrimV VPBROADCAST) pp_vpbroadcast.
 
+Definition Ox86_VPALIGNR_instr := 
+  ((fun sz =>
+     mk_instr (pp_sz "VPALIGNR" sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR 
+      (@x86_VPALIGNR sz) (check_xmm_xmm_xmmm_imm8 sz) 4 sz (imm8 sz) [::] (pp_name "vpalignr" sz)), ("VPALIGNR"%string, PrimP U128 VPALIGNR)).
+
 (* 256 *)
 
 Definition Ox86_VBROADCASTI128_instr    :=
@@ -1301,6 +1317,7 @@ Definition instr_desc o : instr_desc_t :=
   | VPUNPCKL sz sz'    => Ox86_VPUNPCKL_instr.1 sz sz'
   | VPBLENDD sz        => Ox86_VPBLENDD_instr.1 sz
   | VPBROADCAST sz sz' => Ox86_VPBROADCAST_instr.1 sz sz'
+  | VPALIGNR sz        => Ox86_VPALIGNR_instr.1 sz 
   | VBROADCASTI128     => Ox86_VBROADCASTI128_instr.1
   | VPERM2I128         => Ox86_VPERM2I128_instr.1
   | VPERMQ             => Ox86_VPERMQ_instr.1
@@ -1383,6 +1400,7 @@ Definition prim_string :=
    Ox86_VPUNPCKL_instr.2;
    Ox86_VPBLENDD_instr.2;
    Ox86_VPBROADCAST_instr.2;
+   Ox86_VPALIGNR_instr.2;
    Ox86_VBROADCASTI128_instr.2;
    Ox86_VPERM2I128_instr.2;
    Ox86_VPERMQ_instr.2;
