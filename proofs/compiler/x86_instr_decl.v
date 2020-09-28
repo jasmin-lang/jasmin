@@ -1271,7 +1271,7 @@ Definition Ox86_VPBROADCAST_instr       :=
 Definition Ox86_VPALIGNR_instr := 
   ((fun sz =>
      mk_instr (pp_sz "VPALIGNR" sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR 
-      (@x86_VPALIGNR sz) (check_xmm_xmm_xmmm_imm8 sz) 4 sz (imm8 sz) [::] (pp_iname "vpalignr" sz)), ("VPALIGNR"%string, PrimP U128 VPALIGNR)).
+      (@x86_VPALIGNR sz) (check_xmm_xmm_xmmm_imm8 sz) 4 sz (imm8 sz) [::] (pp_name "vpalignr" sz)), ("VPALIGNR"%string, PrimP U128 VPALIGNR)).
 
 (* 256 *)
 
