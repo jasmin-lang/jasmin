@@ -1,0 +1,29 @@
+param int N = 7;
+
+/* Does not use the stack. */
+#[stacksize="0",stackallocsize="0"]
+export
+fn zero() -> reg u64 {
+  reg u64 x;
+  inline int i;
+  reg u64[N] t;
+  for i = 0 to N { t[i] = i; }
+  x = 0;
+  for i = 0 to N { x += t[i]; }
+  return x;
+}
+
+/* Uses two callee-saved registers: saves them on the stack. */
+#[stacksize="0",stackallocsize="16"]
+export
+fn one() -> reg u64 {
+  reg u64 x y;
+  inline int i;
+  reg u64[N + 1] t;
+  y = 0;
+  for i = 0 to N + 1 { t[i] = i; }
+  x = 0;
+  for i = 0 to N + 1 { x += t[i]; }
+  y += x;
+  return y;
+}

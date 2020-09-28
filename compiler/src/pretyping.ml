@@ -1417,6 +1417,7 @@ let process_f_annot loc annot =
       rs_tyerror ~loc (string_error "Bad value for “stackalign”") in
 
   { retaddr_kind = do1 "returnaddress" mk_ra;
+    stack_allocation_size = do1 "stackallocsize" mk_stksize;
     stack_size = do1 "stacksize" mk_stksize;
     stack_align = do1 "stackalign" mk_stkalign; }
 

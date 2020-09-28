@@ -170,12 +170,14 @@ type returnaddress_kind =
 
 type f_annot = { 
     retaddr_kind  : returnaddress_kind option;
+    stack_allocation_size : B.zint option;
     stack_size    : B.zint option;
     stack_align   : wsize option;
   }
 
 let f_annot_empty = {
     retaddr_kind  = None;
+    stack_allocation_size = None;
     stack_size    = None;
     stack_align   = None;
   } 

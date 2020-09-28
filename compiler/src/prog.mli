@@ -147,8 +147,9 @@ type returnaddress_kind =
   | OnStack
   | OnReg
 
-type f_annot = { 
+type f_annot = {
     retaddr_kind  : returnaddress_kind option;
+    stack_allocation_size : B.zint option;
     stack_size    : B.zint option;
     stack_align   : wsize option;
   }
