@@ -212,6 +212,10 @@ Definition round_ws (ws:wsize) (sz: Z) : Z :=
    let (q,r) := Z.div_eucl sz d in
    if r == 0 then sz else (q + 1) * d)%Z.
 
+(** Total size of a stack frame: local variables, extra and padding. *)
+Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
+  round_ws e.(sf_align) (sf_stk_sz e + sf_stk_extra_sz e).
+
 Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : lcmd :=
   if sz == 0%Z then [::]
   else
@@ -310,7 +314,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       let ra := sf_return_address e in
       if ra == RAnone then (lbl, lc)
       else
-        let sz := round_ws (sf_align e) (sf_stk_sz e) in
+        let sz := stack_frame_allocation_size e in
         let before := allocate_stack_frame false ii sz in
         let after := allocate_stack_frame true ii sz in
         let lret := lbl in
@@ -346,7 +350,7 @@ Definition linear_fd (fd: sfundef) :=
          let r := VarI x xH in
          (pop_to_save xH e.(sf_to_save) ++ [:: MkLI xH (Lopn [:: Lvar rspi ] (Ox86 (MOV Uptr)) [:: Pvar {| gv := r ; gs := Slocal |} ]) ],
           [:: MkLI xH (Lopn [:: Lvar r ] (Ox86 (MOV Uptr)) [:: Pvar rspg ] ) ]
-          ++ allocate_stack_frame false xH e.(sf_stk_sz)
+          ++ allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
           ++ ensure_rsp_alignment xH e.(sf_align)
           :: push_to_save xH e.(sf_to_save), (** FIXME: here to_save is always empty *)
           1%positive)
@@ -354,7 +358,7 @@ Definition linear_fd (fd: sfundef) :=
          let rax := VarI (var_of_register RAX) xH in
          (pop_to_save xH e.(sf_to_save) ++ [:: MkLI xH (Lopn [:: Lvar rspi ] (Ox86 (MOV Uptr)) [:: Pload Uptr rspi (cast_const ofs) ]) ],
           [:: MkLI xH (Lopn [:: Lvar rax ] (Ox86 (MOV Uptr)) [:: Pvar rspg ] ) ]
-          ++ allocate_stack_frame false xH e.(sf_stk_sz)
+          ++ allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
           ++ ensure_rsp_alignment xH e.(sf_align)
           :: MkLI xH (Lopn [:: Lmem Uptr rspi (cast_const ofs) ] (Ox86 (MOV Uptr)) [:: Pvar {| gv := rax ; gs := Slocal |} ])
           :: push_to_save xH e.(sf_to_save),
