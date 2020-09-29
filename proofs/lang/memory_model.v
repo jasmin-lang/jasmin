@@ -312,6 +312,17 @@ rewrite /between => /andP [] /ZleP a /ZleP b /andP [] /ZleP c /ZleP d.
 apply/andP; split; apply/ZleP; Psatz.lia.
 Qed.
 
+Lemma between_byte pstk sz b i ws :
+  no_overflow b (wsize_size ws) →
+  between pstk sz b ws →
+  0 <= i ∧ i < wsize_size ws →
+  between pstk sz (b + wrepr U64 i) U8.
+Proof.
+  rewrite /between !zify; change (wsize_size U8) with 1 => novf [] lo hi i_range.
+  rewrite wunsigned_add; first Psatz.lia.
+  move: (wunsigned_range b); Psatz.lia.
+Qed.
+
 (* -------------------------------------------------- *)
 
 Class alignment : Type :=
@@ -370,9 +381,9 @@ Section SPEC.
   Record alloc_stack_spec : Prop := mkASS {
     ass_mod      : (wunsigned pstk + sz <= wbase Uptr)%Z;
     ass_read_old : forall p s, valid_pointer m p s -> read_mem m p s = read_mem m' p s;
-    ass_valid    : forall p s,
-      valid_pointer m' p s =
-      valid_pointer m p s || (between pstk sz p s && is_align p s);
+    ass_valid    : forall p,
+      valid_pointer m' p U8 =
+      valid_pointer m p U8 || between pstk sz p U8;
     ass_align    : forall ofs s,
       (s <= ws)%CMP ->
       is_align (pstk + wrepr _ ofs) s = is_align (wrepr _ ofs) s ;
@@ -390,9 +401,9 @@ Section SPEC.
 
   Record free_stack_spec : Prop := mkFSS {
     fss_read_old : forall p s, valid_pointer m' p s -> read_mem m p s = read_mem m' p s;
-    fss_valid    : forall p s,
-      valid_pointer m' p s <->
-      (valid_pointer m p s /\ (disjoint_zrange (top_stack m) sz p (wsize_size s)));
+    fss_valid    : forall p,
+      valid_pointer m' p U8 <->
+      (valid_pointer m p U8 /\ (disjoint_zrange (top_stack m) sz p 1));
     fss_root : stack_root m' = stack_root m;
     fss_frames : frames m' = behead (frames m);
    }.
@@ -465,12 +476,8 @@ Parameter write_valid : forall m m' p s (v :word s) p' s',
   write_mem m p s v = ok m' ->
   valid_pointer m' p' s' = valid_pointer m p' s'.
 
-Parameter valid_align : forall m p s, valid_pointer m p s -> is_align p s.
-
-Parameter is_align_valid_pointer : forall m p ws,
-   is_align p ws ->
-   (forall k, 0 <= k < wsize_size ws -> valid_pointer m (p + wrepr U64 k) U8) ->
-   valid_pointer m p ws.
+Parameter valid_pointerP : ∀ m p ws,
+    reflect (is_align p ws ∧ ∀ k, 0 <= k < wsize_size ws -> valid_pointer m (p + wrepr U64 k) U8) (valid_pointer m p ws).
 
 Parameter read_write_any_mem :
   forall m1 m1' pr szr pw szw vw m2 m2',

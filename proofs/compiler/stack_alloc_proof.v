@@ -64,7 +64,12 @@ Hypothesis disj_rsp_rip :
   0 < stk_size -> 0 < glob_size ->
   wunsigned rsp + stk_size <= wunsigned rip \/ wunsigned rip + glob_size <= wunsigned rsp.
 
-Hint Resolve is_align_no_overflow Memory.valid_align.
+Lemma valid_align m p ws :
+  valid_pointer m p ws →
+  is_align p ws.
+Proof. by case/Memory.valid_pointerP. Qed.
+
+Hint Resolve is_align_no_overflow valid_align.
 
 Definition global_pos x := 
   omap (fun z => (z, vtype x)) (Mvar.get pmap.(globals) x).
