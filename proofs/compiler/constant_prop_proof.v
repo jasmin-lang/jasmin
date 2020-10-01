@@ -3605,7 +3605,7 @@ set ww := write_i _;set m' := remove_cpm _ _.
                    vargs' Hvm1 Hargs').
     move=> {Hargs''} [] vargs'' Hargs'' [] Hv' Hl'.
     rewrite /Pfun in Hfun.
-    move: (writes_uincl). move=> Hvs''. 
+    move: (writes_uincl). move=> Hvs''.
     move: (Hfun (unzip1 vargs'') (Forall2_trans value_uincl_trans Hv Hv')).
     move=> {Hfun} [] vres' [] /= Hcall' Hv''.
     move: (Hvs'' gd {| emem := m2; evm := evm s1 |} s2 vm1 cv vs vres'

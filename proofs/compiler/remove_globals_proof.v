@@ -876,29 +876,37 @@ Module RGP. Section PROOFS.
   Proof.
     move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc hget hargs hwa _ hc hres hres'.
     rewrite /Pfun. move: get_fundefP.
-    Admitted.
+  Admitted.
 
-  Local Lemma remove_glob_call m1 f vargs m2 vres lf:
-     sem_call P m1 f vargs lf m2 vres ->
-     List.Forall2 value_uincl vargs vargs' ->
-     Pfun m1 f vargs' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m2 vres.
+  Local Lemma remove_glob_call m1 f vargs vargs' m2 vres lf:
+    sem_call P m1 f vargs lf m2 vres ->
+    List.Forall2 value_uincl vargs vargs' ->
+    exists vres', sem_call P' m1 f vargs' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m2 vres' /\ List.Forall2 value_uincl vres vres'.
   Proof.
-    move => /(@sem_call_Ind P Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
-                            Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) h.
-    rewrite /Pfun in h. move: (h vargs hv). move=> [] vres' [] /= h' Hv' {h}.
-    exists vres'. by split.
+     move => /(@sem_call_Ind P Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
+                             Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) h hv.
+     rewrite /Pfun in h. move: (h vargs' hv). move=> [] vres'' [] hc hvc.
+     exists vres''. by split.
   Qed.
 
   End FDS.
 
-  Lemma remove_globP P P' f mem mem' va vr :
-    remove_glob_prog is_glob fresh_id P = ok P' ->
-    sem_call P mem f va mem' vr ->
-    sem_call P' mem f va mem' vr.
+
+  Check remove_glob_prog.
+
+
+  Lemma remove_globP P P' f mem mem' va vr lf lft:
+    remove_glob_prog is_glob fresh_id P = ok (P', lft) ->
+    sem_call P mem f va (f, lf) mem' vr ->
+    sem_call P' mem f va (f, (leak_Is (leak_I (leak_Fun lft)) (leak_Fun lft f) lf)) mem' vr.
   Proof.
-    rewrite /remove_glob_prog; t_xrbindP => gd' /extend_glob_progP hgd.
-    case: ifP => // huniq; t_xrbindP => fds hfds <- /(gd_incl_fun hgd) hf.
-    apply: (remove_glob_call (P:={| p_globs := gd'; p_funcs := p_funcs P |}) hfds huniq hf).
-  Qed.
+    rewrite /remove_glob_prog; t_xrbindP. move=> gd' /extend_glob_progP hgd.
+    case: ifP=> // huniq; t_xrbindP. move=> fds hds <- <- hf.
+    move: gd_incl_fun. move=> hgd'. move: (hgd' P gd' hgd mem f va mem' vr lf hf).
+    move=> h {hgd'}.
+    move: remove_glob_call. move=> H.
+    move: (H ({| p_globs := gd'; p_funcs := p_funcs P |}) (zip (unzip1 (unzip1 fds))
+                                                               (unzip2 (unzip1 fds))) lft huniq).
+    Admitted.
 
 End PROOFS. End RGP.

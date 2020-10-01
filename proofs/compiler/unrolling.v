@@ -53,6 +53,7 @@ Fixpoint unroll_i (i:instr) : cmd * leak_i_tr :=
                     let r2 := (unroll_cmd unroll_i c2) in
                     ([:: MkI ii (Cif b r1.1 r2.1) ],
                      LT_icond LT_id r1.2 r2.2)
+  (** FIX NEEDED **)
   | Cfor i (dir, low, hi) c =>
     let c' := unroll_cmd unroll_i c in
     match is_const low, is_const hi with

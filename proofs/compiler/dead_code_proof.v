@@ -391,8 +391,8 @@ Section PROOF.
     + by apply: eq_onI (eq_onS Hvm2'1);rewrite /sv4 !read_eE; SvD.fsetdec.
     by rewrite -eq_globs (read_e_eq_on _ (emem s2) Hvm');case: (s2) H.
     by case: x => _ <-. case: Hq => Hq1 Hq2. rewrite <- Hq1 in Hvm4'2. rewrite Hq2 in Hf.
-    admit.
-    Admitted.
+    by rewrite Hf /=.
+   Qed.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
   Proof.
@@ -507,6 +507,43 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p Pc Pfun.
   Proof.
+    move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hfun htra Hw Hsem Hc Hres Hfull /=.
+    have dcok : map_cfprog dead_code_fd (p_funcs p) =
+                ok (zip (unzip1 (p_funcs p')) (zip (unzip2 (p_funcs p')) (unzip2 Ffs))).
+    + move: dead_code_ok. rewrite /dead_code_prog. t_xrbindP.
+      move=> res' -> h1 h2 /=. rewrite zip_unzip.
+      
+    have [[f' ltc'] [Hf'1 Hf'2]] := get_map_cfprog dcok Hfun.
+    case: f Hf'1 Hfun htra Hw Hsem Hc Hres Hfull=>
+    f_iinfo f_tyin f_params f_body f_tyout f_res /=. t_xrbindP.
+    move=> [[s c] ltc] Hf'1 [] h1' h2' Hfun htra Hw Hsem Hc Hres Hfull.
+    case: (f') Hf'1 Hf'2=>f_iinfo' f_tyin' f_params' f_body' f_tyout' f_res' /= Hf'1 Hf'2.
+    case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- res])) Hf'1 =>// [[sv sc]] /= Heq.
+
+    move=> [[s' c'] ltc'] Hf'1. [] h1' h2' Hfun htra Hw Hsem Hc Hres Hfull.
+
+
+    
+    c H res'. Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
+    case: f' Hf'1 Hf'2=> ??? c' ? f'_res Hf'1 Hf'2.
+    case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- res])) Hf'1 =>// [[sv sc]] /= Heq.
+    rewrite /ciok in Heq.
+    move: Heq=> [Heqi Heqp Heqc Heqr].
+    move: Hc=> /(_ (read_es [seq Pvar i | i <- res])).
+    have /= /(_ wf_vmap0) Hwf := wf_write_vars _ Hw.
+    rewrite Hd => /(_ Hwf (evm s1)) [//|vm2' [Hvm2'1 /= Hvm2'2]] ??;subst.
+    case: s1 Hvm2'2 Hw Hsem Hwf => /= ?? Hvm2'2 Hw Hsem Hwf.
+    econstructor.
+    + exact: Hf'2. + exact htra. + exact Hw. + exact Hvm2'2.
+    2: exact Hfull.
+    rewrite -Hres; have /= <- := (@sem_pexprs_get_var gd (Estate m2 vm2) f'_res).
+    have /= <- := (@sem_pexprs_get_var gd (Estate m2 vm2') f'_res);symmetry.
+    by apply: read_es_eq_on Hvm2'1.
+
+
+
+
+    
     rewrite /sem_Ind_proc.
     move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hfun htra Hw Hsem Hc Hres Hfull /=.
     + move: dead_code_ok; rewrite /dead_code_prog. t_xrbindP. move => y dcok Hep' Hfs.
