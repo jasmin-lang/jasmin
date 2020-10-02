@@ -1044,6 +1044,11 @@ module Mtexpr : sig
   val to_aexpr : t -> Texpr1.t
   val to_linexpr : t -> apr_env -> Linexpr1.t option
 
+  val cst1 : Coeff.t -> mexpr
+  val var1 : mvar -> mexpr
+  val unop1 : unop -> mexpr -> mexpr
+  val binop1 : binop -> mexpr -> mexpr -> mexpr
+
   val cst : apr_env -> Coeff.t -> t
   val var : apr_env -> mvar -> t
   val unop : unop -> t -> t
@@ -1107,22 +1112,24 @@ end = struct
                  build_term_array v offset (len - 1),
                  Texpr1.Int, Aparam.round_typ)
 
+  let cst1 c = Mcst c
   let cst env c = { mexpr = Mcst c; env = env }
 
-  let var env v = 
-    let mexpr = match v with
-      | Mvalue (AarrayEl (v,ws,i)) ->
-        build_term_array v (((int_of_ws ws) / 8) * i) ((int_of_ws ws) / 8)
-      | _ -> Mvar v in
-    { mexpr = mexpr; env = env }
+  let var1 v = match v with
+    | Mvalue (AarrayEl (v,ws,i)) ->
+      build_term_array v (((int_of_ws ws) / 8) * i) ((int_of_ws ws) / 8)
+    | _ -> Mvar v
+             
+  let var env v = { mexpr = var1 v; env = env }
 
-  let unop op1 a = { a with
-                     mexpr = Munop (op1, a.mexpr, Texpr1.Int, Aparam.round_typ) }
+  let unop1 op1 a = Munop (op1, a, Texpr1.Int, Aparam.round_typ)
+  let unop op1 a = { a with mexpr = unop1 op1 a.mexpr }
 
+  let binop1 op2 a b = Mbinop (op2, a, b, Texpr1.Int, Aparam.round_typ)
   let binop op2 a b =
     if not (Environment.equal a.env b.env) then
       raise (Aint_error "Environment mismatch")
-    else { mexpr = Mbinop (op2, a.mexpr, b.mexpr, Texpr1.Int, Aparam.round_typ);
+    else { mexpr = binop1 op2 a.mexpr b.mexpr;
            env = a.env }
 
   let weak_cp v i = Temp ("wcp_" ^ string_of_mvar v, i, ty_mvar v)
@@ -4113,8 +4120,9 @@ let is_cst = function Mtexpr.Mcst _ -> true | _ -> false
 let rec rewrite_e e =
   let open Mtexpr in
   let mk e' = { mexpr = e'; env = e.env } in
+  
   match e.mexpr with
-  | Munop (Texpr1.Neg, e', _, _) when not (is_var e.mexpr) ->
+  | Munop (Texpr1.Neg, e', _, _) when not (is_var e') ->
     begin
       try rewrite_e (neg_e e.env e') with Rewrite_failed -> e
     end
@@ -4160,27 +4168,34 @@ let cmp_cst bt =
     Some (e.env, e', (cst e.env (Coeff.s_of_int 0)).mexpr, Mtcons.get_typ bt)
   | _ -> None
 
+(* FIXME: this is quite ad-hoc.*)
 let rec rewrite bt = match bt with
   | BAnd (BLeaf bt1, BLeaf bt2) ->
-    let bt1, bt2 = rewrite_c bt1, rewrite_c bt2 in
+    let bt1, bt2 = rewrite_c bt1, rewrite_c bt2 in    
     begin
-      match cmp_cst bt1, cmp_cst bt2 with
+      let swap (c1,c2) = match c1, c2 with
+        | Some (_,_,_,Tcons1.SUPEQ), Some (_,_,_,Tcons1.DISEQ) -> c1, c2
+        | Some (_,_,_,Tcons1.DISEQ), Some (_,_,_,Tcons1.SUPEQ) -> c2, c1
+        | _ -> None, None in
+      
+      match swap (cmp_cst bt1, cmp_cst bt2) with
       | None, _ | _, None -> bt
-      | Some (env, a, b, typ), Some (_, a', b', typ') ->
+      | Some (env, a, b, Tcons1.SUPEQ), Some (_, a', b', Tcons1.DISEQ) ->
+        let mk e' = { Mtexpr.mexpr = e'; Mtexpr.env = env } in        
+        let ma = (rewrite_e (Mtexpr.unop Texpr1.Neg (mk a))).mexpr in
+        let mb = (rewrite_e (Mtexpr.unop Texpr1.Neg (mk b))).mexpr in
         if (Mtexpr.equal_mexpr1 a a' && Mtexpr.equal_mexpr1 b b') ||
-           (Mtexpr.equal_mexpr1 a b' && Mtexpr.equal_mexpr1 b a')
-        then
+           (Mtexpr.equal_mexpr1 a b' && Mtexpr.equal_mexpr1 b a') ||
+           (Mtexpr.equal_mexpr1 ma a' && Mtexpr.equal_mexpr1 mb b') ||
+           (Mtexpr.equal_mexpr1 ma b' && Mtexpr.equal_mexpr1 mb a')
+        then 
           let mk e = Mtexpr.({ mexpr = e; env = env }) in
-          begin match typ, typ' with
-            | Tcons1.SUPEQ, Tcons1.DISEQ
-            | Tcons1.DISEQ, Tcons1.SUPEQ ->
-              (* (a + b <> 0 /\ a + b >= 0) <=> a + b > 0 *)
-              BLeaf (Mtcons.make
-                       (Mtexpr.binop Texpr1.Add (mk a) (mk b))
-                       Tcons1.SUP)
-            | _ -> bt
-          end
+          (* (a + b <> 0 /\ a + b >= 0) <=> a + b > 0 *)
+          BLeaf (Mtcons.make
+                   (Mtexpr.binop Texpr1.Add (mk a) (mk b))
+                   Tcons1.SUP)
         else bt
+      | _ -> bt
     end
 
   | BAnd (b1,b2) -> BAnd ( rewrite b1, rewrite b2 )
@@ -4554,7 +4569,7 @@ module PointsToImpl : PointsTo = struct
     Format.fprintf ppf "@[<hov 4>* Points-to:@ %a@]@;"
       (pp_list ~sep:(fun _ _ -> ()) (fun ppf (k,l) ->
            if l <> [] then
-             Format.fprintf ppf "%s: %a;@,"
+             Format.fprintf ppf "(%s → %a);@,"
                k pp_memlocs l;))
       (List.filter (fun (x,_) -> not (svariables_ignore x)) (Ms.bindings t.pts))
 
