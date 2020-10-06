@@ -561,29 +561,50 @@ Section PROOF.
                 ok (zip (unzip1 (p_funcs p')) (zip (unzip2 (p_funcs p')) (unzip2 Ffs))).
     (* this should produce (seq (funname * (fundef * leak_c_tr))) *)
     + move: dead_code_ok; rewrite /dead_code_prog; t_xrbindP.
-      move=> vfs -> <- <- /=. admit. (* i think this is correct. it can be proved. *)
+      move=> vfs -> <- <- /=.
+      admit. (* i think this is correct. it can be proved. *)
     move: (get_map_cfprog_dummy' dcok Hfun). move=> [] f' [] lt' []  Hf'1 /= Hf'2.
     case: f Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
-    move=> f_iinfo f_tyin f_par /= c f_tyout res Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
+    move=> fi fin fp /= c fo fres Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
     case: f' Hf'1 Hf'2=> ??? c' ? f'_res. t_xrbindP. move=> [[m'' c''] ltc''] Hf'1 H Hf'2.
-    case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- res])) Hf'1 =>// [[[sv sc] slt]] /= Heq.
+    case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- fres])) Hf'1 =>// [[[sv sc] slt]] /= Heq.
     case: Heq=> [H1 H2 H3].
-    move: Hc=> /(_ (read_es [seq Pvar i | i <- res])).
+    move: Hc=> /(_ (read_es [seq Pvar i | i <- fres])). 
     have /= /(_ wf_vmap0) Hwf := wf_write_vars _ Hw.
     rewrite Hd => /(_ Hwf (evm s1)) [//|vm2' [Hvm2'1 /= Hvm2'2]];subst.
     case: s1 Hvm2'2 Hw Hsem Hwf => /= m1' vm1' Hvm2'2 Hw Hsem Hwf.
+    case: H=> H1 H2 H3 H4 H5 H6 H7.
     apply EcallRun with {|
-           f_iinfo := f_iinfo;
-           f_tyin := f_tyin;
-           f_params := f_par;
-           f_body := c';
-           f_tyout := f_tyout;
-           f_res := res |} vargs {| emem := m1'; evm := vm1'|} vm2 vres.
-    + rewrite /=. admit.
+           f_iinfo := fi;
+           f_tyin := fin;
+           f_params := fp;
+           f_body := c'';
+           f_tyout := fo;
+           f_res := fres |} vargs {| emem := m1'; evm := vm1'|} vm2' vres.
+    + rewrite /=. replace (zip
+              (unzip1
+                 (zip (unzip1 (p_funcs p'))
+                    (zip (unzip2 (p_funcs p')) (unzip2 Ffs))))
+              (unzip1
+                 (unzip2
+                    (zip (unzip1 (p_funcs p'))
+                         (zip (unzip2 (p_funcs p')) (unzip2 Ffs)))))) with (p_funcs p') in Hf'2.
+      subst. apply Hf'2.
+      rewrite unzip2_zip. rewrite unzip1_zip /=. rewrite unzip1_zip /=.
+      by rewrite zip_unzip.
+      admit.
+      rewrite size1_zip. case: (p_funcs p'). auto. move=> a l /=. admit.
+      admit.
+      rewrite size1_zip. case: (p_funcs p'). auto. move=> a l /=. admit.
+      admit.
     + rewrite /=. exact htra.
     + rewrite /=. exact Hw.
-    + rewrite /=. admit.
-    + rewrite /=. exact Hres.
+    + rewrite /=. replace  (leak_Fun Ffs fn) with ltc''.  exact Hvm2'2.
+      admit.
+    + rewrite -Hres /=.
+      move: (@sem_pexprs_get_var gd (Estate m2 vm2) fres). move=> /= h1. rewrite /= in h1.
+      move: (@sem_pexprs_get_var gd (Estate m2 vm2') fres). move=> h1'. rewrite /= in h1'.
+      move: (read_es_eq_on). admit.
     rewrite /=. exact Hfull.
   Admitted.
 
