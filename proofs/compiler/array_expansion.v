@@ -68,6 +68,7 @@ Module CBEA.
 
   Module M.
 
+    (* array_info is a record consisting of array informations *)
     Record array_info := {
       ai_ty    : wsize;
       ai_elems : Ma.t;
@@ -423,6 +424,8 @@ Module CBEA.
     | b :: bls => b && and_seq bls
     end.
 
+  (* function written in ocaml *)
+  (* here we check the correctness of it *)
   Fixpoint check_eb m (e1 e2:pexpr) : bool * leak_e_tr :=
     match e1, e2 with
     | Pconst   n1, Pconst   n2 => (n1 == n2, LT_remove)
@@ -533,8 +536,16 @@ Module CBEA.
     Proof.
       apply: pexprs_ind_pair; subst P Q; split => /=.
       - (* Base case *)
-        admit.
-      - admit.
+        case => //. move=> vs1 ht [] <-. exists [::].
+        rewrite /=. split; eauto.
+        move=> e es vs1 ht [] <-. admit.
+      - move=> e rec es ih [] //. admit.
+        move=> e' es' vs1' /= /andP [] h1 h2. t_xrbindP. move=> [ve vl] he vs hes <-.
+        move: (rec e' ve vl h1 he). move=> [] ve' -> /= hv.
+        move: (ih es' vs h2 hes). move=> [] vs' [] -> /= [] hv' [] hvs.
+        exists ((ve', leak_E (check_eb r e e').2 vl) :: vs').
+        rewrite /=. split; eauto. split. apply List.Forall2_cons; eauto.
+        rewrite hvs /=. admit.
       - (* Pconst *)
         move=> z [] // z1 v1 l /eqP <- [] <- <-. exists z. rewrite /=.
         auto. auto.
@@ -584,6 +595,7 @@ Module CBEA.
         move=> op e He [] // op1 e2 v1 l /=.
         move=> /andP [] /eqP <- /= Hce. t_xrbindP.
         move=> [ve le] He' vo Ho <- <-. move: (He e2 ve le Hce He'). move=> {He} [] ve' -> /= Hv.
+
         move: vuincl_sem_sop1. move=> Ho'. move: (Ho' op ve ve' vo Hv Ho). move=> -> /=.
         by exists vo.
       - (* Papp2 *)
@@ -595,13 +607,12 @@ Module CBEA.
         move: vuincl_sem_sop2. move=> H. move: (H op ve ve'' ve' ve''' vo Hv Hv' Ho).
         move=> -> /=. by exists vo.
       - (* PappN *)
-        move=> op es Hes [] //= op' es' v1 l.
-        move=> /andP [] /eqP <- Ha. t_xrbindP.
-        move=> ys Hes' vn Hon <- <-. rewrite /sem_pexprs in Hes.
-        move: (Hes es' ys Ha Hes'). move=> [] vs' [] Hes'' [] Hv Hl.
-        rewrite Hes'' /=. move: vuincl_sem_opN. move=> H.
-        move: (H op (unzip1 ys) vn (unzip1 vs') Hon Hv). move=> [] vn' -> /= Hv'.
-        exists vn'. case: Hl=> Hl1. rewrite Hl1 /=. rewrite -Hl1. admit. auto.
+        move=> op es Hes [] //= op' es' v1 l /andP [] /eqP <- Ha. t_xrbindP.
+        move=> vs ok_vs vs' Hon <- <- /=.
+        rewrite /sem_pexprs in Hes. move: Hes => /(_ _ _ Ha ok_vs) [] vs'' [] -> [] hv hv' /=.
+       move: vuincl_sem_opN. move=> Hon'. move: (Hon' op (unzip1 vs) vs' (unzip1 vs'') Hon hv).
+       move=> [] vs''' -> hv'' /=. exists vs'''. case: hv'=> hv1. rewrite hv1 /=.
+       admit. auto.
       (* Pif *)
       move=> t e He e1 He1 e2 He2 [] //= t' e' e1' e2' v1 l.
       move=> /andP [] /andP [] /andP [] /eqP <- Hce Hce1 Hce2.

@@ -249,10 +249,10 @@ Section REMOVE.
               end
             else
               Let rlv := remove_glob_lv ii env lv in
-              ok (env, [::MkI ii (Cassgn rlv.1 tag ty e.1)], LT_ile (LT_seq (rlv.2 :: [:: LT_id])))
+              ok (env, [::MkI ii (Cassgn rlv.1 tag ty e.1)], LT_ile (LT_seq ([:: e.2 ; rlv.2])))
           | _ =>
             Let rlv := remove_glob_lv ii env lv in
-            ok (env, [::MkI ii (Cassgn rlv.1 tag ty e.1)], LT_ile (LT_seq (rlv.2 :: [:: LT_id])))
+            ok (env, [::MkI ii (Cassgn rlv.1 tag ty e.1)], LT_ile (LT_seq ([:: e.2 ; rlv.2])))
           end
         | Copn lvs tag o es =>
           Let rlvs := mapM (remove_glob_lv ii env) lvs in

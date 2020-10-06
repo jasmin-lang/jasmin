@@ -347,10 +347,9 @@ case: e=> //= ;try auto.
   inversion Hb.
 + move=> s0 e. t_xrbindP.
   move=> h [yv yl] He /= h1 Ho <-. rewrite /sem_sop1 /=.
-  t_xrbindP => h0 y /to_boolI Hy hh0 Hv Hl; subst.
-  case hop: (if s0 is Onot then false else true).
-    have eval : sem_pexpr gd s (Papp1 Onot (Papp1 s0 e), LT_id).1 = ok (Vbool (~~y), l).
-    by rewrite /= He /= Ho /=. admit. admit.
+  t_xrbindP => h0 y /to_boolI ????; subst.
+  case hop: (if s0 is Onot then false else true). exists (~~y). rewrite /=.
+  Admit.
 + move=> s0 e e0. t_xrbindP.
   move=> y [yv yl] He [yv' yl'] He0 v0 /= Hs2 /= Hev v1 Hs1 <- Hl'.
   rewrite He /=. rewrite He0 /=. rewrite Hs2 /=. rewrite -Hev in Hs1.

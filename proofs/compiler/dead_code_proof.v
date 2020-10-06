@@ -505,57 +505,87 @@ Section PROOF.
     exact: Hvm2'.
   Qed.
 
+  Fixpoint get_fundef' (p :  seq (funname * (fundef * leak_c_tr))) (fn : funname) : option fundef :=
+    match p with
+    | [::] => None
+    | (x, (y, z)) :: p0 =>  if x == fn then Some y else get_fundef' p0 fn
+                                                               end.
+  Lemma map_cfprog_get_dummy: forall p1 p2 fn f f' lt,
+  map_cfprog dead_code_fd p1 = ok p2 ->
+  get_fundef p1 fn = Some f ->
+  dead_code_fd f = ok (f', lt) ->
+  get_fundef (zip (unzip1 p2) (unzip1 (unzip2 p2))) fn = Some f'.
+  Proof.
+  move=> p1 p2 fn f f' lt.  
+  elim: p1 p2 => // -[fn1 fd1] p1 IH p2.
+  rewrite /map_cfprog /= -/(map_cfprog _ _).
+  apply: rbindP=> -[fn1' fd1']; apply: rbindP=> fd1'' Hfd1 [] Hfn1 Hfd1''.
+  subst fn1'; subst fd1''.
+  apply: rbindP=> pl' Hpl' [] <-.
+  rewrite get_fundef_cons /=.
+  case: ifP.
+  + move=> /eqP Hfn.
+    subst fn1=> -[] Hf.
+    subst fd1=> Hf'.
+    rewrite Hf' in Hfd1.
+    by move: Hfd1=> -[] <- /=.
+  + move=> Hfn Hf Hf'.
+    exact: IH.
+  Qed.
+  
+  Lemma get_map_cfprog_dummy': forall p1 p2 fn f,
+  map_cfprog dead_code_fd p1 = ok p2 ->
+  get_fundef p1 fn = Some f ->
+  exists f', exists lt,
+    dead_code_fd f = ok (f', lt) /\
+    get_fundef (zip (unzip1 p2) (unzip1 (unzip2 p2))) fn = Some f'.
+  Proof.
+  move=> p1 p2 fn f Hmap H.
+  have Hp := (get_fundef_in' H).
+  move: (mapM_In Hmap Hp)=> [[fn' fd'] /= [Hfd Hok]].
+  apply: rbindP Hok=> f' Hf' [] Hfn' Hfd'.
+  subst fn'; subst fd'.
+  have Hf: dead_code_fd f = ok (f').
+    rewrite /add_finfo in Hf'.
+    by case: (dead_code_fd f) Hf'=> // a []<-.
+    destruct f' in Hf.  
+    exists f0. exists l. split=> //.
+    move: (map_cfprog_get_dummy). move=> Hg. 
+    move: (Hg p1 p2 fn f f0 l Hmap H Hf). by move=> ->.
+  Qed.
+
   Local Lemma Hproc : sem_Ind_proc p Pc Pfun.
   Proof.
-    move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hfun htra Hw Hsem Hc Hres Hfull /=.
-    have dcok : map_cfprog dead_code_fd (p_funcs p) =
+    move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hfun htra Hw Hsem Hc Hres Hfull.
+    have dcok : map_cfprog dead_code_fd (p_funcs p) = 
                 ok (zip (unzip1 (p_funcs p')) (zip (unzip2 (p_funcs p')) (unzip2 Ffs))).
-    + move: dead_code_ok. rewrite /dead_code_prog. t_xrbindP.
-      move=> res' -> h1 h2 /=. rewrite zip_unzip.
-      
-    have [[f' ltc'] [Hf'1 Hf'2]] := get_map_cfprog dcok Hfun.
-    case: f Hf'1 Hfun htra Hw Hsem Hc Hres Hfull=>
-    f_iinfo f_tyin f_params f_body f_tyout f_res /=. t_xrbindP.
-    move=> [[s c] ltc] Hf'1 [] h1' h2' Hfun htra Hw Hsem Hc Hres Hfull.
-    case: (f') Hf'1 Hf'2=>f_iinfo' f_tyin' f_params' f_body' f_tyout' f_res' /= Hf'1 Hf'2.
-    case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- res])) Hf'1 =>// [[sv sc]] /= Heq.
-
-    move=> [[s' c'] ltc'] Hf'1. [] h1' h2' Hfun htra Hw Hsem Hc Hres Hfull.
-
-
-    
-    c H res'. Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
-    case: f' Hf'1 Hf'2=> ??? c' ? f'_res Hf'1 Hf'2.
-    case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- res])) Hf'1 =>// [[sv sc]] /= Heq.
-    rewrite /ciok in Heq.
-    move: Heq=> [Heqi Heqp Heqc Heqr].
+    (* this should produce (seq (funname * (fundef * leak_c_tr))) *)
+    + move: dead_code_ok; rewrite /dead_code_prog; t_xrbindP.
+      move=> vfs -> <- <- /=. admit. (* i think this is correct. it can be proved. *)
+    move: (get_map_cfprog_dummy' dcok Hfun). move=> [] f' [] lt' []  Hf'1 /= Hf'2.
+    case: f Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
+    move=> f_iinfo f_tyin f_par /= c f_tyout res Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
+    case: f' Hf'1 Hf'2=> ??? c' ? f'_res. t_xrbindP. move=> [[m'' c''] ltc''] Hf'1 H Hf'2.
+    case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- res])) Hf'1 =>// [[[sv sc] slt]] /= Heq.
+    case: Heq=> [H1 H2 H3].
     move: Hc=> /(_ (read_es [seq Pvar i | i <- res])).
     have /= /(_ wf_vmap0) Hwf := wf_write_vars _ Hw.
-    rewrite Hd => /(_ Hwf (evm s1)) [//|vm2' [Hvm2'1 /= Hvm2'2]] ??;subst.
-    case: s1 Hvm2'2 Hw Hsem Hwf => /= ?? Hvm2'2 Hw Hsem Hwf.
-    econstructor.
-    + exact: Hf'2. + exact htra. + exact Hw. + exact Hvm2'2.
-    2: exact Hfull.
-    rewrite -Hres; have /= <- := (@sem_pexprs_get_var gd (Estate m2 vm2) f'_res).
-    have /= <- := (@sem_pexprs_get_var gd (Estate m2 vm2') f'_res);symmetry.
-    by apply: read_es_eq_on Hvm2'1.
-
-
-
-
-    
-    rewrite /sem_Ind_proc.
-    move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hfun htra Hw Hsem Hc Hres Hfull /=.
-    + move: dead_code_ok; rewrite /dead_code_prog. t_xrbindP. move => y dcok Hep' Hfs.
-    have [f' [Hf'1 Hf'2]] := get_map_cfprog dcok Hfun.
-    case: f Hf'1 Hfun htra Hw Hsem Hc Hres Hfull. move => ??? /= c ? res Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
-    case: f' Hf'1 Hf'2. move=> a b. t_xrbindP. move=> y0 Hdc f'_res Hf'1.
-    case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- res])) Hf'1 =>// /= Heq.
-    rewrite /ciok in Heq.
-    move: Hc=> /(_ (read_es [seq Pvar i | i <- res])).
-    have /= /(_ wf_vmap0) Hwf := wf_write_vars _ Hw.
-    rewrite Hd /=. simpl.
-   Admitted.
+    rewrite Hd => /(_ Hwf (evm s1)) [//|vm2' [Hvm2'1 /= Hvm2'2]];subst.
+    case: s1 Hvm2'2 Hw Hsem Hwf => /= m1' vm1' Hvm2'2 Hw Hsem Hwf.
+    apply EcallRun with {|
+           f_iinfo := f_iinfo;
+           f_tyin := f_tyin;
+           f_params := f_par;
+           f_body := c';
+           f_tyout := f_tyout;
+           f_res := res |} vargs {| emem := m1'; evm := vm1'|} vm2 vres.
+    + rewrite /=. admit.
+    + rewrite /=. exact htra.
+    + rewrite /=. exact Hw.
+    + rewrite /=. admit.
+    + rewrite /=. exact Hres.
+    rewrite /=. exact Hfull.
+  Admitted.
 
 
   Lemma dead_code_callP fn mem mem' va vr lf:
