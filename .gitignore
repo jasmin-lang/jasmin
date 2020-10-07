@@ -10,6 +10,8 @@ compiler/src/CIL/*.mli
 *.cmx[as]
 *.annot
 *.vo
+*.vok
+*.vos
 *.vio
 *.cache
 *.bak
