@@ -207,11 +207,6 @@ Let rsp : var := var_of_register RSP.
 Let rspi : var_i := VarI rsp xH.
 Let rspg : gvar := Gvar rspi Slocal.
 
-Definition round_ws (ws:wsize) (sz: Z) : Z :=
-  (let d := wsize_size ws in
-   let (q,r) := Z.div_eucl sz d in
-   if r == 0 then sz else (q + 1) * d)%Z.
-
 (** Total size of a stack frame: local variables, extra and padding. *)
 Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
   round_ws e.(sf_align) (sf_stk_sz e + sf_stk_extra_sz e).

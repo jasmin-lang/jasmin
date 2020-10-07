@@ -354,6 +354,31 @@ Lemma is_align_array (AL:alignment) ptr sz j :
   is_align ptr sz → is_align (wrepr _ (wsize_size sz * j) + ptr) sz.
 Proof. by move=> hptr; apply is_align_add => //; apply is_align_mul. Qed.
 
+(** Rounds the given size to the next larger-or-equal multiple of [ws] *)
+Definition round_ws (ws:wsize) (sz: Z) : Z :=
+  (let d := wsize_size ws in
+   let: (q, r) := Z.div_eucl sz d in
+   if r == 0 then sz else (q + 1) * d)%Z.
+
+Lemma round_ws_aligned ws sz :
+  (round_ws ws sz) mod wsize_size ws == 0.
+Proof.
+  have ws_pos : wsize_size ws ≠ 0 by case: ws.
+  apply/eqP; rewrite Z.mod_divide // /round_ws.
+  elim_div => /(_ ws_pos) [] ->{sz} D.
+  case: eqP => ?.
+  - exists z; Psatz.lia.
+  exists (z + 1); Psatz.lia.
+Qed.
+
+Lemma round_ws_above ws sz :
+  sz <= round_ws ws sz.
+Proof.
+  have ws_pos := wsize_size_pos ws.
+  rewrite /round_ws; elim_div => - [] // -> []; last by Psatz.lia.
+  case: eqP; Psatz.lia.
+Qed.
+
 Class memory (mem: Type) : Type :=
   Memory {
       read_mem  : mem -> pointer -> forall (s:wsize), exec (word s)
@@ -361,7 +386,7 @@ Class memory (mem: Type) : Type :=
     ; valid_pointer : mem -> pointer -> wsize -> bool
     ; stack_root : mem -> pointer
     ; frames : mem -> seq (pointer * Z)
-    ; alloc_stack : mem -> wsize -> Z -> exec mem
+    ; alloc_stack : mem -> wsize -> Z -> Z -> exec mem (* alignement, size, extra-size *)
     ; free_stack : mem -> Z -> mem
     ; init : seq (pointer * Z) → pointer → exec mem
     }.
@@ -375,11 +400,11 @@ Definition top_stack {mem: Type} {M: memory mem} (m: mem) : pointer :=
 
 Section SPEC.
   Context (AL: alignment) mem (M: memory mem)
-    (m: mem) (ws:wsize) (sz: Z) (m': mem).
+    (m: mem) (ws:wsize) (sz: Z) (sz': Z) (m': mem).
   Let pstk := top_stack m'.
 
   Record alloc_stack_spec : Prop := mkASS {
-    ass_mod      : (wunsigned pstk + sz <= wbase Uptr)%Z;
+    ass_mod      : (wunsigned pstk + round_ws ws (sz + sz') <= wbase Uptr)%Z;
     ass_read_old : forall p s, valid_pointer m p s -> read_mem m p s = read_mem m' p s;
     ass_valid    : forall p,
       valid_pointer m' p U8 =
@@ -391,7 +416,7 @@ Section SPEC.
       (wunsigned p + wsize_size s <= wunsigned pstk \/
        wunsigned pstk + sz <= wunsigned p)%Z;
     ass_root : stack_root m' = stack_root m;
-    ass_frames : frames m' = (pstk, sz) :: frames m;
+    ass_frames : frames m' = (pstk, round_ws ws (sz + sz')) :: frames m;
   }.
 
   Record stack_stable : Prop := mkSS {
@@ -410,7 +435,7 @@ Section SPEC.
 
 End SPEC.
 
-Arguments alloc_stack_spec {_ _ _} _ _ _.
+Arguments alloc_stack_spec {_ _ _} _ _ _ _.
 Arguments stack_stable {_ _} _ _.
 Arguments free_stack_spec {_ _} _ _ _.
 
@@ -488,8 +513,8 @@ Parameter read_write_any_mem :
     read_mem m2 pr szr = read_mem m2' pr szr.
 
 (* -------------------------------------------------------------------- *)
-Parameter alloc_stackP : forall m m' ws sz,
-  alloc_stack m ws sz = ok m' -> alloc_stack_spec m ws sz m'.
+Parameter alloc_stackP : forall m m' ws sz sz',
+  alloc_stack m ws sz sz' = ok m' -> alloc_stack_spec m ws sz sz' m'.
 
 Parameter write_mem_stable : forall m m' p s v,
   write_mem m p s v = ok m' -> stack_stable m m'.

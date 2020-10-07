@@ -348,7 +348,7 @@ let main () =
           begin match f_annot.stack_allocation_size with
           | None -> ()
           | Some expected ->
-             let actual = Conv.bi_of_z (Linear.round_ws sf_align (BinInt.Z.add sf_stk_sz sf_stk_extra_sz)) in
+             let actual = Conv.bi_of_z (Memory_model.round_ws sf_align (BinInt.Z.add sf_stk_sz sf_stk_extra_sz)) in
              if B.equal actual expected
              then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%a)@." f_name.fn_name B.pp_print expected)
              else hierror "Function %s has a stack of size %a (expected: %a)" f_name.fn_name B.pp_print actual B.pp_print expected

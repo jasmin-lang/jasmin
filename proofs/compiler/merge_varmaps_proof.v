@@ -75,7 +75,7 @@ Lemma init_stk_stateI fex pex gd s s' :
   init_stk_state fex pex gd s = ok s' →
   [/\
     (evm s').[vid pex.(sp_rip)] = ok (pword_of_word gd),
-    alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) = ok (emem s') &
+    alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) fex.(sf_stk_extra_sz) = ok (emem s') &
     (evm s').[vid (string_of_register RSP)] = ok (pword_of_word (top_stack (emem s'))) ].
 Proof.
   move => checked_sp_rip.
@@ -700,16 +700,16 @@ Section LEMMA.
       have {ok_w} vv' := value_uincl_truncate_val ok_w.
       have [->] := write_var_get_var ok_s2.
       exact: pto_pof_uincl (value_uincl_trans vv' v'_w').
-    have top_stack2 : top_stack (free_stack (emem s2) (sf_stk_sz (f_extra fd))) = top_stack m.
-    - have frames2 : frames (emem s2) = (top_stack (emem s0), sf_stk_sz (f_extra fd)) :: frames m.
+    have top_stack2 : top_stack (free_stack (emem s2) (round_ws fd.(f_extra).(sf_align) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)))) = top_stack m.
+    - have frames2 : frames (emem s2) = (top_stack (emem s0), round_ws fd.(f_extra).(sf_align) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))) :: frames m.
       + by rewrite -(sem_stack_stable sexec).(ss_frames) -(write_vars_emem ok_s1) (Memory.alloc_stackP ok_m').(ass_frames).
-      have := @Memory.free_stackP (emem s2) (sf_stk_sz (f_extra fd)).
+      have := @Memory.free_stackP (emem s2) (round_ws fd.(f_extra).(sf_align) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))).
       rewrite frames2 => /(_ erefl) ok_free.
       rewrite {1}/top_stack (fss_frames ok_free) frames2 /=.
       by rewrite (fss_root ok_free) -(sem_stack_stable sexec).(ss_root) -(write_vars_emem ok_s1) (Memory.alloc_stackP ok_m').(ass_root).
     have [ t2 [ texec preserved sim2 ] ] := ih _ _ t1' checked_body pre1 sim1.
    have [ tres ok_tres res_uincl ] : exists2 tres,
-     mapM (λ x : var_i, get_var (set_RSP (free_stack (emem t2) (sf_stk_sz (f_extra fd))) (evm t2)) x) (f_res fd) = ok tres
+     mapM (λ x : var_i, get_var (set_RSP (free_stack (emem t2) (round_ws fd.(f_extra).(sf_align) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)))) (evm t2)) x) (f_res fd) = ok tres
      & List.Forall2 value_uincl vres' tres.
    - move: ok_vres RSP_not_result (f_tyout fd) vres' ok_vres'.
      move: (mvm_vmap sim2); rewrite /live_after_fd; clear.
@@ -726,7 +726,7 @@ Section LEMMA.
      exists (tv :: tres); first reflexivity.
      constructor; last exact: res_uincl.
      exact: (value_uincl_trans (value_uincl_truncate_val ok_w) v_uincl).
-     exists (set_RSP (free_stack (emem t2) (sf_stk_sz (f_extra fd))) (evm t2)), tres; split.
+     exists (set_RSP (free_stack (emem t2) (round_ws fd.(f_extra).(sf_align) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)))) (evm t2)), tres; split.
     - econstructor.
       + exact: ok_fd.
       + exact: ok_rastack.

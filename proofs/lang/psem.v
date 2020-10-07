@@ -2652,14 +2652,14 @@ Notation vid ident := {|v_var := {|vtype := sword Uptr; vname := ident|}; v_info
 Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (s:estate) :=
   let m1   := s.(emem) in
   let vm1  := s.(evm) in
-  Let m1' := alloc_stack m1 sf.(sf_align) sf.(sf_stk_sz) in
+  Let m1' := alloc_stack m1 sf.(sf_align) sf.(sf_stk_sz) sf.(sf_stk_extra_sz) in
   write_vars [:: vid (string_of_register RSP) ; vid pe.(sp_rip)]
              [:: Vword (top_stack m1'); Vword wrip] (Estate m1' vmap0).
 
-Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) := 
-  free_stack m (sf_stk_sz sf).
+Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
+  free_stack m (round_ws (sf_align sf) (sf_stk_sz sf + sf_stk_extra_sz sf)).
 
-Instance sCP_stack : @semCallParams _ progStack := 
+Instance sCP_stack : @semCallParams _ progStack :=
   {| init_state := init_stk_state;
      finalize   := finalize_stk_mem; |}.
 
