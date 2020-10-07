@@ -143,6 +143,10 @@ let check_safety_p s p source_p =
     s1 s2
     (Printer.pp_prog ~debug:true) p;
 
+  let () = match !safety_config with
+    | Some conf -> SafetyConfig.load_config conf
+    | None -> () in
+  
   let () =
     List.iter (fun f_decl ->
         if f_decl.f_cc = Export then
@@ -191,8 +195,9 @@ let main () =
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
     
-    if check_safety_pass = Compiler.ParamsExpansion && !check_safety then
-      check_safety_p Compiler.ParamsExpansion prog source_prog
+    if SafetyConfig.sc_comp_pass () = Compiler.ParamsExpansion &&
+       !check_safety
+    then check_safety_p Compiler.ParamsExpansion prog source_prog
     else
             
     if !ec_list <> [] then begin
@@ -342,7 +347,7 @@ let main () =
       check_safety_p s p source_prog in
     
     let pp_cprog s cp =
-      if s = check_safety_pass && !check_safety then
+      if s = SafetyConfig.sc_comp_pass () && !check_safety then
         check_safety_cp s cp
       else
         eprint s (fun fmt cp ->

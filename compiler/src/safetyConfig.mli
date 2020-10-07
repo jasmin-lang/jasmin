@@ -9,6 +9,7 @@ type call_policy =
 
 type init_print = IP_None  | IP_NoArray | IP_All
 
+val sc_comp_pass               : unit -> Compiler.compiler_step
 val sc_k_unroll                : unit -> int
 val sc_zero_threshold          : unit -> bool
 val sc_param_threshold         : unit -> bool
@@ -34,5 +35,7 @@ val sc_var_append_fun_name     : unit -> bool
 val sc_widening_out            : unit -> bool
 
 (* -------------------------------------------------------------------- *)
-val pp_current_config : Format.formatter -> unit
+val pp_current_config      : Format.formatter -> unit
+val pp_current_config_diff : unit -> unit
+
 val load_config : string -> unit

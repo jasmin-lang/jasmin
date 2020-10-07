@@ -11,8 +11,8 @@ let print_list = ref []
 let ecfile = ref ""
 let ec_list = ref []
 let check_safety = ref false
-let check_safety_pass = Compiler.ParamsExpansion
 let safety_param = ref None
+let safety_config = ref None
 
 let lea = ref false
 let set0 = ref false
@@ -55,8 +55,8 @@ let set_constTime () = model := ConstantTime
 let set_safety () = model := Safety
 
 let set_checksafety () = check_safety := true
-
 let set_safetyparam s = safety_param := Some s
+let set_safetyconfig s = safety_config := Some s
 
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
@@ -107,7 +107,8 @@ let options = [
      v_1,...,v_n;v_1',...,v_k'\n    \
      v_1,...,v_n: list of pointer variables that have to be considered \
      together\n    \
-     v_1',...,v_k': list of relational variables"
+     v_1',...,v_k': list of relational variables";
+    "-safetyconfig", Arg.String set_safetyconfig, "[filename]: use filename (JSON) as configuration file for the safety checker"
   ] @  List.map print_option poptions
 
 let usage_msg = "Usage : jasminc [option] filename"

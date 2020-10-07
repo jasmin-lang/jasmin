@@ -7987,7 +7987,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           | _ -> raise (Failure "-safetyparam ill-formed (too many '>' ?)"))
 
   let analyze () =
-    try
+    try     
     let ps_assoc = omap_dfl (fun s_p -> parse_params s_p)
         [ None, [ { relationals = None; pointers = None } ]]
         !Glob_options.safety_param in
@@ -8009,6 +8009,8 @@ module AbsAnalyzer (EW : ExportWrap) = struct
     let npt = List.filter (fun x -> not (List.mem x pt_vars)) EW.main.f_args
               |> List.map (fun x -> MmemRange (MemLoc x)) in
 
+    let () = Config.pp_current_config_diff () in
+    
     let l_res = List.map (fun p ->
         let module AbsInt = AbsInterpreter (struct
             include EW

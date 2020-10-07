@@ -21,74 +21,111 @@ type call_policy =
 
 type init_print = IP_None  | IP_NoArray | IP_All
 
+(* -------------------------------------------------------------------- *)
+(* Compiler steps after which the safety checker can be used. *)
+let compiler_steps = [
+  Compiler.ParamsExpansion ;
+  Compiler.Inlining ;
+  Compiler.RemoveUnusedFunction ;
+  Compiler.Unrolling ;
+  Compiler.AllocInlineAssgn ;
+  Compiler.DeadCode_AllocInlineAssgn ;
+  Compiler.ShareStackVariable ;
+  Compiler.DeadCode_ShareStackVariable ;
+  Compiler.RemoveArrInit ;
+  Compiler.RegArrayExpansion ;
+  Compiler.RemoveGlobal ;
+  Compiler.LowerInstruction ;
+  Compiler.RegAllocation ;
+  Compiler.DeadCode_RegAllocation;
+]
+
+let compiler_step_of_string s =
+  List.find (fun x -> fst (Glob_options.print_strings x) = s) compiler_steps
+
+let json_compiler_steps : Json.Basic.t =
+  `List (List.map (fun x ->
+      let s1, s2 = Glob_options.print_strings x in
+      let data : Json.Basic.t =
+        `Assoc ["pass name",`String s1; "pass description", `String s2] in
+      data
+    ) compiler_steps)
+    
+(* -------------------------------------------------------------------- *)
 type kind  = Parameter | Printing | Internal 
 
 type pvalue = | Bool       of bool         
               | BoolRef    of bool ref     
               | Int        of int          
               | InitPrint  of init_print   
-              | CallPolicy of call_policy  
+              | CallPolicy of call_policy
+              | CompPass   of Compiler.compiler_step
 
 type param = { p     : pvalue;
                name  : string;
-               desc  : string;
+               desc  : Json.Basic.t;
                kind  : kind; }
 
+(* -------------------------------------------------------------------- *)
 let default = 
-  { p    = Int 1;
-    name = "k_unroll";
-    desc = "Number of unrolling of a loop body before applying the widening. \
-            Higher values yield a more precise (and more costly) analysis."; 
+  { p    = CompPass Compiler.ParamsExpansion;
+    name = "compilation_pass";
+    desc = `Assoc ([("descr",
+                    `String "Compilation pass where the analysis must run. \
+                             Can be any of the following passes." );
+                   ("passes", json_compiler_steps)]); 
     kind = Parameter; } ::
 
-  { p    = CallPolicy CallDirectAll;
-    name = "call_policy";
-    desc = "Policy used for abstract calls."; 
+  { p    = Int 1;
+    name = "k_unroll";
+    desc = `String "Number of unrolling of a loop body before applying the \
+                    widening. Higher values yield a more precise (and more \
+                    costly) analysis."; 
     kind = Parameter; } ::
 
   { p    = Bool false;
     name = "flow_dependency";
-    desc = "Dependency graph includes flow dependencies."; 
+    desc = `String "Dependency graph includes flow dependencies."; 
     kind = Parameter; } ::
 
   { p    = Bool true;
     name = "if_disjunction";
-    desc = "Add disjunctions on if statements when possible."; 
+    desc = `String "Add disjunctions on if statements when possible."; 
     kind = Parameter; } ::
 
   { p    = Bool true;
     name = "pif_movecc_as_if";
-    desc = "Handle top-level conditional move and if expressions as if \
+    desc = `String "Handle top-level conditional move and if expressions as if \
             statements. Combinatorial explosion if there are many movecc \
             and if expressions in the same block."; 
     kind = Parameter; } ::
 
   { p    = Bool true;
     name = "while_flags_setfrom_dep";
-    desc = "Pre-analysis looks for the variable corresponding to return \
+    desc = `String "Pre-analysis looks for the variable corresponding to return \
             boolean flags appearing in while loop condition (adding them to \
             the set of variables in the relational domain)."; 
     kind = Parameter; } ::
 
   { p    = Bool false;
     name = "dynamic_packing";
-    desc = "Dynamic variable packing. Particularly useful if the analysis \
+    desc = `String "Dynamic variable packing. Particularly useful if the analysis \
             runs after the register allocation."; 
     kind = Parameter; } ::
 
   { p    = Bool true;
     name = "zero_threshold";
-    desc = "Zero thresholds for the widening."; 
+    desc = `String "Zero thresholds for the widening."; 
     kind = Parameter; } ::
 
   { p    = Bool true;
     name = "param_threshold";
-    desc = "Thresholds from the analysis parameters for the widening."; 
+    desc = `String "Thresholds from the analysis parameters for the widening."; 
     kind = Parameter; } ::
 
   { p    = Bool false;
     name = "more_threshold";
-    desc = "More thresholds for the widening."; 
+    desc = `String "More thresholds for the widening."; 
     kind = Parameter; } ::
 
 
@@ -97,38 +134,39 @@ let default =
   (***********************)
   { p    = Bool true;
     name = "arr_no_print";
-    desc = "Turn on printing of array variables."; 
+    desc = `String "Turn on printing of array variables."; 
     kind = Printing; } ::
 
   { p    = Bool true;
     name = "glob_no_print";
-    desc = "Turn on printing of global variables."; 
+    desc = `String "Turn on printing of global variables."; 
     kind = Printing; } ::
 
   { p    = BoolRef (ref false);
     name = "nrel_no_print";
-    desc = "Turn on printing of non-relational variables."; 
+    desc = `String "Turn on printing of non-relational variables."; 
     kind = Printing; } ::
 
   { p    = Bool true;
     name = "ignore_unconstrained";
-    desc = "Turn on printing of unconstrained variables."; 
+    desc = `String "Turn on printing of unconstrained variables."; 
     kind = Printing; } ::
 
   { p    = InitPrint IP_None;
     name = "is_init_no_print";
-    desc = " Turn on printing of not initialized variables \
-            (i.e. it is not certain that the variable is initialized)."; 
+    desc = `String " Turn on printing of not initialized variables \
+            (i.e. it is not certain that the variable is initialized).\
+            Can be IP_None, IP_All or IP_NoArray."; 
     kind = Printing; } ::
 
   { p    = Bool true;
     name = "bool_no_print";
-    desc = "Turn on printing of boolean variables."; 
+    desc = `String "Turn on printing of boolean variables."; 
     kind = Printing; } ::
 
   { p    = Bool true;
     name = "print_symb_subst";
-    desc = "Print substitutions done by the symbolic equality domain."; 
+    desc = `String "Print substitutions done by the symbolic equality domain."; 
     kind = Printing; } ::
 
   (****************)
@@ -136,16 +174,22 @@ let default =
   (****************)
   { p    = Bool false;
     name = "var_append_fun_name";
-    desc = "Should the function name be appended to the variable name."; 
+    desc = `String "Should the function name be appended to the variable name."; 
     kind = Internal; } ::
 
    { p    = Bool false;
      name = "widening_out";
-     desc = "Widening outside or inside loops. \
+     desc = `String "Widening outside or inside loops. \
              Remark: if the widening is done inside loops, then termination \
              is not guaranteed in general. Nonetheless, if the meet operator \
              is monotonous then this should always terminates."; 
      kind = Internal; } ::
+
+    { p    = CallPolicy CallDirectAll;
+    name = "call_policy";
+    desc = `String "Policy used for abstract calls. Can be CallDirectAll or \
+            CallTopHeuristic"; 
+    kind = Internal; } ::
 
    []
 
@@ -173,6 +217,12 @@ let find_boolref name () =
     | _ -> None in
   List.find_map f !config
 
+let find_comppass name () =
+  let f param = match param.p with
+    | CompPass i when param.name = name -> Some i
+    | _ -> None in
+  List.find_map f !config
+
 let find_callpolicy name () =
   let f param = match param.p with
     | CallPolicy i when param.name = name -> Some i
@@ -185,7 +235,7 @@ let find_initprint name () =
     | _ -> None in
   List.find_map f !config
 
-             
+let sc_comp_pass               = find_comppass   "compilation_pass"
 let sc_k_unroll                = find_int        "k_unroll"
 let sc_call_policy             = find_callpolicy "call_policy"
 let sc_widening_out            = find_bool       "widening_out"
@@ -244,6 +294,16 @@ let change param t = match param.p, t with
   | InitPrint _, _ ->
     raise (BadSafetyConfig (param.name ^ " must be of type string"))
 
+  | CompPass _, `String s ->
+    let pass =
+      try  compiler_step_of_string s
+      with Not_found ->
+        raise (BadSafetyConfig ("unknown init printing parameter"))
+    in
+    { param with p = CompPass pass }
+  | CompPass _, _ ->
+    raise (BadSafetyConfig (param.name ^ " must be of type string"))
+
 
 (* -------------------------------------------------------------------- *)
 let rec of_json config (data : Json. t) =
@@ -269,26 +329,68 @@ let ip_to_string = function
       | IP_NoArray       -> "IP_NoArray" 
       | IP_All           -> "IP_All"
 
-let rec to_json config =
-  let doit param : string * Json.t =
+let rec to_json_gen f config : Json.Basic.t =
+  let doit param : string * Json.Basic.t =
     let t = match param.p with
       | Int i -> `Int i
       | Bool b -> `Bool b
       | BoolRef b -> `Bool !b
       | InitPrint i -> `String (ip_to_string i)
-      | CallPolicy p -> `String (pol_to_string p) in
-    param.name, t in
+      | CallPolicy p -> `String (pol_to_string p)
+      | CompPass p -> `String (fst (Glob_options.print_strings p)) in
+    param.name, (f param t) in
   
   let data = List.map doit config in
   `Assoc data
 
+let to_json = to_json_gen (fun _ t -> t)
 
+let to_json_doc config : Json.Basic.t =
+  let mk_param_doc param t =
+    `Assoc [
+      ("default", t);
+      ("description", param.desc)
+    ] in
+  to_json_gen mk_param_doc config
+        
 (* -------------------------------------------------------------------- *)
 let pp_config (fmt : Format.formatter) config =
-  Json.pretty_print fmt (to_json config)
+  Json.Basic.pretty_print fmt (to_json config)
 
 let pp_current_config fmt = pp_config fmt !config
-  
+
+let pp_current_config_diff () =
+  let config = List.filter (fun x ->
+      let x' = List.find (fun y -> y.name = x.name) default in
+      x.p <> x'.p) !config in
+  if config <> [] then
+    Format.eprintf "Checker parameter:@\n%a@." 
+      pp_config config
+  else ()  
+
+(* -------------------------------------------------------------------- *)
+let mk_config_doc () =
+  let json : Json.Basic.t = to_json_doc default in
+  let file = Stdlib.open_out "config/checker_config_doc.json" in
+  let () = Json.Basic.pretty_to_channel file json in
+  close_out file
+
+let () = mk_config_doc ()
+
+(* -------------------------------------------------------------------- *)
+let mk_config_default () =
+  let json : Json.Basic.t = to_json default in
+  let json = `List [`String "Default configuration file. Automatiacally \
+                             generated, any changes will be overwritten.";
+                    json] in
+  let file = Stdlib.open_out "config/checker_config_default.json" in
+  let () = Json.Basic.pretty_to_channel file json in
+  close_out file
+
+let () = mk_config_default ()
+
+
+(* -------------------------------------------------------------------- *)
 let load_config (filename : string) : unit =
   try
     config := of_json !config ((Json.Basic.from_file filename :> Json.t)) 
