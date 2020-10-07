@@ -16,7 +16,6 @@ type processor = (step array) PipelineMap.t
 
 (* Current state *)
 val current_cycle : int ref
-val alias_analysis : operand -> operand -> bool
 
 (* Pipeline managment *)
 val latency : pipeline -> int
@@ -25,21 +24,23 @@ val new_pipeline : pipeline -> step array
 val new_processor : unit -> processor
 
 (* Directives *)
-val ressources_available : instr -> processor -> bool
+val ressources_available : bool -> instr -> processor -> bool
 val execute_step : processor -> pipeline -> int -> unit
 val execute_pipeline : processor -> pipeline -> unit
 val one_cycle : processor -> unit
-val can_fetch : processor -> instr -> bool
+val can_fetch : bool -> processor -> instr -> bool
 val fetch : processor -> instr -> unit
 
 (* Sem *)
 val reinit_cycles : unit -> unit
-val atomic : processor -> instr -> unit
+val atomic : bool -> processor -> instr -> unit
 val finish : processor -> unit
 
 (* Complete processor *)
 
 type instrumentation = Pipeline_program.checkpoint * int * int (* min and max bound *)
+
+val pipeline_to_latency : (int PipelineMap.t) ref 
 
 type instrumentation_program =
   | ISkip
@@ -49,8 +50,8 @@ type instrumentation_program =
   | ILoop of instrumentation_program
 
 val instrument : program -> processor -> instrumentation_program
-val display : instrumentation_program -> unit
-val display_checkpoints : instrumentation_program -> unit
+
+val naive_instrument : program -> instrumentation_program
 
 (** Display **)
 val pipeline_to_string : pipeline -> string

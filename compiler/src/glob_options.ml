@@ -14,6 +14,7 @@ let check_safety = ref false
 let check_safety_pass = Compiler.DeadCode_RegAllocation
 let safety_param = ref None
 let pipeline_instrumentation = ref false
+let pipeline_naive = ref false
 
 let lea = ref false
 let set0 = ref false
@@ -109,7 +110,8 @@ let options = [
      v_1,...,v_n: list of pointer variables that have to be considered \
      together\n    \
      v_1',...,v_k': list of relational variables";
-    "-pipeline"  , Arg.Set pipeline_instrumentation, ": instrument the program with cost variables"
+    "-pipeline"  , Arg.Set pipeline_instrumentation, ": instrument the program with cost variables";
+    "-naivepipeline" , Arg.Set pipeline_naive, ": instrument the program with cost variable (naive approach)"
   ] @  List.map print_option poptions
 
 let usage_msg = "Usage : jasminc [option] filename"

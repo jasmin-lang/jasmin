@@ -162,6 +162,31 @@ let check_safety_p s p source_p =
       (snd p) in
   exit 0 
 
+(* -------------------------------------------------------------------- *)
+let check_overlap_p s p source_p =
+  let s1,s2 = Glob_options.print_strings s in
+  Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
+                  %a@;@]@."
+    s1 s2
+    (Printer.pp_prog ~debug:true) p;
+
+  List.map (fun f_decl ->
+      if f_decl.f_cc = Export then
+        let () = Format.eprintf "@[<v>Analyzing function %s@;@]@."
+            f_decl.f_name.fn_name in
+
+        let source_f_decl = List.find (fun source_f_decl ->
+            f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
+          ) (snd source_p) in
+        let module AbsInt = Safety.AbsAnalyzer(struct
+            let main_source = source_f_decl
+            let main = f_decl
+            let prog = p
+          end) in
+
+        Some (AbsInt.annotate_export ())
+      else None)
+    (snd p)
 
 (* -------------------------------------------------------------------- *)
 let main () =
@@ -348,8 +373,14 @@ let main () =
         if !pipeline_instrumentation && s = Compiler.DeadCode_RegAllocation then begin
           Format.eprintf "WARNING: Pipeline analyzer @.";
           let p = Conv.prog_of_cprog tbl cp in
-          let ip = Pipeline_instrumentation.instrument_prog p in
-          check_safety_p s ip source_prog
+          let overlap = check_overlap_p s p source_prog in
+          match List.hd overlap with
+            | Some annotated_p ->
+              (* Instrument the program with the overlap information *)
+              let ip = Pipeline_instrumentation.instrument_prog p annotated_p !pipeline_naive in
+              (* Computes invariants on costMin and costMax *)
+              check_safety_p s ip source_prog
+            | None -> Format.eprintf "No information for the alias analysis @."
         end else
           eprint s (fun fmt cp ->
               let p = Conv.prog_of_cprog tbl cp in

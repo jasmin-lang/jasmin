@@ -153,8 +153,18 @@ let pipeline_from_config =
         with End_of_file -> !current_config
 
 
-
 let pipelines = pipeline_from_config
+
+(* -------------------------------------------------------------------- *)
+
+let max_latency =
+    if config_mode_per_pipeline then
+        PipelineMap.fold (fun pip -> fun lat -> fun current_max -> max current_max lat) !pipeline_to_latency 0
+    else
+        InstrIdMap.fold (fun instr -> fun lat -> fun current_max -> max current_max lat) !instruction_to_latency 0
+
+
+(* -------------------------------------------------------------------- *)
 
 type step = Occupied of instr | Free
 
@@ -184,28 +194,36 @@ let new_processor () =
     in
     add_pipeline pipelines PipelineMap.empty
 
-let alias_analysis o1 o2 = match (o1, o2) with
-    | (Value, _) -> false
-    | (_, Value) -> false
-    | (Register _, MemoryAt _) -> false
-    | (MemoryAt _, Register _) -> false
-    | (Register a, Register b) -> (a == b)
-    | (MemoryAt _, MemoryAt _) -> true (* -> Means maybe *)
+let copy_processor proc =
+    let rec add_pipeline pips proc' = match pips with
+        | h :: t ->
+            let pipeline = PipelineMap.find h proc in
+             add_pipeline t (PipelineMap.add h (Array.copy pipeline) proc')
+        | [] -> proc'
+    in
+    add_pipeline pipelines PipelineMap.empty
 
-let ressources_available instr proc =
+let alias_names_to_operands = List.map (fun n -> MemoryAt n)
+
+let ressources_available compute_lower_bound instr proc =
     let step_no_write step value = 
         if value then
             match step with
             | Free -> true
-            | Occupied i ->
-                    (* No inputs of instr should be an output of i *)
-                    let outputs = i.instr_outputs in
+            | Occupied ip ->
+                    (* All inputs of instr should be ready: none should be an output of ip *)
+                    let outputs = ip.instr_outputs in
                     let inputs_ready = List.fold_right (fun w -> fun acc -> acc && not (List.mem w instr.instr_inputs)) outputs true in
-                    (* No outputs of instr should be an input or output of i *)
-                    let needed = i.instr_outputs @ i.instr_inputs in
+                    (* All outputs of instr should be ready: none should be an output or an input of ip *)
+                    let needed = ip.instr_outputs @ ip.instr_inputs in
                     let outputs_ready = List.fold_right (fun w -> fun acc -> acc && not (List.mem w instr.instr_outputs)) needed true in
-                    inputs_ready && outputs_ready
-                    (* TODO: Use alias-analysis *)
+                    (* If we compute the upper bound, we need to take into account may aliases too *)
+                    let inputs_aliases_ready = List.fold_right (fun w -> fun acc -> acc && not (List.mem w instr.instr_may_inputs)) outputs true in
+                    let iar = compute_lower_bound || inputs_aliases_ready in
+                    let outputs_aliases_ready = List.fold_right (fun w -> fun acc -> acc && not (List.mem w instr.instr_may_outputs)) needed true in
+                    let oar = compute_lower_bound || outputs_aliases_ready in
+
+                    inputs_ready && outputs_ready && iar && oar
         else false
     in
     let variable_available _ steps all_available =
@@ -245,14 +263,14 @@ let one_cycle proc =
     incr current_cycle;
     one_pipeline pipelines
 
-let can_fetch proc instr =
+let can_fetch compute_lower_bound proc instr =
     let rec try_candidate candidates = match candidates with
     | [] -> false
     | h :: t -> if (PipelineMap.find h proc).(0) = Free
                 then true
                 else try_candidate t
     in
-    if ressources_available instr proc
+    if ressources_available compute_lower_bound instr proc
     then try_candidate (pipelines_for instr)
     else false
 
@@ -265,8 +283,8 @@ let fetch proc instr =
     in
     try_candidate (pipelines_for instr)
 
-let atomic proc instr =
-    while not (can_fetch proc instr) do
+let atomic compute_lower_bound proc instr =
+    while not (can_fetch compute_lower_bound proc instr) do
         one_cycle proc
     done;
     fetch proc instr
@@ -297,30 +315,45 @@ type instrumentation_program =
   | ILoop of instrumentation_program
 
 let instrument prog proc =
-    let rec aux prog' proc' = match prog' with
+    let rec aux prog' proc_min' proc_max' = match prog' with
         | Skip -> ISkip
         | Bloc (c, l) -> begin
-            let cost = ref 0 in
-            let fetch_next i = 
+            let cost_min = ref 0 in
+            let cost_max = ref 0 in
+            let fetch_next_min i = 
                 (* Execute cycle on proc' until i can be fetched *)
-                while not (can_fetch proc' i) do
-                    incr cost;
-                    one_cycle proc'
+                while not (can_fetch true proc_min' i) do
+                    incr cost_min;
+                    one_cycle proc_min'
                 done;
                 (* Updates proc' with the fetch *)
-                fetch proc' i in
-            List.iter fetch_next l;
-            IBloc (c, !cost, !cost + 5)
+                Format.eprintf " %d: %s@." !cost_min (instr_to_string i);
+                fetch proc_min' i in
+            Format.eprintf "Cost Min of bloc %d@." c;
+            List.iter fetch_next_min l;
+            let fetch_next_max i = 
+                (* Execute cycle on proc' until i can be fetched *)
+                while not (can_fetch false proc_max' i) do
+                    incr cost_max;
+                    one_cycle proc_max'
+                done;
+                (* Updates proc' with the fetch *)
+                Format.eprintf " %d: %s@." !cost_max (instr_to_string i);
+                fetch proc_max' i in
+            Format.eprintf "Cost Max of bloc %d@." c;
+            List.iter fetch_next_max l;
+            Format.eprintf "@.";
+            IBloc (c, !cost_min, !cost_max + max_latency)
             end
         | Seq [] -> ISeq []
         | Seq (h :: l) ->
             (* First element can use proc but then we need an empty proc *)
-            ISeq ((aux h proc') :: (List.map aux_empty l))
+            ISeq ((aux h proc_min' proc_max') :: (List.map aux_empty l))
         | Cond (_, cif, celse) ->
             ICond (aux_empty cif, aux_empty celse)
         | Loop (_, cbody) -> 
             ILoop (aux_empty cbody)
-    and aux_empty prog' = aux prog' (new_processor ()) in
+    and aux_empty prog' = aux prog' (new_processor ()) (new_processor ()) in
     let unsupported_instrs =
         List.filter (fun i -> not (has_pipeline_for i)) (get_all_instr_in prog)
     in
@@ -332,39 +365,59 @@ let instrument prog proc =
             unsupported_instrs in
         unsupported_instr_error s
     end
-    else
-        aux prog proc
-
-let rec display = function
-  | ISkip -> 
-    Format.printf "ISkip@ "
-  | IBloc (c, min, max) ->
-    Format.printf "IBloc no %d : cost += [%d, %d]@ " c min max
-  | ISeq l -> begin
-        Format.printf "ISeq (@ @[<v 2>  ";
-        List.iter display l;
-        Format.printf ")@]@ "
-    end
-  | ICond (cif, celse) -> begin
-        Format.printf "cost += [0, 5]@ ICond (@ @[<v 2>  ";
-        display cif;
-        Format.printf ",@ ";
-        display celse;
-        Format.printf ")@]@ "
-    end
-  | ILoop c -> begin
-        Format.printf "cost += [1, 6]@ ILoop (@ @[<v 2>  cost += [1, 5]@ ";
-        display c;
-        Format.printf ")@]@ "
+    else begin
+        Format.eprintf "@.@[<v 0>\
+                        *----------------------------*@;\
+                        |  Pipeline instrumentation  |@;\
+                        *----------------------------*@;@;@]@.@[<v 0>";
+        print_prog_struct prog;
+        Format.eprintf "@]@.@.";
+        aux prog (copy_processor proc) (copy_processor proc)
     end
 
-let rec display_checkpoints = function
-  | ISkip -> ()
-  | IBloc (c, min, max) ->
-    Format.printf "%d %d %d@ " c min max
-  | ISeq l -> List.iter display_checkpoints l
-  | ICond (cif, celse) -> begin
-        display_checkpoints cif;
-        display_checkpoints celse
+let naive_instrument prog =
+    let rec aux prog' = match prog' with
+        | Skip -> ISkip
+        | Bloc (c, l) -> begin
+            let cost = ref 0 in
+            let cost_of_instr i = 
+                if config_mode_per_pipeline
+                then cost := !cost + PipelineMap.find (List.hd (pipelines_for i)) !pipeline_to_latency
+                else cost := !cost + InstrIdMap.find i.instr_id !instruction_to_latency;
+                (* Updates proc' with the fetch *)
+                Format.eprintf " %d: %s@." !cost (instr_to_string i)
+            in
+            Format.eprintf "Naive Cost of bloc %d@." c;
+            List.iter cost_of_instr l;
+            Format.eprintf "@.";
+            IBloc (c, 0, !cost)
+            end
+        | Seq [] -> ISeq []
+        | Seq (h :: l) ->
+            (* First element can use proc but then we need an empty proc *)
+            ISeq ((aux h) :: (List.map aux l))
+        | Cond (_, cif, celse) ->
+            ICond (aux cif, aux celse)
+        | Loop (_, cbody) -> 
+            ILoop (aux cbody)
+    in
+    let unsupported_instrs =
+        List.filter (fun i -> not (has_pipeline_for i)) (get_all_instr_in prog)
+    in
+    if unsupported_instrs <> []
+    then begin
+        let s = List.fold_left
+            (fun acc -> fun i -> Format.sprintf "%s %s" acc i)
+            ""
+            unsupported_instrs in
+        unsupported_instr_error s
     end
-  | ILoop c -> display_checkpoints c
+    else begin
+        Format.eprintf "@.@[<v 0>\
+                        *----------------------------------*@;\
+                        |  Naive Pipeline instrumentation  |@;\
+                        *----------------------------------*@;@;@]@.@[<v 0>";
+        print_prog_struct prog;
+        Format.eprintf "@]@.@.";
+        aux prog
+    end

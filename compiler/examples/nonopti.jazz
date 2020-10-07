@@ -1,0 +1,24 @@
+export fn addNumber(reg u64 A, reg u64 B, reg u64 len) -> reg u64 {
+  reg u64 i;
+  reg u64 p;
+  reg u64 r1;
+  reg u64 a;
+  reg u64 b;
+  reg u64 c;
+  reg u64 r2;
+
+  p = 0;
+  i = 0;
+
+  while (i < len) {
+    r1 = i * 8;
+    a = (u64)[A + r1];
+    r2 = i * 8;
+    b = (u64)[B + r2];
+    c = a * b;
+    p = p + c;
+    i = i + 1;
+  }
+
+  return p;
+}

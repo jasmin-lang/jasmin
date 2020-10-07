@@ -4,8 +4,13 @@ type operand = Value | Register of string | MemoryAt of string
 type instr = {
   instr_id: string;
   instr_inputs: operand list;
-  instr_outputs: operand list
+  instr_outputs: operand list;
+  instr_may_inputs: operand list;
+  instr_may_outputs: operand list
 }
+
+let instr_inputs i = i.instr_inputs
+let instr_outputs i = i.instr_outputs
 
 module ProgPointMap = Map.Make (struct type t = string let compare = compare end)
 
@@ -30,7 +35,7 @@ let get_all_instr_in p =
 
 let operand_to_string o = match o with
     | Value -> "0"
-    | Register r -> "\\\"" ^ r ^ "\\\""
+    | Register r -> r
     | MemoryAt r -> "[" ^ r ^ "]"
 
 let instr_to_string i = 
@@ -48,6 +53,31 @@ let rec store_prgm p = match p with
   | Loop (c :: _, body) -> "{ while: \"" ^ (operand_to_string c) ^ "\", body:" ^ (store_prgm body) ^ "}"
   | Loop ([], body) -> "{ while: \"\", body:" ^ (store_prgm body) ^ "}"
 
-let to_atomic name inputs outputs = {
-    instr_id = name; instr_inputs = inputs; instr_outputs = outputs
+let rec print_prog_struct p = match p with
+  | Skip ->
+      Format.eprintf "@ Skip"
+  | Bloc (i, _) ->
+      Format.eprintf "@ Bloc %d" i
+  | Seq l ->
+      List.iter print_prog_struct l
+  | Cond (_, t, e) -> begin
+      Format.eprintf "@ If () Then@ @[<v 2>";
+      print_prog_struct t;
+      Format.eprintf "@]@ Else@ @[<v 2>";
+      print_prog_struct e;
+      Format.eprintf "@]@ EndIf"
+    end
+  | Loop (_, body) -> begin
+      Format.eprintf "@ While ()@ @[<v 2>";
+      print_prog_struct body;
+      Format.eprintf "@]@ EndWhile"
+    end
+
+
+let to_atomic name inputs outputs read_alias write_alias = {
+    instr_id = name;
+    instr_inputs = inputs;
+    instr_outputs = outputs;
+    instr_may_inputs = read_alias;
+    instr_may_outputs = write_alias
 }

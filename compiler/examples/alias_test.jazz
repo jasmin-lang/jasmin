@@ -1,0 +1,13 @@
+export fn addNumber(reg u64 A, reg u64 shift) -> reg u64 {
+  reg u64 i;
+  reg u64 j;
+  stack u64 s_A;
+
+  s_A = A;
+
+  i = (u64)[s_A + 0];
+  j = (u64)[s_A + shift]; // may alias
+
+  i += j;
+  return i;
+}

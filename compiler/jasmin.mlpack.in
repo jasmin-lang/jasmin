@@ -11,6 +11,7 @@ src/Liveness
 src/Location
 src/Glob_options
 src/Main_compiler
+src/Overlap
 src/Parseio
 src/Parser
 src/Pipeline_instrumentation

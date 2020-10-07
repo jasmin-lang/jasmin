@@ -1,5 +1,6 @@
 open Prog
 open Syntax
+open Overlap
 
 exception NotSupportedError of Location.t * string
 
@@ -15,6 +16,8 @@ module F = Format
 module B = Bigint
 module PP = Pipeline_program
 
+let use_branch_prediction = true
+
 (* -------------------------------------------------------------------- *)
 
 let identifier = ref (-1)
@@ -22,6 +25,43 @@ let identifier = ref (-1)
 let init_checkpoint () = identifier := -1
 
 let get_fresh_checkpoint () = (incr identifier ; !identifier)
+
+(* -------------------------------------------------------------------- *)
+
+(* Map from program point *)
+module InstrPPMap = Map.Make (struct type t = int let compare = compare end)
+
+module Sope = Set.Make (struct type t = Pipeline_program.operand let compare = compare end)
+
+(* Map from program points to memoryAt used *)
+let collect_memoryat = ref InstrPPMap.empty
+
+let add_memoryat pp mem =
+    let new_pp_list =
+        let previous = (InstrPPMap.find_opt pp !collect_memoryat)
+        in match previous with
+        | None -> mem
+        | Some l -> mem @ l
+    in
+    collect_memoryat :=
+        InstrPPMap.add pp new_pp_list !collect_memoryat
+
+let get_memoryat pp = 
+  let at_pp = (InstrPPMap.find_opt pp !collect_memoryat)
+  in match at_pp with
+  | None -> []
+  | Some l -> l
+
+let extract_memoryat instr =
+  let filter = List.filter (function
+    | Pipeline_program.Value
+    | Pipeline_program.Register _ -> false
+    | Pipeline_program.MemoryAt _ -> true)
+  in
+  (filter (Pipeline_program.instr_inputs instr)) @
+  (filter (Pipeline_program.instr_outputs instr))
+
+let sort_aliases op memat = (memat, memat) (* TODO *)
 
 (* -------------------------------------------------------------------- *)
 (* Name of the operators for the simulator *)
@@ -172,24 +212,52 @@ let blockify c =
 
 (* Returns an atomic instruction for the analyzer corresponding to the assign
    instruction x = e at pos l *)
-let gassgn_to_pipeline l x e =
+let gassgn_to_pipeline l pp x e aa ma =
   (* Collect all variables read and write by x *)
   let readx, writex = read_write_glv l x in
   (* Collect all variables read by e and the operand*)
   let op, reade = op_read_expr l e in
-  PP.to_atomic op (readx @ reade) writex
+  let memat = get_memoryat pp in
+  let (input_alias_always, output_alias_always) = sort_aliases op aa in
+  let (input_alias_maybe, output_alias_maybe) = sort_aliases op ma in
+  let pipeline_instr =
+    PP.to_atomic
+      op
+      (readx @ reade @ input_alias_always)
+      (writex @ output_alias_always)
+      input_alias_maybe
+      output_alias_maybe
+  in
+  add_memoryat pp (extract_memoryat pipeline_instr);
+  pipeline_instr
 
 
 (* Returns an atomic instruction for the analyzer corresponding to the
    instruction x = o(e) at pos l *)
-let gopn_to_pipeline l x o e =
+let gopn_to_pipeline l pp x o e aa ma =
   (* Collect all variables read and write by x *)
   let readx, writex = read_write_glvs l x in
   (* Collect all variables read by e and the operand*)
   let reade = read_exprs l e in
   let charlist = Expr.string_of_sopn o in
   let op = String.init (List.length charlist) (List.nth charlist) in
-  PP.to_atomic op (readx @ reade) writex
+  let (input_alias_always, output_alias_always) = sort_aliases op aa in
+  let (input_alias_maybe, output_alias_maybe) = sort_aliases op ma in
+  let pipeline_instr =
+    PP.to_atomic
+      op
+      (readx @ reade @ input_alias_always)
+      (writex @ output_alias_always)
+      input_alias_maybe
+      output_alias_maybe
+  in
+  add_memoryat pp (extract_memoryat pipeline_instr);
+  pipeline_instr
+
+let mem_at_set pps =
+  let list_pp = Utils.Sint.elements pps in
+  let lists_of_mems = List.map get_memoryat list_pp in
+  Sope.of_list (List.concat lists_of_mems)
 
 (* Returns a list of program statements for the analyzer corresponding to the
    statement i *)
@@ -197,12 +265,32 @@ let rec gi_to_pipeline i =
   let (l, _) = i.i_loc in 
   match i.i_desc with
   | Cassgn(x, _, _, e) ->
+    let pp = (snd i.i_info).program_point in
+    let always_alias_pps = (snd i.i_info).always_overlaps in
+    let always_alias_mem = Sope.elements (mem_at_set always_alias_pps) in
+    let never_alias_pps = (snd i.i_info).never_overlaps in
+    let never_alias_mem = mem_at_set never_alias_pps in
+    let all_alias_pps = (snd i.i_info).overlaps_checked in
+    let all_alias_mem = mem_at_set all_alias_pps in
+    let may_alias_mem =
+      Sope.elements (Sope.diff all_alias_mem never_alias_mem)
+    in
     (* An assignment x = e *)
-    [PP.Bloc(-1, [gassgn_to_pipeline l x e])]
+    [PP.Bloc(-1, [gassgn_to_pipeline l pp x e always_alias_mem may_alias_mem])]
 
   | Copn(x, _, o, e) ->
+    let pp = (snd i.i_info).program_point in
+    let always_alias_pps = (snd i.i_info).always_overlaps in
+    let always_alias_mem = Sope.elements (mem_at_set always_alias_pps) in
+    let never_alias_pps = (snd i.i_info).never_overlaps in
+    let never_alias_mem = mem_at_set never_alias_pps in
+    let all_alias_pps = (snd i.i_info).overlaps_checked in
+    let all_alias_mem = mem_at_set all_alias_pps in
+    let may_alias_mem =
+      Sope.elements (Sope.diff all_alias_mem never_alias_mem)
+    in
     (* An assignment x = o(e), x and e are lists *)
-    [PP.Bloc(-1, [gopn_to_pipeline l x o e])]
+    [PP.Bloc(-1, [gopn_to_pipeline l pp x o e always_alias_mem may_alias_mem])]
 
   | Cif(e, c1, c2) ->
       let _, reade = op_read_expr l e in
@@ -259,13 +347,23 @@ and cblock_to_pipeline c =
 (* Returns a program statement for the analyzer corresponding to the
    body of function fd *)
 let fun_to_pipeline fd =
-  PP.Seq (cblock_to_pipeline fd.f_body)
+  PP.Seq (cblock_to_pipeline fd.annot_stmt)
 
 
 (* -------------------------------------------------------------------- *)
 
 (* Shortcuts for cost variable names *)
 let var_name min = if min then "costMin" else "costMax"
+
+let max_latency =
+  Pipeline.PipelineMap.fold
+    (fun _ -> fun l -> fun m -> max l m)
+    !Pipeline.pipeline_to_latency
+    0
+
+let jump_latency = 
+  let pipeline_jump = List.hd (Pipeline.pipelines_for (Pipeline_program.to_atomic "Jump" [] [] [] [])) in
+  Pipeline.PipelineMap.find pipeline_jump !Pipeline.pipeline_to_latency
 
 (* Get a jasmin instruction preceeding instr i to initialize the cost variable
    cost_var by value *)
@@ -323,7 +421,7 @@ let rec instr_cbloc c cmin cmax config =
         let branch1 = instr_cbloc c1 cmin cmax config in
         let branch2 = instr_cbloc c2 cmin cmax config in
         [
-          get_cost_incr_instr 5 i cmax;
+          get_cost_incr_instr max_latency i cmax;
           {
           i_desc = Cif(e,
               branch1,
@@ -350,11 +448,11 @@ let rec instr_cbloc c cmin cmax config =
           else []
         in
         (* Before loop, the jump cost *)
-        let instr1 = get_cost_incr_instr 1 i cmin in
-        let instr2 = get_cost_incr_instr 6 i cmax in
+        let instr1 = get_cost_incr_instr jump_latency i cmin in
+        let instr2 = get_cost_incr_instr (max_latency + jump_latency) i cmax in
         (* Jump cost inside the loop *)
-        let instr3 = get_cost_incr_instr 1 i cmin in
-        let instr4 = get_cost_incr_instr 5 i cmax in
+        let instr3 = get_cost_incr_instr jump_latency i cmin in
+        let instr4 = get_cost_incr_instr max_latency i cmax in
         (* First the body and precondition, possibly in the same bloc *)
         in_bloc := false;
         let body = List.flatten (List.map aux c') in
@@ -377,7 +475,7 @@ let rec instr_cbloc c cmin cmax config =
           i_desc = Cwhile(t,
               c,
               e,
-              precond_cost_in @ [instr3; instr4] @ body
+              [instr3; instr4] @ body @ precond_cost_in
             );
           i_loc = i.i_loc;
           i_info = i.i_info
@@ -428,12 +526,15 @@ let extract_checkpoints_values p =
 
 
 
-let instrument_prog (gd, funcs) =
-  let functions = List.map fun_to_pipeline funcs in
-  Format.eprintf "Program functions : %d@." (List.length functions);
-  let current_program = List.hd functions in
+let instrument_prog (gd, funcs) overlap naive =
+  let current_function = List.hd funcs in
+  let converted_function = fun_to_pipeline overlap in
   let proc = Pipeline.new_processor () in
-  let instr_blocs = Pipeline.instrument current_program proc in
+  let instr_blocs =
+    if naive
+    then Pipeline.naive_instrument converted_function
+    else Pipeline.instrument converted_function proc
+  in
   let checkpoints_bounds = extract_checkpoints_values instr_blocs in
   identifier := -1;
-  (gd, [instrument checkpoints_bounds (List.hd funcs)])
+  (gd, [instrument checkpoints_bounds current_function])
