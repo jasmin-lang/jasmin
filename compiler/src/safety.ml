@@ -6128,9 +6128,38 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   let bound_warning gv ws fmt =
     Format.fprintf fmt
       "We assume, as in the source program, that only the lower %d \
-       bits of %a are initially set"
+       bits of [%a] are initially set"
       (int_of_ws ws) (Printer.pp_var ~debug:false) gv 
+
+  let bound_warning_user gv min max fmt =
+    Format.fprintf fmt
+      "Input variable [%a] assumed to be initially in [%a; %a]"
+      (Printer.pp_var ~debug:false) gv
+      Mpqf.print min Mpqf.print max
+    
+  let input_range_bound gv ws =
+    let open Config in
+    let ranges = sc_input_ranges () in
+    try
+      let ir = List.find (fun x -> gv.v_name = x.ir_name) ranges in
+      let min, max = Mpqf.of_string ir.ir_min, Mpqf.of_string ir.ir_max in
+      let ws_max = Mpqf.sub (mpq_pow (ws - 1)) (Mpqf.of_int 1) in
+
+      if Mpqf.cmp (Mpqf.of_int 0) min = 1 
+      then begin
+        Format.eprintf "Input range bound for [%s]: \"min\" must \
+                        be positive" gv.v_name ;
+        exit 1 end;
+
+      if Mpqf.cmp max ws_max = 1 
+      then begin
+        Format.eprintf "Input range bound for [%s]: \"max\" must \
+                        be below %a" gv.v_name Mpqf.print ws_max;
+        exit 1 end;
       
+      Some (Interval.of_mpqf min max, bound_warning_user gv min max)
+    with Not_found -> None
+  
   (* We set bounds for the arguments, according to the register sizes
      in the source program. E.g., if a U32 register variable is
      allocated to a U64 register, then we assume that it contains a
@@ -6140,7 +6169,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     assert (List.length f_args = List.length source_f_args);
     let abs, warns =
       List.fold_left2 (fun (abs, warns) v source_v ->
-          let ws, warn = match v, source_v with
+          let gv_ws, warn = match v, source_v with
             | Mvalue (AarrayEl (_,_ws,_)), _ ->
               (* Export function cannot have arrays as input. *)
               assert false (* Some ws *)
@@ -6149,23 +6178,30 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
               begin match gv.v_ty, source_gv.v_ty with
                 | Bty (U ws), Bty (U ws') ->
                   if ws = ws'
-                  then Some ws, None
+                  then Some (gv, ws), None
                   else
                     let () = assert (int_of_ws ws > int_of_ws ws') in
-                    Some ws', Some (bound_warning gv ws')
+                    Some (gv, ws'), Some (bound_warning gv ws')
 
                 | _ -> None, None end
-            | _ -> None, None in
-
-          let warns = match warn with
-            | None -> warns
-            | Some warn -> warn :: warns in
+            | _ -> None, None in          
           
-          if ws <> None then
-            let int = word_interval Unsigned (oget ws |> int_of_ws)
-            and env = AbsDom.get_env abs in
+          if gv_ws <> None then
+            let gv, ws = oget gv_ws in
+            let ws_i = int_of_ws ws in
+            let int, warn = match input_range_bound gv ws_i with
+              | None -> word_interval Unsigned ws_i, warn
+
+              (* overwrites the previous warning *)
+              | Some (int, warn) -> int, Some warn
+            in
+            let env = AbsDom.get_env abs in
             let z_sexpr = Mtexpr.cst env (Coeff.Interval int)
                           |> sexpr_from_simple_expr in
+
+            let warns = match warn with
+              | None -> warns
+              | Some warn -> warn :: warns in
 
             (AbsDom.assign_sexpr abs v None z_sexpr, warns)
           else (abs, warns))

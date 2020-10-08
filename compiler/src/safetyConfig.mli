@@ -7,8 +7,13 @@ type call_policy =
   | CallDirectAll
   | CallTopHeuristic
 
+type input_range = { ir_name : string;
+                     ir_min  : string;
+                     ir_max  : string; }
+
 type init_print = IP_None  | IP_NoArray | IP_All
 
+val sc_input_ranges            : unit -> input_range list
 val sc_comp_pass               : unit -> Compiler.compiler_step
 val sc_k_unroll                : unit -> int
 val sc_zero_threshold          : unit -> bool

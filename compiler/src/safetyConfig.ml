@@ -21,6 +21,14 @@ type call_policy =
 
 type init_print = IP_None  | IP_NoArray | IP_All
 
+
+let config_doc = "config/checker_config_doc.json"
+
+
+(* -------------------------------------------------------------------- *)
+exception BadSafetyConfig of string
+
+
 (* -------------------------------------------------------------------- *)
 (* Compiler steps after which the safety checker can be used. *)
 let compiler_steps = [
@@ -50,16 +58,46 @@ let json_compiler_steps : Json.Basic.t =
         `Assoc ["pass name",`String s1; "pass description", `String s2] in
       data
     ) compiler_steps)
+
+
+(* -------------------------------------------------------------------- *)
+type input_range = { ir_name : string;
+                     ir_min  : string;
+                     ir_max  : string; }
+
+let range_ex_json : Json.Basic.t =
+  `Assoc [("var1", `Assoc ["min", `String "0"; "max", `String "100"]);
+          ("var2", `Assoc ["min", `String "200"; "max", `String "300"])]
+
+let range_of_json_assoc : string * Json.Basic.t -> input_range = function
+  | s, `Assoc [(bd1, `String ibd1); (bd2, `String ibd2)] ->
+    let imax, imin = match bd1, bd2 with
+      | "min", "max" -> ibd2, ibd1
+      | "max", "min" -> ibd1, ibd2
+      | _ -> raise (BadSafetyConfig ("bad input ranges: provide a min and a \
+                                      max for " ^ s ))
+    in
+    { ir_name = s; ir_min = imin; ir_max = imax; }
     
+  | _ -> raise (BadSafetyConfig ("bad input ranges: see the example in " 
+                                 ^ config_doc))
+           
+let input_ranges_of_json (r : Json.Basic.t) = match r with
+  | `Assoc r -> List.map range_of_json_assoc r
+
+  | _ -> raise (BadSafetyConfig ("bad input ranges: not a dictionary"))
+
+  
 (* -------------------------------------------------------------------- *)
 type kind  = Parameter | Printing | Internal 
 
-type pvalue = | Bool       of bool         
-              | BoolRef    of bool ref     
-              | Int        of int          
-              | InitPrint  of init_print   
-              | CallPolicy of call_policy
-              | CompPass   of Compiler.compiler_step
+type pvalue = | Bool        of bool         
+              | BoolRef     of bool ref     
+              | Int         of int          
+              | InitPrint   of init_print   
+              | CallPolicy  of call_policy
+              | CompPass    of Compiler.compiler_step
+              | InputRanges of input_range list
 
 type param = { p     : pvalue;
                name  : string;
@@ -74,6 +112,13 @@ let default =
                     `String "Compilation pass where the analysis must run. \
                              Can be any of the following passes." );
                    ("passes", json_compiler_steps)]); 
+    kind = Parameter; } ::
+
+  { p    = InputRanges [];
+    name = "input_range";
+    desc = `Assoc ([("descr",
+                     `String "Assumed ranges for inputs." );
+                   ("example", range_ex_json)]); 
     kind = Parameter; } ::
 
   { p    = Int 1;
@@ -223,6 +268,12 @@ let find_comppass name () =
     | _ -> None in
   List.find_map f !config
 
+let find_ranges name () =
+  let f param = match param.p with
+    | InputRanges i when param.name = name -> Some i
+    | _ -> None in
+  List.find_map f !config
+
 let find_callpolicy name () =
   let f param = match param.p with
     | CallPolicy i when param.name = name -> Some i
@@ -235,6 +286,7 @@ let find_initprint name () =
     | _ -> None in
   List.find_map f !config
 
+let sc_input_ranges            = find_ranges     "input_range"
 let sc_comp_pass               = find_comppass   "compilation_pass"
 let sc_k_unroll                = find_int        "k_unroll"
 let sc_call_policy             = find_callpolicy "call_policy"
@@ -258,9 +310,7 @@ let sc_var_append_fun_name     = find_bool       "var_append_fun_name"
 
 
 (* -------------------------------------------------------------------- *)
-exception BadSafetyConfig of string
-
-let change param t = match param.p, t with
+let change param (t : Json.Basic.t) = match param.p, t with
   | Int _, `Int i -> { param with p = Int i }
   | Int _, _  ->
     raise (BadSafetyConfig (param.name ^ " must be of type int"))
@@ -304,9 +354,15 @@ let change param t = match param.p, t with
   | CompPass _, _ ->
     raise (BadSafetyConfig (param.name ^ " must be of type string"))
 
+  | InputRanges _, (`Assoc _ as r) ->
+    let ranges = input_ranges_of_json r in
+    { param with p = InputRanges ranges }
+  | InputRanges _, _ ->
+    raise (BadSafetyConfig (param.name ^ " must be a dictionary"))
+
 
 (* -------------------------------------------------------------------- *)
-let rec of_json config (data : Json. t) =
+let rec of_json config (data : Json.Basic.t) =
   match data with
   | `Assoc data -> List.fold_left of_json_assoc config data
   | _ -> raise (BadSafetyConfig "not an dictionnary")
@@ -320,6 +376,12 @@ and of_json_assoc config (name, t) = match config with
 
 
 (*-------------------------------------------------------------------- *)
+let irs_to_json irs : (string * Json.Basic.t) list =
+  let doit ir = ( ir.ir_name,
+                  `Assoc [("min", `String ir.ir_min);
+                          ("max", `String ir.ir_max)] ) in
+  List.map doit irs
+
 let pol_to_string = function
       | CallDirectAll    -> "CallDirectAll" 
       | CallTopHeuristic -> "CallTopHeuristic" 
@@ -337,7 +399,8 @@ let rec to_json_gen f config : Json.Basic.t =
       | BoolRef b -> `Bool !b
       | InitPrint i -> `String (ip_to_string i)
       | CallPolicy p -> `String (pol_to_string p)
-      | CompPass p -> `String (fst (Glob_options.print_strings p)) in
+      | CompPass p -> `String (fst (Glob_options.print_strings p))
+      | InputRanges irs -> `Assoc (irs_to_json irs) in
     param.name, (f param t) in
   
   let data = List.map doit config in
@@ -380,10 +443,10 @@ let () = mk_config_doc ()
 (* -------------------------------------------------------------------- *)
 let mk_config_default () =
   let json : Json.Basic.t = to_json default in
-  let json = `List [`String "Default configuration file. Automatiacally \
-                             generated, any changes will be overwritten.";
-                    json] in
   let file = Stdlib.open_out "config/checker_config_default.json" in
+  let () = Stdlib.output_string file
+      "// Default configuration file. Automatiacally generated, any changes \
+       will be overwritten.\n" in
   let () = Json.Basic.pretty_to_channel file json in
   close_out file
 
@@ -393,7 +456,7 @@ let () = mk_config_default ()
 (* -------------------------------------------------------------------- *)
 let load_config (filename : string) : unit =
   try
-    config := of_json !config ((Json.Basic.from_file filename :> Json.t)) 
+    config := of_json !config ((Json.Basic.from_file filename :> Json.Basic.t)) 
   with
   | Json.Json_error _ ->
     Format.eprintf "ERROR: safety configuration file %s is invalid" filename
