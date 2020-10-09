@@ -1029,6 +1029,9 @@ Definition funname := positive.
 Definition get_fundef {T} (p: seq (funname * T)) (f: funname) :=
   assoc p f.
 
+Definition get_leak {T} (p: seq (funname * T)) (f: funname) :=
+  assoc p f.
+
 (* ------------------------------------------------------------------------- *)
 
 Definition lprod ts tr :=

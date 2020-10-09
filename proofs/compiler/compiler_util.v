@@ -110,14 +110,13 @@ Definition map_cfprog {T1 T2} (F: T1 -> ciexec T2) :=
   mapM (fun (f:funname * T1) => Let x := add_finfo f.1 f.1 (F f.2) in cfok (f.1, x)).
 
 (* TODO: Merge map_cfprog and map_cfprog_leak *)
-Definition map_cfprog_leak {T1 T2 T3} (F: T1-> ciexec (T2 * T3)) :=
-  mapM (fun (f:funname * T1) =>
-          Let x := add_finfo f.1 f.1 (F f.2) in
-          let Fs := x.2 in
-          let funcs := x.1 in         
-          cfok ((f.1, funcs), (f.1, Fs))).
+Definition map_cfprog_leak {T1 T2 T3} (F: T1 -> ciexec (T2 * T3)) lt1:
+  cfexec (seq (funname * T2) * seq (funname * T3)) :=
+  Let l := mapM (fun (f:funname * T1) => Let x := add_finfo f.1 f.1 (F f.2) in cfok (f.1, x)) lt1 in
+  let l1 := map (fun p => (p.1, p.2.1)) l in
+  let l2 := map (fun p => (p.1, p.2.2)) l in
+  ok (l1, l2).
 
-Definition get_leak {T} (p: seq (funname * T)) (f : funname) := assoc p f.
 
 (* Note: this lemma cannot be extended to mapM because it needs the names to be conserved *)
 Lemma map_cfprog_get {T1 T2} F p p' fn (f: T1) (f': T2):
@@ -146,42 +145,54 @@ Lemma map_cfprog_get_fd {T1 T2 T3} (F: T1 -> ciexec (T2 * T3)) p p' lt fn (f: T1
   map_cfprog_leak F p = ok p' ->
   get_fundef p fn = Some f ->
   F f = ok (f', lt) ->
-  get_fundef (unzip1 p') fn = Some f'.
+  get_fundef p'.1 fn = Some f'.
 Proof.
   elim: p p'=> // -[fn1 fd1] pl IH p'.
   rewrite /map_cfprog_leak /= -/(map_cfprog_leak _ _).
-  apply: rbindP. move=> -[[fn1' fd1'] [fn2' lt']].
-  apply: rbindP. move=> [fd1'' lt''] Hfd1 [] <- <- <- <- /=.
-  apply: rbindP. move=> pl' Hpl' [] <- /=.
+  apply: rbindP. move=> fdlts.
+  apply: rbindP. move=> fdlts'.
+  apply: rbindP. move=> [fd' lt'] Hpl' [] <- /=. t_xrbindP.
+  move=> fdlts'' Hm <- <-.
   case: ifP.
   + move=> /eqP Hfn.
-    subst fn1=> -[] Hf.
-    subst fd1=> Hf'.
-    rewrite Hf' in Hfd1.
-    by move: Hfd1=> -[] ->.
-  + move=> Hfn Hf Hf'.
-    exact: IH.
+    move=> [] <- Hf.
+    rewrite Hf in Hpl'.
+    move: Hpl'. move=> -[] <- <- /=.
+    rewrite Hfn. case: eqP.
+    by move=> h.
+    move=>h. by case h.
+  + move=> Hfn Hf Hf' /=. rewrite Hfn /=.
+    rewrite /map_cfprog_leak in IH.
+    rewrite Hm in IH. rewrite /= in IH.
+    move: (IH (([seq (p.1, p.2.1) | p <- fdlts''], [seq (p.1, p.2.2) | p <- fdlts'']))).
+    rewrite /=. move=> H. apply H; auto.
 Qed.
 
 Lemma map_cfprog_get_leak {T1 T2 T3} (F: T1 -> ciexec (T2 * T3)) p p' lt fn (f: T1) (f': T2):
   map_cfprog_leak F p = ok p' ->
   get_fundef p fn = Some f ->
   F f = ok (f', lt) ->
-  get_leak (unzip2 p') fn = Some lt.
+  get_leak p'.2 fn = Some lt.
 Proof.
   elim: p p'=> // -[fn1 fd1] pl IH p'.
   rewrite /map_cfprog_leak /= -/(map_cfprog_leak _ _).
-  apply: rbindP. move=> -[[fn1' fd1'] [fn2' lt']].
-  apply: rbindP. move=> [fd1'' lt''] Hfd1 [] <- <- <- <- /=.
-  apply: rbindP. move=> pl' Hpl' [] <- /=.
+  apply: rbindP. move=> fdlts.
+  apply: rbindP. move=> fdlts'.
+  apply: rbindP. move=> [fd' lt'] Hpl' [] <- /=. t_xrbindP.
+  move=> fdlts'' Hm <- <-.
   case: ifP.
   + move=> /eqP Hfn.
-    subst fn1=> -[] Hf.
-    subst fd1=> Hf'.
-    rewrite Hf' in Hfd1.
-    by move: Hfd1=> -[] _ ->.
-  + move=> Hfn Hf Hf'.
-    exact: IH.
+    move=> [] <- Hf.
+    rewrite Hf in Hpl'.
+    move: Hpl'. move=> -[] <- <- /=.
+    rewrite Hfn. case: eqP.
+    by move=> h.
+    move=>h. by case h.
+  + move=> Hfn Hf Hf' /=. rewrite Hfn /=.
+    rewrite /map_cfprog_leak in IH.
+    rewrite Hm in IH. rewrite /= in IH.
+    move: (IH (([seq (p.1, p.2.1) | p <- fdlts''], [seq (p.1, p.2.2) | p <- fdlts'']))).
+    rewrite /=. move=> H. apply H; auto.
 Qed.
 
 Lemma get_map_cfprog {T1 T2} (F: T1 -> ciexec T2) p p' fn f:
@@ -205,21 +216,29 @@ Lemma get_map_cfprog_leak {T1 T2 T3} (F: T1 -> ciexec (T2*T3))
       p p' fn f:
   map_cfprog_leak F p = ok p' ->
   get_fundef p fn = Some f ->
-  exists f', exists lt, F f = ok (f', lt)
-                        /\ get_fundef (unzip1 p') fn = Some f'
-                        /\ get_leak (unzip2 p') fn = Some lt.
+  exists f', exists lt,
+   [/\ F f = ok (f', lt), 
+       get_fundef (p'.1) fn = Some f' &
+       get_leak (p'.2) fn = Some lt].
 Proof.
   move=> Hmap H.
   have Hp := (get_fundef_in' H).
-  move: (mapM_In Hmap Hp)=> [[fn' fd'] /= [Hfd Hok]].
-  apply: rbindP Hok=> f' Hf' [] Hfn' Hfd'.
-  subst fn'; subst fd'.
-  have Hf: F f = ok f'.
-    rewrite /add_finfo in Hf'.
-    by case: (F f) Hf'=> // a []<-. destruct f'.
-  exists t; exists t0; split=> //. split.
-  by move: (map_cfprog_get_fd Hmap H Hf).
-  by move: (map_cfprog_get_leak Hmap H Hf).  
+  have Hu := Hmap.
+  rewrite /map_cfprog_leak in Hmap. move: Hmap.
+  t_xrbindP. move=> flts Hmap <- /=.
+  move: (mapM_In Hmap Hp). move=> [] [fn' [fd' lt']] [] /= Hfd Hok.
+  apply: rbindP Hok. move=> [f' lt''] Hafn [] Hfn' Hfd' Hlt' /=.
+  have Hf: F f = ok (f', lt'').
+  rewrite /add_finfo in Hafn.
+  by case: (F f) Hafn=> // a []<-.
+  exists f'; exists lt''.
+  move: (map_cfprog_get_fd Hu H Hf).
+  move: (map_cfprog_get_leak Hu H Hf).
+  move=> H1 H2.
+  rewrite /map_cfprog_leak in Hu. rewrite Hmap in Hu.
+  move: Hu. t_xrbindP. move=> ys <- hp. rewrite -hp in H2.
+  rewrite /= in H2; auto. rewrite -hp in H1.
+  rewrite /= in H1. split; auto.
 Qed.
 
 Lemma get_map_cfprog' {T1 T2} (F: T1 -> ciexec T2) p p' fn f':
