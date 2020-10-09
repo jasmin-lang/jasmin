@@ -122,7 +122,7 @@ let rec op_read_expr l = function
     let _, reade = op_read_expr l e in
     let u = (L.unloc x) in
     ( "MOV",
-      (PP.MemoryAt (u.v_name ^ " + ??")) :: (PP.Register u.v_name) :: reade) (* TODO *)
+      (PP.Register u.v_name) :: reade)
   | Papp1(op, e)      ->
     let _, reade = op_read_expr l e in
     ((string_of_op1 op), reade)
@@ -155,7 +155,7 @@ let read_write_glv l = function
     let _, reade = op_read_expr l e in
     let u = (L.unloc x) in
     ((PP.Register u.v_name) :: reade,
-      [PP.MemoryAt (u.v_name ^ " + ??")]) (* TODO *)
+      [])
 
 (* Given left-hand terms returns the variables read and written *)
 let rec read_write_glvs l = function

@@ -203,27 +203,26 @@ let copy_processor proc =
     in
     add_pipeline pipelines PipelineMap.empty
 
-let alias_names_to_operands = List.map (fun n -> MemoryAt n)
+let instr_independent_of compute_lower_bound instr1 instr2 =
+    let outputs = instr2.instr_outputs in
+    let inputs_ready = List.fold_right (fun w -> fun acc -> acc && not (List.mem w instr1.instr_inputs)) outputs true in
+    (* All outputs of instr1 should be ready: none should be an output or an input of instr2 *)
+    let needed = instr2.instr_outputs @ instr2.instr_inputs in
+    let outputs_ready = List.fold_right (fun w -> fun acc -> acc && not (List.mem w instr1.instr_outputs)) needed true in
+    (* If we compute the upper bound, we need to take into account may aliases too *)
+    let inputs_aliases_ready = List.fold_right (fun w -> fun acc -> acc && not (List.mem w instr1.instr_may_inputs)) outputs true in
+    let iar = compute_lower_bound || inputs_aliases_ready in
+    let outputs_aliases_ready = List.fold_right (fun w -> fun acc -> acc && not (List.mem w instr1.instr_may_outputs)) needed true in
+    let oar = compute_lower_bound || outputs_aliases_ready in
+
+    inputs_ready && outputs_ready && iar && oar     
 
 let ressources_available compute_lower_bound instr proc =
     let step_no_write step value = 
         if value then
             match step with
             | Free -> true
-            | Occupied ip ->
-                    (* All inputs of instr should be ready: none should be an output of ip *)
-                    let outputs = ip.instr_outputs in
-                    let inputs_ready = List.fold_right (fun w -> fun acc -> acc && not (List.mem w instr.instr_inputs)) outputs true in
-                    (* All outputs of instr should be ready: none should be an output or an input of ip *)
-                    let needed = ip.instr_outputs @ ip.instr_inputs in
-                    let outputs_ready = List.fold_right (fun w -> fun acc -> acc && not (List.mem w instr.instr_outputs)) needed true in
-                    (* If we compute the upper bound, we need to take into account may aliases too *)
-                    let inputs_aliases_ready = List.fold_right (fun w -> fun acc -> acc && not (List.mem w instr.instr_may_inputs)) outputs true in
-                    let iar = compute_lower_bound || inputs_aliases_ready in
-                    let outputs_aliases_ready = List.fold_right (fun w -> fun acc -> acc && not (List.mem w instr.instr_may_outputs)) needed true in
-                    let oar = compute_lower_bound || outputs_aliases_ready in
-
-                    inputs_ready && outputs_ready && iar && oar
+            | Occupied ip -> instr_independent_of compute_lower_bound instr ip
         else false
     in
     let variable_available _ steps all_available =
@@ -263,17 +262,19 @@ let one_cycle proc =
     incr current_cycle;
     one_pipeline pipelines
 
-let can_fetch compute_lower_bound proc instr =
+let pipeline_available proc instr =
     let rec try_candidate candidates = match candidates with
     | [] -> false
     | h :: t -> if (PipelineMap.find h proc).(0) = Free
                 then true
                 else try_candidate t
     in
-    if ressources_available compute_lower_bound instr proc
-    then try_candidate (pipelines_for instr)
-    else false
+    try_candidate (pipelines_for instr)
 
+let can_fetch compute_lower_bound proc instr =
+    (ressources_available compute_lower_bound instr proc) &&
+      (pipeline_available proc instr)
+      
 let fetch proc instr = 
     let rec try_candidate candidates = match candidates with
     | [] -> failwith ("No pipeline to fetch " ^ (instr_to_string instr))
@@ -314,23 +315,50 @@ type instrumentation_program =
   | ICond of instrumentation_program * instrumentation_program
   | ILoop of instrumentation_program
 
+(* Given the current instruction to process and the current processor state,
+   evaluates if the processor is under exploited *)
+let advice computing_min proc instr previous next =
+    let first_stage_empty _ pip acc = acc && pip.(0) = Free in
+    let processor_full = PipelineMap.fold first_stage_empty proc true in
+    (* If we cannot fetch the current instruction but :
+     - There is a pipeline available
+     - There is a dependency with the previous one
+     - There is no dependency with the next one
+     - There is no dependency between the previous one and the next one
+     Then we suggest a permutation *)
+    if not (can_fetch computing_min proc instr) &&
+       (can_fetch computing_min proc next) &&
+       (pipeline_available proc instr) &&
+       not (instr_independent_of computing_min instr previous) && 
+       (instr_independent_of computing_min next instr) && 
+       (instr_independent_of computing_min next previous)
+    then Format.eprintf "Try to invert the next two instructions@."
+
+
 let instrument prog proc =
     let rec aux prog' proc_min' proc_max' = match prog' with
         | Skip -> ISkip
         | Bloc (c, l) -> begin
             let cost_min = ref 0 in
             let cost_max = ref 0 in
-            let fetch_next_min i = 
+            let n = List.length l in
+            let fetch_next_min i instr =
+                let advice_given = ref false in
                 (* Execute cycle on proc' until i can be fetched *)
-                while not (can_fetch true proc_min' i) do
+                while not (can_fetch true proc_min' instr) do
+                    (if i > 0 && i < n - 1 && not !advice_given
+                    then let previous = List.nth l (i - 1) in
+                        let next = List.nth l (i + 1) in
+                        advice true proc_min' instr previous next;
+                        advice_given := true);
                     incr cost_min;
                     one_cycle proc_min'
                 done;
                 (* Updates proc' with the fetch *)
-                Format.eprintf " %d: %s@." !cost_min (instr_to_string i);
-                fetch proc_min' i in
+                Format.eprintf " %d: %s@." !cost_min (instr_to_string instr);
+                fetch proc_min' instr in
             Format.eprintf "Cost Min of bloc %d@." c;
-            List.iter fetch_next_min l;
+            List.iteri fetch_next_min l;
             let fetch_next_max i = 
                 (* Execute cycle on proc' until i can be fetched *)
                 while not (can_fetch false proc_max' i) do

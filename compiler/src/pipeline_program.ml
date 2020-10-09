@@ -39,9 +39,16 @@ let operand_to_string o = match o with
     | MemoryAt r -> "[" ^ r ^ "]"
 
 let instr_to_string i = 
+  (* Outputs *)
   List.fold_left (^) "" (List.map (fun v -> (operand_to_string v) ^ " ") i.instr_outputs) ^
+  (* Alias Outputs *)
+  List.fold_left (^) "+ " (List.map (fun v -> (operand_to_string v) ^ " ") i.instr_may_outputs) ^
+  (* Id *)
   "<- " ^ i.instr_id ^ "( " ^
+  (* Inputs *)
   List.fold_left (^) ""  (List.map (fun v -> (operand_to_string v) ^ " ") i.instr_inputs) ^
+  (* Alias Inputs *)
+  List.fold_left (^) "+ " (List.map (fun v -> (operand_to_string v) ^ " ") i.instr_may_inputs) ^
   ")"
 
 let rec store_prgm p = match p with
