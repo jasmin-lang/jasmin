@@ -24,9 +24,9 @@
  * ----------------------------------------------------------------------- *)
 
 (* ** Imports and settings *)
+From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
-From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Export strings word utils type ident var global sem_type x86_decl x86_instr_decl.
 Require Import xseq.
@@ -988,15 +988,15 @@ Definition map_prog (F: fundef -> fundef) (p:prog) :=
   map_prog_name (fun _ => F) p.
 
 Lemma get_map_prog_name F p fn :
-  get_fundef (p_funcs (map_prog_name F p)) fn = 
-  omap (F fn) (get_fundef (p_funcs p) fn).
-Proof. 
+  get_fundef (p_funcs (map_prog_name F p)) fn =
+  ssrfun.omap (F fn) (get_fundef (p_funcs p) fn).
+Proof.
   rewrite /get_fundef /map_prog_name /=.
   by elim: p_funcs => // -[fn' fd] pfuns /= ->;case:eqP => [-> | ].
 Qed.
 
 Lemma get_map_prog F p fn :
-  get_fundef (p_funcs (map_prog F p)) fn = omap F (get_fundef (p_funcs p) fn).
+  get_fundef (p_funcs (map_prog F p)) fn = ssrfun.omap F (get_fundef (p_funcs p) fn).
 Proof. apply: get_map_prog_name. Qed.
 
 Lemma map_prog_globs F p : p_extra (map_prog F p) = p_extra p.
@@ -1153,7 +1153,6 @@ Definition swith_extra (fd:ufundef) f_extra : sfundef := {|
 |}.
 
 (* ----------------------------------------------------------------------------- *)
-
 Lemma get_fundef_cons {T} (fnd: funname * T) p fn:
   get_fundef (fnd :: p) fn = if fn == fnd.1 then Some fnd.2 else get_fundef p fn.
 Proof. by case: fnd. Qed.
@@ -1514,7 +1513,7 @@ Proof. by done. Qed.
 (* ** Some smart constructors
  * -------------------------------------------------------------------------- *)
 
-Fixpoint is_const (e:pexpr) :=
+Definition is_const (e:pexpr) :=
   match e with
   | Pconst n => Some n
   | _        => None
