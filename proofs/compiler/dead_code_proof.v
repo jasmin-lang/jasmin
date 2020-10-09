@@ -53,7 +53,7 @@ Qed.
 Section PROOF.
 
   Variables p p' : prog.
-  Variable Ffs : leak_f_tr.
+  Variable Ffs : seq (funname * leak_c_tr).
   Notation gd := (p_globs p).
 
   Hypothesis dead_code_ok : dead_code_prog p = ok (p', Ffs).
@@ -505,110 +505,41 @@ Section PROOF.
     exact: Hvm2'.
   Qed.
 
-  Fixpoint get_fundef' (p :  seq (funname * (fundef * leak_c_tr))) (fn : funname) : option fundef :=
-    match p with
-    | [::] => None
-    | (x, (y, z)) :: p0 =>  if x == fn then Some y else get_fundef' p0 fn
-                                                               end.
-  Lemma map_cfprog_get_dummy: forall p1 p2 fn f f' lt,
-  map_cfprog dead_code_fd p1 = ok p2 ->
-  get_fundef p1 fn = Some f ->
-  dead_code_fd f = ok (f', lt) ->
-  get_fundef (zip (unzip1 p2) (unzip1 (unzip2 p2))) fn = Some f'.
-  Proof.
-  move=> p1 p2 fn f f' lt.  
-  elim: p1 p2 => // -[fn1 fd1] p1 IH p2.
-  rewrite /map_cfprog /= -/(map_cfprog _ _).
-  apply: rbindP=> -[fn1' fd1']; apply: rbindP=> fd1'' Hfd1 [] Hfn1 Hfd1''.
-  subst fn1'; subst fd1''.
-  apply: rbindP=> pl' Hpl' [] <-.
-  rewrite get_fundef_cons /=.
-  case: ifP.
-  + move=> /eqP Hfn.
-    subst fn1=> -[] Hf.
-    subst fd1=> Hf'.
-    rewrite Hf' in Hfd1.
-    by move: Hfd1=> -[] <- /=.
-  + move=> Hfn Hf Hf'.
-    exact: IH.
-  Qed.
-  
-  Lemma get_map_cfprog_dummy': forall p1 p2 fn f,
-  map_cfprog dead_code_fd p1 = ok p2 ->
-  get_fundef p1 fn = Some f ->
-  exists f', exists lt,
-    dead_code_fd f = ok (f', lt) /\
-    get_fundef (zip (unzip1 p2) (unzip1 (unzip2 p2))) fn = Some f'.
-  Proof.
-  move=> p1 p2 fn f Hmap H.
-  have Hp := (get_fundef_in' H).
-  move: (mapM_In Hmap Hp)=> [[fn' fd'] /= [Hfd Hok]].
-  apply: rbindP Hok=> f' Hf' [] Hfn' Hfd'.
-  subst fn'; subst fd'.
-  have Hf: dead_code_fd f = ok (f').
-    rewrite /add_finfo in Hf'.
-    by case: (dead_code_fd f) Hf'=> // a []<-.
-    destruct f' in Hf.  
-    exists f0. exists l. split=> //.
-    move: (map_cfprog_get_dummy). move=> Hg. 
-    move: (Hg p1 p2 fn f f0 l Hmap H Hf). by move=> ->.
-  Qed.
-
   Local Lemma Hproc : sem_Ind_proc p Pc Pfun.
   Proof.
     move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hfun htra Hw Hsem Hc Hres Hfull.
-    have dcok : map_cfprog dead_code_fd (p_funcs p) = 
-                ok (zip (unzip1 (p_funcs p')) (zip (unzip2 (p_funcs p')) (unzip2 Ffs))).
-    (* this should produce (seq (funname * (fundef * leak_c_tr))) *)
+    have dcok : map_cfprog_leak dead_code_fd (p_funcs p) = ok ((p_funcs p'), Ffs).
     + move: dead_code_ok; rewrite /dead_code_prog; t_xrbindP.
-      move=> vfs -> <- <- /=.
-      admit. (* i think this is correct. it can be proved. *)
-    move: (get_map_cfprog_dummy' dcok Hfun). move=> [] f' [] lt' []  Hf'1 /= Hf'2.
+      by move=> [ys ys'] -> /= <- /= <-. 
+    move: (get_map_cfprog_leak dcok Hfun). move=> [] f' [] lt' []  Hf'1 /= Hf'2.
     case: f Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
     move=> fi fin fp /= c fo fres Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
-    case: f' Hf'1 Hf'2=> ??? c' ? f'_res. t_xrbindP. move=> [[m'' c''] ltc''] Hf'1 H Hf'2.
+    case: f' Hf'1 Hf'2=> ??? c' ? f'_res Hf'1 Hf'2.
     case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- fres])) Hf'1 =>// [[[sv sc] slt]] /= Heq.
-    case: Heq=> [H1 H2 H3].
-    move: Hc=> /(_ (read_es [seq Pvar i | i <- fres])). 
+    rewrite /ciok in Heq.
+    move: Heq=>[Heqi Heqp Heqc Heqr].
+    move: Hc=> /(_ (read_es [seq Pvar i | i <- fres])).
     have /= /(_ wf_vmap0) Hwf := wf_write_vars _ Hw.
-    rewrite Hd => /(_ Hwf (evm s1)) [//|vm2' [Hvm2'1 /= Hvm2'2]];subst.
-    case: s1 Hvm2'2 Hw Hsem Hwf => /= m1' vm1' Hvm2'2 Hw Hsem Hwf.
-    case: H=> H1 H2 H3 H4 H5 H6 H7.
-    apply EcallRun with {|
-           f_iinfo := fi;
-           f_tyin := fin;
-           f_params := fp;
-           f_body := c'';
-           f_tyout := fo;
-           f_res := fres |} vargs {| emem := m1'; evm := vm1'|} vm2' vres.
-    + rewrite /=. replace (zip
-              (unzip1
-                 (zip (unzip1 (p_funcs p'))
-                    (zip (unzip2 (p_funcs p')) (unzip2 Ffs))))
-              (unzip1
-                 (unzip2
-                    (zip (unzip1 (p_funcs p'))
-                         (zip (unzip2 (p_funcs p')) (unzip2 Ffs)))))) with (p_funcs p') in Hf'2.
-      subst. apply Hf'2.
-      rewrite unzip2_zip. rewrite unzip1_zip /=. rewrite unzip1_zip /=.
-      by rewrite zip_unzip.
-      admit.
-      rewrite size1_zip. case: (p_funcs p'). auto. move=> a l /=. admit.
-      admit.
-      rewrite size1_zip. case: (p_funcs p'). auto. move=> a l /=. admit.
-      admit.
-    + rewrite /=. exact htra.
-    + rewrite /=. exact Hw.
-    + rewrite /=. replace  (leak_Fun Ffs fn) with ltc''.  exact Hvm2'2.
-      admit.
-    + rewrite -Hres /=.
-      move: (@sem_pexprs_get_var gd (Estate m2 vm2) fres). move=> /= h1. rewrite /= in h1.
-      move: (@sem_pexprs_get_var gd (Estate m2 vm2') fres). move=> h1'. rewrite /= in h1'.
-      move: (read_es_eq_on). admit.
-    rewrite /=. exact Hfull.
-  Admitted.
-
-
+    rewrite Hd => /(_ Hwf (evm s1)) [//|vm2' [Hvm2'1 /= Hvm2'2]] ??;subst.
+    case: s1 Hvm2'2 Hw Hsem Hwf => /= ?? Hvm2'2 Hw Hsem Hwf.
+    econstructor.
+    + exact: Hf'2. + exact htra. + exact Hw.
+    + rewrite /=. rewrite /get_leak in p0.
+      replace (leak_Fun Ffs fn) with slt. exact: Hvm2'2.
+      rewrite /leak_Fun /=. by rewrite p0 /=.
+      2: exact Hfull. replace vres with (unzip1 (map_v_el vres)).
+      have /= H1 := (@sem_pexprs_get_var gd (Estate m2 vm2) f'_res (map_v_el vres)).
+      replace vres with (unzip1 (map_v_el vres)) in Hres.
+      have /= H2 := (@sem_pexprs_get_var gd (Estate m2 vm2') f'_res (map_v_el vres)); auto.
+      move: (read_es_eq_on gd m2 Hvm2'1). move=> Heq /=. rewrite -Heq in H2.
+      apply H2. rewrite /sem_pexprs. apply sem_pexprs_get_var_map. replace vres with (unzip1 (map_v_el vres)).
+      rewrite /=. auto; rewrite /map_v_el /=; elim: (vres); auto; move=> a l Hal; rewrite /=;
+      by rewrite Hal /=. rewrite /map_v_el /=; elim: (vres); auto; move=> a l Hal; rewrite /=;
+      by rewrite Hal /=. rewrite /map_v_el /=; elim: (vres); auto; move=> a l Hal; rewrite /=;
+      by rewrite Hal /=. rewrite /map_v_el /=; elim: (vres); auto; move=> a l Hal; rewrite /=;
+      by rewrite Hal /=.
+  Qed.
+  
   Lemma dead_code_callP fn mem mem' va vr lf:
     sem_call p mem fn va lf mem' vr ->
     sem_call p' mem fn va (lf.1, (leak_Is (leak_I (leak_Fun Ffs)) (leak_Fun Ffs lf.1) lf.2)) mem' vr.
@@ -618,3 +549,4 @@ Section PROOF.
   Qed.
 
 End PROOF.
+

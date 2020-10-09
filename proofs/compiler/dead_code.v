@@ -147,10 +147,9 @@ Definition dead_code_fd (fd: fundef) :=
 
 
 Definition dead_code_prog (p: prog) : cfexec (prog * leak_f_tr) :=
-  Let funcs := map_cfprog dead_code_fd (p_funcs p) in
-  let Fs := map (fun nfl => (nfl.1, nfl.2.2)) funcs in
-  let funcs := map (fun p => (p.1, p.2.1)) funcs in
-  ok ({| p_globs := p_globs p; p_funcs := funcs |}, Fs).
+  Let funcs := map_cfprog_leak dead_code_fd (p_funcs p) in
+  ok ({| p_globs := p_globs p; p_funcs := funcs.1 |}, funcs.2).
+
 
 
 
