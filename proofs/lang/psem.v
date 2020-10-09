@@ -1667,7 +1667,7 @@ Lemma vuincl_sem_sop1 o ve1 ve1' v1 :
   sem_sop1 o ve1 = ok v1 ->
   sem_sop1 o ve1' = ok v1.
 Proof.
-  case: o => [ sz | sz | szo szi | szo szi | | sz | [| sz] ].
+  case: o => [ sz | sz | szo szi | szo szi | | sz | [| sz] | p ].
   - by move => h; apply: rbindP => /= z1 /(value_uincl_int h) [??][?]; subst.
   - move => h; apply: rbindP => /= z1 /(value_uincl_word h) {h}h [?]; subst.
     by rewrite /sem_sop1 /= h.
@@ -1675,12 +1675,17 @@ Proof.
     case: ve1 => // [ | [] // ] sz1 w1 /value_uinclE [sz2] [w2] [-> {ve1'}] /andP [] hle /eqP -> {w1};
     rewrite /sem_sop1 /=; t_xrbindP => /= y /truncate_wordP [hle'] -> <-;
     by rewrite /truncate_word (cmp_le_trans hle' hle) /= (zero_extend_idem _ hle').
-  all:
+  1-4:
     move => Hu;
     apply: rbindP => z Hz;
     rewrite /sem_sop1 /= => [<-].
   2, 4: by have [z' [/= -> /val_uincl_sword ->]] := of_val_uincl Hu Hz.
-  all: by have [z' [/= -> ->]] := of_val_uincl Hu Hz.
+  1-2: by have [z' [/= -> ->]] := of_val_uincl Hu Hz.
+  move => vuincl_ve1_ve1'.
+  apply: rbindP => /= a Ha.
+  t_xrbindP => <-.
+  rewrite /sem_sop1 /=.
+  by case (value_uincl_arr vuincl_ve1_ve1' Ha) => a' -> uincl_a_a' /=.
 Qed.
 
 Lemma vuincl_sopn T ts o vs vs' (v: T) :

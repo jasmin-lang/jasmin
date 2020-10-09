@@ -64,6 +64,7 @@ Variant sop1 :=
 | Onot (* Boolean negation *)
 | Olnot of wsize (* Bitwize not: 1s’ complement *)
 | Oneg  of op_kind (* Arithmetic negation *)
+| Oarraycopy of positive (*Positive is the size of the array in bytes*)
 .
 
 Variant sop2 :=
@@ -288,6 +289,7 @@ Definition type_of_op1 (o: sop1) : stype * stype :=
   | Oneg (Op_w sz)
     => let t := sword sz in (t, t)
   | Oneg Op_int => (sint, sint)
+  | Oarraycopy p => (sarr p, sarr p)
   end.
 
 (* Type of binany operators: inputs, output *)
