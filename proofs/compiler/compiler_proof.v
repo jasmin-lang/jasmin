@@ -200,7 +200,7 @@ case: hlsem.
   have [xfd [hxfd]] := get_map_cfprog hxp hfd.
   by move => /hsafe; rewrite (assemble_fd_stk_size hxfd).
 move/ok_sig: hfn.
-case: hsem => {m1 m2 hsafe fn va vr} m1 m2 fn fd va va' st1 vm2 vr vr1 ok_fd ok_va _ _ _ _ hsig m2' [vr'] [ok_vr'] [hm2' hlsem].
+case: hsem => {m2 hsafe fn va vr} m1 m2 fn fd va va' st1 vm2 vr vr1 ok_fd ok_va _ _ _ _ hsig m2' [vr'] [ok_vr'] [hm2' hlsem].
 exists fd, va.
 split; first exact: ok_fd.
 split; first exact: ok_va.

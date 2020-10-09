@@ -532,7 +532,7 @@ Module CBEA.
     - move => sz1 x1 e1 He1 [] // sz2 x2 e2 v1.
       move=> /andP[] /andP[] /eqP <- Hcv /He1 Hce;apply: rbindP => w1.
       t_xrbindP => vx1 /(check_varP Hrn Hcv) [] vx2 /= ->.
-      move=> /value_uincl_word H/H{H} H.
+      move=> /value_uincl_word H/H{} H.
       move => w2 ve1 /Hce [] ve2 -> /=. rewrite H /= => {H}.
       by move=>  /value_uincl_word H/H{H} -> /= h2 -> <- /=;exists (Vword h2) => //; exists erefl.
     - move => op1 e1 He1 [] //= op2 e2 v1.
@@ -547,7 +547,7 @@ Module CBEA.
       move: ih => /(_ _ _ rec ok_vs) [] vs' ->.
       exact: (vuincl_sem_opN ok_v1).
     move => t e He e11 He11 e12 He12 [] //= t' e2 e21 e22 v1.
-    move=> /andP[]/andP[]/andP[]/eqP? /He{He}He /He11{He11}He11 /He12{He12}He12;subst t'.
+    move=> /andP[]/andP[]/andP[]/eqP? /He{}He /He11{}He11 /He12{}He12;subst t'.
     apply: rbindP => b;apply: rbindP => w /He [ve ->] /=.
     move=> /value_uincl_bool H/H [_ ->] /=.
     t_xrbindP => vt2 v2 /He11 [] v2' -> Hv2' ht2 vt3 v3 /He12 [] v3' -> Hv3' ht3 <- /=.

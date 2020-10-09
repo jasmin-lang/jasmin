@@ -144,10 +144,10 @@ Qed.
 Lemma sandP e1 e2 : Papp2 Oand e1 e2 =E sand e1 e2.
 Proof.
   apply: eeq_weaken; rewrite /sand.
-  case: is_boolP => [b1 rho v /=| {e1} e1].
+  case: is_boolP => [b1 rho v /=| {} e1].
   + apply: rbindP=> v2' /= He2;apply:rbindP=> ? [<-].
     by apply: rbindP => b2 /to_boolI Hb2 [<-];subst v2';case:b1.
-  case: is_boolP => [b2 rho v /=|{e2}e2];last by auto using eeq_refl.
+  case: is_boolP => [b2 rho v /=|{}e2];last by auto using eeq_refl.
   apply: rbindP => v1 Hv1;apply:rbindP=> b1 /to_boolI ?;subst v1 => /= -[<-].
   by case:b2;rewrite ?andbT ?andbF.
 Qed.
@@ -155,18 +155,18 @@ Qed.
 Lemma sorP e1 e2 : Papp2 Oor e1 e2 =E sor e1 e2.
 Proof.
   apply: eeq_weaken; rewrite /sor.
-  case: is_boolP => [b1 rho v /=| {e1} e1].
+  case: is_boolP => [b1 rho v /=| {} e1].
   + apply: rbindP=> v2' /= He2;apply:rbindP=> ? [<-].
     by apply: rbindP => b2 /to_boolI Hb2 [<-];subst v2';case:b1.
-  case: is_boolP => [b2 rho v /=|{e2}e2];last by auto using eeq_refl.
+  case: is_boolP => [b2 rho v /=|{}e2];last by auto using eeq_refl.
   apply: rbindP => v1 Hv1;apply:rbindP=> b1 /to_boolI ?;subst v1 => /= -[<-].
   by case:b2;rewrite ?orbT ?orbF.
 Qed.
 
 Lemma sadd_intP e1 e2 : Papp2 (Oadd Op_int) e1 e2 =E sadd_int e1 e2.
 Proof.
-  apply: eeq_weaken; rewrite /sadd_int; case: (is_constP e1) => [n1| {e1} e1];
-    case: (is_constP e2) => [n2| {e2} e2] rho v //=.
+  apply: eeq_weaken; rewrite /sadd_int; case: (is_constP e1) => [n1| {} e1];
+    case: (is_constP e2) => [n2| {} e2] rho v //=.
   + apply: rbindP => v2 Hv2; rewrite /sem_sop2 /=.
     apply: rbindP => z2 /of_val_int ? /=;subst v2=> [<-].
     by case: eqP => [-> // | /= _];rewrite Hv2.
@@ -203,8 +203,8 @@ Proof. by case: ty; eauto using sadd_intP, sadd_wP. Qed.
 Lemma ssub_intP e1 e2 : Papp2 (Osub Op_int) e1 e2 =E ssub_int e1 e2.
 Proof.
   apply: eeq_weaken; rewrite /ssub_int.
-  case: (is_constP e1) => [n1| {e1} e1];
-    case: (is_constP e2) => [n2| {e2} e2] rho v //=.
+  case: (is_constP e1) => [n1| {} e1];
+    case: (is_constP e2) => [n2| {} e2] rho v //=.
   apply: rbindP => v1 Hv1;rewrite /sem_sop2 /=.
   apply: rbindP => z1 /of_val_int ? /=;subst v1=> [<-].
   by case: eqP => [-> | /= _];rewrite Hv1 ?Z.sub_0_r.
@@ -231,8 +231,8 @@ Proof. by case: ty; eauto using ssub_intP, ssub_wP. Qed.
 Lemma smul_intP e1 e2 : Papp2 (Omul Op_int) e1 e2 =E smul_int e1 e2.
 Proof.
   apply: eeq_weaken; rewrite /smul_int.
-  case: (is_constP e1) => [n1| {e1} e1];
-    case: (is_constP e2) => [n2| {e2} e2] rho v //=.
+  case: (is_constP e1) => [n1| {} e1];
+    case: (is_constP e2) => [n2| {} e2] rho v //=.
   + apply: rbindP => v2 Hv2. rewrite /sem_sop2 /=.
     apply: rbindP => z2 /of_val_int ?;subst v2.
     case:eqP => [-> //|_]; case:eqP => [-> | _ /=];last by rewrite Hv2.
@@ -279,8 +279,8 @@ Proof.
     by rewrite eqxx.
   case: ty.
   + apply: eeq_weaken.
-    case: (is_constP e1) => [n1| {e1} e1];
-    case: (is_constP e2) => [n2| {e2} e2] rho v //=.
+    case: (is_constP e1) => [n1| {} e1];
+    case: (is_constP e2) => [n2| {} e2] rho v //=.
   move => sz.
   case h1: is_wconst => [ n1 | ] //.
   case h2: is_wconst => [ n2 | ] // s v;
@@ -304,8 +304,8 @@ Proof.
     by rewrite eqxx.
   case: ty.
   + apply: eeq_weaken.
-    case: (is_constP e1) => [n1| {e1} e1];
-    case: (is_constP e2) => [n2| {e2} e2] rho v //=.
+    case: (is_constP e1) => [n1| {} e1];
+    case: (is_constP e2) => [n2| {} e2] rho v //=.
   move => sz.
   case h1: is_wconst => [ n1 | ] //.
   case h2: is_wconst => [ n2 | ] // s v;
@@ -515,8 +515,8 @@ Lemma sdivP k e1 e2 : Papp2 (Odiv k) e1 e2 =E sdiv k e1 e2.
 Proof.
   case: k => [ | u sz] /=.
   + rewrite /soint.
-    case: (is_constP e1) => [n1| {e1} e1];
-    case: (is_constP e2) => [n2| {e2} e2] rho v /=;eauto.
+    case: (is_constP e1) => [n1| {} e1];
+    case: (is_constP e2) => [n2| {} e2] rho v /=;eauto.
   rewrite /sbituw.
   case h1: is_wconst => [ n1 | ] //.
   case h2: is_wconst => [ n2 | ] //.
@@ -535,8 +535,8 @@ Lemma smodP k e1 e2 : Papp2 (Omod k) e1 e2 =E smod k e1 e2.
 Proof.
   case: k => [ | u sz] /=.
   + rewrite /soint.
-    case: (is_constP e1) => [n1| {e1} e1];
-    case: (is_constP e2) => [n2| {e2} e2] rho v /=;eauto.
+    case: (is_constP e1) => [n1| {} e1];
+    case: (is_constP e2) => [n2| {} e2] rho v /=;eauto.
   rewrite /sbituw.
   case h1: is_wconst => [ n1 | ] //.
   case h2: is_wconst => [ n2 | ] //.
@@ -1128,8 +1128,8 @@ Section PROOF.
   Proof.
     move => s1 s2 e c1 c2 He _ Hc1 m ii Hm.
     have  [v' [] ] /= := const_prop_eP Hm He.
-    case: v' => // b {He} He ?;subst.
-    case : is_boolP He => [b [] ->| {e} e He];first by apply Hc1.
+    case: v' => // b {} He ?;subst.
+    case : is_boolP He => [b [] ->| {} e He];first by apply Hc1.
     case: (Hc1 _ Hm).
     case Heq1 : const_prop => [m1 c0]; case Heq2 : const_prop => [m2 c3] /= Hval Hs;split.
     + by apply merge_cpmP;left.
@@ -1142,8 +1142,8 @@ Section PROOF.
   Proof.
     move => s1 s2 e c1 c2 He _ Hc1 m ii Hm.
     have  [v' [] ] /= := const_prop_eP Hm He.
-    case: v' => // b {He} He ?;subst.
-    case : is_boolP He => [b [] ->| {e} e He];first by apply Hc1.
+    case: v' => // b {} He ?;subst.
+    case : is_boolP He => [b [] ->| {} e He];first by apply Hc1.
     case: (Hc1 _ Hm).
     case Heq1 : const_prop => [m1 c0]; case Heq2 : const_prop => [m2 c3] /= Hval Hs;split.
     + by apply merge_cpmP;right.

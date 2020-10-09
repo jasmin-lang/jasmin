@@ -394,7 +394,7 @@ Lemma sem_callE m1 fn vargs' m2 vres' :
     mapM (fun (x:var_i) => get_var vm2 x) f.(f_res) = ok vres &
     mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ].
 Proof.
-  case => { m1 fn vargs' m2 vres' } m1 m2 fn f vargs vargs' s1 vm2 vres vres'.
+  case => { fn vargs' m2 vres' } m1 m2 fn f vargs vargs' s1 vm2 vres vres'.
   move => hf ha hw hc hr ht.
   exists f; split => //.
   by exists vargs, s1, vm2, vres.
@@ -1592,7 +1592,7 @@ Lemma vuincl_sem_sop1 o ve1 ve1' v1 :
 Proof.
   case: o => [ sz | sz | szo szi | szo szi | | sz | [| sz] ].
   - by move => h; apply: rbindP => /= z1 /(value_uincl_int h) [??][?]; subst.
-  - move => h; apply: rbindP => /= z1 /(value_uincl_word h) {h}h [?]; subst.
+  - move => h; apply: rbindP => /= z1 /(value_uincl_word h) {}h [?]; subst.
     by rewrite /sem_sop1 /= h.
   1-2:
     case: ve1 => // [ | [] // ] sz1 w1 /value_uinclE [sz2] [w2] [-> {ve1'}] /andP [] hle /eqP -> {w1};

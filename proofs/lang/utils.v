@@ -993,7 +993,7 @@ Qed.
 Lemma in_ziota (p z i:Z) : (i \in ziota p z) = ((p <=? i) && (i <? p + z)).
 Proof.
   case: (ZleP 0 z) => hz.
-  + move: p; pattern z; apply natlike_ind => [ p | {z hz} z hz hrec p| //].
+  + move: p; pattern z; apply natlike_ind => [ p | {hz} z hz hrec p| //].
     + by rewrite ziota0 in_nil; case: andP => // -[/ZleP ? /ZltP ?]; Psatz.lia.
     rewrite ziotaS_cons // in_cons; case: eqP => [-> | ?] /=.
     + by rewrite Z.leb_refl /=; symmetry; apply /ZltP; Psatz.lia.

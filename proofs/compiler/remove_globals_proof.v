@@ -341,7 +341,7 @@ Module RGP. Section PROOFS.
         by rewrite hmem => -> <-.
       - by move=> ?? hrec ??; t_xrbindP => ? /hrec h <- /= ? /h -> /=.
       - by move=> ?? hrec1 ? hrec2 ??; t_xrbindP=> ? /hrec1 h1 ? /hrec2 h2 <- ? /= /h1 -> ? /h2 ->.
-      - move => ?? ih ??; t_xrbindP => ? /ih{ih} ih <- ? /ih /=.
+      - move => ?? ih ??; t_xrbindP => ? /ih {} ih <- ? /ih /=.
         by rewrite -/(sem_pexprs _ _) => ->.
       move=> ? ? hrec1 ? hrec2 ? hrec3 ??.
       by t_xrbindP => ? /hrec1 h1 ? /hrec2 h2 ? /hrec3 h3 <- ?? /= /h1 -> /= -> ?? /h2 -> /= -> ?? /h3 -> /= -> <-.
@@ -458,7 +458,7 @@ Module RGP. Section PROOFS.
   Local Lemma Hcons : sem_Ind_cons P Pc Pi.
   Proof.
     move=> s1 s2 s3 i c _ hi _ hc m m' c' fn /=.
-    t_xrbindP => -[mi ci] /hi{hi}hi [mc cc] /hc{hc}hc <- <- ? /hi [s2' [/hc [s3' [hv sc] si]]].
+    t_xrbindP => -[mi ci] /hi{}hi [mc cc] /hc{}hc <- <- ? /hi [s2' [/hc [s3' [hv sc] si]]].
     exists s3';split => //=; apply: sem_app si sc.
   Qed.
 
@@ -613,7 +613,7 @@ Module RGP. Section PROOFS.
     have : remove_glob_i is_glob gd fn m3 (MkI ii (Cwhile a c e c')) =
              ok (m', [::MkI ii (Cwhile a c1' e' c2')]).
     + by rewrite /= Loop.nbP /= h1 /= he1 /= h2 /= hm.
-    move=> /hw{hw}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
+    move=> /hw{}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
     move=> [s4' [hs4 hw']]; exists s4';split => //.
     apply sem_seq1; constructor; apply: Ewhile_true;eauto.
     by inversion hw';subst => {hw'};inversion H2;subst; inversion H4;subst.

@@ -106,7 +106,7 @@ Proof.
   rewrite /no_overflow => /eqP ha; apply/ZleP.
   have hn := wsize_size_pos sz.
   have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
-  move: (wunsigned ptr) (wunsigned_range ptr) ha => {ptr} ptr.
+  move: (wunsigned ptr) (wunsigned_range ptr) ha => {} ptr.
   rewrite (cut_wbase_Uptr sz); set a := CoqWord.word.modulus _.
   move: (wsize_size sz) hn hnz => n hn hnz hr /Zmod_divides [] // q ?; subst ptr.
   cut (q + 1 <= a)%Z; Psatz.nia.

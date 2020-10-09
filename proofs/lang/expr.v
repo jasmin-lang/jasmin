@@ -382,7 +382,7 @@ End ALLT.
 
 Lemma allT_refl A (P: A → A → Prop) m :
   allT (λ a, P a a) m → List.Forall2 P m m.
-Proof. by elim: m => // a m ih [h] /ih{ih}ih; constructor. Qed.
+Proof. by elim: m => // a m ih [h] /ih{}ih; constructor. Qed.
 
 Section PEXPR_RECT.
 
@@ -503,11 +503,11 @@ Fixpoint eqb (e1 e2:pexpr) : bool :=
       split.
       - case => /eqP <-{o2} h; f_equal.
         elim: es1 es2 Hes1 h; first by case.
-        by move => e1 es1 ih [] // e2 es2 [h1] /ih{ih}ih/=/andP[]/(rwP (h1 _)) <- /ih <-.
+        by move => e1 es1 ih [] // e2 es2 [h1] /ih{}ih/=/andP[]/(rwP (h1 _)) <- /ih <-.
       move => h.
       have : o1 = o2 ∧ es1 = es2 by refine (let: erefl := h in conj erefl erefl).
       move => {h} [??]; subst es2 o2; split; first exact: eqxx.
-      elim: es1 Hes1 => // e es ih [h] /ih{ih}ih /=.
+      elim: es1 Hes1 => // e es ih [h] /ih{}ih /=.
       by case: (h e).
     apply (@equivP (((st1 == st2) && eqb t1 t2 && eqb e11 e21) /\ eqb e12 e22));first by apply andP.
     split => [ [] /andP[]/andP[] /eqP -> /Ht1 -> /He11 -> /He12 ->| [<- <- <- <-]] //.

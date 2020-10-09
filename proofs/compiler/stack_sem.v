@@ -154,7 +154,7 @@ Module S.
           write_lvals gd {| emem := m2 ; evm := evm s1 |} xs rs = ok s2 ]
     end.
   Proof.
-    case => // {s1 s2 i} s1 s2.
+    case => // {s2 i} s1 s2.
     - by move => x _ ty e v v' ? ? ?; exists v, v'.
     - by move => e c1 c2 ? ?; exists true.
     - by move => e c1 c2 ? ?; exists false.

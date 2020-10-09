@@ -109,7 +109,7 @@ Section CAT.
     + by apply Hc.
     case: c' Hc' => [ _ | i c' ].
     + by rewrite Hc (Hc _ [:: _]) align_bind !bindA; f_equal; apply bind_eq => //= p; rewrite -catA.
-    move: (i :: c') => { i c' } c' Hc'.
+    move: (i :: c') => { i } c' Hc'.
     rewrite Hc (Hc _ [:: _]) !bindA; apply bind_eq => //= p.
     rewrite Hc' (Hc' _ (_ :: _)) !bindA; apply bind_eq=> //= p'.
     by case: a => /=; rewrite -catA /= -catA /=.
@@ -659,7 +659,7 @@ Section PROOF.
   Proof.
     move=> a c e c' Hc Hc' ii lbl lbli li /=.
     set ι := MkLI ii.
-    case: is_boolP => [[] | {e} e].
+    case: is_boolP => [[] | {} e].
     + rewrite linear_c_nil; case Heqc': linear_c => [[lblc' lc']|] //=.
       rewrite linear_c_nil.
       rewrite /align; t_xrbindP => y0 h0 [lblc lc] Heqc ????;subst lbli li y0 h0 => /=.
@@ -675,7 +675,7 @@ Section PROOF.
       apply lsem_step with (of_estate s1 C 1) => //.
       elim: _ {-1}_ _ / Hsem (erefl (Cwhile a c true c'))=> //= {s1 s2}.
       + move=> s1 s2 s3 s4 a0 c0 e0 c'0 H1 H2 H3 H4 Hrec [????];subst a0 c0 e0 c'0.
-        move: H1 H3 H4 Hrec => {H2} /= /Hlc{Hlc}Hlc /Hlc'{Hlc'}Hlc' _ /(_ (refl_equal _)) Hrec.
+        move: H1 H3 H4 Hrec => {H2} /= /Hlc{}Hlc /Hlc'{}Hlc' _ /(_ (refl_equal _)) Hrec.
         eapply lsem_trans with (of_estate s3 C (size lc + size lc').+1).
         + move=> {Hrec}.
           have : lsem gd (of_estate s1 (lc ++ lc') 0)
@@ -733,7 +733,7 @@ Section PROOF.
       rewrite /lsem1 /step /= setc_of_estate /find_instr /=.
       rewrite onth_cat ltnn subnn /= /eval_instr /= to_of_estate He /=.
       by rewrite size_cat /= add1n addn1.
-    move: (i :: c') => { i c' } c' Hc'.
+    move: (i :: c') => { i } c' Hc'.
     rewrite linear_c_nil;case Heqc: linear_c => [[lblc lc]|] //=.
     have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ Heqc.
     rewrite linear_c_nil.
@@ -858,7 +858,7 @@ Section PROOF.
     forall fn m1 va m2 vr,
     S.sem_call p gd m1 fn va m2 vr -> lsem_fd p' gd m1 fn va m2 vr.
   Proof.
-    move=> fn m1 va m2 vr [] {fn m1 va m2 vr}
+    move=> fn m1 va m2 vr [] {fn va m2 vr}
       m1 m2 fn sf vargs vargs' s1 s2 m2' vm2 vres vres' m1' Hsf Halloc Hs1 Htyi Hs2 Hbody Hres Htyo Hfree.
     have H0' := linear_ok.
     rewrite /linear_prog in H0'.

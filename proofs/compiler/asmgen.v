@@ -328,7 +328,7 @@ Lemma check_sopn_arg_sem_eval gd m s ii max_imm args e ad ty v vt:
 Proof.
   move=> eqm /check_sopn_argP /= h.
   case: h vt.
-  + move=> i {ty} ty /eq_exprP -> vt /=.
+  + move=> i {} ty /eq_exprP -> vt /=.
     case: i => /= [f | r]; first by apply var_of_flagP. 
     by apply var_of_registerP.
   move=> n o a a' [ | | | ws] //= ->.

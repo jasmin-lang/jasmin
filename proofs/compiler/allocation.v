@@ -229,7 +229,7 @@ Section PROOF.
     move: Hcheck; rewrite /check_prog_aux;clear Hcheck eq_globs.
     move: (p_funcs p1) (p_funcs p2);clear p1 p2.
     elim => [ | [fn1' fd1'] p1 Hrec] [ | [fn2 fd2] p2] //.
-    apply: rbindP => -[] Hc /Hrec {Hrec} Hrec.
+    apply: rbindP => -[] Hc /Hrec {} Hrec.
     have ? : fn1' = fn2.
     + by move: Hc;rewrite /check_fundef; case:ifP => // /andP[]/andP[]/eqP.
     subst=> fn fd1;rewrite !get_fundef_cons.
@@ -379,7 +379,7 @@ Section PROOF.
     move=> /value_uincl_bool1?;subst vb'.
     apply: rbindP => r' Cc2' [??];subst r2 r3.
     move /Hc': (Hrevm2) (Cc2')=> H /H {H} [vm3 [Hvm3 /= Hc2']].
-    have /(Hw ii) {Hw} Hw:= eq_alloc_incl Hir3 Hvm3.
+    have /(Hw ii) {} Hw := eq_alloc_incl Hir3 Hvm3.
     have : check_i ii (Cwhile a c e c') (Cwhile a2 c2 e2 c2') r2' = ok re.
     + by rewrite /= Loop.nbP /= Cc2 /= Hadd /= Cc2' /= Hir3 /=.
     move=> /Hw [vm4 [Hvm4 Hsw]];exists vm4;split => //.
@@ -1272,7 +1272,7 @@ Module CBAreg.
     +  by apply (subtype_trans (subtype_vundef_type (vtype x1))).
     case Hget : M.get => [id | ].
     + case: eqP => //= ? [<-];subst id => Hea;split=>//.
-      case: Hea => _ _ /(_ _ _ Hget) Hev v1 {Hget} Hget.
+      case: Hea => _ _ /(_ _ _ Hget) Hev v1 {} Hget.
       case: x1 x2 hsub husub Hget Hev=> [[xt1 xn1] ii1] [[xt2 xn2] ii2] /= hsub husub.
       rewrite /get_var;apply: on_vuP => //= t -> <- /=.
       by case: (vm2.[_])%vmap => //= z' Hz';exists (pto_val z').

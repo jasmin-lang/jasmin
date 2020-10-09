@@ -193,7 +193,7 @@ Section PROOF.
     sem_pexpr gd s2 e = ok (Vint i) ->
     sem_pexpr gd s2 (mk_ofs sz e ofs) = ok (Vword (wrepr U64 (i * wsize_size sz + ofs)%Z)).
   Proof.
-    rewrite /mk_ofs; case is_constP => /= [? [->] //| {e} e he] /=.
+    rewrite /mk_ofs; case is_constP => /= [? [->] //| {} e he] /=.
     rewrite /sem_sop2 /=.
     have [sz' [w [-> /= -> /=]]]:= cast_wordP he.
     by rewrite !zero_extend_u wrepr_add wrepr_mul GRing.mulrC.
@@ -271,7 +271,7 @@ Section PROOF.
 
       - by move=> ?? [<-] [<-];exists [::].
 
-      - move=> e he es hes ??; t_xrbindP => e' /he{he}he es' /hes{hes}hes <-.
+      - move=> e he es hes ??; t_xrbindP => e' /he{}he es' /hes{}hes <-.
         move=> ? /he [v' /= [->]] /= vu ? /hes [vs1' [->]] uvs <- /=.
         by exists (v'::vs1');split => //;constructor.
 
@@ -336,7 +336,7 @@ Section PROOF.
         by eexists;split;first by reflexivity.
 
       + move => e1 es1 H1 e2 v.
-        t_xrbindP => es1' /H1{H1}H1 <- vs /H1{H1} /= [vs' []].
+        t_xrbindP => es1' /H1{}H1 <- vs /H1{H1} /= [vs' []].
         rewrite /sem_pexprs => -> /= h1 h2.
         by have [v' ??]:= (vuincl_sem_opN h2 h1);exists v'.
 
@@ -611,7 +611,7 @@ Section PROOF.
       by move: Ha; apply: on_vuP => //= ? -> /Varr_inj1 ->.
     move => Hxx' a'.
     rewrite Fv.setP_neq; last by apply/eqP.
-    move => /H'{H'}H' v /H'{H'}.
+    move => /H'{}H' v /H'{H'}.
     rewrite (Memory.writeP_neq Hm') //.
     split; eauto.
     rewrite (valid_map_arr_addr Hget' Hoff).
@@ -1075,7 +1075,7 @@ Proof.
     + by move=>[] <- ???;split=>//;omega.
     case:ifPn=> //= /Z.leb_le Hle.
     case: ifP => // Hal.
-    case Hs : size_of=> [svp|]//= /Hrec /= {Hrec}Hrec H2 H3 H4.
+    case Hs : size_of=> [svp|]//= /Hrec /= {}Hrec H2 H3 H4.
     have Hpos := size_of_pos Hs.
     case:Hrec.
     + move=> x px;rewrite Mvar.setP;case:ifPn => /eqP Heq.
@@ -1111,7 +1111,7 @@ Proof.
   rewrite /alloc_prog; elim: (p_funcs P) SP => [ | [fn1 fd1] fs hrec] //= SP.
   apply: rbindP => -[fn2 fd2].
   apply: rbindP => sfd hfd [??]; subst fn2 fd2.
-  t_xrbindP => fs' /hrec{hrec} hrec <- /=; case: ifPn => [/eqP ? [?]| hne {hfd} //].
+  t_xrbindP => fs' /hrec{} hrec <- /=; case: ifPn => [/eqP ? [?]| hne {hfd} //].
   by subst fn1 fd1; exists sfd; rewrite hfd.
 Qed.
 

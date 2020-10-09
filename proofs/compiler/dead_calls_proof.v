@@ -361,7 +361,7 @@ Lemma dead_calls_err_get_fundef s p p' fn fd :
   get_fundef (p_funcs p) fn = Some fd.
 Proof.
 rewrite /dead_calls_err; case: ifP => // _ [<- {p'}].
-move: (live_calls s (p_funcs p)) => {s} s.
+move: (live_calls s (p_funcs p)) => {} s.
 rewrite /get_fundef /dead_calls (assoc_filterI (λ q, Sp.mem q s)).
 by case: ifP.
 Qed.
