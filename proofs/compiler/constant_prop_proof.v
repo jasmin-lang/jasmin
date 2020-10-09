@@ -70,7 +70,7 @@ Proof. by move=> ???;eauto. Qed.
 Lemma eeq_refl : Reflexive (@eeq).
 Proof. by move=> ??? ->;eauto. Qed.
 
-Hint Resolve eeq_refl eeq_w_refl.
+Hint Resolve eeq_refl eeq_w_refl : core.
 
 Lemma eeq_weaken e1 e2 : eeq_w e1 e2 -> e1 =E e2.
 Proof. by move=> h ?;apply eqok_weaken;apply h. Qed.
@@ -175,7 +175,7 @@ Proof.
   by case: eqP => [-> // | /= _];rewrite Hv1 //= Z.add_0_r.
 Qed.
 
-Local Hint Resolve value_uincl_zero_ext.
+Local Hint Resolve value_uincl_zero_ext : core.
 
 Lemma sadd_wP sz e1 e2 : Papp2 (Oadd (Op_w sz)) e1 e2 =E sadd_w sz e1 e2.
 Proof.

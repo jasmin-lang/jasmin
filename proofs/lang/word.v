@@ -117,7 +117,7 @@ Definition wbase (s: wsize) : Z :=
 
 Lemma le0_wsize_size ws : 0 <= wsize_size ws.
 Proof. rewrite /wsize_size; lia. Qed.
-Hint Resolve le0_wsize_size.
+Hint Resolve le0_wsize_size : core.
 
 Lemma wsize_sizeE sz : wsize_size sz =  wsize_bits sz / 8.
 Proof. by case: sz. Qed.
