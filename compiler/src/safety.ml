@@ -5,10 +5,12 @@ open ToEC
 open Wsize
 open Overlap
 
+module Config = SafetyConfig
+
+let round_typ = Texpr1.Zero
+  
 exception Aint_error of string
-
-let () = ignore(Sint.cardinal (Sint.empty))
-
+               
 (*------------------------------------------------------------*)
 let last_time = ref 0.
     
@@ -45,111 +47,11 @@ let hndl_apr_exc e = match e with
   | _ as e -> raise e
 
 
-(***********************)
-(* Analysis Parameters *)
-(***********************)
-
-
-(* Analysis strategy for abstract calls:
-   - Call_Direct: normal abstract function call.
-   - Call_TopByCallSite : function evaluated only once per call-site, with
-     an initial state over-approximated by top.
-     (FIXME: performance: evaluates only once on top). *)
-type abs_call_strategy =
-  | Call_Direct 
-  | Call_TopByCallSite 
-   (* - Call_WideningByCallSite: normal abstact function call, but with
-    *   successive widenings of the initial states at each call to the same
-    *   function, from the same call-site.
-    *   | Call_WideningByCallSite *)
-
-(* Analysis policy for abstract calls. *)
-type abs_call_policy =
-  | CallDirectAll
-  | CallTopHeuristic
-  (* | CallWideningAll *)
-
 module Aparam = struct
-  (* Number of unrolling of a loop body before applying the widening. Higher
-     values yield a more precise (and more costly) analysis. *)
-  let k_unroll = 1
-    
-  let () = assert (k_unroll >= 0)
-
-  (* Rounding used. *)
-  let round_typ = Texpr1.Zero
-
-  let abs_call_strategy = CallDirectAll (* CallTopHeuristic *) 
-
-  (* Widening outside or inside loops.
-     Remark: if the widening is done inside loops, then termination is not
-     guaranteed in general. Nonetheless, if the meet operator is monotonous
-     then this should always terminates. *)
-  let widening_out = false
-
-  (* Zero thresholds for the widening. *)
-  let zero_threshold = true
-
-  (* Thresholds from the analysis parameters for the widening. *)
-  let param_threshold = true
-
-    (* More thresholds for the widening. *)
-  let more_threshold = false
-
-  (* Dependency graph includes flow dependencies *)
-  let flow_dep = false
-
-  (* Add disjunction with if statement when possible *)
-  let if_disj = true
-
-  (* Handle top-level conditional move and if expressions as if statements.
-     Combinatorial explosion if there are many movecc and if expressions in the
-     same block. *)
-  let pif_movecc_as_if = true
-
-  (* Pre-analysis looks for the variable corresponding to return boolean 
-     flags appearing in while loop condition (adding them to the set of 
-     variables in the relational domain). *)
-  let while_flags_setfrom_dep = true
-
-  (* Dynamic variable packing. *)
-  let dynamic_packing = true    (* default: false *)
 
   (* Check overlaps of memory accesses. *)
   let check_overlaps = ref true
 
-  (***********************)
-  (* Printing parameters *)
-  (***********************)
-
-  (* Turn on printing of array variables *)
-  let arr_no_print = true       (* default: true*)
-
-  (* Turn on printing of global variables *)
-  let glob_no_print = true      (* default: true *)
-
-  (* Turn on printing of non-relational variables *)
-  let nrel_no_print = ref false (* default: false *)
-
-  (* Turn on printing of unconstrained variables *)
-  let ignore_unconstrained = true (* default: true *)
-
-  type init_print = IP_None | IP_NoArray | IP_All
-  (* Turn on printing of not initialized variables 
-     (i.e. it is not certain that the variable is initialized). *)
-  let is_init_no_print = IP_None   (* defaul: IP_None *)
-
-  (* Turn on printing of boolean variables *)
-  let bool_no_print = true   (* defaul: true *)
-
-  (* Print substitutions done by the symbolic equality domain *)
-  let print_symb_subst = true   (* default: true *)
-
-  (****************)
-  (* Miscelaneous *)
-  (****************)
-  (* Should the function name be appended to the variable name. *)
-  let var_append_fun_name = false
 end
 
 (* Turn on printing of only the relational part *)
@@ -190,7 +92,7 @@ end = struct
   and mk_v fn v =
     let short_name v = v.v_name ^ "." ^ (string_of_int (int_of_uid v.v_id)) in
     let long_name v =
-      if Aparam.var_append_fun_name 
+      if Config.sc_var_append_fun_name ()
       then (short_name v) ^ "#" ^ fn
       else short_name v
     in
@@ -278,8 +180,8 @@ let pp_opt pp_el fmt = function
   | Some el -> Format.fprintf fmt "Some @[%a@]" pp_el el
 
 let pp_call_strategy fmt = function
-  | Call_Direct             -> Format.fprintf fmt "direct"
-  | Call_TopByCallSite      -> Format.fprintf fmt "top"
+  | Config.Call_Direct             -> Format.fprintf fmt "direct"
+  | Config.Call_TopByCallSite      -> Format.fprintf fmt "top"
   (* | Call_WideningByCallSite -> Format.fprintf fmt "widening" *)
 
 
@@ -448,8 +350,8 @@ let svariables_ignore vs =
   | [] -> assert false
   | vs' :: _ -> match String.split_on_char '@' vs' with
     | "inv" :: _ -> true
-    | "ael" :: _  -> Aparam.arr_no_print
-    | "g" :: _  -> Aparam.glob_no_print
+    | "ael" :: _  -> Config.sc_arr_no_print ()
+    | "g" :: _  -> Config.sc_glob_no_print ()
     | _ -> false
 
 let variables_ignore v =
@@ -780,7 +682,7 @@ end = struct
       let st = { st with if_conds = b :: st.if_conds } in
 
       let st' =
-        if Aparam.flow_dep then
+        if Config.sc_flow_dep () then
           { st with ct = Sv.union st.ct (Sv.of_list vs) }
         else st in
 
@@ -795,7 +697,7 @@ end = struct
       let vs,st = expr_vars st b in
 
       let st' =
-        if Aparam.flow_dep then
+        if Config.sc_flow_dep () then
           { st with ct = Sv.union st.ct (Sv.of_list vs) }
         else st in
 
@@ -812,7 +714,7 @@ end = struct
 
       let while_vars = Sv.union st'.while_vars (Sv.of_list vs) in
       let while_vars = 
-        if Aparam.while_flags_setfrom_dep
+        if Config.sc_while_flags_setfrom_dep ()
         then Sv.union while_vars flags_setfrom
         else while_vars in
       
@@ -1103,12 +1005,12 @@ end = struct
     let tv =
       Mvar (Mvalue (AarrayEl (v,U8,offset + len - 1))) in
     let ptwo = Mcst (Coeff.s_of_mpqf (mpq_pow (8 * (len - 1)))) in
-    let t = Mbinop (Texpr1.Mul, ptwo, tv, Texpr1.Int, Aparam.round_typ) in
+    let t = Mbinop (Texpr1.Mul, ptwo, tv, Texpr1.Int, round_typ) in
     if len = 1 then tv
     else Mbinop (Texpr1.Add,
                  t,
                  build_term_array v offset (len - 1),
-                 Texpr1.Int, Aparam.round_typ)
+                 Texpr1.Int, round_typ)
 
   let cst1 c = Mcst c
   let cst env c = { mexpr = Mcst c; env = env }
@@ -1120,10 +1022,10 @@ end = struct
              
   let var env v = { mexpr = var1 v; env = env }
 
-  let unop1 op1 a = Munop (op1, a, Texpr1.Int, Aparam.round_typ)
+  let unop1 op1 a = Munop (op1, a, Texpr1.Int, round_typ)
   let unop op1 a = { a with mexpr = unop1 op1 a.mexpr }
 
-  let binop1 op2 a b = Mbinop (op2, a, b, Texpr1.Int, Aparam.round_typ)
+  let binop1 op2 a b = Mbinop (op2, a, b, Texpr1.Int, round_typ)
   let binop op2 a b =
     if not (Environment.equal a.env b.env) then
       raise (Aint_error "Environment mismatch")
@@ -1704,11 +1606,15 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
     let thrs_oc = thrs_of_oc oc env in
     let thrs = thrs_oc @ thrs_vars in
     let thrs =
-      if Aparam.more_threshold then thresholds_vars env @ thrs else thrs in
+      if Config.sc_more_threshold ()
+      then thresholds_vars env @ thrs
+      else thrs in
     let thrs =
-      if Aparam.zero_threshold then thresholds_zero env @ thrs else thrs in
+      if Config.sc_zero_threshold ()
+      then thresholds_zero env @ thrs
+      else thrs in
     let thrs =
-      if Aparam.param_threshold
+      if Config.sc_param_threshold ()
       then thresholds_param env PW.param @ thrs
       else thrs in
 
@@ -1727,7 +1633,7 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
        e.g. Polka, seem to assume that a is included in a'
        (and may segfault otherwise!). *)
     let res = Abstract1.widening_threshold man a a' (thrs |> to_earray env) in
-    (* if Aparam.enrich_widening
+    (* if Config.sc_enrich_widening
      * then enrich_widening a a' res
      * else  *)res
 
@@ -1964,8 +1870,8 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
       let pp_sep fmt () = Format.fprintf fmt "@;" in
 
       let vars_p = List.filter (fun v ->
-          (not Aparam.ignore_unconstrained ||
-           (not !Aparam.nrel_no_print || is_relational ()) &&
+          (not (Config.sc_ignore_unconstrained ()) ||
+           (not !(Config.sc_nrel_no_print ()) || is_relational ()) &&
            not (Abstract1.is_variable_unconstrained man a v)) &&
           not (variables_ignore v)) vars in
 
@@ -4218,7 +4124,7 @@ end
 module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
 
   let vdw =
-    if Aparam.dynamic_packing
+    if Config.sc_dynamic_packing ()
     then (module PIDynMake (PW) : VDomWrap)
     else (module PIMake (PW) : VDomWrap)
 
@@ -4417,7 +4323,7 @@ module SymExprImpl : SymExpr = struct
 
     (* We try to simplify [bt] after the substitution. *)
     let bt' = rewrite (subst_btcons bt) in
-    if Aparam.print_symb_subst && not (equal_btcons bt bt') then
+    if Config.sc_print_symb_subst () && not (equal_btcons bt bt') then
       debug (fun () ->
           Format.eprintf "@[<hov 0>Substituted@,   %a@ by %a@]@;"
             pp_btcons bt pp_btcons bt'
@@ -5242,13 +5148,13 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
 
   let get_env : t -> Environment.t = fun t -> AbsNum.R.get_env t.num
 
-  let print_init fmt t = match Aparam.is_init_no_print with
-    | Aparam.IP_None -> Format.fprintf fmt ""
-    | Aparam.IP_All | Aparam.IP_NoArray ->
+  let print_init fmt t = match Config.sc_is_init_no_print () with
+    | Config.IP_None -> Format.fprintf fmt ""
+    | Config.IP_All | Config.IP_NoArray ->
       let keep s =
         match mvar_of_svar s with
         | Mvalue (AarrayEl _)
-          when Aparam.is_init_no_print = Aparam.IP_NoArray -> false
+          when Config.sc_is_init_no_print () = Config.IP_NoArray -> false
         | _ -> true
       in
       
@@ -5268,7 +5174,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     let print_init fmt = print_init fmt t in
 
     let print_bool fmt =
-      if Aparam.bool_no_print then 
+      if Config.sc_bool_no_print () then 
         Format.fprintf fmt ""
       else begin
         Format.fprintf fmt "@[<v 0>* Bool:@;";
@@ -6322,9 +6228,38 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   let bound_warning gv ws fmt =
     Format.fprintf fmt
       "We assume, as in the source program, that only the lower %d \
-       bits of %a are initially set"
+       bits of [%a] are initially set"
       (int_of_ws ws) (Printer.pp_var ~debug:false) gv 
+
+  let bound_warning_user gv min max fmt =
+    Format.fprintf fmt
+      "Input variable [%a] assumed to be initially in [%a; %a]"
+      (Printer.pp_var ~debug:false) gv
+      Mpqf.print min Mpqf.print max
+    
+  let input_range_bound gv ws =
+    let open Config in
+    let ranges = sc_input_ranges () in
+    try
+      let ir = List.find (fun x -> gv.v_name = x.ir_name) ranges in
+      let min, max = Mpqf.of_string ir.ir_min, Mpqf.of_string ir.ir_max in
+      let ws_max = Mpqf.sub (mpq_pow (ws - 1)) (Mpqf.of_int 1) in
+
+      if Mpqf.cmp (Mpqf.of_int 0) min = 1 
+      then begin
+        Format.eprintf "Input range bound for [%s]: \"min\" must \
+                        be positive" gv.v_name ;
+        exit 1 end;
+
+      if Mpqf.cmp max ws_max = 1 
+      then begin
+        Format.eprintf "Input range bound for [%s]: \"max\" must \
+                        be below %a" gv.v_name Mpqf.print ws_max;
+        exit 1 end;
       
+      Some (Interval.of_mpqf min max, bound_warning_user gv min max)
+    with Not_found -> None
+  
   (* We set bounds for the arguments, according to the register sizes
      in the source program. E.g., if a U32 register variable is
      allocated to a U64 register, then we assume that it contains a
@@ -6334,7 +6269,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     assert (List.length f_args = List.length source_f_args);
     let abs, warns =
       List.fold_left2 (fun (abs, warns) v source_v ->
-          let ws, warn = match v, source_v with
+          let gv_ws, warn = match v, source_v with
             | Mvalue (AarrayEl (_,_ws,_)), _ ->
               (* Export function cannot have arrays as input. *)
               assert false (* Some ws *)
@@ -6343,23 +6278,30 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
               begin match gv.v_ty, source_gv.v_ty with
                 | Bty (U ws), Bty (U ws') ->
                   if ws = ws'
-                  then Some ws, None
+                  then Some (gv, ws), None
                   else
                     let () = assert (int_of_ws ws > int_of_ws ws') in
-                    Some ws', Some (bound_warning gv ws')
+                    Some (gv, ws'), Some (bound_warning gv ws')
 
                 | _ -> None, None end
-            | _ -> None, None in
-
-          let warns = match warn with
-            | None -> warns
-            | Some warn -> warn :: warns in
+            | _ -> None, None in          
           
-          if ws <> None then
-            let int = word_interval Unsigned (oget ws |> int_of_ws)
-            and env = AbsDom.get_env abs in
+          if gv_ws <> None then
+            let gv, ws = oget gv_ws in
+            let ws_i = int_of_ws ws in
+            let int, warn = match input_range_bound gv ws_i with
+              | None -> word_interval Unsigned ws_i, warn
+
+              (* overwrites the previous warning *)
+              | Some (int, warn) -> int, Some warn
+            in
+            let env = AbsDom.get_env abs in
             let z_sexpr = Mtexpr.cst env (Coeff.Interval int)
                           |> sexpr_from_simple_expr in
+
+            let warns = match warn with
+              | None -> warns
+              | Some warn -> warn :: warns in
 
             (AbsDom.assign_sexpr abs v None z_sexpr, warns)
           else (abs, warns))
@@ -7834,14 +7776,14 @@ end = struct
     fun ginstr state ->
     match ginstr.i_desc with 
       | Cassgn (lv,tag,ty1, Pif (ty2, c, el, er))
-        when Aparam.pif_movecc_as_if ->
+        when Config.sc_pif_movecc_as_if () ->
         assert (ty1 = ty2);
         let cl = { ginstr with i_desc = Cassgn (lv, tag, ty1, el) } in
         let cr = { ginstr with i_desc = Cassgn (lv, tag, ty2, er) } in
         aeval_if ginstr c [cl] [cr] state
 
       | Copn (lvs,tag,E.Ox86 (X86_instr_decl.CMOVcc sz),es)
-        when Aparam.pif_movecc_as_if ->
+        when Config.sc_pif_movecc_as_if () ->
         let c,el,er = as_seq3 es in
         let lv = as_seq1 lvs in
         let cl = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), el) } in
@@ -8057,11 +7999,12 @@ end = struct
 
         (* We first unroll the loop k_unroll times. 
            (k_unroll is a parameter of the analysis) *)
-        let state, pre_state = unroll_times Aparam.k_unroll state None in
+        let state, pre_state = unroll_times (Config.sc_k_unroll ()) state None in
 
         (* We stabilize the abstraction (in finite time) using widening. *)
         let state =
-          if Aparam.widening_out then stabilize state pre_state
+          if Config.sc_widening_out ()
+          then stabilize state pre_state
           else stabilize_b (enter_loop state) state in
 
         (* We pop the disjunctive constraint block *)
@@ -8142,13 +8085,13 @@ end = struct
     let itk = ItFunIn (f,callsite) in
 
     match aeval_call_strategy callsite f_decl st_in with 
-    | Call_Direct -> aeval_body f_decl.f_body st_in
+    | Config.Call_Direct -> aeval_body f_decl.f_body st_in
 
     (* Precond: [check_valid_call_top st_in] must hold:
        the function must not use memory loads/stores, array accesses must be 
        fixed, and arrays in arguments must be fully initialized
        (i.e. cells must be initialized). *)
-    | Call_TopByCallSite ->
+    | Config.Call_TopByCallSite ->
       (* f has been abstractly evaluated at this callsite before *)
       if ItMap.mem itk st_in.it then 
         let fabs = ItMap.find itk st_in.it in
@@ -8199,7 +8142,7 @@ end = struct
     let oec = AbsExpr.bexpr_to_btcons e state.abs in
 
     let labs, rabs =
-      if Aparam.if_disj && is_some (simpl_obtcons oec) then
+      if Config.sc_if_disj () && is_some (simpl_obtcons oec) then
         let ec = simpl_obtcons oec |> oget in
         AbsDom.add_cnstr state.abs ~meet:true ec (fst ginstr.i_loc)
       else
@@ -8241,13 +8184,13 @@ end = struct
 
   (* Select the call strategy for [f_decl] in [st_in] *)
   and aeval_call_strategy callsite f_decl st_in =
-    let strat = match Aparam.abs_call_strategy with
-    | CallDirectAll -> Call_Direct
+    let strat = match Config.sc_call_policy () with
+    | Config.CallDirectAll -> Config.Call_Direct
     (* | CallWideningAll -> Call_WideningByCallSite *)
-    | CallTopHeuristic ->
+    | Config.CallTopHeuristic ->
       if check_valid_call_top st_in f_decl
-      then Call_TopByCallSite 
-      else Call_Direct in
+      then Config.Call_TopByCallSite 
+      else Config.Call_Direct in
 
     debug(fun () -> Format.eprintf "Call strategy for %s at %a: %a@." 
              f_decl.f_name.fn_name
@@ -8395,7 +8338,6 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           | [ps] -> (None, parse_pt_rels ps)
           | _ -> raise (Failure "-safetyparam ill-formed (too many '>' ?)"))
 
-
   (*----------------------------------------------------------------*)
   let print_results ~annot l_res npt =
     match l_res with
@@ -8467,6 +8409,8 @@ module AbsAnalyzer (EW : ExportWrap) = struct
     let npt = List.filter (fun x -> not (List.mem x pt_vars)) EW.main.f_args
               |> List.map (fun x -> MmemRange (MemLoc x)) in
 
+    let () = Config.pp_current_config_diff () in
+    
     let l_res = List.map (fun p ->
         let module AbsInt = AbsInterpreter (struct
             include EW
@@ -8494,6 +8438,4 @@ module AbsAnalyzer (EW : ExportWrap) = struct
   (* let analyze () =
    *   ignore (annotate_export ());
    *   analyze (); *)
-
-
 end

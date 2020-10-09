@@ -13,7 +13,7 @@ true : bin_annot
 <entry> : traverse
 
 # --------------------------------------------------------------------
-<src/*.{ml,mli}>: package(batteries, menhirLib, zarith, apron.octMPQ, apron.ppl, apron.boxMPQ)
+<src/*.{ml,mli}>: package(batteries, menhirLib, zarith, apron.octMPQ, apron.ppl, apron.boxMPQ yojson)
 <src/*.cmx>: for-pack(Jasmin)
 <src/ppasm.ml>: warn_-27
 
@@ -21,4 +21,4 @@ true : bin_annot
 <CIL/*.{ml,mli}>: warn_-20, warn_-33
 
 # --------------------------------------------------------------------
-<entry/*>: package(batteries, menhirLib, zarith, apron.octMPQ, apron.ppl, apron.boxMPQ)
+<entry/*>: package(batteries, menhirLib, zarith, apron.octMPQ, apron.ppl, apron.boxMPQ yojson)
