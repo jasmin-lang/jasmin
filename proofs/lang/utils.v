@@ -697,6 +697,7 @@ Section CMP.
 
 End CMP.
 
+Declare Scope cmp_scope.
 Notation "m < n" := (cmp_lt m n) : cmp_scope.
 Notation "m <= n" := (cmp_le m n) : cmp_scope.
 Notation "m ≤ n" := (cmp_le m n) : cmp_scope.

@@ -208,6 +208,7 @@ Proof. by elim: n=> // p0 /= ->. Qed.
 
 Module Mt := DMmake CmpStype CEDecStype.
 
+Declare Scope mtype_scope.
 Delimit Scope mtype_scope with mt.
 Notation "m .[ x ]" := (@Mt.get _ m x) : mtype_scope.
 Notation "m .[ x  <- v ]" := (@Mt.set _ m x v) : mtype_scope.
