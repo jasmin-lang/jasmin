@@ -11,8 +11,8 @@ let print_list = ref []
 let ecfile = ref ""
 let ec_list = ref []
 let check_safety = ref false
-let check_safety_pass = Compiler.DeadCode_RegAllocation
 let safety_param = ref None
+let safety_config = ref None
 let pipeline_instrumentation = ref false
 let pipeline_naive = ref false
 
@@ -57,8 +57,8 @@ let set_constTime () = model := ConstantTime
 let set_safety () = model := Safety
 
 let set_checksafety () = check_safety := true
-
 let set_safetyparam s = safety_param := Some s
+let set_safetyconfig s = safety_config := Some s
 
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
@@ -111,7 +111,8 @@ let options = [
      together\n    \
      v_1',...,v_k': list of relational variables";
     "-pipeline"  , Arg.Set pipeline_instrumentation, ": instrument the program with cost variables";
-    "-naivepipeline" , Arg.Set pipeline_naive, ": instrument the program with cost variable (naive approach)"
+    "-naivepipeline" , Arg.Set pipeline_naive, ": instrument the program with cost variable (naive approach)";
+    "-safetyconfig", Arg.String set_safetyconfig, "[filename]: use filename (JSON) as configuration file for the safety checker"
   ] @  List.map print_option poptions
 
 let usage_msg = "Usage : jasminc [option] filename"
