@@ -554,6 +554,9 @@ Module WArray.
     by move=> k w /= hk; rewrite !set_sub_data_zget8 /=; case:ifPn; rewrite !zify => ?; auto.
   Qed.
 
+  Definition copy (p : positive) : WArray.array p -> WArray.array p :=
+    λ a, {| arr_data := a.(arr_data) |}.
+
 
 End WArray.
 

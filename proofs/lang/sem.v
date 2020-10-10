@@ -266,7 +266,7 @@ Definition sem_sop1_typed (o: sop1) :
   | Olnot sz => wnot
   | Oneg Op_int => Z.opp
   | Oneg (Op_w sz) => (-%R)%R
-  | Oarraycopy p => λ a, WArray.empty p (*Completely false*) (*WArray.inject p p*) (*TODO: unsure and also does not compile...*)
+  | Oarraycopy p => @WArray.copy p
   end.
 
 Arguments sem_sop1_typed : clear implicits.

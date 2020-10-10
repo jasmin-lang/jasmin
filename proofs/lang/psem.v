@@ -1681,11 +1681,23 @@ Proof.
     rewrite /sem_sop1 /= => [<-].
   2, 4: by have [z' [/= -> /val_uincl_sword ->]] := of_val_uincl Hu Hz.
   1-2: by have [z' [/= -> ->]] := of_val_uincl Hu Hz.
-  move => vuincl_ve1_ve1'.
-  apply: rbindP => /= a Ha.
-  t_xrbindP => <-.
+  
+  move => Hu.
+  apply: rbindP => /= z Hz.
   rewrite /sem_sop1 /=.
-  by case (value_uincl_arr vuincl_ve1_ve1' Ha) => a' -> uincl_a_a' /=.
+  t_xrbindP => Hv1.
+  case (value_uincl_arr Hu Hz) => z' Hz' Hwu /=.
+  (*Tried to use to_arr but seems useless.*)
+  (*case (to_arrI Hz) => x [t] [? lepx ?] ; subst ve1 z.
+  case (to_arrI Hz') => x' [t'] [? lepx' ?] ; subst ve1' z'.*)
+  rewrite Hz' /=.
+  (*I guess I have to prove Varr (WArray.copy z') does not fail...*)
+  rewrite - Hv1.
+  rewrite /WArray.copy .
+  Search _ WArray.arr_data.
+  Search _ Varr.
+  rewrite //=.
+  (*I may require a better understanding of ok*)
 Qed.
 
 Lemma vuincl_sopn T ts o vs vs' (v: T) :
