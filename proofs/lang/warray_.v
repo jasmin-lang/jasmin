@@ -553,9 +553,34 @@ Module WArray.
     eexists; first reflexivity; split; first lia.
     by move=> k w /= hk; rewrite !set_sub_data_zget8 /=; case:ifPn; rewrite !zify => ?; auto.
   Qed.
+  
+  Definition copy (p : positive) : array p -> array p :=
+    λ a, a.
 
-  Definition copy (p : positive) : WArray.array p -> WArray.array p :=
-    λ a, {| arr_data := a.(arr_data) |}.
+  Definition all_defined (p : positive) (a : array p) :=
+    all (fun i => Mz.get a.(arr_data) i != None) (ziota 0 p).
+
+  Lemma all_definedP (p : positive) (a : array p) : reflect (forall i , (0 <= i < p) -> Mz.get a.(arr_data) i <> None) (all_defined a).
+  Proof.
+    (*TODO use allP*)
+    by admit.
+  Admitted.
+
+
+  (*
+  Lemma uincl_equal (p : positive) (z z' : array p):
+    WArray.uincl z z' -> all_defined z -> z = z'.
+  Proof.
+    move => Hu.
+    have := (uincl_validr Hu). (*validw might also be worth a try*)
+    Search _ Mz.t.
+    Search _ Mz.get.
+    Search _ validr.
+    move => [_ get_eq].
+    (*Not finding anything worth trying but induction*)
+    move : p z z' get_eq.
+    apply positive_ind. (*Not finding p?*)
+  Qed.*)
 
 
 End WArray.

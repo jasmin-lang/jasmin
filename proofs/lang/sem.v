@@ -256,17 +256,17 @@ Definition sem_vshl (ve:velem) {ws:wsize} (v : word ws) (i:u8) :=
 
 Definition sem_sop1_typed (o: sop1) :
   let t := type_of_op1 o in
-  sem_t t.1 → sem_t t.2 :=
+  sem_t t.1 → exec (sem_t t.2) :=
   match o with
-  | Oword_of_int sz => wrepr sz
-  | Oint_of_word sz => wunsigned
-  | Osignext szo szi => @sign_extend szo szi
-  | Ozeroext szo szi => @zero_extend szo szi
-  | Onot => negb
-  | Olnot sz => wnot
-  | Oneg Op_int => Z.opp
-  | Oneg (Op_w sz) => (-%R)%R
-  | Oarraycopy p => @WArray.copy p
+  | Oword_of_int sz => fun x => ok (wrepr sz x)
+  | Oint_of_word sz => fun x => ok (wunsigned x)
+  | Osignext szo szi => fun x => ok (@sign_extend szo szi x)
+  | Ozeroext szo szi => fun x => ok (@zero_extend szo szi x)
+  | Onot => fun x => ok (negb x)
+  | Olnot sz => fun x => ok (wnot x)
+  | Oneg Op_int => fun x => ok (Z.opp x)
+  | Oneg (Op_w sz) => fun x => ok (- x)%R
+  | Oarraycopy p => fun x => if WArray.all_defined x then ok (@WArray.copy p x) else undef_error
   end.
 
 Arguments sem_sop1_typed : clear implicits.
@@ -274,14 +274,21 @@ Arguments sem_sop1_typed : clear implicits.
 Definition sem_sop1 (o: sop1) (v: value) : exec value :=
   let t := type_of_op1 o in
   Let x := of_val _ v in
-  ok (to_val (sem_sop1_typed o x)).
+  Let v' := sem_sop1_typed o x in
+  ok (to_val v').
 
 Lemma sem_sop1I y x f:
   sem_sop1 f x = ok y →
-  exists2 w : sem_t (type_of_op1 f).1,
-    of_val _ x = ok w &
-    y = to_val (sem_sop1_typed f w).
-Proof. by rewrite /sem_sop1; t_xrbindP => w ok_w <-; eauto. Qed.
+  exists w : sem_t (type_of_op1 f).1,
+    exists v' : sem_t (type_of_op1 f).2,
+      [/\ of_val _ x = ok w ,
+       sem_sop1_typed f w = ok v'
+       & y = to_val v'].
+Proof.
+  rewrite /sem_sop1.
+  t_xrbindP => w ok_w v' ok_v' <-.
+  by exists w ; exists v' => [].
+Qed.
 
 Definition signed {A:Type} (fu fs:A) s :=
   match s with
