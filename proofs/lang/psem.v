@@ -1667,7 +1667,7 @@ Lemma vuincl_sem_sop1 o ve1 ve1' v1 :
   sem_sop1 o ve1 = ok v1 ->
   sem_sop1 o ve1' = ok v1.
 Proof.
-  case: o => [ sz | sz | szo szi | szo szi | | sz | [| sz] | p ].
+  case: o => [ sz | sz | szo szi | szo szi | | sz | [| sz] ].
   - by move => h; apply: rbindP => /= z1 /(value_uincl_int h) [??][?]; subst.
   - move => h; apply: rbindP => /= z1 /(value_uincl_word h) {h}h [?]; subst.
     by rewrite /sem_sop1 /= h.
@@ -1675,23 +1675,12 @@ Proof.
     case: ve1 => // [ | [] // ] sz1 w1 /value_uinclE [sz2] [w2] [-> {ve1'}] /andP [] hle /eqP -> {w1};
     rewrite /sem_sop1 /=; t_xrbindP => /= y /truncate_wordP [hle'] -> <-;
     by rewrite /truncate_word (cmp_le_trans hle' hle) /= (zero_extend_idem _ hle').
-  1-4:
+  all:
     move => Hu;
     apply: rbindP => z Hz;
     rewrite /sem_sop1 /= => [<-].
   2, 4: by have [z' [/= -> /val_uincl_sword ->]] := of_val_uincl Hu Hz.
-  1-2: by have [z' [/= -> ->]] := of_val_uincl Hu Hz.
-  move => Hu.
-  apply: rbindP => /= z Hz.
-  t_xrbindP => dz.
-  rewrite /sem_sop1.
-  (*Can't remove = true any simplier way?*)
-  case Had: (WArray.all_defined z) ; last by trivial.
-  move => [<-] <- /=.
-  case : (value_uincl_arr Hu Hz) => /= z' -> Hau /=.
-  have := (WArray.uincl_equal Hau).
-  move => <- ; last by trivial.
-  by rewrite Had.
+  all: by have [z' [/= -> ->]] := of_val_uincl Hu Hz.
 Qed.
 
 Lemma vuincl_sopn T ts o vs vs' (v: T) :

@@ -554,46 +554,6 @@ Module WArray.
     by move=> k w /= hk; rewrite !set_sub_data_zget8 /=; case:ifPn; rewrite !zify => ?; auto.
   Qed.
 
-  Definition all_defined (p : positive) (a : array p) :=
-    all (fun i => Mz.get a.(arr_data) i != None) (ziota 0 p).
-
-  Lemma all_definedP (p : positive) (a : array p) : reflect (forall i , (0 <= i < p) -> Mz.get a.(arr_data) i <> None) (all_defined a).
-  Proof.
-    apply: (iffP allP).
-    + move=> def_a i [le0i ltip]; apply/eqP/def_a.
-      by rewrite in_ziota /= -(rwP andP) -!lteZP.
-    + move => def_a i.
-      rewrite in_ziota /= => /andP [] /leZP le0i /ltZP ltip.
-      by apply/eqP/def_a.
-  Qed.
-  
-  Definition copy (p : positive) : array p -> array p :=
-    λ a, a.
-
-  Lemma uincl_equal (p : positive) (z z' : array p):
-    WArray.uincl z z' -> all_defined z -> z = z'.
-  Proof.
-    move => [_ Hu] Had.
-    have Hget := (all_definedP _ Had).
-    (*I still don't know how to transform the equality into an equality for all i between 0 and p.*)
-    have Heq : ∀ i : Z, Mz.get (arr_data z) i = Mz.get (arr_data z') i ; last first.
-    + by admit.
-    move => i.
-    have Hui := (Hu i). (*Any easier way to specialize Hu?*)
-    have Hgeti := (Hget i).
-    case : (Z_le_gt_dec 0 i) ; last first.
-    + by admit.
-    case : (Z_lt_ge_dec i p) ; last first.
-    + by admit.
-    move => ltip le0i.
-    have Hgetiz : Mz.get (arr_data z) i ≠ None by apply Hgeti.
-    have Huiz : ∀ v : u8, Mz.get (arr_data z) i = Some v → Mz.get (arr_data z') i = Some v by move => v ; apply Hui.
-    move : Hgetiz Huiz.
-    clear Hu Had Hget Hui Hgeti le0i ltip.
-    case : (Mz.get (arr_data z) i) ; last by rewrite //=.
-    by move => v _ <-.
-  Admitted.
-
 
 End WArray.
 

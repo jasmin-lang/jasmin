@@ -95,7 +95,6 @@ Definition s_op1 o e :=
   | Olnot sz => snot_w sz e
   | Oneg Op_int => sneg_int e
   | Oneg (Op_w sz) => sneg_w sz e
-  | Oarraycopy p => Parr_init p
   end.
 
 (* ------------------------------------------------------------------------ *)
