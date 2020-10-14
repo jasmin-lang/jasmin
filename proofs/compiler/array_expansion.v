@@ -418,12 +418,6 @@ Module CBEA.
   Definition check_var m (x1 x2:var) :=
     ((x1 == x2) && ~~Sv.mem x1 (M.allocated m), LT_id).
 
-  Fixpoint and_seq bl : bool :=
-    match bl with
-    | [::] => true
-    | b :: bls => b && and_seq bls
-    end.
-
   Section ALL2_MAP.
     Context (A B C: Type) (f: A -> B -> bool * C).
     
@@ -437,8 +431,7 @@ Module CBEA.
       | _, _ => (false, [::])
       end.
   End ALL2_MAP.
-  (* function written in ocaml *)
-  (* heere we check the correctness of it *)
+
   Fixpoint check_eb m (e1 e2:pexpr) : bool * leak_e_tr :=
     match e1, e2 with
     | Pconst   n1, Pconst   n2 => (n1 == n2, LT_remove)
@@ -551,7 +544,7 @@ Module CBEA.
       - move=> e rec es ih [] //.
         move=> e' es' vs1. case: ifP=> //.
         move=> he hall. t_xrbindP.
-        move=> [v le] [] ok_v vs ok_vs <- /=.
+        move=> [v le] ok_v vs ok_vs <- /=.
         move: (rec e' v le he ok_v). move=> [] v' -> /= hv.
         move: (ih es' vs hall ok_vs). move=> [] vs' [] -> /= [] hvs hls.
         exists ((v', leak_E (check_eb r e e').2 le) :: vs'). split=> //.
