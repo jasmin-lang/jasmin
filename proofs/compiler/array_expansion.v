@@ -424,8 +424,21 @@ Module CBEA.
     | b :: bls => b && and_seq bls
     end.
 
+  Section ALL2_MAP.
+    Context (A B C: Type) (f: A -> B -> bool * C).
+    
+    Fixpoint all2_map l1 l2 :=
+      match l1, l2 with
+      | [::], [::] => (true, [::])
+      | x1::l1, x2::l2 =>
+        let px := f x1 x2 in
+        if px.1 then let pl := all2_map l1 l2 in (pl.1, px.2::pl.2)
+        else (false, [::])
+      | _, _ => (false, [::])
+      end.
+  End ALL2_MAP.
   (* function written in ocaml *)
-  (* here we check the correctness of it *)
+  (* heere we check the correctness of it *)
   Fixpoint check_eb m (e1 e2:pexpr) : bool * leak_e_tr :=
     match e1, e2 with
     | Pconst   n1, Pconst   n2 => (n1 == n2, LT_remove)
@@ -453,11 +466,8 @@ Module CBEA.
       let bl' := check_eb m e12 e22 in 
       (((o1 == o2) && bl.1 && bl'.1), LT_seq [:: bl.2; bl'.2])
     | PappN o1 es1, PappN o2 es2 =>
-      let bl := map2 (check_eb m) es1 es2 in
-      let bl1 := unzip1 bl in
-      let bl2 := unzip2 bl in
-      let rb := and_seq bl1 in
-      ((o1 == o2) && rb, LT_seq bl2)
+      let bl := all2_map (check_eb m) es1 es2 in
+      ((o1 == o2) && bl.1, LT_seq bl.2)
     | Pif t e e1 e2, Pif t' e' e1' e2' =>
       let bl1 := check_eb m e e' in
       let bl2 := check_eb m e1 e1' in
@@ -488,7 +498,7 @@ Module CBEA.
       match is_const e1 with
       | Some n1 =>
         if vtype x2 == sword sw1 then
-          ok ((M.set_arr sw1 x1 n1 (vname x2) m), LT_id)
+          ok ((M.set_arr sw1 x1 n1 (vname x2) m), LT_remove)
         else cerror (Cerr_arr_exp_v r1 r2)
       | None    => cerror (Cerr_arr_exp_v r1 r2)
       end
@@ -526,26 +536,27 @@ Module CBEA.
 
     Let Q es1 : Prop :=
       ∀ es2 vs1,
-        and_seq (unzip1 (map2 (check_eb r) es1 es2)) ->
+        (all2_map  (check_eb r) es1 es2).1 ->
         sem_pexprs gd {| emem := m ; evm := vm1 |} es1 = ok vs1 →
         exists vs2, sem_pexprs gd {| emem := m ; evm := vm2 |} es2 = ok vs2 /\
                     List.Forall2 value_uincl (unzip1 vs1) (unzip1 vs2) /\
-                    LSub (unzip2 vs1) = leak_E (LT_seq (unzip2 (map2 (check_eb r) es1 es2))) (LSub (unzip2 vs2)).
-
+                    LSub (unzip2 vs2) = leak_E (LT_seq (all2_map (check_eb r) es1 es2).2) (LSub (unzip2 vs1)).
+    
     Lemma check_e_esbP : (∀ e, P e) ∧ (∀ es, Q es).
     Proof.
       apply: pexprs_ind_pair; subst P Q; split => /=.
       - (* Base case *)
-        case => //. move=> vs1 ht [] <-. exists [::].
-        rewrite /=. split; eauto.
-        move=> e es vs1 ht [] <-. admit.
-      - move=> e rec es ih [] //. admit.
-        move=> e' es' vs1' /= /andP [] h1 h2. t_xrbindP. move=> [ve vl] he vs hes <-.
-        move: (rec e' ve vl h1 he). move=> [] ve' -> /= hv.
-        move: (ih es' vs h2 hes). move=> [] vs' [] -> /= [] hv' [] hvs.
-        exists ((ve', leak_E (check_eb r e e').2 vl) :: vs').
-        rewrite /=. split; eauto. split. apply List.Forall2_cons; eauto.
-        rewrite hvs /=. admit.
+        move=> [] //. move=> vs1 ht [] <- /=. exists [::].
+        rewrite /sem_pexprs //=. 
+      - move=> e rec es ih [] //.
+        move=> e' es' vs1. case: ifP=> //.
+        move=> he hall. t_xrbindP.
+        move=> [v le] [] ok_v vs ok_vs <- /=.
+        move: (rec e' v le he ok_v). move=> [] v' -> /= hv.
+        move: (ih es' vs hall ok_vs). move=> [] vs' [] -> /= [] hvs hls.
+        exists ((v', leak_E (check_eb r e e').2 le) :: vs'). split=> //.
+        split. apply List.Forall2_cons; eauto. rewrite /=. case: hls => hls1.
+        by rewrite -hls1 /=.
       - (* Pconst *)
         move=> z [] // z1 v1 l /eqP <- [] <- <-. exists z. rewrite /=.
         auto. auto.
@@ -607,12 +618,12 @@ Module CBEA.
         move: vuincl_sem_sop2. move=> H. move: (H op ve ve'' ve' ve''' vo Hv Hv' Ho).
         move=> -> /=. by exists vo.
       - (* PappN *)
-        move=> op es Hes [] //= op' es' v1 l /andP [] /eqP <- Ha. t_xrbindP.
-        move=> vs ok_vs vs' Hon <- <- /=.
-        rewrite /sem_pexprs in Hes. move: Hes => /(_ _ _ Ha ok_vs) [] vs'' [] -> [] hv hv' /=.
-       move: vuincl_sem_opN. move=> Hon'. move: (Hon' op (unzip1 vs) vs' (unzip1 vs'') Hon hv).
-       move=> [] vs''' -> hv'' /=. exists vs'''. case: hv'=> hv1. rewrite hv1 /=.
-       admit. auto.
+        move=> op1 es1 ih [] //= o es2 v1 l /andP [] /eqP <- rec.
+        t_xrbindP. move=> vs ok_vs v' ok_v1 <- <- /=. rewrite /sem_pexprs in ih.
+        move: (ih es2 vs rec ok_vs). move=> [] vs' [] -> /= [] hvs hls.
+        move: (vuincl_sem_opN). move=> Ho. move: (Ho op1 (unzip1 vs) v' (unzip1 vs') ok_v1 hvs).
+        move=> [] v'' -> /= hv'. case: hls=> hls1. exists v''.
+        by rewrite hls1 /=. auto.
       (* Pif *)
       move=> t e He e1 He1 e2 He2 [] //= t' e' e1' e2' v1 l.
       move=> /andP [] /andP [] /andP [] /eqP <- Hce Hce1 Hce2.
@@ -627,7 +638,7 @@ Module CBEA.
       move: truncate_value_uincl. move=> Htt.
       move: (Htt t ve2 ve2' vt' Hve2 Ht'). move=> {Htt} [] vt''' -> /= Htv' /=.
       case: (b). by exists vt''. by exists vt'''.
-     Admitted.
+     Qed.
 
   End CHECK_EBP.
 
@@ -720,31 +731,30 @@ Module CBEA.
       move: (Hw v2 Hv). move=> -> /=. rewrite Hw' /=. exists vm1. split. auto. auto.
       case: (s1). by rewrite /=.
     + (* Laset *)
-      case:is_constP => //= i.
-      case: x1 x2 => -[tx1 nx1] ii1 [[tx2 nx2] ii2] /=.
+      case: is_constP=> //= i.
+      case: x1 x2=> -[tx1 nx1] ii1 [[tx2 nx2] ii2] /=.
       set x1 := {| vname := nx1 |}; set x2 := {|vname := nx2|}.
-      case:ifP=>//= /eqP h [<- <-] heqa huv.
+      case:ifP=>//= /eqP hws [h1 h2] heqa huv; subst tx2 r1' ltr.
       apply: on_arr_varP => n t /subtypeEl [n' /= [? hnn']] Hget; subst tx1.
-      t_xrbindP. move=> w /(value_uincl_word huv) H {huv} t' Ht' vm1' Hset <- <- /=.
+      t_xrbindP=> w /(value_uincl_word huv) H => {huv} t' Ht' vm1' Hset <- hl /=.
       move: Hget Hset; rewrite /get_var/set_var/=;apply:on_vuP => //=.
-      move=> t'' Hget /Varr_inj [n'']. subst n'. move=> /= Ht [] <-.
-      rewrite /write_var /set_var /=.  move: to_word_to_pword.
-      move=> Hww. move: (Hww sw1 v2 w H). move=> Hp /=. eexists.
-      split. admit.
+      move=> t'' Hget /Varr_inj [?]; subst n' => /= ? [?]; subst t'' vm1'.
+      rewrite /write_var /set_var /= (to_word_to_pword H) /=.
+      eexists;split; auto.
       rewrite /WArray.inject Z.ltb_irrefl.
       have -> : {| WArray.arr_data := WArray.arr_data t' |} = t' by case: (t').
       case: heqa => Hina Hgeta.
       split.
-      + move=> x /= Hx. rewrite !Fv.setP_neq. apply Hina;SvD.fsetdec. apply /eqP;SvD.fsetdec.
+      + move=> x /= Hx;rewrite !Fv.setP_neq;
+        [by apply Hina;SvD.fsetdec | | ];apply /eqP; SvD.fsetdec.
       move=> x n0 wz id /M.get_set_arr.
       case: eqP => [? [? hi]| /eqP hnx].
       + subst x wz => /=; rewrite Fv.setP_eq; eexists; split; first reflexivity.
         rewrite (WArray.setP n0 Ht').
         case: eqP hi => [?? | /eqP hni].
-      + rewrite /=. subst n0 id. rewrite /=.
-        admit.
+        + by subst n0 id; rewrite Fv.setP_eq.
         move=> [hnid] /Hgeta /= [t0]; rewrite Hget => -[[?]]; subst t0.
-        move=> Hg. rewrite -Ht. apply Hg.
+        by rewrite Fv.setP_neq //; apply /eqP => -[].
       move=> [hnid /Hgeta]; case: x hnx => -[]// px nx /= hnx.
       by rewrite !Fv.setP_neq //; apply /eqP => -[].
     (* Laset *)
@@ -763,7 +773,7 @@ Module CBEA.
     rewrite /write_var /=. move=> H. move: (H {| emem := emem s1; evm := vs |}).
     rewrite Hs /=. move=> []. auto. move=> vs' []. t_xrbindP. move=> vs'' -> /= <- Hvm1.
     exists vs''. by split. by case: (s1).
-   Admitted.
+   Qed.
 
 
 End CBEA.

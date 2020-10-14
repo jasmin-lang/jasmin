@@ -251,9 +251,15 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec (estate * leak_e) :=
     ok ({| emem := s.(emem); evm := vm |}, LSub [:: vl.2; (LIdx i)])
   end.
 
-Definition write_lvals (s:estate) xs vs :=
-   fold2 ErrType (fun l v sl => Let sl' := write_lval l v sl.1 in ok (sl'.1, rcons sl.2 sl'.2))
-      xs vs (s, [::]).
+Fixpoint write_lvals (s:estate) xs vs : exec (estate * seq leak_e) :=
+  match xs, vs with
+  | [::], [::] => ok (s, [::])
+  | x::xs, v::vs =>
+    Let sl := write_lval x v s in
+    Let sls := write_lvals sl.1 xs vs in
+    ok (sls.1, sl.2::sls.2)
+  | _, _ => Error ErrType                     
+  end.
 
 
 End SEM_PEXPR.
@@ -970,10 +976,9 @@ Lemma vrvsP gd xs vs s1 s2 lw:
   write_lvals gd s1 xs vs = ok (s2, lw) ->
   s1.(evm) = s2.(evm) [\ vrvs xs].
 Proof.
-  rewrite /write_lvals.
-  elim: xs vs s1 [::] lw s2 => [|x xs Hrec] [|v vs] s1 lw0 lw s2 //=.
+  elim: xs vs s1 lw s2 => [|x xs Hrec] [|v vs] s1 lw s2 //=.
   + by move=> [<-].
-  t_xrbindP => ? [s lw1] /vrvP Hrv <- /= /Hrec Hrvs.
+  t_xrbindP => -[s lw1] /vrvP Hrv [s' lws] /Hrec Hrvs <- Hl /=.
   rewrite vrvs_cons;apply: (@vmap_eq_exceptT (evm s)).
   + by apply: vmap_eq_exceptI Hrv;SvD.fsetdec.
   by apply: vmap_eq_exceptI Hrvs;SvD.fsetdec.
@@ -1172,13 +1177,13 @@ Lemma write_lvals_eq_on gd X xs vs s1 s2 vm1 lw:
     write_lvals gd {| emem:= emem s1; evm := vm1|} xs vs = ok ({|emem:= emem s2; evm := vm2|}, lw).
 Proof.
  rewrite /write_lvals.
- elim: xs vs X s1 s2 [::] lw vm1 => [ | x xs Hrec] [ | v vs] //= X s1 lw0 lw s2 vm1.
+ elim: xs vs X s1 s2 lw vm1 => [ | x xs Hrec] [ | v vs] //= X s1 lw s2 vm1.
  + move=> Hsub [<- <-] Hvm. exists vm1. by split.
  rewrite read_rvs_cons => Hsub.
  t_xrbindP.
- move=> y [s1' l1'] Hw <- Hws /(write_lval_eq_on _ Hw) [ |vm1' [Hvm1' ->]].
+ move=> [s1' l1'] Hw [s2' l2'] Hws <- <- /(write_lval_eq_on _ Hw) [ |vm1' [Hvm1' ->]].
  + by SvD.fsetdec.
-  have [ |vm2 [Hvm2 /= ->]]:= Hrec _ _ _ _ _ _ _ _ Hws Hvm1';first by SvD.fsetdec.
+  have [ |vm2 [Hvm2 /= ->]]:= Hrec _ _ _ _ _ _ _ Hws Hvm1';first by SvD.fsetdec.
   by exists vm2;split => //;rewrite vrvs_cons;apply: eq_onI Hvm2;SvD.fsetdec.
 Qed.
 
@@ -2225,12 +2230,12 @@ Lemma writes_uincl gd s1 s2 vm1 r v1 v2 lw:
     vm_uincl s2.(evm) vm2.
 Proof.
   rewrite /write_lvals.
-  elim: r v1 v2 [::] lw s1 s2 vm1 => [ | r rs Hrec] ?? lw0 lw s1 s2 vm1 Hvm1 /= [] //=.
+  elim: r v1 v2 lw s1 s2 vm1 => [ | r rs Hrec] ?? lw s1 s2 vm1 Hvm1 /= [] //=.
   + move=> [] <-. move=> ->. by exists vm1.
   move=> v1 v2 vs1 vs2 Hv Hforall.
-  t_xrbindP => x [v l] /(write_uincl Hvm1 Hv) [] vm2 -> Hvm2 /= <-.
-  move=> /(Hrec _ _ _ _ _ _ _ Hvm2 Hforall) Hx.
-  case: Hx => vm3 Hw Hvm3. by exists vm3.
+  t_xrbindP. move=> [v l] /(write_uincl Hvm1 Hv) [] vm2 -> Hvm2 [vs ls] /= Hs <- <- /=.
+  move:(Hrec _ _ _ _ _ _ Hvm2 Hforall Hs). move=> Hx.
+  case: Hx => vm3 Hw Hvm3. exists vm3. by rewrite Hw /=. auto.
 Qed.
 
 Lemma write_vars_lvals gd xs vs s1 v l:
@@ -2238,11 +2243,10 @@ Lemma write_vars_lvals gd xs vs s1 v l:
   write_vars xs vs s1 = ok v.
 Proof.
   rewrite /write_vars /write_lvals.
-  elim: xs vs s1 [::] l => [ | x xs Hrec] [ | v' vs] //= s1.
-  + move=> l l0 He. by case: He => -> _.
-  t_xrbindP. move=> h h0 y h1 h2 Hw <- He He' /=.
-  rewrite -> Hw => /=. rewrite <- He in He'. rewrite /= in He'.
-  by move: (Hrec _ _ _ _ He') => Hr.
+  elim: xs vs s1 l => [ | x xs Hrec] [ | v' vs] //= s1.
+  + move=> l He. by case: He => -> _.
+  t_xrbindP. move=> ls [sy ly] s' Hw <- [s'' l'] /= He Hvs Hls /=.
+  rewrite Hw /=. rewrite Hvs in He. by move: (Hrec _ _ _ He) => Hr.
 Qed.
 
 Lemma sem_pexprs_map_get_var gd s xs vs:
@@ -2581,10 +2585,9 @@ Qed.
 Lemma eq_lvalsP gd m ls1 ls2 vs:
   all2 eq_lval ls1 ls2 → write_lvals gd m ls1 vs =  write_lvals gd m ls2 vs.
 Proof.
- rewrite /write_lvals.
- elim: ls1 ls2 vs [::] m => [ | l1 ls1 Hrec] [ | l2 ls2] //= [] // v vs m m'.
+ elim: ls1 ls2 vs m => [ | l1 ls1 Hrec] [ | l2 ls2] //= [] // v vs m.
  move=> /andP [] /eq_lvalP -> /Hrec; case: write_lval => /=.
- move=> a Ha. move: (Ha vs (m ++ [::a.2])). move=>H. move: (H a.1). move=>H'. auto.
+ move=> a Ha. move: (Ha vs a.1). move=>H. by rewrite H.
  move=> e. by move=> H.
 Qed.
 
@@ -2697,9 +2700,9 @@ Local Open Scope vmap.
     wf_vm (evm s1) -> write_lvals gd s1 xs vs = ok (s2, l) -> wf_vm (evm s2).
   Proof.
     rewrite /write_lvals.
-    elim: xs vs s1 [::] l => [ | x xs Hrec] [ | v vs] s1 l0 l //= Hwf => [[<-]//| ].
-    t_xrbindP => p [y h] Hw. move: (wf_write_lval Hwf Hw) => Hy /= Hp Hf. rewrite -Hp in Hf.
-    move: (Hrec vs y (rcons l0 h) l Hy) => Hf'. move: (Hf' Hf) => H. auto.
+    elim: xs vs s1 l => [ | x xs Hrec] [ | v vs] s1 l //= Hwf => [[<-]//| ].
+    t_xrbindP => -[y h] Hw. move: (wf_write_lval Hwf Hw) => Hy /= [vs' ls'] Hp /= Hs /= Hf /=. rewrite Hs in Hp.
+    move: (Hrec vs y ls' Hy) => Hf'. move: (Hf' Hp) => H. auto.
   Qed.
 
   Lemma wf_sem p s1 c lc s2 :
@@ -2741,6 +2744,7 @@ Local Open Scope vmap.
     move=> Hwf x;have := Hwf x;rewrite /vmap0 Fv.get0.
     case: vm.[x] => [a _ | ];first by apply eval_uincl_undef.
     move=> [] //=;case:(vtype x) => //=.
+
   Qed.
 
   Lemma wf_vmap0 : wf_vm vmap0.

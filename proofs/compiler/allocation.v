@@ -294,18 +294,6 @@ Lemma check_lvalsP gd xs1 xs2 vs1 vs2 r1 r2 lts s1 s2 l2 vm1 :
     ok (Estate s2.(emem) vm2, map2 leak_E lts l2) /\
     eq_alloc r2 s2.(evm) vm2.
 Proof.
-  rewrite /write_lvals /=.
-  elim: xs1 xs2 vs1 vs2 r1 r2 lts s1 s2 l2 vm1 => [ | x1 xs1 Hrec] [ | x2 xs2] //=
-    vs1 vs2 r1 r2 lts s1 s2 l2 vm1.
-  + move=> Hcvs Hvm [] //= [] <- <- /=. exists vm1.
-    rewrite /check_lvals in Hcvs. rewrite /= in Hcvs. by case: Hcvs=> <- <- /=.
-  + rewrite /check_lvals. move=> /= Hcvs Hvm [] v /=. inversion v.
-    t_xrbindP. move=> v' vs' vs'' Hv Hvs' [s ls] [s' l'] Hw /= [] Hs Hl Hws.
-    move: Hcvs. t_xrbindP. move=> [t' lts'] [t'' lt''] Hcv [] Ht Hlts Hcvs.
-     have [ //| vm3 [->/= Hvm3]] := check_lvalP (e2:= None) Hcv Hvm Hv _ Hw.
-    (*move: check_lvalP. move=> Hcv'.
-    move: (Hcv' gd r1 t'' lt'' x1 x2 None s1 s' l' vm1 v v' Hcv Hvm Hv).*)
-     move: (Hrec).
  Admitted.
 
 
