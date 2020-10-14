@@ -145,9 +145,16 @@ move=> eqv; case: e => //.
   have := gxgetflag_ex eqv ok_r ok_v.
   by case: {ok_r ok_v} r ok_ct => // -[<-] {c} /= h; eexists; split; eauto; case: (rf _).
 + do 2! case=> //; move=> x /=; t_xrbindP => r.
-  move => ok_r ok_ct vx ok_vx /sem_sop1I [/= vb ok_vb -> {v}].
+  (*Seems like this last rewrite changed the type of v into the type of v' but did not actualize the type of ok v into that of ok v'.*)
+  move => ok_r ok_ct vx ok_vx /sem_sop1I [] /= vb [] v' [] ok_vb ok_v' -> {v}.
   have := gxgetflag eqv ok_r ok_vx ok_vb.
-  by case: {ok_r ok_vx ok_vb} r ok_ct => // -[<-] {c} /= -> /=; eexists.
+  case: {ok_r ok_vx ok_vb} r ok_ct => // -[<-] {c} /= -> /= ; exists v' ; split => //.
+  exact ok_v'.
+  - by admit.
+  - by admit.
+  - by admit.
+  - by admit.
+  - by admit.
 + case=> //; first do 3! case=> //;move=> x.
   * case=> //; first do 2! case=> //.
     - move=> y /=; t_xrbindP => r1 ok_r1 r2 ok_r2.

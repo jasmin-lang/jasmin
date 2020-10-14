@@ -559,31 +559,12 @@ Module WArray.
 
   Lemma all_definedP (p : positive) (a : array p) : reflect (forall i , (0 <= i < p) -> Mz.get a.(arr_data) i <> None) (all_defined a).
   Proof.
-    apply (@iffP {in (ziota 0 p), ∀ x : _, (fun i => Mz.get a.(arr_data) i != None) x}).
-    + by apply allP.
-    + move => H i [le0i ltip].
-      have := (H i).
-      case (Mz.get (arr_data a) i) ; first by trivial.
-      move => Hn.
-      have : (i \in ziota 0 p).
-      - rewrite in_ziota.
-        apply Bool.andb_true_iff.
-        split.
-        * by apply Zle_imp_le_bool.
-        * rewrite /=.
-          by apply Zlt_is_lt_bool.
-      - move => Hiz.
-        by apply Hn in Hiz.
-    + move => H i.
-      rewrite in_ziota => Hi.
-      apply Bool.andb_true_iff in Hi.
-      move : Hi => [] /=.
-      move => le0i ltip.
-      apply Zle_bool_imp_le in le0i.
-      apply Zlt_is_lt_bool in ltip.
-      have Hget := (H i).
-      have : Mz.get (arr_data a) i ≠ None by apply Hget.
-      by case (Mz.get (arr_data a) i).
+    apply: (iffP allP).
+    + move=> def_a i [le0i ltip]; apply/eqP/def_a.
+      by rewrite in_ziota /= -(rwP andP) -!lteZP.
+    + move => def_a i.
+      rewrite in_ziota /= => /andP [] /leZP le0i /ltZP ltip.
+      by apply/eqP/def_a.
   Qed.
   
   Definition copy (p : positive) : array p -> array p :=
