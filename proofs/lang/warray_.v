@@ -553,34 +553,65 @@ Module WArray.
     eexists; first reflexivity; split; first lia.
     by move=> k w /= hk; rewrite !set_sub_data_zget8 /=; case:ifPn; rewrite !zify => ?; auto.
   Qed.
-  
-  Definition copy (p : positive) : array p -> array p :=
-    λ a, a.
 
   Definition all_defined (p : positive) (a : array p) :=
     all (fun i => Mz.get a.(arr_data) i != None) (ziota 0 p).
 
   Lemma all_definedP (p : positive) (a : array p) : reflect (forall i , (0 <= i < p) -> Mz.get a.(arr_data) i <> None) (all_defined a).
   Proof.
-    (*TODO use allP*)
-    by admit.
-  Admitted.
+    apply (@iffP {in (ziota 0 p), ∀ x : _, (fun i => Mz.get a.(arr_data) i != None) x}).
+    + by apply allP.
+    + move => H i [le0i ltip].
+      have := (H i).
+      case (Mz.get (arr_data a) i) ; first by trivial.
+      move => Hn.
+      have : (i \in ziota 0 p).
+      - rewrite in_ziota.
+        apply Bool.andb_true_iff.
+        split.
+        * by apply Zle_imp_le_bool.
+        * rewrite /=.
+          by apply Zlt_is_lt_bool.
+      - move => Hiz.
+        by apply Hn in Hiz.
+    + move => H i.
+      rewrite in_ziota => Hi.
+      apply Bool.andb_true_iff in Hi.
+      move : Hi => [] /=.
+      move => le0i ltip.
+      apply Zle_bool_imp_le in le0i.
+      apply Zlt_is_lt_bool in ltip.
+      have Hget := (H i).
+      have : Mz.get (arr_data a) i ≠ None by apply Hget.
+      by case (Mz.get (arr_data a) i).
+  Qed.
+  
+  Definition copy (p : positive) : array p -> array p :=
+    λ a, a.
 
-
-  (*
   Lemma uincl_equal (p : positive) (z z' : array p):
     WArray.uincl z z' -> all_defined z -> z = z'.
   Proof.
-    move => Hu.
-    have := (uincl_validr Hu). (*validw might also be worth a try*)
-    Search _ Mz.t.
-    Search _ Mz.get.
-    Search _ validr.
-    move => [_ get_eq].
-    (*Not finding anything worth trying but induction*)
-    move : p z z' get_eq.
-    apply positive_ind. (*Not finding p?*)
-  Qed.*)
+    move => [_ Hu] Had.
+    have Hget := (all_definedP _ Had).
+    (*I still don't know how to transform the equality into an equality for all i between 0 and p.*)
+    have Heq : ∀ i : Z, Mz.get (arr_data z) i = Mz.get (arr_data z') i ; last first.
+    + by admit.
+    move => i.
+    have Hui := (Hu i). (*Any easier way to specialize Hu?*)
+    have Hgeti := (Hget i).
+    case : (Z_le_gt_dec 0 i) ; last first.
+    + by admit.
+    case : (Z_lt_ge_dec i p) ; last first.
+    + by admit.
+    move => ltip le0i.
+    have Hgetiz : Mz.get (arr_data z) i ≠ None by apply Hgeti.
+    have Huiz : ∀ v : u8, Mz.get (arr_data z) i = Some v → Mz.get (arr_data z') i = Some v by move => v ; apply Hui.
+    move : Hgetiz Huiz.
+    clear Hu Had Hget Hui Hgeti le0i ltip.
+    case : (Mz.get (arr_data z) i) ; last by rewrite //=.
+    by move => v _ <-.
+  Admitted.
 
 
 End WArray.

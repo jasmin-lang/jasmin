@@ -1681,14 +1681,17 @@ Proof.
     rewrite /sem_sop1 /= => [<-].
   2, 4: by have [z' [/= -> /val_uincl_sword ->]] := of_val_uincl Hu Hz.
   1-2: by have [z' [/= -> ->]] := of_val_uincl Hu Hz.
-  (*Hmmm*)
   move => Hu.
   apply: rbindP => /= z Hz.
-  t_xrbindP => z'.
+  t_xrbindP => dz.
   rewrite /sem_sop1.
-  case : (WArray.all_definedP _ ) => [Had|nHad] ; last by trivial.
+  (*Can't remove = true any simplier way?*)
+  case Had: (WArray.all_defined z) ; last by trivial.
   move => [<-] <- /=.
-  case : (value_uincl_arr Hu Hz) => /= z'.
+  case : (value_uincl_arr Hu Hz) => /= z' -> Hau /=.
+  have := (WArray.uincl_equal Hau).
+  move => <- ; last by trivial.
+  by rewrite Had.
 Qed.
 
 Lemma vuincl_sopn T ts o vs vs' (v: T) :
