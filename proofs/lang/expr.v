@@ -1224,7 +1224,7 @@ Fixpoint write_i_rec s i :=
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile _ c _ c'   => foldl write_I_rec (foldl write_I_rec s c') c
   | Ccall _ x _ _   => vrvs_rec s x
-  | Ccopy x1 e1 => Sv.empty (*TODO: change*)
+  | Ccopy x _ => vrv_rec s x
   end
 with write_I_rec s i :=
   match i with
@@ -1281,11 +1281,8 @@ Proof.
     [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es | x1 e1 ] s;
     rewrite /write_I /write_i /write_c /=
-    ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //.
-    1-5: by SvD.fsetdec.
-    (*Ca semble mal barré...
-      Et dû à mon choix de Sv.empty dans write_i_rec.
-      Je dois modifier write_i_rec, write_i, write_c_rec ou write_c.*)
+    ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //;
+    by SvD.fsetdec.
 Qed.
 
 Lemma write_I_recE s i : Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)).
@@ -1395,6 +1392,7 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
     let s := foldl read_I_rec s c' in
     read_e_rec s e
   | Ccall _ xs _ es => read_es_rec (read_rvs_rec s xs) es
+  | Ccopy x e => read_rv_rec (read_e_rec s e) x (*TODO: maybe change*)
   end
 with read_I_rec (s:Sv.t) (i:instr) : Sv.t :=
   match i with
@@ -1466,7 +1464,7 @@ Proof.
            (fun c => forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c))))
            => /= {c s}
    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | e c1 c2 Hc1 Hc2
-    | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es] s;
+    | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es | x e] s;
     rewrite /read_I /read_i /read_c /=
      ?read_rvE ?read_eE ?read_esE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
     by SvD.fsetdec.

@@ -121,6 +121,7 @@ Section WRITE1.
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
     | Ccall _ _ fn _  => writefun_ra fn
+    | Ccopy x _ => vrv_rec s x
     end
   with write_I_rec s i :=
     match i with
@@ -231,6 +232,8 @@ Section CHECK.
                         (ii, Cerr_linear "extra register for rastack is not free") in
         ok D2
       else cierror ii (Cerr_linear "call to unknown function")
+    | Ccopy x e =>
+      ok (read_rv_rec (read_e_rec (Sv.diff D (vrv x)) e) x)
     end.
  
   End CHECK_i.
