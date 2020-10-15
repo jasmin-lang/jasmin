@@ -800,6 +800,7 @@ Inductive instr_r :=
 | Cfor   : var_i -> range -> seq instr -> instr_r
 | Cwhile : align -> seq instr -> pexpr -> seq instr -> instr_r
 | Ccall  : inline_info -> lvals -> funname -> pexprs -> instr_r
+| Ccopy : lval -> pexpr -> instr_r
 
 with instr := MkI : instr_info -> instr_r ->  instr.
 
@@ -824,6 +825,7 @@ Fixpoint instr_r_beq i1 i2 :=
     (a1 == a2) && all2 instr_beq c1 c2 && (e1 == e2) && all2 instr_beq c1' c2'
   | Ccall ii1 x1 f1 arg1, Ccall ii2 x2 f2 arg2 =>
     (ii1 == ii2) && (x1==x2) && (f1 == f2) && (arg1 == arg2)
+  | Ccopy x1 e1, Ccopy x2 e2  => (x1 == x2) && (e1 == e2)
   | _, _ => false
   end
 with instr_beq i1 i2 :=
@@ -845,9 +847,9 @@ End EQI.
 Lemma instr_r_eq_axiom : Equality.axiom instr_r_beq.
 Proof.
   rewrite /Equality.axiom.
-  fix Hrec 1;case =>
-    [x1 t1 ty1 e1|x1 t1 o1 e1|e1 c11 c12|x1 [[dir1 lo1] hi1] c1|a1 c1 e1 c1'|ii1 x1 f1 arg1]
-    [x2 t2 ty2 e2|x2 t2 o2 e2|e2 c21 c22|x2 [[dir2 lo2] hi2] c2|a2 c2 e2 c2'|ii2 x2 f2 arg2] /=;
+  fix Hrec 1; case =>
+    [x1 t1 ty1 e1|x1 t1 o1 e1|e1 c11 c12|x1 [[dir1 lo1] hi1] c1|a1 c1 e1 c1'|ii1 x1 f1 arg1|x1 e1]
+    [x2 t2 ty2 e2|x2 t2 o2 e2|e2 c21 c22|x2 [[dir2 lo2] hi2] c2|a2 c2 e2 c2'|ii2 x2 f2 arg2|x2 e2] /=;
   try by constructor.
   + apply (@equivP ((t1 == t2) && (ty1 == ty2) && (x1 == x2) && (e1 == e2)));first by apply idP.
     split=> [/andP [] /andP [] /andP [] /eqP -> /eqP-> /eqP-> /eqP-> | [] <- <- <- <- ] //.
@@ -866,8 +868,10 @@ Proof.
   + apply (@equivP  ((a1 == a2) && all2 instr_beq c1 c2 && (e1 == e2) && all2 instr_beq c1' c2')); first by apply idP.
     have H := reflect_all2 (instr_eq_axiom_ Hrec).
     split=> [/andP[]/andP[]/andP[]/eqP->/H->/eqP->/H-> | []/eqP->/H->/eqP->/H->] //.
-  apply (@equivP ((ii1 == ii2) && (x1 == x2) && (f1 == f2) && (arg1 == arg2)));first by apply idP.
-  by split=> [/andP[]/andP[]/andP[]| []]/eqP->/eqP->/eqP->/eqP->.
+  + apply (@equivP ((ii1 == ii2) && (x1 == x2) && (f1 == f2) && (arg1 == arg2)));first by apply idP.
+    by split=> [/andP[]/andP[]/andP[]| []]/eqP->/eqP->/eqP->/eqP->.
+  apply/equivP; first by apply idP.
+  by split=> [/andP[] | []]/eqP->/eqP->.
 Qed.
 
 Definition instr_r_eqMixin     := Equality.Mixin instr_r_eq_axiom.
@@ -892,6 +896,7 @@ Section RECT.
   Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Hypothesis Hwhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
   Hypothesis Hcall: forall i xs f es, Pr (Ccall i xs f es).
+  Hypothesis Hcopy: forall (x1:lval) (e1:pexpr), Pr (Ccopy x1 e1).
 
   Section C.
   Variable instr_rect : forall i, Pi i.
@@ -915,6 +920,7 @@ Section RECT.
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
     | Cwhile a c e c'   => @Hwhile a c e c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
     | Ccall ii xs f es => @Hcall ii xs f es
+    | Ccopy x1 e1 => @Hcopy x1 e1
     end.
 
   Definition cmd_rect := cmd_rect_aux instr_Rect.
@@ -1218,6 +1224,7 @@ Fixpoint write_i_rec s i :=
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
   | Cwhile _ c _ c'   => foldl write_I_rec (foldl write_I_rec s c') c
   | Ccall _ x _ _   => vrvs_rec s x
+  | Ccopy x1 e1 => Sv.empty (*TODO: change*)
   end
 with write_I_rec s i :=
   match i with
@@ -1272,10 +1279,13 @@ Proof.
            (fun c => forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)))) =>
      /= {c s}
     [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | e c1 c2 Hc1 Hc2
-    | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es] s;
+    | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es | x1 e1 ] s;
     rewrite /write_I /write_i /write_c /=
-    ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //;
-    by SvD.fsetdec.
+    ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //.
+    1-5: by SvD.fsetdec.
+    (*Ca semble mal barré...
+      Et dû à mon choix de Sv.empty dans write_i_rec.
+      Je dois modifier write_i_rec, write_i, write_c_rec ou write_c.*)
 Qed.
 
 Lemma write_I_recE s i : Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)).
