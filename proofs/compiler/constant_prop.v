@@ -25,7 +25,7 @@
 
 (* ** Imports and settings *)
 From CoqWord Require Import ssrZ.
-Require Import expr ZArith psem.
+Require Import expr ZArith psem compiler_util.
 Require Import dead_code.
 Require Export low_memory.
 Import all_ssreflect all_algebra.
@@ -545,7 +545,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
     let es := map (const_prop_e m) es in
     let: (m,xs, lts) := const_prop_rvs m xs in
     (m, [:: MkI ii (Copn xs t o (unzip1 es)) ], 
-     LT_ile (LT_seq ((unzip2 es) ++ lts)))
+     LT_ile (LT_seq [:: LT_seq (unzip2 es) ; LT_seq lts]))
             
   | Cif b c1 c2 =>
     let (b, ltb) := const_prop_e m b in
@@ -593,14 +593,7 @@ Definition const_prop_fun (f:fundef) :=
   (MkFun ii tin p c tout r, lt).
 
 Definition const_prop_prog (p: prog) : (prog * leak_f_tr) :=
-  let fundefs := map snd (p_funcs p) in (* seq of fundefs *)
-  let funnames := map fst (p_funcs p) in
-  let r := map const_prop_fun fundefs in (* output of applying const_prop_fun to the fundefs from p *)
-  let rfds := map fst r in
-  let rlts := map snd r in 
-  let Fs := zip funnames rlts in
-  let funcs := zip funnames rfds in 
-  ({| p_globs := p_globs p; p_funcs := funcs|}, Fs).
-
+  let fs := map_prog_leak const_prop_fun (p_funcs p) in
+  ({| p_globs := p_globs p; p_funcs := fs.1 |}, fs.2).
 
 (*Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p. *)
