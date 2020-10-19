@@ -434,6 +434,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
         end
     else (lbl, lc )
   | Cfor _ _ _ => (lbl, lc)
+  | Ccopy _ _ => (lbl, lc)
   end.
 
 Definition linear_fd (fd: sfundef) :=
