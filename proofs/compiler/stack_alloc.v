@@ -58,14 +58,12 @@ Definition mem_space := var.
 
 Record mem_pos := 
   { mp_s : var; 
-    mp_p : var; 
     mp_align : wsize;             (* the alignment of the corresponding region *)
     mp_writable : bool;           (* the region is writable or not             *)
   }.
 
 Definition mem_pos_beq (mp1 mp2:mem_pos) := 
   [&& mp1.(mp_s)        == mp2.(mp_s), 
-      mp1.(mp_p)        == mp2.(mp_p), 
       mp1.(mp_align)    == mp2.(mp_align) &
       mp1.(mp_writable) == mp2.(mp_writable)].
 
@@ -74,8 +72,8 @@ Definition mem_pos_same (mp1 mp2:mem_pos) :=
 
 Lemma mem_pos_axiom : Equality.axiom mem_pos_beq.
 Proof.
-  rewrite /mem_pos_beq => -[xs1 xp1 xa1 xw1] [xs2 xp2 xa2 xw2].
-  by apply:(iffP and4P) => /= [[/eqP -> /eqP -> /eqP -> /eqP ->] | [-> -> -> ->]].
+  rewrite /mem_pos_beq => -[xs1 xa1 xw1] [xs2 xa2 xw2].
+  by apply:(iffP and3P) => /= [[/eqP -> /eqP -> /eqP ->] | [-> -> ->]].
 Qed.
 
 Definition mem_pos_eqMixin     := Equality.Mixin mem_pos_axiom.
@@ -88,16 +86,15 @@ Module CmpMp.
   Definition cmp (mp1 mp2: t) := 
     Lex (bool_cmp mp1.(mp_writable) mp2.(mp_writable))
      (Lex (wsize_cmp mp1.(mp_align) mp2.(mp_align))
-         (Lex (var_cmp mp1.(mp_s) mp2.(mp_s))
-              (var_cmp mp1.(mp_p) mp2.(mp_p)))).
+          (var_cmp mp1.(mp_s) mp2.(mp_s))).
 
   Instance cmpO : Cmp cmp.
   Proof.
-    constructor => [x y | y x z c | [????] [????]]; rewrite /cmp !Lex_lex.
+    constructor => [x y | y x z c | [???] [???]]; rewrite /cmp !Lex_lex.
     + by repeat (apply lex_sym; first by apply cmp_sym); apply cmp_sym.
     + by repeat (apply lex_trans=> /=; first by apply cmp_ctrans); apply cmp_ctrans.
-    move=> /lex_eq [] /= h1 /lex_eq [] /= h2 /lex_eq [] /= h3 h4.
-    by rewrite (cmp_eq h1) (cmp_eq h2) (cmp_eq h3) (cmp_eq h4).
+    move=> /lex_eq [] /= h1 /lex_eq [] /= h2 h3.
+    by rewrite (cmp_eq h1) (cmp_eq h2) (cmp_eq h3).
   Qed.
 
 End CmpMp.
@@ -296,8 +293,8 @@ Definition clear_sub_map sub sm :=
   let i := interval_of_sub sub in
   Msmp.filter_map (clear_bytes_map sub i) sm.
 
-Definition set_stack_ptr rmap x rsp align ofs x' := 
-  let mp := {| mp_s := x; mp_p := rsp; mp_align := align; mp_writable := true |} in
+Definition set_stack_ptr rmap x align ofs (x':var) :=
+  let mp := {| mp_s := x; mp_align := align; mp_writable := true |} in
   let sub := {| smp_ofs := ofs; smp_len := wsize_size Uptr |} in
   let i := interval_of_sub sub in
   let sm := get_sub_map mp rmap in
@@ -309,8 +306,8 @@ Definition set_stack_ptr rmap x rsp align ofs x' :=
   {| var_region := rmap.(var_region);
      region_var := Mmp.set rmap.(region_var) mp sm |}.
 
-Definition check_stack_ptr rmap x rsp align ofs x' := 
-  let mp := {| mp_s := x; mp_p := rsp; mp_align := align; mp_writable := true |} in
+Definition check_stack_ptr rmap x align ofs x' :=
+  let mp := {| mp_s := x; mp_align := align; mp_writable := true |} in
   let sub := {| smp_ofs := ofs; smp_len := wsize_size Uptr |} in
   let i := interval_of_sub sub in
   let sm := get_sub_map mp rmap in
@@ -523,7 +520,7 @@ Definition get_var_kind x :=
     ok (omap VKptr (get_local xv)).
 
 Definition mp_glob x (ofs_align: Z * wsize) :=
-  {| mp_s := x; mp_p := pmap.(vrip); mp_align := ofs_align.2; mp_writable := false |}.
+  {| mp_s := x; mp_align := ofs_align.2; mp_writable := false |}.
 
 Definition check_vpk_word rmap x vpk ws :=
   Let mps :=
@@ -596,13 +593,13 @@ Fixpoint alloc_e (e:pexpr) :=
  
 End ALLOC_E.
 
-Definition mps_stack x rsp align sub :=
-  let mp := {| mp_s := x; mp_p := rsp; mp_align := align; mp_writable := true |} in
+Definition mps_stack x align sub :=
+  let mp := {| mp_s := x; mp_align := align; mp_writable := true |} in
   {| mps_mp := mp; mps_sub := sub |}.
 
 Definition mps_pk pk :=
   match pk with
-  | Pstack x ofs align sub => ok (mps_stack x pmap.(vrsp) align sub)
+  | Pstack x ofs align sub => ok (mps_stack x align sub)
   | _                => cerror "not a pointer to stack: please report"
   end.
 
@@ -730,7 +727,7 @@ Definition alloc_array_move rmap r e :=
         | Pregptr p           => 
           ok (MK_MOV, Plvar (with_var vy p), ofs)
         | Pstkptr slot ofsy ws sub x' => 
-          Let _ := Region.check_stack_ptr rmap slot pmap.(vrsp) ws sub.(smp_ofs) x' in
+          Let _ := Region.check_stack_ptr rmap slot ws sub.(smp_ofs) x' in
           ok (MK_MOV, Pload Uptr (with_var vy pmap.(vrsp)) (cast_const ofsy), ofs)
         end in
       let '(mk, l, ofs) := mklofs in
@@ -751,8 +748,7 @@ Definition alloc_array_move rmap r e :=
         let rmap := Region.set_move rmap x mpy in
         ok (rmap, nop)
       | Pglob x' _ _ subx => 
-        Let _  := assert ((x' == mpy.(mps_mp).(mp_s)) && (mpy.(mps_mp).(mp_p) == pmap.(vrip))
-                                                      && (subx == mpy.(mps_sub)))
+        Let _  := assert ((x' == mpy.(mps_mp).(mp_s)) && (subx == mpy.(mps_sub)))
                          (Cerr_stk_alloc "invalid source 2") in
         let rmap := Region.set_move rmap x mpy in
         ok (rmap, nop)
@@ -761,7 +757,7 @@ Definition alloc_array_move rmap r e :=
       | Pstkptr slot z ws sub x' =>
         let: (rmap, ir) :=
           get_addr true rmap x (Lmem Uptr (with_var x pmap.(vrsp)) (cast_ptr z)) mpy mk ey ofs in
-        ok (Region.set_stack_ptr rmap slot pmap.(vrsp) ws sub.(smp_ofs) x', ir)
+        ok (Region.set_stack_ptr rmap slot ws sub.(smp_ofs) x', ir)
       end
     end
   | Some (ofs, len) =>
@@ -795,7 +791,7 @@ Definition alloc_array_move_init rmap r e :=
         match pk with
         | Pstack x' _ ws sub =>
           let sub := {| smp_ofs := sub.(smp_ofs) + ofs; smp_len := len |} in
-          ok (mps_stack x' pmap.(vrsp) ws sub)
+          ok (mps_stack x' ws sub)
         | Pglob x' _ ws sub =>
           cerror "array init glob"
         | _ => 
@@ -1029,7 +1025,7 @@ Definition init_local_map vrip vrsp fn globals sao :=
              | Some (ws', ofs') =>
                if [&& (size_of x.(vtype) <= sub.(smp_len))%CMP, (0%Z <= sub.(smp_ofs))%CMP &
                       ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x'.(vtype))%CMP] then 
-                 let mps := mps_stack x' vrsp ws' sub in
+                 let mps := mps_stack x' ws' sub in
                  ok (sv, Pstack x' ofs' ws' sub, Region.set_arr_init rmap x mps)
                else cferror fn "invalid stack slot, please report"
              end
@@ -1122,7 +1118,7 @@ Definition init_param accu pi (x:var_i) :=
     Let _ := assert (vtype pi.(pp_ptr) == sword Uptr) (Cerr_stk_alloc "bad ptr type: please report") in
     Let _ := assert (~~Sv.mem pi.(pp_ptr) disj) (Cerr_stk_alloc "duplicate region: please report") in
     let mp := 
-      {| mp_s := pi.(pp_ptr); mp_p := pi.(pp_ptr);
+      {| mp_s := pi.(pp_ptr);
          mp_align := pi.(pp_align); mp_writable := pi.(pp_writable) |} in
     ok (Sv.add pi.(pp_ptr) disj, 
         Mvar.set lmap x (Pregptr pi.(pp_ptr)),
