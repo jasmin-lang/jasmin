@@ -573,10 +573,12 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
     let: (m',c, ltc) := const_prop const_prop_i m c in
     let (e, lte) := const_prop_e m' e in
     let: (_,c', ltc') := const_prop const_prop_i m' c' in
-    match is_bool e with
+    if is_bool e == Some false then (m', c, LT_icond_eval ltc) 
+    else (m', [:: MkI ii (Cwhile a c e c')], LT_iwhile ltc lte ltc')
+    (*match is_bool e with
     | Some false => (m', c, LT_icond_eval ltc)
     | _          => (m', [:: MkI ii (Cwhile a c e c')], LT_iwhile ltc lte ltc')
-    end 
+    end*)
   | Ccall fi xs f es =>
     let es := map (const_prop_e m) es in
     let: (m,xs,lt) := const_prop_rvs m xs in

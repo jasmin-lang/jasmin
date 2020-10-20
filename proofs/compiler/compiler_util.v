@@ -256,15 +256,11 @@ Qed.
 
 Definition map_prog_leak {T1 T2 T3} (F: T1 -> (T2 * T3)) l:
   (seq (funname * T2) * seq (funname * T3)) :=
-  let fundefs := map snd l in (* seq of fundefs *)
-  let funnames := map fst l in
-  let r := map F fundefs in 
-  let rfds := map fst r in
-  let rlts := map snd r in 
-  let Fs := zip funnames rlts in
-  let funcs := zip funnames rfds in 
-  (funcs, Fs).
-  
+  let l := map (fun t => (t.1, F t.2)) l in
+  (map (fun t : funname * (T2 * T3) => (t.1, t.2.1)) l,
+   map (fun t : funname * (T2 * T3) => (t.1, t.2.2)) l).
+
+
 (*Definition map_prog_leak {T} (F : fundef -> (fundef * T)) (p : prog) :=
   let fundefs := map snd (p_funcs p) in (* seq of fundefs *)
   let funnames := map fst (p_funcs p) in
@@ -302,8 +298,7 @@ Proof.
   move=> Hfn Hf Hf' /=. case: H=> H1 H2.
   rewrite -H1 /=. rewrite Hfn /=.
   rewrite /map_prog_leak /= in IH.
-  move: (IH  (zip [seq i.1 | i <- pl] [seq i.1 | i <- [seq F i | i <- [seq i.2 | i <- pl]]],
-              zip [seq i.1 | i <- pl] [seq i.2 | i <- [seq F i | i <- [seq i.2 | i <- pl]]])).
+  move: (IH  ([seq (t.1, t.2.1) | t <- [seq (t.1, F t.2) | t <- pl]], [seq (t.1, t.2.2) | t <- [seq (t.1, F t.2) | t <- pl]])).
   rewrite /=. move=> H. apply H; eauto.
 Qed.
 
@@ -328,8 +323,7 @@ Proof.
   move=> Hfn Hf Hf' /=. case: H=> H1 H2.
   rewrite -H2 /=. rewrite Hfn /=.
   rewrite /map_prog_leak /= in IH.
-  move: (IH  (zip [seq i.1 | i <- pl] [seq i.1 | i <- [seq F i | i <- [seq i.2 | i <- pl]]],
-              zip [seq i.1 | i <- pl] [seq i.2 | i <- [seq F i | i <- [seq i.2 | i <- pl]]])).
+  move: (IH  ([seq (t.1, t.2.1) | t <- [seq (t.1, F t.2) | t <- pl]], [seq (t.1, t.2.2) | t <- [seq (t.1, F t.2) | t <- pl]])).
   rewrite /=. move=> H. apply H; eauto.
 Qed.
 
@@ -354,6 +348,107 @@ Proof.
   move: (map_prog_get_fd Hu H Hf).
   move: (map_prog_get_leak Hu H Hf).
   split=> //.
+Qed.
+
+Definition map_fnprog_leak {T1 T2 T3} (F: funname -> T1 -> ciexec (T2 * T3)) lt1 :
+  cfexec (seq (funname * T2) * seq (funname * T3)) :=
+  Let l := mapM (fun (f:funname * T1) => 
+      Let r := add_finfo f.1 f.1 (F f.1 f.2) in ok (f.1, r)) lt1 in
+  ok (map (fun t : funname * (T2 * T3) => (t.1, t.2.1)) l,
+      map (fun t : funname * (T2 * T3) => (t.1, t.2.2)) l).
+
+Definition map_cfprog_leak' {T1 T2 T3} (F: T1 -> ciexec (T2 * T3)) := 
+  map_fnprog_leak (fun (fn:funname) fd => F fd).
+
+Definition map_prog_leak' {T1 T2 T3} (F: T1 -> (T2 * T3)) := 
+   map_cfprog_leak' (fun t1 => ok (F t1)).
+
+
+Lemma map_fnprog_get_fd {T2 T3} (F: funname -> T2 -> ciexec (T2 * T3)) p p' lt fn f fd':
+  map_fnprog_leak F p = ok p' ->
+  get_fundef p fn = Some f ->
+  F fn f = ok (fd', lt) ->
+  get_fundef p'.1 fn = Some fd'.
+Proof.
+  elim: p p'=> // -[fn1 fd1] pl IH p'.
+  rewrite /map_fnprog_leak /= -/(map_fnprog_leak _ _).
+  apply: rbindP. move=> fdlts.
+  apply: rbindP. move=> fdlts'.
+  apply: rbindP. move=> [fd'' lt'] Hpl' [] <- /=. t_xrbindP.
+  move=> fdlts'' Hm <- <-.
+  case: ifP.
+  + move=> /eqP Hfn.
+    move=> [] <- Hf.
+    rewrite Hfn in Hf.
+    rewrite Hf in Hpl'.
+    move: Hpl'. move=> -[] <- <- /=.
+    rewrite Hfn. case: eqP.
+    by move=> h.
+    move=>h. by case h.
+  + move=> Hfn Hf Hf' /=.
+    rewrite /map_fnprog_leak in IH.
+    rewrite Hm in IH. rewrite /= in IH.
+    move: (IH ([seq (t.1, t.2.1) | t <- fdlts''], [seq (t.1, t.2.2) | t <- fdlts''])). rewrite Hfn /=.
+    rewrite /=. move=> H.
+    apply H; auto.
+Qed.
+
+Lemma map_fnprog_get_leak {T2 T3} (F: funname -> T2 -> ciexec (T2 * T3)) p p' lt fn f fd':
+  map_fnprog_leak F p = ok p' ->
+  get_fundef p fn = Some f ->
+  F fn f = ok (fd', lt) ->
+  get_leak p'.2 fn = Some lt.
+Proof.
+  elim: p p'=> // -[fn1 fd1] pl IH p'.
+  rewrite /map_fnprog_leak /= -/(map_fnprog_leak _ _).
+  apply: rbindP. move=> fdlts.
+  apply: rbindP. move=> fdlts'.
+  apply: rbindP. move=> [fd'' lt'] Hpl' [] <- /=. t_xrbindP.
+  move=> fdlts'' Hm <- <-.
+  case: ifP.
+  + move=> /eqP Hfn.
+    move=> [] <- Hf.
+    rewrite Hfn in Hf.
+    rewrite Hf in Hpl'.
+    move: Hpl'. move=> -[] <- <- /=.
+    rewrite Hfn. case: eqP.
+    by move=> h.
+    move=>h. by case h.
+  + move=> Hfn Hf Hf' /=. rewrite Hfn /=.
+    rewrite /map_fnprog_leak in IH.
+    rewrite Hm in IH. rewrite /= in IH.
+    move: (IH  ([seq (t.1, t.2.1) | t <- fdlts''], [seq (t.1, t.2.2) | t <- fdlts''])).
+    rewrite /=. move=> H. apply H; auto.
+Qed.
+
+Lemma get_map_fnprog_leak {T2 T3} (F: funname -> T2 -> ciexec (T2 * T3))
+      p p' fn f:
+  map_fnprog_leak F p = ok p' ->
+  get_fundef p fn = Some f ->
+  exists fd', exists lt,
+   [/\ F fn f = ok (fd', lt),
+       get_fundef (p'.1) fn = Some fd' &
+       get_leak (p'.2) fn = Some lt].
+Proof.
+  move=> Hmap H.
+  have Hp := (get_fundef_in' H).
+  have Hu := Hmap.
+  rewrite /map_fnprog_leak in Hmap. move: Hmap.
+  t_xrbindP. move=> flts Hmap <- /=.
+  move: (mapM_In Hmap Hp).
+  move=> [] [fn'' [fd' lt]] /= [] Hfd Hok.
+  apply: rbindP Hok. move=> [f' lt''] Hafn [] Hfn' Hfd' Hlt' /=.
+  have Hf: F fn f = ok (fd', lt'').
+  rewrite /add_finfo in Hafn.
+  case: (F fn f) Hafn => // a [] ->. by rewrite Hfd'.
+  exists fd'; exists lt''.
+  move: (map_fnprog_get_fd Hu H Hf).
+  move: (map_fnprog_get_leak Hu H Hf).
+  move=> H1 H2.
+  rewrite /map_fnprog_leak in Hu. rewrite Hmap in Hu.
+  move: Hu. t_xrbindP. move=> ys <- hp. rewrite -hp in H2.
+  rewrite /= in H2; auto. rewrite -hp in H1.
+  rewrite /= in H1. split; auto.
 Qed.
 
 Module Type LoopCounter.
