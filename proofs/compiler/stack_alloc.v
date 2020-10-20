@@ -1015,8 +1015,10 @@ Definition init_stack_layout fn (ws_align: wsize) (l: seq (var * wsize * Z)) :=
       if (p <= ofs)%CMP then
         let len := size_of x.(vtype) in
         if (ws <= ws_align)%CMP then
-          let stack := Mvar.set stack x (ws, ofs) in
-          ok (stack, (ofs + len)%Z)
+          if (Z.land ofs (wsize_size ws - 1) == 0)%Z then
+            let stack := Mvar.set stack x (ws, ofs) in
+            ok (stack, (ofs + len)%Z)
+          else cferror fn "bad stack region alignment"
         else cferror fn "bad stack alignment" 
       else cferror fn "stack region overlap" in
   foldM add (Mvar.empty _, 0%Z) l.
