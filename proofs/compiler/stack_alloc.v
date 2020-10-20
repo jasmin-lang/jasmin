@@ -258,15 +258,16 @@ Definition get_bytes x bytes_map :=
 
 Definition interval_of_sub sub := 
   {| imin := sub.(smp_ofs); imax := sub.(smp_ofs) + sub.(smp_len) |}.
- 
+
+(* Returns the sub-zone of [sub] starting at offset [ofs] and of length [len].
+   The offset [ofs] can be None, meaning its exact value is not known. In this
+   case, the full zone [sub] is returned. This is a safe approximation.
+*)
 Definition sub_ofs sub ofs len := 
   match ofs with
   | None => sub
   | Some ofs => {| smp_ofs := sub.(smp_ofs) + ofs; smp_len := len |}
   end.
- 
-Definition interval_ofs sub ofs len := 
-  interval_of_sub (sub_ofs sub ofs len).
 
 Definition check_valid (rmap:regions) (x:var) ofs len := 
   Let mps := get_mps rmap x in
@@ -335,6 +336,13 @@ Definition set_word rmap x mps ws :=
   Let _ := check_align mps ws in
   ok (set_mps rmap x mps).
 
+(* If we write to array [x] at offset [ofs], we invalidate the corresponding
+   memory zone for the other variables, and mark it as valid for [x].
+   The offset [ofs] can be None, meaning its exact value is not known. In this
+   case, the full zone [sub] associated to array [x] is invalidated for the
+   other variables, and remains the zone associated to [x]. It is a safe
+   approximation.
+*)
 Definition set_arr_word rmap x ofs ws :=
   let len := wsize_size ws in
   Let mps := get_mps rmap x in
@@ -346,8 +354,10 @@ Definition set_arr_word rmap x ofs ws :=
   let i    := interval_of_sub sub1 in
   let sm := get_sub_map mps.(mps_mp) rmap in
   let bm := get_bytes_map sub sm in
-  let bytes := ByteSet.add i (get_bytes x bm) in
-  (* clear all bytes correspondint to sub1 *)
+  let bytes := if ofs is Some _ then ByteSet.add i (get_bytes x bm)
+               else get_bytes x bm
+  in
+  (* clear all bytes corresponding to sub1 *)
   let sm := clear_sub_map sub1 sm in
   (* set the bytes *)
   let bm := get_bytes_map sub sm in
