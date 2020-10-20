@@ -269,13 +269,15 @@ Definition sub_ofs sub ofs len :=
   | Some ofs => {| smp_ofs := sub.(smp_ofs) + ofs; smp_len := len |}
   end.
 
-Definition check_valid (rmap:regions) (x:var) ofs len := 
+Definition check_valid (rmap:regions) (x:var) ofs len :=
+  (* we get the bytes associated to variable [x] *)
   Let mps := get_mps rmap x in
   let sm := get_sub_map mps.(mps_mp) rmap in
   let bm := get_bytes_map mps.(mps_sub) sm in
   let bytes := get_bytes x bm in 
-  let sub_ofs  := sub_ofs mps.(mps_sub) ofs len in
+  let sub_ofs  := {| smp_ofs := mps.(mps_sub).(smp_ofs) + ofs; smp_len := len |} in
   let isub_ofs := interval_of_sub sub_ofs in 
+  (* we check if [isub_ofs] is a subset of one of the intervals of [bytes] *)
   Let _   := assert (ByteSet.mem bytes isub_ofs) 
                     (Cerr_stk_alloc "check_valid: the region is partial") in
   ok {| mps_mp := mps.(mps_mp); mps_sub := sub_ofs |}.
@@ -532,7 +534,7 @@ Definition get_var_kind x :=
 Definition mp_glob x (ofs_align: Z * wsize) :=
   {| mp_s := x; mp_align := ofs_align.2; mp_writable := false |}.
 
-Definition check_vpk_word rmap x vpk ws :=
+Definition check_vpk_word rmap x vpk ofs ws :=
   Let mps :=
     match vpk with
     | VKglob z =>
@@ -540,7 +542,7 @@ Definition check_vpk_word rmap x vpk ws :=
       let sub := {| smp_ofs := 0; smp_len := wsize_size ws |} in
       ok {| mps_mp := mp; mps_sub := sub |}
     | VKptr pk => 
-      check_valid rmap x (Some 0%Z) (wsize_size ws)
+      check_valid rmap x ofs (wsize_size ws)
     end in
   check_align mps ws.
 
@@ -554,7 +556,7 @@ Fixpoint alloc_e (e:pexpr) :=
     | None => ok e
     | Some vpk => 
       if is_word_type (vtype xv) is Some ws then
-        Let _ := check_vpk_word rmap xv vpk ws in
+        Let _ := check_vpk_word rmap xv vpk (Some 0%Z) ws in
         Let pofs := mk_addr xv AAdirect ws vpk (Pconst 0) in
         ok (Pload ws pofs.1 pofs.2)
       else cerror "not a word variable in expression, please report"
@@ -566,8 +568,9 @@ Fixpoint alloc_e (e:pexpr) :=
     Let vk := get_var_kind x in
     match vk with
     | None => ok (Pget aa ws x e1)
-    | Some vpk => 
-      Let _ := check_vpk_word rmap xv vpk ws in
+    | Some vpk =>
+      let ofs := mk_ofsi aa ws e1 in
+      Let _ := check_vpk_word rmap xv vpk ofs ws in
       Let pofs := mk_addr xv aa ws vpk e1 in
       ok (Pload ws pofs.1 pofs.2)
     end             
