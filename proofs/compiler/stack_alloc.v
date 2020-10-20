@@ -139,7 +139,6 @@ Module CmpSub.
 End CmpSub.
 
 Module Msmp := Mmake (CmpSub).
-Module Ssmp := Smake (CmpSub).
  
 Definition disjoint_sub_mp smp1 smp2 := 
   (((smp1.(smp_ofs) + smp1.(smp_len))%Z <= smp2.(smp_ofs)) || 
@@ -182,7 +181,6 @@ Module CmpMps.
 End CmpMps.
 
 Module Mmps := Mmake(CmpMps).
-Module Smps := Smake(CmpMps).
 
 (* ------------------------------------------------------------------ *)
 Variant ptr_kind_init :=
@@ -241,19 +239,19 @@ Definition empty := {|
   region_var := Mmp.empty sub_map;
 |}.
 
-Definition get_mps (rmap : regions) (x:var) := 
+Definition get_mps (rmap:regions) (x:var) :=
   match Mvar.get rmap.(var_region) x with
   | Some mps => ok mps
   | None => cerror "no associated region"
   end.
 
-Definition get_sub_map mp rmap := 
+Definition get_sub_map (mp:mem_pos) rmap :=
   odflt empty_sub_map (Mmp.get rmap.(region_var) mp).
 
-Definition get_bytes_map sub sub_map := 
+Definition get_bytes_map (sub:sub_mp) (sub_map:sub_map) : bytes_map :=
   odflt empty_bytes_map (Msmp.get sub_map sub). 
 
-Definition get_bytes x bytes_map := 
+Definition get_bytes (x:var) (bytes_map:bytes_map) :=
   odflt ByteSet.empty (Mvar.get bytes_map x).
 
 Definition interval_of_sub sub := 
@@ -282,17 +280,17 @@ Definition check_valid (rmap:regions) (x:var) ofs len :=
                     (Cerr_stk_alloc "check_valid: the region is partial") in
   ok {| mps_mp := mps.(mps_mp); mps_sub := sub_ofs |}.
 
-Definition clear_bytes i (x:var) bytes := 
+Definition clear_bytes i (x:var) bytes :=
   let bytes := ByteSet.remove bytes i in
   if ByteSet.is_empty bytes then None else Some bytes.
 
-Definition clear_bytes_map sub i sub' bm := 
+Definition clear_bytes_map sub i sub' (bm:bytes_map) :=
   if disjoint_sub_mp sub sub' then Some bm
   else 
     let bm := Mvar.filter_map (clear_bytes i) bm in
     if Mvar.is_empty bm then None else Some bm.
 
-Definition clear_sub_map sub sm := 
+Definition clear_sub_map sub (sm:sub_map) : sub_map :=
   let i := interval_of_sub sub in
   Msmp.filter_map (clear_bytes_map sub i) sm.
 
@@ -320,7 +318,7 @@ Definition check_stack_ptr rmap x align ofs x' :=
                     (Cerr_stk_alloc "check_stack_ptr: the region is partial") in
   ok tt.
 
-Definition set_mps rmap x mps :=
+Definition set_mps rmap (x:var) mps :=
   let sub := mps.(mps_sub) in
   let i := interval_of_sub sub in
   let sm := get_sub_map mps.(mps_mp) rmap in
@@ -333,7 +331,7 @@ Definition set_mps rmap x mps :=
      region_var := Mmp.set rmap.(region_var) mps.(mps_mp) sm |}.
 
 (* Precondition size_of x = ws && length mps.mps_sub = wsize_size ws *)
-Definition set_word rmap x mps ws :=
+Definition set_word rmap (x:var) mps ws :=
   Let _ := writable mps.(mps_mp) in
   Let _ := check_align mps ws in
   ok (set_mps rmap x mps).
@@ -345,7 +343,8 @@ Definition set_word rmap x mps ws :=
    other variables, and remains the zone associated to [x]. It is a safe
    approximation.
 *)
-Definition set_arr_word rmap x ofs ws :=
+(* [set_word] and [set_arr_word] could be factorized? *)
+Definition set_arr_word rmap (x:var) ofs ws :=
   let len := wsize_size ws in
   Let mps := get_mps rmap x in
   let mp  := mps.(mps_mp) in
@@ -370,7 +369,7 @@ Definition set_arr_word rmap x ofs ws :=
 
 Definition set_arr_call rmap x mps := set_mps rmap x mps.
 
-Definition set_arr_sub rmap x ofs len mps_from := 
+Definition set_arr_sub rmap (x:var) ofs len mps_from :=
   Let mps := get_mps rmap x in
   let sub := mps.(mps_sub) in
   let sub_ofs := {| smp_ofs := sub.(smp_ofs) + ofs; smp_len := len |} in
@@ -385,8 +384,9 @@ Definition set_arr_sub rmap x ofs len mps_from :=
   let sm := Msmp.set sm sub bm in
   ok {| var_region := rmap.(var_region); 
      region_var := Mmp.set rmap.(region_var) mps.(mps_mp) sm |}.
- 
-Definition set_move rmap x mps := 
+
+(* identical to set_mps, except clearing *)
+Definition set_move rmap (x:var) mps :=
   let sub := mps.(mps_sub) in
   let i := interval_of_sub sub  in
   let sm := get_sub_map mps.(mps_mp) rmap in
@@ -616,7 +616,7 @@ Definition mps_pk pk :=
   | _                => cerror "not a pointer to stack: please report"
   end.
 
-Definition alloc_lval (rmap: regions) (r:lval) ty := 
+Definition alloc_lval (rmap: regions) (r:lval) (ty:stype) :=
   match r with
   | Lnone _ _ => ok (rmap, r)
 
@@ -754,8 +754,6 @@ Definition alloc_array_move rmap r e :=
     | Some pk => 
       match pk with
       | Pstack x' _ _ subx =>
-        Let _  := assert (is_lvar y)
-                         (Cerr_stk_alloc "invalid move: global to stack") in 
         Let _  := assert ((x' == mpy.(mps_mp).(mp_s)) && (subx == mpy.(mps_sub)))
                          (Cerr_stk_alloc "invalid source 1") in
         let rmap := Region.set_move rmap x mpy in
