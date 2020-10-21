@@ -24,7 +24,8 @@
     "int"   , T_INT  ;
 
     "align" , ALIGN  ;
-    "const" , CONSTANT;    
+    "const" , CONSTANT; 
+    "copy"  , COPY   ;   
     "downto", DOWNTO ;
     "else"  , ELSE   ;
     "exec"  , EXEC   ;

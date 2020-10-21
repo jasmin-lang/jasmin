@@ -8,6 +8,10 @@ B _build/entry
 PKG batteries
 PKG menhirLib
 PKG zarith
+PKG apron
+PKG apron.octMPQ
+PKG apron.ppl
+PKG apron.boxMPQ
 
 FLG -rectypes
 FLG -w Y -w Z -w -23 -w +28 -w +33 -w -40 -w 58
