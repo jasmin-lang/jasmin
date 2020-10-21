@@ -109,7 +109,7 @@ Module INCL. Section INCL.
   Proof.
     rewrite /write_lvals.
     move=> hincl;elim: xs vs s1 s2 [::] lw => //= x xs hrec [|v vs] s1 s2 lw1 lw //=.
-    t_xrbindP. by move=> y [s' lw'] /(gd_incl_wl hincl) -> /= <- /hrec ->.
+    t_xrbindP. by move=> [s' lw'] /(gd_incl_wl hincl) -> /= [s'' lws] /hrec -> <- <- /=.
   Qed.
 
   Context (P1:prog) (gd2:glob_decls).
@@ -325,17 +325,19 @@ Module RGP. Section PROOFS.
 
   Context (P:prog).
 
-  Context (fds: fun_decls).
+  (*Context (fds: fun_decls).*)
+  Context (fds : seq (funname * fundef * leak_c_tr)).
   Notation gd := (p_globs P).
   Variable Fs: seq (funname * seq leak_i_tr).
 
   (** NEED TO FIX **)
-  (*Hypothesis fds_ok : (mapM (remove_glob_fundef is_glob gd) (p_funcs P)) = ok fds.
-
-  Hypothesis fds_ok : mapM (remove_glob_fundef is_glob gd) (p_funcs P) = ok fds.*)
+  (*Hypothesis fds_ok : (mapM (remove_glob_fundef is_glob gd) (p_funcs P)) = ok fds.*)
+  
+ 
+  Hypothesis fds_ok : mapM (remove_glob_fundef is_glob gd) (p_funcs P) = ok (fds.
   
   Hypothesis uniq_gd : uniq (map fst gd).
-  Notation P' := {|p_globs := gd; p_funcs := fds |}.
+  Notation P' := {|p_globs := gd; p_funcs := zip (unzip1 (unzip1 fds)) (unzip2 (unzip1 fds)) |}.
 
   Hypothesis remove_glob_prog_ok : remove_glob_prog is_glob fresh_id P = ok (P', Fs).
 
@@ -408,7 +410,12 @@ Module RGP. Section PROOFS.
       (* PopN *)
       - move=> opN es hes e ve lte lte'. t_xrbindP. move=> ves hm <- <- ves' hm' vo ho <- <- /=. 
         rewrite /sem_pexprs in hes. move: (hes ves ves' hm hm'). move=> -> /=. rewrite unzip1_zip.
-        rewrite ho /=. rewrite unzip2_zip. auto. admit. admit.
+        rewrite ho /=. rewrite unzip2_zip. auto.
+        rewrite map2E size_map size1_zip.
+        + by rewrite !size_map -(mapM_size hm) -(mapM_size hm').
+          by rewrite !size_map -(mapM_size hm) -(mapM_size hm').
+        rewrite map2E size_map size1_zip. by rewrite !size_map -(mapM_size hm) -(mapM_size hm').
+        by rewrite !size_map -(mapM_size hm) -(mapM_size hm').
       (* Pif *)
       - move=> ty e he e1 he1 e2 he2. t_xrbindP. move=> e' ve le lte [ve' le'] hre [ve1 le1] hre1 [ve2 le2] hre2 <- <- /=.
         move=> [v1 l1] hee b hb [v1' l1'] hee1 [v1'' l1''] hee2 vt ht vt' ht' <- <-.
@@ -416,7 +423,7 @@ Module RGP. Section PROOFS.
         move: (he1 ve1 v1' l1' le1 hre1 hee1). move=> -> /=.
         move: (he2 ve2 v1'' l1'' le2 hre2 hee2). move=> -> /=. rewrite ht /=.
         by rewrite ht' /=.
-    Admitted.
+    Qed.
 
 
   End REMOVE_GLOB_E.
@@ -493,7 +500,7 @@ Module RGP. Section PROOFS.
     rewrite ha /=. move: (write_var_remove hg hval hs). move=> [] s2' [] hvm hw'.
     exists s2'. split. auto. rewrite /write_var in hw'. move: hw'.
     t_xrbindP. by move=> vm' -> /= <-.
-   Qed.
+  Qed.
    
   Lemma remove_glob_lvsP  m ii s1 s1' s2 lv lv' v les:
     valid m s1 s2 ->
@@ -503,14 +510,16 @@ Module RGP. Section PROOFS.
       valid m s1' s2' /\
       write_lvals gd s2 (unzip1 lv') v = ok (s2', map2 leak_E (unzip2 lv') les).
   Proof.
-    rewrite /write_lvals.
-    elim: lv lv' v s1 s1' les=> //=.
-    + move=> lv' [] // s1 s1' les hm [<-] [<-] <- /=.
+    elim: lv lv' v s1 s2 s1' les => //=.
+    + move=> lv' [] // s1 s2 s1' les hm [<-] [<-] <- /=.
       by exists s2.
-    move=> x xs hrec lv' vs s1 s1' s2' hval. t_xrbindP.
-    move=> [ve lte] /(remove_glob_lvP hval) h1 xs' /hrec h2 <- /=.
-    case: vs => // v vs /=. t_xrbindP. move=> [s3 lt3] [s4 lt4] /h1 [s5 [hs5 w5]] /= h hws.
-  Admitted.
+    move=> x xs hrec lv' vs s1 s2 s1' les hval. t_xrbindP.
+    move=> [ve lte] /(remove_glob_lvP hval) h1 xs' /hrec hms <-. 
+    case: vs => // v vs. t_xrbindP. move=> [s3 lt3] hw [s4 lt4] hws <- <- /=.
+    move: (h1 s3 v lt3 hw). move=> [] s3' [] hval' hw'.
+    rewrite hw' /=. move: (hms vs s3 s3' s4 lt4 hval' hws).
+    move=> [] s4' [] hval'' -> /=. exists s4'; auto.
+  Qed.
 
   Let Pc s1 c lc s2 :=
     forall m m' c' ltc fn, remove_glob (remove_glob_i is_glob gd fn) m c = ok (m', c', ltc) ->
@@ -534,12 +543,8 @@ Module RGP. Section PROOFS.
     exists s2', valid m s2 s2' /\
                 sem_for P' xi vs s1' c' (leak_Iss (leak_I (leak_Fun Fs)) ltc' lf) s2'.
 
-  Let Pfun m fn vs lf m' vres :=
-    forall vs',
-    List.Forall2 value_uincl vs vs' ->
-    exists vres',  
-      sem_call P' m fn vs' (fn, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m' vres' /\
-      List.Forall2 value_uincl vres vres'.
+  Let Pfun m fn vs lf m' vs' :=
+      sem_call P' m fn vs (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m' vs'.
 
   Local Lemma Hnil : sem_Ind_nil Pc.
   Proof.
@@ -575,13 +580,13 @@ Module RGP. Section PROOFS.
 
   Local Lemma Hasgn : sem_Ind_assgn P Pi_r.
   Proof.
-  move=> s1 s2 x tag ty e v v' le lw he ht hw ii m m' c' lti fn /= hrm s1' hval.
-    move: hrm; t_xrbindP. move=> [e' lte] /(remove_glob_eP hval) -/(_ _ _ he) he' /=.
-    have :
+  move=> s1 s2 x tag ty e v v' le lw he hv hw ii m m' c' lti fn /= hrm s1' hval.
+  move: hrm; t_xrbindP. move=> [e' lte'] /(remove_glob_eP hval) -/(_ _ _ he) he' /=.
+  have :
       (Let rlv := remove_glob_lv is_glob ii m x
        in ok
-            (m, [:: MkI ii (Cassgn rlv.1 tag ty (e', lte).1)],
-             LT_ile (LT_seq [:: (e', lte).2; rlv.2])) = ok (m', c', lti) -> ∃ s2' : estate,
+            (m, [:: MkI ii (Cassgn rlv.1 tag ty e')],
+             LT_ile (LT_seq [::lte'; rlv.2])) = ok (m', c', lti) -> ∃ s2' : estate,
       valid m' s2 s2'
       ∧ sem P' s1' c' 
           match lti with
@@ -589,58 +594,49 @@ Module RGP. Section PROOFS.
           | LT_ile lte0 => [:: Lassgn (leak_E lte0 (LSub [:: le; lw]))]
           | _ => [:: Lassgn (LSub [:: le; lw])]
           end s2').
-    + t_xrbindP. move=> [x' lte'] /(remove_glob_lvP hval) -/(_ _ _ _ hw) [] s2' [] hs2' hw' <- <- <-.
-      exists s2'. split. auto. apply sem_seq1; econstructor; econstructor; eauto.
-    case: x hw => //=.
-    move=> xi hxi hdef; case: ifPn => // hglob {hdef}.
-    case: e' he' => // - [] // sz [] //= z [?]; subst v.
-    case: andP => //= -[/eqP ? /eqP htxi];subst ty.
-    move: ht; rewrite /truncate_val /= truncate_word_u /= => -[?]; subst v'.
-    move: xi htxi hglob hxi.
-    rewrite /write_var /set_var => -[[xty xn] xii] /= ? hglob; subst xty.
-    rewrite /pof_val /= sumbool_of_boolET => -[<-] <- hl /=.
-    t_xrbindP. move => g hfind <- <- <-;exists s1'; split.
-    set x := {| vtype := _ |}.
-    case: hval => hm hm1 hm2 hm3; split => //=.
-    + move=> y hy; rewrite /get_var /on_vu.
-      rewrite Fv.setP_neq; first by apply hm1.
-      by apply /eqP => ?;subst y;move: hy;rewrite hglob.
-    + by move=> y gy;rewrite Mvar.setP; case:eqP => [<- // | ?]; apply hm2.
+  + t_xrbindP. move=> [x' lte''] /(remove_glob_lvP hval) -/(_ _ _ _ hw) [] s2' [] hs2' hw' <- <- <-.
+    exists s2'. split. auto. apply sem_seq1; econstructor; econstructor; eauto.
+  case: x hw=> //=.
+  move=> xi hxi hdef; case: ifPn=> // hglob {hdef}.
+  case: e' he' => // - [] // sz [] //= z [] hv' hl'; subst v.
+  case: andP => //= -[/eqP ? /eqP htxi];subst ty.
+  move: hv; rewrite /truncate_val /= truncate_word_u /= => -[?]; subst v'.
+  move: xi htxi hglob hxi.
+  rewrite /write_var /set_var => -[[xty xn] xii] /= ? hglob; subst xty.
+  rewrite /pof_val /= sumbool_of_boolET => -[<-] hl'' /=.
+  t_xrbindP => g hfind <- <-;exists s1'; split=> //=.
+  set x := {| vtype := _ |}.
+  case: hval => hm hm1 hm2 hm3; split => //=.
+  + move=> y hy; rewrite /get_var /on_vu.
+    rewrite Fv.setP_neq; first by apply hm1.
+    by apply /eqP => ?;subst y;move: hy;rewrite hglob.
+  + by move=> y gy;rewrite Mvar.setP; case:eqP => [<- // | ?]; apply hm2.
     move=> y gy v;rewrite Mvar.setP;case:eqP => [<- | /eqP hneq].
-    + move=> [<-]. rewrite /get_var Fv.setP_eq /= => -[<-].
-      by apply: find_globP hfind.
-    by rewrite /get_var Fv.setP_neq //; apply hm3.
-    rewrite /=. rewrite -hl. admit.
-  Admitted.
-      
-
-
+  + move=> [<-]. rewrite /get_var Fv.setP_eq /= => -[<-].
+    by apply: find_globP hfind.
+  + by rewrite /get_var Fv.setP_neq //; apply hm3.
+  rewrite -h2 /=. constructor.
+  Qed.
+  
   Local Lemma Hopn : sem_Ind_opn P Pi_r.
   Proof.
-   move=> s1 s2 t o xs es lo ho ii m m' c ltc fn /= hrm s1' hval.
-   move: hrm; t_xrbindP.
-   move=> xs' /(remove_glob_lvsP hval) hxs' es' /(remove_glob_esP hval) hes' <- <- <-.
-   move: ho;rewrite /sem_sopn; t_xrbindP. move=> vs /hes' {hes'} hes' vres hex [s2' lt2'] /hxs' [] s3 [] hm hws <- <- /=.
-   exists s3. split. auto. apply sem_seq1. apply EmkI. apply Eopn. rewrite /sem_sopn.
-   rewrite hes' /=. 
-
-
-   rewrite unzip1_zip. rewrite hex /=. rewrite hws /=. rewrite unzip2_zip.
-   auto. admit. admit.
-   (* before I was using vuincl_sem_opN *)
-   (*move: vuincl_sem_opN.
-   vs' [] h1 [] h2 h3 vres hex hlo.
-   move=> [s lw] /hxs' [s2' [hval' h]] <- <- /=.   exists s2';split => //. apply sem_seq1. apply EmkI. apply Eopn.
-   rewrite /sem_sopn h1 /=. move: (vuincl_exec_opn_eq h2 hex). move=> -> /=.
-   by rewrite h h3 /=.
-  Qed.*)
-   Admitted.
+   move=> s1 s2 t o xs es lo ho ii m m' c lti fn /= hrm s1' hval.
+   move: hrm. t_xrbindP. move=> xs' /(remove_glob_lvsP hval) hxs' es' /(remove_glob_esP hval) hes' <- <- <-.
+   move: ho; rewrite /sem_sopn; t_xrbindP. move=> vs /hes' h1 vs' h2 [s3 lt3] /hxs' [s2' [hval' h]] <- <-.
+   exists s2'. split=> //.
+   apply sem_seq1; constructor; constructor; rewrite /sem_sopn h1 /=. rewrite unzip1_zip /=. rewrite h2 /=.
+   rewrite h /=. rewrite unzip2_zip /=. auto.
+   rewrite /sem_pexprs in h1.
+   + move: (mapM_size h1). move=> H. rewrite size1_zip in H. rewrite size_map in H. rewrite size_map in H.
+     rewrite map2E size_map size2_zip size_map size_map. auto. rewrite H. auto.
+   + move: (mapM_size h1). move=> H. rewrite size1_zip in H. rewrite size_map in H. rewrite size_map in H.
+     rewrite map2E size_map size2_zip size_map size_map. auto. rewrite H. auto.
+(* Going in a loop *)
+  Admitted.
 
   Lemma MinclP m1 m2 x g :
     Mincl m1 m2 ->
     Mvar.get m1 x = Some g ->
-
-    
     Mvar.get m2 x = Some g.
   Proof.
     move=> /allP hincl.
@@ -806,29 +802,46 @@ Qed.
 
   Local Lemma Hcall : sem_Ind_call P Pi_r Pfun.
   Proof.
-   move=> s1 m2 s2 fii xs fn args vargs rvs lf lw hargs hcall hfun hres ii m m' c' lti fn0 /= hrm s1' hval.
-   case hlf : lf=> [fn' lfn].
-   move: hrm. t_xrbindP. move=> xs' hxs es' hes <- <- <-.
-   have hes' := remove_glob_esP hval hes hargs.
-   have hval' : valid m {| emem := m2; evm := evm s1 |} {| emem := m2; evm := evm s1' |}.
-   + by case: hval=> hm hm1 hm2 hm3; split.
-   have [s2' [hs2' hxs']]:= remove_glob_lvsP hval' hxs hres.
-   exists s2'; split=> //.
-   apply sem_seq1; constructor. subst lf. rewrite /=.
-   rewrite /Pfun in hfun. move: Ecall. move=> H.  
-   move: hes'. move=> [] vs' [] hes' [] hv hl. replace gd with (p_globs P') in hes'.
-   move: (hfun (unzip1 vs') hv). move=> [] rvs' [] hcall' hv'.
-   move: (H P' s1' m2 s2' fii (unzip1 xs') fn (unzip1 es') vs' rvs'
-            (fn, leak_Is (leak_I (leak_Fun Fs))
-            (leak_Fun Fs (fn', lfn).1) (fn', lfn).2) (map2 leak_E (unzip2 xs') lw) hes'). 
+    move=> s1 m2 s2 fii cs fn args vargs rvs lf lw hargs hcall hfun hres ii m m' c' lti fn0 /= hrm s1' hval.
+    case hlf: lf=> [fn' lfn].
+    move: hrm. t_xrbindP. move=> xs' hxs es' hes <- <- <-.
+    have hes' := remove_glob_esP hval hes hargs.
+    have hval' : valid m {| emem := m2; evm := evm s1 |} {| emem := m2; evm := evm s1' |}.
+    + by case: hval=> hm hm1 hm2 hm3; split.
+    have [s2' [hs2' hxs']]:= remove_glob_lvsP hval' hxs hres.
+    exists s2'; split=> //.
+    apply sem_seq1;constructor.
+    rewrite /=. move: Ecall.
+    move=> H. rewrite hlf in hfun. rewrite /Pfun in hfun. rewrite /= in hfun.
+    replace gd with (p_globs P') in hes'.
+    rewrite /valid in hval. move: hval. move=> [] h1 h2 h3 h4. rewrite h1 in hfun.
+    replace (unzip1 vargs) with (unzip1 (zip (unzip1 vargs) (map2 leak_E (unzip2 es') (unzip2 vargs)))) in hfun.
+    move: (H P' s1' m2 s2' fii (unzip1 xs') fn (unzip1 es')  (zip (unzip1 vargs) (map2 leak_E (unzip2 es') (unzip2 vargs))) rvs 
+             (fn', leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs fn') lfn) (map2 leak_E (unzip2 xs') lw) hes' hfun hxs'). 
+    move=> hi. rewrite unzip2_zip in hi. auto.
+    + rewrite map2E size_map size2_zip !size_map. auto. rewrite /sem_pexprs in hes'. rewrite /sem_pexprs in hargs.
+      move: (mapM_size hes'). move: (mapM_size hargs). move: (mapM_size hes). move=> H1 H2 H3.
+      rewrite H1 in H2. rewrite H2. auto. rewrite unzip1_zip. auto. rewrite map2E size_map size2_zip !size_map. auto.
+      move: (mapM_size hes'). move: (mapM_size hargs). move: (mapM_size hes). move=> H1 H2 H3.
+      rewrite H1 in H2. rewrite H2; auto. auto.
+    Qed.
 
-  Local Lemma get_fundefP fn f ltc:
+  Local Lemma get_fundefP fn f:
     get_fundef (p_funcs P) fn = Some f ->
-    exists f',
+    exists f', exists ltc, 
        get_fundef (p_funcs P') fn = Some f' /\
+       get_leak Fs fn = Some ltc /\
        remove_glob_fundef is_glob gd (fn,f) = ok (fn, f', ltc).
   Proof.
-   (* change (p_funcs P') with fds.
+    change (p_funcs P') with (zip (unzip1 (unzip1 fds)) (unzip2 (unzip1 fds))).
+    elim: (p_funcs P) (zip (unzip1 (unzip1 fds)) (unzip2 (unzip1 fds))) Fs fds_ok => //=.
+    move=> [fn1 fd1] fds1 hrec fds'; t_xrbindP. move=> fs -[[fn1' fd1'] lt1] hf1 fds1' hfds1' h.
+    move: hf1; rewrite /remove_glob_fundef; t_xrbindP.
+    move=> ? hparams ? hres [[m' c'] ltc'] hmc [] hfn hfd hlt.
+    case: ifP=> [/eqP eq | neq].
+    + move=> [?]; subst fn1 fd1=> /=. eexists; eexists; split. rewrite /get_fundef /=.
+  Admitted.
+    (* change (p_funcs P') with fds.
     elim: (p_funcs P) fds fds_ok => //=.
     move => [fn1 fd1] fds1 hrec fds'; t_xrbindP => -[fn1' fd1'] hf1 fds1' hfds1' ?; subst fds'.
     move: hf1;rewrite /remove_glob_fundef;t_xrbindP.
@@ -838,43 +851,54 @@ Qed.
       rewrite eq_refl;eexists;split;first reflexivity.
       by rewrite hparams /= hres /= hmc.
     by move=> /(hrec _ hfds1') /=;rewrite neq.*)
-  Admitted.
 
   Local Lemma Hproc : sem_Ind_proc P Pc Pfun.
   Proof.
     move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc hget hargs hwa _ hc hres hres'.
-    rewrite /Pfun. move: get_fundefP.
-  Admitted.
+    rewrite /Pfun. move: get_fundefP. move=> Hg.
+    move: (Hg fn f hget). move=> [] fd' [] ltc' [] hget' [] hfs.
+    rewrite /remove_glob_fundef; t_xrbindP.
+    move=> y hparams res1 hres1 [[m' c'] ltc''] hrm [] hfd' hl.
+    have hval: valid (Mvar.empty global) s1 s1 by split.
+    rewrite /Pc in hc. move: (hc (Mvar.empty global) m' c' ltc'' fn hrm s1 hval).
+    move=> [[mem2 vm2'] [hs2' ws2]]. case: (hs2')=> /= hmem hm x g; subst mem2.
+    have hres2 : mapM (fun x : var_i => get_var vm2' x) (f_res f) = ok vres.
+    + elim: (f_res f) (vres) res1 hres1 hres => //= x' xs hrec vres0 res1.
+      t_xrbindP => ?; case: ifPn => hglob // [<-] ? /hrec hres1 ? v hx vs /hres1 hxs ?.
+      by subst res1 vres0; rewrite -hm //= hx /= hxs.
+    econstructor; eauto. rewrite -hfd'. rewrite /=. apply hargs. rewrite -hfd' /=. apply hwa.
+    rewrite -hfd' /=. rewrite /= in hfs. rewrite /get_leak in hfs. replace (leak_Fun Fs fn) with ltc''.
+    apply ws2. rewrite /leak_Fun /=. by rewrite hfs /=.
+    rewrite -hfd' /=. apply hres2. rewrite -hfd' /=. apply hres'.
+  Qed.
 
-  Local Lemma remove_glob_call m1 f vargs vargs' m2 vres lf:
+
+  Local Lemma remove_glob_call m1 f vargs m2 vres lf:
     sem_call P m1 f vargs lf m2 vres ->
-    List.Forall2 value_uincl vargs vargs' ->
-    exists vres', sem_call P' m1 f vargs' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m2 vres' /\ List.Forall2 value_uincl vres vres'.
+    Pfun m1 f vargs lf m2 vres.
+    (*List.Forall2 value_uincl vargs vargs' ->
+    exists vres', sem_call P' m1 f vargs' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m2 vres' 
+    /\ List.Forall2 value_uincl vres vres'.*)
   Proof.
-     move => /(@sem_call_Ind P Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
-                             Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) h hv.
-     rewrite /Pfun in h. move: (h vargs' hv). move=> [] vres'' [] hc hvc.
-     exists vres''. by split.
+     apply /(@sem_call_Ind P Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
+                             Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
   End FDS.
-
-
-  Check remove_glob_prog.
-
 
   Lemma remove_globP P P' f mem mem' va vr lf lft:
     remove_glob_prog is_glob fresh_id P = ok (P', lft) ->
     sem_call P mem f va (f, lf) mem' vr ->
     sem_call P' mem f va (f, (leak_Is (leak_I (leak_Fun lft)) (leak_Fun lft f) lf)) mem' vr.
-  Proof.
+  Proof. 
+    move=> hr.
+    have Hr := hr. move: hr.
     rewrite /remove_glob_prog; t_xrbindP. move=> gd' /extend_glob_progP hgd.
-    case: ifP=> // huniq; t_xrbindP. move=> fds hds <- <- hf.
-    move: gd_incl_fun. move=> hgd'. move: (hgd' P gd' hgd mem f va mem' vr lf hf).
-    move=> h {hgd'}.
-    move: remove_glob_call. move=> H.
-    move: (H ({| p_globs := gd'; p_funcs := p_funcs P |}) (zip (unzip1 (unzip1 fds))
-                                                               (unzip2 (unzip1 fds))) lft huniq).
+    case: ifP=> // huniq; t_xrbindP. move=> fds hfds <- <- /(gd_incl_fun hgd) hf.
+    move: remove_glob_call. move=> H. move: (H  {| p_globs := gd'; p_funcs := zip (unzip1 (unzip1 fds)) (unzip2 (unzip1 fds)) |}).
+    rewrite /=.
+    replace P with {| p_globs := gd'; p_funcs := p_funcs P |} in Hr.
+    move=> {H} H. move: (H fds  lft hfds huniq). rewrite /=. replace P' with {| p_globs := gd'; p_funcs := zip (unzip1 (unzip1 fds)) (unzip2 (unzip1 fds)) |} in Hr. move=>{H} H. move: (H Hr).
     Admitted.
 
 End PROOFS. End RGP.

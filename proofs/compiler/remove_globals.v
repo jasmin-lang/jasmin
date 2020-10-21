@@ -243,7 +243,7 @@ Section REMOVE.
               | Papp1 (Oword_of_int ws) (Pconst z) =>
                 if (ty == sword ws) && (vtype x == sword ws) then
                   Let g := find_glob ii xi gd ws z in
-                  ok (Mvar.set env x g, [::], LT_ile (LT_seq (e.2 :: [:: LT_id])))
+                  ok (Mvar.set env x g, [::], LT_iremove)
                 else cferror (Ferr_remove_glob ii xi)
               | _ => cferror (Ferr_remove_glob ii xi)
               end
@@ -291,14 +291,14 @@ Section REMOVE.
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Ccall i (unzip1 lvs) fn (unzip1 es))],
-                   (LT_icall (LT_seq (unzip2 lvs)) (LT_seq (unzip2 es))))
+                   (LT_icall (LT_seq (unzip2 es)) (LT_seq (unzip2 lvs))))
         end
       end.
 
     End INSTR.
 
-    Definition remove_glob_fundef (f:funname*fundef) :=
-      let (fn,f) := f in
+    Definition remove_glob_fundef (f:funname * fundef) :=
+      let (fn, f) := f in
       let env := Mvar.empty _ in
       let check_var xi :=
         if is_glob xi.(v_var) then cferror (Ferr_remove_glob xH xi) else ok (tt) in
@@ -307,7 +307,7 @@ Section REMOVE.
       Let envc := remove_glob (remove_glob_i fn) env f.(f_body) in
       let: (env1, c1, ltc) := envc in
       ok
-        (fn, {| f_iinfo := f.(f_iinfo);
+        ({| f_iinfo := f.(f_iinfo);
                 f_tyin  := f.(f_tyin);
                 f_params := f.(f_params);
                 f_body   := c1;
@@ -318,15 +318,17 @@ Section REMOVE.
   Definition remove_glob_prog (p:prog) : cfexec (prog * leak_f_tr) :=
     Let gd := extend_glob_prog p in
       if uniq (map fst gd) then
-      Let fs := mapM (remove_glob_fundef gd) (p_funcs p) in
+      Let fs := map_fnprog_leak (remove_glob_fundef gd) (p_funcs p) in
+     (* Let fs := mapM (remove_glob_fundef gd) (p_funcs p) in
       let fnfds := unzip1 fs in
       let rfns := unzip1 fnfds in
       let rfds := unzip2 fnfds in
       let lts := unzip2 fs in
       let Fs := zip rfns lts in
-      let funcs := zip rfns rfds in 
-      ok ({| p_globs := gd; p_funcs := funcs |}, Fs)
+      let funcs := zip rfns rfds in*)
+      ok ({| p_globs := gd; p_funcs := fs.1|}, fs.2)
     else cferror Ferr_uniqglob.
+
 
 End REMOVE.
 

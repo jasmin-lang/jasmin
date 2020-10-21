@@ -350,24 +350,32 @@ Proof.
   split=> //.
 Qed.
 
-Definition map_fnprog_leak {T1 T2 T3} (F: funname -> T1 -> ciexec (T2 * T3)) lt1 :
+Definition map_fnprog_leak {T1 T2 T3} (F: (funname * T1) -> cfexec (T2 * T3)) lt1 :
+  cfexec (seq (funname * T2) * seq (funname * T3)) :=
+  Let l := mapM (fun (f:funname * T1) => 
+      Let r := (F (f.1, f.2)) in ok (f.1, r)) lt1 in
+  ok (map (fun t : funname * (T2 * T3) => (t.1, t.2.1)) l,
+      map (fun t : funname * (T2 * T3) => (t.1, t.2.2)) l).
+
+
+(*Definition map_fnprog_leak {T1 T2 T3} (F: funname -> T1 -> ciexec (T2 * T3)) lt1 :
   cfexec (seq (funname * T2) * seq (funname * T3)) :=
   Let l := mapM (fun (f:funname * T1) => 
       Let r := add_finfo f.1 f.1 (F f.1 f.2) in ok (f.1, r)) lt1 in
   ok (map (fun t : funname * (T2 * T3) => (t.1, t.2.1)) l,
-      map (fun t : funname * (T2 * T3) => (t.1, t.2.2)) l).
+      map (fun t : funname * (T2 * T3) => (t.1, t.2.2)) l).*)
 
-Definition map_cfprog_leak' {T1 T2 T3} (F: T1 -> ciexec (T2 * T3)) := 
+(*Definition map_cfprog_leak' {T1 T2 T3} (F: T1 -> ciexec (T2 * T3)) := 
   map_fnprog_leak (fun (fn:funname) fd => F fd).
 
 Definition map_prog_leak' {T1 T2 T3} (F: T1 -> (T2 * T3)) := 
-   map_cfprog_leak' (fun t1 => ok (F t1)).
+   map_cfprog_leak' (fun t1 => ok (F t1)).*)
 
 
-Lemma map_fnprog_get_fd {T2 T3} (F: funname -> T2 -> ciexec (T2 * T3)) p p' lt fn f fd':
+Lemma map_fnprog_get_fd {T2 T3} (F: (funname * T2) -> cfexec (T2 * T3)) p p' lt fn f fd':
   map_fnprog_leak F p = ok p' ->
   get_fundef p fn = Some f ->
-  F fn f = ok (fd', lt) ->
+  F (fn, f) = ok (fd', lt) ->
   get_fundef p'.1 fn = Some fd'.
 Proof.
   elim: p p'=> // -[fn1 fd1] pl IH p'.
@@ -393,10 +401,10 @@ Proof.
     apply H; auto.
 Qed.
 
-Lemma map_fnprog_get_leak {T2 T3} (F: funname -> T2 -> ciexec (T2 * T3)) p p' lt fn f fd':
+Lemma map_fnprog_get_leak {T2 T3} (F: (funname * T2) -> cfexec (T2 * T3)) p p' lt fn f fd':
   map_fnprog_leak F p = ok p' ->
   get_fundef p fn = Some f ->
-  F fn f = ok (fd', lt) ->
+  F (fn, f) = ok (fd', lt) ->
   get_leak p'.2 fn = Some lt.
 Proof.
   elim: p p'=> // -[fn1 fd1] pl IH p'.
@@ -421,12 +429,12 @@ Proof.
     rewrite /=. move=> H. apply H; auto.
 Qed.
 
-Lemma get_map_fnprog_leak {T2 T3} (F: funname -> T2 -> ciexec (T2 * T3))
+Lemma get_map_fnprog_leak {T2 T3} (F: (funname * T2) -> cfexec (T2 * T3))
       p p' fn f:
   map_fnprog_leak F p = ok p' ->
   get_fundef p fn = Some f ->
   exists fd', exists lt,
-   [/\ F fn f = ok (fd', lt),
+   [/\ F (fn, f) = ok (fd', lt),
        get_fundef (p'.1) fn = Some fd' &
        get_leak (p'.2) fn = Some lt].
 Proof.
@@ -438,9 +446,9 @@ Proof.
   move: (mapM_In Hmap Hp).
   move=> [] [fn'' [fd' lt]] /= [] Hfd Hok.
   apply: rbindP Hok. move=> [f' lt''] Hafn [] Hfn' Hfd' Hlt' /=.
-  have Hf: F fn f = ok (fd', lt'').
+  have Hf: F (fn, f) = ok (fd', lt'').
   rewrite /add_finfo in Hafn.
-  case: (F fn f) Hafn => // a [] ->. by rewrite Hfd'.
+  case: (F (fn, f)) Hafn => // a [] ->. by rewrite Hfd'.
   exists fd'; exists lt''.
   move: (map_fnprog_get_fd Hu H Hf).
   move: (map_fnprog_get_leak Hu H Hf).
