@@ -114,6 +114,7 @@ Variant asm_op : Type :=
 | VPMULL   `(velem) `(wsize)
 | VPMULH  `(velem) `(wsize)   (* signed multiplication of 16-bits*)
 | VPMULHU `(velem) `(wsize)
+| VPMULHRS of velem & wsize (* Packed Multiply High with Round and Scale *)
 | VPMULU   `(wsize)
 | VPEXTR   `(wsize)
 | VPINSR   `(velem)
@@ -590,6 +591,10 @@ Definition x86_VPMULH ve sz v1 v2 :=
 Definition x86_VPMULHU ve sz v1 v2 :=
   Let _ := assert (ve == VE16) ErrType in
   x86_u128_binop (lift2_vec U16 (@wmulhu U16) sz) v1 v2.
+
+Definition x86_VPMULHRS ve sz v1 v2 :=
+  Let _ := assert (ve == VE16) ErrType in
+  x86_u128_binop (lift2_vec U16 (@wmulhrs U16) sz) v1 v2.
 
 (* ---------------------------------------------------------------- *)
 Definition x86_VPEXTR (ve: wsize) (v: u128) (i: u8) : ex_tpl (w_ty ve) :=
@@ -1132,6 +1137,8 @@ Definition Ox86_VPMULU_instr := ((fun sz => mk_instr (pp_s "VPMULU") (w2_ty sz s
 Definition Ox86_VPMULH_instr := mk_ve_instr_w2_w_120 "VPMULH" x86_VPMULH check_xmm_xmm_xmmm no_imm (PrimV VPMULH) (pp_viname "vpmulh").
 Definition Ox86_VPMULHU_instr := mk_ve_instr_w2_w_120 "VPMULHU" x86_VPMULHU check_xmm_xmm_xmmm no_imm (PrimV VPMULHU) (pp_viname "vpmulhu").
 
+Definition Ox86_VPMULHRS_instr := mk_ve_instr_w2_w_120 "VPMULHRS" x86_VPMULHRS check_xmm_xmm_xmmm no_imm (PrimV VPMULHRS) (pp_viname "vpmulhrs").
+
 Definition check_vpextr (_:wsize) :=  [:: [:: rm false; xmm; i U8] ].
 
 Definition pp_viname_t name ve (ts:seq wsize) args :=
@@ -1302,6 +1309,7 @@ Definition instr_desc o : instr_desc_t :=
   | VPMULU sz          => Ox86_VPMULU_instr.1 sz
   | VPMULH ve sz       => Ox86_VPMULH_instr.1 ve sz
   | VPMULHU ve sz      => Ox86_VPMULHU_instr.1 ve sz
+  | VPMULHRS ve sz => Ox86_VPMULHRS_instr.1 ve sz
   | VPSLL sz sz'       => Ox86_VPSLL_instr.1 sz sz'
   | VPSRL sz sz'       => Ox86_VPSRL_instr.1 sz sz'
   | VPSRA sz sz'       => Ox86_VPSRA_instr.1 sz sz'
@@ -1385,6 +1393,7 @@ Definition prim_string :=
    Ox86_VPMULU_instr.2;
    Ox86_VPMULH_instr.2;
    Ox86_VPMULHU_instr.2;
+   Ox86_VPMULHRS_instr.2;
    Ox86_VPSLL_instr.2;
    Ox86_VPSRL_instr.2;
    Ox86_VPSRA_instr.2;

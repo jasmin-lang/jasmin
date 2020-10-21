@@ -251,6 +251,10 @@ Proof.
     apply: Z.mul_nonneg_nonneg; apply: (proj1 (wunsigned_range _)).
 Qed.
 
+Definition wmulhrs sz (x y: word sz) : word sz :=
+  let: p := Z.shiftr (wsigned x * wsigned y) (wsize_size_minus_1 sz).-1 + 1 in
+  wrepr sz (Z.shiftr p 1).
+
 Definition wmax_unsigned sz := wbase sz - 1.
 Definition wmin_signed (sz: wsize) : Z := - modulus (wsize_size_minus_1 sz).
 Definition wmax_signed (sz: wsize) : Z := modulus (wsize_size_minus_1 sz) - 1.
