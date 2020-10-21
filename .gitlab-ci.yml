@@ -1,0 +1,79 @@
+stages:
+- prepare
+- prove
+- build
+- test
+
+image: nixos/nix
+
+variables:
+  NIX_PATH: nixpkgs=channel:nixpkgs-unstable
+
+  EXTRA_SUBSTITUTERS: https://jasmin.cachix.org
+  EXTRA_PUBLIC_KEYS: jasmin.cachix.org-1:aA5r1ovq4HYKUa+8QHVvIP7K6Fi9L75b0SaN/sooWSY=
+  NIXOS_PUBLIC_KEY: cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+
+.common:
+  before_script:
+  - >-
+    nix-shell
+    --extra-substituters "$EXTRA_SUBSTITUTERS"
+    --trusted-public-keys "$NIXOS_PUBLIC_KEY $EXTRA_PUBLIC_KEYS"
+    --arg inCI true
+    $EXTRA_NIX_ARGUMENTS
+    --run 'echo done'
+
+cache dependencies:
+  stage: prepare
+  extends: .common
+  variables:
+    EXTRA_NIX_ARGUMENTS: --arg coqDeps true --arg ocamlDeps true --arg testDeps true
+  environment: cachix
+  only:
+    variables:
+    - $CACHIX_SIGNING_KEY
+  script:
+  - >-
+    nix-shell -p cachix --run
+    'nix-store --query --references $(nix-instantiate --arg devTools false default.nix)
+    | xargs nix-store --realise
+    | xargs nix-store --query --requisites
+    | cachix push jasmin'
+
+coq:
+  stage: prove
+  variables:
+    EXTRA_NIX_ARGUMENTS: --arg coqDeps true
+  extends: .common
+  script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C proofs'
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler CIL'
+  artifacts:
+    paths:
+    - compiler/CIL/
+
+ocaml:
+  stage: build
+  variables:
+    EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
+  extends: .common
+  dependencies:
+  - coq
+  script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler'
+  artifacts:
+    paths:
+    - compiler/_build/
+    - compiler/jasminc.native
+
+check:
+  stage: test
+  variables:
+    EXTRA_NIX_ARGUMENTS: --arg testDeps true
+  extends: .common
+  dependencies:
+  - coq
+  - ocaml
+  script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler check-ci'
+
