@@ -3407,18 +3407,6 @@ Section PROOF.
     replace (p_globs p') with gd. auto. by rewrite p'_def /=. auto.
   Qed.
 
-   Lemma sem_seq1_iff (P : prog) (i : instr) (s1 s2 : estate) li:
-     sem_I P s1 i li s2 <-> sem P s1 [::i] [:: li] s2.
-  Proof.
-    split. by apply sem_seq1.
-    case /semE=> s [] li' [] lc' [] H1 H2 H. case: H=> -> H'.
-    rewrite -H' in H2. inversion H2. by rewrite H4 in H1.
-  Qed.
-
-  Lemma sem_seq1_lis (P : prog) (i : instr) (s1 s2 : estate) lis:
-     sem P s1 [::i] lis s2 -> lis = [::head dummy_lit lis].
-  Proof. by move=> H;inversion_clear H; inversion_clear H1. Qed.
-
   Local Lemma Hwhile_true : sem_Ind_while_true p Pc Pi_r.
   Proof.
     move=> s1 s2 s3 s4 a c e c' lc le lc' li Hc1 Hc He Hc1' Hc' Hw1 Hw m ii Hm /=.

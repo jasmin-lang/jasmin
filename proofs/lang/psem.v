@@ -910,6 +910,32 @@ Proof.
   constructor.
 Qed.
 
+Lemma sem_seq1_iff P (i : instr) (s1 s2 : estate) li:
+  sem_I P s1 i li s2 <-> sem P s1 [::i] [:: li] s2.
+Proof.
+  split. by apply sem_seq1.
+  case /semE=> s [] li' [] lc' [] H1 H2 H. case: H=> -> H'.
+  rewrite -H' in H2. inversion H2. by rewrite H4 in H1.
+Qed.
+
+Lemma sem_seq1_lis (P : prog) (i : instr) (s1 s2 : estate) lis:
+  sem P s1 [::i] lis s2 -> lis = [::head dummy_lit lis].
+Proof. by move=> H;inversion_clear H; inversion_clear H1. Qed.
+
+Lemma sem_seq_while P a s1 c lc s2 e le c' lc' s3 lw s4 ii:
+  sem P s1 c lc s2 ->
+  sem_pexpr (p_globs P) s2 e = ok (Vbool true, le) ->
+  sem P s2 c' lc' s3 ->
+  sem P s3 [:: (MkI ii (Cwhile a c e c'))] lw s4 ->
+  sem_i P s1 (Cwhile a c e c') (Lwhile_true lc le lc' (head dummy_lit lw)) s4.
+Proof.
+  move=> hc he hc' hi. apply Ewhile_true with s2 s3; auto.
+  have hi' : sem P s3 [:: MkI ii (Cwhile a c e c')] lw s4; auto.
+  apply sem_seq1_lis in hi. rewrite hi in hi'. move: sem_seq1_iff.
+  move=>H. move: (H P (MkI ii (Cwhile a c e c')) s3 s4 (head dummy_lit lw)).
+  move=> {H} H. case: H=> H1 H2. apply H2 in hi'. by inversion hi'.
+Qed.
+
 Definition vmap_eq_except (s : Sv.t) (vm1 vm2 : vmap) :=
   forall x, ~Sv.In x s -> vm1.[x]%vmap = vm2.[x]%vmap.
 
