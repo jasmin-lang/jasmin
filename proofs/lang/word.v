@@ -1034,6 +1034,21 @@ Definition wpbroadcast ve sz (w: word ve) : word sz :=
   make_vec sz r.
 
 (* -------------------------------------------------------------------*)
+Fixpoint seq_dup_hi T (m: seq T) : seq T :=
+  if m is _ :: a :: m' then a :: a :: seq_dup_hi m' else [::].
+
+Fixpoint seq_dup_lo T (m: seq T) : seq T :=
+  if m is a :: _ :: m' then a :: a :: seq_dup_lo m' else [::].
+
+Definition wdup_hi ve sz (w: word sz) : word sz :=
+  let v : seq (word ve) := split_vec ve w in
+  make_vec sz (seq_dup_hi v).
+
+Definition wdup_lo ve sz (w: word sz) : word sz :=
+  let v : seq (word ve) := split_vec ve w in
+  make_vec sz (seq_dup_lo v).
+
+(* -------------------------------------------------------------------*)
 Definition wperm2i128 (w1 w2: u256) (i: u8) : u256 :=
   let choose (n: nat) :=
       match urepr (subword n 2 i) with

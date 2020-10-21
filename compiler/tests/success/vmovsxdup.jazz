@@ -1,0 +1,22 @@
+export
+fn test(reg u64 ptr) {
+  reg u128 a b;
+  reg u256 x y;
+
+  a = #VMOVSLDUP_4u32((u128)[ptr]);
+  b = #VMOVSLDUP_4u32(a);
+  (u128)[ptr] = b;
+
+  a = #VMOVSHDUP_4u32((u128)[ptr]);
+  b = #VMOVSHDUP_4u32(a);
+  (u128)[ptr] = b;
+
+  x = #VMOVSLDUP_8u32((u256)[ptr]);
+  y = #VMOVSLDUP_8u32(x);
+  (u128)[ptr] = y;
+
+  x = #VMOVSHDUP_8u32((u256)[ptr]);
+  y = #VMOVSHDUP_8u32(x);
+  (u128)[ptr] = y;
+
+}

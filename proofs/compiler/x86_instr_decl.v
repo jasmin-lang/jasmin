@@ -131,6 +131,8 @@ Variant asm_op : Type :=
 | VPSHUFLW `(wsize)
 | VPBLENDD `(wsize)
 | VPBROADCAST of velem & wsize
+| VMOVSHDUP of velem & wsize (* Replicate 32-bit (“single”) high values *)
+| VMOVSLDUP of velem & wsize (* Replicate 32-bit (“single”) low values *)
 | VPALIGNR  `(wsize)
 | VBROADCASTI128
 | VPUNPCKH `(velem) `(wsize)
@@ -670,6 +672,17 @@ Definition x86_VPBROADCAST ve sz (v: word ve) : ex_tpl (w_ty sz) :=
   ok (wpbroadcast sz v).
 
 (* ---------------------------------------------------------------- *)
+Definition x86_VMOVSHDUP ve sz (v: word sz) : ex_tpl (w_ty sz) :=
+  Let _ := check_size_128_256 sz in
+  Let _ := assert (ve == VE32) ErrType in
+  ok (wdup_hi ve v).
+
+Definition x86_VMOVSLDUP ve sz (v: word sz) : ex_tpl (w_ty sz) :=
+  Let _ := check_size_128_256 sz in
+  Let _ := assert (ve == VE32) ErrType in
+  ok (wdup_lo ve v).
+
+(* ---------------------------------------------------------------- *)
 Definition x86_VEXTRACTI128 (v: u256) (i: u8) : ex_tpl (w_ty U128) :=
   let r := if lsb i then wshr v U128 else v in
   ok (zero_extend U128 r).
@@ -839,7 +852,7 @@ Notation mk_instr_w_w128_10 name semi check max_imm prc pp_asm := ((fun sz =>
   mk_instr (pp_sz name sz) (w_ty sz) (w128_ty) [:: E 1] [:: E 0] MSB_MERGE (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_ve_instr_w_w_10 name semi check max_imm prc pp_asm := ((fun (ve:velem) sz =>
-  mk_instr (pp_ve_sz name ve sz) (w_ty ve) (w_ty sz) [:: E 1] [:: E 0] MSB_CLEAR (semi ve sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_ve_sz name ve sz) (w_ty _) (w_ty sz) [:: E 1] [:: E 0] MSB_CLEAR (semi ve sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
 
 Notation mk_ve_instr_w2_w_120 name semi check max_imm prc pp_asm := ((fun (ve:velem) sz =>
   mk_instr (pp_ve_sz name ve sz) (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (semi ve sz) (check sz) 3 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
@@ -1221,6 +1234,12 @@ Definition check_xmm_xmmm (_:wsize) := [:: [:: xmm; xmmm true]].
 Definition Ox86_VPBROADCAST_instr       :=
   mk_ve_instr_w_w_10 "VPBROADCAST" x86_VPBROADCAST check_xmm_xmmm no_imm (PrimV VPBROADCAST) pp_vpbroadcast.
 
+Definition Ox86_VMOVSHDUP_instr :=
+  mk_ve_instr_w_w_10 "VMOVSHDUP" x86_VMOVSHDUP check_xmm_xmmm no_imm (PrimV VMOVSHDUP) (λ _, pp_name "vmovshdup").
+
+Definition Ox86_VMOVSLDUP_instr :=
+  mk_ve_instr_w_w_10 "VMOVSLDUP" x86_VMOVSLDUP check_xmm_xmmm no_imm (PrimV VMOVSLDUP) (λ _, pp_name "vmovsldup").
+
 Definition Ox86_VPALIGNR_instr := 
   ((fun sz =>
      mk_instr (pp_sz "VPALIGNR" sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR 
@@ -1325,6 +1344,8 @@ Definition instr_desc o : instr_desc_t :=
   | VPUNPCKL sz sz'    => Ox86_VPUNPCKL_instr.1 sz sz'
   | VPBLENDD sz        => Ox86_VPBLENDD_instr.1 sz
   | VPBROADCAST sz sz' => Ox86_VPBROADCAST_instr.1 sz sz'
+  | VMOVSHDUP sz sz' => Ox86_VMOVSHDUP_instr.1 sz sz'
+  | VMOVSLDUP sz sz' => Ox86_VMOVSLDUP_instr.1 sz sz'
   | VPALIGNR sz        => Ox86_VPALIGNR_instr.1 sz 
   | VBROADCASTI128     => Ox86_VBROADCASTI128_instr.1
   | VPERM2I128         => Ox86_VPERM2I128_instr.1
@@ -1409,6 +1430,8 @@ Definition prim_string :=
    Ox86_VPUNPCKL_instr.2;
    Ox86_VPBLENDD_instr.2;
    Ox86_VPBROADCAST_instr.2;
+   Ox86_VMOVSHDUP_instr.2;
+   Ox86_VMOVSLDUP_instr.2;
    Ox86_VPALIGNR_instr.2;
    Ox86_VBROADCASTI128_instr.2;
    Ox86_VPERM2I128_instr.2;
