@@ -195,6 +195,10 @@ let rec check_instr env i =
     check_exprs loc es fd.f_tyin;
     check_lvals loc xs fd.f_tyout;
 
+  | Ccopy(x,e) ->
+    check_array loc e (ty_expr loc e);
+    check_array loc e (ty_lval loc x)
+
 and check_cmd env c = 
   List.iter (check_instr env) c
 

@@ -235,6 +235,11 @@ let rec pp_gi pp_info pp_len pp_var fmt i =
     F.fprintf fmt "@[<hov 2> %a =@ %s(%a);@]"
       (pp_glvs pp_len pp_var) x f.fn_name (pp_ges pp_len pp_var) e
 
+  | Ccopy(x, e) ->
+    F.fprintf fmt "@[<hov 2>%a %a;@]"
+      (pp_glv pp_len pp_var) x
+      (pp_ge pp_len pp_var) e
+
 (* -------------------------------------------------------------------- *)
 and pp_gc pp_info pp_len pp_var fmt c =
   F.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_gi pp_info pp_len pp_var)) c

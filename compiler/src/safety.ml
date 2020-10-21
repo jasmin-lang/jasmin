@@ -153,6 +153,8 @@ end = struct
       Ccall (inlinf, mk_lvals fn lvs, c_fn, mk_exprs fn es)
     | Cwhile (a, st1, e, st2) ->
       Cwhile (a, mk_stmt fn st1, mk_expr fn e, mk_stmt fn st2)
+    | Ccopy (lv, e) ->
+      Ccopy (mk_lval fn lv, mk_expr fn e)
 
   and mk_stmt fn instrs = List.map (mk_instr fn) instrs
 
@@ -561,6 +563,7 @@ end = struct
       let st = List.fold_left2 pa_expr st f_decl.f_args es in
 
       List.fold_left2 pa_eq st f_decl.f_args es
+    | Ccopy (lv, e) -> pa_lv st lv e
 
 
   and pa_func prog st fn =
@@ -3530,6 +3533,7 @@ let safe_instr ginstr = match ginstr.i_desc with
   | Cwhile(_,_, _, _) -> []       (* We check the while condition later. *)
   | Ccall(_, lvs, _, es) -> safe_lvals lvs @ safe_es es
   | Cfor (_, (_, e1, e2), _) -> safe_es [e1;e2]
+  | Ccopy (lv, e) -> safe_e_rec (safe_lval lv) e
 
 let safe_return main_decl =
   List.fold_left (fun acc v -> safe_var v :: acc) [] main_decl.f_ret
@@ -4989,7 +4993,7 @@ end = struct
         return_call state fstate lvs
 
       | Cfor(i, (d,e1,e2), c) ->
-        match aeval_cst_int state.abs e1, aeval_cst_int state.abs e2 with
+        begin match aeval_cst_int state.abs e1, aeval_cst_int state.abs e2 with
         | Some z1, Some z2 ->
           if z1 = z2 then state else
             let init_i, final_i, op = match d with
@@ -5027,6 +5031,10 @@ end = struct
             (Printer.pp_expr ~debug:true) e1
             (Printer.pp_expr ~debug:true) e2;
           assert false
+        end
+      | Ccopy (lv, e) ->
+        abs_assign state (ty_lval lv) (mvar_of_lvar state.abs lv) e
+        |> init_lv lv
 
   and aeval_call : funname -> exprs -> astate -> astate =
     fun f es state ->

@@ -82,6 +82,7 @@ let rec arrexp_i tbl i =
     | Cwhile(a, c, e, c') ->
       Cwhile(a, arrexp_c tbl c, arrexp_e tbl e, arrexp_c tbl c')
     | Ccall(ii,x,f,e) -> Ccall(ii, arrexp_lvs tbl x, f, arrexp_es tbl e)
+    | Ccopy(x, e) -> Ccopy(arrexp_lv tbl x, arrexp_e tbl e)
   in
   { i with i_desc }
 

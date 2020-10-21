@@ -39,6 +39,7 @@ let rec written_vars_instr_r allvars w =
   | Cif (_, s1, s2)
   | Cwhile (_, s1, _, s2)
     -> written_vars_stmt allvars (written_vars_stmt allvars w s1) s2
+  | Ccopy (x, _) -> written_vars_lvar allvars w x
 and written_vars_instr allvars w { i_desc } = written_vars_instr_r allvars w i_desc
 and written_vars_stmt allvars w s = List.fold_left (written_vars_instr allvars) w s
 
@@ -98,6 +99,10 @@ let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
           ) os []
       in
       m1, Cwhile (a, s1, e, s2 @ tl2)
+    | Ccopy (x, e) ->
+      let e = rename_expr m e in
+      let m, y = rename_lval allvars (m, []) x in
+      m, Ccopy (List.hd y, e)
   and instr (m, tl) i =
     let { i_desc ; i_info = (li, lo) } = i in
     let m, i_desc = instr_r li lo m i_desc in
@@ -127,6 +132,16 @@ let remove_phi_nodes (f: 'info func) : 'info func =
     | Cif (b, s1, s2) -> [Cif (b, stmt s1, stmt s2)]
     | Cwhile (a, s1, b, s2) -> [Cwhile (a, stmt s1, b, stmt s2)]
     | (Copn _ | Cfor _ | Ccall _) as i -> [i]
+    | Ccopy (x, e) as i ->
+      match x, e with
+        | Lvar v, Pvar v' when is_gkvar v' -> 
+          if L.unloc v = L.unloc v'.gv
+          then []
+          else 
+             let pv = Printer.pp_var ~debug:true in
+             hierror "SSA: cannot remove assignment %a = %a"
+             pv (L.unloc v) pv (L.unloc v'.gv)
+        | _, _ -> [i]
   and instr i = List.map (fun i_desc -> { i with i_desc }) (instr_r i.i_desc)
   and stmt s = List.(flatten (map instr s)) in
   let f_body = stmt f.f_body in

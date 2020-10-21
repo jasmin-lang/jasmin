@@ -190,6 +190,7 @@ let rec analyze_instr_r params cc a =
        then a'
        else loop (merge params a' a |> normalize_map )
      in loop (analyze_stmt params cc a s1 |> normalize_map)
+  | Ccopy (x, e) -> assign_arr params a x e
 and analyze_instr params cc a { i_loc ; i_desc } =
   try analyze_instr_r params cc a i_desc
   with HiError e -> hierror "At %a: %s" pp_iloc i_loc e

@@ -192,6 +192,7 @@ let rec warn_extra_i i =
     hierror "at @[%a@] for loop remains"
       Printer.pp_iloc i.i_loc
   | Ccall _ -> ()
+  | Ccopy _ -> ()
 
 let warn_extra_fd (_, fd) =
   List.iter warn_extra_i fd.f_body
