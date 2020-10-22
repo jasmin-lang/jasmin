@@ -86,7 +86,8 @@ Inductive leak_i_tr :=
 | LT_iwhile : seq leak_i_tr -> leak_e_tr -> seq leak_i_tr -> leak_i_tr (* while *)
 | LT_icond_eval : seq leak_i_tr -> leak_i_tr
 | LT_ifor : leak_e_tr -> seq leak_i_tr -> leak_i_tr
-| LT_icall : leak_e_tr -> leak_e_tr -> leak_i_tr.
+| LT_icall : leak_e_tr -> leak_e_tr -> leak_i_tr
+| LT_ifor_unroll: seq leak_i_tr -> leak_i_tr.
 
 Section Leak_I.
 
@@ -131,6 +132,9 @@ Fixpoint leak_I (l : leak_i) (lt : leak_i_tr) {struct l} : seq leak_i :=
   | LT_icall lte lte', Lcall le (f, lts) le' => [:: Lcall (leak_E lte le)
                                                           (f, (leak_Is leak_I (leak_Fun f) lts))
                                                           (leak_E lte' le') ]
+  (** FIX NEEDED **)
+  | LT_ifor_unroll ltiss, Lfor le ltss => [:: Lfor LEmpty (leak_Iss leak_I ltiss ltss) ]
+  
   | _, _ => [:: l]
   end.
 
