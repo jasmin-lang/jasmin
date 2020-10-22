@@ -620,19 +620,19 @@ Module RGP. Section PROOFS.
   Local Lemma Hopn : sem_Ind_opn P Pi_r.
   Proof.
    move=> s1 s2 t o xs es lo ho ii m m' c lti fn /= hrm s1' hval.
-   move: hrm. t_xrbindP. move=> xs' /(remove_glob_lvsP hval) hxs' es' /(remove_glob_esP hval) hes' <- <- <-.
-   move: ho; rewrite /sem_sopn; t_xrbindP. move=> vs /hes' h1 vs' h2 [s3 lt3] /hxs' [s2' [hval' h]] <- <-.
+   move: hrm. t_xrbindP. move=> xs' /(remove_glob_lvsP hval) hxs' es' hes_es'.
+   move: (hes_es') => /(remove_glob_esP hval) hes' <- <- <-.
+   move: ho; rewrite /sem_sopn; t_xrbindP. move=> vs hes_vs. 
+   move: (hes_vs) => /hes' h1 vs' h2 [s3 lt3] /hxs' [s2' [hval' h]] <- <-.
    exists s2'. split=> //.
-   apply sem_seq1; constructor; constructor; rewrite /sem_sopn h1 /=. rewrite unzip1_zip /=. rewrite h2 /=.
-   rewrite h /=. rewrite unzip2_zip /=. auto. rewrite /sem_pexprs in h1. move: (mapM_size h1). move=> h1s.
-   rewrite !size_map in h1s.
-   + rewrite map2E !size_map. admit.
-   rewrite /sem_pexprs in h1. move: (mapM_size h1). move=> h1s.
-   rewrite !size_map in h1s.
-   rewrite map2E !size_map. rewrite size2_zip size_map; auto. rewrite !size_map. rewrite h1s /=.
-   rewrite size1_zip size_map. auto. rewrite map2E !size_map.
-(* Going in a loop *)
-  Admitted.
+   apply sem_seq1; constructor; constructor.
+   have heq : size (unzip1 vs) = size (map2 leak_E (unzip2 es') (unzip2 vs)).
+   + rewrite map2E !(size_map, size_zip).
+     have <- := mapM_size hes_es'; have -> := mapM_size hes_vs.
+     by rewrite minnn.
+   rewrite /sem_sopn h1 /= unzip1_zip /=; last by rewrite heq.
+   by rewrite h2 /= h /= unzip2_zip /= ?heq.
+  Qed.
 
   Lemma MinclP m1 m2 x g :
     Mincl m1 m2 ->
@@ -854,8 +854,6 @@ Qed.
      rewrite Hm in hrec. rewrite /= in hrec. rewrite /=.
      rewrite H /=. move: (hrec ([seq (t.1, t.2.1) | t <- fdlts''], [seq (t.1, t.2.2) | t <- fdlts''])). move=> {hrec} hrec; auto.
   Qed.
-
-
 
   Local Lemma Hproc : sem_Ind_proc P Pc Pfun.
   Proof.
