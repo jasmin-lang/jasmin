@@ -154,6 +154,7 @@ Qed.
 Section PROOF.
   Variables (K : Sp.t) (p: prog).
   Notation gd := (p_globs p).
+  Variable Ffs : seq (funname * leak_c_tr).
 
   Let p' := {| p_globs := p_globs p; p_funcs := dead_calls K (p_funcs p) |}.
 
@@ -167,27 +168,27 @@ Section PROOF.
     rewrite /def_incl; intuition SpD.fsetdec.
   Qed.
 
-  Let Pi (s:estate) (i:instr) (s':estate) :=
-    def_incl (i_Calls i) -> sem_I p s i s' -> sem_I p' s i s'.
+  Let Pi (s:estate) (i:instr) (li : leak_i) (s':estate) :=
+    def_incl (i_Calls i) -> sem_I p s i li s' -> sem_I p' s i li s'.
 
-  Let Pi_r (s:estate) (i:instr_r) (s':estate) :=
-    def_incl (i_Calls_r i) -> sem_i p s i s' -> sem_i p' s i s'.
+  Let Pi_r (s:estate) (i:instr_r) (li : leak_i) (s':estate) :=
+    def_incl (i_Calls_r i) -> sem_i p s i li s' -> sem_i p' s i li s'.
 
-  Let Pc (s:estate) (c:cmd) (s':estate) :=
-    def_incl (c_Calls c) -> sem p s c s' -> sem p' s c s'.
+  Let Pc (s:estate) (c:cmd) (lc : leak_c) (s':estate) :=
+    def_incl (c_Calls c) -> sem p s c lc s' -> sem p' s c lc s'.
 
-  Let Pfor (i:var_i) vs s c s' :=
-    def_incl (c_Calls c) -> sem_for p i vs s c s' -> sem_for p' i vs s c s'.
+  Let Pfor (i:var_i) vs s c (lc : seq leak_c) s' :=
+    def_incl (c_Calls c) -> sem_for p i vs s c lc s' -> sem_for p' i vs s c lc s'.
 
-  Let Pfun m1 fn vargs m2 vres :=
-    def_incl (Sp.singleton fn) -> sem_call p m1 fn vargs m2 vres -> sem_call p' m1 fn vargs m2 vres.
+  Let Pfun m1 fn vargs lf m2 vres :=
+    def_incl (Sp.singleton fn) -> sem_call p m1 fn vargs lf m2 vres -> sem_call p' m1 fn vargs lf m2 vres.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof. move=> s _ _; exact: Eskip. Qed.
 
   Local Lemma Hcons : sem_Ind_cons p Pc Pi.
   Proof.
-    move=> s1 s2 s3 i c Hsi Hi Hsc Hc Hincl.
+    move=> s1 s2 s3 i c li lc Hsi Hi Hsc Hc Hincl.
     rewrite CallsE in Hincl.
     move: Hincl=> /def_incl_union [Hincli Hinclc] H.
     exact: (Eseq (Hi Hincli Hsi) (Hc Hinclc Hsc)).
@@ -195,25 +196,25 @@ Section PROOF.
 
   Local Lemma HmkI : sem_Ind_mkI p Pi_r Pi.
   Proof.
-    move=> ii i s1 s2 Hs Hi Hincl _.
+    move=> ii i s1 s2 li Hs Hi Hincl _.
     apply: EmkI.
     exact: (Hi Hincl Hs).
   Qed.
 
   Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
   Proof.
-    move => s1 s2 x tag ty e v v' hv hv' hw _ _.
+    move => s1 s2 x tag ty e v v' le lw hv hv' hw _ _.
     exact: (Eassgn (P:=p') _ hv hv' hw).
   Qed.
 
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
   Proof.
-    move=> s1 s2 t o xs es H _ _; exact: (Eopn (P:=p') _ H).
+    move=> s1 s2 t o xs es lo H _ _; exact: (Eopn (P:=p') _ H).
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
   Proof.
-    move=> s1 s2 e c1 c2 H Hsi Hc Hincl _.
+    move=> s1 s2 e c1 c2 le lc H Hsi Hc Hincl _.
     rewrite CallsE in Hincl.
     move: Hincl=> /def_incl_union [Hincl1 Hincl2].
     apply: (Eif_true (P:=p') _ H).
@@ -222,7 +223,7 @@ Section PROOF.
 
   Local Lemma Hif_false : sem_Ind_if_false p Pc Pi_r.
   Proof.
-    move=> s1 s2 e c1 c2 H Hsi Hc Hincl _.
+    move=> s1 s2 e c1 c2 le lc H Hsi Hc Hincl _.
     rewrite CallsE in Hincl.
     move: Hincl=> /def_incl_union [Hincl1 Hincl2].
     apply: (Eif_false (P:=p') _ H).
@@ -231,7 +232,7 @@ Section PROOF.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 a c e c' Hs1 Hc1 H Hs2 Hc2 Hsw Hiw Hinclw _.
+    move=> s1 s2 s3 s4 a c e c' lc le lc' li Hs1 Hc1 H Hs2 Hc2 Hsw Hiw Hinclw _.
     rewrite CallsE in Hinclw.
     have /def_incl_union [Hincl Hincl'] := Hinclw.
     exact: (Ewhile_true (Hc1 Hincl Hs1) H (Hc2 Hincl' Hs2) (Hiw Hinclw Hsw)).
@@ -239,7 +240,7 @@ Section PROOF.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
   Proof.
-    move=> s1 s2 a c e c' Hs1 Hc1 H Hinclw _.
+    move=> s1 s2 a c e c' lc le Hs1 Hc1 H Hinclw _.
     rewrite CallsE in Hinclw.
     have /def_incl_union [Hincl Hincl'] := Hinclw.
     exact: (Ewhile_false _ _ (Hc1 Hincl Hs1) H).
@@ -247,9 +248,9 @@ Section PROOF.
 
   Local Lemma Hfor : sem_Ind_for p Pi_r Pfor.
   Proof.
-    move=> s1 s2 i d lo hi c vlo vhi Hlo Hhi Hsf Hf Hincl _.
+    move=> s1 s2 i r wr c lr lf Hr Hsf Hf Hincl _.
     rewrite CallsE in Hincl.
-    apply: (Efor (P:= p') Hlo Hhi).
+    apply: (Efor (P:= p') Hr).
     exact: (Hf Hincl Hsf).
   Qed.
 
@@ -260,31 +261,31 @@ Section PROOF.
 
   Local Lemma Hfor_cons : sem_Ind_for_cons p Pc Pfor.
   Proof.
-   move=> s1 s1' s2 s3 i w ws c H Hsc Hc Hsf Hf Hincl _.
+   move=> s1 s1' s2 s3 i w ws c lc lf H Hsc Hc Hsf Hf Hincl _.
    exact: (EForOne H (Hc Hincl Hsc) (Hf Hincl Hsf)).
   Qed.
 
-  Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs:
+  Local Lemma Hcall s1 m2 s2 ii xs fn args vargs vs lf l2:
     sem_pexprs gd s1 args = Ok error vargs ->
-    sem_call p (emem s1) fn vargs m2 vs ->
-    Pfun (emem s1) fn vargs m2 vs ->
-    write_lvals gd {| emem := m2; evm := evm s1 |} xs vs = Ok error s2 ->
-    Pi_r s1 (Ccall ii xs fn args) s2.
+    sem_call p (emem s1) fn (unzip1 vargs) lf m2 vs ->
+    Pfun (emem s1) fn (unzip1 vargs) lf m2 vs ->
+    write_lvals gd {| emem := m2; evm := evm s1 |} xs vs = Ok error (s2, l2) ->
+    Pi_r s1 (Ccall ii xs fn args) (Lcall (LSub (unzip2 vargs)) lf (LSub l2)) s2.
   Proof.
     move=> Hargs Hcall Hfun Hres Hincl Hsi.
     apply: (Ecall (P:=p') _ Hargs _ Hres).
     exact: Hfun.
   Qed.
 
-  Local Lemma Hproc m1 m2 fn fd vargs vargs' s1 vm2 vres vres':
+  Local Lemma Hproc m1 m2 fn fd vargs vargs' s1 vm2 vres vres' lc:
     get_fundef (p_funcs p) fn = Some fd ->
     mapM2 ErrType truncate_val fd.(f_tyin) vargs' = ok vargs ->
     write_vars (f_params fd) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
-    sem p s1 (f_body fd) {| emem := m2; evm := vm2 |} ->
-    Pc s1 (f_body fd) {| emem := m2; evm := vm2 |} ->
+    sem p s1 (f_body fd) lc {| emem := m2; evm := vm2 |} ->
+    Pc s1 (f_body fd) lc {| emem := m2; evm := vm2 |} ->
     mapM (fun x : var_i => get_var vm2 x) (f_res fd) = ok vres ->
     mapM2 ErrType truncate_val fd.(f_tyout) vres = ok vres' ->
-    Pfun m1 fn vargs' m2 vres'.
+    Pfun m1 fn vargs' (fn, lc) m2 vres'.
   Proof.
     move=> Hget Htyin Hvargs Hsem Hc Hvres Htyout Hin Hcall.
     have Hin' := Hin _ (SpD.F.singleton_2 erefl).
@@ -297,10 +298,10 @@ Section PROOF.
     exact: live_calls_in.
   Qed.
 
-  Lemma dead_calls_callP fd mem mem' va vr:
+  Lemma dead_calls_callP fd mem mem' va vr lf:
     Sp.In fd K ->
-    sem_call p mem fd va mem' vr ->
-    sem_call p' mem fd va mem' vr.
+    sem_call p mem fd va lf mem' vr ->
+    sem_call p' mem fd va lf mem' vr.
   Proof.
     move=> Hincl H.
     apply: (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
@@ -333,29 +334,29 @@ Qed.
 (* -------------------------------------------------------------------- *)
 Lemma dead_calls_errP (s : Sp.t) (p p': prog) :
   dead_calls_err s p = cfok p' →
-  ∀ f m args m' res, Sp.In f s →
-    sem_call p m f args m' res →
-    sem_call p' m f args m' res.
+  ∀ f m args m' res lf, Sp.In f s →
+    sem_call p m f args lf m' res →
+    sem_call p' m f args lf m' res.
 Proof.
-rewrite /dead_calls_err; case: ifP => // /SpD.F.subset_2 pfx [] <- f m args m' res fins Hcall.
+rewrite /dead_calls_err; case: ifP => // /SpD.F.subset_2 pfx [] <- f m args m' res lf fins Hcall.
 apply: dead_calls_callP=> //.
 apply: live_calls_subset fins.
 Qed.
 
 Theorem dead_calls_err_seqP (s : seq funname) (p p': prog) :
   dead_calls_err_seq s p = cfok p' →
-  ∀ f m args m' res, f \in s →
-    sem_call p m f args m' res →
-    sem_call p' m f args m' res.
+  ∀ f m args m' res lf, f \in s →
+    sem_call p m f args lf m' res →
+    sem_call p' m f args lf m' res.
 Proof.
   rewrite /dead_calls_err_seq.
-  move=> h f m args m' res fins; apply: (dead_calls_errP h).
+  move=> h f m args m' res lf fins; apply: (dead_calls_errP h).
   elim: {h} s fins=> // a l IH Hin.
   rewrite foldlE.
   rewrite in_cons in Hin; case/orP: Hin=> [/eqP ->|/IH Hin]; SpD.fsetdec.
 Qed.
 
-Lemma dead_calls_err_get_fundef s p p' fn fd :
+Lemma dead_calls_err_get_fundef s p p' fn fd:
   dead_calls_err s p = cfok p' →
   get_fundef (p_funcs p') fn = Some fd →
   get_fundef (p_funcs p) fn = Some fd.
