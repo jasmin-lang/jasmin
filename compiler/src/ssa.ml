@@ -131,17 +131,7 @@ let remove_phi_nodes (f: 'info func) : 'info func =
        | _ -> [i])
     | Cif (b, s1, s2) -> [Cif (b, stmt s1, stmt s2)]
     | Cwhile (a, s1, b, s2) -> [Cwhile (a, stmt s1, b, stmt s2)]
-    | (Copn _ | Cfor _ | Ccall _) as i -> [i]
-    | Ccopy (x, e) as i ->
-      match x, e with
-        | Lvar v, Pvar v' when is_gkvar v' -> 
-          if L.unloc v = L.unloc v'.gv
-          then []
-          else 
-             let pv = Printer.pp_var ~debug:true in
-             hierror "SSA: cannot remove assignment %a = %a"
-             pv (L.unloc v) pv (L.unloc v'.gv)
-        | _, _ -> [i]
+    | (Copn _ | Cfor _ | Ccall _ | Ccopy _) as i -> [i]
   and instr i = List.map (fun i_desc -> { i with i_desc }) (instr_r i.i_desc)
   and stmt s = List.(flatten (map instr s)) in
   let f_body = stmt f.f_body in
