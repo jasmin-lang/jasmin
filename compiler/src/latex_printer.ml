@@ -290,6 +290,12 @@ let rec pp_instr depth fmt p =
       (pp_opt (pp_block depth)) pre
       pp_expr b
       (pp_opt (pp_block depth)) body
+  | PICopy (lv, e) ->
+    F.fprintf fmt "%a %a %a"
+      kw "copy"
+      pp_lv lv
+      pp_expr e
+      
 
 and pp_block depth fmt blk =
   pp_inbraces depth (pp_list eol (pp_instr (depth + 1))) fmt (L.unloc blk)

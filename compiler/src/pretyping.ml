@@ -1309,8 +1309,17 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let s1 = omap_dfl (tt_block env) [] s1 in
       let s2 = omap_dfl (tt_block env) [] s2 in
       let a = if a = `NoAlign then E.NoAlign else E.Align in
-      P.Cwhile (a, s1, c, s2) in
-  { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); }
+      P.Cwhile (a, s1, c, s2)
+
+    | S.PICopy (lv, pe) ->
+      let loc = L.loc pi in
+      let cpi = S.PICopy (lv, pe) in
+      let i = tt_instr env (L.mk_loc loc cpi) in
+      let x, _, _, e = P.destruct_move i in
+      P.Ccopy (x, e)
+  
+
+ in { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); }
 
 (* -------------------------------------------------------------------- *)
 and tt_block (env : Env.env) (pb : S.pblock) =
