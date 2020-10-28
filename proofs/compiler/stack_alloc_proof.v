@@ -62,7 +62,12 @@ Definition valid_map (m:map) (stk_size:Z) :=
            Mvar.get m.1 y = Some py -> size_of (vtype y) = ok sy ->
            px + sx <= py \/ py + sy <= px].
 
-Hint Resolve is_align_no_overflow Memory.valid_align.
+Lemma valid_align m p ws :
+  valid_pointer m p ws →
+  is_align p ws.
+Proof. by case/Memory.valid_pointerP. Qed.
+
+Hint Resolve is_align_no_overflow valid_align : core.
 
 Section PROOF.
   Variable P: prog.
@@ -129,7 +134,7 @@ Section PROOF.
     Valid of
       (disjoint_stk (emem s1)) &
       (forall w sz, valid_pointer (emem s1) w sz -> read_mem (emem s1) w sz = read_mem (emem s2) w sz) &
-      (forall w sz, valid_pointer (emem s2) w sz = valid_pointer (emem s1) w sz || (between pstk stk_size w sz && is_align w sz)) &
+      (forall w, valid_pointer (emem s2) w U8 = valid_pointer (emem s1) w U8 || between pstk stk_size w U8) &
       (eq_vm (evm s1) (evm s2)) &
       (get_var (evm s2) (vstk m) = ok (Vword pstk)) &
       (ohead (frames (emem s2)) = Some (pstk, stk_size)) &
@@ -226,7 +231,7 @@ Section PROOF.
     rewrite Memory.readP /CoreMem.read.
     have hbound := WArray.get_bound hget.
     have hv : valid_pointer mem (pstk + wrepr U64 (i * wsize_size ws + ofs)) ws.
-    + apply Memory.is_align_valid_pointer.
+    + apply/Memory.valid_pointerP; split.
       + by case: pstk_add => ? ->; rewrite Z.mul_comm wrepr_add is_align_array.
       move=> k hk; have [] := hvalid  (i * wsize_size ws + k).
       + by nia.
@@ -546,7 +551,7 @@ Section PROOF.
       - by apply: (wunsigned_pstk_add ho1 (lt_of_add_le ho2)).
       have := H1 _ _ Hvalid.
       case/negP/nandP => /ZltP /Z.nlt_ge h; lia.
-    + by move=> w' sz'; rewrite -H3 -(Memory.write_valid _ _ Hm').
+    + by move=> w'; rewrite -H3 -(Memory.write_valid _ _ Hm').
     + move=> x Hx1 Hx2.
       rewrite Fv.setP_neq; first exact: H4.
       apply/negP=> /eqP ?; subst x.
@@ -686,7 +691,7 @@ Section PROOF.
       rewrite (valid_map_arr_addr Hget) //; last nia.
       have [sx [/= [?] [??? ?]]]:= validm Hget.
       have /negP /nandP [ /ZltP| /ZltP ] := H1 _ _ Hvmem';nia.
-    + move=> w' sz'.
+    + move=> w'.
       by rewrite (Memory.write_valid _ _ Hm') H3.
     + move=> x Hx1 Hx2.
       rewrite Fv.setP_neq.
@@ -756,7 +761,7 @@ Section PROOF.
     + move=> w sz'.
       rewrite (Memory.write_valid _ _ Hm') => Hw.
       exact: Memory.read_write_any_mem Hw (H2 _ _ Hw) Hm' Hm'2.
-    + by move=> w sz'; rewrite (Memory.write_valid w sz' Hm') (Memory.write_valid w sz' Hm'2).
+    + by move=> w; rewrite (Memory.write_valid w U8 Hm') (Memory.write_valid w U8 Hm'2).
     + by have [_ <-] := Memory.write_mem_stable Hm'2.
     apply: (valid_stk_mem Hm') (Hm'2) (H6).
     have Hvalid1: valid_pointer (emem s1) (ptr + off) sz.
@@ -780,8 +785,11 @@ Section PROOF.
     rewrite /= (value_uincl_word hwi' hwiptr) /=.
     have [we' [-> hwe' /=]] := alloc_eP He Hv he.
     rewrite /= (value_uincl_word hwe' heofs) /= (value_uincl_word Hu hvw) /=.
+    have /Memory.valid_pointerP [ ptr_ofs_align ptr_ofs_valid ] : valid_pointer (emem s1) (ptr + ofs) sz.
+    + by apply/Memory.writeV; eauto.
     have : exists m2', write_mem (emem s2) (ptr + ofs) sz w = ok m2'.
-    + by apply: Memory.writeV; rewrite H3; apply /orP; left; apply/Memory.writeV; eauto.
+    + apply: Memory.writeV; apply/Memory.valid_pointerP; split; first exact: ptr_ofs_align.
+      move => k range; rewrite H3; apply/orP; left; exact: ptr_ofs_valid range.
     case => m2' Hm2'; rewrite Hm2' /=; eexists; split; first by reflexivity.
     exact: (valid_mem Hm').
   Qed.
@@ -846,7 +854,11 @@ Section PROOF.
       rewrite truncate_word_u => -> //=.
       rewrite /zero_extend !wrepr_unsigned.
       have Hvmem: valid_pointer (emem s2) (pstk + wrepr _ ofs) sz.
-      + rewrite H3; apply/orP; right; exact: valid_get_w Hget.
+      + have /andP [ in_stack aligned ] := valid_get_w Hget.
+        apply/Memory.valid_pointerP; split; first exact: aligned.
+        move => k range; rewrite H3; apply/orP; right.
+        apply: (between_byte _ in_stack range).
+        exact: is_align_no_overflow.
       have [m' Hm'] : exists m', write_mem (emem s2) (pstk + wrepr _ ofs) sz w' = ok m'.
       + by apply/Memory.writeV.
       exists {| emem := m'; evm := evm s2 |}; split.
@@ -879,15 +891,16 @@ Section PROOF.
     apply/Memory.writeV.
     case: (validm Hget) => sx [[<-]] {sx} [hofs hofs' hal' hdisj] {hi}.
     have hi:= WArray.set_bound haset.
-    rewrite H3; apply/orP; right.
-    have ? := wsize_size_pos sz; have [sx [/= [<-] [hle0 Hle _ _ ]]]:= validm Hget.
     have ? := wunsigned_range pstk; have [? hpstk] := pstk_add.
-    rewrite /between wunsigned_add; last by nia.
-    apply/andP; split; first by apply /andP; split; apply /ZleP;nia.
-    have ->: (pstk + wrepr U64 (i * wsize_size sz + ofs))%R =
+    apply/Memory.valid_pointerP; split.
+    * have ->: (pstk + wrepr U64 (i * wsize_size sz + ofs))%R =
            (wrepr U64 (wsize_size sz * i) + (pstk + wrepr U64 ofs))%R.
-    + by rewrite !wrepr_add Z.mul_comm; ssrring.ssring.
-    by apply: is_align_array; rewrite hpstk.
+      + by rewrite !wrepr_add Z.mul_comm; ssrring.ssring.
+      by apply: is_align_array; rewrite hpstk.
+    move => k k_range; rewrite H3; apply/orP; right.
+    apply: (between_byte _ _ k_range);
+      last by rewrite /between wunsigned_add ?zify; lia.
+    rewrite !zify wunsigned_add; lia.
   Qed.
 
   Lemma alloc_lvalsP (r1 r2: lvals) vs vs' ty (s1 s2: estate) :
@@ -1154,16 +1167,16 @@ Proof.
       + move=> off Hoff; split.
         + rewrite Ha3; apply/orP; right.
           case: (Hv _ _ Hget) => q []; rewrite Htype /= => - [] ?;
-            subst q => - [] hal hah haa _.
-          apply/andP; split.
-          * rewrite  /between wsize8 (wunsigned_pstk_add Hstk); [ | nia | nia ].
-            apply/andP; split; apply/ZleP; nia.
-          apply is_align8.
+            subst q => - [] hal hah _ _.
+          rewrite  /between wsize8 (wunsigned_pstk_add Hstk) ?zify; lia.
         by rewrite /vmap0 Fv.get0 => t [<-] {t} ?; rewrite WArray.get0.
       case: x Htype Hget => - [] // sz' x [] -> {sz'} Hget.
       split.
-      + rewrite Ha3; apply/orP; right.
-        exact: (valid_get_w Hstk Hv Hget).
+      + have /andP[ in_stack aligned ] := valid_get_w Hstk Hv Hget.
+        apply/Memory.valid_pointerP; apply: (conj aligned) => k k_range.
+        rewrite Ha3; apply/orP; right.
+        apply: (between_byte _ in_stack k_range).
+        move: in_stack; rewrite !zify; lia.
       by move=> v;rewrite /vmap0 Fv.get0.
   have := check_varsW Hp Hval'' _ hs1.
   move=> /(_ vargs) [ |s2 [Hs2 Hv2]];first by apply List_Forall2_refl.
@@ -1177,27 +1190,33 @@ Proof.
     have hts : omap snd (ohead (frames m2')) = Some stk_s.
     + by rewrite Htopstack.
     have [ hrd hvld hcllstk ] := Memory.free_stackP hts.
-    move: (Hdisj w sz) (Hmem w sz) (Hval w sz)=> {Hdisj Hmem Hval} Hdisjw Hmemw Hvalw.
+    move: (Hdisj w sz) (Hmem w sz) (Hval)=> {Hdisj Hmem Hval} Hdisjw Hmemw Hvalw.
     case Heq1: (read_mem m1' w sz) => [w'| err].
     + have Hw : valid_pointer m1' w sz by apply /Memory.readV;exists w'.
       rewrite -Heq1 -hrd; first exact: Hmemw.
-      rewrite hvld Hvalw.
-      split; first by rewrite Hw.
+      have /Memory.valid_pointerP[ w_aligned w_k_valid ] := Hw.
+      apply/Memory.valid_pointerP; split; first exact: w_aligned.
+      move => k k_range. rewrite hvld.
+      split; first by rewrite Hvalw w_k_valid.
       rewrite /top_stack (oheadE _ Htopstack).
-      have [noo _ _] := Memory.alloc_stackP Halloc.
-      constructor; eauto.
+      have [noo _ _ _ _ _] := Memory.alloc_stackP Halloc.
+      constructor.
       + by apply/ZleP.
+      + exact: (@is_align_no_overflow _ _ U8 (is_align8 _)).
+      rewrite /= wunsigned_add; last first.
+      + have := is_align_no_overflow w_aligned. rewrite !zify.
+        have := wunsigned_range w.
+        lia.
       case/negP/nandP: (Hdisjw Hw) => /=/ZltP; lia.
     have ? := Memory.read_mem_error Heq1. subst err.
     case Heq2: (read_mem _ _ _) => [w'|];last by rewrite (Memory.read_mem_error Heq2).
-    case/read_mem_valid_pointer/hvld: Heq2 => k [_ _ k'].
-    move: Hvalw; set b := between _ _ _ _.
-    replace b with false.
-    + by rewrite k orbF => /esym /Memory.readV [] ?; rewrite Heq1.
-    move: k'. rewrite /top_stack (oheadE _ Htopstack) /= => k'.
-    symmetry.
-    have Hsz := wsize_size_pos sz.
-    apply/nandP; case: k' => k'; [ right | left ]; apply/ZleP; lia.
+    case/read_mem_valid_pointer/Memory.valid_pointerP: Heq2 => is_aligned w_k_valid.
+    have /Memory.readV[v] : valid_pointer m1' w sz; last by rewrite Heq1.
+    apply/Memory.valid_pointerP; apply: (conj is_aligned) => k k_range.
+    have /hvld[] := w_k_valid _ k_range.
+    rewrite Hvalw => /orP []; first done.
+    rewrite !zify {3}/top_stack (oheadE _ Htopstack) /=.
+    change (wsize_size U8) with 1 => ? []; lia.
   apply: S.EcallRun.
   + exact: Sget.
   + exact: Halloc.

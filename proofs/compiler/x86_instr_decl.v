@@ -114,6 +114,7 @@ Variant asm_op : Type :=
 | VPMULL   `(velem) `(wsize)
 | VPMULH  `(velem) `(wsize)   (* signed multiplication of 16-bits*)
 | VPMULHU `(velem) `(wsize)
+| VPMULHRS of velem & wsize (* Packed Multiply High with Round and Scale *)
 | VPMULU   `(wsize)
 | VPEXTR   `(wsize)
 | VPINSR   `(velem)
@@ -130,6 +131,9 @@ Variant asm_op : Type :=
 | VPSHUFLW `(wsize)
 | VPBLENDD `(wsize)
 | VPBROADCAST of velem & wsize
+| VMOVSHDUP of velem & wsize (* Replicate 32-bit (“single”) high values *)
+| VMOVSLDUP of velem & wsize (* Replicate 32-bit (“single”) low values *)
+| VPALIGNR  `(wsize)
 | VBROADCASTI128
 | VPUNPCKH `(velem) `(wsize)
 | VPUNPCKL `(velem) `(wsize)
@@ -590,6 +594,10 @@ Definition x86_VPMULHU ve sz v1 v2 :=
   Let _ := assert (ve == VE16) ErrType in
   x86_u128_binop (lift2_vec U16 (@wmulhu U16) sz) v1 v2.
 
+Definition x86_VPMULHRS ve sz v1 v2 :=
+  Let _ := assert (ve == VE16) ErrType in
+  x86_u128_binop (lift2_vec U16 (@wmulhrs U16) sz) v1 v2.
+
 (* ---------------------------------------------------------------- *)
 Definition x86_VPEXTR (ve: wsize) (v: u128) (i: u8) : ex_tpl (w_ty ve) :=
   (* This instruction is valid for smaller ve, but semantics is unusual,
@@ -664,6 +672,17 @@ Definition x86_VPBROADCAST ve sz (v: word ve) : ex_tpl (w_ty sz) :=
   ok (wpbroadcast sz v).
 
 (* ---------------------------------------------------------------- *)
+Definition x86_VMOVSHDUP ve sz (v: word sz) : ex_tpl (w_ty sz) :=
+  Let _ := check_size_128_256 sz in
+  Let _ := assert (ve == VE32) ErrType in
+  ok (wdup_hi ve v).
+
+Definition x86_VMOVSLDUP ve sz (v: word sz) : ex_tpl (w_ty sz) :=
+  Let _ := check_size_128_256 sz in
+  Let _ := assert (ve == VE32) ErrType in
+  ok (wdup_lo ve v).
+
+(* ---------------------------------------------------------------- *)
 Definition x86_VEXTRACTI128 (v: u256) (i: u8) : ex_tpl (w_ty U128) :=
   let r := if lsb i then wshr v U128 else v in
   ok (zero_extend U128 r).
@@ -677,6 +696,16 @@ Definition x86_VPERM2I128 (v1 v2: u256) (m: u8) : ex_tpl (w_ty U256) :=
 
 Definition x86_VPERMQ (v: u256) (m: u8) : ex_tpl (w_ty U256) :=
   ok (wpermq v m).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_VPALIGNR128 (m:u8) (v1 v2: word U128) : word U128 := 
+  let v := make_vec U256 [::v2;v1] in
+  let v' := wshr v (wunsigned m * 8) in
+  @nth (word U128) 0%R (split_vec U128 v') 0.
+ 
+Definition x86_VPALIGNR sz (v1 v2: word sz) (m:u8) : ex_tpl (w_ty sz) := 
+  Let _ := check_size_128_256 sz in
+  ok (lift2_vec U128 (x86_VPALIGNR128 m) sz v1 v2).
 
 (* ----------------------------------------------------------------------------- *)
 Coercion F f := ADImplicit (IArflag f).
@@ -823,7 +852,7 @@ Notation mk_instr_w_w128_10 name semi check max_imm prc pp_asm := ((fun sz =>
   mk_instr (pp_sz name sz) (w_ty sz) (w128_ty) [:: E 1] [:: E 0] MSB_MERGE (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_ve_instr_w_w_10 name semi check max_imm prc pp_asm := ((fun (ve:velem) sz =>
-  mk_instr (pp_ve_sz name ve sz) (w_ty ve) (w_ty sz) [:: E 1] [:: E 0] MSB_CLEAR (semi ve sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_ve_sz name ve sz) (w_ty _) (w_ty sz) [:: E 1] [:: E 0] MSB_CLEAR (semi ve sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
 
 Notation mk_ve_instr_w2_w_120 name semi check max_imm prc pp_asm := ((fun (ve:velem) sz =>
   mk_instr (pp_ve_sz name ve sz) (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (semi ve sz) (check sz) 3 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
@@ -1121,6 +1150,8 @@ Definition Ox86_VPMULU_instr := ((fun sz => mk_instr (pp_s "VPMULU") (w2_ty sz s
 Definition Ox86_VPMULH_instr := mk_ve_instr_w2_w_120 "VPMULH" x86_VPMULH check_xmm_xmm_xmmm no_imm (PrimV VPMULH) (pp_viname "vpmulh").
 Definition Ox86_VPMULHU_instr := mk_ve_instr_w2_w_120 "VPMULHU" x86_VPMULHU check_xmm_xmm_xmmm no_imm (PrimV VPMULHU) (pp_viname "vpmulhu").
 
+Definition Ox86_VPMULHRS_instr := mk_ve_instr_w2_w_120 "VPMULHRS" x86_VPMULHRS check_xmm_xmm_xmmm no_imm (PrimV VPMULHRS) (pp_viname "vpmulhrs").
+
 Definition check_vpextr (_:wsize) :=  [:: [:: rm false; xmm; i U8] ].
 
 Definition pp_viname_t name ve (ts:seq wsize) args :=
@@ -1202,6 +1233,17 @@ Definition check_xmm_xmmm (_:wsize) := [:: [:: xmm; xmmm true]].
 
 Definition Ox86_VPBROADCAST_instr       :=
   mk_ve_instr_w_w_10 "VPBROADCAST" x86_VPBROADCAST check_xmm_xmmm no_imm (PrimV VPBROADCAST) pp_vpbroadcast.
+
+Definition Ox86_VMOVSHDUP_instr :=
+  mk_ve_instr_w_w_10 "VMOVSHDUP" x86_VMOVSHDUP check_xmm_xmmm no_imm (PrimV VMOVSHDUP) (λ _, pp_name "vmovshdup").
+
+Definition Ox86_VMOVSLDUP_instr :=
+  mk_ve_instr_w_w_10 "VMOVSLDUP" x86_VMOVSLDUP check_xmm_xmmm no_imm (PrimV VMOVSLDUP) (λ _, pp_name "vmovsldup").
+
+Definition Ox86_VPALIGNR_instr := 
+  ((fun sz =>
+     mk_instr (pp_sz "VPALIGNR" sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR 
+      (@x86_VPALIGNR sz) (check_xmm_xmm_xmmm_imm8 sz) 4 sz (imm8 sz) [::] (pp_name "vpalignr" sz)), ("VPALIGNR"%string, PrimP U128 VPALIGNR)).
 
 (* 256 *)
 
@@ -1286,6 +1328,7 @@ Definition instr_desc o : instr_desc_t :=
   | VPMULU sz          => Ox86_VPMULU_instr.1 sz
   | VPMULH ve sz       => Ox86_VPMULH_instr.1 ve sz
   | VPMULHU ve sz      => Ox86_VPMULHU_instr.1 ve sz
+  | VPMULHRS ve sz => Ox86_VPMULHRS_instr.1 ve sz
   | VPSLL sz sz'       => Ox86_VPSLL_instr.1 sz sz'
   | VPSRL sz sz'       => Ox86_VPSRL_instr.1 sz sz'
   | VPSRA sz sz'       => Ox86_VPSRA_instr.1 sz sz'
@@ -1301,6 +1344,9 @@ Definition instr_desc o : instr_desc_t :=
   | VPUNPCKL sz sz'    => Ox86_VPUNPCKL_instr.1 sz sz'
   | VPBLENDD sz        => Ox86_VPBLENDD_instr.1 sz
   | VPBROADCAST sz sz' => Ox86_VPBROADCAST_instr.1 sz sz'
+  | VMOVSHDUP sz sz' => Ox86_VMOVSHDUP_instr.1 sz sz'
+  | VMOVSLDUP sz sz' => Ox86_VMOVSLDUP_instr.1 sz sz'
+  | VPALIGNR sz        => Ox86_VPALIGNR_instr.1 sz 
   | VBROADCASTI128     => Ox86_VBROADCASTI128_instr.1
   | VPERM2I128         => Ox86_VPERM2I128_instr.1
   | VPERMQ             => Ox86_VPERMQ_instr.1
@@ -1368,6 +1414,7 @@ Definition prim_string :=
    Ox86_VPMULU_instr.2;
    Ox86_VPMULH_instr.2;
    Ox86_VPMULHU_instr.2;
+   Ox86_VPMULHRS_instr.2;
    Ox86_VPSLL_instr.2;
    Ox86_VPSRL_instr.2;
    Ox86_VPSRA_instr.2;
@@ -1383,6 +1430,9 @@ Definition prim_string :=
    Ox86_VPUNPCKL_instr.2;
    Ox86_VPBLENDD_instr.2;
    Ox86_VPBROADCAST_instr.2;
+   Ox86_VMOVSHDUP_instr.2;
+   Ox86_VMOVSLDUP_instr.2;
+   Ox86_VPALIGNR_instr.2;
    Ox86_VBROADCASTI128_instr.2;
    Ox86_VPERM2I128_instr.2;
    Ox86_VPERMQ_instr.2;
