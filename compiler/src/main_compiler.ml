@@ -229,7 +229,7 @@ let main () =
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
           with Evaluator.Eval_error (ii,err) ->
-            Format.eprintf "%a" Evaluator.pp_error (tbl, ii, err)
+            hierror "%a" Evaluator.pp_error (tbl, ii, err)
         in
         List.iter exec to_exec
       end;
