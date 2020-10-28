@@ -46,7 +46,9 @@ Section PROOF.
   Hypothesis (p'_def : p' = (unroll_prog p).1).
 
   Hypothesis (Fs_def : Fs = (unroll_prog p).2).
-  
+
+  Hypothesis unroll_prog_ok : unroll_prog p = (p', Fs).
+
   Let Pi_r (s:estate) (i:instr_r) (li: leak_i) (s':estate) :=
     forall ii, sem p' s (unroll_i (MkI ii i)).1 (leak_I (leak_Fun Fs) li (unroll_i (MkI ii i)).2) s'.
 
@@ -57,10 +59,9 @@ Section PROOF.
     sem p' s (unroll_cmd unroll_i c).1 (leak_Is (leak_I (leak_Fun Fs)) (unroll_cmd unroll_i c).2 lc) s'.
 
   Let Pfor (i:var_i) vs s c lf s' :=
-    sem_for p' i vs s (unroll_cmd unroll_i c).1 (leak_Iss (leak_I (leak_Fun Fs))  (unroll_cmd unroll_i c).2 lf) s'
-    /\ forall ii, sem p' s
-                      (flatten (map (fun n => assgn ii i (Pconst n) :: (unroll_cmd unroll_i c).1) vs))
-                      (flatten (leak_Iss (leak_I (leak_Fun Fs))  (unroll_cmd unroll_i c).2 lf)) s'.
+    sem_for p' i vs s (unroll_cmd unroll_i c).1 (leak_Iss (leak_I (leak_Fun Fs)) (unroll_cmd unroll_i c).2 lf) s'
+    /\ forall ii, sem p' s (flatten (map (fun n => assgn ii i (Pconst n) :: (unroll_cmd unroll_i c).1) vs)) 
+                      (flatten  (map (fun l => leak_assgn :: l) (leak_Iss (leak_I (leak_Fun Fs)) (unroll_cmd unroll_i c).2 lf))) s'.
 
   Let Pfun m1 fn vargs lf m2 vres :=
     sem_call p' m1 fn vargs (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m2 vres.
@@ -127,20 +128,24 @@ Section PROOF.
 
   Local Lemma Hfor : sem_Ind_for p Pi_r Pfor.
   Proof.
-    move=> s1 s2 i r wr c lr lf Hwr Hc [Hfor Hfor'] ii /=.
-    case: (r). move=> [d lo] hi.
-    case Hlo': (is_const lo)=> [nlo|].
-    + case Hhi': (is_const hi)=> [nhi|].
-      (*+ have ->: nlo = lo.
-          rewrite /is_const /= in Hlo'.
-          by case: lo Hlo Hlo'=> //= z [] -> [] ->.
-        have ->: nhi = vhi.
-          rewrite /is_const /= in Hhi'.
-          by case: hi Hhi Hhi'=> //= z [] -> [] ->.
-        exact: Hfor'.
-      apply: sem_seq1; apply: EmkI; apply: Efor; [apply: Hlo|apply: Hhi|apply: Hfor].
-    apply: sem_seq1; apply: EmkI; apply: Efor; [apply: Hlo|apply: Hhi|apply: Hfor].*)
-  Admitted.
+    move=> s1 s2 i [[d lo] hi] wr c lr lf Hwr Hc [Hfor Hfor'] ii /=. 
+    case hlo : (is_const lo) => //= [nlo |].
+    case hhi : (is_const hi) => //= [nhi |].
+    + rewrite /is_const /= in hlo.
+      case: (lo) (Hwr) hlo => //= z. 
+      rewrite /is_const /= in hhi.
+      case: (hi) (Hwr) hhi => //= z'. t_xrbindP.
+      move=> [ve le] he z1 hii hwr hlr [] hh1 hwr' hlr' [] hh2.
+      rewrite hh1 in hwr'. rewrite hh2 in hwr'. rewrite -hwr' in Hfor'.
+      rewrite /= in Hfor'. move: (Hfor' ii). move=> {Hfor'} Hfor'. 
+      apply Hfor'.
+    + move: Hwr. rewrite /sem_range. t_xrbindP. move=> [ve le] he z0 hii [ve' le'] he' z hii' hwr <- /=.
+      apply sem_seq1. apply EmkI. apply Efor with wr. rewrite /sem_range. rewrite p'_def /=.
+      rewrite he /=. rewrite hii /=. rewrite he' /=. rewrite hii' /=. by rewrite hwr. auto.
+    move: Hwr. rewrite /sem_range. t_xrbindP. move=> [ve le] he z hl [ve' le'] he' z' hh hwr <- /=. 
+    apply sem_seq1. apply EmkI. apply Efor with wr; rewrite /sem_range. rewrite p'_def /=.
+    by rewrite he /= hl /= he' /= hh /= -hwr /=; auto. auto.
+  Qed.
 
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
   Proof.
@@ -159,15 +164,10 @@ Section PROOF.
   Local Lemma Hfor_cons : sem_Ind_for_cons p Pc Pfor.
   Proof.
     move=> s1 s1' s2 s3 i w ws c lc lf Hw Hsc Hc Hsfor [Hfor Hfor']; split=> [|ii].
-    apply: EForOne; [exact: Hw|exact: Hc|exact: Hfor].
-    move: Hfor'=> /(_ ii) Hfor'. rewrite /assgn /=. 
-    (*apply: Eseq.
-    + apply: EmkI; apply: Eassgn. reflexivity. by rewrite (write_var_Z Hw). exact Hw.
-    apply: sem_app.
-    exact: Hc.
-    exact: Hfor'.
-  Qed.*)
-    Admitted. 
+    + apply: EForOne; [exact: Hw|exact: Hc|exact: Hfor].
+    rewrite /=. apply: Eseq. apply: EmkI. apply: Eassgn. reflexivity. by rewrite (write_var_Z Hw).
+    rewrite /=. rewrite Hw /=. auto. apply: sem_app. exact: Hc. exact: Hfor'.
+  Qed.
 
   Local Lemma Hcall : sem_Ind_call p Pi_r Pfun.
   Proof.
@@ -180,22 +180,23 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p Pc Pfun.
   Proof.
-    move => m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc /=.
-    case: f=> fi ftyi fparams fc ftyo fres /= Hget Htyi Hw _ Hc Hres Htyo.
-    apply EcallRun with {|
-           f_iinfo := fi;
-           f_tyin := ftyi;
-           f_params := fparams;
-           f_body := fc;
-           f_tyout := ftyo;
-           f_res := fres |} vargs s1 vm2 vres. subst.
-    + (*rewrite get_map_prog Hget.*) admit.
-    + apply Htyi.
-    + apply Hw.
-    + rewrite /Pc /= in Hc. rewrite /= in Hc. admit.
-    + apply Hres.
-    apply Htyo.
-   Admitted.
+    move => m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hfun htra Hw Hsem Hc Hres Hfull.
+    have dcok : map_prog_leak unroll_fun (p_funcs p) = ((p_funcs p'), Fs).
+    move: unroll_prog_ok; rewrite /unroll_prog. by move=> [] <- <- /=.
+    move:(get_map_prog_leak dcok Hfun). move=> [] f' [] lt [] Hf /= Hfun' /= Hlt.
+    case: (f) Hf (Hfun) htra Hw Hsem Hc Hres Hfull.
+    move=> fi fin fp /= c fo fres Hf'1 Hfun'' htra Hw Hsem Hc Hres Hfull.
+    rewrite Hfun in Hfun''. case: Hfun''=> Hfun''. case: Hf'1=> Hf'11 Hf'12.
+    apply EcallRun with f' vargs s1 vm2 vres.
+    + exact: Hfun'.
+    + rewrite -Hf'11 /=. exact: htra.
+    + rewrite -Hf'11 /=. exact: Hw.
+    + rewrite /Pc /= in Hc. rewrite -Hf'11 /=. rewrite /map_prog_leak in dcok. 
+      case: dcok=> dcok1 dcok2. rewrite Hf'12 /= in Hc. rewrite /get_leak in Hlt.
+      replace (leak_Fun Fs fn) with lt. exact: Hc. rewrite /leak_Fun /=. by rewrite Hlt.
+    + rewrite -Hf'11 /=. exact: Hres.
+    + rewrite -Hf'11 /=. exact: Hfull.
+  Qed.
 
   Lemma unroll_callP f mem mem' va vr lf:
     sem_call p  mem f va lf mem' vr ->

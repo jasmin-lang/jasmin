@@ -42,9 +42,9 @@ Definition unroll_cmd (unroll_i: instr -> cmd * leak_i_tr) (c:cmd) : cmd * leak_
                                ((r.1 ++ c'.1), ([:: r.2] ++ c'.2)))
                       ([::], [::]) c.
 
-Definition assgn' ii x e := (MkI ii (Cassgn (Lvar x) AT_inline x.(v_var).(vtype) e)).
+Definition assgn ii x e := (MkI ii (Cassgn (Lvar x) AT_inline x.(v_var).(vtype) e)).
 
-Definition assgn ii x e := (MkI ii (Cassgn (Lvar x) AT_inline x.(v_var).(vtype) e), LT_ile (LT_seq [:: LT_id; LT_id])).
+Definition assgn' ii x e := (MkI ii (Cassgn (Lvar x) AT_inline x.(v_var).(vtype) e), LT_ile (LT_seq [:: LT_id; LT_id])).
 
 Fixpoint unroll_i (i:instr) : cmd * leak_i_tr :=
   let (ii, ir) := i in
@@ -61,9 +61,9 @@ Fixpoint unroll_i (i:instr) : cmd * leak_i_tr :=
     match is_const low, is_const hi with
     | Some vlo, Some vhi =>
       let l := wrange dir vlo vhi in
-      let cs := map (fun n => ((assgn ii i (Pconst n)).1 :: c'.1, (assgn ii i (Pconst n)).2 :: c'.2)) l in 
+      let cs := map (fun n => ((assgn ii i (Pconst n)) :: c'.1)) l in 
       (*let cs := map (fun n => assgn ii i (Pconst n) :: c') l in*)
-      (flatten (unzip1 cs), LT_ifor_unroll (flatten (unzip2 cs)))
+      (flatten cs, LT_ifor_unroll c'.2)
     | _, _       => ([:: MkI ii (Cfor i (dir, low, hi) c'.1) ], LT_ifor LT_id c'.2)
     end
   | Cwhile a c e c'  => let r1 :=  (unroll_cmd unroll_i c) in

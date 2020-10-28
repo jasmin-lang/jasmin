@@ -107,6 +107,9 @@ Variable leak_Fun : funname -> seq leak_i_tr.
 
 Definition dummy_lit := Lassgn LEmpty.
 
+Definition leak_assgn := 
+(Lassgn (LSub [:: LEmpty ; LEmpty])).
+
 Fixpoint leak_I (l : leak_i) (lt : leak_i_tr) {struct l} : seq leak_i :=
   match lt, l with
   | LT_iremove, _ => [::]
@@ -133,7 +136,7 @@ Fixpoint leak_I (l : leak_i) (lt : leak_i_tr) {struct l} : seq leak_i :=
                                                           (f, (leak_Is leak_I (leak_Fun f) lts))
                                                           (leak_E lte' le') ]
   (** FIX NEEDED **)
-  | LT_ifor_unroll ltiss, Lfor le ltss => [:: Lfor LEmpty (leak_Iss leak_I ltiss ltss) ]
+  | LT_ifor_unroll ltiss, Lfor le ltss => flatten (map (fun l => leak_assgn :: l) (leak_Iss leak_I ltiss ltss))
   
   | _, _ => [:: l]
   end.
