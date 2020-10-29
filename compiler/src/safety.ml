@@ -403,6 +403,11 @@ let oget = function
   | Some x -> x
   | None -> raise (Failure "Oget")
 
+let env_of_list l =
+  let vars = Array.of_list l 
+  and empty_var_array = Array.make 0 (Var.of_string "") in
+  Environment.make vars empty_var_array 
+
 type apr_env = Apron.Environment.t
 
 
@@ -852,7 +857,14 @@ let coeff_add c c' = match Coeff.reduce c, Coeff.reduce c' with
                         (scalar_add i.sup i'.sup))
     | _ -> assert false
 
-
+let interval_meet i1 i2 =
+  let inf1, inf2 = i1.Interval.inf, i2.Interval.inf in
+  let inf = if Scalar.cmp inf1 inf2 < 0 then inf1 else inf2 in
+  
+  let sup1, sup2 = i1.Interval.sup, i2.Interval.sup in
+  let sup = if Scalar.cmp sup1 sup2 < 0 then sup2 else sup1 in
+  Interval.of_infsup inf sup
+  
 (******************)
 (* Texpr1 Wrapper *)
 (******************)
@@ -1456,6 +1468,10 @@ module type AbsNumType = sig
 end
 
 
+(******************************************)
+(* Numerical Domains: Boxes and Polyhedra *)
+(******************************************)
+
 module type ProgWrap = sig
   val main_source : unit Prog.func
   val main : minfo Prog.func
@@ -1463,18 +1479,19 @@ module type ProgWrap = sig
   val param : analyzer_param
 end
 
+
+(* Polyhedra or boxes abstract domain. *)
 module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
 
   type t = Manager.t Abstract1.t
   let man = Manager.man
 
   let is_relational () = Ppl.manager_is_ppl man
-
+    
   let make l =
     let vars = u8_blast_vars ~blast_arrays:true l |>
-               List.map avar_of_mvar |> Array.of_list
-    and empty_var_array = Array.make 0 (Var.of_string "") in
-    let env = Environment.make vars empty_var_array in
+               List.map avar_of_mvar in
+    let env = env_of_list vars in
     Abstract1.top man env
 
   let lce a a' =
@@ -1628,11 +1645,9 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
     let vars = Environment.vars env
                |> fst
                |> Array.to_list in
-    let nvars = List.filter (fun x -> not (List.mem x vs)) vars
-                |> Array.of_list
-    and empty_var_array = Array.make 0 (Var.of_string "") in
+    let nvars = List.filter (fun x -> not (List.mem x vs)) vars in
+    let new_env = env_of_list nvars in
 
-    let new_env = Environment.make nvars empty_var_array in
     Abstract1.change_environment man a new_env false
 
   
@@ -1939,16 +1954,303 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
     and rem_vars = u8_blast_vars ~blast_arrays:true mvars
                    |> List.map avar_of_mvar  in
 
-    let nvars = List.filter (fun x -> not (List.mem x rem_vars)) vars
-                |> Array.of_list
-    and empty_var_array = Array.make 0 (Var.of_string "") in
-
-    let new_env = Environment.make nvars empty_var_array in
+    let nvars = List.filter (fun x -> not (List.mem x rem_vars)) vars in
+    let new_env = env_of_list nvars in
+    
     Abstract1.change_environment man a new_env false
 
   let get_env a = Abstract1.env a
 
 end
+
+
+(********************************)
+(* Numerical Domain: Congruence *)
+(********************************)
+
+(* Congruence lattice *)
+module Congr = struct
+
+  (* Bot represents the empty set
+     (a,b) represents aℤ + b, where a = 0 or (0 < a and 0 ≤ b < a). *) 
+  type t = Bot | V of Z.t * Z.t
+
+  let top = V (Z.one, Z.zero)
+  let bot = Bot
+
+  let make a b =
+    if Z.equal a Z.zero
+    then V (a, b)
+    else
+      let a = Z.abs a in
+      V (a, Z.erem b a)
+
+  let of_coeff (c : Coeff.t) =
+    let int = match c with
+    | Coeff.Scalar s   -> scalar_to_int s
+    | Coeff.Interval i -> interval_to_int i in
+    match int with
+    | None -> bot
+    | Some c -> V (Z.zero, Z.of_int c)
+    
+  let mem_v x (a,b) = 
+    if Z.equal a Z.zero
+    then Z.equal x b
+    else Z.equal (Z.erem x a) b
+
+  let mem x = function
+    | Bot -> false
+    | V (a,b) -> mem_v x (a,b)
+
+  let meet_v (a,b) (a',b') =
+    match Z.equal a Z.zero, Z.equal a' Z.zero with
+    | true, true   -> if Z.equal b b' then V (a,b) else Bot
+    | true, false  -> if mem_v b (a',b') then V (a,b) else Bot
+    | false, true  -> if mem_v b' (a,b) then V (a',b') else Bot
+    | false, false ->
+      let gcd, u, _v = Z.gcdext a a' in
+      if Z.rem (Z.sub b b') gcd = Z.zero 
+      then
+        let b'' = Z.sub b (Z.div (Z.mul a (Z.mul u (Z.sub b b'))) gcd) in
+        make (Z.lcm a a') b''
+      else Bot
+
+  let meet t t' = match t, t' with
+    | Bot, _ | _, Bot -> Bot
+    | V (a,b), V (a',b') -> meet_v (a,b) (a',b')
+                     
+  (* gcd extended to the case where [a] or [b] is zero. *)
+  let gcd_z (a:Z.t) (b:Z.t) : Z.t =
+    if      Z.equal a Z.zero then b
+    else if Z.equal b Z.zero then a
+    else                          Z.gcd a b
+    
+  let join_v (a,b) (a',b') =
+    let a'' = gcd_z (gcd_z a a') (Z.sub b b') in
+    make a'' b'
+
+  let join t t' = match t, t' with
+    | Bot, t'' | t'', Bot -> t''
+    | V (a,b), V (a',b') -> join_v (a,b) (a',b')
+
+  (* divisibility extended to the case where [a] or [b] is zero *)
+  let divides_z a b =
+    if Z.equal a Z.zero then Z.equal b Z.zero
+    else Z.equal (Z.rem b a) Z.zero
+
+  (* erem extended to the case where [b] is zero *)
+  let erem_z a b =
+    if Z.equal b Z.zero then a else Z.erem a b
+
+  let is_included t t' = match t,t' with
+    | Bot, _ -> true
+    | _, Bot -> false
+    | V (a,b), V (a',b') ->
+      divides_z a' a && erem_z b a' = b'
+
+  let is_bottom t = is_included t bot
+  let is_top t = is_included t top
+
+  let bmap f = function
+    | Bot -> Bot
+    | V (a,b) -> f (a,b) 
+
+  let bmap2 f t t' = match t, t' with
+    | Bot,_ | _, Bot -> Bot
+    | V (a,b), V (a',b') -> f (a,b) (a',b')
+                                                  
+  let neg_v (a,b) = make a (Z.neg b)
+  let neg = bmap neg_v
+  
+  let add_v (a,b) (a',b') = make (gcd_z a a') (Z.add b b')
+  let add = bmap2 add_v
+
+  let sub_v (a,b) (a',b') = make (gcd_z a a') (Z.sub b b')
+  let sub = bmap2 sub_v
+      
+  let mul_v (a,b) (a',b') =
+    let a'' = gcd_z (gcd_z (Z.mul a a') (Z.mul a b')) (Z.mul a' b) in
+    make a'' (Z.mul b b')
+  let mul = bmap2 mul_v
+
+  let div_v (a,b) (a',b') =
+    if Z.equal a' Z.zero then
+      if Z.equal b' Z.zero then Bot 
+      else if divides_z b' a && divides_z b' b
+      then make (Z.div a b') (Z.div b b')
+      else top 
+    else top
+  let div = bmap2 div_v
+
+  let modulo_v (a,b) (a',b') =
+  if Z.equal a' Z.zero then
+    if Z.equal b' Z.zero then Bot
+    else make (gcd_z a b') (Z.rem b b')
+  else make (gcd_z (gcd_z a a') b') b      
+  let modulo = bmap2 modulo_v
+
+  let to_int = function
+    | Bot -> Interval.bottom
+    | V (a,b) when Z.equal a Z.zero ->
+      let b = Mpqf.of_string (Z.to_string b) in
+      Interval.of_mpqf b b
+    | _ -> Interval.top
+
+  let print fmt = function
+    | Bot -> Format.fprintf fmt "⊥"
+    | V (a,b) when Z.equal a Z.zero -> 
+      Format.fprintf fmt "%s" (Z.to_string b)
+    | V (a,_) when Z.equal a Z.one -> 
+      Format.fprintf fmt "ℤ"
+    | V (a,b) -> 
+      Format.fprintf fmt "%s.ℤ + %s" (Z.to_string a) (Z.to_string b)         
+end
+
+module AbsNumCongr : AbsNumType = struct
+  (* Missing entries are [Bot] *)
+  type t = Congr.t Mm.t
+
+  let make vs =
+    assert (vs <> []);
+    List.fold_left (fun t m -> Mm.add m Congr.top t) Mm.empty vs
+
+  let value v t = Mm.find_default Congr.bot v t
+      
+  let app2 f a b =
+    Mm.merge (fun _ c c' ->
+        let c  = odfl Congr.bot c
+        and c' = odfl Congr.bot c' in
+        Some (f c c')) a b
+
+  let appl f l = match l with
+    | [] -> raise (Aint_error "appl: empty list")
+    | a :: l -> List.fold_left (fun a b -> app2 f a b) a l
+    
+  let meet = app2 Congr.meet   
+  let meet_list = appl Congr.meet
+
+  let join = app2 Congr.join     
+  let join_list = appl Congr.join
+
+  let widening _ = app2 Congr.meet
+
+  let forget_list t l = Mm.filter (fun k _ -> not (List.mem k l)) t
+
+  let is_included a a' =
+    let am =
+      Mm.merge (fun _ x y' -> Some (odfl Congr.bot x,
+                                    odfl Congr.bot y'))
+        a a' in
+    Mm.for_all (fun _ (x,y) -> Congr.is_included x y) am
+    
+  let is_bottom = Mm.exists (fun _ -> Congr.is_bottom)
+      
+  let bottom t = Mm.map (fun _ -> Congr.bot) t
+  let top    t =
+    assert (Mm.cardinal t <> 0);
+    Mm.map (fun _ -> Congr.top) t
+
+  let expand t v l =
+    assert (Mm.mem v t && List.for_all (fun x -> not (Mm.mem x t)) l);
+    let c = value v t in
+    List.fold_left (fun t v' ->
+        Mm.add v' c t) t l 
+
+  let fold t l = match l with
+    | [] -> raise (Aint_error "congruence fold: empty list")
+    | v :: l' ->
+      let cl' = List.map (fun x -> value x t) l'
+      and cv  = value v t in
+      let c = List.fold_left Congr.join cv cl' in
+      (* Remove [l'] and update [v]. *)
+      Mm.filter_map (fun x c' ->
+          if x = v
+          then Some c
+          else if List.mem x l' then None
+          else Some c') t
+
+  let bound_variable t v = Congr.to_int (value v t)
+      
+  let rec eval t e = match e with
+    | Mtexpr.Mcst i -> Congr.of_coeff i
+    | Mtexpr.Mvar v -> value v t
+    | Mtexpr.Munop (op,e, Texpr0.Int,_) ->
+      begin
+        match op with
+        | Texpr0.Neg -> Congr.neg (eval t e)
+        | Texpr0.Cast | Texpr0.Sqrt -> assert false
+      end         
+      
+    | Mtexpr.Mbinop (op,e1,e2, Texpr0.Int,_) ->
+      begin 
+        match op with
+        | Texpr0.Add -> Congr.add    (eval t e1) (eval t e2)
+        | Texpr0.Sub -> Congr.sub    (eval t e1) (eval t e2)
+        | Texpr0.Mul -> Congr.mul    (eval t e1) (eval t e2)
+        | Texpr0.Div -> Congr.div    (eval t e1) (eval t e2)
+        | Texpr0.Mod -> Congr.modulo (eval t e1) (eval t e2)
+        | _ -> assert false
+      end
+      
+    | _ -> assert false
+    
+  let bound_texpr t e = Congr.to_int (eval t e.Mtexpr.mexpr)
+
+  let assign_expr ?force:(force=false) t v e =      
+    let c = eval t e.Mtexpr.mexpr in
+    let c =
+      if weak_update v && not force
+      then Congr.join c (value v t)
+      else c in
+    Mm.add v c t
+
+  (* We do no implement any assume. *)
+  let meet_constr t _ = t
+  let meet_constr_list t _ = t
+
+  (* TODO: remove ?*)
+  let unify _ _ = assert false
+
+  let change_environment t l =
+    (* Remove values not in [l] *)
+    let t = Mm.filter (fun k _ -> List.mem k l) t in
+    List.fold_left (fun t v ->
+        if not (Mm.mem v t)
+        then Mm.add v Congr.top t
+        else t
+      ) t l
+      
+  let remove_vars t l = forget_list t l
+
+  let get_env t =
+    let l = List.map (fun x -> avar_of_mvar (fst x)) (Mm.bindings t) in
+    env_of_list l   
+
+  let to_box _t = assert false
+    (* let bman = BoxManager.man in    
+     * Abstract1.top bman (get_env t) *)
+    
+  let of_box _box = assert false
+    (* let vars = Environment.vars (Abstract1.env box)
+     *            |> fst
+     *            |> Array.to_list in
+     * make (List.map mvar_of_avar vars) *)
+
+  let print ?full:(_=false) fmt t =
+    let bindings =
+      List.filter (fun (x,t) ->
+          not (variables_ignore (avar_of_mvar x)) &&
+          not (Congr.is_top t)
+        ) (Mm.bindings t)
+    in
+    Format.fprintf fmt "@[<v 0>@[<hv 0>%a@]@;@]"
+      (pp_list
+         ~sep:(fun fmt () -> Format.fprintf fmt ";@ ")
+         (fun fmt (v,t) ->
+            Format.fprintf fmt "%a: %a" pp_mvar v Congr.print t))
+      bindings
+end
+
 
 
 (*******************)
@@ -2277,9 +2579,9 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
     (Mdom.for_all (fun d t -> PplDom.is_included t (Mdom.find d a'.ppl)) a.ppl)
 
   let is_bottom a =
-    assert ((Mdom.cardinal a.nrd) + (Mdom.cardinal a.nrd) <> 0);
+    assert ((Mdom.cardinal a.nrd) + (Mdom.cardinal a.ppl) <> 0);
     (Mdom.exists (fun _ t -> NonRel.is_bottom t) a.nrd)
-    && (Mdom.exists (fun _ t -> PplDom.is_bottom t) a.ppl)
+    || (Mdom.exists (fun _ t -> PplDom.is_bottom t) a.ppl)
 
   let bottom a =
     let f1 _ x = NonRel.bottom x
@@ -2390,9 +2692,7 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
           let vars,_ = PplDom.get_env a |> Environment.vars in
           Array.to_list vars @ l) a.ppl in
 
-    let env_vars = Array.of_list l
-    and empty_var_array = Array.make 0 (Var.of_string "") in
-    Environment.make env_vars empty_var_array
+    env_of_list l
 
 
   let to_box a =
@@ -2421,17 +2721,14 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
       let dvars = List.filter (fun v ->
           let mv = mvar_of_avar v in
           vdom mv shape.dom_st = dom) vars in
-      let dvars = Array.of_list dvars in
-      let empty_var_array = Array.make 0 (Var.of_string "") in
-      Environment.make dvars empty_var_array in
+      env_of_list dvars
+    in
 
     (* let denv dom =
      *   let dvars = Hashtbl.find_all log dom
      *               |> List.filter (fun x -> List.mem x vars)
      *               |> List.map Var.of_string
-     *               |> Array.of_list
-     *   and empty_var_array = Array.make 0 (Var.of_string "") in
-     *   Environment.make dvars empty_var_array in *)
+     *   env_of_list dvars *)
 
     let res = List.fold_left (fun a dom ->
         let penv = denv dom in
@@ -2775,9 +3072,6 @@ module type AbsDisjType = sig
 
   val remove_disj : t -> t
 
-  (* of_box uses an already existing disjunctive value to get its shape. *)
-  val of_box : Box.t Abstract1.t -> t -> t
-
   (* Adds a block of constraints for the disjunctive domain *)
   val new_cnstr_blck : t -> L.t -> t
 
@@ -2791,10 +3085,6 @@ module type AbsDisjType = sig
 
   (* Pop all constraints in the disjunctive domain *)
   val pop_all_blcks : t -> t
-
-  (* [dom_st_update a x info] updates the packing partition to prepare for
-     the assignment [x <- ...]. *)
-  val dom_st_update : t -> mvar -> minfo -> t
 end
 
 (*---------------------------------------------------------------*)
@@ -3634,6 +3924,136 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
         print_lmap lmap)
 end
 
+(*******************)
+(* Reduced Product *)
+(*******************)
+
+module type RProdParam = sig
+  module A : AbsDisjType
+  module B : AbsDisjType
+  val print : ?full:bool -> Format.formatter -> (A.t * B.t) -> unit
+  val reduce : (A.t * B.t) -> (A.t * B.t)
+end
+
+(* Asymmetric reduced product.   
+   Careful, to_box and of_box are only using the left abstract values. *)
+module ReducedProd (P : RProdParam) : AbsDisjType = struct  
+  module A = P.A
+  module B = P.B
+
+  type t = A.t * B.t
+  
+  let reduce = P.reduce
+  
+  let app  fa fb (a,b)           = reduce (fa a, fb b)
+  let app2 fa fb (a1,b1) (a2,b2) = reduce (fa a1 a2, fb b1 b2)
+  let appl fa fb l =
+    let la, lb = List.split l in
+    reduce (fa la, fb lb)
+    
+  let make vs = reduce (A.make vs, B.make vs)
+    
+  let meet      = app2 A.meet      B.meet
+  let meet_list = appl A.meet_list B.meet_list
+  
+  let join      = app2 A.join      B.join
+  let join_list = appl A.join_list B.join_list
+  
+  let widening c = app2 (A.widening c) (B.widening c)
+  
+  let forget_list t l =
+    app (fun x -> A.forget_list x l) (fun x -> B.forget_list x l) t
+
+  let is_bottom (a,b) = (A.is_bottom a) || (B.is_bottom b)
+
+  let is_included (a1,b1) (a2,b2) =
+    if is_bottom (a2,b2)
+    then is_bottom (a1,b1)
+    else A.is_included a1 a2 && B.is_included b1 b2
+      
+  let bottom = app A.bottom B.bottom
+  let top    = app A.top B.top
+  
+  let expand t v l = app (fun x -> A.expand x v l) (fun x -> B.expand x v l) t
+      
+  let fold t l = app (fun x -> A.fold x l) (fun x -> B.fold x l) t
+      
+  let bound_variable (a,b) v =
+    let i1, i2 = A.bound_variable a v, B.bound_variable b v in
+    interval_meet i1 i2
+    
+  let bound_texpr (a,b) e =
+    let i1, i2 = A.bound_texpr a e, B.bound_texpr b e in
+    interval_meet i1 i2
+  
+  let assign_expr ?force:(force=false) t v e =
+    app (fun x -> A.assign_expr ~force:force x v e)
+        (fun x -> B.assign_expr ~force:force x v e) t
+      
+  let meet_constr t c =
+    app (fun x -> A.meet_constr x c)
+        (fun x -> B.meet_constr x c) t
+  
+  let meet_constr_list t cs =
+    app (fun x -> A.meet_constr_list x cs)
+        (fun x -> B.meet_constr_list x cs) t
+  
+  let unify = app2 A.unify B.unify
+  
+  let change_environment t vs =
+    app (fun x -> A.change_environment x vs)
+        (fun x -> B.change_environment x vs) t
+     
+  let remove_vars t vs =
+    app (fun x -> A.remove_vars x vs)
+        (fun x -> B.remove_vars x vs) t
+  
+  let to_box (a,_b) = A.to_box a
+    (* Abstract1.meet BoxManager.man (A.to_box a) (B.to_box b) *)
+       
+  let of_box box (t,_) =
+    let a = A.of_box box t in
+    (a, B.make [dummy_mvar])
+
+  let get_env (a,b) = Environment.lce (A.get_env a) (B.get_env b)
+  
+  let print = P.print
+
+  let set_rel t v =
+    app (fun x -> A.set_rel x v)
+        (fun x -> B.set_rel x v) t
+  
+  let set_unrel t v =
+    app (fun x -> A.set_unrel x v)
+        (fun x -> B.set_unrel x v) t
+
+  let dom_st_update t v minfo =
+    app (fun x -> A.dom_st_update x v minfo)
+        (fun x -> B.dom_st_update x v minfo) t
+
+  let top_no_disj = app A.top_no_disj B.top_no_disj
+
+  let to_shape = app2 A.to_shape B.to_shape 
+
+  let remove_disj = app A.remove_disj B.remove_disj
+
+  (* Adds a block of constraints for the disjunctive domain *)
+  let new_cnstr_blck t l = 
+    app (fun x -> A.new_cnstr_blck x l)
+        (fun x -> B.new_cnstr_blck x l) t
+
+  let add_cnstr (a,b) ~meet c l =
+    let a1,a2 = A.add_cnstr a ~meet c l
+    and b1,b2 = B.add_cnstr b ~meet c l in
+    (a1,b1), (a2,b2)
+
+  (* Pop the top-most block of constraints in the disjunctive domain *)
+  let pop_cnstr_blck t l =
+    app (fun x -> A.pop_cnstr_blck x l)
+        (fun x -> B.pop_cnstr_blck x l) t
+
+  let pop_all_blcks = app A.pop_all_blcks B.pop_all_blcks
+end
 
 (***********************************)
 (* Numerical Domain With Profiling *)
@@ -3905,8 +4325,6 @@ module MakeAbsDisjProf (A : DisjWrap) : AbsDisjType = struct
 end
 
 
-
-
 (************************************)
 (* Simple Rewriting and Decompiling *)
 (************************************)
@@ -4011,6 +4429,30 @@ let rec rewrite bt = match bt with
   | BVar _ | BLeaf _ -> bt
 
 
+(*************************)
+(* Simple Domain Lifting *)
+(*************************)
+
+(* Lifts a non-relational domain without disjunctions. *)
+module LiftToDisj (A : AbsNumType) : AbsDisjType = struct
+  include A
+
+  let of_box t _ = A.of_box t
+    
+  let dom_st_update t _ _ = t
+  let set_rel t _ = t
+  let set_unrel t _ = t
+      
+  let top_no_disj t = t
+  let to_shape t _ = t
+  let remove_disj t = t
+  let new_cnstr_blck t _ = t
+  let add_cnstr t ~meet:_ _ _ = t, t
+  let pop_cnstr_blck t _ = t
+  let pop_all_blcks t = t
+end
+
+
 (*************************************************)
 (* Numerical Domain with Two Levels of Precision *)
 (*************************************************)
@@ -4034,13 +4476,29 @@ module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
 
   module VDW = (val vdw)
 
+  (* Numerical domain using boxes for non-relational variables, 
+     and polyhedra for relational variables *)
   module RProd =
     AbsNumProd (VDW) (AbsNumI (BoxManager) (PW)) (AbsNumI (PplManager) (PW))
 
+  (* Disjunctive domain built on top of the numerical domain. *)
   module RNum = AbsDisj (RProd)
 
+  (* Product of the disjunctive domain and of a congruence domain. *)
+  module RNumWithCongr = ReducedProd (struct
+      module A = RNum
+      module B = LiftToDisj (AbsNumCongr)
+
+      let print ?full:(full=false) fmt (a,b) =
+        Format.fprintf fmt "@[<v>%a* Congruences:@;%a@]"
+          (A.print ~full) a
+          (B.print ~full) b
+        
+      let reduce (a,b) = (a,b)
+    end)
+      
   module R = MakeAbsDisjProf (struct
-      module Num = RNum
+      module Num = RNumWithCongr
       let prefix = "R."
     end)
 
@@ -5388,13 +5846,13 @@ let rec combine3 l1 l2 l3 = match l1,l2,l3 with
 
 let rec add_offsets assigns = match assigns with
   | [] -> []
-  | (Mvalue (Avar v)) :: tail ->
+  | (Mvalue (Avar v)) :: tail when v.v_ty <> Bty (Prog.Bool) ->       
     (Mvalue (Avar v)) :: (MvarOffset v) :: add_offsets tail
   | u :: tail -> u :: add_offsets tail
 
 let rec add_offsets3 assigns = match assigns with
   | [] -> []
-  | (ty, Mvalue (Avar v),es) :: tail ->
+  | (ty, Mvalue (Avar v),es) :: tail when v.v_ty <> Bty (Prog.Bool) ->
     (ty, Mvalue (Avar v),es)
     :: (ty, MvarOffset v,es)
     :: add_offsets3 tail
