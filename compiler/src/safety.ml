@@ -1401,6 +1401,14 @@ module BoxManager : AprManager with type t = Box.t = struct
   let man = Box.manager_alloc ()
 end
 
+let top_box env = 
+  let bman = BoxManager.man in
+  Abstract1.top bman env
+
+let bottom_box env = 
+  let bman = BoxManager.man in
+  Abstract1.bottom bman env
+
 module OctManager : AprManager = struct
   type t = Oct.t
 
@@ -1846,14 +1854,6 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
     assert (Array.length vars <> 0);
     Abstract1.of_box bman env vars Abstract1.(box.interval_array)
         
-  let top_box env = 
-    let bman = BoxManager.man in
-    Abstract1.top bman env
-
-  let bottom_box env = 
-    let bman = BoxManager.man in
-    Abstract1.bottom bman env
-
   let to_box :  t -> Box.t Abstract1.t = fun a ->
     (* We do this because box1 does not behave correctly on empty env *)
     if Abstract1.is_top man a then 
@@ -1985,12 +1985,12 @@ module Congr = struct
       let a = Z.abs a in
       V (a, Z.erem b a)
 
-  let of_coeff (c : Coeff.t) =
+  let of_coeff (c : Coeff.t) = 
     let int = match c with
     | Coeff.Scalar s   -> scalar_to_int s
     | Coeff.Interval i -> interval_to_int i in
     match int with
-    | None -> bot
+    | None -> top
     | Some c -> V (Z.zero, Z.of_int c)
     
   let mem_v x (a,b) = 
@@ -2107,19 +2107,18 @@ module Congr = struct
 end
 
 module AbsNumCongr : AbsNumType = struct
-  (* Missing entries are [Bot] *)
+  (* Missing entries are [Top]. *)
   type t = Congr.t Mm.t
 
   let make vs =
-    assert (vs <> []);
-    List.fold_left (fun t m -> Mm.add m Congr.top t) Mm.empty vs
+    List.fold_left (fun t v -> Mm.add v Congr.top t) Mm.empty vs
 
-  let value v t = Mm.find_default Congr.bot v t
+  let value v t = Mm.find_default Congr.top v t
       
   let app2 f a b =
     Mm.merge (fun _ c c' ->
-        let c  = odfl Congr.bot c
-        and c' = odfl Congr.bot c' in
+        let c  = odfl Congr.top c
+        and c' = odfl Congr.top c' in
         Some (f c c')) a b
 
   let appl f l = match l with
@@ -2138,15 +2137,23 @@ module AbsNumCongr : AbsNumType = struct
 
   let is_included a a' =
     let am =
-      Mm.merge (fun _ x y' -> Some (odfl Congr.bot x,
-                                    odfl Congr.bot y'))
+      Mm.merge (fun _ x y' -> Some (odfl Congr.top x,
+                                    odfl Congr.top y'))
         a a' in
     Mm.for_all (fun _ (x,y) -> Congr.is_included x y) am
     
-  let is_bottom = Mm.exists (fun _ -> Congr.is_bottom)
+  let is_bottom t = Mm.exists (fun _ -> Congr.is_bottom) t 
+    (* if Mm.exists (fun _ -> Congr.is_bottom) t then begin
+     *   let k,v = Mm.choose (Mm.filter (fun _ v -> Congr.is_bottom v) t) in
+     *   Format.eprintf "FOUND: %a: %a@.@." pp_mvar k Congr.print v;
+     *   assert false end
+     * else false *)
       
-  let bottom t = Mm.map (fun _ -> Congr.bot) t
-  let top    t =
+  let bottom t =
+    assert (Mm.cardinal t <> 0);
+    Mm.map (fun _ -> Congr.bot) t
+      
+  let top t =
     assert (Mm.cardinal t <> 0);
     Mm.map (fun _ -> Congr.top) t
 
@@ -3936,7 +3943,7 @@ module type RProdParam = sig
 end
 
 (* Asymmetric reduced product.   
-   Careful, to_box and of_box are only using the left abstract values. *)
+   Careful, to_box, of_box are only using the left abstract values. *)
 module ReducedProd (P : RProdParam) : AbsDisjType = struct  
   module A = P.A
   module B = P.B
@@ -4007,15 +4014,15 @@ module ReducedProd (P : RProdParam) : AbsDisjType = struct
   let remove_vars t vs =
     app (fun x -> A.remove_vars x vs)
         (fun x -> B.remove_vars x vs) t
-  
-  let to_box (a,_b) = A.to_box a
-    (* Abstract1.meet BoxManager.man (A.to_box a) (B.to_box b) *)
-       
-  let of_box box (t,_) =
-    let a = A.of_box box t in
-    (a, B.make [dummy_mvar])
 
-  let get_env (a,b) = Environment.lce (A.get_env a) (B.get_env b)
+  let to_box (a,_) = A.to_box a
+
+  (* We put a top value for the right element *)
+  let of_box box (a,_) =
+    (A.of_box box a, B.make [dummy_mvar])
+
+  let get_env (a,b) = 
+    Environment.lce (A.get_env a) (B.get_env b)
   
   let print = P.print
 
@@ -4437,7 +4444,7 @@ let rec rewrite bt = match bt with
 module LiftToDisj (A : AbsNumType) : AbsDisjType = struct
   include A
 
-  let of_box t _ = A.of_box t
+  let of_box _t _ = assert false
     
   let dom_st_update t _ _ = t
   let set_rel t _ = t
