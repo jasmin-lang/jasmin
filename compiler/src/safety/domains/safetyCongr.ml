@@ -10,12 +10,26 @@ open SafetyInterfaces
 (* Numerical Domain: Congruence *)
 (********************************)
 
+let pp_z fmt z = Format.fprintf fmt "%s" (Z.to_string z)
+let pp_bool fmt b =
+  Format.fprintf fmt "%s" (if b then "true" else "false")
+  
+  
 (* Congruence lattice *)
 module Congr = struct
 
   (* Bot represents the empty set
      (a,b) represents aℤ + b, where a = 0 or (0 < a and 0 ≤ b < a). *) 
   type t = Bot | V of Z.t * Z.t
+
+  let print fmt = function
+    | Bot -> Format.fprintf fmt "⊥"
+    | V (a,b) when Z.equal a Z.zero -> 
+      Format.fprintf fmt "{%s}" (Z.to_string b)
+    | V (a,_) when Z.equal a Z.one -> 
+      Format.fprintf fmt "ℤ"
+    | V (a,b) -> 
+      Format.fprintf fmt "%s.ℤ + %s" (Z.to_string a) (Z.to_string b)         
 
   let top = V (Z.one, Z.zero)
   let bot = Bot
@@ -137,15 +151,6 @@ module Congr = struct
       let b = Mpqf.of_string (Z.to_string b) in
       Interval.of_mpqf b b
     | _ -> Interval.top
-
-  let print fmt = function
-    | Bot -> Format.fprintf fmt "⊥"
-    | V (a,b) when Z.equal a Z.zero -> 
-      Format.fprintf fmt "%s" (Z.to_string b)
-    | V (a,_) when Z.equal a Z.one -> 
-      Format.fprintf fmt "ℤ"
-    | V (a,b) -> 
-      Format.fprintf fmt "%s.ℤ + %s" (Z.to_string a) (Z.to_string b)         
 end
 
 module AbsNumCongr : AbsNumType = struct
@@ -296,7 +301,7 @@ module AbsNumCongr : AbsNumType = struct
       (pp_list
          ~sep:(fun fmt () -> Format.fprintf fmt ";@ ")
          (fun fmt (v,t) ->
-            Format.fprintf fmt "%a: %a" pp_mvar v Congr.print t))
+            Format.fprintf fmt "%a ∈ %a" pp_mvar v Congr.print t))
       bindings
 end
 
