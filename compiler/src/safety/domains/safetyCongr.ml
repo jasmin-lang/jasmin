@@ -91,7 +91,7 @@ module Congr = struct
       divides_z a' a && erem_z b a' = b'
 
   let is_bottom t = is_included t bot
-  let is_top t = is_included t top
+  let is_top t = is_included top t
 
   let bmap f = function
     | Bot -> Bot
