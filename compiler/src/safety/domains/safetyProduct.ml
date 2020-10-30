@@ -9,9 +9,8 @@ open SafetyExpr
 open SafetyConstr
 open SafetyInterfaces
     
-(*******************)
+(*------------------------------------------------------------*)
 (* Domains Product *)
-(*******************)
 
 type v_dom = Nrd of int | Ppl of int
 
@@ -778,9 +777,8 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
 end
 
 
-(*******************)
+(*------------------------------------------------------------*)
 (* Reduced Product *)
-(*******************)
 
 module type RProdParam = sig
   module A : AbsDisjType

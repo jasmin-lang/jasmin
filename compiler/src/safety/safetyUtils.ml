@@ -1,10 +1,9 @@
 open Prog
 open Apron
 
-module Config = SafetyConfig
-  
-let round_typ = Texpr1.Zero
-  
+module Config = SafetyConfig  
+
+(*---------------------------------------------------------------*)
 exception Aint_error of string
                
 (*------------------------------------------------------------*)
@@ -28,44 +27,51 @@ let () = debug (fun () ->
     Format.eprintf "Debug: record backtrace@.";
     Printexc.record_backtrace true)
 
-let ident = fun x -> x
-
+(*---------------------------------------------------------------*)
 (* Turn on printing of only the relational part *)
 let only_rel_print = ref false
 
 
-(***********************)
-(* Analyzer parameters *)
-(***********************)
-
-type analyzer_param = { relationals : string list option;
-                        pointers : string list option }
-
-
 (*------------------------------------------------------------*)
-let get_fun_def prog f = List.find_opt (fun x -> x.f_name = f) (snd prog)
+let ident = fun x -> x
 
 let oget = function
   | Some x -> x
   | None -> raise (Failure "Oget")
 
-let env_of_list l =
-  let vars = Array.of_list l 
-  and empty_var_array = Array.make 0 (Var.of_string "") in
-  Environment.make vars empty_var_array 
+let obind2 f x y = match x, y with
+  | Some u, Some v -> f u v
+  | _ -> None
 
-
-(*------------------------------------------------------------*)
 let rec assoc_up s f = function
   | [] -> raise Not_found
   | (a,b) :: t ->
     if a = s then (a, f b) :: t
     else (a,b) :: assoc_up s f t
 
+let rec combine3 l1 l2 l3 = match l1,l2,l3 with
+  | h1 :: t1, h2 :: t2, h3 :: t3 -> (h1,h2,h3) :: combine3 t1 t2 t3
+  | [], [], [] -> []
+  | _ -> raise (Invalid_argument "combine3")
 
-(*************)
+(*------------------------------------------------------------*)
+(* Analyzer parameters *)
+
+type analyzer_param = { relationals : string list option;
+                        pointers : string list option }
+
+(*------------------------------------------------------------*)
+let get_fun_def prog f = List.find_opt (fun x -> x.f_name = f) (snd prog)
+
+
+(*------------------------------------------------------------*)
+let env_of_list l =
+  let vars = Array.of_list l 
+  and empty_var_array = Array.make 0 (Var.of_string "") in
+  Environment.make vars empty_var_array 
+
+(*------------------------------------------------------------*)
 (* Mpq Utils *)
-(*************)
 
 (* Return 2^n *)
 let mpq_pow n =
@@ -78,10 +84,11 @@ let mpq_pow n =
 let mpq_pow_minus n y =
   Mpqf.sub (mpq_pow n |> Mpqf.of_mpq) (Mpqf.of_int y)
 
+let mpq_of_bigint z  = Mpq.init_set_str (B.to_string z) ~base:10
+let mpqf_of_bigint z = Mpqf.of_mpq (mpq_of_bigint z)
 
-(****************************)
+(*------------------------------------------------------------*)
 (* Coeff and Interval Utils *)
-(****************************)
 
 let scalar_to_int scal =
   let tent_i = match scal with
@@ -135,16 +142,6 @@ let interval_meet i1 i2 =
 
 
 (*---------------------------------------------------------------*)
-let swap_op2 op e1 e2 =
-  match op with
-  | E.Ogt   _ -> e2, e1
-  | E.Oge   _ -> e2, e1
-  | _         -> e1, e2
-
-let mpq_of_bigint z  = Mpq.init_set_str (B.to_string z) ~base:10
-let mpqf_of_bigint z = Mpqf.of_mpq (mpq_of_bigint z)
-
-(*---------------------------------------------------------------*)
 (* Fix-point computation *)
 let rec fpt f eq x =
   let x' = f x in
@@ -153,19 +150,8 @@ let rec fpt f eq x =
   else
     fpt f eq x'
 
-module Scmp = struct
-  type t = string
-  let compare = compare
-end
-
-module Ms = Map.Make(Scmp)
-
-
-(*******************)
+(*---------------------------------------------------------------*)
 (* Pretty Printers *)
-(*******************)
-
-let pp_apr_env ppf e = Environment.print ppf e
 
 let rec pp_list ?sep:(msep = Format.pp_print_space) pp_el fmt l = match l with
   | [] -> Format.fprintf fmt ""
@@ -179,5 +165,6 @@ let pp_opt pp_el fmt = function
 let pp_call_strategy fmt = function
   | Config.Call_Direct             -> Format.fprintf fmt "direct"
   | Config.Call_TopByCallSite      -> Format.fprintf fmt "top"
-  (* | Call_WideningByCallSite -> Format.fprintf fmt "widening" *)
+
+
 

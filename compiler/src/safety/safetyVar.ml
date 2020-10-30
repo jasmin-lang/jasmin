@@ -3,12 +3,8 @@ open Apron
 open Wsize
 open Utils
 
-module Config = SafetyConfig
-  
-(************************)
-(* Abstract Environment *)
-(************************)
-
+open SafetyUtils
+    
 (* Memory locations *)
 type mem_loc = MemLoc of ty gvar
 
@@ -27,6 +23,7 @@ type mvar =
   | MNumInv of L.t              (* Numerical Invariants *)
   | MmemRange of mem_loc        (* Memory location range *)
 
+(*---------------------------------------------------------------*)
 (* Must the variable [v] be handled as a weak variable. *)
 let weak_update v = 
   let weak_update_kind = function
@@ -51,6 +48,7 @@ let weak_update v =
   | MmemRange _ -> true
   | WTemp _ -> true
 
+(*---------------------------------------------------------------*)
 let string_of_mloc = function
   | MemLoc s -> s.v_name
 
@@ -72,10 +70,11 @@ let string_of_mvar = function
 
 let pp_mvar fmt v = Format.fprintf fmt "%s" (string_of_mvar v)
 
+(*---------------------------------------------------------------*)
 let dummy_mvar = Mvalue (Avar (V.mk "__absint_empty_env"
                                  Reg (Bty (U U8)) (L._dummy)))
 
-
+(*---------------------------------------------------------------*)
 let svariables_ignore vs =
   match String.split_on_char '_' vs with
   | [] -> assert false
@@ -89,6 +88,7 @@ let variables_ignore v =
   let vs = Var.to_string v in
   svariables_ignore vs
 
+(*---------------------------------------------------------------*)
 let arr_range v = match v.v_ty with
   | Arr (_,i) -> i
   | _ -> assert false
@@ -112,6 +112,7 @@ let ty_mvar = function
   | MNumInv _ -> Bty Int
   | MmemRange _ -> Bty Int
 
+(*---------------------------------------------------------------*)
 (* We log the result to be able to inverse it. *)
 let log_var = Hashtbl.create 16
     
@@ -131,6 +132,11 @@ let mvar_of_avar v =
   let s = Var.to_string v in
   mvar_of_svar s
 
+let mvar_of_var v = match v.v_ty with
+  | Bty _ -> Mvalue (Avar v)
+  | Arr _ -> Mvalue (Aarray v)
+
+(*---------------------------------------------------------------*)
 (* Blasts array elements and arrays. *)
 let u8_blast_at ~blast_arrays at = match at with
   | Aarray v ->
@@ -180,21 +186,6 @@ let rec expand_arr_exprs = function
       | _ -> Pvar v :: expand_arr_exprs t end
   | h :: t -> h :: expand_arr_exprs t
 
-type apr_env = Apron.Environment.t
-
-
-(*------------------------------------------------------------*)
-module Mmv = struct
-  type t = mvar
-
-  let compare v v' = Stdlib.compare (avar_of_mvar v) (avar_of_mvar v')
-  let equal v v' = avar_of_mvar v = avar_of_mvar v'
-end
-
-module Mm = Map.Make(Mmv)
-module Sm = Set.Make(Mmv)
-
-
 (*------------------------------------------------------------*)
 let is_var = function
   | Mvalue (Avar _) -> true
@@ -207,6 +198,18 @@ let is_offset = function
 let ty_gvar_of_mvar = function
   | Mvalue (Avar v) -> Some v
   | _ -> None
+
+(*------------------------------------------------------------*)
+module Mmv = struct
+  type t = mvar
+
+  let compare v v' = Stdlib.compare (avar_of_mvar v) (avar_of_mvar v')
+  let equal v v' = avar_of_mvar v = avar_of_mvar v'
+end
+
+module Mm = Map.Make(Mmv)
+module Sm = Set.Make(Mmv)
+
 
 
 (*********************)

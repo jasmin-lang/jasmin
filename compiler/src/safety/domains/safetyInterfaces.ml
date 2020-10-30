@@ -6,8 +6,6 @@ open SafetyVar
 open SafetyExpr 
 open SafetyConstr
 open SafetyPreanalysis
-
-module Config = SafetyConfig
   
 (*---------------------------------------------------------------*)
 module type ProgWrap = sig

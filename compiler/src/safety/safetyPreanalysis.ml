@@ -2,13 +2,9 @@ open Utils
 open Prog
 
 open SafetyUtils
-       
-module Config = SafetyConfig
 
-
-(*************************)
+(*---------------------------------------------------------------*)
 (* Unique Variable Names *)
-(*************************)
       
 (* Information attached to instructions. *)
 type minfo = { i_instr_number : int; }

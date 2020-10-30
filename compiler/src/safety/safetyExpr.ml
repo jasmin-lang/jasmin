@@ -4,12 +4,11 @@ open Wsize
     
 open SafetyVar
 open SafetyUtils
-       
 
-(******************)
+let round_typ = Texpr1.Zero
+
+(*---------------------------------------------------------------*)
 (* Texpr1 Wrapper *)
-(******************)
-
 
 module Mtexpr : sig
   type unop = Apron.Texpr0.unop
@@ -26,20 +25,20 @@ module Mtexpr : sig
   (* Careful, the environment should have already blasted array elements in
      U8 array elements. *)
   type t =  { mexpr : mexpr;
-              env : apr_env }
+              env   : Apron.Environment.t }
 
   val to_aexpr : t -> Texpr1.t
-  val to_linexpr : t -> apr_env -> Linexpr1.t option
+  val to_linexpr : t -> Apron.Environment.t -> Linexpr1.t option
 
-  val cst : apr_env -> Coeff.t -> t
-  val var : apr_env -> mvar -> t
+  val cst : Apron.Environment.t -> Coeff.t -> t
+  val var : Apron.Environment.t -> mvar -> t
   val unop : unop -> t -> t
   val binop : binop -> t -> t -> t
 
   val get_var_mexpr : mexpr -> mvar list
   val contains_mod : mexpr -> bool
 
-  val extend_environment : t -> apr_env -> t
+  val extend_environment : t -> Apron.Environment.t -> t
 
   val weak_cp : mvar -> int -> mvar
   val weak_transf : int Mm.t -> mexpr -> int Mm.t * mexpr
@@ -64,7 +63,7 @@ end = struct
     | Mbinop of binop * mexpr * mexpr * typ * round
 
   type t = { mexpr : mexpr;
-             env : apr_env } 
+             env   : Apron.Environment.t } 
 
   let rec e_aux = function
     | Mcst c -> Texpr1.Cst c
@@ -209,7 +208,9 @@ end = struct
     if cmp = -1 || cmp = 0 then
       { t with env = apr_env }
     else begin
-      Format.eprintf "@[%a@;%a@]@." pp_apr_env t.env pp_apr_env apr_env;
+      Format.eprintf "@[%a@;%a@]@."
+        (fun x -> Apron.Environment.print x) t.env
+        (fun x -> Apron.Environment.print x) apr_env;
       raise (Aint_error "The environment is not compatible") end
 
   let rec equal_mexpr_aux t t' = match t, t' with

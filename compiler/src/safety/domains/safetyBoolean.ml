@@ -13,9 +13,9 @@ open SafetyProduct
 open SafetyCongr
 open SafetyProf
 
-(*****************************************)
+
+(*------------------------------------------------------------*)
 (* Maps with Equivalence Classes of Keys *)
-(*****************************************)
 
 module type Ordered = sig
   type t
@@ -202,13 +202,17 @@ module MakeEqMap (K : Ordered) : EqMap with type key = K.t = struct
     { ktoc = mk; ctov = mr; _cpt = cpt }
 end
 
+(* -------------------------------------------------------------------- *)
+module Scmp = struct 
+  type t = string
+  let compare = compare 
+end
+
 module EMs = MakeEqMap(Scmp)
 
 
-
-(*************************************************)
+(*------------------------------------------------------------*)
 (* Numerical Domain with Two Levels of Precision *)
-(*************************************************)
 
 module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
 
@@ -258,9 +262,8 @@ module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
 end
 
 
-(************************************************)
+(*------------------------------------------------------------*)
 (* Abstraction of numerical and boolean values. *)
-(************************************************)
 
 (* Add boolean variable abstractions and keep track of initialized variables 
    and points-to information.

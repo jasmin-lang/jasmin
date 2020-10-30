@@ -16,7 +16,7 @@ module Mtcons : sig
   val make : Mtexpr.t -> typ -> t
 
   val to_atcons : t -> Tcons1.t
-  val to_lincons : t -> apr_env -> Lincons1.t option
+  val to_lincons : t -> Apron.Environment.t -> Lincons1.t option
 
   val get_expr : t -> Mtexpr.t
   val get_typ : t -> typ

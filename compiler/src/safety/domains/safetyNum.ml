@@ -3,8 +3,6 @@ open Prog
 open Apron
 open Wsize
 
-module Config = SafetyConfig
-
 open SafetyUtils
 open SafetyVar
 open SafetyExpr 
@@ -12,10 +10,8 @@ open SafetyConstr
 open SafetyInterfaces
 
 
-
-(**********************)
+(*------------------------------------------------------------*)
 (* Generic Thresholds *)
-(**********************)
 
 let int_thresholds =
   (* For unsigned *)
@@ -102,9 +98,8 @@ let thresholds_param env param =
     ) [] vars
 
 
-(************************************)
+(*------------------------------------------------------------*)
 (* Numerical Domain Pretty Printing *)
-(************************************)
 
 module type AprManager = sig
   type t
@@ -234,9 +229,8 @@ end = struct
 end
 
 
-(*******************)
+(*------------------------------------------------------------*)
 (* Abstract Values *)
-(*******************)
 
 module BoxManager : AprManager with type t = Box.t = struct
   type t = Box.t
@@ -265,9 +259,8 @@ module PplManager : AprManager = struct
 end
 
 
-(******************************************)
+(*------------------------------------------------------------*)
 (* Numerical Domains: Boxes and Polyhedra *)
-(******************************************)
 
 (* Polyhedra or boxes abstract domain. *)
 module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct

@@ -1,9 +1,8 @@
 open SafetyUtils
 open SafetyInterfaces
 
-(*************)
+(*------------------------------------------------------------*)
 (* Profiling *)
-(*************)
 
 module Prof : sig
   val record : string -> unit
@@ -36,9 +35,8 @@ end = struct
           else if f > f' then -1 else 1) !lrec)
 end
 
-(***********************************)
+(*------------------------------------------------------------*)
 (* Numerical Domain With Profiling *)
-(***********************************)
 
 module type NumWrap = sig
   val prefix : string

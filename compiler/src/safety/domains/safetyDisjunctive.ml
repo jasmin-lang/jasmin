@@ -10,9 +10,8 @@ open SafetyInterfaces
 open SafetyNum
 
 
-(*************************)
+(*------------------------------------------------------------*)
 (* Partition Tree Domain *)
-(*************************)
 
 type cnstr = { mtcons : Mtcons.t; 
                cpt_uniq : int;
@@ -656,9 +655,8 @@ module AbsDisj (A : AbsNumProdT) : AbsDisjType = struct
 end
 
 
-(*************************)
+(*------------------------------------------------------------*)
 (* Simple Domain Lifting *)
-(*************************)
 
 (* Lifts a non-relational domain without disjunctions. *)
 module LiftToDisj (A : AbsNumType) : AbsDisjType = struct
