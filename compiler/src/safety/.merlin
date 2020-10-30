@@ -1,0 +1,15 @@
+S ..
+B ../../_build/src
+B ../../_build/src/safety
+B ../../_build/src/safety/domains
+B ../../_build/CIL
+
+PKG batteries
+PKG menhirLib
+PKG zarith
+PKG apron
+PKG ppl
+PKG yojson
+
+FLG -rectypes
+FLG -w Y -w Z -w -23 -w +28 -w +33 -w -40 -w -58
