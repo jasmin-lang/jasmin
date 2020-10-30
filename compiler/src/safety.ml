@@ -857,12 +857,20 @@ let coeff_add c c' = match Coeff.reduce c, Coeff.reduce c' with
                         (scalar_add i.sup i'.sup))
     | _ -> assert false
 
-let interval_meet i1 i2 =
+let interval_join i1 i2 =
   let inf1, inf2 = i1.Interval.inf, i2.Interval.inf in
   let inf = if Scalar.cmp inf1 inf2 < 0 then inf1 else inf2 in
   
   let sup1, sup2 = i1.Interval.sup, i2.Interval.sup in
   let sup = if Scalar.cmp sup1 sup2 < 0 then sup2 else sup1 in
+  Interval.of_infsup inf sup
+
+let interval_meet i1 i2 =
+  let inf1, inf2 = i1.Interval.inf, i2.Interval.inf in
+  let inf = if Scalar.cmp inf1 inf2 < 0 then inf2 else inf1 in
+  
+  let sup1, sup2 = i1.Interval.sup, i2.Interval.sup in
+  let sup = if Scalar.cmp sup1 sup2 < 0 then sup1 else sup2 in
   Interval.of_infsup inf sup
   
 (******************)
