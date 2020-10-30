@@ -6091,7 +6091,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     if linexpr_overflow abs e sign ws then
       let () = debug (fun () ->
           Format.eprintf "@[<hv 0>Warning: (sub-)expression@ @[%a@]@ \
-                          overflowed U%d (as %sx)@]@."
+                          overflowed U%d (as %s)@]@."
             Mtexpr.print_mexpr e.Mtexpr.mexpr
             ws
             (string_of_sign sign)) in
