@@ -1,5 +1,6 @@
 open Utils
 open Apron
+open Wsize
     
 open SafetyUtils
 open SafetyPreanalysis
@@ -210,6 +211,36 @@ end
 
 module EMs = MakeEqMap(Scmp)
 
+(*------------------------------------------------------------*)
+let ws_of_int i = match i with
+  | 8   -> U8
+  | 16  -> U16
+  | 32  -> U32
+  | 64  -> U64
+  | 128 -> U128
+  | 256 -> U256
+  | _ -> assert false
+
+let ws_meet ws1 ws2 = 
+  min (Prog.int_of_ws ws1) (Prog.int_of_ws ws2)
+  |> ws_of_int
+    
+let align_meet t t' =
+  let f ws1 ws2 = match ws1, ws2 with
+  | None, _ | _, None -> None
+  | Some ws1, Some ws2 -> Some (ws_meet ws1 ws2) in
+  Mml.merge (fun _ -> f) t t'
+
+let ws_join ws1 ws2 = 
+  max (Prog.int_of_ws ws1) (Prog.int_of_ws ws2)
+  |> ws_of_int
+
+let align_join t t' =
+  let f ws1 ws2 = match ws1, ws2 with
+    | None, ws | ws, None -> ws
+    | Some ws1, Some ws2 -> Some (ws_join ws1 ws2) in
+  Mml.merge (fun _ -> f) t t'
+
 
 (*------------------------------------------------------------*)
 (* Numerical Domain with Two Levels of Precision *)
@@ -237,9 +268,12 @@ module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
       module B = LiftToDisj (AbsNumCongr)
 
       let print ?full:(full=false) fmt (a,b) =
-        Format.fprintf fmt "@[<v>%a* Congruences:@;%a@]"
-          (A.print ~full) a
-          (B.print ~full) b
+        if !only_rel_print
+        then A.print ~full fmt a
+        else
+          Format.fprintf fmt "@[<hv>%a* Congruences:@;%a@]"
+            (A.print ~full) a
+            (B.print ~full) b
         
       let reduce (a,b) = (a,b)
     end)
@@ -265,20 +299,25 @@ end
 (*------------------------------------------------------------*)
 (* Abstraction of numerical and boolean values. *)
 
-(* Add boolean variable abstractions and keep track of initialized variables 
-   and points-to information.
+(* Add boolean variable abstractions and keep track initialized variables,
+   points-to information and alignment of input pointers.
    The boolean abstraction use a non-relational abstract domain. *)
 module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
   : AbsNumBoolType = struct
 
-  (* <Ms.find s init> is an over-approximation of the program state where s
-     is *not* initialized.
-     Remark: we lazily populate init and bool*)
-  type t = { bool : AbsNum.NR.t Mbv.t;
-             init : AbsNum.NR.t EMs.t; 
-             num : AbsNum.R.t;
+  (* <Ms.find s init> is an over-approximation of the program state
+     where s is *not* initialized.
+     - An entry [(m,Some ws)] in the [alignment] field means that the
+       input pointer [m] must be aligned for [ws].
+     - No entry for [m] in the [alignment] field means no alignment
+       constraint on [m].
+     - Remark: we lazily populate init and bool. *)
+  type t = { bool      : AbsNum.NR.t Mbv.t;
+             init      : AbsNum.NR.t EMs.t; 
+             num       : AbsNum.R.t;
              points_to : Pt.t;
-             sym : Sym.t; }
+             sym       : Sym.t;
+             alignment : wsize Mml.t; }
 
   module Mbv2 = Map2(Mbv)
 
@@ -298,22 +337,24 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
         | Some _ -> x) t'.init t.init in
     ({ t with init = eb }, { t' with init = eb' })
 
-  let apply f df fpt fsym t = { bool = Mbv.map df t.bool;
-                                init = EMs.map df t.init;
-                                num = f t.num;
-                                points_to = fpt t.points_to;
-                                sym = fsym t.sym; }
+  let apply f df fpt fsym fal t = { bool      = Mbv.map df t.bool;
+                                    init      = EMs.map df t.init;
+                                    num       = f t.num;
+                                    points_to = fpt t.points_to;
+                                    sym       = fsym t.sym;
+                                    alignment = fal t.alignment; }
 
   (* Since init and bool are lazily populated, we merge the domains before 
      applying f *)
-  let apply2 f df fpt fsym t t' =
+  let apply2 f df fpt fsym fal t t' =
     let t, t' = merge_init_dom t t' in
     let t, t' = merge_bool_dom t t' in
-    { bool = Mbv2.map2 df t.bool t'.bool;
-      init = EMs.map2 df t.init t'.init;
-      num = f t.num t'.num;
+    { bool      = Mbv2.map2 df t.bool t'.bool;
+      init      = EMs.map2 df t.init t'.init;
+      num       = f t.num t'.num;
       points_to = fpt t.points_to t'.points_to;
-      sym = fsym t.sym t'.sym; }
+      sym       = fsym t.sym t'.sym;
+      alignment = fal t.alignment t'.alignment; }
 
   (* [for_all2 f a b b_dfl]
      Iters over the first map *)
@@ -343,11 +384,12 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
 
     let bmap = List.fold_left (fun bmap bv ->
         Mbv.add bv dabs bmap) Mbv.empty b_vars in
-    { bool = bmap;
-      init = EMs.empty;
-      num = abs;
+    { bool      = bmap;
+      init      = EMs.empty;
+      num       = abs;
       points_to = Pt.make mls;
-      sym = Sym.make (); }
+      sym       = Sym.make ();
+      alignment = Mml.empty;}
 
   let unify_map : AbsNum.NR.t Mbv.t -> AbsNum.NR.t Mbv.t -> AbsNum.NR.t Mbv.t =
     fun b b' ->
@@ -369,30 +411,35 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
           | None -> y
           | Some _ -> x) b' b in
       EMs.map2 AbsNum.NR.unify eb eb'
-
-  let meet : t -> t -> t = fun t t' ->
-    let t,t' = merge_bool_dom t t' in
-    { bool = Mbv2.map2 AbsNum.NR.meet t.bool t'.bool;
-      init = eunify_map t.init t'.init;
-      num = AbsNum.R.meet t.num t'.num;
+  
+  let meet ~join_align t t' =
+    let t,t'    = merge_bool_dom t t' in
+    { bool      = Mbv2.map2 AbsNum.NR.meet t.bool t'.bool;
+      init      = eunify_map t.init t'.init;
+      num       = AbsNum.R.meet t.num t'.num;
       points_to = Pt.meet t.points_to t'.points_to;
-      sym = Sym.meet t.sym t'.sym; }
+      sym       = Sym.meet t.sym t'.sym;
+      alignment =
+        if join_align
+        then align_join t.alignment t'.alignment
+        else align_meet t.alignment t'.alignment; }
 
   let join t t' =
     if AbsNum.R.is_bottom t.num       then t'
     else if AbsNum.R.is_bottom t'.num then t
-    else apply2 AbsNum.R.join AbsNum.NR.join Pt.join Sym.join t t'
+    else apply2 AbsNum.R.join AbsNum.NR.join Pt.join Sym.join align_join t t'
 
   let widening : Mtcons.t option -> t -> t -> t = fun oc ->
-    apply2 (AbsNum.R.widening oc) (AbsNum.NR.widening oc)
-      Pt.widening Sym.widening
+    apply2
+      (AbsNum.R.widening oc) (AbsNum.NR.widening oc)
+      Pt.widening Sym.widening align_join
 
   let forget_list : t -> mvar list -> t = fun t l ->
     let f x = AbsNum.R.forget_list x l
     and df x = AbsNum.NR.forget_list x l
     and f_pts x = Pt.forget_list x l
     and fsym x = Sym.forget_list x l in
-    apply f df f_pts fsym t
+    apply f df f_pts fsym ident t
 
   let forget_bvar : t -> mvar -> t  = fun t bv ->
     let dnum = AbsNum.downgrade t.num in
@@ -456,13 +503,14 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     | Some c -> abs_eval_btcons t c
 
   (* Assign an expression given by a list of constrained expressions.
-     We do not touch init and points_to there, this has to be done by manualy
-     by the caller.
+     We do not touch init, points_to and alignment there, this has to
+     be done by manualy by the caller.  
      We unpopulate init to be faster. This is sound if the evaluation of an
      expression neither modifies init not depend on it. *)
   let assign_sexpr : ?force:bool -> t -> mvar -> minfo option -> s_expr -> t =
     fun ?force:(force=false) t v info s_expr ->
-      let s_init = t.init in
+      let s_init  = t.init 
+      and s_align = t.alignment in
       let points_to_init = t.points_to in
       let t = { t with init = EMs.empty } in
       
@@ -490,11 +538,11 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
                 | Some c ->
                   let dc = AbsNum.downgrade c in
                   apply (AbsNum.R.meet c) (AbsNum.NR.meet dc)
-                    ident ident t in
+                    ident ident ident t in
               apply
                 (fun x -> AbsNum.R.assign_expr ~force:force x v e)
                 (fun x -> AbsNum.NR.assign_expr ~force:force x v e)
-                ident ident t'
+                ident ident ident t'
 
             | None ->
               let t' = match constr with
@@ -502,11 +550,11 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
                 | Some c ->
                   let dc = AbsNum.downgrade c in
                   apply (AbsNum.R.meet c) (AbsNum.NR.meet dc)
-                    ident ident t in
+                    ident ident ident t in
               apply
                 (fun x -> AbsNum.R.forget_list x [v])
                 (fun x -> AbsNum.NR.forget_list x [v])
-                ident ident t'              
+                ident ident ident t'              
           ) 
           constr_expr_list in
 
@@ -527,17 +575,19 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
         | [_, Some e] -> Sym.assign_expr ~force:force t.sym v e
         | _ -> Sym.forget_list t.sym [v] in
       
-      { bool = join_map b_list;
-        init = s_init;
-        num = AbsNum.R.join_list n_list;
+      { bool      = join_map b_list;
+        init      = s_init;
+        num       = AbsNum.R.join_list n_list;
         points_to = points_to_init;
-        sym = sym; }
+        sym       = sym;
+        alignment = s_align; }
 
   (* Assign a boolean expression.
      As we did in assign_sexpr, we unpopulate init *)
   let assign_bexpr t vb bexpr =
     let bexpr = Sym.subst_btcons t.sym bexpr in    
-    let s_init = t.init in
+    let s_init  = t.init
+    and s_align = t.alignment in
     let points_to_init = t.points_to in
 
     let t = { t with init = EMs.empty } in
@@ -551,11 +601,12 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
 
     let sym = Sym.assign_bexpr t.sym vb bexpr in
 
-    { bool = new_b;
-      init = s_init;
-      num = t.num;
+    { bool      = new_b;
+      init      = s_init;
+      num       = t.num;
       points_to = points_to_init;
-      sym = sym; }
+      sym       = sym;
+      alignment  = s_align; }
 
   let var_points_to t v = Pt.var_points_to t.points_to v
 
@@ -571,7 +622,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     let cn = abs_eval_btcons t c in
     let dcn = AbsNum.downgrade cn in
 
-    apply (AbsNum.R.meet cn) (AbsNum.NR.meet dcn) ident ident t
+    apply (AbsNum.R.meet cn) (AbsNum.NR.meet dcn) ident ident ident t
 
   let change_environment : t -> mvar list -> t = fun t l ->
     let l = u8_blast_vars ~blast_arrays:true l in
@@ -585,7 +636,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     let f x = AbsNum.R.change_environment x l
     and df x = AbsNum.NR.change_environment x l
     and fsym x = Sym.change_environment x l in
-    apply f df ident fsym { t with bool = b; init = init }
+    apply f df ident fsym ident { t with bool = b; init = init }
 
   let remove_vars : t -> mvar list -> t = fun t l ->
     let l = u8_blast_vars ~blast_arrays:true l in
@@ -600,16 +651,17 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     and df x = AbsNum.NR.remove_vars x l
     and ptf x = Pt.forget_list x l
     and fsym x = Sym.forget_list x l in
-    apply f df ptf fsym { t with bool = b; init = init }
+    apply f df ptf fsym ident { t with bool = b; init = init }
 
   let top_ni : t -> t = fun t ->
     let top = AbsNum.R.top_no_disj t.num in
     let bmap = Mbv.map (fun v -> AbsNum.NR.top v) t.bool in
-    { bool = bmap;
-      init = EMs.empty;
-      num = top;
-      points_to = Pt.make [];
-      sym = Sym.make (); }
+    { bool      = bmap;
+      init      = EMs.empty;
+      num       = top;
+      points_to = Pt.make [];      
+      sym       = Sym.make ();
+      alignment = assert false; } (* TODO *)
 
   let to_shape t shp =
     { t with num = AbsNum.R.to_shape t.num shp.num }
@@ -655,6 +707,18 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
 
     List.for_all check vats
 
+  let base_align t m ws =
+    let ws_old = Mml.find_default ws m t.alignment in
+    (* we add a new constraint, hence this is a join. *)
+    let ws_new = ws_join ws ws_old in 
+    { t with alignment = Mml.add m ws_new t.alignment; }
+
+  let check_align t e ws =
+    (* e = 0 (ws/8) *)
+    let align_cnstr =
+      Mtcons.make e (Tcons1.EQMOD (Scalar.of_int (Prog.size_of_ws ws))) in
+    AbsNum.R.sat_constr t.num align_cnstr    
+    
   let get_env : t -> Environment.t = fun t -> AbsNum.R.get_env t.num
 
   let print_init fmt t = match Config.sc_is_init_no_print () with
@@ -694,6 +758,18 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
         Format.fprintf fmt "@]@;>" 
       end in
 
+    let print_alignment fmt =
+      if Mml.is_empty t.alignment then ()
+      else begin
+        Format.fprintf fmt "@[<hv 2>* Alignment:@;";
+        Mml.iter (fun (MemLoc v) wsize ->
+            Format.fprintf fmt "@[<h>%a %d;@]@;"
+              (Printer.pp_var ~debug:false) v (Prog.int_of_ws wsize);
+          ) t.alignment;
+        Format.fprintf fmt "@]"
+      end
+    in
+
     let bool_size = Mbv.cardinal t.bool
     and init_size = EMs.csize t.init in
     let bool_nr_vars =  
@@ -709,15 +785,17 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
         bool_size init_size bool_nr_vars in
 
     if !only_rel_print then
-      Format.fprintf fmt "@[<v 0>%a@]"
+      Format.fprintf fmt "@[<v 0>%a@;%t@]"
         (AbsNum.R.print ~full:full) t.num
+        print_alignment
     else
-      Format.fprintf fmt "@[<v 0>@[<v 0>%a@]%a@;%t@;%t%t@]@;"
+      Format.fprintf fmt "@[<v 0>@[<v 0>%a@]%a@;%t@;%t%t%t@]@;"
         (AbsNum.R.print ~full:full) t.num
         Pt.print t.points_to
         print_bool_nums
         print_bool
         print_init
+        print_alignment
 
   let new_cnstr_blck t l = { t with num = AbsNum.R.new_cnstr_blck t.num l }
 

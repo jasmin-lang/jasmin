@@ -210,6 +210,17 @@ end
 module Mm = Map.Make(Mmv)
 module Sm = Set.Make(Mmv)
 
+(*------------------------------------------------------------*)
+module Mmlv = struct
+  type t = mem_loc
+
+  let compare (MemLoc v) (MemLoc v') = Prog.V.compare v v'
+  let equal   (MemLoc v) (MemLoc v') = Prog.V.equal v v'
+end
+
+module Mml = Map.Make(Mmlv)
+module Sml = Set.Make(Mmlv)
+
 
 
 (*********************)

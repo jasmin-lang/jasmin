@@ -68,6 +68,10 @@ module Sm : Set.S with type elt = mvar
 module Mm : Map.S with type key = mvar 
 
 (*---------------------------------------------------------------*)
+module Sml : Set.S with type elt = mem_loc
+module Mml : Map.S with type key = mem_loc
+
+(*---------------------------------------------------------------*)
 module Bvar : sig
   type t
   val compare  : t -> t -> int

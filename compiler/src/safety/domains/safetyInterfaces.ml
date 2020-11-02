@@ -1,4 +1,5 @@
 open Prog
+open Wsize
 open Apron
 
 open SafetyUtils
@@ -52,6 +53,8 @@ module type AbsNumType = sig
 
   val assign_expr : ?force:bool -> t -> mvar -> Mtexpr.t -> t
 
+  val sat_constr : t -> Mtcons.t -> bool
+    
   val meet_constr : t -> Mtcons.t -> t
   val meet_constr_list : t -> Mtcons.t list -> t
 
@@ -205,15 +208,15 @@ end
 (* Abstraction of numerical and boolean values. *)
 (************************************************)
 
-(* Extends a numerical domain to include boolean variable abstractions and
-   keep track of initialized variables and points-to information *)
+(* Add boolean variable abstractions and keep track initialized variables,
+   points-to information and alignment of input pointers. *)
 module type AbsNumBoolType = sig
   type t
 
   (* Make a top value defined on the given variables *)
   val make : mvar list -> mem_loc list -> t
 
-  val meet : t -> t -> t
+  val meet : join_align:bool -> t -> t -> t    
   val join : t -> t -> t
   val widening : Mtcons.t option -> t -> t -> t
 
@@ -270,6 +273,11 @@ module type AbsNumBoolType = sig
   val is_init    : t -> atype -> t
   val copy_init  : t -> mvar -> mvar -> t
   val check_init : t -> atype -> bool
+
+  (* [base_align t m ws] state that [m] must be aligned for [ws]. *)
+  val base_align : t -> mem_loc -> wsize -> t
+  (* [check_align t e ws] checks that [e] is aligned for [ws]. *)
+  val check_align : t -> Mtexpr.t -> wsize -> bool
 
   (* Apron environment. This does not include the boolean variables, nor the
      initialization variables. *)

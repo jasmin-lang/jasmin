@@ -99,7 +99,8 @@ type safe_cond =
   | Initv of var
   | Initai of var * wsize * expr
   | InBound of int * wsize * expr
-  | Valid of wsize * ty gvar * expr
+  | Valid of wsize * ty gvar * expr (* allocated memory region *)
+  | Aligned of wsize * ty gvar * expr (* aligned pointer *)
   | NotZero of wsize * expr
   | Termination
 
@@ -118,6 +119,8 @@ let pp_safety_cond fmt = function
       pp_expr e (int_of_ws ws) n
   | Valid (sz, x, e) ->
     Format.fprintf fmt "is_valid %s + %a W%a" x.v_name pp_expr e pp_ws sz
+  | Aligned (sz, x, e) ->
+    Format.fprintf fmt "aligned %s + %a W%a" x.v_name pp_expr e pp_ws sz
   | Termination -> Format.fprintf fmt "termination"
 
 type violation_loc =
@@ -199,7 +202,10 @@ let rec safe_e_rec safe = function
   | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ -> safe
   | Pvar x -> safe_var x @ safe
 
-  | Pload (ws,x,e) -> Valid (ws, L.unloc x, e) :: safe_e_rec safe e
+  | Pload (ws,x,e) ->
+    Valid (ws, L.unloc x, e) ::
+    Aligned (ws, L.unloc x, e) ::
+    safe_e_rec safe e
   | Pget (ws, x, e) -> (in_bound x ws e) @ (init_get x ws e) @ safe
   | Papp1 (_, e) -> safe_e_rec safe e
   | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
@@ -216,7 +222,10 @@ let safe_es = List.fold_left safe_e_rec []
 
 let safe_lval = function
   | Lnone _ | Lvar _ -> []
-  | Lmem(ws, x, e) -> Valid (ws, L.unloc x, e) :: safe_e_rec [] e
+  | Lmem(ws, x, e) ->
+    Valid (ws, L.unloc x, e) ::
+    Aligned (ws, L.unloc x, e) ::
+    safe_e_rec [] e
   | Laset(ws,x,e) -> (in_bound x ws e) @ safe_e_rec [] e
 
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
@@ -502,15 +511,19 @@ end = struct
         | Some c -> 
           AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
 
-    | Valid _ | Termination -> true (* These are checked elsewhere *)
+    | Aligned _ | Valid _ | Termination -> true (* These are checked elsewhere *)
 
-  (* Update abs with the abstract memory range for memory accesses. *)
+
+  (* Update abs with the abstract memory range and alignment
+     constraint for memory accesses. *)
   let mem_safety_apply (abs, violations, s_effect) = function
     | Valid (ws,x,e) as pv ->
       begin match AbsDom.var_points_to abs (mvar_of_var x) with
         | Ptrs pts ->
           if List.length pts = 1 then
             let pt = List.hd pts in
+
+            (* We update the accessed memory range in [abs]. *)
             let x_o = Mtexpr.var (AbsDom.get_env abs) (MvarOffset x) in
             let lin_e = AbsExpr.linearize_wexpr abs e in
             let c_ws =
@@ -520,10 +533,33 @@ end = struct
             let ws_plus_e = Mtexpr.binop Texpr1.Add c_ws lin_e in
             let sexpr = Mtexpr.binop Texpr1.Add x_o ws_plus_e
                         |> sexpr_from_simple_expr in
-
-            ( AbsDom.assign_sexpr abs (MmemRange pt) None sexpr,
+            let abs = AbsDom.assign_sexpr abs (MmemRange pt) None sexpr in
+            
+            ( abs,
               violations,
               if List.mem pt s_effect then s_effect else pt :: s_effect)
+          else (abs, pv :: violations, s_effect)
+        | TopPtr -> (abs, pv :: violations, s_effect) end
+
+    | Aligned (ws,x,e) as pv ->
+      begin match AbsDom.var_points_to abs (mvar_of_var x) with
+        | Ptrs pts ->
+          if List.length pts = 1 then
+            let pt = List.hd pts in
+
+            (* We update the base alignment constraints. *)
+            let abs = AbsDom.base_align abs pt ws in
+
+            (* And we check that the offset is correctly aligned. *)
+            let x_o = Mtexpr.var (AbsDom.get_env abs) (MvarOffset x) in
+            let lin_e = AbsExpr.linearize_wexpr abs e in            
+            let o_plus_e = Mtexpr.binop Texpr1.Add x_o lin_e in
+            let violations =
+              if AbsDom.check_align abs o_plus_e ws
+              then violations
+              else pv :: violations in
+
+            ( abs, violations, s_effect)
           else (abs, pv :: violations, s_effect)
         | TopPtr -> (abs, pv :: violations, s_effect) end
 
@@ -752,7 +788,10 @@ end = struct
           fname.fn_name
           (pp_list pp_mvar) (List.map (fun x -> MmemRange x) fstate.s_effects));
 
-    let state = { abs = AbsDom.meet state.abs fstate.abs;
+    (* We join the alignment constraints, as we want the union of
+       previous and new constraints. *)
+    let abs = AbsDom.meet ~join_align:true state.abs fstate.abs in
+    let state = { abs = abs;
                   it = fstate.it;
                   env = state.env;
                   prog = state.prog;
@@ -1366,7 +1405,7 @@ end = struct
                              abs_r)
 
   let print_return ginstr fabs fname =
-    Format.eprintf "@[<v>@[<v>%a@]Returning %s (called line %a):@;@]%!"
+    Format.eprintf "@[<v>@[<v>%a@]@;Returning %s (called line %a):@;@]%!"
       (AbsDom.print ~full:true) fabs
       fname
       L.pp_sloc (fst ginstr.i_loc)

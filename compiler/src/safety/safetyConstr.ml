@@ -27,6 +27,7 @@ module Mtcons : sig
   val print : Format.formatter -> t -> unit
   val print_mexpr : Format.formatter -> t -> unit
 end = struct
+  (* EQ | SUPEQ | SUP | DISEQ | EQMOD of Apron.Scalar.t *)
   type typ = Apron.Lincons0.typ
 
   type t = { expr : Mtexpr.t;

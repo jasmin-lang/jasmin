@@ -152,6 +152,13 @@ module MakeAbsNumProf (A : NumWrap) : AbsNumType with type t = A.Num.t = struct
     let () = call "meet_constr" (Sys.time () -. t) in
     r
 
+  let () = record "sat_constr"
+  let sat_constr x y =
+    let t = Sys.time () in
+    let r = A.Num.sat_constr x y in
+    let () = call "sat_constr" (Sys.time () -. t) in
+    r
+
   let () = record "unify"
   let unify x y =
     let t = Sys.time () in

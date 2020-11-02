@@ -711,6 +711,25 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
 
   let meet_constr a c = meet_constr_list a [c]
 
+  let sat_constr_man man a cnstr =
+    if trivially_false man a cnstr then false
+    else
+      let e = Mtcons.get_expr cnstr in
+      
+      (* We use a different variable for each occurrence of weak variables *)
+      let map,mexpr = Mtexpr.weak_transf Mm.empty e.mexpr in
+      
+      let env = prepare_env (Abstract1.env a) mexpr in
+      match Mtexpr.to_linexpr { Mtexpr.mexpr = mexpr;
+                                Mtexpr.env = env } env with
+      | None -> false
+      | Some lin ->
+        let lin = Lincons1.make lin (Mtcons.get_typ cnstr) in
+        let a = add_weak_cp_man man a map in
+        Abstract1.sat_lincons man a lin
+
+  let sat_constr a c = sat_constr_man man a c
+  
   let unify a a' = Abstract1.unify man a a'
 
   let change_environment a mvars =

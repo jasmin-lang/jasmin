@@ -606,6 +606,9 @@ module AbsDisj (A : AbsNumProdT) : AbsDisjType = struct
   let meet_constr t c = apply (fun x -> A.meet_constr x c) t
   let meet_constr_list t cs = apply (fun x -> A.meet_constr_list x cs) t
 
+  let sat_constr t c =
+    eval (fun _ a b c -> a && b && c) (fun x -> A.sat_constr x c) t
+    
   let unify = apply2 A.unify
 
   let change_environment t l = apply (fun x -> A.change_environment x l) t

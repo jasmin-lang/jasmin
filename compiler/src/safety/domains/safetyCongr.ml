@@ -1,6 +1,7 @@
 open Utils
 open Apron
 
+open SafetyConstr
 open SafetyUtils
 open SafetyVar
 open SafetyExpr 
@@ -28,6 +29,8 @@ module Congr = struct
       Format.fprintf fmt "{%s}" (Z.to_string b)
     | V (a,_) when Z.equal a Z.one -> 
       Format.fprintf fmt "ℤ"
+    | V (a,b) when Z.equal b Z.zero -> 
+      Format.fprintf fmt "%s.ℤ" (Z.to_string a)
     | V (a,b) -> 
       Format.fprintf fmt "%s.ℤ + %s" (Z.to_string a) (Z.to_string b)         
 
@@ -258,6 +261,16 @@ module AbsNumCongr : AbsNumType = struct
       else c in
     Mm.add v c t
 
+  let sat_constr t cnstr = match Mtcons.get_typ cnstr with
+    | Lincons1.EQMOD n ->
+      let c = eval t (Mtcons.get_expr cnstr).Mtexpr.mexpr in
+      begin
+        match scalar_to_int n with
+        | Some n -> Congr.is_included c (Congr.make (Z.of_int n) Z.zero)
+        | None -> false
+      end
+    | _ -> false
+                               
   (* We do no implement any assume. *)
   let meet_constr t _ = t
   let meet_constr_list t _ = t

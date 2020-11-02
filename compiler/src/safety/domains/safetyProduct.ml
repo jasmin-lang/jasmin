@@ -360,6 +360,11 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
     and f2 d x = PplDom.meet_constr x (proj_constr a d c) in
     un_app f1 f2 a
 
+  let sat_constr a c =
+    (Mdom.for_all (fun d t -> NonRel.sat_constr t (proj_constr a d c)) a.nrd)
+    &&
+    (Mdom.for_all (fun d t -> PplDom.sat_constr t (proj_constr a d c)) a.ppl)
+    
   let unify = bin_app NonRel.unify PplDom.unify
 
   let print : ?full:bool -> Format.formatter -> t -> unit =
@@ -806,11 +811,11 @@ module ReducedProd (P : RProdParam) : AbsDisjType = struct
   let make vs = reduce (A.make vs, B.make vs)
     
   let meet      = app2 A.meet      B.meet
-  let meet_list = appl A.meet_list B.meet_list
+  let meet_list = appl A.meet_list B.meet_list  
   
   let join      = app2 A.join      B.join
   let join_list = appl A.join_list B.join_list
-  
+
   let widening c = app2 (A.widening c) (B.widening c)
   
   let forget_list t l =
@@ -849,7 +854,9 @@ module ReducedProd (P : RProdParam) : AbsDisjType = struct
   let meet_constr_list t cs =
     app (fun x -> A.meet_constr_list x cs)
         (fun x -> B.meet_constr_list x cs) t
-  
+
+  let sat_constr (a,b) c = A.sat_constr a c || B.sat_constr b c
+    
   let unify = app2 A.unify B.unify
   
   let change_environment t vs =
