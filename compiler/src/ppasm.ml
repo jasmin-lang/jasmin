@@ -189,9 +189,12 @@ let pp_ct (ct : X86_decl.condt) =
 let pp_xmm_register (ws: W.wsize) (r: X86_decl.xmm_register) : string =
   Format.sprintf "%%%smm%d"
     (match ws with
+     | U16
+     | U32
+     | U64
      | U128 -> "x"
      | U256 -> "y"
-     | _ -> assert false)
+     | U8 -> assert false)
     (match r with
      | XMM0 -> 0
      | XMM1 -> 1
@@ -251,7 +254,8 @@ let pp_ext = function
   | PP_iname ws         -> pp_instr_wsize ws
   | PP_iname2(ws1, ws2) -> Printf.sprintf "%s%s" (pp_instr_wsize ws2) (pp_instr_wsize ws1)
   | PP_viname (ve,long) -> if long then pp_instr_velem_long ve else pp_instr_velem ve
-  | PP_ct ct            -> pp_ct (match ct with Condt ct -> ct | _ -> assert false) 
+  | PP_viname2 (ve1, ve2) -> Printf.sprintf "%s%s" (pp_instr_velem ve1) (pp_instr_velem ve2)
+  | PP_ct ct            -> pp_ct (match ct with Condt ct -> ct | _ -> assert false)
 
 let pp_name_ext pp_op = 
   Printf.sprintf "%s%s" (Conv.string_of_string0 pp_op.pp_aop_name) (pp_ext pp_op.pp_aop_ext)

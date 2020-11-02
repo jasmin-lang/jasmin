@@ -408,6 +408,7 @@ Inductive pp_asm_op_ext :=
   | PP_iname of wsize
   | PP_iname2 of wsize & wsize
   | PP_viname of velem & bool (* long *)
+  | PP_viname2 of velem & velem (* source and target element sizes *)
   | PP_ct of asm_arg.
 
 Record pp_asm_op := mk_pp_asm_op {
