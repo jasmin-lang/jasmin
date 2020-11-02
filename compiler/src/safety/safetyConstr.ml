@@ -15,7 +15,7 @@ module Mtcons : sig
 
   val make : Mtexpr.t -> typ -> t
 
-  val to_atcons : t -> Tcons1.t
+  val to_atcons  : t -> Apron.Environment.t -> Tcons1.t
   val to_lincons : t -> Apron.Environment.t -> Lincons1.t option
 
   val get_expr : t -> Mtexpr.t
@@ -25,7 +25,6 @@ module Mtcons : sig
   val equal_tcons : t -> t -> bool
 
   val print : Format.formatter -> t -> unit
-  val print_mexpr : Format.formatter -> t -> unit
 end = struct
   (* EQ | SUPEQ | SUP | DISEQ | EQMOD of Apron.Scalar.t *)
   type typ = Apron.Lincons0.typ
@@ -35,7 +34,7 @@ end = struct
 
   let make t ty = { expr = t; typ = ty }
 
-  let to_atcons t = Tcons1.make (Mtexpr.to_aexpr t.expr) t.typ
+  let to_atcons t env = Tcons1.make (Mtexpr.to_aexpr t.expr env) t.typ
 
   let to_lincons t env =
     omap (fun linexpr -> Lincons1.make linexpr t.typ)
@@ -48,12 +47,9 @@ end = struct
     Mtexpr.equal_mexpr t.expr t'.expr
     && t.typ = t'.typ
 
-  let print ppf t = to_atcons t |> Tcons1.print ppf
-
-  (* for debugging *)
-  let print_mexpr ppf t = 
+  let print ppf t = 
     Format.fprintf ppf "%a %s 0" 
-      Mtexpr.print_mexpr t.expr.mexpr
+      Mtexpr.print t.expr
       (Lincons1.string_of_typ t.typ)
 end
 
@@ -70,7 +66,7 @@ type btcons =
   | BOr of btcons * btcons
 
 let rec pp_btcons ppf = function
-  | BLeaf t -> Mtcons.print_mexpr ppf t
+  | BLeaf t -> Mtcons.print ppf t
 
   | BVar bv -> Bvar.print ppf bv
 
@@ -90,13 +86,13 @@ let rec equal_btcons bt bt' = match bt, bt' with
   | BVar bv, BVar bv' -> bv = bv'
   | _ -> false
   
-let true_tcons1 env =
+let true_tcons1 =
   let zero_t = Coeff.s_of_int 0 in
-  Mtcons.make (Mtexpr.cst env zero_t) Tcons1.EQ
+  Mtcons.make (Mtexpr.cst zero_t) Tcons1.EQ
 
-let false_tcons1 env =
+let false_tcons1 =
   let zero_t = Coeff.s_of_int 0 in
-  Mtcons.make (Mtexpr.cst env zero_t) Tcons1.DISEQ
+  Mtcons.make (Mtexpr.cst zero_t) Tcons1.DISEQ
 
 (* Return the negation of c, except for EQMOD.
    For EQMOD, we return a constraint that always hold. *)
@@ -141,7 +137,7 @@ let pp_s_expr fmt (e : s_expr) =
     Format.fprintf fmt "@[<v 0>%d constraints:@;@[<v 1>%a@]@;term: @[%a@]@]"
       (List.length l)
       (pp_list pp_btcons) l
-      (pp_opt Mtexpr.print_mexpr) ((omap (fun x -> Mtexpr.(x.mexpr))) t_opt) in
+      (pp_opt Mtexpr.print) ((omap (fun x -> x)) t_opt) in
 
   Format.fprintf fmt "@[<v 0>%a@]"
     (pp_list pp_el) e

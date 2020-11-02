@@ -16,54 +16,40 @@ module Mtexpr : sig
   type typ = Apron.Texpr0.typ
   type round = Apron.Texpr0.round
 
-  type mexpr = private
+  type t = private
     | Mcst of Coeff.t
     | Mvar of mvar
-    | Munop of unop * mexpr * typ * round
-    | Mbinop of binop * mexpr * mexpr * typ * round
+    | Munop of unop * t * typ * round
+    | Mbinop of binop * t * t * typ * round
 
-  (* Careful, the environment should have already blasted array elements in
-     U8 array elements. *)
-  type t =  { mexpr : mexpr;
-              env   : Apron.Environment.t }
-
-  val to_aexpr : t -> Texpr1.t
+  val to_aexpr : t -> Apron.Environment.t -> Texpr1.t
   val to_linexpr : t -> Apron.Environment.t -> Linexpr1.t option
 
-  val cst : Apron.Environment.t -> Coeff.t -> t
-  val var : Apron.Environment.t -> mvar -> t
+  val cst : Coeff.t -> t
+  val var : mvar -> t
   val unop : unop -> t -> t
   val binop : binop -> t -> t -> t
 
-  val get_var_mexpr : mexpr -> mvar list
-  val contains_mod : mexpr -> bool
-
-  val extend_environment : t -> Apron.Environment.t -> t
+  val get_var : t -> mvar list
+  val contains_mod : t -> bool
 
   val weak_cp : mvar -> int -> mvar
-  val weak_transf : int Mm.t -> mexpr -> int Mm.t * mexpr
+  val weak_transf : int Mm.t -> t -> int Mm.t * t
 
-  (* This does not check equality of the underlying Apron environments. *)
-  val equal_mexpr1 : mexpr -> mexpr -> bool
   val equal_mexpr  : t -> t -> bool
 
   val print : Format.formatter -> t -> unit
-
-  val print_mexpr : Format.formatter -> mexpr -> unit
 end = struct
   type unop = Texpr0.unop
   type binop = Texpr0.binop
   type typ = Apron.Texpr0.typ
   type round = Apron.Texpr0.round
 
-  type mexpr =
+  type t =
     | Mcst of Coeff.t
     | Mvar of mvar
-    | Munop of unop * mexpr * typ * round
-    | Mbinop of binop * mexpr * mexpr * typ * round
-
-  type t = { mexpr : mexpr;
-             env   : Apron.Environment.t } 
+    | Munop of unop * t * typ * round
+    | Mbinop of binop * t * t * typ * round
 
   let rec e_aux = function
     | Mcst c -> Texpr1.Cst c
@@ -75,11 +61,9 @@ end = struct
     | Munop (op1, a, t, r) -> Texpr1.Unop (op1, e_aux a, t, r)
     | Mbinop (op2, a, b, t, r) -> Texpr1.Binop (op2, e_aux a, e_aux b, t, r)
 
-  let to_aexpr t = Texpr1.of_expr t.env (e_aux t.mexpr)
+  let to_aexpr t env = Texpr1.of_expr env (e_aux t)
 
-  let print ppf t = to_aexpr t |> Texpr1.print ppf
-
-  let print_mexpr ppf t = e_aux t |> Texpr1.print_expr ppf
+  let print ppf t = e_aux t |> Texpr1.print_expr ppf
 
   (* Return sum_{j = 0}^{len - 1} (2^8)^(len - 1 - j) * (U8)v[offset + j] *)
   let rec build_term_array v offset len =
@@ -93,23 +77,16 @@ end = struct
                  build_term_array v offset (len - 1),
                  Texpr1.Int, round_typ)
 
-  let cst env c = { mexpr = Mcst c; env = env }
+  let cst c = Mcst c
 
-  let var env v = 
-    let mexpr = match v with
+  let var v = match v with
       | Mvalue (AarrayEl (v,ws,i)) ->
         build_term_array v (((int_of_ws ws) / 8) * i) ((int_of_ws ws) / 8)
-      | _ -> Mvar v in
-    { mexpr = mexpr; env = env }
+      | _ -> Mvar v 
 
-  let unop op1 a = { a with
-                     mexpr = Munop (op1, a.mexpr, Texpr1.Int, round_typ) }
+  let unop op1 a = Munop (op1, a, Texpr1.Int, round_typ) 
 
-  let binop op2 a b =
-    if not (Environment.equal a.env b.env) then
-      raise (Aint_error "Environment mismatch")
-    else { mexpr = Mbinop (op2, a.mexpr, b.mexpr, Texpr1.Int, round_typ);
-           env = a.env }
+  let binop op2 a b = Mbinop (op2, a, b, Texpr1.Int, round_typ)
 
   let weak_cp v i = Temp ("wcp_" ^ string_of_mvar v, i, ty_mvar v)
 
@@ -164,7 +141,7 @@ end = struct
           | _ -> raise Linexpr_failure end
       | _ -> raise Linexpr_failure in
 
-    try Some (linexpr t.mexpr) with Linexpr_failure -> None
+    try Some (linexpr t) with Linexpr_failure -> None
 
 
   (* We rewrite the expression to perform soundly weak updates *)
@@ -187,7 +164,7 @@ end = struct
       let map'',b' = weak_transf map' b in
       (map'', Mbinop (op2, a', b', t, r))
 
-  let get_var_mexpr e =
+  let get_var e =
     let rec aux acc = function
       | Mcst _ -> acc
       | Mvar mvar -> mvar :: acc
@@ -203,16 +180,6 @@ end = struct
     | Mbinop (op2, a, b, _, _) ->
       (op2 = Texpr0.Mod) || (contains_mod a) || (contains_mod b)
 
-  let extend_environment t apr_env =
-    let cmp = Environment.compare t.env apr_env in
-    if cmp = -1 || cmp = 0 then
-      { t with env = apr_env }
-    else begin
-      Format.eprintf "@[%a@;%a@]@."
-        (fun x -> Apron.Environment.print x) t.env
-        (fun x -> Apron.Environment.print x) apr_env;
-      raise (Aint_error "The environment is not compatible") end
-
   let rec equal_mexpr_aux t t' = match t, t' with
     | Mvar v, Mvar v' -> v = v'
     | Mcst c, Mcst c' -> Coeff.equal c c'
@@ -224,20 +191,16 @@ end = struct
          && equal_mexpr_aux e2 e2'
     | _ -> false
 
-  let equal_mexpr1 t t' = equal_mexpr_aux t t'
-  let equal_mexpr  t t' = equal_mexpr_aux t.mexpr t'.mexpr
+  let equal_mexpr  t t' = equal_mexpr_aux t t'
 end
 
 
-let cst_of_mpqf apr_env n =
-  Mtexpr.cst apr_env (Coeff.s_of_mpqf n)
+let cst_of_mpqf n = Mtexpr.cst (Coeff.s_of_mpqf n)
 
 (* Return the texpr 2^n - y *)
-let cst_pow_minus apr_env n y =
-  mpq_pow_minus n y
-  |> cst_of_mpqf apr_env
+let cst_pow_minus n y = cst_of_mpqf (mpq_pow_minus n y)
 
 
-let mtexpr_of_bigint env z =
+let mtexpr_of_bigint z =
   let mpq_z = mpq_of_bigint z in
-  Mtexpr.cst env (Coeff.s_of_mpq mpq_z)
+  Mtexpr.cst (Coeff.s_of_mpq mpq_z)

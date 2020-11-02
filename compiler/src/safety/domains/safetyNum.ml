@@ -333,7 +333,7 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
 
   let compute_thresholds env oc =
     let vars = omap_dfl (fun c -> 
-        Mtexpr.get_var_mexpr (Mtcons.get_expr c).mexpr
+        Mtexpr.get_var (Mtcons.get_expr c)
       ) [] oc in
     let thrs_vars = 
       List.map (fun v -> thresholds_uint env (avar_of_mvar v)) vars 
@@ -453,20 +453,19 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
 
   let prepare_env env mexpr =
     let vars_mexpr =
-      List.map avar_of_mvar (Mtexpr.get_var_mexpr mexpr) |> Array.of_list
+      List.map avar_of_mvar (Mtexpr.get_var mexpr) |> Array.of_list
     and empty_var_array = Array.make 0 (Var.of_string "") in
     let env_mexpr = Environment.make vars_mexpr empty_var_array in
     Environment.lce env env_mexpr
 
   let bound_texpr_man man a (e : Mtexpr.t) =
     (* We use a different variable for each occurrence of weak variables *)
-    let map,mexpr = Mtexpr.weak_transf Mm.empty e.mexpr in
+    let map,e = Mtexpr.weak_transf Mm.empty e in
     let a = add_weak_cp_man man a map in
 
-    let env = prepare_env (Abstract1.env a) e.mexpr in
+    let env = prepare_env (Abstract1.env a) e in
     let a = Abstract1.change_environment man a env false in
-    let e' = Mtexpr.to_aexpr { Mtexpr.mexpr = mexpr;
-                               Mtexpr.env = env } in
+    let e' = Mtexpr.to_aexpr e env in
 
     Abstract1.bound_texpr man a e'
 
@@ -474,8 +473,7 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
 
   let bound_variable t v = match v with
     | Mvalue (AarrayEl _) ->
-      let env = Abstract1.env t in
-      bound_texpr t (Mtexpr.var env v)
+      bound_texpr t (Mtexpr.var v)
     | _ -> Abstract1.bound_variable man t (avar_of_mvar v)
 
   let env_add_mvar env v =
@@ -498,7 +496,7 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
   (* Relational assignment. *)
   let assign_expr_rel force a v e =
     (* We use a different variable for each occurrence of weak variables *)
-    let map,mexpr = Mtexpr.weak_transf Mm.empty Mtexpr.(e.mexpr) in
+    let map,e = Mtexpr.weak_transf Mm.empty e in
 
     let a = add_weak_cp a map in
     (* We do the same for the variable receiving the assignment *)
@@ -511,10 +509,9 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
     let env = env_add_mvar (Abstract1.env a) v_cp in
 
     (* We add the variables in mexpr to the environment *)
-    let env = prepare_env env mexpr in
+    let env = prepare_env env e in
     let a = Abstract1.change_environment man a env false in
-    let e' = Mtexpr.to_aexpr { Mtexpr.mexpr = mexpr;
-                               Mtexpr.env = env } in
+    let e' = Mtexpr.to_aexpr e env in
 
     let a = Abstract1.assign_texpr man a (avar_of_mvar v_cp) e' None in
 
@@ -545,7 +542,7 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
     if v_weak then fold a [v; v_cp] else a
 
   let e_complex e =
-    (is_relational ()) && (Mtexpr.contains_mod Mtexpr.(e.mexpr))
+    (is_relational ()) && (Mtexpr.contains_mod e)
 
   let es_complex es = List.exists e_complex es
 
@@ -561,8 +558,8 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
   (* Return the j-th term of the expression e seen in base b = 2^8:
      ((e - (e mod b^j)) / b^j) mod b *)
   let get_block e j =
-    let bj = mpq_pow (8 * j) |> Mpqf.of_mpq |> cst_of_mpqf Mtexpr.(e.env)
-    and b = mpq_pow 8 |> Mpqf.of_mpq |> cst_of_mpqf Mtexpr.(e.env) in
+    let bj = mpq_pow (8 * j) |> Mpqf.of_mpq |> cst_of_mpqf
+    and b = mpq_pow 8 |> Mpqf.of_mpq |> cst_of_mpqf in
     (* e - (e mod b^j) *)
     let e1 = Mtexpr.binop Texpr1.Sub e (Mtexpr.binop Texpr1.Mod e bj ) in
     (* e1 / b^j) mod b *)
@@ -675,12 +672,11 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
           let e = Mtcons.get_expr c in
 
           (* We use a different variable for each occurrence of weak variables *)
-          let map,mexpr = Mtexpr.weak_transf map e.mexpr in
+          let map,mexpr = Mtexpr.weak_transf map e in
 
           (* We prepare the expression *)
           let env = prepare_env (Abstract1.env a) mexpr in
-          let ae = Mtexpr.to_aexpr { Mtexpr.mexpr = mexpr;
-                                     Mtexpr.env = env } in
+          let ae = Mtexpr.to_aexpr mexpr env in
           let c = Tcons1.make ae (Mtcons.get_typ c) in
           (map, c :: acc)
         ) (Mm.empty,[]) cs in
@@ -717,11 +713,10 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
       let e = Mtcons.get_expr cnstr in
       
       (* We use a different variable for each occurrence of weak variables *)
-      let map,mexpr = Mtexpr.weak_transf Mm.empty e.mexpr in
+      let map,mexpr = Mtexpr.weak_transf Mm.empty e in
       
       let env = prepare_env (Abstract1.env a) mexpr in
-      match Mtexpr.to_linexpr { Mtexpr.mexpr = mexpr;
-                                Mtexpr.env = env } env with
+      match Mtexpr.to_linexpr mexpr env with
       | None -> false
       | Some lin ->
         let lin = Lincons1.make lin (Mtcons.get_typ cnstr) in

@@ -518,7 +518,6 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
         | None -> t
         | Some info -> { t with num = AbsNum.R.dom_st_update t.num v info; } in
       
-      let n_env = AbsNum.R.get_env t.num in
       let constr_expr_list =
         List.map (fun (bexpr_list, expr) ->
             match bexpr_list with
@@ -532,7 +531,6 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       let t_list =
         List.map (fun (constr,expr) -> match expr with
             | Some e ->
-              let e = Mtexpr.extend_environment e n_env in
               let t' = match constr with
                 | None -> t
                 | Some c ->
@@ -719,8 +717,6 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       Mtcons.make e (Tcons1.EQMOD (Scalar.of_int (Prog.size_of_ws ws))) in
     AbsNum.R.sat_constr t.num align_cnstr    
     
-  let get_env : t -> Environment.t = fun t -> AbsNum.R.get_env t.num
-
   let print_init fmt t = match Config.sc_is_init_no_print () with
     | Config.IP_None -> Format.fprintf fmt ""
     | Config.IP_All | Config.IP_NoArray ->

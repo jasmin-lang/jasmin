@@ -200,8 +200,8 @@ let make_cnstr c i =
           Format.eprintf "make_cnstr for (%d, line %a):@.\
                           changed constraint from %a to %a@."
             constr.cpt_uniq L.pp_sloc i
-            Mtcons.print_mexpr constr.mtcons
-            Mtcons.print_mexpr c);
+            Mtcons.print constr.mtcons
+            Mtcons.print c);
           { constr with mtcons = c } end
   with
   | Not_found ->
@@ -531,15 +531,6 @@ module AbsDisj (A : AbsNumProdT) : AbsDisjType = struct
     let a = Ptree.eval
         (fun _ a1 a2 a3 -> A.join_list [a1; a2; a3]) (fun a -> a) t.tree in
     make_abs a
-
-  let meet_constr_ne (a : A.t) l =
-    let l_f = List.filter (fun c ->
-        let cmp = Environment.compare (Mtcons.get_expr c).env (A.get_env a) in
-        cmp = -1 || cmp = 0) l in
-
-    match l_f with
-    | [] -> a
-    | _ :: _ -> A.meet_constr_list a l_f
                       
   (* Make a top value defined on the given variables *)
   let make l = make_abs (A.make l)

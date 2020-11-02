@@ -74,8 +74,8 @@ let op2_to_abs_binop op2 = match op2 with
 
 
 (* Return lin_expr mod 2^n *)
-let expr_pow_mod apr_env n lin_expr =
-  let mod_expr = cst_pow_minus apr_env n 0 in
+let expr_pow_mod n lin_expr =
+  let mod_expr = cst_pow_minus n 0 in
   Mtexpr.binop Texpr1.Mod lin_expr mod_expr
 
 let word_interval sign ws = match sign with
@@ -94,24 +94,23 @@ let word_interval sign ws = match sign with
    On unsigned word:  ((lin_expr            % 2^n) + 2^n) % 2^n)             
 *)
 let wrap_lin_expr sign n expr =
-  let env = Mtexpr.(expr.env) in
   match sign with
   | Signed -> 
-    let pow_n = cst_pow_minus env n 0 in
-    let pow_n_minus_1 = cst_pow_minus env (n - 1) 0 in
+    let pow_n = cst_pow_minus n 0 in
+    let pow_n_minus_1 = cst_pow_minus (n - 1) 0 in
 
     let expr = Mtexpr.binop Texpr1.Sub expr pow_n_minus_1 in
-    let expr = expr_pow_mod env n expr in
+    let expr = expr_pow_mod n expr in
     let expr = Mtexpr.binop Texpr1.Add expr pow_n in
-    let expr = expr_pow_mod env n expr in
+    let expr = expr_pow_mod n expr in
     Mtexpr.binop Texpr1.Sub expr pow_n_minus_1 
 
   | Unsigned ->
-    let pow_n = cst_pow_minus env n 0 in
+    let pow_n = cst_pow_minus n 0 in
     
-    let expr = expr_pow_mod env n expr in
+    let expr = expr_pow_mod n expr in
     let expr = Mtexpr.binop Texpr1.Add expr pow_n in
-    expr_pow_mod env n expr
+    expr_pow_mod n expr
 
 let print_not_word_expr e =
   Format.eprintf "@[<v>Should be a word expression:@;\
@@ -210,7 +209,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       let () = debug (fun () ->
           Format.eprintf "@[<hv 0>Warning: (sub-)expression@ @[%a@]@ \
                           overflowed U%d (as %s)@]@."
-            Mtexpr.print_mexpr e.Mtexpr.mexpr
+            Mtexpr.print e
             ws
             (string_of_sign sign)) in
       wrap_lin_expr sign ws e
@@ -233,8 +232,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | Pvar x -> begin match (L.unloc x).v_ty with
         | Bty Int -> aeval_cst_var abs x
         | Bty (U ws) ->
-          let env = AbsDom.get_env abs in
-          let line = Mtexpr.var env (mvar_of_var (L.unloc x)) in
+          let line = Mtexpr.var (mvar_of_var (L.unloc x)) in
           if linexpr_overflow abs line Unsigned (int_of_ws ws) then None
           else aeval_cst_var abs x
         | _ -> raise (Aint_error "type error in aeval_cst_int") end
@@ -267,8 +265,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   let rec aeval_cst_w abs e = match e with
     | Pvar x -> begin match (L.unloc x).v_ty with
         | Bty (U ws) ->
-          let env = AbsDom.get_env abs in
-          let line = Mtexpr.var env (mvar_of_var (L.unloc x)) in
+          let line = Mtexpr.var (mvar_of_var (L.unloc x)) in
           if linexpr_overflow abs line Unsigned (int_of_ws ws) then None
           else aeval_cst_var abs x
         | _ -> raise (Aint_error "type error in aeval_cst_w") end
@@ -319,17 +316,16 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   exception If_not_supported
 
   let top_linexpr abs ws_e =
-    let lin = Mtexpr.cst (AbsDom.get_env abs) (Coeff.Interval Interval.top) in
+    let lin = Mtexpr.cst (Coeff.Interval Interval.top) in
     wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
 
   let rec linearize_iexpr abs (e : expr) =
-    let apr_env = AbsDom.get_env abs in
     match e with
-    | Pconst z -> mtexpr_of_bigint apr_env z
+    | Pconst z -> mtexpr_of_bigint z
 
     | Pvar x ->
       check_is_int (L.unloc x);
-      Mtexpr.var apr_env (Mvalue (Avar (L.unloc x)))
+      Mtexpr.var (Mvalue (Avar (L.unloc x)))
 
     | Papp1(E.Oint_of_word sz,e1) ->
       let abs_expr1 = linearize_wexpr abs e1 in
@@ -358,17 +354,16 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | _ -> assert false
 
   and linearize_wexpr abs (e : ty gexpr) =
-    let apr_env = AbsDom.get_env abs in
     let ws_e = ws_of_ty (ty_expr e) in
 
     match e with
     | Pvar x ->
       check_is_word (L.unloc x);
-      let lin = Mtexpr.var apr_env (Mvalue (Avar (L.unloc x))) in
+      let lin = Mtexpr.var (Mvalue (Avar (L.unloc x))) in
       wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
 
     | Pglobal(ws, x) ->
-      let lin = Mtexpr.var apr_env (Mglobal (x,Bty (U ws))) in
+      let lin = Mtexpr.var (Mglobal (x,Bty (U ws))) in
       wrap_if_overflow abs lin Unsigned (int_of_ws ws)
 
     | Papp1(E.Oword_of_int sz,e1) ->
@@ -413,7 +408,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
                 (* We check that [mz] is in [0; 2^{ws_out - 1}] *)
                 if (Mpqf.cmp (mpq_pow ws_out) mz > 0) &&
                    (Mpqf.cmp (Mpqf.of_int 0) mz <= 0) then
-                  let c' = Mtexpr.cst apr_env (Coeff.s_of_mpqf mz) in
+                  let c' = Mtexpr.cst (Coeff.s_of_mpqf mz) in
                   let alt_absop = match absop with
                     | AB_Arith Texpr1.Add -> Texpr1.Sub
                     | AB_Arith Texpr1.Sub -> Texpr1.Add
@@ -430,8 +425,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
               let () = debug (fun () ->
                   Format.eprintf "@[<hov 0>Replaced the expression@   \
                                   %a@ by %a@]@."
-                    Mtexpr.print_mexpr lin.mexpr
-                    Mtexpr.print_mexpr (oget alt_lin).mexpr) in
+                    Mtexpr.print lin
+                    Mtexpr.print (oget alt_lin)) in
               oget alt_lin
             else wrap_lin_expr Unsigned ws_out lin
           else lin
@@ -450,7 +445,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
               | _ -> assert false in
             let lin = Mtexpr.(binop absop
                                 (linearize_wexpr abs e1)
-                                (cst_pow_minus apr_env i 0)) in
+                                (cst_pow_minus i 0)) in
 
             wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
 
@@ -462,7 +457,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       begin match abs_arr_range abs (L.unloc x) ws ei with
         | [] -> assert false
         | [at] ->
-          let lin = Mtexpr.var apr_env (Mvalue at) in
+          let lin = Mtexpr.var (Mvalue at) in
           wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
         | _ -> top_linexpr abs ws_e end
 
@@ -556,8 +551,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     match e with
     | Pbool b ->
       let cons =
-        if b then true_tcons1 (AbsDom.get_env abs)
-        else false_tcons1 (AbsDom.get_env abs) in
+        if b then true_tcons1
+        else false_tcons1 in
       BLeaf cons
 
     | Pvar x -> BVar (Bvar.make (Mvalue (Avar (L.unloc x))) true)
@@ -630,8 +625,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       (* We do some basic simplifications.
          [expr lincons 0] must be equivalent to [(Sub lin2 lin1) lincos 0] *)
       let expr = match lincons, lin2, lin1 with
-        | (Tcons1.EQ | Tcons1.DISEQ), { mexpr = Mtexpr.Mcst cst }, lin
-        | (Tcons1.EQ | Tcons1.DISEQ), lin, { mexpr = Mtexpr.Mcst cst } ->      
+        | (Tcons1.EQ | Tcons1.DISEQ), (Mtexpr.Mcst cst), lin
+        | (Tcons1.EQ | Tcons1.DISEQ), lin, (Mtexpr.Mcst cst) ->      
           if Coeff.equal_int cst 0
           then lin
           else Mtexpr.(binop Sub lin2 lin1) 
@@ -705,8 +700,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   let set_zeros f_args abs =
     List.fold_left (fun abs v -> match v with
         | MvarOffset _ | MmemRange _ ->
-          let env = AbsDom.get_env abs in
-          let z_expr = Mtexpr.cst env (Coeff.s_of_int 0) in
+          let z_expr = Mtexpr.cst (Coeff.s_of_int 0) in
           let z_sexpr = sexpr_from_simple_expr z_expr in
 
           AbsDom.assign_sexpr ~force:true abs v None z_sexpr
@@ -784,8 +778,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
               (* overwrites the previous warning *)
               | Some (int, warn) -> int, Some warn
             in
-            let env = AbsDom.get_env abs in
-            let z_sexpr = Mtexpr.cst env (Coeff.Interval int)
+            let z_sexpr = Mtexpr.cst (Coeff.Interval int)
                           |> sexpr_from_simple_expr in
 
             let warns = match warn with
@@ -801,8 +794,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
   let apply_glob globs abs =
     List.fold_left (fun abs (ws,n,i) ->
-        let env = AbsDom.get_env abs in
-        let sexpr = mtexpr_of_bigint env i |> sexpr_from_simple_expr in
+        let sexpr = mtexpr_of_bigint i |> sexpr_from_simple_expr in
         AbsDom.assign_sexpr abs (Mglobal (n, Bty (U ws))) None sexpr)
       abs globs
 
@@ -824,8 +816,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     match ty_gvar_of_mvar outmv with
     | None -> abs
     | Some outv ->
-      let env = AbsDom.get_env abs in
-      let inv_os = Mtexpr.var env (MvarOffset inv) in
+      let inv_os = Mtexpr.var (MvarOffset inv) in
 
       let off_e = linearize_wexpr abs offset_expr
       and e_ws = ws_of_ty (ty_expr offset_expr) in
@@ -882,7 +873,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
      abstraction. *)
   let assign_arr_expr a v e =
     match v with
-    | Mvalue (Aarray gv) -> begin match Mtexpr.(e.mexpr) with
+    | Mvalue (Aarray gv) -> begin match e with
         | Mtexpr.Mvar (Mvalue (Aarray ge)) ->
           let n = arr_range gv in
           let ws = arr_size gv in
@@ -891,7 +882,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           List.fold_left (fun a i ->
               let vi = Mvalue (AarrayEl (gv,ws,i))  in
               let eiv = Mvalue (AarrayEl (ge,ws,i)) in
-              let ei = Mtexpr.var (AbsDom.get_env a) eiv
+              let ei = Mtexpr.var eiv
                        |> sexpr_from_simple_expr in
 
               (* Numerical abstraction *)
@@ -952,8 +943,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       | Arr _, MLvar (_, mvar) ->
         match e with
         | Pvar x ->
-          let apr_env = AbsDom.get_env abs in
-          let se = Mtexpr.var apr_env (Mvalue (Aarray (L.unloc x))) in
+          let se = Mtexpr.var (Mvalue (Aarray (L.unloc x))) in
           begin match mvar with
             | Mvalue (Aarray _) -> assign_arr_expr abs mvar se 
             | Temp _ -> assert false (* this case should not be possible *)

@@ -251,10 +251,10 @@ module AbsNumCongr : AbsNumType = struct
       
     | _ -> assert false
     
-  let bound_texpr t e = Congr.to_int (eval t e.Mtexpr.mexpr)
+  let bound_texpr t e = Congr.to_int (eval t e)
 
   let assign_expr ?force:(force=false) t v e =      
-    let c = eval t e.Mtexpr.mexpr in
+    let c = eval t e in
     let c =
       if weak_update v && not force
       then Congr.join c (value v t)
@@ -263,7 +263,7 @@ module AbsNumCongr : AbsNumType = struct
 
   let sat_constr t cnstr = match Mtcons.get_typ cnstr with
     | Lincons1.EQMOD n ->
-      let c = eval t (Mtcons.get_expr cnstr).Mtexpr.mexpr in
+      let c = eval t (Mtcons.get_expr cnstr) in
       begin
         match scalar_to_int n with
         | Some n -> Congr.is_included c (Congr.make (Z.of_int n) Z.zero)
@@ -292,16 +292,9 @@ module AbsNumCongr : AbsNumType = struct
   let get_env t =
     let l = List.map (fun x -> avar_of_mvar (fst x)) (Mm.bindings t) in
     env_of_list l   
-
   let to_box _t = assert false
-    (* let bman = BoxManager.man in    
-     * Abstract1.top bman (get_env t) *)
     
   let of_box _box = assert false
-    (* let vars = Environment.vars (Abstract1.env box)
-     *            |> fst
-     *            |> Array.to_list in
-     * make (List.map mvar_of_avar vars) *)
 
   let print ?full:(_=false) fmt t =
     let bindings =

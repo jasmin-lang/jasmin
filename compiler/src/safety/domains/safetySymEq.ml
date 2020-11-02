@@ -14,19 +14,18 @@ open SafetyInterfaces
 (************************************)
 
 exception Rewrite_failed
-let neg_e env e =
+let neg_e e =
   let open Mtexpr in
-  let mk e = { mexpr = e; env = env } in
   let rec neg_e = function
-    | Munop (Texpr1.Neg, e', _, _) -> mk e'
+    | Munop (Texpr1.Neg, e', _, _) -> e'
     | Mbinop (Texpr1.Add, e1, e2, _, _) ->
       binop Texpr1.Add (neg_e e1) (neg_e e2)
     | Mbinop (Texpr1.Sub, e1, e2, _, _) ->
-      binop Texpr1.Add (neg_e e1) (mk e2)
+      binop Texpr1.Add (neg_e e1) e2
     | Mbinop (Texpr1.Mul, e1, e2, _, _) ->
-      binop Texpr1.Mul (neg_e e1) (mk e2)
-    | Mcst c -> cst env (Coeff.neg c)
-    | Mvar _ as e -> unop Texpr1.Neg (mk e)
+      binop Texpr1.Mul (neg_e e1) e2
+    | Mcst c -> cst (Coeff.neg c)
+    | Mvar _ as e -> unop Texpr1.Neg e
     | _ -> raise Rewrite_failed
   in
   neg_e e
@@ -37,38 +36,37 @@ let is_cst = function Mtexpr.Mcst _ -> true | _ -> false
 (* Tries to do trivial rewritings. *)
 let rec rewrite_e e =
   let open Mtexpr in
-  let mk e' = { mexpr = e'; env = e.env } in
-  match e.mexpr with
-  | Munop (Texpr1.Neg, e', _, _) when not (is_var e.mexpr) ->
+  match e with
+  | Munop (Texpr1.Neg, e', _, _) when not (is_var e) ->
     begin
-      try rewrite_e (neg_e e.env e') with Rewrite_failed -> e
+      try rewrite_e (neg_e e') with Rewrite_failed -> e
     end
 
   | Mbinop (Texpr1.Add, Mcst i, e', _, _) when Coeff.equal_int i 0 ->
-    rewrite_e (mk e')
+    rewrite_e e'
 
   | Mbinop (Texpr1.Add, e', Mcst i, _, _)
   | Mbinop (Texpr1.Sub, e', Mcst i, _, _) when Coeff.equal_int i 0 ->
-    rewrite_e (mk e')
+    rewrite_e e'
 
   | Mbinop (Texpr1.Sub, Mcst i, e', _, _) when Coeff.equal_int i 0 ->
-    rewrite_e (unop Texpr1.Neg (mk e'))
+    rewrite_e (unop Texpr1.Neg e')
 
   | Mbinop (Texpr1.Sub, e1, e2, _, _) ->
     begin
       try
-        let e2 = neg_e e.env e2 in
-        binop Texpr1.Add (mk e1) e2
+        let e2 = neg_e e2 in
+        binop Texpr1.Add e1 e2
       with Rewrite_failed ->
-        let e1, e2 = rewrite_e (mk e1), rewrite_e (mk e2) in
+        let e1, e2 = rewrite_e e1, rewrite_e e2 in
         binop Texpr1.Sub e1 e2
     end
 
   | Mbinop (op, e1, e2, _, _) ->
-    let e1, e2 = rewrite_e (mk e1), rewrite_e (mk e2) in
+    let e1, e2 = rewrite_e e1, rewrite_e e2 in
     binop op e1 e2
   | Munop (op, e', _, _) ->
-    let e' = rewrite_e (mk e') in
+    let e' = rewrite_e e' in
     unop op e'
 
   | Mcst _ | Mvar _ -> e
@@ -79,10 +77,10 @@ let rewrite_c bt =
 let cmp_cst bt =
   let open Mtexpr in
   let e = Mtcons.get_expr bt in
-  match e.mexpr with
-  | Mbinop (Texpr1.Add, a, b, _, _) -> Some (e.env, a, b, Mtcons.get_typ bt)
+  match e with
+  | Mbinop (Texpr1.Add, a, b, _, _) -> Some (a, b, Mtcons.get_typ bt)
   | Mvar _ as e' ->
-    Some (e.env, e', (cst e.env (Coeff.s_of_int 0)).mexpr, Mtcons.get_typ bt)
+    Some (e', cst (Coeff.s_of_int 0), Mtcons.get_typ bt)
   | _ -> None
 
 let rec rewrite bt = match bt with
@@ -91,17 +89,16 @@ let rec rewrite bt = match bt with
     begin
       match cmp_cst bt1, cmp_cst bt2 with
       | None, _ | _, None -> bt
-      | Some (env, a, b, typ), Some (_, a', b', typ') ->
-        if (Mtexpr.equal_mexpr1 a a' && Mtexpr.equal_mexpr1 b b') ||
-           (Mtexpr.equal_mexpr1 a b' && Mtexpr.equal_mexpr1 b a')
+      | Some (a, b, typ), Some (a', b', typ') ->
+        if (Mtexpr.equal_mexpr a a' && Mtexpr.equal_mexpr b b') ||
+           (Mtexpr.equal_mexpr a b' && Mtexpr.equal_mexpr b a')
         then
-          let mk e = Mtexpr.({ mexpr = e; env = env }) in
           begin match typ, typ' with
             | Tcons1.SUPEQ, Tcons1.DISEQ
             | Tcons1.DISEQ, Tcons1.SUPEQ ->
               (* (a + b <> 0 /\ a + b >= 0) <=> a + b > 0 *)
               BLeaf (Mtcons.make
-                       (Mtexpr.binop Texpr1.Add (mk a) (mk b))
+                       (Mtexpr.binop Texpr1.Add a b)
                        Tcons1.SUP)
             | _ -> bt
           end
@@ -134,12 +131,12 @@ module SymExprImpl : SymExpr = struct
       (pp_list (fun ppf (v,e) ->
            Format.fprintf ppf "(%a ↦ %a)"
              pp_mvar v
-             Mtexpr.print_mexpr e.Mtexpr.mexpr))
+             Mtexpr.print e))
       (Mm.bindings t.vsym)
       (pp_list (fun ppf (v,be) ->
            Format.fprintf ppf "(%a ↦ %a)"
              Bvar.print v
-             Mtcons.print_mexpr be))
+             Mtcons.print be))
       (Mbv.bindings t.bsym)
 
   let apply f g t    = { vsym = f t.vsym; 
@@ -181,10 +178,10 @@ module SymExprImpl : SymExpr = struct
   (* Remove any entry in [t] using variable [v] *)
   let v_clear t v =
     let f = Mm.filter (fun _ e ->
-        not (List.mem v (Mtexpr.get_var_mexpr e.Mtexpr.mexpr)))
+        not (List.mem v (Mtexpr.get_var e)))
     and g = Mbv.filter (fun _ be ->
         let e = Mtcons.get_expr be in
-        not (List.mem v (Mtexpr.get_var_mexpr e.Mtexpr.mexpr))) in
+        not (List.mem v (Mtexpr.get_var e))) in
     let t = apply f g t in
 
     let t = b_remove t v in
@@ -221,12 +218,12 @@ module SymExprImpl : SymExpr = struct
      Check that this is ok. *)
   let change_environment t vs =
     let f = Mm.filter (fun v e ->
-        let vars = Mtexpr.get_var_mexpr e.Mtexpr.mexpr in 
+        let vars = Mtexpr.get_var e in 
         List.mem v vs &&
         List.for_all (fun v' -> List.mem v' vs) vars)
     and g = Mbv.filter (fun bv be ->
         let e = Mtcons.get_expr be in
-        let vars = Mtexpr.get_var_mexpr e.Mtexpr.mexpr in
+        let vars = Mtexpr.get_var e in
         List.mem (Bvar.get_mv bv) vs &&
         List.for_all (fun v' -> List.mem v' vs) vars) in
     apply f g t     

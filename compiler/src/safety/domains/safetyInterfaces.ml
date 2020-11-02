@@ -279,10 +279,6 @@ module type AbsNumBoolType = sig
   (* [check_align t e ws] checks that [e] is aligned for [ws]. *)
   val check_align : t -> Mtexpr.t -> wsize -> bool
 
-  (* Apron environment. This does not include the boolean variables, nor the
-     initialization variables. *)
-  val get_env : t -> Environment.t
-
   val print : ?full:bool -> Format.formatter -> t -> unit
 
   val new_cnstr_blck : t -> L.t -> t

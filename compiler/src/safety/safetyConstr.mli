@@ -6,7 +6,7 @@ module Mtcons : sig
                
   val make : SafetyExpr.Mtexpr.t -> typ -> t
     
-  val to_atcons  : t -> Tcons1.t
+  val to_atcons  : t -> Environment.t -> Tcons1.t
   val to_lincons : t -> Environment.t -> Lincons1.t option
       
   val get_expr : t -> SafetyExpr.Mtexpr.t
@@ -14,8 +14,7 @@ module Mtcons : sig
     
   val equal_tcons : t -> t -> bool
     
-  val print       : Format.formatter -> t -> unit
-  val print_mexpr : Format.formatter -> t -> unit
+  val print : Format.formatter -> t -> unit
 end
 
 (*---------------------------------------------------------------*)
@@ -29,8 +28,8 @@ val pp_btcons : Format.formatter -> btcons -> unit
 
 val equal_btcons : btcons -> btcons -> bool
 
-val true_tcons1  : Environment.t -> Mtcons.t
-val false_tcons1 : Environment.t -> Mtcons.t
+val true_tcons1  : Mtcons.t
+val false_tcons1 : Mtcons.t
 
 (*---------------------------------------------------------------*)
 exception Bop_not_supported

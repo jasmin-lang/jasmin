@@ -456,7 +456,7 @@ end = struct
       let abs = List.fold_left2 (fun abs x oy -> match oy with
           | None -> abs
           | Some y ->
-            let sexpr = Mtexpr.var (AbsDom.get_env abs) x
+            let sexpr = Mtexpr.var x
                         |> sexpr_from_simple_expr in
             AbsDom.assign_sexpr abs y None sexpr)
           abs f_args f_in_args in
@@ -524,12 +524,12 @@ end = struct
             let pt = List.hd pts in
 
             (* We update the accessed memory range in [abs]. *)
-            let x_o = Mtexpr.var (AbsDom.get_env abs) (MvarOffset x) in
+            let x_o = Mtexpr.var (MvarOffset x) in
             let lin_e = AbsExpr.linearize_wexpr abs e in
             let c_ws =
               ((int_of_ws ws) / 8)
               |> Coeff.s_of_int
-              |> Mtexpr.cst (AbsDom.get_env abs) in
+              |> Mtexpr.cst in
             let ws_plus_e = Mtexpr.binop Texpr1.Add c_ws lin_e in
             let sexpr = Mtexpr.binop Texpr1.Add x_o ws_plus_e
                         |> sexpr_from_simple_expr in
@@ -551,7 +551,7 @@ end = struct
             let abs = AbsDom.base_align abs pt ws in
 
             (* And we check that the offset is correctly aligned. *)
-            let x_o = Mtexpr.var (AbsDom.get_env abs) (MvarOffset x) in
+            let x_o = Mtexpr.var (MvarOffset x) in
             let lin_e = AbsExpr.linearize_wexpr abs e in            
             let o_plus_e = Mtexpr.binop Texpr1.Add x_o lin_e in
             let violations =
@@ -644,7 +644,7 @@ end = struct
             |> AbsExpr.a_init_mlv_no_array mlvo
 
           | Bty _ ->
-            let mret = Mtexpr.var (AbsDom.get_env abs) rvar in
+            let mret = Mtexpr.var rvar in
 
             let lv_size = wsize_of_ty (ty_lval lv)
             and ret_size = wsize_of_ty out_ty in
@@ -681,7 +681,7 @@ end = struct
             AbsExpr.a_init_mlv_no_array mlvo abs
 
           | Arr _ ->
-            let mret = Mtexpr.var (AbsDom.get_env abs) rvar in
+            let mret = Mtexpr.var rvar in
 
             let lv_size = wsize_of_ty (ty_lval lv)
             and ret_size = wsize_of_ty out_ty in
@@ -1162,14 +1162,13 @@ end = struct
                       fh_cf : Mtexpr.t option; }
 
   let pp_flags_heur fmt fh =
-    let to_me = omap (fun x -> x.Mtexpr.mexpr) in
     Format.fprintf fmt "@[<hv 0>zf: %a;@ cf %a@]"
-      (pp_opt Mtexpr.print_mexpr) (to_me fh.fh_zf)
-      (pp_opt Mtexpr.print_mexpr) (to_me fh.fh_cf)
+      (pp_opt Mtexpr.print) (fh.fh_zf)
+      (pp_opt Mtexpr.print) (fh.fh_cf)
   
   
   (* [v] is the variable receiving the assignment. *)
-  let opn_heur apr_env opn v es =
+  let opn_heur opn v es =
     match opn with 
     (* sub carry *) 
     | E.Osubcarry _ ->
@@ -1177,15 +1176,15 @@ end = struct
          than 1 here. *)
       Some { fh_zf = None;
              fh_cf = Some (Mtexpr.binop Texpr1.Add
-                             (Mtexpr.var apr_env v)
-                             (Mtexpr.cst apr_env (Coeff.s_of_int 1))); }
+                             (Mtexpr.var v)
+                             (Mtexpr.cst (Coeff.s_of_int 1))); }
         
     (* decrement *) 
     | E.Ox86 (X86_instr_decl.DEC _) ->
-      Some { fh_zf = Some (Mtexpr.var apr_env v);
+      Some { fh_zf = Some (Mtexpr.var v);
              fh_cf = Some (Mtexpr.binop Texpr1.Add
-                             (Mtexpr.var apr_env v)
-                             (Mtexpr.cst apr_env (Coeff.s_of_int 1))); }
+                             (Mtexpr.var v)
+                             (Mtexpr.cst (Coeff.s_of_int 1))); }
 
     (* compare *)
     | E.Ox86 (X86_instr_decl.CMP _) ->
@@ -1193,7 +1192,7 @@ end = struct
       let rec to_mvar = function
         | Pvar x ->
           check_is_word (L.unloc x);
-          Mtexpr.var apr_env (Mvalue (Avar (L.unloc x)))
+          Mtexpr.var (Mvalue (Avar (L.unloc x)))
         | Papp1 (E.Oword_of_int _, e) -> to_mvar e
         | Papp1 (E.Oint_of_word _, e) -> to_mvar e 
         | _ -> raise Opn_heur_failed in
@@ -1228,7 +1227,7 @@ end = struct
 
   (* Heuristic for the (candidate) decreasing quantity to prove while
      loop termination. *)  
-  let dec_qnty_heuristic abs loop_body loop_cond =
+  let dec_qnty_heuristic loop_body loop_cond =
     let heur_leaf leaf = match Mtcons.get_typ leaf with
       | Lincons0.SUPEQ | Lincons0.SUP -> Mtcons.get_expr leaf
 
@@ -1263,8 +1262,7 @@ end = struct
                           | Lnone _ -> raise Heuristic_failed
                           | _ -> assert false in
 
-                        let apr_env = AbsDom.get_env abs in
-                        let heur = opn_heur apr_env opn reg_assgn es in
+                        let heur = opn_heur opn reg_assgn es in
                         Some (find_heur bv heur)
                       else None
                     | _ -> None) lvs
@@ -1479,9 +1477,7 @@ end = struct
 
         (* Candidate decreasing quantity *)
         let ni_e =
-          try Some (dec_qnty_heuristic 
-                      state.abs (c2 @ c1) 
-                      (oec state.abs))
+          try Some (dec_qnty_heuristic (c2 @ c1) (oec state.abs))
           with Heuristic_failed -> None in
         (* Variable where we store its value before executing the loop body. *)
         let mvar_ni = MNumInv prog_pt in
@@ -1497,11 +1493,8 @@ end = struct
               add_violations state [violation]
 
             | Some nie ->
-              let env = AbsDom.get_env state.abs in
-              let nie = Mtexpr.extend_environment nie env in
-
               (* (initial nie) - nie *)
-              let e = Mtexpr.(binop Sub (var env mvar_ni) nie) in
+              let e = Mtexpr.(binop Sub (var mvar_ni) nie) in
 
               (* We assume the loop does not exit, and check whether the 
                  candidate decreasing quantity indeed decreased. *)
@@ -1698,7 +1691,6 @@ end = struct
 
             let range = mk_range init_i final_i op
             and mvari = Mvalue (Avar (L.unloc i)) in
-            let apr_env = AbsDom.get_env state.abs in 
 
             List.fold_left ( fun state ci ->
                 (* We add a disjunctive constraint block. *)
@@ -1706,7 +1698,7 @@ end = struct
                 let state = { state with abs = std; } in
 
                 (* We set the integer variable i to ci. *)
-                let expr_ci = Mtexpr.cst apr_env (Coeff.s_of_int ci)
+                let expr_ci = Mtexpr.cst (Coeff.s_of_int ci)
                                   |> sexpr_from_simple_expr in
                 let abs = 
                   AbsDom.assign_sexpr

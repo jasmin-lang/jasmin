@@ -97,11 +97,10 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
       assert (is_var v || is_offset v);
       assert (not (is_in_dom_ppl v (Ppl 0) t)); 
       let anrd = Mdom.find (Nrd 0) t.nrd in
-      let env = NonRel.get_env anrd in
 
       (* The environment does not matter. *)
       let int = NonRel.bound_variable anrd v in
-      let e = Mtexpr.cst env (Coeff.Interval int) in
+      let e = Mtexpr.cst (Coeff.Interval int) in
 
       let appl = Mdom.find (Ppl 0) t.ppl in
       let appl = PplDom.assign_expr appl v e in
@@ -123,11 +122,10 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
       assert (is_var v || is_offset v);
       assert (not (is_in_dom_nrd v (Nrd 0) t)); 
       let appl = Mdom.find (Ppl 0) t.ppl in
-      let env = PplDom.get_env appl in
 
       (* The environment does not matter. *)
       let int = PplDom.bound_variable appl v in
-      let e = Mtexpr.cst env (Coeff.Interval int) in
+      let e = Mtexpr.cst (Coeff.Interval int) in
 
       let anrd = Mdom.find (Nrd 0) t.nrd in
       let anrd = NonRel.assign_expr anrd v e in
@@ -151,18 +149,15 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
 
   (* Replace all variables not in domain d by an interval *)
   let proj_expr a d (e : Mtexpr.t) =
-    let env = e.env in
-    let m_make e = Mtexpr.({ mexpr = e; env = env }) in
-
-    let rec proj_mexpr (e : Mtexpr.mexpr) = match expr_doms e a.dom_st with
-      | [] -> m_make e
+    let rec proj_mexpr (e : Mtexpr.t) = match expr_doms e a.dom_st with
+      | [] -> e
       | [d'] ->
-        if d = d' then m_make e
+        if d = d' then e
         else
           let int = match d' with
-            | Nrd _ -> NonRel.bound_texpr (Mdom.find d' a.nrd) (m_make e)
-            | Ppl _ -> PplDom.bound_texpr (Mdom.find d' a.ppl) (m_make e) in
-          Mtexpr.cst env (Coeff.Interval int)
+            | Nrd _ -> NonRel.bound_texpr (Mdom.find d' a.nrd) e
+            | Ppl _ -> PplDom.bound_texpr (Mdom.find d' a.ppl) e in
+          Mtexpr.cst (Coeff.Interval int)
 
       | _ -> match e with
         | Mtexpr.Munop (op, e1, _, _) -> Mtexpr.unop op (proj_mexpr e1)
@@ -170,7 +165,7 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
           Mtexpr.binop op (proj_mexpr e1) (proj_mexpr e2)
         | _ -> assert false in
 
-    proj_mexpr e.mexpr
+    proj_mexpr e
 
   let proj_constr a d (c : Mtcons.t) =
     Mtcons.make (proj_expr a d (Mtcons.get_expr c)) (Mtcons.get_typ c)
