@@ -105,6 +105,8 @@ Variant asm_op : Type :=
   (* SSE instructions *)
 | MOVD     of wsize
 | VMOVDQU  `(wsize)
+| VPMOVSX of velem & wsize & velem & wsize (* parallel sign-extension: sizes are source, source, target, target *)
+| VPMOVZX of velem & wsize & velem & wsize (* parallel zero-extension: sizes are source, source, target, target *)
 | VPAND    `(wsize)
 | VPANDN   `(wsize)
 | VPOR     `(wsize)
@@ -562,6 +564,28 @@ Definition x86_MOVD sz (v: word sz) : ex_tpl (w_ty U128) :=
   ok (zero_extend U128 v).
 
 (* ---------------------------------------------------------------- *)
+(* How many elements of size ve in a vector of size ws *)
+Definition vector_size (ve: velem) (ws: wsize) : option Z :=
+  let: (q, r) := Z.div_eucl (wsize_size ws) (wsize_size ve) in
+  if r == 0 then Some q else None.
+
+Definition same_vector_length ve sz ve' sz' :=
+  match vector_size ve sz, vector_size ve' sz' with
+  | Some i, Some j => assert (i == j) ErrType
+  | _, _ => Error ErrType
+  end.
+
+Definition x86_VPMOVSX (ve: velem) (sz: wsize) (ve': velem) (sz': wsize) (w: word sz) : exec (word sz') :=
+  Let _ := check_size_128_256 sz' in
+  Let _ := same_vector_length ve sz ve' sz' in
+  ok (lift1_vec' (@sign_extend ve ve') sz' w).
+
+Definition x86_VPMOVZX (ve: velem) (sz: wsize) (ve': velem) (sz': wsize) (w: word sz) : exec (word sz') :=
+  Let _ := check_size_128_256 sz' in
+  Let _ := same_vector_length ve sz ve' sz' in
+  ok (lift1_vec' (@zero_extend ve ve') sz' w).
+
+(* ---------------------------------------------------------------- *)
 Definition x86_VMOVDQU sz (v: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in ok v.
 
@@ -770,6 +794,7 @@ Variant prim_constructor :=
   | PrimM of asm_op
   | PrimV of (velem -> wsize -> asm_op)
   | PrimX of (wsize -> wsize -> asm_op)
+  | PrimVV of (velem → wsize → velem → wsize → asm_op)
   .
 
 Variant arg_kind :=
@@ -969,6 +994,11 @@ Definition pp_movx name szd szs args :=
   {| pp_aop_name := name;
      pp_aop_ext  := PP_iname2 szs szd;
      pp_aop_args := zip [::szs; szd] args; |}.
+
+Definition pp_vpmovx name ve sz ve' sz' args :=
+  {| pp_aop_name := name;
+     pp_aop_ext  := PP_viname2 ve ve';
+     pp_aop_args := zip [:: sz' ; sz ] args; |}.
 
 Definition get_ct args :=
   match args with
@@ -1181,6 +1211,22 @@ Definition check_vmovdqu (_:wsize) := [:: xmm_xmmm; xmmm_xmm].
 Definition Ox86_VMOVDQU_instr :=
   mk_instr_w_w "VMOVDQU" x86_VMOVDQU MSB_CLEAR [:: E 1] [:: E 0] 2 check_vmovdqu no_imm (PrimP U128 VMOVDQU) (pp_name "vmovdqu").
 
+Definition Ox86_VPMOVSX_instr :=
+  let name := "VPMOVSX"%string in
+  (λ ve sz ve' sz',
+   mk_instr (λ _, name) [:: sword sz ] [:: sword sz' ] [:: E 1 ] [:: E 0 ]
+            MSB_CLEAR (@x86_VPMOVSX ve sz ve' sz') [:: [:: xmm ; xmmm true]] 2 sz None [::] (pp_vpmovx "vpmovsx" ve sz ve' sz'),
+   (name, PrimVV VPMOVSX)
+   ).
+
+Definition Ox86_VPMOVZX_instr :=
+  let name := "VPMOVZX"%string in
+  (λ ve sz ve' sz',
+   mk_instr (λ _, name) [:: sword sz ] [:: sword sz' ] [:: E 1 ] [:: E 0 ]
+            MSB_CLEAR (@x86_VPMOVZX ve sz ve' sz') [:: [:: xmm ; xmmm true]] 2 sz None [::] (pp_vpmovx "vpmovzx" ve sz ve' sz'),
+   (name, PrimVV VPMOVZX)
+   ).
+
 Definition check_xmm_xmm_xmmm (_:wsize) := [:: xmm_xmm_xmmm].
 
 Definition Ox86_VPAND_instr  := mk_instr_w2_w_120    "VPAND"   x86_VPAND  check_xmm_xmm_xmmm no_imm (PrimP U128 VPAND) (pp_name "vpand").
@@ -1372,6 +1418,8 @@ Definition instr_desc o : instr_desc_t :=
   | VPINSR sz          => Ox86_VPINSR_instr.1 sz
   | VEXTRACTI128       => Ox86_VEXTRACTI128_instr.1
   | VMOVDQU sz         => Ox86_VMOVDQU_instr.1 sz
+  | VPMOVSX ve sz ve' sz' => Ox86_VPMOVSX_instr.1 ve sz ve' sz'
+  | VPMOVZX ve sz ve' sz' => Ox86_VPMOVZX_instr.1 ve sz ve' sz'
   | VPAND sz           => Ox86_VPAND_instr.1 sz
   | VPANDN sz          => Ox86_VPANDN_instr.1 sz
   | VPOR sz            => Ox86_VPOR_instr.1 sz
@@ -1457,6 +1505,8 @@ Definition prim_string :=
    Ox86_SHLD_instr.2;
    Ox86_SHRD_instr.2;
    Ox86_MOVD_instr.2;
+   Ox86_VPMOVSX_instr.2;
+   Ox86_VPMOVZX_instr.2;
    Ox86_VPINSR_instr.2;
    Ox86_VEXTRACTI128_instr.2;
    Ox86_VMOVDQU_instr.2;

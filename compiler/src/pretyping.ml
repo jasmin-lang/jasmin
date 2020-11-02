@@ -49,6 +49,7 @@ type tyerror =
   | PrimNoSize of S.symbol
   | PrimNotVector of S.symbol
   | PrimIsVector of S.symbol
+  | PrimIsVectorVector of S.symbol
   | PrimIsX of S.symbol
   | PrimNotX of S.symbol
   | ReturnLocalStack    of S.symbol
@@ -181,7 +182,11 @@ let pp_tyerror fmt (code : tyerror) =
       F.fprintf fmt "primitive does not need  two word sizes annotations: `%s'" s
 
   | PrimIsVector s ->
-      F.fprintf fmt "primitive needs a vector size annotation: `%s'" s
+     F.fprintf fmt "primitive needs a vector size annotation: `%s'" s
+
+  | PrimIsVectorVector s ->
+     F.fprintf fmt "primitive needs two vector size annotations: `%s'" s
+
   | PrimIsX s ->
       F.fprintf fmt "primitive needs two word sizes annotations: `%s'" s
 
@@ -983,6 +988,7 @@ type prim_constructor =
   | PrimM of Expr.sopn
   | PrimV of (W.velem -> W.wsize -> Expr.sopn)
   | PrimX of (W.wsize -> W.wsize -> Expr.sopn)
+  | PrimVV of (W.velem -> W.wsize -> W.velem -> W.wsize -> Expr.sopn)
 
 let prim_string =
   let open Expr in
@@ -998,12 +1004,14 @@ let prim_string =
           | X86_instr_decl.PrimM(x)     -> PrimM(Ox86 x)
           | X86_instr_decl.PrimV(x)     -> PrimV(fun sz sz' -> Ox86 (x sz sz'))
           | X86_instr_decl.PrimX(x)     -> PrimX(fun sz sz' -> Ox86 (x sz sz'))
+          | X86_instr_decl.PrimVV(x)    -> PrimVV(fun ve sz ve' sz' -> Ox86 (x ve sz ve' sz'))
         in (s, prc)) X86_instr_decl.prim_string
             
 type size_annotation =
   | SAw of W.wsize
   | SAv of W.velem * W.wsize
   | SAx of W.wsize * W.wsize
+  | SAvv of W.velem * W.wsize * W.velem * W.wsize
   | SA
 
 let extract_size str : string * size_annotation =
@@ -1015,6 +1023,12 @@ let extract_size str : string * size_annotation =
     | "64" -> SAw W.U64
     | "128" -> SAw W.U128
     | "256" -> SAw W.U256
+    | "2u8" -> SAv (W.VE8, W.U16)
+    | "4u8" -> SAv (W.VE8, W.U32)
+    | "2u16" -> SAv (W.VE16, W.U32)
+    | "8u8" -> SAv (W.VE8, W.U64)
+    | "4u16" -> SAv (W.VE16, W.U64)
+    | "2u32" -> SAv (W.VE32, W.U64)
     | "16u8" -> SAv (W.VE8, W.U128)
     | "8u16" -> SAv (W.VE16, W.U128)
     | "4u32" -> SAv (W.VE32, W.U128)
@@ -1041,6 +1055,12 @@ let extract_size str : string * size_annotation =
   in
   match List.rev (String.split_on_char '_' str) with
   | [] -> str, SA
+  | suf2 :: ((suf1 :: s) as tail) ->
+     begin match get_size suf1, get_size suf2 with
+     | SAv (ve1, sz1), SAv (ve2, sz2) -> String.concat "_" (List.rev s), SAvv (ve1, sz1, ve2, sz2)
+     | _, SA -> str, SA
+     | _, sz -> String.concat "_" (List.rev tail), sz
+     end
   | suf :: s ->
     match get_size suf with
     | SA -> str, SA
@@ -1054,11 +1074,12 @@ let tt_prim id =
     pr (match sz with 
         | SAw sz -> sz 
         | SA -> d 
-        | SAv _ -> rs_tyerror ~loc (PrimNotVector s)
+        | SAv _ | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
         | SAx _ -> rs_tyerror ~loc (PrimNotX s))
   | PrimM pr -> if sz = SA then pr else rs_tyerror ~loc (PrimNoSize s)
   | PrimV pr -> (match sz with SAv (ve, sz) -> pr ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
   | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
+  | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
   | exception Not_found -> rs_tyerror ~loc (UnknownPrim s)
 
 let prim_of_op exn loc o =

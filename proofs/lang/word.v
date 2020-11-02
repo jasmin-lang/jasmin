@@ -842,9 +842,13 @@ exact: wcat_rI eq_size.
 Qed.
 
 (* -------------------------------------------------------------------*)
+Definition lift1_vec' ve ve' (op : word ve → word ve')
+    (sz sz': wsize) (w: word sz) : word sz' :=
+  make_vec sz' (map op (split_vec ve w)).
+
 Definition lift1_vec ve (op : word ve -> word ve)
     (sz:wsize) (w:word sz) : word sz :=
-  make_vec sz (map op (split_vec ve w)).
+  lift1_vec' op sz w.
 Arguments lift1_vec : clear implicits.
 
 Definition lift2_vec ve (op : word ve -> word ve -> word ve)
