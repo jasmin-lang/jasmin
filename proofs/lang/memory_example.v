@@ -948,4 +948,29 @@ Module MemoryI : MemoryT.
     by case: (stack_blocks_rec _ _).
   Qed.
 
+  Lemma alloc_stack_top_stack m ws sz sz' m' :
+    alloc_stack m ws sz sz' = ok m' →
+    memory_model.top_stack m' = add (memory_model.top_stack m) (- round_ws ws (sz + sz')).
+  Proof.
+    rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-] /=.
+    rewrite /memory_model.top_stack /= /stack_frames /= /stack_blocks /= /footprint_of_frame /=.
+    case: (stack_blocks_rec _ _) (stack_blocks_rec_fst (stk_root m) (frames m)) (stack_blocks_rec_snd (stk_root m) (frames m)) => p [] /=.
+    - by move => -> ->; rewrite /= add_0.
+    by case => _ ? _ -> ->.
+  Qed.
+
+  Lemma free_stack_top_stack m sz :
+    omap snd (ohead (stack_frames m)) = Some sz →
+    memory_model.top_stack (free_stack m sz) = add (memory_model.top_stack m) sz.
+  Proof.
+    rewrite !top_stackE.
+    rewrite /free_stack /= /top_stack /=.
+    rewrite /memory_model.frames /= /stack_frames /= /stack_blocks.
+    case: (frames m) => //= f fr.
+    case: (stack_blocks_rec _ _) => /= _ _ /Some_inj <-{sz}.
+    rewrite addC.
+    congr add.
+    Psatz.lia.
+  Qed.
+
 End MemoryI.

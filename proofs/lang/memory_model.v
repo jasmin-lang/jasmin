@@ -523,4 +523,15 @@ Parameter free_stackP : forall m sz,
   omap snd (ohead (frames m)) = Some sz ->
   free_stack_spec m sz (free_stack m sz).
 
+(* -------------------------------------------------------------------- *)
+(* The following restrictions on stack layout are exploited by the compiler to
+ implement alloc and free using simple addition and subtraction. *)
+Parameter alloc_stack_top_stack : ∀ m ws sz sz' m',
+    alloc_stack m ws sz sz' = ok m' →
+    top_stack m' = add (top_stack m) (- round_ws ws (sz + sz')).
+
+Parameter free_stack_top_stack : ∀ m sz,
+    omap snd (ohead (frames m)) = Some sz →
+    top_stack (free_stack m sz) = add (top_stack m) sz.
+
 End MemoryT.
