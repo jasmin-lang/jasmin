@@ -1369,6 +1369,7 @@ Module CBAreg.
         else cerror (Cerr_varalloc xi1 xi2 "variable mismatch")
       end
     else cerror (Cerr_varalloc xi1 xi2 "type mismatch").
+ 
 
 Section CHECKE.
 
@@ -1419,28 +1420,14 @@ End CHECKE.
     | _, _ => err tt
     end.
 
-
-  
- Definition check_e (e1 e2 : pexpr) (m : M.t) : cexec (M.t * leak_e_tr) :=
+  Definition check_e (e1 e2 : pexpr) (m : M.t) : cexec (M.t * leak_e_tr) :=
     Let rs := check_e_eval e1 e2 m in
     cok (rs, LT_id).
 
-Definition check_es es1 es2 m : cexec (M.t * seq leak_e_tr) :=
+  Definition check_es es1 es2 m : cexec (M.t * seq leak_e_tr) :=
    Let rs := check_es_eval check_e_eval es1 es2 m in 
    cok (rs, map (fun x => LT_id) es1).
 
-
-
-   (*match es1, es2 with
-    | [::], [::] => ok (m, [::])
-    | e1::es1, e2::es2 => 
-      Let rs := check_es_eval check_e_eval es1 es2 m in 
-      Let rs' := map check
-      Let sl := check_e e1 e2 m in
-      Let sls := check_es es1 es2 sl.1 in
-                      ok (sls.1, sl.2::sls.2)
-    | _, _ => cerror (Cerr_fold2 "case not possible")        
-    end.*)
 
   Definition check_var (x1 x2:var) m (h:M.vsubtype x1 x2): cexec (M.t) :=
     cok (M.set m x1 x2 h).
@@ -1488,39 +1475,6 @@ Definition check_es es1 es2 m : cexec (M.t * seq leak_e_tr) :=
       else err tt
     | _          , _           => err tt
     end.
-
- (* Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec (M.t * leak_e_tr) :=
-    let err _ := cerror (Cerr_neqlval x1 x2 salloc) in
-    match x1, x2 with
-    | Lnone  _ t1, Lnone _ t2  =>
-      if subtype t1 t2 then cok (m, LT_id) else err tt
-    | Lnone  _ t1, Lvar x      =>
-      if subtype t1 x.(v_var).(vtype) then
-        cok ((M.remove m x.(v_var)), LT_id)
-      else err tt
-    | Lvar x1    , Lvar x2     =>
-      match is_Pvar e2 with
-      | Some (ty, x2') =>
-        if M.vsubtypeP x1 x2 is left h then
-          if (vtype x1 == ty) && (vtype x1 == vtype x2) && (x2.(v_var) == x2') 
-          then cok ((M.add m x1 x2 h), LT_id)
-          else Let r := check_var m h in cok (r, LT_id)
-        else cerror (Cerr_varalloc x1 x2 "type mismatch")
-      | _               => Let r := check_varc x1 x2 m in cok (r, LT_id)
-      end
-    | Lmem w1 x1 e1, Lmem w2 x2 e2  =>
-      if w1 == w2 
-      then Let r := check_v x1 x2 m in 
-           Let rv := check_e_eval e1 e2 r in 
-           cok (rv, LT_id) else err tt
-    | Laset w1 x1 e1, Laset w2 x2 e2 =>
-      if w1 == w2 
-      then Let r := check_v x1 x2 m in 
-           Let rv := check_e_eval e1 e2 r in
-           Let rv' :=  check_varc x1 x2 rv in cok (rv', LT_id)
-      else err tt
-    | _          , _           => err tt
-    end.*)
 
   Definition check_lval  (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec (M.t * leak_e_tr) :=
     Let rs := check_lval_eval e2 x1 x2 m in
@@ -1591,8 +1545,8 @@ Definition check_es es1 es2 m : cexec (M.t * seq leak_e_tr) :=
       eq_alloc r vm1 vm2 →
       eq_alloc re vm1 vm2 ∧
       ∀ m v1 l1, sem_pexpr gd {| emem := m ; evm := vm1 |} e1 = ok (v1, l1) →
-      ∃ v2, sem_pexpr gd {| emem := m ; evm := vm2 |} e2 = ok (v2, leak_E lte l1)  
-            /\ value_uincl v1 v2.
+      exists v2, sem_pexpr gd {| emem := m ; evm := vm2 |} e2 = ok (v2, leak_E lte l1) /\
+                 value_uincl v1 v2.
 
     Let Q es1 : Prop :=
       ∀ es2 r re lte vm1,
@@ -1603,10 +1557,10 @@ Definition check_es es1 es2 m : cexec (M.t * seq leak_e_tr) :=
       eq_alloc r vm1 vm2 →
       eq_alloc re vm1 vm2 ∧
       ∀ m vs1, sem_pexprs gd {| emem := m ; evm := vm1 |} es1 = ok vs1 →
-               ∃ vs2, sem_pexprs gd {| emem := m ; evm := vm2 |} es2 = ok vs2 
+      exists vs2, sem_pexprs gd {| emem := m ; evm := vm2 |} es2 = ok vs2 
                       /\ List.Forall2 value_uincl (unzip1 vs1) (unzip1 vs2)
                       /\ LSub (unzip2 vs1) = leak_E (LT_seq lte) (LSub (unzip2 vs2)).
-
+  
     Lemma check_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
     Proof.
       apply: pexprs_ind_pair; split; subst P Q => //=.
