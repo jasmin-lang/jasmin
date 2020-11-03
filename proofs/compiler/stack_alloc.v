@@ -54,10 +54,10 @@ Local
 Definition cferror {A} fn msg :=
   @Error _ A (Ferr_fun fn (Cerr_stk_alloc msg)).
 
-Definition mem_space := var.
+Definition slot := var.
 
 Record mem_pos := 
-  { mp_s : var; 
+  { mp_s : slot;
     mp_align : wsize;             (* the alignment of the corresponding region *)
     mp_writable : bool;           (* the region is writable or not             *)
   }.
