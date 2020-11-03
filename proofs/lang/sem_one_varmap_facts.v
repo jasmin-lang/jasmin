@@ -381,31 +381,6 @@ Infix "≡" := (λ m1 m2, validw m1 =2 validw m2) (at level 40).
 Instance eqrel_trans A B C : Transitive (@eqrel A B C).
 Proof. by move => x y z xy yz a b; transitivity (y a b). Qed.
 
-Lemma write_lval_validw gd x v s s' :
-  write_lval gd x v s = ok s' →
-  emem s ≡ emem s'.
-Proof.
-  case: x => /=.
-  - by move => _ ty /write_noneP [] <-.
-  - by move => x /write_var_emem <-.
-  - t_xrbindP => /= ????? ?? ?? ? ? ? ? ? h <- /= ??.
-    by rewrite (CoreMem.write_validw _ _ h).
-  - move => aa sz x e.
-    by apply: on_arr_varP; t_xrbindP => ?????????????? <-.
-  move => aa sz ty x e.
-  by apply: on_arr_varP; t_xrbindP => ?????????????? <-.
-Qed.
-
-Lemma write_lvals_validw gd xs vs s s' :
-  write_lvals gd s xs vs = ok s' →
-  emem s ≡ emem s'.
-Proof.
-  elim: xs vs s.
-  - by case => // ? [] ->.
-  move => x xs ih [] // v vs s /=; t_xrbindP => ? /write_lval_validw h /ih.
-  exact: (eqrel_trans h).
-Qed.
-
 Let Pc (_: Sv.t) s1 (_: cmd) s2 : Prop := emem s1 ≡ emem s2.
 Let Pi (_: Sv.t) s1 (_: instr) s2 : Prop := emem s1 ≡ emem s2.
 Let Pi_r (_: instr_info) (_: Sv.t) s1 (_: instr_r) s2 : Prop := emem s1 ≡ emem s2.
@@ -451,30 +426,8 @@ Proof.
   red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_rsp ok_m1 /sem_stack_stable /= ss.
   have A := Memory.alloc_stackP ok_m1.
   rewrite /Pc /= => B _ -> ptr sz /=.
-  congr (_ && _).
-  apply: all_ziota => i hi.
-  rewrite !valid8_validw.
   have C := Memory.free_stackP (emem s2').
-  rewrite (fss_valid C) -B (ass_valid A) -(ss_top_stack ss).
-  rewrite {3}/top_stack (fss_frames C) (fss_root C) -(ss_root ss) -(ss_frames ss) (ass_root A) (ass_frames A) /= -/(top_stack (emem s1)).
-  rewrite /pointer_range.
-  have [L H] := ass_above_limit A.
-  case: (@andP (_ <=? _)%Z); rewrite !zify.
-  - case => ptr_i_lo ptr_i_hi.
-    rewrite andbF; apply/negbTE; apply: stack_region_is_free.
-    split; last exact: ptr_i_hi.
-    etransitivity; last exact: ptr_i_lo.
-    exact: L.
-  rewrite andbT => ptr_not_fresh.
-  set X := (X in _ || X).
-  suff /negbTE -> : ~~ X; first by rewrite orbF.
-  subst X; rewrite !zify => - [].
-  change (wsize_size U8) with 1%Z.
-  move => ptr_i_lo ptr_i_hi.
-  apply: ptr_not_fresh.
-  split; first exact: ptr_i_lo.
-  move: (sf_stk_sz _) H ptr_i_hi; clear => n.
-  Lia.lia.
+  by apply (alloc_free_validw_stable A ss B C).
 Qed.
 
 Lemma sem_validw_stable k s1 c s2 :

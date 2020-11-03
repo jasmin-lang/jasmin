@@ -65,7 +65,7 @@ End CmpType.
 
 Module MkOrdT (T:CmpType) <: OrderedType.
 
-  Existing Instance T.cmpO.
+  Existing Instance T.cmpO | 1.
 
   Definition t := Equality.sort T.t.
 
@@ -216,22 +216,22 @@ Module Type MAP.
     fold f m a = foldl (fun a (kv:K.t * T) => f kv.1 kv.2 a) a (elements m).
 
   Parameter incl_defP : forall {T1 T2} (f1:K.t -> T1 -> bool) (f:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2),
-     incl_def f1 f m1 m2 ->
-     forall k, 
+     incl_def f1 f m1 m2 <->
+     (forall k,
        match get m1 k, get m2 k with
        | None, _          => true
        | Some t1, None     => f1 k t1 
        | Some t1, Some t2 => f k t1 t2
-       end.
+       end).
 
   Parameter inclP : forall {T1 T2} (f:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2),
-     incl f m1 m2 ->
-     forall k, 
+     incl f m1 m2 <->
+     (forall k,
        match get m1 k, get m2 k with
        | None, _          => true
        | Some _, None     => false
        | Some t1, Some t2 => f k t1 t2
-       end.
+       end).
 
   Parameter allP : forall {T} (f: K.t -> T -> bool) (m: t T),
     all f m <-> (forall k t, get m k = Some t -> f k t).
@@ -548,33 +548,52 @@ Module Mmake (K':CmpType) <: MAP.
   Qed.
 
   Lemma incl_defP {T1 T2} (f:K.t -> T1 -> bool) (f2:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2) :
-     incl_def f f2 m1 m2 ->
-     forall k, 
+     incl_def f f2 m1 m2 <->
+     (forall k, 
        match get m1 k, get m2 k with
        | None, _          => true
        | Some t1, None     => f k t1
        | Some t1, Some t2 => f2 k t1 t2
-       end.
+       end).
   Proof.
-    move=> h k; move: h.
     rewrite /incl_def/get/Map.find; case: m2 => /=; case: m1 => /=.
-    elim => [// | t1l ihl k1 e1 t1r ihr h1] /= hbst; sinversion hbst.
-    move=> t2 hbst2.
-    rewrite (Map.Raw.Proofs.split_find k1 k hbst2).
-    have := Map.Raw.Proofs.split_bst k1 hbst2.
-    case: Map.Raw.split => t2l oe2 t2r /= [] hbst2l hbst2r /and3P[] ho hi1 hi2.
-    case: Ordered.compare => hc; [by apply ihl | | by apply ihr].
-    by rewrite (cmp_eq hc).
+    elim => //= L hL k v R hR s ok t2 hbst2; inversion ok; clear ok; subst.
+    have := Map.Raw.Proofs.split_bst k hbst2.
+    case hsplit: Map.Raw.split => [t2l oe2 t2r] /= [] hbst2l hbst2r.
+    split.
+    - move=> /and3P [] hoe2 {}/hL hL {}/hR hR k'.
+      rewrite (Map.Raw.Proofs.split_find k k' hbst2) hsplit /=.
+      case: Ordered.compare => k'k.
+      + exact: hL.
+      + by rewrite (cmp_eq k'k).
+      + exact: hR.
+    move=> h.
+    apply/and3P; split.
+    - have := h k.
+      rewrite (Map.Raw.Proofs.split_find k k hbst2) hsplit /=.
+      by have [? ->] := Map.Raw.Proofs.MX.elim_compare_eq (Map.E.eq_refl k).
+    - apply hL => // k'.
+      case heq: Map.Raw.find => //.
+      have := h k'.
+      rewrite (Map.Raw.Proofs.split_find k k' hbst2) hsplit /= heq.
+      have := Map.Raw.Proofs.MX.elim_compare_lt (H6 k' (Map.Raw.Proofs.find_in _)).
+      by rewrite heq => -[] // _ ->.
+    apply hR => // k'.
+    case heq: Map.Raw.find => //.
+    have := h k'.
+    rewrite (Map.Raw.Proofs.split_find k k' hbst2) hsplit /= heq.
+    have := Map.Raw.Proofs.MX.elim_compare_gt (H7 k' (Map.Raw.Proofs.find_in _)).
+    by rewrite heq => -[] // _ ->.
   Qed.
 
   Lemma inclP {T1 T2} (f:K.t -> T1 -> T2 -> bool) (m1: t T1) (m2: t T2) :
-     incl f m1 m2 ->
-     forall k, 
+     incl f m1 m2 <->
+     (forall k,
        match get m1 k, get m2 k with
        | None, _          => true
        | Some _, None     => false
        | Some t1, Some t2 => f k t1 t2
-       end.
+       end).
   Proof. by apply incl_defP. Qed.
 
   Lemma in_codomP : forall {T:eqType} (m:t T) v,
@@ -721,7 +740,7 @@ Module Mz := Mmake CmpZ.
 Require Import MSets.
 
 Module MkMOrdT (T:CmpType) <: Orders.OrderedType.
-  Existing Instance T.cmpO.
+  Existing Instance T.cmpO | 1.
 
   Definition t := Equality.sort T.t.
 

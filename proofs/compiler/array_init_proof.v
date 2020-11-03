@@ -153,7 +153,7 @@ Section REMOVE_INIT.
     have ?:= Varr_inj1 (ok_inj heq); subst a1 => {heq}.
     rewrite WArray.castK.
     split; first by apply Z.le_refl.
-    move=> k w; rewrite (WArray.set_sub_get8 _ ht1) /=; case: ifP => ?.
+    move=> k w; rewrite (WArray.set_sub_get8 ht1) /=; case: ifP => ?.
     + by rewrite WArray.get_empty; case: ifP.
     by apply hu.
   Qed.

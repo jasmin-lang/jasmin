@@ -98,6 +98,10 @@ Lemma to_pwordI s v w :
         else pword_of_word (zero_extend s w').
 Proof. by case: v => // [ | [] // ] s' w' /= [<-]; exists s', w'. Qed.
 
+Lemma to_pword_u ws (w : word ws) :
+  to_pword ws (Vword w) = ok (pword_of_word w).
+Proof. by rewrite /= sumbool_of_boolET. Qed.
+
 Lemma type_of_val_to_pword sz v w :
   type_of_val v = sword sz →
   to_pword sz v = ok w →
@@ -105,6 +109,25 @@ Lemma type_of_val_to_pword sz v w :
 Proof.
   case: v => //= [ s w' [?]| []//]; subst.
   by rewrite sumbool_of_boolET => - [<-]; exists w'.
+Qed.
+
+Lemma subtype_of_val_to_pword ws v (w : pword ws) :
+  subtype (sword ws) (type_of_val v) ->
+  to_pword ws v = ok w ->
+  exists ws' (w' : word ws'),
+    [/\ (ws <= ws')%CMP, w = pword_of_word (zero_extend ws w') & v = Vword w'].
+Proof.
+  move=> /subtypeEl [] ws' [] hty /dup[] hle.
+  rewrite cmp_le_eq_lt => /orP [].
+  + rewrite -cmp_nle_lt => /negPf hlt.
+    move=> /to_pwordI [] ws'' [] w' [] ?; subst v.
+    case: hty => ?; subst ws''.
+    rewrite sumbool_of_boolEF => ->.
+    by exists ws', w'.
+  move=> /eqP ?; subst ws' => hto.
+  have [w' [hw hv]] := (type_of_val_to_pword hty hto).
+  exists ws, w'; split=> //.
+  by rewrite zero_extend_u.
 Qed.
 
 Definition wextend_type t1 t2 := 
@@ -137,6 +160,12 @@ Arguments get_var _%vmap_scope _.
 Definition get_gvar (gd: glob_decls) (vm: vmap) (x:gvar) :=
   if is_lvar x then get_var vm x.(gv)
   else get_global gd x.(gv).
+
+Lemma get_gvar_glob gd x vm : is_glob x -> get_gvar gd vm x = get_global gd (gv x).
+Proof. by rewrite /get_gvar /is_lvar /is_glob => /eqP ->. Qed.
+
+Lemma get_gvar_nglob gd x vm : ~~is_glob x -> get_gvar gd vm x = get_var vm (gv x).
+Proof. by rewrite /get_gvar is_lvar_is_glob => ->. Qed.
 
 (* Assigning undefined value is allowed only for bool *)
 Definition set_var (m:vmap) x v : exec vmap :=
@@ -185,6 +214,41 @@ Proof.
   all: move => v' ok_v' <-{vm'}.
   all: rewrite {1}/get_var /= Fv.setP; case: eqP => // ?; subst.
   all: by rewrite /= ok_v'.
+Qed.
+
+Lemma get_var_eq x vm v : get_var vm.[x <- v] x = on_vu (pto_val (t:=x.(vtype))) undef_error v.
+Proof. by rewrite /get_var Fv.setP_eq. Qed.
+
+Lemma get_var_neq x y vm v : x <> y -> get_var vm.[x <- v] y = get_var vm y.
+Proof. by move=> /eqP h; rewrite /get_var Fv.setP_neq. Qed.
+
+Lemma get_var_set_eq vm1 vm2 (x y : var) v: 
+  get_var vm1 y = get_var vm2 y ->
+  get_var vm1.[x <- v] y = get_var vm2.[x <- v] y.
+Proof.
+  by case:(x =P y) => [<- | hne]; rewrite !(get_var_eq, get_var_neq).
+Qed.
+
+Lemma get_gvar_eq gd x vm v :
+  ~ is_glob x -> get_gvar gd vm.[x.(gv) <- v] x = on_vu (pto_val (t:=x.(gv).(vtype))) undef_error v.
+Proof.
+  by move=> /negP => h; rewrite /get_gvar is_lvar_is_glob h get_var_eq.
+Qed.
+
+Lemma get_gvar_neq gd (x:var) y vm v :
+  (~ is_glob y -> x <> (gv y)) -> get_gvar gd vm.[x <- v] y = get_gvar gd vm y.
+Proof.
+  move=> h; rewrite /get_gvar is_lvar_is_glob.
+  by case: negP => // hg; rewrite get_var_neq //; apply h.
+Qed.
+
+Lemma get_gvar_set_eq gd vm1 vm2 x y v: 
+  get_gvar gd vm1 y = get_gvar gd vm2 y ->
+  get_gvar gd vm1.[x <- v] y = get_gvar gd vm2.[x <- v] y.
+Proof.
+  case : (@idP (is_glob y)) => hg; first by rewrite !get_gvar_neq.
+  case:( x =P (gv y)) => heq; last by rewrite !get_gvar_neq.
+  by move: v; rewrite heq => v; rewrite !get_gvar_eq.
 Qed.
 
 (* ** Parameter expressions
@@ -1403,6 +1467,47 @@ Proof. by apply compat_subtype_undef. Qed.
 Lemma vundef_type_idem v : vundef_type v = vundef_type (vundef_type v).
 Proof. by case: v. Qed.
 
+Lemma type_of_get_var x vm v :
+  get_var vm x = ok v ->
+  subtype (type_of_val v) (x.(vtype)).
+Proof.
+  rewrite /get_var; apply : on_vuP => // t _ <-.
+  by apply subtype_type_of_val.
+Qed.
+
+Lemma type_of_get_gvar x gd vm v :
+  get_gvar gd vm x = ok v ->
+  subtype (type_of_val v) (vtype x.(gv)).
+Proof.
+  rewrite /get_gvar;case:ifP => ?.
+  + by apply type_of_get_var.
+  by move=> heq; rewrite (type_of_get_global heq).
+Qed.
+
+(* We have a more precise result in the non-word cases. *)
+Lemma type_of_get_var_not_word vm x v :
+  ~ is_sword x.(vtype) ->
+  get_var vm x = ok v ->
+  type_of_val v = x.(vtype).
+Proof.
+  move=> hnword.
+  rewrite /get_var.
+  apply: on_vuP => // t _ <-.
+  by case: x hnword t => -[].
+Qed.
+
+Lemma type_of_get_gvar_not_word gd vm x v :
+  ~ is_sword x.(gv).(vtype) ->
+  get_gvar gd vm x = ok v ->
+  type_of_val v = x.(gv).(vtype).
+Proof.
+  move=> hnword.
+  rewrite /get_gvar.
+  case: is_lvar.
+  + by apply type_of_get_var_not_word.
+  by apply type_of_get_global.
+Qed.
+
 (* -------------------------------------------- *)
 Lemma value_uincl_refl v: @value_uincl v v.
 Proof. by case: v => //= *; apply compat_type_undef. Qed.
@@ -1564,6 +1669,17 @@ Proof.
   + by move=> n t /to_arrI [n' [t' [-> h]]] <- /=; apply: WArray.cast_uincl.
   move=> sz w /to_wordI [sz' [w' [? -> -> <-]]] => /=.
   by apply word_uincl_zero_ext.
+Qed.
+
+Lemma mapM2_truncate_value_uincl tyin vargs1 vargs1' :
+  mapM2 ErrType truncate_val tyin vargs1 = ok vargs1' ->
+  List.Forall2 value_uincl vargs1' vargs1.
+Proof.
+  move=> htr.
+  have {htr} := mapM2_Forall3 htr.
+  elim {vargs1 vargs1'} => //.
+  move=> _ v1 v1' _ vargs1 vargs1' /truncate_value_uincl huincl _ ih.
+  by constructor.
 Qed.
 
 Definition val_uincl (t1 t2:stype) (v1:sem_t t1) (v2:sem_t t2) :=
@@ -2031,6 +2147,18 @@ Proof.
   by have := pw_proof w;rewrite e.
 Qed.
 
+Lemma pto_val_pof_val v t :
+  pof_val (type_of_val v) v = ok t ->
+  pto_val t = v.
+Proof.
+  case: v t => /=.
+  + by move=> ?? [->].
+  + by move=> ?? [->].
+  + by move=> len a ?; rewrite WArray.castK => -[<-].
+  + by move=> ws w pw; rewrite sumbool_of_boolET => -[<-].
+  by case.
+Qed.
+
 Lemma value_uincl_pof_val t v1 (v1' v2 : psem_t t):
   pof_val t v1 = ok v1' ->
   value_uincl v1 (pto_val v2) ->
@@ -2097,10 +2225,12 @@ Proof. case: t => //; eauto. Qed.
 
 Lemma type_of_val_word v wz :
   type_of_val v = sword wz ->
-  exists wz', v = undef_w wz' \/ exists (w:word wz'), v = Vword w.
+  (wz = U8 /\ exists wz', v = undef_w wz') \/ (∃ w : word wz, v = Vword w).
 Proof.
-  case: v => //=;first by eauto.
-  by case => // ws e ?; rewrite (Eqdep_dec.UIP_refl_bool _ e); exists ws; auto.
+  case: v => //=.
+  + by move=> {wz}ws w [<-]; right; eexists.
+  case=> // wz' h [<-]; left; split=> //.
+  by rewrite (Eqdep_dec.UIP_refl_bool _ h); eexists.
 Qed.
 
 Lemma pof_val_bool_undef v : pof_val sbool v = undef_error -> v = undef_b.
@@ -2755,11 +2885,29 @@ Proof.
   by rewrite (@eq_irrelevance _ _ _ p1 p2).
 Qed.
 
-Lemma to_val_undef t h (v:sem_t t) : to_val v <> Vundef t h.
-Proof. by case: t h v. Qed.
+Lemma to_val_undef t (v:sem_t t) t' h : to_val v <> Vundef t' h.
+Proof. by case: t v. Qed.
 
-Lemma pto_val_undef t h (v:psem_t t) : pto_val v <> Vundef t h.
-Proof. by case: t h v. Qed.
+Lemma pto_val_undef t (v:psem_t t) t' h : pto_val v <> Vundef t' h.
+Proof. by case: t v. Qed.
+
+Lemma get_var_undef vm x v ty h :
+  get_var vm x = ok v -> v <> Vundef ty h.
+Proof.
+  rewrite /get_var.
+  apply: on_vuP=> // t _ <-.
+  apply pto_val_undef.
+Qed.
+
+Lemma get_gvar_undef gd vm x v ty h :
+  get_gvar gd vm x = ok v -> v <> Vundef ty h.
+Proof.
+  rewrite /get_gvar.
+  case: is_lvar.
+  + by apply get_var_undef.
+  move=> /get_globalI [gv [_ -> _]].
+  by case: gv.
+Qed.
 
 Lemma to_word_to_pword s v w: to_word s v = ok w -> to_pword s v = ok (pword_of_word w).
 Proof.
