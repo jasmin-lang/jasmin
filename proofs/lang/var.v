@@ -514,6 +514,18 @@ Proof.
   SvD.fsetdec.
 Qed.
 
+Lemma disjointP s1 s2 :
+  reflect (forall x, Sv.In x s1 -> ~ Sv.In x s2) (disjoint s1 s2).
+Proof.
+  case: (@idP (disjoint s1 s2)) => hdisj; constructor.
+  + move=> x h1 h2.
+    move: hdisj; rewrite /disjoint => /Sv.is_empty_spec /(_ x) /Sv.inter_spec.
+    by apply.
+  move=> h; apply: hdisj.
+  rewrite /disjoint.
+  by apply /Sv.is_empty_spec => x /Sv.inter_spec []; apply h.
+Qed.
+
 Lemma disjoint_diff A B :
   disjoint A B →
   Sv.Equal (Sv.diff B A) B.

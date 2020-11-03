@@ -386,6 +386,38 @@ Proof.
   by constructor.
 Qed.
 
+Lemma mapM_assoc {eT} {aT:eqType} {bT cT} (f : aT * bT -> result eT (aT * cT)) l1 l2 a b :
+  (forall x y, f x = ok y -> x.1 = y.1) ->
+  mapM f l1 = ok l2 ->
+  assoc l1 a = Some b ->
+  exists2 c, f (a, b) = ok (a, c) & assoc l2 a = Some c.
+Proof.
+  move=> hfst.
+  elim: l1 l2 => //.
+  move=> [a' b'] l1 ih /=.
+  t_xrbindP=> _ [a'' c] h l2 /ih{ih}ih <- /=.
+  have /= ? := hfst _ _ h; subst a''.
+  case: eqP => [->|_]; last by apply ih.
+  move=> [<-].
+  by exists c.
+Qed.
+
+Lemma mapM_assoc' {eT} {aT:eqType} {bT cT} (f : aT * bT -> result eT (aT * cT)) l1 l2 a c :
+  (forall x y, f x = ok y -> x.1 = y.1) ->
+  mapM f l1 = ok l2 ->
+  assoc l2 a = Some c ->
+  exists2 b, f (a, b) = ok (a, c) & assoc l1 a = Some b.
+Proof.
+  move=> hfst.
+  elim: l2 l1 => //.
+  move=> [a' c'] l2 ih [//|[a'' b] l1] /=.
+  t_xrbindP=> y h l2' hmap ??; subst y l2'.
+  have /= ? := hfst _ _ h; subst a''.
+  case: eqP => [->|_]; last by apply ih.
+  move=> [<-].
+  by exists b.
+Qed.
+
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).
@@ -423,6 +455,13 @@ Section FOLD2.
 
 End FOLD2.
 
+(* Forall3 *)
+(* -------------------------------------------------------------- *)
+
+Inductive Forall3 (A B C : Type) (R : A -> B -> C -> Prop) : seq A -> seq B -> seq C -> Prop :=
+| Forall3_nil : Forall3 R [::] [::] [::]
+| Forall3_cons : forall a b c la lb lc, R a b c -> Forall3 R la lb lc -> Forall3 R (a :: la) (b :: lb) (c :: lc).
+
 Section MAP2.
 
   Variable A B E R:Type.
@@ -440,6 +479,17 @@ Section MAP2.
     | _     , _      => Error e
     end.
 
+  Lemma mapM2_size ma mb mr :
+    mapM2 ma mb = ok mr ->
+    size ma = size mb /\ size ma = size mr.
+  Proof.
+    elim: ma mb mr.
+    + by move=> [|//] _ [<-].
+    move=> a ma ih [//|b mb] /=.
+    t_xrbindP=> _ r hf lr /ih{ih}ih <- /=.
+    by Psatz.lia.
+  Qed.
+
   Lemma mapM2_Forall2 (P: R → B → Prop) ma mb mr :
     (∀ a b r, List.In (a, b) (zip ma mb) → f a b = ok r → P r b) →
     mapM2 ma mb = ok mr →
@@ -451,6 +501,17 @@ Section MAP2.
     constructor.
     + by apply: (h _ _ _ _ ok_r); left.
     by apply: ih => // a' b' r' h' ok_r'; apply: (h a' b' r' _ ok_r'); right.
+  Qed.
+
+  Lemma mapM2_Forall3 ma mb mr :
+    mapM2 ma mb = ok mr ->
+    Forall3 (fun a b r => f a b = ok r) ma mb mr.
+  Proof.
+    elim: ma mb mr.
+    + by move=> [|//] [|//] _; constructor.
+    move=> a ma ih [//|b mb] /=.
+    t_xrbindP=> _ r h mr /ih{ih}ih <-.
+    by constructor.
   Qed.
 
 End MAP2.
@@ -476,6 +537,195 @@ Definition fmapM2 {eT aT bT cT dT} (e:eT) (f : aT -> bT -> cT -> result eT (aT *
       Ok eT (ys.1, y.2 :: ys.2)
     | _, _ => Error e
     end.
+
+Lemma size_fmapM2 {eT aT bT cT dT} e (f : aT -> bT -> cT -> result eT (aT * dT)) a lb lc a2 ld :
+  fmapM2 e f a lb lc = ok (a2, ld) ->
+  size lb = size lc /\ size lb = size ld.
+Proof.
+  elim: lb lc a a2 ld.
+  + by move=> [|//] _ _ _ [_ <-].
+  move=> b lb ih [//|c lc] a /=.
+  t_xrbindP=> _ _ _ _ [_ ld] /ih{ih}ih _ <- /=.
+  by Psatz.lia.
+Qed.
+
+(* Forall and size *)
+(* -------------------------------------------------------------- *)
+
+Lemma Forall2_size A B (R : A -> B -> Prop) la lb :
+  List.Forall2 R la lb -> size la = size lb.
+Proof. by elim {la lb} => // a b la lb _ _ /= ->. Qed.
+
+Lemma Forall3_size A B C (R : A -> B -> C -> Prop) l1 l2 l3 :
+  Forall3 R l1 l2 l3 ->
+  size l1 = size l2 /\ size l1 = size l3.
+Proof. by elim {l1 l2 l3} => // a b c l1 l2 l3 _ _ /= [<- <-]. Qed.
+
+(* Reasoning with Forall *)
+(* -------------------------------------------------------------- *)
+
+Lemma Forall_nth A (R : A -> Prop) l :
+  List.Forall R l ->
+  forall d i, (i < size l)%nat -> R (nth d l i).
+Proof.
+  elim {l} => // a l h _ ih d [//|i].
+  by apply ih.
+Qed.
+
+Lemma nth_Forall A (R : A -> Prop) l d :
+  (forall i, (i < size l)%nat -> R (nth d l i)) ->
+  List.Forall R l.
+Proof.
+  elim: l => //.
+  move=> a l ih h.
+  constructor.
+  + by apply (h 0%nat).
+  apply ih.
+  by move=> i; apply (h i.+1).
+Qed.
+Arguments nth_Forall [A R l].
+
+Lemma Forall2_nth A B (R : A -> B -> Prop) la lb :
+  List.Forall2 R la lb ->
+  forall a b i, (i < size la)%nat ->
+  R (nth a la i) (nth b lb i).
+Proof.
+  elim {la lb} => // a b la lb h _ ih a0 b0 [//|i].
+  by apply ih.
+Qed.
+
+Lemma nth_Forall2 A B (R : A -> B -> Prop) la lb a b:
+  size la = size lb ->
+  (forall i, (i < size la)%nat -> R (nth a la i) (nth b lb i)) ->
+  List.Forall2 R la lb.
+Proof.
+  elim: la lb.
+  + by move=> [|//] _ _; constructor.
+  move=> a0 la ih [//|b0 lb] [hsize] h.
+  constructor.
+  + by apply (h 0%nat).
+  apply ih => //.
+  by move=> i; apply (h i.+1).
+Qed.
+Arguments nth_Forall2 [A B R la lb].
+
+Lemma Forall2_forall A B (R : A -> B -> Prop) la lb :
+  List.Forall2 R la lb ->
+  forall a b, List.In (a, b) (zip la lb) ->
+  R a b.
+Proof.
+  elim {la lb} => // a b la lb h _ ih a0 b0 /=.
+  case.
+  + by move=> [<- <-].
+  by apply ih.
+Qed.
+
+Lemma forall_Forall2 A B (R : A -> B -> Prop) la lb :
+  size la = size lb ->
+  (forall a b, List.In (a, b) (zip la lb) -> R a b) ->
+  List.Forall2 R la lb.
+Proof.
+  elim: la lb.
+  + by move=> [|//]; constructor.
+  move=> a la ih [//|b l2] [hsize] h.
+  constructor.
+  + by apply h; left.
+  apply ih => //.
+  by move=> ???; apply h; right.
+Qed.
+
+Lemma Forall2_impl A B (R1 R2 : A -> B -> Prop) :
+  (forall a b, R1 a b -> R2 a b) ->
+  forall la lb,
+  List.Forall2 R1 la lb ->
+  List.Forall2 R2 la lb.
+Proof. by move=> himpl l1 l2; elim; eauto. Qed.
+
+Lemma Forall2_impl_in A B (R1 R2 : A -> B -> Prop) la lb :
+  (forall a b, List.In a la -> List.In b lb -> R1 a b -> R2 a b) ->
+  List.Forall2 R1 la lb ->
+  List.Forall2 R2 la lb.
+Proof.
+  move=> himpl hforall.
+  elim: {la lb} hforall himpl.
+  + by constructor.
+  move=> a b la lb h _ ih himpl.
+  constructor.
+  + by apply himpl; [left; reflexivity..|].
+  apply ih.
+  by move=> ?????; apply himpl; [right..|].
+Qed.
+
+Lemma Forall3_nth A B C (R : A -> B -> C -> Prop) la lb lc :
+  Forall3 R la lb lc ->
+  forall a b c i,
+  (i < size la)%nat ->
+  R (nth a la i) (nth b lb i) (nth c lc i).
+Proof.
+  elim {la lb lc} => // a b c la lb lc hr _ ih a0 b0 c0 [//|i].
+  by apply ih.
+Qed.
+
+Lemma nth_Forall3 A B C (R : A -> B -> C -> Prop) la lb lc a b c:
+  size la = size lb -> size la = size lc ->
+  (forall i, (i < size la)%nat -> R (nth a la i) (nth b lb i) (nth c lc i)) ->
+  Forall3 R la lb lc.
+Proof.
+  elim: la lb lc.
+  + by move=> [|//] [|//] _ _ _; constructor.
+  move=> a0 l1 ih [//|b0 l2] [//|c0 l3] [hsize1] [hsize2] h.
+  constructor.
+  + by apply (h 0%nat).
+  apply ih => //.
+  by move=> i; apply (h i.+1).
+Qed.
+Arguments nth_Forall3 [A B C R la lb lc].
+
+Lemma Forall3_forall A B C (R : A -> B -> C -> Prop) la lb lc :
+  Forall3 R la lb lc ->
+  forall a b c, List.In (a, (b, c)) (zip la (zip lb lc)) -> R a b c.
+Proof.
+  elim {la lb lc} => // a b c la lb lc h _ ih a0 b0 c0 /=.
+  case.
+  + by move=> [<- <- <-].
+  by apply ih.
+Qed.
+
+Lemma forall_Forall3 A B C (R : A -> B -> C -> Prop) la lb lc :
+  size la = size lb -> size la = size lc ->
+  (forall a b c, List.In (a, (b, c)) (zip la (zip lb lc)) -> R a b c) ->
+  Forall3 R la lb lc.
+Proof.
+  elim: la lb lc.
+  + by move=> [|//] [|//]; constructor.
+  move=> a la ih [//|b l2] [//|c l3] [hsize1] [hsize2] h.
+  constructor.
+  + by apply h; left.
+  apply ih => //.
+  by move=> ????; apply h; right.
+Qed.
+
+Lemma Forall3_impl A B C (R1 R2 : A -> B -> C -> Prop) :
+  (forall a b c, R1 a b c -> R2 a b c) ->
+  forall la lb lc,
+  Forall3 R1 la lb lc ->
+  Forall3 R2 la lb lc.
+Proof. by move=> himpl l1 l2 l3; elim; eauto using Forall3. Qed.
+
+Lemma Forall3_impl_in A B C (R1 R2 : A -> B -> C -> Prop) la lb lc :
+  (forall a b c, List.In a la -> List.In b lb -> List.In c lc -> R1 a b c -> R2 a b c) ->
+  Forall3 R1 la lb lc ->
+  Forall3 R2 la lb lc.
+Proof.
+  move=> himpl hforall.
+  elim: {la lb lc} hforall himpl.
+  + by constructor.
+  move=> a b c la lb lc h _ ih himpl.
+  constructor.
+  + by apply himpl; [left; reflexivity..|].
+  apply ih.
+  by move=> ???????; apply himpl; [right..|].
+Qed.
 
 (* Inversion lemmas *)
 (* -------------------------------------------------------------- *)
@@ -514,6 +764,15 @@ Lemma List_Forall2_inv A B (R: A → B → Prop) m n :
   List.Forall2 R m n →
   if m is a :: m' then if n is b :: n' then R a b ∧ List.Forall2 R m' n' else False else if n is [::] then True else False.
 Proof. case; auto. Qed.
+
+Lemma List_Forall3_inv A B C (R : A -> B -> C -> Prop) l1 l2 l3 :
+  Forall3 R l1 l2 l3 ->
+  match l1, l2, l3 with
+  | [::], [::], [::] => True
+  | a :: l1, b :: l2, c :: l3 => R a b c /\ Forall3 R l1 l2 l3
+  | _, _, _ => False
+  end.
+Proof. by case. Qed.
 
 Section All2.
 
@@ -1024,7 +1283,19 @@ Proof. by move=> h a b; rewrite (rwP (h _ _)). Qed.
 Notation pify :=
   (rwR2 (@andP), rwR2 (@orP), rwR2 (@implyP), rwR1 (@forallP _), rwR1 (@negP)).
 
-Notation zify := (pify, (rwR2 (@ZleP), rwR2 (@ZltP))).
+Lemma Zcmp_le i1 i2 : (i1 <= i2)%CMP = (i1 <=? i2)%Z.
+Proof.
+  rewrite /cmp_le /gcmp /Z.leb -Zcompare_antisym.
+  by case: Z.compare.
+Qed.
+
+Lemma Zcmp_lt i1 i2 : (i1 < i2)%CMP = (i1 <? i2)%Z.
+Proof.
+  rewrite /cmp_lt /gcmp /Z.ltb.
+  by case: Z.compare.
+Qed.
+
+Notation zify := (Zcmp_le, Zcmp_lt, pify, (rwR2 (@ZleP), rwR2 (@ZltP))).
 
 (* -------------------------------------------------------------------- *)
 
@@ -1145,3 +1416,15 @@ Fixpoint merge_tuple (l1 l2: list Type) : ltuple l1 -> ltuple l2 -> ltuple (l1 +
       (x.1, rec x.2 p)
     end rec
    end.
+
+(* ------------------------------------------------------------------------- *)
+
+Lemma nth_not_default T x0 (s:seq T) n x :
+  nth x0 s n = x ->
+  x0 <> x ->
+  (n < size s)%nat.
+Proof.
+  move=> hnth hneq.
+  rewrite ltnNge; apply /negP => hle.
+  by rewrite nth_default in hnth.
+Qed.

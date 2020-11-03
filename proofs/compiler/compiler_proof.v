@@ -29,7 +29,7 @@ Require Import allocation inline_proof dead_calls_proof
                makeReferenceArguments_proof
                array_init_proof
                unrolling_proof constant_prop_proof dead_code_proof
-               array_expansion array_expansion_proof remove_globals_proof stack_alloc_proof
+               array_expansion array_expansion_proof remove_globals_proof stack_alloc_proof_2
                lowering_proof
                linear_proof
                merge_varmaps_proof

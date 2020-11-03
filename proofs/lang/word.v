@@ -144,6 +144,16 @@ Proof. done. Qed.
 Lemma wsize_size_wbase s : wsize_size s < wbase U64.
 Proof. by apply /ZltP; case: s; vm_compute. Qed.
 
+Lemma wsize_size_div_wbase sz sz' : (wsize_size sz | wbase sz').
+Proof.
+  apply Znumtheory.Zmod_divide => //.
+  by case sz; case sz'.
+Qed.
+
+Lemma mod_wbase_wsize_size z sz sz' :
+  z mod wbase sz mod wsize_size sz' = z mod wsize_size sz'.
+Proof. by rewrite -Znumtheory.Zmod_div_mod //; apply wsize_size_div_wbase. Qed.
+
 Lemma wsize_cmpP sz sz' :
   wsize_cmp sz sz' = Nat.compare (wsize_size_minus_1 sz) (wsize_size_minus_1 sz').
 Proof. by case: sz sz' => -[]; vm_compute. Qed.
@@ -254,6 +264,7 @@ Proof. by apply wunsigned_inj; rewrite !wunsigned_repr Zmod_mod. Qed.
 Lemma wunsigned_repr_small ws z : 0 <= z < wbase ws -> wunsigned (wrepr ws z) = z.
 Proof. move=> h; rewrite wunsigned_repr; apply: Zmod_small h. Qed.
 
+(* TODO: the proof of [wunsigned_sub] seems far simpler, we could use the same idea *)
 Lemma wunsigned_add sz (p: word sz) (n: Z) :
   0 <= wunsigned p + n < wbase sz →
   wunsigned (p + wrepr sz n) = wunsigned p + n.
@@ -299,6 +310,26 @@ Proof.
   have ha := wunsigned_range a.
   rewrite -(GRing.add0r (-a)%R) wunsigned_sub_if wunsigned0.
   by case: ZleP; case: eqP => //; Psatz.lia.
+Qed.
+
+Lemma wunsigned_add_mod ws ws' (w1 w2 : word ws) :
+  wunsigned (w1 + w2) mod wsize_size ws' = (wunsigned w1 + wunsigned w2) mod wsize_size ws'.
+Proof.
+  rewrite wunsigned_add_if.
+  case: ZltP => // _.
+  rewrite Zminus_mod.
+  rewrite (Znumtheory.Zdivide_mod _ _ (wsize_size_div_wbase _ _)) Z.sub_0_r.
+  by rewrite Zmod_mod.
+Qed.
+
+Lemma wunsigned_sub_mod ws ws' (w1 w2 : word ws) :
+  wunsigned (w1 - w2) mod wsize_size ws' = (wunsigned w1 - wunsigned w2) mod wsize_size ws'.
+Proof.
+  rewrite wunsigned_sub_if.
+  case: ZleP => // _.
+  rewrite -Z.add_sub_assoc Zplus_mod.
+  rewrite (Znumtheory.Zdivide_mod _ _ (wsize_size_div_wbase _ _)) Z.add_0_l.
+  by rewrite Zmod_mod.
 Qed.
 
 Lemma wlt_irrefl sz sg (w: word sz) :
