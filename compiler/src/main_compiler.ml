@@ -117,9 +117,14 @@ let rec pp_comp_err tbl fmt =
      Format.fprintf fmt "Need to spill @[<v>%a@]" (pp_list "@ " pp) xs
   | Compiler_util.Cerr_assembler c ->
     begin match c with
-    | Compiler_util.AsmErr_string s ->
-      Format.fprintf fmt "assembler error %a"
+    | Compiler_util.AsmErr_string (s, e) ->
+      Format.fprintf fmt "assembler error %a%a"
         pp_string0 s
+        (fun fmt -> function
+          | None -> ()
+          | Some e -> Format.fprintf fmt ": %a" (Printer.pp_expr ~debug:true) (Conv.expr_of_cexpr tbl e))
+        e
+
     | Compiler_util.AsmErr_cond e ->
       Format.fprintf fmt "assembler error: invalid condition %a"
         (Printer.pp_expr ~debug:true) (Conv.expr_of_cexpr tbl e)

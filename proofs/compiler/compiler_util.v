@@ -76,8 +76,8 @@ Definition pp_at (ii:instr_info) (e:pp_error) :=
 *)
 
 Variant asm_error :=
-  | AsmErr_string : string -> asm_error
-  | AsmErr_cond   : pexpr -> asm_error.
+  | AsmErr_string of string & option pexpr
+  | AsmErr_cond of pexpr.
 
 Inductive error_msg :=
   | Cerr_varalloc : var_i -> var_i -> string -> error_msg

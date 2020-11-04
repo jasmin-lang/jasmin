@@ -278,10 +278,10 @@ Qed.
 (* Compilation of pexprs *)
 (* -------------------------------------------------------------------- *)
 Definition invalid_rflag (s: string) : asm_error :=
-  AsmErr_string ("Invalid rflag name: " ++ s).
+  AsmErr_string ("Invalid rflag name: " ++ s) None.
 
 Definition invalid_register (s: string) : asm_error :=
-  AsmErr_string ("Invalid register name: " ++ s).
+  AsmErr_string ("Invalid register name: " ++ s) None.
 
 Global Opaque invalid_rflag invalid_register.
 
@@ -293,7 +293,7 @@ Definition rflag_of_var ii (v: var) :=
      | Some r => ciok r
      | None => cierror ii (Cerr_assembler (invalid_rflag s))
      end
-  | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid rflag type"))
+  | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid rflag type" None))
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -307,7 +307,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     | ZF => ok E_ct
     | SF => ok S_ct
     | PF => ok P_ct
-    | DF => cierror ii (Cerr_assembler (AsmErr_string "Cannot branch on DF"))
+    | DF => cierror ii (Cerr_assembler (AsmErr_string "Cannot branch on DF" None))
     end
 
   | Papp1 Onot (Pvar v) =>
@@ -318,7 +318,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     | ZF => ok NE_ct
     | SF => ok NS_ct
     | PF => ok NP_ct
-    | DF => cierror ii (Cerr_assembler (AsmErr_string "Cannot branch on ~~ DF"))
+    | DF => cierror ii (Cerr_assembler (AsmErr_string "Cannot branch on ~~ DF" None))
     end
 
   | Papp2 Oor (Pvar vcf) (Pvar vzf) =>
@@ -326,14 +326,14 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     Let rzf := rflag_of_var ii vzf.(gv) in
     if ((rcf == CF) && (rzf == ZF)) then
       ok BE_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (BE)"))
+    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (BE)" None))
 
   | Papp2 Oand (Papp1 Onot (Pvar vcf)) (Papp1 Onot (Pvar vzf)) =>
     Let rcf := rflag_of_var ii vcf.(gv) in
     Let rzf := rflag_of_var ii vzf.(gv) in
     if ((rcf == CF) && (rzf == ZF)) then
       ok NBE_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NBE)"))
+    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NBE)" None))
 
   | Pif _ (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2) =>
     Let rsf := rflag_of_var ii vsf.(gv) in
@@ -341,7 +341,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     Let rof2 := rflag_of_var ii vof2.(gv) in
     if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok L_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (L)"))
+    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (L)" None))
 
   | Pif _ (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2)) =>
     Let rsf := rflag_of_var ii vsf.(gv) in
@@ -349,7 +349,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     Let rof2 := rflag_of_var ii vof2.(gv) in
     if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok NL_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NL)"))
+    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NL)" None))
 
   | Papp2 Oor (Pvar vzf)
           (Pif _ (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2)) =>
@@ -359,7 +359,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     Let rof2 := rflag_of_var ii vof2.(gv) in
     if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok LE_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (LE)"))
+    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (LE)" None))
 
   | Papp2 Oand
              (Papp1 Onot (Pvar vzf))
@@ -370,7 +370,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     Let rof2 := rflag_of_var ii vof2.(gv) in
     if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
       ok NLE_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NLE)"))
+    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NLE)" None))
 
   | _ => cierror ii (Cerr_assembler (AsmErr_cond e))
   end.
@@ -384,7 +384,7 @@ Definition reg_of_var ii (v: var) :=
      | Some r => ciok r
      | None => cierror ii (Cerr_assembler (invalid_register s))
      end
-  | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid register type"))
+  | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid register type" None))
   end.
 
 Definition reg_of_vars ii (vs: seq var_i) :=
@@ -404,7 +404,7 @@ Definition scale_of_z' ii (z:pointer) :=
   | 2 => ok Scale2
   | 4 => ok Scale4
   | 8 => ok Scale8
-  | _ => cierror ii (Cerr_assembler (AsmErr_string "invalid scale"))
+  | _ => cierror ii (Cerr_assembler (AsmErr_string "invalid scale" None))
   end%Z.
 
 Definition reg_of_ovar ii (x:option var_i) := 
@@ -434,13 +434,13 @@ Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) :=
      | Some r =>
         if r.(v_var) == rip then
           Let _ := assert (lea.(lea_offset) == None) 
-            (ii, Cerr_assembler (AsmErr_string "Invalid RIP address")) in
+            (ii, Cerr_assembler (AsmErr_string "Invalid global address" (Some e))) in
            ok (Arip lea.(lea_disp))
         else assemble_lea ii lea
       | None => 
         assemble_lea ii lea
       end 
-  | None => cierror ii (Cerr_assembler (AsmErr_string "lea: not able to assemble address"))
+  | None => cierror ii (Cerr_assembler (AsmErr_string "lea: not able to assemble address" (Some e)))
   end.
 
 Definition addr_of_xpexpr rip ii sz v e :=
@@ -449,24 +449,24 @@ Definition addr_of_xpexpr rip ii sz v e :=
 Definition xreg_of_var ii (x: var) : ciexec asm_arg :=
   if xmm_register_of_var x is Some r then ok (XMM r)
   else if register_of_var x is Some r then ok (Reg r)
-  else cierror ii (Cerr_assembler (AsmErr_string "Not a (x)register")).
+  else cierror ii (Cerr_assembler (AsmErr_string "Not a (x)register" None)).
 
 Definition assemble_word rip ii (sz:wsize) max_imm (e:pexpr) :=
   match e with
   | Papp1 (Oword_of_int sz') (Pconst z) =>
     match max_imm with
-    | None =>  cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oprd, constant not allowed"))
+    | None =>  cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oprd, constant not allowed" (Some e)))
     | Some sz1 =>
       let w := wrepr sz1 z in
       let w1 := sign_extend sz w in
       let w2 := zero_extend sz (wrepr sz' z) in
       Let _ := assert (w1 == w2)
-                (ii, Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: out of bound constant")) in
+                (ii, Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: out of bound constant" (Some e))) in
       ciok (Imm w)
     end
   | Pvar x =>
     Let _ := assert (is_lvar x)
-              (ii, Cerr_assembler (AsmErr_string "Global variables remain")) in
+              (ii, Cerr_assembler (AsmErr_string "Global variables remain" (Some e))) in
     let x := x.(gv) in
     xreg_of_var ii x
   | Pload sz' v e =>
@@ -474,14 +474,14 @@ Definition assemble_word rip ii (sz:wsize) max_imm (e:pexpr) :=
       Let w := addr_of_xpexpr rip ii Uptr v e in
       ok (Adr w)
     else
-      cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for word: invalid Load size"))
-  | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for word"))
+      cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for word: invalid Load size" (Some e)))
+  | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for word" (Some e)))
   end.
 
 Definition arg_of_pexpr rip ii (ty:stype) max_imm (e:pexpr) :=
   match ty with
   | sbool => Let c := assemble_cond ii e in ok (Condt c)
   | sword sz => assemble_word rip ii sz max_imm e
-  | sint  => cierror ii (Cerr_assembler (AsmErr_string "sint ???"))
-  | sarr _ => cierror ii (Cerr_assembler (AsmErr_string "sarr ???"))
+  | sint  => cierror ii (Cerr_assembler (AsmErr_string "sint ???" (Some e)))
+  | sarr _ => cierror ii (Cerr_assembler (AsmErr_string "sarr ???" (Some e)))
   end.
