@@ -1,5 +1,5 @@
 export
-fn test_vpmovsx_reg(reg u64 p, reg u128 a, reg u256 b) -> reg u128, reg u256 {
+fn test_vpmovsx_reg(reg u64 p, reg u128 a, reg u256 b) -> reg u128 {
 
   reg u128 c;
   reg u256 d;
@@ -47,11 +47,13 @@ fn test_vpmovsx_reg(reg u64 p, reg u128 a, reg u256 b) -> reg u128, reg u256 {
   d = #VPMOVSX_4u32_4u64((u128)[p]);
   b |= d;
 
-  return a, b;
+  a |= b;
+
+  return a;
 }
 
 export
-fn test_vpmovzx_reg(reg u64 p, reg u128 a, reg u256 b) -> reg u128, reg u256 {
+fn test_vpmovzx_reg(reg u64 p, reg u128 a, reg u256 b) -> reg u128 {
 
   reg u128 c;
   reg u256 d;
@@ -99,5 +101,7 @@ fn test_vpmovzx_reg(reg u64 p, reg u128 a, reg u256 b) -> reg u128, reg u256 {
   d = #VPMOVZX_4u32_4u64((u128)[p]);
   b |= d;
 
-  return a, b;
+  a |= b;
+
+  return a;
 }

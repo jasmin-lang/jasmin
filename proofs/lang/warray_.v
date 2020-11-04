@@ -372,4 +372,5 @@ Module WArray.
   Qed.
 
 End WArray.
+
 Hint Resolve WArray.uincl_refl : core.

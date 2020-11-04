@@ -348,6 +348,10 @@ case.
 by move => h; case: (ih _ rec h) => x hx ok_y; eauto.
 Qed.
 
+Lemma mapM_map {aT bT cT eT} (f: aT → bT) (g: bT → result eT cT) (xs: seq aT) :
+  mapM g (map f xs) = mapM (g \o f) xs.
+Proof. by elim: xs => // x xs ih /=; case: (g (f x)) => // y /=; rewrite ih. Qed.
+
 Lemma mapM_cat  {eT aT bT} (f: aT → result eT bT) (s1 s2: seq aT) :
   mapM f (s1 ++ s2) = Let r1 := mapM f s1 in Let r2 := mapM f s2 in ok (r1 ++ r2).
 Proof.
