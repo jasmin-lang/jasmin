@@ -13,79 +13,91 @@ Unset Printing Implicit Defensive.
 Local Open Scope seq_scope.
 
 
+(*UnionFind théorique: foncteur (Module) , Record.*)
+
+
 Section UnionFind.
 
   (*I would like to replace label by S, but I need to solve the equality stuff...*)
-  Context (S : Set).
+  Context (S : eqType).
 
-  (*Equality shenanigans...*)
-  Lemma eq_label (lx ly : label) : (lx == ly) = true -> lx = ly.
-  Proof.
-    rewrite eqE /= => eqqm.
-    apply Pos.compare_eq.
-    by apply Ndec.Peqb_Pcompare.
-  Qed.
-
-  Definition unionfind := seq (label * label).
+  Definition unionfind := seq (S * S).
 
   Definition Empty : unionfind := [::].
 
-  Definition makeset (uf : unionfind) (l : label) :=
+  Definition makeset (uf : unionfind) (l : S) :=
     if has (fun pl => pl.1 == l) uf
     then uf
     else (l,l) :: uf.
   
-  Definition find (uf : unionfind) (l : label) :=
+  Definition find (uf : unionfind) (l : S) :=
     (nth (l,l) uf (seq.find (fun x => x.1 == l) uf)).2.
 
-  Definition union (uf : unionfind) (lx ly : label) :=
+  Definition union (uf : unionfind) (lx ly : S) :=
     let ufx := makeset uf lx in
     let ufxy := makeset ufx ly in
     let fx := find ufxy lx in
     let fy := find ufxy ly in
-    map (fun pl => if pl.2 == fx then (pl.1,fy) else pl) ufxy.
+    (*map (fun pl => if pl.2 == fx then (pl.1,fy) else pl) ufxy.*)
+    map (fun pl => (pl.1,if pl.2 == fx then fy else pl.2)) ufxy.
 
-  (*hasNfind does not exist apparently?*)
-  Lemma hasNfind (T : Type) (a : pred T) s : ~~ has a s -> seq.find a s = size s.
-  Proof. by rewrite has_find; case: ltngtP (find_size a s). Qed.
-
-  Lemma has_makeset (uf : unionfind) (lh lm : label) : has (fun x => x.1 == lh) (makeset uf lm) = (lm == lh) || (has (fun x => x.1 == lh) uf).
+  Lemma has_makeset (uf : unionfind) (lh lm : S) : has (fun x => x.1 == lh) (makeset uf lm) = (lm == lh) || (has (fun x => x.1 == lh) uf).
   Proof.
     rewrite /makeset.
     case Hlmuf: (has (fun x => x.1 == lm) uf) => //.
-    case Hlhuf: (has (fun x => x.1 == lh) uf); first by rewrite Bool.orb_true_r.
+    case Hlhuf: (has (fun x => x.1 == lh) uf); first by rewrite orbT.
     case Hlmlh: (lm == lh) => //.
-    by rewrite (eq_label Hlmlh) Hlhuf in Hlmuf.
+    by rewrite (eqP Hlmlh) Hlhuf in Hlmuf.
   Qed.
   
   (*Actually to be used in the proof or correction of tunneling.*)
-  Lemma find_Empty (l : label) : find Empty l = l.
+  Lemma find_Empty (l : S) : find Empty l = l.
   Proof.
-    by rewrite /find.
+    by [].
   Qed.
 
-  Lemma find_cons (uf : unionfind) (p : label * label) (l : label) : find (p :: uf) l = if (p.1 == l) then p.2 else find uf l.
+  Lemma find_cons (uf : unionfind) (p : S * S) (l : S) : find (p :: uf) l = if (p.1 == l) then p.2 else find uf l.
   Proof.
     rewrite /find /=.
     by case Hll1: (p.1 == l).
   Qed.
 
-  Lemma find_makeset (uf : unionfind) (lf lm : label) : find (makeset uf lm) lf = find uf lf.
+  (*hasNfind does not exist apparently?*)
+  Lemma seqhasNfind (T : Type) (a : pred T) s : ~~ has a s -> seq.find a s = size s.
+  Proof. by rewrite has_find; case: ltngtP (find_size a s). Qed.
+
+  Lemma hasNfind (uf : unionfind) (l : S) : ~~ has (fun x => x.1 == l) uf -> find uf l = l.
   Proof.
-    rewrite /makeset /find.
-    case Hlmuf: (has (fun x => x.1 == lm) uf) => //=. 
-    case Hlmlf: (lm == lf) => //=.
-    move: Hlmuf.
-    rewrite (eq_label Hlmlf).
-    move => Hlfuf.
-    apply negbT in Hlfuf.
-    apply hasNfind in Hlfuf.
-    rewrite Hlfuf.
-    by have ->: nth (lf, lf) uf (size uf) = (lf,lf) by apply nth_default.
+    rewrite /find.
+    move => HNhas.
+    rewrite (seqhasNfind HNhas).
+    by rewrite nth_default.
   Qed.
 
+  Lemma find_makeset (uf : unionfind) (lf lm : S) : find (makeset uf lm) lf = find uf lf.
+  Proof.
+    rewrite /makeset /find.
+    case Hlmuf: (has (fun x => x.1 == lm) uf) => //=.
+    apply negbT in Hlmuf.
+    apply hasNfind in Hlmuf.
+    move: Hlmuf.
+    case Hlmlf: (lm == lf) => //=.
+    by rewrite (eqP Hlmlf).
+  Qed.
+
+  Lemma find_map (uf : unionfind) (f : S -> S) (l rl : S) : find uf l = rl -> find (map (fun x => (x.1,f x.2)) uf) l = if has (fun x => x.1 == l) uf then f(rl) else l.
+  Proof.
+    rewrite /find.
+    case Hhas: (has (λ x , x.1 == l) uf); last first.
+    + have ->: (nth (l, l) [seq (x.1, f x.2) | x <- uf]
+       (seq.find (λ x , x.1 == l) [seq (x.1, f x.2) | x <- uf]) = (l,l)).
+      - apply nth_default.
+    rewrite seq.has_find in Hhas.
+    by admit.
+  Admitted.
+
   (*Actually to be used in the proof or correction of tunneling.*)
-  Lemma find_union (uf : unionfind) (l lx ly : label) : find (union uf lx ly) l = if (find uf l == find uf lx) then find uf ly else find uf l.
+  Lemma find_union (uf : unionfind) (l lx ly : S) : find (union uf lx ly) l = if (find uf l == find uf lx) then find uf ly else find uf l.
   Proof.
     rewrite /union.
     rewrite -(find_makeset uf l lx) -(find_makeset uf lx lx) -(find_makeset uf ly lx).
@@ -96,31 +108,52 @@ Section UnionFind.
     + by rewrite /ufxy has_makeset eq_refl.
     have: has (fun x => x.1 == lx) ufxy.
     + by rewrite /ufxy !has_makeset eq_refl Bool.orb_true_r.
+    Check eq_map.
+(*
+    have Hfun: forall x y z, (if x == y then z else y) = (fun a => (if a == y then z else a)) x. by rewrite //.
+    rewrite Hfun.
+    rewrite find_map.
     induction ufxy as [|huf tuf IHtuf] => //.
     rewrite //= !find_cons.
-    case Hhufl: (huf.1 == l); case Hhuflx: (huf.1 == lx); case Hhufly: (huf.1 == ly) => /=.
-    1-2:
-      by rewrite eq_refl Hhufl.
-    + by case Huffind: (huf.2 == find tuf lx) => /=; rewrite Hhufl.
-    + by case Huffind: (huf.2 == find tuf lx) => /=; rewrite Hhufl.
+    case Hhufl: (huf.1 == l); case Hhuflx: (huf.1 == lx); case Hhufly: (huf.1 == ly) => //=.
+    + move => _ _.
+      rewrite find_map.
+
     + rewrite map_id_in; last by move => pl Hpltuf; case Hplhuf: (pl.2 == huf.2) => //; rewrite -(eq_label Hplhuf) -surjective_pairing.
       rewrite eq_refl /= Hhufl.
       case Hfindtuf: (find tuf l == huf.2) => //.
       by rewrite (eq_label Hfindtuf).
     + move => _.
       rewrite eq_refl /= Hhufl.
-      clear IHtuf.
+      clear IHtuf Hhufl Hhuflx Hhufly.
       induction tuf as [|htuf ttuf IHttuf] => // Hhas.
       rewrite map_cons !find_cons.
-      case Hhtufly: (htuf.1 == ly).
+      case Hhtufly: (htuf.1 == ly); case Hhtufhuf: (htuf.2 == huf.2); case Hhtufl: (htuf.1 == l); case Hfindttuflhuf: (find ttuf l == huf.2) => //=.
+      (*Why can't I use 1-2 here?*)
+      - by rewrite Hhtufhuf.
+      - by rewrite Hhtufhuf.
       - by admit.
-      by admit.
+      - by admit.
+      - by rewrite Hhtufhuf.
+      - by rewrite Hhtufhuf.
+      - by admit.
+      - by admit.
+      - by rewrite Hhtufhuf.
+      - by rewrite Hhtufhuf.
+      - by admit.
+      - by admit.
+      - by rewrite Hhtufhuf.
+      - by rewrite Hhtufhuf.
+      - by admit.
+      - by admit.
     + move => Hhaslxtuf _.
       case Hhuffindtuf: (huf.2 == find tuf lx) => /=; rewrite Hhufl.
       1-2:
         by admit.
     move => Hhaslx Hhasly; rewrite IHtuf => //.
     by case Hhuffindtuf: (huf.2 == find tuf lx) => /=; rewrite Hhufl.
+  Admitted.
+*)
   Admitted.
 
 End UnionFind.
@@ -178,7 +211,7 @@ Section Tunneling.
 
   Definition Linstr_align := (MkLI xH Lalign).
 
-  Definition tunnel_chart (uf : unionfind) (c c' : linstr) :=
+  Definition tunnel_chart (uf : unionfind [eqType of label]) (c c' : linstr) :=
     match c, c' with
       | MkLI _ li, MkLI _ li' =>
         match li, li' with
@@ -187,9 +220,10 @@ Section Tunneling.
         end
     end.
 
-  Definition tunnel_plan (uf : unionfind) := pairfoldl tunnel_chart uf Linstr_align.
+  Definition tunnel_plan (uf : unionfind [eqType of label]) := pairfoldl tunnel_chart uf Linstr_align.
 
-  Definition tunnel_bore (uf : unionfind) (c c' : linstr) :=
+  (*MKLI everywhere*)
+  Definition tunnel_bore (uf : unionfind [eqType of label]) (c c' : linstr) :=
     match c, c' with
       | MkLI _ li, MkLI _ li' =>
         match li, li' with
@@ -200,7 +234,7 @@ Section Tunneling.
     end.
 
   Definition tunnel (lc : lcmd) :=
-    let uf := tunnel_plan Empty lc in
+    let uf := tunnel_plan (Empty _)lc in
     pairmap (tunnel_bore uf) Linstr_align lc.
 
 End Tunneling.
@@ -209,13 +243,10 @@ End Tunneling.
 Section TunnelingProof.
 
   (*Impossible to import.*)
-  Import linear_sem.
-
-  (*Might be better to define tunnel in terms of lstate.*)
-  Context (s1 s2 : lstate).
+  Require Import linear_sem.
 
   (*Is it correct?*)
-  Lemma lsem_tunneling : lsem (Lstate s1.(lmem) s1.(lvm) s1.(lfn) (tunnel s1.(lfn) s1.(lc)) s1.(lpc)) (Lstate s2.(lmem) s2.(lvm) s2.(lfn) (tunnel s2.(lfn) s2.(lc)) s2.(lpc)) -> lsem s1 s2.
+  Theorem lsem_tunneling p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem p (Lstate s1.(lmem) s1.(lvm) s1.(lfn) (tunnel s1.(lfn) s1.(lc)) s1.(lpc)) (Lstate s3.(lmem) s3.(lvm) s3.(lfn) (tunnel s3.(lfn) s3.(lc)) s3.(lpc)).
   Proof.
     by trivial.
   Qed.
