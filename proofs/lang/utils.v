@@ -71,7 +71,7 @@ Definition is_ok (E A:Type) (r:result E A) := if r is Ok a then true else false.
 
 Lemma is_ok_ok (E A:Type) (a:A) : is_ok (Ok E a).
 Proof. done. Qed.
-Hint Resolve is_ok_ok.
+Hint Resolve is_ok_ok : core.
 
 Lemma is_okP (E A:Type) (r:result E A) : reflect (exists (a:A), r = Ok E a) (is_ok r).
 Proof.
@@ -742,7 +742,7 @@ Notation "m <= n" := (cmp_le m n) : cmp_scope.
 Notation "m ≤ n" := (cmp_le m n) : cmp_scope.
 Delimit Scope cmp_scope with CMP.
 
-Hint Resolve cmp_le_refl.
+Hint Resolve cmp_le_refl : core.
 
 Section EqCMP.
 
