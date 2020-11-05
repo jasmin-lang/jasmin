@@ -184,14 +184,14 @@ Section PROOF.
     ~~ has write_mem x ->
     vm1 =[s2]  vm2 /\ m1 = m2.
   Proof.
-    rewrite /write_lvals.
-    elim: x v m1 vm1 [::] l => [ | x xs Hrec] [ | v vs] //= m1 vm1 l0 l //=.
+    elim: x v m1 vm1 l => [ | x xs Hrec] [ | v vs] //= m1 vm1 l //=.
     + by move=> [??];subst m1 vm1.
-    t_xrbindP => -[[m3 vm3] h] [hv hl] Hw He Hws;rewrite /vrvs /= vrvs_recE -/vrv negb_or.
-    move=> Hdisj /andP [] Hnw Hnh. case : He => H1 H2. rewrite H1 in Hw.
+    t_xrbindP. move=> [[sm svm] l2] Hw [s2'' l2'] Hws /= h1 h2.
+    rewrite /vrvs /= vrvs_recE -/vrv negb_or.
+    move=> Hdisj /andP [] Hnw Hnh. rewrite h1 in Hws. rewrite /= in Hws. 
     have /(_ s2) [] := Hwrite_disj Hw _ Hnw.
     + by move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec;SvD.fsetdec.
-    move=> Hvm ->. have [] := (Hrec _ _ _ _ _ Hws _ Hnh).
+    move=> Hvm ->. have [] := (Hrec _ _ _ _ Hws _ Hnh).
     + by move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec;SvD.fsetdec.
     by move=> ??;split => //;apply: (eq_onT Hvm).
   Qed.
@@ -549,4 +549,3 @@ Section PROOF.
   Qed.
 
 End PROOF.
-
