@@ -117,6 +117,7 @@ Definition wbase (s: wsize) : Z :=
 
 Lemma le0_wsize_size ws : 0 <= wsize_size ws.
 Proof. rewrite /wsize_size; lia. Qed.
+Arguments le0_wsize_size {ws}.
 Hint Resolve le0_wsize_size : core.
 
 Lemma wsize_sizeE sz : wsize_size sz =  wsize_bits sz / 8.
@@ -841,9 +842,13 @@ exact: wcat_rI eq_size.
 Qed.
 
 (* -------------------------------------------------------------------*)
+Definition lift1_vec' ve ve' (op : word ve → word ve')
+    (sz sz': wsize) (w: word sz) : word sz' :=
+  make_vec sz' (map op (split_vec ve w)).
+
 Definition lift1_vec ve (op : word ve -> word ve)
     (sz:wsize) (w:word sz) : word sz :=
-  make_vec sz (map op (split_vec ve w)).
+  lift1_vec' op sz w.
 Arguments lift1_vec : clear implicits.
 
 Definition lift2_vec ve (op : word ve -> word ve -> word ve)

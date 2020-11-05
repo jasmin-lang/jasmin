@@ -1561,6 +1561,7 @@ Section PROOF.
         try (move => ?? -> || move => ? -> || move => -> ) => //.
       case => //=;
         try (move => ?? -> || move => ? -> || move => -> ) => //.
+      1-2: by t_xrbindP.
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.
 

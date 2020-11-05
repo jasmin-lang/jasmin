@@ -1,0 +1,107 @@
+export
+fn test_vpmovsx_reg(reg u64 p, reg u128 a, reg u256 b) -> reg u128 {
+
+  reg u128 c;
+  reg u256 d;
+
+  /* BW */
+  a = #VPMOVSX_8u8_8u16(a);
+  c = #VPMOVSX_8u8_8u16((u64)[p]);
+  a |= c;
+  b = #VPMOVSX_16u8_16u16(b);
+  d = #VPMOVSX_16u8_16u16((u128)[p]);
+  b |= d;
+  /* BD */
+  a = #VPMOVSX_4u8_4u32(a);
+  c = #VPMOVSX_4u8_4u32((u32)[p]);
+  a |= c;
+  b = #VPMOVSX_8u8_8u32(b);
+  d = #VPMOVSX_8u8_8u32((u64)[p]);
+  b |= d;
+  /* BQ */
+  a = #VPMOVSX_2u8_2u64(a);
+  c = #VPMOVSX_2u8_2u64((u16)[p]);
+  a |= c;
+  b = #VPMOVSX_4u8_4u64(b);
+  d = #VPMOVSX_4u8_4u64((u32)[p]);
+  b |= d;
+  /* WD */
+  a = #VPMOVSX_4u16_4u32(a);
+  c = #VPMOVSX_4u16_4u32((u64)[p]);
+  a |= c;
+  b = #VPMOVSX_8u16_8u32(b);
+  d = #VPMOVSX_8u16_8u32((u128)[p]);
+  b |= d;
+  /* WQ */
+  a = #VPMOVSX_2u16_2u64(a);
+  c = #VPMOVSX_2u16_2u64((u32)[p]);
+  a |= c;
+  b = #VPMOVSX_4u16_4u64(b);
+  d = #VPMOVSX_4u16_4u64((u64)[p]);
+  b |= d;
+  /* DQ */
+  a = #VPMOVSX_2u32_2u64(a);
+  c = #VPMOVSX_2u32_2u64((u64)[p]);
+  a |= c;
+  b = #VPMOVSX_4u32_4u64(b);
+  d = #VPMOVSX_4u32_4u64((u128)[p]);
+  b |= d;
+
+  a |= b;
+
+  return a;
+}
+
+export
+fn test_vpmovzx_reg(reg u64 p, reg u128 a, reg u256 b) -> reg u128 {
+
+  reg u128 c;
+  reg u256 d;
+
+  /* BW */
+  a = #VPMOVZX_8u8_8u16(a);
+  c = #VPMOVZX_8u8_8u16((u64)[p]);
+  a |= c;
+  b = #VPMOVZX_16u8_16u16(b);
+  d = #VPMOVZX_16u8_16u16((u128)[p]);
+  b |= d;
+  /* BD */
+  a = #VPMOVZX_4u8_4u32(a);
+  c = #VPMOVZX_4u8_4u32((u32)[p]);
+  a |= c;
+  b = #VPMOVZX_8u8_8u32(b);
+  d = #VPMOVZX_8u8_8u32((u64)[p]);
+  b |= d;
+  /* BQ */
+  a = #VPMOVZX_2u8_2u64(a);
+  c = #VPMOVZX_2u8_2u64((u16)[p]);
+  a |= c;
+  b = #VPMOVZX_4u8_4u64(b);
+  d = #VPMOVZX_4u8_4u64((u32)[p]);
+  b |= d;
+  /* WD */
+  a = #VPMOVZX_4u16_4u32(a);
+  c = #VPMOVZX_4u16_4u32((u64)[p]);
+  a |= c;
+  b = #VPMOVZX_8u16_8u32(b);
+  d = #VPMOVZX_8u16_8u32((u128)[p]);
+  b |= d;
+  /* WQ */
+  a = #VPMOVZX_2u16_2u64(a);
+  c = #VPMOVZX_2u16_2u64((u32)[p]);
+  a |= c;
+  b = #VPMOVZX_4u16_4u64(b);
+  d = #VPMOVZX_4u16_4u64((u64)[p]);
+  b |= d;
+  /* DQ */
+  a = #VPMOVZX_2u32_2u64(a);
+  c = #VPMOVZX_2u32_2u64((u64)[p]);
+  a |= c;
+  b = #VPMOVZX_4u32_4u64(b);
+  d = #VPMOVZX_4u32_4u64((u128)[p]);
+  b |= d;
+
+  a |= b;
+
+  return a;
+}
