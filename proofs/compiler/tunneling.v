@@ -14,15 +14,38 @@ Local Open Scope seq_scope.
 
 
 (*UnionFind théorique: foncteur (Module) , Record.*)
+Module Type UnionFind.
+
+  Parameter S : eqType.
+  
+  Parameter unionfind : Type.
+
+  Parameter empty : unionfind.
+
+  Parameter find : unionfind -> S -> S.
+
+  Parameter well_formed : unionfind -> Prop.
+
+  Parameter union : unionfind -> S -> S -> unionfind.
+
+  Axiom find_empty : forall l , find empty l = l.
+
+  Axiom well_formed_empty : well_formed empty.
+
+  Axiom well_formed_union : forall uf lx ly , well_formed uf -> well_formed (union uf lx ly).
+
+  Axiom find_union : forall uf l lx ly , well_formed uf -> find (union uf lx ly) l = if (find uf l == find uf lx) then find uf ly else find uf l.
+
+End UnionFind.
 
 
-Section UnionFind.
+Module unionfind : UnionFind.
 
-  Context (S : eqType).
+  Parameter S : eqType.
 
   Definition unionfind := seq (S * S).
 
-  Definition Empty : unionfind := [::].
+  Definition empty : unionfind := [::].
 
   (*Not to be used outside of unionfind.*)
   Definition makeset (uf : unionfind) (l : S) :=
@@ -33,9 +56,6 @@ Section UnionFind.
   Definition find (uf : unionfind) (l : S) :=
     (nth (l,l) uf (seq.find (fun x => x.1 == l) uf)).2.
 
-  Definition well_formed (uf : unionfind) :=
-    forall l : S , has (fun pl => pl.1 == l) uf -> has (fun pl => pl.1 == find uf l) uf.
-
   Definition union (uf : unionfind) (lx ly : S) :=
     let ufx := makeset uf lx in
     let ufxy := makeset ufx ly in
@@ -43,7 +63,10 @@ Section UnionFind.
     let fy := find ufxy ly in
     map (fun pl => (pl.1,if pl.2 == fx then fy else pl.2)) ufxy.
 
-  Lemma has_makeset (uf : unionfind) (lh lm : S) : has (fun x => x.1 == lh) (makeset uf lm) = (lm == lh) || (has (fun x => x.1 == lh) uf).
+  Definition well_formed (uf : unionfind) :=
+    forall l : S , has (fun pl => pl.1 == l) uf -> has (fun pl => pl.1 == find uf l) uf.
+
+  Lemma has_makeset uf lh lm : has (fun x => x.1 == lh) (makeset uf lm) = (lm == lh) || (has (fun x => x.1 == lh) uf).
   Proof.
     rewrite /makeset.
     case Hlmuf: (has (fun x => x.1 == lm) uf) => //.
@@ -53,10 +76,10 @@ Section UnionFind.
   Qed.
   
   (*To be used in the proof or correction of tunneling.*)
-  Lemma find_Empty (l : S) : find Empty l = l.
+  Lemma find_empty l : find empty l = l.
   Proof. by []. Qed.
 
-  Lemma find_cons (uf : unionfind) (p : S * S) (l : S) : find (p :: uf) l = if (p.1 == l) then p.2 else find uf l.
+  Lemma find_cons uf p l : find (p :: uf) l = if (p.1 == l) then p.2 else find uf l.
   Proof.
     rewrite /find /=.
     by case Hll1: (p.1 == l).
@@ -66,7 +89,7 @@ Section UnionFind.
   Lemma seqhasNfind (T : Type) (a : pred T) s : ~~ has a s -> seq.find a s = size s.
   Proof. by rewrite has_find; case: ltngtP (find_size a s). Qed.
 
-  Lemma hasNfind (uf : unionfind) (l : S) : ~~ has (fun x => x.1 == l) uf -> find uf l = l.
+  Lemma hasNfind uf l : ~~ has (fun x => x.1 == l) uf -> find uf l = l.
   Proof.
     rewrite /find.
     move => HNhas.
@@ -74,7 +97,7 @@ Section UnionFind.
     by rewrite nth_default.
   Qed.
 
-  Lemma find_makeset (uf : unionfind) (lf lm : S) : find (makeset uf lm) lf = find uf lf.
+  Lemma find_makeset uf lf lm : find (makeset uf lm) lf = find uf lf.
   Proof.
     rewrite /makeset /find.
     case Hlmuf: (has (fun x => x.1 == lm) uf) => //=.
@@ -85,7 +108,7 @@ Section UnionFind.
     by rewrite (eqP Hlmlf).
   Qed.
 
-  Lemma find_map (uf : unionfind) (f : S -> S) (l rl : S) : find uf l = rl -> find (map (fun x => (x.1,f x.2)) uf) l = if has (fun x => x.1 == l) uf then f(rl) else l.
+  Lemma find_map uf f l rl : find uf l = rl -> find (map (fun x => (x.1,f x.2)) uf) l = if has (fun x => x.1 == l) uf then f(rl) else l.
   Proof.
     rewrite /find.
     case Hhas: (has (λ x , x.1 == l) uf).
@@ -102,7 +125,7 @@ Section UnionFind.
   Qed.
 
   (*To be used in the proof or correction of tunneling.*)
-  Lemma well_formed_Empty : well_formed Empty.
+  Lemma well_formed_empty : well_formed empty.
   Proof. by []. Qed.
 
   Lemma well_formed_makeset uf lm : well_formed uf -> well_formed (makeset uf lm).
@@ -140,7 +163,7 @@ Section UnionFind.
   Qed.
 
   (*To be used in the proof or correction of tunneling.*)
-  Lemma find_union (uf : unionfind) (l lx ly : S) : well_formed uf -> find (union uf lx ly) l = if (find uf l == find uf lx) then find uf ly else find uf l.
+  Lemma find_union uf l lx ly : well_formed uf -> find (union uf lx ly) l = if (find uf l == find uf lx) then find uf ly else find uf l.
   Proof.
     move => Hwfuf.
     have:= (@well_formed_makeset _ ly (@well_formed_makeset _ lx Hwfuf)).
@@ -199,7 +222,7 @@ Section UnionFind.
     + by rewrite hasNfind // /negb Hhasltuf.
   Qed.
 
-End UnionFind.
+End unionfind.
 
 
 Section FoldLeftComp.
@@ -267,7 +290,7 @@ Section Tunneling.
     end.
 
   Definition tunnel (lc : lcmd) :=
-    let uf := tunnel_plan (Empty _)lc in
+    let uf := tunnel_plan (empty _) lc in
     pairmap (tunnel_bore uf) Linstr_align lc.
 
 End Tunneling.
@@ -277,8 +300,10 @@ Require Import linear_sem.
 
 Section TunnelingProof.
 
+  Definition lsem_tunnel s := (Lstate s.(lmem) s.(lvm) s.(lfn) (tunnel s.(lfn) s.(lc)) s.(lpc)).
+
   (*Is it correct?*)
-  Theorem lsem_tunneling p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem p (Lstate s1.(lmem) s1.(lvm) s1.(lfn) (tunnel s1.(lfn) s1.(lc)) s1.(lpc)) (Lstate s3.(lmem) s3.(lvm) s3.(lfn) (tunnel s3.(lfn) s3.(lc)) s3.(lpc)).
+  Theorem lsem_tunneling p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem p (lsem_tunnel s1) (lsem_tunnel s3).
   Proof.
     
   Admitted.
