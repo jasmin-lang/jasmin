@@ -160,19 +160,43 @@ Section UnionFind.
     case Hhuflx: (huf.1 == lx);
     case Hhufly: (huf.1 == ly);
     case Hfindtufl: (find tuf l == huf.2);
-    case Hhasltuf: (has (λ pl, pl.1 == l) tuf) => //=.
-    + by rewrite -(eqP  Hfindtufl) hasNfind // /negb Hhasltuf.
+    case Hhasltuf: (has (λ pl, pl.1 == l) tuf);
+    case Hfindllx: (find tuf l == find tuf lx) => //=.
+    + by rewrite -(eqP Hfindtufl) hasNfind // /negb Hhasltuf.
+    + by rewrite -(eqP Hfindtufl) hasNfind // /negb Hhasltuf.
+    + by rewrite hasNfind // /negb Hhasltuf.
     + by rewrite hasNfind // /negb Hhasltuf.
     + move => _ Hhaslytuf.
       have Hfindll: (find tuf l = l) by apply hasNfind; rewrite /negb Hhasltuf.
       have Hfindlxl: (find (huf :: tuf) lx = l) by rewrite find_cons Hhuflx -(eqP Hfindtufl).
       have Hhasluf: (has (λ pl : S * S, pl.1 == find (huf :: tuf) lx) (huf :: tuf)) by apply Hwfufxy; rewrite /= Hhuflx.
       by rewrite Hfindlxl /= Hhufl Hhasltuf /= in Hhasluf.
+    + move => _ Hhaslytuf.
+      have Hfindll: (find tuf l = l) by apply hasNfind; rewrite /negb Hhasltuf.
+      have Hfindlxl: (find (huf :: tuf) lx = l) by rewrite find_cons Hhuflx -(eqP Hfindtufl).
+      have Hhasluf: (has (λ pl : S * S, pl.1 == find (huf :: tuf) lx) (huf :: tuf)) by apply Hwfufxy; rewrite /= Hhuflx.
+      by rewrite Hfindlxl /= Hhufl Hhasltuf /= in Hhasluf.
     + by rewrite hasNfind // /negb Hhasltuf.
-    + by admit.
-    + by admit.
-    + by admit.
-    + by admit.
+    + by rewrite hasNfind // /negb Hhasltuf.
+    + by rewrite -(eqP Hfindtufl) hasNfind // /negb Hhasltuf.
+    + by rewrite hasNfind // /negb Hhasltuf.
+    + move => Hhaslxtuf _.
+      have Hfindll: (find tuf l = l) by apply hasNfind; rewrite /negb Hhasltuf.
+      have Hfindlxl: (find (huf :: tuf) lx = l) by rewrite find_cons Hhuflx -(eqP Hfindllx).
+      have Hhasluf: (has (λ pl : S * S, pl.1 == find (huf :: tuf) lx) (huf :: tuf)) by apply Hwfufxy; rewrite /= Hhuflx.
+      by rewrite Hfindlxl /= Hhufl Hhasltuf /= in Hhasluf.
+    + by rewrite hasNfind // /negb Hhasltuf.
+    + move => Hhaslxtuf Hhaslytuf.
+      have Hfindll: (find tuf l = l) by apply hasNfind; rewrite /negb Hhasltuf.
+      have Hhasluf: (has (λ pl : S * S, pl.1 == find (huf :: tuf) huf.1) (huf :: tuf)) by apply Hwfufxy; rewrite /= eq_refl.
+      by rewrite find_cons eq_refl -(eqP Hfindtufl) /= Hfindll Hhufl Hhasltuf in Hhasluf.
+    + by rewrite hasNfind // /negb Hhasltuf.
+    + move => Hhaslxtuf Hhaslytuf.
+      have Hfindll: (find tuf l = l) by apply hasNfind; rewrite /negb Hhasltuf.
+      have Hfindlxl: (find (huf :: tuf) lx = l) by rewrite find_cons Hhuflx -(eqP Hfindllx).
+      have Hhasluf: (has (λ pl : S * S, pl.1 == find (huf :: tuf) lx) (huf :: tuf)) by apply Hwfufxy; rewrite /= Hhuflx.
+      by rewrite Hfindlxl /= Hhufl Hhasltuf /= in Hhasluf.
+    + by rewrite hasNfind // /negb Hhasltuf.
   Qed.
 
 End UnionFind.
