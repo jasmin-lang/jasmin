@@ -83,8 +83,8 @@ Section PROOF.
   Lemma multiplicand_in_fv sz : Sv.In (vword sz (fv.(fresh_multiplicand) sz)) fvars.
   Proof. by rewrite /fvars /lowering.fvars /=; case: sz; SvD.fsetdec. Qed.
 
-  Local Hint Resolve cf_neq_zf sf_neq_zf of_neq_zf of_neq_sf.
-  Local Hint Resolve of_in_fv cf_in_fv sf_in_fv pf_in_fv zf_in_fv multiplicand_in_fv.
+  Local Hint Resolve cf_neq_zf sf_neq_zf of_neq_zf of_neq_sf : core.
+  Local Hint Resolve of_in_fv cf_in_fv sf_in_fv pf_in_fv zf_in_fv multiplicand_in_fv : core.
 
   Local
   Definition p' := lower_prog options warning fv is_var_in_memory p.
@@ -1561,6 +1561,7 @@ Section PROOF.
         try (move => ?? -> || move => ? -> || move => -> ) => //.
       case => //=;
         try (move => ?? -> || move => ? -> || move => -> ) => //.
+      1-2: by t_xrbindP.
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.
 

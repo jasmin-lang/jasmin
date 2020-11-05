@@ -2158,7 +2158,13 @@ abstract theory BitWordSH.
   op shift_mask i = 
     W8.to_uint i %% (if size <= 32 then 32 else size).
 
+
  (* FIXME *)
+  op (`|>>`) : t -> W8.t -> t.
+
+  axiom SAR_sem a b :
+    a `|>>` b = of_int (to_sint a %/ 2^(W8.to_uint b)).
+
   op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` (to_uint w2 %% size).
   op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` (to_uint w2 %% size).
 

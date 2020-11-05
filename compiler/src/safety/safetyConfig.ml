@@ -434,21 +434,29 @@ let pp_current_config_diff () =
 (* -------------------------------------------------------------------- *)
 let mk_config_doc () =
   let json : Json.Basic.t = to_json_doc default in
-  let file = Stdlib.open_out "config/checker_config_doc.json" in
-  let () = Json.Basic.pretty_to_channel file json in
-  close_out file
+  try
+    let file = Stdlib.open_out "config/checker_config_doc.json" in
+    let () = Json.Basic.pretty_to_channel file json in
+    close_out file
+  with Sys_error s ->
+    Format.eprintf "@[<v>Failed to create configuration documentation:@;\
+                    %s@]" s
 
 let () = mk_config_doc ()
 
 (* -------------------------------------------------------------------- *)
 let mk_config_default () =
   let json : Json.Basic.t = to_json default in
-  let file = Stdlib.open_out "config/checker_config_default.json" in
-  let () = Stdlib.output_string file
-      "// Default configuration file. Automatiacally generated, any changes \
-       will be overwritten.\n" in
-  let () = Json.Basic.pretty_to_channel file json in
-  close_out file
+  try
+    let file = Stdlib.open_out "config/checker_config_default.json" in
+    let () = Stdlib.output_string file
+        "// Default configuration file. Automatiacally generated, any changes \
+         will be overwritten.\n" in
+    let () = Json.Basic.pretty_to_channel file json in
+    close_out file
+  with Sys_error s ->
+    Format.eprintf "@[<v>Failed to create default configuration file:@;\
+                    %s@]" s
 
 let () = mk_config_default ()
 

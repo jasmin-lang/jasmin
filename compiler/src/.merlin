@@ -1,5 +1,7 @@
 S .
 B ../_build/src
+B ../_build/src/safety
+B ../_build/src/safety/domains
 B ../_build/CIL
 
 PKG batteries

@@ -24,9 +24,9 @@
  * ----------------------------------------------------------------------- *)
 
 (* ** Imports and settings *)
+From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
-From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Export strings word utils type var global sem_type x86_decl x86_instr_decl.
 Require Import xseq.
@@ -882,7 +882,7 @@ Lemma map_prog_globs F p : p_globs (map_prog F p) = p_globs p.
 Proof. done. Qed.
 
 Lemma get_map_prog F p fn :
-  get_fundef (p_funcs (map_prog F p)) fn = omap F (get_fundef (p_funcs p) fn).
+  get_fundef (p_funcs (map_prog F p)) fn = ssrfun.omap F (get_fundef (p_funcs p) fn).
 Proof. exact: assoc_map. Qed.
 
 Lemma get_fundef_cons {T} (fnd: funname * T) p fn:
@@ -1276,7 +1276,7 @@ Proof. by done. Qed.
 (* ** Some smart constructors
  * -------------------------------------------------------------------------- *)
 
-Fixpoint is_const (e:pexpr) :=
+Definition is_const (e:pexpr) :=
   match e with
   | Pconst n => Some n
   | _        => None
