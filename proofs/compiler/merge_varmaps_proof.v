@@ -726,12 +726,21 @@ Section LEMMA.
      exists (tv :: tres); first reflexivity.
      constructor; last exact: res_uincl.
      exact: (value_uincl_trans (value_uincl_truncate_val ok_w) v_uincl).
+     have rsp_not_written :  ¬ Sv.In vrsp (write_c (f_body fd)).
+     - move/not_written_magic: preserved_magic ok_wrf => [_].
+       rewrite /writefun_ra ok_fd /valid_writefun /write_fd /= /magic_variables /= /is_true Sv.subset_spec; clear.
+       SvD.fsetdec.
      exists (set_RSP (free_stack (emem t2) (round_ws fd.(f_extra).(sf_align) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)))) (evm t2)), tres; split.
     - econstructor.
       + exact: ok_fd.
       + exact: ok_rastack.
       + exact: ok_m'.
       + exact: texec.
+      + rewrite /valid_RSP -preserved // /t1' /= Fv.setP_eq.
+        congr (ok (pword_of_word _)).
+        rewrite -(mvm_mem sim2).
+        move: ok_s1; rewrite (write_vars_lvals [::]) => /write_lvals_stack_stable /stable_top_stack ->.
+        by move/sem_stack_stable: sexec => /stable_top_stack.
       rewrite (mvm_mem sim2); reflexivity.
     - rewrite /= /set_RSP => x.
       case: (vrsp =P x).

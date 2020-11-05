@@ -62,6 +62,9 @@ Qed.
 Definition set_RSP m vm : vmap :=
   vm.[vid (string_of_register RSP) <- ok (pword_of_word (top_stack m))].
 
+Definition valid_RSP m (vm: vmap) : Prop :=
+  vm.[vid (string_of_register RSP) ] = ok (pword_of_word (top_stack m)).
+
 Inductive sem : estate → cmd → estate → Prop :=
 | Eskip s :
     sem s [::] s
@@ -119,6 +122,7 @@ with sem_call : instr_info → estate → funname → estate → Prop :=
     (if f.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) →
     alloc_stack s1.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1 →
     sem {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} f.(f_body) s2' →
+    valid_RSP s2'.(emem) s2'.(evm) →
     let m2 := free_stack s2'.(emem) (round_ws f.(f_extra).(sf_align) (f.(f_extra).(sf_stk_sz) + f.(f_extra).(sf_stk_extra_sz))) in
     s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
     sem_call ii s1 fn s2.
@@ -166,19 +170,23 @@ Proof.
   by move => ii s1 s2 a c e c' exec_c eval_e; exists s2, false.
 Qed.
 
+Variant ex3_6 (A B C: Type) (P1 P2 P3 P4 P5 P6: A → B → C → Prop) : Prop :=
+| Ex3_6 a b c of P1 a b c & P2 a b c & P3 a b c & P4 a b c & P5 a b c & P6 a b c.
+
 Lemma sem_callE ii s fn s' :
   sem_call ii s fn s' →
-  ∃ f m1 s2',
-    [/\ get_fundef (p_funcs p) fn = Some f,
-     (if f.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) : bool,
-    alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1,
-    sem {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s.(evm).[x <- undef_error] else s.(evm)) |} f.(f_body) s2' &
-    let m2 := free_stack s2'.(emem) (round_ws f.(f_extra).(sf_align) (f.(f_extra).(sf_stk_sz) + f.(f_extra).(sf_stk_extra_sz))) in
-    s' = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}
-    ].
+  ex3_6
+    (λ f _ _, get_fundef (p_funcs p) fn = Some f)
+    (λ f _ _, (if f.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) : bool)
+    (λ f m1 _, alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1)
+    (λ f m1 s2', sem {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s.(evm).[x <- undef_error] else s.(evm)) |} f.(f_body) s2')
+    (λ _ _ s2', valid_RSP s2'.(emem) s2'.(evm))
+    (λ f _ s2',
+      let m2 := free_stack s2'.(emem) (round_ws f.(f_extra).(sf_align) (f.(f_extra).(sf_stk_sz) + f.(f_extra).(sf_stk_extra_sz))) in
+      s' = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}).
 Proof.
-  case => { ii s fn s' } ii s s' fn f m1 s2' => ok_f ok_ra ok_alloc exec_body /= ->.
-  by exists f, m1, s2'.
+  case => { ii s fn s' } ii s s' fn f m1 s2' => ok_f ok_ra ok_alloc exec_body ok_RSP /= ->.
+  by exists f m1 s2'.
 Qed.
 
 (*---------------------------------------------------*)
@@ -267,6 +275,7 @@ Section SEM_IND.
       alloc_stack s1.(emem) fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 →
       sem {| emem := m1 ; evm := set_RSP m1 (if fd.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} fd.(f_body) s2' →
       Pc {| emem := m1 ; evm := set_RSP m1 (if fd.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} fd.(f_body) s2' →
+      valid_RSP s2'.(emem) s2'.(evm) →
       let m2 := free_stack s2'.(emem) (round_ws fd.(f_extra).(sf_align) (fd.(f_extra).(sf_stk_sz) + fd.(f_extra).(sf_stk_extra_sz))) in
       s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
       Pfun ii s1 fn s2.
@@ -309,8 +318,8 @@ Section SEM_IND.
 
   with sem_call_Ind (ii: instr_info) (s1: estate) (fn: funname) (s2: estate) (s: sem_call ii s1 fn s2) {struct s} : Pfun ii s1 fn s2 :=
     match s with
-    | @EcallRun ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_m1 exec ok_s2 =>
-      @Hproc ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_m1 exec (@sem_Ind _ _ _ exec) ok_s2
+    | @EcallRun ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_m1 exec ok_rsp ok_s2 =>
+      @Hproc ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_m1 exec (@sem_Ind _ _ _ exec) ok_rsp ok_s2
     end.
 
 End SEM_IND.
