@@ -2313,6 +2313,28 @@ Proof.
   move=> Hm. by move: (sem_pexprs_map_get_var Hm) => -> /=.
 Qed.
 
+Lemma write_lvals_vars gd xs vs s1 v:  
+  write_vars xs vs s1 = ok v ->
+  exists l, write_lvals gd s1 (map Lvar xs) vs = ok (v, l).
+Proof.
+  rewrite /write_lvals. rewrite /write_vars.
+  elim: xs vs s1 => [ | x xs Hrec] [ | v' vs] //= s1.
+  + move=> [] <-. by exists [::].
+  t_xrbindP. move=> s1' -> /= Hw. move: (Hrec vs s1' Hw).
+  move=> [] l' Hw'. exists (LEmpty :: l'). by rewrite Hw' /=.
+Qed.
+
+Lemma get_var_sem_pexprs gd s xs vs:
+  mapM (λ x : var_i, get_var (evm s) x) xs = ok vs ->
+  exists vs', sem_pexprs gd s [seq Pvar i | i <- xs] = ok vs'.
+Proof.
+ rewrite /sem_pexprs. elim: xs vs.
+ + move=> vs Hm /=. by exists [::].
+ move=> a l Hm /=. t_xrbindP.
+ move=> vs v Hg vs' Hm' Hv. rewrite Hg /=. move: (Hm vs' Hm').
+ move=> [] vsl -> /=. by exists ((v, LEmpty) :: vsl).
+Qed.
+
 Section UNDEFINCL.
 
 Variable (p:prog).
