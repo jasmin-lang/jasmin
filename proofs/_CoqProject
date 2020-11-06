@@ -38,6 +38,7 @@ compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/stack_alloc.v
 compiler/stack_alloc_proof.v
+compiler/tunneling.v
 compiler/unrolling.v
 compiler/unrolling_proof.v
 compiler/x86_decl.v
