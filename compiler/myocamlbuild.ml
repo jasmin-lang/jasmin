@@ -42,7 +42,9 @@ let _ = dispatch begin function
 
        (* libs <-> src *)
        Pathname.define_context "entry" ["."];
-       Pathname.define_context "src" ["CIL"]
+       Pathname.define_context "src" ["CIL"];
+       Pathname.define_context "src/safety" ["CIL"];
+       Pathname.define_context "src/safety/domains" ["CIL"]
 
    | _ -> ()
 end

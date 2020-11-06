@@ -1,7 +1,7 @@
 export fn addNumber(reg u64 A, reg u64 shift) -> reg u64 {
   reg u64 i;
   reg u64 j;
-  stack u64 s_A;
+  reg u64 s_A;
 
   s_A = A;
 

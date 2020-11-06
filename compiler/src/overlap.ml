@@ -1,8 +1,6 @@
 open Utils
-      
-(* Information attached to instructions. *)
-type minfo = { i_instr_number : int; }
-
+open SafetyPreanalysis
+    
 type overlap = { program_point    : int;
                  never_overlaps   : Sint.t;
                  always_overlaps  : Sint.t;

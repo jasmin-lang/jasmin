@@ -11,8 +11,8 @@ export fn addNumber(reg u64 A, reg u64 B, reg u64 len) -> reg u64 {
   reg u64 b3;
   reg u64 a4;
   reg u64 b4;
-  stack u64 s_A;
-  stack u64 s_B;
+  reg u64 s_A;
+  reg u64 s_B;
 
   p = 0;
   i = 0;
@@ -25,7 +25,8 @@ export fn addNumber(reg u64 A, reg u64 B, reg u64 len) -> reg u64 {
   b4 = (u64)[s_B + 8];
 
   if (len > 3) {
-    while (i < len - 3) {
+    len = len - 3;
+    while (i < len) {
       a1 = a3;
       a3 = (u64)[s_A + 16];
       b1 = b3;

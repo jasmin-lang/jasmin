@@ -42,14 +42,6 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
 
-(*Lemma is_labelP i lbl: reflect (exists a, i.(li_i) = Llabel a lbl) (is_label lbl i).
-Proof.
-  rewrite /is_label;case:i => ii [|a l||] //=; try by constructor => -[].
-  apply:(@equivP (lbl = l)); first by apply eqP.
-  split=> [->|[? [? ->]] //];eauto.
-Qed.
-*)
-
 Lemma align_bind ii a p1 l :
   Let p := align ii a p1 in ok (p.1, p.2 ++ l) =
   align ii a (Let p := p1 in ok (p.1, p.2 ++ l)).
@@ -60,7 +52,7 @@ Section CAT.
   Let Pi (i:instr) :=
     forall lbl l ,
      linear_i i lbl l =
-     linear_i i lbl [::] >>= (fun (p:label*lcmd) => ok (p.1, p.2 ++ l)).
+     linear_i i lbl [::] >>= (fun (p: label * lcmd) => ok (p.1, p.2 ++ l)).
 
   Let Pr (i:instr_r) :=
     forall ii, Pi (MkI ii i).
@@ -69,7 +61,7 @@ Section CAT.
     forall lbl l ,
      linear_c linear_i c lbl l =
      linear_c linear_i c lbl [::] >>=
-       (fun (p:label*lcmd) => ok (p.1, p.2 ++ l)).
+       (fun (p: label * lcmd) => ok (p.1, p.2 ++ l)).
 
   Let Pf (fd:fundef) := True.
 
@@ -128,14 +120,14 @@ Section CAT.
 
   Lemma linear_i_nil i lbl l :
      linear_i i lbl l =
-     linear_i i lbl [::] >>= (fun (p:label*lcmd) => ok (p.1, p.2 ++ l)).
+     linear_i i lbl [::] >>= (fun (p: label * lcmd) => ok (p.1, p.2 ++ l)).
   Proof.
     apply (@instr_Rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
   Lemma linear_c_nil c lbl l :
      linear_c linear_i c lbl l =
-     linear_c linear_i c lbl [::] >>= (fun (p:label*lcmd) => ok (p.1, p.2 ++ l)).
+     linear_c linear_i c lbl [::] >>= (fun (p: label * lcmd) => ok (p.1, p.2 ++ l)).
   Proof.
     apply (@cmd_rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
@@ -415,15 +407,6 @@ Proof.
   apply (lsem_step  (s2:=(of_estate {| emem := m; evm := vm |} ({| li_ii := ii; li_i := Lalign |} :: c) 1))); first by constructor.
   by apply: (lsem_cat_hd (c:=[::{| li_ii := ii; li_i := Lalign |}]) _ h).
 Qed.
-
-(*Lemma lsem_add_align gd s c ii a s' :
-  lsem gd (of_estate s c 0) (of_estate s' c (size c)) ->
-  lsem gd (of_estate s (add_align ii a c) 0) (of_estate s' (add_align ii a c) (size (add_align ii a c))).
-Proof.
-  rewrite /add_align;case: a s s' => -[] m vm [] m' vm' h //.
-  apply (lsem_step  (s2:=(of_estate {| emem := m; evm := vm |} ({| li_ii := ii; li_i := Lalign |} :: c) 1))); first by constructor.
-  by apply: (lsem_cat_hd (c:=[::{| li_ii := ii; li_i := Lalign |}]) _ h).
-Qed. *)
 
 Lemma add_align_nil ii a c : add_align ii a c = add_align ii a [::] ++ c.
 Proof. by case: a. Qed.

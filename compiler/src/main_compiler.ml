@@ -156,7 +156,7 @@ let check_safety_p s p source_p =
           let source_f_decl = List.find (fun source_f_decl ->
               f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
             ) (snd source_p) in
-          let module AbsInt = Safety.AbsAnalyzer(struct
+          let module AbsInt = SafetyInterpreter.AbsAnalyzer(struct
               let main_source = source_f_decl
               let main = f_decl
               let prog = p
@@ -182,7 +182,7 @@ let check_overlap_p s p source_p =
         let source_f_decl = List.find (fun source_f_decl ->
             f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
           ) (snd source_p) in
-        let module AbsInt = Safety.AbsAnalyzer(struct
+        let module AbsInt = SafetyInterpreter.AbsAnalyzer(struct
             let main_source = source_f_decl
             let main = f_decl
             let prog = p
@@ -277,7 +277,7 @@ let main () =
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
           with Evaluator.Eval_error (ii,err) ->
-            Format.eprintf "%a" Evaluator.pp_error (tbl, ii, err)
+            hierror "%a" Evaluator.pp_error (tbl, ii, err)
         in
         List.iter exec to_exec
       end;

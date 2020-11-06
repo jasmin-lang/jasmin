@@ -254,7 +254,7 @@ Proof. by case: t1 t2 => [||n1|wz1] [||n2|wz2]. Qed.
 
 Lemma compat_type_refl t : compat_type t t.
 Proof. by case: t => [||n|wz]. Qed.
-Hint Resolve compat_type_refl.
+Hint Resolve compat_type_refl : core.
 
 Lemma compat_type_trans t2 t1 t3 : compat_type t1 t2 -> compat_type t2 t3 -> compat_type t1 t3.
 Proof.

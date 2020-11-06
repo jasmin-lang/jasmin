@@ -1,0 +1,56 @@
+export
+fn test_movsx(reg u64 x y) {
+  reg u16 a;
+  reg u32 b;
+  reg u64 c;
+
+  a = #MOVSX_u16u8(x);
+  b = #MOVSX_u32u16(a);
+  b = #MOVSX_u32u8(b);
+  c = #MOVSX_u64u32(b);
+  c = #MOVSX_u64u16(c);
+  c = #MOVSX_u64u8(c);
+
+  [y] = c;
+
+  a = #MOVSX_u16u8((u8)[y]);
+  (u16)[y] = a;
+  b = #MOVSX_u32u16((u16)[y]);
+  (u32)[y] = b;
+  b = #MOVSX_u32u8((u8)[y]);
+  (u32)[y] = b;
+  c = #MOVSX_u64u32((u32)[y]);
+  [y] = c;
+  c = #MOVSX_u64u16((u16)[y]);
+  [y] = c;
+  c = #MOVSX_u64u8((u8)[y]);
+  [y] = c;
+
+}
+
+export
+fn test_movzx(reg u64 x y) {
+  reg u16 a;
+  reg u32 b;
+  reg u64 c;
+
+  a = #MOVZX_u16u8(x);
+  b = #MOVZX_u32u16(a);
+  b = #MOVZX_u32u8(b);
+  c = #MOVZX_u64u16(b);
+  c = #MOVZX_u64u8(c);
+
+  [y] = c;
+
+  a = #MOVZX_u16u8((u8)[y]);
+  (u16)[y] = a;
+  b = #MOVZX_u32u16((u16)[y]);
+  (u32)[y] = b;
+  b = #MOVZX_u32u8((u8)[y]);
+  (u32)[y] = b;
+  c = #MOVZX_u64u16((u16)[y]);
+  [y] = c;
+  c = #MOVZX_u64u8((u8)[y]);
+  [y] = c;
+
+}

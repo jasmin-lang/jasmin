@@ -12,7 +12,8 @@ module Scmp = struct
   let compare = compare 
 end
 module Ss = Set.Make(Scmp)
-
+module Ms = Map.Make(Scmp)
+    
 (* -------------------------------------------------------------------- *)
 exception Unexpected
 
