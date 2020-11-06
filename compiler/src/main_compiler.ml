@@ -173,7 +173,6 @@ and pp_comp_ferr tbl fmt = function
 
 
 (* -------------------------------------------------------------------- *)
-
 let rec warn_extra_i i = 
   match i.i_desc with
   | Cassgn (_, tag, _, _) | Copn (_, tag, _, _) ->
@@ -200,8 +199,37 @@ let rec warn_extra_i i =
 
 let warn_extra_fd (_, fd) =
   List.iter warn_extra_i fd.f_body
+ 
+let check_safety_p s p source_p =
+  let s1,s2 = Glob_options.print_strings s in
+  Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
+                  %a@;@]@."
+    s1 s2
+    (Printer.pp_prog ~debug:true) p;
 
+  let () = match !safety_config with
+    | Some conf -> SafetyConfig.load_config conf
+    | None -> () in
   
+  let () =
+    List.iter (fun f_decl ->
+        if f_decl.f_cc = Export then
+          let () = Format.eprintf "@[<v>Analyzing function %s@;@]@."
+              f_decl.f_name.fn_name in
+
+          let source_f_decl = List.find (fun source_f_decl ->
+              f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
+            ) (snd source_p) in
+          let module AbsInt = SafetyInterpreter.AbsAnalyzer(struct
+              let main_source = source_f_decl
+              let main = f_decl
+              let prog = p
+            end) in
+
+          AbsInt.analyze ())
+      (snd p) in
+  exit 0 
+
 (* -------------------------------------------------------------------- *)
 let main () =
   try
@@ -227,24 +255,15 @@ let main () =
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
     Typing.check_prog prog;
-
-    if !check_safety then begin
-      let () =
-        List.iter (fun f_decl ->
-            if f_decl.f_cc = Export then
-              let () = Format.eprintf "@[<v>Analyzing function %s@;@]@."
-                  f_decl.f_name.fn_name in
-
-              let module AbsInt = Safety.AbsAnalyzer(struct
-                  let main = f_decl
-                  let prog = prog
-                end) in
-
-              AbsInt.analyze ())
-          (snd prog) in
-      exit 0;
-    end;
-
+    
+    (* The source program, before any compilation pass. *)
+    let source_prog = prog in
+    
+    if SafetyConfig.sc_comp_pass () = Compiler.ParamsExpansion &&
+       !check_safety
+    then check_safety_p Compiler.ParamsExpansion prog source_prog
+    else
+            
     if !ec_list <> [] then begin
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
@@ -387,6 +406,21 @@ let main () =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
       is_stack_kind v.v_kind in
 
+
+     (* TODO: update *)
+    (* (\* Check safety and calls exit(_). *\)
+     * let check_safety_cp s cp =
+     *   let p = Conv.prog_of_cprog tbl cp in
+     *   check_safety_p s p source_prog in
+     * 
+     * let pp_cprog s cp =
+     *   if s = SafetyConfig.sc_comp_pass () && !check_safety then
+     *     check_safety_cp s cp
+     *   else
+     *     eprint s (fun fmt cp ->
+     *         let p = Conv.prog_of_cprog tbl cp in
+     *         Printer.pp_prog ~debug:true fmt p) cp in *)
+
     let pp_cuprog fmt cp =
       let p = Conv.prog_of_cuprog tbl cp in
       Printer.pp_prog ~debug:true fmt p in
@@ -458,6 +492,7 @@ let main () =
       if s = Compiler.DeadCode_RegAllocation then
         let (fds, _) = Conv.prog_of_csprog tbl p in
         List.iter warn_extra_fd fds in
+
 
     let cparams = {
       Compiler.rename_fd    = rename_fd;

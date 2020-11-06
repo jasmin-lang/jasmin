@@ -29,6 +29,6 @@ stdenv.mkDerivation {
     ++ (with python3Packages; [ python pyyaml ])
     ++ (with oP; [ ocaml findlib ocamlbuild
         (batteries.overrideAttrs (o: { doCheck = false; }))
-         menhir merlin zarith mpfr camlidl apron ppl])
+         menhir merlin zarith mpfr camlidl apron ppl yojson])
     ;
 }

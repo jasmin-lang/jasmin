@@ -121,6 +121,9 @@ type 'len glval =
  | Lmem  of wsize * 'len gvar_i * 'len gexpr
  | Laset of Warray_.arr_access * wsize * 'len gvar_i * 'len gexpr
  | Lasub of Warray_.arr_access * wsize * 'len * 'len gvar_i * 'len gexpr
+ (* Lasub(acc,sz,len,v,e) is the sub-array of v:
+    - [ws/8 * e; ws/8 * e + ws/8 * len[   if acc = Scale
+    - [       e;        e + ws/8 * len[   if acc = Direct *)
 
 type 'len glvals = 'len glval list
 
