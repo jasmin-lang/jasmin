@@ -227,6 +227,7 @@ Definition sub_map := Msmp.t bytes_map.
 Record regions := {
   var_region : Mvar.t mem_pos_sub;  (* The region where the value is initialy stored            *)
   region_var : Mmp.t  sub_map;  (* The set of source variables whose value is in the region *)
+               (* mp -> sub -> var -> ByteSet.t *)
 }.
 
 Definition empty_bytes_map := Mvar.empty ByteSet.t.
@@ -538,16 +539,24 @@ Definition get_var_kind x :=
 Definition mp_glob x (ofs_align: Z * wsize) :=
   {| mp_s := x; mp_align := ofs_align.2; mp_writable := false |}.
 
+Definition size_slot (s : slot) := size_of s.(vtype).
+
+Definition mps_glob x (ofs_align : Z * wsize) :=
+  let sub := {| smp_ofs := 0; smp_len := size_slot x |} in
+  {| mps_mp := mp_glob x ofs_align; mps_sub := sub |}.
+
+Definition check_vpk rmap (x:var) vpk ofs len :=
+  match vpk with
+  | VKglob z =>
+    let mps := mps_glob x z in
+    let sub := sub_ofs mps.(mps_sub) ofs len in
+    ok {| mps_mp := mps.(mps_mp); mps_sub := sub |}
+  | VKptr pk =>
+    check_valid rmap x ofs len
+  end.
+
 Definition check_vpk_word rmap x vpk ofs ws :=
-  Let mps :=
-    match vpk with
-    | VKglob z =>
-      let mp  := mp_glob x z in
-      let sub := {| smp_ofs := 0; smp_len := wsize_size ws |} in
-      ok {| mps_mp := mp; mps_sub := sub |}
-    | VKptr pk => 
-      check_valid rmap x ofs (wsize_size ws)
-    end in
+  Let mps := check_vpk rmap x vpk ofs (wsize_size ws) in
   check_align mps ws.
 
 Fixpoint alloc_e (e:pexpr) := 
@@ -729,25 +738,26 @@ Definition alloc_array_move rmap r e :=
       end in
     match vk with
     | None => cerror "alloc_array_move"
-    | Some (VKglob (ofsy, ws)) =>
-      let mpy := 
-        {| mps_mp := mp_glob vy (ofsy, ws); mps_sub := {| smp_ofs := ofs; smp_len := len |} |} in
-      ok (mpy, MK_LEA, Plvar (with_var vy pmap.(vrip)), (ofsy + ofs)%Z)
-    | Some (VKptr pk) =>
-      Let mpy := Region.check_valid rmap vy (Some ofs) len in
-      Let mklofs := 
-        match pk with
-        | Pdirect _ ofsy _ sub sc =>
-          ok (if sc is Slocal then MK_MOV else MK_LEA, Plvar (with_var vy (base_ptr sc)), (ofsy + sub.(smp_ofs) + ofs)%Z)
-        | Pregptr p           => 
-          ok (MK_MOV, Plvar (with_var vy p), ofs)
-        | Pstkptr slot ofsy ws sub x' => 
-          Let _ := Region.check_stack_ptr rmap slot ws sub.(smp_ofs) x' in
-          ok (MK_MOV, Pload Uptr (with_var vy pmap.(vrsp)) (cast_const ofsy), ofs)
-        end in
-      let '(mk, l, ofs) := mklofs in
-      ok (mpy, mk, l, ofs) 
-     end in
+    | Some vpk =>
+      Let mpy := check_vpk rmap vy vpk (Some ofs) len in
+      match vpk with
+      | VKglob (ofsy, ws) =>
+        ok (mpy, MK_LEA, Plvar (with_var vy pmap.(vrip)), (ofsy + ofs)%Z)
+      | VKptr pk =>
+        Let mklofs :=
+          match pk with
+          | Pdirect _ ofsy _ sub sc =>
+            ok (if sc is Slocal then MK_MOV else MK_LEA, Plvar (with_var vy (base_ptr sc)), (ofsy + sub.(smp_ofs) + ofs)%Z)
+          | Pregptr p           =>
+            ok (MK_MOV, Plvar (with_var vy p), ofs)
+          | Pstkptr slot ofsy ws sub x' =>
+            Let _ := Region.check_stack_ptr rmap slot ws sub.(smp_ofs) x' in
+            ok (MK_MOV, Pload Uptr (with_var vy pmap.(vrsp)) (cast_const ofsy), ofs)
+          end in
+        let '(mk, l, ofs) := mklofs in
+        ok (mpy, mk, l, ofs)
+      end
+    end in
   let '(mpy, mk, ey, ofs) := mpyl in
   match subx with
   | None =>
@@ -846,6 +856,7 @@ Record stk_alloc_oracle_t :=
   ; sao_to_save: seq (var * Z)
   ; sao_rsp: saved_stack
   ; sao_return_address: return_address_location
+  (* TODO : new field max_stack_size : maximal size of the stack needed to execute properly the program *)
   }.
 
 Section PROG.
