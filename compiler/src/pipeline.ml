@@ -338,6 +338,7 @@ let advice computing_min proc instr previous next =
 let instrument prog proc =
     let rec aux prog' proc_min' proc_max' = match prog' with
         | Skip -> ISkip
+        | Bloc (c, []) -> IBloc (c, 0, 0)
         | Bloc (c, l) -> begin
             let cost_min = ref 0 in
             let cost_max = ref 0 in
@@ -368,10 +369,11 @@ let instrument prog proc =
                 (* Updates proc' with the fetch *)
                 Format.eprintf " %d: %s@." !cost_max (instr_to_string i);
                 fetch proc_max' i in
+            finish proc_max';
             Format.eprintf "Cost Max of bloc %d@." c;
             List.iter fetch_next_max l;
             Format.eprintf "@.";
-            IBloc (c, !cost_min, !cost_max + max_latency)
+            IBloc (c, !cost_min, !cost_max)
             end
         | Seq [] -> ISeq []
         | Seq (h :: l) ->

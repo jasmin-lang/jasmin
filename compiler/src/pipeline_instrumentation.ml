@@ -308,8 +308,9 @@ let rec gi_to_pipeline i =
 
   | Cwhile(_, c, e, []) ->
       let _, reade = op_read_expr l e in
-      let precond = cblock_to_pipeline c in
-      precond @ [ PP.Loop (reade, PP.Seq precond)]
+      let precond_pre = cblock_to_pipeline c in
+      let precond_in = cblock_to_pipeline c in
+      precond_pre @ [ PP.Loop (reade, PP.Seq precond_in)]
 
   | Cwhile(_, c, e, c') ->
       let _, reade = op_read_expr l e in
@@ -414,14 +415,24 @@ let rec instr_cbloc c cmin cmax config =
             let vmax = (snd config.(b)) in
             let instr = get_cost_incr_instr vmin i cmin in
             let instr' = get_cost_incr_instr vmax i cmax in
+            Format.eprintf "Bloc %d is instrumented@." b;
             in_bloc := true; [instr; instr'; i]
       end
     | Cif(e, c1, c2) -> begin
         in_bloc := false;
         let branch1 = instr_cbloc c1 cmin cmax config in
         let branch2 = instr_cbloc c2 cmin cmax config in
+        let branch_cost =
+          if !Glob_options.pipeline_branch_predictor
+          then [get_cost_incr_instr jump_latency i cmax]
+          else [
+            get_cost_incr_instr jump_latency i cmin;
+            get_cost_incr_instr jump_latency i cmax
+          ]
+        in
+        in_bloc := false;
+        branch_cost @
         [
-          get_cost_incr_instr max_latency i cmax;
           {
           i_desc = Cif(e,
               branch1,
@@ -432,29 +443,43 @@ let rec instr_cbloc c cmin cmax config =
         }]
       end
     | Cwhile(t, c, e, c') -> begin
-        (* If there is a precondition, we put its cost first
-           and we are no longer in a bloc *)
+        (* If there is a precondition, we put its cost first *)
         let precond_cost_pre =
-          if c <> [] && not !in_bloc
+          if c <> []
           then begin
-            in_bloc := false;
             let b = get_fresh_checkpoint () in
             let vmin = (fst config.(b)) in
             let vmax = (snd config.(b)) in
             let instr = get_cost_incr_instr vmin i cmin in
             let instr' = get_cost_incr_instr vmax i cmax in
+            Format.eprintf "Bloc %d is instrumented (first precond)@." b;
             [instr; instr']
           end
           else []
         in
-        (* Before loop, the jump cost *)
-        let instr1 = get_cost_incr_instr jump_latency i cmin in
-        let instr2 = get_cost_incr_instr (max_latency + jump_latency) i cmax in
+        (* Before loop, the jump costs *)
+        let pre_loop_cost =
+          if !Glob_options.pipeline_branch_predictor
+          then (* In the best case, the simple branch predictor predicts correctly all jumps , and in the worts case all but two (first enter and first exit. This is an overapproximation is the program never enters the body. *)
+            [get_cost_incr_instr (2 * jump_latency) i cmax]
+          else
+            [
+              get_cost_incr_instr jump_latency i cmin;
+              get_cost_incr_instr jump_latency i cmax
+            ]
+        in
         (* Jump cost inside the loop *)
-        let instr3 = get_cost_incr_instr jump_latency i cmin in
-        let instr4 = get_cost_incr_instr max_latency i cmax in
-        (* First the body and precondition, possibly in the same bloc *)
+        let in_loop_cost =
+          if !Glob_options.pipeline_branch_predictor
+          then  []
+          else
+            [
+              get_cost_incr_instr jump_latency i cmin;
+              get_cost_incr_instr jump_latency i cmax
+            ]
+        in
         in_bloc := false;
+        (* First the body and precondition, possibly in the same bloc *)
         let body = List.flatten (List.map aux c') in
         (* *)
         let precond_cost_in =
@@ -465,17 +490,18 @@ let rec instr_cbloc c cmin cmax config =
             let vmax = (snd config.(b)) in
             let instr = get_cost_incr_instr vmin i cmin in
             let instr' = get_cost_incr_instr vmax i cmax in
+            Format.eprintf "Bloc %d is instrumented (body precond)@." b;
             [instr; instr']
           end
           else []
         in
         in_bloc := false;
-        precond_cost_pre @ [instr1; instr2] @ [
+        precond_cost_pre @ pre_loop_cost @ [
           {
           i_desc = Cwhile(t,
               c,
               e,
-              [instr3; instr4] @ body @ precond_cost_in
+              in_loop_cost @ body @ precond_cost_in
             );
           i_loc = i.i_loc;
           i_info = i.i_info
@@ -528,7 +554,7 @@ let extract_checkpoints_values p =
 
 let instrument_prog (gd, funcs) overlap naive =
   let current_function = List.hd funcs in
-  let converted_function = fun_to_pipeline overlap in
+  let converted_function = Pipeline_program.compact (fun_to_pipeline overlap) in
   let proc = Pipeline.new_processor () in
   let instr_blocs =
     if naive

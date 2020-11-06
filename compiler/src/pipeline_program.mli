@@ -37,3 +37,5 @@ val store_prgm : program -> string
 val print_prog_struct : program -> unit
 
 val to_atomic : string -> operand list -> operand list -> operand list -> operand list -> instr
+(* For all sequences, join adjacent blocs *)
+val compact : program -> program

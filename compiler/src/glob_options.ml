@@ -15,6 +15,8 @@ let safety_param = ref None
 let safety_config = ref None
 let pipeline_instrumentation = ref false
 let pipeline_naive = ref false
+let pipeline_input_value = ref 10
+let pipeline_branch_predictor = ref false
 
 let lea = ref false
 let set0 = ref false
@@ -112,6 +114,8 @@ let options = [
      v_1',...,v_k': list of relational variables";
     "-pipeline"  , Arg.Set pipeline_instrumentation, ": instrument the program with cost variables";
     "-naivepipeline" , Arg.Set pipeline_naive, ": instrument the program with cost variable (naive approach)";
+    "-pipelineinput" , Arg.Set_int pipeline_input_value, ": project the relational variables onto this value in the final cost invariant";
+    "-branchpredictor" , Arg.Set pipeline_branch_predictor, ": uses a simple branch predictor in the pipeline cost instrumentation";
     "-safetyconfig", Arg.String set_safetyconfig, "[filename]: use filename (JSON) as configuration file for the safety checker"
   ] @  List.map print_option poptions
 

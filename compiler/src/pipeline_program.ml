@@ -63,6 +63,8 @@ let rec store_prgm p = match p with
 let rec print_prog_struct p = match p with
   | Skip ->
       Format.eprintf "@ Skip"
+  | Bloc (i, []) ->
+      Format.eprintf "@ Bloc %d []" i
   | Bloc (i, _) ->
       Format.eprintf "@ Bloc %d" i
   | Seq l ->
@@ -88,3 +90,44 @@ let to_atomic name inputs outputs read_alias write_alias = {
     instr_may_inputs = read_alias;
     instr_may_outputs = write_alias
 }
+
+let compact p =
+  let rec aux = function
+    | Skip -> Skip
+    | Bloc (c, l) -> Bloc (c, l)
+    | Seq l -> begin
+        (* If l = [Bloc 1 l1, Bloc 2 l2, Loop, Bloc 3 l3, Bloc 4 l4]
+          -> [Bloc 1 l1 @ l2, Bloc 2 [], Loop, Bloc 3 l3 @ l4, Bloc 4 [] *)
+        let pending_bloc_indexes = ref [] in
+        let pending_bloc_instructions = ref [] in
+        let new_seq = ref [] in
+        let close_bloc_seq () =
+            if !pending_bloc_indexes <> []
+            then begin
+              let empty_blocs =
+                List.map (fun i -> Bloc (i, []))
+                         (List.tl !pending_bloc_indexes)
+              in
+              new_seq := !new_seq @ (Bloc (List.hd !pending_bloc_indexes, !pending_bloc_instructions) :: empty_blocs);
+              pending_bloc_indexes := [];
+              pending_bloc_instructions := []
+            end
+        in
+        let examine sub_p = match sub_p with
+          | Bloc (c', l') -> begin
+            pending_bloc_indexes := !pending_bloc_indexes @ [c'];
+            pending_bloc_instructions := !pending_bloc_instructions @ l'
+          end
+          | _ -> begin
+            close_bloc_seq ();
+            new_seq := !new_seq @ [aux sub_p]
+          end
+        in
+        List.iter examine l;
+        close_bloc_seq ();
+        Seq !new_seq
+      end
+    | Cond (c, t, e) -> Cond (c, aux t, aux e)
+    | Loop (c, b) -> Loop (c, aux b)
+  in
+  aux p

@@ -8217,8 +8217,8 @@ end = struct
     let in_vars = fun_in_args_no_offset f_decl
                   |> List.map otolist
                   |> List.flatten in
-    let v_keep_min = costMin :: in_vars @ get_mem_range state.env 
-    and v_keep_max = costMax :: in_vars @ get_mem_range state.env in
+    let v_keep_min = costMin :: in_vars (*@ get_mem_range state.env*) 
+    and v_keep_max = costMax :: in_vars (*@ get_mem_range state.env*) in
     let vars = in_vars @ fun_vars ~expand_arrays:false f_decl state.env in
 
     let v_rem v_keep = List.fold_left (fun acc v ->
@@ -8240,6 +8240,39 @@ end = struct
                         Cost Min:@;@[%a@]@;"
       (AbsDom.print ~full:true) a_proj_max
       (AbsDom.print ~full:true) a_proj_min;
+
+    let rel_param_list = 
+      let r = PW.param.relationals in
+      match r with
+        | Some s -> s
+        | None -> []
+    in
+    let is_param = function
+      | MinValue v -> List.mem v.v_name rel_param_list
+      | _ -> false
+    in
+    let param_vars = List.filter is_param in_vars in
+    let a_proj_min_10 var = 
+          let env = AbsDom.get_env a_proj_min in
+          let z_expr = Mtexpr.cst env (Coeff.s_of_int (!Glob_options.pipeline_input_value)) in
+          let z_sexpr = sexpr_from_simple_expr z_expr in
+          let proj = AbsDom.assign_sexpr ~force:true a_proj_min var None z_sexpr in 
+          Format.fprintf fmt "Cost Min projected:@;%a@;"
+            (AbsDom.print ~full:true)
+            (AbsDom.meet a_proj_min proj)
+    in
+    List.iter a_proj_min_10 param_vars;
+    let a_proj_max_10 var = 
+          let env = AbsDom.get_env a_proj_max in
+          let z_expr = Mtexpr.cst env (Coeff.s_of_int (!Glob_options.pipeline_input_value)) in
+          let z_sexpr = sexpr_from_simple_expr z_expr in
+          let proj = AbsDom.assign_sexpr ~force:true a_proj_max var None z_sexpr in 
+          Format.fprintf fmt "Cost Max projected:@;%a@;"
+            (AbsDom.print ~full:true)
+            (AbsDom.meet a_proj_max proj)
+    in
+    List.iter a_proj_max_10 param_vars;
+
     only_rel_print := sb
 
 
