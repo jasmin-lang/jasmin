@@ -385,6 +385,7 @@ Class memory (mem: Type) : Type :=
     ; write_mem : mem -> pointer -> forall (s:wsize), word s -> exec mem
     ; valid_pointer : mem -> pointer -> wsize -> bool
     ; stack_root : mem -> pointer
+    ; stack_limit : mem -> pointer
     ; frames : mem -> seq (pointer * Z)
     ; alloc_stack : mem -> wsize -> Z -> Z -> exec mem (* alignement, size, extra-size *)
     ; free_stack : mem -> Z -> mem
@@ -397,6 +398,11 @@ Arguments valid_pointer : simpl never.
 
 Definition top_stack {mem: Type} {M: memory mem} (m: mem) : pointer :=
   (head (stack_root m, 0) (frames m)).1.
+
+Definition allocatable_stack {mem: Type} {M : memory mem} (m : mem) (z : Z) :=
+  let top := head (stack_root m, 0) (frames m) in 
+  0 <= z /\
+  0 <= z <= wunsigned top.1 - top.2 - wunsigned (stack_limit m).
 
 Section SPEC.
   Context (AL: alignment) mem (M: memory mem)
@@ -415,12 +421,14 @@ Section SPEC.
     ass_fresh    : forall p s, valid_pointer m p s ->
       (wunsigned p + wsize_size s <= wunsigned pstk \/
        wunsigned pstk + sz <= wunsigned p)%Z;
-    ass_root : stack_root m' = stack_root m;
+    ass_root   : stack_root m' = stack_root m;
+    ass_limit  : stack_limit m' = stack_limit m;
     ass_frames : frames m' = (pstk, round_ws ws (sz + sz')) :: frames m;
   }.
 
   Record stack_stable : Prop := mkSS {
     ss_root: stack_root m = stack_root m';
+    ss_limit: stack_limit m = stack_limit m';
     ss_frames: frames m = frames m';
   }.
 
@@ -430,14 +438,30 @@ Section SPEC.
       valid_pointer m' p U8 <->
       (valid_pointer m p U8 /\ (disjoint_zrange (top_stack m) sz p 1));
     fss_root : stack_root m' = stack_root m;
+    fss_limit : stack_limit m' = stack_limit m;
     fss_frames : frames m' = behead (frames m);
    }.
+
+  Record allocatable_spec : Prop := {
+    as_alloc : forall z, allocatable_stack m z -> 0 <= sz + sz' + wsize_size ws < z -> 
+            exists m', alloc_stack m ws sz sz' = ok m' /\
+                       (allocatable_stack m z  -> 
+                          allocatable_stack m' (z - (sz + sz' + wsize_size ws - 1)));
+    as_alloc_align : forall z (ws wsp : wsize), 
+                     (ws <= wsp)%CMP ->
+                     is_align (top_stack m) wsp ->
+                     allocatable_stack m z ->
+            exists m', alloc_stack m ws sz sz' = ok m' /\
+                     allocatable_stack m z  -> 
+                     allocatable_stack m' (z - round_ws ws (sz + sz'));
+  }.
 
 End SPEC.
 
 Arguments alloc_stack_spec {_ _ _} _ _ _ _.
 Arguments stack_stable {_ _} _ _.
 Arguments free_stack_spec {_ _} _ _ _.
+Arguments allocatable_spec {_ _ _ } _ _ _.
 
 (** Pointer arithmetic *)
 Instance Pointer : pointer_op pointer.
@@ -515,6 +539,8 @@ Parameter read_write_any_mem :
 (* -------------------------------------------------------------------- *)
 Parameter alloc_stackP : forall m m' ws sz sz',
   alloc_stack m ws sz sz' = ok m' -> alloc_stack_spec m ws sz sz' m'.
+
+Parameter allocatable_stackP : forall m ws sz sz', allocatable_spec m ws sz sz'.
 
 Parameter write_mem_stable : forall m m' p s v,
   write_mem m p s v = ok m' -> stack_stable m m'.

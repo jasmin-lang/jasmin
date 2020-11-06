@@ -42,7 +42,7 @@ Local Open Scope Z_scope.
 Import Region.
 
 (* --------------------------------------------------------------------------- *)
-
+(*
 Definition size_of (t:stype) :=
   match t with
   | sword sz => wsize_size sz
@@ -1429,6 +1429,7 @@ Search _ is_Pvar.
 Print is_lv_var.
 Search _ is_lv_var.
 *)
+(*
 Local Lemma Hassgn : sem_Ind_assgn P Pi_r.
 Proof.
   move=> s1 s2 x tag ty e v v' hv htr hw rmap1 rmap2 ii1 ii2 i2 /=.
@@ -1759,7 +1760,7 @@ Proof.
   + by move=> [?]; subst fn3 fd3; exists fd2; rewrite H.
   by move=> /hm.
 Qed.
-
+*)
 Definition extend_mem (m1:mem) (m2:mem) (rip:pointer) (data: seq u8) :=
   let glob_size := Z.of_nat (size data) in
   [/\ wunsigned rip + glob_size <= wbase U64 /\
@@ -1772,7 +1773,7 @@ Definition extend_mem (m1:mem) (m2:mem) (rip:pointer) (data: seq u8) :=
       (forall i, 
          0 <= i < glob_size ->
          read_mem m2 (rip + wrepr U64 i) U8 = ok (nth (wrepr U8 0) data (Z.to_nat i)))].
-
+(*
 Lemma all_In (T:Type) (P: T -> bool) (l:seq T) x :
   all P l ->
   List.In x l -> P x.
@@ -2049,13 +2050,14 @@ Transparent Z.to_nat.
   move: hap hssem => /=; rewrite /alloc_prog.
   by case: oracle_g => -[???]; t_xrbindP => ??; case:ifP => // ?; t_xrbindP => ?? <-.
 Qed.
+*)
 
-Definition alloc_ok (SP:sprog) fn m1 :=
+Definition alloc_ok (SP:sprog) fn m2 :=
   forall fd, get_fundef (p_funcs SP) fn = Some fd ->
-  exists p, alloc_stack m1 (sf_stk_sz fd.(f_extra)) = ok p.
+  allocatable_stack m2 fd.(f_extra).(sf_stk_max).
 
-Lemma alloc_progP nrsp oracle oracle_g (P: uprog) (SP: sprog) fn:
-  alloc_prog nrsp oracle oracle_g P = ok SP ->
+Lemma alloc_progP nrip data oracle_g oracle (P: uprog) (SP: sprog) fn:
+  alloc_prog nrip data oracle_g oracle P = ok SP ->
   forall ev m1 va m1' vr rip, 
     sem_call (sCP := sCP_unit) P ev m1 fn va m1' vr ->
     forall m2, extend_mem m1 m2 rip SP.(p_extra).(sp_globs) ->
@@ -2065,6 +2067,8 @@ Lemma alloc_progP nrsp oracle oracle_g (P: uprog) (SP: sprog) fn:
       extend_mem m1' m2' rip SP.(p_extra).(sp_globs) /\
       sem_call (sCP := sCP_stack) SP rip m2 fn va m2' vr'.
 Proof.
+Admitted.
+(*
   move=> Hcheck ev m1 va m1' vr rip hsem m2 he ha.
   have [fd hget]: exists fd, get_fundef (p_funcs P) fn = Some fd.
   + by case: hsem=> ??? fd *;exists fd.
@@ -2072,3 +2076,4 @@ Proof.
   have [fd' [hgetS ?]]:= hf _ _ hget.
   by apply: (alloc_fdP Hcheck hget hgetS hsem he (ha _ hgetS)).
 Qed.
+*)

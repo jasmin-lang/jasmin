@@ -50,7 +50,7 @@ Proof. by elim: xs acc => // x xs ih acc; rewrite /= ih. Qed.
 Lemma stable_top_stack a b :
   stack_stable a b →
   top_stack a = top_stack b.
-Proof. by rewrite /top_stack => - [-> ->]. Qed.
+Proof. by rewrite /top_stack => - [-> _ ->]. Qed.
 
 (* TODO: move *)
 Lemma write_var_get_var x v s s' :

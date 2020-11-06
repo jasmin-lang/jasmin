@@ -829,11 +829,12 @@ Section LOOP.
     end.
 
 End LOOP.
-
+ 
 Record stk_alloc_oracle_t :=
   { sao_align : wsize 
   ; sao_size: Z
   ; sao_extra_size: Z
+  ; sao_max_size : Z
   ; sao_params : seq (option param_info)  (* Allocation of pointer params *)
   ; sao_return : seq (option nat)         (* Where to find the param input region *)
   ; sao_slots : seq (var * wsize * Z)  
@@ -1171,6 +1172,7 @@ Definition alloc_fd p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) (
   let f_extra := {|
         sf_align  := sao.(sao_align);
         sf_stk_sz := sao.(sao_size);
+        sf_stk_max := sao.(sao_max_size);
         sf_stk_extra_sz := sao.(sao_extra_size);
         sf_to_save := sao.(sao_to_save);
         sf_save_stack := sao.(sao_rsp);
