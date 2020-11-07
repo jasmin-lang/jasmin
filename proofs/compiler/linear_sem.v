@@ -77,11 +77,13 @@ Section LSEM.
 
 Definition eval_jump d s :=
   let: (fn, lbl) := d in
-  if get_fundef (lp_funcs P) fn is Some fd then
-    let body := lfd_body fd in
-    Let pc := find_label lbl body in
-    ok (setcpc s fn body pc.+1)
-  else type_error.
+  Let body :=
+    if get_fundef (lp_funcs P) fn is Some fd then
+      ok (lfd_body fd)
+    else type_error
+  in
+  Let pc := find_label lbl body in
+  ok (setcpc s fn body pc.+1).
 
 Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   match li_i i with
