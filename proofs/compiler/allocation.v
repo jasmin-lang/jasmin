@@ -293,9 +293,7 @@ Definition check_fundef (f1 f2: funname * fundef):=
     ok (f1, rcs.2))
   else cferror (Ferr_neqfun f1 f2).
 
-(*Check check_fundef.
 
-cfexec (unit * (fundef * leak_c_tr))*)
 Definition check_fundefs fs1 fs2: cfexec leak_f_tr := mapM2 Ferr_uniqfun check_fundef fs1 fs2.
 
 Definition check_prog_aux prog1 prog2 := check_fundefs (p_funcs prog1) (p_funcs prog2). 
@@ -337,8 +335,8 @@ Section PROOF.
   Lemma all_checked : forall fn fd1,
     get_fundef (p_funcs p1) fn = Some fd1 ->
     exists fd2, exists rs,  
-        [ /\ get_fundef (p_funcs p2) fn = Some fd2 &
-          check_fundef (fn,fd1) (fn,fd2) = ok (rs)].
+          get_fundef (p_funcs p2) fn = Some fd2 /\
+          check_fundef (fn,fd1) (fn,fd2) = ok rs.
   Proof.
     move: Hcheck; rewrite /check_prog_aux;clear Hcheck eq_globs.
     move: (p_funcs p1) (p_funcs p2) Fs; clear p1 p2.
@@ -348,10 +346,37 @@ Section PROOF.
     have H : fn1' = fn2.
     + move: Hc; case: ifP=> // /andP [] /andP [] /eqP  hf1 /eqP hfd1 /eqP hfd1'. by rewrite hf1.
     subst. case: ifPn => /eqP h1 h2. subst.
-    exists fd2. exists z. split=> //. case: h2=> <- /=. auto.
+    exists fd2. exists z. split=> //. case: h2=> <- /=. auto. 
     move: (Hrec fn2' fd2' h2). move=> [] fd''' [] ltc'' [] hf hf'.
     exists fd'''. exists ltc''. split=> //.
   Qed.
+
+  Lemma all_checked' : forall fn fd1,
+    get_fundef (p_funcs p1) fn = Some fd1 ->
+    exists fd2, exists rs,
+          get_fundef (p_funcs p2) fn = Some fd2 /\
+          check_fundef (fn,fd1) (fn,fd2) = ok rs /\
+          get_leak Fs rs.1 = Some rs.2.
+  Proof.
+    move: Hcheck. rewrite /check_prog_aux; clear Hcheck eq_globs.
+    move: (p_funcs p1) (p_funcs p2) Fs; clear p1 p2.
+    elim=> [| [fn1' fd1'] p1' /= Hrec] [| [fn2 fd2] p2'] // Fs0 /=.
+    apply: rbindP. move=> [f ltc] Hc. t_xrbindP.
+    move=> fs Hrec' Heq.
+    have H : fn1' = fn2.
+    + move: Hc; case: ifP=> // /andP [] /andP [] /eqP  hf1 /eqP hfd1 /eqP hfd1'. 
+      by rewrite hf1. rewrite -H.
+    move=> fn1 fd1.
+    case: ifPn => /eqP h1 h2. subst.
+    exists fd2. exists (f, ltc).
+    split=> //. case: h2=> <- /=. split. auto.
+    case: ifP=> //. move=> /eqP []; auto.
+    move: (Hrec p2' fs Hrec'). move=> Hf. move: (Hf fn1 fd1 h2).
+    move=> [] fd3 [] [rs' ltc'] [] Hf' [] /= H1 /= H2.
+    exists fd3. exists (rs', ltc'). split. auto. split.
+    apply H1. rewrite -Heq. rewrite /=. case: ifP=> //. move=> /eqP Hef.
+    rewrite Hef in H2. admit.
+  Admitted.
 
   Let Pi_r s1 (i1:instr_r) li s2:=
     forall ii r1 i2 r2 lti vm1, eq_alloc r1 (evm s1) vm1 ->
@@ -705,24 +730,70 @@ Let Pc s1 (c1:cmd) lc s2:=
 
   End REFL.*)
 
-  Lemma help : ∀ (gd : glob_decls) (xs : seq var_i) 
-     (vs : seq value) (s2 v : estate), 
-     write_vars xs vs s2 = ok v ->
-     exists l, write_lvals gd s2 (map Lvar xs) vs = ok (v, l).
-  Admitted.
-
-
   Local Lemma Hproc : sem_Ind_proc p1 Pc Pfun.
   Proof.
    move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hget Hca Hw Hs Hc Hres Hcr.
+   move: (all_checked' Hget). move=> [] fd2 [] [fn' ltc] [] Hget2 [] Hcf Hleak.
+   move: Hcf. rewrite /=.
+   rewrite eq_refl /=; case: ifP => // /andP []. move=> /eqP htyin /eqP htyout.
+   apply: add_finfoP. t_xrbindP. move=> [r1 lt1]. apply: add_iinfoP=> Hcparams.
+   move=> [r2 lt2] Hcc. move=> [r3 lt3]. apply: add_iinfoP=> /= Hcres /= Hfn Hl.
+   rewrite /Pfun.
+   move=> vargs2 Hvargs2.
+   have [vs2 htr hall2]:= mapM2_truncate_val Hca Hvargs2.
+   have [l /(check_lvalsP Hcparams)] := (write_lvals_vars gd Hw).
+   move=> /(_ _ _ eq_alloc_empty hall2) [vm3 /= [Hw2 Hvm3]].
+   rewrite /Pc in Hc. 
+   move: (Hc (f_iinfo f) r1 (f_body fd2) r2 lt2 vm3 Hvm3 Hcc).
+   move=> [] vm4 /= [] Hvm4 Hsc2. move: check_esP. move=> Hes.
+   move: (Hes (map Pvar (f_res f)) (map Pvar (f_res fd2)) r2 r3 lt3 {| emem := emem s1; evm := vm2 |} vm4 Hcres Hvm4). move=> [] /= Hr3 H.
+   replace vm2 with (evm{| emem := emem s1; evm := vm2 |}) in Hres.
+   have [vres1' /=]:= (get_var_sem_pexprs' gd Hres). move=> H1.
+   move: (H (zip vres vres1') H1).
+   move=> [] vres1'' [] Hes' [] /= Hv Hv'. rewrite unzip1_zip in Hv.
+   move: mapM2_truncate_val. move=> Hcr'.
+   move: (Hcr' (f_tyout f) vres vres' (unzip1 vres1'') Hcr Hv).
+   move=> [] vres2 Hm'' Hv'' {Hcr'}. exists vres'. econstructor. econstructor.
+   apply Hget2. rewrite -htyin. apply htr. 
+   rewrite (write_vars_lvals Hw2). auto. rewrite /= in Hl. 
+   rewrite /get_leak in Hleak. rewrite /= in Hleak. rewrite Hl in Hsc2.
+   replace (leak_Fun Fs fn) with ltc. apply Hsc2. rewrite /leak_Fun /=. rewrite Hfn. by rewrite Hleak /=.
+   rewrite /= in Hres. admit. rewrite -htyout. apply Hcr. by apply List_Forall2_refl.
+   case: Hv' => Hv1'. apply mapM_size in Hres. rewrite /sem_pexprs in H1.
+   apply mapM_size in H1. rewrite !size_map in H1. rewrite H1 in Hres. admit.
+   Admitted.
+
+  (*move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hget Hca Hw Hs Hc Hres Hcr.
    move: (all_checked Hget). move=> [] fd2 [] ltc [] Hget2 /=.
    rewrite eq_refl /=; case: ifP => // /andP []. move=> /eqP htyin /eqP htyout.
    apply: add_finfoP. t_xrbindP. move=> [r1 lt1]. apply: add_iinfoP=> Hcparams.
-   move=> [r2 lt2] Hcc. move=> [r3 lt3]. apply: add_iinfoP=> Hcres Hl. rewrite /Pfun.
+   move=> [r2 lt2] Hcc. move=> [r3 lt3]. apply: add_iinfoP=> /= Hcres /= Hl. 
+   rewrite /Pfun.
    move=> vargs2 Hvargs2.
    have [vs2 htr hall2]:= mapM2_truncate_val Hca Hvargs2.
-   have [l /(check_lvalsP Hcparams)] := (help gd Hw). 
-  Admitted.
+   have [l /(check_lvalsP Hcparams)] := (write_lvals_vars gd Hw).
+   move=> /(_ _ _ eq_alloc_empty hall2) [vm3 /= [Hw2 Hvm3]].
+   rewrite /Pc in Hc. 
+   move: (Hc (f_iinfo f) r1 (f_body fd2) r2 lt2 vm3 Hvm3 Hcc).
+   move=> [] vm4 /= [] Hvm4 Hsc2. move: check_esP. move=> Hes.
+   move: (Hes (map Pvar (f_res f)) (map Pvar (f_res fd2)) r2 r3 lt3 {| emem := emem s1; evm := vm2 |} vm4 Hcres Hvm4). move=> [] /= Hr3 H.
+   replace vm2 with (evm{| emem := emem s1; evm := vm2 |}) in Hres.
+   have [vres1' /=]:= (get_var_sem_pexprs' gd Hres). move=> H1.
+   move: (H (zip vres vres1') H1).
+   move=> [] vres1'' [] Hes' [] /= Hv Hv'. rewrite unzip1_zip in Hv.
+   move: mapM2_truncate_val. move=> Hcr'.
+   move: (Hcr' (f_tyout f) vres vres' (unzip1 vres1'') Hcr Hv).
+   move=> [] vres2 Hm'' Hv'' {Hcr'}. exists vres'. econstructor. econstructor.
+   apply Hget2. rewrite -htyin. apply htr. 
+   rewrite (write_vars_lvals Hw2). auto. rewrite /= in Hl. 
+
+   admit.
+   rewrite /= in Hres. admit. rewrite -htyout. apply Hcr. by apply List_Forall2_refl.
+   case: Hv' => Hv1'. apply mapM_size in Hres. rewrite /sem_pexprs in H1.
+   apply mapM_size in H1. rewrite !size_map in H1. rewrite H1 in Hres. rewrite -Hres.
+   rewrite size_zip /=. rewrite size_zip in H1. rewrite size_zip in Hres.
+Search _ size zip.*)
+
  (*move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' Hget Hca Hw _ Hc Hres Hcr.
     have [fd2 [Hget2 /=]]:= all_checked Hget.
     rewrite eq_refl /=;case: ifP => // /andP[]/eqP htyin /eqP htyout.
