@@ -18,5 +18,5 @@ branches:
   - glob_array3
 script:
 - nix-shell --show-trace --pure --run 'make -C proofs Makefile.coq'
-- nix-shell --pure --run 'make -j $NIX_BUILD_CORES -C proofs compiler/compiler.vo'
+- nix-shell --pure --run 'make -j $NIX_BUILD_CORES -C proofs compiler/compiler_proof.vo'
 - nix-shell --pure --run 'make -C compiler CIL build check-ci'
