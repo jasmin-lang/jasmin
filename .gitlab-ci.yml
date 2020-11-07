@@ -66,6 +66,19 @@ ocaml:
     - compiler/_build/
     - compiler/jasminc.native
 
+tarball:
+  stage: build
+  variables:
+    EXTRA_NIX_ARGUMENTS: --arg testDeps true
+    TARBALL: jasmin-compiler-$CI_COMMIT_SHORT_SHA
+  dependencies:
+  - coq
+  script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -C compiler dist DISTDIR=$TARBALL'
+  artifacts:
+    paths:
+    - compiler/$TARBALL.tgz
+
 check:
   stage: test
   variables:
