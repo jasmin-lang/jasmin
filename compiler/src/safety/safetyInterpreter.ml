@@ -325,14 +325,14 @@ let safe_return main_decl =
 (*------------------------------------------------------------*)
 let rec add_offsets assigns = match assigns with
   | [] -> []
-  | (Mvalue (Avar v)) :: tail when v.v_ty <> Bty (Prog.Bool) ->       
-    (Mvalue (Avar v)) :: (MvarOffset v) :: add_offsets tail
+  | (Mlocal (Avar v)) :: tail when v.v_ty <> Bty (Prog.Bool) ->       
+    (Mlocal (Avar v)) :: (MvarOffset v) :: add_offsets tail
   | u :: tail -> u :: add_offsets tail
 
 let rec add_offsets3 assigns = match assigns with
   | [] -> []
-  | (ty, Mvalue (Avar v),es) :: tail when v.v_ty <> Bty (Prog.Bool) ->
-    (ty, Mvalue (Avar v),es)
+  | (ty, Mlocal (Avar v),es) :: tail when v.v_ty <> Bty (Prog.Bool) ->
+    (ty, Mlocal (Avar v),es)
     :: (ty, MvarOffset v,es)
     :: add_offsets3 tail
   | u :: tail -> u :: add_offsets3 tail
@@ -358,7 +358,7 @@ let fun_args ~expand_arrays f_decl =
   else args
 
 let in_cp_var v = match v with
-  | Mvalue (Avar v) -> Some (MinValue v)
+  | Mlocal (Avar v) -> Some (MinLocal v)
   | _ -> None
 
 let fun_in_args_no_offset f_decl =
@@ -472,7 +472,7 @@ end = struct
 
   let init_state_init_args f_args state =
     List.fold_left (fun state v -> match v with
-        | Mvalue at ->
+        | Mlocal at ->
           { state with abs = AbsDom.is_init state.abs at; }
         | _ -> state )
       state f_args
@@ -555,7 +555,7 @@ end = struct
   (* Checks that all safety conditions hold, except for valid memory access. *)
   let is_safe state = function
     | Initv v -> begin match mvar_of_scoped_var Expr.Slocal v with
-        | Mvalue at -> AbsDom.check_init state.abs at
+        | Mlocal at -> AbsDom.check_init state.abs at
         | _ -> assert false end
 
     | Initai slice -> 
@@ -564,7 +564,7 @@ end = struct
           state.abs
           (slice.as_arr,Expr.Slocal) slice.as_access
           slice.as_wsize slice.as_len slice.as_offset in
-      let is = List.map (function Mvalue at -> at | _ -> assert false) is in
+      let is = List.map (function Mlocal at -> at | _ -> assert false) is in
       List.for_all (AbsDom.check_init state.abs) is
 
     | InBound (n, slice) ->
@@ -1364,13 +1364,13 @@ end = struct
                 List.find_map_opt (fun lv ->
                     match lv with
                     | Lvar x -> 
-                      let x_mv = Mvalue (Avar (L.unloc x)) in
+                      let x_mv = Mlocal (Avar (L.unloc x)) in
                       if Bvar.make x_mv true = Bvar.positive bv 
                       (* We found the assignment where the flag is set *)
                       then
                         (* Register for which the flags are computed. *)
                         let reg_assgn = match List.last lvs with
-                          | Lvar r -> Mvalue (Avar (L.unloc r))
+                          | Lvar r -> Mlocal (Avar (L.unloc r))
                           | Lnone _ -> raise Heuristic_failed
                           | _ -> assert false in
 
@@ -1463,10 +1463,10 @@ end = struct
   let check_valid_call_top st f_decl = 
     let cells_init = 
       List.for_all (fun v -> match mvar_of_scoped_var Expr.Slocal v with
-          | Mvalue (Aarray _) as mv -> 
+          | Mlocal (Aarray _) as mv -> 
             let vs = u8_blast_var ~blast_arrays:true mv in
             List.for_all (function 
-                | Mvalue at -> AbsDom.check_init st.abs at
+                | Mlocal at -> AbsDom.check_init st.abs at
                 | _ -> assert false (* initialization of other arguments
                                        should already have been checked
                                        by the analyzer. *)
@@ -1809,7 +1809,7 @@ end = struct
               if i = f then [i] else i :: mk_range (op i) f op in
 
             let range = mk_range init_i final_i op
-            and mvari = Mvalue (Avar (L.unloc i)) in
+            and mvari = Mlocal (Avar (L.unloc i)) in
 
             List.fold_left ( fun state ci ->
                 (* We add a disjunctive constraint block. *)
@@ -1874,7 +1874,7 @@ end = struct
             |> u8_blast_vars ~blast_arrays:true in
           let abs = AbsDom.top_ni st_in.abs in
           let abs = List.fold_left (fun abs mv -> match mv with
-              | Mvalue at -> AbsDom.is_init abs at
+              | Mlocal at -> AbsDom.is_init abs at
               | _ -> assert false
             ) abs mvars in
           

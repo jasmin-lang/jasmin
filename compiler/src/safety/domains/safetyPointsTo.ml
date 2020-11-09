@@ -19,8 +19,6 @@ let pp_ptr fmt = function
   | TopPtr -> Format.fprintf fmt "#TopPtr"
 
 
-
-
 module PointsToImpl : PointsTo = struct
   (* Points-to abstract value *)
   type t = { pts : mem_loc list Ms.t }
@@ -29,7 +27,7 @@ module PointsToImpl : PointsTo = struct
   let make mls =
     let string_of_var v = match v.v_ty with
       | Arr _ -> raise (Aint_error "Array(s) in export function's inputs")
-      | Bty _ -> string_of_mvar (Mvalue (Avar v)) in
+      | Bty _ -> string_of_mvar (Mlocal (Avar v)) in
 
     let pts = List.fold_left (fun pts x -> match x with
         | MemLoc v -> Ms.add (string_of_var v) [x] pts)
@@ -71,7 +69,7 @@ module PointsToImpl : PointsTo = struct
        variables (e.g. array elements are not properly handled, and
        consequently can point to anybody.). *)
     match var with
-    | Mvalue (Avar _) -> svar_points_to t (string_of_mvar var)
+    | Mlocal (Avar _) -> svar_points_to t (string_of_mvar var)
     | _ -> TopPtr
 
   let forget_list : t -> mvar list -> t = fun t l_rem ->

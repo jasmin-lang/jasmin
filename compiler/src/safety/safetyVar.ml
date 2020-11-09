@@ -3,6 +3,8 @@ open Apron
 open Wsize
 open Utils
 
+type v_scope = Expr.v_scope
+                 
 open SafetyUtils
     
 (* Memory locations *)
@@ -19,9 +21,9 @@ type mvar =
   | Temp of string * int * ty   (* Temporary variable *)
   | WTemp of string * int * ty  (* Temporary variable (weak updates) *)
   | Mglobal of atype            (* Global variable *)
-  | Mvalue of atype             (* Variable value *)
-  | MinValue of var             (* Variable initial value *)
-  | MvarOffset of var           (* Variable offset *)
+  | Mlocal of atype             (* Local variable value *)
+  | MinLocal of var             (* Local variable initial value *)
+  | MvarOffset of var           (* Local variable offset *)
   | MNumInv of L.t              (* Numerical Invariants *)
   | MmemRange of mem_loc        (* Memory location range *)
 
@@ -40,12 +42,12 @@ let weak_update v =
   | Temp _
   | MNumInv _ -> false
 
-  | Mvalue at -> begin match at with
+  | Mlocal at -> begin match at with
       | Avar gv | Aarray gv | AarraySlice (gv,_,_) ->
         weak_update_kind gv.v_kind
     end
 
-  | MinValue gv
+  | MinLocal gv
   | MvarOffset gv ->  weak_update_kind gv.v_kind 
 
   | MmemRange _ -> true
@@ -65,8 +67,8 @@ let string_of_mvar = function
   | Temp (s, i, _) -> "tmp_" ^ s ^ "_" ^ string_of_int i
   | WTemp (s, i, _) -> "wtmp_" ^ s ^ "_" ^ string_of_int i
   | Mglobal at -> "g_" ^ string_of_atype at
-  | MinValue s -> "inv_" ^ s.v_name
-  | Mvalue at -> string_of_atype at
+  | MinLocal s -> "inv_" ^ s.v_name
+  | Mlocal at -> string_of_atype at
   | MvarOffset s -> "o_" ^ s.v_name
   | MNumInv lt -> "ni_" ^ string_of_int (fst lt.loc_start)
   | MmemRange loc -> "mem_" ^ string_of_mloc loc
@@ -74,7 +76,7 @@ let string_of_mvar = function
 let pp_mvar fmt v = Format.fprintf fmt "%s" (string_of_mvar v)
 
 (*---------------------------------------------------------------*)
-let dummy_mvar = Mvalue (Avar (V.mk "__absint_empty_env"
+let dummy_mvar = Mlocal (Avar (V.mk "__absint_empty_env"
                                  (Reg Direct) (Bty (U U8)) (L._dummy)))
 
 (*---------------------------------------------------------------*)
@@ -108,11 +110,27 @@ let ty_atype = function
 let ty_mvar = function
   | Temp (_,_,ty) -> ty
   | WTemp (_,_,ty) -> ty
-  | MinValue s -> s.v_ty
-  | Mglobal at | Mvalue at -> ty_atype at
+  | MinLocal s -> s.v_ty
+  | Mglobal at | Mlocal at -> ty_atype at
   | MvarOffset _ -> Bty Int
   | MNumInv _ -> Bty Int
   | MmemRange _ -> Bty Int
+
+(*---------------------------------------------------------------*)
+let of_scope scope at = match scope with
+  | Expr.Slocal -> Mlocal  at
+  | Expr.Sglob  -> Mglobal at
+
+(* Ignore the [MinLocal _] case. *)
+let get_scope = function  
+  | Mlocal  _ ->  Expr.Slocal
+  | Mglobal _ -> Expr.Sglob
+  | _ -> assert false
+
+(* Ignore the [MinLocal _] case. *)
+let get_at = function  
+  | Mlocal at | Mglobal at -> at
+  | _ -> assert false
 
 (*---------------------------------------------------------------*)
 (* We log the result to be able to inverse it. *)
@@ -138,54 +156,60 @@ let mvar_of_scoped_var (s : Expr.v_scope) (uv : var) =
   let at = match uv.v_ty with
     | Bty _ -> Avar uv
     | Arr _ -> Aarray uv in
-  
-  match s with
-  | Expr.Sglob  -> Mglobal at
-  | Expr.Slocal -> Mvalue at
+
+  of_scope s at
 
 let mvar_of_var (v : int Prog.ggvar) =
   mvar_of_scoped_var v.gs (L.unloc v.gv)
 
 (*---------------------------------------------------------------*)
 (* Blasts array elements and arrays. *)
-let u8_blast_at ~blast_arrays at = match at with
-  | Aarray v ->
-    if blast_arrays then
-      let iws = (int_of_ws (arr_size v)) / 8 in
-      let r = arr_range v in
-      let vi i = Mvalue (AarraySlice (v,U8,i)) in
-      List.init (r * iws) vi
-    else [Mvalue at]
-        
-  | AarraySlice (v,ws,j) ->
-    let iws = (int_of_ws ws) / 8 in
-    let vi i = Mvalue (AarraySlice (v,U8,i + j)) in
-    List.init iws vi
-  | _ -> [Mvalue at]
+let u8_blast_at ~blast_arrays scope at =
+  let ats = match at with
+    | Aarray v ->
+      if blast_arrays then
+        let iws = (int_of_ws (arr_size v)) / 8 in
+        let r = arr_range v in
+        let vi i = AarraySlice (v,U8,i) in
+        List.init (r * iws) vi
+      else [at]
+
+    | AarraySlice (v,ws,j) ->
+      let iws = (int_of_ws ws) / 8 in
+      let vi i = AarraySlice (v,U8,i + j) in
+      List.init iws vi
+    | _ -> [at]
+  in
+  List.map (of_scope scope) ats
 
 let u8_blast_var ~blast_arrays v = match v with
-  | Mvalue at -> u8_blast_at ~blast_arrays at
+  | Mlocal at  -> u8_blast_at ~blast_arrays Expr.Slocal at
+  | Mglobal at -> u8_blast_at ~blast_arrays Expr.Sglob  at
   | _ -> [v]
 
-let u8_blast_ats ~blast_arrays ats =
-  List.flatten (List.map (u8_blast_at ~blast_arrays) ats)
+let u8_blast_ats ~blast_arrays scope ats =
+  List.flatten (List.map (u8_blast_at ~blast_arrays scope) ats)
 
 let u8_blast_vars ~blast_arrays vs =
   List.flatten (List.map (u8_blast_var ~blast_arrays) vs)
 
 let rec expand_arr_vars = function
   | [] -> []
-  | Mvalue (Aarray v) :: t -> begin match v.v_ty with
+  | (Mlocal (Aarray v) as head) :: t | (Mglobal (Aarray v) as head) :: t ->
+    begin
+      let scope = get_scope head in
+      match v.v_ty with
       | Bty _ -> assert false
       | Arr (ws, n) ->
         let wsz = size_of_ws ws in
-        List.init n (fun i -> Mvalue (AarraySlice (v,ws,wsz * i)))
-        @ expand_arr_vars t end
+        List.init n (fun i -> of_scope scope (AarraySlice (v,ws,wsz * i)))
+        @ expand_arr_vars t
+    end
   | v :: t -> v :: expand_arr_vars t
 
 (*------------------------------------------------------------*)
-let is_var = function
-  | Mvalue (Avar _) -> true
+let is_local_var = function
+  | Mlocal (Avar _) -> true
   | _ -> false
 
 let is_offset = function
@@ -193,7 +217,7 @@ let is_offset = function
   | _ -> false
 
 let ty_gvar_of_mvar = function
-  | Mvalue (Avar v) -> Some v
+  | Mlocal (Avar v) -> Some v
   | _ -> None
 
 (*------------------------------------------------------------*)

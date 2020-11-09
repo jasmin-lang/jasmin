@@ -374,7 +374,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
 
   let rec init_vars = function
     | [] -> []
-    | Mvalue at :: t -> string_of_mvar (Mvalue at) :: init_vars t
+    | Mlocal at :: t -> string_of_mvar (Mlocal at) :: init_vars t
     | _ :: t -> init_vars t
 
   let make : mvar list -> mem_loc list -> t = fun l mls ->
@@ -673,7 +673,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
   let is_init t at =
     let vats = match at with
       | Aarray _ -> []
-      | _ -> u8_blast_at ~blast_arrays:true at in
+      | _ -> u8_blast_at ~blast_arrays:true Expr.Slocal at in
     let vats = List.map string_of_mvar vats in
     
     { t with
@@ -682,8 +682,8 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
   (* Copy some variable initialization.
      We only need this for elementary array elements. *)
   let copy_init t l e = match l, e with
-    | Mvalue (AarraySlice (_, U8, _)),
-      Mvalue (AarraySlice (_, U8, _)) ->
+    | Mlocal (AarraySlice (_, U8, _)),
+      Mlocal (AarraySlice (_, U8, _)) ->
       let l = string_of_mvar l
       and e = string_of_mvar e in
       begin match EMs.find e t.init with
@@ -697,7 +697,8 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
   let check_init : t -> atype -> bool = fun t at ->
     let vats = match at with
       | Aarray _ -> []
-      | _ -> u8_blast_at ~blast_arrays:false at |> List.map string_of_mvar in    
+      | _ -> u8_blast_at ~blast_arrays:false Expr.Slocal at
+             |> List.map string_of_mvar in    
     let dnum = AbsNum.downgrade t.num in
     let check x =
       try AbsNum.NR.meet dnum (EMs.find x t.init) |> AbsNum.NR.is_bottom with
@@ -722,7 +723,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     | Config.IP_All | Config.IP_NoArray ->
       let keep s =
         match mvar_of_svar s with
-        | Mvalue (AarraySlice _)
+        | Mlocal (AarraySlice _)
           when Config.sc_is_init_no_print () = Config.IP_NoArray -> false
         | _ -> true
       in

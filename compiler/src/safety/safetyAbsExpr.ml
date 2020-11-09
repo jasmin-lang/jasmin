@@ -179,8 +179,8 @@ let mvar_of_lvar_no_array loc lv = match lv with
     begin match ux.v_kind, ux.v_ty with
       | Global,_ -> assert false (* this case should not be possible *)
       (* MLvar (Mglobal (ux.v_name,ux.v_ty)) *)
-      | _, Bty _ -> MLvar (loc, Mvalue (Avar ux))
-      | _, Arr _ -> MLvar (loc, Mvalue (Aarray ux)) end
+      | _, Bty _ -> MLvar (loc, Mlocal (Avar ux))
+      | _, Arr _ -> MLvar (loc, Mlocal (Aarray ux)) end
   | Laset _ -> assert false
   | Lasub _ -> assert false
 
@@ -332,9 +332,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
      offset [ei] (scaled according to [acc]). *)
   let abs_sub_arr_range abs (x,scope) acc ws len ei =
     let ats = abs_sub_arr_range_at abs x acc ws len ei in
-    List.map (fun at -> match scope with
-        | Expr.Slocal -> Mvalue at
-        | Expr.Sglob -> Mglobal at) ats
+    List.map (of_scope scope) ats
 
   (* Collect all variables appearing in e. *)
   let ptr_expr_of_expr abs e =
@@ -804,11 +802,11 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     let abs, warns =
       List.fold_left2 (fun (abs, warns) v source_v ->
           let gv_ws, warn = match v, source_v with
-            | Mvalue (AarraySlice (_,_ws,_)), _ ->
+            | Mlocal (AarraySlice (_,_ws,_)), _ ->
               (* Export function cannot have arrays as input. *)
               assert false (* Some ws *)
 
-            | Mvalue (Avar gv), Mvalue (Avar source_gv) ->
+            | Mlocal (Avar gv), Mlocal (Avar source_gv) ->
               begin match gv.v_ty, source_gv.v_ty with
                 | Bty (U ws), Bty (U ws') ->
                   if ws = ws'
@@ -935,7 +933,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
   (* Initialize variable or array elements. *)
   let a_init_mv_no_array mv abs = match mv with
-    |  Mvalue (AarraySlice _ as at) |  Mvalue (Avar _ as at) ->
+    |  Mlocal (AarraySlice _ as at) |  Mlocal (Avar _ as at) ->
       AbsDom.is_init abs at
     | _ -> assert false
 
@@ -949,16 +947,16 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
      abstraction. *)
   let assign_arr_expr abs (v : mvar) (e : Mtexpr.t) =
     match v with
-    | Mvalue (Aarray gv) -> begin match e with
-        | Mtexpr.Mvar (Mvalue (Aarray ge)) ->
+    | Mlocal (Aarray gv) -> begin match e with
+        | Mtexpr.Mvar (Mlocal (Aarray ge)) | Mtexpr.Mvar (Mglobal (Aarray ge)) ->
           let n = arr_range gv in
           let ws = arr_size gv in
           assert (n = arr_range ge);
           assert (ws = arr_size ge);
           List.fold_left (fun abs i ->
               let o = access_offset Warray_.AAscale ws i in
-              let vi  = Mvalue (AarraySlice (gv,ws,o))  in
-              let eiv = Mvalue (AarraySlice (ge,ws,o)) in
+              let vi  = Mlocal (AarraySlice (gv,ws,o))  in
+              let eiv = Mlocal (AarraySlice (ge,ws,o)) in
               let ei = Mtexpr.var eiv
                        |> sexpr_from_simple_expr in
 
@@ -966,8 +964,13 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
               let abs = AbsDom.assign_sexpr abs vi None ei in
 
               (* Initialization *)
-              List.fold_left2 (fun a vi eiv ->
-                  AbsDom.copy_init a vi eiv)
+              let scope = match e with
+                | Mtexpr.Mvar (Mlocal _)  -> Expr.Slocal
+                | Mtexpr.Mvar (Mglobal _) -> Expr.Sglob
+                | _ -> assert false in
+              List.fold_left2 (fun a vi eiv -> match scope with
+                  | Expr.Slocal -> AbsDom.copy_init a vi eiv
+                  | Expr.Sglob  -> AbsDom.is_init a (get_at vi))
                 abs
                 (u8_blast_var ~blast_arrays:true vi)
                 (u8_blast_var ~blast_arrays:true eiv)
@@ -979,8 +982,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
   let assign_sub_arr_expr_aux abs (v : mvar) ws len offset (e : Mtexpr.t) =
     match v with
-    | Mvalue (Aarray gv) -> begin match e with
-        | Mtexpr.Mvar (Mvalue (Aarray ge)) ->
+    | Mlocal (Aarray gv) -> begin match e with
+        | Mtexpr.Mvar (Mlocal (Aarray ge)) | Mtexpr.Mvar (Mglobal (Aarray ge)) ->
           (* left array size, in bytes *) 
           let lhs_size = arr_range gv * (size_of_ws (arr_size gv)) in 
           (* left sub-array size, in bytes *)
@@ -996,17 +999,23 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           (* We do the copy *)
           List.fold_left (fun abs i ->
               let i = access_offset Warray_.AAscale ws i in
-              let vi  = Mvalue (AarraySlice (gv,ws,offset + i))  in
-              let eiv = Mvalue (AarraySlice (ge,ws,i)) in
+              let vi  = Mlocal (AarraySlice (gv,ws,offset + i))  in
+              let eiv = Mlocal (AarraySlice (ge,ws,i)) in
               let ei = Mtexpr.var eiv
                        |> sexpr_from_simple_expr in
 
               (* Numerical abstraction *)
               let abs = AbsDom.assign_sexpr abs vi None ei in
 
+
               (* Initialization *)
-              List.fold_left2 (fun a vi eiv ->
-                  AbsDom.copy_init a vi eiv)
+              let scope = match e with
+                | Mtexpr.Mvar (Mlocal _)  -> Expr.Slocal
+                | Mtexpr.Mvar (Mglobal _) -> Expr.Sglob
+                | _ -> assert false in
+              List.fold_left2 (fun a vi eiv -> match scope with
+                  | Expr.Slocal -> AbsDom.copy_init a vi eiv
+                  | Expr.Sglob  -> AbsDom.is_init a (get_at vi))
                 abs
                 (u8_blast_var ~blast_arrays:true vi)
                 (u8_blast_var ~blast_arrays:true eiv)
@@ -1024,9 +1033,9 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | _, Some offset -> assign_sub_arr_expr_aux abs v ws len offset e
 
     (* If the offset is unknown, we need to forget the array content. *)
-    | Mvalue (Aarray lhs), None ->
+    | Mlocal (Aarray lhs), None ->
       let mvs = arr_full_range lhs
-                |> List.map (fun y -> Mvalue y) in
+                |> List.map (fun y -> Mlocal y) in
       AbsDom.forget_list abs mvs
 
     | _, _ -> assert false
@@ -1077,7 +1086,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           | Pvar x ->
             let se = Mtexpr.var (mvar_of_var x) in
             begin match mvar with
-              | Mvalue (Aarray _) -> assign_arr_expr abs mvar se 
+              | Mlocal (Aarray _) -> assign_arr_expr abs mvar se 
               | Temp _ -> assert false (* this case should not be possible *)
               | _ -> assert false end
 

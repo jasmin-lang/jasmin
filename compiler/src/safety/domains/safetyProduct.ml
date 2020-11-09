@@ -42,7 +42,7 @@ module type VDomWrap = sig
      An array element must have the same domain that its blasted component. 
      The second argument is a state, which allows to change a variable domain
      during the analysis. 
-     Only [Mvalue (Avar _)] and [MvarOffset _] can change domain. *)
+     Only [Mlocal (Avar _)] and [MvarOffset _] can change domain. *)
   val vdom : mvar -> dom_st -> v_dom
 
   (* Initial state. *)
@@ -93,8 +93,9 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
     | Ppl 0 -> t
 
     | Nrd 0 ->
-      (* We change dynamically the packing only for variables and offsets. *)
-      assert (is_var v || is_offset v);
+      (* We change dynamically the packing only for local variables and
+         offsets. *)
+      assert (is_local_var v || is_offset v);
       assert (not (is_in_dom_ppl v (Ppl 0) t)); 
       let anrd = Mdom.find (Nrd 0) t.nrd in
 
@@ -118,8 +119,9 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
     | Nrd 0 -> t
 
     | Ppl 0 ->
-      (* We change dynamically the packing only for variables and offsets. *)
-      assert (is_var v || is_offset v);
+      (* We change dynamically the packing only for local variables
+         and offsets. *)
+      assert (is_local_var v || is_offset v);
       assert (not (is_in_dom_nrd v (Nrd 0) t)); 
       let appl = Mdom.find (Ppl 0) t.ppl in
 
@@ -529,7 +531,7 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
 
     | MNumInv _ -> Ppl 0        (* Numerical invariant must be relational *)
 
-    | Mvalue (Avar v) | MinValue v ->
+    | Mlocal (Avar v) | MinLocal v ->
       if Sv.mem v v_rel then Ppl 0 else Nrd 0
 
     | MvarOffset v
@@ -537,8 +539,8 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
       if Sv.mem v v_pt then Ppl 0 else Nrd 0
 
     | Mglobal _
-    | Mvalue (AarraySlice _)
-    | Mvalue (Aarray _) -> Nrd 0
+    | Mlocal (AarraySlice _)
+    | Mlocal (Aarray _) -> Nrd 0
 end
 
 (* Dynamic Packing *)
@@ -552,8 +554,9 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
           debug (fun () -> Format.eprintf "Dynamic partitioning: \
                                            lowered %a's precision@."
                     pp_mvar v);         
-          (* We change dynamically the packing only for variables or offsets. *)
-          assert (is_var v || is_offset v);
+          (* We change dynamically the packing only for local variables 
+             and offsets. *)
+          assert (is_local_var v || is_offset v);
           (* We default to the less precise abstraction. *)
           Some (Nrd 0)
 
@@ -616,10 +619,10 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   let dom_st_init = List.fold_left2 (fun dom_st v ssa_v ->
       (* Value entry *)
       let dom_st = if Sv.mem ssa_v ssa_v_rel then
-          let mv = Mvalue (Avar v) in
+          let mv = Mlocal (Avar v) in
           Mm.add mv (Ppl 0) dom_st
         else
-          let mv = Mvalue (Avar v) in
+          let mv = Mlocal (Avar v) in
           Mm.add mv (Nrd 0) dom_st
       in
       (* Pointer (offset) entry *)
@@ -641,7 +644,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
       let v, ssa_v = L.unloc v, L.unloc ssa_v in
       assert (v.v_name = ssa_v.v_name);
       (* We raise the value of [v] if needed *)
-      let mv = Mvalue (Avar v) in
+      let mv = Mlocal (Avar v) in
       let rel =
         if Sv.mem ssa_v ssa_v_rel then [mv, Ppl 0] else [mv, Nrd 0]  in
 
@@ -700,7 +703,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   let dom_st_update dom_st v info =
     try
       match v with
-      | MvarOffset _ | Mvalue (Avar _) ->
+      | MvarOffset _ | Mlocal (Avar _) ->
         let entries = Mint.find info.i_instr_number lmap in
         begin
           try
@@ -720,21 +723,21 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
     | MNumInv _ -> Ppl 0        (* Numerical invariant must be relational *)
 
     | MvarOffset _
-    | Mvalue (Avar _) ->
+    | Mlocal (Avar _) ->
       begin
         try Mm.find v dom_st
         with Not_found -> Nrd 0
       end
 
-    | MinValue v ->
+    | MinLocal v ->
       if Sv.mem v sv_ini then Ppl 0 else Nrd 0
       
     | MmemRange (MemLoc v) ->
       if Sv.mem v pt_ini then Ppl 0 else Nrd 0
 
     | Mglobal _
-    | Mvalue (AarraySlice _)
-    | Mvalue (Aarray _) -> Nrd 0
+    | Mlocal (AarraySlice _)
+    | Mlocal (Aarray _) -> Nrd 0
 
   let print_lmap fmt lmap =
     let pp_one fmt (v,d) =

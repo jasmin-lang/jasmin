@@ -54,7 +54,7 @@ end = struct
   let rec e_aux = function
     | Mcst c -> Texpr1.Cst c
     | Mvar mvar -> begin match mvar with
-        | Mvalue (AarraySlice (_,ws,_)) ->
+        | Mlocal (AarraySlice (_,ws,_)) | Mglobal (AarraySlice (_,ws,_)) ->
           assert (ws = U8);
           Texpr1.Var (avar_of_mvar mvar)
         | _ -> Texpr1.Var (avar_of_mvar mvar) end
@@ -66,23 +66,25 @@ end = struct
   let print ppf t = e_aux t |> Texpr1.print_expr ppf
 
   (* Return sum_{j = 0}^{len - 1} (2^8)^(len - 1 - j) * (U8)v[offset + j] *)
-  let rec build_term_array v offset len =
-    let tv =
-      Mvar (Mvalue (AarraySlice (v,U8,offset + len - 1))) in
+  let rec build_term_array v scope offset len =
+    let slice = AarraySlice (v,U8,offset + len - 1) in
+    let tv = Mvar (of_scope scope slice) in
     let ptwo = Mcst (Coeff.s_of_mpqf (mpq_pow (8 * (len - 1)))) in
     let t = Mbinop (Texpr1.Mul, ptwo, tv, Texpr1.Int, round_typ) in
     if len = 1 then tv
     else Mbinop (Texpr1.Add,
                  t,
-                 build_term_array v offset (len - 1),
+                 build_term_array v scope offset (len - 1),
                  Texpr1.Int, round_typ)
 
   let cst c = Mcst c
 
-  let var v = match v with
-      | Mvalue (AarraySlice (v,ws,i)) ->
-        build_term_array v i (size_of_ws ws)
-      | _ -> Mvar v 
+  let var v0 = match v0 with
+    | Mglobal (AarraySlice (v,ws,i)) | Mlocal (AarraySlice (v,ws,i)) ->
+      let scope = get_scope v0 in
+      build_term_array v scope i (size_of_ws ws)
+
+    | _ -> Mvar v0
 
   let unop op1 a = Munop (op1, a, Texpr1.Int, round_typ) 
 

@@ -75,7 +75,7 @@ let thresholds_param env param =
              |> Array.to_list in
   
   let param_rels = List.filter_map (fun v -> match mvar_of_avar v with
-      | MinValue gv ->
+      | MinLocal gv ->
         if List.mem gv.v_name param_rels then Some v else None
       | _ -> None) vars in
   
@@ -393,18 +393,19 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
 
   let check_u8 vs =
     assert (List.for_all (function
-        | Mvalue (AarraySlice (_,ws,_)) -> ws = U8
+        | Mlocal  (AarraySlice (_,ws,_))
+        | Mglobal (AarraySlice (_,ws,_)) -> ws = U8
         | _ -> true) vs)
       
-  (* v and v_list should not contain Mvalue (AarrayEl) elements
-     of size different than U8. *)
+  (* v and v_list should not contain Mlocal (AarrayEl) or Mglobal
+     (AarrayEl) elements of size different than U8. *)
   let expand_man man a v v_list =
     check_u8 (v :: v_list);
     let v_array = Array.of_list (List.map avar_of_mvar v_list) in
     Abstract1.expand man a (avar_of_mvar v) v_array
 
-  (* v_list should not contain Mvalue (AarrayEl) elements
-     of size different than U8. *)
+  (* v_list should not contain Mlocal (AarrayEl) or Mglobal
+     (AarrayEl) elements of size different than U8. *)
   let fold_man man a v_list =
     check_u8 (v_list);
     (* PPL implementation of the fold operation is bugged. *)   
@@ -472,7 +473,8 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
   let bound_texpr = bound_texpr_man man
 
   let bound_variable t v = match v with
-    | Mvalue (AarraySlice _) ->
+    | Mglobal (AarraySlice _) 
+    | Mlocal  (AarraySlice _) ->
       bound_texpr t (Mtexpr.var v)
     | _ -> Abstract1.bound_variable man t (avar_of_mvar v)
 
@@ -486,7 +488,8 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
           (Array.make 0 (Var.of_string "")) in
 
     match v with
-    | Mvalue (AarraySlice _ ) ->
+    | Mglobal (AarraySlice _ )
+    | Mlocal  (AarraySlice _ ) ->
       List.fold_left
         (fun x y -> add_single y x) env
         (u8_blast_var ~blast_arrays:true v)
@@ -567,10 +570,10 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
 
   (* If force is true then we do a forced strong update on v. *)
   let assign_expr ?force:(force=false) a v e = match v with
-    | Mvalue (AarraySlice (gv,ws,offset)) ->
+    | Mlocal (AarraySlice (gv,ws,offset)) ->
       List.fold_left (fun a j ->
           let p = offset + j in
-          let mvj = Mvalue (AarraySlice (gv, U8, p)) in
+          let mvj = Mlocal (AarraySlice (gv, U8, p)) in
           let mej = get_block e j in
           assign_expr_aux force a mvj mej)
         a (List.init ((int_of_ws ws) / 8) (fun j -> j))
