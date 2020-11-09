@@ -303,32 +303,186 @@ Section Tunneling.
         end
     end.
 
-  Definition tunnel_plan (uf : unionfind [eqType of label]) := pairfoldl tunnel_chart uf Linstr_align.
+  Definition tunnel_plan (uf : LUF.unionfind) := pairfoldl tunnel_chart uf Linstr_align.
 
-  Definition tunnel_bore (uf : unionfind [eqType of label]) (c c' : linstr) :=
+  Definition tunnel_bore (uf : LUF.unionfind) (c c' : linstr) :=
     match c, c' with
       | MkLI _ li, MkLI ii' li' =>
         match li, li' with
-          | Llabel l, Lgoto (fn',l') => MkLI ii' (if fn == fn' then Lgoto (fn', find uf l') else Lgoto (fn',l'))
-          | _, Lcond pe l' => MkLI ii' (Lcond pe (find uf l'))
+          | Llabel l, Lgoto (fn',l') => MkLI ii' (if fn == fn' then Lgoto (fn', LUF.find uf l') else Lgoto (fn',l'))
+          | _, Lcond pe l' => MkLI ii' (Lcond pe (LUF.find uf l'))
           | _, _ => MkLI ii' li'
         end
     end.
 
   Definition tunnel (lc : lcmd) :=
-    let uf := tunnel_plan (empty _) lc in
+    let uf := tunnel_plan LUF.empty lc in
     pairmap (tunnel_bore uf) Linstr_align lc.
 
 End Tunneling.
+
+
+Section Prefix.
+
+  Variable T : eqType.
+  Implicit Type s : seq T.
+
+  Fixpoint prefix s1 s2 :=
+    if s2 is y :: s2' then
+      if s1 is x :: s1' then
+        if x == y then prefix s1' s2' else false
+      else true
+    else s1 == [::].
+
+  Lemma prefix0seq s : prefix [::] s.
+  Proof.
+    by induction s.
+  Qed.
+
+  Lemma prefixseq0 s : prefix s [::] = (s == [::]).
+  Proof.
+    by case: s.
+  Qed.
+
+  (*DiagonalInduction would be useful here, how to import?*)
+  Lemma prefixP s1 s2 :
+    reflect (exists m, s2 = s1 ++ m) (prefix s1 s2).
+  Proof.
+    (*apply seq2_ind.*)
+    (*elim: s1 s2 => [|hs1 ts1 IHs1] [|hs2 ts2 IHs2] //=.*)
+    induction s1 as [|hs1 ts1 IHs1]; induction s2 as [|hs2 ts2 IHs2] => //=.
+    + by left; exists [::].
+    + by left; exists (hs2 :: ts2).
+    + right => Hm.
+      by case: Hm => m.
+    by admit.
+  Admitted.
+
+  (*Same here, better with DiagonalInduction.*)
+  Lemma mask_prefix n s : prefix (mask (nseq n true) s) s.
+  Proof.
+    induction s as [|hs ts IHs].
+    + by rewrite mask0.
+  Admitted.
+
+  (*Why does this work for subseq but not prefix?*)
+  (*Lemma prefix_trans : transitive prefix.*)
+
+  Lemma prefix_refl s : prefix s s.
+  Proof.
+    by induction s as [|hs ts IHs] => //=; rewrite eq_refl.
+  Qed.
+  (*Hint Resolve prefix_refl.*)
+  
+  Lemma subseq_prefix s1 s2 : prefix s1 s2 -> subseq s1 s2.
+  Proof.
+    move => Hp.
+    apply/subseqP.
+    case: (prefixP _ _ Hp) => s Hs.
+    exists ((nseq (size s1) true) ++ (nseq (size s) false)).
+    + by rewrite Hs !size_cat !size_nseq.
+    rewrite Hs mask_cat.
+    + by rewrite mask_true // mask_false cats0.
+    by rewrite size_nseq.
+  Qed.
+
+  Lemma prefix_prefix s1 s2 : prefix s1 (s1 ++ s2).
+  Proof.
+    induction s1 as [|hs1 ts1 IHs1] => //=.
+    + by case: s2.
+    by rewrite eq_refl.
+  Qed.
+
+  Lemma cat_prefix s1 s2 s3 :
+    prefix s1 s2 → prefix s1 (s2 ++ s3).
+  Proof.
+    move => Hp.
+    (*apply prefix_trans.*)
+    (*by apply prefix_prefix.*)
+  Admitted.
+
+  (*
+  Lemma mem_prefix s1 s2 : prefix s1 s2 -> {prefix s1 ≤ s2}.
+  Proof.
+    
+  Qed.
+  *)
+
+  Lemma prefix1 x s : prefix [:: x] s = (Some x == ohead s).
+  Proof.
+    induction s as [|hs ts _] => //=.
+    rewrite eq_refl.
+    case Hxhs: (x == hs).
+    + rewrite (eqP Hxhs) eq_refl.
+      by case: ts.
+    (*Way too long.*)
+    rewrite -Hxhs.
+    apply/eqP.
+    case HSomeb: (Some x == Some hs) => //.
+    + have HSome:= (eqP HSomeb).
+      by admit.
+    apply/eqP.
+    by rewrite Hxhs.
+  Admitted.
+
+  Lemma size_prefix s1 s2 : prefix s1 s2 → size s1 ≤ size s2.
+  Proof.
+    move => Hp.
+    case: (prefixP _ _ Hp) => s Hs.
+    rewrite Hs size_cat.
+    by admit.
+    (*by rewrite leq_addr.*)
+    (*by apply leq_addr.*)
+  Admitted.
+
+  (*
+  Lemma size_prefix_leqif s1 s2 :
+    prefix s1 s2 → size s1 ≤ size s2 ?= iff (s1 == s2).
+  Proof.
+    
+  Qed.
+  *)
+
+  Lemma prefix_rcons s x : prefix s (rcons s x).
+  Proof.
+    by induction s as [|hs ts IHs] => //=; rewrite eq_refl.
+  Qed.
+
+  Lemma prefix_uniq s1 s2 : prefix s1 s2 → uniq s2 → uniq s1.
+  Proof.
+    move => Hp.
+    apply subseq_uniq.
+    by apply subseq_prefix.
+  Qed.
+
+  Lemma prefixW P s : P [::] s -> (forall h t , prefix (rcons t h) s -> P t s -> P (rcons t h) s) -> P s s.
+  Proof.
+    move => Hnil Hcons.
+    have:= prefix_refl s.
+    have HG: forall s' , prefix s' s -> P s' s; last by apply HG.
+    apply (@last_ind _ (fun s' => prefix s' s → P s' s)) => //.
+    move => t h IH Hp.
+    apply Hcons => //.
+    apply IH.
+    (*apply prefix_trans.*)
+  Admitted.
+
+End Prefix.
 
 
 Require Import linear_sem.
 
 Section TunnelingProof.
 
+  (*Looking for lemmas that would allow separation of concerns, ie that if lsem s1 s2 then s1.(lc) and s2.(lc) are of the same size, have the same instructions at the same place, and that the Lgotos do not change if there is a Llabel before.*)
+
   Definition lsem_tunnel s := (Lstate s.(lmem) s.(lvm) s.(lfn) (tunnel s.(lfn) s.(lc)) s.(lpc)).
 
-  (*Is it correct?*)
+  Lemma lsem_tunneling_aux p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem p (lsem_tunnel s1) (lsem_tunnel s3).
+  Proof.
+    
+  Admitted.
+
   Theorem lsem_tunneling p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem p (lsem_tunnel s1) (lsem_tunnel s3).
   Proof.
     
