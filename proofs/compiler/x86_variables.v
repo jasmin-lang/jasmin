@@ -469,9 +469,9 @@ Definition assemble_word rip ii (sz:wsize) max_imm (e:pexpr) :=
               (ii, Cerr_assembler (AsmErr_string "Global variables remain" (Some e))) in
     let x := x.(gv) in
     xreg_of_var ii x
-  | Pload sz' v e =>
+  | Pload sz' v e' =>
     if (sz == sz') then
-      Let w := addr_of_xpexpr rip ii Uptr v e in
+      Let w := addr_of_xpexpr rip ii Uptr v e' in
       ok (Adr w)
     else
       cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for word: invalid Load size" (Some e)))
