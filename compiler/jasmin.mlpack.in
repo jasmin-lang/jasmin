@@ -4,6 +4,7 @@ src/Bigint
 src/BigintCore
 src/Conv
 src/Evaluator
+src/Help
 src/Inline_array_copy
 src/Latex_printer
 src/Lexer

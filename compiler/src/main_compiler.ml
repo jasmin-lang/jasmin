@@ -11,7 +11,8 @@ let parse () =
     if !infile <> "" then error();
     infile := s  in
   Arg.parse options set_in usage_msg;
-  if !infile = "" then error()
+  if !infile = "" && not !help_intrinsics
+  then error()
 
 (*--------------------------------------------------------------------- *)
 
@@ -140,6 +141,9 @@ let main () =
   try
 
     parse();
+
+    if !help_intrinsics
+    then (Help.show_intrinsics (); exit 0);
 
     let fname = !infile in
     let ast   = Parseio.parse_program ~name:fname in

@@ -13,6 +13,8 @@ let ec_list = ref []
 let check_safety = ref false
 let safety_param = ref None
 
+let help_intrinsics = ref false
+
 let lea = ref false
 let set0 = ref false
 let model = ref Normal
@@ -105,7 +107,8 @@ let options = [
      where each p_i is of the form:\n\
      v_1,...,v_n;v_1',...,v_k'\n\
      v_1,...,v_n: list of pointer variables that have to be considered together\n\
-     v_1',...,v_k': list of relational variables"
+     v_1',...,v_k': list of relational variables";
+    "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
   ] @  List.map print_option poptions
 
 let usage_msg = "Usage : jasminc [option] filename"
