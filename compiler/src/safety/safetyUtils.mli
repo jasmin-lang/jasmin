@@ -44,8 +44,8 @@ val mpqf_of_bigint : B.zint -> Mpqf.t
 (*------------------------------------------------------------*)
 (* Coeff and Interval Utils *)
                                  
-val scalar_to_int   : Scalar.t   -> int option
-val interval_to_int : Interval.t -> int option
+val scalar_to_zint   : Scalar.t   -> Z.t option
+val interval_to_zint : Interval.t -> Z.t option
     
 val to_int          : Coeff.t  -> Coeff.t
 val s_to_mpqf       : Scalar.t -> Mpqf.t

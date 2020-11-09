@@ -654,16 +654,16 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
 
   let trivially_false man a c =
     let int = bound_texpr_man man a (Mtcons.get_expr c) in
-    let oi = interval_to_int int in
+    let oi = interval_to_zint int in
 
     Utils.omap_dfl (fun i -> match Mtcons.get_typ c with
-        | Tcons0.DISEQ -> i = 0
-        | Tcons0.EQ -> i <> 0
-        | Tcons0.SUP -> i <= 0
-        | Tcons0.SUPEQ -> i < 0
-        | Tcons0.EQMOD n -> match scalar_to_int n with
+        | Tcons0.DISEQ -> Z.equal i Z.zero
+        | Tcons0.EQ    -> not (Z.equal i Z.zero)
+        | Tcons0.SUP   -> Z.leq i Z.zero
+        | Tcons0.SUPEQ -> Z.lt i Z.zero
+        | Tcons0.EQMOD n -> match scalar_to_zint n with
           | None -> false
-          | Some n -> (i mod n) <> 0
+          | Some n -> not (Z.equal (Z.(mod) i n) Z.zero)
       ) false oi
 
   let meet_constr_man man a cs =

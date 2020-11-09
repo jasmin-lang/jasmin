@@ -36,7 +36,8 @@ module AbsExpr (AbsDom : SafetyInterfaces.AbsNumBoolType) : sig
   val wrap_if_overflow : AbsDom.t -> Mtexpr.t -> signedness -> int -> Mtexpr.t 
   val cast_if_overflows : AbsDom.t -> int -> int -> Mtexpr.t -> Mtexpr.t
                                                                   
-  val aeval_cst_int : AbsDom.t -> expr -> int option      
+  val aeval_cst_zint : AbsDom.t -> expr -> Z.t option      
+  val aeval_cst_int : AbsDom.t -> expr  -> int option
       
   val abs_sub_arr_range :
     AbsDom.t -> (var * Expr.v_scope) ->

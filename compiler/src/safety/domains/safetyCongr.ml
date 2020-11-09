@@ -46,11 +46,11 @@ module Congr = struct
 
   let of_coeff (c : Coeff.t) = 
     let int = match c with
-    | Coeff.Scalar s   -> scalar_to_int s
-    | Coeff.Interval i -> interval_to_int i in
+    | Coeff.Scalar s   -> scalar_to_zint s
+    | Coeff.Interval i -> interval_to_zint i in
     match int with
     | None -> top
-    | Some c -> V (Z.zero, Z.of_int c)
+    | Some c -> V (Z.zero, c)
     
   let mem_v x (a,b) = 
     if Z.equal a Z.zero
@@ -265,8 +265,8 @@ module AbsNumCongr : AbsNumType = struct
     | Lincons1.EQMOD n ->
       let c = eval t (Mtcons.get_expr cnstr) in
       begin
-        match scalar_to_int n with
-        | Some n -> Congr.is_included c (Congr.make (Z.of_int n) Z.zero)
+        match scalar_to_zint n with
+        | Some n -> Congr.is_included c (Congr.make n Z.zero)
         | None -> false
       end
     | _ -> false
