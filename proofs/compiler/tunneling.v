@@ -270,6 +270,11 @@ Section PairFoldLeft.
 
   Fixpoint pairfoldl z t s := if s is x :: s' then pairfoldl (f z t x) x s' else z.
 
+  Lemma pairfoldl_rcons z t s x : pairfoldl z t (rcons s x) = f (pairfoldl z t s) (last t s) x.
+  Proof.
+    by elim: s z t => [|hs ts IHs] /=.
+  Qed.
+
 End PairFoldLeft.
 
 
@@ -285,39 +290,6 @@ Section PairFoldLeftComp.
   Qed.
 
 End PairFoldLeftComp.
-
-Section Tunneling.
-
-  Context (fn : funname).
-
-  Definition Linstr_align := (MkLI xH Lalign).
-
-  Definition tunnel_chart (uf : LUF.unionfind) (c c' : linstr) :=
-    match c, c' with
-      | MkLI _ li, MkLI _ li' =>
-        match li, li' with
-          | Llabel l, Lgoto (fn',l') => if fn == fn' then uf else LUF.union uf l l'
-          | _, _ => uf
-        end
-    end.
-
-  Definition tunnel_plan (uf : LUF.unionfind) := pairfoldl tunnel_chart uf Linstr_align.
-
-  Definition tunnel_bore (uf : LUF.unionfind) (c c' : linstr) :=
-    match c, c' with
-      | MkLI _ li, MkLI ii' li' =>
-        match li, li' with
-          | Llabel l, Lgoto (fn',l') => MkLI ii' (if fn == fn' then Lgoto (fn', LUF.find uf l') else Lgoto (fn',l'))
-          | _, Lcond pe l' => MkLI ii' (Lcond pe (LUF.find uf l'))
-          | _, _ => MkLI ii' li'
-        end
-    end.
-
-  Definition tunnel (lc : lcmd) :=
-    let uf := tunnel_plan LUF.empty lc in
-    pairmap (tunnel_bore uf) Linstr_align lc.
-
-End Tunneling.
 
 
 Section Prefix.
@@ -350,14 +322,17 @@ Section Prefix.
     + by left; exists (hs2 :: ts2).
     + right => Hm.
       by case: Hm => m.
-    by admit.
-  Admitted.
+    case Hh: (hs1 == hs2); case (IHs1 ts2) => Hm.
+    + by left; move: Hm => [m] ->; rewrite (eqP Hh); exists m.
+    + by right; move => [m [_ Hts2]]; apply Hm; exists m.
+    + by right; move => [m [Hh' _]]; rewrite Hh' eq_refl in Hh.
+    by right; move => [m [Hh' _]]; rewrite Hh' eq_refl in Hh.
+  Qed.
 
   Lemma mask_prefix n s : prefix (mask (nseq n true) s) s.
   Proof.
-    elim: s n => [|hs ts IHs] [|n].
-    + by rewrite mask0.
-  Admitted.
+    by elim: s n => [|hs ts IHs] [|n] => //=; rewrite eq_refl.
+  Qed.
 
   Lemma prefix_trans : ssrbool.transitive prefix.
   Proof.
@@ -450,21 +425,86 @@ Section Prefix.
 End Prefix.
 
 
+Section Tunneling.
+
+  Context (fn : funname).
+
+  Definition Linstr_align := (MkLI xH Lalign).
+
+  Definition tunnel_chart (uf : LUF.unionfind) (c c' : linstr) :=
+    match c, c' with
+      | MkLI _ li, MkLI _ li' =>
+        match li, li' with
+          | Llabel l, Lgoto (fn',l') => if fn == fn' then uf else LUF.union uf l l'
+          | _, _ => uf
+        end
+    end.
+
+  Definition tunnel_plan (uf : LUF.unionfind) := pairfoldl tunnel_chart uf Linstr_align.
+
+  Definition tunnel_bore (uf : LUF.unionfind) (c c' : linstr) :=
+    match c, c' with
+      | MkLI _ li, MkLI ii' li' =>
+        match li, li' with
+          | Llabel l, Lgoto (fn',l') => MkLI ii' (if fn == fn' then Lgoto (fn', LUF.find uf l') else Lgoto (fn',l'))
+          | _, Lcond pe l' => MkLI ii' (Lcond pe (LUF.find uf l'))
+          | _, _ => MkLI ii' li'
+        end
+    end.
+
+  Definition tunnel (lc : lcmd) :=
+    let uf := tunnel_plan LUF.empty lc in
+    pairmap (tunnel_bore uf) Linstr_align lc.
+
+End Tunneling.
+
+
 Require Import linear_sem.
 
 Section TunnelingProof.
 
   Definition lsem_tunnel s := (Lstate s.(lmem) s.(lvm) s.(lfn) (tunnel s.(lfn) s.(lc)) s.(lpc)).
 
-  Lemma lsem_tunneling_aux p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem p (lsem_tunnel s1) s3.
+  Definition lsem_tunnel_partial s lc lc' :=
+        (Lstate s.(lmem) s.(lvm) s.(lfn) (pairmap (tunnel_bore s.(lfn) (tunnel_plan s.(lfn) LUF.empty lc)) Linstr_align lc') s.(lpc)).
+
+  Lemma lsem_tunnel_partial_tunnel s : lsem_tunnel s = lsem_tunnel_partial s s.(lc) s.(lc).
   Proof.
-    
+    by rewrite /lsem_tunnel /lsem_tunnel_partial; constructor.
+  Qed.
+
+  (*I know this is proved somewhere.*)
+  Lemma obvious (T1 T2 : Type) (f g : T1 -> T2) : (forall x , ((f x) = (g x))) -> (f = g).
   Admitted.
+
+  Lemma tunnel_bore_empty fn : tunnel_bore fn LUF.empty = (fun c c' => c').
+  Proof.
+    apply: obvious => c; apply: obvious => c'.
+    case: c => li_ii li_i; case: li_i; case: c' => li_ii' li_i'; case: li_i' => //=; intros.
+    3:
+      case: r => a b; case Heq: (fn == a) => //.
+    all:
+      by rewrite LUF.find_empty.
+  Qed.
 
   Theorem lsem_tunneling p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem p (lsem_tunnel s1) s3.
   Proof.
-    
-  Admitted.
+    rewrite lsem_tunnel_partial_tunnel => Hlsem12.
+    pose P:= fun lc1 lc1' => ∃ s3 : lstate, lsem p s2 s3 ∧ lsem p (lsem_tunnel_partial s1 lc1 lc1') s3.
+    apply (@prefixW _ P).
+    + exists s2; split.
+      (*Maybe better?*)
+      - apply Relation_Operators.rt_refl.
+      rewrite /lsem_tunnel_partial.
+      have ->: pairmap (tunnel_bore (lfn s1) (tunnel_plan (lfn s1) LUF.empty [::])) Linstr_align (lc s1) = lc s1; last first.
+      (*Really stupid thing to prove.*)
+      - by admit.
+      rewrite /tunnel_plan /= tunnel_bore_empty.
+      by elim: (lc s1) Linstr_align => [|hlc1 tlc1 IHlc1] i //=; rewrite IHlc1.
+    rewrite /P.
+    move => hli tli Hprefix [s3 [Hlsem23 Hlsemp13]].
+    rewrite /lsem_tunnel_partial /tunnel_plan pairfoldl_rcons.
+  Qed.
 
 End TunnelingProof.
 
