@@ -43,7 +43,7 @@ Definition size_of (t:stype) :=
   match t with
   | sword sz => wsize_size sz
   | sarr n   => Zpos n
-  | sbool | sint => 0%Z
+  | sbool | sint => 1%Z
   end.
 
 Local
