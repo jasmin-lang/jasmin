@@ -329,10 +329,10 @@ Section PROOF.
   Variable p1 p2:prog.
   Variable Fs: seq (funname * seq leak_i_tr).
   Notation gd := (p_globs p1).
-  Hypothesis Hcheck: check_prog_aux p1 p2 = ok Fs.
+(*  Hypothesis Hcheck: check_prog_aux p1 p2 = ok Fs. *)
   Hypothesis eq_globs : p_globs p1 = p_globs p2.
 
-  Lemma all_checked : forall fn fd1,
+(*  Lemma all_checked : forall fn fd1,
     get_fundef (p_funcs p1) fn = Some fd1 ->
     exists fd2, exists rs,  
           get_fundef (p_funcs p2) fn = Some fd2 /\
@@ -349,7 +349,7 @@ Section PROOF.
     exists fd2. exists z. split=> //. case: h2=> <- /=. auto. 
     move: (Hrec fn2' fd2' h2). move=> [] fd''' [] ltc'' [] hf hf'.
     exists fd'''. exists ltc''. split=> //.
-  Qed.
+  Qed. *)
 
   Lemma all_checked' : forall fn fd1,
     get_fundef (p_funcs p1) fn = Some fd1 ->
@@ -391,7 +391,7 @@ Section PROOF.
       exists vm2, eq_alloc r2 (evm s2) vm2 /\
                 sem p2 (Estate (emem s1) vm1) [:: i2] (leak_I (leak_Fun Fs) li lti)
                                                           (Estate (emem s2) vm2).
-Let Pc s1 (c1:cmd) lc s2:=
+  Let Pc s1 (c1:cmd) lc s2:=
     forall ii r1 c2 r2 ltc vm1, eq_alloc r1 (evm s1) vm1 ->
     check_cmd ii c1 c2 r1 = ok (r2, ltc) ->
     exists vm2, eq_alloc r2 (evm s2) vm2 /\
@@ -666,35 +666,48 @@ Let Pc s1 (c1:cmd) lc s2:=
     by rewrite -H -Hl. 
   Qed.
 
-  (*Section REFL.
+  Section REFL.
 
     Hypothesis eq_prog : p1 = p2.
+
+    Definition leak_fn_id fn := 
+      match get_fundef (p_funcs p1) fn with 
+      | None => None 
+      | Some fd => Some (map (fun _ => LT_ikeep) fd.(f_body))
+      end.
+
+    Hypothesis Fs_id : forall fn, get_fundef Fs fn = leak_fn_id fn. 
+
+    Lemma leak_map_id lf c s1 s2 : sem p1 s1 c lf s2 ->
+      leak_Is (leak_I (leak_Fun Fs)) [seq LT_ikeep | _ <- c] lf = lf.
+    Proof.
+      elim: c s1 lf => /= [ | i c hrec] s1 lf hsem.
+      + by inversion_clear hsem.      
+      inversion_clear hsem => /=.
+      rewrite /leak_Is /=.
+      have -> /= : leak_I (leak_Fun Fs) li LT_ikeep = [:: li] by case: (li).  
+      by f_equal; apply: hrec H0.
+    Qed.
 
     (** NEED TO CHECK WITH BENJAMIN **)
     Local Lemma Hproc_eq m1 m2 fn f vargs vargs' s1 vm2 vres vres' lf:
       get_fundef (p_funcs p1) fn = Some f ->
       mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
       write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
-      sem p1 s1 (f_body f) (leak_Is (leak_I (leak_Fun Fs)) 
-        (leak_Fun Fs fn) lf) {| emem := m2; evm := vm2 |} ->
-      Pc s1 (f_body f) (leak_Is (leak_I (leak_Fun Fs)) 
-        (leak_Fun Fs fn) lf) {| emem := m2; evm := vm2 |} ->
+      sem p1 s1 (f_body f) lf {| emem := m2; evm := vm2 |} ->
       mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
       mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
       Pfun m1 fn vargs' (fn, lf) m2 vres'.
     Proof.
       rewrite /Pfun /=.
-      move=> Hget Hca Hw Hsem Hpc Hres Hcr vargs2 Hvargs2;rewrite -eq_prog.
-      have: sem_call p1 m1 fn vargs' (fn, leak_Is (leak_I (leak_Fun Fs)) 
-        (leak_Fun Fs fn) lf) m2 vres'. 
-      apply EcallRun with f vargs s1 vm2 vres.
-      auto. auto. auto. auto. auto. auto. move=> H. 
-      rewrite /=. move: sem_call_uincl. move=> Hu. 
-      move: (Hu p1 vargs' m1 fn (fn,
-        leak_Is (leak_I (leak_Fun Fs)) 
-          (leak_Fun Fs fn) lf) m2 vres' vargs2 Hvargs2 H). 
-      move=> [] vs [] H1 H2.
-      exists vs. split. auto. auto. 
+      move=> Hget Hca Hw Hsem Hres Hcr vargs2 Hvargs2;rewrite -eq_prog.
+      have H : sem_call p1 m1 fn vargs' (fn, lf) m2 vres'. 
+      + by apply EcallRun with f vargs s1 vm2 vres; auto.
+      have -> : leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs fn) lf = lf.
+      + rewrite {2}/leak_Fun; have := Fs_id fn; rewrite /get_fundef => ->.
+        by rewrite /leak_fn_id Hget /=; apply: leak_map_id Hsem.
+      have [vs [H1 H2]] := sem_call_uincl Hvargs2 H.
+      by exists vs.
     Qed.
 
     Lemma alloc_funP_eq_aux fn f f' m1 vargs vargs' vres s1 s2 vres' ltc lc :
