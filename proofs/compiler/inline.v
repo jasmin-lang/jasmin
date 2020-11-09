@@ -207,7 +207,7 @@ Definition inline_fd_cons (ffd:funname * fundef) (p:cfexec (prog * leak_f_tr))
 
 (* Need to change this *)
 Definition inline_prog (p:prog * leak_f_tr) :=  
-  foldr inline_fd_cons (cfok (p.1, p.2)) (p_funcs p.1).
+  foldr inline_fd_cons (cfok ({| p_globs := p_globs p.1; p_funcs := [::]|}, [::])) (p_funcs p.1).
 
 Definition inline_prog_err (p:prog * leak_f_tr) :=
   if uniq [seq x.1 | x <- p_funcs p.1] then

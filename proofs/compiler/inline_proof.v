@@ -52,59 +52,90 @@ Local Notation inline_prog' := (inline_prog inline_var rename_fd).
 Section INCL.
 
   Variable p p': fun_decls.
+  Variable Fs : seq (funname * leak_c_tr).
 
   Hypothesis Incl : forall f fd,
     get_fundef p f = Some fd -> get_fundef p' f = Some fd.
 
-  Let Pi i := forall X1 c' X2,
-    inline_i' p  i X2 = ok (X1, c') ->
-    inline_i' p' i X2 = ok (X1, c').
+  Let Pi i := forall X1 c' lti' X2,
+    inline_i' p  i X2 = ok (X1, c', lti') ->
+    inline_i' p' i X2 = ok (X1, c', lti').
 
   Let Pr i := forall ii, Pi (MkI ii i).
 
-  Let Pc c :=  forall X1 c' X2,
-    inline_c (inline_i' p)  c X2 = ok (X1, c') ->
-    inline_c (inline_i' p') c X2 = ok (X1, c').
+  Let Pc c :=  forall X1 c' ltc' X2,
+    inline_c (inline_i' p)  c X2 = ok (X1, c', ltc') ->
+    inline_c (inline_i' p') c X2 = ok (X1, c', ltc').
 
   Lemma inline_c_incl c : Pc c.
   Proof.
     apply (@cmd_rect Pr Pi Pc) => // {c}.
-    + move=> i c Hi Hc X1 c' X2 /=.
-      apply:rbindP => -[Xc cc] /Hc -> /=.
-      by apply:rbindP => -[Xi ci] /Hi ->.
-    + by move=> * ?.
-    + by move=> * ?.
-    + move=> e c1 c2 Hc1 Hc2 ii X1 c' X2 /=.
-      apply: rbindP => -[Xc1 c1'] /Hc1 -> /=.
-      by apply: rbindP => -[Xc2 c2'] /Hc2 -> /= [] <- <-.
-    + move=> i dir lo hi c Hc ii X1 c0 X2 /=.
-      by apply: rbindP => -[Xc c'] /Hc -> /=.
-    + move=> a c e c' Hc Hc' ii X1 c0 X2 /=.
-      apply: rbindP => -[Xc1 c1] /Hc -> /=.
-      by apply: rbindP => -[Xc1' c1'] /Hc' -> /=.
-    move=> i xs f es ii X1 c' X2 /=.
-    case: i => //;apply: rbindP => fd /get_funP -/Incl.
-    by rewrite /get_fun => ->.
+    + move=> i c Hi Hc X1 c' ltc' X2 /=. t_xrbindP.
+      move=> -[[Xi ci] lti] /Hi Hi' /= [[Xc cc] ltc] /= /Hc Hc' /=.
+      rewrite Hi' /=. rewrite Hc' /=. by move=> ->.
+    (* Asgn *)
+    + move=> x tg ty /= e. rewrite /Pr. move=> ii /=. rewrite /Pi.
+      by move=> X1 c' lti' X2 H.
+    (* Opn *)
+    + move=> xs t o es /=. rewrite /Pr. move=> ii /=. rewrite /Pi.
+      by move=> X1 c' lti' X2 H.
+    (* If *)
+    + move=> e c1 c2 Hc1 Hc2 ii X1 c' ltc X2 /=.
+      t_xrbindP. by move=> -[[Xc1 c1'] lt1] /Hc1 -> /= -[[Xc2 c2'] lt2] /Hc2 -> /=.
+    (* For *)
+    + move=> i dir lo hi c Hc ii X1 c0 lti X2 /=.
+      t_xrbindP. by move=> -[[Xc c'] ltc] /Hc -> /=.
+    (* While *)
+    + move=> a c e c' Hc Hc' ii X1 c0 ltc X2 /=.
+      t_xrbindP. by move=> -[[Xc1 c1] ltc1] /Hc -> /= -[[Xc2 c2] ltc2] /Hc' -> /=.
+    (* Call *)
+    move=> i xs f es ii X1 c' ltc X2 /=.
+    case: i => //. t_xrbindP. move=> fd Hfd. move: get_funP. move=> Hf.
+    move: (Hf p ii f fd Hfd). move=> -/Incl. rewrite /get_fun => -> tt h1 h2 /=.
+    rewrite h1 /=. by rewrite h2.
   Qed.
 
   Lemma inline_incl fd fd' :
     inline_fd' p  fd = ok fd' ->
     inline_fd' p' fd = ok fd'.
   Proof.
-    by case: fd => fi ftin fp fb ftout fr /=;apply: rbindP => -[??] /inline_c_incl -> [<-].
+    case: fd => fi ftin fp fb ftout fr /=. t_xrbindP. 
+    by move=> [[Xc c] ltc] /inline_c_incl -> /= <-.
   Qed.
 
 End INCL.
 
-Lemma inline_prog_fst p p' :
-  inline_prog' p = ok p' ->
-  [seq x.1 | x <- p] = [seq x.1 | x <- p'].
+(* function declarations are the same in both the programs p and p' *)
+(* are we considering p' as program after inlinning is peformed *)
+Lemma inline_prog_fst p lt p' lt':
+  inline_prog' (p, lt) = ok (p', lt') ->
+  [seq x.1 | x <- (p_funcs p)] = [seq x.1 | x <- (p_funcs p')].
 Proof.
-  elim: p p' => [ ?[<-] | [f fd] p Hrec p'] //=.
-  by apply: rbindP => ? /Hrec -> /=;apply:rbindP => ?? [] <-.
-Qed.
+ elim: (p_funcs p) (p_funcs p')=> [ | [f fd] fds Hrec fds']//=.
+ (* base case: [::] *) (* p_funcs is empty *)
+ + move=> fds' //= h. admit.
+ move=> h /=. move: (Hrec fds' h). admit.
+  (*elim: p p' => [ ?[<-] | [f fd] p Hrec p'] //=.
+  by apply: rbindP => ? /Hrec -> /=;apply:rbindP => ?? [] <-.*)
+ Admitted.
 
-Lemma inline_progP p p' f fd' :
+Lemma inline_progP p p' ltf ltf' f fd':
+  uniq [seq x.1 | x <- (p_funcs p)] ->
+  inline_prog' (p, ltf) = ok (p', ltf') ->
+  get_fundef (p_funcs p') f = Some fd' ->
+  exists fd, exists ltc, get_fundef (p_funcs p) f = Some fd 
+             /\ inline_fd' (p_funcs p') fd = ok (fd', ltc).
+Proof.
+  elim: (p_funcs p) (p_funcs p')=>  [ | [f1 fd1] fds Hrec] fds' //=.
+  + move=> _ h //= hg. admit.
+  move=> /andP [] Hf1 Huniq.
+  move=> /= hi hg. move: (Hrec fds' Huniq hi hg).
+  move=> [] fd'' [] ltc' [] hg' hi'.
+  case: eqP=> // hf. exists fd1. exists ltc'.
+  split=> //. admit.
+Admitted.  
+    
+(*Lemma inline_progP p p' f fd' :
   uniq [seq x.1 | x <- p] ->
   inline_prog' p = ok p' ->
   get_fundef p' f = Some fd' ->
@@ -124,15 +155,17 @@ Proof.
   apply: inline_incl H => f0 fd0;rewrite get_fundef_cons /=.
   case: eqP => // -> H; have := (get_fundef_in H)=> {H}H.
   by move: Hf1;rewrite (inline_prog_fst Hp1) H.
-Qed.
+Qed.*)
 
-Lemma inline_progP' p p' f fd :
-  uniq [seq x.1 | x <- p] ->
-  inline_prog' p = ok p' ->
-  get_fundef p f = Some fd ->
-  exists fd', get_fundef p' f = Some fd' /\ inline_fd' p' fd = ok fd'.
+Lemma inline_progP' p ltf p' ltf' f fd :
+  uniq [seq x.1 | x <- (p_funcs p)] ->
+  inline_prog' (p, ltf) = ok (p', ltf') ->
+  get_fundef (p_funcs p) f = Some fd ->
+  exists fd', exists ltc, get_fundef (p_funcs p') f = Some fd' 
+              /\ inline_fd' (p_funcs p') fd = ok (fd', ltc).
 Proof.
-  elim: p p' => [ | [f1 fd1] p Hrec] p' //.
+Admitted.
+  (*elim: p p' => [ | [f1 fd1] p Hrec] p' //.
   rewrite /= => /andP [] Hf1 Huniq.
   apply: rbindP => p1 Hp1.
   apply: rbindP => fd1';apply: add_finfoP => Hinl [] <-.
@@ -145,20 +178,21 @@ Proof.
   apply: inline_incl H => f0 fd0;rewrite get_fundef_cons /=.
   case: eqP => // -> H; have := (get_fundef_in H)=> {H}H.
   by move: Hf1;rewrite (inline_prog_fst Hp1) H.
-Qed.
+Qed.*)
 
 Section SUBSET.
 
   Variable p : fun_decls.
 
   Let Pi i := forall X2 Xc,
-    inline_i' p i X2 = ok Xc -> Sv.Equal Xc.1 (Sv.union (read_I i) X2).
+    inline_i' p i X2 = ok Xc -> Sv.Equal Xc.1.1 (Sv.union (read_I i) X2).
 
   Let Pr i := forall ii, Pi (MkI ii i).
 
   Let Pc c :=
     forall X2 Xc,
-      inline_c (inline_i' p) c X2 = ok Xc -> Sv.Equal Xc.1 (Sv.union (read_c c) X2).
+      inline_c (inline_i' p) c X2 = ok Xc -> 
+      Sv.Equal Xc.1.1 (Sv.union (read_c c) X2).
 
   Local Lemma Smk    : forall i ii, Pr i -> Pi (MkI ii i).
   Proof. done. Qed.
@@ -168,9 +202,9 @@ Section SUBSET.
 
   Local Lemma Scons  : forall i c, Pi i -> Pc c -> Pc (i::c).
   Proof.
-    move=> i c Hi Hc X2 Xc /=.
-    apply:rbindP=> Xc' /Hc ?;apply:rbindP => Xi /Hi ? [<-] /=.
-    rewrite read_c_cons;SvD.fsetdec.
+    move=> i c Hi Hc X2 [[X c'] ltc] /=.
+    t_xrbindP. move=> [[X' ci] lti] /Hi /= hi [[Xc cc] ltc'] /Hc /= hc [] <- h1 h2 /=.
+    rewrite read_c_cons; SvD.fsetdec.
   Qed.
 
   Local Lemma Sasgn  : forall x tag t e, Pr (Cassgn x tag t e).
@@ -218,18 +252,30 @@ Section SUBSET.
 
 End SUBSET.
 
-Lemma assgn_tuple_Lvar p ii (xs:seq var_i) flag tys es vs vs' s s' :
+Lemma assgn_tuple_Lvar p ii (xs:seq var_i) flag tys es vs vs' s s' lws:
   let xs := map Lvar xs in
   disjoint (vrvs xs) (read_es es) ->
   sem_pexprs (p_globs p) s es = ok vs ->
-  mapM2 ErrType truncate_val tys vs = ok vs' ->
-  write_lvals (p_globs p) s xs vs' = ok s' ->
-  sem p s (assgn_tuple inline_var ii xs flag tys es) s'.
+  mapM2 ErrType truncate_val tys (unzip1 vs) = ok vs' ->
+  write_lvals (p_globs p) s xs vs' = ok (s', lws) ->
+  sem p s (assgn_tuple inline_var ii xs flag tys es) 
+      [:: Lassgn (LSub [:: LSub (unzip2 vs) ; LSub lws])] s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
-  elim: xs es tys vs vs' s s' => [ | x xs Hrec] [ | e es] [ | ty tys] [ | v vs] vs' s s' //=;
+  elim: xs es tys vs vs' s s' lws => 
+  [ | x xs Hrec] [ | e es] [ | ty tys] [ | v vs] vs' s s' lws //=;
     try by move => _ _ /(@ok_inj _ _ _ _) <-.
-  + by move=> _ _ [<-] [<-];constructor.
+  + move=> h h1 [] <- [] <- <- /=. admit.
+  + move=> h. t_xrbindP. move=> [v l] he vs'' hes //=.
+  + move=> h. t_xrbindP. move=> [v1 l1] he vs1 hes <- <- vt htr vs2 hm <- //=.
+  rewrite vrvs_cons vrv_var read_es_cons=> Hempty /=.
+  t_xrbindP. move=> [v1 l1] he ves hes <- <- vt htr vs1 htrs <- /=.
+  t_xrbindP. move=> [s1 lw] s1' Hw [] <- <- [s2 lw'] Hws <- <- /=.
+  apply Eseq with s1. 
+  + apply EmkI. apply Eassgn with v1 vt; auto.
+Admitted.
+
+ (*by move=> _ _ [<-] [<-];constructor.
   + by move=> _; apply: rbindP => ??;apply:rbindP.
   + by move=> _ _;t_xrbindP => ? _ ? _ <-.
   rewrite vrvs_cons vrv_var read_es_cons=> Hempty.
@@ -247,7 +293,7 @@ Proof.
   rewrite -Hves=> {Hse Hves};case:s => sm svm /=.
   apply read_es_eq_on with Sv.empty.
   by rewrite read_esE => y Hy;rewrite Fv.setP_neq //;apply/eqP;SvD.fsetdec.
-Qed.
+Qed.*)
 
 Lemma assgn_tuple_Pvar p ii xs flag tys rxs vs vs' s s' :
   let es := map Pvar rxs in
