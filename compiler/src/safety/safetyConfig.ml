@@ -442,9 +442,7 @@ let mk_config_doc () =
     close_out file
   with Sys_error s ->
     Format.eprintf "@[<v>Failed to create configuration documentation:@;\
-                    %s@]" s
-
-let () = mk_config_doc ()
+                    %s@]@." s
 
 (* -------------------------------------------------------------------- *)
 let mk_config_default () =
@@ -458,10 +456,7 @@ let mk_config_default () =
     close_out file
   with Sys_error s ->
     Format.eprintf "@[<v>Failed to create default configuration file:@;\
-                    %s@]" s
-
-let () = mk_config_default ()
-
+                    %s@]@." s
 
 (* -------------------------------------------------------------------- *)
 let load_config (filename : string) : unit =
@@ -472,3 +467,4 @@ let load_config (filename : string) : unit =
     Format.eprintf "ERROR: safety configuration file %s is invalid" filename
   | BadSafetyConfig s ->
     Format.eprintf "ERROR: safety configuration file %s: %s" filename s
+

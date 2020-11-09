@@ -46,46 +46,46 @@ let pp_s_env fmt env =
 let add_glob_var env (v : var) =
   { env with s_glob = Sv.add v env.s_glob }
 
-let add_glob_gvar env (v : int ggvar) = match v.gs with
-  | Expr.Slocal -> env
-  | Expr.Sglob  -> add_glob_var env (L.unloc v.gv) 
-
-let rec add_glob_expr env = function
-  | Pconst _ | Pbool _ | Parr_init _ -> env
-  | Pvar x          -> add_glob_gvar env x
-  | Pget  (_,_,x,e)
-  | Psub(_,_,_,x,e) -> add_glob_expr (add_glob_gvar env x) e
-  | Pload(_,x,e)    -> add_glob_expr (add_glob_var env (L.unloc x)) e
-  | Papp1(_, e)     -> add_glob_expr env e
-  | Papp2(_,e1,e2)  -> add_glob_expr (add_glob_expr env e1) e2
-  | PappN (_,es)    -> List.fold_left add_glob_expr env es
-  | Pif(_,e,e1,e2)  ->
-    add_glob_expr (add_glob_expr (add_glob_expr env e) e1) e2
-
-let add_glob_exprs env es = List.fold_left add_glob_expr env es
-
-let rec add_glob_lv env = function
-  | Lnone _      -> env
-  | Lvar x       -> add_glob_var env (L.unloc x)
-  | Lmem      (_,x,e)
-  | Laset   (_,_,x,e) 
-  | Lasub (_,_,_,x,e)  -> add_glob_expr (add_glob_var env (L.unloc x)) e
-
-let add_glob_lvs env lvs = List.fold_left add_glob_lv env lvs
-
-let rec add_glob_instr env i =
-  match i.i_desc with
-  | Cassgn(x, _, _, e) -> add_glob_expr (add_glob_lv env x) e
-  | Copn(x,_,_,e) -> add_glob_exprs (add_glob_lvs env x) e
-  | Cif(e,c1,c2) -> add_glob_body (add_glob_body (add_glob_expr env e) c1) c2
-  | Cfor(x,(_,e1,e2), c) ->
-    add_glob_body
-      (add_glob_expr (add_glob_expr (add_glob_var env (L.unloc x)) e1) e2) c
-  | Cwhile(_,c,e,c') ->
-    add_glob_body (add_glob_expr (add_glob_body env c') e) c
-  | Ccall(_,x,_,e) -> add_glob_exprs (add_glob_lvs env x) e
-
-and add_glob_body env c =  List.fold_left add_glob_instr env c
+(* let add_glob_gvar env (v : int ggvar) = match v.gs with
+ *   | Expr.Slocal -> env
+ *   | Expr.Sglob  -> add_glob_var env (L.unloc v.gv) 
+ * 
+ * let rec add_glob_expr env = function
+ *   | Pconst _ | Pbool _ | Parr_init _ -> env
+ *   | Pvar x          -> add_glob_gvar env x
+ *   | Pget  (_,_,x,e)
+ *   | Psub(_,_,_,x,e) -> add_glob_expr (add_glob_gvar env x) e
+ *   | Pload(_,x,e)    -> add_glob_expr (add_glob_var env (L.unloc x)) e
+ *   | Papp1(_, e)     -> add_glob_expr env e
+ *   | Papp2(_,e1,e2)  -> add_glob_expr (add_glob_expr env e1) e2
+ *   | PappN (_,es)    -> List.fold_left add_glob_expr env es
+ *   | Pif(_,e,e1,e2)  ->
+ *     add_glob_expr (add_glob_expr (add_glob_expr env e) e1) e2
+ * 
+ * let add_glob_exprs env es = List.fold_left add_glob_expr env es
+ * 
+ * let rec add_glob_lv env = function
+ *   | Lnone _      -> env
+ *   | Lvar x       -> add_glob_var env (L.unloc x)
+ *   | Lmem      (_,x,e)
+ *   | Laset   (_,_,x,e) 
+ *   | Lasub (_,_,_,x,e)  -> add_glob_expr (add_glob_var env (L.unloc x)) e
+ * 
+ * let add_glob_lvs env lvs = List.fold_left add_glob_lv env lvs
+ * 
+ * let rec add_glob_instr env i =
+ *   match i.i_desc with
+ *   | Cassgn(x, _, _, e) -> add_glob_expr (add_glob_lv env x) e
+ *   | Copn(x,_,_,e) -> add_glob_exprs (add_glob_lvs env x) e
+ *   | Cif(e,c1,c2) -> add_glob_body (add_glob_body (add_glob_expr env e) c1) c2
+ *   | Cfor(x,(_,e1,e2), c) ->
+ *     add_glob_body
+ *       (add_glob_expr (add_glob_expr (add_glob_var env (L.unloc x)) e1) e2) c
+ *   | Cwhile(_,c,e,c') ->
+ *     add_glob_body (add_glob_expr (add_glob_body env c') e) c
+ *   | Ccall(_,x,_,e) -> add_glob_exprs (add_glob_lvs env x) e
+ * 
+ * and add_glob_body env c =  List.fold_left add_glob_instr env c *)
 
 
 (*------------------------------------------------------------*)
@@ -103,8 +103,10 @@ type safe_cond =
   | Initai  of arr_slice
   | InBound of int * arr_slice
 
-  | Valid   of wsize * var * expr (* allocated memory region *)
-  | Aligned of wsize * var * expr (* aligned pointer *)
+  | Valid       of wsize * var * expr (* allocated memory region *)
+  | AlignedPtr  of wsize * var * expr (* aligned pointer *)                   
+  | AlignedExpr of wsize * expr       (* aligned expression *)
+               
   | NotZero of wsize * expr
   | Termination
 
@@ -139,9 +141,12 @@ let pp_safety_cond fmt = function
       pp_arr_slice slice n
       
   | Valid (sz, x, e) ->
-    Format.fprintf fmt "is_valid %s + %a W%a" x.v_name pp_expr e pp_ws sz
-  | Aligned (sz, x, e) ->
-    Format.fprintf fmt "aligned %s + %a W%a" x.v_name pp_expr e pp_ws sz
+    Format.fprintf fmt "is_valid %s + %a u%a" x.v_name pp_expr e pp_ws sz
+  | AlignedPtr (sz, x, e) ->
+    Format.fprintf fmt "aligned pointer %s + %a u%a" x.v_name pp_expr e pp_ws sz
+  | AlignedExpr (sz, e) ->
+    Format.fprintf fmt "aligned %a u%a" pp_expr e pp_ws sz
+            
   | Termination -> Format.fprintf fmt "termination"
 
 type violation_loc =
@@ -215,13 +220,9 @@ let init_get x access ws e len =
   (* | Bty (U _)-> [Initv (L.unloc x)] *)
   | _ -> assert false
 
-let arr_aligned x access ws e = match access with
+let arr_aligned access ws e = match access with
   | Warray_.AAscale  -> []
-  | Warray_.AAdirect ->
-    assert false
-    (* TODO: alignment for arrays are a bit different than for input pointers *)
-    (* [Aligned (ws, (L.unloc x), e)] *)
-
+  | Warray_.AAdirect -> [AlignedExpr (ws, e)]
 
 (*------------------------------------------------------------*)
 let safe_op2 e2 = function
@@ -251,19 +252,22 @@ let rec safe_e_rec safe = function
   | Pvar x -> safe_gvar x @ safe
 
   | Pload (ws,x,e) ->
-    Valid (ws, L.unloc x, e) ::
-    Aligned (ws, L.unloc x, e) ::
+    Valid      (ws, L.unloc x, e) ::
+    AlignedPtr (ws, L.unloc x, e) ::
     safe_e_rec safe e
+      
   | Pget (access, ws, x, e) ->
-    in_bound x.gv access ws e 1 @
-    init_get x.gv access ws e 1 @
-    arr_aligned x.gv access ws e @
+    in_bound    x.gv access ws e 1 @
+    init_get    x.gv access ws e 1 @
+    arr_aligned (* x.gv *) access ws e @
     safe
 
   | Psub (access, ws, len, x, e) ->
-    in_bound x.gv access ws e len @
-    init_get x.gv access ws e len @
-    arr_aligned x.gv access ws e @
+    in_bound    x.gv access ws e len @
+    init_get    x.gv access ws e len @
+    (* Note that the length is scaled with the word-size, so we only
+       need to check that the offset w.r.t. the base is aligned. *)
+    arr_aligned (* x.gv *) access ws e @
     safe
     
   | Papp1 (_, e) -> safe_e_rec safe e
@@ -284,17 +288,17 @@ let safe_lval = function
 
   | Lmem(ws, x, e) ->
     Valid (ws, L.unloc x, e) ::
-    Aligned (ws, L.unloc x, e) ::
+    AlignedPtr (ws, L.unloc x, e) ::
     safe_e_rec [] e
 
   | Laset(access,ws, x,e) ->
-    (in_bound x access ws e 1) @
-    arr_aligned x access ws e @
+    in_bound x access ws e 1 @
+    arr_aligned (* x *) access ws e @
     safe_e_rec [] e
 
   | Lasub(access,ws,len,x,e) ->
-    (in_bound x access ws e len) @
-    arr_aligned x access ws e @
+    in_bound x access ws e len @
+    arr_aligned (* x  *) access ws e @
     safe_e_rec [] e
 
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
@@ -474,17 +478,13 @@ end = struct
       state f_args
 
   let init_env : 'info prog -> mem_loc list -> s_env =
-    fun (glob_decls, fun_decls) mem_locs ->
+    fun (glob_decls, _fun_decls) mem_locs ->
     let env = { s_glob = Sv.empty; m_locs = mem_locs } in
     let env =
       List.fold_left (fun env (x, _) -> add_glob_var env x)
         env glob_decls in
 
-
-    (* TODO: is this necessary? Cf. difference between 
-       Expr.Sglob
-       and 
-       Prog.Global : Prog.kind*)
+    (* This is not necessary *)
     (* List.fold_left (fun env f_decl ->
      *     { env with s_glob = List.fold_left (fun s_glob ginstr ->
      *           add_glob_instr s_glob ginstr)
@@ -558,19 +558,14 @@ end = struct
         | Mvalue at -> AbsDom.check_init state.abs at
         | _ -> assert false end
 
-    | Initai slice -> assert false (* TODO *)
-    (* | Initai slice ->
-     *   begin
-     *     match mvar_of_scoped_var Expr.Slocal slice.as_arr with
-     *     | Mvalue (Aarray v) ->
-     *       let is =
-     *         AbsExpr.abs_sub_arr_range
-     *           state.abs
-     *           slice.as_arr slice.as_access
-     *           slice.as_wsize slice.as_len slice.as_offset in
-     *       List.for_all (AbsDom.check_init state.abs) is
-     *     | _ -> assert false
-     *   end *)
+    | Initai slice -> 
+      let is =
+        AbsExpr.abs_sub_arr_range
+          state.abs
+          (slice.as_arr,Expr.Slocal) slice.as_access
+          slice.as_wsize slice.as_len slice.as_offset in
+      let is = List.map (function Mvalue at -> at | _ -> assert false) is in
+      List.for_all (AbsDom.check_init state.abs) is
 
     | InBound (n, slice) ->
       (* We check that:
@@ -605,7 +600,8 @@ end = struct
         | Some c -> 
           AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
 
-    | Aligned _ | Valid _ | Termination -> true (* These are checked elsewhere *)
+    (* These are checked elsewhere *)
+    | AlignedPtr _ | AlignedExpr _ | Valid _ | Termination -> true
 
 
   (* Update abs with the abstract memory range and alignment
@@ -637,7 +633,7 @@ end = struct
         | TopPtr -> (abs, pv :: violations, s_effect)
       end
 
-    | Aligned (ws,x,e) as pv ->
+    | AlignedPtr (ws,x,e) as pv ->
       begin
         match AbsDom.var_points_to abs (mvar_of_scoped_var Expr.Slocal x) with
         | Ptrs pts ->
@@ -659,6 +655,16 @@ end = struct
             ( abs, violations, s_effect)
           else (abs, pv :: violations, s_effect)
         | TopPtr -> (abs, pv :: violations, s_effect) end
+
+    | AlignedExpr (ws,e) as pv ->
+      (* We check that the offset is correctly aligned. *)
+      let lin_e = AbsExpr.linearize_wexpr abs e in 
+      let violations =
+        if AbsDom.check_align abs lin_e ws
+        then violations
+        else pv :: violations
+      in
+      ( abs, violations, s_effect)
 
     | _ -> (abs, violations, s_effect)
 
@@ -734,6 +740,13 @@ end = struct
           (* Here, we have no information on which elements are initialized. *)
           AbsDom.forget_list abs mlvs
 
+        | MLasub (_, mlv, ws, len, offset) ->
+          let mret = Mtexpr.var rvar in
+          (* Numerical abstractions only.
+             Points-to and offset abstraction are not needed for array and 
+             array elements *)
+          AbsExpr.assign_sub_arr_expr abs mlv ws len offset mret
+            
         | MLvar (_, mlv) -> match ty_mvar mlv with
           | Bty Bool ->
             let rconstr = BVar (Bvar.make rvar true) in
@@ -2065,6 +2078,8 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           | _ -> raise (Failure "-safetyparam ill-formed (too many '>' ?)"))
 
   let analyze () =
+    SafetyConfig.mk_config_doc ();
+    SafetyConfig.mk_config_default ();
     try     
     let ps_assoc = omap_dfl (fun s_p -> parse_params s_p)
         [ None, [ { relationals = None; pointers = None } ]]
