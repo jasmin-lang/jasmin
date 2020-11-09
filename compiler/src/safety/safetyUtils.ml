@@ -90,17 +90,18 @@ let mpqf_of_bigint z = Mpqf.of_mpq (mpq_of_bigint z)
 (*------------------------------------------------------------*)
 (* Coeff and Interval Utils *)
 
-let scalar_to_int scal =
+let scalar_to_zint scal =
   let tent_i = match scal with
-    | Scalar.Float f -> int_of_float f
-    | Scalar.Mpqf q -> Mpqf.to_float q |> int_of_float
-    | Scalar.Mpfrf f -> Mpfrf.to_float f |> int_of_float in
-  if Scalar.cmp_int scal tent_i = 0 then Some tent_i
+    | Scalar.Float f -> Mpqf.of_float f
+    | Scalar.Mpqf q -> q
+    | Scalar.Mpfrf f -> Mpfrf.to_mpqf f in
+  if Scalar.cmp scal (Scalar.of_mpqf tent_i) = 0
+  then Some (Z.of_string (Mpqf.to_string tent_i))
   else None
 
-let interval_to_int int =
+let interval_to_zint int =
   let open Interval in
-  if Scalar.equal int.inf int.sup then scalar_to_int int.inf
+  if Scalar.equal int.inf int.sup then scalar_to_zint int.inf
   else None
 
 let to_int c = match c with

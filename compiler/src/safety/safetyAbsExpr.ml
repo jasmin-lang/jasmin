@@ -41,12 +41,20 @@ let op1_to_abs_unop op1 = match op1 with
   | E.Oword_of_int _ | E.Oint_of_word _ | E.Ozeroext _ -> assert false
   | _ -> None
 
-
+type word_op =
+  | Wand                        (* supported only for padding with 2^n - 1 *)
+  | Wor                         (* currently not-supported *)
+  | Wxor                        (* currently not-supported *)
+    
+  | Wshift of [`Unsigned_left | `Unsigned_right | `Signed_right ]
+  (* Remarks: 
+     - signed left is a synonymous for unsigned left.
+     - currently, shift-right is not supported. *)
+              
 type abs_binop =
   | AB_Unknown
+  | AB_Wop   of word_op
   | AB_Arith of Apron.Texpr1.binop
-  | AB_Shift of [`Unsigned_left | `Unsigned_right | `Signed_right ]
-  (* Remark: signed left is a synonymous for unsigned left *)               
 
 let abget = function AB_Arith a -> a | _ -> assert false
   
@@ -61,14 +69,18 @@ let op2_to_abs_binop op2 = match op2 with
   | E.Odiv (Cmp_w (Signed, _)) -> AB_Unknown
   | E.Odiv _ -> AB_Arith Texpr1.Div
 
-  | E.Olsr _ -> AB_Shift `Unsigned_right
-  | E.Olsl _ -> AB_Shift `Unsigned_left
-  | E.Oasr _ -> AB_Shift `Signed_right
+  | E.Olsr _ -> AB_Wop (Wshift `Unsigned_right)
+  | E.Olsl _ -> AB_Wop (Wshift `Unsigned_left)
+  | E.Oasr _ -> AB_Wop (Wshift `Signed_right)
       
-  | E.Oand | E.Oor
-  | E.Oland _ | E.Olor _ | E.Olxor _ (* bit-wise boolean connectives *)
+  | E.Oand | E.Oor                   (* boolean connectives *)
   | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> AB_Unknown
 
+  (* bit-wise boolean connectives *)
+  | E.Oland _ -> AB_Wop Wand
+  | E.Olor _  -> AB_Wop Wor
+  | E.Olxor _ -> AB_Wop Wxor
+      
   | E.Ovadd (_, _) | E.Ovsub (_, _) | E.Ovmul (_, _)
   | E.Ovlsr (_, _) | E.Ovlsl (_, _) | E.Ovasr (_, _) -> AB_Unknown
 
@@ -225,10 +237,10 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
   let aeval_cst_var abs x =
     let int = AbsDom.bound_variable abs (mvar_of_var (L.unloc x)) in
-    interval_to_int int
+    interval_to_zint int
 
   (* Try to evaluate e to a constant expression in abs *)
-  let rec aeval_cst_int abs e = match e with
+  let rec aeval_cst_zint abs e = match e with
     | Pvar x -> begin match (L.unloc x).v_ty with
         | Bty Int -> aeval_cst_var abs x
         | Bty (U ws) ->
@@ -237,26 +249,26 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           else aeval_cst_var abs x
         | _ -> raise (Aint_error "type error in aeval_cst_int") end
 
-    | Pconst c -> Some (B.to_int c)
+    | Pconst c -> Some (Z.of_string (B.to_string c))
 
     | Papp1 (E.Oneg Op_int, e) ->
-      obind (fun x -> Some (- x)) (aeval_cst_int abs e)
+      obind (fun x -> Some (Z.neg x)) (aeval_cst_zint abs e)
 
     | Papp1 (E.Oint_of_word _, e) ->
-      obind (fun x -> Some x) (aeval_cst_int abs e)
+      obind (fun x -> Some x) (aeval_cst_zint abs e)
     (* No need to check for overflows because we do not allow word operations. *)
 
     | Papp2 (Oadd Op_int, e1, e2) ->
-      obind2 (fun x y -> Some (x + y))
-        (aeval_cst_int abs e1) (aeval_cst_int abs e2)
+      obind2 (fun x y -> Some (Z.add x y))
+        (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
 
     | Papp2 (Osub Op_int, e1, e2) ->
-      obind2 (fun x y -> Some (x - y))
-        (aeval_cst_int abs e1) (aeval_cst_int abs e2)
+      obind2 (fun x y -> Some (Z.sub x y))
+        (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
 
     | Papp2 (Omul Op_int, e1, e2) ->
-      obind2 (fun x y -> Some (x * y))
-        (aeval_cst_int abs e1) (aeval_cst_int abs e2)
+      obind2 (fun x y -> Some (Z.mul x y))
+        (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
 
     | _ -> None
 
@@ -271,22 +283,35 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         | _ -> raise (Aint_error "type error in aeval_cst_w") end
 
     | Papp1 (E.Oword_of_int ws, e) ->
-      let c_e = aeval_cst_int abs e in
-      let pws = BatInt.pow 2 (int_of_ws ws) in
-      omap (fun c_e -> ((c_e mod pws) + pws) mod pws) c_e
+      let c_e = aeval_cst_zint abs e in
+      let pws = Z.pow (Z.of_int 2) (int_of_ws ws) in
+      omap (fun c_e ->
+          let x = Z.add Z.(c_e mod pws) pws in
+          Z.(x mod pws)) c_e
 
     | _ -> None
 
+  let rec aeval_cst_w_i abs e =
+    try omap Z.to_int (aeval_cst_w abs e) with
+    | Z.Overflow -> None
 
+  let aeval_cst_int abs e =
+    try omap Z.to_int (aeval_cst_zint abs e) with
+    | Z.Overflow -> None
+  
+  (*-------------------------------------------------------------------------*)
   let arr_full_range x =
     List.init
       ((arr_range x) * (arr_size x |> size_of_ws))
       (fun i -> AarrayEl (x, U8, i))
 
-  let abs_arr_range abs x ws ei = match aeval_cst_int abs ei with
+  let abs_arr_range abs x ws ei =
+    match omap Z.to_int (aeval_cst_zint abs ei) with
     | Some i -> [AarrayEl (x, ws, i)]
     | None -> arr_full_range x
+    | exception Z.Overflow -> arr_full_range x
 
+  (*-------------------------------------------------------------------------*)
   (* Collect all variables appearing in e. *)
   let ptr_expr_of_expr abs e =
     let exception Expr_contain_load in
@@ -346,7 +371,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
                     (linearize_iexpr abs e2))
 
         | AB_Unknown -> raise (Binop_not_supported op2)
-        | AB_Shift _ -> assert false (* shift only makes sense on bit-vectors *)
+        | AB_Wop _ -> assert false (* word operations only makes sense on bit-vectors *)
       end
 
     | Pif _ -> raise If_not_supported
@@ -431,26 +456,46 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
             else wrap_lin_expr Unsigned ws_out lin
           else lin
 
-        | AB_Shift `Signed_right
+        | AB_Wop (Wshift `Signed_right)
         | AB_Arith Texpr1.Div
         | AB_Arith Texpr1.Pow
         | AB_Unknown ->
           raise (Binop_not_supported op2)
 
-        | AB_Shift stype  -> match aeval_cst_w abs e2 with
-          | Some i when i <= int_of_ws ws_e ->
-            let absop = match stype with
-              | `Unsigned_right -> Texpr1.Div
-              | `Unsigned_left -> Texpr1.Mul
-              | _ -> assert false in
-            let lin = Mtexpr.(binop absop
-                                (linearize_wexpr abs e1)
-                                (cst_pow_minus i 0)) in
+        | AB_Wop (Wshift stype) ->
+          begin
+            match aeval_cst_w_i abs e2 with
+            | Some i when i <= int_of_ws ws_e ->
+              let absop = match stype with
+                | `Unsigned_right -> Texpr1.Div
+                | `Unsigned_left -> Texpr1.Mul
+                | _ -> assert false in
+              let lin = Mtexpr.(binop absop
+                                  (linearize_wexpr abs e1)
+                                  (cst_pow_minus i 0)) in
 
-            wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
+              wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
+                
+            | _ -> raise (Binop_not_supported op2)
+          end
 
-          | _ ->
-            raise (Binop_not_supported op2)
+        (* Padding. *)
+        | AB_Wop Wand ->
+          let e', i = match aeval_cst_w abs e2 with
+            | Some i -> e1, i
+            | None -> match aeval_cst_w abs e1 with
+              | Some i -> e2, i
+              | None -> raise (Binop_not_supported op2) in
+
+          let log_i = Z.log2up i in
+          let log_i = Mtexpr.cst (Coeff.s_of_mpqf (Mpqf.of_int log_i)) in
+                        
+          let lin_e' = linearize_wexpr abs e' in
+                    
+          let lin = Mtexpr.(binop Texpr1.Mod lin_e' log_i) in
+          wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
+
+            | _ -> raise (Binop_not_supported op2)
       end
 
     | Pget(ws,x,ei) ->
