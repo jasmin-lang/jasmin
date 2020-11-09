@@ -153,41 +153,6 @@ Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd * leak_i
     end
   end.
 
-(*Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
-  match i with
-  | MkI iinfo ir =>
-    match ir with
-    | Cassgn x _ _ e => ciok (Sv.union (read_i ir) X, [::i])
-    | Copn xs _ o es => ciok (Sv.union (read_i ir) X, [::i])
-    | Cif e c1 c2  =>
-      Let c1 := inline_c (inline_i p) c1 X in
-      Let c2 := inline_c (inline_i p) c2 X in
-      ciok (read_e_rec (Sv.union c1.1 c2.1) e, [::MkI iinfo (Cif e c1.2 c2.2)])
-    | Cfor x (d,lo,hi) c =>
-      let X := Sv.union (read_i ir) X in
-      Let c := inline_c (inline_i p) c X in
-      ciok (X, [::MkI iinfo (Cfor x (d, lo, hi) c.2)])
-    | Cwhile a c e c' =>
-      let X := Sv.union (read_i ir) X in
-      Let c := inline_c (inline_i p) c X in
-      Let c' := inline_c (inline_i p) c' X in
-      ciok (X, [::MkI iinfo (Cwhile a c.2 e c'.2)])
-    | Ccall inline xs f es =>
-      let X := Sv.union (read_i ir) X in
-      if inline is InlineFun then
-        Let fd := get_fun p iinfo f in
-        let fd' := rename_fd iinfo f fd in
-        (* FIXME : locals is computed 2 times (one in check_rename) *)
-        Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
-        let init_array := array_init iinfo (locals fd') in
-        ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
-                  init_array ++
-                  (fd'.(f_body) ++
-                  assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Pvar fd'.(f_res))))
-      else ciok (X, [::i])
-    end
-  end.*)
-
 Definition inline_fd (p:fun_decls) (fd:fundef) : ciexec (fundef * leak_c_tr) :=
   match fd with
   | MkFun ii tyin params c tyout res =>
@@ -196,23 +161,23 @@ Definition inline_fd (p:fun_decls) (fd:fundef) : ciexec (fundef * leak_c_tr) :=
     ok (MkFun ii tyin params c.1.2 tyout res, c.2)
   end.
 
-Definition inline_fd_cons (ffd:funname * fundef) (p:cfexec (prog * leak_f_tr)) 
-           : cfexec (prog * leak_f_tr) :=
+Definition inline_fd_cons (ffd:funname * fundef) (p:cfexec (fun_decls * leak_f_tr)) 
+           : cfexec (fun_decls * leak_f_tr) :=
   Let p' := p in
-  let fds := (p_funcs p'.1) in
   let f := ffd.1 in
-  Let fd := add_finfo f f (inline_fd fds ffd.2) in
-  cfok ({| p_globs := p_globs p'.1; p_funcs := (f, fd.1) :: fds|}, 
+  Let fd := add_finfo f f (inline_fd p'.1 ffd.2) in
+  cfok ((f, fd.1) :: p'.1, 
         (f, fd.2) :: p'.2).
 
 (* Need to change this *)
-Definition inline_prog (p:prog * leak_f_tr) :=  
-  foldr inline_fd_cons (cfok ({| p_globs := p_globs p.1; p_funcs := [::]|}, [::])) (p_funcs p.1).
+Definition inline_prog (p:fun_decls) :=  
+  foldr inline_fd_cons 
+  (cfok ([::], [::])) p.
 
-Definition inline_prog_err (p:prog * leak_f_tr) :=
-  if uniq [seq x.1 | x <- p_funcs p.1] then
-    Let fds := inline_prog p in
-    ok ({| p_globs := p_globs p.1; p_funcs := (p_funcs p.1) |}, fds.2)
+Definition inline_prog_err (p:prog) :=
+  if uniq [seq x.1 | x <- p_funcs p] then
+    Let fds := inline_prog (p_funcs p) in
+    ok ({| p_globs := p_globs p; p_funcs := fds.1 |}, fds.2)
   else cferror Ferr_uniqfun.
 
 Definition is_array_init e :=
@@ -272,3 +237,4 @@ Definition remove_init_prog (p:prog) :=
   ({| p_globs := p_globs p; p_funcs := funcs.1 |}, funcs.2).
 
 End INLINE.
+
