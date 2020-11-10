@@ -40,8 +40,8 @@ module AbsExpr (AbsDom : SafetyInterfaces.AbsNumBoolType) : sig
       
   val abs_arr_range : AbsDom.t -> ty gvar -> wsize -> ty gexpr -> atype list
           
-  val linearize_iexpr : AbsDom.t -> expr     -> Mtexpr.t
-  val linearize_wexpr : AbsDom.t -> ty gexpr -> Mtexpr.t
+  val linearize_smpl_iexpr : AbsDom.t -> expr     -> Mtexpr.t option
+  val linearize_smpl_wexpr : AbsDom.t -> ty gexpr -> Mtexpr.t option
                                                   
   val bexpr_to_btcons : ty gexpr -> AbsDom.t -> btcons option
       

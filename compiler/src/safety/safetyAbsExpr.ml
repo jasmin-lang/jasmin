@@ -512,6 +512,15 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | _ -> print_not_word_expr e;
       assert false
 
+  let rec linearize_smpl_iexpr abs (e : expr) =
+    try Some (linearize_iexpr abs e) with
+      Unop_not_supported _ | Binop_not_supported _ -> None
+
+  let rec linearize_smpl_wexpr abs (e : expr) =
+    try Some (linearize_wexpr abs e) with
+      Unop_not_supported _ | Binop_not_supported _ -> None
+
+  
   let map_f f e_opt = match e_opt with
     | None -> None
     | Some (ty,b,el,er) -> Some (ty, b, f el, f er)
