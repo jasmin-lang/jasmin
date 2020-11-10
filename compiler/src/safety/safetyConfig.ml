@@ -441,7 +441,7 @@ let mk_config_doc () =
     close_out file
   with Sys_error s ->
     Format.eprintf "@[<v>Failed to create configuration documentation:@;\
-                    %s@]" s
+                    %s@.@]" s
 
 let () = mk_config_doc ()
 
@@ -457,7 +457,7 @@ let mk_config_default () =
     close_out file
   with Sys_error s ->
     Format.eprintf "@[<v>Failed to create default configuration file:@;\
-                    %s@]" s
+                    %s@.@]" s
 
 let () = mk_config_default ()
 
