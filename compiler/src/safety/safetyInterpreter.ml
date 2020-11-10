@@ -806,8 +806,12 @@ end = struct
           (pp_list pp_mvar) (List.map (fun x -> MmemRange x) fstate.s_effects));
 
     (* We join the alignment constraints, as we want the union of
-       previous and new constraints. *)
-    let abs = AbsDom.meet ~join_align:true state.abs fstate.abs in
+       previous and new constraints. 
+       Also, every variable (of the callee or caller) which was initalized
+       remains so. *)   
+    let abs = AbsDom.meet
+        ~join_align:true ~join_init:true
+        state.abs fstate.abs in
     let state = { abs = abs;
                   it = fstate.it;
                   env = state.env;
@@ -1850,9 +1854,9 @@ end = struct
     let state = List.fold_left (fun state ginstr ->
         aeval_ginstr ginstr state)
         state gstmt in
-    let () = debug (fun () ->
-        if gstmt <> [] then
-          Format.eprintf "%a%!" (AbsDom.print ~full:true) state.abs) in
+    let () = if gstmt <> [] then
+        debug (fun () ->            
+            Format.eprintf "%a%!" (AbsDom.print ~full:true) state.abs) in
     state
 
   (* Select the call strategy for [f_decl] in [st_in] *)
