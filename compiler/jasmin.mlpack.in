@@ -5,6 +5,7 @@ src/Bigint
 src/BigintCore
 src/Conv
 src/Evaluator
+src/Help
 src/Inline_array_copy
 src/Interval
 src/IntervalGraphColoring
