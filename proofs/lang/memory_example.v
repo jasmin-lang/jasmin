@@ -529,10 +529,9 @@ Module MemoryI : MemoryT.
   Definition all_above (s: seq (pointer * Z)) (stk: pointer) : bool :=
     all (λ '(p, _), wlt Unsigned stk p) s.
 
-  Lemma init_mem_framesP stk_limit stk_root :
-    wunsigned stk_limit <=? wunsigned stk_root ->
-    valid_frames stk_limit stk_root [::].
-  Proof. by move=> /lezP ?; apply/lezP => /=; apply Zle_minus_le_0. Qed.
+  Lemma init_mem_framesP stk_root :
+    valid_frames 0 stk_root [::].
+  Proof. apply/lezP; rewrite Z.sub_0_r; exact: (proj1 (wunsigned_range _)). Qed.
 
   Lemma init_mem_stk_allocP (stk_root: pointer) s x :
     false →
@@ -567,9 +566,6 @@ Module MemoryI : MemoryT.
     match Sumbool.sumbool_of_bool (is_align stk U256) with
     | right _ => Error ErrStack
     | left stk_align =>
-    match Sumbool.sumbool_of_bool (wunsigned 0%R <=? wunsigned stk) with
-    | right _ => Error ErrStack
-    | left stk_le => 
     match Sumbool.sumbool_of_bool (all_above s stk) with
     | right _ => Error ErrStack
     | left stk_below =>
@@ -579,11 +575,11 @@ Module MemoryI : MemoryT.
            stk_limit := 0%R;
            stk_root := stk;
            frames := [::];
-           framesP := init_mem_framesP stk_le;
+           framesP := init_mem_framesP stk;
            stk_allocP := init_mem_stk_allocP stk s;
            stk_freeP p := init_mem_stk_freeP s stk p stk_below;
         |}
-    end end end.
+    end end.
 
   Instance M : memory mem :=
     Memory read_mem write_mem valid_pointer
