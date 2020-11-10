@@ -452,9 +452,12 @@ Section Tunneling.
         end
     end.
 
+  Definition tunnel_partial (uf : LUF.unionfind) (lc : lcmd) :=
+    pairmap (tunnel_bore uf) Linstr_align lc.
+
   Definition tunnel (lc : lcmd) :=
     let uf := tunnel_plan LUF.empty lc in
-    pairmap (tunnel_bore uf) Linstr_align lc.
+    tunnel_partial uf lc.
 
 End Tunneling.
 
@@ -466,12 +469,21 @@ Section TunnelingProof.
   Definition lsem_tunnel s := (Lstate s.(lmem) s.(lvm) s.(lfn) (tunnel s.(lfn) s.(lc)) s.(lpc)).
 
   Definition lsem_tunnel_partial s lc lc' :=
-        (Lstate s.(lmem) s.(lvm) s.(lfn) (pairmap (tunnel_bore s.(lfn) (tunnel_plan s.(lfn) LUF.empty lc)) Linstr_align lc') s.(lpc)).
+        (Lstate s.(lmem) s.(lvm) s.(lfn) (tunnel_partial s.(lfn) (tunnel_plan s.(lfn) LUF.empty lc) lc')  s.(lpc)).
 
   Lemma lsem_tunnel_partial_tunnel s : lsem_tunnel s = lsem_tunnel_partial s s.(lc) s.(lc).
   Proof.
-    by rewrite /lsem_tunnel /lsem_tunnel_partial; constructor.
+    by constructor.
   Qed.
+
+  (*
+  Lemma tunnel_partial_prefix s plc : prefix plc s.(lc) -> prefix (lsem_tunnel_partial s plc plc).(lc) (lsem_tunnel_partial s plc s.(lc)).(lc).
+  Proof.
+    move/prefixP => [slc].
+    elim: plc => //=; first by case: (tunnel_partial _ _ _).
+    move => hplc tplc.
+  Qed.
+  *)
 
   (*I know this is proved somewhere.*)
   Lemma obvious (T1 T2 : Type) (f g : T1 -> T2) : (forall x , ((f x) = (g x))) -> (f = g).
@@ -487,23 +499,48 @@ Section TunnelingProof.
       by rewrite LUF.find_empty.
   Qed.
 
+  (*Need to redefine all of this in terms of a pairall.*)
+  (*
+  Definition is_not_in_uf uf c :=
+    match c with
+      | MkLI _ li =>
+        match li with
+          | Llabel l => LUF.find uf l == l
+          | _ => true
+        end
+    end.
+
+  Lemma all_is_not_in_empty lc : (all (is_not_in_uf LUF.empty) lc).
+  Proof.
+    by elim: lc =>[|[_ []]] //= l tlc ->; rewrite LUF.find_empty eq_refl.
+  Qed.
+
+  Lemma tunnel_plan_prefix fn uf (plc slc : lcmd) : (all (is_not_in_uf uf) slc) -> tunnel_partial fn (tunnel_plan fn uf plc) (plc ++ slc) = (tunnel_partial fn (tunnel_plan fn uf plc) plc) ++ slc.
+  Proof.
+    elim: plc => [|hplc tplc IHplc Hallnot].
+    + rewrite /tunnel_plan /tunnel_partial //=.
+      move: Linstr_align.
+      elim: slc => [|hslc tslc IHslc] //= c /andP [Hhslc Htslc].
+      rewrite IHslc.
+      case: c => //=.
+  Qed.
+  *)
+
   Theorem lsem_tunneling p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem p (lsem_tunnel s1) s3.
   Proof.
     rewrite lsem_tunnel_partial_tunnel => Hlsem12.
     pose P:= fun lc1 lc1' => ∃ s3 : lstate, lsem p s2 s3 ∧ lsem p (lsem_tunnel_partial s1 lc1 lc1') s3.
     apply (@prefixW _ P).
-    + exists s2; split.
-      (*Maybe better?*)
-      - apply Relation_Operators.rt_refl.
+    + exists s2; split; first by apply Relation_Operators.rt_refl.
       rewrite /lsem_tunnel_partial.
-      have ->: pairmap (tunnel_bore (lfn s1) (tunnel_plan (lfn s1) LUF.empty [::])) Linstr_align (lc s1) = lc s1; last first.
+      have ->: tunnel_partial (lfn s1) (tunnel_plan (lfn s1) LUF.empty [::]) (lc s1) = lc s1; last first.
       (*Really stupid thing to prove.*)
       - by admit.
-      rewrite /tunnel_plan /= tunnel_bore_empty.
+      rewrite /tunnel_partial /tunnel_plan /= tunnel_bore_empty.
       by elim: (lc s1) Linstr_align => [|hlc1 tlc1 IHlc1] i //=; rewrite IHlc1.
     rewrite /P.
     move => hli tli Hprefix [s3 [Hlsem23 Hlsemp13]].
-    rewrite /lsem_tunnel_partial /tunnel_plan pairfoldl_rcons.
+    rewrite /lsem_tunnel_partial /tunnel_plan pairfoldl_rcons -/tunnel_plan.
   Qed.
 
 End TunnelingProof.
