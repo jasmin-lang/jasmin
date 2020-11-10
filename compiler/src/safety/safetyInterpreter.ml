@@ -1136,12 +1136,28 @@ end = struct
       [Some e] 
 
     (* bitwise operators *)
+    | E.Ox86 (X86_instr_decl.AND ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Oland ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+
+    | E.Ox86 (X86_instr_decl.OR ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Olor ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+
+    | E.Ox86 (X86_instr_decl.XOR ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Olxor ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+
+    | E.Ox86 (X86_instr_decl.NOT ws) ->
+      let e1 = as_seq1 es in
+      let e = Papp1 (E.Olnot ws, e1) in
+      rflags_unknwon @ [Some e]
+  
     | E.Ox86 (X86_instr_decl.TEST _)
-    | E.Ox86 (X86_instr_decl.AND  _)
     | E.Ox86 (X86_instr_decl.ANDN _)
-    | E.Ox86 (X86_instr_decl.OR   _)
-    | E.Ox86 (X86_instr_decl.NOT  _)        
-    | E.Ox86 (X86_instr_decl.XOR  _)
 
     (* mul signed with truncation *)
     | E.Ox86 (X86_instr_decl.IMUL _)
