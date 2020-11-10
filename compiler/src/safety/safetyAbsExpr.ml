@@ -724,7 +724,10 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           try linearize_wexpr abs expr
               |> cast_if_overflows abs out_sw (int_of_ws in_sw)
               |> some
-          with | Unop_not_supported _ | Binop_not_supported _ -> None in
+          with
+          | Unop_not_supported _
+          | Binop_not_supported _ ->
+            Some (top_linexpr abs (wsize_of_int out_sw)) in
 
         (b_list, lin_expr))
       (remove_if_expr e)
