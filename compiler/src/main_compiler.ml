@@ -136,16 +136,13 @@ and pp_comp_ferr tbl fmt = function
 
 
 (* -------------------------------------------------------------------- *)
+    
 let check_safety_p s p source_p =
   let s1,s2 = Glob_options.print_strings s in
   Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
                   %a@;@]@."
     s1 s2
     (Printer.pp_prog ~debug:true) p;
-
-  let () = match !safety_config with
-    | Some conf -> SafetyConfig.load_config conf
-    | None -> () in
   
   let () =
     List.iter (fun f_decl ->
@@ -176,6 +173,12 @@ let main () =
     let fname = !infile in
     let ast   = Parseio.parse_program ~name:fname in
     let ast   = BatFile.with_file_in fname ast in
+
+    let () = if !check_safety then
+        match !safety_config with
+        | Some conf -> SafetyConfig.load_config conf
+        | None ->
+          Format.eprintf "No checker configuration file provided@." in
 
     if !latexfile <> "" then begin
       let out = open_out !latexfile in
