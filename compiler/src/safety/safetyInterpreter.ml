@@ -523,12 +523,11 @@ end = struct
     | Aligned _ | Valid _ | Termination -> true (* These are checked elsewhere *)
 
   let is_safe state cond =
+    let res = is_safe state cond in
     let () = debug (fun () ->
-        Format.eprintf "Checking condition: %a@."
+        Format.eprintf "Checked condition: %a@."
           pp_safety_cond cond)
     in
-    let res = is_safe state cond in
-    debug (fun () -> Format.eprintf "Done@.");
     res
 
   (* Update abs with the abstract memory range and alignment

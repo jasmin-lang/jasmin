@@ -391,21 +391,10 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
         (fun () -> AbsNum.downgrade t'.num)
         t.bool t'.bool in
     ({ t with bool = eb }, { t' with bool = eb' })
-
-  (* INIT *)
-  (* let merge_init_dom t t' =
-   *   let eb = EMs.vmerge (fun x _ -> match x with
-   *       | None -> Some (AbsNum.downgrade t.num)
-   *       | Some _ -> x) t.init t'.init
-   *   and eb' = EMs.vmerge (fun x _ -> match x with
-   *       | None -> Some (AbsNum.downgrade t'.num)
-   *       | Some _ -> x) t'.init t.init in
-   *   ({ t with init = eb }, { t' with init = eb' }) *)
     
   let apply f df finit fpt fsym fal t = {
     bool      = Mbv.map df t.bool;
-    init      = finit t.init; (* INIT *)
-    (* init      = EMs.map df t.init; *)
+    init      = finit t.init;
     num       = f t.num;
     points_to = fpt t.points_to;
     sym       = fsym t.sym;
@@ -417,8 +406,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
   let apply2 f df finit fpt fsym fal t t' =
     let t, t' = merge_bool_dom t t' in
     { bool      = Mbv2.map2 df t.bool t'.bool;
-      init      = finit t.init t'.init;     (* INIT *)
-      (* init      = EMs.map2 df t.init t'.init; *)
+      init      = finit t.init t'.init;  
       num       = f t.num t'.num;
       points_to = fpt t.points_to t'.points_to;
       sym       = fsym t.sym t'.sym;
@@ -453,8 +441,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     let bmap = List.fold_left (fun bmap bv ->
         Mbv.add bv dabs bmap) Mbv.empty b_vars in
     { bool      = bmap;
-      init      = Init.make ();    (* INIT *)
-    (* EMs.empty *)    
+      init      = Init.make ();
       num       = abs;
       points_to = Pt.make mls;
       sym       = Sym.make ();
@@ -487,8 +474,6 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     { bool      = Mbv2.map2 AbsNum.NR.meet t.bool t'.bool;
       init      =
         (if join_init then Init.join else Init.meet) t.init t'.init;
-      (* INIT *)
-      (* eunify_map t.init t'.init; *)
       num       = AbsNum.R.meet t.num t'.num;
       points_to = Pt.meet t.points_to t'.points_to;
       sym       = Sym.meet t.sym t'.sym;
@@ -586,8 +571,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       let s_init  = t.init 
       and s_align = t.alignment in
       let points_to_init = t.points_to in
-      let t = { t with init = Init.make () } in (* INIT *)
-      (* EMs.empty *)
+      let t = { t with init = Init.make () } in
       
       let t = match info with
         | None -> t
@@ -663,9 +647,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     and s_align = t.alignment in
     let points_to_init = t.points_to in
 
-    let t = { t with init = Init.make () } in (* INIT *)
-    (* EMs.empty *)
-    
+    let t = { t with init = Init.make () } in     
     let t_vb, f_vb = Bvar.make vb true,
                      Bvar.make vb false in
 
@@ -704,8 +686,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     and ivars = init_vars l in
     (* We remove the variables that are not in l *)
     let b = Mbv.filter (fun s _ -> List.mem s bvars) t.bool in
-    let init = Init.remove_vars t.init ivars in (* INIT *)
-    (* and init = EMs.kfilter (fun s -> List.mem s ivars) t.init in *)
+    let init = Init.remove_vars t.init ivars in
 
     (* We change the environment of the underlying numerical domain *)
     let f x = AbsNum.R.change_environment x l
@@ -720,8 +701,6 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     (* We remove the variables in l *)
     let b = Mbv.filter (fun s _ -> not (List.mem s bvars)) t.bool in
     let init = Init.remove_vars t.init ivars in (* INIT *)
-    (* INIT *)
-    (* and init = EMs.kfilter (fun s -> not (List.mem s ivars)) t.init in *)
 
     (* We change the environment of the underlying numerical domain *)
     let f x = AbsNum.R.remove_vars x l
@@ -735,8 +714,6 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     let bmap = Mbv.map (fun v -> AbsNum.NR.top v) t.bool in
     { bool      = bmap;
       init      = Init.make ();
-      (* INIT *)
-      (* EMs.empty; *)
       num       = top;
       points_to = Pt.make [];      
       sym       = Sym.make ();
@@ -757,9 +734,6 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       | _ -> u8_blast_at ~blast_arrays:true at in
     
     { t with init = Init.is_init t.init vats }
-  (* INIT *)
-  (* { t with
-     *   init = EMs.adds vats (AbsNum.R.bottom t.num |> AbsNum.downgrade) t.init } *)
     
   (* Copy some variable initialization.
      We only need this for elementary array elements. *)
@@ -768,17 +742,6 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       Mvalue (AarrayEl (_, U8, _)) ->
       { t with init = Init.copy_init t.init l e }
     | _ -> assert false
-
-    (* INIT *)
-    (* let copy_init t l e = match l, e with
-     * | Mvalue (AarrayEl (_, U8, _)),
-     *   Mvalue (AarrayEl (_, U8, _)) ->
-     *   let l = string_of_mvar l
-     *   and e = string_of_mvar e in
-     *   begin match EMs.find e t.init with
-     *     | x -> { t with init = EMs.adds [l] x t.init }
-     *     | exception Not_found -> t end
-     * | _ -> assert false *)
 
   (* Check that a variable is initialized. 
      Note that in Jasmin, an array is always initialized, even if its elements 
@@ -803,27 +766,6 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     AbsNum.R.sat_constr t.num align_cnstr    
 
   let print_init = Init.print
-  (* INIT *)
-  (* let print_init fmt t = match Config.sc_is_init_no_print () with
-   *   | Config.IP_None -> Format.fprintf fmt ""
-   *   | Config.IP_All | Config.IP_NoArray ->
-   *     let keep s =
-   *       match mvar_of_svar s with
-   *       | Mvalue (AarrayEl _)
-   *         when Config.sc_is_init_no_print () = Config.IP_NoArray -> false
-   *       | _ -> true
-   *     in
-   *     
-   *     let dnum = AbsNum.downgrade t.num in
-   *     let check' a =
-   *       try AbsNum.NR.meet dnum a |> AbsNum.NR.is_bottom with
-   *       | Not_found -> AbsNum.R.is_bottom t.num in
-   * 
-   *     let m = EMs.map (fun a -> check' a) t.init in
-   *     Format.fprintf fmt "@[<h 2>* Init:@;";
-   *     EMs.iter (fun s b ->
-   *         if b && keep s then Format.fprintf fmt "%s@ " s else ()) m;
-   *     Format.fprintf fmt "@]@;" *)
 
   let print : ?full:bool -> Format.formatter -> t -> unit =
     fun ?full:(full=false) fmt t ->
