@@ -406,6 +406,14 @@ end = struct
       (List.sort (fun (v,_) (v',_) -> V.compare v v')
          (Mv.bindings dp))
 
+  let print_while_vars fmt while_vars =
+    Format.fprintf fmt "@[<v 2>While variables:@;%a@]@."
+      (pp_list (fun fmt v -> Format.fprintf fmt "@[<hov 4>%a@]"
+                   (Printer.pp_var ~debug:true) v))        
+      (List.sort (fun v v' -> V.compare v v')
+         (Sv.to_list while_vars))
+
+  
   let print_cfg fmt cfg =
     Format.fprintf fmt "@[<v 2>Control-flow graph:@;%a@]@."
       (pp_list (fun fmt (f, fs) -> Format.fprintf fmt "@[<hov 4>%a --> %a@]"
@@ -424,6 +432,7 @@ end = struct
     let st = pa_stmt func.f_name prog st func.f_body in
 
     debug (fun () -> Format.eprintf "%a" print_dp st.dp);
+    debug (fun () -> Format.eprintf "%a" print_while_vars st.while_vars);
     debug (fun () -> Format.eprintf "%a" print_cfg st.cfg);
 
     { pa_dp = st.dp;
@@ -510,23 +519,24 @@ end
 
 (* Reflexive and transitive closure. *)
 let trans_closure (dp : Pa.dp) =
-  let f dp = Mv.map (fun sv ->
-      Sv.fold (fun v' s ->
-          Sv.union s (Pa.dp_v dp v'))
-        sv sv) dp in
-
+  let f dp =
+    Mv.map (fun sv ->
+        Sv.fold (fun v' s ->
+            Sv.union s (Pa.dp_v dp v'))
+          sv sv) dp in
+  
   fpt f (Mv.equal Sv.equal) dp
 
 (* Add variables where [sv_ini] flows to. *)
 let flow_to (dp : Pa.dp) (sv_ini : Sv.t) =
-    Mv.fold (fun v sv v_rel ->
-        if Sv.disjoint sv sv_ini then v_rel
-        else Sv.add v v_rel
+    Mv.fold (fun v sv acc ->
+        if Sv.disjoint sv acc then acc
+        else Sv.add v acc
       ) dp sv_ini
 
 (* Add variables flowing to [sv_ini]. *)
 let flowing_to (dp : Pa.dp) (sv_ini : Sv.t) =
-    Mv.fold (fun v sv v_rel ->
-        if Sv.disjoint sv sv_ini then v_rel
-        else Sv.add v v_rel
+    Mv.fold (fun v sv acc ->
+        if Sv.mem v acc then acc
+        else Sv.union acc sv
     ) dp sv_ini
