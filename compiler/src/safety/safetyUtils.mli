@@ -30,6 +30,9 @@ type analyzer_param = {
 val get_fun_def : 'a * ('b, 'c) gfunc list -> funname -> ('b, 'c) gfunc option
 
 (*------------------------------------------------------------*)
+val wsize_of_int : int -> Wsize.wsize
+                            
+(*------------------------------------------------------------*)
 val env_of_list : Var.t list -> Apron.Environment.t
  
 (*------------------------------------------------------------*)
@@ -44,8 +47,8 @@ val mpqf_of_bigint : B.zint -> Mpqf.t
 (*------------------------------------------------------------*)
 (* Coeff and Interval Utils *)
                                  
-val scalar_to_int   : Scalar.t   -> int option
-val interval_to_int : Interval.t -> int option
+val scalar_to_zint   : Scalar.t   -> Z.t option
+val interval_to_zint : Interval.t -> Z.t option
     
 val to_int          : Coeff.t  -> Coeff.t
 val s_to_mpqf       : Scalar.t -> Mpqf.t

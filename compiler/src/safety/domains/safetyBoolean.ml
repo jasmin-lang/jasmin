@@ -295,6 +295,70 @@ module AbsNumTMake (PW : ProgWrap) : AbsNumT = struct
   let upgrade a tshape = R.of_box (NR.to_box a) tshape
 end
 
+module type InitT = sig
+  type t
+
+  val make           : unit -> t
+
+  val meet           : t -> t -> t
+  val join           : t -> t -> t
+  val widening       : t -> t -> t
+    
+  val remove_vars    : t -> mvar list -> t
+    
+  val copy_init      : t -> mvar -> mvar -> t
+  val is_init        : t -> mvar list -> t
+  val check_init     : t -> mvar -> bool
+    
+  val size           : t -> int
+  val print          : Format.formatter -> t -> unit
+end
+
+module Init : InitT = struct
+  (* Boolean is true if the variable is initialized. 
+     No entry means not initialized. *)
+  type t = bool Mm.t
+  let make () = Mm.empty
+
+  let meet = Mm.merge (fun _ b b' ->
+      let b = odfl false b
+      and b' = odfl false b' in
+      Some (b && b'))
+
+  let join = Mm.merge (fun _ b b' ->
+      let b = odfl false b
+      and b' = odfl false b' in
+      Some (b || b'))
+
+  let widening = join
+
+  let remove_vars t mvs = Mm.filter (fun k _ -> not (List.mem k mvs)) t
+
+  let is_init_1 t v = Mm.add v true t
+  let is_init t vs = List.fold_left is_init_1 t vs
+  
+  let check_init t v = Mm.find_default false v t
+  let copy_init t l e = Mm.add l (check_init t e) t
+                            
+  let size t = Mm.cardinal t
+
+  let print fmt t = match Config.sc_is_init_no_print () with
+    | Config.IP_None -> Format.fprintf fmt ""
+    | Config.IP_All | Config.IP_NoArray ->
+      let keep = function
+        | Mvalue (AarrayEl _)
+          when Config.sc_is_init_no_print () = Config.IP_NoArray -> false
+        | _ -> true
+      in
+
+      Format.fprintf fmt "@[<h 2>* Init:@;";
+      Mm.iter (fun s b ->
+          if b && keep s then Format.fprintf fmt "%a@ " pp_mvar s else ()) t;
+      Format.fprintf fmt "@]@;"
+        
+end
+
+(* AbsNum.NR.t EMs.t;  *)
 
 (*------------------------------------------------------------*)
 (* Abstraction of numerical and boolean values. *)
@@ -313,7 +377,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
        constraint on [m].
      - Remark: we lazily populate init and bool. *)
   type t = { bool      : AbsNum.NR.t Mbv.t;
-             init      : AbsNum.NR.t EMs.t; 
+             init      : Init.t; 
              num       : AbsNum.R.t;
              points_to : Pt.t;
              sym       : Sym.t;
@@ -327,30 +391,22 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
         (fun () -> AbsNum.downgrade t'.num)
         t.bool t'.bool in
     ({ t with bool = eb }, { t' with bool = eb' })
-
-  let merge_init_dom t t' =
-    let eb = EMs.vmerge (fun x _ -> match x with
-        | None -> Some (AbsNum.downgrade t.num)
-        | Some _ -> x) t.init t'.init
-    and eb' = EMs.vmerge (fun x _ -> match x with
-        | None -> Some (AbsNum.downgrade t'.num)
-        | Some _ -> x) t'.init t.init in
-    ({ t with init = eb }, { t' with init = eb' })
-
-  let apply f df fpt fsym fal t = { bool      = Mbv.map df t.bool;
-                                    init      = EMs.map df t.init;
-                                    num       = f t.num;
-                                    points_to = fpt t.points_to;
-                                    sym       = fsym t.sym;
-                                    alignment = fal t.alignment; }
+    
+  let apply f df finit fpt fsym fal t = {
+    bool      = Mbv.map df t.bool;
+    init      = finit t.init;
+    num       = f t.num;
+    points_to = fpt t.points_to;
+    sym       = fsym t.sym;
+    alignment = fal t.alignment;
+  }
 
   (* Since init and bool are lazily populated, we merge the domains before 
      applying f *)
-  let apply2 f df fpt fsym fal t t' =
-    let t, t' = merge_init_dom t t' in
+  let apply2 f df finit fpt fsym fal t t' =
     let t, t' = merge_bool_dom t t' in
     { bool      = Mbv2.map2 df t.bool t'.bool;
-      init      = EMs.map2 df t.init t'.init;
+      init      = finit t.init t'.init;  
       num       = f t.num t'.num;
       points_to = fpt t.points_to t'.points_to;
       sym       = fsym t.sym t'.sym;
@@ -374,7 +430,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
 
   let rec init_vars = function
     | [] -> []
-    | Mvalue at :: t -> string_of_mvar (Mvalue at) :: init_vars t
+    | Mvalue at :: t -> (Mvalue at) :: init_vars t
     | _ :: t -> init_vars t
 
   let make : mvar list -> mem_loc list -> t = fun l mls ->
@@ -385,7 +441,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     let bmap = List.fold_left (fun bmap bv ->
         Mbv.add bv dabs bmap) Mbv.empty b_vars in
     { bool      = bmap;
-      init      = EMs.empty;
+      init      = Init.make ();
       num       = abs;
       points_to = Pt.make mls;
       sym       = Sym.make ();
@@ -410,12 +466,14 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       and eb' = EMs.vmerge (fun x y -> match x with
           | None -> y
           | Some _ -> x) b' b in
+      (* TODO: check why not NR.meet ? *)
       EMs.map2 AbsNum.NR.unify eb eb'
   
-  let meet ~join_align t t' =
+  let meet ~join_align ~join_init t t' =
     let t,t'    = merge_bool_dom t t' in
     { bool      = Mbv2.map2 AbsNum.NR.meet t.bool t'.bool;
-      init      = eunify_map t.init t'.init;
+      init      =
+        (if join_init then Init.join else Init.meet) t.init t'.init;
       num       = AbsNum.R.meet t.num t'.num;
       points_to = Pt.meet t.points_to t'.points_to;
       sym       = Sym.meet t.sym t'.sym;
@@ -427,11 +485,12 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
   let join t t' =
     if AbsNum.R.is_bottom t.num       then t'
     else if AbsNum.R.is_bottom t'.num then t
-    else apply2 AbsNum.R.join AbsNum.NR.join Pt.join Sym.join align_join t t'
+    else apply2 AbsNum.R.join AbsNum.NR.join Init.join
+        Pt.join Sym.join align_join t t'
 
   let widening : Mtcons.t option -> t -> t -> t = fun oc ->
     apply2
-      (AbsNum.R.widening oc) (AbsNum.NR.widening oc)
+      (AbsNum.R.widening oc) (AbsNum.NR.widening oc) Init.widening
       Pt.widening Sym.widening align_join
 
   let forget_list : t -> mvar list -> t = fun t l ->
@@ -439,7 +498,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     and df x = AbsNum.NR.forget_list x l
     and f_pts x = Pt.forget_list x l
     and fsym x = Sym.forget_list x l in
-    apply f df f_pts fsym ident t
+    apply f df ident f_pts fsym ident t
 
   let forget_bvar : t -> mvar -> t  = fun t bv ->
     let dnum = AbsNum.downgrade t.num in
@@ -512,7 +571,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       let s_init  = t.init 
       and s_align = t.alignment in
       let points_to_init = t.points_to in
-      let t = { t with init = EMs.empty } in
+      let t = { t with init = Init.make () } in
       
       let t = match info with
         | None -> t
@@ -536,11 +595,11 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
                 | Some c ->
                   let dc = AbsNum.downgrade c in
                   apply (AbsNum.R.meet c) (AbsNum.NR.meet dc)
-                    ident ident ident t in
+                    ident ident ident ident t in
               apply
                 (fun x -> AbsNum.R.assign_expr ~force:force x v e)
                 (fun x -> AbsNum.NR.assign_expr ~force:force x v e)
-                ident ident ident t'
+                ident ident ident ident t'
 
             | None ->
               let t' = match constr with
@@ -548,11 +607,11 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
                 | Some c ->
                   let dc = AbsNum.downgrade c in
                   apply (AbsNum.R.meet c) (AbsNum.NR.meet dc)
-                    ident ident ident t in
+                    ident ident ident ident t in
               apply
                 (fun x -> AbsNum.R.forget_list x [v])
                 (fun x -> AbsNum.NR.forget_list x [v])
-                ident ident ident t'              
+                ident ident ident ident t'              
           ) 
           constr_expr_list in
 
@@ -588,8 +647,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     and s_align = t.alignment in
     let points_to_init = t.points_to in
 
-    let t = { t with init = EMs.empty } in
-
+    let t = { t with init = Init.make () } in     
     let t_vb, f_vb = Bvar.make vb true,
                      Bvar.make vb false in
 
@@ -620,42 +678,42 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     let cn = abs_eval_btcons t c in
     let dcn = AbsNum.downgrade cn in
 
-    apply (AbsNum.R.meet cn) (AbsNum.NR.meet dcn) ident ident ident t
+    apply (AbsNum.R.meet cn) (AbsNum.NR.meet dcn) ident ident ident ident t
 
   let change_environment : t -> mvar list -> t = fun t l ->
     let l = u8_blast_vars ~blast_arrays:true l in
     let bvars = bool_vars l
     and ivars = init_vars l in
     (* We remove the variables that are not in l *)
-    let b = Mbv.filter (fun s _ -> List.mem s bvars) t.bool
-    and init = EMs.kfilter (fun s -> List.mem s ivars) t.init in
+    let b = Mbv.filter (fun s _ -> List.mem s bvars) t.bool in
+    let init = Init.remove_vars t.init ivars in
 
     (* We change the environment of the underlying numerical domain *)
     let f x = AbsNum.R.change_environment x l
     and df x = AbsNum.NR.change_environment x l
     and fsym x = Sym.change_environment x l in
-    apply f df ident fsym ident { t with bool = b; init = init }
+    apply f df ident ident fsym ident { t with bool = b; init = init }
 
   let remove_vars : t -> mvar list -> t = fun t l ->
     let l = u8_blast_vars ~blast_arrays:true l in
     let bvars = bool_vars l
     and ivars = init_vars l in
     (* We remove the variables in l *)
-    let b = Mbv.filter (fun s _ -> not (List.mem s bvars)) t.bool
-    and init = EMs.kfilter (fun s -> not (List.mem s ivars)) t.init in
+    let b = Mbv.filter (fun s _ -> not (List.mem s bvars)) t.bool in
+    let init = Init.remove_vars t.init ivars in (* INIT *)
 
     (* We change the environment of the underlying numerical domain *)
     let f x = AbsNum.R.remove_vars x l
     and df x = AbsNum.NR.remove_vars x l
     and ptf x = Pt.forget_list x l
     and fsym x = Sym.forget_list x l in
-    apply f df ptf fsym ident { t with bool = b; init = init }
+    apply f df ident ptf fsym ident { t with bool = b; init = init }
 
   let top_ni : t -> t = fun t ->
     let top = AbsNum.R.top_no_disj t.num in
     let bmap = Mbv.map (fun v -> AbsNum.NR.top v) t.bool in
     { bool      = bmap;
-      init      = EMs.empty;
+      init      = Init.make ();
       num       = top;
       points_to = Pt.make [];      
       sym       = Sym.make ();
@@ -674,36 +732,26 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     let vats = match at with
       | Aarray _ -> []
       | _ -> u8_blast_at ~blast_arrays:true at in
-    let vats = List.map string_of_mvar vats in
     
-    { t with
-      init = EMs.adds vats (AbsNum.R.bottom t.num |> AbsNum.downgrade) t.init }
+    { t with init = Init.is_init t.init vats }
     
   (* Copy some variable initialization.
      We only need this for elementary array elements. *)
   let copy_init t l e = match l, e with
     | Mvalue (AarrayEl (_, U8, _)),
       Mvalue (AarrayEl (_, U8, _)) ->
-      let l = string_of_mvar l
-      and e = string_of_mvar e in
-      begin match EMs.find e t.init with
-        | x -> { t with init = EMs.adds [l] x t.init }
-        | exception Not_found -> t end
+      { t with init = Init.copy_init t.init l e }
     | _ -> assert false
-  
+
   (* Check that a variable is initialized. 
      Note that in Jasmin, an array is always initialized, even if its elements 
      are not initialized. *)
   let check_init : t -> atype -> bool = fun t at ->
     let vats = match at with
       | Aarray _ -> []
-      | _ -> u8_blast_at ~blast_arrays:false at |> List.map string_of_mvar in    
-    let dnum = AbsNum.downgrade t.num in
-    let check x =
-      try AbsNum.NR.meet dnum (EMs.find x t.init) |> AbsNum.NR.is_bottom with
-      | Not_found -> AbsNum.R.is_bottom t.num in
-
-    List.for_all check vats
+      | _ -> u8_blast_at ~blast_arrays:false at in
+    
+    List.for_all (Init.check_init t.init) vats
 
   let base_align t m ws =
     let ws_old = Mml.find_default ws m t.alignment in
@@ -716,31 +764,12 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     let align_cnstr =
       Mtcons.make e (Tcons1.EQMOD (Scalar.of_int (Prog.size_of_ws ws))) in
     AbsNum.R.sat_constr t.num align_cnstr    
-    
-  let print_init fmt t = match Config.sc_is_init_no_print () with
-    | Config.IP_None -> Format.fprintf fmt ""
-    | Config.IP_All | Config.IP_NoArray ->
-      let keep s =
-        match mvar_of_svar s with
-        | Mvalue (AarrayEl _)
-          when Config.sc_is_init_no_print () = Config.IP_NoArray -> false
-        | _ -> true
-      in
-      
-      let dnum = AbsNum.downgrade t.num in
-      let check' a =
-        try AbsNum.NR.meet dnum a |> AbsNum.NR.is_bottom with
-        | Not_found -> AbsNum.R.is_bottom t.num in
 
-      let m = EMs.map (fun a -> check' a) t.init in
-      Format.fprintf fmt "@[<h 2>* Init:@;";
-      EMs.iter (fun s b ->
-          if b && keep s then Format.fprintf fmt "%s@ " s else ()) m;
-      Format.fprintf fmt "@]@;"
+  let print_init = Init.print
 
   let print : ?full:bool -> Format.formatter -> t -> unit =
     fun ?full:(full=false) fmt t ->
-    let print_init fmt = print_init fmt t in
+    let print_init fmt = print_init fmt t.init in
 
     let print_bool fmt =
       if Config.sc_bool_no_print () then 
@@ -767,14 +796,11 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     in
 
     let bool_size = Mbv.cardinal t.bool
-    and init_size = EMs.csize t.init in
+    and init_size = Init.size t.init in
     let bool_nr_vars =  
       Mbv.fold (fun _ nrd size -> 
           size + Environment.size (AbsNum.NR.get_env nrd))
-        t.bool 0
-      |> EMs.cfold (fun nrd size -> 
-          size + Environment.size (AbsNum.NR.get_env nrd))
-        t.init in
+        t.bool 0 in
     let print_bool_nums fmt = 
       Format.fprintf fmt "* Bool (%d vars.) + Init (%d vars): \
                           total of %d num. vars."

@@ -523,19 +523,28 @@ end = struct
         | _ -> assert false end
 
     | InBound (i,ws,e) ->
-      (* We check that (e + 1) * ws/8 is no larger than i *)
-      let epp = Papp2 (E.Oadd E.Op_int,
-                       e,
-                       Pconst (B.of_int 1)) in
-      let wse = Papp2 (E.Omul E.Op_int,
-                       epp,
-                       Pconst (B.of_int ((int_of_ws ws) / 8))) in
-      let be = Papp2 (E.Ogt E.Cmp_int, wse, Pconst (B.of_int i)) in
-
-      begin match AbsExpr.bexpr_to_btcons be state.abs with
+      let simple_check = match AbsExpr.linearize_smpl_iexpr state.abs e with
         | None -> false
-        | Some c -> 
-          AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
+        | Some lin_e -> 
+          let int = AbsDom.bound_texpr state.abs lin_e in
+          Scalar.cmp_int int.sup i <= 0
+      in
+
+      if simple_check then true
+      else
+        (* We check that (e + 1) * ws/8 is no larger than i *)
+        let epp = Papp2 (E.Oadd E.Op_int,
+                         e,
+                         Pconst (B.of_int 1)) in
+        let wse = Papp2 (E.Omul E.Op_int,
+                         epp,
+                         Pconst (B.of_int ((int_of_ws ws) / 8))) in
+        let be = Papp2 (E.Ogt E.Cmp_int, wse, Pconst (B.of_int i)) in
+
+        begin match AbsExpr.bexpr_to_btcons be state.abs with
+          | None -> false
+          | Some c -> 
+            AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
 
     | NotZero (ws,e) ->
       (* We check that e is never 0 *)
@@ -547,6 +556,13 @@ end = struct
 
     | Aligned _ | Valid _ | Termination -> true (* These are checked elsewhere *)
 
+  let is_safe state cond =
+    let res = is_safe state cond in
+    let () = debug (fun () ->
+        Format.eprintf "Checked condition: %a@."
+          pp_safety_cond cond)
+    in
+    res
 
   let mk_offsets m =
     let open MemAccess in
@@ -603,7 +619,7 @@ end = struct
       (* We store the offset where the memory access took place. *)
       let abs = state.abs in
       let x_o = Mtexpr.var (MvarOffset x) in
-      let lin_e = AbsExpr.linearize_wexpr abs e in
+      let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in
       let sexpr = Mtexpr.binop Texpr1.Add x_o lin_e
                   |> sexpr_from_simple_expr in
       let abs = AbsDom.assign_sexpr abs (MmemAccess ma) None sexpr in
@@ -666,7 +682,7 @@ end = struct
 
             (* We update the accessed memory range in [abs]. *)
             let x_o = Mtexpr.var (MvarOffset x) in
-            let lin_e = AbsExpr.linearize_wexpr abs e in
+            let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in
             let c_ws =
               ((int_of_ws ws) / 8)
               |> Coeff.s_of_int
@@ -700,7 +716,7 @@ end = struct
 
             (* And we check that the offset is correctly aligned. *)
             let x_o = Mtexpr.var (MvarOffset x) in
-            let lin_e = AbsExpr.linearize_wexpr abs e in            
+            let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in            
             let o_plus_e = Mtexpr.binop Texpr1.Add x_o lin_e in
             let violations =
               if AbsDom.check_align abs o_plus_e ws
@@ -982,8 +998,12 @@ end = struct
           (pp_list pp_mvar) (List.map (fun x -> MmemRange x) fstate.s_effects));
 
     (* We join the alignment constraints, as we want the union of
-       previous and new constraints. *)
-    let abs = AbsDom.meet ~join_align:true state.abs fstate.abs in
+       previous and new constraints. 
+       Also, every variable (of the callee or caller) which was initalized
+       remains so. *)   
+    let abs = AbsDom.meet
+        ~join_align:true ~join_init:true
+        state.abs fstate.abs in
     let state = { abs = abs;
                   it = fstate.it;
                   env = state.env;
@@ -1334,12 +1354,28 @@ end = struct
       [Some e] 
 
     (* bitwise operators *)
+    | E.Ox86 (X86_instr_decl.AND ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Oland ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+
+    | E.Ox86 (X86_instr_decl.OR ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Olor ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+
+    | E.Ox86 (X86_instr_decl.XOR ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Olxor ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+
+    | E.Ox86 (X86_instr_decl.NOT ws) ->
+      let e1 = as_seq1 es in
+      let e = Papp1 (E.Olnot ws, e1) in
+      rflags_unknwon @ [Some e]
+  
     | E.Ox86 (X86_instr_decl.TEST _)
-    | E.Ox86 (X86_instr_decl.AND  _)
     | E.Ox86 (X86_instr_decl.ANDN _)
-    | E.Ox86 (X86_instr_decl.OR   _)
-    | E.Ox86 (X86_instr_decl.NOT  _)        
-    | E.Ox86 (X86_instr_decl.XOR  _)
 
     (* mul signed with truncation *)
     | E.Ox86 (X86_instr_decl.IMUL _)
@@ -2020,9 +2056,9 @@ end = struct
     let state = List.fold_left (fun state ginstr ->
         aeval_ginstr ginstr state)
         state gstmt in
-    let () = debug (fun () ->
-        if gstmt <> [] then
-          Format.eprintf "%a%!" (AbsDom.print ~full:true) state.abs) in
+    let () = if gstmt <> [] then
+        debug (fun () ->            
+            Format.eprintf "%a%!" (AbsDom.print ~full:true) state.abs) in
     state
 
   (* Select the call strategy for [f_decl] in [st_in] *)
@@ -2101,7 +2137,7 @@ end = struct
           let proj = AbsDom.assign_sexpr ~force:true a_proj_min var None z_sexpr in 
           Format.fprintf fmt "Cost Min projected:@;%a@;"
             (AbsDom.print ~full:true)
-            (AbsDom.meet true a_proj_min proj)
+            (AbsDom.meet ~join_align:true ~join_init:true a_proj_min proj)
     in
     List.iter a_proj_min_10 param_vars;
     let a_proj_max_10 var = 
@@ -2110,7 +2146,7 @@ end = struct
           let proj = AbsDom.assign_sexpr ~force:true a_proj_max var None z_sexpr in 
           Format.fprintf fmt "Cost Max projected:@;%a@;"
             (AbsDom.print ~full:true)
-            (AbsDom.meet true a_proj_max proj)
+            (AbsDom.meet ~join_align:true ~join_init:true a_proj_max proj)
     in
     List.iter a_proj_max_10 param_vars;
 
