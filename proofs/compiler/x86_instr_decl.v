@@ -131,6 +131,7 @@ Variant asm_op : Type :=
 | VPSHUFD  `(wsize)
 | VPSHUFHW `(wsize)
 | VPSHUFLW `(wsize)
+| VSHUFPS  `(wsize)
 | VPBLENDD `(wsize)
 | VPBROADCAST of velem & wsize
 | VMOVSHDUP of velem & wsize (* Replicate 32-bit (“single”) high values *)
@@ -680,6 +681,15 @@ Arguments x86_vpshuf : clear implicits.
 Definition x86_VPSHUFHW sz := x86_vpshuf sz (@wpshufhw _).
 Definition x86_VPSHUFLW sz := x86_vpshuf sz (@wpshuflw _).
 Definition x86_VPSHUFD sz := x86_vpshuf sz (@wpshufd _).
+
+(* ---------------------------------------------------------------- *)
+
+Definition wshufps_128 (o : u8) (s1 s2: u128) :=
+  @make_vec U32 U128 [:: wpshufd1 s1 o 0; wpshufd1 s1 o 1; wpshufd1 s2 o 2; wpshufd1 s2 o 3].
+
+Definition x86_VSHUFPS sz s1 s2 o := 
+  Let _ := check_size_128_256 sz in
+  ok (lift2_vec U128 (wshufps_128 o) sz s1 s2).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_VPUNPCKH ve sz := x86_u128_binop (@wpunpckh sz ve).
@@ -1270,6 +1280,10 @@ Definition check_xmm_xmm_xmmm_imm8 (_:wsize) := [:: [:: xmm; xmm; xmmm true; i U
 Definition Ox86_VPBLENDD_instr :=
   mk_instr_w2w8_w_1230 "VPBLENDD" x86_VPBLENDD check_xmm_xmm_xmmm_imm8 imm8 (PrimP U128 VPBLENDD) (pp_name "vpblendd").
 
+Definition Ox86_VSHUFPS_instr := 
+  mk_instr_w2w8_w_1230 "VSHUFPS" x86_VSHUFPS check_xmm_xmm_xmmm_imm8 imm8 (PrimP U128 VSHUFPS)
+      (pp_name "vshufps").                 
+
 Definition pp_vpbroadcast ve sz args :=
   {| pp_aop_name := "vpbroadcast";
      pp_aop_ext  := PP_viname ve false;
@@ -1388,6 +1402,7 @@ Definition instr_desc o : instr_desc_t :=
   | VPSHUFHW sz        => Ox86_VPSHUFHW_instr.1 sz
   | VPSHUFLW sz        => Ox86_VPSHUFLW_instr.1 sz
   | VPSHUFD sz         => Ox86_VPSHUFD_instr.1 sz
+  | VSHUFPS sz         => Ox86_VSHUFPS_instr.1 sz
   | VPUNPCKH sz sz'    => Ox86_VPUNPCKH_instr.1 sz sz'
   | VPUNPCKL sz sz'    => Ox86_VPUNPCKL_instr.1 sz sz'
   | VPBLENDD sz        => Ox86_VPBLENDD_instr.1 sz
@@ -1476,6 +1491,7 @@ Definition prim_string :=
    Ox86_VPSHUFHW_instr.2;
    Ox86_VPSHUFLW_instr.2;
    Ox86_VPSHUFD_instr.2;
+   Ox86_VSHUFPS_instr.2;
    Ox86_VPUNPCKH_instr.2;
    Ox86_VPUNPCKL_instr.2;
    Ox86_VPBLENDD_instr.2;
