@@ -201,7 +201,7 @@ Fixpoint remove_init_i i : (cmd * leak_i_tr) :=
       let r2 := foldr (fun i r =>  
                        let ri := remove_init_i i in 
                        ((ri.1 ++ r.1), ri.2 :: r.2))  ([::], [::]) c2 in
-      ([:: MkI ii (Cif e r1.1 r2.1) ], LT_icond (LT_id) r1.2 r1.2) 
+      ([:: MkI ii (Cif e r1.1 r2.1) ], LT_icond (LT_id) r1.2 r2.2) 
     | Cfor x r c   =>
       let r1 := foldr (fun i r =>  
                        let ri := remove_init_i i in 
@@ -215,7 +215,7 @@ Fixpoint remove_init_i i : (cmd * leak_i_tr) :=
                        let ri := remove_init_i i in 
                        ((ri.1 ++ r.1), ri.2 :: r.2)) ([::], [::]) c' in
       ([:: MkI ii (Cwhile a r1.1 e r2.1) ], LT_iwhile r1.2 LT_id r2.2)
-    | Ccall _ _ _ _  => ([::i], LT_ikeep)
+    | Ccall _ _ _ _  => ([::i], LT_icall LT_id LT_id)
     end
   end.
 
