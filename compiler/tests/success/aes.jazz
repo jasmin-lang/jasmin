@@ -1,0 +1,102 @@
+/* TODO add Constant propagation of boolean */
+
+/* this is durty we would like to have inline global table */
+
+inline fn RCON (inline int i) -> inline int {
+  inline int c;
+  c =  (i == 1) ? 1 :
+      ((i == 2) ? 2 :
+      ((i == 3) ? 4 :
+      ((i == 4) ? 8 :
+      ((i == 5) ? 16 :
+      ((i == 6) ? 32 :
+      ((i == 7) ? 64 :       
+      ((i == 8) ? 128 :
+      ((i == 9) ? 27 :
+     /* i == 10 */ 54))))))));
+   return c;
+}
+
+inline fn AddRoundKey(reg u128 state, reg u128 rk) -> reg u128 {
+   state = state ^ rk;
+   return state;
+}
+
+inline fn cipher (reg u128 in, reg u128[11] rks) -> reg u128 {
+  reg u128 state;
+  inline int round;
+  state = in;
+  state ^= rks[0];  // AddRoundKey(state, rks[0]) 
+  for round = 1 to 10 { /* 9 iterations */
+    state = #AESENC(state, rks[round]);
+  }
+  state = #AESENCLAST(state, rks[10]);
+  return state; 
+}
+
+inline fn key_combine(reg u128 rkey, reg u128 temp1, reg u128 temp2) 
+             -> reg u128, reg u128 {
+  temp1 = #VPSHUFD(temp1, (4u2)[3,3,3,3]);
+  temp2 = #VSHUFPS(temp2, rkey, (4u2)[0,1,0,0]);
+  rkey ^= temp2;
+  temp2 = #VSHUFPS(temp2, rkey, (4u2)[2,0,3,0]);
+  rkey ^= temp2; 
+  rkey ^= temp1;
+  return rkey, temp2;
+}  
+
+inline fn key_expand(inline int rcon /*, inline bool inv*/, reg u128 rkey, reg u128 temp2) 
+            -> reg u128, reg u128 {
+  reg u128 temp1 next_rkey;
+  temp1 = #VAESKEYGENASSIST(rkey, rcon);
+  rkey, temp2 = key_combine(rkey, temp1, temp2);
+/*  if (inv) {
+    next_rkey = #AESIMC(aux); 
+  } else { 
+    next_rkey = aux; // FIXME : the move is not cleared
+   }   */
+  return /* next_rkey */ rkey, temp2;
+}
+
+
+inline fn keys_expand(/* inline bool inv, */ reg u128 key) -> reg u128[11] {
+  reg u128[11] rkeys;
+  reg u128 temp2;
+  inline int i, rcon;
+  rkeys[0] = key;
+  temp2    = #set0_128();
+  for i = 1 to 11 {
+    rcon = RCON(i);
+    (key, temp2) = key_expand(rcon, /* inv, */ key, temp2);
+    rkeys[i] = key;
+  }   
+  return rkeys;    
+} 
+ 
+
+inline fn _aes_enc(reg u128 key, reg u128 in) -> reg u128 {
+  reg u128 out;
+  reg u128[11] rkeys;
+  
+  rkeys = keys_expand(/* false, */ key);
+  out   = cipher(in, rkeys);
+  return out;
+}
+  
+export fn aes_enc(reg u64 pkey, reg u64 pin, reg u64 pout) {
+  reg u128 in, key, out;
+  in  = (u128)[pin];
+  key = (u128)[pkey];
+  out = _aes_enc(key, in);
+  (u128)[pout] = out;
+}
+
+
+
+
+
+
+
+
+
+  
