@@ -373,11 +373,13 @@ Definition s_if t e e1 e2 :=
  * -------------------------------------------------------------------- *)
 
 Variant const_v :=
+  | Cbool of bool
   | Cint of Z
   | Cword sz `(word sz).
 
 Definition const_v_beq (c1 c2: const_v) : bool :=
   match c1, c2 with
+  | Cbool b1, Cbool b2 => b1 == b2
   | Cint z1, Cint z2 => z1 == z2
   | Cword sz1 w1, Cword sz2 w2 =>
     match wsize_eq_dec sz1 sz2 with
@@ -389,7 +391,8 @@ Definition const_v_beq (c1 c2: const_v) : bool :=
 
 Lemma const_v_eq_axiom : Equality.axiom const_v_beq.
 Proof.
-case => [ z1 | sz1 w1 ] [ z2 | sz2 w2] /=; try (constructor; congruence).
+case => [ b1 | z1 | sz1 w1 ] [ b2 | z2 | sz2 w2] /=; try (constructor; congruence).
++ case: eqP => [ -> | ne ]; constructor; congruence.
 + case: eqP => [ -> | ne ]; constructor; congruence.
 case: wsize_eq_dec => [ ? | ne ]; last (constructor; congruence).
 subst => /=.
@@ -403,6 +406,7 @@ Local Notation cpm := (Mvar.t const_v).
 
 Definition const v :=
   match v with
+  | Cbool b => Pbool b
   | Cint z  => Pconst z
   | Cword sz z => wconst z
   end.
@@ -461,6 +465,7 @@ Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
   if rv is Lvar x then
     if tag is AT_inline then
       match e with
+      | Pbool b  => Mvar.set m x (Cbool b)
       | Pconst z =>  Mvar.set m x (Cint z)
       | Papp1 (Oword_of_int sz') (Pconst z) =>
         let szty := wsize_of_stype ty in
