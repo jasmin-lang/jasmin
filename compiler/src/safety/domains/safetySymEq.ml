@@ -37,7 +37,7 @@ let is_cst = function Mtexpr.Mcst _ -> true | _ -> false
 let rec rewrite_e e =
   let open Mtexpr in
   match e with
-  | Munop (Texpr1.Neg, e', _, _) when not (is_var e) ->
+  | Munop (Texpr1.Neg, e', _, _) when not (is_var e') ->
     begin
       try rewrite_e (neg_e e') with Rewrite_failed -> e
     end
