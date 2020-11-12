@@ -1,7 +1,7 @@
 (* -------------------------------------------------------------------- *)
 require import AllCore BitEncoding IntDiv SmtMap Ring List StdOrder Bool.
 (*---*) import CoreMap Map Ring.IntID IntOrder.
-require export JUtils JArray JWord JWord_array JMemory.
+require export JUtils JArray JWord JWord_array JMemory AES.
 
 (* -------------------------------------------------------------------- *)
 abbrev MOVSZ32 (x : W32.t) = pack4 [x; W32.zero; W32.zero; W32.zero].
@@ -291,14 +291,7 @@ op VPBLENDD_256 (w1 w2: W256.t) (i:W8.t) : W256.t =
 
 (* ------------------------------------------------------------------- *)
 
-op VSHUFPS_128 : W128.t -> W128.t -> W8.t -> W128.t.
 (* AES instruction *)
-op AESDEC          : W128.t -> W128.t -> W128.t.
-op AESDECLAST      : W128.t -> W128.t -> W128.t.
-op AESENC          : W128.t -> W128.t -> W128.t.
-op AESENCLAST      : W128.t -> W128.t -> W128.t.
-op AESIMC          : W128.t -> W128.t.
-op AESKEYGENASSIST : W128.t -> W8.t -> W128.t.
 
 abbrev [-printing] VAESDEC          = AESDEC.
 abbrev [-printing] VAESDECLAST      = AESDECLAST.
