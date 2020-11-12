@@ -754,10 +754,11 @@ end = struct
       mem_safety_rec (state, []) nb conds in
 
     (* Print updated overlap information *)
-    let () = debug (fun () ->
-        try Format.eprintf "@[<v 0>* Overlap:@;%a@]@."
-              Overlap.pp_overlap (Mint.find nb state.overlaps)
-        with Not_found -> ()) in
+    let () = if Mint.mem nb state.overlaps then
+        debug (fun () ->
+            Format.eprintf "@[<v 0>* Overlap:@;%a@]@."
+              Overlap.pp_overlap (Mint.find nb state.overlaps)) 
+    in
     
     let unsafe = vsc @ mvsc
                  |> List.map (fun x -> (loc,x)) in
