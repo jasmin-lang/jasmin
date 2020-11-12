@@ -183,15 +183,14 @@ End CmpMps.
 Module Mmps := Mmake(CmpMps).
 
 (* ------------------------------------------------------------------ *)
+(* idea: could we use a gvar instead of var & v_scope? *)
 Variant ptr_kind_init :=
-| PIstack  of var & sub_mp
-| PIglob   of var & sub_mp
+| PIdirect of var & sub_mp & v_scope
 | PIregptr of var
 | PIstkptr of var & sub_mp & var.
 
 Variant ptr_kind :=
-| Pstack  of var & Z & wsize & sub_mp
-| Pglob   of var & Z & wsize & sub_mp
+| Pdirect of var & Z & wsize & sub_mp & v_scope
 | Pregptr of var
 | Pstkptr of var & Z & wsize & sub_mp & var.
 
@@ -509,10 +508,15 @@ Definition var_kind := option vptr_kind.
 Definition with_var xi x := 
   {| v_var := x; v_info := xi.(v_info) |}.
 
+Definition base_ptr sc :=
+  match sc with
+  | Slocal => pmap.(vrsp)
+  | Sglobal => pmap.(vrip)
+  end.
+
 Definition mk_addr_ptr x aa ws (pk:ptr_kind) (e1:pexpr) := 
   match pk with
-  | Pstack _ z _ sub => ok (with_var x pmap.(vrsp), mk_ofs aa ws e1 (z + sub.(smp_ofs)))
-  | Pglob  _ z _ sub => ok (with_var x pmap.(vrip), mk_ofs aa ws e1 (z + sub.(smp_ofs)))
+  | Pdirect _ z _ sub sc => ok (with_var x (base_ptr sc), mk_ofs aa ws e1 (z + sub.(smp_ofs)))
   | Pregptr p        => ok (with_var x p,    mk_ofs aa ws e1 0)
   | Pstkptr _ _ _ _ _ => cerror "stack pointer in expression"
   end.
@@ -612,7 +616,7 @@ Definition mps_stack x align sub :=
 
 Definition mps_pk pk :=
   match pk with
-  | Pstack x ofs align sub => ok (mps_stack x align sub)
+  | Pdirect x ofs align sub Slocal => ok (mps_stack x align sub)
   | _                => cerror "not a pointer to stack: please report"
   end.
 
@@ -733,10 +737,8 @@ Definition alloc_array_move rmap r e :=
       Let mpy := Region.check_valid rmap vy (Some ofs) len in
       Let mklofs := 
         match pk with
-        | Pstack _ ofsy _ sub => 
-          ok (MK_MOV, Plvar (with_var vy pmap.(vrsp)), (ofsy + sub.(smp_ofs) + ofs)%Z)
-        | Pglob  _ ofsy _ sub => 
-          ok (MK_LEA, Plvar (with_var vy pmap.(vrip)), (ofsy + sub.(smp_ofs) + ofs)%Z)
+        | Pdirect _ ofsy _ sub sc =>
+          ok (if sc is Slocal then MK_MOV else MK_LEA, Plvar (with_var vy (base_ptr sc)), (ofsy + sub.(smp_ofs) + ofs)%Z)
         | Pregptr p           => 
           ok (MK_MOV, Plvar (with_var vy p), ofs)
         | Pstkptr slot ofsy ws sub x' => 
@@ -753,14 +755,9 @@ Definition alloc_array_move rmap r e :=
     | None    => cerror "register array remains" 
     | Some pk => 
       match pk with
-      | Pstack x' _ _ subx =>
+      | Pdirect x' _ _ subx _ =>
         Let _  := assert ((x' == mpy.(mps_mp).(mp_s)) && (subx == mpy.(mps_sub)))
                          (Cerr_stk_alloc "invalid source 1") in
-        let rmap := Region.set_move rmap x mpy in
-        ok (rmap, nop)
-      | Pglob x' _ _ subx => 
-        Let _  := assert ((x' == mpy.(mps_mp).(mp_s)) && (subx == mpy.(mps_sub)))
-                         (Cerr_stk_alloc "invalid source 2") in
         let rmap := Region.set_move rmap x mpy in
         ok (rmap, nop)
       | Pregptr p =>
@@ -800,10 +797,10 @@ Definition alloc_array_move_init rmap r e :=
       | None    => cerror "register array remains" 
       | Some pk => 
         match pk with
-        | Pstack x' _ ws sub =>
+        | Pdirect x' _ ws sub Slocal =>
           let sub := {| smp_ofs := sub.(smp_ofs) + ofs; smp_len := len |} in
           ok (mps_stack x' ws sub)
-        | Pglob x' _ ws sub =>
+        | Pdirect _ _ _ _ Sglobal =>
           cerror "array init glob"
         | _ => 
           Let mps := get_mps rmap x in
@@ -1005,7 +1002,7 @@ End Section.
 
 Definition init_stack_layout fn (ws_align: wsize) (l: seq (var * wsize * Z)) := 
   let add (xsr: var * wsize * Z) 
-          (slp:  Mvar.t (wsize * Z) * Z) := 
+          (slp:  Mvar.t (Z * wsize) * Z) :=
     let '(stack, p) := slp in
     let '(x,ws,ofs) := xsr in
     if Mvar.get stack x is Some _ then cferror fn "duplicate stack region, please report"
@@ -1014,7 +1011,7 @@ Definition init_stack_layout fn (ws_align: wsize) (l: seq (var * wsize * Z)) :=
         let len := size_of x.(vtype) in
         if (ws <= ws_align)%CMP then
           if (Z.land ofs (wsize_size ws - 1) == 0)%Z then
-            let stack := Mvar.set stack x (ws, ofs) in
+            let stack := Mvar.set stack x (ofs, ws) in
             ok (stack, (ofs + len)%Z)
           else cferror fn "bad stack region alignment"
         else cferror fn "bad stack alignment" 
@@ -1032,29 +1029,27 @@ Definition init_local_map vrip vrsp fn globals sao :=
       else
         Let svrmap := 
           match pk with
-          | PIstack x' sub => 
-             match Mvar.get stack x' with
-             | None => cferror fn "unknown stack region, please report"
-             | Some (ws', ofs') =>
-               if [&& (size_of x.(vtype) <= sub.(smp_len))%CMP, (0%Z <= sub.(smp_ofs))%CMP &
-                      ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x'.(vtype))%CMP] then 
-                 let mps := mps_stack x' ws' sub in
-                 ok (sv, Pstack x' ofs' ws' sub, Region.set_arr_init rmap x mps)
-               else cferror fn "invalid stack slot, please report"
-             end
-          | PIglob x' sub => 
-            match Mvar.get globals x' with
-            | None => cferror fn "unknown global region, please report"
+          | PIdirect x' sub sc =>
+            let vars := if sc is Slocal then stack else globals in
+            match Mvar.get vars x' with
+            | None => cferror fn "unknown region, please report"
             | Some (ofs', ws') =>
-              if [&&  (size_of x.(vtype) <= sub.(smp_len))%CMP, (0%Z <= sub.(smp_ofs))%CMP & 
-                      ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x'.(vtype))%CMP] then 
-                ok (sv, Pglob x' ofs' ws' sub, rmap)
-              else cferror fn "invalid global slot, please report"
-             end
+              if [&& (size_of x.(vtype) <= sub.(smp_len))%CMP, (0%Z <= sub.(smp_ofs))%CMP &
+                     ((sub.(smp_ofs) + sub.(smp_len))%Z <= size_of x'.(vtype))%CMP] then
+                let rmap :=
+                  if sc is Slocal then
+                    let mps := mps_stack x' ws' sub in
+                    Region.set_arr_init rmap x mps
+                  else
+                    rmap
+                in
+                ok (sv, Pdirect x' ofs' ws' sub sc, rmap)
+              else cferror fn "invalid slot, please report"
+            end
           | PIstkptr x' sub xp =>
             match Mvar.get stack x' with
             | None => cferror fn "unknown stack region, please report"
-            | Some (ws', ofs') =>
+            | Some (ofs', ws') =>
               if Sv.mem xp sv then cferror fn "invalid stk ptr (not uniq), please report"
               else                
                 if [&& (Uptr <= ws')%CMP,

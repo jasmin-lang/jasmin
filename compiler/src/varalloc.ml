@@ -15,10 +15,9 @@ type param_info = {
 }
 
 type ptr_kind = 
-  | Stack    of var * Interval.interval 
+  | Direct   of var * Interval.interval * E.v_scope
   | StackPtr of var 
   | RegPtr   of var  
-  | Glob     of var * Interval.interval
 
 type stk_alloc_oracle_t =
   { sao_calls  : Sf.t
@@ -60,10 +59,11 @@ let pp_tbl fmt (name,tbl) =
     (pp_list "@ " (fun fmt (x,ws) -> Format.fprintf fmt "%a -> %s" pp_var x (string_of_ws ws)))
     (Hv.to_list tbl )
 
+(* dead code *)
 let pp_stk fmt (x, stkk) =
   match stkk with
-  | Glob  (y, r) -> Format.fprintf fmt "%a -> %%G%a" pp_var x pp_range (y,(r.min,r.max))
-  | Stack (y, r) -> Format.fprintf fmt "%a -> %a" pp_var x pp_range (y,(r.min,r.max))
+  | Direct  (y, r, sc) ->
+    Format.fprintf fmt "%a -> %s%a" pp_var x (match sc with | E.Slocal -> "" | E.Sglob -> "%G") pp_range (y,(r.min,r.max))
   | StackPtr y -> Format.fprintf fmt "%a |s-> %a" pp_var x pp_var y 
   | RegPtr   y -> Format.fprintf fmt "%a |r-> %a" pp_var x pp_var y 
 
@@ -85,8 +85,8 @@ let pp_slot fmt (x,ws,pos) =
 
 let pp_ptr_kind fmt (x,stkk) = 
   match stkk with
-  | Glob  (y, r) -> Format.fprintf fmt "%a -> %%G%a" pp_var x pp_range (y,(r.min,r.max))
-  | Stack (y, r) -> Format.fprintf fmt "%a -> %a" pp_var x pp_range (y,(r.min,r.max))
+  | Direct  (y, r, sc) ->
+    Format.fprintf fmt "%a -> %s%a" pp_var x (match sc with | E.Slocal -> "" | E.Sglob -> "%G") pp_range (y,(r.min,r.max))
   | StackPtr y -> Format.fprintf fmt "%a |s-> %a" pp_var x pp_var y 
   | RegPtr   y -> Format.fprintf fmt "%a |r-> %a" pp_var x pp_var_ty y 
 
@@ -272,18 +272,19 @@ let init_slots stack_pointers alias coloring fv =
     | Stack Direct ->
       if is_ty_arr v.v_ty then
         let c = Alias.normalize_var alias v in
-        if c.scope = E.Sglob then add_local v (Glob (c.in_var, r2i c.range))
+        if c.scope = E.Sglob then
+          add_local v (Direct (c.in_var, r2i c.range, E.Sglob))
         else
           begin
             let slot = get_slot coloring c.in_var in
             add_slot slot;
-            add_local v (Stack(slot, r2i c.range))
+            add_local v (Direct (slot, r2i c.range, E.Slocal))
           end
       else
         let sz = size_of v.v_ty in
         let slot = get_slot coloring v in
         add_slot slot;
-        add_local v (Stack(slot, r2i(0, sz)))
+        add_local v (Direct (slot, r2i(0, sz), E.Slocal))
 
     | Stack (Pointer _) ->
       let xp = get_stack_pointer stack_pointers v in
@@ -326,8 +327,8 @@ let all_alignment ctbl alias params lalloc =
     Hv.modify_def U8 slot (fun ws' -> if wsize_lt ws' ws then ws else ws') atbl in
   let doalloc x pk =
     match pk with
-    | Glob _ | RegPtr _ -> ()
-    | Stack(slot,_) ->
+    | Direct (_, _, E.Sglob) | RegPtr _ -> ()
+    | Direct (slot, _, E.Slocal) ->
       let ws = 
         match x.v_ty with
         | Arr _ -> get_align (Alias.normalize_var alias x)

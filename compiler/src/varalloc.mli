@@ -8,10 +8,9 @@ type param_info = {
 }
 
 type ptr_kind = 
-  | Stack    of var * Interval.interval 
+  | Direct   of var * Interval.interval * Expr.v_scope
   | StackPtr of var 
   | RegPtr   of var  
-  | Glob     of var * Interval.interval
 
 type stk_alloc_oracle_t =
   { sao_calls  : Sf.t

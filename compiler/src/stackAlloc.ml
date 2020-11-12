@@ -27,10 +27,9 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
       Stack_alloc.{ smp_ofs = Conv.z_of_int i.min; 
                     smp_len = Conv.z_of_int (Interval.size i) } in
     let conv_ptr_kind x = function
-      | Varalloc.Stack(s, i) -> Stack_alloc.PIstack (Conv.cvar_of_var tbl s, conv_sub i)
-      | Glob (s, i)          -> Stack_alloc.PIglob (Conv.cvar_of_var tbl s, conv_sub i)
-      | RegPtr s             -> Stack_alloc.PIregptr(Conv.cvar_of_var tbl s)
-      | StackPtr s           -> 
+      | Varalloc.Direct (s, i, sc) -> Stack_alloc.PIdirect (Conv.cvar_of_var tbl s, conv_sub i, sc)
+      | RegPtr s                   -> Stack_alloc.PIregptr(Conv.cvar_of_var tbl s)
+      | StackPtr s                 ->
         let xp = V.clone x in
         Stack_alloc.PIstkptr(Conv.cvar_of_var tbl s, 
                              conv_sub Interval.{min = 0; max = size_of_ws U64}, Conv.cvar_of_var tbl xp) in
