@@ -784,7 +784,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       end in
 
     let print_alignment fmt =
-      if Mml.is_empty t.alignment then ()
+      if Mml.is_empty t.alignment || !only_rel_print then ()
       else begin
         Format.fprintf fmt "@[<hv 2>* Alignment:@;";
         Mml.iter (fun (MemLoc v) wsize ->

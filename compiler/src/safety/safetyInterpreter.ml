@@ -2115,8 +2115,8 @@ end = struct
     
     let sb = !only_rel_print in (* Not very clean *)
     only_rel_print := true;
-    Format.fprintf fmt "Cost Max:@;@[%a@]@;\
-                        Cost Min:@;@[%a@]@;"
+    Format.fprintf fmt "Cost Max:@;@[%a@]\
+                        Cost Min:@;@[%a@]"
       (AbsDom.print ~full:true) a_proj_max
       (AbsDom.print ~full:true) a_proj_min;
 
@@ -2136,7 +2136,7 @@ end = struct
           let z_expr = Mtexpr.cst (Coeff.s_of_int (!Glob_options.pipeline_input_value)) in
           let z_sexpr = sexpr_from_simple_expr z_expr in
           let proj = AbsDom.assign_sexpr ~force:true a_proj_min var None z_sexpr in 
-          Format.fprintf fmt "Cost Min projected:@;%a@;"
+          Format.fprintf fmt "Cost Min projected:@;%a"
             (AbsDom.print ~full:true)
             (AbsDom.meet ~join_align:true ~join_init:true a_proj_min proj)
     in
@@ -2145,7 +2145,7 @@ end = struct
           let z_expr = Mtexpr.cst (Coeff.s_of_int (!Glob_options.pipeline_input_value)) in
           let z_sexpr = sexpr_from_simple_expr z_expr in
           let proj = AbsDom.assign_sexpr ~force:true a_proj_max var None z_sexpr in 
-          Format.fprintf fmt "Cost Max projected:@;%a@;"
+          Format.fprintf fmt "Cost Max projected:@;%a"
             (AbsDom.print ~full:true)
             (AbsDom.meet ~join_align:true ~join_init:true a_proj_max proj)
     in
