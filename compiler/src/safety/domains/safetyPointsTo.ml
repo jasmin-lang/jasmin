@@ -115,7 +115,7 @@ module PointsToImpl : PointsTo = struct
     Format.fprintf ppf "@[<hov 4>* Points-to:@ %a@]@;"
       (pp_list ~sep:(fun _ _ -> ()) (fun ppf (k,l) ->
            if l <> [] then
-             Format.fprintf ppf "%s: %a;@,"
+             Format.fprintf ppf "(%s → %a);@,"
                k pp_memlocs l;))
       (List.filter (fun (x,_) -> not (svariables_ignore x)) (Ms.bindings t.pts))
 
