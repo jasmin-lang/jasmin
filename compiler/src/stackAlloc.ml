@@ -24,8 +24,8 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
         pp_align    = pi.pi_align;
       }) in
     let conv_sub (i:Interval.t) = 
-      Stack_alloc.{ smp_ofs = Conv.z_of_int i.min; 
-                    smp_len = Conv.z_of_int (Interval.size i) } in
+      Stack_alloc.{ z_ofs = Conv.z_of_int i.min; 
+                    z_len = Conv.z_of_int (Interval.size i) } in
     let conv_ptr_kind x = function
       | Varalloc.Direct (s, i, sc) -> Stack_alloc.PIdirect (Conv.cvar_of_var tbl s, conv_sub i, sc)
       | RegPtr s                   -> Stack_alloc.PIregptr(Conv.cvar_of_var tbl s)
