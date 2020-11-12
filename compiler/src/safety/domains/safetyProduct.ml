@@ -486,7 +486,7 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
           + the intersection of PW.main.f_args Glob_options.relational to v.
           + costMin or costMax to v.
      - the variable is appears in while loops conditions,
-      or modifies a while loop condition variable. *)
+      or is modified by a while loop condition variable. *)
   let sv_ini =
     let sv = match PW.param.relationals with
       | None -> PW.main.f_args |> Sv.of_list
@@ -498,9 +498,8 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
       
   let v_rel : Sv.t =
     let v_rel = flow_to dp sv_ini in
-    (* FIXME: do we need to add variable flowing to while variables? *)
-    (* let v_while = flowing_to dp pa_res.while_vars in *)
-    let v_while = pa_res.while_vars in
+    let v_while = flow_to dp pa_res.while_vars in
+    (* let v_while = pa_res.while_vars in *)
     Sv.union v_rel v_while
 
   (* v is a pointer variable iff there is a direct flow from the intersection
@@ -590,7 +589,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
         + the intersection of ssa_main.f_args Glob_options.relational to v.
         + costMin or costMax to v.
      - the variable appears in a while loops conditions,
-     or modifies a while loop condition variable. *)
+     or is modified by a while loop condition variable. *)
   let ssa_sv_ini =
     let sv =
     match PW.param.relationals with
@@ -612,9 +611,8 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
       
   let ssa_v_rel : Sv.t =
     let v_rel = flow_to dp ssa_sv_ini in
-    (* FIXME: do we need to add variable flowing to while variables? *)
-    (* let v_while = flowing_to dp pa_res.while_vars in *)
-    let v_while = pa_res.while_vars in
+    let v_while = flow_to dp pa_res.while_vars in
+    (* let v_while = pa_res.while_vars in *)
     Sv.union v_rel v_while
 
   
