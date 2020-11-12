@@ -1994,6 +1994,8 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           | _ -> raise (Failure "-safetyparam ill-formed (too many '>' ?)"))
 
   let analyze () =
+    SafetyConfig.mk_config_doc ();
+    SafetyConfig.mk_config_default ();
     try     
     let ps_assoc = omap_dfl (fun s_p -> parse_params s_p)
         [ None, [ { relationals = None; pointers = None } ]]
