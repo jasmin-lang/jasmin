@@ -99,6 +99,13 @@ op VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
 op VPSHUFD_256 (w : W256.t) (m : W8.t) : W256.t =
   map (fun w => VPSHUFD_128 w m) w.
 
+op VSHUFPS_128 (w1 w2 : W128.t) (m:W8.t) = 
+  pack4 [VPSHUFD_128_B w1 m 0; VPSHUFD_128_B w1 m 1;
+         VPSHUFD_128_B w2 m 2; VPSHUFD_128_B w2 m 3].
+
+op VSHUFPS_256 (w1 : W256.t) (w2 : W256.t) (m : W8.t) : W256.t =
+  map2 (fun w1 w2 => VSHUFPS_128 w1 w2 m) w1 w2.
+
 (* -------------------------------------------------------------------- *)
 abbrev [-printing] VPBROADCASTI_2u128 = VPBROADCAST_2u128.
 
