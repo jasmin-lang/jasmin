@@ -1,5 +1,6 @@
 open Prog
 open Apron
+open Wsize
 
 module Config = SafetyConfig  
 
@@ -62,6 +63,17 @@ type analyzer_param = { relationals : string list option;
 
 (*------------------------------------------------------------*)
 let get_fun_def prog f = List.find_opt (fun x -> x.f_name = f) (snd prog)
+
+
+(*------------------------------------------------------------*)
+let wsize_of_int = function
+  | 8   -> U8
+  | 16  -> U16
+  | 32  -> U32
+  | 64  -> U64
+  | 128 -> U128
+  | 256 -> U256
+  | _   -> assert false
 
 
 (*------------------------------------------------------------*)

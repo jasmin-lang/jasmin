@@ -497,7 +497,9 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
 
   let v_rel : Sv.t =
     let v_rel = flow_to dp sv_ini in
-    let v_while = flowing_to dp pa_res.while_vars in
+    (* FIXME: do we need to add variable flowing to while variables? *)
+    (* let v_while = flowing_to dp pa_res.while_vars in *)
+    let v_while = pa_res.while_vars in
     Sv.union v_rel v_while
 
   (* v is a pointer variable iff there is a direct flow from the intersection
@@ -594,7 +596,9 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
 
   let ssa_v_rel : Sv.t =
     let v_rel = flow_to dp ssa_sv_ini in
-    let v_while = flowing_to dp pa_res.while_vars in
+    (* FIXME: do we need to add variable flowing to while variables? *)
+    (* let v_while = flowing_to dp pa_res.while_vars in *)
+    let v_while = pa_res.while_vars in
     Sv.union v_rel v_while
 
   

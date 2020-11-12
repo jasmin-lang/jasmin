@@ -584,13 +584,21 @@ end = struct
                        scaled_offset,
                        Pconst (B.of_int (size_of_ws slice.as_wsize *
                                          slice.as_len))) in
-      
-      let be = Papp2 (E.Ogt E.Cmp_int, bnd, Pconst (B.of_int n)) in
-
-      begin match AbsExpr.bexpr_to_btcons be state.abs with
+            
+      let simple_check = match AbsExpr.linearize_smpl_iexpr state.abs bnd with
         | None -> false
-        | Some c -> 
-          AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
+        | Some lin_e -> 
+          let int = AbsDom.bound_texpr state.abs lin_e in
+          Scalar.cmp_int int.sup n <= 0 in
+
+      if simple_check then true
+      else
+        let be = Papp2 (E.Ogt E.Cmp_int, bnd, Pconst (B.of_int n)) in
+
+        begin match AbsExpr.bexpr_to_btcons be state.abs with
+          | None -> false
+          | Some c -> 
+            AbsDom.is_bottom (AbsDom.meet_btcons state.abs c) end
 
     | NotZero (ws,e) ->
       (* We check that e is never 0 *)
@@ -603,6 +611,13 @@ end = struct
     (* These are checked elsewhere *)
     | AlignedPtr _ | AlignedExpr _ | Valid _ | Termination -> true
 
+  let is_safe state cond =
+    let res = is_safe state cond in
+    let () = debug (fun () ->
+        Format.eprintf "Checked condition: %a@."
+          pp_safety_cond cond)
+    in
+    res
 
   (* Update abs with the abstract memory range and alignment
      constraint for memory accesses. *)
@@ -616,7 +631,7 @@ end = struct
 
             (* We update the accessed memory range in [abs]. *)
             let x_o = Mtexpr.var (MvarOffset x) in
-            let lin_e = AbsExpr.linearize_wexpr abs e in
+            let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in
             let c_ws =
               (size_of_ws ws) 
               |> Coeff.s_of_int
@@ -645,7 +660,7 @@ end = struct
 
             (* And we check that the offset is correctly aligned. *)
             let x_o = Mtexpr.var (MvarOffset x) in
-            let lin_e = AbsExpr.linearize_wexpr abs e in            
+            let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in            
             let o_plus_e = Mtexpr.binop Texpr1.Add x_o lin_e in
             let violations =
               if AbsDom.check_align abs o_plus_e ws
@@ -658,7 +673,7 @@ end = struct
 
     | AlignedExpr (ws,e) as pv ->
       (* We check that the offset is correctly aligned. *)
-      let lin_e = AbsExpr.linearize_wexpr abs e in 
+      let lin_e = oget (AbsExpr.linearize_smpl_wexpr abs e) in 
       let violations =
         if AbsDom.check_align abs lin_e ws
         then violations
@@ -901,8 +916,12 @@ end = struct
           (pp_list pp_mvar) (List.map (fun x -> MmemRange x) fstate.s_effects));
 
     (* We join the alignment constraints, as we want the union of
-       previous and new constraints. *)
-    let abs = AbsDom.meet ~join_align:true state.abs fstate.abs in
+       previous and new constraints. 
+       Also, every variable (of the callee or caller) which was initalized
+       remains so. *)   
+    let abs = AbsDom.meet
+        ~join_align:true ~join_init:true
+        state.abs fstate.abs in
     let state = { abs = abs;
                   it = fstate.it;
                   env = state.env;
@@ -1248,12 +1267,28 @@ end = struct
       [Some e] 
 
     (* bitwise operators *)
+    | E.Ox86 (X86_instr_decl.AND ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Oland ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+
+    | E.Ox86 (X86_instr_decl.OR ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Olor ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+
+    | E.Ox86 (X86_instr_decl.XOR ws) ->
+      let e1, e2 = as_seq2 es in
+      let e = Papp2 (E.Olxor ws, e1, e2) in
+      rflags_unknwon @ [Some e]
+
+    | E.Ox86 (X86_instr_decl.NOT ws) ->
+      let e1 = as_seq1 es in
+      let e = Papp1 (E.Olnot ws, e1) in
+      rflags_unknwon @ [Some e]
+  
     | E.Ox86 (X86_instr_decl.TEST _)
-    | E.Ox86 (X86_instr_decl.AND  _)
     | E.Ox86 (X86_instr_decl.ANDN _)
-    | E.Ox86 (X86_instr_decl.OR   _)
-    | E.Ox86 (X86_instr_decl.NOT  _)        
-    | E.Ox86 (X86_instr_decl.XOR  _)
 
     (* mul signed with truncation *)
     | E.Ox86 (X86_instr_decl.IMUL _)
@@ -1937,9 +1972,9 @@ end = struct
     let state = List.fold_left (fun state ginstr ->
         aeval_ginstr ginstr state)
         state gstmt in
-    let () = debug (fun () ->
-        if gstmt <> [] then
-          Format.eprintf "%a%!" (AbsDom.print ~full:true) state.abs) in
+    let () = if gstmt <> [] then
+        debug (fun () ->            
+            Format.eprintf "%a%!" (AbsDom.print ~full:true) state.abs) in
     state
 
   (* Select the call strategy for [f_decl] in [st_in] *)

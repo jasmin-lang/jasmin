@@ -1,6 +1,8 @@
 S .
 B ../_build/src
 B ../_build/CIL
+B ../_build/src/safety
+B ../_build/src/safety/domains
 
 PKG batteries
 PKG menhirLib

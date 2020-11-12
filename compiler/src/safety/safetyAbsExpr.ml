@@ -265,7 +265,6 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       if linexpr_overflow abs line Unsigned (int_of_ws ws) then None
       else cst_var ()
     | _ -> raise (Aint_error "type error in aeval_cst_var") 
-
     
   (* Try to evaluate e to a constant expression in abs *)
   let rec aeval_cst_zint abs e = match e with
@@ -319,9 +318,6 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     try omap Z.to_int (aeval_cst_zint abs e) with
     | Z.Overflow -> None
   
-  (*-------------------------------------------------------------------------*)
-  let wop_from_bool_op = assert false (* TODO *)
-
   (*-------------------------------------------------------------------------*)
   let arr_full_range x =
     List.init
@@ -541,8 +537,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
                     
           let lin = Mtexpr.(binop Texpr1.Mod lin_e' log_i) in
           wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
-
-            | _ -> raise (Binop_not_supported op2)
+            
+        | _ -> raise (Binop_not_supported op2)
       end
 
     | Pget(access,ws,x,ei) ->
@@ -561,6 +557,15 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | _ -> print_not_word_expr e;
       assert false
 
+  let rec linearize_smpl_iexpr abs (e : expr) =
+    try Some (linearize_iexpr abs e) with
+      Unop_not_supported _ | Binop_not_supported _ -> None
+
+  let rec linearize_smpl_wexpr abs (e : expr) =
+    try Some (linearize_wexpr abs e) with
+      Unop_not_supported _ | Binop_not_supported _ -> None
+
+  
   let map_f f e_opt = match e_opt with
     | None -> None
     | Some (ty,b,el,er) -> Some (ty, b, f el, f er)
@@ -777,7 +782,10 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           try linearize_wexpr abs expr
               |> cast_if_overflows abs out_sw (int_of_ws in_sw)
               |> some
-          with | Unop_not_supported _ | Binop_not_supported _ -> None in
+          with
+          | Unop_not_supported _
+          | Binop_not_supported _ ->
+            Some (top_linexpr abs (wsize_of_int out_sw)) in
 
         (b_list, lin_expr))
       (remove_if_expr e)

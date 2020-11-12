@@ -1,0 +1,19 @@
+export
+fn main(reg u64 len, reg u32 x0 x1 x2 x3) {
+  stack u8[16] tmp;
+  reg u8 c;
+  inline int j;
+  
+  len = 0 if len > 17;
+  
+  tmp[u32  0] = x0;
+  tmp[u32  1] = x1;
+  tmp[u32  2] = x2;
+  tmp[u32  3] = x3;
+  j = 0;
+  while(j < len)
+  {
+    c = tmp[(int)j];
+    j += 1;
+  }
+}
