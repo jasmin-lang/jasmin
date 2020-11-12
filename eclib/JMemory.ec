@@ -133,7 +133,7 @@ proof.
          W4u8.Pack.init (fun i => loadW8 mem (p + i)).
   + by apply W4u8.Pack.all_eqP; rewrite /all_eq.
   apply (can_inj _ _ W4u8.unpack8K); apply W4u8.Pack.packP => i hi.
-  by rewrite pack4K initiE.
+  rewrite /loadW32 pack4K //=. 
 qed.
 
 lemma load4u32 mem p :
@@ -150,7 +150,7 @@ proof.
          W4u32.Pack.init (fun i => loadW32 mem (p + i * 4)).
   + by apply W4u32.Pack.all_eqP; rewrite /all_eq.
   apply (can_inj _ _ W4u32.unpack32K); apply W4u32.Pack.packP => i hi.
-  by rewrite pack4K initiE //=  get_unpack32 // loadW128_bits32.
+  by rewrite pack4K initiE //= get_unpack32 // loadW128_bits32.
 qed.
 
 lemma load2u64 mem p:

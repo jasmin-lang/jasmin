@@ -64,23 +64,24 @@ abbrev [-printing] const_rotate16_256 =
 abbrev [-printing] const_rotate24_256 =
   W256.of_int 5454353864746073763129182254217446065883741921538078285974850505695092212225.
 
+lemma iteri_red n (opr : int -> 'a -> 'a) x : 
+  0 < n => iteri n opr x = opr (n-1) (iteri (n-1) opr x).
+proof. smt (iteriS). qed.
+
+hint simplify iteri_red @0.
+hint simplify iteri0 @1.
+  
 lemma rotate8_256_E w :
   VPSHUFB_256 w const_rotate8_256 = W8u32.map (fun w => W32.rol w 8) w.
-proof.
-  by apply: W256.all_eq_eq; cbv delta.
-qed.
+proof. by apply: W256.all_eq_eq; cbv delta. qed.
 
 lemma rotate16_256_E w :
   VPSHUFB_256 w const_rotate16_256 = W8u32.map (fun w => W32.rol w 16) w.
-proof.
-  by apply: W256.all_eq_eq; cbv delta.
-qed.
+proof. by apply: W256.all_eq_eq; cbv delta. qed.
 
 lemma rotate24_256_E w :
   VPSHUFB_256 w const_rotate24_256 = W8u32.map (fun w => W32.rol w 24) w.
-proof.
-  by apply: W256.all_eq_eq; cbv delta.
-qed.
+proof. by apply: W256.all_eq_eq; cbv delta. qed.
 
 hint simplify (rotate8_256_E, rotate16_256_E, rotate24_256_E).
 
