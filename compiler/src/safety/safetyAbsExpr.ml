@@ -494,8 +494,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
                     
           let lin = Mtexpr.(binop Texpr1.Mod lin_e' log_i) in
           wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
-
-            | _ -> raise (Binop_not_supported op2)
+            
+        | _ -> raise (Binop_not_supported op2)
       end
 
     | Pget(ws,x,ei) ->
