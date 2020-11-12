@@ -523,22 +523,22 @@ end = struct
         | _ -> assert false end
 
     | InBound (i,ws,e) ->
-      let simple_check = match AbsExpr.linearize_smpl_iexpr state.abs e with
+      (* We check that (e + 1) * ws/8 is no larger than i *)
+      let epp = Papp2 (E.Oadd E.Op_int,
+                       e,
+                       Pconst (B.of_int 1)) in
+      let wse = Papp2 (E.Omul E.Op_int,
+                       epp,
+                       Pconst (B.of_int (size_of_ws ws))) in
+      
+      let simple_check = match AbsExpr.linearize_smpl_iexpr state.abs wse with
         | None -> false
         | Some lin_e -> 
           let int = AbsDom.bound_texpr state.abs lin_e in
-          Scalar.cmp_int int.sup i <= 0
-      in
+          Scalar.cmp_int int.sup i <= 0 in
 
       if simple_check then true
       else
-        (* We check that (e + 1) * ws/8 is no larger than i *)
-        let epp = Papp2 (E.Oadd E.Op_int,
-                         e,
-                         Pconst (B.of_int 1)) in
-        let wse = Papp2 (E.Omul E.Op_int,
-                         epp,
-                         Pconst (B.of_int ((int_of_ws ws) / 8))) in
         let be = Papp2 (E.Ogt E.Cmp_int, wse, Pconst (B.of_int i)) in
 
         begin match AbsExpr.bexpr_to_btcons be state.abs with
@@ -2300,6 +2300,8 @@ module AbsAnalyzer (EW : ExportWrap) = struct
     try
      Aparam.check_overlaps := annot;
   
+    SafetyConfig.mk_config_doc ();
+    SafetyConfig.mk_config_default ();
     let ps_assoc = omap_dfl (fun s_p -> parse_params s_p)
         [ None, [ { relationals = None; pointers = None } ]]
         !Glob_options.safety_param in
