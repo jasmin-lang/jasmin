@@ -4,7 +4,9 @@ require import AllCore BitEncoding IntDiv SmtMap Ring List StdOrder Bool.
 require export JUtils JArray JWord JWord_array JMemory.
 
 (* -------------------------------------------------------------------- *)
-abbrev MOVD_32 (x : W32.t) = pack4 [x; W32.zero; W32.zero; W32.zero].
+abbrev MOVSZ32 (x : W32.t) = pack4 [x; W32.zero; W32.zero; W32.zero].
+abbrev [-printing] setw0_128 = W128.of_int 0.
+abbrev [-printing] setw0_256 = W256.of_int 0.
 
 (* -------------------------------------------------------------------- *)
 
