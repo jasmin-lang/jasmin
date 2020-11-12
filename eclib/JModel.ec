@@ -283,6 +283,24 @@ op VPBLENDD_256 (w1 w2: W256.t) (i:W8.t) : W256.t =
   pack8 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7].
 
 (* ------------------------------------------------------------------- *)
+
+op VSHUFPS_128 : W128.t -> W128.t -> W8.t -> W128.t.
+(* AES instruction *)
+op AESDEC          : W128.t -> W128.t -> W128.t.
+op AESDECLAST      : W128.t -> W128.t -> W128.t.
+op AESENC          : W128.t -> W128.t -> W128.t.
+op AESENCLAST      : W128.t -> W128.t -> W128.t.
+op AESIMC          : W128.t -> W128.t.
+op AESKEYGENASSIST : W128.t -> W8.t -> W128.t.
+
+abbrev [-printing] VAESDEC          = AESDEC.
+abbrev [-printing] VAESDECLAST      = AESDECLAST.
+abbrev [-printing] VAESENC          = AESENC.
+abbrev [-printing] VAESENCLAST      = AESENCLAST.
+abbrev [-printing] VAESIMC          = AESIMC.
+abbrev [-printing] VAESKEYGENASSIST = AESKEYGENASSIST.
+
+(* ------------------------------------------------------------------- *)
 abbrev [-printing] (\vshr32u128) (w1:W128.t) (w2:W8.t) = VPSRL_4u32 w1 w2.
 abbrev [-printing] (\vshl32u128) (w1:W128.t) (w2:W8.t) = VPSLL_4u32 w1 w2.
 abbrev [-printing] (\vadd32u128) (w1 w2:W128.t) = VPADD_4u32 w1 w2.
