@@ -425,6 +425,61 @@ Section Prefix.
 End Prefix.
 
 
+Section PairAll.
+  
+  Variable T : Type.
+  Variable a : T -> T -> bool.
+
+  Fixpoint pairall x s := if s is hs :: ts then a x hs && pairall hs ts else true.
+
+End PairAll.
+
+
+Section PairOnth.
+
+  Variable T1 T2 : Type.
+  Variable f : T1 -> T1 -> T2.
+
+  Fixpoint paironth x s i : option (T1 * T1) :=
+    match s with
+    | [::] => None
+    | y :: s' =>
+      match i with
+      | 0 => Some (x,y)
+      | i'.+1 => paironth y s' i'
+      end
+    end.
+
+  Lemma paironth_onth x s i p1 p2:
+    (paironth x s i = Some (p1,p2)) <->
+    match i with
+    | 0 => (x = p1) /\ (oseq.onth s i = Some p2)
+    | i'.+1 => (oseq.onth s i' = Some p1) /\ (oseq.onth s i = Some p2)
+    end.
+  Proof.
+    elim: s x i => [x [|i]|hs ts IHs x [|i]] => //=.
+    + by split => [|[]]; [split|].
+    + by split => [|[]]; [split|].
+    + by split => [[-> ->]|[-> [->]]].
+    apply (iff_trans (IHs _ _)).
+    case Hi: i => //=.
+    apply and_iff_compat_r.
+    by split => [->|[]].
+  Qed.
+
+  Lemma paironth_pairmap x s i :
+    oseq.onth (pairmap f x s) i =
+    match paironth x s i with
+    | Some (p1,p2) => Some (f p1 p2)
+    | None => None
+    end.
+  Proof.
+    by elim: s x i => [x [|i]|hs ts IHs x [|i]] => /=.
+  Qed.
+
+End PairOnth.
+
+
 Section Tunneling.
 
   Context (fn : funname).
@@ -499,32 +554,52 @@ Section TunnelingProof.
       by rewrite LUF.find_empty.
   Qed.
 
-  (*Need to redefine all of this in terms of a pairall.*)
   (*
-  Definition is_not_in_uf uf c :=
-    match c with
-      | MkLI _ li =>
-        match li with
-          | Llabel l => LUF.find uf l == l
-          | _ => true
+  Definition is_not_in_uf uf c c' :=
+    match c, c' with
+      | MkLI _ li, MkLI _ li' =>
+        match li, li' with
+          | Llabel l, Lgoto (fn',l') => LUF.find uf l == l
+          | _, _ => true
         end
     end.
 
-  Lemma all_is_not_in_empty lc : (all (is_not_in_uf LUF.empty) lc).
+  Lemma all_is_not_in_empty c lc : (pairall (is_not_in_uf LUF.empty) c lc).
   Proof.
-    by elim: lc =>[|[_ []]] //= l tlc ->; rewrite LUF.find_empty eq_refl.
+    move: c; elim: lc => [|hlc tlc IHlc] //= c.
+    rewrite IHlc /is_not_in_uf.
+    case: c => _ []; case: hlc => //= _ [] //= [_ _] l.
+    by rewrite LUF.find_empty eq_refl.
   Qed.
 
-  Lemma tunnel_plan_prefix fn uf (plc slc : lcmd) : (all (is_not_in_uf uf) slc) -> tunnel_partial fn (tunnel_plan fn uf plc) (plc ++ slc) = (tunnel_partial fn (tunnel_plan fn uf plc) plc) ++ slc.
+  Lemma tunnel_plan_prefix fn uf (plc slc : lcmd) : (pairall (is_not_in_uf uf) (last Linstr_align plc) slc) -> tunnel_partial fn (tunnel_plan fn uf plc) (plc ++ slc) = (tunnel_partial fn (tunnel_plan fn uf plc) plc) ++ slc.
   Proof.
     elim: plc => [|hplc tplc IHplc Hallnot].
     + rewrite /tunnel_plan /tunnel_partial //=.
       move: Linstr_align.
       elim: slc => [|hslc tslc IHslc] //= c /andP [Hhslc Htslc].
-      rewrite IHslc.
-      case: c => //=.
-  Qed.
+      rewrite (IHslc _ Htslc).
+      clear IHslc Htslc.
+      move: Hhslc.
+      case: c => /= _ []; case: hslc => /= hslc_ii []; intros => //=.
+  Abort.
   *)
+
+  Definition find_pairinstr s := paironth Linstr_align (lc s) (lpc s).
+
+  Definition lsem_tunnel_step p s c1 c2 :=
+    match find_pairinstr s with
+    | Some (c3,c4) =>
+      match c1,c2,c3,c4 with
+      | MkLI _ li1, MkLI _ li2, MkLI _ li3, MkLI _ li4 =>
+        match li1,li2,li3,li4 with
+        | Llabel l1, Lgoto _, Llabel _, Lgoto (_,l4)
+        | Llabel l1, Lgoto _, _, Lcond _ l4 => if l4 == l1 then step p s else ok(s)
+        | _,_,_,_ => ok(s)
+        end 
+      end
+    | None => type_error
+    end.
 
   Theorem lsem_tunneling p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem p (lsem_tunnel s1) s3.
   Proof.
@@ -540,7 +615,13 @@ Section TunnelingProof.
       by elim: (lc s1) Linstr_align => [|hlc1 tlc1 IHlc1] i //=; rewrite IHlc1.
     rewrite /P.
     move => hli tli Hprefix [s3 [Hlsem23 Hlsemp13]].
-    rewrite /lsem_tunnel_partial /tunnel_plan pairfoldl_rcons -/tunnel_plan.
+    rewrite /lsem_tunnel_partial /tunnel_plan pairfoldl_rcons.
+    (*I don't want that, I want to remove the ok.*)
+    exists (lsem_tunnel_step p s3 (last Linstr_align tli) hli).
+    split; first exact Hlsem23.
+    move: Hprefix Hlsemp13.
+    case: (lastP tli) => /=; first by case: hli; rewrite /lsem_tunnel_partial /tunnel_plan.
+    move => ttli htli /=.
   Qed.
 
 End TunnelingProof.
