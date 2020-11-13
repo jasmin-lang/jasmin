@@ -480,6 +480,23 @@ Section PairOnth.
 End PairOnth.
 
 
+Section PairMapProps.
+
+Lemma pairmapE {T U : Type} (f : T -> T -> U) (x : T) (s : seq T) :
+  pairmap f x s = map (fun xy => f xy.1 xy.2) (zip (x :: s) s).
+Proof. by elim: s x => //= y s ->. Qed.
+
+Lemma eq_pairmap {T U : Type} (f g : T -> T -> U) (x : T) (s : seq T) :
+  f =2 g -> pairmap f x s = pairmap g x s.
+Proof. by move=> eq_fg; rewrite !pairmapE; apply/eq_map=> []. Qed.
+
+Lemma size_pairmap {T U : Type} (f g : T -> T -> U) (x : T) (s : seq T) :
+  size (pairmap f x s) = size s.
+Proof. by rewrite pairmapE size_map size2_zip /=. Qed.
+
+End PairMapProps.
+
+
 Section Tunneling.
 
   Context (fn : funname).
@@ -531,22 +548,8 @@ Section TunnelingProof.
     by constructor.
   Qed.
 
-  (*
-  Lemma tunnel_partial_prefix s plc : prefix plc s.(lc) -> prefix (lsem_tunnel_partial s plc plc).(lc) (lsem_tunnel_partial s plc s.(lc)).(lc).
+  Lemma tunnel_bore_empty fn c c': tunnel_bore fn LUF.empty c c' = c'.
   Proof.
-    move/prefixP => [slc].
-    elim: plc => //=; first by case: (tunnel_partial _ _ _).
-    move => hplc tplc.
-  Qed.
-  *)
-
-  (*I know this is proved somewhere.*)
-  Lemma obvious (T1 T2 : Type) (f g : T1 -> T2) : (forall x , ((f x) = (g x))) -> (f = g).
-  Admitted.
-
-  Lemma tunnel_bore_empty fn : tunnel_bore fn LUF.empty = (fun c c' => c').
-  Proof.
-    apply: obvious => c; apply: obvious => c'.
     case: c => li_ii li_i; case: li_i; case: c' => li_ii' li_i'; case: li_i' => //=; intros.
     3:
       case: r => a b; case Heq: (fn == a) => //.
@@ -554,64 +557,54 @@ Section TunnelingProof.
       by rewrite LUF.find_empty.
   Qed.
 
-  (*
-  Definition is_not_in_uf uf c c' :=
-    match c, c' with
-      | MkLI _ li, MkLI _ li' =>
-        match li, li' with
-          | Llabel l, Lgoto (fn',l') => LUF.find uf l == l
-          | _, _ => true
-        end
-    end.
-
-  Lemma all_is_not_in_empty c lc : (pairall (is_not_in_uf LUF.empty) c lc).
+  (*Takeaway: seems like there is absolutely no guarantee that the list of commands in s1 or s2 has anything to do with the function with the same name defined in p.*)
+  (*Also, any Lgoto or Ligoto changes lc with a value taken in p.*)
+  Lemma lsem_same_lc p s1 s2 : lsem p s1 s2 -> s1.(lc) = s2.(lc).
   Proof.
-    move: c; elim: lc => [|hlc tlc IHlc] //= c.
-    rewrite IHlc /is_not_in_uf.
-    case: c => _ []; case: hlc => //= _ [] //= [_ _] l.
-    by rewrite LUF.find_empty eq_refl.
-  Qed.
-
-  Lemma tunnel_plan_prefix fn uf (plc slc : lcmd) : (pairall (is_not_in_uf uf) (last Linstr_align plc) slc) -> tunnel_partial fn (tunnel_plan fn uf plc) (plc ++ slc) = (tunnel_partial fn (tunnel_plan fn uf plc) plc) ++ slc.
-  Proof.
-    elim: plc => [|hplc tplc IHplc Hallnot].
-    + rewrite /tunnel_plan /tunnel_partial //=.
-      move: Linstr_align.
-      elim: slc => [|hslc tslc IHslc] //= c /andP [Hhslc Htslc].
-      rewrite (IHslc _ Htslc).
-      clear IHslc Htslc.
-      move: Hhslc.
-      case: c => /= _ []; case: hslc => /= hslc_ii []; intros => //=.
+    move: s2.
+    apply Operators_Properties.clos_refl_trans_ind_left.
+    + by case: s1.
+    move => s2 s2' _ ->.
+    rewrite /lsem1 /step.
+    case: (find_instr s2) => // c.
+    rewrite /eval_instr.
+    case: s2 => lmem2 lvm2 lfn2 lc2 lpc2.
+    case: s2' => lmem2' lvm2' lfn2' lc2' lpc2'.
+    case: c => li_ii [] //=.
+    + by t_xrbindP.
+    + by t_xrbindP.
+    + by t_xrbindP.
+    (*Lgoto*)
+    + t_xrbindP; rewrite /eval_jump => [] [fn l]; case Hgfu: (get_fundef (lp_funcs p) fn); t_xrbindP => // lpc.
+      (*Weird automatically named variable when using case _: _.*)
+      rewrite /find_label; case Hfind: (find (is_label l) (lfd_body _) < size (lfd_body _)) => //.
+      t_xrbindP => Hfindeq; rewrite Hfindeq in Hfind.
+      rewrite /get_fundef assocE // in Hgfu.
+      case Hsize: (size [seq Some v.2 | v <- lp_funcs p] <= seq.index fn [seq v.1 | v <- lp_funcs p]); first by rewrite nth_default // in Hgfu.
+      (*Weird, should there not be some link between p and s1 and s2?*)
+      by admit.
+    (*Ligoto*)
+    + t_xrbindP => e x v.
+      rewrite /sem.to_word; t_xrbindP; case: v => //; last by move => [] //.
+      rewrite /sem.truncate_word => ws w; case Hws: ((U64 ≤ ws)%CMP) => //.
+      t_xrbindP => Hsem_pexpr Hx.
+      move: Hx Hsem_pexpr => <-.
+      case Hdl: (decode_label (zero_extend U64 w)) => //.
+      rewrite /eval_jump; t_xrbindP.
+      move: Hdl; case: _a_.
+    + by move => lv l; t_xrbindP; case: (encode_label (lfn2, l)) => //; t_xrbindP.
+    by t_xrbindP => e l b _ _ _; case: b; t_xrbindP.
   Abort.
-  *)
 
-  Definition find_pairinstr s := paironth Linstr_align (lc s) (lpc s).
-
-  Definition lsem_tunnel_step p s c1 c2 :=
-    match find_pairinstr s with
-    | Some (c3,c4) =>
-      match c1,c2,c3,c4 with
-      | MkLI _ li1, MkLI _ li2, MkLI _ li3, MkLI _ li4 =>
-        match li1,li2,li3,li4 with
-        | Llabel l1, Lgoto _, Llabel _, Lgoto (_,l4)
-        | Llabel l1, Lgoto _, _, Lcond _ l4 => if l4 == l1 then step p s else ok(s)
-        | _,_,_,_ => ok(s)
-        end 
-      end
-    | None => type_error
-    end.
-
-  Theorem lsem_tunneling p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem p (lsem_tunnel s1) s3.
+  Theorem lsem_tunneling p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem p (lsem_tunnel s1) (lsem_tunnel s3).
   Proof.
     rewrite lsem_tunnel_partial_tunnel => Hlsem12.
     pose P:= fun lc1 lc1' => ∃ s3 : lstate, lsem p s2 s3 ∧ lsem p (lsem_tunnel_partial s1 lc1 lc1') s3.
     apply (@prefixW _ P).
     + exists s2; split; first by apply Relation_Operators.rt_refl.
       rewrite /lsem_tunnel_partial.
-      have ->: tunnel_partial (lfn s1) (tunnel_plan (lfn s1) LUF.empty [::]) (lc s1) = lc s1; last first.
-      (*Really stupid thing to prove.*)
-      - by admit.
-      rewrite /tunnel_partial /tunnel_plan /= tunnel_bore_empty.
+      have ->: tunnel_partial (lfn s1) (tunnel_plan (lfn s1) LUF.empty [::]) (lc s1) = lc s1; last by case: s1 {P} Hlsem12 => /=.
+      rewrite /tunnel_partial /tunnel_plan /= (eq_pairmap _ _ (tunnel_bore_empty (lfn s1))).
       by elim: (lc s1) Linstr_align => [|hlc1 tlc1 IHlc1] i //=; rewrite IHlc1.
     rewrite /P.
     move => hli tli Hprefix [s3 [Hlsem23 Hlsemp13]].
