@@ -10,7 +10,7 @@ op RotWord (w:W32.t) =
 
 op SubBytes (w : W128.t) = map Sbox w. 
 
-op InvSubBytes (w : W128.t) = map InvSbox w. 
+op InvSubBytes (w : W128.t) = map SubWord w. 
 
 op AddRoundKey (w1 w2 : W128.t) = w1 `^` w2.
 
