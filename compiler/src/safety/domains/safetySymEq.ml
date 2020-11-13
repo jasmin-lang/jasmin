@@ -74,6 +74,7 @@ let rec rewrite_e e =
 let rewrite_c bt =
   Mtcons.make (rewrite_e (Mtcons.get_expr bt)) (Mtcons.get_typ bt)
 
+(* Tries to rewrite [bt] into [a + b ⋄ 0] where ⋄ ∈ {≥, >, ≠, =} *)
 let cmp_cst bt =
   let open Mtexpr in
   let e = Mtcons.get_expr bt in
@@ -95,6 +96,7 @@ let rec rewrite bt = match bt with
       match swap (cmp_cst bt1, cmp_cst bt2) with      
 
       | None, _ | _, None -> bt
+      (*     a + b >= 0                  a' + b' <> 0 *)
       | Some (a, b, Tcons1.SUPEQ), Some (a', b', Tcons1.DISEQ) ->
         let ma = rewrite_e (Mtexpr.unop Texpr1.Neg a) in
         let mb = rewrite_e (Mtexpr.unop Texpr1.Neg b) in
@@ -103,7 +105,9 @@ let rec rewrite bt = match bt with
            (Mtexpr.equal_mexpr ma a' && Mtexpr.equal_mexpr mb b') ||
            (Mtexpr.equal_mexpr ma b' && Mtexpr.equal_mexpr mb a')
         then
-          (* (a + b <> 0 /\ a + b >= 0) <=> a + b > 0 *)
+          (* (a + b <> 0 /\ a + b >= 0) <=> a + b > 0
+             or:
+             (-a + -b <> 0 /\ a + b >= 0) <=> a + b > 0 *)
           BLeaf (Mtcons.make
                    (Mtexpr.binop Texpr1.Add a b)
                    Tcons1.SUP)
@@ -114,8 +118,7 @@ let rec rewrite bt = match bt with
   | BAnd (b1,b2) -> BAnd ( rewrite b1, rewrite b2 )
   | BOr (b1,b2)  -> BOr  ( rewrite b1, rewrite b2 ) 
   | BVar _ | BLeaf _ -> bt
-
-
+    
 (*------------------------------------------------------------*)
 module SymExprImpl : SymExpr = struct
   (* γ(x ↦ e)    = { m | 〚x〛(m) = 〚e〛(m) }

@@ -35,12 +35,13 @@ module AbsExpr (AbsDom : SafetyInterfaces.AbsNumBoolType) : sig
   val wrap_if_overflow : AbsDom.t -> Mtexpr.t -> signedness -> int -> Mtexpr.t 
   val cast_if_overflows : AbsDom.t -> int -> int -> Mtexpr.t -> Mtexpr.t
                                                                   
-  val aeval_cst_int : AbsDom.t -> ty gexpr -> int option      
+  val aeval_cst_zint : AbsDom.t -> ty gexpr -> Z.t option      
+  val aeval_cst_int : AbsDom.t -> ty gexpr  -> int option
       
   val abs_arr_range : AbsDom.t -> ty gvar -> wsize -> ty gexpr -> atype list
           
-  val linearize_iexpr : AbsDom.t -> expr     -> Mtexpr.t
-  val linearize_wexpr : AbsDom.t -> ty gexpr -> Mtexpr.t
+  val linearize_smpl_iexpr : AbsDom.t -> expr     -> Mtexpr.t option
+  val linearize_smpl_wexpr : AbsDom.t -> ty gexpr -> Mtexpr.t option
                                                   
   val bexpr_to_btcons : ty gexpr -> AbsDom.t -> btcons option
       

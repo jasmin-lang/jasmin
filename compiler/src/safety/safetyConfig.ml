@@ -427,9 +427,10 @@ let pp_current_config_diff () =
       let x' = List.find (fun y -> y.name = x.name) default in
       x.p <> x'.p) !config in
   if config <> [] then
-    Format.eprintf "Checker parameter:@\n%a@." 
+    Format.eprintf "Checker configuration parameters:@\n%a@." 
       pp_config config
-  else ()  
+  else
+    Format.eprintf "Default checker configuration parameters.@." 
 
 (* -------------------------------------------------------------------- *)
 let mk_config_doc () =
@@ -440,33 +441,31 @@ let mk_config_doc () =
     close_out file
   with Sys_error s ->
     Format.eprintf "@[<v>Failed to create configuration documentation:@;\
-                    %s@]" s
-
-let () = mk_config_doc ()
+                    %s@.@]" s
 
 (* -------------------------------------------------------------------- *)
 let mk_config_default () =
   let json : Json.Basic.t = to_json default in
   try
-    let file = open_out "config/checker_config_default.json" in
-    let () = output_string file
-        "// Default configuration file. Automatiacally generated, any changes \
+    let file = Stdlib.open_out "config/checker_config_default.json" in
+    let () = Stdlib.output_string file
+        "// Default configuration file. Automatically generated, any changes \
          will be overwritten.\n" in
     let () = Json.Basic.pretty_to_channel file json in
     close_out file
   with Sys_error s ->
     Format.eprintf "@[<v>Failed to create default configuration file:@;\
-                    %s@]" s
-
-let () = mk_config_default ()
-
+                    %s@.@]" s
 
 (* -------------------------------------------------------------------- *)
 let load_config (filename : string) : unit =
   try
-    config := of_json !config ((Json.Basic.from_file filename :> Json.Basic.t)) 
+    let () =
+      config := of_json !config ((Json.Basic.from_file filename :> Json.Basic.t))
+    in
+    Format.eprintf "Configuration file loaded: %s@." filename
   with
   | Json.Json_error _ ->
-    Format.eprintf "ERROR: safety configuration file %s is invalid" filename
+    Format.eprintf "ERROR: safety configuration file %s is invalid@." filename
   | BadSafetyConfig s ->
-    Format.eprintf "ERROR: safety configuration file %s: %s" filename s
+    Format.eprintf "ERROR: safety configuration file %s: %s@." filename s
