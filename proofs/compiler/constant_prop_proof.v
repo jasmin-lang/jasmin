@@ -629,6 +629,7 @@ Qed.
 
 Definition vconst c :=
   match c with
+  | Cbool b => Vbool b
   | Cint z => Vint z
   | Cword sz z => Vword z
   end.
@@ -655,7 +656,7 @@ Section CONST_PROP_EP.
     - move => [x []] v; rewrite /= /get_gvar /=; last by eauto.
       move: Hvalid => /(_ x).
       case: Mvar.get => [n /(_ _ erefl)| _ /= ]; last by rewrite /= /get_gvar /=;eauto.
-      by case: n => [ n | sz w ] /= -> [<-]; rewrite /sem_sop1 /= ?wrepr_unsigned;
+      by case: n => [ b | n | sz w ] /= -> [<-]; rewrite /sem_sop1 /= ?wrepr_unsigned;
            eexists;(split;first reflexivity) => /=.
     - move => aa sz x e He v.
       apply:on_arr_gvarP; rewrite /on_arr_var => n t ? -> /=.
@@ -720,13 +721,21 @@ Lemma add_cpmP s1 s1' m x e tag ty v1 v v' :
 Proof.
   rewrite /add_cpm;case: x => //= x He.
   case: tag => //.
-  case: e He => // [ n | [] // sz [] //= q ] [<-].
+  case: e He => // [n | b | [] // sz [] //= q ] [<-].
   + case: v => //= ?;last first.
     + by rewrite compat_typeC => /eqP ->; case: ty.
     move=> -> /truncate_val_int [_ ->].
     case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
     have := Hv z n0.
     case: ({| vtype := sint; vname := xn |} =P z).
+    + move=> <- /=;rewrite Mvar.setP_eq=> ? -[] <-;by rewrite /get_var Fv.setP_eq.
+    by move=> /eqP Hneq;rewrite Mvar.setP_neq.
+  + case: v => //= ?;last first.
+    + by rewrite compat_typeC => /eqP ->; case: ty.
+    move=> -> /truncate_val_bool [_ ->].
+    case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
+    have := Hv z n0.
+    case: ({| vtype := sbool; vname := xn |} =P z).
     + move=> <- /=;rewrite Mvar.setP_eq=> ? -[] <-;by rewrite /get_var Fv.setP_eq.
     by move=> /eqP Hneq;rewrite Mvar.setP_neq.
   case: v => //= s ;last first.
@@ -883,7 +892,7 @@ Instance add_cpm_m :
 Proof.
   move=> m1 m2 Hm x x' <- {x'} t t' <- {t'} ty ty' <- {ty'} e e' <- {e'}.
   case: x t => //= v [];rewrite ?Hm //.
-  by case: e => //= [n | [] // sz [] // n ]; rewrite Hm.
+  by case: e => //= [n | b | [] // sz [] // n ]; rewrite Hm.
 Qed.
 
 Instance merge_cpm_m :

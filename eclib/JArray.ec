@@ -526,7 +526,7 @@ abstract theory PolyArray.
   op is_init (t: 'a option t) = all is_init t.
 
   lemma is_init_Some (t:'a t) : is_init (map Some t).
-  proof. by rewrite allP => i hi; rewrite mapiE. qed.
+  proof. by rewrite /is_init allP => i hi; rewrite mapiE. qed.
 
   hint simplify [eqtrue] is_init_Some.
 

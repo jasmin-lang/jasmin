@@ -58,9 +58,7 @@ abbrev max_uint = modulus - 1.
 lemma max_uintS: max_uint + 1 = modulus by done.
 
 lemma ge2_modulus : 2 <= modulus.
-proof.
-  rewrite powS_minus ?gt0_size; smt (gt0_size expr_gt0).
-qed.
+proof. rewrite powS_minus ?gt0_size; smt (gt0_size expr_gt0). qed.
 
 lemma gt0_modulus : 0 < modulus.
 proof. smt (ge2_modulus). qed.
@@ -177,7 +175,7 @@ proof.
     case (i < p) => hip /=.
     + have -> : p = ((p - i - 1) + 1) + i by ring.
       rewrite h0i his exprDn // 1:/# divzMDl; 1: smt (gt0_pow2).
-      rewrite exprDn 1:/# //= modzMDl divNz // gt0_pow2.
+      by rewrite exprDn 1:/# //= modzMDl divNz // gt0_pow2.
     by rewrite divz_small //; smt (gt0_pow2 ler_weexpn2l).
   case : (p <= size) => hps; 1: by apply aux.
   rewrite (_:i < p) 1:/# -of_int_mod.
@@ -210,9 +208,9 @@ proof.
   rewrite size_mkseq ler_maxr 1:// /= hrec.
   have {2}->:= modz_pow_split (i+j+1) (i+j) (to_uint w) 2 _; 1: smt().
   have hij1 : 2 ^ (i + j + 1) = 2^(j+1) * 2^i.
-  + rewrite -exprDn 1:/# 1://;congr;ring.
+  + by rewrite -exprDn 1:/# 1://;congr;ring.
   have hij : 2 ^ (i + j) = 2^j * 2^i.
-  + rewrite -exprDn 1:/# 1://;congr;ring.
+  + by rewrite -exprDn 1:/# 1://;congr;ring.
   have h2i0 : 2 ^ i <> 0 by smt (gt0_pow2).
   rewrite -addzA {2}hij1 -mulzA divzMDl 1://.
   rewrite {2}hij -mulzA divzMDl 1://.
@@ -220,11 +218,8 @@ proof.
   have -> : i + j + 1 - (i + j) = 1 by ring.
   have -> : i + j - i = j by ring.
   rewrite (exprDn 2 j 1) 1,2:// pow2_1 (modz_small _ (2^j * 2)).
-  + apply bound_abs; split.
-     smt (modz_cmp to_uint_cmp gt0_pow2).
-    move=> ?.
-    rewrite -hrec.
-    smt (modz_cmp to_uint_cmp gt0_pow2).
+  + apply bound_abs; split => [|?]; 1: smt (modz_cmp to_uint_cmp gt0_pow2).
+    by rewrite -hrec; smt (modz_cmp to_uint_cmp gt0_pow2).
   by rewrite addzC mulzC b2i_get 1:/#.
 qed.
 
@@ -878,7 +873,7 @@ proof.
     rewrite exprDn 1:/# 1:// -mulzA mulzK; 1: smt (gt0_pow2).
     by rewrite exprDn 1:/# //= -mulzA modzMl.
   rewrite (modz_pow2_div size) 1:/# modz_dvd.
-  + have /= := (dvdz_exp2l 2 1); apply => /#.
+  + by have /= := dvdz_exp2l 2 1; apply => /#.
   have {1}-> : j = (j - k) + k by ring.
   by rewrite exprDn 1,2:// divzMpr 1:gt0_pow2.
 qed.
@@ -1047,7 +1042,7 @@ lemma and_mod k w :
     w `&` of_int (2^k - 1) = of_int (to_uint w %% 2^k).
 proof.
   move=> hk;apply wordP => i hi /=.
-  rewrite of_int_powm1 // of_intwE hi /= /int_bit.
+  rewrite of_int_powm1 1:// of_intwE hi /= /int_bit.
   rewrite (modz_small _ modulus).
   + apply bound_abs; smt (le_modz modz_cmp to_uint_cmp gt0_pow2).
   case (i < k) => hik /=.
@@ -1093,6 +1088,12 @@ apply word_modeqP; congr.
 by rewrite to_uintD to_uint0 to_uint_onew to_uint1 max_uintS modzz.
 qed.
 
+lemma map2_w2bits_w2bits f w1 w2 : map2 f (w2bits w1) (w2bits w2) = w2bits (map2 f w1  w2).
+proof. by rewrite map2_w2bits bits2wK // size_map2 minrE !size_w2bits. qed.
+
+lemma map_w2bits_w2bits f w : map f (w2bits w) = w2bits (map f w).
+proof. by rewrite map_w2bits bits2wK 2:// size_map size_w2bits. qed.
+
 lemma nosmt to_uintD_disjoint w1 w2:
  w1 `&` w2 = BitWord.zero =>
  to_uint (w1 + w2) = to_uint w1 + to_uint w2.
@@ -1102,11 +1103,9 @@ rewrite to_uintD_small //.
 move: H0; rewrite !to_uintE.
 rewrite andE => ?.
 apply bs2int_add_disjoint.
-  by rewrite !size_map !size_iota.
- by rewrite !size_map !size_iota ler_maxr.
-rewrite -H0; congr.
-rewrite map2_w2bits bits2wK //.
-by rewrite size_map2 !size_w2bits /#.
++ by rewrite !size_map !size_iota.
++ by rewrite !size_map !size_iota ler_maxr.
+by rewrite -H0 map2_w2bits_w2bits.
 qed.
 
 lemma nosmt orw_disjoint w1 w2:
@@ -1116,15 +1115,7 @@ move=> H; have ?: to_uint (w1 `&` w2) = 0 by smt(to_uint0).
 apply word_modeqP; congr.
 rewrite to_uintD_disjoint //.
 move: H0; rewrite !to_uintE andE => ?.
-rewrite orE.
-rewrite -bs2int_or_add ?size_mkseq //.
- rewrite -H0.
- rewrite map2_w2bits bits2wK.
-  by rewrite size_map2 !size_w2bits /#.
- done.
-rewrite map2_w2bits bits2wK.
- by rewrite size_map2!size_w2bits /#.
-done.
+by rewrite orE -bs2int_or_add ?size_mkseq // 1:-H0 map2_w2bits_w2bits.
 qed.
 
 lemma nosmt to_uint_orw_disjoint w1 w2:
@@ -1140,14 +1131,8 @@ rewrite andwC => ?; have: to_uint (invw y `&` x) = 0 by smt(to_uint0).
 rewrite !to_uintE andE invE => ?.
 have ->: x \ule y = (0 <= (to_uint y - to_uint x)) by rewrite uleE /#.
 rewrite !to_uintE; apply bs2int_sub_common.
- by rewrite !size_map !size_iota.
-rewrite -H0; congr.
-rewrite map2_w2bits bits2wK.
- by rewrite size_map2 !size_w2bits /#.
-congr; rewrite /w2bits /mkseq -!map_comp /(\o) //=.
-apply eq_in_map => ?.
-rewrite mem_iota /=; move => [??].
-by rewrite mapiE /#.
++ by rewrite !size_w2bits. 
+by rewrite map_w2bits_w2bits map2_w2bits_w2bits.
 qed.
 
 lemma nosmt ule_andw x y:
@@ -1181,17 +1166,8 @@ rewrite to_uintB.
 move: H0; rewrite !to_uintE andE invE => ?.
 rewrite xorE.
 rewrite -bs2int_xor_sub ?size_mkseq //.
- rewrite -H0.
- rewrite map2_w2bits bits2wK.
-  by rewrite size_map2 !size_w2bits /#.
- congr; congr.
- rewrite /w2bits /mkseq -!map_comp /(\o) //=.
- apply eq_in_map => x.
- rewrite mem_iota /= => /> *.
- by rewrite mapiE /#.
-rewrite map2_w2bits bits2wK.
- by rewrite size_map2 !size_w2bits /#.
-done.
++ by rewrite map_w2bits_w2bits map2_w2bits_w2bits.
+by rewrite map2_w2bits_w2bits.
 qed.
 
 lemma nosmt orw_xpnd w1 w2: w1 `|` w2 = w1 - w1 `&` w2 + w2.
@@ -1243,14 +1219,16 @@ proof. move=> ?; rewrite ler_maxl //. qed.
 lemma masklsbE k i:
  (masklsb k).[i] = 0 <= i < min k size.
 proof.
-case: (0 <= k) => ?; last by rewrite masklsbNeg /=; smt().
+case: (0 <= k) => ?; last first.
++ by rewrite ler_maxl 1:/# /=; smt(ge0_size). 
+rewrite ler_maxr 1://. 
 case: (0 <= i < size) => Hi; last by rewrite get_out /#.
-rewrite /masklsb ler_maxr 1:// of_intE.
+rewrite /masklsb of_intE.
 case: (size <= k) => ?.
- rewrite powm1_mod // get_bits2w //.
- have /=:= (bs2int_nseq true size); rewrite ge0_size /= => <-.
- have:= bs2intK (nseq size true); rewrite size_nseq ler_maxr 1:/# => ->.
- by rewrite nth_nseq //#. 
++ rewrite powm1_mod // get_bits2w //.
+  have /=:= (bs2int_nseq true size); rewrite ge0_size /= => <-.
+  have:= bs2intK (nseq size true); rewrite size_nseq ler_maxr 1:/# => ->.
+  by rewrite nth_nseq //#. 
 rewrite modz_small; first by smt(gt0_pow2 ler_weexpn2l).
 rewrite get_bits2w //.
 have /= := (bs2int_nseq true k); rewrite H /= => <-.
@@ -1263,13 +1241,6 @@ by case: (i < k) => ?; rewrite nth_nseq /#.
 qed.
 
 hint simplify masklsbE.
-
-(* same as to_uint_and_mod
-lemma to_uint_andmask k w:
- 0 <= k =>
- to_uint (w `&` masklsb k) = to_uint w %% 2^k.
-proof. by move=> ?; rewrite to_uint_and_mod. qed.
-*)
 
 lemma nosmt shrl_andmaskN k w:
  0 <= k =>
@@ -1357,7 +1328,7 @@ lemma nosmt splitwE k w:
  0 <= k =>
  to_uint w = to_uint (w `&` masklsb k) + 2^k * to_uint (w `>>>` k).
 proof.
-move=> ?; rewrite /masklsb ler_maxr 1:// to_uint_and_mod // to_uint_shr //.
+move=> ?; rewrite to_uint_and_mod ler_maxr // to_uint_shr //.
 by rewrite {1}(divz_eq (to_uint w) (2^k)); ring.
 qed.
 
@@ -1400,11 +1371,11 @@ lemma nosmt splitAtP k w:
  /\ to_uint (splitAt k w).`2 = 2^k * (to_uint w %/ 2^k).
 proof.
 move=> /> *.
-rewrite 1:// /splitMask /= -shrl_andmaskN //; split.
- by rewrite /masklsb ler_maxr // to_uint_and_mod.
+rewrite /splitMask /= -shrl_andmaskN //; split.
++ by rewrite to_uint_and_mod ler_maxr.
 rewrite to_uint_shl // to_uint_shr // modz_small //; last by smt(to_uint_cmp).
 apply bound_abs; split.
- smt(divr_ge0 divz_ge0 gt0_pow2 to_uint_cmp).
++ smt(divr_ge0 divz_ge0 gt0_pow2 to_uint_cmp).
 move=> *.
 by apply (ler_lt_trans (to_uint w)); smt(leq_trunc_div gt0_pow2 to_uint_cmp).
 qed.
@@ -2162,13 +2133,6 @@ abstract theory BitWordSH.
 
   op shift_mask i = 
     W8.to_uint i %% (if size <= 32 then 32 else size).
-
-
- (* FIXME *)
-  op (`|>>`) : t -> W8.t -> t.
-
-  axiom SAR_sem a b :
-    a `|>>` b = of_int (to_sint a %/ 2^(W8.to_uint b)).
 
   op (`>>`) (w1 : t) (w2 : W8.t) = w1 `>>>` (to_uint w2 %% size).
   op (`<<`) (w1 : t) (w2 : W8.t) = w1 `<<<` (to_uint w2 %% size).

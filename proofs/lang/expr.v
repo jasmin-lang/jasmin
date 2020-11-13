@@ -217,16 +217,15 @@ Definition Osubcarry_instr sz:=
            sz [::].
 
 Definition Oset0_instr sz  :=
-  let name := pp_sz "set0" sz in
   if (sz <= U64)%CMP then 
-    mk_instr name 
+    mk_instr (pp_sz "set0" sz)
              [::] [::]
              (b5w_ty sz) (implicit_flags ++ [::E 0])
              (let vf := Some false in
               ok (::vf, vf, vf, vf, Some true & (0%R: word sz)))
              sz [::]
   else 
-    mk_instr name 
+    mk_instr (pp_sz "setw0" sz)
              [::] [::]  
              (w_ty sz) [::E 0] 
              (ok (0%R: word sz)) sz [::].

@@ -66,7 +66,7 @@ CIL:
 check: build
 	$(CHECK) --report=report.log $(CHECKCATS)
 
-check-ci: build
+check-ci:
 	$(CHECK) --report=- $(CHECKCATS)
 
 clean:

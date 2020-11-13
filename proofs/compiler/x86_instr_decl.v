@@ -134,6 +134,7 @@ Variant asm_op : Type :=
 | VPBLEND  `(velem) `(wsize)
 | VPACKUS  `(velem) `(wsize)
 | VPACKSS  `(velem) `(wsize)
+| VSHUFPS  `(wsize)
 | VPBROADCAST of velem & wsize
 | VMOVSHDUP of velem & wsize (* Replicate 32-bit (“single”) high values *)
 | VMOVSLDUP of velem & wsize (* Replicate 32-bit (“single”) low values *)
@@ -145,6 +146,19 @@ Variant asm_op : Type :=
 | VINSERTI128
 | VPERM2I128
 | VPERMQ
+(* AES instructions *)
+| AESDEC
+| VAESDEC
+| AESDECLAST
+| VAESDECLAST
+| AESENC
+| VAESENC
+| AESENCLAST
+| VAESENCLAST
+| AESIMC
+| VAESIMC
+| AESKEYGENASSIST
+| VAESKEYGENASSIST 
 .
 
 (* ----------------------------------------------------------------------------- *)
@@ -684,6 +698,15 @@ Definition x86_VPSHUFLW sz := x86_vpshuf sz (@wpshuflw _).
 Definition x86_VPSHUFD sz := x86_vpshuf sz (@wpshufd _).
 
 (* ---------------------------------------------------------------- *)
+
+Definition wshufps_128 (o : u8) (s1 s2: u128) :=
+  @make_vec U32 U128 [:: wpshufd1 s1 o 0; wpshufd1 s1 o 1; wpshufd1 s2 o 2; wpshufd1 s2 o 3].
+
+Definition x86_VSHUFPS sz s1 s2 o := 
+  Let _ := check_size_128_256 sz in
+  ok (lift2_vec U128 (wshufps_128 o) sz s1 s2).
+
+(* ---------------------------------------------------------------- *)
 Definition x86_VPUNPCKH ve sz := x86_u128_binop (@wpunpckh sz ve).
 Definition x86_VPUNPCKL ve sz := x86_u128_binop (@wpunpckl sz ve).
 
@@ -777,6 +800,31 @@ Definition x86_VPALIGNR128 (m:u8) (v1 v2: word U128) : word U128 :=
 Definition x86_VPALIGNR sz (v1 v2: word sz) (m:u8) : ex_tpl (w_ty sz) := 
   Let _ := check_size_128_256 sz in
   ok (lift2_vec U128 (x86_VPALIGNR128 m) sz v1 v2).
+
+(* TODO: move this in word *)
+(* FIXME: Extraction fail if they are parameter, more exactly extracted program fail *)
+(*
+Parameter wAESDEC          : u128 -> u128 -> u128.
+Parameter wAESDECLAST      : u128 -> u128 -> u128.
+Parameter wAESENC          : u128 -> u128 -> u128.
+Parameter wAESENCLAST      : u128 -> u128 -> u128.
+Parameter wAESIMC          : u128 -> u128.
+Parameter wAESKEYGENASSIST : u128 -> u8 -> u128.
+
+Definition x86_AESDEC          (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wAESDEC          v1 v2).
+Definition x86_AESDECLAST      (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wAESDECLAST      v1 v2).
+Definition x86_AESENC          (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wAESENC          v1 v2).
+Definition x86_AESENCLAST      (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wAESENCLAST      v1 v2).
+Definition x86_AESIMC          (v1    : u128) : ex_tpl (w_ty U128) := ok (wAESIMC          v1).
+Definition x86_AESKEYGENASSIST (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wAESKEYGENASSIST v1 v2).
+*)
+
+Definition x86_AESDEC          (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
+Definition x86_AESDECLAST      (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
+Definition x86_AESENC          (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
+Definition x86_AESENCLAST      (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
+Definition x86_AESIMC          (v1    : u128) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
+Definition x86_AESKEYGENASSIST (v1 : u128) (v2 : u8) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
 
 (* ----------------------------------------------------------------------------- *)
 Coercion F f := ADImplicit (IArflag f).
@@ -916,7 +964,10 @@ Notation mk_instr_ww8_b5w_0c0 name semi check max_imm prc pp_asm := ((fun sz =>
 Notation mk_instr_w2w8_b5w_01c0 name semi check max_imm prc pp_asm := ((fun sz =>
   mk_instr (pp_sz name sz) (w2w8_ty sz) (b5w_ty sz) [:: E 0; E 1; ADExplicit 2 (Some RCX)] (implicit_flags ++ [:: E 0]) MSB_CLEAR (semi sz) (check sz) 3 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
-Notation mk_instr_w2w8_w_1230 name semi check max_imm prc pp_asm := ((fun (ve:velem) sz =>
+Notation mk_instr_w2w8_w_1230 name semi check max_imm prc pp_asm := ((fun sz =>
+  mk_instr (pp_sz name sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR (semi sz) (check sz) 4 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+
+Notation mk_ve_instr_w2w8_w_1230 name semi check max_imm prc pp_asm := ((fun (ve:velem) sz =>
   mk_instr (pp_ve_sz name ve sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR (semi ve sz) (check sz) 4 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w_w128_10 name semi check max_imm prc pp_asm := ((fun sz =>
@@ -1314,7 +1365,7 @@ Definition Ox86_VPUNPCKL_instr :=
 
 Definition check_xmm_xmm_xmmm_imm8 (_:wsize) := [:: [:: xmm; xmm; xmmm true; i U8]].
 Definition Ox86_VPBLEND_instr :=
-  mk_instr_w2w8_w_1230 "VPBLEND" (@x86_VPBLEND) check_xmm_xmm_xmmm_imm8 imm8 (PrimV VPBLEND) (pp_viname "vpblend").
+  mk_ve_instr_w2w8_w_1230 "VPBLEND" (@x86_VPBLEND) check_xmm_xmm_xmmm_imm8 imm8 (PrimV VPBLEND) (pp_viname "vpblend").
 
 Definition Ox86_VPACKUS_instr :=
  mk_ve_instr_w2_w_120 "VPACKUS" x86_VPACKUS check_xmm_xmm_xmmm no_imm (PrimV VPACKUS)
@@ -1323,6 +1374,10 @@ Definition Ox86_VPACKUS_instr :=
 Definition Ox86_VPACKSS_instr :=
  mk_ve_instr_w2_w_120 "VPACKSS" x86_VPACKSS check_xmm_xmm_xmmm no_imm (PrimV VPACKSS)
    (fun (ve:velem) => pp_name (if U16 == ve then "vpacksswb"%string else "vpackssdw"%string)).
+
+Definition Ox86_VSHUFPS_instr := 
+  mk_instr_w2w8_w_1230 "VSHUFPS" (@x86_VSHUFPS) check_xmm_xmm_xmmm_imm8 imm8 (PrimP U128 VSHUFPS)
+      (pp_name "vshufps").                 
 
 Definition pp_vpbroadcast ve sz args :=
   {| pp_aop_name := "vpbroadcast";
@@ -1369,6 +1424,59 @@ Definition Ox86_VPERM2I128_instr :=
 Definition Ox86_VPERMQ_instr :=
   mk_instr_pp "VPERMQ" w256w8_ty w256_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VPERMQ
               (check_xmm_xmmm_imm8 U256) 3 U256 (imm8 U256) (PrimM VPERMQ) (pp_name_ty "vpermq" [::U256;U256;U8]).
+
+(* AES instructions *)
+Definition mk_instr_aes2 jname aname constr x86_sem msb_flag :=
+  mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: E 0; E 1] [:: E 0] msb_flag x86_sem
+         (check_xmm_xmmm U128) 2 U128 (imm8 U128) (PrimM constr) (pp_name_ty aname [::U128;U128]).
+
+Definition mk_instr_aes3 jname aname constr x86_sem msb_flag :=
+  mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: E 1; E 2] [:: E 0] msb_flag x86_sem
+         (check_xmm_xmm_xmmm U128) 3 U128 (imm8 U128) (PrimM constr) (pp_name_ty aname [::U128;U128;U128]).
+
+Definition Ox86_AESDEC_instr := 
+  mk_instr_aes2 "AESDEC" "aesdec" AESDEC x86_AESDEC MSB_MERGE.
+
+Definition Ox86_VAESDEC_instr := 
+  mk_instr_aes3 "VAESDEC" "vaesdec" VAESDEC x86_AESDEC MSB_CLEAR.
+
+Definition Ox86_AESDECLAST_instr := 
+  mk_instr_aes2 "AESDECLAST" "aesdeclast" AESDECLAST x86_AESDECLAST MSB_MERGE.
+
+Definition Ox86_VAESDECLAST_instr := 
+  mk_instr_aes3 "VAESDECLAST" "vaesdeclast" VAESDECLAST x86_AESDECLAST MSB_CLEAR.
+
+Definition Ox86_AESENC_instr := 
+  mk_instr_aes2 "AESENC" "aesenc" AESENC x86_AESENC MSB_MERGE.
+
+Definition Ox86_VAESENC_instr := 
+  mk_instr_aes3 "VAESENC" "vaesenc" VAESENC x86_AESENC MSB_CLEAR.
+
+Definition Ox86_AESENCLAST_instr := 
+  mk_instr_aes2 "AESENCLAST" "aesenclast" AESENCLAST x86_AESENCLAST MSB_MERGE.
+
+Definition Ox86_VAESENCLAST_instr := 
+  mk_instr_aes3 "VAESENCLAST" "vaesenclast" VAESENCLAST x86_AESENCLAST MSB_CLEAR.
+
+Definition Ox86_AESIMC_instr := 
+  mk_instr_pp "AESIMC" (w_ty U128) (w_ty U128) [:: E 1] [:: E 0] MSB_MERGE x86_AESIMC
+         (check_xmm_xmmm U128) 2 U128 (imm8 U128) (PrimM AESIMC) (pp_name_ty "aesimc" [::U128;U128]).
+
+Definition Ox86_VAESIMC_instr := 
+  mk_instr_pp "VAESIMC" (w_ty U128) (w_ty U128) [:: E 1] [:: E 0] MSB_CLEAR x86_AESIMC
+         (check_xmm_xmmm U128) 2 U128 (imm8 U128) (PrimM VAESIMC) (pp_name_ty "vaesimc" [::U128;U128]).
+
+Definition Ox86_AESKEYGENASSIST_instr := 
+  mk_instr_pp "AESKEYGENASSIST" (w2_ty U128 U8) (w_ty U128) [:: E 1; E 2] [:: E 0] 
+    MSB_MERGE x86_AESKEYGENASSIST
+   (check_xmm_xmmm_imm8 U128) 3 U128 (imm8 U8) (PrimM AESKEYGENASSIST) 
+   (pp_name_ty "aeskeygenassist" [::U128;U128;U8]).
+
+Definition Ox86_VAESKEYGENASSIST_instr := 
+  mk_instr_pp "VAESKEYGENASSIST" (w2_ty U128 U8) (w_ty U128) [:: E 1; E 2] [:: E 0] 
+    MSB_CLEAR x86_AESKEYGENASSIST
+   (check_xmm_xmmm_imm8 U128) 3 U128 (imm8 U8) (PrimM VAESKEYGENASSIST) 
+   (pp_name_ty "vaeskeygenassist" [::U128;U128;U8]).
 
 Definition instr_desc o : instr_desc_t :=
   match o with
@@ -1442,6 +1550,7 @@ Definition instr_desc o : instr_desc_t :=
   | VPSHUFHW sz        => Ox86_VPSHUFHW_instr.1 sz
   | VPSHUFLW sz        => Ox86_VPSHUFLW_instr.1 sz
   | VPSHUFD sz         => Ox86_VPSHUFD_instr.1 sz
+  | VSHUFPS sz         => Ox86_VSHUFPS_instr.1 sz
   | VPUNPCKH sz sz'    => Ox86_VPUNPCKH_instr.1 sz sz'
   | VPUNPCKL sz sz'    => Ox86_VPUNPCKL_instr.1 sz sz'
   | VPBLEND ve sz      => Ox86_VPBLEND_instr.1 ve sz
@@ -1456,6 +1565,18 @@ Definition instr_desc o : instr_desc_t :=
   | VPERMQ             => Ox86_VPERMQ_instr.1
   | VINSERTI128        => Ox86_VINSERTI128_instr.1
   | VPEXTR ve          => Ox86_VPEXTR_instr.1 ve
+  | AESDEC             => Ox86_AESDEC_instr.1          
+  | VAESDEC            => Ox86_VAESDEC_instr.1         
+  | AESDECLAST         => Ox86_AESDECLAST_instr.1      
+  | VAESDECLAST        => Ox86_VAESDECLAST_instr.1     
+  | AESENC             => Ox86_AESENC_instr.1          
+  | VAESENC            => Ox86_VAESENC_instr.1         
+  | AESENCLAST         => Ox86_AESENCLAST_instr.1      
+  | VAESENCLAST        => Ox86_VAESENCLAST_instr.1     
+  | AESIMC             => Ox86_AESIMC_instr.1          
+  | VAESIMC            => Ox86_VAESIMC_instr.1         
+  | AESKEYGENASSIST    => Ox86_AESKEYGENASSIST_instr.1 
+  | VAESKEYGENASSIST   => Ox86_VAESKEYGENASSIST_instr.1 
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -1532,6 +1653,7 @@ Definition prim_string :=
    Ox86_VPSHUFHW_instr.2;
    Ox86_VPSHUFLW_instr.2;
    Ox86_VPSHUFD_instr.2;
+   Ox86_VSHUFPS_instr.2;
    Ox86_VPUNPCKH_instr.2;
    Ox86_VPUNPCKL_instr.2;
    Ox86_VPBLEND_instr.2;
@@ -1545,5 +1667,26 @@ Definition prim_string :=
    Ox86_VPERM2I128_instr.2;
    Ox86_VPERMQ_instr.2;
    Ox86_VINSERTI128_instr.2;
-   Ox86_VPEXTR_instr.2 ].
-
+   Ox86_VPEXTR_instr.2;
+   Ox86_AESDEC_instr.2;            
+   Ox86_VAESDEC_instr.2;         
+   Ox86_AESDECLAST_instr.2;      
+   Ox86_VAESDECLAST_instr.2;     
+   Ox86_AESENC_instr.2;          
+   Ox86_VAESENC_instr.2;         
+   Ox86_AESENCLAST_instr.2;      
+   Ox86_VAESENCLAST_instr.2;     
+   Ox86_AESIMC_instr.2;          
+   Ox86_VAESIMC_instr.2;         
+   Ox86_AESKEYGENASSIST_instr.2; 
+   Ox86_VAESKEYGENASSIST_instr.2  
+ ].
+  
+  
+  
+  
+  
+  
+  
+  
+  

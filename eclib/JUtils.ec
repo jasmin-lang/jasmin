@@ -145,8 +145,6 @@ proof. by move=> ->; apply xorK. qed.
 hint simplify (xor1b, xor_true, xor0b, xor_false)@0.
 hint simplify xorK_simplify@1.
 
-
-
 (* -------------------------------------------------------------------- *)
 (* extra stuff on list                                                  *)
 
@@ -358,8 +356,8 @@ case: (0 <= k) => /= hk; last by rewrite nseq0_le 1:/# /bs2int /= big_geq //.
 elim: k hk b => [| n Hn IH] b /=.
 + by rewrite bs2int_nil.
 rewrite nseqS // bs2int_cons ; case: b => ?.
- rewrite b2i1 exprDn // pow2_1 /= (IH true) /=.
- by ring.
++ rewrite b2i1 exprDn // pow2_1 /= (IH true) /=.
+  by ring.
 by rewrite (IH false) b2i0; ring.
 qed.
 
@@ -421,7 +419,7 @@ have Esz2: min (size bs1) (size bs2) = size bs2 by smt().
 move=> ??.
 rewrite -bs2int_or_add // H.
 have:= bs2int_le2Xs (map2 (\/) bs1 bs2).
-by rewrite size_map2 Esz /#.
+by rewrite size_map2 Esz2.
 qed.
 
 lemma bs2int_sub_common bs1 bs2:
