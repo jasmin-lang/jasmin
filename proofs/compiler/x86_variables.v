@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import low_memory x86_sem x86_decl compiler_util.
+Require Import low_memory x86_sem x86_decl compiler_util lowering.
 Import Utf8 String.
 Import all_ssreflect.
 Import xseq expr.
@@ -400,61 +400,34 @@ Definition scale_of_z' ii (z:pointer) :=
   | _ => cierror ii (Cerr_assembler (AsmErr_string "invalid scale"))
   end%Z.
 
-(* s + e :
-   s + n
-   s + x
-   s + y + n
-   s + sc * y
-   s + sc * y + n *)
 
-Variant ofs :=
-  | Ofs_const of pointer
-  | Ofs_var   of var
-  | Ofs_mul   of pointer & var
-  | Ofs_add   of pointer & var & pointer
-  | Ofs_error.
 
-Fixpoint addr_ofs e :=
-  match e with
-  | Papp1 (Oword_of_int Uptr) (Pconst z) => Ofs_const (wrepr _ z)
-  | Pvar  x          => Ofs_var x
-  | Papp2 (Omul (Op_w Uptr)) e1 e2 =>
-    match addr_ofs e1, addr_ofs e2 with
-    | Ofs_const n1, Ofs_const n2 => Ofs_const (n1 * n2)%R
-    | Ofs_const sc, Ofs_var   x  => Ofs_mul sc x
-    | Ofs_var   x , Ofs_const sc => Ofs_mul sc x
-    | _           , _            => Ofs_error
-    end
-  | Papp2 (Oadd (Op_w Uptr)) e1 e2 =>
-    match addr_ofs e1, addr_ofs e2 with
-    | Ofs_const n1, Ofs_const n2 => Ofs_const (n1 + n2)%R
-    | Ofs_const n , Ofs_var   x  => Ofs_add 1%R x n
-    | Ofs_var   x , Ofs_const n  => Ofs_add 1%R x n
-    | Ofs_mul sc x, Ofs_const n  => Ofs_add sc  x n
-    | Ofs_const n , Ofs_mul sc x => Ofs_add sc  x n
-    | _           , _            => Ofs_error
-    end
-  | _ => Ofs_error
+
+Definition reg_of_ovar ii (x:option var_i) := 
+  match x with 
+  | Some x => 
+    Let r := reg_of_var ii x in
+    ok (Some r)
+  | None =>
+    ok None
   end.
 
+Definition assemble_lea ii lea := 
+  Let base := reg_of_ovar ii lea.(lea_base) in
+  Let offset := reg_of_ovar ii lea.(lea_offset) in
+  Let scale := scale_of_z' ii lea.(lea_scale) in
+  ok {|
+      ad_disp := lea.(lea_disp);
+      ad_base := base;
+      ad_scale := scale;
+      ad_offset := offset 
+    |}.
 
-Definition addr_of_pexpr ii s (e: pexpr) :=
-  match addr_ofs e with
-  | Ofs_const z =>
-    ciok (mkAddress z (Some s) Scale1 None)
-  | Ofs_var x =>
-    Let x := reg_of_var ii x in
-    ciok (mkAddress 0%R (Some s) Scale1 (Some x))
-  | Ofs_mul sc x =>
-    Let x := reg_of_var ii x in
-    Let sc := scale_of_z' ii sc in
-    ciok (mkAddress 0%R (Some s) sc (Some x))
-  | Ofs_add sc x z =>
-    Let x := reg_of_var ii x in
-    Let sc := scale_of_z' ii sc in
-    ciok (mkAddress z (Some s) sc (Some x))
-  | Ofs_error =>
-    cierror ii (Cerr_assembler (AsmErr_string "Invalid address expression"))
+Definition addr_of_pexpr ii sz x (e: pexpr) := 
+  let e := Papp2 (Oadd (Op_w sz)) (Pvar x) e in
+  match lowering.mk_lea sz e with
+  | Some lea => assemble_lea ii lea
+  | None => cierror ii (Cerr_assembler (AsmErr_string "lea: not able to assemble address"))
   end.
 
 Definition xreg_of_var ii (x: var) : ciexec asm_arg :=
@@ -480,8 +453,7 @@ Definition assemble_word ii (sz:wsize) max_imm (e:pexpr) :=
     ok (Glob g)
   | Pload sz' v e =>
     if (sz == sz') then
-      Let s := reg_of_var ii v in
-      Let w := addr_of_pexpr ii s e in
+      Let w := addr_of_pexpr ii Uptr v e in
       ok (Adr w)
     else
     cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for word: invalid Load size"))

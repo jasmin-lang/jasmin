@@ -208,28 +208,50 @@ Proof. by []. Qed.
 Lemma word_of_scale1 : word_of_scale Scale1 = 1%R.
 Proof. by rewrite /word_of_scale /= /wrepr; apply/eqP. Qed.
 
-Lemma addr_of_pexprP ii gd r1 e a x o z o' z' m s:
+Lemma assemble_leaP ii sz sz' (w:word sz') lea adr m s:
+  (sz ≤ U64)%CMP → 
+  (sz ≤ sz')%CMP →
+  lom_eqv m s →
+  sem_lea sz (evm m) lea = ok (zero_extend sz w) → 
+  assemble_lea ii lea = ok adr → 
+  zero_extend sz (decode_addr s adr) = zero_extend sz w.
+Proof.
+  move=> hsz64 hsz [_ hget _ _] hsem; rewrite /assemble_lea.
+  t_xrbindP => ob hob oo hoo sc hsc <- /=.
+  rewrite /decode_addr /=.  
+  move: hsem; rewrite /sem_lea.
+  apply rbindP => wb hwb; apply rbindP => wo hwo heq.
+  have <- := ok_inj heq.
+  rewrite !(wadd_zero_extend, wmul_zero_extend) // addrA; do 2 f_equal.
+  + case: lea_base hob hwb => /= [vo | [<-] [<-] /=]; last by apply zero_extend0.
+    t_xrbindP => r /reg_of_var_register_of_var -/var_of_register_of_var <- <- v /hget hv /=.
+    move=> /(value_uincl_word hv) -/to_wordI [sz1 [w1 [hsz1]]] /Vword_inj [?];subst sz1.
+    by move=> /= <- ->.
+  + by rewrite (xscale_ok hsc).
+  case: lea_offset hoo hwo => /= [vo | [<-] [<-] /=]; last by apply zero_extend0.
+  t_xrbindP => r /reg_of_var_register_of_var -/var_of_register_of_var <- <- v /hget hv /=.
+  move=> /(value_uincl_word hv) -/to_wordI [sz1 [w1 [hsz1]]] /Vword_inj [?];subst sz1.
+  by move=> /= <- ->.
+Qed.
+
+Lemma addr_of_pexprP ii gd e a (x:var_i) o z o' z' m s:
   lom_eqv s m →
-  reg_of_var ii x = ok r1 →
   get_var (evm s) x = ok o →
   to_pointer o = ok z →
   sem_pexpr gd s e = ok o' →
   to_pointer o' = ok z' →
-  addr_of_pexpr ii r1 e = ok a →
+  addr_of_pexpr ii Uptr x e = ok a →
   (z + z')%R = decode_addr m a.
 Proof.
-move => eqv ok_r1 ok_o ok_z ok_o' ok_z'.
+move => eqv ok_o ok_z ok_o' ok_z'.
 rewrite /addr_of_pexpr.
-have {ok_o' o' ok_z'} := addr_ofsP ok_o' ok_z'.
-case: addr_ofs => //=.
-+ move => ofs /(_ erefl) [<-] [<-] //=.
-  rewrite /decode_addr /= (xgetreg eqv ok_r1 ok_o ok_z);ssring.
-+ move => x' /(_ erefl); t_xrbindP => v hv ok_v r ok_r [<-].
-  rewrite /decode_addr /= (xgetreg eqv ok_r1 ok_o ok_z) (xgetreg eqv ok_r hv ok_v) word_of_scale1;ssring.
-+ move => ofs x1 /(_ erefl); t_xrbindP => ? ? hx1 hx3 <- ? hx2 sc /xscale_ok -> [<-].
-  rewrite /decode_addr /= (xgetreg eqv ok_r1 ok_o ok_z) (xgetreg eqv hx2 hx1 hx3);ssring.
-move => sc x' ofs /(_ erefl); t_xrbindP => ? ? hx2 hx3 <- ? hx1 ? /xscale_ok -> [<-].
-rewrite /decode_addr /= (xgetreg eqv ok_r1 ok_o ok_z) (xgetreg eqv hx1 hx2 hx3);ssring.
+case heq: mk_lea => [lea | //].
+have hle : (U64 <= U64)%CMP by []. 
+have /= := mk_leaP  (p:= (Build_prog gd [::])) (s:=s) hle hle heq.
+rewrite ok_o /= ok_o' /= /sem_sop2 /= ok_z /= ok_z' /=.
+move=> /(_ _ refl_equal) h1 h2.
+have := assemble_leaP hle hle eqv h1 h2.
+by rewrite !zero_extend_u => ->.
 Qed.
 
 Variant check_sopn_argI ii max_imm args e : arg_desc -> stype -> Prop :=
@@ -317,9 +339,9 @@ Proof.
     rewrite /compat_imm orbF => /eqP <- w /get_globalI [z hz ->] /= ht.
     by rewrite /get_global_word hz /=; eauto.
   + move=> sz x p; case: eqP => [<- | //].
-    t_xrbindP => r hr addr haddr h; move: h hcomp => <-.
-    rewrite /compat_imm orbF => /eqP <- w1 wp vp hget htop wp' vp' hp hp' wr hwr <- /= htr.
-    have <- := addr_of_pexprP eqm hr hget htop hp hp' haddr.
+    t_xrbindP => r haddr ? w1 wp vp hget htop wp' vp' hp hp' wr hwr <- /= htr; subst a'.
+    move: hcomp; rewrite /compat_imm orbF => /eqP <-.
+    have <- := addr_of_pexprP eqm hget htop hp hp' haddr.
     by case: eqm => <- ???; rewrite hwr /=; eauto.
   case => //= w' [] //= z; case: max_imm => //= w1.
   t_xrbindP => ? /assertP /eqP heq h.
@@ -482,9 +504,9 @@ Proof.
   case: ty hty vt hw => //= sz' _ vt hw.
   case: eqP => // ?; subst sz'.
   move: hw; rewrite truncate_word_u => -[?]; subst vt.
-  t_xrbindP => r hr adr hadr ?; subst a.
+  t_xrbindP => adr hadr ?; subst a.
   rewrite /= heq1 hc /= /mem_write_mem -h1.
-  have <-:= addr_of_pexprP hlom hr hget hp he hofs hadr.
+  have /(_ hget) <-:= addr_of_pexprP hlom _ hp he hofs hadr.
   rewrite hm1 /=; eexists; split; first by reflexivity.
   by constructor.
 Qed.
