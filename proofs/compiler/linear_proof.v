@@ -127,18 +127,23 @@ Let linear_i := linear_i p extra_free_registers.
     by rewrite cats0 -catA.
   Qed.
 
+  Let Hcopy : ∀ (x : lval) (e : pexpr), Pr (Ccopy x e).
+  Proof.
+    by move => x e ii fn lbl tail.
+  Qed.
+
   Lemma linear_i_nil fn i lbl tail :
      linear_i fn i lbl tail =
      let: (lbl, lc) := linear_i fn i lbl [::] in (lbl, lc ++ tail).
   Proof.
-    apply (@instr_Rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
+    apply (@instr_Rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall Hcopy).
   Qed.
 
   Lemma linear_c_nil fn c lbl tail :
      linear_c (linear_i fn) c lbl tail =
      let: (lbl, lc) := linear_c (linear_i fn) c lbl [::] in (lbl, lc ++ tail).
   Proof.
-    apply (@cmd_rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
+    apply (@cmd_rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall Hcopy).
   Qed.
 
 End CAT.
