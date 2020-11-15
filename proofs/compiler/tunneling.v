@@ -557,45 +557,6 @@ Section TunnelingProof.
       by rewrite LUF.find_empty.
   Qed.
 
-  (*Takeaway: seems like there is absolutely no guarantee that the list of commands in s1 or s2 has anything to do with the function with the same name defined in p.*)
-  (*Also, any Lgoto or Ligoto changes lc with a value taken in p.*)
-  Lemma lsem_same_lc p s1 s2 : lsem p s1 s2 -> s1.(lc) = s2.(lc).
-  Proof.
-    move: s2.
-    apply Operators_Properties.clos_refl_trans_ind_left.
-    + by case: s1.
-    move => s2 s2' _ ->.
-    rewrite /lsem1 /step.
-    case: (find_instr s2) => // c.
-    rewrite /eval_instr.
-    case: s2 => lmem2 lvm2 lfn2 lc2 lpc2.
-    case: s2' => lmem2' lvm2' lfn2' lc2' lpc2'.
-    case: c => li_ii [] //=.
-    + by t_xrbindP.
-    + by t_xrbindP.
-    + by t_xrbindP.
-    (*Lgoto*)
-    + t_xrbindP; rewrite /eval_jump => [] [fn l]; case Hgfu: (get_fundef (lp_funcs p) fn); t_xrbindP => // lpc.
-      (*Weird automatically named variable when using case _: _.*)
-      rewrite /find_label; case Hfind: (find (is_label l) (lfd_body _) < size (lfd_body _)) => //.
-      t_xrbindP => Hfindeq; rewrite Hfindeq in Hfind.
-      rewrite /get_fundef assocE // in Hgfu.
-      case Hsize: (size [seq Some v.2 | v <- lp_funcs p] <= seq.index fn [seq v.1 | v <- lp_funcs p]); first by rewrite nth_default // in Hgfu.
-      (*Weird, should there not be some link between p and s1 and s2?*)
-      by admit.
-    (*Ligoto*)
-    + t_xrbindP => e x v.
-      rewrite /sem.to_word; t_xrbindP; case: v => //; last by move => [] //.
-      rewrite /sem.truncate_word => ws w; case Hws: ((U64 ≤ ws)%CMP) => //.
-      t_xrbindP => Hsem_pexpr Hx.
-      move: Hx Hsem_pexpr => <-.
-      case Hdl: (decode_label (zero_extend U64 w)) => //.
-      rewrite /eval_jump; t_xrbindP.
-      move: Hdl; case: _a_.
-    + by move => lv l; t_xrbindP; case: (encode_label (lfn2, l)) => //; t_xrbindP.
-    by t_xrbindP => e l b _ _ _; case: b; t_xrbindP.
-  Abort.
-
   Theorem lsem_tunneling p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem p (lsem_tunnel s1) (lsem_tunnel s3).
   Proof.
     rewrite lsem_tunnel_partial_tunnel => Hlsem12.
