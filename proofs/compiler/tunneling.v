@@ -482,17 +482,17 @@ End PairOnth.
 
 Section PairMapProps.
 
-Lemma pairmapE {T U : Type} (f : T -> T -> U) (x : T) (s : seq T) :
-  pairmap f x s = map (fun xy => f xy.1 xy.2) (zip (x :: s) s).
-Proof. by elim: s x => //= y s ->. Qed.
+  Lemma pairmapE {T U : Type} (f : T -> T -> U) (x : T) (s : seq T) :
+    pairmap f x s = map (fun xy => f xy.1 xy.2) (zip (x :: s) s).
+  Proof. by elim: s x => //= y s ->. Qed.
 
-Lemma eq_pairmap {T U : Type} (f g : T -> T -> U) (x : T) (s : seq T) :
-  f =2 g -> pairmap f x s = pairmap g x s.
-Proof. by move=> eq_fg; rewrite !pairmapE; apply/eq_map=> []. Qed.
+  Lemma eq_pairmap {T U : Type} (f g : T -> T -> U) (x : T) (s : seq T) :
+    f =2 g -> pairmap f x s = pairmap g x s.
+  Proof. by move=> eq_fg; rewrite !pairmapE; apply/eq_map=> []. Qed.
 
-Lemma size_pairmap {T U : Type} (f g : T -> T -> U) (x : T) (s : seq T) :
-  size (pairmap f x s) = size s.
-Proof. by rewrite pairmapE size_map size2_zip /=. Qed.
+  Lemma size_pairmap {T U : Type} (f g : T -> T -> U) (x : T) (s : seq T) :
+    size (pairmap f x s) = size s.
+  Proof. by rewrite pairmapE size_map size2_zip /=. Qed.
 
 End PairMapProps.
 
@@ -538,17 +538,32 @@ Require Import linear_sem.
 
 Section TunnelingProof.
 
-  Definition lsem_tunnel s := (Lstate s.(lmem) s.(lvm) s.(lfn) (tunnel s.(lfn) s.(lc)) s.(lpc)).
+  Context (fn : funname).
 
-  Definition lsem_tunnel_partial s lc lc' :=
-        (Lstate s.(lmem) s.(lvm) s.(lfn) (tunnel_partial s.(lfn) (tunnel_plan s.(lfn) LUF.empty lc) lc')  s.(lpc)).
+  Definition Default_lp_func := (xH,LFundef U8 [::] [::] [::] [::] [::] false).
 
-  Lemma lsem_tunnel_partial_tunnel s : lsem_tunnel s = lsem_tunnel_partial s s.(lc) s.(lc).
-  Proof.
-    by constructor.
-  Qed.
+  Definition lfundef_tunnel_partial fd lc lc' :=
+    LFundef
+      fd.(lfd_align)
+      fd.(lfd_tyin)
+      fd.(lfd_arg)
+      (tunnel_partial fn (tunnel_plan fn LUF.empty lc) lc')
+      fd.(lfd_tyout)
+      fd.(lfd_res)
+      fd.(lfd_export).
 
-  Lemma tunnel_bore_empty fn c c': tunnel_bore fn LUF.empty c c' = c'.
+  Definition lfundef_tunnel fd := lfundef_tunnel_partial fd fd.(lfd_body) fd.(lfd_body).
+
+  Definition lprog_tunnel p :=
+    Build_lprog
+      p.(lp_rip)
+      p.(lp_globs)
+      (let i := find (fun p => p.1 == fn) p.(lp_funcs) in
+       if i < size p.(lp_funcs)
+       then set_nth Default_lp_func p.(lp_funcs) i (let (_,fd) := (nth Default_lp_func p.(lp_funcs) i) in (fn,lfundef_tunnel fd))
+       else p.(lp_funcs)).
+
+  Lemma tunnel_bore_empty c c': tunnel_bore fn LUF.empty c c' = c'.
   Proof.
     case: c => li_ii li_i; case: li_i; case: c' => li_ii' li_i'; case: li_i' => //=; intros.
     3:
@@ -557,10 +572,44 @@ Section TunnelingProof.
       by rewrite LUF.find_empty.
   Qed.
 
-  Theorem lsem_tunneling p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem p (lsem_tunnel s1) (lsem_tunnel s3).
+  Lemma tunneling_lsem1 p s1 s2 : lsem1 (lprog_tunnel p) s1 s2 -> lsem p s1 s2.
   Proof.
-    rewrite lsem_tunnel_partial_tunnel => Hlsem12.
-    pose P:= fun lc1 lc1' => ∃ s3 : lstate, lsem p s2 s3 ∧ lsem p (lsem_tunnel_partial s1 lc1 lc1') s3.
+    rewrite /lprog_tunnel /lfundef_tunnel.
+    case Hfind: (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p) < size (lp_funcs p)); last first.
+    + by clear Hfind; case: p => /=; intros; apply: Relation_Operators.rt_step.
+    case Hnth: (nth Default_lp_func (lp_funcs p) (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p))).
+    (*Impossible to name _a_ and _b_ here.*)
+    (*eexists that breaks s0?*)
+    (*Generalizing one pattern?*)
+    (*Anything faster?*)
+    (*
+    have P:
+    (fun lc lc' =>
+      lsem1
+        {|
+        lp_rip := lp_rip p;
+        lp_globs := lp_globs p;
+        lp_funcs := set_nth Default_lp_func (lp_funcs p)
+                  (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p))
+                  (fn, lfundef_tunnel_partial _b_ lc lc') |}
+        s1 s2 →
+      lsem p s1 s2).
+    apply: (@prefixW _ P).
+    *)
+  Admitted.
+
+  Lemma tunneling_lsem p s1 s2 : lsem (lprog_tunnel p) s1 s2 -> lsem p s1 s2.
+  Proof.
+    move: s1 s2; apply: lsem_ind; first by move => s; apply Relation_Operators.rt_refl.
+    by move => s1 s2 s3 H1tp12 _ Hp23; apply: (lsem_trans (tunneling_lsem1 H1tp12)).
+  Qed.
+
+  Lemma lsem1_tunneling p s1 s2 : lsem1 p s1 s2 -> exists s3, lsem (lprog_tunnel p) s2 s3 /\ lsem1 (lprog_tunnel p) s1 s3.
+  Proof.
+    rewrite /lprog_tunnel /lfundef_tunnel.
+    case Hfnp: (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p) < size (lp_funcs p)); last first.
+    + by clear Hfnp; case: p; exists s2; split => //=; apply: Relation_Operators.rt_refl.
+    (*
     apply (@prefixW _ P).
     + exists s2; split; first by apply Relation_Operators.rt_refl.
       rewrite /lsem_tunnel_partial.
@@ -576,6 +625,19 @@ Section TunnelingProof.
     move: Hprefix Hlsemp13.
     case: (lastP tli) => /=; first by case: hli; rewrite /lsem_tunnel_partial /tunnel_plan.
     move => ttli htli /=.
+    *)
+  Admitted.
+
+  Theorem lsem_tunneling p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem (lprog_tunnel p) s1 s3.
+  Proof.
+    have Ht: (lsem p s1 s2 → ∃ s3 : lstate, lsem (lprog_tunnel p) s2 s3 ∧ lsem (lprog_tunnel p) s1 s3); last first.
+    + by move => Hp12; case: (Ht Hp12) => s3 [Hp23 Htp13]; exists s3; split => //; apply: tunneling_lsem.
+    move: s1 s2; apply lsem_ind_r; first by move => s; exists s; split; apply Relation_Operators.rt_refl.
+    move => s1 s2 s3 Hp12 H1p23 [s4 [Htp24 Htp14]].
+    have:= (lsem1_tunneling H1p23) => [] [s4' [Hp34' H1tp24']]. (*Why do I need the additionnal [] ?*)
+    case (step_lsem H1tp24' Htp24) => [Heq24|Htp44'].
+    + by exists s4'; split => //; apply: (lsem_trans Htp14); rewrite -Heq24; apply: Relation_Operators.rt_step.
+    by exists s4; split => //; apply: (lsem_trans Hp34' _).
   Qed.
 
 End TunnelingProof.

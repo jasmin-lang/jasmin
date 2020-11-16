@@ -57,6 +57,7 @@ Record lstate := Lstate
 Definition to_estate (s:lstate) : estate := Estate s.(lmem) s.(lvm).
 Definition of_estate (s:estate) pc := Lstate s.(emem) s.(evm) pc.
 Definition setpc (s:lstate) pc :=  Lstate s.(lmem) s.(lvm) s.(lfn) pc.
+(*These two may need to change name.*)
 Definition setc (s:lstate) fn := Lstate s.(lmem) s.(lvm) fn s.(lpc).
 Definition setcpc (s:lstate) fn pc := Lstate s.(lmem) s.(lvm) fn pc.
 
@@ -145,6 +146,52 @@ Qed.
 Definition lsem_trans s2 s1 s3 :
   lsem s1 s2 -> lsem s2 s3 -> lsem s1 s3 :=
   rt_trans _ _ s1 s2 s3.
+
+(*Added for tunneling_proof.v .*)
+Lemma lsem_ind_r (Q: lstate → lstate → Prop) :
+  (∀ s, Q s s) →
+  (∀ s1 s2 s3, lsem s1 s2 → lsem1 s2 s3 → Q s1 s2 → Q s1 s3) →
+  ∀ s1 s2, lsem s1 s2 → Q s1 s2.
+Proof.
+  move=> R S s1 s2 H; apply clos_rt_rtn1 in H.
+  specialize (λ s1 s2 s3 X Y, S s1 s2 s3 (clos_rtn1_rt _ _ _ _ X) Y).
+  by elim: H => // s2' s3' H12 H23 Q12; apply: (S s1 s2' s3' H23 H12 Q12).
+Qed.
+
+(*Added for tunneling_proof.v .*)
+Lemma lsem1_inj s1 s2 s3 :
+  lsem1 s1 s2 ->
+  lsem1 s1 s3 ->
+  s2 = s3.
+Proof.
+  by rewrite /lsem1 => ->; t_xrbindP.
+Qed.
+
+(*Added for tunneling_proof.v .*)
+Lemma step_lsem s1 s2 s3 :
+  lsem1 s1 s2 ->
+  lsem s1 s3 ->
+  (s1 = s3) \/ lsem s2 s3.
+Proof.
+  move => H12 H13; move: s1 s3 H13 s2 H12.
+  apply: lsem_ind; first by left.
+  move => s1 s2 s3 H12 H23 _ s2' H12'.
+  by right; rewrite (lsem1_inj H12' H12).
+Qed.
+
+(*Added for tunneling_proof.v .*)
+Lemma lsem_disj s1 s2 s3 :
+  lsem s1 s2 ->
+  lsem s1 s3 ->
+  lsem s2 s3 \/ lsem s3 s2.
+Proof.
+  move => Hp12; move: s1 s2 Hp12 s3.
+  apply: lsem_ind; first by left.
+  move => s1 s2 s2' H1p12 Hp22' IHdisj s3 Hp13.
+  have:= (step_lsem H1p12 Hp13).
+  case; last by apply: IHdisj.
+  by move => <-; right; apply: (lsem_trans _ Hp22'); apply: rt_step.
+Qed.
 
 End LSEM.
 
