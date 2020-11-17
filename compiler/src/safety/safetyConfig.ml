@@ -439,9 +439,9 @@ let mk_config_doc () =
     let file = open_out "config/checker_config_doc.json" in
     let () = Json.Basic.pretty_to_channel file json in
     close_out file
-  with Sys_error s ->
-    Format.eprintf "@[<v>Failed to create configuration documentation:@;\
-                    %s@.@]" s
+  with Sys_error _s -> ()
+    (* Format.eprintf "@[<v>Failed to create configuration documentation:@;\
+     *                 %s@.@]" s *)
 
 (* -------------------------------------------------------------------- *)
 let mk_config_default () =
@@ -453,9 +453,9 @@ let mk_config_default () =
          will be overwritten.\n" in
     let () = Json.Basic.pretty_to_channel file json in
     close_out file
-  with Sys_error s ->
-    Format.eprintf "@[<v>Failed to create default configuration file:@;\
-                    %s@.@]" s
+  with Sys_error _s -> ()
+    (* Format.eprintf "@[<v>Failed to create default configuration file:@;\
+     *                 %s@.@]" s *)
 
 (* -------------------------------------------------------------------- *)
 let load_config (filename : string) : unit =

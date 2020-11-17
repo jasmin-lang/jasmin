@@ -14,7 +14,7 @@ let unsupported_instr_error msg =
 
 (* -------------------------------------------------------------------- *)
 
-let config_file = "src/instructions.cfg"
+let config_file = "instructions.cfg"
 let config_mode_per_pipeline = false
 
 (* -------------------------------------------------------------------- *)
