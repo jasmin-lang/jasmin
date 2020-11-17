@@ -447,8 +447,8 @@ let mk_config_doc () =
 let mk_config_default () =
   let json : Json.Basic.t = to_json default in
   try
-    let file = Stdlib.open_out "config/checker_config_default.json" in
-    let () = Stdlib.output_string file
+    let file = open_out "config/checker_config_default.json" in
+    let () = output_string file
         "// Default configuration file. Automatically generated, any changes \
          will be overwritten.\n" in
     let () = Json.Basic.pretty_to_channel file json in

@@ -14,8 +14,8 @@ let unsupported_instr_error msg =
 
 (* -------------------------------------------------------------------- *)
 
-let config_file = "src/pipelines.cfg"
-let config_mode_per_pipeline = true
+let config_file = "src/instructions.cfg"
+let config_mode_per_pipeline = false
 
 (* -------------------------------------------------------------------- *)
 
@@ -203,6 +203,8 @@ let copy_processor proc =
     in
     add_pipeline pipelines PipelineMap.empty
 
+(* Instr1 is an atomic instruction that has not be resolved yet.
+   Instr2 is an instruction from the pipeline, it is resolved. *)
 let instr_independent_of compute_lower_bound instr1 instr2 =
     let outputs = instr2.instr_outputs in
     let inputs_ready = List.fold_right (fun w -> fun acc -> acc && not (List.mem w instr1.instr_inputs)) outputs true in
