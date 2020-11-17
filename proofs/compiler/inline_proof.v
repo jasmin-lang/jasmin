@@ -1033,7 +1033,7 @@ Section PROOF.
             end
           else (evm s).[x].
   Proof.
-    (*have [vmi [H1 H2]]: exists vmi, exists lc, 
+    have [vmi [] lc [] H1 H2]: exists vmi, exists lc, 
       sem P s (array_init ii X) lc {| emem := emem s; evm := vmi |} /\
       forall xt xn,
         let x := {|vtype := xt; vname := xn |} in
@@ -1044,39 +1044,39 @@ Section PROOF.
             | t      => (evm s).[{|vtype := t; vname := xn|}]
             end
           else (evm s).[x];last first.
-    + exists vmi. split=>//= xt xn;rewrite H2 SvD.F.elements_b.
+    + exists vmi. exists lc. split=>//= xt xn; rewrite H2 SvD.F.elements_b. auto.
     case: s => mem;rewrite /array_init Sv.fold_spec.
     set F := (fun (a:cmd) (e:Sv.elt) => _).
     have Hcat : forall l c, List.fold_left F l c = List.fold_left F l [::] ++ c.
     + elim => [ | x l Hrec ] c //=;rewrite Hrec (Hrec (F [::] x)) -catA;f_equal.
       by case: x => [[] ].
     elim: (Sv.elements X) => //=.
-    + by move=> vm;exists vm;split;[constructor |].
+    + by move=> vm;exists vm; exists [::]; split;[constructor |].
     move=> x0 l Hrec vm.
-    have [vm' [H1 H2]]:= Hrec vm.
+    have [vm' [] lc [H1 H2]]:= Hrec vm.
     case: x0 => [[||n|] xn0];rewrite /F /=.
-    + exists vm';split=> //.
+    + exists vm'; exists lc; split=> //.
       move=> xt xn';rewrite H2; case: ifP => Hin;first by rewrite orbT.
       rewrite orbF;case:ifPn=> //;rewrite /SvD.F.eqb.
       by case: SvD.F.eq_dec => // -[->].
-    + exists vm';split=> //.
+    + exists vm'; exists lc; split=> //.
       move=> xt xn';rewrite H2; case: ifP => Hin;first by rewrite orbT.
       rewrite orbF;case:ifPn=> //;rewrite /SvD.F.eqb.
       by case: SvD.F.eq_dec => // -[->].
-    + exists vm'.[{| vtype := sarr n; vname := xn0 |} <- ok (WArray.empty n)];split.
-      + rewrite Hcat;apply: (sem_app H1); apply:sem_seq1;constructor.
+    + exists vm'.[{| vtype := sarr n; vname := xn0 |} <- ok (WArray.empty n)].
+      exists (lc ++ [:: (Lassgn (LSub [ :: LEmpty; LEmpty]))]); split=> //. 
+      + rewrite Hcat; apply: (sem_app H1); apply: sem_seq1; constructor. 
         apply Eassgn with (@Varr n (WArray.empty n)) (@Varr n (WArray.empty n)) => //=.
         + by rewrite /truncate_val /= /WArray.cast Z.leb_refl.
         by rewrite /write_var /set_var /= /WArray.inject Z.ltb_irrefl.
       rewrite /SvD.F.eqb=> xt xn.
       case:  SvD.F.eq_dec => /= [ [-> ->]| ];first by rewrite Fv.setP_eq.
       by move=> /eqP;rewrite eq_sym => neq;rewrite Fv.setP_neq // H2.
-    exists vm';split=> //.
+    exists vm'; exists lc;split=> //.
     move=> xt xn';rewrite H2; case: ifP => Hin;first by rewrite orbT.
     rewrite orbF;case:ifPn=> //;rewrite /SvD.F.eqb.
     by case: SvD.F.eq_dec => // -[->].
-  Qed.*)
-  Admitted.
+  Qed.
 
   Local Lemma Hcall : sem_Ind_call p Pi_r Pfun.
   Proof.
