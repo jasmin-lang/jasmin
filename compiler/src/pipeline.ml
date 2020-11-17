@@ -159,9 +159,9 @@ let pipelines = pipeline_from_config
 
 let max_latency =
     if config_mode_per_pipeline then
-        PipelineMap.fold (fun pip -> fun lat -> fun current_max -> max current_max lat) !pipeline_to_latency 0
+        PipelineMap.fold (fun _ -> fun lat -> fun current_max -> max current_max lat) !pipeline_to_latency 0
     else
-        InstrIdMap.fold (fun instr -> fun lat -> fun current_max -> max current_max lat) !instruction_to_latency 0
+        InstrIdMap.fold (fun _ -> fun lat -> fun current_max -> max current_max lat) !instruction_to_latency 0
 
 
 (* -------------------------------------------------------------------- *)
@@ -244,7 +244,7 @@ let execute_step proc p i =
         match step with
         | Free -> ()
         | Occupied instr -> begin
-            if (i = lat - 1) || (not config_mode_per_pipeline && (InstrIdMap.find instr.instr_id !instruction_to_latency) = i)
+            if (i = lat - 1) || (not config_mode_per_pipeline && (InstrIdMap.find instr.instr_id !instruction_to_latency) - 1 = i)
             then (PipelineMap.find p proc).(i) <- Free
             else (
                 (PipelineMap.find p proc).(i) <- Free;
@@ -317,26 +317,6 @@ type instrumentation_program =
   | ICond of instrumentation_program * instrumentation_program
   | ILoop of instrumentation_program
 
-(* Given the current instruction to process and the current processor state,
-   evaluates if the processor is under exploited *)
-let advice computing_min proc instr previous next =
-    let first_stage_empty _ pip acc = acc && pip.(0) = Free in
-    let processor_full = PipelineMap.fold first_stage_empty proc true in
-    (* If we cannot fetch the current instruction but :
-     - There is a pipeline available
-     - There is a dependency with the previous one
-     - There is no dependency with the next one
-     - There is no dependency between the previous one and the next one
-     Then we suggest a permutation *)
-    if not (can_fetch computing_min proc instr) &&
-       (can_fetch computing_min proc next) &&
-       (pipeline_available proc instr) &&
-       not (instr_independent_of computing_min instr previous) && 
-       (instr_independent_of computing_min next instr) && 
-       (instr_independent_of computing_min next previous)
-    then Format.eprintf "Try to invert the next two instructions@."
-
-
 let instrument prog proc =
     let rec aux prog' proc_min' proc_max' = match prog' with
         | Skip -> ISkip
@@ -344,16 +324,9 @@ let instrument prog proc =
         | Bloc (c, l) -> begin
             let cost_min = ref 0 in
             let cost_max = ref 0 in
-            let n = List.length l in
-            let fetch_next_min i instr =
-                let advice_given = ref false in
+            let fetch_next_min instr =
                 (* Execute cycle on proc' until i can be fetched *)
                 while not (can_fetch true proc_min' instr) do
-                    (if i > 0 && i < n - 1 && not !advice_given
-                    then let previous = List.nth l (i - 1) in
-                        let next = List.nth l (i + 1) in
-                        advice true proc_min' instr previous next;
-                        advice_given := true);
                     incr cost_min;
                     one_cycle proc_min'
                 done;
@@ -361,7 +334,7 @@ let instrument prog proc =
                 Format.eprintf " %d: %s@." !cost_min (instr_to_string instr);
                 fetch proc_min' instr in
             Format.eprintf "Cost Min of bloc %d@." c;
-            List.iteri fetch_next_min l;
+            List.iter fetch_next_min l;
             let fetch_next_max i = 
                 (* Execute cycle on proc' until i can be fetched *)
                 while not (can_fetch false proc_max' i) do

@@ -61,7 +61,7 @@ let extract_memoryat instr =
   (filter (Pipeline_program.instr_inputs instr)) @
   (filter (Pipeline_program.instr_outputs instr))
 
-let sort_aliases op memat = (memat, memat) (* TODO *)
+let sort_aliases _ memat = (memat, memat) (* TODO *)
 
 (* -------------------------------------------------------------------- *)
 (* Name of the operators for the simulator *)
@@ -217,7 +217,7 @@ let gassgn_to_pipeline l pp x e aa ma =
   let readx, writex = read_write_glv l x in
   (* Collect all variables read by e and the operand*)
   let op, reade = op_read_expr l e in
-  let memat = get_memoryat pp in
+  let _ = get_memoryat pp in
   let (input_alias_always, output_alias_always) = sort_aliases op aa in
   let (input_alias_maybe, output_alias_maybe) = sort_aliases op ma in
   let pipeline_instr =
