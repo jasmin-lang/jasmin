@@ -33,3 +33,6 @@ Makefile.coq.conf
 /jasmin.tar.gz
 /compiler/config/checker_config_default.json
 /compiler/config/checker_config_doc.json
+*.naive_cost
+*.cost
+*.cost_naive

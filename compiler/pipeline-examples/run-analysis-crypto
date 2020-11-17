@@ -9,16 +9,13 @@ MAXJOBS="3"
 
 declare -A SUBDIRS
 
-SUBDIRS[simple-examples/array-len.jazz]=""
-SUBDIRS[simple-examples/array-len2.jazz]=""
-SUBDIRS[simple-examples/fe25519_mul.jazz]=""
-SUBDIRS[simple-examples/hw.jazz]=""
-SUBDIRS[simple-examples/nolea.jazz]=""
-SUBDIRS[simple-examples/threeway.jazz]=""
+SUBDIRS[poly1305/ref3/poly1305.japp]="-safetyparam RSI;RDX" # in;inlen
+SUBDIRS[poly1305/avx2/poly1305.japp]="-safetyparam RSI;RDX" # in;inlen
 
-SUBDIRS[simple-examples/loop3.jazz]="-safetyparam ;RDX" # ;inlen
-SUBDIRS[simple-examples/opti.jazz]="-safetyparam ;RDX" # ;len
-SUBDIRS[simple-examples/nonopti.jazz]="-safetyparam ;RDX" # ;len
+SUBDIRS[chacha20/ref/chacha20.jazz]="-safetyparam RSI;RDX" # plain;len
+SUBDIRS[chacha20/avx2/chacha20.jazz]="-safetyparam RSI;RDX" # plain;len
+
+SUBDIRS[aes/aes-ctr-alt.jazz]="-safetyparam RSI;RCX" # inp;len
 
 CURJOBS=0
 for i in "${!SUBDIRS[@]}"; do
