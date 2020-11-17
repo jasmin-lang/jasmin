@@ -251,6 +251,7 @@ End LblEqType.
 
 Module LUF := UnionFind(LblEqType).
 
+
 Section FoldLeftComp.
 
   Variables (T1 T2 : Type) (h : T1 → T2).
@@ -263,6 +264,7 @@ Section FoldLeftComp.
   Qed.
 
 End FoldLeftComp.
+
 
 Section PairFoldLeft.
 
@@ -507,7 +509,7 @@ Section Tunneling.
     match c, c' with
       | MkLI _ li, MkLI _ li' =>
         match li, li' with
-          | Llabel l, Lgoto (fn',l') => if fn == fn' then uf else LUF.union uf l l'
+          | Llabel l, Lgoto (fn',l') => if fn == fn' then LUF.union uf l l' else uf
           | _, _ => uf
         end
     end.
@@ -572,30 +574,135 @@ Section TunnelingProof.
       by rewrite LUF.find_empty.
   Qed.
 
+  Lemma pairmap_tunnel_bore_empty fd : forall Lial, pairmap (tunnel_bore fn LUF.empty) Lial (lfd_body fd) = (lfd_body fd).
+  Proof.
+    move => Lial.
+    rewrite (eq_pairmap Lial (lfd_body fd) (tunnel_bore_empty)).
+    have ->: (pairmap (λ _ c' : linstr, c') Lial (lfd_body fd)) = lfd_body fd.
+    + by elim: (lfd_body fd) Lial => //= hlc tlc ->.
+    by case: fd.
+  Qed.
+
+  (*lprog p needs to be well formed, ie all it's function must have each label at most once.*)
+  (*It may also need all function names to occur at most once, butI think Idon't need it, as all functions of same name than a previous function will be ignored.*)
+
   Lemma tunneling_lsem1 p s1 s2 : lsem1 (lprog_tunnel p) s1 s2 -> lsem p s1 s2.
   Proof.
     rewrite /lprog_tunnel /lfundef_tunnel.
     case Hfind: (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p) < size (lp_funcs p)); last first.
     + by clear Hfind; case: p => /=; intros; apply: Relation_Operators.rt_step.
-    case Hnth: (nth Default_lp_func (lp_funcs p) (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p))).
     (*Impossible to name _a_ and _b_ here.*)
+    have: exists fn' fd, (nth Default_lp_func (lp_funcs p) (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p))) = (fn', fd).
+    + case Hnth: (nth Default_lp_func (lp_funcs p) (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p))).
+      by eexists; eexists.
+    move => [fn'] [fd] Hnth; rewrite Hnth.
+    rewrite -has_find in Hfind.
+    have Hbeq:= (nth_find Default_lp_func Hfind).
+    rewrite Hnth /= in Hbeq.
+    have Heq:= (eqP Hbeq); subst fn'; clear Hbeq.
     (*eexists that breaks s0?*)
     (*Generalizing one pattern?*)
     (*Anything faster?*)
-    (*
-    have P:
-    (fun lc lc' =>
-      lsem1
+    rewrite /lfundef_tunnel_partial /tunnel_plan.
+    pose P:=
+      (fun lc lc' =>
+          lsem1
+            {|
+            lp_rip := lp_rip p;
+            lp_globs := lp_globs p;
+            lp_funcs := set_nth Default_lp_func (lp_funcs p)
+                          (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p))
+                          (fn,
+                          {|
+                          lfd_align := lfd_align fd;
+                          lfd_tyin := lfd_tyin fd;
+                          lfd_arg := lfd_arg fd;
+                          lfd_body := tunnel_partial fn
+                                        (pairfoldl (tunnel_chart fn) LUF.empty Linstr_align lc)
+                                        lc';
+                          lfd_tyout := lfd_tyout fd;
+                          lfd_res := lfd_res fd;
+                          lfd_export := lfd_export fd |}) |} s1 s2 → lsem p s1 s2
+    ).
+    apply: (@prefixW _ P).
+    + rewrite /P /= /tunnel_partial pairmap_tunnel_bore_empty.
+      clear P; move: Hnth Hfind; case: p => /= lp_rip lp_globs lp_funcs.
+      case: fd => lfd_align lfd_tyin lfd_arg lfd_body lfd_tyout lfd_res lfd_export; move => Hnth Hfind /=.
+      have ->:
+        (set_nth Default_lp_func lp_funcs (find (λ p0 : positive * lfundef, p0.1 == fn) lp_funcs) (fn, {|lfd_align := lfd_align; lfd_tyin := lfd_tyin; lfd_arg := lfd_arg; lfd_body := lfd_body; lfd_tyout := lfd_tyout; lfd_res := lfd_res; lfd_export := lfd_export |})) = lp_funcs; last first.
+      - by apply: Relation_Operators.rt_step.
+      apply: (@eq_from_nth _ Default_lp_func _ _); rewrite size_set_nth /maxn. 
+      - case Hfind': ((find (λ p0 : positive * lfundef, p0.1 == fn) lp_funcs).+1 < size lp_funcs) => //.
+        apply/eqP; rewrite eqn_leq; apply/andP; split; first by rewrite -has_find.
+        by admit.
+      move => i _; rewrite nth_set_nth /=.
+      case Hi: (i == (find (λ p0 : positive * lfundef, p0.1 == fn) lp_funcs)) => //.
+      by rewrite -(eqP Hi) in Hnth; rewrite Hnth.
+    move => hli tli; rewrite /P /lfundef_tunnel_partial /tunnel_plan; clear P.
+    rewrite pairfoldl_rcons; case: (lastP tli) => /=; first by case: (lfd_body fd); case: hli => //.
+    move => ttli htli; rewrite (last_rcons Linstr_align ttli htli).
+    case: hli; case: htli => li_ii1 li_i1 li_ii2 li_i2.
+    rewrite /tunnel_chart; case: li_i1; case: li_i2 => //=.
+    move => [fn' l2] l1; case Hbeq: (fn == fn') => //.
+    have Heq:= (eqP Hbeq); subst fn'; clear Hbeq.
+    rewrite -/tunnel_chart -/tunnel_plan.
+    pose Pfl:=
+      (pairfoldl
+        (λ (uf : LUF.unionfind) (c c' : linstr),
+          match c with
+          | {| li_i := li |} =>
+            match c' with
+            | {| li_i := li' |} =>
+              match li with
+              | Llabel l =>
+                match li' with
+                | Lgoto (fn', l') =>
+                  if fn == fn'
+                  then LUF.union uf l l'
+                  else uf
+                | _ => uf
+                end
+              | _ => uf
+            end
+          end
+        end)
+        LUF.empty Linstr_align (rcons ttli {| li_ii := li_ii1; li_i := Llabel l1 |})).
+      pose tp:=
         {|
         lp_rip := lp_rip p;
         lp_globs := lp_globs p;
         lp_funcs := set_nth Default_lp_func (lp_funcs p)
-                  (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p))
-                  (fn, lfundef_tunnel_partial _b_ lc lc') |}
-        s1 s2 →
-      lsem p s1 s2).
-    apply: (@prefixW _ P).
-    *)
+                      (find (λ p0 : positive * lfundef, p0.1 == fn) (lp_funcs p))
+                      (fn,
+                      {|
+                      lfd_align := lfd_align fd;
+                      lfd_tyin := lfd_tyin fd;
+                      lfd_arg := lfd_arg fd;
+                      lfd_body := tunnel_partial fn Pfl (lfd_body fd);
+                      lfd_tyout := lfd_tyout fd;
+                      lfd_res := lfd_res fd;
+                      lfd_export := lfd_export fd
+                      |})
+        |}.
+      pose tpu:=
+        {|
+        lp_rip := lp_rip p;
+        lp_globs := lp_globs p;
+        lp_funcs := set_nth Default_lp_func (lp_funcs p)
+                      (find (λ p0 : positive * lfundef, p0.1 == fn) (lp_funcs p))
+                      (fn,
+                      {|
+                      lfd_align := lfd_align fd;
+                      lfd_tyin := lfd_tyin fd;
+                      lfd_arg := lfd_arg fd;
+                      lfd_body := tunnel_partial fn (LUF.union Pfl l1 l2) (lfd_body fd);
+                      lfd_tyout := lfd_tyout fd;
+                      lfd_res := lfd_res fd;
+                      lfd_export := lfd_export fd
+                      |})
+        |}.
+      rewrite -/Pfl -/tp -/tpu /lsem1 /step => Hprefix Htp.
+      case Hfindtpu: (find_instr tpu s1) => c.
   Admitted.
 
   Lemma tunneling_lsem p s1 s2 : lsem (lprog_tunnel p) s1 s2 -> lsem p s1 s2.
