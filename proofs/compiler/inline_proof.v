@@ -303,8 +303,8 @@ Section INCL.
   Proof.
     apply (@cmd_rect Pr Pi Pc) => // {c}.
     + move=> i c Hi Hc X1 c' ltc' X2 /=. t_xrbindP.
-      move=> -[[Xi ci] lti] /Hi Hi' /= [[Xc cc] ltc] /= /Hc Hc' /=.
-      rewrite Hi' /=. rewrite Hc' /=. by move=> ->.
+      move=> -[[Xi ci] lti] /Hc Hc' /= [[Xc cc] ltc] /= /Hi Hi' /=.
+      rewrite Hc' /=. rewrite Hi' /=. by move=> ->.
     (* Asgn *)
     + move=> x tg ty /= e. rewrite /Pr. move=> ii /=. rewrite /Pi.
       by move=> X1 c' lti' X2 H.
@@ -337,7 +337,76 @@ Section INCL.
 
 End INCL.
 
+Section INCL_FS.
+
+Variable Fs: seq (funname * leak_c_tr).
+
+Hypothesis init_prog_ok : forall p p', inline_prog' p = ok (p', Fs).
+
 Lemma inline_prog_fst p p' lt':
+  inline_prog' p = ok (p', lt') ->
+  [seq x.1 | x <- p] = [seq x.1 | x <- p'].
+Proof.
+ elim: p p' lt' => [ | [f fd] fds Hrec fds'] lt' //=.
+ + by move=> lt1 [] <- /= _.
+ apply: rbindP=> -[fs lt] /Hrec -> /=. apply:rbindP=> -[fd' ltc'].
+ by apply: add_finfoP=> h [] <- hl /=.
+Qed.
+
+Lemma inline_progP p p' f fd':
+  uniq [seq x.1 | x <- p] ->
+  inline_prog' p = ok (p', Fs) ->
+  get_fundef p' f = Some fd' ->
+  exists fd, exists ltc, get_fundef p f = Some fd 
+             /\ inline_fd' p' fd = ok (fd', ltc) 
+             /\ get_leak Fs f = Some ltc.
+Proof.
+  elim: p p' Fs =>  [ | [f1 fd1] fds Hrec] fds' Fs' //=.
+  (* empty case *)
+  + by move=> _ [<- hl] /= //=.
+  move=> /andP [] Hf Huniq.
+  apply: rbindP=> -[p1 p2] Hp1 /=. t_xrbindP.
+  move=> [fd ltc]; apply: add_finfoP=> Hp2 [] <- hl.
+  rewrite !get_fundef_cons /=; case: eqP=> hf hfd.
+  + exists fd1. exists ltc. split=> //. case: hfd => <-. split.
+    apply: (inline_incl _ Hp2)=> f0 fd0; rewrite get_fundef_cons /=.
+    case: eqP=> // -> H; have := (get_fundef_in H)=> {H}H.
+    by move: Hf ; rewrite (inline_prog_fst Hp1) H. rewrite hf -hl /=.
+    by case: eqP=> //.
+  move: (Hrec p1 p2 Huniq Hp1 hfd). move=> [] fd'' [] ltc'' [] Hg [] Hi Hi'.
+  exists fd''. exists ltc''. split=> //. split.
+  apply: inline_incl Hi. move=> f0 fd0; rewrite get_fundef_cons /=.
+  case: eqP => // ->  H; have := (get_fundef_in H)=> {H}H.
+  by move: Hf;rewrite (inline_prog_fst Hp1) H. rewrite -hl /=.
+  by case: eqP=> //.
+Qed.
+
+Lemma inline_progP' p p' f fd :
+  uniq [seq x.1 | x <- p] ->
+  inline_prog' p = ok (p', Fs) ->
+  get_fundef p f = Some fd ->
+  exists fd', exists ltc, get_fundef p' f = Some fd' 
+              /\ inline_fd' p' fd = ok (fd', ltc)
+              /\ get_leak Fs f = Some ltc.
+Proof.
+  elim: p p' Fs =>  [ | [f1 fd1] fds Hrec] fds' Fs' //=.
+  rewrite /= => /andP [] Hf1 Huniq.
+  apply: rbindP=> -[p1 p2] Hp1 /=.
+  t_xrbindP=> -[fd' ltc']; apply: add_finfoP=> Hinl [] <- Hl.
+  rewrite !get_fundef_cons /=;case: eqP => [hf [hfd]| Hne].
+  + subst f1 fd1; exists fd'; exists ltc'; split=> //. split.
+    apply: inline_incl Hinl => f0 fd0;rewrite get_fundef_cons /=.
+    case: eqP => // -> H; have := (get_fundef_in H)=> {H}H.
+    by move: Hf1;rewrite (inline_prog_fst Hp1) H.
+    rewrite -Hl /=. by case: eqP=> //.
+  move=> /(Hrec _ _ Huniq Hp1) [] fd'' [] ltc'' [] Hg [] H H';exists fd''; exists ltc''; split=>//. split.
+  apply: inline_incl H => f0 fd0;rewrite get_fundef_cons /=.
+  case: eqP => // -> H; have := (get_fundef_in H)=> {H}H.
+  by move: Hf1;rewrite (inline_prog_fst Hp1) H. rewrite -Hl /=.
+  by case: eqP=> //.
+Qed.
+
+(*Lemma inline_prog_fst p p' lt':
   inline_prog' p = ok (p', lt') ->
   [seq x.1 | x <- p] = [seq x.1 | x <- p'].
 Proof.
@@ -391,7 +460,9 @@ Proof.
   apply: inline_incl H => f0 fd0;rewrite get_fundef_cons /=.
   case: eqP => // -> H; have := (get_fundef_in H)=> {H}H.
   by move: Hf1;rewrite (inline_prog_fst Hp1) H.
-Qed.
+Qed.*)
+
+End INCL_FS.
 
 Section SUBSET.
 
@@ -416,7 +487,7 @@ Section SUBSET.
   Local Lemma Scons  : forall i c, Pi i -> Pc c -> Pc (i::c).
   Proof.
     move=> i c Hi Hc X2 [[X c'] ltc] /=.
-    t_xrbindP. move=> [[X' ci] lti] /Hi /= hi [[Xc cc] ltc'] /Hc /= hc [] <- h1 h2 /=.
+    t_xrbindP. move=> [[X' ci] lti] /Hc /= hc [[Xc cc] ltc'] /Hi /= hi [] <- h1 h2 /=.
     rewrite read_c_cons; SvD.fsetdec.
   Qed.
 
@@ -475,27 +546,16 @@ Lemma assgn_tuple_Lvar p ii (xs:seq var_i) flag tys es vs vs' s s' lws:
       (map2 (fun x y => (Lassgn (LSub [:: x; y]))) (unzip2 vs) lws) s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
-  elim: xs es tys vs vs' s s' lws => 
-  [ | x xs Hrec] [ | e es] [ | ty tys] [ | v vs] vs' s s' lws //=;
+  elim: xs es tys vs vs' s s' lws => [ | x xs Hrec] [ | e es] [ | ty tys] [ | v vs] vs' s s' lws  //=;
     try by move => _ _ /(@ok_inj _ _ _ _) <-.
-  + move=> h h1 [] <- [] <- hl /=. constructor.
-  + move=> h. t_xrbindP. move=> [v l] he vs'' hes //=.
-  + move=> h. t_xrbindP. move=> [v1 l1] he vs1 hes <- <- vt htr vs2 hm <- //=.
-  rewrite vrvs_cons vrv_var read_es_cons=> Hempty /=.
-  t_xrbindP. move=> [v1 l1] he ves hes <- <- vt htr vs1 htrs <- /=.
-  t_xrbindP. move=> [s1 lw] s1' Hw [] <- <- [s2 lw'] Hws <- <- /=.
-  apply Eseq with s1. 
-  + apply EmkI. apply Eassgn with v1 vt; auto. 
-Admitted.
-
- (*by move=> _ _ [<-] [<-];constructor.
+  + by move=> H _ [] <- [] <- _;constructor.
   + by move=> _; apply: rbindP => ??;apply:rbindP.
   + by move=> _ _;t_xrbindP => ? _ ? _ <-.
-  rewrite vrvs_cons vrv_var read_es_cons=> Hempty.
-  rewrite /=;t_xrbindP => ve Hse ves Hves ??;subst => v1 htr vs1 htrs <-.
-  t_xrbindP => s1 Hw Hws.
-  apply Eseq with s1.
-  + by constructor;econstructor;eauto.
+  rewrite vrvs_cons vrv_var read_es_cons=> /= Hempty.
+  rewrite /=;t_xrbindP=> -[ve le] Hse ves Hves h1 h2;subst => v1 htr vs1 htrs <- /=.
+  t_xrbindP=> -[s1 le'] s1' Hw [] <- <- [s2' le''] /= Hws /= <- <-.
+  apply Eseq with s1'.
+  + constructor;econstructor;eauto. by rewrite /write_lval Hw /=.
   apply: Hrec htrs Hws;first by SvD.fsetdec.
   apply:rbindP Hw => vm;apply: on_vuP.
   + move=> z ? <- [<-] /=.
@@ -506,38 +566,37 @@ Admitted.
   rewrite -Hves=> {Hse Hves};case:s => sm svm /=.
   apply read_es_eq_on with Sv.empty.
   by rewrite read_esE => y Hy;rewrite Fv.setP_neq //;apply/eqP;SvD.fsetdec.
-Qed.*)
-
+Qed.
+  
 Lemma assgn_tuple_Pvar p ii xs flag tys rxs vs vs' s s' lws:
   let es := map Pvar rxs in
   disjoint (vrvs xs) (read_es es) ->
   mapM (fun x : var_i => get_var (evm s) x) rxs = ok vs ->
   mapM2 ErrType truncate_val tys vs = ok vs' ->
   write_lvals (p_globs p) s xs vs' = ok (s', lws) ->
-  sem p s (assgn_tuple inline_var ii xs flag tys es) 
-      (map2 (fun x y => (Lassgn (LSub [:: x; y]))) [::] lws) s'.
+  sem p s (assgn_tuple inline_var ii xs flag tys es)
+      (map2 (fun x y => (Lassgn (LSub [:: x; y]))) (map (fun x => LEmpty) vs) lws) s'.
 Proof.
-Admitted.
-  (*rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
+  rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
   have : evm s = evm s [\vrvs xs] by done.
   have : Sv.Subset (vrvs xs) (vrvs xs) by done.
   move: {1 3}s => s0;move: {2 3 4}(vrvs xs) => X.
-  elim: xs rxs tys vs vs' s s' => [ | x xs Hrec] [ | rx rxs] [ | ty tys] [ | v vs] vs' s s' //=.
+  elim: xs rxs tys vs vs' s s' lws => [ | x xs Hrec] [ | rx rxs] [ | ty tys] [ | v vs] vs' s s' lws //=.
   + by move=> _ _ _ _ [<-] [<-];constructor.
   + by move=> _ _ _;apply: rbindP => ??;apply:rbindP.
   + by move=> _ _ _;t_xrbindP => ?????????? <-.
   + by move=> _ _ _ _ [<-].
   + by move=> _ _ _ _ [<-].
   rewrite vrvs_cons read_es_cons read_e_var => Hsub Heqe Hempty.
-  t_xrbindP => ve Hse vz Hses ?? v1 vs1 htr htrs ?; subst ve vz vs'.
-  t_xrbindP => s1 Hw Hws; apply Eseq with s1.
+  t_xrbindP => ve Hse vz Hses <- <- v1 htr vs1 htrs <-. t_xrbindP.
+  t_xrbindP => -[s1 lw] Hw -[s1' lw'] Hws <- <- /=; apply Eseq with s1.
   + constructor;econstructor;rewrite /=;eauto.
     have /get_var_eq_on <- //: evm s0 =[Sv.singleton rx] evm s.
-    + by move=> y ?;apply: Heqe;SvD.fsetdec.
+    + by move=> y ?;apply: Heqe;SvD.fsetdec. by rewrite Hse /=.
     by SvD.fsetdec.
   apply: Hrec Hses htrs Hws;[SvD.fsetdec| |SvD.fsetdec].
   by move=> y Hy;rewrite Heqe //;apply (vrvP Hw);SvD.fsetdec.
-Qed.*)
+Qed.
 
 (* FIXME : MOVE THIS, this should be an invariant in vmap *)
 Section WF.
@@ -719,14 +778,11 @@ Section PROOF.
   Local Lemma Hcons : sem_Ind_cons p Pc Pi.
   Proof.
     move=> s1 s2 s3 i c li lc Hsi Hi Hsc Hc X1 X2 c0 ltc /=.
-    rewrite /Pi in Hi. rewrite /Pc in Hc.
-    t_xrbindP=> -[[X1' c1] ltc'] Hiii -[[X2' c2] ltc''] /= Hic [] <- <- <- vm' Hwf Hevm.
-  Admitted.
-  (*apply: rbindP => -[Xc c'] /Hc Hic.
-    apply:rbindP => -[Xi i'] /Hi Hii [<- <-] vm1 /Hii H/H{H} [vm2 []].
-    move=> /Hic H/H{H} [vm3 [Hwf3 Hvm3 Hsc']] ?.
+    apply: rbindP=> -[[Xc c'] ltc'] /Hc Hic.
+    apply: rbindP=> -[[Xi i'] lti'] /Hi Hii [] <- <- <- vm1 /Hii H/H{H} [vm2 []].
+    move=> /Hic H/H{H} [vm3 [Hwf3 Hvm3 Hsc']] Hs.
     by exists vm3;split=> //;apply: sem_app Hsc'.
-  Qed.*)
+  Qed.
 
   Local Lemma HmkI : sem_Ind_mkI p Pi_r Pi.
   Proof. by move=> ii i s1 s2 li Hsi Hi X1 X2 c' ltc /Hi. Qed.
@@ -844,22 +900,18 @@ Section PROOF.
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
   Proof.
     move => s1 s2 t o xs es lo.
-    case: s1 s2 => sm1 svm1 [sm2 svm2].
-    apply: rbindP => vs;t_xrbindP=> Hse vs' Hso [s1' lt] Hw /= <- <- /= ii X1 X2 c' ltc [] <- <- <- vm1.
-    rewrite read_i_opn => Hwf Hvm.
-    (*have H : svm1 <=[read_es es] vm1.
-    move: sem_pexprs_uincl_on. move=> Hse'. move: (Hse' gd es 
-    have /sem_pexprs_uincl_on  -/(_ _ _ _ _ Hse) : svm1 <=[read_es es] vm1. 
-    by apply: vm_uincl_onI Hvm;SvD.fsetdec.
-    move=> [v2 Hv2 Huv2].
+    case: s1 s2 => sm1 svm1 [sm2 svm2]. rewrite /sem_sopn. t_xrbindP.
+    move=> vs Hse vs' Hso [s1 lt] Hw /= <- <- /= ii X1 X2 c' ltc' [] <- <- <- vm1.
+    rewrite read_i_opn => Hwf /= Hvm.
+    have /sem_pexprs_uincl_on -/(_ _ _ _ Hse): svm1 <=[read_es es] vm1  by apply: vm_uincl_onI Hvm;SvD.fsetdec.
+    move=> [v2 Hv2 [] Huv2 ->].
     have [v2' [Hso' Huv2']]:= vuincl_exec_opn Huv2 Hso.
     have [ | vm2 /=Hvm2 Hw']:= write_lvals_uincl_on _ Huv2' Hw Hvm; first by SvD.fsetdec.
     exists vm2;split.
     + by apply: wf_write_lvals Hw'.
     + by apply: vm_uincl_onI Hvm2;SvD.fsetdec.
-    by apply: sem_seq1;constructor;constructor;rewrite -eq_globs /sem_sopn Hv2 /= Hso'.
-  Qed.*)
-  Admitted.
+    by apply: sem_seq1;constructor;constructor;rewrite -eq_globs /sem_sopn Hv2 /= Hso' /= Hw' /=.
+  Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
   Proof.
@@ -969,8 +1021,8 @@ Section PROOF.
   Qed.
 
   Lemma array_initP P s ii X :
-    exists vmi,
-      sem P s (array_init ii X) {| emem := emem s; evm := vmi |} /\
+    exists vmi, exists lc, 
+      sem P s (array_init ii X) lc {| emem := emem s; evm := vmi |} /\
       forall xt xn,
         let x := {|vtype := xt; vname := xn |} in
         vmi.[x] =
@@ -981,8 +1033,8 @@ Section PROOF.
             end
           else (evm s).[x].
   Proof.
-    have [vmi [H1 H2]]: exists vmi,
-      sem P s (array_init ii X) {| emem := emem s; evm := vmi |} /\
+    (*have [vmi [H1 H2]]: exists vmi, exists lc, 
+      sem P s (array_init ii X) lc {| emem := emem s; evm := vmi |} /\
       forall xt xn,
         let x := {|vtype := xt; vname := xn |} in
         vmi.[x] =
@@ -992,7 +1044,7 @@ Section PROOF.
             | t      => (evm s).[{|vtype := t; vname := xn|}]
             end
           else (evm s).[x];last first.
-    + by exists vmi;split=>//= xt xn;rewrite H2 SvD.F.elements_b.
+    + exists vmi. split=>//= xt xn;rewrite H2 SvD.F.elements_b.
     case: s => mem;rewrite /array_init Sv.fold_spec.
     set F := (fun (a:cmd) (e:Sv.elt) => _).
     have Hcat : forall l c, List.fold_left F l c = List.fold_left F l [::] ++ c.
@@ -1023,34 +1075,43 @@ Section PROOF.
     move=> xt xn';rewrite H2; case: ifP => Hin;first by rewrite orbT.
     rewrite orbF;case:ifPn=> //;rewrite /SvD.F.eqb.
     by case: SvD.F.eq_dec => // -[->].
-  Qed.
+  Qed.*)
+  Admitted.
 
   Local Lemma Hcall : sem_Ind_call p Pi_r Pfun.
   Proof.
-    move => s1 m2 s2 ii xs fn args vargs vs.
-    case:s1 => sm1 svm1 /= Hes Hsc Hfun Hw ii' X1 X2 c' /=;case:ii;last first.
-    + move=> [<- <-] vm1 Hwf1 Hvm1.
-      have /(_ Sv.empty vm1) [|vargs' /= Hvargs' Huargs]:= sem_pexprs_uincl_on _ Hes.
+    move => s1 m2 s2 ii xs fn args vargs vs lf lw.
+    case hlf: lf=> [lf1 lf2].
+    case: s1=> sm1 svm1 /= Hes Hsc Hfun Hw ii' X1 X2 c' ltc /=; case ii; last first.
+    (* no inlining *)
+    + move=> [] <- <- <- vm1 Hwf1 Hvm1.
+      have /(_ Sv.empty vm1) [|vargs' /= Hvargs' [] Huargs Huargs'] := sem_pexprs_uincl_on _ Hes.  
       + by apply: vm_uincl_onI Hvm1;rewrite read_i_call;SvD.fsetdec.
-      have [vres' [Hscall Hvres]]:= Hfun _ Huargs.
+      have [vres' [ /= Hscall Hvres]]:= Hfun _ Huargs.
       have [|vm2 /= Hvm2 Hxs] := write_lvals_uincl_on _ Hvres Hw Hvm1.
       + by rewrite read_i_call;SvD.fsetdec.
       exists vm2;split.
       + by apply: wf_write_lvals Hxs.
       + by apply: vm_uincl_onI Hvm2; rewrite read_i_call;SvD.fsetdec.
-      by apply sem_seq1;constructor;eapply Ecall;eauto;rewrite -eq_globs.
-    apply: rbindP => fd' /get_funP Hfd'.
-    have [fd [Hfd Hinline]] := inline_progP uniq_funname Hp Hfd'.
-    apply: rbindP => -[];apply:rbindP => -[];apply: add_infunP => Hcheckf /=.
-    case:ifP => // Hdisj _ [] ??;subst X1 c' => vm1 Hwf1 Hvm1.
-    have /(_ Sv.empty vm1) [|vargs' /= Hvargs' Huargs]:= sem_pexprs_uincl_on _ Hes.
+      apply sem_seq1. apply EmkI. move: Ecall. move=> Hrec.  
+      rewrite eq_globs in Hvargs'. rewrite eq_globs in Hxs.
+      move: (Hrec p' {| emem := sm1; evm := vm1 |} m2 {| emem := emem s2; evm := vm2 |} DoNotInline
+             xs fn args vargs' vres' (lf1,
+             leak_Is (leak_I (leak_Fun Fs)) 
+               (leak_Fun Fs lf1) lf2) lw Hvargs' Hscall Hxs). move=> /= Hcall. by rewrite Huargs'.
+    (* inlining *)
+    t_xrbindP. move=> fd' /get_funP Hfd'.
+    have [fd [Hfd [] Hfd'' Hinline]] := inline_progP uniq_funname Hp Hfd'.
+    move=> ut. apply: rbindP=> -[] fn' ltc'. apply: add_infunP => Hcheckf /=.
+    case: ifP=> // Hdisj [] Hut [] <- <- <- vm1 Hwf1 Hvm1.
+    have /(_ Sv.empty vm1) [|vargs' /= Hvargs' [] Huargs Huargs']:= sem_pexprs_uincl_on _ Hes.
     + by apply: vm_uincl_onI Hvm1;rewrite read_i_call;SvD.fsetdec.
-    have [vres1 [Hscall Hvres]]:= Hfun _ Huargs.
+    have [vres1 [ /= Hscall Hvres]]:= Hfun _ Huargs.
     case/sem_callE: Hscall => f [].
     rewrite Hfd' => /(@Some_inj _ _ _) <- {f}.
-    case => vargs0 [s1] [vm2] [vres] [hvs' hs1 hvm2 hvres hvres1].
-    have [s1' [vm2' [vres2 [vres' [Htin Hwv Hbody Hvs [Hall Htout]]]]]] :=
-      CheckAllocReg.alloc_funP_eq Hcheckf hvs' hs1 hvm2 hvres hvres1.
+    case => vargs0 [s1] [vm2] [vres] [lc] [hvs' hs1 hvm2 hvres hvres1].
+    (*have [s1' [vm2' [vres2 [vres' [Htin Hwv Hbody Hvs [Hall Htout]]]]]] :=
+      CheckAllocReg.alloc_funP_eq _ Hcheckf hvs' hs1 hvm2 hvres hvres1.
     move=> {hvs' hs1 hvm2 Hfd' Hfd Hcheckf Hsc Hinline}.
     move: Hdisj Hvm1;rewrite read_i_call.
     move: Htin Htout Hvs Hwv Hbody;set rfd := rename_fd _ _ => Htin Htout Hvs Hwv Hbody Hdisjoint Hvm1.
@@ -1097,243 +1158,79 @@ Section PROOF.
     apply: assgn_tuple_Pvar Htout' Hw' => //;last first.
     move: Hdisjoint;rewrite /disjoint /is_true !Sv.is_empty_spec.
     by rewrite /locals /locals_p vrvs_recE read_cE write_c_recE;SvD.fsetdec.
-  Qed.
+  Qed.*)
+  Admitted.
 
   Local Lemma Hproc : sem_Ind_proc p Pc Pfun.
   Proof.
-    move=> m1 m2 fn fd vargs vargs' s1 vm2 vres vres' Hget Htin Hw Hsem Hc Hres Htout.
-    have [fd' [Hfd']{Hget}] := inline_progP' uniq_funname Hp Hget.
+    move=> m1 m2 fn fd vargs vargs' s1 vm2 vres vres' lc Hget Htin Hw Hsem Hc Hres Htout.
+    have :=  inline_progP' uniq_funname Hp Hget. move=> [] fd' [] ltc [] Hfd' [] {Hget} Hi Hlf.
+    move: Hi.
     case: fd Htin Hw Hsem Hc Hres Htout => /= fi tin fx fc tout fxr Htin Hw Hsem Hc Hres Htout.
-    apply: rbindP => -[X fc'] /Hc{Hc} Hc [] ?;subst fd'.
-    move=> vargs1 Hall;move: Hw; rewrite (write_vars_lvals gd) => Hw.
+    t_xrbindP. move=> [[X fc'] ltc'] /Hc{Hc} Hc h1 /= h2.
+    move=> vargs1 Hall.
+    have [le' Hw'] := (write_lvals_vars gd Hw).
     have heq : Sv.Equal (read_rvs [seq Lvar i | i <- fx]) Sv.empty.
     + elim: (fx);first by rewrite read_rvs_nil;SvD.fsetdec.
       by move=> ?? Hrec; rewrite /= read_rvs_cons /=;SvD.fsetdec.
     have [vargs1' htin' Hall'] := mapM2_truncate_val Htin Hall.
-    have /(_ X) [|/= vm1]:= write_lvals_uincl_on _ Hall' Hw (vm_uincl_on_refl _).
+    have /(_ X) [|/= vm1]:= write_lvals_uincl_on _ Hall' Hw' (vm_uincl_on_refl _).
     + by rewrite heq; SvD.fsetdec.
     move=> hsub Hvm1; case: (Hc vm1) => /=.
     + by apply: wf_write_lvals Hvm1;apply: wf_vmap0.
     + by apply: vm_uincl_onI hsub;SvD.fsetdec.
-    move=> vm2' [hwf hsvm2 hsem].
-    move: Hres; have /= <-:= @sem_pexprs_get_var gd (Estate m2 vm2) => Hres.
-    have [vres1 hvres1 Hall1]:= sem_pexprs_uincl_on hsvm2 Hres.
-    have [vres1' hvres1' Hall1'] := mapM2_truncate_val Htout Hall1.
-    exists vres1';split=> //;econstructor;eauto => /=.
-    + by rewrite (write_vars_lvals gd).
-    by rewrite -(@sem_pexprs_get_var gd {| emem := m2; evm := vm2' |}).
+    move=> vm2' [hwf hsvm2 hsem]. 
+    have /= := @get_var_sem_pexprs_empty gd (Estate m2 vm2). 
+    move=> H.  move: (H fxr vres Hres). move=> {Hres} Hres.
+    have [vres1' hvres1' [] /= Hall1' Hl]:= sem_pexprs_uincl_on hsvm2 Hres.
+    rewrite unzip1_zip in Hall1'; last first.
+    + by rewrite !size_map.
+    have [vres1'' hvres1'' Hall1''] := mapM2_truncate_val Htout Hall1'.
+    exists (vres1'');split=> //.
+    + apply EcallRun with fd' vargs1' {| emem := emem s1; evm := vm1 |} vm2' (unzip1 vres1'). 
+      + by apply Hfd'.
+      + by rewrite -h1 /=; apply htin'.
+      + move: write_vars_lvals. move=> Hwl. 
+        move: (Hwl gd fx vargs1' {| emem := m1; evm := vmap0 |} 
+              {| emem := emem s1; evm := vm1 |} le' Hvm1). move=> {Hwl} Hwl.
+        by rewrite -h1 /=.
+      + rewrite -h1 /=. 
+        have h : (leak_Fun Fs fn) = ltc'. 
+        + rewrite /get_leak in Hlf. rewrite -h2 in Hlf.
+          rewrite /leak_Fun /=. rewrite Hlf /=. auto.
+        by rewrite h.
+      + rewrite -h1 /=. move: sem_pexprs_get_var. move=> {H} H.
+         move: (H gd {| emem := m2; evm := vm2' |} fxr vres1' hvres1'). by move=> /= ->.
+      + by rewrite -h1 /=.
   Qed.
 
-  Lemma inline_callP f mem mem' va va' vr:
+  Lemma inline_callP f mem mem' va va' vr lf:
     List.Forall2 value_uincl va va' ->
-    sem_call p mem f va mem' vr ->
+    sem_call p mem f va lf mem' vr ->
     exists vr',
-      sem_call p' mem f va' mem' vr' /\  List.Forall2 value_uincl vr vr'.
+      sem_call p' mem f va'(lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) mem' vr' 
+      /\  List.Forall2 value_uincl vr vr'.
   Proof.
     move=> Hall Hsem.
     apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
                Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc
-               mem f va mem' vr Hsem _ Hall).
+               mem f va mem' vr _ Hsem _ Hall).
   Qed.
 
 End PROOF.
-
-Lemma inline_call_errP p p' f mem mem' va va' vr:
-  inline_prog_err inline_var rename_fd p = ok p' ->
+Lemma inline_call_errP p p' f mem mem' va va' vr lf Fs:
+  inline_prog_err inline_var rename_fd p = ok (p', Fs) ->
   List.Forall2 value_uincl va va' ->
-  sem_call p mem f va mem' vr ->
+  sem_call p mem f va lf mem' vr ->
   exists vr',
-      sem_call p' mem f va' mem' vr' /\  List.Forall2 value_uincl vr vr'.
+      sem_call p' mem f va' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) mem' vr'
+      /\  List.Forall2 value_uincl vr vr'.
 Proof.
-  rewrite /inline_prog_err;case:ifP => //= Hu; t_xrbindP => fds Hi <-.
-  by apply: (inline_callP (p':= {|p_globs := p_globs p; p_funcs:= fds|}) Hu Hi).
+  rewrite /inline_prog_err. case:ifP => //= Hu. t_xrbindP => -[fds lts] Hi Heq Heq' Hv Hsem.
+  have := (inline_callP (p':= {|p_globs := p_globs p; p_funcs:= fds|}) Hu Hi). rewrite /=.
+  have : p_globs p = p_globs p; auto. move=> Hp. move=> H. move: (H Hp f mem mem' va va' vr lf Hv Hsem).
+  move=> [] vr' [] Hsem' {H} Hv'. exists vr'. split=> //. by rewrite -Heq' -Heq.
 Qed.
 
 End INLINE.
 
-Section REMOVE_INIT.
-
-  Variable p : prog.
-  Notation gd := (p_globs p).
-
-  Definition p' := remove_init_prog p.
-
-  Let Pi s1 (i:instr) s2 :=
-    forall vm1,
-      vm_uincl (evm s1) vm1 -> wf_vm vm1 ->
-      exists vm2,
-       [/\ sem p' (Estate (emem s1) vm1) (remove_init_i i) (Estate (emem s2) vm2),
-           vm_uincl (evm s2) vm2 &
-           wf_vm vm2].
-
-  Let Pi_r s1 (i:instr_r) s2 := forall ii, Pi s1 (MkI ii i) s2.
-
-  Let Pc s1 (c:cmd) s2 :=
-    forall vm1,
-      vm_uincl (evm s1) vm1 -> wf_vm vm1 ->
-      exists vm2,
-        [/\ sem p' (Estate (emem s1) vm1) (remove_init_c c) (Estate (emem s2) vm2),
-            vm_uincl (evm s2) vm2 &
-            wf_vm vm2].
-
-  Let Pfor (i:var_i) vs s1 c s2 :=
-    forall vm1,
-      vm_uincl (evm s1) vm1 -> wf_vm vm1 ->
-      exists vm2,
-        [/\ sem_for p' i vs (Estate (emem s1) vm1) (remove_init_c c) (Estate (emem s2) vm2),
-            vm_uincl (evm s2) vm2 &
-            wf_vm vm2].
-
-  Let Pfun m fn vargs m' vres :=
-    forall vargs',
-    List.Forall2 value_uincl vargs vargs' ->
-    exists vres', sem_call p' m fn vargs' m' vres' /\
-      List.Forall2 value_uincl vres vres'.
-
-  Local Lemma Rnil : sem_Ind_nil Pc.
-  Proof. by move=> s vm1 Hvm1;exists vm1;split=> //;constructor. Qed.
-
-  Local Lemma Rcons : sem_Ind_cons p Pc Pi.
-  Proof.
-    move=> s1 s2 s3 i c _ Hi _ Hc vm1 Hvm1 /(Hi _ Hvm1)  [vm2 []] Hsi Hvm2 /(Hc _ Hvm2) [vm3 []] Hsc ??.
-    by exists vm3;split=>//=; apply: sem_app Hsc.
-  Qed.
-
-  Local Lemma RmkI : sem_Ind_mkI p Pi_r Pi.
-  Proof. by move=> ii i s1 s2 _ Hi vm1 Hvm1 /(Hi ii _ Hvm1) [vm2 []] Hsi ??;exists vm2. Qed.
-
-  Lemma is_array_initP e : is_array_init e -> exists n, e = Parr_init n.
-  Proof. by case: e => // n _; eauto. Qed.
-
-  Local Lemma Rasgn : sem_Ind_assgn p Pi_r.
-  Proof.
-    move=> s1 s2 x tag ty e v v' Hse hsub hwr ii vm1 Hvm1 /=; case: ifP.
-    + case/is_array_initP => n e1;subst e.
-      case: Hse => ?; subst v.
-      move: hsub;rewrite /truncate_val;case: ty => //= nty.
-      rewrite /WArray.cast.
-      case: ZleP => //= ? -[?];subst.
-      case: x hwr => [vi t | [[xt xn] xi] | ws x e | ws x e] /=.
-      + by move=> /write_noneP [->];exists vm1;split=> //;constructor.
-      + apply: rbindP => vm1';apply: on_vuP => //=.
-        + case: xt => //= p0 t -[?] ? [?];subst => /= Wf1.
-          exists vm1;split => //=;first by constructor.
-          move=> z;have := Hvm1 z.
-          case: ({| vtype := sarr p0; vname := xn |} =P z) => [<- _ | /eqP neq].
-          + rewrite Fv.setP_eq; have := Wf1 {| vtype := sarr p0; vname := xn |}.
-            case: (vm1.[_]) => //= [ | [] //].
-            move=> a _;split;first by apply Z.le_refl.
-            by move=>???; rewrite WArray.zget_inject //= Mz.get0; case: ifP.
-          by rewrite Fv.setP_neq.
-        by rewrite /of_val;case:xt => //= ? ?; case: wsize_eq_dec => // ?; case: CEDecStype.pos_dec.
-      + by t_xrbindP.
-      by apply: on_arr_varP => ???; t_xrbindP.
-    have [z' Hz' Hz] := sem_pexpr_uincl Hvm1 Hse.
-    have [z1 htr Uz1]:= truncate_value_uincl Hz hsub.
-    move=> _ hwf ; have [vm2 Hw ?]:= write_uincl Hvm1 Uz1 hwr.
-    exists vm2;split=> //.
-    + apply sem_seq1;constructor;econstructor;eauto.
-    by apply: wf_write_lval Hw.
-  Qed.
-
-  Local Lemma Ropn : sem_Ind_opn p Pi_r.
-  Proof.
-    move=> s1 s2 t o xs es H ii vm1 Hvm1; move: H;rewrite /sem_sopn; t_xrbindP => rs vs.
-    move=> /(sem_pexprs_uincl Hvm1) [] vs' H1 H2.
-    move=> /(vuincl_exec_opn H2) [] rs' [] H3 H4.
-    move=> /(writes_uincl Hvm1 H4) [] vm2 Hw ?.
-    exists vm2;split => //=;last by apply: wf_write_lvals Hw.
-    by apply sem_seq1;constructor;constructor;rewrite /sem_sopn H1 /= H3.
-  Qed.
-
-  Local Lemma Rif_true : sem_Ind_if_true p Pc Pi_r.
-  Proof.
-    move=> s1 s2 e c1 c2 H _ Hc ii vm1 Hvm1.
-    have [v' H1 /value_uincl_bool1 ?] := sem_pexpr_uincl Hvm1 H;subst => Hwf.
-    have [vm2 [??]]:= Hc _ Hvm1 Hwf;exists vm2;split=>//.
-    by apply sem_seq1;constructor;apply Eif_true;rewrite // H1.
-  Qed.
-
-  Local Lemma Rif_false : sem_Ind_if_false p Pc Pi_r.
-  Proof.
-    move=> s1 s2 e c1 c2 H _ Hc ii vm1 Hvm1.
-    have [v' H1 /value_uincl_bool1 ?] := sem_pexpr_uincl Hvm1 H;subst => Hwf.
-    have [vm2 [??]]:= Hc _ Hvm1 Hwf;exists vm2;split=>//.
-    by apply sem_seq1;constructor;apply Eif_false;rewrite // H1.
-  Qed.
-
-  Local Lemma Rwhile_true : sem_Ind_while_true p Pc Pi_r.
-  Proof.
-    move=> s1 s2 s3 s4 a c e c' _ Hc H _ Hc' _ Hw ii vm1 Hvm1 Hwf;move: H.
-    have [vm2 [Hs2 Hvm2 Hwf2]] := Hc _ Hvm1 Hwf.
-    move=> /(sem_pexpr_uincl Hvm2) [] v' H1 /value_uincl_bool1 H2;subst.
-    have [vm3 [H4 Hvm3 ]]:= Hc' _ Hvm2 Hwf2.
-    move=> /(Hw ii _ Hvm3)  [vm4 [Hsem ??]]; exists vm4;split => //=.
-    apply sem_seq1;constructor;eapply Ewhile_true;eauto.
-    by case/semE: Hsem => si [] /sem_IE ? /semE ?; subst si.
-  Qed.
-
-  Local Lemma Rwhile_false : sem_Ind_while_false p Pc Pi_r.
-  Proof.
-    move=> s1 s2 a c e c' _ Hc H ii vm1 Hvm1 Hwf; move: H.
-    have [vm2 [Hs2 Hvm2 Hwf2]] := Hc _ Hvm1 Hwf.
-    move=> /(sem_pexpr_uincl Hvm2) [] v' H1 /value_uincl_bool1 ?;subst.
-    by exists vm2;split=> //=;apply sem_seq1;constructor;apply: Ewhile_false=> //;rewrite H1.
-  Qed.
-
-  Local Lemma Rfor : sem_Ind_for p Pi_r Pfor.
-  Proof.
-    move=> s1 s2 i d lo hi c vlo vhi H H' _ Hfor ii vm1 Hvm1 Hwf.
-    have [? H1 /value_uincl_int1 H2]:= sem_pexpr_uincl Hvm1 H;subst.
-    have [? H3 /value_uincl_int1 H4]:= sem_pexpr_uincl Hvm1 H';subst.
-    have [vm2 []???]:= Hfor _ Hvm1 Hwf; exists vm2;split=>//=.
-    by apply sem_seq1;constructor; econstructor;eauto;rewrite ?H1 ?H3.
-  Qed.
-
-  Local Lemma Rfor_nil : sem_Ind_for_nil Pfor.
-  Proof. by move=> s i c vm1 Hvm1;exists vm1;split=> //;constructor. Qed.
-
-  Local Lemma Rfor_cons : sem_Ind_for_cons p Pc Pfor.
-  Proof.
-    move=> s1 s1' s2 s3 i w ws c Hi _ Hc _ Hf vm1 Hvm1 Hwf.
-    have [vm1' Hi' /Hc] := write_var_uincl Hvm1 (value_uincl_refl _) Hi.
-    have /(_ Hwf) /= Hwf' := wf_write_var _ Hi'.
-    move=> /(_ Hwf') [vm2 [Hsc /Hf H /H]] [vm3 [Hsf Hvm3]];exists vm3;split => //.
-    by econstructor;eauto.
-  Qed.
-
-  Local Lemma Rcall : sem_Ind_call p Pi_r Pfun.
-  Proof.
-    move=> s1 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfd Hxs ii' vm1 Hvm1 Hwf.
-    have [vargs' Hsa /Hfd [vres' [Hc Hvres]]]:= sem_pexprs_uincl Hvm1 Hargs.
-    have /(_ _ Hvm1) [vm2' Hw ?] := writes_uincl _ Hvres Hxs.
-    exists vm2';split=>//=.
-    + by apply: sem_seq1;constructor; econstructor;eauto.
-    by apply: wf_write_lvals Hw.
-  Qed.
-
-  Local Lemma Rproc : sem_Ind_proc p Pc Pfun.
-  Proof.
-    move=> m1 m2 fn fd vargs vargs' s1 vm2 vres vres' Hget Htin Hargs Hsem Hrec Hmap Htout vargs1' Uargs.
-    have [vargs1 Htin1 Uargs1]:= mapM2_truncate_val Htin Uargs.
-    have [vm1 /= Hargs' Hvm1]:= write_vars_uincl (vm_uincl_refl _) Uargs1 Hargs.
-    have /(_ wf_vmap0) /= Hwf1 := wf_write_vars _ Hargs'.
-    have [vm2' /= [] Hsem' Uvm2 Hwf2]:= Hrec _ Hvm1 Hwf1.
-    have [vres1 Hvres Hsub] := get_vars_uincl Uvm2 Hmap.
-    have [vres1' Htout1 Ures1]:= mapM2_truncate_val Htout Hsub.
-    exists vres1';split => //.
-    eapply EcallRun with (f := remove_init_fd fd);eauto.
-    by rewrite /p' /remove_init_prog get_map_prog Hget.
-  Qed.
-
-  Lemma remove_init_fdP f mem mem' va va' vr:
-    List.Forall2 value_uincl va va' ->
-    sem_call p mem f va mem' vr ->
-    exists vr', sem_call p' mem f va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
-  Proof.
-    move=> /(@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Rnil Rcons RmkI Rasgn Ropn
-             Rif_true Rif_false Rwhile_true Rwhile_false Rfor Rfor_nil Rfor_cons Rcall Rproc) H.
-    by move=> /H.
-  Qed.
-
-End REMOVE_INIT.

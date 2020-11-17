@@ -740,8 +740,8 @@ Section PROOF.
    move=> [] vm4 /= [] Hvm4 Hsc2. move: check_esP. move=> Hes.
    move: (Hes (map Pvar (f_res f)) (map Pvar (f_res f')) r2 r3 lt3 s2 vm4 Hcres Hvm4).
    move=> [] /= Hr3 H {Hes} Hres.
-   have [vres1' /= H1]:= (get_var_sem_pexprs' gd Hres).
-   move: (H (zip vres vres1') H1).
+   have /= H1:= (get_var_sem_pexprs_empty gd Hres).
+   move: (H (zip vres [seq LEmpty | _ <- vres]) H1).
    move=> [] vres1'' [] Hes' [] /= Hv Hv'. 
    rewrite unzip1_zip in Hv; last first.
    + case: Hv' => Hv1'. apply mapM_size in Hres. rewrite /sem_pexprs in H1.
@@ -804,8 +804,8 @@ Section PROOF.
    move: (Hes (map Pvar (f_res f)) (map Pvar (f_res fd2)) r2 r3 lt3 {| emem := emem s1; evm := vm2 |} vm4 Hcres Hvm4). move=> [] /= Hr3 H {Hes}.
    have hvm : vm2 = evm{| emem := emem s1; evm := vm2 |} by []. 
    rewrite hvm in Hres.
-   have [vres1' /= H1]:= (get_var_sem_pexprs' gd Hres).
-   move: (H (zip vres vres1') H1).
+   have /= H1:= (get_var_sem_pexprs_empty gd Hres).
+   move: (H (zip vres [seq LEmpty | _ <- vres]) H1).
    move=> [] vres1'' [] Hes' [] /= Hv Hv'. 
    rewrite unzip1_zip in Hv; last first.
    + case: Hv' => Hv1'. apply mapM_size in Hres. rewrite /sem_pexprs in H1.

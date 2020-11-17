@@ -54,27 +54,12 @@ Definition assgn_tuple iinfo (xs:lvals) flag (tys:seq stype) (es:pexprs) :=
   let assgn xe := MkI iinfo (Cassgn xe.1 (get_flag xe.1 flag) xe.2.1 xe.2.2) in
   map assgn (zip xs (zip tys es)).
 
-
-Section Inline_cmd.
-
-Context (inline_i : instr -> Sv.t -> ciexec (Sv.t * cmd * leak_i_tr)).
-
-Fixpoint inline_c (c: cmd) (s: Sv.t) : ciexec(Sv.t * cmd * leak_c_tr) :=
-  match c with 
-    | [::] => ciok (s, [::], [::])
-    | i1 :: c1 => 
-      Let ri := inline_i i1 s in 
-      Let rs := inline_c c1 ri.1.1 in 
-      ciok (rs.1.1, ri.1.2 ++ rs.1.2, ri.2 :: rs.2)
-  end.
-
-End Inline_cmd.
-
-(*Definition inline_c (inline_i: instr -> Sv.t -> ciexec (Sv.t * cmd)) c s : ciexec (Sv.t * cmd) :=
+Definition inline_c (inline_i: instr -> Sv.t -> ciexec (Sv.t * cmd * leak_i_tr)) c s 
+            : ciexec(Sv.t * cmd * leak_c_tr) :=
   foldr (fun i r =>
     Let r := r in
-    Let ri := inline_i i r.1 in
-    ciok (ri.1, ri.2 ++ r.2)) (ciok (s,[::])) c.*)
+    Let ri := inline_i i r.1.1 in
+    ciok (ri.1.1, ri.1.2 ++ r.1.2, ri.2 :: r.2)) (ciok (s,[::], [::])) c.
 
 Definition sparams fd :=
   vrvs_rec Sv.empty (map Lvar fd.(f_params)).
@@ -149,7 +134,7 @@ Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd * leak_i
                   init_array ++
                   (fd'.(f_body) ++
                   assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Pvar fd'.(f_res))), LT_ikeep)
-      else ciok (X, [::i], LT_ikeep)
+      else ciok (X, [::i], LT_icall LT_id LT_id)
     end
   end.
 
@@ -237,4 +222,5 @@ Definition remove_init_prog (p:prog) :=
   ({| p_globs := p_globs p; p_funcs := funcs.1 |}, funcs.2).
 
 End INLINE.
+
 

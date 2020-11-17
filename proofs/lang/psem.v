@@ -2335,15 +2335,15 @@ Proof.
  move=> [] vsl -> /=. by exists ((v, LEmpty) :: vsl).
 Qed.
 
-Lemma get_var_sem_pexprs' gd s xs vs:
+Lemma get_var_sem_pexprs_empty gd s xs vs:
   mapM (λ x : var_i, get_var (evm s) x) xs = ok vs ->
-  exists l, sem_pexprs gd s [seq Pvar i | i <- xs] = ok (zip vs l).
+  sem_pexprs gd s [seq Pvar i | i <- xs] = ok (zip vs (map (fun x => LEmpty) vs)).
 Proof.
  rewrite /sem_pexprs. elim: xs vs.
- + move=> vs /= Hm /=. case: Hm=> <-. by exists [::].
+ + move=> vs /= Hm /=. by case: Hm=> <-.
  move=> a l /= Hm /=. t_xrbindP.
  move=> vs v Hg vs' Hm' Hv. rewrite Hg /=. move: (Hm vs' Hm').
- move=> [] vsl -> /=. rewrite -Hv /=. by exists (LEmpty :: vsl).
+ move=> -> /=. by rewrite -Hv /=.
 Qed.
 
 Section UNDEFINCL.
