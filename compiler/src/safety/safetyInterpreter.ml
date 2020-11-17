@@ -1025,7 +1025,7 @@ end = struct
                      Some (pcast ws (Pconst (B.of_int 0)))]
 
     | E.Osubcarry ws -> mk_subcarry ws es
-      
+
     | E.Oaddcarry ws -> mk_addcarry ws es
 
     | E.Ox86MOVZX32 ->
@@ -1054,14 +1054,32 @@ end = struct
       opn_sub ws es
 
     (* mul unsigned *)
-    | E.Ox86 (X86_instr_decl.MUL ws) ->
+    | E.Ox86 (X86_instr_decl.MUL ws)
+
+    (* mul signed *)
+    (* since, for now, we ignore the upper-bits, 
+       we do the same thing than for unsigned multiplication. *)
+    | E.Ox86 (X86_instr_decl.IMUL ws) ->
       let el,er = as_seq2 es in
       let w = Papp2 (E.Omul (E.Op_w ws), el, er) in
       (* FIXME: overflow bit to have the precise flags *)
       (* let ov = ?? in
        * let rflags = rflags_of_mul ov in *)
       let rflags = [None; None; None; None; None] in
-      rflags @ [None; Some w]
+      (*          high, low   *)
+      rflags @ [  None; Some w]
+
+    (* mul signed, no higher-bits *)
+    | E.Ox86 (X86_instr_decl.IMULr ws)
+    | E.Ox86 (X86_instr_decl.IMULri ws) ->
+      let el,er = as_seq2 es in
+      let w = Papp2 (E.Omul (E.Op_w ws), el, er) in
+      (* FIXME: overflow bit to have the precise flags *)
+      (* let ov = ?? in
+       * let rflags = rflags_of_mul ov in *)
+      let rflags = [None; None; None; None; None] in
+      (*        low   *)
+      rflags @ [Some w]
 
     (* div unsigned *)
     | E.Ox86 (X86_instr_decl.DIV ws) ->
@@ -1131,7 +1149,7 @@ end = struct
       let e1, e2 = as_seq2 es in
       let e = Papp2 (E.Oasr ws, e1, e2) in
       rflags_unknwon @ [Some e]
-  
+
     (* FIXME: adding bit shift with flags *)
     (* 
     | ROR    of wsize    (* rotation / right *)
@@ -1175,14 +1193,9 @@ end = struct
       let e1 = as_seq1 es in
       let e = Papp1 (E.Olnot ws, e1) in
       rflags_unknwon @ [Some e]
-  
+
     | E.Ox86 (X86_instr_decl.TEST _)
     | E.Ox86 (X86_instr_decl.ANDN _)
-
-    (* mul signed with truncation *)
-    | E.Ox86 (X86_instr_decl.IMUL _)
-    | E.Ox86 (X86_instr_decl.IMULr _)
-    | E.Ox86 (X86_instr_decl.IMULri _) 
 
     | _ ->
       debug (fun () ->
