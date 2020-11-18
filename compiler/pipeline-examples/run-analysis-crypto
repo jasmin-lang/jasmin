@@ -4,7 +4,7 @@
 trap "exit" INT
 
 OPTION="-pipeline -branchpredictor"
-OPTIONNAIVE="-pipeline -naivepipeline"
+OPTIONNAIVE="-pipeline -branchpredictor -naivepipeline"
 MAXJOBS="3"
 
 declare -A SUBDIRS
