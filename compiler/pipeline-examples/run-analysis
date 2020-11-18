@@ -16,7 +16,7 @@ SUBDIRS[simple-examples/hw.jazz]=""
 SUBDIRS[simple-examples/nolea.jazz]=""
 SUBDIRS[simple-examples/threeway.jazz]=""
 
-SUBDIRS[simple-examples/loop3.jazz]="-safetyparam ;RDX" # ;inlen
+SUBDIRS[simple-examples/loop3.jazz]="-safetyparam RDI,RSI;RDX" # out,in;inlen
 SUBDIRS[simple-examples/opti.jazz]="-safetyparam ;RDX" # ;len
 SUBDIRS[simple-examples/nonopti.jazz]="-safetyparam ;RDX" # ;len
 
