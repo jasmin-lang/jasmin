@@ -556,7 +556,7 @@ Section TunnelingProof.
 
   Definition lfundef_tunnel fd := lfundef_tunnel_partial fd fd.(lfd_body) fd.(lfd_body).
 
-  (*Maybe better definition with eta, assoc?*)
+  (*Use map*)
   Definition lprog_tunnel p :=
     Build_lprog
       p.(lp_rip)
@@ -586,6 +586,8 @@ Section TunnelingProof.
 
   (*lprog p needs to be well formed, ie all it's function must have each label at most once.*)
   (*It may also need all function names to occur at most once, but I think I don't need it, as all functions of same name than a previous function will be ignored.*)
+  (*Ask Vincent for predicate saying that.*)
+  (*case: ifP.*)
 
   Lemma tunneling_lsem1 p s1 s2 : lsem1 (lprog_tunnel p) s1 s2 -> lsem p s1 s2.
   Proof.
@@ -629,9 +631,8 @@ Section TunnelingProof.
         (set_nth Default_lp_func lp_funcs (find (λ p0 : positive * lfundef, p0.1 == fn) lp_funcs) (fn, {|lfd_align := lfd_align; lfd_tyin := lfd_tyin; lfd_arg := lfd_arg; lfd_body := lfd_body; lfd_tyout := lfd_tyout; lfd_res := lfd_res; lfd_export := lfd_export |})) = lp_funcs; last first.
       - by apply: Relation_Operators.rt_step.
       apply: (@eq_from_nth _ Default_lp_func _ _); rewrite size_set_nth /maxn. 
-      - case Hfind': ((find (λ p0 : positive * lfundef, p0.1 == fn) lp_funcs).+1 < size lp_funcs) => //.
-        apply/eqP; rewrite eqn_leq; apply/andP; split; first by rewrite -has_find.
-        by admit.
+      - case: ltnP => //; rewrite leq_eqVlt => /orP [/eqP //|].
+        by rewrite ltnNge -has_find Hfind.
       move => i _; rewrite nth_set_nth /=.
       case Hi: (i == (find (λ p0 : positive * lfundef, p0.1 == fn) lp_funcs)) => //.
       by rewrite -(eqP Hi) in Hnth; rewrite Hnth.
@@ -643,28 +644,12 @@ Section TunnelingProof.
     move => [fn' l2] l1; case Hbeq: (fn == fn') => //.
     have Heq:= (eqP Hbeq); subst fn'; clear Hbeq.
     rewrite -/tunnel_chart -/tunnel_plan.
-    pose Pfl:=
-      (pairfoldl
-        (λ (uf : LUF.unionfind) (c c' : linstr),
-          match c with
-          | {| li_i := li |} =>
-            match c' with
-            | {| li_i := li' |} =>
-              match li with
-              | Llabel l =>
-                match li' with
-                | Lgoto (fn', l') =>
-                  if fn == fn'
-                  then LUF.union uf l l'
-                  else uf
-                | _ => uf
-                end
-              | _ => uf
-            end
-          end
-        end)
-        LUF.empty Linstr_align (rcons ttli {| li_ii := li_ii1; li_i := Llabel l1 |})).
-      pose tp:=
+    (*
+    set Pfl:= (X in LUF.union X).
+    rewrite -/Pfl.
+    *)
+    set Pfl := pairfoldl _ _ _ _.
+    pose tp:=
         {|
         lp_rip := lp_rip p;
         lp_globs := lp_globs p;
