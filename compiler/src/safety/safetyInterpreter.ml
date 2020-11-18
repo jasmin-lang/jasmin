@@ -216,7 +216,9 @@ let rec safe_e_rec safe = function
 
   | Pload (ws,x,e) ->
     Valid (ws, L.unloc x, e, Load) ::
-    Aligned (ws, L.unloc x, e) ::
+    (* We do not check alignment constraints when computing overlap 
+       information. *)
+    (if !Aparam.check_overlaps then [] else [Aligned (ws, L.unloc x, e)]) @
     safe_e_rec safe e
   | Pget (ws, x, e) -> (in_bound x ws e) @ (init_get x ws e) @ safe
   | Papp1 (_, e) -> safe_e_rec safe e
@@ -236,7 +238,9 @@ let safe_lval = function
   | Lnone _ | Lvar _ -> []
   | Lmem(ws, x, e) ->
     Valid (ws, L.unloc x, e, Store) ::
-    Aligned (ws, L.unloc x, e) ::
+    (* We do not check alignment constraints when computing overlap 
+       information. *)
+    (if !Aparam.check_overlaps then [] else [Aligned (ws, L.unloc x, e)]) @
     safe_e_rec [] e
   | Laset(ws,x,e) -> (in_bound x ws e) @ safe_e_rec [] e
 
