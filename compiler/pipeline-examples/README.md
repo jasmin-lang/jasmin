@@ -1,3 +1,23 @@
+For the naive cost analysis, only the maximal cost is meaningful (the minimal cost infered is to be ignored).
+
+For non-relational analysis, the * Rel part can be ignored, and only
+the projected values can be looked at.
+
+For relational analysis, we have to manually select the best bounds
+among the relations obtained. When we add several incomparable bounds,
+we selected the best asymptotic bound.  We simplified the bounds
+(rounding above for the maximal cost, below for the minimal cost) the
+bounds when necessary.
+
+Note that, since input values are always upper-bound by (2^ws - 1)
+(where ws is the number of bits used to represent the input), our
+relational results always contain an upper-bound of the form.
+  'costMax <= SomeLargeInteger'
+We ignore this upper-bound, which is of little value.
+
+
+
+
 Safety analysis
 --------------------------------------------------------------------
 

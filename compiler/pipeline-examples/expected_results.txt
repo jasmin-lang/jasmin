@@ -1,0 +1,263 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Programs with Non-Relational Cost %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+#----------------------------------#
+| simple_examples/fe25519_mul.jazz |
+#----------------------------------#
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {inv_RSI ≥ 0, inv_RDX ≥ 0, inv_RDI ≥ 0, inv_RSI ≤
+  18446744073709551615, inv_RDI ≤ 18446744073709551615, inv_RDX ≤
+  18446744073709551615, v_costMax = 427}
+  v_costMax ∊ [427; 427]
+  
+  Cost Min:
+  * Rel:
+  {inv_RSI ≥ 0, inv_RDX ≥ 0, inv_RDI ≥ 0, inv_RSI ≤
+  18446744073709551615, inv_RDI ≤ 18446744073709551615, inv_RDX ≤
+  18446744073709551615, v_costMin = 427}
+  v_costMin ∊ [427; 427]
+
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {inv_RSI ≥ 0, inv_RDX ≥ 0, inv_RDI ≥ 0, inv_RSI ≤
+  18446744073709551615, inv_RDI ≤ 18446744073709551615, inv_RDX ≤
+  18446744073709551615, v_costMax = 464}
+  v_costMax ∊ [464; 464]
+
+
+#-------------------------#
+| simple_examples/hw.jazz |
+#-------------------------#
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {inv_RSI ≥ 0, inv_RDX ≥ 0, inv_RCX ≥ 0, inv_RDI ≥ 0, inv_RSI ≤
+  18446744073709551615, inv_RDX ≤ 18446744073709551615, inv_RCX ≤
+  18446744073709551615, inv_RDI ≤ 18446744073709551615, v_costMax = 75}
+  v_costMax ∊ [75; 75]
+  
+  Cost Min:
+  * Rel:
+  {inv_RSI ≥ 0, inv_RDX ≥ 0, inv_RCX ≥ 0, inv_RDI ≥ 0, inv_RSI ≤
+  18446744073709551615, inv_RDX ≤ 18446744073709551615, inv_RCX ≤
+  18446744073709551615, inv_RDI ≤ 18446744073709551615, v_costMin = 75}
+  v_costMin ∊ [75; 75]
+
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {inv_RSI ≥ 0, inv_RDX ≥ 0, inv_RCX ≥ 0, inv_RDI ≥ 0, inv_RSI ≤
+  18446744073709551615, inv_RDX ≤ 18446744073709551615, inv_RCX ≤
+  18446744073709551615, inv_RDI ≤ 18446744073709551615, v_costMax = 83}
+  v_costMax ∊ [83; 83]
+
+
+#----------------------------#
+| simple_examples/nolea.jazz |
+#----------------------------#
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {inv_RSI ≥ 0, inv_RDI ≥ 0, inv_RDI ≤ 18446744073709551615, inv_RSI ≤
+  18446744073709551615, v_costMax = 153}
+  v_costMax ∊ [153; 153]
+  
+  Cost Min:
+  * Rel:
+  {inv_RSI ≥ 0, inv_RDI ≥ 0, inv_RDI ≤ 18446744073709551615, inv_RSI ≤
+  18446744073709551615, v_costMin = 153}
+  v_costMin ∊ [153; 153]
+
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {inv_RSI ≥ 0, inv_RDI ≥ 0, inv_RDI ≤ 18446744073709551615, inv_RSI ≤
+  18446744073709551615, v_costMax = 157}
+  v_costMax ∊ [157; 157]
+  
+
+#-------------------------------#
+| simple_examples/threeway.jazz |
+#-------------------------------#
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {21·v_costMax ≤ 2·inv_RDI + 84, v_costMax ≥ 4, v_costMax ≤ 8,
+  9223372036854775787·v_costMax ≥ 2·inv_RDI + 36893488147419103066}
+  v_costMax ∊ [4; 8]
+   
+  Cost Min:
+  * Rel:
+  {inv_RDI ≤ 18446744073709551615, inv_RDI ≥ 0, v_costMin = 0}
+  v_costMin ∊ [0; 0]
+
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {21·v_costMax ≤ 2·inv_RDI + 126, v_costMax ≥ 6, v_costMax ≤ 10,
+  9223372036854775787·v_costMax ≥ 2·inv_RDI + 55340232221128654640}
+  v_costMax ∊ [6; 10]
+
+
+#--------------------------------#
+| simple_examples/array_len.jazz |
+#--------------------------------#
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {v_costMax = 30}
+  v_costMax ∊ [30; 30]
+    
+  Cost Min:
+  * Rel:
+  {v_costMin = 22}
+  v_costMin ∊ [22; 22]
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {v_costMax = 45}
+  v_costMax ∊ [45; 45]
+
+
+#---------------------------------#
+| simple_examples/array_len2.jazz |
+#---------------------------------#
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {v_costMax = 24}
+  v_costMax ∊ [24; 24]
+
+  Cost Min:
+  * Rel:
+  {v_costMin = 24}
+  v_costMin ∊ [24; 24]
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {v_costMax = 35}
+  v_costMax ∊ [35; 35]
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Programs with Relational Cost %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+#------------------------------#
+| simple_examples/nonopti.jazz |
+#------------------------------#
+The register RDX contains len
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {inv_RDX ≥ 0, inv_RDX ≤ 18446744073709551615,
+  v_costMax = 44·inv_RDX + 8}
+  v_costMax ∊ [8; 811656739243220271068]
+    
+  Cost Min:
+  * Rel:
+  {inv_RDX ≥ 0, inv_RDX ≤ 18446744073709551615, 44·inv_RDX = v_costMin}
+  v_costMin ∊ [0; 811656739243220271060]
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {inv_RDX ≤ 18446744073709551615, inv_RDX ≥ 0,
+  v_costMax = 46·inv_RDX + 11}
+  v_costMax ∊ [11; 848550227390639374301]
+
+# Bounds obtained by rounding:
+  Cost Max   ≤ 44·inv_RDX + 8
+  Cost Min   ≥ 44·inv_RDX
+  Cost Naive ≤ 46·inv_RDX + 11
+
+
+#---------------------------#
+| simple_examples/opti.jazz |
+#---------------------------#
+The register RDX contains len
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {9223372036854775807·v_costMax ≤ 161409010644958576609·inv_RDX +
+  304371277216207601631, v_costMax ≥ 33, 161409010644958576609·inv_RDX ≤
+  9223372036854775806·v_costMax + 179855754718668128229, v_costMax ≤
+  322818021289917153251}
+  v_costMax ∊ [33; 322818021289917153251]
+  
+  Cost Min:
+  * Rel:
+  {1317624576693539401·v_costMin ≤ 23058430092136939515·inv_RDX +
+  38211112724112642629, v_costMin ≥ 29, v_costMin ≤
+  322818021289917153239, 35·inv_RDX ≤ 2·v_costMin + 47}
+  v_costMin ∊ [29; 322818021289917153239]
+
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {184467440737095516125·inv_RDX ≤ 9223372036854775806·v_costMax +
+  193690812773950291941, v_costMax ≥ 39, 1229782938247303441·v_costMax ≤
+  24595658764946068818·inv_RDX + 47961534591644834199, inv_RDX ≤
+  18446744073709551615}
+  v_costMax ∊ [39; 368934881474191032309]
+
+
+# Bounds obtained by rounding:
+  Cost Max   ≤ 17.5 * len + 33
+  Cost Min   ≥ max(17.5 * len - 23.5, 29)
+  Cost Naive ≤ 20 * len + 39
+
+
+
+#----------------------------#
+| simple_examples/loop3.jazz |
+#----------------------------#
+The register RDX contains inlen
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {16·v_costMax ≥ inv_RDX + 113, v_costMax ≤ 1152921504606846983,
+  v_costMax ≥ 8, 16·v_costMax ≤ inv_RDX + 128}
+  v_costMax ∊ [8; 1152921504606846983]
+  
+  Cost Min:
+  * Rel:
+  {inv_RDX ≤ 16·v_costMin + 15, v_costMin ≤ 1152921504606846975,
+  v_costMin ≥ 0, inv_RDX ≥ 16·v_costMin}
+  v_costMin ∊ [0; 1152921504606846975]
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {8·v_costMax ≥ inv_RDX + 65, v_costMax ≤ 2305843009213693961, inv_RDX
+  ≤ 18446744073709551615, v_costMax ≥ 10, 8·v_costMax ≤ inv_RDX + 80}
+  v_costMax ∊ [10; 2305843009213693961]
+
+# Bounds obtained by rounding:
+  Cost Max   ≤ inv_RDX/16 + 8
+  Cost Min   ≥ inv_RDX/16
+  Cost Naive ≤ inv_RDX/8 + 8
+
+  

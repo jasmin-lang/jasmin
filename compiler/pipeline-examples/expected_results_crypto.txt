@@ -1,0 +1,202 @@
+#-----------------------------#
+| poly1305/ref3/poly1305.japp |
+#-----------------------------#
+The register RDX contains inlen
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {16·v_costMax ≥ 113·inv_RDX + 592, 7232·inv_RDX ≤ 127·v_costMax +
+  116861276628454616316182, inv_RDX ≤ 18446744073709551615, v_costMax ≤
+  120·inv_RDX + 37, 16·v_costMax ≤ 113·inv_RDX + 2399, v_costMax ≤
+  130280130020573708430}
+  v_costMax ∊ [37; 130280130020573708430]
+  
+  Cost Min:
+  * Rel:
+  {16·v_costMin ≥ 113·inv_RDX + 400, 6328·inv_RDX ≤ 127·v_costMin +
+  100185419985821181658762, inv_RDX ≤ 18446744073709551615, v_costMin ≤
+  112·inv_RDX + 25, 16·v_costMin ≤ 113·inv_RDX + 2079, v_costMin ≤
+  130280130020573708410}
+  v_costMin ∊ [25; 130280130020573708410]
+
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {16·v_costMax ≥ 119·inv_RDX + 816, 10115·inv_RDX ≤ 121·v_costMax +
+  169987899560738124963660, inv_RDX ≤ 18446744073709551615, v_costMax ≤
+  133·inv_RDX + 51, 16·v_costMax ≤ 119·inv_RDX + 2825, v_costMax ≤
+  137197659048214790313}
+  v_costMax ∊ [51; 137197659048214790313]
+
+
+# Bounds obtained by rounding:
+  Cost Max   ≤ 7.1 * len + 150
+  Cost Min   ≥ 7   * len + 25
+  Cost Naive ≤ 7.5 * len + 177
+
+
+#-----------------------------#
+| poly1305/avx2/poly1305.japp |
+#-----------------------------#
+The register RDX contains inlen
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {v_costMax ≤ 39775791908936221728, 179607·inv_RDX ≤ 2912·v_costMax +
+  3197337256807929160241184, inv_RDX ≤ 18446744073709551615,
+  1272825341085959061344·v_costMax ≥ 2744529641716599267147·inv_RDX +
+  52185838984524321515104, 16·v_costMax ≤ 113·inv_RDX + 2463, v_costMax
+  ≤ 120·inv_RDX + 41, 143829263542713371943994·v_costMax ≤
+  310131849513975705523299·inv_RDX + 202696600276308890755666535}
+  v_costMax ∊ [41; 39775791908936221728]
+    
+  Cost Min:
+  * Rel:
+  {v_costMin ≤ 39775791908936221696, 179607·inv_RDX ≤ 2912·v_costMin +
+  3197337256807929160311072, inv_RDX ≤ 18446744073709551615,
+  1272825341085959061344·v_costMin ≥ 2744529641716599266595·inv_RDX +
+  31820633527148976533600, 16·v_costMin ≤ 113·inv_RDX + 2079, v_costMin
+  ≤ 112·inv_RDX + 25, 143829263542713371943994·v_costMin ≤
+  310131849513975705460923·inv_RDX + 199244697951283769844970655}
+  v_costMin ∊ [25; 39775791908936221696]
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {271102574279272421548179·v_costMax ≤
+  1046286497609067001467089·inv_RDX + 297478654895945725569296110,
+  970463·inv_RDX ≤ 16960·v_costMax + 16694450960659733874873600,
+  v_costMax ≤ 71192902909472801831, 227817289310312962432·v_costMax ≥
+  879232350931989097537·inv_RDX + 12757768201377525896192,
+  16·v_costMax ≤ 119·inv_RDX + 2905, v_costMax ≤ 133·inv_RDX + 56,
+  inv_RDX ≤ 18446744073709551615}
+  v_costMax ∊ [56; 71192902909472801831]
+
+# Bounds obtained by rounding:
+  Cost Max   ≤ 2.2 * len + 1410
+  Cost Min   ≥ 2.1 * len + 25
+  Cost Naive ≤ 3.9 * len + 1098
+
+
+#--------------------------#
+| chacha/ref/chacha20.jazz |
+#--------------------------#
+The register RDX contains len
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {64·v_costMax ≤ 1049·inv_RDX + 67303, 64·v_costMax ≥ 1049·inv_RDX +
+  2240, 74479·inv_RDX ≤ 1191·v_costMax + 236041805861568, 1049·v_costMax
+  ≤ 4196·inv_RDX + 55824979356934, v_costMax ≤ 1033·inv_RDX + 35,
+  inv_RDX ≤ 4294967295, v_costMax ≤ 70397199356}
+  v_costMax ∊ [35; 70397199356]
+  
+  Cost Min:
+  * Rel:
+  {1049·v_costMin ≤ 4196·inv_RDX + 55261801732882, 64·v_costMin ≤
+  1041·inv_RDX + 65007, 64·v_costMin ≥ 1041·inv_RDX + 1472,
+  57415·inv_RDX ≤ 1191·v_costMin + 163391897229228, 793·v_costMin ≤
+  32·inv_RDX + 55261801474424, v_costMin ≤ 1009·inv_RDX + 23, inv_RDX ≤
+  4294967295}
+  v_costMin ∊ [23; 55399240427864/793]
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {16·v_costMax ≤ 281·inv_RDX + 18231, 5058·inv_RDX ≤ 59·v_costMax +
+  17273553147304, 16·v_costMax ≥ 281·inv_RDX + 704, 281·v_costMax ≤
+  1405·inv_RDX + 15161503303395, v_costMax ≤ 1113·inv_RDX + 44, inv_RDX
+  ≤ 4294967295, v_costMax ≤ 75430364245}
+  v_costMax ∊ [44; 75430364245]
+
+# Bounds obtained by rounding:
+  Cost Max   ≤ 16.4 * len + 1052
+  Cost Min   ≥ 16.2 * len + 23
+  Cost Naive ≤ 17.6 * len + 1040
+
+#-----------------------------#
+| chacha/avx2/chacha20.jazz |
+#-----------------------------#
+The register RDX contains len
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {16·v_costMax ≤ 65·inv_RDX + 34079, 4·v_costMax + 2015·inv_RDX ≤
+  8724152325745, 2535·inv_RDX ≤ 37·v_costMax + 10242154815632,
+  16·v_costMax ≥ 65·inv_RDX + 688, inv_RDX ≤ 4294967295, 255·v_costMax ≤
+  1052·inv_RDX + 534926, 127759·v_costMax ≤ 868043·inv_RDX + 98502189,
+  32·v_costMax ≥ 5·inv_RDX + 24544, 32·v_costMax ≥ 3·inv_RDX + 24672,
+  16·v_costMax ≥ 5·inv_RDX + 12032, 50·v_costMax ≥ 167·inv_RDX + 20646,
+  16·v_costMax + 3835·inv_RDX ≤ 16750372482645, v_costMax ≤ 17448306763}
+  v_costMax ∊ [771; 17448306763]  
+  
+  Cost Min:
+  * Rel:
+  {64·v_costMin ≤ 259·inv_RDX + 132989, 64·v_costMin + 32111·inv_RDX ≤
+  139028091460305, 23129·inv_RDX ≤ 444·v_costMin + 91621047594891,
+  64·v_costMin ≥ 259·inv_RDX + 1728, inv_RDX ≤ 4294967295, 85·v_costMin
+  ≤ 348·inv_RDX + 174574, 127759·v_costMin ≤ 861995·inv_RDX + 93902865,
+  32·v_costMin ≥ 5·inv_RDX + 23392, 32·v_costMin ≥ 3·inv_RDX + 23520,
+  16·v_costMin ≥ 5·inv_RDX + 11456, 100·v_costMin ≥ 337·inv_RDX + 37356,
+  16·v_costMin + 3819·inv_RDX ≤ 16680579263281, 4·v_costMin ≤ 4·inv_RDX
+  + 52344922211}
+  v_costMin ∊ [735; 4519111440287/260]
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {v_costMax ≤ 24385686484, 172482·inv_RDX ≤ 1079·v_costMax +
+  714492396216414, 512·v_costMax ≥ 2907·inv_RDX + 62464, inv_RDX ≤
+  4294967295, 255·v_costMax ≤ 1622·inv_RDX + 684746, 127759·v_costMax ≤
+  1272492·inv_RDX + 114472064, v_costMax ≥ 5·inv_RDX + 367, 32·v_costMax
+  ≥ 7·inv_RDX + 28576, 64·v_costMax ≥ 11·inv_RDX + 57344, 16·v_costMax ≥
+  13·inv_RDX + 13376, 64·v_costMax ≥ 337·inv_RDX + 21312, 512·v_costMax
+  ≤ 2907·inv_RDX + 1553573}
+  v_costMax ∊ [896; 24385686484]
+
+# Bounds obtained by rounding:
+  Cost Max   ≤ 4.1 * len + 2130
+  Cost Min   ≥ 4   * len + 27
+  Cost Naive ≤ 5.7 * len + 3035
+
+#----------------------#
+| aes/aes-ctr-alt.jazz |
+#----------------------#
+
+The register RCX contains len
+
+# Cost analysis
+  Cost Max:
+  * Rel:
+  {v_costMax ≤ 826644718803109282821, inv_RCX ≤ 18446744073709551615,
+  16·v_costMax ≥ 717·inv_RCX + 7392, 4408771833616582835983·v_costMax ≤
+  197568087793943118327734·inv_RCX + 4915780594482489862121045,
+  v_costMax ≥ 4·inv_RCX + 1115}
+  v_costMax ∊ [1115; 826644718803109282821]
+                
+  Cost Min:
+  * Rel:
+  {v_costMin ≤ 826644718803109282805, inv_RCX ≤ 18446744073709551615,
+  16·v_costMin ≥ 717·inv_RCX + 7136, 4408771833616582835983·v_costMin ≤
+  197568087793943118327734·inv_RCX + 4845240245144624536745317,
+  v_costMin ≥ 4·inv_RCX + 1099}
+  v_costMin ∊ [1099; 826644718803109282805]
+
+# Naive analysis
+  Cost Max:
+  * Rel:
+  {v_costMax ≤ 935019340236152899385, inv_RCX ≤ 18446744073709551615,
+  16·v_costMax ≥ 811·inv_RCX + 19440, 14960309443778446359755·v_costMax
+  ≤ 758300684931519999823029·inv_RCX + 29112762177592856616083230,
+  v_costMax ≥ 5·inv_RCX + 1946}
+  v_costMax ∊ [1946; 935019340236152899385]
+
+# Bounds obtained by rounding:
+  Cost Max   ≤ 44.9 * len + 1115
+  Cost Min   ≥ 44.8 * len + 446
+  Cost Naive ≤ 50.7 * len + 1946
