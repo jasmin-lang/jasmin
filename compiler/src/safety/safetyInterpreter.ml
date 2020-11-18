@@ -152,9 +152,9 @@ let pp_violation fmt (loc,cond) =
 
 let pp_violations fmt violations =
   if violations = [] then
-    Format.fprintf fmt "@[<v>*** No Safety Violation@;@]"
+    Format.fprintf fmt "@[<v>*** No Safety Warning@;@]"
   else
-    Format.fprintf fmt "@[<v 2>*** Safety Violation(s):@;@[<v>%a@]@]"
+    Format.fprintf fmt "@[<v 2>*** Safety Warning(s):@;@[<v>%a@]@]"
       (pp_list pp_violation) violations
 
 let vloc_compare v v' = match v, v' with
@@ -2307,11 +2307,13 @@ module AbsAnalyzer (EW : ExportWrap) = struct
         pp_mem_range
         (pp_list (fun fmt res -> res.mem_ranges_printer fmt ())) l_res;
 
-      let () = if res.violations <> [] then begin
-        Format.eprintf "@[<v>Program is not safe!@;@]@.";
-        exit(2)
-      end
-      in ()
+      (* We are not interested in the program safety for the cost analysis. *)
+      (* let () = if res.violations <> [] then begin
+       *   Format.eprintf "@[<v>Program is not safe!@;@]@.";
+       *   exit(2)
+       * end
+         in *)
+      ()
          
   let run_analysis ~annot =
     try
