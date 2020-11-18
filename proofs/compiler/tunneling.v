@@ -556,6 +556,7 @@ Section TunnelingProof.
 
   Definition lfundef_tunnel fd := lfundef_tunnel_partial fd fd.(lfd_body) fd.(lfd_body).
 
+  (*Maybe better definition with eta, assoc?*)
   Definition lprog_tunnel p :=
     Build_lprog
       p.(lp_rip)
@@ -584,18 +585,14 @@ Section TunnelingProof.
   Qed.
 
   (*lprog p needs to be well formed, ie all it's function must have each label at most once.*)
-  (*It may also need all function names to occur at most once, butI think Idon't need it, as all functions of same name than a previous function will be ignored.*)
+  (*It may also need all function names to occur at most once, but I think I don't need it, as all functions of same name than a previous function will be ignored.*)
 
   Lemma tunneling_lsem1 p s1 s2 : lsem1 (lprog_tunnel p) s1 s2 -> lsem p s1 s2.
   Proof.
     rewrite /lprog_tunnel /lfundef_tunnel.
     case Hfind: (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p) < size (lp_funcs p)); last first.
     + by clear Hfind; case: p => /=; intros; apply: Relation_Operators.rt_step.
-    (*Impossible to name _a_ and _b_ here.*)
-    have: exists fn' fd, (nth Default_lp_func (lp_funcs p) (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p))) = (fn', fd).
-    + case Hnth: (nth Default_lp_func (lp_funcs p) (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p))).
-      by eexists; eexists.
-    move => [fn'] [fd] Hnth; rewrite Hnth.
+    case Hnth: (nth Default_lp_func (lp_funcs p) (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p))) => [fn' fd].
     rewrite -has_find in Hfind.
     have Hbeq:= (nth_find Default_lp_func Hfind).
     rewrite Hnth /= in Hbeq.
@@ -701,8 +698,12 @@ Section TunnelingProof.
                       lfd_export := lfd_export fd
                       |})
         |}.
-      rewrite -/Pfl -/tp -/tpu /lsem1 /step => Hprefix Htp.
-      case Hfindtpu: (find_instr tpu s1) => c.
+      rewrite -/Pfl -/tp -/tpu /lsem1 /step /find_instr => Hprefix Htp.
+      case Hfindtpu: (find_instr tpu s1) => [ctpu|] //; move: Hfindtpu.
+      case Hgetfundeftpu: (get_fundef (lp_funcs tpu) (lfn s1)) => [lftpu|] //.
+      rewrite /tpu /= in Hgetfundeftpu.
+      case Hfns1: ((lfn s1) == fn); last first.
+      + 
   Admitted.
 
   Lemma tunneling_lsem p s1 s2 : lsem (lprog_tunnel p) s1 s2 -> lsem p s1 s2.
@@ -716,23 +717,6 @@ Section TunnelingProof.
     rewrite /lprog_tunnel /lfundef_tunnel.
     case Hfnp: (find (λ p0 : pos_eqType * lfundef, p0.1 == fn) (lp_funcs p) < size (lp_funcs p)); last first.
     + by clear Hfnp; case: p; exists s2; split => //=; apply: Relation_Operators.rt_refl.
-    (*
-    apply (@prefixW _ P).
-    + exists s2; split; first by apply Relation_Operators.rt_refl.
-      rewrite /lsem_tunnel_partial.
-      have ->: tunnel_partial (lfn s1) (tunnel_plan (lfn s1) LUF.empty [::]) (lc s1) = lc s1; last by case: s1 {P} Hlsem12 => /=.
-      rewrite /tunnel_partial /tunnel_plan /= (eq_pairmap _ _ (tunnel_bore_empty (lfn s1))).
-      by elim: (lc s1) Linstr_align => [|hlc1 tlc1 IHlc1] i //=; rewrite IHlc1.
-    rewrite /P.
-    move => hli tli Hprefix [s3 [Hlsem23 Hlsemp13]].
-    rewrite /lsem_tunnel_partial /tunnel_plan pairfoldl_rcons.
-    (*I don't want that, I want to remove the ok.*)
-    exists (lsem_tunnel_step p s3 (last Linstr_align tli) hli).
-    split; first exact Hlsem23.
-    move: Hprefix Hlsemp13.
-    case: (lastP tli) => /=; first by case: hli; rewrite /lsem_tunnel_partial /tunnel_plan.
-    move => ttli htli /=.
-    *)
   Admitted.
 
   Theorem lsem_tunneling p s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem (lprog_tunnel p) s1 s3.
@@ -741,7 +725,7 @@ Section TunnelingProof.
     + by move => Hp12; case: (Ht Hp12) => s3 [Hp23 Htp13]; exists s3; split => //; apply: tunneling_lsem.
     move: s1 s2; apply lsem_ind_r; first by move => s; exists s; split; apply Relation_Operators.rt_refl.
     move => s1 s2 s3 Hp12 H1p23 [s4 [Htp24 Htp14]].
-    have:= (lsem1_tunneling H1p23) => [] [s4' [Hp34' H1tp24']]. (*Why do I need the additionnal [] ?*)
+    case: (lsem1_tunneling H1p23) => [s4' [Hp34' H1tp24']].
     case (step_lsem H1tp24' Htp24) => [Heq24|Htp44'].
     + by exists s4'; split => //; apply: (lsem_trans Htp14); rewrite -Heq24; apply: Relation_Operators.rt_step.
     by exists s4; split => //; apply: (lsem_trans Hp34' _).
