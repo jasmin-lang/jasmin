@@ -86,30 +86,6 @@
   v_costMax ∊ [157; 157]
   
 
-#-------------------------------#
-| simple_examples/threeway.jazz |
-#-------------------------------#
-
-# Cost analysis
-  Cost Max:
-  * Rel:
-  {21·v_costMax ≤ 2·inv_RDI + 84, v_costMax ≥ 4, v_costMax ≤ 8,
-  9223372036854775787·v_costMax ≥ 2·inv_RDI + 36893488147419103066}
-  v_costMax ∊ [4; 8]
-   
-  Cost Min:
-  * Rel:
-  {inv_RDI ≤ 18446744073709551615, inv_RDI ≥ 0, v_costMin = 0}
-  v_costMin ∊ [0; 0]
-
-
-# Naive analysis
-  Cost Max:
-  * Rel:
-  {21·v_costMax ≤ 2·inv_RDI + 126, v_costMax ≥ 6, v_costMax ≤ 10,
-  9223372036854775787·v_costMax ≥ 2·inv_RDI + 55340232221128654640}
-  v_costMax ∊ [6; 10]
-
 
 #--------------------------------#
 | simple_examples/array_len.jazz |
