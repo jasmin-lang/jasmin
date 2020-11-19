@@ -17,6 +17,11 @@
   option. We describe how to use this option in more details at the end
   of this README.
 
+- For the cost analysis to be done, you must provide the processor
+  architecture (with the latencies) in a file names `instruction.cfg`
+  located alongside the `jasmin` compilter. We provide an example of
+  such a file here.
+
 - There are additional information on how to use and interpret the
   cost analysis results at the end of this file.
 
@@ -51,6 +56,9 @@ Jasmin Examples Files
 
 Running the Experiments
 --------------------------------------------------------------------
+- First, you must compile Jasmin and copy the `jasminc` compiler in
+  this directoy.
+
 - To compute the cost of the simple (non-crypto) Jasmin examples, run:
      - `$ ./run-analysis`
   The results for the file 'FILE.jazz' are stored in 'FILE.jazz.cost',
@@ -172,6 +180,9 @@ A few remarks
 --------------------------------------------------------------------
 - The branch predictor option approximates a processor branch predictor
 
+- The `instruction.cfg` file contain the pipeline latencies for our
+  processor architecture.
+  
 - You can see what the analyser is doing using the '-debug'
   option. Note there can be hundred of thousands of line of
   logs. Simply jump to the end of the file for the final results.
