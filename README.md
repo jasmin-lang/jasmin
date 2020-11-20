@@ -41,7 +41,7 @@ This repository contains the following subdirectories:
    
    For more information please consult compiler/pipeline-examples/README.md
 
-# Dependencies
+# Pipeline Analysis Experiments
 
 See compiler/pipeline-examples/README.md
 
