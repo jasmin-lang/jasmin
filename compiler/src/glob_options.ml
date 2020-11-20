@@ -83,7 +83,6 @@ let options = [
     "-typeonly", Arg.Set typeonly      , ": stop after typechecking";
     "-debug"   , Arg.Set debug         , ": print debug information";
     "-latex"     , Arg.Set_string latexfile, "[filename]: generate the corresponding LATEX file";
-    "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
     "-lea"     , Arg.Set lea           , ": use lea as much as possible (default is nolea)";
     "-nolea"   , Arg.Clear lea         , ": try to use add and mul instead of lea";
     "-set0"     , Arg.Set set0          , ": use [xor x x] to set x to 0 (default is not)";
@@ -101,6 +100,7 @@ let options = [
      v_1,...,v_n: list of pointer variables that have to be considered together\n\
      v_1',...,v_k': list of relational variables";
     "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
+    "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
   ] @  List.map print_option poptions
 
 let usage_msg = "Usage : jasminc [option] filename"
