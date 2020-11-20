@@ -5,8 +5,6 @@ let outfile = ref ""
 let latexfile = ref ""
 let typeonly = ref false
 let debug = ref false
-let coqfile = ref ""
-let coqonly = ref false
 let print_list = ref []
 let ecfile = ref ""
 let ec_list = ref []
@@ -18,10 +16,6 @@ let help_intrinsics = ref false
 let lea = ref false
 let set0 = ref false
 let model = ref Normal
-
-let set_coqonly s =
-  coqfile := s;
-  coqonly := true
 
 let poptions = [
     Compiler.Typing
@@ -89,8 +83,6 @@ let options = [
     "-typeonly", Arg.Set typeonly      , ": stop after typechecking";
     "-debug"   , Arg.Set debug         , ": print debug information";
     "-latex"     , Arg.Set_string latexfile, "[filename]: generate the corresponding LATEX file";
-    "-coq"     , Arg.Set_string coqfile, "[filename]: generate the corresponding coq file";
-    "-coqonly" , Arg.String set_coqonly, "[filename]: generate the corresponding coq file, and exit";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
     "-lea"     , Arg.Set lea           , ": use lea as much as possible (default is nolea)";
     "-nolea"   , Arg.Clear lea         , ": try to use add and mul instead of lea";

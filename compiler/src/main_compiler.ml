@@ -202,17 +202,6 @@ let main () =
 
     let prog = Inline_array_copy.doit prog in
 
-    (* Generate the coq program if needed *)
-    if !coqfile <> "" then begin
-      assert false
-(*      let out = open_out !coqfile in
-      let fmt = Format.formatter_of_out_channel out in
-      Format.fprintf fmt "%a@." Coq_printer.pp_prog prog;
-      close_out out;
-      if !debug then Format.eprintf "coq program extracted@." *)
-    end;
-    if !coqonly then exit 0;
-
     (* Now call the coq compiler *)
     let tbl, cprog = Conv.cprog_of_prog Regalloc.X64.all_registers () prog in
     if !debug then Printf.eprintf "translated to coq \n%!";
