@@ -21,6 +21,12 @@ This repository contains the following subdirectories:
 2. To compile Coq proofs:
    - `$ cd proofs`
    - `$ make`
+3. To test the pipeline analyzer:
+   - `$ cd compiler`
+   - `$ make CIL build`
+   - `$ cd pipeline-examples`
+   - `$ ./run-analysis` (bash version >= 4 required)
+   For more information please consult compiler/pipeline-examples/README.md
 
 # License
 

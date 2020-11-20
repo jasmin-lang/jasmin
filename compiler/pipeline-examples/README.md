@@ -1,8 +1,8 @@
-- To use the cost analyser, simply run:
+- To use the cost analyzer, simply run:
 
      - `$ ./jasminc -pipeline -branchpredictor FILE.jazz`
 
-- To use the naive cost analyser mentioned in the paper, simply run:
+- To use the naive cost analyzer mentioned in the paper, simply run:
 
      - `$ ./jasminc -pipeline -branchpredictor -naivepipeline FILE.jazz`
   Note that for the naive cost analysis, only the maximal cost is
@@ -10,7 +10,7 @@
 
 - For programs with input-dependent cost, the name of the register
   holding the input (of which the cost depends) must be provided as an
-  additional information to the analyser using the
+  additional information to the analyzer using the
 
      - `-safetyparam`
 
@@ -19,7 +19,7 @@
 
 - For the cost analysis to be done, you must provide the processor
   architecture (with the latencies) in a file names `instruction.cfg`
-  located alongside the `jasmin` compilter. We provide an example of
+  located alongside the `jasmin` compiler. We provide an example of
   such a file here.
 
 - There are additional information on how to use and interpret the
@@ -61,6 +61,8 @@ Running the Experiments
 
 - To compute the cost of the simple (non-crypto) Jasmin examples, run:
      - `$ ./run-analysis`
+  You will need bash version >= 4.
+  You can check your version with `bash --version`.
   The results for the file 'FILE.jazz' are stored in 'FILE.jazz.cost',
   and the results for the naive cost analysis in
   'FILE.jazz.cost_naive'.
@@ -183,7 +185,7 @@ A few remarks
 - The `instruction.cfg` file contain the pipeline latencies for our
   processor architecture.
   
-- You can see what the analyser is doing using the '-debug'
+- You can see what the analyzer is doing using the '-debug'
   option. Note there can be hundred of thousands of line of
   logs. Simply jump to the end of the file for the final results.
 
@@ -194,7 +196,7 @@ A few remarks
 - For programs with input-dependent cost, or with input pointers
   pointing to arbitrarily large memory regions (e.g. a message of
   arbitrary length to be encrypted), it is necessary to provide
-  additional information to the analyser using the
+  additional information to the analyzer using the
 
      - `-safetyparam "pointerList;inputDependentList"`
 
@@ -210,7 +212,7 @@ A few remarks
 
   Here, 'out' and 'in' are pointers, and 'inlen' an input dependency for
   the cost.
-  When running the analyser first without parameters, it will print
+  When running the analyzer first without parameters, it will print
   (at the beginning of the analyses) the function signature after most
   compilation pass, where input variables have been replaced by
   registers. Here, we get:
