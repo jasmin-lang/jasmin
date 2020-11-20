@@ -11,6 +11,7 @@ This repository contains the following subdirectories:
 # Dependencies
 
 - For the compiler: check compiler/README.md
+
   We recommand using Nix: simply use nix-shell in the root directory
   (*not* in the compiler/ directory) to automatically jump in a shell
   with all dependencies installed.
@@ -37,6 +38,7 @@ This repository contains the following subdirectories:
    - `$ cd compiler/pipeline-examples/`
    - `$ ./run-analysis` (bash version >= 4 required)
    - `$ ./run-analysis-crypto` (bash version >= 4 required, takes several hours)
+   
    For more information please consult compiler/pipeline-examples/README.md
 
 # Dependencies
