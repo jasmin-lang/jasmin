@@ -1,9 +1,0 @@
-export
-fn main(reg u64 pt) -> reg u64 {
-  reg u64 tmp;
-
-  tmp = (u64)[pt + 0];
-  tmp = (u64)[pt + 1];
-  
-  return tmp;
-}
