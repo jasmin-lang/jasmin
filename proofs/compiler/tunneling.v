@@ -34,7 +34,7 @@ Module Type IUnionFind.
   Axiom find_empty : forall l , find empty l = l.
 
   Axiom find_union : forall uf l lx ly, find (union uf lx ly) l =
-    if (find uf l == find uf lx) then find uf ly else find uf l.
+    if (find uf lx == find uf l) then find uf ly else find uf l.
 
 End IUnionFind.
 
@@ -45,50 +45,52 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
 
   Definition unionfind_r := seq (S * S).
 
+  Definition is_labeled (T : Type) (l : S) (pl : S * T) := (l == pl.1).
+
   Definition makeset (uf : unionfind_r) (l : S) :=
-    if has (fun pl => pl.1 == l) uf
+    if has (is_labeled l) uf
     then uf
     else (l,l) :: uf.
 
   Definition empty_r : unionfind_r := [::].
 
   Definition find_r (uf : unionfind_r) (l : S) :=
-    (nth (l,l) uf (seq.find (fun x => x.1 == l) uf)).2.
+    (nth (l,l) uf (seq.find (is_labeled l) uf)).2.
 
   Definition union_r (uf : unionfind_r) (lx ly : S) :=
     let ufx := makeset uf lx in
     let ufxy := makeset ufx ly in
     let fx := find_r ufxy lx in
     let fy := find_r ufxy ly in
-    map (fun pl => (pl.1,if pl.2 == fx then fy else pl.2)) ufxy.
+    map (fun pl => (pl.1,if fx == pl.2 then fy else pl.2)) ufxy.
 
   Definition well_formed (uf : unionfind_r) :=
-    forall l : S , has (fun pl => pl.1 == l) uf -> has (fun pl => pl.1 == find_r uf l) uf.
+    forall l : S , has (is_labeled l) uf -> has (is_labeled (find_r uf l)) uf.
 
   Lemma has_makeset uf lh lm :
-    has (fun x => x.1 == lh) (makeset uf lm) = (lm == lh) || (has (fun x => x.1 == lh) uf).
+    has (is_labeled lh) (makeset uf lm) = (lh == lm) || (has (is_labeled lh) uf).
   Proof.
     rewrite /makeset.
-    case Hlmuf: (has (fun x => x.1 == lm) uf) => //.
-    case Hlhuf: (has (fun x => x.1 == lh) uf); first by rewrite orbT.
-    case Hlmlh: (lm == lh) => //.
-    by rewrite (eqP Hlmlh) Hlhuf in Hlmuf.
+    case Hlmuf: (has (is_labeled lm) uf) => //.
+    case Hlhuf: (has (is_labeled lh) uf); first by rewrite orbT.
+    case Hlhlm: (lh == lm) => //.
+    by rewrite (eqP Hlhlm) Hlmuf in Hlhuf.
   Qed.
   
   Lemma find_r_empty l : find_r empty_r l = l.
   Proof. by []. Qed.
 
-  Lemma find_cons uf p l : find_r (p :: uf) l = if (p.1 == l) then p.2 else find_r uf l.
+  Lemma find_cons uf p l : find_r (p :: uf) l = if (is_labeled l p) then p.2 else find_r uf l.
   Proof.
-   by rewrite /find_r /=; case: (p.1 == l).
+   by rewrite /find_r /is_labeled /=; case: (l == p.1).
   Qed.
 
   Lemma seqhasNfind (T : Type) (a : pred T) s : ~~ has a s -> seq.find a s = size s.
   Proof. by rewrite has_find; case: ltngtP (find_size a s). Qed.
 
-  Lemma hasNfind uf l : ~~ has (fun x => x.1 == l) uf -> find_r uf l = l.
+  Lemma hasNfind uf l : ~~ has (is_labeled l) uf -> find_r uf l = l.
   Proof.
-    rewrite /find_r.
+    rewrite /find_r /is_labeled.
     move => HNhas.
     rewrite (seqhasNfind HNhas).
     by rewrite nth_default.
@@ -97,23 +99,25 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
   Lemma find_makeset uf lf lm : find_r (makeset uf lm) lf = find_r uf lf.
   Proof.
     rewrite /makeset /find_r.
-    case Hlmuf: (has (fun x => x.1 == lm) uf) => //=.
+    case Hlmuf: (has (is_labeled lm) uf) => //=.
     apply negbT in Hlmuf.
     apply hasNfind in Hlmuf.
     move: Hlmuf.
-    case Hlmlf: (lm == lf) => //=.
+    rewrite /is_labeled /=.
+    case Hlmlf: (lf == lm) => //=.
     by rewrite (eqP Hlmlf).
   Qed.
 
-  Lemma find_map uf f l rl : find_r uf l = rl -> find_r (map (fun x => (x.1,f x.2)) uf) l = if has (fun x => x.1 == l) uf then f(rl) else l.
+  Lemma find_map uf f l rl : find_r uf l = rl -> find_r (map (fun x => (x.1,f x.2)) uf) l = if has (is_labeled l) uf then f(rl) else l.
   Proof.
     rewrite /find_r.
-    case Hhas: (has (λ x , x.1 == l) uf).
+    case Hhas: (has (is_labeled l) uf).
     + move: Hhas.
+      rewrite /is_labeled.
       induction uf as [|hut tuf IHuf] => //=.
-      by case Hhutl: (hut.1 == l) => //= _ ->.
+      by case Hhutl: (l == hut.1) => //= _ ->.
     move => _.
-    have ->: (nth (l, l) [seq (x.1, f x.2) | x <- uf] (seq.find (λ x : S * S, x.1 == l) [seq (x.1, f x.2) | x <- uf]) = (l,l)) => //=.
+    have ->: (nth (l, l) [seq (x.1, f x.2) | x <- uf] (seq.find (is_labeled l) [seq (x.1, f x.2) | x <- uf]) = (l,l)) => //=.
     apply nth_default.
     rewrite size_map find_map.
     rewrite /preim //=.
@@ -128,15 +132,16 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
   Proof.
     rewrite /well_formed => Hwf lf.
     rewrite has_makeset find_makeset /makeset.
-    case Hlmlf: (lm == lf); case Hhaslm: (has (λ pl : S * S, pl.1 == lm) uf) ; case Hhaslf: (has (λ pl : S * S, pl.1 == lf) uf) => //=.
-    + by rewrite Hwf // -(eqP Hlmlf).
-    + by rewrite (eqP Hlmlf) Hhaslf in Hhaslm.
-    + by rewrite -(eqP Hlmlf) Hhaslm in Hhaslf.
-    + rewrite hasNfind.
-      - by rewrite Hlmlf.
+    case Hlflm: (lf == lm); case Hhaslm: (has (is_labeled lm) uf) ; case Hhaslf: (has (is_labeled lf) uf) => //=.
+    + by rewrite Hwf // -(eqP Hlflm).
+    + by rewrite (eqP Hlflm) Hhaslm in Hhaslf.
+    + by rewrite -(eqP Hlflm) Hhaslf in Hhaslm.
+    + rewrite hasNfind /is_labeled /=.
+      - by rewrite Hlflm.
       by rewrite Hhaslf.
     + by rewrite Hwf.
-    case Hlmfindlf: ((lm == find_r uf lf)) => //=.
+    rewrite /is_labeled /=.
+    case Hlmfindlf: ((find_r uf lf == lm)) => //=.
     by rewrite Hwf.
   Qed.
 
@@ -146,20 +151,20 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
     have:= (@well_formed_makeset _ ly (@well_formed_makeset _ lx Hwfuf)).
     pose ufxy := makeset (makeset uf lx) ly.
     rewrite -/ufxy.
-    have Hhaslxufxy: has (fun x => x.1 == ly) ufxy.
+    have Hhaslxufxy: has (is_labeled ly) ufxy.
     + by rewrite /ufxy has_makeset eq_refl.
-    have Hhaslyufxy: has (fun x => x.1 == lx) ufxy.
+    have Hhaslyufxy: has (is_labeled lx) ufxy.
     + by rewrite /ufxy !has_makeset eq_refl Bool.orb_true_r.
     rewrite /well_formed => Hwfufxy l.
-    rewrite (@find_map ufxy (fun l => if l == find_r ufxy lx then find_r ufxy ly else l) l (find_r ufxy l)) => //.
+    rewrite (@find_map ufxy (fun l => if find_r ufxy lx == l then find_r ufxy ly else l) l (find_r ufxy l)) => //.
     rewrite !has_map /preim /= => Hlufxy.
     rewrite Hlufxy.
-    by case: (find_r ufxy l == find_r ufxy lx); apply Hwfufxy.
+    by case: (find_r ufxy lx == find_r ufxy l); apply Hwfufxy.
   Qed.
 
   Arguments well_formed_union [uf].
 
-  Lemma find_r_union uf l lx ly : well_formed uf -> find_r (union_r uf lx ly) l = if (find_r uf l == find_r uf lx) then find_r uf ly else find_r uf l.
+  Lemma find_r_union uf l lx ly : well_formed uf -> find_r (union_r uf lx ly) l = if (find_r uf lx == find_r uf l) then find_r uf ly else find_r uf l.
   Proof.
     move => Hwfuf.
     have:= (@well_formed_makeset _ ly (@well_formed_makeset _ lx Hwfuf)).
@@ -167,53 +172,53 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
     rewrite -(find_makeset (makeset uf lx) l ly) -(find_makeset (makeset uf lx) lx ly) -(find_makeset (makeset uf lx) ly ly).
     pose ufxy := makeset (makeset uf lx) ly.
     rewrite -/ufxy => Hwfufxy.
-    have: has (fun x => x.1 == ly) ufxy.
+    have: has (is_labeled ly) ufxy.
     + by rewrite /ufxy has_makeset eq_refl.
-    have: has (fun x => x.1 == lx) ufxy.
+    have: has (is_labeled lx) ufxy.
     + by rewrite /ufxy !has_makeset eq_refl Bool.orb_true_r.
-    rewrite (@find_map ufxy (fun l => if l == find_r ufxy lx then find_r ufxy ly else l) l (find_r ufxy l)) => //.
+    rewrite (@find_map ufxy (fun l => if find_r ufxy lx == l then find_r ufxy ly else l) l (find_r ufxy l)) => //.
     induction ufxy as [|huf tuf IHtuf] => //=.
-    rewrite !find_cons.
-    case Hhufl: (huf.1 == l);
-    case Hhuflx: (huf.1 == lx);
-    case Hhufly: (huf.1 == ly);
-    case Hfindtufl: (find_r tuf l == huf.2);
-    case Hhasltuf: (has (λ pl, pl.1 == l) tuf);
-    case Hfindllx: (find_r tuf l == find_r tuf lx) => //=.
-    + by rewrite -(eqP Hfindtufl) hasNfind // /negb Hhasltuf.
-    + by rewrite -(eqP Hfindtufl) hasNfind // /negb Hhasltuf.
+    rewrite !find_cons /is_labeled.
+    case Hhufl: (l == huf.1);
+    case Hhuflx: (lx == huf.1);
+    case Hhufly: (ly == huf.1);
+    case Hfindtufl: (huf.2 == find_r tuf l);
+    case Hhasltuf: (has (is_labeled l) tuf);
+    case Hfindlxl: (find_r tuf lx == find_r tuf l) => //=.
+    + by rewrite (eqP Hfindtufl) hasNfind // /negb Hhasltuf.
+    + by rewrite (eqP Hfindtufl) hasNfind // /negb Hhasltuf.
     + by rewrite hasNfind // /negb Hhasltuf.
     + by rewrite hasNfind // /negb Hhasltuf.
     + move => _ Hhaslytuf.
       have Hfindll: (find_r tuf l = l) by apply hasNfind; rewrite /negb Hhasltuf.
-      have Hfindlxl: (find_r (huf :: tuf) lx = l) by rewrite find_cons Hhuflx -(eqP Hfindtufl).
-      have Hhasluf: (has (λ pl : S * S, pl.1 == find_r (huf :: tuf) lx) (huf :: tuf)) by apply Hwfufxy; rewrite /= Hhuflx.
-      by rewrite Hfindlxl /= Hhufl Hhasltuf /= in Hhasluf.
+      have Hfindlxl': (find_r (huf :: tuf) lx = l) by rewrite find_cons /is_labeled Hhuflx (eqP Hfindtufl).
+      have Hhasluf: (has (is_labeled (find_r (huf :: tuf) lx)) (huf :: tuf)) by apply Hwfufxy; rewrite/is_labeled /= Hhuflx.
+      by rewrite Hfindlxl' /is_labeled /= Hhufl Hhasltuf /= in Hhasluf.
     + move => _ Hhaslytuf.
       have Hfindll: (find_r tuf l = l) by apply hasNfind; rewrite /negb Hhasltuf.
-      have Hfindlxl: (find_r (huf :: tuf) lx = l) by rewrite find_cons Hhuflx -(eqP Hfindtufl).
-      have Hhasluf: (has (λ pl : S * S, pl.1 == find_r (huf :: tuf) lx) (huf :: tuf)) by apply Hwfufxy; rewrite /= Hhuflx.
-      by rewrite Hfindlxl /= Hhufl Hhasltuf /= in Hhasluf.
+      have Hfindlxl': (find_r (huf :: tuf) lx = l) by rewrite find_cons /is_labeled Hhuflx (eqP Hfindtufl).
+      have Hhasluf: (has (is_labeled (find_r (huf :: tuf) lx)) (huf :: tuf)) by apply Hwfufxy; rewrite /is_labeled /= Hhuflx.
+      by rewrite Hfindlxl' /is_labeled /= Hhufl Hhasltuf /= in Hhasluf.
     + by rewrite hasNfind // /negb Hhasltuf.
     + by rewrite hasNfind // /negb Hhasltuf.
-    + by rewrite -(eqP Hfindtufl) hasNfind // /negb Hhasltuf.
+    + by rewrite (eqP Hfindtufl) hasNfind // /negb Hhasltuf.
     + by rewrite hasNfind // /negb Hhasltuf.
     + move => Hhaslxtuf _.
       have Hfindll: (find_r tuf l = l) by apply hasNfind; rewrite /negb Hhasltuf.
-      have Hfindlxl: (find_r (huf :: tuf) lx = l) by rewrite find_cons Hhuflx -(eqP Hfindllx).
-      have Hhasluf: (has (λ pl : S * S, pl.1 == find_r (huf :: tuf) lx) (huf :: tuf)) by apply Hwfufxy; rewrite /= Hhuflx.
-      by rewrite Hfindlxl /= Hhufl Hhasltuf /= in Hhasluf.
+      have Hfindlxl': (find_r (huf :: tuf) lx = l) by rewrite find_cons /is_labeled Hhuflx (eqP Hfindlxl).
+      have Hhasluf: (has (is_labeled (find_r (huf :: tuf) lx)) (huf :: tuf)) by apply Hwfufxy; rewrite /is_labeled /= Hhuflx.
+      by rewrite Hfindlxl' /is_labeled /= Hhufl Hhasltuf /= in Hhasluf.
     + by rewrite hasNfind // /negb Hhasltuf.
     + move => Hhaslxtuf Hhaslytuf.
       have Hfindll: (find_r tuf l = l) by apply hasNfind; rewrite /negb Hhasltuf.
-      have Hhasluf: (has (λ pl : S * S, pl.1 == find_r (huf :: tuf) huf.1) (huf :: tuf)) by apply Hwfufxy; rewrite /= eq_refl.
-      by rewrite find_cons eq_refl -(eqP Hfindtufl) /= Hfindll Hhufl Hhasltuf in Hhasluf.
+      have Hhasluf: (has (is_labeled (find_r (huf :: tuf) huf.1)) (huf :: tuf)) by apply Hwfufxy; rewrite /is_labeled /= eq_refl.
+      by rewrite find_cons /is_labeled /= eq_refl (eqP Hfindtufl) /= Hfindll Hhufl Hhasltuf in Hhasluf.
     + by rewrite hasNfind // /negb Hhasltuf.
     + move => Hhaslxtuf Hhaslytuf.
       have Hfindll: (find_r tuf l = l) by apply hasNfind; rewrite /negb Hhasltuf.
-      have Hfindlxl: (find_r (huf :: tuf) lx = l) by rewrite find_cons Hhuflx -(eqP Hfindllx).
-      have Hhasluf: (has (λ pl : S * S, pl.1 == find_r (huf :: tuf) lx) (huf :: tuf)) by apply Hwfufxy; rewrite /= Hhuflx.
-      by rewrite Hfindlxl /= Hhufl Hhasltuf /= in Hhasluf.
+      have Hfindlxl': (find_r (huf :: tuf) lx = l) by rewrite find_cons /is_labeled Hhuflx (eqP Hfindlxl).
+      have Hhasluf: (has (is_labeled (find_r (huf :: tuf) lx)) (huf :: tuf)) by apply Hwfufxy; rewrite /is_labeled /= Hhuflx.
+      by rewrite Hfindlxl' /is_labeled /= Hhufl Hhasltuf /= in Hhasluf.
     + by rewrite hasNfind // /negb Hhasltuf.
   Qed.
 
@@ -241,7 +246,7 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
   Proof. apply: find_r_empty. Qed.
 
   Lemma find_union uf l lx ly : find (union uf lx ly) l =
-    if (find uf l == find uf lx) then find uf ly else find uf l.
+    if (find uf lx == find uf l) then find uf ly else find uf l.
   Proof. by apply/find_r_union/wf_uf. Qed.
 
 End UnionFind.
@@ -512,7 +517,7 @@ Section Tunneling.
     match c, c' with
       | MkLI _ li, MkLI _ li' =>
         match li, li' with
-          | Llabel l, Lgoto (fn',l') => if fn == fn' then LUF.union uf l l' else uf
+          | Llabel l, Lgoto (fn',l') => if fn' == fn then LUF.union uf l l' else uf
           | _, _ => uf
         end
     end.
@@ -523,7 +528,7 @@ Section Tunneling.
     match c, c' with
       | MkLI _ li, MkLI ii' li' =>
         match li, li' with
-          | Llabel l, Lgoto (fn',l') => MkLI ii' (if fn == fn' then Lgoto (fn', LUF.find uf l') else Lgoto (fn',l'))
+          | Llabel l, Lgoto (fn',l') => MkLI ii' (if fn' == fn then Lgoto (fn', LUF.find uf l') else Lgoto (fn',l'))
           | _, Lcond pe l' => MkLI ii' (Lcond pe (LUF.find uf l'))
           | _, _ => MkLI ii' li'
         end
@@ -579,8 +584,6 @@ Section TunnelingSem.
   Definition lfundef_tunnel_partial fd lc lc' :=
     setfb fd (tunnel_partial fn (tunnel_plan fn LUF.empty lc) lc').
 
-  Definition lfundef_tunnel fd := lfundef_tunnel_partial fd fd.(lfd_body) fd.(lfd_body).
-
   Definition setfuncs lf :=
     Build_lprog
       p.(lp_rip)
@@ -590,10 +593,34 @@ Section TunnelingSem.
   Lemma lp_funcs_setfuncs lf : lp_funcs (setfuncs lf) = lf.
   Proof. by case: p. Qed.
 
-  (*Two issues arise from the use of map.*)
   Definition lprog_tunnel :=
-    setfuncs
-      (map (fun f => (f.1, if f.1 == fn then lfundef_tunnel f.2 else f.2)) p.(lp_funcs)).
+    match get_fundef (lp_funcs p) fn with
+    | Some fd => setfuncs
+                  (map
+                    (fun f =>
+                      (f.1,
+                       if f.1 == fn
+                       then lfundef_tunnel_partial f.2 fd.(lfd_body) fd.(lfd_body)
+                       else f.2))
+                    p.(lp_funcs))
+    | None => p
+    end.
+
+  Lemma lp_funcs_lprog_tunnel :
+    lp_funcs lprog_tunnel =
+    match get_fundef (lp_funcs p) fn with
+    | Some fd => (map
+                   (fun f =>
+                     (f.1,
+                      if f.1 == fn
+                      then lfundef_tunnel_partial f.2 fd.(lfd_body) fd.(lfd_body)
+                      else f.2))
+                   (lp_funcs p))
+    | None => lp_funcs p
+    end.
+  Proof.
+    by rewrite /lprog_tunnel; case Hgfd: get_fundef => [fd|] //.
+  Qed.
 
   Lemma get_fundef_map2 (g : funname -> lfundef -> lfundef) (fs : seq (funname * lfundef)) :
     get_fundef (map (fun f => (f.1, g f.1 f.2)) fs) fn =
@@ -603,14 +630,6 @@ Section TunnelingSem.
     end.
   Proof.
     by elim: fs => [|[fn' lf] fs Ihfs] //=; case: ifP => // /eqP ->.
-  Qed.
-
-  Lemma get_fundef_None_lprog_tunnel : get_fundef (lp_funcs p) fn = None -> lprog_tunnel = p.
-  Proof.
-    rewrite /lprog_tunnel /get_fundef /assoc /setfuncs; case: p => rip globs fs /=.
-    elim: fs => //= [] [hfsn hfsd] tfs IHfs /=.
-    case Heqbfn: (fn == hfsn) => //= HNone; rewrite eq_sym in Heqbfn; rewrite Heqbfn.
-    by have:= (IHfs HNone) => [] [->].
   Qed.
 
 End TunnelingSem.
@@ -628,7 +647,7 @@ Section TunnelingProof.
   Proof.
     case: c => li_ii li_i; case: li_i; case: c' => li_ii' li_i'; case: li_i' => //=; intros.
     3:
-      case: r => a b; case Heq: (fn == a) => //.
+      case: r => a b; case Heq: (a == fn) => //.
     all:
       by rewrite LUF.find_empty.
   Qed.
@@ -646,14 +665,34 @@ Section TunnelingProof.
     get_fundef (lp_funcs (lprog_tunnel fn p)) fn' =
     if fn' == fn then
       match get_fundef (lp_funcs p) fn with
-      | Some fd => Some (lfundef_tunnel fn fd)
+      | Some fd => Some (lfundef_tunnel_partial fn fd fd.(lfd_body) fd.(lfd_body))
       | None => None
       end
     else get_fundef (lp_funcs p) fn'.
   Proof.
-    have:= (get_fundef_map2 fn' (fun fn'' lf => if fn'' == fn then lfundef_tunnel fn lf else lf) (lp_funcs p)).
-    case Heqfn: (fn' == fn); move => ->; first by rewrite (eqP Heqfn).
-    by case: (get_fundef (lp_funcs p) fn').
+    rewrite lp_funcs_lprog_tunnel.
+    elim: (lp_funcs p) => [|[fn'' fd''] tfs] /=; first by case: (_ == _).
+    rewrite /get_fundef /=.
+    case Heqfn': (fn' == fn); first (have:= (eqP Heqfn') => ?; clear Heqfn'; subst fn');
+    (case Heqfn'': (fn'' == fn); first (have:= (eqP Heqfn'') => ?; clear Heqfn''; subst fn''));
+    last (case Heqfn''': (fn'' == fn'); first (have:= (eqP Heqfn''') => ?; clear Heqfn'''; subst fn''));
+    case Hgfd: (assoc tfs fn) => [fd|] /=.
+    + by rewrite eq_refl /= eq_refl.
+    + by rewrite eq_refl /= eq_refl.
+    + by rewrite (eq_sym fn fn'') Heqfn'' /= (eq_sym fn fn'') Heqfn'' /=.
+    + by rewrite (eq_sym fn fn'') Heqfn'' /= (eq_sym fn fn'') Heqfn''.
+    + rewrite eq_refl /= Heqfn'.
+      elim: tfs {Hgfd} => [|[fn''' fd'''] ttfs IHtfs] //=.
+      case Heqfn'''': (fn' == fn'''); case Heqfn''': (fn''' == fn) => //=.
+      by rewrite (eqP Heqfn'''') (eqP Heqfn''') eq_refl in Heqfn'.
+    + rewrite eq_refl /= Heqfn' => _.
+      elim: tfs {Hgfd} => [|[fn''' fd'''] ttfs IHtfs] //=.
+      case Heqfn'''': (fn' == fn'''); case Heqfn''': (fn''' == fn) => //=.
+      by rewrite (eqP Heqfn'''') (eqP Heqfn''') eq_refl in Heqfn'.
+    + by rewrite eq_refl (eq_sym fn fn') Heqfn' /= eq_refl.
+    + by rewrite eq_refl (eq_sym fn fn') Heqfn' /= eq_refl.
+    + by rewrite (eq_sym fn' fn'') Heqfn''' (eq_sym fn fn'') Heqfn'' /= (eq_sym fn' fn'') Heqfn'''.
+    by rewrite (eq_sym fn' fn'') Heqfn''' (eq_sym fn fn'') Heqfn'' /= (eq_sym fn' fn'') Heqfn'''.
   Qed.
 
   Lemma if_eq_fun (T1 : eqType) (T2 : Type) (f : T1 -> T2) a b : (if b == a then f a else f b) = f b.
@@ -663,9 +702,30 @@ Section TunnelingProof.
 
   Lemma tunneling_lsem1 s1 s2 : lsem1 (lprog_tunnel fn p) s1 s2 -> lsem p s1 s2.
   Proof.
+    rewrite /lprog_tunnel; case Hgfd: (get_fundef _ _) => [fd|]; last by apply: Relation_Operators.rt_step.
+    pose P:=
+      (fun lc lc' =>
+        lsem1
+          (setfuncs p
+             [seq (f.1,
+                   if f.1 == fn
+                   then lfundef_tunnel_partial fn f.2 lc lc'
+                   else f.2)
+             | f <- lp_funcs p])
+          s1 s2 →
+        lsem p s1 s2
+      ).
+    apply: (@prefixW _ P); rewrite /P; clear P.
+    + move => Hlsem1; apply: Relation_Operators.rt_step; move: Hlsem1.
+      rewrite /lfundef_tunnel_partial /tunnel_partial /tunnel_plan [pairfoldl _ _ _ _]/=.
+      rewrite pairmap_tunnel_bore_empty /lsem1 /step /find_instr lp_funcs_setfuncs.
+      rewrite get_fundef_map2.
+      
+
     case Hgfd: (get_fundef (lp_funcs p) fn) => [fd|]; last first.
     + by rewrite (get_fundef_None_lprog_tunnel Hgfd); apply: Relation_Operators.rt_step.
     have:= (get_fundef_lprog_tunnel fn); rewrite eq_refl Hgfd /lfundef_tunnel.
+    (*Big issue here.*)
     pose P:=
       (fun lc lc' =>
         get_fundef (lp_funcs (lprog_tunnel fn p)) fn =
@@ -687,23 +747,15 @@ Section TunnelingProof.
       move => e l; t_xrbindP => b v Hv Hb <-; rewrite Hv [Let _:= _ in _]/= Hb [Let _:= _ in _]/=.
       by case: b {Hb} => //; rewrite {1}Hgtfd -{1}Hgfd if_eq_fun.
     move => hli tli; rewrite /lfundef_tunnel_partial /tunnel_plan.
-    rewrite pairfoldl_rcons; case: (lastP tli) => /=; first by case: (lfd_body fd); case: hli => //.
+    rewrite pairfoldl_rcons; case: (lastP tli); first by case: (lfd_body fd); case: hli => //.
     move => ttli htli; rewrite (last_rcons Linstr_align ttli htli).
     case: hli; case: htli => li_ii1 li_i1 li_ii2 li_i2.
-    rewrite /tunnel_chart; case: li_i1; case: li_i2 => //=.
+    rewrite /tunnel_chart; case: li_i1; case: li_i2 => //.
     move => [fn' l2] l1; case Hbeq: (fn == fn') => //.
     have Heq:= (eqP Hbeq); subst fn'; clear Hbeq.
-    (*
-    set Pfl:= (X in LUF.union X).
-    rewrite -/Pfl.
-    *)
     set Ppfl := pairfoldl _ _ _ _.
-    rewrite /lsem1 /step /find_instr => Hprefix IH  Htp.
-    case Hfindtpu: (find_instr tpu s1) => [ctpu|] //; move: Hfindtpu.
-    case Hgetfundeftpu: (get_fundef (lp_funcs tpu) (lfn s1)) => [lftpu|] //.
-    rewrite /tpu /= in Hgetfundeftpu.
-    case Hfns1: ((lfn s1) == fn); last first.
-     
+    rewrite /lsem1 /step /find_instr => Hprefix.
+    rewrite (get_fundef_lprog_tunnel (lfn s1)) Hgfd.
   Admitted.
 
   Lemma tunneling_lsem p s1 s2 : lsem (lprog_tunnel p) s1 s2 -> lsem p s1 s2.
