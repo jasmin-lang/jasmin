@@ -632,16 +632,22 @@ Section TunnelingSem.
     by elim: fs => [|[fn' lf] fs Ihfs] //=; case: ifP => // /eqP ->.
   Qed.
 
+  Lemma get_fundef_eval_instr p' i s1 s2 : get_fundef (lp_funcs p) =1 get_fundef (lp_funcs p') -> eval_instr p i s1 = ok s2 -> eval_instr p' i s1 = ok s2.
+  Proof.
+    move => Hgetfundef.
+    rewrite /eval_instr /eval_jump; case: (li_i _) => [lv s e| |l|[fn' l]|e|lv l|e l] //.
+    + by rewrite Hgetfundef.
+    + by t_xrbindP => w v -> /= -> /=; case: (decode_label) => [[l fn']|] //; rewrite Hgetfundef.
+    by t_xrbindP => b v -> /= -> /=; rewrite Hgetfundef.
+  Qed.
+
+  (*How to t_xrbindP in the case of =2 ?*)
   Lemma get_fundef_lsem1 p' s1 s2 : get_fundef (lp_funcs p) =1 get_fundef (lp_funcs p') -> lsem1 p s1 s2 -> lsem1 p' s1 s2.
   (*lsem1 p =2 lsem1 p'*)
   Proof.
     move => Hgetfundef; rewrite /lsem1 /step /find_instr Hgetfundef.
     case: (get_fundef _ _) => [fd|] //; case: (oseq.onth _ _) => [i|] //.
-    rewrite /eval_instr /eval_jump; case: (li_i _) => [lv s e| |l|[fn' l]|e|lv l|e l] //.
-    + by rewrite Hgetfundef.
-    + by t_xrbindP => w v -> /= -> /=; case: (decode_label) => [[l fn']|] //; rewrite Hgetfundef.
-    by t_xrbindP => b v -> /= -> /=; rewrite Hgetfundef.
-    (*How to t_xrbindP in the case of =2 ?*)
+    by apply: get_fundef_eval_instr.
   Qed.
 
 End TunnelingSem.
@@ -707,9 +713,9 @@ Section TunnelingProof.
     by rewrite Heqfn'''.
   Qed.
 
-  Lemma if_eq_fun (T1 : eqType) (T2 : Type) (f : T1 -> T2) a b : (if b == a then f a else f b) = f b.
+  Lemma if_eq_fun (T1 : eqType) (T2 : Type) (f : T1 -> T2) a b : (if a == b then f a else f b) = f b.
   Proof.
-    by case Heq: (b == a) => //; rewrite (eqP Heq).
+    by case Heq: (a == b) => //; rewrite (eqP Heq).
   Qed.
 
   Lemma tunneling_lsem1 s1 s2 : lsem1 (lprog_tunnel fn p) s1 s2 -> lsem p s1 s2.
@@ -728,15 +734,14 @@ Section TunnelingProof.
         lsem p s1 s2
       ).
     apply: (@prefixW _ P); rewrite /P; clear P.
-    + move => Hlsem1; apply: Relation_Operators.rt_step; move: Hlsem1.
-      rewrite /lfundef_tunnel_partial /tunnel_partial /tunnel_plan [pairfoldl _ _ _ _]/=.
-      rewrite pairmap_tunnel_bore_empty /lsem1 /step /find_instr lp_funcs_setfuncs.
-      have ->:= (get_fundef_map2 (lfn s1) (fun f1 f2 => if fn == f1 then setfb f2 (lfd_body fd) else f2) (lp_funcs p)).
-      case Hgfd1: (get_fundef _ _) => [fd1|] //.
-      case Heqfn: (fn == lfn s1);
-      first (have:= (eqP Heqfn) => ?; subst fn; move: Hgfd1; rewrite Hgfd => [] [?]; subst fd1; rewrite lfd_body_setfb).
-      (case Honth: (oseq.onth _ _) => [i|]; first (move: Honth; case Hi: (li_i _) => [lv s e| |l|[fn' l]|e|lv l|e l]; rewrite /setfb /= => Honth)) => //=.
-      - 
+    + move => Hlsem1; apply: Relation_Operators.rt_step; apply: (@get_fundef_lsem1 _ p _ _ _ Hlsem1).
+      clear Hlsem1; move: Hgfd; rewrite /get_fundef.
+      rewrite /lfundef_tunnel_partial /tunnel_plan /= /tunnel_partial pairmap_tunnel_bore_empty.
+      elim: (lp_funcs p) => [|[fn' fd'] tfs] //=.
+      case: ifP => //=; last by move => _ IHassoc Hassoc fn''; case: ifP => //; rewrite (IHassoc Hassoc).
+      move => /eqP ?; subst fn' => IHassoc [?]; subst fd' => fn'; case: ifP; first by rewrite setfb_lfd_body.
+      elim: tfs {IHassoc} => [|[fn'' fd''] ttfs] //= IHttfs Heqfn'; rewrite (IHttfs Heqfn').
+      by case: ifP => // /eqP ?; subst fn''; rewrite eq_sym Heqfn'.
       
 
     case Hgfd: (get_fundef (lp_funcs p) fn) => [fd|]; last first.
