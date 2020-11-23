@@ -682,31 +682,27 @@ Section TunnelingProof.
 
   Lemma get_fundef_map2_only_fn fn' g :
     get_fundef (map (fun f => (f.1, if fn == f.1 then g f.2 else f.2)) (lp_funcs p)) fn' =
-    if fn == fn' then
-      match get_fundef (lp_funcs p) fn with
-      | Some fd => Some (g fd)
-      | None => None
-      end
-    else get_fundef (lp_funcs p) fn'.
+    match get_fundef (lp_funcs p) fn' with
+    | Some fd => Some (if fn == fn' then g fd else fd)
+    | None => None
+    end.
   Proof.
-    rewrite (get_fundef_map2 fn' (fun f1 f2 => if fn == f1 then g f2 else f2) (lp_funcs p)).
-    case: ifP; first by move => /eqP ->.
-    by case Hgfd: (get_fundef (lp_funcs p) fn') => [fd|] //.
+    by rewrite (get_fundef_map2 fn' (fun f1 f2 => if fn == f1 then g f2 else f2) (lp_funcs p)).
   Qed.
 
   Lemma get_fundef_lprog_tunnel fn':
     get_fundef (lp_funcs (lprog_tunnel fn p)) fn' =
-    if fn == fn' then
-      match get_fundef (lp_funcs p) fn with
-      | Some fd => Some (lfundef_tunnel_partial fn fd fd.(lfd_body) fd.(lfd_body))
-      | None => None
-      end
-    else get_fundef (lp_funcs p) fn'.
+    match get_fundef (lp_funcs p) fn' with
+    | Some fd => Some (if fn == fn' then lfundef_tunnel_partial fn fd fd.(lfd_body) fd.(lfd_body) else fd)
+    | None => None
+    end.
   Proof.
-    rewrite /lprog_tunnel; case Hgfd: (get_fundef (lp_funcs p) _) => [fd|] //; last first.
-    + by rewrite -Hgfd; case: ifP => // /eqP ->.
+    rewrite /lprog_tunnel; case Hgfd: (get_fundef (lp_funcs p) _) => [fd|]; last first.
+    + case Heqfn: (fn == fn'); first by rewrite -(eqP Heqfn) Hgfd.
+      by case: (get_fundef _ _).
     rewrite lp_funcs_setfuncs (get_fundef_map2_only_fn fn' (fun f2 => lfundef_tunnel_partial fn f2 (lfd_body fd) (lfd_body fd))).
-    by case: ifP => //; rewrite Hgfd.
+    case Heqfn: (fn == fn'); first by rewrite -(eqP Heqfn) Hgfd.
+    by case: (get_fundef _ _).
   Qed.
 
   Lemma get_fundef_union fn' uf l1 l2 fd :
@@ -717,31 +713,23 @@ Section TunnelingProof.
                        then setfb f.2 (tunnel_partial fn (LUF.union uf l1 l2) (lfd_body fd))
                        else f.2))
                     (lp_funcs p)) fn' =
-    if fn == fn' then
-      match
-        get_fundef (map (fun f =>
-                         (f.1,
-                           if fn == f.1
-                           then setfb f.2 (tunnel_partial fn uf (lfd_body fd))
-                           else f.2))
-                        (lp_funcs p)) fn'
-      with
-      | Some pfd => Some (setfb pfd [::])
-      | None => None
-      end
-    else
+    match
       get_fundef (map (fun f =>
                        (f.1,
                          if fn == f.1
                          then setfb f.2 (tunnel_partial fn uf (lfd_body fd))
                          else f.2))
-                      (lp_funcs p)) fn'.
+                      (lp_funcs p)) fn'
+    with
+    | Some pfd => Some (if fn == fn' then setfb pfd [::] else pfd)
+    | None => None
+    end.
   Proof.
     rewrite (get_fundef_map2_only_fn fn' (fun f2 => setfb f2 (tunnel_partial fn (LUF.union uf l1 l2) (lfd_body fd)))).
     rewrite (get_fundef_map2_only_fn fn' (fun f2 => setfb f2 (tunnel_partial fn uf (lfd_body fd)))).
-    case: ifP => // _ ->.
-    rewrite /tunnel_partial.
-  Qed.
+    case Heqfn: (fn == fn'); last by move => _; case Hgfd': (get_fundef _ _).
+    rewrite (eqP Heqfn) /tunnel_partial => ->.
+  Admitted.
 
   Lemma tunneling_lsem1 s1 s2 : lsem1 (lprog_tunnel fn p) s1 s2 -> lsem p s1 s2.
   Proof.
@@ -774,7 +762,10 @@ Section TunnelingProof.
     have Heq:= (eqP Hbeq); subst fn'; clear Hbeq.
     set uf := pairfoldl _ _ _ _.
     rewrite /lsem1 /step /find_instr !lp_funcs_setfuncs => Hprefix.
-    
+    rewrite get_fundef_union //.
+    set Pgpfd := get_fundef _ _.
+    case HPgpfd: Pgpfd => [pfd|] //.
+    rewrite paironth_pairmap.
   Admitted.
 
   Lemma tunneling_lsem p s1 s2 : lsem (lprog_tunnel p) s1 s2 -> lsem p s1 s2.
