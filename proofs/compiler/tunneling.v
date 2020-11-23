@@ -33,7 +33,7 @@ Module Type IUnionFind.
 
   Axiom find_empty : forall l , find empty l = l.
 
-  Axiom find_union : forall uf l lx ly, find (union uf lx ly) l =
+  Axiom find_union : forall uf lx ly l, find (union uf lx ly) l =
     if (find uf lx == find uf l) then find uf ly else find uf l.
 
 End IUnionFind.
@@ -164,7 +164,7 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
 
   Arguments well_formed_union [uf].
 
-  Lemma find_r_union uf l lx ly : well_formed uf -> find_r (union_r uf lx ly) l = if (find_r uf lx == find_r uf l) then find_r uf ly else find_r uf l.
+  Lemma find_r_union uf lx ly l : well_formed uf -> find_r (union_r uf lx ly) l = if (find_r uf lx == find_r uf l) then find_r uf ly else find_r uf l.
   Proof.
     move => Hwfuf.
     have:= (@well_formed_makeset _ ly (@well_formed_makeset _ lx Hwfuf)).
@@ -245,7 +245,7 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
   Lemma find_empty l : find empty l = l.
   Proof. apply: find_r_empty. Qed.
 
-  Lemma find_union uf l lx ly : find (union uf lx ly) l =
+  Lemma find_union uf lx ly l : find (union uf lx ly) l =
     if (find uf lx == find uf l) then find uf ly else find uf l.
   Proof. by apply/find_r_union/wf_uf. Qed.
 
@@ -517,7 +517,7 @@ Section Tunneling.
     match c, c' with
       | MkLI _ li, MkLI _ li' =>
         match li, li' with
-          | Llabel l, Lgoto (fn',l') => if fn' == fn then LUF.union uf l l' else uf
+          | Llabel l, Lgoto (fn',l') => if fn == fn' then LUF.union uf l l' else uf
           | _, _ => uf
         end
     end.
@@ -528,7 +528,7 @@ Section Tunneling.
     match c, c' with
       | MkLI _ li, MkLI ii' li' =>
         match li, li' with
-          | Llabel l, Lgoto (fn',l') => MkLI ii' (if fn' == fn then Lgoto (fn', LUF.find uf l') else Lgoto (fn',l'))
+          | Llabel l, Lgoto (fn',l') => MkLI ii' (if fn == fn' then Lgoto (fn', LUF.find uf l') else Lgoto (fn',l'))
           | _, Lcond pe l' => MkLI ii' (Lcond pe (LUF.find uf l'))
           | _, _ => MkLI ii' li'
         end
@@ -599,7 +599,7 @@ Section TunnelingSem.
                   (map
                     (fun f =>
                       (f.1,
-                       if f.1 == fn
+                       if fn == f.1
                        then lfundef_tunnel_partial f.2 fd.(lfd_body) fd.(lfd_body)
                        else f.2))
                     p.(lp_funcs))
@@ -612,7 +612,7 @@ Section TunnelingSem.
     | Some fd => (map
                    (fun f =>
                      (f.1,
-                      if f.1 == fn
+                      if fn == f.1
                       then lfundef_tunnel_partial f.2 fd.(lfd_body) fd.(lfd_body)
                       else f.2))
                    (lp_funcs p))
@@ -632,6 +632,18 @@ Section TunnelingSem.
     by elim: fs => [|[fn' lf] fs Ihfs] //=; case: ifP => // /eqP ->.
   Qed.
 
+  Lemma get_fundef_lsem1 p' s1 s2 : get_fundef (lp_funcs p) =1 get_fundef (lp_funcs p') -> lsem1 p s1 s2 -> lsem1 p' s1 s2.
+  (*lsem1 p =2 lsem1 p'*)
+  Proof.
+    move => Hgetfundef; rewrite /lsem1 /step /find_instr Hgetfundef.
+    case: (get_fundef _ _) => [fd|] //; case: (oseq.onth _ _) => [i|] //.
+    rewrite /eval_instr /eval_jump; case: (li_i _) => [lv s e| |l|[fn' l]|e|lv l|e l] //.
+    + by rewrite Hgetfundef.
+    + by t_xrbindP => w v -> /= -> /=; case: (decode_label) => [[l fn']|] //; rewrite Hgetfundef.
+    by t_xrbindP => b v -> /= -> /=; rewrite Hgetfundef.
+    (*How to t_xrbindP in the case of =2 ?*)
+  Qed.
+
 End TunnelingSem.
 
 
@@ -647,7 +659,7 @@ Section TunnelingProof.
   Proof.
     case: c => li_ii li_i; case: li_i; case: c' => li_ii' li_i'; case: li_i' => //=; intros.
     3:
-      case: r => a b; case Heq: (a == fn) => //.
+      case: r => a b; case Heq: (fn == a) => //.
     all:
       by rewrite LUF.find_empty.
   Qed.
@@ -663,7 +675,7 @@ Section TunnelingProof.
 
   Lemma get_fundef_lprog_tunnel fn':
     get_fundef (lp_funcs (lprog_tunnel fn p)) fn' =
-    if fn' == fn then
+    if fn == fn' then
       match get_fundef (lp_funcs p) fn with
       | Some fd => Some (lfundef_tunnel_partial fn fd fd.(lfd_body) fd.(lfd_body))
       | None => None
@@ -673,26 +685,26 @@ Section TunnelingProof.
     rewrite lp_funcs_lprog_tunnel.
     elim: (lp_funcs p) => [|[fn'' fd''] tfs] /=; first by case: (_ == _).
     rewrite /get_fundef /=.
-    case Heqfn': (fn' == fn); first (have:= (eqP Heqfn') => ?; clear Heqfn'; subst fn');
-    (case Heqfn'': (fn'' == fn); first (have:= (eqP Heqfn'') => ?; clear Heqfn''; subst fn''));
-    last (case Heqfn''': (fn'' == fn'); first (have:= (eqP Heqfn''') => ?; clear Heqfn'''; subst fn''));
+    case Heqfn': (fn == fn'); first (have:= (eqP Heqfn') => ?; clear Heqfn'; subst fn');
+    (case Heqfn'': (fn == fn''); first (have:= (eqP Heqfn'') => ?; clear Heqfn''; subst fn''));
+    last (case Heqfn''': (fn' == fn''); first (have:= (eqP Heqfn''') => ?; clear Heqfn'''; subst fn''));
     case Hgfd: (assoc tfs fn) => [fd|] /=.
-    + by rewrite eq_refl /= eq_refl.
-    + by rewrite eq_refl /= eq_refl.
-    + by rewrite (eq_sym fn fn'') Heqfn'' /= (eq_sym fn fn'') Heqfn'' /=.
-    + by rewrite (eq_sym fn fn'') Heqfn'' /= (eq_sym fn fn'') Heqfn''.
-    + rewrite eq_refl /= Heqfn'.
+    + by rewrite eq_refl.
+    + by rewrite eq_refl.
+    + by rewrite Heqfn''.
+    + by rewrite Heqfn''.
+    + rewrite (eq_sym fn' fn) Heqfn'.
       elim: tfs {Hgfd} => [|[fn''' fd'''] ttfs IHtfs] //=.
-      case Heqfn'''': (fn' == fn'''); case Heqfn''': (fn''' == fn) => //=.
+      case Heqfn'''': (fn' == fn'''); case Heqfn''': (fn == fn''') => //=.
       by rewrite (eqP Heqfn'''') (eqP Heqfn''') eq_refl in Heqfn'.
-    + rewrite eq_refl /= Heqfn' => _.
+    + rewrite (eq_sym fn' fn) Heqfn'.
       elim: tfs {Hgfd} => [|[fn''' fd'''] ttfs IHtfs] //=.
-      case Heqfn'''': (fn' == fn'''); case Heqfn''': (fn''' == fn) => //=.
+      case Heqfn'''': (fn' == fn'''); case Heqfn''': (fn == fn''') => //=.
       by rewrite (eqP Heqfn'''') (eqP Heqfn''') eq_refl in Heqfn'.
-    + by rewrite eq_refl (eq_sym fn fn') Heqfn' /= eq_refl.
-    + by rewrite eq_refl (eq_sym fn fn') Heqfn' /= eq_refl.
-    + by rewrite (eq_sym fn' fn'') Heqfn''' (eq_sym fn fn'') Heqfn'' /= (eq_sym fn' fn'') Heqfn'''.
-    by rewrite (eq_sym fn' fn'') Heqfn''' (eq_sym fn fn'') Heqfn'' /= (eq_sym fn' fn'') Heqfn'''.
+    + by rewrite eq_refl.
+    + by rewrite eq_refl.
+    + by rewrite Heqfn'''.
+    by rewrite Heqfn'''.
   Qed.
 
   Lemma if_eq_fun (T1 : eqType) (T2 : Type) (f : T1 -> T2) a b : (if b == a then f a else f b) = f b.
@@ -708,7 +720,7 @@ Section TunnelingProof.
         lsem1
           (setfuncs p
              [seq (f.1,
-                   if f.1 == fn
+                   if fn == f.1
                    then lfundef_tunnel_partial fn f.2 lc lc'
                    else f.2)
              | f <- lp_funcs p])
@@ -719,7 +731,12 @@ Section TunnelingProof.
     + move => Hlsem1; apply: Relation_Operators.rt_step; move: Hlsem1.
       rewrite /lfundef_tunnel_partial /tunnel_partial /tunnel_plan [pairfoldl _ _ _ _]/=.
       rewrite pairmap_tunnel_bore_empty /lsem1 /step /find_instr lp_funcs_setfuncs.
-      rewrite get_fundef_map2.
+      have ->:= (get_fundef_map2 (lfn s1) (fun f1 f2 => if fn == f1 then setfb f2 (lfd_body fd) else f2) (lp_funcs p)).
+      case Hgfd1: (get_fundef _ _) => [fd1|] //.
+      case Heqfn: (fn == lfn s1);
+      first (have:= (eqP Heqfn) => ?; subst fn; move: Hgfd1; rewrite Hgfd => [] [?]; subst fd1; rewrite lfd_body_setfb).
+      (case Honth: (oseq.onth _ _) => [i|]; first (move: Honth; case Hi: (li_i _) => [lv s e| |l|[fn' l]|e|lv l|e l]; rewrite /setfb /= => Honth)) => //=.
+      - 
       
 
     case Hgfd: (get_fundef (lp_funcs p) fn) => [fd|]; last first.
