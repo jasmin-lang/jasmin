@@ -38,7 +38,7 @@ stdenv.mkDerivation {
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib ocamlbuild
          (batteries.overrideAttrs (o: { doCheck = false; }))
-         menhir zarith camlidl apron ]))
+         menhir yojson zarith camlidl apron ]))
     ++ optionals devTools (with oP; [ merlin ])
     ;
 }
