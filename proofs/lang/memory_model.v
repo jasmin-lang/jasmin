@@ -379,6 +379,15 @@ Proof.
   case: eqP; Psatz.lia.
 Qed.
 
+(** Round to the multiple of [sz'] below. *)
+Definition align_word (sz sz': wsize) (p: word sz) : word sz :=
+  wand p (wrepr sz (-wsize_size sz')).
+
+Lemma align_word_aligned (sz sz': wsize) (p: word sz) :
+  wunsigned (align_word sz' p) mod wsize_size sz' == 0.
+Proof.
+Admitted.
+
 Class memory (mem: Type) : Type :=
   Memory {
       read_mem  : mem -> pointer -> forall (s:wsize), exec (word s)
@@ -410,7 +419,6 @@ Section SPEC.
   Let pstk := top_stack m'.
 
   Record alloc_stack_spec : Prop := mkASS {
-    ass_mod      : (wunsigned pstk + round_ws ws (sz + sz') <= wbase Uptr)%Z;
     ass_read_old : forall p s, valid_pointer m p s -> read_mem m p s = read_mem m' p s;
     ass_valid    : forall p,
       valid_pointer m' p U8 =
