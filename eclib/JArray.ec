@@ -116,13 +116,11 @@ abstract theory MonoArray.
   axiomatized by of_listE.
 
   op to_list (t:t) =
-    mkseq (fun i => t.[i]) size.
-
-  lemma to_listE (t:t) : to_list t = map (fun i => t.[i]) (iota_ 0 size).
-  proof. done. qed.
+    mkseq (fun i => t.[i]) size
+  axiomatized by to_listE.
 
   lemma size_to_list (t:t): size (to_list t) = size.
-  proof. rewrite /to_listE size_mkseq /max; smt (ge0_size). qed.
+  proof. rewrite to_listE size_mkseq /max; smt (ge0_size). qed.
 
   lemma get_of_list (l:elem list) i : 0 <= i < size =>
     (of_list l).[i] = nth dfl l i.
@@ -130,7 +128,7 @@ abstract theory MonoArray.
 
   lemma get_to_list (t : t) i : nth dfl (to_list t) i = t.[i].
   proof.
-    rewrite nth_mkseq_if; case:(0 <= i < size) => hi //.
+    rewrite to_listE nth_mkseq_if; case:(0 <= i < size) => hi //.
     rewrite get_out //.
   qed.
 
@@ -169,8 +167,6 @@ abstract theory MonoArray.
   move=> pxs ge128_sz_xs i rg_i; rewrite get_of_list //.
   by move/allP: pxs; apply; rewrite mem_nth /#.
   qed.
-
-  (* hint simplify init_of_list@1. *)
 
   (* -------------------------------------------------------------------- *)
   op create (a:elem) = init (fun (i:int) => a).

@@ -122,6 +122,9 @@ hint simplify
    pow2_16, pow2_32, pow2_64, pow2_128, pow2_256)@0.
 
 (* -------------------------------------------------------------------- *)
+op iotared = iota_
+  axiomatized by iotaredE.
+
 lemma iotaS_minus :
   forall (i n : int), 0 < n => iota_ i n = i :: iota_ (i + 1) (n - 1).
 proof. smt (iotaS). qed.
