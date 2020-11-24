@@ -477,6 +477,13 @@ Section PairOnth.
     by split => [->|[]].
   Qed.
 
+  Lemma paironth_onth2 x s i p1 p2:
+    (paironth x s i = Some (p1,p2)) ->
+    (oseq.onth s i = Some p2).
+  Proof.
+    by move => Hpaironth; apply paironth_onth in Hpaironth; move: Hpaironth; case: i => [[]|i []].
+  Qed.
+
   Lemma paironth_pairmap x s i :
     oseq.onth (pairmap f x s) i =
     match paironth x s i with
@@ -484,7 +491,7 @@ Section PairOnth.
     | None => None
     end.
   Proof.
-    by elim: s x i => [x [|i]|hs ts IHs x [|i]] => /=.
+    by elim: s x i => [x [|i]|hs ts IHs x [|i]] /=.
   Qed.
 
 End PairOnth.
@@ -500,7 +507,7 @@ Section PairMapProps.
     f =2 g -> pairmap f x s = pairmap g x s.
   Proof. by move=> eq_fg; rewrite !pairmapE; apply/eq_map=> []. Qed.
 
-  Lemma size_pairmap {T U : Type} (f g : T -> T -> U) (x : T) (s : seq T) :
+  Lemma size_pairmap {T U : Type} (f : T -> T -> U) (x : T) (s : seq T) :
     size (pairmap f x s) = size s.
   Proof. by rewrite pairmapE size_map size2_zip /=. Qed.
 
@@ -790,12 +797,62 @@ Section TunnelingProof.
     case Heqfn: (fn == lfn s1); last first.
     + case Honth: (oseq.onth _ _) => [i|] //.
       rewrite /eval_instr /eval_jump; case: (li_i i) => //.
-      - move => [fn' l']. rewrite !lp_funcs_setfuncs get_fundef_union //.
-        case: (get_fundef _ _) => [pfd'|] //.
-        
-
-    rewrite paironth_pairmap.
-  Admitted.
+      - move => [fn' l']; rewrite !lp_funcs_setfuncs get_fundef_union //.
+        case: (get_fundef _ _) => [pfd'|] //; case Heqfn': (fn == fn') => //.
+        by rewrite find_label_tunnel_partial.
+      - move => p' Htunnel; t_xrbindP => w v Hv Hw.
+        rewrite Hv /= Hw /= in Htunnel; move: Htunnel.
+        case: (decode_label w) => [[fn' l']|] //.
+        rewrite !lp_funcs_setfuncs get_fundef_union //.
+        case: (get_fundef _ _) => [pfd'|] //; case Heqfn': (fn == fn') => //.
+        by rewrite find_label_tunnel_partial.
+      move => p' l' Htunnel; t_xrbindP => b v Hv Hb.
+      rewrite Hv /= Hb /= in Htunnel; move: Htunnel.
+      clear Hb; case: b => //.
+      rewrite !lp_funcs_setfuncs get_fundef_union //.
+      by case: (get_fundef _ _) => [pfd'|] //; rewrite Heqfn.
+    move: HPgpfd; rewrite /Pgpfd -(eqP Heqfn); clear Pgpfd.
+    rewrite (get_fundef_map2_only_fn fn (fun f2 => setfb f2 (tunnel_partial fn uf (lfd_body fd)))).
+    rewrite Hgfd eq_refl => -[Hpfd].
+    rewrite lfd_body_setfb /tunnel_partial paironth_pairmap.
+    case Hponth: (paironth _ _ _) => [[[li_ii3 li_i3] [li_ii4 li_i4]]|] //.
+    apply paironth_onth2 in Hponth; rewrite Hponth; clear Hponth.
+    rewrite /eval_instr /eval_jump; case: li_i4 => //=.
+    + by case: li_i3 .
+    + by case: li_i3.
+    + by case: li_i3.
+    + move => [fn' l']; rewrite get_fundef_union //; case: li_i3 => //=.
+      1-2:
+        rewrite get_fundef_union //;
+        case: (get_fundef _ _) => [pfd'|] //; case Heqfn': (fn == fn') => //;
+        by rewrite lfd_body_setfb find_label_tunnel_partial.
+      - rewrite LUF.find_union !LUF.find_empty.
+        case Heqfn': (fn == fn') => //; rewrite get_fundef_union //; case: (get_fundef _ _) => [pfd'|] //; rewrite Heqfn' //.
+        rewrite lfd_body_setfb /tunnel_partial.
+        by admit.
+      - rewrite get_fundef_union //.
+        case: (get_fundef _ _) => [pfd'|] //; case Heqfn': (fn == fn') => //.
+        by rewrite lfd_body_setfb find_label_tunnel_partial.
+      - rewrite get_fundef_union //.
+        case: (get_fundef _ _) => [pfd'|] //; case Heqfn': (fn == fn') => //.
+        by rewrite lfd_body_setfb find_label_tunnel_partial.
+      - rewrite get_fundef_union //.
+        case: (get_fundef _ _) => [pfd'|] //; case Heqfn': (fn == fn') => //.
+        by rewrite lfd_body_setfb find_label_tunnel_partial.
+      - rewrite get_fundef_union //.
+        case: (get_fundef _ _) => [pfd'|] //; case Heqfn': (fn == fn') => //.
+        by rewrite lfd_body_setfb find_label_tunnel_partial.
+    + move => p'; rewrite get_fundef_union //; case: li_i3 => //=.
+      
+      - move => _ _ _ Htunnel; t_xrbindP => w v Hv Hw.
+        rewrite Hv /= Hw /= in Htunnel; move: Htunnel.
+        case: (decode_label w) => [[fn' l']|] //.
+        rewrite !lp_funcs_setfuncs get_fundef_union //.
+        case: (get_fundef _ _) => [pfd'|] //; case Heqfn': (fn == fn') => //.
+        by rewrite find_label_tunnel_partial.
+    + by case: li_i3.
+    by admit.
+  Qed.
 
   Lemma tunneling_lsem p s1 s2 : lsem (lprog_tunnel p) s1 s2 -> lsem p s1 s2.
   Proof.
