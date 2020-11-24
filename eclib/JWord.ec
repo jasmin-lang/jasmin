@@ -235,7 +235,7 @@ proof.
 qed.
 
 lemma to_uint_bits w : to_uint w = bs2int (bits w 0 size).
-proof. by rewrite to_uintE /w2bits /bits. qed.
+proof. by rewrite to_uintE /w2bits /bits /= w2bitsE. qed.
 
 (* -------------------------------------------------------------------- *)
 op zerow = zero.
@@ -1101,9 +1101,7 @@ move=> H; have ?: to_uint (w1 `&` w2) = 0 by smt(to_uint0).
 rewrite to_uintD_small //.
 move: H0; rewrite !to_uintE.
 rewrite andE => ?.
-apply bs2int_add_disjoint.
-+ by rewrite !size_map !size_iota.
-+ by rewrite !size_map !size_iota ler_maxr.
+apply bs2int_add_disjoint; rewrite ?size_w2bits //.
 by rewrite -H0 map2_w2bits_w2bits.
 qed.
 
@@ -1856,9 +1854,11 @@ abstract theory W_WS.
   axiomatized by bits'SE.
 
   op unpack'S (w:WB.t) : pack_t =
-    Pack.init (fun i => w \bits'S i).
+    Pack.init (fun i => w \bits'S i)
+  axiomatized by unpack'SE.
 
-  abbrev to_list (w:WB.t) : WS.t list = Pack.to_list (unpack'S w).
+  abbrev to_list (w:WB.t) : WS.t list = 
+    map ((\bits'S) w) (iotared 0 r).
 
   op pack'R_t (ws:pack_t) =
     WB.init (fun i => ws.[i %/ sizeS].[i %% sizeS])
@@ -1872,7 +1872,7 @@ abstract theory W_WS.
 
   lemma get_unpack'S w i : 0 <= i < r =>
     (unpack'S w).[i] = w \bits'S i.
-  proof. apply initiE. qed.
+  proof. rewrite unpack'SE; apply initiE. qed.
 
   lemma bits'SiE w i j : 0 <= j < sizeS =>
     (w \bits'S i).[j] = w.[i * sizeS + j].
@@ -1923,26 +1923,70 @@ abstract theory W_WS.
     by apply Pack.packP => i hi; rewrite !get_unpack'S 1,2://; apply h.
   qed.
 
-  lemma allP (w1 w2 :WB.t) : all (fun i => w1 \bits'S i = w2 \bits'S i) (iota_ 0 r) => w1 = w2.
-  proof. rewrite allP => h; apply wordP => i; rewrite -(mema_iota 0 r); apply h. qed.
+  lemma allP (w1 w2 :WB.t) : all (fun i => w1 \bits'S i = w2 \bits'S i) (iotared 0 r) => w1 = w2.
+  proof. 
+    rewrite allP => h; apply wordP => i hi; apply h.
+    by rewrite iotaredE (mema_iota 0 r). 
+  qed.
 
-  abbrev map (f:WS.t -> WS.t) (w:WB.t) =
-    pack'R_t (map f (unpack'S w)).
+  op map (f:WS.t -> WS.t) (w:WB.t) =
+    pack'R_t (map f (unpack'S w))
+  axiomatized by mapE.
 
-  abbrev map2 (f:WS.t -> WS.t -> WS.t) (w1 w2:WB.t) =
-    pack'R_t (map2 f (unpack'S w1) (unpack'S w2)).
+  op map2 (f:WS.t -> WS.t -> WS.t) (w1 w2:WB.t) =
+    pack'R_t (map2 f (unpack'S w1) (unpack'S w2))
+  axiomatized by map2E.
 
   lemma mapbE f w i : 0 <= i < r =>
     (map f w) \bits'S i = f (w \bits'S i).
   proof.
-    by move=> hi;rewrite pack'RbE // mapiE // initiE.
+    by move=> hi;rewrite mapE pack'RbE // mapiE // unpack'SE initiE.
   qed.
 
   lemma map2bE f w1 w2 i : 0 <= i < r =>
     (map2 f w1 w2) \bits'S i = f (w1 \bits'S i) (w2 \bits'S i).
   proof.
-    by move=> hi;rewrite pack'RbE // map2iE // !initiE.
+    by move=> hi;rewrite map2E pack'RbE // map2iE // !unpack'SE !initiE.
   qed.
+
+  lemma map_pack'R f ws : 
+    map f (pack'R ws) = pack'R (mapN f (WS.of_int 0) ws r).
+  proof. 
+    apply wordP => i hi.
+    by rewrite mapbE 1:// pack'RbE 1:// pack'RbE 1:// -map_of_list mapiE.
+  qed.
+
+  lemma map_to_list f w : 
+    map f w = pack'R (map f (to_list w)). 
+  proof. 
+    apply wordP => i hi.
+    rewrite mapbE 1:// pack'RbE 1:// get_of_list 1:// iotaredE. 
+    have hs : 0 <= i && i < size (iota_ 0 r) by rewrite size_iota /max gt0_r.
+    rewrite (nth_map (WS.of_int 0)) 1:size_map 1://. 
+    by rewrite (nth_map 0) 1:// nth_iota. 
+  qed.
+    
+  hint simplify map_pack'R @0, map_to_list @1.
+
+  lemma map2_pack'R f ws1 ws2 : 
+    map2 f (pack'R ws1) (pack'R ws2) = pack'R (mapN2 f (WS.of_int 0) (WS.of_int 0) ws1 ws2 r).
+  proof. 
+    apply wordP => i hi.
+    by rewrite map2bE 1:// !pack'RbE 1..3:// -map2_of_list map2iE.
+  qed.
+
+  lemma map2_to_list f w1 w2 : 
+    map2 f w1 w2 = pack'R (map2 f (to_list w1) (to_list w2)). 
+  proof. 
+    apply wordP => i hi.
+    rewrite map2bE 1:// pack'RbE 1:// get_of_list 1:// iotaredE. 
+    have hs : 0 <= i && i < size (iota_ 0 r) by rewrite size_iota /max gt0_r.
+    rewrite (nth_map2 (WS.of_int 0) (WS.of_int 0)) 1:size_map 1://. 
+    + by rewrite size_map.
+    by rewrite !(nth_map 0) 1,2:// nth_iota. 
+  qed.
+    
+  hint simplify map2_pack'R @0, map2_to_list @1.
 
   lemma andb'SE (w1 w2:WB.t) i :
     (WB.andw w1 w2) \bits'S i = WS.andw (w1 \bits'S i) (w2 \bits'S i).
@@ -2070,7 +2114,7 @@ abstract theory W_WS.
       (WB.of_int i) =
         pack'R (map (fun k => WS.of_int ((i %/ 2^(sizeS * k)) %% 2^sizeS)) (iota_ 0 r)).
    proof.
-     rewrite -(unpack'SK (WB.of_int i)) /unpack'S Pack.init_of_list.
+     rewrite -(unpack'SK (WB.of_int i)) unpack'SE Pack.init_of_list.
      do 2! congr; apply (eq_from_nth (WS.of_int 0)) => [ | k]; rewrite !size_map //.
      move=> hk;rewrite !(nth_map 0) //=.
      move: hk;rewrite size_iota /max gt0_r /= => hk;rewrite !nth_iota //=.
@@ -2109,7 +2153,7 @@ abstract theory W_WS.
    proof.
      move=> hr;rewrite /VPSRL_'Ru'S /VPSLL_'Ru'S.
      rewrite /map;apply wordP => j hj.
-     by rewrite xorb'SE !pack'RbE 1..3:// !mapiE 1..3:// /= rol_xor_shft.
+     by rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft. 
    qed.
 
    (** TODO CHECKME : still x86 **)
@@ -3039,7 +3083,7 @@ proof.
   rewrite W128_bits64_bits8 1://.
   case: (0 <= i < 2) => hi; last by rewrite W8u8.get_zero W16u8.get_out 1:/#.
   rewrite /= W8u8.pack8bE 1:// /= W16u8.pack16bE 1:/#.
-  by move: hj; rewrite -(mema_iota 0 8) /= => -[|[|[|[|[|[|[|]]]]]]] ->.
+  by move: hj; rewrite -(mema_iota 0 8) -iotaredE /= => -[|[|[|[|[|[|[|]]]]]]] ->.
 qed.
 
 lemma bits64_W16u8_red ws i :
@@ -3059,7 +3103,7 @@ proof.
   rewrite W256_bits64_bits8 1://.
   case: (0 <= i < 4) => hi; last by rewrite W8u8.get_zero W32u8.get_out 1:/#.
   rewrite /= W8u8.pack8bE 1:// /= W32u8.pack32bE 1:/#.
-  by move: hj; rewrite -(mema_iota 0 8) /= => -[|[|[|[|[|[|[|]]]]]]] ->.
+  by move: hj; rewrite -(mema_iota 0 8) -iotaredE /= => -[|[|[|[|[|[|[|]]]]]]] ->.
 qed.
 
 lemma bits64_W32u8_red ws i :
@@ -3180,7 +3224,7 @@ proof.
   rewrite W256_bits128_bits8 1://.
   case: (0 <= i < 2) => hi; last by rewrite W16u8.get_zero W32u8.get_out 1:/#.
   rewrite /= W32u8.pack32bE 1:/# /= W16u8.pack16bE 1:/#.
-  by move: hj; rewrite -(mema_iota 0 16) /= => -[|[|[|[|[|[|[|[|[|[|[|[|[|[|[|]]]]]]]]]]]]]]] ->.
+  by move: hj; rewrite -(mema_iota 0 16) -iotaredE/= => -[|[|[|[|[|[|[|[|[|[|[|[|[|[|[|]]]]]]]]]]]]]]] ->.
 qed.
 
 lemma bits128_W32u8_red ws i :
@@ -3203,7 +3247,7 @@ proof.
   rewrite W256_bits128_bits16 1://.
   case: (0 <= i < 2) => hi; last by rewrite W8u16.get_zero W16u16.get_out 1:/#.
   rewrite /= W16u16.pack16bE 1:/# /= W8u16.pack8bE 1:/#.
-  by move: hj; rewrite -(mema_iota 0 8) /= => -[|[|[|[|[|[|[|]]]]]]] ->.
+  by move: hj; rewrite -(mema_iota 0 8) -iotaredE/= => -[|[|[|[|[|[|[|]]]]]]] ->.
 qed.
 
 lemma bits128_W16u16_red ws i :
@@ -3223,7 +3267,7 @@ proof.
   rewrite W256_bits128_bits32 1://.
   case: (0 <= i < 2) => hi; last by rewrite W4u32.get_zero W8u32.get_out 1:/#.
   rewrite /= W8u32.pack8bE 1:/# /= W4u32.pack4bE 1:/#.
-  by move: hj; rewrite -(mema_iota 0 4) /= => -[|[|[|]]] ->.
+  by move: hj; rewrite -(mema_iota 0 4) -iotaredE /= => -[|[|[|]]] ->.
 qed.
 
 lemma bits128_W8u32_red ws i :
@@ -3242,7 +3286,7 @@ proof.
   rewrite W256_bits128_bits64 1://.
   case: (0 <= i < 2) => hi; last by rewrite W2u64.get_zero W4u64.get_out 1:/#.
   rewrite /= W4u64.pack4bE 1:/# /= W2u64.pack2bE 1:// get_of_list 1://.
-  by move: hj; rewrite -(mema_iota 0 2) /= => -[|] ->.
+  by move: hj; rewrite -(mema_iota 0 2) -iotaredE /= => -[|] ->.
 qed.
 
 lemma bits128_W4u64_red ws i :
@@ -3283,7 +3327,7 @@ lemma W16u16_W32u8 ws1 ws2 ws3 ws4 ws5 ws6 ws7 ws8 ws9 ws10 ws11 ws12 ws13 ws14 
           ws13.[0]; ws13.[1]; ws14.[0]; ws14.[1]; ws15.[0]; ws15.[1]; ws16.[0]; ws16.[1]].
 proof. by apply W32u8.allP => /=. qed.
 
-hint simplify W2u16_W4u8, W4u16_W8u8, W8u16_W16u8, W16u16_W32u8.
+(* hint simplify W2u16_W4u8, W4u16_W8u8, W8u16_W16u8, W16u16_W32u8. *)
 
 lemma W2u32_W8u8 ws1 ws2 :
   pack2 [W4u8.pack4_t ws1; W4u8.pack4_t ws2] =

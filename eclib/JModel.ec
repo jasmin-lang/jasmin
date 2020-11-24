@@ -70,9 +70,6 @@ lemma iteri_red n (opr : int -> 'a -> 'a) x :
   0 < n => iteri n opr x = opr (n-1) (iteri (n-1) opr x).
 proof. smt (iteriS). qed.
 
-hint simplify iteri_red @0.
-hint simplify iteri0 @1.
-  
 lemma rotate8_256_E w :
   VPSHUFB_256 w const_rotate8_256 = W8u32.map (fun w => W32.rol w 8) w.
 proof. by apply: W256.all_eq_eq; cbv delta. qed.
@@ -94,7 +91,7 @@ op VPSHUFD_128_B (w : W128.t) (m : W8.t) (i : int) : W32.t =
   w \bits32 p.
 
 op VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
-  pack4 (map (VPSHUFD_128_B w m) (iota_ 0 4)).
+  pack4 (map (VPSHUFD_128_B w m) (iotared 0 4)).
 
 op VPSHUFD_256 (w : W256.t) (m : W8.t) : W256.t =
   map (fun w => VPSHUFD_128 w m) w.

@@ -122,19 +122,25 @@ hint simplify
    pow2_16, pow2_32, pow2_64, pow2_128, pow2_256)@0.
 
 (* -------------------------------------------------------------------- *)
-op iotared = iota_
-  axiomatized by iotaredE.
-
 lemma iotaS_minus :
   forall (i n : int), 0 < n => iota_ i n = i :: iota_ (i + 1) (n - 1).
 proof. smt (iotaS). qed.
 
-hint simplify (iota0, iotaS_minus)@0.
+op iotared = iota_
+  axiomatized by iotaredE.
+
+lemma iotared0 i n : n <= 0 => iotared i n = [].
+proof. by move=> ?; rewrite iotaredE iota0. qed.
+
+lemma iotaredS_minus i n : 0 < n => iotared i n = i :: iotared (i + 1) (n - 1).
+proof. by move=> *; rewrite iotaredE iotaS_minus. qed.
+
+hint simplify (iotared0, iotaredS_minus)@0.
 
 lemma nseqS_minus n (e:'a) : 0 < n => nseq n e = e :: nseq (n-1) e.
 proof. smt (nseqS). qed.
 
-hint simplify (nseq0, nseqS_minus)@0.
+(* hint simplify (nseq0, nseqS_minus)@0. *)
 
 (* -------------------------------------------------------------------- *)
 (* Allow to extend reduction rule with xor *)
@@ -357,7 +363,7 @@ lemma bs2int_nseq b k:
   bs2int (nseq k b) = if b then 2^k - 1 else 0.
 proof.
 move=> hk; elim/intind: k hk b => /=. 
-+ by rewrite bs2int_nil. 
++ by move=> *; rewrite nseq0 bs2int_nil.
 move=> n Hn IH b.
 rewrite nseqS // bs2int_cons ; case: b => ?.
 + by rewrite b2i1 exprDn // pow2_1 /= (IH true) /=; ring.
@@ -440,4 +446,3 @@ move=> ?.
 rewrite -bs2int_xor_sub //.
 by apply bs2int_ge0.
 qed.
-
