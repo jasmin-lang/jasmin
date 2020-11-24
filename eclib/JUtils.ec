@@ -93,7 +93,7 @@ proof.
   + by apply ltzW; apply gt0_pow2.
   + by apply ltzW; apply gt0_pow2.
   congr; have {1}->: n = (n - p) + p by ring.
-  by rewrite exprDn 1:/# 1:// mulzK 2://; smt (gt0_pow2).
+  by rewrite exprD_nneg 1:/# 1:// mulzK 2://; smt (gt0_pow2).
 qed.
 
 (* -------------------------------------------------------------------- *)
@@ -288,7 +288,7 @@ lemma powm1_mod k n:
 proof.
 move=> ?.
 have [i [Hi ->]]: exists i, 0<=i /\ k = n+i by exists (k-n); smt().
-rewrite exprDn 1,2:/# mulzC (modzMDl (2^i) (-1) (2^n)) modNz //.
+rewrite exprD_nneg 1,2:/# mulzC (modzMDl (2^i) (-1) (2^n)) modNz //.
 by apply gt0_pow2.
 qed.
 
@@ -347,7 +347,7 @@ have ->: range (size bs1) (size (bs1 ++ bs2)) = range (size bs1+0) (size bs2+siz
  by rewrite addz0 addzC size_cat.
 rewrite range_addr big_map /(\o) /=.
 apply eq_big_int => /> *.
-by rewrite exprDn // mulzA nth_cat /#.
+by rewrite exprD_nneg // mulzA nth_cat /#.
 qed.
 
 lemma bs2int_cons x xs:
@@ -366,7 +366,7 @@ move=> hk; elim/intind: k hk b => /=.
 + by move=> *; rewrite nseq0 bs2int_nil.
 move=> n Hn IH b.
 rewrite nseqS // bs2int_cons ; case: b => ?.
-+ by rewrite b2i1 exprDn // pow2_1 /= (IH true) /=; ring.
++ by rewrite b2i1 exprD_nneg // pow2_1 /= (IH true) /=; ring.
 by rewrite (IH false) b2i0; ring.
 qed.
 

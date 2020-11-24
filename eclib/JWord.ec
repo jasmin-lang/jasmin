@@ -177,13 +177,13 @@ proof.
     + smt (gt0_pow2 ler_weexpn2l).
     case (i < p) => hip /=.
     + have -> : p = ((p - i - 1) + 1) + i by ring.
-      rewrite h0i his exprDn // 1:/# divzMDl; 1: smt (gt0_pow2).
-      by rewrite exprDn 1:/# //= modzMDl divNz // gt0_pow2.
+      rewrite h0i his exprD_nneg // 1:/# divzMDl; 1: smt (gt0_pow2).
+      by rewrite exprD_nneg 1:/# //= modzMDl divNz // gt0_pow2.
     by rewrite divz_small //; smt (gt0_pow2 ler_weexpn2l).
   case : (p <= size) => hps; 1: by apply aux.
   rewrite (_:i < p) 1:/# -of_int_mod.
   have -> : p = (p-size) + size by ring.
-  rewrite exprDn 1:/# 1://.
+  rewrite exprD_nneg 1:/# 1://.
   by rewrite modzMDl -(modzMDl 1 (-1) modulus) /= of_int_mod aux 1:// his.
 qed.
 
@@ -211,16 +211,16 @@ proof.
   rewrite size_mkseq ler_maxr 1:// /= hrec. 
   have {2}->:= modz_pow_split (i+j+1) (i+j) (to_uint w) 2 _; 1: smt().
   have hij1 : 2 ^ (i + j + 1) = 2^(j+1) * 2^i.
-  + by rewrite -exprDn 1:/# 1://;congr;ring.
+  + by rewrite -exprD_nneg 1:/# 1://;congr;ring.
   have hij : 2 ^ (i + j) = 2^j * 2^i.
-  + by rewrite -exprDn 1:/# 1://;congr;ring.
+  + by rewrite -exprD_nneg 1:/# 1://;congr;ring.
   have h2i0 : 2 ^ i <> 0 by smt (gt0_pow2).
   rewrite -addzA {2}hij1 -mulzA divzMDl 1://.
   rewrite {2}hij -mulzA divzMDl 1://.
   rewrite modzMDl !modz_pow2_div; 1,2:smt().
   have -> : i + j + 1 - (i + j) = 1 by ring.
   have -> : i + j - i = j by ring.
-  rewrite (exprDn 2 j 1) 1,2:// pow2_1 (modz_small _ (2^j * 2)).
+  rewrite (exprD_nneg 2 j 1) 1,2:// pow2_1 (modz_small _ (2^j * 2)).
   + apply bound_abs; split => [|?]; 1: smt (modz_cmp to_uint_cmp gt0_pow2).
     by rewrite -hrec; smt (modz_cmp to_uint_cmp gt0_pow2).
   by rewrite addzC mulzC b2i_get 1:/#.
@@ -869,12 +869,12 @@ proof.
   case: (0 <= j - k < size) => [ [hjk1 hjk2] | hjk]  /=;last first.
   + have hlt : (j < k) by smt().
     have ->: k = (k-j-1) + 1 + j by ring.
-    rewrite exprDn 1:/# 1:// -mulzA mulzK; 1: smt (gt0_pow2).
-    by rewrite exprDn 1:/# //= -mulzA modzMl.
+    rewrite exprD_nneg 1:/# 1:// -mulzA mulzK; 1: smt (gt0_pow2).
+    by rewrite exprD_nneg 1:/# //= -mulzA modzMl.
   rewrite (modz_pow2_div size) 1:/# modz_dvd.
   + by have /= := dvdz_exp2l 2 1; apply => /#.
   have {1}-> : j = (j - k) + k by ring.
-  by rewrite exprDn 1,2:// divzMpr 1:gt0_pow2.
+  by rewrite exprD_nneg 1,2:// divzMpr 1:gt0_pow2.
 qed.
 
 lemma int_bitDP i j k : 0 <= i < modulus => 0 <= k => 0 <= j < size =>
@@ -889,17 +889,17 @@ proof.
     pose id := i %/ 2 ^ (j + k). pose im := i %% 2 ^ (j + k).
     have -> : id * 2 ^ (j + k) + (im %/ 2 ^ k * 2 ^ k + im %% 2 ^ k) =
            (id * 2^j + im %/ 2 ^ k) * 2^k + im %% 2 ^ k.
-    + by rewrite exprDn 1,2://;ring.
+    + by rewrite exprD_nneg 1,2://;ring.
     rewrite divzMDl. smt (gt0_pow2).
     rewrite (divz_small (im %% 2 ^ k) (2 ^ k)).
     + apply bound_abs;apply modz_cmp;apply gt0_pow2.
     rewrite /= divzMDl. smt (gt0_pow2).
     rewrite (divz_small (im %/ 2 ^ k) (2 ^ j)) 2://.
     apply bound_abs; apply divz_cmp; 1:by apply gt0_pow2.
-    by rewrite -exprDn 1,2://;apply modz_cmp;apply gt0_pow2.
+    by rewrite -exprD_nneg 1,2://;apply modz_cmp;apply gt0_pow2.
   rewrite /= (divz_small (i %/ 2 ^ k) (2 ^ j)) 2://.
   apply bound_abs;apply divz_cmp; 1: by apply gt0_pow2.
-  rewrite -exprDn 1,2://;smt (ler_weexpn2l).
+  rewrite -exprD_nneg 1,2://;smt (ler_weexpn2l).
 qed.
 
 lemma shlMP i k : 0 <= k => (of_int i `<<<` k) = of_int (i * 2^k).
