@@ -676,7 +676,7 @@ Section PROOF.
       | Some fd => Some (map (fun _ => LT_ikeep) fd.(f_body))
       end.
 
-    Hypothesis Fs_id : forall fn, get_fundef Fs fn = leak_fn_id fn. 
+    Hypothesis Fs_id : forall fn, get_leak Fs fn = leak_fn_id fn. 
 
     Lemma leak_map_id lf c s1 s2 : sem p1 s1 c lf s2 ->
       leak_Is (leak_I (leak_Fun Fs)) [seq LT_ikeep | _ <- c] lf = lf.
@@ -704,8 +704,8 @@ Section PROOF.
       have H : sem_call p1 m1 fn vargs' (fn, lf) m2 vres'. 
       + by apply EcallRun with f vargs s1 vm2 vres; auto.
       have -> : leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs fn) lf = lf.
-      + rewrite {2}/leak_Fun; have := Fs_id fn; rewrite /get_fundef => ->.
-        by rewrite /leak_fn_id Hget /=; apply: leak_map_id Hsem.
+      + rewrite {2}/leak_Fun; have := Fs_id fn. rewrite /get_leak => -> /=.
+        rewrite /leak_fn_id Hget /=; apply: leak_map_id Hsem.
       have [vs [H1 H2]] := sem_call_uincl Hvargs2 H.
       by exists vs.
     Qed.
@@ -848,8 +848,8 @@ Proof.
   by apply alloc_callP_aux.
 Qed.
 
-Lemma alloc_funP_eq p Fs fn f f' m1 vargs vargs' vres vres' s1 s2 ltc lc 
-(H :forall fn0, get_fundef Fs fn0 = leak_fn_id p fn0) :
+Lemma alloc_funP_eq p Fs fn f f' m1 vargs vargs' vres vres' s1 s2 ltc lc
+ (H :forall fn0, get_leak Fs fn0 = leak_fn_id p fn0) :
   check_fundef (fn, f) (fn, f') = ok (fn, ltc) ->
   mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
   write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->

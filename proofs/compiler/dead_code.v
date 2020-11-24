@@ -145,10 +145,10 @@ Definition dead_code_fd (fd: fundef) :=
   let: (s,c,F) := c in
   ciok (MkFun ii tyi params c tyo res, F).
 
-
 Definition dead_code_prog (p: prog) : cfexec (prog * leak_f_tr) :=
   Let funcs := map_cfprog_leak dead_code_fd (p_funcs p) in
   ok ({| p_globs := p_globs p; p_funcs := funcs.1 |}, funcs.2).
+
 
 
 

@@ -44,16 +44,19 @@ Section INLINE.
 
 Context (inline_var: var -> bool).
 
+(* checks the annotation for inlining *)
 Definition get_flag (x:lval) flag :=
   match x with
   | Lvar x => if inline_var x then AT_inline else flag
   | _      => flag
   end.
 
+(* translate into assignment instruction *)
 Definition assgn_tuple iinfo (xs:lvals) flag (tys:seq stype) (es:pexprs) :=
   let assgn xe := MkI iinfo (Cassgn xe.1 (get_flag xe.1 flag) xe.2.1 xe.2.2) in
   map assgn (zip xs (zip tys es)).
 
+(* inlining sequence of instructions *)
 Definition inline_c (inline_i: instr -> Sv.t -> ciexec (Sv.t * cmd * leak_i_tr)) c s 
             : ciexec(Sv.t * cmd * leak_c_tr) :=
   foldr (fun i r =>
@@ -61,9 +64,11 @@ Definition inline_c (inline_i: instr -> Sv.t -> ciexec (Sv.t * cmd * leak_i_tr))
     Let ri := inline_i i r.1.1 in
     ciok (ri.1.1, ri.1.2 ++ r.1.2, ri.2 :: r.2)) (ciok (s,[::], [::])) c.
 
+(* Variables representing the parameters of the function *)
 Definition sparams fd :=
   vrvs_rec Sv.empty (map Lvar fd.(f_params)).
 
+(* Variables present in body and the results of the function *)
 Definition locals_p fd :=
   let s := read_es (map Pvar fd.(f_res)) in
   let w := write_c_rec s fd.(f_body) in
@@ -73,6 +78,7 @@ Definition locals_p fd :=
 Definition locals fd :=
   Sv.diff (locals_p fd) (sparams fd).
 
+(* checks if there is no same variable is used for two different purposes *)
 Definition check_rename iinfo f fd1 fd2 (s:Sv.t) :=
   Let _ := add_infun iinfo (CheckAllocReg.check_fundef (f,fd1) (f,fd2)) in
   let s2 := locals_p fd2 in
@@ -93,14 +99,24 @@ Definition mkdV x := {| v_var := x; v_info := dummy_info |}.
 
 Definition arr_init p := Parr_init p.
 
-Definition array_init iinfo (X: Sv.t) :=
+(*Definition array_init iinfo (X: Sv.t) :=
   let assgn x c :=
     match x.(vtype) with
     | sarr p =>
       MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename x.(vtype) (arr_init p)) :: c
     | _      => c
     end in
-  Sv.fold assgn X [::].
+  Sv.fold assgn X [::].*)
+
+Definition array_init iinfo (X: Sv.t) : cmd * leak_c :=
+  let assgn x cl :=
+    match x.(vtype) with
+    | sarr p =>
+      (MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename x.(vtype) (arr_init p)) :: cl.1, 
+       (Lassgn (LSub [:: LEmpty; LEmpty]) :: cl.2))
+    | _      => cl
+    end in
+  Sv.fold assgn X ([::], [::]).
 
 Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd * leak_i_tr) :=
   match i with
@@ -131,12 +147,53 @@ Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd * leak_i
         Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
         let init_array := array_init iinfo (locals fd') in
         ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
-                  init_array ++
+                  init_array.1 ++
                   (fd'.(f_body) ++
-                  assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Pvar fd'.(f_res))), LT_ikeep)
-      else ciok (X, [::i], LT_icall LT_id LT_id)
+                  assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Pvar fd'.(f_res))),
+              (LT_icall_inline init_array.2
+                                  [:: LT_ikeep]))
+      else ciok (X, [::i], LT_icall  LT_id LT_id)
     end
   end.
+
+(*Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd * leak_i_tr) :=
+  match i with
+  | MkI iinfo ir =>
+    match ir with
+    | Cassgn x _ _ e => ciok (Sv.union (read_i ir) X, [::i], LT_ikeep)
+    | Copn xs _ o es => ciok (Sv.union (read_i ir) X, [::i], LT_ikeep)
+    | Cif e c1 c2  =>
+      Let cr1 := inline_c (inline_i p) c1 X in
+      Let cr2 := inline_c (inline_i p) c2 X in
+      ciok (read_e_rec (Sv.union cr1.1.1 cr2.1.1) e, 
+            [::MkI iinfo (Cif e cr1.1.2 cr2.1.2)], LT_icond LT_id cr1.2 cr2.2)
+    | Cfor x (d,lo,hi) c =>
+      let X := Sv.union (read_i ir) X in
+      Let c := inline_c (inline_i p) c X in
+      ciok (X, [::MkI iinfo (Cfor x (d, lo, hi) c.1.2)], LT_ifor LT_id c.2)
+    | Cwhile a c e c' =>
+      let X := Sv.union (read_i ir) X in
+      Let c := inline_c (inline_i p) c X in
+      Let c' := inline_c (inline_i p) c' X in
+      ciok (X, [::MkI iinfo (Cwhile a c.1.2 e c'.1.2)], LT_iwhile c.2 LT_id c'.2)
+    | Ccall inline xs f es =>
+      let X := Sv.union (read_i ir) X in
+      if inline is InlineFun then
+        Let fd := get_fun p iinfo f in
+        let fd' := rename_fd iinfo f fd in
+        (* FIXME : locals is computed 2 times (one in check_rename) *)
+        Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
+        let init_array := array_init iinfo (locals fd') in
+        ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
+                  init_array ++
+                  (fd'.(f_body) ++
+                  assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Pvar fd'.(f_res))),
+              (LT_icall_inline (f_res fd') (f_params (fd'))
+                                [:: LT_ikeep] 
+                                  [:: LT_ikeep]))
+      else ciok (X, [::i], LT_icall  LT_id LT_id)
+    end
+  end.*)
 
 Definition inline_fd (p:fun_decls) (fd:fundef) : ciexec (fundef * leak_c_tr) :=
   match fd with

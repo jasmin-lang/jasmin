@@ -2324,6 +2324,17 @@ Proof.
   move=> [] l' Hw'. exists (LEmpty :: l'). by rewrite Hw' /=.
 Qed.
 
+Lemma write_lvals_vars' gd xs vs s1 v:  
+  write_vars xs vs s1 = ok v ->
+  write_lvals gd s1 (map Lvar xs) vs = ok (v, (map (fun x => LEmpty) xs)).
+Proof.
+  rewrite /write_lvals. rewrite /write_vars.
+  elim: xs vs s1 => [ | x xs Hrec] [ | v' vs] //= s1.
+  + by move=> [] <-.
+  t_xrbindP. move=> s1' -> /= Hw. move: (Hrec vs s1' Hw).
+  move=> Hw'. by rewrite Hw' /=.
+Qed.
+
 Lemma get_var_sem_pexprs gd s xs vs:
   mapM (λ x : var_i, get_var (evm s) x) xs = ok vs ->
   exists vs', sem_pexprs gd s [seq Pvar i | i <- xs] = ok vs'.
