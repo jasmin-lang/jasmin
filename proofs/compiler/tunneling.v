@@ -565,6 +565,16 @@ Section TunnelingSem.
   
   Definition well_formed_lprog := all (fun func => well_formed_body func.2.(lfd_body)) p.(lp_funcs).
 
+  Lemma find_label_tunnel_partial l uf lc : find_label l (tunnel_partial fn uf lc) = find_label l lc.
+  Proof.
+    rewrite /find_label /tunnel_partial pairmapE find_map /preim //=.
+    have Hpred: [pred x | is_label l (tunnel_bore fn uf x.1 x.2)] =1 [pred x | is_label l x.2].
+    + by move => [[li_ii1 li_i1] [li_ii2 li_i2]] /=; case: li_i1; case: li_i2 => // [] [fn' l']; case: ifP.
+    rewrite (eq_find Hpred); move: Linstr_align; elim: lc => [|hlc tlc] //=.
+    case Hhlcl: (is_label l hlc) => //=.
+    move => IHlc; have:= (IHlc hlc).
+  Admitted.
+
   Definition setfb fd fb:=
     LFundef
       fd.(lfd_align)
@@ -721,7 +731,7 @@ Section TunnelingProof.
                          else f.2))
                       (lp_funcs p)) fn'
     with
-    | Some pfd => Some (if fn == fn' then setfb pfd [::] else pfd)
+    | Some pfd => Some (if fn == fn' then setfb pfd (tunnel_partial fn (LUF.union LUF.empty (LUF.find uf l1) (LUF.find uf l2)) (lfd_body pfd)) else pfd)
     | None => None
     end.
   Proof.
@@ -729,7 +739,19 @@ Section TunnelingProof.
     rewrite (get_fundef_map2_only_fn fn' (fun f2 => setfb f2 (tunnel_partial fn uf (lfd_body fd)))).
     case Heqfn: (fn == fn'); last by move => _; case Hgfd': (get_fundef _ _).
     rewrite (eqP Heqfn) /tunnel_partial => ->.
-  Admitted.
+    case: fd => lw lstyi lvi lc lstyo lvo exp /=.
+    f_equal; rewrite /setfb /=; f_equal; move: Linstr_align.
+    elim: lc => //= [[hlc_ii hlc_i] tlc -> [Lial_ii Lial_i]].
+    f_equal.
+    + rewrite /tunnel_bore /=; case: Lial_i; case: hlc_i => //.
+      3:
+        move => [fn'' l''] _; case Heqfn''': (fn' == fn'') => //; rewrite Heqfn''' //.
+      1-8:
+        by intros; rewrite !LUF.find_union !LUF.find_empty.
+    case: tlc => [|[htlc_ii htlc_i] ttlc] //=; f_equal.
+    rewrite /tunnel_bore /=; case: Lial_i; case: hlc_i => // [] [fn'' l''] _ /=.
+    by case: htlc_i => //; intros; case: ifP.
+  Qed.
 
   Lemma tunneling_lsem1 s1 s2 : lsem1 (lprog_tunnel fn p) s1 s2 -> lsem p s1 s2.
   Proof.
@@ -765,6 +787,13 @@ Section TunnelingProof.
     rewrite get_fundef_union //.
     set Pgpfd := get_fundef _ _.
     case HPgpfd: Pgpfd => [pfd|] //.
+    case Heqfn: (fn == lfn s1); last first.
+    + case Honth: (oseq.onth _ _) => [i|] //.
+      rewrite /eval_instr /eval_jump; case: (li_i i) => //.
+      - move => [fn' l']. rewrite !lp_funcs_setfuncs get_fundef_union //.
+        case: (get_fundef _ _) => [pfd'|] //.
+        
+
     rewrite paironth_pairmap.
   Admitted.
 
