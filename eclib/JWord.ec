@@ -1956,6 +1956,13 @@ abstract theory W_WS.
     by rewrite mapbE 1:// pack'RbE 1:// pack'RbE 1:// -map_of_list mapiE.
   qed.
 
+  lemma nth_to_list w i : 
+    0 <= i < r =>
+    nth (WS.of_int 0) (to_list w) i = w \bits'S i.
+  proof.
+    move=> hi; rewrite iotaredE (nth_map 0) 1:size_iota /max 1:gt0_r 1:// nth_iota //. 
+  qed.
+
   lemma map_to_list f w : 
     map f w = pack'R (map f (to_list w)). 
   proof. 
