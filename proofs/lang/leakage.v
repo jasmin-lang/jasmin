@@ -65,12 +65,24 @@ Notation leak_fun := (funname * leak_c)%type.
 (* ------------------------------------------------------------------------ *)
 (* Leakage trees and leakage transformations. *)
 
+Inductive leak_tr_p :=
+  | LS_const of pointer 
+  | LS_stk
+  | LS_Add `(leak_tr_p) `(leak_tr_p) 
+  | LS_Mul `(leak_tr_p) `(leak_tr_p).
+
+(*Inductive leak_tr_const := 
+  | LTleak  `(leak_e)
+  | LTAdr   `(leak_tr_p).
+(*  | LTSub   `(seq leak_tr_const). *)
+*)
+
 (* Leakage transformer for expressions *)
 Inductive leak_e_tr :=
 | LT_id (* preserve *)
 | LT_remove (* remove *)
 | LT_subi : nat -> leak_e_tr (* projection *) (* FIXME: change Z into nat *) (** Fixed **)
-| LT_lidx : (Z -> leak_e) -> leak_e_tr
+| LT_lidx : (Z -> leak_tr_p) -> leak_e_tr
 | LT_seq : seq leak_e_tr -> leak_e_tr (* parallel transformations *)
 | LT_build : seq leak_e_tr -> leak_e_tr
 | LT_compose: leak_e_tr -> leak_e_tr -> leak_e_tr. (* compositon of transformations *)
@@ -85,34 +97,80 @@ match l with
 | _ => [::]
 end.
 
-Fixpoint leak_E (lt : leak_e_tr) (l : leak_e) : leak_e :=
+Fixpoint eval_leak_tr_p stk lp : pointer :=
+  match lp with
+  | LS_const p => p 
+  | LS_stk     => stk
+  | LS_Add p1 p2 => (eval_leak_tr_p stk p1 + eval_leak_tr_p stk p2)%R
+  | LS_Mul p1 p2 => (eval_leak_tr_p stk p1 * eval_leak_tr_p stk p2)%R
+  end.
+(*
+Definition eval_leak_tr_const stk trc :=
+  match trc with
+  | LTleak le => le
+  | LTAdr  lp => LAdr (eval_leak_tr_p stk lp)
+  end.
+*)
+Fixpoint leak_E_stk (stk:pointer) (lt : leak_e_tr) (l : leak_e) : leak_e :=
   match lt, l with
-  | LT_seq lts, LSub xs => LSub (map2 leak_E lts xs)
-  | LT_build lts, _ => LSub (map (fun lt => leak_E lt l) lts)
-  | LT_lidx f, LIdx i => f i 
+  | LT_seq lts, LSub xs => LSub (map2 (leak_E_stk stk) lts xs)
+  | LT_build lts, _ => LSub (map (fun lt => leak_E_stk stk lt l) lts)
+  | LT_lidx f, LIdx i => LAdr (eval_leak_tr_p stk (f i))
   | LT_id, _ => l
   | LT_remove, _ => LEmpty
   | LT_subi i, LSub xs => nth LEmpty xs i
-  | LT_compose lt1 lt2, _ => leak_E lt2 (leak_E lt1 l)
+  | LT_compose lt1 lt2, _ => leak_E_stk stk lt2 (leak_E_stk stk lt1 l)
   (*| LT_adr z1 z2 , LIdx i => LAdr (wrepr U64 (i*z1+z2))
   | LT_var lte le , LEmpty => LSub [:: leak_E lte LEmpty; le]
   | LT_adrptr p1 z1 z2 , LIdx i => LAdr (p1 + (wrepr U64 (i*z1+z2)))*)
   | _, _ => LEmpty
   end.
 
+(* LT_seq -> LT_map *)
+(* LT_build -> LT_seq *)
+
+(*Notation leak_E := (leak_E_stk stk).
+
 Parameter l0 : leak_e.
 
 Parameter l1 : leak_e.
 
 Compute (leak_E (LT_build [:: LT_subi 1; LT_subi 0]) (LSub [:: l0; l1])).
-
+*)
 (* t[i] ==> LSub [ :: leak_i ; (LIdx i)])
 
 load stk (i * scale + ofs) 
-==> LSub [ :: LSub[:: LSub[:: leak_i; LEmpty] ; LEmpty];  
-    (LAdr (vstk + (i * scale + ofs))]) 
+==> LSub [:: LSub[:: LSub[:: leak_i; LEmpty] ; LEmpty];  
+             (LAdr (vstk + (i * scale + ofs))]]
 
-Lsub [le; Lptr v] *)
+*) 
+
+(*
+Parameter i : Z.
+Parameter leak__i : leak_e.
+Parameter scale : pointer.
+Parameter ofs   : pointer.
+Parameter vstk  : pointer.
+Definition lsource := LSub [ :: leak__i ; (LIdx i)].
+Definition ltarget := 
+ LSub [:: LSub[:: LSub[:: leak__i; LEmpty] ; LEmpty];  
+             (LAdr (vstk + ((wrepr U64 i) * scale + ofs)))].
+
+Definition ltr_i := LT_subi 0.
+Definition ltr_e := LT_remove.
+Definition f1 := LT_build [:: LT_build [:: ltr_i; ltr_e]; LT_remove].
+
+Definition f2 :=
+  LT_compose (LT_subi 1) 
+   (LT_lidx (fun i => 
+      (LS_Add LS_stk
+        (LS_Add (LS_Mul (LS_const (wrepr U64 i)) (LS_const scale)) (LS_const ofs))))).
+
+Definition ltr := LT_build [::f1; f2].
+
+Lemma test : leak_E_stk vstk ltr lsource = ltarget.
+done.
+*)
 
 (* Leakge transformer for instructions *)
 Inductive leak_i_tr :=
