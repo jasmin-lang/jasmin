@@ -81,6 +81,7 @@ Inductive leak_tr_p :=
 Inductive leak_e_tr :=
 | LT_id (* preserve *)
 | LT_remove (* remove *)
+| LT_const : leak_tr_p -> leak_e_tr
 | LT_subi : nat -> leak_e_tr (* projection *) (* FIXME: change Z into nat *) (** Fixed **)
 | LT_lidx : (Z -> leak_tr_p) -> leak_e_tr
 | LT_seq : seq leak_e_tr -> leak_e_tr (* parallel transformations *)
@@ -116,6 +117,7 @@ Fixpoint leak_E_stk (stk:pointer) (lt : leak_e_tr) (l : leak_e) : leak_e :=
   | LT_seq lts, LSub xs => LSub (map2 (leak_E_stk stk) lts xs)
   | LT_build lts, _ => LSub (map (fun lt => leak_E_stk stk lt l) lts)
   | LT_lidx f, LIdx i => LAdr (eval_leak_tr_p stk (f i))
+  | LT_const f, _     => LAdr (eval_leak_tr_p stk f)
   | LT_id, _ => l
   | LT_remove, _ => LEmpty
   | LT_subi i, LSub xs => nth LEmpty xs i
@@ -167,6 +169,21 @@ Definition f2 :=
         (LS_Add (LS_Mul (LS_const (wrepr U64 i)) (LS_const scale)) (LS_const ofs))))).
 
 Definition ltr := LT_build [::f1; f2].
+
+Lemma test : leak_E_stk vstk ltr lsource = ltarget.
+done.
+*)
+
+(*
+
+Parameter ofs   : pointer.
+Parameter vstk  : pointer.
+Definition lsource := LEmpty. 
+Definition ltarget := 
+ LSub [:: LEmpty ; (LAdr (vstk + ofs))].
+
+Definition ltr :=
+  LT_build [:: LT_id; LT_const (LS_Add LS_stk (LS_const ofs))].
 
 Lemma test : leak_E_stk vstk ltr lsource = ltarget.
 done.
