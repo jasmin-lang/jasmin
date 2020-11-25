@@ -815,23 +815,28 @@ Section TunnelingProof.
     rewrite (get_fundef_map2_only_fn fn (fun f2 => setfb f2 (tunnel_partial fn uf (lfd_body fd)))).
     rewrite Hgfd eq_refl => -[Hpfd].
     rewrite lfd_body_setfb /tunnel_partial paironth_pairmap.
-    case Hponth: (paironth _ _ _) => [[[li_ii3 li_i3] [li_ii4 li_i4]]|] //.
-    apply paironth_onth2 in Hponth; rewrite Hponth; clear Hponth.
-    rewrite /eval_instr /eval_jump; case: li_i4 => //=.
+    case Hpponth: (paironth _ _ _) => [[[pli_ii3 pli_i3] [pli_ii4 pli_i4]]|] //.
+    have Hponth:= (paironth_onth2 Hpponth); rewrite Hponth.
+    rewrite -Hpfd lfd_body_setfb paironth_pairmap in Hponth.
+    move: Hponth; case Hponth: (paironth _ _ _) => [[[li_ii3 li_i3] [li_ii4 li_i4]]|] //.
+    rewrite /eval_instr /eval_jump; case: pli_i4 Hponth Hpponth => [ | | |r|p'| |p' l'] //=.
     1-3,6:
-      by case: li_i3.
-    + move => [fn' l']; rewrite get_fundef_union //; case: li_i3 => //=.
+      by case: pli_i3.
+    + move: r; move => [pfn4 pl4]; rewrite get_fundef_union //; case: pli_i3 => //=.
       1-2,4-7:
         rewrite get_fundef_union //;
-        case: (get_fundef _ _) => [pfd'|] //; case Heqfn': (fn == fn') => //;
+        case: (get_fundef _ _) => [pfd'|] //; case Heqfn': (fn == pfn4) => //;
         by rewrite lfd_body_setfb find_label_tunnel_partial.
-      rewrite LUF.find_union !LUF.find_empty => _.
-      case Heqfn': (fn == fn') => //; rewrite get_fundef_union //; case: (get_fundef _ _) => [pfd'|] //; rewrite Heqfn' //.
-      rewrite lfd_body_setfb /tunnel_partial (find_label_tunnel_partial _ p).
+      rewrite LUF.find_union !LUF.find_empty => l3 Hponth Hpponth Hbore.
+      case Heqfn': (fn == pfn4) => //; rewrite get_fundef_union //; case: (get_fundef _ _) => [pfd'|] //; rewrite Heqfn' //.
+      move: Heqfn' => /eqP ?; subst pfn4.
+      rewrite lfd_body_setfb /tunnel_partial (find_label_tunnel_partial _ p). (*find_label_tunnel_partial requires a useless generic lprog*)
       move => Htunnel; t_xrbindP => i.
       case: ifP; last by move => _ Hi Hs2; rewrite Hi /= Hs2 /= in Htunnel; apply: Htunnel.
+      move => /eqP ?; subst pl4.
+      (*move: Hbore Hponth; case: li_i3; case: li_i4 => // [fn4 l4].*)
       by admit.
-    + by move => p'; rewrite get_fundef_union //; case: li_i3 => [_ _ _| |_|_|_|_ _|_ _] //=;
+    + by rewrite get_fundef_union // => _ _ _; case: pli_i3 => [_ _ _| |_|_|_|_ _|_ _] //=;
       move => Htunnel; t_xrbindP => w v Hv Hw;
       rewrite Hv /= Hw /= in Htunnel; move: Htunnel;
       case: (decode_label w) => [[fn' l']|] //;
@@ -839,17 +844,18 @@ Section TunnelingProof.
       case: (get_fundef _ _) => [pfd'|] //; case Heqfn': (fn == fn') => //;
       rewrite find_label_tunnel_partial.
     (*Anything that can avoid this case? Shorten the previous ones to two goals?*)
-    move => p' l'; rewrite get_fundef_union //; case: li_i3 => [_ _ _| |_|_|_|_ _|_ _] //=.
-    1-7:
-      move => Htunnel; t_xrbindP => b v Hv Hb;
-      rewrite Hv /= Hb /= in Htunnel; move: Htunnel;
-      case: b {Hb} => //;
-      case: (get_fundef _ _) => [pfd'|] //; rewrite Heqfn;
-      rewrite (find_label_tunnel_partial _ p);
-      move => Htunnel; t_xrbindP => i;
-      rewrite LUF.find_union !LUF.find_empty;
+    rewrite get_fundef_union //; case: pli_i3 => [_ _ _| |_|_|_|_ _|_ _] //=.
+    + move => Hponth Hbore Htunnel; t_xrbindP => b v Hv Hb.
+      rewrite Hv /= Hb /= in Htunnel; move: Htunnel.
+      case: b {Hb} => //.
+      rewrite (get_fundef_map2_only_fn (lfn s1) (fun f2 => setfb f2 (tunnel_partial fn uf (lfd_body fd)))).
+      rewrite -(eqP Heqfn) Hgfd eq_refl.
+      rewrite !(find_label_tunnel_partial _ p).
+      move => Htunnel; t_xrbindP => i.
+      rewrite LUF.find_union !LUF.find_empty.
       case: ifP; last by move => _ Hi Hs2; rewrite Hi /= Hs2 /= in Htunnel; apply: Htunnel.
-    + by admit.
+      move => /eqP ?; subst l'.
+      move: Hbore Hponth; case: li_i3; case: li_i4 => //.
   Qed.
 
   Lemma tunneling_lsem p s1 s2 : lsem (lprog_tunnel p) s1 s2 -> lsem p s1 s2.
