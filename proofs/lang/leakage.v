@@ -70,11 +70,13 @@ Inductive leak_e_tr :=
 | LT_id (* preserve *)
 | LT_remove (* remove *)
 | LT_subi : nat -> leak_e_tr (* projection *) (* FIXME: change Z into nat *) (** Fixed **)
+| LT_lidx : (Z -> leak_e) -> leak_e_tr
 | LT_seq : seq leak_e_tr -> leak_e_tr (* parallel transformations *)
-| LT_compose: leak_e_tr -> leak_e_tr -> leak_e_tr (* compositon of transformations *)
-| LT_var : leak_e_tr -> leak_e -> leak_e_tr
+| LT_build : seq leak_e_tr -> leak_e_tr
+| LT_compose: leak_e_tr -> leak_e_tr -> leak_e_tr. (* compositon of transformations *)
+(*| LT_var : leak_e_tr -> leak_e -> leak_e_tr
 | LT_adr : Z -> Z -> leak_e_tr 
-| LT_adrptr : pointer -> Z -> Z -> leak_e_tr.
+| LT_adrptr : pointer -> Z -> Z -> leak_e_tr.*)
 
 
 Definition get_seq_leak_e_tr (l : leak_e_tr) : seq leak_e_tr := 
@@ -86,15 +88,31 @@ end.
 Fixpoint leak_E (lt : leak_e_tr) (l : leak_e) : leak_e :=
   match lt, l with
   | LT_seq lts, LSub xs => LSub (map2 leak_E lts xs)
+  | LT_build lts, _ => LSub (map (fun lt => leak_E lt l) lts)
+  | LT_lidx f, LIdx i => f i 
   | LT_id, _ => l
   | LT_remove, _ => LEmpty
   | LT_subi i, LSub xs => nth LEmpty xs i
   | LT_compose lt1 lt2, _ => leak_E lt2 (leak_E lt1 l)
-  | LT_adr z1 z2 , LIdx i => LAdr (wrepr U64 (i*z1+z2))
+  (*| LT_adr z1 z2 , LIdx i => LAdr (wrepr U64 (i*z1+z2))
   | LT_var lte le , LEmpty => LSub [:: leak_E lte LEmpty; le]
-  | LT_adrptr p1 z1 z2 , LIdx i => LAdr (p1 + (wrepr U64 (i*z1+z2)))
+  | LT_adrptr p1 z1 z2 , LIdx i => LAdr (p1 + (wrepr U64 (i*z1+z2)))*)
   | _, _ => LEmpty
   end.
+
+Parameter l0 : leak_e.
+
+Parameter l1 : leak_e.
+
+Compute (leak_E (LT_build [:: LT_subi 1; LT_subi 0]) (LSub [:: l0; l1])).
+
+(* t[i] ==> LSub [ :: leak_i ; (LIdx i)])
+
+load stk (i * scale + ofs) 
+==> LSub [ :: LSub[:: LSub[:: leak_i; LEmpty] ; LEmpty];  
+    (LAdr (vstk + (i * scale + ofs))]) 
+
+Lsub [le; Lptr v] *)
 
 (* Leakge transformer for instructions *)
 Inductive leak_i_tr :=
