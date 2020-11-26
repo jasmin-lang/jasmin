@@ -174,9 +174,9 @@ module MakeAbsNumProf (A : NumWrap) : AbsNumType with type t = A.Num.t = struct
     r
 
   let () = record "assign_expr"
-  let assign_expr ?force:(force=false) x y z =
+  let assign_expr ?force:(force=false) x y =
     let t = Sys.time () in
-    let r = A.Num.assign_expr ~force:force x y z in
+    let r = A.Num.assign_expr ~force:force x y in
     let () = call "assign_expr" (Sys.time () -. t) in
     r
 

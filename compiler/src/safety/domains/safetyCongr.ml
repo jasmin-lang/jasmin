@@ -253,7 +253,7 @@ module AbsNumCongr : AbsNumType = struct
     
   let bound_texpr t e = Congr.to_int (eval t e)
 
-  let assign_expr ?force:(force=false) t v e =      
+  let assign_expr_one force t (v,e) = 
     let c = eval t e in
     let c =
       if weak_update v && not force
@@ -261,6 +261,9 @@ module AbsNumCongr : AbsNumType = struct
       else c in
     Mm.add v c t
 
+  let assign_expr ?force:(force=false) t ves = 
+    List.fold_left (assign_expr_one force) t ves
+    
   let sat_constr t cnstr = match Mtcons.get_typ cnstr with
     | Lincons1.EQMOD n ->
       let c = eval t (Mtcons.get_expr cnstr) in

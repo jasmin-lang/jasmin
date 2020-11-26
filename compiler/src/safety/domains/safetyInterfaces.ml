@@ -51,7 +51,7 @@ module type AbsNumType = sig
   val bound_variable : t -> mvar -> Interval.t
   val bound_texpr : t -> Mtexpr.t -> Interval.t
 
-  val assign_expr : ?force:bool -> t -> mvar -> Mtexpr.t -> t
+  val assign_expr : ?force:bool -> t -> (mvar * Mtexpr.t) list -> t
 
   val sat_constr : t -> Mtcons.t -> bool
     
@@ -133,7 +133,7 @@ module type SymExpr = sig
   (* Make a top value. *)
   val make : unit -> t
 
-  val assign_expr  : ?force:bool -> t -> mvar -> Mtexpr.t -> t
+  val assign_expr  : ?force:bool -> t -> (mvar * Mtexpr.t) list -> t
   val assign_bexpr : t -> mvar -> btcons -> t
     
   val meet : t -> t -> t
@@ -238,7 +238,8 @@ module type AbsNumBoolType = sig
      where the assignment takes place, if the [mvar] argument is
      a [Mvalue (Avar _)].
      - anything otherwise. *)
-  val assign_sexpr : ?force:bool -> t -> mvar -> minfo option -> s_expr -> t
+  val assign_sexpr :
+    ?force:bool -> t -> minfo option -> (mvar * s_expr) list -> t
   val assign_bexpr : t -> mvar -> btcons -> t
 
   val var_points_to : t -> mvar -> ptrs

@@ -55,6 +55,12 @@ let rec combine3 l1 l2 l3 = match l1,l2,l3 with
   | [], [], [] -> []
   | _ -> raise (Invalid_argument "combine3")
 
+let rec fold_left3 f accu l1 l2 l3 =
+  match l1,l2,l3 with
+  | [], [], [] -> accu
+  | a1::l1, a2::l2, a3::l3 -> fold_left3 f (f accu a1 a2 a3) l1 l2 l3
+  | _ -> raise (Invalid_argument "fold_left3")
+    
 (*------------------------------------------------------------*)
 (* Analyzer parameters *)
 

@@ -566,7 +566,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
      be done by manualy by the caller.  
      We unpopulate init to be faster. This is sound if the evaluation of an
      expression neither modifies init not depend on it. *)
-  let assign_sexpr : ?force:bool -> t -> mvar -> minfo option -> s_expr -> t =
+  let assign_sexpr : ?force:bool -> t -> minfo option -> (mvar * s_expr) list -> t =
     fun ?force:(force=false) t v info s_expr ->
       let s_init  = t.init 
       and s_align = t.alignment in
