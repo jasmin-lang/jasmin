@@ -26,7 +26,7 @@
 (* * Prove properties about semantics of dmasm input language *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith psem compiler_util.
 Require Export unrolling.
 
@@ -41,6 +41,7 @@ Section PROOF.
 
   Variable p p': prog.
   Variable Fs: seq (funname * seq leak_i_tr).
+  Variable stk: pointer.
   Notation gd := (p_globs p).
 
   Hypothesis (p'_def : p' = (unroll_prog p).1).
@@ -50,21 +51,21 @@ Section PROOF.
   Hypothesis unroll_prog_ok : unroll_prog p = (p', Fs).
 
   Let Pi_r (s:estate) (i:instr_r) (li: leak_i) (s':estate) :=
-    forall ii, sem p' s (unroll_i (MkI ii i)).1 (leak_I (leak_Fun Fs) li (unroll_i (MkI ii i)).2) s'.
+    forall ii, sem p' s (unroll_i (MkI ii i)).1 (leak_I (leak_Fun Fs) stk li (unroll_i (MkI ii i)).2) s'.
 
   Let Pi (s:estate) (i:instr) (li: leak_i) (s':estate) :=
-    sem p' s (unroll_i i).1 (leak_I (leak_Fun Fs) li (unroll_i i).2)  s'.
+    sem p' s (unroll_i i).1 (leak_I (leak_Fun Fs) stk li (unroll_i i).2)  s'.
 
   Let Pc (s:estate) (c:cmd) (lc: leak_c) (s':estate) :=
-    sem p' s (unroll_cmd unroll_i c).1 (leak_Is (leak_I (leak_Fun Fs)) (unroll_cmd unroll_i c).2 lc) s'.
+    sem p' s (unroll_cmd unroll_i c).1 (leak_Is (leak_I (leak_Fun Fs)) stk (unroll_cmd unroll_i c).2 lc) s'.
 
   Let Pfor (i:var_i) vs s c lf s' :=
-    sem_for p' i vs s (unroll_cmd unroll_i c).1 (leak_Iss (leak_I (leak_Fun Fs)) (unroll_cmd unroll_i c).2 lf) s'
+    sem_for p' i vs s (unroll_cmd unroll_i c).1 (leak_Iss (leak_I (leak_Fun Fs)) stk (unroll_cmd unroll_i c).2 lf) s'
     /\ forall ii, sem p' s (flatten (map (fun n => assgn ii i (Pconst n) :: (unroll_cmd unroll_i c).1) vs)) 
-                      (flatten  (map (fun l => leak_assgn :: l) (leak_Iss (leak_I (leak_Fun Fs)) (unroll_cmd unroll_i c).2 lf))) s'.
+                      (flatten  (map (fun l => leak_assgn :: l) (leak_Iss (leak_I (leak_Fun Fs)) stk (unroll_cmd unroll_i c).2 lf))) s'.
 
   Let Pfun m1 fn vargs lf m2 vres :=
-    sem_call p' m1 fn vargs (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m2 vres.
+    sem_call p' m1 fn vargs (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) m2 vres.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof. exact: Eskip. Qed.
@@ -200,7 +201,7 @@ Section PROOF.
 
   Lemma unroll_callP f mem mem' va vr lf:
     sem_call p  mem f va lf mem' vr ->
-    sem_call p' mem f va (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) mem' vr.
+    sem_call p' mem f va (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr.
   Proof.
     apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).

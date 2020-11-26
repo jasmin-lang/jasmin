@@ -44,7 +44,7 @@ Definition unroll_cmd (unroll_i: instr -> cmd * leak_i_tr) (c:cmd) : cmd * leak_
 
 Definition assgn ii x e := (MkI ii (Cassgn (Lvar x) AT_inline x.(v_var).(vtype) e)).
 
-Definition assgn' ii x e := (MkI ii (Cassgn (Lvar x) AT_inline x.(v_var).(vtype) e), LT_ile (LT_seq [:: LT_id; LT_id])).
+Definition assgn' ii x e := (MkI ii (Cassgn (Lvar x) AT_inline x.(v_var).(vtype) e), LT_ile (LT_map [:: LT_id; LT_id])).
 
 Fixpoint unroll_i (i:instr) : cmd * leak_i_tr :=
   let (ii, ir) := i in
