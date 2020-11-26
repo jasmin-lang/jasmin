@@ -112,16 +112,16 @@ Definition eval_leak_tr_const stk trc :=
   | LTAdr  lp => LAdr (eval_leak_tr_p stk lp)
   end.
 *)
-Fixpoint leak_E_stk (stk:pointer) (lt : leak_e_tr) (l : leak_e) : leak_e :=
+Fixpoint leak_E (stk:pointer) (lt : leak_e_tr) (l : leak_e) : leak_e :=
   match lt, l with
-  | LT_map lts, LSub xs => LSub (map2 (leak_E_stk stk) lts xs)
-  | LT_seq lts, _ => LSub (map (fun lt => leak_E_stk stk lt l) lts)
+  | LT_map lts, LSub xs => LSub (map2 (leak_E stk) lts xs)
+  | LT_seq lts, _ => LSub (map (fun lt => leak_E stk lt l) lts)
   | LT_lidx f, LIdx i => LAdr (eval_leak_tr_p stk (f i))
   | LT_const f, _     => LAdr (eval_leak_tr_p stk f)
   | LT_id, _ => l
   | LT_remove, _ => LEmpty
   | LT_subi i, LSub xs => nth LEmpty xs i
-  | LT_compose lt1 lt2, _ => leak_E_stk stk lt2 (leak_E_stk stk lt1 l)
+  | LT_compose lt1 lt2, _ => leak_E stk lt2 (leak_E stk lt1 l)
   (*| LT_adr z1 z2 , LIdx i => LAdr (wrepr U64 (i*z1+z2))
   | LT_var lte le , LEmpty => LSub [:: leak_E lte LEmpty; le]
   | LT_adrptr p1 z1 z2 , LIdx i => LAdr (p1 + (wrepr U64 (i*z1+z2)))*)
@@ -227,37 +227,37 @@ Definition leak_assgn :=
 Definition get_empty_leak_seq (l : seq leak_e_tr) :=
 (map (fun x => LEmpty) l).
 
-Fixpoint leak_I_stk (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq leak_i :=
+Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq leak_i :=
   match lt, l with
   | LT_iremove, _ => [::]
   | LT_ikeep, _ => [::l]
-  | LT_ile lte, Lassgn le => [:: Lassgn (leak_E_stk stk lte le) ]
-  | LT_ile lte, Lopn le   => [:: Lopn (leak_E_stk stk lte le) ]
+  | LT_ile lte, Lassgn le => [:: Lassgn (leak_E stk lte le) ]
+  | LT_ile lte, Lopn le   => [:: Lopn (leak_E stk lte le) ]
   | LT_icond lte ltt ltf, Lcond le b lti => 
-    [:: Lcond (leak_E_stk stk lte le) b (leak_Is leak_I_stk stk (if b then ltt else ltf) lti) ]
+    [:: Lcond (leak_E stk lte le) b (leak_Is leak_I stk (if b then ltt else ltf) lti) ]
   | LT_iwhile ltis lte ltis', Lwhile_true lts le lts' lw => 
-    [:: Lwhile_true (leak_Is leak_I_stk stk ltis lts)
-                     (leak_E_stk stk lte le)
-                     (leak_Is leak_I_stk stk ltis' lts')
-                     (head dummy_lit (leak_I_stk stk lw lt))]
+    [:: Lwhile_true (leak_Is leak_I stk ltis lts)
+                     (leak_E stk lte le)
+                     (leak_Is leak_I stk ltis' lts')
+                     (head dummy_lit (leak_I stk lw lt))]
   | LT_iwhile ltis lte ltis', Lwhile_false lts le => 
-    [::Lwhile_false (leak_Is leak_I_stk stk ltis lts)
-                     (leak_E_stk stk lte le)]
+    [::Lwhile_false (leak_Is leak_I stk ltis lts)
+                     (leak_E stk lte le)]
   | LT_icond_eval lts, Lcond _ _ lti => 
-    leak_Is leak_I_stk stk lts lti
+    leak_Is leak_I stk lts lti
   | LT_icond_eval lts, Lwhile_false lti le =>
-    leak_Is leak_I_stk stk lts lti
-  | LT_ifor lte ltiss, Lfor le ltss => [:: Lfor (leak_E_stk stk lte le)
-                                                (leak_Iss leak_I_stk stk ltiss ltss) ]
-  | LT_icall lte lte', Lcall le (f, lts) le' => [:: Lcall (leak_E_stk stk lte le)
-                                                          (f, (leak_Is leak_I_stk stk (leak_Fun f) lts))
-                                                          (leak_E_stk stk lte' le') ]
+    leak_Is leak_I stk lts lti
+  | LT_ifor lte ltiss, Lfor le ltss => [:: Lfor (leak_E stk lte le)
+                                                (leak_Iss leak_I stk ltiss ltss) ]
+  | LT_icall lte lte', Lcall le (f, lts) le' => [:: Lcall (leak_E stk lte le)
+                                                          (f, (leak_Is leak_I stk (leak_Fun f) lts))
+                                                          (leak_E stk lte' le') ]
   | LT_ifor_unroll ltiss, Lfor le ltss => 
-    flatten (map (fun l => leak_assgn :: l) (leak_Iss leak_I_stk stk ltiss ltss))
+    flatten (map (fun l => leak_assgn :: l) (leak_Iss leak_I stk ltiss ltss))
   | LT_icall_inline lc ltc', Lcall le (f, lts) le' => 
     (map (fun x => (Lassgn (LSub [:: x; LEmpty]))) (get_seq_leak_e le) ++ 
      lc ++
-     leak_Is leak_I_stk stk (leak_Fun f) lts ++
+     leak_Is leak_I stk (leak_Fun f) lts ++
     (map (fun y => (Lassgn (LSub [:: LEmpty; y]))) (get_seq_leak_e le')))
   (*| LT_icompose lt1 lt2 => leak_I (leak_I l lt1) lt2*)
   

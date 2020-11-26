@@ -54,6 +54,7 @@ Section PROOF.
 
   Variables p p' : prog.
   Variable Ffs : seq (funname * leak_c_tr).
+  Variable stk : pointer.
   Notation gd := (p_globs p).
 
   Hypothesis dead_code_ok : dead_code_prog p = ok (p', Ffs).
@@ -68,7 +69,7 @@ Section PROOF.
         wf_vm s.(evm) ->
         forall vm1', s.(evm) =[s1] vm1' ->
           exists vm2', s'.(evm) =[s2] vm2' /\
-          sem p' (Estate s.(emem) vm1') c' (leak_I (leak_Fun Ffs) li lti) (Estate s'.(emem) vm2')
+          sem p' (Estate s.(emem) vm1') c' (leak_I (leak_Fun Ffs) stk li lti) (Estate s'.(emem) vm2')
       | _ => True
       end.
 
@@ -79,7 +80,7 @@ Section PROOF.
         wf_vm s.(evm) ->
         forall vm1', s.(evm) =[s1] vm1' ->
           exists vm2', s'.(evm) =[s2] vm2' /\
-          sem p' (Estate s.(emem) vm1') c' (leak_I (leak_Fun Ffs) li lti) (Estate s'.(emem) vm2')
+          sem p' (Estate s.(emem) vm1') c' (leak_I (leak_Fun Ffs) stk li lti) (Estate s'.(emem) vm2')
       | _ => True
       end.
 
@@ -90,7 +91,7 @@ Section PROOF.
         wf_vm s.(evm) ->
         forall vm1', s.(evm) =[s1] vm1' ->
         exists vm2', s'.(evm) =[s2] vm2' /\
-          sem p' (Estate s.(emem) vm1') c' (leak_Is (leak_I (leak_Fun Ffs)) ltc lc) (Estate s'.(emem) vm2')
+          sem p' (Estate s.(emem) vm1') c' (leak_Is (leak_I (leak_Fun Ffs)) stk ltc lc) (Estate s'.(emem) vm2')
       | _ => True
       end.
 
@@ -102,12 +103,12 @@ Section PROOF.
         wf_vm s.(evm) ->
         forall vm1', s.(evm) =[s2] vm1' ->
         exists vm2', s'.(evm) =[s2] vm2' /\
-          sem_for p' i vs (Estate s.(emem) vm1') c' (leak_Iss (leak_I (leak_Fun Ffs)) ltc lc) (Estate s'.(emem) vm2')
+          sem_for p' i vs (Estate s.(emem) vm1') c' (leak_Iss (leak_I (leak_Fun Ffs)) stk ltc lc) (Estate s'.(emem) vm2')
       | _ => True
       end.
 
   Let Pfun m1 fn vargs lf m2 vres :=
-    sem_call p' m1 fn vargs (lf.1, (leak_Is (leak_I (leak_Fun Ffs)) (leak_Fun Ffs lf.1) lf.2)) m2 vres.
+    sem_call p' m1 fn vargs (lf.1, (leak_Is (leak_I (leak_Fun Ffs)) stk (leak_Fun Ffs lf.1) lf.2)) m2 vres.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof.
@@ -542,7 +543,7 @@ Section PROOF.
   
   Lemma dead_code_callP fn mem mem' va vr lf:
     sem_call p mem fn va lf mem' vr ->
-    sem_call p' mem fn va (lf.1, (leak_Is (leak_I (leak_Fun Ffs)) (leak_Fun Ffs lf.1) lf.2)) mem' vr.
+    sem_call p' mem fn va (lf.1, (leak_Is (leak_I (leak_Fun Ffs)) stk (leak_Fun Ffs lf.1) lf.2)) mem' vr.
   Proof.
     apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
