@@ -170,7 +170,7 @@ Section PROOF.
 
   Lemma cast_wordP s e i le: sem_pexpr gd s e = ok ((Vint i), le) ->
     exists sz (w:word sz), sem_pexpr gd s (cast_word e).1 = 
-        ok ((Vword w), leak_E (cast_word e).2 le) /\
+        ok ((Vword w), leak_E pstk (cast_word e).2 le) /\
                            truncate_word U64 w = ok (wrepr U64 i).
   Proof.
     move=> he.
@@ -191,14 +191,14 @@ Section PROOF.
     sem_pexpr gd s2 e = ok ((Vint i), le) ->
     sem_pexpr gd s2 (mk_ofs sz e ofs).1 = 
     ok ((Vword (wrepr U64 (i * wsize_size sz + ofs)%Z)), 
-    (leak_E (mk_ofs sz e ofs).2 le)).
+    (leak_E pstk (mk_ofs sz e ofs).2 le)).
   Proof.
     rewrite /mk_ofs. case (is_constP e).
     + by move=>  z [] <- <- /=.
     move=> e' he' /=. rewrite /sem_sop2.
     have [sz' [w [-> /= -> /=]]]:= cast_wordP he'.
-    rewrite !zero_extend_u wrepr_add wrepr_mul GRing.mulrC.
-  Admitted.
+    by rewrite !zero_extend_u wrepr_add wrepr_mul GRing.mulrC.
+  Qed.
 
 (* Move this *)
   Lemma subtypeEl ty ty': subtype ty ty' →
@@ -257,7 +257,7 @@ Section PROOF.
       ∀ e' v lte le,
         alloc_e m e = ok (e', lte) →
         sem_pexpr gd s e = ok (v, le) →
-        ∃ v', sem_pexpr gd s' e' = ok (v', leak_E lte le) ∧ value_uincl v v'.
+        ∃ v', sem_pexpr gd s' e' = ok (v', leak_E pstk lte le) ∧ value_uincl v v'.
 
     Let Y es : Prop :=
       ∀ es' vs,
@@ -265,7 +265,7 @@ Section PROOF.
         sem_pexprs gd s es = ok vs →
         ∃ vs', sem_pexprs gd s' (unzip1 es') = ok vs' 
                /\ List.Forall2 value_uincl (unzip1 vs) (unzip1 vs')
-               /\ LSub (unzip2 vs') = leak_E (LT_seq (unzip2 es')) (LSub (unzip2 vs)).
+               /\ LSub (unzip2 vs') = leak_E pstk (LT_map (unzip2 es')) (LSub (unzip2 vs)).
 
     Lemma check_e_esP : (∀ e, X e) * (∀ es, Y es).
     Proof.
@@ -278,7 +278,7 @@ Section PROOF.
         move=> [ve le] /he{he}he es'' /hes{hes}hes <-.
         move=> [ve' le'] /he [] ve'' [] he'' hv ves'' /hes [] ves''' [] hes'' 
                [] hvs hls <- /=.
-        rewrite he'' /= hes'' /=. exists ((ve'', leak_E le le') :: ves''');
+        rewrite he'' /= hes'' /=. exists ((ve'', leak_E pstk le le') :: ves''');
         split=> //=. split=> //. auto. by case: hls=> ->.
       (* Pconst *)
       - by move=> z e' v lte le [] <- <- [] <- <-; exists z.
@@ -299,8 +299,8 @@ Section PROOF.
         case: v1 hty heq hv => /= -[xty x] vi /= ? heq hv; subst xty.
         rewrite hstk /get_var /= !zero_extend_u.
         case: hv => /Memory.readV [v0 hvp] hget. t_xrbindP=> vu; apply: on_vuP => //=.
-        move=> [ws' w wp'] /hget /= [e] -> /= <- <- <-.
-        exists (Vword w). rewrite /=. admit.
+        move=> [ws' w wp'] /hget /= [e] -> /= <-; subst ws'. move=> hv' hl'.
+        exists (Vword w). rewrite /=. split=> //. by rewrite -hl'. by rewrite -hv'.
       (* Pglobal *)
       - by move=> g e' v lte le [] <- <- /=; t_xrbindP => vg -> <- <- /=; exists vg.
       (* Pget *)
@@ -330,7 +330,8 @@ Section PROOF.
         move: hget;rewrite /get_var; apply on_vuP => //= t1 ht1 /Varr_inj.
         move=> [e]; subst n' => /= ?;subst t.
         rewrite (get_arr_read_mem heq hva halign ht1 hti) /=.
-        exists (Vword w). split=> //.  admit.
+        exists (Vword w). split=> //. rewrite /=.
+        rewrite wrepr_add. by rewrite wrepr_mul.
       (* Pload *)
       - move=> sz x e he e' v lte le. case: ifP=> // hc.
         t_xrbindP=> -[e1' le1'] /he hrec <- <- wv1 vv1 /= hget hto' [we1 le1''].
@@ -346,10 +347,11 @@ Section PROOF.
         move=> vo /(vuincl_sem_sop1 Hv') /= -> <- <- /=.
         by eexists;split;first by reflexivity.
       (* Pop2 *)
-      - move=> op2 e1 He1 e2 He2.
-        t_xrbindP. move=> e v le le' [v1 l1] /He1 He [v2 l2] /He2 He'.
-        move=> <- <- [v3 l3] /He [] v3' [] he1 hv [v4 l4] /He' [] v4' [] he2 hv'.
-        rewrite /=. admit.
+      - move=> o1 e1 H1 e1' H1' e2 v lte le.
+        t_xrbindP. move=> [e l] /H1 hrec [e' l'] /H1' hrec' <- <- [ve1 le1] /hrec.
+        move=> [] ve1' /= [] -> hu /= [ve2 le2] /hrec' /= [] ve2' /= [] -> hu' /= vo.
+        move=> /(vuincl_sem_sop2 hu hu') -> <- <- /=.
+        by eexists;split;first by reflexivity.
       (* PopN *)
       - move=> e1 es1 H1 e2 v lte le. t_xrbindP.
         move=> es1' /H1{H1}H1 <- <- vs /H1{H1} /= [] vs' []. 
@@ -360,13 +362,14 @@ Section PROOF.
       - move=> t e He e1 H1 e1' H1' e2 v lte le. t_xrbindP.
         move=> [v1 l1] /He he [v2 l2] /H1 hrec [v3 l3] /H1' hrec' <- <-.
         move=> [v1' l1'] /he [] vv1 [] hev1 hv1 b hb.
-        move=> [v2' l2'] /hrec [] vv2 [] hev2 hv2 [v3' l3'] /hrec' [] vv3 [] hev3 hv3.        move=> vt ht vt' ht' <- <- /=. rewrite hev1 /= hev2 /= hev3 /=.
+        move=> [v2' l2'] /hrec [] vv2 [] hev2 hv2 [v3' l3'] /hrec' [] vv3 [] hev3 hv3.        
+        move=> vt ht vt' ht' <- <- /=. rewrite hev1 /= hev2 /= hev3 /=.
         have [vt'' -> /= hvt] := truncate_value_uincl hv2 ht. 
         have [vt''' -> /= hvt' /=] := truncate_value_uincl hv3 ht'. 
         have [hb' -> /=] := value_uincl_bool hv1 hb.
         eexists; split; first by reflexivity.
         by case: (b).
-  Admitted.
+  Qed.
 
   End CHECK_E_ESP.
 
