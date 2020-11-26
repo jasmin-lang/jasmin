@@ -218,69 +218,6 @@ move=> eqv; case: e => //.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Definition sem_ofs m o : exec pointer :=
-  match o with
-  | Ofs_const z => ok z
-  | Ofs_var x => get_var (evm m) x >>= to_pointer
-  | Ofs_mul sc x =>
-    Let w := get_var (evm m) x >>= to_pointer in
-    ok (sc * w)%R
-  | Ofs_add sc x z =>
-    Let w := get_var (evm m) x >>= to_pointer in
-    ok (sc * w + z)%R
-  | Ofs_error => type_error
-  end.
-Import word.
-Lemma addr_ofsP gd m e v w :
-  sem_pexpr gd m e = ok v →
-  to_pointer v = ok w →
-  let ofs := addr_ofs e in
-  (if ofs is Ofs_error then false else true) →
-  sem_ofs m ofs = ok w.
-Proof.
-elim: e v w => //=.
-- (* Pvar *)
-  by move => x z w ->.
-- (* Cast Const *)
-  case => // -[] // [] // z ih v w [<-] [<-] _.
-  by rewrite zero_extend_u.
-- (* Papp2 *)
-  case => // -[] //.
-  (* Add *)
-  + move => [] // p ihp q ihq v w ; t_xrbindP => vp hvp vq hvq hv hw.
-    case: (addr_ofs p) ihp => //; case: (addr_ofs q) ihq => //.
-    * move => /= z /(_ _ _ hvq) hz z' /(_ _ _ hvp) hz' _ /=.
-      move: hv => /=; rewrite /sem_sop2 /= ; t_xrbindP =>
-        wp /hz' /(_ erefl) [<-] {wp} wq /hz /(_ erefl) [<-] {wq} ?; subst v.
-      by case: hw => <-; rewrite zero_extend_u.
-    * move => /= z /(_ _ _ hvq) hz z' /(_ _ _ hvp) hz' _ /=.
-      move: hv => /=; rewrite /sem_sop2; t_xrbindP => wp /hz' /(_ erefl) [<-] {wp} wq /hz /(_ erefl).
-      t_xrbindP => vz -> /= -> /= h1 [] <- ?; subst v.
-      case: hw => <-;f_equal;wring.
-    * move => /= x z /(_ _ _ hvq) hz z' /(_ _ _ hvp) hz' _.
-      move: hv hw => /=; rewrite /sem_sop2; t_xrbindP => wp /hz' /(_ erefl) [<-] {wp} wq /hz /(_ erefl).
-      t_xrbindP => ? ? -> /= -> <- ? /= [] <- <- [<-];f_equal; wring.
-    * move => /= z /(_ _ _ hvq) hz z' /(_ _ _ hvp) hz' _ /=.
-      move: hv hw => /=; rewrite /sem_sop2; t_xrbindP => wp /hz' /(_ erefl).
-      t_xrbindP => vz' -> /= -> wq /hz /(_ erefl) [<-] {wq} ? []<- <- [<-] /=;f_equal;wring.
-    move => /= z /(_ _ _ hvq) hz x z' /(_ _ _ hvp) hz' _ /=.
-    move: hv hw => /=; rewrite /sem_sop2; t_xrbindP => wp /hz' /(_ erefl).
-    by t_xrbindP => y vz' -> /= -> /= <- ? /hz /(_ erefl) [<-] ? []<- <- [<-];rewrite zero_extend_u.
-  (* Mul *)
-  move => [] // p ihp q ihq v w; t_xrbindP => vp hvp vq hvq hv hw.
-  case: (addr_ofs p) ihp => //; case: (addr_ofs q) ihq => //.
-  * move => /= z /(_ _ _ hvq) hz z' /(_ _ _ hvp) hz' _ /=.
-    move: hv; rewrite /= /sem_sop2; t_xrbindP => wp /hz' /(_ erefl) [<-] {wp} wq /hz /(_ erefl) [<-] {wq} ? [<-] ? ; subst v.
-    by case: hw => <-; f_equal;wring.
-  * move => /= z /(_ _ _ hvq) hz z' /(_ _ _ hvp) hz' _ /=.
-    move: hv => /=; rewrite /sem_sop2; t_xrbindP => wp /hz' /(_ erefl) [<-] {wp} wq /hz /(_ erefl).
-    by t_xrbindP => vz -> /= -> /= ? [] <- ?; subst v; f_equal; case: hw => <-;rewrite zero_extend_u.
-  move => /= z /(_ _ _ hvq) hz z' /(_ _ _ hvp) hz' _.
-  move: hv hw => /=; rewrite /sem_sop2; t_xrbindP => wp /hz' /(_ erefl).
-  by t_xrbindP => ? -> /= -> ? /hz /(_ erefl) [<-] ? [<-] <- /= [<-];f_equal;wring.
-Qed.
-
-(* -------------------------------------------------------------------- *)
 Lemma xscale_ok ii z sc :
   scale_of_z' ii z = ok sc ->
   z = word_of_scale sc.

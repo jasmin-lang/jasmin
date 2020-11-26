@@ -11,7 +11,8 @@ let parse () =
     if !infile <> "" then error();
     infile := s  in
   Arg.parse options set_in usage_msg;
-  if !infile = "" then error()
+  if !infile = "" && not !help_intrinsics
+  then error()
 
 (*--------------------------------------------------------------------- *)
 
@@ -170,6 +171,9 @@ let main () =
 
     parse();
 
+    if !help_intrinsics
+    then (Help.show_intrinsics (); exit 0);
+
     let fname = !infile in
     let ast   = Parseio.parse_program ~name:fname in
     let ast   = BatFile.with_file_in fname ast in
@@ -223,17 +227,6 @@ let main () =
     end;
 
     let prog = Inline_array_copy.doit prog in
-
-    (* Generate the coq program if needed *)
-    if !coqfile <> "" then begin
-      assert false
-(*      let out = open_out !coqfile in
-      let fmt = Format.formatter_of_out_channel out in
-      Format.fprintf fmt "%a@." Coq_printer.pp_prog prog;
-      close_out out;
-      if !debug then Format.eprintf "coq program extracted@." *)
-    end;
-    if !coqonly then exit 0;
 
     (* Now call the coq compiler *)
     let tbl, cprog = Conv.cprog_of_prog Regalloc.X64.all_registers () prog in

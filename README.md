@@ -1,29 +1,11 @@
 # Jasmin
 
-This repository contains the following subdirectories:
-
-- compiler/ : Compiler from jasmin-lang to assembly.
-- proofs/ : Coq implementations of compiler passes / checkers.
-
-# Dependencies
-
-- For the compiler: check compiler/README.md
-- For the proofs:
-  + Coq (>= 8.7)
-  + The Mathematical Components library for Coq (>= 1.9)
-
-# Testing
-
-1. To compile and test the compiler:
-   - `$ cd compiler`
-   - `$ make CIL build`
-   - `$ make tests`
-2. To compile Coq proofs:
-   - `$ cd proofs`
-   - `$ make`
+Information about the Jasmin compiler and the related tools
+can be found in the [wiki](https://github.com/jasmin-lang/jasmin/wiki).
 
 # License
 
-All our code is MIT licensed. Since we use GPL licensed third party Coq
-theories and extract code from the LGPL licensed Coq standard library,
-our compiler is GPL licensed.
+This software is governed by the CeCILL-B license under French law and abiding
+by the rules of distribution of free software. You can use, modify and
+redistribute the software under the terms of the CeCILL-B license as circulated
+by CĒA, CNRS and INRIA at the following URL <http://www.cecill.info>.

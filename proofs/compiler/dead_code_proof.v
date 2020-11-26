@@ -223,10 +223,12 @@ Section PROOF.
 
   Lemma check_nop_opn_spec (xs:lvals) (o:sopn) (es:pexprs): check_nop_opn xs o es ->
     exists x i1 sz i2,
-      [/\ xs = [:: Lvar (VarI (Var (sword sz) x) i1)], o = Ox86 (MOV sz) & es = [:: Pvar (VarI (Var (sword sz) x) i2)] ].
+      [/\ xs = [:: Lvar (VarI (Var (sword sz) x) i1)], 
+       (o = Ox86 (MOV sz) \/ o = Ox86 (VMOVDQU sz)) & 
+       es = [:: Pvar (VarI (Var (sword sz) x) i2)] ].
   Proof.
-    case: xs o es => // rv [] // [] // [] // sz [] // e [] //= /check_nop_spec [x [i1 [i2 []]]] -> -> /=.
-    by case: x => ty xn /= <-;exists xn, i1, sz, i2.
+    case: xs o es => // rv [] // [] // [] // sz [] // e [] //= /check_nop_spec [x [i1 [i2 []]]] -> -> /=;
+      case: x => ty xn /= <-;exists xn, i1, sz, i2; split => //; auto.
   Qed.
 
   Lemma set_get_word vm1 vm2 sz xn v:
@@ -290,23 +292,25 @@ Section PROOF.
       have [? ->]:= Hwrites_disj Hw Hdisj Hnh;split;last by constructor.
       by apply: eq_onT Heq;apply eq_onS.
     case:ifPn => [ | _ /=]; last by apply: Hopn_aux Hexpr Hopn Hw.
-    move=> /check_nop_opn_spec [x [i1 [sz [i2 [???]]]]]; subst xs o es=> /=.
+    move=> /check_nop_opn_spec [x [i1 [sz [i2 [? ho ?]]]]]; subst xs es=> /=.
     move=> Hwf vm1' Hvm.
     have [ -> Hs ] : emem s1 = emem s2 ∧ evm s1 =v evm s2;
       last by eexists; split; last exact: Eskip; apply: eq_onT _ Hvm.
-    move: x0 Hexpr Hopn=> [] // x0 [] //=; last by move => ??;t_xrbindP.
-    rewrite /sem_pexprs /=.
-    apply: rbindP=> z Hexpr []?; subst z.
-    apply: rbindP => /= p0; rewrite /= /sopn_sem /=.
-    apply: rbindP => v0 /of_val_word [sz0] [v0'] [hle ? ?]; subst.
-    rewrite /x86_MOV;t_xrbindP => ? h; have ha := assertP h => ??;subst.
-    move:Hw; rewrite /= /write_var => - [<-] {s2}.
-    have [sz' /= [[? hle']]]:= get_var_word Hexpr;subst sz'.
-    have ? := cmp_le_antisym hle' hle; subst sz0.
-    rewrite sumbool_of_boolET zero_extend_u.
-    move: s1 Hwf Hvm Hexpr => [mem1 vm1] /= Hwf Hvm Hexpr; split => //.
-    have := set_get_word Hexpr; rewrite /set_var /= sumbool_of_boolET.
-    exact.
+    case: x0 Hexpr Hopn => [ | vx] /=; first by t_xrbindP.
+    case; t_xrbindP => // vx' hgetx ? hs; subst vx'.
+    have ? : v = [::vx].
+    + case: ho hs => ->; rewrite /exec_sopn /=; t_xrbindP => v1 w1 /to_wordI [sz' [w' [hsz' ??]]]; subst vx w1.
+      + rewrite /sopn_sem /= /x86_MOV; t_xrbindP => ? /assertP ha ??; subst v1 v.
+        have [sz'' /= [[? hle']]]:= get_var_word hgetx;subst sz''.
+        have ? := cmp_le_antisym hsz' hle'; subst sz'.
+        by rewrite zero_extend_u.
+      rewrite /sopn_sem /= /x86_VMOVDQU; t_xrbindP => ? /assertP ha ??; subst v1 v.
+      have [sz'' /= [[? hle']]]:= get_var_word hgetx;subst sz''.
+      have ? := cmp_le_antisym hsz' hle'; subst sz'.
+      by rewrite zero_extend_u.
+    subst v; move: Hw; rewrite /= /write_var; t_xrbindP => s2' vm2 hw ??; subst s2 s2'.
+    case: s1 Hwf Hvm hgetx hw => mem1 vm1 /= Hwf Hvm hgetx hw.
+    by have := set_get_word hgetx hw. 
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
