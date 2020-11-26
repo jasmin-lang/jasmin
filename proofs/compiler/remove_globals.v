@@ -118,28 +118,28 @@ Section REMOVE.
         if is_glob x then cferror (Ferr_remove_glob ii xi)
         else
           Let e := remove_glob_e ii env e in
-          ok ((Pget ws xi e.1), LT_seq [:: e.2 ; LT_id])
+          ok ((Pget ws xi e.1), LT_map [:: e.2 ; LT_id])
       | Pload ws xi e =>
         let x := xi.(v_var) in
         if is_glob x then cferror (Ferr_remove_glob ii xi)
         else
           Let e := remove_glob_e ii env e in
-          ok ((Pload ws xi e.1), LT_seq [:: e.2; LT_id])
+          ok ((Pload ws xi e.1), LT_map [:: e.2; LT_id])
       | Papp1 o e =>
         Let e := remove_glob_e ii env e in
         ok ((Papp1 o e.1), e.2)
       | Papp2 o e1 e2 =>
         Let e1 := remove_glob_e ii env e1 in
         Let e2 := remove_glob_e ii env e2 in
-        ok ((Papp2 o e1.1 e2.1), LT_seq [:: e1.2; e2.2]) 
+        ok ((Papp2 o e1.1 e2.1), LT_map [:: e1.2; e2.2]) 
       | PappN op es =>
         Let vs := mapM (remove_glob_e ii env) es in
-        ok ((PappN op (unzip1 vs)), LT_seq (unzip2 vs))
+        ok ((PappN op (unzip1 vs)), LT_map (unzip2 vs))
       | Pif t e e1 e2 =>
         Let e := remove_glob_e ii env e in
         Let e1 := remove_glob_e ii env e1 in
         Let e2 := remove_glob_e ii env e2 in
-        ok ((Pif t e.1 e1.1 e2.1), LT_seq [:: e.2; e1.2; e2.2])
+        ok ((Pif t e.1 e1.1 e2.1), LT_map [:: e.2; e1.2; e2.2])
       end.
 
     Definition remove_glob_lv ii (env:venv) (lv:lval) : cfexec (lval * leak_e_tr) :=
@@ -154,13 +154,13 @@ Section REMOVE.
         if is_glob x then cferror (Ferr_remove_glob ii xi)
         else
           Let e := remove_glob_e ii env e in
-          ok ((Lmem ws xi e.1), LT_seq [:: e.2; LT_id])
+          ok ((Lmem ws xi e.1), LT_map [:: e.2; LT_id])
       | Laset ws xi e =>
         let x := xi.(v_var) in
         if is_glob x then cferror (Ferr_remove_glob ii xi)
         else
           Let e := remove_glob_e ii env e in
-          ok ((Laset ws xi e.1), LT_seq [:: e.2; LT_id])
+          ok ((Laset ws xi e.1), LT_map [:: e.2; LT_id])
       end.
 
     Section REMOVE_C.
@@ -249,16 +249,16 @@ Section REMOVE.
               end
             else
               Let rlv := remove_glob_lv ii env lv in
-              ok (env, [::MkI ii (Cassgn rlv.1 tag ty e.1)], LT_ile (LT_seq ([:: e.2 ; rlv.2])))
+              ok (env, [::MkI ii (Cassgn rlv.1 tag ty e.1)], LT_ile (LT_map ([:: e.2 ; rlv.2])))
           | _ =>
             Let rlv := remove_glob_lv ii env lv in
-            ok (env, [::MkI ii (Cassgn rlv.1 tag ty e.1)], LT_ile (LT_seq ([:: e.2 ; rlv.2])))
+            ok (env, [::MkI ii (Cassgn rlv.1 tag ty e.1)], LT_ile (LT_map ([:: e.2 ; rlv.2])))
           end
         | Copn lvs tag o es =>
           Let rlvs := mapM (remove_glob_lv ii env) lvs in
           Let res  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Copn (unzip1 rlvs) tag o (unzip1 res))],
-              LT_ile (LT_seq [:: LT_seq (unzip2 res) ; LT_seq (unzip2 rlvs)]))
+              LT_ile (LT_map [:: LT_map (unzip2 res) ; LT_map (unzip2 rlvs)]))
         | Cif e c1 c2 =>
           Let e := remove_glob_e ii env e in
           Let envc1 := remove_glob remove_glob_i env c1 in
@@ -286,12 +286,12 @@ Section REMOVE.
             let check_c env := remove_glob remove_glob_i env c in
             Let envc := loop check_c Loop.nb env in
             let: (env, c, ltc) := envc in
-            ok (env, [::MkI ii (Cfor xi (d,e1.1,e2.1) c)], LT_ifor (LT_seq [:: e1.2; e2.2]) ltc)
+            ok (env, [::MkI ii (Cfor xi (d,e1.1,e2.1) c)], LT_ifor (LT_map [:: e1.2; e2.2]) ltc)
         | Ccall i lvs fn es =>
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Ccall i (unzip1 lvs) fn (unzip1 es))],
-                   (LT_icall (LT_seq (unzip2 es)) (LT_seq (unzip2 lvs))))
+                   (LT_icall (LT_map (unzip2 es)) (LT_map (unzip2 lvs))))
         end
       end.
 

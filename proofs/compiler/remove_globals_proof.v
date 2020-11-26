@@ -351,19 +351,20 @@ Module RGP. Section PROOFS.
 
   Section REMOVE_GLOB_E.
     Context (m: venv) (ii: instr_info) (s1 s2: estate) (hvalid: valid m s1 s2).
+    Variable stk: pointer.
 
     Let Pe e : Prop :=
       ∀ e' v le lte,
         remove_glob_e is_glob ii m e = ok (e', lte) →
         sem_pexpr gd s1 e = ok (v, le) →
-        sem_pexpr gd s2 e' = ok (v, leak_E lte le).
+        sem_pexpr gd s2 e' = ok (v, leak_E stk lte le).
 
     Let Pes es : Prop :=
       ∀ es' vs,
         mapM (remove_glob_e is_glob ii m) es = ok es' →
         sem_pexprs gd s1 es = ok vs →
         sem_pexprs gd s2 (unzip1 es') = ok (zip (unzip1 vs)
-                                                (map2 leak_E (unzip2 es') (unzip2 vs))).
+                                                (map2 (leak_E stk) (unzip2 es') (unzip2 vs))).
 
     Lemma remove_glob_e_esP : (∀ e, Pe e) ∧ (∀ es, Pes es).
     Proof.
@@ -426,12 +427,13 @@ Module RGP. Section PROOFS.
 
 
   End REMOVE_GLOB_E.
+  
+  Variable stk: pointer.
+  Definition remove_glob_eP m ii s1 s2 e e' v h:=
+    (@remove_glob_e_esP m ii s1 s2 h stk).1 e e' v.
 
-  Definition remove_glob_eP m ii s1 s2 e e' v h :=
-    (@remove_glob_e_esP m ii s1 s2 h).1 e e' v.
-
-  Definition remove_glob_esP m ii s1 s2 es es' vs h :=
-    (@remove_glob_e_esP m ii s1 s2 h).2 es es' vs.
+  Definition remove_glob_esP m ii s1 s2 es es' vs h:=
+    (@remove_glob_e_esP m ii s1 s2 h stk).2 es es' vs.
 
   Lemma write_var_remove (x:var_i) m s1 s2 v vm :
     ~~ is_glob x ->
@@ -468,7 +470,7 @@ Module RGP. Section PROOFS.
     remove_glob_lv is_glob ii m lv = ok (lv', lte) ->
     write_lval gd lv v s1 = ok (s1', le) ->
     exists s2',
-      valid m s1' s2' /\ write_lval gd lv' v s2 = ok (s2', leak_E lte le).
+      valid m s1' s2' /\ write_lval gd lv' v s2 = ok (s2', leak_E stk lte le).
   Proof.
     move=> hval; case:(hval) => hmem hm1 hm2 hm3. case:lv => [vi ty|x|ws x e|ws x e] /=.
     (* Lnone *)
@@ -507,7 +509,7 @@ Module RGP. Section PROOFS.
     write_lvals gd s1 lv v = ok (s1', les) ->
     exists s2',
       valid m s1' s2' /\
-      write_lvals gd s2 (unzip1 lv') v = ok (s2', map2 leak_E (unzip2 lv') les).
+      write_lvals gd s2 (unzip1 lv') v = ok (s2', map2 (leak_E stk) (unzip2 lv') les).
   Proof.
     elim: lv lv' v s1 s2 s1' les => //=.
     + move=> lv' [] // s1 s2 s1' les hm [<-] [<-] <- /=.
@@ -524,13 +526,13 @@ Module RGP. Section PROOFS.
     forall m m' c' ltc fn, remove_glob (remove_glob_i is_glob gd fn) m c = ok (m', c', ltc) ->
     forall s1', valid m s1 s1' ->
     exists s2', valid m' s2 s2' /\
-                sem P' s1' c' (leak_Is (leak_I (leak_Fun fds.2)) ltc lc) s2'.
+                sem P' s1' c' (leak_Is (leak_I (leak_Fun fds.2)) stk ltc lc) s2'.
 
   Let Pi s1 i li s2 :=
     forall m m' c' lti fn, remove_glob_i is_glob gd fn m i = ok (m', c', lti) ->
     forall s1', valid m s1 s1' ->
     exists s2', valid m' s2 s2' /\
-                sem P' s1' c' (leak_I (leak_Fun fds.2) li lti) s2'.
+                sem P' s1' c' (leak_I (leak_Fun fds.2) stk li lti) s2'.
 
   Let Pi_r s1 i li s2 := forall ii, Pi s1 (MkI ii i) li s2.
 
@@ -540,10 +542,10 @@ Module RGP. Section PROOFS.
     Mincl m m' ->
     forall s1', valid m s1 s1' ->
     exists s2', valid m s2 s2' /\
-                sem_for P' xi vs s1' c' (leak_Iss (leak_I (leak_Fun fds.2)) ltc' lf) s2'.
+                sem_for P' xi vs s1' c' (leak_Iss (leak_I (leak_Fun fds.2)) stk ltc' lf) s2'.
 
-  Let Pfun m fn vs lf m' vs' :=
-      sem_call P' m fn vs (lf.1, (leak_Is (leak_I (leak_Fun fds.2)) (leak_Fun fds.2 lf.1) lf.2)) m' vs'.
+  Let Pfun m fn vs lf m' vs':=
+      sem_call P' m fn vs (lf.1, (leak_Is (leak_I (leak_Fun fds.2)) stk (leak_Fun fds.2 lf.1) lf.2)) m' vs'.
 
   Local Lemma Hnil : sem_Ind_nil Pc.
   Proof.
@@ -585,12 +587,12 @@ Module RGP. Section PROOFS.
       (Let rlv := remove_glob_lv is_glob ii m x
        in ok
             (m, [:: MkI ii (Cassgn rlv.1 tag ty e')],
-             LT_ile (LT_seq [::lte'; rlv.2])) = ok (m', c', lti) -> ∃ s2' : estate,
+             LT_ile (LT_map [::lte'; rlv.2])) = ok (m', c', lti) -> ∃ s2' : estate,
       valid m' s2 s2'
       ∧ sem P' s1' c' 
           match lti with
           | LT_iremove => [::]
-          | LT_ile lte0 => [:: Lassgn (leak_E lte0 (LSub [:: le; lw]))]
+          | LT_ile lte0 => [:: Lassgn (leak_E stk lte0 (LSub [:: le; lw]))]
           | _ => [:: Lassgn (LSub [:: le; lw])]
           end s2').
   + t_xrbindP. move=> [x' lte''] /(remove_glob_lvP hval) -/(_ _ _ _ hw) [] s2' [] hs2' hw' <- <- <-.
@@ -626,7 +628,7 @@ Module RGP. Section PROOFS.
    move: (hes_vs) => /hes' h1 vs' h2 [s3 lt3] /hxs' [s2' [hval' h]] <- <-.
    exists s2'. split=> //.
    apply sem_seq1; constructor; constructor.
-   have heq : size (unzip1 vs) = size (map2 leak_E (unzip2 es') (unzip2 vs)).
+   have heq : size (unzip1 vs) = size (map2 (leak_E stk) (unzip2 es') (unzip2 vs)).
    + rewrite map2E !(size_map, size_zip).
      have <- := mapM_size hes_es'; have -> := mapM_size hes_vs.
      by rewrite minnn.
@@ -815,9 +817,9 @@ Qed.
     move=> H. rewrite hlf in hfun. rewrite /Pfun in hfun. rewrite /= in hfun.
     replace gd with (p_globs P') in hes'.
     rewrite /valid in hval. move: hval. move=> [] h1 h2 h3 h4. rewrite h1 in hfun.
-    replace (unzip1 vargs) with (unzip1 (zip (unzip1 vargs) (map2 leak_E (unzip2 es') (unzip2 vargs)))) in hfun.
-    move: (H P' s1' m2 s2' fii (unzip1 xs') fn (unzip1 es')  (zip (unzip1 vargs) (map2 leak_E (unzip2 es') (unzip2 vargs))) rvs 
-             (fn', leak_Is (leak_I (leak_Fun fds.2)) (leak_Fun fds.2 fn') lfn) (map2 leak_E (unzip2 xs') lw) hes' hfun hxs'). 
+    replace (unzip1 vargs) with (unzip1 (zip (unzip1 vargs) (map2 (leak_E stk) (unzip2 es') (unzip2 vargs)))) in hfun.
+    move: (H P' s1' m2 s2' fii (unzip1 xs') fn (unzip1 es')  (zip (unzip1 vargs) (map2 (leak_E stk) (unzip2 es') (unzip2 vargs))) rvs 
+             (fn', leak_Is (leak_I (leak_Fun fds.2)) stk (leak_Fun fds.2 fn') lfn) (map2 (leak_E stk) (unzip2 xs') lw) hes' hfun hxs'). 
     move=> hi. rewrite unzip2_zip in hi. auto.
     + rewrite map2E size_map size2_zip !size_map. auto. rewrite /sem_pexprs in hes'. rewrite /sem_pexprs in hargs.
       move: (mapM_size hes'). move: (mapM_size hargs). move: (mapM_size hes). move=> H1 H2 H3.
@@ -889,14 +891,14 @@ Qed.
 
   End FDS.
 
-  Lemma remove_globP P P' f mem mem' va vr lf lft:
+  Lemma remove_globP P P' f mem mem' va vr lf lft stk:
     remove_glob_prog is_glob fresh_id P = ok (P', lft) ->
     sem_call P mem f va (f, lf) mem' vr ->
-    sem_call P' mem f va (f, (leak_Is (leak_I (leak_Fun lft)) (leak_Fun lft f) lf)) mem' vr.
+    sem_call P' mem f va (f, (leak_Is (leak_I (leak_Fun lft)) stk (leak_Fun lft f) lf)) mem' vr.
   Proof. 
     rewrite /remove_glob_prog; t_xrbindP=> gd' /extend_glob_progP hgd.
     case: ifP=> // huniq; t_xrbindP=> fds hfds <- <- /(gd_incl_fun hgd) hf.
-    apply: (remove_glob_call (P:={| p_globs := gd'; p_funcs := p_funcs P |}) hfds huniq hf).
+    apply: (remove_glob_call (P:={| p_globs := gd'; p_funcs := p_funcs P |}) hfds huniq stk hf).
   Qed.
 
 
