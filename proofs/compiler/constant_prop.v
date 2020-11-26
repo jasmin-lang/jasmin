@@ -191,11 +191,11 @@ Definition smul_w sz e1 e2 :=
   | Some n, _ =>
     if n == 0%R then (@wconst sz 0, LT_remove)
     else if n == 1%R then (e2, LT_subi 1)
-    else (Papp2 (Omul (Op_w sz)) (wconst n) e2, LT_seq [:: LT_remove; LT_id])
+    else (Papp2 (Omul (Op_w sz)) (wconst n) e2, LT_map [:: LT_remove; LT_id])
   | _, Some n =>
     if n == 0%R then (@wconst sz 0, LT_remove)
     else if n == 1%R then (e1, LT_subi 0)
-    else (Papp2 (Omul (Op_w sz)) e1 (wconst n), LT_seq [:: LT_id; LT_remove])
+    else (Papp2 (Omul (Op_w sz)) e1 (wconst n), LT_map [:: LT_id; LT_remove])
   | _, _ => (Papp2 (Omul (Op_w sz)) e1 e2, LT_id)
   end.
 
@@ -435,22 +435,22 @@ Fixpoint const_prop_e (m:cpm) e : (pexpr * leak_e_tr) :=
   | Pvar  x       => if Mvar.get m x is Some n then (const n, LT_remove) else (e, LT_id)
   | Pglobal _     => (e, LT_id)
   | Pget  sz x e0  => let lte := (const_prop_e m e0) 
-                      in (Pget sz x lte.1, LT_seq [ :: lte.2; LT_id])
+                      in (Pget sz x lte.1, LT_map [ :: lte.2; LT_id])
   | Pload sz x e0  => let lte := (const_prop_e m e0) in 
-                      (Pload sz x lte.1, LT_seq [:: lte.2; LT_id])
+                      (Pload sz x lte.1, LT_map [:: lte.2; LT_id])
   | Papp1 o e0     => let lte := (const_prop_e m e0) in 
                       let ltop := (s_op1 o lte.1) in 
                       (ltop.1, LT_compose lte.2 ltop.2)
   | Papp2 o e1 e2 => let lte1 := (const_prop_e m e1) in
                      let lte2 := (const_prop_e m e2) in
                      let ltop := s_op2 o lte1.1 lte2.1 in
-                     (ltop.1, LT_compose (LT_seq [:: lte1.2; lte2.2]) ltop.2)
+                     (ltop.1, LT_compose (LT_map [:: lte1.2; lte2.2]) ltop.2)
   | PappN op es   => s_opN op es
   | Pif t e0 e1 e2 => let lte0 := (const_prop_e m e0) in
                       let lte1 := (const_prop_e m e1) in
                       let lte2 := (const_prop_e m e2) in
                       let ltif := s_if t lte0.1 lte1.1 lte2.1 in
-                      (ltif.1, LT_compose (LT_seq [:: lte0.2 ; lte1.2; lte2.2]) ltif.2)
+                      (ltif.1, LT_compose (LT_map [:: lte0.2 ; lte1.2; lte2.2]) ltif.2)
   end.
 
 Definition empty_cpm : cpm := @Mvar.empty const_v.
@@ -472,9 +472,9 @@ Definition const_prop_rv (m:cpm) (rv:lval) : cpm * lval * leak_e_tr :=
   | Lnone _ _    => (m, rv, LT_id)
   | Lvar  x      => (Mvar.remove m x, rv, LT_id)
   | Lmem  sz x e => let lte := const_prop_e m e in 
-                    (m, Lmem sz x lte.1, LT_seq [:: lte.2; LT_id])
+                    (m, Lmem sz x lte.1, LT_map [:: lte.2; LT_id])
   | Laset sz x e => let lte := const_prop_e m e in 
-                    (Mvar.remove m x, Laset sz x lte.1, LT_seq [:: lte.2; LT_id])
+                    (Mvar.remove m x, Laset sz x lte.1, LT_map [:: lte.2; LT_id])
   end.
 
 Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals * seq leak_e_tr :=
@@ -538,14 +538,14 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
     let (e, lt) := const_prop_e m e in
     let: (m,x, ltx) := const_prop_rv m x in
     let m := add_cpm m x tag ty e in
-    (m, [:: MkI ii (Cassgn x tag ty e)], LT_ile (LT_seq (lt :: [:: ltx])))
+    (m, [:: MkI ii (Cassgn x tag ty e)], LT_ile (LT_map (lt :: [:: ltx])))
 
   | Copn xs t o es =>
     (* TODO: Improve this *)
     let es := map (const_prop_e m) es in
     let: (m,xs, lts) := const_prop_rvs m xs in
     (m, [:: MkI ii (Copn xs t o (unzip1 es)) ], 
-     LT_ile (LT_seq [:: LT_seq (unzip2 es) ; LT_seq lts]))
+     LT_ile (LT_map [:: LT_map (unzip2 es) ; LT_map lts]))
             
   | Cif b c1 c2 =>
     let (b, ltb) := const_prop_e m b in
@@ -566,7 +566,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
     let (e2, lte2) := const_prop_e m e2 in
     let m := remove_cpm m (write_i ir) in
     let: (_,c, ltc) := const_prop const_prop_i m c in
-    (m, [:: MkI ii (Cfor x (dir, e1, e2) c) ], LT_ifor (LT_seq [:: lte1; lte2]) ltc)
+    (m, [:: MkI ii (Cfor x (dir, e1, e2) c) ], LT_ifor (LT_map [:: lte1; lte2]) ltc)
 
   | Cwhile a c e c' =>
     let m := remove_cpm m (write_i ir) in
@@ -582,7 +582,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
   | Ccall fi xs f es =>
     let es := map (const_prop_e m) es in
     let: (m,xs,lt) := const_prop_rvs m xs in
-    (m, [:: MkI ii (Ccall fi xs f (unzip1 es)) ], (LT_icall (LT_seq (unzip2 es)) (LT_seq lt)))
+    (m, [:: MkI ii (Ccall fi xs f (unzip1 es)) ], (LT_icall (LT_map (unzip2 es)) (LT_map lt)))
   end
 
 with const_prop_i (m:cpm) (i:instr) : cpm * cmd * leak_i_tr :=

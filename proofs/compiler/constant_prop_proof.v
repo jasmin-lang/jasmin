@@ -46,6 +46,8 @@ Section GLOB_DEFS.
 
 Context (gd: glob_decls).
 
+Variable stk: pointer.
+
 Definition eqok_w (e1 e2:pexpr) st :=
   forall v, sem_pexpr gd st e1 = ok v -> sem_pexpr gd st e2 = ok v.
 
@@ -114,11 +116,11 @@ Hint Resolve eeq_refl eeq_w_refl.
 Lemma eeq_weaken e1 e2 : eeq_w e1 e2 -> e1 =E e2.
 Proof. by move=> h ?;apply eqok_weaken;apply h. Qed.
 
-Definition trans_sem t (vl:value * leak_e) := (vl.1, leak_E t vl.2).
+Definition trans_sem t (vl:value * leak_e) := (vl.1, leak_E stk t vl.2).
 
-Definition trans_sem_estate t (vl:estate * leak_e) := (vl.1, leak_E t vl.2).
+Definition trans_sem_estate t (vl:estate * leak_e) := (vl.1, leak_E stk t vl.2).
 
-Definition trans_sem_estates t (vl: estate* seq leak_e) := (vl.1, leak_E (LT_seq t) (LSub (vl.2))).
+Definition trans_sem_estates t (vl: estate* seq leak_e) := (vl.1, leak_E stk (LT_map t) (LSub (vl.2))).
 
 Lemma surj_pairing {T1 T2:Type} (p:T1 * T2) : (p.1,p.2) = p. 
 Proof. by case: p. Qed.
@@ -510,7 +512,7 @@ rewrite /trans_sem. case: e => //.
   inversion Hb.
 + move => op e /=; t_xrbindP => _ [yv yl] he vo hop <-.
   rewrite /sem_sop1 /=; t_xrbindP => h y /to_intI h1 <- <- <-; subst.
-  * have H : sem_pexpr gd s (Papp1 (Oneg Op_int) (Papp1 op e)) = ok (Vint (- y)%Z, leak_E LT_id yl). 
+  * have H : sem_pexpr gd s (Papp1 (Oneg Op_int) (Papp1 op e)) = ok (Vint (- y)%Z, leak_E stk LT_id yl). 
   by rewrite /=; rewrite he /=; rewrite hop /=.
   case k: (if op is Oneg Op_int then false else true).
   exists (-y)%Z. case: (op) hop => //=. rewrite he /=. by move=> w -> /=.
@@ -2679,7 +2681,7 @@ Section CONST_PROP_EP.
                     exists vs', sem_pexprs gd s e' = ok vs' /\
                     (* FIXME : map2 ... -> leak_F (LT_seq t) l = l' *)
                     List.Forall2 value_uincl (unzip1 vs) (unzip1 vs') /\
-                    LSub (unzip2 vs') = leak_E (LT_seq t) (LSub (unzip2 vs)).
+                    LSub (unzip2 vs') = leak_E stk (LT_map t) (LSub (unzip2 vs)).
                     (* comment: here leak_F produces leak_e and unzip2 vs' is seq of leak_e *)
                     (* better solution *)
                     (* exists2 v', sem_pexprs_e gd s e' = ok (v', leak_F (LT_seq t) l) & List.Forall2 value_uincl v v'. *)
@@ -2693,7 +2695,7 @@ try (intros; clarify; eauto; fail).
 - move=> e H es Hs. t_xrbindP. move=> hh [yv1 yl1] He h1 Hes <-.
   move: (H yv1 yl1 He). move=> [] x [] -> Hv /=.
   move: (Hs h1 Hes). move=> [] x0 [] -> [] Hv' /= Hl' /=.
-  exists (((x, leak_E (const_prop_e m e).2 yl1) :: x0)).
+  exists (((x, leak_E stk (const_prop_e m e).2 yl1) :: x0)).
   split. auto. split. apply List.Forall2_cons. auto. auto.
   case: Hl' => <-. auto.
 - move=> z v l [] <- <-. by exists z.
@@ -2861,7 +2863,7 @@ Lemma const_prop_rvsP s1 s2 m xs vs lw:
   (* write_lvals produces seq leak_e, lw is seq of leak_e *)
   write_lvals gd s1 xs vs = ok (s2, lw) ->
   valid_cpm (evm s2) c' /\
-  write_lvals gd s1 e' vs = ok (s2, map2 leak_E t' lw).
+  write_lvals gd s1 e' vs = ok (s2, map2 (leak_E stk) t' lw).
                               (* [:: leak_F (LT_seq t') (LSub s2.2)]).*)
 Proof.
   elim: xs vs m s1 s2 lw => [ | x xs Hrec] [ | v vs] //= m s1 s2 lw Hm /=.
@@ -3211,6 +3213,7 @@ Section PROOF.
 
   Variable p p':prog.
   Variable Fs: seq (funname * seq leak_i_tr).
+  Variable stk : pointer.
   Notation gd := (p_globs p).
 
   Hypothesis (p'_def : p' = (const_prop_prog p).1).
@@ -3227,7 +3230,7 @@ Section PROOF.
       forall vm1,
         vm_uincl (evm s1) vm1 ->
         exists vm2,
-          sem p' {|emem := emem s1; evm := vm1|} ((const_prop_i m i).1).2 (leak_I (leak_Fun Fs) li (const_prop_i m i).2)
+          sem p' {|emem := emem s1; evm := vm1|} ((const_prop_i m i).1).2 (leak_I (leak_Fun Fs) stk li (const_prop_i m i).2)
                          {|emem := emem s2; evm := vm2|} /\
           vm_uincl (evm s2) vm2.
 
@@ -3238,7 +3241,7 @@ Section PROOF.
       forall vm1,
         vm_uincl (evm s1) vm1 ->
         exists vm2,
-          sem p' {|emem := emem s1; evm := vm1|} ((const_prop_ir m ii i).1).2 (leak_I (leak_Fun Fs) li (const_prop_ir m ii i).2)
+          sem p' {|emem := emem s1; evm := vm1|} ((const_prop_ir m ii i).1).2 (leak_I (leak_Fun Fs) stk li (const_prop_ir m ii i).2)
                          {|emem := emem s2; evm := vm2|} /\ 
           vm_uincl (evm s2) vm2.
 
@@ -3250,7 +3253,7 @@ Section PROOF.
         vm_uincl (evm s1) vm1 ->
         exists vm2,
           sem p' {|emem := emem s1; evm := vm1|} ((const_prop const_prop_i m c).1).2 
-                         (leak_Is (leak_I (leak_Fun Fs)) (const_prop const_prop_i m c).2 lc)
+                         (leak_Is (leak_I (leak_Fun Fs)) stk (const_prop const_prop_i m c).2 lc)
                          {|emem := emem s2; evm := vm2|} /\
           vm_uincl (evm s2) vm2.
 
@@ -3262,7 +3265,7 @@ Section PROOF.
         vm_uincl (evm s1) vm1 ->
         exists vm2,
           sem_for p' i zs {|emem := emem s1; evm := vm1|} ((const_prop const_prop_i m c).1).2 
-                                (leak_Iss (leak_I (leak_Fun Fs)) (const_prop const_prop_i m c).2 lf)
+                                (leak_Iss (leak_I (leak_Fun Fs)) stk (const_prop const_prop_i m c).2 lf)
                                 {|emem := emem s2; evm := vm2|} /\
           vm_uincl (evm s2) vm2.
 
@@ -3271,7 +3274,7 @@ Section PROOF.
     forall vargs',
       List.Forall2 value_uincl vargs vargs' ->
       exists vres',
-        sem_call p' m1 fd vargs' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m2 vres' /\
+        sem_call p' m1 fd vargs' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) m2 vres' /\
         List.Forall2 value_uincl vres vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
@@ -3306,27 +3309,27 @@ Section PROOF.
   Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
   Proof.
     move=> s1 s2 x tag ty e v v' le lw He Ht Hw m ii Hm.
-    move: const_prop_eP. move=>Hce. move: (Hce gd e s1 m Hm v le He).
+    move: const_prop_eP. move=>Hce. move: (Hce gd stk e s1 m Hm v le He).
     move=> [] vc [] Hec Hev {Hce}. move: const_prop_rvP. move=> Hcw.
-    move: (Hcw gd s1 (s2, lw) m x v').
+    move: (Hcw gd stk s1 (s2, lw) m x v').
     case hrv: const_prop_rv => [mx lx]. case: mx hrv => mx x' hrv.
     move=> /= Hwc' {Hcw}. move: (Hwc' Hm Hw). move=> [] Hm' Hwc {Hwc'}.
     case heq: const_prop_e => [me lce]. case hrvq: const_prop_rv=> [mrv lrv].
     case: mrv hrvq => mrv crv hrvq. split.
     + move: add_cpmP. move=> Hadd /=. rewrite heq in Hec. rewrite /= in Hec.
       rewrite heq in Hev. rewrite /= in Hev.
-      move: (Hadd gd s1 (s2, leak_E lx lw) mx x' me tag ty  (vc, leak_E lce le) v v' Hec).
+      move: (Hadd gd s1 (s2, leak_E stk lx lw) mx x' me tag ty  (vc, leak_E stk lce le) v v' Hec).
       rewrite /=. move=> Hadd'. move: (Hadd' Hev Ht Hwc Hm'). move=> H {Hadd} {Hadd'}.
       rewrite hrv in hrvq. case: hrvq=> <- <- _. auto.
     + move=> vm1 hvm1 /=.
       move: (sem_pexpr_uincl).  rewrite heq in Hec. rewrite /= in Hec.
-      rewrite heq in Hev. rewrite /= in Hev. move=> Heq. move: (Heq gd s1 vm1 me vc (leak_E lce le) hvm1 Hec).
+      rewrite heq in Hev. rewrite /= in Hev. move=> Heq. move: (Heq gd s1 vm1 me vc (leak_E stk lce le) hvm1 Hec).
       move=> [] vc' Hec' Hev' {Heq}. move: (truncate_value_uincl).
       move=> Ht'. move:(Ht' ty v vc v' Hev Ht). move=> [] vc'' Htc Hev'' {Ht'}.
       move: (truncate_value_uincl).
       move=> Ht''. move:(Ht'' ty vc vc' vc'' Hev' Htc). move=> [] vc''' Htc' Hev''' {Ht''}.
       move: (value_uincl_trans). move=> Vt. move: (Vt vc'' v' vc''' Hev'' Hev'''). move=> Hev1 {Vt}.
-      move: write_uincl. move=> Hw'. move: (Hw' gd s1 s2 vm1 x' v' vc''' (leak_E lx lw) hvm1 Hev1 Hwc).
+      move: write_uincl. move=> Hw'. move: (Hw' gd s1 s2 vm1 x' v' vc''' (leak_E stk lx lw) hvm1 Hev1 Hwc).
       move=> [] vm2 Hwc' hvm2 {Hw'}. exists vm2. constructor. apply sem_seq1. constructor.
       apply Eassgn with vc' vc'''. replace (p_globs p') with gd. auto.  by rewrite p'_def /=.
       auto. rewrite hrv in hrvq. case: hrvq => _ <- <-.
@@ -3339,13 +3342,13 @@ Section PROOF.
     apply: rbindP H=> vs Hes. t_xrbindP.
     move=> ves Ho [sw lw] Hw /= Hs Hl.
     move: (const_prop_esP). move=> Hesc.
-    move: (Hesc gd es s1 m Hm vs Hes). move=> [] vs' [] Hes' [] Hvc Hlc {Hesc}.
-    move: const_prop_rvsP. move=> Hwc. move: (Hwc gd s1 sw m xs ves lw).
+    move: (Hesc gd stk es s1 m Hm vs Hes). move=> [] vs' [] Hes' [] Hvc Hlc {Hesc}.
+    move: const_prop_rvsP. move=> Hwc. move: (Hwc gd stk s1 sw m xs ves lw).
     case hrvs: const_prop_rvs=> [mc lc]. case: mc hrvs=> mc lv hrvs /=.
     move=> H. move: (H Hm Hw). move=> [] Hmw Hw' {H} {Hwc}. split.
     by rewrite -Hs /=. move=> vm1 Hvm1.
     move: writes_uincl. move=> Hws.
-    move: (Hws gd s1 sw vm1 lv ves ves (map2 leak_E lc lw) Hvm1
+    move: (Hws gd s1 sw vm1 lv ves ves (map2 (leak_E stk) lc lw) Hvm1
                (List_Forall2_refl _ value_uincl_refl) Hw').
     move=> [] vm2 Hw'' Hvm2 {Hws}. exists vm2. constructor.
     apply sem_seq1. constructor. constructor. rewrite /sem_sopn /=.
@@ -3362,7 +3365,7 @@ Section PROOF.
   Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 le lc He Hs1 Hc1 m ii Hm.
-    have  [v' [] ] /= := const_prop_eP Hm He.
+    have  [v' [] ] /= := const_prop_eP stk Hm He.
     case: v' => // b {He} He Hv. rewrite -Hv in He. move=> {Hv} {b}.
     case heq: const_prop_e=> [me lce]. rewrite heq in He. rewrite /= in He.
     case: is_boolP He => b. case: b.
@@ -3378,7 +3381,7 @@ Section PROOF.
     move: (H vm1 Hvm). move=> [] vm2 [] H1 Hvm' {H}. exists vm2. constructor.
     apply sem_seq1. do 2 constructor=> //.
     move: (sem_pexpr_uincl). move=> Hee. 
-    move: (Hee gd s1 vm1 b (Vbool true) (leak_E lce le) Hvm He).
+    move: (Hee gd s1 vm1 b (Vbool true) (leak_E stk lce le) Hvm He).
     move=> [] v2 He' /value_uincl_bool1 <- {Hee}.
     replace (p_globs p') with gd. auto. by rewrite p'_def /=. auto.
   Qed.
@@ -3386,7 +3389,7 @@ Section PROOF.
   Local Lemma Hif_false : sem_Ind_if_false p Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 le lc He Hs1 Hc1 m ii Hm.
-    have  [v' [] ] /= := const_prop_eP Hm He.
+    have  [v' [] ] /= := const_prop_eP stk Hm He.
     case: v' => // b {He} He Hv. rewrite -Hv in He. move=> {Hv} {b}.
     case heq: const_prop_e=> [me lce]. rewrite heq in He. rewrite /= in He.
     case: is_boolP He => b. case: b. move=> //.
@@ -3402,7 +3405,7 @@ Section PROOF.
     move: (H vm1 Hvm). move=> [] vm2 [] H1 Hvm' {H}. exists vm2. constructor.
     apply sem_seq1. do 2 constructor=> //.
     move: (sem_pexpr_uincl). move=> Hee. 
-    move: (Hee gd s1 vm1 b (Vbool false) (leak_E lce le) Hvm He).
+    move: (Hee gd s1 vm1 b (Vbool false) (leak_E stk lce le) Hvm He).
     move=> [] v2 He' /value_uincl_bool1 <- {Hee}.
     replace (p_globs p') with gd. auto. by rewrite p'_def /=. auto.
   Qed.
@@ -3435,7 +3438,7 @@ Section PROOF.
     + by rewrite Hm2''.
     rewrite -heq1 heq.
     case: (is_bool e' =P Some false) => heqe.
-    + have [ vb /= []] := const_prop_eP Hm'' He.
+    + have [ vb /= []] := const_prop_eP stk Hm'' He.
       rewrite -heq1 heq /=.
       have ? : e' = false by case: (is_boolP e') (heqe) => [? [->] | ] //.
       by subst e' => /= -[<-].
@@ -3446,7 +3449,7 @@ Section PROOF.
     exists vm4; split => //.
     apply:sem_seq1;constructor.
     apply Ewhile_true with {| emem := emem s2; evm := vm2 |} {| emem := emem s3; evm := vm3 |} => //. 
-    + have := const_prop_eP Hm'' He.
+    + have := const_prop_eP stk Hm'' He.
       rewrite -heq1 heq => -[] v' [] hv' /value_uincl_bool1 ?; subst v'.
       replace gd with (p_globs p') in hv'; last by rewrite p'_def.
       by have [ b -> /value_uincl_bool1 -> ] := sem_pexpr_uincl hvm2 hv'.
@@ -3464,18 +3467,18 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
     case Heq2: const_prop => [m''' l0']. case: m''' Heq2=> m''' c0' Heq2 /=.
     have eq1_1 : evm s1 = evm s1 [\ww] by done.
     have /Hc:= valid_cpm_rm eq1_1 Hm;rewrite -/m' Heq1 /= => -[Hm'' Hc0]. split => //.
-    have [v' [Hv' /=]]:= const_prop_eP Hm'' He.
+    have [v' [Hv' /=]]:= const_prop_eP stk Hm'' He.
     case: v' Hv' => // b Hv' Hvv. rewrite -Hvv in Hv'.
     move=> {Hvv} {b}. rewrite heq in Hv'.
     case:is_boolP Hv' => [ ?[->] //| e0 He0]. auto.
     move=> vm1 /Hc0 [vm2 [hsem h]]; exists vm2; split=> //.
-    have [v' [Hv' /=]]:= const_prop_eP Hm'' He.
+    have [v' [Hv' /=]]:= const_prop_eP stk Hm'' He.
     case: v' Hv' => // b' Hv' Hvv. rewrite -Hvv in Hv'.
     move=> {Hvv} {b'}. rewrite heq in Hv'.
     case:is_boolP Hv' => [ ?[->] //| e0 /= He0]. auto.
     apply: sem_seq1;constructor;apply: Ewhile_false => //.
     move: (sem_pexpr_uincl). move=> Hee.
-    move: (Hee gd s2 vm2 e0 (Vbool false) (leak_E le' le) h He0).
+    move: (Hee gd s2 vm2 e0 (Vbool false) (leak_E stk le' le) h He0).
     move=> [] v2 He' /value_uincl_bool1 <- {Hee}.
     replace (p_globs p') with gd. auto. by rewrite p'_def /=.
   Qed.
@@ -3500,15 +3503,15 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
       rewrite Hi2 /=. by rewrite Hwr Hlr /=. auto.
     move=> vm1 /dup[] hvm1 /Hfor' [vm2 [hfor hvm2]]; exists vm2; split=>//.
     apply sem_seq1. constructor. apply Efor with wr. rewrite /=.
-    move: const_prop_eP. move=> Hce. move: (Hce gd e1 s1 m Hm ev1 el1 He1).
+    move: const_prop_eP. move=> Hce. move: (Hce gd stk e1 s1 m Hm ev1 el1 He1).
     move=> [] ev1' [] Hce1 Hev1 {Hce}. rewrite heqe1 in Hce1. rewrite /= in Hce1.
-    move: const_prop_eP. move=> Hce. move: (Hce gd e2 s1 m Hm ev2 el2 He2).
+    move: const_prop_eP. move=> Hce. move: (Hce gd stk e2 s1 m Hm ev2 el2 He2).
     move=> [] ev2' [] Hce2 Hev2 {Hce}. rewrite heqe2 in Hce2. rewrite /= in Hce2.
     move: sem_pexpr_uincl. move=> Hee1.
-    move: (Hee1 gd s1 vm1 me1 ev1' (leak_E lc1 el1) hvm1 Hce1).
+    move: (Hee1 gd s1 vm1 me1 ev1' (leak_E stk lc1 el1) hvm1 Hce1).
     move=> [] ev1'' Hem1 Hv1 {Hee1}.
     move: sem_pexpr_uincl. move=> Hee2.
-    move: (Hee2 gd s1 vm1 me2 ev2' (leak_E lc2 el2) hvm1 Hce2).
+    move: (Hee2 gd s1 vm1 me2 ev2' (leak_E stk lc2 el2) hvm1 Hce2).
     move=> [] ev2'' Hem2 Hv2 {Hee2}.
     replace (p_globs p') with gd. rewrite Hem1 /=. rewrite Hem2 /=.
     rewrite /= in Hev1. rewrite /= in Hev2.
@@ -3553,10 +3556,10 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
     move=> s1 m2 s2 ii xs fn args vargs vs lf lw Hargs Hcall Hfun Hvs m ii' Hm.
     move: (const_prop_esP). move=> Hargs' /=.
     case hlf : lf=> [fn' lfn]. rewrite hlf in Hfun.
-    move: (Hargs' gd args s1 m Hm vargs Hargs).
+    move: (Hargs' gd stk args s1 m Hm vargs Hargs).
     move=> [] vargs' {Hargs'} [] Hargs' [] Hv Hl.
     move: (const_prop_rvsP). move=> Hvs'.
-    move: (Hvs' gd {| emem := m2; evm := evm s1 |} s2 m xs vs lw).
+    move: (Hvs' gd stk {| emem := m2; evm := evm s1 |} s2 m xs vs lw).
     case hervs: const_prop_rvs=>[mv lv]; case: mv hervs=> mv cv hervs /=.
     move=> {Hvs'} Hvs'. move: (Hvs' Hm Hvs). move=> {Hvs'} [] Hm2 Hvs' /=.
     split=> //.
@@ -3570,7 +3573,7 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
     move: (Hfun (unzip1 vargs'') (Forall2_trans value_uincl_trans Hv Hv')).
     move=> {Hfun} [] vres' [] /= Hcall' Hv''.
     move: (Hvs'' gd {| emem := m2; evm := evm s1 |} s2 vm1 cv vs vres'
-                 (map2 leak_E lv lw) Hvm1 Hv'' Hvs').
+                 (map2 (leak_E stk) lv lw) Hvm1 Hv'' Hvs').
     move=> {Hvs''} [] vm2 /= Hvs'' Hvm2 /=. exists vm2. split=> //.
     apply sem_seq1. constructor. move:Ecall.
     replace gd with (p_globs p') in Hargs''. replace gd with (p_globs p') in Hvs''.
@@ -3579,8 +3582,8 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
           {| emem := emem s2; evm := vm2 |} ii cv fn
           (unzip1 [seq const_prop_e m i| i <- args])
            vargs'' vres' 
-          (fn',leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs fn') lfn)
-          (map2 leak_E lv lw) Hargs'' Hcall' Hvs''). move=> H. rewrite /=.
+          (fn',leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs fn') lfn)
+          (map2 (leak_E stk) lv lw) Hargs'' Hcall' Hvs''). move=> H. rewrite /=.
    case: Hl => <- /=. by rewrite Hl' /=. by rewrite p'_def /=. by rewrite p'_def /=.
   Qed.
 
@@ -3629,7 +3632,7 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
   Lemma const_prop_callP f mem mem' va va' vr lf:
     sem_call p mem f va lf mem' vr ->
     List.Forall2 value_uincl va va' ->
-    exists vr', sem_call p' mem f va'(lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) mem' vr' /\ List.Forall2 value_uincl vr vr'.
+    exists vr', sem_call p' mem f va'(lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
     move=> /(@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) h Hv.
