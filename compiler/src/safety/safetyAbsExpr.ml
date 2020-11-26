@@ -1,7 +1,6 @@
 open Utils
 open Prog
 open Apron
-open ToEC
 open Wsize
 
 open SafetyPreanalysis
@@ -10,13 +9,62 @@ open SafetyUtils
 open SafetyExpr
 open SafetyVar
 open SafetyConstr
-    
 
+type 'a gmsub = { ms_v      : var;
+                  ms_sc     : Expr.v_scope;
+                  ms_ws     : wsize;
+                  ms_len    : int;
+                  ms_offset : 'a; }
+
+(* - [{ms_v; ms_ws; ms_len; Some ms_offset}] is the slice
+     [8*ms_offset; 8*ms_offset + ms_ws * ms_len[ of ms_v. 
+     Note that the offset is not scaled on the word-size. 
+   - if [ms_offset] is not, the slices starts at an unknown offset. *)
+type msub = int gmsub
+    
+(*-------------------------------------------------------------------------*)
+let check_msub ms =
+  let gv = ms.ms_v in
+  (* array size, in bytes   *)
+  let arr_size = arr_range gv * (size_of_ws (arr_size gv)) in 
+  (* sub-array size, in bytes * *)
+  let sub_size = ms.ms_len * (size_of_ws ms.ms_ws) in
+  let offset = ms.ms_offset in
+  (* The sub-array indeed fits in the lhs array.  *)
+  assert (0 <= offset && offset + sub_size <= arr_size)
+
+let check_msubo ms = match ms.ms_offset with
+  | None -> ()
+  | Some off -> check_msub { ms with ms_offset = off }
+                  
+let msub_of_arr gv sc =
+  let msub = { ms_v      = gv;
+               ms_sc     = sc;
+               ms_ws     = arr_size gv;
+               ms_len    = arr_range gv;
+               ms_offset = Some 0; } in
+  check_msubo msub;
+  msub
+
+
+(*-------------------------------------------------------------------------*)
+(* TODO: fix [ToEC.ty_expr] and use it here instead*)
+  let rec ty_expr = function
+    | Psub (_,ws,len,_,_) -> Arr (ws,len)
+    | a -> ToEC.ty_expr a
+
+(* TODO: fix [ToEC.ty_lval] and use it here instead*)
+  let rec ty_lval = function
+    | Lasub (_,ws,len,_,_) -> Arr (ws,len)
+    | a -> ToEC.ty_lval a
+
+(*-------------------------------------------------------------------------*)
 let get_wsize = function
   | Type.Coq_sword sz -> sz
   | _ -> raise (Aint_error "Not a Coq_sword")
 
-let pcast ws e = match ToEC.ty_expr e with
+(* Only for expressions that are not arrays *)
+let pcast ws e = match ty_expr e with
   | Bty Int -> Papp1 (E.Oword_of_int ws, e)
   | Bty (U ws') ->
     assert (int_of_ws ws' <= int_of_ws ws);
@@ -160,11 +208,8 @@ type mlvar =
   (* If there is uncertainty on the lvalue where 
      the assignement takes place. *)
                 
-  | MLasub of minfo * mvar * wsize * int * int option
-  (* - [MLasub(_,v,sz,len,Some i)] is the sub-array of [v] starting at
-       [i] (in bytes), of length [len] (in [sz] words).  
-     - [MLasub(_,_,_,_,None)] is used if we cannot determine the
-       sub-array offset. *)
+  | MLasub of minfo * int option gmsub
+  (* None is used if the offset is not determined *)
 
 let pp_offset fmt = function
   | None   -> Format.fprintf fmt "??"
@@ -178,24 +223,13 @@ let pp_mlvar fmt = function
     Format.fprintf fmt "MLvars (%d) @[<hov 2>%a@]"
       info.i_instr_number
       (pp_list pp_mvar) mvs
-  | MLasub (info,v,sz,len,i) ->
+  | MLasub (info,msub) ->
     Format.fprintf fmt "MLasub (%d) @[<hov 2>%a.[(u%d)%a : %d]@]"
       info.i_instr_number
-      pp_mvar v (int_of_ws sz) pp_offset i len
+      (Printer.pp_var ~debug:false) msub.ms_v
+      (int_of_ws msub.ms_ws)
+      pp_offset msub.ms_offset msub.ms_len
       
-let mvar_of_lvar_no_array loc lv = match lv with
-  | Lnone _ -> MLnone
-  | Lmem _ -> MLnone
-  | Lvar x  ->
-    let ux = L.unloc x in
-    begin match ux.v_kind, ux.v_ty with
-      | Global,_ -> assert false (* this case should not be possible *)
-      (* MLvar (Mglobal (ux.v_name,ux.v_ty)) *)
-      | _, Bty _ -> MLvar (loc, Mlocal (Avar ux))
-      | _, Arr _ -> MLvar (loc, Mlocal (Aarray ux)) end
-  | Laset _ -> assert false
-  | Lasub _ -> assert false
-
 
 (*********************)
 (* Abstract Iterator *)
@@ -291,6 +325,10 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       obind2 (fun x y -> Some (Z.mul x y))
         (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
 
+    | Papp2 (Odiv Cmp_int, e1, e2) ->
+      obind2 (fun x y -> Some (Z.div x y))
+        (aeval_cst_zint abs e1) (aeval_cst_zint abs e2)
+
     | Papp1 _ | Papp2 _ | Pbool _
     | Parr_init _ | Pget _ | Psub _
     | Pload _ | PappN _ | Pif _ -> None
@@ -317,7 +355,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   let aeval_cst_int abs e =
     try omap Z.to_int (aeval_cst_zint abs e) with
     | Z.Overflow -> None
-  
+
   (*-------------------------------------------------------------------------*)
   let arr_full_range x =
     List.init
@@ -897,9 +935,6 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     in
     abs, warns
 
-  (*   Gword of Wsize.wsize * Ssralg.GRing.ComRing.sort
-   * | Garr of BinNums.positive * Warray_.WArray.array *)
-                                 
   let apply_glob (globs : global_decl list) abs =
     List.fold_left (fun abs (v,glob_val) ->
         match glob_val with
@@ -922,7 +957,15 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   (* Return the mvar where the abstract assignment takes place. For now, no
      abstraction of the memory. *)
   let mvar_of_lvar abs loc lv = match lv with
-    | Lnone _ | Lmem _ | Lvar _ -> mvar_of_lvar_no_array loc lv
+    | Lnone _ -> MLnone
+    | Lmem _ -> MLnone
+    | Lvar x  ->
+      let ux = L.unloc x in
+      begin match ux.v_kind, ux.v_ty with
+        | Global,_ -> assert false (* this case should not be possible *)
+        (* MLvar (Mglobal (ux.v_name,ux.v_ty)) *)
+        | _, Bty _ -> MLvar (loc, Mlocal (Avar ux))
+        | _, Arr _ -> MLvar (loc, Mlocal (Aarray ux)) end
 
     | Laset (acc, ws, x, ei) ->
       begin
@@ -936,8 +979,13 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       let offset = match aeval_cst_int abs ei with
         | Some i -> Some (access_offset acc ws i)
         | None -> None in
-      let mv = mvar_of_var { gv = x; gs = Expr.Slocal; } in
-      MLasub (loc, mv, ws, len, offset)
+      let msub = { ms_v      = L.unloc x;
+                   ms_sc     = Expr.Slocal;
+                   ms_ws     = ws;
+                   ms_len    = len;
+                   ms_offset = offset; } in
+
+      MLasub (loc, msub)
 
   
   let apply_offset_expr abs outmv info (inv : int ggvar) offset_expr =
@@ -999,103 +1047,73 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | MLvar (_,mv) -> a_init_mv_no_array mv abs
     | _ -> assert false
 
-  (* Array assignment. Does the numerical assignments.
-     Remark: array elements do not need to be tracked in the point-to
-     abstraction. *)
-  let assign_arr_expr abs (v : mvar) (e : Mtexpr.t) =
-    match v with
-    | Mlocal (Aarray gv) -> begin match e with
-        | Mtexpr.Mvar (Mlocal (Aarray ge)) | Mtexpr.Mvar (Mglobal (Aarray ge)) ->
-          let n = arr_range gv in
-          let ws = arr_size gv in
-          assert (n = arr_range ge);
-          assert (ws = arr_size ge);
-          List.fold_left (fun abs i ->
-              let o = access_offset Warray_.AAscale ws i in
-              let vi  = Mlocal (AarraySlice (gv,ws,o))  in
-              let eiv = Mlocal (AarraySlice (ge,ws,o)) in
-              let ei = Mtexpr.var eiv
-                       |> sexpr_from_simple_expr in
+  let slice_subtype lhs rhs =
+    (* left slice size, in bytes *) 
+    let lhs_size = lhs.ms_len * (size_of_ws lhs.ms_ws) in
+    (* right slice slize, in bytes *) 
+    let rhs_size = rhs.ms_len * (size_of_ws rhs.ms_ws) in 
+    (* The array on the rhs must be larger than the sub-array to
+       be filled on the lhs (extra values are ignored). *)
+    lhs_size <= rhs_size    
 
-              (* Numerical abstraction *)
-              let abs = AbsDom.assign_sexpr abs vi None ei in
+  let msub_of_sub_expr abs = function
+    | Psub (acc, ws, len, ggv, ei) ->
+      let offset = match aeval_cst_int abs ei with
+        | Some i -> Some (access_offset acc ws i)
+        | None -> None in
+      { ms_v      = L.unloc ggv.gv;
+        ms_sc     = ggv.gs;
+        ms_ws     = ws;
+        ms_len    = len;
+        ms_offset = offset; }
 
-              (* Initialization *)
-              let scope = match e with
-                | Mtexpr.Mvar (Mlocal _)  -> Expr.Slocal
-                | Mtexpr.Mvar (Mglobal _) -> Expr.Sglob
-                | _ -> assert false in
-              List.fold_left2 (fun a vi eiv -> match scope with
-                  | Expr.Slocal -> AbsDom.copy_init a vi eiv
-                  | Expr.Sglob  -> AbsDom.is_init a (get_at vi))
-                abs
-                (u8_blast_var ~blast_arrays:true vi)
-                (u8_blast_var ~blast_arrays:true eiv)
-            ) abs (List.init n (fun i -> i))
-
-        | _ -> assert false end
     | _ -> assert false
 
+  let assign_slice_aux abs (lhs : msub) (rhs : msub) =
+    assert (lhs.ms_sc = Expr.Slocal);
+    (* We check that [rhs] is larger than [lhs] *)
+    assert (slice_subtype lhs rhs); 
+    let lgv = lhs.ms_v in
+    let rgv = rhs.ms_v in
+    let ws, len = lhs.ms_ws, lhs.ms_len in
+    (* We do the copy *)
+    List.fold_left (fun abs i ->
+        let i = access_offset Warray_.AAscale ws i in
+        let vi  = Mlocal (AarraySlice (lgv,ws,lhs.ms_offset + i))  in
+        (* [rhs.ms_offset] is not to be scaled on the word size. *)
+        let eiv = Mlocal (AarraySlice (rgv,ws,rhs.ms_offset + i)) in
+        let ei = Mtexpr.var eiv
+                 |> sexpr_from_simple_expr in
 
-  let assign_sub_arr_expr_aux abs (v : mvar) ws len offset (e : Mtexpr.t) =
-    match v with
-    | Mlocal (Aarray gv) -> begin match e with
-        | Mtexpr.Mvar (Mlocal (Aarray ge)) | Mtexpr.Mvar (Mglobal (Aarray ge)) ->
-          (* left array size, in bytes *) 
-          let lhs_size = arr_range gv * (size_of_ws (arr_size gv)) in 
-          (* left sub-array size, in bytes *)
-          let lhs_sub_size = len * (size_of_ws ws) in
-          
-          (* The array on the rhs must be larger than the sub-array to
-             be filled on the lhs (extra values are ignored). *)
-          assert (lhs_sub_size <=
-                  arr_range ge * (size_of_ws (arr_size ge)));          
-          (* The sub-array indeed fits in the lhs array. *)
-          assert (0 <= offset && offset + lhs_sub_size <= lhs_size);
+        (* Numerical abstraction *)
+        let abs = AbsDom.assign_sexpr abs vi None ei in
 
-          (* We do the copy *)
-          List.fold_left (fun abs i ->
-              let i = access_offset Warray_.AAscale ws i in
-              let vi  = Mlocal (AarraySlice (gv,ws,offset + i))  in
-              let eiv = Mlocal (AarraySlice (ge,ws,i)) in
-              let ei = Mtexpr.var eiv
-                       |> sexpr_from_simple_expr in
+        (* Initialization *)
+        List.fold_left2 (fun a vi eiv -> match rhs.ms_sc with
+            | Expr.Slocal -> AbsDom.copy_init a vi eiv
+            | Expr.Sglob  -> AbsDom.is_init a (get_at vi))
+          abs
+          (u8_blast_var ~blast_arrays:true vi)
+          (u8_blast_var ~blast_arrays:true eiv)
+      ) abs (List.init len (fun i -> i))
+  
 
-              (* Numerical abstraction *)
-              let abs = AbsDom.assign_sexpr abs vi None ei in
-
-
-              (* Initialization *)
-              let scope = match e with
-                | Mtexpr.Mvar (Mlocal _)  -> Expr.Slocal
-                | Mtexpr.Mvar (Mglobal _) -> Expr.Sglob
-                | _ -> assert false in
-              List.fold_left2 (fun a vi eiv -> match scope with
-                  | Expr.Slocal -> AbsDom.copy_init a vi eiv
-                  | Expr.Sglob  -> AbsDom.is_init a (get_at vi))
-                abs
-                (u8_blast_var ~blast_arrays:true vi)
-                (u8_blast_var ~blast_arrays:true eiv)
-            ) abs (List.init len (fun i -> i))
-
-        | _ -> assert false end
-    | _ -> assert false
-
-  (* Sub-array assignment. Does the numerical assignments.
-     [offset] is in bytes, [len] is in [ws] words.
+  (* Array slice assignment. Does the numerical assignments.
      Remark: array elements do not need to be tracked in the point-to
      abstraction. *)
-  let assign_sub_arr_expr abs v ws len offset (e : Mtexpr.t) =    
-    match v, offset with
-    | _, Some offset -> assign_sub_arr_expr_aux abs v ws len offset e
-
-    (* If the offset is unknown, we need to forget the array content. *)
-    | Mlocal (Aarray lhs), None ->
-      let mvs = arr_full_range lhs
+  let assign_slice abs lhs rhs = 
+    match lhs.ms_offset, rhs.ms_offset with
+    | Some loff, Some roff ->
+      let lhs = { lhs with ms_offset = loff }
+      and rhs = { rhs with ms_offset = roff } in
+      assign_slice_aux abs lhs rhs
+        
+    (* If any offset is unknown, we need to forget the array content. *)
+    | _, _ ->
+      let lhs_arr = lhs.ms_v in
+      let mvs = arr_full_range lhs_arr
                 |> List.map (fun y -> Mlocal y) in
       AbsDom.forget_list abs mvs
-
-    | _, _ -> assert false
 
 
   let omvar_is_offset = function
@@ -1113,7 +1131,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       (* Here, we have no information on which elements are initialized. *)
       | _, MLvars (_, vs) -> AbsDom.forget_list abs vs 
 
-      | Bty Int, MLvar (loc, mvar) | Bty (U _), MLvar (loc, mvar) ->
+      | Bty Int,   MLvar (loc, mvar)
+      | Bty (U _), MLvar (loc, mvar) ->
         (* Numerical abstraction *)
         let lv_s = wsize_of_ty out_ty in
         let s_expr = linearize_if_expr lv_s e abs in
@@ -1130,36 +1149,23 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         a_init_mlv_no_array out_mvar abs
 
       | Bty Bool, MLvar (_, mvar) ->
-        begin
-          let abs = match bexpr_to_btcons e abs with
-            | None -> AbsDom.forget_bvar abs mvar 
-            | Some btcons -> AbsDom.assign_bexpr abs mvar btcons in
-          a_init_mlv_no_array out_mvar abs
-        end
+        let abs = match bexpr_to_btcons e abs with
+          | None -> AbsDom.forget_bvar abs mvar 
+          | Some btcons -> AbsDom.assign_bexpr abs mvar btcons in
+        a_init_mlv_no_array out_mvar abs
 
-      | Arr _, MLvar (_, mvar) ->
-        begin
-          match e with
-          | Pvar x ->
-            let se = Mtexpr.var (mvar_of_var x) in
-            begin match mvar with
-              | Mlocal (Aarray _) -> assign_arr_expr abs mvar se 
-              | Temp _ -> assert false (* this case should not be possible *)
-              | _ -> assert false end
-
-          | Parr_init _ -> abs
+      | Arr _, MLvar  _
+      | Arr _, MLasub _ ->
+        let rhs = match e with
+          | Pvar x -> msub_of_arr (L.unloc x.gv) x.gs
+          | Psub _ -> msub_of_sub_expr abs e
+          | _ -> assert false in
+        let lhs = match out_mvar with
+          | MLvar  (_, Mlocal (Aarray v)) -> msub_of_arr v Expr.Slocal
+          | MLasub (_, msub) -> msub
           | _ -> assert false
-        end
-
-      | Arr _, MLasub (_, mvar, ws, len, offset) ->
-        begin
-          match e with
-          | Pvar x ->
-            let se = Mtexpr.var (mvar_of_var x) in
-            assign_sub_arr_expr abs mvar ws len offset se              
-          | Parr_init _ -> abs
-          | _ -> assert false
-        end
+        in
+        assign_slice abs lhs rhs 
 
       | _ -> assert false
         

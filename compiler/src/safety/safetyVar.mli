@@ -6,10 +6,12 @@ type v_scope = Expr.v_scope
                  
 type mem_loc = MemLoc of var
 
+type slice = var * wsize * int
+             
 type atype =
-  | Avar of var
-  | Aarray of var 
-  | AarraySlice of var * wsize * int
+  | Avar of var                     (* Variable *)
+  | Aarray of var                   (* Array *)
+  | AarraySlice of slice
 
 type mvar =
   | Temp of string * int * ty

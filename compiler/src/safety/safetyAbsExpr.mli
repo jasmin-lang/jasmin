@@ -16,13 +16,24 @@ val wsize_of_ty : 'a gty -> int
 val check_is_word : int ggvar -> unit
 
 (*---------------------------------------------------------------*)
+type 'a gmsub = { ms_v      : var;
+                  ms_sc     : Expr.v_scope;
+                  ms_ws     : wsize;
+                  ms_len    : int;
+                  ms_offset : 'a; }
+
+(* - [{ms_v; ms_ws; ms_len; Some ms_offset}] is the slice
+     [8*ms_offset; 8*ms_offset + ms_ws * ms_len[ of ms_v. 
+     Note that the offset is not scaled on the word-size. 
+   - if [ms_offset] is not, the slices starts at an unknown offset. *)
+type msub = int gmsub
+
+(*---------------------------------------------------------------*)
 type mlvar =
   | MLnone
   | MLvar  of minfo * mvar
   | MLvars of minfo * mvar list
-  | MLasub of minfo * mvar * wsize * int * int option
-                
-val mvar_of_lvar_no_array : minfo -> lval -> mlvar
+  | MLasub of minfo * int option gmsub
   
 val pp_mlvar : Format.formatter -> mlvar -> unit
 
@@ -63,12 +74,7 @@ module AbsExpr (AbsDom : SafetyInterfaces.AbsNumBoolType) : sig
     AbsDom.t -> 'a gty -> mvar -> minfo option -> expr -> AbsDom.t
 
   val a_init_mlv_no_array : mlvar -> AbsDom.t -> AbsDom.t
-                                                   
-  val assign_arr_expr : AbsDom.t -> mvar -> Mtexpr.t -> AbsDom.t
-
-  val assign_sub_arr_expr :
-    AbsDom.t -> mvar -> wsize -> int -> int option -> Mtexpr.t -> AbsDom.t
-  
+ 
   val abs_assign : AbsDom.t -> ty -> mlvar -> expr -> AbsDom.t
  
   val abs_assign_opn :

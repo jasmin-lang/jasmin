@@ -570,10 +570,15 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
 
   (* If force is true then we do a forced strong update on v. *)
   let assign_expr ?force:(force=false) a v e = match v with
-    | Mlocal (AarraySlice (gv,ws,offset)) ->
+    | Mglobal (AarraySlice (gv,ws,offset)) 
+    | Mlocal  (AarraySlice (gv,ws,offset)) ->
       List.fold_left (fun a j ->
           let p = offset + j in
-          let mvj = Mlocal (AarraySlice (gv, U8, p)) in
+          let mvj = AarraySlice (gv, U8, p) in
+          let mvj = match v with
+            | Mglobal _ -> Mglobal mvj
+            | Mlocal  _ -> Mlocal mvj
+            |         _ -> assert false in
           let mej = get_block e j in
           assign_expr_aux force a mvj mej)
         a (List.init ((int_of_ws ws) / 8) (fun j -> j))

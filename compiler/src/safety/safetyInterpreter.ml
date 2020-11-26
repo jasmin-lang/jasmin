@@ -364,9 +364,6 @@ let in_cp_var v = match v with
 let fun_in_args_no_offset f_decl =
   fun_args_no_offset f_decl |> List.map in_cp_var
 
-let fun_rets_no_offsets f_decl =
-  List.map (fun x -> mvar_of_scoped_var Expr.Slocal (L.unloc x)) f_decl.f_ret
-
 let get_mem_range env = List.map (fun x -> MmemRange x) env.m_locs
 
 let prog_globals ~expand_arrays env =
@@ -747,77 +744,9 @@ end = struct
 
   (* Remark: handles variable initialization. *)
   let aeval_f_return abs ret_assigns =
-    List.fold_left (fun abs (out_ty,rvar,(lv,mlvo)) ->
-        match mlvo with
-        | MLnone -> abs
-
-        | MLvars (_, mlvs) ->
-          (* Here, we have no information on which elements are initialized. *)
-          AbsDom.forget_list abs mlvs
-
-        | MLasub (_, mlv, ws, len, offset) ->
-          let mret = Mtexpr.var rvar in
-          (* Numerical abstractions only.
-             Points-to and offset abstraction are not needed for array and 
-             array elements *)
-          AbsExpr.assign_sub_arr_expr abs mlv ws len offset mret
-            
-        | MLvar (_, mlv) -> match ty_mvar mlv with
-          | Bty Bool ->
-            let rconstr = BVar (Bvar.make rvar true) in
-            AbsDom.assign_bexpr abs mlv rconstr
-            |> AbsExpr.a_init_mlv_no_array mlvo
-
-          | Bty _ ->
-            let mret = Mtexpr.var rvar in
-
-            let lv_size = wsize_of_ty (ty_lval lv)
-            and ret_size = wsize_of_ty out_ty in
-
-            (* Numerical abstraction *)
-            let expr = match ty_mvar mlv, ty_mvar rvar with
-              | Bty Int, Bty Int -> mret
-              | Bty (U _), Bty Int ->
-                AbsExpr.wrap_if_overflow abs mret Unsigned lv_size
-              | Bty (U _), Bty (U _) ->
-                AbsExpr.cast_if_overflows abs lv_size ret_size mret
-              | _, _ -> assert false in
-
-            let s_expr = sexpr_from_simple_expr expr in
-            (* We use [None] as minfo here, since the flow-sensitive
-               packing heuristic we use only makes sense for fully
-               inlined Jasmin programs *)
-            let abs = AbsDom.assign_sexpr abs mlv None s_expr in
-
-            (* Points-to abstraction *)
-            let ptr_expr = PtVars [rvar] in
-            let abs = AbsDom.assign_ptr_expr abs mlv ptr_expr in
-
-            (* Offset abstraction *)
-            let abs = match ty_gvar_of_mvar rvar with
-              | None -> abs
-              | Some rv ->
-                let lrv = L.mk_loc L._dummy rv in
-                (* We use [None] as minfo here, since the flow-sensitive
-                   packing heuristic we use only makes sense for fully
-                   inlined Jasmin programs *)
-                AbsExpr.aeval_offset
-                  abs out_ty mlv None
-                  (Pvar { gv = lrv; gs = Expr.Slocal;} ) in
-
-            AbsExpr.a_init_mlv_no_array mlvo abs
-
-          | Arr _ ->
-            let mret = Mtexpr.var rvar in
-
-            let lv_size = wsize_of_ty (ty_lval lv)
-            and ret_size = wsize_of_ty out_ty in
-            assert (lv_size = ret_size); (* may not be necessary *)
-
-            (* Numerical abstractions only.
-               Points-to and offset abstraction are not needed for array and 
-               array elements *)
-            AbsExpr.assign_arr_expr abs mlv mret)
+    (* TODO: check that [_out_ty] can be ignored here. *)
+    List.fold_left (fun abs (_out_ty,rexpr,(ty_lv,mlvo)) ->
+        AbsExpr.abs_assign abs ty_lv mlvo rexpr)
       
       abs ret_assigns
 
@@ -887,13 +816,18 @@ end = struct
     r
 
   let get_ret_assgns abs f_decl lvs =
-    let f_rets_no_offsets = fun_rets_no_offsets f_decl
-    and out_tys = f_decl.f_tyout
-    and mlvs = List.map (fun x ->
+    let f_rets_no_offsets = 
+      List.map (fun x ->
+          Pvar { gv = x; gs = Expr.Slocal; }
+        ) f_decl.f_ret in
+    let out_tys = f_decl.f_tyout in
+    let mlvs = List.map (fun x ->
         (* The info of [mlv] does not matter here,
            since the flow-sensitive packing heuristic we use 
            only makes sense for fully inlined Jasmin programs *)
-        (x, AbsExpr.mvar_of_lvar abs { i_instr_number = -1 }  x)) lvs in
+        (ty_lval x,
+         AbsExpr.mvar_of_lvar abs { i_instr_number = -1 }  x)
+      ) lvs in
 
     combine3 out_tys f_rets_no_offsets mlvs
 

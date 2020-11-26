@@ -10,12 +10,14 @@ open SafetyUtils
 (* Memory locations *)
 type mem_loc = MemLoc of var
 
+(* (v,ws,i) is the slice [8*i; 8*i + ws[ of v. 
+     Note that the slice offset is not scaled on the word-size. *)
+type slice = var * wsize * int
+             
 type atype =
   | Avar of var                     (* Variable *)
   | Aarray of var                   (* Array *)
-  | AarraySlice of var * wsize * int
-  (* (v,ws,i) is the slice [8*i; 8*i + ws[ of v. 
-     Note that the slice offset is not scaled on the word-size. *)
+  | AarraySlice of slice
 
 type mvar =
   | Temp of string * int * ty   (* Temporary variable *)
