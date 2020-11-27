@@ -33,7 +33,8 @@ val dummy_mvar : mvar
 (*---------------------------------------------------------------*)
 val svariables_ignore : string      -> bool
 val variables_ignore  : Apron.Var.t -> bool
-
+val mvar_ignore  : mvar -> bool
+  
 (*---------------------------------------------------------------*)
 val arr_range : 'a gty gvar -> 'a
 val arr_size  : 'a gty gvar -> wsize

@@ -494,11 +494,12 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       Pt.widening Sym.widening align_join
 
   let forget_list : t -> mvar list -> t = fun t l ->
-    let f x = AbsNum.R.forget_list x l
-    and df x = AbsNum.NR.forget_list x l
-    and f_pts x = Pt.forget_list x l
-    and fsym x = Sym.forget_list x l in
-    apply f df ident f_pts fsym ident t
+    if l = [] then t else
+      let f x = AbsNum.R.forget_list x l
+      and df x = AbsNum.NR.forget_list x l
+      and f_pts x = Pt.forget_list x l
+      and fsym x = Sym.forget_list x l in
+      apply f df ident f_pts fsym ident t
 
   let forget_bvar : t -> mvar -> t  = fun t bv ->
     let dnum = AbsNum.downgrade t.num in
@@ -685,7 +686,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       List.fold_left (fun t (v,e) ->
           assign_one force t v info e
         ) t ves
-    
+
   (* Assign a boolean expression.
      As we did in assign_sexpr, we unpopulate init *)
   let assign_bexpr t vb bexpr =
@@ -742,19 +743,21 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     apply f df ident ident fsym ident { t with bool = b; init = init }
 
   let remove_vars : t -> mvar list -> t = fun t l ->
-    let l = u8_blast_vars ~blast_arrays:true l in
-    let bvars = bool_vars l
-    and ivars = init_vars l in
-    (* We remove the variables in l *)
-    let b = Mbv.filter (fun s _ -> not (List.mem s bvars)) t.bool in
-    let init = Init.remove_vars t.init ivars in (* INIT *)
+    if l = [] then t
+    else 
+      let l = u8_blast_vars ~blast_arrays:true l in
+      let bvars = bool_vars l
+      and ivars = init_vars l in
+      (* We remove the variables in l *)
+      let b = Mbv.filter (fun s _ -> not (List.mem s bvars)) t.bool in
+      let init = Init.remove_vars t.init ivars in (* INIT *)
 
-    (* We change the environment of the underlying numerical domain *)
-    let f x = AbsNum.R.remove_vars x l
-    and df x = AbsNum.NR.remove_vars x l
-    and ptf x = Pt.forget_list x l
-    and fsym x = Sym.forget_list x l in
-    apply f df ident ptf fsym ident { t with bool = b; init = init }
+      (* We change the environment of the underlying numerical domain *)
+      let f x = AbsNum.R.remove_vars x l
+      and df x = AbsNum.NR.remove_vars x l
+      and ptf x = Pt.forget_list x l
+      and fsym x = Sym.forget_list x l in
+      apply f df ident ptf fsym ident { t with bool = b; init = init }
 
   let top_ni : t -> t = fun t ->
     let top = AbsNum.R.top_no_disj t.num in
