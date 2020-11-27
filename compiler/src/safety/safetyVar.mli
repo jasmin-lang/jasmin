@@ -37,7 +37,8 @@ val dummy_mvar : mvar
 (*---------------------------------------------------------------*)
 val svariables_ignore : string      -> bool
 val variables_ignore  : Apron.Var.t -> bool
-
+val mvar_ignore  : mvar -> bool
+  
 (*---------------------------------------------------------------*)
 val arr_range : var -> int
 val arr_size  : var -> wsize

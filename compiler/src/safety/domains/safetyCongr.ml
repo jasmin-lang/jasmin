@@ -183,7 +183,9 @@ module AbsNumCongr : AbsNumType = struct
 
   let widening _ = app2 Congr.meet
 
-  let forget_list t l = Mm.filter (fun k _ -> not (List.mem k l)) t
+  let forget_list t l =
+    if l = [] then t else
+      Mm.filter (fun k _ -> not (List.mem k l)) t
 
   let is_included a a' =
     let am =

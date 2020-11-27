@@ -95,6 +95,12 @@ let variables_ignore v =
   let vs = Var.to_string v in
   svariables_ignore vs
 
+let mvar_ignore = function
+  | MinLocal _ -> true
+  | Mlocal (AarraySlice _) -> Config.sc_arr_no_print ()
+  | Mglobal _ -> Config.sc_glob_no_print ()
+  | _ -> false
+    
 (*---------------------------------------------------------------*)
 let arr_range (v : var) : int = match v.v_ty with
   | Arr (_,i) -> i
@@ -170,14 +176,14 @@ let u8_blast_at ~blast_arrays scope at =
   let ats = match at with
     | Aarray v ->
       if blast_arrays then
-        let iws = (int_of_ws (arr_size v)) / 8 in
+        let iws = size_of_ws (arr_size v) in
         let r = arr_range v in
         let vi i = AarraySlice (v,U8,i) in
         List.init (r * iws) vi
       else [at]
 
     | AarraySlice (v,ws,j) ->
-      let iws = (int_of_ws ws) / 8 in
+      let iws = size_of_ws ws in
       let vi i = AarraySlice (v,U8,i + j) in
       List.init iws vi
     | _ -> [at]
@@ -190,10 +196,10 @@ let u8_blast_var ~blast_arrays v = match v with
   | _ -> [v]
 
 let u8_blast_ats ~blast_arrays scope ats =
-  List.flatten (List.map (u8_blast_at ~blast_arrays scope) ats)
+  List.concat_map (u8_blast_at ~blast_arrays scope) ats
 
 let u8_blast_vars ~blast_arrays vs =
-  List.flatten (List.map (u8_blast_var ~blast_arrays) vs)
+  List.concat_map (u8_blast_var ~blast_arrays) vs
 
 let rec expand_arr_vars = function
   | [] -> []

@@ -543,7 +543,9 @@ module AbsDisj (A : AbsNumProdT) : AbsDisjType = struct
 
   let widening oc = apply2 (A.widening oc)
 
-  let forget_list t l = apply (fun x -> A.forget_list x l) t
+  let forget_list t l =
+    if l = [] then t
+    else apply (fun x -> A.forget_list x l) t
 
   let is_included = eval2 (fun _ a1 a2 a3 -> a1 && a2 && a3) A.is_included
   let is_bottom = eval (fun _ a1 a2 a3 -> a1 && a2 && a3) A.is_bottom

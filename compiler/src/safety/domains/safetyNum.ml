@@ -373,11 +373,13 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
      * else  *)res
 
   let forget_list a l =
-    let l = u8_blast_vars ~blast_arrays:true l in
-    let env = Abstract1.env a in
-    let al = List.filter
-        (Environment.mem_var env) (List.map avar_of_mvar l) in
-    Abstract1.forget_array man a (Array.of_list al) false
+    if l = [] then a
+    else
+      let l = u8_blast_vars ~blast_arrays:true l in
+      let env = Abstract1.env a in
+      let al = List.filter
+          (Environment.mem_var env) (List.map avar_of_mvar l) in
+      Abstract1.forget_array man a (Array.of_list al) false
 
   let is_included a a' =
     let a,a' = lce a a' in
