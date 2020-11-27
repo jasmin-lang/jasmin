@@ -575,7 +575,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       
       let t = match info with
         | None -> t
-        | Some info -> { t with num = AbsNum.R.dom_st_update t.num v info; } in
+        | Some info -> { t with num = AbsNum.R.dom_st_update t.num [v] info; } in
       
       let constr_expr_list =
         List.map (fun (bexpr_list, expr) ->
@@ -646,9 +646,8 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     let num = match info with
       | None -> t.num
       | Some info ->
-        List.fold_left (fun num (v,_) ->
-            AbsNum.R.dom_st_update num v info
-          ) t.num ves in
+        let vs = List.map fst ves in
+        AbsNum.R.dom_st_update t.num vs info in
     let t = { t with num = num } in
 
     apply

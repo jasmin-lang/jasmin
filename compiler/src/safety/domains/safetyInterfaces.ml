@@ -86,9 +86,9 @@ module type AbsNumProdT = sig
   val set_rel   : t -> mvar -> t
   val set_unrel : t -> mvar -> t
 
-  (* [dom_st_update a x info] updates the packing partition to prepare for
-     the assignment [x <- ...]. *)
-  val dom_st_update : t -> mvar -> minfo -> t
+  (* [dom_st_update a xs info] updates the packing partition to prepare for
+     the assignments of variables [xs]. *)
+  val dom_st_update : t -> mvar list -> minfo -> t
 end
 
 
