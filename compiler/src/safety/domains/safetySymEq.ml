@@ -196,7 +196,7 @@ module SymExprImpl : SymExpr = struct
     let t = b_remove t v in
     { t with vsym = Mm.remove v t.vsym }
       
-  let assign_expr ?force:(force=false) t v e =
+  let assign_expr_one force t (v,e) =
     let t = v_clear t v in
     if weak_update v && not force
     then t
@@ -204,6 +204,9 @@ module SymExprImpl : SymExpr = struct
     (* We add the binding [v ↦ e] *)
     else { t with vsym = Mm.add v e t.vsym }
 
+  let assign_expr ?force:(force=false) t ves =
+    List.fold_left (assign_expr_one force) t ves
+    
   let assign_bexpr t v btcons =
     let t = v_clear t v in
     match btcons with

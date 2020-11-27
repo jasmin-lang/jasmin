@@ -526,13 +526,13 @@ end = struct
       let abs = AbsDom.change_environment abs f_vars in
 
       (* We keep track of the initial values. *)
-      let abs = List.fold_left2 (fun abs x oy -> match oy with
-          | None -> abs
+      let ves = List.fold_left2 (fun ves x oy -> match oy with
+          | None -> ves
           | Some y ->
-            let sexpr = Mtexpr.var x
-                        |> sexpr_from_simple_expr in
-            AbsDom.assign_sexpr abs y None sexpr)
-          abs f_args f_in_args in
+            let sexpr = sexpr_from_simple_expr (Mtexpr.var x) in
+            (y, sexpr) :: ves)
+          [] f_args f_in_args in
+      let abs = AbsDom.assign_sexpr abs None ves in
 
       let state = { it = it;
                     abs = abs;
@@ -636,7 +636,7 @@ end = struct
             let ws_plus_e = Mtexpr.binop Texpr1.Add c_ws lin_e in
             let sexpr = Mtexpr.binop Texpr1.Add x_o ws_plus_e
                         |> sexpr_from_simple_expr in
-            let abs = AbsDom.assign_sexpr abs (MmemRange pt) None sexpr in
+            let abs = AbsDom.assign_sexpr abs None [MmemRange pt, sexpr] in
             
             ( abs,
               violations,
@@ -1679,10 +1679,9 @@ end = struct
           match ni_e with
             | None -> state
             | Some nie ->
-              { state with 
-                abs = AbsDom.assign_sexpr state.abs
-                                 mvar_ni None
-                                 (sexpr_from_simple_expr nie) } in
+              let sexpr = sexpr_from_simple_expr nie in
+              let abs = AbsDom.assign_sexpr state.abs None [mvar_ni, sexpr] in
+              { state with abs = abs } in
 
         (* Unroll one time the loop. *)
         let unroll_once state = eval_body (enter_loop state) state in
@@ -1803,7 +1802,7 @@ end = struct
                                   |> sexpr_from_simple_expr in
                 let abs = 
                   AbsDom.assign_sexpr
-                    state.abs mvari (Some ginstr.i_info) expr_ci in
+                    state.abs (Some ginstr.i_info) [mvari, expr_ci] in
 
                 let state =
                   { state with

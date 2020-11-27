@@ -496,66 +496,66 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
 
     | _ -> add_single v env
 
-  (* Relational assignment. *)
-  let assign_expr_rel force a v e =
-    (* We use a different variable for each occurrence of weak variables *)
-    let map,e = Mtexpr.weak_transf Mm.empty e in
-
-    let a = add_weak_cp a map in
-    (* We do the same for the variable receiving the assignment *)
-    let v_weak = weak_update v && not force in
-    let a,v_cp = if v_weak then
-        let v_cp = Temp ("weaklv_" ^ string_of_mvar v,0, ty_mvar v) in
-        (expand a v [v_cp], v_cp)
-      else (a, v) in
-    (* If v is not in the environment, we add it *)
-    let env = env_add_mvar (Abstract1.env a) v_cp in
-
-    (* We add the variables in mexpr to the environment *)
-    let env = prepare_env env e in
-    let a = Abstract1.change_environment man a env false in
-    let e' = Mtexpr.to_aexpr e env in
-
-    let a = Abstract1.assign_texpr man a (avar_of_mvar v_cp) e' None in
-
-    (* We fold back the added variables *)
-    let a = rem_weak_cp a map in
-    if v_weak then fold a [v; v_cp] else a
-
-
-  (* Forced non relational assignment *)
-  let assign_expr_norel force a v e =
-    (* We do a copy of v if we do a weak assignment *)
-    let v_weak = weak_update v && not force in
-    let a,v_cp = if v_weak then
-        let v_cp = Temp ("weaklv_" ^ string_of_mvar v,0, ty_mvar v) in
-        (expand a v [v_cp], v_cp)
-      else (a, v) in
-
-    (* If v is not in the environment, we add it *)
-    let env = env_add_mvar (Abstract1.env a) v_cp in
-    let a = Abstract1.change_environment man a env false in
-
-    let int = Coeff.Interval (bound_texpr a e) in
-    let eint = Texpr1.cst env int in
-
-    let a = Abstract1.assign_texpr man a (avar_of_mvar v_cp) eint None in
-
-    (* We fold back v, if needed *)
-    if v_weak then fold a [v; v_cp] else a
-
   let e_complex e =
     (is_relational ()) && (Mtexpr.contains_mod e)
 
   let es_complex es = List.exists e_complex es
 
-  (* If the domain is relational, and if e contains a modulo, then we just
-     return the interval of variations of e (i.e. we forget all relations
-     between v_cp and the other variables). *)
-  let assign_expr_aux force a v e =
-    if e_complex e then
-      assign_expr_norel force a v e
-    else assign_expr_rel force a v e
+  (* Relational assignment. *)
+  let assign_expr_aux force a vs es =
+    (* We use a different variable for each occurrence of weak variables *)
+    let map,es = List.fold_left (fun (map,acc) e ->
+        let map,e = Mtexpr.weak_transf map e in
+        map, e :: acc)
+        (Mm.empty,[]) es in 
+    let es = List.rev es in
+    let a = add_weak_cp a map in
+
+    (* We do the same for the variables receiving the assignments *)
+    let a, v_weaks, v_copies = List.fold_left (fun (a,v_weaks,v_copies) v ->
+        let v_weak = weak_update v && not force in
+        if v_weak then
+          let v_cp = Temp ("weaklv_" ^ string_of_mvar v,0, ty_mvar v) in
+          ( expand a v [v_cp], v_weak :: v_weaks, v_cp :: v_copies )
+        else
+          ( a, v_weak :: v_weaks, v :: v_copies ) 
+      ) (a,[],[]) vs in
+    let v_copies = List.rev v_copies in
+    let v_weaks = List.rev v_weaks in
+    
+    (* If v_copies are not in the environment, we add them *)
+    let env = List.fold_left (fun env v_cp ->
+        env_add_mvar env v_cp
+      ) (Abstract1.env a) v_copies in 
+
+    (* We add the variables in the expressions to the environment *)
+    let env = List.fold_left (fun env e ->
+        prepare_env env e
+      ) env es in
+    let a = Abstract1.change_environment man a env false in
+
+    (* If the domain is relational, and if e contains a modulo, then we just
+       return the interval of variations of e (i.e. we forget all relations
+       between v_cp and the other variables). *)
+    let es = List.map (fun e -> 
+        if e_complex e then
+          let int = Coeff.Interval (bound_texpr a e) in
+          Texpr1.cst env int 
+        else Mtexpr.to_aexpr e env
+      ) es in
+
+    let v_copies_arr = List.map avar_of_mvar v_copies
+                   |> Array.of_list in
+    let es_arr = Array.of_list es in
+
+    (* We do the assignment *)
+    let a = Abstract1.assign_texpr_array man a v_copies_arr es_arr None in
+
+    (* We fold back the added variables *)
+    let a = rem_weak_cp a map in
+    fold_left3 (fun a v v_weak v_cp ->
+        if v_weak then fold a [v; v_cp] else a
+      ) a vs v_weaks v_copies
 
 
   (* Return the j-th term of the expression e seen in base b = 2^8:
@@ -568,22 +568,28 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
     (* e1 / b^j) mod b *)
     Mtexpr.binop Texpr1.Mod ( Mtexpr.binop Texpr1.Div e1 bj) b
 
-  (* If force is true then we do a forced strong update on v. *)
-  let assign_expr ?force:(force=false) a v e = match v with
-    | Mglobal (AarraySlice (gv,ws,offset)) 
-    | Mlocal  (AarraySlice (gv,ws,offset)) ->
-      List.fold_left (fun a j ->
-          let p = offset + j in
-          let mvj = AarraySlice (gv, U8, p) in
-          let mvj = match v with
-            | Mglobal _ -> Mglobal mvj
-            | Mlocal  _ -> Mlocal mvj
-            |         _ -> assert false in
-          let mej = get_block e j in
-          assign_expr_aux force a mvj mej)
-        a (List.init ((int_of_ws ws) / 8) (fun j -> j))
-
-    | _ -> assign_expr_aux force a v e
+  let assign_expr ?force:(force=false) a ves =
+    let prepare (v,e) = match v with
+      | Mglobal (AarraySlice (gv,ws,offset)) 
+      | Mlocal  (AarraySlice (gv,ws,offset)) ->
+        List.fold_right (fun j ves ->
+            let p = offset + j in
+            let mvj = AarraySlice (gv, U8, p) in
+            let mvj = match v with
+              | Mglobal _ -> Mglobal mvj
+              | Mlocal  _ -> Mlocal mvj
+              |         _ -> assert false in
+            let mej = get_block e j in
+            (mvj,mej) :: ves
+          )
+          (List.init (size_of_ws ws) (fun j -> j))
+          []          
+      | _ -> [v, e]
+    in
+    
+    let ves = List.concat_map prepare ves in
+    let vs,es = List.split ves in
+    assign_expr_aux force a vs es
 
   module PP = PP(Manager)
       

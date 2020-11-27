@@ -564,10 +564,9 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
   (* Assign an expression given by a list of constrained expressions.
      We do not touch init, points_to and alignment there, this has to
      be done by manualy by the caller.  
-     We unpopulate init to be faster. This is sound if the evaluation of an
-     expression neither modifies init not depend on it. *)
-  let assign_sexpr : ?force:bool -> t -> mvar -> minfo option -> s_expr -> t =
-    fun ?force:(force=false) t v info s_expr ->
+     We unpopulate init to be faster. *)
+  let assign_one : bool -> t -> mvar -> minfo option -> s_expr -> t =
+    fun force t v info s_expr ->
       let s_init  = t.init 
       and s_align = t.alignment in
       let points_to_init = t.points_to in
@@ -597,8 +596,8 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
                   apply (AbsNum.R.meet c) (AbsNum.NR.meet dc)
                     ident ident ident ident t in
               apply
-                (fun x -> AbsNum.R.assign_expr ~force:force x v e)
-                (fun x -> AbsNum.NR.assign_expr ~force:force x v e)
+                (fun x -> AbsNum.R.assign_expr ~force:force x [v,e])
+                (fun x -> AbsNum.NR.assign_expr ~force:force x [v,e])
                 ident ident ident ident t'
 
             | None ->
@@ -629,7 +628,8 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
       (* If we have only one assignment in [s_expr], we add the symbolic
          equality. *)
       let sym = match s_expr with
-        | [_, Some e] -> Sym.assign_expr ~force:force t.sym v e
+        (* FIXME: shouldn't it be [[],Some e] in the first case of the match ? *)
+        | [_, Some e] -> Sym.assign_expr ~force:force t.sym [v, e]
         | _ -> Sym.forget_list t.sym [v] in
       
       { bool      = join_map b_list;
@@ -639,6 +639,53 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
         sym       = sym;
         alignment = s_align; }
 
+  (* Batched assignmnents of simple expressions (no conditions). *)
+  let assign_mult : bool -> t -> minfo option -> (mvar * Mtexpr.t) list -> t =
+    fun force t info ves ->     
+    let num = match info with
+      | None -> t.num
+      | Some info ->
+        List.fold_left (fun num (v,_) ->
+            AbsNum.R.dom_st_update num v info
+          ) t.num ves in
+    let t = { t with num = num } in
+
+    apply
+      (fun x -> AbsNum.R.assign_expr ~force:force x ves)
+      (fun x -> AbsNum.NR.assign_expr ~force:force x ves)
+      ident (* Init *)
+      ident (* Points-to *)
+      (fun x -> Sym.assign_expr ~force:force x ves) 
+      ident (* Alignment *)
+      t
+
+
+  let assign_sexpr
+    : ?force:bool -> t -> minfo option -> (mvar * s_expr) list -> t =
+    fun ?force:(force=false) t info ves ->
+    let is_simple = function
+      | _,[] -> assert false
+      | _,[[],_] -> true        
+      | _ -> false in
+
+    (* If the expressions are simple, we do a batched assignment. *)
+    if List.for_all is_simple ves then
+      let ves = List.map (fun (v,e) -> match e with
+          | [[], e] -> v,e
+          | _ -> assert false
+        ) ves in     
+      let ves, vforget =
+        List.fold_left (fun (ves,vforget) (v,e) -> match e with
+            | None   ->          ves, v :: vforget
+            | Some e -> (v,e) :: ves,      vforget
+          ) ([],[]) ves in
+      let t = assign_mult force t info ves in
+      forget_list t vforget
+    else
+      List.fold_left (fun t (v,e) ->
+          assign_one force t v info e
+        ) t ves
+    
   (* Assign a boolean expression.
      As we did in assign_sexpr, we unpopulate init *)
   let assign_bexpr t vb bexpr =

@@ -842,15 +842,13 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
 
   let set_zeros f_args abs =
-    List.fold_left (fun abs v -> match v with
+    let ves = List.filter_map (fun v -> match v with
         | MvarOffset _ | MmemRange _ ->
           let z_expr = Mtexpr.cst (Coeff.s_of_int 0) in
           let z_sexpr = sexpr_from_simple_expr z_expr in
-
-          AbsDom.assign_sexpr ~force:true abs v None z_sexpr
-        | _ -> abs)
-      abs f_args
-
+          Some (v,z_sexpr)
+        | _ -> None) f_args in
+    AbsDom.assign_sexpr ~force:true abs None ves
 
   let bound_warning gv ws fmt =
     Format.fprintf fmt
@@ -929,28 +927,30 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
               | None -> warns
               | Some warn -> warn :: warns in
 
-            (AbsDom.assign_sexpr abs v None z_sexpr, warns)
+            (AbsDom.assign_sexpr abs None [v,z_sexpr], warns)
           else (abs, warns))
         (abs, []) f_args source_f_args
     in
     abs, warns
 
   let apply_glob (globs : global_decl list) abs =
-    List.fold_left (fun abs (v,glob_val) ->
+    let ves = List.concat_map (fun (v,glob_val) ->
         match glob_val with
         | Global.Gword (ws,i) ->
           let sexpr = mtexpr_of_bigint (Conv.bi_of_word ws i)
                       |> sexpr_from_simple_expr in
-          AbsDom.assign_sexpr abs (mvar_of_scoped_var Expr.Sglob v) None sexpr
+          [mvar_of_scoped_var Expr.Sglob v, sexpr]
         | Global.Garr (p, t) ->
           let ws, arr = Conv.to_array v.v_ty p t in
-          List.fold_lefti (fun abs j w ->
+          List.mapi (fun j w ->
               let sexpr = sexpr_from_simple_expr (mtexpr_of_bigint w) in
               let offset = access_offset Warray_.AAscale ws j in
               let mv = Mglobal (AarraySlice (v, ws, offset)) in
-              AbsDom.assign_sexpr abs mv None sexpr
-            ) abs (Array.to_list arr)
-      ) abs globs
+              (mv,sexpr)
+            ) (Array.to_list arr)
+      ) globs
+    in
+    AbsDom.assign_sexpr abs None ves
 
 
   (*-------------------------------------------------------------------------*)
@@ -987,29 +987,23 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
       MLasub (loc, msub)
 
-  
-  let apply_offset_expr abs outmv info (inv : int ggvar) offset_expr =
+  let apply_offset_expr abs outv info (inv : int ggvar) offset_expr =
     (* Global variable cannot alias to a input pointer. *)
     assert (inv.gs = Expr.Slocal);
     let inv = L.unloc inv.gv in
-    match ty_gvar_of_mvar outmv with
-    | None -> abs
-    | Some outv ->
-      let inv_os = Mtexpr.var (MvarOffset inv) in
+    let inv_os = Mtexpr.var (MvarOffset inv) in
+    
+    let off_e = linearize_wexpr abs offset_expr
+    and e_ws = ws_of_ty (ty_expr offset_expr) in
+    let wrap_off_e = wrap_if_overflow abs off_e Unsigned (int_of_ws e_ws) in
 
-      let off_e = linearize_wexpr abs offset_expr
-      and e_ws = ws_of_ty (ty_expr offset_expr) in
-      let wrap_off_e = wrap_if_overflow abs off_e Unsigned (int_of_ws e_ws) in
+    let sexpr =
+      Mtexpr.binop Texpr1.Add inv_os wrap_off_e
+      |> sexpr_from_simple_expr in
 
-      let sexpr =
-        Mtexpr.binop Texpr1.Add inv_os wrap_off_e
-        |> sexpr_from_simple_expr in
+    AbsDom.assign_sexpr abs info [MvarOffset outv, sexpr]
 
-      AbsDom.assign_sexpr abs (MvarOffset outv) info sexpr
-
-  let aeval_top_offset abs outmv = match ty_gvar_of_mvar outmv with
-    | Some outv -> AbsDom.forget_list abs [MvarOffset outv]
-    | None -> abs
+  let aeval_top_offset abs outv = AbsDom.forget_list abs [MvarOffset outv]
 
   let valid_offset_var abs ws_o y =
     if ws_o = Bty (U (U64)) then
@@ -1019,22 +1013,24 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     else false
 
   (* Evaluate the offset abstraction *)
-  let aeval_offset abs ws_o outmv info e = match e with
-    | Pvar y ->
+  let aeval_offset abs ws_o outmv info e =
+    match ty_gvar_of_mvar outmv, e with
+    | None, _ -> abs
+    | Some outv, Pvar y ->
       if valid_offset_var abs ws_o y then
         let o = pcast U64 (Pconst(B.of_int 0)) in
-        apply_offset_expr abs outmv info y o
-      else aeval_top_offset abs outmv
+        apply_offset_expr abs outv info y o
+      else aeval_top_offset abs outv
 
-    | Papp2 (op2,el,er) -> begin match op2,el with
+    | Some outv, Papp2 (op2,el,er) -> begin match op2,el with
         | E.Oadd ( E.Op_w U64), Pvar y ->
           if valid_offset_var abs ws_o y then
-            apply_offset_expr abs outmv info y er
-          else aeval_top_offset abs outmv
+            apply_offset_expr abs outv info y er
+          else aeval_top_offset abs outv
 
-        | _ -> aeval_top_offset abs outmv end
+        | _ -> aeval_top_offset abs outv end
 
-    | _ -> aeval_top_offset abs outmv
+    | Some outv, _ -> aeval_top_offset abs outv
 
   (* Initialize variable or array elements. *)
   let a_init_mv_no_array mv abs = match mv with
@@ -1069,7 +1065,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
     | _ -> assert false
 
-  let assign_slice_aux abs (lhs : msub) (rhs : msub) =
+  let assign_slice_aux a (lhs : msub) (rhs : msub) =
     assert (lhs.ms_sc = Expr.Slocal);
     (* We check that [rhs] is larger than [lhs] *)
     assert (slice_subtype lhs rhs); 
@@ -1077,26 +1073,32 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     let rgv = rhs.ms_v in
     let ws, len = lhs.ms_ws, lhs.ms_len in
     (* We do the copy *)
-    List.fold_left (fun abs i ->
+
+    let vevs = List.map (fun i ->
         let i = access_offset Warray_.AAscale ws i in
         let vi  = Mlocal (AarraySlice (lgv,ws,lhs.ms_offset + i))  in
         (* [rhs.ms_offset] is not to be scaled on the word size. *)
         let eiv = Mlocal (AarraySlice (rgv,ws,rhs.ms_offset + i)) in
-        let ei = Mtexpr.var eiv
-                 |> sexpr_from_simple_expr in
+        (vi, eiv)
+      ) (List.init len (fun i -> i)) in
 
-        (* Numerical abstraction *)
-        let abs = AbsDom.assign_sexpr abs vi None ei in
+    let ves = List.map (fun (v,eiv) ->
+        let ei = sexpr_from_simple_expr (Mtexpr.var eiv) in
+        (v, ei)
+      ) vevs in
 
-        (* Initialization *)
+    (* Numerical abstraction *)
+    let a = AbsDom.assign_sexpr a None ves in
+
+    (* Initialization *)
+    List.fold_left (fun a (vi,eiv) ->
         List.fold_left2 (fun a vi eiv -> match rhs.ms_sc with
             | Expr.Slocal -> AbsDom.copy_init a vi eiv
             | Expr.Sglob  -> AbsDom.is_init a (get_at vi))
-          abs
+          a
           (u8_blast_var ~blast_arrays:true vi)
           (u8_blast_var ~blast_arrays:true eiv)
-      ) abs (List.init len (fun i -> i))
-  
+      ) a vevs  
 
   (* Array slice assignment. Does the numerical assignments.
      Remark: array elements do not need to be tracked in the point-to
@@ -1122,6 +1124,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
   (* Abstract evaluation of an assignment. 
      Also handles variable initialization. *)
+  (* FIXME: allow batched assignments *)
   let abs_assign : AbsDom.t -> 'a gty -> mlvar -> expr -> AbsDom.t =
     fun abs out_ty out_mvar e ->
       assert (not (omvar_is_offset out_mvar));
@@ -1137,7 +1140,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         let lv_s = wsize_of_ty out_ty in
         let s_expr = linearize_if_expr lv_s e abs in
         let abs0 = abs in
-        let abs = AbsDom.assign_sexpr abs mvar (Some loc) s_expr in
+        let abs = AbsDom.assign_sexpr abs (Some loc) [mvar, s_expr] in
 
         (* Points-to abstraction *)
         let ptr_expr = ptr_expr_of_expr abs0 e in

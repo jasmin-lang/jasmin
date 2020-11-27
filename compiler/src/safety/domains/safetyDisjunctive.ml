@@ -591,8 +591,8 @@ module AbsDisj (A : AbsNumProdT) : AbsDisjType = struct
     eval (fun _ -> box_join) (fun x -> A.bound_texpr x e |> box_of_int ) t
     |> int_of_box
 
-  let assign_expr ?force:(force=false) (t : t) (v : mvar) (e : Mtexpr.t) =
-    apply (fun x -> A.assign_expr ~force:force x v e) t
+  let assign_expr ?force:(force=false) (t : t) (ves : (mvar * Mtexpr.t) list) =
+    apply (fun x -> A.assign_expr ~force:force x ves) t
 
   let meet_constr t c = apply (fun x -> A.meet_constr x c) t
   let meet_constr_list t cs = apply (fun x -> A.meet_constr_list x cs) t

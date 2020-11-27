@@ -19,6 +19,9 @@ val obind2 : ('a -> 'b -> 'c option) -> 'a option -> 'b option -> 'c option
 
 val assoc_up : 'a -> ('b -> 'b) -> ('a * 'b) list -> ('a * 'b) list
 val combine3 : 'a list -> 'b list -> 'c list -> ('a * 'b * 'c) list
+val fold_left3 :
+  ('a -> 'b -> 'c -> 'd -> 'a) ->
+  'a -> 'b list -> 'c list -> 'd list -> 'a
 
 (*---------------------------------------------------------------*)
 type analyzer_param = {

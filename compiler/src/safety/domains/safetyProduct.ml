@@ -104,7 +104,7 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
       let e = Mtexpr.cst (Coeff.Interval int) in
 
       let appl = Mdom.find (Ppl 0) t.ppl in
-      let appl = PplDom.assign_expr appl v e in
+      let appl = PplDom.assign_expr appl [v, e] in
 
       let anrd = NonRel.remove_vars anrd [v] in
       
@@ -130,7 +130,7 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
       let e = Mtexpr.cst (Coeff.Interval int) in
 
       let anrd = Mdom.find (Nrd 0) t.nrd in
-      let anrd = NonRel.assign_expr anrd v e in
+      let anrd = NonRel.assign_expr anrd [v,e] in
 
       let appl = PplDom.remove_vars appl [v] in
 
@@ -332,20 +332,26 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
     PplDom.bound_texpr (Mdom.find (Ppl 0) a.ppl) p_e
 
   (* If force is true then we do a forced strong update on v. *)
-  let assign_expr ?force:(force=false) a v (e : Mtexpr.t) =
-    let d = vdom v a.dom_st in
-    let p_e = proj_expr a d e in
-    match d with
-    | Nrd _ ->
-      let d_a = Mdom.find d a.nrd in
-      let d_a' = NonRel.assign_expr ~force:force d_a v p_e in
-      { a with nrd = Mdom.add d d_a' a.nrd }
+  let assign_expr ?force:(force=false) a (ves : (mvar * Mtexpr.t) list) =
+    (* We split the assignments according to the domain. *)
+    let part = List.fold_left (fun part (v,e) ->
+        let d = vdom v a.dom_st in
+        let p_e = proj_expr a d e in
+        let class_d = Mdom.find_default [] d part in
+        Mdom.add d ((v,p_e) :: class_d) part
+      ) Mdom.empty ves in
 
-    | Ppl _ ->
-      let d_a = Mdom.find d a.ppl in
-      let d_a' = PplDom.assign_expr ~force:force d_a v p_e in
-      { a with ppl = Mdom.add d d_a' a.ppl }
+    Mdom.fold (fun d ves a -> match d with
+        | Nrd _ ->
+          let d_a = Mdom.find d a.nrd in
+          let d_a = NonRel.assign_expr ~force:force d_a ves in
+          { a with nrd = Mdom.add d d_a a.nrd }
 
+        | Ppl _ ->
+          let d_a = Mdom.find d a.ppl in
+          let d_a = PplDom.assign_expr ~force:force d_a ves in
+          { a with ppl = Mdom.add d d_a a.ppl }
+      ) part a
 
   let meet_constr_list a cs =
     let f1 d x = NonRel.meet_constr_list x (List.map (proj_constr a d) cs)
@@ -843,9 +849,9 @@ module ReducedProd (P : RProdParam) : AbsDisjType = struct
     let i1, i2 = A.bound_texpr a e, B.bound_texpr b e in
     interval_meet i1 i2
   
-  let assign_expr ?force:(force=false) t v e =
-    app (fun x -> A.assign_expr ~force:force x v e)
-        (fun x -> B.assign_expr ~force:force x v e) t
+  let assign_expr ?force:(force=false) t ves =
+    app (fun x -> A.assign_expr ~force:force x ves)
+        (fun x -> B.assign_expr ~force:force x ves) t
       
   let meet_constr t c =
     app (fun x -> A.meet_constr x c)
