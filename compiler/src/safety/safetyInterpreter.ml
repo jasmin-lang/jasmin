@@ -264,7 +264,7 @@ let rec safe_e_rec safe = function
 
   | Psub (access, ws, len, x, e) ->
     in_bound    x.gv access ws e len @
-    init_get    x.gv access ws e len @
+    (* Remark that we do not have to check initialization for sub-arrays. *)
     (* Note that the length is scaled with the word-size, so we only
        need to check that the offset w.r.t. the base is aligned. *)
     arr_aligned (* x.gv *) access ws e @

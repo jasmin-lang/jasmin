@@ -46,18 +46,17 @@ let msub_of_arr gv sc =
   check_msubo msub;
   msub
 
-
 (*-------------------------------------------------------------------------*)
 (* TODO: fix [ToEC.ty_expr] and use it here instead*)
-  let rec ty_expr = function
-    | Psub (_,ws,len,_,_) -> Arr (ws,len)
-    | a -> ToEC.ty_expr a
+let rec ty_expr = function
+  | Psub (_,ws,len,_,_) -> Arr (ws,len)
+  | a -> ToEC.ty_expr a
 
 (* TODO: fix [ToEC.ty_lval] and use it here instead*)
-  let rec ty_lval = function
-    | Lasub (_,ws,len,_,_) -> Arr (ws,len)
-    | a -> ToEC.ty_lval a
-
+let rec ty_lval = function
+  | Lasub (_,ws,len,_,_) -> Arr (ws,len)
+  | a -> ToEC.ty_lval a
+           
 (*-------------------------------------------------------------------------*)
 let get_wsize = function
   | Type.Coq_sword sz -> sz
@@ -1072,8 +1071,8 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     let lgv = lhs.ms_v in
     let rgv = rhs.ms_v in
     let ws, len = lhs.ms_ws, lhs.ms_len in
-    (* We do the copy *)
 
+    (* We do the copy *)
     let vevs = List.map (fun i ->
         let i = access_offset Warray_.AAscale ws i in
         let vi  = Mlocal (AarraySlice (lgv,ws,lhs.ms_offset + i))  in

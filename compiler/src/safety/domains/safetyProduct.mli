@@ -7,7 +7,7 @@ open SafetyInterfaces
 
 type v_dom = Nrd of int | Ppl of int
 
-type dom_st = v_dom Mm.t
+type dom_st
     
 module type VDomWrap = sig
   (* Associate a domain (ppl or non-relational) to every variable.
@@ -20,9 +20,9 @@ module type VDomWrap = sig
   (* Initial state. *)
   val dom_st_init : dom_st
 
-  (* [dom_st_update dom_st x info] updates the packing partition to prepare for
-     the assignment [x <- ...]. *)
-  val dom_st_update : dom_st -> mvar -> minfo -> dom_st
+  (* [dom_st_update dom_st xs info] updates the packing partition to prepare for
+     the assignments of variables xs. *)
+  val dom_st_update : dom_st -> mvar list -> minfo -> dom_st
 
   val merge_dom : dom_st -> dom_st -> dom_st
   val fold_dom_st : (mvar -> v_dom -> 'a -> 'a) -> dom_st -> 'a -> 'a

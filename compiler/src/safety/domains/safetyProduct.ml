@@ -48,9 +48,9 @@ module type VDomWrap = sig
   (* Initial state. *)
   val dom_st_init : dom_st
 
-  (* [dom_st_update dom_st x info] updates the packing partition to prepare for
-     the assignment [x <- ...]. *)
-  val dom_st_update : dom_st -> mvar -> minfo -> dom_st
+  (* [dom_st_update dom_st xs info] updates the packing partition to prepare for
+     the assignments of variables [xs]. *)
+  val dom_st_update : dom_st -> mvar list -> minfo -> dom_st
 
   val merge_dom : dom_st -> dom_st -> dom_st
   val fold_dom_st : (mvar -> v_dom -> 'a -> 'a) -> dom_st -> 'a -> 'a
@@ -224,8 +224,8 @@ module AbsNumProd (VDW : VDomWrap) (NonRel : AbsNumType) (PplDom : AbsNumType)
       ) dom_st a in
     { a with dom_st = dom_st }
 
-  let dom_st_update t v info =
-    let dom_st = VDW.dom_st_update t.dom_st v info in
+  let dom_st_update t vs info =
+    let dom_st = VDW.dom_st_update t.dom_st vs info in
     repack t dom_st
 
   (* Unify two abstract values with maybe different domain states. *)
@@ -708,7 +708,7 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
               pp_dom old_dom
               pp_dom dom)
 
-  let dom_st_update dom_st v info =
+  let dom_st_update_one dom_st v info =
     try
       match v with
       | MvarOffset _ | Mlocal (Avar _) ->
@@ -723,6 +723,11 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
       | _ -> dom_st
     with Not_found -> dom_st
 
+  let dom_st_update dom_st vs info =
+    List.fold_left (fun dom_st v ->
+        dom_st_update_one dom_st v info
+      ) dom_st vs
+    
   (* Arrays and array elements must always be non-relational. 
      We do not use the state in this heuristic *)
   let vdom (v : mvar) (dom_st : dom_st) = match v with
