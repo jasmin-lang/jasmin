@@ -1,7 +1,6 @@
 open Utils
 open Prog
 open Apron
-open ToEC
 open Wsize
 
 open SafetyProf

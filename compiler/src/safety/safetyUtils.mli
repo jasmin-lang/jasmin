@@ -2,7 +2,11 @@ open Prog
 open Apron
 
 module Config = SafetyConfig
-  
+
+(*---------------------------------------------------------------*)
+val ty_expr : Prog.expr -> Prog.ty
+val ty_lval : Prog.lval -> Prog.ty
+
 (*---------------------------------------------------------------*)
 exception Aint_error of string
 

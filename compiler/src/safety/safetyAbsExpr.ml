@@ -46,16 +46,6 @@ let msub_of_arr gv sc =
   check_msubo msub;
   msub
 
-(*-------------------------------------------------------------------------*)
-(* TODO: fix [ToEC.ty_expr] and use it here instead*)
-let rec ty_expr = function
-  | Psub (_,ws,len,_,_) -> Arr (ws,len)
-  | a -> ToEC.ty_expr a
-
-(* TODO: fix [ToEC.ty_lval] and use it here instead*)
-let rec ty_lval = function
-  | Lasub (_,ws,len,_,_) -> Arr (ws,len)
-  | a -> ToEC.ty_lval a
            
 (*-------------------------------------------------------------------------*)
 let get_wsize = function
