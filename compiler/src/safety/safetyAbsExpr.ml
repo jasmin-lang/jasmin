@@ -755,15 +755,13 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
 
   let set_zeros f_args abs =
-    List.fold_left (fun abs v -> match v with
+    let ves = List.filter_map (fun v -> match v with
         | MvarOffset _ | MmemRange _ ->
           let z_expr = Mtexpr.cst (Coeff.s_of_int 0) in
           let z_sexpr = sexpr_from_simple_expr z_expr in
-
-          AbsDom.assign_sexpr ~force:true abs v None z_sexpr
-        | _ -> abs)
-      abs f_args
-
+          Some (v,z_sexpr)
+        | _ -> None) f_args in
+    AbsDom.assign_sexpr ~force:true abs None ves
 
   let bound_warning gv ws fmt =
     Format.fprintf fmt
@@ -842,7 +840,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
               | None -> warns
               | Some warn -> warn :: warns in
 
-            (AbsDom.assign_sexpr abs v None z_sexpr, warns)
+            (AbsDom.assign_sexpr abs None [v,z_sexpr], warns)
           else (abs, warns))
         (abs, []) f_args source_f_args
     in
@@ -850,10 +848,11 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
 
   let apply_glob globs abs =
-    List.fold_left (fun abs (ws,n,i) ->
+    let ves = List.map (fun (ws,n,i) ->
         let sexpr = mtexpr_of_bigint i |> sexpr_from_simple_expr in
-        AbsDom.assign_sexpr abs (Mglobal (n, Bty (U ws))) None sexpr)
-      abs globs
+        (Mglobal (n, Bty (U ws)), sexpr)
+      ) globs in
+    AbsDom.assign_sexpr abs None ves
 
 
   (*-------------------------------------------------------------------------*)
@@ -869,25 +868,20 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       | [mv] -> MLvar (loc, mv)
       | _ as mvs -> MLvars (loc, mvs)
 
-  let apply_offset_expr abs outmv info inv offset_expr =
-    match ty_gvar_of_mvar outmv with
-    | None -> abs
-    | Some outv ->
-      let inv_os = Mtexpr.var (MvarOffset inv) in
+  let apply_offset_expr abs outv info inv offset_expr =
+    let inv_os = Mtexpr.var (MvarOffset inv) in
 
-      let off_e = linearize_wexpr abs offset_expr
-      and e_ws = ws_of_ty (ty_expr offset_expr) in
-      let wrap_off_e = wrap_if_overflow abs off_e Unsigned (int_of_ws e_ws) in
+    let off_e = linearize_wexpr abs offset_expr
+    and e_ws = ws_of_ty (ty_expr offset_expr) in
+    let wrap_off_e = wrap_if_overflow abs off_e Unsigned (int_of_ws e_ws) in
 
-      let sexpr =
-        Mtexpr.binop Texpr1.Add inv_os wrap_off_e
-        |> sexpr_from_simple_expr in
+    let sexpr =
+      Mtexpr.binop Texpr1.Add inv_os wrap_off_e
+      |> sexpr_from_simple_expr in
 
-      AbsDom.assign_sexpr abs (MvarOffset outv) info sexpr
+    AbsDom.assign_sexpr abs info [MvarOffset outv, sexpr]
 
-  let aeval_top_offset abs outmv = match ty_gvar_of_mvar outmv with
-    | Some outv -> AbsDom.forget_list abs [MvarOffset outv]
-    | None -> abs
+  let aeval_top_offset abs outv = AbsDom.forget_list abs [MvarOffset outv]
 
   let valid_offset_var abs ws_o y =
     if ws_o = Bty (U (U64)) then
@@ -897,22 +891,24 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     else false
 
   (* Evaluate the offset abstraction *)
-  let aeval_offset abs ws_o outmv info e = match e with
-    | Pvar y ->
+  let aeval_offset abs ws_o outmv info e =
+    match ty_gvar_of_mvar outmv, e with
+    | None, _ -> abs
+    | Some outv, Pvar y ->
       if valid_offset_var abs ws_o y then
         let o = pcast U64 (Pconst(B.of_int 0)) in
-        apply_offset_expr abs outmv info (L.unloc y) o
-      else aeval_top_offset abs outmv
+        apply_offset_expr abs outv info (L.unloc y) o
+      else aeval_top_offset abs outv
 
-    | Papp2 (op2,el,er) -> begin match op2,el with
+    | Some outv, Papp2 (op2,el,er) -> begin match op2,el with
         | E.Oadd ( E.Op_w U64), Pvar y ->
           if valid_offset_var abs ws_o y then
-            apply_offset_expr abs outmv info (L.unloc y) er
-          else aeval_top_offset abs outmv
+            apply_offset_expr abs outv info (L.unloc y) er
+          else aeval_top_offset abs outv
 
-        | _ -> aeval_top_offset abs outmv end
+        | _ -> aeval_top_offset abs outv end
 
-    | _ -> aeval_top_offset abs outmv
+    | Some outv, _ -> aeval_top_offset abs outv
 
   (* Initialize variable or array elements. *)
   let a_init_mv_no_array mv abs = match mv with
@@ -936,24 +932,28 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           let ws = arr_size gv in
           assert (n = arr_range ge);
           assert (ws = arr_size ge);
-          List.fold_left (fun a i ->
+          let vevs = List.map (fun i ->
               let vi = Mvalue (AarrayEl (gv,ws,i))  in
               let eiv = Mvalue (AarrayEl (ge,ws,i)) in
-              let ei = Mtexpr.var eiv
-                       |> sexpr_from_simple_expr in
+              (vi, eiv)
+            ) (List.init n (fun i -> i)) in
 
-              (* Numerical abstraction *)
-              let a = AbsDom.assign_sexpr a vi None ei in
+          let ves = List.map (fun (v,eiv) ->
+              let ei = sexpr_from_simple_expr (Mtexpr.var eiv) in
+              (v, ei)
+            ) vevs in
+          
+          (* Numerical abstraction *)
+          let a = AbsDom.assign_sexpr a None ves in
 
-              (* Initialization *)
-              List.fold_left2 (fun a vi eiv ->
-                  AbsDom.copy_init a vi eiv)
+          (* Initialization *)
+          List.fold_left (fun a (vi,eiv) ->
+              List.fold_left2 AbsDom.copy_init
                 a
                 (u8_blast_var ~blast_arrays:true vi)
-                (u8_blast_var ~blast_arrays:true eiv))
-
-            a (List.init n (fun i -> i))
-
+                (u8_blast_var ~blast_arrays:true eiv)
+            ) a vevs
+            
         | _ -> assert false end
     | _ -> assert false
 
@@ -964,6 +964,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
   (* Abstract evaluation of an assignment. 
      Also handles variable initialization. *)
+  (* FIXME: allow batched assignments *)
   let abs_assign : AbsDom.t -> 'a gty -> mlvar -> ty gexpr -> AbsDom.t =
     fun abs out_ty out_mvar e ->
       assert (not (omvar_is_offset out_mvar));
@@ -973,12 +974,13 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       (* Here, we have no information on which elements are initialized. *)
       | _, MLvars (_, vs) -> AbsDom.forget_list abs vs 
 
-      | Bty Int, MLvar (loc, mvar) | Bty (U _), MLvar (loc, mvar) ->
+      | Bty Int, MLvar (loc, mvar)
+      | Bty (U _), MLvar (loc, mvar) ->
         (* Numerical abstraction *)
         let lv_s = wsize_of_ty out_ty in
         let s_expr = linearize_if_expr lv_s e abs in
         let abs0 = abs in
-        let abs = AbsDom.assign_sexpr abs mvar (Some loc) s_expr in
+        let abs = AbsDom.assign_sexpr abs (Some loc) [mvar, s_expr] in
 
         (* Points-to abstraction *)
         let ptr_expr = ptr_expr_of_expr abs0 e in
