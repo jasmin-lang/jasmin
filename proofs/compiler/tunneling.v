@@ -873,8 +873,15 @@ Section TunnelingProof.
       rewrite Hgpfd onth_map -(prefix_onth Hprefix); last by rewrite !size_rcons.
       rewrite !onth_rcons !size_rcons eq_refl /= eq_refl Hgpfd lfd_body_setfb.
       rewrite find_label_tunnel_partial Hfindl /=.
-      move: Hsetcpc; rewrite /s1 /s2 /setcpc /= => ->; rewrite -/s1 -/s2.
-      Print step_lsem.
+      move: Hsetcpc; rewrite /s1 /s2 /setcpc /= => ->.
+      move => Hlsem23; apply: lsem_step; last by apply: Hlsem23.
+      rewrite /lsem1 /step /find_instr /eval_instr /eval_jump.
+      rewrite Hgfd Honth /= Hgfd.
+      have ->: find_label l1 (lfd_body fd) = ok (size ttli).
+      - move: Hprefix; move/prefixP => [sbfd] ->.
+        (*Guess I went too deep, or maybe I forgot a case with simply s1...*)
+        rewrite /find_label /is_label.
+        elim: ttli {uf Hgpfd Heqfind Hfindl s2 Hlsem23} => [|httli tttli] //=.
       by admit.
     + by admit.
   Qed.
