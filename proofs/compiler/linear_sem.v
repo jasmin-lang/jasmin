@@ -141,6 +141,14 @@ Proof.
   by move=> H; apply: rt_trans; apply: rt_step.
 Qed.
 
+Lemma step_lsem s2 s1 s3 :
+  lsem s1 s2 →
+  lsem1 s2 s3 →
+  lsem s1 s3.
+Proof.
+  by move=> H H1; apply: (rt_trans _ _ _ _ _ H); apply: rt_step.
+Qed.
+
 Definition lsem_trans s2 s1 s3 :
   lsem s1 s2 -> lsem s2 s3 -> lsem s1 s3 :=
   rt_trans _ _ s1 s2 s3.
@@ -163,7 +171,7 @@ Proof.
   by rewrite /lsem1 => ->; t_xrbindP.
 Qed.
 
-Lemma step_lsem s1 s2 s3 :
+Lemma lsem_disj1 s1 s2 s3 :
   lsem1 s1 s2 ->
   lsem s1 s3 ->
   (s1 = s3) \/ lsem s2 s3.
@@ -182,7 +190,7 @@ Proof.
   move => Hp12; move: s1 s2 Hp12 s3.
   apply: lsem_ind; first by left.
   move => s1 s2 s2' H1p12 Hp22' IHdisj s3 Hp13.
-  have:= (step_lsem H1p12 Hp13).
+  have:= (lsem_disj1 H1p12 Hp13).
   case; last by apply: IHdisj.
   by move => <-; right; apply: (lsem_trans _ Hp22'); apply: rt_step.
 Qed.
