@@ -208,16 +208,18 @@ let in_bound x access ws e len =
   | _ -> assert false
 
 let init_get x access ws e len =
-  let ux = L.unloc x in
-  match ux.v_ty with
-  | Arr _ -> [Initai { as_arr = ux;
-                       as_len = len;
-                       as_wsize = ws;
-                       as_offset = e;
-                       as_access = access; }]
-    
-  (* | Bty (U _)-> [Initv (L.unloc x)] *)
-  | _ -> assert false
+  if x.gs = Expr.Sglob then []
+  else
+    let ux = L.unloc x.gv in
+    match ux.v_ty with
+    | Arr _ -> [Initai { as_arr = ux;
+                         as_len = len;
+                         as_wsize = ws;
+                         as_offset = e;
+                         as_access = access; }]
+
+    (* | Bty (U _)-> [Initv (L.unloc x)] *)
+    | _ -> assert false
 
 let arr_aligned access ws e = match access with
   | Warray_.AAscale  -> []
@@ -257,7 +259,7 @@ let rec safe_e_rec safe = function
       
   | Pget (access, ws, x, e) ->
     in_bound    x.gv access ws e 1 @
-    init_get    x.gv access ws e 1 @
+    init_get    x access ws e 1 @
     arr_aligned (* x.gv *) access ws e @
     safe
 
