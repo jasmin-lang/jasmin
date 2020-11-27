@@ -263,7 +263,11 @@ module AbsNumCongr : AbsNumType = struct
       else c in
     Mm.add v c t
 
-  let assign_expr ?force:(force=false) t ves = 
+  let assign_expr ?force:(force=false) t ves =
+    let ves = List.filter (fun (v,_) -> match v with
+        | Mvalue (AarrayEl _) -> false (* FIXME: add an option *)          
+        | _ -> true
+      ) ves in
     List.fold_left (assign_expr_one force) t ves
     
   let sat_constr t cnstr = match Mtcons.get_typ cnstr with

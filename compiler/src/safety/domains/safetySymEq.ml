@@ -205,6 +205,10 @@ module SymExprImpl : SymExpr = struct
     else { t with vsym = Mm.add v e t.vsym }
 
   let assign_expr ?force:(force=false) t ves =
+    let ves = List.filter (fun (v,_) -> match v with
+        | Mvalue (AarrayEl _) -> false (* FIXME: add an option *)          
+        | _ -> true
+      ) ves in
     List.fold_left (assign_expr_one force) t ves
     
   let assign_bexpr t v btcons =
