@@ -114,13 +114,38 @@ Module S.
 
   End SEM.
 
-  Lemma semE p gd s1 c s2 lc:
-    sem p gd s1 c lc s2 ->
-    match c with
-    | [::] => s2 = s1 /\ lc = [::]
-    | i :: c' => exists si li lc, sem_I p gd s1 i li si /\ sem p gd si c' lc s2
-    end.
-  Proof. case; eauto. Qed.
+  Lemma semE p gd s c s' lc:
+  sem p gd s c lc s' ->
+  match c with
+  | [::] => s' = s /\ lc = [::]
+  | i :: c' => exists si li lc', 
+    [/\ sem_I p gd s i li si, sem p gd si c' lc' s' & lc = li :: lc']
+  end.
+  Proof.
+    case. move=> H1; split; auto.
+    move=> s1 s2 s3 i li lc0 lc' H1 H2.
+    exists s2. exists lc0. exists lc'. split; auto. 
+  Qed.
+
+
+  Lemma sem_app p gd l1 l2 s1 s2 s3 ls1 ls2:
+    sem p gd s1 l1 ls1 s2 -> 
+    sem p gd s2 l2 ls2 s3 ->
+    sem p gd s1 (l1 ++ l2) (ls1 ++ ls2) s3.
+  Proof.
+    elim: l1 s1 ls1; first by move => s1 ls1 /semE H H1;
+    case H => <- ->; auto.
+    move=> a l Hrec s1 ls1 /semE [si] [li] [lc'] [h1 hi ->] h /=.
+    move: (Hrec si lc' hi h) => H /=.
+    apply Eseq with si; auto.
+  Qed.
+
+  Lemma sem_seq1 p gd i s1 s2 li:
+  sem_I p gd s1 i li s2 -> sem p gd s1 [::i] [::li] s2.
+  Proof.
+    move=> Hi. apply Eseq with s2. auto.
+    constructor.
+  Qed.
 
   Lemma sem_IE p gd s1 i s2 li:
     sem_I p gd s1 i li s2 ->

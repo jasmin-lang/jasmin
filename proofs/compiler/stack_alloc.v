@@ -262,9 +262,10 @@ Definition alloc_lval (m:map) (r:lval) ty : cexec (lval * leak_e_tr) :=
     | Some ofs =>
       if is_word_type (vtype x) is Some ws then
         if ty == sword ws then
-          let ofs := cast_const ofs in
+          let ofs' := cast_const ofs in
           let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
-          ok ((Lmem ws stk ofs), LT_id)
+          ok ((Lmem ws stk ofs'), 
+               LT_seq [:: LT_id; LT_const (LS_Add LS_stk (LS_const (wrepr U64 ofs)))])
         else Let r := cerror (Cerr_stk_alloc "invalid type for Lvar") in ok (r, LT_remove)
       else not_a_word_v
     | None     =>
@@ -275,8 +276,8 @@ Definition alloc_lval (m:map) (r:lval) ty : cexec (lval * leak_e_tr) :=
   | Lmem ws x e1 =>
     if check_var m x then
       Let er := alloc_e m e1 in
-      ok ((Lmem ws x er.1), er.2)
-    else invalid_var
+      ok ((Lmem ws x er.1), LT_map [:: er.2; LT_id])
+    else Let r := invalid_var in ok(r, LT_remove)
 
   | Laset ws x e1 =>
     Let er := alloc_e m e1 in
@@ -284,13 +285,16 @@ Definition alloc_lval (m:map) (r:lval) ty : cexec (lval * leak_e_tr) :=
     | Some ofs =>
       if is_align (wrepr _ ofs) ws then
         let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
-        let ofs := mk_ofs ws er.1 ofs in
-        ok ((Lmem ws stk ofs.1), LT_seq [:: er.2; ofs.2])
-      else not_aligned
+        let ofs' := mk_ofs ws er.1 ofs in
+        ok ((Lmem ws stk ofs'.1), LT_map [:: LT_compose er.2 ofs'.2;
+            (LT_lidx (fun i => 
+              (LS_Add LS_stk
+                (LS_Add (LS_Mul (LS_const (wrepr U64 i)) (LS_const (wrepr U64 (wsize_size ws)))) (LS_const (wrepr U64 ofs))))))])
+      else Let r  := not_aligned in ok(r, LT_remove)
 
     | None =>
       if is_vstk m x then Let r:= stk_not_fresh in ok(r, LT_remove)
-      else ok ((Laset ws x e1), LT_id)
+      else ok ((Laset ws x er.1), LT_map [:: er.2; LT_id])
     end
 
   end.
@@ -304,24 +308,25 @@ Fixpoint alloc_i (m: map) (i: instr) : ciexec (instr * leak_i_tr) :=
     | Cassgn r t ty e =>
       Let r := add_iinfo ii (alloc_lval m r ty) in
       Let e := add_iinfo ii (alloc_e m e) in
-      ok ((Cassgn r.1 t ty e.1), LT_ile (LT_map [:: r.2; e.2]))
+      ok ((Cassgn r.1 t ty e.1), LT_ile (LT_map [:: e.2; r.2]))
 
     | Copn rs t o e =>
       Let rs := add_iinfo ii (mapM2 bad_lval_number (alloc_lval m) rs (sopn_tout o)) in
       Let e  := add_iinfo ii (mapM  (alloc_e m) e) in
-      ok ((Copn (unzip1 rs) t o (unzip1 e)), LT_ile (LT_map ((unzip2 rs) ++ (unzip2 e))))
+      ok ((Copn (unzip1 rs) t o (unzip1 e)), 
+           LT_ile (LT_map [:: LT_map (unzip2 e); LT_map (unzip2 rs)]))
 
     | Cif e c1 c2 =>
       Let e := add_iinfo ii (alloc_e m e) in
       Let cr1 := mapM (alloc_i m) c1 in
       Let cr2 := mapM (alloc_i m) c2 in
-      ok (Cif e.1 c1 c2, LT_icond e.2 (unzip2 cr1) (unzip2 cr2))
+      ok (Cif e.1 (unzip1 cr1) (unzip1 cr2), LT_icond e.2 (unzip2 cr1) (unzip2 cr2))
 
     | Cwhile a c1 e c2 =>
       Let e := add_iinfo ii (alloc_e m e) in
       Let cr1 := mapM (alloc_i m) c1 in
       Let cr2 := mapM (alloc_i m) c2 in
-      ok (Cwhile a c1 e.1 c2, LT_iwhile (unzip2 cr1) e.2 (unzip2 cr2))
+      ok (Cwhile a (unzip1 cr1) e.1 (unzip1 cr2), LT_iwhile (unzip2 cr1) e.2 (unzip2 cr2))
 
     | Cfor _ _ _  => cierror ii (Cerr_stk_alloc "don't deal with for loop")
     | Ccall _ _ _ _ => cierror ii (Cerr_stk_alloc "don't deal with call")
@@ -358,9 +363,13 @@ Definition alloc_fd (stk_alloc_fd :
     else add_err_fun fn invalid_var in
   ok (fn, sfd.1, sfd.2).
 
-Definition alloc_prog stk_alloc_fd P :=
-  mapM (alloc_fd stk_alloc_fd) P.(p_funcs).
 
+Definition alloc_prog stk_alloc_fd P : cfexec (sprog * leak_f_tr) :=
+  Let r := mapM (alloc_fd stk_alloc_fd) P.(p_funcs) in 
+  let rfn := unzip1 r in
+  let fn := unzip1 rfn in 
+  let ltfs := zip fn (unzip2 r) in
+  ok (rfn, ltfs).
 
 
 

@@ -432,6 +432,24 @@ Proof.
   by exists vargs, s1, vm2, vres, lc.
 Qed.
 
+Lemma sem_callE' m1 fn vargs' m2 vres' lf:
+  sem_call m1 fn vargs' lf m2 vres' ->
+  ∃ f,
+    get_fundef (p_funcs P) fn = Some f ∧
+  ∃ vargs s1 vm2 vres,
+  [/\
+    mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs,
+    write_vars f.(f_params) vargs (Estate m1 vmap0) = ok s1,
+    sem s1 f.(f_body) lf.2 (Estate m2 vm2),
+    mapM (fun (x:var_i) => get_var vm2 x) f.(f_res) = ok vres &
+    mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ].
+Proof.
+  case => { m1 fn vargs' lf m2 vres' } m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc.
+  move => hf ha hw hc hr ht.
+  exists f; split => //.
+  by exists vargs, s1, vm2, vres.
+Qed.
+
 (* -------------------------------------------------------------------- *)
 (* The generated scheme is borring to use *)
 (*
@@ -2821,3 +2839,4 @@ Local Open Scope vmap.
   Proof. by move=> x;rewrite /vmap0 Fv.get0;case:vtype. Qed.
 
 End WF.
+

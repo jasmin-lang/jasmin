@@ -67,7 +67,7 @@ Hint Resolve is_align_no_overflow Memory.valid_align.
 Section PROOF.
   Variable P: prog.
   Notation gd := (p_globs P).
-  Variable SP: sprog.
+  Variable SP: (sprog * leak_f_tr).
 
   Variable m:map.
   Variable stk_size : Z.
@@ -796,39 +796,42 @@ Section PROOF.
     check_var m vi -> alloc_e m e = ok (e', lte) -> valid s1 s2 ->
     value_uincl v v' ->
     forall s1' le, write_lval gd (Lmem sz vi e) v s1 = ok (s1', le) ->
-    exists s2' le', write_lval gd (Lmem sz vi e') v' s2 = ok (s2', le') /\ valid s1' s2'.
+    exists s2', write_lval gd (Lmem sz vi e') v' s2 = ok (s2', leak_E pstk (LT_map [:: lte; LT_id]) le)
+    /\ valid s1' s2'.
   Proof.
     move => Hvar He Hv Hu s1' le.
     case: (Hv) => H1 H2 H3 H4 H5 Hpstk H6.
-    rewrite /write_lval; t_xrbindP=> ptr wi hwi hwiptr ofs we he heofs w hvw.
-    move => m' Hm' <- {s1'}.
+    rewrite /write_lval; t_xrbindP. 
+    move=> ptr wi hwi hwiptr [ofs lofs] he vp heofs w hvw.
+    move => m' Hm' <- {s1'} /= hl.
     have [wi' [-> hwi']] := check_varP Hvar H4 hwi.
     rewrite /= (value_uincl_word hwi' hwiptr) /=.
-    have [we' [-> hwe' /=]] := alloc_eP He Hv he.
+    have [we' [] -> hwe' /=]:= alloc_eP Hv He he.
     rewrite /= (value_uincl_word hwe' heofs) /= (value_uincl_word Hu hvw) /=.
-    have : exists m2', write_mem (emem s2) (ptr + ofs) sz w = ok m2'.
+    have : exists m2', write_mem (emem s2) (ptr + vp) sz w = ok m2'.
     + by apply: Memory.writeV; rewrite H3; apply /orP; left; apply/Memory.writeV; eauto.
-    case => m2' Hm2'; rewrite Hm2' /=; eexists; split; first by reflexivity.
-    exact: (valid_mem Hm').
+    case => m2' Hm2'; rewrite Hm2' /=. exists {| emem := m2'; evm := evm s2 |}. rewrite -hl /=.
+    split=>//. exact: (valid_mem Hm').
   Qed.
 
-  Lemma check_arrW (vi: var_i) ws (s1 s2: estate) v v' e e':
-    check_var m vi -> alloc_e m e = ok e' -> valid s1 s2 -> value_uincl v v' ->
-    forall s1', write_lval gd (Laset ws vi e) v s1 = ok s1'->
-    exists s2', write_lval gd (Laset ws vi e') v' s2 = ok s2' /\ valid s1' s2'.
+  Lemma check_arrW (vi: var_i) ws (s1 s2: estate) v v' e e' lte:
+    check_var m vi -> alloc_e m e = ok (e', lte) -> valid s1 s2 -> value_uincl v v' ->
+    forall s1' le, write_lval gd (Laset ws vi e) v s1 = ok (s1', le) ->
+    exists s2', write_lval gd (Laset ws vi e') v' s2 = ok (s2', leak_E pstk (LT_map [:: lte; LT_id]) le)
+    /\ valid s1' s2'.
   Proof.
     case: vi => vi ivi.
     move=> Hvar He Hv Hu s1'.
     have Hv' := Hv.
-    move: Hv'=> [] H1 H2 H3 H4 H5 Hpstk H6.
+    move: Hv'=> [] H1 H2 H3 H4 H5 Hpstk H6 le.
     apply: rbindP=> [[]] // n a Ha.
-    t_xrbindP => i vali Hvali Hi v0 Hv0 t Ht vm.
+    t_xrbindP. move=> [i lei] Hvali z Hi v0 Hv0 t Ht vm.
     rewrite /set_var;apply: set_varP => //=;last first.
     + by move=> /is_sboolP h1 h2;elimtype False; move: h2;rewrite h1.
-    move=> varr Hvarr <- <- /=.
+    move=> varr Hvarr <- <- /= <-.
     have Hv'0 := value_uincl_word Hu Hv0.
-    have [w [-> U]] := alloc_eP He Hv Hvali.
-    have [??]:= value_uincl_int U Hi; subst vali w => /=.
+    have [w [-> U]] := alloc_eP Hv He Hvali.
+    have [h1 h2] := value_uincl_int U Hi; subst i w=> /=.
     rewrite /= /on_arr_var.
     have [w [->]]:= check_varP Hvar H4 Ha.
     case: w => //= n0 a0 huincl.
@@ -846,28 +849,40 @@ Section PROOF.
     exact: valid_stk_write_notinstk.
   Qed.
 
-  Lemma alloc_lvalP (r1 r2: lval) v v' ty (s1 s2: estate) :
-    alloc_lval m r1 ty = ok r2 -> valid s1 s2 ->
-    type_of_val v = ty -> value_uincl v v' ->
-    forall s1', write_lval gd r1 v s1 = ok s1' ->
-    exists s2', write_lval gd r2 v' s2 = ok s2' /\ valid s1' s2'.
+  Lemma alloc_lvalP (r1 r2: lval) v v' ty (s1 s2: estate) lte:
+    alloc_lval m r1 ty = ok (r2, lte) -> 
+    valid s1 s2 ->
+    type_of_val v = ty -> 
+    value_uincl v v' ->
+    forall s1' lw, write_lval gd r1 v s1 = ok (s1', lw) ->
+    exists s2', write_lval gd r2 v' s2 = ok (s2', leak_E pstk lte lw)
+    /\ valid s1' s2'.
   Proof.
     move=> Hr Hv Htr Hu; move: Hr.
     case: r1=> [vi t |vi|sz vi e|sz vi e] /=.
-    + move=> [] ?;subst r2 => s1' H.
-      have [-> _ /=]:= write_noneP H.
-      by rewrite (uincl_write_none _ Hu H); exists s2.
-
+    (* Lnone *)
+    + move=> [] hs <-;subst r2 => s1' le.
+      t_xrbindP. move=> s Hs <- <- /=.
+      have [-> _ /=] := write_noneP Hs.
+      by rewrite (uincl_write_none _ Hu Hs); exists s2.
+    (* Lvar *)
     + case: vi => -[] xt xn ii /=.
       case Hget: (Mvar.get _ _) => [ ofs | ] //;last first.
-      + case : ifPn => // hvs [?]; subst r2 => /= s1'.
-        by apply: check_varW => //=;rewrite /check_var /= hvs /is_in_stk Hget.
+      + case : ifPn => // hvs [?]; subst r2 => /= hl s1' lw. t_xrbindP.
+        move=> s3 Hw <- <- /=. 
+        have H := (check_varW _ _ _ Hw). move: (H s2 v').
+        rewrite /check_var //= /is_in_stk Hget /=. move=> {H} H.
+        move: (H hvs Hv Hu). move=> [] s2' [] -> /= {H} Hvs' /=.
+        exists s2'. by rewrite -hl.
       case hw: is_word_type => [ sz | //].
-      have := is_word_typeP hw => ? {hw};subst xt.
-      case: ifP => // /eqP hty [?];subst ty r2 => /=.
-      case: (Hv) => H1 H2 H3 H4 H5 Hpstk H6 s1'.
-      rewrite H5 /=; apply: rbindP=> /= vm'; apply: set_varP => //= w1 h ?[?]; subst vm' s1'.
-      have [{h} w' [??] ]:= type_of_val_to_pword hty h; subst v w1.
+      have := is_word_typeP hw => h {hw};subst xt.
+      case: ifP => // /eqP hty [h1 h2];subst ty r2 => /=.
+      case: (Hv) => H1 H2 H3 H4 H5 Hpstk H6 s1' lw.
+      rewrite H5 /=. apply: rbindP => /= vm'. t_xrbindP.
+      move=> Hw <- <- /=. rewrite /write_var in Hw.
+      move: Hw. t_xrbindP. move=> vm''.
+      apply: set_varP=> //= w1 h h' h''.
+      have [{h} w' [h1' h2'] ]:= type_of_val_to_pword hty h; subst v w1.
       have /= /(_ sz w') := value_uincl_word Hu .
       rewrite truncate_word_u => -> //=.
       rewrite /zero_extend !wrepr_unsigned.
@@ -876,30 +891,36 @@ Section PROOF.
       have [m' Hm'] : exists m', write_mem (emem s2) (pstk + wrepr _ ofs) sz w' = ok m'.
       + by apply/Memory.writeV.
       exists {| emem := m'; evm := evm s2 |}; split.
-      + by rewrite Hm' /=.
-      exact: valid_var_stk Hv Hm' Hget.
-
-    + case: ifP => // hc; apply: rbindP => e' ha [<-].
-      by apply: (check_memW hc ha Hv Hu).
-
-    t_xrbindP => e' ha; case Hget: Mvar.get => [ ofs | // ]; last first.
-    + case: ifPn => // hnis [<-].
-      by apply: (check_arrW _ ha Hv Hu); rewrite /check_var hnis /is_in_stk Hget.
-    case: ifP => // hal [<-].
+      + rewrite Hm' /=. by rewrite -h2 /=.
+      have /= := valid_var_stk Hv Hm' Hget. rewrite h' h''.
+      move=> hh. move: (hh ii). by move=> {hh} hh.
+    (* Lmem *)
+    + case: ifP => // hc; apply : rbindP=> -[e' lte'] ha [] <- <-.
+      apply: (check_memW hc ha Hv Hu).
+    (* Laset *)
+    t_xrbindP => -[e' lte'] ha; case Hget: Mvar.get => [ ofs | ] //; last first.
+    + case: ifPn => // hnis [<- <-] s1' lw. move=> Hw.
+      have H := (check_arrW _ ha Hv Hu Hw). move: H. rewrite /check_var.
+      rewrite /is_in_stk Hget. move=> /= H. move: (H hnis).
+      move=> [] s2' [] {H} H Hvalid.
+      exists s2'. split=> //=.
+    case: ifP => // hal [<- <-].
     case: vi Hget => [[vty vn] vi] /= Hget.
-    case: (Hv) => H1 H2 H3 H4 H5 Hpstk H6 s1'.
+    case: (Hv) => H1 H2 H3 H4 H5 Hpstk H6 s1' le'.
     apply on_arr_varP => n' t' /subtypeEl [n1] /= [??];subst vty => hget.
     have ? : n1 = n'; last subst n1.
     + by move: hget; apply on_vuP => //= ? _ /Varr_inj [].
-    t_xrbindP => i ve he hi vw hvw t'' haset vm hset ?;subst s1'.
-    have [ve' [hve' vu]]:= alloc_eP ha Hv he.
-    have [??] := value_uincl_int vu hi;subst ve ve'.
-    have -> := mk_ofsP sz ofs hve'.
+    t_xrbindP => -[i lti'] he ve hi vw hvw t'' haset vm hset ? <-;subst s1'.
+    have [ve' [hve' vu]]:= alloc_eP Hv ha he.
+    have [h1 h2] := value_uincl_int vu hi;subst i ve'.
+    have -> /= := mk_ofsP sz ofs hve'.
     rewrite H5 (value_uincl_word Hu hvw) /= !zero_extend_u.
     apply: set_varP hset => //= t1 []??; subst t1 vm.
     cut (exists m',
-      write_mem (emem s2) (pstk + wrepr Uptr (i * wsize_size sz + ofs)) sz vw = ok m').
-    - case => m' Hm'; rewrite Hm' /=; eexists; split;first by reflexivity.
+      write_mem (emem s2) (pstk + wrepr Uptr (ve * wsize_size sz + ofs)) sz vw = ok m').
+    - case => m' Hm'; rewrite Hm' /=. 
+      exists {| emem := m'; evm := evm s2 |}. split.
+      + by rewrite -wrepr_mul -wrepr_add.
       rewrite /WArray.inject Z.ltb_irrefl.
       by have := valid_arr_stk Hget hget Hm' haset Hv; case: (t'').
     apply/Memory.writeV.
@@ -910,140 +931,167 @@ Section PROOF.
     have ? := wunsigned_range pstk; have [? hpstk] := pstk_add.
     rewrite /between wunsigned_add; last by nia.
     apply/andP; split; first by apply /andP; split; apply /ZleP;nia.
-    have ->: (pstk + wrepr U64 (i * wsize_size sz + ofs))%R =
-           (wrepr U64 (wsize_size sz * i) + (pstk + wrepr U64 ofs))%R.
+    have ->: (pstk + wrepr U64 (ve * wsize_size sz + ofs))%R =
+           (wrepr U64 (wsize_size sz * ve) + (pstk + wrepr U64 ofs))%R.
     + by rewrite !wrepr_add Z.mul_comm; ssrring.ssring.
     by apply: is_align_array; rewrite hpstk.
-  Qed.
+  Qed. 
 
-  Lemma alloc_lvalsP (r1 r2: lvals) vs vs' ty (s1 s2: estate) :
+  Lemma alloc_lvalsP r1 r2 vs vs' ty (s1 s2: estate) :
     mapM2 bad_lval_number (alloc_lval m) r1 ty = ok r2 -> valid s1 s2 ->
     seq.map type_of_val vs = ty ->
     List.Forall2 value_uincl vs vs' ->
-    forall s1', write_lvals gd s1 r1 vs = ok s1' ->
-    exists s2', write_lvals gd s2 r2 vs' = ok s2' /\ valid s1' s2'.
+    forall s1' lw, write_lvals gd s1 r1 vs = ok (s1', lw) ->
+    exists s2', write_lvals gd s2 (unzip1 r2) vs' = ok (s2', map2 (leak_E pstk) (unzip2 r2) lw) 
+    /\ valid s1' s2'.
   Proof.
     elim: r1 r2 ty vs vs' s1 s2=> //= [|a l IH] r2 [ | ty tys] // [ | v vs] //.
-    + move=> vs' ? s2 [<-] Hvalid _ /List_Forall2_inv_l -> {vs'} s1' [] <-.
+    + move=> vs' s1 s2 [<-] Hvalid hs /List_Forall2_inv_l -> {vs'} s1' lw [] <- <-.
       by exists s2; split.
-    move=> ? s1 s2; t_xrbindP => a' ha l' /IH hrec <-.
-    move=> Hvalid [] hty htys /List_Forall2_inv_l [v'] [vs'] [->] [hv hvs] s1' s1'' ha1 hl1.
+    move=> vs' s1 s2; t_xrbindP. 
+    move=> [a' la] ha l' /IH hrec <-.
+    move=> Hvalid [] hty htys /List_Forall2_inv_l [v'] [vs''] [->] [hv hvs] s1' le'.
+    move=> [s1'' le''] ha1 [s2'' lw''] hl1 /= <- <-.
     have [s2' [hs2' vs2']]:= alloc_lvalP ha Hvalid hty hv ha1.
-    have [s2'' [hs2'' vs2'']]:= hrec _ _ _ _ vs2' htys hvs _ hl1.
-    by exists s2''; split => //=; rewrite hs2'.
+    have [s2''' [hs2'' vs2'']] := hrec _ _ _ _ vs2' htys hvs _ _ hl1.
+    by exists s2'''; split => //=; rewrite hs2' /=; rewrite hs2'' /=. 
   Qed.
 
-  Let Pi_r s1 (i1:instr_r) s2 :=
-    forall ii1 ii2 i2, alloc_i m (MkI ii1 i1) = ok (MkI ii2 i2) ->
+  Let Pi_r s1 (i1:instr_r) li s2 :=
+    forall ii1 ii2 i2 lti, alloc_i m (MkI ii1 i1) = ok ((MkI ii2 i2), lti) ->
     forall s1', valid s1 s1' ->
-    exists s2', S.sem_i SP gd s1' i2 s2' /\ valid s2 s2'.
+    exists s2', S.sem SP.1 gd s1' [::(MkI ii2 i2)] (leak_I (leak_Fun SP.2) pstk li lti) s2' /\ valid s2 s2'.
 
-  Let Pi s1 (i1:instr) s2 :=
-    forall i2, alloc_i m i1 = ok i2 ->
+  Let Pi s1 (i1:instr) li s2 :=
+    forall i2 lti, alloc_i m i1 = ok (i2, lti) ->
     forall s1', valid s1 s1' ->
-    exists s2', S.sem_I SP gd s1' i2 s2' /\ valid s2 s2'.
+    exists s2', S.sem SP.1 gd s1' [::i2] (leak_I (leak_Fun SP.2) pstk li lti) s2' /\ valid s2 s2'.
 
-  Let Pc s1 (c1:cmd) s2 :=
+  Let Pc s1 (c1:cmd) lc s2 :=
     forall c2,  mapM (alloc_i m) c1 = ok c2 ->
     forall s1', valid s1 s1' ->
-    exists s2', S.sem SP gd s1' c2 s2' /\ valid s2 s2'.
+    exists s2', S.sem SP.1 gd s1' (unzip1 c2) (leak_Is (leak_I (leak_Fun SP.2)) pstk (unzip2 c2) lc) s2' 
+    /\ valid s2 s2'.
 
-  Let Pfor (i1: var_i) (vs: seq Z) (s1: estate) (c: cmd) (s2: estate) := True.
+  Let Pfor (i1: var_i) (vs: seq Z) (s1: estate) (c: cmd) (lc: seq leak_c) (s2: estate) := True.
 
-  Let Pfun (m1: mem) (fn: funname) (vargs: seq value) (m2: mem) (vres: seq value) := True.
+  Let Pfun (m1: mem) (fn: funname) (vargs: seq value) (lf: leak_fun) (m2: mem) (vres: seq value) := True.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof.
-    move=> s [] // => _ s' Hv.
-    exists s'; split; [exact: S.Eskip|exact: Hv].
+    move=> s [] // => _ s' hv.
+    exists s'; split; [exact: S.Eskip|exact: hv].
   Qed.
 
   Local Lemma Hcons : sem_Ind_cons P Pc Pi.
   Proof.
-    move=> s1 s2 s3 i c _ Hi _ Hc c1 /=;t_xrbindP => i' hi c' hc <- s1' hv.
-    have [s2' [si hv2]]:= Hi _ hi _ hv.
+    move=> s1 s2 s3 i c li lc Hsi Hi Hsc Hc c1 /=. 
+    t_xrbindP => -[i' lti'] hi c' hc <- s1' hv. rewrite /Pi in Hi.
+    have [s2' [si hv2]] := Hi _ _ hi _ hv.
     have [s3' [sc hv3]]:= Hc _ hc _ hv2.
-    exists s3'; split => //.
-    apply: S.Eseq; [exact: si|exact: sc].
+    exists s3'; split => //=. rewrite /leak_Is /=.
+    have h : (i' :: unzip1 c') = ([:: i'] ++ (unzip1 c')).
+    + by rewrite /=.
+    rewrite h. apply S.sem_app with s2'.
+    + apply si.
+    by rewrite /leak_Is in sc.
   Qed.
 
   Local Lemma HmkI : sem_Ind_mkI P Pi_r Pi.
   Proof.
-    move=> ii i s1 s2 _ Hi [ii' ir'] ha s1' hv.
-    by have [s2' [Hs2'1 Hs2'2]] := Hi _ _ _ ha _ hv; exists s2'; split.
+    move=> ii i s1 s2 li Hsi Hi [ii' ir'] lti ha s1' hv.
+    by have [s2' [Hs2'1 Hs2'2]] := Hi _ _ _ _ ha _ hv; exists s2'; split.
   Qed.
 
   Local Lemma Hassgn : sem_Ind_assgn P Pi_r.
   Proof.
-    move=> s1 s2 x tag ty e v v' hv htr Hw ii1 ii2 i2 /=.
-    t_xrbindP => i' x'; apply: add_iinfoP => ha e'.
-    apply: add_iinfoP => he ??? s1' hs1; subst i' i2 ii1.
-    have [v1 [He' Uvv1]] := alloc_eP he hs1 hv.
+    move=> s1 s2 x tag ty e v v' le lw hv htr Hw ii1 ii2 i2 lti /=.
+    t_xrbindP => -[i' lti'] -[x' ltx]; apply: add_iinfoP => ha [e' lte'].
+    apply: add_iinfoP => he /= [] h1 h2 h3 h4 <- s1' hs1; subst i' ii1 lti'.
+    have [v1 [He' Uvv1]]:= alloc_eP hs1 he hv.
     have [v1' htr' Uvv1']:= truncate_value_uincl Uvv1 htr.
     have hty := truncate_val_has_type htr.
     have [s2' [Hw' Hs2']] := alloc_lvalP ha hs1 hty Uvv1' Hw.
-    by exists s2'; split=> //;apply: S.Eassgn;eauto.
+    exists s2'; split=> //=. rewrite -h4. apply: S.sem_seq1.
+    apply: S.EmkI. by apply S.Eassgn with v1 v1'.
   Qed.
 
   Local Lemma Hopn : sem_Ind_opn P Pi_r.
   Proof.
-    move => s1 s2 t o xs es.
-    rewrite /sem_sopn;t_xrbindP => vs va He Hop Hw ii1 ii2 i2 /=.
-    t_xrbindP => i' x'; apply: add_iinfoP => ha e'.
-    apply: add_iinfoP => he ??? s1' hs1; subst i' i2 ii1.
-    have [va' [He' Uvv']] := (alloc_esP he hs1 He).
+    move => s1 s2 t o xs es lo.
+    rewrite /sem_sopn;t_xrbindP => vs He va Hop [s lt] Hw /= <- <- ii1 ii2 i2 lti.
+    move=> H. rewrite /= in H. move: H.
+    t_xrbindP => -[i' lti'] x' ; apply: add_iinfoP => ha e'.
+    apply: add_iinfoP => he [] h1 h2 h3 h4 h5 s1' hs1; subst i' i2 ii1.
+    have [va' [He' [] Uvv' hl]] := (alloc_esP he hs1 He).
     have [w' [Hop' Uww']]:= vuincl_exec_opn Uvv' Hop.
     have [s2' [Hw' Hvalid']] := alloc_lvalsP ha hs1 (sopn_toutP Hop) Uww' Hw.
-    exists s2'; split=> //.
-    by apply: S.Eopn;rewrite /sem_sopn He' /= Hop'.
+    exists s2'; split=> //. rewrite /leak_I /=. rewrite -h2 in h5.
+    rewrite /= in h5. rewrite -h5 /=. apply S.sem_seq1. apply S.EmkI.
+    apply S.Eopn. rewrite /sem_sopn He' /= Hop' /=.
+    rewrite Hw' /=. by rewrite hl /=.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true P Pc Pi_r.
   Proof.
-    move=> s1 s2 e c1 c2 Hse ? Hc ii1 ii2 i2 /=.
-    t_xrbindP => i' e'; apply: add_iinfoP => he c1' hc1 c2' hc2 ??? s1' hs1.
-    subst i' i2 ii2; have [b [he']]:= alloc_eP he hs1 Hse.
+    move=> s1 s2 e c1 c2 le lc Hse Hsc Hc ii1 ii2 i2 lti /=.
+    t_xrbindP => -[i' lti'] -[e' lte'].
+    apply: add_iinfoP => he c1' hc1 c2' hc2 [] h1 h2 h3 /= h4 h5 s1' hs1.
+    subst i' i2 ii2 lti. 
+    have [b [he']]:= alloc_eP hs1 he Hse.
     move=> /value_uincl_bool /= -/(_ _ erefl) [_ ?];subst b.
-    have [s2' [Hsem Hvalid']] := Hc _ hc1 _ hs1.
-    by exists s2'; split=> //; apply: S.Eif_true.
+    have [s2' [Hsem Hvalid']] := Hc _ hc1 _ hs1. rewrite -h2 /=.
+    exists s2'. split=> //; apply: S.sem_seq1; apply: S.EmkI; apply: S.Eif_true; auto.
   Qed.
 
   Local Lemma Hif_false : sem_Ind_if_false P Pc Pi_r.
   Proof.
-    move=> s1 s2 e c1 c2 Hse ? Hc ii1 ii2 i2 /=.
-    t_xrbindP => i' e'; apply: add_iinfoP => he c1' hc1 c2' hc2 ??? s1' hs1.
-    subst i' i2 ii2; have [b [he']]:= alloc_eP he hs1 Hse.
+    move=> s1 s2 e c1 c2 le lc Hse Hsc Hc ii1 ii2 i2 lti /=.
+    t_xrbindP => -[i' lti'] [e' lte']; apply: add_iinfoP => he c1' hc1 c2' hc2 /= []. 
+    move=> h1 <- h2 h3 <- s1' hs1.
+    subst i' i2 ii2; have [b [he']]:= alloc_eP hs1 he Hse.
     move=> /value_uincl_bool /= -/(_ _ erefl) [_ ?];subst b.
     have [s2' [Hsem Hvalid']] := Hc _ hc2 _ hs1.
-    by exists s2'; split=> //; apply: S.Eif_false.
+    exists s2'; split=> //; apply: S.sem_seq1; apply: S.EmkI; apply: S.Eif_false.
+    + apply he'.
+    apply Hsem.
   Qed.
 
   Local Lemma Hwhile_true : sem_Ind_while_true P Pc Pi_r.
   Proof.
-    move=> s1 s2 s3 s4 a c1 e c2 _ Hc1 Hv ? Hc2 ? Hwhile ii1 ii2 i2 /=.
-    t_xrbindP => i' e'; apply: add_iinfoP => he c1' hc1 c2' hc2 ??? s1' hs1.
+    move=> s1 s2 s3 s4 a c1 e c2 lc le lc' li Hsc Hc1 Hv Hsc' Hc2 Hi Hwhile ii1 ii2 i2 lti /=.
+    t_xrbindP => -[i' lti'] -[e' lte'].
+    apply: add_iinfoP => he c1' hc1 c2' hc2 /= [] h1 <- h3 h4 <- s1' hs1.
     subst i' i2 ii2.
     have [s2' [Hsem' Hvalid']]:= Hc1 _ hc1 _ hs1.
     have [s2'' [Hsem'' Hvalid'']] := Hc2 _ hc2 _ Hvalid'.
-    have := Hwhile _.
-    have [|s3' [Hsem''' Hvalid''']] := (Hwhile ii1 ii1 (Cwhile a c1' e' c2') _ _ Hvalid'').
-    + by rewrite /= he hc1 hc2.
+    have := (Hwhile ii1 ii1 (Cwhile a (unzip1 c1') e' (unzip1 c2')) _ _ _ Hvalid'').
+    + rewrite /= he hc1 hc2 /=. move=> H. move: (H (LT_iwhile (unzip2 c1') lte' (unzip2 c2'))).
+      have Heq : (ok
+     (MkI ii1 (Cwhile a (unzip1 c1') e' (unzip1 c2')),
+     LT_iwhile (unzip2 c1') lte' (unzip2 c2')) =
+     ok
+     (MkI ii1 (Cwhile a (unzip1 c1') e' (unzip1 c2')),
+     LT_iwhile (unzip2 c1') lte' (unzip2 c2'))). + auto.
+    move=> {H} H. move: (H (Heq _)). move=> [] s3' [] Hsem Hv'.
     exists s3'; split=> //.
-    apply: S.Ewhile_true; eauto.
-    have [v' [-> ]]:= alloc_eP he Hvalid' Hv.
-    by move=> /value_uincl_bool /= -/(_ _ erefl) [_ ->].
-  Qed.
+    apply: S.sem_seq1; apply: S.EmkI; apply: S.Ewhile_true; eauto.
+    + have [v' [-> ]]:= alloc_eP Hvalid' he Hv.
+      by move=> /value_uincl_bool /= -/(_ _ erefl) [_ ->].
+    by inversion Hsem; subst; rewrite /=; inversion H6; subst; inversion H4; subst.
+   Qed.
 
   Local Lemma Hwhile_false : sem_Ind_while_false P Pc Pi_r.
   Proof.
-    move=> s1 s2 a c e c' _ Hc Hv ii1 ii2 i2 /=.
-    t_xrbindP => i' e'; apply: add_iinfoP => he c1' hc1 c2' hc2 ??? s1' hs1.
-    subst i' i2 ii2.
+    move=> s1 s2 a c e c' lc le Hsc Hc Hv ii1 ii2 i2 lti /=.
+    t_xrbindP => -[i' lti'] -[e' lte'].
+    apply: add_iinfoP => he c1' hc1 c2' hc2 [] <- <- <- /= <- <- s1' hs1.
     have [s2' [Hsem' Hvalid']]:= Hc _ hc1 _ hs1.
+    have [v' [] he' hv']:= alloc_eP Hvalid' he Hv.
     exists s2'; split=> //.
-    apply: S.Ewhile_false; eauto.
-    have [v' [-> ]]:= alloc_eP he Hvalid' Hv.
-    by move=> /value_uincl_bool /= -/(_ _ erefl) [_ ->].
+    apply: S.sem_seq1; apply: S.EmkI; apply: S.Ewhile_false; eauto; last first.
+    + move: value_uincl_bool. move=> Hb. move: (Hb false v' false hv'). rewrite /=.
+      move=> []. auto. by move=> Hf <-.
   Qed.
 
   Local Lemma Hfor : sem_Ind_for P Pi_r Pfor.
@@ -1061,7 +1109,7 @@ Section PROOF.
   Local Lemma Hproc : sem_Ind_proc P Pc Pfun.
   Proof. by []. Qed.
 
-  Lemma check_cP s1 c s2: sem P s1 c s2 -> Pc s1 c s2.
+  Lemma check_cP s1 c lc s2: sem P s1 c lc s2 -> Pc s1 c lc s2.
   Proof.
     apply (@sem_Ind P Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
@@ -1114,18 +1162,32 @@ Proof.
   by exists sx;split=>//;split=>//;omega.
 Qed.
 
-Lemma getfun_alloc oracle (P:prog) (SP:sprog) fn fd:
+Lemma getfun_alloc oracle (P:prog) SP fn fd:
   alloc_prog oracle P = ok SP ->
   get_fundef (p_funcs P) fn = Some fd ->
-  exists fd',
-     get_fundef SP fn = Some fd' /\
-     alloc_fd oracle (fn,fd) = ok (fn,fd').
+  exists fd', exists ltc, 
+     get_fundef SP.1 fn = Some fd' /\
+     alloc_fd oracle (fn,fd) = ok (fn,fd', ltc) /\
+     get_leak SP.2 fn = Some ltc.
 Proof.
-  rewrite /alloc_prog; elim: (p_funcs P) SP => [ | [fn1 fd1] fs hrec] //= SP.
-  apply: rbindP => -[fn2 fd2].
-  apply: rbindP => sfd hfd [??]; subst fn2 fd2.
-  t_xrbindP => fs' /hrec{hrec} hrec <- /=; case: ifPn => [/eqP ? [?]| hne {hfd} //].
-  by subst fn1 fd1; exists sfd; rewrite hfd.
+  rewrite /alloc_prog. 
+  elim: (p_funcs P) SP => [ | [fn1 fd1] fs hrec] //= SP.
+  t_xrbindP=> fns fn' -[fn2 fd2]. move=> H.
+  move=> /= <- fs' H' <- <-. rewrite H' in hrec.
+  move: (hrec (unzip1 fs',
+             zip (unzip1 (unzip1 fs')) (unzip2 fs'))).
+  rewrite /=. 
+  have Heq : ok (unzip1 fs', zip (unzip1 (unzip1 fs')) (unzip2 fs')) =
+   ok (unzip1 fs', zip (unzip1 (unzip1 fs')) (unzip2 fs')).
+  + auto.
+  move=> {hrec} hrec. move: (hrec (Heq _)). move=> {hrec} hrec.
+  case: ifPn.
+  + move=> /eqP h1 [] h2. exists fn2. exists fd2. split=> //. 
+    t_xrbindP. rewrite -h1 in H. rewrite h2 in H. rewrite H /=.
+    split=> //.
+  move=> /eqP hfn Hget. move: (hrec Hget).
+  move=> [] fd' [] ltc' [] Hget' [] H1 H2.
+  exists fd'. exists ltc'. split=> //.
 Qed.
 
 Lemma oheadE T m (t x: T) :
@@ -1133,26 +1195,29 @@ Lemma oheadE T m (t x: T) :
   head x m = t.
 Proof. case: m => //= ? ?; apply: Some_inj. Qed.
 
-Lemma alloc_fdP oracle (P: prog) (SP: sprog) fn fd fd':
+Lemma alloc_fdP oracle (P: prog) (SP: sprog * leak_f_tr) fn fd fd':
   alloc_prog oracle P = ok SP ->
   get_fundef (p_funcs P) fn = Some fd ->
-  get_fundef SP fn = Some fd' ->
-  forall m1 va m1' vr,
-    sem_call P m1 fn va m1' vr ->
+  get_fundef SP.1 fn = Some fd' ->
+  forall m1 va m1' lf vr,
+    sem_call P m1 fn va lf m1' vr ->
     (exists p, alloc_stack m1 (sf_stk_sz fd') = ok p) ->
-    exists m2' vr',
+    exists m2' vr' p,
       List.Forall2 value_uincl vr vr' /\
       eq_mem m1' m2' /\
-      S.sem_call SP (p_globs P) m1 fn va m2' vr'.
+      S.sem_call SP.1 (p_globs P) m1 fn va 
+      (fn, (leak_Is (leak_I (leak_Fun SP.2)) (top_stack p) (leak_Fun SP.2 fn) lf.2)) m2' vr'.
 Proof.
   move=> hap get Sget.
-  have [sfd1 [] /=]:= getfun_alloc hap get.
+  have [sfd1 [] ltc [] /=]:= getfun_alloc hap get.
   rewrite Sget => -[?]; subst sfd1.
   case: (oracle (fn, fd)) => [[[stk_s stk_i] l] extra].
-  case hinit : init_map => [m |] //=; t_xrbindP => sfd c.
-  apply: add_finfoP => Hi; case:andP => // -[Hp Hr] [?] ?.
+  case hinit : init_map => [m | ] //=. move=> [] H Hf.
+  move: H. t_xrbindP. move=> [sfd ltc'] c.
+  apply: add_finfoP => Hi; case:andP => // -[Hp Hr] [] hsfd hltc /= hfd' hltc'.
   subst sfd fd' => /=.
-  move=> m1 va m1' vr /sem_callE [f] [].
+  move=> m1 vs m1' lfn vr. case hlfn : lfn=> [fn' lt]. move=> H.
+  have H1 := H.  move: H. move=> /sem_callE' [f] [].
   rewrite get => - [<-] {f} [vargs] [s1] [vm2] [vres] [hvargs hs1 hbody hvres hvr] [m2 Halloc].
   have [/= Hv Hestk] := init_mapP Halloc hinit.
   have Hstk: stk_ok (top_stack m2) stk_s.
@@ -1163,7 +1228,7 @@ Proof.
     move: Halloc=> /Memory.alloc_stackP [] Ha1 Ha2 Ha3 Ha4 Ha5 Ha7.
     split=> //=.
     + move => w sz hv; apply/negP/nandP.
-      case: (Ha5 _ _ hv) => h; [ left | right ]; apply/ZltP; lia.
+      case: (Ha5 _ _ hv) => h ; [ left | right ]; apply/ZltP; lia.
     + move=> x.
       case Heq: (x == {| vtype := sword Uptr; vname := stk_i |}).
       + move: Heq=> /eqP -> /=.
@@ -1193,11 +1258,12 @@ Proof.
       by move=> v;rewrite /vmap0 Fv.get0.
   have := check_varsW Hp Hval'' _ hs1.
   move=> /(_ vargs) [ |s2 [Hs2 Hv2]];first by apply List_Forall2_refl.
-  have [[m2' vm2'] [Hs2' Hv2']] := check_cP SP Hstk Hv hbody Hi Hv2.
+  have := check_cP SP Hstk Hv hbody Hi Hv2.
+  move=> [] [m2' vm2'] [] Hs2' Hv2'.
   case: Hv2' => /= Hdisj Hmem Hval Heqvm _ Htopstack _.
   have [vr' [/= hvr' hvruincl]] := check_varsP Hr Heqvm hvres.
   have [vr'' hvr'' hvruincl'] := mapM2_truncate_val hvr hvruincl.
-  exists (free_stack m2' stk_s), vr''; split; first exact: hvruincl'.
+  exists (free_stack m2' stk_s);exists vr''. exists m2;split; first exact: hvruincl'.
   split.
   + move => w sz.
     have hts : omap snd (ohead (frames m2')) = Some stk_s.
@@ -1224,35 +1290,43 @@ Proof.
     symmetry.
     have Hsz := wsize_size_pos sz.
     apply/nandP; case: k' => k'; [ right | left ]; apply/ZleP; lia.
+   rewrite /=.
   apply: S.EcallRun.
   + exact: Sget.
   + exact: Halloc.
   + exact: erefl.
   + exact: hvargs.
   + move: Hs2; rewrite /pword_of_word (Eqdep_dec.UIP_dec Bool.bool_dec (cmp_le_refl U64)); exact: id.
-  + exact: Hs2'.
+  + rewrite /=. rewrite /get_leak in Hf. rewrite hltc in Hs2'. rewrite hltc' in Hs2'.
+    have -> : (leak_Fun SP.2 fn) = ltc. 
+    + by rewrite /leak_Fun /= Hf /=.
+    exact: Hs2'.
   + exact: hvr'.
   + exact: hvr''.
-  reflexivity.
+  + reflexivity.
+  move=> [] //=.
 Qed.
 
 Definition alloc_ok SP fn m1 :=
   forall fd, get_fundef SP fn = Some fd ->
   exists p, alloc_stack m1 (sf_stk_sz fd) = ok p.
 
-Lemma alloc_progP oracle (P: prog) (SP: sprog) fn:
+Lemma alloc_progP oracle (P: prog) (SP: sprog * leak_f_tr) fn:
   alloc_prog oracle P = ok SP ->
-  forall m1 va m1' vr,
-    sem_call P m1 fn va m1' vr ->
-    alloc_ok SP fn m1 ->
-    exists m2' vr',
+  forall m1 va lf m1' vr,
+    sem_call P m1 fn va (fn, lf) m1' vr ->
+    alloc_ok SP.1 fn m1 ->
+    exists m2' vr' p',
       List.Forall2 value_uincl vr vr' /\
       eq_mem m1' m2' /\
-      S.sem_call SP (p_globs P) m1 fn va m2' vr'.
+      S.sem_call SP.1 (p_globs P) m1 fn va 
+      (fn, (leak_Is (leak_I (leak_Fun SP.2)) (top_stack p') (leak_Fun SP.2 fn) lf)) m2' vr'.
 Proof.
-  move=> Hcheck m1 va m1' vr hsem ha.
+  move=> Hcheck m1 va lf m1' vr hsem ha.
   have [fd hget]: exists fd, get_fundef (p_funcs P) fn = Some fd.
   + by case: hsem => ??? fd *;exists fd.
-  have [sfd [hgetS _]]:= getfun_alloc Hcheck hget.
-  by apply : (alloc_fdP Hcheck hget hgetS hsem (ha _ hgetS)).
+  have := getfun_alloc Hcheck hget. move=> [] sfd [] ltc [] hgetS [] h h'.
+  have := (alloc_fdP Hcheck hget hgetS hsem (ha _ hgetS)).
+  move=> [] m' [] vr' [] hvl [] heq [] hs hs'.
+  exists m'. exists vr'. exists hvl. split=> //.
 Qed.
