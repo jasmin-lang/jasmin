@@ -442,7 +442,7 @@ Module CBEA.
     | Pglobal g1, Pglobal g2 => (g1 == g2, LT_remove)
     | Pget wz1 x1 e1, Pget wz2 x2 e2 => let bl := check_eb m e1 e2 in
                                         let bl' := check_var m x1 x2 in
-                            (((wz1 == wz2) && bl'.1 && bl.1), LT_seq [:: bl.2; bl'.2])
+                            (((wz1 == wz2) && bl'.1 && bl.1), LT_map [:: bl.2; bl'.2])
     | Pget wz1 x1 e1, Pvar  x2    =>
       match is_const e1 with
       | Some n1 => ((M.get m x1.(v_var) n1 == Some (wz1, vname x2)) && (vtype x2 == sword wz1),
@@ -451,21 +451,21 @@ Module CBEA.
       end
     | Pload sw1 x1 e1, Pload sw2 x2 e2 => let bl := check_eb m e1 e2 in
                                           let bl' := check_var m x1 x2 in 
-                             (((sw1 == sw2) && bl'.1 && bl.1), LT_seq [:: bl.2 ; bl'.2])
+                             (((sw1 == sw2) && bl'.1 && bl.1), LT_map [:: bl.2 ; bl'.2])
     | Papp1 o1 e1, Papp1 o2 e2 => let bl := check_eb m e1 e2 in
                                   (((o1 == o2) && bl.1), bl.2)
     | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
       let bl := check_eb m e11 e21 in
       let bl' := check_eb m e12 e22 in 
-      (((o1 == o2) && bl.1 && bl'.1), LT_seq [:: bl.2; bl'.2])
+      (((o1 == o2) && bl.1 && bl'.1), LT_map [:: bl.2; bl'.2])
     | PappN o1 es1, PappN o2 es2 =>
       let bl := all2_map (check_eb m) es1 es2 in
-      ((o1 == o2) && bl.1, LT_seq bl.2)
+      ((o1 == o2) && bl.1, LT_map bl.2)
     | Pif t e e1 e2, Pif t' e' e1' e2' =>
       let bl1 := check_eb m e e' in
       let bl2 := check_eb m e1 e1' in
       let bl3 := check_eb m e2 e2' in 
-      ((t == t') && bl1.1 && bl2.1 && bl3.1, LT_seq [:: bl1.2; bl2.2; bl3.2])
+      ((t == t') && bl1.1 && bl2.1 && bl3.1, LT_map [:: bl1.2; bl2.2; bl3.2])
     | _, _ => (false, LT_remove)
     end.
   
@@ -485,7 +485,7 @@ Module CBEA.
     | Lmem sw1 x1 e1, Lmem sw2 x2 e2 =>
       let bl := check_eb m e1 e2 in
       let bl' := check_var m x1 x2 in 
-      if (sw1 == sw2) && bl'.1 && bl.1 then cok (m, LT_seq [:: bl.2; bl'.2])
+      if (sw1 == sw2) && bl'.1 && bl.1 then cok (m, LT_map [:: bl.2; bl'.2])
       else cerror (Cerr_arr_exp_v r1 r2)
     | Laset sw1 x1 e1, Lvar x2 =>
       match is_const e1 with
@@ -498,7 +498,7 @@ Module CBEA.
     | Laset sw1 x1 e1, Laset sw2 x2 e2 =>
       let bl := check_eb m e1 e2 in
       let bl' := check_var m x1 x2 in
-      if (sw1 == sw2) && bl'.1 && bl.1 then cok (m, LT_seq [:: bl.2; bl'.2])
+      if (sw1 == sw2) && bl'.1 && bl.1 then cok (m, LT_map [:: bl.2; bl'.2])
       else cerror (Cerr_arr_exp_v r1 r2)
     | _, _ => cerror (Cerr_arr_exp_v r1 r2)
     end.
@@ -518,13 +518,15 @@ Module CBEA.
 
     Context (gd: glob_decls) (r: M.expansion) (m: mem) (vm1 vm2: vmap)
             (Hrn: eq_alloc r vm1 vm2).
+    
+    Variable stk : pointer.
 
     Let P e1 : Prop :=
       ∀ e2 v1 l,
         (check_eb r e1 e2).1 →
         sem_pexpr gd {| emem := m ; evm := vm1 |} e1 = ok (v1, l) →
         exists2 v2, sem_pexpr gd {| emem := m ; evm := vm2 |} e2 =
-                    ok (v2, leak_E  (check_eb r e1 e2).2 l)
+                    ok (v2, leak_E  stk (check_eb r e1 e2).2 l)
                     & value_uincl v1 v2.
 
     Let Q es1 : Prop :=
@@ -533,7 +535,7 @@ Module CBEA.
         sem_pexprs gd {| emem := m ; evm := vm1 |} es1 = ok vs1 →
         exists vs2, sem_pexprs gd {| emem := m ; evm := vm2 |} es2 = ok vs2 /\
                     List.Forall2 value_uincl (unzip1 vs1) (unzip1 vs2) /\
-                    LSub (unzip2 vs2) = leak_E (LT_seq (all2_map (check_eb r) es1 es2).2) (LSub (unzip2 vs1)).
+                    LSub (unzip2 vs2) = leak_E stk (LT_map (all2_map (check_eb r) es1 es2).2) (LSub (unzip2 vs1)).
     
     Lemma check_e_esbP : (∀ e, P e) ∧ (∀ es, Q es).
     Proof.
@@ -547,7 +549,7 @@ Module CBEA.
         move=> [v le] ok_v vs ok_vs <- /=.
         move: (rec e' v le he ok_v). move=> [] v' -> /= hv.
         move: (ih es' vs hall ok_vs). move=> [] vs' [] -> /= [] hvs hls.
-        exists ((v', leak_E (check_eb r e e').2 le) :: vs'). split=> //.
+        exists ((v', leak_E stk (check_eb r e e').2 le) :: vs'). split=> //.
         split. apply List.Forall2_cons; eauto. rewrite /=. case: hls => hls1.
         by rewrite -hls1 /=.
       - (* Pconst *)
@@ -635,15 +637,17 @@ Module CBEA.
 
   End CHECK_EBP.
 
-  Definition check_ebP gd r m vm1 vm2 e h :=
-    (@check_e_esbP gd r m vm1 vm2 h).1 e.
+  Variable stk : pointer.
+
+  Definition check_ebP gd r m vm1 vm2 e h:=
+    (@check_e_esbP gd r m vm1 vm2 h stk).1 e.
 
   Lemma check_eP gd e1 e2 r re lte vm1 vm2:
     check_e e1 e2 r = ok (re, lte) ->
     eq_alloc r vm1 vm2 ->
     eq_alloc re vm1 vm2 /\
     forall m v1 l,  sem_pexpr gd (Estate m vm1) e1 = ok (v1, l) ->
-    exists v2, sem_pexpr gd (Estate m vm2) e2 = ok (v2, leak_E lte l) /\ value_uincl v1 v2.
+    exists v2, sem_pexpr gd (Estate m vm2) e2 = ok (v2, leak_E stk lte l) /\ value_uincl v1 v2.
   Proof.
     rewrite /check_e; case: ifP => //= h [<-] hr; split => // m v1 l1 ok_v1.
     move: check_ebP. move=> Hce. move: (Hce gd r m vm1 vm2 e1 H e2 v1 l1 h ok_v1).
@@ -698,7 +702,7 @@ Module CBEA.
             truncate_val te2.1 vl.1 = ok v2) true e2 ->
     write_lval gd x1 v1 s1 = ok (s1', le1') ->
     exists vm1',
-      write_lval gd x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1', leak_E ltr le1') /\
+      write_lval gd x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1', leak_E stk ltr le1') /\
       eq_alloc r1' s1'.(evm) vm1'.
   Proof.
     move=> H1 H2 H3 _; move: H1 H2 H3.
