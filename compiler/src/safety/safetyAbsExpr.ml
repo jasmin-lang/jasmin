@@ -557,12 +557,23 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
               | Some i -> e2, i
               | None -> raise (Binop_not_supported op2) in
 
-          let log_i = Z.log2up i in
-          let log_i = Mtexpr.cst (Coeff.s_of_mpqf (Mpqf.of_int log_i)) in
-                        
-          let lin_e' = linearize_wexpr abs e' in
-                    
-          let lin = Mtexpr.(binop Texpr1.Mod lin_e' log_i) in
+          let n = Z.log2up (Z.add i Z.one) in
+          let lin =
+            if Z.add i Z.one = Z.pow (Z.of_int 2) n then
+              (* If [i + 1] is [2^n], then [e & i] is equivalent to [e mod 2^n] *)
+              let n = Mtexpr.cst (Coeff.s_of_mpqf (mpq_pow n)) in
+              let lin_e' = linearize_wexpr abs e' in
+              Mtexpr.(binop Texpr1.Mod lin_e' n)
+            else
+              (* Else [i + 1] is lower than [2^n], hence [e & i] is soundly
+                 approximated by the interval [0; 2^n - 1] *)
+              let int = Interval.of_mpqf (Mpqf.of_int 0) (mpq_pow_minus n 1) in
+              Mtexpr.cst (Coeff.Interval int)
+          in          
+          debug (fun () ->
+              Format.eprintf "@[<hov 0>Substituted@,   %a@ by %a@]@."
+                (Printer.pp_expr ~debug:false) e Mtexpr.print lin
+            );         
           wrap_if_overflow abs lin Unsigned (int_of_ws ws_e)
             
         | _ -> raise (Binop_not_supported op2)

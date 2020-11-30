@@ -1,0 +1,8 @@
+export fn BS2POLVECq(reg u64 b) 
+{
+ b &= 0xfff;                 // 4095
+
+ if (b > 4094){
+  while (true) { b += 1;}
+ }
+}

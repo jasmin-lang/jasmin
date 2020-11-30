@@ -855,7 +855,9 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
                           total of %d num. vars."
         bool_size init_size bool_nr_vars in
 
-    if !only_rel_print then
+    if is_bottom t then
+      Format.fprintf fmt "@[<v 0>Bottom ⊥@;@]"
+    else if !only_rel_print then
       Format.fprintf fmt "@[<v 0>%a@;%t@]"
         (AbsNum.R.print ~full:full) t.num
         print_alignment
