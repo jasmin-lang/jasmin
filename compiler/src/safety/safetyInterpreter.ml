@@ -1238,7 +1238,7 @@ end = struct
     | E.Ox86 (X86_instr_decl.NOT ws) ->
       let e1 = as_seq1 es in
       let e = Papp1 (E.Olnot ws, e1) in
-      rflags_unknwon @ [Some e]
+      [Some e]
 
     | E.Ox86 (X86_instr_decl.TEST _)
     | E.Ox86 (X86_instr_decl.ANDN _)
