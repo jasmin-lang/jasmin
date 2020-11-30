@@ -1,0 +1,6 @@
+export fn test8() -> reg u8 { reg u8 y; _, _, _, _, _, y = #set0_8(); return y; }
+export fn test16() -> reg u16 { reg u16 y; _, _, _, _, _, y = #set0_16(); return y; }
+export fn test32() -> reg u32 { reg u32 y; _, _, _, _, _, y = #set0_32(); return y; }
+export fn test64() -> reg u64 { reg u64 y; _, _, _, _, _, y = #set0_64(); return y; }
+export fn test128() -> reg u128 { reg u128 y; y = #set0_128(); return y; }
+export fn test256() -> reg u256 { reg u256 y; y = #set0_256(); return y; }
