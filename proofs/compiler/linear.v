@@ -32,7 +32,7 @@ Require Import ZArith.
 Require Import Utf8.
 Import Relations.
 
-Require Import expr compiler_util stack_alloc.
+Require Import expr compiler_util stack_alloc leakage.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -44,21 +44,23 @@ Local Open Scope seq_scope.
 
 Definition label := positive.
 
+(* low level instructions *)
 Variant linstr_r :=
-  | Lopn   : lvals -> sopn -> pexprs -> linstr_r
-  | Lalign : linstr_r
-  | Llabel : label -> linstr_r
-  | Lgoto  : label -> linstr_r
-  | Lcond  : pexpr -> label -> linstr_r
+  | Liopn   : lvals -> sopn -> pexprs -> linstr_r
+  | Lialign : linstr_r
+  | Lilabel : label -> linstr_r
+  | Ligoto  : label -> linstr_r
+  | Licond  : pexpr -> label -> linstr_r
 .
 
 Record linstr : Type := MkLI { li_ii : instr_info; li_i : linstr_r }.
 
 Definition lcmd := seq linstr.
 
+
 Definition is_label (lbl: label) (i:linstr) : bool :=
   match i.(li_i) with
-  | Llabel lbl' => lbl == lbl'
+  | Lilabel lbl' => lbl == lbl'
   | _ => false
   end.
 
@@ -86,106 +88,126 @@ Definition lprog := seq (funname * lfundef).
 (* --------------------------------------------------------------------------- *)
 (* Translation                                                                 *)
 
-Notation "c1 ';;' c2" :=  (c2 >>= (fun p => c1 p.1 p.2))
+Notation "c1 ';;' c2" :=  (c2 >>= (fun p => c1 p.1.1 p.1.2 p.2))
    (at level 26, right associativity).
 
-Notation "c1 '>;' c2" :=  (c2 >>= (fun p => ok (p.1, c1 :: p.2)))
+Notation "c1 '>;' c2" :=  (c2 >>= (fun p => ok (p.1.1, c1 :: p.1.2, p.2)))
    (at level 26, right associativity).
 
 Section LINEAR_C.
 
-  Variable linear_i : instr -> label -> lcmd -> ciexec (label * lcmd).
-
-  Fixpoint linear_c (c:cmd) (lbl:label) (lc:lcmd) :=
+  Variable linear_i : instr -> label -> lcmd -> ciexec (label * lcmd * leak_i_tr).
+  
+  (* FIX NEEDED *)
+  Fixpoint linear_c (c:cmd) (lbl:label) (lc:lcmd) : 
+  ciexec (label * lcmd * leak_c_tr) :=
     match c with
-    | [::] => ciok (lbl, lc)
-    | i::c =>
-      linear_i i ;; linear_c c lbl lc
+    | [::] => ciok (lbl, lc, [::])
+    | i::c => Let rc := linear_c c lbl lc in 
+              Let ri := linear_i i rc.1.1 rc.1.2 in 
+              ciok (ri.1.1, ri.1.2, [:: ri.2] ++ rc.2) 
+     (*linear_i i ;; linear_c c lbl lc*)
     end.
 
 End LINEAR_C.
 
 Definition next_lbl lbl := (lbl + 1)%positive.
 
-Fixpoint snot e :=
+Fixpoint snot e : (pexpr * leak_e_tr) :=
   match e with
-  | Papp1 Onot e => e
-  | Papp2 Oand e1 e2 => Papp2 Oor (snot e1) (snot e2)
-  | Papp2 Oor e1 e2 => Papp2 Oand (snot e1) (snot e2)
-  | Pif t e e1 e2 => Pif t e (snot e1) (snot e2)
-  | Pbool b => Pbool (~~ b)
-  | _ => Papp1 Onot e
+  | Papp1 Onot e => (e, LT_id)
+  | Papp2 Oand e1 e2 => (Papp2 Oor (snot e1).1 (snot e2).1, 
+                         LT_map [:: (snot e1).2; (snot e2).2])
+  | Papp2 Oor e1 e2 => (Papp2 Oand (snot e1).1 (snot e2).1,
+                        LT_map [:: (snot e1).2; (snot e2).2])
+  | Pif t e e1 e2 => (Pif t e (snot e1).1 (snot e2).1, 
+                      LT_map [:: LT_id; (snot e1).2; (snot e2).2])
+  | Pbool b => (Pbool (~~ b), LT_id)
+  | _ => (Papp1 Onot e, LT_id)
   end.
 
+(* Ask Benjamin *)
 Definition add_align ii a (lc:lcmd) :=
   match a with
   | NoAlign => lc
-  | Align   =>  MkLI ii Lalign :: lc
+  | Align   =>  MkLI ii Lialign :: lc
   end.
 
-Definition align ii a (lc:ciexec (label * lcmd)) : ciexec (label * lcmd) :=
+Definition align ii a (lc:ciexec (label * lcmd * leak_c_tr)) : ciexec (label * lcmd * leak_c_tr) :=
   Let p := lc in
-  ok (p.1, add_align ii a p.2).
+  ok (p.1.1, add_align ii a p.1.2, p.2).
 
-Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
+Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_i_tr) :=
   let (ii, ir) := i in
   match ir with
   | Cassgn x _ ty e =>
     if ty is sword sz
     then
       let op := if (sz ≤ U64)%CMP then (MOV sz) else (VMOVDQU sz) in
-      ok (lbl, MkLI ii (Lopn [:: x ] (Ox86 op) [:: e]) :: lc)
+      ok (lbl, MkLI ii (Liopn [:: x ] (Ox86 op) [:: e]) :: lc, LT_ile (LT_map [:: LT_id; LT_id]))
     else cierror ii (Cerr_linear "assign not a word")
-  | Copn xs _ o es => ok (lbl, MkLI ii (Lopn xs o es) :: lc)
+  | Copn xs _ o es => ok (lbl, MkLI ii (Liopn xs o es) :: lc, LT_ile (LT_map [:: LT_id; LT_id]))
 
   | Cif e [::] c2 =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
-    MkLI ii (Lcond e L1) >; linear_c linear_i c2 lbl (MkLI ii (Llabel L1) :: lc)
+    Let rs := MkLI ii (Licond e L1) >; linear_c linear_i c2 lbl (MkLI ii (Lilabel L1) :: lc) in 
+    ciok (rs.1.1, rs.1.2, LT_icond LT_id [::] rs.2)
 
   | Cif e c1 [::] =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
-    MkLI ii (Lcond (snot e) L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc)
+    Let rs := MkLI ii (Licond (snot e).1 L1) >; linear_c linear_i c1 lbl (MkLI ii (Lilabel L1) :: lc) in 
+    ciok (rs.1.1, rs.1.2, LT_icond (snot e).2 rs.2 [::])
+
 
   | Cif e c1 c2 =>
     let L1 := lbl in
     let L2 := next_lbl L1 in
     let lbl := next_lbl L2 in
-                           MkLI ii (Lcond e L1) >;
+    Let rs1 := MkLI ii (Ligoto L2) >; MkLI ii (Lilabel L1) >; linear_c linear_i c1 lbl (MkLI ii (Lilabel L2) :: lc) in
+    Let rs2 :=  MkLI ii (Licond e L1) >; linear_c linear_i c2 rs1.1.1 rs1.1.2 in 
+    ok (rs2.1.1, rs2.1.2, LT_icond LT_id rs1.2 rs2.2)
+                           (*MkLI ii (Lcond e L1) >;
                            linear_c linear_i c2 ;;
                            MkLI ii (Lgoto L2) >;
     MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl
-   (MkLI ii (Llabel L2) :: lc)
+   (MkLI ii (Llabel L2) :: lc)*)
 
   | Cwhile a c e c' =>
     match is_bool e with
     | Some true =>
       let L1 := lbl in
       let lbl := next_lbl L1 in
-      align ii a (
-      MkLI ii (Llabel L1) >; linear_c linear_i c ;;
+      Let rs := linear_c linear_i c' lbl (MkLI ii (Ligoto L1) :: lc) in 
+      Let rsa := align ii a (MkLI ii (Lilabel L1) >; linear_c linear_i c rs.1.1 rs.1.2) in 
+      ciok (rsa.1.1, rsa.1.2, LT_iwhile rs.2 LT_remove rsa.2)
+     (* MkLI ii (Llabel L1) >; linear_c linear_i c ;;
                              linear_c linear_i c' lbl
-                             (MkLI ii (Lgoto L1) :: lc))
+                             (MkLI ii (Lgoto L1) :: lc))*)
 
     | Some false =>
-      linear_c linear_i c lbl lc
+      Let rs := linear_c linear_i c lbl lc in 
+      ciok (rs.1.1, rs.1.2, LT_iwhile [::] LT_remove rs.2)
 
     | None =>
       match c' with
       | [::] =>
       let L1 := lbl in
       let lbl := next_lbl L1 in
-      align ii a (MkLI ii (Llabel L1) >; linear_c linear_i c lbl
-                             (MkLI ii (Lcond e L1) :: lc))
+      Let rs := align ii a (MkLI ii (Lilabel L1) >; linear_c linear_i c lbl
+                             (MkLI ii (Licond e L1) :: lc)) in 
+      ciok (rs.1.1, rs.1.2, LT_iwhile rs.2 LT_remove [::]) 
       | _ =>
       let L1 := lbl in
       let L2 := next_lbl L1 in
       let lbl := next_lbl L2 in
-                             MkLI ii (Lgoto L1) >;
-      align ii a (MkLI ii (Llabel L2) >; linear_c linear_i c' ;;
-      MkLI ii (Llabel L1) >; linear_c linear_i c lbl
-                             (MkLI ii (Lcond e L2) :: lc))
+      Let rs1 :=  MkLI ii (Lilabel L1) >; linear_c linear_i c lbl
+                             (MkLI ii (Licond e L2) :: lc) in 
+      let rs3 := align ii a (MkLI ii (Lilabel L2) >; linear_c linear_i c' rs1.1.1 rs1.1.2) in 
+      Let rs := MkLI ii (Ligoto L1) >; rs3 in 
+      ciok (rs.1.1, rs.1.2, LT_iwhile rs1.2 LT_remove rs.2)
+
       end
     end
 
@@ -194,21 +216,22 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Ccall _ _ _ _ => cierror ii (Cerr_linear "call found in linear")
   end.
 
-Definition linear_fd (fd: sfundef) :=
+Definition linear_fd (fd: sfundef) : ciexec (lfundef * leak_c_tr) :=
   Let fd' := linear_c linear_i (sf_body fd) 1%positive [::] in
-  ok (LFundef (sf_stk_sz fd) (sf_stk_id fd) (sf_tyin fd) (sf_params fd) fd'.2 (sf_tyout fd) (sf_res fd) (sf_extra fd)).
+  ok (LFundef (sf_stk_sz fd) (sf_stk_id fd) (sf_tyin fd) (sf_params fd) fd'.1.2 (sf_tyout fd) (sf_res fd) (sf_extra fd),
+      fd'.2).
 
-Definition linear_prog (p: sprog) : cfexec lprog :=
-  map_cfprog linear_fd p.
+Definition linear_prog (p: sprog) : cfexec (lprog * leak_f_tr) :=
+  map_cfprog_leak linear_fd p.
 
 Module Eq_linstr.
   Definition eqb_r i1 i2 :=
     match i1, i2 with
-    | Lopn lv1 o1 e1, Lopn lv2 o2 e2 => (lv1 == lv2) && (o1 == o2) && (e1 == e2)
-    | Lalign, Lalign => true
-    | Llabel l1, Llabel l2 => l1 == l2
-    | Lgoto l1, Lgoto l2 => l1 == l2
-    | Lcond e1 l1, Lcond e2 l2 => (e1 == e2) && (l1 == l2)
+    | Liopn lv1 o1 e1, Liopn lv2 o2 e2 => (lv1 == lv2) && (o1 == o2) && (e1 == e2)
+    | Lialign, Lialign => true
+    | Lilabel l1, Lilabel l2 => l1 == l2
+    | Ligoto l1, Ligoto l2 => l1 == l2
+    | Licond e1 l1, Licond e2 l2 => (e1 == e2) && (l1 == l2)
     | _, _ => false
     end.
 

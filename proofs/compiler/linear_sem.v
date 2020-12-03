@@ -68,64 +68,120 @@ as the reflexive transitive closure of the [lsem1] relation that
 describes the execution of the first instruction.
 
 Therefore, [lsem s] represents all states reachable from [s].
-A maximal execution (i.e., terminated without error) is caracterized by the fact that
+A maximal execution (i.e., terminated without error) is characterized by the fact that
 the reached state has no instruction left to execute.
 *)
 Section LSEM.
 
 Context (gd: glob_decls).
 
-Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
+(** Need to fix this **)
+Variable li : leak_i.
+
+Definition eval_instr (i : linstr) (s1: lstate) : exec (lstate * leak_il) :=
   match li_i i with
-  | Lopn xs o es =>
+  | Liopn xs o es =>
     Let s2 := sem_sopn gd o (to_estate s1) xs es in
-    ok (of_estate s2 s1.(lc) s1.(lpc).+1)
-  | Lalign   => ok (setpc s1 s1.(lpc).+1)
-  | Llabel _ => ok (setpc s1 s1.(lpc).+1)
-  | Lgoto lbl =>
+    ok (of_estate s2.1 s1.(lc) s1.(lpc).+1, Lopnl s2.2)
+  | Lialign   => ok (setpc s1 s1.(lpc).+1, Lempty)
+  | Lilabel _ => ok (setpc s1 s1.(lpc).+1, Lempty)
+  | Ligoto lbl =>
     Let pc := find_label lbl s1.(lc) in
-    ok (setpc s1 pc.+1)
-  | Lcond e lbl =>
-    Let b := sem_pexpr gd (to_estate s1) e >>= to_bool in
+    ok (setpc s1 pc.+1, Lempty)
+  | Licond e lbl =>
+    Let re := sem_pexpr gd (to_estate s1) e in 
+    Let b :=  to_bool re.1 in
     if b then
       Let pc := find_label lbl s1.(lc) in
-      ok (setpc s1 pc.+1)
-    else ok (setpc s1 s1.(lpc).+1)
+      ok (setpc s1 pc.+1, (Lcondl re.2 b lbl))
+    else ok (setpc s1 s1.(lpc).+1, (Lcondl re.2 b lbl))
   end.
 
 Definition find_instr (s:lstate) := oseq.onth s.(lc) s.(lpc).
 
-Definition step (s: lstate) : exec lstate :=
+Definition step (s: lstate) : exec (lstate * leak_il) :=
   if find_instr s is Some i then
     eval_instr i s
   else type_error.
 
-Definition lsem1 (s1 s2: lstate) : Prop :=
-  step s1 = ok s2.
+Definition lsem1 (s1: lstate) (li : leak_il) (s2: lstate): Prop :=
+  step s1 = ok (s2, li).
 
-Definition lsem : relation lstate := clos_refl_trans lstate lsem1.
+Section Leak_Trans.
 
-Lemma lsem_ind (Q: lstate → lstate → Prop) :
-  (∀ s, Q s s) →
-  (∀ s1 s2 s3, lsem1 s1 s2 → lsem s2 s3 → Q s2 s3 → Q s1 s3) →
-  ∀ s1 s2, lsem s1 s2 → Q s1 s2.
+Context (A : Type) (L: Type).
+
+Definition leak_relation :=  A -> L -> A -> Prop.
+
+Context (R : leak_relation).
+
+Inductive leak_clos_refl_trans (x : A) : seq L -> A → Prop :=
+    rtl_step : ∀ y l, R x l y → leak_clos_refl_trans x [:: l] y
+  | rtl_refl : leak_clos_refl_trans x [::] x
+  | rtl_trans : ∀ y z l1 l2,
+                 leak_clos_refl_trans x l1 y
+                 → leak_clos_refl_trans y l2 z
+                   → leak_clos_refl_trans x (l1 ++ l2) z.
+
+Inductive leak_clos_refl_trans_1n (x: A) : seq L -> A -> Prop :=
+    | rt1ln_step : forall y l, R x l y -> leak_clos_refl_trans_1n x [:: l] y
+    | rt1ln_refl : leak_clos_refl_trans_1n x [::] x
+    | rt1ln_trans : forall y z l1 l2,
+         R x l1 y -> leak_clos_refl_trans_1n y l2 z -> leak_clos_refl_trans_1n x ([::l1] ++ l2) z.
+
+Lemma leak_clos_rt_rt1n : forall x l y,
+        leak_clos_refl_trans x l y -> leak_clos_refl_trans_1n x l y.
 Proof.
-  move=> R S s1 s2 H; apply clos_rt_rt1n in H.
-  specialize (λ s1 s2 s3 X Y, S s1 s2 s3 X (clos_rt1n_rt _ _ _ _ Y)).
-  by elim: H.
+  move=> x l y H. elim: H.
+  + move=> x0 y0 l0 R0. by apply rt1ln_step.
+  + move=> x0. by apply rt1ln_refl.
+  move=> x0 y0 z0 l1 l2 H1 H2 H3 H4.
+  admit.
+Admitted.
+
+Lemma leak_clos_rt1n_rt : forall x l y,
+        leak_clos_refl_trans_1n x l y -> leak_clos_refl_trans x l y.
+Proof.
+ move=> x l y H. elim: H.
+ + move=> x0 y0 l0 R0. by apply rtl_step.
+ + move=> x0. apply rtl_refl.
+ move=> x0 y0 z l1 l2 R0 H1 H2.
+ apply rtl_trans with y0. 
+ + by apply rtl_step.
+ auto.
 Qed.
 
-Lemma lsem_step s2 s1 s3 :
-  lsem1 s1 s2 →
-  lsem s2 s3 →
-  lsem s1 s3.
+End Leak_Trans.
+
+Definition lsem : leak_relation lstate (seq leak_il) := 
+    leak_clos_refl_trans lsem1.
+
+Lemma lsem_ind (Q: lstate → seq leak_il -> lstate → Prop) :
+  (∀ s, Q s [::] s) →
+  (∀ s1 l1 s2 l2 s3, lsem1 s1 l1 s2 → lsem s2 l2 s3 → Q s2 l2 s3 → Q s1 ([::l1] ++ l2) s3) →
+  ∀ s1 s2 l1, lsem s1 l1 s2 → Q s1 l1 s2.
 Proof.
-  by move=> H; apply: rt_trans; apply: rt_step.
+  move=> R Hrec s1 s2 l1 H; apply leak_clos_rt_rt1n in H.
+Admitted.
+
+Lemma lsem_step s2 s1 s3 l1 l2:
+  lsem1 s1 l1 s2 →
+  lsem s2 l2 s3 →
+  lsem s1 ([::l1] ++ l2) s3.
+Proof.
+  move=> H H'. rewrite /lsem. 
+  apply rtl_trans with s2.
+  + by apply rtl_step.
+  elim: H'.
+  + move=> x y l H'. by apply rtl_step.
+  + move=> x. by apply rtl_refl.
+  move=> x y z l l' H1 H2 H3 H4.
+  by apply rtl_trans with y.
 Qed.
 
 End LSEM.
 
-Variant lsem_fd gd m1 fn va' m2 vr' : Prop :=
+Variant lsem_fd gd m1 fn va' (fnlc: funname * seq leak_il) m2 vr': Prop :=
 | LSem_fd : forall m1' fd va vm2 m2' s1 s2 vr,
     get_fundef P fn = Some fd ->
     alloc_stack m1 fd.(lfd_stk_size) = ok m1' ->
@@ -133,15 +189,15 @@ Variant lsem_fd gd m1 fn va' m2 vr' : Prop :=
     write_var  (S.vstk fd.(lfd_nstk)) (Vword (top_stack m1')) (Estate m1' vmap0) = ok s1 ->
     mapM2 ErrType truncate_val fd.(lfd_tyin) va' = ok va ->
     write_vars fd.(lfd_arg) va s1 = ok s2 ->
-    lsem gd (of_estate s2 c 0)
+    lsem gd (of_estate s2 c 0) fnlc.2
            {| lmem := m2'; lvm := vm2; lc := c; lpc := size c |} ->
     mapM (fun (x:var_i) => get_var vm2 x) fd.(lfd_res) = ok vr ->
     mapM2 ErrType truncate_val fd.(lfd_tyout) vr = ok vr' ->
     m2 = free_stack m2' fd.(lfd_stk_size) ->
-    lsem_fd gd m1 fn va' m2 vr'.
+    lsem_fd gd m1 fn va' fnlc m2 vr'.
 
-Definition lsem_trans gd s2 s1 s3 :
-  lsem gd s1 s2 -> lsem gd s2 s3 -> lsem gd s1 s3 :=
-  rt_trans _ _ s1 s2 s3.
+(*Definition lsem_trans gd s2 s1 s3 l1 l2 l3:
+  lsem gd s1 l1 s2 -> lsem gd s2 l2 s3 -> lsem gd s1 (l1 ++ l2) s3 :=
+  rtl_trans _ _ s1 s2 l1 l2.*)
 
 End SEM.

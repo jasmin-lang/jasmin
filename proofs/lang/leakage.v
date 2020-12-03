@@ -278,6 +278,18 @@ Definition leak_Fun (f: funname) : leak_c_tr := odflt [::] (assoc Fs f).
 
 End Leak_Call_Imp.
 
+(** Leakage for low-level **)
+
+Inductive leak_il : Type :=
+| Lempty : leak_il
+| Lopnl : leak_e -> leak_il
+| Llabel : nat -> leak_il
+| Lcondl : leak_e -> bool -> label -> leak_il.
+
+Notation leak_funl := (funname * seq leak_il).
+
+
+
 
 
 
