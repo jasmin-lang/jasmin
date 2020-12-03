@@ -7,6 +7,7 @@ DISTDIR  := jasmin
 DESTDIR  ?=
 PREFIX   ?= /usr/local
 BINDIR   := $(PREFIX)/bin
+LIBDIR   := $(PREFIX)/lib
 INSTALL  ?= install
 
 # --------------------------------------------------------------------
@@ -29,9 +30,11 @@ clean:
 install:
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0755 -T compiler/jasminc.native $(DESTDIR)$(BINDIR)/jasminc
+	$(INSTALL) -m 0644 -t $(DESTDIR)$(LIBDIR)/jasmin/easycrypt eclib/*.{ec,eca}
 
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/jasminc
+	rm -f  $(DESTDIR)$(BINDIR)/jasminc
+	rm -rf $(DESTDIR)$(LIBDIR)/jasmin
 
 dist:
 	rm -rf jasmin jasmin.tar.gz
