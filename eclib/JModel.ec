@@ -72,15 +72,15 @@ proof. smt (iteriS). qed.
 
 lemma rotate8_256_E w :
   VPSHUFB_256 w const_rotate8_256 = W8u32.map (fun w => W32.rol w 8) w.
-proof. by apply: W256.all_eq_eq; cbv delta. qed.
+proof. by apply: (W256.all_eq_eq _ _ _); cbv delta. qed.
 
 lemma rotate16_256_E w :
   VPSHUFB_256 w const_rotate16_256 = W8u32.map (fun w => W32.rol w 16) w.
-proof. by apply: W256.all_eq_eq; cbv delta. qed.
+proof. by apply: (W256.all_eq_eq _ _ _); cbv delta. qed.
 
 lemma rotate24_256_E w :
   VPSHUFB_256 w const_rotate24_256 = W8u32.map (fun w => W32.rol w 24) w.
-proof. by apply: W256.all_eq_eq; cbv delta. qed.
+proof. by apply: (W256.all_eq_eq _ _ _); cbv delta. qed.
 
 hint simplify (rotate8_256_E, rotate16_256_E, rotate24_256_E).
 

@@ -1,5 +1,5 @@
 (* -------------------------------------------------------------------- *)
-require import AllCore BitEncoding IntDiv SmtMap List StdOrder BitEncoding Bool.
+require import AllCore BitEncoding IntDiv SmtMap List StdOrder BitEncoding Bool Distr.
 (*---*) import Ring.IntID IntOrder BS2Int.
 require import JUtils JArray.
 
@@ -151,6 +151,33 @@ qed.
 
 lemma to_uint_eq (x y:t) :  (x = y) <=> (to_uint x = to_uint y).
 proof. by rewrite Core.inj_eq // (Core.can_inj _ _  to_uintK). qed.
+
+(* -------------------------------------------------------------------- *)
+(* Uniform distribution over word                                       *)
+op all_words = map of_int (iota_ 0 modulus)
+axiomatized by all_wordsE.
+
+lemma all_wordsP x : x \in all_words.
+proof. 
+  rewrite all_wordsE mapP; exists (to_uint x).
+  by rewrite mema_iota /= to_uint_cmp.
+qed.
+
+op dword = duniform all_words.
+
+lemma dword_ll : is_lossless dword.
+proof. apply duniform_ll; smt(List.in_nil all_wordsP). qed.
+
+lemma dword_uni : is_uniform dword.
+proof. by apply duniform_uni. qed.
+
+lemma dword_fu : is_full dword.
+proof. by apply /duniform_fu/all_wordsP. qed.
+
+lemma dword_funi : is_funiform dword.
+proof. apply is_full_funiform;[apply dword_fu| apply dword_uni]. qed.
+
+hint exact random : dword_ll dword_fu dword_funi.
 
 (* -------------------------------------------------------------------- *)
 op int_bit x i = (x%%modulus) %/ 2 ^ i %% 2 <> 0.
