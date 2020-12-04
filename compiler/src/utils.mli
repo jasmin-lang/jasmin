@@ -7,7 +7,8 @@ module Sint : Set.S with type elt = int
 module Mint : Map.S with type key = int 
 
 module Ss   : Set.S with type elt = string
-
+module Ms   : Map.S with type key = string
+                         
 module Option : sig include module type of BatOption end
 
 (* -------------------------------------------------------------------- *)
@@ -241,6 +242,8 @@ module List : sig
     val map_fold : ('a -> 'b -> 'a * 'b) -> 'a -> 'b list -> 'a * 'b list
   end
 
+  val find_map_opt : ('a -> 'b option) -> 'a list -> 'b option
+      
   (* Aliases to exception-less functions *)
   val ocons   : 'a option -> 'a list -> 'a list
   val ohead   : 'a list -> 'a option

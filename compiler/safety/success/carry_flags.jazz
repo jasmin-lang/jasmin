@@ -1,0 +1,19 @@
+export
+fn test() -> reg u64 {
+  reg bool cf, zf;
+  reg u64 i, acc;
+
+  i = 1;
+  cf, i -= 1;
+  if (cf){
+    while (true) { i += 1;}
+  }
+
+  i = 0;
+  cf, i -= 1;
+  if (!cf){
+    while (true) { i += 1;}
+  }
+
+  return i;
+}

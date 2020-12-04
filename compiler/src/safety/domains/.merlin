@@ -1,8 +1,8 @@
-S .
-B ../_build/src
-B ../_build/CIL
-B ../_build/src/safety
-B ../_build/src/safety/domains
+S ../../
+B ../../../_build/src
+B ../../../_build/src/safety
+B ../../../_build/src/safety/domains
+B ../../../_build/CIL
 
 PKG batteries
 PKG menhirLib

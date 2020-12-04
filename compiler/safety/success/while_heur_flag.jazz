@@ -1,0 +1,16 @@
+export
+fn test() -> reg u64 {
+  reg bool zf;
+  reg u64 i, acc;
+
+  i = 42;
+  acc = 0;
+  while
+  {
+    acc += i;
+    (_, _, _, zf, i) = #DEC(i);
+
+  } (!zf)
+
+  return acc;
+}
