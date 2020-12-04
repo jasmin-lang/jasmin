@@ -164,10 +164,10 @@ let u8_blast_var ~blast_arrays v = match v with
   | _ -> [v]
 
 let u8_blast_ats ~blast_arrays ats =
-  List.concat_map (u8_blast_at ~blast_arrays) ats
+  List.concat (List.map (u8_blast_at ~blast_arrays) ats)
 
 let u8_blast_vars ~blast_arrays vs =
-  List.concat_map (u8_blast_var ~blast_arrays) vs
+  List.concat (List.map (u8_blast_var ~blast_arrays) vs)
 
 let rec expand_arr_vars = function
   | [] -> []
