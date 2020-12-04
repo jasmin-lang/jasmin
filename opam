@@ -23,6 +23,7 @@ depends: [
   "zarith"
   "apron"
   "conf-ppl"
+  "yojson"
   "ocamlbuild"
   "ocamlfind"
   "coq" {>= "8.7" & < "8.10"}
