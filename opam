@@ -22,8 +22,8 @@ depends: [
   "menhir" {>= "20160825"}
   "zarith"
   "apron"
-  "bddapron"
   "conf-ppl"
+  "yojson"
   "ocamlbuild"
   "ocamlfind"
   "coq" {>= "8.7" & < "8.10"}
