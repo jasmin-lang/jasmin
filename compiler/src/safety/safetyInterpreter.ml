@@ -1021,8 +1021,12 @@ end = struct
      Bitwise operators are ignored for now (result is soundly set to top).
      See x86_instr_decl.v for a desciption of the operators. *)
   let split_opn n opn es = match opn with
-    | E.Oset0 ws -> [None;None;None;None;None;
-                     Some (pcast ws (Pconst (B.of_int 0)))]
+    | E.Oset0 ws ->
+       let zero = Some (pcast ws (Pconst (B.of_int 0))) in
+       begin match wsize_cmp U64 ws with
+       | Lt -> [ zero ]
+       | _ -> [ None; None; None; None; None; zero ]
+       end
 
     | E.Osubcarry ws -> mk_subcarry ws es
 
