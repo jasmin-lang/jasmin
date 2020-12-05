@@ -93,8 +93,8 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec (lstate * leak_il) :=
     Let b :=  to_bool re.1 in
     if b then
       Let pc := find_label lbl s1.(lc) in
-      ok (setpc s1 pc.+1, (Lcondl re.2 b lbl))
-    else ok (setpc s1 s1.(lpc).+1, (Lcondl re.2 b lbl))
+      ok (setpc s1 pc.+1, (Lcondl re.2 b))
+    else ok (setpc s1 s1.(lpc).+1, (Lcondl re.2 b))
   end.
 
 Definition find_instr (s:lstate) := oseq.onth s.(lc) s.(lpc).

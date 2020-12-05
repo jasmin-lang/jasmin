@@ -49,7 +49,7 @@ end.
 
 Inductive leak_i : Type :=
   | Lassgn : leak_e -> leak_i
-  | Lopn  : leak_e ->leak_i
+  | Lopn  : leak_e ->leak_i (* remove this *)
   | Lcond  : leak_e -> bool -> seq leak_i -> leak_i
   | Lwhile_true : seq leak_i -> leak_e -> seq leak_i -> leak_i -> leak_i 
   | Lwhile_false : seq leak_i -> leak_e -> leak_i
@@ -160,7 +160,7 @@ Definition ltarget :=
 
 Definition ltr_i := LT_subi 0.
 Definition ltr_e := LT_remove.
-Definition f1 := LT_build [:: LT_build [:: ltr_i; ltr_e]; LT_remove].
+Definition f1 := LT_seq [:: LT_seq [:: ltr_i; ltr_e]; LT_remove].
 
 Definition f2 :=
   LT_compose (LT_subi 1) 
@@ -283,12 +283,49 @@ End Leak_Call_Imp.
 Inductive leak_il : Type :=
 | Lempty : leak_il
 | Lopnl : leak_e -> leak_il
-| Llabel : nat -> leak_il
-| Lcondl : leak_e -> bool -> label -> leak_il.
+| Lcondl : leak_e -> bool -> leak_il.
 
 Notation leak_funl := (funname * seq leak_il).
 
+Definition leak_cl := seq leak_il.
 
+Inductive leak_i_il_tr : Type :=
+| LT_ilremove : leak_i_il_tr
+| LT_ile_il : leak_e_tr -> leak_i_il_tr
+| LT_icond_il : leak_e_tr -> leak_i_il_tr
+| LT_iwhile_il : seq leak_i_il_tr -> leak_e_tr -> seq leak_i_il_tr -> leak_i_il_tr.
+
+Section Leak_IL.
+
+  Variable leak_i_iL : pointer -> leak_i ->  leak_i_il_tr -> seq leak_il.
+
+  Definition leak_i_iLs (stk : pointer) (lts : seq leak_i_il_tr) (ls : seq leak_i) : seq leak_il :=
+    flatten (map2 (leak_i_iL stk) ls lts).
+
+  Definition leak_i_iLss (stk: pointer) (ltss : seq leak_i_il_tr) (ls : seq (seq leak_i)) : seq (seq leak_il) :=
+    (map (leak_i_iLs stk ltss) ls).
+
+End Leak_IL.
+
+Fixpoint leak_i_iL (stk: pointer) (li : leak_i) (l : leak_i_il_tr) {struct l} : seq leak_il :=
+match l, li with 
+| LT_ilremove, _ => [::]
+| LT_ile_il lte, Lassgn le => [:: Lopnl (leak_E stk lte le)]
+| LT_icond_il lte, Lcond le b li => [:: Lcondl (leak_E stk lte le) b]
+| LT_iwhile_il lti lte lti', Lwhile_true li le li' li'' => [::]
+| LT_iwhile_il lti lte lti', Lwhile_false li le => [::]
+| _, _ => [::]
+end.
+
+Definition leak_f_lf_tr := seq (funname * seq leak_i_il_tr).
+
+Section Leak_Call_Imp_L.
+
+Variable Fs: leak_f_lf_tr.
+
+Definition leak_Fun_L (f: funname) : seq leak_i_il_tr := odflt [::] (assoc Fs f).
+
+End Leak_Call_Imp_L.
 
 
 
