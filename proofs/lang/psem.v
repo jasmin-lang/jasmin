@@ -414,6 +414,46 @@ Proof.
   by move => s m s' _ xs f es vs rs lf l2 hvs h hrs; exists vs, m, rs, lf, l2.
 Qed.
 
+
+Lemma sem_iE' s i s' li:
+  sem_i s i li s' ->
+  match i with
+  | Cassgn lv _ ty e =>
+    ∃ v v' le lw,
+    [ /\ sem_pexpr gd s e = ok (v, le), truncate_val ty v = ok v', write_lval gd lv v' s = ok (s', lw) 
+      & li = Lassgn (LSub [:: le ; lw])]
+  | Copn lvs _ op es => ∃ lo, sem_sopn gd op s lvs es = ok (s', lo) /\ li = Lopn lo
+  | Cif e th el =>
+    ∃ b le lc, [ /\ sem_pexpr gd s e = ok (Vbool b, le), sem s (if b then th else el) lc s'
+                 & li = Lcond le b lc]
+  | Cfor i r c =>
+    ∃ wr lr lf,
+    [/\ sem_range s r = ok (wr, lr), sem_for i wr s c lf s' &  li = (Lfor lr lf)]
+  | Cwhile a c e c' =>
+    ∃ si b lc le,
+       sem s c lc si /\ sem_pexpr gd si e = ok (Vbool b, le) /\
+       if b then ∃ sj lc' lw, sem si c' lc' sj /\ sem_i sj (Cwhile a c e c') lw s' 
+                 /\ li = (Lwhile_true lc le lc' lw)
+        else si = s' /\ li = Lwhile_false lc le
+  | Ccall _ xs f es =>
+    ∃ vs m2 rs lf l2,
+    [/\ sem_pexprs gd s es = ok vs, sem_call s.(emem) f (unzip1 vs) lf m2 rs, 
+       write_lvals gd {|emem:= m2; evm := s.(evm) |} xs rs = ok (s', l2) 
+     & li = (Lcall (LSub (unzip2 vs)) lf (LSub l2))]
+  end.
+Proof.
+  case => {s i li s'} //.
+  - by move => s s' x _ ty e v v' le lw hv hv' hw; exists v, v', le, lw.
+  - by move => s s' e th el le lc he; exists lc; auto.
+  - by move => s s' e th el le lc he hel; exists true, le, lc; split; auto.
+  - by move => s s' e th el le lc he hel; exists false, le, lc; split; auto.
+  - by move =>  s si sj s' a c e c' lc le lc' lw hc he hc' hrec; exists si, true, lc, le; 
+    constructor => //; split=> //; exists sj, lc', lw; constructor => //.
+  - by move => s s' a c e c' lc le hc he; exists s', false, lc, le.
+  - by move => s s' i r c wr lr lf hr hf; exists wr, lr, lf.
+  by move => s m s' _ xs f es vs rs lf l2 hvs h hrs; exists vs, m, rs, lf, l2.
+Qed.
+
 Lemma sem_callE m1 fn vargs' m2 vres' lf:
   sem_call m1 fn vargs' lf m2 vres' ->
   ∃ f,
