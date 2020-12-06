@@ -628,7 +628,7 @@ with sem_i : estate -> instr_r -> leak_i -> estate -> Prop :=
     sem_pexpr gd s1 e = ok (v,l1)  ->
     truncate_val ty v = ok v' →
     write_lval gd x v' s1 = ok (s2, l2) ->
-    sem_i s1 (Cassgn x tag ty e) (Lassgn (LSub [:: l1 ; l2])) s2
+    sem_i s1 (Cassgn x tag ty e) (Lopn (LSub [:: l1 ; l2])) s2
 
 | Eopn s1 s2 t o xs es lo:
     sem_sopn gd o s1 xs es = ok (s2, lo) ->
@@ -728,7 +728,7 @@ Section SEM_IND.
       sem_pexpr gd s1 e = ok (v, le) ->
       truncate_val ty v = ok v' →
       write_lval gd x v' s1 = Ok error (s2, lw) ->
-      Pi_r s1 (Cassgn x tag ty e) (Lassgn (LSub ([:: le ; lw]))) s2.
+      Pi_r s1 (Cassgn x tag ty e) (Lopn (LSub ([:: le ; lw]))) s2.
 
   Definition sem_Ind_opn : Prop :=
     forall (s1 s2 : estate) t (o : sopn) (xs : lvals) (es : pexprs) (lo : leak_e),
