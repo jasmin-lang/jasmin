@@ -1930,14 +1930,16 @@ end = struct
     let exception UserInterupt in
 
     let t_start = Sys.time () in
-    let print_stats _ =
+    let print_stats () =      
       Format.eprintf "@[<v 0>Duration: %1f@;%a@]"
         (Sys.time () -. t_start)
         Prof.print () in
 
     try
       (* We print stats before exciting *)
-      let hndl = Sys.Signal_handle (fun _ -> print_stats (); raise UserInterupt) in
+      let hndl = Sys.Signal_handle (fun _ ->
+          let () = if SafetyConfig.sc_print_stats () then print_stats () in
+          raise UserInterupt) in
       let old_handler = Sys.signal Sys.sigint hndl in
 
       let state, warnings = init_state source_main_decl main_decl prog in
@@ -1952,7 +1954,7 @@ end = struct
       debug(fun () -> Format.eprintf "%a" pp_violations final_st.violations);
       print_mem_ranges final_st;
 
-      let () = debug (fun () -> print_stats ()) in
+      let () = if SafetyConfig.sc_print_stats () then print_stats () in
       let () = Sys.set_signal Sys.sigint old_handler in
 
       { violations = final_st.violations;
@@ -2033,8 +2035,6 @@ module AbsAnalyzer (EW : ExportWrap) = struct
 
     let npt = List.filter (fun x -> not (List.mem x pt_vars)) EW.main.f_args
               |> List.map (fun x -> MmemRange (MemLoc x)) in
-
-    let () = Config.pp_current_config_diff () in
     
     let l_res = List.map (fun p ->
         let module AbsInt = AbsInterpreter (struct
@@ -2057,7 +2057,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           Format.fprintf fmt "@[<v 2>Warnings:@;%a@]@;"
             (pp_list (fun fmt x -> x fmt)) warns in
       
-      Format.eprintf "@.@[<v>%a@;\
+      Format.eprintf "@?@[<v>%a@;\
                       %a@;\
                       %t\
                       %a@]@."

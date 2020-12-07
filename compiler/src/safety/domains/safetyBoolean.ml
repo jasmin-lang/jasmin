@@ -858,7 +858,7 @@ module AbsBoolNoRel (AbsNum : AbsNumT) (Pt : PointsTo) (Sym : SymExpr)
     if is_bottom t then
       Format.fprintf fmt "@[<v 0>Bottom ⊥@;@]"
     else if !only_rel_print then
-      Format.fprintf fmt "@[<v 0>%a@;%t@]"
+      Format.fprintf fmt "@[<v 0>%a%t@]"
         (AbsNum.R.print ~full:full) t.num
         print_alignment
     else

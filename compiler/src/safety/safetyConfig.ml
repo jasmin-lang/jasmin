@@ -19,7 +19,7 @@ type call_policy =
   | CallDirectAll
   | CallTopHeuristic
 
-type init_print = IP_None  | IP_NoArray | IP_All
+type init_print = IP_None | IP_NoArray | IP_All
 
 
 let config_doc = "config/checker_config_doc.json"
@@ -177,6 +177,17 @@ let default =
   (***********************)
   (* Printing parameters *)
   (***********************)
+  { p    = Bool false;
+    name = "print_program";
+    desc = `String "Print analyzed program. Useful if the analysis is not run at \
+                    the source level."; 
+    kind = Parameter; } ::
+
+  { p    = Bool false;
+    name = "print_stats";
+    desc = `String "Print analysis statistics."; 
+    kind = Parameter; } ::
+  
   { p    = Bool true;
     name = "arr_no_print";
     desc = `String "Turn on printing of array variables."; 
@@ -299,6 +310,8 @@ let sc_if_disj                 = find_bool       "if_disjunction"
 let sc_pif_movecc_as_if        = find_bool       "pif_movecc_as_if"
 let sc_while_flags_setfrom_dep = find_bool       "while_flags_setfrom_dep"
 let sc_dynamic_packing         = find_bool       "dynamic_packing"
+let sc_print_program           = find_bool       "print_program"
+let sc_print_stats             = find_bool       "print_stats"
 let sc_arr_no_print            = find_bool       "arr_no_print"
 let sc_glob_no_print           = find_bool       "glob_no_print"
 let sc_nrel_no_print           = find_boolref    "nrel_no_print"
@@ -427,10 +440,10 @@ let pp_current_config_diff () =
       let x' = List.find (fun y -> y.name = x.name) default in
       x.p <> x'.p) !config in
   if config <> [] then
-    Format.eprintf "Checker configuration parameters:@\n%a@." 
+    Format.eprintf "Checker configuration parameters:@\n%a@.@." 
       pp_config config
   else
-    Format.eprintf "Default checker configuration parameters.@." 
+    Format.eprintf "Default checker parameters.@.@." 
 
 (* -------------------------------------------------------------------- *)
 let mk_config_doc () =
