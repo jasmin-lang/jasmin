@@ -872,6 +872,7 @@ Section TunnelingProof.
     by rewrite ltnS => ->.
   Qed.
 
+  (*Actually false.*)
   Lemma prefix_find_label pfb fb l pc:
     well_formed_body fb ->
     prefix pfb fb ->
@@ -882,6 +883,7 @@ Section TunnelingProof.
     move => IHpfb l pc Hwfb Hprefix Hfindl; have:= (IHpfb _ _ Hwfb (prefix_trans (prefix_rcons _ _) Hprefix) Hfindl).
     move => -[pcf]; rewrite /tunnel_plan pairfoldl_rcons.
     set uf:= pairfoldl _ _ _ _; rewrite /tunnel_chart.
+    (*elim: (last_spec pfb).*)
     case Hlastpfb: (last _ _) => [li_ii1 li_i1] //; case Hc: c => [li_ii2 li_i2] //.
     case: li_i1 Hlastpfb.
     1-2,4-7:
@@ -896,7 +898,7 @@ Section TunnelingProof.
     move => /eqP Hfindll'; move: Hfindpl; rewrite -Hfindll'.
     have:= (prefix_rcons_find_label Hwfb).
     have:= (IHpfb l').
-  Qed.
+  Abort.
 
   Lemma tunneling_lsem1 s1 s2 : lsem1 (lprog_tunnel fn p) s1 s2 -> lsem p s1 s2.
   Proof.
@@ -1137,13 +1139,13 @@ Section TunnelingProof.
         (*have:= wf_find_label.*)
         right.
         eexists; split; last first.
-        Search _ find_label.
-
+        * by admit.
         (*Make lemma showing that LUF.find uf l is always findable in lfd_body fd if l is as well.*)
-        exists s3.
+        (*Impossible actually.*)
         by admit.
-      
-  Qed.
+      by admit.
+    by admit.
+  Admitted.
 
   Lemma lsem1_tunneling s1 s2 : lsem1 p s1 s2 -> exists s3, lsem (lprog_tunnel fn p) s2 s3 /\ lsem1 (lprog_tunnel fn p) s1 s3.
   Proof.
@@ -1167,10 +1169,83 @@ Section TunnelingProof.
 End TunnelingProof.
 
 
-    (*
-    Search _ (_ < _.+1).
-    About "_ <= _".
-    *)
+Section CounterExample.
 
-    (*Print Scopes. About absz.*)
-    (*Proof using ...*)
+  Context (rip : Equality.sort Ident.ident).
+
+  Context (m : mem).
+
+  Context (vm : Fv.t (λ t : stype, exec (psem.psem_t t))).
+
+  Definition lc := [:: (MkLI xH (Lgoto (xH,xH))); (MkLI xH (Llabel xH)); (MkLI xH (Lgoto (xH,xO xH)))].
+
+  Definition tlc := [:: (MkLI xH (Lgoto (xH,xO xH))); (MkLI xH (Llabel xH)); (MkLI xH (Lgoto (xH,xO xH)))].
+
+  Lemma Htunnel : tunnel xH lc = tlc.
+  Proof.
+    rewrite /tunnel /tlc //=; do 4! f_equal.
+    + by rewrite /tunnel_plan /= LUF.find_union eq_refl LUF.find_empty.
+    by rewrite /tunnel_plan /= LUF.find_union !LUF.find_empty; f_equal; case: ifP.
+  Qed.
+
+  Definition p := Build_lprog rip [::] [:: (xH,LFundef U8 [::] [::] lc [::] [::] false)].
+
+  Definition tp := Build_lprog rip [::] [:: (xH,LFundef U8 [::] [::] tlc [::] [::] false)].
+
+  Lemma Hlprog_tunnel : lprog_tunnel xH p = tp.
+  Proof.
+    rewrite /lprog_tunnel /setfuncs /lfundef_tunnel_partial /setfb /= /tp; do 4! f_equal.
+    by rewrite -Htunnel /tunnel /tunnel_partial.
+  Qed.
+
+  Definition s1 := Lstate m vm xH 0.
+
+  Definition s2 := Lstate m vm xH 2.
+
+  Lemma Hlsem12 : lsem p s1 s2.
+  Proof.
+    apply: Relation_Operators.rt_step.
+    by rewrite /lsem1 /step /eval_instr /= /setcpc /s1 /s2 /=.
+  Qed.
+
+  Lemma Hstep2 : step p s2 = type_error.
+  Proof.
+    by rewrite /step /eval_instr /= /setcpc /s2 /=.
+  Qed.
+
+  Lemma Htstep1 : step tp s1 = type_error.
+  Proof.
+    by rewrite /step /eval_instr /= /setcpc /s2 /=.
+  Qed.
+
+  Lemma Htstep2 : step tp s2 = type_error.
+  Proof.
+    by rewrite /step /eval_instr /= /setcpc /s2 /=.
+  Qed.
+
+  Lemma Hlsem_error p' s1' s2' :
+    lsem p' s1' s2' -> 
+    step p' s1' = type_error ->
+    s1' = s2'.
+  Proof.
+    move: s1' s2'; apply: lsem_ind => //.
+    by move => s1' s2' s3'; rewrite /lsem1 => ->.
+  Qed.
+
+  Lemma Hoops : False.
+  Proof.
+    case _: (lsem_tunneling xH Hlsem12) => [s3 [Hlsem23]].
+    have ?:= (Hlsem_error Hlsem23 Hstep2); subst s3.
+    rewrite Hlprog_tunnel => Htlsem12.
+    have:= (Hlsem_error Htlsem12 Htstep1).
+    by rewrite /s1 /s2.
+  Qed.
+
+End CounterExample.
+
+(*
+Search _ (_ < _.+1).
+About "_ <= _".
+Print Scopes. About absz.
+Proof using ...
+*)
