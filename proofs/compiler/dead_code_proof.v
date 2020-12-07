@@ -155,7 +155,7 @@ Section PROOF.
     ∀ vm1' : vmap,
       vm1 =[read_rv_rec (read_e_rec (Sv.diff s2 (write_i (Cassgn x tag ty e))) e) x]  vm1' →
       ∃ vm2' : vmap, vm2 =[s2]  vm2'
-        ∧ sem p' {| emem := m1; evm := vm1' |} [:: MkI ii (Cassgn x tag ty e)] [::(Lassgn (LSub [:: l ; l']))]
+        ∧ sem p' {| emem := m1; evm := vm1' |} [:: MkI ii (Cassgn x tag ty e)] [::(Lopn (LSub [:: l ; l']))]
                  {| emem := m2; evm := vm2' |}.
   Proof.
     move=> Hv Hv' Hw Hwf vm1' Hvm.

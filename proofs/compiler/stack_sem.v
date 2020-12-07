@@ -65,7 +65,7 @@ Module S.
     sem_pexpr gd s1 e = ok (v, l1) ->
     truncate_val ty v = ok v' ->
     write_lval gd x v' s1 = ok (s2, l2) ->
-    sem_i s1 (Cassgn x tag ty e) (Lassgn (LSub [:: l1 ; l2])) s2
+    sem_i s1 (Cassgn x tag ty e) (Lopn (LSub [:: l1 ; l2])) s2
 
   | Eopn s1 s2 t o xs es lo:
     sem_sopn gd o s1 xs es = ok (s2, lo) ->
@@ -186,6 +186,42 @@ Module S.
   - by move => s s' e th el le lc he hel; exists false, le, lc; split; auto.
   - by move =>  s si sj s' a c e c' lc le lc' lw hc he hc' hrec; exists si, true, lc, le; constructor => //;
     split=> //; exists sj, lc', lw; constructor => //.
+  - by move => s s' a c e c' lc le hc he; exists s', false, le, lc.
+  by move => s m s' _ xs f es vs rs lf l2 hvs h hrs; exists vs, m, rs, lf, l2.
+Qed.
+
+Lemma sem_iE' p gd s1 i s2 li:
+  sem_i p gd s1 i li s2 ->
+  match i with
+  | Cassgn lv _ ty e =>
+    exists v v' le lw,
+    [ /\ sem_pexpr gd s1 e = ok (v, le), truncate_val ty v = ok v', write_lval gd lv v' s1 = ok (s2, lw) 
+      & li = Lopn (LSub [:: le ; lw])]
+  | Copn lvs _ op es => exists lo, sem_sopn gd op s1 lvs es = ok (s2, lo) /\ li = Lopn lo
+  | Cif e th el =>
+    exists b le lc, [ /\ sem_pexpr gd s1 e = ok (Vbool b, le), sem p gd s1 (if b then th else el) lc s2
+                 & li = Lcond le b lc]
+  | Cfor i r c => False
+  | Cwhile a c e c' =>
+    exists si b lc le,
+       sem p gd s1 c lc si /\ sem_pexpr gd si e = ok (Vbool b, le) /\
+       if b then exists sj lc' lw, sem p gd si c' lc' sj /\ sem_i p gd sj (Cwhile a c e c') lw s2 
+                 /\ li = (Lwhile_true lc le lc' lw)
+        else si = s2 /\ li = Lwhile_false lc le
+  | Ccall _ xs f es =>
+    exists vs m2 rs lf l2,
+    [/\ sem_pexprs gd s1 es = ok vs, sem_call p gd s1.(emem) f (unzip1 vs) lf m2 rs, 
+       write_lvals gd {|emem:= m2; evm := s1.(evm) |} xs rs = ok (s2, l2) 
+     & li = (Lcall (LSub (unzip2 vs)) lf (LSub l2))]
+  end.
+Proof.
+  case => {s1 i li s2} //.
+  - by move => s s' x _ ty e v v' le lw hv hv' hw; exists v, v', le, lw.
+  - by move => s s' e th el le lc he; exists lc; auto.
+  - by move => s s' e th el le lc he hel; exists true, le, lc; split; auto.
+  - by move => s s' e th el le lc he hel; exists false, le, lc; split; auto.
+  - by move =>  s si sj s' a c e c' lc le lc' lw hc he hc' hrec; exists si, true, lc, le; 
+    constructor => //; split=> //; exists sj, lc', lw; constructor => //.
   - by move => s s' a c e c' lc le hc he; exists s', false, le, lc.
   by move => s m s' _ xs f es vs rs lf l2 hvs h hrs; exists vs, m, rs, lf, l2.
 Qed.

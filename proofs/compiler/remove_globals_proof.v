@@ -143,7 +143,7 @@ Module INCL. Section INCL.
     sem_pexpr gd s1 e = ok (v, le) ->
     truncate_val ty v = ok v' ->
     write_lval gd x v' s1 = ok (s2, lw) ->
-    Pi_r s1 (Cassgn x tag ty e) (Lassgn (LSub ([:: le ; lw]))) s2.
+    Pi_r s1 (Cassgn x tag ty e) (Lopn (LSub ([:: le ; lw]))) s2.
   Proof.
     move=> ?????????? /(gd_incl_e hincl) h1 h2 /(gd_incl_wl hincl) h3.
     apply: Eassgn;eauto.
@@ -592,8 +592,8 @@ Module RGP. Section PROOFS.
       ∧ sem P' s1' c' 
           match lti with
           | LT_iremove => [::]
-          | LT_ile lte0 => [:: Lassgn (leak_E stk lte0 (LSub [:: le; lw]))]
-          | _ => [:: Lassgn (LSub [:: le; lw])]
+          | LT_ile lte0 => [:: Lopn (leak_E stk lte0 (LSub [:: le; lw]))]
+          | _ => [:: Lopn (LSub [:: le; lw])]
           end s2').
   + t_xrbindP. move=> [x' lte''] /(remove_glob_lvP hval) -/(_ _ _ _ hw) [] s2' [] hs2' hw' <- <- <-.
     exists s2'. split. auto. apply sem_seq1; econstructor; econstructor; eauto.
@@ -737,7 +737,7 @@ Module RGP. Section PROOFS.
     move=> /hw{hw}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
     move=> [s4' [hs4 hw']]; exists s4';split => //.
     apply sem_seq1; constructor; apply: Ewhile_true;eauto.
-    inversion hw'; subst => {hw'}; inversion H3; subst.
+    inversion hw';subst => {hw'}; inversion H3; subst.
     inversion H3; subst. rewrite /=. by inversion H5; subst.
 Qed.
 

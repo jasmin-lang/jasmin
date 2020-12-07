@@ -113,7 +113,7 @@ Definition array_init iinfo (X: Sv.t) : cmd * leak_c :=
     match x.(vtype) with
     | sarr p =>
       (MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename x.(vtype) (arr_init p)) :: cl.1, 
-       (Lassgn (LSub [:: LEmpty; LEmpty]) :: cl.2))
+       (Lopn (LSub [:: LEmpty; LEmpty]) :: cl.2))
     | _      => cl
     end in
   Sv.fold assgn X ([::], [::]).

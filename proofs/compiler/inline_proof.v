@@ -255,7 +255,7 @@ Lemma assgn_tuple_Lvar p ii (xs:seq var_i) flag tys es vs vs' s s' lws:
   mapM2 ErrType truncate_val tys (unzip1 vs) = ok vs' ->
   write_lvals (p_globs p) s xs vs' = ok (s', lws) ->
   sem p s (assgn_tuple inline_var ii xs flag tys es) 
-      (map2 (fun x y => (Lassgn (LSub [:: x; y]))) (unzip2 vs) lws) s'.
+      (map2 (fun x y => (Lopn (LSub [:: x; y]))) (unzip2 vs) lws) s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
   elim: xs es tys vs vs' s s' lws => [ | x xs Hrec] [ | e es] [ | ty tys] [ | v vs] vs' s s' lws  //=;
@@ -287,7 +287,7 @@ Lemma assgn_tuple_Pvar p ii xs flag tys rxs vs vs' s s' lws:
   mapM2 ErrType truncate_val tys vs = ok vs' ->
   write_lvals (p_globs p) s xs vs' = ok (s', lws) ->
   sem p s (assgn_tuple inline_var ii xs flag tys es)
-      (map (fun y => (Lassgn (LSub [:: LEmpty; y]))) lws) s'.
+      (map (fun y => (Lopn (LSub [:: LEmpty; y]))) lws) s'.
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
   have : evm s = evm s [\vrvs xs] by done.
@@ -887,8 +887,8 @@ Section PROOF.
     + rewrite eq_globs in Hvargs', Wvm1'.
       rewrite /=. have := assgn_tuple_Lvar _ _ _ Hvargs' Htin Wvm1' => //.
       move=> H. move: (H ii' AT_rename). move=> {H} H. rewrite Hl' /=.
-      have :  (map2 (fun x y : leak_e => Lassgn (LSub [:: x; y])) (unzip2 vargs')
-           [seq LEmpty | _ <- f_params (rfd fd')]) =  [seq Lassgn (LSub [:: x; LEmpty]) | x <- unzip2 vargs'].
+      have :  (map2 (fun x y : leak_e => Lopn (LSub [:: x; y])) (unzip2 vargs')
+           [seq LEmpty | _ <- f_params (rfd fd')]) =  [seq Lopn (LSub [:: x; LEmpty]) | x <- unzip2 vargs'].
       + rewrite map2E /=. apply mapM_size in Hvargs'. admit. move=> <- /=. 
       apply H.
       by move: Hdisjoint;rewrite /disjoint /is_true !Sv.is_empty_spec /locals /locals_p vrvs_recE;SvD.fsetdec.
