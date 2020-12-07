@@ -488,6 +488,8 @@ let load_config (filename : string) : unit =
     Format.eprintf "Configuration file loaded: %s@." filename
   with
   | Json.Json_error _ ->
-    Format.eprintf "ERROR: safety configuration file %s is invalid@." filename
+    Format.eprintf "ERROR: safety configuration file %s is invalid@." filename;
+    exit 1
   | BadSafetyConfig s ->
-    Format.eprintf "ERROR: safety configuration file %s: %s@." filename s
+    Format.eprintf "ERROR: safety configuration file %s: %s@." filename s;
+    exit 1
