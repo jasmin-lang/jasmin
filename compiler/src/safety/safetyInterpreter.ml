@@ -595,7 +595,7 @@ end = struct
       mem_safety_rec (mem_safety_apply a c) t
 
   let add_violations : astate -> violation list -> astate = fun state ls ->
-    if ls <> [] then Format.eprintf "%a@." pp_violations ls;
+    if ls <> [] then debug (fun () -> Format.eprintf "%a@." pp_violations ls);
     { state with violations = List.sort_uniq v_compare (ls @ state.violations) }
     
   let rec check_safety state loc conds =
