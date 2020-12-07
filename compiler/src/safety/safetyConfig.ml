@@ -446,30 +446,39 @@ let pp_current_config_diff () =
     Format.eprintf "Default checker parameters.@.@." 
 
 (* -------------------------------------------------------------------- *)
-let mk_config_doc () =
+let mk_doc dir =
   let json : Json.Basic.t = to_json_doc default in
   try
-    let file = Stdlib.open_out "config/checker_config_doc.json" in
+    let fpath = dir ^ "checker_config_doc.json" in
+    let file = Stdlib.open_out fpath in
     let () = Json.Basic.pretty_to_channel file json in
-    close_out file
+    let () = close_out file in
+    Format.printf "Created configuration documentation in %s@." fpath
   with Sys_error s ->
     Format.eprintf "@[<v>Failed to create configuration documentation:@;\
                     %s@.@]" s
 
-(* -------------------------------------------------------------------- *)
-let mk_config_default () =
+let mk_default dir =
   let json : Json.Basic.t = to_json default in
   try
-    let file = Stdlib.open_out "config/checker_config_default.json" in
+    let fpath = dir ^ "checker_config_default.json" in
+    let file = Stdlib.open_out fpath in
     let () = Stdlib.output_string file
         "// Default configuration file. Automatically generated, any changes \
          will be overwritten.\n" in
     let () = Json.Basic.pretty_to_channel file json in
-    close_out file
+    let () = close_out file in
+    Format.printf "Created default configuration file in %s@." fpath
   with Sys_error s ->
     Format.eprintf "@[<v>Failed to create default configuration file:@;\
                     %s@.@]" s
 
+let mk_config_doc dir =
+  let dir = if String.ends_with dir "/" then dir else dir ^ "/" in
+  mk_doc dir;
+  mk_default dir
+  
+  
 (* -------------------------------------------------------------------- *)
 let load_config (filename : string) : unit =
   try

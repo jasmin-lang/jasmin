@@ -42,8 +42,7 @@ val sc_var_append_fun_name     : unit -> bool
 val sc_widening_out            : unit -> bool
 
 (* -------------------------------------------------------------------- *)
-val mk_config_doc     : unit -> unit
-val mk_config_default : unit -> unit
+val mk_config_doc     : string -> unit
 
 (* -------------------------------------------------------------------- *)
 val pp_current_config      : Format.formatter -> unit

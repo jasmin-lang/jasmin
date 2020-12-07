@@ -11,7 +11,7 @@ let parse () =
     if !infile <> "" then error();
     infile := s  in
   Arg.parse options set_in usage_msg;
-  if !infile = "" && not !help_intrinsics
+  if !infile = "" && (not !help_intrinsics) && (!safety_makeconfigdoc = None)
   then error()
 
 (*--------------------------------------------------------------------- *)
@@ -171,9 +171,14 @@ let check_safety_p s p source_p =
 
 (* -------------------------------------------------------------------- *)
 let main () =
-  try
-
+  try    
     parse();
+
+    if !safety_makeconfigdoc <> None
+    then (
+      let dir = oget !safety_makeconfigdoc in
+      SafetyConfig.mk_config_doc dir;
+      exit 0);
 
     if !help_intrinsics
     then (Help.show_intrinsics (); exit 0);
