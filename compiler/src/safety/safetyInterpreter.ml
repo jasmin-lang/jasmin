@@ -142,7 +142,7 @@ let pp_violations fmt violations =
   if violations = [] then
     Format.fprintf fmt "@[<v>*** No Safety Violation@;@]"
   else
-    Format.fprintf fmt "@[<v 2>*** Safety Violation(s):@;@[<v>%a@]@]"
+    Format.fprintf fmt "@[<v 2>*** Possible Safety Violation(s):@;@[<v>%a@]@]"
       (pp_list pp_violation) violations
 
 let vloc_compare v v' = match v, v' with
