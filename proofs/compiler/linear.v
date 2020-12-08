@@ -45,6 +45,10 @@ Local Open Scope seq_scope.
 Definition label := positive.
 
 (* low level instructions *)
+(* Lilabel l --> Creats a label names l *)
+(* Ligoto l --> Jumps to the location which is labelled as l.
+   Once execution of goto is finished, the control jumps to the next instruction after l *)
+(* Licond e l --> Conditional expression as e and takes a label l *)
 Variant linstr_r :=
   | Liopn   : lvals -> sopn -> pexprs -> linstr_r
   | Lialign : linstr_r
@@ -106,43 +110,52 @@ Section LINEAR_C.
     | [::] => ciok (lbl, lc, [::])
     | i::c => Let rc := linear_c c lbl lc in 
               Let ri := linear_i i rc.1.1 rc.1.2 in 
-              ciok (ri.1.1, ri.1.2 ++ rc.1.2, [:: ri.2] ++ rc.2)
+              ciok (ri.1.1, ri.1.2, (ri.2 :: rc.2))
      (*linear_i i ;; linear_c c lbl lc*)
     end.
 
 End LINEAR_C.
 
+(* increment the label by 1 which helps to go to the next instruction*)
 Definition next_lbl lbl := (lbl + 1)%positive.
 
 Fixpoint snot e : (pexpr * leak_e_tr) :=
   match e with
   | Papp1 Onot e => (e, LT_id)
-  | Papp2 Oand e1 e2 => (Papp2 Oor (snot e1).1 (snot e2).1, 
-                         LT_map [:: (snot e1).2; (snot e2).2])
-  | Papp2 Oor e1 e2 => (Papp2 Oand (snot e1).1 (snot e2).1,
-                        LT_map [:: (snot e1).2; (snot e2).2])
-  | Pif t e e1 e2 => (Pif t e (snot e1).1 (snot e2).1, 
-                      LT_map [:: LT_id; (snot e1).2; (snot e2).2])
+  | Papp2 Oand e1 e2 => let re1 := (snot e1) in 
+                        let re2 := (snot e2) in 
+                        (Papp2 Oor re1.1 re2.1,
+                         LT_map [:: re1.2; re2.2])
+  | Papp2 Oor e1 e2 => let re1 := (snot e1) in
+                       let re2 := (snot e2) in 
+                       (Papp2 Oand re1.1 re2.1,
+                        LT_map [:: re1.2; re2.2])
+  | Pif t e e1 e2 => let re1 := (snot e1) in 
+                     let re2 := (snot e2) in 
+                     (Pif t e re1.1 re2.1,
+                      LT_map [:: LT_id; re1.2; re2.2])
   | Pbool b => (Pbool (~~ b), LT_id)
   | _ => (Papp1 Onot e, LT_id)
   end.
 
+(* Adds an alignment instruction in front of the seqence of instructions *)
 Definition add_align ii a (lc:lcmd) : (lcmd) :=
   match a with
   | NoAlign => lc
   | Align   =>  MkLI ii Lialign :: lc
   end.
 
-Definition get_align_leak_il a : seq leak_i_il_tr :=
+(* Computes the leakage depending on alignment *) 
+Definition get_align_leak_il a : seq leak_il :=
   match a with 
   | NoAlign => [::]
-  | Align => [:: LT_ilremove]
+  | Align => [:: Lempty]
   end.
 
 Definition align ii a (lc:ciexec (label * lcmd * seq leak_i_il_tr)) : 
   ciexec (label * lcmd * seq leak_i_il_tr) :=
   Let p := lc in
-  ok (p.1.1, add_align ii a p.1.2, (get_align_leak_il a) ++ p.2).
+  ok (p.1.1, add_align ii a p.1.2, p.2).
 
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_i_il_tr) :=
   let (ii, ir) := i in
@@ -155,27 +168,34 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
     else cierror ii (Cerr_linear "assign not a word")
   | Copn xs _ o es => ok (lbl, MkLI ii (Liopn xs o es) :: lc, LT_ilkeep)
 
+    (* Licond e L1; c2; Lilabel L1 *)
+    (* Lcondl le b :: lc2 :: Lempty *)
+    (* Cif e [::] c2; L1 (label for next instruction) *)
   | Cif e [::] c2 =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
     Let rs := MkLI ii (Licond e L1) >; linear_c linear_i c2 lbl (MkLI ii (Lilabel L1) :: lc) in 
-    ciok (rs.1.1, rs.1.2, LT_ilcond LT_id [::] rs.2)
-
+    ciok (rs.1.1, rs.1.2, LT_ilcond_0 rs.2)
+  
+    (* Licond e L1; c1; Lilabel L1 *)
+    (* Lcondl le b :: lc1 :: Lempty *)
   | Cif e c1 [::] =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
     let rse := snot e in 
     Let rs := MkLI ii (Licond rse.1 L1) >; linear_c linear_i c1 lbl (MkLI ii (Lilabel L1) :: lc) in 
-    ciok (rs.1.1, rs.1.2, LT_ilcond rse.2 rs.2 [::])
+    ciok (rs.1.1, rs.1.2, LT_ilcond_0 rs.2)
 
-
+    (* Licond e L1; c2; Ligoto L2; Lilabel L1; c1; Lilabel L2 *)
+    (* L1 is then and L2 is end *)
+    (* Lcondl le b :: Lc2 :: Lempty :: Lc1 :: Lempty *)
   | Cif e c1 c2 =>
     let L1 := lbl in
     let L2 := next_lbl L1 in
     let lbl := next_lbl L2 in
     Let rs1 := MkLI ii (Ligoto L2) >; MkLI ii (Lilabel L1) >; linear_c linear_i c1 lbl (MkLI ii (Lilabel L2) :: lc) in
     Let rs2 :=  MkLI ii (Licond e L1) >; linear_c linear_i c2 rs1.1.1 rs1.1.2 in 
-    ok (rs2.1.1, rs2.1.2, LT_ilcond LT_id rs1.2 rs2.2)
+    ok (rs2.1.1, rs2.1.2, LT_ilcond rs1.2 rs2.2)
                            (*MkLI ii (Lcond e L1) >;
                            linear_c linear_i c2 ;;
                            MkLI ii (Lgoto L2) >;
@@ -183,29 +203,27 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
    (MkLI ii (Llabel L2) :: lc)*)
 
   | Cwhile a c e c' =>
+    (* We never reach a state where e evaluates to true as instruction won't terminate *)
     match is_bool e with
-    | Some true =>
-      let L1 := lbl in
-      let lbl := next_lbl L1 in
-      Let rs := linear_c linear_i c' lbl (MkLI ii (Ligoto L1) :: lc) in 
-      Let rsa := align ii a (MkLI ii (Lilabel L1) >; linear_c linear_i c rs.1.1 rs.1.2) in 
-      ciok (rsa.1.1, rsa.1.2, LT_ilremove)
-     (* MkLI ii (Llabel L1) >; linear_c linear_i c ;;
-                             linear_c linear_i c' lbl
-                             (MkLI ii (Lgoto L1) :: lc))*)
-
     | Some false =>
       Let rs := linear_c linear_i c lbl lc in 
-      ciok (rs.1.1, rs.1.2, LT_ilkeep)
+      ciok (rs.1.1, rs.1.2, LT_ilwhile_f rs.2)
 
-    | None =>
+    | _ =>
       match c' with
+      (* align; Lilabel L1; c ; Licond e L1 *)
+      (* Lempty :: Lempty :: Lc :: Lcondl e b :: Lc :: Lcondl e b ..... *)
+      (* L1 is loop head label *)
       | [::] =>
       let L1 := lbl in
       let lbl := next_lbl L1 in
       Let rs := align ii a (MkLI ii (Lilabel L1) >; linear_c linear_i c lbl
                              (MkLI ii (Licond e L1) :: lc)) in 
-      ciok (rs.1.1, rs.1.2, LT_ilkeep) 
+      ciok (rs.1.1, rs.1.2, LT_ilkeep)
+      (* Ligoto L1; align; Lilabel L2; c'; Lilabel L1; c; Lcond e L2; 
+         c'; Lilabel L1; c; Lcond e L2; .....*)
+      (* Lempty :: Lempty :: Lempty :: Lc' :: Lempty :: Lcondl e b :: 
+         Lc' :: Lempty :: Lc :: Lcondl e b :: .......*)
       | _ =>
       let L1 := lbl in
       let L2 := next_lbl L1 in

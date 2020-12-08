@@ -86,6 +86,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec (lstate * leak_il) :=
   | Ligoto lbl =>
     Let pc := find_label lbl s1.(lc) in
     ok (setpc s1 pc.+1, Lempty)
+   (* Depending on the evaluation of e in the state s1, the pc is set *)
   | Licond e lbl =>
     Let re := sem_pexpr gd (to_estate s1) e in 
     Let b :=  to_bool re.1 in
