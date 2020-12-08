@@ -88,6 +88,7 @@ Definition lprog := seq (funname * lfundef).
 (* --------------------------------------------------------------------------- *)
 (* Translation                                                                 *)
 
+(*c1(c2)*)
 Notation "c1 ';;' c2" :=  (c2 >>= (fun p => c1 p.1.1 p.1.2 p.2))
    (at level 26, right associativity).
 
@@ -105,7 +106,7 @@ Section LINEAR_C.
     | [::] => ciok (lbl, lc, [::])
     | i::c => Let rc := linear_c c lbl lc in 
               Let ri := linear_i i rc.1.1 rc.1.2 in 
-              ciok (ri.1.1, ri.1.2, [:: ri.2] ++ rc.2) 
+              ciok (ri.1.1, ri.1.2 ++ rc.1.2, [:: ri.2] ++ rc.2)
      (*linear_i i ;; linear_c c lbl lc*)
     end.
 
@@ -132,16 +133,16 @@ Definition add_align ii a (lc:lcmd) : (lcmd) :=
   | Align   =>  MkLI ii Lialign :: lc
   end.
 
-Definition get_align_leak_il a : seq leak_il :=
+Definition get_align_leak_il a : seq leak_i_il_tr :=
   match a with 
   | NoAlign => [::]
-  | Align => [:: Lempty]
+  | Align => [:: LT_ilremove]
   end.
 
 Definition align ii a (lc:ciexec (label * lcmd * seq leak_i_il_tr)) : 
   ciexec (label * lcmd * seq leak_i_il_tr) :=
   Let p := lc in
-  ok (p.1.1, add_align ii a p.1.2, p.2).
+  ok (p.1.1, add_align ii a p.1.2, (get_align_leak_il a) ++ p.2).
 
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_i_il_tr) :=
   let (ii, ir) := i in
@@ -150,22 +151,22 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
     if ty is sword sz
     then
       let op := if (sz ≤ U64)%CMP then (MOV sz) else (VMOVDQU sz) in
-      ok (lbl, MkLI ii (Liopn [:: x ] (Ox86 op) [:: e]) :: lc, LT_ile_il (LT_map [:: LT_id; LT_id]))
+      ok (lbl, MkLI ii (Liopn [:: x ] (Ox86 op) [:: e]) :: lc, LT_ilkeepa)
     else cierror ii (Cerr_linear "assign not a word")
-  | Copn xs _ o es => ok (lbl, MkLI ii (Liopn xs o es) :: lc, LT_ile_il (LT_map [:: LT_id; LT_id]))
+  | Copn xs _ o es => ok (lbl, MkLI ii (Liopn xs o es) :: lc, LT_ilkeep)
 
   | Cif e [::] c2 =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
     Let rs := MkLI ii (Licond e L1) >; linear_c linear_i c2 lbl (MkLI ii (Lilabel L1) :: lc) in 
-    ciok (rs.1.1, rs.1.2, LT_icond_il LT_id)
+    ciok (rs.1.1, rs.1.2, LT_ilcond LT_id [::] rs.2)
 
   | Cif e c1 [::] =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
     let rse := snot e in 
     Let rs := MkLI ii (Licond rse.1 L1) >; linear_c linear_i c1 lbl (MkLI ii (Lilabel L1) :: lc) in 
-    ciok (rs.1.1, rs.1.2, LT_icond_il rse.2)
+    ciok (rs.1.1, rs.1.2, LT_ilcond rse.2 rs.2 [::])
 
 
   | Cif e c1 c2 =>
@@ -174,7 +175,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
     let lbl := next_lbl L2 in
     Let rs1 := MkLI ii (Ligoto L2) >; MkLI ii (Lilabel L1) >; linear_c linear_i c1 lbl (MkLI ii (Lilabel L2) :: lc) in
     Let rs2 :=  MkLI ii (Licond e L1) >; linear_c linear_i c2 rs1.1.1 rs1.1.2 in 
-    ok (rs2.1.1, rs2.1.2, LT_icond_il LT_id)
+    ok (rs2.1.1, rs2.1.2, LT_ilcond LT_id rs1.2 rs2.2)
                            (*MkLI ii (Lcond e L1) >;
                            linear_c linear_i c2 ;;
                            MkLI ii (Lgoto L2) >;
@@ -188,14 +189,14 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
       let lbl := next_lbl L1 in
       Let rs := linear_c linear_i c' lbl (MkLI ii (Ligoto L1) :: lc) in 
       Let rsa := align ii a (MkLI ii (Lilabel L1) >; linear_c linear_i c rs.1.1 rs.1.2) in 
-      ciok (rsa.1.1, rsa.1.2, LT_iwhile_il rs.2 LT_remove rsa.2)
+      ciok (rsa.1.1, rsa.1.2, LT_ilremove)
      (* MkLI ii (Llabel L1) >; linear_c linear_i c ;;
                              linear_c linear_i c' lbl
                              (MkLI ii (Lgoto L1) :: lc))*)
 
     | Some false =>
       Let rs := linear_c linear_i c lbl lc in 
-      ciok (rs.1.1, rs.1.2, LT_iwhile_il [::] LT_remove rs.2)
+      ciok (rs.1.1, rs.1.2, LT_ilkeep)
 
     | None =>
       match c' with
@@ -204,7 +205,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
       let lbl := next_lbl L1 in
       Let rs := align ii a (MkLI ii (Lilabel L1) >; linear_c linear_i c lbl
                              (MkLI ii (Licond e L1) :: lc)) in 
-      ciok (rs.1.1, rs.1.2, LT_iwhile_il rs.2 LT_remove [::]) 
+      ciok (rs.1.1, rs.1.2, LT_ilkeep) 
       | _ =>
       let L1 := lbl in
       let L2 := next_lbl L1 in
@@ -213,7 +214,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
                              (MkLI ii (Licond e L2) :: lc) in 
       let rs3 := align ii a (MkLI ii (Lilabel L2) >; linear_c linear_i c' rs1.1.1 rs1.1.2) in 
       Let rs := MkLI ii (Ligoto L1) >; rs3 in 
-      ciok (rs.1.1, rs.1.2, LT_iwhile_il rs1.2 LT_remove rs.2)
+      ciok (rs.1.1, rs.1.2, LT_ilkeep)
 
       end
     end

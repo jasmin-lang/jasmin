@@ -47,6 +47,12 @@ match l with
 | _ => [::]
 end.
 
+Fixpoint make_leak_e_sub (l : leak_e) : leak_e :=
+match l with 
+| LSub le => LSub (map make_leak_e_sub le)
+| _ => LSub [:: l]
+end.
+
 Inductive leak_i : Type :=
   | Lopn  : leak_e ->leak_i
   | Lcond  : leak_e -> bool -> seq leak_i -> leak_i
@@ -290,7 +296,9 @@ Definition leak_cl := seq leak_il.
 Inductive leak_i_il_tr : Type :=
 | LT_ilremove : leak_i_il_tr
 | LT_ilkeep : leak_i_il_tr
-| LT_ilcond : leak_e_tr -> seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i_il_tr.
+| LT_ilkeepa : leak_i_il_tr
+| LT_ilcond : leak_e_tr -> seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i_il_tr
+| LT_ilwhile : seq leak_il -> seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i_il_tr.
 
 Section Leak_IL.
 
@@ -307,9 +315,10 @@ End Leak_IL.
 Fixpoint leak_i_iL (stk: pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : leak_il :=
 match l, li with 
 | LT_ilremove, _ => Lempty
+| LT_ilkeepa, Lopn le => Lopnl (LSub (map (fun x => LSub [:: x]) (get_seq_leak_e le)))
 | LT_ilkeep, Lopn le => Lopnl le
 | LT_ilcond lte lti lti', Lcond le b li => Lcondl (leak_E stk lte le) b
-| LT_ilkeep, Lwhile_true li le li' li'' => Lempty
+| LT_ilwhile les lti lti', Lwhile_true li le li' li'' => Lempty
 | LT_ilkeep, Lwhile_false li le => Lempty
 | _, _ => Lempty
 end.

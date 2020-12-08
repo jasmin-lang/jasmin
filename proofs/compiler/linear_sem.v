@@ -75,9 +75,6 @@ Section LSEM.
 
 Context (gd: glob_decls).
 
-(** Need to fix this **)
-Variable li : leak_i.
-
 Definition eval_instr (i : linstr) (s1: lstate) : exec (lstate * leak_il) :=
   match li_i i with
   | Liopn xs o es =>
