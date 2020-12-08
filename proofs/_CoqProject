@@ -57,6 +57,7 @@ lang/psem.v
 lang/sem.v
 lang/sem_type.v
 lang/strings.v
+lang/trelation.v
 lang/type.v
 lang/utils.v
 lang/var.v

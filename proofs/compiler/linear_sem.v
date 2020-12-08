@@ -31,6 +31,7 @@ From mathcomp Require Import all_ssreflect.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.
+Require Import trelation.
 Require Import psem compiler_util stack_alloc stack_sem linear.
 
 Import Memory.
@@ -107,76 +108,33 @@ Definition step (s: lstate) : exec (lstate * leak_il) :=
 Definition lsem1 (s1: lstate) (li : leak_il) (s2: lstate): Prop :=
   step s1 = ok (s2, li).
 
-Section Leak_Trans.
+Definition leak_relation (A L: Type) : Type :=
+  A -> L -> A -> Prop.
 
-Context (A : Type) (L: Type).
+Definition lsem : leak_relation lstate (seq leak_il) :=
+  trace_closure lsem1.
 
-Definition leak_relation :=  A -> L -> A -> Prop.
-
-Context (R : leak_relation).
-
-Inductive leak_clos_refl_trans (x : A) : seq L -> A → Prop :=
-    rtl_step : ∀ y l, R x l y → leak_clos_refl_trans x [:: l] y
-  | rtl_refl : leak_clos_refl_trans x [::] x
-  | rtl_trans : ∀ y z l1 l2,
-                 leak_clos_refl_trans x l1 y
-                 → leak_clos_refl_trans y l2 z
-                   → leak_clos_refl_trans x (l1 ++ l2) z.
-
-Inductive leak_clos_refl_trans_1n (x: A) : seq L -> A -> Prop :=
-    | rt1ln_step : forall y l, R x l y -> leak_clos_refl_trans_1n x [:: l] y
-    | rt1ln_refl : leak_clos_refl_trans_1n x [::] x
-    | rt1ln_trans : forall y z l1 l2,
-         R x l1 y -> leak_clos_refl_trans_1n y l2 z -> leak_clos_refl_trans_1n x ([::l1] ++ l2) z.
-
-Lemma leak_clos_rt_rt1n : forall x l y,
-        leak_clos_refl_trans x l y -> leak_clos_refl_trans_1n x l y.
-Proof.
-  move=> x l y H. elim: H.
-  + move=> x0 y0 l0 R0. by apply rt1ln_step.
-  + move=> x0. by apply rt1ln_refl.
-  move=> x0 y0 z0 l1 l2 H1 H2 H3 H4.
-  admit.
-Admitted.
-
-Lemma leak_clos_rt1n_rt : forall x l y,
-        leak_clos_refl_trans_1n x l y -> leak_clos_refl_trans x l y.
-Proof.
- move=> x l y H. elim: H.
- + move=> x0 y0 l0 R0. by apply rtl_step.
- + move=> x0. apply rtl_refl.
- move=> x0 y0 z l1 l2 R0 H1 H2.
- apply rtl_trans with y0. 
- + by apply rtl_step.
- auto.
-Qed.
-
-End Leak_Trans.
-
-Definition lsem : leak_relation lstate (seq leak_il) := 
-    leak_clos_refl_trans lsem1.
+Lemma lsemE a tr z :
+  lsem a tr z →
+  if tr is t :: tr then exists2 b, lsem1 a t b & lsem b tr z else a = z.
+Proof. by case: tr. Qed.
 
 Lemma lsem_ind (Q: lstate → seq leak_il -> lstate → Prop) :
   (∀ s, Q s [::] s) →
-  (∀ s1 l1 s2 l2 s3, lsem1 s1 l1 s2 → lsem s2 l2 s3 → Q s2 l2 s3 → Q s1 ([::l1] ++ l2) s3) →
+  (∀ s1 l1 s2 l2 s3, lsem1 s1 l1 s2 → lsem s2 l2 s3 → Q s2 l2 s3 → Q s1 (l1 :: l2) s3) →
   ∀ s1 s2 l1, lsem s1 l1 s2 → Q s1 l1 s2.
 Proof.
-  move=> R Hrec s1 s2 l1 H; apply leak_clos_rt_rt1n in H.
-Admitted.
+  move => R S a z tr; elim: tr a => [ | t tr ih ] a /lsemE; first by move ->.
+  case => b hab hbz.
+  exact: (S a t b tr z hab hbz (ih _ hbz)).
+Qed.
 
 Lemma lsem_step s2 s1 s3 l1 l2:
   lsem1 s1 l1 s2 →
   lsem s2 l2 s3 →
   lsem s1 ([::l1] ++ l2) s3.
 Proof.
-  move=> H H'. rewrite /lsem. 
-  apply rtl_trans with s2.
-  + by apply rtl_step.
-  elim: H'.
-  + move=> x y l H'. by apply rtl_step.
-  + move=> x. by apply rtl_refl.
-  move=> x y z l l' H1 H2 H3 H4.
-  by apply rtl_trans with y.
+  exact: tc_left.
 Qed.
 
 End LSEM.
