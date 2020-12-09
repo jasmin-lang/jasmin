@@ -934,7 +934,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     abs, warns
 
   let apply_glob (globs : global_decl list) abs =
-    let ves = List.concat_map (fun (v,glob_val) ->
+    let ves = List.concat (List.map (fun (v,glob_val) ->
         match glob_val with
         | Global.Gword (ws,i) ->
           let sexpr = mtexpr_of_bigint (Conv.bi_of_word ws i)
@@ -948,7 +948,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
               let mv = Mglobal (AarraySlice (v, ws, offset)) in
               (mv,sexpr)
             ) (Array.to_list arr)
-      ) globs
+      ) globs)
     in
     AbsDom.assign_sexpr abs None ves
 
