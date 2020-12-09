@@ -169,33 +169,36 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
   | Copn xs _ o es => ok (lbl, MkLI ii (Liopn xs o es) :: lc, LT_ilkeep)
 
     (* Licond e L1; c2; Lilabel L1 *)
-    (* Lcondl le b :: lc2 :: Lempty *)
+    (* Lcondl le b :: (if b = true ==> [::] 
+                          b = false ==> Lc2 ++ [:: Lempty]*)
     (* Cif e [::] c2; L1 (label for next instruction) *)
   | Cif e [::] c2 =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
     Let rs := MkLI ii (Licond e L1) >; linear_c linear_i c2 lbl (MkLI ii (Lilabel L1) :: lc) in 
-    ciok (rs.1.1, rs.1.2, LT_ilcond_0 rs.2)
+    ciok (rs.1.1, rs.1.2, LT_ilcond_0 LT_id rs.2)
   
     (* Licond e L1; c1; Lilabel L1 *)
-    (* Lcondl le b :: lc1 :: Lempty *)
+    (* Lcondl le b :: if (not b) then [::]
+                                 else lc1 ++ [Lempty] *)
   | Cif e c1 [::] =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
     let rse := snot e in 
     Let rs := MkLI ii (Licond rse.1 L1) >; linear_c linear_i c1 lbl (MkLI ii (Lilabel L1) :: lc) in 
-    ciok (rs.1.1, rs.1.2, LT_ilcond_0 rs.2)
+    ciok (rs.1.1, rs.1.2, LT_ilcond_0' rse.2 rs.2)
 
     (* Licond e L1; c2; Ligoto L2; Lilabel L1; c1; Lilabel L2 *)
     (* L1 is then and L2 is end *)
-    (* Lcondl le b :: Lc2 :: Lempty :: Lc1 :: Lempty *)
-  | Cif e c1 c2 =>
+    (* Lcondl le b :: if b = true ==> Lc1 ++ [:: Lempty] 
+                         b = false ==> Lc2 ++ [:: Lempty]*)
+  | Cif e c1 c2 => 
     let L1 := lbl in
     let L2 := next_lbl L1 in
     let lbl := next_lbl L2 in
     Let rs1 := MkLI ii (Ligoto L2) >; MkLI ii (Lilabel L1) >; linear_c linear_i c1 lbl (MkLI ii (Lilabel L2) :: lc) in
     Let rs2 :=  MkLI ii (Licond e L1) >; linear_c linear_i c2 rs1.1.1 rs1.1.2 in 
-    ok (rs2.1.1, rs2.1.2, LT_ilcond rs1.2 rs2.2)
+    ok (rs2.1.1, rs2.1.2, LT_ilcond LT_id rs1.2 rs2.2)
                            (*MkLI ii (Lcond e L1) >;
                            linear_c linear_i c2 ;;
                            MkLI ii (Lgoto L2) >;
@@ -203,7 +206,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
    (MkLI ii (Llabel L2) :: lc)*)
 
   | Cwhile a c e c' =>
-    (* We never reach a state where e evaluates to true as instruction won't terminate *)
+    (* We never reach a state where e evaluates to always true as instruction won't terminate *)
     match is_bool e with
     | Some false =>
       Let rs := linear_c linear_i c lbl lc in 
@@ -222,6 +225,9 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
       ciok (rs.1.1, rs.1.2, LT_ilkeep)
       (* Ligoto L1; align; Lilabel L2; c'; Lilabel L1; c; Lcond e L2; 
          c'; Lilabel L1; c; Lcond e L2; .....*)
+      (* Lempty :: Lc :: Lcondl e true :: Lc' :: Lempty :: .... Lc :: Lcondl e false *)
+
+
       (* Lempty :: Lempty :: Lempty :: Lc' :: Lempty :: Lcondl e b :: 
          Lc' :: Lempty :: Lc :: Lcondl e b :: .......*)
       | _ =>
