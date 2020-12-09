@@ -1179,6 +1179,20 @@ Section CounterExample.
 
   Definition lc := [:: (MkLI xH (Lgoto (xH,xH))); (MkLI xH (Llabel xH)); (MkLI xH (Lgoto (xH,xO xH)))].
 
+(*
+Lgoto 1
+Llabel 1
+Lgoto 2
+*)
+
+(*Garanti par la compilation: tous les Lgoto renvoient vers un label existant, et les Lcond aussi.*)
+
+(*
+Lgoto 2
+Llabel 1
+Lgoto 2
+*)
+
   Definition tlc := [:: (MkLI xH (Lgoto (xH,xO xH))); (MkLI xH (Llabel xH)); (MkLI xH (Lgoto (xH,xO xH)))].
 
   Lemma Htunnel : tunnel xH lc = tlc.
