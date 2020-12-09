@@ -15,6 +15,8 @@ let coqPackages = coqPackages_8_9; in
 
 let coqword = callPackage ./coqword.nix { inherit coqPackages; }; in
 
+let inherit (coqPackages.coq) ocamlPackages; in
+
 let oP =
   if enableFramePointers
   then ocamlPackages.overrideScope' (self: super: {

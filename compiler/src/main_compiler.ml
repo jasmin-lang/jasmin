@@ -11,7 +11,7 @@ let parse () =
     if !infile <> "" then error();
     infile := s  in
   Arg.parse options set_in usage_msg;
-  if !infile = "" && not !help_intrinsics
+  if !infile = "" && (not !help_intrinsics) && (!safety_makeconfigdoc = None)
   then error()
 
 (*--------------------------------------------------------------------- *)
@@ -202,16 +202,20 @@ let warn_extra_fd (_, fd) =
   List.iter warn_extra_i fd.f_body
  
 let check_safety_p s p source_p =
-  let s1,s2 = Glob_options.print_strings s in
-  Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
-                  %a@;@]@."
-    s1 s2
-    (Printer.pp_prog ~debug:true) p;
+  let () = if SafetyConfig.sc_print_program () then
+      let s1,s2 = Glob_options.print_strings s in
+      Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
+                      %a@;@]@."
+        s1 s2
+        (Printer.pp_prog ~debug:true) p
+  in
+
+  let () = SafetyConfig.pp_current_config_diff () in
   
   let () =
     List.iter (fun f_decl ->
         if f_decl.f_cc = Export then
-          let () = Format.eprintf "@[<v>Analyzing function %s@;@]@."
+          let () = Format.eprintf "@[<v>Analyzing function %s@]@."
               f_decl.f_name.fn_name in
 
           let source_f_decl = List.find (fun source_f_decl ->
@@ -224,14 +228,19 @@ let check_safety_p s p source_p =
             end) in
 
           AbsInt.analyze ())
-      (snd p) in
+      (List.rev (snd p)) in
   exit 0 
 
 (* -------------------------------------------------------------------- *)
 let main () =
-  try
-
+  try    
     parse();
+
+    if !safety_makeconfigdoc <> None
+    then (
+      let dir = oget !safety_makeconfigdoc in
+      SafetyConfig.mk_config_doc dir;
+      exit 0);
 
     if !help_intrinsics
     then (Help.show_intrinsics (); exit 0);
@@ -243,8 +252,7 @@ let main () =
     let () = if !check_safety then
         match !safety_config with
         | Some conf -> SafetyConfig.load_config conf
-        | None ->
-          Format.eprintf "No checker configuration file provided@." in
+        | None -> () in
 
     if !latexfile <> "" then begin
       let out = open_out !latexfile in

@@ -27,6 +27,8 @@ val sc_dynamic_packing         : unit -> bool
 val sc_call_policy             : unit -> call_policy
   
 (* Printing parameters *)
+val sc_print_program           : unit -> bool
+val sc_print_stats             : unit -> bool
 val sc_arr_no_print            : unit -> bool
 val sc_glob_no_print           : unit -> bool
 val sc_nrel_no_print           : unit -> bool ref
@@ -40,8 +42,7 @@ val sc_var_append_fun_name     : unit -> bool
 val sc_widening_out            : unit -> bool
 
 (* -------------------------------------------------------------------- *)
-val mk_config_doc     : unit -> unit
-val mk_config_default : unit -> unit
+val mk_config_doc     : string -> unit
 
 (* -------------------------------------------------------------------- *)
 val pp_current_config      : Format.formatter -> unit

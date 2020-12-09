@@ -19,7 +19,7 @@ type call_policy =
   | CallDirectAll
   | CallTopHeuristic
 
-type init_print = IP_None  | IP_NoArray | IP_All
+type init_print = IP_None | IP_NoArray | IP_All
 
 
 let config_doc = "config/checker_config_doc.json"
@@ -179,6 +179,17 @@ let default =
   (***********************)
   (* Printing parameters *)
   (***********************)
+  { p    = Bool false;
+    name = "print_program";
+    desc = `String "Print analyzed program. Useful if the analysis is not run at \
+                    the source level."; 
+    kind = Parameter; } ::
+
+  { p    = Bool false;
+    name = "print_stats";
+    desc = `String "Print analysis statistics."; 
+    kind = Parameter; } ::
+  
   { p    = Bool true;
     name = "arr_no_print";
     desc = `String "Turn on printing of array variables."; 
@@ -301,6 +312,8 @@ let sc_if_disj                 = find_bool       "if_disjunction"
 let sc_pif_movecc_as_if        = find_bool       "pif_movecc_as_if"
 let sc_while_flags_setfrom_dep = find_bool       "while_flags_setfrom_dep"
 let sc_dynamic_packing         = find_bool       "dynamic_packing"
+let sc_print_program           = find_bool       "print_program"
+let sc_print_stats             = find_bool       "print_stats"
 let sc_arr_no_print            = find_bool       "arr_no_print"
 let sc_glob_no_print           = find_bool       "glob_no_print"
 let sc_nrel_no_print           = find_boolref    "nrel_no_print"
@@ -429,36 +442,45 @@ let pp_current_config_diff () =
       let x' = List.find (fun y -> y.name = x.name) default in
       x.p <> x'.p) !config in
   if config <> [] then
-    Format.eprintf "Checker configuration parameters:@\n%a@." 
+    Format.eprintf "Checker configuration parameters:@\n%a@.@." 
       pp_config config
   else
-    Format.eprintf "Default checker configuration parameters.@." 
+    Format.eprintf "Default checker parameters.@.@." 
 
 (* -------------------------------------------------------------------- *)
-let mk_config_doc () =
+let mk_doc dir =
   let json : Json.Basic.t = to_json_doc default in
   try
-    let file = Stdlib.open_out "config/checker_config_doc.json" in
+    let fpath = dir ^ "checker_config_doc.json" in
+    let file = Stdlib.open_out fpath in
     let () = Json.Basic.pretty_to_channel file json in
-    close_out file
+    let () = close_out file in
+    Format.printf "Created configuration documentation in %s@." fpath
   with Sys_error s ->
     Format.eprintf "@[<v>Failed to create configuration documentation:@;\
                     %s@.@]" s
 
-(* -------------------------------------------------------------------- *)
-let mk_config_default () =
+let mk_default dir =
   let json : Json.Basic.t = to_json default in
   try
-    let file = Stdlib.open_out "config/checker_config_default.json" in
+    let fpath = dir ^ "checker_config_default.json" in
+    let file = Stdlib.open_out fpath in
     let () = Stdlib.output_string file
         "// Default configuration file. Automatically generated, any changes \
          will be overwritten.\n" in
     let () = Json.Basic.pretty_to_channel file json in
-    close_out file
+    let () = close_out file in
+    Format.printf "Created default configuration file in %s@." fpath
   with Sys_error s ->
     Format.eprintf "@[<v>Failed to create default configuration file:@;\
                     %s@.@]" s
 
+let mk_config_doc dir =
+  let dir = if String.ends_with dir "/" then dir else dir ^ "/" in
+  mk_doc dir;
+  mk_default dir
+  
+  
 (* -------------------------------------------------------------------- *)
 let load_config (filename : string) : unit =
   try
@@ -468,6 +490,8 @@ let load_config (filename : string) : unit =
     Format.eprintf "Configuration file loaded: %s@." filename
   with
   | Json.Json_error _ ->
-    Format.eprintf "ERROR: safety configuration file %s is invalid@." filename
+    Format.eprintf "ERROR: safety configuration file %s is invalid@." filename;
+    exit 1
   | BadSafetyConfig s ->
-    Format.eprintf "ERROR: safety configuration file %s: %s@." filename s
+    Format.eprintf "ERROR: safety configuration file %s: %s@." filename s;
+    exit 1

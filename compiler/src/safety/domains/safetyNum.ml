@@ -589,7 +589,7 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
       | _ -> [v, e]
     in
     
-    let ves = List.concat_map prepare ves in
+    let ves = List.concat (List.map prepare ves) in
     let vs,es = List.split ves in
     assign_expr_aux force a vs es
 

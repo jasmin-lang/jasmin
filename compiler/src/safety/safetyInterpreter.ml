@@ -167,7 +167,7 @@ let pp_violations fmt violations =
   if violations = [] then
     Format.fprintf fmt "@[<v>*** No Safety Violation@;@]"
   else
-    Format.fprintf fmt "@[<v 2>*** Safety Violation(s):@;@[<v>%a@]@]"
+    Format.fprintf fmt "@[<v 2>*** Possible Safety Violation(s):@;@[<v>%a@]@]"
       (pp_list pp_violation) violations
 
 let vloc_compare v v' = match v, v' with
@@ -695,7 +695,7 @@ end = struct
       mem_safety_rec (mem_safety_apply a c) t
 
   let add_violations : astate -> violation list -> astate = fun state ls ->
-    if ls <> [] then Format.eprintf "%a@." pp_violations ls;
+    if ls <> [] then debug (fun () -> Format.eprintf "%a@." pp_violations ls);
     { state with violations = List.sort_uniq v_compare (ls @ state.violations) }
     
   let rec check_safety state loc conds =
@@ -1067,8 +1067,12 @@ end = struct
      Bitwise operators are ignored for now (result is soundly set to top).
      See x86_instr_decl.v for a desciption of the operators. *)
   let split_opn n opn es = match opn with
-    | E.Oset0 ws -> [None;None;None;None;None;
-                     Some (pcast ws (Pconst (B.of_int 0)))]
+    | E.Oset0 ws ->
+       let zero = Some (pcast ws (Pconst (B.of_int 0))) in
+       begin match wsize_cmp U64 ws with
+       | Lt -> [ zero ]
+       | _ -> [ None; None; None; None; None; zero ]
+       end
 
     | E.Osubcarry ws -> mk_subcarry ws es
 
@@ -1980,14 +1984,16 @@ end = struct
     let exception UserInterupt in
 
     let t_start = Sys.time () in
-    let print_stats _ =
+    let print_stats () =      
       Format.eprintf "@[<v 0>Duration: %1f@;%a@]"
         (Sys.time () -. t_start)
         Prof.print () in
 
     try
       (* We print stats before exciting *)
-      let hndl = Sys.Signal_handle (fun _ -> print_stats (); raise UserInterupt) in
+      let hndl = Sys.Signal_handle (fun _ ->
+          let () = if SafetyConfig.sc_print_stats () then print_stats () in
+          raise UserInterupt) in
       let old_handler = Sys.signal Sys.sigint hndl in
 
       let state, warnings = init_state source_main_decl main_decl prog in
@@ -2002,7 +2008,7 @@ end = struct
       debug(fun () -> Format.eprintf "%a" pp_violations final_st.violations);
       print_mem_ranges final_st;
 
-      let () = debug (fun () -> print_stats ()) in
+      let () = if SafetyConfig.sc_print_stats () then print_stats () in
       let () = Sys.set_signal Sys.sigint old_handler in
 
       { violations = final_st.violations;
@@ -2060,8 +2066,6 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           | _ -> raise (Failure "-safetyparam ill-formed (too many '>' ?)"))
 
   let analyze () =
-    SafetyConfig.mk_config_doc ();
-    SafetyConfig.mk_config_default ();
     try     
     let ps_assoc = omap_dfl (fun s_p -> parse_params s_p)
         [ None, [ { relationals = None; pointers = None } ]]
@@ -2083,8 +2087,6 @@ module AbsAnalyzer (EW : ExportWrap) = struct
 
     let npt = List.filter (fun x -> not (List.mem x pt_vars)) EW.main.f_args
               |> List.map (fun x -> MmemRange (MemLoc x)) in
-
-    let () = Config.pp_current_config_diff () in
     
     let l_res = List.map (fun p ->
         let module AbsInt = AbsInterpreter (struct
@@ -2107,7 +2109,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
           Format.fprintf fmt "@[<v 2>Warnings:@;%a@]@;"
             (pp_list (fun fmt x -> x fmt)) warns in
       
-      Format.eprintf "@.@[<v>%a@;\
+      Format.eprintf "@?@[<v>%a@;\
                       %a@;\
                       %t\
                       %a@]@."
