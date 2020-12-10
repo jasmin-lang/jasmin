@@ -432,6 +432,18 @@ Section Prefix.
     by apply prefix_rcons.
   Qed.
 
+  Search _ filter all prefix.
+
+  Lemma prefix_all s1 s2 p : prefix s1 s2 -> all p s2 -> all p s1.
+  Proof.
+    by move => /prefixP [s] ->; rewrite all_cat => /andP [].
+  Qed.
+
+  Lemma prefix_filter s1 s2 p : prefix s1 s2 -> prefix (filter p s1) (filter p s2).
+  Proof.
+    by move => /prefixP [s] ->; rewrite filter_cat; apply/prefixP; eexists.
+  Qed.
+
 End Prefix.
 
 
@@ -606,11 +618,18 @@ Section TunnelingSem.
                end)
       (map li_i fb).
 
-  (*Be more specific: it's a pair filter.*)
   Definition local_goto_targets (fn' : funname) fb :=
     filter 
       (fun li => match li with
                | Lgoto (fn',_) => true
+               | _ => false
+               end)
+      (map li_i fb).
+
+  Definition cond_targets fb :=
+    filter 
+      (fun li => match li with
+               | Lcond _ _ => true
                | _ => false
                end)
       (map li_i fb).
@@ -622,7 +641,13 @@ Section TunnelingSem.
                | Lgoto (fn',l) => Llabel l \in (labels_of_body fb)
                | _ => false
                end)
-      (local_goto_targets fn' fb).
+      (local_goto_targets fn' fb) &&
+    all
+      (fun li => match li with
+               | Lcond _ l => Llabel l \in (labels_of_body fb)
+               | _ => false
+               end)
+      (cond_targets fb).
   
   Definition well_formed_lprog := all (fun func => well_formed_body func.1 func.2.(lfd_body)) p.(lp_funcs).
 
@@ -890,7 +915,6 @@ Section TunnelingProof.
     by rewrite ltnS => ->.
   Qed.
 
-  (*Weird, why do I end up only with Lgoto?*)
   Lemma prefix_find_label pfb fb l pc:
     well_formed_body fn fb ->
     prefix pfb fb ->
@@ -914,9 +938,21 @@ Section TunnelingProof.
     case: ifP; last by intros; eexists; eauto.
     move => /eqP Hfindll'; move: Hfindpl; rewrite -Hfindll' => Hpcf.
     rewrite /tunnel_plan -/uf in IHpfb.
-    apply: (IHpfb _ _ Hwfb (prefix_trans (prefix_rcons _ _) Hprefix)).
+    have: exists pc'', find_label l'' fb = ok pc''; last first.
+    + move => [pc''] Hfindl''.
+      by apply: (IHpfb _ _ Hwfb (prefix_trans (prefix_rcons _ _) Hprefix) Hfindl'').
     move: Hwfb; rewrite /well_formed_body.
-    rewrite /well_formed_body => /andP [] /andP [].
+    rewrite /well_formed_body => /andP [] /andP [_].
+    rewrite all_filter; move: Hprefix; case/prefixP => sfb Hfb.
+    rewrite {2}Hfb map_cat map_rcons all_cat all_rcons => /andP [] /andP [/= Hl'' _ _ _].
+    elim: fb Hl'' {Hfindl Hpcf IHpfb Hfb} => // hfb tfb.
+    rewrite /labels_of_body /find_label !mem_filter /= in_cons.
+    case Hhfbl'': (is_label l'' hfb) => //=.
+    + by rewrite /is_label /= in Hhfbl'' => IHok Hor; exists 0.
+    rewrite ltnS; move => IHok; rewrite /is_label in Hhfbl'' => Hor; move: Hor Hhfbl''.
+    move => /orP [/eqP <-|]; first by rewrite eq_refl.
+    move => Hin; case: (IHok Hin) => [pc''] Hif _; exists pc''.+1; move: Hif; case: ifP => //.
+    by move => _ [->].
   Qed.
 
   Lemma tunneling_lsem1 s1 s2 : lsem1 (lprog_tunnel fn p) s1 s2 -> lsem p s1 s2.
@@ -1134,7 +1170,6 @@ Section TunnelingProof.
       case Heqfn1: (fn == fn1) => //; move: Heqfn1 => /eqP ?; subst fn1;
       move: Hgfd1; rewrite Hgfd => -[?]; subst fd1;
       rewrite !find_label_tunnel_partial.
-
     + rewrite !get_fundef_union eq_refl Hgfd => Honth1 Hplsem1.
       case Heqfn1: (fn == fn1) => //; last first.
       - have:= (Hplsem1 s1 s2); clear Hplsem1.
@@ -1155,16 +1190,27 @@ Section TunnelingProof.
         clear Hplsem1.
         move => /eqP Hfindl.
         t_xrbindP => pcf1' Hpcf1' ?; subst pcf1'.
-        (*have:= wf_find_label.*)
+        have:= (get_fundef_wf Hgfd); rewrite /well_formed_body => /andP [] /andP [_ Hall _].
+        move: Hall; rewrite /local_goto_targets all_filter all_map => Hall.
+        have:= (prefix_all Hprefix Hall); rewrite all_rcons => /andP [Hl4 _]; clear Hall.
+        rewrite /= mem_filter /= in Hl4; have:= mapP Hl4 => -[[li_ii5 li_i5]] /= Hin ?.
+        clear Hl4; subst li_i5.
+        have:= (prefix_find_label (get_fundef_wf Hgfd) (prefix_trans (prefix_rcons _ _) Hprefix)).
+        rewrite /tunnel_plan -/uf => Hfindlfindl.
+
+        case Hfindl4: (find_label l4 (lfd_body fd)) => [pc4|err]; last first.
+        * left; move: Hfindl4; rewrite {1}/find_label; case: ifP => //.
+          rewrite -has_find.
+        have:= (Hfindlfindl _ _ Hfindl4).
         right.
         eexists; split; last first.
-        * by admit.
-        (*Make lemma showing that LUF.find uf l is always findable in lfd_body fd if l is as well.*)
-        (*Impossible actually.*)
+        * have:= (prefix_find_label (get_fundef_wf Hgfd) (prefix_trans (prefix_rcons _ _) Hprefix)).
+          rewrite /tunnel_plan -/uf.
+          by admit.
         by admit.
       by admit.
     by admit.
-  Admitted.
+  Qed.
 
   Lemma lsem1_tunneling s1 s2 : lsem1 p s1 s2 -> exists s3, lsem (lprog_tunnel fn p) s2 s3 /\ lsem1 (lprog_tunnel fn p) s1 s3.
   Proof.
@@ -1186,95 +1232,6 @@ Section TunnelingProof.
   Qed.
 
 End TunnelingProof.
-
-
-Section CounterExample.
-
-  Context (rip : Equality.sort Ident.ident).
-
-  Context (m : mem).
-
-  Context (vm : Fv.t (λ t : stype, exec (psem.psem_t t))).
-
-  Definition lc := [:: (MkLI xH (Lgoto (xH,xH))); (MkLI xH (Llabel xH)); (MkLI xH (Lgoto (xH,xO xH)))].
-
-(*
-Lgoto 1
-Llabel 1
-Lgoto 2
-*)
-
-(*Garanti par la compilation: tous les Lgoto renvoient vers un label existant, et les Lcond aussi.*)
-
-(*
-Lgoto 2
-Llabel 1
-Lgoto 2
-*)
-
-  Definition tlc := [:: (MkLI xH (Lgoto (xH,xO xH))); (MkLI xH (Llabel xH)); (MkLI xH (Lgoto (xH,xO xH)))].
-
-  Lemma Htunnel : tunnel xH lc = tlc.
-  Proof.
-    rewrite /tunnel /tlc //=; do 4! f_equal.
-    + by rewrite /tunnel_plan /= LUF.find_union eq_refl LUF.find_empty.
-    by rewrite /tunnel_plan /= LUF.find_union !LUF.find_empty; f_equal; case: ifP.
-  Qed.
-
-  Definition p := Build_lprog rip [::] [:: (xH,LFundef U8 [::] [::] lc [::] [::] false)].
-
-  Definition tp := Build_lprog rip [::] [:: (xH,LFundef U8 [::] [::] tlc [::] [::] false)].
-
-  Lemma Hlprog_tunnel : lprog_tunnel xH p = tp.
-  Proof.
-    rewrite /lprog_tunnel /setfuncs /lfundef_tunnel_partial /setfb /= /tp; do 4! f_equal.
-    by rewrite -Htunnel /tunnel /tunnel_partial.
-  Qed.
-
-  Definition s1 := Lstate m vm xH 0.
-
-  Definition s2 := Lstate m vm xH 2.
-
-  Lemma Hlsem12 : lsem p s1 s2.
-  Proof.
-    apply: Relation_Operators.rt_step.
-    by rewrite /lsem1 /step /eval_instr /= /setcpc /s1 /s2 /=.
-  Qed.
-
-  Lemma Hstep2 : step p s2 = type_error.
-  Proof.
-    by rewrite /step /eval_instr /= /setcpc /s2 /=.
-  Qed.
-
-  Lemma Htstep1 : step tp s1 = type_error.
-  Proof.
-    by rewrite /step /eval_instr /= /setcpc /s2 /=.
-  Qed.
-
-  Lemma Htstep2 : step tp s2 = type_error.
-  Proof.
-    by rewrite /step /eval_instr /= /setcpc /s2 /=.
-  Qed.
-
-  Lemma Hlsem_error p' s1' s2' :
-    lsem p' s1' s2' -> 
-    step p' s1' = type_error ->
-    s1' = s2'.
-  Proof.
-    move: s1' s2'; apply: lsem_ind => //.
-    by move => s1' s2' s3'; rewrite /lsem1 => ->.
-  Qed.
-
-  Lemma Hoops : False.
-  Proof.
-    case _: (lsem_tunneling xH Hlsem12) => [s3 [Hlsem23]].
-    have ?:= (Hlsem_error Hlsem23 Hstep2); subst s3.
-    rewrite Hlprog_tunnel => Htlsem12.
-    have:= (Hlsem_error Htlsem12 Htstep1).
-    by rewrite /s1 /s2.
-  Qed.
-
-End CounterExample.
 
 (*
 Search _ (_ < _.+1).
