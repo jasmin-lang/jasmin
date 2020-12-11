@@ -4,7 +4,7 @@ stdenv.mkDerivation {
   name = "jasmin-0";
   src = ./.;
   buildInputs = [ mpfr ppl ]
-  ++ (with ocamlPackages; [ ocaml findlib ocamlbuild apron batteries menhir zarith ])
+  ++ (with ocamlPackages; [ ocaml findlib ocamlbuild apron batteries menhir zarith yojson])
   ;
 
   installPhase = ''
