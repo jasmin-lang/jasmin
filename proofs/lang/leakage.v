@@ -336,7 +336,7 @@ match l, li with
 | LT_ilkeep, Lopn le => [:: Lopnl le]
 | LT_ilcond_0 lte lti, Lcond le b lis => [:: Lcondl (leak_E stk lte le) b] ++ 
   (if b then [::] else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty])
-| LT_ilcond_0' lte lti, Lcond le b lis => [:: Lcondl (leak_E stk lte le) b] ++ 
+| LT_ilcond_0' lte lti, Lcond le b lis => [:: Lcondl (leak_E stk lte le) (negb b)] ++ 
   (if (negb b) then [::] else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty])
 | LT_ilcond lte lti lti', Lcond le b lis => 
   [:: Lcondl (leak_E stk lte le) b] ++ if b then leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty]
