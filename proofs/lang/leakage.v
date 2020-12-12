@@ -282,7 +282,7 @@ Definition leak_Fun (f: funname) : leak_c_tr := odflt [::] (assoc Fs f).
 
 End Leak_Call_Imp.
 
-(** Leakage for low-level **)
+(** Leakage for intermediate-level **)
 
 Inductive leak_il : Type :=
 | Lempty : leak_il
@@ -356,6 +356,31 @@ Variable Fs: leak_f_lf_tr.
 Definition leak_Fun_L (f: funname) : seq leak_i_il_tr := odflt [::] (assoc Fs f).
 
 End Leak_Call_Imp_L.
+
+(** Leakage for assembly-level **)
+
+Inductive leak_asm : Type :=
+| Laempty
+| Lacond of bool (* bool represents the condition in conditional jump *)
+| Laop of seq pointer.
+
+(* Extracts the sequence of pointers from leak_e *)
+Fixpoint leak_e_asm (l : leak_e) : seq pointer :=
+match l with 
+| LEmpty => [::]
+| LIdx i => [::]
+| LAdr p => [:: p]
+| LSub l => flatten (map leak_e_asm l)
+end.
+
+(* Transforms leakage for intermediate langauge to leakage for assembly *)
+Definition leak_i_asm (l : leak_il) : leak_asm :=
+match l with 
+| Lempty => Laempty
+| Lopnl le => Laop (leak_e_asm le)
+| Lcondl le b => Lacond b
+end.
+
 
 
 

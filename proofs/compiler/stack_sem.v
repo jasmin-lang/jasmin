@@ -226,4 +226,27 @@ Proof.
   by move => s m s' _ xs f es vs rs lf l2 hvs h hrs; exists vs, m, rs, lf, l2.
 Qed.
 
+Lemma sem_callE' fn vargs' m1 m2 lf vres' p gd:
+  sem_call p gd m1 fn vargs' lf m2 vres' ->
+  exists sf,
+    get_fundef p fn = Some sf /\
+  exists m1' s1 vargs s2 m2' vm2 vres,
+    alloc_stack m1 (sf_stk_sz sf) = ok m1' /\
+    write_var  (vstk (sf_stk_id sf)) (Vword (top_stack m1')) (Estate m1' vmap0) = 
+    ok s1 /\
+    mapM2 ErrType truncate_val sf.(sf_tyin) vargs' = ok vargs /\
+    write_vars (sf_params sf) vargs s1 = ok s2 /\
+    sem p gd s2 (sf_body sf) lf.2 {| emem := m2'; evm := vm2 |} /\
+    mapM (fun (x:var_i) => get_var vm2 x) sf.(sf_res) = ok vres /\
+    mapM2 ErrType truncate_val sf.(sf_tyout) vres = ok vres' /\
+    m2 = free_stack m2' (sf_stk_sz sf).
+Proof.
+  case => { m1 fn vargs' lf m2 vres' }.
+  move=> m1 m2 fn sf vargs vargs' s1 s2 m2' vm2 vres vres' m1' lc.
+  move=> hf hs hw hc hr ht ht' hm2 hm2'.
+  exists sf; split=> //.
+  by exists m1'; exists s1; exists vargs; exists s2; exists m2'; exists vm2;
+  exists vres.
+Qed.
+
 End S.

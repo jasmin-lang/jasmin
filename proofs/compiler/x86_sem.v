@@ -23,7 +23,6 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-
 (* -------------------------------------------------------------------- *)
 Require Import Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
@@ -31,7 +30,7 @@ From CoqWord Require Import ssrZ.
 Require Import ZArith utils strings low_memory word global oseq.
 Import Utf8 Relation_Operators.
 Import Memory.
-Require Import sem_type x86_decl x86_instr_decl sem.
+Require Import sem_type x86_decl x86_instr_decl sem trelation.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -66,7 +65,7 @@ Record x86_state := X86State {
 }.
 
 Notation x86_result := (result error x86_mem).
-Notation x86_result_state := (result error x86_state).
+Notation x86_result_state := (result error (x86_state * leak_asm)).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_cond (c : condt) (rm : rflagmap) :=
@@ -132,12 +131,12 @@ Definition find_label (lbl : label) (a : seq asm) :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_JMP lbl (s: x86_state) : x86_result_state :=
-  Let ip := find_label lbl s.(xc) in ok (st_write_ip ip.+1 s).
+  Let ip := find_label lbl s.(xc) in ok (st_write_ip ip.+1 s, Laempty).
 
 (* -------------------------------------------------------------------- *)
 Definition eval_Jcc lbl ct (s: x86_state) : x86_result_state :=
   Let b := eval_cond ct s.(xrf) in
-  if b then eval_JMP lbl s else ok (st_write_ip (xip s).+1 s).
+  if b then eval_JMP lbl s else ok (st_write_ip (xip s).+1 s, Lacond b).
 
 (* -------------------------------------------------------------------- *)
 Definition st_get_rflag (rf : rflag) (s : x86_mem) :=
@@ -166,42 +165,43 @@ Definition check_oreg or ai :=
   | None, _        => true
   end.
 
-Definition eval_arg_in_v (s:x86_mem) (args:asm_args) (a:arg_desc) (ty:stype) : exec value :=
+Definition eval_arg_in_v (s:x86_mem) (args:asm_args) (a:arg_desc) (ty:stype) : exec (value * seq pointer) :=
   match a with
-  | ADImplicit (IAreg r)   => ok (Vword (s.(xreg) r))
-  | ADImplicit (IArflag f) => Let b := st_get_rflag f s in ok (Vbool b)
+  | ADImplicit (IAreg r)   => ok (Vword (s.(xreg) r), [::])
+  | ADImplicit (IArflag f) => Let b := st_get_rflag f s in ok ((Vbool b), [::])
   | ADExplicit i or =>
     match onth args i with
     | None => type_error
     | Some a =>
       Let _ := assert (check_oreg or a) ErrType in
       match a with
-      | Condt c   => Let b := eval_cond c s.(xrf) in ok (Vbool b)
+      | Condt c   => Let b := eval_cond c s.(xrf) in ok ((Vbool b), [::])
       | Imm sz' w => 
         match ty with 
-        | sword sz => ok (Vword (sign_extend sz w))
+        | sword sz => ok ((Vword (sign_extend sz w)), [::])
         | _        => type_error
         end
-      | Glob g    => Let w := get_global_word  gd g  in ok (Vword w)
-      | Reg r     => ok (Vword (s.(xreg) r))
+      | Glob g    => Let w := get_global_word  gd g  in ok ((Vword w), [::])
+      | Reg r     => ok ((Vword (s.(xreg) r)), [::])
       | Adr adr   => 
         match ty with
-        | sword sz => Let w := read_mem s.(xmem) (decode_addr s adr) sz in ok (Vword w)
+        | sword sz => let p :=(decode_addr s adr) in 
+                      Let w := read_mem s.(xmem) p sz in ok ((Vword w), [:: p])
         | _        => type_error
         end
-      | XMM x     => ok (Vword (s.(xxreg) x))
+      | XMM x     => ok ((Vword (s.(xxreg) x)), [::])
       end
     end
   end.
 
 Definition eval_args_in (s:x86_mem) (args:asm_args) (ain : seq arg_desc) (tin : seq stype) :=
-  mapM2 ErrType (eval_arg_in_v s args) ain tin.
+  Let r := mapM2 ErrType (eval_arg_in_v s args) ain tin in ok (unzip1 r, flatten (unzip2 r)).
 
 Definition eval_instr_op idesc args (s:x86_mem) :=
   Let _   := assert (idesc.(id_check) args) ErrType in
   Let vs  := eval_args_in s args idesc.(id_in) idesc.(id_tin) in
-  Let t   := app_sopn _ idesc.(id_semi) vs in
-  ok (list_ltuple t).
+  Let t   := app_sopn _ idesc.(id_semi) vs.1 in
+  ok (list_ltuple t, vs.2).
 
 (* -------------------------------------------------------------------- *)
 
@@ -267,9 +267,9 @@ Definition mem_write_reg (r: register) sz (w: word sz) (m: x86_mem) :=
     xrf  := m.(xrf);
   |}.
 
-Definition mem_write_word (f:msb_flag) (s:x86_mem) (args:asm_args) (ad:arg_desc) (sz:wsize) (w: word sz) : exec x86_mem :=
+Definition mem_write_word (f:msb_flag) (s:x86_mem) (args:asm_args) (ad:arg_desc) (sz:wsize) (w: word sz) : exec (x86_mem * seq pointer) :=
   match ad with
-  | ADImplicit (IAreg r)   => ok (mem_write_reg r w s)
+  | ADImplicit (IAreg r)   => ok (mem_write_reg r w s, [::])
   | ADImplicit (IArflag f) => type_error
   | ADExplicit i or    =>
     match onth args i with
@@ -277,22 +277,24 @@ Definition mem_write_word (f:msb_flag) (s:x86_mem) (args:asm_args) (ad:arg_desc)
     | Some a =>
       Let _ := assert (check_oreg or a) ErrType in
       match a with
-      | Reg r     => ok (mem_write_reg r w s)
-      | Adr adr   => mem_write_mem (decode_addr s adr) w s
-      | XMM x     => ok (mem_update_xreg f x w s)
+      | Reg r     => ok (mem_write_reg r w s, [::])
+      | Adr adr   => let p := decode_addr s adr in  
+                     Let m := mem_write_mem p w s in 
+                     ok (m, [::p])
+      | XMM x     => ok (mem_update_xreg f x w s, [::])
       | _         => type_error
       end
     end
   end.
 
-Definition mem_write_bool(s:x86_mem) (args:asm_args) (ad:arg_desc) (b:option bool) : exec x86_mem :=
+Definition mem_write_bool(s:x86_mem) (args:asm_args) (ad:arg_desc) (b:option bool) : exec (x86_mem * seq pointer) :=
   match ad with
-  | ADImplicit (IArflag f) => ok (mem_write_rflag s f b)
+  | ADImplicit (IArflag f) => ok (mem_write_rflag s f b, [::])
   | _ => type_error
   end.
 
-Definition mem_write_ty (f:msb_flag) (s:x86_mem) (args:asm_args) (ad:arg_desc) (ty:stype) : sem_ot ty -> exec x86_mem :=
-  match ty return sem_ot ty -> exec x86_mem with
+Definition mem_write_ty (f:msb_flag) (s:x86_mem) (args:asm_args) (ad:arg_desc) (ty:stype) : sem_ot ty -> exec (x86_mem * seq pointer) :=
+  match ty return sem_ot ty -> exec (x86_mem * seq pointer) with
   | sword sz => @mem_write_word f s args ad sz
   | sbool    => mem_write_bool s args ad
   | sint     => fun _ => type_error
@@ -312,17 +314,23 @@ Definition oof_val (ty: stype) (v:value) : exec (sem_ot ty) :=
   | _ => type_error
   end.
 
-Definition mem_write_val (f:msb_flag) (args:asm_args) (aty: arg_desc * stype) (v:value) (s:x86_mem) : exec x86_mem :=
+Definition mem_write_val (f:msb_flag) (args:asm_args) (aty: arg_desc * stype) (v:value) (s:x86_mem) : exec (x86_mem * seq pointer) :=
   Let v := oof_val aty.2 v in
   mem_write_ty f s args aty.1 v.
 
-Definition mem_write_vals 
-  (f:msb_flag) (s:x86_mem) (args:asm_args) (a: seq arg_desc) (ty: seq stype) (vs:values) :=
-  fold2 ErrType (mem_write_val f args) (zip a ty) vs s.
+Fixpoint mem_write_vals  (f:msb_flag) (s:x86_mem) (args:asm_args) (a: seq arg_desc) (ty: seq stype) (vs:values) :=
+match a, ty, vs with 
+  | [::], [::], [::] => ok(s, [::])
+  | a1 :: a, ty1 :: ty, v :: vs => Let m := mem_write_val f args (a1, ty1) v s in 
+                                   Let ms := mem_write_vals f m.1 args a ty vs in 
+                                   ok(ms.1, m.2 ++ ms.2)
+  | _, _, _ => Error ErrType 
+end.
 
-Definition exec_instr_op idesc args (s:x86_mem) : exec x86_mem :=
+Definition exec_instr_op idesc args (s:x86_mem) : exec (x86_mem * leak_asm) :=
   Let vs := eval_instr_op idesc args s in
-  mem_write_vals idesc.(id_msb_flag) s args idesc.(id_out) idesc.(id_tout) vs.
+  Let ms := mem_write_vals idesc.(id_msb_flag) s args idesc.(id_out) idesc.(id_tout) vs.1 in 
+  ok(ms.1, Laop (vs.2 ++ ms.2)).
 
 (* -------------------------------------------------------------------- *)
 Definition is_special o :=
@@ -336,7 +344,7 @@ Definition eval_special o args m :=
   | LEA sz, [:: Reg r; Adr addr] =>
     Let _ := check_size_16_64 sz in
     let p := decode_addr m addr in
-    ok (mem_write_reg r (zero_extend sz p) m)
+    ok (mem_write_reg r (zero_extend sz p) m, Laop [::])
   | _, _ => type_error
   end.
 
@@ -347,19 +355,19 @@ Definition eval_op o args m :=
     let id := instr_desc o in
     exec_instr_op id args m.
 
-Definition eval_instr (i : asm) (s: x86_state) : exec x86_state :=
+Definition eval_instr (i : asm) (s: x86_state) : x86_result_state :=
   match i with
   | ALIGN        
-  | LABEL _      => ok (st_write_ip (xip s).+1 s)
+  | LABEL _      => ok (st_write_ip (xip s).+1 s, Laempty)
   | JMP   lbl    => eval_JMP lbl s
   | Jcc   lbl ct => eval_Jcc lbl ct s
   | AsmOp o args =>
     Let m := eval_op o args s.(xm) in
-    ok {|
-      xm := m;
+    ok ({|
+      xm := m.1;
       xc := s.(xc);
       xip := s.(xip).+1
-    |}
+    |}, m.2)
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -368,10 +376,10 @@ Definition fetch_and_eval (s: x86_state) :=
     eval_instr i s
   else type_error.
 
-Definition x86sem1 (s1 s2: x86_state) : Prop :=
-  fetch_and_eval s1 = ok s2.
+Definition x86sem1 (s1: x86_state) (l: leak_asm) (s2: x86_state) : Prop :=
+  fetch_and_eval s1 = ok (s2, l).
 
-Definition x86sem : relation x86_state := clos_refl_trans x86_state x86sem1.
+Definition x86sem := trace_closure x86sem1.
 
 End GLOB_DEFS.
 
@@ -395,18 +403,18 @@ Definition xprog : Type :=
 
 (* TODO: flags may be preserved *)
 (* TODO: restore stack pointer of caller? *)
-Variant x86sem_fd (P: xprog) (gd: glob_decls) fn st st' : Prop :=
+Variant x86sem_fd (P: xprog) (gd: glob_decls) fn st l st' : Prop :=
 | X86Sem_fd fd mp st2
    `(get_fundef P fn = Some fd)
    `(alloc_stack st.(xmem) fd.(xfd_stk_size) = ok mp)
     (st1 := mem_write_reg fd.(xfd_nstk) (top_stack mp) {| xmem := mp ; xreg := st.(xreg) ; xxreg := st.(xxreg) ; xrf := rflagmap0 |})
     (c := fd.(xfd_body))
-    `(x86sem gd {| xm := st1 ; xc := c ; xip := 0 |} {| xm := st2; xc := c; xip := size c |})
+    `(x86sem gd {| xm := st1 ; xc := c ; xip := 0 |} l {| xm := st2; xc := c; xip := size c |})
     `(st' = {| xmem := free_stack st2.(xmem) fd.(xfd_stk_size) ; xreg := st2.(xreg) ; xxreg := st2.(xxreg) ; xrf := rflagmap0 |})
     .
 
-Definition x86sem_trans gd s2 s1 s3 :
+(*Definition x86sem_trans gd s2 s1 s3 :
   x86sem gd s1 s2 -> x86sem gd s2 s3 -> x86sem gd s1 s3 :=
-  rt_trans _ _ s1 s2 s3.
+  tc_trans _ _ s1 s2 s3.*)
 
 
