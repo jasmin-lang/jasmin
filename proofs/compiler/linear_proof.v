@@ -815,68 +815,26 @@ Section PROOF.
 
   Let Hwhile' : forall a c e c', Pc c -> Pc c' -> Pi_r (Cwhile a c e c').
   Proof.
-    (*move=> a c e c' Hc Hc' ii lbl lbli li lti /=.
+    move=> a c e c' Hc Hc' ii lbl lbli li lti /=.
     set ι := MkLI ii.
-    case: is_boolP => //= b. case: b=> //=.
-    (* b is true *)
+    case: is_boolP => [[] | {e} e].
     + admit.
-    (* b is false *)
-    rewrite linear_c_nil; case Heqc' : linear_c => [[[lblc' lc'] ltc]|] //=.
-    move: Hc. rewrite /Pc. 
-    move=> Hc. move: (Hc lbl lblc' lc' ltc Heqc'). move=> [] H1 H2 H3.
-    move=> [] <- <- <-; split.
-    + auto.
-    + rewrite cats0. apply H2.
-    + rewrite cats0. move=> s1 s2 l /S.sem_iE' [si] [b] [lc] [le] [Hs] //=.
-      move=> [] [] <- <- [] <- -> /=. move: (H3 s1 si lc Hs). move=> {H3} H3.
-      apply H3.
-    (*+ rewrite linear_c_nil; case Heqc': linear_c => [[lblc' lc']|] //=.
-      rewrite linear_c_nil.
-      rewrite /align; t_xrbindP => y0 h0 [lblc lc] Heqc ????;subst lbli li y0 h0 => /=.
-      move: Heqc' Heqc => /Hc' [ Hlbl' Hvc' Hlc'] /Hc [ Hlbl Hvc Hlc];split.
-      + by apply: (Pos_leb_trans (le_next lbl));apply: Pos_leb_trans Hlbl.
-      + rewrite valid_add_align /= !valid_cat /= (Pos_lt_leb_trans (lt_next _)) ?Pos.leb_refl /= ?andbT;
-          last by apply: Pos_leb_trans Hlbl.
-        apply /andP;split.
-        + by apply: valid_le_min Hvc; apply: (Pos_leb_trans (le_next lbl)).
-        by apply: (valid_le_max Hlbl); apply: valid_le_min Hvc';apply le_next.
-      move=> s1 s2 Hsem; apply lsem_add_align.
-      set C := (C in of_estate _ C); rewrite -/C.
-      apply lsem_step with (of_estate s1 C 1) => //.
-      elim: _ {-1}_ _ / Hsem (erefl (Cwhile a c true c'))=> //= {s1 s2}.
-      + move=> s1 s2 s3 s4 a0 c0 e0 c'0 H1 H2 H3 H4 Hrec [????];subst a0 c0 e0 c'0.
-        move: H1 H3 H4 Hrec => {H2} /= /Hlc{Hlc}Hlc /Hlc'{Hlc'}Hlc' _ /(_ (refl_equal _)) Hrec.
-        eapply lsem_trans with (of_estate s3 C (size lc + size lc').+1).
-        + move=> {Hrec}.
-          have : lsem gd (of_estate s1 (lc ++ lc') 0)
-                         (of_estate s3 (lc ++ lc') (size lc + size lc')).
-          + apply lsem_trans with (of_estate s2 (lc ++ lc') (size lc)).
-            + by have /= := lsem_cat_tl lc' Hlc;case: (s1) (s2) => ?? [??].
-            have Hd : disjoint_lbl lc lc'.
-            + by apply: valid_disjoint Hvc Hvc'; rewrite Pos.leb_refl orbT.
-            by have /(_ _ Hd):= lsem_cat_hd _ Hlc';rewrite !of_estate_add_hd_c addn0.
-          have Hd : disjoint_lbl [:: {| li_ii := ii; li_i := Llabel lbl |} ] (lc ++ lc').
-          + apply: (@valid_disjoint lbl (next_lbl lbl) (next_lbl lbl) lblc)=>//=.
-            + by rewrite Pos.leb_refl. + by rewrite Pos.leb_refl lt_next.
-            by rewrite valid_cat (valid_le_min Hlbl' Hvc) (valid_le_max Hlbl Hvc').
-          move=> /lsem_cat_hd -/(_ _ Hd). rewrite !of_estate_add_hd_c addn0.
-          move/(lsem_cat_tl [:: {| li_ii := ii; li_i := Lgoto lbl |}]).
-          by rewrite !setc_of_estate /= /C -/ι -!cat_cons catA.
-        apply: lsem_step Hrec.
-        rewrite /lsem1 /step /C /= /find_instr /= catA onth_cat size_cat ltnn subnn /=.
-        by rewrite /eval_instr /= find_label_hd.
-      by move=> ???? e0 ??? [????];subst e0 => //.*)
-    + (* true case *) admit.
+    (* case 2: when e is false *) (* done *)
+    + rewrite linear_c_nil; case Heqc' : linear_c => [[[lblc' lc'] ltc]|] //=.
+      move: Hc. rewrite /Pc. 
+      move=> Hc. move: (Hc lbl lblc' lc' ltc Heqc'). move=> [] H1 H2 H3.
+      move=> [] <- <- <-; split.
+      + auto.
+      + rewrite cats0. apply H2.
+      + rewrite cats0. move=> s1 s2 l /S.sem_iE' [si] [b] [lc] [le] [Hs] //=.
+        move=> [] [] <- <- [] <- -> /=. move: (H3 s1 si lc Hs). move=> {H3} H3.
+        apply H3.
     (* case 3 *)
-    + case Heqc: linear_c => [[[lblc' lc'] ltc]|] //=.
-      move: (Hc lbl lblc' lc' ltc Heqc).
-      move=> []; split=> //. by case: H=> <- _ _. by case: H=> <- <- _.
-      move=> s1 s2 l /S.sem_iE' [si] [b] [lc] [le] [Hs] [He]; case: b He => //= [].
-      move=> [] <- [] <- ->. move: (p2 s1 si lc Hs). move=> Hs'. case: H => H1 H2 H3.
-      by rewrite -H2 -H3 /=.
     case: c' Hc' => [ _ | i c' ].
-    + rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc]|] //= x; apply ok_inj in x.
-      case/xseq.pair_inj: x=> h1 h2; case: h1=> h1 h1'; subst lbli li lti.
+    (* subcase 1 : c' = [::] *)
+    + rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc]|] //= x.
+       apply ok_inj in x. 
+      case/xseq.pair_inj: x => -[h1 h2] h3; subst lbli li lti.
       have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ _ Heqc.
       have leL1 := le_next lbl.
       have ltL1 := lt_next lbl.
@@ -884,102 +842,189 @@ Section PROOF.
       have Hlt := Pos_lt_leb_trans ltL1 Hle1.
       split => //.
       + by rewrite valid_add_align /= valid_cat /= Pos.leb_refl Hlt (valid_le_min _ Hvc).
-      move=> s1 s2 l H.
-      move: H. move=> /S.sem_iE' [si] [b] [lc1] [le] [] H []; case:b.
-      (*case: b = true *)
-      + move=> He [sj] [lc'] [lw] [] H' [] Hi ->.
-      move: lsem_add_align. case: a Hi=> Hi Ha //=.
-      (* case: a = Align *)
-      + move: (Ha gd s1
-        (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)]) ii Align s2). rewrite /=.
-        move=> {Ha} Ha. move: (Ha ([:: Lempty] ++ leak_i_iLs leak_i_iL stk ltc lc1 ++
-        Lcondl le true :: ilwhile_c'0 leak_i_iL stk ltc lw)). move=> {Ha} Ha /=.
-        apply Ha. move=> {Ha}. apply: lsem_step=> //.
-        set L := [:: ι (Lilabel lbl) ].
-        set C := L ++ lc ++ [:: ι (Licond e lbl)].
-        have HL : valid lbl (next_lbl lbl) L by rewrite/L/= Pos.leb_refl ltL1.
-        have Hd : disjoint_lbl L lc by apply: valid_disjoint _ HL Hvc; by rewrite Pos.leb_refl.
-        elim: _ {-1}_ _ / H' (erefl (Cwhile Align c e [::])) => //.
-        + move=> s _ /=. apply : tc_trans. 
-          + rewrite /setpc /=. rewrite /lsem /of_estate in Hc.
-            move: (Hc _ _ _ H). move=> {Hc} Hc.
-            have /(_ _ Hd) := lsem_cat_hd _ Hc. move=> hh. rewrite /lsem in hh.
-            subst L. rewrite /add_hd_c in hh. rewrite /= in hh.
-            have ht := (lsem_cat_tl [:: ι (Licond e lbl)] hh). rewrite /setc in ht.
-            rewrite /= in ht. apply ht.
-          apply: lsem_step. 
-          + rewrite /lsem1 /step /= /find_instr /=.
-            by rewrite onth_cat ltnn subnn /= /eval_instr /= to_of_estate He /= find_label_hd.
-          + rewrite /setpc /=. admit.
-       move => s2' s3' s4' i c0 e0 c'0 Hsem Hs Hsem' h. 
-       have heq :  Cwhile Align c e c0 = Cwhile Align c e c0. + auto.
-       move: (Hsem' heq). move=> {Hsem'} Hsem'. apply Hsem'.
-     (* Case: a = NoAlign *)
-     move: (Ha gd s1 (add_align ii NoAlign
-     (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)])) ii NoAlign s2). move=> {Ha} Ha.
-     rewrite /= in Ha. move: (Ha (leak_i_iL stk (Lwhile_true lc1 le lc' lw)
-     (LT_ilwhile_c'0 ltc))). move=> {Ha} Ha. apply Ha.
-     apply: lsem_step=> //. admit.
-   (* Case: b = false *)
-   admit.
-   (* last case *)
-   move: (i :: c') => { i c' } c' Hc'.
-   rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc]|] //=.
-   have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ _ Heqc.
-   rewrite linear_c_nil.
-   case Heq:linear_c => [[[lblc' lc'] ltc']|] //= [] ??;subst lbli li. move=> <-.
-   have leL1 := le_next lbl; have leL2 := le_next (next_lbl lbl).
-   have lblL2 := Pos_leb_trans leL1 leL2.
-   have lblcL2 := Pos_leb_trans lblL2 Hle1.
-   have {Heq} [Hle Hv Hs]:= Hc' _ _ _ _ Heq;split.
-   + apply: (Pos_leb_trans lblL2).
-     by apply: (Pos_leb_trans Hle1).
-   + rewrite /= valid_add_align /= valid_cat /= Pos.leb_refl leL1 (valid_le_min _ Hv) //.
-     rewrite (Pos_lt_leb_trans (lt_next _)).
-     rewrite (Pos_lt_leb_trans _ Hle) /=.
-     rewrite valid_cat /= leL1 /=.
-     rewrite (valid_le_max Hle) /=.
-     rewrite (Pos_lt_leb_trans (lt_next _)) //.
-     rewrite (Pos_leb_trans Hle1) //.
-     rewrite (valid_le_min _ Hvc) //.
-     rewrite (Pos_lt_leb_trans (lt_next _)) //.
-     rewrite (Pos_leb_trans _ Hle) //.
-     rewrite (Pos_leb_trans leL2 Hle1) //.
-   move=> s1 s2 l H.
-   set C := (C in of_estate _ C _);rewrite -/C.
-   move: H. move=> /S.sem_iE'. move=> [si] [b] [lc0] [le] [H] [He]; case: b He=> //=.
-   (* case: b = true *)
-   + move=> He [sj] [lc1] [lc1'] [H'] [Hi'] -> /=.
-     apply lsem_step with (of_estate s1 C ((a == Align) + (size lc').+2).+1).
-     + rewrite /lsem1 /step /= /eval_instr /=.
-       have -> // : find_label lbl C =  ok ((a == Align) + (size lc').+2).
-       rewrite /C -cat1s find_label_cat_hd // find_label_add_align.
-       rewrite -!cat_cons find_label_cat_hd /=.
-       + by rewrite find_label_hd /= addn0 addnA (addnC 1) -addnA.
-       rewrite /= {1}/is_label /=.
-       case: eqP => H'' /=.
-       + by have := lt_next lbl;rewrite Pos.ltb_antisym -H'' Pos.leb_refl.
-       apply /negP=> H1;have := @valid_has _ lbl _ _ Hv.
+      move=> s1 s2 li /S.sem_iE'. move=> [si] [b] [lc'] [le] [H] [He].
+      case: b He.
+      (* b is true *)
+      - move=> He [sj] [lc''] [lw] [Hci] [Hw] -> /=. move: lsem_add_align. move=> Ha.
+        move: (Ha gd s1 
+              (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)]) ii a).
+        move=> {Ha} Ha.
+        (* we need to resolve a due to the way lsem_add_align is structured *)
+        case: a Ha Hw=> /= Ha Hw //=.
+        (* a = Align *)
+        * move: (Ha s2). move=> {Ha} Ha. 
+          move: (Ha [:: Lempty
+           & leak_i_iLs leak_i_iL stk ltc lc' ++
+           Lcondl le true :: ilwhile_c'0 leak_i_iL stk ltc lw]). 
+         rewrite /=. move=> {Ha} Ha. apply Ha.
+          apply: lsem_step=> //. move=> {Ha}.
+          set L := [:: ι (Lilabel lbl) ].
+          set C := L ++ lc ++ [:: ι (Licond e lbl)].
+          have HL : valid lbl (next_lbl lbl) L by rewrite/L/= Pos.leb_refl ltL1.
+          have Hd : disjoint_lbl L lc by apply: valid_disjoint _ HL Hvc; 
+          by rewrite Pos.leb_refl.
+          move: (Hc s1 si lc' H). move=> /= Hc'.
+          apply: tc_trans.
+          have /(_ _ Hd) := lsem_cat_hd _ Hc'. move=> Hhd.
+          rewrite /lsem in Hhd.
+          ** rewrite /setpc /=.           
+             move: (lsem_cat_tl [:: ι (Licond e lbl)]).
+             move=> Htl. rewrite /lsem in Hhd. rewrite /lsem in Htl.
+             move: (Htl gd (add_hd_c L (of_estate s1 lc 0))
+                        (add_hd_c L (of_estate si lc (size lc)))
+                        (leak_i_iLs leak_i_iL stk ltc lc') Hhd).
+            rewrite /= /setc /add_hd_c /=. move=> {Htl} Htl. apply Htl.
+          ** apply: lsem_step => //.
+             *** rewrite /lsem1 /step /= /of_estate /find_instr /=.
+                 rewrite onth_cat ltnn subnn /= /eval_instr /=. 
+                 by rewrite to_of_estate He /= /setpc /= find_label_hd /=.
+             *** admit. (* recursive part *)    
+        (* a = NoAlign *)
+        * move: (Ha s2). move=> {Ha} Ha. 
+          move: (Ha ([:: Lempty] ++ [:: Lempty] ++ leak_i_iLs leak_i_iL stk ltc lc' 
+                     ++ Lcondl le true :: ilwhile_c'0 leak_i_iL stk ltc lw)). 
+          rewrite /=. move=> {Ha} Ha. 
+          apply Ha. 
+          apply: lsem_step=> //. move=> {Ha}. exists (setpc (of_estate s1 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)]) 0)
+         (lpc (of_estate s1 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)]) 0)).+1).
+          ** rewrite /lsem1. admit.
+          ** apply: tc_trans.
+             set L := [:: ι (Lilabel lbl) ].
+             set C := L ++ lc ++ [:: ι (Licond e lbl)].
+             have HL : valid lbl (next_lbl lbl) L by rewrite/L/= Pos.leb_refl ltL1.
+             have Hd : disjoint_lbl L lc by apply: valid_disjoint _ HL Hvc; 
+             by rewrite Pos.leb_refl.
+             move: (Hc s1 si lc' H). move=> /= Hc'.
+             have /(_ _ Hd) := lsem_cat_hd _ Hc'. move=> Hhd.
+             rewrite /lsem in Hhd.
+             move: (lsem_cat_tl [:: ι (Licond e lbl)]).
+             move=> Htl. rewrite /lsem in Hhd. rewrite /lsem in Htl.
+             move: (Htl gd (add_hd_c L (of_estate s1 lc 0))
+                        (add_hd_c L (of_estate si lc (size lc)))
+                        (leak_i_iLs leak_i_iL stk ltc lc') Hhd).
+            rewrite /= /setc /add_hd_c /=. move=> {Htl} Htl. apply Htl.
+            apply: lsem_step=> //.
+            rewrite /lsem1 /step /= /of_estate /find_instr /=.
+            rewrite onth_cat ltnn subnn /= /eval_instr /=. 
+            by rewrite to_of_estate He /= /setpc find_label_hd /=. 
+            admit. (* recursive [art *)
+      (* b is false *)
+      - move=> He [] <- -> /=. move: lsem_add_align. move=> Ha.
+        move: (Ha gd s1 
+              (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)]) ii a).
+        move=> {Ha} Ha.
+        (* we need to resolve a due to the way lsem_add_align is structured *)
+        case: a Ha=> /= Ha.
+        (* a = Align *)
+        * move: (Ha si). move=> {Ha} Ha. 
+          move: (Ha ([:: Lempty] ++ leak_i_iLs leak_i_iL stk ltc lc' ++ 
+          [:: Lcondl le false])). rewrite /=. move=> {Ha} Ha. apply Ha.
+          apply: lsem_step=> //. move=> {Ha}.
+          set L := [:: ι (Lilabel lbl) ].
+          set C := L ++ lc ++ [:: ι (Licond e lbl)].
+          have HL : valid lbl (next_lbl lbl) L by rewrite/L/= Pos.leb_refl ltL1.
+          have Hd : disjoint_lbl L lc by apply: valid_disjoint _ HL Hvc; 
+          by rewrite Pos.leb_refl.
+          move: (Hc s1 si lc' H). move=> /= Hc'.
+          apply: tc_trans.
+          have /(_ _ Hd) := lsem_cat_hd _ Hc'. move=> Hhd.
+          rewrite /lsem in Hhd.
+          ** rewrite /setpc /=.           
+             move: (lsem_cat_tl [:: ι (Licond e lbl)]).
+             move=> Htl. rewrite /lsem in Hhd. rewrite /lsem in Htl.
+             move: (Htl gd (add_hd_c L (of_estate s1 lc 0))
+                        (add_hd_c L (of_estate si lc (size lc)))
+                        (leak_i_iLs leak_i_iL stk ltc lc') Hhd).
+            rewrite /= /setc /add_hd_c /=. move=> {Htl} Htl. apply Htl.
+          ** apply: tc_step.
+             rewrite /lsem1 /step /= /of_estate /find_instr /=.
+             rewrite onth_cat ltnn subnn /= /eval_instr /=. 
+             rewrite to_of_estate He /= /setpc /= size_cat /=.
+             admit. (* need to apply symmetry *)
+        (* a = NoAlign *)
+        * move: (Ha si). move=> {Ha} Ha. 
+          move: (Ha ([:: Lempty] ++ [:: Lempty] ++ leak_i_iLs leak_i_iL stk ltc lc' ++ 
+          [:: Lcondl le false])). rewrite /=. move=> {Ha} Ha. apply Ha. 
+          apply: lsem_step=> //. move=> {Ha}. exists (setpc (of_estate s1 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)]) 0)
+         (lpc (of_estate s1 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)]) 0)).+1).
+          ** rewrite /lsem1. admit.
+          ** apply: tc_trans.
+             set L := [:: ι (Lilabel lbl) ].
+             set C := L ++ lc ++ [:: ι (Licond e lbl)].
+             have HL : valid lbl (next_lbl lbl) L by rewrite/L/= Pos.leb_refl ltL1.
+             have Hd : disjoint_lbl L lc by apply: valid_disjoint _ HL Hvc; 
+             by rewrite Pos.leb_refl.
+             move: (Hc s1 si lc' H). move=> /= Hc'.
+             have /(_ _ Hd) := lsem_cat_hd _ Hc'. move=> Hhd.
+             rewrite /lsem in Hhd.
+             move: (lsem_cat_tl [:: ι (Licond e lbl)]).
+             move=> Htl. rewrite /lsem in Hhd. rewrite /lsem in Htl.
+             move: (Htl gd (add_hd_c L (of_estate s1 lc 0))
+                        (add_hd_c L (of_estate si lc (size lc)))
+                        (leak_i_iLs leak_i_iL stk ltc lc') Hhd).
+            rewrite /= /setc /add_hd_c /=. move=> {Htl} Htl. apply Htl.
+            apply: tc_step.
+            rewrite /lsem1 /step /= /of_estate /find_instr /=.
+            rewrite onth_cat ltnn subnn /= /eval_instr /=. 
+            rewrite to_of_estate He /= /setpc /= size_cat /=.
+            admit. (* need to apply symmetry *)
+    (* last case *)
+    move: (i :: c') => { i c' } c' Hc'.
+    rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc]|] //=.
+    have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ _ Heqc.
+    rewrite linear_c_nil.
+    case Heq:linear_c => [[[lblc' lc'] ltc']|] //= [] ???;subst lbli li lti.
+    have leL1 := le_next lbl; have leL2 := le_next (next_lbl lbl).
+    have lblL2 := Pos_leb_trans leL1 leL2.
+    have lblcL2 := Pos_leb_trans lblL2 Hle1.
+    have {Heq} [Hle Hv Hs]:= Hc' _ _ _ _ Heq;split.
+    + apply: (Pos_leb_trans lblL2).
+      by apply: (Pos_leb_trans Hle1).
+    + rewrite /= valid_add_align /= valid_cat /= Pos.leb_refl leL1 (valid_le_min _ Hv) //.
+      rewrite (Pos_lt_leb_trans (lt_next _)).
+      rewrite (Pos_lt_leb_trans _ Hle) /=.
+      rewrite valid_cat /= leL1 /=.
+      rewrite (valid_le_max Hle) /=.
+      rewrite (Pos_lt_leb_trans (lt_next _)) //.
+      rewrite (Pos_leb_trans Hle1) //.
+      rewrite (valid_le_min _ Hvc) //.
+      rewrite (Pos_lt_leb_trans (lt_next _)) //.
+      rewrite (Pos_leb_trans _ Hle) //.
+      rewrite (Pos_leb_trans leL2 Hle1) //.
+    move=> s1 s2 l H.
+    set C := (C in of_estate _ C _);rewrite -/C.
+    move: H. move=> /S.sem_iE'. move=>  [si] [b] [lc0] [le] [H] [He].
+    case: b He=> //=. 
+    (* subcase: b = true *)
+    + move=> He [sj] [lc'0] [lw] [H'] [Hw'] -> /=.
+      apply lsem_step with (of_estate s1 C ((a == Align) + (size lc').+2).+1).
+      * rewrite /lsem1 /step /= /eval_instr /=.
+        have -> // : find_label lbl C =  ok ((a == Align) + (size lc').+2).
+        rewrite /C -cat1s find_label_cat_hd // find_label_add_align.
+        rewrite -!cat_cons find_label_cat_hd /=.
+        ** by rewrite find_label_hd /= addn0 addnA (addnC 1) -addnA.
+        ** rewrite /= {1}/is_label /=.
+           case: eqP => H'' /=.
+           + by have := lt_next lbl; rewrite Pos.ltb_antisym -H'' Pos.leb_refl.
+      apply /negP=> H1;have := @valid_has _ lbl _ _ Hv.
       rewrite H1 Pos.leb_antisym.
       by rewrite (Pos_lt_leb_trans (Pos_lt_leb_trans (lt_next _) leL2) Hle1) /= => /(_ isT).
 
     (* Start induction after the first goto (at the first location where the loop will come back) *)
-    pose C1 := (ι (Lilabel (next_lbl lbl)) :: lc' ++ ι (Lilabel lbl) :: lc ++ [:: ι (Licond e (next_lbl lbl))]).
-    (*have : lsem gd (of_estate s1 C1 ((size lc').+2)) (leak_i_iLs leak_i_iL stk ltc lc0 ++
-     Lcondl le true :: leak_i_iLs leak_i_iL stk ltc' lc1 ++ Lempty :: ilwhile leak_i_iL stk ltc ltc' lc1') (of_estate s2 C1 (size C1));last first.
+    pose C1 := (ι (Lilabel (next_lbl lbl)) :: lc' ++ ι (Lilabel lbl) :: lc ++ 
+                  [:: ι (Licond e (next_lbl lbl))]).
+    have : lsem gd (of_estate s1 C1 ((size lc').+2)) 
+                (leak_i_iLs leak_i_iL stk ltc lc0 ++
+                            Lcondl le true
+                            :: leak_i_iLs leak_i_iL stk ltc' lc'0 ++
+        Lempty :: ilwhile leak_i_iL stk ltc ltc' lw) (of_estate s2 C1 (size C1))
+            ;last first.
     + rewrite /C add_align_nil -cat_cons size_cat => h.
       have -> : ((a == Align) + (size lc').+2).+1 =
                 size ((ι (Ligoto lbl) :: add_align ii a [::])) + (size lc').+2.
       + by case: (a).
-      apply: (lsem_cat_hd _ h). ; rewrite /disjoint_lbl; case:(a).
-    elim: _ {-1}_ _ / H' Hs (erefl (Cwhile a c e c'))=> //.
-    + move=> s Hs' _.
-      move=> l0. apply tc_trans.
-      apply (@lsem_trans gd (of_estate s2 C1 ( (size lc').+2 + size lc))).
-
-
-
-
+      (*by apply: (lsem_cat_hd _ h); rewrite /disjoint_lbl; case:(a).
+    elim: _ {-1}_ _ / H Hs (erefl (Cwhile a c e c'))=> // {s1 s2}.
     + move=> s1 s2 s3 s4 a0 c0 e0 c'0 Hsem0 He Hsem Hsemi IH Hs [] ????; subst a0 c0 e0 c'0.
       apply (@lsem_trans gd (of_estate s2 C1 ( (size lc').+2 + size lc))).
       + have Hd: disjoint_lbl
@@ -1038,7 +1083,12 @@ Section PROOF.
       + rewrite /lsem1 /step /find_instr /= -cat_cons catA onth_cat.
         by rewrite size_cat /= addnS ltnn subnn /eval_instr /= to_of_estate He /=;eauto.
       rewrite setpc_of_estate /C /= size_cat /= size_cat /= addn1 !addnS.
-      exact: rt_refl.*) *)
+      exact: rt_refl.
+  Qed.
+*)
+  admit. admit.
+  (* b = false *)
+  admit.
   Admitted.
 
   Let Hcall : forall i xs f es, Pi_r (Ccall i xs f es).
