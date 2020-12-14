@@ -148,6 +148,162 @@ Inductive leak_e_tr :=
 
 Definition LT_subi n := LT_subi_c n LT_id.
 
+Parameter name : eqType.
+
+Inductive pattern := 
+  | Pany of option name 
+  | Pempty 
+  | Pidx of name 
+  | Padr of name
+  | Psub of seq pattern.
+
+Inductive leak_expr :=
+  | LS_ptr of pointer 
+  | LS_z   of Z
+  | LS_var of name 
+  | LS_add of leak_expr & leak_expr 
+  | LS_mul of leak_expr & leak_expr. 
+
+Inductive leak_tr := 
+  | Match of leak_tr & pattern & leak_tr
+  | Empty 
+  | Var of name 
+  | Idx of leak_expr 
+  | Adr of leak_expr
+  | Sub of seq leak_tr.
+
+Inductive val := 
+  | Vptr of pointer
+  | Vz   of Z
+  | Vl   of leak_e.
+
+
+Definition env := seq (name * val).
+
+Definition get_l (env:env) x := 
+  match assoc env x with 
+  | Some (Vl e) => e 
+  | _           => LEmpty 
+  end.
+  
+Fixpoint eval_expr env e : val := 
+  match  e with 
+  | LS_ptr p => Vptr p 
+  | LS_z   z => Vz z 
+  | LS_var x => odflt (Vz 0) (assoc env x) 
+  | LS_add _ _ => Vz 0 
+  | LS_mul _ _ => Vz 0 
+  end. 
+
+Definition eval_expr_z env e :=
+  match eval_expr env e with
+  | Vz z => z
+  | _    => 0%Z
+  end.
+
+Definition eval_expr_a env e :=
+  match eval_expr env e with
+  | Vptr p => p
+  | _      => 0%R
+  end.
+
+Section F2.
+ Context (A B C : Type) (f: C -> A -> B -> C).
+ Fixpoint fold2 c la lb := 
+   match la, lb with
+   | [::], _ | _, [::] => c
+   | a::la, b::lb => fold2 (f c a b) la lb
+   end.
+End F2.
+  
+Fixpoint eval_pattern env pat le := 
+  match pat, le with
+  | Pany None    , _ => env
+  | Pany (Some n), _ => (n,Vl le)::env
+  | Pempty, LEmpty   => env
+  | Pidx n, LIdx z   => (n, Vz z)::env
+  | Padr n, LAdr p   => (n, Vptr p)::env
+  | Psub pats, LSub les => fold2 eval_pattern env pats les
+  | _, _ => [::]
+  end.
+
+Fixpoint eval (env:env) (lt: leak_tr) : leak_e := 
+  match lt with
+  | Empty => LEmpty
+  | Var x => get_l env x 
+  | Idx e => LIdx (eval_expr_z env e)
+  | Adr e => LAdr (eval_expr_a env e)
+  | Sub lts => LSub (map (eval env) lts)
+  | Match lt pat clt =>
+    let le := eval env lt in
+    let env := eval_pattern env pat le in
+    eval env clt 
+  end.
+
+Parameter nstk : name.
+Parameter ntopleak : name.
+
+Definition leak_E (lt:leak_tr) (stk:pointer) (l:leak_e) := 
+  eval [::(nstk, Vptr stk); (ntopleak, Vl l)] lt.
+
+Definition LT_map_named (ntopname:name) (l:seq (name * leak_tr)) := 
+  Match (Var ntopname) 
+        (Psub (map (fun p => Pany (Some p.1)) l))
+        (Sub  (map snd l)).
+
+Definition LT_map (lts : seq leak_tr) := 
+  LT_map_named ntopleak (map (fun lt => (ntopleak, lt)) lts).
+
+
+
+
+Inductive leak_e :=
+| LEmpty : leak_e (* no leak *)
+| LIdx : Z -> leak_e (* array access at given index *)
+| LAdr : pointer -> leak_e (* memory access at given address *)
+| LSub: (seq leak_e) -> leak_e. (* forest of leaks *)
+
+
+
+
+
+
+
+  
+
+x = Lsub [Lsub [Lidx z, Lempty]; Lsub[Ladr p, Lempty]]
+
+match x with
+| Lsub [a; b] ->
+  match a with
+  | Lsub [a1; a2] ->
+    match a1 with
+    | Lidx z ->
+      mathc
+
+
+match x with
+| Idx z -> z
+
+Inductive leak_e_tr := 
+ | Destr_empty  
+ | Destr_idx   of name * leak_e_tr
+ | Destr_adr   of name * leak_e_tr
+ | Destr_sub   of name * leak_e_tr
+ | Destr_subi  of nat * name * leak_e_tr
+ | Constr_empty 
+ | Constr_id   of name
+ | Constr_idx  of name 
+ | Constr_adr  of name 
+ | Constr_sub  of leak_e_tr list  
+
+LT_map 
+Destr_sub "l1" (Constr_sub [
+
+
+
+
+
 Section LEAK_E_RECT.
 
   Context
@@ -321,6 +477,8 @@ Notation leak_c_tr := (seq leak_i_tr).
 Definition leak_f_tr := seq (funname * leak_c_tr).
 
 Definition dummy_li := Lassgn LEmpty.
+
+
 
 Section Add.
   Context (leak_C : leak_c_tr -> leak_c -> leak_c) (lc:leak_c).
