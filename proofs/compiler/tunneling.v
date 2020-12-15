@@ -351,22 +351,17 @@ Section Prefix.
   Qed.
 
   Lemma prefix_refl s : prefix s s.
-  Proof.
-    apply/prefixP.
-    exists [::].
-    by rewrite cats0.
-  Qed.
+  Proof. by apply/prefixP; exists [::]; rewrite cats0. Qed.
 
   Hint Resolve prefix_refl.
   
   Lemma subseq_prefix s1 s2 : prefix s1 s2 -> subseq s1 s2.
   Proof.
-    move => Hp.
-    apply/subseqP.
-    case: (prefixP _ _ Hp) => s Hs.
+    move=> pl; apply/subseqP.
+    case/prefixP: pl => s {s2}->.
     exists ((nseq (size s1) true) ++ (nseq (size s) false)).
-    + by rewrite Hs !size_cat !size_nseq.
-    rewrite Hs mask_cat.
+    + by rewrite !size_cat !size_nseq.
+    rewrite mask_cat.
     + by rewrite mask_true // mask_false cats0.
     by rewrite size_nseq.
   Qed.
@@ -408,9 +403,7 @@ Section Prefix.
   Qed.
 
   Lemma prefix_rcons s x : prefix s (rcons s x).
-  Proof.
-    by induction s as [|hs ts IHs] => //=; rewrite eq_refl.
-  Qed.
+  Proof. by elim: s => //= y s ih; rewrite eqxx. Qed.
 
   Lemma prefix_uniq s1 s2 : prefix s1 s2 → uniq s2 → uniq s1.
   Proof.
@@ -419,20 +412,14 @@ Section Prefix.
     by apply subseq_prefix.
   Qed.
 
-  Lemma prefixW P s : P [::] s -> (forall h t , prefix (rcons t h) s -> P t s -> P (rcons t h) s) -> P s s.
+  Lemma prefixW P s :
+    P [::] s -> (forall h t , prefix (rcons t h) s -> P t s -> P (rcons t h) s) -> P s s.
   Proof.
-    move => Hnil Hcons.
-    have:= prefix_refl s.
-    have HG: forall s' , prefix s' s -> P s' s; last by apply HG.
-    apply (@last_ind _ (fun s' => prefix s' s → P s' s)) => //.
-    move => t h IH Hp.
-    apply Hcons => //.
-    apply IH.
-    apply: (prefix_trans _ Hp).
-    by apply prefix_rcons.
+    move=> Pnil Pcons; have := prefix_refl s.
+    elim/last_ind: {1 3}s => // s' x ih pr_s'x_s.
+    apply: Pcons => //; apply: ih.
+    by apply/(prefix_trans _ pr_s'x_s)/prefix_rcons.
   Qed.
-
-  Search _ filter all prefix.
 
   Lemma prefix_all s1 s2 p : prefix s1 s2 -> all p s2 -> all p s1.
   Proof.
@@ -572,11 +559,9 @@ Section Tunneling.
 
   Definition tunnel_chart (uf : LUF.unionfind) (c c' : linstr) :=
     match c, c' with
-      | MkLI _ li, MkLI _ li' =>
-        match li, li' with
-          | Llabel l, Lgoto (fn',l') => if fn == fn' then LUF.union uf l l' else uf
-          | _, _ => uf
-        end
+    | {| li_i := Llabel l |}, {| li_i := Lgoto (fn',l') |} =>
+        if fn == fn' then LUF.union uf l l' else uf
+    | _, _ => uf
     end.
 
   Definition tunnel_plan (uf : LUF.unionfind) := pairfoldl tunnel_chart uf Linstr_align.
@@ -620,33 +605,27 @@ Section TunnelingSem.
 
   Definition local_goto_targets (fn' : funname) fb :=
     filter 
-      (fun li => match li with
-               | Lgoto (fn',_) => true
-               | _ => false
-               end)
+      (fun li => if li is Lgoto _ then true else false)
       (map li_i fb).
 
   Definition cond_targets fb :=
     filter 
-      (fun li => match li with
-               | Lcond _ _ => true
-               | _ => false
-               end)
+      (fun li => if li is Lcond _ _ then true else false)
       (map li_i fb).
 
   Definition well_formed_body fn' fb :=
     uniq (labels_of_body fb) &&
     all
-      (fun li => match li with
-               | Lgoto (fn',l) => Llabel l \in (labels_of_body fb)
-               | _ => false
-               end)
+      (fun li => 
+         if li is Lgoto (fn',l) then 
+            Llabel l \in (labels_of_body fb)
+         else false)
       (local_goto_targets fn' fb) &&
     all
-      (fun li => match li with
-               | Lcond _ l => Llabel l \in (labels_of_body fb)
-               | _ => false
-               end)
+      (fun li => 
+         if li is Lgoto (fn',l) then 
+            Llabel l \in (labels_of_body fb)
+         else false)
       (cond_targets fb).
   
   Definition well_formed_lprog := all (fun func => well_formed_body func.1 func.2.(lfd_body)) p.(lp_funcs).
@@ -864,6 +843,47 @@ Section TunnelingProof.
     by apply/andP; split => //; apply/mapP; eexists; first apply: Hin.
   Qed.
 
+  Definition li_is_label (c : linstr) :=
+    if c.(li_i) is Llabel _ then true else false.
+
+  Definition li_is_goto (c : linstr) :=
+    if c.(li_i) is Lgoto _ then true else false.
+
+  Variant tunnel_chart_spec (uf : LUF.unionfind) : linstr -> linstr -> LUF.unionfind -> Type :=
+  | TC_LabelGotoEq ii ii' l l' :
+      tunnel_chart_spec uf (MkLI ii (Llabel l)) (MkLI ii' (Lgoto (fn, l'))) (LUF.union uf l l')
+
+  | TC_LabelGotoNEq ii ii' l l' fn' of (fn != fn') :
+      tunnel_chart_spec uf (MkLI ii (Llabel l)) (MkLI ii' (Lgoto (fn', l'))) uf
+
+  | TC_NLabelGoto c c' of (~~ (li_is_label c && li_is_goto c')) :
+      tunnel_chart_spec uf c c' uf.
+
+  Variant tunnel_chart_weak_spec
+    (uf : LUF.unionfind) : linstr -> linstr -> LUF.unionfind -> Type :=
+  | TCW_LabelGotoEq ii ii' l l' :
+      tunnel_chart_weak_spec
+        uf (MkLI ii (Llabel l)) (MkLI ii' (Lgoto (fn, l'))) (LUF.union uf l l')
+
+  | TCW_Otherwise c c' :
+      tunnel_chart_weak_spec uf c c' uf.
+
+  Lemma tunnel_chartP uf c c' : tunnel_chart_spec uf c c' (tunnel_chart fn uf c c').
+  Proof.
+  case: c c' => [ii i] [ii' i'];
+    case: i'; case: i; try by move=> *; apply: TC_NLabelGoto.
+  move=> l [fn' l'] /=; case: ifPn => [/eqP<-|].
+  - by apply: TC_LabelGotoEq. - by apply: TC_LabelGotoNEq.
+  Qed.
+
+  Lemma tunnel_chartWP uf c c' : tunnel_chart_weak_spec uf c c' (tunnel_chart fn uf c c').
+  Proof.
+  case: c c' => [ii i] [ii' i'];
+    case: i'; case: i; try by move=> *; apply: TCW_Otherwise.
+  move=> l [fn' l'] /=; case: ifPn => [/eqP<-|].
+  - by apply: TCW_LabelGotoEq. - by move=> _; apply: TCW_Otherwise.
+  Qed.
+
   Lemma find_plan_partial fb s ii l :
     well_formed_body fn fb ->
     prefix (rcons s (MkLI ii (Llabel l))) fb ->
@@ -871,29 +891,25 @@ Section TunnelingProof.
   Proof.
     rewrite /well_formed_body => /andP [] /andP [Huniqfb _ _] Hprefix.
     have:= (uniq_nhas Huniqfb Hprefix).
-    move => /negP; move: s l (MkLI _ _) Hprefix; apply: last_ind => [|s [ii1 i1] IHs] //.
+    move => /negP; move: s l (MkLI _ _) Hprefix; apply: last_ind => [|s c1 IHs] //.
     + by move => ? [] /=; rewrite LUF.find_empty.
-    move => l [ii2 i2]; rewrite pairfoldl_rcons has_rcons {1}/tunnel_chart /= last_rcons => Hprefix.
-    case: i1 Hprefix => [? ? ?| |l'|?|?|? ?|? ?] Hprefix Hor.
-    1-2,4-7:
-      by rewrite (IHs l _ (prefix_trans (prefix_rcons _ _) Hprefix)).
-    case: i2 Hprefix => [? ? ?| |?|[fn'' l'']|?|? ?|? ?] Hprefix.
-    1-3,5-7:
-      by rewrite (IHs l _ (prefix_trans (prefix_rcons _ _) Hprefix)) //;
-      move => Hhas; apply: Hor; apply/orP; right.
-    case: eqP; last first.
-    + by rewrite (IHs l _ (prefix_trans (prefix_rcons _ _) Hprefix)) //;
-      move => Hhas; apply: Hor; apply/orP; right.
-    move => ?; subst fn''; rewrite LUF.find_union; case: ifP; last first.
+    move => l c2 Hprefix.
+    rewrite pairfoldl_rcons has_rcons last_rcons.
+    move: {1 5}c1 (erefl c1) Hprefix => c1'.
+    case: tunnel_chartWP; last first.
+    + move=> c c' -> Hprefix Hor; apply: IHs.
+      - by apply: prefix_trans (prefix_rcons _ _) Hprefix.
+      - by case/negP/norP: Hor => _ /negP.
+    move=> {ii} ii ii' l1 l2 -> Hprefix.
+    move=> Hor; rewrite LUF.find_union; case: ifP; last first.
     + by rewrite (IHs l _ (prefix_trans (prefix_rcons _ _) Hprefix)) //;
       move => Hhas; apply: Hor; apply/orP; right.
     rewrite (IHs l _ (prefix_trans (prefix_rcons _ _) Hprefix)) //; last first.
     + by move => Hhas; apply: Hor; apply/orP; right.
-    rewrite (IHs l' _ (prefix_trans (prefix_rcons _ _) Hprefix)) //; last first.
+    rewrite (IHs l1 _ (prefix_trans (prefix_rcons _ _) Hprefix)) //; last first.
     + by apply: (negP (uniq_nhas Huniqfb (prefix_trans (prefix_rcons _ _) Hprefix))).
-    by move => /eqP ?; subst l'; exfalso; apply: Hor; apply/orP; left; rewrite /is_label /= eq_refl.
+    by move => /eqP ?; subst l1; exfalso; apply: Hor; apply/orP; left; rewrite /is_label /= eq_refl.
   Qed.
-  
 
   Lemma prefix_rcons_find_label pfb ii l fb :
     well_formed_body fn fb ->
@@ -984,9 +1000,7 @@ Section TunnelingProof.
         first (rewrite rcons_uniq => _ /andP []); move => _ ->.
       move => Hfindl; have: has (is_label l) fb.
       - rewrite has_find Hfindl // Hfb size_cat size_rcons.
-        (*Way too complicated.*)
-        apply/ltP; apply: (le_lt_trans _ (size pfb + size sfb)); first by apply/leP; apply leq_addr.
-        by apply/ltP; rewrite ltn_add2r.
+        by rewrite addSn ltnS leq_addr.
       rewrite -Hfindl //; elim: fb {IHfb Hwfb Hrcons Hfb Hfindl Hislabel} => [|hfb tfb] //=.
       by case: ifP => //=; move => Hislabel IHfb Hhas; rewrite (IHfb Hhas).
     rewrite cats0 => Hrcons; have:= rcons_inj Hrcons => -[? ?]; subst pfb c'.
@@ -997,28 +1011,14 @@ Section TunnelingProof.
     move: Huniq Hislabel; rewrite rcons_cons /labels_of_body /= /is_label; case: (li_i hfb) => //= l'.
     rewrite mem_filter /= map_rcons; move => /andP [Hnotin _].
     case: (li_i c) Hnotin {IHfb} => // l'' /negP Hnotin /eqP ? /eqP ?; subst l' l''.
-    (*Way too complicated.*)
-    exfalso; apply: Hnotin; elim: tfb => [|htfb ttfb] //=; first by rewrite mem_seq1 eq_refl.
-    by rewrite /in_mem /= => ->; rewrite orbT.
+    by move/negP: Hnotin; rewrite mem_rcons in_cons eqxx.
   Qed.
 
   Lemma tunneling_lsem1 s1 s2 : lsem1 (lprog_tunnel fn p) s1 s2 -> lsem p s1 s2.
   Proof.
-    rewrite /lprog_tunnel; case Hgfd: (get_fundef _ _) => [fd|]; last by apply: Relation_Operators.rt_step.
-    move: s1 s2; pose P:=
-      (fun lc lc' =>
-        forall s1' s2' : lstate,
-          lsem1
-            (setfuncs p
-               [seq (f.1,
-                     if fn == f.1
-                     then lfundef_tunnel_partial fn f.2 lc lc'
-                     else f.2)
-               | f <- lp_funcs p])
-            s1' s2' →
-          lsem p s1' s2'
-      ).
-    apply: (@prefixW _ P); rewrite /P; clear P.
+    rewrite /lprog_tunnel; case Hgfd: (get_fundef _ _) => [fd|];
+      last by apply: Relation_Operators.rt_step.
+    move: s1 s2; pattern (lfd_body fd) at 1, (lfd_body fd) at 2; apply: prefixW.
     + move => s1 s2 Hlsem1; apply: Relation_Operators.rt_step.
       apply: (@get_fundef_lsem1 _ p _ _ _ Hlsem1); clear Hlsem1 => fn'.
       rewrite lp_funcs_setfuncs /lfundef_tunnel_partial /tunnel_plan /= /tunnel_partial pairmap_tunnel_bore_empty.
@@ -1136,39 +1136,7 @@ Section TunnelingProof.
                exists ii l, find_instr p s2 = Some (MkLI ii (Lgoto (fn,l)))].
   Proof.
     rewrite /lprog_tunnel; case Hgfd: (get_fundef _ _) => [fd|]; last by left.
-    move: s1 s2; pose P:=
-      (fun lc lc' =>
-         forall s1' s2',
-           lsem1 p s1' s2' →
-           lsem1
-             (setfuncs p
-                       [seq (f.1,
-                             if fn == f.1
-                             then lfundef_tunnel_partial fn f.2 lc lc'
-                             else f.2)
-                       | f <- lp_funcs p])
-             s1' s2' \/
-           exists s3 : lstate,
-             [ /\ lsem1
-                    (setfuncs p
-                              [seq (f.1,
-                                    if fn == f.1
-                                    then lfundef_tunnel_partial fn f.2 lc lc'
-                                    else f.2)
-                              | f <- lp_funcs p])
-                  s2' s3 ,
-                  lsem1
-                    (setfuncs p
-                              [seq (f.1,
-                                    if fn == f.1
-                                    then lfundef_tunnel_partial fn f.2 lc lc'
-                                    else f.2)
-                              | f <- lp_funcs p])
-                    s1' s3 &
-                  exists (ii : instr_info) (l : label),
-                    find_instr p s2' = Some {| li_ii := ii; li_i := Lgoto (fn, l) |}]
-      ).
-    apply: (@prefixW _ P); rewrite /P; clear P.
+    move: s1 s2; pattern (lfd_body fd), (lfd_body fd) at 2 4 6; apply: prefixW.
     + move => s1 s2 Hlsem1; left.
       apply: (@get_fundef_lsem1 p _ s1 s2 _ Hlsem1); clear Hlsem1 => fn'.
       rewrite lp_funcs_setfuncs /lfundef_tunnel_partial /tunnel_plan /= /tunnel_partial pairmap_tunnel_bore_empty.
