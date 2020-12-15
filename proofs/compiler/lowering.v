@@ -563,6 +563,17 @@ Definition reduce_wconst sz (e: pexpr) : pexpr :=
   else e.
 
 Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd :=
+  (* x = a == b *)
+  (* LT_low_eq *)
+  (* LSub[ lx; LSub[la; lb]] *)  
+  (* _, _, _, _, x = CMP a b *)
+  (* LSub[ LSub[ LEmpty; LEmpty; LEmpty; LEmpty; lx]; LSub[la; lb]] *)
+  (* LT_map [ LT_seq [ LT_empty; LT_empty; LT_empty; LT_empty; LT_id ]
+            LT_id;
+            ] *)
+
+
+  
   let vi := var_info_of_lval x in
   let f := Lnone_b vi in
   let copn o a := [:: MkI ii (Copn [:: x ] tg o a) ] in
@@ -629,6 +640,11 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
   | LowerEq sz a b => [:: MkI ii (Copn [:: f ; f ; f ; f ; x ] tg (Ox86 (CMP sz)) [:: a ; b ]) ]
   | LowerLt sz a b => [:: MkI ii (Copn [:: f ; x ; f ; f ; f ] tg (Ox86 (CMP sz)) [:: a ; b ]) ]
   | LowerIf t e e1 e2 =>
+     (* x = if e then e1 else e2 *)
+     (*   lx = Lsub[le; le1; le2] *)
+     (* flags = CMP ? ?;
+        x = CMOVcc [ cond flags; e1; e2]
+     *)
      let (l, e) := lower_condition vi e in
      let sz := wsize_of_lval x in
      map (MkI ii) (l ++ [:: Copn [:: x] tg (Ox86 (CMOVcc sz)) [:: e; e1; e2]])
