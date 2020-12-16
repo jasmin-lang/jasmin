@@ -145,12 +145,6 @@ Definition add_align ii a (lc:lcmd) : (lcmd) :=
   | Align   =>  MkLI ii Lialign :: lc
   end.
 
-(* Computes the leakage depending on alignment *) 
-Definition get_align_leak_il a : seq leak_il :=
-  match a with 
-  | NoAlign => [::]
-  | Align => [:: Lempty]
-  end.
 
 Definition align ii a (lc:ciexec (label * lcmd * seq leak_i_il_tr)) : 
   ciexec (label * lcmd * seq leak_i_il_tr) :=
@@ -222,14 +216,10 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
       let lbl := next_lbl L1 in
       Let rs := align ii a (MkLI ii (Lilabel L1) >; linear_c linear_i c lbl
                              (MkLI ii (Licond e L1) :: lc)) in 
-      ciok (rs.1.1, rs.1.2, LT_ilwhile_c'0 rs.2)
+      ciok (rs.1.1, rs.1.2, LT_ilwhile_c'0 a rs.2)
       (* Ligoto L1; align; Lilabel L2; c'; Lilabel L1; c; Lcond e L2; 
          c'; Lilabel L1; c; Lcond e L2; .....*)
       (* Lempty :: Lc :: Lcondl e true :: Lc' :: Lempty :: .... Lc :: Lcondl e false *)
-
-
-      (* Lempty :: Lempty :: Lempty :: Lc' :: Lempty :: Lcondl e b :: 
-         Lc' :: Lempty :: Lc :: Lcondl e b :: .......*)
       | _ =>
       let L1 := lbl in
       let L2 := next_lbl L1 in

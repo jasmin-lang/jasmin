@@ -300,7 +300,7 @@ Inductive leak_i_il_tr : Type :=
 | LT_ilcond_0 : leak_e_tr -> seq leak_i_il_tr -> leak_i_il_tr (*c1 is empty*)
 | LT_ilcond_0' : leak_e_tr -> seq leak_i_il_tr -> leak_i_il_tr (*c2 is empty*)
 | LT_ilcond : leak_e_tr -> seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i_il_tr (* c1 and c2 are not empty *)
-| LT_ilwhile_c'0 : seq leak_i_il_tr -> leak_i_il_tr
+| LT_ilwhile_c'0 : align -> seq leak_i_il_tr -> leak_i_il_tr
 | LT_ilwhile_f : seq leak_i_il_tr -> leak_i_il_tr
 | LT_ilwhile : seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i_il_tr.
 
@@ -329,6 +329,13 @@ Section Leak_IL.
 
 End Leak_IL.
 
+(* Computes the leakage depending on alignment *) 
+Definition get_align_leak_il a : seq leak_il :=
+  match a with 
+  | NoAlign => [::]
+  | Align => [:: Lempty]
+  end.
+
 Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : seq leak_il :=
 match l, li with 
 | LT_ilremove, _ => [:: Lempty]
@@ -341,7 +348,7 @@ match l, li with
 | LT_ilcond lte lti lti', Lcond le b lis => 
   [:: Lcondl (leak_E stk lte le) b] ++ if b then leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty]
                            else leak_i_iLs leak_i_iL stk lti' lis ++ [:: Lempty]
-| LT_ilwhile_c'0 lti, _ => [:: Lempty; Lempty] ++ ilwhile_c'0 leak_i_iL stk lti li
+| LT_ilwhile_c'0 a lti, _ => get_align_leak_il a ++ [:: Lempty & ilwhile_c'0 leak_i_iL stk lti li]
 | LT_ilwhile_f lti, Lwhile_false lis le => leak_i_iLs leak_i_iL stk lti lis
 | LT_ilwhile lti lti', _ => [:: Lempty] ++ ilwhile leak_i_iL stk lti lti' li 
 | _, _ => [::]
