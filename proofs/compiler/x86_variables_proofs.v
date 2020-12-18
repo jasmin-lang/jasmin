@@ -118,15 +118,13 @@ by case.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-(* we don't talk anything about this leakage le at this point *)
 Lemma eval_assemble_cond ii gd m rf e c v le:
   eqflags m rf →
   assemble_cond ii e = ok c →
   sem_pexpr gd m e = ok (v, le) →
   ∃ v', value_of_bool (eval_cond c rf) = ok v' ∧ value_uincl v v'.
 Proof.
-Admitted.
-(*move=> eqv; case: e => //.
+move=> eqv; case: e => //.
 + move => x /=; t_xrbindP => r ok_r ok_ct vg ok_v <- hl.
   have := xgetflag_ex eqv ok_r ok_v.
   by case: {ok_r ok_v} r ok_ct => // -[<-] {c} /= h; eexists; split; eauto; case: (rf _).
@@ -155,7 +153,7 @@ Admitted.
       do 4! move/eqP=> ?; subst rx ry rz rt => -[<-].
       have -> := inj_rflag_of_var ok_rz ok_rt.
       move=> [vNx lNx] [vx lx] vg ok_vx [] <- hl1 vo /= ok_vNx.
-      move=> [] <- hl2 [res lres] [vby lby] vg' ok_vy [] <- hl3 vy ok_vby.
+      move=> [] <- hl2 [res lres] [vby lby] vg' /= ok_vy [] <- hl3 vy ok_vby.
       move=> [vtz ltz] vz ok_vz [] <- hl4 [vg'' lg] [vg''' lg'] vg1 ok_vz' [] <- hl5.
       move=> vo' /= ok_vNx' [] <- hl6 trz vtt vNt vt [] <- hl7. 
       have [/=vbx ok_vbx h1] := sem_sop1I ok_vNx; subst vo. 
@@ -165,13 +163,14 @@ Admitted.
       have := xgetflag eqv ok_rt ok_vz' ok_vbt => OFE.
       rewrite /= ZFE SFE OFE /= /sem_sop2 /=.
       have [h3 h4]:= truncate_val_bool vt; subst.
-      move: vtt;rewrite /truncate_val /=. ok_vbt => -[?];subst.
-      by rewrite eq_sym; t_xrbindP=> vres; case: (boolP vby) => hvby //= -[<-] <-;
-       rewrite ?eqb_id ?eqbF_neg;eexists.
+      move: vtt;rewrite /truncate_val /=. rewrite ok_vz in ok_vz'.
+      case: ok_vz' => ->; rewrite ok_vbt /=; move=> [] <-.
+      by rewrite eq_sym; t_xrbindP=> vres; case: (boolP vy)=> hby yo //= [] <-;
+       rewrite ?eqb_id ?eqbF_neg; move=> <- <- _; eexists.
   * case: x => // x; case => // [y /=|].
     - t_xrbindP=> rx ok_rx ry ok_ry; case: ifP => // /andP [] /eqP ? /eqP ? [<-]; subst rx ry.
-      move=> vx ok_vx vy ok_vy.
-      rewrite /sem_sop2 /=; t_xrbindP => /= xb ok_bx yb ok_by <-.
+      move=> [vx lx] vx' ok_vx [] <- _ [vy ly] vy' ok_vy [] <- _ vo.
+      rewrite /sem_sop2 /=; t_xrbindP => /= xb ok_bx yb ok_by <- <- _.
       have -> /= := xgetflag eqv ok_rx ok_vx ok_bx.
       have ->/= := xgetflag eqv ok_ry ok_vy ok_by.
       eexists; split; reflexivity.
@@ -180,48 +179,56 @@ Admitted.
       case: ifP=> //; rewrite -!andbA => /and4P[].
       do 4! move/eqP=> ?; subst rx ry rz rt => -[<-].
       have <- := inj_rflag_of_var ok_rz ok_rt.
-      move=> vx ok_vx ww vby vy ok_vy ok_vby trNz vNz vz ok_vz ok_vNz ok_trNz.
-      rewrite ok_vz => trz zz [?] ok_trz ?;subst zz ww.
-      rewrite /sem_sop2 /=; t_xrbindP => /= vbx ok_vbx vbres ok_vbres <- {v}.
-      have [/=vbz ok_vbz ?] := sem_sop1I ok_vNz; subst vNz.
+      move=> [vx lvx] vx' ok_vx [] <- _ [ww wl] [vy lvy] vby. 
+      move=> ok_vy [] <- _ vby' ok_vby [vz lz] [vz' lz'] vNz ok_vz [] <- _. 
+      move=> vo /= ok_vNz [] <- _ [vNz' lNz'] vz'' ok_vz'' [] <- _. 
+      move=> trNz ok_trNz trNz' ok_trNz' /= h vo'.
+      rewrite /sem_sop2 /=; t_xrbindP => /= vbx ok_vbx vbres ok_vbres <- <- _.
+      have [/=vbz ok_vbz h1] := sem_sop1I ok_vNz.
       have := xgetflag eqv ok_rx ok_vx ok_vbx => ZFE.
       have := xgetflag eqv ok_ry ok_vy ok_vby => SFE.
       have := xgetflag eqv ok_rz ok_vz ok_vbz => OFE.
-      rewrite /= ZFE SFE OFE /=.
-      have [??]:= truncate_val_bool ok_trNz; subst.
-      move: ok_trz;rewrite /truncate_val /= ok_vbz => -[?];subst.
-      by rewrite eq_sym; case: (boolP vby) ok_vbres => hvby /= [<-];
-       rewrite ?eqb_id ?eqbF_neg ?negbK; eexists.
+      rewrite /= ZFE SFE OFE /=. rewrite h1 in ok_trNz.
+      have [h1' h2']:= truncate_val_bool ok_trNz; subst.
+      move: ok_trNz';rewrite /truncate_val /=. rewrite ok_vz in ok_vz''. 
+      case: ok_vz'' => <-.  rewrite ok_vbz => -[?];subst.
+      by rewrite eq_sym; exists  (vbx || (vbz != vby')); split=> //;case: h=> hh hh'; 
+      rewrite -hh in ok_vbres; move: ok_vbres; case: (boolP vby')=> hby //= [] <-;
+      rewrite ?eqb_id ?eqbF_neg ?negbK; eexists.
 + move=> st []// x [] // => [|[] // [] //] y.
   * case=> // -[] // -[] // z /=; t_xrbindP.
     move=> rx ok_rx ry ok_ry rz ok_rz.
     case: ifPn => //; rewrite -!andbA => /and3P[].
     do 3! move/eqP=> ?; subst rx ry rz.
     have <- := inj_rflag_of_var ok_ry ok_rz.
-    move=> [] <- vbx vx ok_vx ok_vbx ytr vy ok_vy ok_ytr.
-    rewrite ok_vy => ytr' vNy vy' [<-] ok_vNy ok_yNtr <- /=.
-    have /sem_sop1I[/=vbz ok_vbz ?] := ok_vNy; subst vNy.
+    move=> [] <- [vbx lvbx] vx ok_vx [] <- <- vb ok_vbx [vy lvy] vx' ok_vy [] <- _. 
+    move=> [ytr ltr] ok_ytr.
+    rewrite ok_vy => ytr' [] <- <- vo' ok_vNy.
+    have /sem_sop1I[/=vbz ok_vbz h] := ok_vNy. move=> [] <- _.
+    move=> vt ht vt' ht' <- _.
     have := xgetflag eqv ok_rx ok_vx ok_vbx => SFE.
     have := xgetflag eqv ok_ry ok_vy ok_vbz => OFE.
-    rewrite /= SFE OFE /=.
-    have [??]:= truncate_val_bool ok_yNtr; subst.
-    move: ok_ytr;rewrite /truncate_val /= ok_vbz => -[?];subst.
+    rewrite /= SFE OFE /=. rewrite h in ht'.
+    have [??]:= truncate_val_bool ht'; subst.
+    move: ht;rewrite /truncate_val /= ok_vbz => -[?];subst.
     eexists; split; first by eauto.
-    by rewrite eq_sym;case vbx => /=; rewrite ?eqb_id ?eqbF_neg.
+    by rewrite eq_sym;case vb => /=; rewrite ?eqb_id ?eqbF_neg.
   * case=> // z /=; t_xrbindP => vx ok_x vy ok_y vz ok_z.
     case: ifPn => //; rewrite -!andbA => /and3P[].
     do 3! move/eqP=> ?; subst vx vy vz; case=> <-.
     have <- := inj_rflag_of_var ok_y ok_z.
-    move=> vbx vx ok_vx ok_vbx ytr vNy vy ok_vy ok_vNy ok_ytr.
-    rewrite ok_vy => yNtr vy' [?] ok_yNtr ?;subst vy' v.
-    have /sem_sop1I[/=vby ok_vby ?] := ok_vNy; subst vNy.
+    move=> [vbx lx] vx ok_vx [] <- _ vb ok_vbx [ytr ltr] [vNy ly].
+    move=> vy ok_vy [] <- _ vo /= ok_ytr [] <- <-.
+    have /sem_sop1I[/=vby ok_vby h] := ok_ytr.
+    move=> [v1 l1] vg hg [] <- _ vt ht vt' /= ht' <- _.
     have := xgetflag eqv ok_x ok_vx ok_vbx => SFE.
     have := xgetflag eqv ok_y ok_vy ok_vby => OFE.
     rewrite /= SFE {SFE} /= OFE {OFE} /=; eexists; split; first by eauto.
-    have [??]:= truncate_val_bool ok_ytr; subst.
-    move: ok_yNtr;rewrite /truncate_val /= ok_vby => -[?];subst.
-    by rewrite eq_sym;case vbx => /=; rewrite ?eqb_id ?eqbF_neg ?negbK.
-Qed.*)
+    rewrite h in ht.
+    have [??]:= truncate_val_bool ht; subst. rewrite ok_vy in hg.
+    move: ht';rewrite /truncate_val /=. case: hg=> [] <-; rewrite ok_vby => -[?];subst.
+    by rewrite eq_sym; case vb => /=; rewrite ?eqb_id ?eqbF_neg ?negbK.
+Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xscale_ok ii z sc :
