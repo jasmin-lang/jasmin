@@ -152,7 +152,7 @@ Section PROOF.
       exact: (Hl _ _ Hq Hf).
   Qed.
 
-  Let Pi (s:estate) (i:instr) (s':estate) :=
+  (*Let Pi (s:estate) (i:instr) (s':estate) :=
     disj_fvars (vars_I i) ->
     forall s1, eq_exc_fresh s1 s ->
       exists s1', sem p' s1 (lower_i options warning fv is_var_in_memory i) s1' /\ eq_exc_fresh s1' s'.
@@ -683,7 +683,7 @@ Section PROOF.
   Qed.
 
   Lemma read_es_swap x y : Sv.Equal (read_es [:: x ; y ]) (read_es [:: y ; x ]).
-  Proof. by rewrite ! read_es_cons; SvD.fsetdec. Qed.
+  Proof. by rewrite ! read_es_cons; SvD.fsetdec. Qed.*)
 
   (* ---------------------------------------------------------- *)
 
@@ -786,14 +786,15 @@ Section PROOF.
     refine (fun e => let 'erefl := e in ex_intro _ erefl erefl).
   Qed.
 
-  Lemma mk_lea_recP s e l sz sz' (w: word sz') :
+  Lemma mk_lea_recP s e l le sz sz' (w: word sz') :
     (sz <= U64)%CMP -> 
     (sz ≤ sz')%CMP →
     mk_lea_rec sz e = Some l ->
-    sem_pexpr gd s e = ok (Vword w) ->
+    sem_pexpr gd s e = ok ((Vword w), le) ->
     sem_lea sz (evm s) l = ok (zero_extend sz w).
   Proof.
-    move=> hsz; elim: e l sz' w => //=.
+  Admitted.
+   (* move=> hsz; elim: e l sz' w => //=.
     + by move=> x l sz' w hsz' [<-]; rewrite lea_varP => -> /=; f_equal; rewrite /truncate_word hsz'.
     + move=> [] //= sz1 [] //= e1 he1 l sz' w hsz' [<-]; rewrite /sem_sop1 /= => h.
       have /Vword_inj[? ? /=] := ok_inj h; subst; rewrite lea_constP /=.
@@ -823,13 +824,14 @@ Section PROOF.
     rewrite wsub_zero_extend // !zero_extend_idem //.
     exact (lea_subP hsz (He1 _ _ _ (cmp_le_trans hsz' hsz1) Heq1 h1)
                            (He2 _ _ _ (cmp_le_trans hsz' hsz2) Heq2 h2) Hsub).
-  Qed.
+  Qed.*)
 
-  Lemma push_cast_szP sz e s v :  
-    sem_pexpr gd s (Papp1 (Oword_of_int sz) e) = ok v ->
-    exists v', sem_pexpr gd s (push_cast_sz sz e) = ok v' /\ value_uincl v v'.
+  Lemma push_cast_szP sz e s v le:  
+    sem_pexpr gd s (Papp1 (Oword_of_int sz) e) = ok (v, le) ->
+    exists v', sem_pexpr gd s (push_cast_sz sz e) = ok (v', le) /\ value_uincl v v'.
   Proof.
-    elim: e v; eauto.
+  Admitted.
+   (* elim: e v; eauto.
     + move=> o e1 he1 v.
       case: o; eauto.
       move=> sz' /=.
@@ -876,13 +878,14 @@ Section PROOF.
     rewrite truncate_word_u => /(_ _ refl_equal) -> /=; rewrite wrepr_sub.
     eexists;split; first by eauto.
     by apply word_uincl_refl.
-  Qed.
+  Qed.*)
 
-  Lemma push_castP e s v :  
-    sem_pexpr gd s e = ok v ->
-    exists v', sem_pexpr gd s (push_cast e) = ok v' /\ value_uincl v v'.
-  Proof.
-    elim: e v; eauto.  
+  Lemma push_castP e s v le:  
+    sem_pexpr gd s e = ok (v, le) ->
+    exists v', sem_pexpr gd s (push_cast e) = ok (v', le) /\ value_uincl v v'.
+  Proof. 
+  Admitted.
+    (*elim: e v; eauto.  
     + move=> o e1 he1 v /=.
       t_xrbindP => v1 /he1{he1} [v1' [he1 hu]].
       move=> /(vuincl_sem_sop1 hu).
@@ -891,22 +894,23 @@ Section PROOF.
     move=> o e1 he1 e2 he2 /=.
     t_xrbindP => ? v1 /he1 [v1' [-> hu1]] v2 /he2 [v2' [-> hu2]]. 
     by move=> /(vuincl_sem_sop2 hu1 hu2) /= ->; eauto.
-  Qed.
+  Qed.*)
 
-  Lemma mk_leaP s e l sz sz' (w: word sz') :
+  Lemma mk_leaP s e l le sz sz' (w: word sz') :
     (sz <= U64)%CMP -> 
     (sz ≤ sz')%CMP →
     mk_lea sz e = Some l ->
-    sem_pexpr gd s e = ok (Vword w) ->
+    sem_pexpr gd s e = ok (Vword w, le) ->
     sem_lea sz (evm s) l = ok (zero_extend sz w).
   Proof.
-    rewrite /mk_lea => h1 h2 hrec.
+  Admitted.
+    (*rewrite /mk_lea => h1 h2 hrec.
     move=> /push_castP [v' [he hu]].
     have [sz1 [w1 [? /andP [] hle /eqP ->]]]:= value_uinclE hu; subst v'.
     rewrite zero_extend_idem //.
     apply: mk_lea_recP hrec he => //.
     by apply: cmp_le_trans h2 hle.
-  Qed.
+  Qed.*)
 
   Definition read_ovar (o: option var_i) : Sv.t :=
     if o is Some v then read_e v else Sv.empty.
@@ -1023,7 +1027,7 @@ Section PROOF.
     by case: ifP => // /andP [] /andP [] heq _ _ [<-].
   Qed.
 
-  Lemma zquot_bound m x y :
+  (*Lemma zquot_bound m x y :
     (y ≠ 0 → x ≠ -m ∨ y ≠ -1 → -m <= x <= m - 1 → -m <= y <= m - 1 → -m <= x ÷ y <= m - 1)%Z.
   Proof.
     move => hnz hn1 hx hy.
@@ -2396,6 +2400,6 @@ Section PROOF.
   Proof.
     apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
-  Qed.
+  Qed.*)
 
 End PROOF.

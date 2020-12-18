@@ -1,7 +1,7 @@
 Require Import x86_sem linear_sem.
 Import Utf8 Relation_Operators.
 Import all_ssreflect all_algebra.
-Require Import compiler_util expr psem x86_sem linear x86_variables x86_variables_proofs asmgen.
+Require Import compiler_util expr psem x86_sem linear x86_variables x86_variables_proofs asmgen trelation.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -11,17 +11,17 @@ Unset Printing Implicit Defensive.
 Definition assemble_i (i: linstr) : ciexec asm :=
   let '{| li_ii := ii ; li_i := ir |} := i in
   match ir with
-  | Lopn ds op es => 
+  | Liopn ds op es => 
     Let oa := assemble_sopn ii op ds es in
     ok (AsmOp oa.1 oa.2)
 
-  | Lalign  => ciok ALIGN
+  | Lialign  => ciok ALIGN
 
-  | Llabel lbl =>  ciok (LABEL lbl)
+  | Lilabel lbl =>  ciok (LABEL lbl)
 
-  | Lgoto lbl => ciok (JMP lbl)
+  | Ligoto lbl => ciok (JMP lbl)
 
-  | Lcond e l =>
+  | Licond e l =>
       Let cond := assemble_cond ii e in
       ciok (Jcc l cond)
   end.
@@ -113,15 +113,16 @@ rewrite /assemble_c /linear.find_label /x86_sem.find_label => ok_i.
 by rewrite (mapM_size ok_i) (assemble_c_find_is_label lbl ok_i).
 Qed.
 
-Lemma assemble_iP gd i j ls ls' xs :
+Lemma assemble_iP gd i j ls ls' li xs :
   match_state ls xs →
   assemble_i i = ok j →
-  linear_sem.eval_instr gd i ls = ok ls' →
+  linear_sem.eval_instr gd i ls = ok (ls', li) →
   ∃ xs' : x86_state,
-    x86_sem.eval_instr gd j xs = ok xs' ∧
+    x86_sem.eval_instr gd j xs = ok (xs', leak_i_asm li) ∧
     match_state ls' xs'.
 Proof.
-rewrite /linear_sem.eval_instr /x86_sem.eval_instr; case => eqm eqc eqpc.
+Admitted.
+(*rewrite /linear_sem.eval_instr /x86_sem.eval_instr; case => eqm eqc eqpc.
 case: i => ii [] /=.
 - move => lvs op pes; t_xrbindP => -[op' asm_args] hass <- m hsem <-.
   have [s [-> eqm' /=]]:= assemble_sopnP hsem hass eqm.
@@ -147,13 +148,13 @@ case: i => ii [] /=.
     by eexists; split; eauto; constructor.
   case => <- /=; eexists; split; first by reflexivity.
   by constructor => //; rewrite /setpc /= eqpc.
-Qed.
+Qed.*)
 
-Lemma match_state_step gd ls ls' xs :
+Lemma match_state_step gd ls ls' li xs :
   match_state ls xs →
-  step gd ls = ok ls' →
+  step gd ls = ok (ls', li) →
   ∃ xs',
-  fetch_and_eval gd xs = ok xs' ∧
+  fetch_and_eval gd xs = ok (xs', leak_i_asm li) ∧
   match_state ls' xs'.
 Proof.
 move => ms; rewrite /step /find_instr /fetch_and_eval; case: (ms)=> _ eqc ->.
@@ -162,21 +163,20 @@ have [j [-> ok_j]] := mapM_onth eqc ok_i.
 exact: assemble_iP.
 Qed.
 
-Lemma match_state_sem gd ls ls' xs :
-  lsem gd ls ls' →
+Lemma match_state_sem gd ls lis ls' xs :
+  lsem gd ls lis ls' →
   match_state ls xs →
   ∃ xs',
-    x86sem gd xs xs' ∧
+    x86sem gd xs (map leak_i_asm lis) xs' ∧
     match_state ls' xs'.
 Proof.
 move => h; elim/lsem_ind: h xs; clear.
 - move => ls xs h; exists xs; split => //; exact: rt_refl.
-move => ls1 ls2 ls3 h1 h ih xs1 m1.
+move => ls1 li ls2 lis ls3 h1 h ih xs1 m1.
 have [xs2 [x m2]] := match_state_step m1 h1.
 have [xs3 [y m3]] := ih _ m2.
 exists xs3; split => //.
-apply: x86sem_trans; last by eauto.
-exact: rt_step.
+by apply: tc_left; last by eauto.
 Qed.
 
 Section PROG.
@@ -265,8 +265,8 @@ case: r ok_r => // r => [ /var_of_register_of_var | /xmm_register_of_varI ] rx.
 by apply: hxr; rewrite rx.
 Qed.
 
-Lemma assemble_fdP m1 fn va m2 vr :
-  lsem_fd p gd m1 fn va m2 vr →
+Lemma assemble_fdP m1 fn va fn' lis m2 vr :
+  lsem_fd p gd m1 fn va (fn', lis) m2 vr →
   ∃ fd va',
     get_fundef p fn = Some fd ∧
     mapM2 ErrType truncate_val (lfd_tyin fd) va = ok va' ∧
@@ -275,11 +275,12 @@ Lemma assemble_fdP m1 fn va m2 vr :
       List.Forall2 value_uincl va' (get_arg_values st1 fd'.(xfd_arg)) →
       st1.(xmem) = m1 →
       ∃ st2,
-        x86sem_fd p' gd fn st1 st2 ∧
+        x86sem_fd p' gd fn st1 (map leak_i_asm lis) st2 ∧
         List.Forall2 value_uincl vr (get_arg_values st2 fd'.(xfd_res)) ∧
         st2.(xmem) = m2.
 Proof.
-case => m1' fd va' vm2 m2' s1 s2 vr' ok_fd ok_m1' /= [<-] {s1} ok_va'.
+Admitted.
+(*case => m1' fd va' vm2 m2' s1 s2 vr' ok_fd ok_m1' /= [<-] {s1} ok_va'.
 set vm1 := (vm in {| evm := vm |}).
 move => ok_s2 hexec ok_vr' ok_vr -> {m2}.
 exists fd, va'. split; first exact: ok_fd. split; first exact: ok_va'.
@@ -323,7 +324,7 @@ rewrite /get_arg_values /get_arg_value /=.
 apply: (Forall2_trans value_uincl_trans).
 + apply: (mapM2_Forall2 _ ok_vr) => a b r _; exact: truncate_val_uincl.
 apply: get_xreg_of_vars_uincl; eassumption.
-Qed.
+Qed.*)
 
 Lemma assemble_fd_stk_size fd xfd :
   assemble_fd fd = ok xfd →
