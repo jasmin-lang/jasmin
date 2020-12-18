@@ -18,12 +18,13 @@ remove: [
   make "PREFIX=%{prefix}%" "uninstall"
 ]
 depends: [
+  "ocaml" {>= "4.09.0" & < "4.10"}
   "batteries" {>= "2.6"}
   "menhir" {>= "20160825"}
   "zarith"
   "apron"
-  "bddapron"
   "conf-ppl"
+  "yojson"
   "ocamlbuild"
   "ocamlfind"
   "coq" {>= "8.7" & < "8.10"}

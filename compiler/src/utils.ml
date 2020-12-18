@@ -12,7 +12,8 @@ module Scmp = struct
   let compare = compare 
 end
 module Ss = Set.Make(Scmp)
-
+module Ms = Map.Make(Scmp)
+    
 (* -------------------------------------------------------------------- *)
 exception Unexpected
 
@@ -453,6 +454,14 @@ module List = struct
     | None   -> failwith "List.last"
     | Some x -> x
 
+  let rec find_map_opt f = function
+    | [] -> None
+    | x :: l ->
+      begin match f x with
+        | Some _ as result -> result
+        | None -> find_map_opt f l
+      end
+  
   let mbfilter (p : 'a -> bool) (s : 'a list) =
     match s with [] | [_] -> s | _ -> List.filter p s
 
@@ -552,9 +561,9 @@ end
 
 (* -------------------------------------------------------------------- *)
 module Parray = struct
-  type 'a t = 'a array
-
   include Array
+
+  type 'a t = 'a array
 
   let empty = [||]
 

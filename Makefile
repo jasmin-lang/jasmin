@@ -1,14 +1,21 @@
 #! -*- Makefile -*-
 
 # --------------------------------------------------------------------
-DISTDIR := jasmin
-UNAME_S := $(shell uname -s)
-SED     ?= sed
+UNAME_S  := $(shell uname -s)
+SED      ?= sed
+DISTDIR  := jasmin
+DESTDIR  ?=
+PREFIX   ?= /usr/local
+BINDIR   := $(PREFIX)/bin
+LIBDIR   := $(PREFIX)/lib
+INSTALL  ?= install
 
 # --------------------------------------------------------------------
-.PHONY: all check clean dist distcheck
+.PHONY: all build check clean dist distcheck
 
-all:
+all: build
+
+build:
 	$(MAKE) -C proofs all
 	$(MAKE) -C compiler CIL
 	$(MAKE) -C compiler all
@@ -19,6 +26,16 @@ check:
 clean:
 	$(MAKE) -C proofs clean
 	$(MAKE) -C compiler clean
+
+install:
+	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
+	$(INSTALL) -m 0755 -T compiler/jasminc.native $(DESTDIR)$(BINDIR)/jasminc
+	$(INSTALL) -m 0755 -d $(DESTDIR)$(LIBDIR)/jasmin/easycrypt
+	$(INSTALL) -m 0644 -t $(DESTDIR)$(LIBDIR)/jasmin/easycrypt eclib/*.ec
+
+uninstall:
+	rm -f  $(DESTDIR)$(BINDIR)/jasminc
+	rm -rf $(DESTDIR)$(LIBDIR)/jasmin
 
 dist:
 	rm -rf jasmin jasmin.tar.gz

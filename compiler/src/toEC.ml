@@ -512,9 +512,13 @@ let pp_initi env fmt (x, n, ws) =
     "@[(WArray%i.init%i (fun i => %a.[i]))@]"
     (arr_size ws n) (int_of_ws ws) (pp_var env) x
     
+let pp_print_i fmt z = 
+  if B.le B.zero z then B.pp_print fmt z 
+  else Format.fprintf fmt "(%a)" B.pp_print z 
+
 let rec pp_expr env fmt (e:expr) = 
   match e with
-  | Pconst z -> Format.fprintf fmt "%a" B.pp_print z
+  | Pconst z -> Format.fprintf fmt "%a" pp_print_i z
 
   | Pbool b -> Format.fprintf fmt "%a" Printer.pp_bool b
 
@@ -757,6 +761,8 @@ module Normal = struct
         (pp_cmd env) c1 (pp_expr env) e (pp_cmd env) (c2@c1)
       
     | Cfor(i, (d,e1,e2), c) ->
+      (* decreasing for loops have bounds swaped *)
+      let e1, e2 = if d = UpTo then e1, e2 else e2, e1 in 
       let pp_init, pp_e2 = 
         match e2 with
         (* Can be generalized to the case where e2 is not modified by c and i *)
@@ -1087,7 +1093,7 @@ let pp_fun env fmt f =
 
 let pp_glob_decl env fmt (ws,x, z) =
   Format.fprintf fmt "@[abbrev %a = %a.of_int %a.@]@ "
-    (pp_glob env) x pp_Tsz ws B.pp_print z
+    (pp_glob env) x pp_Tsz ws pp_print_i z
 
 let add_arrsz env f = 
   let add_sz x sz = 
@@ -1146,7 +1152,7 @@ let pp_prog fmt model globs funcs =
 
   Format.fprintf fmt 
      "@[<v>%s.@ %s.@ @ %a%a@ %a@ @ module M = {@   @[<v>%a%a@]@ }.@ @]@." 
-    "require import List Int IntExtra IntDiv CoreMap"
+    "require import AllCore IntDiv CoreMap List"
     "from Jasmin require import JModel"
     (pp_arrays "Array") env.arrsz
     (pp_arrays "WArray") env.warrsz

@@ -935,7 +935,7 @@ Lemma wrange_cons lo hi : lo < hi ->
 Proof.
 set s1 := wrange _ _ _; set s2 := wrange _ _ _ => /=.
 move=> lt; apply/(@eq_from_nth _ 0) => /=.
-+ rewrite {}/s1 {}/s2 !size_wrange -Z2Nat.inj_succ; try lia.
++ rewrite {}/s1 {}/s2 !size_wrange -Z2Nat.inj_succ; last lia.
   by apply: Nat2Z.inj; rewrite !Z2Nat.id; lia.
 rewrite {1}/s1 size_wrange; case => [|i].
 + rewrite /s2 nth_wrange /=; try lia.
@@ -943,8 +943,8 @@ rewrite {1}/s1 size_wrange; case => [|i].
 move=> lti; rewrite -[nth _ (_ :: _) _]/(nth 0 s1 i) {}/s1 {}/s2.
 rewrite !nth_wrange; first lia; last first.
 + by apply/leP; move/leP: lti; lia.
-apply/leP/Nat2Z.inj_lt; rewrite Z2Nat.id; try lia.
-move/leP/Nat2Z.inj_lt: lti; try rewrite -Z2Nat.inj_succ; try lia.
+apply/leP/Nat2Z.inj_lt; rewrite Z2Nat.id; last lia.
+move/leP/Nat2Z.inj_lt: lti; try rewrite -Z2Nat.inj_succ; last lia.
 by rewrite Z2Nat.id; lia.
 Qed.
 
@@ -1282,7 +1282,7 @@ Definition word_uincl sz1 sz2 (w1:word sz1) (w2:word sz2) :=
 
 Lemma word_uincl_refl s (w : word s): word_uincl w w.
 Proof. by rewrite /word_uincl zero_extend_u cmp_le_refl eqxx. Qed.
-Hint Resolve word_uincl_refl.
+Hint Resolve word_uincl_refl : core.
 
 Lemma word_uincl_eq s (w w': word s):
   word_uincl w w' → w = w'.
@@ -1400,7 +1400,7 @@ Proof. by case: v. Qed.
 Lemma value_uincl_refl v: @value_uincl v v.
 Proof. by case: v => //=; apply compat_type_undef. Qed.
 
-Hint Resolve value_uincl_refl.
+Hint Resolve value_uincl_refl : core.
 
 Lemma value_uincl_trans v2 v1 v3 :
   value_uincl v1 v2 ->
@@ -1562,15 +1562,15 @@ Definition vm_uincl (vm1 vm2:vmap) :=
 
 Lemma val_uincl_refl t v: @val_uincl t t v v.
 Proof. by rewrite /val_uincl. Qed.
-Hint Resolve val_uincl_refl.
+Hint Resolve val_uincl_refl : core.
 
 Lemma pval_uincl_refl t v: @pval_uincl t t v v.
 Proof.  by rewrite /pval_uincl. Qed.
-Hint Resolve pval_uincl_refl.
+Hint Resolve pval_uincl_refl : core.
 
 Lemma eval_uincl_refl t v: @eval_uincl t t v v.
 Proof. by case: v=> //= -[]. Qed.
-Hint Resolve eval_uincl_refl.
+Hint Resolve eval_uincl_refl : core.
 
 Lemma eval_uincl_trans t1 t2 t3
   (v2 : exec (psem_t t2)) (v1: exec (psem_t t1)) (v3: exec (psem_t t3)) :
@@ -1584,7 +1584,13 @@ Qed.
 
 Lemma vm_uincl_refl vm: @vm_uincl vm vm.
 Proof. by done. Qed.
-Hint Resolve vm_uincl_refl.
+Hint Resolve vm_uincl_refl : core.
+
+Lemma vm_uincl_trans vm2 vm1 vm3 :
+  vm_uincl vm1 vm2 →
+  vm_uincl vm2 vm3 →
+  vm_uincl vm1 vm3.
+Proof. move => A B x; exact: (eval_uincl_trans (A x) (B x)). Qed.
 
 Lemma val_uincl_array n (a a' : WArray.array n) :
   (∀ (i : Z) (v : u8),

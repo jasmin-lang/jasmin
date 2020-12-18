@@ -5,21 +5,19 @@ let outfile = ref ""
 let latexfile = ref ""
 let typeonly = ref false
 let debug = ref false
-let coqfile = ref ""
-let coqonly = ref false
 let print_list = ref []
 let ecfile = ref ""
 let ec_list = ref []
 let check_safety = ref false
 let safety_param = ref None
+let safety_config = ref None
+let safety_makeconfigdoc = ref None
+    
+let help_intrinsics = ref false
 
 let lea = ref false
 let set0 = ref false
 let model = ref Normal
-
-let set_coqonly s =
-  coqfile := s;
-  coqonly := true
 
 let poptions = [
     Compiler.Typing
@@ -54,9 +52,10 @@ let set_constTime () = model := ConstantTime
 let set_safety () = model := Safety
 
 let set_checksafety () = check_safety := true
-
 let set_safetyparam s = safety_param := Some s
-
+let set_safetyconfig s = safety_config := Some s
+let set_safety_makeconfigdoc s = safety_makeconfigdoc := Some s
+      
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "constant expansion"
@@ -87,9 +86,6 @@ let options = [
     "-typeonly", Arg.Set typeonly      , ": stop after typechecking";
     "-debug"   , Arg.Set debug         , ": print debug information";
     "-latex"     , Arg.Set_string latexfile, "[filename]: generate the corresponding LATEX file";
-    "-coq"     , Arg.Set_string coqfile, "[filename]: generate the corresponding coq file";
-    "-coqonly" , Arg.String set_coqonly, "[filename]: generate the corresponding coq file, and exit";
-    "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
     "-lea"     , Arg.Set lea           , ": use lea as much as possible (default is nolea)";
     "-nolea"   , Arg.Clear lea         , ": try to use add and mul instead of lea";
     "-set0"     , Arg.Set set0          , ": use [xor x x] to set x to 0 (default is not)";
@@ -100,12 +96,16 @@ let options = [
     "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
     "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,
-    "parameter for automatic safety verification:\n\
-     format: f_1>p_1:...:p_l|f_2>p_1':...:p_l'|...\
-     where each p_i is of the form:\n\
-     v_1,...,v_n;v_1',...,v_k'\n\
-     v_1,...,v_n: list of pointer variables that have to be considered together\n\
-     v_1',...,v_k': list of relational variables"
+    "parameter for automatic safety verification:\n    \
+     format: \"f_1>param_1|f_2>param_2|...\" \
+     where each param_i is of the form:\n    \
+     pt_1,...,pt_n;len_1,...,len_k\n    \
+     pt_1,...,pt_n: input pointers of f_i\n    \
+     len_1,...,len_k: input lengths of f_i";
+     "-safetyconfig", Arg.String set_safetyconfig, "[filename]: use filename (JSON) as configuration file for the safety checker";
+    "-safetymakeconfigdoc", Arg.String set_safety_makeconfigdoc, "[dir]: make the safety checker configuration docs in [dir]";
+    "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
+    "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
   ] @  List.map print_option poptions
 
 let usage_msg = "Usage : jasminc [option] filename"

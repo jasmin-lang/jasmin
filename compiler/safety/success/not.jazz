@@ -1,0 +1,4 @@
+export fn main(reg u64 b) 
+{
+ b = #NOT_64(b);
+}

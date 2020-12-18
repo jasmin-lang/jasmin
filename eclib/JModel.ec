@@ -1,147 +1,12 @@
 (* -------------------------------------------------------------------- *)
 require import AllCore BitEncoding IntDiv SmtMap Ring List StdOrder Bool.
 (*---*) import CoreMap Map Ring.IntID IntOrder.
-require export JUtils JArray JWord JWord_array JMemory.
+require export JUtils JArray JWord JWord_array JMemory AES.
 
 (* -------------------------------------------------------------------- *)
-op MULX_64 : W64.t -> W64.t -> (W64.t * W64.t).
-op IMULtimm_64 : W64.t -> W64.t -> (bool * bool * bool * bool * bool * W64.t).
-op ADOX_64 : W64.t -> W64.t -> bool -> (bool * W64.t).
-op ADCX_64 : W64.t -> W64.t -> bool -> (bool * W64.t).
-op XOR_64 : W64.t -> W64.t -> (bool * bool * bool * bool * bool * W64.t).
-op SAR_64 : W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
-op set0_64 = (false,false,false,false,false, W64.of_int(0)).
-
-(* -------------------------------------------------------------------- *)
-abbrev MOVD_32 (x : W32.t) = pack4 [x; W32.zero; W32.zero; W32.zero].
-
-op ROL_32 (x : W32.t) (cnt : W8.t) =
-  let result = W32.rol x (to_uint cnt) in
-  let CF = result.[0] in
-  let OF = Logic.(^) CF result.[31] in
-  (CF, OF, result)
-  axiomatized by ROL_32_E.
-
-op ROL_64 (x : W64.t) (cnt : W8.t) =
-  let result = W64.rol x (to_uint cnt) in
-  let CF = result.[0] in
-  let OF = Logic.(^) CF result.[63] in
-  (CF, OF, result)
-  axiomatized by ROL_64_E.
-
-
-(* -------------------------------------------------------------------- *)
-op SHLD_32 :
-  W32.t -> W32.t -> W8.t -> (bool * bool * bool * bool * bool * W32.t).
-
-op SHRD_32 :
-  W32.t -> W32.t -> W8.t -> (bool * bool * bool * bool * bool * W32.t).
-
-op SHLD_64 :
-  W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
-
-op SHRD_64 :
-  W64.t -> W64.t -> W8.t -> (bool * bool * bool * bool * bool * W64.t).
-
-(* -------------------------------------------------------------------- *)
-
-op SF_of_w32 (w : W32.t) =
-  w.[31].
-
-op PF_of_w32 (w : W32.t) =
-  w.[0].
-
-op ZF_of_w32 (w : W32.t) =
-  w = W32.zero.
-
-op rflags_of_aluop_nocf32 (w : W32.t) (vs : int) =
-  let OF = W32.to_sint w <> vs in
-  let SF = SF_of_w32 w in
-  let PF = PF_of_w32 w in
-  let ZF = ZF_of_w32 w in
-  (OF, SF, PF, ZF).
-
-op DEC_32 (w:W32.t) =
-  let v  = w - W32.of_int 1 in
-  let vs = W32.to_sint w - 1 in
-  let (OF, SF, PF, SZ) = rflags_of_aluop_nocf32 v vs in
-  (OF,SF,PF,SZ,v).
-
-lemma DEC32_counter n (c:W32.t) :
-  c <> W32.zero =>
-  (n - to_uint c + 1 = n - to_uint (DEC_32 c).`5 /\
-  (DEC_32 c).`4 = ((DEC_32 c).`5 = W32.zero)) /\
-  (n - to_uint c + 1 < n <=> ! (DEC_32 c).`4).
-proof.
-  move=> hc0; rewrite /DEC_32 /rflags_of_aluop_nocf32 /ZF_of_w32 => /=.
-  have -> : (c - W32.one = W32.zero) <=> (to_uint (c - W32.one) = 0).
-  + by split => [-> // | h]; apply (canRL _ _ _ _ W32.to_uintK).
-  have hc0': to_uint c <> 0.
-  + by apply negP => heq; apply hc0; rewrite -(W32.to_uintK c) heq.
-  rewrite W32.to_uintB /= 1:uleE /=; smt (W32.to_uint_cmp).
-qed.
-
-(* -------------------------------------------------------------------- *)
-
-op SF_of_w64 (w : W64.t) =
-  w.[31].
-
-op PF_of_w64 (w : W64.t) =
-  w.[0].
-
-op ZF_of_w64 (w : W64.t) =
-  w = W64.zero.
-
-op rflags_of_aluop_nocf64 (w : W64.t) (vs : int) =
-  let OF = W64.to_sint w <> vs in
-  let SF = SF_of_w64 w in
-  let PF = PF_of_w64 w in
-  let ZF = ZF_of_w64 w in
-  (OF, SF, PF, ZF).
-
-op DEC_64 (w:W64.t) =
-  let v  = w - W64.of_int 1 in
-  let vs = W64.to_sint w - 1 in
-  let (OF, SF, PF, SZ) = rflags_of_aluop_nocf64 v vs in
-  (OF,SF,PF,SZ,v).
-
-lemma DEC64_counter n (c:W64.t) :
-  c <> W64.zero =>
-  (n - to_uint c + 1 = n - to_uint (DEC_64 c).`5 /\
-  (DEC_64 c).`4 = ((DEC_64 c).`5 = W64.zero)) /\
-  (n - to_uint c + 1 < n <=> ! (DEC_64 c).`4).
-proof.
-  move=> hc0; rewrite /DEC_64 /rflags_of_aluop_nocf64 /ZF_of_w64 => /=.
-  have -> : (c - W64.one = W64.zero) <=> (to_uint (c - W64.one) = 0).
-  + by split => [-> // | h]; apply (canRL _ _ _ _ W64.to_uintK).
-  have hc0': to_uint c <> 0.
-  + by apply negP => heq; apply hc0; rewrite -(W64.to_uintK c) heq.
-  rewrite W64.to_uintB /= 1:uleE /=; smt (W64.to_uint_cmp).
-qed.
-
-(* -------------------------------------------------------------------- *)
-
-op SF_of_w8 (w : W8.t) =
-  w.[7].
-
-op PF_of_w8 (w : W8.t) =
-  w.[0].
-
-op ZF_of_w8 (w : W8.t) =
-  w = W8.zero.
-
-op rflags_of_bwop8 (w : W8.t) =
-  let OF = false in
-  let CF = false in
-  let SF = SF_of_w8 w in
-  let PF = PF_of_w8 w in
-  let ZF = ZF_of_w8 w in
-  (OF, CF, SF, PF, ZF).
-
-op TEST_8 (x y:W8.t) =
-  rflags_of_bwop8 (x `&` y).
-
-
+abbrev MOVSZ32 (x : W32.t) = pack4 [x; W32.zero; W32.zero; W32.zero].
+abbrev [-printing] setw0_128 = W128.of_int 0.
+abbrev [-printing] setw0_256 = W256.of_int 0.
 
 (* -------------------------------------------------------------------- *)
 
@@ -201,23 +66,21 @@ abbrev [-printing] const_rotate16_256 =
 abbrev [-printing] const_rotate24_256 =
   W256.of_int 5454353864746073763129182254217446065883741921538078285974850505695092212225.
 
+lemma iteri_red n (opr : int -> 'a -> 'a) x : 
+  0 < n => iteri n opr x = opr (n-1) (iteri (n-1) opr x).
+proof. smt (iteriS). qed.
+
 lemma rotate8_256_E w :
   VPSHUFB_256 w const_rotate8_256 = W8u32.map (fun w => W32.rol w 8) w.
-proof.
-  by apply: W256.all_eq_eq; cbv delta.
-qed.
+proof. by apply: (W256.all_eq_eq _ _ _); cbv delta. qed.
 
 lemma rotate16_256_E w :
   VPSHUFB_256 w const_rotate16_256 = W8u32.map (fun w => W32.rol w 16) w.
-proof.
-  by apply: W256.all_eq_eq; cbv delta.
-qed.
+proof. by apply: (W256.all_eq_eq _ _ _); cbv delta. qed.
 
 lemma rotate24_256_E w :
   VPSHUFB_256 w const_rotate24_256 = W8u32.map (fun w => W32.rol w 24) w.
-proof.
-  by apply: W256.all_eq_eq; cbv delta.
-qed.
+proof. by apply: (W256.all_eq_eq _ _ _); cbv delta. qed.
 
 hint simplify (rotate8_256_E, rotate16_256_E, rotate24_256_E).
 
@@ -228,10 +91,17 @@ op VPSHUFD_128_B (w : W128.t) (m : W8.t) (i : int) : W32.t =
   w \bits32 p.
 
 op VPSHUFD_128 (w : W128.t) (m : W8.t) : W128.t =
-  pack4 (map (VPSHUFD_128_B w m) (iota_ 0 4)).
+  pack4 (map (VPSHUFD_128_B w m) (iotared 0 4)).
 
 op VPSHUFD_256 (w : W256.t) (m : W8.t) : W256.t =
   map (fun w => VPSHUFD_128 w m) w.
+
+op VSHUFPS_128 (w1 w2 : W128.t) (m:W8.t) = 
+  pack4 [VPSHUFD_128_B w1 m 0; VPSHUFD_128_B w1 m 1;
+         VPSHUFD_128_B w2 m 2; VPSHUFD_128_B w2 m 3].
+
+op VSHUFPS_256 (w1 : W256.t) (w2 : W256.t) (m : W8.t) : W256.t =
+  map2 (fun w1 w2 => VSHUFPS_128 w1 w2 m) w1 w2.
 
 (* -------------------------------------------------------------------- *)
 abbrev [-printing] VPBROADCASTI_2u128 = VPBROADCAST_2u128.
@@ -415,6 +285,17 @@ op VPBLENDD_256 (w1 w2: W256.t) (i:W8.t) : W256.t =
      let w = if i.[n] then w2 else w1 in
      w \bits32 n in
   pack8 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7].
+
+(* ------------------------------------------------------------------- *)
+
+(* AES instruction *)
+
+abbrev [-printing] VAESDEC          = AESDEC.
+abbrev [-printing] VAESDECLAST      = AESDECLAST.
+abbrev [-printing] VAESENC          = AESENC.
+abbrev [-printing] VAESENCLAST      = AESENCLAST.
+abbrev [-printing] VAESIMC          = AESIMC.
+abbrev [-printing] VAESKEYGENASSIST = AESKEYGENASSIST.
 
 (* ------------------------------------------------------------------- *)
 abbrev [-printing] (\vshr32u128) (w1:W128.t) (w2:W8.t) = VPSRL_4u32 w1 w2.

@@ -1,0 +1,178 @@
+export
+fn f8(reg u8 x, reg u8 y) -> reg u8 {
+  reg u8 z;
+  reg bool of, cf;
+  reg u8 y1;
+  cf, x = x +8u 1;
+  y1 = y;
+  of, cf, x = #RCR_8(x, y1, cf);
+  z = x;
+  return z;
+}
+
+export
+fn f16(reg u16 x, reg u8 y) -> reg u16 {
+  reg u16 z;
+  reg bool of, cf;
+  reg u8 y1;
+  cf, x = x +16u 1;
+  y1 = y;
+  of, cf, x = #RCR_16(x, y1, cf);
+  z = x;
+  return z;
+}
+
+export
+fn f32(reg u32 x, reg u8 y) -> reg u32 {
+  reg u32 z;
+  reg bool of, cf;
+  reg u8 y1;
+  cf, x = x +32u 1;
+  y1 = y;
+  of, cf, x = #RCR_32(x, y1, cf);
+  z = x;
+  return z;
+}
+
+export
+fn f64(reg u64 x, reg u8 y) -> reg u64 {
+  reg u64 z;
+  reg bool of, cf;
+  reg u8 y1;
+  cf, x = x +64u 1;
+  y1 = y;
+  of, cf, x = #RCR(x, y1, cf);
+  z = x;
+  return z;
+}
+
+export
+fn g8(reg u8 x) -> reg u8 {
+  reg u8 z;
+  reg bool of, cf;
+  cf, x = x +8u 1;
+  of, cf, x = #RCR_8(x, 3, cf);
+  z = x;
+  return z;
+}
+
+export
+fn g16(reg u16 x) -> reg u16 {
+  reg u16 z;
+  reg bool of, cf;
+  cf, x = x +16u 1;
+  of, cf, x = #RCR_16(x, 3, cf);
+  z = x;
+  return z;
+}
+
+export
+fn g32(reg u32 x) -> reg u32 {
+  reg u32 z;
+  reg bool of, cf;
+  cf, x = x +32u 1;
+  of, cf, x = #RCR_32(x, 3, cf);
+  z = x;
+  return z;
+}
+
+export
+fn g64(reg u64 x) -> reg u64 {
+  reg u64 z;
+  reg bool of, cf;
+  cf, x = x +64u 1;
+  of, cf, x = #RCR(x, 3, cf);
+  z = x;
+  return z;
+}
+
+export
+fn f8_(reg u8 x, reg u8 y) -> reg u8 {
+  reg u8 z;
+  reg bool of, cf;
+  reg u8 y1;
+  cf, x = x +8u 1;
+  y1 = y;
+  of, cf, x = #RCL_8(x, y1, cf);
+  z = x;
+  return z;
+}
+
+export
+fn f16_(reg u16 x, reg u8 y) -> reg u16 {
+  reg u16 z;
+  reg bool of, cf;
+  reg u8 y1;
+  cf, x = x +16u 1;
+  y1 = y;
+  of, cf, x = #RCL_16(x, y1, cf);
+  z = x;
+  return z;
+}
+
+export
+fn f32_(reg u32 x, reg u8 y) -> reg u32 {
+  reg u32 z;
+  reg bool of, cf;
+  reg u8 y1;
+  cf, x = x +32u 1;
+  y1 = y;
+  of, cf, x = #RCL_32(x, y1, cf);
+  z = x;
+  return z;
+}
+
+export
+fn f64_(reg u64 x, reg u8 y) -> reg u64 {
+  reg u64 z;
+  reg bool of, cf;
+  reg u8 y1;
+  cf, x = x +64u 1;
+  y1 = y;
+  of, cf, x = #RCL(x, y1, cf);
+  z = x;
+  return z;
+}
+
+export
+fn g8_(reg u8 x) -> reg u8 {
+  reg u8 z;
+  reg bool of, cf;
+  cf, x = x +8u 1;
+  of, cf, x = #RCL_8(x, 3, cf);
+  z = x;
+  return z;
+}
+
+export
+fn g16_(reg u16 x) -> reg u16 {
+  reg u16 z;
+  reg bool of, cf;
+  cf, x = x +16u 1;
+  of, cf, x = #RCL_16(x, 3, cf);
+  z = x;
+  return z;
+}
+
+export
+fn g32_(reg u32 x) -> reg u32 {
+  reg u32 z;
+  reg bool of, cf;
+  cf, x = x +32u 1;
+  of, cf, x = #RCL_32(x, 3, cf);
+  z = x;
+  return z;
+}
+
+export
+fn g64_(reg u64 x) -> reg u64 {
+  reg u64 z;
+  reg bool of, cf;
+  cf, x = x +64u 1;
+  of, cf, x = #RCL(x, 3, cf);
+  z = x;
+  return z;
+}
+
+
+

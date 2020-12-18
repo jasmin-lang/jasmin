@@ -1,0 +1,8 @@
+export
+fn xor256(reg u256 a b) -> reg u256 {
+reg u256 r;
+
+r = a ^ b;
+
+return r;
+}

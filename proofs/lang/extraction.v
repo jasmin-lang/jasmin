@@ -29,6 +29,7 @@ Require ExtrOcamlBasic.
 Require ExtrOcamlString.
 
 Extraction Inline ssrbool.is_left.
+Extraction Inline ssrbool.predT ssrbool.pred_of_argType.
 
 Cd  "lang/ocaml".
 

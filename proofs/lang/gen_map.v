@@ -273,7 +273,7 @@ Module Mmake (K':CmpType) <: MAP.
     case: Ordered.eq_dec.
     + by move=> /(@cmp_eq _ _ _ _ _) <-;rewrite eq_refl. (* Enrico : Bug *)
     move=> Hneq;have -> // : (x == y) = false.
-    by case : (x =P y) => // ?;subst;elim Hneq.
+    by case : (x =P y) => // ?;subst;elim Hneq; exact: Ordered.eq_refl.
   Qed.
 
   Lemma removeP_eq {T} (m: t T) x: (remove m x).[x] = None.

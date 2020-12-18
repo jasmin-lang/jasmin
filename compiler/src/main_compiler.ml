@@ -11,7 +11,8 @@ let parse () =
     if !infile <> "" then error();
     infile := s  in
   Arg.parse options set_in usage_msg;
-  if !infile = "" then error()
+  if !infile = "" && (not !help_intrinsics) && (!safety_makeconfigdoc = None)
+  then error()
 
 (*--------------------------------------------------------------------- *)
 
@@ -136,14 +137,60 @@ and pp_comp_ferr tbl fmt = function
 
 
 (* -------------------------------------------------------------------- *)
-let main () =
-  try
+    
+let check_safety_p s p source_p =
+  let () = if SafetyConfig.sc_print_program () then
+      let s1,s2 = Glob_options.print_strings s in
+      Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
+                      %a@;@]@."
+        s1 s2
+        (Printer.pp_prog ~debug:true) p
+  in
 
+  let () = SafetyConfig.pp_current_config_diff () in
+  
+  let () =
+    List.iter (fun f_decl ->
+        if f_decl.f_cc = Export then
+          let () = Format.eprintf "@[<v>Analyzing function %s@]@."
+              f_decl.f_name.fn_name in
+
+          let source_f_decl = List.find (fun source_f_decl ->
+              f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
+            ) (snd source_p) in
+          let module AbsInt = SafetyInterpreter.AbsAnalyzer(struct
+              let main_source = source_f_decl
+              let main = f_decl
+              let prog = p
+            end) in
+
+          AbsInt.analyze ())
+      (List.rev (snd p)) in
+  exit 0 
+
+
+(* -------------------------------------------------------------------- *)
+let main () =
+  try    
     parse();
+
+    if !safety_makeconfigdoc <> None
+    then (
+      let dir = oget !safety_makeconfigdoc in
+      SafetyConfig.mk_config_doc dir;
+      exit 0);
+
+    if !help_intrinsics
+    then (Help.show_intrinsics (); exit 0);
 
     let fname = !infile in
     let ast   = Parseio.parse_program ~name:fname in
     let ast   = BatFile.with_file_in fname ast in
+
+    let () = if !check_safety then
+        match !safety_config with
+        | Some conf -> SafetyConfig.load_config conf
+        | None -> () in
 
     if !latexfile <> "" then begin
       let out = open_out !latexfile in
@@ -160,23 +207,14 @@ let main () =
     let prog = Subst.remove_params pprog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
-    if !check_safety then begin
-      let () =
-        List.iter (fun f_decl ->
-            if f_decl.f_cc = Export then
-              let () = Format.eprintf "@[<v>Analyzing function %s@;@]@."
-                  f_decl.f_name.fn_name in
-
-              let module AbsInt = Safety.AbsAnalyzer(struct
-                  let main = f_decl
-                  let prog = prog
-                end) in
-
-              AbsInt.analyze ())
-          (snd prog) in
-      exit 0;
-    end;
-
+    (* The source program, before any compilation pass. *)
+    let source_prog = prog in
+    
+    if SafetyConfig.sc_comp_pass () = Compiler.ParamsExpansion &&
+       !check_safety
+    then check_safety_p Compiler.ParamsExpansion prog source_prog
+    else
+            
     if !ec_list <> [] then begin
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
@@ -198,17 +236,6 @@ let main () =
 
     let prog = Inline_array_copy.doit prog in
 
-    (* Generate the coq program if needed *)
-    if !coqfile <> "" then begin
-      assert false
-(*      let out = open_out !coqfile in
-      let fmt = Format.formatter_of_out_channel out in
-      Format.fprintf fmt "%a@." Coq_printer.pp_prog prog;
-      close_out out;
-      if !debug then Format.eprintf "coq program extracted@." *)
-    end;
-    if !coqonly then exit 0;
-
     (* Now call the coq compiler *)
     let tbl, cprog = Conv.cprog_of_prog Regalloc.X64.all_registers () prog in
     if !debug then Printf.eprintf "translated to coq \n%!";
@@ -229,7 +256,7 @@ let main () =
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
           with Evaluator.Eval_error (ii,err) ->
-            Format.eprintf "%a" Evaluator.pp_error (tbl, ii, err)
+            hierror "%a" Evaluator.pp_error (tbl, ii, err)
         in
         List.iter exec to_exec
       end;
@@ -279,10 +306,6 @@ let main () =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
       v.v_kind = Stack in
 
-    let pp_cprog fmt cp =
-      let p = Conv.prog_of_cprog tbl cp in
-      Printer.pp_prog ~debug:true fmt p in
-
     let pp_linear fmt lp =
       PrintLinear.pp_prog tbl fmt lp in
 
@@ -322,6 +345,20 @@ let main () =
         else x in
       Conv.string0_of_string x in
 
+    (* Check safety and calls exit(_). *)
+    let check_safety_cp s cp =
+      let p = Conv.prog_of_cprog tbl cp in
+      check_safety_p s p source_prog in
+    
+    let pp_cprog s cp =
+      if s = SafetyConfig.sc_comp_pass () && !check_safety then
+        check_safety_cp s cp
+      else
+        eprint s (fun fmt cp ->
+            let p = Conv.prog_of_cprog tbl cp in
+            Printer.pp_prog ~debug:true fmt p) cp in
+
+
     let cparams = {
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
@@ -331,7 +368,7 @@ let main () =
       Compiler.stk_alloc_fd = stk_alloc_fd;
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;
-      Compiler.print_prog   = (fun s p -> eprint s pp_cprog p; p);
+      Compiler.print_prog   = (fun s p -> pp_cprog s p; p);
       Compiler.print_linear = (fun p -> eprint Compiler.Linearisation pp_linear p; p);
       Compiler.warning      = warning;
       Compiler.inline_var   = inline_var;

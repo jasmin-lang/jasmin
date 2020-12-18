@@ -252,13 +252,20 @@ Module MemoryI : MemoryT.
   Definition write_mem (m: mem) (ptr:pointer) (ws:wsize) (v:word ws) :=
     CoreMem.write m ptr v.
 
-  Lemma is_align_valid_pointer m p ws :
-    is_align p ws ->
-    (forall k, 0 <= k < wsize_size ws -> valid_pointer m (add p k) U8) ->
-    valid_pointer m p ws.
+  Lemma valid_pointerP m p ws :
+    reflect
+      (is_align p ws ∧ ∀ k, 0 <= k < wsize_size ws -> valid_pointer m (p + wrepr U64 k) U8)
+      (valid_pointer m p ws).
   Proof.
-    rewrite /valid_pointer /is_alloc=> -> /= h.
-    by apply /allP => i; rewrite in_ziota !zify => /h /and3P [] _; rewrite add_0.
+    apply: (iffP andP) => - [] ali alo; split => //.
+    - move => k range. rewrite /valid_pointer is_align8 /=.
+      apply/is_allocP => i; change (wsize_size U8) with 1 => i_range.
+      have -> : i = 0 by Psatz.lia.
+      rewrite add_0.
+      move/is_allocP: alo; exact.
+    apply/is_allocP => i /alo /andP[] _ /is_allocP /(_ 0).
+    rewrite add_0; apply.
+    change (wsize_size U8) with 1; Psatz.lia.
   Qed.
 
   Lemma readP m p s : read_mem m p s = CoreMem.read m p s.
@@ -586,9 +593,6 @@ Module MemoryI : MemoryT.
     rewrite !wunsigned_add; Psatz.lia.
   Qed.
 
-  Lemma valid_align m p s: valid_pointer m p s -> is_align p s.
-  Proof. by move=> /andP []. Qed.
-
   Lemma read_write_any_mem m1 m1' pr szr pw szw (vw:word szw) m2 m2':
     valid_pointer m1 pr szr ->
     read_mem m1 pr szr = read_mem m1' pr szr ->
@@ -793,7 +797,10 @@ Module MemoryI : MemoryT.
     split; rewrite ?top_stackE.
     - exact: ass_mod o.
     - exact: ass_read_old o.
-    - exact: ass_valid o.
+    - move => p.
+      have := ass_valid o p U8.
+      rewrite is_align8 andbT.
+      exact.
     - exact: ass_align o.
     - exact: ass_fresh o.
     exact: ass_frames o.
@@ -867,6 +874,7 @@ Module MemoryI : MemoryT.
       have : wsize_size s <= 32 by case: (s).
       have := wsize_size_pos s.
       move: (wsize_size s) => x x_pos x_le_32 nx qx_range L K.
+      suff : 0 <= n ∧ 0 <= q;
       Psatz.nia.
     move => old_not_allocated; split; first by case.
     move/allP => new_allocated; elim: old_not_allocated => /= i /dup[] {}/new_allocated.

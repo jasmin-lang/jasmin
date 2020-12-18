@@ -1,16 +1,17 @@
 export
 fn memcmp(reg u64 p, reg u64 q, reg u64 n) -> reg u64 {
-reg u64 r, z, i, a, b, pi, qi;
+reg u64 r, z, i, a, b;
 r = 1;
 i = 0;
 while (i < n) {
-pi = p; pi += i;
-qi = q; qi += i;
- a = [pi + 0];
- b = [qi + 0];
+ a = [p + 0];
+ b = [q + 0];
  z = 0;
  r = z if a != b;
-i += 1;
+
+ p += 8;
+ q += 8;
+ i += 1;
 }
 return r;
 }

@@ -42,14 +42,6 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
 
-(*Lemma is_labelP i lbl: reflect (exists a, i.(li_i) = Llabel a lbl) (is_label lbl i).
-Proof.
-  rewrite /is_label;case:i => ii [|a l||] //=; try by constructor => -[].
-  apply:(@equivP (lbl = l)); first by apply eqP.
-  split=> [->|[? [? ->]] //];eauto.
-Qed.
-*)
-
 Lemma align_bind ii a p1 l ltc:
   Let p := align ii a p1 in ciok (p.1.1, p.1.2 ++ l, p.2 ++ ltc) =
   align ii a (Let p := p1 in ciok (p.1.1, p.1.2 ++ l, p.2 ++ ltc)).
@@ -60,7 +52,7 @@ Section CAT.
   Let Pi (i:instr) :=
     forall lbl l,
      linear_i i lbl l =
-     linear_i i lbl [::] >>= (fun (p:label*lcmd*leak_i_il_tr) => ok (p.1.1, p.1.2 ++ l, p.2)).
+     linear_i i lbl [::] >>= (fun (p:label * lcmd * leak_i_il_tr) => ok (p.1.1, p.1.2 ++ l, p.2)).
 
   Let Pr (i:instr_r) :=
     forall ii, Pi (MkI ii i).
@@ -68,7 +60,7 @@ Section CAT.
   Let Pc (c:cmd) :=
     forall lbl l,
      linear_c linear_i c lbl l =
-     linear_c linear_i c lbl [::] >>= (fun (p:label*lcmd*seq leak_i_il_tr) => ok (p.1.1, p.1.2 ++ l, p.2)).
+     linear_c linear_i c lbl [::] >>= (fun (p:label * lcmd * seq leak_i_il_tr) => ok (p.1.1, p.1.2 ++ l, p.2)).
 
   Let Pf (fd:fundef) := True.
 

@@ -1,5 +1,6 @@
 require import AllCore SmtMap List.
 (*---*) import CoreMap.
+
 require import JUtils.
 
 (*-------------------------------------------------------------------- *)
@@ -98,7 +99,7 @@ abstract theory MonoArray.
     k1 = k2 => t.[k1 <- x].[k2 <- x'] = t.[k2 <- x'].
   proof. move=> ->; apply set_set_eq. qed.
 
-  hint simplify (set_set_eq_s, set_out).
+  hint simplify set_out.
 
   lemma set_set_swap (t : t) (k k' : int) (x x' : elem):
     k <> k' => t.[k <- x].[k' <- x'] = t.[k' <- x'].[k <- x].
@@ -115,13 +116,11 @@ abstract theory MonoArray.
   axiomatized by of_listE.
 
   op to_list (t:t) =
-    mkseq (fun i => t.[i]) size.
-
-  lemma to_listE (t:t) : to_list t = map (fun i => t.[i]) (iota_ 0 size).
-  proof. done. qed.
+    mkseq (fun i => t.[i]) size
+  axiomatized by to_listE.
 
   lemma size_to_list (t:t): size (to_list t) = size.
-  proof. rewrite /to_listE size_mkseq /max; smt (ge0_size). qed.
+  proof. rewrite to_listE size_mkseq /max; smt (ge0_size). qed.
 
   lemma get_of_list (l:elem list) i : 0 <= i < size =>
     (of_list l).[i] = nth dfl l i.
@@ -129,7 +128,7 @@ abstract theory MonoArray.
 
   lemma get_to_list (t : t) i : nth dfl (to_list t) i = t.[i].
   proof.
-    rewrite nth_mkseq_if; case:(0 <= i < size) => hi //.
+    rewrite to_listE nth_mkseq_if; case:(0 <= i < size) => hi //.
     rewrite get_out //.
   qed.
 
@@ -150,9 +149,9 @@ abstract theory MonoArray.
   lemma to_list_inj : injective to_list.
   proof. by apply/(can_inj _ _ to_listK). qed.
 
-  hint simplify (get_of_list, get_to_list)@0.
-  hint simplify to_listK@0.
-  hint simplify to_listE@1.
+  hint simplify (get_of_list, get_to_list, size_to_list)@0.
+  hint simplify [reduce] to_listK@0.
+(*  hint simplify [reduce] to_listE@1. *)
 
   lemma init_of_list f : init f = of_list (map f (iota_ 0 size)).
   proof.
@@ -160,7 +159,14 @@ abstract theory MonoArray.
     by rewrite nth_iota // initiE.
   qed.
 
-  (* hint simplify init_of_list@1. *)
+  lemma of_listW (p : elem -> bool) (xs : elem list) :
+        all p xs
+     => size <= size xs
+     => forall (i : int), 0 <= i < size => p (of_list xs).[i].
+  proof.
+  move=> pxs ge128_sz_xs i rg_i; rewrite get_of_list //.
+  by move/allP: pxs; apply; rewrite mem_nth /#.
+  qed.
 
   (* -------------------------------------------------------------------- *)
   op create (a:elem) = init (fun (i:int) => a).
@@ -171,7 +177,7 @@ abstract theory MonoArray.
   lemma createL (a:elem) : create a = of_list (map (fun i => a) (iota_ 0 size)).
   proof. by rewrite /create init_of_list. qed.
 
-  hint simplify (createiE, createL).
+  hint simplify createiE @0.
 
   (* -------------------------------------------------------------------- *)
   op map (f: elem -> elem) (t:t) : t =
@@ -213,11 +219,14 @@ abstract theory MonoArray.
   proof.
     rewrite to_listE map2E map2_zip init_of_list /=;congr.
     apply (eq_from_nth dfl).
-    + by rewrite !size_map size_zip !size_map min_ler.
+    + rewrite !size_map size_zip !size_map StdOrder.IntOrder.minrE /=. 
+      smt (size_iota ge0_size).
     move=> i; rewrite size_map => hi.
     rewrite (nth_map 0) 1:// (nth_map (dfl,dfl)).
-    + by rewrite size_zip min_ler !size_map.
-    by rewrite /= nth_zip ?size_map // !(nth_map 0).
+    + rewrite size_zip StdOrder.IntOrder.minrE /= !size_map.
+      smt (size_iota ge0_size).
+    rewrite /= nth_zip ?size_map //=; 1: smt (size_iota ge0_size).
+    rewrite !(nth_map 0) // !nth_iota //; smt (ge0_size size_iota).
   qed.
 
   hint simplify (map2iE, map2_of_list)@0.
@@ -225,11 +234,11 @@ abstract theory MonoArray.
 
   (* -------------------------------------------------------------------- *)
   op all_eq (t1 t2: t) =
-    all (fun x => t1.[x] = t2.[x]) (iota_ 0 size).
+    all (fun x => t1.[x] = t2.[x]) (iotared 0 size).
 
   lemma all_eq_eq (t1 t2: t) : all_eq t1 t2 => t1 = t2.
   proof.
-    by move=> /allP h; apply ext_eq => x /mem_range; apply h.
+    by move=> /allP h; apply ext_eq => x /mem_range hx; apply h; rewrite iotaredE.
   qed.
 
   lemma all_eqP (t1 t2: t) : all_eq t1 t2 <=> t1 = t2.
@@ -391,13 +400,13 @@ abstract theory PolyArray.
 
   (* -------------------------------------------------------------------- *)
   op all_eq (t1 t2: 'a t) =
-    all (fun x => t1.[x] = t2.[x]) (iota_ 0 size).
+    all (fun x => t1.[x] = t2.[x]) (iotared 0 size).
 
   lemma ext_eq_all (t1 t2: 'a t) :
     all_eq t1 t2 <=> t1 = t2.
   proof.
     split.
-    + by move=> /allP h; apply ext_eq => x /mem_range; apply h.
+    + by move=> /allP h; apply ext_eq => x /mem_range hx; apply h; rewrite iotaredE.
     by move=> ->;apply /allP.
   qed.
 
@@ -505,65 +514,8 @@ abstract theory PolyArray.
   op is_init (t: 'a option t) = all is_init t.
 
   lemma is_init_Some (t:'a t) : is_init (map Some t).
-  proof. by rewrite allP => i hi; rewrite mapiE. qed.
+  proof. by rewrite /is_init allP => i hi; rewrite mapiE. qed.
 
-  hint simplify is_init_Some.
+  hint simplify [eqtrue] is_init_Some.
 
 end PolyArray.
-
-(*clone export PolyArray as Array0  with op size <- 0.
-clone export PolyArray as Array1  with op size <- 1.
-clone export PolyArray as Array2  with op size <- 2.
-clone export PolyArray as Array3  with op size <- 3.
-clone export PolyArray as Array4  with op size <- 4.
-clone export PolyArray as Array5  with op size <- 5.
-clone export PolyArray as Array6  with op size <- 6.
-clone export PolyArray as Array7  with op size <- 7.
-clone export PolyArray as Array8  with op size <- 8.
-clone export PolyArray as Array9  with op size <- 9.
-
-clone export PolyArray as Array10  with op size <- 10.
-clone export PolyArray as Array11  with op size <- 11.
-clone export PolyArray as Array12  with op size <- 12.
-clone export PolyArray as Array13  with op size <- 13.
-clone export PolyArray as Array14  with op size <- 14.
-clone export PolyArray as Array15  with op size <- 15.
-clone export PolyArray as Array16  with op size <- 16.
-clone export PolyArray as Array17  with op size <- 17.
-clone export PolyArray as Array18  with op size <- 18.
-clone export PolyArray as Array19  with op size <- 19.
-
-clone export PolyArray as Array20  with op size <- 20.
-clone export PolyArray as Array21  with op size <- 21.
-clone export PolyArray as Array22  with op size <- 22.
-clone export PolyArray as Array23  with op size <- 23.
-clone export PolyArray as Array24  with op size <- 24.
-clone export PolyArray as Array25  with op size <- 25.
-clone export PolyArray as Array26  with op size <- 26.
-clone export PolyArray as Array27  with op size <- 27.
-clone export PolyArray as Array28  with op size <- 28.
-clone export PolyArray as Array29  with op size <- 29.
-
-clone export PolyArray as Array30  with op size <- 30.
-clone export PolyArray as Array31  with op size <- 31.
-clone export PolyArray as Array32  with op size <- 32.
-clone export PolyArray as Array33  with op size <- 33.
-clone export PolyArray as Array34  with op size <- 34.
-clone export PolyArray as Array35  with op size <- 35.
-clone export PolyArray as Array36  with op size <- 36.
-clone export PolyArray as Array37  with op size <- 37.
-clone export PolyArray as Array38  with op size <- 38.
-clone export PolyArray as Array39  with op size <- 39.
-
-clone export PolyArray as Array40  with op size <- 40.
-clone export PolyArray as Array41  with op size <- 41.
-clone export PolyArray as Array42  with op size <- 42.
-clone export PolyArray as Array43  with op size <- 43.
-clone export PolyArray as Array44  with op size <- 44.
-clone export PolyArray as Array45  with op size <- 45.
-clone export PolyArray as Array46  with op size <- 46.
-clone export PolyArray as Array47  with op size <- 47.
-clone export PolyArray as Array48  with op size <- 48.
-clone export PolyArray as Array49  with op size <- 49. *)
-
-
