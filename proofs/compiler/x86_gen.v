@@ -121,34 +121,40 @@ Lemma assemble_iP gd i j ls ls' li xs :
     x86_sem.eval_instr gd j xs = ok (xs', leak_i_asm li) ∧
     match_state ls' xs'.
 Proof.
-Admitted.
-(*rewrite /linear_sem.eval_instr /x86_sem.eval_instr; case => eqm eqc eqpc.
+rewrite /linear_sem.eval_instr /x86_sem.eval_instr; case => eqm eqc eqpc.
 case: i => ii [] /=.
-- move => lvs op pes; t_xrbindP => -[op' asm_args] hass <- m hsem <-.
+(* opn *)
+- move => lvs op pes; t_xrbindP => -[op' asm_args] hass <- [m lm] hsem <- <-.
   have [s [-> eqm' /=]]:= assemble_sopnP hsem hass eqm.
   (eexists; split; first by reflexivity).
   by constructor => //=; rewrite ?to_estate_of_estate ?eqpc.
-- move => [<-] [<-];eexists;split;first by reflexivity.
+(* align *)
+- move => [<-] [<- <-];eexists;split;first by reflexivity.
   by constructor => //; rewrite /setpc eqpc.
-- move => lbl [<-] [<-]; eexists; split; first by reflexivity.
+- move => lbl [<-] [<- <-]; eexists; split; first by reflexivity.
   constructor => //.
   by rewrite /setpc /= eqpc.
-- move => lbl [<-]; t_xrbindP => pc ok_pc <- {ls'}.
+(* goto *)
+- move => lbl [<-]; t_xrbindP => pc ok_pc <- {ls'} <-.
   rewrite /eval_JMP -(assemble_c_find_label lbl eqc) ok_pc /=.
   by eexists; split; eauto; constructor.
-- t_xrbindP => cnd lbl cndt ok_c [<-] b v ok_v ok_b.
+(* cond *)
+- t_xrbindP => cnd lbl cndt ok_c [<-] [v l] ok_v b /= ok_b.
   case: eqm => eqm eqr eqx eqf.
   have [v' [ok_v' hvv']] := eval_assemble_cond eqf ok_c ok_v.
   case: v ok_v ok_b hvv' => // [ b' | [] // ] ok_b [?]; subst b'.
   rewrite /eval_Jcc.
   case: b ok_b => ok_b; case: v' ok_v' => // b ok_v' /= ?; subst b;
     (case: (eval_cond _ _) ok_v' => // [ b | [] // ] [->] {b}).
-  + t_xrbindP => pc ok_pc <- {ls'} /=.
+  + t_xrbindP => pc ok_pc <- {ls'} <- /=.
     rewrite /eval_JMP -(assemble_c_find_label lbl eqc) ok_pc /=.
-    by eexists; split; eauto; constructor.
-  case => <- /=; eexists; split; first by reflexivity.
-  by constructor => //; rewrite /setpc /= eqpc.
-Qed.*)
+    exists (st_write_ip pc.+1 xs); split=> //; eauto.
+  t_xrbindP=> <- <- /=. rewrite /eval_JMP /= -(assemble_c_find_label lbl eqc) /=.
+  rewrite /find_label /=. case: ifP=> //=.
+  + move=> hl. exists (st_write_ip (xip xs).+1 xs); split=> //=; constructor=> //.
+    by rewrite /setpc /= eqpc.
+  move=> //=. admit. (* semantic of Licond gives no information about findlabel in false branch : eval_instr*)
+Admitted.
 
 Lemma match_state_step gd ls ls' li xs :
   match_state ls xs →
@@ -279,8 +285,7 @@ Lemma assemble_fdP m1 fn va fn' lis m2 vr :
         List.Forall2 value_uincl vr (get_arg_values st2 fd'.(xfd_res)) ∧
         st2.(xmem) = m2.
 Proof.
-Admitted.
-(*case => m1' fd va' vm2 m2' s1 s2 vr' ok_fd ok_m1' /= [<-] {s1} ok_va'.
+case => m1' fd va' vm2 m2' s1 s2 vr' ok_fd ok_m1' /= [<-] {s1} ok_va'.
 set vm1 := (vm in {| evm := vm |}).
 move => ok_s2 hexec ok_vr' ok_vr -> {m2}.
 exists fd, va'. split; first exact: ok_fd. split; first exact: ok_va'.
@@ -324,7 +329,7 @@ rewrite /get_arg_values /get_arg_value /=.
 apply: (Forall2_trans value_uincl_trans).
 + apply: (mapM2_Forall2 _ ok_vr) => a b r _; exact: truncate_val_uincl.
 apply: get_xreg_of_vars_uincl; eassumption.
-Qed.*)
+Qed.
 
 Lemma assemble_fd_stk_size fd xfd :
   assemble_fd fd = ok xfd →

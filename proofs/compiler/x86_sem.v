@@ -130,13 +130,17 @@ Definition find_label (lbl : label) (a : seq asm) :=
   if idx < size a then ok idx else type_error.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_JMP lbl (s: x86_state) : x86_result_state :=
-  Let ip := find_label lbl s.(xc) in ok (st_write_ip ip.+1 s, Laempty).
+Definition eval_JMP lbl (s: x86_state) :=
+  Let ip := find_label lbl s.(xc) in ok (st_write_ip ip.+1 s).
 
 (* -------------------------------------------------------------------- *)
+(** Need to confirm with Benjamin **)
+(** we should leak boolean even in eval_JMP when b is true as in intermediate language in the instruction Licond we leak boolean **)
+(** If we don't leak b in eval_JMP case then we get to prove that Laempty = Lcond b **)
 Definition eval_Jcc lbl ct (s: x86_state) : x86_result_state :=
   Let b := eval_cond ct s.(xrf) in
-  if b then eval_JMP lbl s else ok (st_write_ip (xip s).+1 s, Lacond b).
+  Let r := eval_JMP lbl s in
+  if b then ok (r, Lacond b) else ok (st_write_ip (xip s).+1 s, Lacond b).
 
 (* -------------------------------------------------------------------- *)
 Definition st_get_rflag (rf : rflag) (s : x86_mem) :=
@@ -359,7 +363,7 @@ Definition eval_instr (i : asm) (s: x86_state) : x86_result_state :=
   match i with
   | ALIGN        
   | LABEL _      => ok (st_write_ip (xip s).+1 s, Laempty)
-  | JMP   lbl    => eval_JMP lbl s
+  | JMP   lbl    => Let r := eval_JMP lbl s in ok(r, Laempty)
   | Jcc   lbl ct => eval_Jcc lbl ct s
   | AsmOp o args =>
     Let m := eval_op o args s.(xm) in
