@@ -669,6 +669,51 @@ Lemma assemble_x86_opnP ii gd op lvs args op' asm_args s m m' le:
   lom_eqv m s ->
   exists s', eval_op gd op' asm_args s = ok (s', Laop (leak_e_asm le)) /\ lom_eqv m' s'.
 Proof.
+  rewrite /assemble_x86_opn. t_xrbindP=> hsem lea /is_leaP.
+  case: lea=> [ [[sz x] lea] [e [??? hlea]]| hspe].
+  (* case: Some *)
+  + subst op lvs args; t_xrbindP. 
+    move=> rx /reg_of_var_register_of_var -/var_of_register_of_var hrx rb hrb.
+    move=> ro hro sc /xscale_ok hsc <- <- hlo.
+    move: hsem; rewrite /eval_op /sem_sopn /exec_sopn /=. t_xrbindP.
+    move=> vs [v l] he <- va /=. t_xrbindP.
+    move=> w w' hw; rewrite /sopn_sem /= /x86_LEA /=.
+    rewrite /check_size_16_64; case: andP => //= -[hsz1 hsz2] -[<-] <- /=.
+    t_xrbindP=> [m1 lm1] m2 hwm /= <- /= <- /= <- <- /=.
+    move: hwm; rewrite /write_var /set_var -hrx /= => -[<-].
+    rewrite (sumbool_of_boolET hsz2) /=.
+    exists (mem_write_reg rx
+         (zero_extend sz
+            (decode_addr s
+               {|
+               ad_disp := lea_disp lea;
+               ad_base := rb;
+               ad_scale := sc;
+               ad_offset := ro |})) s); split.
+    + admit. (** need to prove that l is [::] **)
+    case: hlo => h1 h2 h3 h4. 
+    constructor=> //=.
+    + move=> r' v'; rewrite /get_var /on_vu /= /RegMap.set ffunE.
+      have [sz' [w'' [hsz' h h']]]:= to_wordI hw; subst v w'.
+      move: mk_leaP.
+      have hl : lowering_options. + constructor. constructor. constructor.
+      have hf : (instr_info → warning_msg → instr_info). + auto.
+      move=> Hlp. move: (Hlp {| p_globs := gd; p_funcs := [::] |} hl hf).
+      move=> {Hlp} Hlp.
+      have hfr : ∀ fv : fresh_vars,
+          (var_i → bool)
+          → fvars_correct fv (p_funcs {| p_globs := gd; p_funcs := [::] |}).
+      + move=> fv /= h. admit.
+      admit.
+    + move=> r' v'; rewrite /get_var /on_vu /=.
+      by rewrite Fv.setP_neq //; apply h3.
+    move=> f v'; rewrite /get_var /on_vu /=.
+    by rewrite Fv.setP_neq //; apply h4.
+  t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ?. 
+  subst asm_args'. rewrite /eval_op hspe.
+  apply: compile_x86_opn hsem hca hcd hidc.
+Admitted.
+
   (*rewrite /assemble_x86_opn.
   t_xrbindP => hsem lea /is_leaP.
   case: lea => [ [[sz x] lea] [e [??? hlea]]| hspe]. 
@@ -714,7 +759,6 @@ Proof.
   t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ?;subst asm_args'.
   rewrite /eval_op hspe.
   apply: compile_x86_opn hsem hca hcd hidc.*)
-Admitted.
 
 Lemma assemble_sopnP gd ii op lvs args op' asm_args m m' le s: 
   sem_sopn gd op m lvs args = ok (m', le) ->
@@ -722,11 +766,11 @@ Lemma assemble_sopnP gd ii op lvs args op' asm_args m m' le s:
   lom_eqv m s ->
   exists s', eval_op gd op' asm_args s = ok (s', Laop (leak_e_asm le)) /\ lom_eqv m' s'.
 Proof.
-  case: op => //=.
+ case: op => //=.
   + move=> sz; rewrite /sem_sopn /exec_sopn /sopn_sem /=.
     rewrite /Oset0_instr; case: ifP => /= hsz64.
-    + t_xrbindP => vs. (*[]// ?? [<-] /= <-.
-      move=> hw x hx; rewrite /assemble_x86_opn /is_lea /=.
+    + t_xrbindP. move=> [] // /= hes vs vt [] <- /= <- [m1 l1].
+      move=> hw /= <- <- x hx; rewrite /assemble_x86_opn /is_lea /=.
       t_xrbindP => asm_args' _ ? /assertP hidc ? /assertP /andP[hca hcd] ??;subst op' asm_args'.  
       move: hca; rewrite /check_sopn_args /= => /and3P [].
       rewrite /check_sopn_arg /=.
@@ -738,13 +782,14 @@ Proof.
       rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
       rewrite /truncate_word /x86_XOR /check_size_8_64 hsz64 /= wxor_xx.
       set id := instr_desc (XOR sz) => hlo.
-      rewrite /SF_of_word msb0.
-      by apply: (@compile_lvals ii id.(id_max_imm) gd m lvs m' s [:: Reg r; Reg r]
+      rewrite /SF_of_word msb0 /=. move : compile_lvals. move=> Hc.
+      move: (Hc ii id.(id_max_imm) gd m lvs m1 l1 s [:: Reg r; Reg r]
              id.(id_out) id.(id_tout)
              (let vf := Some false in (::vf, vf, vf, vf, Some true & (0%R: word sz)))
              MSB_CLEAR (refl_equal _) hw hlo hcd id.(id_check_dest)).
-    t_xrbindP => ? []// ?? [<-] /= <-.
-    move=> hw x hx; rewrite /assemble_x86_opn /is_lea /=.
+     move=> [] m2 [] hm hlo'. exists m2. split=> //. rewrite /= in hm. by rewrite hm /= cats0.
+    t_xrbindP. move=> [] // /= hes vs vt [] <- /= <- [m1 l1].
+    move=> hw /= <- <- x hx; rewrite /assemble_x86_opn /is_lea /=.
     t_xrbindP => asm_args' _ ? /assertP hidc ? /assertP /andP[hca hcd] ??;subst op' asm_args'.  
     move: hca; rewrite /check_sopn_args /= => /and3P [].
     rewrite /check_sopn_arg /=.
@@ -759,42 +804,100 @@ Proof.
     rewrite /truncate_word /x86_VPXOR hidc /= /x86_u128_binop /check_size_128_256 wsize_ge_U256. 
     have -> /= : (U128 ≤ sz)%CMP by case: (sz) hsz64. 
     rewrite wxor_xx; set id := instr_desc (VPXOR sz) => hlo.
-    by apply: (@compile_lvals ii id.(id_max_imm) gd m lvs m' s [:: a0; XMM r; XMM r]
+    move : compile_lvals. move=> Hc.
+    move: (Hc ii id.(id_max_imm) gd m lvs m1 l1 s [:: a0; XMM r; XMM r]
                id.(id_out) id.(id_tout)
                (0%R: word sz)
                MSB_CLEAR (refl_equal _) hw hlo hcd id.(id_check_dest)).
+     move=> [] m2 [] hm hlo'. exists m2. split=> //. rewrite /= in hm. by rewrite hm /= cats0.
   + case: lvs => // -[] // x [] //.
     rewrite /sem_sopn /exec_sopn /sopn_sem /=.
     case: args => //= a args.
-    t_xrbindP => vs1 vs2 va hva vs3 h <- /=.
-    case: args h => /=; t_xrbindP; last by move=> *; subst.
-    move => <- ? wa htwa [<-] <-; t_xrbindP => m1 hwx ?;subst m1.
+    t_xrbindP => vs1 [v1 l1] hva vs2 h <- vs3 v /=.
+    case: args h => /=; t_xrbindP;last by move=> *; subst.
+    move => <- u /= htwa [<-] <-; t_xrbindP => [m1 lm] m2 hwx <- [m3 lm'] /= [] <- <- <- /= <- <-.
     rewrite /assemble_x86_opn /is_lea /=.
     t_xrbindP => asm_args' _ ? /assertP hidc ? /assertP /andP[hca hcd] ?? hlo;subst op' asm_args'.  
     case: asm_args hidc hcd hca => // a0 [] // a1 []// hidc hcd;
       last by rewrite /check_args_kinds /= !andbF.                               
     rewrite /check_sopn_args /= andbT => hca1.
     rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
-    rewrite /= in hidc;rewrite hidc.
-    have [v' /= [-> /= ->] /=]:= check_sopn_arg_sem_eval hlo hca1 hva htwa.
+    rewrite /= in hidc; rewrite hidc.
+    have [v' /= [] /=]:= check_sopn_arg_sem_eval hlo hca1 hva htwa.
     move: hcd; rewrite /check_sopn_dests /= /check_sopn_dest /= => /andP -[].
     case: xreg_of_var (@xreg_of_varI ii x) => // y /(_ _ erefl) ok_y.
     rewrite andbT => /eqP ? _; subst a0.
     case: y hidc hca1 ok_y => // r hidc hca1 /var_of_register_of_var xr.
-    rewrite /mem_write_vals.
-    eexists; split; first reflexivity.
-    case: hlo => h1 h2 h3 h4.
-    move: hwx; rewrite /write_var /set_var.
-    rewrite -xr => -[<-]{m'}.
-    constructor => //=.
-    + move=> r' v''; rewrite /get_var /on_vu /= /RegMap.set ffunE.
-      case: eqP => [-> | hne].
-      + by rewrite Fv.setP_eq word_extend_reg_id // zero_extend_u => -[<-].
-      rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply var_of_register_inj.
-      by apply h2. 
-    + move=> r' v''; rewrite /get_var /on_vu /=.
-      by rewrite Fv.setP_neq //; apply h3.
-    move=> f v''; rewrite /get_var /on_vu /=.
-    by rewrite Fv.setP_neq //; apply h4. 
+    case: a1 hidc hca1=> //=.
+    (* Imm *)
+    + move=> sz ws h h' [] <- <- /= ht; eexists; split=> //.
+      case: hlo=> h1 h2 h3 h4.
+      move: hwx; rewrite /write_var /set_var /=.
+      rewrite -xr => -[<-]{m'}.
+      constructor => //=.
+      + move=> r' v''; rewrite /get_var /on_vu /= /RegMap.set ffunE.
+        case: eqP=> [-> | hne].
+        + rewrite Fv.setP_eq word_extend_reg_id // zero_extend_u => -[<-].
+          move: ht; rewrite /truncate_word /=. by move=> [] <-.
+          rewrite Fv.setP_neq. 
+          + apply h2. 
+          by apply /eqP=> H; apply hne; apply var_of_register_inj.
+      + move=> r' v''; rewrite /get_var /on_vu /=.
+        by rewrite Fv.setP_neq //; apply h3.
+      move=> f v''; rewrite /get_var /on_vu /=.
+      by rewrite Fv.setP_neq //; apply h4. 
+    (* Glob *)
+    + move=> g ht h. t_xrbindP=> y hg <- <- //= ht'. rewrite /eval_args_in /=.
+      rewrite hg /= ht' /=; eexists; split=> //.
+      case: hlo=> h1 h2 h3 h4.
+      move: hwx; rewrite /write_var /set_var /=.
+      rewrite -xr => -[<-]{m'}.
+      constructor => //=.
+      + move=> r' v''; rewrite /get_var /on_vu /= /RegMap.set ffunE.
+        case: eqP=> [-> | hne].
+        + rewrite Fv.setP_eq word_extend_reg_id // zero_extend_u => -[<-].
+          by move: ht; rewrite /truncate_word /=.
+          rewrite Fv.setP_neq. 
+          + apply h2. 
+          by apply /eqP=> H; apply hne; apply var_of_register_inj.
+      + move=> r' v''; rewrite /get_var /on_vu /=.
+        by rewrite Fv.setP_neq //; apply h3.
+      move=> f v''; rewrite /get_var /on_vu /=.
+      by rewrite Fv.setP_neq //; apply h4. 
+    (* Reg *)
+    + move=> r1 ht ha [] <- <- /= ht'; eexists; split=> //.
+      case: hlo=> h1 h2 h3 h4.
+      move: hwx; rewrite /write_var /set_var /=.
+      rewrite -xr => -[<-]{m'}.
+      constructor => //=.
+      + move=> r' v''; rewrite /get_var /on_vu /= /RegMap.set ffunE.
+        case: eqP=> [-> | hne].
+        + rewrite Fv.setP_eq word_extend_reg_id // zero_extend_u => -[<-].
+          move: ht'; rewrite /truncate_word /=. by move=> [] <-.
+          rewrite Fv.setP_neq. 
+          + apply h2. 
+          by apply /eqP=> H; apply hne; apply var_of_register_inj.
+      + move=> r' v''; rewrite /get_var /on_vu /=.
+        by rewrite Fv.setP_neq //; apply h3.
+      move=> f v''; rewrite /get_var /on_vu /=.
+      by rewrite Fv.setP_neq //; apply h4. 
+    (* Adr *)
+    + move=> adr ht ha /=. t_xrbindP; rewrite /eval_args_in /=.
+      move=> y -> /= <- <- /= ht'; eexists; split=> //.
+      case: hlo=> h1 h2 h3 h4.
+      move: hwx; rewrite /write_var /set_var /=.
+      rewrite -xr => -[<-]{m'}.
+      constructor => //=.
+      + move=> r' v''; rewrite /get_var /on_vu /= /RegMap.set ffunE.
+        case: eqP=> [-> | hne].
+        + rewrite Fv.setP_eq word_extend_reg_id // zero_extend_u => -[<-].
+          move: ht'; rewrite /truncate_word /=. by move=> [] <-.
+          rewrite Fv.setP_neq. 
+          + apply h2. 
+          by apply /eqP=> H; apply hne; apply var_of_register_inj.
+      + move=> r' v''; rewrite /get_var /on_vu /=.
+        by rewrite Fv.setP_neq //; apply h3.
+      move=> f v''; rewrite /get_var /on_vu /=.
+      by rewrite Fv.setP_neq //; apply h4. 
   by move=> a; apply: assemble_x86_opnP.
-Qed.*)
+Qed.
