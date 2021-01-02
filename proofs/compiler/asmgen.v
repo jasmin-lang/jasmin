@@ -234,6 +234,9 @@ Proof.
   by move=> /= <- ->.
 Qed.
 
+Variable fv : fresh_vars.
+Hypothesis fvars_correct: fvars_correct fv [::].
+
 Lemma addr_of_pexprP ii gd e a (x:var_i) o z o' lo z' m s:
   lom_eqv s m →
   get_var (evm s) x = ok o →
@@ -246,15 +249,12 @@ Proof.
 move => eqv ok_o ok_z ok_o' ok_z'.
 rewrite /addr_of_pexpr.
 case heq: mk_lea => [lea | //].
-have hle : (U64 <= U64)%CMP by []. 
-have h : lowering_options. constructor. constructor. constructor.
-have h' : instr_info → warning_msg → instr_info. auto.
-have h'' : var_i -> bool. constructor. 
-have /= := (mk_leaP (p:= (Build_prog gd [::])) h h' h'' (s:=s) _ hle hle heq). 
-have hf : forall f, fvars_correct f [::].
-move=> [] /= v1 v2 v3 v4 v5 v6 //=. admit.
-(*move=> Hlea. move: (Hlea hf). rewrite /=.  
-move=> {Hlea} Hlea. move: (Hlea s  (LSub [:: LEmpty; lo]) (z + z')%R). 
+have hle : (U64 <= U64)%CMP by [].
+have options : lowering_options. + constructor. constructor. constructor.
+have warning : instr_info → warning_msg → instr_info. + auto.
+have is_var_in_memory : var_i -> bool. + constructor.
+have /= := (mk_leaP (p:= (Build_prog gd [::])) options warning is_var_in_memory fvars_correct hle hle heq). 
+move=> Hlea. move: (Hlea s  (LSub [:: LEmpty; lo]) (z + z')%R). 
 rewrite ok_o /= ok_o' /= /sem_sop2 /= ok_z /= ok_z' /=.
 move=> {Hlea} Hlea.
 have heqv : ok (Vword (z + z'), LSub [:: LEmpty; lo]) =
@@ -263,9 +263,7 @@ move: (Hlea (heqv _)). move=> h1.
 have := assemble_leaP hle hle eqv h1.
 move=> H. move: (H ii a). move=> ha H'. move: (ha H').
 by rewrite !zero_extend_u => ->.
-auto.
-Qed.*)
-Admitted.
+Qed.
 
 Variant check_sopn_argI ii max_imm args e : arg_desc -> stype -> Prop :=
 | CSA_Implicit i ty :
@@ -528,6 +526,7 @@ Proof.
       by rewrite Fv.setP_neq //; apply h3.
     move=> f v'; rewrite /get_var /on_vu /=.
     by rewrite Fv.setP_neq //; apply h4.
+  (* i *)
   case heq1: onth => [a | //].
   case heq2: arg_of_pexpr => [ a' | //] hty hw he1 /andP[] /eqP ? hc; subst a'.
   rewrite /mem_write_val /= /mem_write_ty.
@@ -558,6 +557,7 @@ Proof.
       by case: ht => <-{t}; rewrite (sumbool_of_boolET (wsize_ge_U256 sz)).
     move => hne; rewrite Fv.setP_neq; first exact: h3.
     apply/eqP => /var_of_xmm_register_inj ?; exact: hne.
+  (* Lmem case of write_lval *)
   move=> sz [x xii] /= e; t_xrbindP.
   move=> wp vp hget hp [wofs l] he vofs /= hofs w hw m1 hm1 <- <- <-.
   case: ty hty vt hw => //= sz' _ vt hw.
@@ -569,11 +569,10 @@ Proof.
   rewrite hm1 /=. 
   exists {| xmem := m1; xreg := xreg s; xxreg := xxreg s; xrf := xrf s |}.
   split. 
-  + case: e he hadr=> //=.
-    + by move=> v; t_xrbindP=> y hg hv <- /= h.
-    + move=> op1 e. t_xrbindP=> -[v1 l1] he vo hop hv /= <- h.
-      Search _ to_pointer. admit.
-    + move=> //= op2 e e0. t_xrbindP. admit.
+  case: e he hadr=> //=.
+  + by move=> v; t_xrbindP=> y hg hv <- /= h.
+  + move=> op1 e. t_xrbindP=> -[v1 l1] he vo /= hop hv /= <- /= h. admit.
+  + move=> //= op2 e e0. t_xrbindP. admit.
   by constructor. 
 Admitted.
 
@@ -671,7 +670,6 @@ Lemma assemble_x86_opnP ii gd op lvs args op' asm_args s m m' le:
 Proof.
   rewrite /assemble_x86_opn. t_xrbindP=> hsem lea /is_leaP.
   case: lea=> [ [[sz x] lea] [e [??? hlea]]| hspe].
-  (* case: Some *)
   + subst op lvs args; t_xrbindP. 
     move=> rx /reg_of_var_register_of_var -/var_of_register_of_var hrx rb hrb.
     move=> ro hro sc /xscale_ok hsc <- <- hlo.
@@ -695,43 +693,12 @@ Proof.
     constructor=> //=.
     + move=> r' v'; rewrite /get_var /on_vu /= /RegMap.set ffunE.
       have [sz' [w'' [hsz' h h']]]:= to_wordI hw; subst v w'.
-      move: mk_leaP.
-      have hl : lowering_options. + constructor. constructor. constructor.
-      have hf : (instr_info → warning_msg → instr_info). + auto.
-      move=> Hlp. move: (Hlp {| p_globs := gd; p_funcs := [::] |} hl hf).
-      move=> {Hlp} Hlp.
-      have hfr : ∀ fv : fresh_vars,
-          (var_i → bool)
-          → fvars_correct fv (p_funcs {| p_globs := gd; p_funcs := [::] |}).
-      + move=> fv /= h. admit.
-      admit.
-    + move=> r' v'; rewrite /get_var /on_vu /=.
-      by rewrite Fv.setP_neq //; apply h3.
-    move=> f v'; rewrite /get_var /on_vu /=.
-    by rewrite Fv.setP_neq //; apply h4.
-  t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ?. 
-  subst asm_args'. rewrite /eval_op hspe.
-  apply: compile_x86_opn hsem hca hcd hidc.
-Admitted.
-
-  (*rewrite /assemble_x86_opn.
-  t_xrbindP => hsem lea /is_leaP.
-  case: lea => [ [[sz x] lea] [e [??? hlea]]| hspe]. 
-  + subst op lvs args; t_xrbindP => rx /reg_of_var_register_of_var -/var_of_register_of_var hrx rb hrb ro hro sc /xscale_ok hsc <- <- hlo.
-    move: hsem; rewrite /eval_op /sem_sopn /exec_sopn /=.
-    t_xrbindP => vs ? v he <- va.
-    t_xrbindP => w hw; rewrite /sopn_sem /= /x86_LEA.
-    rewrite /check_size_16_64; case: andP => //= -[hsz1 hsz2] -[<-] <-.
-    t_xrbindP => m1 hwm ?; subst m1.
-    move: hwm; rewrite /write_var /set_var -hrx /= => -[<-].
-    rewrite (sumbool_of_boolET hsz2).
-    eexists; split; first reflexivity.
-    case: hlo => h1 h2 h3 h4.
-    constructor => //=.
-    + move=> r' v'; rewrite /get_var /on_vu /= /RegMap.set ffunE.
-      have [sz' [w' [hsz' ??]]]:= to_wordI hw; subst v w.
-      have hlea' := mk_leaP (p := {| p_globs := gd; p_funcs := [::] |}) hsz2 hsz' hlea he.
-      case: eqP => [-> | hne].
+      have options : lowering_options. + constructor. constructor. constructor.
+      have warning : instr_info → warning_msg → instr_info. + auto.
+      have is_var_in_memory : var_i -> bool. + constructor. move: mk_leaP.
+      move=> Hlea. move: (Hlea {| p_globs := gd; p_funcs := [::] |} options warning fv is_var_in_memory fvars_correct).
+      move=> {Hlea} Hlea. move: (Hlea m e lea l sz sz' w'' hsz2 hsz' hlea he).
+      case: eqP => [-> | hne] hlea'.
       + rewrite Fv.setP_eq  /word_extend_reg => -[<-] /=.
         move: hlea'; rewrite /sem_lea /decode_addr /=.
         apply rbindP => wb hwb; apply rbindP => wo hwo h; have {h} <-:= ok_inj h.
@@ -756,9 +723,10 @@ Admitted.
       by rewrite Fv.setP_neq //; apply h3.
     move=> f v'; rewrite /get_var /on_vu /=.
     by rewrite Fv.setP_neq //; apply h4.
-  t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ?;subst asm_args'.
-  rewrite /eval_op hspe.
-  apply: compile_x86_opn hsem hca hcd hidc.*)
+  t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ?. 
+  subst asm_args'. rewrite /eval_op hspe.
+  apply: compile_x86_opn hsem hca hcd hidc.
+Admitted.
 
 Lemma assemble_sopnP gd ii op lvs args op' asm_args m m' le s: 
   sem_sopn gd op m lvs args = ok (m', le) ->
