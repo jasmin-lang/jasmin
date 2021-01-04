@@ -318,6 +318,8 @@ Lemma var_of_registerP E m s r v ty vt:
   ∃ v' : value, Ok E (Vword ((xreg s) r)) = ok v' ∧ of_val ty v' = ok vt.
 Proof. move=> [? h ??] /h -/value_uincl_word_of_val h1 /h1;eauto. Qed.
 
+Variable E : Type.
+
 Lemma check_sopn_arg_sem_eval gd m s ii max_imm args e ad ty v le vt:
      lom_eqv m s
   -> check_sopn_arg ii max_imm args e (ad,ty)
@@ -328,86 +330,56 @@ Lemma check_sopn_arg_sem_eval gd m s ii max_imm args e ad ty v le vt:
 Proof.
   move=> eqm /check_sopn_argP /= h.
   case: h vt.
+  (* ADImplicit *)
   + move=> i {ty} ty /eq_exprP -> vt /=.
     case: i => /= [f | r]. 
+    (* IArflag *)
     + t_xrbindP=> vg hg <- <- /= hvt.
       have:= (var_of_flagP eqm hg hvt). move=> [] x []. t_xrbindP.
       move=> y -> /= <- hvt'. by exists y.
+    (* IAreg *)
     move=> /=. t_xrbindP. move=> vg hg <- <- hvt.
-    have:= (var_of_registerP _ eqm hg hvt). move=> Hr.
-    (* don't know how to provide T for Hr *) admit.
-  move=> n o a a' [] //=. move=> ha. rewrite ha /=.
-  + t_xrbindP => c hac <-.
+    have:= (var_of_registerP E eqm hg hvt). move=> [] v' [] [] <- hv.
+    exists (Vword ((xreg s) r)). split=> //.
+    (* don't know how to provide T for Hr *) (* so introduced E in context *)
+  (* ADExplicit *)
+  move=> n o a a' [ | | | ws] //= ->. 
+  + t_xrbindP => c hac <-. 
     rewrite /compat_imm orbF => /eqP <- -> /= b hb.
     case: eqm => h1 h2 h3 eqf.
     have [v']:= eval_assemble_cond eqf hac hb.
-    case: eval_cond => /= [ | [] [] // [] <- /value_uincl_undef [ty1] -> ]; 
-    last by case: ty1.
-    move=> b' [[<-]]; case: v hb=> // [b1 | [] //] hb' hv1 hb1. move=> {hac}.
-    case: e hb'=> //=.
-    + admit.
-    + admit.
-    + admit.
-    + move=> w v p.
-      apply: on_arr_varP => n' t Hsub; rewrite /on_arr_var => hg /=; t_xrbindP.
-      move=> [va la] he z /= hz w' hw hb1'. rewrite -hb1' in hb1. inversion hb1.
-    + move=> w v p. t_xrbindP. move=> vg vg' hg hp [vp lp] he vp' /= hp' w' hr.
-      move=> hb1'. rewrite -hb1' in hb1. inversion hb1. 
-    + move=> op pe. t_xrbindP. move=> [ve le'] he vo /= hop hb1'. 
-      rewrite hb1' in hop. rewrite /sem_sop1 in hop. move: hop.
-      t_xrbindP. move=> y ht' /= hb1''. rewrite -hb1'' in hb1. admit.
-    + admit.
-    + admit.
-    + move=> ty' e e1 e2. t_xrbindP.
-      move=> [v l] he /= be hbe [v1 l1] he1 [v2 l2] he2 vt ht vt' ht' hb1' hle.
-      rewrite -hle /=. case: be hbe hb1'=> hb1' hb2. rewrite hb2 in ht.
-      rewrite /= in ht. move: truncate_val_boolI. move=> htt.
-      move: (htt ty' b1 v1 ht). move=> [] hty' hh. rewrite -hh in hv1.
-      rewrite -hh in hb1. move: to_boolI.
-      move=> hbtrue. move: (hbtrue v true hb1'). move=> hb1''. 
-      rewrite hb1'' in he. 
-      admit. admit.
-    (*rewrite 
-    elim: le hb'. 
-    + move=> hb' /=; exists b'; split=> //=. rewrite /= in hb1.
-      case: hb1=> <-. by case hv1.
-    + move=> hb' /=; exists b'; split=> //=. rewrite /= in hb1.
-      case: hb1=> <-. by case hv1.
-    + move=> p hb' /=. exists b'; split=> //=. rewrite /= in hb1.
-      
-      case: hb1=> <-. by case hv1.*)
- (* move=> ws nws haw hcomp -> /=; case: e haw => //=.
-
+    case: eval_cond => /= [ | [] [] // [] <- /value_uincl_undef [ty1] -> ]; last by case: ty1.
+    move=> b' [] [] <-; case: v hb=> // [b1| [] //] hb /= <- [] <-.
+    exists b1; split=> //.
+  move=> haw hcomp -> /=; case: e haw => //=.
   + case: eqm => _ eqr eqx _.
-    move=> x /xreg_of_varI; case: a' hcomp => // r; 
-    rewrite /compat_imm orbF => /eqP <- {a} xr w;
-    t_xrbindP=> vg ok_v <- <- ok_w;(eexists; split; first reflexivity);
+    move=> x /xreg_of_varI; case: a' hcomp => // r; rewrite /compat_imm orbF => /eqP <- {a} xr w; t_xrbindP;
+    move=> vg ok_v <- <- ok_w /=;
+    (eexists; split; first reflexivity);
     apply: (value_uincl_word _ ok_w).
-    + by apply: eqr; rewrite (var_of_register_of_var xr).
+    + apply: eqr; rewrite (var_of_register_of_var xr); auto.
     by apply: eqx; rewrite (xmm_register_of_varI xr).
+  (* Glob *)
   + move=> g h; case: h hcomp => <-.
-    rewrite /compat_imm orbF => /eqP <- w; 
-    t_xrbindP=> y /get_globalI [z hz ->] <- <- /= ht.
+    rewrite /compat_imm orbF => /eqP <- w; t_xrbindP=> vg /get_globalI [z hz ->] <- <- /= ht.
     by rewrite /get_global_word hz /=; eauto.
+  (* Adr *)
   + move=> sz x p; case: eqP => [<- | //].
-    t_xrbindP => r haddr ha w1 wp vp hget htop [wp' lp'] hp vp' /= hp' wr hwr <- <- /= htr; subst a'.
-    move: hcomp. rewrite /compat_imm orbF => /eqP <-.
-    have <- := addr_of_pexprP eqm hget htop hp hp' haddr.
-    case: eqm => <- h1 h2 h3; rewrite hwr /=; eauto.
-    exists (Vword wr). elim: lp' hp.
-    + admit.
-    + admit.
-    + move=> p' he'. 
+    t_xrbindP => r haddr ha' w1 wp vp hget htop [wp' lp'] hp vp' /= hp' wr hwr <- <- /= htr; subst a'.
+    move: hcomp; rewrite /compat_imm orbF => /eqP <-.
+    have <- /= := addr_of_pexprP eqm hget htop hp hp' haddr.
+    case: eqm => <- h1 h2 h3; rewrite hwr /=; eauto. exists (Vword wr);split=> //=.
+    admit. (* need to show that lp' is [::] *)
   case => //= w' [] //= z; case: max_imm => //= w1.
-  t_xrbindP => ? /assertP /eqP heq h.
+  t_xrbindP => u /assertP /eqP heq h.
   case: h hcomp => <-; rewrite /compat_imm => /orP [/eqP <- | ].
-  + move=> w [] <- /truncate_wordP [hsz ->].
+  + move=> w [] <- <- /truncate_wordP [hsz ->].
     rewrite heq; eexists; split; first reflexivity.
     by rewrite /to_word truncate_word_u.
-  case: a => // sz' w2 /eqP heq2 w [] <- /truncate_wordP [hsz ->].
+  case: a => // sz' w2 /eqP heq2 w [] <- <- /truncate_wordP [hsz ->].
   rewrite -heq2 heq; eexists; split; first reflexivity.
   by rewrite /to_word truncate_word_u.
-Qed.*) Admitted.
+Admitted.
 
 Lemma zero_extend_mask_word sz sz' :
   (sz ≤ sz')%CMP →
