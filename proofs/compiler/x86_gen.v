@@ -149,12 +149,9 @@ case: i => ii [] /=.
   + t_xrbindP => pc ok_pc <- {ls'} <- /=.
     rewrite /eval_JMP -(assemble_c_find_label lbl eqc) ok_pc /=.
     exists (st_write_ip pc.+1 xs); split=> //; eauto.
-  t_xrbindP=> <- <- /=. rewrite /eval_JMP /= -(assemble_c_find_label lbl eqc) /=.
-  rewrite /find_label /=. case: ifP=> //=.
-  + move=> hl. exists (st_write_ip (xip xs).+1 xs); split=> //=; constructor=> //.
-    by rewrite /setpc /= eqpc.
-  move=> //=. admit. (* semantic of Licond gives no information about findlabel in false branch : eval_instr*)
-Admitted.
+  case=> <- <- /=; eexists; split; first by reflexivity.
+  by constructor => //; rewrite /setpc /= eqpc.
+Qed.
 
 Lemma match_state_step gd ls ls' li xs :
   match_state ls xs →

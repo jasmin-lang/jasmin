@@ -139,8 +139,8 @@ Definition eval_JMP lbl (s: x86_state) :=
 (** If we don't leak b in eval_JMP case then we get to prove that Laempty = Lcond b **)
 Definition eval_Jcc lbl ct (s: x86_state) : x86_result_state :=
   Let b := eval_cond ct s.(xrf) in
-  Let r := eval_JMP lbl s in
-  if b then ok (r, Lacond b) else ok (st_write_ip (xip s).+1 s, Lacond b).
+  (*Let r := eval_JMP lbl s in*)
+  if b then Let r := eval_JMP lbl s in ok (r, Lacond b) else ok (st_write_ip (xip s).+1 s, Lacond b).
 
 (* -------------------------------------------------------------------- *)
 Definition st_get_rflag (rf : rflag) (s : x86_mem) :=
