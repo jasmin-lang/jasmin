@@ -426,8 +426,8 @@ Definition assemble_lea ii lea :=
 Definition addr_of_pexpr ii sz x (e: pexpr) := 
   let e := Papp2 (Oadd (Op_w sz)) (Pvar x) e in
   match lowering.mk_lea sz e with
-  | Some lea => assemble_lea ii lea
-  | None => cierror ii (Cerr_assembler (AsmErr_string "lea: not able to assemble address"))
+  | (Some lea, le) => assemble_lea ii lea
+  | (None, le) => cierror ii (Cerr_assembler (AsmErr_string "lea: not able to assemble address"))
   end.
 
 Definition xreg_of_var ii (x: var) : ciexec asm_arg :=

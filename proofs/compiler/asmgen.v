@@ -125,8 +125,8 @@ Definition is_lea ii op (outx : lvals) (inx : pexprs) :=
   match op, outx, inx with
   | LEA sz, [:: Lvar x], [:: e] => 
     match lowering.mk_lea sz e with
-    | Some lea => ok (Some (sz, x, lea))
-    | None => cierror ii (Cerr_assembler (AsmErr_string "lea: not able to assemble address"))
+    | (Some lea, le) => ok (Some (sz, x, lea))
+    | (None, le) => cierror ii (Cerr_assembler (AsmErr_string "lea: not able to assemble address"))
     end
   | LEA _, _, _ => cierror ii (Cerr_assembler (AsmErr_string "lea: invalid lea instruction"))
   | _, _, _ => ok None
@@ -234,6 +234,7 @@ Proof.
   by move=> /= <- ->.
 Qed.
 
+(* Need to remove this after fixing lowering *)
 Variable fv : fresh_vars.
 Hypothesis fvars_correct: fvars_correct fv [::].
 
@@ -244,11 +245,34 @@ Lemma addr_of_pexprP ii gd e a (x:var_i) o z o' lo z' m s:
   sem_pexpr gd s e = ok (o', lo) →
   to_pointer o' = ok z' →
   addr_of_pexpr ii Uptr x e = ok a →
-  (z + z')%R = decode_addr m a.
+  (z + z')%R = decode_addr m a /\ leak_e_asm lo = [::].
 Proof.
 move => eqv ok_o ok_z ok_o' ok_z'.
 rewrite /addr_of_pexpr.
-case heq: mk_lea => [lea | //].
+case heq: mk_lea => [lea le] //.
+case: lea heq=> //. move=> lea heq.
+have hle : (U64 <= U64)%CMP by [].
+have options : lowering_options. + constructor. constructor. constructor.
+have warning : instr_info → warning_msg → instr_info. + auto.
+have is_var_in_memory : var_i -> bool. + constructor.
+have /= := (mk_leaP (p:= (Build_prog gd [::])) options warning is_var_in_memory fvars_correct hle hle heq). 
+move=> Hlea. move: (Hlea s  (LSub [:: LEmpty; lo]) (z + z')%R). 
+rewrite ok_o /= ok_o' /= /sem_sop2 /= ok_z /= ok_z' /=.
+move=> {Hlea} Hlea.
+have heqv : ok (Vword (z + z'), LSub [:: LEmpty; lo]) =
+         ok (Vword (z + z'), LSub [:: LEmpty; lo]). auto.
+move: (Hlea (heqv _)). move=> [] h1 hv.
+have := assemble_leaP hle hle eqv h1.
+move=> H. move: (H ii a). move=> ha H'. move: (ha H'). split.
++ rewrite !zero_extend_u in ha0; symmetry; apply ha0.
+case: hv=> hv1 hv2. case: le heq Hlea hv1 hv2=> //=.
+move=> le //= hlea _ hll [] hll'. rewrite -hll' in hll.
+rewrite /= in hll. by rewrite cats0 in hll.
+Qed.
+
+(*move => eqv ok_o ok_z ok_o' ok_z'.
+rewrite /addr_of_pexpr.
+case heq: mk_lea => [[lea le] | //].
 have hle : (U64 <= U64)%CMP by [].
 have options : lowering_options. + constructor. constructor. constructor.
 have warning : instr_info → warning_msg → instr_info. + auto.
@@ -263,7 +287,7 @@ move: (Hlea (heqv _)). move=> h1.
 have := assemble_leaP hle hle eqv h1.
 move=> H. move: (H ii a). move=> ha H'. move: (ha H').
 by rewrite !zero_extend_u => ->.
-Qed.
+Qed.*)
 
 Variant check_sopn_argI ii max_imm args e : arg_desc -> stype -> Prop :=
 | CSA_Implicit i ty :
@@ -318,8 +342,6 @@ Lemma var_of_registerP E m s r v ty vt:
   ∃ v' : value, Ok E (Vword ((xreg s) r)) = ok v' ∧ of_val ty v' = ok vt.
 Proof. move=> [? h ??] /h -/value_uincl_word_of_val h1 /h1;eauto. Qed.
 
-Variable E : Type.
-
 Lemma check_sopn_arg_sem_eval gd m s ii max_imm args e ad ty v le vt:
      lom_eqv m s
   -> check_sopn_arg ii max_imm args e (ad,ty)
@@ -339,17 +361,16 @@ Proof.
       move=> y -> /= <- hvt'. by exists y.
     (* IAreg *)
     move=> /=. t_xrbindP. move=> vg hg <- <- hvt.
-    have:= (var_of_registerP E eqm hg hvt). move=> [] v' [] [] <- hv.
+    have:= (var_of_registerP error eqm hg hvt). move=> [] v' [] [] <- hv.
     exists (Vword ((xreg s) r)). split=> //.
-    (* don't know how to provide T for Hr *) (* so introduced E in context *)
   (* ADExplicit *)
   move=> n o a a' [ | | | ws] //= ->. 
   + t_xrbindP => c hac <-. 
     rewrite /compat_imm orbF => /eqP <- -> /= b hb.
     case: eqm => h1 h2 h3 eqf.
-    have [v']:= eval_assemble_cond eqf hac hb.
-    case: eval_cond => /= [ | [] [] // [] <- /value_uincl_undef [ty1] -> ]; last by case: ty1.
-    move=> b' [] [] <-; case: v hb=> // [b1| [] //] hb /= <- [] <-.
+    have := eval_assemble_cond eqf hac hb. move=> [] v' [] hv' [] hv <-. move: hv' hv.
+    case: eval_cond => /= [ | [] // [] <- /value_uincl_undef [ty1] -> ]; last by case: ty1.
+    move=> b' [] <-; case: v hb=> // [b1| [] //] hb /= <- [] <-.
     exists b1; split=> //.
   move=> haw hcomp -> /=; case: e haw => //=.
   + case: eqm => _ eqr eqx _.
@@ -363,23 +384,26 @@ Proof.
   + move=> g h; case: h hcomp => <-.
     rewrite /compat_imm orbF => /eqP <- w; t_xrbindP=> vg /get_globalI [z hz ->] <- <- /= ht.
     by rewrite /get_global_word hz /=; eauto.
-  (* Adr *)
+  (* Adr *) (* case for Explicit and Adr *) (* loading from memory *)
+  (* addr_of_pexpr uses mk_lea and mk_lea uses mk_lea_rec which does some calculation based on lea_add, lea_sub etc. 
+     so the expressions are Papp1 and Papp2 which will always produce either empty leakage or sequence of empty leakage *)
   + move=> sz x p; case: eqP => [<- | //].
     t_xrbindP => r haddr ha' w1 wp vp hget htop [wp' lp'] hp vp' /= hp' wr hwr <- <- /= htr; subst a'.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
-    have <- /= := addr_of_pexprP eqm hget htop hp hp' haddr.
+    have /= [<- hl] := addr_of_pexprP eqm hget htop hp hp' haddr.
     case: eqm => <- h1 h2 h3; rewrite hwr /=; eauto. exists (Vword wr);split=> //=.
-    admit. (* need to show that lp' is [::] *)
+    by rewrite hl /=. (* need to show that lp' is [::] *)
+  (* XMM *)
   case => //= w' [] //= z; case: max_imm => //= w1.
   t_xrbindP => u /assertP /eqP heq h.
   case: h hcomp => <-; rewrite /compat_imm => /orP [/eqP <- | ].
-  + move=> w [] <- <- /truncate_wordP [hsz ->].
+  + move=> w <- <- /truncate_wordP [hsz ->].
     rewrite heq; eexists; split; first reflexivity.
     by rewrite /to_word truncate_word_u.
-  case: a => // sz' w2 /eqP heq2 w [] <- <- /truncate_wordP [hsz ->].
+  case: a => // sz' w2 /eqP heq2 w <- <- /truncate_wordP [hsz ->].
   rewrite -heq2 heq; eexists; split; first reflexivity.
   by rewrite /to_word truncate_word_u.
-Admitted.
+Qed.
 
 Lemma zero_extend_mask_word sz sz' :
   (sz ≤ sz')%CMP →
@@ -537,16 +561,11 @@ Proof.
   move: hw; rewrite truncate_word_u => -[?]; subst vt.
   t_xrbindP => adr hadr ?; subst a.
   rewrite /= heq1 hc /= /mem_write_mem -h1.
-  have /(_ hget) <-:= addr_of_pexprP hlom _ hp he hofs hadr.
+  have := addr_of_pexprP hlom _ hp he hofs hadr. move=> /(_ hget) [] <- -> /=.
   rewrite hm1 /=. 
   exists {| xmem := m1; xreg := xreg s; xxreg := xxreg s; xrf := xrf s |}.
-  split. 
-  case: e he hadr=> //=.
-  + by move=> v; t_xrbindP=> y hg hv <- /= h.
-  + move=> op1 e. t_xrbindP=> -[v1 l1] he vo /= hop hv /= <- /= h. admit.
-  + move=> //= op2 e e0. t_xrbindP. admit.
-  by constructor. 
-Admitted.
+  split=> //.
+Qed.
 
 Lemma compile_lvals ii id_max_imm gd m lvs m' le s loargs 
   id_out id_tout (vt:sem_tuple id_tout) msb_flag: 
@@ -624,14 +643,15 @@ Lemma is_leaP ii op outx inx lea:
   is_lea ii op outx inx = ok lea ->
   match lea with
   | Some(sz, x, lea) =>
-    exists e, [/\ op = LEA sz, outx = [::Lvar x], inx = [:: e] & lowering.mk_lea sz e = Some lea]
+    exists e, exists le, [/\ op = LEA sz, outx = [::Lvar x], inx = [:: e] & lowering.mk_lea sz e = (Some lea, le)]
   | None => is_special op = false
   end.
 Proof.
   case: op outx inx => //=;
    try by move=> *; match goal with | H:ok _ = ok lea |- _ => case: H; move=> H;subst lea end.
   move=> sz [ | []] // x [] // [ | e []]//.
-  by case heq: mk_lea => [lea' | //] [<-]; eexists.
+  case heq: mk_lea => [lea' le'] // ;case: lea' heq=> // lea' hlea [] <-; eexists; eexists; split=> //.
+  by apply hlea.
 Qed.
   
 Lemma assemble_x86_opnP ii gd op lvs args op' asm_args s m m' le: 
@@ -641,13 +661,13 @@ Lemma assemble_x86_opnP ii gd op lvs args op' asm_args s m m' le:
   exists s', eval_op gd op' asm_args s = ok (s', Laop (leak_e_asm le)) /\ lom_eqv m' s'.
 Proof.
   rewrite /assemble_x86_opn. t_xrbindP=> hsem lea /is_leaP.
-  case: lea=> [ [[sz x] lea] [e [??? hlea]]| hspe].
+  case: lea => [] [[sz x] lea]. move=> [] e [] le' [] ? ? ? hlea.
   + subst op lvs args; t_xrbindP. 
     move=> rx /reg_of_var_register_of_var -/var_of_register_of_var hrx rb hrb.
     move=> ro hro sc /xscale_ok hsc <- <- hlo.
     move: hsem; rewrite /eval_op /sem_sopn /exec_sopn /=. t_xrbindP.
     move=> vs [v l] he <- va /=. t_xrbindP.
-    move=> w w' hw; rewrite /sopn_sem /= /x86_LEA /=.
+    move=> w w' /to_wordI [] sz' [] sz'' [] hsz'' hv hw'; rewrite /sopn_sem /= /x86_LEA /=.
     rewrite /check_size_16_64; case: andP => //= -[hsz1 hsz2] -[<-] <- /=.
     t_xrbindP=> [m1 lm1] m2 hwm /= <- /= <- /= <- <- /=.
     move: hwm; rewrite /write_var /set_var -hrx /= => -[<-].
@@ -660,16 +680,23 @@ Proof.
                ad_base := rb;
                ad_scale := sc;
                ad_offset := ro |})) s); split.
-    + admit. (** need to prove that l is [::] **)
-    case: hlo => h1 h2 h3 h4. 
-    constructor=> //=.
-    + move=> r' v'; rewrite /get_var /on_vu /= /RegMap.set ffunE.
-      have [sz' [w'' [hsz' h h']]]:= to_wordI hw; subst v w'.
+    + subst v w'.
       have options : lowering_options. + constructor. constructor. constructor.
       have warning : instr_info → warning_msg → instr_info. + auto.
       have is_var_in_memory : var_i -> bool. + constructor. move: mk_leaP.
       move=> Hlea. move: (Hlea {| p_globs := gd; p_funcs := [::] |} options warning fv is_var_in_memory fvars_correct).
-      move=> {Hlea} Hlea. move: (Hlea m e lea l sz sz' w'' hsz2 hsz' hlea he).
+      move=> {Hlea} Hlea. move: (Hlea m e lea le' l sz sz' sz'' hsz2 hsz'' hlea he). move=> [] {Hlea} Hlea [] hl1 hl2.
+      by rewrite hl2 hl1 /=.  (** need to prove that l is [::] **)
+    case: hlo => h1 h2 h3 h4. 
+    constructor=> //=.
+    + move=> r' v'; rewrite /get_var /on_vu /= /RegMap.set ffunE.
+      (*have [sz' [w'' [hsz' h h']]]:= to_wordI hw;*) subst v w'.
+      have options : lowering_options. + constructor. constructor. constructor.
+      have warning : instr_info → warning_msg → instr_info. + auto.
+      have is_var_in_memory : var_i -> bool. + constructor. move: mk_leaP.
+      move=> Hlea. move: (Hlea {| p_globs := gd; p_funcs := [::] |} options warning fv is_var_in_memory fvars_correct).
+      move=> {Hlea} Hlea. move: (Hlea m e lea le' l sz sz' sz'' hsz2 hsz'' hlea he). move=> [] {Hlea} Hlea [] hl1 hl2.
+      move: Hlea.
       case: eqP => [-> | hne] hlea'.
       + rewrite Fv.setP_eq  /word_extend_reg => -[<-] /=.
         move: hlea'; rewrite /sem_lea /decode_addr /=.
@@ -695,10 +722,10 @@ Proof.
       by rewrite Fv.setP_neq //; apply h3.
     move=> f v'; rewrite /get_var /on_vu /=.
     by rewrite Fv.setP_neq //; apply h4.
-  t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ?. 
-  subst asm_args'. rewrite /eval_op hspe.
-  apply: compile_x86_opn hsem hca hcd hidc.
-Admitted.
+  move: x. t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ?. 
+  subst asm_args'. rewrite /eval_op sz /=.
+  by apply: compile_x86_opn hsem hca hcd hidc lea.
+Qed.
 
 Lemma assemble_sopnP gd ii op lvs args op' asm_args m m' le s: 
   sem_sopn gd op m lvs args = ok (m', le) ->

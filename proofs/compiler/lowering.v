@@ -26,7 +26,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Utf8.
-Require Import compiler_util expr low_memory.
+Require Import compiler_util expr low_memory leakage.
 
 Section LOWERING.
 
@@ -321,27 +321,27 @@ Definition lea_sub l1 l2 :=
   | _   , _    => None
   end.
 
-Fixpoint mk_lea_rec (sz:wsize) e :=
+Fixpoint mk_lea_rec (sz:wsize) e : (option lea * leak_e) :=
   match e with
   | Papp1 (Oword_of_int sz') (Pconst z) => 
-      Some (lea_const (sign_extend Uptr (wrepr sz' z)))
-  | Pvar  x          => Some (lea_var x)
+      (Some (lea_const (sign_extend Uptr (wrepr sz' z))), LEmpty)
+  | Pvar  x          => (Some (lea_var x), LEmpty)
   | Papp2 (Omul (Op_w sz')) e1 e2 =>
     match mk_lea_rec sz e1, mk_lea_rec sz e2 with
-    | Some l1, Some l2 => lea_mul l1 l2
-    | _      , _       => None
+    | (Some l1, LEmpty), (Some l2, LEmpty) => (lea_mul l1 l2, LSub[:: LEmpty; LEmpty])
+    | _      , _       => (None, LEmpty)
     end
   | Papp2 (Oadd (Op_w sz')) e1 e2 =>
     match mk_lea_rec sz e1, mk_lea_rec sz e2 with
-    | Some l1, Some l2 => lea_add l1 l2
-    | _      , _       => None
+    | (Some l1, LEmpty), (Some l2, LEmpty) => (lea_add l1 l2, LSub[:: LEmpty; LEmpty])
+    | _      , _       => (None, LEmpty)
     end
   | Papp2 (Osub (Op_w sz')) e1 e2 =>
     match mk_lea_rec sz e1, mk_lea_rec sz e2 with
-    | Some l1, Some l2 => lea_sub l1 l2
-    | _      , _       => None
+    | (Some l1, LEmpty), (Some l2, LEmpty) => (lea_sub l1 l2, LSub[:: LEmpty; LEmpty])
+    | _      , _       => (None, LEmpty)
     end
-  | _ => None
+  | _ => (None, LEmpty)
   end.
 
 Fixpoint push_cast_sz sz e := 
@@ -377,12 +377,12 @@ Definition mk_lea sz e := mk_lea_rec sz (push_cast e).
 Definition is_lea sz x e :=
   if ((U16 ≤ sz)%CMP && (sz ≤ U64)%CMP) && ~~ is_lval_in_memory x then
     match mk_lea sz e with
-    | Some (MkLea d b sc o) =>
+    | (Some (MkLea d b sc o), le) =>
       let check o := match o with Some x => ~~(is_var_in_memory x) | None => true end in
       (* FIXME: check that d is not to big *)
       if check_scale (wunsigned sc) && check b && check o then  Some (MkLea d b sc o)
       else None
-    | None => None
+    | (None, le) => None
     end
   else None.
 
