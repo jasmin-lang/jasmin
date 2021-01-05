@@ -536,9 +536,15 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec (estate * leak_e) :=
     ok ({| emem := s.(emem); evm := vm |}, LSub [:: vl.2; (LIdx i)])
   end.
 
-Definition write_lvals (s:estate) xs vs :=
-   fold2 ErrType (fun l v sl => Let sl' := write_lval l v sl.1 in ok (sl'.1, rcons sl.2 sl'.2))
-      xs vs (s, [::]).
+Fixpoint write_lvals (s:estate) xs vs : exec (estate * seq leak_e) :=
+  match xs, vs with
+  | [::], [::] => ok (s, [::])
+  | x::xs, v::vs =>
+    Let sl := write_lval x v s in
+    Let sls := write_lvals sl.1 xs vs in
+    ok (sls.1, sl.2::sls.2)
+  | _, _ => Error ErrType                     
+  end.
 
 End SEM_PEXPR.
 
@@ -609,7 +615,7 @@ Definition sem_sopn gd o m lvs args :=
   Let vas := sem_pexprs gd m args in
   Let vs := exec_sopn o (unzip1 vas) in 
   Let ml := write_lvals gd m lvs vs in
-  ok (ml.1, LSub (unzip2 vas ++ ml.2)).
+  ok (ml.1, LSub [:: LSub (unzip2 vas) ; LSub ml.2]).
 
 Inductive sem : estate -> cmd -> leak_c -> estate -> Prop :=
 | Eskip s :

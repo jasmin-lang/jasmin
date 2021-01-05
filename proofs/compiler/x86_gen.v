@@ -141,7 +141,7 @@ case: i => ii [] /=.
 (* cond *)
 - t_xrbindP => cnd lbl cndt ok_c [<-] [v l] ok_v b /= ok_b.
   case: eqm => eqm eqr eqx eqf.
-  have [v' [ok_v' hvv']] := eval_assemble_cond eqf ok_c ok_v.
+  have [v' [ok_v' [] hvv' hvv'']] := eval_assemble_cond eqf ok_c ok_v.
   case: v ok_v ok_b hvv' => // [ b' | [] // ] ok_b [?]; subst b'.
   rewrite /eval_Jcc.
   case: b ok_b => ok_b; case: v' ok_v' => // b ok_v' /= ?; subst b;

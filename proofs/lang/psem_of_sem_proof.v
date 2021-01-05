@@ -255,13 +255,12 @@ Corollary write_lvals_sim s1 xs vs s2 l2 s1' :
   ∃ s2', estate_sim s2 s2' ∧ psem.write_lvals gd s1' xs vs = ok (s2', l2).
 Proof.
 rewrite /write_lvals. rewrite /sem.write_lvals.
-elim: xs vs s1 s1' [::] l2.
-- case => // s1 s1' l l2 h [<-] <-. exists s1'. split. by auto. auto.
-move => x xs ih [] // v vs s1 s1' l0 l2 h /=.
-t_xrbindP. move=> y [hv hl] Hsem He H. subst.
-move: (write_lval_sim). move=> Hw. move: (Hw s1 x v hv hl s1' h Hsem) => [] x0 [] h' hw /=.
-rewrite hw /=. move: (ih vs hv x0 (rcons l0 (hv, hl).2) l2 h' H) => [] s2' [] H' Hf. exists s2'.
-split. auto. auto.
+elim: xs vs s1 s1' s2 l2.
+- case => // s1 s1' s2 l2 h [<-] <-. exists s1'. split. by auto. auto.
+move => x xs ih [] // v vs s1 s1' s2 l2 h /=. t_xrbindP.
+move=> [s' l'] /(write_lval_sim h) [] s2' [] h' -> /= [s2'' l2''] h'' /= <- <-.
+move: (ih vs s' s2' s2'' l2'' h' h''). move=> [] s'' [] h1 h1'. exists s''.
+by split=> //; rewrite h1' /=.
 Qed.
 
 Let Pc s1 c lc s2 : Prop :=
