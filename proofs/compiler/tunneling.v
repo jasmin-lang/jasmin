@@ -927,6 +927,7 @@ Section TunnelingProof.
     set uf:= pairfoldl _ _ _ _; rewrite /tunnel_chart.
     case Hlastpfb: (last _ _) => [li_ii1 li_i1] //; case Hc: c => [li_ii2 li_i2] //.
     case: li_i1 Hlastpfb.
+    (*TODO*)
     1-2,4-7:
       by intros; eexists; eauto.
     case: li_i2 Hc.
