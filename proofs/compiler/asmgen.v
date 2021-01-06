@@ -125,8 +125,8 @@ Definition is_lea ii op (outx : lvals) (inx : pexprs) :=
   match op, outx, inx with
   | LEA sz, [:: Lvar x], [:: e] => 
     match lowering.mk_lea sz e with
-    | (Some lea, le) => ok (Some (sz, x, lea))
-    | (None, le) => cierror ii (Cerr_assembler (AsmErr_string "lea: not able to assemble address"))
+    | Some lea => ok (Some (sz, x, lea))
+    | None => cierror ii (Cerr_assembler (AsmErr_string "lea: not able to assemble address"))
     end
   | LEA _, _, _ => cierror ii (Cerr_assembler (AsmErr_string "lea: invalid lea instruction"))
   | _, _, _ => ok None
@@ -249,8 +249,7 @@ Lemma addr_of_pexprP ii gd e a (x:var_i) o z o' lo z' m s:
 Proof.
 move => eqv ok_o ok_z ok_o' ok_z'.
 rewrite /addr_of_pexpr.
-case heq: mk_lea => [lea le] //.
-case: lea heq=> //. move=> lea heq.
+case heq: mk_lea => [lea | //].
 have hle : (U64 <= U64)%CMP by [].
 have options : lowering_options. + constructor. constructor. constructor.
 have warning : instr_info → warning_msg → instr_info. + auto.
@@ -265,29 +264,8 @@ move: (Hlea (heqv _)). move=> [] h1 hv.
 have := assemble_leaP hle hle eqv h1.
 move=> H. move: (H ii a). move=> ha H'. move: (ha H'). split.
 + rewrite !zero_extend_u in ha0; symmetry; apply ha0.
-case: hv=> hv1 hv2. case: le heq Hlea hv1 hv2=> //=.
-move=> le //= hlea _ hll [] hll'. rewrite -hll' in hll.
-rewrite /= in hll. by rewrite cats0 in hll.
+by rewrite cats0 in hv.
 Qed.
-
-(*move => eqv ok_o ok_z ok_o' ok_z'.
-rewrite /addr_of_pexpr.
-case heq: mk_lea => [[lea le] | //].
-have hle : (U64 <= U64)%CMP by [].
-have options : lowering_options. + constructor. constructor. constructor.
-have warning : instr_info → warning_msg → instr_info. + auto.
-have is_var_in_memory : var_i -> bool. + constructor.
-have /= := (mk_leaP (p:= (Build_prog gd [::])) options warning is_var_in_memory fvars_correct hle hle heq). 
-move=> Hlea. move: (Hlea s  (LSub [:: LEmpty; lo]) (z + z')%R). 
-rewrite ok_o /= ok_o' /= /sem_sop2 /= ok_z /= ok_z' /=.
-move=> {Hlea} Hlea.
-have heqv : ok (Vword (z + z'), LSub [:: LEmpty; lo]) =
-         ok (Vword (z + z'), LSub [:: LEmpty; lo]). auto.
-move: (Hlea (heqv _)). move=> h1.
-have := assemble_leaP hle hle eqv h1.
-move=> H. move: (H ii a). move=> ha H'. move: (ha H').
-by rewrite !zero_extend_u => ->.
-Qed.*)
 
 Variant check_sopn_argI ii max_imm args e : arg_desc -> stype -> Prop :=
 | CSA_Implicit i ty :
@@ -643,17 +621,16 @@ Lemma is_leaP ii op outx inx lea:
   is_lea ii op outx inx = ok lea ->
   match lea with
   | Some(sz, x, lea) =>
-    exists e, exists le, [/\ op = LEA sz, outx = [::Lvar x], inx = [:: e] & lowering.mk_lea sz e = (Some lea, le)]
+    exists e, [/\ op = LEA sz, outx = [::Lvar x], inx = [:: e] & lowering.mk_lea sz e = Some lea]
   | None => is_special op = false
   end.
 Proof.
   case: op outx inx => //=;
    try by move=> *; match goal with | H:ok _ = ok lea |- _ => case: H; move=> H;subst lea end.
   move=> sz [ | []] // x [] // [ | e []]//.
-  case heq: mk_lea => [lea' le'] // ;case: lea' heq=> // lea' hlea [] <-; eexists; eexists; split=> //.
-  by apply hlea.
+  by case heq: mk_lea => [lea' | //] [<-]; eexists.
 Qed.
-  
+
 Lemma assemble_x86_opnP ii gd op lvs args op' asm_args s m m' le: 
   sem_sopn gd (Ox86 op) m lvs args = ok (m', le) ->
   assemble_x86_opn ii op lvs args = ok (op', asm_args) ->
@@ -661,7 +638,7 @@ Lemma assemble_x86_opnP ii gd op lvs args op' asm_args s m m' le:
   exists s', eval_op gd op' asm_args s = ok (s', Laop (leak_e_asm le)) /\ lom_eqv m' s'.
 Proof.
   rewrite /assemble_x86_opn. t_xrbindP=> hsem lea /is_leaP.
-  case: lea => [] [[sz x] lea]. move=> [] e [] le' [] ? ? ? hlea.
+  case: lea => [ [[sz x] lea] [e [??? hlea]]| hspe]. 
   + subst op lvs args; t_xrbindP. 
     move=> rx /reg_of_var_register_of_var -/var_of_register_of_var hrx rb hrb.
     move=> ro hro sc /xscale_ok hsc <- <- hlo.
@@ -685,8 +662,9 @@ Proof.
       have warning : instr_info → warning_msg → instr_info. + auto.
       have is_var_in_memory : var_i -> bool. + constructor. move: mk_leaP.
       move=> Hlea. move: (Hlea {| p_globs := gd; p_funcs := [::] |} options warning fv is_var_in_memory fvars_correct).
-      move=> {Hlea} Hlea. move: (Hlea m e lea le' l sz sz' sz'' hsz2 hsz'' hlea he). move=> [] {Hlea} Hlea [] hl1 hl2.
-      by rewrite hl2 hl1 /=.  (** need to prove that l is [::] **)
+      move=> {Hlea} Hlea. move: (Hlea m e lea l sz sz' sz'' hsz2 hsz'' hlea he). move=> [] {Hlea} Hlea Hl1.
+      by rewrite Hl1. 
+      (*by rewrite hl2 hl1 /=.*)  (** need to prove that l is [::] **)
     case: hlo => h1 h2 h3 h4. 
     constructor=> //=.
     + move=> r' v'; rewrite /get_var /on_vu /= /RegMap.set ffunE.
@@ -695,7 +673,7 @@ Proof.
       have warning : instr_info → warning_msg → instr_info. + auto.
       have is_var_in_memory : var_i -> bool. + constructor. move: mk_leaP.
       move=> Hlea. move: (Hlea {| p_globs := gd; p_funcs := [::] |} options warning fv is_var_in_memory fvars_correct).
-      move=> {Hlea} Hlea. move: (Hlea m e lea le' l sz sz' sz'' hsz2 hsz'' hlea he). move=> [] {Hlea} Hlea [] hl1 hl2.
+      move=> {Hlea} Hlea. move: (Hlea m e lea l sz sz' sz'' hsz2 hsz'' hlea he). move=> [] {Hlea} Hlea Hl1.
       move: Hlea.
       case: eqP => [-> | hne] hlea'.
       + rewrite Fv.setP_eq  /word_extend_reg => -[<-] /=.
@@ -722,9 +700,9 @@ Proof.
       by rewrite Fv.setP_neq //; apply h3.
     move=> f v'; rewrite /get_var /on_vu /=.
     by rewrite Fv.setP_neq //; apply h4.
-  move: x. t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ?. 
-  subst asm_args'. rewrite /eval_op sz /=.
-  by apply: compile_x86_opn hsem hca hcd hidc lea.
+  t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ?. 
+  subst asm_args'. rewrite /eval_op hspe /=.
+  by apply: compile_x86_opn hsem hca hcd hidc.
 Qed.
 
 Lemma assemble_sopnP gd ii op lvs args op' asm_args m m' le s: 

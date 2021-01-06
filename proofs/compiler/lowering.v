@@ -321,29 +321,53 @@ Definition lea_sub l1 l2 :=
   | _   , _    => None
   end.
 
-Fixpoint mk_lea_rec (sz:wsize) e : (option lea * leak_e) :=
+Fixpoint mk_lea_rec (sz:wsize) e : option lea :=
+  match e with
+  | Papp1 (Oword_of_int sz') (Pconst z) => 
+      Some (lea_const (sign_extend Uptr (wrepr sz' z)))
+  | Pvar  x          => Some (lea_var x)
+  | Papp2 (Omul (Op_w sz')) e1 e2 =>
+    match mk_lea_rec sz e1, mk_lea_rec sz e2 with
+    | Some l1, Some l2 => lea_mul l1 l2
+    | _      , _       => None
+    end
+  | Papp2 (Oadd (Op_w sz')) e1 e2 =>
+    match mk_lea_rec sz e1, mk_lea_rec sz e2 with
+    | Some l1, Some l2 => lea_add l1 l2
+    | _      , _       => None
+    end
+  | Papp2 (Osub (Op_w sz')) e1 e2 =>
+    match mk_lea_rec sz e1, mk_lea_rec sz e2 with
+    | Some l1, Some l2 => lea_sub l1 l2
+    | _      , _       => None
+    end
+  | _ => None
+  end.
+
+
+(*Fixpoint mk_lea_rec (sz:wsize) e : (option lea * leak_e) :=
   match e with
   | Papp1 (Oword_of_int sz') (Pconst z) => 
       (Some (lea_const (sign_extend Uptr (wrepr sz' z))), LEmpty)
   | Pvar  x          => (Some (lea_var x), LEmpty)
   | Papp2 (Omul (Op_w sz')) e1 e2 =>
     match mk_lea_rec sz e1, mk_lea_rec sz e2 with
-    | (Some l1, LEmpty), (Some l2, LEmpty) => (lea_mul l1 l2, LSub[:: LEmpty; LEmpty])
+    | (Some l1, le1), (Some l2, le2) => (lea_mul l1 l2, LSub[:: le1; le2])
     | _      , _       => (None, LEmpty)
     end
   | Papp2 (Oadd (Op_w sz')) e1 e2 =>
     match mk_lea_rec sz e1, mk_lea_rec sz e2 with
-    | (Some l1, LEmpty), (Some l2, LEmpty) => (lea_add l1 l2, LSub[:: LEmpty; LEmpty])
+    | (Some l1, le1), (Some l2, le2) => (lea_add l1 l2, LSub[:: le1; le2])
     | _      , _       => (None, LEmpty)
     end
   | Papp2 (Osub (Op_w sz')) e1 e2 =>
     match mk_lea_rec sz e1, mk_lea_rec sz e2 with
-    | (Some l1, LEmpty), (Some l2, LEmpty) => (lea_sub l1 l2, LSub[:: LEmpty; LEmpty])
+    | (Some l1, le1), (Some l2, le2) => (lea_sub l1 l2, LSub[:: le1; le2])
     | _      , _       => (None, LEmpty)
     end
   | _ => (None, LEmpty)
   end.
-
+*)
 Fixpoint push_cast_sz sz e := 
   match e with
   | Papp2 (Oadd Op_int) e1 e2 => 
@@ -377,12 +401,12 @@ Definition mk_lea sz e := mk_lea_rec sz (push_cast e).
 Definition is_lea sz x e :=
   if ((U16 ≤ sz)%CMP && (sz ≤ U64)%CMP) && ~~ is_lval_in_memory x then
     match mk_lea sz e with
-    | (Some (MkLea d b sc o), le) =>
+    | Some (MkLea d b sc o) =>
       let check o := match o with Some x => ~~(is_var_in_memory x) | None => true end in
       (* FIXME: check that d is not to big *)
       if check_scale (wunsigned sc) && check b && check o then  Some (MkLea d b sc o)
       else None
-    | (None, le) => None
+    | None => None
     end
   else None.
 
