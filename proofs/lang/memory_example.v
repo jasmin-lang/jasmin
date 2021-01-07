@@ -384,12 +384,12 @@ Module MemoryI : MemoryT.
 
   (** Stack blocks: association list of frame pointers to frame sizes (data only) *)
   Definition stack_blocks_rec stk_root (frames: seq frame) :=
-    foldr (λ f '(p, blk), let: s := footprint_of_frame f in let: q := add p (- s) in (q, (q, s) :: blk)) (stk_root, [::]) frames.
+    foldr (λ f '(p, blk), let: s := footprint_of_frame f in let: q := add p (- s) in (q, q :: blk)) (stk_root, [::]) frames.
 
-  Definition stack_blocks stk_root frames : seq (pointer * Z) :=
+  Definition stack_blocks stk_root frames : seq pointer :=
     (stack_blocks_rec stk_root frames).2.
 
-  Definition stack_frames (m: mem) : seq (pointer * Z) :=
+  Definition stack_frames (m: mem) : seq pointer :=
     stack_blocks m.(stk_root) m.(frames).
 
   Lemma stack_blocks_rec_fst stk_root frames :
@@ -401,16 +401,9 @@ Module MemoryI : MemoryT.
     Psatz.lia.
   Qed.
 
-  Lemma stack_blocks_rec_snd_snd stk_root frames :
-    map snd ((stack_blocks_rec stk_root frames).2) = map footprint_of_frame frames.
-  Proof.
-    elim: frames => // f frames /=.
-    by case: (stack_blocks_rec _ _) => /= _ ? <-.
-  Qed.
-
   Lemma stack_blocks_rec_snd stk_root frames :
-    if (stack_blocks_rec stk_root frames).2 is p_sz :: tl
-    then let: (p, sz) := p_sz in p = add stk_root (- footprint_of_stack frames)
+    if (stack_blocks_rec stk_root frames).2 is p :: tl
+    then p = add stk_root (- footprint_of_stack frames)
     else frames = [::].
   Proof.
     elim: frames => // f fr.
@@ -454,7 +447,7 @@ Module MemoryI : MemoryT.
   Qed.
 
   Definition alloc_stack (m: mem) (ws: wsize) (sz sz': Z) : exec mem :=
-    let: top := align_word ws (add (top_stack m) (- round_ws ws (sz + sz'))) in
+    let: top := align_word ws (add (top_stack m) (- (sz + sz'))) in
     let: padding := sub (top_stack m) top - sz in
     let: f := {| frame_size := sz ; frame_padding := padding |} in
     let: ok_f := valid_frame f in
@@ -517,8 +510,7 @@ Module MemoryI : MemoryT.
   Qed.
   Arguments free_stack_stk_freeP : clear implicits.
 
-  (* The “free” function ignores its size argument because its only valid value can be computed from the ghost data. *)
-  Definition free_stack (m: mem) (_: Z) : mem :=
+  Definition free_stack (m: mem) : mem :=
     let sz := odflt 0 (omap footprint_of_frame (ohead m.(frames))) in
     {| data := m.(data);
        alloc := set_alloc false m.(alloc) (wunsigned m.(stk_root) - (footprint_of_stack m.(frames))) sz;
@@ -600,7 +592,7 @@ Module MemoryI : MemoryT.
   Proof.
     rewrite /memory_model.top_stack /= /stack_frames /top_stack /stack_blocks.
     have := stack_blocks_rec_snd (stk_root m) (frames m).
-    case: (stack_blocks_rec _ _) => /= _ [] //=; last by case.
+    case: (stack_blocks_rec _ _) => /= _ [] //.
     by move => ->; rewrite add_0.
   Qed.
 
@@ -828,18 +820,20 @@ Module MemoryI : MemoryT.
 
   Lemma ass_frames m ws_stk sz sz' m' :
     alloc_stack m ws_stk sz sz' = ok m' →
-    stack_frames m' = (top_stack m', round_ws ws_stk (sz + sz')) :: stack_frames m.
+    stack_frames m' = top_stack_after_alloc (top_stack m) ws_stk (sz + sz') :: stack_frames m.
   Proof.
     rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-] /=.
-    rewrite /stack_frames /top_stack /=.
+    rewrite /stack_frames /=.
     rewrite {1}/stack_blocks /=.
     case heq: (stack_blocks_rec _ _) => [p blk].
     rewrite /stack_blocks heq /=.
-    congr ((_, _) :: _).
-    - have := stack_blocks_rec_fst (stk_root m) (frames m).
-      rewrite heq /= => ->; rewrite addC; congr add.
-      Psatz.lia.
-  Admitted (* FIXME *).
+    rewrite {1}/top_stack -stack_blocks_rec_fst heq /=.
+    congr cons.
+    rewrite /top_stack_after_alloc.
+    move: (align_word _ _) => q.
+    rewrite /footprint_of_frame /=.
+    by rewrite Zplus_minus add_p_opp_sub_p.
+  Qed.
 
   Lemma alloc_stackP m m' ws_stk sz sz' :
     alloc_stack m ws_stk sz sz' = ok m' -> alloc_stack_spec m ws_stk sz sz' m'.
@@ -855,35 +849,19 @@ Module MemoryI : MemoryT.
     exact: ass_frames o.
   Qed.
 
-  Lemma first_frameE m sz :
-    omap snd (ohead (stack_frames m)) = Some sz →
-    omap footprint_of_frame (ohead (frames m)) = Some sz.
+  Lemma first_frameE (m: mem) :
+    odflt 0 (omap footprint_of_frame (ohead (frames m))) = wunsigned (top_stack (free_stack m)) - wunsigned (top_stack m).
   Proof.
-    rewrite /stack_frames /stack_blocks.
-    have := stack_blocks_rec_snd_snd (stk_root m) (frames m).
-    case: (stack_blocks_rec _ _) => /= _ [] //= [] /= _ p q h /Some_inj ?; subst p.
-    by case: (frames m) h => //= ?? [] -> _.
-  Qed.
-
-  Lemma no_overflow_top_stack m sz :
-    omap snd (ohead (stack_frames m)) = Some sz →
-    no_overflow (top_stack m) sz.
-  Proof.
-    rewrite /top_stack/no_overflow => /first_frameE.
-    have /andP[ ok_frames /lezP ] := framesP m.
-    case: (frames m) ok_frames (footprint_of_valid_frames ok_frames) => //= f fr /andP[] ok_f ok_fr fp no_underflow /Some_inj <-{sz}.
-    have rt_range := wunsigned_range (stk_root m).
-    have l_range := wunsigned_range (stk_limit m).
-    have := footprint_of_valid_frames ok_fr.
-    rewrite zify wunsigned_add; Psatz.lia.
-  Qed.
-
-  Lemma no_overflow_1 p :
-    no_overflow p 1 = true.
-  Proof.
-    apply/lezP.
-    have := wunsigned_range p.
-    Psatz.lia.
+    rewrite /top_stack /=.
+    have /andP[] := framesP m.
+    case: (frames m) => /=.
+    + rewrite add_0; Psatz.lia.
+    move => f fr /andP[] ok_f ok_fr /lezP noovf.
+    have ff := footprint_of_valid_frame ok_f.
+    have fs := footprint_of_valid_frames ok_fr.
+    have rr := wunsigned_range (stk_root m).
+    have lr := wunsigned_range (stk_limit m).
+    rewrite !wunsigned_add; Psatz.lia.
   Qed.
 
   Lemma wunsigned_top_stack m :
@@ -896,38 +874,42 @@ Module MemoryI : MemoryT.
     Psatz.lia.
   Qed.
 
-  Lemma fss_valid m sz p :
-    omap snd (ohead (stack_frames m)) = Some sz →
-    valid_pointer (free_stack m sz) p U8 ↔ valid_pointer m p U8 ∧ disjoint_zrange (top_stack m) sz p 1.
+  Lemma fss_valid m p :
+    valid_pointer (free_stack m) p U8 = valid_pointer m p U8 && ~~ pointer_range (top_stack m) (top_stack (free_stack m)) p.
   Proof.
-    rewrite /valid_pointer /free_stack /is_alloc /= add_0 /disjoint_zrange no_overflow_1 !andbT => o.
-    rewrite (no_overflow_top_stack o) /=.
-    case: eqP => _ /=; last by split => // - [].
-    rewrite set_allocP wunsigned_top_stack.
-    rewrite (first_frameE o) /=.
-    case: andP; rewrite !zify; last by intuition split => //; Psatz.lia.
-    move => p_range; split => // - [] ok_p [_ _]; Psatz.lia.
+    rewrite /valid_pointer /=.
+    rewrite Z.mod_1_r eqxx /=.
+    rewrite /is_alloc /= add_0 !andbT set_allocP.
+    set B := (X in if X then _ else _).
+    suff -> : B = pointer_range (top_stack m) (top_stack (free_stack m)) p.
+    + by case: ifP => _; rewrite ?andbF ?andbT.
+    subst B.
+    have P (a b: bool) : a ↔ b → a = b :> bool.
+    + case: a b => - [] //; last by intuition.
+      by case => /(_ erefl).
+    apply: P.
+    rewrite !zify first_frameE !wunsigned_top_stack.
+    change (stk_root (free_stack m)) with (stk_root m).
+    Psatz.lia.
   Qed.
 
-  Lemma fss_read_old m sz p s :
-    omap snd (ohead (stack_frames m)) = Some sz →
-    valid_pointer (free_stack m sz) p s →
-    read_mem m p s = read_mem (free_stack m sz) p s.
+  Lemma fss_read_old m p s :
+    valid_pointer (free_stack m) p s →
+    read_mem m p s = read_mem (free_stack m) p s.
   Proof.
-    move => o /dup[] ok_p_s' /valid_pointerP[] al_p valid_p.
+    move => /dup[] ok_p_s' /valid_pointerP[] al_p valid_p.
     have ok_p_s : valid_pointer m p s.
     + apply/valid_pointerP; apply: (conj al_p) => k /valid_p.
-      by rewrite (fss_valid _ o) => - [].
+      by rewrite (fss_valid m) => /andP[].
     by rewrite /read_mem /CoreMem.read /= /valid ok_p_s ok_p_s'.
   Qed.
 
-  Lemma free_stackP m sz :
-    omap snd (ohead (stack_frames m)) = Some sz ->
-    free_stack_spec m sz (free_stack m sz).
+  Lemma free_stackP m :
+    free_stack_spec m (free_stack m).
   Proof.
-    move => o; split => *.
+    split => *.
     - exact: fss_read_old.
-    - rewrite top_stackE; exact: fss_valid.
+    - rewrite !top_stackE; exact: fss_valid.
     - by [].
     - by [].
     rewrite /memory_model.frames /= /stack_frames /= /stack_blocks.
@@ -947,20 +929,6 @@ Module MemoryI : MemoryT.
     by case => _ ? _ -> ->.
   Qed.
   *)
-
-  Lemma free_stack_top_stack m sz :
-    omap snd (ohead (stack_frames m)) = Some sz →
-    memory_model.top_stack (free_stack m sz) = add (memory_model.top_stack m) sz.
-  Proof.
-    rewrite !top_stackE.
-    rewrite /free_stack /= /top_stack /=.
-    rewrite /memory_model.frames /= /stack_frames /= /stack_blocks.
-    case: (frames m) => //= f fr.
-    case: (stack_blocks_rec _ _) => /= _ _ /Some_inj <-{sz}.
-    rewrite addC.
-    congr add.
-    Psatz.lia.
-  Qed.
 
   Lemma allocatable_stackP m ws sz sz' : allocatable_spec m ws sz sz'.
   Proof.

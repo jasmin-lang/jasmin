@@ -760,9 +760,9 @@ Section PROOF.
       alloc_stack m1 al sz es' = ok m2 →
       match_mem m2 m1'.
 
-  Axiom mm_free : ∀ m1 m1' sz,
+  Axiom mm_free : ∀ m1 m1',
       match_mem m1 m1' →
-      match_mem (free_stack m1 sz) m1'.
+      match_mem (free_stack m1) m1'.
 
   Lemma mm_read_ok m m' a s v :
     match_mem m m' →

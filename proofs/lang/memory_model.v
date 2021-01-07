@@ -323,6 +323,18 @@ Proof.
   move: (wunsigned_range b); Psatz.lia.
 Qed.
 
+Definition pointer_range (lo hi: pointer) : pred pointer :=
+  λ p, (wunsigned lo <=? wunsigned p) && (wunsigned p <? wunsigned hi).
+
+Lemma pointer_range_between lo hi p :
+  pointer_range lo hi p →
+  between lo (wunsigned hi - wunsigned lo) p U8.
+Proof.
+  rewrite /pointer_range /between !zify.
+  change (wsize_size U8) with 1.
+  Psatz.lia.
+Qed.
+
 (* -------------------------------------------------- *)
 
 Class alignment : Type :=
@@ -388,6 +400,9 @@ Lemma align_word_aligned (sz sz': wsize) (p: word sz) :
 Proof.
 Admitted.
 
+Definition top_stack_after_alloc (top: pointer) (ws: wsize) (sz: Z) : pointer :=
+  align_word ws (top + wrepr Uptr (- sz)).
+
 Class memory (mem: Type) : Type :=
   Memory {
       read_mem  : mem -> pointer -> forall (s:wsize), exec (word s)
@@ -395,9 +410,9 @@ Class memory (mem: Type) : Type :=
     ; valid_pointer : mem -> pointer -> wsize -> bool
     ; stack_root : mem -> pointer
     ; stack_limit : mem -> pointer
-    ; frames : mem -> seq (pointer * Z)
+    ; frames : mem -> seq pointer
     ; alloc_stack : mem -> wsize -> Z -> Z -> exec mem (* alignement, size, extra-size *)
-    ; free_stack : mem -> Z -> mem
+    ; free_stack : mem -> mem
     ; init : seq (pointer * Z) → pointer → exec mem
     }.
 
@@ -406,12 +421,10 @@ Arguments write_mem {_ _} _ _ _ _ : simpl never.
 Arguments valid_pointer : simpl never.
 
 Definition top_stack {mem: Type} {M: memory mem} (m: mem) : pointer :=
-  (head (stack_root m, 0) (frames m)).1.
+  head (stack_root m) (frames m).
 
 Definition allocatable_stack {mem: Type} {M : memory mem} (m : mem) (z : Z) :=
-  let top := head (stack_root m, 0) (frames m) in 
-  0 <= z /\
-  0 <= z <= wunsigned top.1 - top.2 - wunsigned (stack_limit m).
+  True. (* TODO *)
 
 Section SPEC.
   Context (AL: alignment) mem (M: memory mem)
@@ -431,7 +444,7 @@ Section SPEC.
        wunsigned pstk + sz <= wunsigned p)%Z;
     ass_root   : stack_root m' = stack_root m;
     ass_limit  : stack_limit m' = stack_limit m;
-    ass_frames : frames m' = (pstk, round_ws ws (sz + sz')) :: frames m;
+    ass_frames : frames m' = top_stack_after_alloc (top_stack m) ws (sz + sz') :: frames m;
   }.
 
   Record stack_stable : Prop := mkSS {
@@ -442,9 +455,7 @@ Section SPEC.
 
   Record free_stack_spec : Prop := mkFSS {
     fss_read_old : forall p s, valid_pointer m' p s -> read_mem m p s = read_mem m' p s;
-    fss_valid    : forall p,
-      valid_pointer m' p U8 <->
-      (valid_pointer m p U8 /\ (disjoint_zrange (top_stack m) sz p 1));
+    fss_valid    : ∀ p, valid_pointer m' p U8 = valid_pointer m p U8 && ~~ pointer_range (top_stack m) (top_stack m') p;
     fss_root : stack_root m' = stack_root m;
     fss_limit : stack_limit m' = stack_limit m;
     fss_frames : frames m' = behead (frames m);
@@ -468,7 +479,7 @@ End SPEC.
 
 Arguments alloc_stack_spec {_ _ _} _ _ _ _.
 Arguments stack_stable {_ _} _ _.
-Arguments free_stack_spec {_ _} _ _ _.
+Arguments free_stack_spec {_ _} _ _.
 Arguments allocatable_spec {_ _ _ } _ _ _.
 
 (** Pointer arithmetic *)
@@ -553,9 +564,8 @@ Parameter allocatable_stackP : forall m ws sz sz', allocatable_spec m ws sz sz'.
 Parameter write_mem_stable : forall m m' p s v,
   write_mem m p s v = ok m' -> stack_stable m m'.
 
-Parameter free_stackP : forall m sz,
-  omap snd (ohead (frames m)) = Some sz ->
-  free_stack_spec m sz (free_stack m sz).
+Parameter free_stackP : forall m,
+  free_stack_spec m (free_stack m).
 
 (* -------------------------------------------------------------------- *)
 (* The following restrictions on stack layout are exploited by the compiler to
@@ -563,9 +573,5 @@ Parameter free_stackP : forall m sz,
 Parameter alloc_stack_top_stack : ∀ m ws sz sz' m',
     alloc_stack m ws sz sz' = ok m' →
     top_stack m' = add (top_stack m) (- round_ws ws (sz + sz')).
-
-Parameter free_stack_top_stack : ∀ m sz,
-    omap snd (ohead (frames m)) = Some sz →
-    top_stack (free_stack m sz) = add (top_stack m) sz.
 
 End MemoryT.

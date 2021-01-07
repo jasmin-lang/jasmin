@@ -700,20 +700,17 @@ Section LEMMA.
       have {ok_w} vv' := value_uincl_truncate_val ok_w.
       have [->] := write_var_get_var ok_s2.
       exact: pto_pof_uincl (value_uincl_trans vv' v'_w').
-    have top_stack2 : top_stack (free_stack (emem s2) (round_ws fd.(f_extra).(sf_align) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)))) = top_stack m.
-    - have frames2 : frames (emem s2) = (top_stack (emem s0), round_ws fd.(f_extra).(sf_align) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))) :: frames m.
-      + by rewrite -(sem_stack_stable sexec).(ss_frames) -(write_vars_emem ok_s1) (Memory.alloc_stackP ok_m').(ass_frames).
-      have := @Memory.free_stackP (emem s2) (round_ws fd.(f_extra).(sf_align) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))).
-      rewrite frames2 => /(_ erefl) ok_free.
-      rewrite {1}/top_stack (fss_frames ok_free) frames2 /=.
-      by rewrite (fss_root ok_free) -(sem_stack_stable sexec).(ss_root) -(write_vars_emem ok_s1) (Memory.alloc_stackP ok_m').(ass_root).
+    have top_stack2 : top_stack (free_stack (emem s2)) = top_stack m.
+    - have ok_alloc := Memory.alloc_stackP ok_m'.
+      have ok_free := Memory.free_stackP (emem s2).
+      by rewrite {1}/top_stack ok_free.(fss_frames) ok_free.(fss_root) -(sem_stack_stable sexec).(ss_root) -(sem_stack_stable sexec).(ss_frames) -(write_vars_emem ok_s1) ok_alloc.(ass_root) ok_alloc.(ass_frames).
     have [ t2 [ texec preserved sim2 ] ] := ih _ _ t1' checked_body pre1 sim1.
    have [ tres ok_tres res_uincl ] : exists2 tres,
-     mapM (λ x : var_i, get_var (set_RSP (free_stack (emem t2) (round_ws fd.(f_extra).(sf_align) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)))) (evm t2)) x) (f_res fd) = ok tres
+     mapM (λ x : var_i, get_var (set_RSP (free_stack (emem t2)) (evm t2)) x) (f_res fd) = ok tres
      & List.Forall2 value_uincl vres' tres.
    - move: ok_vres RSP_not_result (f_tyout fd) vres' ok_vres'.
      move: (mvm_vmap sim2); rewrite /live_after_fd; clear.
-     move: (evm s2) (evm t2) (free_stack _ _) => vm vm' m {s2 t2}.
+     move: (evm s2) (evm t2) (free_stack _) => vm vm' m {s2 t2}.
      elim: vres (f_res fd) Sv.empty => [ | v vres ih ] [] //=; t_xrbindP => //.
      + by move => _ _ _ _ [] // _ [<-]; exists [::].
      move => x xs dom hvm y ok_y vs ok_vs ??; subst => /andP[] hx hxs [] // ty tys /=; t_xrbindP => _ w ok_w vres' ok_vres' <-.
@@ -730,7 +727,7 @@ Section LEMMA.
      - move/not_written_magic: preserved_magic ok_wrf => [_].
        rewrite /writefun_ra ok_fd /valid_writefun /write_fd /= /magic_variables /= /is_true Sv.subset_spec; clear.
        SvD.fsetdec.
-     exists (set_RSP (free_stack (emem t2) (round_ws fd.(f_extra).(sf_align) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)))) (evm t2)), tres; split.
+     exists (set_RSP (free_stack (emem t2)) (evm t2)), tres; split.
     - econstructor.
       + exact: ok_fd.
       + exact: ok_rastack.

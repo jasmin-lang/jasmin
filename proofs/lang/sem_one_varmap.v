@@ -123,7 +123,7 @@ with sem_call : instr_info → estate → funname → estate → Prop :=
     alloc_stack s1.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1 →
     sem {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} f.(f_body) s2' →
     valid_RSP s2'.(emem) s2'.(evm) →
-    let m2 := free_stack s2'.(emem) (round_ws f.(f_extra).(sf_align) (f.(f_extra).(sf_stk_sz) + f.(f_extra).(sf_stk_extra_sz))) in
+    let m2 := free_stack s2'.(emem) in
     s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
     sem_call ii s1 fn s2.
 
@@ -182,7 +182,7 @@ Lemma sem_callE ii s fn s' :
     (λ f m1 s2', sem {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s.(evm).[x <- undef_error] else s.(evm)) |} f.(f_body) s2')
     (λ _ _ s2', valid_RSP s2'.(emem) s2'.(evm))
     (λ f _ s2',
-      let m2 := free_stack s2'.(emem) (round_ws f.(f_extra).(sf_align) (f.(f_extra).(sf_stk_sz) + f.(f_extra).(sf_stk_extra_sz))) in
+      let m2 := free_stack s2'.(emem) in
       s' = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}).
 Proof.
   case => { ii s fn s' } ii s s' fn f m1 s2' => ok_f ok_ra ok_alloc exec_body ok_RSP /= ->.
@@ -276,7 +276,7 @@ Section SEM_IND.
       sem {| emem := m1 ; evm := set_RSP m1 (if fd.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} fd.(f_body) s2' →
       Pc {| emem := m1 ; evm := set_RSP m1 (if fd.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} fd.(f_body) s2' →
       valid_RSP s2'.(emem) s2'.(evm) →
-      let m2 := free_stack s2'.(emem) (round_ws fd.(f_extra).(sf_align) (fd.(f_extra).(sf_stk_sz) + fd.(f_extra).(sf_stk_extra_sz))) in
+      let m2 := free_stack s2'.(emem) in
       s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
       Pfun ii s1 fn s2.
 

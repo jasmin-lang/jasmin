@@ -2657,7 +2657,7 @@ Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (
              [:: Vword (top_stack m1'); Vword wrip] (Estate m1' vmap0).
 
 Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
-  free_stack m (round_ws (sf_align sf) (sf_stk_sz sf + sf_stk_extra_sz sf)).
+  free_stack m.
 
 Instance sCP_stack : @semCallParams _ progStack :=
   {| init_state := init_stk_state;
