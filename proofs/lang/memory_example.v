@@ -917,19 +917,6 @@ Module MemoryI : MemoryT.
     by case: (stack_blocks_rec _ _).
   Qed.
 
-  Lemma alloc_stack_top_stack m ws sz sz' m' :
-    alloc_stack m ws sz sz' = ok m' →
-    memory_model.top_stack m' = add (memory_model.top_stack m) (- round_ws ws (sz + sz')).
-  Proof.
-  Admitted. (*
-    rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-] /=.
-    rewrite /memory_model.top_stack /= /stack_frames /= /stack_blocks /= /footprint_of_frame /=.
-    case: (stack_blocks_rec _ _) (stack_blocks_rec_fst (stk_root m) (frames m)) (stack_blocks_rec_snd (stk_root m) (frames m)) => p [] /=.
-    - by move => -> ->; rewrite /= add_0.
-    by case => _ ? _ -> ->.
-  Qed.
-  *)
-
   Lemma allocatable_stackP m ws sz sz' : allocatable_spec m ws sz sz'.
   Proof.
   Admitted.

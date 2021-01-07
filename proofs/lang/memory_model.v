@@ -567,11 +567,4 @@ Parameter write_mem_stable : forall m m' p s v,
 Parameter free_stackP : forall m,
   free_stack_spec m (free_stack m).
 
-(* -------------------------------------------------------------------- *)
-(* The following restrictions on stack layout are exploited by the compiler to
- implement alloc and free using simple addition and subtraction. *)
-Parameter alloc_stack_top_stack : ∀ m ws sz sz' m',
-    alloc_stack m ws sz sz' = ok m' →
-    top_stack m' = add (top_stack m) (- round_ws ws (sz + sz')).
-
 End MemoryT.

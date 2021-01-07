@@ -28,7 +28,7 @@
 Require memory_example.
 
 Import all_ssreflect all_algebra.
-Import ZArith.
+Import Utf8 ZArith.
 Import type word utils.
 Import memory_example.
 Export memory_model.
@@ -74,3 +74,18 @@ Lemma write_mem_can_read m ptr sz w m' :
   write_mem m ptr sz w = ok m' ->
   exists w', read_mem m ptr sz = ok w'.
 Proof. by move => /write_mem_valid_pointer /Memory.readV. Qed.
+
+Lemma alloc_stack_top_stack m ws sz sz' m' :
+  alloc_stack m ws sz sz' = ok m' →
+  top_stack m' = top_stack_after_alloc (top_stack m) ws (sz + sz').
+Proof.
+  rewrite /top_stack => /Memory.alloc_stackP a.
+  by rewrite a.(ass_frames).
+Qed.
+
+(* TODO: maybe too general *)
+Lemma top_stack_after_aligned_alloc p ws sz :
+  is_align p ws →
+  top_stack_after_alloc p ws sz = add p (- round_ws ws sz).
+Proof.
+Admitted.

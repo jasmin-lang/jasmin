@@ -1208,15 +1208,17 @@ Section PROOF.
         have M' := mm_alloc M ok_m1'.
         case/andP: ok_save_stack => /eqP stk_sz_0 /eqP stk_extra_sz_0.
         have X' : vm_uincl (set_RSP m1' s1) vm1.
-        + rewrite /set_RSP (alloc_stack_top_stack ok_m1') stk_sz_0 stk_extra_sz_0 add_0.
-          exact: X.
+        + rewrite /set_RSP.
+          move: X.
+          admit. (* TODO: there should be no call to alloc-stack *)
         have {E} [m2 vm2] := E m1 vm1 [::] [::] M' X' (λ _ _, erefl) ok_body.
         rewrite cats0 /= => E X2 M2.
         eexists m2 _; [ exact: E | | exact: mm_free M2 ].
         have S : stack_stable m1' s2'.
         + admit. (* TODO: general result about sem_one_varmap *)
         move => x; move: (X2 x); rewrite /set_RSP !Fv.setP; case: eqP => // ?; subst.
-        by rewrite valid_rsp -(stable_top_stack S) (alloc_stack_top_stack ok_m1') stk_sz_0 stk_extra_sz_0 add_0.
+        rewrite valid_rsp -(stable_top_stack S).
+        admit. (* TODO: same as above, alloc-stack must not be called. *)
       }
       + (* RSP is saved into register “saved_rsp” *)
       { admit. }
@@ -1237,7 +1239,10 @@ Section PROOF.
       + by rewrite /is_linear_of ok_fd'; eauto.
       have X1 : vm_uincl (set_RSP m1' (s1.[{| vtype := sword64; vname := ra |} <- undef_error])%vmap) vm1.
       + move => x; move: (X x).
-        rewrite /set_RSP (alloc_stack_top_stack ok_m1') addE wrepr_opp -/(stack_frame_allocation_size fd.(f_extra)).
+        rewrite /set_RSP (alloc_stack_top_stack ok_m1').
+        rewrite top_stack_after_aligned_alloc; last first.
+        * admit. (* TODO: ancestor export function has enforced alignement of the stack pointer. *)
+        rewrite addE wrepr_opp -/(stack_frame_allocation_size fd.(f_extra)).
         rewrite !Fv.setP; case: eqP => // x_rsp; case: eqP => // x_ra _; subst.
         by rewrite /= ok_ra.
       have D : disjoint_labels 2 lbl [:: P].
@@ -1261,7 +1266,10 @@ Section PROOF.
       move: (ok_vm2 (var_of_register RSP)).
       have S : stack_stable m1' s2'.
       + admit. (* TODO: general result about sem_one_varmap *)
-      by rewrite valid_rsp -(stable_top_stack S) (alloc_stack_top_stack ok_m1') addE wrepr_opp.
+      rewrite valid_rsp -(stable_top_stack S) (alloc_stack_top_stack ok_m1').
+      rewrite top_stack_after_aligned_alloc; last first.
+      * admit. (* TODO: as above, stack pointer is aligned by export functions. *)
+      by rewrite addE wrepr_opp.
     }
     (* Internal function, return address in stack at offset “rastack” *)
     { admit. }
