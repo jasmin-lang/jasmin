@@ -147,7 +147,7 @@ Section CHECK.
     let stack_align := e.(sf_align) in
     Let _ := add_finfo fn fn (check_c (check_i fn stack_align) fd.(f_body)) in
     Let _ := assert ((e.(sf_return_address) != RAnone) || (all (λ '(x, _), is_word_type x.(vtype) != None) e.(sf_to_save))) (Ferr_fun fn (Cerr_linear "bad to-save")) in
-    Let _ := assert ((sf_return_address e != RAnone) || (sf_save_stack e != SavedStackNone) || ((sf_stk_sz e == 0) && (sf_stk_extra_sz e == 0))) (Ferr_fun fn (Cerr_linear "bad save-stack")) in
+    Let _ := assert ((sf_return_address e != RAnone) || (sf_save_stack e != SavedStackNone) || ((stack_align == U8) && (sf_stk_sz e == 0) && (sf_stk_extra_sz e == 0))) (Ferr_fun fn (Cerr_linear "bad save-stack")) in
     ok tt.
 
   Definition check_prog := 
