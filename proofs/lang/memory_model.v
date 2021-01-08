@@ -395,6 +395,10 @@ Qed.
 Definition align_word (sz sz': wsize) (p: word sz) : word sz :=
   wand p (wrepr sz (-wsize_size sz')).
 
+Lemma align_word_U8 sz (p: word sz) :
+  align_word U8 p = p.
+Proof. by rewrite /align_word wandC wandN1. Qed.
+
 Lemma align_word_aligned (sz sz': wsize) (p: word sz) :
   wunsigned (align_word sz' p) mod wsize_size sz' == 0.
 Proof.

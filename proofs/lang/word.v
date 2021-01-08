@@ -615,6 +615,12 @@ Qed.
 Lemma wand0 sz (x: word sz) : wand 0 x = 0%R.
 Proof. by apply/eqP. Qed.
 
+Lemma wandN1 sz (x: word sz) : wand (-1) x = x.
+Proof.
+  apply/eqP/eq_from_wbit_n => i.
+  by rewrite wandE wN1E ltn_ord.
+Qed.
+
 Lemma wxor0 sz (x: word sz) : wxor 0 x = x.
 Proof. by apply/eqP/eq_from_wbit. Qed.
 
