@@ -82,7 +82,7 @@ Definition eval_jump d s :=
     else type_error
   in
   Let pc := find_label lbl body in
-  ok (setcpc s fn body pc.+1).
+  ok (setcpc s fn pc.+1).
 
 Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   match li_i i with

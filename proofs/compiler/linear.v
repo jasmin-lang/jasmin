@@ -196,7 +196,7 @@ Section CHECK.
         ok tt
       else cierror ii (Cerr_linear "call to unknown function")
     | Ccopy x e =>
-      ok (read_rv_rec (read_e_rec (Sv.diff D (vrv x)) e) x)
+      ok tt
     end.
 
   End CHECK_i.
