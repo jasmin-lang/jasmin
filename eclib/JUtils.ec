@@ -90,7 +90,7 @@ proof.
   + by apply ltzW; apply gt0_pow2.
   + by apply ltzW; apply gt0_pow2.
   congr; have {1}->: n = (n - p) + p by ring.
-  rewrite exprDn 1:/# 1:// mulzK //; smt (gt0_pow2).
+  by rewrite exprD_nneg 1:/# 1:// mulzK 2://; smt (gt0_pow2).
 qed.
 
 (* -------------------------------------------------------------------- *)
@@ -123,12 +123,21 @@ lemma iotaS_minus :
   forall (i n : int), 0 < n => iota_ i n = i :: iota_ (i + 1) (n - 1).
 proof. smt (iotaS). qed.
 
-hint simplify (iota0, iotaS_minus)@0.
+op iotared = iota_
+  axiomatized by iotaredE.
+
+lemma iotared0 i n : n <= 0 => iotared i n = [].
+proof. by move=> ?; rewrite iotaredE iota0. qed.
+
+lemma iotaredS_minus i n : 0 < n => iotared i n = i :: iotared (i + 1) (n - 1).
+proof. by move=> *; rewrite iotaredE iotaS_minus. qed.
+
+hint simplify (iotared0, iotaredS_minus)@0.
 
 lemma nseqS_minus n (e:'a) : 0 < n => nseq n e = e :: nseq (n-1) e.
 proof. smt (nseqS). qed.
 
-hint simplify (nseq0, nseqS_minus)@0.
+(* hint simplify (nseq0, nseqS_minus)@0. *)
 
 (* -------------------------------------------------------------------- *)
 (* Allow to extend reduction rule with xor *)
@@ -144,8 +153,6 @@ proof. by move=> ->; apply xorK. qed.
 
 hint simplify (xor1b, xor_true, xor0b, xor_false)@0.
 hint simplify xorK_simplify@1.
-
-
 
 (* -------------------------------------------------------------------- *)
 (* extra stuff on list                                                  *)
@@ -278,7 +285,7 @@ lemma powm1_mod k n:
 proof.
 move=> ?.
 have [i [Hi ->]]: exists i, 0<=i /\ k = n+i by exists (k-n); smt().
-rewrite exprDn 1,2:/# mulzC (modzMDl (2^i) (-1) (2^n)) modNz //.
+rewrite exprD_nneg 1,2:/# mulzC (modzMDl (2^i) (-1) (2^n)) modNz //.
 by apply gt0_pow2.
 qed.
 
@@ -337,10 +344,7 @@ have ->: range (size bs1) (size (bs1 ++ bs2)) = range (size bs1+0) (size bs2+siz
  by rewrite addz0 addzC size_cat.
 rewrite range_addr big_map /(\o) /=.
 apply eq_big_int => /> *.
-rewrite exprDn // mulzA nth_cat.
-have ->: size bs1 + i < size bs1 = false by smt().
-rewrite /=; do 4! congr.
-smt().
+by rewrite exprD_nneg // mulzA nth_cat /#.
 qed.
 
 lemma bs2int_cons x xs:
@@ -356,10 +360,10 @@ lemma bs2int_nseq b k:
 proof.
 case: (0 <= k) => /= hk; last by rewrite nseq0_le 1:/# /bs2int /= big_geq //.
 elim: k hk b => [| n Hn IH] b /=.
-+ by rewrite bs2int_nil.
++ by rewrite nseq0 bs2int_nil.
 rewrite nseqS // bs2int_cons ; case: b => ?.
- rewrite b2i1 exprDn // pow2_1 /= (IH true) /=.
- by ring.
++ rewrite b2i1 exprD_nneg // pow2_1 /= (IH true) /=.
+  by ring.
 by rewrite (IH false) b2i0; ring.
 qed.
 
@@ -421,7 +425,7 @@ have Esz2: min (size bs1) (size bs2) = size bs2 by smt().
 move=> ??.
 rewrite -bs2int_or_add // H.
 have:= bs2int_le2Xs (map2 (\/) bs1 bs2).
-by rewrite size_map2 Esz /#.
+by rewrite size_map2 Esz2.
 qed.
 
 lemma bs2int_sub_common bs1 bs2:
@@ -435,4 +439,3 @@ move=> ?.
 rewrite -bs2int_xor_sub //.
 by apply bs2int_ge0.
 qed.
-

@@ -12,6 +12,7 @@ PKG apron
 PKG apron.octMPQ
 PKG apron.ppl
 PKG apron.boxMPQ
+PKG yojson
 
 FLG -rectypes
 FLG -w Y -w Z -w -23 -w +28 -w +33 -w -40 -w 58

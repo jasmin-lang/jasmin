@@ -25,7 +25,7 @@ Definition assemble_i rip (i: linstr) : ciexec asm :=
     Let arg := assemble_word rip ii Uptr None e in
     ciok (JMPI arg)
   | LstoreLabel x lbl =>
-    let fail (msg: string) := cierror ii (Cerr_assembler (AsmErr_string ("store-label: " ++ msg))) in
+    let fail (msg: string) := cierror ii (Cerr_assembler (AsmErr_string ("store-label: " ++ msg) None)) in
     Let dst := match x with
     | Lvar x => if register_of_var x is Some r then ok (Reg r) else fail "bad var"
     | Lmem _ _ _ => fail "set mem"
@@ -47,7 +47,8 @@ Definition assemble_c rip (lc: lcmd) : ciexec (seq asm) :=
 (* -------------------------------------------------------------------- *)
 Definition x86_gen_error (sp: register) : instr_error :=
   (xH, Cerr_assembler (AsmErr_string
-    ("Stack pointer (" ++ string_of_register sp ++ ") is also an argument"))).
+    ("Stack pointer (" ++ string_of_register sp ++ ") is also an argument")
+    None)).
 
 (* -------------------------------------------------------------------- *)
 
@@ -66,7 +67,7 @@ Definition mk_rip name := {| vtype := sword Uptr; vname := name |}.
 Definition assemble_prog (p: lprog) : cfexec xprog :=
   let rip := mk_rip p.(lp_rip) in
   Let _ := assert (register_of_var rip == None)
-                    (Ferr_msg (Cerr_assembler ( AsmErr_string "Invalid RIP: please report"))) in                       
+                    (Ferr_msg (Cerr_assembler ( AsmErr_string "Invalid RIP: please report" None))) in
   Let fds := map_cfprog (assemble_fd RSP rip) p.(lp_funcs) in
   ok {| xp_globs := p.(lp_globs); xp_funcs := fds |}
   .

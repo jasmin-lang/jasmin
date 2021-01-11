@@ -24,13 +24,12 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
         pp_align    = pi.pi_align;
       }) in
     let conv_sub (i:Interval.t) = 
-      Stack_alloc.{ smp_ofs = Conv.z_of_int i.min; 
-                    smp_len = Conv.z_of_int (Interval.size i) } in
+      Stack_alloc.{ z_ofs = Conv.z_of_int i.min; 
+                    z_len = Conv.z_of_int (Interval.size i) } in
     let conv_ptr_kind x = function
-      | Varalloc.Stack(s, i) -> Stack_alloc.PIstack (Conv.cvar_of_var tbl s, conv_sub i)
-      | Glob (s, i)          -> Stack_alloc.PIglob (Conv.cvar_of_var tbl s, conv_sub i)
-      | RegPtr s             -> Stack_alloc.PIregptr(Conv.cvar_of_var tbl s)
-      | StackPtr s           -> 
+      | Varalloc.Direct (s, i, sc) -> Stack_alloc.PIdirect (Conv.cvar_of_var tbl s, conv_sub i, sc)
+      | RegPtr s                   -> Stack_alloc.PIregptr(Conv.cvar_of_var tbl s)
+      | StackPtr s                 ->
         let xp = V.clone x in
         Stack_alloc.PIstkptr(Conv.cvar_of_var tbl s, 
                              conv_sub Interval.{min = 0; max = size_of_ws U64}, Conv.cvar_of_var tbl xp) in
@@ -40,6 +39,8 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
     let sao = Stack_alloc.{
         sao_align  = align;
         sao_size   = Conv.z_of_int size;
+        sao_max_size = Z0;
+        sao_extra_size = Z0;
         sao_params = List.map (omap conv_pi) sao.sao_params;
         sao_return = List.map (omap Conv.nat_of_int) sao.sao_return;
         sao_slots  = do_slots sao.sao_slots;
@@ -106,11 +107,28 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
       let extra = if rastack then ra :: extra else extra in
       if has_stack && ro.ro_rsp = None then rsp :: extra
       else extra in
-    let size, align, extrapos = Varalloc.extend_sao sao extra in
-    let align = 
-      Sf.fold (fun fn align ->
-        let fn_algin = (get_sao fn).Stack_alloc.sao_align in
-        if wsize_lt align fn_algin then fn_algin else align) sao.sao_calls align in
+    let extra_size, align, extrapos = Varalloc.extend_sao sao extra in
+    let align, max_stk = 
+      Sf.fold (fun fn (align, max_stk) ->
+          let sao = get_sao fn in
+          let fn_algin = sao.Stack_alloc.sao_align in
+          let align = if wsize_lt align fn_algin then fn_algin else align in
+          let fn_max = Conv.bi_of_z (sao.Stack_alloc.sao_max_size) in
+          let max_stk = if Bigint.lt max_stk fn_max then fn_max else max_stk in
+          align, max_stk
+        ) sao.sao_calls (align, Bigint.zero) in
+    let max_size = 
+      let stk_size = 
+        Bigint.add (Conv.bi_of_z csao.Stack_alloc.sao_size)
+                   (Bigint.of_int extra_size) in
+      let ws = csao.Stack_alloc.sao_align in
+      let stk_size = 
+        match fd.f_cc with
+        | Export       -> Bigint.add stk_size (Bigint.of_int (size_of_ws ws - 1))
+        | Subroutine _ -> 
+          Conv.bi_of_z (Memory_model.round_ws ws (Conv.z_of_bi stk_size))
+        | Internal -> assert false in
+      Bigint.add max_stk stk_size in
     let saved_stack = 
       if has_stack then
         match ro.ro_rsp with
@@ -126,7 +144,8 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
     let csao = 
       Stack_alloc.{ csao with
         sao_align = align;
-        sao_size = Conv.z_of_int size;
+        sao_extra_size = Conv.z_of_int extra_size;
+        sao_max_size = Conv.z_of_bi max_size;
         sao_to_save = List.map conv_to_save ro.ro_to_save;
         sao_rsp  = saved_stack;
         sao_return_address =

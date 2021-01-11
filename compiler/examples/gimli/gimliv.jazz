@@ -5,7 +5,7 @@ fn shift(reg u128 x, inline int count) -> reg u128 {
   return r;
 }
 
-u128 rotate24pattern = 0x0c0f0e0d080b0a090407060500030201;
+u128 rotate24pattern = (16u8)[ 12, 15, 14, 13, 8, 11, 10, 9, 4, 7, 6, 5, 0, 3, 2, 1 ];
 
 inline 
 fn rotate1 (reg u128 r, inline int count) -> reg u128 {

@@ -20,13 +20,16 @@ JSJOBS    ?= 2
 CHECKPY   ?=
 CHECK     := $(CHECKPY) scripts/runtest --jobs="$(JSJOBS)"
 CHECK     += config/tests.config
-CHECKCATS ?= all nolea
+CHECKCATS ?= all safety nolea
 
 # --------------------------------------------------------------------
 PREFIX ?= /usr/local
 BINDIR := $(PREFIX)/bin
 LIBDIR := $(PREFIX)/lib/jasmin
 SHRDIR := $(PREFIX)/share/jasmin
+
+# --------------------------------------------------------------------
+DISTDIR ?= jasmin-compiler
 
 # --------------------------------------------------------------------
 .PHONY: all build byte native CIL check __force__
@@ -66,13 +69,22 @@ CIL:
 check: build
 	$(CHECK) --report=report.log $(CHECKCATS)
 
-check-ci: build
+check-ci:
 	$(CHECK) --report=- $(CHECKCATS)
 
 clean:
 	$(OCAMLBUILD) -clean -classic-display
 	rm -rf _c_build
 	rm -f jasminc.native jasminc.byte lib*.a
+
+# --------------------------------------------------------------------
+dist: $(DISTDIR).tgz
+
+$(DISTDIR).tgz: MANIFEST
+	$(RM) -r $(DISTDIR)
+	../scripts/distribution $(DISTDIR) $<
+	tar -czvf $(DISTDIR).tgz --owner=0 --group=0 $(DISTDIR)
+	$(RM) -r $(DISTDIR)
 
 # --------------------------------------------------------------------
 _c_build: __force__

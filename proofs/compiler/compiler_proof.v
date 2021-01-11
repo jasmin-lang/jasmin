@@ -123,6 +123,7 @@ Let K' : ∀ vr (P Q: _ → Prop),
       let 'ex_intro vr2 (conj q v) := h _ p in
       ex_intro _ vr2 (conj (Forall2_trans value_uincl_trans u v) q).
 
+(*
 Lemma compile_progP entries (p: prog) (lp: lprog) mem fn va mem' vr:
   compile_prog cparams entries p = cfok lp ->
   fn \in entries ->
@@ -236,6 +237,7 @@ split; first exact: hxsem.
 split; first exact: (Forall2_trans value_uincl_trans ok_vr' hvr').
 by rewrite heq hm2.
 Qed.
+*)
 
 End PROOF.
 

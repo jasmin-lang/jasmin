@@ -192,8 +192,8 @@ reg u64 in, out, inlen, k, tmp;
 reg u8[16] result;
 inline int i;
 
-out = 0;
-k = 0x100;
+out = 0x1200;
+k = 0x1100;
 in = 0x1000;
 
 (u256)[k + 0] = key;
@@ -245,7 +245,7 @@ return result;
 }
 
 exec test_poly1305
-( 0:16 /* out */
-, 0x100:32 /* k */
+( 0x1200:16 /* out */
+, 0x1100:32 /* k */
 , 0x1000:34 /* in */
 )

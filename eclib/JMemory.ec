@@ -39,7 +39,8 @@ axiom allocated8_setE y w m x: allocated8 m.[y<-w] x = allocated8 m x.
 (* ------------------------------------------------------------------- *)
 
 op stores (m : global_mem_t) (a : address) (w : W8.t list) =
-  foldl (fun (m:global_mem_t) i => m.[a + i <- w.[i]]) m (iota_ 0 (size w)).
+  foldl (fun (m:global_mem_t) i => m.[a + i <- w.[i]]) m (iotared 0 (size w))
+axiomatized by storesE.
 
 lemma foldl_in_eq (f1 f2:'a -> 'b -> 'a) (s:'b list) a :
    (forall a b, b \in s => f1 a b = f2 a b) => foldl f1 a s = foldl f2 a s.
@@ -48,25 +49,28 @@ proof.
   by rewrite hin // hrec // => ?? h;apply hin;rewrite h.
 qed.
 
+lemma store0 m a : stores m a [] = m.
+proof. by rewrite storesE. qed.
+
 lemma stores_cons m a w ws : stores m a (w::ws) = stores (m.[a <- w]) (a + 1) ws.
 proof.
-  rewrite /stores /= iota_add 1:// 1:List.size_ge0.
-  rewrite foldl_cat (addzC 0 1) iota_addl /=.
+  rewrite !storesE iotaredE /= addrC iotaS 1:List.size_ge0. 
+  rewrite (addzC 0 1) iota_addl /=.
   rewrite -(revK (iota_ 0 (size ws))) map_rev !foldl_rev foldr_map /=.
-  rewrite -!foldl_rev !revK;apply foldl_in_eq => m0 i /mem_iota /= h /#.
+  rewrite -!foldl_rev !revK; apply foldl_in_eq => m0 i /mem_iota /= h /#.
 qed.
 
 lemma allocated8_stores ws a m x : allocated8 (stores m a ws) x = allocated8 m x.
 proof.
-  elim: ws m a => //= w ws hrec m a.
-  by rewrite stores_cons hrec allocated8_setE.
+  elim: ws m a => //= w ws; 1: by rewrite store0.
+  by move=> hrec m a; rewrite stores_cons hrec allocated8_setE.
 qed.
 
 lemma get_storesE m p l j: (stores m p l).[j] = if p <= j < p + size l then nth W8.zero l (j - p) else m.[j].
 proof.
   elim: l m p => [ | w l hrec] m p.
-  + by rewrite /stores /= /#.
-  rewrite stores_cons hrec /= get_setE.  smt (size_ge0).
+  + by rewrite store0 /#.
+  rewrite stores_cons hrec /= get_setE; smt (size_ge0).
 qed.
 
 (* ------------------------------------------------------------------- *)
@@ -133,7 +137,7 @@ proof.
          W4u8.Pack.init (fun i => loadW8 mem (p + i)).
   + by apply W4u8.Pack.all_eqP; rewrite /all_eq.
   apply (can_inj _ _ W4u8.unpack8K); apply W4u8.Pack.packP => i hi.
-  by rewrite pack4K initiE.
+  rewrite /loadW32 pack4K //=. 
 qed.
 
 lemma load4u32 mem p :
@@ -150,7 +154,7 @@ proof.
          W4u32.Pack.init (fun i => loadW32 mem (p + i * 4)).
   + by apply W4u32.Pack.all_eqP; rewrite /all_eq.
   apply (can_inj _ _ W4u32.unpack32K); apply W4u32.Pack.packP => i hi.
-  by rewrite pack4K initiE //=  get_unpack32 // loadW128_bits32.
+  by rewrite pack4K initiE //= get_unpack32 // loadW128_bits32.
 qed.
 
 lemma load2u64 mem p:
@@ -171,25 +175,26 @@ op storeW8 (m : global_mem_t) (a : address) (w : W8.t) =
 axiomatized by storeW8E.
 
 op storeW16 (m : global_mem_t) (a : address) (w : W16.t) =
-  stores m a (to_list (unpack8 w))
+  stores m a (W2u8.to_list w)
 axiomatized by storeW16E.
 
 op storeW32 (m : global_mem_t) (a : address) (w : W32.t) =
-  stores m a (to_list (unpack8 w))
+  stores m a (W4u8.to_list w)
 axiomatized by storeW32E.
 
 op storeW64 (m : global_mem_t) (a : address) (w : W64.t) =
-  stores m a (to_list (unpack8 w))
+  stores m a (W8u8.to_list w)
 axiomatized by storeW64E.
 
 op storeW128 (m : global_mem_t) (a : address) (w : W128.t) =
-  stores m a (to_list (unpack8 w))
+  stores m a (W16u8.to_list w)
 axiomatized by storeW128E.
 
 op storeW256 (m : global_mem_t) (a : address) (w : W256.t) =
-  stores m a (to_list (unpack8 w))
+  stores m a (W32u8.to_list w)
 axiomatized by storeW256E.
 
+(*
 lemma pack4u32_bits8_nth i (ws:W32.t list) : 0 <= i < 16 =>
   W4u32.pack4 ws \bits8 i = nth W32.zero ws (i %/ 4) \bits8 (i%%4).
 proof.
@@ -211,6 +216,7 @@ proof.
   rewrite bits8iE // bits8iE // bits64iE; 1: smt(modz_cmp).
   congr; rewrite {1}(divz_eq i 8); ring.
 qed.
+*)
 
 lemma store4u32 mem ptr w0 w1 w2 w3 :
   storeW128 mem ptr (W4u32.pack4 [w0; w1; w2; w3]) =
@@ -221,18 +227,12 @@ lemma store4u32 mem ptr w0 w1 w2 w3 :
           (ptr + 4) w1)
        (ptr + 8) w2)
     (ptr + 12) w3.
-proof.
-  rewrite storeW128E !storeW32E.
-  by rewrite /W4u8.Pack.to_list /mkseq /= /stores.
-qed.
+proof. by rewrite storeW128E !storeW32E /= !storesE /=. qed.
 
 lemma store2u64 mem ptr w0 w1:
   storeW128 mem ptr (W2u64.pack2 [w0; w1]) =
   storeW64 (storeW64 mem ptr w0) (ptr + 8) w1.
-proof.
-  rewrite storeW128E !storeW64E.
-  by rewrite /W2u16.Pack.to_list /mkseq /= /stores /=.
-qed.
+proof.  by rewrite storeW128E !storeW64E /= !storesE /=. qed.
 
 lemma store4u8 mem ptr w0 w1 w2 w3 :
   storeW32 mem ptr (W4u8.pack4 [w0; w1; w2; w3]) =
@@ -243,7 +243,7 @@ lemma store4u8 mem ptr w0 w1 w2 w3 :
           (ptr + 1) w1)
        (ptr + 2) w2)
     (ptr + 3) w3.
-proof. by rewrite storeW32E !storeW8E. qed.
+proof. by rewrite storeW32E !storeW8E storesE /=. qed.
 
 lemma get_storeW32E m p (w:W32.t) j :
   (storeW32 m p w).[j] = if p <= j < p + 4 then w \bits8 (j - p) else m.[j].

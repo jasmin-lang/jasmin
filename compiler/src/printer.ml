@@ -87,7 +87,7 @@ let string_of_op2 = function
 
 
 let string_of_op1 = function
-  | E.Oint_of_word _ -> F.sprintf "(int)"
+  | E.Oint_of_word ws -> F.sprintf "(int-of-u%d)" (int_of_ws ws)
   | E.Osignext (szo, _) -> F.sprintf "(%ds)" (int_of_ws szo)
   | E.Oword_of_int szo
   | E.Ozeroext (szo, _) -> F.sprintf "(%du)" (int_of_ws szo)

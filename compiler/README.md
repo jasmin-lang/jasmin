@@ -1,64 +1,22 @@
-Installing requirements using OPAM
---------------------------------------------------------------------
+# Jasmin Compiler
 
-Starting with opam 2.0, you can install all the needed dependencies
-via the opam OCaml packages manager.
+More information about this compiler (build instructions in particular) can be
+found on the online [wiki](https://github.com/jasmin-lang/jasmin/wiki).
 
-  0. Optionally, switch to a dedicated compiler for Jasmin:
+The Jasmin compiler is free software.
 
-          $> opam switch create jasmin $OVERSION
+This software is governed by the CeCILL-B license under French law and abiding
+by the rules of distribution of free software. You can use, modify and
+redistribute the software under the terms of the CeCILL-B license as circulated
+by CĒA, CNRS and INRIA at the following URL: <http://www.cecill.info>.
 
-     where $OVERSION is a valid OCaml version (e.g. ocaml-base-compiler.4.07.0)
+The files `src/puf.ml` and `src/puf.mli` are distributed under the terms of the
+GNU Library General Public License version 2.1, with the special exception on
+linking described in file `LICENSE.puf`.
 
-  1. Add the Coq Word library opam package:
+The contents of the `CIL` directory are extracted from Coq files from several sources:
 
-          $> opam pin add -ny git+https://github.com/jasmin-lang/coqword.git 
-
-  2. Add the Jasmin OPAM package (from the compiler/ subdirectory)
-
-          $> opam pin add -ny jasmin .
-
-  3. Add the Coq remotes:
-
-          $> opam repo add coq-released https://coq.inria.fr/opam/released
-          $> opam repo add coq-extra-dev https://coq.inria.fr/opam/extra-dev
-
-  4. Optionally, use opam to install the system dependencies:
-
-          $> opam install depext
-          $> opam depext jasmin
-
-  5. Install Jasmin dependencies:
-
-          $> opam install --deps-only jasmin
-
-Opam can be easily installed from source or via your packages manager:
-
-  * On Ubuntu and derivatives:
-
-        $> add-apt-repository ppa:avsm/ppa
-        $> apt-get update
-        $> apt-get install ocaml ocaml-native-compilers camlp4-extra opam
-
-  * On MacOSX using brew:
-
-        $> brew install ocaml opam
-
-See [https://opam.ocaml.org/doc/Install.html] for how to install opam.
-
-See [https://opam.ocaml.org/doc/Usage.html] for how to initialize opam
-
-Installing requirements using NIX
---------------------------------------------------------------------
-
-Run `nix-shell` in the top-level directory. This will drop you in a
-shell with all required dependencies available.
-
-See [https://nixos.org/nix/] for how to install the NIX package manager.
-
-Compiling
---------------------------------------------------------------------
-
-Simply run:
-
-        $> make CIL build
+ -  the Coq standard library (LGPL 2.1)
+ -  the Mathematical Components library (CēCILL-B)
+ -  the coqword library (CēCILL-B)
+ -  the Jasmin coq source files (CēCILL-B).

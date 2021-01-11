@@ -24,9 +24,9 @@
  * ----------------------------------------------------------------------- *)
 
 (* ** Imports and settings *)
+From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
-From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Export strings word utils type ident var global sem_type x86_decl x86_instr_decl.
 Require Import xseq.
@@ -217,16 +217,15 @@ Definition Osubcarry_instr sz:=
            sz [::].
 
 Definition Oset0_instr sz  :=
-  let name := pp_sz "set0" sz in
   if (sz <= U64)%CMP then 
-    mk_instr name 
+    mk_instr (pp_sz "set0" sz)
              [::] [::]
              (b5w_ty sz) (implicit_flags ++ [::E 0])
              (let vf := Some false in
               ok (::vf, vf, vf, vf, Some true & (0%R: word sz)))
              sz [::]
   else 
-    mk_instr name 
+    mk_instr (pp_sz "setw0" sz)
              [::] [::]  
              (w_ty sz) [::E 0] 
              (ok (0%R: word sz)) sz [::].
@@ -994,15 +993,15 @@ Definition map_prog (F: fundef -> fundef) (p:prog) :=
   map_prog_name (fun _ => F) p.
 
 Lemma get_map_prog_name F p fn :
-  get_fundef (p_funcs (map_prog_name F p)) fn = 
-  omap (F fn) (get_fundef (p_funcs p) fn).
-Proof. 
+  get_fundef (p_funcs (map_prog_name F p)) fn =
+  ssrfun.omap (F fn) (get_fundef (p_funcs p) fn).
+Proof.
   rewrite /get_fundef /map_prog_name /=.
   by elim: p_funcs => // -[fn' fd] pfuns /= ->;case:eqP => [-> | ].
 Qed.
 
 Lemma get_map_prog F p fn :
-  get_fundef (p_funcs (map_prog F p)) fn = omap F (get_fundef (p_funcs p) fn).
+  get_fundef (p_funcs (map_prog F p)) fn = ssrfun.omap F (get_fundef (p_funcs p) fn).
 Proof. apply: get_map_prog_name. Qed.
 
 Lemma map_prog_globs F p : p_extra (map_prog F p) = p_extra p.
@@ -1088,26 +1087,30 @@ Qed.
 Definition return_address_location_eqMixin := Equality.Mixin return_address_location_eq_axiom.
 Canonical  return_address_location_eqType := Eval hnf in EqType return_address_location return_address_location_eqMixin.
 
-Record stk_fun_extra := MkSFun {
-  sf_align : wsize;
-  sf_stk_sz : Z;
-  sf_to_save: seq (var * Z);
-  sf_save_stack: saved_stack;
-  sf_return_address: return_address_location;
+Record stk_fun_extra := MkSFun { 
+  sf_align          : wsize;
+  sf_stk_sz         : Z;
+  sf_stk_extra_sz   : Z;
+  sf_stk_max        : Z; 
+  sf_to_save        : seq (var * Z);
+  sf_save_stack     : saved_stack;
+  sf_return_address : return_address_location;
 }.
 
 Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=
-  (e1.(sf_align) == e2.(sf_align)) && 
+  (e1.(sf_align) == e2.(sf_align)) &&
   (e1.(sf_stk_sz) == e2.(sf_stk_sz)) &&
+  (e1.(sf_stk_max) == e2.(sf_stk_max)) && 
+  (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)) &&
   (e1.(sf_to_save) == e2.(sf_to_save)) &&
   (e1.(sf_save_stack) == e2.(sf_save_stack)) &&
   (e1.(sf_return_address) == e2.(sf_return_address)).
 
 Lemma sfe_eq_axiom : Equality.axiom sfe_beq.
 Proof.
-    case => a b c d e [] a' b' c' d' e'; apply: (equivP andP) => /=; split.
-    + by case => /andP[] /andP[] /andP[] /eqP <- /eqP <- /eqP <- /eqP <- /eqP <-.
-    by case => <- <- <- <- <-; rewrite !eqxx.
+    case => a b c d e f g [] a' b' c' d' e' f' g'; apply: (equivP andP) => /=; split.
+    + by case => /andP[] /andP[] /andP[] /andP[] /andP [] /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <-.
+    by case => <- <- <- <- <- <- <-; rewrite !eqxx.
 Qed.
 
 Definition sfe_eqMixin   := Equality.Mixin sfe_eq_axiom.
@@ -1157,7 +1160,6 @@ Definition swith_extra (fd:ufundef) f_extra : sfundef := {|
 |}.
 
 (* ----------------------------------------------------------------------------- *)
-
 Lemma get_fundef_cons {T} (fnd: funname * T) p fn:
   get_fundef (fnd :: p) fn = if fn == fnd.1 then Some fnd.2 else get_fundef p fn.
 Proof. by case: fnd. Qed.
@@ -1520,7 +1522,7 @@ Proof. by done. Qed.
 (* ** Some smart constructors
  * -------------------------------------------------------------------------- *)
 
-Fixpoint is_const (e:pexpr) :=
+Definition is_const (e:pexpr) :=
   match e with
   | Pconst n => Some n
   | _        => None

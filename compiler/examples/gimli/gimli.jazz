@@ -1,104 +1,69 @@
 inline
-fn mask32(reg u64 x) -> reg u64 {
-  x = x & 0xffffffff;
-  return x;
+fn rotate (reg u32 x, inline int bits) -> reg u32 {
+_, _, x = #ROL_32(x, bits);
+return x;
 }
 
-inline
-fn rotate(reg u64 x, inline int bits) -> reg u64 
-{
-  /*
-  reg u64 t1;
-  reg u64 t2;
-  t1 = x;
-  t1 = t1 << bits;
-  t1 = mask32(t1);
-  t2 = x;
-  t2 = t2 >> (32-bits);
-  t2 = t2|t1;
-  return t2;
-  */
-  /*
-  reg u64 t1;
-  t1 = #ROL32(t1,bits);
-  return t1;
-  */
-  reg u64 t1;
-  reg u64 t2;
-  t1 = x;
-  t1 = t1 << 32;
-  t2 = x;
-  t2 = #SHLD(t2,t1,bits);
-  t2 = mask32(t2);
-  return t2;
-}
+export
+fn gimli(reg u64 state) {
+inline int round, column;
+reg u32 x, y, z;
+reg u32 a, b, c;
 
-export fn gimli(reg u64 state) 
-{
-  inline int round;
-  inline int column;
-  reg u64 x;
-  reg u64 y;
-  reg u64 z;
-  reg u64 u;
-  reg u64 v;
+for round = 24 downto 0 {
+  for column = 0 to 4 {
+    x = (u32)[state + 4 * column];
+    x = rotate(x, 24);
+    y = (u32)[state + 4 * (4 + column)];
+    y = rotate(y, 9);
+    z = (u32)[state + 4 * (8 + column)];
 
-  for round = 24 downto 0
-  {
-    for column = 0 to 4
-    {
-      x = [state + 8*column];
-      x = rotate(x, 24);
-      y = [state + 8*(column + 4)];
-      y = rotate(y,  9);
-      z = [state + 8*(column + 8)];
+    a = x;
+    b = z; b <<= 1;
+    c = y; c &= z; c <<= 2;
+    a ^= b; a ^= c;
 
-      u = x;
-      v = z;
-      v = v << 1; v = mask32(v);
-      x = z; 
-      x = x & y;
-      x = x << 2; x = mask32(x);
-      x = x ^ u;
-      x = x ^ v;
-      v = y;
-      y = u;
-      y = y | z;
-      y = y << 1; y = mask32(y);
-      y = y ^ u;
-      y = y ^ v;
-      u = u & v;
-      u = u << 3; u = mask32(u);
-      z = z ^ v;
-      z = z ^ u;
+    (u32)[state + 4 * (8 + column)] = a;
 
-      [state + 8 * (column + 8)] = x;
-      [state + 8 * (column + 4)] = y;
-      [state + 8 * column]       = z;
-    }
+    a = y;
+    b = x; b |= z; b <<= 1;
+    a ^= x; a ^= b;
 
-    if (round & 3 == 0) {
-      // small swap: pattern s...s...s... etc.
-      x = [state + 8*0];
-      u = [state + 8*1];
-      u = u ^ (0x9e377900 + round);
-      [state + 8*0] = u;
-      [state + 8*1] = x;
-      x = [state + 8*2];
-      u = [state + 8*3];
-      [state + 8*2] = u;
-      [state + 8*3] = x;
-    }
-    if (round & 3 == 2) {
-      // big swap: pattern ..S...S...S. etc.
-      x = [state + 8*0];
-      u = [state + 8*2];
-      [state + 8*0] = u;
-      [state + 8*2] = x;
-      x = [state + 8*1];
-      u = [state + 8*3];
-      [state + 8*1] = u;
-      [state + 8*3] = x;
-    }
+    (u32)[state + 4 * (4 + column)] = a;
+
+    a = z;
+    b = x; b &= y; b <<= 3;
+    a ^= y; a ^= b;
+
+    (u32)[state + 4 * column] = a;
   }
+
+  if (round % 4) == 0 { // small swap: pattern s...s...s... etc.
+    x = (u32)[state + 4 * 0];
+    y = (u32)[state + 4 * 1];
+    (u32)[state + 4 * 0] = y;
+    (u32)[state + 4 * 1] = x;
+
+    x = (u32)[state + 4 * 2];
+    y = (u32)[state + 4 * 3];
+    (u32)[state + 4 * 2] = y;
+    (u32)[state + 4 * 3] = x;
+  }
+
+  if (round % 4) == 2 { // big swap: pattern ..S...S...S. etc.
+    x = (u32)[state + 4 * 0];
+    y = (u32)[state + 4 * 2];
+    (u32)[state + 4 * 0] = y;
+    (u32)[state + 4 * 2] = x;
+
+    x = (u32)[state + 4 * 1];
+    y = (u32)[state + 4 * 3];
+    (u32)[state + 4 * 1] = y;
+    (u32)[state + 4 * 3] = x;
+  }
+
+  if (round % 4) == 0 { // add constant: pattern c...c...c... etc.
+    (u32)[state + 4 * 0] ^= 0x9e377900 + round;
+  }
+}
 }

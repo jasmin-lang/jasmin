@@ -15,10 +15,9 @@ type param_info = {
 }
 
 type ptr_kind = 
-  | Stack    of var * Interval.interval 
+  | Direct   of var * Interval.interval * E.v_scope
   | StackPtr of var 
   | RegPtr   of var  
-  | Glob     of var * Interval.interval
 
 type stk_alloc_oracle_t =
   { sao_calls  : Sf.t
@@ -60,10 +59,11 @@ let pp_tbl fmt (name,tbl) =
     (pp_list "@ " (fun fmt (x,ws) -> Format.fprintf fmt "%a -> %s" pp_var x (string_of_ws ws)))
     (Hv.to_list tbl )
 
+(* dead code *)
 let pp_stk fmt (x, stkk) =
   match stkk with
-  | Glob  (y, r) -> Format.fprintf fmt "%a -> %%G%a" pp_var x pp_range (y,(r.min,r.max))
-  | Stack (y, r) -> Format.fprintf fmt "%a -> %a" pp_var x pp_range (y,(r.min,r.max))
+  | Direct  (y, r, sc) ->
+    Format.fprintf fmt "%a -> %s%a" pp_var x (match sc with | E.Slocal -> "" | E.Sglob -> "%G") pp_range (y,(r.min,r.max))
   | StackPtr y -> Format.fprintf fmt "%a |s-> %a" pp_var x pp_var y 
   | RegPtr   y -> Format.fprintf fmt "%a |r-> %a" pp_var x pp_var y 
 
@@ -85,8 +85,8 @@ let pp_slot fmt (x,ws,pos) =
 
 let pp_ptr_kind fmt (x,stkk) = 
   match stkk with
-  | Glob  (y, r) -> Format.fprintf fmt "%a -> %%G%a" pp_var x pp_range (y,(r.min,r.max))
-  | Stack (y, r) -> Format.fprintf fmt "%a -> %a" pp_var x pp_range (y,(r.min,r.max))
+  | Direct  (y, r, sc) ->
+    Format.fprintf fmt "%a -> %s%a" pp_var x (match sc with | E.Slocal -> "" | E.Sglob -> "%G") pp_range (y,(r.min,r.max))
   | StackPtr y -> Format.fprintf fmt "%a |s-> %a" pp_var x pp_var y 
   | RegPtr   y -> Format.fprintf fmt "%a |r-> %a" pp_var x pp_var_ty y 
 
@@ -191,14 +191,17 @@ let classes_alignment (onfun : funname -> param_info option list) gtbl alias c =
     let tbl = if scope = E.Sglob then gtbl else ltbl in
     Hv.modify_def U8 x (fun ws' -> if wsize_lt ws' ws then ws else ws') tbl in
 
-  let add_ggvar x ws i = 
+  let add_ggvar x ws i =
     let x' = L.unloc x.gv in
     if is_gkvar x then
       begin
         let c = Alias.normalize_var alias x' in
         set c.in_var c.scope ws;
         if (fst c.range + i) land (size_of_ws ws - 1) <> 0 then
-          hierror "bad range alignment"
+            hierror "Varalloc.classes_alignment: at line %a: bad range alignment for %a[%d]/%s in %a"
+              L.pp_loc (L.loc x.gv)
+              pp_var x' i (string_of_ws ws)
+              Alias.pp_slice c
       end
     else set x' E.Sglob ws in
 
@@ -271,18 +274,19 @@ let init_slots stack_pointers alias coloring fv =
     | Stack Direct ->
       if is_ty_arr v.v_ty then
         let c = Alias.normalize_var alias v in
-        if c.scope = E.Sglob then add_local v (Glob (c.in_var, r2i c.range))
+        if c.scope = E.Sglob then
+          add_local v (Direct (c.in_var, r2i c.range, E.Sglob))
         else
           begin
             let slot = get_slot coloring c.in_var in
             add_slot slot;
-            add_local v (Stack(slot, r2i c.range))
+            add_local v (Direct (slot, r2i c.range, E.Slocal))
           end
       else
         let sz = size_of v.v_ty in
         let slot = get_slot coloring v in
         add_slot slot;
-        add_local v (Stack(slot, r2i(0, sz)))
+        add_local v (Direct (slot, r2i(0, sz), E.Slocal))
 
     | Stack (Pointer _) ->
       let xp = get_stack_pointer stack_pointers v in
@@ -325,8 +329,8 @@ let all_alignment ctbl alias params lalloc =
     Hv.modify_def U8 slot (fun ws' -> if wsize_lt ws' ws then ws else ws') atbl in
   let doalloc x pk =
     match pk with
-    | Glob _ | RegPtr _ -> ()
-    | Stack(slot,_) ->
+    | Direct (_, _, E.Sglob) | RegPtr _ -> ()
+    | Direct (slot, _, E.Slocal) ->
       let ws = 
         match x.v_ty with
         | Arr _ -> get_align (Alias.normalize_var alias x)
@@ -495,7 +499,7 @@ let extend_sao sao extra =
   let align, slots, size = alloc_local_stack sao.sao_size extra tbl in
   let align = if wsize_lt align sao.sao_align then sao.sao_align else align in
   let slots = List.map (fun (x,_,pos) -> (x,pos)) slots in
-  size, align, slots
+  size - sao.sao_size, align, slots
 
 
   

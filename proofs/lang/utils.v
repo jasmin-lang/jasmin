@@ -71,7 +71,7 @@ Definition is_ok (E A:Type) (r:result E A) := if r is Ok a then true else false.
 
 Lemma is_ok_ok (E A:Type) (a:A) : is_ok (Ok E a).
 Proof. done. Qed.
-Hint Resolve is_ok_ok.
+Hint Resolve is_ok_ok : core.
 
 Lemma is_okP (E A:Type) (r:result E A) : reflect (exists (a:A), r = Ok E a) (is_ok r).
 Proof.
@@ -131,6 +131,7 @@ Notation ok    := (@Ok _).
 
 Notation "m >>= f" := (rbind f m) (at level 25, left associativity).
 Notation "'Let' x ':=' m 'in' body" := (m >>= (fun x => body)) (at level 25).
+Notation "m >> n" := (rbind (λ _, n) m) (at level 25, left associativity).
 
 Lemma bindA eT aT bT cT (f : aT -> result eT bT) (g: bT -> result eT cT) m:
   m >>= f >>= g = m >>= (fun a => f a >>= g).
@@ -351,6 +352,20 @@ Qed.
 Lemma mapM_map {aT bT cT eT} (f: aT → bT) (g: bT → result eT cT) (xs: seq aT) :
   mapM g (map f xs) = mapM (g \o f) xs.
 Proof. by elim: xs => // x xs ih /=; case: (g (f x)) => // y /=; rewrite ih. Qed.
+
+Lemma mapM_cat  {eT aT bT} (f: aT → result eT bT) (s1 s2: seq aT) :
+  mapM f (s1 ++ s2) = Let r1 := mapM f s1 in Let r2 := mapM f s2 in ok (r1 ++ r2).
+Proof.
+  elim: s1 s2; first by move => s /=; case (mapM f s).
+  move => a s1 ih s2 /=.
+  case: (f _) => // b; rewrite /= ih{ih}.
+  case: (mapM f s1) => // bs /=.
+  by case: (mapM f s2).
+Qed.
+
+Corollary mapM_rcons  {eT aT bT} (f: aT → result eT bT) (s: seq aT) (a: aT) :
+  mapM f (rcons s a) = Let r1 := mapM f s in Let r2 := f a in ok (rcons r1 r2).
+Proof. by rewrite -cats1 mapM_cat /=; case: (f a) => // b; case: (mapM _ _) => // bs; rewrite /= cats1. Qed.
 
 Section FOLDM.
 
@@ -727,7 +742,7 @@ Notation "m <= n" := (cmp_le m n) : cmp_scope.
 Notation "m ≤ n" := (cmp_le m n) : cmp_scope.
 Delimit Scope cmp_scope with CMP.
 
-Hint Resolve cmp_le_refl.
+Hint Resolve cmp_le_refl : core.
 
 Section EqCMP.
 

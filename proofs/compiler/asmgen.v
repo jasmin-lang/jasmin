@@ -16,7 +16,7 @@ Definition pexpr_of_lval ii (lv:lval) : ciexec pexpr :=
   | Lmem s x e  => ok (Pload s x e)
   | Lnone _ _
   | Laset _ _ _ _ 
-  | Lasub _ _ _ _ _ => cierror ii (Cerr_assembler (AsmErr_string "pexpr_of_lval"))
+  | Lasub _ _ _ _ _ => cierror ii (Cerr_assembler (AsmErr_string "pexpr_of_lval" None))
   end.
 
 Definition nmap (T:Type) := nat -> option T.
@@ -38,18 +38,18 @@ Definition compile_arg rip ii max_imm (ade: (arg_desc * stype) * pexpr) (m: nmap
   | ADImplicit i =>
     Let _ :=
       assert (eq_expr (Plvar (VarI (var_of_implicit i) xH)) e)
-             (ii, Cerr_assembler (AsmErr_string "compile_arg : bad implicit")) in
+             (ii, Cerr_assembler (AsmErr_string "compile_arg : bad implicit" (Some e))) in
     ok m
   | ADExplicit n o =>
     Let a := arg_of_pexpr rip ii ad.2 max_imm e in
     Let _ :=
       assert (check_oreg o a)
-             (ii, Cerr_assembler (AsmErr_string "compile_arg : bad forced register")) in                 
+             (ii, Cerr_assembler (AsmErr_string "compile_arg : bad forced register" (Some e))) in
     match nget m n with
     | None => ok (nset m n a)
     | Some a' =>
       if a == a' then ok m
-      else cierror ii (Cerr_assembler (AsmErr_string "compile_arg : not compatible asm_arg"))
+      else cierror ii (Cerr_assembler (AsmErr_string "compile_arg : not compatible asm_arg" (Some e)))
     end
   end.
 
@@ -86,8 +86,8 @@ Definition check_sopn_dest rip ii max_imm (loargs : seq asm_arg) (x : pexpr) (ad
     end
   end.
 
-Definition error_imm := 
- Cerr_assembler (AsmErr_string "Invalid asm: cannot truncate the immediate to a 32 bits immediate, move it to a register first").
+Definition error_imm :=
+ Cerr_assembler (AsmErr_string "Invalid asm: cannot truncate the immediate to a 32 bits immediate, move it to a register first" None).
 
 Definition assemble_x86_opn_aux rip ii op (outx : lvals) (inx : pexprs) :=
   let id := instr_desc op in
@@ -96,7 +96,7 @@ Definition assemble_x86_opn_aux rip ii op (outx : lvals) (inx : pexprs) :=
   Let eoutx := mapM (pexpr_of_lval ii) outx in
   Let m := compile_args rip ii max_imm (zip id.(id_out) id.(id_tout)) eoutx m in
   match oseq.omap (nget m) (iota 0 id.(id_nargs)) with
-  | None => cierror ii (Cerr_assembler (AsmErr_string "compile_arg : assert false nget"))
+  | None => cierror ii (Cerr_assembler (AsmErr_string "compile_arg : assert false nget" None))
   | Some asm_args =>
       (* This should allows to fix the problem with "MOV addr (IMM U64 w)" *)
       Let asm_args := 
@@ -125,7 +125,7 @@ Definition check_sopn_dests rip ii max_imm (loargs : seq asm_arg) (outx : seq lv
 Definition is_lea ii op (outx : lvals) (inx : pexprs) := 
   match op, outx, inx with
   | LEA sz, [:: Lvar x], [:: e] => ok (Some (sz, x, e))
-  | LEA _, _, _ => cierror ii (Cerr_assembler (AsmErr_string "lea: invalid lea instruction"))
+  | LEA _, _, _ => cierror ii (Cerr_assembler (AsmErr_string "lea: invalid lea instruction" None))
   | _, _, _ => ok None
   end.
 
@@ -143,10 +143,10 @@ Definition assemble_x86_opn rip ii op (outx : lvals) (inx : pexprs) :=
     Let asm_args := assemble_x86_opn_aux rip ii op outx inx in
     let s := id.(id_str_jas) tt in
     Let _ := assert (id_check id asm_args) 
-       (ii, Cerr_assembler (AsmErr_string ("assemble_x86_opn : invalid instruction (check) " ++ s))) in 
+       (ii, Cerr_assembler (AsmErr_string ("assemble_x86_opn : invalid instruction (check) " ++ s) None)) in
     Let _ := assert (check_sopn_args rip ii max_imm asm_args inx (zip id.(id_in) id.(id_tin)) &&
                      check_sopn_dests rip ii max_imm asm_args outx (zip id.(id_out) id.(id_tout)))
-       (ii, Cerr_assembler (AsmErr_string "assemble_x86_opn: cannot check, please repport")) in    
+       (ii, Cerr_assembler (AsmErr_string "assemble_x86_opn: cannot check, please repport" None)) in
     ok (op, asm_args)
   end.
 
@@ -156,7 +156,7 @@ Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
   | Omulu     _ 
   | Oaddcarry _ 
   | Osubcarry _ =>
-    cierror ii (Cerr_assembler (AsmErr_string "assemble_sopn : invalid op"))
+    cierror ii (Cerr_assembler (AsmErr_string "assemble_sopn : invalid op" None))
   (* Low level x86 operations *)
   | Oset0 sz => 
     let op := if (sz <= U64)%CMP then (XOR sz) else (VPXOR sz) in
@@ -165,7 +165,7 @@ Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
       | Lvar x :: _ =>  ok x
       | _ => 
         cierror ii 
-          (Cerr_assembler (AsmErr_string "assemble_sopn set0: destination is not a register")) 
+          (Cerr_assembler (AsmErr_string "assemble_sopn set0: destination is not a register" None))
       end in
     assemble_x86_opn rip ii op outx [::Plvar x; Plvar x]
   | Ox86MOVZX32 =>
@@ -174,7 +174,7 @@ Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
       | [::Lvar x] =>  ok x
       | _ => 
         cierror ii 
-          (Cerr_assembler (AsmErr_string "assemble_sopn Ox86MOVZX32: destination is not a register")) 
+          (Cerr_assembler (AsmErr_string "assemble_sopn Ox86MOVZX32: destination is not a register" None))
       end in
     assemble_x86_opn rip ii (MOV U32) outx inx 
   | Ox86 op =>

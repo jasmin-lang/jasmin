@@ -557,4 +557,4 @@ Module WArray.
 
 End WArray.
 
-Hint Resolve WArray.uincl_refl.
+Hint Resolve WArray.uincl_refl : core.

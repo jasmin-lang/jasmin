@@ -50,7 +50,7 @@ Proof. by elim: xs acc => // x xs ih acc; rewrite /= ih. Qed.
 Lemma stable_top_stack a b :
   stack_stable a b →
   top_stack a = top_stack b.
-Proof. by rewrite /top_stack => - [-> ->]. Qed.
+Proof. by rewrite /top_stack => - [-> _ ->]. Qed.
 
 (* TODO: move *)
 Lemma write_var_get_var x v s s' :
@@ -75,7 +75,7 @@ Lemma init_stk_stateI fex pex gd s s' :
   init_stk_state fex pex gd s = ok s' →
   [/\
     (evm s').[vid pex.(sp_rip)] = ok (pword_of_word gd),
-    alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) = ok (emem s') &
+    alloc_stack s.(emem) fex.(sf_align) fex.(sf_stk_sz) fex.(sf_stk_extra_sz) = ok (emem s') &
     (evm s').[vid (string_of_register RSP)] = ok (pword_of_word (top_stack (emem s'))) ].
 Proof.
   move => checked_sp_rip.
@@ -205,7 +205,6 @@ Section LEMMA.
   Record checked_ccall (ii: instr_info) (dsts: lvals) (fn: funname) (eargs: pexprs) (fd: sfundef) (O I: Sv.t) : Prop :=
     CCCall {
         ccc_fundef: get_fundef (p_funcs p) fn = Some fd;
-        ccc_ra : sf_return_address (f_extra fd) != RAnone;
         ccc_rastack : if sf_return_address (f_extra fd) is RAstack _ then extra_free_registers ii != None else true;
         ccc_eargs : mapM get_pvar eargs = ok (map v_var (f_params fd));
         ccc_dsts : mapM get_lvar dsts = ok (map v_var (f_res fd));
@@ -238,10 +237,9 @@ Section LEMMA.
     ∃ fd, checked_ccall ii dsts fn eargs fd D D'.
   Proof.
     rewrite /check_instr_r.
-    case ok_fd: (get_fundef _ fn) => [ fd | ] //; t_xrbindP => _ /assertP ok_ra _ /assertP ok_rastack _ /assertP ok_eargs _ /assertP ok_dsts _ /assertP ok_D <-{D'}.
+    case ok_fd: (get_fundef _ fn) => [ fd | ] //; t_xrbindP => _ /assertP ok_rastack _ /assertP ok_eargs _ /assertP ok_dsts _ /assertP ok_D <-{D'}.
     exists fd; split.
     - exact: ok_fd.
-    - exact: ok_ra.
     - exact: ok_rastack.
     - elim: eargs (f_params _) ok_eargs; clear; first by case.
       move => a eargs ih [] // x xs /= /andP[] ok_a /ih{ih}->.
@@ -330,6 +328,7 @@ Section LEMMA.
     kill_extra_register_vmap extra_free_registers ii vm = vm [\extra_free_registers_at extra_free_registers ii].
   Proof.
     rewrite /extra_free_registers_at /kill_extra_register_vmap; case: extra_free_registers => //= r j /SvD.F.singleton_iff /eqP ne.
+    case: vm.[r] => // _.
     exact: Fv.setP_neq.
   Qed.
 
@@ -701,20 +700,17 @@ Section LEMMA.
       have {ok_w} vv' := value_uincl_truncate_val ok_w.
       have [->] := write_var_get_var ok_s2.
       exact: pto_pof_uincl (value_uincl_trans vv' v'_w').
-    have top_stack2 : top_stack (free_stack (emem s2) (sf_stk_sz (f_extra fd))) = top_stack m.
-    - have frames2 : frames (emem s2) = (top_stack (emem s0), sf_stk_sz (f_extra fd)) :: frames m.
-      + by rewrite -(sem_stack_stable sexec).(ss_frames) -(write_vars_emem ok_s1) (Memory.alloc_stackP ok_m').(ass_frames).
-      have := @Memory.free_stackP (emem s2) (sf_stk_sz (f_extra fd)).
-      rewrite frames2 => /(_ erefl) ok_free.
-      rewrite {1}/top_stack (fss_frames ok_free) frames2 /=.
-      by rewrite (fss_root ok_free) -(sem_stack_stable sexec).(ss_root) -(write_vars_emem ok_s1) (Memory.alloc_stackP ok_m').(ass_root).
+    have top_stack2 : top_stack (free_stack (emem s2)) = top_stack m.
+    - have ok_alloc := Memory.alloc_stackP ok_m'.
+      have ok_free := Memory.free_stackP (emem s2).
+      by rewrite {1}/top_stack ok_free.(fss_frames) ok_free.(fss_root) -(sem_stack_stable sexec).(ss_root) -(sem_stack_stable sexec).(ss_frames) -(write_vars_emem ok_s1) ok_alloc.(ass_root) ok_alloc.(ass_frames).
     have [ t2 [ texec preserved sim2 ] ] := ih _ _ t1' checked_body pre1 sim1.
    have [ tres ok_tres res_uincl ] : exists2 tres,
-     mapM (λ x : var_i, get_var (set_RSP (free_stack (emem t2) (sf_stk_sz (f_extra fd))) (evm t2)) x) (f_res fd) = ok tres
+     mapM (λ x : var_i, get_var (set_RSP (free_stack (emem t2)) (evm t2)) x) (f_res fd) = ok tres
      & List.Forall2 value_uincl vres' tres.
    - move: ok_vres RSP_not_result (f_tyout fd) vres' ok_vres'.
      move: (mvm_vmap sim2); rewrite /live_after_fd; clear.
-     move: (evm s2) (evm t2) (free_stack _ _) => vm vm' m {s2 t2}.
+     move: (evm s2) (evm t2) (free_stack _) => vm vm' m {s2 t2}.
      elim: vres (f_res fd) Sv.empty => [ | v vres ih ] [] //=; t_xrbindP => //.
      + by move => _ _ _ _ [] // _ [<-]; exists [::].
      move => x xs dom hvm y ok_y vs ok_vs ??; subst => /andP[] hx hxs [] // ty tys /=; t_xrbindP => _ w ok_w vres' ok_vres' <-.
@@ -727,12 +723,21 @@ Section LEMMA.
      exists (tv :: tres); first reflexivity.
      constructor; last exact: res_uincl.
      exact: (value_uincl_trans (value_uincl_truncate_val ok_w) v_uincl).
-     exists (set_RSP (free_stack (emem t2) (sf_stk_sz (f_extra fd))) (evm t2)), tres; split.
+     have rsp_not_written :  ¬ Sv.In vrsp (write_c (f_body fd)).
+     - move/not_written_magic: preserved_magic ok_wrf => [_].
+       rewrite /writefun_ra ok_fd /valid_writefun /write_fd /= /magic_variables /= /is_true Sv.subset_spec; clear.
+       SvD.fsetdec.
+     exists (set_RSP (free_stack (emem t2)) (evm t2)), tres; split.
     - econstructor.
       + exact: ok_fd.
       + exact: ok_rastack.
       + exact: ok_m'.
       + exact: texec.
+      + rewrite /valid_RSP -preserved // /t1' /= Fv.setP_eq.
+        congr (ok (pword_of_word _)).
+        rewrite -(mvm_mem sim2).
+        move: ok_s1; rewrite (write_vars_lvals [::]) => /write_lvals_stack_stable /stable_top_stack ->.
+        by move/sem_stack_stable: sexec => /stable_top_stack.
       rewrite (mvm_mem sim2); reflexivity.
     - rewrite /= /set_RSP => x.
       case: (vrsp =P x).

@@ -117,7 +117,8 @@ Definition wbase (s: wsize) : Z :=
 
 Lemma le0_wsize_size ws : 0 <= wsize_size ws.
 Proof. rewrite /wsize_size; lia. Qed.
-Hint Resolve le0_wsize_size.
+Arguments le0_wsize_size {ws}.
+Hint Resolve le0_wsize_size : core.
 
 Lemma wsize_sizeE sz : wsize_size sz =  wsize_bits sz / 8.
 Proof. by case: sz. Qed.
@@ -250,6 +251,10 @@ Proof.
     rewrite /wmulhu Zquot.Zquot_Zdiv_pos //.
     apply: Z.mul_nonneg_nonneg; apply: (proj1 (wunsigned_range _)).
 Qed.
+
+Definition wmulhrs sz (x y: word sz) : word sz :=
+  let: p := Z.shiftr (wsigned x * wsigned y) (wsize_size_minus_1 sz).-1 + 1 in
+  wrepr sz (Z.shiftr p 1).
 
 Definition wmax_unsigned sz := wbase sz - 1.
 Definition wmin_signed (sz: wsize) : Z := - modulus (wsize_size_minus_1 sz).
@@ -610,6 +615,12 @@ Qed.
 Lemma wand0 sz (x: word sz) : wand 0 x = 0%R.
 Proof. by apply/eqP. Qed.
 
+Lemma wandN1 sz (x: word sz) : wand (-1) x = x.
+Proof.
+  apply/eqP/eq_from_wbit_n => i.
+  by rewrite wandE wN1E ltn_ord.
+Qed.
+
 Lemma wxor0 sz (x: word sz) : wxor 0 x = x.
 Proof. by apply/eqP/eq_from_wbit. Qed.
 
@@ -837,9 +848,13 @@ exact: wcat_rI eq_size.
 Qed.
 
 (* -------------------------------------------------------------------*)
+Definition lift1_vec' ve ve' (op : word ve → word ve')
+    (sz sz': wsize) (w: word sz) : word sz' :=
+  make_vec sz' (map op (split_vec ve w)).
+
 Definition lift1_vec ve (op : word ve -> word ve)
     (sz:wsize) (w:word sz) : word sz :=
-  make_vec sz (map op (split_vec ve w)).
+  lift1_vec' op sz w.
 Arguments lift1_vec : clear implicits.
 
 Definition lift2_vec ve (op : word ve -> word ve -> word ve)
@@ -1028,6 +1043,21 @@ Definition wpblendd sz (w1 w2: word sz) (m: u8) : word sz :=
 Definition wpbroadcast ve sz (w: word ve) : word sz :=
   let r := nseq (sz %/ ve) w in
   make_vec sz r.
+
+(* -------------------------------------------------------------------*)
+Fixpoint seq_dup_hi T (m: seq T) : seq T :=
+  if m is _ :: a :: m' then a :: a :: seq_dup_hi m' else [::].
+
+Fixpoint seq_dup_lo T (m: seq T) : seq T :=
+  if m is a :: _ :: m' then a :: a :: seq_dup_lo m' else [::].
+
+Definition wdup_hi ve sz (w: word sz) : word sz :=
+  let v : seq (word ve) := split_vec ve w in
+  make_vec sz (seq_dup_hi v).
+
+Definition wdup_lo ve sz (w: word sz) : word sz :=
+  let v : seq (word ve) := split_vec ve w in
+  make_vec sz (seq_dup_lo v).
 
 (* -------------------------------------------------------------------*)
 Definition wperm2i128 (w1 w2: u256) (i: u8) : u256 :=

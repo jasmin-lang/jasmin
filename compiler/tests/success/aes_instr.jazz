@@ -1,0 +1,45 @@
+export fn aes_test (reg u64 p) -> reg u64 {
+reg u64 r;
+reg u128 x1 x2, x3;
+
+x1 = #set0_128();
+x2 = #set0_128();
+
+x1 = #AESENC(x1, x2);
+x1 = #AESENC(x1, (u128)[p]);
+(u128)[p] = x1;
+x3 = #VAESENC(x1, x2);
+(u128)[p] = x3;
+x3 = #VAESENC(x1, (u128)[p]);
+(u128)[p] = x3;
+
+x1 = #AESDEC(x1, x2);
+x1 = #AESDEC(x1, (u128)[p]);
+(u128)[p] = x1;
+x3 = #VAESDEC(x1, x2);
+(u128)[p] = x3;
+x3 = #VAESDEC(x1, (u128)[p]);
+(u128)[p] = x3;
+
+x1 = #AESIMC(x1);
+x1 = #VAESIMC(x1);
+(u128)[p] = x1;
+x1 = #AESIMC((u128)[p]);
+x1 = #VAESIMC((u128)[p]);
+(u128)[p] = x1;
+
+x3 = #AESKEYGENASSIST(x1,5);
+x3 = #AESKEYGENASSIST(x3,4);
+(u128)[p] = x3;
+x1 = #AESKEYGENASSIST((u128)[p], 3);
+(u128)[p] = x1;
+
+x3 = #VAESKEYGENASSIST(x1,1);
+x3 = #VAESKEYGENASSIST(x3,2);
+(u128)[p] = x3;
+x1 = #VAESKEYGENASSIST((u128)[p], 0);
+(u128)[p] = x1;
+
+r = 0;
+return r;
+}

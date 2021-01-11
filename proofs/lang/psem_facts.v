@@ -33,7 +33,7 @@ Proof.
   split.
   - by [].
   - by move => x y [*]; split.
-  move => x y z [??] [??]; split; etransitivity; eassumption.
+  move => x y z [???] [???]; split; etransitivity; eassumption.
 Qed.
 
 Lemma write_lval_stack_stable gd x v s s' :
@@ -121,11 +121,12 @@ Proof.
   move => m _ fn fd vargs vargs' s0 s1 s2 vres vres' _ _ A /write_vars_emem B _ C _ _ ->; red.
   move: A; rewrite /= /init_stk_state /finalize_stk_mem; t_xrbindP => /= m' ok_m' [?]; subst s0.
   move: B => /= ?; subst m'.
-  have := @free_stackP (emem s2) (sf_stk_sz (f_extra fd)).
-  rewrite -C.(ss_frames) (alloc_stackP ok_m').(ass_frames) => /(_ erefl) => ok_free.
+  have ok_free := free_stackP (emem s2).
   split; last by rewrite (fss_frames ok_free) -C.(ss_frames) (alloc_stackP ok_m').(ass_frames).
-  rewrite (fss_root ok_free) -(alloc_stackP ok_m').(ass_root).
-  exact: ss_root C.
+  + rewrite (fss_root ok_free) -(alloc_stackP ok_m').(ass_root).
+    exact: ss_root C.
+  rewrite (fss_limit ok_free) -(alloc_stackP ok_m').(ass_limit).
+  exact: ss_limit C.
 Qed.
 
 Lemma sem_stack_stable s1 c s2 :

@@ -1,0 +1,26 @@
+export fn test_vpalignr_128(reg u64 cp ap bp)
+{
+  reg u128 c a b;
+  a = (u128)[ap + 0];
+  b = (u128)[bp + 0];
+  c = #VPALIGNR_128(a,b,8);
+  (u128)[cp + 0] = c;
+}
+
+export fn test_vpalignr_128_1(reg u64 cp ap bp)
+{
+  reg u128 c a b;
+  a = (u128)[ap + 0];
+  b = (u128)[bp + 0];
+  c = #VPALIGNR(a,b,8);
+  (u128)[cp + 0] = c;
+}
+
+export fn test_vpalignr_256(reg u64 cp ap bp)
+{
+  reg u256 c a b;
+  a = (u256)[ap + 0];
+  b = (u256)[bp + 0];
+  c = #VPALIGNR_256(a,b,8);
+  (u256)[cp + 0] = c;
+}

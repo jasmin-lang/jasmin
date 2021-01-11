@@ -312,6 +312,29 @@ rewrite /between => /andP [] /ZleP a /ZleP b /andP [] /ZleP c /ZleP d.
 apply/andP; split; apply/ZleP; Psatz.lia.
 Qed.
 
+Lemma between_byte pstk sz b i ws :
+  no_overflow b (wsize_size ws) →
+  between pstk sz b ws →
+  0 <= i ∧ i < wsize_size ws →
+  between pstk sz (b + wrepr U64 i) U8.
+Proof.
+  rewrite /between !zify; change (wsize_size U8) with 1 => novf [] lo hi i_range.
+  rewrite wunsigned_add; first Psatz.lia.
+  move: (wunsigned_range b); Psatz.lia.
+Qed.
+
+Definition pointer_range (lo hi: pointer) : pred pointer :=
+  λ p, (wunsigned lo <=? wunsigned p) && (wunsigned p <? wunsigned hi).
+
+Lemma pointer_range_between lo hi p :
+  pointer_range lo hi p →
+  between lo (wunsigned hi - wunsigned lo) p U8.
+Proof.
+  rewrite /pointer_range /between !zify.
+  change (wsize_size U8) with 1.
+  Psatz.lia.
+Qed.
+
 (* -------------------------------------------------- *)
 
 Class alignment : Type :=
@@ -343,15 +366,57 @@ Lemma is_align_array (AL:alignment) ptr sz j :
   is_align ptr sz → is_align (wrepr _ (wsize_size sz * j) + ptr) sz.
 Proof. by move=> hptr; apply is_align_add => //; apply is_align_mul. Qed.
 
+(** Rounds the given size to the next larger-or-equal multiple of [ws] *)
+Definition round_ws (ws:wsize) (sz: Z) : Z :=
+  (let d := wsize_size ws in
+   let: (q, r) := Z.div_eucl sz d in
+   if r == 0 then sz else (q + 1) * d)%Z.
+
+Lemma round_ws_aligned ws sz :
+  (round_ws ws sz) mod wsize_size ws == 0.
+Proof.
+  have ws_pos : wsize_size ws ≠ 0 by case: ws.
+  apply/eqP; rewrite Z.mod_divide // /round_ws.
+  elim_div => /(_ ws_pos) [] ->{sz} D.
+  case: eqP => ?.
+  - exists z; Psatz.lia.
+  exists (z + 1); Psatz.lia.
+Qed.
+
+Lemma round_ws_above ws sz :
+  sz <= round_ws ws sz.
+Proof.
+  have ws_pos := wsize_size_pos ws.
+  rewrite /round_ws; elim_div => - [] // -> []; last by Psatz.lia.
+  case: eqP; Psatz.lia.
+Qed.
+
+(** Round to the multiple of [sz'] below. *)
+Definition align_word (sz sz': wsize) (p: word sz) : word sz :=
+  wand p (wrepr sz (-wsize_size sz')).
+
+Lemma align_word_U8 sz (p: word sz) :
+  align_word U8 p = p.
+Proof. by rewrite /align_word wandC wandN1. Qed.
+
+Lemma align_word_aligned (sz sz': wsize) (p: word sz) :
+  wunsigned (align_word sz' p) mod wsize_size sz' == 0.
+Proof.
+Admitted.
+
+Definition top_stack_after_alloc (top: pointer) (ws: wsize) (sz: Z) : pointer :=
+  align_word ws (top + wrepr Uptr (- sz)).
+
 Class memory (mem: Type) : Type :=
   Memory {
       read_mem  : mem -> pointer -> forall (s:wsize), exec (word s)
     ; write_mem : mem -> pointer -> forall (s:wsize), word s -> exec mem
     ; valid_pointer : mem -> pointer -> wsize -> bool
     ; stack_root : mem -> pointer
-    ; frames : mem -> seq (pointer * Z)
-    ; alloc_stack : mem -> wsize -> Z -> exec mem
-    ; free_stack : mem -> Z -> mem
+    ; stack_limit : mem -> pointer
+    ; frames : mem -> seq pointer
+    ; alloc_stack : mem -> wsize -> Z -> Z -> exec mem (* alignement, size, extra-size *)
+    ; free_stack : mem -> mem
     ; init : seq (pointer * Z) → pointer → exec mem
     }.
 
@@ -360,48 +425,66 @@ Arguments write_mem {_ _} _ _ _ _ : simpl never.
 Arguments valid_pointer : simpl never.
 
 Definition top_stack {mem: Type} {M: memory mem} (m: mem) : pointer :=
-  (head (stack_root m, 0) (frames m)).1.
+  head (stack_root m) (frames m).
+
+Definition allocatable_stack {mem: Type} {M : memory mem} (m : mem) (z : Z) :=
+  True. (* TODO *)
 
 Section SPEC.
   Context (AL: alignment) mem (M: memory mem)
-    (m: mem) (ws:wsize) (sz: Z) (m': mem).
+    (m: mem) (ws:wsize) (sz: Z) (sz': Z) (m': mem).
   Let pstk := top_stack m'.
 
   Record alloc_stack_spec : Prop := mkASS {
-    ass_mod      : (wunsigned pstk + sz <= wbase Uptr)%Z;
     ass_read_old : forall p s, valid_pointer m p s -> read_mem m p s = read_mem m' p s;
-    ass_valid    : forall p s,
-      valid_pointer m' p s =
-      valid_pointer m p s || (between pstk sz p s && is_align p s);
+    ass_valid    : forall p,
+      valid_pointer m' p U8 =
+      valid_pointer m p U8 || between pstk sz p U8;
     ass_align    : forall ofs s,
       (s <= ws)%CMP ->
       is_align (pstk + wrepr _ ofs) s = is_align (wrepr _ ofs) s ;
     ass_fresh    : forall p s, valid_pointer m p s ->
       (wunsigned p + wsize_size s <= wunsigned pstk \/
        wunsigned pstk + sz <= wunsigned p)%Z;
-    ass_root : stack_root m' = stack_root m;
-    ass_frames : frames m' = (pstk, sz) :: frames m;
+    ass_root   : stack_root m' = stack_root m;
+    ass_limit  : stack_limit m' = stack_limit m;
+    ass_frames : frames m' = top_stack_after_alloc (top_stack m) ws (sz + sz') :: frames m;
   }.
 
   Record stack_stable : Prop := mkSS {
     ss_root: stack_root m = stack_root m';
+    ss_limit: stack_limit m = stack_limit m';
     ss_frames: frames m = frames m';
   }.
 
   Record free_stack_spec : Prop := mkFSS {
     fss_read_old : forall p s, valid_pointer m' p s -> read_mem m p s = read_mem m' p s;
-    fss_valid    : forall p s,
-      valid_pointer m' p s <->
-      (valid_pointer m p s /\ (disjoint_zrange (top_stack m) sz p (wsize_size s)));
+    fss_valid    : ∀ p, valid_pointer m' p U8 = valid_pointer m p U8 && ~~ pointer_range (top_stack m) (top_stack m') p;
     fss_root : stack_root m' = stack_root m;
+    fss_limit : stack_limit m' = stack_limit m;
     fss_frames : frames m' = behead (frames m);
    }.
 
+  Record allocatable_spec : Prop := {
+    as_alloc : forall z, allocatable_stack m z -> 0 <= sz + sz' + wsize_size ws < z -> 
+            exists m', alloc_stack m ws sz sz' = ok m' /\
+                       (allocatable_stack m z  -> 
+                          allocatable_stack m' (z - (sz + sz' + wsize_size ws - 1)));
+    as_alloc_align : forall z (ws wsp : wsize), 
+                     (ws <= wsp)%CMP ->
+                     is_align (top_stack m) wsp ->
+                     allocatable_stack m z ->
+            exists m', alloc_stack m ws sz sz' = ok m' /\
+                     allocatable_stack m z  -> 
+                     allocatable_stack m' (z - round_ws ws (sz + sz'));
+  }.
+
 End SPEC.
 
-Arguments alloc_stack_spec {_ _ _} _ _ _.
+Arguments alloc_stack_spec {_ _ _} _ _ _ _.
 Arguments stack_stable {_ _} _ _.
-Arguments free_stack_spec {_ _} _ _ _.
+Arguments free_stack_spec {_ _} _ _.
+Arguments allocatable_spec {_ _ _ } _ _ _.
 
 (** Pointer arithmetic *)
 Instance Pointer : pointer_op pointer.
@@ -465,12 +548,8 @@ Parameter write_valid : forall m m' p s (v :word s) p' s',
   write_mem m p s v = ok m' ->
   valid_pointer m' p' s' = valid_pointer m p' s'.
 
-Parameter valid_align : forall m p s, valid_pointer m p s -> is_align p s.
-
-Parameter is_align_valid_pointer : forall m p ws,
-   is_align p ws ->
-   (forall k, 0 <= k < wsize_size ws -> valid_pointer m (p + wrepr U64 k) U8) ->
-   valid_pointer m p ws.
+Parameter valid_pointerP : ∀ m p ws,
+    reflect (is_align p ws ∧ ∀ k, 0 <= k < wsize_size ws -> valid_pointer m (p + wrepr U64 k) U8) (valid_pointer m p ws).
 
 Parameter read_write_any_mem :
   forall m1 m1' pr szr pw szw vw m2 m2',
@@ -481,14 +560,15 @@ Parameter read_write_any_mem :
     read_mem m2 pr szr = read_mem m2' pr szr.
 
 (* -------------------------------------------------------------------- *)
-Parameter alloc_stackP : forall m m' ws sz,
-  alloc_stack m ws sz = ok m' -> alloc_stack_spec m ws sz m'.
+Parameter alloc_stackP : forall m m' ws sz sz',
+  alloc_stack m ws sz sz' = ok m' -> alloc_stack_spec m ws sz sz' m'.
+
+Parameter allocatable_stackP : forall m ws sz sz', allocatable_spec m ws sz sz'.
 
 Parameter write_mem_stable : forall m m' p s v,
   write_mem m p s v = ok m' -> stack_stable m m'.
 
-Parameter free_stackP : forall m sz,
-  omap snd (ohead (frames m)) = Some sz ->
-  free_stack_spec m sz (free_stack m sz).
+Parameter free_stackP : forall m,
+  free_stack_spec m (free_stack m).
 
 End MemoryT.

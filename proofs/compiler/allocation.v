@@ -168,6 +168,8 @@ Module CheckBS (C:CheckB) <: CheckBE.
                         (ef2:extra_fun_t) (ep2:extra_prog_t) : cexec M.t := 
     Let _ := assert (ef1.(sf_stk_sz) == ef2.(sf_stk_sz))
                     (Cerr_linear "allocation: invalid stack size") in
+    Let _ := assert (ef1.(sf_stk_extra_sz) == ef2.(sf_stk_extra_sz))
+                    (Cerr_linear "allocation: invalid extra stack size") in
     Let _ := assert (ef1.(sf_align) == ef2.(sf_align)) 
                     (Cerr_linear "allocation: invalid stack alignment") in
     check_vars [:: vid (string_of_register RSP); vid ep1.(sp_rip)]
@@ -181,11 +183,11 @@ Module CheckBS (C:CheckB) <: CheckBE.
       eq_alloc r s1.(evm) vm2.
   Proof.
     rewrite /init_alloc /init_state /= /init_stk_state /check_vars.
-    t_xrbindP => _ /assertP -/eqP heq _ /assertP -/eqP hal hc m' ha; rewrite (@write_vars_lvals [::]) => hw.
+    t_xrbindP => _ /assertP -/eqP heq _ /assertP -/eqP heeq _ /assertP -/eqP hal hc m' ha; rewrite (@write_vars_lvals [::]) => hw.
     have [vm2 [hvm2 heq2]]:= check_lvalsP (s1 := (Estate m' vmap0)) hc eq_alloc_empty 
                            (List_Forall2_refl _ (@value_uincl_refl)) hw.
     Opaque write_vars.
-    by exists vm2; rewrite -heq -hal ha /= (@write_vars_lvals [::]).
+    by exists vm2; rewrite -heq -heeq -hal ha /= (@write_vars_lvals [::]).
     Transparent write_vars.
   Qed.
 

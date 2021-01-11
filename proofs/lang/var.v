@@ -370,6 +370,13 @@ Module Type FvT.
   Axiom setP_neq : forall to (vm:t to) x y (v:to x.(vtype)),
     x != y -> get (@set _ vm x v) y = get vm y.
 
+  Axiom setP : ∀ to (vm: t to) x y (v: to x.(vtype)),
+      get (@set _ vm x v) y =
+      match x =P y with
+      | ReflectT x_eq_y => ecast _ _ x_eq_y v
+      | _ => get vm y
+      end.
+
   Definition ext_eq  {to} (vm1 vm2 : t to) :=
     forall x, get vm1 x = get vm2 x.
 
@@ -395,6 +402,18 @@ Module Fv : FvT.
   Lemma setP_neq to (vm:t to) x y (v:to x.(vtype)) :
     x != y -> get (@set _ vm x v) y = get vm y.
   Proof. apply Mv.setP_neq. Qed.
+
+  Lemma setP to (vm: t to) x y (v: to x.(vtype)) :
+      get (@set _ vm x v) y =
+      match x =P y with
+      | ReflectT x_eq_y => ecast _ _ x_eq_y v
+      | _ => get vm y
+      end.
+  Proof.
+    case: (x =P y).
+    + move => ?; subst; exact: setP_eq.
+    move => /eqP; exact: setP_neq.
+  Qed.
 
   Definition ext_eq  {to} (vm1 vm2 : t to) :=
     forall x, get vm1 x = get vm2 x.
