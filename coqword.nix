@@ -2,7 +2,12 @@
 
 let inherit (coqPackages) coq; in
 
-let mathcomp = coqPackages.mathcomp-algebra or coqPackages.mathcomp; in
+let mathcomp =
+ (if coqPackages ? mathcomp_
+  then coqPackages.mathcomp_ "1.10.0"
+  else coqPackages.mathcomp.override { version = "1.10.0"; }
+ ).algebra
+; in
 
 let rev = "1744285ceda592d7d12573627200b7f82fab8b84"; in
 
