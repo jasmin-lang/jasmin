@@ -145,6 +145,10 @@ Instance A : alignment :=
 
 End Align.
 
+Lemma subxx p :
+  sub p p = 0.
+Proof. rewrite subE; Psatz.lia. Qed.
+
 Lemma add_p_opp_sub_add_p (p q: pointer) (n: Z) :
   add p (- sub (add p n) q + n) = q.
 Proof.
@@ -158,6 +162,30 @@ Proof.
   have := add_p_opp_sub_add_p p q 0.
   by rewrite add_0 Z.add_0_r.
 Qed.
+
+Lemma sub_add_small_L (p q: pointer) n :
+  0 <= n <= wunsigned p →
+  sub (add p (-n)) q = sub p q - n.
+Proof.
+  rewrite !addE !subE => n_range.
+  rewrite wunsigned_add; first ring.
+  have := wunsigned_range p.
+  Psatz.lia.
+Qed.
+
+Lemma sub_add_small_R (p q: pointer) n :
+  0 <= n <= wunsigned q →
+  sub p (add q (-n)) = sub p q + n.
+Proof.
+  rewrite !subE => n_range.
+  rewrite wunsigned_add; first ring.
+  have := wunsigned_range q.
+  Psatz.lia.
+Qed.
+
+Lemma sub_le (a b p: pointer) :
+  wunsigned a <= wunsigned b ↔ sub p b <= sub p a.
+Proof. rewrite !subE; Psatz.lia. Qed.
 
 (** An example instance of the memory *)
 Module MemoryI : MemoryT.
@@ -917,8 +945,53 @@ Module MemoryI : MemoryT.
     by case: (stack_blocks_rec _ _).
   Qed.
 
-  Lemma allocatable_stackP m ws sz sz' : allocatable_spec m ws sz sz'.
+  Lemma alloc_stack_complete m ws sz sz' :
+    let: old_size:= sub (stack_root m) (memory_model.top_stack m) in
+    let: max_size := sub (stack_root m) (stack_limit m) in
+    let: available := max_size - old_size in
+    [&& 0 <=? sz, 0 <=? sz' &
+    if is_align (memory_model.top_stack m) ws
+    then round_ws ws (sz + sz') <=? available (* tight bound *)
+    else sz + sz' + wsize_size ws <=? available (* loose bound, exact behavior is under-specified *)
+    ] →
+    ∃ m', alloc_stack m ws sz sz' = ok m'.
   Proof.
-  Admitted.
+    rewrite !top_stackE !zify => - [ sz_pos ] [ sz'_pos ].
+    rewrite /alloc_stack.
+    rewrite -/(top_stack_after_alloc (top_stack m) ws (sz + sz')) /valid_frame /=.
+    case: Sumbool.sumbool_of_bool; first by eauto.
+    rewrite /footprint_of_frame /= -!subE.
+    move => /negbT; rewrite !zify => X no_overflow; elim: X.
+    refine ((λ x, conj (conj sz_pos (proj1 x)) (proj2 x)) _).
+    have -> : footprint_of_stack (frames m) = sub (stk_root m) (top_stack m).
+    - rewrite subE wunsigned_top_stack; ring.
+    case: ifPn no_overflow => top_align; rewrite zify => no_overflow.
+    { (* old top stack is aligned for ws *)
+      rewrite top_stack_after_aligned_alloc //.
+      have size_big := @round_ws_above ws (sz + sz').
+      have size_small : 0 <= round_ws ws (sz + sz') <= wunsigned (top_stack m).
+      - move: no_overflow; rewrite !subE.
+        have := wunsigned_range (stk_limit m).
+        Psatz.lia.
+      rewrite sub_add_small_R // subxx.
+      Psatz.lia. }
+    (* old top stack is not aligned *)
+    split.
+    { rewrite -Z.le_add_le_sub_r /=.
+      etransitivity; last by apply/sub_le; exact: align_word_le.
+      rewrite sub_add_small_R; first by rewrite subxx; Psatz.lia.
+      move: no_overflow; rewrite !subE.
+      have := wunsigned_range (stk_limit m).
+      have := wsize_size_pos ws.
+      Psatz.lia. }
+    ring_simplify.
+    rewrite Z.le_add_le_sub_r.
+    etransitivity; last exact: no_overflow.
+    rewrite subE; apply: top_stack_after_alloc_bounded.
+    move: no_overflow; rewrite !subE.
+    have := wunsigned_range (stk_limit m).
+    have := wsize_size_pos ws.
+    Psatz.lia.
+  Qed.
 
 End MemoryI.

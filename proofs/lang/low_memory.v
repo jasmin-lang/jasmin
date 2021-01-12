@@ -83,9 +83,24 @@ Proof.
   by rewrite a.(ass_frames).
 Qed.
 
-(* TODO: maybe too general *)
-Lemma top_stack_after_aligned_alloc p ws sz :
-  is_align p ws →
-  top_stack_after_alloc p ws sz = add p (- round_ws ws sz).
-Proof.
-Admitted.
+Definition allocatable_stack (m : mem) (z : Z) :=
+  True. (* TODO *)
+
+(*
+  Record allocatable_spec : Prop := {
+    as_alloc : forall z, allocatable_stack m z -> 0 <= sz + sz' + wsize_size ws < z -> 
+            exists m', alloc_stack m ws sz sz' = ok m' /\
+                       (allocatable_stack m z  -> 
+                          allocatable_stack m' (z - (sz + sz' + wsize_size ws - 1)));
+    as_alloc_align : forall z (ws wsp : wsize), 
+                     (ws <= wsp)%CMP ->
+                     is_align (top_stack m) wsp ->
+                     allocatable_stack m z ->
+            exists m', alloc_stack m ws sz sz' = ok m' /\
+                     allocatable_stack m z  -> 
+                     allocatable_stack m' (z - round_ws ws (sz + sz'));
+  }.
+
+Arguments allocatable_spec {_ _ _ } _ _ _.
+Parameter allocatable_stackP : forall m ws sz sz', allocatable_spec m ws sz sz'.
+*)

@@ -1243,7 +1243,7 @@ Section PROOF.
         rewrite /set_RSP (alloc_stack_top_stack ok_m1').
         rewrite top_stack_after_aligned_alloc; last first.
         * admit. (* TODO: ancestor export function has enforced alignement of the stack pointer. *)
-        rewrite addE wrepr_opp -/(stack_frame_allocation_size fd.(f_extra)).
+        rewrite wrepr_opp -/(stack_frame_allocation_size fd.(f_extra)).
         rewrite !Fv.setP; case: eqP => // x_rsp; case: eqP => // x_ra _; subst.
         by rewrite /= ok_ra.
       have D : disjoint_labels 2 lbl [:: P].
@@ -1270,7 +1270,7 @@ Section PROOF.
       rewrite valid_rsp -(stable_top_stack S) (alloc_stack_top_stack ok_m1').
       rewrite top_stack_after_aligned_alloc; last first.
       * admit. (* TODO: as above, stack pointer is aligned by export functions. *)
-      by rewrite addE wrepr_opp.
+      by rewrite wrepr_opp.
     }
     (* Internal function, return address in stack at offset “rastack” *)
     { admit. }
