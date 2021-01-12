@@ -205,7 +205,10 @@ Inductive leak_i_tr :=
 | LT_ifor : leak_e_tr -> seq leak_i_tr -> leak_i_tr
 | LT_icall : leak_e_tr -> leak_e_tr -> leak_i_tr
 | LT_ifor_unroll: seq leak_i_tr -> leak_i_tr
-| LT_icall_inline: leak_c -> seq leak_i_tr -> leak_i_tr.
+| LT_icall_inline: leak_c -> seq leak_i_tr -> leak_i_tr
+(* lowering leak transformers *)
+| LT_icondl : leak_e -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
+| LT_iwhilel :  leak_e -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr.
 (*| LT_icompose : leak_i_tr -> leak_i_tr -> leak_i_tr.*)
 
 Section Leak_I.
@@ -263,6 +266,17 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
      lc ++
      leak_Is leak_I stk (leak_Fun f) lts ++
     (map (fun y => (Lopn (LSub [:: LEmpty; y]))) (get_seq_leak_e le')))
+ (* lowering *)
+  | LT_icondl le' ltt ltf, Lcond le b lti => 
+    [:: Lopn (LSub [:: le; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])] ++ [:: Lcond le' b (leak_Is leak_I stk (if b then ltt else ltf) lti) ]
+  | LT_iwhilel le' ltis ltis', Lwhile_true lts le lts' lw => 
+    [:: Lwhile_true ((leak_Is leak_I stk ltis lts) ++ [:: Lopn (LSub [:: le; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])])
+                     le'
+                     (leak_Is leak_I stk ltis' lts')
+                     (head dummy_lit (leak_I stk lw lt))]
+  | LT_iwhilel le' ltis ltis', Lwhile_false lts le => 
+    [::Lwhile_false ((leak_Is leak_I stk ltis lts) ++ [:: Lopn (LSub [:: le; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])])
+                     le']
   (*| LT_icompose lt1 lt2 => leak_I (leak_I l lt1) lt2*)
   
   | _, _ => [:: l]
