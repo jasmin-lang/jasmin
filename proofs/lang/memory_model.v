@@ -383,8 +383,8 @@ Proof.
   exists (z + 1); Psatz.lia.
 Qed.
 
-Lemma round_ws_above ws sz :
-  sz <= round_ws ws sz.
+Lemma round_ws_range ws sz :
+  sz <= round_ws ws sz < sz + wsize_size ws.
 Proof.
   have ws_pos := wsize_size_pos ws.
   rewrite /round_ws; elim_div => - [] // -> []; last by Psatz.lia.

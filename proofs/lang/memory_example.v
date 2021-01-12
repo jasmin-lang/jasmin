@@ -968,7 +968,7 @@ Module MemoryI : MemoryT.
     case: ifPn no_overflow => top_align; rewrite zify => no_overflow.
     { (* old top stack is aligned for ws *)
       rewrite top_stack_after_aligned_alloc //.
-      have size_big := @round_ws_above ws (sz + sz').
+      have size_big := @round_ws_range ws (sz + sz').
       have size_small : 0 <= round_ws ws (sz + sz') <= wunsigned (top_stack m).
       - move: no_overflow; rewrite !subE.
         have := wunsigned_range (stk_limit m).
