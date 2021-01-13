@@ -239,6 +239,7 @@ Proof.
   by case: ifP.
 Qed.
 
+(*
 Lemma find_instr_cat_tl c fn s i :
   find_instr s = Some i ->
   find_instr (setc s fn (lc s ++ c)) = Some i.
@@ -246,8 +247,9 @@ Proof.
   move => /(oseq.onthP i) /andP [Hs Hnth].
   by apply /(oseq.onthP i);rewrite size_cat nth_cat Hs (ltn_addr _ Hs).
 Qed.
+*)
 
-Lemma to_estate_setc s fn c : to_estate (setc s fn c) = to_estate s.
+Lemma to_estate_setc s fn : to_estate (setc s fn) = to_estate s.
 Proof. by case: s. Qed.
 
 (*
@@ -371,7 +373,9 @@ Proof.
 Qed.
 
 *)
+(*
 Definition add_hd_c c s := {| lmem := lmem s; lvm := lvm s; lfn := lfn s; lc := c ++ s.(lc); lpc := size c + s.(lpc) |}.
+*)
 
 (* This lemma is wrong: code is not preserved when calling a function
 Lemma lsem1_lc p s1 s2: lsem1 p s1 s2 -> lc s1 = lc s2.
@@ -388,6 +392,7 @@ Proof.
 Qed.
 *)
 
+(*
 Lemma find_instr_add_hd_c c s : find_instr (add_hd_c c s) = find_instr s.
 Proof.
   rewrite /find_instr /add_hd_c /= !oseq.onth_nth map_cat nth_cat size_map.
@@ -396,13 +401,16 @@ Qed.
 
 Lemma to_estate_add_hd_c c s : to_estate (add_hd_c c s) = to_estate s.
 Proof. by case: s. Qed.
+*)
 
+(*
 Lemma find_instr_has (p:linstr->bool) s i :
   find_instr s = Some i -> p i -> has p (lc s).
 Proof.
   rewrite /find_instr => /(oseq.onthP i) => /andP [H1 /eqP <-] Hp.
   apply /(has_nthP i);eauto.
 Qed.
+*)
 
 (* FIXME
 Lemma lsem_cat_hd c s1 s2 :
@@ -888,7 +896,7 @@ Section PROOF.
        disjoint_labels lbl lbli P →
        is_linear_of fn (P ++ li ++ Q) →
        ex2_3
-       (λ m2 vm2, lsem p' (Lstate m1 vm1 fn (P ++ li ++ Q) (size P)) (Lstate m2 vm2 fn (P ++ li ++ Q) (size (P ++ li))))
+       (λ m2 vm2, lsem p' (Lstate m1 vm1 fn (size P)) (Lstate m2 vm2 fn (size (P ++ li))))
        (λ _ vm2, vm_uincl s2 vm2)
        (λ m2 _, match_mem s2 m2).
 
@@ -902,7 +910,7 @@ Section PROOF.
        disjoint_labels lbl lbli P →
        is_linear_of fn (P ++ li ++ Q) →
        ex2_3
-       (λ m2 vm2, lsem p' (Lstate m1 vm1 fn (P ++ li ++ Q) (size P)) (Lstate m2 vm2 fn (P ++ li ++ Q) (size (P ++ li))))
+       (λ m2 vm2, lsem p' (Lstate m1 vm1 fn (size P)) (Lstate m2 vm2 fn (size (P ++ li))))
        (λ _ vm2, vm_uincl s2 vm2)
        (λ m2 _, match_mem s2 m2).
 
@@ -916,7 +924,7 @@ Section PROOF.
        disjoint_labels lbl lblc P →
        is_linear_of fn (P ++ lc ++ Q) →
        ex2_3
-       (λ m2 vm2, lsem p' (Lstate m1 vm1 fn (P ++ lc ++ Q) (size P)) (Lstate m2 vm2 fn (P ++ lc ++ Q) (size (P ++ lc))))
+       (λ m2 vm2, lsem p' (Lstate m1 vm1 fn (size P)) (Lstate m2 vm2 fn (size (P ++ lc))))
        (λ _ vm2, vm_uincl s2 vm2)
        (λ m2 _, match_mem s2 m2).
 
@@ -933,10 +941,10 @@ Section PROOF.
       is_sp_for_call fn s1 sp →
       ex2_3
       (λ m2 vm2,
-      if lret is Some ((caller, lbl), cbody, pc)
+      if lret is Some ((caller, lbl), _cbody, pc)
       then
-        lsem p' (Lstate m1 vm1 fn body 0) (Lstate m2 vm2 caller cbody pc.+1)
-      else lsem p' (Lstate m1 vm1 fn body 0) (Lstate m2 vm2 fn body (size body)))
+        lsem p' (Lstate m1 vm1 fn 0) (Lstate m2 vm2 caller pc.+1)
+      else lsem p' (Lstate m1 vm1 fn 0) (Lstate m2 vm2 fn (size body)))
       (λ _ vm2, vm_uincl (s2.[var_of_register RSP <- ok (pword_of_word sp)]%vmap) vm2)
       (λ m2 _, match_mem s2 m2).
 
@@ -979,9 +987,19 @@ Section PROOF.
     by apply: vm_uincl_trans; first exact: kill_extra_register_vm_uincl.
   Qed.
 
-  Lemma find_instr_skip m vm fn P Q n : find_instr (Lstate m vm fn (P ++ Q) (size P + n)) = find_instr (Lstate m vm fn Q n).
+  Lemma find_instrE fn body :
+    is_linear_of fn body →
+    ∀ m vm n,
+    find_instr p' (Lstate m vm fn n) = oseq.onth body n.
+  Proof. by rewrite /find_instr => - [] fd /= -> ->. Qed.
+
+  Lemma find_instr_skip fn P Q :
+    is_linear_of fn (P ++ Q) →
+    ∀ m vm n,
+    find_instr p' (Lstate m vm fn (size P + n)) = oseq.onth Q n.
   Proof.
-    rewrite /find_instr !oseq.onth_nth map_cat nth_cat size_map.
+    move => h m vm n; rewrite (find_instrE h).
+    rewrite !oseq.onth_nth map_cat nth_cat size_map.
     rewrite ltnNge leq_addr /=;f_equal;rewrite -minusE -plusE; lia.
   Qed.
 
@@ -998,7 +1016,7 @@ Section PROOF.
     have [ vm2 /(match_mem_write_lval M1) [ m2 ok_s2' M2 ] ok_vm2 ] := write_uincl X1 (value_uincl_refl _) ok_s2.
     exists m2 vm2; [ | exact: ok_vm2 | exact: M2].
     apply: LSem_step.
-    rewrite -(addn0 (size P)) /lsem1 /step /= find_instr_skip /= /eval_instr /to_estate /=.
+    rewrite -(addn0 (size P)) /lsem1 /step /= (find_instr_skip C1) /= /eval_instr /to_estate /=.
     case: ifP => hsz.
     + rewrite /sem_sopn /sem_pexprs /= /exec_sopn /sopn_sem /=.
       rewrite (match_mem_sem_pexpr M1 ok_v') /=.
@@ -1022,7 +1040,7 @@ Section PROOF.
     have [ vm2 /(match_mem_write_lvals M1) [ m2 ok_s2' M2 ] ok_vm2 ] := writes_uincl X1 rs_rs' ok_s2.
     exists m2 vm2; [ | exact: ok_vm2 | exact: M2 ].
     apply: LSem_step.
-    rewrite -(addn0 (size P)) /lsem1 /step /= find_instr_skip /= /eval_instr /to_estate /=.
+    rewrite -(addn0 (size P)) /lsem1 /step /= (find_instr_skip C1) /= /eval_instr /to_estate /=.
     by rewrite /sem_sopn ok_vs' /= ok_rs' /= ok_s2' /= size_cat addn0 addn1.
   Qed.
 
@@ -1033,6 +1051,12 @@ Section PROOF.
     suff : (lbl < lbl)%positive by lia.
     rewrite -{2}k; lia.
   Qed.
+
+  Lemma eval_jumpE fn body :
+    is_linear_of fn body →
+    ∀ lbl s,
+    eval_jump p' (fn, lbl) s = Let pc := find_label lbl body in ok (setcpc s fn pc.+1).
+  Proof. by case => ? /= -> ->. Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p extra_free_registers Pc Pi_r.
   Proof.
@@ -1045,11 +1069,11 @@ Section PROOF.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       exists m1 vm1; [ | exact: X1 | exact: M1 ].
       apply: LSem_step.
-      rewrite /lsem1 /step -(addn0 (size P)) find_instr_skip /= /eval_instr /= /to_estate /= ok_e' /=.
+      rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C1) /= /eval_instr /to_estate /li_i (eval_jumpE C1) /to_estate /= ok_e' /=.
       rewrite find_label_cat_hd; last by apply: D; lia.
       rewrite find_labelE /= -catA find_label_cat_hd; last first.
       * apply: (valid_has_not_label V); left; rewrite /next_lbl; lia.
-      rewrite /= find_labelE /is_label /= eqxx /= /setpc /= addn0.
+      rewrite /= find_labelE /is_label /= eqxx /= /setcpc /= addn0.
       by rewrite size_cat /= size_cat /= -addn1 -addnA.
     + rewrite linear_c_nil.
       case: (linear_c fn) (Hc1 fn (next_lbl lbl)) => lbl1 lc1.
@@ -1067,9 +1091,10 @@ Section PROOF.
       exists m2 vm2; [ | exact: X2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
       2: exact: E.
-      - by rewrite /lsem1 /step -(addn0 (size P)) find_instr_skip /= /eval_instr /= /to_estate /= (snot_spec ok_e') /= ok_e' /= /setpc /= addn0 /P' /Q' -cats1 -!catA size_cat /= addn1 /=.
+      - by rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C1) /= /eval_instr /li_i (eval_jumpE C1) /to_estate /= (snot_spec ok_e') /= ok_e' /= /setpc /= addn0 /P' /Q' size_rcons.
       apply: LSem_step.
-      rewrite /lsem1 /step -(addn0 (size (P' ++ lc1))) catA find_instr_skip /= /eval_instr /= /setpc /=.
+      rewrite catA in C'.
+      rewrite /lsem1 /step -(addn0 (size (P' ++ lc1))) (find_instr_skip C') /= /eval_instr /= /setpc /=.
       by rewrite /P' /Q' -cats1 -!catA !size_cat addn0 /= size_cat /= !addnS addn0.
     rewrite linear_c_nil.
     case: (linear_c fn) (valid_c fn (i1 :: c1) (next_lbl (next_lbl lbl))) (Hc1 fn (next_lbl (next_lbl lbl))) => lbl1 lc1.
@@ -1091,13 +1116,14 @@ Section PROOF.
     exists m2 vm2; [ | exact: X2 | exact: M2 ].
     apply: lsem_step; last apply: lsem_trans.
     2: exact: E.
-    - rewrite /lsem1 /step -(addn0 (size P)) find_instr_skip /= /eval_instr /= /to_estate /= ok_e' /=.
+    - rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i  (eval_jumpE C) /to_estate /= ok_e' /=.
       rewrite find_label_cat_hd; last by apply: D; lia.
       rewrite find_labelE /= -catA find_label_cat_hd; last first.
       * apply: (valid_has_not_label V2); lia.
-      by rewrite /= find_labelE /= find_labelE /is_label /= eqxx /= /setpc /= /P' /Q' -!catA /= -catA size_cat /= size_cat /= !addnS.
+      by rewrite /= find_labelE /= find_labelE /is_label /= eqxx /= /setcpc /= /P' /Q' size_cat /= size_cat /= !addnS.
     apply: LSem_step.
-    rewrite /lsem1 /step -(addn0 (size (P' ++ lc1))) catA find_instr_skip /= /eval_instr /= /setpc /=.
+    rewrite catA in C'.
+    rewrite /lsem1 /step -(addn0 (size (P' ++ lc1))) (find_instr_skip C') /= /eval_instr /= /setpc /=.
     by rewrite /P' /Q' -!catA /= -!catA; repeat rewrite !size_cat /=; rewrite !addnS !addn0.
   Qed.
 
@@ -1121,9 +1147,10 @@ Section PROOF.
       exists m2 vm2; [ | exact: X2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
       2: exact: E.
-      - by rewrite /lsem1 /step -(addn0 (size P)) find_instr_skip /= /eval_instr /= /to_estate /= ok_e' /= /setpc /= addn0 /P' /Q' -cats1 -!catA size_cat /= addn1 /=.
+      - by rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= ok_e' /= /setpc /= addn0 /P' /Q' size_rcons.
       apply: LSem_step.
-      rewrite /lsem1 /step -(addn0 (size (P' ++ lc2))) catA find_instr_skip /= /eval_instr /= /setpc /=.
+      rewrite catA in C'.
+      rewrite /lsem1 /step -(addn0 (size (P' ++ lc2))) (find_instr_skip C') /= /eval_instr /= /setpc /=.
       by rewrite /P' /Q' -cats1 -!catA !size_cat addn0 /= size_cat /= !addnS addn0.
     + move/semE => ? _ _; subst s2.
       rewrite linear_c_nil; case: (linear_c fn) (valid_c fn (i1 :: c1) (next_lbl lbl)) => lbl1 lc1.
@@ -1132,11 +1159,11 @@ Section PROOF.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       exists m1 vm1; [ | exact: X1 | exact: M1 ].
       apply: LSem_step.
-      rewrite /lsem1 /step -(addn0 (size P)) find_instr_skip /= /eval_instr /= /to_estate /= (snot_spec ok_e') /= ok_e' /=.
+      rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= (snot_spec ok_e') /= ok_e' /=.
       rewrite find_label_cat_hd; last by apply: D; lia.
       rewrite find_labelE /= -catA find_label_cat_hd; last first.
       - apply: (valid_has_not_label V); left; rewrite /next_lbl; lia.
-      rewrite /= find_labelE /is_label /= eqxx /= /setpc /= addn0.
+      rewrite /= find_labelE /is_label /= eqxx /= /setcpc /= addn0.
       by rewrite size_cat /= size_cat /= -addn1 -addnA.
     rewrite linear_c_nil => _ Hc2 chk_c2.
     case: (linear_c fn) (valid_c fn (i1 :: c1) (next_lbl (next_lbl lbl))) => lbl1 lc1.
@@ -1157,14 +1184,15 @@ Section PROOF.
     exists m2 vm2; [ | exact: X2 | exact: M2 ].
     apply: lsem_step; last apply: lsem_trans.
     2: exact: E.
-    + rewrite /lsem1 /step -(addn0 (size P)) find_instr_skip /= /eval_instr /= /to_estate /= ok_e' /= /setpc /=.
-      by rewrite /P' /Q' /= -cats1 /= -!catA /= -!catA size_cat /= addnS.
+    + rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= ok_e' /= /setpc /=.
+      by rewrite /P' /Q' /= size_rcons addn0.
     apply: LSem_step.
-    rewrite /lsem1 /step -(addn0 (size (P' ++ lc2))) catA find_instr_skip /= /eval_instr /= /setpc /=.
-    case: C => lfd -> -> /=.
+    rewrite catA in C'.
+    rewrite /lsem1 /step -(addn0 (size (P' ++ lc2))) (find_instr_skip C') /= /eval_instr /li_i (eval_jumpE C') /= /setcpc /=.
+    rewrite /P' -cats1.
     rewrite -!catA find_label_cat_hd; last by apply: D; lia.
     rewrite find_labelE /= find_label_cat_hd; last by apply: (valid_has_not_label V2); lia.
-    rewrite find_labelE /= find_labelE /is_label /= next_lbl_neq -catA find_label_cat_hd; last by apply: (valid_has_not_label V); lia.
+    rewrite find_labelE /= find_labelE /is_label /= next_lbl_neq find_label_cat_hd; last by apply: (valid_has_not_label V); lia.
     by rewrite find_labelE /is_label /= eqxx /= /setcpc /Q' !size_cat /= size_cat /= size_cat /= !addnS !addnA.
   Qed.
 
@@ -1215,7 +1243,7 @@ Section PROOF.
         + rewrite /set_RSP top_stack_preserved.
           exact: X.
         have {E} [m2 vm2] := E m1 vm1 [::] [::] M' X' (λ _ _, erefl) ok_body.
-        rewrite cats0 /= => E X2 M2.
+        rewrite /= => E X2 M2.
         eexists m2 _; [ exact: E | | exact: mm_free M2 ].
         have S : stack_stable m1' s2'.
         + exact: sem_one_varmap_facts.sem_stack_stable exec_body.
@@ -1251,10 +1279,12 @@ Section PROOF.
       + by move => q [A B]; rewrite /P /is_label /= orbF; apply/eqP => ?; subst; lia.
       have {E} [ m2 vm2 E ok_vm2 M2 ] := E m1 vm1 [:: P] Q (mm_alloc M ok_m1') X1 D ok_body.
       eexists; [ | | exact: mm_free M2 ].
-      + apply: lsem_step; first reflexivity.
+      + apply: lsem_step.
+        * rewrite /lsem1 /step (find_instrE ok_body); reflexivity.
         apply: lsem_trans; first exact: E.
         apply: LSem_step.
-        rewrite /lsem1 /step size_cat -(addn0 (size lbody)) !find_instr_skip /= /eval_instr /= /get_gvar /= /get_var /=.
+        rewrite catA in ok_body.
+        rewrite /lsem1 /step -(addn0 (size ([:: P] ++ lbody))) (find_instr_skip ok_body) /= /eval_instr /= /get_gvar /= /get_var /=.
         have ra_not_written : (s2'.[ Var sword64 ra ] = vm1.[ Var sword64 ra ])%vmap.
         * admit. (* TODO: functions do not overwrite RA *)
         move: (ok_vm2 (Var sword64 ra)); rewrite ra_not_written ok_ra /=.

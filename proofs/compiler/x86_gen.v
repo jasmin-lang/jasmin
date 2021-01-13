@@ -41,6 +41,7 @@ Definition assemble_i rip (i: linstr) : ciexec asm :=
   end.
 
 (* -------------------------------------------------------------------- *)
+(*TODO: use in whatever characterization using an lprog there is.*)
 Definition assemble_c rip (lc: lcmd) : ciexec (seq asm) :=
   mapM (assemble_i rip) lc.
 
@@ -77,7 +78,7 @@ Lemma assemble_progP p p' :
   let rip := mk_rip p.(lp_rip) in
   [/\ disj_rip rip,
    xp_globs p' = lp_globs p &
-  map_cfprog (assemble_fd RSP rip) p.(lp_funcs) = ok (xp_funcs p') ].
+   map_cfprog (assemble_fd RSP rip) p.(lp_funcs) = ok (xp_funcs p') ].
 Proof.
   apply: rbindP => _ /assertP /eqP h.
   apply: rbindP => fds ok_fds [<-].
@@ -87,11 +88,11 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Variant match_state rip (ls: lstate) (xs: x86_state) : Prop :=
+Variant match_state rip (ls: lstate) (lc : lcmd) (xs: x86_state) : Prop :=
 | MS
   `(lom_eqv rip (to_estate ls) (xm xs))
   `(lfn ls = xfn xs)
-  `(assemble_c rip (lc ls) = ok (xc xs))
+  `(assemble_c rip lc = ok (xc xs))
   `(lpc ls = xip xs)
 .
 
@@ -157,23 +158,26 @@ Proof.
   by exists fd'.
 Qed.
 
-Lemma assemble_iP rip i j ls ls' xs :
-  match_state rip ls xs →
+Lemma assemble_iP rip i j ls ls' lc xs :
+  omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
+  match_state rip ls lc xs →
   assemble_i rip i = ok j →
   linear_sem.eval_instr p i ls = ok ls' →
-  ∃ xs' : x86_state,
-    x86_sem.eval_instr p' j xs = ok xs' ∧
-    match_state rip ls' xs'.
+  ∃ (xs' : x86_state) lc',
+    [/\ x86_sem.eval_instr p' j xs = ok xs' ,
+        omap lfd_body (get_fundef (lp_funcs p) (lfn ls')) = Some lc' &
+        match_state rip ls' lc' xs'].
 Proof.
+move => omap_lc.
 rewrite /linear_sem.eval_instr /x86_sem.eval_instr; case => eqm eqfn eqc eqpc.
 case: i => ii [] /=.
-- move => lvs op pes; t_xrbindP => -[op' asm_args] hass <- m hsem <-.
+- move => lvs op pes; t_xrbindP => -[op' asm_args] hass <- m hsem ?; subst ls'.
   have [s [-> eqm' /=]]:= assemble_sopnP hsem hass eqm.
-  (eexists; split; first by reflexivity).
+  do 2!eexists; split => //; first by apply: omap_lc.
   by constructor => //=; rewrite ?to_estate_of_estate ?eqpc.
-- move => [<-] [<-];eexists;split;first by reflexivity.
+- move => [<-] [?];subst ls';do 2!eexists;split => //; first eassumption.
   by constructor => //; rewrite /setpc eqpc.
-- move => lbl [<-] [<-]; eexists; split; first by reflexivity.
+- move => lbl [<-] [?];subst ls'; do 2!eexists; split => //; first eassumption.
   constructor => //.
   by rewrite /setpc /= eqpc.
 - move => lbl [<-]. (* ; t_xrbindP => pc. ok_pc <- {ls'}.
@@ -193,8 +197,8 @@ case: i => ii [] /=.
   rewrite eqfn.
   case: encode_label => // ptr.
   rewrite /sem_sopn /=.
-  t_xrbindP => s' q ok_s' ? <-{ls'}; subst q.
-  eexists; split; first reflexivity.
+  t_xrbindP => s' q ok_s' ? ?; subst ls' q.
+  do 2!eexists; split => //=; first by rewrite -eqfn omap_lc.
   split => //=; last by congr _.+1.
   rewrite to_estate_of_estate.
   admit.
@@ -205,39 +209,49 @@ case: i => ii [] /=.
   rewrite /eval_Jcc.
   case: b ok_b => ok_b; case: v' ok_v' => // b ok_v' /= ?; subst b;
     (case: (eval_cond _ _) ok_v' => // [ b | [] // ] [->] {b}).
-  + t_xrbindP => pc ok_pc <- {ls'} /=.
+  + t_xrbindP => lc'' ok_lc'' pc ok_pc ?; subst ls' => /=.
+    move: omap_lc ok_lc''; rewrite /omap /obind /oapp => /=.
+    case: get_fundef => // lfu [->]  [?]; subst lc''; clear lfu.
     rewrite /eval_JMP -(assemble_c_find_label lbl eqc) ok_pc /=.
-    by eexists; split; eauto; constructor.
-  case => <- /=; eexists; split; first by reflexivity.
+    by do 2!eexists; split; eauto; constructor.
+  case => ?; subst ls' => /=; do 2!eexists; split => //; first eassumption.
   by constructor => //; rewrite /setpc /= eqpc.
 Admitted.
 
-Lemma match_state_step rip ls ls' xs :
-  match_state rip ls xs →
+Lemma match_state_step rip ls ls' lc xs :
+  omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
+  match_state rip ls lc xs →
   step p ls = ok ls' →
-  ∃ xs',
-  fetch_and_eval p' xs = ok xs' ∧
-  match_state rip ls' xs'.
+  ∃ xs' lc',
+    [/\ fetch_and_eval p' xs = ok xs' ,
+        omap lfd_body (get_fundef (lp_funcs p) (lfn ls')) = Some lc' &
+        match_state rip ls' lc' xs'].
 Proof.
+move => omap_lc.
 move => ms; rewrite /step /find_instr /fetch_and_eval; case: (ms)=> _ _ eqc ->.
-case ok_i : (oseq.onth) => [ i | // ].
+case ok_fd: get_fundef omap_lc => [fd|] //= [?]; subst lc.
+case ok_i : (oseq.onth (lfd_body _) _) => [ i | // ].
 have [j [-> ok_j]] := mapM_onth eqc ok_i.
-exact: assemble_iP.
+apply: assemble_iP => //; last eassumption.
+by rewrite ok_fd.
 Qed.
 
-Lemma match_state_sem rip ls ls' xs :
+Lemma match_state_sem rip ls ls' lc xs :
+  omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
   lsem p ls ls' →
-  match_state rip ls xs →
-  ∃ xs',
-    x86sem p' xs xs' ∧
-    match_state rip ls' xs'.
+  match_state rip ls lc xs →
+  ∃ xs' lc',
+    [/\ x86sem p' xs xs' ,
+        omap lfd_body (get_fundef (lp_funcs p) (lfn ls')) = Some lc' &
+        match_state rip ls' lc' xs'].
 Proof.
-move => h; elim/lsem_ind: h xs => {ls ls'}.
-- move => ls xs h; exists xs; split => //; exact: rt_refl.
-move => ls1 ls2 ls3 h1 h ih xs1 m1.
-have [xs2 [x m2]] := match_state_step m1 h1.
-have [xs3 [y m3]] := ih _ m2.
-exists xs3; split => //.
+move => omap_lc.
+move => h; elim/lsem_ind: h xs lc omap_lc => {ls ls'}.
+- move => ls xs lc omap_lc h; exists xs; exists lc; split => //; exact: rt_refl.
+move => ls1 ls2 ls3 h1 h ih xs1 lc omap_lc m1.
+have [xs2 [lc'] [x omap_lc' m2]] := match_state_step omap_lc m1 h1.
+have [xs3 [lc''] [y omap_lc'' m3]] := ih _ _ omap_lc' m2.
+exists xs3; exists lc''; split => //.
 apply: x86sem_trans; last by eauto.
 exact: rt_step.
 Qed.

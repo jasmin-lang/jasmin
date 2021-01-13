@@ -52,17 +52,16 @@ Record lstate := Lstate
   { lmem : mem;
     lvm  : vmap;
     lfn : funname;
-    lc : lcmd;
     lpc  : nat; }.
 
 Definition to_estate (s:lstate) : estate := Estate s.(lmem) s.(lvm).
-Definition of_estate (s:estate) c pc := Lstate s.(emem) s.(evm) c pc.
-Definition setpc (s:lstate) pc :=  Lstate s.(lmem) s.(lvm) s.(lfn) s.(lc) pc.
-Definition setc (s:lstate) fn c := Lstate s.(lmem) s.(lvm) fn c s.(lpc).
-Definition setcpc (s:lstate) fn c pc := Lstate s.(lmem) s.(lvm) fn c pc.
+Definition of_estate (s:estate) pc := Lstate s.(emem) s.(evm) pc.
+Definition setpc (s:lstate) pc :=  Lstate s.(lmem) s.(lvm) s.(lfn) pc.
+Definition setc (s:lstate) fn := Lstate s.(lmem) s.(lvm) fn s.(lpc).
+Definition setcpc (s:lstate) fn pc := Lstate s.(lmem) s.(lvm) fn pc.
 
-Lemma to_estate_of_estate es fn c pc:
-  to_estate (of_estate es fn c pc) = es.
+Lemma to_estate_of_estate es fn pc:
+  to_estate (of_estate es fn pc) = es.
 Proof. by case: es. Qed.
 
 (* The [lsem] relation defines the semantics of a linear command
@@ -83,13 +82,13 @@ Definition eval_jump d s :=
     else type_error
   in
   Let pc := find_label lbl body in
-  ok (setcpc s fn body pc.+1).
+  ok (setcpc s fn pc.+1).
 
 Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   match li_i i with
   | Lopn xs o es =>
     Let s2 := sem_sopn [::] o (to_estate s1) xs es in
-    ok (of_estate s2 s1.(lfn) s1.(lc) s1.(lpc).+1)
+    ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
   | Lalign   => ok (setpc s1 s1.(lpc).+1)
   | Llabel _ => ok (setpc s1 s1.(lpc).+1)
   | Lgoto d => eval_jump d s1
@@ -101,17 +100,20 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   | LstoreLabel x lbl =>
     if encode_label (lfn s1, lbl) is Some p then
       Let s2 := sem_sopn [::]  (Ox86 (LEA Uptr)) (to_estate s1) [:: x ] [:: wconst p ] in
-      ok (of_estate s2 s1.(lfn) s1.(lc) s1.(lpc).+1)
+      ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
     else type_error
   | Lcond e lbl =>
     Let b := sem_pexpr [::] (to_estate s1) e >>= to_bool in
     if b then
-      Let pc := find_label lbl s1.(lc) in
-      ok (setpc s1 pc.+1)
+      eval_jump (s1.(lfn),lbl) s1
     else ok (setpc s1 s1.(lpc).+1)
   end.
 
-Definition find_instr (s:lstate) := oseq.onth s.(lc) s.(lpc).
+Definition find_instr (s:lstate) :=
+  if get_fundef (lp_funcs P) s.(lfn) is Some fd then
+    let body := lfd_body fd in
+    oseq.onth body s.(lpc)
+  else None.
 
 Definition step (s: lstate) : exec lstate :=
   if find_instr s is Some i then
