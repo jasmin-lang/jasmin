@@ -33,6 +33,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Utf8.
         Import Relations.
 
+Require sem_one_varmap_facts.
 Require merge_varmaps_proof.
 Import psem sem_one_varmap compiler_util merge_varmaps_proof.
 Require Export linear linear_sem.
@@ -1217,7 +1218,7 @@ Section PROOF.
         rewrite cats0 /= => E X2 M2.
         eexists m2 _; [ exact: E | | exact: mm_free M2 ].
         have S : stack_stable m1' s2'.
-        + admit. (* TODO: general result about sem_one_varmap *)
+        + exact: sem_one_varmap_facts.sem_stack_stable exec_body.
         move => x; move: (X2 x); rewrite /set_RSP !Fv.setP; case: eqP => // ?; subst.
         by rewrite valid_rsp -(stable_top_stack S) top_stack_preserved.
       }
@@ -1266,7 +1267,7 @@ Section PROOF.
       move => ?; rewrite /set_RSP !Fv.setP; case: eqP => // ?; subst.
       move: (ok_vm2 (var_of_register RSP)).
       have S : stack_stable m1' s2'.
-      + admit. (* TODO: general result about sem_one_varmap *)
+      + exact: sem_one_varmap_facts.sem_stack_stable exec_body.
       rewrite valid_rsp -(stable_top_stack S) (alloc_stack_top_stack ok_m1').
       rewrite top_stack_after_aligned_alloc; last first.
       * admit. (* TODO: as above, stack pointer is aligned by export functions. *)

@@ -28,14 +28,6 @@ Section STACK_STABLE.
 
 Infix "≡" := stack_stable (at level 40).
 
-Instance stack_stable_equiv : Equivalence stack_stable.
-Proof.
-  split.
-  - by [].
-  - by move => x y [*]; split.
-  move => x y z [???] [???]; split; etransitivity; eassumption.
-Qed.
-
 Lemma write_lval_stack_stable gd x v s s' :
   write_lval gd x v s = ok s' →
   emem s ≡ emem s'.

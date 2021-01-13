@@ -25,6 +25,7 @@
 
 (* ** Imports and settings *)
 
+From Coq Require Import RelationClasses.
 Require memory_example.
 
 Import all_ssreflect all_algebra.
@@ -41,6 +42,7 @@ Module Memory := MemoryI.
 
 Notation mem := Memory.mem.
 
+(* -------------------------------------------------------------- *)
 Definition eq_mem m m' : Prop :=
     forall ptr sz, read_mem m ptr sz = read_mem m' ptr sz.
 
@@ -56,6 +58,16 @@ Lemma eq_mem_trans m2 m1 m3 :
   eq_mem m1 m3.
 Proof. move => p q x y; rewrite (p x y); exact: (q x y). Qed.
 
+(* -------------------------------------------------------------- *)
+Instance stack_stable_equiv : Equivalence stack_stable.
+Proof.
+  split.
+  - by [].
+  - by move => x y [*]; split.
+  move => x y z [???] [???]; split; etransitivity; eassumption.
+Qed.
+
+(* -------------------------------------------------------------- *)
 Lemma read_mem_valid_pointer m ptr sz w :
   read_mem m ptr sz = ok w ->
   valid_pointer m ptr sz.
@@ -83,6 +95,7 @@ Proof.
   by rewrite a.(ass_frames).
 Qed.
 
+(* -------------------------------------------------------------- *)
 Definition allocatable_stack (m : mem) (z : Z) :=
   True. (* TODO *)
 
