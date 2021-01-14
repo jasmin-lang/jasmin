@@ -692,14 +692,14 @@ Section PROOF.
   Definition checked_i fn i : bool :=
     if get_fundef (p_funcs p) fn is Some fd
     then
-      if check_i p fn fd.(f_extra).(sf_align) i is Ok tt
+      if check_i p extra_free_registers fn fd.(f_extra).(sf_align) i is Ok tt
       then true
       else false
     else false.
 
   Lemma checked_iE fn i :
     checked_i fn i →
-    exists2 fd, get_fundef (p_funcs p) fn = Some fd & check_i p fn fd.(f_extra).(sf_align) i = ok tt.
+    exists2 fd, get_fundef (p_funcs p) fn = Some fd & check_i p extra_free_registers fn fd.(f_extra).(sf_align) i = ok tt.
     Proof.
       rewrite /checked_i; case: get_fundef => // fd h; exists fd; first by [].
       by case: check_i h => // - [].
@@ -708,14 +708,14 @@ Section PROOF.
   Definition checked_c fn c : bool :=
     if get_fundef (p_funcs p) fn is Some fd
     then
-      if check_c (check_i p fn fd.(f_extra).(sf_align)) c is Ok tt
+      if check_c (check_i p extra_free_registers fn fd.(f_extra).(sf_align)) c is Ok tt
       then true
       else false
     else false.
 
   Lemma checked_cE fn c :
     checked_c fn c →
-    exists2 fd, get_fundef (p_funcs p) fn = Some fd & check_c (check_i p fn fd.(f_extra).(sf_align)) c = ok tt.
+    exists2 fd, get_fundef (p_funcs p) fn = Some fd & check_c (check_i p extra_free_registers fn fd.(f_extra).(sf_align)) c = ok tt.
     Proof.
       rewrite /checked_c; case: get_fundef => // fd h; exists fd; first by [].
       by case: check_c h => // - [].
@@ -735,7 +735,7 @@ Section PROOF.
 
   Local Lemma checked_prog fn fd :
     get_fundef (p_funcs p) fn = Some fd →
-    check_fd p (fn, fd) = ok tt.
+    check_fd p extra_free_registers (fn, fd) = ok tt.
   Proof.
     move: linear_ok; rewrite /linear_prog; apply: rbindP => - [] ok_p _ /(@get_fundef_in' _ _ _ _).
     move: ok_p; rewrite /check_prog; apply: rbindP => r C _ M.
