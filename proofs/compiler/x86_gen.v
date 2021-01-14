@@ -187,7 +187,10 @@ case: i => ii [] /=.
 - t_xrbindP => e d ok_d [<-] ptr v ok_v ok_ptr.
   have [v' ok_v' hvv'] := eval_assemble_word eqm ok_d ok_v.
   rewrite ok_v' /= (value_uincl_word hvv' ok_ptr) /=.
-  case: decode_label => // - [ fn lbl ] /=.
+  case ptr_eq: decode_label => [ [] fn lbl | // ] /=.
+  replace (decode_label _ ptr) with (Some (fn, lbl))
+    by admit.
+  rewrite /=.
   case get_fd: (get_fundef _) => [ fd | // ].
   have [fd' get_fd' ok_fd' ] := ok_get_fundef get_fd.
   rewrite get_fd'.
@@ -195,7 +198,10 @@ case: i => ii [] /=.
 - case => // x lbl.
   case: (register_of_var _) (@var_of_register_of_var x) => //= r /(_ _ erefl) ok_r_x [<-]{j}.
   rewrite eqfn.
-  case: encode_label => // ptr.
+  case ptr_eq: encode_label => [ ptr | ] //.
+  replace (encode_label _ _) with (Some ptr)
+    by admit.
+  rewrite /=.
   rewrite /sem_sopn /=.
   t_xrbindP => s' q ok_s' ? ?; subst ls' q.
   do 2!eexists; split => //=; first by rewrite -eqfn omap_lc.

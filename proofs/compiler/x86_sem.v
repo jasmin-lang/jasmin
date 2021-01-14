@@ -383,19 +383,24 @@ Section PROG.
 
 Context  (p: xprog).
 
+Definition label_in_xprog : seq remote_label :=
+  flatten (map (λ '(fn, fd), pmap (λ i, if i is LABEL lbl then Some (fn, lbl) else None) (xfd_body fd)) (xp_funcs p)).
+
+Let labels := ssrbool.mem label_in_xprog.
+
 Definition eval_instr (i : asm) (s: x86_state) : exec x86_state :=
   match i with
   | ALIGN
   | LABEL _      => ok (st_write_ip (xip s).+1 s)
   | STORELABEL dst lbl =>
-    if encode_label (xfn s, lbl) is Some p then
+    if encode_label labels (xfn s, lbl) is Some p then
       Let m := eval_op (MOV Uptr) [:: dst ; Imm p ] s.(xm) in
       ok {| xm := m ; xfn := s.(xfn) ; xc := s.(xc) ; xip := s.(xip).+1 |}
     else type_error
   | JMP lbl   => eval_JMP p lbl s
   | JMPI d =>
     Let v := eval_asm_arg s d (sword Uptr) >>= to_pointer in
-    if decode_label v is Some lbl then
+    if decode_label labels v is Some lbl then
       eval_JMP p lbl s
     else type_error
   | Jcc   lbl ct => eval_Jcc lbl ct s
