@@ -133,7 +133,7 @@ Section CHECK.
       if get_fundef (p_funcs p) fn is Some fd then
         Let _ := assert match sf_return_address (f_extra fd) with
                         | RAnone => false
-                        | RAreg _ => true
+                        | RAreg ra => vtype ra == sword Uptr
                         | RAstack _ => extra_free_registers ii != None end
           (ii, Cerr_one_varmap "nowhere to store the return address") in
         Let _ := assert (sf_align (f_extra fd) <= stack_align)%CMP
