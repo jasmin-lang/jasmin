@@ -1437,6 +1437,7 @@ Section TunnelingCompiler.
 
   Search _ lfundef.
 
+  (*We may want to remove duplicates in funnames, or not.*)
   Definition funnames p := map (fun x => x.1) (lp_funcs p).
 
   Definition tunnel_program p :=
@@ -1444,14 +1445,86 @@ Section TunnelingCompiler.
     then ok (foldr lprog_tunnel p (funnames p))
     else type_error.
 
+  (*
+  Lemma all_imp (T : Type) (a b : pred T) (s : seq T) :
+    all (fun x => (implb (a x) (b x))) s ->
+    all a s ->
+    all b s.
+  Proof.
+    elim: s => //= hs ts IHs /andP [Hhimpl Htimpl] /andP [Hhs Hts].
+    apply/andP; split; last by apply: IHs.
+    move: Hhimpl Hhs {IHs Htimpl Hts}.
+    by case: a; case: b.
+  Qed.
+  *)
+
+  Lemma all_if (T : Type) (a b c : pred T) (s : seq T) :
+    all a (filter c s) ->
+    all b (filter (negb \o c) s) ->
+    all (fun x => if c x then a x else b x) s.
+  Proof.
+    elim: s => //= hs ts IHs.
+    by case: ifP => [Hchs /= /andP [Hahs Hats] Hbts|Hchs /= Hats /andP [Hbhs Hbts]];
+    apply/andP; split => //; apply: IHs.
+  Qed.
+
+  Lemma all_filtered (T : Type) (a b : pred T) (s : seq T) :
+    all a s -> all a (filter b s).
+  Proof.
+    by elim: s => //= hs ts IHs; case: ifP => /= _ /andP; case => Hahs Hths; first (apply/andP; split => //); apply: IHs.
+  Qed.
+
+  Lemma all_eq_filter (T : Type) (a b c : pred T) (s : seq T) :
+    (forall x, c x -> a x = b x) ->
+    all a (filter c s) ->
+    all b (filter c s).
+  Proof.
+    move => Hcab; elim: s => //= hs ts IHs; case: ifP => //= Hchs /andP [Hahs Hats].
+    by apply/andP; split; first rewrite -Hcab; last apply IHs.
+  Qed.
+
+  Lemma get_fundef_all (T : Type) (funcs : seq (funname * T)) fn fd a :
+    get_fundef funcs fn = Some fd ->
+    all (fun f => a f.1 f.2) funcs ->
+    a fn fd.
+  Proof.
+    elim: funcs => //= -[fn' fd'] tfuncs IHfuncs.
+    case: ifP; first by move => /eqP ? [?] /= /andP [Ha _]; subst fn' fd'.
+    by move => _ /= Hgfd /andP [_ Hall]; apply: IHfuncs.
+  Qed.
+
+  Lemma labels_of_body_tunnel_partial fn uf lc :
+    labels_of_body lc =
+    labels_of_body (tunnel_partial fn uf lc).
+  Proof.
+    rewrite /labels_of_body /tunnel_partial !filter_map.
+    f_equal.
+    Search _ filter (_ = _).
+  Qed.
+
   Lemma well_formed_lprog_tunnel fn p :
     well_formed_lprog p ->
     well_formed_lprog (lprog_tunnel fn p).
   Proof.
-    rewrite /well_formed_lprog => x.
-    have:= allP x.
-    case allP.
-    apply: allP.
+    (*Can't use allP, eqType would be needed.*)
+    rewrite /well_formed_lprog /lprog_tunnel; case: p => /= rip globs funcs.
+    case Hgfd: get_fundef => [fd|] //= {rip globs}; rewrite all_map => Hall.
+    rewrite (@eq_all _ _
+              (fun f =>
+                if fn == f.1
+                then well_formed_body f.1
+                       (tunnel_partial fn
+                         (tunnel_plan fn LUF.empty (lfd_body fd)) (lfd_body fd))
+                else well_formed_body f.1 (lfd_body f.2)));
+    last by move => [fn' fd'] /=; case: ifP.
+    apply: all_if; last by apply: all_filtered.
+    apply: (@all_eq_filter _ (fun _ => well_formed_body fn
+             (tunnel_partial fn (tunnel_plan fn LUF.empty (lfd_body fd)) (lfd_body fd)))).
+    + by move => [??] /eqP ?; subst.
+    rewrite (@eq_all _ _ predT); first by apply: all_predT.
+    have:= @get_fundef_all _ _ _ _ (fun fn fd => well_formed_body fn (lfd_body fd)) Hgfd Hall.
+    move => {Hgfd Hall} Hwfb f /= {f}; move: Hwfb => /and3P [Huniql Hlocalgotos Hconds].
+    apply/and3P; split; rewrite -labels_of_body_tunnel_partial //.
   Qed.
 
   Lemma well_formed_partial_tunnel_program fns p :
