@@ -151,6 +151,21 @@ Proof.
   by case:ifPn => // hb herr []; apply : H2.
 Qed.
 
+Lemma set_well_typed_var (m: vmap) (x: var) (v: value) :
+  vtype x = type_of_val v →
+  set_var m x v =
+  if v is Vundef ty
+  then
+    if ty == sbool
+    then ok (m.[ x <- pundef_addr (vtype x) ]%vmap)
+    else type_error
+  else ok (m.[x <- pof_val (vtype x) v]%vmap).
+Proof.
+  case: x => /= xt x ->.
+  rewrite /set_var /on_vu /=.
+  by case: v => // - [].
+Qed.
+
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
