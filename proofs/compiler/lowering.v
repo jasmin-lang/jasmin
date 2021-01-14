@@ -622,7 +622,7 @@ Definition reduce_wconst sz (e: pexpr) : pexpr :=
   then Papp1 (Oword_of_int (cmp_min sz sz')) (Pconst z)
   else e.
 
-(** Need to fix this later: for now commenting it out **)
+(** Need to fix this later: for now commenting it out **) 
 Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd * leak_i_tr :=
   (* x = a == b *)
   (* LT_low_eq *)
@@ -641,9 +641,10 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
   let inc o a := [:: MkI ii (Copn [:: f ; f ; f ; f ; x ] tg o [:: a ]) ] in
   let szty := wsize_of_stype ty in
   match lower_cassgn_classify szty e x with
-  | LowerMov b =>
+  | LowerMov b => 
     let e := reduce_wconst szty e in
-    if b
+    if b (*[:: Lopn (LSub [:: LSub [:: le]; LSub [:: LEmpty]]) ; Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: lw]]) *)
+         (* First Lopn is due to expression e and Lvar-- Second Lopn is due to Pvar which produces LEmpty and leakage due to x *)
     then
       let c := {| v_var := {| vtype := sword szty; vname := fresh_multiplicand fv szty |} ; v_info := vi |} in
       ([:: MkI ii (Copn [:: Lvar c] tg (Ox86 (MOV szty)) [:: e ])
@@ -653,13 +654,14 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
       if (e == @wconst szty 0) && ~~ is_lval_in_memory x && options.(use_set0) then
         if (szty <= U64)%CMP then
           ([:: MkI ii (Copn [:: f ; f ; f ; f ; f ; x] tg (Oset0 szty) [::]) ], LT_iremove)
+          (*[:: Lopn (LSub [:: LSub [::]; LSub[:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lw]])]*)
         else 
-          ([:: MkI ii (Copn [:: x] tg (Oset0 szty) [::]) ], LT_iremove)
-      else (copn (Ox86 (MOV szty)) [:: e ], LT_iremove)
-  | LowerCopn o e => (copn o e, LT_iremove)
-  | LowerInc o e => (inc o e, LT_iremove)
-  | LowerFopn o es m => (map (MkI ii) (opn_5flags m vi f x tg o es), LT_iremove)
-  | LowerLea sz (MkLea d b sc o) =>
+          ([:: MkI ii (Copn [:: x] tg (Oset0 szty) [::]) ], LT_iremove) (* [:: Lopn (LSub [:: LSub [::]; LSub [:: lw]])] *)
+      else (copn (Ox86 (MOV szty)) [:: e ], LT_iremove) (* [:: Lopn (LSub [:: LSub [:: le]; LSub [:: LEmpty]])] *)
+  | LowerCopn o e => (copn o e, LT_iremove) (* [:: Lopn (LSub [:: LSub (unzip2 vs) (* leakage due to exprs *); LSub [:: lw]])] *)
+  | LowerInc o e => (inc o e, LT_iremove) (* [:: Lopn (LSub [:: LSub (unzip2 vs) (exprs) ; LSub[:: LEmpty; LEmpty; LEmpty; LEmpty; lw (* for x *)]])] *)
+  | LowerFopn o es m => (map (MkI ii) (opn_5flags m vi f x tg o es), LT_iremove) (* need to figure out *)
+  | LowerLea sz (MkLea d b sc o) => (* need to figure out *)
     let de := wconst d in
     let sce := wconst sc in
     let b := oapp Pvar (@wconst sz 0) b in
@@ -670,36 +672,49 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
       let mul := Papp2 (Omul (Op_w sz)) in
       let e := add de (add b (mul sce o)) in
       [:: MkI ii (Copn [::x] tg (Ox86 (LEA sz)) [:: e])] in
-    if options.(use_lea) then (lea tt, LT_iremove)
+    if options.(use_lea) then (lea tt, LT_iremove) (* [:: Lopn (LSub [:: LSub (unzip2 (leak due to e); LSub [:: leak due to x]])] *)
     (* d + b + sc * o *)
     else
       (if d == 0%R then
         (* b + sc * o *)
         if sc == 1%R then
-          (* b + o *)
+          (* b + o *) (*[:: Lopn (LSub [:: LSub [:: lb; lo] ; 
+                                               LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lx]])]*)
           [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; o])]
         else if b == @wconst sz 0 then
           (* sc * o *)
           let (op, args) := mulr sz o sce in
+          (*[:: Lopn (LSub [:: LSub (unzip2 leakage for args); 
+                                     LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lw]])] *) (* opn_5flags_correct lemma *)
           map (MkI ii) (opn_5flags (Some U32) vi f x tg (Ox86 op) args)
-        else lea tt
+        else lea tt (* [:: Lopn (LSub [:: LSub (unzip2 rs) ; LSub [::lw]])] *)
       else if o == @wconst sz 0 then
           (* d + b *)
-          if d == 1%R then inc (Ox86 (INC sz)) b
+          if d == 1%R then inc (Ox86 (INC sz)) b (* [:: Lopn (LSub [:: LSub [:: vbl] ; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; lw]])]. *)
           else
             let w := wunsigned d in
             if check_signed_range (Some U32) sz w
+            (* [:: Lopn (LSub [:: LSub [:: vbl; LEmpty] ; 
+                                     LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lw]])] *)
             then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; de ])]
             else if w == (wbase U32 / 2)%Z
+            (* [:: Lopn (LSub [:: LSub [:: vbl; LEmpty] ; 
+                                     LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lw]])] *)
             then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (SUB sz)) [:: b ; wconst (wrepr sz (-w)) ])]
             else
+            (*[:: Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: LEmpty]]);
+                             Lopn (LSub [:: LSub [:: vbl; LEmpty]; 
+                                            LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lw]])]*)
               let c := {| v_var := {| vtype := sword U64; vname := fresh_multiplicand fv U64 |} ; v_info := vi |} in
               [:: MkI ii (Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: de]);
                  MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; Pvar c ])]
-      else lea tt, LT_iremove)
-
+      else lea tt, LT_iremove) (* [:: Lopn (LSub [:: LSub (unzip2 rs) ; LSub [::lw]])] *)
+  (* [:: Lopn (LSub [:: LSub (unzip2 vs) (a and b) ; LSub[:: LEmpty; LEmpty; LEmpty; LEmpty; lw (* for x *)]])] *)
   | LowerEq sz a b => ([:: MkI ii (Copn [:: f ; f ; f ; f ; x ] tg (Ox86 (CMP sz)) [:: a ; b ]) ], LT_iremove)
+  (* [:: Lopn (LSub [:: LSub (unzip2 vs) (a and b) ; LSub[:: LEmpty; lw (* for x *) ; LEmpty; LEmpty; LEmpty]])] *)
   | LowerLt sz a b => ([:: MkI ii (Copn [:: f ; x ; f ; f ; f ] tg (Ox86 (CMP sz)) [:: a ; b ]) ], LT_iremove)
+  (* [:: Lopn (LSub [:: lb; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])] (* produced by lower_condition *) ++ 
+     [:: Lopn (LSub [:: LSub [:: le'; l1; l2] ; LSub[:: lw]])] *)
   | LowerIf t e e1 e2 =>
      (* x = if e then e1 else e2 *)
      (*   lx = Lsub[le; le1; le2] *)
@@ -713,18 +728,19 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
     let c := {| v_var := {| vtype := sword sz; vname := fresh_multiplicand fv sz |} ; v_info := vi |} in
     let lv :=
       match p with
-      | DM_Fst => [:: f ; f ; f ; f ; f; x; Lnone vi (sword sz)]
-      | DM_Snd => [:: f ; f ; f ; f ; f; Lnone vi (sword sz) ; x]
+      | DM_Fst => [:: f ; f ; f ; f ; f; x; Lnone vi (sword sz)] (* LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lx; LEmpty] *)
+      | DM_Snd => [:: f ; f ; f ; f ; f; Lnone vi (sword sz) ; x](* LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; LEmpty] *)
       end in
     let i1 :=
       match s with
-      | Signed => Copn [:: Lvar c ] tg (Ox86 (CQO sz)) [:: a]
-      | Unsigned => Copn [:: Lvar c ] tg (Ox86 (MOV sz)) [:: Papp1 (Oword_of_int sz) (Pconst 0)]
+      | Signed => Copn [:: Lvar c ] tg (Ox86 (CQO sz)) [:: a] (* Lopn (LSub [:: LSub [:: la]; LSub [:: LEmpty]]) *) 
+      | Unsigned => Copn [:: Lvar c ] tg (Ox86 (MOV sz)) [:: Papp1 (Oword_of_int sz) (Pconst 0)] 
+        (* Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: LEmpty]]) *) 
       end in
-
+    (* [:: leak for i1; Lopn (LSub [:: LSub [:: LEmpty; la ; lb] ; LSub lv.2]) *)
     ([::MkI ii i1; MkI ii (Copn lv tg op [::Pvar c; a; b]) ], LT_iremove)
 
-  | LowerAssgn => ([::  MkI ii (Cassgn x tg ty e)], LT_iremove)
+  | LowerAssgn => ([::  MkI ii (Cassgn x tg ty e)], LT_iremove) (*[:: Lopn (LSub [:: le; lx])]*)
   end.
 
 (* Lowering of Oaddcarry
