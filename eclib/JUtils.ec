@@ -320,7 +320,7 @@ proof.
 elim/last_ind : bs => // bs b /= IH.
 rewrite bs2int_rcons.
 move: (bs2int_ge0 bs) => ?.
-have T2: 0 <= 2 ^ size bs * b2i b by smt(expr_gt0).
+have T2: 0 <= 2 ^ size bs * b2i b by smt(expr_ge0).
 move=> H1.
 have E1: bs2int bs = 0 by smt().
 have: 2 ^ size bs * b2i b = 0 by smt().
@@ -387,7 +387,7 @@ move=> H.
 rewrite /bs2int !Esz !size_map2 !Esz2 sumrN !sumrD.
 apply eq_big_int => i /=.
 move=> H0; rewrite !map2_zip.
-rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz /#.
+rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz2.
 rewrite nth_zip //=.
 case: (nth false bs1 i); case: (nth false bs2 i) => //=.
 move=> H1 H2.
@@ -406,7 +406,7 @@ move=> H.
 rewrite /bs2int !Esz !size_map2 !Esz2 !sumrD.
 apply eq_big_int => i /=.
 move=> H0; rewrite !map2_zip.
-rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz /#.
+rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz2.
 rewrite nth_zip //=.
 case: (nth false bs1 i); case: (nth false bs2 i) => //=.
 move=> H1 H2.

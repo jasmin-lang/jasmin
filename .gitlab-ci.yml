@@ -72,6 +72,7 @@ tarball:
   variables:
     EXTRA_NIX_ARGUMENTS: --arg testDeps true
     TARBALL: jasmin-compiler-$CI_COMMIT_SHORT_SHA
+  extends: .common
   dependencies:
   - coq
   script:
