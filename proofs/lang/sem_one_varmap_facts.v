@@ -10,11 +10,13 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Section PROG.
+
+Context (p: sprog) (extra_free_registers: instr_info → option var).
+
 Section STACK_STABLE.
 
 Infix "≡" := stack_stable (at level 40).
-
-Context (p: sprog) (extra_free_registers: instr_info → option var).
 
 Let Pc s1 (_: cmd) s2 : Prop := emem s1 ≡ emem s2.
 Let Pi s1 (_: instr) s2 : Prop := emem s1 ≡ emem s2.
@@ -77,3 +79,20 @@ Proof.
 Qed.
 
 End STACK_STABLE.
+
+(** Function calls resets RSP to the stack pointer of the initial memory. *)
+Lemma sem_call_valid_RSP ii s1 fn s2 :
+  sem_call p extra_free_registers ii s1 fn s2 →
+  valid_RSP (emem s1) (evm s2).
+Proof.
+  case/sem_callE => fd m s ok_fd ok_ra ok_m exec_body ok_RSP -> /=.
+  rewrite /valid_RSP /set_RSP Fv.setP_eq /top_stack.
+  have ok_alloc := Memory.alloc_stackP ok_m.
+  have /= ok_exec := sem_stack_stable exec_body.
+  have ok_free := Memory.free_stackP (emem s).
+  rewrite (fss_frames ok_free) -(ss_frames ok_exec) (ass_frames ok_alloc).
+  rewrite (fss_root ok_free) -(ss_root ok_exec) (ass_root ok_alloc) -/(top_stack (emem s1)).
+  done.
+Qed.
+
+End PROG.
