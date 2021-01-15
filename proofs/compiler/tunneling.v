@@ -1493,13 +1493,18 @@ Section TunnelingCompiler.
     by move => _ /= Hgfd /andP [_ Hall]; apply: IHfuncs.
   Qed.
 
+  Lemma map_filter (T1 T2 : Type) (a : pred T2) (b : T1 -> T2) (s : seq T1) :
+    filter a (map b s) = map b (filter (fun x => a (b x)) s).
+  Proof.
+    by elim: s => //= hs ts ->; case: ifP.
+  Qed.
+
   Lemma labels_of_body_tunnel_partial fn uf lc :
     labels_of_body lc =
     labels_of_body (tunnel_partial fn uf lc).
   Proof.
-    rewrite /labels_of_body /tunnel_partial !filter_map.
-    f_equal.
-    Search _ filter (_ = _).
+    rewrite /labels_of_body; elim: lc => //= -[ii []] //=; first by move => ? ? ->.
+    by move => [fn' l'] tlc /=; case: ifP => //; case: ifP.
   Qed.
 
   Lemma well_formed_lprog_tunnel fn p :
@@ -1525,7 +1530,14 @@ Section TunnelingCompiler.
     have:= @get_fundef_all _ _ _ _ (fun fn fd => well_formed_body fn (lfd_body fd)) Hgfd Hall.
     move => {Hgfd Hall} Hwfb f /= {f}; move: Hwfb => /and3P [Huniql Hlocalgotos Hconds].
     apply/and3P; split; rewrite -labels_of_body_tunnel_partial //.
-  Qed.
+    + move: {Huniql} Hlocalgotos {Hconds}; pattern (lfd_body fd), (lfd_body fd) at 1 2 3 5.
+      apply: prefixW; first by rewrite /tunnel_plan /tunnel_partial /= (eq_map (tunnel_bore_empty _)) map_id.
+      move => [ii i] pfb Hprefix IHfb Hall; have:= (IHfb Hall) => {IHfb Hall}.
+      rewrite /tunnel_plan pairfoldl_rcons.
+      case Hlast: last => [last_ii [ | |last_l| | | | ]]; case Hi: i => [ | | |[fn' l]| | | ] //=.
+      case: ifP => // /eqP ?; subst fn'.
+      
+  Admitted.
 
   Lemma well_formed_partial_tunnel_program fns p :
     well_formed_lprog p ->
