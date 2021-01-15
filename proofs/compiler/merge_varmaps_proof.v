@@ -730,7 +730,7 @@ Section LEMMA.
      exists (set_RSP (free_stack (emem t2)) (evm t2)), tres; split.
     - econstructor.
       + exact: ok_fd.
-      + exact: ok_rastack.
+      + by case: sf_return_address ok_rastack ra_neq_magic.
       + exact: ok_m'.
       + exact: texec.
       + rewrite /valid_RSP -preserved // /t1' /= Fv.setP_eq.

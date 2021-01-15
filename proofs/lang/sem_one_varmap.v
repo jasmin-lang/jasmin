@@ -119,7 +119,11 @@ with sem_i : instr_info → estate → instr_r → estate → Prop :=
 with sem_call : instr_info → estate → funname → estate → Prop :=
 | EcallRun ii s1 s2 fn f m1 s2' :
     get_fundef (p_funcs p) fn = Some f →
-    (if f.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) →
+    match f.(f_extra).(sf_return_address) with
+    | RAstack _ => extra_free_registers ii != None
+    | RAreg ra => (ra != vid p.(p_extra).(sp_rip)) && (ra != var_of_register RSP)
+    | RAnone => true
+    end →
     alloc_stack s1.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1 →
     sem {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} f.(f_body) s2' →
     valid_RSP s2'.(emem) s2'.(evm) →
@@ -177,7 +181,11 @@ Lemma sem_callE ii s fn s' :
   sem_call ii s fn s' →
   ex3_6
     (λ f _ _, get_fundef (p_funcs p) fn = Some f)
-    (λ f _ _, (if f.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) : bool)
+    (λ f _ _, match f.(f_extra).(sf_return_address) with
+              | RAstack _ => extra_free_registers ii != None
+              | RAreg ra => (ra != vid p.(p_extra).(sp_rip)) && (ra != var_of_register RSP)
+              | RAnone => true
+              end : bool)
     (λ f m1 _, alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1)
     (λ f m1 s2', sem {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s.(evm).[x <- undef_error] else s.(evm)) |} f.(f_body) s2')
     (λ _ _ s2', valid_RSP s2'.(emem) s2'.(evm))
@@ -271,7 +279,11 @@ Section SEM_IND.
   Definition sem_Ind_proc : Prop :=
     ∀ (ii: instr_info) (s1 s2: estate) (fn: funname) fd m1 s2',
       get_fundef (p_funcs p) fn = Some fd →
-      (if fd.(f_extra).(sf_return_address) is RAstack _ then extra_free_registers ii != None else true) →
+      match fd.(f_extra).(sf_return_address) with
+      | RAstack _ => extra_free_registers ii != None
+      | RAreg ra => (ra != vid p.(p_extra).(sp_rip)) && (ra != var_of_register RSP)
+      | RAnone => true
+      end →
       alloc_stack s1.(emem) fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 →
       sem {| emem := m1 ; evm := set_RSP m1 (if fd.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} fd.(f_body) s2' →
       Pc {| emem := m1 ; evm := set_RSP m1 (if fd.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} fd.(f_body) s2' →
