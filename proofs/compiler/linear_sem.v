@@ -45,8 +45,11 @@ Section SEM.
 
 Variable P: lprog.
 
+Definition label_in_lcmd (body: lcmd) : seq label :=
+  pmap (λ i, if li_i i is Llabel lbl then Some lbl else None) body.
+
 Definition label_in_lprog : seq remote_label :=
-  flatten (map (λ '(fn, fd), pmap (λ i, if li_i i is Llabel lbl then Some (fn, lbl) else None) (lfd_body fd)) (lp_funcs P)).
+  [seq (f.1, lbl) | f <- lp_funcs P, lbl <- label_in_lcmd (lfd_body f.2) ].
 
 Let labels := ssrbool.mem label_in_lprog.
 
