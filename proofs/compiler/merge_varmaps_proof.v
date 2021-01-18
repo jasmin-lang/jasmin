@@ -337,20 +337,22 @@ Section LEMMA.
     red.
     move => ii i s1 s2 exec_i h I O t1 /check_instrP[] ok_i ok_efr ok_W sim.
     set t1' := kill_extra_register extra_free_registers ii t1.
-    have ok_W' : merged_vmap_precondition (write_i i) (emem s1) (evm t1').
-    - move: (mvp_not_written ok_W).
-      rewrite /write_I merge_varmaps.write_I_recE -/write_i => dis.
-      split; first by apply: disjoint_w dis; SvD.fsetdec.
-      + rewrite -(mvp_top_stack ok_W).
-        apply: kill_extra_register_vmap_eq_except.
-        apply: (proj2 (not_written_magic _)).
-        apply: disjoint_w dis.
-        SvD.fsetdec.
-      rewrite -(mvp_global_data ok_W).
-      apply: kill_extra_register_vmap_eq_except.
-      apply: (proj1 (not_written_magic _)).
+    move: (mvp_not_written ok_W).
+    rewrite {1}/write_I merge_varmaps.write_I_recE -/write_i => dis.
+    have vrsp_not_extra : ¬ Sv.In vrsp (extra_free_registers_at extra_free_registers ii).
+    - apply: (proj2 (not_written_magic _)).
       apply: disjoint_w dis.
       SvD.fsetdec.
+    have vgd_not_extra : ¬ Sv.In vgd (extra_free_registers_at extra_free_registers ii).
+    - apply: (proj1 (not_written_magic _)).
+      apply: disjoint_w dis.
+      SvD.fsetdec.
+    have ok_W' : merged_vmap_precondition (write_i i) (emem s1) (evm t1').
+      split; first by apply: disjoint_w dis; SvD.fsetdec.
+      + rewrite -(mvp_top_stack ok_W).
+        exact: kill_extra_register_vmap_eq_except vrsp_not_extra.
+      rewrite -(mvp_global_data ok_W).
+      exact: kill_extra_register_vmap_eq_except vgd_not_extra.
     have := h ii I O t1' ok_i ok_W'.
     case.
     - split.
@@ -362,7 +364,10 @@ Section LEMMA.
         exact: kill_extra_register_vmap_eq_except.
       SvD.fsetdec.
     move => t2 [] texec_i preserved sim'.
-    exists t2; split => //.
+    exists t2; split; last exact: sim'.
+    - constructor => //.
+      move: vrsp_not_extra vgd_not_extra; rewrite /extra_free_registers_at; case: extra_free_registers => // r.
+      clear => ??; apply/andP; split; apply/eqP; SvD.fsetdec.
     rewrite /write_I merge_varmaps.write_I_recE -/write_i.
     transitivity (evm t1').
     - symmetry; apply: vmap_eq_exceptI; last exact: kill_extra_register_vmap_eq_except.

@@ -980,7 +980,7 @@ Section PROOF.
 
   Local Lemma HmkI : sem_Ind_mkI p extra_free_registers Pi Pi_r.
   Proof.
-    move => ii i s1 s2 _ h fn lbl chk.
+    move => ii i s1 s2 _ _ h fn lbl chk.
     move: h => /(_ fn lbl chk); case: linear_i (valid_i fn (MkI ii i) lbl) => lbli li [L V] S.
     move => m1 vm1 P Q M X.
     apply: S; first exact: M.

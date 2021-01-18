@@ -59,11 +59,14 @@ Proof.
   by move => /eqP x_ne_y; rewrite Fv.setP_neq.
 Qed.
 
+Let vgd : var := vid p.(p_extra).(sp_rip).
+Let vrsp : var := vid (string_of_register RSP).
+
 Definition set_RSP m vm : vmap :=
-  vm.[vid (string_of_register RSP) <- ok (pword_of_word (top_stack m))].
+  vm.[vrsp <- ok (pword_of_word (top_stack m))].
 
 Definition valid_RSP m (vm: vmap) : Prop :=
-  vm.[vid (string_of_register RSP) ] = ok (pword_of_word (top_stack m)).
+  vm.[vrsp] = ok (pword_of_word (top_stack m)).
 
 Inductive sem : estate → cmd → estate → Prop :=
 | Eskip s :
@@ -74,6 +77,7 @@ Inductive sem : estate → cmd → estate → Prop :=
 
 with sem_I : estate → instr → estate → Prop :=
 | EmkI ii i s1 s2:
+    (if extra_free_registers ii is Some r then (r != vgd) && (r != vrsp) else true) →
     sem_i ii (kill_extra_register ii s1) i s2 →
     sem_I s1 (MkI ii i) s2
 
@@ -144,6 +148,7 @@ Proof. by case => // {s c s'} s si s' i c; exists si. Qed.
 Lemma sem_IE s i s' :
   sem_I s i s' →
   let: MkI ii r := i in
+  ((if extra_free_registers ii is Some r then (r != vgd) && (r != vrsp) else true) : bool) ∧
   sem_i ii (kill_extra_register ii s) r s'.
 Proof. by case. Qed.
 
@@ -220,6 +225,7 @@ Section SEM_IND.
 
   Definition sem_Ind_mkI : Prop :=
     ∀ (ii : instr_info) (i : instr_r) (s1 s2 : estate),
+      (if extra_free_registers ii is Some r then (r != vgd) && (r != vrsp) else true) →
       sem_i ii (kill_extra_register ii s1) i s2 → Pi_r ii (kill_extra_register ii s1) i s2 → Pi s1 (MkI ii i) s2.
 
   Hypothesis HmkI : sem_Ind_mkI.
@@ -325,7 +331,7 @@ Section SEM_IND.
 
   with sem_I_Ind (s1 : estate) (i : instr) (s2 : estate) (s : sem_I s1 i s2) {struct s} : Pi s1 i s2 :=
     match s in sem_I e1 i0 e2 return Pi e1 i0 e2 with
-    | @EmkI ii i s1 s2 exec => @HmkI ii i s1 s2 exec (@sem_i_Ind ii _ i s2 exec)
+    | @EmkI ii i s1 s2 nom exec => @HmkI ii i s1 s2 nom exec (@sem_i_Ind ii _ i s2 exec)
     end
 
   with sem_call_Ind (ii: instr_info) (s1: estate) (fn: funname) (s2: estate) (s: sem_call ii s1 fn s2) {struct s} : Pfun ii s1 fn s2 :=
