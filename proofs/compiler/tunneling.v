@@ -222,6 +222,25 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
     + by rewrite hasNfind // /negb Hhasltuf.
   Qed.
 
+  Definition prop_compat_uf uf P :=
+    forall lx ly ,
+    P lx ->
+    find_r uf lx == find_r uf ly ->
+    P ly.
+
+  Definition prop_compat_union P :=
+    forall uf lx ly ,
+    (forall l , P (find_r uf l)) ->
+    forall l , P (find_r (union_r uf lx ly) l).
+
+  Lemma unionfindW uf P :
+    prop_compat_uf empty_r P ->
+    prop_compat_union P ->
+    prop_compat_uf uf P.
+  Proof.
+    
+  Qed.
+
   Record unionfind_i : Type := mkUF {
     uf :> seq (S * S); _ : well_formed uf;
   }.
@@ -595,6 +614,9 @@ Section TunnelingSem.
 
   Context (p : lprog).
 
+  (*TODO: use that.*)
+  Print pmap.
+
   Definition labels_of_body fb :=
     filter 
       (fun li => match li with
@@ -603,30 +625,19 @@ Section TunnelingSem.
                end)
       (map li_i fb).
 
-  Definition local_goto_targets (fn' : funname) fb :=
+  Definition goto_targets fb :=
     filter 
       (fun li => if li is Lgoto _ then true else false)
       (map li_i fb).
 
-  Definition cond_targets fb :=
-    filter 
-      (fun li => if li is Lcond _ _ then true else false)
-      (map li_i fb).
-
-  Definition well_formed_body fn' fb := [&&
-    uniq (labels_of_body fb),
+  Definition well_formed_body (fn' : funname) fb :=
+    uniq (labels_of_body fb) &&
     all
       (fun li => 
          if li is Lgoto (fn',l) then 
             Llabel l \in (labels_of_body fb)
          else false)
-      (local_goto_targets fn' fb) &
-    all
-      (fun li => 
-         if li is Lgoto (fn',l) then 
-            Llabel l \in (labels_of_body fb)
-         else false)
-      (cond_targets fb)].
+      (goto_targets fb).
   
   Definition well_formed_lprog := all (fun func => well_formed_body func.1 func.2.(lfd_body)) p.(lp_funcs).
 
@@ -889,7 +900,7 @@ Section TunnelingProof.
     prefix (rcons s (MkLI ii (Llabel l))) fb ->
     LUF.find (pairfoldl (tunnel_chart fn) LUF.empty Linstr_align (rcons s (MkLI ii (Llabel l)))) l = l.
   Proof.
-    rewrite /well_formed_body => /and3P [Huniqfb _ _] Hprefix.
+    rewrite /well_formed_body => /andP [Huniqfb _] Hprefix.
     have:= (uniq_nhas Huniqfb Hprefix).
     move => /negP; move: s l (MkLI _ _) Hprefix; apply: last_ind => [|s c1 IHs] //.
     + by move => ? [] /=; rewrite LUF.find_empty.
@@ -916,7 +927,7 @@ Section TunnelingProof.
     prefix (rcons pfb {| li_ii := ii; li_i := Llabel l |}) fb ->
     find_label l fb = ok (size pfb).
   Proof.
-    rewrite /well_formed_body => /and3P [Huniqfb _ _].
+    rewrite /well_formed_body => /andP [Huniqfb _].
     elim: fb pfb Huniqfb => [|hfb tfb IHfb] [|hpfb tpfb] //=; case: ifP => // /eqP ?; subst hfb.
     + by move => _ _; rewrite /find_label /find /is_label /= eq_refl.
     move => Huniqfb Hprefix; have:= (IHfb tpfb); rewrite /find_label /find.
@@ -959,9 +970,9 @@ Section TunnelingProof.
     + move => [pc''] Hfindl''.
       by apply: (IHpfb _ _ Hwfb (prefix_trans (prefix_rcons _ _) Hprefix) Hfindl'').
     move: Hwfb; rewrite /well_formed_body.
-    rewrite /well_formed_body => /and3P [_].
+    rewrite /well_formed_body => /andP [_].
     rewrite all_filter; move: Hprefix; case/prefixP => sfb Hfb.
-    rewrite {2}Hfb map_cat map_rcons all_cat all_rcons => /andP [] /andP [/= Hl'' _ _ _].
+    rewrite {2}Hfb map_cat map_rcons all_cat all_rcons => /andP [] /andP [/= Hl'' _ _].
     elim: fb Hl'' {Hfindl Hpcf IHpfb Hfb} => // hfb tfb.
     rewrite /labels_of_body /find_label !mem_filter /= in_cons.
     case Hhfbl'': (is_label l'' hfb) => //=.
@@ -1015,7 +1026,7 @@ Section TunnelingProof.
      -> is_label l c
      -> find (is_label l) fb = seq.index c fb.
   Proof.
-  case/and3P=> [uq _ _] /mem_split [fb1] [fb2] fbE lc.
+  case/andP=> [uq _] /mem_split [fb1] [fb2] fbE lc.
   suff l_fb1: ~~ has (is_label l) fb1.
     have c_fb1: c \notin fb1.
       by apply/contra: l_fb1 => c_fb1; apply/hasP; exists c.
@@ -1038,7 +1049,7 @@ Section TunnelingProof.
   - rewrite fbE index_cat mem_rcons in_cons eqxx /=.
     rewrite -cats1 index_cat; case: ifP => //=; last first.
     - by move=> _; rewrite eqxx addn0.
-    case/and3P: wf => uq _ _; move: uq.
+    case/andP: wf => uq _; move: uq.
     rewrite fbE -cats1 !labels_of_body_cat -catA uniq_catC -catA.
     rewrite {1}/labels_of_body /= (is_labelP lc) /= andbC => /andP[_].
     rewrite mem_cat => /norP[_]; rewrite mem_filter /= => h.
@@ -1255,8 +1266,8 @@ Section TunnelingProof.
         rewrite onth_rcons !size_rcons eq_refl {1}/tunnel_bore eq_refl /=.
         rewrite get_fundef_union Hgfd eq_refl LUF.find_union /=.
         rewrite !find_label_tunnel_partial.
-        have:= (get_fundef_wf Hgfd); rewrite /well_formed_body => /and3P [_ Hall _].
-        move: Hall; rewrite /local_goto_targets all_filter all_map => Hall.
+        have:= (get_fundef_wf Hgfd); rewrite /well_formed_body => /andP [_ Hall].
+        move: Hall; rewrite /goto_targets all_filter all_map => Hall.
         have:= (prefix_all Hprefix Hall); rewrite all_rcons => /andP [Hl4 _]; clear Hall.
         rewrite /= mem_filter /= in Hl4; have:= mapP Hl4 => -[[li_ii5 li_i5]] /= Hin ?.
         clear Hl4; subst li_i5; have Hhas4: has (is_label l4) (lfd_body fd).
@@ -1299,8 +1310,8 @@ Section TunnelingProof.
       move => [li_ii5] [l5] Honth5; right; move: Hpcf1' Hmatch; rewrite -Hfindl => Hpcf1'.
       have:= (prefix_rcons_find_label (get_fundef_wf Hgfd) (prefix_trans (prefix_rcons _ _) Hprefix)).
       rewrite Hpcf1' => -[?]; subst pcf1'.
-      have:= (get_fundef_wf Hgfd); rewrite /well_formed_body => /and3P[_ Hall _].
-      move: Hall; rewrite /local_goto_targets all_filter all_map => Hall.
+      have:= (get_fundef_wf Hgfd); rewrite /well_formed_body => /andP[_ Hall].
+      move: Hall; rewrite /goto_targets all_filter all_map => Hall.
       have:= (prefix_all Hprefix Hall); rewrite all_rcons => /andP [Hl4 _]; clear Hall.
       rewrite /= mem_filter /= in Hl4; have:= mapP Hl4 => -[[li_ii6 li_i6]] /= Hin ?.
       clear Hl4; subst li_i6; have Hhas4: has (is_label l4) (lfd_body fd).
@@ -1340,8 +1351,8 @@ Section TunnelingProof.
       rewrite onth_rcons !size_rcons eq_refl {1}/tunnel_bore eq_refl /=.
       rewrite get_fundef_union Hgfd eq_refl LUF.find_union /=.
       rewrite !find_label_tunnel_partial.
-      have:= (get_fundef_wf Hgfd); rewrite /well_formed_body => /and3P[_ Hall _].
-      move: Hall; rewrite /local_goto_targets all_filter all_map => Hall.
+      have:= (get_fundef_wf Hgfd); rewrite /well_formed_body => /andP[_ Hall].
+      move: Hall; rewrite /goto_targets all_filter all_map => Hall.
       have:= (prefix_all Hprefix Hall); rewrite all_rcons => /andP [Hl4 _]; clear Hall.
       rewrite /= mem_filter /= in Hl4; have:= mapP Hl4 => -[[li_ii5 li_i5]] /= Hin ?.
       clear Hl4; subst li_i5; have Hhas4: has (is_label l4) (lfd_body fd).
@@ -1385,8 +1396,8 @@ Section TunnelingProof.
     move => [li_ii5] [l5] Honth5; right; move: Hpcf1' Hmatch; rewrite -Hfindl => Hpcf1'.
     have:= (prefix_rcons_find_label (get_fundef_wf Hgfd) (prefix_trans (prefix_rcons _ _) Hprefix)).
     rewrite Hpcf1' => -[?]; subst pcf1'.
-    have:= (get_fundef_wf Hgfd); rewrite /well_formed_body => /and3P[_ Hall _].
-    move: Hall; rewrite /local_goto_targets all_filter all_map => Hall.
+    have:= (get_fundef_wf Hgfd); rewrite /well_formed_body => /andP[_ Hall].
+    move: Hall; rewrite /goto_targets all_filter all_map => Hall.
     have:= (prefix_all Hprefix Hall); rewrite all_rcons => /andP [Hl4 _]; clear Hall.
     rewrite /= mem_filter /= in Hl4; have:= mapP Hl4 => -[[li_ii6 li_i6]] /= Hin ?.
     clear Hl4; subst li_i6; have Hhas4: has (is_label l4) (lfd_body fd).
@@ -1511,7 +1522,7 @@ Section TunnelingCompiler.
     reflect (forall i x , oseq.onth s i = Some x -> a x) (all a s).
   Proof.
     apply: (iffP idP).
-    + move => /all_nthP Hnth i x (*/oseq.onthP*).
+    + move => /all_nthP Hnth i x.
       have:= Hnth x i.
       elim: s i {Hnth} => //= hs ts IHs [/= Ha [<-]|i /= Ha]; first by apply: Ha.
       by apply: IHs => Hisizets; apply: Ha.
@@ -1529,11 +1540,35 @@ Section TunnelingCompiler.
     by case: (IHs Hassoc) => i Honth; exists i.+1.
   Qed.
 
-  Lemma onth_local_goto_targets fn fb i x :
-    oseq.onth (local_goto_targets fn fb) i = Some x ->
-    exists j ii_l l ii_x, oseq.onth fb j = Some (MkLI ii_l l) /\ oseq.onth fb j.+1 = Some (MkLI ii_x x).
+  Lemma onth_goto_targets fb i x :
+    oseq.onth (goto_targets fb) i = Some x ->
+    exists j ii_x r, oseq.onth fb j = Some (MkLI ii_x x) /\ Lgoto r = x.
   Proof.
     
+  Admitted.
+
+  Lemma labels_of_body_tunnel_plan l fn fb :
+    Llabel l \in labels_of_body fb ->
+    Llabel (LUF.find (tunnel_plan fn LUF.empty fb) l) \in labels_of_body fb.
+  Proof.
+    rewrite /tunnel_plan.
+    pattern fb, fb at 1 3.
+    apply: prefixW => //=; first by rewrite LUF.find_empty.
+    move => c pfb Hprefix IHfb Hlabelin.
+    have:= (IHfb Hlabelin) => {IHfb Hlabelin}.
+    rewrite pairfoldl_rcons.
+    set uf:= pairfoldl _ _ _ _.
+    case: last => ? []; case: c Hprefix => ? [] //=.
+    move => [fn' l'] Hprefix l''.
+    case: ifP => // /eqP ?; subst fn'; rewrite LUF.find_union.
+    case: ifP => //.
+  Qed.
+
+  (*General thing about unionfinds: P a property such that if P l and LUF.find uf l' == LUF.find uf l then P l'*)
+
+  Lemma goto_targets_tunnel_partial fn fb:
+    {subset (goto_targets (tunnel_partial fn (tunnel_plan fn LUF.empty fb) fb)) <= (goto_targets fb)}.
+  Proof.
   Admitted.
 
   Lemma well_formed_lprog_tunnel fn p :
@@ -1547,20 +1582,11 @@ Section TunnelingCompiler.
     case: ifP => [/eqP ? ?|_ ?]; last by subst fd''; apply: (Hwfb _ _ Honth).
     subst fn' fd'; rewrite /lfundef_tunnel_partial /= => {i fd'' Honth}.
     case: (assoc_onth Hgfd) => i Honth; have:= (Hwfb _ _ Honth) => /= {Hwfb Hgfd Honth}.
-    move => /and3P [Huniql /all_onthP Hlocalgotos /all_onthP Hconds].
-    (*
-    apply/and3P; split; rewrite -labels_of_body_tunnel_partial //.
-    + apply/all_onthP => {i} i.
-
-      move: {Huniql} Hlocalgotos {Hconds}.
-      pattern (lfd_body fd), (lfd_body fd) at 1 2 3 5.
-      apply: prefixW; first by rewrite /tunnel_plan /tunnel_partial /= (eq_map (tunnel_bore_empty _)) map_id.
-      move => [ii i] pfb Hprefix IHfb Hall; have:= (IHfb Hall) => {IHfb Hall}.
-      rewrite /tunnel_plan pairfoldl_rcons.
-      case Hlast: last => [last_ii [ | |last_l| | | | ]]; case Hi: i => [ | | |[fn' l]| | | ] //=.
-      case: ifP => // /eqP ?; subst fn'.
-    *)
-  Admitted.
+    move => /andP [Huniql /all_onthP Hlocalgotos].
+    apply/andP; split; rewrite -labels_of_body_tunnel_partial //.
+    apply/all_onthP => {i} i x. /onth_goto_targets [j] [ii_x] [[fn' l']] [Honth ?]; subst x.
+    
+  Qed.
 
   Lemma well_formed_partial_tunnel_program fns p :
     well_formed_lprog p ->
