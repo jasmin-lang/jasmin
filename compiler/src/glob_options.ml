@@ -38,6 +38,7 @@ let poptions = [
   ; Compiler.RegAllocation
   ; Compiler.DeadCode_RegAllocation
   ; Compiler.Linearisation
+  ; Compiler.Tunneling
   ; Compiler.Assembly ]
 
 let set_printing p () =
@@ -81,6 +82,7 @@ let print_strings = function
   | Compiler.DeadCode_RegAllocation      -> "rallocd"  , "dead code after register allocation"
  
   | Compiler.Linearisation               -> "linear"   , "linearisation"
+  | Compiler.Tunneling                   -> "tunnel"   , "tunneling"
   | Compiler.Assembly                    -> "asm"      , "generation of assembly"
 
 let print_option p =

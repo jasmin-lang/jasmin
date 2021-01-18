@@ -73,6 +73,7 @@ Variant compiler_step :=
   | RegAllocation               : compiler_step
   | DeadCode_RegAllocation      : compiler_step
   | Linearisation               : compiler_step
+  | Tunneling                   : compiler_step
   | Assembly                    : compiler_step.
 
 Record stack_alloc_oracles : Type :=

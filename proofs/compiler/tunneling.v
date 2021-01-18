@@ -1507,36 +1507,59 @@ Section TunnelingCompiler.
     by move => [fn' l'] tlc /=; case: ifP => //; case: ifP.
   Qed.
 
+  Lemma all_onthP (T : Type)  (a : pred T) (s : seq T) :
+    reflect (forall i x , oseq.onth s i = Some x -> a x) (all a s).
+  Proof.
+    apply: (iffP idP).
+    + move => /all_nthP Hnth i x (*/oseq.onthP*).
+      have:= Hnth x i.
+      elim: s i {Hnth} => //= hs ts IHs [/= Ha [<-]|i /= Ha]; first by apply: Ha.
+      by apply: IHs => Hisizets; apply: Ha.
+    elim: s => //= hs ts IHs Honth.
+    apply/andP; split; first by apply: (Honth 0).
+    by apply: IHs => i x ?; apply: (Honth (i.+1)).
+  Qed.
+
+  Lemma assoc_onth (T : eqType) (U : Type) (s : seq (T * U)) (x : T) (y : U) :
+    assoc s x = Some y ->
+    exists i, oseq.onth s i = Some (x,y).
+  Proof.
+    elim: s => //= -[hsx hsy] ts IHs.
+    case: ifP => [/eqP ? [?]|_ Hassoc]; first by subst hsx hsy; exists 0.
+    by case: (IHs Hassoc) => i Honth; exists i.+1.
+  Qed.
+
+  Lemma onth_local_goto_targets fn fb i x :
+    oseq.onth (local_goto_targets fn fb) i = Some x ->
+    exists j ii_l l ii_x, oseq.onth fb j = Some (MkLI ii_l l) /\ oseq.onth fb j.+1 = Some (MkLI ii_x x).
+  Proof.
+    
+  Admitted.
+
   Lemma well_formed_lprog_tunnel fn p :
     well_formed_lprog p ->
     well_formed_lprog (lprog_tunnel fn p).
   Proof.
-    (*Can't use allP, eqType would be needed.*)
     rewrite /well_formed_lprog /lprog_tunnel; case: p => /= rip globs funcs.
-    case Hgfd: get_fundef => [fd|] //= {rip globs}; rewrite all_map => Hall.
-    rewrite (@eq_all _ _
-              (fun f =>
-                if fn == f.1
-                then well_formed_body f.1
-                       (tunnel_partial fn
-                         (tunnel_plan fn LUF.empty (lfd_body fd)) (lfd_body fd))
-                else well_formed_body f.1 (lfd_body f.2)));
-    last by move => [fn' fd'] /=; case: ifP.
-    apply: all_if; last by apply: all_filtered.
-    apply: (@all_eq_filter _ (fun _ => well_formed_body fn
-             (tunnel_partial fn (tunnel_plan fn LUF.empty (lfd_body fd)) (lfd_body fd)))).
-    + by move => [??] /eqP ?; subst.
-    rewrite (@eq_all _ _ predT); first by apply: all_predT.
-    have:= @get_fundef_all _ _ _ _ (fun fn fd => well_formed_body fn (lfd_body fd)) Hgfd Hall.
-    move => {Hgfd Hall} Hwfb f /= {f}; move: Hwfb => /and3P [Huniql Hlocalgotos Hconds].
+    move => /all_onthP Hwfb; apply/all_onthP => i [fn' fd'] /=.
+    case Hgfd: get_fundef => [fd|] /= {rip globs}; last by apply: Hwfb.
+    rewrite onth_map; case Honth: oseq.onth => [[fn'' fd'']|] //= [?]; subst fn''.
+    case: ifP => [/eqP ? ?|_ ?]; last by subst fd''; apply: (Hwfb _ _ Honth).
+    subst fn' fd'; rewrite /lfundef_tunnel_partial /= => {i fd'' Honth}.
+    case: (assoc_onth Hgfd) => i Honth; have:= (Hwfb _ _ Honth) => /= {Hwfb Hgfd Honth}.
+    move => /and3P [Huniql /all_onthP Hlocalgotos /all_onthP Hconds].
+    (*
     apply/and3P; split; rewrite -labels_of_body_tunnel_partial //.
-    + move: {Huniql} Hlocalgotos {Hconds}; pattern (lfd_body fd), (lfd_body fd) at 1 2 3 5.
+    + apply/all_onthP => {i} i.
+
+      move: {Huniql} Hlocalgotos {Hconds}.
+      pattern (lfd_body fd), (lfd_body fd) at 1 2 3 5.
       apply: prefixW; first by rewrite /tunnel_plan /tunnel_partial /= (eq_map (tunnel_bore_empty _)) map_id.
       move => [ii i] pfb Hprefix IHfb Hall; have:= (IHfb Hall) => {IHfb Hall}.
       rewrite /tunnel_plan pairfoldl_rcons.
       case Hlast: last => [last_ii [ | |last_l| | | | ]]; case Hi: i => [ | | |[fn' l]| | | ] //=.
       case: ifP => // /eqP ?; subst fn'.
-      
+    *)
   Admitted.
 
   Lemma well_formed_partial_tunnel_program fns p :
