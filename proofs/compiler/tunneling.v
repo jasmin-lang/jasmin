@@ -36,6 +36,8 @@ Module Type IUnionFind.
   Axiom find_union : forall uf lx ly l, find (union uf lx ly) l =
     if (find uf lx == find uf l) then find uf ly else find uf l.
 
+  Axiom find_find : forall uf l, find uf (find uf l) = find uf l.
+
 End IUnionFind.
 
 
@@ -46,6 +48,8 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
   Definition unionfind_r := seq (S * S).
 
   Definition is_labeled (T : Type) (l : S) (pl : S * T) := (l == pl.1).
+
+  Definition is_pair (T : eqType) (pl1 pl2 : S * T) := (pl1.1 == pl2.1) && (pl1.2 == pl2.2).
 
   Definition makeset (uf : unionfind_r) (l : S) :=
     if has (is_labeled l) uf
@@ -65,7 +69,16 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
     map (fun pl => (pl.1,if fx == pl.2 then fy else pl.2)) ufxy.
 
   Definition well_formed (uf : unionfind_r) :=
+    forall l : S , has (is_labeled l) uf -> has (is_pair (find_r uf l, find_r uf l)) uf.
+
+  Lemma well_formed_has_has uf :
+    well_formed uf ->
     forall l : S , has (is_labeled l) uf -> has (is_labeled (find_r uf l)) uf.
+  Proof.
+    move => Hwf l Hhas; have:= (Hwf l Hhas) => {Hwf Hhas}.
+    move => /hasP [[? ?]] Hpinuf /andP [/=] /eqP ? /eqP ?; subst.
+    by apply/hasP; rewrite /is_labeled; eexists; eauto.
+  Qed.
 
   Lemma has_makeset uf lh lm :
     has (is_labeled lh) (makeset uf lm) = (lh == lm) || (has (is_labeled lh) uf).
@@ -137,29 +150,36 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
     + by rewrite (eqP Hlflm) Hhaslm in Hhaslf.
     + by rewrite -(eqP Hlflm) Hhaslf in Hhaslm.
     + rewrite hasNfind /is_labeled /=.
-      - by rewrite Hlflm.
+      - by rewrite /is_pair Hlflm.
       by rewrite Hhaslf.
     + by rewrite Hwf.
     rewrite /is_labeled /=.
     case Hlmfindlf: ((find_r uf lf == lm)) => //=.
-    by rewrite Hwf.
+    + by rewrite /is_pair /= Hwf // Hlmfindlf.
+    by rewrite /is_pair /= Hwf // Hlmfindlf.
   Qed.
 
   Lemma well_formed_union uf lx ly : well_formed uf -> well_formed (union_r uf lx ly).
   Proof.
-    move => Hwfuf.
-    have:= (@well_formed_makeset _ ly (@well_formed_makeset _ lx Hwfuf)).
-    pose ufxy := makeset (makeset uf lx) ly.
-    rewrite -/ufxy.
-    have Hhaslxufxy: has (is_labeled ly) ufxy.
-    + by rewrite /ufxy has_makeset eq_refl.
-    have Hhaslyufxy: has (is_labeled lx) ufxy.
-    + by rewrite /ufxy !has_makeset eq_refl Bool.orb_true_r.
-    rewrite /well_formed => Hwfufxy l.
-    rewrite (@find_map ufxy (fun l => if find_r ufxy lx == l then find_r ufxy ly else l) l (find_r ufxy l)) => //.
-    rewrite !has_map /preim /= => Hlufxy.
-    rewrite Hlufxy.
-    by case: (find_r ufxy lx == find_r ufxy l); apply Hwfufxy.
+    rewrite /union_r => Hwfuf.
+    have:= @well_formed_makeset _ ly (@well_formed_makeset _ lx Hwfuf).
+    set ufxy:= makeset (makeset _ _) _ => Hwfufxy l.
+    set flx:= find_r ufxy lx; set fly:= find_r ufxy ly; set fl:= find_r ufxy l.
+    rewrite has_map (@eq_has _ _ (is_labeled l)); last by move => l'; rewrite /is_labeled.
+    have:= has_makeset (makeset uf lx) ly ly; rewrite eq_refl /= -/ufxy => Hhasfly Hhasfl.
+    have:= (Hwfufxy _ Hhasfly); rewrite -/fly => /hasP [[? ?]] Hinfly /andP [/=] /eqP ? /eqP ?; subst.
+    have:= (Hwfufxy _ Hhasfl); rewrite -/fl => /hasP [[? ?]] Hinfl /andP [/=] /eqP ? /eqP ?; subst.
+    apply/hasP; case Heqfind: (flx == fl).
+    + exists (fly,fly).
+      - by apply/mapP; eexists; first (exact Hinfly); case: ifP.
+      by apply/andP; split => //=;
+      have ->:= (@find_map ufxy (fun pl2 => if flx == pl2 then fly else pl2) l fl) => //;
+      rewrite Hhasfl Heqfind eq_refl.
+    exists (fl,fl).
+    + by apply/mapP; eexists; first (exact Hinfl); rewrite Heqfind.
+    by apply/andP; split => //=;
+    have ->:= (@find_map ufxy (fun pl2 => if flx == pl2 then fly else pl2) l fl) => //;
+    rewrite Hhasfl Heqfind eq_refl.
   Qed.
 
   Arguments well_formed_union [uf].
@@ -192,7 +212,7 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
     + move => _ Hhaslytuf.
       have Hfindll: (find_r tuf l = l) by apply hasNfind; rewrite /negb Hhasltuf.
       have Hfindlxl': (find_r (huf :: tuf) lx = l) by rewrite find_cons /is_labeled Hhuflx (eqP Hfindtufl).
-      have Hhasluf: (has (is_labeled (find_r (huf :: tuf) lx)) (huf :: tuf)) by apply Hwfufxy; rewrite/is_labeled /= Hhuflx.
+      have Hhasluf: (has (is_labeled (find_r (huf :: tuf) lx)) (huf :: tuf)) by apply Hwfufxy; rewrite /is_labeled /= Hhuflx.
       by rewrite Hfindlxl' /is_labeled /= Hhufl Hhasltuf /= in Hhasluf.
     + move => _ Hhaslytuf.
       have Hfindll: (find_r tuf l = l) by apply hasNfind; rewrite /negb Hhasltuf.
@@ -222,24 +242,14 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
     + by rewrite hasNfind // /negb Hhasltuf.
   Qed.
 
-  Definition prop_compat_uf uf P :=
-    forall lx ly ,
-    P lx ->
-    find_r uf lx == find_r uf ly ->
-    P ly.
-
-  Definition prop_compat_union P :=
-    forall uf lx ly ,
-    (forall l , P (find_r uf l)) ->
-    forall l , P (find_r (union_r uf lx ly) l).
-
-  Lemma unionfindW uf P :
-    prop_compat_uf empty_r P ->
-    prop_compat_union P ->
-    prop_compat_uf uf P.
+  Lemma find_find_r uf l : find_r uf (find_r uf l) = find_r uf l.
   Proof.
-    
+    rewrite /find_r; elim: uf l => // -[lx ly] uf IHuf l //=.
+    case: ifP => [/eqP /= ?|_]; first subst l.
+    + move => //=; case: ifP => //= _.
+      rewrite -IHuf.
   Qed.
+
 
   Record unionfind_i : Type := mkUF {
     uf :> seq (S * S); _ : well_formed uf;
@@ -267,6 +277,29 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
   Lemma find_union uf lx ly l : find (union uf lx ly) l =
     if (find uf lx == find uf l) then find uf ly else find uf l.
   Proof. by apply/find_r_union/wf_uf. Qed.
+
+  Definition prop_compat_uf uf P :=
+    forall lx ly ,
+    P lx ->
+    find uf lx = find uf ly ->
+    P ly.
+
+  Definition prop_compat_union uf lx ly P :=
+    P (find uf ly) -> P (find uf lx).
+
+  Lemma unionfindW uf lx ly P :
+    prop_compat_uf uf P ->
+    prop_compat_union uf lx ly P ->
+    prop_compat_uf (union uf lx ly) P.
+  Proof.
+    move => Hpropcompat Hpropcompatunion lx' ly' HPlx' /eqP.
+    rewrite !find_union; case: ifP => [/eqP Heqfindxx'|_]; case: ifP => [/eqP Heqfindxy'|_] /eqP.
+    + by move => _; rewrite Heqfindxx' in Heqfindxy'; apply: (Hpropcompat _ _ HPlx' Heqfindxy').
+    + move => Heqfindyy'.
+      have HPlx:= (Hpropcompat _ (find uf lx) HPlx' _).
+    + move => Heqfindx'y.
+    move => Heqfindx'y'.
+  Qed.
 
 End UnionFind.
 
