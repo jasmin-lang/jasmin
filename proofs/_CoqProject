@@ -34,6 +34,7 @@ compiler/linear_proof.v
 compiler/lowering.v
 compiler/lowering_proof.v
 compiler/makeReferenceArguments.v
+compiler/makeReferenceArguments_proof.v
 compiler/merge_varmaps.v
 compiler/merge_varmaps_proof.v
 compiler/remove_globals.v

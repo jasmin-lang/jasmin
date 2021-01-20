@@ -26,6 +26,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import psem compiler_util compiler.
 Require Import allocation inline_proof dead_calls_proof
+               makeReferenceArguments_proof
                unrolling_proof constant_prop_proof dead_code_proof
                array_expansion remove_globals_proof stack_alloc_proof
                lowering_proof
