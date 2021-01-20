@@ -979,7 +979,7 @@ Section PROOF.
 
   Local Lemma HmkI : sem_Ind_mkI p extra_free_registers Pi Pi_r.
   Proof.
-    move => ii i s1 s2 _ _ h fn lbl chk.
+    move => ii i s1 s2 _ _ _ h fn lbl chk.
     move: h => /(_ fn lbl chk); case: linear_i (valid_i fn (MkI ii i) lbl) => lbli li [L V] S.
     move => m1 vm1 P Q M X.
     apply: S; first exact: M.
@@ -1211,7 +1211,7 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
   Proof.
-    red => ii s1 _ fn fd m1' s2' ok_fd free_ra ok_m1' exec_body ih valid_rsp -> m1 vm1 _ ra lret sp M X [] fd' ok_fd' <- [].
+    red => ii s1 _ fn fd m1' s2' ok_fd free_ra valid_rsp ok_m1' exec_body ih valid_rsp' -> m1 vm1 _ ra lret sp M X [] fd' ok_fd' <- [].
     rewrite ok_fd => _ /Some_inj <- <-{ra}.
     rewrite /value_of_ra => ok_lret.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_sp.
@@ -1247,7 +1247,7 @@ Section PROOF.
         have S : stack_stable m1' s2'.
         + exact: sem_one_varmap_facts.sem_stack_stable exec_body.
         move => x; move: (X2 x); rewrite /set_RSP !Fv.setP; case: eqP => // ?; subst.
-        by rewrite valid_rsp -(ss_top_stack S) top_stack_preserved.
+        by rewrite valid_rsp' -(ss_top_stack S) top_stack_preserved.
       }
       + (* RSP is saved into register “saved_rsp” *)
       { admit. }
@@ -1297,7 +1297,7 @@ Section PROOF.
       move: (ok_vm2 (var_of_register RSP)).
       have S : stack_stable m1' s2'.
       + exact: sem_one_varmap_facts.sem_stack_stable exec_body.
-      rewrite valid_rsp -(ss_top_stack S) (alloc_stack_top_stack ok_m1').
+      rewrite valid_rsp' -(ss_top_stack S) (alloc_stack_top_stack ok_m1').
       rewrite top_stack_after_aligned_alloc; last first.
       * admit. (* TODO: as above, stack pointer is aligned by export functions. *)
       by rewrite wrepr_opp.
