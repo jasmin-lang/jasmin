@@ -60,7 +60,7 @@ Proof. by []. Qed.
 
 Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
 Proof.
-  red => ii s1 s2 fn fd m1 s2' ok_fd ok_ra /Memory.alloc_stackP A _.
+  red => ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_rsp /Memory.alloc_stackP A _.
   rewrite /Pc /= => B _ ->.
   red => /=.
   have C := Memory.free_stackP (emem s2').
@@ -78,6 +78,22 @@ Proof.
               Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc s1 c s2).
 Qed.
 
+Lemma sem_I_stack_stable s1 i s2 :
+  sem_I p extra_free_registers s1 i s2 → emem s1 ≡ emem s2.
+Proof.
+  exact:
+    (@sem_I_Ind p extra_free_registers Pc Pi Pi_r Pfun
+              Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc s1 i s2).
+Qed.
+
+Lemma sem_i_stack_stable ii s1 i s2 :
+  sem_i p extra_free_registers ii s1 i s2 → emem s1 ≡ emem s2.
+Proof.
+  exact:
+    (@sem_i_Ind p extra_free_registers Pc Pi Pi_r Pfun
+              Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc ii s1 i s2).
+Qed.
+
 End STACK_STABLE.
 
 (** Function calls resets RSP to the stack pointer of the initial memory. *)
@@ -85,7 +101,7 @@ Lemma sem_call_valid_RSP ii s1 fn s2 :
   sem_call p extra_free_registers ii s1 fn s2 →
   valid_RSP (emem s1) (evm s2).
 Proof.
-  case/sem_callE => fd m s ok_fd ok_ra ok_m exec_body ok_RSP -> /=.
+  case/sem_callE => fd m s ok_fd ok_ra ok_RSP ok_m exec_body ok_RSP' -> /=.
   rewrite /valid_RSP /set_RSP Fv.setP_eq /top_stack.
   have ok_alloc := Memory.alloc_stackP ok_m.
   have /= ok_exec := sem_stack_stable exec_body.
@@ -94,5 +110,81 @@ Proof.
   rewrite (fss_root ok_free) -(ss_root ok_exec) (ass_root ok_alloc) -/(top_stack (emem s1)).
   done.
 Qed.
+
+(* The contents of RSP and GD registers are preserved. *)
+Section PRESERVED_RSP_GD.
+
+Local Infix "≡" := (λ s1 s2, evm s1 =[magic_variables p] evm s2) (at level 40).
+
+Let Pc (s1: estate) (_: cmd) (s2: estate) : Prop := s1 ≡ s2.
+Let Pi (s1: estate) (_: instr) (s2: estate) : Prop := s1 ≡ s2.
+Let Pi_r (_: instr_info) (_: estate) (_: instr_r) (_: estate) : Prop := True.
+Let Pfun (_: instr_info) (s1: estate) (_: funname) (s2: estate) : Prop := s1 ≡ s2.
+
+Local Lemma Hnil_pm : sem_Ind_nil Pc.
+Proof. by []. Qed.
+
+Lemma Hcons_pm : sem_Ind_cons p extra_free_registers Pc Pi.
+Proof. move => x y z i c _ xy _; exact: eq_onT xy. Qed.
+
+Lemma HmkI_pm : sem_Ind_mkI p extra_free_registers Pi Pi_r.
+Proof. by []. Qed.
+
+Lemma Hassgn_pm : sem_Ind_assgn p Pi_r.
+Proof. by []. Qed.
+
+Lemma Hopn_pm : sem_Ind_opn p Pi_r.
+Proof. by []. Qed.
+
+Lemma Hif_true_pm : sem_Ind_if_true p extra_free_registers Pc Pi_r.
+Proof. by []. Qed.
+
+Lemma Hif_false_pm : sem_Ind_if_false p extra_free_registers Pc Pi_r.
+Proof. by []. Qed.
+
+Lemma Hwhile_true_pm : sem_Ind_while_true p extra_free_registers Pc Pi_r.
+Proof. by []. Qed.
+
+Lemma Hwhile_false_pm : sem_Ind_while_false p extra_free_registers Pc Pi_r.
+Proof. by []. Qed.
+
+Lemma Hcall_pm : sem_Ind_call p extra_free_registers Pi_r Pfun.
+Proof. by []. Qed.
+
+Lemma Hproc_pm : sem_Ind_proc p extra_free_registers Pc Pfun.
+Proof.
+  red => ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' -> r hr /=.
+  rewrite /set_RSP Fv.setP.
+  case: eqP.
+  - move => ?; subst.
+    have ok_free := Memory.free_stackP (emem s2').
+    rewrite /top_stack (fss_root ok_free) -(ss_root s) (fss_frames ok_free) -(ss_frames s) /=.
+    have ok_alloc:= Memory.alloc_stackP ok_m1.
+    rewrite (ass_frames ok_alloc) (ass_root ok_alloc) /= -/(top_stack (emem s1)).
+    exact: ok_RSP.
+  move => /eqP r_neq_rsp.
+  rewrite -(ih r hr) /= /set_RSP Fv.setP_neq //.
+  case: sf_return_address ok_ra => // ra /andP[] ra_neq_gd _.
+  rewrite Fv.setP_neq //.
+  by move: hr; rewrite /magic_variables Sv.add_spec Sv.singleton_spec => - [] ?; subst.
+Qed.
+
+Lemma sem_preserved_RSP_GD s1 c s2 :
+  sem p extra_free_registers s1 c s2 → s1 ≡ s2.
+Proof.
+  exact:
+    (@sem_Ind p extra_free_registers Pc Pi Pi_r Pfun
+              Hnil_pm Hcons_pm HmkI_pm Hassgn_pm Hopn_pm Hif_true_pm Hif_false_pm Hwhile_true_pm Hwhile_false_pm Hcall_pm Hproc_pm s1 c s2).
+Qed.
+
+Lemma sem_I_preserved_RSP_GD s1 i s2 :
+  sem_I p extra_free_registers s1 i s2 → s1 ≡ s2.
+Proof.
+  exact:
+    (@sem_I_Ind p extra_free_registers Pc Pi Pi_r Pfun
+              Hnil_pm Hcons_pm HmkI_pm Hassgn_pm Hopn_pm Hif_true_pm Hif_false_pm Hwhile_true_pm Hwhile_false_pm Hcall_pm Hproc_pm s1 i s2).
+Qed.
+
+End PRESERVED_RSP_GD.
 
 End PROG.

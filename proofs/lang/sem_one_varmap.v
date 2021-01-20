@@ -62,6 +62,12 @@ Qed.
 Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid (string_of_register RSP).
 
+Definition magic_variables : Sv.t :=
+  Sv.add vgd (Sv.singleton vrsp).
+
+Definition extra_free_registers_at ii : Sv.t :=
+  if extra_free_registers ii is Some r then Sv.singleton r else Sv.empty.
+
 Definition set_RSP m vm : vmap :=
   vm.[vrsp <- ok (pword_of_word (top_stack m))].
 
@@ -79,6 +85,7 @@ with sem_I : estate → instr → estate → Prop :=
 | EmkI ii i s1 s2:
     (if extra_free_registers ii is Some r then (r != vgd) && (r != vrsp) else true) →
     sem_i ii (kill_extra_register ii s1) i s2 →
+    evm s1 =[magic_variables] evm s2 →
     sem_I s1 (MkI ii i) s2
 
 with sem_i : instr_info → estate → instr_r → estate → Prop :=
@@ -128,6 +135,7 @@ with sem_call : instr_info → estate → funname → estate → Prop :=
     | RAreg ra => (ra != vid p.(p_extra).(sp_rip)) && (ra != var_of_register RSP)
     | RAnone => true
     end →
+    valid_RSP s1.(emem) s1.(evm) →
     alloc_stack s1.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1 →
     sem {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} f.(f_body) s2' →
     valid_RSP s2'.(emem) s2'.(evm) →
@@ -148,8 +156,10 @@ Proof. by case => // {s c s'} s si s' i c; exists si. Qed.
 Lemma sem_IE s i s' :
   sem_I s i s' →
   let: MkI ii r := i in
-  ((if extra_free_registers ii is Some r then (r != vgd) && (r != vrsp) else true) : bool) ∧
-  sem_i ii (kill_extra_register ii s) r s'.
+  [/\
+  ((if extra_free_registers ii is Some r then (r != vgd) && (r != vrsp) else true) : bool),
+  sem_i ii (kill_extra_register ii s) r s' &
+  evm s =[magic_variables] evm s' ].
 Proof. by case. Qed.
 
 Lemma sem_iE ii s i s' :
@@ -179,18 +189,19 @@ Proof.
   by move => ii s1 s2 a c e c' exec_c eval_e; exists s2, false.
 Qed.
 
-Variant ex3_6 (A B C: Type) (P1 P2 P3 P4 P5 P6: A → B → C → Prop) : Prop :=
-| Ex3_6 a b c of P1 a b c & P2 a b c & P3 a b c & P4 a b c & P5 a b c & P6 a b c.
+Variant ex3_7 (A B C: Type) (P1 P2 P3 P4 P5 P6 P7: A → B → C → Prop) : Prop :=
+| Ex3_7 a b c of P1 a b c & P2 a b c & P3 a b c & P4 a b c & P5 a b c & P6 a b c & P7 a b c.
 
 Lemma sem_callE ii s fn s' :
   sem_call ii s fn s' →
-  ex3_6
+  ex3_7
     (λ f _ _, get_fundef (p_funcs p) fn = Some f)
     (λ f _ _, match f.(f_extra).(sf_return_address) with
               | RAstack _ => extra_free_registers ii != None
               | RAreg ra => (ra != vid p.(p_extra).(sp_rip)) && (ra != var_of_register RSP)
               | RAnone => true
               end : bool)
+    (λ _ _ _, valid_RSP s.(emem) s.(evm))
     (λ f m1 _, alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1)
     (λ f m1 s2', sem {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s.(evm).[x <- undef_error] else s.(evm)) |} f.(f_body) s2')
     (λ _ _ s2', valid_RSP s2'.(emem) s2'.(evm))
@@ -198,7 +209,7 @@ Lemma sem_callE ii s fn s' :
       let m2 := free_stack s2'.(emem) in
       s' = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}).
 Proof.
-  case => { ii s fn s' } ii s s' fn f m1 s2' => ok_f ok_ra ok_alloc exec_body ok_RSP /= ->.
+  case => { ii s fn s' } ii s s' fn f m1 s2' => ok_f ok_ra ok_RSP ok_alloc exec_body ok_RSP' /= ->.
   by exists f m1 s2'.
 Qed.
 
@@ -226,7 +237,9 @@ Section SEM_IND.
   Definition sem_Ind_mkI : Prop :=
     ∀ (ii : instr_info) (i : instr_r) (s1 s2 : estate),
       (if extra_free_registers ii is Some r then (r != vgd) && (r != vrsp) else true) →
-      sem_i ii (kill_extra_register ii s1) i s2 → Pi_r ii (kill_extra_register ii s1) i s2 → Pi s1 (MkI ii i) s2.
+      sem_i ii (kill_extra_register ii s1) i s2 →
+      evm s1 =[magic_variables] evm s2 →
+      Pi_r ii (kill_extra_register ii s1) i s2 → Pi s1 (MkI ii i) s2.
 
   Hypothesis HmkI : sem_Ind_mkI.
 
@@ -290,6 +303,7 @@ Section SEM_IND.
       | RAreg ra => (ra != vid p.(p_extra).(sp_rip)) && (ra != var_of_register RSP)
       | RAnone => true
       end →
+      valid_RSP s1.(emem) s1.(evm) →
       alloc_stack s1.(emem) fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 →
       sem {| emem := m1 ; evm := set_RSP m1 (if fd.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} fd.(f_body) s2' →
       Pc {| emem := m1 ; evm := set_RSP m1 (if fd.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} fd.(f_body) s2' →
@@ -331,13 +345,13 @@ Section SEM_IND.
 
   with sem_I_Ind (s1 : estate) (i : instr) (s2 : estate) (s : sem_I s1 i s2) {struct s} : Pi s1 i s2 :=
     match s in sem_I e1 i0 e2 return Pi e1 i0 e2 with
-    | @EmkI ii i s1 s2 nom exec => @HmkI ii i s1 s2 nom exec (@sem_i_Ind ii _ i s2 exec)
+    | @EmkI ii i s1 s2 nom exec pm => @HmkI ii i s1 s2 nom exec pm (@sem_i_Ind ii _ i s2 exec)
     end
 
   with sem_call_Ind (ii: instr_info) (s1: estate) (fn: funname) (s2: estate) (s: sem_call ii s1 fn s2) {struct s} : Pfun ii s1 fn s2 :=
     match s with
-    | @EcallRun ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_m1 exec ok_rsp ok_s2 =>
-      @Hproc ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_m1 exec (@sem_Ind _ _ _ exec) ok_rsp ok_s2
+    | @EcallRun ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_rsp ok_m1 exec ok_rsp' ok_s2 =>
+      @Hproc ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_rsp ok_m1 exec (@sem_Ind _ _ _ exec) ok_rsp' ok_s2
     end.
 
 End SEM_IND.

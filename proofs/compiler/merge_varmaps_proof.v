@@ -35,13 +35,6 @@ Proof.
   exact: word_uincl_zero_ext.
 Qed.
 
-Lemma in_disjoint_diff x a b c :
-  Sv.In x a →
-  Sv.In x b →
-  disjoint a (Sv.diff b c) →
-  Sv.In x c.
-Proof. rewrite /disjoint /is_true Sv.is_empty_spec; SvD.fsetdec. Qed.
-
 Lemma vrvs_rec_set_of_var_i_seq acc xs :
   vrvs_rec acc [seq Lvar x | x <- xs] = set_of_var_i_seq acc xs.
 Proof. by elim: xs acc => // x xs ih acc; rewrite /= ih. Qed.
@@ -359,7 +352,17 @@ Section LEMMA.
       SvD.fsetdec.
     move => t2 [] texec_i preserved sim'.
     exists t2; split; last exact: sim'.
-    - constructor => //.
+    - constructor; last first.
+      + change (sem_one_varmap.magic_variables p) with (magic_variables p).
+        rewrite -(disjoint_diff dis).
+        apply: vmap_eq_except_eq_on; last reflexivity.
+        etransitivity; last first.
+        * apply: vmap_eq_exceptI; last exact: preserved.
+          SvD.fsetdec.
+        symmetry.
+        apply: vmap_eq_exceptI; last exact: kill_extra_register_vmap_eq_except.
+        SvD.fsetdec.
+      + exact: texec_i.
       move: vrsp_not_extra vgd_not_extra; rewrite /extra_free_registers_at; case: extra_free_registers => // r.
       clear => ??; apply/andP; split; apply/eqP; SvD.fsetdec.
     rewrite /write_I merge_varmaps.write_I_recE -/write_i.
@@ -669,8 +672,8 @@ Section LEMMA.
       + have not_param : ¬ x \in (map v_var fd.(f_params)).
         * case/mapP => /= y /checked_params /negP hy xy.
           by apply: hy; rewrite -xy.
-        move: hx not_param; rewrite {1}/is_true Sv.mem_spec !Sv.add_spec SvD.F.empty_iff.
-        case => [ -> | [ -> | [] ] ] {x} not_param /=.
+        move: hx not_param; rewrite {1}/is_true Sv.mem_spec Sv.add_spec Sv.singleton_spec.
+        case => [ -> |  -> ] {x} not_param /=.
         1-2: rewrite -(write_vars_eq_except ok_s1); last by rewrite -Sv.mem_spec mem_set_of_var_i_seq.
         * (* vrip *)
           rewrite vgd_v Fv.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
@@ -730,6 +733,7 @@ Section LEMMA.
     - econstructor.
       + exact: ok_fd.
       + by case: sf_return_address ok_rastack ra_neq_magic.
+      + exact: vrsp_tv.
       + exact: ok_m'.
       + exact: texec.
       + rewrite /valid_RSP -preserved // /t1' /= Fv.setP_eq.
