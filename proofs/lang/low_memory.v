@@ -67,6 +67,11 @@ Proof.
   move => x y z [???] [???]; split; etransitivity; eassumption.
 Qed.
 
+Lemma ss_top_stack a b :
+  stack_stable a b →
+  top_stack a = top_stack b.
+Proof. by rewrite /top_stack => s; rewrite (ss_frames s) (ss_root s). Qed.
+
 (* -------------------------------------------------------------- *)
 Lemma read_mem_valid_pointer m ptr sz w :
   read_mem m ptr sz = ok w ->

@@ -47,12 +47,6 @@ Lemma vrvs_rec_set_of_var_i_seq acc xs :
 Proof. by elim: xs acc => // x xs ih acc; rewrite /= ih. Qed.
 
 (* TODO: move *)
-Lemma stable_top_stack a b :
-  stack_stable a b →
-  top_stack a = top_stack b.
-Proof. by rewrite /top_stack => - [-> _ ->]. Qed.
-
-(* TODO: move *)
 Lemma write_var_get_var x v s s' :
   write_var x v s = ok s' →
   (evm s').[x] = pof_val (vtype x) v ∧
@@ -307,7 +301,7 @@ Section LEMMA.
     - have [ not_written_gd not_written_rsp ] := not_written_magic (mvp_not_written ok_W1).
       split.
       + move: (mvp_not_written ok_W); rewrite write_c_cons; apply: disjoint_w; SvD.fsetdec.
-      + by rewrite -(stable_top_stack (sem_I_stack_stable exec_i)) -(mvp_top_stack ok_W) preserved_i.
+      + by rewrite -(ss_top_stack (sem_I_stack_stable exec_i)) -(mvp_top_stack ok_W) preserved_i.
       by rewrite -(mvp_global_data ok_W) preserved_i.
     case: (hc _ _ _ ok_c ok_W2 sim2) => t3 [] texec_c preserved_c sim3.
     exists t3; split => //; first by econstructor; eassumption.
@@ -492,7 +486,7 @@ Section LEMMA.
       split.
       + move: (mvp_not_written pre).
         apply disjoint_w; rewrite write_i_while; SvD.fsetdec.
-      + rewrite -(stable_top_stack (sem_stack_stable sexec)) -(mvp_top_stack pre); symmetry.
+      + rewrite -(ss_top_stack (sem_stack_stable sexec)) -(mvp_top_stack pre); symmetry.
         exact: preserved.
       rewrite -preserved //.
       exact: mvp_global_data pre1.
@@ -504,7 +498,7 @@ Section LEMMA.
     - have [ hgd hrsp ] := not_written_magic (mvp_not_written pre2).
       split.
       + exact: mvp_not_written pre.
-      + by rewrite -preserved' // (mvp_top_stack pre2) (stable_top_stack (sem_stack_stable sexec')).
+      + by rewrite -preserved' // (mvp_top_stack pre2) (ss_top_stack (sem_stack_stable sexec')).
       by rewrite -preserved' // (mvp_global_data pre2).
     move => t4 [ texec preserved'' sim4 ].
     exists t4; split; last exact: sim4.
@@ -741,8 +735,8 @@ Section LEMMA.
       + rewrite /valid_RSP -preserved // /t1' /= Fv.setP_eq.
         congr (ok (pword_of_word _)).
         rewrite -(mvm_mem sim2).
-        move: ok_s1; rewrite (write_vars_lvals [::]) => /write_lvals_stack_stable /stable_top_stack ->.
-        by move/sem_stack_stable: sexec => /stable_top_stack.
+        move: ok_s1; rewrite (write_vars_lvals [::]) => /write_lvals_stack_stable /ss_top_stack ->.
+        by move/sem_stack_stable: sexec => /ss_top_stack.
       rewrite (mvm_mem sim2); reflexivity.
     - rewrite /= /set_RSP => x.
       case: (vrsp =P x).
