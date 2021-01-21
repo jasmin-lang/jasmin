@@ -113,7 +113,7 @@ Variable cparams : compiler_params.
 
 Definition expand_prog (p:uprog) := map_prog_name cparams.(expand_fd) p.
 
-Definition compile_prog (entries : seq funname) (p:prog) :=
+Definition compiler_first_part (entries: seq funname) (p: prog) : result fun_error uprog :=
 
   let p := add_init_prog cparams.(is_ptr) p in
   let p := cparams.(print_uprog) AddArrInit p in
@@ -148,14 +148,20 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
 
   Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_id) pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
- 
+
   Let _ := assert (fvars_correct cparams.(lowering_vars) (p_funcs pa)) Ferr_lowering in
 
   let pl := lower_prog cparams.(lowering_opt) cparams.(warning) cparams.(lowering_vars) cparams.(is_var_in_memory) pa in
   let pl := cparams.(print_uprog) LowerInstruction pl in
 
+  ok pl.
+
+Definition compile_prog (entries : seq funname) (p: prog) :=
+
+  Let pl := compiler_first_part entries p in
+
   (* stack + register allocation *)
- 
+
   let ao := cparams.(stackalloc) pl in
   Let ps :=
      stack_alloc.alloc_prog
