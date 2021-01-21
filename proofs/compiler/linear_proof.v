@@ -944,7 +944,7 @@ Section PROOF.
       then
         lsem p' (Lstate m1 vm1 fn 0) (Lstate m2 vm2 caller pc.+1)
       else lsem p' (Lstate m1 vm1 fn 0) (Lstate m2 vm2 fn (size body)))
-      (λ _ vm2, vm_uincl (s2.[var_of_register RSP <- ok (pword_of_word sp)]%vmap) vm2)
+      (λ _ vm2, vm_uincl s2.[var_of_register RSP <- ok (pword_of_word sp)] vm2)
       (λ m2 _, match_mem s2 m2).
 
   Local Lemma Hnil : sem_Ind_nil Pc.
@@ -1266,7 +1266,7 @@ Section PROOF.
       move => ok_fd'.
       have ok_body : is_linear_of fn ([:: P ] ++ lbody ++ Q).
       + by rewrite /is_linear_of ok_fd'; eauto.
-      have X1 : vm_uincl (set_RSP m1' (s1.[{| vtype := sword64; vname := ra |} <- undef_error])%vmap) vm1.
+      have X1 : vm_uincl (set_RSP m1' (s1.[{| vtype := sword64; vname := ra |} <- undef_error])) vm1.
       + move => x; move: (X x).
         rewrite /set_RSP (alloc_stack_top_stack ok_m1').
         rewrite top_stack_after_aligned_alloc; last first.

@@ -1539,6 +1539,8 @@ Definition eval_uincl (t1 t2:stype) (v1: exec (psem_t t1)) (v2: exec (psem_t t2)
 Definition vm_uincl (vm1 vm2:vmap) :=
   forall x, eval_uincl (vm1.[x])%vmap (vm2.[x])%vmap.
 
+Arguments vm_uincl _%vmap _%vmap.
+
 Lemma val_uincl_refl t v: @val_uincl t t v v.
 Proof. by rewrite /val_uincl. Qed.
 Hint Resolve val_uincl_refl : core.
@@ -1936,7 +1938,7 @@ Proof. move => /vuincl_exec_opn_eq h /h {h}; eauto using List_Forall2_refl. Qed.
 Lemma set_vm_uincl vm vm' x z z' :
   vm_uincl vm vm' ->
   eval_uincl z z' ->
-  vm_uincl (vm.[x <- z])%vmap (vm'.[x <- z'])%vmap.
+  vm_uincl vm.[x <- z] vm'.[x <- z'].
 Proof.
   move=> Hvm Hz y; case( x =P y) => [<- | /eqP Hneq];by rewrite ?Fv.setP_eq ?Fv.setP_neq.
 Qed.

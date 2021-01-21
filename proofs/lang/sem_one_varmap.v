@@ -360,3 +360,5 @@ Section SEM_IND.
 End SEM_IND.
 
 End SEM.
+
+Arguments set_RSP _ _%vmap.
