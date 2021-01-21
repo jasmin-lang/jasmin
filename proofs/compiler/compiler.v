@@ -85,7 +85,7 @@ Record stack_alloc_oracles : Type :=
 Record compiler_params := {
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
   expand_fd        : funname -> _ufundef -> _ufundef;
-  var_alloc_prog   : _uprog -> _uprog;
+  var_alloc_fd     : funname -> _ufundef -> _ufundef;
   lowering_vars    : fresh_vars;
   inline_var       : var -> bool;
   is_var_in_memory : var_i → bool;
@@ -105,6 +105,9 @@ Record compiler_params := {
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
 }.
+
+Definition var_alloc_prog cp (p: _uprog) : _uprog :=
+  map_prog_name cp.(var_alloc_fd) p.
 
 Variable cparams : compiler_params.
 

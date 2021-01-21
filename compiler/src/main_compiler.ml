@@ -463,15 +463,8 @@ let main () =
       let cx = Conv.cvar_of_var tbl x' in
       cx.Var0.Var.vname in
 
-    let var_alloc_prog up = 
-      let (_glob,fds) = Conv.prog_of_cuprog tbl up in
-      let fds = Regalloc.split_live_ranges fds in
-      let fds = List.map (Conv.cufdef_of_fdef tbl) fds in
-      Expr.({
-        p_funcs = fds;
-        p_globs = up.p_globs;
-        p_extra = up.p_extra; }) in
- 
+    let var_alloc_fd fd = Regalloc.split_live_ranges fd in
+
     let removereturn sp = 
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
       let tokeep = RemoveUnusedResults.analyse  fds in 
@@ -499,7 +492,7 @@ let main () =
     let cparams = {
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
-      Compiler.var_alloc_prog = (*apply "var alloc" *) var_alloc_prog;
+      Compiler.var_alloc_fd = apply "var alloc" var_alloc_fd;
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
       Compiler.stackalloc    = memory_analysis;
       Compiler.removereturn  = removereturn;
