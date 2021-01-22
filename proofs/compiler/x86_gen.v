@@ -309,7 +309,7 @@ case: i => ii [] /=.
   eexists; first reflexivity.
   exists lc; first exact: omap_lc.
   by constructor => //; rewrite /setpc /= eqpc.
-Admitted.
+Qed.
 
 Lemma match_state_step ls ls' lc xs :
   let: rip := mk_rip (lp_rip p) in
