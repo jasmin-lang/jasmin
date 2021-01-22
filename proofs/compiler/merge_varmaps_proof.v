@@ -68,7 +68,7 @@ Proof.
   move => checked_sp_rip.
   apply: rbindP => m ok_m [<-] /=; split => //.
   2: rewrite Fv.setP_neq //.
-  1-2: rewrite Fv.setP_eq /pword_of_word; repeat f_equal; exact: (Eqdep_dec.UIP_dec Bool.bool_dec).
+  1-2: by rewrite Fv.setP_eq pword_of_wordE.
 Qed.
 
 (* TODO: move *)
