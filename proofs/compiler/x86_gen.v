@@ -265,8 +265,8 @@ case: i => ii [] /=.
   have [v' ok_v' hvv'] := eval_assemble_word eqm ok_d ok_v.
   rewrite ok_v' /= (value_uincl_word hvv' ok_ptr) /=.
   case ptr_eq: decode_label => [ [] fn lbl | // ] /=.
-  replace (decode_label _ ptr) with (Some (fn, lbl))
-    by admit.
+  replace (decode_label _ ptr) with (Some (fn, lbl));
+    last by rewrite -(assemble_prog_labels ok_p').
   rewrite /=.
   case get_fd: (get_fundef _) => [ fd | // ].
   have [fd' -> ] := ok_get_fundef get_fd.
@@ -280,8 +280,8 @@ case: i => ii [] /=.
   case: (register_of_var _) (@var_of_register_of_var x) => //= r /(_ _ erefl) ok_r_x [<-]{j}.
   rewrite eqfn.
   case ptr_eq: encode_label => [ ptr | ] //.
-  replace (encode_label _ _) with (Some ptr)
-    by admit.
+  replace (encode_label _ _) with (Some ptr);
+    last by rewrite -(assemble_prog_labels ok_p').
   rewrite /=.
   rewrite /sem_sopn /=.
   t_xrbindP => s' q ok_s' ? ?; subst ls' q.

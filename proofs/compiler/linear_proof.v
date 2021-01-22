@@ -871,12 +871,12 @@ Section PROOF.
     | RAreg (Var sword64 _ as ra), Some ((caller, lbl), cbody, pc) =>
       [/\ is_linear_of caller cbody,
           find_label lbl cbody = ok pc &
-          exists2 ptr, encode_label (ssrbool.mem (label_in_lprog p')) (caller, lbl) = Some ptr & vm.[ra] = ok (pword_of_word ptr)
+          exists2 ptr, encode_label (label_in_lprog p') (caller, lbl) = Some ptr & vm.[ra] = ok (pword_of_word ptr)
       ]
     | RAstack ofs, Some ((caller, lbl), cbody, pc) =>
       [/\ is_linear_of caller cbody,
           find_label lbl cbody = ok pc &
-          exists2 ptr, encode_label (ssrbool.mem (label_in_lprog p')) (caller, lbl) = Some ptr &
+          exists2 ptr, encode_label (label_in_lprog p') (caller, lbl) = Some ptr &
           exists2 sp, vm.[ var_of_register RSP ] = ok (pword_of_word sp) & read_mem m (sp + wrepr Uptr ofs)%R Uptr = ok ptr
       ]
     | _, _ => False
@@ -1290,7 +1290,7 @@ Section PROOF.
         case: (vm2.[ _ ])%vmap => //= ret_addr.
         rewrite /pval_uincl => /value_uinclE [sz] [ret_ptr] [] /Vword_inj[??]; subst => /= /andP[] ret_addr_size /eqP ?; subst.
         case: ret_addr ret_addr_size ok_ra ok_retptr => /= _u64 ret_ptr /cmp_le_antisym h {} /h ?; subst _u64 => ok_ra ok_retptr.
-        have := decode_encode_label (ssrbool.mem (label_in_lprog p')) (caller, lret).
+        have := decode_encode_label (label_in_lprog p') (caller, lret).
         rewrite ok_retptr /= => -> /=.
         case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
       move => ?; rewrite /set_RSP !Fv.setP; case: eqP => // ?; subst.

@@ -389,7 +389,7 @@ Definition label_in_asm (body: seq asm) : seq label :=
 Definition label_in_xprog : seq remote_label :=
   [seq (f.1, lbl) | f <- xp_funcs p, lbl <- label_in_asm (xfd_body f.2) ].
 
-Let labels := ssrbool.mem label_in_xprog.
+Let labels := label_in_xprog.
 
 Definition eval_instr (i : asm) (s: x86_state) : exec x86_state :=
   match i with
