@@ -166,6 +166,17 @@ Proof.
   by case: v => // - [].
 Qed.
 
+Lemma get_var_set_var vm x v vm' y :
+  set_var vm x v = ok vm' →
+  get_var vm' y = if x == y then Let v' := pof_val (vtype y) v in ok (pto_val v') else get_var vm y.
+Proof.
+  apply: set_varP.
+  2: case: x => - [] //= x.
+  all: move => v' ok_v' <-{vm'}.
+  all: rewrite {1}/get_var /= Fv.setP; case: eqP => // ?; subst.
+  all: by rewrite /= ok_v'.
+Qed.
+
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
