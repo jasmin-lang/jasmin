@@ -88,6 +88,43 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------- *)
+(* Assembling preserves labels *)
+
+Lemma assemble_c_labels rip a b :
+  assemble_c rip a = ok b →
+  label_in_lcmd a = label_in_asm b.
+Proof.
+  move => /mapM_Forall2; elim => // { a b }.
+  move => x y a b ok_y _ ih.
+  rewrite /label_in_lcmd -cat1s pmap_cat.
+  rewrite /label_in_asm -(cat1s y) pmap_cat.
+  congr (_ ++ _); last exact: ih.
+  case: x ok_y { ih } => ii [] /=; t_xrbindP => *.
+  all: try match goal with H : ciok _ = ok _ |- _ => case: H  => ? end.
+  all: by subst.
+Qed.
+
+Lemma assemble_fd_labels rsp rip (fn: funname) fd fd' :
+  assemble_fd rsp rip fd = ok fd' →
+  [seq (fn, lbl) | lbl <- label_in_lcmd (lfd_body fd)] = [seq (fn, lbl) | lbl <- label_in_asm (xfd_body fd')].
+Proof.
+  rewrite /assemble_fd; t_xrbindP => c ok_c ?????? [] <- {fd'} /=.
+  by rewrite (assemble_c_labels ok_c).
+Qed.
+
+Lemma assemble_prog_labels p p' :
+  assemble_prog p = ok p' →
+  label_in_lprog p = label_in_xprog p'.
+Proof.
+  case/assemble_progP => _ _ /mapM_Forall2.
+  rewrite /label_in_lprog /label_in_xprog.
+  elim => //; t_xrbindP => - [] fn lfd fn' lfds xfds xfd.
+  apply: add_finfoP => /= ok_xfd [] <- {fn'} _ ih.
+  congr (_ ++ _); last exact: ih.
+  exact: assemble_fd_labels ok_xfd.
+Qed.
+
+(* -------------------------------------------------------------------- *)
 Variant match_state rip (ls: lstate) (lc : lcmd) (xs: x86_state) : Prop :=
 | MS
   `(lom_eqv rip (to_estate ls) (xm xs))

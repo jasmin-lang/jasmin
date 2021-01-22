@@ -383,8 +383,11 @@ Section PROG.
 
 Context  (p: xprog).
 
+Definition label_in_asm (body: seq asm) : seq label :=
+  pmap (λ i, if i is LABEL lbl then Some lbl else None) body.
+
 Definition label_in_xprog : seq remote_label :=
-  flatten (map (λ '(fn, fd), pmap (λ i, if i is LABEL lbl then Some (fn, lbl) else None) (xfd_body fd)) (xp_funcs p)).
+  [seq (f.1, lbl) | f <- xp_funcs p, lbl <- label_in_asm (xfd_body f.2) ].
 
 Let labels := ssrbool.mem label_in_xprog.
 
