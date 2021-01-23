@@ -92,7 +92,7 @@ Record compiler_params := {
   global_static_data_symbol: Ident.ident;
   stackalloc       : _uprog → stack_alloc_oracles;
   removereturn     : _sprog -> (funname -> option (seq bool));
-  regalloc         : _sprog -> _sprog;
+  regalloc         : seq _sfun_decl -> seq _sfun_decl;
   extra_free_registers : instr_info → option var;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
@@ -173,7 +173,7 @@ Definition compile_prog (entries : seq funname) (p: prog) :=
   Let pr := dead_code_prog_tokeep rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
-  let pa := cparams.(regalloc) pr in
+  let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
   Let _ := CheckAllocRegS.check_prog pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 

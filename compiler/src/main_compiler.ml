@@ -357,9 +357,9 @@ let main () =
       StackAlloc.memory_analysis pp_comp_ferr ~debug:!debug tbl up
      in
 
-    let global_regalloc sp = 
+    let global_regalloc fds =
       if !debug then Format.eprintf "START regalloc@.";
-      let (fds,_data) = Conv.prog_of_csprog tbl sp in
+      let fds = List.map (Conv.fdef_of_csfdef tbl) fds in
       (* TODO: move *)
       (* Check the stacksize, stackallocsize & stackalign annotations, if any *)
       List.iter (fun ({ Expr.sf_stk_sz ; Expr.sf_stk_extra_sz ; Expr.sf_align }, { f_annot ; f_name }) ->
@@ -399,10 +399,7 @@ let main () =
       saved_live_calls := Some live_calls;
       let fds = List.map (fun (y,_,x) -> y, x) fds in
       let fds = List.map (Conv.csfdef_of_fdef tbl) fds in
-      Expr.({
-        p_funcs = fds;
-        p_globs = sp.p_globs;
-        p_extra = sp.p_extra; }) in
+      fds in
 
     let is_var_in_memory cv : bool =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
