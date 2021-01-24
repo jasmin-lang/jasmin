@@ -133,6 +133,35 @@ Proof.
   exact: (List_Forall2_refl _ value_uincl_refl).
 Qed.
 
+Lemma check_removeturnP entries remove_return b :
+  check_removeturn entries remove_return = ok b →
+  ∀ fn, fn \in entries → remove_return fn = None.
+Proof.
+  move => /assertP /eqP h fn /(in_pmap remove_return).
+  case: (remove_return fn) => // r.
+  by rewrite h.
+Qed.
+
+Lemma compiler_third_partP entries (p: sprog) (p': sprog) (gd: pointer) m fn va m' vr :
+  compiler_third_part cparams entries p = ok p' →
+  fn \in entries →
+  psem.sem_call p gd m fn va m' vr →
+  exists2 vr',
+    List.Forall2 value_uincl vr vr' &
+    psem.sem_call p' gd m fn va m' vr'.
+Proof.
+  rewrite /compiler_third_part; t_xrbindP.
+  move => _ /check_removeturnP ok_rr pa ok_pa [].
+  rewrite !print_sprogP => ok_pb pc ok_pc.
+  rewrite print_sprogP => <- {p'} ok_fn exec_p.
+  apply: Ki; first by move => vr'; exact: (dead_code_callPs ok_pc).
+  apply: K; first by move => vr'; apply: (CheckAllocRegS.alloc_callP ok_pb).
+  rewrite surj_prog.
+  exists vr; first exact: (List_Forall2_refl _ value_uincl_refl).
+  have := dead_code_tokeep_callPs ok_pa exec_p.
+  by rewrite /fn_keep_only ok_rr.
+Qed.
+
 (*
 Let Kj : ∀ rip glob m vr (P Q: _ → _ → Prop),
         (∀ m' vr', P m' vr' → Q m' vr') →

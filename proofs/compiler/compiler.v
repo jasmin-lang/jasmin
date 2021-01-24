@@ -113,7 +113,11 @@ Variable cparams : compiler_params.
 
 Definition expand_prog (p:uprog) := map_prog_name cparams.(expand_fd) p.
 
-Definition compiler_first_part (entries: seq funname) (p: prog) : result fun_error uprog :=
+(* Ensure that export functions are preserved *)
+Definition check_removeturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
+  assert (pmap remove_return entries == [::]) Ferr_topo. (* FIXME: better error message *)
+
+Definition compiler_first_part (to_keep: seq funname) (p: prog) : result fun_error uprog :=
 
   let p := add_init_prog cparams.(is_ptr) p in
   let p := cparams.(print_uprog) AddArrInit p in
@@ -121,7 +125,7 @@ Definition compiler_first_part (entries: seq funname) (p: prog) : result fun_err
   Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
   let p := cparams.(print_uprog) Inlining p in
 
-  Let p := dead_calls_err_seq entries p in
+  Let p := dead_calls_err_seq to_keep p in
   let p := cparams.(print_uprog) RemoveUnusedFunction p in
 
   Let p := unroll Loop.nb p in
@@ -156,9 +160,25 @@ Definition compiler_first_part (entries: seq funname) (p: prog) : result fun_err
 
   ok pl.
 
-Definition compile_prog (entries : seq funname) (p: prog) :=
+Definition compiler_third_part (entries: seq funname) (ps: sprog) : result fun_error sprog :=
 
-  Let pl := compiler_first_part entries p in
+  let rminfo := cparams.(removereturn) ps in
+  Let _ := check_removeturn entries rminfo in
+  Let pr := dead_code_prog_tokeep rminfo ps in
+  let pr := cparams.(print_sprog) RemoveReturn pr in
+
+  let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
+  let pa : sprog := cparams.(print_sprog) RegAllocation pa in
+  Let _ := CheckAllocRegS.check_prog pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
+
+  Let pd := dead_code_prog pa in
+  let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
+
+  ok pd.
+
+Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
+
+  Let pl := compiler_first_part (entries ++ subroutines) p in
 
   (* stack + register allocation *)
 
@@ -169,16 +189,7 @@ Definition compile_prog (entries : seq funname) (p: prog) :=
        ao.(ao_stack_alloc) pl in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
 
-  let rminfo := cparams.(removereturn) ps in
-  Let pr := dead_code_prog_tokeep rminfo ps in
-  let pr := cparams.(print_sprog) RemoveReturn pr in
-
-  let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
-  let pa : sprog := cparams.(print_sprog) RegAllocation pa in
-  Let _ := CheckAllocRegS.check_prog pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
-
-  Let pd := dead_code_prog pa in
-  let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
+  Let pd := compiler_third_part entries ps in
 
   (* linearisation                     *)
   Let _ := merge_varmaps.check pd cparams.(extra_free_registers) in
@@ -194,8 +205,8 @@ Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
     else true
   else true.
 
-Definition compile_prog_to_x86 entries (p: prog): result fun_error xprog :=
-  Let lp := compile_prog entries p in
+Definition compile_prog_to_x86 entries subroutines (p: prog): result fun_error xprog :=
+  Let lp := compile_prog entries subroutines p in
 (*  Let _ := assert (all (check_signature p lp) entries) Ferr_lowering in *)
   assemble_prog lp.
 

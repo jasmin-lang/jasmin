@@ -515,12 +515,20 @@ let main () =
       Compiler.is_reg_array = is_reg_array;
     } in
 
-    let entries =
-      let ep = List.filter (fun fd -> fd.f_cc <> Internal) (snd prog) in
-      List.map (fun fd -> Conv.cfun_of_fun tbl fd.f_name) ep in
+    let export_functions, subroutines =
+      let conv fd = Conv.cfun_of_fun tbl fd.f_name in
+      List.fold_right
+        (fun fd ((e, i) as acc) ->
+          match fd.f_cc with
+          | Export -> (conv fd :: e, i)
+          | Internal -> acc
+          | Subroutine _ -> (e, conv fd :: i)
+        )
+        (snd prog)
+        ([], []) in
 
     begin match
-      Compiler.compile_prog_to_x86 cparams entries (Expr.to_uprog cprog) with
+      Compiler.compile_prog_to_x86 cparams export_functions subroutines (Expr.to_uprog cprog) with
     | Utils0.Error e ->
       Utils.hierror "compilation error %a@."
          (pp_comp_ferr tbl) e

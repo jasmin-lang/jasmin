@@ -187,3 +187,22 @@ Proof.
 Qed.
 
 End InMap.
+
+(* -------------------------------------------------------------------- *)
+Section InPmap.
+Context (aT rT: eqType) (f: aT → option rT).
+
+Lemma in_pmap a m :
+  a \in m →
+  match f a with None => true | Some r => r \in pmap f m end.
+Proof.
+  elim: m => // a' m ih.
+  rewrite inE; case/orP.
+  - move => /eqP <- {a'}; case h: f => [ r | // ].
+    by rewrite /= h inE eqxx.
+  move => /ih{ih}.
+  case: f => // r h; rewrite /=.
+  by case: f => //= ?; rewrite inE h orbT.
+Qed.
+
+End InPmap.
