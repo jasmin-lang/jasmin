@@ -342,6 +342,7 @@ Class alignment : Type :=
       is_align : pointer -> wsize -> bool
     ; is_align_add ptr1 ptr2 sz : is_align ptr1 sz -> is_align ptr2 sz -> is_align (ptr1 + ptr2) sz
     ; is_align_mod ptr sz : (wunsigned ptr mod wsize_size sz = 0)%Z -> is_align ptr sz
+    ; is_align_m sz sz' ptr : (sz' ≤ sz)%CMP → is_align ptr sz → is_align ptr sz'
     ; is_align_no_overflow ptr sz : is_align ptr sz → no_overflow ptr (wsize_size sz)
     }.
 

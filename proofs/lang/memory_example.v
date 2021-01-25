@@ -119,6 +119,18 @@ Proof.
   by rewrite (Z.mul_comm _ (CoqWord.word.modulus _)) mod_pq_mod_q // Z.mul_comm Z_mod_mult.
 Qed.
 
+Lemma is_align_m sz sz' (ptr: pointer) :
+  (sz' ≤ sz)%CMP →
+  is_align ptr sz →
+  is_align ptr sz'.
+Proof.
+  have wsnz s : wsize_size s ≠ 0.
+  - have := wsize_size_pos s.
+    Psatz.lia.
+  move => /wsize_size_le le /eqP /Z.mod_divide - /(_ (wsnz _)) /(Z.divide_trans _ _ _ le) {le} le.
+  by apply/eqP/Z.mod_divide.
+Qed.
+
 Lemma is_align_mul sz j : is_align (wrepr Uptr (wsize_size sz * j)) sz.
 Proof.
   have hn := wsize_size_pos sz.
@@ -141,7 +153,7 @@ Proof.
 Qed.
 
 Instance A : alignment :=
-  Alignment is_align_add is_align_mod is_align_no_overflow.
+  Alignment is_align_add is_align_mod is_align_m is_align_no_overflow.
 
 End Align.
 
