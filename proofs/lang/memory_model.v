@@ -403,7 +403,22 @@ Proof. by rewrite /align_word wandC wandN1. Qed.
 Lemma align_word_aligned (sz sz': wsize) (p: word sz) :
   wunsigned (align_word sz' p) mod wsize_size sz' == 0.
 Proof.
-Admitted.
+  replace (wsize_size sz')
+    with (2 ^ Z.of_nat match sz' with
+                       | U8 => 0
+                       | U16 => 1
+                       | U32 => 2
+                       | U64 => 3
+                       | U128 => 4
+                       | U256 => 5
+                       end).
+  2: by case: sz'.
+  rewrite /align_word -wand_modulo -wandA.
+  set k := (X in wand p X).
+  replace k with (0%R : word sz); first by rewrite wandC wand0.
+  subst k; clear; apply/eqP.
+  by case: sz'; case: sz.
+Qed.
 
 Lemma align_word_le sz sz' (p: word sz) :
   wunsigned (align_word sz' p) <= wunsigned p.
