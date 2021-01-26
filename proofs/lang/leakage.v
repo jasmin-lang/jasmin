@@ -41,6 +41,9 @@ Inductive leak_e :=
 | LAdr : pointer -> leak_e (* memory access at given address *)
 | LSub: (seq leak_e) -> leak_e. (* forest of leaks *)
 
+Definition leak_lea_exp : leak_e :=
+  LSub [:: LEmpty; LSub [:: LEmpty; LSub [:: LEmpty; LEmpty]]].
+  
 Definition get_seq_leak_e (l : leak_e) : seq leak_e := 
 match l with 
 | LSub le => le
@@ -105,11 +108,18 @@ Inductive leak_e_tr :=
 | LT_seq : seq leak_e_tr -> leak_e_tr
 | LT_compose: leak_e_tr -> leak_e_tr -> leak_e_tr (* compositon of transformations *)
 (* lowering *)
-| LT_rev : leak_e_tr.
+| LT_rev : leak_e_tr (* reverse transformation *)
+| LT_dfst : leak_e_tr
+| LT_dsnd : leak_e_tr.
 (*| LT_var : leak_e_tr -> leak_e -> leak_e_tr
 | LT_adr : Z -> Z -> leak_e_tr 
 | LT_adrptr : pointer -> Z -> Z -> leak_e_tr.*)
 
+Inductive leak_e_es_tr :=
+| LT_leseq : leak_e_es_tr
+| LT_emseq : leak_e_es_tr
+| LT_subseq : leak_e_tr -> leak_e_es_tr
+| LT_idseq : leak_e_tr -> leak_e_es_tr.
 
 Definition get_seq_leak_e_tr (l : leak_e_tr) : seq leak_e_tr := 
 match l with 
@@ -124,13 +134,7 @@ Fixpoint eval_leak_tr_p stk lp : pointer :=
   | LS_Add p1 p2 => (eval_leak_tr_p stk p1 + eval_leak_tr_p stk p2)%R
   | LS_Mul p1 p2 => (eval_leak_tr_p stk p1 * eval_leak_tr_p stk p2)%R
   end.
-(*
-Definition eval_leak_tr_const stk trc :=
-  match trc with
-  | LTleak le => le
-  | LTAdr  lp => LAdr (eval_leak_tr_p stk lp)
-  end.
-*)
+
 Fixpoint leak_E (stk:pointer) (lt : leak_e_tr) (l : leak_e) : leak_e :=
   match lt, l with
   | LT_map lts, LSub xs => LSub (map2 (leak_E stk) lts xs)
@@ -142,72 +146,39 @@ Fixpoint leak_E (stk:pointer) (lt : leak_e_tr) (l : leak_e) : leak_e :=
   | LT_subi i, LSub xs => nth LEmpty xs i
   | LT_compose lt1 lt2, _ => leak_E stk lt2 (leak_E stk lt1 l)
   | LT_rev, LSub xs => LSub (rev xs)
+  | LT_dfst, le => LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; le; LEmpty]
+  | LT_dsnd, le => LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; le]
   (*| LT_adr z1 z2 , LIdx i => LAdr (wrepr U64 (i*z1+z2))
   | LT_var lte le , LEmpty => LSub [:: leak_E lte LEmpty; le]
   | LT_adrptr p1 z1 z2 , LIdx i => LAdr (p1 + (wrepr U64 (i*z1+z2)))*)
   | _, _ => LEmpty
   end.
 
-(* LT_seq -> LT_map *)
-(* LT_build -> LT_seq *)
+Definition leak_E_S (stk: pointer) (lts: seq leak_e_tr) (ls : seq leak_e) : seq leak_e :=
+  map2 (leak_E stk) lts ls.
 
-(*Notation leak_E := (leak_E_stk stk).
+(* Transformation from leakage to sequence of leakage *)
+Fixpoint leak_ES (stk : pointer) (lte : leak_e_es_tr) (le : leak_e) : seq leak_e :=
+match lte, le with
+| LT_leseq, le => [:: le]
+| LT_emseq, le => [::]
+| LT_subseq lte, le => [:: leak_E stk lte le]
+| LT_idseq lte, le => get_seq_leak_e (leak_E stk lte le)
+end.            
 
-Parameter l0 : leak_e.
+Inductive leak_e_i_tr :=
+| LT_iconditionl : leak_e_tr -> leak_e_i_tr (* lower condition transformer *)
+| LT_iemptyl : leak_e_i_tr.
 
-Parameter l1 : leak_e.
-
-Compute (leak_E (LT_build [:: LT_subi 1; LT_subi 0]) (LSub [:: l0; l1])).
-*)
-(* t[i] ==> LSub [ :: leak_i ; (LIdx i)])
-
-load stk (i * scale + ofs) 
-==> LSub [:: LSub[:: LSub[:: leak_i; LEmpty] ; LEmpty];  
-             (LAdr (vstk + (i * scale + ofs))]]
-
-*) 
-
-(*
-Parameter i : Z.
-Parameter leak__i : leak_e.
-Parameter scale : pointer.
-Parameter ofs   : pointer.
-Parameter vstk  : pointer.
-Definition lsource := LSub [ :: leak__i ; (LIdx i)].
-Definition ltarget := 
- LSub [:: LSub[:: LSub[:: leak__i; LEmpty] ; LEmpty];  
-             (LAdr (vstk + ((wrepr U64 i) * scale + ofs)))].
-
-Definition ltr_i := LT_subi 0.
-Definition ltr_e := LT_remove.
-Definition f1 := LT_seq [:: LT_seq [:: ltr_i; ltr_e]; LT_remove].
-
-Definition f2 :=
-  LT_compose (LT_subi 1) 
-   (LT_lidx (fun i => 
-      (LS_Add LS_stk
-        (LS_Add (LS_Mul (LS_const (wrepr U64 i)) (LS_const scale)) (LS_const ofs))))).
-
-Definition ltr := LT_build [::f1; f2].
-
-Lemma test : leak_E_stk vstk ltr lsource = ltarget.
-done.
-*)
-
-(*
-
-Parameter ofs   : pointer.
-Parameter vstk  : pointer.
-Definition lsource := LEmpty. 
-Definition ltarget := 
- LSub [:: LEmpty ; (LAdr (vstk + ofs))].
-
-Definition ltr :=
-  LT_build [:: LT_id; LT_const (LS_Add LS_stk (LS_const ofs))].
-
-Lemma test : leak_E_stk vstk ltr lsource = ltarget.
-done.
-*)
+Inductive leak_es_i_tr :=
+| LT_iopn5f_large : leak_es_i_tr
+| LT_iopn5f_other : leak_es_i_tr
+| LT_ianone : leak_es_i_tr
+| LT_imul1 : leak_es_i_tr
+| LT_imul2 : leak_es_i_tr
+| LT_imul3 : leak_es_i_tr
+| LT_imul4 : leak_es_i_tr
+| LT_iemptysl : leak_es_i_tr.
 
 (* Leakge transformer for instructions *)
 Inductive leak_i_tr :=
@@ -222,24 +193,64 @@ Inductive leak_i_tr :=
 | LT_ifor_unroll: seq leak_i_tr -> leak_i_tr
 | LT_icall_inline: leak_c -> seq leak_i_tr -> leak_i_tr
 (* lowering leak transformers *)
-| LT_icondl : leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
-| LT_iwhilel :  leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
+| LT_icondl : leak_e_i_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
+| LT_iwhilel :  leak_e_i_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
+| LT_icopn : leak_es_i_tr -> leak_i_tr
 (* lowering assgn *)
-| LT_ilmov1 : leak_e_tr -> leak_i_tr
+| LT_ilmov1 : leak_e_tr -> leak_e_tr -> leak_i_tr
 | LT_ilmov2 : leak_e_tr -> leak_i_tr
 | LT_ilmov3 : leak_e_tr -> leak_i_tr
-| LT_ilmov4 : leak_e_tr -> leak_i_tr
-| LT_ilinc : leak_e_tr -> leak_i_tr
-| LT_ilcopn : leak_e_tr -> leak_i_tr
-| LT_ileq : leak_e_tr -> leak_i_tr
-| LT_illt : leak_e_tr -> leak_i_tr
-| LT_ilif : leak_e -> leak_e_tr -> leak_i_tr.
+| LT_ilmov4 : leak_e_tr -> leak_e_tr -> leak_i_tr
+| LT_ilinc : leak_e_es_tr -> leak_e_tr -> leak_e_tr -> leak_i_tr
+| LT_ilcopn : leak_e_es_tr -> leak_e_tr -> leak_e_tr -> leak_i_tr
+| LT_ilsc : leak_i_tr
+| LT_ild : leak_i_tr
+| LT_ildc : leak_i_tr
+| LT_ildcn : leak_i_tr
+| LT_ilmul : leak_es_i_tr -> leak_e_tr -> leak_i_tr
+| LT_ileq : leak_e_es_tr -> leak_e_tr -> leak_e_tr -> leak_i_tr
+| LT_illt : leak_e_es_tr -> leak_e_tr -> leak_e_tr -> leak_i_tr
+| LT_ilif : leak_e_i_tr -> leak_e_tr -> leak_e_tr -> leak_e_tr -> leak_e_tr -> leak_i_tr
+| LT_ilea : leak_i_tr
+| LT_ilfopn : leak_es_i_tr -> leak_e_es_tr -> leak_i_tr
+| LT_ilds : leak_i_tr
+| LT_ildus : leak_i_tr
+| LT_ildiv : leak_i_tr -> leak_e_tr -> leak_i_tr
+| LT_ilasgn : leak_i_tr.
 (*| LT_icompose : leak_i_tr -> leak_i_tr -> leak_i_tr.*)
 
-Inductive leak_e_i_tr :=
-(* lower condition transformer *)
-| LT_iconditionl : leak_e_tr -> leak_e_i_tr
-| LT_iemptyl : leak_e_i_tr.
+(* Transformation from expression leakage to instruction leakage *)
+Fixpoint leak_EI (stk : pointer) (lti : leak_e_i_tr) (le : leak_e) : seq leak_i :=
+match lti, le with 
+| LT_iconditionl lte, le => [:: Lopn (LSub [:: leak_E stk lte le; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])]
+| LT_iemptyl, le => [::]
+end.
+
+Fixpoint remove_leak (ls: seq leak_e) : seq leak_e :=
+match ls with
+| a :: l =>  List.tl l
+| [::] => [::]
+            end.
+
+(* Transformation from expressions (seq of expression) leakage to instruction leakage *)
+Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': seq leak_e) : seq leak_i :=
+match lti, les, les' with 
+| LT_iopn5f_large, les, les' =>  ([:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LSub [:: LEmpty]])] ++
+    [:: Lopn (LSub [:: LSub ([::nth LEmpty les 0; LEmpty] ++ (remove_leak les)); LSub les'])])
+| LT_iopn5f_other, les, les' =>
+  [:: Lopn (LSub [:: LSub les ; LSub les'])]
+| LT_ianone, les, les' => [:: Lopn (LSub [:: LSub les ; LSub [:: nth LEmpty les' 1 ; List.last les' LEmpty]])]
+| LT_imul1, les, les' => ([:: Lopn (LSub [:: LSub [:: nth LEmpty les 0]; LSub [:: LEmpty]])] ++
+ [:: Lopn (LSub [:: LSub [:: nth LEmpty les 1; LEmpty]; 
+           LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])])
+| LT_imul2, les, les' => ([:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LSub [:: LEmpty]])] ++
+ [:: Lopn (LSub [:: LSub [:: nth LEmpty les 0; LEmpty]; 
+           LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])])
+| LT_imul3, les, les' => [:: Lopn (LSub [:: LSub les; 
+                                         LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])]
+| LT_imul4, les, les' => [:: Lopn (LSub [:: LSub les ; LSub les'])]
+| LT_iemptysl, _, _ => [::]
+end.
 
 Section Leak_I.
 
@@ -297,33 +308,59 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
      leak_Is leak_I stk (leak_Fun f) lts ++
     (map (fun y => (Lopn (LSub [:: LEmpty; y]))) (get_seq_leak_e le')))
  (* lowering *)
-  | LT_icondl lte ltt ltf, Lcond le b lti => 
-    [:: Lopn (LSub [:: le; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])] ++ [:: Lcond (leak_E stk lte le) b (leak_Is leak_I stk (if b then ltt else ltf) lti) ]
-  | LT_iwhilel lte ltis ltis', Lwhile_true lts le lts' lw => 
-    [:: Lwhile_true ((leak_Is leak_I stk ltis lts) ++ [:: Lopn (LSub [:: le; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])])
+  | LT_icondl lti' lte ltt ltf, Lcond le b lti => 
+     (leak_EI stk lti' le) ++ [:: Lcond (leak_E stk lte le) b (leak_Is leak_I stk (if b then ltt else ltf) lti) ]
+  | LT_iwhilel lti lte ltis ltis', Lwhile_true lts le lts' lw => 
+    [:: Lwhile_true ((leak_Is leak_I stk ltis lts) ++ (leak_EI stk lti le))
                      (leak_E stk lte le)
                      (leak_Is leak_I stk ltis' lts')
                      (head dummy_lit (leak_I stk lw lt))]
-  | LT_iwhilel lte ltis ltis', Lwhile_false lts le => 
-    [::Lwhile_false ((leak_Is leak_I stk ltis lts) ++ [:: Lopn (LSub [:: le; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])]) (leak_E stk lte le)]
-  | LT_ilmov1 lte, Lopn le => [:: Lopn (LSub [:: LSub [:: get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 0]; LSub [:: LEmpty]]) ; 
-                                  Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 1]])]
-  | LT_ilmov2 lte, Lopn le => [:: Lopn (LSub [:: LSub [::]; LSub[:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 1]])]
-  | LT_ilmov3 lte, Lopn le => [:: Lopn (LSub [:: LSub [::]; LSub [:: get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 1]])]
-  | LT_ilmov4 lte, Lopn le => [:: Lopn (LSub [:: LSub [:: get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 0]; LSub [:: get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 1]])] 
-  | LT_ilinc lte, Lopn le => [:: Lopn (LSub [:: LSub [:: get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 0] ; 
-                                            LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 1]])]
-  | LT_ilcopn lte, Lopn le => [:: Lopn (LSub [:: (get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 0); LSub [:: get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 1]])]
-  | LT_ileq lte, Lopn le => [:: Lopn (LSub [:: (get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 0); LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 1]])]
-  | LT_illt lte, Lopn le => [:: Lopn (LSub [:: (get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 0); LSub [:: LEmpty; get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 1; LEmpty; LEmpty; LEmpty]])]
-  | LT_ilif le' lte, Lopn le => ([:: Lopn (LSub [:: get_nth_leak (get_seq_leak_e (get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 0)) 0; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])] ++ 
-                                [:: Lopn (LSub [:: LSub [:: le'; get_nth_leak (get_seq_leak_e (get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 0)) 1; 
-                                                            get_nth_leak (get_seq_leak_e (get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 0)) 2] ; 
-                                    LSub [:: get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 1]])])
+  | LT_iwhilel lti lte ltis ltis', Lwhile_false lts le => 
+    [::Lwhile_false ((leak_Is leak_I stk ltis lts) ++ (leak_EI stk lti le)) (leak_E stk lte le)]
+  | LT_icopn ltes, Lopn le => leak_ESI stk ltes (get_seq_leak_e (leak_E stk (LT_subi 0) le)) (get_seq_leak_e (leak_E stk (LT_subi 1) le))
+  | LT_ilmov1 lte lte', Lopn le => [:: Lopn (LSub [:: LSub [:: leak_E stk lte le]; LSub [:: LEmpty]]) ; 
+                                       Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: leak_E stk lte' le]])]
+  | LT_ilmov2 lte, Lopn le => [:: Lopn (LSub [:: LSub [::];
+                                        LSub[:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk lte le]])]
+  | LT_ilmov3 lte, Lopn le => [:: Lopn (LSub [:: LSub [::]; LSub [:: leak_E stk lte le]])]
+  | LT_ilmov4 lte lte', Lopn le => [:: Lopn (LSub [:: LSub [:: leak_E stk lte le]; LSub [:: leak_E stk lte' le]])] 
+  | LT_ilinc ltes lte lte', Lopn le => [:: Lopn (LSub [:: LSub (leak_ES stk ltes (leak_E stk lte le)); 
+                                            LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk lte' le]])]
+  | LT_ilcopn ltes lte lte', Lopn le => [:: Lopn (LSub [:: LSub (leak_ES stk ltes (leak_E stk lte le));
+                                                       LSub [:: leak_E stk lte' le]])]
+  | LT_ild, Lopn le => [:: Lopn (LSub [:: LSub[:: LEmpty]; 
+                                      LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])]
+  | LT_ildc, Lopn le => [:: Lopn (LSub [:: LSub[:: LEmpty; LEmpty]; 
+                                       LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])]
+  | LT_ildcn, Lopn le => [:: Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: LEmpty]]);
+                             Lopn (LSub [:: LSub [:: LEmpty; LEmpty]; 
+                                            LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])]
+  | LT_ileq ltes lte lte', Lopn le => [:: Lopn (LSub [:: LSub (leak_ES stk ltes (leak_E stk lte le));
+                                                LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk lte' le]])]
+  | LT_illt ltes lte lte', Lopn le => [:: Lopn (LSub [:: LSub (leak_ES stk ltes (leak_E stk lte le));
+                                      LSub [:: LEmpty; leak_E stk lte' le; LEmpty; LEmpty; LEmpty]])]
+  | LT_ilif lti le' lte lte' lte'', Lopn le => ((leak_EI stk lti (get_nth_leak (get_seq_leak_e (leak_E stk lte le)) 0)) ++ 
+    [:: Lopn (LSub [:: LSub [:: leak_E stk le' (leak_E stk lte (leak_E stk lte le));
+                            (leak_E stk lte' (leak_E stk lte le));
+                            (leak_E stk lte'' (leak_E stk lte le))]; LSub [:: leak_E stk lte' le]])])
+  | LT_ilea, Lopn le => [:: Lopn (LSub [:: LSub [:: leak_lea_exp]; LSub [:: leak_E stk (LT_subi 1) le]])]
+  | LT_ilsc, Lopn le => [:: Lopn (LSub [:: leak_E stk (LT_subi 1) (leak_E stk (LT_subi 1) leak_lea_exp); 
+                                       LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])]
+  | LT_ilmul lest ltes, Lopn le =>  (leak_ESI stk lest (get_seq_leak_e (leak_E stk ltes (LSub [:: LEmpty; LEmpty])))
+                                              [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le])
+  | LT_ilfopn lest lte, Lopn le => (leak_ESI stk lest (leak_ES stk lte (leak_E stk (LT_subi 0) le)) 
+                                             [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le])
+  | LT_ilds, Lopn le => [:: Lopn (LSub [:: LSub [:: leak_E stk (LT_subi 0) le]; LSub[:: LEmpty]])]
+  | LT_ildus, Lopn le => [:: Lopn (LSub [:: LSub [:: LEmpty]; LSub[:: LEmpty]])]
+ (* | LT_ildiv lti lte, Lopn le => leak_I stk (Lopn le) lti ++
+                                 [:: Lopn (LSub [:: LSub ([:: LEmpty; nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0]
+                                                         ++ remove_leak (get_seq_leak_e (leak_E stk (LT_subi 0) le)));
+                                                leak_E stk lte (leak_E stk (LT_subi 1) le)])]*)
+  | LT_ilasgn, Lopn le=>  [:: Lopn (LSub [:: (leak_E stk (LT_subi 0) le);
+                                                        leak_E stk (LT_subi 1) le])]
 
-
-  (*| LT_icompose lt1 lt2 => leak_I (leak_I l lt1) lt2*)
-  
+ (*| LT_icompose lt1 lt2 => leak_I (leak_I l lt1) lt2*) (* le = LSub [:: l; l'] *)
+                                            
   | _, _ => [:: l]
   end.
 
@@ -340,13 +377,6 @@ Variable Fs: leak_f_tr.
 Definition leak_Fun (f: funname) : leak_c_tr := odflt [::] (assoc Fs f).
 
 End Leak_Call_Imp.
-
-(* Transformation from expression leakage to instruction leakage *)
-Fixpoint leak_EI (stk : pointer) (lti : leak_e_i_tr) (le : leak_e) : seq leak_i :=
-match lti, le with 
-| LT_iconditionl lte, le => [:: Lopn (LSub [:: leak_E stk lte le; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])]
-| LT_iemptyl, le => [::]
-end.
 
 (** Leakage for intermediate-level **)
 
@@ -453,7 +483,6 @@ match l with
 | Lopnl le => Laop (leak_e_asm le)
 | Lcondl le b => Lacond b
 end.
-
 
 
 
