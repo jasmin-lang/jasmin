@@ -990,7 +990,7 @@ Module MemoryI : MemoryT.
     (* old top stack is not aligned *)
     split.
     { rewrite -Z.le_add_le_sub_r /=.
-      etransitivity; last by apply/sub_le; exact: align_word_le.
+      etransitivity; last by apply/sub_le; exact: (proj2 (align_word_range _ _)).
       rewrite sub_add_small_R; first by rewrite subxx; Psatz.lia.
       move: no_overflow; rewrite !subE.
       have := wunsigned_range (stk_limit m).

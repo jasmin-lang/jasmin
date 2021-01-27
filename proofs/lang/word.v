@@ -110,6 +110,16 @@ Definition wsize_size (sz: wsize) : Z :=
   | U256 => 32
   end.
 
+Definition wsize_log2 sz : nat :=
+  match sz with
+  | U8 => 0
+  | U16 => 1
+  | U32 => 2
+  | U64 => 3
+  | U128 => 4
+  | U256 => 5
+  end.
+
 Lemma wsize8 : wsize_size U8 = 1%Z. done. Qed.
 
 Definition wbase (s: wsize) : Z :=
@@ -119,6 +129,10 @@ Lemma le0_wsize_size ws : 0 <= wsize_size ws.
 Proof. rewrite /wsize_size; lia. Qed.
 Arguments le0_wsize_size {ws}.
 Hint Resolve le0_wsize_size : core.
+
+Lemma wsize_size_is_pow2 sz :
+  wsize_size sz = 2 ^ Z.of_nat (wsize_log2 sz).
+Proof. by case: sz. Qed.
 
 Lemma wsize_sizeE sz : wsize_size sz =  wsize_bits sz / 8.
 Proof. by case: sz. Qed.
@@ -1153,6 +1167,12 @@ Definition wpack sz pe (arg: seq Z) : word sz :=
   wrepr sz (word.wcat_r w).
 
 (* -------------------------------------------------------------------*)
+Lemma pow2pos q : 0 < 2 ^ Z.of_nat q.
+Proof. by rewrite -two_power_nat_equiv. Qed.
+
+Lemma pow2nz q : 2 ^ Z.of_nat q ≠ 0.
+Proof. have := pow2pos q; lia. Qed.
+
 Lemma wbit_n_pow2m1 sz (n i: nat) :
   wbit_n (wrepr sz (2 ^ Z.of_nat n - 1)) i = (i < Nat.min n (wsize_size_minus_1 sz).+1)%nat.
 Proof.
@@ -1198,6 +1218,67 @@ Proof.
   lia.
 Qed.
 
+Section FORALL_NAT_BELOW.
+  Context (P: nat → bool).
+
+  Fixpoint forallnat_below (n: nat) : bool :=
+    if n is S n' then if P n' then forallnat_below n' else false else true.
+
+  Lemma forallnat_belowP n :
+    reflect (∀ i, (i < n)%coq_nat → P i) (forallnat_below n).
+  Proof.
+    elim: n.
+    - by constructor => i /Nat.nlt_0_r.
+    move => n ih /=; case hn: P; last first.
+    - constructor => /(_ n (Nat.lt_succ_diag_r n)).
+      by rewrite hn.
+    case: ih => ih; constructor.
+    - move => i i_le_n.
+      case: (i =P n); first by move => ->.
+      move => i_neq_n; apply: ih; lia.
+    move => K; apply: ih => i i_lt_n; apply: K; lia.
+  Qed.
+
+End FORALL_NAT_BELOW.
+
+Lemma wbit_n_Npow2n sz n (i: 'I_(wsize_size_minus_1 sz).+1) :
+  wbit_n (wrepr sz (-2 ^ Z.of_nat n)) i = (n <= i)%nat.
+Proof.
+  move: (i: nat) (ltn_ord i) => {i} i /ltP i_bounded.
+  case: (@ltP n (wsize_size_minus_1 sz).+1) => hn.
+  + apply/eqP.
+    apply/forallnat_belowP: n hn.
+    apply/forallnat_belowP: i i_bounded.
+    by case: sz; native_compute.
+  replace (wrepr _ _) with (0%R : word sz).
+  rewrite w0E; symmetry; apply/leP; lia.
+  rewrite wrepr_opp -oppr0.
+  congr (-_)%R.
+  apply/word_eqP.
+  rewrite mkword_valK.
+  apply/eqP; symmetry.
+  Set Printing Coercions.
+  rewrite /modulus two_power_nat_equiv.
+  apply/Z.mod_divide; first exact: pow2nz.
+  exists (2 ^ (Z.of_nat (n - (wsize_size_minus_1 sz).+1))).
+  rewrite -Z.pow_add_r;
+  first congr (2 ^ _).
+  all: lia.
+Qed.
+
+Lemma wand_Npow2n sz (x: word sz) n :
+  wand x (wrepr sz (- 2 ^ Z.of_nat n)) = wshl (wshr x (Z.of_nat n)) (Z.of_nat n).
+Proof.
+  apply/eqP/eq_from_wbit_n => i.
+  rewrite wandE wshlE wshrE Nat2Z.id wbit_n_Npow2n.
+  move: (nat_of_ord i) (ltn_ord i) => {i} i.
+  rewrite ltnS => i_bounded.
+  rewrite i_bounded andbT andbC.
+  case: (@leP n i) => hni //=.
+  congr (wbit_n x).
+  lia.
+Qed.
+
 Lemma an_mod_bn_divn (a b n: Z) :
   n ≠ 0 →
   a * n mod (b * n) / n = a mod b.
@@ -1208,8 +1289,6 @@ Qed.
 Lemma wand_modulo sz (x: word sz) n :
   wunsigned (wand x (wrepr sz (2 ^ Z.of_nat n - 1))) = wunsigned x mod 2 ^ Z.of_nat n.
 Proof.
-  have pow2nz q : 2 ^ Z.of_nat q ≠ 0.
-  + apply: Z.pow_nonzero; lia.
   rewrite wand_pow2nm1 wunsigned_wshr wunsigned_wshl /wbase /modulus two_power_nat_equiv.
   case: (@leP n (wsize_size_minus_1 sz).+1); last first.
   - move => k_lt_n.
@@ -1223,9 +1302,30 @@ Proof.
       by rewrite -two_power_nat_equiv.
   set k := _.+1.
   move => n_le_k.
-  have := an_mod_bn_divn (wunsigned x) (2 ^ Z.of_nat n) (pow2nz (k - n)%nat).
+  have := an_mod_bn_divn (wunsigned x) (2 ^ Z.of_nat n) (@pow2nz (k - n)%nat).
   rewrite -Z.pow_add_r.
   2-3: lia.
   replace (Z.of_nat n + Z.of_nat (k - n)) with (Z.of_nat k) by lia.
   done.
+Qed.
+
+Lemma div_mul_in_range a b m :
+  0 < b →
+  0 <= a < m →
+  0 <= a / b * b < m.
+Proof.
+  move => b_pos a_range; split.
+  * suff : 0 <= a / b by nia.
+    apply: Z.div_pos; lia.
+  elim_div; lia.
+Qed.
+
+Lemma wand_align sz (x: word sz) n :
+  wunsigned (wand x (wrepr sz (-2 ^ Z.of_nat n))) = wunsigned x / 2 ^ Z.of_nat n * 2 ^ Z.of_nat n.
+Proof.
+  rewrite wand_Npow2n wunsigned_wshl wunsigned_wshr.
+  apply: Z.mod_small.
+  apply: div_mul_in_range.
+  - exact: pow2pos.
+  exact: wunsigned_range.
 Qed.

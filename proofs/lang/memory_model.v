@@ -403,32 +403,18 @@ Proof. by rewrite /align_word wandC wandN1. Qed.
 Lemma align_word_aligned (sz sz': wsize) (p: word sz) :
   wunsigned (align_word sz' p) mod wsize_size sz' == 0.
 Proof.
-  replace (wsize_size sz')
-    with (2 ^ Z.of_nat match sz' with
-                       | U8 => 0
-                       | U16 => 1
-                       | U32 => 2
-                       | U64 => 3
-                       | U128 => 4
-                       | U256 => 5
-                       end).
-  2: by case: sz'.
-  rewrite /align_word -wand_modulo -wandA.
-  set k := (X in wand p X).
-  replace k with (0%R : word sz); first by rewrite wandC wand0.
-  subst k; clear; apply/eqP.
-  by case: sz'; case: sz.
+  rewrite /align_word wsize_size_is_pow2 wand_align Z.mod_mul //.
+  exact: pow2nz.
 Qed.
 
-Lemma align_word_le sz sz' (p: word sz) :
-  wunsigned (align_word sz' p) <= wunsigned p.
+Lemma align_word_range sz sz' (p: word sz) :
+  wunsigned p - wsize_size sz' < wunsigned (align_word sz' p) <= wunsigned p.
 Proof.
-Admitted.
-
-Lemma align_word_bounded sz sz' (p: word sz) :
-  wunsigned p - wsize_size sz' < wunsigned (align_word sz' p).
-Proof.
-Admitted.
+  rewrite /align_word wsize_size_is_pow2 wand_align.
+  have ? := wunsigned_range p.
+  have ? := pow2pos (wsize_log2 sz').
+  elim_div; Psatz.lia.
+Qed.
 
 Definition top_stack_after_alloc (top: pointer) (ws: wsize) (sz: Z) : pointer :=
   align_word ws (top + wrepr Uptr (- sz)).
@@ -444,7 +430,7 @@ Lemma top_stack_after_alloc_bounded p ws sz :
   wunsigned p - wunsigned (top_stack_after_alloc p ws sz) <= sz + wsize_size ws.
 Proof.
   rewrite /top_stack_after_alloc => sz_pos.
-  move: (align_word _ _) (align_word_bounded ws (p + wrepr Uptr (- sz))) => q.
+  move: (align_word _ _) (align_word_range ws (p + wrepr Uptr (- sz))) => q.
   rewrite wunsigned_add; first Psatz.lia.
   have := wunsigned_range p.
   Psatz.lia.
