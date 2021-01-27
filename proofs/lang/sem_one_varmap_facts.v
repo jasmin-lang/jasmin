@@ -60,7 +60,7 @@ Proof. by []. Qed.
 
 Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
 Proof.
-  red => ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_rsp /Memory.alloc_stackP A _.
+  red => ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_sp ok_rsp /Memory.alloc_stackP A _.
   rewrite /Pc /= => B _ ->.
   red => /=.
   have C := Memory.free_stackP (emem s2').
@@ -101,7 +101,7 @@ Lemma sem_call_valid_RSP ii s1 fn s2 :
   sem_call p extra_free_registers ii s1 fn s2 →
   valid_RSP (emem s1) (evm s2).
 Proof.
-  case/sem_callE => fd m s ok_fd ok_ra ok_RSP ok_m exec_body ok_RSP' -> /=.
+  case/sem_callE => fd m s ok_fd ok_ra ok_sp ok_RSP ok_m exec_body ok_RSP' -> /=.
   rewrite /valid_RSP /set_RSP Fv.setP_eq /top_stack.
   have ok_alloc := Memory.alloc_stackP ok_m.
   have /= ok_exec := sem_stack_stable exec_body.
@@ -153,7 +153,7 @@ Proof. by []. Qed.
 
 Lemma Hproc_pm : sem_Ind_proc p extra_free_registers Pc Pfun.
 Proof.
-  red => ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' -> r hr /=.
+  red => ii s1 s2 fn fd m1 s2' ok_fd ok_ra ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' -> r hr /=.
   rewrite /set_RSP Fv.setP.
   case: eqP.
   - move => ?; subst.

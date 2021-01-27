@@ -1211,7 +1211,7 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
   Proof.
-    red => ii s1 _ fn fd m1' s2' ok_fd free_ra valid_rsp ok_m1' exec_body ih valid_rsp' -> m1 vm1 _ ra lret sp M X [] fd' ok_fd' <- [].
+    red => ii s1 _ fn fd m1' s2' ok_fd free_ra sp_align valid_rsp ok_m1' exec_body ih valid_rsp' -> m1 vm1 _ ra lret sp M X [] fd' ok_fd' <- [].
     rewrite ok_fd => _ /Some_inj <- <-{ra}.
     rewrite /value_of_ra => ok_lret.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_sp.
