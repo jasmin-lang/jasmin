@@ -236,7 +236,8 @@ match ls with
 Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': seq leak_e) : seq leak_i :=
 match lti, les, les' with 
 | LT_iopn5f_large, les, les' =>  ([:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LSub [:: LEmpty]])] ++
-    [:: Lopn (LSub [:: LSub ([::nth LEmpty les 0; LEmpty] ++ (remove_leak les)); LSub les'])])
+    [:: Lopn (LSub [:: LSub ([::nth LEmpty les 0; LEmpty] ++ (remove_leak les)); 
+                       LSub les'])])
 | LT_iopn5f_other, les, les' =>
   [:: Lopn (LSub [:: LSub les ; LSub les'])]
 | LT_ianone, les, les' => [:: Lopn (LSub [:: LSub les ; LSub [:: nth LEmpty les' 1 ; List.last les' LEmpty]])]
