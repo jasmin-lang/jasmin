@@ -304,37 +304,6 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
   Lemma find_find uf l : find uf (find uf l) = find uf l.
   Proof. by apply/find_find_r/wf_uf. Qed.
 
-  Definition prop_compat_uf uf (P : S -> Prop) :=
-    forall lx ly ,
-    P lx ->
-    find uf lx = find uf ly ->
-    P ly.
-
-  Definition prop_compat_union uf lx ly (P : S -> Prop) :=
-    P (find uf lx) <-> P (find uf ly).
-
-  Lemma unionfindW uf lx ly P :
-    prop_compat_uf uf P ->
-    prop_compat_union uf lx ly P ->
-    prop_compat_uf (union uf lx ly) P.
-  Proof.
-    move => Hpropcompat Hpropcompatunion lx' ly' HPlx' /eqP.
-    rewrite !find_union; case: ifP => [/eqP Heqfindxx'|_]; case: ifP => [/eqP Heqfindxy'|_] /eqP.
-    + by move => _; rewrite Heqfindxx' in Heqfindxy'; apply: (Hpropcompat _ _ HPlx' Heqfindxy').
-    + move => Heqfindyy'.
-      apply: (Hpropcompat (find uf ly)); last by rewrite find_find.
-      apply Hpropcompatunion.
-      apply: (Hpropcompat _ _ HPlx').
-      by rewrite find_find Heqfindxx'.
-    + move => Heqfindx'y.
-      apply: (Hpropcompat (find uf lx)); last by rewrite find_find.
-      apply Hpropcompatunion.
-      apply: (Hpropcompat _ _ HPlx').
-      by rewrite find_find.
-    move => Heqfindx'y'.
-    by apply: (Hpropcompat _ _ HPlx').
-  Qed.
-
 End UnionFind.
 
 
@@ -344,6 +313,42 @@ End LblEqType.
 
 
 Module LUF := UnionFind(LblEqType).
+
+
+Section UnionFindProps.
+
+  Definition prop_compat_uf uf (P : LUF.S -> Prop) :=
+    forall lx ly ,
+    P lx ->
+    LUF.find uf lx = LUF.find uf ly ->
+    P ly.
+
+  Definition prop_compat_union uf lx ly (P : LUF.S -> Prop) :=
+    P (LUF.find uf lx) <-> P (LUF.find uf ly).
+
+  Lemma unionP uf lx ly P :
+    prop_compat_uf uf P ->
+    prop_compat_union uf lx ly P ->
+    prop_compat_uf (LUF.union uf lx ly) P.
+  Proof.
+    move => Hpropcompat Hpropcompatunion lx' ly' HPlx' /eqP.
+    rewrite !LUF.find_union; case: ifP => [/eqP Heqfindxx'|_]; case: ifP => [/eqP Heqfindxy'|_] /eqP.
+    + by move => _; rewrite Heqfindxx' in Heqfindxy'; apply: (Hpropcompat _ _ HPlx' Heqfindxy').
+    + move => Heqfindyy'.
+      apply: (Hpropcompat (LUF.find uf ly)); last by rewrite LUF.find_find.
+      apply Hpropcompatunion.
+      apply: (Hpropcompat _ _ HPlx').
+      by rewrite LUF.find_find Heqfindxx'.
+    + move => Heqfindx'y.
+      apply: (Hpropcompat (LUF.find uf lx)); last by rewrite LUF.find_find.
+      apply Hpropcompatunion.
+      apply: (Hpropcompat _ _ HPlx').
+      by rewrite LUF.find_find.
+    move => Heqfindx'y'.
+    by apply: (Hpropcompat _ _ HPlx').
+  Qed.
+
+End UnionFindProps.
 
 
 Section FoldLeftComp.
@@ -377,7 +382,7 @@ End PairFoldLeft.
 Section PairFoldLeftComp.
 
   Variables (T1 T2 : Type) (h : T1 -> T2) (ph : T1 -> T1 -> T2).
-  Variables (T R : Type) (f : R -> T2 → T2 → R) (z0 : R) (t t' : T1).
+  Variables (T R : Type) (f : R -> T2 → T2 → R) (z0 : R) (y0 : T2) (t t' : T1).
 
   Lemma pairfoldl_map s : pairfoldl f z0 (h t) (map h s) = pairfoldl (fun z x y => f z (h x) (h y)) z0 t s.
   Proof.
@@ -385,15 +390,21 @@ Section PairFoldLeftComp.
     by induction s as [|hs ts IHs] => /=.
   Qed.
 
+  Lemma pairfoldl_cat s1 s2 :
+    pairfoldl f z0 y0 (s1 ++ s2) = pairfoldl f (pairfoldl f z0 y0 s1) (last y0 s1) s2.
+  Proof.
+    by elim: s1 z0 y0 => /=.
+  Qed.
+
 End PairFoldLeftComp.
 
 
 Section Prefix.
 
-  Variable T : eqType.
+  Variable T U : eqType.
   Implicit Type s : seq T.
 
-  Fixpoint prefix s1 s2 :=
+  Fixpoint prefix {T : eqType} (s1 s2 : seq T) :=
     if s2 is y :: s2' then
       if s1 is x :: s1' then
         if x == y then prefix s1' s2' else false
@@ -430,7 +441,7 @@ Section Prefix.
     by elim: s n => [|hs ts IHs] [|n] => //=; rewrite eq_refl.
   Qed.
 
-  Lemma prefix_trans : ssrbool.transitive prefix.
+  Lemma prefix_trans : ssrbool.transitive (@prefix T).
   Proof.
     move => y x z /prefixP [m1 ->] /prefixP [m2 ->].
     by apply/prefixP; exists (m1 ++ m2); rewrite catA.
@@ -518,6 +529,16 @@ Section Prefix.
   Qed.
 
 End Prefix.
+
+
+Section PrefixProps.
+
+  Lemma prefix_map {T U : eqType} s1 s2 (f : T -> U) : prefix s1 s2 -> prefix (map f s1) (map f s2).
+  Proof.
+    by move => /prefixP [s] ->; rewrite map_cat; apply/prefixP; eexists.
+  Qed.
+
+End PrefixProps.
 
 
 Section oPrefix.
@@ -1507,14 +1528,6 @@ End TunnelingProof.
 
 Section TunnelingCompiler.
 
-  Definition lfundef1 := LFundef U8 [::] [::] [::Linstr_align] [::] [::] false.
-
-  Definition lprog2 := Build_lprog "lprog2"%string [::] [::(xH,lfundef1)].
-
-  Compute well_formed_lprog lprog2.
-
-  Search _ lfundef.
-
   (*TODO: We may want to remove duplicates in funnames, or not.*)
   Definition funnames p := map (fun x => x.1) (lp_funcs p).
 
@@ -1598,32 +1611,79 @@ Section TunnelingCompiler.
     oseq.onth (goto_targets fb) i = Some x ->
     exists j ii_x r, oseq.onth fb j = Some (MkLI ii_x x) /\ Lgoto r = x.
   Proof.
-    
+    elim: fb i => // -[ii_x i_x] tfb IHfb i.
+    rewrite /goto_targets /=.
+    case: ifP => [|_ Hoseq].
+    + case: i_x => // r _; case: i => [/= [?]|i Hoseq]; first by exists 0; exists ii_x; exists r; subst x; split.
+      by case: (IHfb i Hoseq) => j Hj; exists j.+1.
+    by case: (IHfb i Hoseq) => j Hj; exists j.+1.
   Qed.
 
   Lemma labels_of_body_tunnel_plan l fn fb :
+    well_formed_body fn fb ->
     Llabel l \in labels_of_body fb ->
     Llabel (LUF.find (tunnel_plan fn LUF.empty fb) l) \in labels_of_body fb.
   Proof.
-    rewrite /tunnel_plan.
+    rewrite /tunnel_plan => Hwfb; move: l.
     pattern fb, fb at 1 3.
-    apply: prefixW => //=; first by rewrite LUF.find_empty.
-    move => c pfb Hprefix IHfb Hlabelin.
-    have:= (IHfb Hlabelin) => {IHfb Hlabelin}.
-    rewrite pairfoldl_rcons.
-    set uf:= pairfoldl _ _ _ _.
-    case: last => ? []; case: c Hprefix => ? [] //=.
+    apply: prefixW => //=; first by move => l; rewrite LUF.find_empty.
+    move => c pfb Hprefix IHfb l Hlabelin.
+    have:= (IHfb _ Hlabelin) => {Hlabelin}.
+    rewrite pairfoldl_rcons; move: IHfb.
+    set uf:= pairfoldl _ _ _ _ => IHfb.
+    case: last => ii []; case: c Hprefix => ? [] //=.
     move => [fn' l'] Hprefix l''.
     case: ifP => // /eqP ?; subst fn'; rewrite LUF.find_union.
-    case: ifP => //.
+    case: ifP => // _ _; apply: IHfb.
+    move: Hwfb => /andP [_ Hall].
+    have:= (@prefix_all _ (goto_targets (rcons pfb {| li_ii := ii; li_i := Lgoto (fn, l') |})) _ _ _ Hall) => {Hall}.
+    rewrite /goto_targets {2}map_rcons filter_rcons /= all_rcons => Hall.
+    have:= andP (Hall _) => {Hall} -[] //.
+    apply: prefix_filter.
+    move: (prefix_map li_i Hprefix).
+    by rewrite !map_rcons.
   Qed.
 
-  (*TODO: general thing about unionfinds: P a property such that if P l and LUF.find uf l' == LUF.find uf l then P l'*)
-
   Lemma goto_targets_tunnel_partial fn fb:
+    well_formed_body fn fb ->
     {subset (goto_targets (tunnel_partial fn (tunnel_plan fn LUF.empty fb) fb)) <= (goto_targets fb)}.
   Proof.
-  Admitted.
+    rewrite /tunnel_plan => Hwfb.
+    pattern fb, fb at 2 3.
+    apply: prefixW => //=.
+    + by move => i; rewrite /tunnel_partial (@eq_map _ _ _ idfun) ?map_id // => ?; rewrite tunnel_bore_empty.
+    move => c pfb Hprefix IHfb i.
+    rewrite pairfoldl_rcons; move: IHfb.
+    set uf:= pairfoldl _ _ _ _ => IHfb.
+    case Hlast: last => [ii [ | |l| | | | ]]; case: c Hprefix => ii' [] //=; auto.
+    move => [fn' l'] Hprefix; case: ifP; last by auto.
+    move => /eqP ?; subst fn'; rewrite mem_filter => /andP [].
+    case: i => // -[fn'' l''] _.
+    case/mapP => -[ii'' []] // [fn''' l'''] /= Hin'' [? ?]; subst fn''' l'''; move: Hin''.
+    case/mapP => -[ii''' []] // [fn''' l'''] /= Hin''' [?]; subst ii'''.
+    case: ifP => [/eqP ? [? ?]|_ ->]; last by rewrite mem_filter /=; apply/mapP; eexists; eauto.
+    subst fn''' fn'' l''; rewrite LUF.find_union.
+    move: IHfb Hprefix Hlast; rewrite /uf; clear uf; case: (lastP pfb) => // {pfb} pfb [iii ll].
+    set uf:= pairfoldl _ _ _ _ => IHfb Hprefix; rewrite last_rcons => -[? ?]; subst iii ll.
+    rewrite (find_plan_partial Hwfb (prefix_trans (prefix_rcons _ _) Hprefix)).
+    case: ifP => [/eqP Heqfind|/negP Hneqfind]; last first.
+    + apply/IHfb; rewrite mem_filter /=; apply/mapP.
+      exists {| li_ii := ii''; li_i := Lgoto (fn, LUF.find uf l''') |} => //=.
+      by apply/mapP; exists {| li_ii := ii''; li_i := Lgoto (fn, l''') |} => //=; rewrite eqxx.
+    apply/IHfb; rewrite mem_filter /=; apply/mapP.
+    exists {| li_ii := ii'; li_i := Lgoto (fn, LUF.find uf l') |} => //=.
+    apply/mapP; exists {| li_ii := ii'; li_i := Lgoto (fn, l') |} => //=; last by rewrite eqxx.
+    move: Hprefix => /prefixP [sfb] ->; rewrite mem_cat mem_rcons in_cons.
+    by apply/orP; left; apply/orP; left.
+  Qed.
+
+  Lemma onthP {T : eqType} (s : seq T) (x : T) :
+    reflect (exists2 i , i < size s & oseq.onth s i = Some x) (x \in s).
+  Proof.
+    apply: (iffP (nthP x)); case => i Hsize Hnth; exists i => //.
+    + by rewrite -Hnth; apply: oseq.onth_nth_size.
+    by apply/eqP; rewrite -oseq.onth_sizeP // Hnth.
+  Qed.
 
   Lemma well_formed_lprog_tunnel fn p :
     well_formed_lprog p ->
@@ -1635,11 +1695,19 @@ Section TunnelingCompiler.
     rewrite onth_map; case Honth: oseq.onth => [[fn'' fd'']|] //= [?]; subst fn''.
     case: ifP => [/eqP ? ?|_ ?]; last by subst fd''; apply: (Hwfb _ _ Honth).
     subst fn' fd'; rewrite /lfundef_tunnel_partial /= => {i fd'' Honth}.
-    case: (assoc_onth Hgfd) => i Honth; have:= (Hwfb _ _ Honth) => /= {Hwfb Hgfd Honth}.
-    move => /andP [Huniql /all_onthP Hlocalgotos].
+    case: (assoc_onth Hgfd) => i Honth; have:= (Hwfb _ _ Honth) => /= {Hwfb Hgfd Honth} Hwf.
+    move: (Hwf); move => /andP [Huniql /all_onthP Hlocalgotos].
     apply/andP; split; rewrite -labels_of_body_tunnel_partial //.
-    apply/all_onthP => {i} i x. /onth_goto_targets [j] [ii_x] [[fn' l']] [Honth ?]; subst x.
-    
+    apply/all_onthP => {i} i x /onth_goto_targets [j] [ii_x] [[fn' l']] [Honth ?]; subst x.
+    move: Honth => /oseq.onthP /andP Hnth; have:= (Hnth Linstr_align) => {Hnth} -[Hsize /eqP Hnth].
+    have:= (mem_nth Linstr_align Hsize); move: Hnth => -> Hin {Hsize}.
+    have:= (map_f li_i Hin) => {Hin} /= Hin.
+    have: Lgoto (fn', l') \in goto_targets (tunnel_partial fn (tunnel_plan fn LUF.empty (lfd_body fd)) (lfd_body fd)).
+    + by rewrite /goto_targets mem_filter.
+    move => {Hin} Hin.
+    move/(goto_targets_tunnel_partial Hwf): Hin.
+    move/onthP => [k] Hsize Honth.
+    by apply: Hlocalgotos Honth.
   Qed.
 
   Lemma well_formed_partial_tunnel_program fns p :
