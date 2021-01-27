@@ -1,5 +1,7 @@
 -arg -w
 -arg -parsing
+-arg -w
+-arg -extraction-reserved-identifier
 
 -R 3rdparty Jasmin
 -R compiler Jasmin
@@ -32,6 +34,7 @@ compiler/linear_proof.v
 compiler/lowering.v
 compiler/lowering_proof.v
 compiler/makeReferenceArguments.v
+compiler/makeReferenceArguments_proof.v
 compiler/merge_varmaps.v
 compiler/merge_varmaps_proof.v
 compiler/remove_globals.v
@@ -61,6 +64,7 @@ lang/psem_facts.v
 lang/psem.v
 lang/sem.v
 lang/sem_one_varmap.v
+lang/sem_one_varmap_facts.v
 lang/sem_type.v
 lang/strings.v
 lang/type.v

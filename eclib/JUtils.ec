@@ -320,12 +320,12 @@ proof.
 elim/last_ind : bs => // bs b /= IH.
 rewrite bs2int_rcons.
 move: (bs2int_ge0 bs) => ?.
-have T2: 0 <= 2 ^ size bs * b2i b by smt(expr_gt0).
+have T2: 0 <= 2 ^ size bs * b2i b by smt(expr_ge0).
 move=> H1.
 have E1: bs2int bs = 0 by smt().
 have: 2 ^ size bs * b2i b = 0 by smt().
 rewrite Ring.IntID.mulf_eq0; move=> [?|]; first by smt(expr_gt0).
-rewrite b2i_eq0 => ?.
+rewrite b2i_eq0 => H0.
 rewrite nth_rcons (IH E1) H0 /#.
 qed.
 
@@ -337,7 +337,7 @@ move: (size_ge0 bs2) => Hsize2.
 rewrite /bs2int (range_cat (size bs1)) //.
  by rewrite size_cat /#.
 rewrite big_cat; congr.
- apply eq_big_int => /> *.
+ apply eq_big_int => /> ? H H0.
  by rewrite nth_cat H0.
 rewrite mulr_sumr /=.
 have ->: range (size bs1) (size (bs1 ++ bs2)) = range (size bs1+0) (size bs2+size bs1).
@@ -374,7 +374,7 @@ proof. by rewrite bs2int_cat (bs2int_nseq false). qed.
 lemma bs2int_and0 i bs1 bs2:
  bs2int (map2 (/\) bs1 bs2) = 0 =>
  !(nth false bs1 i /\ nth false bs2 i).
-proof. by move=> /bs2int0P ?; move: (H i); rewrite nth_and. qed.
+proof. by move=> /bs2int0P H; move: (H i); rewrite nth_and. qed.
 
 lemma bs2int_xor_sub bs1 bs2:
  size bs1 = size bs2 =>
@@ -383,14 +383,14 @@ lemma bs2int_xor_sub bs1 bs2:
 proof.
 move=> Esz.
 have Esz2: min (size bs1) (size bs2) = size bs2 by smt().
-move=> ?.
+move=> H.
 rewrite /bs2int !Esz !size_map2 !Esz2 sumrN !sumrD.
-apply eq_big_int => ? /=.
-move=> ?; rewrite !map2_zip.
-rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz /#.
+apply eq_big_int => i /=.
+move=> H0; rewrite !map2_zip.
+rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz2.
 rewrite nth_zip //=.
 case: (nth false bs1 i); case: (nth false bs2 i) => //=.
-move=> *.
+move=> H1 H2.
 move/(bs2int_and0 i): H.
 by rewrite (nth_map false) ?Esz // H2 H1.
 qed.
@@ -402,14 +402,14 @@ lemma bs2int_or_add bs1 bs2:
 proof.
 move=> Esz.
 have Esz2: min (size bs1) (size bs2) = size bs2 by smt().
-move=> ?.
+move=> H.
 rewrite /bs2int !Esz !size_map2 !Esz2 !sumrD.
-apply eq_big_int => ? /=.
-move=> ?; rewrite !map2_zip.
-rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz /#.
+apply eq_big_int => i /=.
+move=> H0; rewrite !map2_zip.
+rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz2.
 rewrite nth_zip //=.
 case: (nth false bs1 i); case: (nth false bs2 i) => //=.
-move=> *.
+move=> H1 H2.
 move/(bs2int_and0 i): H.
 by rewrite H2 H1.
 qed.
@@ -422,7 +422,7 @@ lemma bs2int_add_disjoint bs1 bs2 modulus:
 proof.
 move=> Esz.
 have Esz2: min (size bs1) (size bs2) = size bs2 by smt().
-move=> ??.
+move=> H H0.
 rewrite -bs2int_or_add // H.
 have:= bs2int_le2Xs (map2 (\/) bs1 bs2).
 by rewrite size_map2 Esz2.

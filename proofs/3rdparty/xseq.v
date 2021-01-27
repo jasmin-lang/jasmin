@@ -168,3 +168,41 @@ Proof.
 Qed.
 
 End AssocFilter.
+
+(* -------------------------------------------------------------------- *)
+Section InMap.
+Context (A: Type) (B: eqType) (f: A → B).
+
+Lemma in_map b m :
+  reflect (exists2 a : A, List.In a m & b = f a) (b \in [seq f i | i <- m]).
+Proof.
+  elim: m; first by constructor => - [] _ [].
+  move => a m ih /=.
+  rewrite in_cons; case: eqP => [ -> | neq ] /=.
+  - by constructor; exists a => //; left.
+  case: ih => ih; constructor.
+  - by case: ih => a' ??; exists a' => //; right.
+  case => a' ha' ?; apply: ih; exists a' => //.
+  case: ha' => //; congruence.
+Qed.
+
+End InMap.
+
+(* -------------------------------------------------------------------- *)
+Section InPmap.
+Context (aT rT: eqType) (f: aT → option rT).
+
+Lemma in_pmap a m :
+  a \in m →
+  match f a with None => true | Some r => r \in pmap f m end.
+Proof.
+  elim: m => // a' m ih.
+  rewrite inE; case/orP.
+  - move => /eqP <- {a'}; case h: f => [ r | // ].
+    by rewrite /= h inE eqxx.
+  move => /ih{ih}.
+  case: f => // r h; rewrite /=.
+  by case: f => //= ?; rewrite inE h orbT.
+Qed.
+
+End InPmap.

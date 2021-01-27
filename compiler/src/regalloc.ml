@@ -670,21 +670,17 @@ let reverse_varmap nv (vars: int Hv.t) : A.allocation =
   Hv.iter (fun v i -> A.set i v a) vars;
   a
 
-let split_live_ranges (fds: 'info func list) : unit func list =
-  let doit f =
-    let f = Ssa.split_live_ranges true f in
-    Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
-    let vars, nv = collect_variables ~allvars:true Sv.empty f in
-    let eqc, _tr, _fr =
-      collect_equality_constraints
-        "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
-    let vars = normalize_variables vars eqc in
-    let a =
-      reverse_varmap nv vars |>
-        subst_of_allocation vars
-    in Subst.subst_func a f
-       |> Ssa.remove_phi_nodes in
-  List.map doit fds
+let split_live_ranges (f: 'info func) : unit func =
+  let f = Ssa.split_live_ranges true f in
+  Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
+  let vars, nv = collect_variables ~allvars:true Sv.empty f in
+  let eqc, _tr, _fr =
+    collect_equality_constraints
+      "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
+  let vars = normalize_variables vars eqc in
+  let a = reverse_varmap nv vars |> subst_of_allocation vars in
+  Subst.subst_func a f
+  |> Ssa.remove_phi_nodes
 
 let is_subroutine = function
   | Subroutine _ -> true

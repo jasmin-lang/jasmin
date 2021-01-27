@@ -367,6 +367,16 @@ Corollary mapM_rcons  {eT aT bT} (f: aT → result eT bT) (s: seq aT) (a: aT) :
   mapM f (rcons s a) = Let r1 := mapM f s in Let r2 := f a in ok (rcons r1 r2).
 Proof. by rewrite -cats1 mapM_cat /=; case: (f a) => // b; case: (mapM _ _) => // bs; rewrite /= cats1. Qed.
 
+Lemma mapM_Forall2 {eT aT bT} (f: aT → result eT bT) (s: seq aT) (s': seq bT) :
+  mapM f s = ok s' →
+  List.Forall2 (λ a b, f a = ok b) s s'.
+Proof.
+  elim: s s'.
+  - by move => _ [] <-; constructor.
+  move => a s ih s'' /=; t_xrbindP => b ok_b s' /ih{ih}ih <-{s''}.
+  by constructor.
+Qed.
+
 Section FOLDM.
 
   Context (eT aT bT:Type) (f:aT -> bT -> result eT bT).

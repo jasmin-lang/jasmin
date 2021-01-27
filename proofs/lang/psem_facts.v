@@ -23,18 +23,16 @@ Proof.
   by move => v vs a /=; t_xrbindP => b /write_var_emem -> /ih.
 Qed.
 
+Lemma pword_of_wordE sz (w: word sz) e :
+  {| pw_size := sz ; pw_word := w ; pw_proof := e |} = pword_of_word w.
+Proof.
+    by rewrite (Eqdep_dec.UIP_dec Bool.bool_dec e (cmp_le_refl _)).
+Qed.
+
 (** Running a program with stack preserves said stack *)
 Section STACK_STABLE.
 
 Infix "≡" := stack_stable (at level 40).
-
-Instance stack_stable_equiv : Equivalence stack_stable.
-Proof.
-  split.
-  - by [].
-  - by move => x y [*]; split.
-  move => x y z [???] [???]; split; etransitivity; eassumption.
-Qed.
 
 Lemma write_lval_stack_stable gd x v s s' :
   write_lval gd x v s = ok s' →

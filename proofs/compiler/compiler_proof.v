@@ -26,6 +26,8 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import psem compiler_util compiler.
 Require Import allocation inline_proof dead_calls_proof
+               makeReferenceArguments_proof
+               array_init_proof
                unrolling_proof constant_prop_proof dead_code_proof
                array_expansion remove_globals_proof stack_alloc_proof
                lowering_proof
@@ -79,13 +81,88 @@ Qed.
 
 Opaque Loop.nb.
 
-
 Let Ki : ∀ vr (P Q: _ → Prop),
         (∀ vr', P vr' → Q vr') →
-        (∃ vr', List.Forall2 value_uincl vr vr' ∧ P vr') →
-        (∃ vr', List.Forall2 value_uincl vr vr' ∧ Q vr')
-    := λ vr P Q h x, let 'ex_intro vr' (conj u p) := x in ex_intro _ vr' (conj u (h vr' p)).
+        (exists2 vr', List.Forall2 value_uincl vr vr' & P vr') →
+        (exists2 vr', List.Forall2 value_uincl vr vr' & Q vr')
+    := λ vr P Q h x, let 'ex_intro2 vr' u p := x in ex_intro2 _ _ vr' u (h vr' p).
 
+Let K : ∀ vr (P Q: _ → Prop),
+        (∀ vr, P vr → ∃ vr', Q vr' ∧ List.Forall2 value_uincl vr vr') →
+        (exists2 vr', List.Forall2 value_uincl vr vr' & P vr') →
+        (exists2 vr', List.Forall2 value_uincl vr vr' & Q vr')
+  :=
+      λ vr P Q h x,
+      let 'ex_intro2 vr1 u p := x in
+      let 'ex_intro vr2 (conj q v) := h _ p in
+      ex_intro2 _ _ vr2 (Forall2_trans value_uincl_trans u v) q.
+
+Lemma compiler_first_partP entries (p: prog) (p': uprog) m fn va m' vr :
+  compiler_first_part cparams entries p = ok p' →
+  fn \in entries →
+  sem.sem_call p m fn va m' vr →
+  exists2 vr',
+    List.Forall2 value_uincl vr vr' &
+    psem.sem_call p' tt m fn va m' vr'.
+Proof.
+  rewrite /compiler_first_part; t_xrbindP => pa.
+  rewrite print_uprogP => ok_pa pb.
+  rewrite print_uprogP => ok_pb pc.
+  rewrite print_uprogP => ok_pc [].
+  rewrite !print_uprogP => ok_pd pe ok_pe [].
+  rewrite !print_uprogP => ok_pf pg.
+  rewrite print_uprogP => ok_pg ph ok_ph _ /assertP.
+  rewrite print_uprogP => ok_fvars.
+  rewrite print_uprogP => <- {p'} ok_fn exec_p.
+  apply: Ki; first by move => vr'; apply: (lower_callP (lowering_opt cparams) (warning cparams) (is_var_in_memory cparams) ok_fvars).
+  apply: Ki; first by move => vr'; apply: (makeReferenceArguments_callP ok_ph).
+  apply: Ki; first by move => vr'; apply: (RGP.remove_globP ok_pg).
+  apply: K; first by move =>vr'; apply: (CheckExpansion.alloc_callP ok_pf).
+  have va_refl := List_Forall2_refl va value_uincl_refl.
+  apply: K; first by move =>vr'; apply: (remove_init_fdPu _ va_refl).
+  apply: Ki; first by move => vr'; exact: (dead_code_callPu ok_pe).
+  apply: K; first by move => vr'; apply: (CheckAllocRegU.alloc_callP ok_pd).
+  rewrite surj_prog.
+  apply: K; first by move => vr' Hvr'; apply: (const_prop_callP _ va_refl); exact: Hvr'.
+  apply: K; first by move => vr' Hvr'; apply: (unrollP ok_pc _ va_refl); exact: Hvr'.
+  apply: Ki; first by move => vr'; exact: (dead_calls_err_seqP (sCP:= sCP_unit) ok_pb).
+  apply: K; first by move => vr' Hvr'; apply: (inline_call_errP ok_pa va_refl); exact: Hvr'.
+  apply: Ki; first by move => vr'; apply: (add_init_fdP).
+  apply: Ki; first by move => vr'; exact: psem_call.
+  exists vr => //.
+  exact: (List_Forall2_refl _ value_uincl_refl).
+Qed.
+
+Lemma check_removeturnP entries remove_return b :
+  check_removeturn entries remove_return = ok b →
+  ∀ fn, fn \in entries → remove_return fn = None.
+Proof.
+  move => /assertP /eqP h fn /(in_pmap remove_return).
+  case: (remove_return fn) => // r.
+  by rewrite h.
+Qed.
+
+Lemma compiler_third_partP entries (p: sprog) (p': sprog) (gd: pointer) m fn va m' vr :
+  compiler_third_part cparams entries p = ok p' →
+  fn \in entries →
+  psem.sem_call p gd m fn va m' vr →
+  exists2 vr',
+    List.Forall2 value_uincl vr vr' &
+    psem.sem_call p' gd m fn va m' vr'.
+Proof.
+  rewrite /compiler_third_part; t_xrbindP.
+  move => _ /check_removeturnP ok_rr pa ok_pa [].
+  rewrite !print_sprogP => ok_pb pc ok_pc.
+  rewrite print_sprogP => <- {p'} ok_fn exec_p.
+  apply: Ki; first by move => vr'; exact: (dead_code_callPs ok_pc).
+  apply: K; first by move => vr'; apply: (CheckAllocRegS.alloc_callP ok_pb).
+  rewrite surj_prog.
+  exists vr; first exact: (List_Forall2_refl _ value_uincl_refl).
+  have := dead_code_tokeep_callPs ok_pa exec_p.
+  by rewrite /fn_keep_only ok_rr.
+Qed.
+
+(*
 Let Kj : ∀ rip glob m vr (P Q: _ → _ → Prop),
         (∀ m' vr', P m' vr' → Q m' vr') →
         (∃ m' vr', List.Forall2 value_uincl vr vr' ∧ extend_mem m m' rip glob ∧ P m' vr') →
@@ -102,26 +179,7 @@ Let Km : ∀ rip glob m vr (P: _ → Prop) (Q: _ → _ → Prop),
       let 'ex_intro vr' (conj u p) := x in
       let 'ex_intro m' (ex_intro vr'' (conj u' q)) := h vr' p in
       ex_intro _ m' (ex_intro _ vr'' (conj (Forall2_trans value_uincl_trans u u') q)).
-
-Let K : ∀ vr (P Q: _ → Prop),
-        (∀ vr, P vr → ∃ vr', List.Forall2 value_uincl vr vr' ∧ Q vr') →
-        (∃ vr', List.Forall2 value_uincl vr vr' ∧ P vr') →
-        (∃ vr', List.Forall2 value_uincl vr vr' ∧ Q vr')
-  :=
-      λ vr P Q h x,
-      let 'ex_intro vr1 (conj u p) := x in
-      let 'ex_intro vr2 (conj v q) := h _ p in
-      ex_intro _ vr2 (conj (Forall2_trans value_uincl_trans u v) q).
-
-Let K' : ∀ vr (P Q: _ → Prop),
-        (∀ vr, P vr → ∃ vr', Q vr' ∧ List.Forall2 value_uincl vr vr') →
-        (∃ vr', List.Forall2 value_uincl vr vr' ∧ P vr') →
-        (∃ vr', List.Forall2 value_uincl vr vr' ∧ Q vr')
-  :=
-      λ vr P Q h x,
-      let 'ex_intro vr1 (conj u p) := x in
-      let 'ex_intro vr2 (conj q v) := h _ p in
-      ex_intro _ vr2 (conj (Forall2_trans value_uincl_trans u v) q).
+*)
 
 (*
 Lemma compile_progP entries (p: prog) (lp: lprog) mem fn va mem' vr:

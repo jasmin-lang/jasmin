@@ -9,7 +9,7 @@ module X64 : sig
   val all_registers : var list
 end
 
-val split_live_ranges : unit func list -> unit func list
+val split_live_ranges : unit func -> unit func
 
 type reg_oracle_t = {
     ro_to_save: var list;  (* TODO: allocate them in the stack rather than push/pop *)

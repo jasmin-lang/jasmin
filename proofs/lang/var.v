@@ -514,6 +514,21 @@ Proof.
   SvD.fsetdec.
 Qed.
 
+Lemma disjoint_diff A B :
+  disjoint A B →
+  Sv.Equal (Sv.diff B A) B.
+Proof.
+  rewrite /disjoint /is_true Sv.is_empty_spec.
+  SvD.fsetdec.
+Qed.
+
+Lemma in_disjoint_diff x a b c :
+  Sv.In x a →
+  Sv.In x b →
+  disjoint a (Sv.diff b c) →
+  Sv.In x c.
+Proof. rewrite /disjoint /is_true Sv.is_empty_spec; SvD.fsetdec. Qed.
+
 (* Non dependant map *)
 Module Mvar :=  Mmake CmpVar.
 

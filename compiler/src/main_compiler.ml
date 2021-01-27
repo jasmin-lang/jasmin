@@ -358,9 +358,9 @@ let main () =
       StackAlloc.memory_analysis pp_comp_ferr ~debug:!debug tbl up
      in
 
-    let global_regalloc sp = 
+    let global_regalloc fds =
       if !debug then Format.eprintf "START regalloc@.";
-      let (fds,_data) = Conv.prog_of_csprog tbl sp in
+      let fds = List.map (Conv.fdef_of_csfdef tbl) fds in
       (* TODO: move *)
       (* Check the stacksize, stackallocsize & stackalign annotations, if any *)
       List.iter (fun ({ Expr.sf_stk_sz ; Expr.sf_stk_extra_sz ; Expr.sf_align }, { f_annot ; f_name }) ->
@@ -400,10 +400,7 @@ let main () =
       saved_live_calls := Some live_calls;
       let fds = List.map (fun (y,_,x) -> y, x) fds in
       let fds = List.map (Conv.csfdef_of_fdef tbl) fds in
-      Expr.({
-        p_funcs = fds;
-        p_globs = sp.p_globs;
-        p_extra = sp.p_extra; }) in
+      fds in
 
     let is_var_in_memory cv : bool =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
@@ -464,15 +461,8 @@ let main () =
       let cx = Conv.cvar_of_var tbl x' in
       cx.Var0.Var.vname in
 
-    let var_alloc_prog up = 
-      let (_glob,fds) = Conv.prog_of_cuprog tbl up in
-      let fds = Regalloc.split_live_ranges fds in
-      let fds = List.map (Conv.cufdef_of_fdef tbl) fds in
-      Expr.({
-        p_funcs = fds;
-        p_globs = up.p_globs;
-        p_extra = up.p_extra; }) in
- 
+    let var_alloc_fd fd = Regalloc.split_live_ranges fd in
+
     let removereturn sp = 
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
       let tokeep = RemoveUnusedResults.analyse  fds in 
@@ -500,7 +490,7 @@ let main () =
     let cparams = {
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
-      Compiler.var_alloc_prog = (*apply "var alloc" *) var_alloc_prog;
+      Compiler.var_alloc_fd = apply "var alloc" var_alloc_fd;
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
       Compiler.stackalloc    = memory_analysis;
       Compiler.removereturn  = removereturn;
@@ -526,12 +516,20 @@ let main () =
       Compiler.is_reg_array = is_reg_array;
     } in
 
-    let entries =
-      let ep = List.filter (fun fd -> fd.f_cc <> Internal) (snd prog) in
-      List.map (fun fd -> Conv.cfun_of_fun tbl fd.f_name) ep in
+    let export_functions, subroutines =
+      let conv fd = Conv.cfun_of_fun tbl fd.f_name in
+      List.fold_right
+        (fun fd ((e, i) as acc) ->
+          match fd.f_cc with
+          | Export -> (conv fd :: e, i)
+          | Internal -> acc
+          | Subroutine _ -> (e, conv fd :: i)
+        )
+        (snd prog)
+        ([], []) in
 
     begin match
-      Compiler.compile_prog_to_x86 cparams entries (Expr.to_uprog cprog) with
+      Compiler.compile_prog_to_x86 cparams export_functions subroutines (Expr.to_uprog cprog) with
     | Utils0.Error e ->
       Utils.hierror "compilation error %a@."
          (pp_comp_ferr tbl) e

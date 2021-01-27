@@ -372,7 +372,7 @@ Section Section.
     last 1 [idtac] || by case=> [|??] [|??] //= args [<-].
   move=> x fty lv xs ftys lvs ih args /=.
   case E: (is_reg_ptr_lval _ _ _ _ _) => [y|] /=; last first.
-  + by t_xrbindP => args' h [<-]; apply/PSNone/ih.
+  + by t_xrbindP => args' h <-; apply/PSNone/ih.
   + t_xrbindP=> /= _ /assertP /and3P[/eqP h1 h2 h3] args'.
     by move=> h <-; apply/PSSome/ih.
   Qed.

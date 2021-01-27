@@ -23,7 +23,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-Require Import psem.
+Require Import psem psem_facts.
 Import Utf8.
 Import all_ssreflect all_algebra.
 
@@ -94,7 +94,7 @@ case: t v => [ | | n | sz ]; case: x => //; try by case.
   case: (truncate_wordP h) => {h} hle ?; subst w.
   case: Sumbool.sumbool_of_bool => // hle'.
   have ? := cmp_le_antisym hle hle' => {hle}; subst.
-  by rewrite zero_extend_u /word_sim /pword_of_word (Eqdep_dec.UIP_dec Bool.bool_dec (cmp_le_refl sz')).
+  by rewrite zero_extend_u pword_of_wordE.
 Qed.
 
 Lemma of_val_undef_sim x :

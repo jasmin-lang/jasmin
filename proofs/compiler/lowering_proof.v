@@ -2173,7 +2173,7 @@ Section PROOF.
         + apply: Eseq.
           + apply: EmkI; apply: Eopn; eauto.
             rewrite /sem_sopn /sem_pexprs /= /exec_sopn /sopn_sem /= He1 /= /truncate_word hsz1 /= /x86_MOV /check_size_8_64 hsz64 /=.
-            by rewrite /write_var /set_var /= sumbool_of_boolET.
+            by rewrite sumbool_of_boolET.
           + apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
             rewrite /= /read_es /= in Hdisje.
             rewrite /sem_sopn /sem_pexprs /= He2' /=.

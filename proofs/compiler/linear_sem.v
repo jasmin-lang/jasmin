@@ -45,6 +45,14 @@ Section SEM.
 
 Variable P: lprog.
 
+Definition label_in_lcmd (body: lcmd) : seq label :=
+  pmap (λ i, if li_i i is Llabel lbl then Some lbl else None) body.
+
+Definition label_in_lprog : seq remote_label :=
+  [seq (f.1, lbl) | f <- lp_funcs P, lbl <- label_in_lcmd (lfd_body f.2) ].
+
+Let labels := label_in_lprog.
+
 (* --------------------------------------------------------------------------- *)
 (* Semantic                                                                    *)
 
@@ -94,11 +102,11 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   | Lgoto d => eval_jump d s1
   | Ligoto e =>
     Let p := sem_pexpr [::] (to_estate s1) e >>= to_pointer in
-    if decode_label p is Some d then
+    if decode_label labels p is Some d then
       eval_jump d s1
     else type_error
   | LstoreLabel x lbl =>
-    if encode_label (lfn s1, lbl) is Some p then
+    if encode_label labels (lfn s1, lbl) is Some p then
       Let s2 := sem_sopn [::]  (Ox86 (LEA Uptr)) (to_estate s1) [:: x ] [:: wconst p ] in
       ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
     else type_error

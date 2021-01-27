@@ -137,29 +137,31 @@ Section CHECK.
 
   Section CHECK_i.
 
-  Fixpoint check_i (i: instr) (D: Sv.t) :=
+  Fixpoint check_i (sz: wsize) (i: instr) (D: Sv.t) :=
     let: MkI ii ir := i in
-    Let D2 := check_ir ii ir D in
+    Let D2 := check_ir sz ii ir D in
     Let _ := assert (if extra_free_registers ii is Some r then negb (Sv.mem r D2) else true)
                         (ii, Cerr_one_varmap "extra register (for rastack) is not free") in
     ok D2
-  with check_ir ii ir D :=
+  with check_ir sz ii ir D :=
     match ir with
     | Cassgn x tag ty e =>
       ok (read_rv_rec (read_e_rec (Sv.diff D (vrv x)) e) x)
     | Copn xs tag o es =>
       ok (read_es_rec (read_rvs_rec (Sv.diff D (vrvs xs)) xs) es)
     | Cif b c1 c2 =>
-      Let D1 := check_c check_i c1 D in
-      Let D2 := check_c check_i c2 D in
+      Let D1 := check_c (check_i sz) c1 D in
+      Let D2 := check_c (check_i sz) c2 D in
       ok (read_e_rec (Sv.union D1 D2) b)
     | Cfor _ _ _ =>
       cierror ii (Cerr_one_varmap "for loop should be unrolled")
     | Cwhile _ c e c' =>
-      if e == Pbool false then check_c check_i c D
-      else wloop check_i ii c e c' Loop.nb D
+      if e == Pbool false then check_c (check_i sz) c D
+      else wloop (check_i sz) ii c e c' Loop.nb D
     | Ccall _ xs fn es =>
       if get_fundef (p_funcs p) fn is Some fd then
+        Let _ := assert (sf_align (f_extra fd) ≤ sz)%CMP
+          (ii, Cerr_one_varmap "alignment constraints error") in
         Let _ := assert (if sf_return_address (f_extra fd) is RAstack _ then extra_free_registers ii != None else true)
           (ii, Cerr_one_varmap "no extra free register to compute the return address") in
         Let _ := assert
@@ -178,14 +180,14 @@ Section CHECK.
       ok (read_rv_rec (read_e_rec (Sv.diff D (vrv x)) e) x)
     end.
 
-  Lemma check_ir_CwhileP ii aa c e c' D D' :
-    check_ir ii (Cwhile aa c e c') D = ok D' →
+  Lemma check_ir_CwhileP sz ii aa c e c' D D' :
+    check_ir sz ii (Cwhile aa c e c') D = ok D' →
     if e == Pbool false
-    then check_c check_i c D = ok D'
+    then check_c (check_i sz) c D = ok D'
     else
       ∃ D1 D2,
-        [/\ check_c check_i c (read_e_rec D1 e) = ok D',
-         check_c check_i c' D' = ok D2,
+        [/\ check_c (check_i sz) c (read_e_rec D1 e) = ok D',
+         check_c (check_i sz) c' D' = ok D2,
          Sv.Subset D D1 &
          Sv.Subset D2 D1 ].
   Proof.
@@ -198,18 +200,18 @@ Section CHECK.
 
   End CHECK_i.
 
-  Notation check_cmd := (check_c check_i).
+  Notation check_cmd sz := (check_c (check_i sz)).
 
   Definition live_after_fd (fd: sfundef) : Sv.t :=
     set_of_var_i_seq Sv.empty fd.(f_res).
 
   Definition magic_variables : Sv.t :=
-    Sv.add (vid p.(p_extra).(sp_rip)) (Sv.add (vid (string_of_register RSP)) Sv.empty).
+    Sv.add (vid p.(p_extra).(sp_rip)) (Sv.singleton (vid (string_of_register RSP))).
 
   Definition check_fd (ffd: sfun_decl) :=
     let: (fn, fd) := ffd in
     let O := live_after_fd fd in
-    Let I := add_finfo fn fn (check_cmd fd.(f_body) O) in
+    Let I := add_finfo fn fn (check_cmd fd.(f_extra).(sf_align) fd.(f_body) O) in
     Let _ := assert (all (λ x : var_i, ~~ Sv.mem x magic_variables) fd.(f_params))
                     (Ferr_fun fn (Cerr_one_varmap "the function has RSP or global-data as parameter")) in
     Let _ := assert (all (λ x : var_i, v_var x != vid (string_of_register RSP)) fd.(f_res))
