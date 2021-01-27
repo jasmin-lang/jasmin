@@ -668,11 +668,15 @@ Section VALIDITY.
     by case: eqP => _ //; rewrite Pos.leb_refl lbl_lt_lblp1.
   Qed.
 
+  Let Hcopy x1 e1 : Pr (Ccopy x1 e1).
+  Proof.
+  Admitted.
+
   Definition linear_has_valid_labels : ∀ c, Pc c :=
-    @cmd_rect Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hif Hfor Hwhile Hcall.
+    @cmd_rect Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hif Hfor Hwhile Hcall Hcopy.
 
   Definition linear_has_valid_labels_instr : ∀ i, Pi i :=
-    @instr_Rect Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hif Hfor Hwhile Hcall.
+    @instr_Rect Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hif Hfor Hwhile Hcall Hcopy.
 
 End VALIDITY.
 

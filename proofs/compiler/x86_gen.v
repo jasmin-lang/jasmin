@@ -192,9 +192,6 @@ Proof.
   by exists fd'.
 Qed.
 
-<<<<<<< HEAD
-Lemma assemble_iP rip i j ls ls' lc xs :
-=======
 Lemma lom_eqv_write_var rip s xs (x: var_i) sz (w: word sz) s' r :
   lom_eqv rip s xs →
   write_var x (Vword w) s = ok s' →
@@ -226,36 +223,21 @@ Qed.
 
 Lemma assemble_iP i j ls ls' lc xs :
   let: rip := mk_rip (lp_rip p) in
->>>>>>> glob_array3
   omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
   match_state rip ls lc xs →
   assemble_i rip i = ok j →
   linear_sem.eval_instr p i ls = ok ls' →
-<<<<<<< HEAD
-  ∃ (xs' : x86_state) lc',
-    [/\ x86_sem.eval_instr p' j xs = ok xs' ,
-        omap lfd_body (get_fundef (lp_funcs p) (lfn ls')) = Some lc' &
-        match_state rip ls' lc' xs'].
-=======
   exists2 xs': x86_state,
     x86_sem.eval_instr p' j xs = ok xs'  &
     exists2 lc',
         omap lfd_body (get_fundef (lp_funcs p) (lfn ls')) = Some lc' &
         match_state rip ls' lc' xs'.
->>>>>>> glob_array3
 Proof.
 move => omap_lc.
 rewrite /linear_sem.eval_instr /x86_sem.eval_instr; case => eqm eqfn eqc eqpc.
 case: i => ii [] /=.
 - move => lvs op pes; t_xrbindP => -[op' asm_args] hass <- m hsem ?; subst ls'.
   have [s [-> eqm' /=]]:= assemble_sopnP hsem hass eqm.
-<<<<<<< HEAD
-  do 2!eexists; split => //; first by apply: omap_lc.
-  by constructor => //=; rewrite ?to_estate_of_estate ?eqpc.
-- move => [<-] [?];subst ls';do 2!eexists;split => //; first eassumption.
-  by constructor => //; rewrite /setpc eqpc.
-- move => lbl [<-] [?];subst ls'; do 2!eexists; split => //; first eassumption.
-=======
   eexists; first reflexivity.
   eexists; first exact: omap_lc.
   by constructor => //=; rewrite ?to_estate_of_estate ?eqpc.
@@ -266,7 +248,6 @@ case: i => ii [] /=.
 - move => lbl [<-] [?]; subst ls'.
   eexists; first reflexivity.
   eexists; first eassumption.
->>>>>>> glob_array3
   constructor => //.
   by rewrite /setpc /= eqpc.
 - case => fn lbl [<-] /=; t_xrbindP => body.
@@ -301,12 +282,6 @@ case: i => ii [] /=.
   rewrite /=.
   rewrite /sem_sopn /=.
   t_xrbindP => s' q ok_s' ? ?; subst ls' q.
-<<<<<<< HEAD
-  do 2!eexists; split => //=; first by rewrite -eqfn omap_lc.
-  split => //=; last by congr _.+1.
-  rewrite to_estate_of_estate.
-  admit.
-=======
   eexists; first reflexivity.
   rewrite /= -eqfn.
   exists lc; first exact: omap_lc.
@@ -314,7 +289,6 @@ case: i => ii [] /=.
   move: ok_s' ok_r_x.
   rewrite to_estate_of_estate !zero_extend_u sign_extend_u wrepr_unsigned.
   exact: lom_eqv_write_var.
->>>>>>> glob_array3
 - t_xrbindP => cnd lbl cndt ok_c [<-] b v ok_v ok_b.
   case: eqm => eqm hrip hd eqr eqx eqf.
   have [v' [ok_v' hvv']] := eval_assemble_cond eqf ok_c ok_v.
@@ -326,29 +300,14 @@ case: i => ii [] /=.
     move: omap_lc ok_lc''; rewrite /omap /obind /oapp => /=.
     case: get_fundef => // lfu [->]  [?]; subst lc''; clear lfu.
     rewrite /eval_JMP -(assemble_c_find_label lbl eqc) ok_pc /=.
-<<<<<<< HEAD
-    by do 2!eexists; split; eauto; constructor.
-  case => ?; subst ls' => /=; do 2!eexists; split => //; first eassumption.
-=======
     do 2 (eexists; first reflexivity).
     by constructor.
   case => ?; subst ls' => /=.
   eexists; first reflexivity.
   exists lc; first exact: omap_lc.
->>>>>>> glob_array3
   by constructor => //; rewrite /setpc /= eqpc.
 Qed.
 
-<<<<<<< HEAD
-Lemma match_state_step rip ls ls' lc xs :
-  omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
-  match_state rip ls lc xs →
-  step p ls = ok ls' →
-  ∃ xs' lc',
-    [/\ fetch_and_eval p' xs = ok xs' ,
-        omap lfd_body (get_fundef (lp_funcs p) (lfn ls')) = Some lc' &
-        match_state rip ls' lc' xs'].
-=======
 Lemma match_state_step ls ls' lc xs :
   let: rip := mk_rip (lp_rip p) in
   omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
@@ -359,7 +318,6 @@ Lemma match_state_step ls ls' lc xs :
     exists2 lc',
       omap lfd_body (get_fundef (lp_funcs p) (lfn ls')) = Some lc' &
       match_state rip ls' lc' xs'.
->>>>>>> glob_array3
 Proof.
 move => omap_lc.
 move => ms; rewrite /step /find_instr /fetch_and_eval; case: (ms)=> _ _ eqc ->.
@@ -370,12 +328,8 @@ apply: assemble_iP => //; last eassumption.
 by rewrite ok_fd.
 Qed.
 
-<<<<<<< HEAD
-Lemma match_state_sem rip ls ls' lc xs :
-=======
 Lemma match_state_sem ls ls' lc xs :
   let: rip := mk_rip (lp_rip p) in
->>>>>>> glob_array3
   omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
   lsem p ls ls' →
   match_state rip ls lc xs →
@@ -388,11 +342,7 @@ move => omap_lc.
 move => h; elim/lsem_ind: h xs lc omap_lc => {ls ls'}.
 - move => ls xs lc omap_lc h; exists xs; exists lc; split => //; exact: rt_refl.
 move => ls1 ls2 ls3 h1 h ih xs1 lc omap_lc m1.
-<<<<<<< HEAD
-have [xs2 [lc'] [x omap_lc' m2]] := match_state_step omap_lc m1 h1.
-=======
 have [ xs2 x [ lc' omap_lc' m2 ] ] := match_state_step omap_lc m1 h1.
->>>>>>> glob_array3
 have [xs3 [lc''] [y omap_lc'' m3]] := ih _ _ omap_lc' m2.
 exists xs3; exists lc''; split => //.
 apply: x86sem_trans; last by eauto.
