@@ -1009,27 +1009,38 @@ Section PROPER.
     by do 3 f_equal;apply eq_in_map=> z _;rewrite Heq.
   Qed.
 
+  Local Lemma Wcopy x1 e1: Pr (Ccopy x1 e1).
+  Proof.
+    move => ii m1 m2 Heq /=.
+    have -> : const_prop_e m1 e1 = const_prop_e m2 e1 by rewrite Heq.
+    have []:= const_prop_rv_m Heq (refl_equal x1).
+    rewrite /RelationPairs.RelCompFun.
+    case: const_prop_rv => /= [m1' rv1'].
+    case: const_prop_rv => /= [m2' rv2'].
+    by move => Heq' <-; split.
+  Qed.
+
 End PROPER.
 
 Lemma const_prop_i_m :
   Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) const_prop_i.
 Proof.
   move=> m1 m2 Hm i1 i2 <-.
-  apply : (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall i1) Hm.
+  apply : (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall Wcopy i1) Hm.
 Qed.
 
 Lemma const_prop_i_r_m :
   Proper (@Mvar_eq const_v ==> eq ==> eq ==> @Mvarc_eq const_v) const_prop_ir.
 Proof.
   move=> m1 m2 Hm ii1 ii2 <- i1 i2 <-.
-  apply : (instr_r_Rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall i1) Hm.
+  apply : (instr_r_Rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall Wcopy i1) Hm.
 Qed.
 
 Lemma const_prop_m :
   Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) (const_prop const_prop_i).
 Proof.
   move=> m1 m2 Hm c1 c2 <-.
-  apply : (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall c1) Hm.
+  apply : (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall Wcopy c1) Hm.
 Qed.
 
 Lemma valid_cpm_m :
