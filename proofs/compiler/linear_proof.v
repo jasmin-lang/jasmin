@@ -243,6 +243,7 @@ Proof.
   by case: ifP.
 Qed.
 
+
 Lemma find_instr_cat_tl c fn s i :
   find_instr s = Some i ->
   find_instr (setc s fn (lc s ++ c)) = Some i.
