@@ -1247,9 +1247,13 @@ Proof.
   move: (i: nat) (ltn_ord i) => {i} i /ltP i_bounded.
   case: (@ltP n (wsize_size_minus_1 sz).+1) => hn.
   + apply/eqP.
-    apply/forallnat_belowP: n hn.
     apply/forallnat_belowP: i i_bounded.
-    by case: sz; native_compute.
+    change (
+        let k := wrepr sz (- 2 ^ Z.of_nat n) in
+        forallnat_below (λ i : nat, wbit_n k i == (n <= i)%nat) (wsize_size_minus_1 sz).+1
+      ).
+    apply/forallnat_belowP: n hn.
+    by case: sz; vm_cast_no_check (erefl true).
   replace (wrepr _ _) with (0%R : word sz).
   rewrite w0E; symmetry; apply/leP; lia.
   rewrite wrepr_opp -oppr0.
@@ -1257,7 +1261,6 @@ Proof.
   apply/word_eqP.
   rewrite mkword_valK.
   apply/eqP; symmetry.
-  Set Printing Coercions.
   rewrite /modulus two_power_nat_equiv.
   apply/Z.mod_divide; first exact: pow2nz.
   exists (2 ^ (Z.of_nat (n - (wsize_size_minus_1 sz).+1))).
