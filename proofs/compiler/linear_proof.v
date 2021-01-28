@@ -670,7 +670,8 @@ Section VALIDITY.
 
   Let Hcopy x1 e1 : Pr (Ccopy x1 e1).
   Proof.
-  Admitted.
+    by move => ii fn lbl /=; split => //; apply: OrdersEx.Positive_as_DT.le_refl.
+  Qed.
 
   Definition linear_has_valid_labels : ∀ c, Pc c :=
     @cmd_rect Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hif Hfor Hwhile Hcall Hcopy.
