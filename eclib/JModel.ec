@@ -8,6 +8,7 @@ abbrev MOVSZ32 (x : W32.t) = pack4 [x; W32.zero; W32.zero; W32.zero].
 abbrev [-printing] setw0_128 = W128.of_int 0.
 abbrev [-printing] setw0_256 = W256.of_int 0.
 
+op concat_2u128 (h l: W128.t) = pack2 [l; h].
 (* -------------------------------------------------------------------- *)
 
 op VPSHUFB_128_B (w:W128.t) (m : W8.t) =

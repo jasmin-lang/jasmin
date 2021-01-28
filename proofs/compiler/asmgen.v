@@ -196,6 +196,17 @@ Definition assemble_sopn ii op (outx : lvals) (inx : pexprs) :=
           (Cerr_assembler (AsmErr_string "assemble_sopn Ox86MOVZX32: destination is not a register")) 
       end in
     assemble_x86_opn ii (MOV U32) outx inx 
+
+  | Oconcat128 =>
+    Let inx := 
+        match inx with
+        | [:: h; Pvar _ as l] => ok [:: l; h; @wconst U8 1%R]
+        |  _ => 
+          cierror ii 
+            (Cerr_assembler (AsmErr_string "assemble_sopn Oconcat: assert false"))
+        end in
+    assemble_x86_opn ii VINSERTI128 outx inx
+    
   | Ox86 op =>
     assemble_x86_opn ii op outx inx 
   end.
@@ -685,6 +696,52 @@ Proof.
                id.(id_out) id.(id_tout)
                (0%R: word sz)
                MSB_CLEAR (refl_equal _) hw hlo hcd id.(id_check_dest)).
+  + t_xrbindP.
+    case: args => // h [] // [] // x [] //=.
+    rewrite /sem_sopn /exec_sopn /sopn_sem /=.
+    t_xrbindP => ?? vh hvh ? vl hvl <- <- /= vd.
+    t_xrbindP => wh hwh wl hwl <- <- /= hwr ? <-.
+    rewrite /assemble_x86_opn /=.
+    t_xrbindP => asm_args' haux _ /assertP hch _ /assertP /andP[hca hcd] <- ? hlow.
+    subst asm_args'.
+    have [s' [hwm hlow']]:= 
+      compile_lvals 
+       (id_out := [:: E 0]) (id_tout := [:: sword256]) MSB_CLEAR refl_equal hwr hlow hcd refl_equal.
+    exists s'; split => //.
+    move: hca; rewrite /check_sopn_args /= => /and4P [] hE1 hE2 hE3 _.
+Opaque eval_arg_in_v.
+    rewrite /eval_op /exec_instr_op /= /eval_instr_op /= hch.
+    have [vh' [-> /= hvh']]:= check_sopn_arg_sem_eval hlow hE2 hvh hwh.
+    have [v1 [/= -> hv1 /=]] := 
+       check_sopn_arg_sem_eval (gd:=gd) hlow hE3 refl_equal (truncate_word_u _).
+Transparent eval_arg_in_v.
+    move: hE1; rewrite /check_sopn_arg /=.
+    case: onth => // a.
+    case heq: xreg_of_var => [ a' | //] /andP[] hc _.
+    have := xreg_of_varI heq => {heq}.
+    case: a' hc => //= [ r | xmm].
+    + rewrite /compat_imm; case:a => //= r' /orP [/eqP [?]|//] hr; subst r'.
+      have heq := var_of_register_of_var hr. 
+      rewrite -heq in hvl.
+      case: hlow => _ /(_ _ _ hvl) hu _.
+      move: hwl hu; rewrite /to_word.
+      case: (vl) => // [ ws w /=| []//].
+      rewrite /truncate_word /word_uincl.
+      case: ifP => // h1 _ /andP [] h2.
+      by have := cmp_le_trans h1 h2.
+
+    rewrite /compat_imm; case:a => //= xmm' /orP [ /eqP[?]| //] hxmm;subst xmm'.
+    rewrite hvh' hv1 /= -hwm /=; do 3! f_equal.
+    have := xxgetreg_ex hlow hxmm hvl.
+    rewrite zero_extend_u /winserti128 => hu.
+    have -> : (lsb (wrepr U8 (wunsigned 1))) by done.
+    do 2! f_equal; rewrite /split_vec /=.
+    move: hwl hu; rewrite /to_word.
+    case: (vl) => // [ws wl' /= | []//].
+    rewrite /truncate_word /word_uincl mul0n.
+    case: ifP => // hle.
+    rewrite (@subword0 U128 U256) // => -[] <- /andP [] _ /eqP ->.
+    by rewrite zero_extend_idem.
   + case: lvs => // -[] // x [] //.
     rewrite /sem_sopn /exec_sopn /sopn_sem /=.
     case: args => //= a args.
@@ -720,3 +777,4 @@ Proof.
     by rewrite Fv.setP_neq //; apply h4. 
   by move=> a; apply: assemble_x86_opnP.
 Qed.
+
