@@ -1236,7 +1236,9 @@ Section PROOF.
         have M' := mm_alloc M ok_m1'.
         case/andP: ok_save_stack => /andP[] /eqP sf_align_1 /eqP stk_sz_0 /eqP stk_extra_sz_0.
         have top_stack_preserved : top_stack m1' = top_stack (s1: mem).
-        + rewrite (alloc_stack_top_stack ok_m1') /top_stack_after_alloc sf_align_1 align_word_U8.
+        + rewrite (alloc_stack_top_stack ok_m1') sf_align_1.
+          rewrite Memory.top_stack_after_aligned_alloc.
+          2: exact: is_align8.
           by rewrite stk_sz_0 stk_extra_sz_0 -addE add_0.
         have X' : vm_uincl (set_RSP m1' s1) vm1.
         + rewrite /set_RSP top_stack_preserved.

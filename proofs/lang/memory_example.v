@@ -153,7 +153,8 @@ Proof.
 Qed.
 
 Instance A : alignment :=
-  Alignment is_align_add is_align_mod is_align_m is_align_no_overflow.
+  Alignment is_align_add is_align_mod is_align_m is_align_no_overflow
+            (@align_word_aligned Uptr).
 
 End Align.
 
@@ -198,6 +199,17 @@ Qed.
 Lemma sub_le (a b p: pointer) :
   wunsigned a <= wunsigned b ↔ sub p b <= sub p a.
 Proof. rewrite !subE; Psatz.lia. Qed.
+
+Lemma top_stack_after_alloc_bounded p ws sz :
+  0 <= sz <= wunsigned p →
+  wunsigned p - wunsigned (top_stack_after_alloc p ws sz) <= sz + wsize_size ws.
+Proof.
+  rewrite /top_stack_after_alloc /= => sz_pos.
+  move: (align_word _ _) (align_word_range ws (p + wrepr Uptr (- sz))) => q.
+  rewrite wunsigned_add; first Psatz.lia.
+  have := wunsigned_range p.
+  Psatz.lia.
+Qed.
 
 (** An example instance of the memory *)
 Module MemoryI : MemoryT.
@@ -792,7 +804,7 @@ Module MemoryI : MemoryT.
       is_align (top_stack m' + wrepr U64 ofs) s = is_align (wrepr U64 ofs) s.
   Proof.
     rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-].
-    rewrite /is_align /top_stack /= => ofs s hws_le.
+    rewrite /top_stack /= => ofs s hws_le.
     move: h; rewrite /top_stack => /andP[] /andP[] /= ok_f /lezP sz_pos.
     have /andP[ok_fs _] := framesP m.
     have fs_pos := footprint_of_valid_frames ok_fs.
@@ -957,6 +969,13 @@ Module MemoryI : MemoryT.
     by case: (stack_blocks_rec _ _).
   Qed.
 
+  Lemma top_stack_after_aligned_alloc p ws sz :
+    is_align p ws →
+    top_stack_after_alloc p ws sz = (p + wrepr Uptr (- round_ws ws sz))%R.
+  Proof.
+    rewrite /top_stack_after_alloc /is_align /do_align /=.
+  Admitted.
+
   Lemma alloc_stack_complete m ws sz sz' :
     let: old_size:= sub (stack_root m) (memory_model.top_stack m) in
     let: max_size := sub (stack_root m) (stack_limit m) in
@@ -970,13 +989,15 @@ Module MemoryI : MemoryT.
   Proof.
     rewrite !top_stackE !zify => - [ sz_pos ] [ sz'_pos ].
     rewrite /alloc_stack.
-    rewrite -/(top_stack_after_alloc (top_stack m) ws (sz + sz')) /valid_frame /=.
+    rewrite /valid_frame /=.
     case: Sumbool.sumbool_of_bool; first by eauto.
     rewrite /footprint_of_frame /= -!subE.
     move => /negbT; rewrite !zify => X no_overflow; elim: X.
     refine ((λ x, conj (conj sz_pos (proj1 x)) (proj2 x)) _).
     have -> : footprint_of_stack (frames m) = sub (stk_root m) (top_stack m).
     - rewrite subE wunsigned_top_stack; ring.
+    change (@align_word Uptr) with do_align.
+    rewrite -/(top_stack_after_alloc (top_stack m) ws (sz + sz')).
     case: ifPn no_overflow => top_align; rewrite zify => no_overflow.
     { (* old top stack is aligned for ws *)
       rewrite top_stack_after_aligned_alloc //.

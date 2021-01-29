@@ -344,6 +344,8 @@ Class alignment : Type :=
     ; is_align_mod ptr sz : (wunsigned ptr mod wsize_size sz = 0)%Z -> is_align ptr sz
     ; is_align_m sz sz' ptr : (sz' ≤ sz)%CMP → is_align ptr sz → is_align ptr sz'
     ; is_align_no_overflow ptr sz : is_align ptr sz → no_overflow ptr (wsize_size sz)
+    ; do_align: wsize → pointer → pointer
+    ; do_align_is_align : ∀ sz p, is_align (do_align sz p) sz
     }.
 
 Lemma cut_wbase_Uptr sz :
@@ -392,26 +394,6 @@ Proof.
   case: eqP; Psatz.lia.
 Qed.
 
-Definition top_stack_after_alloc (top: pointer) (ws: wsize) (sz: Z) : pointer :=
-  align_word ws (top + wrepr Uptr (- sz)).
-
-Lemma top_stack_after_aligned_alloc p ws sz :
-  wunsigned p mod wsize_size ws == 0 →
-  top_stack_after_alloc p ws sz = (p + wrepr Uptr (- round_ws ws sz))%R.
-Proof.
-Admitted.
-
-Lemma top_stack_after_alloc_bounded p ws sz :
-  0 <= sz <= wunsigned p →
-  wunsigned p - wunsigned (top_stack_after_alloc p ws sz) <= sz + wsize_size ws.
-Proof.
-  rewrite /top_stack_after_alloc => sz_pos.
-  move: (align_word _ _) (align_word_range ws (p + wrepr Uptr (- sz))) => q.
-  rewrite wunsigned_add; first Psatz.lia.
-  have := wunsigned_range p.
-  Psatz.lia.
-Qed.
-
 Class memory (mem: Type) : Type :=
   Memory {
       read_mem  : mem -> pointer -> forall (s:wsize), exec (word s)
@@ -436,6 +418,9 @@ Section SPEC.
   Context (AL: alignment) mem (M: memory mem)
     (m: mem) (ws:wsize) (sz: Z) (sz': Z) (m': mem).
   Let pstk := top_stack m'.
+
+  Definition top_stack_after_alloc (top: pointer) (ws: wsize) (sz: Z) : pointer :=
+    do_align ws (top + wrepr Uptr (- sz)).
 
   Record alloc_stack_spec : Prop := mkASS {
     ass_read_old : forall p s, valid_pointer m p s -> read_mem m p s = read_mem m' p s;
@@ -469,6 +454,7 @@ Section SPEC.
 
 End SPEC.
 
+Arguments top_stack_after_alloc {_} _ _ _.
 Arguments alloc_stack_spec {_ _ _} _ _ _ _.
 Arguments stack_stable {_ _} _ _.
 Arguments free_stack_spec {_ _} _ _.
@@ -561,6 +547,10 @@ Parameter alloc_stack_complete :
     else sz + sz' + wsize_size ws <=? available (* loose bound, exact behavior is under-specified *)
     ] →
     ∃ m', alloc_stack m ws sz sz' = ok m'.
+
+Parameter top_stack_after_aligned_alloc : forall p ws sz,
+    is_align p ws →
+    top_stack_after_alloc p ws sz = (p + wrepr Uptr (- round_ws ws sz))%R.
 
 Parameter write_mem_stable : forall m m' p s v,
   write_mem m p s v = ok m' -> stack_stable m m'.

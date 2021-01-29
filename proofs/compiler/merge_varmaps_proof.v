@@ -684,9 +684,7 @@ Section LEMMA.
         2: rewrite (Fv.setP_neq _ _ ok_ra).
         1-3: exact: vgd_tv.
       rewrite -(write_vars_emem ok_s1) (alloc_stack_top_stack ok_m').
-      apply: is_align_mod.
-      apply/eqP.
-      exact: align_word_aligned.
+      exact: do_align_is_align.
     have sim1 : match_estate live' s1 t1'.
     - subst t1'; split.
       + by rewrite emem_with_vm (write_vars_emem ok_s1).
