@@ -318,6 +318,7 @@ let safe_instr ginstr = match ginstr.i_desc with
   | Cwhile(_,_, _, _) -> []       (* We check the while condition later. *)
   | Ccall(_, lvs, _, es) -> safe_lvals lvs @ safe_es es
   | Cfor (_, (_, e1, e2), _) -> safe_es [e1;e2]
+  | Ccopy (lv, e) -> safe_e_rec (safe_lval lv) e
 
 let safe_return main_decl =
   List.fold_left (fun acc v -> safe_var v @ acc) [] main_decl.f_ret
@@ -1391,6 +1392,7 @@ end = struct
       | Ccall (_, lvs, fn, es)  -> 
         let f' = get_fun_def prog fn |> oget in
         nm_lvs vs_for lvs && nm_es vs_for es && nm_fdecl f'
+      | Ccopy (lv, e)    -> nm_lv vs_for lv && nm_e vs_for e
 
     and nm_fdecl f = nm_stmt [] f.f_body
 
@@ -1783,7 +1785,7 @@ end = struct
 
       | Cfor(i, (d,e1,e2), c) ->
         let prog_pt = fst ginstr.i_loc in
-        match AbsExpr.aeval_cst_int state.abs e1, 
+        (match AbsExpr.aeval_cst_int state.abs e1, 
               AbsExpr.aeval_cst_int state.abs e2 with
         | Some z1, Some z2 ->
           if z1 = z2 then state else
@@ -1826,6 +1828,22 @@ end = struct
             (Printer.pp_expr ~debug:true) e1
             (Printer.pp_expr ~debug:true) e2;
           assert false
+        )
+
+      | Ccopy (lv, Pif (_, c, el, er))
+        when Config.sc_pif_movecc_as_if () ->
+        let cl = { ginstr with i_desc = Ccopy (lv, el) } in
+        let cr = { ginstr with i_desc = Ccopy (lv, er) } in
+        aeval_if ginstr c [cl] [cr] state
+
+      | Ccopy (lv, e) ->
+        let abs = AbsExpr.abs_assign
+            state.abs 
+            (ty_lval lv)
+            (AbsExpr.mvar_of_lvar state.abs ginstr.i_info lv) 
+            e in
+        { state with abs = abs; }
+
 
   and aeval_call : funname -> minfo func -> L.t -> astate -> astate =
     fun f f_decl callsite st_in ->

@@ -28,7 +28,7 @@ Require Import x86_gen expr.
 Import ZArith.
 Require merge_varmaps.
 Require Import compiler_util allocation array_init inline dead_calls unrolling remove_globals
-   constant_prop dead_code array_expansion lowering makeReferenceArguments stack_alloc linear x86_sem.
+   constant_prop dead_code array_expansion lowering makeReferenceArguments stack_alloc linear tunneling x86_sem.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -196,6 +196,11 @@ Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
   Let _ := merge_varmaps.check pd cparams.(extra_free_registers) in
   Let pl := linear_prog pd cparams.(extra_free_registers) in
   let pl := cparams.(print_linear) pl in
+  (* tunneling                         *)
+  (*
+  Let pl := tunnel_program pl in
+  let pl := cparams.(print_linear) pl in
+  *)
   (* asm                               *)
   ok pl.
 
