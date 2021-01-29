@@ -492,11 +492,11 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t * leak_e_es_tr :=
       | Some (a,b) =>
         if (sz ≤ U64)%CMP
         then (k32 sz (LowerFopn (Ox86 (ANDN sz)) [:: a ; b ] None),  LT_idseq LT_id)
-        else (kb true sz (LowerCopn (Ox86 (VPANDN sz)) [:: a ; b ]), LT_emseq)
+        else (kb true sz (LowerCopn (Ox86 (VPANDN sz)) [:: a ; b ]), LT_idseq LT_id)
       | None =>
         if (sz ≤ U64)%CMP
-        then (k8 sz (LowerFopn (Ox86 (AND sz)) [:: a ; b ] (Some U32)), LT_emseq)
-        else (kb true sz (LowerCopn (Ox86 (VPAND sz)) [:: a ; b ]), LT_emseq)
+        then (k8 sz (LowerFopn (Ox86 (AND sz)) [:: a ; b ] (Some U32)), LT_idseq LT_id)
+        else (kb true sz (LowerCopn (Ox86 (VPAND sz)) [:: a ; b ]), LT_idseq LT_id)
       end
 
 
