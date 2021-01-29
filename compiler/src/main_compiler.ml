@@ -100,6 +100,9 @@ let rec pp_comp_err tbl fmt =
   | Compiler_util.Cerr_linear s ->
     Format.fprintf fmt "linearisation error %a"
       pp_string0 s
+  | Compiler_util.Cerr_tunneling s ->
+    Format.fprintf fmt "tunneling error %a"
+      pp_string0 s
   | Compiler_util.Cerr_needspill (fn, xs) ->
      let pp =
        match !saved_rev_alloc with

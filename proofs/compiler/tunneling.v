@@ -1597,13 +1597,12 @@ End TunnelingProof.
 
 Section TunnelingCompiler.
 
-  (*TODO: We may want to remove duplicates in funnames, or not.*)
   Definition funnames p := map (fun x => x.1) (lp_funcs p).
 
   Definition tunnel_program p :=
     if well_formed_lprog p
     then ok (foldr lprog_tunnel p (funnames p))
-    else type_error.
+    else Error (Ferr_msg (Cerr_tunneling "not well-formed")).
 
   Lemma all_if (T : Type) (a b c : pred T) (s : seq T) :
     all a (filter c s) ->

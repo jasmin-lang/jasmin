@@ -197,10 +197,8 @@ Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
   Let pl := linear_prog pd cparams.(extra_free_registers) in
   let pl := cparams.(print_linear) pl in
   (* tunneling                         *)
-  (*
   Let pl := tunnel_program pl in
   let pl := cparams.(print_linear) pl in
-  *)
   (* asm                               *)
   ok pl.
 

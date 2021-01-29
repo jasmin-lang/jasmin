@@ -1830,12 +1830,6 @@ end = struct
           assert false
         )
 
-      | Ccopy (lv, Pif (_, c, el, er))
-        when Config.sc_pif_movecc_as_if () ->
-        let cl = { ginstr with i_desc = Ccopy (lv, el) } in
-        let cr = { ginstr with i_desc = Ccopy (lv, er) } in
-        aeval_if ginstr c [cl] [cr] state
-
       | Ccopy (lv, e) ->
         let abs = AbsExpr.abs_assign
             state.abs 

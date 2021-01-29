@@ -102,6 +102,7 @@ Inductive error_msg :=
   | Cerr_one_varmap: string -> error_msg
   | Cerr_one_varmap_free: funname -> seq var -> error_msg
   | Cerr_linear   : string -> error_msg
+  | Cerr_tunneling : string -> error_msg
   | Cerr_needspill  : funname -> seq var -> error_msg
   | Cerr_assembler: asm_error -> error_msg
 
