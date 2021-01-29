@@ -213,7 +213,7 @@ type pinstr_r =
   | PIIf        of pexpr * pblock * pblock option
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock
   | PIWhile     of align * pblock option * pexpr * pblock option
-  | PICopy      of plvalue * pexpr
+  | PICopy      of plvalue list * pexpr
 
 and pblock_r = pinstr list
 and fordir   = [ `Down | `Up ]

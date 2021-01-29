@@ -290,10 +290,10 @@ let rec pp_instr depth fmt p =
       (pp_opt (pp_block depth)) pre
       pp_expr b
       (pp_opt (pp_block depth)) body
-  | PICopy (lv, e) ->
+  | PICopy (lvs, e) ->
     F.fprintf fmt "%a %a %a"
       kw "copy"
-      pp_lv lv
+      (pp_list ", " pp_lv) lvs
       pp_expr e
       
 

@@ -1,7 +1,6 @@
 export fn test (reg u64 x) -> reg u64 {
   reg u64 r;
   r=x;
-  if (r>5) {} else {}
-  if (true) {} else {}
+  if (r>5) {if (r>6) {} else {}} else {if (r>2) {} else {}}
   return r;
 }
