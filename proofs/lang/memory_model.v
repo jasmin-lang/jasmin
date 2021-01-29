@@ -392,30 +392,6 @@ Proof.
   case: eqP; Psatz.lia.
 Qed.
 
-(** Round to the multiple of [sz'] below. *)
-Definition align_word (sz sz': wsize) (p: word sz) : word sz :=
-  wand p (wrepr sz (-wsize_size sz')).
-
-Lemma align_word_U8 sz (p: word sz) :
-  align_word U8 p = p.
-Proof. by rewrite /align_word wandC wandN1. Qed.
-
-Lemma align_word_aligned (sz sz': wsize) (p: word sz) :
-  wunsigned (align_word sz' p) mod wsize_size sz' == 0.
-Proof.
-  rewrite /align_word wsize_size_is_pow2 wand_align Z.mod_mul //.
-  exact: pow2nz.
-Qed.
-
-Lemma align_word_range sz sz' (p: word sz) :
-  wunsigned p - wsize_size sz' < wunsigned (align_word sz' p) <= wunsigned p.
-Proof.
-  rewrite /align_word wsize_size_is_pow2 wand_align.
-  have ? := wunsigned_range p.
-  have ? := pow2pos (wsize_log2 sz').
-  elim_div; Psatz.lia.
-Qed.
-
 Definition top_stack_after_alloc (top: pointer) (ws: wsize) (sz: Z) : pointer :=
   align_word ws (top + wrepr Uptr (- sz)).
 
