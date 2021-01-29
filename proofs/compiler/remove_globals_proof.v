@@ -288,7 +288,14 @@ Module EXTEND. Section PROOFS.
     case: e1 => // -[] // w [] // z Hisglob.
     rewrite /add_glob; case: ifP => //; first by move => _ [<-].
     case: ifP => // Hnhas1 Hnhas2 [<-] g v.
-  Admitted.
+    move => Hgetglobal; case: (get_globalI Hgetglobal) => glbv [Hglbv ?]; subst v => /= Hty.
+    rewrite /get_global /=; case: ifP; last by rewrite Hglbv Hty eqxx.
+    move => /eqP ?; subst g => /=.
+    move: Hglbv; rewrite /get_global_value => Hglbv.
+    have:= (assoc_memP Hglbv) => Hin.
+    move: Hnhas1 => /hasPP Hnin; exfalso; apply: Hnin.
+    by exists ({| vtype := vtype xi; vname := fresh_id gd1 xi |}, glbv).
+  Qed.
 
   Local Lemma extend_glob_cP c gd1 gd2 :
     foldM (extend_glob_i is_glob fresh_id) gd1 c = ok gd2 ->
