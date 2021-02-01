@@ -548,8 +548,8 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
   | LT_ilmov1, Lopn le => [:: Lopn (LSub [:: LSub [:: leak_E stk (LT_subi 0) le]; LSub [:: LEmpty]]) ; 
                                        Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: leak_E stk (LT_subi 1) le]])]
   | LT_ilmov2, Lopn le => [:: Lopn (LSub [:: LSub [::];
-                                        LSub[:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk LT_id le]])]
-  | LT_ilmov3, Lopn le => [:: Lopn (LSub [:: LSub [::]; LSub [:: leak_E stk LT_id le]])]
+                                        LSub[:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])]
+  | LT_ilmov3, Lopn le => [:: Lopn (LSub [:: LSub [::]; LSub [:: leak_E stk (LT_subi 1) le]])]
   | LT_ilmov4, Lopn le => [:: Lopn (LSub [:: LSub [:: leak_E stk (LT_subi 0) le]; 
                                              LSub [:: leak_E stk (LT_subi 1) le]])] 
   | LT_ilinc ltes, Lopn le => [:: Lopn (LSub [:: LSub (leak_ES stk ltes (leak_E stk (LT_subi 0) le)); 

@@ -1605,7 +1605,7 @@ Qed.
       + case: eqP; last by rewrite andbF => _ _ /=; case: ifP.
         move => -> {sz}; rewrite /= /sem_sop2 /=; t_xrbindP => -[v1 l1] ok_v1 -[v2 l2] ok_v2.
         move => wv wv' /to_wordI [sz1] [w1] [hw1 /= hw11 hw12]; subst.
-        move => ? /to_wordI [sz2] [w2] [hw2 /= hw21 hw22]; subst.
+        move => wv'' /to_wordI [sz2] [w2] [hw2 /= hw21 hw22]; subst.
         move => hwv hv hl; subst wv v.
         case hty: (_ ≤ _)%CMP.  
         * (* OR *)
@@ -1653,7 +1653,7 @@ Qed.
      
      (* Olsr *)
       + case: andP => // - [hsz64] /eqP h1; subst sz.
-        rewrite /sem_pexprs /=; t_xrbindP => -[v1 l1] -> -[v2 l2] -> vo.
+        rewrite /sem_pexprs /=; t_xrbindP => -[v1 l1] -> -[v2 l2] -> /= vo.
         rewrite /sem_sop2 /exec_sopn /sopn_sem /=.
         t_xrbindP => w1 /= hw1 w2 /= hw2 /= hv' hv hle; rewrite hv in hv'; subst v vo.
         case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
@@ -1993,9 +1993,8 @@ Admitted.
         rewrite hw /= in Hw'. rewrite htsz in Hw'.
         rewrite zero_extend_u -hwsz /= wrepr0 in Hw'. rewrite /=.
         case: ifP => hsz64 //=; apply: sem_seq1; apply: EmkI; apply: Eopn;
-        rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /= /Oset0_instr hsz64 /=.
-        admit. (* don't know why I can't rewrite Hw' here *)        
-        admit. (* don't know why I can't rewrite Hw' here *)
+        rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /= /Oset0_instr hsz64 /=; subst. by rewrite Hw' /=.
+        subst. by rewrite Hw' /=.        
     (* LowerCopn *) (* done *)
     + move=> o e' [vs] [Hes] Hex Hle.
       exists s2'; split=> //. rewrite /=.
@@ -2256,7 +2255,7 @@ Admitted.
     * by rewrite Hv'.
     * exact: hty.
     exact: Hw'.
-  Admitted.
+  Qed.
 
   Lemma vars_I_opn ii xs t o es:
     Sv.Equal (vars_I (MkI ii (Copn xs t o es))) (Sv.union (vars_lvals xs) (read_es es)).
@@ -2826,7 +2825,7 @@ Admitted.
       rewrite /get_leak in Hlt.
       have Hvm1': vm1' = evm {| emem := m2; evm := vm1' |} by [].
       rewrite Hvm1' /= in Hs1'1. have H': vm2 = evm {| emem := m2; evm := vm2 |} by [].
-      rewrite H' /=. admit. (* don't know how to use Hs1'3 to replace vm1' with vm2 in Hs1'1 *)
+      rewrite H' /=. subst.  admit. (* don't know how to use Hs1'3 to replace vm1' with vm2 in Hs1'1 *)
     + rewrite -Hf'11 /=. exact: Hres.
     + rewrite -Hf'11 /=. exact: Hfull.
   Admitted.
