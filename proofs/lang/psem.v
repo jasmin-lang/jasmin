@@ -2884,5 +2884,19 @@ Local Open Scope vmap.
   Lemma wf_vmap0 : wf_vm vmap0.
   Proof. by move=> x;rewrite /vmap0 Fv.get0;case:vtype. Qed.
 
+  Definition constant_time (P : mem -> mem -> seq value -> seq value -> Prop) (p : prog) (f : funname) : Prop :=
+  forall mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf1 lf2, 
+  sem_call p mem1 f va1 lf1 mem1' vr1 ->
+  sem_call p mem2 f va2 lf2 mem2' vr2 ->
+  P mem1 mem2 va1 va2 ->
+  lf1 = lf2.
+ 
+  Definition constant_time' (P : mem -> mem -> seq value -> seq value -> Prop) (p : prog) (f : funname) : Prop :=
+  forall mem1 mem2 va1 va2,
+  P mem1 mem2 va1 va2 ->  
+  exists mem1' mem2' vr1 vr2 lf, 
+  sem_call p mem1 f va1 lf mem1' vr1 /\
+  sem_call p mem2 f va2 lf mem2' vr2.
+
 End WF.
 
