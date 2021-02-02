@@ -2421,6 +2421,17 @@ Proof.
  move=> -> /=. by rewrite -Hv /=.
 Qed.
 
+Lemma get_var_sem_pexprs_empty' gd s xs vs:
+mapM (λ x : var_i, get_var (evm s) x) xs = ok vs ->
+sem_pexprs gd s [seq Pvar i | i <- xs] = ok (map_v_el vs).
+Proof.
+ rewrite /sem_pexprs. elim: xs vs.
+ + move=> vs /= Hm /=. by case: Hm=> <-.
+ move=> a l /= Hm /=. t_xrbindP.
+ move=> vs v Hg vs' Hm' Hv. rewrite Hg /=. move: (Hm vs' Hm').
+ move=> -> /=. by rewrite -Hv /=.
+Qed.
+
 Section UNDEFINCL.
 
 Variable (p:prog).

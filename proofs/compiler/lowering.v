@@ -398,9 +398,9 @@ Definition is_lnot a :=
 
 Definition is_andn  a b :=
   match is_lnot a, is_lnot b with
-  | Some a, _      => Some (a, b)
-  | None  , Some b => Some (b, a)
-  | None  , None   => None
+  | Some a, _      => (Some (a, b), LT_id)
+  | None  , Some b => (Some (b, a), LT_rev)
+  | None  , None   => (None, LT_id)
   end.
 
 Definition mulr sz a b :=
@@ -446,7 +446,7 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t * leak_e_es_tr :=
     match op with
     | Oadd (Op_w sz) =>
       match is_lea sz x e with
-      | Some l => (LowerLea sz l, LT_emseq)
+      | Some l => (k8 sz (LowerLea sz l), LT_emseq)
       | None   =>
         match add_inc_dec_classify sz a b with
         | (AddInc y, lte) => (k8 sz (LowerInc (Ox86 (INC sz)) y), LT_subseq lte)
@@ -454,6 +454,7 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t * leak_e_es_tr :=
         | (AddNone, lte)  => (k8 sz (LowerFopn (Ox86 (ADD sz)) [:: a ; b ] (Some U32)), LT_idseq lte)
         end
       end
+
     | Osub (Op_w sz) =>
       match is_lea sz x e with
       | Some l => (k8 sz (LowerLea sz l), LT_emseq)
@@ -489,14 +490,14 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t * leak_e_es_tr :=
 
     | Oland sz =>
       match is_andn a b with
-      | Some (a,b) =>
+      | (Some (a,b), lte) =>
         if (sz ≤ U64)%CMP
-        then (k32 sz (LowerFopn (Ox86 (ANDN sz)) [:: a ; b ] None),  LT_idseq LT_id)
-        else (kb true sz (LowerCopn (Ox86 (VPANDN sz)) [:: a ; b ]), LT_idseq LT_id)
-      | None =>
+        then (k32 sz (LowerFopn (Ox86 (ANDN sz)) [:: a ; b ] None),  LT_idseq lte)
+        else (kb true sz (LowerCopn (Ox86 (VPANDN sz)) [:: a ; b ]), LT_idseq lte)
+      | (None, lte) =>
         if (sz ≤ U64)%CMP
-        then (k8 sz (LowerFopn (Ox86 (AND sz)) [:: a ; b ] (Some U32)), LT_idseq LT_id)
-        else (kb true sz (LowerCopn (Ox86 (VPAND sz)) [:: a ; b ]), LT_idseq LT_id)
+        then (k8 sz (LowerFopn (Ox86 (AND sz)) [:: a ; b ] (Some U32)), LT_idseq lte)
+        else (kb true sz (LowerCopn (Ox86 (VPAND sz)) [:: a ; b ]), LT_idseq lte)
       end
 
 
