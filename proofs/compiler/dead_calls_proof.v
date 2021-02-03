@@ -24,7 +24,6 @@ with i_Calls_r (i : instr_r) {struct i} : Sp.t :=
   | Cfor   _  _  c1   => c_Calls c1
   | Cwhile _ c1 _  c2 => Sp.union (c_Calls c1) (c_Calls c2)
   | Ccall  _  _  f  _ => Sp.singleton f
-  | Ccopy _ _ => Sp.empty
   end.
 
 Definition c_Calls (cmd : cmd) :=
@@ -83,14 +82,13 @@ apply (@cmd_rect
          (fun i => forall c, Sp.Equal (i_calls c i) (Sp.union c (i_Calls i)))
          (fun i => forall c, Sp.Equal (c_calls c i) (Sp.union c (c_Calls i)))) => /=
   [ i0 ii Hi | | i0 c0 Hi Hc | x t e | xs o es | e c1 c2 Hc1 Hc2
-    | v dir lo hi c0 Hc | a c0 e c' Hc Hc' | ii xs f es| x1 s1] c //.
+    | v dir lo hi c0 Hc | a c0 e c' Hc Hc' | ii xs f es ] c //.
 + rewrite CallsE; SpD.fsetdec.
 + rewrite /= CallsE Hc Hi; SpD.fsetdec.
 + SpD.fsetdec.
 + SpD.fsetdec.
 + rewrite -/(foldl _ _) -/(foldl _ _) -/(c_calls _ _) -/(c_calls _ _) Hc2 Hc1 -/(c_Calls _) -/(c_Calls _); SpD.fsetdec.
 + rewrite -/(foldl _ _) -/(foldl _ _) -/(c_calls _ _) -/(c_calls _ _) Hc' Hc -/(c_Calls _) -/(c_Calls _); SpD.fsetdec.
-+ SpD.fsetdec.
 + SpD.fsetdec.
 Qed.
 

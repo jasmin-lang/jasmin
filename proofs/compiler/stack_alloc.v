@@ -1007,8 +1007,6 @@ Fixpoint alloc_i (rmap:region_map) (i: instr) : result instr_error (region_map *
       add_iinfo ii (alloc_call rmap ini rs fn es) 
 
     | Cfor _ _ _  => cierror ii (Cerr_stk_alloc "don't deal with for loop")
-    | Ccopy r e => 
-      add_iinfo ii (alloc_array_move_init rmap r e)
     end in
   ok (ir.1, MkI ii ir.2).
 

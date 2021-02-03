@@ -148,7 +148,6 @@ type ('len,'info) ginstr_r =
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info) gstmt
   | Cwhile of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
   | Ccall  of inline_info * 'len glvals * funname * 'len gexprs
-  | Ccopy of 'len glval * 'len gexpr
 
 and ('len,'info) ginstr = {
     i_desc : ('len,'info) ginstr_r;
@@ -372,7 +371,6 @@ let rec rvars_i s i =
     rvars_c (rvars_e (rvars_e (Sv.add (L.unloc x) s) e1) e2) c
   | Cwhile(_,c,e,c')    -> rvars_c (rvars_e (rvars_c s c') e) c
   | Ccall(_,x,_,e) -> rvars_es (rvars_lvs s x) e
-  | Ccopy(x, e) -> rvars_e (rvars_lv s x) e
 
 and rvars_c s c =  List.fold_left rvars_i s c
 
@@ -411,7 +409,6 @@ let rec written_vars_i ((v, f) as acc) i =
   | Cwhile(_, s1, _, s2)
     -> written_vars_stmt (written_vars_stmt acc s1) s2
   | Cfor(_, _, s) -> written_vars_stmt acc s
-  | Ccopy(x, _) -> written_lv v x, f
 and written_vars_stmt acc s =
   List.fold_left written_vars_i acc s
 

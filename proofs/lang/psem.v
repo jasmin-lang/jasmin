@@ -447,9 +447,6 @@ Lemma sem_iE s i s' :
     ∃ vs m2 rs,
     [/\ sem_pexprs gd s es = ok vs, sem_call s.(emem) f vs m2 rs &
        write_lvals gd (with_mem s m2) xs rs = ok s' ]
-  | Ccopy lv e =>
-    ∃ v,
-    [/\ sem_pexpr gd s e = ok v & write_lval gd lv v s = ok s' ] (*Might have to be modified*)
   end.
 Proof.
   case => {s i s'} //.
@@ -2781,8 +2778,6 @@ Section WF.
       exact: (Hc _ _ Hsc).
     + move=> i xs f es s1 s2 /sem_iE [vs] [m2] [rs] [_ _ ok_s2] hw.
       by apply: wf_write_lvals ok_s2.
-    move=> x e s1 s2 /sem_iE [v] [hv ok_s2] hw.
-    by apply (wf_write_lval hw ok_s2).
   Qed.
 
   Lemma wf_vm_uincl vm : wf_vm vm -> vm_uincl vmap0 vm.

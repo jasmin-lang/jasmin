@@ -335,10 +335,6 @@ and cinstr_r_of_instr_r tbl p i tl =
       C.Ccall(ii, clval_of_lvals tbl x, cfun_of_fun tbl f, cexpr_of_exprs tbl e)
     in
     C.MkI(p,ir) :: tl
-  | Ccopy(x,e) ->
-    let ir  =
-      C.Ccopy(clval_of_lval tbl x, cexpr_of_expr tbl e) in
-    C.MkI(p, ir) :: tl
 
 and cstmt_of_stmt tbl c tl =
   List.fold_right (cinstr_of_instr tbl) c tl
@@ -374,9 +370,6 @@ and instr_r_of_cinstr_r tbl = function
   | Ccall(ii, x, f, e) ->
     let ii = ii_of_cii ii in
     Ccall(ii, lval_of_clvals tbl x, fun_of_cfun tbl f, expr_of_cexprs tbl e)
-
-  | C.Ccopy(x, e) ->
-    Ccopy(lval_of_clval tbl x, expr_of_cexpr tbl e)
 
 and stmt_of_cstmt tbl c =
   List.map (instr_of_cinstr tbl) c

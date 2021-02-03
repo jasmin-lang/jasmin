@@ -115,7 +115,6 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
                   (fd'.(f_body) ++
                   assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res))))
       else ciok (X, [::i])
-    | Ccopy x e => ciok (Sv.union (read_i ir) X, [::i])
     end
   end.
 

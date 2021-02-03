@@ -182,7 +182,6 @@ Lemma sem_iE ii s i s' :
     mapM get_lvar res = ok xres &
     sem_call ii s f s'
   | Cfor _ _ _ => false
-  | Ccopy _ _ => false
   end.
 Proof.
   case => { ii s i s' }; eauto.

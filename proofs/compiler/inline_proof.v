@@ -85,7 +85,6 @@ Section INCL.
     + move=> i xs f es ii X1 c' X2 /=.
       case: i => //;apply: rbindP => fd /get_funP -/Incl.
       by rewrite /get_fun => ->.
-    by move=> x1 e1 ii X1 c' X2.
   Qed.
 
   Lemma inline_incl fd fd' :
@@ -202,25 +201,19 @@ Section SUBSET.
     by apply:rbindP => fd _;apply: rbindP => ?? [<-].
   Qed.
 
-  Local Lemma Scopy : forall x1 e1, Pr (Ccopy x1 e1).
-  Proof.
-    move=> x1 e1 ii X2 Xc [<-] /=.
-    rewrite read_Ii; SvD.fsetdec.
-  Qed.
-
   Lemma inline_c_subset c : Pc c.
   Proof.
-    by apply (@cmd_rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall Scopy).
+    by apply (@cmd_rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
   Qed.
 
   Lemma inline_i_subset i : Pr i.
   Proof.
-    by apply (@instr_r_Rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall Scopy).
+    by apply (@instr_r_Rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
   Qed.
 
   Lemma inline_i'_subset i : Pi i.
   Proof.
-    by apply (@instr_Rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall Scopy).
+    by apply (@instr_Rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
   Qed.
 
 End SUBSET.

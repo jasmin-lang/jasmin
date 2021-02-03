@@ -25,7 +25,6 @@
 
     "align" , ALIGN  ;
     "const" , CONSTANT; 
-    "copy"  , COPY   ;   
     "downto", DOWNTO ;
     "else"  , ELSE   ;
     "exec"  , EXEC   ;
