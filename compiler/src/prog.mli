@@ -124,6 +124,7 @@ type ('len,'info) ginstr_r =
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info) gstmt
   | Cwhile of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
   | Ccall  of inline_info * 'len glvals * funname * 'len gexprs
+  | Ccopy of 'len glval * 'len gexpr
 
 and ('len,'info) ginstr = {
   i_desc : ('len,'info) ginstr_r;

@@ -98,6 +98,18 @@ Section REMOVE.
       foldM extend_glob_i gd c2
     | Cfor _ _ c =>
       foldM extend_glob_i gd c
+    | Ccopy lv e =>
+      match lv with
+      | Lvar xi =>
+        let x := xi.(v_var) in
+        if is_glob x then
+          match e with
+          | Papp1 (Oword_of_int ws) (Pconst z) => add_glob ii x gd (wrepr ws z)
+          | _                   => cferror (Ferr_remove_glob ii xi)
+          end
+        else ok gd
+      | _ => ok gd
+      end
     end.
 
   Definition extend_glob_prog (p:uprog) :=
@@ -310,6 +322,10 @@ Section REMOVE.
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Ccall i lvs fn es)])
+        | Ccopy lv e =>
+          Let lv := remove_glob_lv ii env lv in
+          Let e := remove_glob_e ii env e in
+          ok (env, [::MkI ii (Ccopy lv e)])
         end
       end.
 

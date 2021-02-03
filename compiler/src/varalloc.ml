@@ -163,6 +163,7 @@ let rec live_ranges_instr_r d_acc =
      let d_acc = live_ranges_stmt d_acc s2 in
      d_acc
   | Cfor _ -> assert false
+  | Ccopy _ -> d_acc
 and live_ranges_instr (d, acc) { i_desc ; i_info = before, after } =
   let acc = process_live_info d acc before in
   let d, acc = live_ranges_instr_r (d + 1, acc) i_desc in
@@ -243,6 +244,7 @@ let classes_alignment (onfun : funname -> param_info option list) gtbl alias c =
       add_lvs xs;
       calls := Sf.add fn !calls; 
       List.iter2 add_p (onfun fn) es 
+    | Ccopy(x,e) -> add_lv x; add_e e
 
   and add_c c = List.iter add_i c in 
 

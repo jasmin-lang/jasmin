@@ -73,6 +73,15 @@ and live_d weak d (s_o: Sv.t) =
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
     s_i, (if weak then writev_lvals s_o xs else s_o), Ccall(ii,xs,f,es)
 
+  | Ccopy(x, e) ->
+
+    let s_i = Sv.union (vars_e e) (dep_lv s_o x) in
+    let s_o =
+      if weak && not (is_trivial_move x e) then writev_lval s_o x
+      else s_o in
+    s_i, s_o, Ccopy(x, e)
+
+
 and live_c weak c s_o =
   List.fold_right
     (fun i (s_o, c) ->
@@ -98,6 +107,7 @@ let iter_call_sites (cb: i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) (f: (
     | Cfor (_, _, s) -> iter_stmt s
     | Ccall (_, xs, fn, _) ->
        cb loc fn xs ii
+    | Ccopy _ -> ()
   and iter_instr { i_loc ; i_info ; i_desc } = iter_instr_r i_loc i_info i_desc
   and iter_stmt s = List.iter iter_instr s in
   iter_stmt f.f_body
@@ -124,6 +134,8 @@ let rec conflicts_i cf i =
     conflicts_c (merge_class cf s2) c
   | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) ->
     conflicts_c (conflicts_c (merge_class cf s2) c1) c2
+  | Ccopy _ ->
+    merge_class cf s2
 and conflicts_c cf c =
   List.fold_left conflicts_i cf c
 

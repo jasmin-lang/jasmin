@@ -1323,6 +1323,14 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let a = if a = `NoAlign then E.NoAlign else E.Align in
       P.Cwhile (a, s1, c, s2)
 
+    | S.PICopy (lvs, pe) -> begin
+      let e,ety = tt_expr ~mode:`AllVar env pe in
+      match lvs with
+      | [x] -> let _, flv, _ = tt_lvalue env x in P.Ccopy (flv ety, e)
+      | _ -> rs_tyerror ~loc:(L.loc pi) (Unsupported "Copy takes only one left value")
+      end
+  
+
  in { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); }
 
 (* -------------------------------------------------------------------- *)

@@ -88,6 +88,8 @@ end = struct
       Ccall (inlinf, mk_lvals fn lvs, c_fn, mk_exprs fn es)
     | Cwhile (a, st1, e, st2) ->
       Cwhile (a, mk_stmt fn st1, mk_expr fn e, mk_stmt fn st2)
+    | Ccopy (x1, e1) ->
+      Ccopy (mk_lval fn x1, mk_expr fn e1)
 
   and mk_stmt fn instrs = List.map (mk_instr fn) instrs
 
@@ -338,6 +340,7 @@ end = struct
         
     | Ccall (_, lvs, _, _) ->
       if flag_mem_lvs v lvs then raise Flag_set_from_failure else None
+    | Ccopy _ -> None
       
   let rec pa_instr fn (prog : 'info prog option) st instr =
     match instr.i_desc with
@@ -405,6 +408,8 @@ end = struct
           st lvs f_decl.f_ret in
 
       List.fold_left2 pa_expr st f_decl.f_args es 
+    | Ccopy (x1, e1) -> pa_lv st x1 e1
+
 
   and pa_func (prog : 'info prog option) st fn =
     let f_decl = get_fun_def (oget prog) fn |> oget in
@@ -505,7 +510,9 @@ end = struct
       let sv = collect_vars_lv sv lv in
       collect_vars_e sv e
     | Ccall _ -> raise Fcall
-
+    | Ccopy (x1, e1) ->
+      let sv = collect_vars_lv sv x1 in
+      collect_vars_e sv e1
   and collect_vars_is sv is = List.fold_left collect_vars_i sv is
 
 

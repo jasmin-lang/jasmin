@@ -131,6 +131,11 @@ let small_step1 s =
       {s with s_cmd = f.f_body;
               s_estate = sf;
               s_stk = stk }
+    | Ccopy(x,e) ->
+      let v  = exn_exec ii (sem_pexpr gd s1 e) in
+      let s2 = exn_exec ii (write_lval gd x v s1) in
+      { s with s_cmd = c; s_estate = s2 }
+
 
 let rec small_stepn n s = 
   if n = 0 then s else small_stepn (n-1) (small_step1 s)

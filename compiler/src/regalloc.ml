@@ -27,6 +27,7 @@ let fill_in_missing_names (f: 'info func) : 'info func =
     | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
     | Cwhile (a, s, e, s') -> Cwhile (a, fill_stmt s, e, fill_stmt s')
     | Ccall (i, lvs, f, es) -> Ccall (i, fill_lvs lvs, f, es)
+    | Ccopy (lv, e) -> Ccopy (fill_lv lv, e)
   and fill_instr i = { i with i_desc = fill_instr_r i.i_desc }
   and fill_stmt s = List.map fill_instr s in
   let f_body = fill_stmt f.f_body in
@@ -193,6 +194,11 @@ let collect_equality_constraints_in_func
           g.f_ret xs
       end
     | (Cwhile (_, s1, _, s2) | Cif (_, s1, s2)) -> collect_stmt s1; collect_stmt s2
+    | Ccopy (Lvar x, Pvar y) when
+          is_gkvar y && kind_i x = kind_i y.gv ->
+       addv ii x y.gv
+    | Ccopy _ ->
+      ()
   and collect_instr ({ i_desc } as i) = collect_instr_r i i_desc
   and collect_stmt s = List.iter collect_instr s in
   collect_stmt f.f_body
@@ -291,6 +297,7 @@ let collect_conflicts
     | Cwhile (_, s1, _, s2)
     | Cif (_, s1, s2)
       -> collect_stmt (collect_stmt c s1) s2
+    | Ccopy _ -> c
   and collect_instr c { i_desc ; i_loc ; i_info } =
     collect_instr_r (add c i_loc i_info) i_desc
   and collect_stmt c s = List.fold_left collect_instr c s in
@@ -315,6 +322,7 @@ let iter_variables (cb: var -> unit) (f: 'info func) : unit =
     | (Ccall (_, lvs, _, es) | Copn (lvs, _, _, es)) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
     | Cfor _ -> assert false
+    | Ccopy (lv, e) -> iter_lv lv; iter_expr e
   and iter_instr { i_desc } = iter_instr_r i_desc
   and iter_stmt s = List.iter iter_instr s in
   iter_stmt f.f_body;
@@ -577,6 +585,8 @@ let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
        ignore lvs;
        ignore es;
        ()
+    | Ccopy _
+      -> ()
   and alloc_instr { i_loc; i_desc } = alloc_instr_r i_loc i_desc
   and alloc_stmt s = List.iter alloc_instr s
   in

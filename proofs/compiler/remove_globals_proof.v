@@ -280,11 +280,28 @@ Module EXTEND. Section PROOFS.
   Local Lemma Hcall: forall i xs f es, Pr (Ccall i xs f es).
   Proof. by move=> i xs f es ii gd1 gd2 /= [<-]. Qed.
 
+  Local Lemma Hcopy: forall x1 e1, Pr (Ccopy x1 e1).
+  Proof.
+    move=> [? ?|xi|? ? ?|? ? ? ?|? ? ? ? ?] e1 ii gd1 gd2 /=.
+    1,3-5: by move => [<-].
+    case: ifP; last by move => _ [<-].
+    case: e1 => // -[] // w [] // z Hisglob.
+    rewrite /add_glob; case: ifP => //; first by move => _ [<-].
+    case: ifP => // Hnhas1 Hnhas2 [<-] g v.
+    move => Hgetglobal; case: (get_globalI Hgetglobal) => glbv [Hglbv ?]; subst v => /= Hty.
+    rewrite /get_global /=; case: ifP; last by rewrite Hglbv Hty eqxx.
+    move => /eqP ?; subst g => /=.
+    move: Hglbv; rewrite /get_global_value => Hglbv.
+    have:= (assoc_memP Hglbv) => Hin.
+    move: Hnhas1 => /hasPP Hnin; exfalso; apply: Hnin.
+    by exists ({| vtype := vtype xi; vname := fresh_id gd1 xi |}, glbv).
+  Qed.
+
   Local Lemma extend_glob_cP c gd1 gd2 :
     foldM (extend_glob_i is_glob fresh_id) gd1 c = ok gd2 ->
     gd_incl gd1 gd2.
   Proof.
-    apply (@cmd_rect Pr Pi Pc Hmk Hnil Hcons Hasgn Hopn Hif Hfor Hwhile Hcall c).
+    apply (@cmd_rect Pr Pi Pc Hmk Hnil Hcons Hasgn Hopn Hif Hfor Hwhile Hcall Hcopy c).
   Qed.
 
 End PROOFS.

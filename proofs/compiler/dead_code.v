@@ -171,6 +171,11 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
       end in
     let '(si,xs) := sxs in
     ciok (read_es_rec si es, [:: MkI ii (Ccall ini xs fn es)])
+  | Ccopy x e =>
+    let w := write_i ir in
+    if (lv_write_mem x)
+    then ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
+    else ciok (s, [::])
   end.
 
 Section Section.

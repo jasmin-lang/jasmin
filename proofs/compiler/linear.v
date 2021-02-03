@@ -119,6 +119,7 @@ Section WRITE1.
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
     | Ccall _ _ fn _  => writefun_ra fn
+    | Ccopy x _ => vrv_rec s x
     end
   with write_I_rec s i :=
     match i with
@@ -197,6 +198,8 @@ Section CHECK.
           (ii, Cerr_linear "caller need alignment greater than callee") in
         ok tt
       else cierror ii (Cerr_linear "call to unknown function")
+    | Ccopy x e =>
+      ok tt
     end.
 
   End CHECK_i.
@@ -391,6 +394,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
         end
     else (lbl, lc )
   | Cfor _ _ _ => (lbl, lc)
+  | Ccopy _ _ => (lbl, lc)
   end.
 
 Definition linear_fd (fd: sfundef) :=
