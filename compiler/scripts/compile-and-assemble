@@ -2,8 +2,8 @@
 
 set -e
 
-ASM=$(mktemp jasminXXXXX.s)
-OBJ=$(mktemp jasminXXXXX.o)
+ASM=$(mktemp jasminXXXXX).s
+OBJ=$(mktemp jasminXXXXX).o
 
 trap "rm -f ${ASM} ${OBJ}" EXIT
 
