@@ -568,10 +568,10 @@ Section PROOF.
   Qed.
 
   Lemma dead_code_callCTP P f:
-  constant_time' P p f ->
-  constant_time' P p' f.
+  constant_time P p f ->
+  constant_time P p' f.
   Proof.
-  rewrite /constant_time'.
+  rewrite /constant_time.
   move=> Hc mem1 mem2 va1 va2 Hp.
   move: (Hc mem1 mem2 va1 va2 Hp). move=> [mem1'] [mem2'] [vr1] [vr2] [lf] [Hm1] Hm2.
   move: dead_code_callCT. move=> Hct. move: (Hct f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf Hm1 Hm2). move=> [Hm1'] Hm2'.

@@ -3559,16 +3559,67 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
     case: heq=> heq1 heq2 heq3 heq4 heq5 heq6 heq7.
     rewrite /=. rewrite -heq5. apply h1.
   Qed.
-
+ 
   Lemma const_prop_callP f mem mem' va va' vr lf:
     sem_call p mem f va lf mem' vr ->
     List.Forall2 value_uincl va va' ->
-    exists vr', sem_call p' mem f va'(lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr' /\ List.Forall2 value_uincl vr vr'.
+    exists vr', sem_call p' mem f va'(lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr' 
+    /\ List.Forall2 value_uincl vr vr'.
   Proof.
     move=> /(@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) h Hv.
     rewrite /Pfun in h. move: (h va' Hv). move=> [] vres' [] /= h' Hv' {h}.
-    exists vres'. by split.
+    exists vres'. split=> //.
   Qed.
+
+  (*Lemma values_equal vs vs':
+  List.Forall2 value_uincl vs vs' ->
+  vs = vs'.
+  Proof.
+  elim: vs.
+  + elim: vs'.
+    + by auto.
+    move=> a []. auto. move=> H1 H2. inversion H2.
+    move=> a' l H1 H2. inversion H2.
+  + move=> a l Hl Hl'.
+  Admitted. *)
+
+  Lemma const_prop_callP' f mem mem' va vr lf:
+    sem_call p mem f va lf mem' vr ->
+    exists vr', sem_call p' mem f va (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr'
+    /\ List.Forall2 value_uincl vr vr'.
+  Proof.
+  move=> Hc. apply: const_prop_callP. apply Hc. apply List_Forall2_refl.
+  by move=> a.
+  Qed.
+
+
+  Lemma const_prop_callCT f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf:
+    sem_call p mem1 f va1 lf mem1' vr1 ->
+    sem_call p mem2 f va2 lf mem2' vr2 ->
+    exists vr1', sem_call p' mem1 f va1 (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem1' vr1' /\ 
+    List.Forall2 value_uincl vr1 vr1' /\
+    exists vr2', sem_call p' mem2 f va2 (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem2' vr2' /\
+    List.Forall2 value_uincl vr2 vr2'.
+  Proof.
+  move=> Hm1 Hm2.
+  move: (const_prop_callP' Hm1). move=> [vr'] [Hm1'] Hls. move: (const_prop_callP' Hm2). move=> [vr''] [Hm2'] Hls'.
+  exists vr'. split=> //. split=> //. exists vr''. split=> //.  
+  Qed.
+
+  (*Lemma const_prop_callCTP P f:
+  constant_time' P p f ->
+  constant_time' P p' f.
+  Proof.
+  rewrite /constant_time'.
+  move=> Hc mem1 mem2 va1 va2 Hp.
+  move: (Hc mem1 mem2 va1 va2 Hp). move=> [mem1'] [mem2'] [vr1] [vr2] [lf] [Hm1] Hm2.
+  move: const_prop_callCT. move=> Hct. move: (Hct f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf Hm1 Hm2).  
+  move=> [vr1'] [vr2'] [Hm1'] [Hls] [Hm2'] Hls'.
+  exists mem1'. exists mem2'. exists vr1. exists vr2. exists (lf.1,
+           leak_Is (leak_I (leak_Fun Fs)) stk 
+             (leak_Fun Fs lf.1) lf.2). split=> //.
+  Admitted.*)
+
 
 End PROOF.  
