@@ -151,12 +151,13 @@ Proof.
   by move=> H; apply: rt_trans; apply: rt_step.
 Qed.
 
-Lemma step_lsem s2 s1 s3 :
+Lemma lsem_step_end s2 s1 s3 :
   lsem s1 s2 →
   lsem1 s2 s3 →
   lsem s1 s3.
 Proof.
-  by move=> H H1; apply: (rt_trans _ _ _ _ _ H); apply: rt_step.
+  move => h12 h23; apply: rt_trans; first exact: h12.
+  exact: rt_step.
 Qed.
 
 Definition lsem_trans s2 s1 s3 :

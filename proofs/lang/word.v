@@ -1247,9 +1247,13 @@ Proof.
   move: (i: nat) (ltn_ord i) => {i} i /ltP i_bounded.
   case: (@ltP n (wsize_size_minus_1 sz).+1) => hn.
   + apply/eqP.
-    apply/forallnat_belowP: n hn.
     apply/forallnat_belowP: i i_bounded.
-    by case: sz; native_compute.
+    change (
+        let k := wrepr sz (- 2 ^ Z.of_nat n) in
+        forallnat_below (λ i : nat, wbit_n k i == (n <= i)%nat) (wsize_size_minus_1 sz).+1
+      ).
+    apply/forallnat_belowP: n hn.
+    by case: sz; vm_cast_no_check (erefl true).
   replace (wrepr _ _) with (0%R : word sz).
   rewrite w0E; symmetry; apply/leP; lia.
   rewrite wrepr_opp -oppr0.
@@ -1257,7 +1261,6 @@ Proof.
   apply/word_eqP.
   rewrite mkword_valK.
   apply/eqP; symmetry.
-  Set Printing Coercions.
   rewrite /modulus two_power_nat_equiv.
   apply/Z.mod_divide; first exact: pow2nz.
   exists (2 ^ (Z.of_nat (n - (wsize_size_minus_1 sz).+1))).
@@ -1328,4 +1331,28 @@ Proof.
   apply: div_mul_in_range.
   - exact: pow2pos.
   exact: wunsigned_range.
+Qed.
+
+(** Round to the multiple of [sz'] below. *)
+Definition align_word (sz sz': wsize) (p: word sz) : word sz :=
+  wand p (wrepr sz (-wsize_size sz')).
+
+Lemma align_word_U8 sz (p: word sz) :
+  align_word U8 p = p.
+Proof. by rewrite /align_word wandC wandN1. Qed.
+
+Lemma align_word_aligned (sz sz': wsize) (p: word sz) :
+  wunsigned (align_word sz' p) mod wsize_size sz' == 0.
+Proof.
+  rewrite /align_word wsize_size_is_pow2 wand_align Z.mod_mul //.
+  exact: pow2nz.
+Qed.
+
+Lemma align_word_range sz sz' (p: word sz) :
+  wunsigned p - wsize_size sz' < wunsigned (align_word sz' p) <= wunsigned p.
+Proof.
+  rewrite /align_word wsize_size_is_pow2 wand_align.
+  have ? := wunsigned_range p.
+  have ? := pow2pos (wsize_log2 sz').
+  elim_div; Psatz.lia.
 Qed.
