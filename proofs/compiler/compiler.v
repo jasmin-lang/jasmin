@@ -111,50 +111,50 @@ Definition reg_alloc_prog (p:prog) :=
      p_funcs := List.map (fun f => (f.1, cparams.(reg_alloc_fd) f.1 f.2)) (p_funcs p) |}.
 
 (* need to also return sequence of leak transformers *)
-Definition compile_prog (entries : seq funname) (p:prog) :=
-  Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
-  let p := cparams.(print_prog) Inlining p.1 in
+Definition compile_prog (entries : seq funname) (p:prog) : result fun_error (glob_decls * lprog * seq leak_f_tr) :=
+  Let pi := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
+  let p := cparams.(print_prog) Inlining pi.1 in
 
   Let p := dead_calls_err_seq entries p in
   let p := cparams.(print_prog) RemoveUnusedFunction p in
 
-  Let p := unroll Loop.nb p in
-  let p := cparams.(print_prog) Unrolling p.1 in
+  Let pu := unroll Loop.nb p in
+  let p := cparams.(print_prog) Unrolling pu.1 in
 
-  let p := const_prop_prog p in
-  let p := cparams.(print_prog) Unrolling p.1 in
+  let pc := const_prop_prog p in
+  let p := cparams.(print_prog) Unrolling pc.1 in
 
   let pv := var_alloc_prog p in
   let pv := cparams.(print_prog) AllocInlineAssgn pv in
   Let _ := CheckAllocReg.check_prog p pv in
-  Let pv := dead_code_prog pv in
-  let pv := cparams.(print_prog) DeadCode_AllocInlineAssgn pv.1 in
+  Let pvd := dead_code_prog pv in
+  let pv := cparams.(print_prog) DeadCode_AllocInlineAssgn pvd.1 in
 
   let ps := share_stack_prog pv in
   let ps := cparams.(print_prog) ShareStackVariable ps in
   Let _ := CheckAllocReg.check_prog pv ps in
-  Let ps := dead_code_prog ps in
-  let ps := cparams.(print_prog) DeadCode_ShareStackVariable ps.1 in
+  Let psd := dead_code_prog ps in
+  let ps := cparams.(print_prog) DeadCode_ShareStackVariable psd.1 in
 
-  let pr := remove_init_prog ps in
-  let pr := cparams.(print_prog) RemoveArrInit pr.1 in
+  let prr := remove_init_prog ps in
+  let pr := cparams.(print_prog) RemoveArrInit prr.1 in
 
   let pe := expand_prog pr in
   let pe := cparams.(print_prog) RegArrayExpansion pe in
   Let _ := CheckExpansion.check_prog pr pe in
 
-  Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
-  let pg := cparams.(print_prog) RemoveGlobal pg.1 in
+  Let pgr := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
+  let pg := cparams.(print_prog) RemoveGlobal pgr.1 in
 
   if (fvars_correct cparams.(lowering_vars) (p_funcs pg)) then
-    let pl := lower_prog cparams.(lowering_opt) cparams.(warning) cparams.(lowering_vars) cparams.(is_var_in_memory) pg in
-    let pl := cparams.(print_prog) LowerInstruction pl.1 in
+    let pll := lower_prog cparams.(lowering_opt) cparams.(warning) cparams.(lowering_vars) cparams.(is_var_in_memory) pg in
+    let pl := cparams.(print_prog) LowerInstruction pll.1 in
 
     let pa := reg_alloc_prog pl in
     let pa := cparams.(print_prog) RegAllocation pa in
     Let _ := CheckAllocReg.check_prog pl pa in
-    Let pd := dead_code_prog pa in
-    let pd := cparams.(print_prog) DeadCode_RegAllocation pd.1 in
+    Let pdd := dead_code_prog pa in
+    let pd := cparams.(print_prog) DeadCode_RegAllocation pdd.1 in
 
     (* stack_allocation                    *)
     Let ps := stack_alloc.alloc_prog cparams.(stk_alloc_fd) pd in
@@ -162,9 +162,11 @@ Definition compile_prog (entries : seq funname) (p:prog) :=
     Let pl := linear_prog ps.1 in
     let pl := cparams.(print_linear) pl.1 in
     (* asm                               *)
-    cfok (p_globs pd, pl)
+    cfok (p_globs pd, pl, [:: pi.2] ++ pu.2 ++ [:: pc.2; pvd.2; psd.2; prr.2; pgr.2; pll.2; pdd.2])
 
   else cferror Ferr_lowering.
+
+Check compile_prog.
 
 Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
   if get_fundef lp fn is Some fd' then
@@ -173,10 +175,11 @@ Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
     else true
   else true.
 
-Definition compile_prog_to_x86 entries (p: prog): result fun_error (glob_decls * xprog) :=
+Definition compile_prog_to_x86 entries (p: prog): result fun_error (glob_decls * xprog * seq leak_f_tr) :=
   Let lp := compile_prog entries p in
-  Let _ := assert (all (check_signature p lp.2) entries) Ferr_lowering in
-  Let lx := assemble_prog lp.2 in
-  ok (lp.1, lx).
+  let : (lpg, lpp, lpl) := lp in 
+  Let _ := assert (all (check_signature p lpp) entries) Ferr_lowering in
+  Let lx := assemble_prog lpp in
+  ok (lpg, lx, lpl).
 
 End COMPILER.
