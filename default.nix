@@ -9,7 +9,7 @@
 
 with pkgs;
 
-let inherit (stdenv.lib) optionals; in
+let inherit (lib) optionals; in
 
 let coqPackages = coqPackages_8_9; in
 
