@@ -589,35 +589,51 @@ Module RGP. Section PROOFS.
             (m, [:: MkI ii (Cassgn rlv.1 tag ty e')],
              LT_ile (LT_map [::lte'; rlv.2])) = ok (m', c', lti) -> ∃ s2' : estate,
       valid m' s2 s2'
-      ∧ sem P' s1' c' 
+      ∧ sem P' s1' c' (*(leak_I (leak_Fun fds.2) stk (Lopn (LSub [:: le; le])) (LT_ile (LT_map [::lte'; rlv.2])))*)
           match lti with
           | LT_iremove => [::]
           | LT_ile lte0 => [:: Lopn (leak_E stk lte0 (LSub [:: le; lw]))]
-          | _ => [:: Lopn (LSub [:: le; lw])]
+          | _ => [::]
           end s2').
   + t_xrbindP. move=> [x' lte''] /(remove_glob_lvP hval) -/(_ _ _ _ hw) [] s2' [] hs2' hw' <- <- <-.
     exists s2'. split. auto. apply sem_seq1; econstructor; econstructor; eauto.
-  case: x hw=> //=.
-  move=> xi hxi hdef; case: ifPn=> // hglob {hdef}.
-  case: e' he' => // - [] // sz [] //= z [] hv' hl'; subst v.
-  case: andP => //= -[/eqP ? /eqP htxi];subst ty.
-  move: hv; rewrite /truncate_val /= truncate_word_u /= => -[?]; subst v'.
-  move: xi htxi hglob hxi.
-  rewrite /write_var /set_var => -[[xty xn] xii] /= ? hglob; subst xty.
-  rewrite /pof_val /= sumbool_of_boolET => -[<-] hl'' /=.
-  t_xrbindP => g hfind <- <-;exists s1'; split=> //=.
-  set x := {| vtype := _ |}.
-  case: hval => hm hm1 hm2 hm3; split => //=.
-  + move=> y hy; rewrite /get_var /on_vu.
-    rewrite Fv.setP_neq; first by apply hm1.
-    by apply /eqP => ?;subst y;move: hy;rewrite hglob.
-  + by move=> y gy;rewrite Mvar.setP; case:eqP => [<- // | ?]; apply hm2.
-    move=> y gy v;rewrite Mvar.setP;case:eqP => [<- | /eqP hneq].
-  + move=> [<-]. rewrite /get_var Fv.setP_eq /= => -[<-].
-    by apply: find_globP hfind.
-  + by rewrite /get_var Fv.setP_neq //; apply hm3.
-  rewrite -h2 /=. constructor.
-  Qed.
+  case: x hw=> //=. 
+  + move=> x xi /=; t_xrbindP=> y // Hw <- <- /= // H Hm Hc' Hlti.
+    move: H. move=> []. repeat f_equal; auto. rewrite -Hlti /=. move=> s [Hvs] Hs. exists s. split=> //.
+  + move=> xi hxi hdef. case: ifPn => // hglob {hdef}.
+    case: e' he' => // - [] // sz [] //= z [] hv' hl'; subst v.
+    case: andP => //= -[/eqP ? /eqP htxi];subst ty.
+    move: hv; rewrite /truncate_val /= truncate_word_u /= => -[?]; subst v'.
+    move: xi htxi hglob hxi.
+    rewrite /write_var /set_var => -[[xty xn] xii] /= ? hglob; subst xty.
+    rewrite /pof_val /= sumbool_of_boolET => -[<-] hl'' /=.
+    t_xrbindP => g hfind <- <-;exists s1'; split=> //=.
+    set x := {| vtype := _ |}.
+    case: hval => hm hm1 hm2 hm3; split => //=.
+    + move=> y hy; rewrite /get_var /on_vu.
+      rewrite Fv.setP_neq; first by apply hm1.
+      by apply /eqP => ?;subst y;move: hy;rewrite hglob.
+    + by move=> y gy;rewrite Mvar.setP; case:eqP => [<- // | ?]; apply hm2.
+      move=> y gy v;rewrite Mvar.setP;case:eqP => [<- | /eqP hneq].
+    + move=> [<-]. rewrite /get_var Fv.setP_eq /= => -[<-].
+      by apply: find_globP hfind.
+    + by rewrite /get_var Fv.setP_neq //; apply hm3.
+    rewrite -h2 /=. constructor.
+  + t_xrbindP. move=> -[lv ltv]. case: ifP=> // hglob'. 
+    move: hxi. t_xrbindP. move=> y Hw <- <- /=. rewrite /write_var in Hw. move: Hw. t_xrbindP. move=> vm Hset hy /=.
+    move: (write_var_remove). move=> Hg.
+    move=> <- <- <- <- <- /=. Print valid. move: (Hg xi m s1 s1' v' vm hglob hval Hset). move=> [] x [Hvm] Hw'.
+    exists x. split=> //. rewrite hy in Hvm. auto.
+    apply sem_seq1; econstructor; econstructor; eauto. rewrite /write_lval. by rewrite Hw' /=.
+  + move=> sz vi ei /=. t_xrbindP=> u vu Hg hp -[v1 l1] he1 u' hp' w hw m1 /= hm <- <- /=.
+    case: ifP=> //= hglob. t_xrbindP=> //= H -[lv ltv] -[l1' lt1] hr /= [] Hlv Hlt Hm Hc Hl /=. rewrite hr /= in H.
+    move: H. move=> []. repeat f_equal; auto. by rewrite Hlv. rewrite -Hlt in Hl. auto. rewrite -Hm -Hc -Hl /=.
+    move=> x [Hvm] Hs. exists x. split=> //.
+  move=> sz vi ei. t_xrbindP=> //=. rewrite /on_arr_var. t_xrbindP=> vg hg h. case: ifP=> // hglob.
+  t_xrbindP=> //= H -[lv ltv] -[l1' lt1] hr /= [] Hlv Hlt Hm Hc Hl /=. rewrite hr /= in H.
+  move: H. move=> []. repeat f_equal; auto. by rewrite Hlv. rewrite -Hlt in Hl. auto. rewrite -Hm -Hc -Hl /=.
+  move=> x [Hvm] Hs. exists x. split=> //.
+Qed.
   
   Local Lemma Hopn : sem_Ind_opn P Pi_r.
   Proof.

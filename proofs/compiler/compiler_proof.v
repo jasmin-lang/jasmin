@@ -45,11 +45,11 @@ Variable cparams : compiler_params.
 Hypothesis print_progP : forall s p, cparams.(print_prog) s p = p.
 Hypothesis print_linearP : forall p, cparams.(print_linear) p = p.
 
-Lemma unroll1P (fn: funname) (p p':prog) mem va va' mem' vr:
-  unroll1 p = ok p' ->
-  sem_call p mem fn va mem' vr ->
+Lemma unroll1P (fn: funname) (p p':prog) mem va va' mem' vr lf lts:
+  unroll1 p = ok (p', lts) ->
+  sem_call p mem fn va lf mem' vr ->
   List.Forall2 value_uincl va va' ->
-  exists vr', sem_call p' mem fn va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+  exists vr', sem_call p' mem fn va' (leak_Is mem' vr' /\ List.Forall2 value_uincl vr vr'.
 Proof.
   rewrite /unroll1=> Heq Hsem Hall.
   have hsemu := unroll_callP Hsem.

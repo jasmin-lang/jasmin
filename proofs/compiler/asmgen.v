@@ -234,10 +234,6 @@ Proof.
   by move=> /= <- ->.
 Qed.
 
-(* Need to remove this after fixing lowering *)
-Variable fv : fresh_vars.
-Hypothesis fvars_correct: fvars_correct fv [::].
-
 Lemma addr_of_pexprP ii gd e a (x:var_i) o z o' lo z' m s:
   lom_eqv s m →
   get_var (evm s) x = ok o →
@@ -254,7 +250,7 @@ have hle : (U64 <= U64)%CMP by [].
 have options : lowering_options. + constructor. constructor. constructor.
 have warning : instr_info → warning_msg → instr_info. + auto.
 have is_var_in_memory : var_i -> bool. + constructor.
-have /= := (mk_leaP (p:= (Build_prog gd [::])) options warning is_var_in_memory fvars_correct hle hle heq). 
+have /= := (mk_leaP (p:= (Build_prog gd [::])) hle hle heq). 
 move=> Hlea. move: (Hlea s  (LSub [:: LEmpty; lo]) (z + z')%R). 
 rewrite ok_o /= ok_o' /= /sem_sop2 /= ok_z /= ok_z' /=.
 move=> {Hlea} Hlea.
@@ -661,7 +657,7 @@ Proof.
       have options : lowering_options. + constructor. constructor. constructor.
       have warning : instr_info → warning_msg → instr_info. + auto.
       have is_var_in_memory : var_i -> bool. + constructor. move: mk_leaP.
-      move=> Hlea. move: (Hlea {| p_globs := gd; p_funcs := [::] |} options warning fv is_var_in_memory fvars_correct).
+      move=> Hlea. move: (Hlea {| p_globs := gd; p_funcs := [::] |}).
       move=> {Hlea} Hlea. move: (Hlea m e lea l sz sz' sz'' hsz2 hsz'' hlea he). move=> [] {Hlea} Hlea Hl1.
       by rewrite Hl1. 
       (*by rewrite hl2 hl1 /=.*)  (** need to prove that l is [::] **)
@@ -672,7 +668,7 @@ Proof.
       have options : lowering_options. + constructor. constructor. constructor.
       have warning : instr_info → warning_msg → instr_info. + auto.
       have is_var_in_memory : var_i -> bool. + constructor. move: mk_leaP.
-      move=> Hlea. move: (Hlea {| p_globs := gd; p_funcs := [::] |} options warning fv is_var_in_memory fvars_correct).
+      move=> Hlea. move: (Hlea {| p_globs := gd; p_funcs := [::] |}).
       move=> {Hlea} Hlea. move: (Hlea m e lea l sz sz' sz'' hsz2 hsz'' hlea he). move=> [] {Hlea} Hlea Hl1.
       move: Hlea.
       case: eqP => [-> | hne] hlea'.

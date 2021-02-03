@@ -34,21 +34,22 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition unroll1 (p:prog) :=
-  let p := unroll_prog p in
-  let p := const_prop_prog p in
-  dead_code_prog p.
+Definition unroll1 (p:prog) : cfexec (prog * seq leak_f_tr) :=
+  let up := unroll_prog p in
+  let cp := const_prop_prog up.1 in
+  Let dp := dead_code_prog cp.1 in 
+  cfok (dp.1, [:: up.2; cp.2; dp.2]).
 
-Fixpoint unroll (n:nat) (p:prog) :=
+Fixpoint unroll (n:nat) (p:prog) : cfexec (prog * seq leak_f_tr) :=
   match n with
   | O   => cferror Ferr_loop
   | S n =>
     Let p' := unroll1 p in
-    if p == p' then cfok p
-    else unroll n p'
+    if p == p'.1 then cfok (p, p'.2)
+    else unroll n p'.1
   end.
 
-Definition unroll_loop (p:prog) := unroll Loop.nb p.
+Definition unroll_loop (p:prog) : cfexec (prog * seq leak_f_tr) := unroll Loop.nb p.
 
 Section COMPILER.
 
@@ -109,56 +110,57 @@ Definition reg_alloc_prog (p:prog) :=
   {| p_globs := p_globs p;
      p_funcs := List.map (fun f => (f.1, cparams.(reg_alloc_fd) f.1 f.2)) (p_funcs p) |}.
 
+(* need to also return sequence of leak transformers *)
 Definition compile_prog (entries : seq funname) (p:prog) :=
   Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
-  let p := cparams.(print_prog) Inlining p in
+  let p := cparams.(print_prog) Inlining p.1 in
 
   Let p := dead_calls_err_seq entries p in
   let p := cparams.(print_prog) RemoveUnusedFunction p in
 
   Let p := unroll Loop.nb p in
-  let p := cparams.(print_prog) Unrolling p in
+  let p := cparams.(print_prog) Unrolling p.1 in
 
   let p := const_prop_prog p in
-  let p := cparams.(print_prog) Unrolling p in
+  let p := cparams.(print_prog) Unrolling p.1 in
 
   let pv := var_alloc_prog p in
   let pv := cparams.(print_prog) AllocInlineAssgn pv in
   Let _ := CheckAllocReg.check_prog p pv in
   Let pv := dead_code_prog pv in
-  let pv := cparams.(print_prog) DeadCode_AllocInlineAssgn pv in
+  let pv := cparams.(print_prog) DeadCode_AllocInlineAssgn pv.1 in
 
   let ps := share_stack_prog pv in
   let ps := cparams.(print_prog) ShareStackVariable ps in
   Let _ := CheckAllocReg.check_prog pv ps in
   Let ps := dead_code_prog ps in
-  let ps := cparams.(print_prog) DeadCode_ShareStackVariable ps in
+  let ps := cparams.(print_prog) DeadCode_ShareStackVariable ps.1 in
 
   let pr := remove_init_prog ps in
-  let pr := cparams.(print_prog) RemoveArrInit pr in
+  let pr := cparams.(print_prog) RemoveArrInit pr.1 in
 
   let pe := expand_prog pr in
   let pe := cparams.(print_prog) RegArrayExpansion pe in
   Let _ := CheckExpansion.check_prog pr pe in
 
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
-  let pg := cparams.(print_prog) RemoveGlobal pg in
+  let pg := cparams.(print_prog) RemoveGlobal pg.1 in
 
   if (fvars_correct cparams.(lowering_vars) (p_funcs pg)) then
     let pl := lower_prog cparams.(lowering_opt) cparams.(warning) cparams.(lowering_vars) cparams.(is_var_in_memory) pg in
-    let pl := cparams.(print_prog) LowerInstruction pl in
+    let pl := cparams.(print_prog) LowerInstruction pl.1 in
 
     let pa := reg_alloc_prog pl in
     let pa := cparams.(print_prog) RegAllocation pa in
     Let _ := CheckAllocReg.check_prog pl pa in
     Let pd := dead_code_prog pa in
-    let pd := cparams.(print_prog) DeadCode_RegAllocation pd in
+    let pd := cparams.(print_prog) DeadCode_RegAllocation pd.1 in
 
     (* stack_allocation                    *)
     Let ps := stack_alloc.alloc_prog cparams.(stk_alloc_fd) pd in
     (* linearisation                     *)
-    Let pl := linear_prog ps in
-    let pl := cparams.(print_linear) pl in
+    Let pl := linear_prog ps.1 in
+    let pl := cparams.(print_linear) pl.1 in
     (* asm                               *)
     cfok (p_globs pd, pl)
 
