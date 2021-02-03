@@ -2,10 +2,11 @@
 
 set -e
 
-ASM=$(mktemp jasminXXXXX).s
-OBJ=$(mktemp jasminXXXXX).o
+DIR=$(mktemp -d jasminXXXXXX)
+ASM=${DIR}/jasmin.s
+OBJ=${DIR}/jasmin.o
 
-trap "rm -f ${ASM} ${OBJ}" EXIT
+trap "rm -r ${DIR}" EXIT
 
 set -x
 
