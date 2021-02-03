@@ -33,7 +33,6 @@
 %token COLON
 %token COMMA
 %token CONSTANT
-%token COPY
 %token DOT
 %token DOWNTO
 %token ELSE
@@ -314,9 +313,6 @@ pinstr_r:
 
 | a=align WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
     { PIWhile (a,is1, b, is2) }
-
-| x=tuple1(plvalue) EQ COPY e=parens(pexpr) SEMICOLON
-    { PICopy (x, e) }
 
 %inline align:
 | a=ALIGN? { if a = None then `NoAlign else `Align }

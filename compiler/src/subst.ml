@@ -51,8 +51,7 @@ let rec gsubst_i flen f i =
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
     | Cwhile(a, c, e, c') -> 
       Cwhile(a, gsubst_c flen f c, gsubst_e flen f e, gsubst_c flen f c')
-    | Ccall(ii,x,fn,e) -> Ccall(ii, gsubst_lvals flen f x, fn, gsubst_es flen f e)
-    | Ccopy(x, e) -> Ccopy(gsubst_lval flen f x, gsubst_e flen f e) in
+    | Ccall(ii,x,fn,e) -> Ccall(ii, gsubst_lvals flen f x, fn, gsubst_es flen f e) in
   { i with i_desc }
 
 and gsubst_c flen f c = List.map (gsubst_i flen f) c
@@ -340,8 +339,7 @@ let rec extend_iinfo_i pre i =
     | Cfor(x,r,c) -> 
       Cfor(x,r, extend_iinfo_c pre c)
     | Cwhile (a, c1, e, c2) -> 
-      Cwhile(a, extend_iinfo_c pre c1, e, extend_iinfo_c pre c2)
-    | Ccopy _ -> i.i_desc in
+      Cwhile(a, extend_iinfo_c pre c1, e, extend_iinfo_c pre c2) in
   let ii, l = i.i_loc in
   let i_loc = ii, (l @ pre) in
   { i with i_desc; i_loc }

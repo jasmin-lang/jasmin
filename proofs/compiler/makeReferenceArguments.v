@@ -173,7 +173,6 @@ Fixpoint update_i (get_sig : funname -> seq var_i * seq stype * seq var_i * seq 
     Let xsep := make_epilogue ii X returns treturns xs in
     let: (xs, epilogue) := xsep in 
     ok (prologue ++ MkI ii (Ccall ini xs fn es) :: epilogue)
-  | Ccopy _ _ => ok [::i]
   end.
 
 Definition update_fd (get_sig : funname -> seq var_i * seq stype * seq var_i * seq stype) (fd: fundef) :=

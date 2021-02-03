@@ -48,7 +48,6 @@ Section WRITE1.
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
     | Ccall _ _ fn _  => Sv.union s (writefun_ra fn)
-    | Ccopy x _ => vrv_rec s x
     end
   with write_I_rec s i :=
     match i with
@@ -82,7 +81,6 @@ Section WRITE1.
     - by move => v d lo hi body h s; rewrite /write_i /= -!/write_c_rec !h; SvD.fsetdec.
     - by move => a c1 e c2  h1 h2 s; rewrite /write_i /= -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
     - by move => i xs fn es s; rewrite /write_i /=; SvD.fsetdec.
-    by move => x e s; rewrite /write_i /= -vrv_recE.
   Qed.
 
   Definition extra_free_registers_at ii : Sv.t :=
@@ -176,8 +174,6 @@ Section CHECK.
         Let _ := assert (Sv.is_empty inter) (ii, Cerr_needspill fn (Sv.elements inter)) in
         ok (read_es_rec D1 es)
       else cierror ii (Cerr_one_varmap "call to unknown function")
-    | Ccopy x e =>
-      ok (read_rv_rec (read_e_rec (Sv.diff D (vrv x)) e) x)
     end.
 
   Lemma check_ir_CwhileP sz ii aa c e c' D D' :

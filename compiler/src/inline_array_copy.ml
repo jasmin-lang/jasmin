@@ -41,11 +41,6 @@ and iac_instr_r ir =
   | Cfor (i, r, s) -> Cfor (i, r, iac_stmt s)
   | Cwhile (a, c1, t, c2) -> Cwhile (a, iac_stmt c1, t, iac_stmt c2)
   | (Copn _ | Ccall _) -> ir
-  | Ccopy (x, e) ->
-    begin match is_array_copy x e with
-    | None -> ir
-    | Some (z, ws, n, y) -> array_copy z ws n y
-    end
 
 let iac_func f =
   { f with f_body = iac_stmt f.f_body }

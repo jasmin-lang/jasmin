@@ -76,7 +76,6 @@ let rec read_mem_i s i =
   | Cwhile (_, c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
   | Ccall (_, xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
   | Cfor (_, (_, e1, e2), c) -> read_mem_e e1 || read_mem_e e2 || read_mem_c s c
-  | Ccopy (x, e) -> read_mem_lval x || read_mem_e e
 
 and read_mem_c s = List.exists (read_mem_i s)
 
@@ -90,7 +89,6 @@ let rec write_mem_i s i =
   | Cwhile (_, c1, _, c2)   -> write_mem_c s c1 ||write_mem_c s c2
   | Ccall (_, xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s 
   | Cfor (_, _, c)       -> write_mem_c s c 
-  | Ccopy (x, _)  -> write_mem_lval x 
 
 and write_mem_c s = List.exists (write_mem_i s)
 
@@ -709,7 +707,6 @@ module Normal = struct
         let ltys = List.map ty_lval lvs in
         if (check_lvals lvs && ltys = tys) then env
         else add_aux env tys
-    | Ccopy _ -> env
    
   and init_aux env c = List.fold_left init_aux_i env c
 
@@ -791,11 +788,6 @@ module Normal = struct
         pp_i1 () pp_i2 ()
         (pp_cmd env) c
         pp_i () pp_i () (if d = UpTo then "+" else "-")
-    | Ccopy (lv, e) ->
-      let pp_e = pp_cast (pp_expr env) in
-      pp_lval1 env pp_e fmt (lv , (ty_expr e, e))
-
-
 end
 
 module Leak = struct 
@@ -962,8 +954,6 @@ module Leak = struct
         init_aux (add_aux env [tint; tint]) c
       else
         init_aux (add_aux env [tint]) c
-    | Ccopy (lv, _) -> add_aux env [ty_lval lv]
-
     
   and init_aux env c = List.fold_left init_aux_i env c
  
@@ -1071,12 +1061,7 @@ module Leak = struct
         (pp_cmd env1) c
         pp_i () pp_i () (if d = UpTo then "+" else "-")
         pp_restore ()
-    | Ccopy (lv, e) ->
-      pp_leaks_e env fmt e;
-      let pp fmt e = Format.fprintf fmt "<- %a" (pp_expr env) e in
-      pp_call env fmt [lv] [ty_expr e] pp e 
 
-        
 end 
 
 let pp_aux fmt env = 
@@ -1219,7 +1204,6 @@ and used_func_i used i =
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2
   | Ccall (_,_,f,_)   -> Ss.add f.fn_name used
-  | Ccopy _ -> used
 
 let extract fmt model ((globs,funcs):'a prog) tokeep = 
   let funcs = List.map Regalloc.fill_in_missing_names funcs in

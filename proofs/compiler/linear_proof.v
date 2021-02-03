@@ -152,23 +152,18 @@ Let linear_i := linear_i p extra_free_registers.
     by rewrite cats0 -catA.
   Qed.
 
-  Let Hcopy : ∀ (x : lval) (e : pexpr), Pr (Ccopy x e).
-  Proof.
-    by move => x e ii fn lbl tail.
-  Qed.
-
   Lemma linear_i_nil fn i lbl tail :
      linear_i fn i lbl tail =
      let: (lbl, lc) := linear_i fn i lbl [::] in (lbl, lc ++ tail).
   Proof.
-    apply (@instr_Rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall Hcopy).
+    apply (@instr_Rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
   Lemma linear_c_nil fn c lbl tail :
      linear_c (linear_i fn) c lbl tail =
      let: (lbl, lc) := linear_c (linear_i fn) c lbl [::] in (lbl, lc ++ tail).
   Proof.
-    apply (@cmd_rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall Hcopy).
+    apply (@cmd_rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
 End CAT.
@@ -679,16 +674,11 @@ Section VALIDITY.
     by case: eqP => _ //; rewrite Pos.leb_refl lbl_lt_lblp1.
   Qed.
 
-  Let Hcopy x1 e1 : Pr (Ccopy x1 e1).
-  Proof.
-    by move => ii fn lbl /=; split => //; apply: OrdersEx.Positive_as_DT.le_refl.
-  Qed.
-
   Definition linear_has_valid_labels : ∀ c, Pc c :=
-    @cmd_rect Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hif Hfor Hwhile Hcall Hcopy.
+    @cmd_rect Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hif Hfor Hwhile Hcall.
 
   Definition linear_has_valid_labels_instr : ∀ i, Pi i :=
-    @instr_Rect Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hif Hfor Hwhile Hcall Hcopy.
+    @instr_Rect Pr Pi Pc HMkI Hnil Hcons Hassign Hopn Hif Hfor Hwhile Hcall.
 
 End VALIDITY.
 

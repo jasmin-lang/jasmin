@@ -77,16 +77,6 @@ Fixpoint remove_init_i i :=
       let c' := foldr (fun i c => remove_init_i i ++ c) [::] c' in
       [:: MkI ii (Cwhile a c e c') ]
     | Ccall _ _ _ _  => [::i]
-    | Ccopy x e =>
-      if is_array_init e then 
-        let t := 
-          match x with
-          | Lvar x => is_reg_array x
-          | Lasub _ _ _ x _ => is_reg_array x
-          | _ => true 
-          end in
-        if t then [::] else [::i]
-      else [::i]
     end
   end.
 
