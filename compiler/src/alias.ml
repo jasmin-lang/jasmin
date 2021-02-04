@@ -121,7 +121,9 @@ let merge_slices params a s1 s2 =
   (* Format.eprintf "Alias: merging slices at %a: %a and %a@." pp_iloc loc pp_slice s1 pp_slice s2; *)
   assert (size_of_range s1.range = size_of_range s2.range);
   let c = compare_gvar params s1.in_var s1.scope s2.in_var s2.scope in
-  if c = 0 then (assert (s1 = s2); a)
+  if c = 0 then
+    if s1 = s2 then a
+    else hierror "Cannot merge distinct slices of the same array: %a and %a@." pp_slice s1 pp_slice s2
   else
     let s1, s2 = if c < 0 then s1, s2 else s2, s1 in
     let x = s1.in_var in
