@@ -76,23 +76,20 @@ Definition valid_RSP m (vm: vmap) : Prop :=
   vm.[vrsp] = ok (pword_of_word (top_stack m)).
 
 Inductive sem : Sv.t → estate → cmd → estate → Prop :=
-| Eskip k s :
-    Sv.Empty k →
-    sem k s [::] s
+| Eskip s :
+    sem Sv.empty s [::] s
 
-| Eseq k ki kc s1 s2 s3 i c :
+| Eseq ki kc s1 s2 s3 i c :
     sem_I ki s1 i s2 →
     sem kc s2 c s3 →
-    Sv.Equal k (Sv.union ki kc) →
-    sem k s1 (i :: c) s3
+    sem (Sv.union ki kc) s1 (i :: c) s3
 
 with sem_I : Sv.t → estate → instr → estate → Prop :=
-| EmkI ii k k' i s1 s2:
+| EmkI ii k i s1 s2:
     (if extra_free_registers ii is Some r then (r != vgd) && (r != vrsp) else true) →
     sem_i ii k (kill_extra_register ii s1) i s2 →
     disjoint k magic_variables →
-    Sv.Equal k' (Sv.union (extra_free_registers_at ii) k) →
-    sem_I k' s1 (MkI ii i) s2
+    sem_I (Sv.union (extra_free_registers_at ii) k) s1 (MkI ii i) s2
 
 with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
 | Eassgn ii s1 s2 (x:lval) tag ty e v v' :
@@ -162,13 +159,13 @@ Variant ex4_9 (A B C D : Type) (P1 P2 P3 P4 P5 P6 P7 P8 P9 : A → B → C → D
 Lemma semE k s c s' :
   sem k s c s' →
   match c with
-  | [::] => Sv.Empty k ∧ s = s'
+  | [::] => k = Sv.empty ∧ s = s'
   | i :: c => ex3_3
-                (λ ki kc _, Sv.Equal k (Sv.union ki kc))
+                (λ ki kc _, k = Sv.union ki kc)
                 (λ ki _ si, sem_I ki s i si)
                 (λ _ kc si, sem kc si c s')
   end.
-Proof. by case => // {k s c s'} k' ki kc s si s' i c; exists ki kc si. Qed.
+Proof. by case => // {k s c s'} ki kc s si s' i c; exists ki kc si. Qed.
 
 Lemma sem_IE k s i s' :
   sem_I k s i s' →
@@ -178,8 +175,8 @@ Lemma sem_IE k s i s' :
   ((if extra_free_registers ii is Some r then (r != vgd) && (r != vrsp) else true) : bool),
   sem_i ii k' (kill_extra_register ii s) r s',
   disjoint k' magic_variables &
-  Sv.Equal k (Sv.union (extra_free_registers_at ii) k') ].
-Proof. by case => {k s i s'} ii k k' i s1 s2 ???; exists k. Qed.
+  k = Sv.union (extra_free_registers_at ii) k' ].
+Proof. by case => {k s i s'} ii k i s1 s2 ???; exists k. Qed.
 
 Lemma sem_iE ii k s i s' :
   sem_i ii k s i s' →
@@ -242,14 +239,13 @@ Section SEM_IND.
     (Pfun : instr_info → Sv.t → estate → funname → estate → Prop).
 
   Definition sem_Ind_nil : Prop :=
-    ∀ (k: Sv.t) (s : estate), Sv.Empty k → Pc k s [::] s.
+    ∀ (s : estate), Pc Sv.empty s [::] s.
 
   Definition sem_Ind_cons : Prop :=
-    ∀ (k ki kc: Sv.t) (s1 s2 s3 : estate) (i : instr) (c : cmd),
+    ∀ (ki kc: Sv.t) (s1 s2 s3 : estate) (i : instr) (c : cmd),
       sem_I ki s1 i s2 → Pi ki s1 i s2 →
       sem kc s2 c s3 → Pc kc s2 c s3 →
-      Sv.Equal k (Sv.union ki kc) →
-      Pc k s1 (i :: c) s3.
+      Pc (Sv.union ki kc) s1 (i :: c) s3.
 
   Hypotheses
     (Hnil: sem_Ind_nil)
@@ -257,13 +253,12 @@ Section SEM_IND.
   .
 
   Definition sem_Ind_mkI : Prop :=
-    ∀ (ii : instr_info) (k k': Sv.t) (i : instr_r) (s1 s2 : estate),
+    ∀ (ii : instr_info) (k: Sv.t) (i : instr_r) (s1 s2 : estate),
       (if extra_free_registers ii is Some r then (r != vgd) && (r != vrsp) else true) →
       sem_i ii k (kill_extra_register ii s1) i s2 →
       Pi_r ii k (kill_extra_register ii s1) i s2 →
       disjoint k magic_variables →
-      Sv.Equal k' (Sv.union (extra_free_registers_at ii) k) →
-      Pi k' s1 (MkI ii i) s2.
+      Pi (Sv.union (extra_free_registers_at ii) k) s1 (MkI ii i) s2.
 
   Hypothesis HmkI : sem_Ind_mkI.
 
@@ -345,9 +340,9 @@ Section SEM_IND.
   Fixpoint sem_Ind (k: Sv.t) (s1 : estate) (c : cmd) (s2 : estate) (s: sem k s1 c s2) {struct s} :
     Pc k s1 c s2 :=
     match s in sem k s1 c s2 return Pc k s1 c s2 with
-    | Eskip k s0 h => Hnil s0 h
-    | @Eseq k ki kc s1 s2 s3 i c s0 s4 hk =>
-        @Hcons k ki kc s1 s2 s3 i c s0 (@sem_I_Ind ki s1 i s2 s0) s4 (@sem_Ind kc s2 c s3 s4) hk
+    | Eskip s0 => Hnil s0
+    | @Eseq ki kc s1 s2 s3 i c s0 s4 =>
+        @Hcons ki kc s1 s2 s3 i c s0 (@sem_I_Ind ki s1 i s2 s0) s4 (@sem_Ind kc s2 c s3 s4)
     end
 
   with sem_i_Ind (ii: instr_info) (k: Sv.t) (e : estate) (i : instr_r) (e0 : estate) (s : sem_i ii k e i e0) {struct s} :
@@ -370,7 +365,7 @@ Section SEM_IND.
 
   with sem_I_Ind (k: Sv.t) (s1 : estate) (i : instr) (s2 : estate) (s : sem_I k s1 i s2) {struct s} : Pi k s1 i s2 :=
     match s in sem_I k e1 i0 e2 return Pi k e1 i0 e2 with
-    | @EmkI ii k k' i s1 s2 nom exec pm ek => @HmkI ii k k' i s1 s2 nom exec (@sem_i_Ind ii k _ i s2 exec) pm ek
+    | @EmkI ii k i s1 s2 nom exec pm => @HmkI ii k i s1 s2 nom exec (@sem_i_Ind ii k _ i s2 exec) pm
     end
 
   with sem_call_Ind (ii: instr_info) (k: Sv.t) (s1: estate) (fn: funname) (s2: estate) (s: sem_call ii k s1 fn s2) {struct s} : Pfun ii k s1 fn s2 :=

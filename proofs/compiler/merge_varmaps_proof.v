@@ -295,7 +295,6 @@ Section LEMMA.
     exists t; last by [].
     exists Sv.empty; last by [].
     constructor.
-    exact: Sv.empty_spec.
   Qed.
 
   Local Lemma Hcons: sem_Ind_cons p global_data Pc Pi.
@@ -321,7 +320,7 @@ Section LEMMA.
     case: (hc _ _ _ _ ok_c ok_W2 sim2) => t3 [kc texec_c hkc] sim3.
     exists t3; last by [].
     eexists.
-    - econstructor; [ exact: texec_i | exact: texec_c | reflexivity ].
+    - econstructor; [ exact: texec_i | exact: texec_c ].
     rewrite write_c_cons.
     move: hki hkc; clear.
     SvD.fsetdec.
@@ -377,9 +376,8 @@ Section LEMMA.
       2: exact: texec_i.
       + move: vrsp_not_extra vgd_not_extra; rewrite /extra_free_registers_at; case: extra_free_registers => // r.
         clear => ??; apply/andP; split; apply/eqP; SvD.fsetdec.
-      + apply: disjoint_w dis.
-        SvD.fsetdec.
-      reflexivity.
+      apply: disjoint_w dis.
+      SvD.fsetdec.
     rewrite /write_I merge_varmaps.write_I_recE -/write_i.
     clear -hk; SvD.fsetdec.
   Qed.

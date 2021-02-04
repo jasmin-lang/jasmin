@@ -27,7 +27,7 @@ Lemma Hnil : sem_Ind_nil Pc.
 Proof. by []. Qed.
 
 Lemma Hcons : sem_Ind_cons p extra_free_registers Pc Pi.
-Proof. move => k ki kc x y z i c _ xy _ yz; red; transitivity (emem y); assumption. Qed.
+Proof. move => ki kc x y z i c _ xy _ yz; red; transitivity (emem y); assumption. Qed.
 
 Lemma HmkI : sem_Ind_mkI p extra_free_registers Pi Pi_r.
 Proof. by []. Qed.
@@ -134,15 +134,13 @@ Proof. by []. Qed.
 
 Lemma Hcons_nw : sem_Ind_cons p extra_free_registers Pc Pi.
 Proof.
-  move => k ki kc x y z i c _ xy _ yz hk.
-  red. rewrite hk.
+  move => ki kc x y z i c _ xy _ yz.
   exact: vmap_eq_exceptTI yz.
 Qed.
 
 Lemma HmkI_nw : sem_Ind_mkI p extra_free_registers Pi Pi_r.
 Proof.
-  move => ii k k' i s1 s2 _ _ ih D ke.
-  red; rewrite ke.
+  move => ii k i s1 s2 _ _ ih D.
   apply: vmap_eq_exceptTI ih.
   apply: vmap_eq_exceptS.
   exact: kill_extra_register_vmap_eq_except.
@@ -251,21 +249,19 @@ Let Pfun (_: instr_info) (k: Sv.t) (_: estate) (_: funname) (_: estate) : Prop :
 
 Local Lemma Hnil_pm : sem_Ind_nil Pc.
 Proof.
-  move => k s ke; rewrite /Pc /disjoint /is_true Sv.is_empty_spec.
+  move => s; rewrite /Pc /disjoint.
   SvD.fsetdec.
 Qed.
 
 Lemma Hcons_pm : sem_Ind_cons p extra_free_registers Pc Pi.
 Proof.
-  move => k ki kc x y z i c _ xy _ yz ke.
-  red; rewrite ke.
+  move => ki kc x y z i c _ xy _ yz.
   exact: disjoint_union yz.
 Qed.
 
 Lemma HmkI_pm : sem_Ind_mkI p extra_free_registers Pi Pi_r.
 Proof.
-  move => ii k k' i s1 s2 h _ _ ih ke.
-  red; rewrite ke.
+  move => ii k i s1 s2 h _ _ ih.
   apply: disjoint_union ih.
   move: h; rewrite /extra_free_registers_at.
   case: extra_free_registers => // ra /andP[] /eqP r_neq_gd /eqP r_neq_rsp.
@@ -339,14 +335,5 @@ Proof.
 Qed.
 
 End PRESERVED_RSP_GD.
-
-Global Instance sem_m : Proper (Sv.Equal ==> eq ==> eq ==> eq ==> Basics.impl) (sem p extra_free_registers).
-Proof.
-  move => k k' k_eq_k' s1 _ <- c _ <- s2 _ <- /semE.
-  case: c.
-  - case => ? <-; constructor; SvD.fsetdec.
-  move => i c [] ki kc si hk hi hc; econstructor; only 1-2: eassumption.
-  SvD.fsetdec.
-Qed.
 
 End PROG.

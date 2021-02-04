@@ -988,12 +988,12 @@ Section PROOF.
 
   Local Lemma Hnil : sem_Ind_nil Pc.
   Proof.
-    move => k s1 hk fn lbl _ m1 vm1 P Q M X D C; rewrite cats0; exists m1 vm1 => //; exact: rt_refl.
+    move => s1 fn lbl _ m1 vm1 P Q M X D C; rewrite cats0; exists m1 vm1 => //; exact: rt_refl.
   Qed.
 
   Local Lemma Hcons : sem_Ind_cons p extra_free_registers Pc Pi.
   Proof.
-    move => k ki kc s1 s2 s3 i c exec_i hi _ hc hk.
+    move => ki kc s1 s2 s3 i c exec_i hi _ hc.
     move => fn lbl /checked_cI[] chk_i chk_c /=.
     case: (linear_c fn) (valid_c fn c lbl) (hc fn lbl chk_c) => lblc lc [Lc Vc] Sc.
     rewrite linear_i_nil.
@@ -1022,7 +1022,7 @@ Section PROOF.
 
   Local Lemma HmkI : sem_Ind_mkI p extra_free_registers Pi Pi_r.
   Proof.
-    move => ii k k' i s1 s2 ok_fr _ h _ hk fn lbl chk.
+    move => ii k i s1 s2 ok_fr _ h _ fn lbl chk.
     move: h => /(_ fn lbl chk); case: linear_i (valid_i fn (MkI ii i) lbl) => lbli li [L V] S.
     move => m1 vm1 P Q M X D C.
     have [ | {M X} ] := S _ vm1 _ _ M _ D C.
