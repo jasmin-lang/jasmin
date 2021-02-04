@@ -968,6 +968,17 @@ Proof. by move=> H1 H2 x Hin;rewrite H1 ?H2. Qed.
 Lemma vmap_eq_exceptI s1 s2 vm1 vm2 : Sv.Subset s1 s2 -> vm1 = vm2 [\s1] -> vm1 = vm2 [\s2].
 Proof. move=> Hs Heq x Hin;apply Heq;SvD.fsetdec. Qed.
 
+Lemma vmap_eq_exceptTI s1 s2 vm1 vm2 vm3 :
+  vm1 = vm2 [\s1] ->
+  vm2 = vm3 [\s2] ->
+  vm1 = vm3 [\Sv.union s1 s2].
+Proof.
+  move => h12 h23; apply: vmap_eq_exceptT; apply: vmap_eq_exceptI.
+  2: exact: h12.
+  3: exact: h23.
+  all: SvD.fsetdec.
+Qed.
+
 Lemma vmap_eq_exceptS vm1 s vm2 : vm1 = vm2 [\s] -> vm2 = vm1 [\s].
 Proof. by move=> Heq x Hin;rewrite Heq. Qed.
 
