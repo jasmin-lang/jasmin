@@ -487,7 +487,7 @@ Section Leak_I.
     flatten (map2 (leak_I stk) ls lts).
 
   Definition leak_Iss (stk: pointer) (ltss : seq leak_i_tr) (ls : seq (seq leak_i)) : seq (seq leak_i) :=
-    (map (leak_Is stk ltss) ls).
+    (map (leak_Is stk ltss) ls). 
 
 End Leak_I.
 
@@ -609,6 +609,25 @@ Definition leak_Fun (f: funname) : leak_c_tr := odflt [::] (assoc Fs f).
 
 End Leak_Call_Imp.
 
+Section Leak_Compile.
+
+Variable Fs: seq (funname * seq leak_i_tr).
+
+Fixpoint get_seq_seq_leak_c_tr (lts : seq leak_f_tr) : seq (seq leak_c_tr) :=
+match lts with 
+| [::] => [::]
+| a :: al => [:: unzip2 a] ++ get_seq_seq_leak_c_tr al
+end.
+
+Fixpoint leak_compile (stk : pointer) (lts: seq (seq leak_c_tr)) (lf : leak_fun) : leak_fun :=
+match lts with 
+| [::] => lf
+| x :: xs => let r := leak_Is (leak_I (leak_Fun Fs)) stk (flatten x) lf.2 in 
+             let rs := leak_compile stk xs (lf.1, r) in rs
+end.
+
+End Leak_Compile.
+
 (** Leakage for intermediate-level **)
 
 Inductive leak_il : Type :=
@@ -714,6 +733,7 @@ match l with
 | Lopnl le => Laop (leak_e_asm le)
 | Lcondl le b => Lacond b
 end.
+
 
 
 

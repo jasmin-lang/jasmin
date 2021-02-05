@@ -159,8 +159,8 @@ Definition compile_prog (entries : seq funname) (p:prog) : result fun_error (glo
     (* stack_allocation                    *)
     Let ps := stack_alloc.alloc_prog cparams.(stk_alloc_fd) pd in
     (* linearisation                     *)
-    Let pl := linear_prog ps.1 in
-    let pl := cparams.(print_linear) pl.1 in
+    Let plp := linear_prog ps.1 in (* plp.2 not used *)
+    let pl := cparams.(print_linear) plp.1 in
     (* asm                               *)
     cfok (p_globs pd, pl, [:: pi.2] ++ pu.2 ++ [:: pc.2; pvd.2; psd.2; prr.2; pgr.2; pll.2; pdd.2])
 
