@@ -1,4 +1,4 @@
-{ stdenv, fetchFromGitHub, coqPackages }:
+{ stdenv, lib, fetchFromGitHub, coqPackages }:
 
 let inherit (coqPackages) coq; in
 
@@ -30,7 +30,7 @@ stdenv.mkDerivation rec {
 
   meta = {
     description = "Yet Another Coq Library on Machine Words";
-    license = stdenv.lib.licenses.cecill-b;
+    license = lib.licenses.cecill-b;
     inherit (src.meta) homepage;
     inherit (coq.meta) platforms;
   };

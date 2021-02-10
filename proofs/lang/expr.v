@@ -113,6 +113,7 @@ Variant sopn : Set :=
 
 (* Low level x86 operations *)
 | Oset0     of wsize  (* set register + flags to 0 (implemented using XOR x x or VPXOR x x) *)
+| Oconcat128          (* concatenate 2 128 bits word into 1 256 word register *)   
 | Ox86MOVZX32
 | Ox86      of asm_op  (* x86 instruction *)
 .
@@ -244,6 +245,13 @@ Definition Onop_instr :=
            (ok tt)
            U64 [::].
 
+Definition Oconcat128_instr := 
+  mk_instr (pp_s "concat_2u128") 
+           [:: sword128; sword128 ] [:: E 1; E 2] 
+           [:: sword256] [:: E 0] 
+           (λ h l : u128, ok (make_vec U256 [::l;h]))
+           U128 [::].
+
 Definition get_instr o :=
   match o with
   | Onop         => Onop_instr
@@ -251,6 +259,7 @@ Definition get_instr o :=
   | Oaddcarry sz => Oaddcarry_instr sz
   | Osubcarry sz => Osubcarry_instr sz
   | Oset0     sz => Oset0_instr sz
+  | Oconcat128   => Oconcat128_instr 
   | Ox86MOVZX32  => Ox86MOVZX32_instr
   | Ox86   instr =>
       let id := instr_desc instr in
