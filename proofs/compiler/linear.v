@@ -95,62 +95,6 @@ Record lprog :=
 Section PROG.
 Context (p:sprog) (extra_free_registers: instr_info -> option var).
 
-Section WRITE1.
-
-  Context (writefun: funname -> Sv.t).
-
-  Definition writefun_ra (fn:funname) :=
-    let ra :=
-      match get_fundef (p_funcs p) fn with
-      | None => Sv.empty
-      | Some fd =>
-        match fd.(f_extra).(sf_return_address) with
-        | RAnone | RAstack _ => Sv.empty
-        | RAreg ra => Sv.singleton ra
-        end
-      end in
-    Sv.union (writefun fn) ra.
-
-  Fixpoint write_i_rec s i :=
-    match i with
-    | Cassgn x _ _ _  => vrv_rec s x
-    | Copn xs _ _ _   => vrvs_rec s xs
-    | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
-    | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
-    | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
-    | Ccall _ _ fn _  => writefun_ra fn
-    end
-  with write_I_rec s i :=
-    match i with
-    | MkI ii i =>
-      let result := write_i_rec s i in
-      if extra_free_registers ii is Some r
-      then Sv.add r result
-      else result
-    end.
-
-  Definition write_c := foldl write_I_rec (Sv.empty).
-
-  Definition write_fd (fd:sfundef) := write_c fd.(f_body).
-
-End WRITE1.
-
-(* We start by initialising the map of writefun, this does not need to be trusted *)
-
-Section WMAP.
-
-Definition get_wmap (wmap : Mp.t Sv.t) (fn:funname) := odflt Sv.empty (Mp.get wmap fn).
-
-Definition mk_wmap := 
-  foldr (fun ffd wmap => 
-           let: (f,fd) := ffd in
-           let w := write_fd (get_wmap wmap) fd in
-           Mp.set wmap f w) (Mp.empty _) p.(p_funcs).
-
-Definition check_wmap (wmap:Mp.t Sv.t) := 
-  all (fun ffd => Sv.subset (write_fd (get_wmap wmap) ffd.2) (get_wmap wmap ffd.1)) (p_funcs p).
-
-End WMAP.
 
 Section CHECK.
 
