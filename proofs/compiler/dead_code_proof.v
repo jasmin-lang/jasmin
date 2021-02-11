@@ -549,35 +549,35 @@ Section PROOF.
   Qed.
   
   Lemma dead_code_callP fn mem mem' va vr lf:
-    sem_call p mem fn va lf mem' vr ->
-    sem_call p' mem fn va (lf.1, (leak_Is (leak_I (leak_Fun Ffs)) stk (leak_Fun Ffs lf.1) lf.2)) mem' vr.
+    sem_call p mem fn va (fn, lf) mem' vr ->
+    sem_call p' mem fn va (fn, (leak_Is (leak_I (leak_Fun Ffs)) stk (leak_Fun Ffs fn) lf)) mem' vr.
   Proof.
     apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
-  Lemma dead_code_callCT f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf:
-  sem_call p mem1 f va1 lf mem1' vr1 ->
-  sem_call p mem2 f va2 lf mem2' vr2 ->
-  sem_call p' mem1 f va1 (lf.1, (leak_Is (leak_I (leak_Fun Ffs)) stk (leak_Fun Ffs lf.1) lf.2)) mem1' vr1 /\
-  sem_call p' mem2 f va2 (lf.1, (leak_Is (leak_I (leak_Fun Ffs)) stk (leak_Fun Ffs lf.1) lf.2)) mem2' vr2.
+  Lemma dead_code_callCT fn mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf:
+  sem_call p mem1 fn va1 (fn, lf) mem1' vr1 ->
+  sem_call p mem2 fn va2 (fn, lf) mem2' vr2 ->
+  sem_call p' mem1 fn va1 (fn, (leak_Is (leak_I (leak_Fun Ffs)) stk (leak_Fun Ffs fn) lf)) mem1' vr1 /\
+  sem_call p' mem2 fn va2 (fn, (leak_Is (leak_I (leak_Fun Ffs)) stk (leak_Fun Ffs fn) lf)) mem2' vr2.
   Proof.
   move=> Hm1 Hm2. split.
   + by apply: dead_code_callP.
   by apply: dead_code_callP.
   Qed.
 
-  Lemma dead_code_callCTP P f:
+  (*Lemma dead_code_callCTP P f:
   constant_time P p f ->
   constant_time P p' f.
   Proof.
   rewrite /constant_time.
   move=> Hc mem1 mem2 va1 va2 Hp.
   move: (Hc mem1 mem2 va1 va2 Hp). move=> [mem1'] [mem2'] [vr1] [vr2] [lf] [Hm1] Hm2.
-  move: dead_code_callCT. move=> Hct. move: (Hct f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf Hm1 Hm2). move=> [Hm1'] Hm2'.
+  move: dead_code_callCT. move=> Hct. move: (Hct f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf.2 Hm1 Hm2). move=> [Hm1'] Hm2'.
   exists mem1'. exists mem2'. exists vr1. exists vr2. exists (lf.1,
            leak_Is (leak_I (leak_Fun Ffs)) stk 
              (leak_Fun Ffs lf.1) lf.2). by split.
-  Qed.
+  Qed.*)
 
 End PROOF.

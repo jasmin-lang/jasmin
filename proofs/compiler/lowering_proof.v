@@ -2873,8 +2873,8 @@ Qed.
   Qed.
 
   Lemma lower_callP f mem mem' va vr lf:
-    sem_call p  mem f va lf mem' vr ->
-    sem_call p'.1 mem f va (lf.1, (leak_Is (leak_I (leak_Fun p'.2)) stk (leak_Fun p'.2 lf.1) lf.2)) mem' vr.
+    sem_call p  mem f va (f, lf) mem' vr ->
+    sem_call p'.1 mem f va (f, (leak_Is (leak_I (leak_Fun p'.2)) stk (leak_Fun p'.2 f) lf)) mem' vr.
   Proof.
     apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).

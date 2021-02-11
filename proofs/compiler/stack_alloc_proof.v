@@ -1213,10 +1213,10 @@ Lemma alloc_fdP oracle (P: prog) (SP: sprog * leak_f_tr) fn fd fd':
   alloc_prog oracle P = ok SP ->
   get_fundef (p_funcs P) fn = Some fd ->
   get_fundef SP.1 fn = Some fd' ->
-  forall m1 va m1' lf vr,
+  forall m1 va m1' lf vr p,
     sem_call P m1 fn va lf m1' vr ->
-    (exists p, alloc_stack m1 (sf_stk_sz fd') = ok p) ->
-    exists m2' vr' p,
+    alloc_stack m1 (sf_stk_sz fd') = ok p ->
+    exists m2' vr',
       List.Forall2 value_uincl vr vr' /\
       eq_mem m1' m2' /\
       S.sem_call SP.1 (p_globs P) m1 fn va 
@@ -1230,9 +1230,9 @@ Proof.
   move: H. t_xrbindP. move=> [sfd ltc'] c.
   apply: add_finfoP => Hi; case:andP => // -[Hp Hr] [] hsfd hltc /= hfd' hltc'.
   subst sfd fd' => /=.
-  move=> m1 vs m1' lfn vr. case hlfn : lfn=> [fn' lt]. move=> H.
+  move=> m1 vs m1' lfn vr m2. case hlfn : lfn=> [fn' lt]. move=> H.
   have H1 := H.  move: H. move=> /sem_callE' [f] [].
-  rewrite get => - [<-] {f} [vargs] [s1] [vm2] [vres] [hvargs hs1 hbody hvres hvr] [m2 Halloc].
+  rewrite get => - [<-] {f} [vargs] [s1] [vm2] [vres] [hvargs hs1 hbody hvres hvr] Halloc.
   have [/= Hv Hestk] := init_mapP Halloc hinit.
   have Hstk: stk_ok (top_stack m2) stk_s.
   + by move: Halloc=> /Memory.alloc_stackP [].
@@ -1277,7 +1277,7 @@ Proof.
   case: Hv2' => /= Hdisj Hmem Hval Heqvm _ Htopstack _.
   have [vr' [/= hvr' hvruincl]] := check_varsP Hr Heqvm hvres.
   have [vr'' hvr'' hvruincl'] := mapM2_truncate_val hvr hvruincl.
-  exists (free_stack m2' stk_s);exists vr''. exists m2;split; first exact: hvruincl'.
+  exists (free_stack m2' stk_s);exists vr''; split; first exact: hvruincl'.
   split.
   + move => w sz.
     have hts : omap snd (ohead (frames m2')) = Some stk_s.
@@ -1332,20 +1332,24 @@ Definition alloc_ok SP fn m1 :=
 
 Lemma alloc_progP oracle (P: prog) (SP: sprog * leak_f_tr) fn:
   alloc_prog oracle P = ok SP ->
-  forall m1 va lf m1' vr,
+  forall m1 va lf m1' vr p,
     sem_call P m1 fn va (fn, lf) m1' vr ->
-    alloc_ok SP.1 fn m1 ->
-    exists m2' vr' p',
+    (forall fd, get_fundef SP.1 fn = Some fd ->
+    alloc_stack m1 (sf_stk_sz fd) = ok p) ->
+    exists m2' vr',
       List.Forall2 value_uincl vr vr' /\
       eq_mem m1' m2' /\
       S.sem_call SP.1 (p_globs P) m1 fn va 
-      (fn, (leak_Is (leak_I (leak_Fun SP.2)) (top_stack p') (leak_Fun SP.2 fn) lf)) m2' vr'.
+      (fn, (leak_Is (leak_I (leak_Fun SP.2)) (top_stack p) (leak_Fun SP.2 fn) lf)) m2' vr'.
 Proof.
-  move=> Hcheck m1 va lf m1' vr hsem ha.
-  have [fd hget]: exists fd, get_fundef (p_funcs P) fn = Some fd.
-  + by case: hsem => ??? fd *;exists fd.
-  have := getfun_alloc Hcheck hget. move=> [] sfd [] ltc [] hgetS [] h h'.
-  have := (alloc_fdP Hcheck hget hgetS hsem (ha _ hgetS)).
-  move=> [] m' [] vr' [] hvl [] heq [] hs hs'.
-  exists m'. exists vr'. exists hvl. split=> //.
+  move=> Hcheck m1 va lf m1' vr m2 hsem ha.
+  have [fd' hget']: exists fd', get_fundef (p_funcs P) fn = Some fd'.
+  + by case: hsem => ??? fd' *;exists fd'.
+  have := getfun_alloc Hcheck hget'. move=> [] sfd [] ltc [] hgetS [] h h'.
+  move: (ha sfd hgetS). move=> halloc.
+  have := (alloc_fdP Hcheck hget' hgetS hsem halloc). 
+  move=> [] m' [] vr' [] hvl [] heq hs. 
+  exists m'. exists vr'. split=> //.
 Qed.
+
+

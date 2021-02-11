@@ -609,24 +609,20 @@ Definition leak_Fun (f: funname) : leak_c_tr := odflt [::] (assoc Fs f).
 
 End Leak_Call_Imp.
 
-Section Leak_Compile.
-
-Variable Fs: seq (funname * seq leak_i_tr).
-
-Fixpoint get_seq_seq_leak_c_tr (lts : seq leak_f_tr) : seq (seq leak_c_tr) :=
+Fixpoint leak_compile (stk : pointer) (lts: seq leak_f_tr) (lf: leak_fun) := 
 match lts with 
-| [::] => [::]
-| a :: al => [:: unzip2 a] ++ get_seq_seq_leak_c_tr al
+| [::] => lf.2
+| x :: xs => let r := (leak_Is (leak_I (leak_Fun x)) stk (leak_Fun x lf.1)
+                   lf.2) in 
+             leak_compile stk xs (lf.1, r)
 end.
 
-Fixpoint leak_compile (stk : pointer) (lts: seq (seq leak_c_tr)) (lf : leak_fun) : leak_fun :=
-match lts with 
-| [::] => lf
-| x :: xs => let r := leak_Is (leak_I (leak_Fun Fs)) stk (flatten x) lf.2 in 
-             let rs := leak_compile stk xs (lf.1, r) in rs
+Fixpoint leak_compiles (stk: pointer) (ltss: seq (seq leak_f_tr)) (lf: leak_fun) :=
+match ltss with 
+| [::] => lf.2
+| x :: xs => let r := leak_compile stk x lf in 
+              leak_compiles stk xs (lf.1, r)
 end.
-
-End Leak_Compile.
 
 (** Leakage for intermediate-level **)
 
@@ -734,7 +730,14 @@ match l with
 | Lcondl le b => Lacond b
 end.
 
+Definition leak_compile_prog (stk: pointer) (ltss: leak_f_lf_tr * (seq leak_f_tr * (seq (seq leak_f_tr) * seq leak_f_tr))) (lf: leak_fun) : seq leak_il :=
+let r := leak_compile stk ltss.2.1 lf in 
+let rs := leak_compiles stk ltss.2.2.1 (lf.1, r) in 
+leak_i_iLs leak_i_iL stk (leak_Fun_L ltss.1 lf.1) (leak_compile stk ltss.2.2.2 (lf.1, rs)). 
 
+Definition leak_compile_x86 (stk: pointer) (ltss: leak_f_lf_tr * (seq leak_f_tr * (seq (seq leak_f_tr) * seq leak_f_tr))) (lf: leak_fun) : seq leak_asm := 
+let r := leak_compile_prog stk ltss lf in
+map (fun x=> leak_i_asm x) r.
 
 
 

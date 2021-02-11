@@ -3561,9 +3561,9 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
   Qed.
  
   Lemma const_prop_callP f mem mem' va va' vr lf:
-    sem_call p mem f va lf mem' vr ->
+    sem_call p mem f va (f, lf) mem' vr ->
     List.Forall2 value_uincl va va' ->
-    exists vr', sem_call p' mem f va'(lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr' 
+    exists vr', sem_call p' mem f va'(f, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs f) lf)) mem' vr' 
     /\ List.Forall2 value_uincl vr vr'.
   Proof.
     move=> /(@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
@@ -3585,8 +3585,8 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
   Admitted. *)
 
   Lemma const_prop_callP' f mem mem' va vr lf:
-    sem_call p mem f va lf mem' vr ->
-    exists vr', sem_call p' mem f va (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr'
+    sem_call p mem f va (f, lf) mem' vr ->
+    exists vr', sem_call p' mem f va (f, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs f) lf)) mem' vr'
     /\ List.Forall2 value_uincl vr vr'.
   Proof.
   move=> Hc. apply: const_prop_callP. apply Hc. apply List_Forall2_refl.
@@ -3594,7 +3594,7 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
   Qed.
 
 
-  Lemma const_prop_callCT f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf:
+  (*Lemma const_prop_callCT f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf:
     sem_call p mem1 f va1 lf mem1' vr1 ->
     sem_call p mem2 f va2 lf mem2' vr2 ->
     exists vr1', sem_call p' mem1 f va1 (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem1' vr1' /\ 
@@ -3605,7 +3605,7 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
   move=> Hm1 Hm2.
   move: (const_prop_callP' Hm1). move=> [vr'] [Hm1'] Hls. move: (const_prop_callP' Hm2). move=> [vr''] [Hm2'] Hls'.
   exists vr'. split=> //. split=> //. exists vr''. split=> //.  
-  Qed.
+  Qed.*)
 
   (*Lemma const_prop_callCTP P f:
   constant_time' P p f ->

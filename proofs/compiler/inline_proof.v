@@ -963,9 +963,9 @@ End PROOF.
 Lemma inline_call_errP p p' f mem mem' va va' vr lf Fs stk:
   inline_prog_err inline_var rename_fd p = ok (p', Fs) ->
   List.Forall2 value_uincl va va' ->
-  sem_call p mem f va lf mem' vr ->
+  sem_call p mem f va (f, lf) mem' vr ->
   exists vr',
-      sem_call p' mem f va' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr'
+      sem_call p' mem f va' (f, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs f) lf)) mem' vr'
       /\  List.Forall2 value_uincl vr vr'.
 Proof.
   rewrite /inline_prog_err. case:ifP => //= Hu. t_xrbindP => -[fds lts] Hi Heq Heq' Hv Hsem.
@@ -1200,8 +1200,8 @@ Section REMOVE_INIT.
   
   Lemma remove_init_fdP f mem mem' va va' vr lf:
     List.Forall2 value_uincl va va' ->
-    sem_call p mem f va lf mem' vr ->
-    exists vr', sem_call p'.1 mem f va' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr' /\ List.Forall2 value_uincl vr vr'.
+    sem_call p mem f va (f, lf) mem' vr ->
+    exists vr', sem_call p'.1 mem f va' (f, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs f) lf)) mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
     move=> /(@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Rnil Rcons RmkI Rasgn Ropn
              Rif_true Rif_false Rwhile_true Rwhile_false Rfor Rfor_nil Rfor_cons Rcall Rproc) H.

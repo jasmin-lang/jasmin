@@ -843,8 +843,8 @@ End REFL_PROC.
 End PROOF.
 
 Lemma alloc_callP p1 p2 Fs (H: check_prog p1 p2 = ok Fs) f mem mem' va vr lf:
-    sem_call p1 mem f va lf mem' vr ->
-    exists vr', sem_call p2 mem f va (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr'
+    sem_call p1 mem f va (f, lf) mem' vr ->
+    exists vr', sem_call p2 mem f va (f, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs f) lf)) mem' vr'
                 /\ List.Forall2 value_uincl vr vr'.
 Proof.
   move: H;rewrite /check_prog;case: eqP => // heq hc.

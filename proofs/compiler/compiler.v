@@ -40,16 +40,17 @@ Definition unroll1 (p:prog) : cfexec (prog * seq leak_f_tr) :=
   Let dp := dead_code_prog cp.1 in 
   cfok (dp.1, [:: up.2; cp.2; dp.2]).
 
-Fixpoint unroll (n:nat) (p:prog) : cfexec (prog * seq leak_f_tr) :=
+Fixpoint unroll (n:nat) (p:prog) : cfexec (prog * seq (seq leak_f_tr)) :=
   match n with
   | O   => cferror Ferr_loop
   | S n =>
     Let p' := unroll1 p in
-    if p == p'.1 then cfok (p, p'.2)
-    else unroll n p'.1
+    if p == p'.1 then cfok (p, [:: p'.2])
+    else Let rs := unroll n p'.1 in 
+         cfok (rs.1, [:: p'.2] ++ rs.2)
   end.
 
-Definition unroll_loop (p:prog) : cfexec (prog * seq leak_f_tr) := unroll Loop.nb p.
+Definition unroll_loop (p:prog) : cfexec (prog * seq (seq leak_f_tr)) := unroll Loop.nb p.
 
 Section COMPILER.
 
@@ -111,7 +112,8 @@ Definition reg_alloc_prog (p:prog) :=
      p_funcs := List.map (fun f => (f.1, cparams.(reg_alloc_fd) f.1 f.2)) (p_funcs p) |}.
 
 (* need to also return sequence of leak transformers *)
-Definition compile_prog (entries : seq funname) (p:prog) : result fun_error (glob_decls * lprog * seq leak_f_tr) :=
+Definition compile_prog (entries : seq funname) (p:prog) : 
+  result fun_error (glob_decls * lprog * (leak_f_lf_tr * (seq leak_f_tr * (seq (seq leak_f_tr) * seq leak_f_tr)))) :=
   Let pi := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
   let p := cparams.(print_prog) Inlining pi.1 in
 
@@ -126,13 +128,13 @@ Definition compile_prog (entries : seq funname) (p:prog) : result fun_error (glo
 
   let pv := var_alloc_prog p in
   let pv := cparams.(print_prog) AllocInlineAssgn pv in
-  Let _ := CheckAllocReg.check_prog p pv in
+  Let pvr := CheckAllocReg.check_prog p pv in
   Let pvd := dead_code_prog pv in
   let pv := cparams.(print_prog) DeadCode_AllocInlineAssgn pvd.1 in
 
   let ps := share_stack_prog pv in
   let ps := cparams.(print_prog) ShareStackVariable ps in
-  Let _ := CheckAllocReg.check_prog pv ps in
+  Let pvc := CheckAllocReg.check_prog pv ps in
   Let psd := dead_code_prog ps in
   let ps := cparams.(print_prog) DeadCode_ShareStackVariable psd.1 in
 
@@ -141,7 +143,7 @@ Definition compile_prog (entries : seq funname) (p:prog) : result fun_error (glo
 
   let pe := expand_prog pr in
   let pe := cparams.(print_prog) RegArrayExpansion pe in
-  Let _ := CheckExpansion.check_prog pr pe in
+  Let pex := CheckExpansion.check_prog pr pe in
 
   Let pgr := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_prog) RemoveGlobal pgr.1 in
@@ -152,7 +154,7 @@ Definition compile_prog (entries : seq funname) (p:prog) : result fun_error (glo
 
     let pa := reg_alloc_prog pl in
     let pa := cparams.(print_prog) RegAllocation pa in
-    Let _ := CheckAllocReg.check_prog pl pa in
+    Let ltc := CheckAllocReg.check_prog pl pa in
     Let pdd := dead_code_prog pa in
     let pd := cparams.(print_prog) DeadCode_RegAllocation pdd.1 in
 
@@ -162,11 +164,17 @@ Definition compile_prog (entries : seq funname) (p:prog) : result fun_error (glo
     Let plp := linear_prog ps.1 in (* plp.2 not used *)
     let pl := cparams.(print_linear) plp.1 in
     (* asm                               *)
-    cfok (p_globs pd, pl, [:: pi.2] ++ pu.2 ++ [:: pc.2; pvd.2; psd.2; prr.2; pgr.2; pll.2; pdd.2])
+    cfok (p_globs pd, pl, (plp.2, ([:: pi.2], (pu.2,  
+          [:: pc.2 ; pvr ; pvd.2 ; pvc ; psd.2 ; 
+              prr.2 ; pex; pgr.2 ; pll.2 ; ltc ; pdd.2 ; ps.2]))))
+    (*[:: [:: pi.2]] ++ pu.2 ++ [:: [:: pc.2; pvd.2; psd.2; prr.2; pgr.2; pll.2; pdd.2; ps.2]]))*)
+         (*[:: [:: ps.2]] ++ [:: [::pdd.2]] ++ [:: [:: pll.2]] ++ [:: [:: pgr.2]] ++ [:: [:: prr.2]] ++
+         [:: [::  psd.2]] ++ [:: [:: pvd.2]] ++ [:: [::pc.2]] ++ pu.2 ++ [:: [:: pi.2]]))*)
+
+
+(*[:: [:: pi.2]] ++ pu.2 ++ [:: [:: pc.2; pvd.2; psd.2; prr.2; pgr.2; pll.2; pdd.2; ps.2]]))*)
 
   else cferror Ferr_lowering.
-
-Check compile_prog.
 
 Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
   if get_fundef lp fn is Some fd' then
@@ -175,11 +183,14 @@ Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
     else true
   else true.
 
-Definition compile_prog_to_x86 entries (p: prog): result fun_error (glob_decls * xprog * seq leak_f_tr) :=
+Definition compile_prog_to_x86 entries (p: prog): 
+result fun_error (glob_decls * xprog * (leak_f_lf_tr * (seq leak_f_tr * (seq (seq leak_f_tr) * seq leak_f_tr)))) :=
   Let lp := compile_prog entries p in
-  let : (lpg, lpp, lpl) := lp in 
+  let : (lpg, lpp, lpls) := lp in 
   Let _ := assert (all (check_signature p lpp) entries) Ferr_lowering in
   Let lx := assemble_prog lpp in
-  ok (lpg, lx, lpl).
+  ok (lpg, lx, lpls).
+
 
 End COMPILER.
+

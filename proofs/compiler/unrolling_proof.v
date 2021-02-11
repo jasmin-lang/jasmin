@@ -199,7 +199,7 @@ Section PROOF.
     + rewrite -Hf'11 /=. exact: Hfull.
   Qed.
 
-  Lemma unroll_callP f mem mem' va vr lf:
+  Lemma unroll_callP_aux f mem mem' va vr lf:
     sem_call p  mem f va lf mem' vr ->
     sem_call p' mem f va (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr.
   Proof.
@@ -207,7 +207,7 @@ Section PROOF.
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
-  Lemma unroll_callCT f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf:
+  (*Lemma unroll_callCT f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf:
     sem_call p mem1 f va1 lf mem1' vr1 ->
     sem_call p mem2 f va2 lf mem2' vr2 ->
     sem_call p' mem1 f va1 (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem1' vr1 /\
@@ -228,7 +228,7 @@ Section PROOF.
   exists mem1'. exists mem2'. exists vr1. exists vr2. exists (lf.1,
            leak_Is (leak_I (leak_Fun Fs)) stk 
              (leak_Fun Fs lf.1) lf.2). by split.
-  Qed.
+  Qed.*)
 
   (*Lemma unroll_callCTP' P f:
   constant_time P p f ->
@@ -240,3 +240,14 @@ Section PROOF.
   Admitted.*)
 
 End PROOF.
+
+ Lemma unroll_callP : forall (p : prog) (stk : u64),
+       let p' := (unroll_prog p).1 in
+       let Fs := (unroll_prog p).2 in
+       forall (f : funname) (mem : mem) (mem' : low_memory.mem) (va vr : seq value) (lf : leak_fun),
+       sem_call p mem f va lf mem' vr ->
+       sem_call p' mem f va (lf.1, leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2) mem' vr.
+ Proof.
+ move=> p' Fs. apply unroll_callP_aux; first by auto.
+ by case: (unroll_prog p').
+ Qed.
