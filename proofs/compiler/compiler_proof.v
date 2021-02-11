@@ -145,8 +145,8 @@ Lemma compile_progP entries (p: prog) (gd:glob_decls) (lp: lprog) mem fn va mem'
   compile_prog cparams entries p = cfok (gd, lp, lts) ->
   fn \in entries ->
   sem.sem_call p mem fn va (fn, lf) mem' vr ->
-  forall f sp, get_fundef lp fn = Some f ->
-  @alloc_stack low_memory.mem Memory.M mem (lfd_stk_size f) = ok sp ->
+  forall sp, (forall f, get_fundef lp fn = Some f ->
+  @alloc_stack low_memory.mem Memory.M mem (lfd_stk_size f) = ok sp) ->
   ∃ mem2' vr',
     List.Forall2 value_uincl vr vr' ∧
     eq_mem mem' mem2' ∧
@@ -167,13 +167,12 @@ Proof.
   apply: rbindP=> -[pd ld] Hpd. rewrite !print_progP.
   apply: rbindP => -[pstk lpstk] Hpstk.
   apply: rbindP=> -[pl l] /= Hpl [] <- <- hlts. rewrite !print_linearP.
-  move=> Hin Hcall f sp Hf Halloc. 
+  move=> Hin Hcall sp Halloc.
   have halloc : forall fd, get_fundef (pstk, lpstk).1 fn = Some fd ->
   @alloc_stack low_memory.mem Memory.M  mem (sf_stk_sz fd) = ok sp.
   + move=> fd Hfd. move: (get_map_cfprog_leak Hpl Hfd)=> [f'] [lt] [Hf'1] Hf'2 Hf'3. 
     apply: rbindP Hf'1=> [fn' Hfn'] [] Hf' Hlt.
-    rewrite -Hf' /= in Hf'2. rewrite Hf in Hf'2.
-    case: Hf'2=> Hf'2. by rewrite Hf'2 /= in Halloc.
+    rewrite -Hf' /= in Hf'2. by apply (Halloc _ Hf'2).
   have va_refl := List_Forall2_refl va value_uincl_refl.
   apply: Kj. move => m' vr' H. have Hl /= := (linear_fdP (@top_stack low_memory.mem Memory.M sp) Hpl).
   rewrite /leak_compile_prog -hlts /=.
@@ -237,13 +236,18 @@ Lemma compile_prog_to_x86P entries (p: prog) (gd: glob_decls) (xp: xprog) m1 fn 
     eq_mem m2 st2.(xmem).
 Proof.
 apply: rbindP=> -[[gd1 lp] ltp] hlp /= ; t_xrbindP => /= _ /assertP /allP ok_sig ? hxp ?? hlt hfn hsem hsafe;subst.
-have hlsem := compile_progP hlp hfn hsem.
-case Hfd: (get_fundef lp fn)=> //=. have:= (hlsem _ _ Hfd). move=> {hlsem} hlsem.
+have hlsem := compile_progP hlp hfn hsem (sp := sp).
+case: hlsem.
+move=> fd hfd.
+have [xfd [hxfd]] := get_map_cfprog hxp hfd.
+by move => /hsafe; rewrite (assemble_fd_stk_size hxfd).
+move=> hm2' [vr''] [hvs] [heq] hlsem.
+(*case Hfd: (get_fundef lp fn)=> //=. have:= (hlsem _ _ Hfd). move=> {hlsem} hlsem.
 move: (hlsem sp). have [xfd [hxfd]] := get_map_cfprog hxp Hfd. move => /hsafe ; rewrite (assemble_fd_stk_size hxfd).
-move=> Halloc. move=> {hlsem} hlsem. move: (hlsem Halloc). move=> [hm2'] [vr''] [hvs] [heq] {hlsem} hlsem.
+move=> Halloc. move=> {hlsem} hlsem. move: (hlsem Halloc). move=> [hm2'] [vr''] [hvs] [heq] {hlsem} hlsem.*)
 move: hlsem.
-move/ok_sig: hfn. move: Hfd Halloc hvs heq. 
-case: hsem=> {m1 m2 hsafe fn va vr} m1 m2 fn fd va va' st1 vm2 vr vr1 lc ok_fd' ok_va' h1 h2 h3 h4 hfn Halloc Hvs Heq hsig. exists fd. 
+move/ok_sig: hfn. move: hvs heq. 
+case: hsem=> {m1 m2 hsafe fn va vr} m1 m2 fn fd va va' st1 vm2 vr vr1 lc ok_fd' ok_va' h1 h2 h3 h4 hvs Heq hsig hlsem. exists fd. 
 exists va. split=> //. split. apply ok_va'. 
 case: (assemble_fdP hxp hlsem) => fd'' [va1] [ok_fd''] [ok_va1] [xd] [ok_xd h].
 move: ok_va1.
@@ -256,11 +260,7 @@ have [st2 [hxsem [hvr' hm2]]] := h st hva hm1.
 exists st2.
 split; first exact: hxsem.
 split; last by rewrite hm2.
-exact: (Forall2_trans value_uincl_trans Hvs hvr').
-(* None case *)
-rewrite Hfd in hlsem. have:= (hlsem _ sp). move=> {hlsem} hlsem.
-admit.
-Admitted.
-
+exact: (Forall2_trans value_uincl_trans hvs hvr').
+Qed.
 
 End PROOF.
