@@ -832,7 +832,7 @@ Section PROOF.
     rewrite Hfd' => /(@Some_inj _ _ _) <- {f}.
     case => vargs0 [s1] [vm2] [vres] [lc] [hvs' hs1 hvm2 hvres hvres1].
     move: CheckAllocReg.alloc_funP_eq. move=> Hcc. replace fn' with fn in Hcheckf.
-    move: (Hcc p' Fs fn fd' (rename_fd ii' fn fd') sm1 vargs0 (unzip1 vargs') vres vres1 s1 {| emem := m2; evm := vm2 |} ltc'' lc Fs_id Hcheckf hvs' hs1 hvm2 hvres hvres1).
+    move: (Hcc p' Fs fn fd' (rename_fd ii' fn fd') sm1 vargs0 (unzip1 vargs') vres vres1 s1 {| emem := m2; evm := vm2 |} ltc'' lc stk Fs_id Hcheckf hvs' hs1 hvm2 hvres hvres1).
     move=> [] s1' [] vm2' [] vres2 [] vres' [] Htin Hwv Hbody Hvs [] Hall Htout.
     move=> {hvs' hs1 hvm2 Hfd' Hfd Hcheckf Hsc Hinline}.
     move: Hdisj Hvm1;rewrite read_i_call.

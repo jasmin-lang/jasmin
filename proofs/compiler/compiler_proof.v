@@ -41,7 +41,7 @@ Unset Printing Implicit Defensive.
 Section PROOF.
 
 Variable cparams : compiler_params.
-Variable stk : pointer.
+(*Variable stk : pointer.*)
 Context (options: lowering_options).
   Context (warning: instr_info -> warning_msg -> instr_info).
   Variable fv : fresh_vars.
@@ -57,7 +57,7 @@ Hypothesis print_linearP : forall p, cparams.(print_linear) p = p.
 Definition sem_call_noleak p f mem va mem' vr :=
  exists l, sem_call p f mem va l mem' vr.
 
-Lemma unroll1P (fn: funname) (p p':prog) mem va va' mem' vr (lf: leak_c) lts:
+Lemma unroll1P (fn: funname) (p p':prog) mem va va' mem' vr (lf: leak_c) lts stk:
   unroll1 p = ok (p', lts) ->
   sem_call p mem fn va (fn, lf) mem' vr ->
   List.Forall2 value_uincl va va' ->
@@ -78,7 +78,7 @@ Proof.
   have Hdp' := (dead_code_callP stk Hdp). rewrite -hlts /=. by apply Hdp'.
 Qed.
 
-Lemma unrollP (fn: funname) (p p': prog) mem va va' mem' vr lts lf:
+Lemma unrollP (fn: funname) (p p': prog) mem va va' mem' vr lts lf stk:
   unroll Loop.nb p = ok (p', lts) ->
   sem_call p mem  fn va (fn, lf) mem' vr ->
   List.Forall2 value_uincl va va' ->
@@ -87,9 +87,9 @@ Proof.
   elim: Loop.nb p p' va va' vr lf lts => /= [p //|n Hn] p p' va va' vr lf lts. 
   t_xrbindP => -[z lt] Hz.
   case: ifP.
-  + move=> /eqP /= hp [] hp' <- Hsem Hvs. have := (unroll1P Hz Hsem Hvs). rewrite hp in hp'. rewrite -hp'.  
+  + move=> /eqP /= hp [] hp' <- Hsem Hvs. have := (unroll1P stk Hz Hsem Hvs). rewrite hp in hp'. rewrite -hp'.  
     move=> [vr'] [Hsem'] Hvs'. exists vr'. split=> //=. 
-  move=> _ Hu Hs Hall. have [vr' [hsem1 hall1]]:= unroll1P Hz Hs Hall. move: Hu. t_xrbindP. move=> -[pd ltd] /= Hu [] <- <-.
+  move=> _ Hu Hs Hall. have [vr' [hsem1 hall1]]:= unroll1P stk Hz Hs Hall. move: Hu. t_xrbindP. move=> -[pd ltd] /= Hu [] <- <-.
   move: (Hn z pd va' va' vr' (leak_compile stk lt (fn, lf)) ltd Hu hsem1 (List_Forall2_refl _ value_uincl_refl)).
   move=> [vr''] [hsem] hvs. exists vr''. split=> //=.
   by apply: Forall2_trans value_uincl_trans hall1 hvs.
@@ -182,44 +182,41 @@ Proof.
   rewrite /=. eapply Hs. exact: Hvr'.
   apply: Ki. move => vr' Hvr'. have Hd /= := (dead_code_callP (@top_stack low_memory.mem Memory.M sp) Hpd).
   move: Hvr'. apply Hd.
-  apply: K'. move=> vr' Hvr'. have Hck := (CheckAllocReg.alloc_callP He'). 
-  replace allocation.CBAreg.stk with (@top_stack low_memory.mem Memory.M sp) in Hck. apply Hck. exact: Hvr'.
-  admit. (* don't know how to solve this *) (* ask benjamin *)
+  apply: K'. move=> vr' Hvr'. have Hck := (@CheckAllocReg.alloc_callP _ _ _ He'). 
+  move: (Hck fn mem mem' va vr' (@top_stack low_memory.mem Memory.M sp)). move=> {Hck} Hck.
+  apply Hck. exact: Hvr'.
   apply: Ki. move=> vr'.  
   have Hl /= := (lower_callP (@top_stack low_memory.mem Memory.M sp) Hlower _).  
   move: (Hl (lowering_opt cparams) (compiler.warning cparams) (compiler.is_var_in_memory cparams) refl_equal). 
   move=> {Hl} /= Hl. apply Hl.
   apply: Ki. move => vr'. have Hrg /= := (RGP.remove_globP (@top_stack low_memory.mem Memory.M sp) Hpg).
   apply Hrg.
-  apply: K'. move => vr' Hvr'. have Hck := (CheckExpansion.alloc_callP He). 
-  replace array_expansion.CBEA.stk with (@top_stack low_memory.mem Memory.M sp) in Hck. 
+  apply: K'. move => vr' Hvr'. have Hck := (@CheckExpansion.alloc_callP _ _ _ He). 
+  move: (Hck fn mem mem' va vr' (@top_stack low_memory.mem Memory.M sp)). move=> {Hck} Hck.
   apply Hck. exact: Hvr'.
-  admit. (* don't know how to solve this *) (* ask benjamin *)
   apply: K'. move => vr' Hvr'. have Hr := (remove_init_fdP (@top_stack low_memory.mem Memory.M sp) _ _ va_refl). 
   rewrite /remove_init_prog /= in Hr. move: (Hr ps' [seq (t.1, t.2.2) | t <- [seq (t.1, remove_init_fd t.2) | t <- p_funcs ps']] refl_equal refl_equal). 
   move=> {Hr} Hr. apply Hr. exact: Hvr'.
   apply: Ki. move => vr'. have hd := (dead_code_callP (@top_stack low_memory.mem Memory.M sp) Hps'). apply hd.
-  apply: K'. move => vr' Hvr'. have hck := (CheckAllocReg.alloc_callP Hps). 
-  replace allocation.CBAreg.stk with (@top_stack low_memory.mem Memory.M sp) in hck. apply hck. exact: Hvr'.
-  admit. (* don't know how to solve this *) (* ask benjamin *)
+  apply: K'. move => vr' Hvr'. have hck := (@CheckAllocReg.alloc_callP _ _ _ Hps). 
+  move: (hck fn mem mem' va vr' (@top_stack low_memory.mem Memory.M sp)). move=> {hck} hck.
+  apply hck. exact: Hvr'.
   apply: Ki. move => vr'. have Hd := (dead_code_callP (@top_stack low_memory.mem Memory.M sp) Hpv). apply Hd.
-  apply: K'. move => vr' Hvr'. have Hck := (CheckAllocReg.alloc_callP Hv). 
-  replace allocation.CBAreg.stk with (@top_stack low_memory.mem Memory.M sp) in Hck. apply Hck; exact: Hvr'.
-  admit. (* don't know how to solve this *) (* ask benjamin *)
+  apply: K'. move => vr' Hvr'. have Hck := (@CheckAllocReg.alloc_callP _ _ _ Hv). 
+  apply Hck; exact: Hvr'.
   apply: K'. move => vr' Hvr'. have Hc := (const_prop_callP). rewrite /const_prop_prog /= in Hc.
   move: (Hc p1 {|p_globs := p_globs p1; p_funcs := [seq (t.1, t.2.1)| t <- [seq (t.1, const_prop_fun t.2) | t <- p_funcs p1]] |}
          [seq (t.1, t.2.2) | t <- [seq (t.1, const_prop_fun t.2) | t <- p_funcs p1]] (@top_stack low_memory.mem Memory.M sp) refl_equal refl_equal fn mem mem' va va vr').
   move=> {Hc} Hc. apply Hc. exact: Hvr'. apply va_refl.
-  apply: K'. move => vr' Hvr'. have Hu := (unrollP Hp1 _ va_refl). 
-  replace stk with (@top_stack low_memory.mem Memory.M sp) in Hu. apply Hu; exact: Hvr'.
-  admit. (* don't know how to solve this *) (* ask benjamin *)
+  apply: K'. move => vr' Hvr'. have Hu := (unrollP (@top_stack low_memory.mem Memory.M sp) Hp1 _ va_refl). 
+  apply Hu; exact: Hvr'.
   apply: Ki. move => vr'; exact: (dead_calls_err_seqP Hpca).
   apply: K'. move => vr' Hvr'. have Hi := (inline_call_errP (@top_stack low_memory.mem Memory.M sp) Hp0 va_refl). 
   apply Hi. exact: Hvr'.
   apply: Ki. move => vr'; exact: psem_call.
   exists vr; split => //.
   exact: (List_Forall2_refl _ value_uincl_refl).
-Admitted.
+Qed.
 
 Lemma compile_prog_to_x86P entries (p: prog) (gd: glob_decls) (xp: xprog) m1 fn va m2 vr lts lf sp:
   compile_prog_to_x86 cparams entries p = cfok (gd,xp, lts) →
@@ -261,6 +258,7 @@ split; first exact: hxsem.
 split; last by rewrite hm2.
 exact: (Forall2_trans value_uincl_trans Hvs hvr').
 (* None case *)
+rewrite Hfd in hlsem. have:= (hlsem _ sp). move=> {hlsem} hlsem.
 admit.
 Admitted.
 

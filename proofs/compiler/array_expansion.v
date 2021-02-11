@@ -637,12 +637,10 @@ Module CBEA.
 
   End CHECK_EBP.
 
-  Variable stk : pointer.
-
-  Definition check_ebP gd r m vm1 vm2 e h:=
+  Definition check_ebP gd r m vm1 vm2 e h stk:=
     (@check_e_esbP gd r m vm1 vm2 h stk).1 e.
 
-  Lemma check_eP gd e1 e2 r re lte vm1 vm2:
+  Lemma check_eP gd e1 e2 r re lte vm1 vm2 stk:
     check_e e1 e2 r = ok (re, lte) ->
     eq_alloc r vm1 vm2 ->
     eq_alloc re vm1 vm2 /\
@@ -650,7 +648,7 @@ Module CBEA.
     exists v2, sem_pexpr gd (Estate m vm2) e2 = ok (v2, leak_E stk lte l) /\ value_uincl v1 v2.
   Proof.
     rewrite /check_e; case: ifP => //= h [<-] hr; split => // m v1 l1 ok_v1.
-    move: check_ebP. move=> Hce. move: (Hce gd r m vm1 vm2 e1 H e2 v1 l1 h ok_v1).
+    move: check_ebP. move=> Hce. move: (Hce gd r m vm1 vm2 e1 H stk e2 v1 l1 h ok_v1).
     move=> [] v2 He Hv. exists v2. split. by rewrite -hr. auto.
   Qed.
 
@@ -693,7 +691,7 @@ Module CBEA.
     by apply (@eq_alloc_set x1 undef_error (ok b)).
   Qed.
 
-  Lemma check_lvalP gd r1 r1' ltr x1 x2 e2 s1 s1' le1' vm1 v1 v2:
+  Lemma check_lvalP gd r1 r1' ltr x1 x2 e2 s1 s1' le1' vm1 v1 v2 stk:
     check_lval e2 x1 x2 r1 = ok (r1', ltr) ->
     eq_alloc r1 s1.(evm) vm1 ->
     value_uincl v1 v2 ->
@@ -723,7 +721,7 @@ Module CBEA.
       move: check_varP. move=> Hcc. move: (Hcc r1 (evm s1) vm1 x1 x2 vp Hvm Hcx Hg).
       move=> [] vp'' -> /= Hv' {Hcc}. move: (Hp vp'' Hv' ). move=> -> /=.
       move: check_ebP.  move=> Hce'. replace s1 with {| emem := emem s1; evm := evm s1 |} in He.
-      move: (Hce' gd r1 (emem s1) (evm s1) vm1 e1 Hvm e2' ve le Hce He).
+      move: (Hce' gd r1 (emem s1) (evm s1) vm1 e1 Hvm stk e2' ve le Hce He).
       move=> [] ve' -> {Hce'} /= Hve. move: (Hp' ve' Hve). move=> -> /=.
       move: (Hw v2 Hv). move=> -> /=. rewrite Hw' /=. exists vm1. split. auto. auto.
       case: (s1). by rewrite /=.
@@ -761,7 +759,7 @@ Module CBEA.
     move=> [ve le] He vi Hi vw /value_uincl_word Hw t''
            /(WArray.uincl_set Ht) [] va [] Ha Ht' vs Hs <- <-.
     replace s1 with {| emem := emem s1; evm := evm s1 |} in He. move: check_ebP.
-    move=> Hce'. move: (Hce' gd r1 (emem s1) (evm s1) vm1 e1 Hea e2' ve le Hce He).
+    move=> Hce'. move: (Hce' gd r1 (emem s1) (evm s1) vm1 e1 Hea stk e2' ve le Hce He).
     move=> {Hce'} [] ve' -> /= Hv. move: value_uincl_int. move=> Hi'. move: (Hi' ve ve' vi Hv Hi).
     move=> {Hi'} [] h1 h2. rewrite h1 in Hi. rewrite -h2 in Hi. rewrite Hi /=.
     move: (Hw v2 Hvu). move=> -> /=. rewrite Ha /=.
