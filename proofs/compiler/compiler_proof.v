@@ -242,9 +242,6 @@ move=> fd hfd.
 have [xfd [hxfd]] := get_map_cfprog hxp hfd.
 by move => /hsafe; rewrite (assemble_fd_stk_size hxfd).
 move=> hm2' [vr''] [hvs] [heq] hlsem.
-(*case Hfd: (get_fundef lp fn)=> //=. have:= (hlsem _ _ Hfd). move=> {hlsem} hlsem.
-move: (hlsem sp). have [xfd [hxfd]] := get_map_cfprog hxp Hfd. move => /hsafe ; rewrite (assemble_fd_stk_size hxfd).
-move=> Halloc. move=> {hlsem} hlsem. move: (hlsem Halloc). move=> [hm2'] [vr''] [hvs] [heq] {hlsem} hlsem.*)
 move: hlsem.
 move/ok_sig: hfn. move: hvs heq. 
 case: hsem=> {m1 m2 hsafe fn va vr} m1 m2 fn fd va va' st1 vm2 vr vr1 lc ok_fd' ok_va' h1 h2 h3 h4 hvs Heq hsig hlsem. exists fd. 
