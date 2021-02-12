@@ -94,6 +94,14 @@ Proof.
               Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc ii k s1 i s2).
 Qed.
 
+Lemma sem_call_stack_stable ii k s1 fn s2 :
+  sem_call p extra_free_registers ii k s1 fn s2 → emem s1 ≡ emem s2.
+Proof.
+  exact:
+    (@sem_call_Ind p extra_free_registers Pc Pi Pi_r Pfun
+              Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc ii k s1 fn s2).
+Qed.
+
 End STACK_STABLE.
 
 (** Function calls resets RSP to the stack pointer of the initial memory. *)
