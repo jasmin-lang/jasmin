@@ -459,6 +459,20 @@ Proof.
   by move => s m s' _ xs f es vs rs hvs h hrs; exists vs, m, rs.
 Qed.
 
+Lemma sem_forE i ws s c s' :
+  sem_for i ws s c s' →
+  if ws is w :: ws then
+    exists s1 s2,
+      [/\
+       write_var i (Vint w) s = ok s1,
+       sem s1 c s2 &
+       sem_for i ws s2 c s' ]
+  else s' = s.
+Proof.
+  case => { i ws s c s' } // s s1 s2 s' i w ws c ok_s1 exec_c ih.
+  by exists s1, s2.
+Qed.
+
 Lemma sem_callE m1 fn vargs' m2 vres' :
   sem_call m1 fn vargs' m2 vres' ->
   ∃ f,
