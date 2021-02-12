@@ -144,3 +144,142 @@ Proof.
 Qed.
 
 End STACK_STABLE.
+
+(** The semantics is deterministic. *)
+Section DETERMINISM.
+
+Context {T} {pT:progT T} {sCP : semCallParams}.
+Variable p : prog.
+Variable ev : extra_val_t.
+
+Let Pc s1 c s2 :=
+  ∀ s2', sem p ev s1 c s2' → s2 = s2'.
+
+Let Pi s1 i s2 :=
+  ∀ s2', sem_I p ev s1 i s2' → s2 = s2'.
+
+Let Pi_r s1 i s2 :=
+  ∀ s2', sem_i p ev s1 i s2' → s2 = s2'.
+
+Let Pfor i r s1 c s2 :=
+  ∀ s2', sem_for p ev i r s1 c s2' → s2 = s2'.
+
+Let Pfun m1 fn args m2 res :=
+  ∀ m2' res', sem_call p ev m1 fn args m2' res' → m2 =  m2' ∧ res = res'.
+
+Local Lemma sem_deter_nil : sem_Ind_nil Pc.
+Proof. by move => s s' /semE. Qed.
+
+Local Lemma sem_deter_cons : sem_Ind_cons p ev Pc Pi.
+Proof.
+  move => x y z i c _ ihi _ ihc z' /semE[] y' [] /ihi <-.
+  exact: ihc.
+Qed.
+
+Local Lemma sem_deter_mkI : sem_Ind_mkI p ev Pi_r Pi.
+Proof. by move => ii i s1 s2 _ ih s2' /sem_IE /ih. Qed.
+
+Arguments ok_inj {_ _ _ _}.
+
+Local Lemma sem_deter_asgn : sem_Ind_assgn p Pi_r.
+Proof.
+  red => s1 s2 x tg ty e v v' ok_v ok_v' ok_s2 s2' /sem_iE[] w [] w' [].
+  rewrite ok_v => /ok_inj <-.
+  rewrite ok_v' => /ok_inj <-.
+  by rewrite ok_s2 => /ok_inj.
+Qed.
+
+Local Lemma sem_deter_opn : sem_Ind_opn p Pi_r.
+Proof.
+  red => s1 s2 tg o xs es ok_s2 s2' /sem_iE.
+  by rewrite ok_s2 => /ok_inj.
+Qed.
+
+Local Lemma sem_deter_if_true : sem_Ind_if_true p ev Pc Pi_r.
+Proof.
+  red => s1 s2 e c1 c2 eval_e _ ih s2' /sem_iE[] b [].
+  by rewrite eval_e => /ok_inj [] <- /ih.
+Qed.
+
+Local Lemma sem_deter_if_false : sem_Ind_if_false p ev Pc Pi_r.
+Proof.
+  red => s1 s2 e c1 c2 eval_e _ ih s2' /sem_iE[] b [].
+  by rewrite eval_e => /ok_inj [] <- /ih.
+Qed.
+
+Local Lemma sem_deter_while_true : sem_Ind_while_true p ev Pc Pi_r.
+Proof.
+  red => s1 s2 s3 s4 a c1 e c2 _ ih1 eval_e _ ih2 _ ih s4' /sem_iE[] _ [] b [] /ih1 <-.
+  by rewrite eval_e => /ok_inj [] <- [] _ [] /ih2 <- /ih.
+Qed.
+
+Local Lemma sem_deter_while_false : sem_Ind_while_false p ev Pc Pi_r.
+Proof.
+  red => s1 s2 a c1 e c2 _ ih eval_e s2' /sem_iE[] _ [] b [] /ih <-.
+  by rewrite eval_e => /ok_inj [] <-.
+Qed.
+
+Local Lemma sem_deter_for : sem_Ind_for p ev Pi_r Pfor.
+Proof.
+  red => s1 s2 i d lo hi c vlo vhi ok_vlo ok_vhi _ ih s2' /sem_iE[] vlo' [] vhi' [].
+  rewrite ok_vlo => /ok_inj[] <-.
+  rewrite ok_vhi => /ok_inj[] <-.
+  exact: ih.
+Qed.
+
+Local Lemma sem_deter_for_nil : sem_Ind_for_nil Pfor.
+Proof. by red => s i c s' /sem_forE. Qed.
+
+Local Lemma sem_deter_for_cons : sem_Ind_for_cons p ev Pc Pfor.
+Proof.
+  red => s s1 s2 s' i w ws c ok_s1' _ ih1 _ ih2 s3' /sem_forE[] ? [] ? [].
+  by rewrite ok_s1' => /ok_inj <- /ih1 <- /ih2.
+Qed.
+
+Local Lemma sem_deter_call : sem_Ind_call p ev Pi_r Pfun.
+Proof.
+  red => s1 m2 s2 ii xs fn args vargs vs ok_vargs _ ih ok_s2 s2' /sem_iE[] ? [] ? [] ? [].
+  rewrite ok_vargs => /ok_inj <- /ih[] <- <-.
+  rewrite ok_s2.
+  exact: ok_inj.
+Qed.
+
+Local Lemma sem_deter_proc : sem_Ind_proc p ev Pc Pfun.
+Proof.
+  red => m1 m2 fn fd va va' s1 s2 s3 vr vr' ok_fd ok_va ok_s1 ok_s2 _ ih ok_vr ok_vr' -> s3' vres /sem_callE[] ? [].
+  rewrite ok_fd => /Some_inj <- [] ? [] ? [] ? [] ? [] ? [].
+  rewrite ok_va => /ok_inj <- [].
+  rewrite ok_s1 => /ok_inj <-.
+  rewrite ok_s2 => /ok_inj <- /ih <- [].
+  rewrite ok_vr => /ok_inj <-.
+  by rewrite ok_vr' => /ok_inj <-.
+Qed.
+
+Lemma sem_deterministic s1 c s2 s2' :
+  sem p ev s1 c s2 →
+  sem p ev s1 c s2' →
+  s2 = s2'.
+Proof.
+  move => h.
+  exact: (@sem_Ind T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
+Qed.
+
+Lemma sem_i_deterministic s1 i s2 s2' :
+  sem_i p ev s1 i s2 →
+  sem_i p ev s1 i s2' →
+  s2 = s2'.
+Proof.
+  move => h.
+  exact: (@sem_i_Ind T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
+Qed.
+
+Lemma sem_call_deterministic m1 fn va m2 vr m2' vr' :
+  sem_call p ev m1 fn va m2 vr →
+  sem_call p ev m1 fn va m2' vr' →
+  m2 = m2' ∧ vr = vr'.
+Proof.
+  move => h.
+  exact: (@sem_call_Ind T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ _ _ h).
+Qed.
+
+End DETERMINISM.
