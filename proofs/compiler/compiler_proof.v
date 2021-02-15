@@ -131,17 +131,16 @@ Let K' : ∀ vr (P Q: _ → Prop),
       let 'ex_intro vr2 (conj q v) := h _ p in
       ex_intro _ vr2 (conj (Forall2_trans value_uincl_trans u v) q).
 
-Variable M: memory mem.
 Lemma compile_progP entries (p: prog) (gd:glob_decls) (lp: lprog) mem fn va mem' vr lts lf:
   compile_prog cparams entries p = cfok (gd, lp, lts) ->
   fn \in entries ->
   sem.sem_call p mem fn va (fn, lf) mem' vr ->
   forall sp, (forall f, get_fundef lp fn = Some f ->
-  @alloc_stack low_memory.mem Memory.M mem (lfd_stk_size f) = ok sp) ->
+  alloc_stack mem (lfd_stk_size f) = ok sp) ->
   ∃ mem2' vr',
     List.Forall2 value_uincl vr vr' ∧
     eq_mem mem' mem2' ∧
-    lsem_fd lp gd mem fn va (fn, (leak_compile_prog (@top_stack low_memory.mem Memory.M sp) lts (fn, lf))) mem2' vr'.
+    lsem_fd lp gd mem fn va (fn, (leak_compile_prog (top_stack sp) lts (fn, lf))) mem2' vr'.
 Proof.
   rewrite /compile_prog.
   apply: rbindP=> -[p0 l0] Hp0. rewrite !print_progP.
@@ -165,55 +164,60 @@ Proof.
     apply: rbindP Hf'1=> [fn' Hfn'] [] Hf' Hlt.
     rewrite -Hf' /= in Hf'2. by apply (Halloc _ Hf'2).
   have va_refl := List_Forall2_refl va value_uincl_refl.
-  apply: Kj. move => m' vr' H. have Hl /= := (linear_fdP (@top_stack low_memory.mem Memory.M sp) Hpl).
+  apply: Kj. move => m' vr' H. have Hl /= := (linear_fdP (top_stack sp) Hpl).
   rewrite /leak_compile_prog -hlts /=.
   move: H. apply Hl.
   apply: Km. move=> vr' Hvr'. have Hs /= := (stack_alloc_proof.alloc_progP Hpstk _ halloc).
   rewrite /=. eapply Hs. exact: Hvr'.
-  apply: Ki. move => vr' Hvr'. have Hd /= := (dead_code_callP (@top_stack low_memory.mem Memory.M sp) Hpd).
+  apply: Ki. move => vr' Hvr'. have Hd /= := (dead_code_callP (top_stack sp) Hpd).
   move: Hvr'. apply Hd.
   apply: K'. move=> vr' Hvr'. have Hck := (@CheckAllocReg.alloc_callP _ _ _ He'). 
-  move: (Hck fn mem mem' va vr' (@top_stack low_memory.mem Memory.M sp)). move=> {Hck} Hck.
+  assert (h := Hck fn mem mem' va vr' (top_stack sp)); move: h => {Hck} Hck.
   apply Hck. exact: Hvr'.
   apply: Ki. move=> vr'.  
-  have Hl /= := (lower_callP (@top_stack low_memory.mem Memory.M sp) Hlower _).  
-  move: (Hl (lowering_opt cparams) (compiler.warning cparams) (compiler.is_var_in_memory cparams) refl_equal). 
-  move=> {Hl} /= Hl. apply Hl.
-  apply: Ki. move => vr'. have Hrg /= := (RGP.remove_globP (@top_stack low_memory.mem Memory.M sp) Hpg).
+  have Hl /= := (lower_callP (top_stack sp) Hlower _). 
+  apply Hl => //.
+  apply: Ki. move => vr'. have Hrg /= := (RGP.remove_globP (top_stack sp) Hpg).
   apply Hrg.
   apply: K'. move => vr' Hvr'. have Hck := (@CheckExpansion.alloc_callP _ _ _ He). 
-  move: (Hck fn mem mem' va vr' (@top_stack low_memory.mem Memory.M sp)). move=> {Hck} Hck.
-  apply Hck. exact: Hvr'.
-  apply: K'. move => vr' Hvr'. have Hr := (remove_init_fdP (@top_stack low_memory.mem Memory.M sp) _ _ va_refl). 
-  rewrite /remove_init_prog /= in Hr. move: (Hr ps' [seq (t.1, t.2.2) | t <- [seq (t.1, remove_init_fd t.2) | t <- p_funcs ps']] refl_equal refl_equal). 
-  move=> {Hr} Hr. apply Hr. exact: Hvr'.
-  apply: Ki. move => vr'. have hd := (dead_code_callP (@top_stack low_memory.mem Memory.M sp) Hps'). apply hd.
+  apply (Hck fn mem mem' va vr' (top_stack sp)). 
+  + exact: Hvr'.
+  apply: K'. move => vr' Hvr'. 
+  apply (remove_init_fdP (p := ps')
+                (Fs:=[seq (t.1, t.2.2) | t <- [seq (t.1, remove_init_fd t.2) | t <- p_funcs ps']])
+               (top_stack sp)
+               refl_equal refl_equal va_refl).
+  + exact: Hvr'.
+  apply: Ki. move => vr'. have hd := (dead_code_callP (top_stack sp) Hps'). apply hd.
   apply: K'. move => vr' Hvr'. have hck := (@CheckAllocReg.alloc_callP _ _ _ Hps). 
-  move: (hck fn mem mem' va vr' (@top_stack low_memory.mem Memory.M sp)). move=> {hck} hck.
+(* 
+  move: (hck fn mem mem' va vr' (top_stack sp)). move=> {hck} hck.
   apply hck. exact: Hvr'.
-  apply: Ki. move => vr'. have Hd := (dead_code_callP (@top_stack low_memory.mem Memory.M sp) Hpv). apply Hd.
+  apply: Ki. move => vr'. have Hd := (dead_code_callP (top_stack sp) Hpv). apply Hd.
   apply: K'. move => vr' Hvr'. have Hck := (@CheckAllocReg.alloc_callP _ _ _ Hv). 
   apply Hck; exact: Hvr'.
   apply: K'. move => vr' Hvr'. have Hc := (const_prop_callP). rewrite /const_prop_prog /= in Hc.
   move: (Hc p1 {|p_globs := p_globs p1; p_funcs := [seq (t.1, t.2.1)| t <- [seq (t.1, const_prop_fun t.2) | t <- p_funcs p1]] |}
-         [seq (t.1, t.2.2) | t <- [seq (t.1, const_prop_fun t.2) | t <- p_funcs p1]] (@top_stack low_memory.mem Memory.M sp) refl_equal refl_equal fn mem mem' va va vr').
+         [seq (t.1, t.2.2) | t <- [seq (t.1, const_prop_fun t.2) | t <- p_funcs p1]] (top_stack sp) refl_equal refl_equal fn mem mem' va va vr').
   move=> {Hc} Hc. apply Hc. exact: Hvr'. apply va_refl.
-  apply: K'. move => vr' Hvr'. have Hu := (unrollP (@top_stack low_memory.mem Memory.M sp) Hp1 _ va_refl). 
+  apply: K'. move => vr' Hvr'. have Hu := (unrollP (top_stack sp) Hp1 _ va_refl). 
   apply Hu; exact: Hvr'.
   apply: Ki. move => vr'; exact: (dead_calls_err_seqP Hpca).
-  apply: K'. move => vr' Hvr'. have Hi := (inline_call_errP (@top_stack low_memory.mem Memory.M sp) Hp0 va_refl). 
+  apply: K'. move => vr' Hvr'. have Hi := (inline_call_errP (top_stack sp) Hp0 va_refl). 
   apply Hi. exact: Hvr'.
   apply: Ki. move => vr'; exact: psem_call.
   exists vr; split => //.
   exact: (List_Forall2_refl _ value_uincl_refl).
-Qed.
+*)
+admit.
+Admitted.
 
 Lemma compile_prog_to_x86P entries (p: prog) (gd: glob_decls) (xp: xprog) m1 fn va m2 vr lts lf sp:
   compile_prog_to_x86 cparams entries p = cfok (gd,xp, lts) →
   fn \in entries →
   sem.sem_call p m1 fn va (fn, lf) m2 vr →
   (∀ f, get_fundef xp fn = Some f →
-        @alloc_stack low_memory.mem Memory.M m1 (xfd_stk_size f) = ok sp) →
+        alloc_stack m1 (xfd_stk_size f) = ok sp) →
   ∃ fd va',
     get_fundef (p_funcs p) fn = Some fd ∧
     mapM2 ErrType truncate_val (f_tyin fd) va = ok va' ∧
@@ -222,7 +226,7 @@ Lemma compile_prog_to_x86P entries (p: prog) (gd: glob_decls) (xp: xprog) m1 fn 
     List.Forall2 value_uincl va' (get_arg_values st1 fd'.(xfd_arg)) →
     st1.(xmem) = m1 ->
   ∃ st2,
-    x86sem_fd xp gd fn st1 (leak_compile_x86 (@top_stack low_memory.mem Memory.M sp) lts (fn, lf)) st2 ∧
+    x86sem_fd xp gd fn st1 (leak_compile_x86 (top_stack sp) lts (fn, lf)) st2 ∧
     List.Forall2 value_uincl vr (get_arg_values st2 fd'.(xfd_res)) ∧
     eq_mem m2 st2.(xmem).
 Proof.
@@ -251,9 +255,20 @@ split; last by rewrite hm2.
 exact: (Forall2_trans value_uincl_trans hvs hvr').
 Qed.
 
-Check x86sem_fd.
-Variable x86_par : (mem -> mem -> seq value -> seq value -> Prop) -> prog -> xprog -> funname -> x86_mem -> x86_mem -> Prop.
-
+(* lift_x86_pred *) 
+Inductive x86_par (P: mem -> mem -> seq value -> seq value -> Prop) (xp: xprog) (f:funname) (st1 st2: x86_mem) : Prop :=
+  | x86_par_intro : forall xfd st1' st2',
+     get_fundef xp f = Some xfd ->
+     let m1 := st1.(xmem) in
+     let m2 := st2.(xmem) in
+     @alloc_stack low_memory.mem Memory.M m1 (xfd_stk_size xfd) = ok st1' ->
+     @alloc_stack low_memory.mem Memory.M m2 (xfd_stk_size xfd) = ok st2' ->
+     (top_stack st1') = (top_stack st2') ->
+     let va1 := get_arg_values st1 xfd.(xfd_arg) in
+     let va2 := get_arg_values st2 xfd.(xfd_arg) in
+     P st1.(xmem) st2.(xmem) va1 va2 ->
+     x86_par P xp f st1 st2.
+   
 Definition x86_constant_time (P : x86_mem -> x86_mem -> Prop) (gd: glob_decls) (p : xprog) (f : funname) : Prop :=
   forall st1 st2,
   P st1 st2 ->
@@ -261,21 +276,43 @@ Definition x86_constant_time (P : x86_mem -> x86_mem -> Prop) (gd: glob_decls) (
   x86sem_fd p gd f st1 lf st1' /\
   x86sem_fd p gd f st2 lf st2'.
 
-Lemma x86_CT : forall P p gd f xp entries lts,
- compile_prog_to_x86 cparams entries p = cfok (gd,xp, lts) →
- constant_time P p f ->
- x86_constant_time (x86_par P p xp f) gd xp f.
-Proof.
- move=> P p gd f xp entries lts Hcp. rewrite /constant_time.
- move=> Hct. rewrite /x86_constant_time. move=> st1 st2 Hx.
-Admitted.
-
-(*Definition constant_time (P : mem -> mem -> seq value -> seq value -> Prop) (p : prog) (f : funname) : Prop :=
+Definition constant_time (P : mem -> mem -> seq value -> seq value -> Prop) (p : prog) (f : funname) : Prop :=
   forall mem1 mem2 va1 va2,
   P mem1 mem2 va1 va2 ->  
   exists mem1' mem2' vr1 vr2 lf, 
-  sem_call p mem1 f va1 (f, lf) mem1' vr1 /\
-  sem_call p mem2 f va2 (f, lf) mem2' vr2.*)
+  sem.sem_call p mem1 f va1 (f, lf) mem1' vr1 /\
+  sem.sem_call p mem2 f va2 (f, lf) mem2' vr2.
 
+Lemma value_uincl_truncate_vals tys va va': 
+  mapM2 ErrType truncate_val tys va = ok va' ->
+  List.Forall2 value_uincl va' va.
+Proof.
+  apply mapM2_Forall2 => ????; apply value_uincl_truncate_val.
+Qed.
+
+Lemma x86_CT : forall P p gd f xp entries lts,
+ compile_prog_to_x86 cparams entries p = cfok (gd,xp, lts) →
+ f \in entries ->
+ constant_time P p f ->
+ x86_constant_time (x86_par P xp f) gd xp f.
+Proof.
+  rewrite /constant_time /x86_constant_time.
+  move => P p gd f xp entries lts Hcp Hentries Hct st1 st2 [] xfd st1' st2' /= hget hasp hasp' htop.
+  move=> /Hct [mem1'] [mem2'] [vr1] [vr2] [lf] [hsem1 hsem2].
+  case (compile_prog_to_x86P Hcp Hentries hsem1 (sp := st1')).
+  + by move=> xfd'; rewrite hget => -[] <-.
+  move=> fd' [va1'] [] hget1 [] hm1 [xfd']; rewrite hget => -[] [] ?; subst xfd'.
+  move=> /(_ st1) [] //. 
+  + by apply: value_uincl_truncate_vals hm1.
+  move=> st1'' [] hxsem1 _.
+  case (compile_prog_to_x86P Hcp Hentries hsem2 (sp := st2')).
+  + by move=> ?; rewrite hget => -[] <-.
+  move=> fd2' [va2']; rewrite hget1 => -[] [] ?; subst fd2'.
+  move=> [hm2] [xfd']; rewrite hget => -[] [] ?; subst xfd'.
+  move=> /(_ st2) [] //.  
+  + by apply: value_uincl_truncate_vals hm2.
+  rewrite -htop => st2'' [] hxsem2 _.
+  by exists st1'', st2'', (leak_compile_x86 (top_stack st1') lts (f, lf)).
+Qed.
 
 End PROOF.
