@@ -567,17 +567,28 @@ Section PROOF.
   by apply: dead_code_callP.
   Qed.
 
-  (*Lemma dead_code_callCTP P f:
+  Lemma dead_code_callCTP P f:
   constant_time P p f ->
   constant_time P p' f.
   Proof.
   rewrite /constant_time.
   move=> Hc mem1 mem2 va1 va2 Hp.
   move: (Hc mem1 mem2 va1 va2 Hp). move=> [mem1'] [mem2'] [vr1] [vr2] [lf] [Hm1] Hm2.
-  move: dead_code_callCT. move=> Hct. move: (Hct f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf.2 Hm1 Hm2). move=> [Hm1'] Hm2'.
-  exists mem1'. exists mem2'. exists vr1. exists vr2. exists (lf.1,
-           leak_Is (leak_I (leak_Fun Ffs)) stk 
-             (leak_Fun Ffs lf.1) lf.2). by split.
-  Qed.*)
+  move: dead_code_callCT. move=> Hct. move: (Hct f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf Hm1 Hm2). move=> [Hm1'] Hm2'.
+  exists mem1'. exists mem2'. exists vr1. exists vr2. exists (leak_Is (leak_I (leak_Fun Ffs)) stk 
+             (leak_Fun Ffs f) lf). by split.
+  Qed.
+
+  Lemma dead_code_callCTP_with_stck P f:
+  constant_time_with_stack P p f ->
+  constant_time_with_stack P p' f.
+  Proof.
+  rewrite /constant_time_with_stack.
+  move=> Hc mem1 mem2 va1 va2 sp sp' Hp.
+  move: (Hc mem1 mem2 va1 va2 sp sp' Hp). move=> [mem1'] [mem2'] [vr1] [vr2] [lf] [Hm1] [Hm2] Heq.
+  move: dead_code_callCT. move=> Hct. move: (Hct f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf Hm1 Hm2). move=> [Hm1'] Hm2'.
+  exists mem1'. exists mem2'. exists vr1. exists vr2. exists (leak_Is (leak_I (leak_Fun Ffs)) stk 
+             (leak_Fun Ffs f) lf). by split.
+  Qed.
 
 End PROOF.

@@ -41,15 +41,6 @@ Unset Printing Implicit Defensive.
 Section PROOF.
 
 Variable cparams : compiler_params.
-(*Variable stk : pointer.*)
-Context (options: lowering_options).
-  Context (warning: instr_info -> warning_msg -> instr_info).
-  Variable fv : fresh_vars.
-  Context (is_var_in_memory: var_i → bool).
-(*Variable p p': prog.
-
-Hypothesis unroll_ok : dead_code_prog (const_prop_prog (unroll_prog p).1).1 =
-        ok (p', Fs).*)
 
 Hypothesis print_progP : forall s p, cparams.(print_prog) s p = p.
 Hypothesis print_linearP : forall p, cparams.(print_linear) p = p.
@@ -259,5 +250,32 @@ split; first exact: hxsem.
 split; last by rewrite hm2.
 exact: (Forall2_trans value_uincl_trans hvs hvr').
 Qed.
+
+Check x86sem_fd.
+Variable x86_par : (mem -> mem -> seq value -> seq value -> Prop) -> prog -> xprog -> funname -> x86_mem -> x86_mem -> Prop.
+
+Definition x86_constant_time (P : x86_mem -> x86_mem -> Prop) (gd: glob_decls) (p : xprog) (f : funname) : Prop :=
+  forall st1 st2,
+  P st1 st2 ->
+  exists st1' st2' lf,
+  x86sem_fd p gd f st1 lf st1' /\
+  x86sem_fd p gd f st2 lf st2'.
+
+Lemma x86_CT : forall P p gd f xp entries lts,
+ compile_prog_to_x86 cparams entries p = cfok (gd,xp, lts) →
+ constant_time P p f ->
+ x86_constant_time (x86_par P p xp f) gd xp f.
+Proof.
+ move=> P p gd f xp entries lts Hcp. rewrite /constant_time.
+ move=> Hct. rewrite /x86_constant_time. move=> st1 st2 Hx.
+Admitted.
+
+(*Definition constant_time (P : mem -> mem -> seq value -> seq value -> Prop) (p : prog) (f : funname) : Prop :=
+  forall mem1 mem2 va1 va2,
+  P mem1 mem2 va1 va2 ->  
+  exists mem1' mem2' vr1 vr2 lf, 
+  sem_call p mem1 f va1 (f, lf) mem1' vr1 /\
+  sem_call p mem2 f va2 (f, lf) mem2' vr2.*)
+
 
 End PROOF.

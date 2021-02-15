@@ -161,19 +161,12 @@ Definition compile_prog (entries : seq funname) (p:prog) :
     (* stack_allocation                    *)
     Let ps := stack_alloc.alloc_prog cparams.(stk_alloc_fd) pd in
     (* linearisation                     *)
-    Let plp := linear_prog ps.1 in (* plp.2 not used *)
+    Let plp := linear_prog ps.1 in 
     let pl := cparams.(print_linear) plp.1 in
     (* asm                               *)
     cfok (p_globs pd, pl, (plp.2, ([:: pi.2], (pu.2,  
           [:: pc.2 ; pvr ; pvd.2 ; pvc ; psd.2 ; 
               prr.2 ; pex; pgr.2 ; pll.2 ; ltc ; pdd.2 ; ps.2]))))
-    (*[:: [:: pi.2]] ++ pu.2 ++ [:: [:: pc.2; pvd.2; psd.2; prr.2; pgr.2; pll.2; pdd.2; ps.2]]))*)
-         (*[:: [:: ps.2]] ++ [:: [::pdd.2]] ++ [:: [:: pll.2]] ++ [:: [:: pgr.2]] ++ [:: [:: prr.2]] ++
-         [:: [::  psd.2]] ++ [:: [:: pvd.2]] ++ [:: [::pc.2]] ++ pu.2 ++ [:: [:: pi.2]]))*)
-
-
-(*[:: [:: pi.2]] ++ pu.2 ++ [:: [:: pc.2; pvd.2; psd.2; prr.2; pgr.2; pll.2; pdd.2; ps.2]]))*)
-
   else cferror Ferr_lowering.
 
 Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=

@@ -2906,8 +2906,18 @@ Local Open Scope vmap.
   forall mem1 mem2 va1 va2,
   P mem1 mem2 va1 va2 ->  
   exists mem1' mem2' vr1 vr2 lf, 
-  sem_call p mem1 f va1 lf mem1' vr1 /\
-  sem_call p mem2 f va2 lf mem2' vr2.
+  sem_call p mem1 f va1 (f, lf) mem1' vr1 /\
+  sem_call p mem2 f va2 (f, lf) mem2' vr2.
+
+  Definition constant_time_with_stack (P : mem -> mem -> seq value -> seq value -> mem -> mem -> Prop) (p : prog) (f : funname) : Prop :=
+  forall mem1 mem2 va1 va2 sp sp',
+  P mem1 mem2 va1 va2 sp sp' -> 
+  (* sp and sp' we should get after stack allocation of function size *)
+  (* sp will be after stack allocation in mem1 and sp' will be after stack allocation in mem2 *)
+  exists mem1' mem2' vr1 vr2 lf, 
+  sem_call p mem1 f va1 (f, lf) mem1' vr1 /\
+  sem_call p mem2 f va2 (f, lf) mem2' vr2 /\
+  (@top_stack low_memory.mem Memory.M sp) = (@top_stack low_memory.mem Memory.M sp').
 
 End WF.
 
