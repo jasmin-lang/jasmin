@@ -189,17 +189,14 @@ Proof.
                refl_equal refl_equal va_refl).
   + exact: Hvr'.
   apply: Ki. move => vr'. have hd := (dead_code_callP (top_stack sp) Hps'). apply hd.
-  apply: K'. move => vr' Hvr'. have hck := (@CheckAllocReg.alloc_callP _ _ _ Hps). 
-(* 
-  move: (hck fn mem mem' va vr' (top_stack sp)). move=> {hck} hck.
-  apply hck. exact: Hvr'.
-  apply: Ki. move => vr'. have Hd := (dead_code_callP (top_stack sp) Hpv). apply Hd.
-  apply: K'. move => vr' Hvr'. have Hck := (@CheckAllocReg.alloc_callP _ _ _ Hv). 
-  apply Hck; exact: Hvr'.
+  apply: K'. move => vr' Hvr'.
+  apply (@CheckAllocReg.alloc_callP _ _ _ Hps). exact: Hvr'.
+  apply: Ki. move => vr'. apply (dead_code_callP (top_stack sp) Hpv).
+  apply: K'. move => vr' Hvr'. apply (@CheckAllocReg.alloc_callP _ _ _ Hv). exact: Hvr'.
   apply: K'. move => vr' Hvr'. have Hc := (const_prop_callP). rewrite /const_prop_prog /= in Hc.
-  move: (Hc p1 {|p_globs := p_globs p1; p_funcs := [seq (t.1, t.2.1)| t <- [seq (t.1, const_prop_fun t.2) | t <- p_funcs p1]] |}
+  apply (Hc p1 {|p_globs := p_globs p1; p_funcs := [seq (t.1, t.2.1)| t <- [seq (t.1, const_prop_fun t.2) | t <- p_funcs p1]] |}
          [seq (t.1, t.2.2) | t <- [seq (t.1, const_prop_fun t.2) | t <- p_funcs p1]] (top_stack sp) refl_equal refl_equal fn mem mem' va va vr').
-  move=> {Hc} Hc. apply Hc. exact: Hvr'. apply va_refl.
+  exact: Hvr'. apply va_refl.
   apply: K'. move => vr' Hvr'. have Hu := (unrollP (top_stack sp) Hp1 _ va_refl). 
   apply Hu; exact: Hvr'.
   apply: Ki. move => vr'; exact: (dead_calls_err_seqP Hpca).
@@ -208,9 +205,7 @@ Proof.
   apply: Ki. move => vr'; exact: psem_call.
   exists vr; split => //.
   exact: (List_Forall2_refl _ value_uincl_refl).
-*)
-admit.
-Admitted.
+Qed.
 
 Lemma compile_prog_to_x86P entries (p: prog) (gd: glob_decls) (xp: xprog) m1 fn va m2 vr lts lf sp:
   compile_prog_to_x86 cparams entries p = cfok (gd,xp, lts) →
@@ -256,25 +251,18 @@ exact: (Forall2_trans value_uincl_trans hvs hvr').
 Qed.
 
 (* lift_x86_pred *) 
-Inductive x86_par (P: mem -> mem -> seq value -> seq value -> Prop) (xp: xprog) (f:funname) (st1 st2: x86_mem) : Prop :=
+Inductive lift_spred_x86_pred (P: mem -> mem -> seq value -> seq value -> Prop) (xp: xprog) (f:funname) (st1 st2: x86_mem) : Prop :=
   | x86_par_intro : forall xfd st1' st2',
      get_fundef xp f = Some xfd ->
      let m1 := st1.(xmem) in
      let m2 := st2.(xmem) in
-     @alloc_stack low_memory.mem Memory.M m1 (xfd_stk_size xfd) = ok st1' ->
-     @alloc_stack low_memory.mem Memory.M m2 (xfd_stk_size xfd) = ok st2' ->
+     alloc_stack m1 (xfd_stk_size xfd) = ok st1' ->
+     alloc_stack m2 (xfd_stk_size xfd) = ok st2' ->
      (top_stack st1') = (top_stack st2') ->
      let va1 := get_arg_values st1 xfd.(xfd_arg) in
      let va2 := get_arg_values st2 xfd.(xfd_arg) in
      P st1.(xmem) st2.(xmem) va1 va2 ->
-     x86_par P xp f st1 st2.
-   
-Definition x86_constant_time (P : x86_mem -> x86_mem -> Prop) (gd: glob_decls) (p : xprog) (f : funname) : Prop :=
-  forall st1 st2,
-  P st1 st2 ->
-  exists st1' st2' lf,
-  x86sem_fd p gd f st1 lf st1' /\
-  x86sem_fd p gd f st2 lf st2'.
+     lift_spred_x86_pred P xp f st1 st2.
 
 Definition constant_time (P : mem -> mem -> seq value -> seq value -> Prop) (p : prog) (f : funname) : Prop :=
   forall mem1 mem2 va1 va2,
@@ -283,18 +271,18 @@ Definition constant_time (P : mem -> mem -> seq value -> seq value -> Prop) (p :
   sem.sem_call p mem1 f va1 (f, lf) mem1' vr1 /\
   sem.sem_call p mem2 f va2 (f, lf) mem2' vr2.
 
-Lemma value_uincl_truncate_vals tys va va': 
-  mapM2 ErrType truncate_val tys va = ok va' ->
-  List.Forall2 value_uincl va' va.
-Proof.
-  apply mapM2_Forall2 => ????; apply value_uincl_truncate_val.
-Qed.
+Definition x86_constant_time (P : x86_mem -> x86_mem -> Prop) (gd: glob_decls) (p : xprog) (f : funname) : Prop :=
+  forall st1 st2,
+  P st1 st2 ->
+  exists st1' st2' lf,
+  x86sem_fd p gd f st1 lf st1' /\
+  x86sem_fd p gd f st2 lf st2'.
 
 Lemma x86_CT : forall P p gd f xp entries lts,
  compile_prog_to_x86 cparams entries p = cfok (gd,xp, lts) →
  f \in entries ->
  constant_time P p f ->
- x86_constant_time (x86_par P xp f) gd xp f.
+ x86_constant_time (lift_spred_x86_pred P xp f) gd xp f.
 Proof.
   rewrite /constant_time /x86_constant_time.
   move => P p gd f xp entries lts Hcp Hentries Hct st1 st2 [] xfd st1' st2' /= hget hasp hasp' htop.

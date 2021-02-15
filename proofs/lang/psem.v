@@ -1543,6 +1543,13 @@ Proof.
   by apply word_uincl_zero_ext.
 Qed.
 
+Lemma value_uincl_truncate_vals tys va va': 
+  mapM2 ErrType truncate_val tys va = ok va' ->
+  List.Forall2 value_uincl va' va.
+Proof.
+  apply mapM2_Forall2 => ????; apply value_uincl_truncate_val.
+Qed.
+
 Definition val_uincl (t1 t2:stype) (v1:sem_t t1) (v2:sem_t t2) :=
   value_uincl (to_val v1) (to_val v2).
 
@@ -2895,7 +2902,7 @@ Local Open Scope vmap.
   Lemma wf_vmap0 : wf_vm vmap0.
   Proof. by move=> x;rewrite /vmap0 Fv.get0;case:vtype. Qed.
 
-  Definition constant_time' (P : mem -> mem -> seq value -> seq value -> Prop) (p : prog) (f : funname) : Prop :=
+  (*Definition constant_time' (P : mem -> mem -> seq value -> seq value -> Prop) (p : prog) (f : funname) : Prop :=
   forall mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf1 lf2, 
   sem_call p mem1 f va1 lf1 mem1' vr1 ->
   sem_call p mem2 f va2 lf2 mem2' vr2 ->
@@ -2907,17 +2914,7 @@ Local Open Scope vmap.
   P mem1 mem2 va1 va2 ->  
   exists mem1' mem2' vr1 vr2 lf, 
   sem_call p mem1 f va1 (f, lf) mem1' vr1 /\
-  sem_call p mem2 f va2 (f, lf) mem2' vr2.
-
-  Definition constant_time_with_stack (P : mem -> mem -> seq value -> seq value -> mem -> mem -> Prop) (p : prog) (f : funname) : Prop :=
-  forall mem1 mem2 va1 va2 sp sp',
-  P mem1 mem2 va1 va2 sp sp' -> 
-  (* sp and sp' we should get after stack allocation of function size *)
-  (* sp will be after stack allocation in mem1 and sp' will be after stack allocation in mem2 *)
-  exists mem1' mem2' vr1 vr2 lf, 
-  sem_call p mem1 f va1 (f, lf) mem1' vr1 /\
-  sem_call p mem2 f va2 (f, lf) mem2' vr2 /\
-  (@top_stack low_memory.mem Memory.M sp) = (@top_stack low_memory.mem Memory.M sp').
+  sem_call p mem2 f va2 (f, lf) mem2' vr2.*)
 
 End WF.
 
