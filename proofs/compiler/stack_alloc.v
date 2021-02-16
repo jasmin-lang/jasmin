@@ -260,6 +260,11 @@ Definition get_bytes (x:var) (bytes_map:bytes_map) :=
 Definition interval_of_zone z := 
   {| imin := z.(z_ofs); imax := z.(z_ofs) + z.(z_len) |}.
 
+Definition get_var_bytes rv r x :=
+  let bm := get_bytes_map r rv in
+  let bytes := get_bytes x bm in
+  bytes.
+
 (* Returns the sub-zone of [z] starting at offset [ofs] and of length [len].
    The offset [z] can be None, meaning its exact value is not known. In this
    case, the full zone [z] is returned. This is a safe approximation.
@@ -270,11 +275,15 @@ Definition sub_zone_at_ofs z ofs len :=
   | Some ofs => {| z_ofs := z.(z_ofs) + ofs; z_len := len |}
   end.
 
+Definition sub_region_at_ofs sr ofs len :=
+  {| sr_region := sr.(sr_region);
+     sr_zone   := sub_zone_at_ofs sr.(sr_zone) ofs len
+  |}.
+
 Definition check_valid (rmap:region_map) (x:var) ofs len :=
   (* we get the bytes associated to variable [x] *)
   Let sr := get_sub_region rmap x in
-  let bm := get_bytes_map sr.(sr_region) rmap in
-  let bytes := get_bytes x bm in 
+  let bytes := get_var_bytes rmap sr.(sr_region) x in
   let sub_ofs  := sub_zone_at_ofs sr.(sr_zone) ofs len in
   let isub_ofs := interval_of_zone sub_ofs in
   (* we check if [isub_ofs] is a subset of one of the intervals of [bytes] *)
@@ -306,14 +315,17 @@ Definition set_stack_ptr (rmap:region_map) x align ofs (x':var) :=
   {| var_region := rmap.(var_region);
      region_var := Mr.set rmap.(region_var) r bm |}.
 
-Definition check_stack_ptr rmap x align ofs x' :=
-  let r := {| r_slot := x; r_align := align; r_writable := true |} in
-  let z := {| z_ofs := ofs; z_len := wsize_size Uptr |} in
+Definition sub_region_stkptr s ws z :=
+  let r := {| r_slot := s; r_align := ws; r_writable := true |} in
+  {| sr_region := r; sr_zone := z |}.
+
+(* TODO: fusion with check_valid ? *)
+Definition check_stack_ptr (rmap:region_map) s ws z x' :=
+  let sr := sub_region_stkptr s ws z in
+  let z := sub_zone_at_ofs z (Some 0)%Z (wsize_size Uptr) in
   let i := interval_of_zone z in
-  (* TODO: should use get_bytes' *)
-  let bm := get_bytes_map r rmap in
-  let bytes := get_bytes x' bm in 
-  Let _   := assert (ByteSet.mem bytes i) 
+  let bytes := get_var_bytes rmap sr.(sr_region) x' in
+  Let _   := assert (ByteSet.mem bytes i)
                     (Cerr_stk_alloc "check_stack_ptr: the region is partial") in
   ok tt.
 
@@ -514,21 +526,18 @@ Definition get_var_kind x :=
   else 
     ok (omap VKptr (get_local xv)).
 
-Definition region_glob x (ofs_align: Z * wsize) :=
-  {| r_slot := x; r_align := ofs_align.2; r_writable := false |}.
-
 (* TODO: factorize with [set_full] ? probably not worth *)
-Definition sub_region_glob x (ofs_align : Z * wsize) :=
+Definition sub_region_glob x ws :=
+  let r := {| r_slot := x; r_align := ws; r_writable := false |} in
   let z := {| z_ofs := 0; z_len := size_slot x |} in
-  {| sr_region := region_glob x ofs_align; sr_zone := z |}.
+  {| sr_region := r; sr_zone := z |}.
 
 Definition check_vpk rmap (x:var) vpk ofs len :=
   match vpk with
-  | VKglob z =>
-    let sr := sub_region_glob x z in
-    let z := sub_zone_at_ofs sr.(sr_zone) ofs len in
-    ok {| sr_region := sr.(sr_region); sr_zone := z |}
-  | VKptr pk => 
+  | VKglob (_, ws) =>
+    let sr := sub_region_glob x ws in
+    ok (sub_region_at_ofs sr ofs len)
+  | VKptr _pk => 
     check_valid rmap x ofs len
   end.
 
@@ -596,9 +605,12 @@ Fixpoint alloc_e (e:pexpr) :=
 
 End ALLOC_E.
 
-Definition sub_region_stack x align z :=
-  let r := {| r_slot := x; r_align := align; r_writable := true |} in
+Definition sub_region_direct x align sc z :=
+  let r := {| r_slot := x; r_align := align; r_writable := sc != Sglob |} in
   {| sr_region := r; sr_zone := z |}.
+
+Definition sub_region_stack x align z :=
+  sub_region_direct x align Slocal z.
 
 Definition sub_region_pk pk :=
   match pk with
@@ -732,7 +744,7 @@ Definition alloc_array_move rmap r e :=
           | Pregptr p           => 
             ok (MK_MOV, Plvar (with_var vy p), ofs)
           | Pstkptr slot ofsy ws z x' => 
-            Let _ := Region.check_stack_ptr rmap slot ws z.(z_ofs) x' in
+            Let _ := Region.check_stack_ptr rmap slot ws z x' in
             ok (MK_MOV, Pload Uptr (with_var vy pmap.(vrsp)) (cast_const ofsy), ofs)
           end in
         let '(mk, l, ofs) := mklofs in
@@ -860,7 +872,7 @@ Definition alloc_call_arg rmap (sao_param: option param_info) (e:pexpr) :=
     ok (None, Pvar x)
   | None, Some _ => cerror "argument not a reg" 
   | Some pi, Some (Pregptr p) => 
-    Let sr := Region.check_valid rmap xv (Some 0%Z) (size_slot xv)in
+    Let sr := Region.check_valid rmap xv (Some 0%Z) (size_slot xv) in
     Let _  := if pi.(pp_writable) then writable sr.(sr_region) else ok tt in
     Let _  := check_align sr pi.(pp_align) in
     ok (Some (pi.(pp_writable),sr), Pvar (mk_lvar (with_var xv p)))
@@ -1095,7 +1107,7 @@ Definition check_result pmap rmap params oi (x:var_i) :=
   | Some i =>
     match nth None params i with
     | Some r => 
-      Let sr := check_valid rmap x (Some 0%Z) (size_slot x)in
+      Let sr := check_valid rmap x (Some 0%Z) (size_slot x) in
       Let _  := assert (r == sr.(sr_region)) (Cerr_stk_alloc "invalid reg ptr in result") in
       Let p  := get_regptr pmap x in
       ok p
