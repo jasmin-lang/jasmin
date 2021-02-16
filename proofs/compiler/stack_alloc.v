@@ -539,8 +539,18 @@ Definition check_vpk rmap (x:var) vpk ofs len :=
     check_valid rmap x ofs len
   end.
 
+(* TODO: this function is a bit ad hoc.
+   Can we refactor?
+*)
+Definition get_gsub_region rmap x vpk :=
+  match vpk with
+  | VKglob (_, ws) => ok (sub_region_glob x ws)
+  | VKptr _pk => get_sub_region rmap x
+  end.
+
 Definition check_vpk_word rmap x vpk ofs ws :=
-  Let sr := check_vpk rmap x vpk ofs (wsize_size ws) in
+  Let _ := check_vpk rmap x vpk ofs (wsize_size ws) in
+  Let sr := get_gsub_region rmap x vpk in
   check_align sr ws.
 
 Fixpoint alloc_e (e:pexpr) := 
