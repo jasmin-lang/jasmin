@@ -355,7 +355,7 @@ Definition get_arg_value (st: x86_mem) (a: asm_arg) : value :=
   match a with
   | Reg r => Vword (xreg st r)
   | XMM r => Vword (xxreg st r)
-  | Condt _ | Imm _ _ | Adr _ => Vundef sword64
+  | Condt _ | Imm _ _ | Adr _ => Vundef sword64 (refl_equal _)
   end.
 
 Definition get_arg_values st rs : values :=
@@ -403,27 +403,13 @@ move => hne; rewrite Fv.setP_neq; first exact: h3.
 apply/eqP => /var_of_xmm_register_inj ?; exact: hne.
 Qed.
 
-(* TODO: Move this *)
-Lemma truncate_val_uincl ty v v' :
-  truncate_val ty v = ok v' →
-  value_uincl v' v.
-Proof.
-apply: rbindP => z hz [<-].
-case: ty z hz => /=.
-- by move => b /to_boolI ->.
-- by move => z /of_val_int ->.
-- move => n t; case: v => //= [len a | []//].
-  by rewrite /WArray.cast /WArray.uincl; case: ZleP => // ? [<-].
-move => sz w /of_val_word [sz'] [w'] [hle -> ->].
-exact: word_uincl_zero_ext.
-Qed.
-
 Lemma get_xreg_of_vars_uincl ii xs rs vm vs (rm: regmap) (xrm: xregmap) :
   (∀ r v, get_var vm (var_of_register r) = ok v → value_uincl v (Vword (rm r))) →
   (∀ r v, get_var vm (var_of_xmm_register r) = ok v → value_uincl v (Vword (xrm r))) →
   mapM (xreg_of_var ii \o v_var) xs = ok rs →
   mapM (λ x : var_i, get_var vm x) xs = ok vs →
-  List.Forall2 value_uincl vs (map (λ a, match a with Reg r => Vword (rm r) | XMM r => Vword (xrm r) | _ => Vundef sword64 end) rs).
+  List.Forall2 value_uincl vs 
+     (map (λ a, match a with Reg r => Vword (rm r) | XMM r => Vword (xrm r) | _ => undef_w U64 end) rs).
 Proof.
 move => hr hxr; elim: xs rs vs.
 + by move => _ _ [<-] [<-]; constructor.

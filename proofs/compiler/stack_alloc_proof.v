@@ -1764,15 +1764,15 @@ Qed.
 Definition extend_mem (m1:mem) (m2:mem) (rip:pointer) (data: seq u8) :=
   let glob_size := Z.of_nat (size data) in
   [/\ wunsigned rip + glob_size <= wbase U64 /\
-      (forall ofs s, is_align (rip + wrepr _ ofs) s = is_align (wrepr _ ofs) s), 
-      (forall w sz, valid_pointer m1 w sz -> read_mem m1 w sz = read_mem m2 w sz),
-      (forall w sz, valid_pointer m1 w sz ->
+      (forall ofs s, is_align (rip + wrepr _ ofs)%R s = is_align (wrepr _ ofs) s), 
+      (forall w sz, validw m1 w sz -> read m1 w sz = read m2 w sz),
+      (forall w sz, validw m1 w sz ->
           ~((wunsigned rip <? wunsigned w + wsize_size sz) && (wunsigned w <? wunsigned rip + glob_size))),
-      (forall w sz, valid_pointer m2 w sz = 
-         valid_pointer m1 w sz || (between rip glob_size w sz && is_align w sz)) &
+      (forall w sz, validw m2 w sz = 
+         validw m1 w sz || (between rip glob_size w sz && is_align w sz)) &
       (forall i, 
          0 <= i < glob_size ->
-         read_mem m2 (rip + wrepr U64 i) U8 = ok (nth (wrepr U8 0) data (Z.to_nat i)))].
+         read m2 (rip + wrepr U64 i)%R U8 = ok (nth (wrepr U8 0) data (Z.to_nat i)))].
 (*
 Lemma all_In (T:Type) (P: T -> bool) (l:seq T) x :
   all P l ->

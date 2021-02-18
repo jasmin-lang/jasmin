@@ -107,7 +107,7 @@ Section REMOVE_INIT.
   Proof.
     move=> Hse hsub hwr Hvm1. 
     have [z' Hz' Hz] := sem_pexpr_uincl Hvm1 Hse.
-    have [z1 htr Uz1]:= truncate_value_uincl Hz hsub.
+    have [z1 htr Uz1]:= value_uincl_truncate Hz hsub.
     move=> hwf ; have [vm2 Hw ?]:= write_uincl Hvm1 Uz1 hwr.
     exists vm2;split=> //.
     + apply sem_seq1;constructor;econstructor;eauto.
@@ -123,40 +123,39 @@ Section REMOVE_INIT.
     move=> _ /is_array_initP [n e1];subst e.
     case: Hse => ?; subst v.
     move: hsub;rewrite /truncate_val;case: ty => //= nty.
-    rewrite /WArray.cast.
-    case: ZleP => //= ? -[?];subst.
+    t_xrbindP => empty /WArray.cast_empty_ok ??; subst v' empty.
     case: x hwr => [vi t | [[xt xn] xi] | ws x e | aa ws x e | aa ws len [[xt xn] xi] e] /=.
     + by move=> /write_noneP [->];exists vm1;split=> //;constructor.
     + apply: rbindP => vm1';apply: on_vuP => //=.
-      + case: xt => //= p0 t -[?] ? [?];subst => /= Wf1.
+      + case: xt => //= p0 _ /WArray.cast_empty_ok -> ? [?]; subst => Wf1.
         exists vm1;split => //=; first by constructor.
         move=> z;have := Hvm1 z.
         case: ({| vtype := sarr p0; vname := xn |} =P z) => [<- _ | /eqP neq].
         + rewrite Fv.setP_eq; have := Wf1 {| vtype := sarr p0; vname := xn |}.
           case: (vm1.[_]) => //= [ | [] //].
           move=> a _;split;first by apply Z.le_refl.
-          by move=>???; rewrite WArray.zget_inject //= Mz.get0; case: ifP.
+          move=> ??; rewrite (WArray.get_empty); case: ifP => //.
         by rewrite Fv.setP_neq.
       by rewrite /of_val;case:xt => //= ? ?; case: wsize_eq_dec => // ?; case: CEDecStype.pos_dec.
     + by t_xrbindP.
     + by apply: on_arr_varP => ???; t_xrbindP.
-    apply: on_arr_varP => /= tlen t ?; t_xrbindP => hg i vi hvi hi t' hc t1 ht1 vm1' hset <- Wf1; subst xt.
+    apply: on_arr_varP => /= tlen t ?; t_xrbindP => hg i vi hvi hi _ /WArray.cast_empty_ok ->.
+    move => t1 ht1 vm1' hset <- Wf1; subst xt.
     exists vm1;split => //=; first by constructor.
     move=> z;have := Hvm1 z.  
-    move: hset; apply: set_varP => //= ? [<-] <-.
+    move: hset; apply: set_varP => //= ? <- <-.
     case: ({| vtype := sarr tlen; vname := xn |} =P z) => [<- _ | /eqP neq]; last by rewrite Fv.setP_neq.
     rewrite Fv.setP_eq; have := Wf1 {| vtype := sarr tlen; vname := xn |}.
     move: hg; rewrite /get_var /on_vu /=. set x := {| vtype := _|}.
     have := Hvm1 x; rewrite /eval_uincl.
     case: (evm s1).[x] => [ a1 | [] //].
-    case: vm1.[x] => [a2 | //] hu heq _.
+    case: vm1.[x] => [a2 | //] [ _ hu] heq _.
     have ?:= Varr_inj1 (ok_inj heq); subst a1 => {heq}.
+    rewrite WArray.castK.
     split; first by apply Z.le_refl.
-    move=> k w [h0k hk]; rewrite WArray.zget_inject //.
-    have /ZltP -> := hk; rewrite (WArray.set_sub_zget8 k ht1) /=.
-    case: ifPn; rewrite !zify => h1.
-    + by move: hc; rewrite /WArray.cast; case:ifP => //? [<-] /=; rewrite Mz.get0.
-    by case: hu => ?; apply.
+    move=> k w; rewrite (WArray.set_sub_get8 _ ht1) /=; case: ifP => ?.
+    + by rewrite WArray.get_empty; case: ifP.
+    by apply hu.
   Qed.
 
   Local Lemma Ropn : sem_Ind_opn p Pi_r.
@@ -357,13 +356,13 @@ Section ADD_INIT.
     + rewrite /i'; have := hu x; rewrite in_cons eq_refl /= => /(_ erefl) {hu i'}.
       case: x heq => ty xn /= -> /= hx.
       set x := {|vtype := _|}.
-      exists (vm1.[x <- ok (WArray.inject len (@WArray.Build_array len (Mz.empty u8)))])%vmap.
+      exists (vm1.[x <- ok (WArray.empty len)])%vmap.
       + move=> y; case: (x =P y) => [<- | /eqP hne].
-        + by rewrite Fv.setP_eq hx /WArray.inject Z.ltb_irrefl.
+        + by rewrite Fv.setP_eq hx. 
         by rewrite Fv.setP_neq // hu1.
       constructor; econstructor; first reflexivity.
-      + by rewrite /truncate_val /= /WArray.cast Z.leb_refl.  
-      done.
+      + by rewrite /truncate_val /= WArray.castK.
+      by rewrite /= /write_var /= /set_var /= WArray.castK.
     by have [vm3 ? hc']:= hl _ heq2; exists vm3 => //; apply: Eseq hc'.
   Qed.
 

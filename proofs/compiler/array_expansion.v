@@ -780,8 +780,8 @@ Module CBEA.
     apply: rbindP => b;apply: rbindP => w /He [ve ->] /=.
     move=> /value_uincl_bool H/H [_ ->] /=.
     t_xrbindP => vt2 v2 /He11 [] v2' -> Hv2' ht2 vt3 v3 /He12 [] v3' -> Hv3' ht3 <- /=.
-    have [? -> ?]:= truncate_value_uincl Hv2' ht2.
-    have [? -> ? /=]:= truncate_value_uincl Hv3' ht3.
+    have [? -> ?]:= value_uincl_truncate Hv2' ht2.
+    have [? -> ? /=]:= value_uincl_truncate Hv3' ht3.
     eexists; first reflexivity.
     by case: (b).
   Qed.
@@ -877,11 +877,9 @@ Module CBEA.
       t_xrbindP=> w /(value_uincl_word huv) H => {huv} t' Ht' vm1' Hset <- /=.
       move: Hget Hset; rewrite /get_var/set_var/=;apply:on_vuP => //=.
       move=> t'' Hget /Varr_inj [] heq.
-      rewrite (Eqdep_dec.UIP_dec Pos.eq_dec heq erefl) /= => {heq} ? [?]; subst t'' vm1'.
+      rewrite (Eqdep_dec.UIP_dec Pos.eq_dec heq erefl) /= WArray.castK => {heq} ? [?]; subst t'' vm1'.
       rewrite /write_var /set_var /= (to_word_to_pword H) /=.
       eexists;split;first reflexivity.
-      rewrite /WArray.inject Z.ltb_irrefl.
-      have -> : {| WArray.arr_data := WArray.arr_data t' |} = t' by case: (t').
       case: heqa => Hina Hgeta.
       split.
       + move=> x /= Hx;rewrite !Fv.setP_neq; 

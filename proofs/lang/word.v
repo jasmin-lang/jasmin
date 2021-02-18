@@ -155,6 +155,19 @@ Proof.
 by move=> /eqP; rewrite /cmp_le /gcmp wsize_cmpP Nat.compare_ge_iff.
 Qed.
 
+Lemma wsize_size_le a b :
+  (a ≤ b)%CMP →
+  (wsize_size a | wsize_size b).
+Proof.
+  case: a; case: b => // _.
+  1, 7, 12, 16, 19, 21: by exists 1.
+  1, 6, 10, 13, 15: by exists 2.
+  1, 5, 8, 10: by exists 4.
+  1, 4, 6: by exists 8.
+  1, 3: by exists 16.
+  by exists 32.
+Qed.
+
 Coercion nat_of_pelem (pe: pelem) : nat :=
   match pe with
   | PE1 => 1
@@ -222,9 +235,24 @@ Lemma wunsigned_repr s z :
   wunsigned (wrepr s z) = z mod modulus (wsize_size_minus_1 s).+1.
 Proof. done. Qed.
 
+Lemma wrepr0 sz : wrepr sz 0 = 0%R.
+Proof. by apply/eqP. Qed.
+
+Lemma wrepr1 sz : wrepr sz 1 = 1%R.
+Proof. by apply/eqP;case sz. Qed.
+
+Lemma wreprB sz : wrepr sz (wbase sz) = 0%R.
+Proof. by apply/eqP;case sz. Qed.
+
 Lemma wunsigned_range sz (p: word sz) :
   0 <= wunsigned p < wbase sz.
 Proof. by have /iswordZP := isword_word p. Qed.
+
+Lemma wrepr_mod ws k : wrepr ws (k mod wbase ws) = wrepr ws k.
+Proof. by apply wunsigned_inj; rewrite !wunsigned_repr Zmod_mod. Qed.
+
+Lemma wunsigned_repr_small ws z : 0 <= z < wbase ws -> wunsigned (wrepr ws z) = z.
+Proof. move=> h; rewrite wunsigned_repr; apply: Zmod_small h. Qed.
 
 Lemma wunsigned_add sz (p: word sz) (n: Z) :
   0 <= wunsigned p + n < wbase sz →
@@ -236,6 +264,43 @@ rewrite/add_word mkwordK/= /urepr/=.
 rewrite Zplus_mod_idemp_r.
 exact: Zmod_small.
 Qed.
+
+Lemma wunsigned0 ws : @wunsigned ws 0 = 0.
+Proof. by rewrite -wrepr0 wunsigned_repr Zmod_0_l. Qed.
+
+Lemma wunsigned_add_if ws (a b : word ws) :
+  wunsigned (a + b) = 
+   if wunsigned a + wunsigned b <? wbase ws then wunsigned a + wunsigned b
+   else wunsigned a + wunsigned b - wbase ws.
+Proof.
+  move: (wunsigned_range a) (wunsigned_range b).
+  rewrite /wunsigned CoqWord.word.addwE /GRing.add /= -/(wbase ws) => ha hb.
+  case: ZltP => hlt. 
+  + by rewrite Zmod_small //;Psatz.lia.
+  by rewrite -(Z_mod_plus_full _ (-1)) Zmod_small;Psatz.lia.
+Qed.
+
+Lemma wunsigned_sub_if ws (a b : word ws) : 
+  wunsigned (a - b) = 
+    if wunsigned b <=? wunsigned a then wunsigned a - wunsigned b 
+    else  wbase ws + wunsigned a - wunsigned b.
+Proof.
+  move: (wunsigned_range a) (wunsigned_range b).
+  rewrite /wunsigned CoqWord.word.subwE -/(wbase ws) => ha hb.
+  have -> : (word.urepr a - word.urepr b)%R = word.urepr a - word.urepr b by done.
+  case: ZleP => hle. 
+  + by rewrite Zmod_small //;Psatz.lia.
+  by rewrite -(Z_mod_plus_full _ 1) Zmod_small;Psatz.lia.
+Qed.
+
+Lemma wunsigned_opp_if ws (a : word ws) : 
+  wunsigned (-a) = if wunsigned a == 0 then 0 else wbase ws - wunsigned a.
+Proof.
+  have ha := wunsigned_range a.
+  rewrite -(GRing.add0r (-a)%R) wunsigned_sub_if wunsigned0.
+  by case: ZleP; case: eqP => //; Psatz.lia.
+Qed.
+
 
 Lemma wlt_irrefl sz sg (w: word sz) :
   wlt sg w w = false.
@@ -649,15 +714,6 @@ Qed.
 
 Lemma sign_extend_u sz (w: word sz) : sign_extend sz w = w.
 Proof. exact: sreprK. Qed.
-
-Lemma wrepr0 sz : wrepr sz 0 = 0%R.
-Proof. by apply/eqP. Qed.
-
-Lemma wrepr1 sz : wrepr sz 1 = 1%R.
-Proof. by apply/eqP;case sz. Qed.
-
-Lemma wreprB sz : wrepr sz (wbase sz) = 0%R.
-Proof. by apply/eqP;case sz. Qed.
 
 Lemma wbase_n0 sz : wbase sz <> 0%Z.
 Proof. by case sz. Qed.
@@ -1374,4 +1430,13 @@ Proof.
   have ? := wunsigned_range p.
   have ? := pow2pos (wsize_log2 sz').
   elim_div; Psatz.lia.
+Qed.
+
+Lemma align_wordE sz sz' (p: word sz) :
+  wunsigned (align_word sz' p) = wunsigned p - (wunsigned p mod wsize_size sz').
+Proof.
+  have nz := wsize_size_pos sz'.
+  rewrite {1}(Z.div_mod (wunsigned p) (wsize_size sz')); last lia.
+  rewrite /align_word wsize_size_is_pow2 wand_align.
+  lia.
 Qed.

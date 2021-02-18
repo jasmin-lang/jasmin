@@ -685,8 +685,8 @@ Section CONST_PROP_EP.
       by rewrite s_opNP /= -/(sem_pexprs _ _) ih /= ok_v'; eauto.
     move => t e He e1 He1 e2 He2 v.
     t_xrbindP => b ve /He/= [] ve' [] hse hue /(value_uincl_bool hue) [??];subst.
-    move=> ve1 vte1 /He1 []ve1' [] hse1 hue1 /(truncate_value_uincl hue1) [] ? /dup[] ht1 /value_uincl_truncate_val ht1' hu1.
-    move=> ve2 vte2 /He2 []ve2' [] hse2 hue2 /(truncate_value_uincl hue2) [] ? /dup[] ht2 /value_uincl_truncate_val ht2' hu2 <-.
+    move=> ve1 vte1 /He1 []ve1' [] hse1 hue1 /(value_uincl_truncate hue1) [] ? /dup[] ht1 /truncate_value_uincl ht1' hu1.
+    move=> ve2 vte2 /He2 []ve2' [] hse2 hue2 /(value_uincl_truncate hue2) [] ? /dup[] ht2 /truncate_value_uincl ht2' hu2 <-.
     rewrite /s_if; case: is_boolP hse; first by move=> [][<-] /=;eexists;split;eauto using value_uincl_trans.
     move=> /= p -> /=;rewrite hse1 hse2 /= ht1 ht2 /=;eexists;split;eauto.
     by case:(b).
@@ -722,8 +722,7 @@ Proof.
   rewrite /add_cpm;case: x => //= x He.
   case: tag => //.
   case: e He => // [n | b | [] // sz [] //= q ] [<-].
-  + case: v => //= ?;last first.
-    + by rewrite compat_typeC => /eqP ->; case: ty.
+  + case: v => //= ?;last by rewrite compat_typeC => ? /eqP ?; subst; case: ty.
     move=> -> /truncate_val_int [_ ->].
     case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
     have := Hv z n0.
@@ -731,7 +730,7 @@ Proof.
     + move=> <- /=;rewrite Mvar.setP_eq=> ? -[] <-;by rewrite /get_var Fv.setP_eq.
     by move=> /eqP Hneq;rewrite Mvar.setP_neq.
   + case: v => //= ?;last first.
-    + by rewrite compat_typeC => /eqP ->; case: ty.
+    + by rewrite compat_typeC => ? /eqP ?;subst; case: ty.
     move=> -> /truncate_val_bool [_ ->].
     case: x => -[] [] //= xn vi [] <- /= Hv z /= n0.
     have := Hv z n0.
@@ -739,7 +738,7 @@ Proof.
     + move=> <- /=;rewrite Mvar.setP_eq=> ? -[] <-;by rewrite /get_var Fv.setP_eq.
     by move=> /eqP Hneq;rewrite Mvar.setP_neq.
   case: v => //= s ;last first.
-  + by rewrite compat_typeC; case: s => //= s' _;case: ty.
+  + by move=> he; rewrite compat_typeC; case: s he => //= s' ?;case: ty.
   move=> w /andP[] Ule /eqP -> /truncate_val_word [] szw [] -> hle -> /=.
   rewrite !(zero_extend_wrepr _ Ule, zero_extend_wrepr _ (cmp_le_trans hle Ule), zero_extend_wrepr _ hle).
   case: x => -[] [] //= szx xn vi; apply: rbindP => vm.
@@ -1118,8 +1117,8 @@ Section PROOF.
     + by eapply add_cpmP;eauto.
     move=> vm1 hvm1.
     have [v1' hv1' uv1']:= sem_pexpr_uincl hvm1 H.
-    have [v2 htr2 hv']:= truncate_value_uincl U htr.
-    have [v3 htr3 hv3]:= truncate_value_uincl uv1' htr2.
+    have [v2 htr2 hv']:= value_uincl_truncate U htr.
+    have [v3 htr3 hv3]:= value_uincl_truncate uv1' htr2.
     have [vm2 hw hvm2]:= write_uincl hvm1 (value_uincl_trans hv' hv3) Hw'.
     exists vm2;split => //.
     apply sem_seq1;constructor;econstructor;eauto.

@@ -775,13 +775,13 @@ Section PROOF.
   Axiom mm_read : ∀ m m',
       match_mem m m' →
       ∀ p s,
-      valid_pointer m p s →
-      read_mem m p s = read_mem m' p s.
+      validw m p s →
+      read m p s = read m' p s.
 
-  Axiom mm_write : ∀ m1 m1' p s w m2,
+  Axiom mm_write : ∀ m1 m1' p s (w:word s) m2,
       match_mem m1 m1' →
-      write_mem m1 p s w = ok m2 →
-      exists2 m2', write_mem m1' p s w = ok m2' & match_mem m2 m2'.
+      write m1 p w = ok m2 →
+      exists2 m2', write m1' p w = ok m2' & match_mem m2 m2'.
 
   Axiom mm_alloc : ∀ m1 m1' al sz es' m2,
       match_mem m1 m1' →
@@ -794,11 +794,11 @@ Section PROOF.
 
   Lemma mm_read_ok m m' a s v :
     match_mem m m' →
-    read_mem m a s = ok v →
-    read_mem m' a s = ok v.
+    read m a s = ok v →
+    read m' a s = ok v.
   Proof.
     move => /mm_read M R.
-    rewrite -M //; exact: read_mem_valid_pointer R.
+    rewrite -M //; apply: readV R.
   Qed.
 
   Section MATCH_MEM_SEM_PEXPR.
@@ -899,7 +899,7 @@ Section PROOF.
       [/\ is_linear_of caller cbody,
           find_label lbl cbody = ok pc &
           exists2 ptr, encode_label (label_in_lprog p') (caller, lbl) = Some ptr &
-          exists2 sp, vm.[ var_of_register RSP ] = ok (pword_of_word sp) & read_mem m (sp + wrepr Uptr ofs)%R Uptr = ok ptr
+          exists2 sp, vm.[ var_of_register RSP ] = ok (pword_of_word sp) & read m (sp + wrepr Uptr ofs)%R Uptr = ok ptr
       ]
     | _, _ => False
     end%vmap.

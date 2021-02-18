@@ -44,7 +44,7 @@ Notation mem := Memory.mem.
 
 (* -------------------------------------------------------------- *)
 Definition eq_mem m m' : Prop :=
-    forall ptr sz, read_mem m ptr sz = read_mem m' ptr sz.
+  forall ptr sz, read m ptr sz = read m' ptr sz.
 
 Lemma eq_mem_refl m : eq_mem m m.
 Proof. by []. Qed.
@@ -73,24 +73,12 @@ Lemma ss_top_stack a b :
 Proof. by rewrite /top_stack => s; rewrite (ss_frames s) (ss_root s). Qed.
 
 (* -------------------------------------------------------------- *)
-Lemma read_mem_valid_pointer m ptr sz w :
-  read_mem m ptr sz = ok w ->
-  valid_pointer m ptr sz.
+Lemma write_validw m ptr sz (w:word sz) m' :
+  write m ptr w = ok m' ->
+  validw m ptr sz.
 Proof.
-  by move => hr; apply /Memory.readV;exists w.
+  move => hw; apply /writeV; exists m'; exact hw.
 Qed.
-
-Lemma write_mem_valid_pointer m ptr sz w m' :
-  write_mem m ptr sz w = ok m' ->
-  valid_pointer m ptr sz.
-Proof.
-  move => hw; apply /Memory.writeV; exists m'; exact hw.
-Qed.
-
-Lemma write_mem_can_read m ptr sz w m' :
-  write_mem m ptr sz w = ok m' ->
-  exists w', read_mem m ptr sz = ok w'.
-Proof. by move => /write_mem_valid_pointer /Memory.readV. Qed.
 
 Lemma alloc_stack_top_stack m ws sz sz' m' :
   alloc_stack m ws sz sz' = ok m' →

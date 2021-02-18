@@ -87,8 +87,7 @@ Lemma of_val_sim t x v :
 Proof.
 move => h; rewrite -h; move: h.
 case: t v => [ | | n | sz ]; case: x => //; try by case.
-- move => n' t' t /=.
-  by rewrite /WArray.cast /WArray.inject Z.ltb_antisym;case:ZleP.
+- by rewrite /exec_val_sim => n' t' t /= ->.
 - move => sz' w' /= w h.
   rewrite h /=.
   case: (truncate_wordP h) => {h} hle ?; subst w.

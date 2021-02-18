@@ -62,7 +62,7 @@ Module LE.
   Qed.
 
   Definition wread8 ws (v:word ws) (k:Z) :=
-    nth (wrepr U8 0) (encode v) (Z.to_nat k).
+    nth 0%R (encode v) (Z.to_nat k).
 
   Lemma encode8E (w: u8): encode w = [:: w].
   Proof.
@@ -71,212 +71,234 @@ Module LE.
     by rewrite Z.lor_0_r /wrepr word.ureprK.
   Qed.
 
+  Lemma encodeE s (w:word s) : encode w = [seq wread8 w k | k <- ziota 0 (wsize_size s)].
+  Proof.
+    symmetry; apply (eq_from_nth (x0 := 0%R)).
+    + by rewrite size_map size_ziota size_encode.
+    move=> i; rewrite size_map size_ziota => hi.
+    by rewrite (nth_map 0%Z) ?size_ziota // nth_ziota // Z.add_0_l /wread8 Nat2Z.id.
+  Qed.
+
 End LE.
-
-Class pointer_op (pointer: eqType) : Type := PointerOp {
-  add : pointer -> Z -> pointer;
-  sub : pointer -> pointer -> Z;
-
-  add_sub : forall p k, add p (sub k p) = k;
-  add_0   : forall p, add p 0 = p;
-}.
 
 Section POINTER.
 
-Context (pointer: eqType) (Pointer: pointer_op pointer).
+Context (pointer: eqType).
+
+Class pointer_op (pointer: eqType) : Type := PointerOp {
+
+  add : pointer -> Z -> pointer;
+  sub : pointer -> pointer -> Z;
+  p_to_z : pointer -> Z; 
+
+  add_sub : forall p k, add p (sub k p) = k;
+  sub_add : forall p k, 0 <= k < wsize_size U256 -> sub (add p k) p = k; 
+  add_0   : forall p, add p 0 = p;
+
+}.
+
+Context {Pointer: pointer_op pointer}.
+
+Definition is_align (p:pointer) (sz:wsize) := 
+  (p_to_z p mod wsize_size sz == 0)%Z.
+
+Lemma is_align8 p : is_align p U8.
+Proof. by rewrite /is_align Zmod_1_r. Qed.
 
 Class coreMem (core_mem: Type) := CoreMem {
-  uget : core_mem -> pointer -> u8;
-  uset : core_mem -> pointer -> u8 -> core_mem;
-
-  validr : core_mem -> pointer -> wsize -> exec unit;
-  validw : core_mem -> pointer -> wsize -> exec unit;
-
-  sub_add : forall m p s i t,
-    validw m p s = ok t -> 0 <= i < wsize_size s -> sub (add p i) p = i;
-
-  validw_uset m p v p' s: validw (uset m p v) p' s = validw m p' s;
-
-  validrP : forall m p s i t,
-    validr m p s = ok t ->
-    0 <= i < wsize_size s ->
-    validr m (add p i) U8 = ok t;
-
-  validw_validr : forall m p s i v t k,
-    validw m p s = ok t ->
-    0 <= i < wsize_size s ->
-    validr (uset m (add p i) v) k U8 = if add p i == k then ok t else validr m k U8;
-
-  setP : forall m z1 z2 v,
-    uget (uset m z1 v) z2 = if z1 == z2 then v else uget m z2;
-
+  get : core_mem -> pointer -> exec u8;
+  set : core_mem -> pointer -> u8 -> exec core_mem;
+  valid8 : core_mem -> pointer -> bool;
+  setP : 
+    forall m p w p' m',
+      set m p w = ok m' ->
+      get m' p' = if p == p' then ok w else get m p';
+  valid8P : forall m p w, reflect (exists m', set m p w = ok m') (valid8 m p);
+  get_valid8 : forall m p w, get m p = ok w -> valid8 m p; 
+  valid8_set : forall m p w m' p', set m p w = ok m' -> valid8 m' p' = valid8 m p';
 }.
 
 End POINTER.
 
-Module CoreMem.
+Module Export CoreMem.
 Section CoreMem.
 
   Context {pointer: eqType} {Pointer: pointer_op pointer}.
-  Context {core_mem: Type} {CM: coreMem Pointer core_mem}.
-
-  Definition uread (m: core_mem) (ptr: pointer) n :=
-    map (fun o => uget m (add ptr o)) (ziota 0 n).
+  Context {core_mem: Type} {CM: coreMem pointer core_mem}.
 
   Definition read (m: core_mem) (ptr: pointer) (sz: wsize) : exec (word sz) :=
-    Let _ := validr m ptr sz in
-    ok (LE.decode sz (uread m ptr (wsize_size sz))).
+    Let _ := assert (is_align ptr sz) ErrAddrInvalid in
+    Let l := mapM (fun k => get m (add ptr k)) (ziota 0 (wsize_size sz)) in
+    ok (LE.decode sz l).
 
-  Definition uwrite (m: core_mem) (ptr: pointer) (sz: wsize) (w: word sz) :=
-    foldl (fun m o => uset m (add ptr o) (LE.wread8 w o)) m (ziota 0 (wsize_size sz)).
+  Definition write (m:core_mem) (ptr:pointer) (sz:wsize) (w: word sz) : exec core_mem :=
+    Let _ := assert (is_align ptr sz) ErrAddrInvalid in
+    foldM (fun k m => set m (add ptr k) (LE.wread8 w k)) m (ziota 0 (wsize_size sz)).
 
-  Definition write (m: core_mem) (ptr: pointer) (sz: wsize) (w: word sz) : exec core_mem :=
-    Let _ := validw m ptr sz in
-    ok (uwrite m ptr w).
+  Definition validw (m:core_mem) (ptr:pointer) (sz:wsize) := 
+    is_align ptr sz && all (fun k => valid8 m (add ptr k)) (ziota 0 (wsize_size sz)).
 
-  Lemma sub_add_ziota m t p s i:
-   validw m p s = ok t -> i \in ziota 0 (wsize_size s) -> sub (add p i) p = i.
-  Proof. by move=> hw; rewrite in_ziota !zify; apply: (sub_add hw). Qed.
+  Lemma valid8_validw m p : valid8 m p = validw m p U8.
+  Proof. by rewrite /validw /= is_align8 /= add_0 andbT. Qed.
 
-  Lemma readV m p s: is_ok (read m p s) = is_ok (validr m p s).
-  Proof. by rewrite /read; case: validr. Qed.
-
-  Lemma writeV s (v:word s) m p: is_ok (write m p v) = is_ok (validw m p s).
-  Proof. by rewrite /write; case: validw. Qed.
-
-  Lemma write_uwrite  m p s (v:word s):
-    is_ok (validw m p s) -> write m p v = ok (uwrite m p v).
-  Proof. by rewrite /write => /is_okP [? ->]. Qed.
-
-  Lemma read_uread  m p s:
-    is_ok (validr m p s) -> read m p s = ok (LE.decode s (uread m p (wsize_size s))).
-  Proof. by rewrite /read => /is_okP [? ->]. Qed.
-
-  Lemma uwrite_uget m p ws (v:word ws) k t:
-    validw m p ws = ok t ->
-    uget (uwrite m p v) k =
-       let i := sub k p in
-       if (0 <=? i) && (i <? wsize_size ws) then (LE.wread8 v i)
-       else uget m k.
+  Lemma validwP m p ws : 
+    reflect (is_align p ws ∧ ∀ k, 0 <= k < wsize_size ws -> validw m (add p k) U8) (validw m p ws).
   Proof.
-    rewrite /uwrite -(in_ziota 0 (wsize_size ws) (sub k p)) => /sub_add_ziota.
-    elim: ziota m => //= i l hrec m hsub.
-    rewrite hrec; last by move=> ? hin;apply hsub; rewrite in_cons hin orbT.
-    rewrite setP in_cons orbC; case: ifPn => //= _.
-    case: eqP => [<- | hne].
-    + by rewrite hsub ?mem_head ?eq_refl.
-    by case: eqP => // ?;subst i; elim hne; rewrite add_sub.
+    apply (iffP andP).
+    + by move=> [? /allP h]; split => // k hk; rewrite -valid8_validw; apply h; rewrite in_ziota !zify.
+    by move=> [? h]; split => //;apply/allP => k; rewrite in_ziota !zify valid8_validw; apply h.
   Qed.
 
-  Lemma write_uget m m' p ws (v: word ws) k :
-    write m p v = ok m' ->
-    uget m' k =
-      let i := sub k p in
-       if (0 <=? i) && (i <? wsize_size ws) then (LE.wread8 v i)
-       else uget m k.
-  Proof. rewrite /write; t_xrbindP => ? hw <-; apply: uwrite_uget hw. Qed.
-
-  Lemma uwrite_validr8 m p ws (v:word ws) t k:
-    validw m p ws = ok t ->
-    validr (uwrite m p v) k U8 =
-      let i := sub k p in
-      if (0 <=? i) && (i <? wsize_size ws) then ok tt
-      else validr m k U8.
+  Lemma get_read8 m p: get m p = read m p U8.
   Proof.
-    rewrite /uwrite -(in_ziota 0 (wsize_size ws) (sub k p)) => hw.
-    have : forall i, i \in ziota 0 (wsize_size ws) →
-             sub (add p i) p = i /\ 0 <= i < wsize_size ws.
-    + move=> i hin;split;first by apply: (sub_add_ziota hw hin).
-      by move: hin;rewrite in_ziota !zify.
-    elim: ziota m hw => //= i l hrec m hv hsub.
-    rewrite hrec ?validw_uset //; last by move=> ? hin;apply hsub; rewrite in_cons hin orbT.
-    rewrite (validw_validr _ _ hv); last by case: (hsub i (mem_head _ _)).
-    rewrite in_cons orbC; case: ifPn => //=.
-    case: eqP => [<- | hne].
-    + by case: (hsub i (mem_head _ _)) => -> _; rewrite eq_refl; case: (t).
-    by case: eqP => // ?;subst i; elim hne; rewrite add_sub.
+    rewrite /read /= is_align8 /= add_0.
+    by case: get => //= w; rewrite -LE.encode8E LE.decodeK.
   Qed.
 
-  Lemma uread8_get m p : LE.decode U8 (uread m p (wsize_size U8)) = uget m p.
-  Proof. by rewrite /uread /= -LE.encode8E LE.decodeK add_0. Qed.
+  Lemma readE m p sz : 
+    read m p sz = 
+      Let _ := assert (is_align p sz) ErrAddrInvalid in
+      Let l := mapM (fun k => read m (add p k) U8) (ziota 0 (wsize_size sz)) in
+      ok (LE.decode sz l).
+  Proof.
+    by rewrite {1}/read; case: is_align => //=; f_equal; apply eq_mapM => k _; apply get_read8.
+  Qed.
 
-  Lemma write_read8 m m' p ws (v: word ws) k :
+  Lemma write_valid8 m m' p s (v :word s) p' :
     write m p v = ok m' ->
-    read m' k U8 =
+    valid8 m' p' = valid8 m p'.
+  Proof.
+    rewrite /write; t_xrbindP => ? _; move: m.
+    apply ziota_ind => /= [ m [->]//| i l _ hrec m]; t_xrbindP => ? h /hrec ->.
+    by apply (valid8_set _ h).
+  Qed.
+
+  Lemma write_validw m m' p s (v :word s) p' s' :
+    write m p v = ok m' ->
+    validw m' p' s' = validw m p' s'.
+  Proof.
+    by move=> hw; rewrite /validw; f_equal; apply all_ziota => ? _; apply: write_valid8 hw.
+  Qed.
+
+  Lemma write_read8 m m' p ws (v: word ws) :
+    write m p v = ok m' ->
+    forall k, read m' k U8 =
       let i := sub k p in
        if (0 <=? i) && (i <? wsize_size ws) then ok (LE.wread8 v i)
        else read m k U8.
   Proof.
-    rewrite /write; t_xrbindP => ? hv <-.
-    by rewrite /read (uwrite_validr8 v k hv) /= !uread8_get (uwrite_uget _ _ hv) /=; case:ifP.
+    rewrite /write; t_xrbindP => _ _ h k; move: h.
+    rewrite -(@in_ziota 0 (wsize_size ws)).
+    move: m; apply ziota_ind => /=; first by move=> ? [<-].
+    move=> i l hi hrec m; t_xrbindP => mi hset /hrec ->.
+    rewrite in_cons -!get_read8 (setP _ hset) orbC.
+    case: ifP => //= _.
+    case: eqP => [<- | hne].
+    + rewrite sub_add ?eq_refl //.
+      have : wsize_size ws <= wsize_size U256 by case: (ws).
+      Psatz.lia.
+    by case: eqP => // heq; case: hne; rewrite -heq add_sub.
   Qed.
 
-  Delimit Scope nat_scope with N_.
-
-  Lemma rangeP x1 x2 x3 : reflect (x1 <= x2 < x3) ((x1 <=? x2) && (x2 <? x3)).
-  Proof. by case: andP => h;constructor; move: h;rewrite !zify. Qed.
-
-  Lemma Z_of_nat_range i s: (i < Z.to_nat (wsize_size s))%N_ ->
-     0 <= Z.of_nat i < wsize_size s.
+  Lemma eq_read m1 m2 p ws : 
+    (forall i, 0 <= i < wsize_size ws -> read m1 (add p i) U8 = read m2 (add p i) U8) ->
+    read m1 p ws = read m2 p ws.
   Proof.
-    move=> hi; split;first by Psatz.lia.
-    by move/ltP:hi; rewrite Nat2Z.inj_lt ?Z2Nat.id.
+    move=> h8; rewrite !readE; case: is_align => //=; f_equal.
+    by apply eq_mapM => k; rewrite in_ziota !zify; apply h8.
+  Qed.
+  
+  Lemma writeV s (v:word s) m p:
+    reflect (exists m', write m p v = ok m') (validw m p s).
+  Proof.
+    rewrite /write /validw; case: is_align => //=; last by constructor => -[].
+    elim: ziota m => /=; first by move=> ?; constructor; eauto.
+    move=> k l hrec m.
+    apply (iffP andP).
+    + move=> [] /valid8P -/(_ (LE.wread8 v k)) [m'] hset hall.
+      by rewrite hset;apply/hrec; apply: sub_all hall => i; rewrite (valid8_set _ hset).
+    move=> [m'];t_xrbindP => m'' hset hf; split.
+    + by apply/valid8P; eexists; eauto.
+    apply/sub_all; last by apply/hrec; eexists; eauto.
+    by move=> i;rewrite (valid8_set _ hset). 
   Qed.
 
-  Lemma writeP_eq m m' p ws (v: word ws) :
+  Lemma readV m ptr sz w :
+    read m ptr sz = ok w ->
+    validw m ptr sz.
+  Proof. 
+    move=> h; apply /validwP; move: h; rewrite /read; t_xrbindP => _ /assertP -> l h _; split => //.
+    move=> k hk; have {hk}: k \in ziota 0 (wsize_size sz).
+    + by rewrite in_ziota !zify.
+    rewrite -valid8_validw.    
+    move: l h;apply ziota_ind => //= i li hi hr ?.
+    t_xrbindP => wi hwi; have ?:= get_valid8 hwi.
+    by move=> l /hr{hr}hr _; rewrite inE => /orP [/eqP ->| /hr].
+  Qed.
+
+  Lemma read8_read m p s v: 
+    (forall i, 0 <= i < wsize_size s -> read m (add p i) U8 = ok (LE.wread8 v i)) ->
+    read m p s = if is_align p s then ok v else Error ErrAddrInvalid.
+  Proof.
+    rewrite readE => h8; case: is_align => //=.
+    have -> /= : mapM (λ k, read m (add p k) U8) (ziota 0 (wsize_size s)) = 
+                   ok (map (λ k, LE.wread8 v k) (ziota 0 (wsize_size s))).
+    + by apply ziota_ind => //= k l hk ->; rewrite h8.
+    by rewrite -{2}(LE.decodeK v) LE.encodeE.
+  Qed.
+
+  Lemma read_read8 m p s v: 
+    read m p s = ok v ->
+    is_align p s /\ (forall i, 0 <= i < wsize_size s -> read m (add p i) U8 = ok (LE.wread8 v i)).
+  Proof.
+    rewrite readE; t_xrbindP => _ /assertP ha l hl.
+    rewrite -{1}(LE.decodeK v) => /LE.decode_inj.
+    rewrite -(mapM_size hl) size_ziota LE.size_encode => /(_ refl_equal refl_equal) ?; subst l.
+    rewrite LE.encodeE in hl.
+    split => // i hi.
+    have : i \in ziota 0 (wsize_size s) by rewrite in_ziota !zify.
+    move: hl; apply ziota_ind => //= k l hk hrec.
+    t_xrbindP => w hw ws hws ??; subst w ws.
+    by rewrite inE => /orP [/eqP -> | /(hrec hws)].
+  Qed.
+    
+  Lemma writeP_eq m m' p s (v :word s):
     write m p v = ok m' ->
-    uread m' p (wsize_size ws) = LE.encode v.
+    read m' p s = ok v.
   Proof.
-    rewrite /write; t_xrbindP => t hv <-.
-    apply (eq_from_nth (x0 := (wrepr U8 0))).
-    + by rewrite size_map size_ziota LE.size_encode.
-    move=> i; rewrite size_map size_ziota => hi.
-    rewrite (nth_map 0%Z) ?size_ziota // nth_ziota // Z.add_0_l.
-    rewrite (uwrite_uget _ _ hv) /=.
-    have /dup[h1 /rangeP h2] := Z_of_nat_range hi.
-    by rewrite (sub_add hv h1) h2 /LE.wread8 Nat2Z.id.
+    move=> hw. 
+    rewrite (read8_read (m:=m') (v:= v) (p:=p)).
+    + by have /validwP [->] : validw m p s by apply /writeV; eexists; eauto.
+    move=> k hk.
+    rewrite (write_read8 hw) sub_add /=.
+    + by case: andP => //; rewrite !zify; Psatz.lia.
+    have : wsize_size s <= wsize_size U256 by case: (s).
+    Psatz.lia.
   Qed.
 
   Definition disjoint_range p s p' s' :=
     forall i i', 0 <= i < wsize_size s -> 0 <= i' < wsize_size s' ->
        add p i <> add p' i'.
 
-  Lemma ureadP m1 m2 p1 p2 s:
-    reflect (forall i, 0 <= i < wsize_size s -> uget m1 (add p1 i) = uget m2 (add p2 i))
-            (uread m1 p1 (wsize_size s) == uread m2 p2 (wsize_size s)).
-  Proof.
-    apply: (@equivP
-      (forall i, i \in ziota 0 (wsize_size s) ->
-        uget m1 (add p1 i) = uget m2 (add p2 i))); last first.
-    + by split=> h i hi;apply h; move: hi; rewrite in_ziota !zify.
-    rewrite /uread;elim: ziota => /=.
-    + by rewrite eq_refl; constructor.
-    move=> i l hrec;rewrite eqseq_cons; case: eqP => /= heq.
-    + case:hrec => hin; constructor.
-      + by move=> k;rewrite in_cons => /orP [/eqP ->| /hin].
-      by move=> hi; apply hin => k hk; apply hi; rewrite in_cons hk orbT.
-    constructor => hin; apply heq; apply hin; apply mem_head.
-  Qed.
-
-  Lemma uread_decode m1 m2 p1 p2 s:
-    reflect (forall i, 0 <= i < wsize_size s -> uget m1 (add p1 i) = uget m2 (add p2 i))
-            (LE.decode s (uread m1 p1 (wsize_size s)) == LE.decode s (uread m2 p2 (wsize_size s))).
-  Proof.
-    have -> : (LE.decode s (uread m1 p1 (wsize_size s)) == LE.decode s (uread m2 p2 (wsize_size s))) =
-              (uread m1 p1 (wsize_size s) == uread m2 p2 (wsize_size s)); last by apply ureadP.
-    apply Bool.eq_true_iff_eq; split => [/eqP | /eqP ->]; last by rewrite eq_refl.
-    move=> /LE.decode_inj; rewrite !size_map size_iota => /(_ erefl erefl) ->; apply eq_refl.
-  Qed.
-
   Lemma writeP_neq m m' p s (v :word s) p' s':
     write m p v = ok m' ->
     disjoint_range p s p' s' ->
-    uread m' p' (wsize_size s') = uread m p' (wsize_size s').
+    read m' p' s' = read m p' s'.
   Proof.
-    rewrite /write; t_xrbindP => tt hv <- hd.
-    apply /eqP /ureadP => i hi; rewrite (uwrite_uget _ _ hv) /=; case:ifP => //.
-    rewrite !zify => ?; elim: (hd (sub (add p' i) p) i) => //.
-    by rewrite add_sub.
+    move=> hw hd; apply eq_read => k hk.
+    rewrite (write_read8 hw) /=.
+    case: andP => //; rewrite !zify => hin.
+    elim: (hd (sub (add p' k) p) k) => //; by rewrite add_sub.
+  Qed.
+
+  Lemma read_write_any_mem m1 m1' pr szr pw szw (vw:word szw) m2 m2':
+    (forall k, 0 <= k < wsize_size szr -> read m1 (add pr k) U8 = read m1' (add pr k) U8) ->
+    write m1 pw vw = ok m2 ->
+    write m1' pw vw = ok m2' ->
+    read m2 pr szr = read m2' pr szr.
+  Proof.
+    move=> hr hw hw'; apply eq_read => k hk.
+    by rewrite (write_read8 hw) (write_read8 hw') /=; case: andP => // _; apply hr.
   Qed.
 
 End CoreMem.
@@ -336,37 +358,105 @@ Proof.
 Qed.
 
 (* -------------------------------------------------- *)
+(** Pointer arithmetic *)
+  
+Instance Pointer : pointer_op pointer.
+Proof.
+refine
+  {| add p k   := (p + wrepr Uptr k)%R
+   ; sub p1 p2 := wunsigned (p1 - p2)%R
+   ; p_to_z p  := wunsigned p
+  |}.
+- abstract (move=> p k; rewrite wrepr_unsigned; ssrring.ssring).
+- abstract (move=> p k => hk;
+  rewrite -{2}(@wunsigned_repr_small Uptr k); last (by have := wsize_size_wbase U256; Psatz.lia);
+  f_equal; ssrring.ssring).
+- abstract (move => p; rewrite wrepr0; ssrring.ssring).
+Defined.
 
-Class alignment : Type :=
-  Alignment {
-      is_align : pointer -> wsize -> bool
-    ; is_align_add ptr1 ptr2 sz : is_align ptr1 sz -> is_align ptr2 sz -> is_align (ptr1 + ptr2) sz
-    ; is_align_mod ptr sz : (wunsigned ptr mod wsize_size sz = 0)%Z -> is_align ptr sz
-    ; is_align_m sz sz' ptr : (sz' ≤ sz)%CMP → is_align ptr sz → is_align ptr sz'
-    ; is_align_no_overflow ptr sz : is_align ptr sz → no_overflow ptr (wsize_size sz)
-    ; do_align: wsize → pointer → pointer
-    ; do_align_is_align : ∀ sz p, is_align (do_align sz p) sz
-    }.
+Lemma addE p k : add p k = (p + wrepr Uptr k)%R.
+Proof. by []. Qed.
+
+Lemma subE p1 p2 : sub p1 p2 = wunsigned (p1 - p2).
+Proof. by []. Qed.
+
+Lemma addC p i j : add (add p i) j = add p (i + j).
+Proof. rewrite /= wrepr_add; ssrring.ssring. Qed.
+
+Lemma p_to_zE p : p_to_z p = wunsigned p.
+Proof. done. Qed.
+
+Global Opaque Pointer.
 
 Lemma cut_wbase_Uptr sz :
   wbase Uptr = (wsize_size sz * CoqWord.word.modulus (nat63.+3 - (Nat.log2 (wsize_size_minus_1 sz))))%Z.
 Proof. by case: sz; vm_compute. Qed.
 
-Lemma is_align8 (AL:alignment) ptr : is_align ptr U8.
-Proof. by apply is_align_mod; rewrite wsize8 /= Z.mod_1_r. Qed.
+Lemma is_align_modE ptr sz : (wunsigned ptr mod wsize_size sz == 0)%Z = is_align ptr sz.
+Proof. by rewrite /is_align p_to_zE (rwP eqP). Qed.
 
-Lemma is_align_mul (AL:alignment) sz j : is_align (wrepr _ (wsize_size sz * j)) sz.
+Lemma is_align_mod ptr sz : reflect (wunsigned ptr mod wsize_size sz = 0)%Z (is_align ptr sz).
+Proof. rewrite -is_align_modE; apply eqP. Qed.
+
+Lemma wsize_size_div_wbase sz sz' : (wsize_size sz | wbase sz').
 Proof.
-  apply is_align_mod.
-  have hn := wsize_size_pos sz.
-  have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
-  rewrite wunsigned_repr.
-  rewrite -/(wbase Uptr) (cut_wbase_Uptr sz).
-  by rewrite (Z.mul_comm _ (CoqWord.word.modulus _)) mod_pq_mod_q // Z.mul_comm Z_mod_mult.
+  have ? := wsize_size_pos sz.
+  apply Znumtheory.Zmod_divide => //. 
+  by case sz; case sz'.
 Qed.
 
-Lemma is_align_array (AL:alignment) ptr sz j : 
-  is_align ptr sz → is_align (wrepr _ (wsize_size sz * j) + ptr) sz.
+Lemma mod_wsize_size z sz : z mod wbase Uptr mod wsize_size sz = z mod wsize_size sz.
+Proof. by rewrite -Znumtheory.Zmod_div_mod //; apply wsize_size_div_wbase. Qed.
+
+Lemma is_align_addE (ptr1 ptr2:pointer) sz : 
+  is_align ptr1 sz -> is_align (ptr1 + ptr2)%R sz = is_align ptr2 sz.
+Proof.
+  have hn := wsize_size_pos sz.
+  move => /is_align_mod h; rewrite -!is_align_modE.
+  by rewrite /wunsigned CoqWord.word.addwE -/(wbase Uptr) mod_wsize_size -Zplus_mod_idemp_l h.
+Qed.
+
+Lemma is_align_add (ptr1 ptr2:pointer) sz : 
+  is_align ptr1 sz -> is_align ptr2 sz -> is_align (ptr1 + ptr2)%R sz.
+Proof. by move=> /is_align_addE ->. Qed.
+
+Lemma is_align_m sz sz' (ptr: pointer) :
+  (sz' ≤ sz)%CMP →
+  is_align ptr sz →
+  is_align ptr sz'.
+Proof.
+  have wsnz s : wsize_size s ≠ 0.
+  - by have := wsize_size_pos s.
+  move => /wsize_size_le le /eqP /Z.mod_divide - /(_ (wsnz _)) /(Z.divide_trans _ _ _ le) {le} le.
+  by apply/eqP/Z.mod_divide.
+Qed.
+
+Lemma is_align_mul sz j : is_align (wrepr Uptr (wsize_size sz * j)) sz.
+Proof.
+  have hn := wsize_size_pos sz.
+  have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
+  by rewrite /is_align p_to_zE wunsigned_repr mod_wsize_size Z.mul_comm Z_mod_mult.
+Qed.
+
+Lemma is_align_no_overflow ptr sz :
+  is_align ptr sz → no_overflow ptr (wsize_size sz).
+Proof.
+  rewrite /no_overflow /is_align p_to_zE => /eqP ha; apply/ZleP.
+  have hn := wsize_size_pos sz.
+  have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
+  move: (wunsigned ptr) (wunsigned_range ptr) ha => {ptr} ptr.
+  rewrite (cut_wbase_Uptr sz); set a := CoqWord.word.modulus _.
+  move: (wsize_size sz) hn hnz => n hn hnz hr /Zmod_divides [] // q ?; subst ptr.
+  cut (q + 1 <= a)%Z; Psatz.nia.
+Qed.
+
+Notation do_align := align_word (only parsing).
+
+Lemma do_align_is_align sz p : is_align (do_align sz p) sz.
+Proof. apply align_word_aligned. Qed.
+
+Lemma is_align_array ptr sz j : 
+  is_align ptr sz → is_align (wrepr _ (wsize_size sz * j) + ptr)%R sz.
 Proof. by move=> hptr; apply is_align_add => //; apply is_align_mul. Qed.
 
 (** Rounds the given size to the next larger-or-equal multiple of [ws] *)
@@ -396,10 +486,7 @@ Qed.
 
 Class memory (mem: Type) : Type :=
   Memory {
-      read_mem  : mem -> pointer -> forall (s:wsize), exec (word s)
-    ; write_mem : mem -> pointer -> forall (s:wsize), word s -> exec mem
-    ; valid_pointer : mem -> pointer -> wsize -> bool
-    ; stack_root : mem -> pointer
+      stack_root : mem -> pointer
     ; stack_limit : mem -> pointer
     ; frames : mem -> seq pointer
     ; alloc_stack : mem -> wsize -> Z -> Z -> exec mem (* alignement, size, extra-size *)
@@ -407,15 +494,11 @@ Class memory (mem: Type) : Type :=
     ; init : seq (pointer * Z) → pointer → exec mem
     }.
 
-Arguments read_mem : simpl never.
-Arguments write_mem {_ _} _ _ _ _ : simpl never.
-Arguments valid_pointer : simpl never.
-
 Definition top_stack {mem: Type} {M: memory mem} (m: mem) : pointer :=
   head (stack_root m) (frames m).
 
 Section SPEC.
-  Context (AL: alignment) mem (M: memory mem)
+  Context mem (CM:coreMem pointer mem) (M: memory mem)
     (m: mem) (ws:wsize) (sz: Z) (sz': Z) (m': mem).
   Let pstk := top_stack m'.
 
@@ -423,19 +506,16 @@ Section SPEC.
     do_align ws (top + wrepr Uptr (- sz)).
 
   Record alloc_stack_spec : Prop := mkASS {
-    ass_read_old : forall p s, valid_pointer m p s -> read_mem m p s = read_mem m' p s;
-    ass_valid    : forall p,
-      valid_pointer m' p U8 =
-      valid_pointer m p U8 || between pstk sz p U8;
-    ass_align    : forall ofs s,
-      (s <= ws)%CMP ->
-      is_align (pstk + wrepr _ ofs) s = is_align (wrepr _ ofs) s ;
-    ass_fresh    : forall p s, valid_pointer m p s ->
-      (wunsigned p + wsize_size s <= wunsigned pstk \/
-       wunsigned pstk + sz <= wunsigned p)%Z;
-    ass_root   : stack_root m' = stack_root m;
-    ass_limit  : stack_limit m' = stack_limit m;
-    ass_frames : frames m' = top_stack_after_alloc (top_stack m) ws (sz + sz') :: frames m;
+    ass_read_old8 : forall p, validw m p U8 -> read m p U8 = read m' p U8;
+    ass_read_new  : forall p, ~validw m p U8 -> validw m' p U8 -> read m' p U8 = Error ErrAddrInvalid;
+    ass_valid     : forall p, validw m' p U8 = validw m p U8 || between pstk sz p U8;
+    ass_align_stk : is_align pstk ws; 
+    ass_fresh     : forall p s, validw m p s ->
+                        (wunsigned p + wsize_size s <= wunsigned pstk \/
+                         wunsigned pstk + sz <= wunsigned p)%Z;
+    ass_root      : stack_root m' = stack_root m;
+    ass_limit     : stack_limit m' = stack_limit m;
+    ass_frames    : frames m' = top_stack_after_alloc (top_stack m) ws (sz + sz') :: frames m;
   }.
 
   Record stack_stable : Prop := mkSS {
@@ -445,115 +525,70 @@ Section SPEC.
   }.
 
   Record free_stack_spec : Prop := mkFSS {
-    fss_read_old : forall p s, valid_pointer m' p s -> read_mem m p s = read_mem m' p s;
-    fss_valid    : ∀ p, valid_pointer m' p U8 = valid_pointer m p U8 && ~~ pointer_range (top_stack m) (top_stack m') p;
+    fss_read_old8 : forall p, validw m' p U8 -> read m p U8 = read m' p U8;
+    fss_valid    : ∀ p, validw m' p U8 = validw m p U8 && ~~ pointer_range (top_stack m) (top_stack m') p;
     fss_root : stack_root m' = stack_root m;
     fss_limit : stack_limit m' = stack_limit m;
     fss_frames : frames m' = behead (frames m);
    }.
 
+  Lemma ass_align (ass:alloc_stack_spec) ofs s :
+    (s <= ws)%CMP ->
+    is_align (pstk + wrepr _ ofs)%R s = is_align (wrepr _ ofs) s.
+  Proof.
+    by move=> hs; apply/is_align_addE;apply: is_align_m (ass_align_stk ass).
+  Qed.
+
+  Lemma ass_read_old (ass:alloc_stack_spec) p s : validw m p s -> read m p s = read m' p s.
+  Proof.
+    move /validwP => [] ha hv; apply eq_read => k hk.
+    by apply (ass_read_old8 ass); apply hv.
+  Qed.
+
+  Lemma fss_read_old (fss:free_stack_spec) p s : 
+    validw m' p s -> read m p s = read m' p s.
+  Proof.
+    move /validwP => [] ha hv; apply eq_read => k hk.
+    by apply (fss_read_old8 fss); apply hv.
+  Qed.
+
 End SPEC.
 
-Arguments top_stack_after_alloc {_} _ _ _.
 Arguments alloc_stack_spec {_ _ _} _ _ _ _.
 Arguments stack_stable {_ _} _ _.
-Arguments free_stack_spec {_ _} _ _.
-
-(** Pointer arithmetic *)
-Instance Pointer : pointer_op pointer.
-Proof.
-refine
-  {| add p k := (p + wrepr Uptr k)%R
-   ; sub p1 p2 := wunsigned p1 - wunsigned p2
-  |}.
-- abstract (move => p k; rewrite wrepr_sub !wrepr_unsigned; ssrring.ssring).
-- abstract (move => p; rewrite wrepr0; ssrring.ssring).
-Defined.
-
-Lemma addE p k : add p k = (p + wrepr Uptr k)%R.
-Proof. by []. Qed.
-
-Lemma subE p1 p2 : sub p1 p2 = wunsigned p1 - wunsigned p2.
-Proof. by []. Qed.
-
-Lemma addC p i j : add (add p i) j = add p (i + j).
-Proof. rewrite /= wrepr_add; ssrring.ssring. Qed.
-
-Global Opaque Pointer.
+Arguments free_stack_spec {_ _ _} _ _.
 
 Module Type MemoryT.
 
-Declare Instance A : alignment.
-
 Parameter mem : Type.
 
-Declare Instance CM : coreMem Pointer mem.
+Declare Instance CM : coreMem pointer mem.
 Declare Instance M : memory mem.
 
-Parameter readV : forall m p s,
-  reflect (exists v, read_mem m p s = ok v) (valid_pointer m p s).
-
-Parameter writeV : forall m p s v,
-  reflect (exists m', write_mem m p s v = ok m') (valid_pointer m p s).
-
-Parameter read_mem_error : forall m p s e, read_mem m p s = Error e -> e = ErrAddrInvalid.
-
-Parameter readP : forall m p s, read_mem m p s = CoreMem.read m p s.
-Parameter writeP : forall m p s (v:word s), write_mem m p s v = CoreMem.write m p v.
-
-Parameter write_read8 : forall m m' p ws (v: word ws) k,
-  write_mem m p ws v = ok m' ->
-  read_mem m' k U8 =
-    let i := wunsigned k - wunsigned p in
-    if (0 <=? i) && (i <? wsize_size ws) then ok (LE.wread8 v i)
-    else read_mem m k U8.
-
-Parameter writeP_eq : forall m m' p s (v :word s),
-  write_mem m p s v = ok m' ->
-  read_mem m' p s = ok v.
-
-Parameter writeP_neq : forall m m' p s (v :word s) p' s',
-  write_mem m p s v = ok m' ->
-  disjoint_range p s p' s' ->
-  read_mem m' p' s' = read_mem m p' s'.
-
-Parameter write_valid : forall m m' p s (v :word s) p' s',
-  write_mem m p s v = ok m' ->
-  valid_pointer m' p' s' = valid_pointer m p' s'.
-
-Parameter valid_pointerP : ∀ m p ws,
-    reflect (is_align p ws ∧ ∀ k, 0 <= k < wsize_size ws -> valid_pointer m (p + wrepr U64 k) U8) (valid_pointer m p ws).
-
-Parameter read_write_any_mem :
-  forall m1 m1' pr szr pw szw vw m2 m2',
-    valid_pointer m1 pr szr ->
-    read_mem m1 pr szr = read_mem m1' pr szr ->
-    write_mem m1 pw szw vw = ok m2 ->
-    write_mem m1' pw szw vw = ok m2' ->
-    read_mem m2 pr szr = read_mem m2' pr szr.
+(*Parameter readV : forall m p s v,
+  read m p s = ok v -> validw m p s. *)
 
 (* -------------------------------------------------------------------- *)
 Parameter alloc_stackP : forall m m' ws sz sz',
   alloc_stack m ws sz sz' = ok m' -> alloc_stack_spec m ws sz sz' m'.
 
-Parameter alloc_stack_complete :
-  forall m ws sz sz',
-    let: old_size:= sub (stack_root m) (top_stack m) in
-    let: max_size := sub (stack_root m) (stack_limit m) in
-    let: available := max_size - old_size in
-    [&& 0 <=? sz, 0 <=? sz' &
-    if is_align (top_stack m) ws
-    then round_ws ws (sz + sz') <=? available (* tight bound *)
-    else sz + sz' + wsize_size ws <=? available (* loose bound, exact behavior is under-specified *)
-    ] →
-    ∃ m', alloc_stack m ws sz sz' = ok m'.
+Parameter alloc_stack_complete : forall m ws sz sz',
+  let: old_size:= wunsigned (stack_root m) - wunsigned (top_stack m) in
+  let: max_size := wunsigned (stack_root m) - wunsigned (stack_limit m) in
+  let: available := max_size - old_size in
+  [&& 0 <=? sz, 0 <=? sz' &
+  if is_align (top_stack m) ws
+  then round_ws ws (sz + sz') <=? available (* tight bound *)
+  else sz + sz' + wsize_size ws <=? available (* loose bound, exact behavior is under-specified *)
+  ] →
+  ∃ m', alloc_stack m ws sz sz' = ok m'.
 
 Parameter top_stack_after_aligned_alloc : forall p ws sz,
-    is_align p ws →
-    top_stack_after_alloc p ws sz = (p + wrepr Uptr (- round_ws ws sz))%R.
+  is_align p ws →
+  top_stack_after_alloc p ws sz = (p + wrepr Uptr (- round_ws ws sz))%R.
 
-Parameter write_mem_stable : forall m m' p s v,
-  write_mem m p s v = ok m' -> stack_stable m m'.
+Parameter write_mem_stable : forall m m' p s (v:word s),
+  write m p v = ok m' -> stack_stable m m'.
 
 Parameter free_stackP : forall m,
   free_stack_spec m (free_stack m).

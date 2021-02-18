@@ -464,7 +464,7 @@ Section PROOF.
     have /sem_pexpr_uincl_on -/(_ _ _ _ Hse): svm1 <=[read_e e] vm1.
     + by apply: vm_uincl_onI Hvm;SvD.fsetdec.
     move=> [v2 Hv2 Huv2].
-    have [v2' hsub' huv2']:= truncate_value_uincl Huv2 hsub.
+    have [v2' hsub' huv2']:= value_uincl_truncate Huv2 hsub.
     have [ | vm2 /=Hvm2 Hw']:= write_lval_uincl_on _ huv2' hw Hvm; first by SvD.fsetdec.
     exists vm2;split.
     + by apply: wf_write_lval Hw'.

@@ -45,24 +45,26 @@ Variant value : Type :=
   | Vint   :> Z    -> value
   | Varr   : forall len, WArray.array len -> value
   | Vword  : forall s, word s -> value
-  | Vundef : stype -> value.
+  | Vundef : forall (t:stype), is_sarr t = false -> value.
+Arguments Vundef _ _ : clear implicits.
 
-Definition undef_b := Vundef sbool.
+Definition undef_b := Vundef sbool refl_equal.
+Definition undef_w ws := Vundef (sword ws) refl_equal.
 
 Definition values := seq value.
 
 Definition to_bool v :=
   match v with
-  | Vbool b      => ok b
-  | Vundef sbool => undef_error
-  | _            => type_error
+  | Vbool b        => ok b
+  | Vundef sbool _ => undef_error
+  | _              => type_error
   end.
 
 Definition to_int v :=
   match v with
-  | Vint z      => ok z
-  | Vundef sint => undef_error
-  | _           => type_error
+  | Vint z        => ok z
+  | Vundef sint _ => undef_error
+  | _             => type_error
   end.
 
 Definition truncate_word (s s':wsize) (w:word s') : exec (word s) :=
@@ -70,9 +72,9 @@ Definition truncate_word (s s':wsize) (w:word s') : exec (word s) :=
 
 Definition to_word (s: wsize) (v: value) : exec (word s) :=
   match v with
-  | Vword s' w        => truncate_word s w
-  | Vundef (sword s') => Error (if (s <= s')%CMP then ErrAddrUndef else ErrType)
-  | _                 => type_error
+  | Vword s' w          => truncate_word s w
+  | Vundef (sword s') _ => Error (if (s <= s')%CMP then ErrAddrUndef else ErrType)
+  | _                   => type_error
   end.
 
 Notation to_pointer := (to_word Uptr).
@@ -80,8 +82,6 @@ Notation to_pointer := (to_word Uptr).
 Definition to_arr len v : exec (sem_t (sarr len)) :=
   match v with
   | Varr len' t => WArray.cast len t
-  | Vundef (sarr len') =>
-    Error (if (len <=? len')%Z then ErrAddrUndef else ErrType)
   | _ => type_error
   end.
 
@@ -98,7 +98,7 @@ Definition type_of_val (v:value) : stype :=
   | Vint  _     => sint
   | Varr n _    => sarr n
   | Vword s _   => sword s
-  | Vundef t    => vundef_type t
+  | Vundef t _  => vundef_type t
   end.
 
 Definition of_val t : value -> exec (sem_t t) :=
@@ -125,7 +125,7 @@ Proof. by case: t s. Qed.
 
 Definition oto_val t : sem_ot t -> value :=
   match t return sem_ot t -> value with
-  | sbool => fun ob => if ob is Some b then Vbool b else Vundef sbool
+  | sbool => fun ob => if ob is Some b then Vbool b else undef_b
   | x     => @to_val x
   end.
 
@@ -495,7 +495,7 @@ Proof.
 Qed.
 
 Definition is_defined (v: value) : bool :=
-  if v is Vundef _ then false else true.
+  if v is Vundef _ _ then false else true.
 
 Section SEM_PEXPR.
 
@@ -520,7 +520,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   | Pload sz x e =>
     Let w1 := get_var s.(evm) x >>= to_pointer in
     Let w2 := sem_pexpr s e >>= to_pointer in
-    Let w  := read_mem s.(emem) (w1 + w2) sz in
+    Let w  := read s.(emem) (w1 + w2)%R sz in
     ok (@to_val (sword sz) w)
   | Papp1 o e1 =>
     Let v1 := sem_pexpr s e1 in
@@ -561,7 +561,7 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec estate :=
     Let ve := sem_pexpr s e >>= to_pointer in
     let p := (vx + ve)%R in (* should we add the size of value, i.e vx + sz * se *)
     Let w := to_word sz v in
-    Let m :=  write_mem s.(emem) p sz w in
+    Let m :=  write s.(emem) p w in
     ok {| emem := m;  evm := s.(evm) |}
   | Laset aa ws x i =>
     Let (n,t) := s.[x] in
@@ -588,9 +588,7 @@ End SEM_PEXPR.
 (* ---------------------------------------------------------------- *)
 Definition is_word (sz: wsize) (v: value) : exec unit :=
   match v with
-  | Vword _ _
-  | Vundef (sword _)
-    => ok tt
+  | Vword _ _ | Vundef (sword _) _ => ok tt
   | _ => type_error end.
 
 Lemma is_wordI sz v u :
@@ -908,15 +906,13 @@ Section SEM_IND.
 
 End SEM_IND.
 
-Lemma of_val_undef t t':
-  of_val t (Vundef t') =
+Lemma of_val_undef t t' hn:
+  of_val t (Vundef t' hn) =
     Error (if subtype t t' then ErrAddrUndef else ErrType).
-Proof.
-  by case: t t' => //= [  [] |  [] | p| s []] // [].
-Qed.
+Proof. by case: t t' hn => //= [ | | p | s] []. Qed.
 
-Lemma of_val_undef_ok t t' v:
-  of_val t (Vundef t') <> ok v.
+Lemma of_val_undef_ok t t' hn v:
+  of_val t (Vundef t' hn) <> ok v.
 Proof. by rewrite of_val_undef. Qed.
 
 Lemma of_varr t n (a:WArray.array n) z :

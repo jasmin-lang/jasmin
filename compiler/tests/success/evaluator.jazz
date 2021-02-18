@@ -39,7 +39,7 @@ inline fn mem1() -> reg u32 {
 
   p = 0x1000;
 
-  [ p + 0 ] = 255;
+  [ p + 8 ] = 255;
   r = [ p + 8];
 
   return r;

@@ -196,7 +196,7 @@ Lemma set_var_rename (vm vm' vm'' : vmap) (x y : var) (v : value) :
   -> set_var vm x v = ok vm'
   -> exists vm''', set_var vm'' y v = ok vm'''.
 Proof.
-case: x y => [ty nx] [_ ny] [/= <-]. (*Warning: nothing to inject because of the last []: why?*)
+case: x y => [ty nx] [? ny] /= <-.
 set x := {| vname := nx |}; set y := {| vname := ny |}.
 apply: set_varP => /=.
 + by move=> t okt /esym vm'E ; exists vm''.[y <- ok t] ; rewrite /set_var okt.
@@ -413,12 +413,12 @@ Section Section.
     truncate_val ty v = ok vt ->
     exists w, pof_val ty vt = ok w /\ pto_val w = vt.
   Proof.
-    case: v => [b | z | len a | s ws | ty'].
+    case: v => [b | z | len a | s ws | ty' ?].
     + by move=> /truncate_val_bool [??]; subst ty vt => /=; exists b.
     + by move=> /truncate_val_int [??]; subst ty vt => /=; exists z.
     + rewrite /truncate_val; case: ty => //=.
-      move=> n; rewrite /WArray.cast; case: ifP => //= hlen [<-] /=.
-      rewrite /WArray.inject; case: ZltP => [/Z.lt_irrefl // | /= _ ]; eauto.
+      t_xrbindP=> len' a' hc <-; eexists;split; last reflexivity.
+      by rewrite /to_arr WArray.castK.
     + move=> /truncate_val_word [ws' [? hsub ?]]; subst ty vt => /=.
       case: Sumbool.sumbool_of_bool; first by eauto.
       by rewrite cmp_le_refl.
@@ -1036,9 +1036,8 @@ Section Section.
     case: (vtype x) vt htr hvt => /=.
     + by move=> b _ /to_boolI ->.
     + by move=> i _ /to_intI ->.
-    + move=> n t; case: v => //= [ n' t' | [] //].
-      rewrite /truncate_val /= /WArray.cast.
-      by case: ifP => //= ? [<-] /= [<-]; rewrite /WArray.inject Z.ltb_irrefl.
+    + move=> n t; case: v => //= n' t'.
+      by rewrite /truncate_val /=; t_xrbindP => t1 hc <-; rewrite /to_arr WArray.castK => -[->].
     move => w vt; rewrite /truncate_val /=; t_xrbindP => w' h <-.
     rewrite /to_pword.
     assert (h1 := cmp_le_refl w); case: Sumbool.sumbool_of_bool; last by rewrite h1.

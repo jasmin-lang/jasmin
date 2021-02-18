@@ -204,7 +204,7 @@ Definition eval_asm_arg (s: x86_mem) (a: asm_arg) (ty: stype) : exec value :=
   | Reg r     => ok (Vword (s.(xreg) r))
   | Adr adr   =>
     match ty with
-    | sword sz => Let w := read_mem s.(xmem) (decode_addr s adr) sz in ok (Vword w)
+    | sword sz => Let w := read s.(xmem) (decode_addr s adr) sz in ok (Vword w)
     | _        => type_error
     end
   | XMM x     => ok (Vword (s.(xxreg) x))
@@ -247,7 +247,7 @@ Definition mem_write_rflag (s : x86_mem) (f:rflag) (b:option bool) :=
 
 (* -------------------------------------------------------------------- *)
 Definition mem_write_mem (l : pointer) sz (w : word sz) (s : x86_mem) :=
-  Let m := write_mem s.(xmem) l sz w in ok
+  Let m := write s.(xmem) l w in ok
   {| xmem := m;
      xreg := s.(xreg);
      xrip  := s.(xrip); 
@@ -337,7 +337,7 @@ Definition oof_val (ty: stype) (v:value) : exec (sem_ot ty) :=
   | sbool =>
     match v with
     | Vbool b => ok (Some b)
-    | Vundef sbool => ok None
+    | Vundef sbool _ => ok None
     | _ => type_error
     end
   | sword ws => to_word ws v

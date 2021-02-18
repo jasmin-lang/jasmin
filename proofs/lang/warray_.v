@@ -80,12 +80,12 @@ Module WArray.
   Local Notation pointer := [eqType of Z].
 
   Local Instance PointerZ : pointer_op pointer.
-    refine {|
-        add x y := (x + y)%Z;
-        sub x y := (x - y)%Z;
-      |}.
   Proof.
+    refine {| add x y := (x + y)%Z
+            ; sub x y := (x - y)%Z
+            ; p_to_z x := x        |}.
     - abstract (move => /= ??; ring).
+    - abstract (move => /= ???; ring).
     - abstract (move => /= ?; ring).
   Defined.
 
@@ -95,16 +95,59 @@ Module WArray.
   Lemma subE x y : sub x y = (x - y)%Z.
   Proof. by []. Qed.
 
+  Lemma p_to_zE x : p_to_z x = x.
+  Proof. by []. Qed.
+
   Global Opaque PointerZ.
+
+  Lemma is_align_scale (p:pointer) ws : is_align (p * mk_scale AAscale ws)%Z ws.
+  Proof. by rewrite /is_align /mk_scale /= Z_mod_mult. Qed.
 
   Section CM.
     Variable (s:positive).
 
-    Definition uget (m:array s) (i:pointer) :=
-      odflt 0%R (Mz.get m.(arr_data) i).
+    Definition in_bound (_:array s) p := (0 <=? p) && (p <? s).
+   
+    Lemma in_boundP m p : reflect (0 <= p < s) (in_bound m p).
+    Proof. by apply (iffP andP); rewrite !zify. Qed.
 
-    Definition uset (m:array s) (i:pointer) (v:u8) : array s :=
-      {| arr_data := Mz.set m.(arr_data) i v |}.
+    Definition is_init (m:array s) (i:pointer) :=
+      match Mz.get m.(arr_data) i with 
+      | Some _ => true 
+      | None   => false
+      end.
+
+    Definition get8 (m:array s) (i:pointer) :=
+      Let _ := assert (in_bound m i) ErrOob in
+      Let _ := assert (is_init m i) ErrAddrInvalid in
+      ok (odflt 0%R (Mz.get m.(arr_data) i)).
+
+    Definition set8 (m:array s) (i:pointer) (v:u8) : result _ (array s):=
+      Let _ := assert (in_bound m i) ErrOob in
+      ok {| arr_data := Mz.set m.(arr_data) i v |}.
+
+    Lemma valid8P m p w : reflect (exists m', set8 m p w = ok m') (in_bound m p).
+    Proof.
+      by (rewrite /set8; case: in_bound => /=; constructor); [eexists; eauto | move=> []].
+    Qed.
+ 
+    Lemma get_valid8 m p w : get8 m p = ok w -> in_bound m p.
+    Proof. by rewrite /get8; t_xrbindP => _ /assertP. Qed.
+
+    Lemma valid8_set m p w m' p' : set8 m p w = ok m' -> in_bound m' p' = in_bound m p'.
+    Proof. by rewrite /set8; t_xrbindP => _ _ <-. Qed.
+
+    Lemma set8P m p w p' m' :
+      set8 m p w = ok m' ->
+      get8 m' p' = if p == p' then ok w else get8 m p'.
+    Proof.
+      rewrite /get8 /set8 => /dup[] /valid8_set ->; t_xrbindP => _ /assertP hb <-.
+      case heq: in_bound => //=; last by case: eqP => // h;move: heq; rewrite -h hb.
+      by rewrite /is_init /= Mz.setP; case: eqP.
+    Qed.
+
+    Global Instance array_CM : coreMem pointer (array s) :=
+      CoreMem set8P valid8P get_valid8 valid8_set.
 
     Definition in_range (p:pointer) (ws:wsize) :=
       ((0 <=? p) && (p + wsize_size ws <=? s))%Z.
@@ -115,66 +158,16 @@ Module WArray.
       rewrite /in_range; case: andP => h; constructor; move: h; rewrite !zify; Psatz.nia.
     Qed.
 
-    Definition is_align (p:pointer) ws := (p mod wsize_size ws == 0)%Z.
-
-    Lemma is_align8 (p:pointer) : is_align p U8.
-    Proof. by rewrite /is_align /wsize_size Z.mod_1_r. Qed.
-
-    Lemma is_align_scale (p:pointer) ws : is_align (p * mk_scale AAscale ws)%Z ws.
-    Proof. by rewrite /is_align /mk_scale /= Z_mod_mult. Qed.
-
-    Definition validw (m:array s) (p:pointer) (ws:wsize) : exec unit := 
-      Let _ := assert (in_range p ws) ErrOob in
-      assert (is_align p ws) ErrAddrInvalid.
-
-    Definition validr (m:array s) (p:pointer) (ws:wsize) :=
-      Let _ := validw m p ws in
-      assert (all (fun i => Mz.get m.(arr_data) (p+i)%Z != None) (ziota 0 (wsize_size ws)))
-             ErrAddrInvalid.
-
-    Lemma sub_add m p sw i t: validw m p sw = ok t -> (0 <= i < wsize_size sw)%Z -> sub (add p i) p = i.
-    Proof. rewrite addE subE => _ _; ring. Qed.
-
-    Lemma validw_uset m p v p' sw: validw (uset m p v) p' sw = validw m p' sw.
-    Proof. done. Qed.
-
-    Lemma validw8 m2 m1 p sw i t:
-      (0 <= i < wsize_size sw)%Z ->
-      validw m1 p sw = ok t -> validw m2 (add p i) U8 = ok tt.
+    Lemma validw_in_range m p ws : validw m p ws = (is_align p ws && in_range p ws).
     Proof.
-      move=> hi;rewrite /validw /assert is_align8; case: in_rangeP => // h1 _. 
-      by case: in_rangeP => //; rewrite /wsize_size addE; Psatz.nia.
+      apply (sameP (validwP m p ws)).
+      apply (iffP andP).
+      + move=> [] ? /in_rangeP ?;split => // k hk.
+        by rewrite -valid8_validw /valid8 /= /in_bound !zify !addE; Psatz.lia.
+      move=> [] ? h; split => //; apply /in_rangeP.
+      move: (wsize_size_pos ws) (h 0) (h (wsize_size ws - 1)).
+      by rewrite add_0 addE -!valid8_validw /array_CM /valid8 /in_bound !zify; Psatz.lia.
     Qed.
-
-    Lemma validrP m p sw i t:
-      validr m p sw = ok t ->
-      (0 <= i < wsize_size sw)%Z ->
-      validr m (add p i) U8 = ok t.
-    Proof.
-      rewrite /validr /assert /=; t_xrbindP.
-      case: allP => //= hin ? hv [<-] hi.
-      by rewrite Z.add_0_r (validw8 _ hi hv) hin // in_ziota !zify.
-    Qed.
-
-    Lemma validw_validr m p sw i v t k:
-      validw m p sw = ok t ->
-      (0 <= i < wsize_size sw)%Z ->
-      validr (uset m (add p i) v) k U8 = if add p i == k then ok t else validr m k U8.
-    Proof.
-      case: t; rewrite /validr /= Z.add_0_r /validw /assert /add is_align8.
-      case: in_rangeP => //= hw _ hi.
-      case: in_rangeP; rewrite /= /wsize_size => h.
-      + by rewrite Mz.setP !andbT; case: (_ =P k). 
-      case: eqP => //; Psatz.nia.
-    Qed.
-
-    Lemma usetP m z1 z2 v:
-      uget (uset m z1 v) z2 = if z1 == z2 then v else uget m z2.
-    Proof. by rewrite /uget /uset /= Mz.setP; case: eqP. Qed.
-
-    Global Instance array_CM : coreMem PointerZ (array s) :=
-      CoreMem sub_add validw_uset
-        validrP validw_validr usetP.
 
   End CM.
 
@@ -192,7 +185,6 @@ Module WArray.
        | None => Mz.remove data i
        | Some w => Mz.set data i w
        end) (Mz.empty _) (ziota 0 size).
-
 
   Definition get_sub lena (aa:arr_access) ws len (a:array lena) p  : exec (array (Z.to_pos (arr_size ws len))) := 
      let size := arr_size ws len in 
@@ -222,65 +214,8 @@ Module WArray.
     else type_error.
 
   Definition uincl {len1 len2} (a1 : array len1) (a2 : array len2) :=
-    (len1 <= len2)%Z ∧
-    ∀ i v, (0 <= i < Zpos len1)%Z -> 
-       Mz.get a1.(arr_data) i = Some v → Mz.get a2.(arr_data) i = Some v.
-
-  Lemma uincl_validw {len1 len2} (a1 : array len1) (a2 : array len2) ws i t :
-    uincl a1 a2 -> validw a1 i ws = ok t -> validw a2 i ws = ok tt.
-  Proof.
-    move=> [h1 h2]; rewrite /validw; t_xrbindP => tt1 /assertP /in_rangeP hi. 
-    case: (is_align i ws) => //= _; case: in_rangeP => //; nia.
-  Qed.
-
-  Lemma uincl_validr {len1 len2} (a1 : array len1) (a2 : array len2) ws i t :
-    uincl a1 a2 -> validr a1 i ws = ok t -> validr a2 i ws = ok tt.
-  Proof.
-    move=> [h1 h2]; rewrite /validr /validw; t_xrbindP => t1 t2. 
-    case: in_rangeP => //= hi1 _ {t2} /assertP -> /= /assertP /allP h.
-    case: in_rangeP => //= hi2; last by nia.
-    case: allP => // -[] k hk; have := h _ hk.
-    move: hk; rewrite in_ziota !zify Z.add_0_l => hk.
-    by case: Mz.get (h2 (i+k)%Z) => //= v /(_ _ _ erefl) -> //; nia.
-  Qed.
-
-  Lemma uincl_get {len1 len2} (a1 : array len1) (a2 : array len2) aa ws i w :
-    uincl a1 a2 ->
-    get aa ws a1 i = ok w ->
-    get aa ws a2 i = ok w.
-  Proof.
-    rewrite /get /CoreMem.read /=; t_xrbindP => hu t hr.
-    have -> := uincl_validr hu hr => /= <-; do 2 f_equal.
-    rewrite /CoreMem.uread; apply eq_map_ziota; rewrite Z.add_0_l => k hk /=.
-    rewrite /add /uget; case: hu => h1 /(_ (i * mk_scale aa ws + k)%Z).
-    have := validrP hr hk; rewrite /validr /= Z.add_0_r; t_xrbindP => ? _ /assertP.
-    case: Mz.get => //= v _ /(_ v _ erefl) -> //.
-    by move: hr; rewrite /validr /validw; case: in_rangeP => //= ? _; nia.
-  Qed.
- 
-  Lemma uincl_set {ws len1 len2} (a1 a1': array len1) (a2: array len2) aa i (w:word ws) :
-    uincl a1 a2 ->
-    set a1 aa i w = ok a1' ->
-    exists a2', set a2 aa i w = ok a2' /\ uincl a1' a2'.
-  Proof.
-    rewrite /set /CoreMem.write /= => hu; t_xrbindP => ? hw1.
-    have hw2 := uincl_validw hu hw1.
-    rewrite hw2 => <-; eexists;split;first reflexivity.
-    case: hu => h1 h2; split => // k v hk hg1.
-    have := (CoreMem.uwrite_uget (CM := array_CM _) w k hw2).
-    have := (CoreMem.uwrite_uget (CM := array_CM _) w k hw1).
-    rewrite /= /uget hg1 /sub /= => ->.
-    have := CoreMem.uwrite_validr8 (CM := array_CM _) w k hw2.
-    have := CoreMem.uwrite_validr8 (CM := array_CM _) w k hw1.
-    rewrite /= /validr /sub /= Z.add_0_r.
-    case: ifPn; rewrite !zify => ?.
-    + by t_xrbindP => ? _ _ ? _; case: Mz.get => //= ?? ->.
-    rewrite /validw; case: in_rangeP; rewrite /wsize_size /=; last by nia.
-    case: in_rangeP; rewrite /wsize_size /= !andbT; last by nia.
-    rewrite is_align8 /= => _ _; rewrite hg1 /=.
-    have := h2 k _ hk; case: Mz.get => //= v1 /(_ _ erefl) -> _ /=.
-    by case: Mz.get => //= ? _ ->.
-  Qed.
+    (len1 <= len2)%Z /\
+    ∀ i w, read a1 i U8 = ok w -> read a2 i U8 = ok w.
 
   Lemma uincl_refl len (a: array len) : uincl a a.
   Proof. by split => //; reflexivity. Qed.
@@ -290,139 +225,123 @@ Module WArray.
     uincl a1 a2 -> uincl a2 a3 -> uincl a1 a3. 
   Proof.
     move=> [l1 h1] [l2 h2]; split; first by lia.
-    move=> ????;apply h2;first by lia.
-    by apply h1.
+    by move=> ?? /h1 /h2.
+  Qed.
+
+  Lemma uincl_validw {len1 len2} (a1 : array len1) (a2 : array len2) ws i :
+    uincl a1 a2 -> validw a1 i ws -> validw a2 i ws.
+  Proof.
+    move=> [h1 _]; rewrite !validw_in_range => /andP [] -> /= /in_rangeP ?; apply /in_rangeP; lia.
+  Qed.
+
+  Lemma uincl_get {len1 len2} (a1 : array len1) (a2 : array len2) aa ws i w :
+    uincl a1 a2 ->
+    get aa ws a1 i = ok w ->
+    get aa ws a2 i = ok w.
+  Proof.
+    rewrite /get => -[_ hu] hr; have {hr}[ha hr] := read_read8 hr.
+    by rewrite (read8_read (v:=w)) ?ha // => k /hr /hu.
   Qed.
  
+  Lemma uincl_set {ws len1 len2} (a1 a1': array len1) (a2: array len2) aa i (w:word ws) :
+    uincl a1 a2 ->
+    set a1 aa i w = ok a1' ->
+    exists a2', set a2 aa i w = ok a2' /\ uincl a1' a2'.
+  Proof.
+    rewrite /set; set k := _ * _ => hu hw1. 
+    have /(writeV w) [a2' hw2]: validw a2 k ws by apply /(uincl_validw hu) /(writeV w); exists a1'.
+    exists a2'; split => //.
+    case: hu => hle hu; split => //.
+    move=> j wj; rewrite (write_read8 hw1) (write_read8 hw2) /=.
+    by case:ifP => // _; apply: hu.
+  Qed.
+ 
+  Lemma castK len (a:array len) : WArray.cast len a = ok a.
+  Proof. by rewrite /cast Z.leb_refl; case: a. Qed.
+
+  Lemma cast_len len1 len2 (t2:WArray.array len2) t1: WArray.cast len1 t2 = ok t1 -> len1 <= len2.
+  Proof. by rewrite /cast; case: ZleP. Qed.
+
+  Lemma cast_empty len1 len2 : 
+    WArray.cast len1 (empty len2) = if len1 <=? len2 then ok (empty len1) else type_error.
+  Proof. by rewrite /WArray.cast. Qed.
+
+  Lemma cast_empty_ok len1 len2 t: 
+    WArray.cast len1 (empty len2) = ok t -> t = empty len1.
+  Proof. by move=> /dup[]/cast_len/ZleP; rewrite cast_empty => -> [<-]. Qed.
+
+  Lemma cast_get8 len1 len2 (m : array len2) m' k :
+    cast len1 m = ok m' ->
+    read m' k U8 = 
+      if k <? len1 then read m k U8 else Error ErrOob.
+  Proof.
+    rewrite /cast -!get_read8 /memory_model.get /= /get8; case: ZleP => // hle [<-].
+    by rewrite /in_bound /is_init /=; case: ZleP => /=; case: ZltP => //=; case: ZltP => //; lia.
+  Qed.
+ 
+  Lemma cast_uincl len1 len2 (t2 : WArray.array len2) t1 : 
+    cast len1 t2 = ok t1 -> uincl t1 t2.
+  Proof.
+    move=> hc; split; first by apply: cast_len hc.
+    by move=> i w; rewrite (cast_get8 i hc); case: ifP.
+  Qed.
+
+  Lemma uincl_cast len1 len2 (a1: array len1) (a2:array len2) len a1' : 
+    uincl a1 a2 ->
+    cast len a1 = ok a1' ->
+    exists a2', cast len a2 = ok a2' /\ uincl a1' a2'.
+  Proof.
+    move=> [hle hu] hc.
+    have:= (cast_get8 _ hc). have:= @cast_get8 len len2 a2.
+    move: hc; rewrite /cast; case: ZleP => // hle1 _. 
+    case: ZleP => hle2 hg2 hg1; last lia.
+    eexists;split; first by eauto.
+    split; first by lia.
+    by move=> ??; rewrite hg1 hg2 //; case: ifP => // _ /hu.
+  Qed.
+
   Lemma mk_scale_U8 aa : mk_scale aa U8 = 1%Z.
   Proof. by rewrite /mk_scale wsize8; case aa. Qed.
 
   Lemma set_get8 len (m m':array len) aa p ws (v: word ws) k :    
     set m aa p v = ok m' ->
-    get AAscale U8 m' k = 
+    read m' k U8 = 
       let i := (k - p * mk_scale aa ws)%Z in
        if ((0 <=? i) && (i <? wsize_size ws))%Z then ok (LE.wread8 v i)
-       else get AAscale U8 m k.
+       else read m k U8.
+  Proof. by move=> hs; have -> := write_read8 hs. Qed.
+
+  Lemma setP len (m m':array len) p1 p2 ws (v: word ws) :
+    set m AAscale p1 v = ok m' -> 
+    get AAscale ws m' p2 = if p1 == p2 then ok v else get AAscale ws m p2.
   Proof. 
-    by move=> hs; have := CoreMem.write_read8 k hs; rewrite /get mk_scale_U8 Z.mul_1_r. 
+    rewrite /set /get; case:eqP => [<- | hne hw]; first by apply writeP_eq.
+    apply: (writeP_neq hw); move=> ??; rewrite !addE /mk_scale;nia. 
   Qed.
 
-  Lemma set_zget8 len (m m':array len) aa p ws (v: word ws) k :    
-    (0 <= k < len)%Z ->
-    set m aa p v = ok m' ->
-    Mz.get m'.(arr_data) k= 
-      let i := (k - p * mk_scale aa ws)%Z in
-       if ((0 <=? i) && (i <? wsize_size ws))%Z then Some (LE.wread8 v i)
-       else Mz.get m.(arr_data) k.
-  Proof.
-    move=> hk; rewrite /set /CoreMem.write; t_xrbindP => ? /= hw <-.
-    have /= := CoreMem.uwrite_uget (CM := array_CM _) v k hw.
-    have /= := CoreMem.uwrite_validr8 (CM := array_CM _) v k hw.
-    move: hw; rewrite /validr /validw; t_xrbindP => t1 /assertP/in_rangeP hw /assertP hal.
-    rewrite is_align8  /= /sub /validw /uget.
-    case: in_rangeP; last by rewrite wsize8; nia.
-    case: ifPn; rewrite !zify wsize8 Z.add_0_r => ? _ /=.
-    + by case: Mz.get => //= ? _ ->.
-    by case: Mz.get => /=; case: Mz.get =>//= ??? ->.
-  Qed.
-
-  Lemma set_validr_eq len (m m':array len) aa p ws (v: word ws) :
-    set m aa p v = ok m' ->
-    validr m' (p * mk_scale aa ws)%Z ws = ok tt.
-  Proof.
-    move=> hset; have := set_zget8 _ hset; move: hset.
-    rewrite /set /CoreMem.write /validr /=; t_xrbindP => ? hw1 <-.
-    move: (hw1); rewrite /validw; t_xrbindP => t1 /assertP /dup [] /in_rangeP hp -> -> hz /=.
-    case: allP => //= -[] k; rewrite in_ziota !zify Z.add_0_l => hk.
-    rewrite hz; last by nia.
-    case: ifPn => //=; rewrite !zify; nia.
-  Qed.
-
-  Lemma setP_eq len (m m':array len) aa p ws (v: word ws) :
-    set m aa p v = ok m' ->
-    get aa ws m' p = ok v.
-  Proof.
-    move=> h1;have := CoreMem.writeP_eq h1.
-    rewrite /get /CoreMem.read /= (set_validr_eq h1) /= => ->.
-    by rewrite LE.decodeK.
-  Qed.
-
-  Lemma mk_scale_bound aa ws : (1 <= mk_scale aa ws <= wsize_size ws)%Z.
-  Proof. rewrite /mk_scale; have := wsize_size_pos ws; case:aa; lia. Qed.
-
-  Lemma set_validr_neq len (m m':array len) p1 p2 ws (v: word ws) :
-    p1 != p2 -> 
-    set m AAscale p1 v = ok m' ->
-    validr m' (p2 * mk_scale AAscale ws)%Z ws = validr m (p2 * mk_scale AAscale ws)%Z ws.
-  Proof.
-    move=> /eqP hp hset; have := set_zget8 _ hset; move: hset.
-    rewrite /set /CoreMem.write /validr /=; t_xrbindP => ? hw1 <-.
-    move: (hw1); rewrite /validw /validr; t_xrbindP => t1 /assertP /in_rangeP hp1. 
-    rewrite !is_align_scale => /= _ hz.
-    case: in_rangeP => hp2 //=; f_equal.
-    apply all_ziota => i hi; rewrite hz; last by nia.
-    case: ifPn => //=; rewrite !zify;  nia.
-  Qed.
+  Lemma setP_eq len (m m':array len) p1 ws (v: word ws) :
+    set m AAscale p1 v = ok m' -> 
+    get AAscale ws m' p1 = ok v.
+  Proof. by move=> /setP ->; rewrite eqxx. Qed.
 
   Lemma setP_neq len (m m':array len) p1 p2 ws (v: word ws) :
     p1 != p2 ->
     set m AAscale p1 v = ok m' -> 
     get AAscale ws m' p2 = get AAscale ws m p2.
-  Proof.
-    move=> hp h1;have := CoreMem.writeP_neq h1.
-    rewrite /get /CoreMem.read /= (set_validr_neq hp h1) /= => -> //.
-    move: hp => /eqP hp ????; rewrite !addE; nia.
-  Qed.
+  Proof. by move=> /negPf h /setP ->; rewrite h. Qed.
 
-  Lemma setP len (m m':array len) p1 p2 ws (v: word ws) :
-    set m AAscale p1 v = ok m' -> 
-    get AAscale ws m' p2 = if p1 == p2 then ok v else get AAscale ws m p2.
-  Proof. by case: eqP => [<- | /eqP];[ apply setP_eq | apply setP_neq]. Qed.
-
-  Definition filter (m : Mz.t u8) p := 
-    Mz.fold (fun k e m => if (k <? p)%Z then Mz.set m k e else m) m (Mz.empty _).
-
-  Definition inject len len' (a:array len) : array len' :=
-    if (len <? len')%Z then {| arr_data := filter a.(arr_data) len |}
-    else {| arr_data := a.(arr_data) |}.
-
-  Lemma zget_inject len (a:array len) (p:positive) i: 
-    (0 <= i < p)%Z ->
-    Mz.get (arr_data (inject p a)) i = 
-    if (i <? len)%Z then Mz.get (arr_data a) i else None.
-  Proof.
-    rewrite /inject; case: a => a /=.
-    case: ZltP; last by case: ZltP => //=; lia.
-    rewrite /= /filter Mz.foldP => hlen hi.
-    have -> : forall els m,
-     (forall kv, List.In kv els -> Mz.get a kv.1 = Some kv.2) ->
-     Mz.get (foldl
-        (λ (a0 : Mz.t u8) (kv : Mz.K.t * u8),
-          if (kv.1 <? len)%Z then Mz.set a0 kv.1 kv.2 else a0) m els) i =
-      if (i \in map fst els) && (i <? len)%Z then Mz.get a i 
-      else Mz.get m i.
-    + elim => //= -[i1 v1] els hrec m hin; rewrite hrec; last by move=> ? h;apply hin;auto.
-      rewrite /= in_cons orbC;case: andP => [[] -> -> //| hn].
-      rewrite orbC; case: eqP => /=. 
-      + move=> ->;case: ifP => // ?; rewrite Mz.setP_eq.
-        by rewrite (hin (i1,v1));auto.
-      move=> /eqP /negbTE hne; move /andP/negbTE: hn => ->.
-      by case: ifPn => //; rewrite Mz.setP eq_sym hne.
-    + case heq: (i \in _) => //=; rewrite Mz.get0; case:ifP => //= ?.
-      case heq1: Mz.get => [w|//].
-      by move: heq1 => /(Mz.elementsP (i, w) a) -/(map_f fst); rewrite heq.
-    by move=> kv;apply Mz.elementsIn.
-  Qed.
-
+  Lemma mk_scale_bound aa ws : (1 <= mk_scale aa ws <= wsize_size ws)%Z.
+  Proof. rewrite /mk_scale; have := wsize_size_pos ws; case:aa; lia. Qed.
+ 
   Lemma get_bound ws len aa (t:array len) i w :
     get aa ws t i = ok w -> 
     [/\ 0 <= i * mk_scale aa ws,
         i * mk_scale aa ws + wsize_size ws <= len &
         is_align (i * mk_scale aa ws) ws]%Z.
   Proof.
-    rewrite /get /CoreMem.read /= /validr /validw; t_xrbindP => ??? /assertP /in_rangeP ? /assertP ->. 
-    have := mk_scale_bound aa ws => *;split => //; nia.
-  Qed.     
+    move=> hg; assert (h := readV hg); move: h.
+    by rewrite validw_in_range => /andP [] ? /in_rangeP [].
+  Qed.
 
   Lemma set_bound ws len aa (a t:array len) i (w:word ws) :
     set a aa i w = ok t -> 
@@ -430,39 +349,21 @@ Module WArray.
         i * mk_scale aa ws +  wsize_size ws <= len &
         is_align (i * mk_scale aa ws) ws]%Z.
   Proof.
-    rewrite /set /CoreMem.write /= /validw /validr; t_xrbindP => ?? /assertP /in_rangeP ? /assertP ->.
-    have := mk_scale_bound aa ws => *; split => //;nia.
+    move=> hs; have : validw a (i * mk_scale aa ws) ws by apply /(writeV w); exists t.
+    by rewrite validw_in_range => /andP [] ? /in_rangeP [].
   Qed.
 
-  Lemma get_uget len aa (t:array len) i v :
-    get aa U8 t i = ok v -> uget t i = v.
+  Lemma get_empty (n:positive) off : 
+    read (empty n) off U8 = if (0 <=? off) && (off <? n) then Error ErrAddrInvalid else Error ErrOob.
   Proof.
-    rewrite /get /CoreMem.read mk_scale_U8 /=; t_xrbindP => ?? <-.
-    by rewrite CoreMem.uread8_get Z.mul_1_r.
+    by rewrite -get_read8 /memory_model.get /= /get8 /in_bound /is_init /=; case: ifP.
   Qed.
 
-  Lemma get_get8 ws len (t:array len) aa aa' i w k :
-    get aa ws t i = ok w -> 
-    (0 <= k < wsize_size ws)%Z ->
-    exists v, get aa' U8 t (i * mk_scale aa ws + k) = ok v.
-  Proof.
-    rewrite /get /CoreMem.read /= /validr /validw; t_xrbindP.
-    move=> ??? /assertP /in_rangeP h1 /assertP ha /assertP /allP h2 ? hk /=.
-    rewrite is_align8 mk_scale_U8 Z.mul_1_r Z.add_0_r /=.
-    have -> /= : in_range len (i * mk_scale aa ws + k)%Z U8.
-    + by rewrite /in_range !zify wsize8; nia.
-    rewrite h2 /=; first by eauto.
-    by rewrite in_ziota !zify.
-  Qed.
+  Lemma get0 (n:positive) off : (0 <= off ∧ off < n)%Z -> 
+    read (empty n) off U8 = Error ErrAddrInvalid.
+  Proof. by rewrite get_empty => -[/ZleP -> /ZltP ->]. Qed.
 
-  Lemma get0 (n:positive) aa off : (0 <= off ∧ off < n)%Z -> 
-    get aa U8 (empty n) off = Error ErrAddrInvalid.
-  Proof.
-    rewrite /get /CoreMem.read /= /validr /validw /= /in_range mk_scale_U8 wsize8 Z.mul_1_r is_align8.
-    case: andP => //; rewrite !zify; lia.
-  Qed.
-
-  Lemma set_sub_data_zget8 aa ws a len p t k: 
+  Lemma set_sub_data_get8 aa ws a len p t k: 
     Mz.get (@set_sub_data aa ws len a p t) k = 
       let i := (k - p * mk_scale aa ws)%Z in
       if (0 <=? i) && (i <? arr_size ws len) then Mz.get t i 
@@ -484,18 +385,19 @@ Module WArray.
     rewrite Mz.removeP; case eqP => [? | //]; lia.
   Qed.
 
-  Lemma set_sub_zget8 aa ws lena a len p t a' k: 
+  Lemma set_sub_get8 aa ws lena a len p t a' k: 
     @set_sub lena aa ws len a p t = ok a' -> 
-    Mz.get (WArray.arr_data a') k = 
+    read a' k U8 = 
       let i := (k - p * mk_scale aa ws)%Z in
-      if (0 <=? i) && (i <? arr_size ws len) then Mz.get (arr_data t) i 
-      else Mz.get (arr_data a) k.
+      if (0 <=? i) && (i <? arr_size ws len) then read t i U8
+      else read a k U8.
   Proof.
-    rewrite /set_sub; case: andP => // -[h1 h2] [<-] /=.
-    by rewrite set_sub_data_zget8.
+    rewrite /set_sub; case: andP => // -[/ZleP h1 /ZleP h2] [<-] /=.
+    rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound set_sub_data_get8 /=.
+    case: andP; rewrite !zify //= => ?; case: andP; rewrite !zify //= => ?; lia.
   Qed.
 
-  Lemma get_sub_data_zget8 aa ws a len p k: 
+  Lemma get_sub_data_get8 aa ws a len p k: 
     Mz.get (get_sub_data aa ws len a p) k = 
       let start := (p * mk_scale aa ws)%Z in
       if (0 <=? k) && (k <? arr_size ws len) then Mz.get a (start + k) 
@@ -515,15 +417,16 @@ Module WArray.
     by rewrite Mz.removeP; case: eqP => //; nia.
   Qed.
 
-  Lemma get_sub_zget8 aa ws lena a len p a' k: 
+  Lemma get_sub_get8 aa ws lena a len p a' k: 
     @get_sub lena aa ws len a p = ok a' -> 
-    Mz.get (WArray.arr_data a') k = 
+    read a' k U8 = 
       let start := (p * mk_scale aa ws)%Z in
-      if (0 <=? k) && (k <? arr_size ws len) then Mz.get (WArray.arr_data a) (start + k) 
-      else None.
+      if (0 <=? k) && (k <? arr_size ws len) then read a (start + k) U8
+      else Error ErrOob.
   Proof.
-    rewrite /get_sub; case: andP => // -[h1 h2] [<-] /=.
-    by rewrite get_sub_data_zget8.
+    rewrite /get_sub -!get_read8 /memory_model.get /= /get8 /in_bound /is_init. 
+    case: andP => // -[/ZleP h1 /ZleP h2] [<-] /=; rewrite get_sub_data_get8 /=.
+    case: andP => //=; case: andP => //=; rewrite !zify; lia.
   Qed.
 
   Lemma uincl_get_sub {len1 len2} (a1 : array len1) (a2 : array len2) 
@@ -532,13 +435,13 @@ Module WArray.
     get_sub aa ws len a1 i = ok t1 ->
     exists2 t2, get_sub aa ws len a2 i = ok t2 & uincl t1 t2.
   Proof. 
-    move=> [hlen hget]; rewrite /get_sub; case: ifP => //.
-    rewrite !zify => hlen1 [<-] {t1}.
-    case:ifPn; rewrite !zify => hlen2; last by lia.
-    eexists; first reflexivity; split; first lia.
-    move=> k w /= hk.
-    rewrite !get_sub_data_zget8 /=; case:ifP => //; rewrite !zify => ?.
-    apply hget; lia.
+    move=> [hlen hu] hget.
+    have := get_sub_get8 _ hget.
+    have := @get_sub_get8 aa ws len2 a2 len i _.
+    move: hget; rewrite /get_sub; case: andP => // -[/ZleP h1 /ZleP h2] [_].
+    case: andP; rewrite !zify => h3; last by lia.
+    move=> /(_ _ _ refl_equal) hr2 hr1; eexists => //; split; first by lia.
+    by move=> k w; rewrite hr1 hr2; case: ifP => // ? /hu.
   Qed.
 
   Lemma uincl_set_sub {ws len1 len2 len} (a1 a1': array len1) (a2: array len2) aa i 
@@ -547,13 +450,14 @@ Module WArray.
     set_sub aa a1 i t1 = ok a1' ->
     exists2 a2', set_sub aa a2 i t2 = ok a2' & uincl a1' a2'.
   Proof.
-    move=> [hlen1 hget1] [hlen2 hget2].    
-    rewrite /set_sub; case: ifP => //; rewrite !zify => h [<-].
-    case: ifPn => //; rewrite !zify => h'; last by lia.
-    eexists; first reflexivity; split; first lia.
-    by move=> k w /= hk; rewrite !set_sub_data_zget8 /=; case:ifPn; rewrite !zify => ?; auto.
+    move=> [hlen1 hget1] [hlen2 hget2] hset.
+    have := set_sub_get8 _ hset.
+    have := @set_sub_get8 aa ws len2 a2 len i _.
+    move: hset; rewrite /set_sub; case: andP => // -[/ZleP h1 /ZleP h2] [_].
+    case: andP; rewrite !zify => h3; last by lia.
+    move=> /(_ _ _ _ refl_equal) hr2 hr1; eexists => //; split; first by lia.
+    by move=> k w; rewrite hr1 hr2; case: ifP => // [ ? /hget2| ? /hget1].
   Qed.
-
 
 End WArray.
 

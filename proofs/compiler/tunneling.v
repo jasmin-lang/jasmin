@@ -702,9 +702,6 @@ Section TunnelingSem.
 
   Context (p : lprog).
 
-  (*TODO: use that.*)
-  Print pmap.
-
   Definition labels_of_body fb :=
     filter 
       (fun li => match li with

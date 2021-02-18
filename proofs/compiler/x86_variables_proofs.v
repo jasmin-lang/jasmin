@@ -35,7 +35,7 @@ Qed.
 
 (* -------------------------------------------------------------------- *)
 Definition of_rbool (v : RflagMap.rflagv) :=
-  if v is Def b then Vbool b else Vundef sbool.
+  if v is Def b then Vbool b else undef_b.
 
 (* -------------------------------------------------------------------- *)
 Definition eqflags (m: estate) (rf: rflagmap) : Prop :=
@@ -60,7 +60,7 @@ Variant lom_eqv rip (m : estate) (lom : x86_mem) :=
 Definition value_of_bool (b: exec bool) : exec value :=
   match b with
   | Ok b => ok (Vbool b)
-  | Error ErrAddrUndef => ok (Vundef sbool)
+  | Error ErrAddrUndef => ok undef_b
   | Error e => Error e
   end.
 

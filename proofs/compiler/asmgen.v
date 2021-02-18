@@ -284,17 +284,6 @@ case E: arg_of_pexpr => [a'|] // /andP[??].
 by apply: (CSA_Explicit (a := a) (a' := a')).
 Qed.
 
-Lemma value_uincl_undef v ty : value_uincl v (Vundef ty) -> exists ty', v = Vundef ty'.
-Proof. case: v => //; eauto. Qed.
-
-Lemma value_uincl_word_of_val sz ty v w vt : 
-  value_uincl v (@Vword sz w) → of_val ty v = ok vt → of_val ty (Vword w) = ok vt.
-Proof.
-  case: v => //=; last by move=> ??;rewrite of_val_undef.
-  move=> sz' w' /andP[hsz1 /eqP ->] /of_val_Vword [sz1 [heq]]; subst ty => /= -[hsz ->].
-  by rewrite zero_extend_idem // /truncate_word (cmp_le_trans hsz hsz1).
-Qed.
-
 Lemma var_of_flagP rip m s f v ty vt: 
   lom_eqv rip m s → 
   get_var (evm m) (var_of_flag f) = ok v →
@@ -304,9 +293,9 @@ Proof.
   move=> [????? h] /h hu hv. 
   exists (of_rbool ((xrf s) f)); rewrite /st_get_rflag.
   case: (xrf s f) hu => //=.
-  + move=> b; case: v hv => //= [?? <- //| ?].
+  + move=> b; case: v hv => //= [?? <- //| ? ?].
     by rewrite of_val_undef.
-  by case: v hv => // ?; rewrite of_val_undef.
+  by case: v hv => // ??; rewrite of_val_undef.
 Qed.
 
 Lemma var_of_registerP rip E m s r v ty vt:
@@ -334,7 +323,7 @@ Proof.
     rewrite /compat_imm orbF => /eqP <- -> /= b hb.
     case: eqm => ????? eqf.
     have [v']:= eval_assemble_cond eqf hac hb.
-    case: eval_cond => /= [ | [] [] // [] <- /value_uincl_undef [ty1] -> ]; last by case: ty1.
+    case: eval_cond => /= [ | [] [] // [] <- /value_uincl_undef [ty1 [he ->]] ]; last by case: ty1 he.
     move=> b' [[<-]] {hb}; case: v => // [b1 | [] //] -> ?. 
     by exists b'.
   move=> haw hcomp -> /=; case: e haw => //=.
@@ -430,11 +419,12 @@ Proof.
     move: hw; rewrite /write_var heq; t_xrbindP => vm hvm <- /= {heq}.
     move: hvm; rewrite /mem_write_val /set_var /on_vu /= /oof_val.
     case: ty vt => //= vt h.
-    have -> :  match match vt with Some b => Vbool b | None => Vundef sbool end with
-            | Vbool b => ok (Some b)
-            | Vundef sbool => ok None
-            | _ => type_error
-            end = ok vt.
+    have -> :  
+      match match vt with Some b => Vbool b | None => undef_b end with
+      | Vbool b => ok (Some b)
+      | Vundef sbool _ => ok None
+      | _ => type_error
+      end = ok vt.
     + by case: vt h.
     have -> /= : vm =  ((evm m).[var_of_flag f <- match vt with Some b => ok b | None => undef_error end])%vmap.
     + by case: vt h => [b | ] /= [<-].

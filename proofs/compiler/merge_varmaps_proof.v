@@ -13,50 +13,9 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope vmap_scope.
 
-(* TODO: move *)
-Lemma pto_pof_uincl ty v ty' (v': psem_t ty') :
-  value_uincl v (pto_val v') →
-  match pof_val ty v with
-  | ok _ _ => True
-  | Error ErrAddrUndef => ty = sbool
-  | _ => False
-  end →
-  eval_uincl (pof_val ty' v) (ok v').
-Proof.
-  case: ty' v' => [ b' | z' | n' t' | sz' w' ]; case: v => //.
-  1-2, 6: by case.
-  2: by case => //; case: ty.
-  - move => n t [n_le_n' t_t'] _.
-    apply: (conj (Z.le_refl _)) => i b range.
-    rewrite WArray.zget_inject //; case: Z.ltb_spec => // i_lt_n.
-    apply: t_t'; Lia.lia.
-  move => sz w /value_uinclE [sz1] [w1] [].
-  case: w' => sz'' w'' sz''_le_sz /Vword_inj[??]; subst => /andP[sz_le_sz''] /eqP ?; subst w.
-  rewrite /= (sumbool_of_boolET (cmp_le_trans sz_le_sz'' sz''_le_sz)) => _.
-  exact: word_uincl_zero_ext.
-Qed.
-
 Lemma vrvs_rec_set_of_var_i_seq acc xs :
   vrvs_rec acc [seq Lvar x | x <- xs] = set_of_var_i_seq acc xs.
 Proof. by elim: xs acc => // x xs ih acc; rewrite /= ih. Qed.
-
-(* TODO: move *)
-Lemma write_var_get_var x v s s' :
-  write_var x v s = ok s' →
-  (evm s').[x] = pof_val (vtype x) v ∧
-  match pof_val (vtype x) v with
-  | Ok _ => True
-  | Error ErrAddrUndef  => vtype x = sbool
-  | _ => False
-  end.
-Proof.
-  apply: rbindP => vm; apply: on_vuP.
-  - move => t -> <- [<-].
-    by rewrite /= Fv.setP_eq.
-  case: x => /= - [ty x] _ /= ->.
-  case: ty => //= - [<-] [<-].
-  by rewrite /= Fv.setP_eq.
-Qed.
 
 Lemma init_stk_stateI fex pex gd s s' :
   pex.(sp_rip) != string_of_register RSP →
@@ -396,7 +355,7 @@ Section LEMMA.
     replace (with_vm _ _) with t1; last first.
     - by rewrite -{1}(with_vm_same t1); apply: with_vm_m; rewrite (mvm_mem sim).
     move => ok_w vw.
-    have [w' ok_w' vw' ] := truncate_value_uincl vw ok_v'.
+    have [w' ok_w' vw' ] := value_uincl_truncate vw ok_v'.
     have [ tvm2 ] := write_uincl_on hx vw' ok_s2.
     rewrite (with_vm_m (mvm_mem sim)) with_vm_same => ok_tvm2 sim2.
     exists (with_vm s2 tvm2).
@@ -601,6 +560,22 @@ Section LEMMA.
          List.Forall2 value_uincl res res'
         ].
 
+  Lemma write_lval_uincl (d q:var_i) v (z : psem_t (vtype q)) s3 s4 : 
+    v_var d = v_var q ->
+    value_uincl v (pto_val z) ->
+    write_lval (p_globs p) d v s3 = ok s4 ->
+    eval_uincl (evm s4).[q] (ok z).
+  Proof.
+    rewrite /= /write_var => -> hu.
+    t_xrbindP => vm; apply: on_vuP.
+    + move=> t ht <- <- /=; rewrite Fv.setP_eq => /=.
+      have [z' []]:= pof_val_uincl hu ht.
+      by rewrite pof_val_pto_val => -[<-].
+    case: is_sboolP z hu => //=.
+    case: q => -[] qt qn _ /= -> b /= hu /to_bool_undef ?; subst v.
+    by move=> [<-] <- /=; rewrite Fv.setP_eq.
+  Qed.
+
   Lemma Hcall: sem_Ind_call p global_data Pi_r Pfun.
   Proof.
     move => s1 m2 s2 jj xs fn args vargs vs ok_vargs sexec ih ok_s2 sz ii I O t1 /check_CcallP[] fd ok_call pre sim.
@@ -660,9 +635,7 @@ Section LEMMA.
     clear vs_vs' ok_ws getls ws ih x_not_in_ys.
     case: d getl w => // d [hd] w.
     move: ok_w; apply: on_vuP => // z ok_z ?; subst.
-    rewrite ok_z.
-    move: w => /write_var_get_var[]; rewrite hd => ->.
-    exact: pto_pof_uincl vv'.
+    by rewrite ok_z; apply: write_lval_uincl w.
   Qed.
 
   Lemma Hproc: sem_Ind_proc p global_data Pc Pfun.
@@ -718,7 +691,7 @@ Section LEMMA.
       + case: sf_return_address checked_ra => // ra /andP[] _ /mapP ra_not_param.
         by rewrite Fv.setP_neq //; apply/eqP => ?; subst; apply: ra_not_param; exists y.
       case: y hx {y_param} y_not_magic => /= y _ y_param y_not_magic.
-      move: (f_params fd) y_param ok_s1 (f_tyin fd) ok_vargs args' ok_args' ok_args''; clear.
+      move: (f_params fd) y_param ok_s1 (f_tyin fd) ok_vargs args' ok_args' ok_args''; clear -p.
       elim: vargs vargs' s0 => [ | v vs ih ] vs' s3 [] // x xs hy /=; t_xrbindP => s2 ok_s2 ok_s1 [ | ty tys ]; case: vs' => // v' vs' /=.
       t_xrbindP => w ok_w ws ok_ws ?? _ w' ok_w' ws' ok_ws' <- /List_Forall2_inv[v'_w' vs'_ws']; subst.
       have {ih} := ih _ _ _ _ ok_s1 _ ok_ws _ ok_ws' vs'_ws'.
@@ -727,9 +700,8 @@ Section LEMMA.
       rewrite -(write_vars_eq_except ok_s1); last by rewrite -Sv.mem_spec mem_set_of_var_i_seq => k; apply: hx.
       clear ok_s1 ok_ws ok_ws' vs'_ws'.
       move: ok_w'; apply: on_vuP => // z -> ?; subst w'.
-      have {ok_w} vv' := value_uincl_truncate_val ok_w.
-      have [->] := write_var_get_var ok_s2.
-      exact: pto_pof_uincl (value_uincl_trans vv' v'_w').
+      apply: write_lval_uincl ok_s2 => //.
+      by apply: value_uincl_trans v'_w'; apply: (truncate_value_uincl ok_w).
     have top_stack2 : top_stack (free_stack (emem s2)) = top_stack m.
     - have ok_alloc := Memory.alloc_stackP ok_m'.
       have ok_free := Memory.free_stackP (emem s2).
@@ -752,7 +724,7 @@ Section LEMMA.
      have [ tv -> /= v_uincl ] := get_var_uincl_at ex ok_y.
      exists (tv :: tres); first reflexivity.
      constructor; last exact: res_uincl.
-     exact: (value_uincl_trans (value_uincl_truncate_val ok_w) v_uincl).
+     exact: (value_uincl_trans (truncate_value_uincl ok_w) v_uincl).
      have rsp_not_written :  ¬ Sv.In vrsp (write_c (f_body fd)).
      - move/not_written_magic: preserved_magic ok_wrf => [_].
        rewrite /writefun_ra ok_fd /valid_writefun /write_fd /= /magic_variables /= /is_true Sv.subset_spec; clear.

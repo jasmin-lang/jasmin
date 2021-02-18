@@ -195,7 +195,7 @@ Section PROOF.
     rewrite /type_of_val in Ht.
     case: v Ht Hw=> //=.
     + move=> sz' w [<-] _; by exists w.
-    case => //= ? [<-] /=.
+    case => //= ?? [<-] /=.
     case: l => /=.
     + by move => _ [] //; rewrite /write_none /= => sz'; case: eqP.
     + by case => - [] [] // sz' vn vi; rewrite /write_var /set_var /=; case: eqP.
@@ -1850,8 +1850,8 @@ Section PROOF.
       apply: sem_app.
       + exact: Hs2'1.
       apply: sem_seq1; apply: EmkI; apply: Eopn.
-      move: bv Hbv Hb Hs2'3=> [] b0 Hb //=; last by case: (b0).
-      case => ? Hb'; subst b0.
+      move: bv Hbv Hb Hs2'3=> [] //=; last by case.
+      move=> b0 Hb [?] Hb'; subst b0.
       rewrite /sem_sopn /sem_pexprs /= Hb' /=.
       have Heq' := (eq_exc_freshT Hs2'2 (eq_exc_freshS Hs1')).
       rewrite /read_e /= /disj_fvars /lowering.disj_fvars in Hdisje; move: Hdisje.
