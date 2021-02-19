@@ -769,14 +769,12 @@ Section PROOF.
    *)
   Record match_mem (m m': mem) : Prop :=
     MM {
-        (* TODO *)
+       read_incl  : ∀ p w, read m p U8 = ok w → read m' p U8 = ok w
+     ; valid_incl : ∀ p, validw m p U8 → validw m' p U8
+     ; valid_stk  : ∀ p, 
+         (wunsigned (stack_limit m) <= wunsigned p < wunsigned(stack_root m))%Z
+       → validw m' p U8
       }.
-
-  Axiom mm_read : ∀ m m',
-      match_mem m m' →
-      ∀ p s,
-      validw m p s →
-      read m p s = read m' p s.
 
   Axiom mm_write : ∀ m1 m1' p s (w:word s) m2,
       match_mem m1 m1' →
@@ -792,14 +790,11 @@ Section PROOF.
       match_mem m1 m1' →
       match_mem (free_stack m1) m1'.
 
-  Lemma mm_read_ok m m' a s v :
+  Axiom mm_read_ok : ∀ m m' a s v,
     match_mem m m' →
     read m a s = ok v →
     read m' a s = ok v.
-  Proof.
-    move => /mm_read M R.
-    rewrite -M //; apply: readV R.
-  Qed.
+
 
   Section MATCH_MEM_SEM_PEXPR.
     Context (m m': mem) (vm: vmap) (M: match_mem m m').
