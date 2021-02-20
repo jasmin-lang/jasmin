@@ -799,6 +799,26 @@ Section PROOF.
     by case: SvD.F.eq_dec => // -[->].
   Qed.
 
+  (* FIXME : move those lemmas *)
+  Lemma zip_cnst (A B C:Type) (l1:list A) (l2:list B) (x:C) : 
+    size l1 = size l2 -> zip l1 (map (fun _ => x) l2) = map (fun y => (y, x)) l1.
+  Proof. by elim: l1 l2 => [ | a l1 hrec] [ | b l2] //= []/hrec->. Qed.
+
+  Lemma fold2_size (A B E R : Type) (e: E) (f : A -> B -> R -> result E R) l1 l2 r r': 
+    fold2 e f l1 l2 r = ok r' -> size l1 = size l2.
+  Proof. by elim: l1 l2 r => [ | a l1 hrec] [ | b l2] //= r; t_xrbindP => r1 _ /hrec ->. Qed.
+
+  Lemma map_nseq A B (a:A) (l:list B) : 
+    map (fun _ => a) l = nseq (size l) a.
+  Proof. by elim: l => //= ?? ->. Qed.
+
+  Lemma mapM2_size (A B E R : Type) (e: E) (f:A -> B -> result E R) l1 l2 l: 
+    mapM2 e f l1 l2 = ok l -> size l1 = size l2 /\ size l1 = size l.
+  Proof.
+    elim: l1 l2 l => [ | a l1 hrec] [ | b l2] //= l; first by move=> [<-].
+    by t_xrbindP => ? _ ? /hrec [-> ->] <-.
+  Qed.
+
   Local Lemma Hcall : sem_Ind_call p Pi_r Pfun.
   Proof.
     move => s1 m2 s2 ii xs fn args vargs vs lf lw.
@@ -828,16 +848,15 @@ Section PROOF.
     have /(_ Sv.empty vm1) [| vargs' /= Hvargs' [] Huargs Hl'] := sem_pexprs_uincl_on _ Hes.
     + by apply: vm_uincl_onI Hvm1;rewrite read_i_call;SvD.fsetdec.
     have [vres1 [/= Hscall Hvres]]:= Hfun _ Huargs.
-    case/sem_callE: Hscall => f [].
+    case/sem_callE': Hscall => f [].
     rewrite Hfd' => /(@Some_inj _ _ _) <- {f}.
-    case => vargs0 [s1] [vm2] [vres] [lc] [hvs' hs1 hvm2 hvres hvres1].
-    move: CheckAllocReg.alloc_funP_eq. move=> Hcc. replace fn' with fn in Hcheckf.
-    move: (Hcc p' Fs fn fd' (rename_fd ii' fn fd') sm1 vargs0 (unzip1 vargs') vres vres1 s1 {| emem := m2; evm := vm2 |} ltc'' lc stk Fs_id Hcheckf hvs' hs1 hvm2 hvres hvres1).
-    move=> [] s1' [] vm2' [] vres2 [] vres' [] Htin Hwv Hbody Hvs [] Hall Htout.
-    move=> {hvs' hs1 hvm2 Hfd' Hfd Hcheckf Hsc Hinline}.
+    case => vargs0 [s1] [vm2] [vres] [hvs' hs1 hvm2 hvres hvres1].
+    have := alloc_reg_funP_eq Hcheckf hvs' hs1 hvm2 hvres hvres1.
+    move=> [s1'[]vm2'[]vres2[]vres'[]Htin Hwv Hbody Hvs []Hall Htout]
+      {hvs' hs1 hvm2 Hfd' Hfd Hcheckf Hsc Hinline}.
     move: Hdisj Hvm1;rewrite read_i_call.
-    move: Htin Htout Hvs Hwv Hbody;set rfd := rename_fd _ _ => Htin Htout Hvs Hwv /= Hbody Hdisjoint Hvm1.  have := (write_lvals_vars' gd Hwv). move=> Hwv'.
-    (*have := (write_lvals_vars gd Hwv). move=> [] l' Hwv'.*)
+    move: Htin Htout Hvs Hwv Hbody;set rfd := rename_fd _ _ => Htin Htout Hvs Hwv /= Hbody Hdisjoint Hvm1.  
+    have Hwv' := write_lvals_vars' gd Hwv. 
     have [||/= vm1' Wvm1' Uvm1']:= @writes_uincl gd _ _ vm1 _ vargs0 vargs0 _ _ _ Hwv'.
     + by apply wf_vm_uincl. + by apply List_Forall2_refl.
     have:= array_initP p' {| emem := emem s1'; evm := vm1' |} ii' (locals (rfd fd')).
@@ -870,38 +889,25 @@ Section PROOF.
     + apply: wf_write_lvals Hw';apply: (wf_sem Hsem') => -[xt xn].
       have /(_ Hwf1 {|vtype := xt; vname := xn |}) /=:= wf_write_lvals _ Wvm1'.
       by rewrite Evmi;case:ifPn => //;case: xt.
-    + apply: vm_uincl_onI Hvm4;SvD.fsetdec.
-   (* replace (match ltc with
-    | LT_iremove => [::]
-    | LT_icall lte lte' =>
-        [:: Lcall (leak_E lte (LSub (unzip2 vargs)))
-              (lf1, leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf1) lf2)
-              (leak_E lte' (LSub lw))]
-    | _ => [:: Lcall (LSub (unzip2 vargs)) (lf1, lf2) (LSub lw)]
-    end) with 
-    ((map2 (fun x y => (Lassgn (LSub [:: x; y]))) (unzip2 vargs') l') 
-      ++ lc' 
-      ++ (leak_Is (leak_I (leak_Fun Fs)) ltc'' lc) 
-      ++ (map2 (fun x y => (Lassgn (LSub [:: x; y]))) (map (fun x => LEmpty) vs2') lw)).*) rewrite -h4 /=.
+    + by apply: vm_uincl_onI Hvm4;SvD.fsetdec.
+    rewrite -h4 /=.
     apply sem_app with {| emem := emem s1'; evm := vm1' |}.
     + rewrite eq_globs in Hvargs', Wvm1'.
-      rewrite /=. have := assgn_tuple_Lvar _ _ _ Hvargs' Htin Wvm1' => //.
-      move=> H. move: (H ii' AT_rename). move=> {H} H. rewrite Hl' /=.
-      have :  (map2 (fun x y : leak_e => Lopn (LSub [:: x; y])) (unzip2 vargs')
+      have := assgn_tuple_Lvar _ _ _ Hvargs' Htin Wvm1' => //.
+      move => /(_ ii' AT_rename) H; rewrite Hl' /=.
+      have <- :  (map2 (fun x y : leak_e => Lopn (LSub [:: x; y])) (unzip2 vargs')
            [seq LEmpty | _ <- f_params (rfd fd')]) =  [seq Lopn (LSub [:: x; LEmpty]) | x <- unzip2 vargs'].
-      + rewrite map2E /=. apply mapM_size in Hvargs'. admit. move=> <- /=. 
+      + rewrite map2E /=; apply mapM_size in Hvargs'; rewrite zip_cnst -?map_comp //.
+        by have [-> eqvv0]:= mapM2_size Htin; rewrite (fold2_size Hwv) -eqvv0 !size_map.
       apply H.
       by move: Hdisjoint;rewrite /disjoint /is_true !Sv.is_empty_spec /locals /locals_p vrvs_recE;SvD.fsetdec.
+
     (** need to change it **)
-    replace (leak_Is (leak_I (leak_Fun Fs)) stk ltc'' lc) with (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf1) lf2) in Hsem'.
-    apply: (sem_app Svmi). (*apply: (sem_app Hsem').
-    rewrite eq_globs in Hw'. rewrite /=.
-    have := assgn_tuple_Pvar _ _ _ _ Htout' Hw' => //.
-    move=> H'. move: (H' ii' AT_rename (f_res (rfd fd'))). move=> {H'} H'.
-    apply H'. 
+    apply: (sem_app Svmi); apply: (sem_app Hsem').
+    rewrite eq_globs in Hw'; apply : (assgn_tuple_Pvar ii' AT_rename _ _ Htout' Hw') => //.
     move: Hdisjoint;rewrite /disjoint /is_true !Sv.is_empty_spec.
-    by rewrite /locals /locals_p vrvs_recE read_cE write_c_recE;SvD.fsetdec.*)
-  Admitted.
+    by rewrite /locals /locals_p vrvs_recE read_cE write_c_recE;SvD.fsetdec.
+  Qed.
 
   Local Lemma Hproc : sem_Ind_proc p Pc Pfun.
   Proof.

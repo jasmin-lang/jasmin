@@ -61,8 +61,6 @@ Module Type CheckB.
 
   Parameter eq_alloc_empty : eq_alloc M.empty vmap0 vmap0.
 
-  (*Parameter stk : pointer.*)
-
   Parameter eq_alloc_incl : forall r1 r2 vm vm',
     M.incl r2 r1 ->
     eq_alloc r1 vm vm' ->
@@ -332,55 +330,7 @@ Section PROOF.
   Variable Fs: seq (funname * seq leak_i_tr).
   Notation gd := (p_globs p1).
   Variable stk : pointer.
-  (*Notation stk := C.stk.*)
-(*  Hypothesis Hcheck: check_prog_aux p1 p2 = ok Fs. *)
   Hypothesis eq_globs : p_globs p1 = p_globs p2.
-
-(*  Lemma all_checked : forall fn fd1,
-    get_fundef (p_funcs p1) fn = Some fd1 ->
-    exists fd2, exists rs,  
-          get_fundef (p_funcs p2) fn = Some fd2 /\
-          check_fundef (fn,fd1) (fn,fd2) = ok rs.
-  Proof.
-    move: Hcheck; rewrite /check_prog_aux;clear Hcheck eq_globs.
-    move: (p_funcs p1) (p_funcs p2) Fs; clear p1 p2.
-    elim=> [| [fn1' fd1'] p1 /= Hrec] [| [fn2 fd2] p2] // /= Fs0.
-    apply: rbindP. move=> z Hc. t_xrbindP.
-    move=> fs /Hrec {Hrec} Hrec [] Heq. move=> fn2' fd2'.
-    have H : fn1' = fn2.
-    + move: Hc; case: ifP=> // /andP [] /andP [] /eqP  hf1 /eqP hfd1 /eqP hfd1'. by rewrite hf1.
-    subst. case: ifPn => /eqP h1 h2. subst.
-    exists fd2. exists z. split=> //. case: h2=> <- /=. auto. 
-    move: (Hrec fn2' fd2' h2). move=> [] fd''' [] ltc'' [] hf hf'.
-    exists fd'''. exists ltc''. split=> //.
-  Qed. *)
-
-  (*Lemma all_checked' : forall fn fd1,
-    get_fundef (p_funcs p1) fn = Some fd1 ->
-    exists fd2, exists rs,
-          get_fundef (p_funcs p2) fn = Some fd2 /\
-          check_fundef (fn,fd1) (fn,fd2) = ok rs /\
-          get_leak Fs rs.1 = Some rs.2.
-  Proof.
-    move: Hcheck. rewrite /check_prog_aux; clear Hcheck eq_globs.
-    move: (p_funcs p1) (p_funcs p2) Fs; clear p1 p2.
-    elim=> [| [fn1' fd1'] p1' /= Hrec] [| [fn2 fd2] p2'] // Fs0 /=.
-    apply: rbindP. move=> [f ltc] Hc. t_xrbindP.
-    move=> fs Hrec' Heq.
-    have H : fn1' = fn2.
-    + move: Hc; case: ifP=> // /andP [] /andP [] /eqP  hf1 /eqP hfd1 /eqP hfd1'. 
-      by rewrite hf1. rewrite -H.
-    move=> fn1 fd1.
-    case: ifPn => /eqP h1 h2. subst.
-    exists fd2. exists (f, ltc).
-    split=> //. case: h2=> <- /=. split. auto.
-    case: ifP=> //. move=> /eqP []; auto.
-    move: (Hrec p2' fs Hrec'). move=> Hf. move: (Hf fn1 fd1 h2).
-    move=> [] fd3 [] [rs' ltc'] [] Hf' [] /= H1 /= H2.
-    exists fd3. exists (rs', ltc'). split. auto. split.
-    apply H1. rewrite -Heq. rewrite /=. case: ifP=> //. move=> /eqP Hef.
-    rewrite Hef in H2. admit.
-  Admitted.*)
 
   Let Pi_r s1 (i1:instr_r) li s2:=
     forall ii r1 i2 r2 lti vm1, eq_alloc r1 (evm s1) vm1 ->
@@ -670,7 +620,7 @@ Section PROOF.
     by rewrite -H -Hl. 
   Qed.
 
-  Section REFL.
+  Section REFL_PROC.
 
     Hypothesis eq_prog : p1 = p2.
 
@@ -760,9 +710,9 @@ Section PROOF.
    split=> //. by apply Hv''. by rewrite -htyout.
    Qed.
 
-  End REFL.
+  End REFL_PROC.
 
-  Section REFL_PROC.
+  Section PROC.
   Hypothesis Hcheck: check_prog_aux p1 p2 = ok Fs.
 
   Lemma all_checked' : forall fn fd1,
@@ -839,7 +789,7 @@ Section PROOF.
     apply List_Forall2_refl;apply value_uincl_refl.
   Qed.
 
-End REFL_PROC.
+End PROC.
 
 End PROOF.
 
@@ -852,9 +802,108 @@ Proof.
   by apply alloc_callP_aux.
 Qed.
 
-Lemma alloc_funP_eq p Fs fn f f' m1 vargs vargs' vres vres' s1 s2 ltc lc stk
- (H :forall fn0, get_leak Fs fn0 = leak_fn_id p fn0) :
-  check_fundef (fn, f) (fn, f') = ok (fn, ltc) ->
+Section REFL.
+
+Context (check_eP_id : forall e1 e2 r rlte stk l,
+          check_e e1 e2 r = ok rlte ->
+          leak_E stk rlte.2 l = l).
+
+Context (check_lvalP_id : forall r rltr x1 x2 e2 stk l,
+          check_lval e2 x1 x2 r = ok rltr ->
+          leak_E stk rltr.2 l = l).
+
+Context (p:prog) (stk:pointer).
+
+Definition leak_id :=
+  map (fun f => (f.1, [seq LT_ikeep | _ <- f_body f.2])) (p_funcs p).
+
+Let lF := leak_Fun leak_id.
+
+Let Pi (s1:estate) i1 l (s2:estate) :=
+  forall i2 r rlt, check_I i1 i2 r = ok rlt -> leak_I lF stk l rlt.2 = [::l].
+
+Let  Pi_r (s1:estate) i1 l (s2:estate) :=
+  forall ii i2 r rlt, check_i ii i1 i2 r = ok rlt -> leak_I lF stk l rlt.2 = [::l].
+
+Let Pc (s1:estate) c1 l (s2:estate) := 
+  forall ii c2 r rlt, check_cmd ii c1 c2 r = ok rlt -> leak_Is (leak_I lF) stk rlt.2 l = l.
+
+Let Pfor (_:var_i) (_:seq Z) (s1:estate) c1 l (s2:estate) := 
+  forall ii c2 r rlt, check_cmd ii c1 c2 r = ok rlt -> leak_Iss (leak_I lF) stk rlt.2 l = l.
+
+Let Pfun (_:mem) (_:funname) (_:seq value) (_:leak_fun) (_:mem) (_:seq value) := True.
+
+Local Lemma Iskip : sem_Ind_nil Pc.
+Proof. by move=> ? []. Qed.
+
+Local Lemma Icons : sem_Ind_cons p Pc Pi.
+Proof. 
+  move=> s1 s2 s3 i1 c1 li lc Hsi Hi Hsc Hc ii [] //= i2 c2 ??.
+  by t_xrbindP => ? /Hi hi ? /Hc hc <-; rewrite /leak_Is /= hi -{2}hc.
+Qed.
+
+Local Lemma ImkI : sem_Ind_mkI p Pi_r Pi.
+Proof. by move=> ii i1 s1 s2 li Hsi Hi [];apply Hi. Qed.
+
+Local Lemma Iassgn : sem_Ind_assgn p Pi_r.
+Proof.
+  move => s1 s2 x tag ty e v v' le lw _ _ _ ii [] // ?????? /=.
+  case: eqP => // _; t_xrbindP => ?.
+  apply: add_iinfoP => /check_eP_id he ?.
+  by apply: add_iinfoP => /check_lvalP_id hl [<-] /=; rewrite he hl.
+Qed.
+
+Local Lemma Iopn : sem_Ind_opn p Pi_r.
+Proof.
+Admitted.
+
+Local Lemma Iif_true : sem_Ind_if_true p Pc Pi_r.
+Proof.
+Admitted.
+
+Local Lemma Iif_false : sem_Ind_if_false p Pc Pi_r.
+Proof.
+Admitted.
+
+Local Lemma Iwhile_true : sem_Ind_while_true p Pc Pi_r.
+Proof.
+Admitted.
+
+Local Lemma Iwhile_false : sem_Ind_while_false p Pc Pi_r.
+Proof.
+Admitted.
+
+Local Lemma Ifor : sem_Ind_for p Pi_r Pfor.
+Proof.
+Admitted.
+
+Local Lemma Ifor_nil : sem_Ind_for_nil Pfor.
+Proof.
+Admitted.
+
+Local Lemma Ifor_cons : sem_Ind_for_cons p Pc Pfor.
+Proof.
+Admitted.
+
+Local Lemma Icall : sem_Ind_call p Pi_r Pfun.
+Proof. 
+Admitted.
+
+Local Lemma Iproc : sem_Ind_proc p Pc Pfun.
+Proof. done. Qed.
+
+Lemma check_cmd_id ii c1 c2 r rlt lc s1 s2:
+   sem p s1 c1 lc s2 ->
+   check_cmd ii c1 c2 r = ok rlt ->
+   leak_Is (leak_I lF) stk rlt.2 lc = lc.
+Proof.
+  move=> hsem;
+  by apply: (@sem_Ind p Pc Pi_r Pi Pfor Pfun Iskip Icons ImkI Iassgn Iopn Iif_true Iif_false 
+            Iwhile_true Iwhile_false Ifor Ifor_nil Ifor_cons Icall Iproc _ _ _ _ hsem).
+Qed.
+
+Lemma alloc_funP_eq fn fn' f f' m1 vargs vargs' vres vres' s1 s2 ltc lc :
+  check_fundef (fn, f) (fn, f') = ok (fn', ltc) ->
   mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
   write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1 ->
   sem p s1 (f_body f) lc s2 ->
@@ -863,12 +912,24 @@ Lemma alloc_funP_eq p Fs fn f f' m1 vargs vargs' vres vres' s1 s2 ltc lc stk
   exists s1' vm2 vres1 vres1',
    [ /\  mapM2 ErrType truncate_val f'.(f_tyin) vargs' = ok vargs,
     write_vars (f_params f') vargs {| emem := m1; evm := vmap0 |} = ok s1',
-    sem p s1' (f_body f')  (leak_Is (leak_I (leak_Fun Fs)) stk ltc lc) (Estate (emem s2) vm2),
+    sem p s1' (f_body f') lc (Estate (emem s2) vm2),
     mapM (fun x : var_i => get_var vm2 x) (f_res f') = ok vres1 &
     List.Forall2 value_uincl vres' vres1' /\
     mapM2 ErrType truncate_val f'.(f_tyout) vres1 = ok vres1'
     ].
-Proof. apply alloc_funP_eq_aux; auto. Qed.
+Proof.
+  move=> hc; move: (hc); rewrite /check_fundef; case: ifP => // _. 
+  apply: add_finfoP; t_xrbindP => ? _ ? hcc _ _ ? ?; subst fn' ltc.
+  move => h1 h2 hsem h4 h5.
+  have []:= alloc_funP_eq_aux (Fs:= leak_id) stk refl_equal refl_equal _ hc h1 h2 hsem h4 h5.
+  + move=> fn'; rewrite /get_leak /leak_id /leak_fn_id /get_fundef.
+    have -> := assoc_map (fun fd => [seq LT_ikeep | _ <- f_body fd]).
+    by case: assoc. 
+  move=> s1' []vm2[]vres1[]vres1'[] ??.
+  by rewrite (check_cmd_id hsem hcc) => ???; exists s1', vm2, vres1, vres1'.
+Qed.
+
+End REFL.
 
 End MakeCheckAlloc.
 
@@ -1911,8 +1972,6 @@ End CHECKE.
     oapp (fun te2 =>
             Let vl := sem_pexpr gd (Estate s1.(emem) vm1) te2.2 in
             truncate_val te2.1 vl.1 = ok v2) true e2 ->
-    (*oapp (fun te2 =>
-        sem_pexpr gd (Estate s1.(emem) vm1) te2.2 >>= truncate_val te2.1 = ok v2) true e2 ->*)
     write_lval gd x1 v1 s1 = ok (s1', le1') ->
     exists vm1',
       write_lval gd x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1', leak_E stk lt' le1') /\
@@ -2013,3 +2072,23 @@ End CHECKE.
 End CBAreg.
 
 Module CheckAllocReg :=  MakeCheckAlloc CBAreg.
+
+Lemma alloc_reg_funP_eq p fn fn' f f' m1 vargs vargs' vres vres' s1 s2 ltc lc: 
+    CheckAllocReg.check_fundef (fn, f) (fn, f') = ok (fn', ltc)
+  → mapM2 ErrType truncate_val (f_tyin f) vargs' = ok vargs
+  → write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1
+  → sem p s1 (f_body f) lc s2
+  → mapM (λ x : var_i, get_var (evm s2) x) (f_res f) = ok vres
+  → mapM2 ErrType truncate_val (f_tyout f) vres = ok vres'
+  → ∃ (s1' : estate) (vm2 : vmap) (vres1 vres1' : seq value),
+ [/\ mapM2 ErrType truncate_val (f_tyin f') vargs' = ok vargs,
+     write_vars (f_params f') vargs {| emem := m1; evm := vmap0 |} = ok s1',
+     sem p s1' (f_body f') lc {| emem := emem s2; evm := vm2 |},
+     mapM (λ x : var_i, get_var vm2 x) (f_res f') = ok vres1
+   & List.Forall2 value_uincl vres' vres1'
+   ∧ mapM2 ErrType truncate_val (f_tyout f') vres1 = ok vres1'].
+Proof.
+  apply: (CheckAllocReg.alloc_funP_eq); last by exact 0%R.
+  + by rewrite /CBAreg.check_e; t_xrbindP=> ???????? [<-].
+  by rewrite /CBAreg.check_lval; t_xrbindP => ?????????[<-].
+Qed.
