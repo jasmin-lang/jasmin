@@ -34,6 +34,7 @@ Require Import ZArith Utf8.
         Import Relations.
 
 Require sem_one_varmap_facts.
+Import ssrZ.
 Import psem psem_facts sem_one_varmap compiler_util sem_one_varmap_facts.
 Require Export linear linear_sem.
 Import x86_variables.
@@ -954,7 +955,7 @@ Section PROOF.
       is_linear_of fn body →
       (* RA contains a safe return address “lret” *)
       is_ra_of fn ra →
-      value_of_ra s1 vm1 ra lret →
+      value_of_ra m1 vm1 ra lret →
       (* RSP points to the top of the stack according to the calling convention *)
       is_sp_for_call fn s1 sp →
       ex2_4
@@ -1259,7 +1260,7 @@ Section PROOF.
     move => m1 vm2 P Q M X D C.
     move: chk_call => /=.
     case: ifP => // fn'_neq_fn.
-    case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => _ /assertP ok_ra _ /assertP ok_align _.
+    case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => _ /assertP ok_ra _ /assertP ok_stk_sz _ /assertP ok_align _.
     have := get_fundef_p' ok_fd'.
     set lfd' := linear_fd _ _ _ fd'.
     move => ok_lfd'.
@@ -1275,20 +1276,20 @@ Section PROOF.
       2: case: extra_free_registers => // ra.
       1-2: by case => _ <- _; rewrite /label_in_lcmd !pmap_cat /= !mem_cat inE eqxx !orbT.
     case ok_ptr: encode_label (encode_label_dom lbl_valid) => [ ptr | // ] _.
-    case ra_eq: (sf_return_address _) ok_ra A => [ // | ra | z ] ok_ra /=.
+    case/sem_callE: (exec_call) => ? m s' k'; rewrite ok_fd' => /Some_inj <- ra_sem sp_aligned T ok_m exec_cbody T' s2_eq.
+    case ra_eq: (sf_return_address _) ok_ra ra_sem sp_aligned A => [ // | ra | z ] ok_ra ra_sem sp_aligned /=.
     { (* Internal function, return address in register [ra]. *)
       have ok_ra_of : is_ra_of fn' (RAreg ra) by rewrite /is_ra_of; exists fd'; assumption.
       move: ih => /(_ _ _ _ _ _ _ _ ok_ra_of) ih.
       case => ? ?; subst lbli li.
-      case/sem_callE: (exec_call) => ? m s' k'; rewrite ok_fd' => /Some_inj <-.
-      rewrite ra_eq => /andP[] /andP[] ra_neq_GD ra_neq_RSP ra_not_written sp_aligned T ok_m exec_cbody T' /= s2_eq.
+      case/andP: ra_sem => /andP[] ra_neq_GD ra_neq_RSP ra_not_written.
       move: C; rewrite /allocate_stack_frame; case: eqP => stack_size /= C.
       { (* Nothing to allocate *)
         set vm := vm2.[ra <- pof_val (vtype ra) (Vword ptr)]%vmap.
         move: C.
         set P' := P ++ _.
         move => C.
-        have RA : value_of_ra s1 vm (RAreg ra) (Some ((fn, lbl), P', (size P).+2)).
+        have RA : value_of_ra m1 vm (RAreg ra) (Some ((fn, lbl), P', (size P).+2)).
         + rewrite /vm.
           case: (ra) ok_ra => /= ? vra /eqP ->; split.
           * exact: C.
@@ -1345,7 +1346,7 @@ Section PROOF.
       move: C.
       set P' := P ++ _.
       move => C.
-      have RA : value_of_ra s1 vm (RAreg ra) (Some ((fn, lbl), P', size P + 3)).
+      have RA : value_of_ra m1 vm (RAreg ra) (Some ((fn, lbl), P', size P + 3)).
       + rewrite /vm.
         case: (ra) ok_ra => /= ? vra /eqP ->; split.
         * exact: C.
@@ -1398,8 +1399,7 @@ Section PROOF.
         rewrite /= /valid_RSP /set_RSP => h x /=.
         rewrite (Fv.setP vm'); case: eqP => x_rsp.
         * by subst; rewrite h.
-        rewrite Fv.setP_neq; last by apply/eqP.
-        by move: (X' x); rewrite !Fv.setP_neq //; apply/eqP.
+        by move: (X' x); rewrite Fv.setP_neq //; apply/eqP.
       exact: M'.
     }
     (* Internal function, return address at offset [z]. *)
