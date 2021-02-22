@@ -929,7 +929,7 @@ Section PROOF.
        is_linear_of fn (P ++ li ++ Q) →
        ex2_4
        (λ m2 vm2, lsem p' (Lstate m1 vm1 fn (size P)) (Lstate m2 vm2 fn (size (P ++ li))))
-       (λ _ vm2, vm1 = vm2 [\ k ])
+       (λ _ vm2, vm1 = vm2 [\ Sv.union k (extra_free_registers_at extra_free_registers ii)])
        (λ _ vm2, vm_uincl s2 vm2)
        (λ m2 _, match_mem s2 m2).
 
@@ -964,7 +964,7 @@ Section PROOF.
       then
         lsem p' (Lstate m1 vm1 fn 1) (Lstate m2 vm2 caller pc.+1)
       else lsem p' (Lstate m1 vm1 fn 0) (Lstate m2 vm2 fn (size body)))
-      (λ _ vm2, vm1 = vm2 [\ k ])
+      (λ _ vm2, vm1 = vm2 [\ Sv.union k (extra_free_registers_at extra_free_registers ii)])
       (λ _ vm2, vm_uincl s2.[var_of_register RSP <- ok (pword_of_word sp)] vm2)
       (λ m2 _, match_mem s2 m2).
 
@@ -1059,7 +1059,8 @@ Section PROOF.
     rewrite (zero_extend_idem _ hle) in ok_s2.
     have [ vm2 /(match_mem_write_lval M1) [ m2 ok_s2' M2 ] ok_vm2 ] := write_uincl X1 (value_uincl_refl _) ok_s2.
     exists m2 vm2; [ | | exact: ok_vm2 | exact: M2]; last first.
-    + by have := vrvP ok_s2'.
+    + apply: vmap_eq_exceptI; first exact: SvP.MP.union_subset_1.
+      by have := vrvP ok_s2'.
     apply: LSem_step.
     rewrite -(addn0 (size P)) /lsem1 /step /= (find_instr_skip C1) /= /eval_instr /to_estate /=.
     case: ifP => hsz.
@@ -1084,7 +1085,8 @@ Section PROOF.
     have [ rs' [ ok_rs' rs_rs' ] ] := vuincl_exec_opn vs_vs' ok_rs.
     have [ vm2 /(match_mem_write_lvals M1) [ m2 ok_s2' M2 ] ok_vm2 ] := writes_uincl X1 rs_rs' ok_s2.
     exists m2 vm2; [ | | exact: ok_vm2 | exact: M2 ]; last first.
-    + by have := vrvsP ok_s2'.
+    + apply: vmap_eq_exceptI; first exact: SvP.MP.union_subset_1.
+      by have := vrvsP ok_s2'.
     apply: LSem_step.
     rewrite -(addn0 (size P)) /lsem1 /step /= (find_instr_skip C1) /= /eval_instr /to_estate /=.
     by rewrite /sem_sopn ok_vs' /= ok_rs' /= ok_s2' /= size_cat addn0 addn1.
@@ -1134,7 +1136,8 @@ Section PROOF.
       - by move: C1; rewrite /P' /Q' -cats1 /= -!catA.
       have {S} [ m2 vm2 E K2 X2 M2 ] := S m1 vm1 P' Q' M1 X1 D' C'.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
-      exists m2 vm2; [ | exact: K2 | exact: X2 | exact: M2 ].
+      have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
+      exists m2 vm2; [ | exact: K2' | exact: X2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
       2: exact: E.
       - by rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C1) /= /eval_instr /li_i (eval_jumpE C1) /to_estate /= (snot_spec ok_e') /= ok_e' /= /setpc /= addn0 /P' /Q' size_rcons.
@@ -1159,7 +1162,8 @@ Section PROOF.
     have C' : is_linear_of fn (P' ++ lc1 ++ Q').
     + by move: C; rewrite /P' /Q' /= -!catA /= -!catA.
     have {E} [ m2 vm2 E K2 X2 M2 ] := E m1 vm1 P' Q' M1 X1 D' C'.
-    exists m2 vm2; [ | exact: K2 | exact: X2 | exact: M2 ].
+      have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
+    exists m2 vm2; [ | exact: K2' | exact: X2 | exact: M2 ].
     apply: lsem_step; last apply: lsem_trans.
     2: exact: E.
     - rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i  (eval_jumpE C) /to_estate /= ok_e' /=.
@@ -1190,7 +1194,8 @@ Section PROOF.
       - by move: C; rewrite /P' /Q' -cats1 /= -!catA.
       have {S} [ m2 vm2 E K2 X2 M2 ] := S m1 vm1 P' Q' M1 X1 D' C'.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
-      exists m2 vm2; [ | exact: K2 | exact: X2 | exact: M2 ].
+      have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
+      exists m2 vm2; [ | exact: K2' | exact: X2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
       2: exact: E.
       - by rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= ok_e' /= /setpc /= addn0 /P' /Q' size_rcons.
@@ -1227,7 +1232,8 @@ Section PROOF.
     have C' : is_linear_of fn (P' ++ lc2 ++ Q' ++ Q).
     + by move: C; rewrite /P' /Q' /= -cats1 /= -!catA /= -!catA.
     have {E} [ m2 vm2 E K2 X2 M2 ] := E m1 vm1 P' (Q' ++ Q) M1 X1 D' C'.
-    exists m2 vm2; [ | exact: K2 | exact: X2 | exact: M2 ].
+    have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
+    exists m2 vm2; [ | exact: K2' | exact: X2 | exact: M2 ].
     apply: lsem_step; last apply: lsem_trans.
     2: exact: E.
     + rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= ok_e' /= /setpc /=.
@@ -1451,8 +1457,8 @@ Section PROOF.
         have {E} [m2 vm2] := E m1 vm1 [::] [::] M' X' (λ _ _, erefl) ok_body.
         rewrite /= => E K2 X2 M2.
         eexists m2 _; [ exact: E | | | exact: mm_free M2 ].
-        + rewrite SvP.MP.empty_union_2; first exact: K2.
-          exact: Sv.empty_spec.
+        + apply: vmap_eq_exceptI; last exact: K2.
+          SvD.fsetdec.
         have S : stack_stable m1' s2'.
         + exact: sem_one_varmap_facts.sem_stack_stable exec_body.
         move => x; move: (X2 x); rewrite /set_RSP !Fv.setP; case: eqP => // ?; subst.
