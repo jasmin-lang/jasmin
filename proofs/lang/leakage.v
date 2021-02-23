@@ -91,12 +91,12 @@ match l with
 end.
 
 Inductive leak_i : Type :=
-  | Lopn  : leak_e ->leak_i
-  | Lcond  : leak_e -> bool -> seq leak_i -> leak_i
-  | Lwhile_true : seq leak_i -> leak_e -> seq leak_i -> leak_i -> leak_i 
+  | Lopn  : leak_e ->leak_i                                                  (* 1 *)      
+  | Lcond  : leak_e -> bool -> seq leak_i -> leak_i                          (* 1 + cost (seq leak_i) *)
+  | Lwhile_true : seq leak_i -> leak_e -> seq leak_i -> leak_i -> leak_i     
   | Lwhile_false : seq leak_i -> leak_e -> leak_i
-  | Lfor : leak_e -> seq (seq leak_i) -> leak_i
-  | Lcall : leak_e -> (funname * seq leak_i) -> leak_e -> leak_i.
+  | Lfor : leak_e -> seq (seq leak_i) -> leak_i                              (* seq (seq leak_i) + size (seq (seq leak_i)) *)
+  | Lcall : leak_e -> (funname * seq leak_i) -> leak_e -> leak_i.            (* size leak_e + cost (seq leak_i) + size leak_e *)
 
 Notation leak_c := (seq leak_i).
 
@@ -309,15 +309,25 @@ match ltes, ltes' with
 end.
 
 (* Leakge transformer for instructions *)
+
+(* tr_cost lt -> Exact n1 n2  | Linear a  
+   lt' = leak_tr lt
+   cost lt' <= a cost lt + b
+*) 
+
 Inductive leak_i_tr :=
-| LT_iremove : leak_i_tr
-| LT_ikeep : leak_i_tr
-| LT_ile : leak_e_tr -> leak_i_tr  (* assign and op *)
-| LT_icond : leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr (* if *)
-| LT_iwhile : seq leak_i_tr -> leak_e_tr -> seq leak_i_tr -> leak_i_tr (* while *)
-| LT_icond_eval : seq leak_i_tr -> leak_i_tr
-| LT_ifor : leak_e_tr -> seq leak_i_tr -> leak_i_tr
-| LT_icall : leak_e_tr -> leak_e_tr -> leak_i_tr
+(* structural transformation *)
+| LT_ikeep : leak_i_tr                                                                  (* Exact 1 1 *)
+| LT_ile : leak_e_tr -> leak_i_tr  (* assign and op *)                                  (* Exact 1 1 *)       
+| LT_icond : leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr (* if *)          (* linear comp *)   
+| LT_iwhile : seq leak_i_tr -> leak_e_tr -> seq leak_i_tr -> leak_i_tr (* while *)      (* *)
+| LT_ifor : leak_e_tr -> seq leak_i_tr -> leak_i_tr                  (* for c --> for c'     cost c' <= a cost c   cost (for c) = n * (cost c + 1)  <= n * (a cost c' + 1) <= max(1,a)cost (for c')  *)
+| LT_icall : leak_e_tr -> leak_e_tr -> leak_i_tr                     (* add funname *)
+
+| LT_iremove : leak_i_tr                                                                 (* 1 -> 0 *)      
+
+
+| LT_icond_eval : seq leak_i_tr -> leak_i_tr     (* if b then c1 else c0   -> cb   wh*)  (* cost cb' <= a cost cb + b   cost cb' <= cost (if b then ...) *)
 | LT_ifor_unroll: seq leak_i_tr -> leak_i_tr
 | LT_icall_inline: leak_c -> seq leak_i_tr -> leak_i_tr
 (* lowering leak transformers *)
