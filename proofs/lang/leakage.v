@@ -41,6 +41,15 @@ Inductive leak_e :=
 | LAdr : pointer -> leak_e (* memory access at given address *)
 | LSub: (seq leak_e) -> leak_e. (* forest of leaks *)
 
+(* why we don't name this function as cost of expression *)
+Fixpoint size_leak_e (l : leak_e) : nat :=
+match l with 
+ | LEmpty => 1
+ | LIdx z => 1 
+ | LAdr p => 1
+ | LSub le => List.length le
+end.
+
 Section Eq_leak_e.
 
 Variable eq_leak_e : leak_e -> leak_e -> bool.
@@ -95,7 +104,7 @@ Inductive leak_i : Type :=
   | Lcond  : leak_e -> bool -> seq leak_i -> leak_i                          (* 1 + cost (seq leak_i) *)
   | Lwhile_true : seq leak_i -> leak_e -> seq leak_i -> leak_i -> leak_i     
   | Lwhile_false : seq leak_i -> leak_e -> leak_i
-  | Lfor : leak_e -> seq (seq leak_i) -> leak_i                              (* seq (seq leak_i) + size (seq (seq leak_i)) *)
+  | Lfor : leak_e -> seq (seq leak_i) -> leak_i                              (* seq (seq leak_i) + size (seq (seq leak_i)) *) 
   | Lcall : leak_e -> (funname * seq leak_i) -> leak_e -> leak_i.            (* size leak_e + cost (seq leak_i) + size leak_e *)
 
 Notation leak_c := (seq leak_i).
@@ -103,6 +112,40 @@ Notation leak_c := (seq leak_i).
 Notation leak_for := (seq leak_c) (only parsing).
 
 Notation leak_fun := (funname * leak_c)%type.
+
+Section Cost_leak_i.
+
+Variable cost_leak_i : leak_i -> nat.
+
+Fixpoint cost_leak_is (ls : seq leak_i) : nat :=
+match ls with 
+  | [::] => O
+  | l' :: ls' => cost_leak_i l' + cost_leak_is ls'
+end.
+
+Fixpoint cost_leak_iss (ls : seq (seq leak_i)) : nat :=
+match ls with 
+  | [::] => O
+  | l' :: ls' => cost_leak_is l' + cost_leak_iss ls'
+end. 
+
+End Cost_leak_i.
+  
+(* Cost of leak_i *)
+Fixpoint cost_leak_i (l : leak_i) : nat :=
+match l with 
+  | Lopn le => 1 (* we assume cost of operation and assignment to be 1 *) (* we don't think about cost of reducing the expression *)
+  | Lcond le b li => 1 (* cost of le *) +  cost_leak_is cost_leak_i li (* cost of the branch taken *)
+  | Lwhile_true li le li' lw => cost_leak_is cost_leak_i li (* cost of false *) + 1 + 
+                                cost_leak_is cost_leak_i li' (* cost of true *) +
+                                cost_leak_i lw (* cost depending on number of iteration *) 
+                                               (* it will depend on lw and no of iterations which we don't know here *)
+  | Lwhile_false li le => cost_leak_is cost_leak_i li (* cost of false branch *) + 1 (* cost of condition *)
+  | Lfor le liss => cost_leak_iss cost_leak_i liss + List.length liss (* length gives the cost of range? *)
+  | Lcall le (fn, li) le' => size_leak_e le (* cost of arguments *)
+                           + cost_leak_is cost_leak_i li (* cost of function body *) 
+                           + size_leak_e le' (* cost of writing the results in lvals *)
+end.
 
 Section Eq_leak_i.
 
@@ -311,23 +354,30 @@ end.
 (* Leakge transformer for instructions *)
 
 (* tr_cost lt -> Exact n1 n2  | Linear a  
-   lt' = leak_tr lt
+   lt' = leak_i_tr lt
    cost lt' <= a cost lt + b
 *) 
 
+Inductive cost_tr :=
+| c_exact : nat -> nat -> cost_tr
+| c_dummy : cost_tr.
+
 Inductive leak_i_tr :=
 (* structural transformation *)
-| LT_ikeep : leak_i_tr                                                                  (* Exact 1 1 *)
-| LT_ile : leak_e_tr -> leak_i_tr  (* assign and op *)                                  (* Exact 1 1 *)       
-| LT_icond : leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr (* if *)          (* linear comp *)   
+| LT_ikeep : leak_i_tr                                                                  (* Exact 1 1 *)   (* same as source *)
+| LT_ile : leak_e_tr -> leak_i_tr  (* assign and op *)                                  (* Exact 1 1 *)  (* same as source *)     
+| LT_icond : leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr (* if *)          (* linear comp *)  (* same as source *) 
 | LT_iwhile : seq leak_i_tr -> leak_e_tr -> seq leak_i_tr -> leak_i_tr (* while *)      (* *)
-| LT_ifor : leak_e_tr -> seq leak_i_tr -> leak_i_tr                  (* for c --> for c'     cost c' <= a cost c   cost (for c) = n * (cost c + 1)  <= n * (a cost c' + 1) <= max(1,a)cost (for c')  *)
+| LT_ifor : leak_e_tr -> seq leak_i_tr -> leak_i_tr                  (* for c --> for c'     
+  cost c' <= a cost c   cost (for c) = n * (cost c + 1)  <= n * (a cost c' + 1) <= max(1,a)cost (for c')  *)
 | LT_icall : leak_e_tr -> leak_e_tr -> leak_i_tr                     (* add funname *)
 
 | LT_iremove : leak_i_tr                                                                 (* 1 -> 0 *)      
 
 
-| LT_icond_eval : seq leak_i_tr -> leak_i_tr     (* if b then c1 else c0   -> cb   wh*)  (* cost cb' <= a cost cb + b   cost cb' <= cost (if b then ...) *)
+| LT_icond_eval : seq leak_i_tr -> leak_i_tr     (* if b then c1 else c0   -> cb   wh*)  
+                                                 (* cost cb' <= a cost cb + b   cost cb' <= cost (if b then ...) *) 
+                                                 (* same as source *)
 | LT_ifor_unroll: seq leak_i_tr -> leak_i_tr
 | LT_icall_inline: leak_c -> seq leak_i_tr -> leak_i_tr
 (* lowering leak transformers *)
@@ -356,6 +406,14 @@ Inductive leak_i_tr :=
 | LT_ildiv : leak_i_tr -> leak_e_es_tr -> leak_i_tr
 | LT_ilasgn : leak_i_tr.
 (*| LT_icompose : leak_i_tr -> leak_i_tr -> leak_i_tr.*)
+
+
+(*Fixpoint cost_leak_i_tr (lti : leak_i_tr) : cost_tr :=
+match lti with 
+ | LT_ile lte => c_exact 1 1
+ | LT_icond lte lti1 lti2 => 1 + max(cost_leak_i_tr lti1, cost_leak_i_tr lti2)
+ | _ => c_dummy
+end.*) 
 
 Section Eq_leak_i_tr.
 Variable eq_leak_i_tr : leak_i_tr -> leak_i_tr -> bool.
