@@ -52,9 +52,7 @@ Variant asm : Type :=
 Record xfundef := XFundef {
  xfd_align : wsize;
  xfd_nstk : register;
- xfd_arg  : asm_args;
  xfd_body : seq asm;
- xfd_res  : asm_args;
  xfd_export: bool;
 }.
 
