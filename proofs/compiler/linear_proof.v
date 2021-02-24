@@ -1500,8 +1500,10 @@ Section PROOF.
       change (wsize_size Uptr) with 8%Z in *.
       move: (stack_frame_allocation_size _) z_bound sz_noof => S z_bound sz_noof.
       move: (top_stack (emem s1)) => T above_limit.
-      have S_pos : (0 <= S)%Z by lia.
-      have TmS := wunsigned_sub_small (conj S_pos sz_noof) (proj2 above_limit).
+      have S_range : (0 <= S < wbase Uptr)%Z by lia.
+      have X : (wunsigned (T - wrepr U64 S) <= wunsigned T)%Z.
+      * move: (sf_stk_sz _) sz_pos above_limit => n; lia.
+      have {X} TmS := wunsigned_sub_small S_range X.
       rewrite TmS in above_limit.
       have T_range := wunsigned_range T.
       rewrite wunsigned_add TmS; lia.
