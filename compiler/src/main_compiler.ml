@@ -387,7 +387,7 @@ let main () =
     | Utils0.Error e ->
       Utils.hierror "compilation error %a@.PLEASE REPORT"
          (pp_comp_ferr tbl) e
-    | Utils0.Ok asm ->
+    | Utils0.Ok (asm, _leaks) ->
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->
           let fmt = BatFormat.formatter_of_out_channel out in

@@ -53,15 +53,15 @@ let pp_label fmt lbl =
 
 let pp_instr tbl fmt i =
   match i.li_i with
-  | Lopn (lvs, op, es) ->
+  | Liopn (lvs, op, es) ->
     F.fprintf fmt "@[%a@] = %a@[(%a)@]"
       (Pr.pp_list ",@ " (pp_lval tbl)) lvs
       Pr.pp_string0 (E.string_of_sopn op)
       (Pr.pp_list ",@ " (pp_expr tbl)) es
-  | Lalign     -> F.fprintf fmt "Align"
-  | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl
-  | Lgoto lbl -> F.fprintf fmt "Goto %a" pp_label lbl
-  | Lcond (e, lbl) -> F.fprintf fmt "If %a goto %a" (pp_expr tbl) e pp_label lbl
+  | Lialign     -> F.fprintf fmt "Align"
+  | Lilabel lbl -> F.fprintf fmt "Label %a" pp_label lbl
+  | Ligoto lbl -> F.fprintf fmt "Goto %a" pp_label lbl
+  | Licond (e, lbl) -> F.fprintf fmt "If %a goto %a" (pp_expr tbl) e pp_label lbl
 
 let pp_stackframe fmt (_id, sz) =
   F.fprintf fmt "stack: %a"
