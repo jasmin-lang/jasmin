@@ -909,7 +909,8 @@ let prim_string =
   [ "mulu", PrimP (W.U64, fun sz -> Omulu sz);
     "adc", PrimP (W.U64, fun sz -> Oaddcarry sz);
     "sbb", PrimP (W.U64, fun sz -> Osubcarry sz);
-    "set0", PrimP (W.U64, fun sz -> Oset0 sz) ] @
+    "set0", PrimP (W.U64, fun sz -> Oset0 sz);
+    "concat_2u128", PrimM (Oconcat128) ] @
   List.map (fun (s, prc) ->
         let s = Conv.string_of_string0 s in
         let prc = 

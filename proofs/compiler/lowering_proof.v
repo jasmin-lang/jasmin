@@ -1903,6 +1903,7 @@ Qed.
       move: (sem_pexprs_same dz e hz1). rewrite /sem_pexprs. move=> -> /=. rewrite /exec_sopn /sopn_sem /=.
       case: o hr=> //; rewrite /exec_sopn //= /sopn_sem /=; try (by move=> w -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=).
       t_xrbindP. move=> y0 _ //.
+      by t_xrbindP.
       case => //=;
       try (by move=> ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /= || 
            by move=> ?? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=). 
@@ -2666,6 +2667,7 @@ Qed.
       move=> x [] H H'. exists x. split=> //. by rewrite -hlo /=.
       rewrite -hs1''. 
       by intuition eauto using eq_exc_freshT.
+    + rewrite -hlo /=. apply default.
     + rewrite -hlo /=. apply default.
     + rewrite -hlo /=. apply default.
     rewrite -hlo /=. apply default.

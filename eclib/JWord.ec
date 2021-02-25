@@ -781,7 +781,7 @@ lemma subcP x y c:
  in to_uint z - modulus * b2i c' = to_uint x - (to_uint y + b2i c).
 proof.
 rewrite subcE /borrow_sub /=.
-case: (to_uint y + b2i c = modulus) => ?.
+case: (to_uint y + b2i c = modulus) => H.
  rewrite to_uintD.
  have -> /=: to_uint (- (y + of_int (b2i c))) = 0.
   rewrite to_uintN to_uintD of_uintK (modz_small (b2i c)).
@@ -1124,10 +1124,10 @@ lemma nosmt to_uintD_disjoint w1 w2:
  w1 `&` w2 = BitWord.zero =>
  to_uint (w1 + w2) = to_uint w1 + to_uint w2.
 proof.
-move=> H; have ?: to_uint (w1 `&` w2) = 0 by smt(to_uint0).
+move=> H; have H0: to_uint (w1 `&` w2) = 0 by smt(to_uint0).
 rewrite to_uintD_small //.
 move: H0; rewrite !to_uintE.
-rewrite andE => ?.
+rewrite andE => H0.
 apply bs2int_add_disjoint; rewrite ?size_w2bits //.
 by rewrite -H0 map2_w2bits_w2bits.
 qed.
@@ -1135,10 +1135,10 @@ qed.
 lemma nosmt orw_disjoint w1 w2:
  w1 `&` w2 = BitWord.zero => w1 `|` w2 = w1 + w2.
 proof.
-move=> H; have ?: to_uint (w1 `&` w2) = 0 by smt(to_uint0).
+move=> H; have H0: to_uint (w1 `&` w2) = 0 by smt(to_uint0).
 apply word_modeqP; congr.
 rewrite to_uintD_disjoint //.
-move: H0; rewrite !to_uintE andE => ?.
+move: H0; rewrite !to_uintE andE => H0.
 by rewrite orE -bs2int_or_add ?size_mkseq // 1:-H0 map2_w2bits_w2bits.
 qed.
 
@@ -1183,11 +1183,11 @@ qed.
 lemma nosmt subw_xorw w1 w2:
  invw w1 `&` w2 = BitWord.zero => w1 - w2 = w1 `^` w2.
 proof.
-move=> H; have ?: to_uint (invw w1 `&` w2) = 0 by smt(to_uint0).
+move=> H; have H0: to_uint (invw w1 `&` w2) = 0 by smt(to_uint0).
 apply word_modeqP; congr.
 rewrite to_uintB.
  by apply ule_andN0; rewrite andwC.
-move: H0; rewrite !to_uintE andE invE => ?.
+move: H0; rewrite !to_uintE andE invE => H0.
 rewrite xorE.
 rewrite -bs2int_xor_sub ?size_mkseq //.
 + by rewrite map_w2bits_w2bits map2_w2bits_w2bits.
@@ -1857,7 +1857,7 @@ abstract theory W_WS.
   lemma in_bound i j : 0 <= i < r => 0 <= j < sizeS => 0 <= i * sizeS + j < sizeB.
   proof.
     move=> hi hj;rewrite sizeBrS;have : i * sizeS + j < (i+1) * sizeS by smt().
-    rewrite mulzDl /= => ?; split; first smt().
+    rewrite mulzDl /= => H; split; first smt().
     move => ?; apply (ltr_le_trans _ _ _ H).
     have ->: i * sizeS + sizeS = (i+1)*sizeS by smt().
     by apply ler_wpmul2r; smt().

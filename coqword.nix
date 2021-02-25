@@ -1,8 +1,13 @@
-{ stdenv, fetchFromGitHub, coqPackages }:
+{ stdenv, lib, fetchFromGitHub, coqPackages }:
 
 let inherit (coqPackages) coq; in
 
-let mathcomp = coqPackages.mathcomp-algebra or coqPackages.mathcomp; in
+let mathcomp =
+ (if coqPackages ? mathcomp_
+  then coqPackages.mathcomp_ "1.10.0"
+  else coqPackages.mathcomp.override { version = "1.10.0"; }
+ ).algebra
+; in
 
 let rev = "1744285ceda592d7d12573627200b7f82fab8b84"; in
 
@@ -25,7 +30,7 @@ stdenv.mkDerivation rec {
 
   meta = {
     description = "Yet Another Coq Library on Machine Words";
-    license = stdenv.lib.licenses.cecill-b;
+    license = lib.licenses.cecill-b;
     inherit (src.meta) homepage;
     inherit (coq.meta) platforms;
   };
