@@ -812,6 +812,14 @@ Context (check_lvalP_id : forall r rltr x1 x2 e2 stk l,
           check_lval e2 x1 x2 r = ok rltr ->
           leak_E stk rltr.2 l = l).
 
+Context (check_esP_id : forall es1 es2 r rlte stk l,
+          check_es es1 es2 r = ok rlte ->
+          (map2 (leak_E stk) rlte.2 l) = l).
+
+Context (check_lvalsP_id : forall es1 es2 r rlte stk l,
+          check_lvals es1 es2 r = ok rlte ->
+          (map2 (leak_E stk) rlte.2 l) = l).
+
 Context (p:prog) (stk:pointer).
 
 Definition leak_id :=
@@ -849,45 +857,123 @@ Local Lemma Iassgn : sem_Ind_assgn p Pi_r.
 Proof.
   move => s1 s2 x tag ty e v v' le lw _ _ _ ii [] // ?????? /=.
   case: eqP => // _; t_xrbindP => ?.
-  apply: add_iinfoP => /check_eP_id he ?.
+  apply: add_iinfoP=> /check_eP_id he ?.
   by apply: add_iinfoP => /check_lvalP_id hl [<-] /=; rewrite he hl.
 Qed.
 
 Local Lemma Iopn : sem_Ind_opn p Pi_r.
 Proof.
-Admitted.
+ move=> [] s1 s1' s2 t o xs es lo. rewrite /sem_sopn /=.
+ t_xrbindP. move=> vs Hes vo Hex -[vs' ls] Hws <- <- /=.
+ rewrite /Pi_r /=. move=> ii [] // l t' s e' r rlt. case: eqP => // h.
+ t_xrbindP. move=> -[r' lr']. apply: add_iinfoP=> /check_esP_id Hes'. move=> -[r'' lr''].
+ apply: add_iinfoP=> /check_lvalsP_id Hvs'. move=> [] <- /=. move: (Hes' stk (unzip2 vs)). move=> ->.
+ move: (Hvs' stk ls). by move=> ->.
+Qed.
 
 Local Lemma Iif_true : sem_Ind_if_true p Pc Pi_r.
 Proof.
-Admitted.
+ move=> s1 s2 e c1 c2 le lc He Hc Hc'. rewrite /Pi_r.
+ move=> ii i2 r -[r' lr'] /=. case: i2=> //. move=> e' c c'. t_xrbindP=> -[r'' lte''].
+ apply: add_iinfoP=> /check_eP_id /= he. move=> -[r1 lt1] Hc1 -[r2 lt2] Hc2 Hr' <- /=.
+ move: (he stk le). move=> ->. rewrite /Pc in Hc'. rewrite /check_cmd in Hc'.
+ move: (Hc' ii c r'' (r1, lt1) Hc1). by move=> ->.
+Qed.
 
 Local Lemma Iif_false : sem_Ind_if_false p Pc Pi_r.
 Proof.
-Admitted.
+ move=> s1 s2 e c1 c2 le lc He Hc Hc'. rewrite /Pi_r.
+ move=> ii i2 r -[r' lr'] /=. case: i2=> //. move=> e' c c'. t_xrbindP=> -[r'' lte''].
+ apply: add_iinfoP=> /check_eP_id /= he. move=> -[r1 lt1] Hc1 -[r2 lt2] Hc2 Hr' <- /=.
+ move: (he stk le). move=> ->. rewrite /Pc in Hc'. rewrite /check_cmd in Hc'.
+ move: (Hc' ii c' r'' (r2, lt2) Hc2). by move=> ->.
+Qed.
 
 Local Lemma Iwhile_true : sem_Ind_while_true p Pc Pi_r.
 Proof.
-Admitted.
+ move=> s1 s2 s3 s4 a c e c' lc le lc' li Hc Hsc He Hc' Hsc' Hi. rewrite /Pi_r.
+ move=> Hi' ii i2 r -[r1 lt1] /=. case: i2=> //. move=> a' c1 e' c2 /=. t_xrbindP.
+ move=> [r2 [[ltc lte] ltc']] /loop2P. move=> [r3] [r4] []. t_xrbindP.
+ move=> -[r1' ltr1'] Hc1 -[r2' ltr2']. apply: add_iinfoP=> /= he.
+ move=> -[r3' lt3'] Hc2 <- /= <- <- <- <- Hm Hm' hr <- /=.
+ have : check_i ii (Cwhile a c e c') (Cwhile a' c1 e' c2) r3 =
+           ok (r2', LT_iwhile ltr1' ltr2' lt3').
+ + rewrite /= Loop.nbP /=. rewrite Hc1 /=. rewrite he /= Hc2 /=. case: ifP=> //=.
+   rewrite Hm'. by move=>//. 
+ move=> Hw. rewrite /Pc in Hsc.
+ rewrite /check_cmd in Hsc. move: (Hsc ii c1 r3 (r1', ltr1') Hc1). move=> /= ->.
+ rewrite /Pc in Hsc'. rewrite /check_cmd in Hsc'. 
+ move: (Hsc' ii c2 r2' (r3', lt3') Hc2). move=> /= ->. move: he. move=> /check_eP_id he. 
+ move: (he stk le). move=> -> /=. move: (Hi' ii (Cwhile a' c1 e' c2) r3 (r2', LT_iwhile ltr1' ltr2' lt3') Hw).
+ by move=> -> /=.
+Qed.
 
 Local Lemma Iwhile_false : sem_Ind_while_false p Pc Pi_r.
 Proof.
-Admitted.
+ move => s1 s2 a c e c' lc le Hci Hc Hse ii i1 r -[r' ltr'] //=.
+ case: i1=> // a2 c2 e1 c2'. t_xrbindP. 
+ move=> [r'' [[ltc lte] ltc']] /loop2P.
+ move=> [] r1' [] r2' []. t_xrbindP.
+ move=> [ri ltci] Hi [re lte']. apply: add_iinfoP.
+ move=> He [ri' ltci'] Hi' /= <- <- /= <- <- <- h h' h'' <-.
+ move: He. move=> /check_eP_id He. move: (He stk le). move=> ->.
+ rewrite /Pc in Hc. rewrite /check_cmd in Hc. move: (Hc ii c2 r1' (ri, ltci) Hi).
+ by move=> ->.
+Qed.
 
 Local Lemma Ifor : sem_Ind_for p Pi_r Pfor.
 Proof.
-Admitted.
+ move=> s1 s2 i [[d lo] hi] wr c lr lf.
+ rewrite /sem_range. t_xrbindP.
+ move=> [vle lle] Hle vi Hi [vhe lhe] Hhe vi' Hi' <- <- Hf Hfor.
+ move=> ii i2 r1 -[r2 ltr2] //=. case: i2=> //. move=> ve [[d' lo'] hi'] c2.
+ case: eqP=> //= hd; subst d'. t_xrbindP.
+ move=> [r1' lte]. apply: add_iinfoP=> /check_eP_id he.
+ move=> [r2' lte']. apply: add_iinfoP=> /check_eP_id he'.
+ move=> -[r3 lt3] /loopP [r3'] []; t_xrbindP. move=> [r4 lt4]; apply: add_iinfoP.
+ rewrite /check_var. move=> /check_lvalP_id hvl Hc Hm Hm' /= Hr <- /=.
+ move: (he stk lle). move=> ->. move: (he' stk lhe). move=> ->.
+ rewrite /Pfor /check_cmd in Hfor. move: (Hfor ii c2 r4 (r3', lt3) Hc). by move=> ->.
+Qed.
 
 Local Lemma Ifor_nil : sem_Ind_for_nil Pfor.
 Proof.
-Admitted.
+ move=> s1 s2 c /=. rewrite /Pfor.
+ by move=> ii c2 r -[r' ltr'] /= _.
+Qed.
 
 Local Lemma Ifor_cons : sem_Ind_for_cons p Pc Pfor.
 Proof.
-Admitted.
+ move=> s1 s2 s3 s4 i w ws c lc lf hw Hc Hc' Hf Hf'.
+ rewrite /Pfor. move=> ii c2 r rlt. rewrite /check_cmd.
+ move=> Hc''. rewrite /Pfor in Hf'. rewrite /check_cmd in Hf'.
+ move: (Hf' ii c2 r rlt Hc''). move=> /= ->. rewrite /Pc /check_cmd in Hc'.
+ move: (Hc' ii c2 r rlt Hc''). by move=> ->.
+Qed.
 
-Local Lemma Icall : sem_Ind_call p Pi_r Pfun.
-Proof. 
+Lemma leak_map_id' p' lc c s1 s2 fn vs vs': sem_call p' s1 c vs (fn, lc) s2 vs' ->
+leak_Is (leak_I lF) stk (lF fn) lc = lc.
+Proof.
+ elim: lc => /=. 
+ + move=> hsem. by inversion_clear hsem.      
+ move=> li lc Hc Hc' /=.
+ have H /= : leak_I (leak_Fun leak_id) stk li LT_ikeep = [:: li] by case: (li).
+ rewrite /leak_id /= /leak_Is /=.
 Admitted.
+    
+ 
+Local Lemma Icall : sem_Ind_call p Pi_r Pfun.
+Proof.
+ move=> s1 s2 s3 ii xs fn args vargs vs lf lw Hes Hcall Hf Hws.
+ rewrite /Pi_r /=. move=> ii' i2 r -[r' ltr']. case: i2=> // ini lvs fn' es'.
+ case: ifP=> /eqP // hfn. t_xrbindP. move=> -[r'' ltr'']. apply: add_iinfoP=> /check_esP_id Hes''.
+ move=> -[r''' ltr''']. apply: add_iinfoP=> /check_lvalsP_id Hes'''. move=> [] <- <- /=.
+ case: lf Hcall Hf=> fn'' lc Hcall Hf. move: (Hes'' stk (unzip2 vargs)). move=> ->.
+ move: (Hes''' stk lw). move=> ->. 
+ have -> : leak_Is (leak_I lF) stk (lF fn'') lc = lc.
+ + by have -> := (leak_map_id' Hcall).
+ auto.
+Qed.
 
 Local Lemma Iproc : sem_Ind_proc p Pc Pfun.
 Proof. done. Qed.
@@ -2090,5 +2176,6 @@ Lemma alloc_reg_funP_eq p fn fn' f f' m1 vargs vargs' vres vres' s1 s2 ltc lc:
 Proof.
   apply: (CheckAllocReg.alloc_funP_eq); last by exact 0%R.
   + by rewrite /CBAreg.check_e; t_xrbindP=> ???????? [<-].
-  by rewrite /CBAreg.check_lval; t_xrbindP => ?????????[<-].
-Qed.
+  + by rewrite /CBAreg.check_lval; t_xrbindP => ?????????[<-].
+  + move=> es1 es2 r -[r' lt'] stk l. rewrite /CheckAllocReg.check_es.
+ Admitted.
