@@ -765,6 +765,28 @@ Module MemoryI : MemoryT.
     rewrite /is_align p_to_zE; apply align_word_aligned.
   Qed.
 
+  Lemma ass_above_limit m ws_stk sz sz' m' :
+    alloc_stack m ws_stk sz sz' = ok m' →
+    wunsigned (stack_limit m) <= wunsigned (top_stack m')
+    ∧ wunsigned (top_stack m') + sz <= wunsigned (top_stack m).
+  Proof.
+    rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-].
+    rewrite /top_stack /=.
+    rewrite !addE.
+    case/andP: h => ok_f /lezP.
+    case/andP: (ok_f) => /lezP /= sz_pos /lezP padding_pos.
+    have {ok_f} := footprint_of_valid_frame ok_f.
+    set f := {| frame_size := sz |}.
+    move => f_pos h.
+    have fs_pos := footprint_of_stack_pos m.
+    have limit_range := wunsigned_range (stk_limit m).
+    have root_range := wunsigned_range (stk_root m).
+    rewrite !wunsigned_add; first split.
+    1, 3-4: Psatz.lia.
+    rewrite /f /footprint_of_frame /=.
+    Psatz.lia.
+  Qed.
+
   Lemma ass_root m ws_stk sz sz' m' :
     alloc_stack m ws_stk sz sz' = ok m' →
     stack_root m' = stack_root m.
@@ -801,6 +823,7 @@ Module MemoryI : MemoryT.
     - exact: ass_read_new o.
     - exact: ass_valid o.
     - exact: ass_align o.
+    - exact: ass_above_limit o.
     - exact: ass_fresh o.
     - exact: ass_root o.
     - exact: ass_limit o.

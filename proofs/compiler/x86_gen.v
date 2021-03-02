@@ -55,11 +55,10 @@ Definition x86_gen_error (sp: register) : instr_error :=
 
 Definition assemble_fd sp rip (fd: lfundef) :=
   Let fd' := assemble_c rip (lfd_body fd) in
-  Let arg := mapM (xreg_of_var xH \o v_var) (lfd_arg fd) in
-  Let res := mapM (xreg_of_var xH \o v_var) (lfd_res fd) in
-  Let _ :=
-    assert (~~ (Reg sp \in arg)) (x86_gen_error sp) in
-  ciok (XFundef (lfd_align fd) sp arg fd' res (lfd_export fd)).
+  Let _ := assert
+             (~~ (var_of_register sp \in map v_var fd.(lfd_arg)))
+             (x86_gen_error sp) in
+  ciok (XFundef (lfd_align fd) sp fd' (lfd_export fd)).
 
 (* -------------------------------------------------------------------- *)
 
@@ -107,7 +106,7 @@ Lemma assemble_fd_labels rsp rip (fn: funname) fd fd' :
   assemble_fd rsp rip fd = ok fd' →
   [seq (fn, lbl) | lbl <- label_in_lcmd (lfd_body fd)] = [seq (fn, lbl) | lbl <- label_in_asm (xfd_body fd')].
 Proof.
-  rewrite /assemble_fd; t_xrbindP => c ok_c ?????? [] <- {fd'} /=.
+  rewrite /assemble_fd; t_xrbindP => c ok_c ?? [] <- {fd'} /=.
   by rewrite (assemble_c_labels ok_c).
 Qed.
 
@@ -253,7 +252,7 @@ case: i => ii [] /=.
 - case => fn lbl [<-] /=; t_xrbindP => body.
   case ok_fd: get_fundef => [ fd | // ] [ ] <-{body} pc ok_pc <-{ls'}.
   case/ok_get_fundef: (ok_fd) => fd' ->.
-  rewrite /assemble_fd; t_xrbindP => xc ok_xc args ok_args res ok_res _ /assertP rsp_not_in_args [] <-{fd'} /=.
+  rewrite /assemble_fd; t_xrbindP => xc ok_xc _ /assertP rsp_not_in_args [] <-{fd'} /=.
   rewrite -(assemble_c_find_label lbl ok_xc) ok_pc /=.
   rewrite ok_fd /=.
   do 2 (eexists; first reflexivity).
@@ -267,7 +266,7 @@ case: i => ii [] /=.
   rewrite /=.
   case get_fd: (get_fundef _) => [ fd | // ].
   have [fd' -> ] := ok_get_fundef get_fd.
-  rewrite /assemble_fd /=; t_xrbindP => xc ok_xc args ok_args res ok_res _ /assertP rsp_not_in_args [] <-{fd'} /=.
+  rewrite /assemble_fd /=; t_xrbindP => xc ok_xc _ /assertP rsp_not_in_args [] <-{fd'} /=.
   move => pc ok_pc <-{ls'}.
   rewrite -(assemble_c_find_label lbl ok_xc) ok_pc.
   rewrite get_fd /=.

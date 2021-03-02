@@ -95,6 +95,9 @@ Record lprog :=
 Section PROG.
 Context (p:sprog) (extra_free_registers: instr_info -> option var).
 
+(** Total size of a stack frame: local variables, extra and padding. *)
+Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
+  round_ws e.(sf_align) (sf_stk_sz e + sf_stk_extra_sz e).
 
 Section CHECK.
 
@@ -132,12 +135,18 @@ Section CHECK.
     | Ccall _ xs fn es =>
       if fn == this then cierror ii (Cerr_linear "call to self") else
       if get_fundef (p_funcs p) fn is Some fd then
-        Let _ := assert match sf_return_address (f_extra fd) with
+        let e := f_extra fd in
+        Let _ := assert match sf_return_address e with
                         | RAnone => false
                         | RAreg ra => vtype ra == sword Uptr
-                        | RAstack _ => extra_free_registers ii != None end
+                        | RAstack ofs => (if extra_free_registers ii is Some ra then (vtype ra == sword Uptr) && (ra != var_of_register RSP) else false)
+                                         && (sf_stk_sz e <=? ofs )%Z && (ofs + wsize_size Uptr <=? stack_frame_allocation_size e)%Z
+                                         && (stack_frame_allocation_size e <? wbase Uptr)%Z (* FIXME: this check seems redundant *)
+                        end
           (ii, Cerr_one_varmap "nowhere to store the return address") in
-        Let _ := assert (sf_align (f_extra fd) <= stack_align)%CMP
+        Let _ := assert ((0 <=? sf_stk_sz e) && (0 <=? sf_stk_extra_sz e))%Z
+          (ii, Cerr_linear "assert false") in
+        Let _ := assert (sf_align e <= stack_align)%CMP
           (ii, Cerr_linear "caller need alignment greater than callee") in
         ok tt
       else cierror ii (Cerr_linear "call to unknown function")
@@ -211,10 +220,6 @@ Context (fn: funname) (fn_align: wsize).
 Let rsp : var := var_of_register RSP.
 Let rspi : var_i := VarI rsp xH.
 Let rspg : gvar := Gvar rspi Slocal.
-
-(** Total size of a stack frame: local variables, extra and padding. *)
-Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
-  round_ws e.(sf_align) (sf_stk_sz e + sf_stk_extra_sz e).
 
 Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : lcmd :=
   if sz == 0%Z then [::]
