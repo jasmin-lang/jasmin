@@ -775,25 +775,103 @@ Section PROOF.
          (wunsigned (stack_limit m) <= wunsigned p < wunsigned(stack_root m))%Z
        → validw m' p U8
       }.
+   
+  Lemma mm_free : ∀ m1 m1',
+  match_mem m1 m1' →
+  match_mem (free_stack m1) m1'.
+  Proof.
+  move=> m1 m1' [] Hrm Hvm Hsm. constructor.
+  (* read *)
+  + move=> p1 w1 Hr. have Hv := (readV Hr).
+    have Hs := free_stackP. move: (Hs m1)=> Hm1. move: (Hs m1')=> Hm1'.
+    apply Hrm. rewrite -Hr. eapply fss_read_old. apply Hm1. apply Hv.
+  (* valid *)
+  + move=> p1 Hv. 
+    have Hs := free_stackP. move: (Hs m1)=> Hm1. move: (Hs m1')=> Hm1'.
+    have Heq := (fss_valid Hm1). have Heq' := (fss_valid Hm1').
+    apply Hvm. rewrite Heq in Hv. move: Hv. move=>/andP [] Hv1 Hv2.
+    apply Hv1.
+  (* stack *)
+  have Hs := free_stackP. move: (Hs m1)=> Hm1. move: (Hs m1')=> Hm1'.
+  have Heq := (fss_valid Hm1).
+  move=> p1 Hs'. apply Hsm. have <- := fss_root Hm1. by have <- := fss_limit Hm1. 
+  Qed.
 
-  Axiom mm_write : ∀ m1 m1' p s (w:word s) m2,
-      match_mem m1 m1' →
-      write m1 p w = ok m2 →
-      exists2 m2', write m1' p w = ok m2' & match_mem m2 m2'.
+  Lemma mm_read_ok : ∀ m m' a s v,
+  match_mem m m' →
+  read m a s = ok v →
+  read m' a s = ok v.
+  Proof.
+  move=> m m' p'' s v [] Hrm Hvm Hsm Hr.
+  have := read_read8 Hr. move=> [] Ha Hi.
+  have : validw m' p'' s. apply /validwP.
+  split=>//. move=> i Hi'. apply Hvm. move: (Hi i Hi')=> Hr'.
+  by have Hv := readV Hr'. move=> Hv. rewrite -Hr.
+  apply eq_read. move=> i Hi'. move: (Hi i Hi')=> Hr'.
+  move: (Hrm (add p'' i) (LE.wread8 v i) Hr'). move=> Hr''.
+  by rewrite Hr' Hr''.
+  Qed.
+  
+   Lemma mm_write : ∀ m1 m1' p s (w:word s) m2,
+   match_mem m1 m1' →
+   write m1 p w = ok m2 →
+   exists2 m2', write m1' p w = ok m2' & match_mem m2 m2'.
+   Proof.
+   move=> m1 m1' p'' sz w m2 Hm Hw.
+   case: Hm=> H1 H2 H3. have /validwP := (write_validw Hw).
+   move=> [] Ha Hi.
+   have /writeV : validw m1' p'' sz. apply /validwP. split=> //. move=> i Hi'.
+   move: (Hi i Hi')=> Hv. by move: (H2 (add p'' i) Hv). move=> Hw'.
+   move: (Hw' w). move=> [] m2' Hw''. exists m2'.
+   + by apply Hw''.
+   constructor.
+   (* read *)
+   + move=> p1 w1 Hr1. admit.
+   (* valid *)
+   + move=> p1 Hv. have Hv1 := (CoreMem.write_validw p1 U8 Hw).
+     have Hv2 := (CoreMem.write_validw p1 U8 Hw''). rewrite Hv2.
+     apply H2. by rewrite -Hv1.
+   (* stack *)
+   move=> p1 H. have Hv1 := (CoreMem.write_validw p1 U8 Hw).
+   have Hv2 := (CoreMem.write_validw p1 U8 Hw''). rewrite Hv2.
+   apply H3. admit.
+   Admitted.
 
-  Axiom mm_alloc : ∀ m1 m1' al sz es' m2,
-      match_mem m1 m1' →
-      alloc_stack m1 al sz es' = ok m2 →
-      match_mem m2 m1'.
+  Lemma mm_alloc : ∀ m1 m1' al sz es' m2,
+  match_mem m1 m1' →
+  alloc_stack m1 al sz es' = ok m2 →
+  match_mem m2 m1'.
+  Proof.
+  move=> m1 m1' sz sz' z m2 [] Hvm Hrm Hs Ha.
+  have := alloc_stackP Ha. move=> [] Hvr Hve Hveq {Ha} Ha Hs' Hsr Hsl Hf.
+  constructor.
+  (* read *)
+  + move=> p1 w1 Hr1. case Heq: (validw m1 p1 U8)=> //.
+    + move: (Hvr p1 Heq)=> {Hvr} Hvr. move: (Hvm p1)=> {Hvm} Hvm. 
+      rewrite Hvr in Hvm. by apply Hvm.
+    move: (Hveq p1)=> {Hveq} Hveq. rewrite Heq /= in Hveq. 
+    apply Hvm. move: (Hve p1). unfold not. move=> {Hve} Hve.
+    rewrite Heq in Hve. have H : false-> False. move=> hf. inversion hf.
+    move: (Hve H)=> {Hve} Hve. rewrite Hr1 in Hve. rewrite Hveq in Hve.
+    admit.
+  (* valid *)
+  + move=> p1 Hv1. apply Hrm. move: (Hveq p1)=> {Hveq} Hveq.
+    admit.
+  (* stack *)
+  move=> p1 Hs''. apply Hs. by rewrite -Hsr -Hsl.
+  Admitted.
 
-  Axiom mm_free : ∀ m1 m1',
-      match_mem m1 m1' →
-      match_mem (free_stack m1) m1'.
-
-  Axiom mm_read_ok : ∀ m m' a s v,
-    match_mem m m' →
-    read m a s = ok v →
-    read m' a s = ok v.
+  Lemma mm_write_invalid : ∀ m m1' p s (w: word s),
+  match_mem m m1' →
+  (wunsigned (stack_limit m) <= wunsigned p ∧ wunsigned p + wsize_size s <= wunsigned (top_stack m))%Z →
+  exists2 m2', write m1' p w = ok m2' & match_mem m m2'.
+  Proof.
+  move=> m m1' p1 sz w [] Hrm Hvm Hs Hs'.
+  apply mm_write with m. constructor.
+  apply Hrm. apply Hvm. apply Hs.
+  (* can it be same memory after writting at a location? *)
+  move: (Hs p1)=> {Hs} Hs.
+  Admitted.
 
 
   Section MATCH_MEM_SEM_PEXPR.
