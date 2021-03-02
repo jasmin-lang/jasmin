@@ -862,7 +862,7 @@ Section PROOF.
   match_mem m2 m1'.
   Proof.
   move=> m1 m1' sz sz' z m2 [] Hvm Hrm Hs Ha.
-  have := alloc_stackP Ha. move=> [] Hvr Hve Hveq {Ha} Ha Hs' Hsr Hsl Hf.
+  have := alloc_stackP Ha. move=> [] Hvr Hve Hveq {Ha} Ha Hs' Hs'' Hsr Hsl Hf.
   constructor.
   (* read *)
   + move=> p1 w1 Hr1. case Heq: (validw m1 p1 U8)=> //.
@@ -877,7 +877,7 @@ Section PROOF.
   + move=> p1 Hv1. apply Hrm. move: (Hveq p1)=> {Hveq} Hveq.
     admit.
   (* stack *)
-  move=> p1 Hs''. apply Hs. by rewrite -Hsr -Hsl.
+  move=> p1 Hs'''. apply Hs. by rewrite -Hsr -Hsl.
   Admitted.
 
   Lemma mm_write_invalid : ∀ m m1' p s (w: word s),
@@ -889,7 +889,7 @@ Section PROOF.
   apply mm_write with m. constructor.
   apply Hrm. apply Hvm. apply Hs.
   (* can it be same memory after writting at a location? *)
-  move: (Hs p1)=> {Hs} Hs.
+  move: (Hs p1)=> {Hs} Hs. 
   Admitted.
 
 
@@ -1379,10 +1379,10 @@ Section PROOF.
   Proof. by rewrite /linear_fd; case: sf_return_address. Qed.
 
   (* TODO: move next to the definition of match_mem *)
-  Axiom mm_write_invalid : ∀ m m1' p s (w: word s),
+  (*Axiom mm_write_invalid : ∀ m m1' p s (w: word s),
     match_mem m m1' →
     (wunsigned (stack_limit m) <= wunsigned p ∧ wunsigned p + wsize_size s <= wunsigned (top_stack m))%Z →
-    exists2 m2', write m1' p w = ok m2' & match_mem m m2'.
+    exists2 m2', write m1' p w = ok m2' & match_mem m m2'.*)
 
   Local Lemma Hcall : sem_Ind_call p extra_free_registers Pi_r Pfun.
   Proof.
