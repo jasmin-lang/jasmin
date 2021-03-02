@@ -568,42 +568,40 @@ Module MemoryI : MemoryT.
         |}
     end end.
 
-  Instance M : memory mem :=
-    Memory stk_root stk_limit stack_frames alloc_stack free_stack init_mem.
-
-  Lemma top_stackE (m: mem) :
-    memory_model.top_stack m = top_stack m.
+  Lemma _top_stackE (m: mem) :
+    head (stk_root m) (stack_frames m) = top_stack m.
   Proof.
-    rewrite /memory_model.top_stack /= /stack_frames /top_stack /stack_blocks.
+    rewrite /stack_frames /top_stack /stack_blocks.
     have := stack_blocks_rec_snd (stk_root m) (frames m).
     case: (stack_blocks_rec _ _) => /= _ [] //.
     by move => ->; rewrite add_0.
   Qed.
 
-(*  Lemma read_mem_error m p s e: read_mem m p s = Error e -> e = ErrAddrInvalid.
+  Lemma stack_region_is_free (m: mem) (p: pointer) :
+    wunsigned (stk_limit m) <= wunsigned p < wunsigned (head (stk_root m) (stack_frames m)) →
+    ~~ validw m p U8.
   Proof.
-    rewrite /read_mem /CoreMem.read /= /validr /validrb; case: valid_pointer => [/=|[<-]//].
-    by case: is_init => //= -[] ->.
+    rewrite _top_stackE => - [] p_lo p_hi.
+    rewrite /validw is_align8 /= add_0 andbT /is_alloc (stk_freeP m) //; split.
+    + by have [] := wunsigned_range p.
+    move: p_hi; rewrite /top_stack.
+    rewrite wunsigned_add //.
+    have /andP[/footprint_of_valid_frames] := framesP m.
+    rewrite zify.
+    have := wunsigned_range (stk_root m).
+    have := wunsigned_range (stk_limit m).
+    Psatz.lia.
   Qed.
 
-  Lemma write_read8 m m' p ws (v: word ws) k :
-    write_mem m p v = ok m' ->
-    read_mem m' k U8 =
-      let i := wunsigned k - wunsigned p in
-      if (0 <=? i) && (i <? wsize_size ws) then ok (LE.wread8 v i)
-      else read_mem m k U8.
-  Proof. apply: CoreMem.write_read8. Qed.
+  Instance M : memory CM  :=
+    Memory stk_root stk_limit stack_frames alloc_stack free_stack init_mem stack_region_is_free.
 
-  Lemma write_memE m m' p s (v:word s):
-    write_mem m p v = ok m' ->
-    validw m p s = ok tt /\ m' = CoreMem.uwrite m p v.
-  Proof.
-    by rewrite /write_mem /CoreMem.write /= /validw /assert; case:ifP => //= _ [<-].
-  Qed.
-*)
+  Lemma top_stackE (m: mem) :
+    memory_model.top_stack m = top_stack m.
+  Proof. exact: _top_stackE. Qed.
 
   Lemma write_mem_invariant T (P: mem → T) :
-    (∀ m p v, 
+    (∀ m p v,
       is_alloc m p →
       P {| data := Mz.set (data m) (wunsigned p) v;
            alloc := alloc m;

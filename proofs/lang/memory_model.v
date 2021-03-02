@@ -484,7 +484,7 @@ Proof.
   case: eqP; Psatz.lia.
 Qed.
 
-Class memory (mem: Type) : Type :=
+Class memory (mem: Type) (CM: coreMem pointer mem) : Type :=
   Memory {
       stack_root : mem -> pointer
     ; stack_limit : mem -> pointer
@@ -492,13 +492,17 @@ Class memory (mem: Type) : Type :=
     ; alloc_stack : mem -> wsize -> Z -> Z -> exec mem (* alignement, size, extra-size *)
     ; free_stack : mem -> mem
     ; init : seq (pointer * Z) → pointer → exec mem
+
+    ; stack_region_is_free : ∀ (m: mem) (p: pointer), wunsigned (stack_limit m) <= wunsigned p < wunsigned (head (stack_root m) (frames m)) → ~~ validw m p U8
     }.
 
-Definition top_stack {mem: Type} {M: memory mem} (m: mem) : pointer :=
+Arguments Memory {mem CM} _ _ _ _ _ _ _.
+
+Definition top_stack {mem: Type} {CM: coreMem pointer mem} {M: memory CM} (m: mem) : pointer :=
   head (stack_root m) (frames m).
 
 Section SPEC.
-  Context mem (CM:coreMem pointer mem) (M: memory mem)
+  Context mem (CM: coreMem pointer mem) (M: memory CM)
     (m: mem) (ws:wsize) (sz: Z) (sz': Z) (m': mem).
   Let pstk := top_stack m'.
 
@@ -555,8 +559,8 @@ Section SPEC.
 
 End SPEC.
 
-Arguments alloc_stack_spec {_ _ _} _ _ _ _.
-Arguments stack_stable {_ _} _ _.
+Arguments alloc_stack_spec {_ _ _} _ _ _ _ _.
+Arguments stack_stable {_ _ _} _ _.
 Arguments free_stack_spec {_ _ _} _ _.
 
 Module Type MemoryT.
@@ -564,7 +568,7 @@ Module Type MemoryT.
 Parameter mem : Type.
 
 Declare Instance CM : coreMem pointer mem.
-Declare Instance M : memory mem.
+Declare Instance M : memory CM.
 
 (*Parameter readV : forall m p s v,
   read m p s = ok v -> validw m p s. *)
