@@ -4,13 +4,14 @@ z[0] = 1;
 }
 
 export
-fn scalarmult() {
+fn scalarmult(reg u64 n) {
   stack u64[1] x;
   reg u64[1] y;
 
   x[0] = 0;
-  while (true) {
+  while (n >u 0) {
     y = x;
     sub(y);
+    n -= 1;
   }
 }

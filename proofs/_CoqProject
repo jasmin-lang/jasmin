@@ -2,6 +2,8 @@
 -arg -parsing
 -arg -w
 -arg -extraction-reserved-identifier
+-arg -w
+-arg -extraction-opaque-accessed
 
 -R 3rdparty Jasmin
 -R compiler Jasmin
