@@ -138,6 +138,10 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     | RAreg ra => (ra != vid p.(p_extra).(sp_rip)) && (ra != var_of_register RSP) && (~~ Sv.mem ra k)
     | RAnone => true
     end →
+    match f.(f_extra).(sf_save_stack) with
+    | SavedStackReg r => (r != vid p.(p_extra).(sp_rip)) && (r != var_of_register RSP) && (~~ Sv.mem r k)
+    | _ => true
+    end →
     (f.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s1.(emem)) f.(f_extra).(sf_align) →
     valid_RSP s1.(emem) s1.(evm) →
     alloc_stack s1.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1 →
@@ -145,14 +149,14 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     valid_RSP s2'.(emem) s2'.(evm) →
     let m2 := free_stack s2'.(emem) in
     s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
-    sem_call ii (Sv.union k (if f.(f_extra).(sf_return_address) is RAreg ra then Sv.singleton ra else Sv.empty)) s1 fn s2.
+    sem_call ii (Sv.union k (Sv.union (if f.(f_extra).(sf_return_address) is RAreg ra then Sv.singleton ra else Sv.empty) (if f.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))) s1 fn s2.
 
 (*---------------------------------------------------*)
 Variant ex3_3 (A B C : Type) (P1 P2 P3: A → B → C → Prop) : Prop :=
   Ex3_3 a b c of P1 a b c & P2 a b c & P3 a b c.
 
-Variant ex4_9 (A B C D : Type) (P1 P2 P3 P4 P5 P6 P7 P8 P9 : A → B → C → D → Prop) : Prop :=
-| Ex3_8 a b c d of P1 a b c d & P2 a b c d & P3 a b c d & P4 a b c d & P5 a b c d & P6 a b c d & P7 a b c d & P8 a b c d & P9 a b c d.
+Variant ex4_10 (A B C D : Type) (P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 : A → B → C → D → Prop) : Prop :=
+| Ex3_8 a b c d of P1 a b c d & P2 a b c d & P3 a b c d & P4 a b c d & P5 a b c d & P6 a b c d & P7 a b c d & P8 a b c d & P9 a b c d & P10 a b c d.
 
 (*---------------------------------------------------*)
 (* Small inversion principles *)
@@ -208,13 +212,17 @@ Qed.
 
 Lemma sem_callE ii k s fn s' :
   sem_call ii k s fn s' →
-  ex4_9
+  ex4_10
     (λ f _ _ _, get_fundef (p_funcs p) fn = Some f)
     (λ f _ _ k', match f.(f_extra).(sf_return_address) with
               | RAstack _ => extra_free_registers ii != None
               | RAreg ra => (ra != vid p.(p_extra).(sp_rip)) && (ra != var_of_register RSP) && (~~ Sv.mem ra k')
               | RAnone => true
               end : bool)
+    (λ f _ _ k', match f.(f_extra).(sf_save_stack) with
+                | SavedStackReg r => (r != vid p.(p_extra).(sp_rip)) && (r != var_of_register RSP) && (~~ Sv.mem r k')
+                | _ => true
+                end : bool)
     (λ f _ _ _, (f.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s.(emem)) f.(f_extra).(sf_align))
     (λ _ _ _ _, valid_RSP s.(emem) s.(evm))
     (λ f m1 _ _, alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1)
@@ -223,9 +231,9 @@ Lemma sem_callE ii k s fn s' :
     (λ f _ s2' _,
       let m2 := free_stack s2'.(emem) in
       s' = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |})
-    (λ f _ _ k', k = Sv.union k' (if f.(f_extra).(sf_return_address) is RAreg ra then Sv.singleton ra else Sv.empty)).
+    (λ f _ _ k', k = Sv.union k' (Sv.union (if f.(f_extra).(sf_return_address) is RAreg ra then Sv.singleton ra else Sv.empty) (if f.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))).
 Proof.
-  case => { ii k s fn s' } ii k s s' fn f m1 s2' => ok_f ok_ra ok_sp ok_RSP ok_alloc exec_body ok_RSP' /= ->.
+  case => { ii k s fn s' } ii k s s' fn f m1 s2' => ok_f ok_ra ok_ss ok_sp ok_RSP ok_alloc exec_body ok_RSP' /= ->.
   by exists f m1 s2' k.
 Qed.
 
@@ -322,6 +330,10 @@ Section SEM_IND.
       | RAreg ra => (ra != vid p.(p_extra).(sp_rip)) && (ra != var_of_register RSP) && (~~ Sv.mem ra k)
       | RAnone => true
       end →
+      match fd.(f_extra).(sf_save_stack) with
+      | SavedStackReg r => (r != vid p.(p_extra).(sp_rip)) && (r != var_of_register RSP) && (~~ Sv.mem r k)
+      | _ => true
+      end →
       (fd.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s1.(emem)) fd.(f_extra).(sf_align) →
       valid_RSP s1.(emem) s1.(evm) →
       alloc_stack s1.(emem) fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 →
@@ -330,7 +342,7 @@ Section SEM_IND.
       valid_RSP s2'.(emem) s2'.(evm) →
       let m2 := free_stack s2'.(emem) in
       s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
-      Pfun ii (Sv.union k (if fd.(f_extra).(sf_return_address) is RAreg ra then Sv.singleton ra else Sv.empty)) s1 fn s2.
+      Pfun ii (Sv.union k (Sv.union (if fd.(f_extra).(sf_return_address) is RAreg ra then Sv.singleton ra else Sv.empty) (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))) s1 fn s2.
 
   Hypotheses
     (Hcall: sem_Ind_call)
@@ -370,8 +382,8 @@ Section SEM_IND.
 
   with sem_call_Ind (ii: instr_info) (k: Sv.t) (s1: estate) (fn: funname) (s2: estate) (s: sem_call ii k s1 fn s2) {struct s} : Pfun ii k s1 fn s2 :=
     match s with
-    | @EcallRun ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_sp ok_rsp ok_m1 exec ok_rsp' ok_s2 =>
-      @Hproc ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_sp ok_rsp ok_m1 exec (@sem_Ind k _ _ _ exec) ok_rsp' ok_s2
+    | @EcallRun ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_rsp ok_m1 exec ok_rsp' ok_s2 =>
+      @Hproc ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_rsp ok_m1 exec (@sem_Ind k _ _ _ exec) ok_rsp' ok_s2
     end.
 
 End SEM_IND.

@@ -60,7 +60,7 @@ Proof. by []. Qed.
 
 Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
 Proof.
-  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_sp ok_rsp /Memory.alloc_stackP A _.
+  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_rsp /Memory.alloc_stackP A _.
   rewrite /Pc /= => B _ ->.
   red => /=.
   have C := Memory.free_stackP (emem s2').
@@ -109,7 +109,7 @@ Lemma sem_call_valid_RSP ii k s1 fn s2 :
   sem_call p extra_free_registers ii k s1 fn s2 →
   valid_RSP (emem s1) (evm s2).
 Proof.
-  case/sem_callE => fd m s k' ok_fd ok_ra ok_sp ok_RSP ok_m exec_body ok_RSP' -> /= _.
+  case/sem_callE => fd m s k' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m exec_body ok_RSP' -> /= _.
   rewrite /valid_RSP /set_RSP Fv.setP_eq /top_stack.
   have ok_alloc := Memory.alloc_stackP ok_m.
   have /= ok_exec := sem_stack_stable exec_body.
@@ -184,7 +184,7 @@ Proof. by []. Qed.
 
 Lemma Hproc_nw : sem_Ind_proc p extra_free_registers Pc Pfun.
 Proof.
-  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' -> r hr /=.
+  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' -> r hr /=.
   rewrite /set_RSP Fv.setP.
   case: eqP.
   - move => ?; subst.
@@ -300,12 +300,15 @@ Proof. by []. Qed.
 
 Lemma Hproc_pm : sem_Ind_proc p extra_free_registers Pc Pfun.
 Proof.
-  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' ->.
+  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' ->.
   apply: (disjoint_union ih).
-  case: sf_return_address ok_ra => //= ra /andP[] /andP[] /eqP r_neq_gd /eqP r_neq_rsp _.
-  rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec.
-  change (v_var (vid (x86_variables.string_of_register RSP))) with (x86_variables.var_of_register RSP) => /=.
-  SvD.fsetdec.
+  apply: disjoint_union.
+  1: case: sf_return_address ok_ra => //.
+  2: case: sf_save_stack ok_ss => //.
+  all: move => /= r /andP[] /andP[] /eqP r_neq_gd /eqP r_neq_rsp _.
+  all: rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec.
+  all: change (v_var (vid (x86_variables.string_of_register RSP))) with (x86_variables.var_of_register RSP) => /=.
+  all: SvD.fsetdec.
 Qed.
 
 Lemma sem_RSP_GD_not_written k s1 c s2 :

@@ -644,7 +644,7 @@ Section LEMMA.
       ii fd' tvm1 args' ok_fd' ok_rastack sp_align vrsp_tv vgd_tv ok_args' ok_args''.
     move: ok_fd'; rewrite ok_fd => /Some_inj ?; subst fd'.
     case: (checkP ok_p ok_fd) => ok_wrf.
-    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP /allP checked_params _ /assertP RSP_not_result _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic checked_ra.
+    rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP /allP checked_params _ /assertP RSP_not_result _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] checked_save_stack [] checked_ra _.
     have {checked_ra} checked_ra : if sf_return_address (f_extra fd) is RAreg ra then ~~ Sv.mem ra (wrf fn) && ~~ Sv.mem ra (magic_variables p) && (ra \notin (map v_var fd.(f_params))) else True.
     - case: sf_return_address checked_ra => // ra; t_xrbindP => _ /assertP -> /assertP.
       by rewrite mem_set_of_var_i_seq Bool.negb_orb.
@@ -730,7 +730,8 @@ Section LEMMA.
        rewrite /writefun_ra ok_fd /valid_writefun /write_fd /= /magic_variables /= /is_true Sv.subset_spec; clear.
        SvD.fsetdec.
      exists
-       (Sv.union k (if fd.(f_extra).(sf_return_address) is RAreg ra then Sv.singleton ra else Sv.empty)),
+       (Sv.union k (Sv.union (if fd.(f_extra).(sf_return_address) is RAreg ra then Sv.singleton ra else Sv.empty)
+                             (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))),
        (set_RSP (free_stack (emem t2)) (evm t2)), tres;
        split.
     - econstructor.
@@ -741,6 +742,14 @@ Section LEMMA.
         rewrite /is_true Sv.subset_spec => ok_wrf.
         apply/negP => /Sv_memP K; apply: h; apply/Sv_memP.
         SvD.fsetdec.
+      + move: ok_wrf.
+        rewrite /valid_writefun /write_fd /=.
+        case: sf_save_stack checked_save_stack => // r; t_xrbindP => _ /assertP /Sv_memP r_not_written /assertP.
+        rewrite mem_set_of_var_i_seq => /norP[] /Sv_memP r_not_magic r_not_param.
+        rewrite /is_true Sv.subset_spec => ok_wrf.
+        apply/andP; split; last by apply/Sv_memP; SvD.fsetdec.
+        move: r_not_magic; rewrite /magic_variables /var_of_register /=; clear.
+        move => K; apply/andP; split; apply/eqP; SvD.fsetdec.
       + exact: sp_align.
       + exact: vrsp_tv.
       + exact: ok_m'.

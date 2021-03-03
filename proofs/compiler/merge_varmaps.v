@@ -33,10 +33,15 @@ Section WRITE1.
       match get_fundef (p_funcs p) fn with
       | None => Sv.empty
       | Some fd =>
-        match fd.(f_extra).(sf_return_address) with
-        | RAnone | RAstack _ => Sv.empty
-        | RAreg ra => Sv.singleton ra
-        end
+        Sv.union
+          match fd.(f_extra).(sf_return_address) with
+          | RAnone | RAstack _ => Sv.empty
+          | RAreg ra => Sv.singleton ra
+          end
+          match fd.(f_extra).(sf_save_stack) with
+          | SavedStackNone | SavedStackStk _ => Sv.empty
+          | SavedStackReg r => Sv.singleton r
+          end
       end in
     Sv.union (writefun fn) ra.
 
@@ -204,6 +209,10 @@ Section CHECK.
   Definition magic_variables : Sv.t :=
     Sv.add (vid p.(p_extra).(sp_rip)) (Sv.singleton (vid (string_of_register RSP))).
 
+  Let check_preserved_register fn W J name r :=
+    Let _ := assert (~~ Sv.mem r W) (Ferr_fun fn (Cerr_one_varmap ("the function writes its " ++ name))) in
+    assert (~~Sv.mem r J) (Ferr_fun fn (Cerr_one_varmap ("the function depends on its " ++ name))).
+
   Definition check_fd (ffd: sfun_decl) :=
     let: (fn, fd) := ffd in
     let O := live_after_fd fd in
@@ -217,13 +226,11 @@ Section CHECK.
                     (Ferr_fun fn (Cerr_one_varmap_free fn (Sv.elements I))) in
     Let _ := assert (var.disjoint (writefun_ra writefun fn) magic_variables)
                     (Ferr_fun fn (Cerr_one_varmap "the function writes to RSP or global-data")) in
+    let W := writefun fn in
     let e := fd.(f_extra) in
-    match e.(sf_return_address) with
-    | RAreg ra =>
-      Let _ := assert (~~Sv.mem ra (writefun fn)) (Ferr_fun fn (Cerr_one_varmap "the function writes its return address")) in
-      assert(~~Sv.mem ra J)  (Ferr_fun fn (Cerr_one_varmap "the function depends of its return address"))
-    | RAnone | RAstack _ => ok tt
-    end.
+    Let _  := if sf_save_stack e is SavedStackReg r then check_preserved_register fn W J "saved stack pointer" r else ok tt in
+    Let _ := if sf_return_address e is RAreg ra then check_preserved_register fn W J "return address" ra else ok tt in
+    ok tt.
 
   Definition check_prog := mapM check_fd (p_funcs p).
 
