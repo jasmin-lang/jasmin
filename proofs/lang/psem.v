@@ -2678,15 +2678,22 @@ Section WF.
       | _, _ => false
       end.
 
+  Lemma wf_vm_set (vm: vmap) (x: var) (v: psem_t (vtype x)) :
+    wf_vm vm →
+    wf_vm vm.[x <- ok v]%vmap.
+  Proof.
+    move => h y; rewrite Fv.setP; case: eqP => x_y; first by subst.
+    exact: h.
+  Qed.
+
   Lemma wf_set_var x ve vm1 vm2 :
     wf_vm vm1 -> set_var vm1 x ve = ok vm2 -> wf_vm vm2.
   Proof.
     move=> Hwf;apply: set_varP => [v | _ ] ? <- /= z.
-    + case: (x =P z) => [ <- | /eqP Hne];first by rewrite Fv.setP_eq.
-      by rewrite Fv.setP_neq //;apply (Hwf z).
-    case: (x =P z) => [ <- | /eqP Hne].
-    + by rewrite Fv.setP_eq; case (vtype x).
-    by rewrite Fv.setP_neq //;apply (Hwf z).
+    + exact: wf_vm_set.
+    rewrite Fv.setP; case: eqP => x_z.
+    + by subst; case: (vtype z).
+    exact: Hwf.
   Qed.
 
   Lemma wf_write_var x ve s1 s2 :
