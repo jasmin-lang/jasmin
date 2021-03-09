@@ -560,7 +560,7 @@ Section LEMMA.
          List.Forall2 value_uincl res res'
         ].
 
-  Lemma write_lval_uincl (d q:var_i) v (z : psem_t (vtype q)) s3 s4 : 
+  Lemma write_lval_uincl (d q:var_i) v (z : psem_t (vtype q)) s3 s4 :
     v_var d = v_var q ->
     value_uincl v (pto_val z) ->
     write_lval (p_globs p) d v s3 = ok s4 ->
@@ -730,7 +730,7 @@ Section LEMMA.
        rewrite /writefun_ra ok_fd /valid_writefun /write_fd /= /magic_variables /= /is_true Sv.subset_spec; clear.
        SvD.fsetdec.
      exists
-       (Sv.union k (Sv.union (if fd.(f_extra).(sf_return_address) is RAreg ra then Sv.singleton ra else Sv.empty)
+       (Sv.union k (Sv.union match fd.(f_extra).(sf_return_address) with RAreg ra => Sv.singleton ra | RAstack _ => Sv.empty | RAnone => sv_of_flags rflags end
                              (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))),
        (set_RSP (free_stack (emem t2)) (evm t2)), tres;
        split.

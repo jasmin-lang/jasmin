@@ -298,12 +298,28 @@ Proof. by []. Qed.
 Lemma Hcall_pm : sem_Ind_call p extra_free_registers Pi_r Pfun.
 Proof. by []. Qed.
 
+Lemma flags_not_magic :
+  disjoint (sv_of_flags rflags) (magic_variables p).
+Proof.
+  apply Sv.is_empty_spec => x X.
+  have x_bool : vtype x = sbool.
+  - have := SvD.F.inter_1 X.
+    rewrite /sv_of_flags !SvD.F.add_iff SvD.F.empty_iff.
+    by repeat case => [ <- // | ].
+  have : vtype x = sword Uptr.
+  - have := SvD.F.inter_2 X.
+    rewrite /magic_variables SvD.F.add_iff Sv.singleton_spec.
+    by case => [ <- | -> ].
+  by rewrite x_bool.
+Qed.
+
 Lemma Hproc_pm : sem_Ind_proc p extra_free_registers Pc Pfun.
 Proof.
   red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' ->.
   apply: (disjoint_union ih).
   apply: disjoint_union.
   1: case: sf_return_address ok_ra => //.
+  1: move => _; exact: flags_not_magic.
   2: case: sf_save_stack ok_ss => //.
   all: move => /= r /andP[] /andP[] /eqP r_neq_gd /eqP r_neq_rsp _.
   all: rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec.

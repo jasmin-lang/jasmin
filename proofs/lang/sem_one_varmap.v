@@ -69,6 +69,9 @@ Definition magic_variables : Sv.t :=
 Definition extra_free_registers_at ii : Sv.t :=
   if extra_free_registers ii is Some r then Sv.singleton r else Sv.empty.
 
+Definition sv_of_flags : seq rflag → Sv.t :=
+  foldl (λ s r, Sv.add (var_of_flag r) s) Sv.empty.
+
 Definition set_RSP m vm : vmap :=
   vm.[vrsp <- ok (pword_of_word (top_stack m))].
 
@@ -149,7 +152,13 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     valid_RSP s2'.(emem) s2'.(evm) →
     let m2 := free_stack s2'.(emem) in
     s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
-    sem_call ii (Sv.union k (Sv.union (if f.(f_extra).(sf_return_address) is RAreg ra then Sv.singleton ra else Sv.empty) (if f.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))) s1 fn s2.
+    sem_call ii (Sv.union k (Sv.union
+                               match f.(f_extra).(sf_return_address) with
+                               | RAreg ra => Sv.singleton ra
+                               | RAstack _ => Sv.empty
+                               | RAnone => sv_of_flags rflags
+                               end
+                               (if f.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))) s1 fn s2.
 
 (*---------------------------------------------------*)
 Variant ex3_3 (A B C : Type) (P1 P2 P3: A → B → C → Prop) : Prop :=
@@ -231,7 +240,7 @@ Lemma sem_callE ii k s fn s' :
     (λ f _ s2' _,
       let m2 := free_stack s2'.(emem) in
       s' = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |})
-    (λ f _ _ k', k = Sv.union k' (Sv.union (if f.(f_extra).(sf_return_address) is RAreg ra then Sv.singleton ra else Sv.empty) (if f.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))).
+    (λ f _ _ k', k = Sv.union k' (Sv.union match f.(f_extra).(sf_return_address) with RAreg ra => Sv.singleton ra | RAstack _ => Sv.empty | RAnone => sv_of_flags rflags end (if f.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))).
 Proof.
   case => { ii k s fn s' } ii k s s' fn f m1 s2' => ok_f ok_ra ok_ss ok_sp ok_RSP ok_alloc exec_body ok_RSP' /= ->.
   by exists f m1 s2' k.
@@ -342,7 +351,7 @@ Section SEM_IND.
       valid_RSP s2'.(emem) s2'.(evm) →
       let m2 := free_stack s2'.(emem) in
       s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
-      Pfun ii (Sv.union k (Sv.union (if fd.(f_extra).(sf_return_address) is RAreg ra then Sv.singleton ra else Sv.empty) (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))) s1 fn s2.
+      Pfun ii (Sv.union k (Sv.union match fd.(f_extra).(sf_return_address) with RAreg ra => Sv.singleton ra | RAstack _ => Sv.empty | RAnone => sv_of_flags rflags end (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))) s1 fn s2.
 
   Hypotheses
     (Hcall: sem_Ind_call)

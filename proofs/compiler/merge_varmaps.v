@@ -1,6 +1,6 @@
 (*
 *)
-Require Import psem.
+Require Import psem sem_one_varmap.
 Import Utf8.
 Import all_ssreflect.
 Import compiler_util.
@@ -35,8 +35,9 @@ Section WRITE1.
       | Some fd =>
         Sv.union
           match fd.(f_extra).(sf_return_address) with
-          | RAnone | RAstack _ => Sv.empty
+          | RAnone => sv_of_flags rflags
           | RAreg ra => Sv.singleton ra
+          | RAstack _ => Sv.empty
           end
           match fd.(f_extra).(sf_save_stack) with
           | SavedStackNone | SavedStackStk _ => Sv.empty
@@ -206,8 +207,8 @@ Section CHECK.
   Definition live_after_fd (fd: sfundef) : Sv.t :=
     set_of_var_i_seq Sv.empty fd.(f_res).
 
-  Definition magic_variables : Sv.t :=
-    Sv.add (vid p.(p_extra).(sp_rip)) (Sv.singleton (vid (string_of_register RSP))).
+  Let magic_variables : Sv.t :=
+    magic_variables p.
 
   Let check_preserved_register fn W J name r :=
     Let _ := assert (~~ Sv.mem r W) (Ferr_fun fn (Cerr_one_varmap ("the function writes its " ++ name))) in
