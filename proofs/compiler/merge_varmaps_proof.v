@@ -645,22 +645,29 @@ Section LEMMA.
     move: ok_fd'; rewrite ok_fd => /Some_inj ?; subst fd'.
     case: (checkP ok_p ok_fd) => ok_wrf.
     rewrite /check_fd; t_xrbindP => live'; apply: add_finfoP => checked_body _ /assertP /allP checked_params _ /assertP RSP_not_result _ /assertP /Sv.subset_spec small_live' _ /assertP preserved_magic [] checked_save_stack [] checked_ra _.
-    have {checked_ra} checked_ra : if sf_return_address (f_extra fd) is RAreg ra then ~~ Sv.mem ra (wrf fn) && ~~ Sv.mem ra (magic_variables p) && (ra \notin (map v_var fd.(f_params))) else True.
-    - case: sf_return_address checked_ra => // ra; t_xrbindP => _ /assertP -> /assertP.
+    have {checked_ra} checked_ra : match sf_return_address (f_extra fd) with
+                                   | RAreg ra => ~~ Sv.mem ra (wrf fn) && ~~ Sv.mem ra (magic_variables p) && (ra \notin (map v_var fd.(f_params)))
+                                   | RAstack _ => True
+                                   | RAnone => all (λ x : var_i, if vtype x is sword _ then true else false) (f_params fd)
+                                   end.
+    - case: sf_return_address checked_ra; last by [].
+      + by move => /assertP.
+      move => ra; t_xrbindP => _ /assertP -> /assertP.
       by rewrite mem_set_of_var_i_seq Bool.negb_orb.
     have ra_neq_magic : if sf_return_address (f_extra fd) is RAreg ra then (ra != vgd) && (ra != vrsp) else True.
     - case: sf_return_address checked_ra => // ra /andP[] /andP[] _ /negP; clear.
       rewrite /magic_variables /is_true Sv.mem_spec => ? _; apply/andP; split; apply/eqP; SvD.fsetdec.
-    set t1' := with_vm s0 (set_RSP (emem s0) (if sf_return_address (f_extra fd) is RAreg ra then tvm1.[ra <- undef_error] else tvm1)).
+    set t1' := with_vm s0 (set_RSP (emem s0) match sf_return_address (f_extra fd) with RAreg ra => tvm1.[ra <- undef_error] | RAstack _ => tvm1 | RAnone => kill_flags tvm1 rflags end).
     have pre1 : merged_vmap_precondition (write_c (f_body fd)) (sf_align (f_extra fd)) (emem s1) (evm t1').
     - split.
       + apply: disjoint_w; last exact: preserved_magic.
         etransitivity; first by rewrite -Sv.subset_spec; exact: ok_wrf.
         rewrite /writefun_ra ok_fd; SvD.fsetdec.
       + by rewrite /t1' /set_RSP /= Fv.setP_eq (write_vars_emem ok_s1).
-      + subst t1'; rewrite /set_RSP /= Fv.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
+      + subst t1'; rewrite /set_RSP Fv.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
         case: sf_return_address ra_neq_magic => [ _ | ra /andP[] ok_ra _ | _ _ ].
         2: rewrite (Fv.setP_neq _ _ ok_ra).
+        1: rewrite kill_flagsE !inE /=.
         1-3: exact: vgd_tv.
       rewrite -(write_vars_emem ok_s1) (alloc_stack_top_stack ok_m').
       exact: do_align_is_align.
@@ -674,21 +681,29 @@ Section LEMMA.
         * case/mapP => /= y /checked_params /negP hy xy.
           by apply: hy; rewrite -xy.
         move: hx not_param; rewrite {1}/is_true Sv.mem_spec Sv.add_spec Sv.singleton_spec.
-        case => [ -> |  -> ] {x} not_param /=.
+        case => [ -> |  -> ] {x} not_param.
         1-2: rewrite -(write_vars_eq_except ok_s1); last by rewrite -Sv.mem_spec mem_set_of_var_i_seq.
         * (* vrip *)
           rewrite vgd_v Fv.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
           case: sf_return_address ra_neq_magic => [ _ | ra /andP[] ok_ra _ | _ _ ].
           2: rewrite (Fv.setP_neq _ _ ok_ra).
+          1: rewrite kill_flagsE !inE /=.
           1-3: by rewrite vgd_tv.
         (* vrsp *)
         by rewrite vrsp_v Fv.setP_eq.
-      have /= [y y_param ?] := mapP hx; subst x.
+      have [y y_param ?] := mapP hx; subst x.
       have /negP y_not_magic := checked_params _ y_param.
       rewrite Fv.setP_neq; last first.
       + apply/eqP; move: y_not_magic; rewrite /magic_variables /is_true Sv.mem_spec /=; clear; SvD.fsetdec.
       suff: eval_uincl (evm s1).[y] tvm1.[y].
-      + case: sf_return_address checked_ra => // ra /andP[] _ /mapP ra_not_param.
+      + case: sf_return_address checked_ra; last by [].
+        * case/mapP: hx => x hx -> /allP /(_ _ hx).
+          clear => x_word h.
+          apply: (eval_uincl_trans h).
+          rewrite kill_flagsE.
+          case: x x_word {h} => - [] t x _ /=.
+          by case: t.
+        move => ra /andP[] _ /mapP ra_not_param.
         by rewrite Fv.setP_neq //; apply/eqP => ?; subst; apply: ra_not_param; exists y.
       case: y hx {y_param} y_not_magic => /= y _ y_param y_not_magic.
       move: (f_params fd) y_param ok_s1 (f_tyin fd) ok_vargs args' ok_args' ok_args''; clear -p.

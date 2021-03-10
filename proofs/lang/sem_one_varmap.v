@@ -36,6 +36,33 @@ Definition get_pvar (e: pexpr) : exec var :=
 Definition get_lvar (x: lval) : exec var :=
   if x is Lvar x then ok (v_var x) else type_error.
 
+Definition kill_flag (vm: vmap) (r: rflag) : vmap :=
+  let: x := var_of_flag r in
+  if vm.[x] is Ok _ then vm.[var_of_flag r <- undef_error] else vm.
+
+Notation kill_flags := (foldl kill_flag).
+
+Lemma kill_flagsE vm fs x :
+  ((kill_flags vm fs).[x] = if x \in map var_of_flag fs then if vm.[x] is Ok _ then undef_error else vm.[x] else vm.[x])%vmap.
+Proof.
+  elim: fs vm => // f fs ih vm /=.
+  rewrite ih {ih} inE /kill_flag; case: eqP.
+  - move => -> /=; case: ifP => _; case h: vm.[_].
+    1, 3: by rewrite Fv.setP_eq.
+    1, 2: by rewrite h.
+  move => /= x_neq_f; case: ifP => // _; case h: vm.[_] => //.
+  all: rewrite Fv.setP_neq //; apply/eqP.
+  all: exact: not_eq_sym.
+Qed.
+
+Lemma kill_flags_uincl vm fs :
+  vm_uincl (kill_flags vm fs) vm.
+Proof.
+  move => x; rewrite kill_flagsE.
+  case: ifP => // _.
+  by case: vm.[x].
+Qed.
+
 Section SEM.
 
 Context (p: sprog) (extra_free_registers: instr_info → option var).
@@ -148,7 +175,7 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     (f.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s1.(emem)) f.(f_extra).(sf_align) →
     valid_RSP s1.(emem) s1.(evm) →
     alloc_stack s1.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1 →
-    sem k {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} f.(f_body) s2' →
+    sem k {| emem := m1 ; evm := set_RSP m1 match f.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => kill_flags s1.(evm) rflags end |} f.(f_body) s2' →
     valid_RSP s2'.(emem) s2'.(evm) →
     let m2 := free_stack s2'.(emem) in
     s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
@@ -235,7 +262,7 @@ Lemma sem_callE ii k s fn s' :
     (λ f _ _ _, (f.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s.(emem)) f.(f_extra).(sf_align))
     (λ _ _ _ _, valid_RSP s.(emem) s.(evm))
     (λ f m1 _ _, alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1)
-    (λ f m1 s2' k', sem k' {| emem := m1 ; evm := set_RSP m1 (if f.(f_extra).(sf_return_address) is RAreg x then s.(evm).[x <- undef_error] else s.(evm)) |} f.(f_body) s2')
+    (λ f m1 s2' k', sem k' {| emem := m1 ; evm := set_RSP m1 match f.(f_extra).(sf_return_address) with RAreg x => s.(evm).[x <- undef_error] | RAstack _ => s.(evm) | RAnone => kill_flags s.(evm) rflags end |} f.(f_body) s2')
     (λ _ _ s2' _, valid_RSP s2'.(emem) s2'.(evm))
     (λ f _ s2' _,
       let m2 := free_stack s2'.(emem) in
@@ -346,8 +373,8 @@ Section SEM_IND.
       (fd.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s1.(emem)) fd.(f_extra).(sf_align) →
       valid_RSP s1.(emem) s1.(evm) →
       alloc_stack s1.(emem) fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 →
-      sem k {| emem := m1 ; evm := set_RSP m1 (if fd.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} fd.(f_body) s2' →
-      Pc k {| emem := m1 ; evm := set_RSP m1 (if fd.(f_extra).(sf_return_address) is RAreg x then s1.(evm).[x <- undef_error] else s1.(evm)) |} fd.(f_body) s2' →
+      sem k {| emem := m1 ; evm := set_RSP m1 match fd.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => kill_flags s1.(evm) rflags end |} fd.(f_body) s2' →
+      Pc k {| emem := m1 ; evm := set_RSP m1 match fd.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => kill_flags s1.(evm) rflags end |} fd.(f_body) s2' →
       valid_RSP s2'.(emem) s2'.(evm) →
       let m2 := free_stack s2'.(emem) in
       s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →

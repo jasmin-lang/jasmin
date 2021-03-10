@@ -1706,9 +1706,11 @@ Section PROOF.
           rewrite Memory.top_stack_after_aligned_alloc.
           2: exact: is_align8.
           by rewrite stk_sz_0 stk_extra_sz_0 -addE add_0.
-        have X' : vm_uincl (set_RSP m1' s1) vm1.
+        have X' : vm_uincl (set_RSP m1' (kill_flags s1 rflags)) vm1.
         + rewrite /set_RSP top_stack_preserved.
-          exact: X.
+          apply: vm_uincl_trans X.
+          apply: set_vm_uincl; last exact: eval_uincl_refl.
+          exact: kill_flags_uincl.
         have {E} [m2 vm2] := E m1 vm1 [::] [::] W M' X' (λ _ _, erefl) ok_body.
         rewrite /= => E K2 W2 X2 M2.
         eexists m2 _; [ exact: E | | exact: W2 | | exact: mm_free M2 ].

@@ -195,8 +195,18 @@ Proof.
     exact: ok_RSP.
   move => /eqP r_neq_rsp.
   rewrite -(ih r). 2: SvD.fsetdec.
-  rewrite /= /set_RSP Fv.setP_neq //.
-  move: hr; case: sf_return_address => // ra ra_not_in_k.
+  rewrite /set_RSP Fv.setP_neq //.
+  move: hr; case: sf_return_address; last by [].
+  - move => /Sv.union_spec /Decidable.not_or[] _ /Sv.union_spec /Decidable.not_or[].
+    clear.
+    rewrite /sv_of_flags => r_not_flag _.
+    rewrite kill_flagsE.
+    case: ifP => // rx.
+    elim: r_not_flag; move: rx.
+    rewrite !Sv.add_spec SvD.F.empty_iff !inE.
+    repeat (case/orP; first by move/eqP => ->; intuition).
+    by move/eqP => ->; intuition.
+  move => ra ra_not_in_k.
   rewrite Fv.setP_neq //.
   apply/eqP.
   SvD.fsetdec.

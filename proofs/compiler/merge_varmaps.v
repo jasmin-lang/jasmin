@@ -230,7 +230,12 @@ Section CHECK.
     let W := writefun fn in
     let e := fd.(f_extra) in
     Let _  := if sf_save_stack e is SavedStackReg r then check_preserved_register fn W J "saved stack pointer" r else ok tt in
-    Let _ := if sf_return_address e is RAreg ra then check_preserved_register fn W J "return address" ra else ok tt in
+    Let _ := match sf_return_address e with
+             | RAreg ra => check_preserved_register fn W J "return address" ra
+             | RAstack _ => ok tt
+             | RAnone => assert (all (λ x : var_i, if vtype x is sword _ then true else false ) (f_params fd))
+                                (Ferr_fun fn (Cerr_one_varmap "the export function has non-word arguments"))
+             end in
     ok tt.
 
   Definition check_prog := mapM check_fd (p_funcs p).
