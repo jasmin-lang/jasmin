@@ -123,6 +123,8 @@ Definition vmap0 : vmap :=
 Definition get_var (m:vmap) x :=
   on_vu (@pto_val (vtype x)) undef_error (m.[x]%vmap).
 
+Arguments get_var _%vmap_scope _.
+
 Definition get_gvar (gd: glob_decls) (vm: vmap) (x:gvar) :=
   if is_lvar x then get_var vm x.(gv)
   else get_global gd x.(gv).
@@ -160,6 +162,10 @@ Proof.
   + by rewrite /WArray.cast /= => ??; rewrite Z.leb_refl.
   by case => //= ?; case:ifP.
 Qed.
+
+Lemma get_var_set vm x v y :
+  get_var vm.[x <- ok v] y = if x == y then ok (pto_val v) else get_var vm y.
+Proof. by rewrite {1}/get_var Fv.setP; case: eqP => // ?; subst. Qed.
 
 Lemma get_var_set_var vm x v vm' y :
   set_var vm x v = ok vm' →
@@ -1559,7 +1565,7 @@ Definition eval_uincl (t1 t2:stype) (v1: exec (psem_t t1)) (v2: exec (psem_t t2)
 Definition vm_uincl (vm1 vm2:vmap) :=
   forall x, eval_uincl (vm1.[x])%vmap (vm2.[x])%vmap.
 
-Arguments vm_uincl _%vmap _%vmap.
+Arguments vm_uincl _%vmap_scope _%vmap_scope.
 
 Lemma val_uincl_refl t v: @val_uincl t t v v.
 Proof. by rewrite /val_uincl. Qed.

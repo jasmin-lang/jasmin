@@ -399,4 +399,4 @@ End SEM_IND.
 
 End SEM.
 
-Arguments set_RSP _ _%vmap.
+Arguments set_RSP _ _%vmap_scope.
