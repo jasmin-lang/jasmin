@@ -175,7 +175,7 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     (f.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s1.(emem)) f.(f_extra).(sf_align) →
     valid_RSP s1.(emem) s1.(evm) →
     alloc_stack s1.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1 →
-    sem k {| emem := m1 ; evm := set_RSP m1 match f.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => kill_flags s1.(evm) rflags end |} f.(f_body) s2' →
+    sem k {| emem := m1 ; evm := set_RSP m1 match f.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => kill_flags (if f.(f_extra).(sf_save_stack) is SavedStackReg r then s1.(evm).[r <- undef_error] else s1.(evm)) rflags end |} f.(f_body) s2' →
     valid_RSP s2'.(emem) s2'.(evm) →
     let m2 := free_stack s2'.(emem) in
     s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
@@ -262,7 +262,7 @@ Lemma sem_callE ii k s fn s' :
     (λ f _ _ _, (f.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s.(emem)) f.(f_extra).(sf_align))
     (λ _ _ _ _, valid_RSP s.(emem) s.(evm))
     (λ f m1 _ _, alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1)
-    (λ f m1 s2' k', sem k' {| emem := m1 ; evm := set_RSP m1 match f.(f_extra).(sf_return_address) with RAreg x => s.(evm).[x <- undef_error] | RAstack _ => s.(evm) | RAnone => kill_flags s.(evm) rflags end |} f.(f_body) s2')
+    (λ f m1 s2' k', sem k' {| emem := m1 ; evm := set_RSP m1 match f.(f_extra).(sf_return_address) with RAreg x => s.(evm).[x <- undef_error] | RAstack _ => s.(evm) | RAnone => kill_flags (if f.(f_extra).(sf_save_stack) is SavedStackReg r then s.(evm).[r <- undef_error] else s.(evm)) rflags end |} f.(f_body) s2')
     (λ _ _ s2' _, valid_RSP s2'.(emem) s2'.(evm))
     (λ f _ s2' _,
       let m2 := free_stack s2'.(emem) in
@@ -373,8 +373,8 @@ Section SEM_IND.
       (fd.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s1.(emem)) fd.(f_extra).(sf_align) →
       valid_RSP s1.(emem) s1.(evm) →
       alloc_stack s1.(emem) fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 →
-      sem k {| emem := m1 ; evm := set_RSP m1 match fd.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => kill_flags s1.(evm) rflags end |} fd.(f_body) s2' →
-      Pc k {| emem := m1 ; evm := set_RSP m1 match fd.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => kill_flags s1.(evm) rflags end |} fd.(f_body) s2' →
+      sem k {| emem := m1 ; evm := set_RSP m1 match fd.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => kill_flags (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then s1.(evm).[r <- undef_error] else s1.(evm)) rflags end |} fd.(f_body) s2' →
+      Pc k {| emem := m1 ; evm := set_RSP m1 match fd.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => kill_flags (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then s1.(evm).[r <- undef_error] else s1.(evm)) rflags end |} fd.(f_body) s2' →
       valid_RSP s2'.(emem) s2'.(evm) →
       let m2 := free_stack s2'.(emem) in
       s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →

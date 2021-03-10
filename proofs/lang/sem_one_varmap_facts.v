@@ -199,13 +199,14 @@ Proof.
   move: hr; case: sf_return_address; last by [].
   - move => /Sv.union_spec /Decidable.not_or[] _ /Sv.union_spec /Decidable.not_or[].
     clear.
-    rewrite /sv_of_flags => r_not_flag _.
-    rewrite kill_flagsE.
-    case: ifP => // rx.
-    elim: r_not_flag; move: rx.
-    rewrite !Sv.add_spec SvD.F.empty_iff !inE.
-    repeat (case/orP; first by move/eqP => ->; intuition).
-    by move/eqP => ->; intuition.
+    rewrite /sv_of_flags => r_not_flag r_not_save_stack.
+    rewrite kill_flagsE; case: ifP => rx.
+    + elim: r_not_flag; move: rx.
+      rewrite !Sv.add_spec SvD.F.empty_iff !inE.
+      repeat (case/orP; first by move/eqP => ->; intuition).
+      by move/eqP => ->; intuition.
+    case: sf_save_stack r_not_save_stack => // x {rx} rx; rewrite Fv.setP_neq //.
+    apply/eqP; SvD.fsetdec.
   move => ra ra_not_in_k.
   rewrite Fv.setP_neq //.
   apply/eqP.

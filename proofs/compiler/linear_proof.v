@@ -1692,7 +1692,8 @@ Section PROOF.
     all: move => ?; subst sp.
     - (* Export function *)
     { case: lret ok_lret => // _.
-      case: sf_save_stack ok_save_stack ok_ss => [ | saved_rsp | stack_saved_rsp ] /= ok_save_stack ok_ss ok_fd'.
+      case: sf_save_stack ok_save_stack ok_ss exec_body ih =>
+      [ | saved_rsp | stack_saved_rsp ] /= ok_save_stack ok_ss exec_body ih ok_fd'.
       + (* No need to save RSP *)
       { have {ih} := ih fn xH.
         rewrite /checked_c ok_fd chk_body => /(_ erefl).
