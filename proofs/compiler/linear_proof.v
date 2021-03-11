@@ -1723,7 +1723,150 @@ Section PROOF.
         by rewrite valid_rsp' -(ss_top_stack S) top_stack_preserved.
       }
       + (* RSP is saved into register “saved_rsp” *)
-      { admit. }
+      { have {ih} := ih fn xH.
+        rewrite /checked_c ok_fd chk_body => /(_ erefl).
+        move: ok_fd'.
+        case: saved_rsp ok_save_stack ok_ss exec_body => _ saved_stack /= /andP[] /eqP -> /eqP to_save_empty.
+        case/andP => /andP[] /eqP saved_stack_not_GD /eqP saved_stack_not_RSP /Sv_memP saved_stack_not_written.
+        move => exec_body.
+        rewrite linear_c_nil.
+        case: (linear_c fn) => lbl lbody /=.
+        rewrite -cat_cons.
+        set P := (X in X ++ lbody ++ _).
+        set Q := (X in lbody ++ X).
+        move => ok_fd' E.
+        have ok_body : is_linear_of fn (P ++ lbody ++ Q).
+        + by rewrite /is_linear_of ok_fd' /=; eauto.
+        have ok_rsp : get_var vm1 (var_of_register RSP) = ok (Vword (top_stack (emem s1))).
+        + move: (X (var_of_register RSP)). rewrite Fv.setP_eq /get_var /=.
+          by case: _.[_]%vmap => //= - [] sz w ? /pword_of_word_uincl[] /= ? -> {w}; subst.
+        set vm_save := vm1.[{| vtype := sword64; vname := saved_stack |} <- ok (pword_of_word (top_stack (emem s1)))]%vmap.
+        have : ∃ vm,
+              [/\
+               lsem p' {| lmem := m1 ; lvm := vm_save ; lfn := fn ; lpc := 1 |} {| lmem := m1 ; lvm := vm ; lfn := fn ; lpc := size (head {| li_ii := xH ; li_i := Lalign |} P :: allocate_stack_frame false xH (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))) + 0 |},
+               wf_vm vm,
+               vm = vm_save [\ Sv.singleton (var_of_register RSP) ] &
+               get_var vm (var_of_register RSP) = ok (Vword (top_stack (emem s1) - wrepr Uptr (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))))
+              ].
+        { move: ok_body; rewrite /P /allocate_stack_frame.
+          case: eqP => hsz ok_body.
+          * (* Nothing to allocate *)
+            exists vm_save; subst vm_save; split.
+            - rewrite addn0; exact: rt_refl.
+            - exact: wf_vm_set W.
+            - reflexivity.
+            by rewrite hsz wrepr0 GRing.subr0 get_var_set; case: eqP.
+          (* Subtract frame size *)
+          eexists; split.
+          - apply: rt_step.
+            rewrite /lsem1 /step.
+            move: ok_body.
+            rewrite /P -cat1s -catA -(addn0 1) => /find_instr_skip ->.
+            rewrite /= /eval_instr /= /sem_sopn /= /get_gvar /= get_var_set.
+            case: eqP => // _.
+            rewrite ok_rsp /= /of_estate /= !zero_extend_u pword_of_wordE.
+            reflexivity.
+          - do 2 apply: wf_vm_set.
+            exact: W.
+          - clear => x hx.
+            rewrite Fv.setP_neq //; apply/eqP.
+            SvD.fsetdec.
+          by rewrite get_var_set eqxx.
+        }
+        case => vm [] lexec_alloc ok_vm vm_old vm_rsp.
+        (* set rsp' := wand (top_stack m1') (wrepr U64 (- wsize_size (sf_align (f_extra fd)))). *)
+        set rsp' := top_stack m1'.
+        set vm' := ((((((vm.[var_of_flag OF <- ok false]).[var_of_flag CF <- ok false]).[var_of_flag SF <- ok (SF_of_word rsp')]).[var_of_flag PF <- ok (PF_of_word rsp')]).[var_of_flag ZF <- ok (ZF_of_word rsp')]).[var_of_register RSP <- ok (pword_of_word rsp')])%vmap.
+        have wf_vm' : wf_vm vm'.
+        + repeat apply: wf_vm_set; exact: ok_vm.
+        have X' : vm_uincl (set_RSP m1' (kill_flags s1.[Var (sword Uptr) saved_stack <- undef_error]%vmap rflags)) vm'.
+        + rewrite /set_RSP /vm' => x.
+          change (v_var (vid (string_of_register RSP))) with (var_of_register RSP).
+          move: (X x) (W x).
+          rewrite !Fv.setP; case: eqP => x_rsp; first by subst.
+          rewrite kill_flagsE !inE !(eq_sym x).
+          do 5 (
+          case: eqP => ? ;
+          [ subst; rewrite ?orbT Fv.setP_neq //;
+            case: s1.[_]%vmap => // - [] //=;
+            case: _.[_]%vmap => // - [];
+            try done
+          | ]).
+          rewrite vm_old; last by rewrite Sv.singleton_spec; exact: not_eq_sym.
+          rewrite /vm_save /=.
+          case: eqP => ?.
+          * subst; rewrite !Fv.setP_neq //.
+            case: s1.[_]%vmap => // ?.
+            by case: vm1.[_]%vmap.
+          rewrite !Fv.setP; case: eqP => ?; first by subst.
+          done.
+        have D : disjoint_labels 1 lbl P.
+        + move => lbl' _.
+          rewrite /P /= has_cat orbF /allocate_stack_frame.
+          by case: ifP.
+        move: E => /(_ m1 vm' P Q wf_vm' (mm_alloc M ok_m1') X' D ok_body).
+        case => m2 vm2.
+        rewrite /= !size_cat /= addn1.
+        move => E K2 W2 X2 M2.
+        have saved_rsp : get_var vm2 (Var (sword Uptr) saved_stack) = ok (Vword (top_stack (emem s1))).
+        + rewrite /get_var -K2 // /vm' /=.
+          rewrite Fv.setP_neq; last by apply/eqP => - [] ?; subst.
+          repeat (rewrite Fv.setP_neq //).
+          rewrite vm_old; last by move => /SvD.F.singleton_iff [] ?; subst.
+          by rewrite /vm_save Fv.setP_eq.
+        eexists.
+        + apply: lsem_step.
+          * rewrite /lsem1 /step /find_instr ok_fd' /= /eval_instr /= /sem_sopn /= /get_gvar /= ok_rsp /=.
+            rewrite /of_estate /= zero_extend_u pword_of_wordE.
+            reflexivity.
+          apply: lsem_trans; first exact: lexec_alloc.
+          apply: lsem_step.
+          * rewrite /lsem1 /step.
+            move: (ok_body).
+            replace (P ++ lbody ++ Q) with ((head {| li_ii := xH ; li_i := Lalign |} P :: allocate_stack_frame false xH (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))) ++ [:: ensure_rsp_alignment xH (sf_align (f_extra fd)) ] ++ lbody ++ Q);
+              last by rewrite /P /= -catA.
+            move => /find_instr_skip -> /=.
+            Global Opaque Z.opp.
+            rewrite /eval_instr /= /sem_sopn /= /get_gvar /= vm_rsp /=.
+            rewrite /to_estate /with_vm /of_estate /=.
+            rewrite !zero_extend_u pword_of_wordE.
+            rewrite addn0.
+            reflexivity.
+          rewrite
+            -/(align_word (sf_align (f_extra fd)) _)
+            -wrepr_opp
+            -/(top_stack_after_alloc (top_stack (emem s1)) _ _)
+            -(alloc_stack_top_stack ok_m1').
+          apply: lsem_step_end; first exact: E.
+          rewrite /lsem1 /step.
+          replace (((size _).+1 + size _).+1) with (size (P ++ lbody) + 0);
+            last by rewrite /= !size_cat addn0 addn1.
+          move: (ok_body); rewrite catA => /find_instr_skip ->.
+          rewrite /= /eval_instr /= /sem_sopn /= /get_gvar /= saved_rsp /= /of_estate /=.
+          rewrite addn0 !size_cat !addn1 !addSn addnS /=.
+          rewrite pword_of_wordE.
+          reflexivity.
+        + clear - ok_rsp K2 vm_old.
+          move => x; rewrite !Sv.union_spec !Sv.add_spec Sv.singleton_spec SvD.F.empty_iff Fv.setP =>
+            /Decidable.not_or[] /Decidable.not_or[] x_not_k /Decidable.not_or[] x_not_flags x_not_saved_stack x_not_extra.
+          case: eqP => x_rsp.
+          * subst; move: ok_rsp; rewrite zero_extend_u /get_var.
+            case: _.[_]%vmap; last by case.
+            move => [] /= sz w hle /(@ok_inj _ _ _ _) /Vword_inj[] ?; subst => /= ->.
+            by rewrite pword_of_wordE.
+          rewrite -K2; last exact: x_not_k.
+          repeat (rewrite Fv.setP_neq; last by apply/eqP; intuition).
+          rewrite vm_old; last SvD.fsetdec.
+          rewrite Fv.setP_neq // eq_sym.
+          by apply/eqP.
+        + exact: wf_vm_set.
+        + move => x; rewrite Fv.setP; case: eqP => ?.
+          * by subst; rewrite Fv.setP_eq zero_extend_u.
+          rewrite Fv.setP_neq; last by apply/eqP.
+          rewrite /set_RSP Fv.setP_neq; last by apply/eqP.
+          done.
+        exact: mm_free.
+      }
       (* RSP is saved in stack at offset “stack_saved_rsp” *)
       { admit. }
     }

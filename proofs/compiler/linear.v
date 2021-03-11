@@ -160,7 +160,13 @@ Section CHECK.
     let stack_align := e.(sf_align) in
     Let _ := add_finfo fn fn (check_c (check_i fn stack_align) fd.(f_body)) in
     Let _ := assert ((e.(sf_return_address) != RAnone) || (all (λ '(x, _), is_word_type x.(vtype) != None) e.(sf_to_save))) (Ferr_fun fn (Cerr_linear "bad to-save")) in
-    Let _ := assert ((sf_return_address e != RAnone) || (sf_save_stack e != SavedStackNone) || ((stack_align == U8) && (sf_stk_sz e == 0) && (sf_stk_extra_sz e == 0))) (Ferr_fun fn (Cerr_linear "bad save-stack")) in
+    Let _ := assert ((sf_return_address e != RAnone)
+                     || match sf_save_stack e with
+                        | SavedStackNone => (stack_align == U8) && (sf_stk_sz e == 0) && (sf_stk_extra_sz e == 0)
+                        | SavedStackReg r => (vtype r == sword Uptr) && (sf_to_save e == [::])
+                        | SavedStackStk _ => true (* TODO? *)
+                        end)
+                    (Ferr_fun fn (Cerr_linear "bad save-stack")) in
     ok tt.
 
   Definition check_prog := 
@@ -353,11 +359,10 @@ Definition linear_fd (fd: sfundef) :=
        | SavedStackNone => ([::], [::], 1%positive)
        | SavedStackReg x =>
          let r := VarI x xH in
-         (pop_to_save xH e.(sf_to_save) ++ [:: MkLI xH (Lopn [:: Lvar rspi ] (Ox86 (MOV Uptr)) [:: Pvar {| gv := r ; gs := Slocal |} ]) ],
+         ([:: MkLI xH (Lopn [:: Lvar rspi ] (Ox86 (MOV Uptr)) [:: Pvar {| gv := r ; gs := Slocal |} ]) ],
           [:: MkLI xH (Lopn [:: Lvar r ] (Ox86 (MOV Uptr)) [:: Pvar rspg ] ) ]
           ++ allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
-          ++ ensure_rsp_alignment xH e.(sf_align)
-          :: push_to_save xH e.(sf_to_save), (** FIXME: here to_save is always empty *)
+          ++ [:: ensure_rsp_alignment xH e.(sf_align) ],
           1%positive)
        | SavedStackStk ofs =>
          let rax := VarI (var_of_register RAX) xH in
