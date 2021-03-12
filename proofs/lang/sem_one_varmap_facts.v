@@ -374,4 +374,141 @@ Qed.
 
 End PRESERVED_RSP_GD.
 
+Section VALIDW_STABLE.
+
+Infix "≡" := (λ m1 m2, validw m1 =2 validw m2) (at level 40).
+
+Instance eqrel_trans A B C : Transitive (@eqrel A B C).
+Proof. by move => x y z xy yz a b; transitivity (y a b). Qed.
+
+Lemma write_lval_validw gd x v s s' :
+  write_lval gd x v s = ok s' →
+  emem s ≡ emem s'.
+Proof.
+  case: x => /=.
+  - by move => _ ty /write_noneP [] <-.
+  - by move => x /write_var_emem <-.
+  - t_xrbindP => /= ????? ?? ?? ? ? ? ? ? h <- /= ??.
+    by rewrite (CoreMem.write_validw _ _ h).
+  - move => aa sz x e.
+    by apply: on_arr_varP; t_xrbindP => ?????????????? <-.
+  move => aa sz ty x e.
+  by apply: on_arr_varP; t_xrbindP => ?????????????? <-.
+Qed.
+
+Lemma write_lvals_validw gd xs vs s s' :
+  write_lvals gd s xs vs = ok s' →
+  emem s ≡ emem s'.
+Proof.
+  elim: xs vs s.
+  - by case => // ? [] ->.
+  move => x xs ih [] // v vs s /=; t_xrbindP => ? /write_lval_validw h /ih.
+  exact: (eqrel_trans h).
+Qed.
+
+Let Pc (_: Sv.t) s1 (_: cmd) s2 : Prop := emem s1 ≡ emem s2.
+Let Pi (_: Sv.t) s1 (_: instr) s2 : Prop := emem s1 ≡ emem s2.
+Let Pi_r (_: instr_info) (_: Sv.t) s1 (_: instr_r) s2 : Prop := emem s1 ≡ emem s2.
+Let Pfun (_: instr_info) (_: Sv.t) s1 (_: funname) s2 : Prop := emem s1 ≡ emem s2.
+
+Lemma validw_stable_nil : sem_Ind_nil Pc.
+Proof. by []. Qed.
+
+Lemma validw_stable_cons : sem_Ind_cons p extra_free_registers Pc Pi.
+Proof. move => ki kc x y z i c _ xy _ yz; red; etransitivity; eassumption. Qed.
+
+Lemma validw_stable_mkI : sem_Ind_mkI p extra_free_registers Pi Pi_r.
+Proof. by []. Qed.
+
+Lemma validw_stable_assgn : sem_Ind_assgn p Pi_r.
+Proof. by move => ii s1 s2 x tg ty e v v' ok_v ok_v' /write_lval_validw. Qed.
+
+Lemma validw_stable_opn : sem_Ind_opn p Pi_r.
+Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_validw. Qed.
+
+Lemma validw_stable_if_true : sem_Ind_if_true p extra_free_registers Pc Pi_r.
+Proof. by []. Qed.
+
+Lemma validw_stable_if_false : sem_Ind_if_false p extra_free_registers Pc Pi_r.
+Proof. by []. Qed.
+
+Lemma validw_stable_while_true : sem_Ind_while_true p extra_free_registers Pc Pi_r.
+Proof.
+  move => ii k k' krec s1 s2 s3 s4 aa c e c' _ A _ _ B _ C; red.
+  etransitivity; first exact: A.
+  etransitivity; first exact: B.
+  exact: C.
+Qed.
+
+Lemma validw_stable_while_false : sem_Ind_while_false p extra_free_registers Pc Pi_r.
+Proof. by []. Qed.
+
+Lemma validw_stable_call : sem_Ind_call p extra_free_registers Pi_r Pfun.
+Proof. by []. Qed.
+
+Lemma validw_stable_proc : sem_Ind_proc p extra_free_registers Pc Pfun.
+Proof.
+  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_rsp ok_m1 /sem_stack_stable /= ss.
+  have A := Memory.alloc_stackP ok_m1.
+  rewrite /Pc /= => B _ -> ptr sz /=.
+  congr (_ && _).
+  apply: all_ziota => i hi.
+  rewrite !valid8_validw.
+  have C := Memory.free_stackP (emem s2').
+  rewrite (fss_valid C) -B (ass_valid A) -(ss_top_stack ss).
+  rewrite {3}/top_stack (fss_frames C) (fss_root C) -(ss_root ss) -(ss_frames ss) (ass_root A) (ass_frames A) /= -/(top_stack (emem s1)).
+  rewrite /pointer_range.
+  have [L H] := ass_above_limit A.
+  case: (@andP (_ <=? _)%Z); rewrite !zify.
+  - case => ptr_i_lo ptr_i_hi.
+    rewrite andbF; apply/negbTE; apply: stack_region_is_free.
+    split; last exact: ptr_i_hi.
+    etransitivity; last exact: ptr_i_lo.
+    exact: L.
+  rewrite andbT => ptr_not_fresh.
+  set X := (X in _ || X).
+  suff /negbTE -> : ~~ X; first by rewrite orbF.
+  subst X; rewrite !zify => - [].
+  change (wsize_size U8) with 1%Z.
+  move => ptr_i_lo ptr_i_hi.
+  apply: ptr_not_fresh.
+  split; first exact: ptr_i_lo.
+  move: (sf_stk_sz _) H ptr_i_hi; clear => n.
+  Lia.lia.
+Qed.
+
+Lemma sem_validw_stable k s1 c s2 :
+  sem p extra_free_registers k s1 c s2 → emem s1 ≡ emem s2.
+Proof.
+  exact:
+    (@sem_Ind p extra_free_registers Pc Pi Pi_r Pfun
+              validw_stable_nil validw_stable_cons validw_stable_mkI validw_stable_assgn validw_stable_opn validw_stable_if_true validw_stable_if_false validw_stable_while_true validw_stable_while_false validw_stable_call validw_stable_proc k s1 c s2).
+Qed.
+
+Lemma sem_I_validw_stable k s1 i s2 :
+  sem_I p extra_free_registers k s1 i s2 → emem s1 ≡ emem s2.
+Proof.
+  exact:
+    (@sem_I_Ind p extra_free_registers Pc Pi Pi_r Pfun
+              validw_stable_nil validw_stable_cons validw_stable_mkI validw_stable_assgn validw_stable_opn validw_stable_if_true validw_stable_if_false validw_stable_while_true validw_stable_while_false validw_stable_call validw_stable_proc k s1 i s2).
+Qed.
+
+Lemma sem_i_validw_stable ii k s1 i s2 :
+  sem_i p extra_free_registers ii k s1 i s2 → emem s1 ≡ emem s2.
+Proof.
+  exact:
+    (@sem_i_Ind p extra_free_registers Pc Pi Pi_r Pfun
+              validw_stable_nil validw_stable_cons validw_stable_mkI validw_stable_assgn validw_stable_opn validw_stable_if_true validw_stable_if_false validw_stable_while_true validw_stable_while_false validw_stable_call validw_stable_proc ii k s1 i s2).
+Qed.
+
+Lemma sem_call_validw_stable ii k s1 fn s2 :
+  sem_call p extra_free_registers ii k s1 fn s2 → emem s1 ≡ emem s2.
+Proof.
+  exact:
+    (@sem_call_Ind p extra_free_registers Pc Pi Pi_r Pfun
+              validw_stable_nil validw_stable_cons validw_stable_mkI validw_stable_assgn validw_stable_opn validw_stable_if_true validw_stable_if_false validw_stable_while_true validw_stable_while_false validw_stable_call validw_stable_proc ii k s1 fn s2).
+Qed.
+
+End VALIDW_STABLE.
+
 End PROG.
