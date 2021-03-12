@@ -144,8 +144,6 @@ Section CHECK.
                                          && (stack_frame_allocation_size e <? wbase Uptr)%Z (* FIXME: this check seems redundant *)
                         end
           (ii, Cerr_one_varmap "nowhere to store the return address") in
-        Let _ := assert ((0 <=? sf_stk_sz e) && (0 <=? sf_stk_extra_sz e))%Z
-          (ii, Cerr_linear "assert false") in
         Let _ := assert (sf_align e <= stack_align)%CMP
           (ii, Cerr_linear "caller need alignment greater than callee") in
         ok tt
@@ -160,6 +158,8 @@ Section CHECK.
     let stack_align := e.(sf_align) in
     Let _ := add_finfo fn fn (check_c (check_i fn stack_align) fd.(f_body)) in
     Let _ := assert ((e.(sf_return_address) != RAnone) || (all (λ '(x, _), is_word_type x.(vtype) != None) e.(sf_to_save))) (Ferr_fun fn (Cerr_linear "bad to-save")) in
+    Let _ := assert ((0 <=? sf_stk_sz e) && (0 <=? sf_stk_extra_sz e))%Z
+                    (Ferr_fun fn (Cerr_linear "bad stack size")) in
     Let _ := assert ((sf_return_address e != RAnone)
                      || match sf_save_stack e with
                         | SavedStackNone => (stack_align == U8) && (sf_stk_sz e == 0) && (sf_stk_extra_sz e == 0)

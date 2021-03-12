@@ -1391,12 +1391,12 @@ Section PROOF.
     move => fr_undef m1 vm2 P Q W M X D C.
     move: chk_call => /=.
     case: ifP => // fn'_neq_fn.
-    case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => _ /assertP ok_ra _ /assertP ok_stk_sz _ /assertP ok_align _.
+    case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => _ /assertP ok_ra _ /assertP ok_align _.
     have := get_fundef_p' ok_fd'.
     set lfd' := linear_fd _ _ _ fd'.
     move => ok_lfd'.
     move: linear_eq; rewrite /= ok_fd' fn'_neq_fn.
-    move: (checked_prog ok_fd') => /=; t_xrbindP => - []; apply: add_finfoP => chk_body _ /assertP ok_to_save _ /assertP ok_save_stack _.
+    move: (checked_prog ok_fd') => /=; t_xrbindP => - []; apply: add_finfoP => chk_body _ /assertP ok_to_save _ /assertP ok_stk_sz _ /assertP ok_save_stack _.
     have ok_body' : is_linear_of fn' (lfd_body lfd').
     - by rewrite /is_linear_of; eauto.
     move: ih; rewrite /Pfun; move => /(_ _ _ _ _ _ _ _ _ _ ok_body') ih A.
@@ -1679,7 +1679,7 @@ Section PROOF.
     rewrite ok_fd => _ /Some_inj <- ?; subst ra.
     rewrite /value_of_ra => ok_lret.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_sp.
-    move: (checked_prog ok_fd) => /=; t_xrbindP => - []; apply: add_finfoP => chk_body _ /assertP ok_to_save _ /assertP ok_save_stack _.
+    move: (checked_prog ok_fd) => /=; t_xrbindP => - []; apply: add_finfoP => chk_body _ /assertP ok_to_save _ /assertP ok_stk_sz _ /assertP ok_save_stack _.
     have ? : fd' = linear_fd p extra_free_registers fn fd.
     - move: linear_ok ok_fd ok_fd'; clear.
       rewrite /linear_prog; t_xrbindP => _ _ _ _ <- /=.
