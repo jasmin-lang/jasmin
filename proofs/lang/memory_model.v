@@ -280,6 +280,17 @@ Section CoreMem.
     forall i i', 0 <= i < wsize_size s -> 0 <= i' < wsize_size s' ->
        add p i <> add p' i'.
 
+  Lemma disjoint_range_U8 p sz p' :
+    (∀ i, 0 <= i < wsize_size sz → p' ≠ add p i) →
+    disjoint_range p sz p' U8.
+  Proof.
+    move => h i i' i_range.
+    change (wsize_size U8) with 1%Z => i'_range.
+    have -> : i' = 0 by Lia.lia.
+    rewrite {i' i'_range} add_0 => ?.
+    exact: (h _ i_range).
+  Qed.
+
   Lemma writeP_neq m m' p s (v :word s) p' s':
     write m p v = ok m' ->
     disjoint_range p s p' s' ->
