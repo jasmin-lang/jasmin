@@ -113,6 +113,165 @@ Notation leak_for := (seq leak_c) (only parsing).
 
 Notation leak_fun := (funname * leak_c)%type.
 
+(** Label **)
+
+Inductive label_elem : Type :=
+  | LblF of funname  
+  | LblN of nat
+  | LblB of bool.
+
+(**** Some examples for Labelling ****)
+(* LblF sub,0 :    fn sub(reg u64[1] z) { 
+   LblF sub,LblN 0,0:     z[0] = 1; 
+   }
+
+          fn scalarmult(reg u64 n) {
+                     stack u64[1] x;
+                     reg u64[1] y;
+0:                   x[0] = 0;
+1:                   while (n >u 0) { 
+1,0:                 y = x;                                  
+1,1:                 sub(y);     (* in case if this function is inlined then the label will be 1,1,0 *)                        
+1,2:                 n -= 1;
+1,3:                 sub(y);     (* in case if this function is inlined then the label will be 1,3,0 *)
+    }
+}
+
+*)
+
+(* Defines equality on label_elem: return true if they are equal else returns false *)
+Definition eq_label_elem (l1 l2: label_elem) : bool :=
+match (l1,l2) with 
+ | (LblF fn, LblF fn') => if fn == fn' then true else false
+ | (LblN n, LblN n') => if n == n' then true else false
+ | (LblB b, LblB b') => if b == b' then true else false
+ | (_, _) => false
+end.
+
+(* Defines equality on seq of label_elem: return true if they are equal else returns false *)
+Fixpoint eq_label_elems (l1 l2 : seq label_elem) : bool :=
+match (l1, l2) with 
+ | ([::], [::]) => true
+ | (x::xs, y::ys) => if eq_label_elem x y then eq_label_elems xs ys else false
+ | (_, _) => false
+end.
+
+Definition lbl := prod (seq label_elem) nat.
+
+Definition eq_label (l1 l2 : lbl) : bool := 
+match (l1, l2) with 
+ | (([::], n), ([::], n')) => if n==n' then true else false
+ | ((l, n), (l', n')) => if n==n' then eq_label_elems l l' else false
+end.
+
+Definition label_map := lbl -> nat.
+
+(* This is like a counter for the label annotated with each instruction *)
+Definition update_label_map (m:label_map) (l:lbl) : label_map :=
+fun (l':lbl) => if eq_label l l' then (m l) + 1 else (m l').
+
+(* Takes a bool and a label and generates label depending on bool *)
+Definition lbl_b (b:bool) (l:lbl) : lbl :=
+(LblB b :: LblN l.2::l.1, 0).
+
+Definition lbl_t (l:lbl) : lbl := lbl_b true l.
+
+Definition lbl_f (l:lbl) : lbl := lbl_b false l.
+
+Definition lbl_for (l:lbl) : lbl := (LblN l.2::l.1, 0).
+
+Definition lbl_call fn l := (LblF fn :: LblN l.2::l.1, 0).
+
+Definition next_lbl (l:lbl) := (l.1, l.2 + 1).
+
+Definition empty_label_map : label_map := (fun _ => O).
+
+
+
+(**************** EXAMPLES **********************************)
+
+(* Exmaple 1 *)
+(*                                              fn foo1 () {                  Lcall _ 
+ ( [:: LblF foo1],0:                               x := 2;                    (foo1, [:: Lopn (LSub [:: LEmpty; LEmpty]  
+   [:: LblF foo1],1:                               if (x <= 3) {                       ; Lcond LEmpty true (Lopn (LSub [:: LEmpty; LEmpty])]) _  
+   [:: LblB true::LblN 1::LblF foo1],0:                 x := x + x;           
+   [:: LblB false::LblN 1::LblF foo1],0:           else x := x - x;
+                                                   }
+                                                }  *)
+
+(* Example 2 *)
+(*                                              main () {                    [:: Lopn (LSub [:: LEmpty; LEmpty]
+   [:: LblF main],0:                               x := 5;                    ; Lcall _  
+   [:: LblF main],1:                               call foo1();                 (foo1, [:: Lopn (LSub [:: LEmpty; LEmpty]                  
+                                                                                         ;  Lcond LEmpty true (Lopn (LSub [:: LEmpty; LEmpty])])]  
+                                                }*)
+
+(* Exmaple 3 *)
+(*                                              fn foo2 () {                  Lcall _ 
+   [:: LblF foo2],0:                               x := 2;                    (foo2, [:: Lopn (LSub [:: LEmpty; LEmpty]  
+   [:: LblF foo2],1:                               if (x != 0) {                       ; Lcond LEmpty true (Lopn (LSub [:: LEmpty; LEmpty])
+   [:: LblN true::LblN 1:: LblF foo2,0:                  x := x + 1;    
+   [:: LblN false::LblN 1:: LblF foo2,0:            else x := x - 1; 
+                                                    } ;
+   [:: LblF foo2], 2:                               if (x <= 3) {                      ; Lcond LEmpty true (Lopn (LSub [:: LEmpty; LEmpty]))])
+   [:: LblB true::LblN 2:: LblF foo2],0:                  x := x + x;
+   [:: LblB false::LblN 2:: LblF foo2],0:            else x := x - x;
+                                                    };
+                                                } *)
+
+
+(* Example 4 *)
+(*                                             fn foo3 () {                   Lcall _           
+   LblF foo3,0:                                   x := 4;                     (foo2, [:: Lopn (LSub [:: LEmpty; LEmpty])  
+   LblF foo3,1:                                   r := 0                               ; Lopn (LSub [:: LEmpty; LEmpty])
+   LblN foo3,3:                                   while (x <= 10) {(*7*)               ; Lwhile_true [::] _ 
+   LblB true::LblN 3::LblN foo3,0                    r = r + 1;                                      [:: Lopn (LSub [:: LEmpty; LEmpty]);       
+   LblB true::LblN 3::LblN foo3,1                    x++; }                                           Lopn (LSub [:: LEmpty; LEmpty])]; lw])
+                                               } *)
+
+(* Example 5 *)
+(*                                             main () {
+   [:: Lblf F main],0:                          call foo3();
+                                               }  *)
+
+Section Cost_C.
+
+Variable cost_i : label_map -> lbl -> leak_i -> label_map.
+
+Fixpoint cost_c (m:label_map) (l:lbl) (lc:leak_c) :=
+ match lc with 
+ | [::] => m 
+ | li :: lc => let m1 := cost_i m l li in 
+               cost_c m1 (next_lbl l) lc
+end.
+
+Fixpoint cost_cs (m:label_map) (l:lbl) (lc:seq leak_c) :=
+ match lc with 
+ | [::] => m
+ | lc1 :: lcs1 => let m1 := cost_c m l lc1 in 
+                  cost_cs m1 (next_lbl l) lcs1
+ end.
+
+End Cost_C.
+
+(* l is the label for current instruction *)
+Fixpoint cost_i (m : label_map) (l:lbl) (li : leak_i) : label_map :=
+match li with 
+ | Lopn _ => update_label_map m l 
+ | Lcond _ b lc => let m := update_label_map m l in 
+                   cost_c cost_i m (lbl_b b l) lc
+ | Lwhile_true lc1 _ lc2 li => let m1 := update_label_map m l in 
+                               let m2 := cost_c cost_i m1 (lbl_f l) lc1 in 
+                               let m3 := cost_c cost_i m2 (lbl_t l) lc2 in 
+                               cost_i m3 l li
+ | Lwhile_false lc1 _ => let m1 := update_label_map m l in 
+                         cost_c cost_i m1 (lbl_f l) lc1 
+ | Lfor _ lcs => let m1 := update_label_map m l in 
+                 cost_cs cost_i m1 (lbl_for l) lcs
+ | Lcall _ (fn, lc) _ => let m1 := update_label_map m l in 
+                         cost_c cost_i m (lbl_call fn l) lc
+end.
+
 Section Cost_leak_i.
 
 Variable cost_leak_i : leak_i -> nat.
@@ -407,6 +566,28 @@ Inductive leak_i_tr :=
 | LT_ilasgn : leak_i_tr.
 (*| LT_icompose : leak_i_tr -> leak_i_tr -> leak_i_tr.*)
 
+(* trasform_cost (lt : leak_i_tr) (l : label_map) (c : source_cost:label_map) : label_map *)
+
+
+Section Transform_Cost.
+
+Variable transform_cost_i : leak_i_tr -> lbl -> lbl -> label_map -> label_map. 
+
+Fixpoint transform_cost_c (lt: seq leak_i_tr) (sl:lbl) (tl : lbl) (sc: label_map) : label_map :=
+match lt with
+ | [::] => sc
+ | li :: lc => let m1 := transform_cost_i li sl tl sc in 
+               transform_cost_c lc sl tl m1
+end.
+
+End Transform_Cost.
+
+Fixpoint transform_cost_i (lt:leak_i_tr) (sl:lbl) (tl : lbl) (sc: label_map) : label_map :=
+match lt with 
+| LT_iremove => empty_label_map
+| LT_icond _ ltc ltc' => empty_label_map
+| _ => empty_label_map
+end.
 
 (*Fixpoint cost_leak_i_tr (lti : leak_i_tr) : cost_tr :=
 match lti with 
@@ -691,6 +872,18 @@ match ltss with
 | x :: xs => let r := leak_compile stk x lf in 
               leak_compiles stk xs (lf.1, r)
 end.
+
+(*Fixpoint trasform_cost (m:label_map) (l:label) (lt: leak_i_tr): label_map :=
+match lt with 
+ | LT_iremove => empty_label_map
+ (*| LT_ikeep => empty_label_map *)
+ | LT_ile lte => update_label_map m l
+ | LT_icond ltis _ ltis' => let m1 := update_label_map m l in 
+                            let m2 := transform_cost m1 l ltis in 
+                            let m3 := tramform_cost m2 l ltis'
+ | _ => empty_label_map
+end.*)
+
 
 (** Leakage for intermediate-level **)
 
