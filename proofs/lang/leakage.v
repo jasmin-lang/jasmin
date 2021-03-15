@@ -140,7 +140,7 @@ Inductive label_elem : Type :=
 *)
 
 (* Defines equality on label_elem: return true if they are equal else returns false *)
-Definition eq_label_elem (l1 l2: label_elem) : bool :=
+Definition label_elem_beq (l1 l2: label_elem) : bool :=
 match (l1,l2) with 
  | (LblF fn, LblF fn') => if fn == fn' then true else false
  | (LblN n, LblN n') => if n == n' then true else false
@@ -148,31 +148,23 @@ match (l1,l2) with
  | (_, _) => false
 end.
 
-(* Defines equality on seq of label_elem: return true if they are equal else returns false *)
-Fixpoint eq_label_elems (l1 l2 : seq label_elem) : bool :=
-match (l1, l2) with 
- | ([::], [::]) => true
- | (x::xs, y::ys) => if eq_label_elem x y then eq_label_elems xs ys else false
- | (_, _) => false
-end.
+Lemma label_elem_eq_axiom : Equality.axiom label_elem_beq.
+Proof.
+Admitted.
 
-Definition lbl := prod (seq label_elem) nat.
+Definition label_elem_eqMixin     := Equality.Mixin label_elem_eq_axiom.
+Canonical  label_elem_eqType      := Eval hnf in EqType label_elem label_elem_eqMixin.
 
-Definition eq_label (l1 l2 : lbl) : bool := 
-match (l1, l2) with 
- | (([::], n), ([::], n')) => if n==n' then true else false
- | ((l, n), (l', n')) => if n==n' then eq_label_elems l l' else false
-end.
+Definition lbl := (seq label_elem * nat)%type.
 
 Definition label_map := lbl -> nat.
 
 (* This is like a counter for the label annotated with each instruction *)
 Definition update_label_map (m:label_map) (l:lbl) : label_map :=
-fun (l':lbl) => if eq_label l l' then (m l) + 1 else (m l').
+fun (l':lbl) => if l == l' then (m l) + 1 else (m l').
 
 (* Takes a bool and a label and generates label depending on bool *)
-Definition lbl_b (b:bool) (l:lbl) : lbl :=
-(LblB b :: LblN l.2::l.1, 0).
+Definition lbl_b (b:bool) (l:lbl) : lbl := (LblB b :: LblN l.2::l.1, 0).
 
 Definition lbl_t (l:lbl) : lbl := lbl_b true l.
 
@@ -566,29 +558,6 @@ Inductive leak_i_tr :=
 | LT_ilasgn : leak_i_tr.
 (*| LT_icompose : leak_i_tr -> leak_i_tr -> leak_i_tr.*)
 
-(* trasform_cost (lt : leak_i_tr) (l : label_map) (c : source_cost:label_map) : label_map *)
-
-
-Section Transform_Cost.
-
-Variable transform_cost_i : leak_i_tr -> lbl -> lbl -> label_map -> label_map. 
-
-Fixpoint transform_cost_c (lt: seq leak_i_tr) (sl:lbl) (tl : lbl) (sc: label_map) : label_map :=
-match lt with
- | [::] => sc
- | li :: lc => let m1 := transform_cost_i li sl tl sc in 
-               transform_cost_c lc sl tl m1
-end.
-
-End Transform_Cost.
-
-Fixpoint transform_cost_i (lt:leak_i_tr) (sl:lbl) (tl : lbl) (sc: label_map) : label_map :=
-match lt with 
-| LT_iremove => empty_label_map
-| LT_icond _ ltc ltc' => empty_label_map
-| _ => empty_label_map
-end.
-
 (*Fixpoint cost_leak_i_tr (lti : leak_i_tr) : cost_tr :=
 match lti with 
  | LT_ile lte => c_exact 1 1
@@ -795,7 +764,7 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
     [::Lwhile_false ((leak_Is leak_I stk ltis lts) ++ (leak_EI stk lti le)) (leak_E stk lte le)]
   | LT_icopn ltes, Lopn le => leak_ESI stk ltes (get_seq_leak_e (leak_E stk (LT_subi 0) le)) (get_seq_leak_e (leak_E stk (LT_subi 1) le))
   | LT_ilmov1, Lopn le => [:: Lopn (LSub [:: LSub [:: leak_E stk (LT_subi 0) le]; LSub [:: LEmpty]]) ; 
-                                       Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: leak_E stk (LT_subi 1) le]])]
+                              Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: leak_E stk (LT_subi 1) le]])]
   | LT_ilmov2, Lopn le => [:: Lopn (LSub [:: LSub [::];
                                         LSub[:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])]
   | LT_ilmov3, Lopn le => [:: Lopn (LSub [:: LSub [::]; LSub [:: leak_E stk (LT_subi 1) le]])]
@@ -1002,14 +971,121 @@ map (fun x=> leak_i_asm x) r.
 
 
 
+(* ------------------------------------------------------------------- *)
+
+(* trasform_cost (lt : leak_i_tr) (l : label_map) (c : source_cost:label_map) : label_map *)
+
+Section Transform_Cost.
+
+Variable transform_cost_i : leak_i_tr -> lbl -> lbl -> label_map -> label_map * lbl. 
+
+Fixpoint transform_cost_c (lt: seq leak_i_tr) (sl:lbl) (tl : lbl) (sc: label_map) : label_map * lbl :=
+match lt with
+ | [::] => (sc, next_lbl tl)
+ | li :: lc => 
+   let (m1, ntl) := transform_cost_i li sl tl sc in 
+   transform_cost_c lc (next_lbl sl) ntl m1
+end.
+
+End Transform_Cost.
+
+(*
+
+Definition set_lbl (sl:lbl) (sc:label_map) (tl:lbl) (divfact:nat) (tc:label_map) : label_map :=
+  fun (l:lbl) =>
+    if l == tl then divn (sc sl) divfact else tc l.
 
 
+   
+Fixpoint transform_cost_i (lt:leak_i_tr) 
+   (sl:lbl) (sc: label_map) (tl:lbl) (divfact:nat) (tc:label_map) : label_map * lbl :=
+  match lt with 
+  | LT_ikeep => (* TODO remove ikeep *)
+    (* We assume it is used only for base instruction *)
+    set_lbl sl sc tl divfact tc, next_lbl tl
 
+  | LT_ile _ => 
+    set_lbl sl sc tl divfact tc, next_lbl tl
 
+  | LT_icond _ lt1 lt2 =>
+    let  tc     := set_lbl sl sc tl divfact tc in
+    let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_t sl) sc (lbl_t tl) divfact tc in
+    let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_f sl) sc (lbl_f tl) divfact tc in
+    tc, next_lbl tl
 
+  | LT_iwhile lt1 _ lt2 =>
+    let  tc     := set_lbl sl sc tl divfact tc in
+    let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_f sl) sc (lbl_f tl) divfact tc in
+    let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_t sl) sc (lbl_t tl) divfact tc in
+    tc, next_lbl tl
+ 
+  | LT_ifor _ lt1 =>
+    let  tc     := set_lbl sl sc tl divfact tc in 
+    let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_for sl) sc (lbl_for tl) divfact tc in
+    tc, next_lbl tl
 
+  | LT_icall _ _ => 
+    (* map : lbl -> cost *)
+    (* map : lbl ++ tl -> cost *)
+    empty_label_map (* FIXME *)
+    
+  | LT_iremove => 
+    tc, tl
 
+  | LT_icond_eval b ltb => (* FIXME : add b in LT_icond_eval *)
+    transform_cost_c transform_cost_i ltb (lbl_b b sl) sc tl divfact tc 
 
+  | LT_ifor_unroll n lt => (* FIXME : add n in LT_ifor *)
+    (* for i = 1 to n do c   ---> repeat n (assign; c') *)
+    empty_label_map (* FIXME *)
+    (* 
+      assign;        tl
+      c'; -> tl'     next_lbl tl         sc sl / (n * divfact)
+      assign;        tl'
+      c'; -> tl''    next_lbl tl'  
+      ....           tl''  
+      assign; 
+      c';
+    *)
+
+  | LT_icall_inline nargs narrayinit nres -> (* FIXME: type of LT_icall_inline *)
+    empty_label_map (* FIXME *)
+
+  | LT_icondl : leak_e_i_tr → leak_e_tr → leak_c_tr → leak_c_tr → leak_i_tr
+  | LT_iwhilel : leak_e_i_tr → leak_e_tr → leak_c_tr → leak_c_tr → leak_i_tr
+  | LT_icopn : leak_es_i_tr → leak_i_tr
+  | LT_ilmov1 => 
+    (* sl:i --->    tl:i1; tl': i2; next_lbl tl' *)
+    let  tc     := set_lbl sl sc tl divfact tc in 
+    let  tl'     := next_lbl tl in
+    let  tc     := set_lbl sl sc tl' divfact tc in 
+    tc, next_lbl tl'
+
+  | LT_ilmov2 : leak_i_tr
+  | LT_ilmov3 : leak_i_tr
+  | LT_ilmov4 : leak_i_tr
+  | LT_ilinc : leak_e_es_tr → leak_i_tr
+  | LT_ilcopn : leak_e_es_tr → leak_i_tr
+  | LT_ilsc : leak_i_tr
+  | LT_ild : leak_i_tr
+  | LT_ildc : leak_i_tr
+  | LT_ildcn : leak_i_tr
+  | LT_ilmul : leak_es_i_tr → leak_e_tr → leak_i_tr
+  | LT_ileq : leak_e_es_tr → leak_i_tr
+  | LT_illt : leak_e_es_tr → leak_i_tr
+  | LT_ilif : leak_e_i_tr → leak_e_tr → leak_i_tr
+  | LT_ilea : leak_i_tr
+  | LT_ilfopn : leak_es_i_tr → leak_e_es_tr → leak_i_tr
+  | LT_ilds : leak_i_tr
+  | LT_ildus : leak_i_tr
+  | LT_ildiv : leak_i_tr → leak_e_es_tr → leak_i_tr
+  | LT_ilasgn : leak_i_tr
+
+| LT_ikeep 
+| LT_iremove => 
+  (sc, tl)
+| LT_icond _ ltc ltc' => 
+*)
 
 
 
