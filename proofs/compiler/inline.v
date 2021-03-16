@@ -108,15 +108,14 @@ Definition arr_init p := Parr_init p.
     end in
   Sv.fold assgn X [::].*)
 
-Definition array_init iinfo (X: Sv.t) : cmd * leak_c :=
+Definition array_init iinfo (X: Sv.t) : cmd :=
   let assgn x cl :=
     match x.(vtype) with
     | sarr p =>
-      (MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename x.(vtype) (arr_init p)) :: cl.1, 
-       (Lopn (LSub [:: LEmpty; LEmpty]) :: cl.2))
+      MkI iinfo (Cassgn (Lvar (mkdV x)) AT_rename x.(vtype) (arr_init p)) :: cl
     | _      => cl
     end in
-  Sv.fold assgn X ([::], [::]).
+  Sv.fold assgn X [::].
 
 Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd * leak_i_tr) :=
   match i with
@@ -147,11 +146,11 @@ Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd * leak_i
         Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
         let init_array := array_init iinfo (locals fd') in
         ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
-                  init_array.1 ++
+                  init_array ++
                   (fd'.(f_body) ++
                   assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Pvar fd'.(f_res))),
-              (LT_icall_inline init_array.2
-                                  [:: LT_ikeep]))
+              LT_icall_inline (size es) (size init_array) (size fd'.(f_res)))
+
       else ciok (X, [::i], LT_icall f LT_id LT_id)
     end
   end.

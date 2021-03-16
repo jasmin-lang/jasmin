@@ -351,7 +351,7 @@ Section WF.
     wf_vm (evm s1) -> write_lval gd x ve s1 = ok (s2, lw) -> wf_vm (evm s2).
   Proof.
     case: x => [vi t|v|sz v e|sz v e] /= Hwf.
-    + by t_xrbindP=> s; move=> /write_noneP [] -> H [] <- hl.
+    + by t_xrbindP=> s; move=> /write_noneP [] -> H <- hl.
     + by t_xrbindP=> s hw <- hl;apply (wf_write_var Hwf) in hw. 
     + by t_rbindP => -[<- hl].
     t_xrbindP. apply: on_arr_varP => n t ? ?. 
@@ -739,7 +739,10 @@ Section PROOF.
 
   Lemma array_initP P s ii X :
     exists vmi,
-      sem P s (array_init ii X).1 (array_init ii X).2 {| emem := emem s; evm := vmi |} /\
+      sem P s 
+        (array_init ii X) 
+        (nseq (size (array_init ii X)) (Lopn (LSub [:: LEmpty; LEmpty])))
+        {| emem := emem s; evm := vmi |} /\
       forall xt xn,
         let x := {|vtype := xt; vname := xn |} in
         vmi.[x] =
@@ -751,7 +754,9 @@ Section PROOF.
           else (evm s).[x].
   Proof.
     have [vmi [] H1 H2]: exists vmi, 
-      sem P s (array_init ii X).1 (array_init ii X).2 {| emem := emem s; evm := vmi |} /\
+      sem P s (array_init ii X)
+              (nseq (size (array_init ii X)) (Lopn (LSub [:: LEmpty; LEmpty])))
+              {| emem := emem s; evm := vmi |} /\
       forall xt xn,
         let x := {|vtype := xt; vname := xn |} in
         vmi.[x] =
@@ -763,14 +768,9 @@ Section PROOF.
           else (evm s).[x];last first.
     + by exists vmi;split=>//= xt xn; rewrite H2 SvD.F.elements_b.
     case: s => mem;rewrite /array_init Sv.fold_spec.
-    set F := (fun (a:cmd*leak_c) (e:Sv.elt) => _).
-    have Hcat : forall l c, (List.fold_left F l c).1 = (List.fold_left F l ([::], [::])).1 ++ c.1.
-    + elim => [ | x l Hrec ] c //=. rewrite Hrec. move: (Hrec (F ([::], [::]) x)). 
-      move=> Hrec'. rewrite Hrec' -catA;f_equal. move=> {Hrec'}.
-      by case: x => [[] ].
-    have Hcat' : forall l c, (List.fold_left F l c).2 = (List.fold_left F l ([::], [::])).2 ++ c.2.
-    + elim => [ | x l Hrec ] c //=. rewrite Hrec. move: (Hrec (F ([::], [::]) x)). 
-      move=> Hrec'. rewrite Hrec' -catA;f_equal. move=> {Hrec'}.
+    set F := (fun (a:cmd) (e:Sv.elt) => _).
+    have Hcat : forall l c, List.fold_left F l c = List.fold_left F l [::] ++ c.
+    + elim => [ | x l Hrec ] c //=; rewrite Hrec (Hrec (F [::] x)) -catA; f_equal. 
       by case: x => [[] ].
     elim: (Sv.elements X) => //=.
     + by move=> vm;exists vm; split;[constructor |].
@@ -786,7 +786,8 @@ Section PROOF.
       rewrite orbF;case:ifPn=> //;rewrite /SvD.F.eqb.
       by case: SvD.F.eq_dec => // -[->].
     + exists vm'.[{| vtype := sarr n; vname := xn0 |} <- ok (WArray.empty n)]; split.
-      + rewrite Hcat; rewrite Hcat'; apply: (sem_app H1); apply: sem_seq1; constructor. 
+      + rewrite Hcat size_cat nseq_addn.
+        apply: (sem_app H1); apply: sem_seq1; constructor. 
         apply Eassgn with (@Varr n (WArray.empty n)) (@Varr n (WArray.empty n)) => //=.
         + by rewrite /truncate_val /= /WArray.cast Z.leb_refl.
         by rewrite /write_var /set_var /= /WArray.inject Z.ltb_irrefl.

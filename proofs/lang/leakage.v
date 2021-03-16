@@ -530,7 +530,7 @@ Inductive leak_i_tr :=
                                                  (* cost cb' <= a cost cb + b   cost cb' <= cost (if b then ...) *) 
                                                  (* same as source *)
 | LT_ifor_unroll: nat -> seq leak_i_tr -> leak_i_tr
-| LT_icall_inline: leak_c -> seq leak_i_tr -> leak_i_tr
+| LT_icall_inline: nat -> nat -> nat -> leak_i_tr
 (* lowering leak transformers *)
 | LT_icondl : leak_e_i_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
 | LT_iwhilel :  leak_e_i_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
@@ -557,77 +557,7 @@ Inductive leak_i_tr :=
 | LT_ildiv : leak_i_tr -> leak_e_es_tr -> leak_i_tr
 | LT_ilasgn : leak_i_tr.
 
-(* FIXME Swarn: this is used only to check that unsed remove *)
-Section Eq_leak_i_tr.
-Variable eq_leak_i_tr : leak_i_tr -> leak_i_tr -> bool.
-
-Fixpoint eq_leak_i_trs (ltis : seq leak_i_tr) (ltis' : seq leak_i_tr) : bool :=
-match ltis, ltis' with 
-| [::], [::] => true 
-| [::], _ => false
-| a :: l, a' :: l' => andb (eq_leak_i_tr a a') (eq_leak_i_trs l l')
-| _, _ => false
-end.
-
-End Eq_leak_i_tr.
-
-Fixpoint eq_leak_i_tr (lti : leak_i_tr) (lti' : leak_i_tr) : bool :=
-match lti, lti' with 
-| LT_iremove, LT_iremove => true
-| LT_ikeep, LT_ikeep => true
-| LT_ile lte, LT_ile lte' => 
-  eq_leak_e_tr lte lte'
-| LT_icond lte ltis ltis', LT_icond lte' ltis1 ltis1' => 
-  [&& eq_leak_e_tr lte lte'
-    , eq_leak_i_trs eq_leak_i_tr ltis ltis1 
-    & eq_leak_i_trs eq_leak_i_tr ltis' ltis1']
-| LT_iwhile ltis lte ltis', LT_iwhile ltis1 lte' ltis1' => 
-  [&& eq_leak_i_trs eq_leak_i_tr ltis ltis1
-    , eq_leak_e_tr lte lte'
-    & eq_leak_i_trs eq_leak_i_tr ltis' ltis1']
-| LT_icond_eval b ltis, LT_icond_eval b' ltis'=> 
-  (b == b') && eq_leak_i_trs eq_leak_i_tr ltis ltis'
-| LT_ifor lte ltis, LT_ifor lte' ltis' => 
-  eq_leak_e_tr lte lte' && eq_leak_i_trs eq_leak_i_tr ltis ltis'
-| LT_icall fn1 lte lte', LT_icall fn2 lte1 lte1' => 
-  [&& fn1 == fn2, eq_leak_e_tr lte lte1 & eq_leak_e_tr lte' lte1']
-| LT_ifor_unroll n ltis, LT_ifor_unroll n' ltis' => 
-  (n == n') && eq_leak_i_trs eq_leak_i_tr ltis ltis'
-| LT_icall_inline lc ltis, LT_icall_inline lc' ltis' => 
-  (eq_leak_is eq_leak_i lc lc') && (eq_leak_i_trs eq_leak_i_tr ltis ltis')
-| LT_icondl ltei lte ltis ltis', LT_icondl ltei' lte' ltis1 ltis1' => 
-  [&& eq_leak_e_i_tr ltei ltei'
-    , eq_leak_e_tr lte lte'
-    , eq_leak_i_trs eq_leak_i_tr ltis ltis1
-    & eq_leak_i_trs eq_leak_i_tr ltis' ltis1']
-| LT_iwhilel ltei lte ltis ltis', LT_iwhilel ltei' lte' ltis1 ltis1' => 
-  [&& eq_leak_e_i_tr ltei ltei'
-    , eq_leak_e_tr lte lte'
-    , eq_leak_i_trs eq_leak_i_tr ltis ltis1
-    & eq_leak_i_trs eq_leak_i_tr ltis' ltis1']
-| LT_icopn lts, LT_icopn lts' => eq_leak_es_i_tr lts lts'
-| LT_ilmov1, LT_ilmov1 => true
-| LT_ilmov2, LT_ilmov2 => true 
-| LT_ilmov3, LT_ilmov3 => true 
-| LT_ilmov4, LT_ilmov4 => true
-| LT_ilinc lts, LT_ilinc lts' => eq_leak_e_es_tr lts lts'
-| LT_ilcopn lts, LT_ilcopn lts' => eq_leak_e_es_tr lts lts'
-| LT_ilsc, LT_ilsc => true 
-| LT_ild, LT_ild => true 
-| LT_ildc, LT_ildc => true 
-| LT_ildcn, LT_ildcn => true
-| LT_ilmul lts lte, LT_ilmul lts' lte' => (eq_leak_es_i_tr lts lts') && (eq_leak_e_tr lte lte')  
-| LT_ileq lts, LT_ileq lts' => eq_leak_e_es_tr lts lts'
-| LT_illt lts, LT_illt lts' => eq_leak_e_es_tr lts lts'
-| LT_ilif ltei lte, LT_ilif ltei' lte' => (eq_leak_e_i_tr ltei ltei') && (eq_leak_e_tr lte lte')
-| LT_ilea, LT_ilea => true
-| LT_ilfopn ltes lts, LT_ilfopn ltes' lts' => (eq_leak_es_i_tr ltes ltes') && (eq_leak_e_es_tr lts lts')
-| LT_ilds, LT_ilds => true
-| LT_ildus, LT_ildus => true 
-| LT_ildiv lti lts, LT_ildiv lti' lts' => (eq_leak_i_tr lti lti') && (eq_leak_e_es_tr lts lts')
-| LT_ilasgn, LT_ilasgn => true 
-| _ ,_ => false
-end.
+Definition is_LT_ilds li := if li is LT_ilds then true else false.
 
 (* Transformation from expression leakage to instruction leakage *)
 Fixpoint leak_EI (stk : pointer) (lti : leak_e_i_tr) (le : leak_e) : seq leak_i :=
@@ -761,11 +691,11 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
               (leak_E stk lte' le') ]
   | LT_ifor_unroll _n ltiss, Lfor le ltss => (* _n should be equal to size ltss *)
     flatten (map (fun l => leak_assgn :: l) (leak_Iss leak_I stk ltiss ltss))
-  | LT_icall_inline lc ltc', Lcall le (f, lts) le' => 
-    (map (fun x => (Lopn (LSub [:: x; LEmpty]))) (get_seq_leak_e le) ++ 
-     lc ++
-     leak_Is leak_I stk (leak_Fun f) lts ++
-    (map (fun y => (Lopn (LSub [:: LEmpty; y]))) (get_seq_leak_e le')))
+  | LT_icall_inline nargs ninit nres, Lcall le (f, lts) le' => (* nargs = size le, nres = size le') *)
+    map (fun x => (Lopn (LSub [:: x; LEmpty]))) (get_seq_leak_e le) ++ 
+    nseq ninit (Lopn (LSub [:: LEmpty; LEmpty])) ++ 
+    leak_Is leak_I stk (leak_Fun f) lts ++
+    map (fun y => (Lopn (LSub [:: LEmpty; y]))) (get_seq_leak_e le')
  (* lowering *)
   | LT_icondl lti' lte ltt ltf, Lcond le b lti => 
      (leak_EI stk lti' le) ++ [:: Lcond (leak_E stk lte le) b (leak_Is leak_I stk (if b then ltt else ltf) lti) ]
@@ -814,7 +744,7 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
   | LT_ilds, Lopn le => [:: Lopn (LSub [:: LSub [:: nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0]; LSub[:: LEmpty]])]
   | LT_ildus, Lopn le => [:: Lopn (LSub [:: LSub [:: LEmpty]; LSub[:: LEmpty]])]
   | LT_ildiv lti ltes, Lopn le =>  
-    if eq_leak_i_tr lti LT_ilds then 
+    if is_LT_ilds lti then 
       [:: Lopn (LSub [:: LSub [:: nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0]; 
                         LSub[:: LEmpty]])] ++ 
       [:: Lopn (LSub [:: LSub [:: LEmpty; nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0; 
@@ -1343,7 +1273,7 @@ Fixpoint transform_cost_i (lt:leak_i_tr) (m:Sm.t) (tl:lbl) (sl:lbl) divfact : Sm
   | LT_ifor_unroll n lt => 
     transform_cost_unroll transform_cost_i lt n m tl sl divfact (n * divfact)
 
-  | LT_icall_inline lc lt => (* nargs narrayinit nres FIXME: type of LT_icall_inline *)
+  | LT_icall_inline nargs ninit nres => 
     (m, tl) (* FIXME *)
 
   | LT_icondl lei lte lt1 lt2 =>
