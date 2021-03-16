@@ -44,6 +44,7 @@ compiler/x86_sem.v
 compiler/x86_variables.v
 compiler/x86_variables_proofs.v
 lang/array.v
+lang/cost.v
 lang/expr.v
 lang/extraction.v
 lang/gen_map.v

@@ -149,7 +149,7 @@ Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd * leak_i
                   init_array ++
                   (fd'.(f_body) ++
                   assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Pvar fd'.(f_res))),
-              LT_icall_inline (size es) (size init_array) (size fd'.(f_res)))
+              LT_icall_inline (size es) f (size init_array) (size fd'.(f_res)))
 
       else ciok (X, [::i], LT_icall f LT_id LT_id)
     end
