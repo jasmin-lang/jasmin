@@ -774,6 +774,48 @@ Section LEX.
 
 End LEX.
 
+Section CmpList.
+  Context (T:Type) (cmp:T -> T -> comparison) {C:Cmp cmp}.
+
+  Fixpoint cmp_list (l1 l2: list T) := 
+    match l1, l2 with
+    | [::], [::] => Eq
+    | [::], _ :: _ => Lt
+    | _ :: _, [::] => Gt
+    | x1::l1, x2::l2 => Lex (cmp x1 x2) (cmp_list l1 l2)
+    end.
+
+  Lemma cmp_list_sym l1 l2 : cmp_list l1 l2 = CompOpp (cmp_list l2 l1).
+  Proof.
+    elim: l1 l2 => [ | x1 l1 hrec] [ | x2 l2] //=.
+    by rewrite !Lex_lex; apply lex_sym; [apply/cmp_sym | apply/hrec].
+  Qed.
+    
+  Lemma cmp_list_trans (y x z : seq T) (c : comparison) :
+    ctrans (cmp_list x y) (cmp_list y z) = Some c → cmp_list x z = c.
+  Proof.
+    elim: x y z c => [ | x xs hrec] [ | y ys] [ | z zs] c //=;
+      (apply ctrans_Eq || apply ctrans_Lt || idtac).
+    + by rewrite !Lex_lex; case: lex => // -[].
+    by rewrite !Lex_lex; apply/lex_trans => /= c'; [apply/cmp_ctrans | apply/hrec].
+  Qed.
+
+  Lemma cmp_list_eq l1 l2 : cmp_list l1 l2 = Eq → l1 = l2.
+  Proof.
+    elim: l1 l2 => [ | x1 l1 hrec] [ | x2 l2] => //=.
+    by rewrite Lex_lex=> /lex_eq /= [] /(@cmp_eq _ _ C) -> /hrec ->.
+  Qed.
+
+  Instance ListO : Cmp cmp_list.
+  Proof.
+    constructor.
+    + by apply cmp_list_sym.
+    + by apply cmp_list_trans.    
+    by apply cmp_list_eq.
+  Qed.
+    
+End CmpList.
+
 Section MIN.
   Context T (cmp: T → T → comparison) (O: Cmp cmp).
   Definition cmp_min (x y: T) : T :=
@@ -874,6 +916,18 @@ Proof.
     + by apply: Pos.lt_trans H1 H2.
     by apply: Pos.lt_trans H2 H1.
   apply Pos.compare_eq.
+Qed.
+
+Instance natO : Cmp Nat.compare.
+Proof.
+  constructor.
+  + by move=> y x; have := Nat.compare_antisym x y.
+  + move=> ????; case: Nat.compare_spec => [->|H1|H1];
+    case:Nat.compare_spec=> H2 //= -[] <- //;subst;
+    rewrite ?Nat.compare_lt_iff ?Nat.compare_gt_iff //.
+    + by apply: Nat.lt_trans H1 H2.
+    by apply: Nat.lt_trans H2 H1.
+  by apply Nat.compare_eq.
 Qed.
 
 Lemma Z_eqP : Equality.axiom Z.eqb.

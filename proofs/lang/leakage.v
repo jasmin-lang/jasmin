@@ -141,16 +141,18 @@ Inductive label_elem : Type :=
 
 (* Defines equality on label_elem: return true if they are equal else returns false *)
 Definition label_elem_beq (l1 l2: label_elem) : bool :=
-match (l1,l2) with 
- | (LblF fn, LblF fn') => if fn == fn' then true else false
- | (LblN n, LblN n') => if n == n' then true else false
- | (LblB b, LblB b') => if b == b' then true else false
- | (_, _) => false
+match l1, l2 with 
+ | LblF fn, LblF fn' => if fn == fn' then true else false
+ | LblN n, LblN n' => if n == n' then true else false
+ | LblB b, LblB b' => if b == b' then true else false
+ | _, _ => false
 end.
 
 Lemma label_elem_eq_axiom : Equality.axiom label_elem_beq.
 Proof.
-Admitted.
+  move=> [f | n | b] [f' | n' | b'] /=; 
+   (by constructor ||  by case: eqP => [ -> | h]; constructor => // -[]).
+Qed.
 
 Definition label_elem_eqMixin     := Equality.Mixin label_elem_eq_axiom.
 Canonical  label_elem_eqType      := Eval hnf in EqType label_elem label_elem_eqMixin.
@@ -172,13 +174,11 @@ Definition lbl_f (l:lbl) : lbl := lbl_b false l.
 
 Definition lbl_for (l:lbl) : lbl := (LblN l.2::l.1, 0).
 
-Definition lbl_call fn l := (LblF fn :: LblN l.2::l.1, 0).
+Definition lbl_call fn (l:lbl) : lbl := (LblF fn :: LblN l.2::l.1, 0).
 
 Definition next_lbl (l:lbl) := (l.1, l.2 + 1).
 
 Definition empty_label_map : label_map := (fun _ => O).
-
-
 
 (**************** EXAMPLES **********************************)
 
@@ -992,125 +992,415 @@ map (fun x=> leak_i_asm x) r.
 
 
 (* ------------------------------------------------------------------- *)
+(* Syntaxic transformation of the cost                                 *)
 
-(* trasform_cost (lt : leak_i_tr) (l : label_map) (c : source_cost:label_map) : label_map *)
+Module CmpLbl.
 
-Section Transform_Cost.
+  Definition cmp_label_elem (l1 l2: label_elem) := 
+    match l1, l2 with
+    | LblF f1, LblF f2 => gcmp f1 f2
+    | LblF _ , _       => Lt
+    | _      , LblF _  => Gt
+    | LblN n1, LblN n2 => gcmp n1 n2
+    | LblN _ , _       => Lt
+    | _      , LblN _  => Gt
+    | LblB b1, LblB b2 => gcmp b1 b2
+    end.
 
-Variable transform_cost_i : leak_i_tr -> lbl -> lbl -> label_map -> label_map * lbl. 
+  Instance LabelElemO : Cmp cmp_label_elem.
+  Proof.
+    constructor.
+    + by move=> [f1 | n1 | b1] [f2 | n2 | b2] //=; apply cmp_sym.
+    + move=> [yf | yn | yb] [xf | xn | xb] //= [zf | zn | zb] c //=;
+      try (by apply cmp_ctrans ||
+           by apply ctrans_Lt  ||
+           by apply ctrans_Gt  ).
+    by move=> [f1 | n1 | b1] [f2 | n2 | b2] //= h; rewrite (cmp_eq h). 
+  Qed.
+   
+  Definition t := [eqType of lbl].
 
-Fixpoint transform_cost_c (lt: seq leak_i_tr) (sl:lbl) (tl : lbl) (sc: label_map) : label_map * lbl :=
+  Definition cmp (l1 l2: lbl) := 
+    lex (cmp_list cmp_label_elem) Nat.compare l1 l2.
+
+  Instance cmpO : Cmp cmp.
+  Proof.  
+    apply LexO; [apply ListO; apply LabelElemO | apply natO].
+  Qed.
+
+End CmpLbl.
+
+Record scost := 
+  { sc_divfact : nat
+  ; sc_lbl     : lbl }. (* source label *)
+
+Definition scost_beq sc1 sc2 := 
+ (sc1.(sc_divfact) == sc2.(sc_divfact)) && 
+ (sc1.(sc_lbl) == sc2.(sc_lbl)).
+
+Lemma scost_eq_axiom : Equality.axiom scost_beq.
+Proof.
+  move=> [d1 l1] [d2 l2]; rewrite /scost_beq.
+  case: eqP => /= [-> | h]; last by constructor => -[].
+  by case: eqP => /= [-> | h]; constructor => // -[].
+Qed.
+
+Definition scost_eqMixin     := Equality.Mixin scost_eq_axiom.
+Canonical  scost_eqType      := Eval hnf in EqType scost scost_eqMixin.
+
+Definition prefix_lbl (pre: list label_elem) (l:lbl) := 
+  (l.1 ++ pre, l.2).
+
+Definition has_prefix pre (l:lbl) := 
+   drop (size l.1 - size pre) l.1 == pre.
+
+Definition drop_lbl n (l:lbl) :=
+  (take (size l.1 - n) l.1, l.2).
+
+Lemma prefix_lbl_drop pre l : has_prefix pre l -> 
+  l = prefix_lbl pre (drop_lbl (size pre) l).
+Proof.
+  rewrite /prefix_lbl /has_prefix /drop_lbl => /eqP.
+  by case: l => [l n] /= {2}<-; rewrite cat_take_drop.
+Qed.
+
+(* FIXME: move this in utils.v *)
+Lemma catsI T : right_injective (@cat T).
+Proof.
+by move=> xs ys zs /(congr1 (drop (size xs))); rewrite !drop_size_cat.
+Qed.
+
+Lemma catIs T : left_injective (@cat T).
+Proof.
+move=> xs ys zs /(congr1 (rotr (size xs))).
+by rewrite !rotr_size_cat => /catsI.
+Qed.
+
+Lemma prefix_lbl_inj pre l1 l2: prefix_lbl pre l1 = prefix_lbl pre l2 -> l1 = l2.
+Proof. by case: l1 l2 => l1 n1 [l2 n2] [] /catIs -> ->. Qed.
+
+Lemma drop_eq pre l l1: 
+  drop (size l.1 - size pre) l.1 = pre ->
+  (prefix_lbl pre l1 == l) = (drop_lbl (size pre) l == l1).
+Proof.
+  rewrite /prefix_lbl /drop_lbl; case: l l1 => [l n] [l1 n1] /=.
+  case: eqP => [[] <- <- | hne].
+  + by rewrite size_cat addnK take_size_cat ?eqxx.
+  case: eqP => [[] h1 h2 h| //]; elim hne.
+  by rewrite h2 -h -h1 cat_take_drop.
+Qed.
+
+Lemma drop_prefix_lbl pre l: 
+  drop (size (prefix_lbl pre l).1 - size pre) (prefix_lbl pre l).1 = pre.
+Proof. by rewrite /prefix_lbl /= size_cat addnK drop_size_cat. Qed.
+
+Lemma drop_lbl_prefix_lbl pre l : drop_lbl (size pre) (prefix_lbl pre l) = l.
+Proof. by rewrite /prefix_lbl /drop_lbl /= size_cat addnK take_size_cat //; case: l. Qed.
+
+
+(* Provide map of lbl *)
+
+Module Sm.
+
+Module Ml := Mmake CmpLbl.
+
+Definition t := Ml.t scost.
+
+Definition empty : t := Ml.empty scost.
+
+Definition get (m:t) (tl:lbl) : option scost := Ml.get m tl.
+
+Definition set (m:t) (tl:lbl) (sl:lbl) divfact : t :=
+  Ml.set m tl {| sc_divfact := divfact; sc_lbl := sl |}.
+
+(* Merging map *)
+Definition merge_scost (_:lbl) (o1 o2 : option scost) := 
+  match o1, o2 with
+  | None, None => None
+  | Some o, None | _ , Some o => Some o
+  end.
+
+Definition merge (m1 m2: t) : t := 
+  Ml.map2 merge_scost m1 m2.
+
+Definition disjoint (m1 m2: t) := 
+  forall l, get m1 l <> None -> get m2 l = None.
+
+(* m -> l -> c *)
+(* prefix pre m -> (pre::l) -> c 
+                   (l.1 ++ pre, l.2) -> c *)
+Definition prefix (pre: list label_elem) (m:t) : t := 
+  Ml.fold (fun lbl sc m => Ml.set m (prefix_lbl pre lbl) sc) m empty.
+
+Definition rm_prefix n (m:t) : t := 
+  Ml.fold (fun lbl sc m => Ml.set m (drop_lbl n lbl) sc) m empty.
+
+Definition compose (m1 m2: t) : t :=
+  Ml.fold (fun lbl2 sc2 m3 => 
+     match get m1 sc2.(sc_lbl) with
+     | None => m3
+     | Some sc1 => set m3 lbl2 sc1.(sc_lbl) (sc1.(sc_divfact) * sc2.(sc_divfact))
+     end) m2 empty.
+
+Definition interp (sc:label_map) (m:t) : label_map := 
+  fun l => 
+    match get m l with
+    | Some c => divn (sc c.(sc_lbl)) c.(sc_divfact)
+    | None => 0
+    end.
+
+(* Properties *)
+Lemma setP m x y sl divfact : 
+  get (set m x sl divfact) y = 
+   if x == y then Some {| sc_divfact := divfact; sc_lbl := sl |} 
+   else get m y.
+Proof. by rewrite /get /set Ml.setP. Qed.
+
+Lemma setP_eq m x sl divfact : 
+  get (set m x sl divfact) x = Some {| sc_divfact := divfact; sc_lbl := sl |}.
+Proof. by rewrite setP eqxx. Qed.
+
+Lemma setP_neq m x y sl divfact : 
+  x <> y ->
+  get (set m x sl divfact) y = get m y.
+Proof. by move=> /eqP/negbTE h ;rewrite setP h. Qed.
+
+Lemma disjoint_sym m1 m2: 
+  disjoint m1 m2 -> disjoint m2 m1.
+Proof.
+  move=> h l; have := h l.
+  by case: (get m1) => // c1; case: (get m2) => // c2 ->.
+Qed.
+
+Lemma mergeP m1 m2 l :
+  get (merge m1 m2) l = merge_scost l (get m1 l) (get m2 l).
+Proof. by rewrite /get Ml.map2P. Qed.
+
+Lemma assoc_get (m:t) l : assoc (Ml.elements m) l = get m l.
+Proof.
+  rewrite /get.
+  case heq : assoc => [sc | ].
+  + by have /Ml.elementsP /= -> := assoc_mem heq.
+  case heqg : (Ml.get m l) => [sc | //].
+  by have /introT /(_ heqg) /assocP -/(_ (Ml.elementsU m)):= Ml.elementsP (l,sc) m; rewrite heq.
+Qed.
+
+Lemma prefixP pre m l : 
+  get (prefix pre m) l = 
+   if drop (size l.1 - size pre) l.1 == pre then
+     get m (drop_lbl (size pre) l)
+   else None.
+Proof.
+  rewrite /prefix Ml.foldP.
+  suff : forall m0, 
+    get
+      (foldl (λ (a : Ml.t scost) (kv : Ml.K.t * scost), Ml.set a (prefix_lbl pre kv.1) kv.2) m0
+      (Ml.elements m)) l =
+    if drop (size l.1 - size pre) l.1 == pre then
+       match assoc (Ml.elements m) (drop_lbl (size pre) l) with
+       | Some sc => Some sc
+       | None => get m0 l
+       end
+    else get m0 l.
+  + by move=> ->; rewrite /get Ml.get0 assoc_get /get; case: Ml.get.
+  elim: Ml.elements (Ml.elementsU m) => /=.
+  + by move=> *;case:eqP.
+  move=> -[l1 sc1] es hrec /andP [he hu] m0.
+  rewrite hrec // /get; case: eqP => hpre.
+  + case heq: assoc => [sc' | ].
+    + case: eqP => // ?; subst l1.
+      by rewrite (assoc_mem_dom' heq) in he.
+    by rewrite Ml.setP (drop_eq _ hpre) /=; case: eqP.
+  rewrite Ml.setP; case: eqP => // h.
+  by move: hpre; rewrite -h drop_prefix_lbl.
+Qed.
+
+Lemma get_prefix_lbl pre m l : get (prefix pre m) (prefix_lbl pre l) = get m l.
+Proof. by rewrite prefixP drop_prefix_lbl eqxx drop_lbl_prefix_lbl. Qed.
+
+Lemma composeP m1 m2 l : 
+  get (compose m1 m2) l = 
+    match get m2 l with
+    | Some sc2 =>
+      match get m1 sc2.(sc_lbl) with
+      | Some sc1 => Some {| sc_lbl := sc1.(sc_lbl); sc_divfact := sc1.(sc_divfact) * sc2.(sc_divfact) |}
+      | None => None
+      end
+    | None => None
+    end.
+Proof.
+  rewrite /compose Ml.foldP.
+  suff : forall m0,
+     get (foldl
+       (λ (a : t) (kv : Ml.K.t * scost),
+          match get m1 (sc_lbl kv.2) with
+          | Some sc1 => set a kv.1 (sc_lbl sc1) (sc_divfact sc1 * sc_divfact kv.2)
+          | None => a
+          end) m0 (Ml.elements m2)) l =
+     match assoc (Ml.elements m2) l with
+     | Some sc2 =>
+        match get m1 (sc_lbl sc2) with
+        | Some sc1 => Some {| sc_divfact := sc_divfact sc1 * sc_divfact sc2; sc_lbl := sc_lbl sc1 |}
+        | None => get m0 l
+        end
+     | None => get m0 l
+     end.
+  + by move => ->; rewrite /get Ml.get0 assoc_get /get; case: Ml.get.
+  elim: Ml.elements (Ml.elementsU m2) => //= -[l2 sc2] es hrec /andP /= [he hu] m0.
+  rewrite hrec // /get; case: eqP => [-> | hne] /= {hrec}; case heq: assoc => [sc' | ].
+  + by rewrite (assoc_mem_dom' heq) in he.
+  + by case: (Ml.get m1) => // sc1; rewrite Ml.setP_eq.
+  + by case: (Ml.get m1) => //; case: (Ml.get m1) => // ?; rewrite Ml.setP_neq // eq_sym; apply /eqP.
+  by case: (Ml.get m1) => // ?; rewrite Ml.setP_neq // eq_sym; apply /eqP.
+Qed.
+
+(*Definition valid (sc:label_map) m (tc:label_map) := 
+  forall l, tc l <= interp sc m l. *)
+ 
+Lemma interp_compose sc m1 m2 l : 
+  interp sc (compose m1 m2) l = interp (interp sc m1) m2 l.
+Proof.
+  rewrite /interp composeP.
+  case: (get m2) => // sc2.
+  case: (get m1) => [sc1 /= | ]; last by rewrite div0n.
+  by rewrite -divnMA.
+Qed.
+
+(* sc <= sc' -> interp sc m <= interp sc' m. *)
+
+End Sm.
+
+Section Transform_Cost_c.
+
+Variable transform_cost_i : leak_i_tr -> Sm.t -> lbl -> lbl -> nat -> Sm.t * lbl. 
+
+Fixpoint transform_cost_c (lt:seq leak_i_tr) (m:Sm.t) (tl:lbl) (sl:lbl) (divfact:nat) : Sm.t * lbl :=
 match lt with
- | [::] => (sc, next_lbl tl)
- | li :: lc => 
-   let (m1, ntl) := transform_cost_i li sl tl sc in 
-   transform_cost_c lc (next_lbl sl) ntl m1
+ | [::] => (m, next_lbl tl)
+ | lti :: lt => 
+   let (m1, ntl) := transform_cost_i lti m tl sl divfact in 
+   transform_cost_c lt m1 ntl (next_lbl sl) divfact
 end.
 
-End Transform_Cost.
+Variable (lt:seq leak_i_tr).
+ 
+Fixpoint transform_cost_unroll n m tl sl divfact divfact_in := 
+  match n with
+  | 0 => (m, tl)
+  | S n => 
+    let m := Sm.set m tl sl divfact in
+    let (m,tl) := transform_cost_c lt m (next_lbl tl) (lbl_for sl) divfact_in in
+    transform_cost_unroll n m tl sl divfact divfact_in
+  end.
 
-
-
-Definition set_lbl (sl:lbl) (sc:label_map) (tl:lbl) (divfact:nat) (tc:label_map) : label_map :=
-  fun (l:lbl) =>
-    if l == tl then divn (sc sl) divfact else tc l.
-
-(*
+End Transform_Cost_c.
    
-Fixpoint transform_cost_i (lt:leak_i_tr) 
-   (sl:lbl) (sc: label_map) (tl:lbl) (divfact:nat) (tc:label_map) : label_map * lbl :=
+Section Transform_Cost_i.
+
+Variable transform_cost_f : funname -> Sm.t * lbl. (* started with tl = ([LblF fn], 0) *)
+
+Fixpoint transform_cost_i (lt:leak_i_tr) (m:Sm.t) (tl:lbl) (sl:lbl) divfact : Sm.t * lbl :=
   match lt with 
-  | LT_ikeep => (* TODO remove ikeep *)
-    (* We assume it is used only for base instruction *)
-    set_lbl sl sc tl divfact tc, next_lbl tl
+  | LT_ikeep => 
+    (* We assume it is used only for base instruction.
+       It is not true for inlining so fix it *)
+    (Sm.set m tl sl divfact, next_lbl tl)
 
   | LT_ile _ => 
-    set_lbl sl sc tl divfact tc, next_lbl tl
+    (Sm.set m tl sl divfact, next_lbl tl)
 
   | LT_icond _ lt1 lt2 =>
     (* sl: if e then c1 else c2  ---> tl: (if e' then c1' else c2'); *)
-    let  tc     := set_lbl sl sc tl divfact tc in
-    let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_t sl) sc (lbl_t tl) divfact tc in
-    let (tc, _) := transform_cost_c transform_cost_i lt2 (lbl_f sl) sc (lbl_f tl) divfact tc in
-    tc, next_lbl tl
+    let  m     := Sm.set m tl sl divfact in
+    let (m, _) := transform_cost_c transform_cost_i lt1 m (lbl_t tl) (lbl_t sl) divfact in
+    let (m, _) := transform_cost_c transform_cost_i lt2 m (lbl_f tl) (lbl_f sl) divfact in
+    (m, next_lbl tl)
 
   | LT_iwhile lt1 _ lt2 =>
-    let  tc     := set_lbl sl sc tl divfact tc in
-    let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_f sl) sc (lbl_f tl) divfact tc in
-    let (tc, _) := transform_cost_c transform_cost_i lt2 (lbl_t sl) sc (lbl_t tl) divfact tc in
-    tc, next_lbl tl
- 
+    let  m     := Sm.set m tl sl divfact in
+    let (m, _) := transform_cost_c transform_cost_i lt1 m (lbl_f tl) (lbl_f sl) divfact in
+    let (m, _) := transform_cost_c transform_cost_i lt2 m (lbl_t tl) (lbl_t sl) divfact in
+    (m, next_lbl tl)
+
   | LT_ifor _ lt1 =>
-    let  tc     := set_lbl sl sc tl divfact tc in 
-    let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_for sl) sc (lbl_for tl) divfact tc in
-    tc, next_lbl tl
+    let  m     := Sm.set m tl sl divfact in
+    let (m, _) := transform_cost_c transform_cost_i lt1 m (lbl_for tl) (lbl_for sl) divfact in
+    (m, next_lbl tl)
 
   | LT_icall fn _ _ => 
-    (* fn -> lt --> lc -> label_map -> label_map *)
-    (* f1; f2; f3; f4 *)
-    (* map : lbl -> cost *)
-    (* map : lbl ++ tl -> cost *)
-    empty_label_map (* FIXME *)
-    
+    let m := Sm.set m tl sl divfact in
+    let (mf, _) := transform_cost_f fn in
+    let mf := Sm.prefix (LblN tl.2::tl.1) m in
+    let m  := Sm.merge m mf in
+    (m, next_lbl tl)
+
   | LT_iremove => 
-    tc, tl
-
+    (m, tl)
+ 
   | LT_icond_eval b ltb => 
-    transform_cost_c transform_cost_i ltb (lbl_b b sl) sc tl divfact tc 
+    transform_cost_c transform_cost_i ltb m tl (lbl_b b sl) divfact 
 
-  | LT_ifor_unroll n lt => (* FIXME : add n in LT_ifor *)
-    (* for i = 1 to n do c   ---> repeat n (assign; c') *)
-    empty_label_map (* FIXME *)
-    (* 
-      assign;        tl                  sc sl / divfactor
-      c'; -> tl'     next_lbl tl         sc sl' / (n * divfact)
-      assign;        tl'                 sc sl / divfactor
-      c'; -> tl''    next_lbl tl'  
-      ....           tl''  
-      assign; 
-      c';
-    *)
+  | LT_ifor_unroll n lt => 
+    transform_cost_unroll transform_cost_i lt n m tl sl divfact (n * divfact)
 
-  | LT_icall_inline nargs narrayinit nres -> (* FIXME: type of LT_icall_inline *)
-    empty_label_map (* FIXME *)
+  | LT_icall_inline lc lt => (* nargs narrayinit nres FIXME: type of LT_icall_inline *)
+    (m, tl) (* FIXME *)
 
-  | LT_icondl : leak_e_i_tr → leak_e_tr → leak_c_tr → leak_c_tr → leak_i_tr
-  | LT_iwhilel : leak_e_i_tr → leak_e_tr → leak_c_tr → leak_c_tr → leak_i_tr
+  | LT_icondl lei lte lt1 lt2 =>
+    (m, tl) (* FIXME *)
+
+  | LT_iwhilel lei lte lt1 lt2 =>
     (* while c1 {e} c2  
        while c1'; b = e' { b } c2' *)
-  | LT_icopn : leak_es_i_tr → leak_i_tr
+    (m, tl) (* FIXME *)
+
+  | LT_icopn lesi => 
+    (m, tl) (* FIXME *)
+
   | LT_ilmov1 => 
     (* sl:i --->    tl:i1; tl': i2; next_lbl tl' *)
-    let  tc     := set_lbl sl sc tl divfact tc in 
-    let  tl'     := next_lbl tl in
-    let  tc     := set_lbl sl sc tl' divfact tc in 
-    tc, next_lbl tl'
+    let  m   := Sm.set m tl sl divfact in 
+    let  tl := next_lbl tl in
+    let  m  := Sm.set m tl sl divfact in 
+    (m, next_lbl tl)
 
-  | LT_ilmov2 : leak_i_tr
-  | LT_ilmov3 : leak_i_tr
-  | LT_ilmov4 : leak_i_tr
-  | LT_ilinc : leak_e_es_tr → leak_i_tr
-  | LT_ilcopn : leak_e_es_tr → leak_i_tr
-  | LT_ilsc : leak_i_tr
-  | LT_ild : leak_i_tr
-  | LT_ildc : leak_i_tr
-  | LT_ildcn : leak_i_tr
-  | LT_ilmul : leak_es_i_tr → leak_e_tr → leak_i_tr
-  | LT_ileq : leak_e_es_tr → leak_i_tr
-  | LT_illt : leak_e_es_tr → leak_i_tr
-  | LT_ilif : leak_e_i_tr → leak_e_tr → leak_i_tr
-  | LT_ilea : leak_i_tr
-  | LT_ilfopn : leak_es_i_tr → leak_e_es_tr → leak_i_tr
-  | LT_ilds : leak_i_tr
-  | LT_ildus : leak_i_tr
-  | LT_ildiv : leak_i_tr → leak_e_es_tr → leak_i_tr
-  | LT_ilasgn : leak_i_tr
+  | LT_ilmov2 | LT_ilmov3 | LT_ilmov4 =>
+    (m, tl) (* FIXME *)
 
-| LT_ikeep 
-| LT_iremove => 
-  (sc, tl)
-| LT_icond _ ltc ltc' => 
+  | LT_ilinc lte | LT_ilcopn lte =>
+    (m, tl) (* FIXME *)
+
+  | LT_ilsc | LT_ild | LT_ildc | LT_ildcn => 
+    (m, tl) (* FIXME *)
+  | LT_ilmul ltes lte => 
+    (m, tl) (* FIXME *)
+  | LT_ileq ltes | LT_illt ltes => 
+    (m, tl) (* FIXME *)
+  | LT_ilif ltei lte => 
+    (m, tl) (* FIXME *)
+  | LT_ilea => 
+    (m, tl) (* FIXME *)
+  | LT_ilfopn ltesi ltes =>
+    (m, tl) (* FIXME *)
+  | LT_ilds | LT_ildus =>
+    (m, tl) (* FIXME *)
+
+  | LT_ildiv lti ltes => 
+    (m, tl) (* FIXME *)
+  | LT_ilasgn => 
+    (m, tl) (* FIXME *)
+  end.
+
+(*
+Lemma transform_cost_i_merge : 
+  transform_cost_i lt m tl sl divfact =
+  Sl.merge m (transform_cost_i lt Sm.empty tl sl divfact).
+
+Lemma transform_ok lt l : 
+  wf lt l ->
+  cost (leak_I lt l) = interp (cost l) (transform_cost lt).
+
 *)
 
-
+End Transform_Cost_i.
 
