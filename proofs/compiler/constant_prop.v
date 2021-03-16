@@ -557,9 +557,9 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
     match is_bool b with
     | Some b =>
       if b then let: (v1, cm1, ltc1) := const_prop const_prop_i m c1 in 
-                     (v1, cm1, LT_icond_eval ltc1)
+                     (v1, cm1, LT_icond_eval true ltc1)
            else let: (v2, cm2, ltc2) := const_prop const_prop_i m c2 in 
-                     (v2, cm2, LT_icond_eval ltc2) 
+                     (v2, cm2, LT_icond_eval false ltc2) 
     | None =>
       let: (m1,c1,lt1) := const_prop const_prop_i m c1 in
       let: (m2,c2,lt2) := const_prop const_prop_i m c2 in
@@ -578,12 +578,9 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
     let: (m',c, ltc) := const_prop const_prop_i m c in
     let (e, lte) := const_prop_e m' e in
     let: (_,c', ltc') := const_prop const_prop_i m' c' in
-    if is_bool e == Some false then (m', c, LT_icond_eval ltc) 
+    if is_bool e == Some false then (m', c, LT_icond_eval false ltc) 
     else (m', [:: MkI ii (Cwhile a c e c')], LT_iwhile ltc lte ltc')
-    (*match is_bool e with
-    | Some false => (m', c, LT_icond_eval ltc)
-    | _          => (m', [:: MkI ii (Cwhile a c e c')], LT_iwhile ltc lte ltc')
-    end*)
+
   | Ccall fi xs f es =>
     let es := map (const_prop_e m) es in
     let: (m,xs,lt) := const_prop_rvs m xs in
@@ -603,4 +600,4 @@ Definition const_prop_prog (p: prog) : (prog * leak_f_tr) :=
   let fs := map_prog_leak const_prop_fun (p_funcs p) in
   ({| p_globs := p_globs p; p_funcs := fs.1 |}, fs.2).
 
-(*Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p. *)
+

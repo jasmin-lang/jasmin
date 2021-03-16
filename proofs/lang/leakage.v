@@ -526,7 +526,7 @@ Inductive leak_i_tr :=
 | LT_iremove : leak_i_tr                                                                 (* 1 -> 0 *)      
 
 
-| LT_icond_eval : seq leak_i_tr -> leak_i_tr     (* if b then c1 else c0   -> cb   wh*)  
+| LT_icond_eval : bool -> seq leak_i_tr -> leak_i_tr     (* if b then c1 else c0   -> cb   wh*)  
                                                  (* cost cb' <= a cost cb + b   cost cb' <= cost (if b then ...) *) 
                                                  (* same as source *)
 | LT_ifor_unroll: seq leak_i_tr -> leak_i_tr
@@ -585,8 +585,8 @@ match lti, lti' with
   [&& eq_leak_i_trs eq_leak_i_tr ltis ltis1
     , eq_leak_e_tr lte lte'
     & eq_leak_i_trs eq_leak_i_tr ltis' ltis1']
-| LT_icond_eval ltis, LT_icond_eval ltis'=> 
-  eq_leak_i_trs eq_leak_i_tr ltis ltis'
+| LT_icond_eval b ltis, LT_icond_eval b' ltis'=> 
+  (b == b') && eq_leak_i_trs eq_leak_i_tr ltis ltis'
 | LT_ifor lte ltis, LT_ifor lte' ltis' => 
   eq_leak_e_tr lte lte' && eq_leak_i_trs eq_leak_i_tr ltis ltis'
 | LT_icall fn1 lte lte', LT_icall fn2 lte1 lte1' => 
@@ -750,15 +750,16 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
   | LT_iwhile ltis lte ltis', Lwhile_false lts le => 
     [::Lwhile_false (leak_Is leak_I stk ltis lts)
                      (leak_E stk lte le)]
-  | LT_icond_eval lts, Lcond _ _ lti => 
+  | LT_icond_eval _b lts, Lcond _ b lti => (* _b should be equal b *)
     leak_Is leak_I stk lts lti
-  | LT_icond_eval lts, Lwhile_false lti le =>
+  | LT_icond_eval false lts, Lwhile_false lti le => 
     leak_Is leak_I stk lts lti
   | LT_ifor lte ltiss, Lfor le ltss => [:: Lfor (leak_E stk lte le)
                                                 (leak_Iss leak_I stk ltiss ltss) ]
-  | LT_icall _f lte lte', Lcall le (f, lts) le' => [:: Lcall (leak_E stk lte le)
-                                                          (f, (leak_Is leak_I stk (leak_Fun f) lts))
-                                                          (leak_E stk lte' le') ]
+  | LT_icall _f lte lte', Lcall le (f, lts) le' => (* _f should be equal to f *)
+    [:: Lcall (leak_E stk lte le)
+              (f, (leak_Is leak_I stk (leak_Fun f) lts))
+              (leak_E stk lte' le') ]
   | LT_ifor_unroll ltiss, Lfor le ltss => 
     flatten (map (fun l => leak_assgn :: l) (leak_Iss leak_I stk ltiss ltss))
   | LT_icall_inline lc ltc', Lcall le (f, lts) le' => 
