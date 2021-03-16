@@ -675,27 +675,35 @@ match le, le' with
 end. 
 
 (* Transformation from expressions (seq of expression) leakage to instruction leakage *)
-(* FIXME Swarn: remove les, les' from the match *)
 Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': seq leak_e) : seq leak_i :=
-match lti, les, les' with 
-| LT_iopn5f_large, les, les' =>  ([:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LSub [:: LEmpty]])] ++
-    [:: Lopn (LSub [:: LSub ([::nth LEmpty les 0; LEmpty] ++ (remove_leak les)); 
-                       LSub les'])])
-| LT_iopn5f_other, les, les' =>
+match lti with 
+| LT_iopn5f_large => 
+  ([:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LSub [:: LEmpty]])] ++
+   [:: Lopn (LSub [:: LSub ([::nth LEmpty les 0; LEmpty] ++ (remove_leak les)); LSub les'])])
+| LT_iopn5f_other =>
   [:: Lopn (LSub [:: LSub les ; LSub les'])]
-| LT_iaddcarryf ltes, les, les' => leak_ESI stk ltes (remove_last_leak les) [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
-| LT_iaddcarry ltes, les, les' =>  leak_ESI stk ltes les [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
-| LT_ianone, les, les' => [:: Lopn (LSub [:: LSub les ; LSub les'])]
-| LT_imul1, les, les' => ([:: Lopn (LSub [:: LSub [:: nth LEmpty les 0]; LSub [:: LEmpty]])] ++
- [:: Lopn (LSub [:: LSub [:: nth LEmpty les 1; LEmpty]; 
-           LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])])
-| LT_imul2, les, les' => ([:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LSub [:: LEmpty]])] ++
- [:: Lopn (LSub [:: LSub [:: nth LEmpty les 0; LEmpty]; 
-           LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])])
-| LT_imul3, les, les' => [:: Lopn (LSub [:: LSub les; 
-                                         LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])]
-| LT_imul4, les, les' => [:: Lopn (LSub [:: LSub les ; LSub les'])]
-| LT_iemptysl, _, _ => [::]
+| LT_iaddcarryf ltes => 
+  leak_ESI stk ltes (remove_last_leak les) 
+     [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
+| LT_iaddcarry ltes =>  
+   leak_ESI stk ltes les 
+     [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
+| LT_ianone => 
+  [:: Lopn (LSub [:: LSub les ; LSub les'])]
+| LT_imul1 => 
+  ([:: Lopn (LSub [:: LSub [:: nth LEmpty les 0]; LSub [:: LEmpty]])] ++
+   [:: Lopn (LSub [:: LSub [:: nth LEmpty les 1; LEmpty]; 
+              LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])])
+| LT_imul2 => 
+  ([:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LSub [:: LEmpty]])] ++
+   [:: Lopn (LSub [:: LSub [:: nth LEmpty les 0; LEmpty]; 
+              LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])])
+| LT_imul3 => 
+  [:: Lopn (LSub [:: LSub les; 
+              LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])]
+| LT_imul4 => 
+  [:: Lopn (LSub [:: LSub les ; LSub les'])]
+| LT_iemptysl => [::]
 end.
 
 Section Leak_I.
