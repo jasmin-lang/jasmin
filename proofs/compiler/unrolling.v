@@ -70,7 +70,7 @@ Fixpoint unroll_i (i:instr) : cmd * leak_i_tr :=
                         let r2 :=  (unroll_cmd unroll_i c') in 
     ([:: MkI ii (Cwhile a r1.1 e r2.1) ], LT_iwhile r1.2 LT_id r2.2)
      
-  | Ccall _ _ _ _  => ([:: i ], LT_icall LT_id LT_id)
+  | Ccall _ _ f _  => ([:: i ], LT_icall f LT_id LT_id)
   end.
 
 Definition unroll_fun (f:fundef) :=

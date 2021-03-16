@@ -291,7 +291,7 @@ Section REMOVE.
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Ccall i (unzip1 lvs) fn (unzip1 es))],
-                   (LT_icall (LT_map (unzip2 es)) (LT_map (unzip2 lvs))))
+                   (LT_icall fn (LT_map (unzip2 es)) (LT_map (unzip2 lvs))))
         end
       end.
 

@@ -152,48 +152,9 @@ Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd * leak_i
                   assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Pvar fd'.(f_res))),
               (LT_icall_inline init_array.2
                                   [:: LT_ikeep]))
-      else ciok (X, [::i], LT_icall  LT_id LT_id)
+      else ciok (X, [::i], LT_icall f LT_id LT_id)
     end
   end.
-
-(*Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd * leak_i_tr) :=
-  match i with
-  | MkI iinfo ir =>
-    match ir with
-    | Cassgn x _ _ e => ciok (Sv.union (read_i ir) X, [::i], LT_ikeep)
-    | Copn xs _ o es => ciok (Sv.union (read_i ir) X, [::i], LT_ikeep)
-    | Cif e c1 c2  =>
-      Let cr1 := inline_c (inline_i p) c1 X in
-      Let cr2 := inline_c (inline_i p) c2 X in
-      ciok (read_e_rec (Sv.union cr1.1.1 cr2.1.1) e, 
-            [::MkI iinfo (Cif e cr1.1.2 cr2.1.2)], LT_icond LT_id cr1.2 cr2.2)
-    | Cfor x (d,lo,hi) c =>
-      let X := Sv.union (read_i ir) X in
-      Let c := inline_c (inline_i p) c X in
-      ciok (X, [::MkI iinfo (Cfor x (d, lo, hi) c.1.2)], LT_ifor LT_id c.2)
-    | Cwhile a c e c' =>
-      let X := Sv.union (read_i ir) X in
-      Let c := inline_c (inline_i p) c X in
-      Let c' := inline_c (inline_i p) c' X in
-      ciok (X, [::MkI iinfo (Cwhile a c.1.2 e c'.1.2)], LT_iwhile c.2 LT_id c'.2)
-    | Ccall inline xs f es =>
-      let X := Sv.union (read_i ir) X in
-      if inline is InlineFun then
-        Let fd := get_fun p iinfo f in
-        let fd' := rename_fd iinfo f fd in
-        (* FIXME : locals is computed 2 times (one in check_rename) *)
-        Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
-        let init_array := array_init iinfo (locals fd') in
-        ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
-                  init_array ++
-                  (fd'.(f_body) ++
-                  assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Pvar fd'.(f_res))),
-              (LT_icall_inline (f_res fd') (f_params (fd'))
-                                [:: LT_ikeep] 
-                                  [:: LT_ikeep]))
-      else ciok (X, [::i], LT_icall  LT_id LT_id)
-    end
-  end.*)
 
 Definition inline_fd (p:fun_decls) (fd:fundef) : ciexec (fundef * leak_c_tr) :=
   match fd with
@@ -257,7 +218,7 @@ Fixpoint remove_init_i i : (cmd * leak_i_tr) :=
                        let ri := remove_init_i i in 
                        ((ri.1 ++ r.1), ri.2 :: r.2)) ([::], [::]) c' in
       ([:: MkI ii (Cwhile a r1.1 e r2.1) ], LT_iwhile r1.2 LT_id r2.2)
-    | Ccall _ _ _ _  => ([::i], LT_icall LT_id LT_id)
+    | Ccall _ _ f _  => ([::i], LT_icall f LT_id LT_id)
     end
   end.
 

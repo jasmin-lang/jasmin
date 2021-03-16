@@ -198,7 +198,7 @@ Fixpoint check_i iinfo i1 i2 r : ciexec (M.t * leak_i_tr) :=
     if f1 == f2 then
       Let res := add_iinfo iinfo (check_es arg1 arg2 r) in
       Let rls := add_iinfo iinfo (check_lvals x1 x2 res.1) in 
-      ciok (rls.1, (LT_icall (LT_map res.2) (LT_map rls.2)))
+      ciok (rls.1, (LT_icall f2 (LT_map res.2) (LT_map rls.2)))
     else cierror iinfo (Cerr_neqfun f1 f2 salloc)
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
     Let res := add_iinfo iinfo (check_e e1 e2 r) in
@@ -951,6 +951,7 @@ Proof.
  move: (Hc' ii c2 r rlt Hc''). by move=> ->.
 Qed.
 
+(* FIXME Swarn: this proof should be done in a different way *)
 Lemma leak_map_id' p' lc c s1 s2 fn vs vs': sem_call p' s1 c vs (fn, lc) s2 vs' ->
 leak_Is (leak_I lF) stk (lF fn) lc = lc.
 Proof.
@@ -969,7 +970,7 @@ Proof.
  case: ifP=> /eqP // hfn. t_xrbindP. move=> -[r'' ltr'']. apply: add_iinfoP=> /check_esP_id Hes''.
  move=> -[r''' ltr''']. apply: add_iinfoP=> /check_lvalsP_id Hes'''. move=> [] <- <- /=.
  case: lf Hcall Hf=> fn'' lc Hcall Hf. move: (Hes'' stk (unzip2 vargs)). move=> ->.
- move: (Hes''' stk lw). move=> ->. 
+ rewrite (Hes''' stk lw).
  have -> : leak_Is (leak_I lF) stk (lF fn'') lc = lc.
  + by have -> := (leak_map_id' Hcall).
  auto.

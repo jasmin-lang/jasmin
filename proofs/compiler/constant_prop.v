@@ -587,7 +587,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
   | Ccall fi xs f es =>
     let es := map (const_prop_e m) es in
     let: (m,xs,lt) := const_prop_rvs m xs in
-    (m, [:: MkI ii (Ccall fi xs f (unzip1 es)) ], (LT_icall (LT_map (unzip2 es)) (LT_map lt)))
+    (m, [:: MkI ii (Ccall fi xs f (unzip1 es)) ], (LT_icall f (LT_map (unzip2 es)) (LT_map lt)))
   end
 
 with const_prop_i (m:cpm) (i:instr) : cpm * cmd * leak_i_tr :=

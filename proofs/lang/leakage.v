@@ -521,7 +521,7 @@ Inductive leak_i_tr :=
 | LT_iwhile : seq leak_i_tr -> leak_e_tr -> seq leak_i_tr -> leak_i_tr (* while *)      (* *)
 | LT_ifor : leak_e_tr -> seq leak_i_tr -> leak_i_tr                  (* for c --> for c'     
   cost c' <= a cost c   cost (for c) = n * (cost c + 1)  <= n * (a cost c' + 1) <= max(1,a)cost (for c')  *)
-| LT_icall : leak_e_tr -> leak_e_tr -> leak_i_tr                     (* add funname *)
+| LT_icall : funname -> leak_e_tr -> leak_e_tr -> leak_i_tr      
 
 | LT_iremove : leak_i_tr                                                                 (* 1 -> 0 *)      
 
@@ -556,15 +556,8 @@ Inductive leak_i_tr :=
 | LT_ildus : leak_i_tr
 | LT_ildiv : leak_i_tr -> leak_e_es_tr -> leak_i_tr
 | LT_ilasgn : leak_i_tr.
-(*| LT_icompose : leak_i_tr -> leak_i_tr -> leak_i_tr.*)
 
-(*Fixpoint cost_leak_i_tr (lti : leak_i_tr) : cost_tr :=
-match lti with 
- | LT_ile lte => c_exact 1 1
- | LT_icond lte lti1 lti2 => 1 + max(cost_leak_i_tr lti1, cost_leak_i_tr lti2)
- | _ => c_dummy
-end.*) 
-
+(* FIXME Swarn: this is unsed remove *)
 Section Eq_leak_i_tr.
 Variable eq_leak_i_tr : leak_i_tr -> leak_i_tr -> bool.
 
@@ -582,24 +575,36 @@ Fixpoint eq_leak_i_tr (lti : leak_i_tr) (lti' : leak_i_tr) : bool :=
 match lti, lti' with 
 | LT_iremove, LT_iremove => true
 | LT_ikeep, LT_ikeep => true
-| LT_ile lte, LT_ile lte' => eq_leak_e_tr lte lte'
+| LT_ile lte, LT_ile lte' => 
+  eq_leak_e_tr lte lte'
 | LT_icond lte ltis ltis', LT_icond lte' ltis1 ltis1' => 
-  andb (eq_leak_e_tr lte lte') 
-       (andb (eq_leak_i_trs eq_leak_i_tr ltis ltis1) (eq_leak_i_trs eq_leak_i_tr ltis' ltis1'))
+  [&& eq_leak_e_tr lte lte'
+    , eq_leak_i_trs eq_leak_i_tr ltis ltis1 
+    & eq_leak_i_trs eq_leak_i_tr ltis' ltis1']
 | LT_iwhile ltis lte ltis', LT_iwhile ltis1 lte' ltis1' => 
-  andb (andb (eq_leak_i_trs eq_leak_i_tr ltis ltis1) (eq_leak_e_tr lte lte')) 
-       (eq_leak_i_trs eq_leak_i_tr ltis' ltis1')
-| LT_icond_eval ltis, LT_icond_eval ltis'=> eq_leak_i_trs eq_leak_i_tr ltis ltis'
-| LT_ifor lte ltis, LT_ifor lte' ltis' => andb (eq_leak_e_tr lte lte') (eq_leak_i_trs eq_leak_i_tr ltis ltis') 
-| LT_icall lte lte', LT_icall lte1 lte1' => andb (eq_leak_e_tr lte lte1) (eq_leak_e_tr lte' lte1')
-| LT_ifor_unroll ltis, LT_ifor_unroll ltis' => eq_leak_i_trs eq_leak_i_tr ltis ltis'
-| LT_icall_inline lc ltis, LT_icall_inline lc' ltis' => andb (eq_leak_is eq_leak_i lc lc') (eq_leak_i_trs eq_leak_i_tr ltis ltis')
+  [&& eq_leak_i_trs eq_leak_i_tr ltis ltis1
+    , eq_leak_e_tr lte lte'
+    & eq_leak_i_trs eq_leak_i_tr ltis' ltis1']
+| LT_icond_eval ltis, LT_icond_eval ltis'=> 
+  eq_leak_i_trs eq_leak_i_tr ltis ltis'
+| LT_ifor lte ltis, LT_ifor lte' ltis' => 
+  eq_leak_e_tr lte lte' && eq_leak_i_trs eq_leak_i_tr ltis ltis'
+| LT_icall fn1 lte lte', LT_icall fn2 lte1 lte1' => 
+  [&& fn1 == fn2, eq_leak_e_tr lte lte1 & eq_leak_e_tr lte' lte1']
+| LT_ifor_unroll ltis, LT_ifor_unroll ltis' => 
+  eq_leak_i_trs eq_leak_i_tr ltis ltis'
+| LT_icall_inline lc ltis, LT_icall_inline lc' ltis' => 
+  (eq_leak_is eq_leak_i lc lc') && (eq_leak_i_trs eq_leak_i_tr ltis ltis')
 | LT_icondl ltei lte ltis ltis', LT_icondl ltei' lte' ltis1 ltis1' => 
-  andb (andb (eq_leak_e_i_tr ltei ltei') (eq_leak_e_tr lte lte'))
-       (andb (eq_leak_i_trs eq_leak_i_tr ltis ltis1) (eq_leak_i_trs eq_leak_i_tr ltis' ltis1'))
+  [&& eq_leak_e_i_tr ltei ltei'
+    , eq_leak_e_tr lte lte'
+    , eq_leak_i_trs eq_leak_i_tr ltis ltis1
+    & eq_leak_i_trs eq_leak_i_tr ltis' ltis1']
 | LT_iwhilel ltei lte ltis ltis', LT_iwhilel ltei' lte' ltis1 ltis1' => 
-  andb (andb (eq_leak_e_i_tr ltei ltei') (eq_leak_e_tr lte lte'))
-       (andb (eq_leak_i_trs eq_leak_i_tr ltis ltis1) (eq_leak_i_trs eq_leak_i_tr ltis' ltis1'))
+  [&& eq_leak_e_i_tr ltei ltei'
+    , eq_leak_e_tr lte lte'
+    , eq_leak_i_trs eq_leak_i_tr ltis ltis1
+    & eq_leak_i_trs eq_leak_i_tr ltis' ltis1']
 | LT_icopn lts, LT_icopn lts' => eq_leak_es_i_tr lts lts'
 | LT_ilmov1, LT_ilmov1 => true
 | LT_ilmov2, LT_ilmov2 => true 
@@ -611,15 +616,15 @@ match lti, lti' with
 | LT_ild, LT_ild => true 
 | LT_ildc, LT_ildc => true 
 | LT_ildcn, LT_ildcn => true
-| LT_ilmul lts lte, LT_ilmul lts' lte' => andb (eq_leak_es_i_tr lts lts') (eq_leak_e_tr lte lte')  
-| LT_ileq lts, LT_ileq lts' => (eq_leak_e_es_tr lts lts') 
-| LT_illt lts, LT_illt lts' => (eq_leak_e_es_tr lts lts')
-| LT_ilif ltei lte, LT_ilif ltei' lte' => andb (eq_leak_e_i_tr ltei ltei') (eq_leak_e_tr lte lte')
+| LT_ilmul lts lte, LT_ilmul lts' lte' => (eq_leak_es_i_tr lts lts') && (eq_leak_e_tr lte lte')  
+| LT_ileq lts, LT_ileq lts' => eq_leak_e_es_tr lts lts'
+| LT_illt lts, LT_illt lts' => eq_leak_e_es_tr lts lts'
+| LT_ilif ltei lte, LT_ilif ltei' lte' => (eq_leak_e_i_tr ltei ltei') && (eq_leak_e_tr lte lte')
 | LT_ilea, LT_ilea => true
-| LT_ilfopn ltes lts, LT_ilfopn ltes' lts' =>  andb (eq_leak_es_i_tr ltes ltes') (eq_leak_e_es_tr lts lts')
+| LT_ilfopn ltes lts, LT_ilfopn ltes' lts' => (eq_leak_es_i_tr ltes ltes') && (eq_leak_e_es_tr lts lts')
 | LT_ilds, LT_ilds => true
 | LT_ildus, LT_ildus => true 
-| LT_ildiv lti lts, LT_ildiv lti' lts' => andb (eq_leak_i_tr lti lti') (eq_leak_e_es_tr lts lts')
+| LT_ildiv lti lts, LT_ildiv lti' lts' => (eq_leak_i_tr lti lti') && (eq_leak_e_es_tr lts lts')
 | LT_ilasgn, LT_ilasgn => true 
 | _ ,_ => false
 end.
@@ -751,7 +756,7 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
     leak_Is leak_I stk lts lti
   | LT_ifor lte ltiss, Lfor le ltss => [:: Lfor (leak_E stk lte le)
                                                 (leak_Iss leak_I stk ltiss ltss) ]
-  | LT_icall lte lte', Lcall le (f, lts) le' => [:: Lcall (leak_E stk lte le)
+  | LT_icall _f lte lte', Lcall le (f, lts) le' => [:: Lcall (leak_E stk lte le)
                                                           (f, (leak_Is leak_I stk (leak_Fun f) lts))
                                                           (leak_E stk lte' le') ]
   | LT_ifor_unroll ltiss, Lfor le ltss => 
