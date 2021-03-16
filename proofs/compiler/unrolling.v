@@ -62,8 +62,7 @@ Fixpoint unroll_i (i:instr) : cmd * leak_i_tr :=
     | Some vlo, Some vhi =>
       let l := wrange dir vlo vhi in
       let cs := map (fun n => ((assgn ii i (Pconst n)) :: c'.1)) l in 
-      (*let cs := map (fun n => assgn ii i (Pconst n) :: c') l in*)
-      (flatten cs, LT_ifor_unroll c'.2)
+      (flatten cs, LT_ifor_unroll (size cs) c'.2)
     | _, _       => ([:: MkI ii (Cfor i (dir, low, hi) c'.1) ], LT_ifor LT_id c'.2)
     end
   | Cwhile a c e c'  => let r1 :=  (unroll_cmd unroll_i c) in

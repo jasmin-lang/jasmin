@@ -622,7 +622,7 @@ Module RGP. Section PROOFS.
   + t_xrbindP. move=> -[lv ltv]. case: ifP=> // hglob'. 
     move: hxi. t_xrbindP. move=> y Hw <- <- /=. rewrite /write_var in Hw. move: Hw. t_xrbindP. move=> vm Hset hy /=.
     move: (write_var_remove). move=> Hg.
-    move=> <- <- <- <- <- /=. Print valid. move: (Hg xi m s1 s1' v' vm hglob hval Hset). move=> [] x [Hvm] Hw'.
+    move=> <- <- <- <- <- /=. move: (Hg xi m s1 s1' v' vm hglob hval Hset). move=> [] x [Hvm] Hw'.
     exists x. split=> //. rewrite hy in Hvm. auto.
     apply sem_seq1; econstructor; econstructor; eauto. rewrite /write_lval. by rewrite Hw' /=.
   + move=> sz vi ei /=. t_xrbindP=> u vu Hg hp -[v1 l1] he1 u' hp' w hw m1 /= hm <- <- /=.

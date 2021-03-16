@@ -2707,8 +2707,6 @@ Proof.
   by case: ifP => //= _ ? [<-] [<-] /=;rewrite /get_var /= Fv.setP_neq.
 Qed.
 
-Print valid_cpm.
-
 Lemma add_cpmP s1 s1' m x e tag ty v1 v v' :
   sem_pexpr gd s1 e = ok v1 ->
   value_uincl v v1.1 ->

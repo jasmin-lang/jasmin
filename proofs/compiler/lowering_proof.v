@@ -1158,7 +1158,7 @@ Qed.
                  Lnone (var_info_of_lval l) sbool; Lnone (var_info_of_lval l) sbool;
                  Lnone (var_info_of_lval l) sbool; l] vs' = ok (s', [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lv])].
   Proof.
-    rewrite /mulr => ok_v1 ok_v2 hle1 hle2 hsz64 Hw. Print mulr.
+    rewrite /mulr => ok_v1 ok_v2 hle1 hle2 hsz64 Hw.
     case Heq: (is_wconst _ _) => [z | ].
     * have := is_wconstP gd s Heq; t_xrbindP => -[v1 l1] h1 hz [<- <-].
       exists [:: (Vword z2, le2); (Vword z1, le1)]. eexists.

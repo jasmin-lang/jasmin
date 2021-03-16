@@ -529,7 +529,7 @@ Inductive leak_i_tr :=
 | LT_icond_eval : bool -> seq leak_i_tr -> leak_i_tr     (* if b then c1 else c0   -> cb   wh*)  
                                                  (* cost cb' <= a cost cb + b   cost cb' <= cost (if b then ...) *) 
                                                  (* same as source *)
-| LT_ifor_unroll: seq leak_i_tr -> leak_i_tr
+| LT_ifor_unroll: nat -> seq leak_i_tr -> leak_i_tr
 | LT_icall_inline: leak_c -> seq leak_i_tr -> leak_i_tr
 (* lowering leak transformers *)
 | LT_icondl : leak_e_i_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
@@ -557,7 +557,7 @@ Inductive leak_i_tr :=
 | LT_ildiv : leak_i_tr -> leak_e_es_tr -> leak_i_tr
 | LT_ilasgn : leak_i_tr.
 
-(* FIXME Swarn: this is unsed remove *)
+(* FIXME Swarn: this is used only to check that unsed remove *)
 Section Eq_leak_i_tr.
 Variable eq_leak_i_tr : leak_i_tr -> leak_i_tr -> bool.
 
@@ -591,8 +591,8 @@ match lti, lti' with
   eq_leak_e_tr lte lte' && eq_leak_i_trs eq_leak_i_tr ltis ltis'
 | LT_icall fn1 lte lte', LT_icall fn2 lte1 lte1' => 
   [&& fn1 == fn2, eq_leak_e_tr lte lte1 & eq_leak_e_tr lte' lte1']
-| LT_ifor_unroll ltis, LT_ifor_unroll ltis' => 
-  eq_leak_i_trs eq_leak_i_tr ltis ltis'
+| LT_ifor_unroll n ltis, LT_ifor_unroll n' ltis' => 
+  (n == n') && eq_leak_i_trs eq_leak_i_tr ltis ltis'
 | LT_icall_inline lc ltis, LT_icall_inline lc' ltis' => 
   (eq_leak_is eq_leak_i lc lc') && (eq_leak_i_trs eq_leak_i_tr ltis ltis')
 | LT_icondl ltei lte ltis ltis', LT_icondl ltei' lte' ltis1 ltis1' => 
@@ -635,7 +635,6 @@ match lti, le with
 | LT_iconditionl lte, le => [:: Lopn (LSub [:: leak_E stk lte le; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])]
 | LT_iemptyl, le => [::]
 end.
-
 
 Fixpoint remove_leak (ls: seq leak_e) : seq leak_e :=
 match ls with
@@ -760,7 +759,7 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
     [:: Lcall (leak_E stk lte le)
               (f, (leak_Is leak_I stk (leak_Fun f) lts))
               (leak_E stk lte' le') ]
-  | LT_ifor_unroll ltiss, Lfor le ltss => 
+  | LT_ifor_unroll _n ltiss, Lfor le ltss => (* _n should be equal to size ltss *)
     flatten (map (fun l => leak_assgn :: l) (leak_Iss leak_I stk ltiss ltss))
   | LT_icall_inline lc ltc', Lcall le (f, lts) le' => 
     (map (fun x => (Lopn (LSub [:: x; LEmpty]))) (get_seq_leak_e le) ++ 
@@ -814,12 +813,18 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
                                              [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le])
   | LT_ilds, Lopn le => [:: Lopn (LSub [:: LSub [:: nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0]; LSub[:: LEmpty]])]
   | LT_ildus, Lopn le => [:: Lopn (LSub [:: LSub [:: LEmpty]; LSub[:: LEmpty]])]
-  | LT_ildiv lti ltes, Lopn le =>  if eq_leak_i_tr lti LT_ilds 
-    then [:: Lopn (LSub [:: LSub [:: nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0]; LSub[:: LEmpty]])] ++ 
-[:: Lopn (LSub [:: LSub [:: LEmpty; nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0; nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 1]; LSub (leak_ES stk ltes (leak_E stk (LT_subi 1) le))])]
-    else [:: Lopn (LSub [:: LSub [:: LEmpty]; LSub[:: LEmpty]])]  ++ [:: Lopn (LSub [:: LSub [:: LEmpty; nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0; nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 1]; LSub (leak_ES stk ltes (leak_E stk (LT_subi 1) le))])]
+  | LT_ildiv lti ltes, Lopn le =>  
+    if eq_leak_i_tr lti LT_ilds then 
+      [:: Lopn (LSub [:: LSub [:: nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0]; 
+                        LSub[:: LEmpty]])] ++ 
+      [:: Lopn (LSub [:: LSub [:: LEmpty; nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0; 
+                                 nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 1]; 
+                        LSub (leak_ES stk ltes (leak_E stk (LT_subi 1) le))])]
+    else [:: Lopn (LSub [:: LSub [:: LEmpty]; LSub[:: LEmpty]])]  ++ 
+         [:: Lopn (LSub [:: LSub [:: LEmpty; nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0; 
+                                    nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 1]; 
+                           LSub (leak_ES stk ltes (leak_E stk (LT_subi 1) le))])]
                                  
-    
   | LT_ilasgn, Lopn le=>  [:: Lopn (LSub [:: (leak_E stk (LT_subi 0) le);
                                                         leak_E stk (LT_subi 1) le])]
 
@@ -1040,7 +1045,7 @@ Fixpoint transform_cost_i (lt:leak_i_tr)
     let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_for sl) sc (lbl_for tl) divfact tc in
     tc, next_lbl tl
 
-  | LT_icall fn _ _ => (* FIXME: add the name of the called function *)
+  | LT_icall fn _ _ => 
     (* fn -> lt --> lc -> label_map -> label_map *)
     (* f1; f2; f3; f4 *)
     (* map : lbl -> cost *)
@@ -1050,7 +1055,7 @@ Fixpoint transform_cost_i (lt:leak_i_tr)
   | LT_iremove => 
     tc, tl
 
-  | LT_icond_eval b ltb => (* FIXME : add b in LT_icond_eval *)
+  | LT_icond_eval b ltb => 
     transform_cost_c transform_cost_i ltb (lbl_b b sl) sc tl divfact tc 
 
   | LT_ifor_unroll n lt => (* FIXME : add n in LT_ifor *)
