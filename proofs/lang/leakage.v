@@ -675,6 +675,7 @@ match le, le' with
 end. 
 
 (* Transformation from expressions (seq of expression) leakage to instruction leakage *)
+(* FIXME Swarn: remove les, les' from the match *)
 Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': seq leak_e) : seq leak_i :=
 match lti, les, les' with 
 | LT_iopn5f_large, les, les' =>  ([:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LSub [:: LEmpty]])] ++
@@ -989,13 +990,13 @@ end.
 
 End Transform_Cost.
 
-(*
+
 
 Definition set_lbl (sl:lbl) (sc:label_map) (tl:lbl) (divfact:nat) (tc:label_map) : label_map :=
   fun (l:lbl) =>
     if l == tl then divn (sc sl) divfact else tc l.
 
-
+(*
    
 Fixpoint transform_cost_i (lt:leak_i_tr) 
    (sl:lbl) (sc: label_map) (tl:lbl) (divfact:nat) (tc:label_map) : label_map * lbl :=
@@ -1008,15 +1009,16 @@ Fixpoint transform_cost_i (lt:leak_i_tr)
     set_lbl sl sc tl divfact tc, next_lbl tl
 
   | LT_icond _ lt1 lt2 =>
+    (* sl: if e then c1 else c2  ---> tl: (if e' then c1' else c2'); *)
     let  tc     := set_lbl sl sc tl divfact tc in
     let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_t sl) sc (lbl_t tl) divfact tc in
-    let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_f sl) sc (lbl_f tl) divfact tc in
+    let (tc, _) := transform_cost_c transform_cost_i lt2 (lbl_f sl) sc (lbl_f tl) divfact tc in
     tc, next_lbl tl
 
   | LT_iwhile lt1 _ lt2 =>
     let  tc     := set_lbl sl sc tl divfact tc in
     let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_f sl) sc (lbl_f tl) divfact tc in
-    let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_t sl) sc (lbl_t tl) divfact tc in
+    let (tc, _) := transform_cost_c transform_cost_i lt2 (lbl_t sl) sc (lbl_t tl) divfact tc in
     tc, next_lbl tl
  
   | LT_ifor _ lt1 =>
@@ -1024,7 +1026,9 @@ Fixpoint transform_cost_i (lt:leak_i_tr)
     let (tc, _) := transform_cost_c transform_cost_i lt1 (lbl_for sl) sc (lbl_for tl) divfact tc in
     tc, next_lbl tl
 
-  | LT_icall _ _ => 
+  | LT_icall fn _ _ => (* FIXME: add the name of the called function *)
+    (* fn -> lt --> lc -> label_map -> label_map *)
+    (* f1; f2; f3; f4 *)
     (* map : lbl -> cost *)
     (* map : lbl ++ tl -> cost *)
     empty_label_map (* FIXME *)
@@ -1039,9 +1043,9 @@ Fixpoint transform_cost_i (lt:leak_i_tr)
     (* for i = 1 to n do c   ---> repeat n (assign; c') *)
     empty_label_map (* FIXME *)
     (* 
-      assign;        tl
-      c'; -> tl'     next_lbl tl         sc sl / (n * divfact)
-      assign;        tl'
+      assign;        tl                  sc sl / divfactor
+      c'; -> tl'     next_lbl tl         sc sl' / (n * divfact)
+      assign;        tl'                 sc sl / divfactor
       c'; -> tl''    next_lbl tl'  
       ....           tl''  
       assign; 
@@ -1053,6 +1057,8 @@ Fixpoint transform_cost_i (lt:leak_i_tr)
 
   | LT_icondl : leak_e_i_tr → leak_e_tr → leak_c_tr → leak_c_tr → leak_i_tr
   | LT_iwhilel : leak_e_i_tr → leak_e_tr → leak_c_tr → leak_c_tr → leak_i_tr
+    (* while c1 {e} c2  
+       while c1'; b = e' { b } c2' *)
   | LT_icopn : leak_es_i_tr → leak_i_tr
   | LT_ilmov1 => 
     (* sl:i --->    tl:i1; tl': i2; next_lbl tl' *)
