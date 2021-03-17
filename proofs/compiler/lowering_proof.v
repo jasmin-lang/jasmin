@@ -1857,6 +1857,11 @@ Qed.
   Definition pwrepr64 n :=
     {| pw_size := U64 ; pw_word := wrepr _ n ; pw_proof := erefl (U64 ≤ U64)%CMP |}.
   
+  Lemma opn_no_imm_spec o : 
+    (exists sz, o = Ox86 (IMULri sz) /\ opn_no_imm o = Ox86 (IMULr sz)) \/
+    opn_no_imm o = o.
+  Proof. case: o => /=; auto => -[] => /= *; eauto. Qed.
+
   Lemma opn_5flags_correct vi ii s a t o cf r xs ys m s' lws:
     disj_fvars (read_es a) →
     disj_fvars (vars_lvals [:: cf ; r ]) →
@@ -1900,47 +1905,13 @@ Qed.
       rewrite (sem_pexpr_same dx e hy).
       fold (sem_pexprs gd s) in hz1.
       rewrite /get_var /on_vu Fv.setP_eq /= -/(sem_pexprs gd ℓ). 
-      move: (sem_pexprs_same dz e hz1). rewrite /sem_pexprs. move=> -> /=. rewrite /exec_sopn /sopn_sem /=.
-      case: o hr=> //; rewrite /exec_sopn //= /sopn_sem /=; try (by move=> w -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=).
-      t_xrbindP. move=> y0 _ //.
-      by t_xrbindP.
-      case => //=;
-      try (by move=> ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /= || 
-           by move=> ?? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=). 
-      move=> ??; t_xrbindP=> //. move=> ??; t_xrbindP=> //. t_xrbindP=> //. try (by t_xrbindP).
-      by t_xrbindP. by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by t_xrbindP.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> ? ? -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
-      by move=> -> /=; rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= -hxs -hz' -hs'' /=.
+      move: (sem_pexprs_same dz e hz1); rewrite /sem_pexprs => -> /=.
+      subst.
+      case: (opn_no_imm_spec o) => [[sz [ho ->]] | ->].
+      + move: hr; rewrite ho /exec_sopn /= /sopn_sem /= => -> /=.
+        by rewrite /= h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= drop0.
+      by rewrite hr /= h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= drop0.
+
     + case: ys hr hs=> // a' l hr /=. t_xrbindP.
       move=> -[s1 l1] s1' /= h1 [] <- <- h1'. case: l hr=> // a0 l hr. t_xrbindP=> -[s2 l2] /= h2 h2'.
       case: l hr=> // a1 l hr. t_xrbindP=> -[s3 l3] /= h3 h3' [] <- <-. case: l hr=> // a2 l hr. t_xrbindP=> -[s4 l4] h4' h4'' /= h4 <- h4'''.
@@ -1949,7 +1920,7 @@ Qed.
       case: l hr hl=> // hr /= [] hl /=; rewrite -hl in hs''; rewrite -hl /=.
       exists s'. exists l2. exists l6. split => //.
       repeat econstructor. rewrite /sem_sopn /= hx /= hr /=. by rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 -hs'' /=.
-    Qed.
+   Qed.
 
   Lemma reduce_wconstP s e sz sz' (v: word sz') le :
     sem_pexpr gd s e = ok (Vword v, le) →
@@ -1968,7 +1939,6 @@ Qed.
     refine (cmp_minP (P := λ x, zero_extend _ _ = zero_extend sz (wrepr x z)) _ _) => //.
     by move => hle; rewrite !zero_extend_wrepr.
   Qed.
-
 
   Lemma sem_pexpr_var_empty gd s b sz vo: sem_pexpr gd s (oapp Pvar (@wconst sz 0) b) = ok vo -> vo.2 = LEmpty.
   Proof.
