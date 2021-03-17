@@ -636,17 +636,17 @@ Definition leak_i_asm (l : leak_il) : leak_asm :=
   | Lcondl le b => Lacond b
   end.
 
-Definition leak_compile_prog 
-   (stk: pointer) 
-   (ltss: leak_f_lf_tr * (seq leak_f_tr * (seq (seq leak_f_tr) * seq leak_f_tr))) 
+Definition leak_compile_prog
+   (stk: pointer)
+   (ltss: leak_f_tr * seq (seq leak_f_tr) * seq leak_f_tr * leak_f_lf_tr)
    (lf: leak_fun) : seq leak_il :=
-  let r  := leak_compile stk ltss.2.1 lf in 
-  let rs := leak_compiles stk ltss.2.2.1 (lf.1, r) in 
-  leak_i_iLs leak_i_iL stk (leak_Fun_L ltss.1 lf.1) (leak_compile stk ltss.2.2.2 (lf.1, rs)). 
+  let r  := leak_compile stk [:: ltss.1.1.1 ] lf in
+  let rs := leak_compiles stk ltss.1.1.2 (lf.1, r) in
+  leak_i_iLs leak_i_iL stk (leak_Fun_L ltss.2 lf.1) (leak_compile stk ltss.1.2 (lf.1, rs)).
 
-Definition leak_compile_x86 
-   (stk: pointer) 
-   (ltss: leak_f_lf_tr * (seq leak_f_tr * (seq (seq leak_f_tr) * seq leak_f_tr))) 
-   (lf: leak_fun) : seq leak_asm := 
+Definition leak_compile_x86
+   (stk: pointer)
+   (ltss: leak_f_tr * seq (seq leak_f_tr) * seq leak_f_tr * leak_f_lf_tr)
+   (lf: leak_fun) : seq leak_asm :=
   let r := leak_compile_prog stk ltss lf in
   map (fun x=> leak_i_asm x) r.

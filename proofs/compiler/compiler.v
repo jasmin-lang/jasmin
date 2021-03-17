@@ -112,8 +112,8 @@ Definition reg_alloc_prog (p:prog) :=
      p_funcs := List.map (fun f => (f.1, cparams.(reg_alloc_fd) f.1 f.2)) (p_funcs p) |}.
 
 (* need to also return sequence of leak transformers *)
-Definition compile_prog (entries : seq funname) (p:prog) : 
-  result fun_error (glob_decls * lprog * (leak_f_lf_tr * (seq leak_f_tr * (seq (seq leak_f_tr) * seq leak_f_tr)))) :=
+Definition compile_prog (entries : seq funname) (p:prog) :
+  result fun_error (glob_decls * lprog * (leak_f_tr * seq (seq leak_f_tr) * seq leak_f_tr * leak_f_lf_tr)) :=
   Let pi := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
   let p := cparams.(print_prog) Inlining pi.1 in
 
@@ -164,9 +164,24 @@ Definition compile_prog (entries : seq funname) (p:prog) :
     Let plp := linear_prog ps.1 in 
     let pl := cparams.(print_linear) plp.1 in
     (* asm                               *)
-    cfok (p_globs pd, pl, (plp.2, ([:: pi.2], (pu.2,  
-          [:: pc.2 ; pvr ; pvd.2 ; pvc ; psd.2 ; 
-              prr.2 ; pex; pgr.2 ; pll.2 ; ltc ; pdd.2 ; ps.2]))))
+    cfok (p_globs pd, pl,
+          (pi.2, (* Inlining *)
+           pu.2, (* Unrolling *)
+           [:: pc.2 (* Constant prop after unrolling *)
+            ; pvr (* Var alloc *)
+            ; pvd.2 (* Dead code after var-alloc *)
+            ; pvc (* Stack sharing *)
+            ; psd.2 (* Dead code after stack-sharing *)
+            ; prr.2 (* Remove init *)
+            ; pex (* Register array expansion *)
+            ; pgr.2 (* Remove globals *)
+            ; pll.2 (* Lowering *)
+            ; ltc (* Register allocation *)
+            ; pdd.2 (* Dead code after regalloc *)
+            ; ps.2 (* Stack allocation *)
+           ],
+          plp.2 (* Linearization *)
+         ))
   else cferror Ferr_lowering.
 
 Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
@@ -176,10 +191,10 @@ Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
     else true
   else true.
 
-Definition compile_prog_to_x86 entries (p: prog): 
-result fun_error (glob_decls * xprog * (leak_f_lf_tr * (seq leak_f_tr * (seq (seq leak_f_tr) * seq leak_f_tr)))) :=
+Definition compile_prog_to_x86 entries (p: prog):
+result fun_error (glob_decls * xprog * (leak_f_tr * seq (seq leak_f_tr) * seq leak_f_tr * leak_f_lf_tr)) :=
   Let lp := compile_prog entries p in
-  let : (lpg, lpp, lpls) := lp in 
+  let : (lpg, lpp, lpls) := lp in
   Let _ := assert (all (check_signature p lpp) entries) Ferr_lowering in
   Let lx := assemble_prog lpp in
   ok (lpg, lx, lpls).
