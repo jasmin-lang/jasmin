@@ -648,47 +648,113 @@ Fixpoint transform_cost_i (lt:leak_i_tr) (m:Sm.t) (tl:lbl) (sl:lbl) divfact : Sm
     let m := Sm.merge m mf in
     iter nres _ (fun mtl => (Sm.set mtl.1 mtl.2 sl divfact, next_lbl mtl.2)) (m,tl)
 
+    (* sl: if e then c1 else c2 ---> tl:b = e'; tl': if {b} then c1' else c2' *)
+    (* we can remove lei from the leak transformer because its LT_id *)
   | LT_icondl lei lte lt1 lt2 =>
-    (m, tl) (* FIXME *)
-
+    let m := Sm.set m tl sl divfact in 
+    let tl := next_lbl tl in 
+    let (mt, _) := transform_cost_c transform_cost_i lt1 m (lbl_t tl) (lbl_t sl) divfact in
+    let (mf, _) := transform_cost_c transform_cost_i lt2 m (lbl_f tl) (lbl_f sl) divfact in
+    (m, next_lbl tl) (* Check with Benjamin *)
+   
+    (*sl : while c1 {e} c2 ---> tl: while c1'; b = e' {b} c2' *)
   | LT_iwhilel lei lte lt1 lt2 =>
-    (* while c1 {e} c2  
-       while c1'; b = e' { b } c2' *)
-    (m, tl) (* FIXME *)
+    let m := Sm.set m tl sl divfact in 
+    let (m, tlf) := transform_cost_c transform_cost_i lt1 m (lbl_f tl) (lbl_f sl) divfact in 
+    let tl := next_lbl tlf in 
+    let m := Sm.set m tl sl divfact in 
+    let (m, _) := transform_cost_c transform_cost_i lt2 m (lbl_t tl) (lbl_t sl) divfact in
+    (m, next_lbl tl) (* Check with Benjamin *)
 
   | LT_icopn lesi => 
     (m, tl) (* FIXME *)
 
-  | LT_ilmov1 => 
     (* sl:i --->    tl:i1; tl': i2; next_lbl tl' *)
+  | LT_ilmov1 => 
     let  m   := Sm.set m tl sl divfact in 
     let  tl := next_lbl tl in
     let  m  := Sm.set m tl sl divfact in 
     (m, next_lbl tl)
 
-  | LT_ilmov2 | LT_ilmov3 | LT_ilmov4 =>
+  | LT_ilmov2 =>
+    (Sm.set m tl sl divfact, next_lbl tl) (* Check with Benjamin *)
+
+  | LT_ilmov3 => 
+    (Sm.set m tl sl divfact, next_lbl tl) (* Check with Benjamin *)
+
+  | LT_ilmov4 =>
+    (Sm.set m tl sl divfact, next_lbl tl) (* Check with Benjamin *)
+
+    (* x = e1+e2 *) 
+    (* Papp2 add e1 e2 *)
+    (* sl: Papp2 add e1 e2 --> tl: x = e1+e2 *)
+    (* we can ignore lte because its related to exp *)
+  | LT_ilinc lte => 
+    (Sm.set m tl sl divfact, next_lbl tl) (* Check with Benjamin *)
+    
+    (* Papp1 --> x = op ? ? *)
+    (* we can ignore lte as its related to exp *)
+  | LT_ilcopn lte =>
+    (Sm.set m tl sl divfact, next_lbl tl) (* Check with Benjamin *)
+
+  | LT_ilsc => 
     (m, tl) (* FIXME *)
 
-  | LT_ilinc lte | LT_ilcopn lte =>
+  | LT_ild => 
+    (m, tl) (* FIXME *) 
+
+  | LT_ildc =>
+    (m, tl) (* FIXME *) 
+
+  | LT_ildcn => 
     (m, tl) (* FIXME *)
 
-  | LT_ilsc | LT_ild | LT_ildc | LT_ildcn => 
-    (m, tl) (* FIXME *)
   | LT_ilmul ltes lte => 
     (m, tl) (* FIXME *)
-  | LT_ileq ltes | LT_illt ltes => 
-    (m, tl) (* FIXME *)
+    
+    (* x = e1==e2 *)
+    (* sl: Papp2 eq e1 e2 --> tl: x = e1==e2 *)
+    (* we can ignore ltes because it converts single exp leak to seq of leak *)
+  | LT_ileq ltes => 
+    (Sm.set m tl sl divfact, next_lbl tl) (* Check with Benjamin *)
+
+    (* x = e1<e2 *)
+    (* sl: Papp2 lt e1 e2 --> tl: x = e1==e2 *)
+    (* we can ignore ltes because it converts single exp leak to seq of leak *)
+  | LT_illt ltes =>
+    (Sm.set m tl sl divfact, next_lbl tl) (* Check with Benjamin *)
+  
+    (* Pif e e1 e2 => x := [Pif e e1 e2] *)
+    (* sl: i --> tl: flags = [e]; x = CMOVcc [ cond flags; e1; e2]*)
   | LT_ilif ltei lte => 
-    (m, tl) (* FIXME *)
+    let  m   := Sm.set m tl sl divfact in 
+    let  tl := next_lbl tl in
+    let  m  := Sm.set m tl sl divfact in 
+    (m, next_lbl tl) (* Check with Benjamin *)
+
   | LT_ilea => 
     (m, tl) (* FIXME *)
+
   | LT_ilfopn ltesi ltes =>
-    (m, tl) (* FIXME *)
-  | LT_ilds | LT_ildus =>
-    (m, tl) (* FIXME *)
+    let  m   := Sm.set m tl sl divfact in 
+    let  tl := next_lbl tl in
+    let  m  := Sm.set m tl sl divfact in 
+    (m, next_lbl tl) (* Check with Benjamin *)
+  
+    (* x = Papp2 div e1 e2 *)
+    (* sl: Papp2 div e1 e2 --> tl: x = e1/e2 *)
+  | LT_ilds => 
+    (Sm.set m tl sl divfact, next_lbl tl) (* Check with Benjamin *)
+  
+  | LT_ildus =>
+    (Sm.set m tl sl divfact, next_lbl tl) (* Check with Benjamin *)
 
   | LT_ildiv lti ltes => 
-    (m, tl) (* FIXME *)
+    let  m   := Sm.set m tl sl divfact in 
+    let  tl := next_lbl tl in
+    let  m  := Sm.set m tl sl divfact in 
+    (m, next_lbl tl) (* Check with Benjamin *)
+
   | LT_ilasgn => 
     (m, tl) (* FIXME *)
   end.
