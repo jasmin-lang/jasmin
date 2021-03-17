@@ -1090,6 +1090,16 @@ Definition wperm2i128 (w1 w2: u256) (i: u8) : u256 :=
   make_vec U256 [:: lo ; hi ].
 
 (* -------------------------------------------------------------------*)
+Definition wpermd1 (v: seq u32) (idx: u32) :=
+  let off := wunsigned idx mod 8 in
+  (v`_(Z.to_nat off))%R.
+
+Definition wpermd sz (w1 idx: word sz) : word sz :=
+  let v := split_vec U32 w1 in
+  let i := split_vec U32 idx in
+  make_vec sz (map (wpermd1 v) i).
+
+(* -------------------------------------------------------------------*)
 Definition wpermq (w: u256) (i: u8) : u256 :=
   let v := split_vec U64 w in
   let j := split_vec 2 i in

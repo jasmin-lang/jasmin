@@ -144,6 +144,7 @@ Variant asm_op : Type :=
 | VEXTRACTI128
 | VINSERTI128
 | VPERM2I128
+| VPERMD
 | VPERMQ
 (* AES instructions *)
 | AESDEC
@@ -747,6 +748,9 @@ Definition x86_VINSERTI128 (v1: u256) (v2: u128) (m: u8) : ex_tpl (w_ty U256) :=
 (* ---------------------------------------------------------------- *)
 Definition x86_VPERM2I128 (v1 v2: u256) (m: u8) : ex_tpl (w_ty U256) :=
   ok (wperm2i128 v1 v2 m).
+
+Definition x86_VPERMD (v1 v2: u256): ex_tpl w256_ty :=
+  ok (wpermd v1 v2).
 
 Definition x86_VPERMQ (v: u256) (m: u8) : ex_tpl (w_ty U256) :=
   ok (wpermq v m).
@@ -1374,6 +1378,10 @@ Definition Ox86_VPERM2I128_instr :=
   mk_instr_pp "VPERM2I128" w256x2w8_ty w256_ty [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR x86_VPERM2I128
               (check_xmm_xmm_xmmm_imm8 U256) 4 U256 (imm8 U256) (PrimM VPERM2I128) (pp_name_ty "vperm2i128" [::U256;U256;U256;U8]).
 
+Definition Ox86_VPERMD_instr :=
+  mk_instr_pp "VPERMD" (w2_ty U256 U256) w256_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VPERMD
+       (check_xmm_xmm_xmmm U256) 3 U256 None (PrimM VPERMD) (pp_name "vpermd" U256).
+
 Definition Ox86_VPERMQ_instr :=
   mk_instr_pp "VPERMQ" w256w8_ty w256_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VPERMQ
               (check_xmm_xmmm_imm8 U256) 3 U256 (imm8 U256) (PrimM VPERMQ) (pp_name_ty "vpermq" [::U256;U256;U8]).
@@ -1514,6 +1522,7 @@ Definition instr_desc o : instr_desc_t :=
   | VPALIGNR sz        => Ox86_VPALIGNR_instr.1 sz 
   | VBROADCASTI128     => Ox86_VBROADCASTI128_instr.1
   | VPERM2I128         => Ox86_VPERM2I128_instr.1
+  | VPERMD             => Ox86_VPERMD_instr.1
   | VPERMQ             => Ox86_VPERMQ_instr.1
   | VINSERTI128        => Ox86_VINSERTI128_instr.1
   | VPEXTR ve          => Ox86_VPEXTR_instr.1 ve
@@ -1616,6 +1625,7 @@ Definition prim_string :=
    Ox86_VPALIGNR_instr.2;
    Ox86_VBROADCASTI128_instr.2;
    Ox86_VPERM2I128_instr.2;
+   Ox86_VPERMD_instr.2;
    Ox86_VPERMQ_instr.2;
    Ox86_VINSERTI128_instr.2;
    Ox86_VPEXTR_instr.2;
