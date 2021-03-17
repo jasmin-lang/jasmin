@@ -271,6 +271,22 @@ Definition get (m:t) (tl:lbl) : option scost := Ml.get m tl.
 Definition set (m:t) (tl:lbl) (sl:lbl) divfact : t :=
   Ml.set m tl {| sc_divfact := divfact; sc_lbl := sl |}.
 
+Example two_trees :=
+  Eval vm_compute in
+  let k n : lbl := ([::], n) in
+  let: i := [:: 0; 1; 2 ] in
+  let m1 := foldl (λ m i, set m (k i) (k i) 0) empty i in
+  let m2 := foldr (λ i m, set m (k i) (k i) 0) empty i in
+  (m1, m2).
+
+Print two_trees.
+
+Lemma two_trees_are_equal : Ml.Map.equal (λ x y, x == y) two_trees.1 two_trees.2.
+Proof. by []. Qed.
+
+Lemma two_trees_are_different : two_trees.1 ≠ two_trees.2.
+Proof. by []. Qed.
+
 (* Merging map *)
 Definition merge_scost (_:lbl) (o1 o2 : option scost) := 
   match o1, o2 with
