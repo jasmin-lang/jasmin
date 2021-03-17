@@ -8,8 +8,11 @@ DESTDIR  ?=
 PREFIX   ?= /usr/local
 BINDIR   := $(PREFIX)/bin
 LIBDIR   := $(PREFIX)/lib
-INSTALL  ?= install
-
+ifeq ($(UNAME_S),Darwin)
+  INSTALL  ?= ginstall
+else
+  INSTALL  ?= install
+endif
 # --------------------------------------------------------------------
 .PHONY: all build check clean dist distcheck
 

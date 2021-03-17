@@ -159,6 +159,9 @@ Variant asm_op : Type :=
 | VAESIMC
 | AESKEYGENASSIST
 | VAESKEYGENASSIST 
+(* MISC *)
+| RDTSC    of wsize
+| RDTSCP   of wsize
 .
 
 (* ----------------------------------------------------------------------------- *)
@@ -826,6 +829,15 @@ Definition x86_AESENCLAST      (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wrepr 
 Definition x86_AESIMC          (v1    : u128) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
 Definition x86_AESKEYGENASSIST (v1 : u128) (v2 : u8) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
 
+(* These are "fake" semantic functions... (currently, the semaantics
+ of these operations cannot be captured)                            *)
+Definition x86_RDTSC sz        : ex_tpl (w2_ty sz sz) :=
+  Let _ := check_size_32_64 sz in
+  ok (wrepr sz 0, wrepr sz 0).
+Definition x86_RDTSCP sz       : ex_tpl (w3_ty sz) :=
+  Let _ := check_size_32_64 sz in
+  ok ( wrepr sz 0, (wrepr sz 0, wrepr sz 0)).
+
 (* ----------------------------------------------------------------------------- *)
 Coercion F f := ADImplicit (IArflag f).
 Coercion R r := ADImplicit (IAreg r).
@@ -1478,6 +1490,44 @@ Definition Ox86_VAESKEYGENASSIST_instr :=
    (check_xmm_xmmm_imm8 U128) 3 U128 (imm8 U8) (PrimM VAESKEYGENASSIST) 
    (pp_name_ty "vaeskeygenassist" [::U128;U128;U8]).
 
+(* MISC instructions *)
+Definition check_rdtsc (_:wsize) : seq (seq (seq arg_kind)) :=
+  [:: [::]].
+Definition Ox86_RDTSC_instr :=
+  (fun sz => mk_instr
+              (pp_sz "RDTSC"%string sz) (* Jasmin name *)
+              nil (* args type *)
+              (w2_ty sz sz) (* result type *)
+              nil (* args *)
+              [:: R RDX; R RAX] (* results *)
+              MSB_CLEAR (* clear MostSignificantBits *)
+              (x86_RDTSC sz) (* semantics *)
+              (check_rdtsc sz) (* arg checks *)
+              0 (* nargs *)
+              sz (* size *)
+              (no_imm sz) (* no immediate arg. *)
+              [::]
+              (pp_name_ty "rdtsc" [::U64;U64]) (* asm pretty-print*)
+   ,("RDTSC"%string, PrimP U64 RDTSC) (* jasmin concrete syntax *)
+  ).
+Definition Ox86_RDTSCP_instr :=
+  (fun sz => mk_instr
+              (pp_sz "RDTSCP"%string sz) (* Jasmin name *)
+              nil (* args type *)
+              (w3_ty sz) (* result type *)
+              nil (* args *)
+              [:: R RDX; R RAX; R RCX] (* results *)
+              MSB_CLEAR (* clear MostSignificantBits *)
+              (x86_RDTSCP sz) (* semantics *)
+              (check_rdtsc sz) (* arg checks *)
+              0 (* nargs *)
+              sz (* size *)
+              (no_imm sz) (* no immediate arg. *)
+              [::]
+              (pp_name_ty "rdtscp" [::U64;U64;U64]) (* asm pprinter *)
+   ,("RDTSCP"%string, PrimP U64 RDTSCP) (* jasmin concrete syntax *)
+  ).
+
 Definition instr_desc o : instr_desc_t :=
   match o with
   | MOV sz             => Ox86_MOV_instr.1 sz
@@ -1577,6 +1627,8 @@ Definition instr_desc o : instr_desc_t :=
   | VAESIMC            => Ox86_VAESIMC_instr.1         
   | AESKEYGENASSIST    => Ox86_AESKEYGENASSIST_instr.1 
   | VAESKEYGENASSIST   => Ox86_VAESKEYGENASSIST_instr.1 
+  | RDTSC sz           => Ox86_RDTSC_instr.1 sz
+  | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -1679,7 +1731,9 @@ Definition prim_string :=
    Ox86_AESIMC_instr.2;          
    Ox86_VAESIMC_instr.2;         
    Ox86_AESKEYGENASSIST_instr.2; 
-   Ox86_VAESKEYGENASSIST_instr.2  
+   Ox86_VAESKEYGENASSIST_instr.2;
+   Ox86_RDTSC_instr.2;
+   Ox86_RDTSCP_instr.2
  ].
   
   
