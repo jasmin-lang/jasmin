@@ -460,6 +460,112 @@ Qed.
 
 End Sm.
 
+(* FIXME: Move this in leakage *)
+Section Section.
+
+Context (P: leak_i_tr → Prop)
+        (Q: leak_c_tr → Prop)
+        (Hnil          : Q [::])
+        (Hcons         : ∀ lti lt, P lti -> Q lt -> Q (lti::lt))
+        (Hikeep        : P LT_ikeep)
+        (Hile          : ∀ lte, P (LT_ile lte))
+        (Hicond        : ∀ lte lt1 lt2, Q lt1 -> Q lt2 -> P (LT_icond lte lt1 lt2))
+        (Hiwhile       : ∀ lt1 lte lt2, Q lt1 -> Q lt2 -> P (LT_iwhile lt1 lte lt2))
+        (Hifor         : ∀ lte lt, Q lt -> P (LT_ifor lte lt))
+        (Hicall        : ∀ f lte1 lte2, P (LT_icall f lte1 lte2))
+        (Hiremove      : P LT_iremove)
+        (Hicond_eval   : ∀ b lt, Q lt -> P (LT_icond_eval b lt))
+        (Hifor_unroll  : ∀ n lt, Q lt -> P (LT_ifor_unroll n lt)) 
+        (Hicall_inline : ∀ nargs f ninit nres, P (LT_icall_inline nargs f ninit nres))
+        (Hicondl       : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_icondl lei le lt1 lt2))
+        (Hiwhilel      : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_iwhilel lei le lt1 lt2))
+        (Hicopn        : ∀ lei, P (LT_icopn lei))
+        (Hilmov1       : P LT_ilmov1)
+        (Hilmov2       : P LT_ilmov2)
+        (Hilmov3       : P LT_ilmov3)
+        (Hilmov4       : P LT_ilmov4)
+        (Hilinc        : ∀ les, P (LT_ilinc les))
+        (Hilcopn       : ∀ les, P (LT_ilcopn les))
+        (Hilsc         : P LT_ilsc)
+        (Hild          : P LT_ild)
+        (Hildc         : P LT_ildc)
+        (Hildcn        : P LT_ildcn)
+        (Hilmul        : ∀ lei le, P (LT_ilmul lei le))
+        (Hileq         : ∀ les, P (LT_ileq les))
+        (Hillt         : ∀ les, P (LT_illt les))
+        (Hilif         : ∀ lei le, P (LT_ilif lei le))
+        (Hilea         : P LT_ilea)
+        (Hilfopn       : ∀ lei les, P (LT_ilfopn lei les))
+        (Hilds         : P LT_ilds)
+        (Hildus        : P LT_ildus)
+        (Hildiv        : ∀ lti le, P lti -> P (LT_ildiv lti le))
+        (Hilasgn       : P LT_ilasgn).
+
+  Section C.
+    Context (leak_i_tr_ind : forall lti, P lti).
+    Fixpoint leak_c_tr_ind_aux (lt: leak_c_tr) : Q lt := 
+      match lt with
+      | [::] => Hnil
+      | lti::lt => Hcons (leak_i_tr_ind lti) (leak_c_tr_ind_aux lt)
+      end.
+  End C.
+
+  Fixpoint leak_i_tr_ind (lti:leak_i_tr) := 
+    match lti with
+    | LT_ikeep   => Hikeep             
+    | LT_ile lte => Hile lte
+
+    | LT_icond lte lt1 lt2 => 
+      Hicond lte (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)        
+
+    | LT_iwhile lt1 lte lt2 => 
+      Hiwhile lte (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)      
+
+    | LT_ifor lte lt       => Hifor lte (leak_c_tr_ind_aux leak_i_tr_ind lt)
+    | LT_icall f lte1 lte2 => Hicall f lte1 lte2
+    | LT_iremove           => Hiremove       
+    | LT_icond_eval b lt   => Hicond_eval b (leak_c_tr_ind_aux leak_i_tr_ind lt)
+    | LT_ifor_unroll n lt  => Hifor_unroll n (leak_c_tr_ind_aux leak_i_tr_ind lt)
+
+    | LT_icall_inline nargs f ninit nres => Hicall_inline  nargs f ninit nres
+
+    | LT_icondl lei le lt1 lt2 => 
+      Hicondl lei le (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)
+
+    | LT_iwhilel lei le lt1 lt2 => 
+      Hiwhilel lei le (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)
+
+    | LT_icopn lei      => Hicopn lei
+    | LT_ilmov1         => Hilmov1        
+    | LT_ilmov2         => Hilmov2        
+    | LT_ilmov3         => Hilmov3        
+    | LT_ilmov4         => Hilmov4        
+    | LT_ilinc les      => Hilinc les
+    | LT_ilcopn les     => Hilcopn les
+    | LT_ilsc           => Hilsc          
+    | LT_ild            => Hild           
+    | LT_ildc           => Hildc          
+    | LT_ildcn          => Hildcn         
+    | LT_ilmul lei le   => Hilmul lei le
+    | LT_ileq les       => Hileq  les
+    | LT_illt les       => Hillt  les
+    | LT_ilif lei le    => Hilif  lei le
+    | LT_ilea           => Hilea          
+    | LT_ilfopn lei les => Hilfopn lei les
+    | LT_ilds           => Hilds          
+    | LT_ildus          => Hildus         
+    | LT_ildiv lti le   => Hildiv le (leak_i_tr_ind lti)
+    | LT_ilasgn         => Hilasgn        
+    end.
+
+  Definition leak_c_tr_ind := leak_c_tr_ind_aux leak_i_tr_ind.
+
+  Lemma leak_tr_ind : (forall lti, P lti) /\ (forall lt, Q lt).
+  Proof. apply (conj leak_i_tr_ind leak_c_tr_ind). Qed.
+
+End Section.
+
+
 Section Transform_Cost_c.
 
 Variable transform_cost_i : leak_i_tr -> Sm.t -> lbl -> lbl -> nat -> Sm.t * lbl. 
@@ -587,17 +693,52 @@ Fixpoint transform_cost_i (lt:leak_i_tr) (m:Sm.t) (tl:lbl) (sl:lbl) divfact : Sm
     (m, tl) (* FIXME *)
   end.
 
+Definition transform_cost_I lt sl divfact := 
+  transform_cost_i lt Sm.empty ([::],0) sl divfact.
+
+Definition transform_cost_C lt sl divfact :=
+  transform_cost_c transform_cost_i lt Sm.empty ([::],0) sl divfact.
+
 (*
-Lemma transform_cost_i_merge : 
+Lemma transform_merge : 
+  (forall lt m tl sl divfact,
+    transform_cost_i lt m tl sl divfact =
+      (Sm.merge m (Sm.prefix_top tl (transform_cost_I lt sl divfact).1),
+       Sm.prefix_top_lbl tl (transform_cost_I lt sl divfact).2)) /\
+ (forall lt m tl sl divfact,
+    transform_cost_c transform_cost_i lt m tl sl divfact =
+      (Sm.merge m (Sm.prefix_top tl (transform_cost_C lt sl divfact).1),
+       Sm.prefix_top_lbl tl (transform_cost_C lt sl divfact).2)).
+Proof.
+  apply leak_tr_ind.
+  + move=> m tl sl divfact => /=.
+    (* We need to do the proof with some relation for equality *)
+    admit.
+  + move=> lti lt hlti hlt m tl sl divfact /=.
+    rewrite hlti hlt. 
+    rewrite {3 4}/transform_cost_C /=.   
+    rewrite hlti hlt.
+Sm.merge Sm.empty m = m.
+
+
+transform_cost_c transform_cost_i
+ .
+
+Lemma transform_cost_i_merge lt m tl sl divfact : 
   transform_cost_i lt m tl sl divfact =
-  Sl.merge m (transform_cost_i lt Sm.empty tl sl divfact).
+   (Sm.merge m (Sm.prefix_top tl (transform_cost_I lt sl divfact).1),
+    Sm.prefix_top_lbl tl (transform_cost_I lt sl divfact).2).
+
+Print leak_i_tr.
+
+.
+
+
+  Sm.merge m (transform_cost_i lt Sm.empty tl sl divfact).
 
 Definition transform_cost_i lt sl divfact := 
   transform_cost_i_rec lt Sm.empty ([::],0) sl divfact
 
-Lemma transform_cost_i_merge : 
-  transform_cost_i_rec lt m tl sl divfact =
-  Sl.merge m (Sl.prefix_lbl tl (transform_cost_i lt sl divfact))
 
 
 Lemma transform_ok lt l : 
