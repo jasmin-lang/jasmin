@@ -387,7 +387,7 @@ let main () =
     | Utils0.Error e ->
       Utils.hierror "compilation error %a@.PLEASE REPORT"
          (pp_comp_ferr tbl) e
-    | Utils0.Ok (asm, _leaks) ->
+    | Utils0.Ok (asm, leaks) ->
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->
           let fmt = BatFormat.formatter_of_out_channel out in
@@ -395,6 +395,7 @@ let main () =
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
           Format.printf "%a%!" (Ppasm.pp_prog tbl) asm
+      ; if !print_transformers then Format.printf "%a" (PrintLeak.pp tbl) leaks
     end
   with
   | Utils.HiError s ->

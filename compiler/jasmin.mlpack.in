@@ -16,6 +16,7 @@ src/Parseio
 src/Parser
 src/Ppasm
 src/Printer
+src/PrintLeak
 src/PrintLinear
 src/Prog
 src/Puf
