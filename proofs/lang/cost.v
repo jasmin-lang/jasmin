@@ -151,9 +151,11 @@ match li with
    merge_cost c1 c2
 end.
 
+Notation cost_C := (cost_c cost_i).
+
 (* Cost of a function trace *)
 Definition cost_f (f:funname) (lc : leak_c) := 
-  cost_c cost_i ([::LblF f], 0) lc.
+  cost_C ([::LblF f], 0) lc.
 
 (* ------------------------------------------------------------------- *)
 (* Syntaxic transformation of the cost                                 *)
@@ -275,23 +277,12 @@ Definition empty : t := Ml.empty scost.
 Definition get (m:t) (tl:lbl) : option scost := Ml.get m tl.
 
 Definition set (m:t) (tl:lbl) (sl:lbl) divfact : t :=
-  Ml.set m tl {| sc_divfact := divfact; sc_lbl := sl |}.
+  Ml.set m tl {| sc_lbl := sl; sc_divfact := divfact;  |}.
 
-Example two_trees :=
-  Eval vm_compute in
-  let k n : lbl := ([::], n) in
-  let: i := [:: 0; 1; 2 ] in
-  let m1 := foldl (λ m i, set m (k i) (k i) 0) empty i in
-  let m2 := foldr (λ i m, set m (k i) (k i) 0) empty i in
-  (m1, m2).
+Definition single n sl divfact := set empty ([::], n) sl divfact.
 
-Print two_trees.
-
-Lemma two_trees_are_equal : Ml.Map.equal (λ x y, x == y) two_trees.1 two_trees.2.
-Proof. by []. Qed.
-
-Lemma two_trees_are_different : two_trees.1 ≠ two_trees.2.
-Proof. by []. Qed.
+Definition divfact n (m:t) := 
+  Ml.map (fun sc => {| sc_lbl := sc.(sc_lbl); sc_divfact := n * sc.(sc_divfact) |}) m.
 
 (* Merging map *)
 Definition merge_scost (_:lbl) (o1 o2 : option scost) := 
@@ -303,7 +294,7 @@ Definition merge_scost (_:lbl) (o1 o2 : option scost) :=
 Definition merge (m1 m2: t) : t := 
   Ml.map2 merge_scost m1 m2.
 
-Definition single n sl divfact := set empty ([::], n) sl divfact.
+
 
 Definition disjoint (m1 m2: t) := 
   forall l, get m1 l <> None -> get m2 l = None.
@@ -762,207 +753,231 @@ Context (P: leak_i_tr → Prop)
 
 End Section.
 
-Section Transform_Cost_c.
+Section Transform_Cost_C.
 
-Variable transform_cost_I : leak_i_tr -> lbl -> nat -> Sm.t * nat. 
+Variable transform_cost_I : leak_i_tr -> lbl -> Sm.t * nat. 
 
-Fixpoint transform_cost_C (lt:seq leak_i_tr) (sl:lbl) (divfact:nat) : Sm.t * nat :=
+Fixpoint transform_cost_C (lt:seq leak_i_tr) (sl:lbl) : Sm.t * nat :=
 match lt with
  | [::] => (Sm.empty, 0)
  | lti :: lt => 
-   let mtni := transform_cost_I lti sl divfact in
-   let mtn  :=  transform_cost_C lt (next_lbl sl) divfact in
+   let mtni := transform_cost_I lti sl in
+   let mtn  :=  transform_cost_C lt (next_lbl sl) in
    (Sm.merge mtni.1 (Sm.incr mtni.2 mtn.1), mtni.2 + mtn.2)
 end.
 
 Variable (lt:seq leak_i_tr).
  
-Fixpoint transform_cost_unroll n sl divfact divfact_in := 
+Fixpoint transform_cost_C_unroll n sl divfact := 
   match n with
   | 0 => (Sm.empty, 0)
   | S n => 
-    let m := Sm.single 0 sl divfact in
-    let mtn1 := transform_cost_C lt (lbl_for sl) divfact_in in
-    let mtn2 := transform_cost_unroll n sl divfact divfact_in in
-    (Sm.merge m (Sm.incr 1 (Sm.merge mtn1.1 (Sm.incr mtn1.2 mtn2.1))), (mtn1.2 + mtn2.2).+1)
+    let m := Sm.single 0 sl 1 in
+    let mn1 := transform_cost_C lt (lbl_for sl) in
+    let mn2 := transform_cost_C_unroll n sl divfact in
+    (Sm.merge m (Sm.incr 1 (Sm.merge (Sm.divfact divfact mn1.1) (Sm.incr mn1.2 mn2.1))), 
+     (mn1.2 + mn2.2).+1)
   end.
 
-End Transform_Cost_c.
+End Transform_Cost_C.
    
-Section Transform_Cost_i.
+Section Transform_Cost_I.
 
-Variable transform_cost_f : funname -> Sm.t * nat. (* started with tl = ([LblF fn], 0) *)
+Variable transform_cost_f : funname -> Sm.t * nat. (* started with tl = ([:: LblF fn], 0) *)
 
 Definition pre_t0 := (lbl_t ([::], 0)).1.
 Definition pre_f0 := (lbl_f ([::], 0)).1.
 
-(*
-Fixpoint transform_cost_I (lt:leak_i_tr) (sl:lbl) divfact : Sm.t * nat :=
+Definition transform_opn n sl divfact := 
+  foldr Sm.merge Sm.empty 
+    (map (fun i => Sm.single i sl divfact) (iota 0 n)).
+
+Fixpoint transform_cost_I (lt:leak_i_tr) (sl:lbl) : Sm.t * nat :=
   match lt with 
   | LT_ikeep => 
     (* We assume it is used only for base instruction.
        It is not true for inlining so fix it *)
-    (Sm.single 0 sl divfact, 1)
+    (Sm.single 0 sl 1, 1)
 
   | LT_ile _ => 
-    (Sm.single 0 sl divfact, 1)
+    (Sm.single 0 sl 1, 1)
 
   | LT_icond _ lt1 lt2 =>
     (* sl: if e then c1 else c2  ---> tl: (if e' then c1' else c2'); *)
-    let  m  := Sm.single 0 sl divfact in
-    let mn1 := transform_cost_C transform_cost_I lt1 (lbl_t sl) divfact in
-    let mn2 := transform_cost_C transform_cost_I lt2 (lbl_f sl) divfact in
-    (Sm.merge m (Sm.merge (Sm.prefix pre_t0 mn1) (Sm.prefix pre_f0 mn2)), 1)
+    let  m  := Sm.single 0 sl 1 in
+    let mn1 := transform_cost_C transform_cost_I lt1 (lbl_t sl) in
+    let mn2 := transform_cost_C transform_cost_I lt2 (lbl_f sl) in
+    (Sm.merge m (Sm.merge (Sm.prefix pre_t0 mn1.1) (Sm.prefix pre_f0 mn2.1)), 1)
 
   | LT_iwhile lt1 _ lt2 =>
-    let  m     := Sm.set m tl sl divfact in
-    let (m, _) := transform_cost_c transform_cost_i lt1 m (lbl_f tl).1 0 (lbl_f sl) divfact in
-    let (m, _) := transform_cost_c transform_cost_i lt2 m (lbl_t tl).1 0 (lbl_t sl) divfact in
-    (m, tn.+1)
+    let  m  := Sm.single 0 sl 1 in
+    let mn1 := transform_cost_C transform_cost_I lt1 (lbl_f sl) in
+    let mn2 := transform_cost_C transform_cost_I lt2 (lbl_t sl) in
+    (Sm.merge m (Sm.merge (Sm.prefix pre_f0 mn1.1) (Sm.prefix pre_t0 mn2.1)), 1)
 
   | LT_ifor _ lt1 =>
-    let  m     := Sm.set m tl sl divfact in
-    let (m, _) := transform_cost_c transform_cost_i lt1 m (lbl_for tl).1 0 (lbl_for sl) divfact in
-    (m, tn.+1)
+    let  m := Sm.single 0 sl 1 in
+    let mn := transform_cost_C transform_cost_I lt1 (lbl_for sl) in
+    (Sm.merge m (Sm.prefix (lbl_for ([::],0)).1 mn.1), 1)
 
   | LT_icall fn _ _ => 
-    let m := Sm.set m tl sl divfact in
-    let (mf, _) := transform_cost_f fn in
-    let mf := Sm.prefix (LblN tl.2::tl.1) mf in
-    let m  := Sm.merge m mf in
-    (m, tn.+1)
+    let m := Sm.single 0 sl 1 in
+    let mfn := transform_cost_f fn in
+    (Sm.merge m (Sm.prefix [::LblN 0] mfn.1), 1)
 
   | LT_iremove => 
-    (m, tn)
+    (Sm.empty, 0)
  
   | LT_icond_eval b ltb => 
-    transform_cost_c transform_cost_i ltb m tpre tn (lbl_b b sl) divfact 
+    transform_cost_C transform_cost_I ltb (lbl_b b sl)
 
   | LT_ifor_unroll n lt => 
-    transform_cost_unroll transform_cost_i lt n m tpre tn sl divfact (n * divfact)
+    transform_cost_C_unroll transform_cost_I lt n sl n
 
   | LT_icall_inline nargs fn ninit nres => 
-    let mtn := iter nargs _ (fun mtn => (Sm.set mtn.1 (tpre,mtn.2) sl divfact, mtn.2.+1)) (m,tn) in
-    let (m,tn) := iter ninit _ (fun mtn => (Sm.set mtn.1 (tpre,mtn.2) sl divfact, mtn.2.+1)) mtn in
-    let (mf, tnf) := transform_cost_f fn in
-    let mf := Sm.prefix_call_inline fn (tpre,tn) mf in
-    let tn := tn + tnf in 
-    let m := Sm.merge m mf in
-    iter nres _ (fun mtn => (Sm.set mtn.1 (tpre, mtn.2) sl divfact, mtn.2.+1)) (m,tn)
+    let ma := transform_opn nargs sl 1 in
+    let mi := Sm.incr nargs (transform_opn ninit sl 1) in 
+    let mnf := transform_cost_f fn in
+    let mf := Sm.prefix_call_inline fn ([::],nargs + ninit) mnf.1 in
+    let mr := Sm.incr (nargs + ninit + mnf.2) (transform_opn nres sl 1) in 
+    (Sm.merge ma (Sm.merge mi (Sm.merge mf mr)), nargs + ninit + mnf.2 + nres)
 
     (* sl: if e then c1 else c2 ---> tl:b = e'; tl': if {b} then c1' else c2' *)
     (* we can remove lei from the leak transformer because its LT_id *)
   | LT_icondl lei lte lt1 lt2 =>
-    let m := Sm.set m tl sl divfact in 
-    let tl := next_lbl tl in 
-    let m := Sm.set m tl sl divfact in
-    let (mt, _) := transform_cost_c transform_cost_i lt1 m (lbl_t tl).1 0 (lbl_t sl) divfact in
-    let (mf, _) := transform_cost_c transform_cost_i lt2 m (lbl_f tl).1 0 (lbl_f sl) divfact in
-    (m, tl.2.+1) (* Check with Benjamin *)
+    let  m  := transform_opn 2 sl 1 in
+    let mn1 := transform_cost_C transform_cost_I lt1 (lbl_t sl) in
+    let mn2 := transform_cost_C transform_cost_I lt2 (lbl_f sl) in
+    
+    (m, 2) 
    
     (*sl : while c1 {e} c2 ---> tl: while c1'; b = e' {b} c2' *)
   | LT_iwhilel lei lte lt1 lt2 =>
-    let m := Sm.set m tl sl divfact in 
-    let tpre_f := (lbl_f tl).1 in
-    let (m, tnf) := transform_cost_c transform_cost_i lt1 m tpre_f 0 (lbl_f sl) divfact in 
-    let tl1 := (tpre_f, tnf) in 
-    let m := Sm.set m tl1 sl divfact in 
-    let (m, _) := transform_cost_c transform_cost_i lt2 m (lbl_t tl).1 0 (lbl_t sl) divfact in
-    (m, tn.+1) (* Check with Benjamin *)
+    let m   := Sm.single 0 sl 1 in 
+    let mnf := transform_cost_C transform_cost_I lt1 (lbl_f sl) in 
+    let mf  := (Sm.merge mnf.1 (Sm.single mnf.2 sl 1)) in
+    let mnt := transform_cost_C transform_cost_I lt2 (lbl_t sl) in
+    (Sm.merge m (Sm.merge (Sm.prefix pre_f0 mf) (Sm.prefix pre_t0 mnt.1)), 1)
 
   | LT_icopn lesi => 
-    (m, tn) (* FIXME *)
+    (Sm.empty, 0) (* FIXME *)
 
     (* sl:i --->    tl:i1; tl': i2; next_lbl tl' *)
   | LT_ilmov1 => 
-    let  m   := Sm.set m tl sl divfact in 
-    let  tl := next_lbl tl in
-    let  m  := Sm.set m tl sl divfact in 
-    (m, tl.2.+1)
+    (transform_opn 2 sl 1, 2)
 
-  | LT_ilmov2 =>
-    (Sm.set m tl sl divfact, tn.+1) (* Check with Benjamin *)
-
-  | LT_ilmov3 => 
-    (Sm.set m tl sl divfact, tn.+1) (* Check with Benjamin *)
-
-  | LT_ilmov4 =>
-    (Sm.set m tl sl divfact, tn.+1) (* Check with Benjamin *)
+  | LT_isingle _ =>
+    (transform_opn 1 sl 1, 1)
 
     (* x = e1+e2 *) 
     (* Papp2 add e1 e2 *)
     (* sl: Papp2 add e1 e2 --> tl: x = e1+e2 *)
     (* we can ignore lte because its related to exp *)
   | LT_ilinc lte => 
-    (Sm.set m tl sl divfact, tn.+1) (* Check with Benjamin *)
-    
+    (transform_opn 1 sl 1, 1)
     (* Papp1 --> x = op ? ? *)
     (* we can ignore lte as its related to exp *)
   | LT_ilcopn lte =>
-    (Sm.set m tl sl divfact, tn.+1) (* Check with Benjamin *)
-
+    (transform_opn 1 sl 1, 1)
+    
   | LT_ilsc => 
-    (m, tn) (* FIXME *)
+    (Sm.empty, 0) (* FIXME *)
 
   | LT_ild => 
-    (m, tn) (* FIXME *) 
+    (Sm.empty, 0) (* FIXME *) 
 
   | LT_ildc =>
-    (m, tn) (* FIXME *) 
+    (Sm.empty, 0) (* FIXME *) 
 
   | LT_ildcn => 
-    (m, tn) (* FIXME *)
+    (Sm.empty, 0)  (* FIXME *)
 
   | LT_ilmul ltes lte => 
-    (m, tn) (* FIXME *)
+    (Sm.empty, 0)  (* FIXME *)
     
     (* x = e1==e2 *)
     (* sl: Papp2 eq e1 e2 --> tl: x = e1==e2 *)
     (* we can ignore ltes because it converts single exp leak to seq of leak *)
   | LT_ileq ltes => 
-    (Sm.set m tl sl divfact, tn.+1) (* Check with Benjamin *)
+    (transform_opn 1 sl 1, 1)
 
     (* x = e1<e2 *)
     (* sl: Papp2 lt e1 e2 --> tl: x = e1==e2 *)
     (* we can ignore ltes because it converts single exp leak to seq of leak *)
   | LT_illt ltes =>
-    (Sm.set m tl sl divfact, tn.+1) (* Check with Benjamin *)
+    (transform_opn 1 sl 1, 1)
   
     (* Pif e e1 e2 => x := [Pif e e1 e2] *)
     (* sl: i --> tl: flags = [e]; x = CMOVcc [ cond flags; e1; e2]*)
   | LT_ilif ltei lte => 
-    let  m   := Sm.set m tl sl divfact in 
-    let  tl := next_lbl tl in
-    let  m  := Sm.set m tl sl divfact in 
-    (m, tl.2.+1) (* Check with Benjamin *)
-
+    (transform_opn 2 sl 1, 2)
+  
   | LT_ilea => 
-    (m, tn) (* FIXME *)
+    (Sm.empty, 0)  (* FIXME *)
 
   | LT_ilfopn ltesi ltes =>
-    let  m   := Sm.set m tl sl divfact in 
-    let  tl := next_lbl tl in
-    let  m  := Sm.set m tl sl divfact in 
-    (m, tl.2.+1) 
+    (transform_opn 2 sl 1, 2)
   
     (* x = Papp2 div e1 e2 *)
     (* sl: Papp2 div e1 e2 --> tl: x = e1/e2 *)
   | LT_ilds => 
-    (Sm.set m tl sl divfact, tn.+1) (* Check with Benjamin *)
-  
+    (transform_opn 1 sl 1, 1)
+
   | LT_ildus =>
-    (Sm.set m tl sl divfact, tn.+1) (* Check with Benjamin *)
+    (transform_opn 1 sl 1, 1)
 
   | LT_ildiv lti ltes => 
-    let  m   := Sm.set m tl sl divfact in 
-    let  tl := next_lbl tl in
-    let  m  := Sm.set m tl sl divfact in 
-    (m, tl.2.+1)
+    (transform_opn 2 sl 1, 2)
 
   | LT_ilasgn => 
-    (m, tn) (* FIXME *)
+    (Sm.empty, 0)  (* FIXME *)
   end.
+
+Notation transform_cost_C := (transform_cost_C transform_cost_I).
+
+Scheme leak_WF_ind   := Induction for leak_WF   Sort Prop
+  with leak_WFs_ind  := Induction for leak_WFs  Sort Prop
+  with leak_WFss_ind := Induction for leak_WFss Sort Prop.
+
+Axiom mergec0 : forall c, merge_cost c empty_cost =1 c.
+
+Axiom interp_single : forall c n sl d,
+  Sm.interp c (Sm.single n sl d) =1 (fun l => if l == ([::],n) then c sl %/ d else 0).
+
+Axiom interp_single1 : forall sl,
+  Sm.interp (single_cost sl) (Sm.single 0 sl 1) =1 single_cost ([::],0).
+
+Axiom interp_merge : forall c m1 m2,
+  Sm.disjoint m1 m2 ->
+  Sm.interp c (Sm.merge m1 m2) =1 merge_cost (Sm.interp c m1) (Sm.interp c m2).
+
+Axiom merge_cost_add : forall c1 c2 lbl,
+  merge_cost c1 c2 lbl = c1 lbl + c2 lbl.
+
+(*
+Lemma transform_cost_ok ftr w lt lc sl : 
+  leak_WFs ftr lt lc ->
+  cost_C ([::],0) (leak_Is (leak_I ftr) w lt lc) =1 Sm.interp (cost_C sl lc) (transform_cost_C lt sl).1.
+Proof.
+  move=> h; move: h sl.
+  apply (leak_WFs_ind 
+     (P:=fun lt li _ => forall sl, 
+       cost_C ([::],0) (leak_I ftr w li lt) =1 Sm.interp (cost_i sl li) (transform_cost_I lt sl).1)
+     (P0:=fun lt lc _ => forall sl, 
+       cost_C ([::],0) (leak_Is (leak_I ftr) w lt lc) =1 
+          Sm.interp (cost_C sl lc) (transform_cost_C lt sl).1)
+     (P1:=fun lt lcs _ => forall sl, 
+       cost_cs cost_i ([::],0) (leak_Iss (leak_I ftr) w lt lcs) =1 
+         fun lbl => size lcs * (Sm.interp (cost_C sl lc) (transform_cost_C lt sl).1) lbl)).
+  + by move=> le sl /= lbl; rewrite mergec0 interp_single1.
+  + by move=> le lte sl /= lbl; rewrite mergec0 interp_single1.
+  + move=> lte ltt ltf le lti _ hrec sl lbl /=.
+    rewrite mergec0 /= !(interp_merge, merge_cost_add).
+    + rewrite interp_single.
 *)
+
+End Transform_Cost_I.
+
 
 (*
 Section Transform_Cost_c.
