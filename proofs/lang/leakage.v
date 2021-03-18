@@ -41,8 +41,10 @@ Inductive leak_e :=
 | LAdr : pointer -> leak_e (* memory access at given address *)
 | LSub: (seq leak_e) -> leak_e. (* forest of leaks *)
 
+Notation leak_es := (seq leak_e).
+
 Inductive leak_i : Type :=
-  | Lopn  : leak_e ->leak_i                                                  
+  | Lopn  : leak_e -> leak_i   (* leak_es -> leak_es -> leak_i *)
   | Lcond  : leak_e -> bool -> seq leak_i -> leak_i                          
   | Lwhile_true : seq leak_i -> leak_e -> seq leak_i -> leak_i -> leak_i     
   | Lwhile_false : seq leak_i -> leak_e -> leak_i
@@ -55,6 +57,20 @@ Notation leak_for := (seq leak_c) (only parsing).
 
 Notation leak_fun := (funname * leak_c)%type.
 
+Definition Lopn_ les les' := Lopn (LSub [::LSub les; LSub les']).
+
+Definition destr_Lopn (l: leak_e) := 
+  match l with
+  | LSub [::LSub l1; LSub l2] => (l1, l2)
+  | _ => ([::], [::])
+  end.
+
+(*
+match l with 
+| Lopn_ le => 
+  let (les1, les2) := destr_Lopn le in
+  ... les1 les2 but not le 
+*)
 
 (* ------------------------------------------------------------------------ *)
 
@@ -183,6 +199,11 @@ Inductive leak_es_i_tr :=
   | LT_imul4 : leak_es_i_tr
   | LT_iemptysl : leak_es_i_tr.
 
+Inductive leak_i_tr_single := 
+ | LT_ilmov2_ 
+ | LT_ilmov3_
+ | LT_ilmov4_.
+
 Inductive leak_i_tr :=
 (* structural transformation *)
 | LT_ikeep : leak_i_tr             (* same as source *)
@@ -203,10 +224,11 @@ Inductive leak_i_tr :=
 | LT_iwhilel :  leak_e_i_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
 | LT_icopn : leak_es_i_tr -> leak_i_tr
 (* lowering assgn *)
+| LT_isingle : leak_i_tr_single -> leak_i_tr 
 | LT_ilmov1 : leak_i_tr
-| LT_ilmov2 : leak_i_tr
+(*| LT_ilmov2 : leak_i_tr
 | LT_ilmov3 : leak_i_tr
-| LT_ilmov4 : leak_i_tr
+| LT_ilmov4 : leak_i_tr *)
 | LT_ilinc : leak_e_es_tr -> leak_i_tr
 | LT_ilcopn : leak_e_es_tr -> leak_i_tr
 | LT_ilsc : leak_i_tr
@@ -223,6 +245,10 @@ Inductive leak_i_tr :=
 | LT_ildus : leak_i_tr
 | LT_ildiv : leak_i_tr -> leak_e_es_tr -> leak_i_tr
 | LT_ilasgn : leak_i_tr.
+
+Notation LT_ilmov2 := (LT_isingle LT_ilmov2_).
+Notation LT_ilmov3 := (LT_isingle LT_ilmov3_).
+Notation LT_ilmov4 := (LT_isingle LT_ilmov4_).
 
 Definition is_LT_ilds li := if li is LT_ilds then true else false.
 
@@ -400,17 +426,21 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
         Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: leak_E stk (LT_subi 1) le]])]
 
     (* intermediate register is not needed and Pconst is 0 ?? *)
-  | LT_ilmov2, Lopn le => 
-    [:: Lopn (LSub [:: LSub [::];
-                       LSub[:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])]
+  | LT_isingle lti, Lopn le => 
+    let le' := 
+      match lti with 
+      | LT_ilmov2_ => 
+        LSub [:: LSub [::];
+                LSub[:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]]
 
-  | LT_ilmov3, Lopn le => 
-    [:: Lopn (LSub [:: LSub [::]; LSub [:: leak_E stk (LT_subi 1) le]])]
-
-  | LT_ilmov4, Lopn le => 
-    [:: Lopn (LSub [:: LSub [:: leak_E stk (LT_subi 0) le]; 
-                       LSub [:: leak_E stk (LT_subi 1) le]])] 
-
+      | LT_ilmov3_ => 
+        LSub [:: LSub [::]; LSub [:: leak_E stk (LT_subi 1) le]]
+             
+      | LT_ilmov4_ => 
+        LSub [:: LSub [:: leak_E stk (LT_subi 0) le]; LSub [:: leak_E stk (LT_subi 1) le]]
+      end in
+    [:: Lopn le']
+        
     (* ltes transforms leak_e to seq leak_e *)
   | LT_ilinc ltes, Lopn le => 
     [:: Lopn (LSub [:: LSub (leak_ES stk ltes (leak_E stk (LT_subi 0) le)); 
