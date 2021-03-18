@@ -508,80 +508,57 @@ Section Leak_WF.
 
 End Leak_WF.*)
 
-Section Leak_WF.
-
-Variable leak_WF : leak_i_tr -> leak_i -> Prop.
-
-Inductive leak_WFs : seq leak_i_tr -> seq leak_i -> Prop :=
- | WF_empty : leak_WFs [::] [::]
- | WF_seq : forall l1 l1' lt1 lt1',
-            leak_WF lt1 l1 ->
-            leak_WFs lt1' l1'.
-
-Inductive leak_WFss : seq leak_i_tr -> seq (seq leak_i) -> Prop :=
- | WF_empty' : leak_WFss [::] [::]
- | WF_seq' : forall l1 l1' lt1,
-            leak_WFs lt1 l1 ->
-            leak_WFss lt1 l1'.
-
-End Leak_WF.
-
 Inductive leak_WF : leak_i_tr -> leak_i -> Prop :=
- | LT_ikeepWF : forall li, leak_WF LT_ikeep li (* need to fix *)
+ | LT_ikeepWF : forall le, leak_WF LT_ikeep (Lopn le)
  | LT_ileWF : forall le lte, leak_WF (LT_ile lte) (Lopn le) 
  | LT_icondtWF : forall lte ltt ltf le lti,
-                 leak_WFs leak_WF ltt lti ->
+                 leak_WFs ltt lti ->
                  leak_WF (LT_icond lte ltt ltf) (Lcond le true lti)
  | LT_icondfWF : forall lte ltt ltf le lti,
-                 leak_WFs leak_WF ltf lti ->
+                 leak_WFs ltf lti ->
                  leak_WF (LT_icond lte ltt ltf) (Lcond le false lti)
  | LT_iwhiletWF : forall ltis lte ltis' lts le lts' lw,
-                  leak_WFs leak_WF ltis lts ->
-                  leak_WFs leak_WF ltis' lts' ->
-                  leak_WF  (LT_iwhile ltis lte ltis') lw ->
+                  leak_WFs ltis lts ->
+                  leak_WFs ltis' lts' ->
+                  leak_WF (LT_iwhile ltis lte ltis') lw ->
                   leak_WF (LT_iwhile ltis lte ltis') (Lwhile_true lts le lts' lw)
  | LT_iwhilefWF : forall ltis lte ltis' lts le,
-                  leak_WFs leak_WF ltis lts ->
+                  leak_WFs ltis lts ->
                   leak_WF (LT_iwhile ltis lte ltis') (Lwhile_false lts le)
  | LT_iforWF: forall lte ltiss le ltss,
-              leak_WFss leak_WF ltiss ltss ->
+              leak_WFss ltiss ltss ->
               leak_WF (LT_ifor lte ltiss) (Lfor le ltss)
- | LT_icallWF : forall f lte lte' le f' lts le',
-                f == f' ->
-                leak_WFs leak_WF (leak_Fun f) lts ->
-                leak_WF (LT_icall f lte lte') (Lcall le (f', lts) le')
+ | LT_icallWF : forall f lte lte' le lts le',
+                leak_WFs (leak_Fun f) lts ->
+                leak_WF (LT_icall f lte lte') (Lcall le (f, lts) le')
  | LT_iremoveWF : forall l,
                   leak_WF LT_iremove l
- | LT_icond_evalWF : forall b lts le b' lti,
-                     b == b' ->
-                     leak_WFs leak_WF lts lti ->
-                     leak_WF (LT_icond_eval b lts) (Lcond le b' lti)
+ | LT_icond_evalWF : forall b lts le lti,
+                     leak_WFs lts lti ->
+                     leak_WF (LT_icond_eval b lts) (Lcond le b lti)
  | LT_icond_evalWF' : forall lts lti le,
-                      leak_WFs leak_WF lts lti ->
+                      leak_WFs lts lti ->
                       leak_WF (LT_icond_eval false lts) (Lwhile_false lti le)
- | LT_ifor_unrollWF : forall n ltiss le ltss,
-                      n = List.length ltss ->
-                      leak_WFss leak_WF ltiss ltss ->
-                      leak_WF (LT_ifor_unroll n ltiss) (Lfor le ltss)
- | LT_icall_inlineWF : forall nargs fn ninit nres le f lts le',
-                       (*(nargs == List.length le)*) 
-                       fn == f -> (*(nres == List.length le')*)
-                       leak_WFs leak_WF (leak_Fun f) lts ->
-                       leak_WF (LT_icall_inline nargs fn ninit nres) (Lcall le (f, lts) le')
+ | LT_ifor_unrollWF : forall ltiss le ltss,
+                      leak_WFss ltiss ltss ->
+                      leak_WF (LT_ifor_unroll (size ltss) ltiss) (Lfor le ltss)
+ | LT_icall_inlineWF : forall ninit les f lts les',
+                       leak_WFs (leak_Fun f) lts ->
+                       leak_WF (LT_icall_inline (size les) f ninit (size les')) (Lcall (LSub les) (f, lts) (LSub les'))
  (* Lowering *)
  | LT_icondltWF : forall lti' lte ltt ltf le lti,
-                  leak_WFs leak_WF ltt lti ->
+                  leak_WFs ltt lti ->
                   leak_WF (LT_icondl lti' lte ltt ltf) (Lcond le true lti)
  | LT_icondlfWF : forall lti' lte ltt ltf le lti,
-                  leak_WFs leak_WF ltf lti ->
+                  leak_WFs ltf lti ->
                   leak_WF (LT_icondl lti' lte ltt ltf) (Lcond le false lti)
  | LT_iwhilelWF : forall lti lte ltis ltis' lts le lts' lw,
-                  leak_WFs leak_WF ltis lts ->
-                  leak_WFs leak_WF ltis' lts' ->
+                  leak_WFs ltis lts ->
+                  leak_WFs ltis' lts' ->
                   leak_WF (LT_iwhilel lti lte ltis ltis') lw ->
                   leak_WF (LT_iwhilel lti lte ltis ltis') (Lwhile_true lts le lts' lw)  
  | LT_iwhilelWF' : forall lti lte ltis ltis' lts le,
-                   leak_WFs leak_WF ltis lts ->
+                   leak_WFs ltis lts ->
                    leak_WF (LT_iwhilel lti lte ltis ltis') (Lwhile_false lts le)
  | LT_icopnWF : forall ltes le,
                 leak_WF (LT_icopn ltes) (Lopn le)
@@ -624,7 +601,19 @@ Inductive leak_WF : leak_i_tr -> leak_i -> Prop :=
  | LT_ildivWF : forall lti ltes le,
                 leak_WF (LT_ildiv lti ltes) (Lopn le)
  | LT_ilasgnWF : forall le,
-                 leak_WF LT_ilasgn (Lopn le).
+                 leak_WF LT_ilasgn (Lopn le)
+
+with leak_WFs : seq leak_i_tr -> seq leak_i -> Prop :=
+ | WF_empty : leak_WFs [::] [::]
+ | WF_seq : forall l1 l1' lt1 lt1',
+            leak_WF lt1 l1 ->
+            leak_WFs lt1' l1'
+
+with leak_WFss : seq leak_i_tr -> seq (seq leak_i) -> Prop :=
+ | WF_empty' : leak_WFss [::] [::]
+ | WF_seq' : forall l1 l1' lt1,
+            leak_WFs lt1 l1 ->
+            leak_WFss lt1 l1'.
 
 End Leak_Call.
 
