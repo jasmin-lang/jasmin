@@ -27,6 +27,7 @@ From CoqWord Require Import ssrZ.
 Require Import Psatz xseq. 
 Require Export leakage.
 Import Utf8.
+Import GRing.Theory.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -215,17 +216,21 @@ Qed.
 
 (* --------------------------------------------------------------------------- *)
 
-Definition cost_map := lbl -> nat.
-Definition update_cost (m:cost_map) (l:lbl) : cost_map :=
-fun (l':lbl) => if l == l' then (m l) + 1 else (m l').
+Definition cost_map := lbl -> rat.  (* Q *)
 
-Definition empty_cost : cost_map := (fun _ => O).
+Definition update_cost (m:cost_map) (l:lbl) : cost_map :=
+  fun (l':lbl) => if l == l' then (m l + 1)%R else m l'.
+
+Definition empty_cost : cost_map := fun _ => 0%R.
+
 Definition single_cost l : cost_map := update_cost empty_cost l.
+
 Definition merge_cost (c1 c2: cost_map) := 
-   fun l => c1 l + c2 l.
+   fun l => (c1 l + c2 l)%R.
+
 Definition prefix_cost pre c : cost_map := 
   fun l => if drop (size l.1 - size pre) l.1 == pre then c (take (size l.1 - size pre) l.1, l.2)
-           else 0.
+           else 0%R.
 
 Section Cost_C.
 
@@ -413,8 +418,8 @@ Definition compose (m1 m2: t) : t :=
 Definition interp (sc:cost_map) (m:t) : cost_map := 
   fun l => 
     match get m l with
-    | Some c => divn (sc c.(sc_lbl)) c.(sc_divfact)
-    | None => 0
+    | Some c => (sc c.(sc_lbl) / c.(sc_divfact)%:Q)%R
+    | None => 0%R
     end.
 
 (* Properties *)
@@ -563,14 +568,14 @@ Proof.
   + by case: (Ml.get m1) => //; case: (Ml.get m1) => // ?; rewrite Ml.setP_neq // eq_sym; apply /eqP.
   by case: (Ml.get m1) => // ?; rewrite Ml.setP_neq // eq_sym; apply /eqP.
 Qed.
- 
+
 Lemma interp_compose sc m1 m2 l : 
   interp sc (compose m1 m2) l = interp (interp sc m1) m2 l.
 Proof.
   rewrite /interp composeP.
   case: (get m2) => // sc2.
-  case: (get m1) => [sc1 /= | ]; last by rewrite div0n.
-  by rewrite -divnMA.
+  case: (get m1) => [sc1 /= | ]; last by rewrite mul0r.
+  by rewrite PoszM intrM invfM mulrA.
 Qed.
 
 (* sc <= sc' -> interp sc m <= interp sc' m. *)
@@ -959,10 +964,10 @@ Scheme leak_WF_ind   := Induction for leak_WF   Sort Prop
 
 
 Lemma mergeC c1 c2 : merge_cost c1 c2 =1 merge_cost c2 c1.
-Proof. by move=> l; rewrite /merge_cost addnC. Qed.
+Proof. by move=> l; rewrite /merge_cost addrC. Qed.
 
 Lemma mergec0 c : merge_cost c empty_cost =1 c.
-Proof. by move=> l; rewrite /merge_cost addn0. Qed.
+Proof. by move=> l; rewrite /merge_cost addr0. Qed.
 
 Lemma merge0c c : merge_cost empty_cost c =1 c.
 Proof. by rewrite mergeC mergec0. Qed.
@@ -979,12 +984,12 @@ Proof. by rewrite -cost_C_pre. Qed.
 Lemma prefix_cost0 pre : prefix_cost pre empty_cost =1 empty_cost.
 Proof. by rewrite /prefix_cost /empty_cost => l /=; case:ifP. Qed.
 
-Lemma single_costE l l' : single_cost l l' = if l == l' then 1 else 0.
+Lemma single_costE l l' : single_cost l l' = if l == l' then 1%R else 0%R.
 Proof. by rewrite /single_cost /update_cost /empty_cost. Qed.
 
 Lemma single_lbl_b b sl (l l' : lbl):
   prefix_top_lbl (lbl_b b sl) l = Some l' → 
-  single_cost sl l' = 0.
+  single_cost sl l' = 0%R.
 Proof. 
   rewrite single_costE; case: eqP => [<- | //] /prefix_top_lblP.
   rewrite /prefix_top_lbl_inv /lbl_b /= !subnS subnn /= drop0.
@@ -992,7 +997,7 @@ Proof.
 Qed.
 
 Lemma prefix_cost_C_lbl_b b lt (sl l l':lbl):
-  prefix_top_lbl (lbl_b (~~b) sl) l = Some l' → cost_C (lbl_b b sl) lt l' = 0.
+  prefix_top_lbl (lbl_b (~~b) sl) l = Some l' → cost_C (lbl_b b sl) lt l' = 0%R.
 Proof.
   rewrite cost_C_lbl_b /prefix_cost /prefix_top_lbl /prefix_top_r.
   case: l => l n /=; case: (lastP l) => [ | r e] /=.
@@ -1003,14 +1008,11 @@ Proof.
 Qed.
 
 Lemma prefix_cost_C_lbl_f lt (sl l l':lbl):
-  prefix_top_lbl (lbl_f sl) l = Some l' → cost_C (lbl_b true sl) lt l' = 0.
+  prefix_top_lbl (lbl_f sl) l = Some l' → cost_C (lbl_b true sl) lt l' = 0%R.
 Proof. apply: (@prefix_cost_C_lbl_b true lt sl l). Qed.
 
 Ltac prefix_t := 
   try (exact: single_lbl_b || exact: prefix_cost_C_lbl_f).
-
-(*Axiom interp_single : forall c n sl d,
-  Sm.interp c (Sm.single n sl d) =1 (fun l => if l == ([::],n) then c sl %/ d else 0). *)
 
 Lemma get_single n sl d l : 
   Sm.get (Sm.single n sl d) l = 
@@ -1021,7 +1023,7 @@ Lemma interp_single sl :
   Sm.interp (single_cost sl) (Sm.single 0 sl 1) =1 single_cost ([::],0).
 Proof.
   move=> l; rewrite /Sm.interp get_single single_costE eq_sym; case: eqP => ? //=.
-  by rewrite divn1 single_costE eqxx.
+  by rewrite divr1 single_costE eqxx.
 Qed.
 
 Lemma interp_merge c m1 m2 :
@@ -1030,17 +1032,18 @@ Lemma interp_merge c m1 m2 :
 Proof.
   move=> hd l; rewrite /Sm.interp Sm.mergeP /merge_cost.
   have := hd l.
-  case: (Sm.get m1) => [ sc1 | ]; case: (Sm.get m2) => [ sc2 | ] //=; last by rewrite addn0.
-  have h : Some sc1 <> None by done.
-  by move=> /(_ h).
+  case: (Sm.get m1) => [ sc1 | ]; case: (Sm.get m2) => [ sc2 | ] //=.
+  + by case.
+  + by rewrite addr0.
+  by rewrite add0r.
 Qed.
 
 (* This Lemma is false we need to use division in type real at least in Q *)
 Lemma interp_merge_c c1 c2 m :
   Sm.interp (merge_cost c1 c2) m =1 merge_cost (Sm.interp c1 m) (Sm.interp c2 m).
 Proof.
-  move=> l; rewrite /Sm.interp /merge_cost; case: Sm.get => // sc.
-Admitted.
+  by move=> l; rewrite /Sm.interp /merge_cost; case: Sm.get => // -[sl d] /=; rewrite mulrDl.
+Qed.
 
 Axiom interp_prefix : forall c pre m, Sm.interp c (Sm.prefix pre m) =1 prefix_cost pre (Sm.interp c m).
 
@@ -1051,7 +1054,7 @@ Axiom interp_single_lbl_b : forall b sl lti,
   Sm.interp (cost_C (lbl_b b sl) lti) (Sm.single 0 sl 1) =1 empty_cost.
 
 Axiom transform_cost_C0on : forall c sl lt,
-  (forall (l l':lbl), prefix_top_lbl sl l = Some l' -> c l' = 0) ->
+  (forall (l l':lbl), prefix_top_lbl sl l = Some l' -> c l' = 0%R) ->
   Sm.interp c (transform_cost_C lt sl).1 = empty_cost.
 
 Axiom disjoint_prefix : forall pre1 pre2 m1 m2,
@@ -1098,11 +1101,11 @@ Proof.
           Sm.interp (cost_C sl lc) (transform_cost_C lt sl).1)
      (P1:=fun lt lcs _ => forall sl, 
        cost_cs cost_i ([::],0) (leak_Iss (leak_I ftr) w lt lcs) =1 
-         fun lbl => size lcs * (Sm.interp (cost_C sl lc) (transform_cost_C lt sl).1) lbl)).
-  + move=> le sl /=; rewrite mergec0 interp_single. done.
+         fun lbl => ((size lcs)%:Q * Sm.interp (cost_C sl lc) (transform_cost_C lt sl).1 lbl)%R)).
+  + by move=> le sl /=; rewrite mergec0 interp_single.
   + by move=> le lte sl /=; rewrite mergec0 interp_single.
   + move=> lte ltt ltf le lti _ hrec sl /=.
-    rewrite mergec0 /= !(interp_merge, interp_merge_c); auto with disjoint.
+    rewrite mergec0 !(interp_merge, interp_merge_c); auto with disjoint.
     rewrite interp_single !(interp_prefix) interp_single_lbl_b mergec0 -hrec cost_C_lbl_b.
     rewrite !transform_cost_C0on; prefix_t.
     by rewrite prefix_cost0 prefix_cost0 !merge0c mergec0.
