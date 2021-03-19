@@ -32,6 +32,18 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(* FIXME: move this in utils.v *)
+Lemma catsI T : right_injective (@cat T).
+Proof.
+by move=> xs ys zs /(congr1 (drop (size xs))); rewrite !drop_size_cat.
+Qed.
+
+Lemma catIs T : left_injective (@cat T).
+Proof.
+move=> xs ys zs /(congr1 (rotr (size xs))).
+by rewrite !rotr_size_cat => /catsI.
+Qed.
+
 (** Label **)
 
 Inductive label_elem : Type :=
@@ -96,6 +108,112 @@ Definition next_lbl (l:lbl) := (l.1, l.2 + 1).
 
 Definition err_lbl : lbl:= ([::], 0).
 
+Definition prefix_lbl (pre: list label_elem) (l:lbl) := 
+  (l.1 ++ pre, l.2).
+
+Definition has_prefix pre (l:lbl) := 
+   drop (size l.1 - size pre) l.1 == pre.
+
+Definition drop_lbl n (l:lbl) :=
+  (take (size l.1 - n) l.1, l.2).
+
+Lemma prefix_lbl_drop pre l : has_prefix pre l -> 
+  l = prefix_lbl pre (drop_lbl (size pre) l).
+Proof.
+  rewrite /prefix_lbl /has_prefix /drop_lbl => /eqP.
+  by case: l => [l n] /= {2}<-; rewrite cat_take_drop.
+Qed.
+
+Lemma prefix_lbl_inj pre l1 l2: prefix_lbl pre l1 = prefix_lbl pre l2 -> l1 = l2.
+Proof. by case: l1 l2 => l1 n1 [l2 n2] [] /catIs -> ->. Qed.
+
+Lemma drop_eq pre l l1: 
+  drop (size l.1 - size pre) l.1 = pre ->
+  (prefix_lbl pre l1 == l) = (drop_lbl (size pre) l == l1).
+Proof.
+  rewrite /prefix_lbl /drop_lbl; case: l l1 => [l n] [l1 n1] /=.
+  case: eqP => [[] <- <- | hne].
+  + by rewrite size_cat addnK take_size_cat ?eqxx.
+  case: eqP => [[] h1 h2 h| //]; elim hne.
+  by rewrite h2 -h -h1 cat_take_drop.
+Qed.
+
+Lemma drop_prefix_lbl pre l: 
+  drop (size (prefix_lbl pre l).1 - size pre) (prefix_lbl pre l).1 = pre.
+Proof. by rewrite /prefix_lbl /= size_cat addnK drop_size_cat. Qed.
+
+Lemma drop_lbl_prefix_lbl pre l : drop_lbl (size pre) (prefix_lbl pre l) = l.
+Proof. by rewrite /prefix_lbl /drop_lbl /= size_cat addnK take_size_cat //; case: l. Qed.
+
+Definition prefix_top_r (lcaller:lbl) (rpre:label_elems) (n:nat) := 
+  match rpre with
+  | [::] => Some (lcaller.1, lcaller.2 + n)
+  | LblN p :: rpre => Some (catrev rpre (LblN(lcaller.2 + p) :: lcaller.1), n)
+  | _ => None 
+  end.
+
+Definition prefix_top_lbl (lcaller lbl:lbl) :=
+  prefix_top_r lcaller (rev lbl.1) lbl.2.
+
+Definition prefix_top_lbl_inv lcaller lbl :=
+  if drop (size lbl.1 - size lcaller.1) lbl.1 == lcaller.1 then
+    match rev (take (size lbl.1 - size lcaller.1) lbl.1) with
+    | [::] => 
+      if lcaller.2 <= lbl.2 then Some ([::], lbl.2 - lcaller.2)
+      else None 
+    | LblN p :: rpre => 
+      if lcaller.2 <= p then Some (rev [:: LblN (p - lcaller.2) & rpre], lbl.2)
+      else None
+    | _ => None
+    end
+  else None.
+
+Lemma prefix_top_lblP lcaller l l' : 
+  prefix_top_lbl lcaller l = Some l' ↔ prefix_top_lbl_inv lcaller l' = Some l.
+Proof.
+  rewrite /prefix_top_lbl /prefix_top_lbl_inv /prefix_top_r; case: l => l n /=.
+  split.
+  + case: (lastP l) => /=.
+    + by move=> [<-] /=; rewrite subnn drop0 eqxx take0 addKn leq_addr.
+    move=> s e; rewrite rev_rcons; case: e => // n1 [<-].
+    rewrite catrevE revK size_cat /= -addnBA // subSnn -cat_rcons drop_size_cat;
+      last by rewrite size_rcons addn1. 
+    rewrite eqxx take_size_cat; last by rewrite size_rcons addn1. 
+    by rewrite rev_rcons leq_addr rev_cons revK addKn.
+  case: l' => l' n' /=; case: eqP => // heq.
+  rewrite -{2 3}(cat_take_drop (size l' - size lcaller.1) l') heq.
+  rewrite take_size_cat; last first.
+  + by rewrite size_takel // leq_subr.
+  case: (lastP (take _ _)) => /=.
+  + by case: ifP => // hle [<-] /= <-; rewrite subnKC.
+  move=> s e; rewrite rev_rcons; case: e => // n1; case: ifP => // hle [<-] <-.
+  by rewrite rev_cons rev_rcons catrevE !revK cat_rcons subnKC.
+Qed.
+
+Definition prefix_call_inline_lbl callee (lcaller lbl:lbl) := 
+  match rev lbl.1 with
+  | LblF f :: r => 
+    if f == callee then prefix_top_r lcaller r lbl.2
+    else None
+  | _ => None
+  end.
+
+Definition prefix_call_inline_lbl_inv callee lcaller lbl:= 
+   omap (fun (l:_*_) => (rcons l.1 (LblF callee), l.2)) (prefix_top_lbl_inv lcaller lbl).
+
+Lemma prefix_call_inline_lblP callee lcaller l l' : 
+  prefix_call_inline_lbl callee lcaller l = Some l' ↔ 
+  prefix_call_inline_lbl_inv callee lcaller l' = Some l.
+Proof.
+  case: l => l n; rewrite /prefix_call_inline_lbl /prefix_call_inline_lbl_inv; split.
+  + case : (lastP l) => //= s e.
+    rewrite rev_rcons; case: e => // f; case: eqP => // ->.
+    by have -> := prefix_top_lblP lcaller (s, n) l' => -> /=.
+  case heq : prefix_top_lbl_inv => [l1 | ] //= [<-] <-.
+  by move: heq; rewrite -prefix_top_lblP rev_rcons eqxx.
+Qed.
+
+(* --------------------------------------------------------------------------- *)
 
 Definition cost_map := lbl -> nat.
 Definition update_cost (m:cost_map) (l:lbl) : cost_map :=
@@ -105,6 +223,9 @@ Definition empty_cost : cost_map := (fun _ => O).
 Definition single_cost l : cost_map := update_cost empty_cost l.
 Definition merge_cost (c1 c2: cost_map) := 
    fun l => c1 l + c2 l.
+Definition prefix_cost pre c : cost_map := 
+  fun l => if drop (size l.1 - size pre) l.1 == pre then c (take (size l.1 - size pre) l.1, l.2)
+           else 0.
 
 Section Cost_C.
 
@@ -156,6 +277,22 @@ Notation cost_C := (cost_c cost_i).
 (* Cost of a function trace *)
 Definition cost_f (f:funname) (lc : leak_c) := 
   cost_C ([::LblF f], 0) lc.
+
+Polymorphic Instance equiv_eqfun A B : Equivalence (@eqfun A B).
+Proof.
+  constructor => //.
+  + by move=> m1 m2 Hm z;rewrite Hm.
+  by move=> m1 m2 m3 Hm1 Hm2 z;rewrite Hm1 Hm2.
+Qed.
+
+Global Instance update_cost_eqfun : Proper (eqfun (B:=_) ==> eq ==> eqfun (B:=_)) update_cost.
+Proof. by move=> c c' hc l l' hl l1; rewrite /update_cost hl; case:ifP => //;rewrite hc. Qed.
+
+Global Instance merge_cost_eqfun : Proper (eqfun (B:=_) ==> eqfun (B:= _) ==> eqfun (B:= _)) merge_cost.
+Proof. by move=> c1 c1' h1 c2 c2' h2 l; rewrite /merge_cost h1 h2. Qed.
+
+Global Instance prefix_cost_eqfun : Proper (eq ==> eqfun (B:= _) ==> eqfun (B:= _)) prefix_cost.
+Proof. by move=> l l' hl c c' hc l1; rewrite /prefix_cost hl; case:ifP. Qed.
 
 (* ------------------------------------------------------------------- *)
 (* Syntaxic transformation of the cost                                 *)
@@ -214,55 +351,6 @@ Qed.
 Definition scost_eqMixin     := Equality.Mixin scost_eq_axiom.
 Canonical  scost_eqType      := Eval hnf in EqType scost scost_eqMixin.
 
-Definition prefix_lbl (pre: list label_elem) (l:lbl) := 
-  (l.1 ++ pre, l.2).
-
-Definition has_prefix pre (l:lbl) := 
-   drop (size l.1 - size pre) l.1 == pre.
-
-Definition drop_lbl n (l:lbl) :=
-  (take (size l.1 - n) l.1, l.2).
-
-Lemma prefix_lbl_drop pre l : has_prefix pre l -> 
-  l = prefix_lbl pre (drop_lbl (size pre) l).
-Proof.
-  rewrite /prefix_lbl /has_prefix /drop_lbl => /eqP.
-  by case: l => [l n] /= {2}<-; rewrite cat_take_drop.
-Qed.
-
-(* FIXME: move this in utils.v *)
-Lemma catsI T : right_injective (@cat T).
-Proof.
-by move=> xs ys zs /(congr1 (drop (size xs))); rewrite !drop_size_cat.
-Qed.
-
-Lemma catIs T : left_injective (@cat T).
-Proof.
-move=> xs ys zs /(congr1 (rotr (size xs))).
-by rewrite !rotr_size_cat => /catsI.
-Qed.
-
-Lemma prefix_lbl_inj pre l1 l2: prefix_lbl pre l1 = prefix_lbl pre l2 -> l1 = l2.
-Proof. by case: l1 l2 => l1 n1 [l2 n2] [] /catIs -> ->. Qed.
-
-Lemma drop_eq pre l l1: 
-  drop (size l.1 - size pre) l.1 = pre ->
-  (prefix_lbl pre l1 == l) = (drop_lbl (size pre) l == l1).
-Proof.
-  rewrite /prefix_lbl /drop_lbl; case: l l1 => [l n] [l1 n1] /=.
-  case: eqP => [[] <- <- | hne].
-  + by rewrite size_cat addnK take_size_cat ?eqxx.
-  case: eqP => [[] h1 h2 h| //]; elim hne.
-  by rewrite h2 -h -h1 cat_take_drop.
-Qed.
-
-Lemma drop_prefix_lbl pre l: 
-  drop (size (prefix_lbl pre l).1 - size pre) (prefix_lbl pre l).1 = pre.
-Proof. by rewrite /prefix_lbl /= size_cat addnK drop_size_cat. Qed.
-
-Lemma drop_lbl_prefix_lbl pre l : drop_lbl (size pre) (prefix_lbl pre l) = l.
-Proof. by rewrite /prefix_lbl /drop_lbl /= size_cat addnK take_size_cat //; case: l. Qed.
-
 
 (* Provide map of lbl *)
 
@@ -294,8 +382,6 @@ Definition merge_scost (_:lbl) (o1 o2 : option scost) :=
 Definition merge (m1 m2: t) : t := 
   Ml.map2 merge_scost m1 m2.
 
-
-
 Definition disjoint (m1 m2: t) := 
   forall l, get m1 l <> None -> get m2 l = None.
 
@@ -309,28 +395,10 @@ Definition map_lbl (f : lbl -> option lbl) (m:t) : t :=
 Definition prefix (pre: list label_elem) (m:t) : t := 
   map_lbl (fun lbl => Some (prefix_lbl pre lbl)) m.
 
-Definition prefix_top_r (lcaller:lbl) (rpre:label_elems) (n:nat) := 
-  match rpre with
-  | [::] => Some (lcaller.1, lcaller.2 + n)
-  | LblN p :: rpre => Some (catrev rpre (LblN(lcaller.2 + p) :: lcaller.1), n)
-  | _ => None 
-  end.
-
-Definition prefix_top_lbl (lcaller lbl:lbl) :=
-  prefix_top_r lcaller (rev lbl.1) lbl.2.
-
 Definition prefix_top lcaller (m:t) : t := 
   map_lbl (prefix_top_lbl lcaller) m.
 
 Definition incr n (m:t) : t := prefix_top ([::], n) m.
-
-Definition prefix_call_inline_lbl callee (lcaller lbl:lbl) := 
-  match rev lbl.1 with
-  | LblF f :: r => 
-    if f == callee then prefix_top_r lcaller r lbl.2
-    else None
-  | _ => None
-  end.
 
 Definition prefix_call_inline callee (lcaller:lbl) (m:t) : t := 
   map_lbl (prefix_call_inline_lbl callee lcaller) m.
@@ -441,41 +509,6 @@ Qed.
 Lemma get_prefix_lbl pre m l : get (prefix pre m) (prefix_lbl pre l) = get m l.
 Proof. by rewrite prefixP drop_prefix_lbl eqxx drop_lbl_prefix_lbl. Qed.
 
-Definition prefix_top_lbl_inv lcaller lbl :=
-  if drop (size lbl.1 - size lcaller.1) lbl.1 == lcaller.1 then
-    match rev (take (size lbl.1 - size lcaller.1) lbl.1) with
-    | [::] => 
-      if lcaller.2 <= lbl.2 then Some ([::], lbl.2 - lcaller.2)
-      else None 
-    | LblN p :: rpre => 
-      if lcaller.2 <= p then Some (rev [:: LblN (p - lcaller.2) & rpre], lbl.2)
-      else None
-    | _ => None
-    end
-  else None.
-
-Lemma prefix_top_lblP lcaller l l' : 
-  prefix_top_lbl lcaller l = Some l' ↔ prefix_top_lbl_inv lcaller l' = Some l.
-Proof.
-  rewrite /prefix_top_lbl /prefix_top_lbl_inv /prefix_top_r; case: l => l n /=.
-  split.
-  + case: (lastP l) => /=.
-    + by move=> [<-] /=; rewrite subnn drop0 eqxx take0 addKn leq_addr.
-    move=> s e; rewrite rev_rcons; case: e => // n1 [<-].
-    rewrite catrevE revK size_cat /= -addnBA // subSnn -cat_rcons drop_size_cat;
-      last by rewrite size_rcons addn1. 
-    rewrite eqxx take_size_cat; last by rewrite size_rcons addn1. 
-    by rewrite rev_rcons leq_addr rev_cons revK addKn.
-  case: l' => l' n' /=; case: eqP => // heq.
-  rewrite -{2 3}(cat_take_drop (size l' - size lcaller.1) l') heq.
-  rewrite take_size_cat; last first.
-  + by rewrite size_takel // leq_subr.
-  case: (lastP (take _ _)) => /=.
-  + by case: ifP => // hle [<-] /= <-; rewrite subnKC.
-  move=> s e; rewrite rev_rcons; case: e => // n1; case: ifP => // hle [<-] <-.
-  by rewrite rev_cons rev_rcons catrevE !revK cat_rcons subnKC.
-Qed.
-
 Lemma prefix_topP lcaller m l :
   get (prefix_top lcaller m) l = 
     if prefix_top_lbl_inv lcaller l is Some l' then get m l'
@@ -486,21 +519,6 @@ Lemma get_prefix_top_lbl lcaller m l l':
   prefix_top_lbl lcaller l = Some l' ->
   get (prefix_top lcaller m) l' = get m l.
 Proof. by move=> /prefix_top_lblP h; rewrite prefix_topP h. Qed.
-
-Definition prefix_call_inline_lbl_inv callee lcaller lbl:= 
-   omap (fun (l:_*_) => (rcons l.1 (LblF callee), l.2)) (prefix_top_lbl_inv lcaller lbl).
-
-Lemma prefix_call_inline_lblP callee lcaller l l' : 
-  prefix_call_inline_lbl callee lcaller l = Some l' ↔ 
-  prefix_call_inline_lbl_inv callee lcaller l' = Some l.
-Proof.
-  case: l => l n; rewrite /prefix_call_inline_lbl /prefix_call_inline_lbl_inv; split.
-  + case : (lastP l) => //= s e.
-    rewrite rev_rcons; case: e => // f; case: eqP => // ->.
-    by have -> := prefix_top_lblP lcaller (s, n) l' => -> /=.
-  case heq : prefix_top_lbl_inv => [l1 | ] //= [<-] <-.
-  by move: heq; rewrite -prefix_top_lblP rev_rcons eqxx.
-Qed.
 
 Lemma prefix_call_inlineP callee lcaller m l : 
   get (prefix_call_inline callee lcaller m) l = 
@@ -939,22 +957,134 @@ Scheme leak_WF_ind   := Induction for leak_WF   Sort Prop
   with leak_WFs_ind  := Induction for leak_WFs  Sort Prop
   with leak_WFss_ind := Induction for leak_WFss Sort Prop.
 
-Axiom mergec0 : forall c, merge_cost c empty_cost =1 c.
 
-Axiom interp_single : forall c n sl d,
-  Sm.interp c (Sm.single n sl d) =1 (fun l => if l == ([::],n) then c sl %/ d else 0).
+Lemma mergeC c1 c2 : merge_cost c1 c2 =1 merge_cost c2 c1.
+Proof. by move=> l; rewrite /merge_cost addnC. Qed.
 
-Axiom interp_single1 : forall sl,
+Lemma mergec0 c : merge_cost c empty_cost =1 c.
+Proof. by move=> l; rewrite /merge_cost addn0. Qed.
+
+Lemma merge0c c : merge_cost empty_cost c =1 c.
+Proof. by rewrite mergeC mergec0. Qed.
+
+Lemma cost_C_pre : forall pre l lc, cost_C (prefix_lbl pre l) lc =1 prefix_cost pre (cost_C l lc).
+Proof.
+(* by induction on lc *)
+Admitted.
+
+Lemma cost_C_lbl_b b l lc :
+  cost_C (lbl_b b l) lc =1 prefix_cost (lbl_b b l).1 (cost_C ([::],0) lc).
+Proof. by rewrite -cost_C_pre. Qed.
+
+Lemma prefix_cost0 pre : prefix_cost pre empty_cost =1 empty_cost.
+Proof. by rewrite /prefix_cost /empty_cost => l /=; case:ifP. Qed.
+
+Lemma single_costE l l' : single_cost l l' = if l == l' then 1 else 0.
+Proof. by rewrite /single_cost /update_cost /empty_cost. Qed.
+
+Lemma single_lbl_b b sl (l l' : lbl):
+  prefix_top_lbl (lbl_b b sl) l = Some l' → 
+  single_cost sl l' = 0.
+Proof. 
+  rewrite single_costE; case: eqP => [<- | //] /prefix_top_lblP.
+  rewrite /prefix_top_lbl_inv /lbl_b /= !subnS subnn /= drop0.
+  by case: eqP => // /(congr1 size) /= /n_SSn.
+Qed.
+
+Lemma prefix_cost_C_lbl_b b lt (sl l l':lbl):
+  prefix_top_lbl (lbl_b (~~b) sl) l = Some l' → cost_C (lbl_b b sl) lt l' = 0.
+Proof.
+  rewrite cost_C_lbl_b /prefix_cost /prefix_top_lbl /prefix_top_r.
+  case: l => l n /=; case: (lastP l) => [ | r e] /=.
+  + by move=> [<-] /=; rewrite subnn; case: b.
+  rewrite rev_rcons; case: e => // p [<-].
+  rewrite catrevE revK size_cat /= addnS -add1n addnA addnK.
+  by rewrite -drop_drop drop_size_cat //=; case:b.
+Qed.
+
+Lemma prefix_cost_C_lbl_f lt (sl l l':lbl):
+  prefix_top_lbl (lbl_f sl) l = Some l' → cost_C (lbl_b true sl) lt l' = 0.
+Proof. apply: (@prefix_cost_C_lbl_b true lt sl l). Qed.
+
+Ltac prefix_t := 
+  try (exact: single_lbl_b || exact: prefix_cost_C_lbl_f).
+
+(*Axiom interp_single : forall c n sl d,
+  Sm.interp c (Sm.single n sl d) =1 (fun l => if l == ([::],n) then c sl %/ d else 0). *)
+
+Lemma get_single n sl d l : 
+  Sm.get (Sm.single n sl d) l = 
+    if l == ([::], n) then Some {|sc_lbl := sl; sc_divfact := d |} else None.
+Proof. rewrite /Sm.single Sm.setP eq_sym; case: eqP => _ //. Qed.
+ 
+Lemma interp_single sl : 
   Sm.interp (single_cost sl) (Sm.single 0 sl 1) =1 single_cost ([::],0).
+Proof.
+  move=> l; rewrite /Sm.interp get_single single_costE eq_sym; case: eqP => ? //=.
+  by rewrite divn1 single_costE eqxx.
+Qed.
 
-Axiom interp_merge : forall c m1 m2,
+Lemma interp_merge c m1 m2 :
   Sm.disjoint m1 m2 ->
   Sm.interp c (Sm.merge m1 m2) =1 merge_cost (Sm.interp c m1) (Sm.interp c m2).
+Proof.
+  move=> hd l; rewrite /Sm.interp Sm.mergeP /merge_cost.
+  have := hd l.
+  case: (Sm.get m1) => [ sc1 | ]; case: (Sm.get m2) => [ sc2 | ] //=; last by rewrite addn0.
+  have h : Some sc1 <> None by done.
+  by move=> /(_ h).
+Qed.
 
-Axiom merge_cost_add : forall c1 c2 lbl,
-  merge_cost c1 c2 lbl = c1 lbl + c2 lbl.
+(* This Lemma is false we need to use division in type real at least in Q *)
+Lemma interp_merge_c c1 c2 m :
+  Sm.interp (merge_cost c1 c2) m =1 merge_cost (Sm.interp c1 m) (Sm.interp c2 m).
+Proof.
+  move=> l; rewrite /Sm.interp /merge_cost; case: Sm.get => // sc.
+Admitted.
 
-(*
+Axiom interp_prefix : forall c pre m, Sm.interp c (Sm.prefix pre m) =1 prefix_cost pre (Sm.interp c m).
+
+Axiom interp_single_pre : forall pre sl lti,
+   Sm.interp (cost_C (prefix_lbl pre sl) lti) (Sm.single 0 sl 1) =1 empty_cost.
+
+Axiom interp_single_lbl_b : forall b sl lti,
+  Sm.interp (cost_C (lbl_b b sl) lti) (Sm.single 0 sl 1) =1 empty_cost.
+
+Axiom transform_cost_C0on : forall c sl lt,
+  (forall (l l':lbl), prefix_top_lbl sl l = Some l' -> c l' = 0) ->
+  Sm.interp c (transform_cost_C lt sl).1 = empty_cost.
+
+Axiom disjoint_prefix : forall pre1 pre2 m1 m2,
+  pre1 <> pre2 ->    
+  Sm.disjoint (Sm.prefix pre1 m1) (Sm.prefix pre2 m2).
+
+Axiom disjoint_single_pre : forall pre sl m,
+  pre <> [::] ->
+  Sm.disjoint (Sm.single 0 sl 1) (Sm.prefix pre m).
+
+Lemma disjoint_single_pre_f sl m :
+  Sm.disjoint (Sm.single 0 sl 1) (Sm.prefix pre_f0 m).
+Proof. by apply disjoint_single_pre. Qed.
+
+Lemma disjoint_single_pre_t sl m :
+  Sm.disjoint (Sm.single 0 sl 1) (Sm.prefix pre_t0 m).
+Proof. by apply disjoint_single_pre. Qed.
+
+Lemma disjoint_merge m1 m2 m3 :
+  Sm.disjoint m1 m2 ->
+  Sm.disjoint m1 m3 ->
+  Sm.disjoint m1 (Sm.merge m2 m3).
+Proof. by move=> d1 d2 l hl; rewrite Sm.mergeP (d1 l hl) (d2 l hl). Qed.
+
+Lemma pre_f0_t0 : pre_f0 <> pre_t0. 
+Proof. by []. Qed.
+
+Lemma pre_t0_f0 : pre_t0 <> pre_f0. 
+Proof. by []. Qed.
+
+Hint Resolve disjoint_single_pre_f disjoint_single_pre_t disjoint_prefix disjoint_merge 
+             pre_f0_t0 pre_t0_f0: disjoint.
+
 Lemma transform_cost_ok ftr w lt lc sl : 
   leak_WFs ftr lt lc ->
   cost_C ([::],0) (leak_Is (leak_I ftr) w lt lc) =1 Sm.interp (cost_C sl lc) (transform_cost_C lt sl).1.
@@ -969,12 +1099,15 @@ Proof.
      (P1:=fun lt lcs _ => forall sl, 
        cost_cs cost_i ([::],0) (leak_Iss (leak_I ftr) w lt lcs) =1 
          fun lbl => size lcs * (Sm.interp (cost_C sl lc) (transform_cost_C lt sl).1) lbl)).
-  + by move=> le sl /= lbl; rewrite mergec0 interp_single1.
-  + by move=> le lte sl /= lbl; rewrite mergec0 interp_single1.
-  + move=> lte ltt ltf le lti _ hrec sl lbl /=.
-    rewrite mergec0 /= !(interp_merge, merge_cost_add).
-    + rewrite interp_single.
-*)
+  + move=> le sl /=; rewrite mergec0 interp_single. done.
+  + by move=> le lte sl /=; rewrite mergec0 interp_single.
+  + move=> lte ltt ltf le lti _ hrec sl /=.
+    rewrite mergec0 /= !(interp_merge, interp_merge_c); auto with disjoint.
+    rewrite interp_single !(interp_prefix) interp_single_lbl_b mergec0 -hrec cost_C_lbl_b.
+    rewrite !transform_cost_C0on; prefix_t.
+    by rewrite prefix_cost0 prefix_cost0 !merge0c mergec0.
+
+Admitted.
 
 End Transform_Cost_I.
 
