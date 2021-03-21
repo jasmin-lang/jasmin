@@ -1023,8 +1023,12 @@ Lemma prefix_cost_C_lbl_f lt (sl l l':lbl):
   prefix_top_lbl (lbl_f sl) l = Some l' → cost_C (lbl_b true sl) lt l' = 0%R.
 Proof. apply: (@prefix_cost_C_lbl_b true lt sl l). Qed.
 
+Lemma prefix_cost_C_lbl_t lt (sl l l':lbl):
+  prefix_top_lbl (lbl_t sl) l = Some l' → cost_C (lbl_b false sl) lt l' = 0%R.
+Proof. apply: (@prefix_cost_C_lbl_b false lt sl l). Qed.
+
 Ltac prefix_t := 
-  try (exact: single_lbl_b || exact: prefix_cost_C_lbl_f).
+  try (exact: single_lbl_b || exact: prefix_cost_C_lbl_f || exact: prefix_cost_C_lbl_t).
 
 Lemma get_single n sl d l : 
   Sm.get (Sm.single n sl d) l = 
@@ -1143,28 +1147,32 @@ Proof.
     rewrite interp_single !(interp_prefix) interp_single_lbl_b mergec0 -hrec cost_C_lbl_b.
     rewrite !transform_cost_C0on; prefix_t.
     by rewrite prefix_cost0 prefix_cost0 !merge0c /pre_f0 /=.
-    admit.
   (* while true *)
-  + move=> ltis lte ltis' lts le lts' lw _ hrec _ hrec' _ hrec'' /=.
-    admit.
+  + move=> ltis lte ltis' lts le lts' lw _ hrec _ hrec' _ hrec'' sl /=.
+    rewrite mergec0 !(interp_merge, interp_merge_c); auto with disjoint.
+    rewrite interp_single !(interp_prefix) interp_single_lbl_b -hrec cost_C_lbl_b.
+    rewrite !transform_cost_C0on; prefix_t.
+    rewrite prefix_cost0 prefix_cost0 !merge0c mergec0.
+    admit. admit. admit. admit.
   (* while false *)
   + move=> ltis lte ltis' lts le _ hrec /= sl.
     rewrite mergec0 !(interp_merge, interp_merge_c); auto with disjoint.
     rewrite interp_single !(interp_prefix) interp_single_lbl_b mergec0 -hrec cost_C_lbl_b.
     rewrite !transform_cost_C0on; prefix_t.
     by rewrite prefix_cost0 prefix_cost0 !merge0c mergec0.
-    move=> l l' hp /=. admit.
   (* for *)
-  + admit.
+  + move=> lte ltiss le ltss _ hrec /= sl. 
+    admit.
   (* call *)
   + admit.
   (* remove *)
-  + move=> l sl /=. admit.
+  + move=> l sl /=. rewrite /Sm.interp /=. case: l=> //=.
   (* LT_icond_eval *)
-  + move=> b lts le lti _ hrec /=.
-    case: b.
+  + move=> b lts le lti _ hrec /= sl.
+    case: b=> //=.
     (* b = true *)
-    + move=> sl /=. admit.
+    + move: (hrec sl) => {hrec} hrec. rewrite hrec /=. rewrite interp_merge_c.
+      admit.
     (* b = false *)
     admit.
   (* LT_icond_eval *)
