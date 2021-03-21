@@ -93,8 +93,6 @@ Qed.
 Definition label_elem_eqMixin     := Equality.Mixin label_elem_eq_axiom.
 Canonical  label_elem_eqType      := Eval hnf in EqType label_elem label_elem_eqMixin.
 
-(* Takes a bool and a label and generates label depending on bool *)
-
 Definition lbl_b (b:bool) (l:lbl) : lbl := (LblB b :: LblN l.2::l.1, 0).
 
 Definition lbl_t (l:lbl) : lbl := lbl_b true l.
@@ -109,6 +107,7 @@ Definition next_lbl (l:lbl) := (l.1, l.2 + 1).
 
 Definition err_lbl : lbl:= ([::], 0).
 
+(* Adds prefix to the current label *)
 Definition prefix_lbl (pre: list label_elem) (l:lbl) := 
   (l.1 ++ pre, l.2).
 
@@ -692,25 +691,26 @@ Context (P: leak_i_tr → Prop)
         (Hiwhilel      : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_iwhilel lei le lt1 lt2))
         (Hicopn        : ∀ lei, P (LT_icopn lei))
         (Hilmov1       : P LT_ilmov1)
-        (Hilmov2       : P LT_ilmov2)
+        (Hilsingle : ∀ lti, P (LT_isingle lti))
+        (*(Hilmov2       : P LT_ilmov2)
         (Hilmov3       : P LT_ilmov3)
-        (Hilmov4       : P LT_ilmov4)
+        (Hilmov4       : P LT_ilmov4)*)
         (Hilinc        : ∀ les, P (LT_ilinc les))
         (Hilcopn       : ∀ les, P (LT_ilcopn les))
-        (Hilsc         : P LT_ilsc)
+        (*(Hilsc         : P LT_ilsc)
         (Hild          : P LT_ild)
-        (Hildc         : P LT_ildc)
+        (Hildc         : P LT_ildc)*)
         (Hildcn        : P LT_ildcn)
         (Hilmul        : ∀ lei le, P (LT_ilmul lei le))
         (Hileq         : ∀ les, P (LT_ileq les))
         (Hillt         : ∀ les, P (LT_illt les))
         (Hilif         : ∀ lei le, P (LT_ilif lei le))
-        (Hilea         : P LT_ilea)
+        (*(Hilea         : P LT_ilea)*)
         (Hilfopn       : ∀ lei les, P (LT_ilfopn lei les))
-        (Hilds         : P LT_ilds)
-        (Hildus        : P LT_ildus)
+        (*(Hilds         : P LT_ilds)
+        (Hildus        : P LT_ildus)*)
         (Hildiv        : ∀ lti le, P lti -> P (LT_ildiv lti le))
-        (Hilasgn       : P LT_ilasgn).
+        (*(Hilasgn       : P LT_ilasgn)*).
 
   Section C.
     Context (leak_i_tr_ind : forall lti, P lti).
@@ -747,26 +747,27 @@ Context (P: leak_i_tr → Prop)
       Hiwhilel lei le (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)
 
     | LT_icopn lei      => Hicopn lei
+    | LT_isingle lti   => Hilsingle lti
     | LT_ilmov1         => Hilmov1        
-    | LT_ilmov2         => Hilmov2        
+    (*| LT_ilmov2         => Hilmov2        
     | LT_ilmov3         => Hilmov3        
-    | LT_ilmov4         => Hilmov4        
+    | LT_ilmov4         => Hilmov4   *)     
     | LT_ilinc les      => Hilinc les
     | LT_ilcopn les     => Hilcopn les
-    | LT_ilsc           => Hilsc          
-    | LT_ild            => Hild           
-    | LT_ildc           => Hildc          
+    (*| LT_ilsc           => Hilsc          
+    | LT_ild            => Hild            
+    | LT_ildc           => Hildc *)          
     | LT_ildcn          => Hildcn         
     | LT_ilmul lei le   => Hilmul lei le
     | LT_ileq les       => Hileq  les
     | LT_illt les       => Hillt  les
     | LT_ilif lei le    => Hilif  lei le
-    | LT_ilea           => Hilea          
+    (*| LT_ilea           => Hilea  *)        
     | LT_ilfopn lei les => Hilfopn lei les
-    | LT_ilds           => Hilds          
-    | LT_ildus          => Hildus         
+    (*| LT_ilds           => Hilds          
+    | LT_ildus          => Hildus*)         
     | LT_ildiv lti le   => Hildiv le (leak_i_tr_ind lti)
-    | LT_ilasgn         => Hilasgn        
+    (*| LT_ilasgn         => Hilasgn*)        
     end.
 
   Definition leak_c_tr_ind := leak_c_tr_ind_aux leak_i_tr_ind.
@@ -903,17 +904,17 @@ Fixpoint transform_cost_I (lt:leak_i_tr) (sl:lbl) : Sm.t * nat :=
   | LT_ilcopn lte =>
     (transform_opn 1 sl 1, 1)
     
-  | LT_ilsc => 
-    (Sm.empty, 0) (* FIXME *)
+  (*| LT_ilsc => 
+    (transform_opn 1 sl 1, 1)*)
+   
+  (*| LT_ild => 
+    (transform_opn 1 sl 1, 1) *)
 
-  | LT_ild => 
-    (Sm.empty, 0) (* FIXME *) 
-
-  | LT_ildc =>
-    (Sm.empty, 0) (* FIXME *) 
+  (*| LT_ildc =>
+    (transform_opn 1 sl 1, 1) *)
 
   | LT_ildcn => 
-    (Sm.empty, 0)  (* FIXME *)
+    (transform_opn 2 sl 1, 2)
 
   | LT_ilmul ltes lte => 
     (Sm.empty, 0)  (* FIXME *)
@@ -935,25 +936,25 @@ Fixpoint transform_cost_I (lt:leak_i_tr) (sl:lbl) : Sm.t * nat :=
   | LT_ilif ltei lte => 
     (transform_opn 2 sl 1, 2)
   
-  | LT_ilea => 
-    (Sm.empty, 0)  (* FIXME *)
+  (*| LT_ilea => 
+    (transform_opn 1 sl 1, 1)*)
 
   | LT_ilfopn ltesi ltes =>
     (transform_opn 2 sl 1, 2)
   
     (* x = Papp2 div e1 e2 *)
     (* sl: Papp2 div e1 e2 --> tl: x = e1/e2 *)
-  | LT_ilds => 
+  (*| LT_ilds => 
     (transform_opn 1 sl 1, 1)
 
   | LT_ildus =>
-    (transform_opn 1 sl 1, 1)
+    (transform_opn 1 sl 1, 1)*)
 
   | LT_ildiv lti ltes => 
     (transform_opn 2 sl 1, 2)
 
-  | LT_ilasgn => 
-    (Sm.empty, 0)  (* FIXME *)
+  (*| LT_ilasgn => 
+    (transform_opn 1 sl 1, 1)*)
   end.
 
 Notation transform_cost_C := (transform_cost_C transform_cost_I).
@@ -972,17 +973,28 @@ Proof. by move=> l; rewrite /merge_cost addr0. Qed.
 Lemma merge0c c : merge_cost empty_cost c =1 c.
 Proof. by rewrite mergeC mergec0. Qed.
 
+Lemma prefix_cost0 pre : prefix_cost pre empty_cost =1 empty_cost.
+Proof. by rewrite /prefix_cost /empty_cost => l /=; case:ifP. Qed.
+
+Lemma cost_next_lbl pre l lc: cost_C (prefix_lbl pre l) lc =1 prefix_cost pre (cost_C l lc) ->
+cost_C (next_lbl (prefix_lbl pre l)) lc =1 prefix_cost pre (cost_C (next_lbl l) lc).
+Proof.
+Admitted.
+
 Lemma cost_C_pre : forall pre l lc, cost_C (prefix_lbl pre l) lc =1 prefix_cost pre (cost_C l lc).
 Proof.
-(* by induction on lc *)
+move=> pre l lc. elim lc.
+(* empty case *)
++ by rewrite prefix_cost0 /=.
+(* li:: lc *)
++ move=> li lc' /= Hc /=. have Hc' := cost_next_lbl Hc.
+  rewrite Hc'.
 Admitted.
+
 
 Lemma cost_C_lbl_b b l lc :
   cost_C (lbl_b b l) lc =1 prefix_cost (lbl_b b l).1 (cost_C ([::],0) lc).
 Proof. by rewrite -cost_C_pre. Qed.
-
-Lemma prefix_cost0 pre : prefix_cost pre empty_cost =1 empty_cost.
-Proof. by rewrite /prefix_cost /empty_cost => l /=; case:ifP. Qed.
 
 Lemma single_costE l l' : single_cost l l' = if l == l' then 1%R else 0%R.
 Proof. by rewrite /single_cost /update_cost /empty_cost. Qed.
@@ -1047,8 +1059,21 @@ Qed.
 
 Axiom interp_prefix : forall c pre m, Sm.interp c (Sm.prefix pre m) =1 prefix_cost pre (Sm.interp c m).
 
-Axiom interp_single_pre : forall pre sl lti,
+Lemma interp_empty sl: 
+Sm.interp empty_cost (Sm.single 0 sl 1) =1 empty_cost.
+Proof.
+ move=> l; rewrite /Sm.interp /= get_single /=. case: ifP=> //=.
+Qed.
+
+Lemma interp_single_pre : forall pre sl lti,
    Sm.interp (cost_C (prefix_lbl pre sl) lti) (Sm.single 0 sl 1) =1 empty_cost.
+Proof.
+  move=> pre sl lti l /=. elim: lti.
+  (* empty case *)
+  + by rewrite interp_empty.
+  (* li :: lc *)
+  move=> li lc Hc. rewrite -Hc /=. 
+Admitted.
 
 Axiom interp_single_lbl_b : forall b sl lti,
   Sm.interp (cost_C (lbl_b b sl) lti) (Sm.single 0 sl 1) =1 empty_cost.
@@ -1061,9 +1086,12 @@ Axiom disjoint_prefix : forall pre1 pre2 m1 m2,
   pre1 <> pre2 ->    
   Sm.disjoint (Sm.prefix pre1 m1) (Sm.prefix pre2 m2).
 
-Axiom disjoint_single_pre : forall pre sl m,
+Lemma disjoint_single_pre : forall pre sl m,
   pre <> [::] ->
   Sm.disjoint (Sm.single 0 sl 1) (Sm.prefix pre m).
+Proof.
+ move=> pre sl m Heq /=.
+Admitted.
 
 Lemma disjoint_single_pre_f sl m :
   Sm.disjoint (Sm.single 0 sl 1) (Sm.prefix pre_f0 m).
@@ -1109,7 +1137,103 @@ Proof.
     rewrite interp_single !(interp_prefix) interp_single_lbl_b mergec0 -hrec cost_C_lbl_b.
     rewrite !transform_cost_C0on; prefix_t.
     by rewrite prefix_cost0 prefix_cost0 !merge0c mergec0.
-
+  (* cond false *)
+  + move=> lte ltt tf le lti _ hrec sl /=.
+    rewrite mergec0 !(interp_merge, interp_merge_c); auto with disjoint.
+    rewrite interp_single !(interp_prefix) interp_single_lbl_b mergec0 -hrec cost_C_lbl_b.
+    rewrite !transform_cost_C0on; prefix_t.
+    by rewrite prefix_cost0 prefix_cost0 !merge0c /pre_f0 /=.
+    admit.
+  (* while true *)
+  + move=> ltis lte ltis' lts le lts' lw _ hrec _ hrec' _ hrec'' /=.
+    admit.
+  (* while false *)
+  + move=> ltis lte ltis' lts le _ hrec /= sl.
+    rewrite mergec0 !(interp_merge, interp_merge_c); auto with disjoint.
+    rewrite interp_single !(interp_prefix) interp_single_lbl_b mergec0 -hrec cost_C_lbl_b.
+    rewrite !transform_cost_C0on; prefix_t.
+    by rewrite prefix_cost0 prefix_cost0 !merge0c mergec0.
+    move=> l l' hp /=. admit.
+  (* for *)
+  + admit.
+  (* call *)
+  + admit.
+  (* remove *)
+  + move=> l sl /=. admit.
+  (* LT_icond_eval *)
+  + move=> b lts le lti _ hrec /=.
+    case: b.
+    (* b = true *)
+    + move=> sl /=. admit.
+    (* b = false *)
+    admit.
+  (* LT_icond_eval *)
+  + admit.
+  (* LT_ifor_unroll *)
+  + admit.
+  (* LT_icall_inline *)
+  + admit.
+  (* LOWERING *)
+  (* LT_icondl *)
+  + move=> lti' lte ltt ltf le lti _ Hrec sl /=.
+    rewrite /transform_opn /=. admit.
+  (* LT_icondl *)
+  + admit.
+  (* LT_iwhilel *)
+  + admit.
+  (* LT_iwhilel *)
+  + admit.
+  (* LT_icopn *)
+  + (* Need to fix this *) admit.
+  (* LT_ilmov1 *)
+  + move=> le sl /=.
+    rewrite /transform_opn /=.
+    have H:= Sm.mergem0. rewrite /Sm.ext_eq in H. 
+    rewrite mergec0 /=. Search _ Sm.merge.
+ admit.
+  (* LT_ilmov2, LT_ilmov3, LT_ilmov4, LT_ild, LT_ildc, LT_ilea,
+     LT_ilsc, LT_ilds, LT_ildus, LT_ilasgn *)
+  + move=> lti le sl /=. rewrite mergec0 /= /transform_opn /=.
+    rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+    done.
+  (* LT_ilnc *)
+  + move=> lti le sl /=. rewrite mergec0 /= /transform_opn /=.
+    rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+    done.
+  (* LT_ilcopn *)
+  + move=> lti le sl /=. rewrite mergec0 /= /transform_opn /=.
+    rewrite interp_merge /=. rewrite interp_single /= /Sm.interp /= /merge_cost /=.
+    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+    done.
+  (* LT_ild *)
+  + move=> le sl /=. rewrite mergec0 /= /transform_opn /=.
+    rewrite interp_merge /=. rewrite interp_single /= /Sm.interp /= /merge_cost /=.
+    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+    done.
+  (* LT_ileq *)
+  + move=> ltes le sl /=. rewrite mergec0 /= /transform_opn /=.
+    rewrite interp_merge /=. rewrite interp_single /= /Sm.interp /= /merge_cost /=.
+    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+    done.
+  (* LT_ilt *)
+  + move=> ltes le sl /=. rewrite mergec0 /= /transform_opn /=.
+    rewrite interp_merge /=. rewrite interp_single /= /Sm.interp /= /merge_cost /=.
+    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+    done.
+  (* LT_ilif *)
+  + move=> lti le' le sl. admit.
+  (* LT_ilmul *)
+  + (** Need to fix this *) admit.
+  (* LT_ilfopn *)
+  + admit.
+  (* LT_ildiv *)
+  + admit.
+  (* empty *)
+  + move=> l /=. by rewrite /Sm.interp /= /empty_cost /=.
+  (* .... *)
+  + move=> li lc' lti ltc _ Hrec l /=. Search _ Sm.interp.
 Admitted.
 
 End Transform_Cost_I.
