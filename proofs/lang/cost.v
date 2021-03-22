@@ -886,7 +886,7 @@ Fixpoint transform_cost_I (lt:leak_i_tr) (sl:lbl) : Sm.t * nat :=
     (*sl : copn l t o e ---> copn (addc, add, mul) t o e *) 
   | LT_icopn lesi => 
     let n := no_i_esi_tr lesi in 
-    (transform_opn n sl 1, n) (* Check with Benjamin *)
+    (transform_opn n sl 1, n)
  
     (* sl:i --->    tl:i1; tl': i2; next_lbl tl' *)
   | LT_ilmov1 => 
@@ -912,7 +912,7 @@ Fixpoint transform_cost_I (lt:leak_i_tr) (sl:lbl) : Sm.t * nat :=
 
   | LT_ilmul ltes lte => 
     let n := no_i_esi_tr ltes in 
-    (transform_opn n sl 1, n) (* Check with Benjamin *)
+    (transform_opn n sl 1, n)
     
     (* x = e1==e2 *)
     (* sl: Papp2 eq e1 e2 --> tl: x = e1==e2 *)
@@ -1156,8 +1156,8 @@ Proof.
     rewrite interp_single !(interp_prefix) interp_single_lbl_b mergec0 -hrec cost_C_lbl_b.
     rewrite !transform_cost_C0on; prefix_t.
     by rewrite prefix_cost0 prefix_cost0 !merge0c /pre_f0 /=.
+  
   (* while true *)
-
   + move=> ltis lte ltis' lts le lts' lw _ hrec _ hrec' hwf hrec'' sl /=.
     rewrite !interp_merge_c !interp_merge -/transform_cost_I; auto with disjoint.
     rewrite interp_single.
@@ -1185,22 +1185,23 @@ Proof.
     rewrite !transform_cost_C0on; prefix_t.
     by rewrite prefix_cost0 prefix_cost0 !merge0c mergec0.
   (* for *)
-  + move=> lte ltiss le ltss _ hrec /= sl. 
-    admit.
+  + move=> lte ltiss le ltss _ hrec sl /=. 
+    rewrite !interp_merge_c !interp_merge /=. rewrite interp_single -/transform_cost_C. 
+    move: (hrec sl)=> //= {hrec} hrec. rewrite /lbl_for /=. admit. admit. admit.
   (* call *)
   + admit.
   (* remove *)
   + move=> l sl /=. rewrite /Sm.interp /=. by case: l=> //=.
   (* LT_icond_eval *)
-  + move=> b lts le lti _ hrec /= sl.
-    case: b=> //=.
-    (* b = true *)
-    + move: (hrec sl) => {hrec} hrec. rewrite hrec /=. rewrite interp_merge_c.
-      admit.
-    (* b = false *)
-    admit.
+  + move=> b lts le lti _ hrec sl /=.
+    rewrite !interp_merge_c.
+    rewrite (@transform_cost_C0on (single_cost sl)); prefix_t.
+    rewrite merge0c /=. by rewrite -hrec. 
   (* LT_icond_eval *)
-  + admit.
+  + move=> lts lti le _ hrec sl /=.
+    rewrite !interp_merge_c.
+    rewrite (@transform_cost_C0on (single_cost sl)); prefix_t.
+    rewrite merge0c /=. by rewrite -hrec.
   (* LT_ifor_unroll *)
   + admit.
   (* LT_icall_inline *)

@@ -69,7 +69,7 @@ Section PROOF.
         wf_vm s.(evm) ->
         forall vm1', s.(evm) =[s1] vm1' ->
           exists vm2', s'.(evm) =[s2] vm2' /\
-          sem p' (Estate s.(emem) vm1') c' (leak_I (leak_Fun Ffs) stk li lti) (Estate s'.(emem) vm2')
+          sem p' (Estate s.(emem) vm1') c' (leak_I (leak_Fun Ffs) stk li lti) (Estate s'.(emem) vm2') 
       | _ => True
       end.
 
@@ -556,27 +556,194 @@ Section PROOF.
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
-  (*Lemma dead_code_callCT fn mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf:
-  sem_call p mem1 fn va1 (fn, lf) mem1' vr1 ->
-  sem_call p mem2 fn va2 (fn, lf) mem2' vr2 ->
-  sem_call p' mem1 fn va1 (fn, (leak_Is (leak_I (leak_Fun Ffs)) stk (leak_Fun Ffs fn) lf)) mem1' vr1 /\
-  sem_call p' mem2 fn va2 (fn, (leak_Is (leak_I (leak_Fun Ffs)) stk (leak_Fun Ffs fn) lf)) mem2' vr2.
+End PROOF.
+
+
+Section WF_PROOF.
+
+  Variables p p' : prog.
+  Variable Ffs : seq (funname * leak_c_tr).
+  Variable stk : pointer.
+  Notation gd := (p_globs p).
+
+  Hypothesis dead_code_ok : dead_code_prog p = ok (p', Ffs).
+
+  Let Pi_r (s:estate) (i:instr_r) (li : leak_i) (s':estate) := 
+    forall ii s2,   
+      match dead_code_i (MkI ii i) s2 with
+      | Ok (s1, c', lti) => leak_WF (leak_Fun Ffs) lti li
+      | _ => True
+      end.
+
+  Let Pi (s:estate) (i:instr) (li : leak_i) (s':estate) :=
+    forall s2,
+      match dead_code_i i s2 with
+      | Ok (s1, c', lti) => leak_WF (leak_Fun Ffs) lti li
+      | _ => True
+      end.
+
+  Let Pc (s:estate) (c:cmd) (lc : leak_c) (s':estate) :=
+    forall s2,
+      match dead_code_c dead_code_i c s2 with
+      | Ok (s1, c', ltc) => leak_WFs (leak_Fun Ffs) ltc lc
+      | _ => True
+      end.
+
+  Let Pfor (i:var_i) (vs:seq Z) (s:estate) c lc (s':estate) :=
+    forall s2,
+      match dead_code_c dead_code_i c s2 with
+      | Ok (s1, c', ltc) => leak_WFss (leak_Fun Ffs) ltc lc 
+      | _ => True
+      end.
+
+  Let Pfun (m1:mem) (fn:funname) (vargs:seq value) lf (m2:mem) (vres:seq value) :=
+    leak_WFs (leak_Fun Ffs) (leak_Fun Ffs lf.1) lf.2.
+
+  Local Lemma Hskip_WF : sem_Ind_nil Pc.
   Proof.
-  move=> Hm1 Hm2. split.
-  + by apply: dead_code_callP.
-  by apply: dead_code_callP.
+    constructor.
   Qed.
 
-  Lemma dead_code_callCTP P f:
-  constant_time P p f ->
-  constant_time P p' f.
+  Local Lemma Hcons_WF : sem_Ind_cons p Pc Pi.
   Proof.
-  rewrite /constant_time.
-  move=> Hc mem1 mem2 va1 va2 Hp.
-  move: (Hc mem1 mem2 va1 va2 Hp). move=> [mem1'] [mem2'] [vr1] [vr2] [lf] [Hm1] Hm2.
-  move: dead_code_callCT. move=> Hct. move: (Hct f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf Hm1 Hm2). move=> [Hm1'] Hm2'.
-  exists mem1'. exists mem2'. exists vr1. exists vr2. exists (leak_Is (leak_I (leak_Fun Ffs)) stk 
-             (leak_Fun Ffs f) lf). by split.
-  Qed.*)
+    move=> s1 s2 s3 i c li lc H Hi H' Hc sv3 /=.
+    have := Hc sv3.
+    case: (dead_code_c dead_code_i c sv3) => [[[sv2 c'] lc']|//] Hc' /=.
+    have := Hi sv2.
+    case: (dead_code_i i sv2)=> [[[sv1 i'] li']|] //= Hwf. 
+    econstructor. by apply Hwf.
+  Qed.
 
-End PROOF.
+  Local Lemma Hassgn_WF : sem_Ind_assgn p Pi_r.
+  Proof.
+    move => s1 s2 x tag ty e v v' le lw.
+    move: s1 s2 => [m1 vm1] [m2 vm2] Hv htr Hw ii s2 /=.
+    case: ifPn=> _ /=.
+    case: ifPn=> /= [ | _].
+    + move=> Hdisj. constructor.
+    + case: ifP=> //= Hnop.
+      + constructor.
+      constructor.
+    constructor.
+  Qed.
+
+  Local Lemma Hopn_WF : sem_Ind_opn p Pi_r.
+  Proof.
+   move => s1 s2 t o xs es lo Hsem /=. 
+   rewrite /Pi_r /= => ii s0.
+   case: ifPn => _ /=.
+   + case:ifPn => //= _. constructor. 
+     case:ifPn=> //= _; constructor.
+   constructor. 
+  Qed.
+
+  Local Lemma Hif_true_WF : sem_Ind_if_true p Pc Pi_r.
+  Proof.
+    move=> s1 s2 e c1 c2 le lc Hval Hp Hc ii sv0 /=.
+    case Heq: (dead_code_c dead_code_i c1 sv0)=> [[[sv1 sc1] lc1] /=|//].
+    case: (dead_code_c dead_code_i c2 sv0)=> [[[sv2 sc2] lc2] /=|//]. 
+    constructor. rewrite /Pc in Hc.
+    move: (Hc sv0).
+    rewrite Heq. move=> Hwf. apply Hwf.
+  Qed.
+
+  Local Lemma Hif_false_WF : sem_Ind_if_false p Pc Pi_r.
+  Proof.
+    move=> s1 s2 e c1 c2 le lc Hval Hp Hc ii sv0 /=.
+    case: (dead_code_c dead_code_i c1 sv0)=> [[[sv1 sc1] lc1] /=|//].
+    case Heq: (dead_code_c dead_code_i c2 sv0)=> [[[sv2 sc2] lc2] /=|//].
+    constructor. 
+    move: (Hc sv0).
+    rewrite Heq. move=> Hwf. apply Hwf.
+  Qed.
+
+  Local Lemma Hwhile_true_WF : sem_Ind_while_true p Pc Pi_r.
+  Proof.
+    move=> s1 s2 s3 s4 a c e c' lc le lc' lw Hsc Hc H Hsc' Hc' Hsw Hw ii /= sv0.
+    set dobody := (X in wloop X).
+    case Hloop: wloop => [[[sv1 [c1 c1']] [lc1 lc1']] /=|//].
+    move: (wloopP Hloop) => [sv2 [sv2' [H1 [H2 H2']]]].
+    apply: rbindP H2 => -[[sv3 c2'] lc2'] Hc2'.
+    set sv4 := read_e_rec _ _ in Hc2'.
+    apply: rbindP => -[ [sv5 c2] lc2 ] Hc2 x; apply ok_inj in x.
+    repeat (case/xseq.pair_inj: x => Hx1 x; subst).
+    have := Hc sv4; rewrite Hc2'=> Hwf. 
+    case: x => x1 x2. constructor.
+    + by rewrite -x1.
+    + rewrite -x2.
+      have := Hc' sv1.
+      case: Hx1 => H1' H2 H3. rewrite H1' in Hc2. by rewrite Hc2=> Hwf'.
+    by have /= := Hw ii sv0;rewrite Hloop /=.
+   Qed.
+
+  Local Lemma Hwhile_false_WF : sem_Ind_while_false p Pc Pi_r.
+  Proof.
+    move=> s1 s2 a c e c' lc le Hsc Hc H ii sv0 /=.
+    set dobody := (X in wloop X).
+    case Hloop: wloop => [[[sv1 [c1 c1']] [lc1 lc1']] /=|//].
+    move: (wloopP Hloop) => [sv2 [sv2' [H1 [H2 H2']]]].
+    apply: rbindP H2 => -[[sv3 c2'] lc2'] Hc2.
+    set sv4 := read_e_rec _ _ in Hc2.
+    apply: rbindP => -[[sv5 c2] lc2] Hc2' x; apply ok_inj in x.
+    repeat (case/xseq.pair_inj: x => Ha x; subst).
+    have := Hc sv4;rewrite Hc2=> Hwf. constructor.
+    by case: x => <- _.
+  Qed.
+
+  Local Lemma Hfor_WF : sem_Ind_for p Pi_r Pfor.
+  Proof.
+    move=> s1 s2 i [[r1 r2] r3] wr c lr lf Hr Hc Hfor ii /= sv0.
+    case Hloop: (loop (dead_code_c dead_code_i c) ii Loop.nb Sv.empty (Sv.add i Sv.empty) sv0)=> [[[sv1 sc1] lt1] /=|//].
+    move: (loopP Hloop)=> [H1 [sv2 [H2 H2']]] /=.
+    move: Hfor=> /(_ sv1); rewrite H2. move=> Hwf.
+    by constructor.
+  Qed.
+
+  Local Lemma Hfor_nil_WF : sem_Ind_for_nil Pfor.
+  Proof.
+   move=> s i c sv0.
+   case Heq: (dead_code_c dead_code_i c sv0)=> [[[sv1 sc1] lc1]|] //=.
+   apply WF_seq' with [::].
+  Admitted.
+
+
+  Local Lemma Hfor_cons_WF : sem_Ind_for_cons p Pc Pfor.
+  Proof.
+    move=> s1 s1' s2 s3 i w ws c lc lf Hw Hsc Hc Hsfor Hfor sv0.
+    case Heq: (dead_code_c dead_code_i c sv0) =>[[[sv1 sc1] lc1]|] //=.
+    move: Hc=> /(_ sv0).
+    rewrite Heq. move=> Hwf.
+    econstructor. apply Hwf.
+  Qed.
+
+  (* we need some information which will say that the variable that stores leak transformers for functions:
+     also confirm that leak transformer is of form LT_icall *)
+  Local Lemma Hcall_WF : sem_Ind_call p Pi_r Pfun.
+  Proof.
+    move=> s1 m2 s2 ii xs fn args vargs vs lf lw Hexpr Hcall Hfun Hw ii' sv0.
+    case: dead_code_i=> [[[sv1 sc1] lc1]|] //=.
+    rewrite /Pfun in Hfun.
+  Admitted.
+
+  Local Lemma Hproc_WF : sem_Ind_proc p Pc Pfun.
+  Proof.
+    move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hfun htra Hw Hsem Hc Hres Hfull.
+    have dcok : map_cfprog_leak dead_code_fd (p_funcs p) = ok ((p_funcs p'), Ffs).
+    + move: dead_code_ok; rewrite /dead_code_prog; t_xrbindP.
+      by move=> [ys ys'] -> /= <- /= <-. 
+    move: (get_map_cfprog_leak dcok Hfun). move=> [] f' [] lt' []  Hf'1 /= Hf'2.
+    case: f Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
+    move=> fi fin fp /= c fo fres Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
+    case: f' Hf'1 Hf'2=> ??? c' ? f'_res Hf'1 Hf'2.
+    case Hd: (dead_code_c dead_code_i c (read_es [seq Pvar i | i <- fres])) Hf'1 =>// [[[sv sc] slt]] /= Heq.
+    rewrite /ciok in Heq.
+    move: Heq=>[Heqi Heqp Heqc Heqr].
+    move: Hc=> /(_ (read_es [seq Pvar i | i <- fres])).
+    have /= /(_ wf_vmap0) Hwf := wf_write_vars _ Hw.
+    rewrite Hd => Hwfs _ _ Heq Hleak. rewrite /Pfun /=.
+    rewrite /get_leak in Hleak.
+    replace (leak_Fun Ffs fn) with slt. apply Hwfs. 
+    rewrite /leak_Fun /=. by rewrite Hleak /=.
+  Qed.
+
+End WF_PROOF.

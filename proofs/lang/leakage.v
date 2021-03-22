@@ -411,7 +411,7 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
     (* _b should be equal b *)
     leak_Is leak_I stk lts lti
 
-  | LT_icond_eval false lts, Lwhile_false lti le => 
+  | LT_icond_eval _b lts, Lwhile_false lti le => 
     leak_Is leak_I stk lts lti
 
   | LT_ifor_unroll _n ltiss, Lfor le ltss => 
