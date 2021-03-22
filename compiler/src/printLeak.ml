@@ -64,27 +64,18 @@ let pp_i tbl fmt =
   | LT_iwhilel(a, b, c, d) -> fprintf fmt "iwhilel(TODO, %a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_iremove -> p "iremove"
   | LT_icopn e -> p "icopn(TODO)"
-  | LT_ilasgn -> p "ilasgn"
   | LT_ilmov1 -> p "ilmov1"
-  | LT_ilmov2 -> p "ilmov2"
-  | LT_ilmov3 -> p "ilmov3"
-  | LT_ilmov4 -> p "ilmov4"
-  | LT_ilsc -> p "ilsc"
-  | LT_ild -> p "ild"
-  | LT_ildc -> p "ildc"
   | LT_ildcn -> p "ildcn"
   | LT_ilmul (a, b) -> fprintf fmt "ilmul(TODO, %a)" pp_e_tr b
   | LT_ilcopn e -> p "ilcopn(TODO)"
   | LT_ilfopn (e, f) -> p "ilfopn(TODO, TODO)"
   | LT_ilinc e -> p "ilinc(TODO)"
-  | LT_ilea -> p "ilea"
-  | LT_ilds -> p "ilds"
-  | LT_ildus -> p "ildus"
   | LT_icondl (a, b, c, d) -> fprintf fmt "icondl(TODO, %a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_ilif (a, b) -> fprintf fmt "ilif(TODO, %a)" pp_e_tr b
   | LT_ileq a -> p "ileq(TODO)"
   | LT_illt a -> p "illt(TODO)"
   | LT_ildiv (a, b) -> fprintf fmt "ildiv(%a, TODO)" pp_i a
+  | LT_isingle a -> p "isingle(TODO)"
   in pp_i fmt
 
 let pp_funs pp_one tbl fmt =
