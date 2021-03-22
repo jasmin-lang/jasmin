@@ -1038,7 +1038,6 @@ Proof.
   by rewrite add0r.
 Qed.
 
-(* This Lemma is false we need to use division in type real at least in Q *)
 Lemma interp_merge_c c1 c2 m :
   Sm.interp (merge_cost c1 c2) m =1 merge_cost (Sm.interp c1 m) (Sm.interp c2 m).
 Proof.
@@ -1104,6 +1103,32 @@ Proof. by []. Qed.
 Hint Resolve disjoint_single_pre_f disjoint_single_pre_t disjoint_prefix disjoint_merge 
              pre_f0_t0 pre_t0_f0: disjoint.
 
+(* FIXME rename *)
+Axiom merge_eq_l : forall c1 c2 c, merge_cost c1 c =1 merge_cost c2 c <-> c1 =1 c2.
+Axiom merge_eq_r : forall c1 c2 c, merge_cost c c1 =1 merge_cost c c2 <-> c1 =1 c2.
+
+Lemma WF_leak_while ftr w ltis lte ltis' lw : 
+  leak_WF ftr (LT_iwhile ltis lte ltis') lw ->
+  leak_I ftr w lw (LT_iwhile ltis lte ltis') =
+     [:: head dummy_lit (leak_I ftr w lw (LT_iwhile ltis lte ltis'))].
+Proof.
+  move=> h.
+  move: h (refl_equal (LT_iwhile ltis lte ltis')).
+  suff : forall lw lt, 
+   leak_WF ftr lt lw
+    → lt = LT_iwhile ltis lte ltis'
+    → leak_I ftr w lw (LT_iwhile ltis lte ltis') =
+      [:: head dummy_lit (leak_I ftr w lw (LT_iwhile ltis lte ltis'))].
+  + by move=> h/h;apply.
+  move=> {lw} lw lt.   
+  by apply (leak_WF_ind 
+     (P:=fun lt lw _ => 
+        lt = LT_iwhile ltis lte ltis' → 
+        leak_I ftr w lw (LT_iwhile ltis lte ltis') =
+           [:: head dummy_lit (leak_I ftr w lw (LT_iwhile ltis lte ltis'))])
+     (P0 := fun lt lc _ => True) (P1 := fun lt lcs _ => True)).
+Qed.
+
 Lemma transform_cost_ok ftr w lt lc sl : 
   leak_WFs ftr lt lc ->
   cost_C ([::],0) (leak_Is (leak_I ftr) w lt lc) =1 Sm.interp (cost_C sl lc) (transform_cost_C lt sl).1.
@@ -1132,14 +1157,27 @@ Proof.
     rewrite !transform_cost_C0on; prefix_t.
     by rewrite prefix_cost0 prefix_cost0 !merge0c /pre_f0 /=.
   (* while true *)
-  + move=> ltis lte ltis' lts le lts' lw _ hrec _ hrec' _ hrec'' sl /=.
-    rewrite mergec0 !(interp_merge, interp_merge_c); auto with disjoint.
-    rewrite interp_single !(interp_prefix) interp_single_lbl_b -hrec cost_C_lbl_b.
-    rewrite !transform_cost_C0on; prefix_t.
-    rewrite prefix_cost0 prefix_cost0 !merge0c mergec0.
-    rewrite mergeA. Search _ merge_cost Sm.interp.
-    Search _ merge_cost.
-    admit. admit. admit. admit.
+
+  + move=> ltis lte ltis' lts le lts' lw _ hrec _ hrec' hwf hrec'' sl /=.
+    rewrite !interp_merge_c !interp_merge -/transform_cost_I; auto with disjoint.
+    rewrite interp_single.
+    rewrite !interp_prefix (@transform_cost_C0on (single_cost sl)); prefix_t.
+    rewrite (@transform_cost_C0on (single_cost sl)); prefix_t.
+    rewrite !(prefix_cost0, merge0c, mergec0).
+    rewrite merge_eq_r.
+    rewrite !interp_single_lbl_b !(mergec0, merge0c) -hrec -hrec'.
+    rewrite cost_C_lbl_b mergeA merge_eq_r.
+    rewrite (@transform_cost_C0on (cost_C (lbl_f sl) lts)); prefix_t.
+    rewrite !(prefix_cost0, merge0c, mergec0). 
+    rewrite (@transform_cost_C0on (cost_C (lbl_t sl) lts')); prefix_t.
+    rewrite !(prefix_cost0, merge0c, mergec0).
+    rewrite cost_C_lbl_b merge_eq_r.
+    have -> : cost_i ([::], 0) (head dummy_lit (leak_I ftr w lw (LT_iwhile ltis lte ltis'))) =1 
+              cost_C ([::], 0) (leak_I ftr w lw (LT_iwhile ltis lte ltis')).
+    + by rewrite {2}WF_leak_while //= mergec0.
+    rewrite (hrec'' sl) /= !interp_merge; auto with disjoint.
+    by rewrite !interp_prefix.
+
   (* while false *)
   + move=> ltis lte ltis' lts le _ hrec /= sl.
     rewrite mergec0 !(interp_merge, interp_merge_c); auto with disjoint.
