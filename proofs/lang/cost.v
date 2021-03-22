@@ -973,6 +973,9 @@ Proof. by move=> l; rewrite /merge_cost addr0. Qed.
 Lemma merge0c c : merge_cost empty_cost c =1 c.
 Proof. by rewrite mergeC mergec0. Qed.
 
+Axiom mergeA : forall c1 c2 c3, 
+merge_cost (merge_cost c1 c2) c3 =1 merge_cost c1 (merge_cost c2 c3).
+
 Lemma prefix_cost0 pre : prefix_cost pre empty_cost =1 empty_cost.
 Proof. by rewrite /prefix_cost /empty_cost => l /=; case:ifP. Qed.
 
@@ -1153,6 +1156,8 @@ Proof.
     rewrite interp_single !(interp_prefix) interp_single_lbl_b -hrec cost_C_lbl_b.
     rewrite !transform_cost_C0on; prefix_t.
     rewrite prefix_cost0 prefix_cost0 !merge0c mergec0.
+    rewrite mergeA. Search _ merge_cost Sm.interp.
+    Search _ merge_cost.
     admit. admit. admit. admit.
   (* while false *)
   + move=> ltis lte ltis' lts le _ hrec /= sl.
@@ -1166,7 +1171,7 @@ Proof.
   (* call *)
   + admit.
   (* remove *)
-  + move=> l sl /=. rewrite /Sm.interp /=. case: l=> //=.
+  + move=> l sl /=. rewrite /Sm.interp /=. by case: l=> //=.
   (* LT_icond_eval *)
   + move=> b lts le lti _ hrec /= sl.
     case: b=> //=.
@@ -1197,7 +1202,7 @@ Proof.
   + move=> le sl /=.
     rewrite /transform_opn /=.
     have H:= Sm.mergem0. rewrite /Sm.ext_eq in H. 
-    rewrite mergec0 /=. Search _ Sm.merge.
+    rewrite mergec0 /=. 
  admit.
   (* LT_ilmov2, LT_ilmov3, LT_ilmov4, LT_ild, LT_ildc, LT_ilea,
      LT_ilsc, LT_ilds, LT_ildus, LT_ilasgn *)
@@ -1241,7 +1246,7 @@ Proof.
   (* empty *)
   + move=> l /=. by rewrite /Sm.interp /= /empty_cost /=.
   (* .... *)
-  + move=> li lc' lti ltc _ Hrec l /=. Search _ Sm.interp.
+  + move=> li lc' lti ltc _ Hrec l /=.
 Admitted.
 
 End Transform_Cost_I.
