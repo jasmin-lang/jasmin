@@ -883,9 +883,11 @@ Fixpoint transform_cost_I (lt:leak_i_tr) (sl:lbl) : Sm.t * nat :=
     let mnt := transform_cost_C transform_cost_I lt2 (lbl_t sl) in
     (Sm.merge m (Sm.merge (Sm.prefix pre_f0 mf) (Sm.prefix pre_t0 mnt.1)), 1)
 
+    (*sl : copn l t o e ---> copn (addc, add, mul) t o e *) 
   | LT_icopn lesi => 
-    (Sm.empty, 0) (* FIXME *)
-
+    let n := no_i_esi_tr lesi in 
+    (transform_opn n sl 1, n) (* Check with Benjamin *)
+ 
     (* sl:i --->    tl:i1; tl': i2; next_lbl tl' *)
   | LT_ilmov1 => 
     (transform_opn 2 sl 1, 2)
@@ -899,25 +901,18 @@ Fixpoint transform_cost_I (lt:leak_i_tr) (sl:lbl) : Sm.t * nat :=
     (* we can ignore lte because its related to exp *)
   | LT_ilinc lte => 
     (transform_opn 1 sl 1, 1)
+
     (* Papp1 --> x = op ? ? *)
     (* we can ignore lte as its related to exp *)
   | LT_ilcopn lte =>
     (transform_opn 1 sl 1, 1)
-    
-  (*| LT_ilsc => 
-    (transform_opn 1 sl 1, 1)*)
-   
-  (*| LT_ild => 
-    (transform_opn 1 sl 1, 1) *)
-
-  (*| LT_ildc =>
-    (transform_opn 1 sl 1, 1) *)
 
   | LT_ildcn => 
     (transform_opn 2 sl 1, 2)
 
   | LT_ilmul ltes lte => 
-    (Sm.empty, 0)  (* FIXME *)
+    let n := no_i_esi_tr ltes in 
+    (transform_opn n sl 1, n) (* Check with Benjamin *)
     
     (* x = e1==e2 *)
     (* sl: Papp2 eq e1 e2 --> tl: x = e1==e2 *)
@@ -935,26 +930,12 @@ Fixpoint transform_cost_I (lt:leak_i_tr) (sl:lbl) : Sm.t * nat :=
     (* sl: i --> tl: flags = [e]; x = CMOVcc [ cond flags; e1; e2]*)
   | LT_ilif ltei lte => 
     (transform_opn 2 sl 1, 2)
-  
-  (*| LT_ilea => 
-    (transform_opn 1 sl 1, 1)*)
 
   | LT_ilfopn ltesi ltes =>
     (transform_opn 2 sl 1, 2)
-  
-    (* x = Papp2 div e1 e2 *)
-    (* sl: Papp2 div e1 e2 --> tl: x = e1/e2 *)
-  (*| LT_ilds => 
-    (transform_opn 1 sl 1, 1)
-
-  | LT_ildus =>
-    (transform_opn 1 sl 1, 1)*)
 
   | LT_ildiv lti ltes => 
     (transform_opn 2 sl 1, 2)
-
-  (*| LT_ilasgn => 
-    (transform_opn 1 sl 1, 1)*)
   end.
 
 Notation transform_cost_C := (transform_cost_C transform_cost_I).
