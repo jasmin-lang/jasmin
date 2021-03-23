@@ -89,6 +89,33 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------- *)
+Lemma wunsigned_sub_small (p: pointer) (n: Z) :
+  (0 <= n < wbase Uptr →
+  wunsigned (p - wrepr Uptr n ) <= wunsigned p →
+  n <= wunsigned p)%Z.
+Proof.
+  move => n_range.
+  rewrite wunsigned_sub_if; case: ssrZ.leZP; rewrite wunsigned_repr_small //.
+  Lia.lia.
+Qed.
+
+Lemma aligned_alloc_no_overflow m ws sz sz' m' :
+  (0 <= sz →
+  0 <= sz' →
+  round_ws ws (sz + sz') < wbase Uptr →
+  is_align (top_stack m) ws →
+  alloc_stack m ws sz sz' = ok m' →
+  round_ws ws (sz + sz') <= wunsigned (top_stack m))%Z.
+Proof.
+  move => sz_pos sz'_pos no_ovf AL A; apply: wunsigned_sub_small.
+  - have [L _] := round_ws_range ws (sz + sz').
+    Lia.lia.
+  etransitivity; last exact: (proj2 (Memory.alloc_stackP A).(ass_above_limit)).
+  rewrite (alloc_stack_top_stack A) (Memory.top_stack_after_aligned_alloc _ AL) wrepr_opp.
+  Lia.lia.
+Qed.
+
+(* -------------------------------------------------------------- *)
 Definition allocatable_stack (m : mem) (z : Z) :=
   True. (* TODO *)
 
