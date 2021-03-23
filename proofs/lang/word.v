@@ -1440,3 +1440,7 @@ Proof.
   rewrite /align_word wsize_size_is_pow2 wand_align.
   lia.
 Qed.
+
+(* -------------------------------------------------------------------*)
+Definition pmovmskb (ssz dsz: wsize) (w : word ssz) : word dsz :=
+ wrepr dsz (t2w_def [tuple of map msb (split_vec U8 w)]).

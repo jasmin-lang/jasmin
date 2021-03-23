@@ -162,7 +162,9 @@ Variant asm_op : Type :=
 (* MISC *)
 | RDTSC    of wsize
 | RDTSCP   of wsize
+| VPMOVMSKB of wsize & wsize (* sorce size (U128/256) & dest. size (U32/64) *)
 .
+
 
 (* ----------------------------------------------------------------------------- *)
 Definition b_ty             := [:: sbool].
@@ -838,6 +840,11 @@ Definition x86_RDTSCP sz       : ex_tpl (w3_ty sz) :=
   Let _ := check_size_32_64 sz in
   ok ( wrepr sz 0, (wrepr sz 0, wrepr sz 0)).
 
+Definition x86_VPMOVMSKB ssz dsz (v : word ssz): ex_tpl (w_ty dsz) :=
+  Let _ := check_size_32_64 dsz in
+  Let _ := check_size_128_256 ssz in
+  ok (@pmovmskb ssz dsz v).
+
 (* ----------------------------------------------------------------------------- *)
 Coercion F f := ADImplicit (IArflag f).
 Coercion R r := ADImplicit (IAreg r).
@@ -1507,7 +1514,7 @@ Definition Ox86_RDTSC_instr :=
               sz (* size *)
               (no_imm sz) (* no immediate arg. *)
               [::]
-              (pp_name_ty "rdtsc" [::U64;U64]) (* asm pretty-print*)
+              (pp_name_ty "rdtsc" [:: sz; sz]) (* asm pretty-print*)
    ,("RDTSC"%string, PrimP U64 RDTSC) (* jasmin concrete syntax *)
   ).
 Definition Ox86_RDTSCP_instr :=
@@ -1524,9 +1531,31 @@ Definition Ox86_RDTSCP_instr :=
               sz (* size *)
               (no_imm sz) (* no immediate arg. *)
               [::]
-              (pp_name_ty "rdtscp" [::U64;U64;U64]) (* asm pprinter *)
+              (pp_name_ty "rdtscp" [:: sz; sz; sz]) (* asm pprinter *)
    ,("RDTSCP"%string, PrimP U64 RDTSCP) (* jasmin concrete syntax *)
   ).
+
+Definition check_pmovmskb (_ _: wsize) : seq (seq (seq arg_kind)) :=
+ [:: [:: r; xmm]].
+
+Definition Ox86_PMOVMSKB_instr :=
+  (fun ssz dsz => mk_instr
+              (pp_sz_sz "VPMOVMSKB"%string false ssz dsz) (* Jasmin name *)
+              (w_ty ssz) (* args type *)
+              (w_ty dsz) (* result type *)
+              [:: E 1 ] (* args *)
+              [:: E 0 ]  (* results *)
+              MSB_CLEAR (* clear MostSignificantBits *)
+              (@x86_VPMOVMSKB ssz dsz) (* semantics *)
+              (check_pmovmskb ssz dsz) (* arg checks *)
+              2 (* nargs *)
+              ssz (* size *)
+              (no_imm ssz) (* no immediate arg. *)
+              [::]
+              (pp_name_ty "vpmovmskb" [:: dsz; ssz]) (* asm pprinter *)
+   ,("VPMOVMSKB"%string, PrimX VPMOVMSKB) (* jasmin concrete syntax *)
+  ).
+
 
 Definition instr_desc o : instr_desc_t :=
   match o with
@@ -1629,6 +1658,7 @@ Definition instr_desc o : instr_desc_t :=
   | VAESKEYGENASSIST   => Ox86_VAESKEYGENASSIST_instr.1 
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
+  | VPMOVMSKB ssz dsz  => Ox86_PMOVMSKB_instr.1 ssz dsz
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -1733,9 +1763,9 @@ Definition prim_string :=
    Ox86_AESKEYGENASSIST_instr.2; 
    Ox86_VAESKEYGENASSIST_instr.2;
    Ox86_RDTSC_instr.2;
-   Ox86_RDTSCP_instr.2
+   Ox86_RDTSCP_instr.2;
+   Ox86_PMOVMSKB_instr.2
  ].
-  
   
   
   
