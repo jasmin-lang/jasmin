@@ -5,13 +5,14 @@ fn test_vpcmpgt(reg u64 tmp) {
 
   y = #set0_256();
   x = #set0_256();
-  z = #VPCMPGT_16u16(x, y);
+  z = #VPCMPGT_32u8(x, y);
   (u256)[tmp] = z;
 
   i = #set0_128();
   j = #set0_128();
-  k = #VPCMPGT_4u32(i, j);
+  k = #VPCMPGT_8u16(i, j);
   (u128)[tmp + 32] = k;
 
   z = #VPCMPGT_8u32(x, y);
+  (u256)[tmp + 48] = z;
 }

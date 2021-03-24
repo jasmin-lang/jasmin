@@ -167,6 +167,8 @@ Variant asm_op : Type :=
 | VPCMPGT    `(velem) `(wsize)
 | POPCNT     `(wsize)
 | PEXT       `(wsize)
+| VPMADDUBSW `(wsize)
+| VPMADDWD `(wsize)
 .
 
 
@@ -869,6 +871,14 @@ Definition x86_POPCNT sz (v: word sz): ex_tpl (b5w_ty sz) :=
 Definition x86_PEXT sz (v1 v2: word sz): ex_tpl (w_ty sz) :=
   Let _ := check_size_32_64 sz in
   ok (wrepr sz 0).
+
+Definition x86_VPMADDUBSW sz (v v1: word sz) : ex_tpl (w_ty sz) :=
+  Let _ := check_size_128_256 sz in
+  ok (@pmaddubsw sz v v2).
+
+Definition x86_VPMADDWD sz (v v1: word sz) : ex_tpl (w_ty sz) :=
+  Let _ := check_size_128_256 sz in
+  ok (@pmaddwd sz v v1).
 
 (* ----------------------------------------------------------------------------- *)
 Coercion F f := ADImplicit (IArflag f).
@@ -1623,6 +1633,46 @@ Definition Ox86_POPCNT_instr :=
 Definition Ox86_PEXT_instr :=
   mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm true]]) no_imm (primP PEXT) (pp_name "pext").
 
+Definition check_vpmaddubsw (_ : wsize) : seq (seq (seq arg_kind)) :=
+  [:: [:: xmm; xmm; xmm]].
+
+Definition Ox86_VPMADDUBSW_instr :=
+  (fun sz => mk_instr
+                (pp_sz "VPMADDUBSW"%string sz)
+                (w2_ty sz sz)
+                (w_ty sz)
+                [:: E 1; E 2]
+                [:: E 0 ]
+                MSB_CLEAR
+                (@x86_VPMADDUBSW sz)
+                (check_vpmaddubsw sz)
+                3
+                sz
+                (no_imm sz)
+                [::]
+                (pp_name_ty "vpmaddubsw" [:: sz; sz; sz])
+             ,("VPMADDUBSW"%string, PrimP U128 VPMADDUBSW)
+  ).
+
+Definition Ox86_VPMADDWD_instr :=
+  (fun sz => mk_instr
+                (pp_sz "VPMADDWD"%string sz)
+                (w2_ty sz sz)
+                (w_ty sz)
+                [:: E 1; E 2]
+                [:: E 0 ]
+                MSB_CLEAR
+                (@x86_VPMADDWD sz)
+                (check_xmm_xmm_xmmm sz)
+                3
+                sz
+                (no_imm sz)
+                [::]
+                (pp_name_ty "vpmaddwd" [:: sz; sz; sz])
+             ,("VPMADDWD"%string, PrimP U128 VPMADDWD)
+  ).
+
+
 Definition instr_desc o : instr_desc_t :=
   match o with
   | MOV sz             => Ox86_MOV_instr.1 sz
@@ -1729,6 +1779,8 @@ Definition instr_desc o : instr_desc_t :=
   | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
   | POPCNT sz          => Ox86_POPCNT_instr.1 sz
   | PEXT sz            => Ox86_PEXT_instr.1 sz
+  | VPMADDUBSW sz      => Ox86_VPMADDUBSW_instr.1 sz
+  | VPMADDWD sz      => Ox86_VPMADDWD_instr.1 sz
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -1839,12 +1891,8 @@ Definition prim_string :=
    Ox86_VPCMPGT_instr.2
    Ox86_POPCNT_instr.2
    Ox86_PEXT_instr.2
+   Ox86_PMOVMSKB_instr.2;
+   Ox86_VPMADDUBSW_instr.2
+   Ox86_VPMADDWD_instr.2;
  ].
-  
-  
-  
-  
-  
-  
-  
   

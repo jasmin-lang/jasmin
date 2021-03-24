@@ -1458,6 +1458,27 @@ Definition vpermd sz (w1 idx: word sz) : word sz :=
 Definition popcnt sz (w: word sz) :=
  wrepr sz (count id (w2t w)).
 
+(* TODO: cleanup *)
+Fixpoint add_pairs ve (v1: seq (word ve)) : seq (word ve) :=
+  match v1 with
+  | cons p1 (cons p2 v1') => (wrepr ve ((wunsigned p1) + (wunsigned p2))) :: (add_pairs v1')
+  | nil | cons _ _ => [::]
+  end.
+
+Definition pmadd1 ve (v1 v2: seq (word ve)): seq (word ve) :=
+  let tmp := map2 *%R  v1 v2 in
+  add_pairs tmp.
+
+Definition pmaddubsw sz (v1 v2: word sz) : word sz :=
+  let w1 := map (@zero_extend VE16 VE8) (split_vec VE8 v1) in
+  let w2 := map (@zero_extend VE16 VE8) (split_vec VE8 v2) in
+  make_vec sz (pmadd1 w1 w2).
+
+Definition pmaddwd sz (v1 v2: word sz) : word sz :=
+  let w1 := map (@zero_extend VE32 VE16) (split_vec VE16 v1) in
+  let w2 := map (@zero_extend VE32 VE16) (split_vec VE16 v2) in
+  make_vec sz (pmadd1 w1 w2).
+
 Definition vpcmpgt1 ve (e1 e2: word ve) : word ve :=
   if (wunsigned e1) >? (wunsigned e2) then (wshl 1 (wsize_size_minus_1 ve) - 1)%R
   else 0%R.
