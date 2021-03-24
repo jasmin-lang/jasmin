@@ -163,6 +163,7 @@ Variant asm_op : Type :=
 | RDTSC    of wsize
 | RDTSCP   of wsize
 | VPMOVMSKB of wsize & wsize (* sorce size (U128/256) & dest. size (U32/64) *)
+| VPERMD     `(wsize)
 .
 
 
@@ -844,6 +845,10 @@ Definition x86_VPMOVMSKB ssz dsz (v : word ssz): ex_tpl (w_ty dsz) :=
   Let _ := check_size_32_64 dsz in
   Let _ := check_size_128_256 ssz in
   ok (@pmovmskb ssz dsz v).
+
+Definition x86_VPERMD sz (v1 v2: word sz): ex_tpl(w_ty sz) :=
+  Let _ := check_size_256 sz in
+  ok (@vpermd sz v1 v2).
 
 (* ----------------------------------------------------------------------------- *)
 Coercion F f := ADImplicit (IArflag f).
@@ -1556,6 +1561,23 @@ Definition Ox86_PMOVMSKB_instr :=
    ,("VPMOVMSKB"%string, PrimX VPMOVMSKB) (* jasmin concrete syntax *)
   ).
 
+Definition Ox86_VPERMD_instr :=
+  (fun sz => mk_instr
+                  (pp_sz "VPERMD"%string sz)
+                  (w2_ty sz sz)
+                  (w_ty sz)
+                  [:: E 1; E 2]
+                  [:: E 0]
+                  MSB_CLEAR
+                  (@x86_VPERMD sz)
+                  (check_xmm_xmm_xmmm sz)
+                  3
+                  sz
+                  (no_imm sz)
+                  [::]
+                  (pp_iname "vpermd" sz)
+                ,("VPERMD"%string, PrimP U256 VPERMD)
+  ).
 
 Definition instr_desc o : instr_desc_t :=
   match o with
@@ -1659,6 +1681,7 @@ Definition instr_desc o : instr_desc_t :=
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | VPMOVMSKB ssz dsz  => Ox86_PMOVMSKB_instr.1 ssz dsz
+  | VPERMD sz          => Ox86_VPERMD_instr.1 sz
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -1765,6 +1788,7 @@ Definition prim_string :=
    Ox86_RDTSC_instr.2;
    Ox86_RDTSCP_instr.2;
    Ox86_PMOVMSKB_instr.2
+   Ox86_VPERMD_instr.2
  ].
   
   

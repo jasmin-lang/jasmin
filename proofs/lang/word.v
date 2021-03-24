@@ -1442,5 +1442,15 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------*)
+
 Definition pmovmskb (ssz dsz: wsize) (w : word ssz) : word dsz :=
- wrepr dsz (t2w_def [tuple of map msb (split_vec U8 w)]).
+  wrepr dsz (t2w_def [tuple of map msb (split_vec U8 w)]).
+
+Definition vpermd1 (v: seq u32) (idx: u32) :=
+  let off := wunsigned (wand idx (wshl 1 4 - 1)) in
+  (v`_(Z.to_nat off))%R.
+
+Definition vpermd sz (w1 idx: word sz) : word sz :=
+  let v := split_vec U32 w1 in
+  let i := split_vec U32 idx in
+  make_vec sz (map (vpermd1 v) i).
