@@ -929,10 +929,14 @@ Fixpoint transform_cost_I (lt:leak_i_tr) (sl:lbl) : Sm.t * nat :=
     (* Pif e e1 e2 => x := [Pif e e1 e2] *)
     (* sl: i --> tl: flags = [e]; x = CMOVcc [ cond flags; e1; e2]*)
   | LT_ilif ltei lte => 
-    (transform_opn 2 sl 1, 2)
+    let n := no_i_leak_EI ltei in 
+    if n == 1 then
+    (transform_opn 2 sl 1, 2) else
+    (transform_opn 1 sl 1, 1)
 
   | LT_ilfopn ltesi ltes =>
-    (transform_opn 2 sl 1, 2)
+    let n := no_i_esi_tr ltesi in 
+    (transform_opn n sl 1, n)
 
   | LT_ildiv lti ltes => 
     (transform_opn 2 sl 1, 2)
@@ -1065,6 +1069,25 @@ Admitted.
 Axiom interp_single_lbl_b : forall b sl lti,
   Sm.interp (cost_C (lbl_b b sl) lti) (Sm.single 0 sl 1) =1 empty_cost.
 
+Lemma interp_single_empty : forall sl,
+  (Sm.interp (single_cost sl) Sm.empty) =1 empty_cost.
+Proof.
+ move=> sl l /=.
+ rewrite /Sm.interp /single_cost /=. by rewrite /empty_cost /=.
+Qed.
+
+Lemma interp_single_cost : forall sl, 
+  (Sm.interp (single_cost sl) (Sm.single 1 sl 1)) =1 (single_cost (next_lbl ([::], 0))).
+Proof.
+ move=> sl l /=. rewrite /Sm.interp. rewrite /Sm.single /single_cost /=. rewrite Sm.setP.
+ case: ifP=> //=.
+ + move=> /eqP Hl /=. rewrite /next_lbl /=. rewrite -Hl /= /update_cost /=.
+   case: ifP=> //=. move=> /eqP //.
+ move=> /eqP H. rewrite /update_cost /=. case: ifP=> //=.
+ rewrite /next_lbl /=. move=> /eqP H'. rewrite /empty_cost. 
+ case: H. apply H'.
+Qed.
+
 Axiom transform_cost_C0on : forall c sl lt,
   (forall (l l':lbl), prefix_top_lbl sl l = Some l' -> c l' = 0%R) ->
   Sm.interp c (transform_cost_C lt sl).1 = empty_cost.
@@ -1072,6 +1095,15 @@ Axiom transform_cost_C0on : forall c sl lt,
 Axiom disjoint_prefix : forall pre1 pre2 m1 m2,
   pre1 <> pre2 ->    
   Sm.disjoint (Sm.prefix pre1 m1) (Sm.prefix pre2 m2).
+
+Lemma disjoint_0_1 : forall sl,
+  Sm.disjoint (Sm.single 0 sl 1) (Sm.single 1 sl 1).
+Proof.
+ move=> sl l. rewrite get_single.
+ case: ifP=> //=. move=> /eqP Hl Hget.
+ rewrite /Sm.single. rewrite Sm.setP. case: ifP=> //=.
+ move=> /eqP Hl'. rewrite Hl in Hl'. case: Hl'=> //.
+Qed.
 
 Lemma disjoint_single_pre : forall pre sl m,
   pre <> [::] ->
@@ -1208,8 +1240,11 @@ Proof.
   + admit.
   (* LOWERING *)
   (* LT_icondl *)
-  + move=> lti' lte ltt ltf le lti _ Hrec sl /=.
-    rewrite /transform_opn /=. admit.
+  + move=> lti' lte ltt ltf le lti _ hrec sl /=.
+    rewrite /transform_opn /=. rewrite !interp_merge_c.
+    rewrite /leak_EI /=. case: lti'=> lti' //=.
+    + rewrite mergec0 cost_C_lbl_b. admit.
+    + admit.
   (* LT_icondl *)
   + admit.
   (* LT_iwhilel *)
@@ -1217,13 +1252,59 @@ Proof.
   (* LT_iwhilel *)
   + admit.
   (* LT_icopn *)
-  + (* Need to fix this *) admit.
-  (* LT_ilmov1 *)
+  + move=> ltes le sl /=. case ltes=> //=.
+    + rewrite /transform_opn /=. rewrite interp_merge /=.
+      rewrite interp_single /=. rewrite interp_merge /=.
+      rewrite interp_single_empty. 
+      + by rewrite interp_single_cost.
+      + by rewrite /Sm.single /=.
+      apply disjoint_merge.
+      + move=> l Hl. by rewrite disjoint_0_1.
+      by rewrite /Sm.single /=.
+    + rewrite mergec0 /= /transform_opn /=.
+      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+      done.
+    + admit.
+    + admit.
+    + rewrite mergec0 /= /transform_opn /=.
+      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+      done.
+    + rewrite /transform_opn /=. rewrite interp_merge /=.
+      rewrite interp_single /=. rewrite interp_merge /=.
+      rewrite interp_single_empty. 
+      + by rewrite interp_single_cost.
+      + by rewrite /Sm.single /=.
+      apply disjoint_merge.
+      + move=> l Hl. by rewrite disjoint_0_1.
+      by rewrite /Sm.single /=.
+    + rewrite /transform_opn /=. rewrite interp_merge /=.
+      rewrite interp_single /=. rewrite interp_merge /=.
+      rewrite interp_single_empty. 
+      + by rewrite interp_single_cost.
+      + by rewrite /Sm.single /=.
+      apply disjoint_merge.
+      + move=> l Hl. by rewrite disjoint_0_1.
+      by rewrite /Sm.single /=.
+    + rewrite mergec0 /= /transform_opn /=.
+      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+      done.
+    rewrite mergec0 /= /transform_opn /=.
+    rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+    done.
+  (* Lt_ilmov1 *)
   + move=> le sl /=.
-    rewrite /transform_opn /=.
-    have H:= Sm.mergem0. rewrite /Sm.ext_eq in H. 
-    rewrite mergec0 /=. 
- admit.
+    rewrite /transform_opn /=. rewrite interp_merge /=.
+    rewrite interp_single /=. rewrite interp_merge /=.
+    rewrite interp_single_empty. 
+    + by rewrite interp_single_cost.
+    + by rewrite /Sm.single /=.
+    apply disjoint_merge.
+    + move=> l Hl. by rewrite disjoint_0_1.
+    by rewrite /Sm.single /=.
   (* LT_ilmov2, LT_ilmov3, LT_ilmov4, LT_ild, LT_ildc, LT_ilea,
      LT_ilsc, LT_ilds, LT_ildus, LT_ilasgn *)
   + move=> lti le sl /=. rewrite mergec0 /= /transform_opn /=.
@@ -1256,13 +1337,125 @@ Proof.
     by move=> l /=;rewrite /single_cost /= GRing.addr0. 
     done.
   (* LT_ilif *)
-  + move=> lti le' le sl. admit.
+  + move=> lti le' le sl /=. case: lti=> //=. move=>ltii. 
+    + rewrite /transform_opn. rewrite interp_merge.
+      rewrite interp_single. rewrite interp_merge.
+      rewrite interp_single_empty. 
+      + by rewrite interp_single_cost.
+      + by rewrite /Sm.single /=.
+      apply disjoint_merge.
+      + move=> l Hl. by rewrite disjoint_0_1.
+      by rewrite /Sm.single /=.
+    rewrite /transform_opn. rewrite interp_merge.
+    rewrite interp_single. 
+    by rewrite interp_single_empty.
+    by rewrite /Sm.single /=.
   (* LT_ilmul *)
-  + (** Need to fix this *) admit.
+  + move=> ltes lte le sl /=. case ltes=> //=.
+    + rewrite /transform_opn /=. rewrite interp_merge /=.
+      rewrite interp_single /=. rewrite interp_merge /=.
+      rewrite interp_single_empty. 
+      + by rewrite interp_single_cost.
+      + by rewrite /Sm.single /=.
+      apply disjoint_merge.
+      + move=> l Hl. by rewrite disjoint_0_1.
+      by rewrite /Sm.single /=.
+    + rewrite mergec0 /= /transform_opn /=.
+      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+      done.
+    + admit.
+    + admit.
+    + rewrite mergec0 /= /transform_opn /=.
+      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+      done.
+    + rewrite /transform_opn /=. rewrite interp_merge /=.
+      rewrite interp_single /=. rewrite interp_merge /=.
+      rewrite interp_single_empty. 
+      + by rewrite interp_single_cost.
+      + by rewrite /Sm.single /=.
+      apply disjoint_merge.
+      + move=> l Hl. by rewrite disjoint_0_1.
+      by rewrite /Sm.single /=.
+    + rewrite /transform_opn /=. rewrite interp_merge /=.
+      rewrite interp_single /=. rewrite interp_merge /=.
+      rewrite interp_single_empty. 
+      + by rewrite interp_single_cost.
+      + by rewrite /Sm.single /=.
+      apply disjoint_merge.
+      + move=> l Hl. by rewrite disjoint_0_1.
+      by rewrite /Sm.single /=.
+    + rewrite mergec0 /= /transform_opn /=.
+      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+      done.
+    rewrite mergec0 /= /transform_opn /=.
+    rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+    done.
   (* LT_ilfopn *)
-  + admit.
+  + move=> lest lte le sl /=. case lest=> //=.
+    + rewrite /transform_opn /=. rewrite interp_merge /=.
+      rewrite interp_single /=. rewrite interp_merge /=.
+      rewrite interp_single_empty. 
+      + by rewrite interp_single_cost.
+      + by rewrite /Sm.single /=.
+      apply disjoint_merge.
+      + move=> l Hl. by rewrite disjoint_0_1.
+      by rewrite /Sm.single /=.
+    + rewrite mergec0 /= /transform_opn /=.
+      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+      done.
+    + admit.
+    + admit.
+    + rewrite mergec0 /= /transform_opn /=.
+      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+      done.
+    + rewrite /transform_opn /=. rewrite interp_merge /=.
+      rewrite interp_single /=. rewrite interp_merge /=.
+      rewrite interp_single_empty. 
+      + by rewrite interp_single_cost.
+      + by rewrite /Sm.single /=.
+      apply disjoint_merge.
+      + move=> l Hl. by rewrite disjoint_0_1.
+      by rewrite /Sm.single /=.
+    + rewrite /transform_opn /=. rewrite interp_merge /=.
+      rewrite interp_single /=. rewrite interp_merge /=.
+      rewrite interp_single_empty. 
+      + by rewrite interp_single_cost.
+      + by rewrite /Sm.single /=.
+      apply disjoint_merge.
+      + move=> l Hl. by rewrite disjoint_0_1.
+      by rewrite /Sm.single /=.
+    + rewrite mergec0 /= /transform_opn /=.
+      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+      done.
+    rewrite mergec0 /= /transform_opn /=.
+    rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
+    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
+    done.
   (* LT_ildiv *)
-  + admit.
+  + move=> lti lres le sl /=. case:ifP=> //=.
+    + move=> H /=. rewrite /transform_opn. rewrite interp_merge.
+      rewrite interp_single. rewrite interp_merge.
+      rewrite interp_single_empty. 
+      + by rewrite interp_single_cost.
+      + by rewrite /Sm.single /=.
+      apply disjoint_merge.
+      + move=> l Hl. by rewrite disjoint_0_1.
+      by rewrite /Sm.single /=.
+    move=> H. rewrite /transform_opn. rewrite interp_merge.
+    rewrite interp_single. rewrite interp_merge.
+    rewrite interp_single_empty. 
+    + by rewrite interp_single_cost.
+    + by rewrite /Sm.single /=.
+    apply disjoint_merge.
+    + move=> l Hl. by rewrite disjoint_0_1.
+    by rewrite /Sm.single /=.
   (* empty *)
   + move=> l /=. by rewrite /Sm.interp /= /empty_cost /=.
   (* .... *)

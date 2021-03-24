@@ -278,6 +278,12 @@ Definition leak_EI (stk : pointer) (lti : leak_e_i_tr) (le : leak_e) : seq leak_
     [::]
   end.
 
+Definition no_i_leak_EI (lt : leak_e_i_tr) : nat :=
+match lt with 
+ | LT_iconditionl lte => 1
+ | LT_iemptyl => 0
+end.
+
 Fixpoint remove_last_leak (ls: seq leak_e) : seq leak_e := 
   match ls with
   | [::] => [::]
@@ -550,20 +556,6 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
                                 
   | _, _ => [:: l]
   end.
-
-(*Definition and_seq (l: seq bool) : bool := List.fold_left andb l true.
-
-Section Leak_WF.
-
-  Variable leak_WF : leak_i -> leak_i_tr -> bool.
-
-  Definition leak_WFs (lts : seq leak_i_tr) (ls : seq leak_i) : bool :=
-    and_seq (map2 (leak_WF) ls lts).
-
-  Definition leak_WFss (ltss : seq leak_i_tr) (ls : seq (seq leak_i)) : bool :=
-    and_seq (map (leak_WFs ltss) ls). 
-
-End Leak_WF.*)
 
 Inductive leak_WF : leak_i_tr -> leak_i -> Prop :=
  | LT_ikeepWF : forall le, leak_WF LT_ikeep (Lopn le)
