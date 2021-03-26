@@ -619,8 +619,6 @@ Inductive leak_WF : leak_i_tr -> leak_i -> Prop :=
                 leak_WF (LT_ilinc ltes) (Lopn le)                
  | LT_ilcopnWF : forall ltes le,
                  leak_WF (LT_ilcopn ltes) (Lopn le)
- | LT_ildcnWF : forall le,
-              leak_WF LT_ild (Lopn le)
  | LT_ileqWF : forall ltes le,
               leak_WF (LT_ileq ltes) (Lopn le)
  | LT_illtWF : forall ltes le,
@@ -641,10 +639,10 @@ with leak_WFs : seq leak_i_tr -> seq leak_i -> Prop :=
             leak_WFs lt1' l1'
 
 with leak_WFss : seq leak_i_tr -> seq (seq leak_i) -> Prop :=
- | WF_empty' : leak_WFss [::] [::]
- | WF_seq' : forall l1 l1' lt1,
-            leak_WFs lt1 l1 ->
-            leak_WFss lt1 l1'.
+ | WF_empty' : forall lt, leak_WFss lt [::]
+ | WF_seq' : forall l1 l1' lt,
+            leak_WFs lt l1 ->
+            leak_WFss lt l1'.
 
 End Leak_Call.
 

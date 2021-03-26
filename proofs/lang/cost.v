@@ -1112,7 +1112,6 @@ Lemma disjoint_single_pre : forall pre sl m,
   pre <> [::] ->
   Sm.disjoint (Sm.single 0 sl 1) (Sm.prefix pre m).
 Proof.
- move=> pre sl m Heq /=.
 Admitted.
 
 Lemma disjoint_single_pre_f sl m :
@@ -1163,6 +1162,48 @@ Proof.
            [:: head dummy_lit (leak_I ftr w lw (LT_iwhile ltis lte ltis'))])
      (P0 := fun lt lc _ => True) (P1 := fun lt lcs _ => True)).
 Qed.
+
+Definition is_lopn (l: leak_i) := 
+match l with 
+ | Lopn le => true
+ | _ => false
+end.
+
+Definition is_lopns (l: leak_c) := all is_lopn l.
+
+Lemma is_lopn_LT_iopn le ltes ftr w : 
+is_lopns (leak_I ftr w (Lopn le) (LT_icopn ltes)).
+Proof.
+rewrite /=. move: (get_seq_leak_e _) (get_seq_leak_e _) => les1 les2. 
+by elim: ltes les1 les2 => //=.
+Qed.
+
+Lemma size_LT_icopn le ltes ftr w : 
+ size (leak_I ftr w (Lopn le) (LT_icopn ltes)) = no_i_esi_tr ltes.
+Proof.
+rewrite /=. move: (get_seq_leak_e _) (get_seq_leak_e _) => les1 les2. 
+by elim: ltes les1 les2 => //=.
+Qed.
+
+Axiom transform_opnS : forall n sl,
+  transform_opn n.+1 sl 1 = 
+     Sm.merge (Sm.single 0 sl 1) (Sm.incr 1 (transform_opn n sl 1)).
+
+Lemma is_lopnP li : is_lopn li -> exists les, li = Lopn les.
+Proof. case: li => //; eauto. Qed.
+
+Lemma cost_LT_icopn l sl:
+is_lopns l ->
+cost_C ([::], 0) l =1
+    Sm.interp (single_cost sl) (transform_opn (size l) sl 1).
+Proof.
+elim: l=> //= li lc Hrec /andP [] /is_lopnP [les ->] Hlc.
+rewrite transform_opnS /Sm.incr interp_merge; auto with disjoint.
++ rewrite interp_single /=.
+Admitted.
+
+
+ 
 
 Lemma transform_cost_ok ftr w lt lc sl : 
   leak_WFs ftr lt lc ->
@@ -1268,7 +1309,7 @@ Proof.
   (* LT_iwhilel *)
   + admit.
   (* LT_icopn *)
-  + move=> ltes le sl. elim: ltes=> //.
+  + move=> ltes le sl. rewrite /transform_cost_I. elim: ltes=> //.
     + rewrite /transform_opn /=. rewrite interp_merge /=.
       rewrite interp_single /=. rewrite interp_merge /=.
       rewrite interp_single_empty. 
@@ -1334,11 +1375,6 @@ Proof.
     done.
   (* LT_ilcopn *)
   + move=> lti le sl /=. rewrite mergec0 /= /transform_opn /=.
-    rewrite interp_merge /=. rewrite interp_single /= /Sm.interp /= /merge_cost /=.
-    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-    done.
-  (* LT_ild *)
-  + move=> le sl /=. rewrite mergec0 /= /transform_opn /=.
     rewrite interp_merge /=. rewrite interp_single /= /Sm.interp /= /merge_cost /=.
     by move=> l /=;rewrite /single_cost /= GRing.addr0. 
     done.
