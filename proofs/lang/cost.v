@@ -692,25 +692,11 @@ Context (P: leak_i_tr → Prop)
         (Hicopn        : ∀ lei, P (LT_icopn lei))
         (Hilmov1       : P LT_ilmov1)
         (Hilsingle : ∀ lti, P (LT_isingle lti))
-        (*(Hilmov2       : P LT_ilmov2)
-        (Hilmov3       : P LT_ilmov3)
-        (Hilmov4       : P LT_ilmov4)*)
-        (Hilinc        : ∀ les, P (LT_ilinc les))
-        (Hilcopn       : ∀ les, P (LT_ilcopn les))
-        (*(Hilsc         : P LT_ilsc)
-        (Hild          : P LT_ild)
-        (Hildc         : P LT_ildc)*)
-        (Hildcn        : P LT_ildcn)
+        (Hildouble : ∀ lti, P (LT_idouble lti))
         (Hilmul        : ∀ lei le, P (LT_ilmul lei le))
-        (Hileq         : ∀ les, P (LT_ileq les))
-        (Hillt         : ∀ les, P (LT_illt les))
         (Hilif         : ∀ lei le, P (LT_ilif lei le))
-        (*(Hilea         : P LT_ilea)*)
         (Hilfopn       : ∀ lei les, P (LT_ilfopn lei les))
-        (*(Hilds         : P LT_ilds)
-        (Hildus        : P LT_ildus)*)
-        (Hildiv        : ∀ lti le, P lti -> P (LT_ildiv lti le))
-        (*(Hilasgn       : P LT_ilasgn)*).
+        (Hildiv        : ∀ lti le, P lti -> P (LT_ildiv lti le)).
 
   Section C.
     Context (leak_i_tr_ind : forall lti, P lti).
@@ -748,26 +734,11 @@ Context (P: leak_i_tr → Prop)
 
     | LT_icopn lei      => Hicopn lei
     | LT_isingle lti   => Hilsingle lti
-    | LT_ilmov1         => Hilmov1        
-    (*| LT_ilmov2         => Hilmov2        
-    | LT_ilmov3         => Hilmov3        
-    | LT_ilmov4         => Hilmov4   *)     
-    | LT_ilinc les      => Hilinc les
-    | LT_ilcopn les     => Hilcopn les
-    (*| LT_ilsc           => Hilsc          
-    | LT_ild            => Hild            
-    | LT_ildc           => Hildc *)          
-    | LT_ildcn          => Hildcn         
+    | LT_idouble lti   => Hildouble lti        
     | LT_ilmul lei le   => Hilmul lei le
-    | LT_ileq les       => Hileq  les
-    | LT_illt les       => Hillt  les
     | LT_ilif lei le    => Hilif  lei le
-    (*| LT_ilea           => Hilea  *)        
-    | LT_ilfopn lei les => Hilfopn lei les
-    (*| LT_ilds           => Hilds          
-    | LT_ildus          => Hildus*)         
+    | LT_ilfopn lei les => Hilfopn lei les       
     | LT_ildiv lti le   => Hildiv le (leak_i_tr_ind lti)
-    (*| LT_ilasgn         => Hilasgn*)        
     end.
 
   Definition leak_c_tr_ind := leak_c_tr_ind_aux leak_i_tr_ind.
@@ -889,42 +860,14 @@ Fixpoint transform_cost_I (lt:leak_i_tr) (sl:lbl) : Sm.t * nat :=
     (transform_opn n sl 1, n)
  
     (* sl:i --->    tl:i1; tl': i2; next_lbl tl' *)
-  | LT_ilmov1 => 
-    (transform_opn 2 sl 1, 2)
+  | LT_idouble _ => (transform_opn 2 sl 1, 2)
 
   | LT_isingle _ =>
     (transform_opn 1 sl 1, 1)
 
-    (* x = e1+e2 *) 
-    (* Papp2 add e1 e2 *)
-    (* sl: Papp2 add e1 e2 --> tl: x = e1+e2 *)
-    (* we can ignore lte because its related to exp *)
-  | LT_ilinc lte => 
-    (transform_opn 1 sl 1, 1)
-
-    (* Papp1 --> x = op ? ? *)
-    (* we can ignore lte as its related to exp *)
-  | LT_ilcopn lte =>
-    (transform_opn 1 sl 1, 1)
-
-  | LT_ildcn => 
-    (transform_opn 2 sl 1, 2)
-
   | LT_ilmul ltes lte => 
     let n := no_i_esi_tr ltes in 
     (transform_opn n sl 1, n)
-    
-    (* x = e1==e2 *)
-    (* sl: Papp2 eq e1 e2 --> tl: x = e1==e2 *)
-    (* we can ignore ltes because it converts single exp leak to seq of leak *)
-  | LT_ileq ltes => 
-    (transform_opn 1 sl 1, 1)
-
-    (* x = e1<e2 *)
-    (* sl: Papp2 lt e1 e2 --> tl: x = e1==e2 *)
-    (* we can ignore ltes because it converts single exp leak to seq of leak *)
-  | LT_illt ltes =>
-    (transform_opn 1 sl 1, 1)
   
     (* Pif e e1 e2 => x := [Pif e e1 e2] *)
     (* sl: i --> tl: flags = [e]; x = CMOVcc [ cond flags; e1; e2]*)
@@ -1202,9 +1145,6 @@ rewrite transform_opnS /Sm.incr interp_merge; auto with disjoint.
 + rewrite interp_single /=.
 Admitted.
 
-
- 
-
 Lemma transform_cost_ok ftr w lt lc sl : 
   leak_WFs ftr lt lc ->
   cost_C ([::],0) (leak_Is (leak_I ftr) w lt lc) =1 Sm.interp (cost_C sl lc) (transform_cost_C lt sl).1.
@@ -1352,42 +1292,30 @@ Proof.
     rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
     by move=> l /=;rewrite /single_cost /= GRing.addr0. 
     done.
-  (* Lt_ilmov1 *)
-  + move=> le sl /=.
-    rewrite /transform_opn /=. rewrite interp_merge /=.
-    rewrite interp_single /=. rewrite interp_merge /=.
-    rewrite interp_single_empty. 
-    + by rewrite interp_single_cost.
-    + by rewrite /Sm.single /=.
-    apply disjoint_merge.
-    + move=> l Hl. by rewrite disjoint_0_1.
-    by rewrite /Sm.single /=.
   (* LT_ilmov2, LT_ilmov3, LT_ilmov4, LT_ild, LT_ildc, LT_ilea,
-     LT_ilsc, LT_ilds, LT_ildus, LT_ilasgn *)
+     LT_ilsc, LT_ilds, LT_ildus, LT_ilasgn, LT_ileq, LT_illte, LT_ilinc, LT_ilcopn *)
   + move=> lti le sl /=. rewrite mergec0 /= /transform_opn /=.
     rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
     by move=> l /=;rewrite /single_cost /= GRing.addr0. 
     done.
-  (* LT_ilnc *)
-  + move=> lti le sl /=. rewrite mergec0 /= /transform_opn /=.
-    rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-    done.
-  (* LT_ilcopn *)
-  + move=> lti le sl /=. rewrite mergec0 /= /transform_opn /=.
-    rewrite interp_merge /=. rewrite interp_single /= /Sm.interp /= /merge_cost /=.
-    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-    done.
-  (* LT_ileq *)
-  + move=> ltes le sl /=. rewrite mergec0 /= /transform_opn /=.
-    rewrite interp_merge /=. rewrite interp_single /= /Sm.interp /= /merge_cost /=.
-    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-    done.
-  (* LT_ilt *)
-  + move=> ltes le sl /=. rewrite mergec0 /= /transform_opn /=.
-    rewrite interp_merge /=. rewrite interp_single /= /Sm.interp /= /merge_cost /=.
-    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-    done.
+  (* Lt_ilmov1, LT_ildcn *)
+  + move=> lti le sl /=. case: lti=> //=.
+    + rewrite /transform_opn /=. rewrite interp_merge /=.
+      rewrite interp_single /=. rewrite interp_merge /=.
+      rewrite interp_single_empty. 
+      + by rewrite interp_single_cost.
+      + by rewrite /Sm.single /=.
+      apply disjoint_merge.
+      + move=> l Hl. by rewrite disjoint_0_1.
+      by rewrite /Sm.single /=.
+     rewrite /transform_opn /=. rewrite interp_merge /=.
+     rewrite interp_single /=. rewrite interp_merge /=.
+     rewrite interp_single_empty. 
+     + by rewrite interp_single_cost.
+     + by rewrite /Sm.single /=.
+     apply disjoint_merge.
+     + move=> l Hl. by rewrite disjoint_0_1.
+     by rewrite /Sm.single /=.
   (* LT_ilif *)
   + move=> lti le' le sl /=. case: lti=> //=. move=>ltii. 
     + rewrite /transform_opn. rewrite interp_merge.

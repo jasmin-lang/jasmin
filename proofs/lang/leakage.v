@@ -209,7 +209,16 @@ Inductive leak_i_tr_single :=
  | LT_ilsc_
  | LT_ilds_
  | LT_ildus_
- | LT_ilasgn_.
+ | LT_ilasgn_
+ | LT_ilinc_ of leak_e_es_tr
+ | LT_ilcopn_ of leak_e_es_tr
+ | LT_ileq_ of leak_e_es_tr
+ | LT_illt_ of leak_e_es_tr.
+
+
+Inductive leak_i_tr_double :=
+ | LT_ilmov1_
+ | LT_ildcn_.
 
 Inductive leak_i_tr :=
 (* structural transformation *)
@@ -232,26 +241,13 @@ Inductive leak_i_tr :=
 | LT_icopn : leak_es_i_tr -> leak_i_tr
 (* lowering assgn *)
 | LT_isingle : leak_i_tr_single -> leak_i_tr 
-| LT_ilmov1 : leak_i_tr
-(*| LT_ilmov2 : leak_i_tr
-| LT_ilmov3 : leak_i_tr
-| LT_ilmov4 : leak_i_tr *)
-| LT_ilinc : leak_e_es_tr -> leak_i_tr
-| LT_ilcopn : leak_e_es_tr -> leak_i_tr
-(*| LT_ilsc : leak_i_tr
-| LT_ild : leak_i_tr
-| LT_ildc : leak_i_tr*)
-| LT_ildcn : leak_i_tr
+| LT_idouble : leak_i_tr_double -> leak_i_tr
+(*| LT_ilmov1 : leak_i_tr
+| LT_ildcn : leak_i_tr*)
 | LT_ilmul : leak_es_i_tr -> leak_e_tr -> leak_i_tr
-| LT_ileq : leak_e_es_tr -> leak_i_tr
-| LT_illt : leak_e_es_tr -> leak_i_tr
-(*| LT_ilea : leak_i_tr*)
 | LT_ilif : leak_e_i_tr -> leak_e_tr -> leak_i_tr
 | LT_ilfopn : leak_es_i_tr -> leak_e_es_tr -> leak_i_tr
-(*| LT_ilds : leak_i_tr
-| LT_ildus : leak_i_tr*)
 | LT_ildiv : leak_i_tr -> leak_e_es_tr -> leak_i_tr.
-(*| LT_ilasgn : leak_i_tr.*)
 
 Notation LT_ilmov2 := (LT_isingle LT_ilmov2_).
 Notation LT_ilmov3 := (LT_isingle LT_ilmov3_).
@@ -263,8 +259,13 @@ Notation LT_ilsc := (LT_isingle LT_ilsc_).
 Notation LT_ilds := (LT_isingle LT_ilds_).
 Notation LT_ildus := (LT_isingle LT_ildus_).
 Notation LT_ilasgn := (LT_isingle LT_ilasgn_).
+Notation LT_ilinc ltes := (LT_isingle (LT_ilinc_ ltes)).
+Notation LT_ilcopn ltes := (LT_isingle (LT_ilcopn_ ltes)).
+Notation LT_ileq ltes := (LT_isingle (LT_ileq_ ltes)).
+Notation LT_illt ltes := (LT_isingle (LT_illt_ ltes)).
 
-
+Notation LT_ilmov1 := (LT_idouble LT_ilmov1_).
+Notation LT_ildcn := (LT_idouble LT_ildcn_).
 
 
 Definition is_LT_ilds li := if li is LT_ilds then true else false.
@@ -457,13 +458,17 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
   | LT_icopn ltes, Lopn le => 
     leak_ESI stk ltes (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 
                                       (get_seq_leak_e (leak_E stk (LT_subi 1) le))
-    
-    (* intermediate register is needed *)
-  | LT_ilmov1, Lopn le => 
-    [:: Lopn (LSub [:: LSub [:: leak_E stk (LT_subi 0) le]; LSub [:: LEmpty]]) ; 
-        Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: leak_E stk (LT_subi 1) le]])]
 
-    (* intermediate register is not needed and Pconst is 0 ?? *)
+  
+  | LT_idouble lti, Lopn le => 
+    match lti with 
+     | LT_ilmov1_ => [:: Lopn (LSub [:: LSub [:: leak_E stk (LT_subi 0) le]; LSub [:: LEmpty]]) ; 
+                         Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: leak_E stk (LT_subi 1) le]])]
+     | LT_ildcn_ => [:: Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: LEmpty]]);
+                        Lopn (LSub [:: LSub [:: LEmpty; LEmpty]; 
+                               LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])]
+    end
+
   | LT_isingle lti, Lopn le => 
     let le' := 
       match lti with 
@@ -498,34 +503,25 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
       | LT_ilasgn_ => 
         LSub [:: leak_E stk (LT_subi 0) le;
                        leak_E stk (LT_subi 1) le]
+      
+      | LT_ilinc_ ltes => 
+        (LSub [:: LSub (leak_ES stk ltes (leak_E stk (LT_subi 0) le)); 
+                       LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])
+
+      | LT_ilcopn_ ltes => 
+        (LSub [:: LSub (leak_ES stk ltes (leak_E stk (LT_subi 0) le));
+                       LSub [:: leak_E stk (LT_subi 1) le]])
+
+      | LT_ileq_ ltes => 
+        (LSub [:: LSub (leak_ES stk ltes (leak_E stk (LT_subi 0) le));
+                       LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])
+
+      | LT_illt_ ltes => 
+        (LSub [:: LSub (leak_ES stk ltes (leak_E stk (LT_subi 0) le));
+                       LSub [:: LEmpty; leak_E stk (LT_subi 1) le; LEmpty; LEmpty; LEmpty]])
      end in
     [:: Lopn le']
-        
-    (* ltes transforms leak_e to seq leak_e *)
-  | LT_ilinc ltes, Lopn le => 
-    [:: Lopn (LSub [:: LSub (leak_ES stk ltes (leak_E stk (LT_subi 0) le)); 
-                       LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])]
-        
-    (* ltes transforms leak_e to seq leak_e *) 
-  | LT_ilcopn ltes, Lopn le => 
-    [:: Lopn (LSub [:: LSub (leak_ES stk ltes (leak_E stk (LT_subi 0) le));
-                       LSub [:: leak_E stk (LT_subi 1) le]])]
 
-  | LT_ildcn, Lopn le => 
-    [:: Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: LEmpty]]);
-       Lopn (LSub [:: LSub [:: LEmpty; LEmpty]; 
-                      LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])]
-
-    (* ltes transforms leak_e to seq leak_e *)
-  | LT_ileq ltes, Lopn le => 
-    [:: Lopn (LSub [:: LSub (leak_ES stk ltes (leak_E stk (LT_subi 0) le));
-                       LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])]
-    
-    (* ltes transforms leak_e to seq leak_e *)
-  | LT_illt ltes, Lopn le => 
-    [:: Lopn (LSub [:: LSub (leak_ES stk ltes (leak_E stk (LT_subi 0) le));
-                       LSub [:: LEmpty; leak_E stk (LT_subi 1) le; LEmpty; LEmpty; LEmpty]])]
- 
     (* lti converts cond expression to Copn leakage *)
   | LT_ilif lti le', Lopn le => 
     leak_EI stk lti (get_nth_leak (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0) ++ 
@@ -611,18 +607,10 @@ Inductive leak_WF : leak_i_tr -> leak_i -> Prop :=
                    leak_WF (LT_iwhilel lti lte ltis ltis') (Lwhile_false lts le)
  | LT_icopnWF : forall ltes le,
                 leak_WF (LT_icopn ltes) (Lopn le)
- | LT_ilmov1WF : forall le,
-                 leak_WF (LT_ilmov1) (Lopn le)
  | LT_isingleWF : forall lti le, 
                   leak_WF (LT_isingle lti) (Lopn le)
- | LT_ilincWF : forall ltes le,
-                leak_WF (LT_ilinc ltes) (Lopn le)                
- | LT_ilcopnWF : forall ltes le,
-                 leak_WF (LT_ilcopn ltes) (Lopn le)
- | LT_ileqWF : forall ltes le,
-              leak_WF (LT_ileq ltes) (Lopn le)
- | LT_illtWF : forall ltes le,
-              leak_WF (LT_illt ltes) (Lopn le)
+ | LT_idoubleWF : forall lti le,
+                  leak_WF (LT_idouble lti) (Lopn le)
  | LT_ilifWF : forall lti le' le,
                leak_WF (LT_ilif lti le') (Lopn le)
  | LT_imulWF : forall lest ltes le,
