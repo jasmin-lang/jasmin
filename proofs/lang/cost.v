@@ -231,6 +231,13 @@ Definition prefix_cost pre c : cost_map :=
   fun l => if drop (size l.1 - size pre) l.1 == pre then c (take (size l.1 - size pre) l.1, l.2)
            else 0%R.
 
+Definition prefix_top_cost l1 c : cost_map := 
+  fun l => 
+    match prefix_top_lbl_inv l1 l with
+    | None => 0%R
+    | Some l' => c l'
+    end.
+
 Section Cost_C.
 
 Variable cost_i : lbl -> leak_i -> cost_map.
@@ -297,6 +304,11 @@ Proof. by move=> c1 c1' h1 c2 c2' h2 l; rewrite /merge_cost h1 h2. Qed.
 
 Global Instance prefix_cost_eqfun : Proper (eq ==> eqfun (B:= _) ==> eqfun (B:= _)) prefix_cost.
 Proof. by move=> l l' hl c c' hc l1; rewrite /prefix_cost hl; case:ifP. Qed.
+
+Global Instance prefix_top_cost_eqfun : Proper (eq ==> eqfun (B:= _) ==> eqfun (B:= _)) prefix_top_cost.
+Proof. 
+  by move=> l l' hl c c' hc l1; rewrite /prefix_top_cost hl; case: prefix_top_lbl_inv.
+Qed.
 
 (* ------------------------------------------------------------------- *)
 (* Syntaxic transformation of the cost                                 *)
@@ -617,6 +629,9 @@ Proof.
   by move=> f1 f2 -> l1 l2 -> m1 m2 heq l; rewrite !prefix_call_inlineP; case: prefix_call_inline_lbl_inv.
 Qed.
 
+Global Instance interp_ext_eq : Proper (eqfun (B:=_) ==> ext_eq ==> eqfun (B:= _)) interp. 
+Proof. by move=> c1 c2 hc m1 m2 hm l; rewrite /interp hm; case: get => // sc; rewrite hc. Qed.
+
 Lemma get0 l : get empty l = None.
 Proof. apply Ml.get0. Qed.
 
@@ -667,6 +682,13 @@ Proof.
 move=> l; rewrite !prefixP size_cat.
 case: (_ =P p2 ++ p1).
 *)
+
+Lemma prefix_top_merge (l : lbl) (m1 m2 : Sm.t) : 
+  Sm.ext_eq (Sm.prefix_top l (Sm.merge m1 m2)) (Sm.merge (Sm.prefix_top l m1) (Sm.prefix_top l m2)).
+Proof.
+  move=> l'; rewrite !(Sm.mergeP, Sm.prefix_topP); case: prefix_top_lbl_inv => //.
+  by move=> l0; rewrite Sm.mergeP.
+Qed.
 
 End Sm.
 
@@ -872,10 +894,8 @@ Fixpoint transform_cost_I (lt:leak_i_tr) (sl:lbl) : Sm.t * nat :=
     (* Pif e e1 e2 => x := [Pif e e1 e2] *)
     (* sl: i --> tl: flags = [e]; x = CMOVcc [ cond flags; e1; e2]*)
   | LT_ilif ltei lte => 
-    let n := no_i_leak_EI ltei in 
-    if n == 1 then
-    (transform_opn 2 sl 1, 2) else
-    (transform_opn 1 sl 1, 1)
+    let n := (no_i_leak_EI ltei).+1 in
+    (transform_opn n sl 1, n)
 
   | LT_ilfopn ltesi ltes =>
     let n := no_i_esi_tr ltesi in 
@@ -891,6 +911,57 @@ Scheme leak_WF_ind   := Induction for leak_WF   Sort Prop
   with leak_WFs_ind  := Induction for leak_WFs  Sort Prop
   with leak_WFss_ind := Induction for leak_WFss Sort Prop.
 
+Section leak_i_ind.
+  Context (P:leak_i -> Prop) (Q:leak_c -> Prop) (Qs:seq leak_c -> Prop).
+  Context (Hopn : forall le, P (Lopn le))
+          (Hcond : forall le b lc, Q lc -> P (Lcond le b lc))
+          (Hwhile_t : forall lc1 le lc2 li, 
+               Q lc1 -> Q lc2 -> P li -> P (Lwhile_true lc1 le lc2 li))
+          (Hwhile_f : forall lc1 le, Q lc1 -> P (Lwhile_false lc1 le))
+          (Hfor : forall le lcs, Qs lcs -> P (Lfor le lcs))
+          (Hcall : forall le fn lc lr, Q lc -> P (Lcall le (fn,lc) lr))
+          (Hnil : Q [::])
+          (Hcons : forall li lc, P li -> Q lc -> Q (li::lc))
+          (Hsnil : Qs [::])
+          (Hscons : forall lc lcs, Q lc -> Qs lcs -> Qs (lc::lcs)).
+
+  Section Section.
+
+    Context (leak_i_ind : forall li, P li).
+
+    Fixpoint leak_c_ind_aux (lc:leak_c) : Q lc := 
+      match lc with
+      | [::] => Hnil
+      | li::lc => Hcons (leak_i_ind li) (leak_c_ind_aux lc)
+      end.
+
+    Fixpoint leak_cs_ind_aux (lcs:seq leak_c) : Qs lcs := 
+      match lcs with
+      | [::] => Hsnil
+      | lc::lcs => Hscons (leak_c_ind_aux lc) (leak_cs_ind_aux lcs)
+      end.
+
+  End Section.
+
+  Fixpoint leak_i_ind (li:leak_i) : P li := 
+    match li with
+    | Lopn le => Hopn le
+    | Lcond le b lc => Hcond le b (leak_c_ind_aux leak_i_ind lc)
+    | Lwhile_true lc1 le lc2 li => 
+      Hwhile_t le 
+       (leak_c_ind_aux leak_i_ind lc1) (leak_c_ind_aux leak_i_ind lc2) (leak_i_ind li)
+    | Lwhile_false lc1 le => 
+      Hwhile_f le (leak_c_ind_aux leak_i_ind lc1)
+    | Lfor le lcs => 
+      Hfor le (leak_cs_ind_aux leak_i_ind lcs)
+    | Lcall le (fn, lc) lr => 
+      Hcall le fn lr (leak_c_ind_aux leak_i_ind lc)
+    end.
+  
+  Definition leak_c_ind := leak_c_ind_aux leak_i_ind.
+
+End leak_i_ind.
+  
 
 Lemma mergeC c1 c2 : merge_cost c1 c2 =1 merge_cost c2 c1.
 Proof. by move=> l; rewrite /merge_cost addrC. Qed.
@@ -901,27 +972,116 @@ Proof. by move=> l; rewrite /merge_cost addr0. Qed.
 Lemma merge0c c : merge_cost empty_cost c =1 c.
 Proof. by rewrite mergeC mergec0. Qed.
 
-Axiom mergeA : forall c1 c2 c3, 
-merge_cost (merge_cost c1 c2) c3 =1 merge_cost c1 (merge_cost c2 c3).
+Lemma mergeA c1 c2 c3:
+  merge_cost (merge_cost c1 c2) c3 =1 merge_cost c1 (merge_cost c2 c3).
+Proof. by move=> l; rewrite /merge_cost addrA. Qed.
 
 Lemma prefix_cost0 pre : prefix_cost pre empty_cost =1 empty_cost.
 Proof. by rewrite /prefix_cost /empty_cost => l /=; case:ifP. Qed.
 
-Lemma cost_next_lbl pre l lc: cost_C (prefix_lbl pre l) lc =1 prefix_cost pre (cost_C l lc) ->
-cost_C (next_lbl (prefix_lbl pre l)) lc =1 prefix_cost pre (cost_C (next_lbl l) lc).
+Lemma single_prefix_top l : 
+  single_cost l =1 prefix_top_cost l (single_cost ([::], 0)).
+Proof.
+  move=> l'; rewrite /prefix_top_cost /single_cost /update_cost.
+  case: (l =P l') => [<- | hne].
+  + by rewrite /prefix_top_lbl_inv subnn drop0 eqxx take0 /= leqnn subnn eqxx.
+  have := prefix_top_lblP l _ l'.
+  case: (prefix_top_lbl_inv l l') => [l1 | //].
+  move=> /(_ l1) [_ /(_ refl_equal)]; case:(_ =P l1) => [<- | //].
+  by move=> [] h; case: hne; rewrite -h addn0; case l.
+Qed.
+
+Lemma prefix_top_merge l c1 c2 : 
+  prefix_top_cost l (merge_cost c1 c2) =1
+  merge_cost (prefix_top_cost l c1) (prefix_top_cost l c2).
+Proof.
+  by move=> l'; rewrite /prefix_top_cost /merge_cost; case: prefix_top_lbl_inv.
+Qed.
+
+Lemma prefix_top_comp l l1 l2 c : 
+  prefix_top_lbl l1 l2 = Some l -> 
+  prefix_top_cost l1 (prefix_top_cost l2 c) =1 
+                        prefix_top_cost l c.
 Proof.
 Admitted.
 
-Lemma cost_C_pre : forall pre l lc, cost_C (prefix_lbl pre l) lc =1 prefix_cost pre (cost_C l lc).
-Proof.
-move=> pre l lc. elim lc.
-(* empty case *)
-+ by rewrite prefix_cost0 /=.
-(* li:: lc *)
-+ move=> li lc' /= Hc /=. have Hc' := cost_next_lbl Hc.
-  rewrite Hc'.
-Admitted.
+Lemma prefix_top_lbl_b b l : prefix_top_lbl l (lbl_b b ([::], 0)) = Some (lbl_b b l).
+Proof. by rewrite /prefix_top_lbl /lbl_b /= addn0. Qed.
 
+Lemma prefix_top_cost0  l : prefix_top_cost l empty_cost =1 empty_cost.
+Proof. by move=> l'; rewrite /prefix_top_cost; case: prefix_top_lbl_inv. Qed.
+
+Lemma cost_prefix_top l lc: 
+  cost_C l lc =1 prefix_top_cost l (cost_C ([::],0) lc).
+Proof.
+  apply (leak_c_ind (P := fun li => forall l, cost_i l li =1 prefix_top_cost l (cost_i ([::],0) li))
+                     (Q := fun lc => forall l, cost_C l lc =1 prefix_top_cost l (cost_C ([::],0) lc))
+                     (Qs := fun lcs => forall l, cost_cs cost_i l lcs =1 
+                                prefix_top_cost l (cost_cs cost_i ([::],0) lcs))) => {l lc} /=.
+  + by move => _ l l'; apply single_prefix_top.
+  + move=> _ b lc hrec l; rewrite prefix_top_merge single_prefix_top.
+    rewrite hrec (hrec (lbl_b b ([::], 0))). 
+    apply merge_cost_eqfun => //; rewrite (@prefix_top_comp (lbl_b b l)) => //.
+    by rewrite prefix_top_lbl_b.
+  + move=> lc1 _ lc2 li hrec1 hrec2 hreci l.
+    rewrite hrec1 hrec2 hreci prefix_top_merge single_prefix_top.
+    apply merge_cost_eqfun => //.
+    rewrite prefix_top_merge; apply merge_cost_eqfun.
+    + by rewrite (hrec1 (lbl_f ([::],0))) (@prefix_top_comp (lbl_b false l)) // prefix_top_lbl_b.
+    rewrite prefix_top_merge; apply merge_cost_eqfun => //.
+    by rewrite (hrec2 (lbl_t ([::],0))) (@prefix_top_comp (lbl_b true l)) // prefix_top_lbl_b.
+  + move=> lc1 _ hrec l.
+    rewrite hrec prefix_top_merge single_prefix_top; apply merge_cost_eqfun => //.
+    by rewrite (hrec (lbl_f ([::],0))) (@prefix_top_comp (lbl_b false l)) // prefix_top_lbl_b.
+  + move=> _ lcs hrec l.
+    rewrite prefix_top_merge hrec single_prefix_top; apply merge_cost_eqfun => //.
+    rewrite (hrec (lbl_for _)) (@prefix_top_comp (lbl_for l)) //.
+    by rewrite /prefix_top_lbl /lbl_for /= addn0.
+  + move=> _ fn lc _ hrec l.
+    rewrite prefix_top_merge hrec single_prefix_top; apply merge_cost_eqfun => //.
+    rewrite (hrec (lbl_call _ _)) (@prefix_top_comp (lbl_call fn l)) //.
+    by rewrite /prefix_top_lbl /lbl_call /= addn0.
+  + by move=> ?; rewrite prefix_top_cost0.
+  + move=> li lc hreci hrecc l.
+    rewrite hreci hrecc prefix_top_merge; apply merge_cost_eqfun => //.
+    by rewrite (hrecc (next_lbl _)) (@prefix_top_comp (next_lbl l)).
+  + by move=> ?; rewrite prefix_top_cost0.
+  by move=> lc lcs hrec hrecs l; rewrite hrec hrecs prefix_top_merge.
+Qed.
+
+Lemma single_prefix pre l : single_cost (prefix_lbl pre l) =1 prefix_cost pre (single_cost l).
+Proof.
+  move=> l'; rewrite /prefix_cost /single_cost /update_cost.
+  case: eqP => [<- | ]. 
+  + rewrite drop_prefix_lbl eqxx.
+    by rewrite /prefix_lbl /= size_cat addnK take_size_cat //; case: l => /= ??; rewrite eqxx.
+  case: eqP => // heq hne.
+  case: eqP => // heq1; case: hne.
+  by rewrite /prefix_lbl -heq heq1 /= cat_take_drop;case: (l').
+Qed.
+
+Lemma prefix_merge pre c1 c2 :
+  prefix_cost pre (merge_cost c1 c2) =1 merge_cost (prefix_cost pre c1) (prefix_cost pre c2).
+Proof. by move=> l; rewrite /prefix_cost /merge_cost; case:eqP. Qed.
+
+Lemma cost_C_pre pre l lc: cost_C (prefix_lbl pre l) lc =1 prefix_cost pre (cost_C l lc).
+Proof.
+ apply (leak_c_ind (P := fun li => forall pre l, cost_i (prefix_lbl pre l) li =1 prefix_cost pre (cost_i l li))
+                     (Q := fun lc => forall pre l, cost_C (prefix_lbl pre l) lc =1 prefix_cost pre (cost_C l lc))
+                     (Qs := fun lcs => forall pre l, cost_cs cost_i (prefix_lbl pre l) lcs =1 
+                                prefix_cost pre (cost_cs cost_i l lcs))) => {pre l lc} /=.
+  + by move => _ pre l; rewrite single_prefix.
+  + by move=> _ b lc hrec pre l; rewrite prefix_merge single_prefix -hrec.
+  + move=> lc1 _ lc2 li hrec1 hrec2 hreci pre l.
+    by rewrite !prefix_merge -hrec1 -hrec2 single_prefix hreci.
+  + by move=> lc1 _ hrec1 pre l; rewrite prefix_merge -hrec1 single_prefix.
+  + by move=> _ lcs hrec pre l; rewrite prefix_merge -hrec single_prefix.
+  + by move=> _ fn lc _ hrec pre l; rewrite prefix_merge -hrec single_prefix.
+  + by move=> ??; rewrite prefix_cost0.
+  + by move=> li lc hreci hrecc pre l; rewrite prefix_merge -hreci -hrecc.
+  + by move=> ??; rewrite prefix_cost0.
+  by move=> lc lcs hrec hrecs pre l; rewrite prefix_merge -hrec -hrecs.
+Qed.
 
 Lemma cost_C_lbl_b b l lc :
   cost_C (lbl_b b l) lc =1 prefix_cost (lbl_b b l).1 (cost_C ([::],0) lc).
@@ -980,7 +1140,7 @@ Proof.
   move=> hd l; rewrite /Sm.interp Sm.mergeP /merge_cost.
   have := hd l.
   case: (Sm.get m1) => [ sc1 | ]; case: (Sm.get m2) => [ sc2 | ] //=.
-  + by case.
+  + by move=> h; have //: Some sc2 = None by apply h.
   + by rewrite addr0.
   by rewrite add0r.
 Qed.
@@ -1077,8 +1237,11 @@ Proof. by []. Qed.
 Lemma pre_t0_f0 : pre_t0 <> pre_f0. 
 Proof. by []. Qed.
 
+Lemma disjoint_single_prefix_top sl m : Sm.disjoint (Sm.single 0 sl 1) (Sm.prefix_top ([::], 1) m).
+Proof. by move=> l; rewrite get_single Sm.prefix_topP; case: eqP => // ->. Qed.
+
 Hint Resolve disjoint_single_pre_f disjoint_single_pre_t disjoint_prefix disjoint_merge 
-             pre_f0_t0 pre_t0_f0: disjoint.
+             pre_f0_t0 pre_t0_f0 disjoint_single_prefix_top: disjoint.
 
 (* FIXME rename *)
 Axiom merge_eq_l : forall c1 c2 c, merge_cost c1 c =1 merge_cost c2 c <-> c1 =1 c2.
@@ -1128,22 +1291,45 @@ rewrite /=. move: (get_seq_leak_e _) (get_seq_leak_e _) => les1 les2.
 by elim: ltes les1 les2 => //=.
 Qed.
 
-Axiom transform_opnS : forall n sl,
-  transform_opn n.+1 sl 1 = 
-     Sm.merge (Sm.single 0 sl 1) (Sm.incr 1 (transform_opn n sl 1)).
+Lemma transform_opnS : forall n sl,
+  Sm.ext_eq (transform_opn n.+1 sl 1)
+     (Sm.merge (Sm.single 0 sl 1) (Sm.incr 1 (transform_opn n sl 1))).
+Proof.
+  move=> n sl; rewrite /transform_opn (iota_add 0 1 n) map_cat /= addn1.
+  apply Sm.merge_ext_eq => //.
+  elim: n {2 5}0 => //= n hrec k; rewrite hrec /Sm.incr => l.
+  by rewrite Sm.prefix_top_merge !Sm.mergeP.
+Qed.
 
 Lemma is_lopnP li : is_lopn li -> exists les, li = Lopn les.
 Proof. case: li => //; eauto. Qed.
 
+Lemma interp_prefix_top c l m : Sm.interp c (Sm.prefix_top l m) =1 prefix_top_cost l (Sm.interp c m).
+Proof.
+  by move=> l'; rewrite /Sm.interp Sm.prefix_topP /prefix_top_cost; case: prefix_top_lbl_inv.
+Qed.
+
 Lemma cost_LT_icopn l sl:
-is_lopns l ->
-cost_C ([::], 0) l =1
+  is_lopns l ->
+  cost_C ([::], 0) l =1
     Sm.interp (single_cost sl) (transform_opn (size l) sl 1).
 Proof.
 elim: l=> //= li lc Hrec /andP [] /is_lopnP [les ->] Hlc.
 rewrite transform_opnS /Sm.incr interp_merge; auto with disjoint.
-+ rewrite interp_single /=.
-Admitted.
+by rewrite interp_single cost_prefix_top /= interp_prefix_top Hrec.
+Qed.
+
+Lemma cost_LT_icopn_size l n sl:
+  size l = n -> is_lopns l -> 
+  cost_C ([::], 0) l =1 Sm.interp (single_cost sl) (transform_opn n sl 1).
+Proof. move=> <-; apply cost_LT_icopn. Qed.
+
+Lemma size_leak_ESI w l les1 les2 les1' les2' : 
+  size (leak_ESI w l les1 les2) = size (leak_ESI w l les1' les2').
+Proof. elim: l les1 les2 les1' les2' => //=. Qed.
+
+Lemma size_no_i_esi_tr ftr w le ltes : size (leak_I ftr w (Lopn le) (LT_icopn ltes)) = no_i_esi_tr ltes.
+Proof. by elim: ltes => //= l <-; apply size_leak_ESI. Qed.
 
 Lemma transform_cost_ok ftr w lt lc sl : 
   leak_WFs ftr lt lc ->
@@ -1249,197 +1435,34 @@ Proof.
   (* LT_iwhilel *)
   + admit.
   (* LT_icopn *)
-  + move=> ltes le sl. rewrite /transform_cost_I. elim: ltes=> //.
-    + rewrite /transform_opn /=. rewrite interp_merge /=.
-      rewrite interp_single /=. rewrite interp_merge /=.
-      rewrite interp_single_empty. 
-      + by rewrite interp_single_cost.
-      + by rewrite /Sm.single /=.
-      apply disjoint_merge.
-      + move=> l Hl. by rewrite disjoint_0_1.
-      by rewrite /Sm.single /=.
-    + rewrite /= mergec0 /= /transform_opn /=.
-      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-      done.
-    + move=>l Hl l'. admit.
-    + move=> l Hl l'. admit.
-    + rewrite /= mergec0 /= /transform_opn /=.
-      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-      done.
-    + rewrite /transform_opn /=. rewrite interp_merge /=.
-      rewrite interp_single /=. rewrite interp_merge /=.
-      rewrite interp_single_empty. 
-      + by rewrite interp_single_cost.
-      + by rewrite /Sm.single /=.
-      apply disjoint_merge.
-      + move=> l Hl. by rewrite disjoint_0_1.
-      by rewrite /Sm.single /=.
-    + rewrite /transform_opn /=. rewrite interp_merge /=.
-      rewrite interp_single /=. rewrite interp_merge /=.
-      rewrite interp_single_empty. 
-      + by rewrite interp_single_cost.
-      + by rewrite /Sm.single /=.
-      apply disjoint_merge.
-      + move=> l Hl. by rewrite disjoint_0_1.
-      by rewrite /Sm.single /=.
-    + rewrite /= mergec0 /= /transform_opn /=.
-      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-      done.
-    rewrite /= mergec0 /= /transform_opn /=.
-    rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-    done.
+  + move=> ltes le sl; rewrite /transform_cost_I /fst. 
+    apply /cost_LT_icopn_size; [apply size_no_i_esi_tr | apply is_lopn_LT_iopn].
   (* LT_ilmov2, LT_ilmov3, LT_ilmov4, LT_ild, LT_ildc, LT_ilea,
      LT_ilsc, LT_ilds, LT_ildus, LT_ilasgn, LT_ileq, LT_illte, LT_ilinc, LT_ilcopn *)
-  + move=> lti le sl /=. rewrite mergec0 /= /transform_opn /=.
-    rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-    done.
+  + by move=> lti le sl; rewrite /transform_cost_I /fst; apply/cost_LT_icopn_size. 
+
   (* Lt_ilmov1, LT_ildcn *)
-  + move=> lti le sl /=. case: lti=> //=.
-    + rewrite /transform_opn /=. rewrite interp_merge /=.
-      rewrite interp_single /=. rewrite interp_merge /=.
-      rewrite interp_single_empty. 
-      + by rewrite interp_single_cost.
-      + by rewrite /Sm.single /=.
-      apply disjoint_merge.
-      + move=> l Hl. by rewrite disjoint_0_1.
-      by rewrite /Sm.single /=.
-     rewrite /transform_opn /=. rewrite interp_merge /=.
-     rewrite interp_single /=. rewrite interp_merge /=.
-     rewrite interp_single_empty. 
-     + by rewrite interp_single_cost.
-     + by rewrite /Sm.single /=.
-     apply disjoint_merge.
-     + move=> l Hl. by rewrite disjoint_0_1.
-     by rewrite /Sm.single /=.
+  + by move=> lti le sl; rewrite /transform_cost_I /fst; apply/cost_LT_icopn_size; case: lti. 
   (* LT_ilif *)
-  + move=> lti le' le sl /=. case: lti=> //=. move=>ltii. 
-    + rewrite /transform_opn. rewrite interp_merge.
-      rewrite interp_single. rewrite interp_merge.
-      rewrite interp_single_empty. 
-      + by rewrite interp_single_cost.
-      + by rewrite /Sm.single /=.
-      apply disjoint_merge.
-      + move=> l Hl. by rewrite disjoint_0_1.
-      by rewrite /Sm.single /=.
-    rewrite /transform_opn. rewrite interp_merge.
-    rewrite interp_single. 
-    by rewrite interp_single_empty.
-    by rewrite /Sm.single /=.
+  + by move=> lti le' le sl; rewrite /transform_cost_I /fst; apply/cost_LT_icopn_size => //; case: lti.
   (* LT_ilmul *)
-  + move=> ltes lte le sl. elim ltes=> //.
-    + rewrite /transform_opn /=. rewrite interp_merge /=.
-      rewrite interp_single /=. rewrite interp_merge /=.
-      rewrite interp_single_empty. 
-      + by rewrite interp_single_cost.
-      + by rewrite /Sm.single /=.
-      apply disjoint_merge.
-      + move=> l Hl. by rewrite disjoint_0_1.
-      by rewrite /Sm.single /=.
-    + rewrite /= mergec0 /= /transform_opn /=.
-      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-      done.
-    + admit.
-    + admit.
-    + rewrite /= mergec0 /= /transform_opn /=.
-      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-      done.
-    + rewrite /transform_opn /=. rewrite interp_merge /=.
-      rewrite interp_single /=. rewrite interp_merge /=.
-      rewrite interp_single_empty. 
-      + by rewrite interp_single_cost.
-      + by rewrite /Sm.single /=.
-      apply disjoint_merge.
-      + move=> l Hl. by rewrite disjoint_0_1.
-      by rewrite /Sm.single /=.
-    + rewrite /transform_opn /=. rewrite interp_merge /=.
-      rewrite interp_single /=. rewrite interp_merge /=.
-      rewrite interp_single_empty. 
-      + by rewrite interp_single_cost.
-      + by rewrite /Sm.single /=.
-      apply disjoint_merge.
-      + move=> l Hl. by rewrite disjoint_0_1.
-      by rewrite /Sm.single /=.
-    + rewrite /= mergec0 /= /transform_opn /=.
-      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-      done.
-    rewrite /= mergec0 /= /transform_opn /=.
-    rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-    done.
+  + move=> ltes lte le sl; rewrite /transform_cost_I /fst; apply/cost_LT_icopn_size.
+    (* FIXME: make lemmas *)
+    + by rewrite /=; elim:ltes => //= l <-; apply size_leak_ESI.
+    by rewrite /=; move: (_::_) (get_seq_leak_e _); elim: ltes => /=.    
   (* LT_ilfopn *)
-  + move=> lest lte le sl. elim: lest=> //.
-    + rewrite /transform_opn /=. rewrite interp_merge /=.
-      rewrite interp_single /=. rewrite interp_merge /=.
-      rewrite interp_single_empty. 
-      + by rewrite interp_single_cost.
-      + by rewrite /Sm.single /=.
-      apply disjoint_merge.
-      + move=> l Hl. by rewrite disjoint_0_1.
-      by rewrite /Sm.single /=.
-    + rewrite /= mergec0 /= /transform_opn /=.
-      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-      done.
-    + admit.
-    + admit.
-    + rewrite /= mergec0 /= /transform_opn /=.
-      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-      done.
-    + rewrite /transform_opn /=. rewrite interp_merge /=.
-      rewrite interp_single /=. rewrite interp_merge /=.
-      rewrite interp_single_empty. 
-      + by rewrite interp_single_cost.
-      + by rewrite /Sm.single /=.
-      apply disjoint_merge.
-      + move=> l Hl. by rewrite disjoint_0_1.
-      by rewrite /Sm.single /=.
-    + rewrite /transform_opn /=. rewrite interp_merge /=.
-      rewrite interp_single /=. rewrite interp_merge /=.
-      rewrite interp_single_empty. 
-      + by rewrite interp_single_cost.
-      + by rewrite /Sm.single /=.
-      apply disjoint_merge.
-      + move=> l Hl. by rewrite disjoint_0_1.
-      by rewrite /Sm.single /=.
-    + rewrite /= mergec0 /= /transform_opn /=.
-      rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-      by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-      done.
-    rewrite /= mergec0 /= /transform_opn /=.
-    rewrite interp_merge /=. rewrite interp_single /=. rewrite /Sm.interp /= /merge_cost /=.
-    by move=> l /=;rewrite /single_cost /= GRing.addr0. 
-    done.
+  + move=> lest lte le sl; rewrite /transform_cost_I /fst; apply/cost_LT_icopn_size.
+    (* FIXME: use lemmas up *)
+    + by rewrite /=; elim:lest => //= l <-; apply size_leak_ESI.
+    by rewrite /=; move: (_ :: _) (leak_ES _ _ _); elim: lest => //=. 
   (* LT_ildiv *)
-  + move=> lti lres le sl /=. case:ifP=> //=.
-    + move=> H /=. rewrite /transform_opn. rewrite interp_merge.
-      rewrite interp_single. rewrite interp_merge.
-      rewrite interp_single_empty. 
-      + by rewrite interp_single_cost.
-      + by rewrite /Sm.single /=.
-      apply disjoint_merge.
-      + move=> l Hl. by rewrite disjoint_0_1.
-      by rewrite /Sm.single /=.
-    move=> H. rewrite /transform_opn. rewrite interp_merge.
-    rewrite interp_single. rewrite interp_merge.
-    rewrite interp_single_empty. 
-    + by rewrite interp_single_cost.
-    + by rewrite /Sm.single /=.
-    apply disjoint_merge.
-    + move=> l Hl. by rewrite disjoint_0_1.
-    by rewrite /Sm.single /=.
+  + by move=> lti lres le sl; rewrite /transform_cost_I /fst; apply/cost_LT_icopn_size => /=;
+     case: ifP => //.
   (* empty *)
-  + move=> l /=. by rewrite /Sm.interp /= /empty_cost /=.
-  (* .... *)
+  + done.
+  (* seq *)
   + move=> li lc' lti ltc _ Hrec l /=.
+
 Admitted.
 
 End Transform_Cost_I.
