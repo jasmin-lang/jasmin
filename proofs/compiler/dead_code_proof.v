@@ -597,7 +597,7 @@ Section WF_PROOF.
       end.
 
   Let Pfun (m1:mem) (fn:funname) (vargs:seq value) lf (m2:mem) (vres:seq value) :=
-    leak_WFs (leak_Fun Ffs) (leak_Fun Ffs lf.1) lf.2 /\ lf.1 = fn.
+    leak_WFs (leak_Fun Ffs) (leak_Fun Ffs lf.1) lf.2.
 
   Local Lemma Hskip_WF : sem_Ind_nil Pc.
   Proof.
@@ -703,9 +703,8 @@ Section WF_PROOF.
   Proof.
    move=> s i c sv0.
    case Heq: (dead_code_c dead_code_i c sv0)=> [[[sv1 sc1] lc1]|] //=.
-   apply WF_seq' with [::].
-  Admitted.
-
+   constructor.
+  Qed.
 
   Local Lemma Hfor_cons_WF : sem_Ind_for_cons p Pc Pfor.
   Proof.
@@ -716,13 +715,13 @@ Section WF_PROOF.
     econstructor. apply Hwf.
   Qed.
 
-  (* we need some information which will say that the variable that stores leak transformers for functions:
-     also confirm that leak transformer is of form LT_icall *)
   Local Lemma Hcall_WF : sem_Ind_call p Pi_r Pfun.
   Proof.
     move=> s1 m2 s2 ii xs fn args vargs vs lf lw Hexpr Hcall Hfun Hw ii' sv0 /=.
-    case: (lf) Hfun=> fn' lc. rewrite /Pfun /=.
-  Admitted.
+    rewrite /Pfun /=. apply sem_eq_fn in Hcall. case: lf Hcall Hfun=> fn' lc /= -> Hfun.
+    rewrite /Pfun in Hfun.
+    constructor. apply Hfun. 
+  Qed.
 
   Local Lemma Hproc_WF : sem_Ind_proc p Pc Pfun.
   Proof.
@@ -741,7 +740,7 @@ Section WF_PROOF.
     have /= /(_ wf_vmap0) Hwf := wf_write_vars _ Hw.
     rewrite Hd => Hwfs _ _ Heq Hleak. rewrite /Pfun /=.
     rewrite /get_leak in Hleak.
-    replace (leak_Fun Ffs fn) with slt. split=>//.
+    replace (leak_Fun Ffs fn) with slt. apply Hwfs. 
     rewrite /leak_Fun /=. by rewrite Hleak /=.
   Qed.
 

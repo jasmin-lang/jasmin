@@ -380,6 +380,13 @@ Lemma sem_IE s i s' li:
   sem_i s r li s'.
 Proof. by case. Qed.
 
+Lemma sem_eq_fn m1 fn vargs' lf m2 vres': 
+  sem_call m1 fn vargs' lf m2 vres' ->    
+  lf.1 = fn.
+Proof.
+ by move=> [].
+Qed.
+
 Lemma sem_iE s i s' li:
   sem_i s i li s' ->
   match i with
@@ -2902,19 +2909,6 @@ Local Open Scope vmap.
   Lemma wf_vmap0 : wf_vm vmap0.
   Proof. by move=> x;rewrite /vmap0 Fv.get0;case:vtype. Qed.
 
-  (*Definition constant_time' (P : mem -> mem -> seq value -> seq value -> Prop) (p : prog) (f : funname) : Prop :=
-  forall mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf1 lf2, 
-  sem_call p mem1 f va1 lf1 mem1' vr1 ->
-  sem_call p mem2 f va2 lf2 mem2' vr2 ->
-  P mem1 mem2 va1 va2 ->
-  lf1 = lf2.
- 
-  Definition constant_time (P : mem -> mem -> seq value -> seq value -> Prop) (p : prog) (f : funname) : Prop :=
-  forall mem1 mem2 va1 va2,
-  P mem1 mem2 va1 va2 ->  
-  exists mem1' mem2' vr1 vr2 lf, 
-  sem_call p mem1 f va1 (f, lf) mem1' vr1 /\
-  sem_call p mem2 f va2 (f, lf) mem2' vr2.*)
 
 End WF.
 
