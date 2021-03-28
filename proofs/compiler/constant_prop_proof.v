@@ -3165,6 +3165,7 @@ Section PROOF.
   Let Pi s1 i li s2 :=
     forall m,
       valid_cpm s1.(evm) m ->
+      leak_WF (leak_Fun Fs) (const_prop_i m i).2 li /\
       valid_cpm s2.(evm) ((const_prop_i m i).1).1 /\
       forall vm1,
         vm_uincl (evm s1) vm1 ->
@@ -3176,6 +3177,7 @@ Section PROOF.
   Let Pi_r s1 i li s2 :=
     forall m ii,
       valid_cpm s1.(evm) m ->
+      leak_WF (leak_Fun Fs) (const_prop_ir m ii i).2 li /\
       valid_cpm s2.(evm) ((const_prop_ir m ii i).1).1 /\
       forall vm1,
         vm_uincl (evm s1) vm1 ->
@@ -3187,6 +3189,7 @@ Section PROOF.
   Let Pc s1 c lc s2 :=
     forall m,
       valid_cpm s1.(evm) m ->
+      leak_WFs (leak_Fun Fs) (const_prop const_prop_i m c).2 lc /\
       valid_cpm s2.(evm) ((const_prop const_prop_i m c).1).1 /\
       forall vm1,
         vm_uincl (evm s1) vm1 ->
@@ -3200,6 +3203,7 @@ Section PROOF.
     forall m,
       Mvar_eq m (remove_cpm m (Sv.union (Sv.singleton i) (write_c c))) ->
       valid_cpm s1.(evm) m ->
+      leak_WFss (leak_Fun Fs) (const_prop const_prop_i m c).2 lf /\
       forall vm1,
         vm_uincl (evm s1) vm1 ->
         exists vm2,
@@ -3208,17 +3212,18 @@ Section PROOF.
                                 {|emem := emem s2; evm := vm2|} /\
           vm_uincl (evm s2) vm2.
 
-  (* Maybe fix this *)
   Let Pfun m1 fd vargs lf m2 vres :=
     forall vargs',
       List.Forall2 value_uincl vargs vargs' ->
+      leak_WFs (leak_Fun Fs) (leak_Fun Fs lf.1) lf.2 /\
       exists vres',
         sem_call p' m1 fd vargs' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) m2 vres' /\
         List.Forall2 value_uincl vres vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof.
-    by move=> s m /= ?;split=>// vm1 hu1;exists vm1;split => //; constructor.
+    move=> s m /= ?. split=> //. constructor. split=> //. move=> vm1 Hu1.
+    exists vm1;split => //; constructor.
   Qed.
 
   Local Lemma Hcons : sem_Ind_cons p Pc Pi.
@@ -3227,13 +3232,16 @@ Section PROOF.
     case heqi : const_prop_i => [mc lti]; case: mc heqi => mi ci heqi. 
     case heqc : const_prop => [mc ltc]; case: mc heqc => mc cc heqc.
     split. rewrite /=. rewrite /Pc in Hci. rewrite /Pi in Hpi.
-    move: (Hpi m hvm). rewrite heqi /=. move=> [] hvm2 Hpi'.
-    move: (Hci mi hvm2). rewrite heqc /=. by move=> [] hvm3 Hci'.
+    move: (Hpi m hvm). rewrite heqi /=. move=> [] Hwf [] hvm2 Hpi'.
+    econstructor. apply Hwf.
+    move: (Hpi m hvm). rewrite heqi /=. move=> [] Hwf [] hvm2 Hpi'.
+    move: (Hci mi hvm2). move=> [] Hwf' [] Hvm' H. split=> //. 
+    by rewrite heqc in Hvm'.
     move=>vmi Hm. rewrite /Pi in Hpi. rewrite /Pc in Hci.
-    move: (Hpi m hvm). rewrite heqi /=. move=> [] hvm' H.
-    move: (H vmi Hm). move=> [] vm2 [] Hci' Hvm'.
-    move: (Hci mi hvm'). rewrite heqc /=. move=> [] hvm3 H'.
-    move: (H' vm2 Hvm'). move=> [] vm3 [] Hci'' Hvm''.
+    move: (Hpi m hvm). rewrite heqi /=. move=> [] Hwf'' [] hvm' H'.
+    move: (H' vmi Hm). move=> [] vm2 [] Hci' Hvm''.
+    move: (Hci mi hvm'). rewrite heqc /=. move=> [] Hwf''' [] Hvm3' H''.
+    move: (H'' vm2 Hvm''). move=> [] vm3 [] Hci''' Hvm'''.
     exists vm3. split => //.
     by apply sem_app with  {| emem := emem s2; evm := vm2 |}.
   Qed.
@@ -3247,21 +3255,21 @@ Section PROOF.
 
   Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
   Proof.
-    move=> s1 s2 x tag ty e v v' le lw He Ht Hw m ii Hm.
+   move=> s1 s2 x tag ty e v v' le lw He Ht Hw m ii Hm.
     move: const_prop_eP. move=>Hce. move: (Hce gd stk e s1 m Hm v le He).
     move=> [] vc [] Hec Hev {Hce}. move: const_prop_rvP. move=> Hcw.
     move: (Hcw gd stk s1 (s2, lw) m x v').
     case hrv: const_prop_rv => [mx lx]. case: mx hrv => mx x' hrv.
     move=> /= Hwc' {Hcw}. move: (Hwc' Hm Hw). move=> [] Hm' Hwc {Hwc'}.
     case heq: const_prop_e => [me lce]. case hrvq: const_prop_rv=> [mrv lrv].
-    case: mrv hrvq => mrv crv hrvq. split.
+    case: mrv hrvq => mrv crv hrvq. split. constructor. split=> //.
     + move: add_cpmP. move=> Hadd /=. rewrite heq in Hec. rewrite /= in Hec.
       rewrite heq in Hev. rewrite /= in Hev.
       move: (Hadd gd s1 (s2, leak_E stk lx lw) mx x' me tag ty  (vc, leak_E stk lce le) v v' Hec).
       rewrite /=. move=> Hadd'. move: (Hadd' Hev Ht Hwc Hm'). move=> H {Hadd} {Hadd'}.
-      rewrite hrv in hrvq. case: hrvq=> <- <- _. auto.
+      rewrite hrv in hrvq. case: hrvq => <- <- _. auto. 
     + move=> vm1 hvm1 /=.
-      move: (sem_pexpr_uincl).  rewrite heq in Hec. rewrite /= in Hec.
+      move: (sem_pexpr_uincl). rewrite heq in Hec. rewrite /= in Hec.
       rewrite heq in Hev. rewrite /= in Hev. move=> Heq. move: (Heq gd s1 vm1 me vc (leak_E stk lce le) hvm1 Hec).
       move=> [] vc' Hec' Hev' {Heq}. move: (truncate_value_uincl).
       move=> Ht'. move:(Ht' ty v vc v' Hev Ht). move=> [] vc'' Htc Hev'' {Ht'}.
@@ -3284,12 +3292,14 @@ Section PROOF.
     move: (Hesc gd stk es s1 m Hm vs Hes). move=> [] vs' [] Hes' [] Hvc Hlc {Hesc}.
     move: const_prop_rvsP. move=> Hwc. move: (Hwc gd stk s1 sw m xs ves lw).
     case hrvs: const_prop_rvs=> [mc lc]. case: mc hrvs=> mc lv hrvs /=.
-    move=> H. move: (H Hm Hw). move=> [] Hmw Hw' {H} {Hwc}. split.
+    move=> H. move: (H Hm Hw). move=> [] Hmw Hw' {H} {Hwc}. split. constructor.
+    split=> //.
     by rewrite -Hs /=. move=> vm1 Hvm1.
     move: writes_uincl. move=> Hws.
     move: (Hws gd s1 sw vm1 lv ves ves (map2 (leak_E stk) lc lw) Hvm1
                (List_Forall2_refl _ value_uincl_refl) Hw').
-    move=> [] vm2 Hw'' Hvm2 {Hws}. exists vm2. constructor.
+    move=> [] vm2 Hw'' Hvm2 {Hws}. 
+    exists vm2. constructor.
     apply sem_seq1. constructor. constructor. rewrite /sem_sopn /=.
     move: (sem_pexprs_uincl). move=> Hesu.
     move: (Hesu gd s1 vm1 (unzip1 [seq const_prop_e m i | i <- es]) vs' Hvm1 Hes').
@@ -3309,14 +3319,15 @@ Section PROOF.
     case heq: const_prop_e=> [me lce]. rewrite heq in He. rewrite /= in He.
     case: is_boolP He => b. case: b.
     case hcp: const_prop=> [mc l]. case: mc hcp=> mi ci hcp.
-    rewrite /Pc in Hc1. move: (Hc1 m Hm). rewrite hcp. move=> [] Hm' {Hc1}.
-    move=> H. split. auto. auto. move=> //.
+    rewrite /Pc in Hc1. move: (Hc1 m Hm). rewrite hcp. move=> [] Hwf [] Hm' {Hc1}.
+    move=> H. split. constructor. apply Hwf. split. auto. auto. move=> //.
     case hcp1: const_prop=>[mc1 l1]. case: mc1 hcp1=> mc1 cm1 hcp1.
     case hcp2: const_prop=>[mc2 l2]. case: mc2 hcp2=> mc2 cm2 hcp2.
-    split. apply merge_cpmP; left.
-    rewrite /Pc in Hc1. move: (Hc1 m Hm). rewrite hcp1. move=> [] Hm2 {Hc1}.
+    split. constructor. rewrite /Pc in Hc1. move: (Hc1 m Hm). move=> [] Hwf Hc.
+    rewrite hcp1 in Hwf. apply Hwf. split=> //. apply merge_cpmP; left.
+    rewrite /Pc in Hc1. move: (Hc1 m Hm). rewrite hcp1. move=> [] Hwf' [] Hm2 {Hc1}.
     move=> H {H}. auto. move=> vm1 Hvm.
-    rewrite /Pc in Hc1. move: (Hc1 m Hm). rewrite hcp1. move=> [] Hm2' H {Hc1}.
+    rewrite /Pc in Hc1. move: (Hc1 m Hm). rewrite hcp1. move=> [] Hwf'' [] Hm2' H {Hc1}.
     move: (H vm1 Hvm). move=> [] vm2 [] H1 Hvm' {H}. exists vm2. constructor.
     apply sem_seq1. do 2 constructor=> //.
     move: (sem_pexpr_uincl). move=> Hee. 
@@ -3334,13 +3345,14 @@ Section PROOF.
     case: is_boolP He => b. case: b. move=> //.
     case hcp: const_prop=> [mc l]. case: mc hcp=> mi ci hcp.
     rewrite /Pc in Hc1. move: (Hc1 m Hm). rewrite hcp. move=> [] Hm' {Hc1}.
-    move=> H. split. auto. auto. move=> //.
+    move=> H. split. constructor. auto. auto. move=> //.
     case hcp1: const_prop=>[mc1 l1]. case: mc1 hcp1=> mc1 cm1 hcp1.
     case hcp2: const_prop=>[mc2 l2]. case: mc2 hcp2=> mc2 cm2 hcp2.
-    split. apply merge_cpmP; right.
-    rewrite /Pc in Hc1. move: (Hc1 m Hm). rewrite hcp2. move=> [] Hm2 {Hc1}.
+    split. constructor. rewrite /Pc in Hc1. move: (Hc1 m Hm). move=> [] Hws H.
+    rewrite hcp2 in Hws. apply Hws. split=> //. apply merge_cpmP; right.
+    rewrite /Pc in Hc1. move: (Hc1 m Hm). rewrite hcp2. move=> [] Hws [] Hm2 {Hc1}.
     move=> H {H}. auto. move=> vm1 Hvm.
-    rewrite /Pc in Hc1. move: (Hc1 m Hm). rewrite hcp2. move=> [] Hm2' H {Hc1}.
+    rewrite /Pc in Hc1. move: (Hc1 m Hm). rewrite hcp2. move=> [] Hws' [] Hm2' H {Hc1}.
     move: (H vm1 Hvm). move=> [] vm2 [] H1 Hvm' {H}. exists vm2. constructor.
     apply sem_seq1. do 2 constructor=> //.
     move: (sem_pexpr_uincl). move=> Hee. 
@@ -3356,8 +3368,10 @@ Section PROOF.
     case Heq1: const_prop => [[m'' c0] lt0] /=.
     case Heq2: const_prop => [[m''' c0'] lt0'] /=.
     have eq1_1 : evm s1 = evm s1 [\ww] by done.
-    have /Hc:= valid_cpm_rm eq1_1 Hm;rewrite -/m' Heq1 /= => -[Hm'' Hc0].
-    have := Hc' _ Hm'';rewrite Heq2 /= => -[_ Hc0'].
+    have /Hc:= valid_cpm_rm eq1_1 Hm;rewrite -/m' Heq1 /=. 
+    move=> [] Hws [] Hm'' Hc0. 
+    have := Hc' _ Hm'';rewrite Heq2 /=.
+    move=> [] Hws' [] Hvm' Hc0'. 
     have eq1_3 : evm s1 = evm s3 [\ww].
     + rewrite /ww write_i_while -write_c_app;apply: writeP.
       by apply: sem_app;eauto.
@@ -3381,10 +3395,12 @@ Section PROOF.
       rewrite -heq1 heq /=.
       have ? : e' = false by case: (is_boolP e') (heqe) => [? [->] | ] //.
       by subst e' => /= -[<-].
-    move: heqe Hs4 Hrec => /eqP /negbTE -> Hs4 /= Hrec; split.
+    move: heqe Hs4 Hrec => /eqP /negbTE -> Hs4 /= [] Hs4' Hrec; split.
+    + constructor. auto. rewrite /Pc in Hc'. move: (Hc' m'' Hm'')=> [] Hws'' H.
+      rewrite Heq2 in Hws''. auto. apply Hs4. split=> //.
     + by apply (valid_cpm_m (refl_equal (evm s4)) Hm2'').
     move=> vm1 /Hc0 [] vm2 [] hs12 hvm2. 
-    move: (hvm2) => /Hc0' [] vm3 [] hs23 /Hrec [] vm4 [] hs34 hvm4.
+    move: (hvm2)=> /Hc0' [] vm3 [] hs23 /Hrec [] vm4 [] hs34 hvm4.
     exists vm4; split => //.
     apply:sem_seq1;constructor.
     apply Ewhile_true with {| emem := emem s2; evm := vm2 |} {| emem := emem s3; evm := vm3 |} => //. 
@@ -3405,7 +3421,15 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
     case heq: const_prop_e => [me' le'] /=.
     case Heq2: const_prop => [m''' l0']. case: m''' Heq2=> m''' c0' Heq2 /=.
     have eq1_1 : evm s1 = evm s1 [\ww] by done.
-    have /Hc:= valid_cpm_rm eq1_1 Hm;rewrite -/m' Heq1 /= => -[Hm'' Hc0]. split => //.
+    have /Hc:= valid_cpm_rm eq1_1 Hm;rewrite -/m' Heq1 /=.
+    move=> [] Hws -[Hm'' Hc0]. split => //.
+    have [v' [Hv' /=]]:= const_prop_eP stk Hm'' He.
+    case: v' Hv' => // b Hv' Hvv. rewrite -Hvv in Hv'.
+    move=> {Hvv} {b}. rewrite heq in Hv'.
+    case:is_boolP Hv' => [ ?[->] //| e0 He0]. auto. move=> Heq.
+    + rewrite /=. constructor. auto.
+    + rewrite /=. constructor. auto.
+    split=> //. 
     have [v' [Hv' /=]]:= const_prop_eP stk Hm'' He.
     case: v' Hv' => // b Hv' Hvv. rewrite -Hvv in Hv'.
     move=> {Hvv} {b}. rewrite heq in Hv'.
@@ -3436,10 +3460,13 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
     case heqe2: const_prop_e=> [me2 lc2].
     case Heq1: const_prop => [m'' lc'].
     case: m'' Heq1=> m'' c' Heq1. split.
+    + constructor. move: Hfor'. move=> [] Hwfs Hfor'. 
+      rewrite Heq1 in Hwfs. apply Hwfs. split.
     + apply: valid_cpm_rm Hm.
       apply (@write_iP p  (Cfor i (d, e1, e2) c) s1 s2 (Lfor lr lf)); econstructor.
       rewrite /sem_range. rewrite He1 /=. rewrite He2 /=. rewrite Hi1 /=.
       rewrite Hi2 /=. by rewrite Hwr Hlr /=. auto.
+    move: Hfor'=> [] Hwfs Hfor'.
     move=> vm1 /dup[] hvm1 /Hfor' [vm2 [hfor hvm2]]; exists vm2; split=>//.
     apply sem_seq1. constructor. apply Efor with wr. rewrite /=.
     move: const_prop_eP. move=> Hce. move: (Hce gd stk e1 s1 m Hm ev1 el1 He1).
@@ -3463,16 +3490,17 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
     move: (H1 ev2 ev2'' h4 Hev4 Hi2). move=> [] H2' -> {H1}.
     rewrite -H2'. rewrite Hi2 /=. by rewrite -Hlr Hwr /=. by rewrite p'_def /=.
     rewrite Heq1 in hfor. by rewrite /= in hfor.
-   Qed.
+  Qed.
 
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
   Proof.
-    move=> s i c m Hm hv vm1 hvm1;exists vm1;split => //; constructor.
+    move=> s i c m Hm hv. split. constructor. move=>vm1 hvm1. 
+    exists vm1;split => //; constructor.
   Qed.
 
   Local Lemma Hfor_cons : sem_Ind_for_cons p Pc Pfor.
   Proof.
-    move=> s1 s1' s2 s3 i w ws c lc lf Hw Hsemc Hc Hsemf Hf m Heqm Hm vm1 hvm1.
+    move=> s1 s1' s2 s3 i w ws c lc lf Hw Hsemc Hc Hsemf Hf m Heqm Hm.
     have Hm' : valid_cpm (evm s1') m.
     + have Hmi : Mvar_eq m (Mvar.remove m i).
       + move=> z;rewrite Mvar.removeP;case:ifPn => [/eqP <- | Hneq //].
@@ -3481,8 +3509,10 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
         by case: Mvar.get => // a [];SvD.fsetdec.
       have -> := valid_cpm_m (refl_equal (evm s1')) Hmi.
       by apply: remove_cpm1P Hw Hm.
-    have [_  Hc']:= Hc _ Hm'.
-    have /(Hf _ Heqm) Hc'': valid_cpm (evm s2) m.
+    have := Hc _ Hm'. move=> [] Hwf [] Hvm2 Hc'.
+    split. econstructor. apply Hwf.
+    move=> vm1 hvm1.
+    have /(Hf _ Heqm) [Hwfs Hc'']: valid_cpm (evm s2) m.
     + have -> := valid_cpm_m (refl_equal (evm s2)) Heqm.
       apply: valid_cpm_rm Hm'=> z Hz;apply: (writeP Hsemc);SvD.fsetdec.
     have /(_ _ (value_uincl_refl _))[vm1' hw hvm1']:= write_var_uincl hvm1 _ Hw.
@@ -3501,7 +3531,9 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
     move: (Hvs' gd stk {| emem := m2; evm := evm s1 |} s2 m xs vs lw).
     case hervs: const_prop_rvs=>[mv lv]; case: mv hervs=> mv cv hervs /=.
     move=> {Hvs'} Hvs'. move: (Hvs' Hm Hvs). move=> {Hvs'} [] Hm2 Hvs' /=.
-    split=> //.
+    split=> //. apply sem_eq_fn in Hcall. rewrite hlf /= in Hcall. 
+    rewrite Hcall. apply LT_icallWF. rewrite /Pfun in Hfun. move: (Hfun (unzip1 vargs') Hv).
+    move=> [] /= Hwf H. rewrite -Hcall. apply Hwf. split=> //.
     move=> vm1 Hvm1.
     move: (sem_pexprs_uincl). move=> Hargs''.
     move: (Hargs'' gd s1 vm1 (unzip1 [seq const_prop_e m i | i <- args])
@@ -3510,7 +3542,7 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
     rewrite /Pfun in Hfun.
     move: (writes_uincl). move=> Hvs''.
     move: (Hfun (unzip1 vargs'') (Forall2_trans value_uincl_trans Hv Hv')).
-    move=> {Hfun} [] vres' [] /= Hcall' Hv''.
+    move=> {Hfun} [] Hwf [] vres' [] /= Hcall' Hv''.
     move: (Hvs'' gd {| emem := m2; evm := evm s1 |} s2 vm1 cv vs vres'
                  (map2 (leak_E stk) lv lw) Hvm1 Hv'' Hvs').
     move=> {Hvs''} [] vm2 /= Hvs'' Hvm2 /=. exists vm2. split=> //.
@@ -3536,12 +3568,16 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
     move=> fi fin fp /= c fo fres Hf'1 Hfun htra Hw Hsem Hc Hres Hfull.
     case: f' Hf'1 Hf'2=> ??? c' ? f'_res Hf'1 Hf'2.
     have: valid_cpm (evm s1) empty_cpm. by move=> x n; rewrite Mvar.get0.
-    move=> /Hc []; case: const_prop Hf'1=> [[m c''] ltc''] /= heq hcpm hc' hget vargs1 hargs'.
+    move=> /Hc []; case: const_prop Hf'1=> [[m c''] ltc''] /= heq Hwfs [] hcpm hc' hget vargs1 hargs'.
     have [vargs1' htr hu1]:= mapM2_truncate_val htra hargs'.
     have [vm3 /= hw hu3]:= write_vars_uincl (vm_uincl_refl _) hu1 Hw.
     have [vm4 /= []hc hu4]:= hc' _ hu3.
     have [vres1 hvres1 hu5]:= get_vars_uincl hu4 Hres.
     have [vres1' h1 h2]:= mapM2_truncate_val Hfull hu5.
+    split. replace (leak_Fun Fs fn) with ltc''. apply Hwfs.
+    rewrite /get_leak in hget. rewrite /leak_Fun. 
+    rewrite hget /=.
+    by case: heq=> heq1 heq2 heq3 heq4 heq5 heq6 heq7.
     exists vres1';split => //.
     econstructor.
     rewrite /map_prog_leak in dcok. case: dcok => dcok' dcok''. apply Hf'2.
@@ -3566,21 +3602,9 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
   Proof.
     move=> /(@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) h Hv.
-    rewrite /Pfun in h. move: (h va' Hv). move=> [] vres' [] /= h' Hv' {h}.
+    rewrite /Pfun in h. move: (h va' Hv). move=> [] Hwfs [] vres' [] /= h' Hv' {h}.
     exists vres'. split=> //.
   Qed.
-
-  (*Lemma values_equal vs vs':
-  List.Forall2 value_uincl vs vs' ->
-  vs = vs'.
-  Proof.
-  elim: vs.
-  + elim: vs'.
-    + by auto.
-    move=> a []. auto. move=> H1 H2. inversion H2.
-    move=> a' l H1 H2. inversion H2.
-  + move=> a l Hl Hl'.
-  Admitted. *)
 
   Lemma const_prop_callP' f mem mem' va vr lf:
     sem_call p mem f va (f, lf) mem' vr ->
@@ -3594,67 +3618,5 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
 
 End PROOF.  
 
-Section WF_PROOF.
-
-  Variable p p':prog.
-  Variable Fs: seq (funname * seq leak_i_tr).
-  Variable stk : pointer.
-  Notation gd := (p_globs p).
-
-  Hypothesis (p'_def : p' = (const_prop_prog p).1).
-
-  Hypothesis (Fs_def : Fs = (const_prop_prog p).2).
-
-  Hypothesis const_prop_prog_ok : const_prop_prog p = (p', Fs).
-
-
-  Let Pi (s1:estate) i li (s2:estate) := forall m, leak_WF (leak_Fun Fs) (const_prop_i m i).2 li.
-
-  Let Pi_r (s1:estate) i li (s2:estate) := forall m ii, leak_WF (leak_Fun Fs) (const_prop_ir m ii i).2 li.
-
-  Let Pc (s1:estate) c lc (s2:estate) := forall m, leak_WFs (leak_Fun Fs) (const_prop const_prop_i m c).2 lc.
-
-  Let Pfor (i:var_i) (zs: seq Z) (s1:estate) c lf (s2:estate) := 
-  forall m, leak_WFss (leak_Fun Fs) (const_prop const_prop_i m c).2 lf.
-
-  Let Pfun (m1:mem) (fd:funname) (vargs:seq value) lf (m2:mem) (vres:seq value) := 
-  leak_WFs (leak_Fun Fs) (leak_Fun Fs lf.1) lf.2.
-
-  Local Lemma Hskip_WF : sem_Ind_nil Pc.
-  Proof.
-    constructor.
-  Qed.
-
-  Local Lemma Hcons_WF : sem_Ind_cons p Pc Pi.
-  Proof.
-    move=> s1 s2 s3 i c li lc Hi Hpi Hc Hci m /=.
-    case heqi : const_prop_i => [mc lti]; case: mc heqi => mi ci heqi. 
-    case heqc : const_prop => [mc ltc]; case: mc heqc => mc cc heqc.
-    econstructor. rewrite /Pc in Hci. rewrite /Pi in Hpi.
-    move: (Hpi mi)=> {Hpi} Hpi. apply Hpi.
-  Qed.
-   
-  Local Lemma HmkI_WF : sem_Ind_mkI p Pi_r Pi.
-  Proof.
-    move=> ii i s1 s2 li Hi Hpi.
-    rewrite /Pi_r in Hpi. rewrite /Pi. move=> m.
-    move: (Hpi m ii). move=> H'. apply H'.
-  Qed.
-
-  Local Lemma Hassgn_WF : sem_Ind_assgn p Pi_r.
-  Proof.
-    move=> s1 s2 x tag ty e v v' le lw He Ht Hw m ii /=.
-    case: const_prop_e=> e' lt'. case: const_prop_rv=> -[m'' v''] lt'' /=. 
-    constructor.
-  Qed.
-
- Local Lemma Hopn_WF : sem_Ind_opn p Pi_r.
-  Proof.
-    move=> s1 s2 t o xs es lo H m ii /=. 
-    case: const_prop_rvs=> -[m'' v''] lt'' /=.
-    constructor.
-  Qed.
-
-End WF_PROOF.
 
 
