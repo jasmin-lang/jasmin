@@ -165,6 +165,7 @@ Variant asm_op : Type :=
 | VPMOVMSKB of wsize & wsize (* sorce size (U128/256) & dest. size (U32/64) *)
 | VPERMD     `(wsize)
 | VPCMPGT    `(velem) `(wsize)
+| POPCNT     `(wsize)
 .
 
 
@@ -856,6 +857,12 @@ Definition x86_VPCMPGT ve sz (v1 v2: word sz): ex_tpl(w_ty sz) :=
   Let _ := check_size_8_32 ve in
   Let _ := check_size_128_256 sz in
   ok (wrepr sz 0).
+
+(* FIXME *)
+Definition x86_POPCNT sz (v: word sz): ex_tpl (b5w_ty sz) :=
+  Let _ := check_size_16_64 sz in
+  let r := (wrepr sz 0) in (* FIXME! *)
+  ok (:: Some false, Some false, Some false, Some false, Some (ZF_of_word v) & r).
 
 (* ----------------------------------------------------------------------------- *)
 Coercion F f := ADImplicit (IArflag f).
@@ -1586,7 +1593,6 @@ Definition Ox86_VPERMD_instr :=
                 ,("VPERMD"%string, PrimP U256 VPERMD)
   ).
 
-Print VE32.
 Definition Ox86_VPCMPGT_instr :=
   (fun (ve: velem) sz => mk_instr
                   (pp_ve_sz "VPCMPGT"%string ve sz)
@@ -1604,6 +1610,9 @@ Definition Ox86_VPCMPGT_instr :=
                   (pp_viname "vpcmpgt" ve sz)
                 ,("VPCMPGT"%string, PrimV VPCMPGT)
   ).
+
+Definition Ox86_POPCNT_instr :=
+  mk_instr_w_b5w "POPCNT" x86_POPCNT msb_dfl [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) no_imm (primP POPCNT) (pp_iname "popcnt").
 
 Definition instr_desc o : instr_desc_t :=
   match o with
@@ -1709,6 +1718,7 @@ Definition instr_desc o : instr_desc_t :=
   | VPMOVMSKB ssz dsz  => Ox86_PMOVMSKB_instr.1 ssz dsz
   | VPERMD sz          => Ox86_VPERMD_instr.1 sz
   | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
+  | POPCNT sz          => Ox86_POPCNT_instr.1 sz
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -1817,6 +1827,7 @@ Definition prim_string :=
    Ox86_PMOVMSKB_instr.2
    Ox86_VPERMD_instr.2
    Ox86_VPCMPGT_instr.2
+   Ox86_POPCNT_instr.2
  ].
   
   

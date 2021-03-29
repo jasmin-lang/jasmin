@@ -1461,3 +1461,9 @@ Definition vpcmpgt1 ve (e1 e2: word ve) : word ve :=
 
 Definition vpcmpgt ve sz (w1 w2: word sz) : word sz :=
   lift2_vec ve (@vpcmpgt1 ve) sz w1 w2.
+
+(* FIXME *)
+Definition popcnt sz (w: word sz): word sz :=
+  let b := split_vec 1 w in
+  let b1 := map (fun b => if b == 1%R then 1%nat else 0%nat) b in
+  wrepr sz (List.fold_right plus 0%nat b1).
