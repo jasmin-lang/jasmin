@@ -1454,3 +1454,10 @@ Definition vpermd sz (w1 idx: word sz) : word sz :=
   let v := split_vec U32 w1 in
   let i := split_vec U32 idx in
   make_vec sz (map (vpermd1 v) i).
+
+Definition vpcmpgt1 ve (e1 e2: word ve) : word ve :=
+  if (wunsigned e1) >? (wunsigned e2) then (wshl 1 (wsize_size_minus_1 ve) - 1)%R
+  else 0%R.
+
+Definition vpcmpgt ve sz (w1 w2: word sz) : word sz :=
+  lift2_vec ve (@vpcmpgt1 ve) sz w1 w2.

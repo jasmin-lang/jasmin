@@ -164,6 +164,7 @@ Variant asm_op : Type :=
 | RDTSCP   of wsize
 | VPMOVMSKB of wsize & wsize (* sorce size (U128/256) & dest. size (U32/64) *)
 | VPERMD     `(wsize)
+| VPCMPGT    `(velem) `(wsize)
 .
 
 
@@ -849,6 +850,12 @@ Definition x86_VPMOVMSKB ssz dsz (v : word ssz): ex_tpl (w_ty dsz) :=
 Definition x86_VPERMD sz (v1 v2: word sz): ex_tpl(w_ty sz) :=
   Let _ := check_size_256 sz in
   ok (@vpermd sz v1 v2).
+
+(* FIXME *)
+Definition x86_VPCMPGT ve sz (v1 v2: word sz): ex_tpl(w_ty sz) :=
+  Let _ := check_size_8_32 ve in
+  Let _ := check_size_128_256 sz in
+  ok (wrepr sz 0).
 
 (* ----------------------------------------------------------------------------- *)
 Coercion F f := ADImplicit (IArflag f).
@@ -1579,6 +1586,25 @@ Definition Ox86_VPERMD_instr :=
                 ,("VPERMD"%string, PrimP U256 VPERMD)
   ).
 
+Print VE32.
+Definition Ox86_VPCMPGT_instr :=
+  (fun (ve: velem) sz => mk_instr
+                  (pp_ve_sz "VPCMPGT"%string ve sz)
+                  (w2_ty sz sz)
+                  (w_ty sz)
+                  [:: E 1; E 2]
+                  [:: E 0]
+                  MSB_CLEAR
+                  (@x86_VPCMPGT ve sz)
+                  (check_xmm_xmm_xmmm sz)
+                  3
+                  sz
+                  (no_imm sz)
+                  [::]
+                  (pp_viname "vpcmpgt" ve sz)
+                ,("VPCMPGT"%string, PrimV VPCMPGT)
+  ).
+
 Definition instr_desc o : instr_desc_t :=
   match o with
   | MOV sz             => Ox86_MOV_instr.1 sz
@@ -1682,6 +1708,7 @@ Definition instr_desc o : instr_desc_t :=
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | VPMOVMSKB ssz dsz  => Ox86_PMOVMSKB_instr.1 ssz dsz
   | VPERMD sz          => Ox86_VPERMD_instr.1 sz
+  | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -1789,6 +1816,7 @@ Definition prim_string :=
    Ox86_RDTSCP_instr.2;
    Ox86_PMOVMSKB_instr.2
    Ox86_VPERMD_instr.2
+   Ox86_VPCMPGT_instr.2
  ].
   
   
