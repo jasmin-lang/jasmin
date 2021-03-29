@@ -1455,6 +1455,9 @@ Definition vpermd sz (w1 idx: word sz) : word sz :=
   let i := split_vec U32 idx in
   make_vec sz (map (vpermd1 v) i).
 
+Definition popcnt sz (w: word sz) :=
+ wrepr sz (count id (w2t w)).
+
 Definition vpcmpgt1 ve (e1 e2: word ve) : word ve :=
   if (wunsigned e1) >? (wunsigned e2) then (wshl 1 (wsize_size_minus_1 ve) - 1)%R
   else 0%R.
@@ -1462,8 +1465,8 @@ Definition vpcmpgt1 ve (e1 e2: word ve) : word ve :=
 Definition vpcmpgt ve sz (w1 w2: word sz) : word sz :=
   lift2_vec ve (@vpcmpgt1 ve) sz w1 w2.
 
-(* FIXME *)
-Definition popcnt sz (w: word sz): word sz :=
-  let b := split_vec 1 w in
-  let b1 := map (fun b => if b == 1%R then 1%nat else 0%nat) b in
-  wrepr sz (List.fold_right plus 0%nat b1).
+Definition bits2z (l: seq bool) : Z :=
+ (\sum_(i < size l) 2%:R ^+ i * (nth false l i)%:R)%R.
+
+Definition pextr sz (w1 w2: word sz) :=
+ wrepr sz (bits2z (mask (w2t w2) (w2t w1))).

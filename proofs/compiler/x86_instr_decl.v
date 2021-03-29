@@ -166,6 +166,7 @@ Variant asm_op : Type :=
 | VPERMD     `(wsize)
 | VPCMPGT    `(velem) `(wsize)
 | POPCNT     `(wsize)
+| PEXT       `(wsize)
 .
 
 
@@ -863,6 +864,11 @@ Definition x86_POPCNT sz (v: word sz): ex_tpl (b5w_ty sz) :=
   Let _ := check_size_16_64 sz in
   let r := (wrepr sz 0) in (* FIXME! *)
   ok (:: Some false, Some false, Some false, Some false, Some (ZF_of_word v) & r).
+
+(* FIXME *)
+Definition x86_PEXT sz (v1 v2: word sz): ex_tpl (w_ty sz) :=
+  Let _ := check_size_32_64 sz in
+  ok (wrepr sz 0).
 
 (* ----------------------------------------------------------------------------- *)
 Coercion F f := ADImplicit (IArflag f).
@@ -1614,6 +1620,9 @@ Definition Ox86_VPCMPGT_instr :=
 Definition Ox86_POPCNT_instr :=
   mk_instr_w_b5w "POPCNT" x86_POPCNT msb_dfl [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) no_imm (primP POPCNT) (pp_iname "popcnt").
 
+Definition Ox86_PEXT_instr :=
+  mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm true]]) no_imm (primP PEXT) (pp_iname "pext").
+
 Definition instr_desc o : instr_desc_t :=
   match o with
   | MOV sz             => Ox86_MOV_instr.1 sz
@@ -1719,6 +1728,7 @@ Definition instr_desc o : instr_desc_t :=
   | VPERMD sz          => Ox86_VPERMD_instr.1 sz
   | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
   | POPCNT sz          => Ox86_POPCNT_instr.1 sz
+  | PEXT sz            => Ox86_PEXT_instr.1 sz
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -1828,6 +1838,7 @@ Definition prim_string :=
    Ox86_VPERMD_instr.2
    Ox86_VPCMPGT_instr.2
    Ox86_POPCNT_instr.2
+   Ox86_PEXT_instr.2
  ].
   
   
