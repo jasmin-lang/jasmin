@@ -762,6 +762,39 @@ Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : 
 
 Definition leak_f_lf_tr := seq (funname * seq leak_i_il_tr).
 
+Inductive leak_i_WF : leak_i_il_tr -> leak_i -> Prop :=
+| LT_ilkeepaWF : forall le, leak_i_WF LT_ilkeepa (Lopn le)
+| LT_ilkeepWF : forall le, leak_i_WF LT_ilkeepa (Lopn le)
+| LT_ilcond_0WF : forall le b lis lte lti,
+                  leak_i_WFs lti lis ->
+                  leak_i_WF (LT_ilcond_0 b lte lti) (Lcond le b lis)
+| LT_icond_0WF' : forall le b lis lte lti,
+                  leak_i_WFs lti lis ->
+                  leak_i_WF (LT_ilcond_0 b lte lti) (Lcond le b lis)
+| LT_ilcondtWF : forall lte lti lti' le lis,
+                leak_i_WFs lti lis ->
+                leak_i_WF (LT_ilcond lte lti lti') (Lcond le true lis)
+| LT_ilcondfWF : forall lte lti lti' le lis,
+                leak_i_WFs lti' lis ->
+                leak_i_WF (LT_ilcond lte lti lti') (Lcond le false lis)
+| LT_ilwhile_fWF : forall lis le lti,
+                   leak_i_WFs lti lis ->
+                   leak_i_WF (LT_ilwhile_f lti) (Lwhile_false lis le)
+(* Fix needed *)
+| LT_ilwhile_c'0WF : forall li a lti,
+                     leak_i_WF (LT_ilwhile_c'0 a lti) li
+(* Fix needed *)
+| LT_ilwhileWF : forall li lti lti',
+                 leak_i_WF (LT_ilwhile lti lti') li
+
+with leak_i_WFs : seq leak_i_il_tr -> leak_c -> Prop :=
+ | WF_i_empty : leak_i_WFs [::] [::]
+ | WF_i_seq : forall li lc lt1 lt1',
+            leak_i_WF lt1 li ->
+            leak_i_WFs lt1' lc ->
+            leak_i_WFs (lt1 :: lt1') (li::lc).
+
+
 Section Leak_Call_Imp_L.
 
 Variable Fs: leak_f_lf_tr.
