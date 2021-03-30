@@ -1719,6 +1719,89 @@ Admitted.
 
 End Transform_Cost_I.
 
+(***** Intermediate Cost *****)
+(* Calculates cost for intermediate leakage *)
+(* Check with Benjamin *)
+Section Cost_CL.
+
+Variable cost_il : lbl -> leak_il -> cost_map.
+
+Fixpoint cost_cl (l:lbl) (lc: leak_cl) : cost_map :=
+match lc with 
+ | [::] => empty_cost
+ | l1 :: l2 => merge_cost (cost_il l l1) (cost_cl (next_lbl l) l2)
+end.
+
+End Cost_CL.
+
+Fixpoint cost_il (l:lbl) (li: leak_il) : cost_map :=
+match li with 
+ | Lempty => empty_cost
+ | Lopnl _=> single_cost l
+ | Lcondl le b => single_cost l (* it alse sets the pc depending on b in its semantics *)
+end.
+
+Section Transform_Cost_CL.
+
+Variable transform_cost_IL : leak_i_il_tr -> lbl -> Sm.t * nat. 
+
+Fixpoint transform_cost_CL (lt:seq leak_i_il_tr) (sl:lbl) : Sm.t * nat :=
+match lt with
+ | [::] => (Sm.empty, 0)
+ | lti :: lt => 
+   let mtni := transform_cost_IL lti sl in
+   let mtn  :=  transform_cost_CL lt (next_lbl sl) in
+   (Sm.merge mtni.1 (Sm.incr mtni.2 mtn.1), mtni.2 + mtn.2)
+end.
+
+End Transform_Cost_CL.
+
+Fixpoint transform_cost_IL (lt: leak_i_il_tr) (sl: lbl) : Sm.t * nat :=
+ match lt with 
+ | LT_ilkeepa => (Sm.single 0 sl 1, 1)
+ | LT_ilkeep => (Sm.single 0 sl 1, 1)
+   (* if e then [::] else c2 --> Licond e L1; c2; Lilable L1 *)
+   (* if e is true then Lilable L1 else c2; Lilable L1 *)
+ | LT_ilcond_0 b lte lti => 
+   let  m  := transform_opn 2 sl 1  in
+   let mn := transform_cost_CL transform_cost_IL lti (lbl_b b sl) in 
+   (m, 2) 
+   (* can we ignore Lilable because it doesn't produce any leakage? *)
+   (* if e then c1 else [::] --> Licond e L1; c1; Lilable L1 *)
+ | LT_ilcond_0' b lte lti =>
+   let  m  := transform_opn 2 sl 1 in
+   let mn := transform_cost_CL transform_cost_IL lti (lbl_b b sl) in  
+   (m, 2)
+   (* if e then c1 else c2 --> Licond e L1; c2; Ligoto L2; Lilabel L1; c1; Lilabel L2 *)
+ | LT_ilcond lte lti lti' => 
+   let  m  := transform_opn 2 sl 1 in
+   let mn1 := transform_cost_CL transform_cost_IL lti (lbl_t sl) in
+   let mn2 := transform_cost_CL transform_cost_IL lti' (lbl_f sl) in
+   (m, 2)
+   (* cwhile a c e c' --> c *)
+ | LT_ilwhile_f lti => 
+   transform_cost_CL transform_cost_IL lti (lbl_f sl)
+   (* cwhile a c e c' --> c' = [::] --> align; Lilable L1; c; Lilable e L1 *)
+ | LT_ilwhile_c'0 a lti => 
+   (*let m := transform_opn 2 sl 1 in 
+   let mn1 := transform_cost_CL transform_cost_IL lti (lbl_f sl) in
+   (Sm.merge m mn1.1, 2) *)
+   (Sm.empty, 0)
+   (* cwhile a c e c' --> Ligoto L1; align; Lilabel L2; c'; Lilabel L1; c; Lcond e L2 *)
+ | LT_ilwhile lti lti' => 
+   let  m  := transform_opn 3 sl 1  in
+   let mn1 := transform_cost_CL transform_cost_IL lti (lbl_f sl) in
+   let mn2 := transform_cost_CL transform_cost_IL lti' (lbl_t sl) in
+   (m, 2)  
+  end.
+
+Notation transform_cost_ICL := (transform_cost_CL transform_cost_IL).
+
+(*Lemma transform_cost_il_ok ftr w lt lc sl : 
+  leak_il_WFs ftr lt lc ->
+  cost_CL ([::],0) (leak_i_iLs (leak_I ftr) w lt lc) =1 
+  Sm.interp_il (cost_CL sl lc) (transform_cost_CL lt sl).1.
+Proof.*)
 
 (*
 Section Transform_Cost_c.

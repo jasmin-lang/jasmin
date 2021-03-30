@@ -676,11 +676,11 @@ Notation leak_funl := (funname * seq leak_il).
 Definition leak_cl := seq leak_il.
 
 Inductive leak_i_il_tr : Type :=
-  | LT_ilremove : leak_i_il_tr
+  (*| LT_ilremove : leak_i_il_tr*)
   | LT_ilkeep : leak_i_il_tr
   | LT_ilkeepa : leak_i_il_tr
-  | LT_ilcond_0 : leak_e_tr -> seq leak_i_il_tr -> leak_i_il_tr (*c1 is empty*)
-  | LT_ilcond_0' : leak_e_tr -> seq leak_i_il_tr -> leak_i_il_tr (*c2 is empty*)
+  | LT_ilcond_0 : bool -> leak_e_tr -> seq leak_i_il_tr -> leak_i_il_tr (*c1 is empty*)
+  | LT_ilcond_0' : bool -> leak_e_tr -> seq leak_i_il_tr -> leak_i_il_tr (*c2 is empty*)
   | LT_ilcond : leak_e_tr -> seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i_il_tr (* c1 and c2 are not empty *)
   | LT_ilwhile_c'0 : align -> seq leak_i_il_tr -> leak_i_il_tr
   | LT_ilwhile_f : seq leak_i_il_tr -> leak_i_il_tr
@@ -707,7 +707,7 @@ Section Leak_IL.
     match li with 
     | Lwhile_false lis le => 
       leak_i_iLs stk lts lis ++ [:: Lcondl le false]
-    | Lwhile_true lis le lis' li' => 
+    | Lwhile_true lis le lis' li' =>
       leak_i_iLs stk lts lis ++ [:: Lcondl le true] ++ 
       leak_i_iLs stk lts' lis' ++ [:: Lempty] ++ ilwhile stk lts lts' li'
     | _ => [::]
@@ -724,8 +724,8 @@ Definition get_align_leak_il a : seq leak_il :=
 
 Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : seq leak_il :=
   match l, li with 
-  | LT_ilremove, _ => 
-    [:: Lempty]
+  (*| LT_ilremove, _ => 
+    [:: Lempty]*)
 
   | LT_ilkeepa, Lopn le => 
     [:: Lopnl (LSub (map (fun x => LSub [:: x]) (get_seq_leak_e le)))]
@@ -733,12 +733,12 @@ Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : 
   | LT_ilkeep, Lopn le => 
     [:: Lopnl le]
 
-  | LT_ilcond_0 lte lti, Lcond le b lis => 
+  | LT_ilcond_0 b_ lte lti, Lcond le b lis => 
     [:: Lcondl (leak_E stk lte le) b] ++ 
     if b then [::] 
     else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty]
 
-  | LT_ilcond_0' lte lti, Lcond le b lis => 
+  | LT_ilcond_0' b_ lte lti, Lcond le b lis => 
     [:: Lcondl (leak_E stk lte le) (negb b)] ++ 
     if negb b then [::] 
     else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty]

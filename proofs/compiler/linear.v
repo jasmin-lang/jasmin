@@ -170,7 +170,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
     let L1 := lbl in
     let lbl := next_lbl L1 in
     Let rs := MkLI ii (Licond e L1) >; linear_c linear_i c2 lbl (MkLI ii (Lilabel L1) :: lc) in 
-    ciok (rs.1.1, rs.1.2, LT_ilcond_0 LT_id rs.2)
+    ciok (rs.1.1, rs.1.2, LT_ilcond_0 false LT_id rs.2)
   
     (* Licond e L1; c1; Lilabel L1 *)
     (* Lcondl le b :: if (not b) then [::]
@@ -180,7 +180,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
     let lbl := next_lbl L1 in
     let rse := snot e in 
     Let rs := MkLI ii (Licond rse.1 L1) >; linear_c linear_i c1 lbl (MkLI ii (Lilabel L1) :: lc) in 
-    ciok (rs.1.1, rs.1.2, LT_ilcond_0' rse.2 rs.2)
+    ciok (rs.1.1, rs.1.2, LT_ilcond_0' true rse.2 rs.2)
 
     (* Licond e L1; c2; Ligoto L2; Lilabel L1; c1; Lilabel L2 *)
     (* L1 is then and L2 is end *)

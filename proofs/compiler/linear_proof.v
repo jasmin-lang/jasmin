@@ -671,7 +671,7 @@ Section PROOF.
         by rewrite (Pos_lt_leb_trans (lt_next _) Hle).
       move => [m1 vm1] s2 l /S.sem_iE' [b] [le] [lc] [ok_b ok_s2] ->.
       case: b ok_b ok_s2 => ok_b.
-      - move => /S.semE [] -> -> {s2}.
+      - move => /S.semE [] -> -> {s2}. 
         apply: lsem_step.
         * rewrite /lsem1 /step /= /eval_instr /= !to_of_estate ok_b {ok_b} /=.
           rewrite -cat_cons find_label_cat_hd.
@@ -813,7 +813,7 @@ Section PROOF.
   Lemma leak_i_iL_while_c'0 a lti li: 
     leak_i_iL stk li (LT_ilwhile_c'0 a lti) = get_align_leak_il a ++ [:: Lempty & ilwhile_c'0 leak_i_iL stk lti li].
   Proof.
-  by case: li.
+  by case: li=> //=.
   Qed.
 
   Lemma leak_i_il_il_while lti lti' li : leak_i_iL stk li (LT_ilwhile lti lti') = [:: Lempty] ++ ilwhile leak_i_iL stk lti lti' li.
