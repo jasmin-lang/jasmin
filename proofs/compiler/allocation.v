@@ -802,6 +802,193 @@ Proof.
   by apply alloc_callP_aux.
 Qed.
 
+Section PROOF_WF.
+
+  Variable p1 p2:prog.
+  Variable Fs: seq (funname * seq leak_i_tr).
+  Notation gd := (p_globs p1).
+  Variable stk : pointer.
+  Hypothesis eq_globs : p_globs p1 = p_globs p2.
+  Hypothesis Hcheck: check_prog_aux p1 p2 = ok Fs.
+
+  Let Pi_r (s1:estate) (i1:instr_r) li (s2:estate):=
+    forall ii r1 i2 r2 lti, 
+    check_i ii i1 i2 r1 = ok (r2, lti) ->
+    leak_WF (leak_Fun Fs) lti li.
+
+  Let Pi (s1:estate) (i1:instr) li (s2:estate):=
+     forall r1 i2 r2 lti, 
+     check_I i1 i2 r1 = ok (r2, lti) ->
+     leak_WF (leak_Fun Fs) lti li.
+     
+  Let Pc (s1:estate) (c1:cmd) lc (s2:estate):=
+    forall ii r1 c2 r2 ltc, 
+    check_cmd ii c1 c2 r1 = ok (r2, ltc) ->
+    leak_WFs (leak_Fun Fs) ltc lc.
+    
+  Let Pfor (i1:var_i) (vs:seq Z) (s1:estate) (c1:cmd) lf (s2: estate):=
+    forall i2 ii r1 r1' ltv c2 r2 ltf, 
+    check_var i1 i2 r1 = ok (r1', ltv) ->
+    check_cmd ii c1 c2 r1' = ok (r2, ltf) -> M.incl r1 r2 ->
+    leak_WFss (leak_Fun Fs) ltf lf.
+
+  Let Pfun (m:mem) (fn:funname) (vargs1:seq value) lf (m':mem) (vres:seq value):=
+    leak_WFs (leak_Fun Fs) (leak_Fun Fs lf.1) lf.2. 
+
+  Local Lemma Hskip_WF : sem_Ind_nil Pc.
+  Proof.
+    move=> s ii r1 [ | ??] //= r2 ltc [] _ <-. constructor.
+  Qed.
+
+  Local Lemma Hcons_WF : sem_Ind_cons p1 Pc Pi.
+  Proof.
+    move=> s1 s2 s3 i c li lc Hsi Hi Hsc Hc ii r1 [ | i2 c2] //= r2 lt.
+    t_xrbindP=> -[ri lti] /= /Hi Hwf -[rc ltc] /Hc Hwf' _ /= <-.
+    constructor. apply Hwf. apply Hwf'.
+  Qed.
+
+  Local Lemma HmkI_WF : sem_Ind_mkI p1 Pi_r Pi.
+  Proof.
+    move=> ii i s1 s2 li Hsi Hi r1 [i2i i2] r2 lti /Hi Hwf.
+    apply Hwf.
+  Qed.
+
+  Local Lemma Hassgn_WF : sem_Ind_assgn p1 Pi_r.
+  Proof.
+    move => s1 s2 x tag ty e v v' le lw.
+    case: s1 => sm1 svm1 He Htr Hw ii r1 [] //= x2 tag2 ty2 e2 r2 lti. 
+    case: eqP => // <- {ty2}. t_xrbindP. move=> [re lte]. apply: add_iinfoP.
+    move=> /check_eP Hce [rv ltv]. apply: add_iinfoP. move=>Hcv [] _ <-. 
+    constructor.
+  Qed.
+
+  Local Lemma Hopn_WF : sem_Ind_opn p1 Pi_r.
+  Proof.
+    move => s1 s2 t o xs es lo. rewrite /sem_sopn.
+    t_xrbindP. move=> ves Hes vo Hex [vw vl] Hws <- <- /=.
+    rewrite /Pi_r. move=> ii r1 [] //= xs1 t' o1 es1 r2 lti. 
+    case: ifPn => //= /eqP _. t_xrbindP. move=> [yv yl]. apply: add_iinfoP.
+    move=> Hces [rv ltv]. apply: add_iinfoP. move=> Hcvs [] _ <-.
+    constructor.
+  Qed.
+
+  Local Lemma Hif_true_WF : sem_Ind_if_true p1 Pc Pi_r.
+  Proof.
+    move => s1 s2 e c1 c2 le lc.
+    case: s1 => sm1 svm1 Hve Hc Hc1 ii r1 [] //= e' c1' c2' r2 lti. 
+    t_xrbindP. move=> [re lte]. apply: add_iinfoP. 
+    t_xrbindP. move=> He /= -[rc ltc] /= Hc' -[rc' ltc'] Hc'' _ <-.
+    constructor. rewrite /Pc in Hc1. move: (Hc1 ii re c1' rc ltc Hc').
+    move=> Hwf. apply Hwf.
+  Qed.
+
+  Local Lemma Hif_false_WF : sem_Ind_if_false p1 Pc Pi_r.
+  Proof.
+    move => s1 s2 e c1 c2 le lc.
+    case: s1 => sm1 svm1 Hve Hc Hc1 ii r1 [] //= e' c1' c2' r2 lti. 
+    t_xrbindP. move=> [re lte]. apply: add_iinfoP. 
+    move=> He /= -[rc ltc] /= Hc' -[rc' ltc'] Hc'' _ <-.
+    constructor. rewrite /Pc in Hc1. move: (Hc1 ii re c2' rc' ltc' Hc'').
+    move=> Hwf. apply Hwf.
+  Qed.
+
+  Local Lemma Hwhile_true_WF : sem_Ind_while_true p1 Pc Pi_r.
+  Proof.
+    move => s1 s2 s3 s4 a c e c' lc le lc' li.
+    case: s2 => sm2 svm2 Hci Hc Hse Hci' Hc' Hwi Hw ii r1 [] //= a2 c2 e1 c2' r2 lti. 
+    t_xrbindP. move=> [r [[ltc lte] ltc']] /loop2P.
+    move=> [] r1' [] r2' [].
+    t_xrbindP. move=> [ri ltci] Hi [re lte']. apply: add_iinfoP.
+    move=> He [ri' ltci'] Hi' /= hi' /= hi'' /= <- <- <- h1 h2 h3 <-. 
+    constructor. rewrite /Pc /= in Hc. move: (Hc ii r1' c2 ri ltci Hi).
+    move=> Hwf. apply Hwf. 
+    rewrite /Pc /= in Hc'. move: (Hc' ii re c2' ri' ltci' Hi').
+    move=> Hwf. apply Hwf. rewrite /Pi_r in Hw.
+    have : check_i ii (Cwhile a c e c') (Cwhile a2 c2 e1 c2') r1' =
+           ok (re, LT_iwhile ltci lte' ltci').
+    + rewrite /= Loop.nbP /=. rewrite Hi /=. rewrite He /=. rewrite Hi' /=.
+      rewrite hi''. by rewrite h2 /=.
+    move=> Hw'. move: (Hw ii r1' (Cwhile a2 c2 e1 c2') re (LT_iwhile ltci lte' ltci') Hw')=> Hwf'.
+    apply Hwf'.
+  Qed.
+  
+  Local Lemma Hwhile_false_WF : sem_Ind_while_false p1 Pc Pi_r.
+  Proof.
+    move => s1 s2 a c e c' lc le.
+    case: s2 => sm2 svm2 Hci Hc Hse ii r1 [] //= a2 c2 e1 c2' r2 lti. 
+    t_xrbindP. move=> [r [[ltc lte] ltc']] /loop2P.
+    move=> [] r1' [] r2' []. t_xrbindP.
+    t_xrbindP. move=> [ri ltci] Hi [re lte']. apply: add_iinfoP.
+    move=> He [ri' ltci'] Hi' h1 h2 /= h3 /= h4 /= <- hi hi' h5 <- /=. 
+    constructor. rewrite /Pc /= in Hc.  move: (Hc ii r1' c2 ri ltci Hi).
+    move=> Hwf. rewrite -h3. apply Hwf.
+  Qed.
+
+  Local Lemma Hfor_WF : sem_Ind_for p1 Pi_r Pfor.
+  Proof.
+    move=> s1 s2 i [[d lo] hi] wr c lr lf.
+    case: s1 => sm1 svm1. rewrite /sem_range. t_xrbindP.
+    move=> [vle lle] Hle vi Hi [vhe lhe] Hhe vi' Hi' <- <- Hf Hfor.
+    move=> ii r1 [] //= i2 [[d' lo'] hi'] c2 r2 lti. 
+    case: eqP=> //= hd; subst d'. t_xrbindP.
+    move=> [r1' lte]. apply: add_iinfoP. move=> He.
+    move=> [r1'' lte']. apply: add_iinfoP. move=> He'.
+    move=> -[r1''' lte''].
+    move=> /loopP [r3] []; t_xrbindP. move=> [r3' lt3']; apply: add_iinfoP.
+    move=> Hcv Hcc /= Hr2'_r1' Hr2'_r3 Hr <-. constructor.
+    rewrite /Pfor in Hfor. rewrite /check_cmd in Hfor.
+    move: (Hfor i2 ii r1''' r3' lt3' c2 r3 lte'' Hcv Hcc Hr2'_r3). 
+    move=> Hwf. apply Hwf.
+  Qed.
+
+  Local Lemma Hfor_nil_WF : sem_Ind_for_nil Pfor.
+  Proof.
+    rewrite /sem_Ind_for_nil. rewrite /Pfor.
+    move=> s i c i2 ii r1 r1' c2 r2 r2' ltf Hcv Hc Hm.
+    constructor.
+  Qed.
+
+  Local Lemma Hfor_cons_WF : sem_Ind_for_cons p1 Pc Pfor.
+  Proof.
+    move=> s1 s1' s2 s3 i w ws c lc lf Hwi Hsc Hc Hsfor Hfor
+              i2 ii r1 r1' ltv c2 r2 ltf. 
+    move=> Hcv /= Hc' Hm. rewrite /Pc in Hc.
+    move: (Hc ii r1' c2 r2 ltf Hc'). move=> Hwf. constructor. apply Hwf.
+    rewrite /Pfor in Hfor. 
+    move: (Hfor i2 ii r1 r1' ltv c2 r2 ltf Hcv Hc' Hm). move=> Hwf'. 
+    apply Hwf'.
+  Qed.
+
+  Local Lemma Hcall_WF : sem_Ind_call p1 Pi_r Pfun.
+  Proof.
+    rewrite /sem_Ind_call. rewrite /Pi_r /=.
+    move=> s1 m2 s2 ii xs fn args vargs vs lf lw Hes Hsc Hfun Hw ii' r1 [] //= ii2 xs2 fn2
+              args2 r2 lti. 
+    case: eqP => //= H. case hlf : lf=> [fn' lfn]. rewrite hlf in Hfun.
+    t_xrbindP. move=> [res ltes]. apply: add_iinfoP.
+    move=> Hces [rvs ltvs]. apply: add_iinfoP. move=> Hcvs [] h1 <- /=.
+    apply sem_eq_fn in Hsc. rewrite -H. rewrite hlf /= in Hsc. rewrite Hsc. constructor.
+    rewrite /Pfun /= in Hfun. rewrite Hsc in Hfun. apply Hfun. 
+  Qed.
+
+  Local Lemma Hproc_WF : sem_Ind_proc p1 Pc Pfun.
+  Proof.
+   move=> m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hget Hca Hw Hs Hc Hres Hcr.
+   move: (all_checked' Hcheck Hget)=> -[fd2] [] ltc [] Hget2 [] Hcf Hleak.
+   move: Hcf. rewrite /=.
+   rewrite eq_refl /=; case: ifP => // /andP []. move=> /eqP htyin /eqP htyout.
+   apply: add_finfoP. t_xrbindP. move=> [r1 lt1]. apply: add_iinfoP=> Hcparams.
+   move=> [r2 lt2] Hcc. move=> [r3 lt3]. apply: add_iinfoP=> /= Hcres /= Hfn.
+   rewrite /Pc in Hc. 
+   move: (Hc (f_iinfo f) r1 (f_body fd2) r2 lt2 Hcc). move=> Hwf.
+   rewrite /Pfun /=. rewrite /get_leak in Hleak. rewrite /= in Hleak.
+   rewrite Hfn in Hwf.
+   have -> : (leak_Fun Fs fn) = lt2. 
+   + by rewrite /leak_Fun Hfn Hleak. by rewrite Hfn.
+  Qed.
+
+End PROOF_WF. 
+
 Section REFL.
 
 Context (check_eP_id : forall e1 e2 r rlte stk l,
