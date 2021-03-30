@@ -35,11 +35,10 @@ let rec pp_il fmt =
   let p s = fprintf fmt "%s" s in
   let aux fmt ils = pp_list ";@." pp_il fmt ils in
   function
-  | LT_ilremove -> p "ilremove"
   | LT_ilkeep -> p "ilkeep"
   | LT_ilkeepa -> p "ilkeepa"
-  | LT_ilcond_0 (e, f) -> fprintf fmt "cond0(%a, %a)" pp_e_tr e aux f
-  | LT_ilcond_0' (e, f) -> fprintf fmt "cond0'(%a, %a)" pp_e_tr e aux f
+  | LT_ilcond_0 (b, e, f) -> fprintf fmt "cond0(%a, %a, %a)" pp_bool b pp_e_tr e aux f
+  | LT_ilcond_0' (b, e, f) -> fprintf fmt "cond0'(%a, %a, %a)" pp_bool b pp_e_tr e aux f
   | LT_ilcond (e, f, g) -> fprintf fmt "cond(%a, %a, %a)" pp_e_tr e aux f aux g
   | LT_ilwhile_c'0 (_a, body) -> fprintf fmt "while0(%a)" aux body
   | LT_ilwhile_f body -> fprintf fmt "whileF(%a)" aux body
@@ -64,18 +63,13 @@ let pp_i tbl fmt =
   | LT_iwhilel(a, b, c, d) -> fprintf fmt "iwhilel(TODO, %a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_iremove -> p "iremove"
   | LT_icopn e -> p "icopn(TODO)"
-  | LT_ilmov1 -> p "ilmov1"
-  | LT_ildcn -> p "ildcn"
   | LT_ilmul (a, b) -> fprintf fmt "ilmul(TODO, %a)" pp_e_tr b
-  | LT_ilcopn e -> p "ilcopn(TODO)"
   | LT_ilfopn (e, f) -> p "ilfopn(TODO, TODO)"
-  | LT_ilinc e -> p "ilinc(TODO)"
   | LT_icondl (a, b, c, d) -> fprintf fmt "icondl(TODO, %a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_ilif (a, b) -> fprintf fmt "ilif(TODO, %a)" pp_e_tr b
-  | LT_ileq a -> p "ileq(TODO)"
-  | LT_illt a -> p "illt(TODO)"
   | LT_ildiv (a, b) -> fprintf fmt "ildiv(%a, TODO)" pp_i a
   | LT_isingle a -> p "isingle(TODO)"
+  | LT_idouble a -> p "idouble(TODO)"
   in pp_i fmt
 
 let pp_funs pp_one tbl fmt =
