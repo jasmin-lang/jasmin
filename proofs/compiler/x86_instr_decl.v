@@ -1595,7 +1595,7 @@ Definition Ox86_VPERMD_instr :=
                   sz
                   (no_imm sz)
                   [::]
-                  (pp_iname "vpermd" sz)
+                  (pp_name "vpermd" sz)
                 ,("VPERMD"%string, PrimP U256 VPERMD)
   ).
 
@@ -1618,10 +1618,10 @@ Definition Ox86_VPCMPGT_instr :=
   ).
 
 Definition Ox86_POPCNT_instr :=
-  mk_instr_w_b5w "POPCNT" x86_POPCNT msb_dfl [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) no_imm (primP POPCNT) (pp_iname "popcnt").
+  mk_instr_w_b5w "POPCNT" x86_POPCNT msb_dfl [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) no_imm (primP POPCNT) (pp_name "popcnt").
 
 Definition Ox86_PEXT_instr :=
-  mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm true]]) no_imm (primP PEXT) (pp_iname "pext").
+  mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm true]]) no_imm (primP PEXT) (pp_name "pext").
 
 Definition instr_desc o : instr_desc_t :=
   match o with

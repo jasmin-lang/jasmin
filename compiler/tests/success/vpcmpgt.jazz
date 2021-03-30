@@ -1,5 +1,5 @@
 export
-fn test_pcmpgt(reg u64 tmp) {
+fn test_vpcmpgt(reg u64 tmp) {
   reg u256 x y z;
   reg u128 i j k;
 
@@ -10,8 +10,8 @@ fn test_pcmpgt(reg u64 tmp) {
 
   i = #set0_128();
   j = #set0_128();
-  z = #VPCMPGT_4u32(i, j);
+  k = #VPCMPGT_4u32(i, j);
   (u128)[tmp + 32] = k;
 
-  (u256)[tmp + 48] = #VPCMPGT_8u32(x, y);
+  z = #VPCMPGT_8u32(x, y);
 }

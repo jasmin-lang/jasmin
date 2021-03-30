@@ -8,5 +8,4 @@ fn test_vpermd(reg u64 tmp)
 
   t0 = #VPERMD_256(t0, t1);
   (u256)[tmp] = t0;
-  (u256)[tmp + 32] = #VPERMD_256(t0, t1);
 }

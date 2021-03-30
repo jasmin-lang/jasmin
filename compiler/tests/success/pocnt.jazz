@@ -1,0 +1,11 @@
+export
+fn test_popcnt16(){
+}
+
+export
+fn test_popcnt32(){
+}
+
+export
+fn test_popcnt64(){
+}
