@@ -611,7 +611,7 @@ Section WF_PROOF.
     case: (dead_code_c dead_code_i c sv3) => [[[sv2 c'] lc']|//] Hc' /=.
     have := Hi sv2.
     case: (dead_code_i i sv2)=> [[[sv1 i'] li']|] //= Hwf. 
-    econstructor. by apply Hwf.
+    econstructor. by apply Hwf. by apply Hc'.
   Qed.
 
   Local Lemma Hassgn_WF : sem_Ind_assgn p Pi_r.
@@ -712,7 +712,8 @@ Section WF_PROOF.
     case Heq: (dead_code_c dead_code_i c sv0) =>[[[sv1 sc1] lc1]|] //=.
     move: Hc=> /(_ sv0).
     rewrite Heq. move=> Hwf.
-    econstructor. apply Hwf.
+    econstructor. apply Hwf. rewrite /Pfor in Hfor.
+    move: (Hfor sv0). rewrite Heq /=. move=> Hwf'. apply Hwf'.
   Qed.
 
   Local Lemma Hcall_WF : sem_Ind_call p Pi_r Pfun.

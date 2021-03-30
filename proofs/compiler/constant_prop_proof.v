@@ -3233,7 +3233,8 @@ Section PROOF.
     case heqc : const_prop => [mc ltc]; case: mc heqc => mc cc heqc.
     split. rewrite /=. rewrite /Pc in Hci. rewrite /Pi in Hpi.
     move: (Hpi m hvm). rewrite heqi /=. move=> [] Hwf [] hvm2 Hpi'.
-    econstructor. apply Hwf.
+    econstructor. apply Hwf. move: (Hci mi hvm2). move=> [] Hwfs' H.
+    rewrite heqc /= in Hwfs'. apply Hwfs'.
     move: (Hpi m hvm). rewrite heqi /=. move=> [] Hwf [] hvm2 Hpi'.
     move: (Hci mi hvm2). move=> [] Hwf' [] Hvm' H. split=> //. 
     by rewrite heqc in Hvm'.
@@ -3510,7 +3511,11 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
       have -> := valid_cpm_m (refl_equal (evm s1')) Hmi.
       by apply: remove_cpm1P Hw Hm.
     have := Hc _ Hm'. move=> [] Hwf [] Hvm2 Hc'.
-    split. econstructor. apply Hwf.
+    split. econstructor. apply Hwf. rewrite /Pfor in Hf. 
+    have /(Hf _ Heqm) [Hwfs Hc'']: valid_cpm (evm s2) m.
+    + have -> := valid_cpm_m (refl_equal (evm s2)) Heqm.
+      apply: valid_cpm_rm Hm'=> z Hz;apply: (writeP Hsemc);SvD.fsetdec.
+    apply Hwfs.
     move=> vm1 hvm1.
     have /(Hf _ Heqm) [Hwfs Hc'']: valid_cpm (evm s2) m.
     + have -> := valid_cpm_m (refl_equal (evm s2)) Heqm.

@@ -207,38 +207,6 @@ Section PROOF.
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
-  (*Lemma unroll_callCT f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf:
-    sem_call p mem1 f va1 lf mem1' vr1 ->
-    sem_call p mem2 f va2 lf mem2' vr2 ->
-    sem_call p' mem1 f va1 (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem1' vr1 /\
-    sem_call p' mem2 f va2 (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem2' vr2.
-  Proof.
-  move=> Hm1 Hm2. split.
-  + by apply: unroll_callP.
-  by apply: unroll_callP.
-  Qed.
-
-  Lemma unroll_callCTP P f:
-  constant_time P p f ->
-  constant_time P p' f.
-  Proof.
-  move=> Hc mem1 mem2 va1 va2 Hp.
-  move: (Hc mem1 mem2 va1 va2 Hp). move=> [mem1'] [mem2'] [vr1] [vr2] [lf] [Hm1] Hm2.
-  move: unroll_callCT. move=> Hct. move: (Hct f mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf Hm1 Hm2). move=> [Hm1'] Hm2'.
-  exists mem1'. exists mem2'. exists vr1. exists vr2. exists (lf.1,
-           leak_Is (leak_I (leak_Fun Fs)) stk 
-             (leak_Fun Fs lf.1) lf.2). by split.
-  Qed.*)
-
-  (*Lemma unroll_callCTP' P f:
-  constant_time P p f ->
-  constant_time P p' f.
-  Proof.
-  rewrite /constant_time.
-  move=> Hc. move=> mem1 mem2 mem1' mem2' va1 va2 vr1 vr2 lf1 lf2 Hm1 Hm2 Hp.
-  (* we need opposite of unroll_callP --- saying that if semantics exists in unrolling pass then semantics also exist in source *)
-  Admitted.*)
-
 End PROOF.
 
  Lemma unroll_callP : forall (p : prog) (stk : u64),
@@ -251,3 +219,130 @@ End PROOF.
  move=> p' Fs. apply unroll_callP_aux; first by auto.
  by case: (unroll_prog p').
  Qed.
+
+Section WF_PROOF.
+
+  Variable p p': prog.
+  Variable Fs: seq (funname * seq leak_i_tr).
+  Variable stk: pointer.
+  Notation gd := (p_globs p).
+
+  Hypothesis (p'_def : p' = (unroll_prog p).1).
+
+  Hypothesis (Fs_def : Fs = (unroll_prog p).2).
+
+  Hypothesis unroll_prog_ok : unroll_prog p = (p', Fs).
+
+  Let Pi_r (s:estate) (i:instr_r) (li: leak_i) (s':estate) :=
+    forall ii, leak_WF (leak_Fun Fs) (unroll_i (MkI ii i)).2 li.
+
+  Let Pi (s:estate) (i:instr) (li: leak_i) (s':estate) :=
+    leak_WF (leak_Fun Fs) (unroll_i i).2 li.
+
+  Let Pc (s:estate) (c:cmd) (lc: leak_c) (s':estate) :=
+    leak_WFs (leak_Fun Fs) (unroll_cmd unroll_i c).2 lc.
+
+  Let Pfor (i:var_i) (vs:seq Z) (s:estate) c lf (s':estate) :=
+    leak_WFss (leak_Fun Fs) (unroll_cmd unroll_i c).2 lf.
+    
+  Let Pfun (m1:mem) (fn:funname) (vargs:seq value) lf (m2:mem) (vres:seq value) :=
+    leak_WFs (leak_Fun Fs) (leak_Fun Fs lf.1) lf.2.
+
+  Local Lemma Hskip_WF : sem_Ind_nil Pc.
+  Proof. constructor. Qed.
+
+  Local Lemma Hcons_WF : sem_Ind_cons p Pc Pi.
+  Proof.
+    move=> s1 s2 s3 i c li lc Hsi Hi Hsc Hc.
+    rewrite /Pc. econstructor. rewrite /Pi in Hi.
+    apply Hi. apply Hc.
+  Qed.
+
+  Local Lemma HmkI_WF : sem_Ind_mkI p Pi_r Pi.
+  Proof. move=> ii i s1 s2 li _ Hi ; exact: Hi. Qed.
+
+  Local Lemma Hassgn_WF : sem_Ind_assgn p Pi_r.
+  Proof.
+    move=> s1 s2 x tag ty e v v' le lw hv  hv' hw ii /=.
+    constructor.
+  Qed.
+
+  Local Lemma Hopn_WF : sem_Ind_opn p Pi_r.
+  Proof.
+    move=> s1 s2 t o xs es lo Hw ii.
+    constructor.
+  Qed.
+
+  Local Lemma Hif_true_WF : sem_Ind_if_true p Pc Pi_r.
+  Proof.
+    move=> s1 s2 e c1 c2 le lc Hb Hsc Hc ii /=.
+    constructor. rewrite /Pc in Hc. apply Hc.
+  Qed.
+
+  Local Lemma Hif_false_WF : sem_Ind_if_false p Pc Pi_r.
+  Proof.
+    move=> s1 s2 e c1 c2 le lc Hb Hsc Hc ii /=.
+    constructor. rewrite /Pc in Hc. apply Hc.
+  Qed.
+
+  Local Lemma Hwhile_true_WF : sem_Ind_while_true p Pc Pi_r.
+  Proof.
+    move=> s1 s2 s3 s4 a c e c' lc le lc' li Hsc Hc Hb Hsc' Hc' Hsi Hi ii /=.
+    constructor. rewrite /Pc in Hc. apply Hc.
+    rewrite /Pc in Hc'. apply Hc'.
+    move: Hi. move=> /(_ ii) /= Hwf. apply Hwf.
+  Qed.
+
+  Local Lemma Hwhile_false_WF : sem_Ind_while_false p Pc Pi_r.
+  Proof.
+   move=> s1 s2 a c e c' lc le Hsc Hc Hb ii /=.
+   constructor. rewrite /Pc in Hc. apply Hc.
+  Qed.
+
+  Local Lemma Hfor_WF : sem_Ind_for p Pi_r Pfor.
+  Proof.
+    move=> s1 s2 i [[d lo] hi] wr c lr lf Hwr Hc.
+    rewrite /Pfor /Pi_r. move=> Hwf ii /=.
+    case hlo : (is_const lo) => //= [nlo |].
+    case hhi : (is_const hi) => //= [nhi |].
+    + rewrite /=. admit.
+    + constructor. apply Hwf.
+    constructor. apply Hwf.
+  Admitted.
+
+  Local Lemma Hfor_nil_WF : sem_Ind_for_nil Pfor.
+  Proof.
+    move => s i c. rewrite /Pfor.
+    constructor.
+  Qed.
+
+  Local Lemma Hfor_cons_WF : sem_Ind_for_cons p Pc Pfor.
+  Proof.
+    move=> s1 s1' s2 s3 i w ws c lc lf Hw Hsc Hc Hsfor /=. rewrite /Pfor /=.
+    move=> Hfor. econstructor. rewrite /Pc in Hc. apply Hc. apply Hfor.
+  Qed.
+
+  Local Lemma Hcall_WF : sem_Ind_call p Pi_r Pfun.
+  Proof.
+    move=> s1 m2 s2 ii xs fn args vargs vs lf lw Hexpr Hcall Hfun Hw ii' /=.
+    rewrite /Pfun /= in Hfun.
+    case hlf: (lf) => [fn' fd']. apply sem_eq_fn in Hcall. 
+    rewrite hlf /= in Hcall. rewrite -Hcall. constructor. 
+    rewrite hlf /= in Hfun. apply Hfun. 
+  Qed.
+
+  Local Lemma Hproc_WF : sem_Ind_proc p Pc Pfun.
+  Proof.
+    move => m1 m2 fn f vargs vargs' s1 vm2 vres vres' lc Hfun htra Hw Hsem Hc Hres Hfull /=.
+    have dcok : map_prog_leak unroll_fun (p_funcs p) = ((p_funcs p'), Fs).
+    move: unroll_prog_ok; rewrite /unroll_prog. by move=> [] <- <- /=.
+    move:(get_map_prog_leak dcok Hfun). move=> [] f' [] lt [] Hf /= Hfun' /= Hlt.
+    case: (f) Hf (Hfun) htra Hw Hsem Hc Hres Hfull.
+    move=> fi fin fp /= c fo fres Hf'1 Hfun'' htra Hw Hsem Hc Hres Hfull.
+    rewrite Hfun in Hfun''. case: Hfun''=> Hfun''. case: Hf'1=> Hf'11 Hf'12.
+    rewrite /Pfun /=. rewrite /Pc in Hc. rewrite /get_leak in Hlt.
+    rewrite -Hf'12 in Hlt. replace (leak_Fun Fs fn) with (unroll_cmd unroll_i c).2.
+    apply Hc. rewrite /leak_Fun. by rewrite Hlt /=.
+  Qed.
+
+End WF_PROOF.

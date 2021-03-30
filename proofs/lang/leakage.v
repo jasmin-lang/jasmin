@@ -625,7 +625,7 @@ with leak_WFs : seq leak_i_tr -> leak_c -> Prop :=
  | WF_seq : forall li lc lt1 lt1',
             leak_WF lt1 li ->
             leak_WFs lt1' lc ->
-            leak_WFs lt1' (li::lc)
+            leak_WFs (lt1 :: lt1') (li::lc)
 
 with leak_WFss : seq leak_i_tr -> seq leak_c -> Prop :=
  | WF_empty' : forall lt, leak_WFss lt [::]
