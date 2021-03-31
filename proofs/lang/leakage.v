@@ -679,8 +679,8 @@ Inductive leak_i_il_tr : Type :=
   (*| LT_ilremove : leak_i_il_tr*)
   | LT_ilkeep : leak_i_il_tr
   | LT_ilkeepa : leak_i_il_tr
-  | LT_ilcond_0 : bool -> leak_e_tr -> seq leak_i_il_tr -> leak_i_il_tr (*c1 is empty*)
-  | LT_ilcond_0' : bool -> leak_e_tr -> seq leak_i_il_tr -> leak_i_il_tr (*c2 is empty*)
+  | LT_ilcond_0 : leak_e_tr -> seq leak_i_il_tr -> leak_i_il_tr (*c1 is empty*)
+  | LT_ilcond_0' : leak_e_tr -> seq leak_i_il_tr -> leak_i_il_tr (*c2 is empty*)
   | LT_ilcond : leak_e_tr -> seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i_il_tr (* c1 and c2 are not empty *)
   | LT_ilwhile_c'0 : align -> seq leak_i_il_tr -> leak_i_il_tr
   | LT_ilwhile_f : seq leak_i_il_tr -> leak_i_il_tr
@@ -733,12 +733,12 @@ Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : 
   | LT_ilkeep, Lopn le => 
     [:: Lopnl le]
 
-  | LT_ilcond_0 b_ lte lti, Lcond le b lis => 
+  | LT_ilcond_0 lte lti, Lcond le b lis => 
     [:: Lcondl (leak_E stk lte le) b] ++ 
     if b then [::] 
     else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty]
 
-  | LT_ilcond_0' b_ lte lti, Lcond le b lis => 
+  | LT_ilcond_0' lte lti, Lcond le b lis => 
     [:: Lcondl (leak_E stk lte le) (negb b)] ++ 
     if negb b then [::] 
     else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty]
@@ -764,13 +764,17 @@ Definition leak_f_lf_tr := seq (funname * seq leak_i_il_tr).
 
 Inductive leak_i_WF : leak_i_il_tr -> leak_i -> Prop :=
 | LT_ilkeepaWF : forall le, leak_i_WF LT_ilkeepa (Lopn le)
-| LT_ilkeepWF : forall le, leak_i_WF LT_ilkeepa (Lopn le)
-| LT_ilcond_0WF : forall le b lis lte lti,
+| LT_ilkeepWF : forall le, leak_i_WF LT_ilkeep (Lopn le)
+| LT_ilcond_0tWF : forall le lis lte lti,
+                  leak_i_WF (LT_ilcond_0 lte lti) (Lcond le true lis)
+| LT_ilcond_0fWF : forall le lis lte lti,
                   leak_i_WFs lti lis ->
-                  leak_i_WF (LT_ilcond_0 b lte lti) (Lcond le b lis)
-| LT_icond_0WF' : forall le b lis lte lti,
+                  leak_i_WF (LT_ilcond_0 lte lti) (Lcond le false lis)
+| LT_icond_0tWF' : forall le lis lte lti,
                   leak_i_WFs lti lis ->
-                  leak_i_WF (LT_ilcond_0 b lte lti) (Lcond le b lis)
+                  leak_i_WF (LT_ilcond_0' lte lti) (Lcond le true lis)
+| LT_icond_0fWF' : forall le lis lte lti,
+                  leak_i_WF (LT_ilcond_0' lte lti) (Lcond le false lis)
 | LT_ilcondtWF : forall lte lti lti' le lis,
                 leak_i_WFs lti lis ->
                 leak_i_WF (LT_ilcond lte lti lti') (Lcond le true lis)

@@ -1762,15 +1762,15 @@ Fixpoint transform_cost_IL (lt: leak_i_il_tr) (sl: lbl) : Sm.t * nat :=
  | LT_ilkeep => (Sm.single 0 sl 1, 1)
    (* if e then [::] else c2 --> Licond e L1; c2; Lilable L1 *)
    (* if e is true then Lilable L1 else c2; Lilable L1 *)
- | LT_ilcond_0 b lte lti => 
+ | LT_ilcond_0 lte lti => 
    let  m  := transform_opn 2 sl 1  in
-   let mn := transform_cost_CL transform_cost_IL lti (lbl_b b sl) in 
+   let mn := transform_cost_CL transform_cost_IL lti (lbl_f sl) in 
    (m, 2) 
    (* can we ignore Lilable because it doesn't produce any leakage? *)
    (* if e then c1 else [::] --> Licond e L1; c1; Lilable L1 *)
- | LT_ilcond_0' b lte lti =>
+ | LT_ilcond_0' lte lti =>
    let  m  := transform_opn 2 sl 1 in
-   let mn := transform_cost_CL transform_cost_IL lti (lbl_b b sl) in  
+   let mn := transform_cost_CL transform_cost_IL lti (lbl_t sl) in  
    (m, 2)
    (* if e then c1 else c2 --> Licond e L1; c2; Ligoto L2; Lilabel L1; c1; Lilabel L2 *)
  | LT_ilcond lte lti lti' => 

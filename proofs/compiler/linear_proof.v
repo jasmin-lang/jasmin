@@ -1181,3 +1181,271 @@ Section PROOF.
 
 End PROOF.
 
+Section PROOF_WF.
+
+  Variable p:  sprog.
+  Context (gd: glob_decls).
+  Variable p': lprog.
+  Variable stk : pointer.
+  Variable Fs : seq(funname * seq leak_i_il_tr).
+  Hypothesis linear_ok : linear_prog p = ok (p', Fs).
+
+  Let Pi (i:instr) :=
+    forall lbl lbli li lti, linear_i i lbl [::] = ok (lbli, li, lti) ->
+    [/\ (lbl <=? lbli)%positive,
+     valid lbl lbli li &
+     forall s1 s2 l, S.sem_I p gd s1 i l s2 ->
+     leak_i_WF lti l].
+
+  Let Pi_r (i:instr_r) :=
+    forall ii lbl lbli li lti, linear_i (MkI ii i) lbl [::] = ok (lbli, li, lti) ->
+    [/\ (lbl <=? lbli)%positive,
+     valid lbl lbli li &
+     forall s1 s2 l, S.sem_i p gd s1 i l s2 ->
+       leak_i_WF lti l].
+
+  Let Pc (c:cmd) :=
+    forall lbl lblc lc ltc, linear_c linear_i c lbl [::] = ok (lblc, lc, ltc) ->
+    [/\ (lbl <=? lblc)%positive,
+     valid lbl lblc lc &
+     forall s1 s2 l, S.sem p gd s1 c l s2 ->
+       leak_i_WFs ltc l].
+
+  Let HmkI_WF : forall i ii, Pi_r i -> Pi (MkI ii i).
+  Proof.
+    move=> i ii Hi_r lbl lbli li lti Hli.
+    move: Hi_r=> /(_ ii lbl lbli li lti Hli) [H1 H2 H3]; split=> //.
+    move=> s1 s2 l /S.sem_IE; apply H3.
+  Qed.
+
+  Let Hskip_WF : Pc [::].
+  Proof.
+    move=> lbl lbli li ltc /= [] <- <-;split=> //. apply Pos.leb_refl.
+    move=> s1 s2 l /S.semE [] _ ->. rewrite -H. 
+    constructor. 
+  Qed.
+
+  Let Hseq_WF : forall i c,  Pi i -> Pc c -> Pc (i::c).
+  Proof.
+    move=> i c Hi Hc lbl lbl' l ltc /=.
+    case Heqc : linear_c => [[[lblc lc] ltc']|] //=.
+    rewrite /Pc in Hc. move: (Hc lbl lblc lc ltc' Heqc).
+    move=> {Hc} [] Hle1 Hvc Hc.
+    rewrite linear_i_nil.
+    case Heqi: linear_i => [[[lbli li] lti]|] //= [] h1 h2 h3 ;subst lbl' l ltc.
+    rewrite /Pi in Hi. move: (Hi lblc lbli li lti Heqi).
+    move=> {Hi} [] Hle2 Hvi Hi; split.
+    + by apply /P_leP;move/P_leP: Hle1;move/P_leP: Hle2=> ??;omega.
+    + by rewrite valid_cat (valid_le_min Hle1 Hvi) (valid_le_max Hle2 Hvc).
+    move=> -[m1 vm1] s2 l /S.semE [[m2 vm2]] [li'] [lc'] [] Hi' Hc' ->.
+    constructor.  move: (Hi  {| emem := m1; evm := vm1 |}  {| emem := m2; evm := vm2 |} li' Hi').
+    move=> Hwf. apply Hwf. move: (Hc {| emem := m2; evm := vm2 |} s2 lc' Hc').
+    move=> Hwf'. apply Hwf'.
+  Qed.
+
+  Let Hassgn_WF : forall x tag ty e, Pi_r (Cassgn x tag ty e).
+  Proof.
+    move=> x tag [] // sz e ii lbl lbl' l ltc /= [] <- <- <-;rewrite Pos.leb_refl; split => //.
+    move=> -[m1 vm1] s2 l' /S.sem_iE' [v] [v'] [le] [lw] [ok_v].
+    apply: rbindP => w /of_val_word [sz'] [w'] [hle h1 h2]; subst v w => - [<-] {v'} ok_s2 ->.
+    constructor. 
+  Qed.
+
+  Let Hopn_WF : forall xs t o es, Pi_r (Copn xs t o es).
+  Proof.
+    move=> x t' e tag ii lbl lbl' l' lti [] <- <- <-;rewrite Pos.leb_refl;split=>//.
+    move=> -[m1 vm1] s2 l /S.sem_iE' [] lo [] ok_s2 ->. constructor.
+  Qed.
+
+  Let Hif_WF   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi_r (Cif e c1 c2).
+  Proof.
+    move=> e c1 c2 Hc1 Hc2 ii lbl lbl' l' lti /=.
+    case Heq1: (c1)=> [|i1 l1].
+    (* case1: Cif e [::] c2 *) (* finished *)
+    + subst;rewrite linear_c_nil;case Heq: linear_c => [[[lbl2 lc2] ltc2]|] //= [] <- <- <-.
+      have Hlen := le_next lbl.
+      have [Hle Hv2 Hs2]:= Hc2 _ _ _ _ Heq;split.
+      + by apply: Pos_leb_trans Hle.
+      + rewrite /= valid_cat Pos.leb_refl (valid_le_min Hlen Hv2) /= Pos.leb_refl.
+        by rewrite (Pos_lt_leb_trans (lt_next _) Hle).
+      move => [m1 vm1] s2 l /S.sem_iE' [b] [le] [lc] [ok_b ok_s2] ->.
+      case: b ok_b ok_s2 => ok_b ok_s2.
+      constructor. constructor. move: (Hs2 {| emem := m1; evm := vm1 |} s2 lc ok_s2).
+      move=> Hwf. apply Hwf.
+    rewrite -Heq1 => {Heq1 l1 i1};case Heq2: c2 => [|i2 l2].
+    (* case 2: Cif e c1 [::] *)
+    + subst; rewrite linear_c_nil. case Heq: linear_c=> [[[lbl1 lc1] ltc1]|] //= [] <- <- <-.
+      have Hlen := le_next lbl.
+      have [Hle Hv1 Hs1]:= Hc1 _ _ _ _ Heq;split.
+      + by apply: Pos_leb_trans Hle.
+      rewrite /= valid_cat Pos.leb_refl (valid_le_min Hlen Hv1) /= Pos.leb_refl.
+      by rewrite (Pos_lt_leb_trans (lt_next _) Hle).
+      case => m1 vm1 s2 l /S.sem_iE' [b] [le] [lc]; case: b => ok_b.
+      case: ok_b.
+      (* true case *)
+      + move => ok_e ok_s2 ->. constructor. move: (Hs1  {| emem := m1; evm := vm1 |} s2 lc ok_s2).
+        move=> Hwf. apply Hwf. 
+      (* false case *)
+      case: ok_b. move=> ok_e /S.semE [] _ _ ->. constructor. 
+    (* case 3: Cif e c1 c2 *)
+    rewrite -Heq2 => {Heq2 l2 i2}.
+    rewrite linear_c_nil;case Heq1: linear_c => [[[lbl1 lc1] ltc1]|] //=.
+    rewrite linear_c_nil;case Heq2: linear_c => [[[lbl2 lc2] ltc2]|] //= [] <- <- <-.
+    have leL1 := le_next lbl; have leL2 := le_next (next_lbl lbl).
+    have [Hle1 Hv1 Hs1]:= Hc1 _ _ _ _ Heq1;have [Hle2 Hv2 Hs2]:= Hc2 _ _ _ _ Heq2.
+    have L2lbl2 := Pos_leb_trans Hle1 Hle2.
+    have L1lbl2 := Pos_leb_trans leL2 L2lbl2.
+
+    have lblL2 := Pos_leb_trans leL1 leL2.
+    have lbllbl1 := Pos_leb_trans lblL2 Hle1;split.
+    + by apply: Pos_leb_trans Hle2.
+    + rewrite /= valid_cat /= valid_cat /=.
+      rewrite Pos.leb_refl leL1 (Pos_lt_leb_trans (lt_next lbl) L1lbl2).
+      rewrite (Pos_lt_leb_trans (lt_next _) L2lbl2).
+      by rewrite (valid_le_min _ Hv2) // (valid_le_max Hle2 (valid_le_min lblL2 Hv1)).
+    move=> [m1 vm1] s2 l /S.sem_iE' [b] [lc] [lc'] [].
+    move=> He Hc ->.
+    case: b He Hc => ok_b ok_s2. constructor. move: (Hs1 {| emem := m1; evm := vm1 |} s2 lc' ok_s2).
+    move=> Hwf. apply Hwf.
+    constructor. move: (Hs2 {| emem := m1; evm := vm1 |} s2 lc' ok_s2).
+    move=> Hwf. apply Hwf.
+   Qed.
+
+  Let Hfor_WF : forall v dir lo hi c, Pc c -> Pi_r (Cfor v (dir, lo, hi) c).
+  Proof. by []. Qed.
+
+  Let Hwhile_WF : forall a c e c', Pc c -> Pc c' -> Pi_r (Cwhile a c e c').
+  Proof.
+    move=> a c e c' Hc Hc' ii lbl lbli li lti /=.
+    set ι := MkLI ii.
+    case: is_boolP => [[] | {e} e].
+    + case: c' Hc' => [ _ | i c' ].
+    (* c' is [::]*)
+    (* when c' = [::] *)
+    (* align; Lilabel L1; c ; Licond e L1 *)
+    (* Depending on e we will repeat c till e becomes false *)
+    + rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc']|] //= x; apply ok_inj in x.
+      case/xseq.pair_inj: x => h1 <-; case: h1=> h1' h1''; subst lbli li.
+      have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ _ Heqc.
+      have leL1 := le_next lbl.
+      have ltL1 := lt_next lbl.
+      have Hle2 := Pos_leb_trans leL1 Hle1.
+      have Hlt := Pos_lt_leb_trans ltL1 Hle1.
+      split => //.
+      + by rewrite valid_add_align /= valid_cat /= Pos.leb_refl Hlt (valid_le_min _ Hvc).
+      move=> s1 s2 li H. constructor. 
+    (* last case: c' is not empty *)
+    move: (i :: c') => { i c' } c' Hc'.
+    rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc]|] //=.
+    have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ _ Heqc.
+    rewrite linear_c_nil.
+    case Heq:linear_c => [[[lblc' lc'] ltc']|] //= [] ??;subst lbli li; move=> <- /=.
+    have leL1 := le_next lbl; have leL2 := le_next (next_lbl lbl).
+    have lblL2 := Pos_leb_trans leL1 leL2.
+    have lblcL2 := Pos_leb_trans lblL2 Hle1.
+    have {Heq} [Hle Hv Hs]:= Hc' _ _ _ _ Heq;split.
+    + apply: (Pos_leb_trans lblL2).
+      by apply: (Pos_leb_trans Hle1).
+    + rewrite /= valid_add_align /= valid_cat /= Pos.leb_refl leL1 (valid_le_min _ Hv) //.
+      rewrite (Pos_lt_leb_trans (lt_next _)).
+      rewrite (Pos_lt_leb_trans _ Hle) /=.
+      rewrite valid_cat /= leL1 /=.
+      rewrite (valid_le_max Hle) /=.
+      rewrite (Pos_lt_leb_trans (lt_next _)) //.
+      rewrite (Pos_leb_trans Hle1) //.
+      rewrite (valid_le_min _ Hvc) //.
+      rewrite (Pos_lt_leb_trans (lt_next _)) //.
+      rewrite (Pos_leb_trans _ Hle) //.
+      rewrite (Pos_leb_trans leL2 Hle1) //.
+    move=> s1 s2 li H. constructor. 
+    (* case 2: when e is false *) 
+    + rewrite linear_c_nil; case Heqc' : linear_c => [[[lblc' lc'] ltc]|] //=.
+      move: Hc. rewrite /Pc. 
+      move=> Hc. move: (Hc lbl lblc' lc' ltc Heqc'). move=> [] H1 H2 H3.
+      move=> [] <- <- <-; split.
+      + auto.
+      + rewrite cats0. apply H2.
+      + move=> s1 s2 l /S.sem_iE' [si] [b] [lc] [le] [Hs] //=.
+        move=> [] [] <- <- [] _ -> /=. constructor.
+        move: (H3 s1 si lc Hs). move=> Hwf. apply Hwf.
+    (* last case *)
+    case: c' Hc' => [ _ | i c' ].
+    (* c' is [::]*)
+    (* when c' = [::] *)
+    (* align; Lilabel L1; c ; Licond e L1 *)
+    (* Depending on e we will repeat c till e becomes false *)
+    + rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc']|] //= x; apply ok_inj in x.
+      case/xseq.pair_inj: x => h1 <-; case: h1=> h1' h1''; subst lbli li.
+      have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ _ Heqc.
+      have leL1 := le_next lbl.
+      have ltL1 := lt_next lbl.
+      have Hle2 := Pos_leb_trans leL1 Hle1.
+      have Hlt := Pos_lt_leb_trans ltL1 Hle1.
+      split => //.
+      + by rewrite valid_add_align /= valid_cat /= Pos.leb_refl Hlt (valid_le_min _ Hvc).
+      move=> s1 s2 li H. constructor. 
+    (* last case: c' is not empty *)
+    move: (i :: c') => { i c' } c' Hc'.
+    rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc]|] //=.
+    have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ _ Heqc.
+    rewrite linear_c_nil.
+    case Heq:linear_c => [[[lblc' lc'] ltc']|] //= [] ??;subst lbli li; move=> <- /=.
+    have leL1 := le_next lbl; have leL2 := le_next (next_lbl lbl).
+    have lblL2 := Pos_leb_trans leL1 leL2.
+    have lblcL2 := Pos_leb_trans lblL2 Hle1.
+    have {Heq} [Hle Hv Hs]:= Hc' _ _ _ _ Heq;split.
+    + apply: (Pos_leb_trans lblL2).
+      by apply: (Pos_leb_trans Hle1).
+    + rewrite /= valid_add_align /= valid_cat /= Pos.leb_refl leL1 (valid_le_min _ Hv) //.
+      rewrite (Pos_lt_leb_trans (lt_next _)).
+      rewrite (Pos_lt_leb_trans _ Hle) /=.
+      rewrite valid_cat /= leL1 /=.
+      rewrite (valid_le_max Hle) /=.
+      rewrite (Pos_lt_leb_trans (lt_next _)) //.
+      rewrite (Pos_leb_trans Hle1) //.
+      rewrite (valid_le_min _ Hvc) //.
+      rewrite (Pos_lt_leb_trans (lt_next _)) //.
+      rewrite (Pos_leb_trans _ Hle) //.
+      rewrite (Pos_leb_trans leL2 Hle1) //.
+    move=> s1 s2 li H. constructor. 
+  Qed.
+
+  Let Hcall_WF : forall i xs f es, Pi_r (Ccall i xs f es).
+  Proof. by []. Qed.
+
+  Lemma linear_cP_WF c lbl lblc lc ltc:
+    linear_c linear_i c lbl [::] = ok (lblc, lc, ltc) ->
+    [/\ (lbl <=? lblc)%positive,
+     valid lbl lblc lc &
+     forall s1 s2 l, S.sem p gd s1 c l s2 ->
+     leak_i_WFs ltc l].
+  Proof.
+    apply (@cmd_rect Pi_r Pi Pc HmkI_WF Hskip_WF Hseq_WF Hassgn_WF Hopn_WF Hif_WF Hfor_WF Hwhile_WF Hcall_WF).
+  Qed.
+
+  Lemma linear_fdP_WF:
+    forall fn m1 va m2 vr lf,
+    S.sem_call p gd m1 fn va (fn, lf) m2 vr -> 
+    leak_i_WFs (leak_Fun_L Fs fn) lf.
+  Proof.
+     move=> fn m1 vargs m2 vargs' lf /S.sem_callE' [] sf [] Hsf [] m1' [] m2' [] vargs1 [] s2 [] m2'' [] vm2 [] vres.
+    move=> [] Halloc [] Hs1 [] Htyi [] Hs2 [] /= Hbody [] Hres [] Htyo Hm2.
+    have dcok : map_cfprog_leak linear_fd p = ok (p', Fs).
+    + move: linear_ok; rewrite /linear_prog /=. by move=> ->.
+    have := (get_map_cfprog_leak dcok Hsf). move=> [] f' [] lt' [] Hf'1 /= Hf'2 Hleak.
+    have Hf'3 := Hf'1.
+    apply: rbindP Hf'3=> [[[l1 l2] l3] Hc] [] Hf'3.
+    rewrite /add_finfo in Hc.
+    case Heq: linear_c Hc=> [[[lblc lc'] ltc]|] //= [] Hl Hl1 Hl2 Hl3.
+    rewrite linear_c_nil in Heq.
+    apply: rbindP Heq=> [[[lblc' lc''] ltc']] Heq [] Hz1 Hz2.
+    have [h1 h2 H]:= linear_cP_WF Heq. move=> Heq'.
+    have hf : (leak_Fun_L Fs fn) = lt'.
+    + rewrite /get_leak in Hleak. rewrite /leak_Fun_L /=. by rewrite Hleak.
+    rewrite hf. move: (H s2 {| emem := m2''; evm := vm2 |} lf Hbody). move=> Hwf.
+    by rewrite Heq' Hl2 Hl3 in Hwf. 
+  Qed.
+
+End PROOF_WF.
+
+
