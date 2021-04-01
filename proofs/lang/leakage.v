@@ -57,6 +57,28 @@ Notation leak_for := (seq leak_c) (only parsing).
 
 Notation leak_fun := (funname * leak_c)%type.
 
+Section Eq_leak_e.
+
+Variable eq_leak_e : leak_e -> leak_e -> bool.
+
+Fixpoint eq_leak_es (les: seq leak_e) (les': seq leak_e) : bool :=
+match les, les' with 
+| [::], [::] => true
+| x::xs, y::ys=> eq_leak_e x y && eq_leak_es xs ys
+| _,_=> false
+end.
+
+End Eq_leak_e.
+
+Fixpoint eq_leak_e (le: leak_e) (le' : leak_e) : bool :=
+match le, le' with 
+ | LEmpty, LEmpty=> true
+ | LIdx z, LIdx z'=> z==z'
+ | LAdr p, LAdr p'=> p==p'
+ | LSub le, LSub le'=> eq_leak_es eq_leak_e le le'
+ | _, _=> false
+end.
+
 Definition Lopn_ les les' := Lopn (LSub [::LSub les; LSub les']).
 
 Definition destr_Lopn (l: leak_e) := 
@@ -667,9 +689,19 @@ Fixpoint leak_compiles (stk: pointer) (ltss: seq (seq leak_f_tr)) (lf: leak_fun)
 (** Leakage for intermediate-level **)
 
 Inductive leak_il : Type :=
+  | Lempty0 : leak_il
   | Lempty : leak_il
   | Lopnl : leak_e -> leak_il
   | Lcondl : leak_e -> bool -> leak_il.
+
+Fixpoint eq_leak_il (li: leak_il) (li': leak_il) : bool :=
+match li, li' with 
+ | Lempty0, Lempty0 => true 
+ | Lempty, Lempty => true
+ | Lopnl le, Lopnl le' => if (eq_leak_e le le') then true else false
+ | Lcondl le b, Lcondl le' b' => if (eq_leak_e le le') && (b == b') then true else false
+ | _, _ => false
+end.
 
 Notation leak_funl := (funname * seq leak_il).
 
@@ -709,7 +741,7 @@ Section Leak_IL.
       leak_i_iLs stk lts lis ++ [:: Lcondl le false]
     | Lwhile_true lis le lis' li' =>
       leak_i_iLs stk lts lis ++ [:: Lcondl le true] ++ 
-      leak_i_iLs stk lts' lis' ++ [:: Lempty] ++ ilwhile stk lts lts' li'
+      leak_i_iLs stk lts' lis' ++ [:: Lempty0] ++ ilwhile stk lts lts' li'
     | _ => [::]
     end.
 
@@ -719,7 +751,7 @@ End Leak_IL.
 Definition get_align_leak_il a : seq leak_il :=
   match a with 
   | NoAlign => [::]
-  | Align => [:: Lempty]
+  | Align => [:: Lempty0]
   end.
 
 Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : seq leak_il :=
@@ -736,20 +768,20 @@ Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : 
   | LT_ilcond_0 lte lti, Lcond le b lis => 
     [:: Lcondl (leak_E stk lte le) b] ++ 
     if b then [::] 
-    else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty]
+    else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty0]
 
   | LT_ilcond_0' lte lti, Lcond le b lis => 
     [:: Lcondl (leak_E stk lte le) (negb b)] ++ 
     if negb b then [::] 
-    else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty]
+    else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty0]
 
   | LT_ilcond lte lti lti', Lcond le b lis => 
     [:: Lcondl (leak_E stk lte le) b] ++ 
-    if b then leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty]
+    if b then leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty0]
     else leak_i_iLs leak_i_iL stk lti' lis ++ [:: Lempty]
 
   | LT_ilwhile_c'0 a lti, _ => 
-    get_align_leak_il a ++ [:: Lempty & ilwhile_c'0 leak_i_iL stk lti li]
+    get_align_leak_il a ++ [:: Lempty0 & ilwhile_c'0 leak_i_iL stk lti li]
 
   | LT_ilwhile_f lti, Lwhile_false lis le => 
     leak_i_iLs leak_i_iL stk lti lis
@@ -826,6 +858,7 @@ Fixpoint leak_e_asm (l : leak_e) : seq pointer :=
 (* Transforms leakage for intermediate langauge to leakage for assembly *)
 Definition leak_i_asm (l : leak_il) : leak_asm :=
   match l with 
+  | Lempty0 => Laempty
   | Lempty => Laempty
   | Lopnl le => Laop (leak_e_asm le)
   | Lcondl le b => Lacond b

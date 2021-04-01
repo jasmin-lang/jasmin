@@ -908,7 +908,11 @@ Section PROOF.
     have HH: List.Forall2 value_uincl vs vs'.
     + by apply: (Forall2_trans value_uincl_trans Hvres); apply: (Forall2_trans value_uincl_trans Hall).
     have [|vm4 /= Hvm4 Hw']:= write_lvals_uincl_on _ HH Hw Heqvm;first by SvD.fsetdec.
-    split. rewrite -h4 /=. admit.
+    split. rewrite -h4 /=. 
+      have := @LT_icall_inlineWF (leak_Fun Fs)
+(size (array_init ii' (locals (rename_fd ii' fn fd'))))
+(unzip2 vargs) fn ltc' lw.
+  admit.
     exists vm4;split.
     + apply: wf_write_lvals Hw';apply: (wf_sem Hsem') => -[xt xn].
       have /(_ Hwf1 {|vtype := xt; vname := xn |}) /=:= wf_write_lvals _ Wvm1'.

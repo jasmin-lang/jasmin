@@ -536,7 +536,8 @@ Qed.
 
 Lemma lsem_add_align gd s c ii a s' li :
   lsem gd (of_estate s c 0) li (of_estate s' c (size c)) ->
-  lsem gd (of_estate s (add_align ii a c) 0) (get_align_leak_il a ++ li)  (of_estate s' (add_align ii a c) (size (add_align ii a c))).
+  lsem gd (of_estate s (add_align ii a c) 0) (get_align_leak_il a ++ li)  
+  (of_estate s' (add_align ii a c) (size (add_align ii a c))).
 Proof.
   rewrite /add_align;case: a s s' => -[] m vm [] m' vm' h //.
   apply: lsem_step. constructor.
@@ -811,14 +812,14 @@ Section PROOF.
   Proof. done. Qed.
 
   Lemma leak_i_iL_while_c'0 a lti li: 
-    leak_i_iL stk li (LT_ilwhile_c'0 a lti) = get_align_leak_il a ++ [:: Lempty & ilwhile_c'0 leak_i_iL stk lti li].
+    leak_i_iL stk li (LT_ilwhile_c'0 a lti) = get_align_leak_il a ++ [:: Lempty0 & ilwhile_c'0 leak_i_iL stk lti li].
   Proof.
   by case: li=> //=.
   Qed.
 
   Lemma leak_i_il_il_while lti lti' li : leak_i_iL stk li (LT_ilwhile lti lti') = [:: Lempty] ++ ilwhile leak_i_iL stk lti lti' li.
   Proof.
-  by case: li.
+  case: li=> //=.
   Qed.
 
   Let Hwhile : forall a c e c', Pc c -> Pc c' -> Pi_r (Cwhile a c e c').

@@ -27,7 +27,7 @@
 
 (* ** Imports and settings *)
 
-From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.
@@ -81,8 +81,8 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec (lstate * leak_il) :=
   | Liopn xs o es =>
     Let s2 := sem_sopn gd o (to_estate s1) xs es in
     ok (of_estate s2.1 s1.(lc) s1.(lpc).+1, Lopnl s2.2)
-  | Lialign   => ok (setpc s1 s1.(lpc).+1, Lempty)
-  | Lilabel _ => ok (setpc s1 s1.(lpc).+1, Lempty)
+  | Lialign   => ok (setpc s1 s1.(lpc).+1, Lempty0)
+  | Lilabel _ => ok (setpc s1 s1.(lpc).+1, Lempty0)
   | Ligoto lbl =>
     Let pc := find_label lbl s1.(lc) in
     ok (setpc s1 pc.+1, Lempty)
@@ -160,3 +160,10 @@ Definition lsem_fd_noleak p f mem va mem' vr :=
  exists l, lsem_fd p f mem va l mem' vr.
 
 End SEM.
+
+(*
+Lemma sem_wf s l s': 
+  lsem s l s' ->
+  leak_ils_WF s.(lc) s.(lpc) l.
+*)
+(* lsem s l s' -> s.(lc) = s'.(lc). *)
