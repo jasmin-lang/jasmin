@@ -1352,4 +1352,118 @@ Proof.
   exists m'. exists vr'. split=> //.
 Qed.
 
+Section WF_Proof.
+
+Variable P: prog.
+Notation gd := (p_globs P).
+Variable SP: (sprog * leak_f_tr).
+
+Let Pi_r (s1:estate) (i1:instr_r) li (s2:estate) :=
+    forall m ii1 ii2 i2 lti, alloc_i m (MkI ii1 i1) = ok ((MkI ii2 i2), lti) ->
+    leak_WF (leak_Fun SP.2) lti li. 
+
+  Let Pi (s1:estate) (i1:instr) li (s2:estate) :=
+    forall i2 lti m, alloc_i m i1 = ok (i2, lti) ->
+    leak_WF (leak_Fun SP.2) lti li. 
+
+  Let Pc (s1:estate) (c1:cmd) lc (s2:estate) :=
+    forall c2 m,  mapM (alloc_i m) c1 = ok c2 ->
+    leak_WFs (leak_Fun SP.2) (unzip2 c2) lc. 
+
+  Let Pfor (i1: var_i) (vs: seq Z) (s1: estate) (c: cmd) (lc: seq leak_c) (s2: estate) := True.
+
+  Let Pfun (m1: mem) (fn: funname) (vargs: seq value) (lf: leak_fun) (m2: mem) (vres: seq value) := True.
+
+  Local Lemma Hskip_WF : sem_Ind_nil Pc.
+  Proof.
+    move=> s [] //= m _. constructor.
+  Qed.
+
+  Local Lemma Hcons_WF : sem_Ind_cons P Pc Pi.
+  Proof.
+    move=> s1 s2 s3 i c li lc Hsi Hi Hsc Hc c1 m /=. 
+    t_xrbindP => -[i' lti'] hi c' hc <-. 
+    constructor. rewrite /Pi in Hi. 
+    move:(Hi i' lti' m hi)=> Hi'. apply Hi'.
+    rewrite /Pc in Hc. move: (Hc c' m hc). move=> Hc'.
+    apply Hc'.
+  Qed.
+
+  Local Lemma HmkI_WF : sem_Ind_mkI P Pi_r Pi.
+  Proof.
+    move=> ii i s1 s2 li Hsi Hi [ii' ir'] lti m hi.
+    rewrite /Pi_r in Hi. move: (Hi m ii ii' ir' lti hi).
+    move=> H. apply H.
+  Qed.
+
+  Local Lemma Hassgn_WF : sem_Ind_assgn P Pi_r.
+  Proof.
+    move=> s1 s2 x tag ty e v v' le lw hv htr Hw m ii1 ii2 i2 lti /=.
+    t_xrbindP => -[i' lti'] -[x' ltx]; apply: add_iinfoP => ha [e' lte'].
+    apply: add_iinfoP => he /= [] h1 h2 h3 h4 <-; subst i' ii1 lti'.
+    constructor.
+  Qed.
+
+  Local Lemma Hopn_WF : sem_Ind_opn P Pi_r.
+  Proof.
+    move => s1 s2 t o xs es lo.
+    rewrite /sem_sopn;t_xrbindP => vs He va Hop [s lt] Hw /= <- <- m ii1 ii2 i2 lti.
+    move=> H. rewrite /= in H. move: H.
+    t_xrbindP => -[i' lti'] x' ; apply: add_iinfoP => ha e'.
+    apply: add_iinfoP => he [] h1 <- h3 h4 <-; subst i' i2 ii1.
+    constructor.
+  Qed.
+
+  Local Lemma Hif_true_WF : sem_Ind_if_true P Pc Pi_r.
+  Proof.
+    move=> s1 s2 e c1 c2 le lc Hse Hsc Hc m ii1 ii2 i2 lti /=.
+    t_xrbindP => -[i' lti'] -[e' lte'].
+    apply: add_iinfoP => he c1' hc1 c2' hc2 [] h1 <- h3 /= h4 h5;subst i' i2 ii2 lti. 
+    constructor. rewrite /Pc in Hc. move: (Hc c1' m hc1)=> Hwf. apply Hwf.
+  Qed.
+
+  Local Lemma Hif_false_WF : sem_Ind_if_false P Pc Pi_r.
+  Proof.
+    move=> s1 s2 e c1 c2 le lc Hse Hsc Hc m ii1 ii2 i2 lti /=.
+    t_xrbindP => -[i' lti'] -[e' lte'].
+    apply: add_iinfoP => he c1' hc1 c2' hc2 [] h1 <- h3 /= h4 h5;subst i' i2 ii2 lti. 
+    constructor. rewrite /Pc in Hc. move: (Hc c2' m hc2)=> Hwf. apply Hwf.
+  Qed.
+
+  Local Lemma Hwhile_true_WF : sem_Ind_while_true P Pc Pi_r.
+  Proof.
+    move=> s1 s2 s3 s4 a c1 e c2 lc le lc' li Hsc Hc1 Hv Hsc' Hc2 Hi Hwhile m ii1 ii2 i2 lti /=.
+    t_xrbindP => -[i' lti'] -[e' lte'].
+    apply: add_iinfoP => he c1' hc1 c2' hc2 /= [] h1 <- h3 h4 <-;subst i' i2 ii2.
+    constructor. rewrite /Pc in Hc1. move: (Hc1 c1' m hc1)=> Hwf. apply Hwf.
+    move: (Hc2 c2' m hc2)=> Hwf'. apply Hwf'.
+    have H:= (Hwhile m ii1 ii1 (Cwhile a (unzip1 c1') e' (unzip1 c2')) (LT_iwhile (unzip2 c1') lte' (unzip2 c2'))).
+    apply H. rewrite //=. by rewrite he hc1 hc2 /=.
+   Qed.
+
+  Local Lemma Hwhile_false_WF : sem_Ind_while_false P Pc Pi_r.
+  Proof.
+    move=> s1 s2 a c e c' lc le Hsc Hc Hv m ii1 ii2 i2 lti /=.
+    t_xrbindP => -[i' lti'] -[e' lte'].
+    apply: add_iinfoP => he c1' hc1 c2' hc2 [] <- <- h /= h' <-.  
+    constructor. rewrite /Pc in Hc.
+    move: (Hc c1' m hc1)=> Hwf. apply Hwf.
+  Qed.
+
+  Local Lemma Hfor_WF : sem_Ind_for P Pi_r Pfor.
+  Proof. by []. Qed.
+
+  Local Lemma Hfor_nil_WF : sem_Ind_for_nil Pfor.
+  Proof. by []. Qed.
+
+  Local Lemma Hfor_cons_WF : sem_Ind_for_cons P Pc Pfor.
+  Proof. by []. Qed.
+
+  Local Lemma Hcall_WF : sem_Ind_call P Pi_r Pfun.
+  Proof. by []. Qed.
+
+  Local Lemma Hproc_WF : sem_Ind_proc P Pc Pfun.
+  Proof. by []. Qed.
+
+End WF_Proof.
 
