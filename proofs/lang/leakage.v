@@ -792,6 +792,8 @@ Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : 
   | _, _ => [::]
   end.
 
+Notation leak_c_il_tr := (seq leak_i_il_tr).
+
 Definition leak_f_lf_tr := seq (funname * seq leak_i_il_tr).
 
 Inductive leak_i_WF : leak_i_il_tr -> leak_i -> Prop :=
