@@ -99,7 +99,7 @@ Definition lcost_i (pc: nat) (li: leak_il) : lcost_map :=
 match li with 
  | Lempty0 => single_lcost pc
  | Lempty => single_lcost pc
- | Lopnl _ => single_lcost pc
+ | Lopnl _ => empty_lcost
  | Lcondl _ _ => single_lcost pc
 end.
 
@@ -125,8 +125,6 @@ Fixpoint lcost (c:lcmd) (pc:nat) (lis:seq leak_il) :=
 
 (* Provide map of lbl *)
 
-Lemma mergecl0 c : merge_lcost c empty_lcost =1 c.
-Proof. by move=> l; rewrite /merge_lcost addr0. Qed.
 
 Module CmpNat.
 
@@ -152,6 +150,9 @@ Definition set (m:t) (pc:nat) (sl:bpath) : t :=
   Ml.set m pc sl.
 
 Definition single pc sl := set empty pc sl.
+
+Definition disjoint (m1 m2: Sm.t) := 
+  forall l, get m1 l <> None -> get m2 l = None.
 
 (* Merging map *)
 Definition merge_scost (_:nat) (o1 o2 : option bpath) := 
@@ -289,6 +290,52 @@ End WF_HYP.
 Scheme leak_il_WF_ind   := Induction for leak_i_WF   Sort Prop
   with leak_il_WFs_ind  := Induction for leak_i_WFs  Sort Prop.
 
+Section Support_Lemmas.
+
+Lemma mergecl0 c : merge_lcost c empty_lcost =1 c.
+Proof. by move=> l; rewrite /merge_lcost addr0. Qed.
+
+Lemma mergecl_single pc : merge_lcost (single_lcost pc) empty_lcost =1 (single_lcost pc).
+Proof.
+move=> pc' /=. by rewrite /merge_lcost /= /empty_lcost addr0.
+Qed.
+
+Lemma mergePl m1 m2 pc :
+  Sm.get (Sm.merge m1 m2) pc = Sm.merge_scost pc (Sm.get m1 pc) (Sm.get m2 pc).
+Proof. by rewrite /Sm.get Sm.Ml.map2P. Qed.
+
+Lemma interp_mergel c m1 m2:
+  Sm.disjoint m1 m2 ->
+  Sm.linterp c (Sm.merge m1 m2) =1 merge_lcost (Sm.linterp c m1) (Sm.linterp c m2).
+Proof.
+  move=> hd pc; rewrite /Sm.linterp mergePl /merge_lcost.
+  have := hd pc. 
+  case: (Sm.get m1 pc) => [ sc1 | ]; case: (Sm.get m2 pc) => [ sc2 | ] //=.
+  + by move=> h; have //: Some sc2 = None by apply h.
+  + by rewrite addr0.
+  by rewrite add0r.
+Qed.
+
+Lemma interp_lempty m: 
+  Sm.linterp empty_cost m =1 empty_lcost.
+Proof.
+  by move=> l; rewrite /Sm.linterp /=; case: Sm.get => // ?; rewrite mul0r.
+Qed.
+
+Lemma interp_merge_cl c1 c2 m :
+  Sm.linterp (merge_cost c1 c2) m =1 merge_lcost (Sm.linterp c1 m) (Sm.linterp c2 m).
+Proof.
+ move=> pc. rewrite /Sm.linterp /= /merge_lcost. case: Sm.get=> [sc1| ] //=.
+Qed.
+
+Lemma interp_emptyl m: 
+  Sm.linterp empty_cost m =1 empty_lcost.
+Proof.
+  by move=> l; rewrite /Sm.linterp /=; case: Sm.get => // ?; rewrite mul0r.
+Qed.
+
+End Support_Lemmas.
+
 Section Proofs.
 
 Lemma trasnform_cost_il_ok stk pc sl lt lc c:
@@ -304,7 +351,40 @@ apply (leak_il_WFs_ind
        lcost c pc (leak_i_iLs (leak_i_iL) stk lt lc) =1 
           Sm.linterp (cost_C sl lc) (transform_cost_i_cL transform_cost_i_iL lt sl).1)).
 (* LT_ilkeepa *)
-+ move=> le sl sl'/=. rewrite mergec0.
++ move=> le sl sl'/=. rewrite /Sm.linterp /=. by rewrite mergecl0 /Sm.linterp.
+(* LT_ilkeep *)
++ move=> le sl sl'/=. rewrite /Sm.linterp /=. by rewrite mergecl0 /Sm.linterp.
+(* LT_ilcond0 *) (* true *)
++ move=> le lis lte lti sl /=. rewrite /enter_cost_c /=. rewrite mergecl_single /=.
+  rewrite interp_merge_cl /=.
+  admit.
+(* LT_icond0 *) (* false *)
++ admit.
+(* LT_icond_0'*) (* true *)
++ admit.
+(* LT_icond_0'*) (* false *)
++ admit.
+(* LT_ilcond *) (* true *)
++ admit.
+(* LT_icond *) (* false *)
++ admit.
+(* LT_ilwhile_f *)
++ move=> lis le lti Hwf Hrec /= sl' /=. rewrite interp_mergel /=.
+  rewrite /enter_cost_c /=. move: (Hrec (bpath_f sl', 0))=> {Hrec} Hrec.
+  
+  rewrite -interp_merge_cl.
+rewrite mergecl_single /=.
+(* LT_ilwhile_c'0 *)
++ admit.
+(* LT_ilwhile *)
++ admit.
+(* empty *)
++ done.
+(* inductive case *)
+move=> li lc' lt1 lt2 Hwf Hrec Hwf' Hrec' sl' /=.
+rewrite interp_mergel /=. 
+
+  
 
 
 
