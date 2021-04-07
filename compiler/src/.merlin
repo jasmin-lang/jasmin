@@ -1,6 +1,7 @@
 S .
 B ../_build/src
 B ../_build/CIL
+B ../_build/src/cost
 B ../_build/src/safety
 B ../_build/src/safety/domains
 

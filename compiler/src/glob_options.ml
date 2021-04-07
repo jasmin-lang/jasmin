@@ -8,6 +8,7 @@ let debug = ref false
 let print_list = ref []
 let ecfile = ref ""
 let ec_list = ref []
+let cost_analysis = ref false
 let check_safety = ref false
 let safety_param = ref None
 let safety_config = ref None
@@ -94,6 +95,7 @@ let options = [
     "-oec"     ,  Arg.Set_string ecfile , "[filename]: use filename as output destination for easycrypt extraction";
     "-CT" , Arg.Unit set_constTime      , ": generates model for constant time verification";
     "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
+    "--cost", Arg.Set cost_analysis, ": execution cost (WIP)";
     "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,
     "parameter for automatic safety verification:\n    \

@@ -162,6 +162,7 @@ let check_safety_p s p source_p =
               let main_source = source_f_decl
               let main = f_decl
               let prog = p
+              let cost_variables = []
             end) in
 
           AbsInt.analyze ())
@@ -209,12 +210,12 @@ let main () =
 
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
-    
+
     if SafetyConfig.sc_comp_pass () = Compiler.ParamsExpansion &&
        !check_safety
     then check_safety_p Compiler.ParamsExpansion prog source_prog
     else
-            
+
     if !ec_list <> [] then begin
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
@@ -351,6 +352,9 @@ let main () =
       check_safety_p s p source_prog in
     
     let pp_cprog s cp =
+      if !cost_analysis && s = Compiler.RemoveUnusedFunction
+      then cp |> Conv.prog_of_cprog tbl |> CostAnalysis.analyze
+      else
       if s = SafetyConfig.sc_comp_pass () && !check_safety then
         check_safety_cp s cp
       else

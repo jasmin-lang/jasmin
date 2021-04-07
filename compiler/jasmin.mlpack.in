@@ -25,6 +25,8 @@ src/Ssa
 src/Subst
 src/Syntax
 src/ToEC
+src/cost/costAnalysis
+src/cost/costInstrumentation
 src/safety/safetyAbsExpr
 src/safety/safetyConfig
 src/safety/safetyConstr

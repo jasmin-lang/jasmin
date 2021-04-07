@@ -1,0 +1,17 @@
+inline
+fn inner(inline int x) {
+  inline int j;
+  for j = 0 to x {}
+}
+
+export
+fn outer() {
+  inline int i k;
+  for i = 0 to 10 {
+    inner(i);
+  }
+
+  for i = 0 to 10 {
+    for k = 0 to i {}
+  }
+}

@@ -11,7 +11,7 @@ type minfo = { i_instr_number : int; }
 
 module MkUniq : sig
 
-  val mk_uniq : unit func -> unit prog -> (minfo func * minfo prog)
+  val mk_uniq : unit func -> unit prog -> minfo func * minfo prog
 
 end = struct
   let uniq_i_nb =
@@ -107,7 +107,8 @@ end = struct
     Hashtbl.clear htv;
 
     let m_decl = mk_f main_decl in
-    (m_decl, (mk_globs glob_decls, List.map mk_f fun_decls))
+    m_decl,
+    (mk_globs glob_decls, List.map mk_f fun_decls)
 
 end
 
