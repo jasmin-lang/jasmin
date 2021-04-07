@@ -37,8 +37,8 @@ let rec pp_il fmt =
   function
   | LT_ilkeep -> p "ilkeep"
   | LT_ilkeepa -> p "ilkeepa"
-  | LT_ilcond_0 (b, e, f) -> fprintf fmt "cond0(%a, %a, %a)" pp_bool b pp_e_tr e aux f
-  | LT_ilcond_0' (b, e, f) -> fprintf fmt "cond0'(%a, %a, %a)" pp_bool b pp_e_tr e aux f
+  | LT_ilcond_0 (e, f) -> fprintf fmt "cond0(%a, %a)" pp_e_tr e aux f
+  | LT_ilcond_0' (e, f) -> fprintf fmt "cond0'(%a, %a)" pp_e_tr e aux f
   | LT_ilcond (e, f, g) -> fprintf fmt "cond(%a, %a, %a)" pp_e_tr e aux f aux g
   | LT_ilwhile_c'0 (_a, body) -> fprintf fmt "while0(%a)" aux body
   | LT_ilwhile_f body -> fprintf fmt "whileF(%a)" aux body
