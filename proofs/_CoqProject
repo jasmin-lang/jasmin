@@ -46,6 +46,7 @@ compiler/x86_variables_proofs.v
 lang/array.v
 lang/cost.v
 lang/cost_linear.v
+lang/cost_asm.v
 lang/expr.v
 lang/extraction.v
 lang/gen_map.v
