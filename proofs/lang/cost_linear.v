@@ -223,7 +223,7 @@ Fixpoint transform_cost_i_iL (l : leak_i_il_tr) (sl:path) : Sm.t * nat :=
     (* align; Lilabel L1; c ; Licond e L1 *)
     (* while a c e [::] *)
   | LT_ilwhile_c'0 a lti => 
-    enter_transform_cost_i_cL transform_cost_i_iL lti (bpath_f sl) (* Lilabel L1; c; Licond e L1 *) 
+    enter_transform_cost_i_cL transform_cost_i_iL lti (bpath_f sl) (* Lilabel L1; c*)  
 
 
   | LT_ilwhile_f lti => enter_transform_cost_i_cL transform_cost_i_iL lti (bpath_f sl)
@@ -300,6 +300,12 @@ Proof.
 move=> pc' /=. by rewrite /merge_lcost /= /empty_lcost addr0.
 Qed.
 
+(*Lemma mergecl_single' pc c : (merge_lcost (single_lcost (next_pc_leak c pc Lempty0))
+       empty_lcost) =1 (single_lcost pc).
+Proof.
+move=> pc' /=. rewrite /merge_lcost /= /empty_lcost addr0. rewrite /single_lcost /=. 
+case: oseq.onth c pc.*)
+
 Lemma mergePl m1 m2 pc :
   Sm.get (Sm.merge m1 m2) pc = Sm.merge_scost pc (Sm.get m1 pc) (Sm.get m2 pc).
 Proof. by rewrite /Sm.get Sm.Ml.map2P. Qed.
@@ -334,6 +340,18 @@ Proof.
   by move=> l; rewrite /Sm.linterp /=; case: Sm.get => // ?; rewrite mul0r.
 Qed.
 
+Lemma cost_C_f l lc :
+  cost_C (bpath_f l, 0) lc =1 prefix_cost (bpath_f l) (cost_C ([::],0) lc).
+Proof. by rewrite -cost_C_pre. Qed.
+
+(*Lemma merge_l lis sl': 
+(merge_cost (single_cost (bpath_f sl'))
+       (cost_C (bpath_f sl', 0) lis)) =1 (cost_C (bpath_f sl', 1) lis).
+Proof. 
+move=> sl'' /=. case: lis=> //=.  rewrite /merge_cost /=. rewrite /single_cost /=.
+rewrite /update_cost /=. rewrite /empty_cost /=. case: ifP=> //=.
++ move=> /eqP -> /=. case: lis=> //=.*)
+
 End Support_Lemmas.
 
 Section Proofs.
@@ -356,10 +374,10 @@ apply (leak_il_WFs_ind
 + move=> le sl sl'/=. rewrite /Sm.linterp /=. by rewrite mergecl0 /Sm.linterp.
 (* LT_ilcond0 *) (* true *)
 + move=> le lis lte lti sl /=. rewrite /enter_cost_c /=. rewrite mergecl_single /=.
-  rewrite interp_merge_cl /=.
   admit.
-(* LT_icond0 *) (* false *)
-+ admit.
+(* LT_icond0 *)
++ rewrite /=. move=> le lis lte lti Hwf Hrec.
+  rewrite /enter_cost_c /=. admit.
 (* LT_icond_0'*) (* true *)
 + admit.
 (* LT_icond_0'*) (* false *)
@@ -369,65 +387,18 @@ apply (leak_il_WFs_ind
 (* LT_icond *) (* false *)
 + admit.
 (* LT_ilwhile_f *)
-+ move=> lis le lti Hwf Hrec /= sl' /=. rewrite interp_mergel /=.
-  rewrite /enter_cost_c /=. move: (Hrec (bpath_f sl', 0))=> {Hrec} Hrec.
-  
-  rewrite -interp_merge_cl.
-rewrite mergecl_single /=.
++ move=> lis le lti Hwf Hrec sl' /=.
+  rewrite /enter_cost_c /=. admit.
 (* LT_ilwhile_c'0 *)
-+ admit.
-(* LT_ilwhile *)
-+ admit.
++ move=> li a lti sl sl'' /=. admit.
+(* L_ilwhile *)
+ + admit.
 (* empty *)
 + done.
 (* inductive case *)
 move=> li lc' lt1 lt2 Hwf Hrec Hwf' Hrec' sl' /=.
 rewrite interp_mergel /=. 
-
-  
-
-
-
-
-
-(*apply (leak_il_WFs_ind 
-     (P:=fun lt li _ => forall sl, 
-       lcost c pc  (leak_i_iL stk li lt) =1 
-       Sm.linterp (lcost c pc ((leak_i_iL) stk li lt)) pc (transform_cost_i_iL lt sl).1)
-     (P0:=fun lt lc _ => forall sl, 
-       lcost c pc (leak_i_iLs (leak_i_iL) stk lt lc) =1 
-          Sm.linterp (cost_C c pc lic) pc (transform_cost_i_cL transform_cost_i_iL lt sl).1)).*)
-(* LT_ikeepa *)
-
-
-(*Lemma transform_cost_il_ok stk pc sl lt lic lc c:
-  (* lic : seq leak_i_il is well formed with intermediate commands *)
-  (*leak_ils_WF c pc lic = true ->*)
-  (* leak transformer which transforms leak_i to intermediate leakage are well formed *)
-  leak_i_WFs lt lc -> 
-  (* calculates cost of intermediate leakage *)
-  lcost c pc (leak_i_iLs (leak_i_iL) stk lt lc) =1
-  (* source cost -> Sm.t (* intermediate (nat -> nat *) *) (* nat -> nat *)
-  Sm.linterp (cost sl lc) pc (transform_cost_i_iLs transform_cost_i_iL lt sl).1.
-  (* interp the cost using the intermediate leak transformer *)
-Proof.
-move=> Hwf2. move: Hwf2 sl.
-apply (leak_il_WFs_ind 
-     (P:=fun lt li _ => forall sl, 
-       lcost c pc  (leak_i_iL stk li lt) =1 
-       Sm.linterp (lcost c pc ((leak_i_iL) stk li lt)) pc (transform_cost_i_iL lt sl).1)
-     (P0:=fun lt lc _ => forall sl, 
-       lcost c pc (leak_i_iLs (leak_i_iL) stk lt lc) =1 
-          Sm.linterp (lcost c pc lic) pc (transform_cost_i_iLs transform_cost_i_iL lt sl).1)).
-(* LT_ikeepa *)
-+ move=> le sl /= pc'. rewrite /update_lcost /Sm.linterp /=. case: ifP=> //=.
-  + move=> /eqP -> //=. case: ifP=> //=. move=> /eqP=> //= H. 
-    case Ha : (Sm.get (Sm.single 0 sl 1) pc')=> //=. admit. 
-    done.
- 
-Admitted.*)
-
-
+Admitted.
 
 End Proofs.
 
