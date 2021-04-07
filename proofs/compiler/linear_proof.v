@@ -1498,7 +1498,7 @@ Section PROOF.
     set lfd' := linear_fd _ _ _ fd'.
     move => ok_lfd'.
     move: linear_eq; rewrite /= ok_fd' fn'_neq_fn.
-    move: (checked_prog ok_fd') => /=; t_xrbindP => - []; apply: add_finfoP => chk_body _ /assertP ok_to_save _ /assertP ok_stk_sz _ /assertP ok_save_stack _.
+    move: (checked_prog ok_fd') => /=; t_xrbindP => - []; apply: add_finfoP => chk_body _ /assertP ok_to_save _ /assertP ok_stk_sz _ /assertP ok_ret_addr _ /assertP ok_save_stack _.
     have ok_body' : is_linear_of fn' (lfd_body lfd').
     - by rewrite /is_linear_of; eauto.
     move: ih; rewrite /Pfun; move => /(_ _ _ _ _ _ _ _ _ _ ok_body') ih A.
@@ -1510,7 +1510,7 @@ Section PROOF.
       1-2: by case => _ <- _; rewrite /label_in_lcmd !pmap_cat /= !mem_cat inE eqxx !orbT.
     case ok_ptr: encode_label (encode_label_dom lbl_valid) => [ ptr | // ] _.
     case/sem_callE: (exec_call) => ? m s' k'; rewrite ok_fd' => /Some_inj <- ra_sem ok_ss sp_aligned T ok_m exec_cbody T' s2_eq.
-    case ra_eq: (sf_return_address _) ok_ra ra_sem sp_aligned A => [ // | ra | z ] ok_ra ra_sem sp_aligned /=.
+    case ra_eq: (sf_return_address _) ok_ra ok_ret_addr ra_sem sp_aligned A => [ // | ra | z ] ok_ra ok_ret_addr ra_sem sp_aligned /=.
     { (* Internal function, return address in register [ra]. *)
       have ok_ra_of : is_ra_of fn' (RAreg ra) by rewrite /is_ra_of; exists fd'; assumption.
       move: ih => /(_ _ _ _ _ _ _ _ _ ok_ra_of) ih.
@@ -1521,13 +1521,13 @@ Section PROOF.
         set vm := vm2.[ra <- pof_val (vtype ra) (Vword ptr)]%vmap.
         have {W} W : wf_vm vm.
         + rewrite /vm => x; rewrite Fv.setP; case: eqP => ?; last exact: W.
-          by subst; move/eqP: ok_ra => ->.
+          by subst; move/eqP: ok_ret_addr => ->.
         move: C.
         set P' := P ++ _.
         move => C.
         have RA : value_of_ra m1 vm (RAreg ra) (Some ((fn, lbl), P', (size P).+2)).
         + rewrite /vm.
-          case: (ra) ok_ra => /= ? vra /eqP ->; split.
+          case: (ra) ok_ret_addr => /= ? vra /eqP ->; split.
           * exact: C.
           * rewrite /P' find_label_cat_hd; last by apply: D; rewrite /next_lbl; Psatz.lia.
             by rewrite /find_label /is_label /= eqxx /= addn2.
@@ -1542,7 +1542,7 @@ Section PROOF.
             by rewrite T.
           move => _; move: x.
           apply: set_vm_uincl; first exact: X.
-          by move/eqP: ok_ra => /= ->.
+          by move/eqP: ok_ret_addr => /= ->.
         have SP : is_sp_for_call fn' s1 (top_stack (emem s1)).
         + exists fd'; first exact: ok_fd'.
           move: sp_aligned.
@@ -1583,7 +1583,7 @@ Section PROOF.
       set vm  := vm2.[var_of_register RSP <- ok (pword_of_word top)].[ra <- pof_val (vtype ra) (Vword ptr)]%vmap.
       have {W} W : wf_vm vm.
       + rewrite /vm => x; rewrite Fv.setP; case: eqP => x_ra.
-        * by subst; move/eqP: ok_ra => ->.
+        * by subst; move/eqP: ok_ret_addr => ->.
         rewrite Fv.setP; case: eqP => x_rsp; first by subst.
         exact: W.
       move: C.
@@ -1591,7 +1591,7 @@ Section PROOF.
       move => C.
       have RA : value_of_ra m1 vm (RAreg ra) (Some ((fn, lbl), P', size P + 3)).
       + rewrite /vm.
-        case: (ra) ok_ra => /= ? vra /eqP ->; split.
+        case: (ra) ok_ret_addr => /= ? vra /eqP ->; split.
         * exact: C.
         * rewrite /P' find_label_cat_hd; last by apply: D; rewrite /next_lbl; Psatz.lia.
            by rewrite /find_label /is_label /= eqxx /=.
@@ -1602,7 +1602,7 @@ Section PROOF.
       + move => x; rewrite /vm Fv.setP; case: eqP => x_rsp.
         * by subst; rewrite Fv.setP_neq // Fv.setP_eq.
         rewrite !(@Fv.setP _ _ ra); case: eqP => x_ra.
-        * by subst; move/eqP: ok_ra => ->.
+        * by subst; move/eqP: ok_ret_addr => ->.
         rewrite Fv.setP_neq; last by apply/eqP.
         exact: X.
       have SP : is_sp_for_call fn' s1 top.
@@ -1649,7 +1649,7 @@ Section PROOF.
       exact: M'.
     }
     (* Internal function, return address at offset [z]. *)
-    case fr_eq: extra_free_registers ok_ra => [ fr | // ] /andP[] /andP[] /andP[] /andP[] fr_well_typed fr_neq_RSP z_pos z_bound sz_noof [] ? ?; subst lbli li.
+    case fr_eq: extra_free_registers ok_ra ok_ret_addr => [ fr | // ] /andP[] fr_well_typed fr_neq_RSP /andP[] /andP[] z_pos z_bound sz_noof [] ? ?; subst lbli li.
     have ok_ra_of : is_ra_of fn' (RAstack z) by rewrite /is_ra_of; exists fd'; assumption.
     move: ih => /(_ _ _ _ _ _ _ _ _ ok_ra_of) ih.
     move: (X (var_of_register RSP)).
@@ -1811,15 +1811,15 @@ Section PROOF.
     rewrite ok_fd => _ /Some_inj <- ?; subst ra.
     rewrite /value_of_ra => ok_lret.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_sp.
-    move: (checked_prog ok_fd) => /=; t_xrbindP => - []; apply: add_finfoP => chk_body _ /assertP ok_to_save _ /assertP ok_stk_sz _ /assertP ok_save_stack _.
+    move: (checked_prog ok_fd) => /=; t_xrbindP => - []; apply: add_finfoP => chk_body _ /assertP ok_to_save _ /assertP ok_stk_sz _ /assertP ok_ret_addr _ /assertP ok_save_stack _.
     have ? : fd' = linear_fd p extra_free_registers fn fd.
     - move: linear_ok ok_fd ok_fd'; clear.
       rewrite /linear_prog; t_xrbindP => _ _ _ _ <- /=.
       by rewrite /get_fundef assoc_map2 => -> [].
     subst fd'.
     move: ok_fd'; rewrite /linear_fd.
-    case: sf_return_address free_ra ok_to_save ok_save_stack X ok_lret exec_body ih ok_sp =>
-      /= [ _ ok_to_save ok_save_stack | ra free_ra _ _ | rastack free_ra _ _ ] X ok_lret exec_body ih.
+    case: sf_return_address free_ra ok_to_save ok_save_stack ok_ret_addr X ok_lret exec_body ih ok_sp =>
+      /= [ _ ok_to_save ok_save_stack _ | ra free_ra _ _ ok_ret_addr | rastack free_ra _ _ ok_ret_addr ] X ok_lret exec_body ih.
     2-3: case => sp_aligned.
     all: move => ?; subst sp.
     - (* Export function *)
@@ -2024,7 +2024,7 @@ Section PROOF.
       { admit. }
     }
     - (* Internal function, return address in register “ra” *)
-    { case: ra X free_ra ok_lret exec_body ih => // -[] // [] // ra X /andP[] _ ra_notin_k.
+    { case: ra ok_ret_addr X free_ra ok_lret exec_body ih => // -[] // [] // ra ra_well_typed X /andP[] _ ra_notin_k.
       case: lret => // - [] [] [] caller lret cbody pc [] ok_cbody ok_pc [] retptr ok_retptr ok_ra exec_body ih.
       have {ih} := ih fn 2%positive.
       rewrite /checked_c ok_fd chk_body => /(_ erefl).
@@ -2128,15 +2128,25 @@ Section PROOF.
         rewrite /= /set_RSP Fv.setP_eq /=.
         case: vm2.[_]%vmap => // - [] ??? /pword_of_word_uincl /= [] ??; subst.
         rewrite truncate_word_u /= zero_extend_u.
+        move: ok_ret_addr; rewrite !zify => - [] [] rastack_lo rastack_h sf_noovf.
+        move: ok_stk_sz; rewrite !zify => - [] stk_sz_pos stk_extra_pos.
+        assert (root_range := wunsigned_range (stack_root m1')).
+        have A := alloc_stackP ok_m1'.
+        have top_range := ass_above_limit A.
+        have rastack_no_overflow : (0 <= wunsigned (top_stack m1') + rastack)%Z ∧ (wunsigned (top_stack m1') + rastack + wsize_size Uptr <= wunsigned (stack_root m1'))%Z.
+        * admit.
         have -> : read m2 (top_stack m1' + wrepr U64 rastack)%R U64 = read m1 (top_stack m1' + wrepr U64 rastack)%R U64.
         * apply: eq_read => i [] i_lo i_hi; symmetry; apply: H2.
-          - admit. (* TODO: this is checked at the call site *)
+          - rewrite addE !wunsigned_add; lia.
           rewrite (Memory.alloc_stackP ok_m1').(ass_valid).
           apply/orP; case.
           - apply/negP; apply: stack_region_is_free.
             rewrite -/(top_stack _).
-            admit. (* TODO: idem *)
+            rewrite addE !wunsigned_add; split; try lia.
+            admit. (* TODO: arithmetic *)
           rewrite addE -GRing.addrA -wrepr_add !zify => - [] _.
+          rewrite wunsigned_add; last lia.
+          change (wsize_size U8) with 1%Z.
           admit. (* TODO: idem *)
         rewrite (alloc_stack_top_stack ok_m1') top_stack_after_aligned_alloc // wrepr_opp ok_ra /= zero_extend_u.
         have := decode_encode_label (label_in_lprog p') (caller, lret).

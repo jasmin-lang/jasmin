@@ -138,10 +138,8 @@ Section CHECK.
         let e := f_extra fd in
         Let _ := assert match sf_return_address e with
                         | RAnone => false
-                        | RAreg ra => vtype ra == sword Uptr
+                        | RAreg ra => true
                         | RAstack ofs => (if extra_free_registers ii is Some ra then (vtype ra == sword Uptr) && (ra != var_of_register RSP) else false)
-                                         && (sf_stk_sz e <=? ofs )%Z && (ofs + wsize_size Uptr <=? stack_frame_allocation_size e)%Z
-                                         && (stack_frame_allocation_size e <? wbase Uptr)%Z (* FIXME: this check seems redundant *)
                         end
           (ii, Cerr_one_varmap "nowhere to store the return address") in
         Let _ := assert (sf_align e <= stack_align)%CMP
@@ -160,6 +158,13 @@ Section CHECK.
     Let _ := assert ((e.(sf_return_address) != RAnone) || (all (λ '(x, _), is_word_type x.(vtype) != None) e.(sf_to_save))) (Ferr_fun fn (Cerr_linear "bad to-save")) in
     Let _ := assert ((0 <=? sf_stk_sz e) && (0 <=? sf_stk_extra_sz e))%Z
                     (Ferr_fun fn (Cerr_linear "bad stack size")) in
+    Let _ := assert match sf_return_address e with
+                    | RAnone => true
+                    | RAreg ra => vtype ra == sword Uptr
+                    | RAstack ofs => (sf_stk_sz e <=? ofs )%Z && (ofs + wsize_size Uptr <=? stack_frame_allocation_size e)%Z
+                                     && (stack_frame_allocation_size e <? wbase Uptr)%Z (* FIXME: this check seems redundant *)
+                    end
+                    (Ferr_fun fn (Cerr_linear "bad return-address")) in
     Let _ := assert ((sf_return_address e != RAnone)
                      || match sf_save_stack e with
                         | SavedStackNone => (stack_align == U8) && (sf_stk_sz e == 0) && (sf_stk_extra_sz e == 0)
