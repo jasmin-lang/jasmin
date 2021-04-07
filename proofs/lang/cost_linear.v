@@ -166,12 +166,10 @@ Definition merge (m1 m2: t) : t :=
 Definition map_path (f : nat -> nat) (m:t) : t := 
   Ml.fold (fun pc bp m => Ml.set m (f pc) bp) m empty.
 
-(* 0, 1, 2 *)
-
-Definition linterp (sc:lcost_map) (pc: nat) (m:t) : lcost_map := 
+Definition linterp (sc:cost_map) (m:t) : lcost_map := 
   fun l => 
-    match get m pc with
-    | Some c => (sc pc)%R
+    match get m l with
+    | Some c => (sc c)
     | None => 0%R
     end.
 
@@ -292,6 +290,35 @@ Scheme leak_il_WF_ind   := Induction for leak_i_WF   Sort Prop
   with leak_il_WFs_ind  := Induction for leak_i_WFs  Sort Prop.
 
 Section Proofs.
+
+Lemma trasnform_cost_il_ok stk pc sl lt lc c:
+leak_i_WFs lt lc ->
+lcost c pc (leak_i_iLs (leak_i_iL) stk lt lc) =1
+Sm.linterp (cost_C sl lc) (transform_cost_i_cL transform_cost_i_iL lt sl).1.
+Proof.
+move=> Hwf2. move: Hwf2 sl.
+apply (leak_il_WFs_ind 
+     (P:=fun lt li _ => forall sl, 
+       lcost c pc  (leak_i_iL stk li lt) =1 Sm.linterp (cost_i sl li) (transform_cost_i_iL lt sl).1)
+     (P0:=fun lt lc _ => forall sl, 
+       lcost c pc (leak_i_iLs (leak_i_iL) stk lt lc) =1 
+          Sm.linterp (cost_C sl lc) (transform_cost_i_cL transform_cost_i_iL lt sl).1)).
+(* LT_ilkeepa *)
++ move=> le sl sl'/=. rewrite mergec0.
+
+
+
+
+
+(*apply (leak_il_WFs_ind 
+     (P:=fun lt li _ => forall sl, 
+       lcost c pc  (leak_i_iL stk li lt) =1 
+       Sm.linterp (lcost c pc ((leak_i_iL) stk li lt)) pc (transform_cost_i_iL lt sl).1)
+     (P0:=fun lt lc _ => forall sl, 
+       lcost c pc (leak_i_iLs (leak_i_iL) stk lt lc) =1 
+          Sm.linterp (cost_C c pc lic) pc (transform_cost_i_cL transform_cost_i_iL lt sl).1)).*)
+(* LT_ikeepa *)
+
 
 (*Lemma transform_cost_il_ok stk pc sl lt lic lc c:
   (* lic : seq leak_i_il is well formed with intermediate commands *)
