@@ -201,38 +201,41 @@ Fixpoint transform_cost_i_iL (l : leak_i_il_tr) (sl:path) : Sm.t * nat :=
   | LT_ilkeepa => (Sm.empty, 1)
   | LT_ilkeep => (Sm.empty, 1)
     (*Licond e L1; c2; Lilabel L1*)
+    (* Licond should be part of previous block *)
   | LT_ilcond_0 _ lti =>
     let c := enter_transform_cost_i_cL transform_cost_i_iL lti (bpath_f sl) in 
     let cl := Sm.single 1 sl.1 in 
-    (Sm.merge c.1 cl, 1)
-    
-
+    (Sm.merge c.1 cl, c.2+1)
+    (*Licond e L1; c1; Lilabel L1*)
+    (* Licond should be part of previous block *)
   | LT_ilcond_0' lte lti => 
     let c := enter_transform_cost_i_cL transform_cost_i_iL lti (bpath_t sl) in 
     let cl := Sm.single 1 sl.1 in 
-    (Sm.merge c.1 cl, 1)
-    
-
+    (Sm.merge c.1 cl, c.2+1)
     (* Licond e L1; c2; Ligoto L2; Lilabel L1; c1; Lilabel L2 *)
     (* if e then c1 else c2 *)
     (* Need to check pc for next *)
   | LT_ilcond lte lti lti'=> 
-    let cnf := enter_transform_cost_i_cL transform_cost_i_iL lti' (bpath_f sl) in
-    let cnt := enter_transform_cost_i_cL transform_cost_i_iL lti (bpath_t sl) in
-    let c2 := Sm.single 1 sl.1 in 
-    (Sm.merge cnf.1 cnt.1, 1)
+    let cnf := enter_transform_cost_i_cL transform_cost_i_iL lti' (bpath_f sl) in (* c2; Ligoto L2 *) 
+    let cnt := enter_transform_cost_i_cL transform_cost_i_iL lti (bpath_t sl) in (* Lilabel L1; c1 *)
+    let c2 := Sm.single 1 sl.1 in  (* Lilable l2 *)
+    (Sm.merge cnf.1 cnt.1, cnf.2+cnt.2+1)
 
-    (* Fix needed *)
-  | LT_ilwhile_c'0 a lti => (Sm.empty, 0)
+    (* align; Lilabel L1; c ; Licond e L1 *)
+    (* while a c e [::] *)
+  | LT_ilwhile_c'0 a lti => 
+    enter_transform_cost_i_cL transform_cost_i_iL lti (bpath_f sl) (* Lilabel L1; c; Licond e L1 *) 
+
 
   | LT_ilwhile_f lti => enter_transform_cost_i_cL transform_cost_i_iL lti (bpath_f sl)
 
     (* Ligoto L1; align; Lilabel L2; c'; Lilabel L1; c; Lcond e L2; 
          c'; Lilabel L1; c; Lcond e L2; .....*)
   | LT_ilwhile lti lti' =>
-    let cnf := enter_transform_cost_i_cL transform_cost_i_iL lti (bpath_f sl) in (* c' *)
-    let cnt := enter_transform_cost_i_cL transform_cost_i_iL lti' (bpath_t sl) in (* c *)
-    (Sm.merge cnf.1  cnt.1, 1)
+    let cg := Sm.single 1 sl.1 in (*Ligoto L1*)
+    let cnf := enter_transform_cost_i_cL transform_cost_i_iL lti (bpath_f sl) in (* Lilabel L2;c' *)
+    let cnt := enter_transform_cost_i_cL transform_cost_i_iL lti' (bpath_t sl) in (* Lilabel L1;c;Licond *)
+    (Sm.merge cg (Sm.merge cnf.1  cnt.1), cnf.2+cnt.2+1)
      
   end.
 
@@ -320,4 +323,5 @@ Admitted.*)
 
 
 End Proofs.
+
 
