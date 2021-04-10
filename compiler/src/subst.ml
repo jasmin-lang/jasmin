@@ -284,28 +284,35 @@ let rec constant_of_expr (e: Prog.expr) : Bigint.zint =
 let remove_params (prog : 'info pprog) =
   let globals, prog = psubst_prog prog in
   let globals, prog = isubst_prog globals prog in
-  let mk_word ws e =  
+  let mk_word ws e =
     Word0.wrepr ws (Conv.z_of_bi (clamp ws (constant_of_expr e))) in
-  let doglob (x, e) = 
+  let doglob (x, e) =
     match x.v_ty, e with
     | Bty (U ws), GEword e ->
-      x, Global.Gword (ws, mk_word ws e) 
-    | Arr(ws,n), GEarray es ->
-      assert (List.length es = n);
+      x, Global.Gword (ws, mk_word ws e)
+    | Arr (_ws, n), GEarray es when List.length es <> n ->
+       let m = List.length es in
+       Utils.hierror "%s: array size mismatch for global variable %a: %d %s given (%d expected)"
+         (Location.tostring x.v_dloc)
+         (Printer.pp_var ~debug:false) x
+         (List.length es)
+         (if m > 1 then "values" else "value")
+         n
+    | Arr (ws, n), GEarray es ->
       let p = Conv.pos_of_int (n * size_of_ws ws) in
       let t = ref (Warray_.WArray.empty p) in
-      let doit i e = 
+      let doit i e =
         match Warray_.WArray.set p ws !t Warray_.AAscale (Conv.z_of_int i) (mk_word ws e) with
         | Ok t1 -> t := t1
         | _ -> assert false in
       List.iteri doit es;
-      x, Global.Garr(p, !t) 
+      x, Global.Garr(p, !t)
     | _, _ -> assert false
   in
   let globals = List.map doglob globals in
   globals, prog
 
- 
+
 (* ---------------------------------------------------------------- *)
 (* Rename all variable using fresh variable                         *)
 
