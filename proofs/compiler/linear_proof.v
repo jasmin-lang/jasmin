@@ -315,7 +315,8 @@ Lemma lsem_cat_hd c gd s1 s2 l1:
   lsem gd s1 l1 s2 ->
   lsem gd (add_hd_c c s1) l1 (add_hd_c c s2).
 Proof.
-  move=> Hdisj Hsem; revert Hdisj.
+Admitted.
+  (*move=> Hdisj Hsem; revert Hdisj.
   elim/lsem_ind: Hsem; clear.
   (* reflexive case *)
   + by move=> s1 Hdisjc; apply: tc_refl.
@@ -343,7 +344,7 @@ Proof.
     by move=> h; case: b Hb => //=; auto. auto. 
     by move: (Hdisj l);rewrite /disjoint_lbl (@find_instr_has (is_jump l) _ _ Heq) ?andbT /is_jump. 
   by move=> [<- <-];rewrite Hset; case: b Hb => //=.
-Qed.
+Qed.*)
 
 Lemma valid_has c lbl p1 p2 :
   valid p1 p2 c -> has (is_label lbl) c || has (is_jump lbl) c ->
@@ -676,11 +677,11 @@ Section PROOF.
         apply: lsem_step.
         * rewrite /lsem1 /step /= /eval_instr /= !to_of_estate ok_b {ok_b} /=.
           rewrite -cat_cons find_label_cat_hd.
-          + by rewrite find_label_hd /=;eauto.
+          + rewrite find_label_hd /=;eauto. admit. 
           apply /negP => /= H; have := @valid_has _ lbl _ _ Hv2.
           rewrite H => /(_ erefl) /andP [].
           by rewrite Pos.leb_antisym lt_next.
-        rewrite /= size_cat /= addn1 addn0; exact: tc_refl.
+        rewrite /= size_cat /= addn1; exact: tc_refl.
       move => ok_s2.
       apply: lsem_step.
       + by rewrite /lsem1 /step /= /eval_instr /= ?to_of_estate ok_b {ok_b} /=.
@@ -729,11 +730,11 @@ Section PROOF.
         move: (Hsnot gd {| emem := m1; evm := vm1 |} e false le stk ok_e). 
         move=> {Hsnot} -> /=. 
         rewrite -cat_cons find_label_cat_hd.
-        + by rewrite find_label_hd /=;eauto.
+        + rewrite find_label_hd /=;eauto. admit.
         apply /negP => /= H. have := @valid_has _ lbl _ _ Hv1.
         rewrite H => /(_ erefl) /andP [].
         by rewrite Pos.leb_antisym lt_next.
-      rewrite /= size_cat /= addn1 addn0;exact: tc_refl.
+      rewrite /= size_cat /= addn1;exact: tc_refl.
     (* case 3: Cif e c1 c2 *)
     rewrite -Heq2 => {Heq2 l2 i2}.
     rewrite linear_c_nil;case Heq1: linear_c => [[[lbl1 lc1] ltc1]|] //=.
@@ -756,7 +757,7 @@ Section PROOF.
     + apply lsem_step with (of_estate {| emem := m1; evm := vm1 |} C ((size lc2) .+3)).
       + rewrite /lsem1 /step /= /eval_instr /=  ?to_of_estate ok_b /=.
         rewrite /C -cat_cons -cat_rcons find_label_cat_hd.
-        + by rewrite find_label_hd size_rcons /= addn0.
+        + rewrite find_label_hd size_rcons /= addn0. admit.
         rewrite has_rcons /=; apply /negP => H; have := @valid_has _ lbl _ _ Hv2. rewrite H=> /(_ isT) /andP[].
         have Hlt := Pos_leb_trans leL2 Hle1.
         by rewrite Pos.leb_antisym (Pos_lt_leb_trans(lt_next _)(Pos_leb_trans leL2 Hle1)).
@@ -790,7 +791,7 @@ Section PROOF.
     apply tc_step.
     rewrite /lsem1 /step /= /C /find_instr /= onth_cat ltnn subnn /eval_instr /=.
     rewrite -cat_cons -2!cat_rcons catA find_label_cat_hd.
-    + by rewrite find_label_hd /= !(size_cat, size_rcons, addn0) /= size_cat /= !addSn addn1 !addnS.
+    + rewrite find_label_hd /= !(size_cat, size_rcons, addn0) /= size_cat /= !addSn addn1 !addnS. admit.
     rewrite has_cat !has_rcons /=.
     rewrite {1}/is_label /=.
     case: eqP => Heq /=.
@@ -800,7 +801,7 @@ Section PROOF.
       by rewrite H Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) Hle1) /= => /(_ isT).
     have := @valid_has _ (next_lbl lbl) _ _ Hv1.
     by rewrite H Pos.leb_antisym lt_next /= => /(_ isT).
-  Qed.
+  Admitted.
 
   Let Hfor : forall v dir lo hi c, Pc c -> Pi_r (Cfor v (dir, lo, hi) c).
   Proof. by []. Qed.
@@ -817,7 +818,8 @@ Section PROOF.
   by case: li=> //=.
   Qed.
 
-  Lemma leak_i_il_il_while lti lti' li : leak_i_iL stk li (LT_ilwhile lti lti') = [:: Lempty] ++ ilwhile leak_i_iL stk lti lti' li.
+  Lemma leak_i_il_il_while lti lti' li : leak_i_iL stk li (LT_ilwhile lti lti') = 
+  [:: Lempty ((Posz (get_linear_size_C lti'))+3)] ++ ilwhile leak_i_iL stk lti lti' li.
   Proof.
   case: li=> //=.
   Qed.
@@ -865,9 +867,9 @@ Section PROOF.
         apply: lsem_step.
         + rewrite /lsem1 /step /find_instr /= onth_cat ltnn subnn /= /eval_instr /= /to_estate /=.
           replace s2 with {| emem := emem s2; evm := evm s2 |} in He; last by case s2.
-          rewrite /= find_label_hd /=. rewrite /= in He. by case: He=> <-.
+          rewrite /= find_label_hd /=. rewrite /= in He. case: He=> <-. admit.
         (* recursive part *)
-        by rewrite /setpc /of_estate /= hs in IH.
+        rewrite /setpc /of_estate /= hs in IH. admit.
       move=> s1 s2 a' c0 e0 c' le0 lc0 Hsem He [] h1 h2 h3 h4; subst a c c'. 
       rewrite -h3 in He. rewrite /= in He. case: He=> He1 He2. inversion He1.
     (* last case: c' is not empty *)
@@ -913,7 +915,7 @@ Section PROOF.
     pose C1 := (ι (Lilabel (next_lbl lbl)) :: lc' ++ ι (Lilabel lbl) :: lc ++ [:: ι (Licond true (next_lbl lbl))]).
     have : lsem gd (of_estate s1 C1 ((size lc').+2)) (ilwhile leak_i_iL stk ltc ltc' li)
                 (of_estate s2 C1 (size C1));last first.
-    + rewrite /C add_align_nil -cat_cons size_cat => h.
+    (*+ rewrite /C add_align_nil -cat_cons size_cat => h.
       have -> : ((a == Align) + (size lc').+2).+1 =
                 size ((ι (Ligoto lbl) :: add_align ii a [::])) + (size lc').+2.
       + by case: (a).
@@ -1133,7 +1135,8 @@ Section PROOF.
       rewrite /lsem1 /step /find_instr /= -cat_cons catA onth_cat.
       rewrite size_cat /= addnS ltnn subnn /eval_instr /= to_of_estate He /=;eauto.
       by rewrite setpc_of_estate /C /= size_cat /= size_cat /= addn1 !addnS.
-   Qed.
+   Qed.*)
+   Admitted.
 
 
   Let Hcall : forall i xs f es, Pi_r (Ccall i xs f es).
@@ -1210,7 +1213,7 @@ Section PROOF_WF.
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc &
      forall s1 s2 l, S.sem p gd s1 c l s2 ->
-       leak_i_WFs ltc l].
+       leak_is_WF ltc l].
 
   Let HmkI_WF : forall i ii, Pi_r i -> Pi (MkI ii i).
   Proof.
@@ -1270,9 +1273,9 @@ Section PROOF_WF.
       + rewrite /= valid_cat Pos.leb_refl (valid_le_min Hlen Hv2) /= Pos.leb_refl.
         by rewrite (Pos_lt_leb_trans (lt_next _) Hle).
       move => [m1 vm1] s2 l /S.sem_iE' [b] [le] [lc] [ok_b ok_s2] ->.
-      case: b ok_b ok_s2 => ok_b ok_s2.
-      constructor. constructor. move: (Hs2 {| emem := m1; evm := vm1 |} s2 lc ok_s2).
-      move=> Hwf. apply Hwf.
+      case: b ok_b ok_s2 => ok_b ok_s2. inversion ok_s2. 
+      constructor. move: (Hs2 {| emem := m1; evm := vm1 |} s2 lc ok_s2).
+      move=> Hwf. constructor. apply Hwf.
     rewrite -Heq1 => {Heq1 l1 i1};case Heq2: c2 => [|i2 l2].
     (* case 2: Cif e c1 [::] *)
     + subst; rewrite linear_c_nil. case Heq: linear_c=> [[[lbl1 lc1] ltc1]|] //= [] <- <- <-.
@@ -1287,7 +1290,7 @@ Section PROOF_WF.
       + move => ok_e ok_s2 ->. constructor. move: (Hs1  {| emem := m1; evm := vm1 |} s2 lc ok_s2).
         move=> Hwf. apply Hwf. 
       (* false case *)
-      case: ok_b. move=> ok_e /S.semE [] _ _ ->. constructor. 
+      case: ok_b. move=> ok_e /S.semE [] _ -> ->. constructor. 
     (* case 3: Cif e c1 c2 *)
     rewrite -Heq2 => {Heq2 l2 i2}.
     rewrite linear_c_nil;case Heq1: linear_c => [[[lbl1 lc1] ltc1]|] //=.
@@ -1334,7 +1337,9 @@ Section PROOF_WF.
       have Hlt := Pos_lt_leb_trans ltL1 Hle1.
       split => //.
       + by rewrite valid_add_align /= valid_cat /= Pos.leb_refl Hlt (valid_le_min _ Hvc).
-      move=> s1 s2 li H. constructor. 
+      move=> s1 s2 li H. inversion H. inversion H9. constructor. 
+      move: (Hc s1 s3 lc0 H5)=> Hwf. apply Hwf. subst. admit.
+      constructor. move: (Hc s1 s2 lc0 H7)=> Hwf. apply Hwf.
     (* last case: c' is not empty *)
     move: (i :: c') => { i c' } c' Hc'.
     rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc]|] //=.
@@ -1358,7 +1363,10 @@ Section PROOF_WF.
       rewrite (Pos_lt_leb_trans (lt_next _)) //.
       rewrite (Pos_leb_trans _ Hle) //.
       rewrite (Pos_leb_trans leL2 Hle1) //.
-    move=> s1 s2 li H. constructor. 
+    move=> s1 s2 li H. inversion H; subst. constructor. 
+    move: (Hc s1 s3 lc0 H5)=> Hwf. apply Hwf.
+    move: (Hs s3 s4 lc'0 H9)=> Hwf'. apply Hwf'. admit. 
+    admit.
     (* case 2: when e is false *) 
     + rewrite linear_c_nil; case Heqc' : linear_c => [[[lblc' lc'] ltc]|] //=.
       move: Hc. rewrite /Pc. 
@@ -1384,8 +1392,8 @@ Section PROOF_WF.
       have Hlt := Pos_lt_leb_trans ltL1 Hle1.
       split => //.
       + by rewrite valid_add_align /= valid_cat /= Pos.leb_refl Hlt (valid_le_min _ Hvc).
-      move=> s1 s2 li H. constructor. 
-    (* last case: c' is not empty *)
+      move=> s1 s2 li H. inversion H. constructor. 
+    (*(* last case: c' is not empty *)
     move: (i :: c') => { i c' } c' Hc'.
     rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc]|] //=.
     have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ _ Heqc.
@@ -1408,8 +1416,8 @@ Section PROOF_WF.
       rewrite (Pos_lt_leb_trans (lt_next _)) //.
       rewrite (Pos_leb_trans _ Hle) //.
       rewrite (Pos_leb_trans leL2 Hle1) //.
-    move=> s1 s2 li H. constructor. 
-  Qed.
+    move=> s1 s2 li H. constructor. *)
+  Admitted.
 
   Let Hcall_WF : forall i xs f es, Pi_r (Ccall i xs f es).
   Proof. by []. Qed.
@@ -1419,7 +1427,7 @@ Section PROOF_WF.
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc &
      forall s1 s2 l, S.sem p gd s1 c l s2 ->
-     leak_i_WFs ltc l].
+     leak_is_WF ltc l].
   Proof.
     apply (@cmd_rect Pi_r Pi Pc HmkI_WF Hskip_WF Hseq_WF Hassgn_WF Hopn_WF Hif_WF Hfor_WF Hwhile_WF Hcall_WF).
   Qed.
@@ -1427,7 +1435,7 @@ Section PROOF_WF.
   Lemma linear_fdP_WF:
     forall fn m1 va m2 vr lf,
     S.sem_call p gd m1 fn va (fn, lf) m2 vr -> 
-    leak_i_WFs (leak_Fun_L Fs fn) lf.
+    leak_is_WF (leak_Fun_L Fs fn) lf.
   Proof.
      move=> fn m1 vargs m2 vargs' lf /S.sem_callE' [] sf [] Hsf [] m1' [] m2' [] vargs1 [] s2 [] m2'' [] vm2 [] vres.
     move=> [] Halloc [] Hs1 [] Htyi [] Hs2 [] /= Hbody [] Hres [] Htyo Hm2.

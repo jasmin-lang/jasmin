@@ -1,3 +1,4 @@
+
 (* ** License
  * -----------------------------------------------------------------------
  * Copyright 2016--2017 IMDEA Software Institute
@@ -84,16 +85,18 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec (lstate * leak_il) :=
   | Lialign   => ok (setpc s1 s1.(lpc).+1, Lempty0)
   | Lilabel _ => ok (setpc s1 s1.(lpc).+1, Lempty0)
   | Ligoto lbl =>
+    let cpc := s1.(lpc) in 
     Let pc := find_label lbl s1.(lc) in
-    ok (setpc s1 pc.+1, Lempty)
+    ok (setpc s1 pc.+1, Lempty (Posz pc.+1 - Posz cpc))
    (* Depending on the evaluation of e in the state s1, the pc is set *)
   | Licond e lbl =>
     Let re := sem_pexpr gd (to_estate s1) e in 
     Let b :=  to_bool re.1 in
     if b then
+      let cpc := s1.(lpc) in 
       Let pc := find_label lbl s1.(lc) in
-      ok (setpc s1 pc.+1, (Lcondl re.2 b))
-    else ok (setpc s1 s1.(lpc).+1, (Lcondl re.2 b))
+      ok (setpc s1 pc.+1, (Lcondl (Posz pc.+1 - Posz cpc) re.2 b))
+    else ok (setpc s1 s1.(lpc).+1, (Lcondl 1 re.2 b))
   end.
 
 Definition find_instr (s:lstate) := oseq.onth s.(lc) s.(lpc).

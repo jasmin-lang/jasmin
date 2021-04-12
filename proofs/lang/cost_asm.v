@@ -60,12 +60,7 @@ Definition single_asmcost pc : asmcost_map := update_asmcost empty_asmcost pc.
 Definition merge_asmcost (c1 c2: asmcost_map) := 
    fun pc => (c1 pc + c2 pc)%R.
 
-Definition asmcost_i (ip: nat) (li: leak_asm) : asmcost_map :=
-match li with 
- | Laempty => single_asmcost ip
- | Lacond _ => single_asmcost ip
- | Laop _ => empty_asmcost
-end. 
+Definition asmcost_i (ip: nat) := single_asmcost ip.
 
 Fixpoint asmcost (c: seq asm) (ip:nat) (lis:seq leak_asm) := 
   match lis with
@@ -73,7 +68,7 @@ Fixpoint asmcost (c: seq asm) (ip:nat) (lis:seq leak_asm) :=
   | li :: lis =>
     let pc' := next_ip_leak c ip li in
     let cs := asmcost c pc' lis in
-    merge_asmcost (asmcost_i ip li) cs
+    merge_asmcost (asmcost_i ip) cs
   end.
 
 Module CmpNat.
@@ -135,12 +130,21 @@ end.
 
 Section Proofs.
 
-Lemma trasnform_cost_il_ok c ip li sl lc:
-leak_il_WF c ip li ->
-asmcost_i ip (leak_i_asm li) =1
-Sm.linterp (cost_C sl lc) (transform_cost_asm li sl).1.
+(*Definition map := asmpc -> lpc.
+Definition interp_map (lcost: lpc -> nat) (m:map) : amscost := 
+  fun (pc:asmpc) => lcost (m pc).*)
+
+
+(*lin_cost (pc(*asm*)) : pc (*linear*) := pc.*)
+
+(*Lemma trasnform_cost_il_ok c pc sl lc:
+leak_ils_WF c pc lc -> 
+leak_ils_WF asm pc (map leak_i_asm lc) -> 
+lcost c pc lc =1
+asmcost asm pc (map leak_i_asm lc).
+(*interp_map (lcost_c c pc lc) (fun (pc:asmpc) => pc).*)
 Proof.
-Admitted.
+Admitted.*)
 
 End Proofs.
 

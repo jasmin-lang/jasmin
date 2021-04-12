@@ -690,16 +690,16 @@ Fixpoint leak_compiles (stk: pointer) (ltss: seq (seq leak_f_tr)) (lf: leak_fun)
 
 Inductive leak_il : Type :=
   | Lempty0 : leak_il
-  | Lempty : leak_il
+  | Lempty : int -> leak_il 
   | Lopnl : leak_e -> leak_il
-  | Lcondl : leak_e -> bool -> leak_il.
+  | Lcondl : int -> leak_e -> bool -> leak_il. 
 
 Fixpoint eq_leak_il (li: leak_il) (li': leak_il) : bool :=
 match li, li' with 
- | Lempty0, Lempty0 => true 
- | Lempty, Lempty => true
+ | Lempty0, Lempty0 => true
+ | Lempty i1, Lempty i2 => i1 == i2
  | Lopnl le, Lopnl le' => if (eq_leak_e le le') then true else false
- | Lcondl le b, Lcondl le' b' => if (eq_leak_e le le') && (b == b') then true else false
+ | Lcondl i1 le b, Lcondl i2 le' b' => if (i1 == i2) && (eq_leak_e le le') && (b == b') then true else false
  | _, _ => false
 end.
 
@@ -718,6 +718,32 @@ Inductive leak_i_il_tr : Type :=
   | LT_ilwhile_f : seq leak_i_il_tr -> leak_i_il_tr
   | LT_ilwhile : seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i_il_tr.
 
+(* Computes the leakage depending on alignment *) 
+Definition get_align_leak_il a : seq leak_il :=
+  match a with 
+  | NoAlign => [::]
+  | Align => [:: Lempty0]
+  end.
+
+Definition incr n (l:seq (nat * leak_il)) := map (fun p => (p.1 + n, p.2)) l.
+
+Definition get_linear_size_c (f : leak_i_il_tr -> nat) (ltc : seq leak_i_il_tr) :=
+foldr (fun lti n => f lti + n) 0 ltc. 
+
+Fixpoint get_linear_size (lti : leak_i_il_tr) : nat :=
+  match lti with 
+  | LT_ilkeep => 1
+  | LT_ilkeepa => 1
+  | LT_ilcond_0 lte lti => get_linear_size_c get_linear_size lti + 2
+  | LT_ilcond_0' lte lti => get_linear_size_c get_linear_size lti + 2
+  | LT_ilcond lte lti lti' => get_linear_size_c get_linear_size lti + get_linear_size_c get_linear_size lti' + 4
+  | LT_ilwhile_c'0 a lti => get_linear_size_c get_linear_size lti + 3
+  | LT_ilwhile_f lti => get_linear_size_c get_linear_size lti 
+  | LT_ilwhile lti lti' => get_linear_size_c get_linear_size lti + get_linear_size_c get_linear_size lti' + 5
+  end.
+
+Definition get_linear_size_C := get_linear_size_c get_linear_size.
+
 Section Leak_IL.
 
   Variable leak_i_iL : pointer -> leak_i ->  leak_i_il_tr -> seq leak_il.
@@ -725,12 +751,13 @@ Section Leak_IL.
   Definition leak_i_iLs (stk : pointer) (lts : seq leak_i_il_tr) (ls : seq leak_i) : seq leak_il :=
     flatten (map2 (leak_i_iL stk) ls lts).
 
+  (* align; Lilabel L1; c ; Licond e L1 *)
   Fixpoint ilwhile_c'0 (stk: pointer) (lti : seq leak_i_il_tr) (li : leak_i) : seq leak_il :=
     match li with 
     | Lwhile_false lis le => 
-      leak_i_iLs stk lti lis ++ [:: Lcondl le false]
+      leak_i_iLs stk lti lis ++ [:: Lcondl 1 le false]
     | Lwhile_true lis le lis' li' => 
-      leak_i_iLs stk lti lis ++ [:: Lcondl le true] ++ ilwhile_c'0 stk lti li'
+      leak_i_iLs stk lti lis ++ [:: Lcondl (get_linear_size_C lti) le true] ++ ilwhile_c'0 stk lti li'
     | _ => [::]
     end.
 
@@ -738,21 +765,14 @@ Section Leak_IL.
              : seq leak_il :=
     match li with 
     | Lwhile_false lis le => 
-      leak_i_iLs stk lts lis ++ [:: Lcondl le false]
+      leak_i_iLs stk lts lis ++ [:: Lcondl 1 le false]
     | Lwhile_true lis le lis' li' =>
-      leak_i_iLs stk lts lis ++ [:: Lcondl le true] ++ 
+      leak_i_iLs stk lts lis ++ [:: Lcondl (Posz (get_linear_size_C lts)+ Posz (get_linear_size_C lts')+2)%R le true] ++ 
       leak_i_iLs stk lts' lis' ++ [:: Lempty0] ++ ilwhile stk lts lts' li'
     | _ => [::]
     end.
 
 End Leak_IL.
-
-(* Computes the leakage depending on alignment *) 
-Definition get_align_leak_il a : seq leak_il :=
-  match a with 
-  | NoAlign => [::]
-  | Align => [:: Lempty0]
-  end.
 
 Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : seq leak_il :=
   match l, li with 
@@ -765,29 +785,63 @@ Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : 
   | LT_ilkeep, Lopn le => 
     [:: Lopnl le]
 
+    (*if e then [::] else c2*) (* Licond e l; c2; label l (n+2)*)
   | LT_ilcond_0 lte lti, Lcond le b lis => 
-    [:: Lcondl (leak_E stk lte le) b] ++ 
+    if b then [:: Lcondl (Posz (get_linear_size_C lti) + 2)%R (leak_E stk lte le) b] ++ [::] 
+    else [:: Lcondl 1 (leak_E stk lte le) b] ++ leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty0]
+
+    (*[:: Lcondl 0 (leak_E stk lte le) b] ++ 
     if b then [::] 
-    else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty0]
+    else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty0]*)
 
+    (*let lcn := leak_i_iLs leak_i_iL stk lti lis in
+    ([:: 0, Lcondl (leak_E stk lte le) b] ++ 
+    incr 1 (if b then [::] else lcn.1 ++ [:: lcn.2, Lempty0]),
+    lcn.2 + 2)*)
   | LT_ilcond_0' lte lti, Lcond le b lis => 
-    [:: Lcondl (leak_E stk lte le) (negb b)] ++ 
+    if negb b then [:: Lcondl (Posz (get_linear_size_C lti) + 2) (leak_E stk lte le) (negb b)] ++ [::]
+    else [:: Lcondl 1 (leak_E stk lte le) (negb b)] ++ leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty0]
+
+    (*[:: Lcondl 0 (leak_E stk lte le) (negb b)] ++ 
     if negb b then [::] 
-    else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty0]
+    else leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty0]*)
 
+    (*let lcn := leak_i_iLs leak_i_iL stk lti lis in
+    ([:: 0, Lcondl (leak_E stk lte le) (negb b)] ++ 
+    incr 1 (if negb b then [::] else lcn.1 ++ [:: lcn.2, Lempty0]),
+    lcn.2 + 2)*)
+    
+    (* if e then c1 else c2 *)
+    (* Licond e L1; c2; Ligoto L2; Lilabel L1; c1; Lilabel L2 (*n1+n2+4*) *)
   | LT_ilcond lte lti lti', Lcond le b lis => 
-    [:: Lcondl (leak_E stk lte le) b] ++ 
-    if b then leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty0]
-    else leak_i_iLs leak_i_iL stk lti' lis ++ [:: Lempty]
+    if b then [:: Lcondl (Posz (get_linear_size_C lti') + 3) (leak_E stk lte le) b] ++ leak_i_iLs leak_i_iL stk lti lis 
+              ++ [:: Lempty0]
+    else [:: Lcondl 1 (leak_E stk lte le) b] ++ leak_i_iLs leak_i_iL stk lti' lis ++ [:: Lempty (Posz (get_linear_size_C lti) +3)]
 
+
+    (*[:: Lcondl 1 (leak_E stk lte le) b] ++ 
+    if b then leak_i_iLs leak_i_iL stk lti lis ++ [:: Lempty0]
+    else leak_i_iLs leak_i_iL stk lti' lis ++ [:: Lempty (n2+1)]*)
+
+    (*let lcn := 
+      leak_i_iLs leak_i_iL stk (if b then lti else lti') lis in 
+    let lc := lcn.1 ++ [:: (lcn.2, if b then Lempty0 else Lempty)] in
+    [:: (0, Lcondl (leak_E stk lte le) b)] ++ incr 1 lc, lcn.2 + 2) *)
+    
+    (* align; Lilabel L1; c ; Licond e L1 *)
+    (* while a c e [::] *)
   | LT_ilwhile_c'0 a lti, _ => 
     get_align_leak_il a ++ [:: Lempty0 & ilwhile_c'0 leak_i_iL stk lti li]
 
+    
   | LT_ilwhile_f lti, Lwhile_false lis le => 
     leak_i_iLs leak_i_iL stk lti lis
 
+    (* Ligoto L1; align; Lilabel L2; c'; Lilabel L1; c; Lcond e L2; 
+         c'; Lilabel L1; c; Lcond e L2; .....*)
+    (* while a c e c' *)
   | LT_ilwhile lti lti', _ => 
-    [:: Lempty] ++ ilwhile leak_i_iL stk lti lti' li 
+    [:: Lempty ((Posz (get_linear_size_C lti'))+3)] ++ ilwhile leak_i_iL stk lti lti' li 
 
   | _, _ => [::]
   end.
@@ -799,38 +853,47 @@ Definition leak_f_lf_tr := seq (funname * seq leak_i_il_tr).
 Inductive leak_i_WF : leak_i_il_tr -> leak_i -> Prop :=
 | LT_ilkeepaWF : forall le, leak_i_WF LT_ilkeepa (Lopn le)
 | LT_ilkeepWF : forall le, leak_i_WF LT_ilkeep (Lopn le)
-| LT_ilcond_0tWF : forall le lis lte lti,
-                  leak_i_WF (LT_ilcond_0 lte lti) (Lcond le true lis)
+| LT_ilcond_0tWF : forall le lte lti,
+                  leak_i_WF (LT_ilcond_0 lte lti) (Lcond le true [::])
 | LT_ilcond_0fWF : forall le lis lte lti,
-                  leak_i_WFs lti lis ->
+                  leak_is_WF lti lis ->
                   leak_i_WF (LT_ilcond_0 lte lti) (Lcond le false lis)
 | LT_icond_0tWF' : forall le lis lte lti,
-                  leak_i_WFs lti lis ->
+                  leak_is_WF lti lis ->
                   leak_i_WF (LT_ilcond_0' lte lti) (Lcond le true lis)
-| LT_icond_0fWF' : forall le lis lte lti,
-                  leak_i_WF (LT_ilcond_0' lte lti) (Lcond le false lis)
-| LT_ilcondtWF : forall lte lti lti' le lis,
-                leak_i_WFs lti lis ->
+| LT_icond_0fWF' : forall le lte lti,
+                  leak_i_WF (LT_ilcond_0' lte lti) (Lcond le false [::])
+| LT_ilcondtWF : forall le lis lte lti lti',
+                leak_is_WF lti lis ->
                 leak_i_WF (LT_ilcond lte lti lti') (Lcond le true lis)
-| LT_ilcondfWF : forall lte lti lti' le lis,
-                leak_i_WFs lti' lis ->
+| LT_ilcondfWF : forall le lis lte lti lti',
+                leak_is_WF lti' lis ->
                 leak_i_WF (LT_ilcond lte lti lti') (Lcond le false lis)
-| LT_ilwhile_fWF : forall lis le lti,
-                   leak_i_WFs lti lis ->
+| LT_ilwhile_fWF : forall le lis lti,
+                   leak_is_WF lti lis ->
                    leak_i_WF (LT_ilwhile_f lti) (Lwhile_false lis le)
-(* Fix needed *)
-| LT_ilwhile_c'0WF : forall li a lti,
-                     leak_i_WF (LT_ilwhile_c'0 a lti) li
-(* Fix needed *)
-| LT_ilwhileWF : forall li lti lti',
-                 leak_i_WF (LT_ilwhile lti lti') li
+| LT_ilwhile_c'0WF : forall le lis a lti,
+                     leak_is_WF lti lis -> 
+                     leak_i_WF (LT_ilwhile_c'0 a lti) (Lwhile_false lis le)
+| LT_ilwhile_c'0WF' : forall le lis lis' li a lti,
+                     leak_is_WF lti lis ->
+                     leak_i_WF  (LT_ilwhile_c'0 a lti) li ->
+                     leak_i_WF (LT_ilwhile_c'0 a lti) (Lwhile_true lis le lis' li)
+| LT_ilwhileWF : forall le lis lti lti',
+                 leak_is_WF lti lis -> 
+                 leak_i_WF (LT_ilwhile lti lti') (Lwhile_false lis le)
+| LT_ilwhileWF' : forall le lis lis' li lti lti',
+                 leak_is_WF lti lis ->
+                 leak_is_WF lti' lis' ->
+                 leak_i_WF (LT_ilwhile lti lti') li -> 
+                 leak_i_WF (LT_ilwhile lti lti') (Lwhile_true lis le lis' li)
 
-with leak_i_WFs : seq leak_i_il_tr -> leak_c -> Prop :=
- | WF_i_empty : leak_i_WFs [::] [::]
+with leak_is_WF : seq leak_i_il_tr -> leak_c -> Prop :=
+ | WF_i_empty : leak_is_WF [::] [::]
  | WF_i_seq : forall li lc lt1 lt1',
             leak_i_WF lt1 li ->
-            leak_i_WFs lt1' lc ->
-            leak_i_WFs (lt1 :: lt1') (li::lc).
+            leak_is_WF lt1' lc ->
+            leak_is_WF (lt1 :: lt1') (li::lc).
 
 
 Section Leak_Call_Imp_L.
@@ -861,9 +924,9 @@ Fixpoint leak_e_asm (l : leak_e) : seq pointer :=
 Definition leak_i_asm (l : leak_il) : leak_asm :=
   match l with 
   | Lempty0 => Laempty
-  | Lempty => Laempty
+  | Lempty i => Laempty
   | Lopnl le => Laop (leak_e_asm le)
-  | Lcondl le b => Lacond b
+  | Lcondl i le b => Lacond b
   end.
 
 Definition leak_compile_prog
