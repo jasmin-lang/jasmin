@@ -725,6 +725,12 @@ Definition get_align_leak_il a : seq leak_il :=
   | Align => [:: Lempty0]
   end.
 
+Definition get_align_size a : nat :=
+match a with 
+ | NoAlign => 0
+ | Align => 1
+end.
+
 Definition incr n (l:seq (nat * leak_il)) := map (fun p => (p.1 + n, p.2)) l.
 
 Definition get_linear_size_c (f : leak_i_il_tr -> nat) (ltc : seq leak_i_il_tr) :=
@@ -737,9 +743,9 @@ Fixpoint get_linear_size (lti : leak_i_il_tr) : nat :=
   | LT_ilcond_0 lte lti => get_linear_size_c get_linear_size lti + 2
   | LT_ilcond_0' lte lti => get_linear_size_c get_linear_size lti + 2
   | LT_ilcond lte lti lti' => get_linear_size_c get_linear_size lti + get_linear_size_c get_linear_size lti' + 4
-  | LT_ilwhile_c'0 a lti => get_linear_size_c get_linear_size lti + 3
+  | LT_ilwhile_c'0 a lti => get_linear_size_c get_linear_size lti + (get_align_size a) + 2
   | LT_ilwhile_f lti => get_linear_size_c get_linear_size lti 
-  | LT_ilwhile lti lti' => get_linear_size_c get_linear_size lti + get_linear_size_c get_linear_size lti' + 5
+  | LT_ilwhile lti lti' => get_linear_size_c get_linear_size lti + get_linear_size_c get_linear_size lti' + 4
   end.
 
 Definition get_linear_size_C := get_linear_size_c get_linear_size.
@@ -757,17 +763,18 @@ Section Leak_IL.
     | Lwhile_false lis le => 
       leak_i_iLs stk lti lis ++ [:: Lcondl 1 le false]
     | Lwhile_true lis le lis' li' => 
-      leak_i_iLs stk lti lis ++ [:: Lcondl (get_linear_size_C lti) le true] ++ ilwhile_c'0 stk lti li'
+      leak_i_iLs stk lti lis ++ [:: Lcondl (-(Posz (get_linear_size_C lti))%R) le true] ++ ilwhile_c'0 stk lti li'
     | _ => [::]
     end.
 
+  (* Lilabel L2; c'; Lilabel L1; c; Lcond e L2 *)
   Fixpoint ilwhile (stk : pointer) (lts : seq leak_i_il_tr) (lts' : seq leak_i_il_tr) (li : leak_i) 
              : seq leak_il :=
     match li with 
     | Lwhile_false lis le => 
       leak_i_iLs stk lts lis ++ [:: Lcondl 1 le false]
     | Lwhile_true lis le lis' li' =>
-      leak_i_iLs stk lts lis ++ [:: Lcondl (Posz (get_linear_size_C lts)+ Posz (get_linear_size_C lts')+2)%R le true] ++ 
+      leak_i_iLs stk lts lis ++ [:: Lcondl (-(Posz (get_linear_size_C lts)+ Posz (get_linear_size_C lts')+2))%R le true] ++ 
       leak_i_iLs stk lts' lis' ++ [:: Lempty0] ++ ilwhile stk lts lts' li'
     | _ => [::]
     end.
@@ -837,7 +844,7 @@ Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : 
   | LT_ilwhile_f lti, Lwhile_false lis le => 
     leak_i_iLs leak_i_iL stk lti lis
 
-    (* Ligoto L1; align; Lilabel L2; c'; Lilabel L1; c; Lcond e L2; 
+    (* Ligoto L1; align; Lilabel L2; c'; Lilabel L1; c; Lcond e L2 ; 
          c'; Lilabel L1; c; Lcond e L2; .....*)
     (* while a c e c' *)
   | LT_ilwhile lti lti', _ => 
