@@ -14,6 +14,7 @@ module type ProgWrap = sig
   val main : minfo Prog.func
   val prog : minfo Prog.prog
   val param : analyzer_param
+  val cost : Prog.Sv.t
 end
 
 

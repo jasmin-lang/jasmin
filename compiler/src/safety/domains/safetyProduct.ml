@@ -493,6 +493,7 @@ module PIMake (PW : ProgWrap) : VDomWrap = struct
      - the variable appears in a while loops conditions,
      or is modified by a while loop condition variable. *)
   let sv_ini =
+    Sv.union PW.cost @@
     match PW.param.relationals with
     | None -> PW.main.f_args |> Sv.of_list
     | Some v_rel ->

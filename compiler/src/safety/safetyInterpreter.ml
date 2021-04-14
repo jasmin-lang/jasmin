@@ -1907,10 +1907,10 @@ end = struct
     let in_vars = fun_in_args_no_offset f_decl
                   |> List.map otolist
                   |> List.flatten in
-    let vars_to_keep = in_vars @ get_mem_range state.env in
+    let vars_to_keep = in_vars @ get_mem_range state.env @ List.rev_map mvar_of_var (Sv.elements PW.cost) in
     let vars = in_vars @ fun_vars ~expand_arrays:false f_decl state.env in
     let rem_vars = List.fold_left (fun acc v ->
-        if (List.mem v vars_to_keep) then acc else v :: acc )
+        if List.mem v vars_to_keep then acc else v :: acc )
         [] vars in
 
     let abs_proj = 
@@ -1969,18 +1969,21 @@ end
 module type ExportWrap = sig
   (* main function, before any compilation pass *)
   val main_source : unit Prog.func
-      
+
   val main : unit Prog.func
   val prog : unit Prog.prog
+
+  val cost_variables : (Prog.Name.t * Prog.var) list
 end
 
 module AbsAnalyzer (EW : ExportWrap) = struct
   
   module EW = struct
     let main_source = EW.main_source
-    
+
     (* We ensure that all variable names are unique *)
-    let main,prog = MkUniq.mk_uniq EW.main EW.prog
+    let main, prog = MkUniq.mk_uniq EW.main EW.prog
+    let cost_variables = List.rev_map snd EW.cost_variables
   end
 
   let parse_pt_rel s = match String.split_on_char ';' s with
@@ -2038,6 +2041,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
         let module AbsInt = AbsInterpreter (struct
             include EW
             let param = p
+            let cost = Sv.of_list EW.cost_variables
           end) in
         AbsInt.analyze ()) ps in
 
@@ -2063,6 +2067,15 @@ module AbsAnalyzer (EW : ExportWrap) = struct
         pp_violations res.violations
         pp_mem_range
         (pp_list (fun fmt res -> res.mem_ranges_printer fmt ())) l_res;
+
+      let cost = EW.cost_variables in
+      let print_var_interval fmt x =
+        try res.print_var_interval fmt (mvar_of_var x)
+        with Manager.Error _ -> Format.fprintf fmt "%a: ⊤" pp_var x
+      in
+      if cost <> []
+      then Format.eprintf "Cost variables:@.@[%a@]@."
+             (pp_list print_var_interval) cost;
 
       if res.violations <> [] then begin
         Format.eprintf "@[<v>Program is not safe!@;@]@.";

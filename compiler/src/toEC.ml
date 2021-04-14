@@ -479,7 +479,7 @@ let out_ty_opN op =
 let rec ty_expr = function
   | Pconst _       -> tint 
   | Pbool _        -> tbool
-  | Parr_init _    -> assert false 
+  | Parr_init z    -> Arr (Wsize.U8, Bigint.to_int z)
   | Pvar x         -> x.L.pl_desc.v_ty
   | Pglobal (sz,_) -> tu sz
   | Pload (sz,_,_) -> tu sz
