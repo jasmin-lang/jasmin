@@ -774,7 +774,7 @@ Section Leak_IL.
     | Lwhile_false lis le => 
       leak_i_iLs stk lts lis ++ [:: Lcondl 1 le false]
     | Lwhile_true lis le lis' li' =>
-      leak_i_iLs stk lts lis ++ [:: Lcondl (-(Posz (get_linear_size_C lts)+ Posz (get_linear_size_C lts')+2))%R le true] ++ 
+      leak_i_iLs stk lts lis ++ [:: Lcondl (-(Posz (get_linear_size_C lts)+ Posz (get_linear_size_C lts')+1))%R le true] ++ 
       leak_i_iLs stk lts' lis' ++ [:: Lempty0] ++ ilwhile stk lts lts' li'
     | _ => [::]
     end.
@@ -879,28 +879,35 @@ Inductive leak_i_WF : leak_i_il_tr -> leak_i -> Prop :=
 | LT_ilwhile_fWF : forall le lis lti,
                    leak_is_WF lti lis ->
                    leak_i_WF (LT_ilwhile_f lti) (Lwhile_false lis le)
-| LT_ilwhile_c'0WF : forall le lis a lti,
-                     leak_is_WF lti lis -> 
-                     leak_i_WF (LT_ilwhile_c'0 a lti) (Lwhile_false lis le)
-| LT_ilwhile_c'0WF' : forall le lis lis' li a lti,
-                     leak_is_WF lti lis ->
-                     leak_i_WF  (LT_ilwhile_c'0 a lti) li ->
-                     leak_i_WF (LT_ilwhile_c'0 a lti) (Lwhile_true lis le lis' li)
-| LT_ilwhileWF : forall le lis lti lti',
-                 leak_is_WF lti lis -> 
-                 leak_i_WF (LT_ilwhile lti lti') (Lwhile_false lis le)
-| LT_ilwhileWF' : forall le lis lis' li lti lti',
-                 leak_is_WF lti lis ->
-                 leak_is_WF lti' lis' ->
-                 leak_i_WF (LT_ilwhile lti lti') li -> 
-                 leak_i_WF (LT_ilwhile lti lti') (Lwhile_true lis le lis' li)
+| LT_ilwhile_c'0WF : forall li a lti,
+                     leak_w0_WF lti li ->
+                     leak_i_WF (LT_ilwhile_c'0 a lti) li 
+| LT_ilwhileWF : forall li lti lti',
+                 leak_w_WF lti lti' li ->
+                 leak_i_WF (LT_ilwhile lti lti') li
 
 with leak_is_WF : seq leak_i_il_tr -> leak_c -> Prop :=
  | WF_i_empty : leak_is_WF [::] [::]
  | WF_i_seq : forall li lc lt1 lt1',
             leak_i_WF lt1 li ->
             leak_is_WF lt1' lc ->
-            leak_is_WF (lt1 :: lt1') (li::lc).
+            leak_is_WF (lt1 :: lt1') (li::lc)
+
+with leak_w0_WF  : seq leak_i_il_tr -> leak_i -> Prop := 
+ | LW0_false : forall lti lis le, leak_is_WF lti lis -> leak_w0_WF lti (Lwhile_false lis le)
+ | LW0_true  : forall lti lis le lis' li', 
+      leak_is_WF lti lis ->
+      leak_w0_WF lti li' -> 
+      leak_w0_WF lti (Lwhile_true lis le lis' li')
+
+with leak_w_WF  : seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i -> Prop := 
+    | LW_false : forall lti lti' lis le, leak_is_WF lti lis -> leak_w_WF lti lti' (Lwhile_false lis le)
+    | LW_true  : forall lti lti' lis le lis' li', 
+      leak_is_WF lti lis ->
+      leak_is_WF lti' lis' ->
+      leak_w_WF lti lti' li' -> 
+      leak_w_WF lti lti' (Lwhile_true lis le lis' li').
+
 
 
 Section Leak_Call_Imp_L.
@@ -950,3 +957,4 @@ Definition leak_compile_x86
    (lf: leak_fun) : seq leak_asm :=
   let r := leak_compile_prog stk ltss lf in
   map (fun x=> leak_i_asm x) r.
+

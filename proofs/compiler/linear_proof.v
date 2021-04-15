@@ -1320,7 +1320,7 @@ Section PROOF_WF.
 
   Let Hwhile_WF : forall a c e c', Pc c -> Pc c' -> Pi_r (Cwhile a c e c').
   Proof.
-    move=> a c e c' Hc Hc' ii lbl lbli li lti /=.
+    (*move=> a c e c' Hc Hc' ii lbl lbli li lti /=.
     set ι := MkLI ii.
     case: is_boolP => [[] | {e} e].
     + case: c' Hc' => [ _ | i c' ].
@@ -1338,8 +1338,10 @@ Section PROOF_WF.
       split => //.
       + by rewrite valid_add_align /= valid_cat /= Pos.leb_refl Hlt (valid_le_min _ Hvc).
       move=> s1 s2 li H. inversion H. inversion H9. constructor. 
-      move: (Hc s1 s3 lc0 H5)=> Hwf. apply Hwf. subst. admit.
-      constructor. move: (Hc s1 s2 lc0 H7)=> Hwf. apply Hwf.
+      constructor.
+      move: (Hc s1 s3 lc0 H5)=> Hwf. apply Hwf. subst. 
+      inversion H10. subst.
+      move: (Hc s1 s2). lc0 H5)=> Hwf. apply Hwf.
     (* last case: c' is not empty *)
     move: (i :: c') => { i c' } c' Hc'.
     rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc]|] //=.
@@ -1416,7 +1418,7 @@ Section PROOF_WF.
       rewrite (Pos_lt_leb_trans (lt_next _)) //.
       rewrite (Pos_leb_trans _ Hle) //.
       rewrite (Pos_leb_trans leL2 Hle1) //.
-    move=> s1 s2 li H. constructor. *)
+    move=> s1 s2 li H. constructor. *)*)
   Admitted.
 
   Let Hcall_WF : forall i xs f es, Pi_r (Ccall i xs f es).
