@@ -48,17 +48,17 @@ if oseq.onth s ip is Some i then
 else 0.
 
 (* mapping from program counter to rat *)
-Definition asmcost_map := nat -> rat.  (* Q *)
+Definition asmcost_map := nat -> nat.  (* Q *)
 
 Definition update_asmcost (m:asmcost_map) (pc:nat) : asmcost_map :=
-  fun (pc':nat) => if pc == pc' then (m pc + 1)%R else m pc'.
+  fun (pc':nat) => if pc == pc' then (m pc + 1) else m pc'.
 
-Definition empty_asmcost : asmcost_map := fun _ => 0%R.
+Definition empty_asmcost : asmcost_map := fun _ => 0.
 
 Definition single_asmcost pc : asmcost_map := update_asmcost empty_asmcost pc.
 
 Definition merge_asmcost (c1 c2: asmcost_map) := 
-   fun pc => (c1 pc + c2 pc)%R.
+   fun pc => (c1 pc + c2 pc).
 
 Definition asmcost_i (ip: nat) := single_asmcost ip.
 
@@ -116,7 +116,7 @@ Definition linterp (sc:cost_map) (m:t) : asmcost_map :=
   fun l => 
     match get m l with
     | Some c => (sc c)
-    | None => 0%R
+    | None => 0
     end.
 
 End Sm.

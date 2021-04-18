@@ -763,7 +763,7 @@ Section Leak_IL.
     | Lwhile_false lis le => 
       leak_i_iLs stk lti lis ++ [:: Lcondl 1 le false]
     | Lwhile_true lis le lis' li' => 
-      leak_i_iLs stk lti lis ++ [:: Lcondl (-(Posz (get_linear_size_C lti))%R) le true] ++ ilwhile_c'0 stk lti li'
+      leak_i_iLs stk lti lis ++ [:: Lcondl (-Posz(get_linear_size_C lti)%R) le true] ++ ilwhile_c'0 stk lti li'
     | _ => [::]
     end.
 
@@ -774,7 +774,7 @@ Section Leak_IL.
     | Lwhile_false lis le => 
       leak_i_iLs stk lts lis ++ [:: Lcondl 1 le false]
     | Lwhile_true lis le lis' li' =>
-      leak_i_iLs stk lts lis ++ [:: Lcondl (-(Posz (get_linear_size_C lts)+ Posz (get_linear_size_C lts')+1))%R le true] ++ 
+      leak_i_iLs stk lts lis ++ [:: Lcondl (- Posz(get_linear_size_C lts + get_linear_size_C lts'+1)) le true] ++ 
       leak_i_iLs stk lts' lis' ++ [:: Lempty0] ++ ilwhile stk lts lts' li'
     | _ => [::]
     end.

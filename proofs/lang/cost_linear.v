@@ -73,17 +73,17 @@ Fixpoint leak_ils_WF (c:lcmd) (pc:nat) (lis: seq leak_il) :=
 Import GRing.Theory.
 
 (* mapping from program counter to rat *)
-Definition lcost_map := nat -> rat.  (* Q *)
+Definition lcost_map := nat -> nat.  (* Q *)
 
 Definition update_lcost (m:lcost_map) (pc:nat) : lcost_map :=
-  fun (pc':nat) => if pc == pc' then (m pc + 1)%R else m pc'.
+  fun (pc':nat) => if pc == pc' then (m pc + 1) else m pc'.
 
-Definition empty_lcost : lcost_map := fun _ => 0%R.
+Definition empty_lcost : lcost_map := fun _ => 0.
 
 Definition single_lcost pc : lcost_map := update_lcost empty_lcost pc.
 
 Definition merge_lcost (c1 c2: lcost_map) := 
-   fun pc => (c1 pc + c2 pc)%R.
+   fun pc => (c1 pc + c2 pc).
 
 Definition lcost_i (pc: nat) (li: leak_il) := (single_lcost pc, next_pc_leak pc li).
 
@@ -111,7 +111,6 @@ Proof. by move=> c1 c1' h1 c2 c2' h2 l; rewrite /merge_lcost h1 h2. Qed.
 
 
 (* Provide map of lbl *)
-
 
 Module CmpNat.
 
@@ -160,7 +159,7 @@ Definition linterp (sc:cost_map) (m:t) : lcost_map :=
   fun pc => 
     match get m pc with
     | Some l => (sc l)
-    | None => 0%R
+    | None => 0
     end.
 
 Definition ext_eq (m1 m2:t) := 
@@ -382,25 +381,25 @@ Scheme leak_il_WF_ind   := Induction for leak_i_WF   Sort Prop
 Section Support_Lemmas.
 
 Lemma mergecl0 c : merge_lcost c empty_lcost =1 c.
-Proof. by move=> l; rewrite /merge_lcost addr0. Qed.
+Proof. by move=> l; rewrite /merge_lcost addn0. Qed.
 
 Lemma mergec0l c : merge_lcost empty_lcost c =1 c.
-Proof. by move=> l; rewrite /merge_lcost /empty_lcost /= add0r. Qed.
+Proof. by move=> l; rewrite /merge_lcost /empty_lcost /= add0n. Qed.
 
 Lemma mergel0 : merge_lcost empty_lcost empty_lcost =1 empty_lcost.
-Proof. by move=> l; rewrite /merge_lcost /empty_lcost /= add0r. Qed.
+Proof. by move=> l; rewrite /merge_lcost /empty_lcost /= add0n. Qed.
 
 Lemma mergecl_single pc : merge_lcost (single_lcost pc) empty_lcost =1 (single_lcost pc).
 Proof.
-move=> pc' /=. by rewrite /merge_lcost /= /empty_lcost addr0.
+move=> pc' /=. by rewrite /merge_lcost /= /empty_lcost addn0.
 Qed.
 
 Lemma mergelA c1 c2 c3:
   merge_lcost (merge_lcost c1 c2) c3 =1 merge_lcost c1 (merge_lcost c2 c3).
-Proof. by move=> l; rewrite /merge_lcost addrA. Qed.
+Proof. by move=> l; rewrite /merge_lcost addnA. Qed.
 
 Lemma mergelA' c1 c2 c3: merge_lcost c1 (merge_lcost c2 c3) =1 merge_lcost (merge_lcost c1 c2) c3. 
-Proof. by move=> l; rewrite /merge_lcost addrA. Qed.
+Proof. by move=> l; rewrite /merge_lcost addnA. Qed.
 
 Lemma mergePl m1 m2 pc :
   Sm.get (Sm.merge m1 m2) pc = Sm.merge_scost pc (Sm.get m1 pc) (Sm.get m2 pc).
@@ -414,8 +413,7 @@ Proof.
   have := hd pc. 
   case: (Sm.get m1 pc) => [ sc1 | ]; case: (Sm.get m2 pc) => [ sc2 | ] //=.
   + by move=> h; have //: Some sc2 = None by apply h.
-  + by rewrite addr0.
-  by rewrite add0r.
+  by rewrite addn0.
 Qed.
 
 Lemma linterp_empty m: 
@@ -469,9 +467,6 @@ Lemma nat_s1 a b c: a+3+b+c+1 = a+(b+c+4).
 Proof.
 ring.
 Qed.
-
-
-
 
 End Support_Lemmas.
 
@@ -644,20 +639,20 @@ by rewrite Hr2 addnA.
   by rewrite mergecl0 -mergelA /get_linear_size_C /=.
 (* LT_iwhile_c'0 *) (* true *)
 + move=> lti lis le lis' li' Hwf Hrec Hwf' Hrec' pc l2 /=. split=> //=.
-  + move: (Hrec pc (Lcondl (-(Posz (get_linear_size_C lti))%R) le true
+  + move: (Hrec pc (Lcondl (- Posz(get_linear_size_C lti)) le true
        :: ilwhile_c'0 leak_i_iL stk lti li' ++ l2))=> [] H1 H2.
     rewrite -catA H1 /=.
-    move: (Hrec' `|pc + get_linear_size_C lti - get_linear_size_C lti| l2)=> [] H1' H2'.
+    move: (Hrec' `|(pc + get_linear_size_C lti - get_linear_size_C lti)| l2)=> [] H1' H2'.
     rewrite H1' /=.
-    have H : `|pc + get_linear_size_C lti - get_linear_size_C lti| = pc.
-    admit. by rewrite H.
+    have H : `|pc + get_linear_size_C lti - (0 + get_linear_size_C lti)| = pc.
+    by rewrite distnDr subr0. by rewrite H.
    move: (Hrec pc (Lcondl (-(Posz (get_linear_size_C lti))%R) le true
        :: ilwhile_c'0 leak_i_iL stk lti li' ++ l2))=> [] H1 H2.
     rewrite -catA H2 /=.
     move: (Hrec' `|pc + get_linear_size_C lti - get_linear_size_C lti| l2)=> [] H1' H2'.
     rewrite H2' /=.
-    have H : `|pc + get_linear_size_C lti - get_linear_size_C lti| = pc.
-    admit. rewrite H /=.
+    have H : `|pc + get_linear_size_C lti - (0 + get_linear_size_C lti)| = pc.
+    by rewrite distnDr subr0. rewrite H /=.
     move: (Hrec pc (Lcondl (-(Posz (get_linear_size_C lti))%R) le true
        :: ilwhile_c'0 leak_i_iL stk lti li'))=> [] H11 H21.
     rewrite H21 /=.
@@ -680,6 +675,7 @@ split=> //=.
   rewrite -catA H1 /=.
   have H :  `|pc + get_linear_size_C lti -
        (get_linear_size_C lti + get_linear_size_C lti' + 1)| = `|pc - get_linear_size_C lti' - 1|.
+  rewrite addnC -addnA distnDl.
   admit. rewrite H.
   move: (Hrec' `|pc - get_linear_size_C lti' - 1|  (Lempty0 :: ilwhile leak_i_iL stk lti lti' li' ++ l2))=> [] H11 H21.
   rewrite -catA H11 /=. rewrite -addn1.
@@ -693,6 +689,7 @@ move: (Hrec pc ((Lcondl (- (Posz (get_linear_size_C lti + get_linear_size_C lti'
 rewrite -catA H2 /=.
 have H :  `|pc + get_linear_size_C lti -
        (get_linear_size_C lti + get_linear_size_C lti' + 1)| = `|pc - get_linear_size_C lti' - 1|.
+rewrite addnC -addnA distnDl.
 admit. rewrite H.
 move: (Hrec' `|pc - get_linear_size_C lti' - 1|  (Lempty0 :: ilwhile leak_i_iL stk lti lti' li' ++ l2))=> [] H11 H21.
 rewrite -catA H21 /=. 
@@ -706,7 +703,8 @@ move: (Hrec pc  (Lcondl
 rewrite Hr' /=.
 have He :  `|pc + get_linear_size_C lti -
        (get_linear_size_C lti + get_linear_size_C lti' + 1)| = `|pc - get_linear_size_C lti' - 1|.
-  admit. rewrite He.
+rewrite addnC -addnA distnDl.
+ admit. rewrite He.
 move: (Hrec' `|pc - get_linear_size_C lti' - 1|  (Lempty0 :: ilwhile leak_i_iL stk lti lti' li'))=> [] Hr1 Hr1'.
 rewrite Hr1' /=.
 move: (Hrec''  (`|pc - get_linear_size_C lti' - 1| + get_linear_size_C lti').+1 [::])=> [] Hr2 Hr2'.
@@ -746,6 +744,12 @@ rewrite /Sm.single getlP. case: ifP=> //=.
 by move=> /eqP -> _.
 Qed.
 
+Lemma get_single' pc pc' sl: Sm.get (Sm.single pc sl) pc' = None -> pc' ≠ pc.
+Proof.
+rewrite /Sm.single getlP. case: ifP=> //=.
+by move=> /eqP H _. 
+Qed.
+
 Lemma linterp_single sl pc:  Sm.linterp (single_cost sl) (Sm.single pc sl) =1 single_lcost pc.
 Proof.
 move=> pc'. rewrite /single_cost /Sm.single /Sm.linterp.
@@ -758,15 +762,6 @@ move=> /eqP H /=. rewrite /single_lcost.
 rewrite /update_lcost /=. case: ifP=> //=. move=> /eqP H'. rewrite H' in H. by case: H.
 Qed.
 
-Lemma transform_lcost_C0on n c sl lt :
-  (forall l, c (prefix_bpath sl l) = 0%R) ->
-  Sm.linterp c (transform_cost_i_cL transform_cost_i_iL lt (sl, n)) =1 empty_lcost.
-Proof.
-  rewrite /Sm.linterp => h l /=; case heq : Sm.get => [sc | ] //.
-  (*have [l' <-]:= get_transform_prefix heq.
-  by rewrite h GRing.mul0r.*)
-Admitted.
-
 Lemma incr_set sl pc: (Sm.incr pc (Sm.set Sm.empty 0 sl)) = (Sm.set Sm.empty pc sl).
 Proof.
 rewrite /Sm.incr /= /Sm.map_path Sm.Ml.foldP. by rewrite /Sm.set /Sm.Ml.set /Sm.Ml.Map.add /= addn0.
@@ -774,11 +769,21 @@ Qed.
 
 Lemma incr_s sl pc n: Sm.ext_eq (Sm.incr pc (Sm.single n sl)) (Sm.single (n+pc) sl).
 Proof.
-Admitted.
+rewrite /Sm.ext_eq. move=> pc'. rewrite Sm.incrP. rewrite getlP. case: ifP=> //=.
++ move=> H. case: ifP=> //=. move=> /eqP <- /=. symmetry. rewrite subnK.
+  by rewrite setlP_eq. apply H.
++ move=> /eqP // H'. symmetry. rewrite getlP. case: ifP=> //=. move=> /eqP H''.
+  rewrite H'' in H'. rewrite addnK in H'. by case: H'.
+case: leqP=> // H _. rewrite getlP. case:ifP=> //= [].
+move=> /eqP H' //. rewrite H' in H. rewrite -ltn_subRL in H. rewrite ltn_subrR in H.
+by case: H.
+Qed.
 
 Lemma incr_c sl pc n lt: Sm.ext_eq (Sm.incr pc (transform_cost_i_cL transform_cost_i_iL lt (sl, n))) 
 (transform_cost_i_cL transform_cost_i_iL lt (sl, (n+pc))).
 Proof.
+rewrite /Sm.ext_eq. move=> pc'. rewrite Sm.incrP. case: ifP=> //=.
++ move=> /eqP H.
 Admitted.
 
 Lemma incr_merge pc c1 c2 : Sm.ext_eq (Sm.incr pc (Sm.merge c1 c2)) (Sm.merge (Sm.incr pc c1) (Sm.incr pc c2)).
@@ -821,10 +826,41 @@ Lemma linterp_sprefix_prefix sl pc: Sm.linterp (single_cost (bpath_b true sl)) (
 Proof.
 Admitted.
 
-
 Lemma wf_i_is lt li: leak_i_WF lt li -> leak_is_WF [:: lt] [:: li].
 Proof.
  move=> Hwf. constructor. apply Hwf. constructor.
+Qed.
+
+Lemma get_transform_prefix lt sl sc l:
+  Sm.get (transform_cost_i_cL transform_cost_i_iL lt sl) l = Some sc ->
+  exists l', prefix_bpath sl.1 l' = sc.
+Proof.
+  apply (leak_c_il_tr_ind (P := fun lt => forall sl l sc, Sm.get (transform_cost_i_iL lt sl) l = Some sc ->
+                                          exists l', prefix_bpath sl.1 l' = sc)
+                          (Q := fun lt => forall sl l sc, Sm.get (transform_cost_i_cL transform_cost_i_iL lt sl) l
+                                                          = Some sc ->
+                                          exists l', prefix_bpath sl.1 l' = sc)) => /=.
+(* base case *)
++ by move=> sl' l' sc' /= //.
+(* inductive case *)
++ admit.
+(* keepa *)
++ move=> sl' l' sc' /= //. rewrite /Sm.single /=. rewrite setP. case:ifP=> //=.
+  move=> /eqP H [] <-. rewrite /prefix_bpath. by exists [::].
+(* keep *)
++ move=> sl' l' sc' /= //. rewrite /Sm.single /=. rewrite setP. case:ifP=> //=.
+  move=> /eqP H [] <-. rewrite /prefix_bpath. by exists [::].
+(* LT_ilcond0 *) (* false *)
++ move=> lte lti Hrec sl' l' sc' /=. rewrite Sm.mergeP. rewrite /Sm.merge_scost.
+Admitted.
+
+Lemma transform_lcost_C0on n c sl lt :
+  (forall l, c (prefix_bpath sl l) = 0) ->
+  Sm.linterp c (transform_cost_i_cL transform_cost_i_iL lt (sl, n)) =1 empty_lcost.
+Proof.
+  rewrite /Sm.linterp => h l /=; case heq : Sm.get => [sc | ] //.
+  have [l' <-]:= get_transform_prefix heq.
+  by rewrite h /empty_lcost. 
 Qed.
 
 Lemma trasnform_cost_il_ok stk pc sl lt lc:
@@ -881,8 +917,7 @@ apply (leak_il_WFs_ind
   rewrite /transform_cost_i_cL_extra /= /enter_cost_c.
   rewrite incr_merge !incr_c !incr_s incr_merge !incr_c !incr_s add0n.
   rewrite linterp_merge /=. rewrite linterp_merge_c linterp_single linterp_merge.
-  
-  Search Sm.linterp.
+  admit. admit. admit.
 (* LT_icond_0'*) (* true *)
 + move=> le lis lte lti Hwf Hrec pc sl /=.
   have Heq := eq_pc.
@@ -910,9 +945,9 @@ apply (leak_il_WFs_ind
 (* LT_ilwhile_f *) (* false *)
 + move=> le lis lti Hwf Hrec /= pc' sl'.
   rewrite /enter_cost_c /=.  move: (Hrec pc' (bpath_f sl', 0))=> {Hrec} Hrec.
-  rewrite interp_merge_cl. rewrite -Hrec /=.
+  rewrite linterp_merge_c. rewrite -Hrec /=.
   have H := (incr_c (bpath_f sl') pc' 0 lti).
-  by rewrite H add0n interp_s_prefix mergec0l /=.
+  by rewrite H add0n linterp_s_prefix mergec0l /=.
 (* LT_ilwhile_c'0 *)
 + move=> li a lti Hwf Hrec pc sl /=.
   rewrite /cost_C /= in Hrec. rewrite /transform_cost_i_cL_extra /=.
