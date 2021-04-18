@@ -406,7 +406,7 @@ Lemma mergePl m1 m2 pc :
   Sm.get (Sm.merge m1 m2) pc = Sm.merge_scost pc (Sm.get m1 pc) (Sm.get m2 pc).
 Proof. by rewrite /Sm.get Sm.Ml.map2P. Qed.
 
-Lemma interp_mergel c m1 m2:
+Lemma linterp_merge c m1 m2:
   Sm.disjoint m1 m2 ->
   Sm.linterp c (Sm.merge m1 m2) =1 merge_lcost (Sm.linterp c m1) (Sm.linterp c m2).
 Proof.
@@ -418,22 +418,16 @@ Proof.
   by rewrite add0r.
 Qed.
 
-Lemma interp_lempty m: 
+Lemma linterp_empty m: 
   Sm.linterp empty_cost m =1 empty_lcost.
 Proof.
   by move=> l; rewrite /Sm.linterp /=; case: Sm.get => // ?; rewrite mul0r.
 Qed.
 
-Lemma interp_merge_cl c1 c2 m :
+Lemma linterp_merge_c c1 c2 m :
   Sm.linterp (merge_cost c1 c2) m =1 merge_lcost (Sm.linterp c1 m) (Sm.linterp c2 m).
 Proof.
  move=> pc. rewrite /Sm.linterp /= /merge_lcost. case: Sm.get=> [sc1| ] //=.
-Qed.
-
-Lemma interp_emptyl m: 
-  Sm.linterp empty_cost m =1 empty_lcost.
-Proof.
-  by move=> l; rewrite /Sm.linterp /=; case: Sm.get => // ?; rewrite mul0r.
 Qed.
 
 Lemma cost_C_f l lc :
@@ -752,7 +746,7 @@ rewrite /Sm.single getlP. case: ifP=> //=.
 by move=> /eqP -> _.
 Qed.
 
-Lemma interp_single sl pc:  Sm.linterp (single_cost sl) (Sm.single pc sl) =1 single_lcost pc.
+Lemma linterp_single sl pc:  Sm.linterp (single_cost sl) (Sm.single pc sl) =1 single_lcost pc.
 Proof.
 move=> pc'. rewrite /single_cost /Sm.single /Sm.linterp.
 rewrite getlP. case: ifP=> //=.
@@ -795,21 +789,21 @@ Qed.
 Lemma incl0 sl c pc : Sm.ext_eq (Sm.incr pc (Sm.merge (Sm.single 0 sl) c)) (Sm.merge (Sm.single pc sl) (Sm.incr pc c)).
 Proof. by rewrite incr_merge incr_s. Qed.
 
-Lemma interp_s_prefix sl lti pc: (Sm.linterp (single_cost sl.1)
+Lemma linterp_s_prefix sl lti pc: (Sm.linterp (single_cost sl.1)
        (transform_cost_i_cL transform_cost_i_iL lti
           (bpath_f sl, pc))) =1 empty_lcost.
 Proof.
 Admitted.
 
-Lemma interp_s_prefix' sl pc: (Sm.linterp (single_cost sl.1) (Sm.single pc (bpath_f sl))) =1 empty_lcost.
+Lemma linterp_s_prefix' sl pc: (Sm.linterp (single_cost sl.1) (Sm.single pc (bpath_f sl))) =1 empty_lcost.
 Proof.
 Admitted.
 
-Lemma interp_s_prefix_rev sl pc: (Sm.linterp (single_cost (bpath_f sl)) (Sm.single pc sl.1)) =1 empty_lcost.
+Lemma linterp_s_prefix_rev sl pc: (Sm.linterp (single_cost (bpath_f sl)) (Sm.single pc sl.1)) =1 empty_lcost.
 Proof.
 Admitted.
 
-Lemma interp_s_lbl_b b sl lti pc:
+Lemma linterp_s_lbl_b b sl lti pc:
   Sm.linterp (cost_C (bpath_b b sl, 0) lti) (Sm.single pc sl.1) =1 empty_lcost.
 Proof.
   (*move=> l; rewrite /Sm.interp get_single.
@@ -818,6 +812,15 @@ Proof.
   by move/prefix_pathP: heq => /prefix_path_neq.
 Qed.*)
 Admitted.
+
+Lemma linterp_sprefix_s b sl pc: Sm.linterp (single_cost (bpath_b b sl)) (Sm.single pc sl.1) =1 empty_lcost.
+Proof.
+Admitted.
+
+Lemma linterp_sprefix_prefix sl pc: Sm.linterp (single_cost (bpath_b true sl)) (Sm.single pc (bpath_b false sl)) =1 empty_lcost.
+Proof.
+Admitted.
+
 
 Lemma wf_i_is lt li: leak_i_WF lt li -> leak_is_WF [:: lt] [:: li].
 Proof.
@@ -849,27 +852,37 @@ apply (leak_il_WFs_ind
                      (Sm.incr pc (transform_cost_i_cL transform_cost_i_iL lt sl)))).
 (* LT_ilkeepa *)
 + move=> le pc sl /=. rewrite mergecl0 mergec0.
-  by rewrite incr_s interp_single. 
+  by rewrite incr_s linterp_single. 
 (* LT_ilkeep *)
 + move=> le pc sl /=. rewrite mergecl0 mergec0.
-  by rewrite incr_s interp_single.
+  by rewrite incr_s linterp_single.
 (* LT_ilcond0 *) (* true *)
 + move=> le lte lti pc sl /=.
   rewrite mergecl0 /enter_cost_c /= mergec0. rewrite /transform_cost_i_cL_extra /=.
   rewrite incr_merge /= incr_merge /= incr_s /= add0n /= incr_merge /= incr_s incr_s /=.
-  rewrite incr_c /= add0n incr_c /=. move=> pc'.
-  
-  admit.
+  rewrite incr_c /= add0n incr_c /=. 
+  rewrite linterp_merge_c. rewrite !linterp_merge.
+  rewrite transform_lcost_C0on. rewrite !linterp_s_prefix'.
+  rewrite linterp_sprefix_s. rewrite linterp_sprefix_prefix.
+  rewrite transform_lcost_C0on. rewrite mergel0 !mergecl0 /=.
+  by rewrite linterp_single.
+  + move=> l /=. rewrite /bpath_b /= /bpath_f /= /bpath_b /= /prefix_bpath /=. 
+    rewrite single_costE. case:ifP=> //=.
+    move=> /eqP H. rewrite -cat_rcons in H. admit.
+  + move=> l /=. rewrite /prefix_bpath /bpath_f /bpath_b /=.
+    rewrite single_costE. case: ifP=> //=.
+    move=> /eqP H. admit.
+  admit. admit. admit. admit.
 (* LT_icond0 *) (* false *) (* Licond b n l; c2; Label l*)
 + move=> le lis lte lti Hwf Hrec pc sl /=.
   have Heq := eq_pc.
   move: (Heq stk (pc+1) lti lis [:: Lempty0] Hwf)=> [] H1 H2.
-  rewrite H2 /= mergecl0 /= incl0. 
-  rewrite /transform_cost_i_cL_extra /= !incr_merge !incr_s !incr_c /=.
-  rewrite /enter_cost_c /= add0n !interp_merge_cl !interp_mergel. 
-  rewrite interp_single interp_s_prefix !interp_single.
-  rewrite interp_s_prefix' /= mergel0 interp_s_prefix_rev mergec0l interp_s_lbl_b mergec0l mergecl0.
-  admit. admit. admit. admit. admit. admit. admit.
+  rewrite H2 /= mergecl0 /= incl0.
+  rewrite /transform_cost_i_cL_extra /= /enter_cost_c.
+  rewrite incr_merge !incr_c !incr_s incr_merge !incr_c !incr_s add0n.
+  rewrite linterp_merge /=. rewrite linterp_merge_c linterp_single linterp_merge.
+  
+  Search Sm.linterp.
 (* LT_icond_0'*) (* true *)
 + move=> le lis lte lti Hwf Hrec pc sl /=.
   have Heq := eq_pc.
