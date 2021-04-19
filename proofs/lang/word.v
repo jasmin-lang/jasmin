@@ -1459,9 +1459,23 @@ Definition popcnt sz (w: word sz) :=
  wrepr sz (count id (w2t w)).
 
 (* TODO: cleanup *)
+Definition saturated_signed (sz: wsize) (x: Z): Z :=
+ Z.max (wmin_signed sz) (Z.min (wmax_signed sz) x).
+
+Definition wrepr_saturated_signed (sz: wsize) (x: Z) : word sz :=
+ wrepr sz (saturated_signed sz x).
+
+(*
+Definition saturated_unsigned (sz: wsize) (x: Z): Z := 
+ Z.max 0%Z (Z.min (wmax_unsigned sz) x).
+
+Definition wrepr_saturated_unsigned (sz: wsize) (x: Z) : word sz :=
+ wrepr sz (saturated_unsigned sz x).
+*)
+
 Fixpoint add_pairs ve (v1: seq (word ve)) : seq (word ve) :=
   match v1 with
-  | cons p1 (cons p2 v1') => (wrepr ve ((wunsigned p1) + (wunsigned p2))) :: (add_pairs v1')
+  | cons p1 (cons p2 v1') => (wrepr_saturated_signed ve ((wunsigned p1) + (wunsigned p2))) :: (add_pairs v1')
   | nil | cons _ _ => [::]
   end.
 

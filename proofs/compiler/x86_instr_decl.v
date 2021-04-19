@@ -855,26 +855,23 @@ Definition x86_VPERMD sz (v1 v2: word sz): ex_tpl(w_ty sz) :=
   Let _ := check_size_256 sz in
   ok (@vpermd sz v1 v2).
 
-(* FIXME *)
 Definition x86_VPCMPGT ve sz (v1 v2: word sz): ex_tpl(w_ty sz) :=
   Let _ := check_size_8_32 ve in
   Let _ := check_size_128_256 sz in
-  ok (wrepr sz 0).
+  ok (@vpcmpgt ve sz v1 v2).
 
-(* FIXME *)
 Definition x86_POPCNT sz (v: word sz): ex_tpl (b5w_ty sz) :=
   Let _ := check_size_16_64 sz in
-  let r := (wrepr sz 0) in (* FIXME! *)
+  let r := (@popcnt sz v) in
   ok (:: Some false, Some false, Some false, Some false, Some (ZF_of_word v) & r).
 
-(* FIXME *)
 Definition x86_PEXT sz (v1 v2: word sz): ex_tpl (w_ty sz) :=
-  Let _ := check_size_32_64 sz in
-  ok (wrepr sz 0).
+  let _ := check_size_32_64 sz in
+  ok (@pextr sz v1 v2).
 
 Definition x86_VPMADDUBSW sz (v v1: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in
-  ok (@pmaddubsw sz v v2).
+  ok (@pmaddubsw sz v v1).
 
 Definition x86_VPMADDWD sz (v v1: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in
@@ -1886,13 +1883,12 @@ Definition prim_string :=
    Ox86_VAESKEYGENASSIST_instr.2;
    Ox86_RDTSC_instr.2;
    Ox86_RDTSCP_instr.2;
-   Ox86_PMOVMSKB_instr.2
-   Ox86_VPERMD_instr.2
-   Ox86_VPCMPGT_instr.2
-   Ox86_POPCNT_instr.2
-   Ox86_PEXT_instr.2
    Ox86_PMOVMSKB_instr.2;
-   Ox86_VPMADDUBSW_instr.2
-   Ox86_VPMADDWD_instr.2;
+   Ox86_VPERMD_instr.2;
+   Ox86_VPCMPGT_instr.2;
+   Ox86_POPCNT_instr.2;
+   Ox86_PEXT_instr.2;
+   Ox86_VPMADDUBSW_instr.2;
+   Ox86_VPMADDWD_instr.2
  ].
   
