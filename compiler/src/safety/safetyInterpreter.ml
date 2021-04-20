@@ -701,7 +701,9 @@ end = struct
 
             let lv_size = wsize_of_ty (ty_lval lv)
             and ret_size = wsize_of_ty out_ty in
-            assert (lv_size = ret_size); (* may not be necessary *)
+            if lv_size <> ret_size
+            then Format.eprintf "Warning: wsize mismatch at function return: %a (lv) %a (return type)@." Printer.pp_ty (ty_lval lv) Printer.pp_ty out_ty;
+            (*assert (lv_size = ret_size); (* may not be necessary *)*)
 
             (* Numerical abstractions only.
                Points-to and offset abstraction are not needed for array and 
