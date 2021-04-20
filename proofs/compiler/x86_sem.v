@@ -78,8 +78,7 @@ Definition eval_cond (c : condt) (rm : rflagmap) :=
   | B_ct   => get CF
   | NB_ct  => Let b := get CF in ok (~~ b)
   | E_ct   => get ZF
-  | NE_ct  => Let b := get ZF in ok (~~ b)
-  | S_ct   => get SF
+  | NE_ct  => Let b := get ZF in ok (~~ b)  | S_ct   => get SF
   | NS_ct  => Let b := get SF in ok (~~ b)
   | P_ct   => get PF
   | NP_ct  => Let b := get PF in ok (~~ b)
@@ -131,7 +130,7 @@ Definition find_label (lbl : label) (a : seq asm) :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_JMP lbl (s: x86_state) :=
-  Let ip := find_label lbl s.(xc) in ok (st_write_ip ip.+1 s).
+  Let ip := find_label lbl s.(xc) in ok (st_write_ip ip.+1 s, ip.+1).
 
 (* -------------------------------------------------------------------- *)
 (** Need to confirm with Benjamin **)
@@ -139,8 +138,8 @@ Definition eval_JMP lbl (s: x86_state) :=
 (** If we don't leak b in eval_JMP case then we get to prove that Laempty = Lcond b **)
 Definition eval_Jcc lbl ct (s: x86_state) : x86_result_state :=
   Let b := eval_cond ct s.(xrf) in
-  (*Let r := eval_JMP lbl s in*)
-  if b then Let r := eval_JMP lbl s in ok (r, Lacond b) else ok (st_write_ip (xip s).+1 s, Lacond b).
+  if b then let cpc := s.(xip) in Let r := eval_JMP lbl s in ok (r.1, Lacond (Posz r.2 - Posz cpc) b) 
+  else ok (st_write_ip (xip s).+1 s, Lacond 1 b).
 
 (* -------------------------------------------------------------------- *)
 Definition st_get_rflag (rf : rflag) (s : x86_mem) :=
@@ -362,8 +361,8 @@ Definition eval_op o args m :=
 Definition eval_instr (i : asm) (s: x86_state) : x86_result_state :=
   match i with
   | ALIGN        
-  | LABEL _      => ok (st_write_ip (xip s).+1 s, Laempty)
-  | JMP   lbl    => Let r := eval_JMP lbl s in ok(r, Laempty)
+  | LABEL _      => ok (st_write_ip (xip s).+1 s, Laempty0)
+  | JMP   lbl    => Let r := eval_JMP lbl s in ok(r.1, Laempty (Posz r.2 - Posz s.(xip)))
   | Jcc   lbl ct => eval_Jcc lbl ct s
   | AsmOp o args =>
     Let m := eval_op o args s.(xm) in

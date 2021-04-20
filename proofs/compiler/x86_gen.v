@@ -137,6 +137,7 @@ case: i => ii [] /=.
 (* goto *)
 - move => lbl [<-]; t_xrbindP => pc ok_pc <- {ls'} <-.
   rewrite /eval_JMP -(assemble_c_find_label lbl eqc) ok_pc /=.
+  rewrite -eqpc.
   by eexists; split; eauto; constructor.
 (* cond *)
 - t_xrbindP => cnd lbl cndt ok_c [<-] [v l] ok_v b /= ok_b.
@@ -148,7 +149,7 @@ case: i => ii [] /=.
     (case: (eval_cond _ _) ok_v' => // [ b | [] // ] [->] {b}).
   + t_xrbindP => pc ok_pc <- {ls'} <- /=.
     rewrite /eval_JMP -(assemble_c_find_label lbl eqc) ok_pc /=.
-    exists (st_write_ip pc.+1 xs); split=> //; eauto.
+    exists (st_write_ip pc.+1 xs); split=> //; eauto. by rewrite eqpc.
   case=> <- <- /=; eexists; split; first by reflexivity.
   by constructor => //; rewrite /setpc /= eqpc.
 Qed.

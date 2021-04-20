@@ -763,7 +763,7 @@ Section Leak_IL.
     | Lwhile_false lis le => 
       leak_i_iLs stk lti lis ++ [:: Lcondl 1 le false]
     | Lwhile_true lis le lis' li' => 
-      leak_i_iLs stk lti lis ++ [:: Lcondl (-Posz(get_linear_size_C lti)%R) le true] ++ ilwhile_c'0 stk lti li'
+      leak_i_iLs stk lti lis ++ [:: Lcondl (-(Posz (get_linear_size_C lti))%R) le true] ++ ilwhile_c'0 stk lti li'
     | _ => [::]
     end.
 
@@ -774,7 +774,7 @@ Section Leak_IL.
     | Lwhile_false lis le => 
       leak_i_iLs stk lts lis ++ [:: Lcondl 1 le false]
     | Lwhile_true lis le lis' li' =>
-      leak_i_iLs stk lts lis ++ [:: Lcondl (- Posz(get_linear_size_C lts + get_linear_size_C lts'+1)) le true] ++ 
+      leak_i_iLs stk lts lis ++ [:: Lcondl (-(Posz (get_linear_size_C lts)+ Posz (get_linear_size_C lts')+1))%R le true] ++ 
       leak_i_iLs stk lts' lis' ++ [:: Lempty0] ++ ilwhile stk lts lts' li'
     | _ => [::]
     end.
@@ -921,9 +921,10 @@ End Leak_Call_Imp_L.
 (** Leakage for assembly-level **)
 
 Inductive leak_asm : Type :=
-  | Laempty
-  | Lacond of bool (* bool represents the condition in conditional jump *)
-  | Laop of seq pointer.
+  | Laempty0 : leak_asm
+  | Laempty : int -> leak_asm
+  | Lacond : int -> bool -> leak_asm (* bool represents the condition in conditional jump *)
+  | Laop : seq pointer -> leak_asm.
 
 (* Extracts the sequence of pointers from leak_e *)
 Fixpoint leak_e_asm (l : leak_e) : seq pointer :=
@@ -937,10 +938,10 @@ Fixpoint leak_e_asm (l : leak_e) : seq pointer :=
 (* Transforms leakage for intermediate langauge to leakage for assembly *)
 Definition leak_i_asm (l : leak_il) : leak_asm :=
   match l with 
-  | Lempty0 => Laempty
-  | Lempty i => Laempty
+  | Lempty0 => Laempty0
+  | Lempty i => Laempty i
   | Lopnl le => Laop (leak_e_asm le)
-  | Lcondl i le b => Lacond b
+  | Lcondl i le b => Lacond i b
   end.
 
 Definition leak_compile_prog
