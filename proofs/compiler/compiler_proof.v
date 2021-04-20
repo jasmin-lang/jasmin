@@ -107,7 +107,7 @@ Lemma compile_progP entries (p: prog) (gd:glob_decls) (lp: lprog) mem fn va mem'
 Proof.
   move=> hc Hin /psem_call hsem sp halloc.
   have va_refl := List_Forall2_refl va value_uincl_refl.
-  move: hc; rewrite /compile_prog.
+  move: hc; rewrite /compile_prog print_progP.
   apply: rbindP=> -[p0 l0] Hp. rewrite !print_progP.
   assert (h := inline_call_errP (top_stack sp) Hp va_refl hsem).
   case: h => {hsem Hp} [? [? [hsem hall]]].
