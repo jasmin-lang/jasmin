@@ -11,7 +11,7 @@ type minfo = { i_instr_number : int; }
 
 module MkUniq : sig
 
-  val mk_uniq : unit func -> unit prog -> minfo func * minfo prog
+  val mk_uniq : unit func -> unit prog -> (string * var) list -> minfo func * minfo prog * var list
 
 end = struct
   let uniq_i_nb =
@@ -102,13 +102,14 @@ end = struct
 
   and mk_exprs fn exprs = List.map (mk_expr fn) exprs
 
-  let mk_uniq main_decl (glob_decls, fun_decls) =
+  let mk_uniq main_decl (glob_decls, fun_decls) cost_variables =
     Hashtbl.clear ht_uniq;
     Hashtbl.clear htv;
 
     let m_decl = mk_f main_decl in
     m_decl,
-    (mk_globs glob_decls, List.map mk_f fun_decls)
+    (mk_globs glob_decls, List.map mk_f fun_decls),
+    List.rev_map (fun (f, x) -> mk_v f x) cost_variables
 
 end
 

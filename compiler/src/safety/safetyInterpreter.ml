@@ -1984,8 +1984,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
     let main_source = EW.main_source
 
     (* We ensure that all variable names are unique *)
-    let main, prog = MkUniq.mk_uniq EW.main EW.prog
-    let cost_variables = List.rev_map snd EW.cost_variables
+    let main, prog, cost_variables = MkUniq.mk_uniq EW.main EW.prog EW.cost_variables
   end
 
   let parse_pt_rel s = match String.split_on_char ';' s with

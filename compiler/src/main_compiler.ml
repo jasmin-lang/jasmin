@@ -350,9 +350,9 @@ let main () =
     let check_safety_cp s cp =
       let p = Conv.prog_of_cprog tbl cp in
       check_safety_p s p source_prog in
-    
+
     let pp_cprog s cp =
-      if !cost_analysis && s = Compiler.RemoveUnusedFunction
+      if !cost_analysis && s |> print_strings |> fst = !cost_after_pass
       then cp |> Conv.prog_of_cprog tbl |> CostAnalysis.analyze
       else
       if s = SafetyConfig.sc_comp_pass () && !check_safety then

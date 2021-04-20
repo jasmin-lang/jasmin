@@ -4,7 +4,7 @@ type minfo = { i_instr_number : int; }
 
 module MkUniq : sig
   val mk_uniq :
-    unit func -> unit prog -> minfo func * minfo prog
+    unit func -> unit prog -> (string * var) list -> minfo func * minfo prog * var list
 end
 
 module Pa : sig
