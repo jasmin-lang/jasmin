@@ -1,0 +1,14 @@
+inline
+fn leaf(inline int bound) {
+  inline int i;
+  for i = 0 to bound * bound {}
+}
+
+export
+fn root() {
+  inline int j;
+  j = 1; leaf(j);
+  j = 2; leaf(j);
+  j = 3; leaf(j);
+  j = 4; leaf(j);
+}

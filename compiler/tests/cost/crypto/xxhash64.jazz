@@ -1,0 +1,191 @@
+/* Reference implementation of XXH64 from the specification:
+    https://github.com/Cyan4973/xxHash/blob/release/doc/xxhash_spec.md
+*/
+inline
+fn rol(reg u64 x, inline int c) -> reg u64 {
+   _, _, x = #ROL(x, c);
+   return x;
+}
+
+u64 prime64_1 = 0x9E3779B185EBCA87;
+u64 prime64_2 = 0xC2B2AE3D27D4EB4F;
+u64 prime64_3 = 0x165667B19E3779F9;
+u64 prime64_4 = 0x85EBCA77C2B2AE63;
+u64 prime64_5 = 0x27D4EB2F165667C5;
+
+inline
+fn initialize_with_seed(reg u64 seed) -> reg u64[4] {
+  reg u64[4] acc;
+  acc[0] = prime64_1;
+  acc[0] += prime64_2;
+  acc[0] += seed;
+  acc[1] = prime64_2;
+  acc[1] += seed;
+  acc[2] = seed;
+  acc[3] = seed;
+  acc[3] -=  prime64_1;
+  return acc;
+}
+
+inline
+fn initialize_short_with_seed(reg u64 seed) -> reg u64 {
+  reg u64 acc;
+  acc = prime64_5;
+  acc += seed;
+  return acc;
+}
+
+inline
+fn round(reg u64 acc lane) -> reg u64 {
+  lane *= prime64_2;
+  acc += lane;
+  acc = rol(acc, 31);
+  acc *= prime64_1;
+  return acc;
+}
+
+inline
+fn merge_accumulator(reg u64 acc lane) -> reg u64 {
+  reg u64 tmp;
+  tmp = 0;
+  tmp = round(tmp, lane);
+  acc ^= tmp;
+  acc *= prime64_1;
+  acc += prime64_4;
+  return acc;
+}
+
+inline
+fn merge(reg u64[4] acc) -> reg u64 {
+  reg u64 res tmp;
+  inline int i;
+
+  res = acc[0];
+  res = rol(res, 1);
+  tmp = acc[1];
+  tmp = rol(tmp, 7);
+  res += tmp;
+  tmp = acc[2];
+  tmp = rol(tmp, 12);
+  res += tmp;
+  tmp = acc[3];
+  tmp = rol(tmp, 18);
+  res += tmp;
+
+  for i = 0 to 4 {
+    res = merge_accumulator(res, acc[i]);
+  }
+
+  return res;
+}
+
+inline
+fn finalize(reg u64 acc len) -> reg u64 {
+  acc += len;
+  return acc;
+}
+
+inline
+fn xxhash_short(reg u64 len seed) -> reg u64, reg u64 {
+  reg u64 acc;
+  acc = initialize_short_with_seed(seed);
+  acc = finalize(acc, len);
+  return acc, len;
+}
+
+inline
+fn xxhash_long(reg u64 data len seed) -> reg u64, reg u64, reg u64 {
+  reg u64[4] pacc;
+  reg u64 acc lane rlen;
+  inline int i;
+
+  rlen = len;
+  pacc = initialize_with_seed(seed);
+
+  while {
+    for i = 0 to 4 {
+      lane = [data];
+      data += 8;
+      pacc[i] = round(pacc[i], lane);
+    }
+    len -= 32;
+  } (len >= 32)
+
+  acc = merge(pacc);
+  acc = finalize(acc, rlen);
+
+  return data, len, acc;
+}
+
+inline
+fn xxhash_tail(reg u64 data len acc) -> reg u64 {
+  reg u64 lane tmp;
+
+  while (len >= 8) {
+    lane = (u64)[data];
+    tmp = round(0, lane);
+    acc ^= tmp;
+    acc = rol(acc, 27);
+    acc *= prime64_1;
+    acc += prime64_4;
+    data += 8;
+    len -= 8;
+  }
+
+  while (len >= 4) {
+    tmp = (64u)(u32)[data];
+    tmp *= prime64_1;
+    acc ^= tmp;
+    acc = rol(acc, 23);
+    acc *= prime64_2;
+    acc += prime64_3;
+    data += 4;
+    len -= 4;
+  }
+
+  while (len >= 1) {
+    tmp = (64u)(u8)[data];
+    tmp *= prime64_5;
+    acc ^= tmp;
+    acc = rol(acc, 11);
+    acc *= prime64_1;
+    data += 1;
+    len -= 1;
+  }
+
+  return acc;
+}
+
+inline
+fn avalanche(reg u64 hash) -> reg u64 {
+  reg u64 tmp;
+
+  tmp = hash;
+  tmp >>= 33;
+  hash ^= tmp;
+  hash *= prime64_2;
+  tmp = hash;
+  tmp >>= 29;
+  hash ^= tmp;
+  hash *= prime64_3;
+  tmp = hash;
+  tmp >>= 32;
+  hash ^= tmp;
+
+  return hash;
+}
+
+export
+fn xxhash(reg u64 data len seed) -> reg u64 {
+  reg u64 acc hash;
+  if len < 32 {
+    acc, len = xxhash_short(len, seed);
+  } else {
+    data, len, acc = xxhash_long(data, len, seed);
+  }
+
+  hash = xxhash_tail(data, len, acc);
+  hash = avalanche(hash);
+
+  return hash;
+}
