@@ -1758,3 +1758,69 @@ Proof.
 Qed.
  
 End Transform_Cost_I.
+
+Fixpoint transform_p_b (lF : list (funname * leak_c_tr)) : list (funname * (Sm.t * nat)) :=
+  match lF with
+  | [::] => [::]
+  | (fn, lt) :: lF => 
+    let lc := transform_p_b lF in
+    let transform_cost_f fn' := odflt (Sm.empty, 0) (assoc lc fn') in
+    let smn := transform_cost_C (transform_cost_I transform_cost_f) lt in
+    (fn, smn):: lc
+  end.
+
+Definition transform_p lF := 
+   map (fun '(f,(sm,n)) => (f, (Sm.merge (Sm.single [::]) sm, n)))
+       (transform_p_b lF).
+
+
+
+
+
+
+(*
+Inductive pelem_ : Type :=
+  | LblF of funname 
+  | LblL of nat
+  | LblB of bool.
+
+path := list (pelem_ * nat).
+
+cost : path -> nat.
+
+Inductive selem_ : Type :=
+  | LblF of funname 
+  | LblL of (?x | nat)    
+  | LblB of bool.
+
+spath := list (selem_ * nat).
+
+scost : (spath, spath) map
+
+transform_cost : leak_tr -> scost 
+
+interp : (m : scost) (c:cost) -> cost 
+
+path spath -> x
+
+
+(LblL 3, 0)::(LblL 4, 2) 
+(Lbl,0) :: (LblL, 2) 
+
+[3;4] 
+
+(LblL ?0, 0) :: (LblL 5, 2):: (LblL ?1, 2)
+
+
+path -
+
+
+
+
+
+
+
+
+
+
+*)
