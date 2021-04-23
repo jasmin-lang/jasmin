@@ -400,6 +400,14 @@ let main () =
       end else if List.mem Compiler.Assembly !print_list then
           Format.printf "%a%!" (Ppasm.pp_prog tbl) asm
       ; if !print_transformers then Format.printf "%a" (PrintLeak.pp tbl) leaks
+      ; if !dot_cfg then
+          begin
+            List.iter (fun (fn, fd) ->
+                let fn = Ppasm.string_of_funname tbl fn in
+                BatFile.with_file_out (Format.sprintf "jasmin_%s.dot" fn) (fun out ->
+                    AsmCFG.pp_cfg (BatFormat.formatter_of_out_channel out) fn fd.X86_sem.xfd_body)
+            ) (snd asm)
+          end
     end
   with
   | Utils.HiError s ->
