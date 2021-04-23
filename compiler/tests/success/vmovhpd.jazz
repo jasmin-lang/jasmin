@@ -1,0 +1,7 @@
+export
+fn test_vmovhpd(reg u64 tmp) {
+  reg u128 x;
+
+  x = #set0_128();
+  (u64) [tmp] = #VMOVHPD(x);
+}

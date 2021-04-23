@@ -1505,3 +1505,13 @@ Definition bits2z (l: seq bool) : Z :=
 
 Definition pextr sz (w1 w2: word sz) :=
  wrepr sz (bits2z (mask (w2t w2) (w2t w1))).
+
+Definition vmovlpd (w: u128): u64 :=
+  let v := split_vec U64 w in
+  let l64 := List.nth 1 v (wrepr U64 0) in
+  l64.
+
+Definition vmovhpd (w: u128): u64 :=
+  let v := split_vec U64 w in
+  let l64 := List.nth 0 v (wrepr U64 0) in
+  l64.

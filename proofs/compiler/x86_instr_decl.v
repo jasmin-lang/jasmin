@@ -169,6 +169,8 @@ Variant asm_op : Type :=
 | PEXT       `(wsize)
 | VPMADDUBSW `(wsize)
 | VPMADDWD `(wsize)
+| VMOVLPD (* Partial support *)
+| VMOVHPD (* Partial support *)
 .
 
 
@@ -861,7 +863,7 @@ Definition x86_VPCMPGT ve sz (v1 v2: word sz): ex_tpl(w_ty sz) :=
   ok (@vpcmpgt ve sz v1 v2).
 
 Definition x86_POPCNT sz (v: word sz): ex_tpl (b5w_ty sz) :=
-  Let _ := check_size_16_64 sz in
+  let _ := check_size_16_64 sz in
   let r := (@popcnt sz v) in
   ok (:: Some false, Some false, Some false, Some false, Some (ZF_of_word v) & r).
 
@@ -876,6 +878,12 @@ Definition x86_VPMADDUBSW sz (v v1: word sz) : ex_tpl (w_ty sz) :=
 Definition x86_VPMADDWD sz (v v1: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in
   ok (@pmaddwd sz v v1).
+
+Definition x86_VMOVLPD (v1: u128): ex_tpl (w_ty U64) :=
+  ok (@vmovlpd v1).
+
+Definition x86_VMOVHPD (v1: u128): ex_tpl (w_ty U64) :=
+  ok (@vmovhpd v1).
 
 (* ----------------------------------------------------------------------------- *)
 Coercion F f := ADImplicit (IArflag f).
@@ -1669,6 +1677,21 @@ Definition Ox86_VPMADDWD_instr :=
              ,("VPMADDWD"%string, PrimP U128 VPMADDWD)
   ).
 
+Definition check_movpd (_:wsize) := [:: [::m false; xmm]].
+
+(* FIXME *)
+Definition Ox86_VMOVLPD_instr :=
+  mk_instr_pp "VMOVLPD" (w_ty U128) (w_ty U64) [:: E 1] [:: E 0]
+              MSB_CLEAR x86_VMOVLPD
+              (check_movpd U64) 2 U64 (no_imm U128) (PrimM VMOVLPD)
+              (pp_name_ty "vmovlpd" [::U64;U128]).
+(* FIXME *)
+Definition Ox86_VMOVHPD_instr :=
+  mk_instr_pp "VMOVHPD" (w_ty U128) (w_ty U64) [:: E 1] [:: E 0]
+              MSB_CLEAR x86_VMOVHPD
+              (check_movpd U64) 2 U64 (no_imm U128) (PrimM VMOVHPD)
+              (pp_name_ty "vmovhpd" [::U64;U128]).
+
 
 Definition instr_desc o : instr_desc_t :=
   match o with
@@ -1778,6 +1801,8 @@ Definition instr_desc o : instr_desc_t :=
   | PEXT sz            => Ox86_PEXT_instr.1 sz
   | VPMADDUBSW sz      => Ox86_VPMADDUBSW_instr.1 sz
   | VPMADDWD sz      => Ox86_VPMADDWD_instr.1 sz
+  | VMOVLPD            => Ox86_VMOVLPD_instr.1
+  | VMOVHPD            => Ox86_VMOVHPD_instr.1
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -1889,6 +1914,8 @@ Definition prim_string :=
    Ox86_POPCNT_instr.2;
    Ox86_PEXT_instr.2;
    Ox86_VPMADDUBSW_instr.2;
-   Ox86_VPMADDWD_instr.2
+   Ox86_VPMADDWD_instr.2;
+   Ox86_VMOVLPD_instr.2;
+   Ox86_VMOVHPD_instr.2
  ].
   
