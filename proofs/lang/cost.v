@@ -696,7 +696,7 @@ Module CmpLbl.
    
   Definition t := [eqType of bpath].
 
-  Definition cmp (l1 l2: bpath) := 
+  Definition cmp (l1 l2: t) : comparison :=
     cmp_list cmp_pelem l1 l2.
 
   Instance cmpO : Cmp cmp.
@@ -1773,10 +1773,16 @@ Definition transform_p lF :=
    map (fun '(f,(sm,n)) => (f, (Sm.merge (Sm.single [::]) sm, n)))
        (transform_p_b lF).
 
-
-
-
-
+Definition transform_compilation_passes (tr: seq leak_f_tr) : funname → option Sm.t :=
+  let: tr := map transform_p tr in
+  λ fn,
+  foldl
+    (λ m f,
+     match assoc f fn with
+     | Some (m', _) => Some (if m is Some m then Sm.compose m m' else m')
+     | None => (* The pass did nothing? *) m
+     end)
+    None tr.
 
 (*
 Inductive pelem_ : Type :=
