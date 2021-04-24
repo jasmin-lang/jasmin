@@ -400,6 +400,7 @@ let main () =
       end else if List.mem Compiler.Assembly !print_list then
           Format.printf "%a%!" (Ppasm.pp_prog tbl) asm
       ; if !print_transformers then Format.printf "%a" (PrintLeak.pp tbl) leaks
+      ; if !print_cost_transformers then Format.printf "%a" (PrintCost.pp tbl (List.hd (snd asm))) leaks
       ; if !dot_cfg then
           begin
             List.iter (fun (fn, fd) ->

@@ -16,6 +16,7 @@ let safety_param = ref None
 let safety_config = ref None
 let safety_makeconfigdoc = ref None
 let print_transformers = ref false
+let print_cost_transformers = ref false
 let help_intrinsics = ref false
 
 let lea = ref false
@@ -111,6 +112,7 @@ let options = [
      "-safetyconfig", Arg.String set_safetyconfig, "[filename]: use filename (JSON) as configuration file for the safety checker";
     "-safetymakeconfigdoc", Arg.String set_safety_makeconfigdoc, "[dir]: make the safety checker configuration docs in [dir]";
     "--lt", Arg.Set print_transformers, "Print the leak transformers to stdout";
+    "--ct", Arg.Set print_cost_transformers, "Print the cost transformers to stdout";
     "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
   ] @  List.map print_option poptions
