@@ -444,7 +444,7 @@ Section PROOF.
 
   Variable p p' : prog.
   
-  Variable Fs: seq (funname * seq leak_i_tr).
+  Variable Fs: seq (funname * leak_c_tr).
   
   Variable stk: pointer.
 
@@ -453,9 +453,6 @@ Section PROOF.
   Hypothesis Hp : inline_prog' (p_funcs p) = ok (p_funcs p', Fs).
 
   Hypothesis eq_globs : p_globs p = p_globs p'.
-
-  Hypothesis Fs_id : forall fn, get_leak Fs fn = CheckAllocReg.leak_fn_id p' fn. 
-
 
   Let Pi_r s1 (i:instr_r) li s2:=
     forall ii X1 X2 c' ltc, inline_i' (p_funcs p') (MkI ii i) X2 = ok (X1, c', ltc) ->
@@ -496,8 +493,9 @@ Section PROOF.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof. 
-  move=> s X1 X2 c' ltc [<- <- <-] vm1 Hwf Hvm1. 
-  split. constructor. exists vm1;split=>//;constructor. Qed.
+    move=> s X1 X2 c' ltc [<- <- <-] vm1 Hwf Hvm1. 
+    split. constructor. exists vm1;split=>//;constructor. 
+  Qed.
 
   Local Lemma Hcons : sem_Ind_cons p Pc Pi.
   Proof.
@@ -839,6 +837,13 @@ Section PROOF.
     by t_xrbindP => ? _ ? /hrec [-> ->] <-.
   Qed.
 
+  Lemma size_write_lvals s xs vs r : write_lvals gd s xs vs = ok r -> size xs = size r.2.
+  Proof.
+    elim: xs vs s r => [ | x xs hrec] [ | v vs] //= s r.
+    + by move=> [<-].
+    by t_xrbindP => ? _ ? /hrec h <- /=; rewrite h.
+  Qed.
+
   Local Lemma Hcall : sem_Ind_call p Pi_r Pfun.
   Proof.
     move => s1 m2 s2 ii xs fn args vargs vs lf lw.
@@ -910,9 +915,11 @@ Section PROOF.
     have [|vm4 /= Hvm4 Hw']:= write_lvals_uincl_on _ HH Hw Heqvm;first by SvD.fsetdec.
     split. rewrite -h4 /=. 
       have := @LT_icall_inlineWF (leak_Fun Fs)
-(size (array_init ii' (locals (rename_fd ii' fn fd'))))
-(unzip2 vargs) fn ltc' lw.
-  admit.
+               (size (array_init ii' (locals (rename_fd ii' fn fd'))))
+               (unzip2 vargs) fn ltc' lw.
+      have ->: size (unzip2 vargs) = size args.
+      + by rewrite Hl' size_map; symmetry; apply: mapM_size Hvargs'. 
+      by rewrite (size_write_lvals Hw'); apply; subst fn'.
     exists vm4;split.
     + apply: wf_write_lvals Hw';apply: (wf_sem Hsem') => -[xt xn].
       have /(_ Hwf1 {|vtype := xt; vname := xn |}) /=:= wf_write_lvals _ Wvm1'.
@@ -935,7 +942,7 @@ Section PROOF.
     rewrite eq_globs in Hw'; apply : (assgn_tuple_Pvar ii' AT_rename _ _ Htout' Hw') => //.
     move: Hdisjoint;rewrite /disjoint /is_true !Sv.is_empty_spec.
     by rewrite /locals /locals_p vrvs_recE read_cE write_c_recE;SvD.fsetdec.
-  Admitted.
+  Qed.
 
   Local Lemma Hproc : sem_Ind_proc p Pc Pfun.
   Proof.
@@ -986,6 +993,7 @@ Section PROOF.
   Lemma inline_callP f mem mem' va va' vr lf:
     List.Forall2 value_uincl va va' ->
     sem_call p mem f va lf mem' vr ->
+    leak_WFs (leak_Fun Fs) (leak_Fun Fs lf.1) lf.2 /\
     exists vr',
       sem_call p' mem f va'(lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr' 
       /\  List.Forall2 value_uincl vr vr'.
@@ -1001,16 +1009,14 @@ Lemma inline_call_errP p p' f mem mem' va va' vr lf Fs stk:
   inline_prog_err inline_var rename_fd p = ok (p', Fs) ->
   List.Forall2 value_uincl va va' ->
   sem_call p mem f va (f, lf) mem' vr ->
+  leak_WFs (leak_Fun Fs) (leak_Fun Fs f) lf /\ 
   exists vr',
       sem_call p' mem f va' (f, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs f) lf)) mem' vr'
       /\  List.Forall2 value_uincl vr vr'.
 Proof.
-  rewrite /inline_prog_err. case:ifP => //= Hu. t_xrbindP => -[fds lts] Hi Heq Heq' Hv Hsem.
-  have := (inline_callP (p':= {|p_globs := p_globs p; p_funcs:= fds|}) stk Hu Hi). rewrite /=.
-  have : p_globs p = p_globs p; auto. move=> Hp. move=> H. 
-  (*move: (H Hp f mem mem' va va' vr lf Hv Hsem).
-  move=> [] vr' [] Hsem' {H} Hv'. exists vr'. split=> //. by rewrite -Heq' -Heq.*)
-Admitted.
+  rewrite /inline_prog_err. case:ifP => //= Hu; t_xrbindP => -[fds lts] Hi /= <- ? Hv Hsem; subst lts.
+  apply (inline_callP (p':= {|p_globs := p_globs p; p_funcs:= fds|}) stk Hu Hi refl_equal Hv Hsem). 
+Qed.
 
 End INLINE.
 
@@ -1365,3 +1371,4 @@ Section REMOVE_INIT_WF.
   Qed.
 
 End REMOVE_INIT_WF.
+

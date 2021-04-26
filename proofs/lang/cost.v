@@ -1442,7 +1442,6 @@ Proof.
   by apply: bounded_bpath_prefix h.
 Qed.
 
-(* FIXME: understand how to restrict this hyp to be able to prove it recursively *)
 Context (ftr : funname → leak_c_tr).
 Context (hrec_fun : forall f, transform_cost_f f = transform_cost_C (ftr f)).
 Context (hrec_bounded  : forall f, bounded_m (transform_cost_f f).1 (transform_cost_f f).2).
@@ -1784,49 +1783,140 @@ Definition transform_compilation_passes (tr: seq leak_f_tr) : funname → option
      end)
     None tr.
 
-(*
-Inductive pelem_ : Type :=
-  | LblF of funname 
-  | LblL of nat
-  | LblB of bool.
+Definition is_Some (A:Type) (o:option A) := 
+  if o is Some _ then true else false.
 
-path := list (pelem_ * nat).
+Fixpoint wf_lti (lF : list (funname * leak_c_tr)) (lt:leak_i_tr) : bool :=
+  match lt with 
+  | LT_icond _ lt1 lt2 | LT_iwhile lt1 _ lt2 | LT_icondl _ _ lt1 lt2 | LT_iwhilel _ _ lt1 lt2 =>
+    all (wf_lti lF) lt1 && all (wf_lti lF) lt2
 
-cost : path -> nat.
+  | LT_ifor _ lt | LT_icond_eval _ lt | LT_ifor_unroll _ lt =>
+    all (wf_lti lF) lt
 
-Inductive selem_ : Type :=
-  | LblF of funname 
-  | LblL of (?x | nat)    
-  | LblB of bool.
+  | LT_icall fn _ _ | LT_icall_inline _ fn _ _ => is_Some (assoc lF fn)
+ 
+  | _ => true
+  end.
 
-spath := list (selem_ * nat).
-
-scost : (spath, spath) map
-
-transform_cost : leak_tr -> scost 
-
-interp : (m : scost) (c:cost) -> cost 
-
-path spath -> x
+Fixpoint wf_lF (lF : list (funname * leak_c_tr)) := 
+  match lF with
+  | [::] => true
+  | (_, lt) :: lF => all (wf_lti lF) lt && wf_lF lF
+  end.
 
 
-(LblL 3, 0)::(LblL 4, 2) 
-(Lbl,0) :: (LblL, 2) 
+Section Eq.
 
-[3;4] 
+Context (tcf1 tcf2 : funname -> Sm.t * nat) (lF: list (funname * leak_c_tr)).
 
-(LblL ?0, 0) :: (LblL 5, 2):: (LblL ?1, 2)
+Context (tcf_eq : forall fn, is_Some (assoc lF fn) -> tcf1 fn = tcf2 fn).
 
+Lemma transform_C_eq (lt : leak_c_tr) :  
+  all (wf_lti lF) lt ->  
+  transform_cost_C (transform_cost_I tcf1) lt = transform_cost_C (transform_cost_I tcf2) lt.
+Proof.
+  apply (leak_c_tr_ind 
+    (P := fun lt => wf_lti lF lt -> transform_cost_I tcf1 lt = transform_cost_I tcf2 lt)
+    (Q := fun lt => all (wf_lti lF) lt ->  
+      transform_cost_C (transform_cost_I tcf1) lt = transform_cost_C (transform_cost_I tcf2) lt)) => //= {lt}.
+  + by move=> ?? h1 h2 /andP [] /h1 -> /h2 ->.
+  + by move=> _ ?? h1 h2 /andP [] /h1 -> /h2 ->.
+  + by move=> ? _ ? h1 h2 /andP [] /h1 -> /h2 ->.
+  + by move=> _ ? h /h ->.
+  + by move=> ? _ _ /tcf_eq ->.
+  + by move=> ?? h /h ->.
+  + by move=> n lt h /h{h}hrec; elim: n => //= n ->; rewrite hrec.
+  + by move=> ???? /tcf_eq ->.
+  + by move=> ? _ ?? h1 h2 /andP [] /h1 -> /h2 ->.
+  by move=> _ _ ?? h1 h2 /andP [] /h1 -> /h2 ->.
+Qed.
 
-path -
+End Eq.
 
+Lemma is_SomeP (A:Type) o : reflect (exists (a:A), o = Some a) (is_Some o).
+Proof. by case: o; constructor; [eauto | move=> []]. Qed.
 
+Lemma wf_lti_incl (lF1 lF2 : list (funname * leak_c_tr)) lt: 
+  (forall fn, is_Some (assoc lF1 fn) -> is_Some (assoc lF2 fn)) ->
+  all (wf_lti lF1) lt -> all (wf_lti lF2) lt.
+Proof.
+  move=> hlF.
+  apply (leak_c_tr_ind 
+    (P := fun lt => wf_lti lF1 lt -> wf_lti lF2 lt)
+    (Q := fun lt => all (wf_lti lF1) lt -> all (wf_lti lF2) lt)) => {lt} //=.
+  + by move=> ?? hreci hrec /andP[] /hreci -> /hrec ->.
+  + by move=> ??? h1 h2 /andP[] /h1 -> /h2 ->.
+  + by move=> ??? h1 h2 /andP[] /h1 -> /h2 ->.
+  + by move=> ???; apply hlF.
+  + by move=> ????; apply hlF.
+  + by move=> ???? h1 h2 /andP[] /h1 -> /h2 ->.
+  by move=> ???? h1 h2 /andP[] /h1 -> /h2 ->.
+Qed.
 
+Lemma wf_lF_wf_lFi lF : 
+  wf_lF lF -> 
+  forall fn fd, assoc lF fn = Some fd -> all (wf_lti lF) fd. 
+Proof.
+  elim: lF => //= -[fn1 fd1] lF hrec /andP [] hf1 hwf fn fd hfd.
+  apply (@wf_lti_incl lF); first by move=> fn' /=; case: eqP.
+  by move: hfd; case: eqP => [_ [<-] //| _]; apply hrec.
+Qed.
 
+Lemma transform_p_b_aux lF : 
+   wf_lF lF ->
+   uniq (unzip1 lF) ->
+   let lcF := transform_p_b lF in
+   let transform_cost_f := fun fn => odflt (Sm.empty, 0) (assoc lcF fn) in
+   forall fn,
+     match assoc lF fn, assoc lcF fn with
+     | None, None => true
+     | Some lt, Some smn => 
+       smn = transform_cost_C (transform_cost_I transform_cost_f) lt /\
+       bounded_m smn.1 smn.2
+     | _, _ => false
+     end.
+Proof.
+  elim: lF => //= -[fn lt] lF hrec /andP [] hwf_lt hwf /andP [] /= hnin hu.
+  move=> fn'.
+  set tcf1 := λ fn0, odflt (Sm.empty, 0) (assoc (transform_p_b lF) fn0).
+  set tcf2 := λ fn0,
+                   odflt (Sm.empty, 0)
+                     (if fn0 == fn then Some (transform_cost_C (transform_cost_I tcf1) lt)
+                      else assoc (transform_p_b lF) fn0).
+  have /transform_C_eq heq : forall fn, is_Some (assoc lF fn) -> tcf1 fn = tcf2 fn.
+  + rewrite /tcf1 /tcf2; move=> fn1 /is_SomeP [lt1] /= h1. 
+    have /InP /= := List.in_map fst lF (fn1, lt1) (assoc_mem' h1).
+    by case: eqP => // -> h; move: hnin; rewrite h.
+  case: eqP; last first.
+  + move=> hne.
+    have := hrec hwf hu fn'.
+    case ha: assoc => [lt' | ]; case: assoc => [smn' | ] //.
+    by rewrite -heq //;apply: wf_lF_wf_lFi ha.
+  move=> _; rewrite -heq //; split => //.
+  case: (@bounded_transform tcf1) => //.
+  move=> f; have := hrec hwf hu f; rewrite /tcf1.
+  case: assoc => [ltf | ]; case: assoc => [smnf | ] //=; first by case.
+  by move=> _; apply bounded_empty.
+Qed.
 
+Lemma transform_p_ok lF : 
+  wf_lF lF ->
+  uniq (unzip1 lF) ->
+  let lcF := transform_p_b lF in
+  let transform_cost_f := fun fn => odflt (Sm.empty, 0) (assoc lcF fn) in
+  forall w fn lt lc, 
+    assoc lF fn = Some lt ->
+    leak_WFs (leak_Fun lF) lt lc ->
+    cost_C ([::],0) (leak_Is (leak_I (leak_Fun lF)) w lt lc) <=1 
+      Sm.interp (cost_C ([::],0) lc) (transform_cost_C (transform_cost_I transform_cost_f) lt).1.  
+Proof.
+  move=> hwf hu lcF tcf w fn lt lc hfn.
+  apply transform_cost_ok.
+  + move=> f; have := transform_p_b_aux hwf hu f. 
+    by rewrite /tcf /leak_Fun /= /lcF; case: assoc => [ltf | ]; case: assoc => [smnf | ] //= [].
+  move=> f; have := transform_p_b_aux hwf hu f. 
+  rewrite /tcf /leak_Fun /= /lcF; case: assoc => [ltf | ]; case: assoc => [smnf | ] //=; first by case.
+  move=> _; apply bounded_empty. 
+Qed.
 
-
-
-
-
-*)
