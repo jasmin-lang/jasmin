@@ -654,6 +654,8 @@ Admitted.
 Lemma disjoint_single_prefix pc p m: Sm.disjoint (Sm.single pc)
     (Sm.incr pc (Sm.sprefix p m)).
 Proof.
+move=> l; rewrite singleP; rewrite incrP;rewrite sprefixP; case: eqP => [-> _ | //].
+case: ifP=> //=. move=> /eqP Heq. rewrite Heq /=. rewrite -mapP. 
 Admitted.
 
 Lemma linterp_incr_merge lt n p pc: (Sm.linterp (single_cost [::])
@@ -675,6 +677,14 @@ Proof.
 move=> l;rewrite /Sm.linterp singleP; case: eqP => // -> /=. rewrite bounded_cost_i.
 by rewrite /empty_lcost. by rewrite /bounded_bpath /=.
 Qed.
+
+(*Lemma get_transform_n0 lt pc sl n: 
+  Sm.get (transform_cost_i_cL transform_cost_i_iL lt) pc = Some sl -> 0 <= pc < n.
+Proof.
+  have [_ h /h] := sbounded_transform; rewrite /bounded_bpath.
+  by case: (lastP sl) => // ?? _ /(congr1 size); rewrite size_rcons.
+Qed.*)
+
 
 Lemma linterp_single_transform lt : (Sm.linterp (single_cost [::]) 
 (transform_cost_i_cL transform_cost_i_iL lt)) =1 empty_lcost.
@@ -770,38 +780,6 @@ Lemma linterp_C_f_t m1 m2 pc pc' lc: (Sm.linterp (cost_C (bpath_b false ([::], 0
                          (Sm.merge m1 m2))))) =1 empty_lcost.
 Proof.
 Admitted.
-                
-
-Lemma lenter_ok_iff stk lt lc pc p:
-(lcost pc (leak_i_iLs (leak_i_iL) stk lt lc)).1 =1 
-Sm.linterp (merge_cost (single_cost [::]) (cost_C ([::],0) lc)) (Sm.incr pc (transform_cost_i_cL transform_cost_i_iL lt)) <->
-merge_lcost (lcost pc (leak_i_iLs (leak_i_iL) stk lt lc)).1 
-            (single_lcost (pc + get_linear_size_C lt)) =1 
-Sm.linterp (enter_cost_c cost_i p lc)
-    (Sm.incr (pc-1) (Sm.merge (Sm.single 0) (Sm.sprefix p (transform_cost_i_cL_extra transform_cost_i_iL 1 lt)))).
-Proof.
-Admitted.
-
-Lemma lenter_ok stk lt lc pc p:
-(lcost pc (leak_i_iLs (leak_i_iL) stk lt lc)).1 =1 
-Sm.linterp (merge_cost (single_cost [::]) (cost_C ([::],0) lc)) (Sm.incr pc (transform_cost_i_cL transform_cost_i_iL lt)) ->
-merge_lcost (lcost pc (leak_i_iLs (leak_i_iL) stk lt lc)).1 
-            (single_lcost (pc + get_linear_size_C lt)) =1 
-Sm.linterp (enter_cost_c cost_i p lc)
-    (Sm.incr (pc-1) (Sm.merge (Sm.single 0) (Sm.sprefix p (transform_cost_i_cL_extra transform_cost_i_iL 1 lt)))).
-Proof.
-Admitted.
-
-Lemma lwhile_enter_ok stk lt lc pc p:
-(lcost pc (leak_i_iLs (leak_i_iL) stk lt lc)).1 =1 
-Sm.linterp (merge_cost (single_cost [::]) (cost_C ([::],0) lc)) (Sm.incr pc (transform_cost_i_cL transform_cost_i_iL lt)) ->
-merge_lcost (lcost pc (leak_i_iLs (leak_i_iL) stk lt lc)).1 
-            (single_lcost (pc + get_linear_size_C lt)) =1 
-Sm.linterp (enter_cost_c cost_i p lc)
-    (Sm.incr pc (transform_cost_i_cL transform_cost_i_iL lt)).
-Proof.
-Admitted.
-
 
 Lemma linterp_Cb_single pc lc b: (Sm.linterp (cost_C (bpath_b b ([::], 0), 0) lc) (Sm.single pc)) =1 empty_lcost.
 Proof.
@@ -835,6 +813,74 @@ Lemma incr_empty pc : Sm.ext_eq (Sm.incr pc Sm.empty) Sm.empty.
 Proof.
 move=> pc'. by rewrite incrP. 
 Qed.
+
+Lemma linterp_single_cost' l pc: l <> [::] -> (Sm.linterp (single_cost l)
+          (Sm.single pc)) =1 empty_lcost.
+Proof.
+move=> Hneq pc'. rewrite /Sm.linterp. rewrite singleP. case: ifP=> //=.
+move=> /eqP H. rewrite /single_cost /empty_lcost /=.
+rewrite /update_cost. case: ifP=> //=.
+move=> /eqP //.
+Qed. 
+
+Lemma sprefix_empty m: Sm.ext_eq (Sm.sprefix [::] m) m.
+Proof.
+move=> pc. rewrite sprefixP /=. rewrite /prefix_bpath /=. 
+Admitted.
+
+Lemma incr_single_n n n': Sm.ext_eq (Sm.incr n (Sm.single n')) (Sm.single (n'+n)).
+Proof.
+Admitted.
+
+(*Lemma merge_single_lcost stk lt lc pc pc': (merge_lcost (single_lcost pc')
+       (lcost pc (leak_i_iLs leak_i_iL stk lt lc)).1) =1 (lcost pc (leak_i_iLs leak_i_iL stk lt lc)).1.
+Proof.
+rewrite /merge_lcost /=. move=> pc''. rewrite /single_lcost /=. rewrite /update_lcost /=.
+case: ifP=> //=. move=> /eqP <- /=. rewrite /empty_lcost /= add0n.*)
+
+Lemma lenter_ok_iff stk lt lc pc p:
+(lcost pc (leak_i_iLs (leak_i_iL) stk lt lc)).1 =1 
+Sm.linterp (merge_cost (single_cost [::]) (cost_C ([::],0) lc)) (Sm.incr pc (transform_cost_i_cL transform_cost_i_iL lt)) <->
+merge_lcost (lcost pc (leak_i_iLs (leak_i_iL) stk lt lc)).1 
+            (single_lcost (pc + get_linear_size_C lt)) =1 
+Sm.linterp (enter_cost_c cost_i p lc)
+    (Sm.incr (pc-1) (Sm.merge (Sm.single 0) (Sm.sprefix p (transform_cost_i_cL_extra transform_cost_i_iL 1 lt)))).
+Proof.
+rewrite /enter_cost_c /=.
+rewrite !linterp_merge_c !incr_merge !incr0 /=. split.
++ move=> Hrec. rewrite !linterp_merge. case:p=> //=.
+  + rewrite linterp_single /= !linterp_incr_prefix !mergecl0.
+    move: Hrec. rewrite !linterp_single_incr_transform mergec0l /=. move=> Hrec.
+    rewrite !linterp_c_single mergec0l /transform_cost_i_cL_extra.
+    rewrite incr_prefix sprefix_empty.
+    have Heq : (pc - 1 + 1) = pc. admit. rewrite Heq /=.
+    rewrite incr_merge /=. rewrite !linterp_merge.
+    rewrite mergelA' -Hrec incr_single_n. admit.
+    + admit.
+  move=> b bs /=. rewrite !linterp_single_cost' /=.    
+Admitted.
+
+Lemma lenter_ok stk lt lc pc p:
+(lcost pc (leak_i_iLs (leak_i_iL) stk lt lc)).1 =1 
+Sm.linterp (merge_cost (single_cost [::]) (cost_C ([::],0) lc)) (Sm.incr pc (transform_cost_i_cL transform_cost_i_iL lt)) ->
+merge_lcost (lcost pc (leak_i_iLs (leak_i_iL) stk lt lc)).1 
+            (single_lcost (pc + get_linear_size_C lt)) =1 
+Sm.linterp (enter_cost_c cost_i p lc)
+    (Sm.incr (pc-1) (Sm.merge (Sm.single 0) (Sm.sprefix p (transform_cost_i_cL_extra transform_cost_i_iL 1 lt)))).
+Proof.
+Proof. by move=>/lenter_ok_iff. Qed.
+
+Lemma lwhile_enter_ok stk lt lc pc p:
+(lcost pc (leak_i_iLs (leak_i_iL) stk lt lc)).1 =1 
+Sm.linterp (merge_cost (single_cost [::]) (cost_C ([::],0) lc)) (Sm.incr pc (transform_cost_i_cL transform_cost_i_iL lt)) ->
+merge_lcost (lcost pc (leak_i_iLs (leak_i_iL) stk lt lc)).1 
+            (single_lcost (pc + get_linear_size_C lt)) =1 
+Sm.linterp (enter_cost_c cost_i p lc)
+    (Sm.incr pc (transform_cost_i_cL transform_cost_i_iL lt)).
+Proof.
+Admitted.
+
+
 
 
 
