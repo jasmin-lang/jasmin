@@ -31,21 +31,21 @@ let lcons env v i vneg iminus =
   e
 
 (* Makes the bounds 'v >= 0' and 'v <= 2^N-1' for 'N' in {8;16;32;64;128;256} *)
-let thresholds_uint env v =
-  let acc = 
-    [Lincons1.make (lcons env v (Mpqf.of_int 0) false true) Lincons0.SUPEQ] in
+let thresholds_uint env v acc =
+  let acc =
+    Lincons1.make (lcons env v (Mpqf.of_int 0) false true) Lincons0.SUPEQ
+    :: acc
+  in
   List.fold_left (fun acc i ->
       let lc = lcons env v i in
       Lincons1.make (lc true false) Lincons0.SUPEQ :: acc
     ) acc int_thresholds
 
 (* FIXME: rename *)
-let thresholds_zero env =
-  let vars = Environment.vars env
-             |> fst
-             |> Array.to_list in
-    List.fold_left (fun thrs v -> thresholds_uint env v @ thrs
-    ) [] vars
+let thresholds_zero env tail =
+  let vars = Environment.vars env |> fst in
+    Array.fold_left (fun thrs v -> thresholds_uint env v thrs
+    ) tail vars
 
   (* List.map (fun v ->
    *     Lincons1.make (lcons env v (Mpqf.of_int 0) false true) Lincons0.SUPEQ
@@ -335,9 +335,9 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
     let vars = omap_dfl (fun c -> 
         Mtexpr.get_var (Mtcons.get_expr c)
       ) [] oc in
-    let thrs_vars = 
-      List.map (fun v -> thresholds_uint env (avar_of_mvar v)) vars 
-      |> List.flatten in
+    let thrs_vars =
+      List.fold_left (fun acc v -> thresholds_uint env (avar_of_mvar v) acc) [] vars
+    in
     let thrs_oc = thrs_of_oc oc env in
     let thrs = thrs_oc @ thrs_vars in
     let thrs =
@@ -346,7 +346,7 @@ module AbsNumI (Manager : AprManager) (PW : ProgWrap) : AbsNumType = struct
       else thrs in
     let thrs =
       if Config.sc_zero_threshold ()
-      then thresholds_zero env @ thrs
+      then thresholds_zero env thrs
       else thrs in
     let thrs =
       if Config.sc_param_threshold ()
