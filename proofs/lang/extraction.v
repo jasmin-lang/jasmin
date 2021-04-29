@@ -24,7 +24,7 @@
  * ----------------------------------------------------------------------- *)
 
 Require Import var compiler.
-Require cost.
+Require cost cost_linear.
 
 Require ExtrOcamlBasic.
 Require ExtrOcamlString.
@@ -36,6 +36,9 @@ Cd  "lang/ocaml".
 
 Extraction Blacklist String List Nat Utils Var Array.
 
-Separate Extraction utils expr sem x86_instr_decl compiler cost.transform_compilation_passes.
+Separate Extraction utils expr sem x86_instr_decl compiler
+         cost.transform_compilation_passes
+         cost_linear.transform_cost
+.
 
 Cd  "../..".

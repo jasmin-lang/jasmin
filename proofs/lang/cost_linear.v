@@ -304,6 +304,8 @@ Fixpoint transform_cost_i_iL  (l : leak_i_il_tr) : Sm.t :=
  
   end.
 
+Definition transform_cost (tr: leak_f_lf_tr) : seq (funname * Sm.t) :=
+  map (λ '(fn, c_il_tr), (fn, transform_cost_i_cL transform_cost_i_iL c_il_tr)) tr.
 
 (*Section Transform_Cost_i_iLs.
 
