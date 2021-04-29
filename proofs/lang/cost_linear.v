@@ -235,6 +235,13 @@ Proof.
   by rewrite h h'; apply hd.
 Qed.
 
+Definition compose (m1: cost.Sm.t) (m2: t) : t :=
+  Ml.fold (fun lbl2 sc2 m3 =>
+     match cost.Sm.get m1 sc2 with
+     | None => m3
+     | Some sc1 => set m3 lbl2 sc1
+     end) m2 empty.
+
 End Sm.
 
 Section Transform_Cost_i_iLs.
