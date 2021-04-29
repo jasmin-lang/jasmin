@@ -42,7 +42,7 @@ let rec pp_il fmt =
   | LT_ilcond (e, f, g) -> fprintf fmt "cond(%a, %a, %a)" pp_e_tr e aux f aux g
   | LT_ilwhile_c'0 (_a, body) -> fprintf fmt "while0(%a)" aux body
   | LT_ilwhile_f body -> fprintf fmt "whileF(%a)" aux body
-  | LT_ilwhile (e, f) -> fprintf fmt "while(%a, %a)" aux e aux f
+  | LT_ilwhile (a, e, f) -> fprintf fmt "while(%a, %a, %a)" Printer.pp_align a aux e aux f
 
 let pp_nat fmt n =
   fprintf fmt "%d" (Conv.int_of_nat n)
