@@ -1490,3 +1490,5 @@ rewrite (linterp_merge_c (single_cost [::])); apply merge_lcost_eqfun => //.
 rewrite linterp_merge_c (enter_cost_c_pre (bpath_f ([::],0))) linterp_sprefix.
 by rewrite linterp_merge_c (enter_cost_c_pre (bpath_t ([::],0))) linterp_prefix_negb mergec0l mergelC.
 Qed.
+
+End Proofs.
