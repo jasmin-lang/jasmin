@@ -121,7 +121,7 @@ Module CmpNat.
 
   Definition t := [eqType of nat].
 
-  Definition cmp := Nat.compare.
+  Definition cmp : t → t → comparison := Nat.compare.
 
   Instance cmpO : Cmp cmp :=  natO.
 
