@@ -228,7 +228,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
                              (MkLI ii (Licond e L2) :: lc) in 
       let rs3 := align ii a (MkLI ii (Lilabel L2) >; linear_c linear_i c' rs1.1.1 rs1.1.2) in 
       Let rs := MkLI ii (Ligoto L1) >; rs3 in 
-      ciok (rs.1.1, rs.1.2, LT_ilwhile rs1.2 rs.2)
+      ciok (rs.1.1, rs.1.2, LT_ilwhile a rs1.2 rs.2)
 
       end
     end

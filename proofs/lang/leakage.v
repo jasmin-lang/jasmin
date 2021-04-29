@@ -716,7 +716,7 @@ Inductive leak_i_il_tr : Type :=
   | LT_ilcond : leak_e_tr -> seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i_il_tr (* c1 and c2 are not empty *)
   | LT_ilwhile_c'0 : align -> seq leak_i_il_tr -> leak_i_il_tr
   | LT_ilwhile_f : seq leak_i_il_tr -> leak_i_il_tr
-  | LT_ilwhile : seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i_il_tr.
+  | LT_ilwhile : align -> seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i_il_tr.
 
 (* Computes the leakage depending on alignment *) 
 Definition get_align_leak_il a : seq leak_il :=
@@ -745,7 +745,8 @@ Fixpoint get_linear_size (lti : leak_i_il_tr) : nat :=
   | LT_ilcond lte lti lti' => get_linear_size_c get_linear_size lti + get_linear_size_c get_linear_size lti' + 4
   | LT_ilwhile_c'0 a lti => get_linear_size_c get_linear_size lti + (get_align_size a) + 2
   | LT_ilwhile_f lti => get_linear_size_c get_linear_size lti 
-  | LT_ilwhile lti lti' => get_linear_size_c get_linear_size lti + get_linear_size_c get_linear_size lti' + 4
+  (* goto L1; align; Lilabel L2; c'; Lilabel L1; c; Lcond e L2 *)
+  | LT_ilwhile a lti lti' => get_linear_size_c get_linear_size lti + get_linear_size_c get_linear_size lti' + (get_align_size a) + 4
   end.
 
 Definition get_linear_size_C := get_linear_size_c get_linear_size.
@@ -774,7 +775,7 @@ Section Leak_IL.
     | Lwhile_false lis le => 
       leak_i_iLs stk lts lis ++ [:: Lcondl 1 le false]
     | Lwhile_true lis le lis' li' =>
-      leak_i_iLs stk lts lis ++ [:: Lcondl (-(Posz (get_linear_size_C lts)+ Posz (get_linear_size_C lts')+1))%R le true] ++ 
+      leak_i_iLs stk lts lis ++ [:: Lcondl (-(Posz (get_linear_size_C lts + get_linear_size_C lts' +1)))%R le true] ++ 
       leak_i_iLs stk lts' lis' ++ [:: Lempty0] ++ ilwhile stk lts lts' li'
     | _ => [::]
     end.
@@ -847,8 +848,9 @@ Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : 
     (* Ligoto L1; align; Lilabel L2; c'; Lilabel L1; c; Lcond e L2 ; 
          c'; Lilabel L1; c; Lcond e L2; .....*)
     (* while a c e c' *)
-  | LT_ilwhile lti lti', _ => 
-    [:: Lempty ((Posz (get_linear_size_C lti'))+3)] ++ ilwhile leak_i_iL stk lti lti' li 
+  | LT_ilwhile a lti lti', _ => 
+    [:: Lempty (Posz (get_linear_size_C lti' + (get_align_size a + 3)))] ++ 
+      ilwhile leak_i_iL stk lti lti' li 
 
   | _, _ => [::]
   end.
@@ -882,9 +884,9 @@ Inductive leak_i_WF : leak_i_il_tr -> leak_i -> Prop :=
 | LT_ilwhile_c'0WF : forall li a lti,
                      leak_w0_WF lti li ->
                      leak_i_WF (LT_ilwhile_c'0 a lti) li 
-| LT_ilwhileWF : forall li lti lti',
+| LT_ilwhileWF : forall a li lti lti',
                  leak_w_WF lti lti' li ->
-                 leak_i_WF (LT_ilwhile lti lti') li
+                 leak_i_WF (LT_ilwhile a lti lti') li
 
 with leak_is_WF : seq leak_i_il_tr -> leak_c -> Prop :=
  | WF_i_empty : leak_is_WF [::] [::]
