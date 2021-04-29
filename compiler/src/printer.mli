@@ -29,6 +29,8 @@ val string_of_op2 : Expr.sop2 -> string
 val string_of_opN : Expr.opN -> string
 val pp_opn : Expr.sopn -> string
 
+val pp_align : Format.formatter -> Expr.align -> unit
+
 val pp_ty : Format.formatter -> ty -> unit
 
 val pp_expr  : debug:bool -> Format.formatter -> expr -> unit
