@@ -303,12 +303,15 @@ Section WF_PROOF.
   Proof.
     move=> s1 s2 i [[d lo] hi] wr c lr lf Hwr Hc.
     rewrite /Pfor /Pi_r. move=> Hwf ii /=.
-    case hlo : (is_const lo) => //= [nlo |].
-    case hhi : (is_const hi) => //= [nhi |].
-    + rewrite /=. admit.
-    + constructor. apply Hwf.
-    constructor. apply Hwf.
-  Admitted.
+    case: is_constP Hwr => [nlo |].
+    + case: is_constP => [nhi |] /=.    
+      + move=> [??]; subst wr lr; rewrite size_map.
+         have -> : size (wrange d nlo nhi) = size lf.
+         + by elim: Hc => //= *; congruence.
+         by constructor.
+      by move=> *; constructor.
+    by move=> *; constructor.
+  Qed.
 
   Local Lemma Hfor_nil_WF : sem_Ind_for_nil Pfor.
   Proof.

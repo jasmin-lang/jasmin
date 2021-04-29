@@ -677,7 +677,7 @@ Section PROOF.
         apply: lsem_step.
         * rewrite /lsem1 /step /= /eval_instr /= !to_of_estate ok_b {ok_b} /=.
           rewrite -cat_cons find_label_cat_hd.
-          + rewrite find_label_hd /=;eauto. admit. 
+          + rewrite find_label_hd /= GRing.subr0 addn0 -PoszD. admit.
           apply /negP => /= H; have := @valid_has _ lbl _ _ Hv2.
           rewrite H => /(_ erefl) /andP [].
           by rewrite Pos.leb_antisym lt_next.
@@ -818,11 +818,9 @@ Section PROOF.
   by case: li=> //=.
   Qed.
 
-  Lemma leak_i_il_il_while lti lti' li : leak_i_iL stk li (LT_ilwhile lti lti') = 
-  [:: Lempty ((Posz (get_linear_size_C lti'))+3)] ++ ilwhile leak_i_iL stk lti lti' li.
-  Proof.
-  case: li=> //=.
-  Qed.
+  Lemma leak_i_il_il_while a lti lti' li : leak_i_iL stk li (LT_ilwhile a lti lti') = 
+  [:: Lempty (Posz (get_linear_size_C lti' + (get_align_size a + 3)))] ++ ilwhile leak_i_iL stk lti lti' li.
+  Proof. by case: li. Qed.
 
   Let Hwhile : forall a c e c', Pc c -> Pc c' -> Pi_r (Cwhile a c e c').
   Proof.
