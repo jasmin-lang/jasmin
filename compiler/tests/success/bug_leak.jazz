@@ -1,0 +1,25 @@
+/* ---------------------------------------------------------------- */
+inline
+fn R4(inline int c) -> reg u256 {
+  inline int d;
+  reg u256 r;
+  global u256 cr;
+  cr = c;
+  r = cr;
+  return r;
+}
+
+/* ---------------------------------------------------------------- */
+export
+fn const_prop_should_recurse_on_arguments_of_sopN() -> reg u256 {
+  reg u256 x y;
+  inline int m p;
+  m = 8;
+  p = (4u64)[ m, m, m, m ];
+  x = R4(p);
+  y = R4(p);
+
+  y ^= x;
+
+  return y;
+}

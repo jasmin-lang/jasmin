@@ -2572,7 +2572,32 @@ elim: e v l => //=; rewrite /trans_sem.
   apply /s_op2Pl. rewrite /=. rewrite He1' /=.
   rewrite He2' /=. move: (vuincl_sem_sop2 Hyv Hyv' Ho).
   by move=> -> /=.
-+ by move=> op es ih v l /s_opNPl -> /=; exists v.
++ t_xrbindP => op es ih _ _ vs ok_vs v ok_v <- <-.
+  set esk := map (const_prop_e m) es.
+  have : ∃ vs',
+      [/\ mapM (sem_pexpr gd s) (unzip1 esk) = ok vs',
+       List.Forall2 value_uincl (unzip1 vs) (unzip1 vs') &
+       unzip2 vs' = map2 (leak_E stk) (unzip2 esk) (unzip2 vs)
+      ].
+  {
+    subst esk.
+    elim: es vs ok_vs ih {v ok_v}.
+    - by case => // _ _; exists [::]; split; constructor.
+    move => e es rec [] /=; t_xrbindP => // _ _ [v k] ok_vk vs ok_vs <- <- ih.
+    have {rec} [ | vs' [] ok_vs' rec1 rec2 ] := rec _ ok_vs.
+    - move => e' he'.
+      move: ih => /(_ e'); rewrite inE he' orbT => /(_ erefl); exact.
+    move: ih => /(_ e); rewrite inE eqxx => /(_ erefl _ _ ok_vk) [] v' [] ok_v' hv'.
+    rewrite ok_v' ok_vs' /=.
+    eexists; split; first reflexivity.
+    - by constructor.
+    by rewrite /= rec2.
+  }
+  case => vs' [] ok_vs' hvs' hvk.
+  have [v' ok_v' hv' ] := vuincl_sem_opN ok_v hvs'.
+  exists v'; split; last exact: hv'.
+  have /= := @s_opNPl s op (unzip1 esk) v' (LSub (unzip2 vs')).
+  by rewrite ok_vs' /= ok_v' /= hvk => /(_ erefl) ->.
 + move=> t e He e1 He1 e2 He2 v l. t_xrbindP.
   move=> [yv yl] /He/= [] x [] He' Hyv h0 
   /(value_uincl_bool Hyv) [] Hx Hxl; subst.
@@ -2665,7 +2690,13 @@ try (intros; clarify; eauto; fail).
   apply /s_op2Pl. rewrite /=. rewrite He1' /=.
   rewrite He2' /=. move: (vuincl_sem_sop2 Hyv Hyv' Ho).
   by move=> -> /=.
-+ by move=> op es ih v l /s_opNPl -> ; exists v.
++ t_xrbindP => op es ih _ _ vs ok_vs v ok_v <- <-.
+  move: ih => /(_ _ ok_vs) [] vs' [] ok_vs' [] hvs' hk.
+  have [v' ok_v' hv' ] := vuincl_sem_opN ok_v hvs'.
+  exists v'; split; last exact: hv'.
+  set esk := map (const_prop_e m) es.
+  have /= := @s_opNPl s op (unzip1 esk) v' (LSub (unzip2 vs')).
+  by rewrite -/(sem_pexprs gd s (unzip1 esk)) ok_vs' /= ok_v' hk => /(_ erefl) ->.
 + move=> t e He e1 He1 e2 He2 v l. t_xrbindP.
   move=> [yv yl] /He/= [] x [] He' Hyv h0 
   /(value_uincl_bool Hyv) [] Hx Hxl; subst.
@@ -2890,6 +2921,8 @@ Proof.
   + by move=> ??? ->.
   + by move=> ?? ->.
   + by move=> ?? -> ? ->.
+  + move => op es h /=.
+    (do 4 f_equal; last f_equal); apply: map_ext => e /InP; exact: h.
   + move=> t e He e1 He1 e2 He2.
     by rewrite He He1 He2.
 Qed.
