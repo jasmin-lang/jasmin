@@ -366,14 +366,8 @@ Definition s_op2 o e1 e2 :=
   | Ovasr ve sz => svsar ve sz e1 e2
   end.
 
-(*Definition force_int e :=
-  if e is Pconst z then ok (Vint z) else type_error.*)
-
 Definition force_int e :=
-  match e with 
-  |(Pconst z) => ok (Vint z)
-  | _ => type_error
-  end.
+  if e is Pconst z then ok (Vint z) else type_error.
 
 Definition s_opN op es :=
   match (mapM force_int es >>= sem_opN op) with
