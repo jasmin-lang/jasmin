@@ -115,6 +115,15 @@ Proof. by move=> c1 c1' h1 c2 c2' h2 l; rewrite /merge_lcost h1 h2. Qed.
 Global Instance incr_lcost_eqfun : Proper (eq ==> eqfun (B:= _) ==> eqfun (B:= _)) incr_lcost.
 Proof. by move=> c1 c1' h1 c2 c2' h2 l; rewrite /incr_lcost h1 h2. Qed.
 
+Definition leqc (f1 f2: nat -> nat) := 
+   forall p, f1 p <= f2 p.
+  
+Global Instance leqc_eqfun : Proper (eqfun (B:=_) ==> eqfun (B:=_) ==> iff) leqc.
+Proof.
+  move=> f1 f1' heq1 f2 f2' heq2; split => h a; first by rewrite -heq1 -heq2.
+  by rewrite heq1 heq2.  
+Qed.
+
 (* Provide map of lbl *)
 
 Module CmpNat.
@@ -235,6 +244,7 @@ Proof.
   by rewrite h h'; apply hd.
 Qed.
 
+<<<<<<< HEAD
 Definition compose (m1: cost.Sm.t) (m2: t) : t :=
   Ml.fold (fun lbl2 sc2 m3 =>
      match cost.Sm.get m1 sc2 with
@@ -242,6 +252,66 @@ Definition compose (m1: cost.Sm.t) (m2: t) : t :=
      | Some sc1 => set m3 lbl2 sc1
      end) m2 empty.
 
+=======
+Definition compose (m1:cost.Sm.t) (m2: t) : t :=
+  Ml.fold (fun pc sc2 m3 => 
+     match cost.Sm.get m1 sc2 with
+     | None => m3
+     | Some sc1 => set m3 pc sc1
+     end) m2 empty.
+
+Lemma composeP m1 m2 l : 
+  get (compose m1 m2) l = 
+    match get m2 l with
+    | Some sc2 =>
+      match cost.Sm.get m1 sc2 with
+      | Some sc1 => Some sc1
+      | None => None
+      end
+    | None => None
+    end.
+Proof.
+  rewrite /compose Ml.foldP.
+  suff : forall m0,
+     get (foldl
+       (λ (a : t) (kv : Ml.K.t * scost),
+          match cost.Sm.get m1 kv.2 with
+          | Some sc1 => set a kv.1 sc1
+          | None => a
+          end) m0 (Ml.elements m2)) l =
+     match assoc (Ml.elements m2) l with
+     | Some sc2 =>
+        match cost.Sm.get m1 sc2 with
+        | Some sc1 => Some sc1
+        | None => get m0 l
+        end
+     | None => get m0 l
+     end.
+  + by move => ->; rewrite /get Ml.get0 assoc_get /get; case: Ml.get.
+  elim: Ml.elements (Ml.elementsU m2) => //= -[l2 sc2] es hrec /andP /= [he hu] m0.
+  rewrite hrec // /get; case: eqP => [-> | hne] /= {hrec}; case heq: assoc => [sc' | ].
+  + by rewrite (assoc_mem_dom' heq) in he.
+  + by case: (cost.Sm.get m1) => // sc1; rewrite Ml.setP_eq.
+  + by case: (cost.Sm.get m1) => //; case: (cost.Sm.get m1) => // ?; rewrite Ml.setP_neq // eq_sym; apply /eqP.
+  by case: (cost.Sm.get m1) => // ?; rewrite Ml.setP_neq // eq_sym; apply /eqP.
+Qed.
+
+Lemma linterp_compose sc m1 m2 : 
+  linterp sc (compose m1 m2) =1 linterp (cost.Sm.interp sc m1) m2.
+Proof. 
+  move=> l; rewrite /linterp /cost.Sm.interp composeP.
+  by case: (get m2) => // sc2; case: (cost.Sm.get m1). 
+Qed.
+
+Lemma linterp_mono c1 c2 m : 
+  c1 <=1 c2 ->
+  leqc (linterp c1 m) (linterp c2 m).
+Proof. by move=> hc l; rewrite /linterp; case: get. Qed.
+
+Global Instance compose_ext_eq : Proper (cost.Sm.ext_eq ==> ext_eq ==> ext_eq) compose. 
+Proof. by move=> c1 c2 hc m1 m2 hm l; rewrite !composeP hm; case: get => // sc; rewrite hc. Qed.
+
+>>>>>>> 5f7c5d68... WIP
 End Sm.
 
 Section Transform_Cost_i_iLs.

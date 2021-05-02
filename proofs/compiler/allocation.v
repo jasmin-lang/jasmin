@@ -137,12 +137,6 @@ Fixpoint check_es es1 es2 r : cexec (M.t * seq leak_e_tr) :=
   | _, _ => cerror check_e_error                
   end.
 
-(*Definition check_es es1 es2 r := fold2 check_e_error (fun e1 e2 r1 => Let rs := check_e e1 e2 r1.1 in
-                                                        ok (rs.1, rcons r1.2 rs.2)) es1 es2 (r, [::]).*)
-
-
-(*Definition check_es es1 es2 r := check_e es1 es2 r.*)
-
 Fixpoint check_lvals ls1 ls2 r : cexec (M.t * seq leak_e_tr) :=
   match ls1, ls2 with
   | [::], [::] => ok (r, [::])
@@ -152,12 +146,6 @@ Fixpoint check_lvals ls1 ls2 r : cexec (M.t * seq leak_e_tr) :=
     ok (lvs.1, lv.2::lvs.2)
   | _, _ => cerror check_e_error                
   end.
-
-(*Definition check_lvals ls1 ls2 r :=
-  fold2 (Cerr_fold2 "allocation:check_lvals") (fun l1 l2 r1 => Let rs := check_lval None l1 l2 r1.1 in ok(rs.1, rcons r1.2 rs.2)) ls1 ls2 (r, [::]).*)
-
-(*Definition check_lvals :=
-  fold2 (Cerr_fold2 "allocation:check_lvals") (check_lval None).*)
 
 Definition check_var x1 x2 r := check_lval None (Lvar x1) (Lvar x2) r.
 
@@ -233,50 +221,6 @@ with check_I i1 i2 r :=
   | MkI _ i1, MkI ii i2 => check_i ii i1 i2 r
   end.
 
-(*Fixpoint check_i iinfo i1 i2 r : ciexec M.t :=
-  match i1, i2 with
-  | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
-    if ty1 == ty2 then
-      add_iinfo iinfo (check_e e1 e2 r >>= check_lval (Some (ty2,e2)) x1 x2)
-    else cierror iinfo (Cerr_neqty ty1 ty2 salloc)
-  | Copn xs1 _ o1 es1, Copn xs2 _ o2 es2 =>
-    if o1 == o2 then
-      add_iinfo iinfo (check_es es1 es2 r >>= check_lvals xs1 xs2)
-    else cierror iinfo (Cerr_neqop o1 o2 salloc)
-  | Ccall _ x1 f1 arg1, Ccall _ x2 f2 arg2 =>
-    if f1 == f2 then
-      add_iinfo iinfo (check_es arg1 arg2 r >>= check_lvals x1 x2)
-    else cierror iinfo (Cerr_neqfun f1 f2 salloc)
-  | Cif e1 c11 c12, Cif e2 c21 c22 =>
-    Let re := add_iinfo iinfo (check_e e1 e2 r) in
-    Let r1 := fold2 (iinfo,cmd2_error) check_I c11 c21 re in
-    Let r2 := fold2 (iinfo,cmd2_error) check_I c12 c22 re in
-    ok (M.merge r1 r2)
-  | Cfor x1 (d1,lo1,hi1) c1, Cfor x2 (d2,lo2,hi2) c2 =>
-    if d1 == d2 then
-      Let rhi := add_iinfo iinfo (check_e lo1 lo2 r >>=check_e hi1 hi2) in
-      let check_c r :=
-          add_iinfo iinfo (check_var x1 x2 r) >>=
-          fold2 (iinfo,cmd2_error) check_I c1 c2 in
-      loop iinfo check_c Loop.nb rhi
-    else cierror iinfo (Cerr_neqdir salloc)
-  | Cwhile a1 c1 e1 c1', Cwhile a2 c2 e2 c2' =>
-    let check_c r :=
-      Let r := fold2 (iinfo,cmd2_error) check_I c1 c2 r in
-      Let re := add_iinfo iinfo (check_e e1 e2 r) in
-      Let r' := fold2 (iinfo,cmd2_error) check_I c1' c2' re in
-      ok (re, r') in
-    Let r := loop2 iinfo check_c Loop.nb r in
-    ok r
-
-  | _, _ => cierror iinfo (Cerr_neqinstr i1 i2 salloc)
-  end
-
-with check_I i1 i2 r :=
-  match i1, i2 with
-  | MkI _ i1, MkI ii i2 => check_i ii i1 i2 r
-  end.*)
-
 Definition check_cmd iinfo c1 c2 r := check_c check_I iinfo c1 c2 r.
 
 Definition check_fundef (f1 f2: funname * fundef):=
@@ -286,7 +230,6 @@ Definition check_fundef (f1 f2: funname * fundef):=
     add_finfo f1 f2 (
     Let rvs := add_iinfo fd1.(f_iinfo) (check_vars fd1.(f_params) fd2.(f_params) M.empty) in
     Let rcs := check_cmd fd1.(f_iinfo) fd1.(f_body) fd2.(f_body) rvs.1 in
- (* , [:: LT_ile (LT_map rvs.2)]) in *)
     let es1 := map Pvar fd1.(f_res) in
     let es2 := map Pvar fd2.(f_res) in
     Let res := add_iinfo fd1.(f_iinfo) (check_es es1 es2 rcs.1) in
@@ -297,8 +240,6 @@ Definition check_fundef (f1 f2: funname * fundef):=
 Definition check_fundefs fs1 fs2: cfexec leak_f_tr := mapM2 Ferr_uniqfun check_fundef fs1 fs2.
 
 Definition check_prog_aux prog1 prog2 := check_fundefs (p_funcs prog1) (p_funcs prog2). 
-
-(*Definition check_prog_aux prog1 prog2 :=  fold2 Ferr_neqprog check_fundef (p_funcs prog1) (p_funcs prog2) tt.*)
 
 Definition check_prog prog1 prog2 :=
   if prog1.(p_globs) == prog2.(p_globs) then check_prog_aux prog1 prog2
@@ -987,7 +928,27 @@ Section PROOF_WF.
    + by rewrite /leak_Fun Hfn Hleak. by rewrite Hfn.
   Qed.
 
+  Lemma alloc_call_wf_aux f mem mem' va vr lf:
+    sem_call p1 mem f va (f,lf) mem' vr ->
+    leak_WFs (leak_Fun Fs) (leak_Fun Fs f) lf.
+  Proof.
+    apply (@sem_call_Ind p1 Pc Pi_r Pi Pfor Pfun Hskip_WF Hcons_WF HmkI_WF Hassgn_WF Hopn_WF
+             Hif_true_WF Hif_false_WF Hwhile_true_WF Hwhile_false_WF Hfor_WF Hfor_nil_WF Hfor_cons_WF
+             Hcall_WF Hproc_WF).
+  Qed.
+
 End PROOF_WF. 
+
+Lemma alloc_callP_wf p1 p2 Fs (H: check_prog p1 p2 = ok Fs) f mem mem' va vr stk lf:
+    sem_call p1 mem f va (f, lf) mem' vr ->
+    leak_WFs (leak_Fun Fs) (leak_Fun Fs f) lf /\
+    exists vr', sem_call p2 mem f va (f, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs f) lf)) mem' vr'
+                /\ List.Forall2 value_uincl vr vr'.
+Proof.
+  move=> hsem; split; last by apply: (alloc_callP H stk hsem).
+  move: H hsem; rewrite /check_prog;case: eqP => // heq hcheck hsem.
+  by apply (alloc_call_wf_aux hcheck hsem).
+Qed.
 
 Section REFL.
 

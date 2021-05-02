@@ -1128,237 +1128,16 @@ Section PROOF.
     apply (@sem_Ind P Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
+
 End PROOF.
-
-Lemma init_mapP nstk l sz m m1 m2 :
-  alloc_stack m1 sz = ok m2 ->
-  init_map sz nstk l = ok m ->
-  valid_map m sz /\ m.2 = nstk.
-Proof.
-  move=> /Memory.alloc_stackP [Hadd Hread Hval Hbound].
-  rewrite /init_map.
-  set f1 := (f in foldM f _ _ ).
-  set g := (g in foldM _ _ _ >>= g).
-  have : forall p p',
-    foldM f1 p l = ok p' ->
-    valid_map (p.1,nstk) p.2 -> 0 <= p.2 ->
-    (forall y py sy, Mvar.get p.1 y = Some py ->
-        size_of (vtype y) = ok sy -> py + sy <= p.2) ->
-    (p.2 <= p'.2 /\
-        valid_map (p'.1, nstk) p'.2).
-  + elim:l => [|[v pn] l Hrec] p p'//=.
-    + by move=>[] <- ???;split=>//;omega.
-    case:ifPn=> //= /Z.leb_le Hle.
-    case: ifP => // Hal.
-    case Hs : size_of=> [svp|]//= /Hrec /= {Hrec}Hrec H2 H3 H4.
-    have Hpos := size_of_pos Hs.
-    case:Hrec.
-    + move=> x px;rewrite Mvar.setP;case:ifPn => /eqP Heq.
-      + move=> [] ?;subst;exists svp;split=>//;split => //.
-        + omega. + omega.
-        move=> y py sy Hne.
-        by rewrite Mvar.setP_neq // => /H4 H /H ?;omega.
-      move=> /H2 [sx] [Hsx] [] Hle0 Hpx Hal' Hy;exists sx;split=>//;split=>//.
-      + omega.
-      move=> y py sy Hne;rewrite Mvar.setP;case:eqP=> [?[]? |].
-      + subst;rewrite Hs => -[] ?;subst; omega.
-      by move=> Hney;apply Hy.
-    + omega.
-    + move=> y py sy;rewrite Mvar.setP;case:eqP=> [?[]?|].
-      + subst;rewrite Hs => -[] ->;omega.
-      move=> ? /H4 H /H ?;omega.
-    move=> Hle2 H';split=>//;first by omega.
-  move=> H;case Heq : foldM => [p'|]//=.
-  case: (H _ _ Heq)=> //= Hp' Hv.
-  rewrite /g;case:ifP => //= /Z.leb_le Hp Hq Hr [<-].
-  split=>// x px Hx.
-  case :(Hv x px Hx) => //= sx [] Hsx [] H1 H2 H3.
-  by exists sx;split=>//;split=>//;omega.
-Qed.
-
-Lemma getfun_alloc oracle (P:prog) SP fn fd:
-  alloc_prog oracle P = ok SP ->
-  get_fundef (p_funcs P) fn = Some fd ->
-  exists fd', exists ltc, 
-     get_fundef SP.1 fn = Some fd' /\
-     alloc_fd oracle (fn,fd) = ok (fn,fd', ltc) /\
-     get_leak SP.2 fn = Some ltc.
-Proof.
-  rewrite /alloc_prog. 
-  elim: (p_funcs P) SP => [ | [fn1 fd1] fs hrec] //= SP.
-  t_xrbindP=> fns fn' -[fn2 fd2]. move=> H.
-  move=> /= <- fs' H' <- <-. rewrite H' in hrec.
-  move: (hrec (unzip1 fs',
-             zip (unzip1 (unzip1 fs')) (unzip2 fs'))).
-  rewrite /=. 
-  have Heq : ok (unzip1 fs', zip (unzip1 (unzip1 fs')) (unzip2 fs')) =
-   ok (unzip1 fs', zip (unzip1 (unzip1 fs')) (unzip2 fs')).
-  + auto.
-  move=> {hrec} hrec. move: (hrec (Heq _)). move=> {hrec} hrec.
-  case: ifPn.
-  + move=> /eqP h1 [] h2. exists fn2. exists fd2. split=> //. 
-    t_xrbindP. rewrite -h1 in H. rewrite h2 in H. rewrite H /=.
-    split=> //.
-  move=> /eqP hfn Hget. move: (hrec Hget).
-  move=> [] fd' [] ltc' [] Hget' [] H1 H2.
-  exists fd'. exists ltc'. split=> //.
-Qed.
-
-Lemma oheadE T m (t x: T) :
-  ohead m = Some t ->
-  head x m = t.
-Proof. case: m => //= ? ?; apply: Some_inj. Qed.
-
-Lemma alloc_fdP oracle (P: prog) (SP: sprog * leak_f_tr) fn fd fd':
-  alloc_prog oracle P = ok SP ->
-  get_fundef (p_funcs P) fn = Some fd ->
-  get_fundef SP.1 fn = Some fd' ->
-  forall m1 va m1' lf vr p,
-    sem_call P m1 fn va lf m1' vr ->
-    alloc_stack m1 (sf_stk_sz fd') = ok p ->
-    exists m2' vr',
-      List.Forall2 value_uincl vr vr' /\
-      eq_mem m1' m2' /\
-      S.sem_call SP.1 (p_globs P) m1 fn va 
-      (fn, (leak_Is (leak_I (leak_Fun SP.2)) (top_stack p) (leak_Fun SP.2 fn) lf.2)) m2' vr'.
-Proof.
-  move=> hap get Sget.
-  have [sfd1 [] ltc [] /=]:= getfun_alloc hap get.
-  rewrite Sget => -[?]; subst sfd1.
-  case: (oracle (fn, fd)) => [[[stk_s stk_i] l] extra].
-  case hinit : init_map => [m | ] //=. move=> [] H Hf.
-  move: H. t_xrbindP. move=> [sfd ltc'] c.
-  apply: add_finfoP => Hi; case:andP => // -[Hp Hr] [] hsfd hltc /= hfd' hltc'.
-  subst sfd fd' => /=.
-  move=> m1 vs m1' lfn vr m2. case hlfn : lfn=> [fn' lt]. move=> H.
-  have H1 := H.  move: H. move=> /sem_callE' [f] [].
-  rewrite get => - [<-] {f} [vargs] [s1] [vm2] [vres] [hvargs hs1 hbody hvres hvr] Halloc.
-  have [/= Hv Hestk] := init_mapP Halloc hinit.
-  have Hstk: stk_ok (top_stack m2) stk_s.
-  + by move: Halloc=> /Memory.alloc_stackP [].
-  have Hval'': valid m stk_s (top_stack m2)
-          {| emem := m1; evm := vmap0 |}
-           {| emem := m2; evm := vmap0.[{| vtype := sword Uptr; vname := stk_i |} <- ok (pword_of_word (top_stack m2))] |}.
-    move: Halloc=> /Memory.alloc_stackP [] Ha1 Ha2 Ha3 Ha4 Ha5 Ha7.
-    split=> //=.
-    + move => w sz hv; apply/negP/nandP.
-      case: (Ha5 _ _ hv) => h ; [ left | right ]; apply/ZltP; lia.
-    + move=> x.
-      case Heq: (x == {| vtype := sword Uptr; vname := stk_i |}).
-      + move: Heq=> /eqP -> /=.
-        rewrite /is_vstk /vstk.
-        by rewrite Hestk eq_refl.
-      + rewrite Fv.setP_neq=> //.
-        apply/eqP=> Habs.
-        by rewrite Habs eq_refl in Heq.
-      + by rewrite /vstk Hestk /= /get_var Fv.setP_eq.
-      + by rewrite Ha7.
-      move=> x.
-      case Hget: (Mvar.get m.1 x)=> [a|//].
-      case Htype: (vtype x)=> [| |n| sz] //.
-      + move=> off Hoff; split.
-        + rewrite Ha3; apply/orP; right.
-          case: (Hv _ _ Hget) => q []; rewrite Htype /= => - [] ?;
-            subst q => - [] hal hah _ _.
-          rewrite  /between wsize8 (wunsigned_pstk_add Hstk) ?zify; lia.
-        by rewrite /vmap0 Fv.get0 => t [<-] {t} ?; rewrite WArray.get0.
-      case: x Htype Hget => - [] // sz' x [] -> {sz'} Hget.
-      split.
-      + have /andP[ in_stack aligned ] := valid_get_w Hstk Hv Hget.
-        apply/Memory.valid_pointerP; apply: (conj aligned) => k k_range.
-        rewrite Ha3; apply/orP; right.
-        apply: (between_byte _ in_stack k_range).
-        move: in_stack; rewrite !zify; lia.
-      by move=> v;rewrite /vmap0 Fv.get0.
-  have := check_varsW Hp Hval'' _ hs1.
-  move=> /(_ vargs) [ |s2 [Hs2 Hv2]];first by apply List_Forall2_refl.
-  have := check_cP SP Hstk Hv hbody Hi Hv2.
-  move=> [] [m2' vm2'] [] Hs2' Hv2'.
-  case: Hv2' => /= Hdisj Hmem Hval Heqvm _ Htopstack _.
-  have [vr' [/= hvr' hvruincl]] := check_varsP Hr Heqvm hvres.
-  have [vr'' hvr'' hvruincl'] := mapM2_truncate_val hvr hvruincl.
-  exists (free_stack m2' stk_s);exists vr''; split; first exact: hvruincl'.
-  split.
-  + move => w sz.
-    have hts : omap snd (ohead (frames m2')) = Some stk_s.
-    + by rewrite Htopstack.
-    have [ hrd hvld hcllstk ] := Memory.free_stackP hts.
-    move: (Hdisj w sz) (Hmem w sz) (Hval)=> {Hdisj Hmem Hval} Hdisjw Hmemw Hvalw.
-    case Heq1: (read_mem m1' w sz) => [w'| err].
-    + have Hw : valid_pointer m1' w sz by apply /Memory.readV;exists w'.
-      rewrite -Heq1 -hrd; first exact: Hmemw.
-      have /Memory.valid_pointerP[ w_aligned w_k_valid ] := Hw.
-      apply/Memory.valid_pointerP; split; first exact: w_aligned.
-      move => k k_range. rewrite hvld.
-      split; first by rewrite Hvalw w_k_valid.
-      rewrite /top_stack (oheadE _ Htopstack).
-      have [noo _ _ _ _ _] := Memory.alloc_stackP Halloc.
-      constructor.
-      + by apply/ZleP.
-      + exact: (@is_align_no_overflow _ _ U8 (is_align8 _)).
-      rewrite /= wunsigned_add; last first.
-      + have := is_align_no_overflow w_aligned. rewrite !zify.
-        have := wunsigned_range w.
-        lia.
-      case/negP/nandP: (Hdisjw Hw) => /=/ZltP; lia.
-    have ? := Memory.read_mem_error Heq1. subst err.
-    case Heq2: (read_mem _ _ _) => [w'|];last by rewrite (Memory.read_mem_error Heq2).
-    case/read_mem_valid_pointer/Memory.valid_pointerP: Heq2 => is_aligned w_k_valid.
-    have /Memory.readV[v] : valid_pointer m1' w sz; last by rewrite Heq1.
-    apply/Memory.valid_pointerP; apply: (conj is_aligned) => k k_range.
-    have /hvld[] := w_k_valid _ k_range.
-    rewrite Hvalw => /orP []; first done.
-    rewrite !zify {3}/top_stack (oheadE _ Htopstack) /=.
-    change (wsize_size U8) with 1 => ? []; lia.
-  apply: S.EcallRun.
-  + exact: Sget.
-  + exact: Halloc.
-  + exact: erefl.
-  + exact: hvargs.
-  + move: Hs2; rewrite /pword_of_word (Eqdep_dec.UIP_dec Bool.bool_dec (cmp_le_refl U64)); exact: id.
-  + rewrite /=. rewrite /get_leak in Hf. rewrite hltc in Hs2'. rewrite hltc' in Hs2'.
-    have -> : (leak_Fun SP.2 fn) = ltc. 
-    + by rewrite /leak_Fun /= Hf /=.
-    exact: Hs2'.
-  + exact: hvr'.
-  + exact: hvr''.
-  + reflexivity.
-  move=> [] //=.
-Qed.
-
-Definition alloc_ok SP fn m1 :=
-  forall fd, get_fundef SP fn = Some fd ->
-  exists p, alloc_stack m1 (sf_stk_sz fd) = ok p.
-
-Lemma alloc_progP oracle (P: prog) (SP: sprog * leak_f_tr) fn:
-  alloc_prog oracle P = ok SP ->
-  forall m1 va lf m1' vr p,
-    sem_call P m1 fn va (fn, lf) m1' vr ->
-    (forall fd, get_fundef SP.1 fn = Some fd ->
-    alloc_stack m1 (sf_stk_sz fd) = ok p) ->
-    exists m2' vr',
-      List.Forall2 value_uincl vr vr' /\
-      eq_mem m1' m2' /\
-      S.sem_call SP.1 (p_globs P) m1 fn va 
-      (fn, (leak_Is (leak_I (leak_Fun SP.2)) (top_stack p) (leak_Fun SP.2 fn) lf)) m2' vr'.
-Proof.
-  move=> Hcheck m1 va lf m1' vr m2 hsem ha.
-  have [fd' hget']: exists fd', get_fundef (p_funcs P) fn = Some fd'.
-  + by case: hsem => ??? fd' *;exists fd'.
-  have := getfun_alloc Hcheck hget'. move=> [] sfd [] ltc [] hgetS [] h h'.
-  move: (ha sfd hgetS). move=> halloc.
-  have := (alloc_fdP Hcheck hget' hgetS hsem halloc). 
-  move=> [] m' [] vr' [] hvl [] heq hs. 
-  exists m'. exists vr'. split=> //.
-Qed.
 
 Section WF_Proof.
 
-Variable P: prog.
-Notation gd := (p_globs P).
-Variable SP: (sprog * leak_f_tr).
+  Variable P: prog.
+  Notation gd := (p_globs P).
+  Variable SP: (sprog * leak_f_tr).
 
-Let Pi_r (s1:estate) (i1:instr_r) li (s2:estate) :=
+  Let Pi_r (s1:estate) (i1:instr_r) li (s2:estate) :=
     forall m ii1 ii2 i2 lti, alloc_i m (MkI ii1 i1) = ok ((MkI ii2 i2), lti) ->
     leak_WF (leak_Fun SP.2) lti li. 
 
@@ -1465,5 +1244,239 @@ Let Pi_r (s1:estate) (i1:instr_r) li (s2:estate) :=
   Local Lemma Hproc_WF : sem_Ind_proc P Pc Pfun.
   Proof. by []. Qed.
 
+  Lemma check_c_wf s1 c lc s2: sem P s1 c lc s2 -> Pc s1 c lc s2.
+  Proof.
+    apply (@sem_Ind P Pc Pi_r Pi Pfor Pfun Hskip_WF Hcons_WF HmkI_WF Hassgn_WF Hopn_WF
+             Hif_true_WF Hif_false_WF Hwhile_true_WF Hwhile_false_WF Hfor_WF Hfor_nil_WF Hfor_cons_WF
+             Hcall_WF Hproc_WF).
+  Qed.
+
 End WF_Proof.
+
+Lemma init_mapP nstk l sz m m1 m2 :
+  alloc_stack m1 sz = ok m2 ->
+  init_map sz nstk l = ok m ->
+  valid_map m sz /\ m.2 = nstk.
+Proof.
+  move=> /Memory.alloc_stackP [Hadd Hread Hval Hbound].
+  rewrite /init_map.
+  set f1 := (f in foldM f _ _ ).
+  set g := (g in foldM _ _ _ >>= g).
+  have : forall p p',
+    foldM f1 p l = ok p' ->
+    valid_map (p.1,nstk) p.2 -> 0 <= p.2 ->
+    (forall y py sy, Mvar.get p.1 y = Some py ->
+        size_of (vtype y) = ok sy -> py + sy <= p.2) ->
+    (p.2 <= p'.2 /\
+        valid_map (p'.1, nstk) p'.2).
+  + elim:l => [|[v pn] l Hrec] p p'//=.
+    + by move=>[] <- ???;split=>//;omega.
+    case:ifPn=> //= /Z.leb_le Hle.
+    case: ifP => // Hal.
+    case Hs : size_of=> [svp|]//= /Hrec /= {Hrec}Hrec H2 H3 H4.
+    have Hpos := size_of_pos Hs.
+    case:Hrec.
+    + move=> x px;rewrite Mvar.setP;case:ifPn => /eqP Heq.
+      + move=> [] ?;subst;exists svp;split=>//;split => //.
+        + omega. + omega.
+        move=> y py sy Hne.
+        by rewrite Mvar.setP_neq // => /H4 H /H ?;omega.
+      move=> /H2 [sx] [Hsx] [] Hle0 Hpx Hal' Hy;exists sx;split=>//;split=>//.
+      + omega.
+      move=> y py sy Hne;rewrite Mvar.setP;case:eqP=> [?[]? |].
+      + subst;rewrite Hs => -[] ?;subst; omega.
+      by move=> Hney;apply Hy.
+    + omega.
+    + move=> y py sy;rewrite Mvar.setP;case:eqP=> [?[]?|].
+      + subst;rewrite Hs => -[] ->;omega.
+      move=> ? /H4 H /H ?;omega.
+    move=> Hle2 H';split=>//;first by omega.
+  move=> H;case Heq : foldM => [p'|]//=.
+  case: (H _ _ Heq)=> //= Hp' Hv.
+  rewrite /g;case:ifP => //= /Z.leb_le Hp Hq Hr [<-].
+  split=>// x px Hx.
+  case :(Hv x px Hx) => //= sx [] Hsx [] H1 H2 H3.
+  by exists sx;split=>//;split=>//;omega.
+Qed.
+
+Lemma getfun_alloc oracle (P:prog) SP fn fd:
+  alloc_prog oracle P = ok SP ->
+  get_fundef (p_funcs P) fn = Some fd ->
+  exists fd', exists ltc, 
+     get_fundef SP.1 fn = Some fd' /\
+     alloc_fd oracle (fn,fd) = ok (fn,fd', ltc) /\
+     get_leak SP.2 fn = Some ltc.
+Proof.
+  rewrite /alloc_prog. 
+  elim: (p_funcs P) SP => [ | [fn1 fd1] fs hrec] //= SP.
+  t_xrbindP=> fns fn' -[fn2 fd2]. move=> H.
+  move=> /= <- fs' H' <- <-. rewrite H' in hrec.
+  move: (hrec (unzip1 fs',
+             zip (unzip1 (unzip1 fs')) (unzip2 fs'))).
+  rewrite /=. 
+  have Heq : ok (unzip1 fs', zip (unzip1 (unzip1 fs')) (unzip2 fs')) =
+   ok (unzip1 fs', zip (unzip1 (unzip1 fs')) (unzip2 fs')).
+  + auto.
+  move=> {hrec} hrec. move: (hrec (Heq _)). move=> {hrec} hrec.
+  case: ifPn.
+  + move=> /eqP h1 [] h2. exists fn2. exists fd2. split=> //. 
+    t_xrbindP. rewrite -h1 in H. rewrite h2 in H. rewrite H /=.
+    split=> //.
+  move=> /eqP hfn Hget. move: (hrec Hget).
+  move=> [] fd' [] ltc' [] Hget' [] H1 H2.
+  exists fd'. exists ltc'. split=> //.
+Qed.
+
+Lemma oheadE T m (t x: T) :
+  ohead m = Some t ->
+  head x m = t.
+Proof. case: m => //= ? ?; apply: Some_inj. Qed.
+
+Lemma alloc_fdP oracle (P: prog) (SP: sprog * leak_f_tr) fn fd fd':
+  alloc_prog oracle P = ok SP ->
+  get_fundef (p_funcs P) fn = Some fd ->
+  get_fundef SP.1 fn = Some fd' ->
+  forall m1 va m1' lf vr p,
+    sem_call P m1 fn va lf m1' vr ->
+    (alloc_stack m1 (sf_stk_sz fd') = ok p ->
+    leak_WFs (leak_Fun SP.2) (leak_Fun SP.2 lf.1) lf.2 /\ 
+    exists m2' vr',
+      List.Forall2 value_uincl vr vr' /\
+      eq_mem m1' m2' /\
+      S.sem_call SP.1 (p_globs P) m1 fn va 
+      (fn, (leak_Is (leak_I (leak_Fun SP.2)) (top_stack p) (leak_Fun SP.2 fn) lf.2)) m2' vr').
+Proof.
+  move=> hap get Sget.
+  have [sfd1 [] ltc [] /=]:= getfun_alloc hap get.
+  rewrite Sget => -[?]; subst sfd1.
+  case: (oracle (fn, fd)) => [[[stk_s stk_i] l] extra].
+  case hinit : init_map => [m | ] //=. move=> [] H Hf.
+  move: H. t_xrbindP. move=> [sfd ltc'] c.
+  apply: add_finfoP => Hi; case:andP => // -[Hp Hr] [] hsfd hltc /= hfd' hltc'.
+  subst sfd fd' => /=.
+  move=> m1 vs m1' lfn vr m2. case hlfn : lfn=> [fn' lt]. move=> H.
+  have H1 := H.  move: H. move=> /sem_callE' [f] [].
+  rewrite get => - [<-] {f} [vargs] [s1] [vm2] [vres] [hvargs hs1 hbody hvres hvr] Halloc.
+  have [/= Hv Hestk] := init_mapP Halloc hinit.
+  have Hstk: stk_ok (top_stack m2) stk_s.
+  + by move: Halloc=> /Memory.alloc_stackP [].
+  have Hval'': valid m stk_s (top_stack m2)
+          {| emem := m1; evm := vmap0 |}
+           {| emem := m2; evm := vmap0.[{| vtype := sword Uptr; vname := stk_i |} <- ok (pword_of_word (top_stack m2))] |}.
+    move: Halloc=> /Memory.alloc_stackP [] Ha1 Ha2 Ha3 Ha4 Ha5 Ha7.
+    split=> //=.
+    + move => w sz hv; apply/negP/nandP.
+      case: (Ha5 _ _ hv) => h ; [ left | right ]; apply/ZltP; lia.
+    + move=> x.
+      case Heq: (x == {| vtype := sword Uptr; vname := stk_i |}).
+      + move: Heq=> /eqP -> /=.
+        rewrite /is_vstk /vstk.
+        by rewrite Hestk eq_refl.
+      + rewrite Fv.setP_neq=> //.
+        apply/eqP=> Habs.
+        by rewrite Habs eq_refl in Heq.
+      + by rewrite /vstk Hestk /= /get_var Fv.setP_eq.
+      + by rewrite Ha7.
+      move=> x.
+      case Hget: (Mvar.get m.1 x)=> [a|//].
+      case Htype: (vtype x)=> [| |n| sz] //.
+      + move=> off Hoff; split.
+        + rewrite Ha3; apply/orP; right.
+          case: (Hv _ _ Hget) => q []; rewrite Htype /= => - [] ?;
+            subst q => - [] hal hah _ _.
+          rewrite  /between wsize8 (wunsigned_pstk_add Hstk) ?zify; lia.
+        by rewrite /vmap0 Fv.get0 => t [<-] {t} ?; rewrite WArray.get0.
+      case: x Htype Hget => - [] // sz' x [] -> {sz'} Hget.
+      split.
+      + have /andP[ in_stack aligned ] := valid_get_w Hstk Hv Hget.
+        apply/Memory.valid_pointerP; apply: (conj aligned) => k k_range.
+        rewrite Ha3; apply/orP; right.
+        apply: (between_byte _ in_stack k_range).
+        move: in_stack; rewrite !zify; lia.
+      by move=> v;rewrite /vmap0 Fv.get0.
+  have := check_varsW Hp Hval'' _ hs1.
+  move=> /(_ vargs) [ |s2 [Hs2 Hv2]];first by apply List_Forall2_refl.
+  have := check_cP SP Hstk Hv hbody Hi Hv2.
+  move=> [] [m2' vm2'] [] Hs2' Hv2'.
+  case: Hv2' => /= Hdisj Hmem Hval Heqvm _ Htopstack _.
+  have [vr' [/= hvr' hvruincl]] := check_varsP Hr Heqvm hvres.
+  have [vr'' hvr'' hvruincl'] := mapM2_truncate_val hvr hvruincl.
+  split.
+  + have := check_c_wf SP hbody Hi; move: Hf;rewrite hltc /= {3}/leak_Fun /get_leak -hltc'.
+    by have /= -> := sem_eq_fn H1 => ->.
+  exists (free_stack m2' stk_s);exists vr''; split; first exact: hvruincl'.
+  split.
+  + move => w sz.
+    have hts : omap snd (ohead (frames m2')) = Some stk_s.
+    + by rewrite Htopstack.
+    have [ hrd hvld hcllstk ] := Memory.free_stackP hts.
+    move: (Hdisj w sz) (Hmem w sz) (Hval)=> {Hdisj Hmem Hval} Hdisjw Hmemw Hvalw.
+    case Heq1: (read_mem m1' w sz) => [w'| err].
+    + have Hw : valid_pointer m1' w sz by apply /Memory.readV;exists w'.
+      rewrite -Heq1 -hrd; first exact: Hmemw.
+      have /Memory.valid_pointerP[ w_aligned w_k_valid ] := Hw.
+      apply/Memory.valid_pointerP; split; first exact: w_aligned.
+      move => k k_range. rewrite hvld.
+      split; first by rewrite Hvalw w_k_valid.
+      rewrite /top_stack (oheadE _ Htopstack).
+      have [noo _ _ _ _ _] := Memory.alloc_stackP Halloc.
+      constructor.
+      + by apply/ZleP.
+      + exact: (@is_align_no_overflow _ _ U8 (is_align8 _)).
+      rewrite /= wunsigned_add; last first.
+      + have := is_align_no_overflow w_aligned. rewrite !zify.
+        have := wunsigned_range w.
+        lia.
+      case/negP/nandP: (Hdisjw Hw) => /=/ZltP; lia.
+    have ? := Memory.read_mem_error Heq1. subst err.
+    case Heq2: (read_mem _ _ _) => [w'|];last by rewrite (Memory.read_mem_error Heq2).
+    case/read_mem_valid_pointer/Memory.valid_pointerP: Heq2 => is_aligned w_k_valid.
+    have /Memory.readV[v] : valid_pointer m1' w sz; last by rewrite Heq1.
+    apply/Memory.valid_pointerP; apply: (conj is_aligned) => k k_range.
+    have /hvld[] := w_k_valid _ k_range.
+    rewrite Hvalw => /orP []; first done.
+    rewrite !zify {3}/top_stack (oheadE _ Htopstack) /=.
+    change (wsize_size U8) with 1 => ? []; lia.
+  apply: S.EcallRun.
+  + exact: Sget.
+  + exact: Halloc.
+  + exact: erefl.
+  + exact: hvargs.
+  + move: Hs2; rewrite /pword_of_word (Eqdep_dec.UIP_dec Bool.bool_dec (cmp_le_refl U64)); exact: id.
+  + rewrite /=. rewrite /get_leak in Hf. rewrite hltc in Hs2'. rewrite hltc' in Hs2'.
+    have -> : (leak_Fun SP.2 fn) = ltc. 
+    + by rewrite /leak_Fun /= Hf /=.
+    exact: Hs2'.
+  + exact: hvr'.
+  + exact: hvr''.
+  + reflexivity.
+  move=> [] //=.
+Qed.
+
+Definition alloc_ok SP fn m1 :=
+  forall fd, get_fundef SP fn = Some fd ->
+  exists p, alloc_stack m1 (sf_stk_sz fd) = ok p.
+
+Lemma alloc_progP oracle (P: prog) (SP: sprog * leak_f_tr) fn:
+  alloc_prog oracle P = ok SP ->
+  forall m1 va lf m1' vr p,
+    sem_call P m1 fn va (fn, lf) m1' vr ->
+    (forall fd, get_fundef SP.1 fn = Some fd -> alloc_stack m1 (sf_stk_sz fd) = ok p) ->
+    leak_WFs (leak_Fun SP.2) (leak_Fun SP.2 fn) lf /\ 
+    exists m2' vr',
+      List.Forall2 value_uincl vr vr' /\
+      eq_mem m1' m2' /\
+      S.sem_call SP.1 (p_globs P) m1 fn va 
+      (fn, (leak_Is (leak_I (leak_Fun SP.2)) (top_stack p) (leak_Fun SP.2 fn) lf)) m2' vr'.
+Proof.
+  move=> Hcheck m1 va lf m1' vr m2 hsem ha.
+  have [fd' hget']: exists fd', get_fundef (p_funcs P) fn = Some fd'.
+  + by case: hsem => ??? fd' *;exists fd'.
+  have := getfun_alloc Hcheck hget'. move=> [] sfd [] ltc [] hgetS [] h h'.
+  move: (ha sfd hgetS). move=> halloc.
+  have := (alloc_fdP Hcheck hget' hgetS hsem halloc). 
+  move=> [] hwf [] m' [] vr' [] hvl [] heq hs; split => //.
+  by exists m'; exists vr'. 
+Qed.
+
 

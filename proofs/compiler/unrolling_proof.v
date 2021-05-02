@@ -28,7 +28,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith psem compiler_util.
-Require Export unrolling.
+Require Export unrolling cost.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -209,16 +209,16 @@ Section PROOF.
 
 End PROOF.
 
- Lemma unroll_callP : forall (p : prog) (stk : u64),
-       let p' := (unroll_prog p).1 in
-       let Fs := (unroll_prog p).2 in
-       forall (f : funname) (mem : mem) (mem' : low_memory.mem) (va vr : seq value) (lf : leak_fun),
-       sem_call p mem f va lf mem' vr ->
-       sem_call p' mem f va (lf.1, leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2) mem' vr.
- Proof.
- move=> p' Fs. apply unroll_callP_aux; first by auto.
- by case: (unroll_prog p').
- Qed.
+Lemma unroll_callP : forall (p : prog) (stk : u64),
+      let p' := (unroll_prog p).1 in
+      let Fs := (unroll_prog p).2 in
+      forall (f : funname) (mem : mem) (mem' : low_memory.mem) (va vr : seq value) (lf : leak_fun),
+      sem_call p mem f va lf mem' vr ->
+      sem_call p' mem f va (lf.1, leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2) mem' vr.
+Proof.
+move=> p' Fs. apply unroll_callP_aux; first by auto.
+by case: (unroll_prog p').
+Qed.
 
 Section WF_PROOF.
 
@@ -348,4 +348,25 @@ Section WF_PROOF.
     apply Hc. rewrite /leak_Fun. by rewrite Hlt /=.
   Qed.
 
+  Lemma unroll_call_wf f mem mem' va vr lf :
+      sem_call p mem f va lf mem' vr ->
+    leak_WFs (leak_Fun Fs) (leak_Fun Fs lf.1) lf.2.
+  Proof.
+    apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip_WF Hcons_WF HmkI_WF Hassgn_WF Hopn_WF
+             Hif_true_WF Hif_false_WF Hwhile_true_WF Hwhile_false_WF Hfor_WF Hfor_nil_WF Hfor_cons_WF 
+             Hcall_WF Hproc_WF).
+  Qed.
+
 End WF_PROOF.
+
+Lemma unroll_callP_wf p stk f mem mem' va vr lf:
+  let p' := (unroll_prog p).1 in
+  let Fs := (unroll_prog p).2 in
+  sem_call p mem f va (f,lf) mem' vr ->
+  leak_WFs (leak_Fun Fs) (leak_Fun Fs f) lf /\
+  sem_call p' mem f va (f, leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs f) lf) mem' vr.
+Proof.
+  move=> p' Fs hsem; split; last by apply (unroll_callP stk hsem).
+  have heq: unroll_prog p = (p', Fs) by rewrite /p'/Fs;case unroll_prog.
+  apply (unroll_call_wf heq hsem).
+Qed.

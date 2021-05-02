@@ -599,10 +599,11 @@ Section WF_PROOF.
   Let Pfun (m1:mem) (fn:funname) (vargs:seq value) lf (m2:mem) (vres:seq value) :=
     leak_WFs (leak_Fun Ffs) (leak_Fun Ffs lf.1) lf.2.
 
+  Local Lemma HmkI_WF : sem_Ind_mkI p Pi_r Pi.
+  Proof. by move=> ??????; apply. Qed.
+
   Local Lemma Hskip_WF : sem_Ind_nil Pc.
-  Proof.
-    constructor.
-  Qed.
+  Proof. constructor. Qed.
 
   Local Lemma Hcons_WF : sem_Ind_cons p Pc Pi.
   Proof.
@@ -745,4 +746,23 @@ Section WF_PROOF.
     rewrite /leak_Fun /=. by rewrite Hleak /=.
   Qed.
 
+  Lemma dead_code_wf f mem va vr mem' lf:
+    sem_call p mem f va (f, lf) mem' vr ->
+    leak_WFs (leak_Fun Ffs) (leak_Fun Ffs f) lf.
+  Proof.
+     apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip_WF Hcons_WF HmkI_WF Hassgn_WF Hopn_WF
+             Hif_true_WF Hif_false_WF Hwhile_true_WF Hwhile_false_WF Hfor_WF Hfor_nil_WF Hfor_cons_WF
+             Hcall_WF Hproc_WF).
+  Qed.
+
 End WF_PROOF.
+
+Lemma dead_code_callP_wf p p' Ffs stk fn mem mem' va vr lf : 
+  dead_code_prog p = ok (p', Ffs) → 
+  sem_call p mem fn va (fn, lf) mem' vr → 
+  leak_WFs (leak_Fun Ffs) (leak_Fun Ffs fn) lf /\
+  sem_call p' mem fn va (fn, leak_Is (leak_I (leak_Fun Ffs)) stk (leak_Fun Ffs fn) lf) mem' vr.
+Proof.
+  move=> h1 h2; split; first by apply: (dead_code_wf h1 h2).
+  apply (dead_code_callP stk h1 h2).
+Qed.

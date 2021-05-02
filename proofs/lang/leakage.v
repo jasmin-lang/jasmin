@@ -678,14 +678,6 @@ Fixpoint leak_compile (stk : pointer) (lts: seq leak_f_tr) (lf: leak_fun) :=
     leak_compile stk xs (lf.1, r)
   end.
 
-Fixpoint leak_compiles (stk: pointer) (ltss: seq (seq leak_f_tr)) (lf: leak_fun) :=
-  match ltss with 
-  | [::] => lf.2
-  | x :: xs => 
-    let r := leak_compile stk x lf in 
-    leak_compiles stk xs (lf.1, r)
-  end.
-
 (** Leakage for intermediate-level **)
 
 Inductive leak_il : Type :=
@@ -946,18 +938,15 @@ Definition leak_i_asm (l : leak_il) : leak_asm :=
   | Lcondl i le b => Lacond i b
   end.
 
-Definition leak_compile_prog
-   (stk: pointer)
-   (ltss: leak_f_tr * seq (seq leak_f_tr) * seq leak_f_tr * leak_f_lf_tr)
-   (lf: leak_fun) : seq leak_il :=
-  let r  := leak_compile stk [:: ltss.1.1.1 ] lf in
-  let rs := leak_compiles stk ltss.1.1.2 (lf.1, r) in
-  leak_i_iLs leak_i_iL stk (leak_Fun_L ltss.2 lf.1) (leak_compile stk ltss.1.2 (lf.1, rs)).
+Lemma leak_compile_cat stk lts1 lts2 lf: 
+  leak_compile stk (lts1 ++ lts2) lf = leak_compile stk lts2 (lf.1, (leak_compile stk lts1 lf)).
+Proof. case: lf => fn lc; elim: lts1 lc => //=. Qed.
 
-Definition leak_compile_x86
-   (stk: pointer)
-   (ltss: leak_f_tr * seq (seq leak_f_tr) * seq leak_f_tr * leak_f_lf_tr)
-   (lf: leak_fun) : seq leak_asm :=
-  let r := leak_compile_prog stk ltss lf in
+Definition leak_compile_prog (stk: pointer) (lts: seq leak_f_tr * leak_f_lf_tr) (lf: leak_fun) : seq leak_il :=
+  let r  := leak_compile stk lts.1 lf in
+  leak_i_iLs leak_i_iL stk (leak_Fun_L lts.2 lf.1) r.
+
+Definition leak_compile_x86 (stk: pointer) (lts: seq leak_f_tr * leak_f_lf_tr) (lf: leak_fun) : seq leak_asm :=
+  let r := leak_compile_prog stk lts lf in
   map (fun x=> leak_i_asm x) r.
 

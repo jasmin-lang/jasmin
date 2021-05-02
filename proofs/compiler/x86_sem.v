@@ -419,8 +419,6 @@ Variant x86sem_fd (P: xprog) (gd: glob_decls) fn st l st' : Prop :=
 Definition x86sem_fd_noleak xp gd fn st1 st2 :=
  exists l, x86sem_fd xp gd fn st1 l st2.
 
-(*Definition x86sem_trans gd s2 s1 s3 :
-  x86sem gd s1 s2 -> x86sem gd s2 s3 -> x86sem gd s1 s3 :=
-  tc_trans _ _ s1 s2 s3.*)
+
 
 

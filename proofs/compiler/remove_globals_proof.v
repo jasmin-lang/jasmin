@@ -770,7 +770,7 @@ Qed.
     apply sem_seq1; constructor; apply: Ewhile_true;eauto.
     inversion hw';subst => {hw'}; inversion H3; subst.
     inversion H3; subst. rewrite /=. by inversion H5; subst.
-Qed.
+  Qed.
 
   Local Lemma Hwhile_false : sem_Ind_while_false P Pc Pi_r.
   Proof.
@@ -922,9 +922,6 @@ Qed.
   Local Lemma remove_glob_call m1 f vargs m2 vres lf:
     sem_call P m1 f vargs lf m2 vres ->
     Pfun m1 f vargs lf m2 vres.
-    (*List.Forall2 value_uincl vargs vargs' ->
-    exists vres', sem_call P' m1 f vargs' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) (leak_Fun Fs lf.1) lf.2)) m2 vres' 
-    /\ List.Forall2 value_uincl vres vres'.*)
   Proof.
      apply /(@sem_call_Ind P Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
                              Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
@@ -935,13 +932,12 @@ Qed.
   Lemma remove_globP P P' f mem mem' va vr lf lft stk:
     remove_glob_prog is_glob fresh_id P = ok (P', lft) ->
     sem_call P mem f va (f, lf) mem' vr ->
+    leak_WFs (leak_Fun lft) (leak_Fun lft f) lf /\
     sem_call P' mem f va (f, (leak_Is (leak_I (leak_Fun lft)) stk (leak_Fun lft f) lf)) mem' vr.
   Proof. 
     rewrite /remove_glob_prog; t_xrbindP=> gd' /extend_glob_progP hgd.
     case: ifP=> // huniq; t_xrbindP=> fds hfds <- <- /(gd_incl_fun hgd) hf.
-    have H := (remove_glob_call (P:={| p_globs := gd'; p_funcs := p_funcs P |}) hfds huniq stk hf).
-    case:H=> H1 H2. apply H2.
+    apply (remove_glob_call (P:={| p_globs := gd'; p_funcs := p_funcs P |}) hfds huniq stk hf).
   Qed.
-
 
 End PROOFS. End RGP.

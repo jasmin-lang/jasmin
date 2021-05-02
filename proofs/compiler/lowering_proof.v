@@ -1845,7 +1845,7 @@ Qed.
      (* Pif *)
      rewrite /check_size_16_64.
      by case: stype_of_lval => //= w hv; case: andP => // - [] -> /eqP ->; eauto.
-Qed.
+  Qed.
 
   Lemma vars_I_assgn ii l tag ty e:
     Sv.Equal (vars_I (MkI ii (Cassgn l tag ty e))) (Sv.union (vars_lval l) (read_e e)).
@@ -2880,6 +2880,7 @@ Qed.
 
   Lemma lower_callP f mem mem' va vr lf:
     sem_call p  mem f va (f, lf) mem' vr ->
+    leak_WFs (leak_Fun p'.2) (leak_Fun p'.2 f) lf /\
     sem_call p'.1 mem f va (f, (leak_Is (leak_I (leak_Fun p'.2)) stk (leak_Fun p'.2 f) lf)) mem' vr.
   Proof.
     apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn

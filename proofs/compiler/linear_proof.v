@@ -231,17 +231,6 @@ Proof.
   by move=> [<- <-];case:s1.
 Qed.
 
-(*
-Lemma valid_find_label p1 p2 c c' lbl:
-  valid p1 p2 c ->
-  find_label lbl c = Some c' ->
-  valid p1 p2 c'.
-Proof.
-  elim: c => //= -[ii [| b| lbl'|lbl'|e lbl']] l Hrec //= /andP[_ H];
-    move:(H) => /Hrec H' //.
-  by case:ifP => [_[]<-|_].
-Qed. *)
-
 Definition is_jump lbl (i:linstr) :=
  let (ii, ir) := i in
  match ir with
@@ -267,18 +256,6 @@ Lemma disjoint_lbl_cons i c1 c2:
 Proof.
   by move=> Hd lbl;apply: contra (Hd lbl)=> /= /andP[]->->;rewrite orbC.
 Qed.
-
-(*
-Lemma disjoint_find_label c1 c2 c lbl:
-  disjoint_lbl c1 c2 ->
-  find_label lbl c2 = Some pc ->
-  disjoint_lbl c1 c.
-Proof.
-  elim: c2 => //= i c2 Hrec Hd.
-  have H:= (disjoint_lbl_cons Hd); have {Hrec}Hrec := Hrec H.
-  by case:ifP => //= ? [] <-.
-Qed.
-*)
 
 Definition add_hd_c c s := {| lmem := lmem s; lvm := lvm s; lc := c ++ s.(lc); lpc := size c + s.(lpc) |}.
 
@@ -315,8 +292,7 @@ Lemma lsem_cat_hd c gd s1 s2 l1:
   lsem gd s1 l1 s2 ->
   lsem gd (add_hd_c c s1) l1 (add_hd_c c s2).
 Proof.
-Admitted.
-  (*move=> Hdisj Hsem; revert Hdisj.
+  move=> Hdisj Hsem; revert Hdisj.
   elim/lsem_ind: Hsem; clear.
   (* reflexive case *)
   + by move=> s1 Hdisjc; apply: tc_refl.
@@ -336,15 +312,15 @@ Admitted.
   + by move=> <- <-;rewrite Hset.
   + move=> pc' Hfind <- <-.
     rewrite find_label_cat_hd ?Hfind /= ? Hset //.
-    by move: (Hdisj l);rewrite /disjoint_lbl (@find_instr_has (is_jump l) _ _ Heq) ?andbT /is_jump.
+    + by rewrite -addnS !PoszD (GRing.addrC (Posz (size c))) GRing.addrKA.
+    by move: (Hdisj l); rewrite /disjoint_lbl (@find_instr_has (is_jump l) _ _ Heq) ?andbT /is_jump.
   move=> -[vb lb] -> b /= -> /=;case:ifPn => Hb.
   + t_xrbindP => n Hfind <- <-.
     rewrite find_label_cat_hd ?Hfind /= ? Hset //.
-    move: (Hdisj l);rewrite /disjoint_lbl (@find_instr_has (is_jump l) _ _ Heq) ?andbT /is_jump.
-    by move=> h; case: b Hb => //=; auto. auto. 
+    + by rewrite -addnS !PoszD (GRing.addrC (Posz (size c))) GRing.addrKA Hb.
     by move: (Hdisj l);rewrite /disjoint_lbl (@find_instr_has (is_jump l) _ _ Heq) ?andbT /is_jump. 
-  by move=> [<- <-];rewrite Hset; case: b Hb => //=.
-Qed.*)
+  by move=> [<- <-];rewrite Hset (negbTE Hb).
+Qed.
 
 Lemma valid_has c lbl p1 p2 :
   valid p1 p2 c -> has (is_label lbl) c || has (is_jump lbl) c ->
@@ -556,6 +532,101 @@ Proof.
   by rewrite /add_align -cat1s find_label_cat_hd.
 Qed.
 
+Section Linear_size.
+Let Pi i := 
+  forall lbl lbl' lc lc' ltc, 
+    linear_i i lbl lc = ok (lbl', lc', ltc) ->
+     size lc' = get_linear_size ltc + size lc.
+Let Pr i := forall ii, Pi (MkI ii i).
+
+Let Pc c := 
+  forall lbl lbl' lc lc' ltc,
+    linear_c linear_i c lbl lc = ok (lbl', lc', ltc) ->
+    size lc' = get_linear_size_C ltc + size lc.
+
+Local Lemma hmk i ii : Pr i → Pi (MkI ii i).
+Proof. done. Qed.
+
+Local Lemma hnil : Pc [::].
+Proof. by move=> lbl lbl' lc lc' ltc /= [] _ <- <-. Qed.
+
+Local Lemma hcons i c : Pi i → Pc c → Pc (i :: c).
+Proof. 
+  move=> hreci hrec lbl lbl' lc lc' ltc /=.
+  t_xrbindP => -[[lbl1 lc1] ltc1] /hrec hlc1 [[lbl2 lc2] ltc2] /hreci /= hlc2 [] _ <- <-.
+  by rewrite /= hlc2 hlc1 addnA.
+Qed.
+
+Local Lemma hassgn x tg ty e : Pr (Cassgn x tg ty e).
+Proof. by move=> ii lbl lbl' lc lc' ltc /=; case: ty => // w [] _ <- <-. Qed.
+
+Local Lemma hopn xs t o es : Pr (Copn xs t o es).
+Proof. by move=> ii lbl lbl' lc lc' ltc /= [] _ <- <-. Qed.
+
+Local Lemma hif e c1 c2 : Pc c1 → Pc c2 → Pr (Cif e c1 c2).
+Proof.
+  move=> hrec1 hrec2 ii lbl lbl' lc lc' ltc /=.
+  case: c1 hrec1 => [ | i c1] hrec1.
+  + t_xrbindP => -[[lbl1 lc1] ltc1] [[lbl2 lc2] ltc2] /= /hrec2 hlc2 [] _ <- <- [] _ <- <-.
+    by rewrite /= hlc2 /= /get_linear_size_C; ring. 
+  move: (i::c1) hrec1 => {i c1} c1 hrec1.
+  case: c2 hrec2 => [ | i c2] hrec2.
+  + t_xrbindP => -[[lbl1 lc1] ltc1] [[lbl2 lc2] ltc2] /= /hrec1 hlc1 [] _ <- <- [] _ <- <-.
+    by rewrite /= hlc1 /= /get_linear_size_C; ring. 
+  move: (i::c2) hrec2 => {i c2} c2 hrec2.
+  t_xrbindP =>  -[[lbl1 lc1] ltc1] [[lbl2 lc2] ltc2] [[lbl3 lc3] ltc3] /hrec1 hlc1 /= [] _ <- <-.
+  move=> [] _ <- <- [[lbl4 lc4] ltc4] [[lbl5 lc5] ltc5] /hrec2 hlc2 /= [] _ <- <- _ <- <-.
+  rewrite /= hlc2 /= hlc1 /= /get_linear_size_C; ring.
+Qed.
+
+Local Lemma hfor v dir lo hi c :  Pc c → Pr (Cfor v (dir, lo, hi) c).
+Proof. done. Qed.
+
+Local Lemma hwhile a c e c' : Pc c → Pc c' → Pr (Cwhile a c e c').
+Proof.
+  move=> hrec1 hrec2 ii lbl lbl' lc lc' ltc /=.
+  have h : 
+    match c' with
+    | [::] =>
+        Let rs
+        := align ii a
+             ({| li_ii := ii; li_i := Lilabel lbl |} >;
+              linear_c linear_i c (next_lbl lbl) ({| li_ii := ii; li_i := Licond e lbl |} :: lc))
+        in ciok (rs.1.1, rs.1.2, LT_ilwhile_c'0 a rs.2)
+    | _ :: _ =>
+        Let rs1
+        := {| li_ii := ii; li_i := Lilabel lbl |} >;
+           linear_c linear_i c (next_lbl (next_lbl lbl))
+             ({| li_ii := ii; li_i := Licond e (next_lbl lbl) |} :: lc)
+        in (Let rs
+            := {| li_ii := ii; li_i := Ligoto lbl |} >;
+               align ii a
+                 ({| li_ii := ii; li_i := Lilabel (next_lbl lbl) |} >; linear_c linear_i c' rs1.1.1 rs1.1.2)
+            in ciok (rs.1.1, rs.1.2, LT_ilwhile a rs1.2 rs.2))
+    end = ok (lbl', lc', ltc) → size lc' = get_linear_size ltc + size lc.
+  + case: c' hrec2 => [ | i c'] hrec2.
+    + rewrite /align; t_xrbindP => -[[lbl1 lc1] ltc1] [[lbl2 lc2] ltc2] [[lbl3 lc3] ltc3] /=.
+      move=> /hrec1 hlc1 [] _ <- <- [] _ <- <- [] _ <- <- /=.
+      by case: a => /=; rewrite hlc1 /= /get_linear_size_C; ring.
+    move: (i::c') hrec2 => {i c'} c' hrec2.
+    rewrite /align; t_xrbindP => -[[lbl1 lc1] ltc1] [[lbl2 lc2] ltc2] /hrec1 hlc1 [] _ <- <-.
+    move=> [[lbl3 lc3] ltc3] [[lbl4 lc4] ltc4] [[lbl5 lc5] ltc5] [[lbl6 lc6] ltc6] /hrec2 hlc2 /=.
+    move=> [] _ <- <- [] _ <- <- [] _ <- <- [] _ <- <- /=.
+    by case: a => /=; rewrite hlc2 /= hlc1 /= /get_linear_size_C; ring.
+  case: (is_bool e) => // -[] //.
+  by t_xrbindP => -[[lbl1 lc1] ltc1] /hrec1 hlc1 [] _ <- <-.
+Qed.
+
+Lemma hcall i xs f es : Pr (Ccall i xs f es).
+Proof. done. Qed.
+
+Lemma linear_size c lbl lbl' lc ltc : 
+  linear_c linear_i c lbl [::] = ok (lbl', lc, ltc) ->
+  size lc = get_linear_size_C ltc.
+Proof. by move=> /(cmd_rect hmk hnil hcons hassgn hopn hif hfor hwhile hcall) ->; rewrite /= addn0. Qed.
+
+End Linear_size.
+
 Section PROOF.
 
   Variable p:  sprog.
@@ -570,6 +641,7 @@ Section PROOF.
     [/\ (lbl <=? lbli)%positive,
      valid lbl lbli li &
      forall s1 s2 l, S.sem_I p gd s1 i l s2 ->
+     leak_i_WF lti l /\
      lsem gd (of_estate s1 li 0) (leak_i_iL stk l lti) (of_estate s2 li (size li))].
 
   Let Pi_r (i:instr_r) :=
@@ -577,6 +649,7 @@ Section PROOF.
     [/\ (lbl <=? lbli)%positive,
      valid lbl lbli li &
      forall s1 s2 l, S.sem_i p gd s1 i l s2 ->
+       leak_i_WF lti l /\
        lsem gd (of_estate s1 li 0) (leak_i_iL stk l lti) (of_estate s2 li (size li))].
 
   Let Pc (c:cmd) :=
@@ -584,9 +657,8 @@ Section PROOF.
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc &
      forall s1 s2 l, S.sem p gd s1 c l s2 ->
-       lsem gd (of_estate s1 lc 0) 
-         (leak_i_iLs (leak_i_iL) stk ltc l)
-        (of_estate s2 lc (size lc))].
+      leak_is_WF ltc l /\
+       lsem gd (of_estate s1 lc 0) (leak_i_iLs (leak_i_iL) stk ltc l) (of_estate s2 lc (size lc))].
 
   Let HmkI : forall i ii, Pi_r i -> Pi (MkI ii i).
   Proof.
@@ -597,8 +669,9 @@ Section PROOF.
 
   Let Hskip : Pc [::].
   Proof.
-    move=> lbl lbli li ltc /= [] <- <-;split=> //. apply Pos.leb_refl.
-    move=> s1 s2 l /S.semE [] -> ->; apply tc_refl.
+    move=> lbl lbli li ltc /= [] <- <- <-;split=> //. apply Pos.leb_refl.
+    move=> s1 s2 l /S.semE [] -> ->; split. constructor.
+    apply tc_refl.
   Qed.
 
   Lemma of_estate_add_hd_c s li lc pc:
@@ -619,12 +692,13 @@ Section PROOF.
     + by rewrite valid_cat (valid_le_min Hle1 Hvi) (valid_le_max Hle2 Hvc).
     move=> -[m1 vm1] s2 l /S.semE [[m2 vm2]] [li'] [lc'] [] Hi' Hc' ->.
     rewrite /lsem /=.
+    case: (Hi _ _ _ Hi') => {Hi} hwf Hi; case: (Hc _ _ _ Hc') => {Hc} Hwfc Hc; split.
+    + by constructor.
     apply tc_trans  with (of_estate {| emem := m2; evm := vm2 |} (li++lc) (size li)).
-    + by apply (lsem_cat_tl lc (Hi _ _ _ Hi')).
+    + by apply (lsem_cat_tl lc Hi).
     have Hvc1 : valid 1 lblc lc.
     apply: valid_le_min Hvc.
     + by rewrite /is_true Pos.leb_le;apply Pos.le_1_l.
-    + move: (Hc {| emem := m2; evm := vm2 |} s2 lc' Hc'). move=> {Hc} Hc.
     have /(@lsem_cat_hd li) := Hc.
     rewrite !of_estate_add_hd_c size_cat addn0;apply.
     by apply: valid_disjoint Hvi Hvc;rewrite Pos.leb_refl orbC.
@@ -638,6 +712,7 @@ Section PROOF.
     move=> x tag [] // sz e ii lbl lbl' l ltc /= [] <- <- <-;rewrite Pos.leb_refl; split => //.
     move=> -[m1 vm1] s2 l' /S.sem_iE' [v] [v'] [le] [lw] [ok_v].
     apply: rbindP => w /of_val_word [sz'] [w'] [hle h1 h2]; subst v w => - [<-] {v'} ok_s2 ->.
+    split; first by constructor.
     rewrite /lsem /=. apply tc_step. rewrite /lsem1 /step /= /eval_instr /= !to_of_estate.
     case: ifP => hsz.
     + by rewrite /sem_sopn /sem_pexprs /= /exec_sopn /sopn_sem /= ok_v /= 
@@ -649,7 +724,8 @@ Section PROOF.
   Let Hopn : forall xs t o es, Pi_r (Copn xs t o es).
   Proof.
     move=> x t' e tag ii lbl lbl' l' lti [] <- <- <-;rewrite Pos.leb_refl;split=>//.
-    move=> -[m1 vm1] s2 l /S.sem_iE' [] lo [] ok_s2 ->. rewrite /lsem. apply tc_step.
+    move=> -[m1 vm1] s2 l /S.sem_iE' [] lo [] ok_s2 ->; split; first by constructor.
+    rewrite /lsem. apply tc_step.
     by rewrite /lsem1 /step /= /eval_instr /= !to_of_estate /= ok_s2 /=.
   Qed.
 
@@ -664,7 +740,7 @@ Section PROOF.
   Proof.
     move=> e c1 c2 Hc1 Hc2 ii lbl lbl' l' lti /=.
     case Heq1: (c1)=> [|i1 l1].
-    (* case1: Cif e [::] c2 *) (* finished *)
+    (* case1: Cif e [::] c2 *) 
     + subst;rewrite linear_c_nil;case Heq: linear_c => [[[lbl2 lc2] ltc2]|] //= [] <- <- <-.
       have Hlen := le_next lbl.
       have [Hle Hv2 Hs2]:= Hc2 _ _ _ _ Heq;split.
@@ -674,18 +750,19 @@ Section PROOF.
       move => [m1 vm1] s2 l /S.sem_iE' [b] [le] [lc] [ok_b ok_s2] ->.
       case: b ok_b ok_s2 => ok_b.
       - move => /S.semE [] -> -> {s2}. 
+        split; first by constructor.
         apply: lsem_step.
         * rewrite /lsem1 /step /= /eval_instr /= !to_of_estate ok_b {ok_b} /=.
           rewrite -cat_cons find_label_cat_hd.
-          + rewrite find_label_hd /= GRing.subr0 addn0 -PoszD. admit.
+          + by rewrite find_label_hd /= GRing.subr0 addn0 -PoszD -(linear_size Heq) addnC.
           apply /negP => /= H; have := @valid_has _ lbl _ _ Hv2.
           rewrite H => /(_ erefl) /andP [].
           by rewrite Pos.leb_antisym lt_next.
         rewrite /= size_cat /= addn1; exact: tc_refl.
       move => ok_s2.
+      case: (Hs2 _ _ _ ok_s2) => hwf {Hs2} Hs2; split; first by constructor.
       apply: lsem_step.
       + by rewrite /lsem1 /step /= /eval_instr /= ?to_of_estate ok_b {ok_b} /=.
-      move: Hs2 => /(_ _ _ _ ok_s2) Hs2.
       have Hvc : valid lbl (next_lbl lbl) [:: MkLI ii (Licond e lbl)].
       + by rewrite /= Pos.leb_refl lt_next.
       have Hd: disjoint_lbl [:: MkLI ii (Licond e lbl)] lc2 by move=> ?.
@@ -706,14 +783,13 @@ Section PROOF.
       case => m1 vm1 s2 l /S.sem_iE' [b] [le] [lc]; case: b => ok_b.
       case: ok_b.
       (* true case *)
-      + move => ok_e ok_s2 ->.
+      + move => ok_e /Hs1 [] Hwf{Hs1}Hs1 ->; split; first by constructor.
         apply: lsem_step.
         + rewrite /lsem1 /step /= /eval_instr /= ?to_of_estate. 
           move: snot_spec. move=> /= Hsnot. 
           move: (Hsnot gd {| emem := m1; evm := vm1 |} e true le stk ok_e). move=> {Hsnot} -> /=.
           by rewrite /setpc /=. 
-        + move: Hs1 => /(_ _ _ _ ok_s2) Hs1.
-          have Hvc : valid lbl (next_lbl lbl) [:: MkLI ii (Licond (Papp1 Onot e) lbl)].
+        + have Hvc : valid lbl (next_lbl lbl) [:: MkLI ii (Licond (Papp1 Onot e) lbl)].
           + by rewrite /= Pos.leb_refl lt_next.
           have Hd: disjoint_lbl [:: MkLI ii (Licond (snot e).1 lbl)] lc1 by move=> ?.
           have := @lsem_cat_hd [:: MkLI ii (Licond (snot e).1 lbl)] _ _ _ _ Hd Hs1.
@@ -724,13 +800,14 @@ Section PROOF.
           by rewrite /eval_instr /= size_cat /= addn1.
       (* false case *)
       case: ok_b. move=> ok_e /S.semE [] -> -> -> /=.
+      split; first by constructor.
       apply: lsem_step.
       + rewrite /lsem1 /step /= /eval_instr /= ?to_of_estate. 
         move: snot_spec. move=> /= Hsnot. 
         move: (Hsnot gd {| emem := m1; evm := vm1 |} e false le stk ok_e). 
         move=> {Hsnot} -> /=. 
         rewrite -cat_cons find_label_cat_hd.
-        + rewrite find_label_hd /=;eauto. admit.
+        + by rewrite find_label_hd /= addn0 GRing.subr0 -(linear_size Heq) -PoszD addnC.
         apply /negP => /= H. have := @valid_has _ lbl _ _ Hv1.
         rewrite H => /(_ erefl) /andP [].
         by rewrite Pos.leb_antisym lt_next.
@@ -753,15 +830,15 @@ Section PROOF.
       by rewrite (valid_le_min _ Hv2) // (valid_le_max Hle2 (valid_le_min lblL2 Hv1)).
     move=> [m1 vm1] s2 l /S.sem_iE' [b] [lc] [lc'] [].
     set C := (C in of_estate _ C _); rewrite -/C.
-    case: b => ok_b ok_s2 ->.
-    + apply lsem_step with (of_estate {| emem := m1; evm := vm1 |} C ((size lc2) .+3)).
+    case: b => ok_b. 
+    + move=> /Hs1{Hs1}[] Hwf Hs1 ->; split; first by constructor.
+      apply lsem_step with (of_estate {| emem := m1; evm := vm1 |} C ((size lc2) .+3)).
       + rewrite /lsem1 /step /= /eval_instr /=  ?to_of_estate ok_b /=.
         rewrite /C -cat_cons -cat_rcons find_label_cat_hd.
-        + rewrite find_label_hd size_rcons /= addn0. admit.
+        + by rewrite find_label_hd size_rcons /= addn0 GRing.subr0 -PoszD addnC -(linear_size Heq2).
         rewrite has_rcons /=; apply /negP => H; have := @valid_has _ lbl _ _ Hv2. rewrite H=> /(_ isT) /andP[].
         have Hlt := Pos_leb_trans leL2 Hle1.
         by rewrite Pos.leb_antisym (Pos_lt_leb_trans(lt_next _)(Pos_leb_trans leL2 Hle1)).
-      move: Hs1 => /(_ _ _ _ ok_s2) Hs1.
       have Hd:
         disjoint_lbl ([:: MkLI ii (Licond e lbl)]++lc2++[:: MkLI ii (Ligoto (next_lbl lbl)); MkLI ii (Lilabel lbl)]) lc1.
       + rewrite !disjoint_cat_l;split;first by move=> ?.
@@ -782,16 +859,19 @@ Section PROOF.
       + by rewrite -addnE -minusE -plusE;omega.
       rewrite onth_cat ltnn subnn /= size_cat /= size_cat /eval_instr /=.
       by rewrite !addSn !addnS addn0.
+    move=> /Hs2{Hs2}[] Hwf Hs2 ->; split; first by constructor.
     apply lsem_step with (of_estate {| emem := m1; evm := vm1 |} C 1).
     + by rewrite /lsem1 /step /= /eval_instr /= ?to_of_estate ok_b /=.
     apply tc_trans with (of_estate s2 C (size lc2).+1).
-    + have := Hs2 _ _ _ ok_s2.
+    + move: Hs2. 
       move=> /(@lsem_cat_tl [:: MkLI ii (Ligoto (next_lbl lbl)), MkLI ii (Lilabel lbl) & lc1 ++ [:: MkLI ii (Lilabel (next_lbl lbl))]]) /= H.
       by have /= /(_ [:: MkLI ii (Licond e lbl)]) H0 := lsem_cat_hd _ H; apply H0.
     apply tc_step.
     rewrite /lsem1 /step /= /C /find_instr /= onth_cat ltnn subnn /eval_instr /=.
     rewrite -cat_cons -2!cat_rcons catA find_label_cat_hd.
-    + rewrite find_label_hd /= !(size_cat, size_rcons, addn0) /= size_cat /= !addSn addn1 !addnS. admit.
+    + rewrite find_label_hd /= !size_cat /= !size_rcons size_cat /= !addn0.
+      rewrite !(addSn, addnS) addn0 -addn4 - addn1 -addnA (addnC (size lc2) (_ + _)) !PoszD GRing.addrKA.
+      by rewrite -GRing.addrA -!PoszD -(linear_size Heq1).
     rewrite has_cat !has_rcons /=.
     rewrite {1}/is_label /=.
     case: eqP => Heq /=.
@@ -801,7 +881,7 @@ Section PROOF.
       by rewrite H Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) Hle1) /= => /(_ isT).
     have := @valid_has _ (next_lbl lbl) _ _ Hv1.
     by rewrite H Pos.leb_antisym lt_next /= => /(_ isT).
-  Admitted.
+  Qed.
 
   Let Hfor : forall v dir lo hi c, Pc c -> Pi_r (Cfor v (dir, lo, hi) c).
   Proof. by []. Qed.
@@ -841,9 +921,16 @@ Section PROOF.
       have Hlt := Pos_lt_leb_trans ltL1 Hle1.
       split => //.
       + by rewrite valid_add_align /= valid_cat /= Pos.leb_refl Hlt (valid_le_min _ Hvc).
-      move=> s1 s2 li H. rewrite leak_i_iL_while_c'0 /=. 
-      apply: lsem_add_align.
-      apply: lsem_step=> //.
+      move=> s1 s2 li H; rewrite leak_i_iL_while_c'0 /=. 
+      suff : leak_w0_WF ltc' li /\ 
+         lsem gd
+          (setpc (of_estate s1 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond true lbl)]) 0)
+          (lpc (of_estate s1 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond true lbl)]) 0)).+1)
+          (ilwhile_c'0 leak_i_iL stk ltc' li)
+          (of_estate s2 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond true lbl)])
+          (size (ι (Lilabel lbl) :: lc ++ [:: ι (Licond true lbl)]))).
+      + move=> [??];split; first by constructor.
+        apply: lsem_add_align; apply: lsem_step=> //.
       set L := [:: ι (Lilabel lbl) ].
       set C := L ++ lc ++ [:: ι (Licond e lbl)].
       have HL : valid lbl (next_lbl lbl) L by rewrite/L/= Pos.leb_refl ltL1.
@@ -852,9 +939,8 @@ Section PROOF.
       + move=> s1 s2 s3 s4 a' c0 e0 c' lc0 le lc' lw Hsem He Hsem' Hs IH.
         move=> [] h1 h2 h3 h4; subst a c0 e0 c'.
         specialize (IH (erefl _)).
-        specialize (Hc _ _ _ Hsem).
-        move: Hsem'. move=> /S.semE. 
-        move=> [] hs hl.
+        specialize (Hc _ _ _ Hsem); case: IH Hc => Hwf IH [] Hwfc Hc; split; first by constructor. 
+        move: Hsem' => /S.semE [] hs hl; subst.
         apply: tc_trans.
         + have /(_ _ Hd) := lsem_cat_hd _ Hc. move=> Hhd.
           move: (lsem_cat_tl [:: ι (Licond true lbl)] Hhd). move=> Htl.
@@ -865,9 +951,10 @@ Section PROOF.
         apply: lsem_step.
         + rewrite /lsem1 /step /find_instr /= onth_cat ltnn subnn /= /eval_instr /= /to_estate /=.
           replace s2 with {| emem := emem s2; evm := evm s2 |} in He; last by case s2.
-          rewrite /= find_label_hd /=. rewrite /= in He. case: He=> <-. admit.
+          rewrite /= find_label_hd /=. rewrite /= in He. case: He=> <-.
+          by rewrite PoszD GRing.opprD GRing.addrA GRing.subrr GRing.add0r (linear_size Heqc).
         (* recursive part *)
-        rewrite /setpc /of_estate /= hs in IH. admit.
+        by move: IH; rewrite /setpc /of_estate /= -/(ilwhile_c'0 leak_i_iL) size_cat /=.
       move=> s1 s2 a' c0 e0 c' le0 lc0 Hsem He [] h1 h2 h3 h4; subst a c c'. 
       rewrite -h3 in He. rewrite /= in He. case: He=> He1 He2. inversion He1.
     (* last case: c' is not empty *)
@@ -879,7 +966,7 @@ Section PROOF.
     have leL1 := le_next lbl; have leL2 := le_next (next_lbl lbl).
     have lblL2 := Pos_leb_trans leL1 leL2.
     have lblcL2 := Pos_leb_trans lblL2 Hle1.
-    have {Heq} [Hle Hv Hs]:= Hc' _ _ _ _ Heq;split.
+    have [Hle Hv Hs]:= Hc' _ _ _ _ Heq;split.
     + apply: (Pos_leb_trans lblL2).
       by apply: (Pos_leb_trans Hle1).
     + rewrite /= valid_add_align /= valid_cat /= Pos.leb_refl leL1 (valid_le_min _ Hv) //.
@@ -895,33 +982,37 @@ Section PROOF.
       rewrite (Pos_leb_trans leL2 Hle1) //.
     move=> s1 s2 li H. rewrite leak_i_il_il_while /=.
     set C := (C in of_estate _ C _);rewrite -/C.
-
-    apply lsem_step with (of_estate s1 C ((a == Align) + (size lc').+2).+1).
-    + rewrite /lsem1 /step /= /eval_instr /=.
-      have -> // : find_label lbl C =  ok ((a == Align) + (size lc').+2).
-      rewrite /C -cat1s find_label_cat_hd // find_label_add_align.
-      rewrite -!cat_cons find_label_cat_hd /=.
-      + by rewrite find_label_hd /= addn0 addnA (addnC 1) -addnA.
-      rewrite /= {1}/is_label /=.
-      case: eqP => H' /=.
-      + by have := lt_next lbl;rewrite Pos.ltb_antisym -H' Pos.leb_refl.
-      apply /negP=> H1;have := @valid_has _ lbl _ _ Hv.
-      rewrite H1 Pos.leb_antisym.
-      by rewrite (Pos_lt_leb_trans (Pos_lt_leb_trans (lt_next _) leL2) Hle1) /= => /(_ isT).
-
-    (* Start induction after the first goto (at the first location where the loop will come back) *)
     pose C1 := (ι (Lilabel (next_lbl lbl)) :: lc' ++ ι (Lilabel lbl) :: lc ++ [:: ι (Licond true (next_lbl lbl))]).
-    have : lsem gd (of_estate s1 C1 ((size lc').+2)) (ilwhile leak_i_iL stk ltc ltc' li)
-                (of_estate s2 C1 (size C1));last first.
-    (*+ rewrite /C add_align_nil -cat_cons size_cat => h.
+    suff : leak_w_WF ltc ltc' li /\
+       lsem gd (of_estate s1 C1 (size lc').+2) (ilwhile leak_i_iL stk ltc ltc' li) (of_estate s2 C1 (size C1)).
+    + move=> [? h]; split; first by constructor. 
+      apply lsem_step with (of_estate s1 C ((a == Align) + (size lc').+2).+1).
+      + rewrite /lsem1 /step /= /eval_instr /=.
+        have -> /= : find_label lbl C =  ok ((a == Align) + (size lc').+2); last first.
+        + rewrite GRing.subr0 addnA (addnC (get_linear_size_C _)) -addnS -addn3 addnA -(linear_size Heq).
+          by case: (a).
+        rewrite /C -cat1s find_label_cat_hd //= find_label_add_align.
+        rewrite -!cat_cons find_label_cat_hd /=.
+        + by rewrite find_label_hd /= addn0 addnA (addnC 1) -addnA.
+        rewrite /= {1}/is_label /=.
+        case: eqP => H' /=.
+        + by have := lt_next lbl;rewrite Pos.ltb_antisym -H' Pos.leb_refl.
+        apply /negP=> H1;have := @valid_has _ lbl _ _ Hv.
+        rewrite H1 Pos.leb_antisym.
+        by rewrite (Pos_lt_leb_trans (Pos_lt_leb_trans (lt_next _) leL2) Hle1) /= => /(_ isT).
+      move: h; rewrite /C add_align_nil -cat_cons size_cat /= => h.
       have -> : ((a == Align) + (size lc').+2).+1 =
                 size ((ι (Ligoto lbl) :: add_align ii a [::])) + (size lc').+2.
       + by case: (a).
-      by apply: (lsem_cat_hd _ h); rewrite /disjoint_lbl; case:(a).
-    elim: _ {-1}_ _ _ / H Hs (erefl (Cwhile a c true c'))=> // {s1 s2}.
-    + move=> s1 s2 s3 s4 a0 c0 e0 c'0 lc0 le lc'0 lw Hsem0 He Hsem Hsemi IH Hs [] ????; subst a0 c0 e0 c'0.
+      apply: (lsem_cat_hd (c := ι (Ligoto lbl) :: add_align ii a [::]) _ h). 
+      by rewrite /disjoint_lbl; case:(a).
+   (* Start induction after the first goto (at the first location where the loop will come back) *)
+    elim: _ {-1}_ _ _ / H (erefl (Cwhile a c true c'))=> // {s1 s2}.
+    + move=> s1 s2 s3 s4 a0 c0 e0 c'0 lc0 le lc'0 lw Hsem0 He Hsem Hsemi IH [] ????; subst a0 c0 e0 c'0.
+      case: (Hs _ _ _ Hsem) => hwf1 {Hs} Hs.
+      case: (Hc _ _ _ Hsem0) => Hwf2 {Hc} Hc.
+      case: (IH refl_equal) => hwf {IH} IH; split; first by constructor.
       apply tc_trans with (of_estate s2 C1 ( (size lc').+2 + size lc)).
-      (*apply (@lsem_trans gd (of_estate s2 C1 ( (size lc').+2 + size lc))).*)
       + have Hd: disjoint_lbl
           [:: {| li_ii := ii; li_i := Lilabel (next_lbl lbl) |}
           & lc' ++ [:: {| li_ii := ii; li_i := Lilabel lbl |}]] lc.
@@ -934,7 +1025,7 @@ Section PROOF.
           + move=> lbl0 /=; rewrite orbF /is_label /=; case: eqP=> //= ?;subst.
             apply/negP=> H; have := @valid_has _ lbl _ _ Hvc.
             by rewrite H Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) leL2) orbT=> /(_ isT).
-        have /(_ _ Hd):= lsem_cat_hd _ (Hc _ _ _ Hsem0).
+        have /(_ _ Hd):= lsem_cat_hd _ Hc.
         move=> /(lsem_cat_tl [:: MkLI ii (Licond true (next_lbl lbl))]) /=.
         rewrite !of_estate_add_hd_c !setc_of_estate /= /C1.
         by rewrite !size_cat addn0 /= addn1 !addSn /= -!cat_cons -!catA.
@@ -942,14 +1033,19 @@ Section PROOF.
       + rewrite /lsem1 /step /= /C1 /find_instr /=.
         rewrite -cat_cons catA onth_cat size_cat /= addnS ltnn subnn /eval_instr /=.
         rewrite /= in He. case: He => <-.
-        by rewrite /setpc /of_estate /find_label /= /is_label /= eqxx /=;eauto.
+        rewrite /setpc /of_estate /find_label /= /is_label /= eqxx /=.
+        rewrite -addn2 !PoszD -(linear_size Heqc) -(linear_size Heq).
+        rewrite (GRing.addrC (Posz (size lc'))) !GRing.opprD !GRing.addrA.
+        rewrite GRing.addrC (GRing.addrC (1 - Posz 2)%R). 
+        have -> : (1 - Posz 2 = -1)%R by done.
+        by rewrite GRing.addrA.
       apply: tc_trans.
       + have Hd : disjoint_lbl [:: MkLI ii (Lilabel (next_lbl lbl))] lc'.
         + move=> lbl0 /=;rewrite orbF /is_label /=;case: eqP => //= ?;subst.
           apply /negP=> H;have := @valid_has _ (next_lbl lbl) _ _ Hv.
           rewrite H Pos.leb_antisym.
           by rewrite (Pos_lt_leb_trans (lt_next _) Hle1) /= orbT => /(_ isT).
-      have /(_ _ Hd) := lsem_cat_hd _ (Hs _ _ _ Hsem).
+      have /(_ _ Hd) := lsem_cat_hd _ Hs. 
       move=> /(@lsem_cat_tl ((MkLI ii (Lilabel lbl)) :: lc ++ [:: MkLI ii (Licond true (next_lbl lbl))])).
       rewrite !of_estate_add_hd_c !setc_of_estate !lc_of_estate addn0.
       rewrite -!cat_cons -!catA => H.
@@ -957,7 +1053,7 @@ Section PROOF.
       apply: lsem_step.
       + by rewrite /lsem1 /step /= /find_instr /= onth_cat ltnn subnn /= /eval_instr /=;eauto.
       exact: IH.
-    move=> s1 s2 c0 a0 e0 c0' le lc0 Hs0 He Hs [????]; subst a0 e0 c0 c0'.
+    move=> s1 s2 c0 a0 e0 c0' le lc0 Hs0 He [????]; subst a0 e0 c0 c0'.
     by rewrite /= in He; case: He=> He1 He2; inversion He1.
     (* case 2: when e is false *) (* done *)
     + rewrite linear_c_nil; case Heqc' : linear_c => [[[lblc' lc'] ltc]|] //=.
@@ -967,8 +1063,9 @@ Section PROOF.
       + auto.
       + rewrite cats0. apply H2.
       + rewrite cats0. move=> s1 s2 l /S.sem_iE' [si] [b] [lc] [le] [Hs] //=.
-        move=> [] [] <- <- [] <- -> /=. move: (H3 s1 si lc Hs). move=> {H3} H3.
-        apply H3.
+        move=> [] [] <- <- [] <- -> /=. move: (H3 s1 si lc Hs). move=> {H3} [Hwf H3].
+        split; first by constructor.
+        by apply H3.
     (* last case *)
     case: c' Hc' => [ _ | i c' ].
     (* c' is [::]*)
@@ -985,8 +1082,15 @@ Section PROOF.
       split => //.
       + by rewrite valid_add_align /= valid_cat /= Pos.leb_refl Hlt (valid_le_min _ Hvc).
       move=> s1 s2 li H. rewrite leak_i_iL_while_c'0 /=. 
-      apply: lsem_add_align.
-      apply: lsem_step=> //.
+      suff : leak_w0_WF ltc' li /\
+        lsem gd
+         (setpc (of_estate s1 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)]) 0)
+         (lpc (of_estate s1 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)]) 0)).+1)
+         (ilwhile_c'0 leak_i_iL stk ltc' li)
+         (of_estate s2 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)])
+           (size (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)]))).
+      + move=> [??]; split; first by constructor.
+        by apply: lsem_add_align; apply: lsem_step.
       set L := [:: ι (Lilabel lbl) ].
       set C := L ++ lc ++ [:: ι (Licond e lbl)].
       have HL : valid lbl (next_lbl lbl) L by rewrite/L/= Pos.leb_refl ltL1.
@@ -994,8 +1098,9 @@ Section PROOF.
       elim: _ {-1} _ _ _ / H (erefl (Cwhile a c e [::])) => // { s1 s2}.
       + move=> s1 s2 s3 s4 a' c0 e0 c' lc0 le lc' lw Hsem He Hsem' Hs IH.
         move=> [] h1 h2 h3 h4; subst a c0 e0 c'.
-        specialize (IH (erefl _)).
-        specialize (Hc _ _ _ Hsem).
+        specialize (IH (erefl _)). case: IH => Hwf IH.
+        specialize (Hc _ _ _ Hsem). case: Hc => Hwf' Hc.
+        split; first by constructor.
         move: Hsem'. move=> /S.semE. 
         move=> [] hs hl.
         apply: tc_trans.
@@ -1008,11 +1113,14 @@ Section PROOF.
         apply: lsem_step.
         + rewrite /lsem1 /step /find_instr /= onth_cat ltnn subnn /= /eval_instr /= /to_estate /=.
           replace s2 with {| emem := emem s2; evm := evm s2 |} in He; last by case s2.
-          by rewrite He /= find_label_hd /=. 
+          rewrite He /= find_label_hd /= -(linear_size Heqc).
+          by rewrite PoszD GRing.opprD GRing.addrA GRing.subrr GRing.add0r. 
+          
         (* recursive part *)
         by rewrite /setpc /of_estate /= hs in IH.
       move=> s1 s2 a' c0 e0 c' le0 lc0 Hsem He [] h1 h2 h3 h4; subst a c e c'. 
-      specialize (Hc _ _ _ Hsem).
+      specialize (Hc _ _ _ Hsem); case: Hc => Hwf Hc.
+      split; first by constructor.
       apply: tc_trans.
       + have /(_ _ Hd) := lsem_cat_hd _ Hc. move=> Hhd.
         move: (lsem_cat_tl [:: ι (Licond e0 lbl)] Hhd). move=> Htl.
@@ -1033,7 +1141,7 @@ Section PROOF.
     have leL1 := le_next lbl; have leL2 := le_next (next_lbl lbl).
     have lblL2 := Pos_leb_trans leL1 leL2.
     have lblcL2 := Pos_leb_trans lblL2 Hle1.
-    have {Heq} [Hle Hv Hs]:= Hc' _ _ _ _ Heq;split.
+    have [Hle Hv Hs]:= Hc' _ _ _ _ Heq;split.
     + apply: (Pos_leb_trans lblL2).
       by apply: (Pos_leb_trans Hle1).
     + rewrite /= valid_add_align /= valid_cat /= Pos.leb_refl leL1 (valid_le_min _ Hv) //.
@@ -1049,31 +1157,39 @@ Section PROOF.
       rewrite (Pos_leb_trans leL2 Hle1) //.
     move=> s1 s2 li H. rewrite leak_i_il_il_while /=.
     set C := (C in of_estate _ C _);rewrite -/C.
-
-    apply lsem_step with (of_estate s1 C ((a == Align) + (size lc').+2).+1).
-    + rewrite /lsem1 /step /= /eval_instr /=.
-      have -> // : find_label lbl C =  ok ((a == Align) + (size lc').+2).
-      rewrite /C -cat1s find_label_cat_hd // find_label_add_align.
-      rewrite -!cat_cons find_label_cat_hd /=.
-      + by rewrite find_label_hd /= addn0 addnA (addnC 1) -addnA.
-      rewrite /= {1}/is_label /=.
-      case: eqP => H' /=.
-      + by have := lt_next lbl;rewrite Pos.ltb_antisym -H' Pos.leb_refl.
-      apply /negP=> H1;have := @valid_has _ lbl _ _ Hv.
-      rewrite H1 Pos.leb_antisym.
-      by rewrite (Pos_lt_leb_trans (Pos_lt_leb_trans (lt_next _) leL2) Hle1) /= => /(_ isT).
-
-    (* Start induction after the first goto (at the first location where the loop will come back) *)
     pose C1 := (ι (Lilabel (next_lbl lbl)) :: lc' ++ ι (Lilabel lbl) :: lc ++ [:: ι (Licond e (next_lbl lbl))]).
-    have : lsem gd (of_estate s1 C1 ((size lc').+2)) (ilwhile leak_i_iL stk ltc ltc' li)
-                (of_estate s2 C1 (size C1));last first.
-    + rewrite /C add_align_nil -cat_cons size_cat => h.
+    suff : leak_w_WF ltc ltc' li /\ 
+      lsem gd (of_estate s1 C1 ((size lc').+2)) (ilwhile leak_i_iL stk ltc ltc' li)
+                (of_estate s2 C1 (size C1)).
+    + move=> [? h]; split; first by constructor.
+      apply lsem_step with (of_estate s1 C ((a == Align) + (size lc').+2).+1).
+      + rewrite /lsem1 /step /= /eval_instr /=.
+        have -> : find_label lbl C =  ok ((a == Align) + (size lc').+2); last first.
+        + rewrite /=; do 3!f_equal.
+          rewrite GRing.subr0 -addn1 -addn2 !PoszD -(linear_size Heq).
+          have -> : get_align_size a = (a == Align) by case a. 
+          by rewrite -!PoszD; f_equal; ring.
+        rewrite /C -cat1s find_label_cat_hd // find_label_add_align.
+        rewrite -!cat_cons find_label_cat_hd /=.
+        + by rewrite find_label_hd /= addn0 addnA (addnC 1) -addnA.
+        rewrite /= {1}/is_label /=.
+        case: eqP => H' /=.
+        + by have := lt_next lbl;rewrite Pos.ltb_antisym -H' Pos.leb_refl.
+        apply /negP=> H1;have := @valid_has _ lbl _ _ Hv.
+        rewrite H1 Pos.leb_antisym.
+        by rewrite (Pos_lt_leb_trans (Pos_lt_leb_trans (lt_next _) leL2) Hle1) /= => /(_ isT).
+      move: h; rewrite /C add_align_nil -cat_cons size_cat => h.
       have -> : ((a == Align) + (size lc').+2).+1 =
                 size ((ι (Ligoto lbl) :: add_align ii a [::])) + (size lc').+2.
       + by case: (a).
       by apply: (lsem_cat_hd _ h); rewrite /disjoint_lbl; case:(a).
-    elim: _ {-1}_ _ _ / H Hs (erefl (Cwhile a c e c'))=> // {s1 s2}.
-    + move=> s1 s2 s3 s4 a0 c0 e0 c'0 lc0 le lc'0 lw Hsem0 He Hsem Hsemi IH Hs [] ????; subst a0 c0 e0 c'0.
+
+    elim: _ {-1}_ _ _ / H (erefl (Cwhile a c e c'))=> // {s1 s2}.
+    + move=> s1 s2 s3 s4 a0 c0 e0 c'0 lc0 le lc'0 lw Hsem0 He Hsem Hsemi IH [] ????; subst a0 c0 e0 c'0.
+      case: (Hs _ _ _ Hsem) => {Hs} Hwf1 Hs.
+      case: (Hc _ _ _ Hsem0) => {Hc} Hwf2 Hc.
+      case: (IH refl_equal) => {IH} Hwf3 IH.
+      split; first by constructor.
       apply tc_trans with (of_estate s2 C1 ( (size lc').+2 + size lc)).
       (*apply (@lsem_trans gd (of_estate s2 C1 ( (size lc').+2 + size lc))).*)
       + have Hd: disjoint_lbl
@@ -1088,14 +1204,18 @@ Section PROOF.
           + move=> lbl0 /=; rewrite orbF /is_label /=; case: eqP=> //= ?;subst.
             apply/negP=> H; have := @valid_has _ lbl _ _ Hvc.
             by rewrite H Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) leL2) orbT=> /(_ isT).
-        have /(_ _ Hd):= lsem_cat_hd _ (Hc _ _ _ Hsem0).
+        have /(_ _ Hd):= lsem_cat_hd _ Hc.
         move=> /(lsem_cat_tl [:: MkLI ii (Licond e (next_lbl lbl))]) /=.
         rewrite !of_estate_add_hd_c !setc_of_estate /= /C1.
         by rewrite !size_cat addn0 /= addn1 !addSn /= -!cat_cons -!catA.
       apply: lsem_step.
       + rewrite /lsem1 /step /= /C1 /find_instr /=.
         rewrite -cat_cons catA onth_cat size_cat /= addnS ltnn subnn /eval_instr /=.
-        rewrite to_of_estate He /find_label /= /is_label /= eqxx /=;eauto.
+        rewrite to_of_estate He /find_label /= /is_label /= eqxx /=.
+        rewrite -add2n -(linear_size Heqc) -(linear_size Heq) (addnC (size lc)) !PoszD.
+        rewrite !GRing.opprD !GRing.addrA.
+        have -> : (1 - Posz 2 = -1)%R by done.
+        by rewrite -GRing.addrA GRing.addrC.
       rewrite setpc_of_estate.
       apply: tc_trans.
       + have Hd : disjoint_lbl [:: MkLI ii (Lilabel (next_lbl lbl))] lc'.
@@ -1103,7 +1223,7 @@ Section PROOF.
           apply /negP=> H;have := @valid_has _ (next_lbl lbl) _ _ Hv.
           rewrite H Pos.leb_antisym.
           by rewrite (Pos_lt_leb_trans (lt_next _) Hle1) /= orbT => /(_ isT).
-      have /(_ _ Hd) := lsem_cat_hd _ (Hs _ _ _ Hsem).
+      have /(_ _ Hd) := lsem_cat_hd _ Hs.
       move=> /(@lsem_cat_tl ((MkLI ii (Lilabel lbl)) :: lc ++ [:: MkLI ii (Licond e (next_lbl lbl))])).
       rewrite !of_estate_add_hd_c !setc_of_estate !lc_of_estate addn0.
       rewrite -!cat_cons -!catA => H.
@@ -1111,7 +1231,8 @@ Section PROOF.
       apply: lsem_step.
       + by rewrite /lsem1 /step /= /find_instr /= onth_cat ltnn subnn /= /eval_instr /=;eauto.
       exact: IH.
-    + move=> s1 s2 c0 a0 e0 c0' le lc0 Hs0 He Hs [????]; subst a0 e0 c0 c0'.
+    + move=> s1 s2 c0 a0 e0 c0' le lc0 Hs0 He [????]; subst a0 e0 c0 c0'.
+      case: (Hc _ _ _ Hs0) => {Hc} [] Hwf Hc; split; first by constructor.
       apply tc_trans with (of_estate s2 C1 (size lc' + size lc).+2).
       + have Hd: disjoint_lbl
           [:: {| li_ii := ii; li_i := Lilabel (next_lbl lbl) |}
@@ -1125,7 +1246,7 @@ Section PROOF.
           + move=> lbl0 /=; rewrite orbF /is_label /=; case: eqP=> //= ?;subst.
             apply/negP=> H; have := @valid_has _ lbl _ _ Hvc.
             by rewrite H Pos.leb_antisym (Pos_lt_leb_trans (lt_next _) leL2) orbT=> /(_ isT).
-        have /(_ _ Hd) := lsem_cat_hd _ (Hc _ _ _ Hs0).
+        have /(_ _ Hd) := lsem_cat_hd _ Hc.
         move=> /(lsem_cat_tl [:: MkLI ii (Licond e (next_lbl lbl))]) /=.
         rewrite !of_estate_add_hd_c !setc_of_estate /= size_cat /= addn0 addn1.
         by rewrite -!cat_cons -!catA.
@@ -1133,9 +1254,7 @@ Section PROOF.
       rewrite /lsem1 /step /find_instr /= -cat_cons catA onth_cat.
       rewrite size_cat /= addnS ltnn subnn /eval_instr /= to_of_estate He /=;eauto.
       by rewrite setpc_of_estate /C /= size_cat /= size_cat /= addn1 !addnS.
-   Qed.*)
-   Admitted.
-
+   Qed.
 
   Let Hcall : forall i xs f es, Pi_r (Ccall i xs f es).
   Proof. by []. Qed.
@@ -1145,15 +1264,15 @@ Section PROOF.
     [/\ (lbl <=? lblc)%positive,
      valid lbl lblc lc &
      forall s1 s2 l, S.sem p gd s1 c l s2 ->
-       lsem gd (of_estate s1 lc 0) (leak_i_iLs (leak_i_iL) stk ltc l)
- (of_estate s2 lc (size lc))].
+       leak_is_WF ltc l /\
+       lsem gd (of_estate s1 lc 0) (leak_i_iLs (leak_i_iL) stk ltc l) (of_estate s2 lc (size lc))].
   Proof.
     apply (@cmd_rect Pi_r Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
-  Lemma linear_fdP:
-    forall fn m1 va m2 vr lf,
+  Lemma linear_fdP : forall fn m1 va m2 vr lf,
     S.sem_call p gd m1 fn va (fn, lf) m2 vr -> 
+    leak_is_WF (leak_Fun_L Fs fn) lf /\
     lsem_fd p' gd m1 fn va (fn, leak_i_iLs leak_i_iL stk (leak_Fun_L Fs fn) lf) m2 vr.
   Proof.
     move=> fn m1 vargs m2 vargs' lf /S.sem_callE' [] sf [] Hsf [] m1' [] m2' [] vargs1 [] s2 [] m2'' [] vm2 [] vres.
@@ -1168,293 +1287,16 @@ Section PROOF.
     rewrite linear_c_nil in Heq.
     apply: rbindP Heq=> [[[lblc' lc''] ltc']] Heq [] Hz1 Hz2.
     have [h1 h2 H]:= linear_cP Heq.
-    move: Hbody=> /H /(@lsem_cat_tl [::]) Hs.
+    move: Hbody=> /H [] Hwf /(@lsem_cat_tl [::]) Hs.
     rewrite -Hf'3 in Hf'2. move=> h.
+    have -> : (leak_Fun_L Fs fn) = lt'.
+    + by rewrite /get_leak in Hleak; rewrite /leak_Fun_L /= Hleak.
+    subst; split => //.
     eapply LSem_fd; eauto.
-    rewrite /=. rewrite -Hl2 in Hl3. rewrite h in Hs. rewrite Hl3 in Hs.
-    move: Hs; rewrite /= Hz2 !setc_of_estate.
-    have -> // : size lc'' = size lc'.
-    by rewrite -Hz2 size_cat addn0.
-    rewrite /of_estate /=. 
-    have hf : (leak_Fun_L Fs fn) = lt'.
-    + rewrite /get_leak in Hleak. rewrite /leak_Fun_L /=. by rewrite Hleak.
-    move=> hs. rewrite hf. rewrite -Hl1. apply hs.
+    move: Hs; rewrite /= !setc_of_estate.
+    by rewrite cats0.
   Qed.
 
 End PROOF.
-
-Section PROOF_WF.
-
-  Variable p:  sprog.
-  Context (gd: glob_decls).
-  Variable p': lprog.
-  Variable stk : pointer.
-  Variable Fs : seq(funname * seq leak_i_il_tr).
-  Hypothesis linear_ok : linear_prog p = ok (p', Fs).
-
-  Let Pi (i:instr) :=
-    forall lbl lbli li lti, linear_i i lbl [::] = ok (lbli, li, lti) ->
-    [/\ (lbl <=? lbli)%positive,
-     valid lbl lbli li &
-     forall s1 s2 l, S.sem_I p gd s1 i l s2 ->
-     leak_i_WF lti l].
-
-  Let Pi_r (i:instr_r) :=
-    forall ii lbl lbli li lti, linear_i (MkI ii i) lbl [::] = ok (lbli, li, lti) ->
-    [/\ (lbl <=? lbli)%positive,
-     valid lbl lbli li &
-     forall s1 s2 l, S.sem_i p gd s1 i l s2 ->
-       leak_i_WF lti l].
-
-  Let Pc (c:cmd) :=
-    forall lbl lblc lc ltc, linear_c linear_i c lbl [::] = ok (lblc, lc, ltc) ->
-    [/\ (lbl <=? lblc)%positive,
-     valid lbl lblc lc &
-     forall s1 s2 l, S.sem p gd s1 c l s2 ->
-       leak_is_WF ltc l].
-
-  Let HmkI_WF : forall i ii, Pi_r i -> Pi (MkI ii i).
-  Proof.
-    move=> i ii Hi_r lbl lbli li lti Hli.
-    move: Hi_r=> /(_ ii lbl lbli li lti Hli) [H1 H2 H3]; split=> //.
-    move=> s1 s2 l /S.sem_IE; apply H3.
-  Qed.
-
-  Let Hskip_WF : Pc [::].
-  Proof.
-    move=> lbl lbli li ltc /= [] <- <-;split=> //. apply Pos.leb_refl.
-    move=> s1 s2 l /S.semE [] _ ->. rewrite -H. 
-    constructor. 
-  Qed.
-
-  Let Hseq_WF : forall i c,  Pi i -> Pc c -> Pc (i::c).
-  Proof.
-    move=> i c Hi Hc lbl lbl' l ltc /=.
-    case Heqc : linear_c => [[[lblc lc] ltc']|] //=.
-    rewrite /Pc in Hc. move: (Hc lbl lblc lc ltc' Heqc).
-    move=> {Hc} [] Hle1 Hvc Hc.
-    rewrite linear_i_nil.
-    case Heqi: linear_i => [[[lbli li] lti]|] //= [] h1 h2 h3 ;subst lbl' l ltc.
-    rewrite /Pi in Hi. move: (Hi lblc lbli li lti Heqi).
-    move=> {Hi} [] Hle2 Hvi Hi; split.
-    + by apply /P_leP;move/P_leP: Hle1;move/P_leP: Hle2=> ??;omega.
-    + by rewrite valid_cat (valid_le_min Hle1 Hvi) (valid_le_max Hle2 Hvc).
-    move=> -[m1 vm1] s2 l /S.semE [[m2 vm2]] [li'] [lc'] [] Hi' Hc' ->.
-    constructor.  move: (Hi  {| emem := m1; evm := vm1 |}  {| emem := m2; evm := vm2 |} li' Hi').
-    move=> Hwf. apply Hwf. move: (Hc {| emem := m2; evm := vm2 |} s2 lc' Hc').
-    move=> Hwf'. apply Hwf'.
-  Qed.
-
-  Let Hassgn_WF : forall x tag ty e, Pi_r (Cassgn x tag ty e).
-  Proof.
-    move=> x tag [] // sz e ii lbl lbl' l ltc /= [] <- <- <-;rewrite Pos.leb_refl; split => //.
-    move=> -[m1 vm1] s2 l' /S.sem_iE' [v] [v'] [le] [lw] [ok_v].
-    apply: rbindP => w /of_val_word [sz'] [w'] [hle h1 h2]; subst v w => - [<-] {v'} ok_s2 ->.
-    constructor. 
-  Qed.
-
-  Let Hopn_WF : forall xs t o es, Pi_r (Copn xs t o es).
-  Proof.
-    move=> x t' e tag ii lbl lbl' l' lti [] <- <- <-;rewrite Pos.leb_refl;split=>//.
-    move=> -[m1 vm1] s2 l /S.sem_iE' [] lo [] ok_s2 ->. constructor.
-  Qed.
-
-  Let Hif_WF   : forall e c1 c2,  Pc c1 -> Pc c2 -> Pi_r (Cif e c1 c2).
-  Proof.
-    move=> e c1 c2 Hc1 Hc2 ii lbl lbl' l' lti /=.
-    case Heq1: (c1)=> [|i1 l1].
-    (* case1: Cif e [::] c2 *) (* finished *)
-    + subst;rewrite linear_c_nil;case Heq: linear_c => [[[lbl2 lc2] ltc2]|] //= [] <- <- <-.
-      have Hlen := le_next lbl.
-      have [Hle Hv2 Hs2]:= Hc2 _ _ _ _ Heq;split.
-      + by apply: Pos_leb_trans Hle.
-      + rewrite /= valid_cat Pos.leb_refl (valid_le_min Hlen Hv2) /= Pos.leb_refl.
-        by rewrite (Pos_lt_leb_trans (lt_next _) Hle).
-      move => [m1 vm1] s2 l /S.sem_iE' [b] [le] [lc] [ok_b ok_s2] ->.
-      case: b ok_b ok_s2 => ok_b ok_s2. inversion ok_s2. 
-      constructor. move: (Hs2 {| emem := m1; evm := vm1 |} s2 lc ok_s2).
-      move=> Hwf. constructor. apply Hwf.
-    rewrite -Heq1 => {Heq1 l1 i1};case Heq2: c2 => [|i2 l2].
-    (* case 2: Cif e c1 [::] *)
-    + subst; rewrite linear_c_nil. case Heq: linear_c=> [[[lbl1 lc1] ltc1]|] //= [] <- <- <-.
-      have Hlen := le_next lbl.
-      have [Hle Hv1 Hs1]:= Hc1 _ _ _ _ Heq;split.
-      + by apply: Pos_leb_trans Hle.
-      rewrite /= valid_cat Pos.leb_refl (valid_le_min Hlen Hv1) /= Pos.leb_refl.
-      by rewrite (Pos_lt_leb_trans (lt_next _) Hle).
-      case => m1 vm1 s2 l /S.sem_iE' [b] [le] [lc]; case: b => ok_b.
-      case: ok_b.
-      (* true case *)
-      + move => ok_e ok_s2 ->. constructor. move: (Hs1  {| emem := m1; evm := vm1 |} s2 lc ok_s2).
-        move=> Hwf. apply Hwf. 
-      (* false case *)
-      case: ok_b. move=> ok_e /S.semE [] _ -> ->. constructor. 
-    (* case 3: Cif e c1 c2 *)
-    rewrite -Heq2 => {Heq2 l2 i2}.
-    rewrite linear_c_nil;case Heq1: linear_c => [[[lbl1 lc1] ltc1]|] //=.
-    rewrite linear_c_nil;case Heq2: linear_c => [[[lbl2 lc2] ltc2]|] //= [] <- <- <-.
-    have leL1 := le_next lbl; have leL2 := le_next (next_lbl lbl).
-    have [Hle1 Hv1 Hs1]:= Hc1 _ _ _ _ Heq1;have [Hle2 Hv2 Hs2]:= Hc2 _ _ _ _ Heq2.
-    have L2lbl2 := Pos_leb_trans Hle1 Hle2.
-    have L1lbl2 := Pos_leb_trans leL2 L2lbl2.
-
-    have lblL2 := Pos_leb_trans leL1 leL2.
-    have lbllbl1 := Pos_leb_trans lblL2 Hle1;split.
-    + by apply: Pos_leb_trans Hle2.
-    + rewrite /= valid_cat /= valid_cat /=.
-      rewrite Pos.leb_refl leL1 (Pos_lt_leb_trans (lt_next lbl) L1lbl2).
-      rewrite (Pos_lt_leb_trans (lt_next _) L2lbl2).
-      by rewrite (valid_le_min _ Hv2) // (valid_le_max Hle2 (valid_le_min lblL2 Hv1)).
-    move=> [m1 vm1] s2 l /S.sem_iE' [b] [lc] [lc'] [].
-    move=> He Hc ->.
-    case: b He Hc => ok_b ok_s2. constructor. move: (Hs1 {| emem := m1; evm := vm1 |} s2 lc' ok_s2).
-    move=> Hwf. apply Hwf.
-    constructor. move: (Hs2 {| emem := m1; evm := vm1 |} s2 lc' ok_s2).
-    move=> Hwf. apply Hwf.
-   Qed.
-
-  Let Hfor_WF : forall v dir lo hi c, Pc c -> Pi_r (Cfor v (dir, lo, hi) c).
-  Proof. by []. Qed.
-
-  Let Hwhile_WF : forall a c e c', Pc c -> Pc c' -> Pi_r (Cwhile a c e c').
-  Proof.
-    (*move=> a c e c' Hc Hc' ii lbl lbli li lti /=.
-    set ι := MkLI ii.
-    case: is_boolP => [[] | {e} e].
-    + case: c' Hc' => [ _ | i c' ].
-    (* c' is [::]*)
-    (* when c' = [::] *)
-    (* align; Lilabel L1; c ; Licond e L1 *)
-    (* Depending on e we will repeat c till e becomes false *)
-    + rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc']|] //= x; apply ok_inj in x.
-      case/xseq.pair_inj: x => h1 <-; case: h1=> h1' h1''; subst lbli li.
-      have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ _ Heqc.
-      have leL1 := le_next lbl.
-      have ltL1 := lt_next lbl.
-      have Hle2 := Pos_leb_trans leL1 Hle1.
-      have Hlt := Pos_lt_leb_trans ltL1 Hle1.
-      split => //.
-      + by rewrite valid_add_align /= valid_cat /= Pos.leb_refl Hlt (valid_le_min _ Hvc).
-      move=> s1 s2 li H. inversion H. inversion H9. constructor. 
-      constructor.
-      move: (Hc s1 s3 lc0 H5)=> Hwf. apply Hwf. subst. 
-      inversion H10. subst.
-      move: (Hc s1 s2). lc0 H5)=> Hwf. apply Hwf.
-    (* last case: c' is not empty *)
-    move: (i :: c') => { i c' } c' Hc'.
-    rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc]|] //=.
-    have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ _ Heqc.
-    rewrite linear_c_nil.
-    case Heq:linear_c => [[[lblc' lc'] ltc']|] //= [] ??;subst lbli li; move=> <- /=.
-    have leL1 := le_next lbl; have leL2 := le_next (next_lbl lbl).
-    have lblL2 := Pos_leb_trans leL1 leL2.
-    have lblcL2 := Pos_leb_trans lblL2 Hle1.
-    have {Heq} [Hle Hv Hs]:= Hc' _ _ _ _ Heq;split.
-    + apply: (Pos_leb_trans lblL2).
-      by apply: (Pos_leb_trans Hle1).
-    + rewrite /= valid_add_align /= valid_cat /= Pos.leb_refl leL1 (valid_le_min _ Hv) //.
-      rewrite (Pos_lt_leb_trans (lt_next _)).
-      rewrite (Pos_lt_leb_trans _ Hle) /=.
-      rewrite valid_cat /= leL1 /=.
-      rewrite (valid_le_max Hle) /=.
-      rewrite (Pos_lt_leb_trans (lt_next _)) //.
-      rewrite (Pos_leb_trans Hle1) //.
-      rewrite (valid_le_min _ Hvc) //.
-      rewrite (Pos_lt_leb_trans (lt_next _)) //.
-      rewrite (Pos_leb_trans _ Hle) //.
-      rewrite (Pos_leb_trans leL2 Hle1) //.
-    move=> s1 s2 li H. inversion H; subst. constructor. 
-    move: (Hc s1 s3 lc0 H5)=> Hwf. apply Hwf.
-    move: (Hs s3 s4 lc'0 H9)=> Hwf'. apply Hwf'. admit. 
-    admit.
-    (* case 2: when e is false *) 
-    + rewrite linear_c_nil; case Heqc' : linear_c => [[[lblc' lc'] ltc]|] //=.
-      move: Hc. rewrite /Pc. 
-      move=> Hc. move: (Hc lbl lblc' lc' ltc Heqc'). move=> [] H1 H2 H3.
-      move=> [] <- <- <-; split.
-      + auto.
-      + rewrite cats0. apply H2.
-      + move=> s1 s2 l /S.sem_iE' [si] [b] [lc] [le] [Hs] //=.
-        move=> [] [] <- <- [] _ -> /=. constructor.
-        move: (H3 s1 si lc Hs). move=> Hwf. apply Hwf.
-    (* last case *)
-    case: c' Hc' => [ _ | i c' ].
-    (* c' is [::]*)
-    (* when c' = [::] *)
-    (* align; Lilabel L1; c ; Licond e L1 *)
-    (* Depending on e we will repeat c till e becomes false *)
-    + rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc']|] //= x; apply ok_inj in x.
-      case/xseq.pair_inj: x => h1 <-; case: h1=> h1' h1''; subst lbli li.
-      have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ _ Heqc.
-      have leL1 := le_next lbl.
-      have ltL1 := lt_next lbl.
-      have Hle2 := Pos_leb_trans leL1 Hle1.
-      have Hlt := Pos_lt_leb_trans ltL1 Hle1.
-      split => //.
-      + by rewrite valid_add_align /= valid_cat /= Pos.leb_refl Hlt (valid_le_min _ Hvc).
-      move=> s1 s2 li H. inversion H. constructor. 
-    (*(* last case: c' is not empty *)
-    move: (i :: c') => { i c' } c' Hc'.
-    rewrite linear_c_nil;case Heqc: linear_c => [[[lblc lc] ltc]|] //=.
-    have {Hc}[Hle1 Hvc Hc]:= Hc _ _ _ _ Heqc.
-    rewrite linear_c_nil.
-    case Heq:linear_c => [[[lblc' lc'] ltc']|] //= [] ??;subst lbli li; move=> <- /=.
-    have leL1 := le_next lbl; have leL2 := le_next (next_lbl lbl).
-    have lblL2 := Pos_leb_trans leL1 leL2.
-    have lblcL2 := Pos_leb_trans lblL2 Hle1.
-    have {Heq} [Hle Hv Hs]:= Hc' _ _ _ _ Heq;split.
-    + apply: (Pos_leb_trans lblL2).
-      by apply: (Pos_leb_trans Hle1).
-    + rewrite /= valid_add_align /= valid_cat /= Pos.leb_refl leL1 (valid_le_min _ Hv) //.
-      rewrite (Pos_lt_leb_trans (lt_next _)).
-      rewrite (Pos_lt_leb_trans _ Hle) /=.
-      rewrite valid_cat /= leL1 /=.
-      rewrite (valid_le_max Hle) /=.
-      rewrite (Pos_lt_leb_trans (lt_next _)) //.
-      rewrite (Pos_leb_trans Hle1) //.
-      rewrite (valid_le_min _ Hvc) //.
-      rewrite (Pos_lt_leb_trans (lt_next _)) //.
-      rewrite (Pos_leb_trans _ Hle) //.
-      rewrite (Pos_leb_trans leL2 Hle1) //.
-    move=> s1 s2 li H. constructor. *)*)
-  Admitted.
-
-  Let Hcall_WF : forall i xs f es, Pi_r (Ccall i xs f es).
-  Proof. by []. Qed.
-
-  Lemma linear_cP_WF c lbl lblc lc ltc:
-    linear_c linear_i c lbl [::] = ok (lblc, lc, ltc) ->
-    [/\ (lbl <=? lblc)%positive,
-     valid lbl lblc lc &
-     forall s1 s2 l, S.sem p gd s1 c l s2 ->
-     leak_is_WF ltc l].
-  Proof.
-    apply (@cmd_rect Pi_r Pi Pc HmkI_WF Hskip_WF Hseq_WF Hassgn_WF Hopn_WF Hif_WF Hfor_WF Hwhile_WF Hcall_WF).
-  Qed.
-
-  Lemma linear_fdP_WF:
-    forall fn m1 va m2 vr lf,
-    S.sem_call p gd m1 fn va (fn, lf) m2 vr -> 
-    leak_is_WF (leak_Fun_L Fs fn) lf.
-  Proof.
-     move=> fn m1 vargs m2 vargs' lf /S.sem_callE' [] sf [] Hsf [] m1' [] m2' [] vargs1 [] s2 [] m2'' [] vm2 [] vres.
-    move=> [] Halloc [] Hs1 [] Htyi [] Hs2 [] /= Hbody [] Hres [] Htyo Hm2.
-    have dcok : map_cfprog_leak linear_fd p = ok (p', Fs).
-    + move: linear_ok; rewrite /linear_prog /=. by move=> ->.
-    have := (get_map_cfprog_leak dcok Hsf). move=> [] f' [] lt' [] Hf'1 /= Hf'2 Hleak.
-    have Hf'3 := Hf'1.
-    apply: rbindP Hf'3=> [[[l1 l2] l3] Hc] [] Hf'3.
-    rewrite /add_finfo in Hc.
-    case Heq: linear_c Hc=> [[[lblc lc'] ltc]|] //= [] Hl Hl1 Hl2 Hl3.
-    rewrite linear_c_nil in Heq.
-    apply: rbindP Heq=> [[[lblc' lc''] ltc']] Heq [] Hz1 Hz2.
-    have [h1 h2 H]:= linear_cP_WF Heq. move=> Heq'.
-    have hf : (leak_Fun_L Fs fn) = lt'.
-    + rewrite /get_leak in Hleak. rewrite /leak_Fun_L /=. by rewrite Hleak.
-    rewrite hf. move: (H s2 {| emem := m2''; evm := vm2 |} lf Hbody). move=> Hwf.
-    by rewrite Heq' Hl2 Hl3 in Hwf. 
-  Qed.
-
-End PROOF_WF.
 
 

@@ -1022,23 +1022,22 @@ End INLINE.
 
 Section REMOVE_INIT.
 
-  Variable p : prog.
+  Variable p p': prog.
   Variable Fs: seq (funname * seq leak_i_tr).
   Variable stk: pointer.
 
   Notation gd := (p_globs p).
 
-  Definition p' := remove_init_prog p.
-
-  Hypothesis (Fs_def : Fs = (remove_init_prog p).2).
-
-  Hypothesis remove_init_prog_ok : remove_init_prog p = (p'.1, Fs).
+  Hypothesis remove_init_prog_ok : remove_init_prog p = (p', Fs).
+  
+  Local Lemma eq_glob : p_globs p' = gd.
+  Proof. by move: remove_init_prog_ok; rewrite /remove_init_prog => -[<-]. Qed.
 
   Let Pi s1 (i:instr) li s2:=
     forall vm1,
       vm_uincl (evm s1) vm1 -> wf_vm vm1 ->
       exists vm2,
-       [/\ sem p'.1 (Estate (emem s1) vm1) (remove_init_i i).1  
+       [/\ sem p' (Estate (emem s1) vm1) (remove_init_i i).1  
                (leak_I (leak_Fun Fs) stk li (remove_init_i i).2) (Estate (emem s2) vm2),
            vm_uincl (evm s2) vm2 &
            wf_vm vm2].
@@ -1049,7 +1048,7 @@ Section REMOVE_INIT.
     forall vm1,
       vm_uincl (evm s1) vm1 -> wf_vm vm1 ->
       exists vm2,
-        [/\ sem p'.1 (Estate (emem s1) vm1) (remove_init_c c).1 
+        [/\ sem p' (Estate (emem s1) vm1) (remove_init_c c).1 
                 (leak_Is (leak_I (leak_Fun Fs)) stk (remove_init_c c).2 lc) 
                 (Estate (emem s2) vm2),
             vm_uincl (evm s2) vm2 &
@@ -1059,7 +1058,7 @@ Section REMOVE_INIT.
     forall vm1,
       vm_uincl (evm s1) vm1 -> wf_vm vm1 ->
       exists vm2,
-        [/\ sem_for p'.1 i vs (Estate (emem s1) vm1) (remove_init_c c).1
+        [/\ sem_for p' i vs (Estate (emem s1) vm1) (remove_init_c c).1
                     (leak_Iss (leak_I (leak_Fun Fs)) stk (remove_init_c c).2 lf)
                     (Estate (emem s2) vm2),
             vm_uincl (evm s2) vm2 &
@@ -1068,7 +1067,7 @@ Section REMOVE_INIT.
   Let Pfun m fn vargs lf m' vres :=
     forall vargs',
     List.Forall2 value_uincl vargs vargs' ->
-    exists vres', sem_call p'.1 m fn vargs' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) m' vres' /\
+    exists vres', sem_call p' m fn vargs' (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) m' vres' /\
       List.Forall2 value_uincl vres vres'.
 
   Local Lemma Rnil : sem_Ind_nil Pc.
@@ -1118,7 +1117,7 @@ Section REMOVE_INIT.
     have [z1 htr Uz1]:= truncate_value_uincl Hz hsub.
     move=> _ hwf ; have [vm2 Hw ?]:= write_uincl Hvm1 Uz1 hwr.
     exists vm2;split=> //.
-    + apply sem_seq1;constructor;econstructor;eauto.
+    + by apply sem_seq1;constructor;econstructor;eauto; rewrite eq_glob.
     by apply: wf_write_lval Hw.
   Qed.
 
@@ -1129,7 +1128,7 @@ Section REMOVE_INIT.
     move=> /(vuincl_exec_opn H2) [] rs' [] H3 H4 [s1' lt'].
     move=> /(writes_uincl Hvm1 H4) [] vm2 Hw Hm <- <- /=.
     exists vm2;split => //=;last by apply: wf_write_lvals Hw.
-    by apply sem_seq1;constructor;constructor;rewrite /sem_sopn H1 /= H3 /= Hw /= H2'.
+    by apply sem_seq1;constructor;constructor;rewrite /sem_sopn eq_glob H1 /= H3 /= Hw /= H2'.
   Qed.
 
   Local Lemma Rif_true : sem_Ind_if_true p Pc Pi_r.
@@ -1137,7 +1136,7 @@ Section REMOVE_INIT.
     move=> s1 s2 e c1 c2 le lc H Hsc Hc ii vm1 Hvm1.
     have [v' H1 /value_uincl_bool1 ?] := sem_pexpr_uincl Hvm1 H;subst => Hwf.
     have [vm2 [??]]:= Hc _ Hvm1 Hwf;exists vm2;split=>//.
-    by apply sem_seq1;constructor;apply Eif_true;rewrite // H1.
+    by apply sem_seq1;constructor;apply Eif_true;rewrite // eq_glob H1.
   Qed.
 
   Local Lemma Rif_false : sem_Ind_if_false p Pc Pi_r.
@@ -1145,7 +1144,7 @@ Section REMOVE_INIT.
     move=> s1 s2 e c1 c2 le lc H Hsc Hc ii vm1 Hvm1.
     have [v' H1 /value_uincl_bool1 ?] := sem_pexpr_uincl Hvm1 H;subst => Hwf.
     have [vm2 [h1 h2]]:= Hc _ Hvm1 Hwf;exists vm2;split=>//.
-    apply sem_seq1;constructor;apply Eif_false; rewrite // H1.
+    by apply sem_seq1;constructor;apply Eif_false; rewrite // eq_glob H1.
   Qed.
 
   Local Lemma Rwhile_true : sem_Ind_while_true p Pc Pi_r.
@@ -1155,7 +1154,7 @@ Section REMOVE_INIT.
     move=> /(sem_pexpr_uincl Hvm2) [] v' H1 /value_uincl_bool1 H2;subst.
     have [vm3 [H4 Hvm3 ]]:= Hc' _ Hvm2 Hwf2.
     move=> /(Hw ii _ Hvm3)  [vm4 [Hsem ??]]; exists vm4;split => //=.
-    apply sem_seq1;constructor;eapply Ewhile_true;eauto.
+    apply sem_seq1;constructor;eapply Ewhile_true;eauto; rewrite ?eq_glob //.
     by case/semE: Hsem=> si [] li [] lc'0 [] /sem_IE h /semE [] -> -> /= -> /=.
   Qed.
 
@@ -1164,7 +1163,7 @@ Section REMOVE_INIT.
     move=> s1 s2 a c e c' lc le Hsc Hc H ii vm1 Hvm1 Hwf; move: H.
     have [vm2 [Hs2 Hvm2 Hwf2]] := Hc _ Hvm1 Hwf.
     move=> /(sem_pexpr_uincl Hvm2) [] v' H1 /value_uincl_bool1 ?;subst.
-    by exists vm2;split=> //=;apply sem_seq1;constructor;apply: Ewhile_false=> //;rewrite H1.
+    by exists vm2;split=> //=;apply sem_seq1;constructor;apply: Ewhile_false=> //;rewrite eq_glob H1.
   Qed.
 
   Local Lemma Rfor : sem_Ind_for p Pi_r Pfor.
@@ -1176,11 +1175,12 @@ Section REMOVE_INIT.
     move=> [ve'' le''] hhi z0' hi2. have [ve''' H2 Hv']:= sem_pexpr_uincl Hvm1 hhi.
     move:value_uincl_int. move=> Hvi. move: (Hvi ve'' ve''' z0' Hv' hi2). move=> [] h1' h2' {Hvi} Hwr <-.
     have [vm2 [] h11 h22 h33]:= Hfor _ Hvm1 Hwf; exists vm2;split=>//=.
-    apply sem_seq1;constructor; econstructor;eauto. rewrite /sem_range H1 H2 /=.
+    apply sem_seq1;constructor; econstructor;eauto. rewrite /sem_range eq_glob H1 H2 /=.
     rewrite h1 in hi1. rewrite h1 in Hv. rewrite h1' in hi2. rewrite h1' in Hv'. move: value_uincl_int1.
     move=> hii. move: (hii z0 ve' Hv). move=> {hii} -> /=. move: value_uincl_int1.
     move=> hii. move: (hii z0' ve''' Hv'). move=> {hii} -> /=. by rewrite Hwr.
   Qed.
+
 
   Local Lemma Rfor_nil : sem_Ind_for_nil Pfor.
   Proof. by move=> s i c vm1 Hvm1;exists vm1;split=> //;constructor. Qed.
@@ -1205,18 +1205,17 @@ Section REMOVE_INIT.
     move: (Hws gd  {| emem := m2; evm := evm s1 |} s2 vm1 xs vs vs' lw Hvm1 Hvres Hxs).
     move=> [] vm2 /= Hw Hvm2.
     exists vm2;split=>//=; last by apply: wf_write_lvals Hw.
-    apply sem_seq1. apply EmkI. move: Ecall. move=> Hrec.
-    move: (Hrec p'.1 {| emem := emem s1; evm := vm1 |} m2 {| emem := emem s2; evm := vm2 |} ii xs fn args vargs' vs' (lf.1,
-         leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2) lw Hsa Hc Hw). move=> /= H. rewrite Hv'.
-    rewrite hlf in H. by rewrite /= in H.
+    move: Hsa Hc Hw; rewrite -eq_glob hlf => Hsa Hc Hw; rewrite Hv'. 
+    apply/sem_seq1/EmkI/(Ecall ii Hsa Hc Hw).
   Qed.
 
   Local Lemma Rproc : sem_Ind_proc p Pc Pfun.
   Proof.
     move=> m1 m2 fn fd vargs vargs' s1 vm2 vres vres' lc Hget Htin Hargs Hsem Hrec Hmap Htout vargs1' Uargs.
-    have dcok : map_prog_leak remove_init_fd (p_funcs p) = ((p_funcs p'.1), Fs).
-    + move: remove_init_prog_ok;rewrite /remove_init_prog. by move=> [] <- /=.
-    move: (get_map_prog_leak dcok Hget). move=> [] f' [] lt' [] Hf'1 /= Hf'2.
+    have dcok : map_prog_leak remove_init_fd (p_funcs p) = ((p_funcs p'), Fs).
+    + move: remove_init_prog_ok;rewrite /remove_init_prog.
+      by case: map_prog_leak => ?? /= [] <- <-.
+    move: (get_map_prog_leak dcok Hget) => [] f' [] lt' [] Hf'1 /= Hf'2.
     case: fd Hf'1 Hget Htin Hargs Hsem Hrec Hmap Htout.
     move=> fi fin fp /= c fo fres Hf'1 Hget Htin Hargs Hsem Hrec Hres Hfull.
     case: f' Hf'1 Hf'2=> hh1 hh2 hh3 c' hh4 f'_res Hf'1 Hf'2.
@@ -1244,28 +1243,23 @@ Section REMOVE_INIT.
   Lemma remove_init_fdP f mem mem' va va' vr lf:
     List.Forall2 value_uincl va va' ->
     sem_call p mem f va (f, lf) mem' vr ->
-    exists vr', sem_call p'.1 mem f va' (f, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs f) lf)) mem' vr' /\ List.Forall2 value_uincl vr vr'.
+    exists vr', sem_call p' mem f va' (f, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs f) lf)) mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
     move=> /(@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Rnil Rcons RmkI Rasgn Ropn
-             Rif_true Rif_false Rwhile_true Rwhile_false Rfor Rfor_nil Rfor_cons Rcall Rproc) H.
-    by move=> /H.
+             Rif_true Rif_false Rwhile_true Rwhile_false Rfor Rfor_nil Rfor_cons Rcall Rproc); apply.
   Qed.
 
 End REMOVE_INIT.
 
 Section REMOVE_INIT_WF.
 
-  Variable p : prog.
+  Variable p p': prog.
   Variable Fs: seq (funname * seq leak_i_tr).
   Variable stk: pointer.
 
   Notation gd := (p_globs p).
 
-  Definition p1 := remove_init_prog p.
-
-  Hypothesis (Fs_def : Fs = (remove_init_prog p).2).
-
-  Hypothesis remove_init_prog_ok : remove_init_prog p = (p1.1, Fs).
+  Hypothesis remove_init_prog_ok : remove_init_prog p = (p', Fs).
 
   Let Pi (s1:estate) (i:instr) li (s2:estate) :=
     leak_WF (leak_Fun Fs) (remove_init_i i).2 li. 
@@ -1359,8 +1353,9 @@ Section REMOVE_INIT_WF.
   Proof.
     move=> m1 m2 fn fd vargs vargs' s1 vm2 vres vres' lc Hget Htin Hargs Hsem Hrec Hmap Htout.
     rewrite /Pfun /=. rewrite /Pc /= in Hrec.
-    have dcok : map_prog_leak remove_init_fd (p_funcs p) = ((p_funcs p1.1), Fs).
-    + move: remove_init_prog_ok;rewrite /remove_init_prog. by move=> [] <- /=.
+    have dcok : map_prog_leak remove_init_fd (p_funcs p) = ((p_funcs p'), Fs).
+    + move: remove_init_prog_ok. rewrite /remove_init_prog. 
+      by case: map_prog_leak => ?? /= [] <- <-.
     move: (get_map_prog_leak dcok Hget). move=> [] f' [] lt' [] Hf'1 /= Hf'2.
     rewrite /remove_init_fd in Hf'1. rewrite /= in Hf'1.
     case: fd Hf'1 Hget Htin Hargs Hsem Hrec Hmap Htout.
@@ -1370,5 +1365,28 @@ Section REMOVE_INIT_WF.
     apply Hrec. rewrite /leak_Fun. by rewrite H.
   Qed.
 
+  Lemma remove_init_wf f mem mem' va vr lf:
+    sem_call p mem f va (f, lf) mem' vr ->
+    leak_WFs (leak_Fun Fs) (leak_Fun Fs f) lf.
+  Proof.
+    apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Rnil_WF Rcons_WF RmkI_WF Rasgn_WF Ropn_WF
+             Rif_true_WF Rif_false_WF Rwhile_true_WF Rwhile_false_WF Rfor_WF Rfor_nil_WF Rfor_cons_WF
+             Rcall_WF Rproc_WF).
+  Qed.
+
 End REMOVE_INIT_WF.
 
+Lemma remove_init_fdP_wf (p p' : prog) (Fs : seq (funname * leak_c_tr)) (stk : u64) : 
+  remove_init_prog p = (p', Fs) ->
+  forall (f : funname) (mem : mem) (mem' : low_memory.mem) (va va' vr : seq value) (lf : leak_c),
+  List.Forall2 value_uincl va va' ->
+  sem_call p mem f va (f, lf) mem' vr ->
+  leak_WFs (leak_Fun Fs) (leak_Fun Fs f) lf /\
+  exists vr' : seq value,
+    sem_call p' mem f va' (f, leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs f) lf) mem' vr' /\
+    List.Forall2 value_uincl vr vr'.
+Proof.
+  move=> heq f mem mem' va va' vr lf hall hsem; split.
+  + by apply: (remove_init_wf heq hsem).
+  by apply (remove_init_fdP stk heq hall hsem).
+Qed.

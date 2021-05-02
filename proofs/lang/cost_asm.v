@@ -33,23 +33,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* Defines well form relation for asm instructions and asm leakages *)
-Definition leak_asm_WF (c:seq asm) (pc:nat) (li: leak_asm) :=
- if oseq.onth c pc is Some i then 
-    match i, li with 
-     | ALIGN, Laempty0 => true
-     | LABEL _, Laempty0 => true
-     | JMP lbl, Laempty _ => if find_label lbl c is Ok _ then true
-       else false 
-     | Jcc lbl _, Lacond _ b => if b then 
-         if find_label lbl c is Ok _ then true 
-         else false 
-       else true
-     | AsmOp _ _, Laempty0 => true
-     | _, _=> false
-    end
-  else false. 
-
 (* Calculates next program counter *)
 Definition next_ip_leak (ip: nat) (li: leak_asm) :=
     match li with 
@@ -58,16 +41,6 @@ Definition next_ip_leak (ip: nat) (li: leak_asm) :=
      | Lacond o b => absz (Posz ip + o)%R
      | Laop _ => ip.+1
      end.
-
-
-Fixpoint leak_asms_WF (c:seq asm) (pc:nat) (lis: seq leak_asm) := 
-  match lis with
-  | [::] => true
-  | li :: lis =>
-    leak_asm_WF c pc li &&
-     let pc' := next_ip_leak pc li in
-     leak_asms_WF c pc' lis
-  end.
 
 (* mapping from program counter to rat *)
 Definition asmcost_map := nat -> nat.  (* Q *)
@@ -187,7 +160,6 @@ Section Proofs.
 Lemma trasnform_cost_il_ok c pc lc:
 (* well form relation between linear cmd and linear leakage *)
 leak_ils_WF c pc lc -> 
-(*leak_asms_WF ac pc (map leak_i_asm lc) -> *)
 (asmcost pc (map leak_i_asm lc)).1 =1
 (lcost pc lc).1.
 Proof.
