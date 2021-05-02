@@ -1574,7 +1574,7 @@ Fixpoint compose_passes start (trs: seq (seq (funname * cost.Sm.t))) fn :=
     compose_passes start trs fn
   end.
 
-Definition transform_costs_l (lts: (seq leak_f_tr * leak_f_lf_tr)) := 
+Definition transform_costs_l (lts: (seq leak_f_tr * leak_f_lf_tr)) : option (funname → Sm.t) :=
   if all (fun lF => wf_lF lF && uniq (unzip1 lF)) lts.1 then
     let trs := map transform_p lts.1 in
     let ltr := map (fun tlf => (tlf.1,transform_cost_i_cL transform_cost_i_iL tlf.2)) lts.2 in
