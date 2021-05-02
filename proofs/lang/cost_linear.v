@@ -247,15 +247,6 @@ Proof.
   by rewrite h h'; apply hd.
 Qed.
 
-<<<<<<< HEAD
-Definition compose (m1: cost.Sm.t) (m2: t) : t :=
-  Ml.fold (fun lbl2 sc2 m3 =>
-     match cost.Sm.get m1 sc2 with
-     | None => m3
-     | Some sc1 => set m3 lbl2 sc1
-     end) m2 empty.
-
-=======
 Definition compose (m1:cost.Sm.t) (m2: t) : t :=
   Ml.fold (fun pc sc2 m3 => 
      match cost.Sm.get m1 sc2 with
@@ -314,7 +305,6 @@ Proof. by move=> hc l; rewrite /linterp; case: get. Qed.
 Global Instance compose_ext_eq : Proper (cost.Sm.ext_eq ==> ext_eq ==> ext_eq) compose. 
 Proof. by move=> c1 c2 hc m1 m2 hm l; rewrite !composeP hm; case: get => // sc; rewrite hc. Qed.
 
->>>>>>> 5f7c5d68... WIP
 End Sm.
 
 Section Transform_Cost_i_iLs.
