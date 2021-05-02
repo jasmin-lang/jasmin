@@ -260,23 +260,6 @@ Definition map_prog_leak {T1 T2 T3} (F: T1 -> (T2 * T3)) l:
   (map (fun t : funname * (T2 * T3) => (t.1, t.2.1)) l,
    map (fun t : funname * (T2 * T3) => (t.1, t.2.2)) l).
 
-
-(*Definition map_prog_leak {T} (F : fundef -> (fundef * T)) (p : prog) :=
-  let fundefs := map snd (p_funcs p) in (* seq of fundefs *)
-  let funnames := map fst (p_funcs p) in
-  let r := map F fundefs in 
-  let rfds := map fst r in
-  let rlts := map snd r in 
-  let Fs := zip funnames rlts in
-  let funcs := zip funnames rfds in 
-  ({| p_globs := p_globs p; p_funcs := funcs|}, Fs).*)
-
-(*Lemma get_map_prog_fd {T} (F: fundef -> (fundef * T)) p fn:
-  get_fundef (p_funcs (map_prog_leak F p).1) fn = ssrfun.omap fst (ssrfun.omap F (get_fundef (p_funcs p) fn)).
-Proof.
-  rewrite /get_fundef /=.
-Admitted.*)
-
 Lemma map_prog_get_fd {T1 T2 T3} (F: T1 -> (T2 * T3)) p p' lt fn (f: T1) (f': T2):
   map_prog_leak F p = p' ->
   get_fundef p fn = Some f ->
