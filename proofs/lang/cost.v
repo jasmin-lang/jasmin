@@ -1961,77 +1961,6 @@ Proof.
   by rewrite interp_single_transform merge0c; apply merge_cost_leq.
 Qed.
     
-Fixpoint compose_passes (trs: seq (seq (funname * Sm.t))) fn := 
-  match trs with
-  | [::] => None 
-  | tr::trs =>
-    let m  := compose_passes trs fn in
-    let m' := odflt (Sm.single [::]) (assoc tr fn) in
-    if m is Some m then Some (Sm.compose m' m) else Some m'
-  end.
-
-Definition transform_costs (tr: seq leak_f_tr) : option (funname → option Sm.t) :=
-  if all (fun lF => wf_lF lF && uniq (unzip1 lF)) tr then
-    let trs := map transform_p tr in
-     Some (fun fn => compose_passes trs fn)
-  else None.
-
-Definition oext_eq m1 m2 := 
-  match m1, m2 with
-  | None, None => true
-  | Some m1, Some m2 => Sm.ext_eq m1 m2 
-  | _, _ => false
-  end.
- 
-Lemma transform_costs_cat tr1 tr2 m: 
-  transform_costs (tr1 ++ tr2) = Some m ->
-  exists m1 m2, 
-    [/\ transform_costs tr1 = Some m1 ,
-        transform_costs tr2 = Some m2 &
-        forall f, 
-            oext_eq (m f) 
-                  match m1 f, m2 f with
-                  | Some m1, Some m2 => Some (Sm.compose m1 m2)
-                  | Some m1, _ => Some m1 
-                  | _, m2      => m2
-                  end].
-Proof.
-  rewrite /transform_costs all_cat map_cat; case: andP => // -[-> ->] [<-].
-  eexists; eexists; split; eauto.
-  move=> f /=; elim: tr1 => /=; first by case: compose_passes.
-  move => //= tr tr1.
-  case: compose_passes => [m12 | ] /=; case: compose_passes => [m1 | ]; case: compose_passes => [m2 | ] //= -> //.
-  apply Sm.composeA.
-Qed.
-
-Lemma transform_costs1E lF m : 
-  transform_costs [::lF] = Some m ->
-  [/\  wf_lF lF, uniq (unzip1 lF) & forall f, m f = Some (odflt (Sm.single [::]) (assoc (transform_p lF) f))].
-Proof. by rewrite /transform_costs /= andbT; case: andP => // -[??] [<-]. Qed.
-
-Lemma transform_costs_cons lF tr m: 
-  transform_costs (lF :: tr) = Some m ->
-  exists m2, 
-    [/\  wf_lF lF, uniq (unzip1 lF), 
-         transform_costs tr = Some m2 &
-         forall f, 
-           let m1 := odflt (Sm.single [::]) (assoc (transform_p lF) f) in
-           oext_eq (m f) 
-                  match m2 f with
-                  | Some m2 => Some (Sm.compose m1 m2)
-                  | None => Some m1 
-                  end].
-Proof.
-  move=> /(@transform_costs_cat [::lF] tr m) [m1 [m2 []]] /transform_costs1E [] ?? h1 h2 h3.
-  by exists m2; split => // f; have := h3 f; rewrite h1.
-Qed.
-
-Definition ointerp lf ms := 
-  match ms with 
-  | None => enter_cost_c cost_i [::] lf
-  | Some m => Sm.interp (enter_cost_c cost_i [::] lf) m
-  end.
-
 Fixpoint leak_WF_rec fn stk (lts:seq (seq (funname * leak_c_tr))) lc := 
   match lts with 
   | [::] => True
@@ -2046,19 +1975,3 @@ Lemma leak_WF_rec_cat fn stk lts1 lts2 lc :
   leak_WF_rec fn stk (lts1 ++ lts2) lc.
 Proof. by elim: lts1 lc => //= lF lts1 hrec lc [?] h1 h2; split => //; apply hrec. Qed.
 
-Lemma transform_costs_ok lts stk fn sl: 
-  leak_WF_rec fn stk lts sl ->
-  let tl := leak_compile stk lts (fn, sl) in
-  forall ms, transform_costs lts = Some ms ->
-  enter_cost_c cost_i [::] tl <=1 ointerp sl (ms fn).
-Proof.
-  elim: lts sl => /= [ | lF lts hrec] sl.
-  + by move=> _ ms; rewrite /transform_costs /= => -[<-].
-  move=> [] hwf hwfs ms /transform_costs_cons [ms2] [hwfl hu heq] /(_ fn) /=.
-  have hle := transform_p_ok hwfl hu stk hwf.
-  have := hrec _ hwfs _ heq.
-  case: ms => [m1 | ]; case: (ms2) => [m2 | ] //=.
-  + move=> hle' ->; rewrite Sm.interp_compose.
-    by apply: leqc_trans (Sm.interp_mono m2 hle).
-  by move=> hle' ->; apply: leqc_trans.
-Qed.

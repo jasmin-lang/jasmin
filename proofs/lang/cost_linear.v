@@ -117,7 +117,10 @@ Proof. by move=> c1 c1' h1 c2 c2' h2 l; rewrite /incr_lcost h1 h2. Qed.
 
 Definition leqc (f1 f2: nat -> nat) := 
    forall p, f1 p <= f2 p.
-  
+ 
+Lemma leqcc f : leqc f f.
+Proof. by move=> ?. Qed.
+ 
 Global Instance leqc_eqfun : Proper (eqfun (B:=_) ==> eqfun (B:=_) ==> iff) leqc.
 Proof.
   move=> f1 f1' heq1 f2 f2' heq2; split => h a; first by rewrite -heq1 -heq2.
@@ -1568,6 +1571,86 @@ rewrite -addnA transform_cost_extraE linterp_merge_c mergelA.
 rewrite (linterp_merge_c (single_cost [::])); apply merge_lcost_eqfun => //.
 rewrite linterp_merge_c (enter_cost_c_pre (bpath_f ([::],0))) linterp_sprefix.
 by rewrite linterp_merge_c (enter_cost_c_pre (bpath_t ([::],0))) linterp_prefix_negb mergec0l mergelC.
+Qed.
+  
+(* ----------------------------------------------------------------- *)
+
+Fixpoint compose_passes start (trs: seq (seq (funname * cost.Sm.t))) fn := 
+  match trs with
+  | [::] => start
+  | tr::trs =>
+    let m' := odflt (cost.Sm.single [::]) (assoc tr fn) in
+    let start := cost.Sm.compose start m' in
+    compose_passes start trs fn
+  end.
+
+Definition transform_costs_l (lts: (seq leak_f_tr * leak_f_lf_tr)) := 
+  if all (fun lF => wf_lF lF && uniq (unzip1 lF)) lts.1 then
+    let trs := map transform_p lts.1 in
+    let ltr := map (fun tlf => (tlf.1,transform_cost_i_cL transform_cost_i_iL tlf.2)) lts.2 in
+    Some match trs with
+    | [::] => fun f => odflt Sm.empty (assoc ltr f)
+    | tr :: trs => 
+      fun f => 
+        let start := odflt (cost.Sm.single [::]) (assoc tr f) in
+        let m1 := compose_passes start trs f in
+        let m2 := odflt Sm.empty (assoc ltr f) in
+        Sm.compose m1 m2
+    end
+  else None.
+
+Lemma compose_passes_cat fn start trs1 trs2 : 
+  (compose_passes start (trs1 ++ trs2) fn) = 
+            (compose_passes (compose_passes start trs1 fn) trs2 fn).
+Proof. by elim: trs1 start => //=. Qed.
+
+Lemma compose_passes_ok fn sl stk lt lts1 lts2 :
+  all (λ lF : seq (funname * leak_c_tr), wf_lF lF && uniq (unzip1 lF)) lts2 ->
+  leak_WF_rec fn stk lts2 (leak_compile stk (lt::lts1) (fn,sl)) ->
+  let start := (odflt (cost.Sm.single [::]) (assoc (transform_p lt) fn)) in
+  let trs1 := [seq transform_p i | i <- lts1] in
+  let trs2 := [seq transform_p i | i <- lts2] in
+  enter_cost_c cost_i [::] (leak_compile stk (lt::lts1) (fn, sl)) <=1
+     Sm.interp (enter_cost_c cost_i [::] sl) (compose_passes start trs1 fn) ->
+  enter_cost_c cost_i [::] (leak_compile stk (lt::lts1 ++ lts2) (fn, sl)) <=1
+     Sm.interp (enter_cost_c cost_i [::] sl) (compose_passes (compose_passes start trs1 fn) trs2 fn).
+Proof.
+  elim: lts2 lts1 => /= [ | lt2 lts2 hrec] lts1; first by rewrite cats0.
+  move=> /andP [] /andP [] hwf hu /hrec{hrec}hrec [] hWF hWFs hle.
+  have {hrec} := hrec (rcons lts1 lt2).
+  rewrite -cats1 leak_compile_cat => /(_ hWFs).
+  rewrite !map_cat /= !leak_compile_cat /= compose_passes_cat; apply.
+  rewrite /= Sm.interp_compose.
+  have h := transform_p_ok hwf hu stk hWF.
+  by apply/(cost.leqc_trans h)/Sm.interp_mono.
+Qed.
+
+Lemma transform_costs_l_ok lts stk fn sl: 
+  (leak_WF_rec fn stk lts.1 sl /\
+   leak_is_WF (odflt [::] (assoc lts.2 fn)) (leak_compile stk lts.1 (fn,sl))) ->
+  let tl := leak_compile_prog stk lts (fn, sl) in
+  forall ms, transform_costs_l lts = Some ms ->
+  leqc (lcost 0 tl).1 (Sm.linterp (enter_cost_c cost_i [::] sl) (ms fn)).
+Proof.
+  case: lts => lts ltl /=.
+  rewrite /transform_costs_l.
+  case: ifP => //.
+  case: lts => [ | lt lts] /=.
+  + move=> _ [] _ hwf ms [<-].
+    rewrite /leak_compile_prog /=.
+    have -> := trasnform_cost_il_ok stk hwf.
+    by rewrite assoc_map; case: assoc => //= ?; apply leqcc.
+  move=> /andP []/andP [] hwf1 hu1 hall [] [] hWF1 hWF2 hWFl ms [<-].
+  rewrite /leak_compile_prog /=.
+  have -> := trasnform_cost_il_ok stk hWFl.
+  rewrite Sm.linterp_compose.
+  have <- : 
+    odflt Sm.empty (assoc [seq (tlf.1, transform_cost_i_cL transform_cost_i_iL tlf.2) | tlf <- ltl] fn) = 
+    transform_cost_i_cL transform_cost_i_iL (odflt [::] (assoc ltl fn)).
+  + by rewrite assoc_map; case: assoc.
+  apply Sm.linterp_mono.
+  apply (@compose_passes_ok fn sl stk lt [::] lts hall hWF2).
+  apply (transform_p_ok hwf1 hu1 stk hWF1).
 Qed.
 
 End Proofs.
