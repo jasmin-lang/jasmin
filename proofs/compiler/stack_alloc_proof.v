@@ -728,16 +728,6 @@ Section PROOF.
     exact: (valid_stk_arr_stk Hget Ha Hvmem Hm' Ht).
   Qed.
 
-  Lemma get_var_arr n (a: WArray.array n) vm vi:
-    get_var vm vi = ok (Varr a) ->
-    exists vn, vi = {| vtype := sarr n; vname := vn |}.
-  Proof.
-    move: vi=> [vt vn] //=.
-    apply: on_vuP=> //= x Hx; rewrite /to_val.
-    move: vt x Hx=> [] // n' /= x Hx /Varr_inj [?];subst n' => /=.
-    by exists vn.
-  Qed.
-
   Lemma valid_stk_mem s1 s2 sz ptr off val m' m'2:
     write_mem (emem s1) (ptr + off) sz val = ok m' ->
     disjoint_zrange pstk stk_size (ptr + off) (wsize_size sz) ->
@@ -1453,10 +1443,6 @@ Proof.
   move=> [] //=.
 Qed.
 
-Definition alloc_ok SP fn m1 :=
-  forall fd, get_fundef SP fn = Some fd ->
-  exists p, alloc_stack m1 (sf_stk_sz fd) = ok p.
-
 Lemma alloc_progP oracle (P: prog) (SP: sprog * leak_f_tr) fn:
   alloc_prog oracle P = ok SP ->
   forall m1 va lf m1' vr p,
@@ -1478,5 +1464,3 @@ Proof.
   move=> [] hwf [] m' [] vr' [] hvl [] heq hs; split => //.
   by exists m'; exists vr'. 
 Qed.
-
-

@@ -826,10 +826,6 @@ Section PROOF.
     fold2 e f l1 l2 r = ok r' -> size l1 = size l2.
   Proof. by elim: l1 l2 r => [ | a l1 hrec] [ | b l2] //= r; t_xrbindP => r1 _ /hrec ->. Qed.
 
-  Lemma map_nseq A B (a:A) (l:list B) : 
-    map (fun _ => a) l = nseq (size l) a.
-  Proof. by elim: l => //= ?? ->. Qed.
-
   Lemma mapM2_size (A B E R : Type) (e: E) (f:A -> B -> result E R) l1 l2 l: 
     mapM2 e f l1 l2 = ok l -> size l1 = size l2 /\ size l1 = size l.
   Proof.

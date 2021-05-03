@@ -155,18 +155,4 @@ Variant lsem_fd gd m1 fn va' (fnlc: funname * seq leak_il) m2 vr': Prop :=
     m2 = free_stack m2' fd.(lfd_stk_size) ->
     lsem_fd gd m1 fn va' fnlc m2 vr'.
 
-(*Definition lsem_trans gd s2 s1 s3 l1 l2 l3:
-  lsem gd s1 l1 s2 -> lsem gd s2 l2 s3 -> lsem gd s1 (l1 ++ l2) s3 :=
-  rtl_trans _ _ s1 s2 l1 l2.*)
-
-Definition lsem_fd_noleak p f mem va mem' vr :=
- exists l, lsem_fd p f mem va l mem' vr.
-
 End SEM.
-
-(*
-Lemma sem_wf s l s': 
-  lsem s l s' ->
-  leak_ils_WF s.(lc) s.(lpc) l.
-*)
-(* lsem s l s' -> s.(lc) = s'.(lc). *)

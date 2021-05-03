@@ -2373,26 +2373,6 @@ Qed.
     by split.
   Qed.
 
-  Lemma sem_pexprs_dec2_ls s e1 e2 vs:
-    sem_pexprs gd s [:: e1; e2] = ok vs ->
-    exists v1 v2 le1 le2, vs = [:: (v1, le1); (v2, le2)].
-  Proof.
-   move: vs=> [] //=; rewrite /sem_pexprs /=; t_xrbindP.
-   + move=> [v1 l1] he1 vs' [v2 l2] he2 /= <- //=.
-   move=> [v1 l1] vs' [v2 l2] he1 vs'' [v3 l3] he2 <- [] <- <- <- /=.
-   exists v2. exists v3. exists l2. exists l3. auto.
-  Qed.  
-
-  Lemma sem_pexprs_dec2_vs s e1 e2 vs:
-    sem_pexprs gd s [:: e1; e2] = ok vs ->
-    exists v1 v2, vs = [:: v1; v2].
-  Proof.
-   move: vs=> [] //=; rewrite /sem_pexprs /=; t_xrbindP.
-   + move=> [v1 l1] he1 vs' [v2 l2] he2 /= <- //=.
-   move=> [v1 l1] vs' [v2 l2] he1 vs'' [v3 l3] he2 <- [] <- <- <- /=.
-   exists (v2, l2). exists (v3, l3). auto.
-  Qed.  
-
   Lemma sem_pexprs_dec2_s s es v1 v2:
     sem_pexprs gd s es = ok [:: v1; v2] ->
     exists e1 e2, es = [:: e1; e2].
