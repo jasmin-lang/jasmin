@@ -1299,7 +1299,7 @@ Lemma disjoint_single_pre pre sl m :
 Proof.
   move=> hp l; rewrite Sm.singleP Sm.prefixP; case: eqP => [-> _ | //].
   case heq : prefix_bpath_inv => [l' | //].
-  by move/prefix_bpathP: heq; rewrite /prefix_bpath => -[]; case: l'.
+  by move/prefix_bpathP: heq; rewrite /prefix_bpath => -; case: l'.
 Qed.
 
 Lemma disjoint_merge m1 m2 m3 :

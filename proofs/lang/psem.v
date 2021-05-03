@@ -2413,6 +2413,13 @@ Proof.
   move=> Hw'. by rewrite Hw' /=.
 Qed.
 
+Lemma size_write_lvals gd s xs vs r : write_lvals gd s xs vs = ok r -> size xs = size r.2.
+Proof.
+  elim: xs vs s r => [ | x xs hrec] [ | v vs] //= s r.
+  + by move=> [<-].
+  by t_xrbindP => ? _ ? /hrec h <- /=; rewrite h.
+Qed.
+
 Lemma get_var_sem_pexprs gd s xs vs:
   mapM (λ x : var_i, get_var (evm s) x) xs = ok vs ->
   exists vs', sem_pexprs gd s [seq Pvar i | i <- xs] = ok vs'.

@@ -960,18 +960,24 @@ Context (check_lvalP_id : forall r rltr x1 x2 e2 stk l,
           check_lval e2 x1 x2 r = ok rltr ->
           leak_E stk rltr.2 l = l).
 
-Context (check_esP_id : forall es1 es2 r rlte stk l,
+(*Context (check_esP_id : forall es1 es2 r rlte stk l,
           check_es es1 es2 r = ok rlte ->
           (map2 (leak_E stk) rlte.2 l) = l).
 
 Context (check_lvalsP_id : forall es1 es2 r rlte stk l,
           check_lvals es1 es2 r = ok rlte ->
-          (map2 (leak_E stk) rlte.2 l) = l).
+          (map2 (leak_E stk) rlte.2 l) = l).*)
 
 Context (p:prog) (stk:pointer).
 
 Definition leak_id :=
   map (fun f => (f.1, [seq LT_ikeep | _ <- f_body f.2])) (p_funcs p).
+
+Lemma Fs_id : forall fn, get_leak leak_id fn = leak_fn_id p fn. 
+Proof.
+move=> fn. rewrite /leak_id /get_leak /leak_fn_id. 
+have -> := assoc_map (fun f => [seq LT_ikeep | _ <- f_body f]) (p_funcs p). rewrite /get_fundef /=. by case: assoc.
+Qed.
 
 Let lF := leak_Fun leak_id.
 
@@ -1009,14 +1015,39 @@ Proof.
   by apply: add_iinfoP => /check_lvalP_id hl [<-] /=; rewrite he hl.
 Qed.
 
+Lemma check_esP_id es1 es2 r rlte l :
+  size l = size es1 -> 
+  check_es es1 es2 r = ok rlte ->
+  (map2 (leak_E stk) rlte.2 l) = l.
+Proof.
+elim: es1 es2 r rlte l => //=.
+case => //=. 
++ by move=> r r' [] // _ [] <-.
+move=> e1 es1 hrec [] // e2 es2 r r' [] // le les [] /hrec{hrec}hrec.
+by t_xrbindP=> -[r1 l1] /check_eP_id hle [r2 l2] /= /hrec{hrec}hrec <- /=; rewrite hrec hle.
+Qed.
+
+Lemma check_lvalsP_id es1 es2 r rlte l :
+  size l = size es1 -> 
+  check_lvals es1 es2 r = ok rlte ->
+  (map2 (leak_E stk) rlte.2 l) = l.
+Proof.
+elim: es1 es2 r rlte l => //=.
+case => //=. 
++ by move=> r r' [] // _ [] <-.
+move=> e1 es1 hrec [] // e2 es2 r r' [] // le les [] /hrec{hrec}hrec.
+by t_xrbindP=> -[r1 l1] /check_lvalP_id hle [r2 l2] /= /hrec{hrec}hrec <- /=; rewrite hrec hle.
+Qed.
+
 Local Lemma Iopn : sem_Ind_opn p Pi_r.
 Proof.
  move=> [] s1 s1' s2 t o xs es lo. rewrite /sem_sopn /=.
  t_xrbindP. move=> vs Hes vo Hex -[vs' ls] Hws <- <- /=.
  rewrite /Pi_r /=. move=> ii [] // l t' s e' r rlt. case: eqP => // h.
- t_xrbindP. move=> -[r' lr']. apply: add_iinfoP=> /check_esP_id Hes'. move=> -[r'' lr''].
- apply: add_iinfoP=> /check_lvalsP_id Hvs'. move=> [] <- /=. move: (Hes' stk (unzip2 vs)). move=> ->.
- move: (Hvs' stk ls). by move=> ->.
+ t_xrbindP. move=> -[r' lr']. apply: add_iinfoP=>/check_esP_id Hes'. move=> -[r'' lr''].
+ apply: add_iinfoP=> /check_lvalsP_id Hvs' [] <- /=. move: (Hes' (unzip2 vs)). move=> ->.
+ rewrite (Hvs' ls)=>//. by have /= -> := size_write_lvals Hws.
+ apply mapM_size in Hes. rewrite Hes. by rewrite /unzip2 size_map.
 Qed.
 
 Local Lemma Iif_true : sem_Ind_if_true p Pc Pi_r.
@@ -1099,17 +1130,21 @@ Proof.
  move: (Hc' ii c2 r rlt Hc''). by move=> ->.
 Qed.
 
-(* FIXME Swarn: this proof should be done in a different way *)
-Lemma leak_map_id' p' lc c s1 s2 fn vs vs': sem_call p' s1 c vs (fn, lc) s2 vs' ->
+
+Lemma leak_map_id' lc c s1 s2 fn vs vs': sem_call p s1 c vs (fn, lc) s2 vs' ->
 leak_Is (leak_I lF) stk (lF fn) lc = lc.
 Proof.
- elim: lc => /=. 
- + move=> hsem. by inversion_clear hsem.      
- move=> li lc Hc Hc' /=.
- have H /= : leak_I (leak_Fun leak_id) stk li LT_ikeep = [:: li] by case: (li).
- rewrite /leak_id /= /leak_Is /=.
-Admitted.
-    
+move=> Hcall. inversion_clear Hcall=> //=.
+case: lc H2=> //=.
+move=> li lc Hs.
+have Heq := leak_map_id. rewrite /lF.
+move: (Heq p leak_id stk (li :: lc) (f_body f) s0 {| emem := s2; evm := vm2 |} Hs).
+move=> Hrec. 
+have Heq' : (leak_Fun leak_id fn) =  [seq LT_ikeep | _ <- f_body f].
+move: (Fs_id fn). rewrite /get_leak. rewrite /leak_Fun. move=> -> /=.
+rewrite /leak_fn_id /=. by rewrite H /=.
+by rewrite Heq'.
+Qed.
  
 Local Lemma Icall : sem_Ind_call p Pi_r Pfun.
 Proof.
@@ -1117,15 +1152,15 @@ Proof.
  rewrite /Pi_r /=. move=> ii' i2 r -[r' ltr']. case: i2=> // ini lvs fn' es'.
  case: ifP=> /eqP // hfn. t_xrbindP. move=> -[r'' ltr'']. apply: add_iinfoP=> /check_esP_id Hes''.
  move=> -[r''' ltr''']. apply: add_iinfoP=> /check_lvalsP_id Hes'''. move=> [] <- <- /=.
- case: lf Hcall Hf=> fn'' lc Hcall Hf. move: (Hes'' stk (unzip2 vargs)). move=> ->.
- rewrite (Hes''' stk lw).
+ case: lf Hcall Hf=> fn'' lc Hcall Hf. move: (Hes'' (unzip2 vargs)). move=> ->.
+ rewrite (Hes''' lw).
  have -> : leak_Is (leak_I lF) stk (lF fn'') lc = lc.
  + by have -> := (leak_map_id' Hcall).
- auto.
+ auto.  by have /= -> := size_write_lvals Hws. apply mapM_size in Hes. rewrite Hes. by rewrite /unzip2 size_map.
 Qed.
 
 Local Lemma Iproc : sem_Ind_proc p Pc Pfun.
-Proof. done. Qed.
+ Proof. done. Qed.
 
 Lemma check_cmd_id ii c1 c2 r rlt lc s1 s2:
    sem p s1 c1 lc s2 ->
@@ -2326,5 +2361,5 @@ Proof.
   apply: (CheckAllocReg.alloc_funP_eq); last by exact 0%R.
   + by rewrite /CBAreg.check_e; t_xrbindP=> ???????? [<-].
   + by rewrite /CBAreg.check_lval; t_xrbindP => ?????????[<-].
-  + move=> es1 es2 r -[r' lt'] stk l. rewrite /CheckAllocReg.check_es.
- Admitted.
+Qed.
+
