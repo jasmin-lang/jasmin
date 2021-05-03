@@ -9,6 +9,7 @@ let print_list = ref []
 let ecfile = ref ""
 let ec_list = ref []
 let cost_analysis = ref false
+let cost_after_pass = ref "cstexp"
 let check_safety = ref false
 let safety_param = ref None
 let safety_config = ref None
@@ -96,6 +97,7 @@ let options = [
     "-CT" , Arg.Unit set_constTime      , ": generates model for constant time verification";
     "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
     "--cost", Arg.Set cost_analysis, ": execution cost (WIP)";
+    "--cost-after", Arg.Set_string cost_after_pass, ": pass after which to run the cost analysis (see printing options to know the names of the passes)";
     "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,
     "parameter for automatic safety verification:\n    \

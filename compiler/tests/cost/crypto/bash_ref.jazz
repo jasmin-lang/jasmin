@@ -1,0 +1,146 @@
+/*----------------------------------------------------------------*/
+inline
+fn rotHi(inline u64 c, reg u64 x) -> reg u64 {
+  reg u64 r;
+  r = x; r <<= c;
+  x >>= 64 - c;
+  r ^= x;
+  return r;
+}
+
+/*----------------------------------------------------------------*/
+inline
+fn bashS(reg u64[3] w, inline u64 m1, inline u64 n1, inline u64 m2, inline u64 n2) -> reg u64[3] {
+  reg u64[3] t;
+  reg u64 a, b;
+  t[0] = rotHi(m1, w[0]);
+  a = w[1]; a ^= w[2]; w[0] ^= a;
+  t[1] = w[1]; a = rotHi(n1, w[0]); t[1] ^= a;
+  w[1] = t[0]; w[1] ^= t[1];
+  a = rotHi(m2, w[2]); b = rotHi(n2, t[1]); b ^= a; w[2] ^= b;
+  a = w[2]; t[0] = ! a;
+  t[1] = w[0]; t[1] |= w[2];
+  t[2] = w[0]; t[2] &= w[1];
+  t[0] |= w[1];
+  w[1] ^= t[1];
+  w[2] ^= t[2];
+  w[0] ^= t[0];
+  return w;
+}
+
+/*----------------------------------------------------------------*/
+inline
+fn sequence(inline u64 u) -> inline u64 {
+  u = (u * 7) & 0x3F;
+  return u;
+}
+
+/*----------------------------------------------------------------*/
+param int n = 24;
+
+/*----------------------------------------------------------------*/
+inline
+fn permute(stack u64[n] s) -> reg u64[n] {
+  reg u64 a, t;
+  a = s[0];
+  t = s[15];
+  s[0] = t;
+  t = s[22];
+  s[15] = t;
+  t = s[4];
+  s[22] = t;
+  t = s[11];
+  s[4] = t;
+  t = s[18];
+  s[11] = t;
+  s[18] = a;
+
+  a = s[1];
+  t = s[10];
+  s[1] = t;
+  t = s[19];
+  s[10] = t;
+  t = s[5];
+  s[19] = t;
+  t = s[14];
+  s[5] = t;
+  t = s[23];
+  s[14] = t;
+  s[23] = a;
+
+  a = s[2];
+  t = s[9];
+  s[2] = t;
+  t = s[16];
+  s[9] = t;
+  t = s[6];
+  s[16] = t;
+  t = s[13];
+  s[6] = t;
+  t = s[20];
+  s[13] = t;
+  s[20] = a;
+
+  a = s[3];
+  t = s[12];
+  s[3] = t;
+  t = s[21];
+  s[12] = t;
+  t = s[7];
+  s[21] = t;
+  t = s[8];
+  s[7] = t;
+  t = s[17];
+  s[8] = t;
+  s[17] = a;
+
+  return s;
+}
+
+/*----------------------------------------------------------------*/
+inline
+fn bashF(stack u64[n] s) -> stack u64[n] {
+  reg u64[3] w;
+  inline u64 m1, n1, m2, n2;
+  inline u64 c, p;
+  inline int i, j, k;
+
+  c = 0x3BF5080AC8BA94B1;
+
+  for i = 0 to 24 {
+    m1 = 8;
+    n1 = 53;
+    m2 = 14;
+    n2 = 1;
+    for j = 0 to 8 {
+      for k = 0 to 3 { w[k] = s[8 * k + j]; }
+      w = bashS(w, m1, n1, m2, n2);
+      for k = 0 to 3 { s[8 * k + j] = w[k]; }
+      m1 = sequence(m1);
+      n1 = sequence(n1);
+      m2 = sequence(m2);
+      n2 = sequence(n2);
+    }
+    s = permute(s);
+    s[23] ^= c;
+    p = c & 1;
+    c >>= 1;
+    if p == 1 {
+      c ^= 0xDC2BE1997FE0D8AE;
+    }
+  }
+
+  return s;
+}
+
+/*----------------------------------------------------------------*/
+export
+fn bashF0(reg u64 addr) {
+  inline int i;
+  stack u64[n] s;
+  reg u64 t;
+
+  for i = 0 to n { t = [addr + 8 * i]; s[i] = t; }
+  s = bashF(s);
+  for i = 0 to n { t = s[i]; [addr + 8 * i] = t; }
+}

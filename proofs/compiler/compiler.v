@@ -114,6 +114,7 @@ Definition reg_alloc_prog (p:prog) :=
 (* need to also return sequence of leak transformers *)
 Definition compile_prog (entries : seq funname) (p:prog) :
   result fun_error (glob_decls * lprog * (seq leak_f_tr * leak_f_lf_tr)) :=
+  let p := cparams.(print_prog) ParamsExpansion p in
   Let pi := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
   let p := cparams.(print_prog) Inlining pi.1 in
 

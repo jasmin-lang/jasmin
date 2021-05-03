@@ -92,23 +92,7 @@ let pp_unr tbl fmt =
         end
       | _ -> assert false)
 
-let pp tbl fmt (((inl, unr), tr), lin) : unit =
+let pp tbl fmt (tr, lin) : unit =
   fprintf fmt "Leakage transformers:@.";
-  fprintf fmt "Inlining:@.%a@." (pp_f_tr tbl) inl;
-  fprintf fmt "Unrolling:@.%a@." (pp_unr tbl) unr;
-  begin match tr with
-  | [ cp ; va ; vadc ; stksh ; stkshdc ; ri ; raa ; rg ; lw ; ra ; radc ; sa ] ->
-     fprintf fmt "Constant-propagation after unrolling:@.%a@." (pp_f_tr tbl) cp;
-     fprintf fmt "Var allocation:@.%a@." (pp_f_tr tbl) va;
-     fprintf fmt "Dead code after var alloc:@.%a@." (pp_f_tr tbl) vadc;
-     fprintf fmt "Stack sharing:@.%a@." (pp_f_tr tbl) stksh;
-     fprintf fmt "Dead code after stack sharing:@.%a@." (pp_f_tr tbl) stkshdc;
-     fprintf fmt "Remove init:@.%a@." (pp_f_tr tbl) ri;
-     fprintf fmt "Register array expansion:@.%a@." (pp_f_tr tbl) raa;
-     fprintf fmt "Remove globals:@.%a@." (pp_f_tr tbl) rg;
-     fprintf fmt "Lowering:@.%a@." (pp_f_tr tbl) lw;
-     fprintf fmt "Register allocation:@.%a@." (pp_f_tr tbl) ra;
-     fprintf fmt "Dead code after register allocation:@.%a@." (pp_f_tr tbl) radc;
-     fprintf fmt "Stack allocation:@.%a@." (pp_f_tr tbl) sa;
-  | _ -> assert false end;
+  List.iteri (fun i -> fprintf fmt "Pass n° %d:@.%a@." i (pp_f_tr tbl)) tr;
   fprintf fmt "Linearization:@.%a@." (pp_lf_tr tbl) lin

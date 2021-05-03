@@ -1,0 +1,252 @@
+inline
+fn rotate(reg u64 x, inline int c) -> reg u64 {
+  reg u64 res;
+  _, _, res = #ROR(x, c);
+  return res;
+}
+
+inline
+fn IV(inline int i) -> inline u64 {
+inline u64 res;
+
+if i == 0 { res = 0x6a09e667f3bcc908; }
+if i == 1 { res = 0xbb67ae8584caa73b; }
+if i == 2 { res = 0x3c6ef372fe94f82b; }
+if i == 3 { res = 0xa54ff53a5f1d36f1; }
+if i == 4 { res = 0x510e527fade682d1; }
+if i == 5 { res = 0x9b05688c2b3e6c1f; }
+if i == 6 { res = 0x1f83d9abfb41bd6b; }
+if i == 7 { res = 0x5be0cd19137e2179; }
+
+return res;
+}
+
+inline
+fn sigma(inline int i j) -> inline u64 {
+inline u64 s res;
+
+if i % 10 == 0 { s = 0xFEDCBA9876543210; }
+if i % 10 == 1 { s = 0x357B20C16DF984AE; }
+if i == 2 { s = 0x491763EADF250C8B; }
+if i == 3 { s = 0x8F04A562EBCD1397; }
+if i == 4 { s = 0xD386CB1EFA427509; }
+if i == 5 { s = 0x91EF57D438B0A6C2; }
+if i == 6 { s = 0xB8293670A4DEF15C; }
+if i == 7 { s = 0xA2684F05931CE7BD; }
+if i == 8 { s = 0x5A417D2C803B9EF6; }
+if i == 9 { s = 0x0DC3E9BF5167482A; }
+
+res = (s >> (j << 2)) & 0xF;
+
+return res;
+}
+
+inline
+fn init(
+  stack u64[8] h,
+  stack u64[2] t f
+) -> stack u64[16] {
+
+reg u64 tmp;
+stack u64[16] v;
+inline int i;
+
+for i = 0 to 8 {
+  tmp = h[i];
+  v[i] = tmp;
+}
+for i = 8 to 12 {
+  tmp = IV(i - 8);
+  v[i] = tmp;
+}
+for i = 12 to 14 {
+  tmp = IV(i - 8);
+  tmp ^= t[i - 12];
+  v[i] = tmp;
+}
+for i = 14 to 16 {
+  tmp = IV(i - 8);
+  tmp ^= f[i - 14];
+  v[i] = tmp;
+}
+
+return v;
+}
+
+inline
+fn G(
+  inline int r i,
+  reg u64 a b c d,
+  stack u64[16] m
+) -> reg u64, reg u64, reg u64, reg u64 {
+
+inline u64 j;
+
+j = sigma(r, 2 * i);
+a += b;
+a += m[(int) j];
+
+d ^= a;
+d = rotate(d, 32);
+
+c += d;
+
+b ^= c;
+b = rotate(b, 24);
+
+j = sigma(r, 2 * i + 1);
+a += b;
+a += m[(int) j];
+
+d ^= a;
+d = rotate(d, 16);
+
+c += d;
+
+b ^= c;
+b = rotate(b, 63);
+
+return a, b, c, d;
+}
+
+inline
+fn compress(
+  stack u64[8] h,
+  stack u64[16] m,
+  stack u64[2] t f
+) -> stack u64[8] {
+
+stack u64[16] v;
+reg u64 a b c d tmp;
+inline int i r;
+
+v = init(h, t, f);
+
+for r = 0 to 12 {
+  for i = 0 to 4 {
+    a = v[0 + i];
+    b = v[4 + i];
+    c = v[8 + i];
+    d = v[12 + i];
+    a, b, c, d = G(r, i, a, b, c, d, m);
+    v[0 + i] = a;
+    v[4 + i] = b;
+    v[8 + i] = c;
+    v[12 + i] = d;
+  }
+  for i = 0 to 4 {
+    a = v[0 + i];
+    b = v[4 + ((i + 1) % 4)];
+    c = v[8 + ((i + 2) % 4)];
+    d = v[12 + ((i + 3) % 4)];
+    a, b, c, d = G(r, 4 + i, a, b, c, d, m);
+    v[0 + i] = a;
+    v[4 + ((i + 1) % 4)] = b;
+    v[8 + ((i + 2) % 4)] = c;
+    v[12 + ((i + 3) % 4)] = d;
+  }
+}
+
+for i = 0 to 8 {
+  tmp = v[i];
+  tmp ^= v[i + 8];
+  h[i] ^= tmp;
+}
+
+return h;
+}
+
+inline
+fn jasmin_blake2b(
+  stack u64[8] params,
+  reg u64 data length
+) -> stack u64[8] {
+inline int i;
+reg u8 b;
+reg u64 count tmp idx;
+stack u64[16] m;
+stack u64[2] t f;
+
+for i = 0 to 8  {
+  tmp = IV(i);
+  params[i] ^= tmp;
+}
+
+count = 0;
+t[1] = 0; // TODO: very long inputs
+f[0] = 0;
+f[1] = 0;
+
+while (length >= 128) {
+
+for i = 0 to 16 {
+  tmp = (u64)[data + 8 * i];
+  m[i] = tmp;
+}
+
+t[0] = count;
+params = compress(params, m, t, f);
+count += 128;
+length -= 128;
+data += 128;
+}
+
+// Last block
+
+idx = 0;
+while (idx < length) {
+  b = (u8)[data + idx];
+  m[u8 (int)idx] = b;
+  idx += 1;
+}
+while (idx < 128) {
+  m[u8 (int)idx] = 0;
+  idx += 1;
+}
+
+count += length;
+t[0] = count;
+f[0] = 0xffffffffffffffff;
+
+params = compress(params, m, t, f);
+
+return params;
+}
+
+export
+fn blake2b(
+  reg u64 hash hashlen,
+  reg u64 perso,
+  reg u64 data length
+) {
+inline int i;
+reg u8 h;
+reg u64 tmp n;
+stack u64[8] state;
+stack u64 s_hash s_hashlen;
+
+s_hash = hash;
+s_hashlen = hashlen;
+
+state[0] = 0x01010000;
+state[0] ^= hashlen;
+for i = 1 to 6 {
+  state[i] = 0;
+}
+for i = 6 to 8 {
+  tmp = (u64)[perso + 8 * (i - 6)];
+  state[i] = tmp;
+}
+
+state = jasmin_blake2b(state, data, length);
+
+hash = s_hash;
+hashlen = s_hashlen;
+
+n = 0;
+while (n < hashlen) {
+  h = state[u8 (int) n];
+  (u8)[hash + n] = h;
+  n += 1;
+}
+}

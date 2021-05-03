@@ -377,89 +377,70 @@ Fixpoint transform_cost_i_iL  (l : leak_i_il_tr) : Sm.t :=
 Definition transform_cost (tr: leak_f_lf_tr) : seq (funname * Sm.t) :=
   map (λ '(fn, c_il_tr), (fn, transform_cost_i_cL transform_cost_i_iL c_il_tr)) tr.
 
-(*Section Transform_Cost_i_iLs.
+Section Transform_Cost_i_iLs.
 
-Variable transform_cost_i_iL : leak_i_il_tr -> path -> Sm.t. 
+Variable transform_cost_i_iL_ : Sm.t -> path -> leak_i_il_tr -> nat -> Sm.t * nat. 
 
-Fixpoint transform_cost_i_cL (lt:seq leak_i_il_tr) (sl:path) : Sm.t :=
+Fixpoint transform_cost_i_cL_ m (sl:path) (lt:seq leak_i_il_tr) pc : Sm.t * nat :=
 match lt with
- | [::] => Sm.empty
+ | [::] => (m, pc)
  | lti :: lt => 
-   let mti := transform_cost_i_iL lti sl in   (* calculates cost of first *)
-   let mt  :=  transform_cost_i_cL lt (next_path sl) in (* calculates cost of rest *)
-   Sm.merge mti (Sm.incr (get_linear_size lti) mt)
+   let mti := transform_cost_i_iL_ m sl lti pc in (* calculates cost of first *)
+   transform_cost_i_cL_ mti.1 (sl.1, sl.2.+1) lt mti.2 (* calculates cost of rest *)
 end.
 
-Definition transform_cost_i_cL_extra (lt:seq leak_i_il_tr) (sl:bpath) k := 
-  let c := transform_cost_i_cL lt (sl,0) in 
-  let cl := Sm.single (get_linear_size_C lt) sl in (* extra instruction *)
-  let cb := Sm.incr k (Sm.merge c cl) in
-  cb.
+Definition transform_cost_i_cL_extra_ m (sl:bpath) (lt:seq leak_i_il_tr) pc := 
+  let c := transform_cost_i_cL_ m (sl,0) lt pc in 
+  (Sm.set c.1 c.2 sl, c.2.+1).
 
 End Transform_Cost_i_iLs.
 
-Fixpoint transform_cost_i_iL  (l : leak_i_il_tr) (sl:path) : Sm.t :=
+Fixpoint transform_cost_i_iL_ m (sl: path) (l : leak_i_il_tr) (pc:nat) : Sm.t * nat :=
   match l with 
-  | LT_ilkeepa => Sm.single 0 sl.1
-  | LT_ilkeep => Sm.single 0 sl.1
+  | LT_ilkeepa => (Sm.set m pc sl.1, pc.+1)
+  | LT_ilkeep => (Sm.set m pc sl.1, pc.+1)
+
     (*Licond e L1; c2; Lilabel L1*)
-    (* Licond should be part of previous block *)
   | LT_ilcond_0 _ lti =>
-    let cc := Sm.single 0 sl.1 in  (* icond *)
-    let c := transform_cost_i_cL_extra transform_cost_i_iL lti (bpath_f sl) 1 in 
-    Sm.merge cc c
-    
+    let m := Sm.set m pc sl.1 in  (* icond *)
+    transform_cost_i_cL_extra_ transform_cost_i_iL_ m (bpath_b false sl) lti (pc.+1) 
+
     (*Licond e L1; c1; Lilabel L1*)
   | LT_ilcond_0' lte lti => 
-    let cc := Sm.single 0 sl.1 in  (* icond *)
-    let c := transform_cost_i_cL_extra transform_cost_i_iL lti (bpath_t sl) 1 in 
-    Sm.merge cc c
-    
+    let m := Sm.set m pc sl.1 in  (* icond *)
+    transform_cost_i_cL_extra_ transform_cost_i_iL_ m (bpath_b true sl) lti (pc.+1) 
+
     (* Licond e L1; c2; Ligoto L2; Lilabel L1; c1; Lilabel L2 *)
     (* if e then c1 else c2 *)
   | LT_ilcond lte lti lti'=> 
-    let cc := Sm.single 0 sl.1 in  (* icond *)
-    let cn1 := transform_cost_i_cL_extra transform_cost_i_iL lti' (bpath_f sl) 1 in
-    let cn2 := transform_cost_i_cL_extra transform_cost_i_iL lti (bpath_t sl) (get_linear_size_C lti' + 2) in
-    Sm.merge cc (Sm.merge cn1 cn2)
+    let m := Sm.set m pc sl.1 in  (* icond *)
+    let cn1 := transform_cost_i_cL_extra_ transform_cost_i_iL_ m (bpath_b false sl) lti' (pc.+1) in
+    transform_cost_i_cL_extra_ transform_cost_i_iL_ cn1.1 (bpath_b true sl) lti (cn1.2.+1)
 
-  (*| LT_ilcond lte lti lti'=> 
-    let cc := Sm.single 0 sl.1 in  (* icond *)
-    let cn1 := transform_cost_i_cL_extra transform_cost_i_iL lti' (bpath_f sl) 1 in
-    let cn2 := transform_cost_i_cL_extra transform_cost_i_iL lti (bpath_t sl) (cn1.2.+2) in
-    (Sm.merge cc (Sm.merge cn1.1 cn2.1), (n+n').+2)*)
-   
     (* align; Lilabel L1; c ; Licond e L1 *)
     (* while a c e [::] *)
   | LT_ilwhile_c'0 a lti => 
-    let ca := Sm.single 0 sl.1 in (* align *)
-    let cl := Sm.single 1 sl.1 in (* label *)
-    let cfn := transform_cost_i_cL_extra transform_cost_i_iL lti (bpath_f sl) 2 in 
-    Sm.merge ca (Sm.merge cl cfn)
-  (*| LT_ilwhile_c'0 a n lti => 
-    let ca := Sm.single 0 sl.1 in (* align *)
-    let cl := Sm.single 1 sl.1 in (* label *)
-    let cfn := transform_cost_i_cL_extra transform_cost_i_iL lti (bpath_f sl) 2 in 
-    (Sm.merge ca (Sm.merge cl cfn.1), n.+2)*)
+    let m := if a is Align then Sm.set m pc sl.1 else m in (* align *) 
+    let pc1 := (get_align_size a + pc) in
+    let m := Sm.set m pc1 sl.1 in (* label *) 
+    transform_cost_i_cL_extra_ transform_cost_i_iL_ m (bpath_b false sl) lti pc1.+1
 
-  | LT_ilwhile_f lti => transform_cost_i_cL transform_cost_i_iL lti (bpath_f sl, 0)
+  | LT_ilwhile_f lti => 
+    transform_cost_i_cL_ transform_cost_i_iL_ m (bpath_b false sl, 0) lti pc 
 
     (* Ligoto L1; align; Lilabel L2; c'; Lilabel L1; c; Lcond e L2; 
          c'; Lilabel L1; c; Lcond e L2; .....*)
     (* Cwhile a c e c' *)
-  | LT_ilwhile lti lti' =>
-    let cg := Sm.single 0 sl.1 in (* goto *)
-    let cnt := transform_cost_i_cL_extra transform_cost_i_iL lti' (bpath_t sl) 3   in
-    let cnf := transform_cost_i_cL_extra transform_cost_i_iL lti (bpath_f sl) (get_linear_size_C lti + 3) in
-    Sm.merge cg (Sm.merge cnt cnf)
-  (*| LT_ilwhile lti lti' =>
-    let cg := Sm.single 0 sl.1 in (* goto *)
-    let cnt := transform_cost_i_cL_extra transform_cost_i_iL lti' (bpath_t sl) 3   in
-    let cnf := transform_cost_i_cL_extra transform_cost_i_iL lti (bpath_f sl) (cnt.2.+3) in
-    (Sm.merge cg (Sm.merge cnt.1 cnf.1), (n+n').+3)*)
-
+  | LT_ilwhile a lti lti' =>
+    let m := Sm.set m pc sl.1 in (* goto *)
+    let pc1 := get_align_size a + pc.+2 in
+    let cnt := transform_cost_i_cL_extra_ transform_cost_i_iL_ m (bpath_b true sl) lti' pc1 in
+    transform_cost_i_cL_extra_ transform_cost_i_iL_ cnt.1 (bpath_b false sl) lti cnt.2 
+ 
   end.
-*)
+
+Definition transform_cost_ (tr: leak_f_lf_tr) : seq (funname * Sm.t) :=
+  map (λ '(fn, c_il_tr), (fn, (transform_cost_i_cL_ transform_cost_i_iL_ Sm.empty ([::],0) c_il_tr 0).1)) tr.
 
 Section WF_HYP.
 
@@ -1574,10 +1555,10 @@ Fixpoint compose_passes start (trs: seq (seq (funname * cost.Sm.t))) fn :=
     compose_passes start trs fn
   end.
 
-Definition transform_costs_l (lts: (seq leak_f_tr * leak_f_lf_tr)) := 
+Definition transform_costs_l (lts: (seq leak_f_tr * leak_f_lf_tr)) : option (funname → Sm.t) :=
   if all (fun lF => wf_lF lF && uniq (unzip1 lF)) lts.1 then
     let trs := map transform_p lts.1 in
-    let ltr := map (fun tlf => (tlf.1,transform_cost_i_cL transform_cost_i_iL tlf.2)) lts.2 in
+    let ltr := transform_cost_ lts.2 in
     Some match trs with
     | [::] => fun f => odflt Sm.empty (assoc ltr f)
     | tr :: trs => 
@@ -1622,6 +1603,8 @@ Lemma transform_costs_l_ok lts stk fn sl:
   forall ms, transform_costs_l lts = Some ms ->
   leqc (lcost 0 tl).1 (Sm.linterp (enter_cost_c cost_i [::] sl) (ms fn)).
 Proof.
+Admitted.
+(*
   case: lts => lts ltl /=.
   rewrite /transform_costs_l.
   case: ifP => //.
@@ -1642,5 +1625,6 @@ Proof.
   apply (@compose_passes_ok fn sl stk lt [::] lts hall hWF2).
   apply (transform_p_ok hwf1 hu1 stk hWF1).
 Qed.
-
+*)
 End Proofs.
+

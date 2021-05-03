@@ -701,7 +701,9 @@ end = struct
 
             let lv_size = wsize_of_ty (ty_lval lv)
             and ret_size = wsize_of_ty out_ty in
-            assert (lv_size = ret_size); (* may not be necessary *)
+            if lv_size <> ret_size
+            then Format.eprintf "Warning: wsize mismatch at function return: %a (lv) %a (return type)@." Printer.pp_ty (ty_lval lv) Printer.pp_ty out_ty;
+            (*assert (lv_size = ret_size); (* may not be necessary *)*)
 
             (* Numerical abstractions only.
                Points-to and offset abstraction are not needed for array and 
@@ -1982,8 +1984,7 @@ module AbsAnalyzer (EW : ExportWrap) = struct
     let main_source = EW.main_source
 
     (* We ensure that all variable names are unique *)
-    let main, prog = MkUniq.mk_uniq EW.main EW.prog
-    let cost_variables = List.rev_map snd EW.cost_variables
+    let main, prog, cost_variables = MkUniq.mk_uniq EW.main EW.prog EW.cost_variables
   end
 
   let parse_pt_rel s = match String.split_on_char ';' s with
