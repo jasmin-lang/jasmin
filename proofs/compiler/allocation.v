@@ -960,14 +960,6 @@ Context (check_lvalP_id : forall r rltr x1 x2 e2 stk l,
           check_lval e2 x1 x2 r = ok rltr ->
           leak_E stk rltr.2 l = l).
 
-(*Context (check_esP_id : forall es1 es2 r rlte stk l,
-          check_es es1 es2 r = ok rlte ->
-          (map2 (leak_E stk) rlte.2 l) = l).
-
-Context (check_lvalsP_id : forall es1 es2 r rlte stk l,
-          check_lvals es1 es2 r = ok rlte ->
-          (map2 (leak_E stk) rlte.2 l) = l).*)
-
 Context (p:prog) (stk:pointer).
 
 Definition leak_id :=
