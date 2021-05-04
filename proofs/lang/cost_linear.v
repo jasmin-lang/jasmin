@@ -440,7 +440,7 @@ Fixpoint transform_cost_i_iL_ m (sl: path) (l : leak_i_il_tr) (pc:nat) : Sm.t * 
   end.
 
 Definition transform_cost_ (tr: leak_f_lf_tr) : seq (funname * Sm.t) :=
-  map (λ '(fn, c_il_tr), (fn, (transform_cost_i_cL_ transform_cost_i_iL_ Sm.empty ([::],0) c_il_tr 0).1)) tr.
+  map (λ fnt, (fnt.1, (transform_cost_i_cL_ transform_cost_i_iL_ Sm.empty ([::],0) fnt.2 0).1)) tr.
 
 Section WF_HYP.
 
@@ -1371,7 +1371,7 @@ Proof.
   by rewrite /incr_cost incr_bpathK.
 Qed.
 
-Lemma trasnform_cost_il_ok stk lt lc:
+Lemma transform_cost_il_ok stk lt lc:
 leak_is_WF lt lc ->
 (lcost 0 (leak_i_iLs (leak_i_iL) stk lt lc)).1 =1
 Sm.linterp (enter_cost_c cost_i [::] lc) 
@@ -1544,6 +1544,210 @@ rewrite linterp_merge_c (enter_cost_c_pre (bpath_f ([::],0))) linterp_sprefix.
 by rewrite linterp_merge_c (enter_cost_c_pre (bpath_t ([::],0))) linterp_prefix_negb mergec0l mergelC.
 Qed.
   
+Lemma sincr_empty p : Sm.ext_eq (Sm.sincr p Sm.empty) Sm.empty.
+Proof. done. Qed.
+
+Lemma sprefix_empty p : Sm.ext_eq (Sm.sprefix p Sm.empty) Sm.empty.
+Proof. done. Qed.
+
+Lemma incr_empty p : Sm.ext_eq (Sm.incr p Sm.empty) Sm.empty.
+Proof. done. Qed.
+
+Lemma emptyP pc : Sm.get Sm.empty pc = None.
+Proof. done. Qed.
+
+Lemma mergem0 m : Sm.ext_eq (Sm.merge m Sm.empty) m.
+Proof. by move=> pc; rewrite mergeP emptyP; case: Sm.get. Qed.
+
+Lemma merge0m m : Sm.ext_eq (Sm.merge Sm.empty m) m.
+Proof. by move=> pc; rewrite mergeP emptyP; case: Sm.get. Qed.
+
+Instance sincr_ext_eq : Proper (eq ==> Sm.ext_eq ==> Sm.ext_eq) Sm.sincr.
+Proof. by move=> n _ <- m1 m2 h pc; rewrite /Sm.sincr !mapP h. Qed.
+
+Instance sprefix_ext_eq : Proper (eq ==> Sm.ext_eq ==> Sm.ext_eq) Sm.sprefix.
+Proof. by move=> n _ <- m1 m2 h pc; rewrite /Sm.sprefix !mapP h. Qed.
+
+Instance set_ext_eq : Proper (Sm.ext_eq ==> eq ==> eq ==> Sm.ext_eq) Sm.set.
+Proof. by move=> m1 m2 h pc _ <- sl _ <- p; rewrite !setP h. Qed.
+
+Import RelationPairs.
+
+Lemma  transform_cost_eqfun_and :
+  (forall tl m1 m2 sl pc, 
+    Sm.ext_eq m1 m2 -> 
+    (Sm.ext_eq * eq)%signature (transform_cost_i_iL_ m1 sl tl pc)
+                               (transform_cost_i_iL_ m2 sl tl pc)) /\
+  (forall tl m1 m2 sl pc, 
+    Sm.ext_eq m1 m2 -> 
+    (Sm.ext_eq * eq)%signature (transform_cost_i_cL_ transform_cost_i_iL_ m1 sl tl pc)
+                               (transform_cost_i_cL_ transform_cost_i_iL_ m2 sl tl pc)).
+Proof.
+apply leak_il_tr_ind => //=.
++ move=> lti lt hreci hrec m1 m2 sl pc /hreci -/(_ sl pc) []; rewrite /RelCompFun => h ->.
+  by apply hrec.
++ by move=> m1 m2 sl pc ->.
++ by move=> m1 m2 sl pc ->.
++ move=> _ lti hrec m1 m2 sl pc h; rewrite /transform_cost_i_cL_extra_.
+  case: (hrec (Sm.set m1 pc sl.1) (Sm.set m2 pc sl.1) (bpath_b false sl, 0) pc.+1); first by rewrite h.
+  by rewrite /RelCompFun => -> ->.
++ move=> _ lti hrec m1 m2 sl pc h; rewrite /transform_cost_i_cL_extra_.
+  case: (hrec (Sm.set m1 pc sl.1) (Sm.set m2 pc sl.1) (bpath_b true sl, 0) pc.+1); first by rewrite h.
+  by rewrite /RelCompFun => -> ->.
++ move=> _ lt1 lt2 hrec1 hrec2 m1 m2 sl pc h; rewrite /transform_cost_i_cL_extra_.
+  case: (hrec2 (Sm.set m1 pc sl.1) (Sm.set m2 pc sl.1) (bpath_b false sl, 0) pc.+1); first by rewrite h.
+  rewrite /RelCompFun => h1 <-.
+  set m1' := (transform_cost_i_cL_ transform_cost_i_iL_ (Sm.set m1 pc sl.1) _ _ _).
+  set m2' := (transform_cost_i_cL_ transform_cost_i_iL_ (Sm.set m2 pc sl.1) _ _ _).
+  case: (hrec1 (Sm.set m1'.1 m1'.2 (bpath_b false sl)) (Sm.set m2'.1 m1'.2 (bpath_b false sl))
+         (bpath_b true sl, 0) m1'.2.+2).
+  + by rewrite /m1' /m2' h1.
+  by rewrite /RelCompFun => -> ->.
++ move=> a lti hrec m1 m2 sl pc h; rewrite /transform_cost_i_cL_extra_.
+  set m1' := Sm.set _ (_ + _) _; set m2' := Sm.set _ (_ + _) _.
+  case: (hrec m1' m2' (bpath_b false sl, 0) (get_align_size a + pc).+1).
+  + by rewrite /m1'/m2'; case a; rewrite h.
+  by rewrite /RelCompFun => -> ->.
++ by move=> lti hrec m1 m2 sl pc; apply hrec.
+move=> a lt1 lt2 hrec1 hrec2 m1 m2 sl pc h; rewrite /transform_cost_i_cL_extra_.
+case: (hrec2 (Sm.set m1 pc sl.1) (Sm.set m2 pc sl.1) (bpath_b true sl, 0) (get_align_size a + pc.+2)).
++ by rewrite h.
+rewrite /RelCompFun => h1 <-; move: h1.
+set m1' := (transform_cost_i_cL_ transform_cost_i_iL_ (Sm.set m1 pc sl.1) _ _ _).
+set m2' := (transform_cost_i_cL_ transform_cost_i_iL_ (Sm.set m2 pc sl.1) _ _ _).
+move=> h1.
+case: (hrec1 (Sm.set m1'.1 m1'.2 (bpath_b true sl)) (Sm.set m2'.1 m1'.2 (bpath_b true sl)) 
+                (bpath_b false sl,0) m1'.2.+1).
++ by rewrite h1.
+by rewrite /RelCompFun => -> ->.
+Qed.
+
+Global Instance transform_cost_eqfun : 
+  Proper (Sm.ext_eq ==> eq ==> eq ==> eq ==> RelationPairs.RelProd Sm.ext_eq eq) 
+      (transform_cost_i_cL_ transform_cost_i_iL_).
+Proof. by move=> m1 m2 h1 sl _ <- tl _ <- pc _ <-; case transform_cost_eqfun_and => _; apply. Qed.
+
+Lemma sincr_merge p c1 c2 : 
+  Sm.ext_eq (Sm.sincr p (Sm.merge c1 c2)) (Sm.merge (Sm.sincr p c1) (Sm.sincr p c2)).
+Proof. by move=> pc; rewrite /Sm.sincr !(mergeP, mapP); case: Sm.get => *; case: Sm.get. Qed.
+
+Lemma sprefix_merge p c1 c2 : 
+  Sm.ext_eq (Sm.sprefix p (Sm.merge c1 c2)) (Sm.merge (Sm.sprefix p c1) (Sm.sprefix p c2)).
+Proof. by move=> pc; rewrite /Sm.sprefix !(mergeP, mapP); case: Sm.get => *; case: Sm.get. Qed.
+
+Lemma sprefix_incr p k c : 
+  Sm.ext_eq (Sm.sprefix p (Sm.incr k c)) (Sm.incr k (Sm.sprefix p c)).
+Proof. by move=> pc; rewrite /Sm.sprefix !(incrP, mapP); case: ifP => //; case: Sm.get. Qed.
+
+Lemma sincr_incr p k c : 
+  Sm.ext_eq (Sm.sincr p (Sm.incr k c)) (Sm.incr k (Sm.sincr p c)).
+Proof. move=> pc; rewrite /Sm.sincr !(incrP, mapP); case: ifP => //; case: Sm.get. Qed.
+
+Lemma incr_comp k1 k2 m : 
+  Sm.ext_eq (Sm.incr k1 (Sm.incr k2 m)) (Sm.incr (k2 + k1) m).
+Proof.
+  move=> pc; rewrite !incrP; case: leqP => hle.
+  + by rewrite leq_subRL // (addnC k2) subnDA.
+  by case: leqP => // /(leq_trans (leq_trans hle (leq_addl k2 k1))); rewrite ltnn.
+Qed.
+
+Lemma sincr_comp k1 k2 m : 
+  Sm.ext_eq (Sm.sincr k1 (Sm.sincr k2 m)) (Sm.sincr (k2 + k1) m).
+Proof. by move=> pc; rewrite /Sm.sincr !mapP; case: Sm.get => //= sl; rewrite incr_bpath_comp. Qed.
+
+Lemma mergeA m1 m2 m3 : 
+  Sm.ext_eq (Sm.merge m1 (Sm.merge m2 m3)) (Sm.merge (Sm.merge m1 m2) m3).
+Proof. by move=> pc; rewrite !mergeP; do 3!case: Sm.get => //=. Qed.
+
+Lemma set_merge_single m pc sl: 
+  Sm.ext_eq (Sm.set m pc sl) (Sm.merge m (Sm.incr pc (Sm.sprefix sl (Sm.single 0)))).
+Proof.
+  move=> pc1; rewrite setP mergeP incrP /Sm.sprefix mapP singleP.
+  case: eqP => [-> | hne]; first by rewrite leqnn subnn eqxx; case: Sm.get.
+  case: leqP; last by case: Sm.get.
+  rewrite subn_eq0 => hle1; case: leqP => hle2; last by case: Sm.get.
+  by elim: hne; apply/eqP; rewrite eqn_leq hle1.
+Qed.
+
+Lemma sincr_single k p : Sm.ext_eq (Sm.sincr k (Sm.single p)) (Sm.single p).
+Proof. by move=> pc; rewrite /Sm.sincr mapP singleP; case: ifP. Qed.
+
+Lemma sincr0 m : Sm.ext_eq (Sm.sincr 0 m) m.
+Proof. 
+  move=> pc; rewrite /Sm.sincr mapP; case: Sm.get => //= sl.
+  by rewrite /incr_bpath; case: (lastP sl) => //= ? [??]; rewrite rev_rcons catrevE revK addn0 cats1 /=.
+Qed.
+
+Lemma sprefix_sincr_sprefix sl k b m : 
+  Sm.ext_eq (Sm.sprefix sl (Sm.sincr k (Sm.sprefix (bpath_b b path0) m)))
+            (Sm.sprefix (bpath_b b (sl,k)) m).
+Proof.
+  move=> pc; rewrite /Sm.sprefix /Sm.sincr /bpath_b !mapP; case: Sm.get => //= sl'.
+  by rewrite /incr_bpath /prefix_bpath /= rev_cat /= catrevE revK -catA.
+Qed.
+
+Lemma single_incr p : Sm.ext_eq (Sm.single p) (Sm.incr p (Sm.single 0)).
+Proof.  
+  move=> pc; rewrite incrP !singleP.
+  case: eqP => [-> | hne]; first by rewrite leqnn subnn eqxx.  
+  case: leqP => //.
+  rewrite subn_eq0 => hle1; case: leqP => hle2 //.
+  by elim: hne; apply/eqP; rewrite eqn_leq hle2.
+Qed.
+
+Lemma incr0m m : Sm.ext_eq (Sm.incr 0 m) m.
+Proof. by move=> pc; rewrite incrP leq0n subn0. Qed.
+
+Definition sm_rw := (sincr_merge, incr_merge, sprefix_merge, sprefix_incr, sincr_incr, incr_comp, sincr_comp,
+                       set_merge_single, sincr_single, sincr0, sprefix_sincr_sprefix, incr0m).
+
+Definition add_rw := (addnA, addn1, addn2, addn3, addn4, addnS, addSnnS, addn0).
+
+Lemma transform_cost_il_same m sl lt pc : 
+  (Sm.ext_eq * eq)%signature 
+    (transform_cost_i_cL_ transform_cost_i_iL_ m sl lt pc)
+    (Sm.merge m (Sm.incr pc (Sm.sprefix sl.1 (Sm.sincr sl.2 (transform_cost_i_cL transform_cost_i_iL lt)))),
+      get_linear_size_C lt + pc).
+Proof.
+  apply (leak_c_il_tr_ind 
+   (P := fun lt => forall m sl pc,
+     (Sm.ext_eq * eq)%signature 
+        (transform_cost_i_iL_ m sl lt pc)
+        (Sm.merge m (Sm.incr pc (Sm.sprefix sl.1 (Sm.sincr sl.2 (transform_cost_i_iL lt)))),
+         get_linear_size lt + pc))
+   (Q := fun lt => forall m sl pc,
+     (Sm.ext_eq * eq)%signature 
+        (transform_cost_i_cL_ transform_cost_i_iL_ m sl lt pc)
+        (Sm.merge m (Sm.incr pc (Sm.sprefix sl.1 (Sm.sincr sl.2 (transform_cost_i_cL transform_cost_i_iL lt)))),
+         get_linear_size_C lt + pc))) => /= {m sl pc lt}.
++ by move=> m sl pc; rewrite add0n sincr_empty sprefix_empty incr_empty mergem0.
++ move=> lti lt hreci hrec m sl pc.
+  rewrite (hreci m sl pc) /= hrec addnA !sm_rw (addnC (get_linear_size lti) (get_linear_size_C _)).
+  by rewrite mergeA.
++ by move=> *; rewrite sm_rw.
++ by move=> *; rewrite sm_rw.
++ move=> _ lti hrec m sl pc; rewrite /transform_cost_i_cL_extra_ /transform_cost_i_cL_extra. 
+  by rewrite hrec !sm_rw /= !mergeA (single_incr (get_linear_size_C _)) !sm_rw -/get_linear_size_C -addnS -addnA.
++ move=> _ lti hrec m sl pc ; rewrite /transform_cost_i_cL_extra_ /transform_cost_i_cL_extra. 
+  by rewrite hrec !sm_rw /= !mergeA (single_incr (get_linear_size_C _)) !sm_rw -/get_linear_size_C -addnS -addnA.
++ move=> _ lt1 lt2 hrec1 hrec2 m sl pc; rewrite /transform_cost_i_cL_extra_ /transform_cost_i_cL_extra. 
+  rewrite hrec2 /= hrec1 /= !sm_rw !mergeA !add_rw -/get_linear_size_C.
+  by rewrite !(single_incr (get_linear_size_C _)) !sm_rw !add_rw. 
++ move=> a lti hrec m sl pc; rewrite /transform_cost_i_cL_extra_ /transform_cost_i_cL_extra.
+  rewrite hrec /= !sm_rw !add_rw !mergeA.
+  have -> : Sm.ext_eq (match a with Align => Sm.set m pc sl.1 | NoAlign => m end)
+                      (Sm.merge m (Sm.incr pc (Sm.sprefix sl.1 (Sm.sincr sl.2
+                          (match a with Align => Sm.single 0 | NoAlign => Sm.empty end))))).
+  + case: a=> *; first by rewrite set_merge_single sincr_single.
+    by rewrite sincr_empty sprefix_empty incr_empty mergem0.
+  rewrite !sm_rw add0n !mergeA.
+  by rewrite (single_incr (get_align_size _)) (single_incr (get_linear_size_C _)) !sm_rw !add_rw.
++ by move=> lti hrec m sl pc; rewrite hrec /= !sm_rw.
+move=> a lt1 lt2 hrec1 hrec2 m sl pc; rewrite /transform_cost_i_cL_extra_ /transform_cost_i_cL_extra.
+rewrite hrec2 /= hrec1 /= !sm_rw.
+by rewrite !mergeA !(single_incr (get_linear_size_C _)) !sm_rw !add_rw.
+Qed.
+
 (* ----------------------------------------------------------------- *)
 
 Fixpoint compose_passes start (trs: seq (seq (funname * cost.Sm.t))) fn := 
@@ -1596,6 +1800,9 @@ Proof.
   by apply/(cost.leqc_trans h)/Sm.interp_mono.
 Qed.
 
+Lemma sprefix0m m : Sm.ext_eq (Sm.sprefix [::] m) m.
+Proof. by move=> pc; rewrite /Sm.sprefix mapP; case: Sm.get => //= sc; rewrite /prefix_bpath cats0. Qed.
+
 Lemma transform_costs_l_ok lts stk fn sl: 
   (leak_WF_rec fn stk lts.1 sl /\
    leak_is_WF (odflt [::] (assoc lts.2 fn)) (leak_compile stk lts.1 (fn,sl))) ->
@@ -1603,28 +1810,41 @@ Lemma transform_costs_l_ok lts stk fn sl:
   forall ms, transform_costs_l lts = Some ms ->
   leqc (lcost 0 tl).1 (Sm.linterp (enter_cost_c cost_i [::] sl) (ms fn)).
 Proof.
-Admitted.
-(*
   case: lts => lts ltl /=.
   rewrite /transform_costs_l.
   case: ifP => //.
   case: lts => [ | lt lts] /=.
   + move=> _ [] _ hwf ms [<-].
     rewrite /leak_compile_prog /=.
-    have -> := trasnform_cost_il_ok stk hwf.
-    by rewrite assoc_map; case: assoc => //= ?; apply leqcc.
+    have := transform_cost_il_same Sm.empty ([::],0) (odflt [::] (assoc ltl fn)) 0.
+    rewrite incr0m /= merge0m sincr0 sprefix0m.
+    case; rewrite /RelCompFun /= => h1 _. 
+    have := transform_cost_il_ok stk hwf; rewrite -h1 => ->.
+    rewrite /transform_cost_. 
+    rewrite (assoc_map (fun lt => (transform_cost_i_cL_ transform_cost_i_iL_ Sm.empty ([::], 0) lt 0).1)).
+    by case: assoc => //= ?; apply leqcc.
   move=> /andP []/andP [] hwf1 hu1 hall [] [] hWF1 hWF2 hWFl ms [<-].
   rewrite /leak_compile_prog /=.
-  have -> := trasnform_cost_il_ok stk hWFl.
+  have -> := transform_cost_il_ok stk hWFl.
   rewrite Sm.linterp_compose.
   have <- : 
     odflt Sm.empty (assoc [seq (tlf.1, transform_cost_i_cL transform_cost_i_iL tlf.2) | tlf <- ltl] fn) = 
     transform_cost_i_cL transform_cost_i_iL (odflt [::] (assoc ltl fn)).
   + by rewrite assoc_map; case: assoc.
+  have <- : 
+    Sm.ext_eq 
+      (odflt Sm.empty (assoc (transform_cost_ ltl) fn))
+      (odflt Sm.empty (assoc [seq (tlf.1, transform_cost_i_cL transform_cost_i_iL tlf.2) | tlf <- ltl] fn)).
+  + have := transform_cost_il_same Sm.empty ([::],0) (odflt [::] (assoc ltl fn)) 0.
+    rewrite incr0m /= merge0m sincr0 sprefix0m.
+    case; rewrite /RelCompFun /= => h1 _. 
+    rewrite /transform_cost_ assoc_map.
+    rewrite (assoc_map (fun lt => (transform_cost_i_cL_ transform_cost_i_iL_ Sm.empty ([::], 0) lt 0).1)).
+    case: assoc h1 => //=.
   apply Sm.linterp_mono.
   apply (@compose_passes_ok fn sl stk lt [::] lts hall hWF2).
   apply (transform_p_ok hwf1 hu1 stk hWF1).
 Qed.
-*)
+
 End Proofs.
 
