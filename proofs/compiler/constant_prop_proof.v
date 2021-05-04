@@ -1334,37 +1334,6 @@ Proof.
 Qed.
 
 
-Lemma s_ifPl s ty e e1 e2 v l:
-let e' := (s_if ty e e1 e2).1 in
-let t := (s_if ty e e1 e2).2 in
-sem_pexpr gd s (Pif ty e e1 e2)  = ok (v, l) ->
-exists v', sem_pexpr gd s e' = ok (v', (trans_sem t (v, l)).2) /\
-value_uincl (trans_sem t (v, l)).1 v'.
-Proof.
-rewrite /s_if /=. rewrite /trans_sem. t_xrbindP.
-move=> [yv yl] He h0 Hb. case: is_boolP He.
-move=> a. case: a.
-- move=> He [yv1 yl1] He1 [yv2 yl2] He2.
-  move=> h6 Ht h8 Ht' <- <- /=.
-  exists yv1. split. auto.
-  rewrite /sem_pexpr in He.
-  case: He => He1' He2'. rewrite -He1' in Hb.
-  rewrite /= in Hb. case: Hb => <-.
-  by move : (value_uincl_truncate_val Ht). auto.
-- move=> He [yv1 yl1] He1 [yv2 yl2] He2.
-  move=> h6 Ht h8 Ht' <- Hl. rewrite He2 /=.
-  rewrite /= in Hl. rewrite -Hl.
-  exists yv2. split. auto.
-  rewrite /sem_pexpr in He.
-  case: He => He1' He2'. rewrite -He1' in Hb.
-  rewrite /= in Hb. case: Hb => <-.
-  by move : (value_uincl_truncate_val Ht').
-- move=> e0 He0 [yv1 yl1] He1 [yv2 yl2] He2 h6 Ht h8 Ht' <- <- /=.
-  rewrite He0 /=. rewrite Hb /=. rewrite He1 /=.
-  rewrite He2 /=. rewrite Ht /=. rewrite Ht' /=.
-  by exists (if h0 then h6 else h8).
-Qed.
-
 Definition vconst c :=
   match c with
   | Cbool b => Vbool b
@@ -2389,7 +2358,4 @@ Local Lemma Hwhile_false : sem_Ind_while_false p Pc Pi_r.
     by exists vres'. 
   Qed.
 
-End PROOF.  
-
-
-
+End PROOF.

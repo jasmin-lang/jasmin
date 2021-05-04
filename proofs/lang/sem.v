@@ -909,7 +909,4 @@ Proof.
   case: t z => //= s' w'.
 Qed.
 
-Definition sem_call_noleak f mem va mem' vr :=
- exists l, sem_call f mem va l mem' vr.
-
 End SEM.
