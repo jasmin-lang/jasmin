@@ -10,6 +10,8 @@ Import sem psem x86_sem.
 Import compiler compiler_util x86_gen.
 Import cost.
 
+Unset Printing Implicit Defensive.
+
 (* Figure 8: Syntax of Leakages for Expressions *)
 Print leakage.leak_e.
 
