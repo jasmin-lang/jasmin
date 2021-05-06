@@ -205,7 +205,7 @@ Definition leak_ES (stk : pointer) (lte : leak_e_es_tr) (le : leak_e) : seq leak
   | LT_dsnd       => [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; le]
   end.  
 
-Inductive leak_e_i_tr :=
+Variant leak_e_i_tr :=
   | LT_iconditionl : leak_e_tr -> leak_e_i_tr (* lower condition transformer *)
   | LT_iemptyl : leak_e_i_tr.
 
@@ -221,8 +221,8 @@ Inductive leak_es_i_tr :=
   | LT_imul4 : leak_es_i_tr
   | LT_iemptysl : leak_es_i_tr.
 
-Inductive leak_i_tr_single := 
- | LT_ilmov2_ 
+Variant leak_i_tr_single :=
+ | LT_ilmov2_
  | LT_ilmov3_
  | LT_ilmov4_
  | LT_ild_
@@ -238,7 +238,7 @@ Inductive leak_i_tr_single :=
  | LT_illt_ of leak_e_es_tr.
 
 
-Inductive leak_i_tr_double :=
+Variant leak_i_tr_double :=
  | LT_ilmov1_
  | LT_ildcn_.
 
