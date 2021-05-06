@@ -1,7 +1,9 @@
 # --------------------------------------------------------------------
 Makefile
 MANIFEST
+coqword.nix
 default.nix
+README.md
 
 # Proofs
 proofs/Makefile
@@ -23,7 +25,6 @@ compiler/Makefile
 compiler/jasmin.mlpack.in
 compiler/myocamlbuild.ml
 compiler/_tags
-compiler/opam
 compiler/CIL/.keep
 compiler/config/tests.config
 
@@ -38,3 +39,8 @@ find:compiler/examples:*.mil
 # Scripts
 scripts/install-sh
 scripts/distribution
+
+# Leakage Transformers
+find:experiment/*
+find:runtime-cost/*
+find:compiler/tests/cost/*
