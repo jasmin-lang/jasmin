@@ -31,23 +31,12 @@ stdenv.mkDerivation rec {
   installFlags = [ "PREFIX=$(out)" ];
 }; in
 
-let jasmin-ct = jasmin.overrideAttrs (_: {
-  name = "jasmin-ct-0.1.0";
-  src = fetchFromGitLab {
-    owner = "vbgl";
-    repo = "jasmin";
-    rev = "2d78c8e8d2b6ec89d96dd00d1d549711f7ed8f38";
-    sha256 = "1kjwqycx120wlps1bg55dqzf0l2gvqimn67df7k0cpmf89698lbb";
-  };
-}); in
-
-
 stdenv.mkDerivation {
-name = "env";
-JASMIN_REF = jasmin;
-JASMIN_CT = jasmin-ct;
-buildInputs = [
-  hyperfine
-];
+  name = "env";
+  JASMIN_REF = "${jasmin}/bin";
+  JASMIN_CT = "../compiler";
+  buildInputs = [
+    hyperfine
+  ];
 
 }
