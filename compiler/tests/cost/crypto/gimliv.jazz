@@ -151,7 +151,7 @@ fn gimli1(reg u64 state) {
 }
 
 export
-fn gimli(reg u64 state) {
+fn gimli_avx2(reg u64 state) {
   reg u128 x, y, z;
 
   x = (u128)[state + 16 * 0];

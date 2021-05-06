@@ -1,0 +1,6 @@
+export
+fn blake2b_stub(
+  reg u64 hash hashlen,
+  reg u64 perso,
+  reg u64 data length
+) {}

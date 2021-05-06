@@ -236,7 +236,7 @@ fn bashFP(reg u256[6] w) -> reg u256[6] {
 
 /* ---------------------------------------------------------------- */
 export
-fn bashF0(reg u64 addr) {
+fn bashF0_avx2(reg u64 addr) {
   reg u256[6] w;
   reg u256 t;
   inline int i;

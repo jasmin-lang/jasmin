@@ -1,0 +1,1 @@
+export fn poly1305_stub(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k) {}

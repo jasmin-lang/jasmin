@@ -1,0 +1,3 @@
+export
+fn bashF0_stub(reg u64 addr) {
+}

@@ -189,3 +189,7 @@ fn xxhash(reg u64 data len seed) -> reg u64 {
 
   return hash;
 }
+
+export fn xxhash_stub(reg u64 data len seed) {
+}
+
