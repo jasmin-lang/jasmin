@@ -36,7 +36,7 @@ let range_in_slice (lo, hi) s =
   let (u, v) = s.range in
   if u + hi <= v
   then { s with range = u + lo, u + hi }
-  else hierror "range_in_slice: range not included"
+  else hierror "range [%a[ overflows slice %a" pp_range (lo, hi) pp_slice s
 
 let range_of_var x =
   0, size_of x.v_ty
