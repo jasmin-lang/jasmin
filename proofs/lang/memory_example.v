@@ -101,41 +101,6 @@ Proof.
   by rewrite add_0 Z.add_0_r.
 Qed.
 
-(*
-Lemma sub_add_small_R (p q: pointer) n :
-  0 <= n <= wunsigned q →
-  sub p (add q (-n)) = sub p q + n.
-Proof.
-  rewrite !(subE, addE) => n_range.
-  rewrite GRing.opprD GRing.addrA wrepr_opp GRing.opprK.
-  rewrite wunsigned_add_if wunsigned_sub_if.
-  have hp := wunsigned_range p; have hq := wunsigned_range q.
-  rewrite wunsigned_repr_small; last by Psatz.lia.
-  case: ZleP; case: ZltP => //.
-Psatz.lia.
-wunsigned p - wunsigned q + n >= 0
-wunsigned p >= wunsigned q - n.
-wunsigned p
-  rewrite wunsigned_add; first ring.
-  have := wunsigned_range q.
-  Psatz.lia.
-Qed.
-*)
-(*
-Lemma sub_le (a b p: pointer) :
-  wunsigned a <= wunsigned b ↔ sub p b <= sub p a.
-Proof.
-  rewrite !subE !wunsigned_sub_if.
-  move: (wunsigned_range p) (wunsigned_range a) (wunsigned_range b) => hp ha hb.
-  case: ZleP;case: ZleP => *.
-Psatz.lia. 
-split. Psatz.lia. 
-admit.
-admit.
-Psatz.lia. 
-Qed.
-*)
-
 Lemma top_stack_after_alloc_bounded p ws sz :
   0 <= sz <= wunsigned p →
   wunsigned p - wunsigned (top_stack_after_alloc p ws sz) <= sz + wsize_size ws.
