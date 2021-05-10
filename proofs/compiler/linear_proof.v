@@ -73,6 +73,27 @@ Proof.
   lia.
 Qed.
 
+Lemma wunsigned_top_stack_after_aligned_alloc m e m' :
+  (0 <= sf_stk_sz e →
+   0 <= sf_stk_extra_sz e →
+   stack_frame_allocation_size e < wbase Uptr →
+   is_align (top_stack m) (sf_align e) →
+   alloc_stack m (sf_align e) (sf_stk_sz e) (sf_stk_extra_sz e) = ok m' →
+  wunsigned (top_stack m) = wunsigned (top_stack m') + stack_frame_allocation_size e)%Z.
+Proof.
+  move => sz_pos extra_pos sf_noovf sp_align ok_m'.
+  rewrite (alloc_stack_top_stack ok_m') (top_stack_after_aligned_alloc _ sp_align) -/(stack_frame_allocation_size _) wrepr_opp wunsigned_sub.
+  - lia.
+  have sf_pos : (0 <= stack_frame_allocation_size e)%Z.
+  - rewrite /stack_frame_allocation_size.
+    have := round_ws_range (sf_align e) (sf_stk_sz e + sf_stk_extra_sz e).
+    lia.
+  assert (top_stack_range := wunsigned_range (top_stack m)).
+  split; last lia.
+  rewrite Z.le_0_sub.
+  exact: (aligned_alloc_no_overflow sz_pos extra_pos sf_noovf sp_align ok_m').
+Qed.
+
 Local Open Scope seq_scope.
 
 Lemma all_has {T} (p q: pred T) (s: seq T) :
@@ -2133,8 +2154,18 @@ Section PROOF.
         assert (root_range := wunsigned_range (stack_root m1')).
         have A := alloc_stackP ok_m1'.
         have top_range := ass_above_limit A.
+        have top_stackE := wunsigned_top_stack_after_aligned_alloc stk_sz_pos stk_extra_pos sf_noovf sp_aligned ok_m1'.
         have rastack_no_overflow : (0 <= wunsigned (top_stack m1') + rastack)%Z ∧ (wunsigned (top_stack m1') + rastack + wsize_size Uptr <= wunsigned (stack_root m1'))%Z.
-        * admit.
+        * assert (top_stack_range := wunsigned_range (top_stack m1')).
+          assert (old_top_stack_range := wunsigned_range (top_stack (emem s1))).
+          have sf_large : (8 <= stack_frame_allocation_size (f_extra fd))%Z.
+          - move: (stack_frame_allocation_size _) rastack_h; change (wsize_size _) with 8%Z => s; lia.
+          split; first lia.
+          rewrite (alloc_stack_top_stack ok_m1') top_stack_after_aligned_alloc // wrepr_opp.
+          rewrite -/(stack_frame_allocation_size _) wunsigned_sub; last first.
+          - split; last lia.
+            rewrite top_stackE; move: (stack_frame_allocation_size _) => n; lia.
+          admit.
         have -> : read m2 (top_stack m1' + wrepr U64 rastack)%R U64 = read m1 (top_stack m1' + wrepr U64 rastack)%R U64.
         * apply: eq_read => i [] i_lo i_hi; symmetry; apply: H2.
           - rewrite addE !wunsigned_add; lia.
@@ -2142,12 +2173,11 @@ Section PROOF.
           apply/orP; case.
           - apply/negP; apply: stack_region_is_free.
             rewrite -/(top_stack _).
-            rewrite addE !wunsigned_add; split; try lia.
-            admit. (* TODO: arithmetic *)
+            rewrite addE !wunsigned_add; lia.
           rewrite addE -GRing.addrA -wrepr_add !zify => - [] _.
           rewrite wunsigned_add; last lia.
           change (wsize_size U8) with 1%Z.
-          admit. (* TODO: idem *)
+          move: (sf_stk_sz _) rastack_lo => n; lia.
         rewrite (alloc_stack_top_stack ok_m1') top_stack_after_aligned_alloc // wrepr_opp ok_ra /= zero_extend_u.
         have := decode_encode_label (label_in_lprog p') (caller, lret).
         rewrite ok_retptr /= => -> /=.
