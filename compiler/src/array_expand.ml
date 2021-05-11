@@ -1,14 +1,23 @@
 (* Replace register array by register *)
+open Utils
 open Prog
 
 let check_not_pred pmsg pred msg v =
   if pred (L.unloc v)
-  then Utils.hierror "%a: variable %a is %s (%s)"
+  then hierror "%a: variable %a is %s (%s)"
       L.pp_loc (L.loc v)
       (Printer.pp_var ~debug:true) (L.unloc v)
       pmsg msg
 
 let check_not_reg_arr = check_not_pred "an array" is_reg_arr
+
+let get_reg tbl x i =
+  match Hv.find tbl x with
+  | r ->
+     if i < Array.length r then r.(i)
+     else hierror "get_reg: %a[%d] out of bounds" (Printer.pp_var ~debug:true) x i
+  | exception Not_found ->
+     hierror "get_reg: %a[%d] not found" (Printer.pp_var ~debug:true) x i
 
 let get_reg_arr tbl v e =
   let v_ = L.unloc v in
@@ -16,7 +25,7 @@ let get_reg_arr tbl v e =
   | Pconst i ->
     begin
       let i = B.to_int i in
-      try (Hv.find tbl v_).(i)
+      try get_reg tbl v_ i
       with Not_found -> assert false
     end
   | _        -> assert false
@@ -71,6 +80,24 @@ let arrexp_lv tbl lv =
 let arrexp_es  tbl = List.map (arrexp_e tbl)
 let arrexp_lvs tbl = List.map (arrexp_lv tbl)
 
+let arrexp_args tbl es =
+  let es = List.fold_left (fun es e ->
+               match e with
+               | Pvar x when is_reg_arr (L.unloc x.gv) ->
+                  begin match (L.unloc x.gv).v_ty with
+                  | Arr (_ws, n) ->
+                     let es = ref es in
+                     for i = 0 to n - 1 do
+                       let r = get_reg tbl (L.unloc x.gv) i in
+                       es := Pvar (gkvar (L.mk_loc (L.loc x.gv) r)) :: !es
+                     done;
+                     !es
+                  | _ -> assert false
+                  end
+               | _ -> e :: es
+             ) [] es in
+  List.rev es
+
 let rec arrexp_i tbl i =
   let i_desc =
     match i.i_desc with
@@ -81,17 +108,41 @@ let rec arrexp_i tbl i =
       Cfor(i, (d, arrexp_e tbl e1, arrexp_e tbl e2), arrexp_c tbl c)
     | Cwhile(a, c, e, c') ->
       Cwhile(a, arrexp_c tbl c, arrexp_e tbl e, arrexp_c tbl c')
-    | Ccall(ii,x,f,e) -> Ccall(ii, arrexp_lvs tbl x, f, arrexp_es tbl e)
+    | Ccall(ii,x,f,e) -> Ccall(ii, arrexp_lvs tbl x, f, arrexp_args tbl e)
   in
   { i with i_desc }
 
 and arrexp_c tbl c = List.map (arrexp_i tbl) c
 
+(** Expands function arguments (types & names) *)
+let arrexp_sig_args tbl (tys: int gty list) (xs : int gvar list) : int gty list * int gvar list =
+  let tys, xs =
+    List.fold_left2 (fun (tys, xs) ty x ->
+        match ty with
+        | Arr _ when x.v_kind = Reg Direct ->
+           begin match x.v_ty with
+           | Arr (ws, n) ->
+              let ty = Bty (U ws) in
+              let tys, xs = ref tys, ref xs in
+              for i = 0 to n - 1 do
+                let x = get_reg tbl x i in
+                tys := ty :: !tys;
+                xs := x :: !xs
+              done;
+              !tys, !xs
+           | _ -> hierror "arrexp_sig_args: type error"
+           end
+        | _ -> (ty :: tys, x :: xs)
+      ) ([], []) tys xs
+  in
+  List.rev tys, List.rev xs
+
 let arrexp_func fc =
-  List.iter (fun v -> check_not_reg_arr "function argument" (L.mk_loc L._dummy v)) fc.f_args;
   List.iter (check_not_reg_arr "function return") fc.f_ret;
   let tbl = init_tbl fc in
-  { fc with f_body = arrexp_c tbl fc.f_body }
+  let f_tyin, f_args = arrexp_sig_args tbl fc.f_tyin fc.f_args in
+  let f_body = arrexp_c tbl fc.f_body in
+  { fc with f_tyin ; f_args ; f_body }
 
 (* -------------------------------------------------------------- *)
 (* Perform stack allocation                                       *)
