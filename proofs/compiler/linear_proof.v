@@ -2165,7 +2165,12 @@ Section PROOF.
           rewrite -/(stack_frame_allocation_size _) wunsigned_sub; last first.
           - split; last lia.
             rewrite top_stackE; move: (stack_frame_allocation_size _) => n; lia.
-          admit.
+          rewrite A.(ass_root).
+          etransitivity; last exact: top_stack_below_root.
+          rewrite -/(top_stack (emem s1)).
+          move: stk_extra_pos rastack_lo rastack_h; clear.
+          change (wsize_size Uptr) with 8%Z.
+          move: (stack_frame_allocation_size _) => n; lia.
         have -> : read m2 (top_stack m1' + wrepr U64 rastack)%R U64 = read m1 (top_stack m1' + wrepr U64 rastack)%R U64.
         * apply: eq_read => i [] i_lo i_hi; symmetry; apply: H2.
           - rewrite addE !wunsigned_add; lia.

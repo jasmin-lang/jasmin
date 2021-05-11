@@ -558,8 +558,20 @@ Module MemoryI : MemoryT.
     Psatz.lia.
   Qed.
 
+  Lemma top_stack_below_root (m: mem) :
+    wunsigned (head (stk_root m) (stack_frames m)) <= wunsigned (stk_root m).
+    Proof.
+      have /andP[/footprint_of_valid_frames] := framesP m.
+      rewrite zify _top_stackE /top_stack.
+      move => fp_lo fp_hi.
+      have limit_range := wunsigned_range (stk_limit m).
+      rewrite wunsigned_add.
+      2: have := wunsigned_range (stk_root m).
+      all: Lia.lia.
+    Qed.
+
   Instance M : memory CM  :=
-    Memory stk_root stk_limit stack_frames alloc_stack free_stack init_mem stack_region_is_free.
+    Memory stk_root stk_limit stack_frames alloc_stack free_stack init_mem stack_region_is_free top_stack_below_root.
 
   Lemma top_stackE (m: mem) :
     memory_model.top_stack m = top_stack m.

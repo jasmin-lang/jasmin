@@ -505,9 +505,11 @@ Class memory (mem: Type) (CM: coreMem pointer mem) : Type :=
     ; init : seq (pointer * Z) → pointer → exec mem
 
     ; stack_region_is_free : ∀ (m: mem) (p: pointer), wunsigned (stack_limit m) <= wunsigned p < wunsigned (head (stack_root m) (frames m)) → ~~ validw m p U8
+    ; top_stack_below_root: ∀ (m: mem), wunsigned (head (stack_root m) (frames m)) <= wunsigned (stack_root m)
     }.
 
 Arguments Memory {mem CM} _ _ _ _ _ _ _.
+Arguments top_stack_below_root {mem CM} _.
 
 Definition top_stack {mem: Type} {CM: coreMem pointer mem} {M: memory CM} (m: mem) : pointer :=
   head (stack_root m) (frames m).
