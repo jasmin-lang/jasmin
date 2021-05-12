@@ -830,31 +830,34 @@ Section PROOF.
   move: (Hrm (add p'' i) (LE.wread8 v i) Hr'). move=> Hr''.
   by rewrite Hr' Hr''.
   Qed.
-  
-   Lemma mm_write : ∀ m1 m1' p s (w:word s) m2,
-   match_mem m1 m1' →
-   write m1 p w = ok m2 →
-   exists2 m2', write m1' p w = ok m2' & match_mem m2 m2'.
-   Proof.
-   move=> m1 m1' p'' sz w m2 Hm Hw.
-   case: Hm=> H1 H2 H3. have /validwP := (write_validw Hw).
-   move=> [] Ha Hi.
-   have /writeV : validw m1' p'' sz. apply /validwP. split=> //. move=> i Hi'.
-   move: (Hi i Hi')=> Hv. by move: (H2 (add p'' i) Hv). move=> Hw'.
-   move: (Hw' w). move=> [] m2' Hw''. exists m2'.
-   + by apply Hw''.
-   constructor.
-   (* read *)
-   + move=> p1 w1 Hr1. admit.
-   (* valid *)
-   + move=> p1 Hv. have Hv1 := (CoreMem.write_validw p1 U8 Hw).
-     have Hv2 := (CoreMem.write_validw p1 U8 Hw''). rewrite Hv2.
-     apply H2. by rewrite -Hv1.
-   (* stack *)
-   move=> p1 H. have Hv1 := (CoreMem.write_validw p1 U8 Hw).
-   have Hv2 := (CoreMem.write_validw p1 U8 Hw''). rewrite Hv2.
-   apply H3. admit.
-   Admitted.
+
+  Lemma mm_write : ∀ m1 m1' p s (w:word s) m2,
+  match_mem m1 m1' →
+  write m1 p w = ok m2 →
+  exists2 m2', write m1' p w = ok m2' & match_mem m2 m2'.
+  Proof.
+  move=> m1 m1' p'' sz w m2 Hm Hw.
+  case: Hm=> H1 H2 H3. have /validwP := (write_validw Hw).
+  move=> [] Ha Hi.
+  have /writeV : validw m1' p'' sz. apply /validwP. split=> //. move=> i Hi'.
+  move: (Hi i Hi')=> Hv. by move: (H2 (add p'' i) Hv). move=> Hw'.
+  move: (Hw' w). move=> [] m2' Hw''. exists m2'.
+  + by apply Hw''.
+  constructor.
+  (* read *) 
+  + move=> p1 w1 Hr2. have hr1:= write_read8 Hw p1. 
+    have hr2 := write_read8 Hw'' p1. move: Hr2. rewrite hr2 hr1 /=.
+    case: ifP=> // _. by apply H1. 
+  (* valid *)
+  + move=> p1 Hv. have Hv1 := (CoreMem.write_validw p1 U8 Hw).
+    have Hv2 := (CoreMem.write_validw p1 U8 Hw''). rewrite Hv2.
+    apply H2. by rewrite -Hv1.
+  (* stack *)
+  move=> p1 H. have Hv1 := (CoreMem.write_validw p1 U8 Hw).
+  have Hv2 := (CoreMem.write_validw p1 U8 Hw''). rewrite Hv2.
+  apply H3. have Hst := write_mem_stable Hw. case: Hst.
+  by move=> -> -> _.
+  Qed.
 
   Lemma mm_alloc : ∀ m1 m1' al sz es' m2,
   match_mem m1 m1' →
@@ -865,13 +868,9 @@ Section PROOF.
   have := alloc_stackP Ha. move=> [] Hvr Hve Hveq {Ha} Ha Hs' Hs'' Hsr Hsl Hf.
   constructor.
   (* read *)
-  + move=> p1 w1 Hr1. case Heq: (validw m1 p1 U8)=> //.
+  + move=> p1 w1 Hr1. case: (@idP (validw m1 p1 U8)).  case Heq: (validw m1 p1 U8)=> //. 
     + move: (Hvr p1 Heq)=> {Hvr} Hvr. move: (Hvm p1)=> {Hvm} Hvm. 
-      rewrite Hvr in Hvm. by apply Hvm.
-    move: (Hveq p1)=> {Hveq} Hveq. rewrite Heq /= in Hveq. 
-    apply Hvm. move: (Hve p1). unfold not. move=> {Hve} Hve.
-    rewrite Heq in Hve. have H : false-> False. move=> hf. inversion hf.
-    move: (Hve H)=> {Hve} Hve. rewrite Hr1 in Hve. rewrite Hveq in Hve.
+      rewrite Hvr in Hvm. move=> _. by apply Hvm.
     admit.
   (* valid *)
   + move=> p1 Hv1. apply Hrm. move: (Hveq p1)=> {Hveq} Hveq.
