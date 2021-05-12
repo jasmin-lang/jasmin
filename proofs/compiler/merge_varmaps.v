@@ -1,6 +1,6 @@
 (*
 *)
-Require Import psem.
+Require Import psem sem_one_varmap.
 Import Utf8.
 Import all_ssreflect.
 Import compiler_util.
@@ -33,10 +33,16 @@ Section WRITE1.
       match get_fundef (p_funcs p) fn with
       | None => Sv.empty
       | Some fd =>
-        match fd.(f_extra).(sf_return_address) with
-        | RAnone | RAstack _ => Sv.empty
-        | RAreg ra => Sv.singleton ra
-        end
+        Sv.union
+          match fd.(f_extra).(sf_return_address) with
+          | RAnone => sv_of_flags rflags
+          | RAreg ra => Sv.singleton ra
+          | RAstack _ => Sv.empty
+          end
+          match fd.(f_extra).(sf_save_stack) with
+          | SavedStackNone | SavedStackStk _ => Sv.empty
+          | SavedStackReg r => Sv.singleton r
+          end
       end in
     Sv.union (writefun fn) ra.
 
@@ -201,8 +207,12 @@ Section CHECK.
   Definition live_after_fd (fd: sfundef) : Sv.t :=
     set_of_var_i_seq Sv.empty fd.(f_res).
 
-  Definition magic_variables : Sv.t :=
-    Sv.add (vid p.(p_extra).(sp_rip)) (Sv.singleton (vid (string_of_register RSP))).
+  Let magic_variables : Sv.t :=
+    magic_variables p.
+
+  Let check_preserved_register fn W J name r :=
+    Let _ := assert (~~ Sv.mem r W) (Ferr_fun fn (Cerr_one_varmap ("the function writes its " ++ name))) in
+    assert (~~Sv.mem r J) (Ferr_fun fn (Cerr_one_varmap ("the function depends on its " ++ name))).
 
   Definition check_fd (ffd: sfun_decl) :=
     let: (fn, fd) := ffd in
@@ -217,13 +227,16 @@ Section CHECK.
                     (Ferr_fun fn (Cerr_one_varmap_free fn (Sv.elements I))) in
     Let _ := assert (var.disjoint (writefun_ra writefun fn) magic_variables)
                     (Ferr_fun fn (Cerr_one_varmap "the function writes to RSP or global-data")) in
+    let W := writefun fn in
     let e := fd.(f_extra) in
-    match e.(sf_return_address) with
-    | RAreg ra =>
-      Let _ := assert (~~Sv.mem ra (writefun fn)) (Ferr_fun fn (Cerr_one_varmap "the function writes its return address")) in
-      assert(~~Sv.mem ra J)  (Ferr_fun fn (Cerr_one_varmap "the function depends of its return address"))
-    | RAnone | RAstack _ => ok tt
-    end.
+    Let _  := if sf_save_stack e is SavedStackReg r then check_preserved_register fn W J "saved stack pointer" r else ok tt in
+    Let _ := match sf_return_address e with
+             | RAreg ra => check_preserved_register fn W J "return address" ra
+             | RAstack _ => ok tt
+             | RAnone => assert (all (λ x : var_i, if vtype x is sword _ then true else false ) (f_params fd))
+                                (Ferr_fun fn (Cerr_one_varmap "the export function has non-word arguments"))
+             end in
+    ok tt.
 
   Definition check_prog := mapM check_fd (p_funcs p).
 

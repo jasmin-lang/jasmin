@@ -73,6 +73,27 @@ Proof.
   lia.
 Qed.
 
+Lemma wunsigned_top_stack_after_aligned_alloc m e m' :
+  (0 <= sf_stk_sz e →
+   0 <= sf_stk_extra_sz e →
+   stack_frame_allocation_size e < wbase Uptr →
+   is_align (top_stack m) (sf_align e) →
+   alloc_stack m (sf_align e) (sf_stk_sz e) (sf_stk_extra_sz e) = ok m' →
+  wunsigned (top_stack m) = wunsigned (top_stack m') + stack_frame_allocation_size e)%Z.
+Proof.
+  move => sz_pos extra_pos sf_noovf sp_align ok_m'.
+  rewrite (alloc_stack_top_stack ok_m') (top_stack_after_aligned_alloc _ sp_align) -/(stack_frame_allocation_size _) wrepr_opp wunsigned_sub.
+  - lia.
+  have sf_pos : (0 <= stack_frame_allocation_size e)%Z.
+  - rewrite /stack_frame_allocation_size.
+    have := round_ws_range (sf_align e) (sf_stk_sz e + sf_stk_extra_sz e).
+    lia.
+  assert (top_stack_range := wunsigned_range (top_stack m)).
+  split; last lia.
+  rewrite Z.le_0_sub.
+  exact: (aligned_alloc_no_overflow sz_pos extra_pos sf_noovf sp_align ok_m').
+Qed.
+
 Local Open Scope seq_scope.
 
 Lemma all_has {T} (p q: pred T) (s: seq T) :
@@ -995,8 +1016,99 @@ Section PROOF.
     | _, _ => False
     end%vmap.
 
-  Variant ex2_5 (T1 T2: Type) (A B C D E : T1 → T2 → Prop) : Prop :=
-    Ex2_4 x1 x2 of A x1 x2 & B x1 x2 & C x1 x2 & D x1 x2 & E x1 x2.
+  (* Execution of linear programs preserve meta-data stored in the stack memory *)
+  Definition preserved_metadata (m m1 m2: mem) : Prop :=
+    ∀ p : pointer,
+      (wunsigned (top_stack m) <= wunsigned p < wunsigned (stack_root m))%Z →
+      ~~ validw m p U8 →
+      read m1 p U8 = read m2 p U8.
+
+  Instance preserved_metadata_equiv m : Equivalence (preserved_metadata m).
+  Proof.
+    split; first by [].
+    - by move => x y xy ptr r nv; rewrite xy.
+    move => x y z xy yz ptr r nv.
+    by rewrite xy; first exact: yz.
+  Qed.
+
+  Lemma preserved_metadataE (m m' m1 m2: mem) :
+    stack_stable m m' →
+    validw m =2 validw m' →
+    preserved_metadata m' m1 m2 →
+    preserved_metadata m m1 m2.
+  Proof.
+    move => ss e h ptr r nv.
+    apply: h.
+    - by rewrite -(ss_top_stack ss) -(ss_root ss).
+    by rewrite -e.
+  Qed.
+
+  Lemma write_lval_preserves_metadata x v v' s s' t t' :
+    write_lval [::] x v s = ok s' →
+    write_lval [::] x v' t = ok t' →
+    vm_uincl s t →
+    match_mem s t →
+    preserved_metadata (emem s) (emem t) (emem t').
+  Proof.
+    case: x.
+    - move => /= _ ty /write_noneP[] <- _ /write_noneP[] -> _; reflexivity.
+    - move => x /write_var_emem -> /write_var_emem ->; reflexivity.
+    - case: s t => m vm [] tv tvm /=.
+      move => sz x e ok_s' ok_t' X M.
+      move: ok_s' => /=; t_xrbindP => a xv ok_xv ok_a ofs ev ok_ev ok_ofs w ok_w m' ok_m' _{s'}.
+      move: ok_t' => /=.
+      have [ xv' -> /= xv_xv' ] := get_var_uincl X ok_xv.
+      rewrite (value_uincl_word xv_xv' ok_a) /=.
+      have /= ok_ev' := match_mem_sem_pexpr M ok_ev.
+      have /(_ _ X) := sem_pexpr_uincl _ ok_ev'.
+      case => ev' -> ev_ev' /=.
+      rewrite (value_uincl_word ev_ev' ok_ofs) /=.
+      t_xrbindP => w' ok_w' tm' ok_tm' <-{t'} /=.
+      move => ptr ptr_range /negP ptr_not_valid.
+      rewrite (writeP_neq ok_tm'); first reflexivity.
+      apply: disjoint_range_U8 => i i_range ?; subst ptr.
+      apply: ptr_not_valid.
+      rewrite -valid8_validw.
+      have /andP[ _ /allP ] := write_validw ok_m'.
+      apply.
+      rewrite in_ziota !zify; Lia.lia.
+    - move => aa sz x e; apply: on_arr_varP; t_xrbindP => ???????????????.
+      apply: on_arr_varP; t_xrbindP => ???????????????.
+      subst; reflexivity.
+    move => aa sz k x e; apply: on_arr_varP; t_xrbindP => ???????????????.
+    apply: on_arr_varP; t_xrbindP => ???????????????.
+    subst; reflexivity.
+  Qed.
+
+  Lemma write_lvals_preserves_metadata xs vs vs' s s' t t' :
+    List.Forall2 value_uincl vs vs' →
+    write_lvals [::] s xs vs = ok s' →
+    write_lvals [::] t xs vs' = ok t' →
+    vm_uincl s t →
+    match_mem s t →
+    preserved_metadata (emem s) (emem t) (emem t').
+  Proof.
+    move => h; elim: h xs s t => {vs vs'}.
+    - case => // ?? [] -> [] -> _ _; reflexivity.
+    move => v v' vs vs' v_v' vs_vs' ih [] // x xs s t /=.
+    apply: rbindP => s1 ok_s1 ok_s' ok_t' X M.
+    have [ vm ok_vm X' ] := write_uincl X v_v' ok_s1.
+    have [ m' ok_t1 M' ] := match_mem_write_lval M ok_vm.
+    move: ok_t'.
+    rewrite (surj_estate t) ok_t1 /= => ok_t'.
+    etransitivity.
+    - exact: write_lval_preserves_metadata ok_s1 ok_t1 X M.
+    apply: preserved_metadataE;
+      last apply: (ih _ _ _ ok_s' ok_t').
+    - exact: write_lval_stack_stable ok_s1.
+    - exact: write_lval_validw ok_s1.
+    - exact: X'.
+    exact: M'.
+  Qed.
+
+  (* ---------------------------------------------------- *)
+  Variant ex2_6 (T1 T2: Type) (A B C D E F : T1 → T2 → Prop) : Prop :=
+    Ex2_6 x1 x2 of A x1 x2 & B x1 x2 & C x1 x2 & D x1 x2 & E x1 x2 & F x1 x2.
 
   Let Pi (k: Sv.t) (s1: estate) (i: instr) (s2: estate) : Prop :=
     ∀ fn lbl,
@@ -1008,11 +1120,12 @@ Section PROOF.
        vm_uincl s1 vm1 →
        disjoint_labels lbl lbli P →
        is_linear_of fn (P ++ li ++ Q) →
-       ex2_5
+       ex2_6
        (λ m2 vm2, lsem p' (Lstate m1 vm1 fn (size P)) (Lstate m2 vm2 fn (size (P ++ li))))
        (λ _ vm2, vm1 = vm2 [\ k ])
        (λ _ vm2, wf_vm vm2)
        (λ _ vm2, vm_uincl s2 vm2)
+       (λ m2 _, preserved_metadata s1 m1 m2)
        (λ m2 _, match_mem s2 m2).
 
   Let Pi_r (ii: instr_info) (k: Sv.t) (s1: estate) (i: instr_r) (s2: estate) : Prop :=
@@ -1026,11 +1139,12 @@ Section PROOF.
        vm_uincl s1 vm1 →
        disjoint_labels lbl lbli P →
        is_linear_of fn (P ++ li ++ Q) →
-       ex2_5
+       ex2_6
        (λ m2 vm2, lsem p' (Lstate m1 vm1 fn (size P)) (Lstate m2 vm2 fn (size (P ++ li))))
        (λ _ vm2, vm1 = vm2 [\ Sv.union k (extra_free_registers_at extra_free_registers ii)])
        (λ _ vm2, wf_vm vm2)
        (λ _ vm2, vm_uincl s2 vm2)
+       (λ m2 _, preserved_metadata s1 m1 m2)
        (λ m2 _, match_mem s2 m2).
 
   Let Pc (k: Sv.t) (s1: estate) (c: cmd) (s2: estate) : Prop :=
@@ -1043,11 +1157,12 @@ Section PROOF.
        vm_uincl s1 vm1 →
        disjoint_labels lbl lblc P →
        is_linear_of fn (P ++ lc ++ Q) →
-       ex2_5
+       ex2_6
        (λ m2 vm2, lsem p' (Lstate m1 vm1 fn (size P)) (Lstate m2 vm2 fn (size (P ++ lc))))
        (λ _ vm2, vm1 = vm2 [\ k ])
        (λ _ vm2, wf_vm vm2)
        (λ _ vm2, vm_uincl s2 vm2)
+       (λ m2 _, preserved_metadata s1 m1 m2)
        (λ m2 _, match_mem s2 m2).
 
   Let Pfun (ii: instr_info) (k: Sv.t) (s1: estate) (fn: funname) (s2: estate) : Prop :=
@@ -1061,7 +1176,7 @@ Section PROOF.
       value_of_ra m1 vm1 ra lret →
       (* RSP points to the top of the stack according to the calling convention *)
       is_sp_for_call fn s1 sp →
-      ex2_5
+      ex2_6
       (λ m2 vm2,
       if lret is Some ((caller, lbl), _cbody, pc)
       then
@@ -1070,6 +1185,7 @@ Section PROOF.
       (λ _ vm2, vm1 = vm2 [\ Sv.union k (extra_free_registers_at extra_free_registers ii)])
       (λ _ vm2, wf_vm vm2)
       (λ _ vm2, vm_uincl s2.[var_of_register RSP <- ok (pword_of_word sp)] vm2)
+      (λ m2 _, preserved_metadata s1 m1 m2)
       (λ m2 _, match_mem s2 m2).
 
   Lemma label_in_lfundef fn body (lbl: label) :
@@ -1103,7 +1219,7 @@ Section PROOF.
     + apply: (disjoint_labels_wL _ Dc); exact: Lc.
     have C' : is_linear_of fn (P ++ li ++ lc ++ Q).
     + by move: C; rewrite !catA.
-    have [ m2 vm2 Ei Ki Wi Xi Mi ] := Si m1 vm1 P (lc ++ Q) Wc Mc Xc D C'.
+    have [ m2 vm2 Ei Ki Wi Xi Hi Mi ] := Si m1 vm1 P (lc ++ Q) Wc Mc Xc D C'.
     have Di : disjoint_labels lbl lblc (P ++ li).
     + apply: disjoint_labels_cat.
       * apply: (disjoint_labels_wH _ Dc); exact: Li.
@@ -1111,8 +1227,12 @@ Section PROOF.
     have Ci : is_linear_of fn ((P ++ li) ++ lc ++ Q).
     + by move: C; rewrite !catA.
     have [ m3 vm3 ] := Sc m2 vm2 (P ++ li) Q Wi Mi Xi Di Ci.
-    rewrite -!catA => E K W X M.
-    exists m3 vm3; [ | | exact: W | exact: X | exact: M ].
+    rewrite -!catA => E K W X H M.
+    exists m3 vm3; [ | | exact: W | exact: X | | exact: M ]; cycle 2.
+    + etransitivity; first exact: Hi.
+      apply: preserved_metadataE H.
+      + exact: sem_I_stack_stable exec_i.
+      exact: sem_I_validw_stable exec_i.
     + exact: lsem_trans Ei E.
     apply: vmap_eq_exceptT; apply: vmap_eq_exceptI.
     2: exact: Ki.
@@ -1138,12 +1258,13 @@ Section PROOF.
     have {S E} S := S E.
     have [ | {W M X} ] := S _ vm1 _ _ W M _ D C.
     - by apply: vm_uincl_trans; first exact: kill_extra_register_vm_uincl.
-    move => m2 vm2 E K W X M.
+    move => m2 vm2 E K W X H M.
     exists m2 vm2.
     - exact: E.
     - apply: vmap_eq_exceptI K; SvD.fsetdec.
     - exact: W.
     - exact: X.
+    - exact: preserved_metadataE H.
     exact: M.
   Qed.
 
@@ -1174,7 +1295,8 @@ Section PROOF.
     case/value_uinclE => [sz''] [w] [?]; subst v' => /andP[] hle' /eqP ?; subst w'.
     rewrite (zero_extend_idem _ hle) in ok_s2.
     have [ vm2 /(match_mem_write_lval M1) [ m2 ok_s2' M2 ] ok_vm2 ] := write_uincl X1 (value_uincl_refl _) ok_s2.
-    exists m2 vm2; [ | | | exact: ok_vm2 | exact: M2]; last first.
+    exists m2 vm2; [ | | | exact: ok_vm2 | | exact: M2]; last first.
+    + exact: write_lval_preserves_metadata ok_s2 ok_s2' X1 M1.
     + exact: wf_write_lval ok_s2'.
     + apply: vmap_eq_exceptI; first exact: SvP.MP.union_subset_1.
       by have := vrvP ok_s2'.
@@ -1201,7 +1323,8 @@ Section PROOF.
     have [ vs' /(match_mem_sem_pexprs M1) ok_vs' vs_vs' ] := sem_pexprs_uincl X1 ok_vs.
     have [ rs' [ ok_rs' rs_rs' ] ] := vuincl_exec_opn vs_vs' ok_rs.
     have [ vm2 /(match_mem_write_lvals M1) [ m2 ok_s2' M2 ] ok_vm2 ] := writes_uincl X1 rs_rs' ok_s2.
-    exists m2 vm2; [ | | | exact: ok_vm2 | exact: M2 ]; last first.
+    exists m2 vm2; [ | | | exact: ok_vm2 | | exact: M2 ]; last first.
+    + exact: write_lvals_preserves_metadata ok_s2 ok_s2' X1 M1.
     + exact: wf_write_lvals ok_s2'.
     + apply: vmap_eq_exceptI; first exact: SvP.MP.union_subset_1.
       by have := vrvsP ok_s2'.
@@ -1233,7 +1356,7 @@ Section PROOF.
       rewrite /next_lbl => - [L V].
       move => fr_undef m1 vm1 P Q W1 M1 X1 D C1.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
-      exists m1 vm1; [ | | exact: W1 | exact: X1 | exact: M1 ]; last by [].
+      exists m1 vm1; [ | | exact: W1 | exact: X1 | by [] | exact: M1 ]; last by [].
       apply: LSem_step.
       rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C1) /= /eval_instr /to_estate /li_i (eval_jumpE C1) /to_estate /= ok_e' /=.
       rewrite find_label_cat_hd; last by apply: D; lia.
@@ -1252,10 +1375,10 @@ Section PROOF.
       set Q' := MkLI ii (Llabel lbl) :: Q.
       have C' : is_linear_of fn (P' ++ lc1 ++ Q').
       - by move: C1; rewrite /P' /Q' -cats1 /= -!catA.
-      have {S} [ m2 vm2 E K2 W2 X2 M2 ] := S m1 vm1 P' Q' W1 M1 X1 D' C'.
+      have {S} [ m2 vm2 E K2 W2 X2 H2 M2 ] := S m1 vm1 P' Q' W1 M1 X1 D' C'.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
-      exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: M2 ].
+      exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
       2: exact: E.
       - by rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C1) /= /eval_instr /li_i (eval_jumpE C1) /to_estate /= (snot_spec ok_e') /= ok_e' /= /setpc /= addn0 /P' /Q' size_rcons.
@@ -1279,9 +1402,9 @@ Section PROOF.
     set Q' := {| li_ii := ii; li_i := Llabel (lbl + 1) |} :: Q.
     have C' : is_linear_of fn (P' ++ lc1 ++ Q').
     + by move: C; rewrite /P' /Q' /= -!catA /= -!catA.
-    have {E} [ m2 vm2 E K2 W2 X2 M2 ] := E m1 vm1 P' Q' W1 M1 X1 D' C'.
+    have {E} [ m2 vm2 E K2 W2 X2 H2 M2 ] := E m1 vm1 P' Q' W1 M1 X1 D' C'.
       have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
-    exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: M2 ].
+    exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
     apply: lsem_step; last apply: lsem_trans.
     2: exact: E.
     - rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i  (eval_jumpE C) /to_estate /= ok_e' /=.
@@ -1310,10 +1433,10 @@ Section PROOF.
       set Q' := MkLI ii (Llabel lbl) :: Q.
       have C' : is_linear_of fn (P' ++ lc2 ++ Q').
       - by move: C; rewrite /P' /Q' -cats1 /= -!catA.
-      have {S} [ m2 vm2 E K2 W2 X2 M2 ] := S m1 vm1 P' Q' W1 M1 X1 D' C'.
+      have {S} [ m2 vm2 E K2 W2 X2 H2 M2 ] := S m1 vm1 P' Q' W1 M1 X1 D' C'.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
-      exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: M2 ].
+      exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
       2: exact: E.
       - by rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= ok_e' /= /setpc /= addn0 /P' /Q' size_rcons.
@@ -1326,7 +1449,7 @@ Section PROOF.
       rewrite /next_lbl => - [L V].
       move => fr_undef m1 vm1 P Q W1 M1 X1 D C.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
-      exists m1 vm1; [ | | exact: W1 | exact: X1 | exact: M1 ]; last by [].
+      exists m1 vm1; [ | | exact: W1 | exact: X1 | by [] | exact: M1 ]; last by [].
       apply: LSem_step.
       rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= (snot_spec ok_e') /= ok_e' /=.
       rewrite find_label_cat_hd; last by apply: D; lia.
@@ -1349,9 +1472,9 @@ Section PROOF.
     set Q' := {| li_ii := ii; li_i := Lgoto (fn, (lbl + 1)%positive) |} :: {| li_ii := ii; li_i := Llabel lbl |} :: lc1 ++ [:: {| li_ii := ii; li_i := Llabel (lbl + 1) |}].
     have C' : is_linear_of fn (P' ++ lc2 ++ Q' ++ Q).
     + by move: C; rewrite /P' /Q' /= -cats1 /= -!catA /= -!catA.
-    have {E} [ m2 vm2 E K2 W2 X2 M2 ] := E m1 vm1 P' (Q' ++ Q) W1 M1 X1 D' C'.
+    have {E} [ m2 vm2 E K2 W2 X2 H2 M2 ] := E m1 vm1 P' (Q' ++ Q) W1 M1 X1 D' C'.
     have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
-    exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: M2 ].
+    exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
     apply: lsem_step; last apply: lsem_trans.
     2: exact: E.
     + rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= ok_e' /= /setpc /=.
@@ -1390,12 +1513,12 @@ Section PROOF.
     move => fr_undef m1 vm2 P Q W M X D C.
     move: chk_call => /=.
     case: ifP => // fn'_neq_fn.
-    case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => _ /assertP ok_ra _ /assertP ok_stk_sz _ /assertP ok_align _.
+    case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => _ /assertP ok_ra _ /assertP ok_align _.
     have := get_fundef_p' ok_fd'.
     set lfd' := linear_fd _ _ _ fd'.
     move => ok_lfd'.
     move: linear_eq; rewrite /= ok_fd' fn'_neq_fn.
-    move: (checked_prog ok_fd') => /=; t_xrbindP => - []; apply: add_finfoP => chk_body _ /assertP ok_to_save _ /assertP ok_save_stack _.
+    move: (checked_prog ok_fd') => /=; t_xrbindP => - []; apply: add_finfoP => chk_body _ /assertP ok_to_save _ /assertP ok_stk_sz _ /assertP ok_ret_addr _ /assertP ok_save_stack _.
     have ok_body' : is_linear_of fn' (lfd_body lfd').
     - by rewrite /is_linear_of; eauto.
     move: ih; rewrite /Pfun; move => /(_ _ _ _ _ _ _ _ _ _ ok_body') ih A.
@@ -1406,8 +1529,8 @@ Section PROOF.
       2: case: extra_free_registers => // ra.
       1-2: by case => _ <- _; rewrite /label_in_lcmd !pmap_cat /= !mem_cat inE eqxx !orbT.
     case ok_ptr: encode_label (encode_label_dom lbl_valid) => [ ptr | // ] _.
-    case/sem_callE: (exec_call) => ? m s' k'; rewrite ok_fd' => /Some_inj <- ra_sem sp_aligned T ok_m exec_cbody T' s2_eq.
-    case ra_eq: (sf_return_address _) ok_ra ra_sem sp_aligned A => [ // | ra | z ] ok_ra ra_sem sp_aligned /=.
+    case/sem_callE: (exec_call) => ? m s' k'; rewrite ok_fd' => /Some_inj <- ra_sem ok_ss sp_aligned T ok_m exec_cbody T' s2_eq.
+    case ra_eq: (sf_return_address _) ok_ra ok_ret_addr ra_sem sp_aligned A => [ // | ra | z ] ok_ra ok_ret_addr ra_sem sp_aligned /=.
     { (* Internal function, return address in register [ra]. *)
       have ok_ra_of : is_ra_of fn' (RAreg ra) by rewrite /is_ra_of; exists fd'; assumption.
       move: ih => /(_ _ _ _ _ _ _ _ _ ok_ra_of) ih.
@@ -1418,13 +1541,13 @@ Section PROOF.
         set vm := vm2.[ra <- pof_val (vtype ra) (Vword ptr)]%vmap.
         have {W} W : wf_vm vm.
         + rewrite /vm => x; rewrite Fv.setP; case: eqP => ?; last exact: W.
-          by subst; move/eqP: ok_ra => ->.
+          by subst; move/eqP: ok_ret_addr => ->.
         move: C.
         set P' := P ++ _.
         move => C.
         have RA : value_of_ra m1 vm (RAreg ra) (Some ((fn, lbl), P', (size P).+2)).
         + rewrite /vm.
-          case: (ra) ok_ra => /= ? vra /eqP ->; split.
+          case: (ra) ok_ret_addr => /= ? vra /eqP ->; split.
           * exact: C.
           * rewrite /P' find_label_cat_hd; last by apply: D; rewrite /next_lbl; Psatz.lia.
             by rewrite /find_label /is_label /= eqxx /= addn2.
@@ -1439,13 +1562,13 @@ Section PROOF.
             by rewrite T.
           move => _; move: x.
           apply: set_vm_uincl; first exact: X.
-          by move/eqP: ok_ra => /= ->.
+          by move/eqP: ok_ret_addr => /= ->.
         have SP : is_sp_for_call fn' s1 (top_stack (emem s1)).
         + exists fd'; first exact: ok_fd'.
           move: sp_aligned.
           by rewrite /= ra_eq stack_size GRing.subr0.
         move: ih => /(_ _ XX SP).
-        case => m' vm' exec_fn' K' W' X' M' ?; subst k.
+        case => m' vm' exec_fn' K' W' X' H' M' ?; subst k.
         eexists; first apply: lsem_step; only 2: apply: lsem_step.
         + rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /= ok_ptr.
           rewrite /sem_sopn /= /write_var /= /to_estate /= /with_vm /= set_well_typed_var; last by apply/eqP.
@@ -1468,6 +1591,7 @@ Section PROOF.
           rewrite zero_extend_u => <- {rsp} /=.
           have := sem_one_varmap_facts.sem_call_valid_RSP exec_call.
           by rewrite /valid_RSP pword_of_wordE => ->.
+        + exact: H'.
         exact: M'.
       }
       (* Allocate a stack frame *)
@@ -1479,7 +1603,7 @@ Section PROOF.
       set vm  := vm2.[var_of_register RSP <- ok (pword_of_word top)].[ra <- pof_val (vtype ra) (Vword ptr)]%vmap.
       have {W} W : wf_vm vm.
       + rewrite /vm => x; rewrite Fv.setP; case: eqP => x_ra.
-        * by subst; move/eqP: ok_ra => ->.
+        * by subst; move/eqP: ok_ret_addr => ->.
         rewrite Fv.setP; case: eqP => x_rsp; first by subst.
         exact: W.
       move: C.
@@ -1487,7 +1611,7 @@ Section PROOF.
       move => C.
       have RA : value_of_ra m1 vm (RAreg ra) (Some ((fn, lbl), P', size P + 3)).
       + rewrite /vm.
-        case: (ra) ok_ra => /= ? vra /eqP ->; split.
+        case: (ra) ok_ret_addr => /= ? vra /eqP ->; split.
         * exact: C.
         * rewrite /P' find_label_cat_hd; last by apply: D; rewrite /next_lbl; Psatz.lia.
            by rewrite /find_label /is_label /= eqxx /=.
@@ -1498,14 +1622,14 @@ Section PROOF.
       + move => x; rewrite /vm Fv.setP; case: eqP => x_rsp.
         * by subst; rewrite Fv.setP_neq // Fv.setP_eq.
         rewrite !(@Fv.setP _ _ ra); case: eqP => x_ra.
-        * by subst; move/eqP: ok_ra => ->.
+        * by subst; move/eqP: ok_ret_addr => ->.
         rewrite Fv.setP_neq; last by apply/eqP.
         exact: X.
       have SP : is_sp_for_call fn' s1 top.
       + exists fd'; first exact: ok_fd'.
         by rewrite /= ra_eq.
       move: ih => /(_ _ XX SP).
-      case => m' vm' exec_fn' K' W' X' M' ?; subst k.
+      case => m' vm' exec_fn' K' W' X' H' M' ?; subst k.
       exists m' vm'.[var_of_register RSP <- ok (pword_of_word (top_stack (emem s1)))]%vmap.
       + apply: lsem_step; last apply: lsem_step; last apply: lsem_step; last apply: lsem_step_end.
         * rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /=.
@@ -1541,10 +1665,11 @@ Section PROOF.
         rewrite (Fv.setP vm'); case: eqP => x_rsp.
         * by subst; rewrite h.
         by move: (X' x); rewrite Fv.setP_neq //; apply/eqP.
+      + exact: H'.
       exact: M'.
     }
     (* Internal function, return address at offset [z]. *)
-    case fr_eq: extra_free_registers ok_ra => [ fr | // ] /andP[] /andP[] /andP[] /andP[] fr_well_typed fr_neq_RSP z_pos z_bound sz_noof [] ? ?; subst lbli li.
+    case fr_eq: extra_free_registers ok_ra ok_ret_addr => [ fr | // ] /andP[] fr_well_typed fr_neq_RSP /andP[] /andP[] z_pos z_bound sz_noof [] ? ?; subst lbli li.
     have ok_ra_of : is_ra_of fn' (RAstack z) by rewrite /is_ra_of; exists fd'; assumption.
     move: ih => /(_ _ _ _ _ _ _ _ _ ok_ra_of) ih.
     move: (X (var_of_register RSP)).
@@ -1620,7 +1745,7 @@ Section PROOF.
     + exists fd'; first exact: ok_fd'.
       rewrite /= ra_eq; split; first by [].
       by rewrite /sp top_stack_after_aligned_alloc // wrepr_opp.
-    move => /(_ SP) []m2' vm2' exec_fn' K' W' X' M'; subst k.
+    move => /(_ SP) []m2' vm2' exec_fn' K' W' X' H' M'; subst k.
     exists m2' (vm2'.[var_of_register RSP <- ok (pword_of_word (sp + wrepr U64 (stack_frame_allocation_size (f_extra fd'))))])%vmap.
     - apply: lsem_step; only 2: apply: lsem_step; only 3: apply: lsem_step; only 4: apply: lsem_step; only 5: apply: lsem_trans.
       + rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /= /sem_sopn /= /get_gvar /= /get_var vm2_rsp /=.
@@ -1664,6 +1789,30 @@ Section PROOF.
       + subst.
         by rewrite (sem_call_stack_stable exec_call).(ss_top_stack) s2_eq /= /set_RSP Fv.setP_eq.
       by move: (X' x); rewrite Fv.setP_neq //; apply/eqP.
+    - etransitivity; last exact: H'.
+      have := alloc_stackP ok_m.
+      clear - ok_m ok_m1' ok_stk_sz z_pos z_bound sz_noof sp_aligned => A a [] a_lo a_hi _.
+      have top_range := ass_above_limit A.
+      rewrite (writeP_neq ok_m1'); first reflexivity.
+      apply: disjoint_range_U8 => i i_range ? {ok_m1'}; subst a.
+      move: a_lo {a_hi}.
+      rewrite (top_stack_after_aligned_alloc _ sp_aligned) -/(stack_frame_allocation_size (f_extra fd')).
+      rewrite addE -!GRing.addrA.
+      move: z_bound.
+      rewrite !zify => z_bound.
+      replace (wrepr _ _ + _)%R with (- wrepr Uptr (stack_frame_allocation_size (f_extra fd') - z - i))%R; last first.
+      + by rewrite !wrepr_add !wrepr_opp; ssrring.ssring.
+      rewrite wunsigned_sub; first lia.
+      assert (X := wunsigned_range (top_stack (emem s1))).
+      split; last lia.
+      move: ok_stk_sz z_pos; rewrite !zify => ok_stk_sz sz_pos.
+      transitivity (wunsigned (top_stack (emem s1)) - (stack_frame_allocation_size (f_extra fd')))%Z; last lia.
+      rewrite Z.le_0_sub.
+      apply: aligned_alloc_no_overflow.
+      1-2: lia.
+      + by move: sz_noof; rewrite zify.
+      + exact: sp_aligned.
+      exact: ok_m.
     exact: M'.
   Qed.
 
@@ -1672,26 +1821,31 @@ Section PROOF.
     vm_uincl (set_RSP m vm) (set_RSP m vm').
   Proof. move => h; apply: (set_vm_uincl h); exact: pval_uincl_refl. Qed.
 
+  Lemma RSP_in_magic :
+    Sv.In (var_of_register RSP) (magic_variables p).
+  Proof. by rewrite Sv.add_spec Sv.singleton_spec; right. Qed.
+
   Local Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
   Proof.
-    red => ii k s1 _ fn fd m1' s2' ok_fd free_ra rsp_aligned valid_rsp ok_m1' exec_body ih valid_rsp' -> m1 vm1 _ ra lret sp W M X [] fd' ok_fd' <- [].
+    red => ii k s1 _ fn fd m1' s2' ok_fd free_ra ok_ss rsp_aligned valid_rsp ok_m1' exec_body ih valid_rsp' -> m1 vm1 _ ra lret sp W M X [] fd' ok_fd' <- [].
     rewrite ok_fd => _ /Some_inj <- ?; subst ra.
     rewrite /value_of_ra => ok_lret.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_sp.
-    move: (checked_prog ok_fd) => /=; t_xrbindP => - []; apply: add_finfoP => chk_body _ /assertP ok_to_save _ /assertP ok_save_stack _.
+    move: (checked_prog ok_fd) => /=; t_xrbindP => - []; apply: add_finfoP => chk_body _ /assertP ok_to_save _ /assertP ok_stk_sz _ /assertP ok_ret_addr _ /assertP ok_save_stack _.
     have ? : fd' = linear_fd p extra_free_registers fn fd.
     - move: linear_ok ok_fd ok_fd'; clear.
       rewrite /linear_prog; t_xrbindP => _ _ _ _ <- /=.
       by rewrite /get_fundef assoc_map2 => -> [].
     subst fd'.
     move: ok_fd'; rewrite /linear_fd.
-    case: sf_return_address free_ra ok_to_save ok_save_stack X ok_lret exec_body ih ok_sp =>
-      /= [ _ ok_to_save ok_save_stack | ra free_ra _ _ | rastack free_ra _ _ ] X ok_lret exec_body ih.
+    case: sf_return_address free_ra ok_to_save ok_save_stack ok_ret_addr X ok_lret exec_body ih ok_sp =>
+      /= [ _ ok_to_save ok_save_stack _ | ra free_ra _ _ ok_ret_addr | rastack free_ra _ _ ok_ret_addr ] X ok_lret exec_body ih.
     2-3: case => sp_aligned.
     all: move => ?; subst sp.
     - (* Export function *)
     { case: lret ok_lret => // _.
-      case: sf_save_stack ok_save_stack => [ | saved_rsp | stack_saved_rsp ] /= ok_save_stack ok_fd'.
+      case: sf_save_stack ok_save_stack ok_ss exec_body ih =>
+      [ | saved_rsp | stack_saved_rsp ] /= ok_save_stack ok_ss exec_body ih ok_fd'.
       + (* No need to save RSP *)
       { have {ih} := ih fn xH.
         rewrite /checked_c ok_fd chk_body => /(_ erefl).
@@ -1705,12 +1859,23 @@ Section PROOF.
           rewrite Memory.top_stack_after_aligned_alloc.
           2: exact: is_align8.
           by rewrite stk_sz_0 stk_extra_sz_0 -addE add_0.
-        have X' : vm_uincl (set_RSP m1' s1) vm1.
+        have X' : vm_uincl (set_RSP m1' (kill_flags s1 rflags)) vm1.
         + rewrite /set_RSP top_stack_preserved.
-          exact: X.
+          apply: vm_uincl_trans X.
+          apply: set_vm_uincl; last exact: eval_uincl_refl.
+          exact: kill_flags_uincl.
         have {E} [m2 vm2] := E m1 vm1 [::] [::] W M' X' (λ _ _, erefl) ok_body.
-        rewrite /= => E K2 W2 X2 M2.
-        eexists m2 _; [ exact: E | | exact: W2 | | exact: mm_free M2 ].
+        rewrite /= => E K2 W2 X2 H2 M2.
+        eexists m2 _; [ exact: E | | exact: W2 | | | exact: mm_free M2 ]; cycle 2.
+        + move => a a_range /negbTE nv.
+          have A := alloc_stackP ok_m1'.
+          have [L] := ass_above_limit A.
+          rewrite stk_sz_0 => H.
+          apply: H2.
+          * rewrite (ass_root A); lia.
+          rewrite (ass_valid A) nv /= !zify => - [].
+          change (wsize_size U8) with 1%Z.
+          lia.
         + apply: vmap_eq_exceptI; last exact: K2.
           SvD.fsetdec.
         have S : stack_stable m1' s2'.
@@ -1719,12 +1884,167 @@ Section PROOF.
         by rewrite valid_rsp' -(ss_top_stack S) top_stack_preserved.
       }
       + (* RSP is saved into register “saved_rsp” *)
-      { admit. }
+      { have {ih} := ih fn xH.
+        rewrite /checked_c ok_fd chk_body => /(_ erefl).
+        move: ok_fd'.
+        case: saved_rsp ok_save_stack ok_ss exec_body => _ saved_stack /= /andP[] /eqP -> /eqP to_save_empty.
+        case/andP => /andP[] /eqP saved_stack_not_GD /eqP saved_stack_not_RSP /Sv_memP saved_stack_not_written.
+        move => exec_body.
+        rewrite linear_c_nil.
+        case: (linear_c fn) => lbl lbody /=.
+        rewrite -cat_cons.
+        set P := (X in X ++ lbody ++ _).
+        set Q := (X in lbody ++ X).
+        move => ok_fd' E.
+        have ok_body : is_linear_of fn (P ++ lbody ++ Q).
+        + by rewrite /is_linear_of ok_fd' /=; eauto.
+        have ok_rsp : get_var vm1 (var_of_register RSP) = ok (Vword (top_stack (emem s1))).
+        + move: (X (var_of_register RSP)). rewrite Fv.setP_eq /get_var /=.
+          by case: _.[_]%vmap => //= - [] sz w ? /pword_of_word_uincl[] /= ? -> {w}; subst.
+        set vm_save := vm1.[{| vtype := sword64; vname := saved_stack |} <- ok (pword_of_word (top_stack (emem s1)))]%vmap.
+        have : ∃ vm,
+              [/\
+               lsem p' {| lmem := m1 ; lvm := vm_save ; lfn := fn ; lpc := 1 |} {| lmem := m1 ; lvm := vm ; lfn := fn ; lpc := size (head {| li_ii := xH ; li_i := Lalign |} P :: allocate_stack_frame false xH (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))) + 0 |},
+               wf_vm vm,
+               vm = vm_save [\ Sv.singleton (var_of_register RSP) ] &
+               get_var vm (var_of_register RSP) = ok (Vword (top_stack (emem s1) - wrepr Uptr (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))))
+              ].
+        { move: ok_body; rewrite /P /allocate_stack_frame.
+          case: eqP => hsz ok_body.
+          * (* Nothing to allocate *)
+            exists vm_save; subst vm_save; split.
+            - rewrite addn0; exact: rt_refl.
+            - exact: wf_vm_set W.
+            - reflexivity.
+            by rewrite hsz wrepr0 GRing.subr0 get_var_set; case: eqP.
+          (* Subtract frame size *)
+          eexists; split.
+          - apply: rt_step.
+            rewrite /lsem1 /step.
+            move: ok_body.
+            rewrite /P -cat1s -catA -(addn0 1) => /find_instr_skip ->.
+            rewrite /= /eval_instr /= /sem_sopn /= /get_gvar /= get_var_set.
+            case: eqP => // _.
+            rewrite ok_rsp /= /of_estate /= !zero_extend_u pword_of_wordE.
+            reflexivity.
+          - do 2 apply: wf_vm_set.
+            exact: W.
+          - clear => x hx.
+            rewrite Fv.setP_neq //; apply/eqP.
+            SvD.fsetdec.
+          by rewrite get_var_set eqxx.
+        }
+        case => vm [] lexec_alloc ok_vm vm_old vm_rsp.
+        set rsp' := top_stack m1'.
+        set vm' := ((((((vm.[var_of_flag OF <- ok false]).[var_of_flag CF <- ok false]).[var_of_flag SF <- ok (SF_of_word rsp')]).[var_of_flag PF <- ok (PF_of_word rsp')]).[var_of_flag ZF <- ok (ZF_of_word rsp')]).[var_of_register RSP <- ok (pword_of_word rsp')])%vmap.
+        have wf_vm' : wf_vm vm'.
+        + repeat apply: wf_vm_set; exact: ok_vm.
+        have X' : vm_uincl (set_RSP m1' (kill_flags s1.[Var (sword Uptr) saved_stack <- undef_error]%vmap rflags)) vm'.
+        + rewrite /set_RSP /vm' => x.
+          change (v_var (vid (string_of_register RSP))) with (var_of_register RSP).
+          move: (X x) (W x).
+          rewrite !Fv.setP; case: eqP => x_rsp; first by subst.
+          rewrite kill_flagsE !inE !(eq_sym x).
+          do 5 (
+          case: eqP => ? ;
+          [ subst; rewrite ?orbT Fv.setP_neq //;
+            case: s1.[_]%vmap => // - [] //=;
+            case: _.[_]%vmap => // - [];
+            done
+          | ]).
+          rewrite vm_old; last by rewrite Sv.singleton_spec; exact: not_eq_sym.
+          rewrite /vm_save /=.
+          case: eqP => ?.
+          * subst; rewrite !Fv.setP_neq //.
+            case: s1.[_]%vmap => // ?.
+            by case: vm1.[_]%vmap.
+          rewrite !Fv.setP; case: eqP => ?; first by subst.
+          done.
+        have D : disjoint_labels 1 lbl P.
+        + move => lbl' _.
+          rewrite /P /= has_cat orbF /allocate_stack_frame.
+          by case: ifP.
+        move: E => /(_ m1 vm' P Q wf_vm' (mm_alloc M ok_m1') X' D ok_body).
+        case => m2 vm2.
+        rewrite /= !size_cat /= addn1.
+        move => E K2 W2 X2 H2 M2.
+        have saved_rsp : get_var vm2 (Var (sword Uptr) saved_stack) = ok (Vword (top_stack (emem s1))).
+        + rewrite /get_var -K2 // /vm' /=.
+          rewrite Fv.setP_neq; last by apply/eqP => - [] ?; subst.
+          repeat (rewrite Fv.setP_neq //).
+          rewrite vm_old; last by move => /SvD.F.singleton_iff [] ?; subst.
+          by rewrite /vm_save Fv.setP_eq.
+        eexists.
+        + apply: lsem_step.
+          * rewrite /lsem1 /step /find_instr ok_fd' /= /eval_instr /= /sem_sopn /= /get_gvar /= ok_rsp /=.
+            rewrite /of_estate /= zero_extend_u pword_of_wordE.
+            reflexivity.
+          apply: lsem_trans; first exact: lexec_alloc.
+          apply: lsem_step.
+          * rewrite /lsem1 /step.
+            move: (ok_body).
+            replace (P ++ lbody ++ Q) with ((head {| li_ii := xH ; li_i := Lalign |} P :: allocate_stack_frame false xH (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))) ++ [:: ensure_rsp_alignment xH (sf_align (f_extra fd)) ] ++ lbody ++ Q);
+              last by rewrite /P /= -catA.
+            move => /find_instr_skip -> /=.
+            Global Opaque Z.opp.
+            rewrite /eval_instr /= /sem_sopn /= /get_gvar /= vm_rsp /=.
+            rewrite /to_estate /with_vm /of_estate /=.
+            rewrite !zero_extend_u pword_of_wordE.
+            rewrite addn0.
+            reflexivity.
+          rewrite
+            -/(align_word (sf_align (f_extra fd)) _)
+            -wrepr_opp
+            -/(top_stack_after_alloc (top_stack (emem s1)) _ _)
+            -(alloc_stack_top_stack ok_m1').
+          apply: lsem_step_end; first exact: E.
+          rewrite /lsem1 /step.
+          replace (((size _).+1 + size _).+1) with (size (P ++ lbody) + 0);
+            last by rewrite /= !size_cat addn0 addn1.
+          move: (ok_body); rewrite catA => /find_instr_skip ->.
+          rewrite /= /eval_instr /= /sem_sopn /= /get_gvar /= saved_rsp /= /of_estate /=.
+          rewrite addn0 !size_cat !addn1 !addSn addnS /=.
+          rewrite pword_of_wordE.
+          reflexivity.
+        + clear - ok_rsp K2 vm_old.
+          move => x; rewrite !Sv.union_spec !Sv.add_spec Sv.singleton_spec SvD.F.empty_iff Fv.setP =>
+            /Decidable.not_or[] /Decidable.not_or[] x_not_k /Decidable.not_or[] x_not_flags x_not_saved_stack x_not_extra.
+          case: eqP => x_rsp.
+          * subst; move: ok_rsp; rewrite zero_extend_u /get_var.
+            case: _.[_]%vmap; last by case.
+            move => [] /= sz w hle /(@ok_inj _ _ _ _) /Vword_inj[] ?; subst => /= ->.
+            by rewrite pword_of_wordE.
+          rewrite -K2; last exact: x_not_k.
+          repeat (rewrite Fv.setP_neq; last by apply/eqP; intuition).
+          rewrite vm_old; last SvD.fsetdec.
+          rewrite Fv.setP_neq // eq_sym.
+          by apply/eqP.
+        + exact: wf_vm_set.
+        + move => x; rewrite Fv.setP; case: eqP => ?.
+          * by subst; rewrite Fv.setP_eq zero_extend_u.
+          rewrite Fv.setP_neq; last by apply/eqP.
+          rewrite /set_RSP Fv.setP_neq; last by apply/eqP.
+          done.
+        + move => a [] a_lo a_hi /negbTE nv.
+          have A := alloc_stackP ok_m1'.
+          have [L H] := ass_above_limit A.
+          apply: H2.
+          * rewrite (ass_root A).
+            split; last exact: a_hi.
+            etransitivity; last exact: a_lo.
+            suff : (0 <= sf_stk_sz (f_extra fd))%Z by lia.
+            by case/andP: ok_stk_sz => /lezP.
+          rewrite (ass_valid A) nv /= !zify => - [].
+          change (wsize_size U8) with 1%Z.
+          move: (sf_stk_sz _) H => n.
+          lia.
+        exact: mm_free.
+      }
       (* RSP is saved in stack at offset “stack_saved_rsp” *)
       { admit. }
     }
     - (* Internal function, return address in register “ra” *)
-    { case: ra X free_ra ok_lret exec_body ih => // -[] // [] // ra X /andP[] _ ra_notin_k.
+    { case: ra ok_ret_addr X free_ra ok_lret exec_body ih => // -[] // [] // ra ra_well_typed X /andP[] _ ra_notin_k.
       case: lret => // - [] [] [] caller lret cbody pc [] ok_cbody ok_pc [] retptr ok_retptr ok_ra exec_body ih.
       have {ih} := ih fn 2%positive.
       rewrite /checked_c ok_fd chk_body => /(_ erefl).
@@ -1735,7 +2055,7 @@ Section PROOF.
       move => ok_fd'.
       have ok_body : is_linear_of fn ([:: P ] ++ lbody ++ Q).
       + by rewrite /is_linear_of ok_fd'; eauto.
-      have X1 : vm_uincl (set_RSP m1' (s1.[{| vtype := sword64; vname := ra |} <- undef_error]))%vmap vm1.
+      have X1 : vm_uincl (set_RSP m1' (s1.[{| vtype := sword64; vname := ra |} <- undef_error])) vm1.
       + move => x; move: (X x).
         rewrite /set_RSP (alloc_stack_top_stack ok_m1').
         rewrite top_stack_after_aligned_alloc;
@@ -1744,8 +2064,21 @@ Section PROOF.
         exact.
       have D : disjoint_labels 2 lbl [:: P].
       + by move => q [A B]; rewrite /P /is_label /= orbF; apply/eqP => ?; subst; lia.
-      have {E} [ m2 vm2 E K2 W2 ok_vm2 M2 ] := E m1 vm1 [:: P] Q W (mm_alloc M ok_m1') X1 D ok_body.
-      eexists; [ | | exact: W2 | | exact: mm_free M2 ].
+      have {E} [ m2 vm2 E K2 W2 ok_vm2 H2 M2 ] := E m1 vm1 [:: P] Q W (mm_alloc M ok_m1') X1 D ok_body.
+      eexists; [ | | exact: W2 | | | exact: mm_free M2 ]; cycle 3.
+      + move => a [] a_lo a_hi /negbTE nv.
+        have A := alloc_stackP ok_m1'.
+        have [L H] := ass_above_limit A.
+        apply: H2.
+        * rewrite (ass_root A).
+          split; last exact: a_hi.
+          etransitivity; last exact: a_lo.
+          suff : (0 <= sf_stk_sz (f_extra fd))%Z by lia.
+          by case/andP: ok_stk_sz => /lezP.
+        rewrite (ass_valid A) nv /= !zify => - [].
+        change (wsize_size U8) with 1%Z.
+        move: (sf_stk_sz _) H => n.
+        lia.
       + apply: lsem_trans; first exact: E.
         apply: LSem_step.
         rewrite catA in ok_body.
@@ -1769,7 +2102,101 @@ Section PROOF.
       by rewrite wrepr_opp.
     }
     (* Internal function, return address in stack at offset “rastack” *)
-    { admit. }
+    { case: lret ok_lret => // - [] [] [] caller lret cbody pc [] ok_cbody ok_pc [] retptr ok_retptr [] rsp ok_rsp ok_ra.
+      have := X (var_of_register RSP).
+      rewrite Fv.setP_eq ok_rsp => /andP[] _ /eqP /=.
+      rewrite zero_extend_u => ?; subst rsp.
+      have {ih} := ih fn 2%positive.
+      rewrite /checked_c ok_fd chk_body => /(_ erefl).
+      rewrite (linear_c_nil _ _ _ _ _ [:: _ ]).
+      case: (linear_c fn) (valid_c fn (f_body fd) 2%positive) => lbl lbody ok_lbl /= E.
+      set P := (P in P :: lbody ++ _).
+      set Q := (Q in P :: lbody ++ Q).
+      move => ok_fd'.
+      have ok_body : is_linear_of fn ([:: P ] ++ lbody ++ Q).
+      + by rewrite /is_linear_of ok_fd'; eauto.
+      have X1 : vm_uincl (set_RSP m1' s1) vm1.
+      + move => x; move: (X x).
+        rewrite /set_RSP (alloc_stack_top_stack ok_m1').
+        rewrite top_stack_after_aligned_alloc;
+          last by exact: sp_aligned.
+        rewrite wrepr_opp -/(stack_frame_allocation_size fd.(f_extra)).
+        exact.
+      have D : disjoint_labels 2 lbl [:: P].
+      + by move => q [A B]; rewrite /P /is_label /= orbF; apply/eqP => ?; subst; lia.
+      have {E} [ m2 vm2 E K2 W2 ok_vm2 H2 M2 ] := E m1 vm1 [:: P] Q W (mm_alloc M ok_m1') X1 D ok_body.
+      eexists; [ | | exact: W2 | | | exact: mm_free M2 ]; cycle 3.
+      + move => a [] a_lo a_hi /negbTE nv.
+        have A := alloc_stackP ok_m1'.
+        have [L H] := ass_above_limit A.
+        apply: H2.
+        * rewrite (ass_root A).
+          split; last exact: a_hi.
+          etransitivity; last exact: a_lo.
+          suff : (0 <= sf_stk_sz (f_extra fd))%Z by lia.
+          by case/andP: ok_stk_sz => /lezP.
+        rewrite (ass_valid A) nv /= !zify => - [].
+        change (wsize_size U8) with 1%Z.
+        move: (sf_stk_sz _) H => n.
+        lia.
+      + apply: lsem_trans; first exact: E.
+        apply: LSem_step.
+        rewrite catA in ok_body.
+        rewrite /lsem1 /step -(addn0 (size ([:: P] ++ lbody))) (find_instr_skip ok_body) /= /eval_instr /= /get_gvar /= /get_var /=.
+        move: (ok_vm2 (var_of_register RSP)).
+        rewrite -(sem_preserved_RSP_GD exec_body); last exact: RSP_in_magic.
+        rewrite /= /set_RSP Fv.setP_eq /=.
+        case: vm2.[_]%vmap => // - [] ??? /pword_of_word_uincl /= [] ??; subst.
+        rewrite truncate_word_u /= zero_extend_u.
+        move: ok_ret_addr; rewrite !zify => - [] [] rastack_lo rastack_h sf_noovf.
+        move: ok_stk_sz; rewrite !zify => - [] stk_sz_pos stk_extra_pos.
+        assert (root_range := wunsigned_range (stack_root m1')).
+        have A := alloc_stackP ok_m1'.
+        have top_range := ass_above_limit A.
+        have top_stackE := wunsigned_top_stack_after_aligned_alloc stk_sz_pos stk_extra_pos sf_noovf sp_aligned ok_m1'.
+        have rastack_no_overflow : (0 <= wunsigned (top_stack m1') + rastack)%Z ∧ (wunsigned (top_stack m1') + rastack + wsize_size Uptr <= wunsigned (stack_root m1'))%Z.
+        * assert (top_stack_range := wunsigned_range (top_stack m1')).
+          assert (old_top_stack_range := wunsigned_range (top_stack (emem s1))).
+          have sf_large : (8 <= stack_frame_allocation_size (f_extra fd))%Z.
+          - move: (stack_frame_allocation_size _) rastack_h; change (wsize_size _) with 8%Z => s; lia.
+          split; first lia.
+          rewrite (alloc_stack_top_stack ok_m1') top_stack_after_aligned_alloc // wrepr_opp.
+          rewrite -/(stack_frame_allocation_size _) wunsigned_sub; last first.
+          - split; last lia.
+            rewrite top_stackE; move: (stack_frame_allocation_size _) => n; lia.
+          rewrite A.(ass_root).
+          etransitivity; last exact: top_stack_below_root.
+          rewrite -/(top_stack (emem s1)).
+          move: stk_extra_pos rastack_lo rastack_h; clear.
+          change (wsize_size Uptr) with 8%Z.
+          move: (stack_frame_allocation_size _) => n; lia.
+        have -> : read m2 (top_stack m1' + wrepr U64 rastack)%R U64 = read m1 (top_stack m1' + wrepr U64 rastack)%R U64.
+        * apply: eq_read => i [] i_lo i_hi; symmetry; apply: H2.
+          - rewrite addE !wunsigned_add; lia.
+          rewrite (Memory.alloc_stackP ok_m1').(ass_valid).
+          apply/orP; case.
+          - apply/negP; apply: stack_region_is_free.
+            rewrite -/(top_stack _).
+            rewrite addE !wunsigned_add; lia.
+          rewrite addE -GRing.addrA -wrepr_add !zify => - [] _.
+          rewrite wunsigned_add; last lia.
+          change (wsize_size U8) with 1%Z.
+          move: (sf_stk_sz _) rastack_lo => n; lia.
+        rewrite (alloc_stack_top_stack ok_m1') top_stack_after_aligned_alloc // wrepr_opp ok_ra /= zero_extend_u.
+        have := decode_encode_label (label_in_lprog p') (caller, lret).
+        rewrite ok_retptr /= => -> /=.
+        case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
+      + apply: vmap_eq_exceptI K2.
+        SvD.fsetdec.
+      move => ?; rewrite /set_RSP !Fv.setP; case: eqP => // ?; subst.
+      move: (ok_vm2 (var_of_register RSP)).
+      have S : stack_stable m1' s2'.
+      + exact: sem_one_varmap_facts.sem_stack_stable exec_body.
+      rewrite valid_rsp' -(ss_top_stack S) (alloc_stack_top_stack ok_m1').
+      rewrite top_stack_after_aligned_alloc;
+        last by exact: sp_aligned.
+      by rewrite wrepr_opp.
+    }
   Admitted.
 
   Lemma linear_fdP ii k s1 fn s2 :

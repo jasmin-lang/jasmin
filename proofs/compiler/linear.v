@@ -138,14 +138,10 @@ Section CHECK.
         let e := f_extra fd in
         Let _ := assert match sf_return_address e with
                         | RAnone => false
-                        | RAreg ra => vtype ra == sword Uptr
+                        | RAreg ra => true
                         | RAstack ofs => (if extra_free_registers ii is Some ra then (vtype ra == sword Uptr) && (ra != var_of_register RSP) else false)
-                                         && (sf_stk_sz e <=? ofs )%Z && (ofs + wsize_size Uptr <=? stack_frame_allocation_size e)%Z
-                                         && (stack_frame_allocation_size e <? wbase Uptr)%Z (* FIXME: this check seems redundant *)
                         end
           (ii, Cerr_one_varmap "nowhere to store the return address") in
-        Let _ := assert ((0 <=? sf_stk_sz e) && (0 <=? sf_stk_extra_sz e))%Z
-          (ii, Cerr_linear "assert false") in
         Let _ := assert (sf_align e <= stack_align)%CMP
           (ii, Cerr_linear "caller need alignment greater than callee") in
         ok tt
@@ -160,7 +156,22 @@ Section CHECK.
     let stack_align := e.(sf_align) in
     Let _ := add_finfo fn fn (check_c (check_i fn stack_align) fd.(f_body)) in
     Let _ := assert ((e.(sf_return_address) != RAnone) || (all (λ '(x, _), is_word_type x.(vtype) != None) e.(sf_to_save))) (Ferr_fun fn (Cerr_linear "bad to-save")) in
-    Let _ := assert ((sf_return_address e != RAnone) || (sf_save_stack e != SavedStackNone) || ((stack_align == U8) && (sf_stk_sz e == 0) && (sf_stk_extra_sz e == 0))) (Ferr_fun fn (Cerr_linear "bad save-stack")) in
+    Let _ := assert ((0 <=? sf_stk_sz e) && (0 <=? sf_stk_extra_sz e))%Z
+                    (Ferr_fun fn (Cerr_linear "bad stack size")) in
+    Let _ := assert match sf_return_address e with
+                    | RAnone => true
+                    | RAreg ra => vtype ra == sword Uptr
+                    | RAstack ofs => (sf_stk_sz e <=? ofs )%Z && (ofs + wsize_size Uptr <=? stack_frame_allocation_size e)%Z
+                                     && (stack_frame_allocation_size e <? wbase Uptr)%Z (* FIXME: this check seems redundant *)
+                    end
+                    (Ferr_fun fn (Cerr_linear "bad return-address")) in
+    Let _ := assert ((sf_return_address e != RAnone)
+                     || match sf_save_stack e with
+                        | SavedStackNone => (stack_align == U8) && (sf_stk_sz e == 0) && (sf_stk_extra_sz e == 0)
+                        | SavedStackReg r => (vtype r == sword Uptr) && (sf_to_save e == [::])
+                        | SavedStackStk _ => true (* TODO? *)
+                        end)
+                    (Ferr_fun fn (Cerr_linear "bad save-stack")) in
     ok tt.
 
   Definition check_prog := 
@@ -353,11 +364,10 @@ Definition linear_fd (fd: sfundef) :=
        | SavedStackNone => ([::], [::], 1%positive)
        | SavedStackReg x =>
          let r := VarI x xH in
-         (pop_to_save xH e.(sf_to_save) ++ [:: MkLI xH (Lopn [:: Lvar rspi ] (Ox86 (MOV Uptr)) [:: Pvar {| gv := r ; gs := Slocal |} ]) ],
+         ([:: MkLI xH (Lopn [:: Lvar rspi ] (Ox86 (MOV Uptr)) [:: Pvar {| gv := r ; gs := Slocal |} ]) ],
           [:: MkLI xH (Lopn [:: Lvar r ] (Ox86 (MOV Uptr)) [:: Pvar rspg ] ) ]
           ++ allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
-          ++ ensure_rsp_alignment xH e.(sf_align)
-          :: push_to_save xH e.(sf_to_save), (** FIXME: here to_save is always empty *)
+          ++ [:: ensure_rsp_alignment xH e.(sf_align) ],
           1%positive)
        | SavedStackStk ofs =>
          let rax := VarI (var_of_register RAX) xH in

@@ -123,6 +123,8 @@ Definition vmap0 : vmap :=
 Definition get_var (m:vmap) x :=
   on_vu (@pto_val (vtype x)) undef_error (m.[x]%vmap).
 
+Arguments get_var _%vmap_scope _.
+
 Definition get_gvar (gd: glob_decls) (vm: vmap) (x:gvar) :=
   if is_lvar x then get_var vm x.(gv)
   else get_global gd x.(gv).
@@ -160,6 +162,10 @@ Proof.
   + by rewrite /WArray.cast /= => ??; rewrite Z.leb_refl.
   by case => //= ?; case:ifP.
 Qed.
+
+Lemma get_var_set vm x v y :
+  get_var vm.[x <- ok v] y = if x == y then ok (pto_val v) else get_var vm y.
+Proof. by rewrite {1}/get_var Fv.setP; case: eqP => // ?; subst. Qed.
 
 Lemma get_var_set_var vm x v vm' y :
   set_var vm x v = ok vm' →
@@ -1559,7 +1565,7 @@ Definition eval_uincl (t1 t2:stype) (v1: exec (psem_t t1)) (v2: exec (psem_t t2)
 Definition vm_uincl (vm1 vm2:vmap) :=
   forall x, eval_uincl (vm1.[x])%vmap (vm2.[x])%vmap.
 
-Arguments vm_uincl _%vmap _%vmap.
+Arguments vm_uincl _%vmap_scope _%vmap_scope.
 
 Lemma val_uincl_refl t v: @val_uincl t t v v.
 Proof. by rewrite /val_uincl. Qed.
@@ -2678,15 +2684,22 @@ Section WF.
       | _, _ => false
       end.
 
+  Lemma wf_vm_set (vm: vmap) (x: var) (v: psem_t (vtype x)) :
+    wf_vm vm →
+    wf_vm vm.[x <- ok v]%vmap.
+  Proof.
+    move => h y; rewrite Fv.setP; case: eqP => x_y; first by subst.
+    exact: h.
+  Qed.
+
   Lemma wf_set_var x ve vm1 vm2 :
     wf_vm vm1 -> set_var vm1 x ve = ok vm2 -> wf_vm vm2.
   Proof.
     move=> Hwf;apply: set_varP => [v | _ ] ? <- /= z.
-    + case: (x =P z) => [ <- | /eqP Hne];first by rewrite Fv.setP_eq.
-      by rewrite Fv.setP_neq //;apply (Hwf z).
-    case: (x =P z) => [ <- | /eqP Hne].
-    + by rewrite Fv.setP_eq; case (vtype x).
-    by rewrite Fv.setP_neq //;apply (Hwf z).
+    + exact: wf_vm_set.
+    rewrite Fv.setP; case: eqP => x_z.
+    + by subst; case: (vtype z).
+    exact: Hwf.
   Qed.
 
   Lemma wf_write_var x ve s1 s2 :

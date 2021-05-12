@@ -223,7 +223,11 @@ let init_get x access ws e len =
 
 let arr_aligned access ws e = match access with
   | Warray_.AAscale  -> []
-  | Warray_.AAdirect -> [AlignedExpr (ws, e)]
+  | Warray_.AAdirect ->
+     begin match e with
+     | Papp1 (Oint_of_word U64, e) -> [AlignedExpr (ws, e)]
+     | _ -> [AlignedExpr (ws, e)]
+     end
 
 (*------------------------------------------------------------*)
 let safe_op2 e2 = function
