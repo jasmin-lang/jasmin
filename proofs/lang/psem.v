@@ -37,6 +37,8 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Local Open Scope Z_scope.
+Local Open Scope vmap.
+Local Open Scope seq_scope.
 
 (* ** Interpretation of types
  * -------------------------------------------------------------------- *)
@@ -1759,6 +1761,29 @@ Definition vmap_uincl_on (dom: Sv.t) : relation vmap :=
   λ vm1 vm2,
   ∀ x : var, Sv.In x dom → (eval_uincl vm1.[x] vm2.[x])%vmap.
 
+Notation "vm1 '<=[' s ']' vm2" := (vmap_uincl_on s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  <=[ s ]  '/'  vm2 ']'").
+
+Lemma vmap_uincl_onT vm2 X vm1 vm3 :
+  vm1 <=[X] vm2 -> vm2 <=[X] vm3 -> vm1 <=[X] vm3.
+Proof. move=> H1 H2 ? hin;apply: eval_uincl_trans (H1 _ hin) (H2 _ hin). Qed.
+
+Lemma vmap_uincl_onI s1 s2 vm1 vm2 : Sv.Subset s1 s2 -> vm1 <=[s2] vm2 -> vm1 <=[s1] vm2.
+Proof. move=> Hs Heq x Hin;apply Heq;SvD.fsetdec. Qed.
+
+Lemma vmap_uincl_on_refl X vm : vm <=[X] vm.
+Proof. done. Qed.
+
+Global Instance vmap_uincl_on_impl : Proper (Basics.flip Sv.Subset ==> eq ==> eq ==> Basics.impl)
+              vmap_uincl_on.
+Proof. by move=> s1 s2 H vm1 ? <- vm2 ? <-;apply: vmap_uincl_onI. Qed.
+
+Global Instance vmap_uincl_on_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) vmap_uincl_on.
+Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: vmap_uincl_onI;rewrite Heq. Qed.
+
+Lemma eq_on_uincl_on X vm1 vm2 : vm1 =[X] vm2 -> vm1 <=[X] vm2.
+Proof. by move=> H ? /H ->. Qed.
+
 Lemma eq_on_vmap_uincl_on dom vm1 vm2 :
   vm1 =[dom] vm2 →
   vmap_uincl_on dom vm1 vm2.
@@ -1768,18 +1793,6 @@ Lemma vm_uincl_vmap_uincl_on dom vm1 vm2 :
   vm_uincl vm1 vm2 →
   vmap_uincl_on dom vm1 vm2.
 Proof. by move => h x _; exact: h. Qed.
-
-Instance vmap_uincl_on_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) vmap_uincl_on.
-Proof. by move => d d' hd vm1 _ <- vm2 _ <-; split => h x hx; apply: h; rewrite ?hd // -hd. Qed.
-
-Lemma vmap_uincl_onI d d' vm1 vm2 :
-  Sv.Subset d d' →
-  vmap_uincl_on d' vm1 vm2 →
-  vmap_uincl_on d vm1 vm2.
-Proof. by move => hd h x hx; apply: h; SvD.fsetdec. Qed.
-
-Instance vmap_uincl_on_refl dom : Reflexive (vmap_uincl_on dom).
-Proof. by do 2 red. Qed.
 
 Instance vmap_uincl_on_trans dom : Transitive (vmap_uincl_on dom).
 Proof. move => x y z xy yz r hr; apply: (eval_uincl_trans (xy _ hr)); exact: yz. Qed.
@@ -2309,6 +2322,97 @@ Proof.
   + exact: vm_uincl_vmap_uincl_on hvm.
   by move => /= y hy; rewrite mem_set_of_var_i_seq map_f.
 Qed.
+
+(* can be merged with sem_pexpr_uincl_on *)
+Lemma sem_pexpr_uincl_on' gd s vm' vm m e v1 :
+  vm <=[read_e_rec s e] vm' ->
+  sem_pexpr gd {| emem := m; evm := vm |} e = ok v1 ->
+  exists2 v2 : value,
+               sem_pexpr gd {| emem := m; evm := vm' |} e = ok v2 & value_uincl v1 v2.
+  Proof.
+    move=> hsub.
+    pose vm1 : vmap :=
+      Fv.empty (fun (x:var) => if Sv.mem x (read_e_rec s e) then vm.[x] else vm'.[x]).
+    rewrite (@read_e_eq_on _ s vm1) /with_vm /=; last first.
+    + by move=> ? /Sv_memP; rewrite /vm1 Fv.get0 => ->.
+    have hle: vm_uincl vm1 vm'.
+    + by move=> ?;rewrite /vm1 Fv.get0;case:ifP => // /Sv_memP -/hsub.
+    by apply: sem_pexpr_uincl. 
+  Qed.
+
+(* can be merged with sem_pexprs_uincl_on *)
+Lemma sem_pexprs_uincl_on' gd es s m vm vm' vs1 :
+  vm <=[read_es_rec s es] vm'->
+  sem_pexprs gd (Estate m vm) es = ok vs1 ->
+  exists2 vs2,sem_pexprs gd (Estate m vm') es = ok vs2 &
+              List.Forall2 value_uincl vs1 vs2.
+  Proof.
+    move=> hsub.
+    pose vm1 : vmap :=
+      Fv.empty (fun (x:var) => if Sv.mem x (read_es_rec s es) then vm.[x] else vm'.[x]).
+    rewrite (@read_es_eq_on _ _ s _ vm1) /with_vm /=; last first.
+    + by move=> ? /Sv_memP; rewrite /vm1 Fv.get0 => ->.
+    have hle: vm_uincl vm1 vm'.
+    + by move=> ?;rewrite /vm1 Fv.get0;case:ifP => // /Sv_memP -/hsub.
+    by apply: sem_pexprs_uincl. 
+  Qed.
+
+(* can be merged with write_var_uincl_on *)
+Lemma write_var_uincl_on' X x v1 v2 s1 s2 vm1 :
+  value_uincl v1 v2 ->
+  write_var x v1 s1 = ok s2 ->
+  evm s1 <=[X]  vm1 ->
+  exists2 vm2 : vmap,evm s2 <=[Sv.add x X]  vm2 &
+                     write_var x v2 (with_vm s1 vm1) = ok (with_vm s2 vm2).
+  Proof.
+    move=> hu hw hsub;pose vm1' : vmap :=
+      Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
+    have heq_on :  evm s1 =[X] vm1'.
+    + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
+    have [vm2' [heq_on' ]]:= write_var_eq_on hw heq_on.
+    have: vm_uincl vm1' vm1.
+    + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
+    move=> H /(write_var_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu]; eexists; last reflexivity.
+    by move=> ? hin;rewrite heq_on'.
+  Qed.
+
+Lemma write_lval_uincl_on gd X x v1 v2 s1 s2 vm1 :
+  Sv.Subset (read_rv x) X ->
+  value_uincl v1 v2 ->
+  write_lval gd x v1 s1 = ok s2 ->
+  evm s1 <=[X]  vm1 ->
+  exists2 vm2 : vmap,evm s2 <=[Sv.union (vrv x) X]  vm2 &
+                     write_lval gd x v2 (with_vm s1 vm1) = ok (with_vm s2 vm2).
+  Proof.
+    move=> hsubset hu hw hsub;pose vm1' : vmap :=
+      Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
+    have heq_on :  evm s1 =[X] vm1'.
+    + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
+    have [vm2' [heq_on' ]]:= write_lval_eq_on hsubset hw heq_on.
+    have: vm_uincl vm1' vm1.
+    + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
+    move=> H /(write_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu];eexists; last reflexivity.
+    by move=> ? hin;rewrite heq_on'.
+  Qed.
+
+Lemma write_lvals_uincl_on gd X x v1 v2 s1 s2 vm1 :
+  Sv.Subset (read_rvs x) X ->
+  List.Forall2 value_uincl v1 v2 ->
+  write_lvals gd s1 x v1 = ok s2 ->
+  evm s1 <=[X]  vm1 ->
+  exists2 vm2 : vmap,evm s2 <=[Sv.union (vrvs x) X]  vm2 &
+                     write_lvals gd (with_vm s1 vm1) x v2 = ok (with_vm s2 vm2).
+  Proof.
+    move=> hsubset hu hw hsub;pose vm1' : vmap :=
+      Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
+    have heq_on :  evm s1 =[X] vm1'.
+    + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
+    have [vm2' [heq_on' ]]:= write_lvals_eq_on hsubset hw heq_on.
+    have: vm_uincl vm1' vm1.
+    + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
+    move=> H /(writes_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu]; eexists; last reflexivity.
+    by move=> ? hin;rewrite heq_on'.
+  Qed.
 
 Section UNDEFINCL.
 
