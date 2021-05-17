@@ -259,7 +259,7 @@ proof.
 qed.
 
 lemma to_uint_bits w : to_uint w = bs2int (bits w 0 size).
-proof. by rewrite to_uintE /w2bits /bits /= w2bitsE. qed.
+proof. by rewrite to_uintE /w2bits /bits /=. qed.
 
 (* -------------------------------------------------------------------- *)
 op zerow = zero.
@@ -1773,6 +1773,8 @@ abstract theory WT.
   op invw : t -> t.
 
   op (+) : t -> t -> t.
+  op [-] : t -> t. 
+  op ( * ) : t -> t -> t.
 
   op (`>>`) : t -> W8.t -> t.
   op (`|>>`) : t -> W8.t -> t.
@@ -2165,17 +2167,20 @@ abstract theory W_WS.
    op VPADD_'Ru'S (w1 : WB.t) (w2:WB.t) =
      map2 WS.(+) w1 w2.
 
-(*   op VPSUB_'Ru'S (w1 : WB.t) (w2:WB.t) =
-     map2 (fun (x y:WS.t) => x - y) w1 w2.
+   op VPSUB_'Ru'S (w1 : WB.t) (w2:WB.t) =
+     map2 (fun (x y:WS.t) => x + (- y)) w1 w2. 
 
    op VPMUL_'Ru'S (w1 : WB.t) (w2:WB.t) =
-     map2 WS.( * ) w1 w2. *)
+     map2 WS.( * ) w1 w2. 
 
    op VPSLL_'Ru'S (w : WB.t) (cnt : W8.t) =
      map (fun (w:WS.t) => w `<<` cnt) w.
 
    op VPSRL_'Ru'S (w : WB.t) (cnt : W8.t) =
      map (fun (w:WS.t) => w `>>` cnt) w.
+
+   op VPSRA_'Ru'S (w : WB.t) (cnt : W8.t) =
+     map (fun (w:WS.t) => w `|>>` cnt) w.
 
    op VPBROADCAST_'Ru'S (w: WS.t) =
      pack'R (map (fun i => w) (iota_ 0 r)).
@@ -2186,7 +2191,7 @@ abstract theory W_WS.
       map (fun w0 => WS.rol w0 i) w.
    proof.
      move=> hr;rewrite /VPSRL_'Ru'S /VPSLL_'Ru'S.
-     rewrite /map;apply wordP => j hj.
+     apply wordP => j hj.
      by rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft. 
    qed.
 
