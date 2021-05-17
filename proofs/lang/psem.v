@@ -1933,6 +1933,25 @@ Corollary sem_pexprs_uincl gd s1 vm2 es vs1 :
               List.Forall2 value_uincl vs1 vs2.
 Proof. move => /(@vm_uincl_vmap_uincl_on (read_es es)); exact: sem_pexprs_uincl_on. Qed.
 
+(* move to psem *)
+Lemma disjoint_unicl_on gd s r s1 s2 v:
+  disjoint s (vrv r) ->
+  write_lval gd r v s1 = ok s2 ->
+  s1.(evm) <=[s] s2.(evm).
+Proof.
+  move=> Hd /vrvP H z Hnin. rewrite (H z). done.
+  move:Hd;rewrite /disjoint /is_true Sv.is_empty_spec;SvD.fsetdec.
+Qed.
+
+Lemma disjoint_uincl_ons gd s r s1 s2 v:
+  disjoint s (vrvs r) ->
+  write_lvals gd s1 r v = ok s2 ->
+  s1.(evm) <=[s] s2.(evm).
+Proof.
+  move=> Hd /vrvsP H z Hnin. rewrite (H z). done.
+  move:Hd;rewrite /disjoint /is_true Sv.is_empty_spec;SvD.fsetdec.
+Qed.
+
 Lemma value_uincl_is_word v v' sz u :
   value_uincl v v' →
   is_word sz v = ok u →

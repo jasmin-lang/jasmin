@@ -160,49 +160,21 @@ Section PROOF.
     rewrite /with_vm /=. apply Hv''. apply Ht. apply Hw2.
   Qed.
 
-(* move to psem *)
-Lemma vrvP_var_uincl (x:var_i) v s1 s2 :
-  write_var x v s1 = ok s2 ->
-  s1.(evm) <=[Sv.add x Sv.empty] s2.(evm). 
-Proof.
-  rewrite /write_var;t_xrbindP => vm. Search _ set_var.
-  apply: set_varP=> [t | _]=> H <- <- z Hz;rewrite Fv.setP_neq //; apply /eqP.
-Admitted.
-
-(* move to psem *)
-Lemma disjoint_unicl_on gd s r s1 s2 v:
-  disjoint s (vrv r) ->
-  write_lval gd r v s1 = ok s2 ->
-  s1.(evm) <=[s] s2.(evm).
-Proof.
-  (*move=> Hd. Search _ write_lval.  /vrvP H z Hnin. apply H.
-  move:Hd;rewrite /disjoint /is_true Sv.is_empty_spec;SvD.fsetdec.*)
-Admitted.
-
-Lemma disjoint_uincl_ons gd s r s1 s2 v:
-  disjoint s (vrvs r) ->
-  write_lvals gd s1 r v = ok s2 ->
-  s1.(evm) <=[s] s2.(evm).
-Proof.
-  (*move=> Hd /vrvsP H z Hnin;apply H.
-  move:Hd;rewrite /disjoint /is_true Sv.is_empty_spec;SvD.fsetdec.*)
-Admitted.
-
   Local Lemma Hwrite_disj s1 s2 s x v:
     write_lval gd x v s1 = ok s2 ->
     disjoint s (vrv x) ->
     ~~ lv_write_mem x ->
-    evm s1 <=[s] evm s2 /\  emem s1 = emem s2.
+    evm s1 =[s] evm s2 /\  emem s1 = emem s2.
   Proof.
     move=> Hw Hdisj Hwmem; rewrite (lv_write_memP Hwmem Hw); split => //.
-    by apply: disjoint_unicl_on Hdisj Hw.
+    by apply: disjoint_eq_on Hdisj Hw.
   Qed.
 
   Local Lemma Hwrites_disj s1 s2 s x v:
     write_lvals gd s1 x v = ok s2 ->
     disjoint s (vrvs x) ->
     ~~ has lv_write_mem x ->
-    evm s1 <=[s] evm s2 /\ emem s1 = emem s2.
+    evm s1 =[s] evm s2 /\ emem s1 = emem s2.
   Proof.
     elim: x v s1 => [ | x xs Hrec] [ | v vs] //= s1.
     + by move=> [] <- H _; split=> //.
@@ -212,7 +184,7 @@ Admitted.
     + by move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec;SvD.fsetdec.
     move=> Hvm ->;have [] := (Hrec _ _ Hws _ Hnh).
     + by move: Hdisj;rewrite /disjoint /is_true !Sv.is_empty_spec;SvD.fsetdec.
-    move=> H1 H2; split=> //; apply : vmap_uincl_onT Hvm H1.
+    move=> H1 H2; split=> //; apply : eq_onT Hvm H1.
   Qed.
 
   Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
@@ -223,11 +195,10 @@ Admitted.
     + rewrite write_i_assgn => /andP [Hdisj Hwmem] Hwf vm1' Hvm.
       have /= := Hwrite_disj Hw Hdisj Hwmem. move=> [] Hvm1 <-.
       rewrite /with_vm /=; exists vm1' => /=;split; last by constructor.
-      admit.
-      (*by apply:eq_onT Hvm;apply eq_onS.*)
-    (*case: ifPn=> Hnop /=;last by apply: Hassgn_aux Hv htr Hw.
+      apply: vmap_uincl_onT Hvm. move=> z Hin. by rewrite (Hvm1 z).
+    case: ifPn=> Hnop /=;last by apply: Hassgn_aux Hv htr Hw.
     move=> Hwf vm1' Hvm.
-    have [-> Hs] : m1 = m2 /\ vm2 =v vm1.
+    have [-> Hs] : m1 = m2 /\ vm2 <=[s] vm1.
     + move: (check_nop_spec Hnop)=> {Hnop} [x0 [i1 [i2 [Hx He Hty]]]];subst x e.
       case: x0 Hty Hv Hw => ? xn0 /= <- Hv Hw.
       have ?: v' = v.
@@ -236,13 +207,13 @@ Admitted.
       move: Hw;rewrite /= /write_var/set_var /=.
       apply: on_vuP Hv => //= t Hx0 ?;subst v.
       rewrite pof_val_pto_val /= => -[<- <-]; split => // z.
-      by case: ({|vtype := ty;vname := xn0|} =P z) => [<-|/eqP Hne];rewrite ?Fv.setP_eq ?Fv.setP_neq.
-    eexists; split.
-    + apply: vmap_uincl_onT=> //.
-    + apply: eq_onT _ Hvm => //.
-    apply: Eskip.
-  Qed.*)
-  Admitted.
+      case: ({|vtype := ty;vname := xn0|} =P z) => [<-|/eqP Hne];
+      rewrite ?Fv.setP_eq ?Fv.setP_neq. move=> Hin /=. rewrite Hx0 /=. done.
+      move=> Hin /=. done. done.
+    eexists; split; last by exact: Eskip.
+    + apply: vmap_uincl_onT=> //.    
+    have Hvm' : vm2 <=[s]  vm1'. apply: vmap_uincl_onT. apply Hs. by apply Hvm. done.
+  Qed.
 
   Lemma check_nop_opn_spec (xs:lvals) (o:sopn) (es:pexprs): check_nop_opn xs o es ->
     exists x i1 sz i2,
@@ -287,53 +258,64 @@ Admitted.
     write_lvals gd s1 xs v = ok s2 ->
     wf_vm (evm s1) → ∀ vm1' : vmap,
     evm s1 <=[read_es_rec (read_rvs_rec (Sv.diff s0 (vrvs xs)) xs) es]  vm1' →
-    ∃ vm2' : vmap, evm s2 =[s0]  vm2' ∧
+    ∃ vm2' : vmap, evm s2 <=[s0]  vm2' ∧
        sem p' ev (with_vm s1 vm1') [:: MkI ii (Copn xs t o es)] (with_vm s2 vm2').
   Proof.
-    (*move=> /= Hexpr Hopn Hw Hwf vm1' Hvm.
+    move=> /= Hexpr Hopn Hw Hwf vm1' Hvm.
     move: Hvm; rewrite read_esE read_rvsE=> Hvm.
-    have [|vm2 [Hvm2 Hvm2']] := write_lvals_unicl_on _ Hw Hvm; first by SvD.fsetdec.
+    have Hv : List.Forall2 value_uincl v v. elim: (v). done. move=> a l Hv.
+    apply List.Forall2_cons. auto. done. 
+    have Hvm1 : Sv.Subset (read_rvs xs)
+     (Sv.union (read_es es) (Sv.union (Sv.diff s0 (vrvs xs)) (read_rvs xs))).
+    + by SvD.fsetdec.
+    have /= := write_lvals_uincl_on Hvm1 Hv Hw Hvm. move=> [vm2] Hvm2 Hw'.
     exists vm2; split.
-    + by apply: eq_onI Hvm2; SvD.fsetdec.
-    econstructor;last by constructor.
-    constructor; constructor; rewrite -eq_globs.
-    rewrite /sem_sopn -(@read_es_eq_on _ _ Sv.empty).
-    + by rewrite Hexpr /= Hopn.
-    by rewrite read_esE; apply: eq_onI Hvm;SvD.fsetdec.*)
-  Admitted.
+    + by apply: vmap_uincl_onI Hvm2; SvD.fsetdec.
+    econstructor; last by constructor.
+    constructor; constructor; rewrite -?eq_globs.
+    rewrite /sem_sopn /=.
+    have Hmem : s1 = {|emem := emem s1; evm := evm s1|}. by case: (s1).
+    rewrite Hmem in Hexpr.
+    have /sem_pexprs_uincl_on' -/(_ _ _ _ Hexpr) : evm s1 <=[read_es es] vm1'.
+    + by apply: vmap_uincl_onI Hvm;SvD.fsetdec.
+    move=> [vs'] Hexpr' Hv'. rewrite Hexpr' /=. have := vuincl_exec_opn_eq Hv' Hopn.
+    by move=> -> /=.
+  Qed.
 
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
   Proof.
-    (*move => s1 s2 t o xs es.
+    move => s1 s2 t o xs es.
     apply: rbindP=> v; apply: rbindP=> x0 Hexpr Hopn Hw.
     rewrite /Pi_r /= => ii s0.
     case: ifPn => _ /=; last by apply: Hopn_aux Hexpr Hopn Hw.
     case:ifPn => [ | _] /=.
     + move=> /andP [Hdisj Hnh] Hwf vm1' Heq;exists vm1'.
       case: s1 s2 Hw Hexpr Hwf Heq => m1 vm1 [m2 vm2] Hw _ Hwf /= Heq.
-      have [/= ? ->]:= Hwrites_disj Hw Hdisj Hnh; split; last by constructor.
-      by apply: eq_onT Heq;apply eq_onS.
+      have [/= H ->]:= Hwrites_disj Hw Hdisj Hnh; split; last by constructor.
+      apply: vmap_uincl_onT Heq. move=> z Hin. rewrite (H z). done. done.
     case:ifPn => [ | _ /=]; last by apply: Hopn_aux Hexpr Hopn Hw.
     move=> /check_nop_opn_spec [x [i1 [sz [i2 [? ho ?]]]]]; subst xs es=> /= Hwf vm1' Hvm.
     rewrite (surj_estate s1) (surj_estate s2) /with_vm /=.
-    have [ -> Hs ]: emem s1 = emem s2 ∧ evm s1 =v evm s2;
-      last by eexists; split; last exact: Eskip; apply: eq_onT _ Hvm.
-    case: x0 Hexpr Hopn => [ | vx] /=; first by t_xrbindP.
-    case; t_xrbindP => // vx' hgetx ? hs; subst vx'.
-    have ? : v = [::vx].
-    + case: ho hs => ->; rewrite /exec_sopn /=; t_xrbindP => v1 w1 /to_wordI [sz' [w' [hsz' ??]]]; subst vx w1.
-      + rewrite /sopn_sem /= /x86_MOV; t_xrbindP => ? /assertP ha ??; subst v1 v.
+    have [ -> Hs ]: emem s1 = emem s2 ∧ evm s2 <=[s0] evm s1.
+    + case: x0 Hexpr Hopn => [ | vx] /=; first by t_xrbindP.
+      case; t_xrbindP => // vx' hgetx ? hs; subst vx'.
+      have ? : v = [::vx].
+      + case: ho hs => ->; rewrite /exec_sopn /=; 
+        t_xrbindP => v1 w1 /to_wordI [sz' [w' [hsz' ??]]]; subst vx w1.
+        + rewrite /sopn_sem /= /x86_MOV; t_xrbindP => ? /assertP ha ??; subst v1 v.
+          have [sz'' /= [[? hle']]]:= get_var_word hgetx;subst sz''.
+          have ? := cmp_le_antisym hsz' hle'; subst sz'.
+          by rewrite zero_extend_u.
+        rewrite /sopn_sem /= /x86_VMOVDQU; t_xrbindP => ? /assertP ha ??; subst v1 v.
         have [sz'' /= [[? hle']]]:= get_var_word hgetx;subst sz''.
         have ? := cmp_le_antisym hsz' hle'; subst sz'.
         by rewrite zero_extend_u.
-      rewrite /sopn_sem /= /x86_VMOVDQU; t_xrbindP => ? /assertP ha ??; subst v1 v.
-      have [sz'' /= [[? hle']]]:= get_var_word hgetx;subst sz''.
-      have ? := cmp_le_antisym hsz' hle'; subst sz'.
-      by rewrite zero_extend_u.
-    subst v; move: Hw; rewrite /= /write_var; t_xrbindP => s2' vm2 hw ??; subst s2 s2'.
-    case: s1 Hwf Hvm hgetx hw => mem1 vm1 /= Hwf Hvm hgetx hw.
-    by have := set_get_word hgetx hw. *)
-  Admitted.
+      subst v; move: Hw; rewrite /= /write_var; t_xrbindP => s2' vm2 hw ??; subst s2 s2'.
+      case: s1 Hwf Hvm hgetx hw => mem1 vm1 /= Hwf Hvm hgetx hw.
+      have := set_get_word hgetx hw. move=> Heq; split=> //. move=> z Hin.
+      by rewrite (Heq z).
+    eexists; split; last exact: Eskip. by apply: vmap_uincl_onT Hvm.
+   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
@@ -498,12 +480,13 @@ Admitted.
   Proof.
     move=> s1 s1' s2 s3 i w ws c Hw Hsc Hc Hsfor Hfor sv0.
     case Heq: (dead_code_c (dead_code_i onfun) c sv0) => [[sv1 sc1]|] //= Hsub Hwf vm1' Hvm.
-    (*have [vm1'' [Hvm1''1 Hvm1''2]] := write_var_eq_on _ Hw Hvm.
+    have Hv : value_uincl w w. done.
+    have [vm1''] := write_var_uincl_on' Hv Hw Hvm. move=> Hvm1''1 Hvm1''2 .
     move: Hc=> /(_ sv0).
     rewrite Heq.
     have Hwf' := wf_write_var Hwf Hw.
     move=> /(_ Hwf' vm1'') [|vm2' [Hvm2'1 Hvm2'2]].
-    apply: eq_onI Hvm1''1; SvD.fsetdec.
+    apply: vmap_uincl_onI Hvm1''1; SvD.fsetdec.
     move: Hfor=> /(_ sv0).
     rewrite Heq.
     move=> /(_ _ _ vm2') [|||vm3' [Hvm3'1 Hvm3'2]] //.
@@ -512,8 +495,8 @@ Admitted.
     econstructor.
     exact: Hvm1''2.
     exact: Hvm2'2.
-    exact: Hvm3'2.*)
-  Admitted.
+    exact: Hvm3'2.
+  Qed.
 
   Lemma write_lvals_keep_only ii tokeep xs I O xs' s1 s2 vs vm1:
     check_keep_only ii xs tokeep O = ok (I, xs') ->
@@ -525,7 +508,7 @@ Admitted.
     elim: tokeep xs xs' I s1 vs vm1 => [ | b tokeep ih] [ | x xs] //= xs' I s1 [ | v vs] // vm1.
     + by move=> [??] [?] /= ?; subst O xs' s2; exists vm1.
     t_xrbindP => -[I1 xs1] hc; case: b.
-    + move=> [??] s1' hw hws heq; subst I xs'. Check write_lval_uincl_on.
+    + move=> [??] s1' hw hws heq; subst I xs'. 
       have hv : value_uincl v v. auto.
       have [] := write_lval_uincl_on _ hv hw heq.
       + by rewrite read_rvE; SvD.fsetdec.
@@ -536,9 +519,9 @@ Admitted.
     case:andP => //= -[hd hnmem] [??] s1' hw hws heqI; subst I1 xs1.
     have [heq1 hmem1]:= Hwrite_disj hw hd hnmem.
     have [|vm2 [heqO hws']]:= ih _ _ _ _ _ vm1 hc hws.
-    + apply: vmap_uincl_onT heqI. admit.
+    + apply: vmap_uincl_onT heqI. move=> z Hin. by rewrite (heq1 z).
     by rewrite /with_vm hmem1; exists vm2.
-  Admitted.
+  Qed.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
@@ -550,32 +533,36 @@ Admitted.
              ok (with_vm s2 vm2); first last.
     have Hmem : s1 = {|emem := emem s1; evm := evm s1|}. by case: (s1).
     rewrite Hmem in Hexpr.
-    have := sem_pexprs_uincl_on' Hvm Hexpr.
-    move=> [v] Hexpr' Hv.
+    have /sem_pexprs_uincl_on' -/(_ _ _ _ Hexpr) : evm s1 <=[read_es_rec I args] vm1'.
+    + by apply: vmap_uincl_onI Hvm; SvD.fsetdec. move=> [vs'] Hexpr' Hv.
     + exists vm2; split => //.
-      econstructor; constructor; econstructor;
-      rewrite -?eq_globs.
+      econstructor; constructor.
+      eapply Ecall;rewrite -?eq_globs.
       + apply Hexpr'.
-      + rewrite /with_vm /=. rewrite /Pfun in Hfun. 
-        have := sem_call_uincl Hv Hfun. move=> [] v' [] Hfun' Hv'. admit.
-      exact: Hvm2'.
+      + rewrite /Pfun in Hfun. have := sem_call_uincl Hv Hfun. 
+        move=> [vs''] [] Hfun' Hv'. admit.
+      + exact: Hvm2'.
     move: heq; rewrite /sxs /fn_keep_only; case: onfun => [tokeep | [??]].
     + move=> hc; apply: (write_lvals_keep_only hc Hw).
       by apply: vmap_uincl_onI Hvm; rewrite read_esE; SvD.fsetdec. 
-      subst xs' I. (*have (*[|vm2 [Hvm2 /= Hvm2']]*) := write_lvals_uincl_on _ _ Hw Hvm.
-      move=> H.
+    subst xs' I. 
+    have Heq : Sv.Subset (read_rvs xs) 
+    (read_es_rec (read_rvs_rec (Sv.diff sv0 (vrvs xs)) xs) args). 
     + by rewrite read_esE read_rvsE; SvD.fsetdec.
+    have Hv :  List.Forall2 value_uincl vs vs. elim: (vs). done. move=> a l Hv.
+    apply List.Forall2_cons. auto. done. 
+    have [vm2] := write_lvals_uincl_on Heq Hv Hw Hvm. move=> Hvm2 /= Hvm2'.
     exists vm2; split => //.      
-    by apply: eq_onI Hvm2; rewrite read_esE read_rvsE; SvD.fsetdec.*)
+    by apply: vmap_uincl_onI Hvm2; rewrite read_esE read_rvsE; SvD.fsetdec.
   Admitted.
 
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
-    move=> m1 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hfun htra Hi Hw Hsem Hc Hres Hfull Hfi.
+  move=> m1 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hfun htra Hi Hw Hsem Hc Hres Hfull Hfi.
     have dcok : map_cfprog_name (dead_code_fd onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [f' Hf'1 Hf'2] := get_map_cfprog_name dcok Hfun.
-    case: f Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hfi => ??? /= c f_tyout res ? Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hfi.
+    case: f Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hfi => h1 h2 h3 /= c f_tyout res h4 Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hfi.
     move: Hf'1; t_xrbindP => -[sv sc] Hd [?]; subst f'.
     move: Hc => /(_ (read_es [seq Plvar i | i <- fn_keep_only onfun fn res])); rewrite Hd.
     move=> /(_ (wf_write_vars (wf_init Hi wf_vmap0) Hw) (evm s1)) => -[// | vm2' [Hvm2'1 /= ]].
@@ -585,19 +572,34 @@ Admitted.
     + rewrite /= -(evm_with_vm s2 vm2') -(sem_pexprs_get_var gd).
       move: Hres Hvm2'1; rewrite -(sem_pexprs_get_var gd).
       rewrite /fn_keep_only; case: onfun => [tokeep | ]; last first.
-      (*+ by move=> <- h. rewrite (read_es_eq_on _ h).
+      + move=> Hres Hvm2'1 /=. have Hmem : s2 = {|emem := emem s2; evm := evm s2|}. by case: (s2).
+        rewrite Hmem in Hres.
+        have /sem_pexprs_uincl_on' -/(_ _ _ _ Hres) : 
+        evm s2 <=[read_es [seq Plvar i | i <- res]] vm2'. 
+        + by apply: vmap_uincl_onI Hvm2'1; SvD.fsetdec.
+        move=> [vs'] Hres' hv /=. admit.
       clear; elim: tokeep res vres => /= [ | b tokeep ih].
-      + by move=> ?? <- h; rewrite (read_es_eq_on _ h).      
+      + move=> res vs Hres Hvm2'1 /=. 
+        have Hmem : s2 = {|emem := emem s2; evm := evm s2|}. by case: (s2).
+        rewrite Hmem in Hres.
+        have /sem_pexprs_uincl_on' -/(_ _ _ _ Hres) : 
+        evm s2 <=[read_es [seq Plvar i | i <- res]] vm2'. 
+        + by apply: vmap_uincl_onI Hvm2'1; SvD.fsetdec.
+        move=> [vs'] Hres' hv /=. admit.    
       move=> [ | x res] vres /= => [[<-] //|].
       t_xrbindP => v hget vs hvs <-; case: b => /= heq; last by apply ih.
-      have <- := get_gvar_eq_on gd (v:= mk_lvar x) _ heq.
-      + by rewrite hget /= (ih _ _ hvs) //; apply: eq_onI heq; rewrite read_es_cons; SvD.fsetdec.
-      by rewrite read_es_cons /= /Plvar read_e_var; SvD.fsetdec.
+      have /= hget' := get_gvar_uincl_at.
+      move: (hget' (mk_lvar x) gd (evm s2) vm2' v)=> {hget'} /= hget'.
+      move: (ih _ _ hvs)=> {ih} ih.
+      have heq' : evm s2 <=[read_es [seq Plvar i | i <- keep_only res tokeep]]  vm2'.
+      + apply: vmap_uincl_onI heq; rewrite read_es_cons; SvD.fsetdec. move:(ih heq')=> -> /=.
+      have heq'' : eval_uincl (evm s2).[x] vm2'.[x]. admit.
+      move: (hget' heq'' hget)=> [v'] -> Hv /=. admit.
     rewrite /= /fn_keep_only; case: onfun => [tokeep | //].
     move:Hfull; clear.
     elim: tokeep f_tyout vres vres' => // b tokeep ih [| ty f_tyout] /= [ | v vres] //= vres' => [[<-]//|].
     by t_xrbindP => v' hv' vres1 /ih{ih}ih <-; case:b => //=; rewrite hv' /= ih.
-  Qed.*) Admitted.
+  Admitted.
 
   Lemma dead_code_callP fn mem mem' va vr:
     sem_call p ev mem fn va mem' vr ->
