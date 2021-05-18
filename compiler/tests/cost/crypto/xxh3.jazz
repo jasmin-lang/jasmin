@@ -1,0 +1,477 @@
+// https://raw.githubusercontent.com/Cyan4973/xxHash/v0.8.0/xxhash.h
+
+/* Not implemented: seed, i.e., custom secret */
+
+
+u64 prime64_1 = 0x9E3779B185EBCA87;
+u64 prime64_2 = 0xC2B2AE3D27D4EB4F;
+u64 prime64_3 = 0x165667B19E3779F9;
+u64 prime64_4 = 0x85EBCA77C2B2AE63;
+u64 prime64_5 = 0x27D4EB2F165667C5;
+
+inline
+fn rol(reg u64 x, inline int c) -> reg u64 {
+   _, _, x = #ROL(x, c);
+   return x;
+}
+
+inline
+fn avalanche(reg u64 hash) -> reg u64 {
+  reg u64 tmp;
+
+  tmp = hash;
+  tmp >>= 33;
+  hash ^= tmp;
+  hash *= prime64_2;
+  tmp = hash;
+  tmp >>= 29;
+  hash ^= tmp;
+  hash *= prime64_3;
+  tmp = hash;
+  tmp >>= 32;
+  hash ^= tmp;
+
+  return hash;
+}
+
+
+param int midsize_max = 240;
+
+inline
+fn xxh3_len_1to3_64b(reg u64 input len secret) -> reg u64 {
+  reg u32 c1 c2 c3;
+  reg u32 combined bitflip keyed;
+  reg u64 p2 p3;
+  reg u64 hash;
+
+  c1 = (32u)(u8)[input + 0];
+  p2 = len;
+  p2 >>= 1;
+  c2 = (32u)(u8)[input + p2];
+  p3 = len;
+  p3 -= 1;
+  c3 = (32u)(u8)[input + p3];
+
+  combined = c2;
+  combined <<= 8;
+  combined |= c1;
+  combined <<= 8;
+  combined |= len;
+  combined <<= 8;
+  combined |= c3;
+
+  bitflip = (u32)[secret + 0];
+  bitflip ^= (u32)[secret + 4];
+
+  keyed = combined ^ bitflip;
+
+  hash = avalanche((64u)keyed);
+  return hash;
+}
+
+inline
+fn xorshift(reg u64 x, inline int c) -> reg u64 {
+  reg u64 y;
+  y = x;
+  y >>= c;
+  y ^= x;
+  return y;
+}
+
+inline
+fn rrmxmx(reg u64 h len) -> reg u64 {
+  reg u64 x y z r;
+  x = h;
+  x = rol(x, 49);
+  y = h;
+  y = rol(y, 24);
+  x ^= y;
+  h ^= x;
+  h *= 0x9FB21C651E98DF25;
+  z = h;
+  z >>= 35;
+  z += len;
+  h ^= z;
+  h *= 0x9FB21C651E98DF25;
+  r = xorshift(h, 28);
+  return r;
+}
+
+inline
+fn xxh3_len_4to8_64b(reg u64 input len secret) -> reg u64 {
+  reg u32 x1;
+  reg u64 x2;
+  reg u64 p2;
+  reg u64 bitflip x keyed hash;
+  x1 = (u32)[input + 0];
+  p2 = len;
+  p2 -= 4;
+  x2 = (64u)(u32)[input + p2];
+  bitflip = (u64)[secret + 8];
+  bitflip ^= (u64)[secret + 16];
+  x = (64u)x1;
+  x <<= 32;
+  x += x2;
+  keyed = x;
+  keyed ^= bitflip;
+  hash = rrmxmx(keyed, len);
+  return hash;
+}
+
+inline
+fn xxh3_avalanche(reg u64 r) -> reg u64 {
+  r = xorshift(r, 37);
+  r *= 0x165667919E3779F9;
+  r = xorshift(r, 32);
+  return r;
+}
+
+inline
+fn mul128_fold64(reg u64[2] x) -> reg u64 {
+  reg u64 lo hi result;
+  hi, lo = x[0] * x[1];
+  result = lo;
+  result ^= hi;
+  return result;
+}
+
+inline
+fn xxh3_len_9to16_64b(reg u64 input len secret) -> reg u64 {
+  reg u64[2] bitflip data;
+  reg u64 prod hash;
+  bitflip[0] = [secret + 24];
+  bitflip[0] ^= [secret + 32];
+  bitflip[1] = [secret + 40];
+  bitflip[1] ^= [secret + 48];
+  data[0] = [input];
+  data[0] ^= bitflip[0];
+  data[1] = [input + len - 8];
+  data[1] ^= bitflip[1];
+  hash = data[0];
+  hash = #BSWAP_64(hash);
+  hash += len;
+  hash += data[1];
+  prod = mul128_fold64(data);
+  hash += prod;
+  hash = xxh3_avalanche(hash);
+  return hash;
+}
+
+inline
+fn mix16b (reg u64 input secret) -> reg u64 {
+  reg u64[2] data;
+  reg u64 mix;
+
+  data[0] = [secret + 0];
+  data[1] = [secret + 8];
+
+  data[0] ^= [input + 0];
+  data[1] ^= [input + 8];
+
+  mix = mul128_fold64(data);
+  return mix;
+}
+
+inline
+fn xxh3_len_17to128_64b(reg u64 input len secret) -> reg u64 {
+  reg u64 acc p q m;
+  acc = len;
+  acc *= prime64_1;
+  if (len >u 32) {
+    if (len >u 64) {
+      if (len >u 96) {
+        p = input + 48;
+        q = secret + 96;
+        m = mix16b(p, q);
+        acc += m;
+        p = input + len - 64;
+        q = secret + 112;
+        m = mix16b(p, q);
+        acc += m;
+      }
+      p = input + 32;
+      q = secret + 64;
+      m = mix16b(p, q);
+      acc += m;
+      p = input + len - 48;
+      q = secret + 80;
+      m = mix16b(p, q);
+      acc += m;
+    }
+    p = input + 16;
+    q = secret + 32;
+    m = mix16b(p, q);
+    acc += m;
+    p = input + len - 32;
+    q = secret + 48;
+    m = mix16b(p, q);
+    acc += m;
+  }
+  m = mix16b(input, secret);
+  acc += m;
+  p = input + len - 16;
+  q = secret + 16;
+  m = mix16b(p, q);
+  acc += m;
+
+  acc = xxh3_avalanche(acc);
+  return acc;
+}
+
+inline
+fn xxh3_len_129to240_64b(reg u64 input len secret) -> reg u64 {
+  reg u64 acc p q m rounds;
+  inline int i;
+  acc = len;
+  acc *= prime64_1;
+
+  for i = 0 to 8 {
+    p = input + 16 * i;
+    q = secret + 16 * i;
+    m = mix16b(p, q);
+    acc +=m;
+  }
+  acc = xxh3_avalanche(acc);
+
+  rounds = len;
+  rounds >>u= 4;
+  rounds -= 8;
+  p = input + 128;
+  q = secret + 3;
+  while (rounds >u 0) {
+    m = mix16b(p, q);
+    acc += m;
+    p += 16;
+    q += 16;
+    rounds -= 1;
+  }
+  p = input + len - 16;
+  q = secret + 136 - 17;
+  m = mix16b(p, q);
+  acc += m;
+  acc = xxh3_avalanche(acc);
+
+  return acc;
+}
+
+inline
+fn mix2accs(stack u64[8] acc, inline int off, reg u64 secret) -> reg u64 {
+  reg u64[2] data;
+  reg u64 m;
+  inline int i;
+  for i = 0 to 2 {
+    data[i] = acc[i + off];
+    data[i] ^= [secret + 8 * i];
+  }
+  m = mul128_fold64(data);
+  return m;
+}
+
+inline
+fn mergeAccs(stack u64[8] acc, reg u64 secret start) -> reg u64 {
+  reg u64 hash sec m;
+  inline int i j;
+  hash = start;
+  for i = 0 to 4 {
+    j = 2 * i;
+    sec = secret + 16 * i;
+    m = mix2accs(acc, j, sec);
+    hash += m;
+  }
+  hash = xxh3_avalanche(hash);
+  return hash;
+}
+
+inline
+fn mul32to64(reg u64 xy) -> reg u64 {
+  reg u32 x y z1 z2;
+  reg u64 z3 result;
+  x = (32u) xy;
+  xy >>= 32;
+  y = (32u) xy;
+  z1, z2 = x *32u y;
+  result = (64u) z1;
+  result <<= 32;
+  z3 = (64u) z2;
+  result |= z3;
+  return result;
+}
+
+inline
+fn xxh3_accumulate_512(stack u64[8] acc, reg u64 input secret) -> stack u64[8] {
+  reg u64 val key;
+  inline int i;
+  for i = 0 to 8 {
+    val = [input + 8 * i];
+    key = val;
+    key ^= [secret + i * 8];
+    acc[(int)(i ^ 1)] += val;
+    key = mul32to64(key);
+    acc[i] += key;
+  }
+  return acc;
+}
+
+inline
+fn xxh3_accumulate(stack u64[8] acc, reg u64 input secret nbStripes) -> stack u64[8] {
+  reg u64 n i s;
+  n = 0;
+  i = input;
+  s = secret;
+  while ( n < nbStripes ) {
+    acc = xxh3_accumulate_512(acc, i, s);
+    n += 1;
+    i += 64;
+    s += 8;
+  }
+  return acc;
+}
+
+u32 prime32_1 = 0x9E3779B1;
+u32 prime32_2 = 0x85EBCA77;
+u32 prime32_3 = 0xC2B2AE3D;
+u32 prime32_4 = 0x27D4EB2F;
+u32 prime32_5 = 0x165667B1;
+
+inline
+fn scrambleAcc(stack u64[8] acc, reg u64 secret) -> stack u64[8] {
+  inline int i;
+  reg u64 k a;
+  for i = 0 to 8 {
+    k = [secret + 8 * i];
+    a = acc[i];
+    a = xorshift(a, 47);
+    a ^= k;
+    k = (64u) prime32_1;
+    a *= k;
+    acc[i] = a;
+  }
+  return acc;
+}
+
+param int nb_rounds = 16;
+param int block_len = 1024;
+
+/* Other version of the main loop, inspired from: https://github.com/easyaspi314/xxhash-clean/blob/master/xxh3-64b-ref.c
+It seems to produce different results…
+
+inline
+fn xxh3_internal_loop(stack u64[8] acc, reg u64 input len secret) -> stack u64[8] {
+  reg u64 nb_blocks nb_stripes n i s;
+  nb_blocks = len;
+  nb_blocks >>= 10;
+  n = nb_blocks;
+  n <<= 10;
+  nb_stripes = len;
+  nb_stripes -= n;
+  nb_stripes >>= 6;
+
+  n = 0;
+  i = input;
+  s = secret + 192 - 64;
+  while (n < nb_blocks) {
+    acc = xxh3_accumulate(acc, i, secret, nb_rounds);
+    acc = scrambleAcc(acc, s);
+    i += block_len;
+    n += 1;
+  }
+  acc = xxh3_accumulate(acc, i, secret, nb_stripes);
+  n = len;
+  n &= 0x3F;
+  if (n != 0) {
+    i = input + len - 64;
+    s = secret + 192 - 64 - 7;
+    acc = xxh3_accumulate_512(acc, i, s);
+  }
+  return acc;
+}
+*/
+
+inline
+fn xxh3_internal_loop(stack u64[8] acc, reg u64 input len secret) -> stack u64[8] {
+  reg u64 nb_blocks n i s nbStripes;
+  nb_blocks = len - 1;
+  nb_blocks >>= 10;
+  n = 0;
+  i = input;
+  while (n <u nb_blocks) {
+    acc = xxh3_accumulate(acc, i, secret, nb_rounds);
+    s = secret + (192 - 64);
+    acc = scrambleAcc(acc, s);
+    i += block_len;
+    n += 1;
+  }
+  nb_blocks <<= 10;
+  nbStripes = len - 1;
+  nbStripes -= nb_blocks;
+  nbStripes >>= 6;
+  acc = xxh3_accumulate(acc, i, secret, nbStripes);
+  i = input + len - 64;
+  s = secret + 192 - 64 - 7;
+  acc = xxh3_accumulate_512(acc, i, s);
+  return acc;
+}
+
+inline
+fn xxh3_64b(reg u64 input len secret) -> reg u64 {
+  stack u64[8] acc;
+  reg u64 hash sec xlen tmp;
+
+  tmp = (64u)prime32_3;
+  acc[0] = tmp;
+  tmp = prime64_1;
+  acc[1] = tmp;
+  tmp = prime64_2;
+  acc[2] = tmp;
+  tmp = prime64_3;
+  acc[3] = tmp;
+  tmp = prime64_4;
+  acc[4] = tmp;
+  tmp = (64u)prime32_2;
+  acc[5] = tmp;
+  tmp = prime64_5;
+  acc[6] = tmp;
+  tmp = (64u)prime32_1;
+  acc[7] = tmp;
+
+  acc = xxh3_internal_loop(acc, input, len, secret);
+
+  sec = secret + 11;
+  xlen = len * prime64_1;
+  hash = mergeAccs(acc, sec, xlen);
+  return hash;
+}
+
+inline
+fn xxh3_64bits_internal(reg u64 input len secret) -> reg u64 {
+  reg u64 hash tmp;
+  if len <=u 16 {
+    if len >u 8 {
+      hash = xxh3_len_9to16_64b(input, len, secret);
+    } else { if len >=u 4 {
+      hash = xxh3_len_4to8_64b(input, len, secret);
+    } else { if len >u 0 {
+      hash = xxh3_len_1to3_64b(input, len, secret);
+    } else {
+      tmp = [secret + 7 * 8];
+      tmp ^= [secret + 8 * 8];
+      hash = avalanche(tmp);
+    } } }
+  } else {
+    tmp = secret;
+    if len <=u 128 {
+    hash = xxh3_len_17to128_64b(input, len, tmp);
+  } else { if len <=u midsize_max {
+    hash = xxh3_len_129to240_64b(input, len, tmp);
+  } else {
+    hash = xxh3_64b(input, len, tmp);
+  } } }
+  return hash;
+}
+
+export
+fn xxh3(reg u64 input len secret) -> reg u64 {
+  reg u64 hash;
+  hash = xxh3_64bits_internal(input, len, secret);
+  return hash;
+}
