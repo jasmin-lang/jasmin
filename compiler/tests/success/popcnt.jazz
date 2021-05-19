@@ -1,0 +1,32 @@
+export
+fn test_popcnt16(reg u64 rp){
+  reg bool zf;
+  reg u16 t;
+
+  _, _, _, _, zf, t = #POPCNT_16((u16)[rp]);
+
+  _, _, _, _, zf, t = #POPCNT_16(t);
+  (u16)[rp] = t;
+}
+
+export
+fn test_popcnt32(reg u64 rp){
+  reg bool zf;
+  reg u32 t;
+
+  _, _, _, _, zf, t = #POPCNT_32((u32)[rp]);
+
+  _, _, _, _, zf, t = #POPCNT_32(t);
+  (u32)[rp] = t;
+}
+
+export
+fn test_popcnt64(reg u64 rp){
+  reg bool zf;
+  reg u64 t;
+
+  _, _, _, _, zf, t = #POPCNT_64([rp]);
+
+  _, _, _, _, zf, t = #POPCNT_64(t);
+  [rp] = t;
+}
