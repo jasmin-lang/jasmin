@@ -72,8 +72,13 @@ Definition locals_p (fd:ufundef) :=
 Definition locals fd :=
   Sv.diff (locals_p fd) (sparams fd).
 
-Definition check_rename iinfo f (fd1 fd2:ufundef) (s:Sv.t) :=
-  Let _ := add_infun iinfo (CheckAllocRegU.check_fundef tt tt (f,fd1) (f,fd2) tt) in
+Definition check_rename (p:ufun_decls) iinfo f (fd1 fd2:ufundef) (s:Sv.t) :=
+  let ffunty f := 
+    match get_fundef p f with
+    | None => ([::], [::])
+    | Some fd => (map FT_same fd.(f_tyin), map FT_same fd.(f_tyout))
+    end in
+  Let _ := add_infun iinfo (CheckAllocRegU.check_fundef ffunty tt tt (f,fd1) (f,fd2) tt) in
   let s2 := locals_p fd2 in
   if disjoint s s2 then ciok tt
   else cierror iinfo (Cerr_inline s s2).
@@ -110,7 +115,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
       if inline is InlineFun then
         Let fd := get_fun p iinfo f in
         let fd' := rename_fd iinfo f fd in
-        Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
+        Let _ := check_rename p iinfo f fd fd' (Sv.union (vrvs xs) X) in
         ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
                   (fd'.(f_body) ++
                   assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res))))

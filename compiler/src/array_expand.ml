@@ -94,9 +94,27 @@ let arrexp_args tbl es =
                      !es
                   | _ -> assert false
                   end
-               | _ -> e :: es
+               | _ -> arrexp_e tbl e :: es
              ) [] es in
   List.rev es
+
+let arrexp_flvs tbl xs =
+  let xs = List.fold_left (fun xs x ->
+               match x with
+               | Lvar x when is_reg_arr (L.unloc x) ->
+                  begin match (L.unloc x).v_ty with
+                  | Arr (_ws, n) ->
+                     let xs = ref xs in
+                     for i = 0 to n - 1 do
+                       let r = get_reg tbl (L.unloc x) i in
+                       xs := Lvar (L.mk_loc (L.loc x) r) :: !xs
+                     done;
+                     !xs
+                  | _ -> assert false
+                  end
+               | _ -> arrexp_lv tbl x :: xs
+             ) [] xs in
+  List.rev xs
 
 let rec arrexp_i tbl i =
   let i_desc =
@@ -108,14 +126,18 @@ let rec arrexp_i tbl i =
       Cfor(i, (d, arrexp_e tbl e1, arrexp_e tbl e2), arrexp_c tbl c)
     | Cwhile(a, c, e, c') ->
       Cwhile(a, arrexp_c tbl c, arrexp_e tbl e, arrexp_c tbl c')
-    | Ccall(ii,x,f,e) -> Ccall(ii, arrexp_lvs tbl x, f, arrexp_args tbl e)
+    | Ccall(ii,x,f,e) -> Ccall(ii, arrexp_flvs tbl x, f, arrexp_args tbl e)
   in
   { i with i_desc }
 
 and arrexp_c tbl c = List.map (arrexp_i tbl) c
 
 (** Expands function arguments (types & names) *)
-let arrexp_sig_args tbl (tys: int gty list) (xs : int gvar list) : int gty list * int gvar list =
+let arrexp_sig_args tbl (tys: int gty list) (xs : int gvar list) : 
+  (int,int)Hashtbl.t * int gty list * int gvar list =
+  let itbl = Hashtbl.create 37 in
+  let isource = ref 0  in
+  let itarget = ref 0 in
   let tys, xs =
     List.fold_left2 (fun (tys, xs) ty x ->
         match ty with
@@ -129,6 +151,35 @@ let arrexp_sig_args tbl (tys: int gty list) (xs : int gvar list) : int gty list 
                 tys := ty :: !tys;
                 xs := x :: !xs
               done;
+              incr isource;
+              itarget := !itarget + n;
+              !tys, !xs
+           | _ -> hierror "arrexp_sig_args: type error"
+           end
+        | _ -> 
+          Hashtbl.add itbl !isource !itarget;
+          incr isource;
+          incr itarget;
+          (ty :: tys, x :: xs)
+      ) ([], []) tys xs
+  in
+  itbl, List.rev tys, List.rev xs
+
+(** Expands function return (types & names) *)
+let arrexp_sig_ret tbl (tys: int gty list) (xs : int gvar_i list) : int gty list * int gvar_i list =
+  let tys, xs =
+    List.fold_left2 (fun (tys, xs) ty x ->
+        match ty with
+        | Arr _ when (L.unloc x).v_kind = Reg Direct ->
+           begin match (L.unloc x).v_ty with
+           | Arr (ws, n) ->
+              let ty = Bty (U ws) in
+              let tys, xs = ref tys, ref xs in
+              for i = 0 to n - 1 do
+                let r = get_reg tbl (L.unloc x) i in
+                tys := ty :: !tys;
+                xs := (L.mk_loc (L.loc x) r) :: !xs
+              done;
               !tys, !xs
            | _ -> hierror "arrexp_sig_args: type error"
            end
@@ -137,12 +188,38 @@ let arrexp_sig_args tbl (tys: int gty list) (xs : int gvar list) : int gty list 
   in
   List.rev tys, List.rev xs
 
+let arrexp_subr_info itbl (xs : int gvar_i list) (rps : int option list) =
+  let rps = 
+    List.fold_left2 (fun rps x rp ->
+        match rp with
+        | Some i ->
+          Some (Hashtbl.find itbl i) :: rps
+        | None ->
+          begin match (L.unloc x).v_ty with
+          | Arr (_ws, n) when (L.unloc x).v_kind = Reg Direct ->
+            let rps = ref rps in
+            for i = 0 to n - 1 do
+              rps := None :: !rps
+            done;
+            !rps
+          | _ -> None :: rps 
+          end) [] xs rps in
+  List.rev rps 
+
+
 let arrexp_func fc =
-  List.iter (check_not_reg_arr "function return") fc.f_ret;
   let tbl = init_tbl fc in
-  let f_tyin, f_args = arrexp_sig_args tbl fc.f_tyin fc.f_args in
+  let itbl, f_tyin, f_args = arrexp_sig_args tbl fc.f_tyin fc.f_args in
+  let f_tyout, f_ret = arrexp_sig_ret tbl fc.f_tyout fc.f_ret in
   let f_body = arrexp_c tbl fc.f_body in
-  { fc with f_tyin ; f_args ; f_body }
+  let f_cc = 
+    match fc.f_cc with
+    | Subroutine {returned_params = rps } ->
+      let rps = arrexp_subr_info itbl fc.f_ret rps in
+      Subroutine {returned_params = rps}
+    | cc -> cc
+    in
+  { fc with f_tyin ; f_tyout; f_args ; f_body; f_cc; f_ret }
 
 (* -------------------------------------------------------------- *)
 (* Perform stack allocation                                       *)

@@ -1,12 +1,13 @@
 param int N = 4;
 
-fn sum(reg u64[N] v) -> reg u64 {
-  reg u64 r;
+fn sum(reg u64[N] v) -> reg u64[2] {
+  reg u64[2] r;
   inline int j;
-  r = 0;
+  r[0] = 0;
   for j = 0 to N {
-    r += v[j];
+    r[0] += v[j];
   }
+  r[1] = v[0];
   return r;
 }
 
@@ -14,11 +15,14 @@ fn sum(reg u64[N] v) -> reg u64 {
 export
 fn main(reg u64 x) -> reg u64 {
   reg u64[N] t;
-  reg u64 result;
+  reg u64[2] result;
+  reg u64 r;
   inline int i;
   for i = 0 to N {
     t[i] = x;
   }
   result = sum(t);
-  return result;
+  r = result[0];
+  r += result[1];
+  return r;
 }

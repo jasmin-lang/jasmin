@@ -75,6 +75,12 @@ Definition pp_at (ii:instr_info) (e:pp_error) :=
   pp_box [:: pp_s "at "; PPEiinfo ii].
 *)
 
+Inductive funty := 
+  | FT_same of stype
+  | FT_flatten of wsize & positive.
+
+Definition funtys := list funty.
+
 Variant asm_error :=
   | AsmErr_string of string & option pexpr
   | AsmErr_cond of pexpr.
@@ -105,6 +111,7 @@ Inductive error_msg :=
   | Cerr_tunneling : string -> error_msg
   | Cerr_needspill  : funname -> seq var -> error_msg
   | Cerr_assembler: asm_error -> error_msg
+  | Cerr_alloc_lvals : string -> funtys -> lvals -> lvals -> error_msg
 
 with fun_error   :=
   | Ferr_in_body  : funname -> funname -> (instr_info * error_msg) -> fun_error

@@ -132,7 +132,22 @@ let rec pp_comp_err tbl fmt =
     | Compiler_util.AsmErr_cond e ->
       Format.fprintf fmt "assembler error: invalid condition %a"
         (Printer.pp_expr ~debug:true) (Conv.expr_of_cexpr tbl e)
+
     end
+  | Compiler_util.Cerr_alloc_lvals(s, fty, xs1, xs2) ->
+      let pp_funty fmt fty = 
+        match fty with
+        | Compiler_util.FT_same ty ->
+          Format.fprintf fmt "%a" Printer.pp_ty (Conv.ty_of_cty ty)
+        | Compiler_util.FT_flatten (ws,p) ->
+          Format.fprintf fmt "%s[%i]" (string_of_ws ws) (Conv.int_of_pos p)
+      in
+            
+      Format.fprintf fmt "alloc lvals error %s: @[%a@]; @[%a@]; @[%a@]"
+        (Conv.string_of_string0 s)
+        (pp_list "@ " pp_funty) fty
+        (pp_list "@ " (pp_clval tbl)) xs1
+        (pp_list "@ " (pp_clval tbl)) xs2
 
 and pp_comp_ferr tbl fmt = function
   | Compiler_util.Ferr_in_body(f1,f2,(ii, err_msg)) ->

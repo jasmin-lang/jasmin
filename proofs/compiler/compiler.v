@@ -146,7 +146,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : result fun_err
 
   let pe := expand_prog pr in
   let pe := cparams.(print_uprog) RegArrayExpansion pe in
-  (*Let _ := CheckExpansion.check_prog pr.(p_extra) pr.(p_funcs) pe.(p_extra) pe.(p_funcs) in*)
+  Let _ := CheckExpansion.check_prog pr.(p_extra) pr.(p_funcs) pe.(p_extra) pe.(p_funcs) in
 
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
