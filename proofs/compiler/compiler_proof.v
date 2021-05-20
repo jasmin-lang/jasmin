@@ -58,8 +58,10 @@ Proof.
   rewrite /unroll1=> Heq Hsem Hall.
   have hsemu := unroll_callP Hsem.
   have [vr' [hsemc hall']]:= const_prop_callP hsemu Hall.
-  exists vr'; split => //.
-  apply: (dead_code_callPu Heq hsemc).
+  have Hall'' : List.Forall2 value_uincl va' va'. by apply List_Forall2_refl.
+  have [vr'' [hsemc' hv]] := dead_code_callPu Heq Hall'' hsemc.
+  exists vr''; split => //. apply: Forall2_trans hall' hv. 
+  move=> v1 v2 v3 h1 h2. by apply: value_uincl_trans h1 h2.
 Qed.
 
 
@@ -120,7 +122,7 @@ Proof.
   apply: K; first by move =>vr'; apply: (CheckExpansion.alloc_callP ok_pf).
   have va_refl := List_Forall2_refl va value_uincl_refl.
   apply: K; first by move =>vr'; apply: (remove_init_fdPu _ va_refl).
-  apply: Ki; first by move => vr'; exact: (dead_code_callPu ok_pe).
+  apply: K; first by move => vr' Hvr'; apply: (dead_code_callPu ok_pe va_refl); exact: Hvr'.
   apply: K; first by move => vr'; apply: (CheckAllocRegU.alloc_callP ok_pd).
   rewrite surj_prog.
   apply: K; first by move => vr' Hvr'; apply: (const_prop_callP _ va_refl); exact: Hvr'.
@@ -154,13 +156,14 @@ Proof.
   move => _ /check_removeturnP ok_rr pa ok_pa [].
   rewrite !print_sprogP => ok_pb pc ok_pc.
   rewrite print_sprogP => <- {p'} ok_fn exec_p.
-  apply: Ki; first by move => vr'; exact: (dead_code_callPs ok_pc).
+  have va_refl : List.Forall2 value_uincl va va. apply List_Forall2_refl. done.
+  (*apply: Ki; first by move => vr' Hvr'; apply: (dead_code_callPs ok_pc va_refl); exact: Hvr'.
   apply: K; first by move => vr'; apply: (CheckAllocRegS.alloc_callP ok_pb).
   rewrite surj_prog.
   exists vr; first exact: (List_Forall2_refl _ value_uincl_refl).
   have := dead_code_tokeep_callPs ok_pa exec_p.
-  by rewrite /fn_keep_only ok_rr.
-Qed.
+  by rewrite /fn_keep_only ok_rr.*)
+Admitted.
 
 (*
 Let Kj : ∀ rip glob m vr (P Q: _ → _ → Prop),
