@@ -1117,3 +1117,7 @@ Definition wpsrldq := wpsxldq (@wshr _).
 Definition wpack sz pe (arg: seq Z) : word sz :=
   let w := map (CoqWord.word.mkword pe) arg in
   wrepr sz (word.wcat_r w).
+
+(* -------------------------------------------------------------------*)
+Definition wpmovmskb (dsz ssz: wsize) (w : word ssz) : word dsz :=
+  wrepr dsz (t2w_def [tuple of map msb (split_vec U8 w)]).
