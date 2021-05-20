@@ -1017,6 +1017,10 @@ Definition wbswap sz (w: word sz) : word sz :=
   make_vec sz (rev (split_vec U8 w)).
 
 (* -------------------------------------------------------------------*)
+Definition popcnt sz (w: word sz) :=
+ wrepr sz (count id (w2t w)).
+
+(* -------------------------------------------------------------------*)
 Definition halve_list A : seq A → seq A :=
   fix loop m := if m is a :: _ :: m' then a :: loop m' else m.
 

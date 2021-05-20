@@ -101,6 +101,7 @@ Variant asm_op : Type :=
 | ADOX    of wsize  (* add with overflow flag, only writes overflow flag *)
 
 | BSWAP  of wsize                     (* byte swap *)
+| POPCNT of wsize    (* Count bits set to 1 *)
 
   (* SSE instructions *)
 | MOVD     of wsize
@@ -571,6 +572,12 @@ Definition x86_SAR sz (v: word sz) (i: u8) : ex_tpl (b5w_ty sz) :=
 Definition x86_BSWAP sz (v: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_32_64 sz in
   ok (wbswap v).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_POPCNT sz (v: word sz): ex_tpl (b5w_ty sz) :=
+  Let _ := check_size_16_64 sz in
+  let r := popcnt  v in
+  ok (:: Some false, Some false, Some false, Some false, Some (ZF_of_word v) & r).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_MOVD sz (v: word sz) : ex_tpl (w_ty U128) :=
@@ -1249,6 +1256,9 @@ Definition Ox86_SHRD_instr :=
 Definition Ox86_BSWAP_instr :=
   mk_instr_w_w "BSWAP" x86_BSWAP msb_dfl [:: E 0] [:: E 0] 1 (fun _ => [:: [::r]]) no_imm (primP BSWAP) (pp_iname "bswap").
 
+Definition Ox86_POPCNT_instr :=
+  mk_instr_w_b5w "POPCNT" x86_POPCNT msb_dfl [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) no_imm (primP POPCNT) (pp_name "popcnt").
+
 (* Vectorized instruction *)
 Definition pp_movd sz args :=
  pp_name_ty (if sz == U64 then "movq"%string else "movd"%string)
@@ -1485,6 +1495,7 @@ Definition instr_desc o : instr_desc_t :=
   | MOVZX sz sz'       => Ox86_MOVZX_instr.1 sz sz'
   | CMOVcc sz          => Ox86_CMOVcc_instr.1 sz
   | BSWAP sz           => Ox86_BSWAP_instr.1 sz
+  | POPCNT sz          => Ox86_POPCNT_instr.1 sz
   | CQO sz             => Ox86_CQO_instr.1 sz
   | ADD sz             => Ox86_ADD_instr.1 sz
   | SUB sz             => Ox86_SUB_instr.1 sz
@@ -1588,6 +1599,7 @@ Definition prim_string :=
    Ox86_MOVZX_instr.2;
    Ox86_CMOVcc_instr.2;
    Ox86_BSWAP_instr.2;
+   Ox86_POPCNT_instr.2;
    Ox86_CQO_instr.2;
    Ox86_ADD_instr.2;
    Ox86_SUB_instr.2;
@@ -1679,14 +1691,5 @@ Definition prim_string :=
    Ox86_AESIMC_instr.2;          
    Ox86_VAESIMC_instr.2;         
    Ox86_AESKEYGENASSIST_instr.2; 
-   Ox86_VAESKEYGENASSIST_instr.2  
+   Ox86_VAESKEYGENASSIST_instr.2
  ].
-  
-  
-  
-  
-  
-  
-  
-  
-  
