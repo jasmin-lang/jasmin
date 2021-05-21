@@ -1227,6 +1227,16 @@ Definition wperm2i128 (w1 w2: u256) (i: u8) : u256 :=
   make_vec U256 [:: lo ; hi ].
 
 (* -------------------------------------------------------------------*)
+Definition wpermd1 (v: seq u32) (idx: u32) :=
+  let off := wunsigned idx mod 8 in
+  (v`_(Z.to_nat off))%R.
+
+Definition wpermd sz (w1 idx: word sz) : word sz :=
+  let v := split_vec U32 w1 in
+  let i := split_vec U32 idx in
+  make_vec sz (map (wpermd1 v) i).
+
+(* -------------------------------------------------------------------*)
 Definition wpermq (w: u256) (i: u8) : u256 :=
   let v := split_vec U64 w in
   let j := split_vec 2 i in
@@ -1244,6 +1254,10 @@ Definition wpsrldq := wpsxldq (@wshr _).
 Definition wpack sz pe (arg: seq Z) : word sz :=
   let w := map (CoqWord.word.mkword pe) arg in
   wrepr sz (word.wcat_r w).
+
+(* -------------------------------------------------------------------*)
+Definition wpmovmskb (dsz ssz: wsize) (w : word ssz) : word dsz :=
+  wrepr dsz (t2w_def [tuple of map msb (split_vec U8 w)]).
 
 (* -------------------------------------------------------------------*)
 Lemma pow2pos q : 0 < 2 ^ Z.of_nat q.

@@ -146,7 +146,9 @@ Variant asm_op : Type :=
 | VEXTRACTI128
 | VINSERTI128
 | VPERM2I128
+| VPERMD
 | VPERMQ
+| VPMOVMSKB of wsize & wsize (* source size (U128/256) & dest. size (U32/64) *)
 (* AES instructions *)
 | AESDEC
 | VAESDEC
@@ -795,6 +797,9 @@ Definition x86_VINSERTI128 (v1: u256) (v2: u128) (m: u8) : ex_tpl (w_ty U256) :=
 Definition x86_VPERM2I128 (v1 v2: u256) (m: u8) : ex_tpl (w_ty U256) :=
   ok (wperm2i128 v1 v2 m).
 
+Definition x86_VPERMD (v1 v2: u256): ex_tpl w256_ty :=
+  ok (wpermd v1 v2).
+
 Definition x86_VPERMQ (v: u256) (m: u8) : ex_tpl (w_ty U256) :=
   ok (wpermq v m).
 
@@ -807,6 +812,13 @@ Definition x86_VPALIGNR128 (m:u8) (v1 v2: word U128) : word U128 :=
 Definition x86_VPALIGNR sz (v1 v2: word sz) (m:u8) : ex_tpl (w_ty sz) := 
   Let _ := check_size_128_256 sz in
   ok (lift2_vec U128 (x86_VPALIGNR128 m) sz v1 v2).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_VPMOVMSKB ssz dsz (v : word ssz): ex_tpl (w_ty dsz) :=
+  Let _ := check_size_32_64 dsz in
+  Let _ := check_size_128_256 ssz in
+  ok (wpmovmskb dsz v).
+
 
 (* TODO: move this in word *)
 (* FIXME: Extraction fail if they are parameter, more exactly extracted program fail *)
@@ -1431,9 +1443,31 @@ Definition Ox86_VPERM2I128_instr :=
   mk_instr_pp "VPERM2I128" w256x2w8_ty w256_ty [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR x86_VPERM2I128
               (check_xmm_xmm_xmmm_imm8 U256) 4 U256 (imm8 U256) (PrimM VPERM2I128) (pp_name_ty "vperm2i128" [::U256;U256;U256;U8]).
 
+Definition Ox86_VPERMD_instr :=
+  mk_instr_pp "VPERMD" (w2_ty U256 U256) w256_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VPERMD
+       (check_xmm_xmm_xmmm U256) 3 U256 None (PrimM VPERMD) (pp_name "vpermd" U256).
+
 Definition Ox86_VPERMQ_instr :=
   mk_instr_pp "VPERMQ" w256w8_ty w256_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VPERMQ
               (check_xmm_xmmm_imm8 U256) 3 U256 (imm8 U256) (PrimM VPERMQ) (pp_name_ty "vpermq" [::U256;U256;U8]).
+
+Definition Ox86_PMOVMSKB_instr :=
+  (fun ssz dsz => mk_instr
+    (pp_sz_sz "VPMOVMSKB"%string false ssz dsz) (* Jasmin name *)
+    (w_ty ssz) (* args type *)
+    (w_ty dsz) (* result type *)
+    [:: E 1 ] (* args *)
+    [:: E 0 ]  (* results *)
+    MSB_CLEAR (* clear MostSignificantBits *)
+    (@x86_VPMOVMSKB ssz dsz) (* semantics *)
+    [:: [:: r ; xmm ] ] (* arg checks *)
+    2 (* nargs *)
+    ssz (* size *)
+    None (* no immediate arg. *)
+    [::]
+    (pp_name_ty "vpmovmskb" [:: dsz; ssz]) (* asm pprinter *)
+  , ("VPMOVMSKB"%string, PrimX VPMOVMSKB) (* jasmin concrete syntax *)
+  ).
 
 (* AES instructions *)
 Definition mk_instr_aes2 jname aname constr x86_sem msb_flag :=
@@ -1573,9 +1607,11 @@ Definition instr_desc o : instr_desc_t :=
   | VPALIGNR sz        => Ox86_VPALIGNR_instr.1 sz 
   | VBROADCASTI128     => Ox86_VBROADCASTI128_instr.1
   | VPERM2I128         => Ox86_VPERM2I128_instr.1
+  | VPERMD             => Ox86_VPERMD_instr.1
   | VPERMQ             => Ox86_VPERMQ_instr.1
   | VINSERTI128        => Ox86_VINSERTI128_instr.1
   | VPEXTR ve          => Ox86_VPEXTR_instr.1 ve
+  | VPMOVMSKB sz sz'   => Ox86_PMOVMSKB_instr.1 sz sz'
   | AESDEC             => Ox86_AESDEC_instr.1          
   | VAESDEC            => Ox86_VAESDEC_instr.1         
   | AESDECLAST         => Ox86_AESDECLAST_instr.1      
@@ -1677,9 +1713,11 @@ Definition prim_string :=
    Ox86_VPALIGNR_instr.2;
    Ox86_VBROADCASTI128_instr.2;
    Ox86_VPERM2I128_instr.2;
+   Ox86_VPERMD_instr.2;
    Ox86_VPERMQ_instr.2;
    Ox86_VINSERTI128_instr.2;
    Ox86_VPEXTR_instr.2;
+   Ox86_PMOVMSKB_instr.2;
    Ox86_AESDEC_instr.2;            
    Ox86_VAESDEC_instr.2;         
    Ox86_AESDECLAST_instr.2;      
