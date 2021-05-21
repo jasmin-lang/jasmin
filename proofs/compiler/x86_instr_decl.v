@@ -155,6 +155,8 @@ Variant asm_op : Type :=
 | VPCMPGT of velem & wsize
 | VPMADDUBSW of wsize
 | VPMADDWD of wsize
+| VMOVLPD   (* Store low 64-bits from XMM register *)
+| VMOVHPD   (* Store high 64-bits from XMM register *)
 
 (* Monitoring *)
 | RDTSC   of wsize
@@ -814,6 +816,13 @@ Definition x86_VPMADDUBSW sz (v v1: word sz) : ex_tpl (w_ty sz) :=
 Definition x86_VPMADDWD sz (v v1: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in
   ok (wpmaddwd v v1).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_VMOVLPD (v: u128): ex_tpl (w_ty U64) :=
+  ok (zero_extend U64 v).
+
+Definition x86_VMOVHPD (v: u128): ex_tpl (w_ty U64) :=
+  ok (zero_extend U64 (wshr v 64)).
 
 (* TODO: move this in word *)
 (* FIXME: Extraction fail if they are parameter, more exactly extracted program fail *)
@@ -1537,6 +1546,14 @@ Definition Ox86_VPMADDWD_instr :=
              ,("VPMADDWD"%string, PrimP U128 VPMADDWD)
   ).
 
+Definition check_movpd := [:: [::m false; xmm]].
+
+Definition Ox86_VMOVLPD_instr :=
+  mk_instr_pp "VMOVLPD" (w_ty U128) (w_ty U64) [:: E 1] [:: E 0] MSB_CLEAR x86_VMOVLPD check_movpd 2 U64 None (PrimM VMOVLPD) (pp_name_ty "vmovlpd" [::U64; U128]).
+
+Definition Ox86_VMOVHPD_instr :=
+  mk_instr_pp "VMOVHPD" (w_ty U128) (w_ty U64) [:: E 1] [:: E 0] MSB_CLEAR x86_VMOVHPD check_movpd 2 U64 None (PrimM VMOVHPD) (pp_name_ty "vmovhpd" [::U64;U128]).
+
 (* Monitoring instructions.
    These instructions are declared for the convenience of the programmer.
    Nothing can be proved about programs that use these instructions;
@@ -1726,6 +1743,8 @@ Definition instr_desc o : instr_desc_t :=
   | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
   | VPMADDUBSW sz      => Ox86_VPMADDUBSW_instr.1 sz
   | VPMADDWD sz        => Ox86_VPMADDWD_instr.1 sz
+  | VMOVLPD            => Ox86_VMOVLPD_instr.1
+  | VMOVHPD            => Ox86_VMOVHPD_instr.1
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | AESDEC             => Ox86_AESDEC_instr.1          
@@ -1839,6 +1858,8 @@ Definition prim_string :=
    Ox86_VPCMPGT_instr.2;
    Ox86_VPMADDUBSW_instr.2;
    Ox86_VPMADDWD_instr.2;
+   Ox86_VMOVLPD_instr.2;
+   Ox86_VMOVHPD_instr.2;
    Ox86_RDTSC_instr.2;
    Ox86_RDTSCP_instr.2;
    Ox86_AESDEC_instr.2;            
