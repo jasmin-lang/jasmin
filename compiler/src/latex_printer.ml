@@ -344,6 +344,10 @@ let pp_pitem fmt pi =
   | PParam p  -> pp_param fmt p
   | PGlobal g -> pp_global fmt g
   | Pexec _   -> ()
+  | Prequire s -> 
+    Format.fprintf fmt "require @[<hov>%a@]"
+      (pp_list "@ " (fun fmt s -> Format.fprintf fmt "\"%s\"" (L.unloc s)))
+      s
 
 let pp_prog fmt prog =
   F.fprintf fmt "%a" (pp_list "\n" pp_pitem) prog
