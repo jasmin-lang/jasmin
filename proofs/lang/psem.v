@@ -2433,6 +2433,24 @@ Lemma write_lvals_uincl_on gd X x v1 v2 s1 s2 vm1 :
     by move=> ? hin;rewrite heq_on'.
   Qed.
 
+  Lemma write_lval_undef gd l v s1 s2 sz :
+    write_lval gd l v s1 = ok s2 ->
+    type_of_val v = sword sz ->
+    exists w: word sz, v = Vword w.
+  Proof.
+    move=> Hw Ht.
+    rewrite /type_of_val in Ht.
+    case: v Ht Hw=> //=.
+    + move=> sz' w [<-] _; by exists w.
+    case => //= ?? [<-] /=.
+    case: l => /=.
+    + by move => _ [] //; rewrite /write_none /= => sz'; case: eqP.
+    + by case => - [] [] // sz' vn vi; rewrite /write_var /set_var /=; case: eqP.
+    + by move => sz' v e; t_xrbindP; case: ifP.
+    + by move => aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
+    by move => aa ws len [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
+  Qed.
+
 Section UNDEFINCL.
 
 Context {T} {pT:progT T} {sCP : semCallParams}.
@@ -2726,7 +2744,6 @@ Proof. by case: t h v. Qed.
 Lemma pto_val_undef t h (v:psem_t t) : pto_val v <> Vundef t h.
 Proof. by case: t h v. Qed.
 
-(* TODO: move *)
 Lemma to_word_to_pword s v w: to_word s v = ok w -> to_pword s v = ok (pword_of_word w).
 Proof.
   case: v => //= [ s' w' | [] // ].
@@ -2736,6 +2753,16 @@ Proof.
   case /orP: e => [hlt | /eqP ?];first by rewrite -cmp_nlt_le hlt in hle.
   by subst; rewrite /pword_of_word zero_extend_u;do 2 f_equal;apply eq_irrelevance.
 Qed.
+
+Lemma pword_of_word_uincl sz (x: word sz) (y: pword sz) :
+  @pval_uincl (sword sz) (sword sz) (pword_of_word x) y →
+  ∃ e : sz = pw_size y, pw_word y = ecast _ _ e x.
+Proof.
+  case: y => sz' y sz'_le_sz.
+  case/andP => /(cmp_le_antisym sz'_le_sz) ? /=; subst.
+  move => /eqP -> {x}; exists erefl.
+  by rewrite zero_extend_u.
+  Qed.
 
 (* ------------------------------------------------------------------------------ *)
 Definition apply_undef t (v : exec (psem_t t)) :=
@@ -2915,3 +2942,5 @@ Proof.
   move=> ????? => /=; rewrite /init_stk_state; t_xrbindP => ?? h1 h2.
   apply: wf_write_vars h1; apply wf_vmap0.
 Qed.
+
+

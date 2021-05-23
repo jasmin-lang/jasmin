@@ -301,7 +301,6 @@ Proof.
   by case: ZleP; case: eqP => //; Psatz.lia.
 Qed.
 
-
 Lemma wlt_irrefl sz sg (w: word sz) :
   wlt sg w w = false.
 Proof. case: sg; exact: Z.ltb_irrefl. Qed.

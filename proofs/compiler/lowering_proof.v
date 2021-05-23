@@ -183,26 +183,7 @@ Section PROOF.
   Qed.
 
   Local Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
-  Proof. move=> ii i s1 s2 _ Hi; exact: Hi. Qed.
-
-  (* FIXME: move this *)
-  Lemma write_lval_undef l v s1 s2 sz :
-    write_lval gd l v s1 = ok s2 ->
-    type_of_val v = sword sz ->
-    exists w: word sz, v = Vword w.
-  Proof.
-    move=> Hw Ht.
-    rewrite /type_of_val in Ht.
-    case: v Ht Hw=> //=.
-    + move=> sz' w [<-] _; by exists w.
-    case => //= ?? [<-] /=.
-    case: l => /=.
-    + by move => _ [] //; rewrite /write_none /= => sz'; case: eqP.
-    + by case => - [] [] // sz' vn vi; rewrite /write_var /set_var /=; case: eqP.
-    + by move => sz' v e; t_xrbindP; case: ifP.
-    + by move => aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
-    by move => aa ws len [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
-  Qed.
+  Proof. move=> ii i s1 s2 _ Hi; exact: Hi. Qed. 
 
   Lemma type_of_get_var vm sz vn v:
     get_var vm {| vtype := sword sz; vname := vn |} = ok v ->
@@ -2213,10 +2194,6 @@ Section PROOF.
     + case: (lower_addcarry_correct ii t (sub:= true) Hs1' Hdisjl Hdisje Hx' Hv Hw').
       by intuition eauto using eq_exc_freshT.
   Qed.
-
-  (* TODO: move *)
-  Lemma write_Ii ii i: write_I (MkI ii i) = write_i i.
-  Proof. by done. Qed.
 
   Lemma vars_I_if ii e c1 c2:
     Sv.Equal (vars_I (MkI ii (Cif e c1 c2))) (Sv.union (read_e e) (Sv.union (vars_c c1) (vars_c c2))).

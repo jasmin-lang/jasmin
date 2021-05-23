@@ -44,17 +44,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* TODO: move *)
-Lemma pword_of_word_uincl sz (x: word sz) (y: pword sz) :
-  @pval_uincl (sword sz) (sword sz) (pword_of_word x) y →
-  ∃ e : sz = pw_size y, pw_word y = ecast _ _ e x.
-Proof.
-  case: y => sz' y sz'_le_sz.
-  case/andP => /(cmp_le_antisym sz'_le_sz) ? /=; subst.
-  move => /eqP -> {x}; exists erefl.
-  by rewrite zero_extend_u.
-  Qed.
-
 Lemma wunsigned_sub_small (p: pointer) (n: Z) :
   (0 <= n < wbase Uptr →
    wunsigned (p - wrepr Uptr n) <= wunsigned p →
@@ -1499,12 +1488,6 @@ Section PROOF.
     sf_return_address (f_extra fd) ≠ RAnone →
     find_label xH (lfd_body (linear_fd p extra_free_registers fn fd)) = ok 0.
   Proof. by rewrite /linear_fd; case: sf_return_address. Qed.
-
-  (* TODO: move next to the definition of match_mem *)
-  (*Axiom mm_write_invalid : ∀ m m1' p s (w: word s),
-    match_mem m m1' →
-    (wunsigned (stack_limit m) <= wunsigned p ∧ wunsigned p + wsize_size s <= wunsigned (top_stack m))%Z →
-    exists2 m2', write m1' p w = ok m2' & match_mem m m2'.*)
 
   Local Lemma Hcall : sem_Ind_call p extra_free_registers Pi_r Pfun.
   Proof.
