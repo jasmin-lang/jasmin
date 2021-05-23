@@ -1,6 +1,6 @@
 (* -------------------------------------------------------------------- *)
 open Utils
-
+module Path = BatPathGen.OfString
 module F = Format
 module L = Location
 module S = Syntax
@@ -224,19 +224,25 @@ module Env : sig
 
   val empty : env
 
+  val decls : env -> unit P.pmod_item list
+    
+  val enter_file : env -> string -> (env * string) option
+  val exit_file  : env -> env
+
   module Vars : sig
-    val push  : P.pvar -> env -> env
-    val find  : S.symbol -> env -> P.pvar option
+    val push       : env -> P.pvar -> env
+    val push_param : env -> (P.pvar * P.pexpr) -> env
+    val find       : S.symbol -> env -> P.pvar option
   end
 
   module Globals : sig
-    val push  : P.pvar -> env -> env
-    val find  : S.symbol -> env -> P.pvar option
+    val push : env -> (P.pvar * P.pexpr P.ggexpr) -> env
+    val find : S.symbol -> env -> P.pvar option
   end
 
   module Funs : sig
-    val push  : unit P.pfunc -> P.pty list -> env -> env
-    val find  : S.symbol -> env -> (unit P.pfunc * P.pty list) option
+    val push : env -> unit P.pfunc -> P.pty list -> env 
+    val find : S.symbol -> env -> (unit P.pfunc * P.pty list) option
   end
 
   module Exec : sig
@@ -245,27 +251,75 @@ module Env : sig
   end
 
 end = struct
+  type loader = 
+    { loaded : Path.t list (* absolute path *)
+    ; idir   : Path.t      (* absolute initial path *)
+    ; dirs   : Path.t list } 
+
   type env = {
     e_vars    : (S.symbol, P.pvar) Map.t;
     e_globals : (S.symbol, P.pvar) Map.t;
     e_funs    : (S.symbol, unit P.pfunc * P.pty list) Map.t;
-    e_exec    : (P.funname * (Bigint.zint * Bigint.zint) list) list
+    e_decls   : unit P.pmod_item list;
+    e_exec    : (P.funname * (Bigint.zint * Bigint.zint) list) list;
+    e_loader  : loader;
   }
 
   let empty : env =
-    { e_vars = Map.empty; e_globals = Map.empty; e_funs = Map.empty; e_exec = [] }
+    { e_vars    = Map.empty
+    ; e_globals = Map.empty 
+    ; e_funs    = Map.empty
+    ; e_decls   = []
+    ; e_exec    = []
+    ; e_loader  = 
+        { loaded = []
+        ; idir = Path.of_string (Sys.getcwd ())
+        ; dirs = [[]] }
+    }
+
+  let enter_file env filename = 
+    let p = Path.of_string filename in
+    let loader = env.e_loader in
+    let current_dir = List.hd loader.dirs in
+    let p = 
+      if Path.is_absolute p then p
+      else Path.concat current_dir p in
+    let p = Path.normalize_in_tree p in
+    let ap = 
+      if Path.is_absolute p then p
+      else Path.concat loader.idir p in
+    let ap = Path.normalize_in_tree ap in
+    if List.mem ap loader.loaded then None
+    else
+      let e_loader = 
+        { loader with
+          loaded = ap :: loader.loaded;
+          dirs = List.tl p :: loader.dirs } in
+      Some({ env with e_loader }, Path.to_string p)
+
+  let exit_file env = 
+    { env with 
+      e_loader = { env.e_loader with dirs = List.tl env.e_loader.dirs }}
+    
+  let decls env = env.e_decls 
 
   module Vars = struct
-    let push (v : P.pvar) (env : env) =
-      { env with e_vars = Map.add v.P.v_name v env.e_vars; }
+    let push (env : env) (v : P.pvar) =
+      { env with e_vars = Map.add v.P.v_name v env.e_vars }
+
+    let push_param env (x,_ as d) = 
+      let env = push env x in
+      { env with e_decls = P.MIparam d :: env.e_decls }
 
     let find (x : S.symbol) (env : env) =
       Map.Exceptionless.find x env.e_vars
   end
 
   module Globals = struct
-    let push (v : P.pvar) (env : env) =
-      { env with e_globals = Map.add v.P.v_name v env.e_globals; }
+
+    let push env (v,_ as d) = 
+      { env with e_globals = Map.add v.P.v_name v env.e_globals;
+                 e_decls = P.MIglobal d :: env.e_decls }
 
     let find (x : S.symbol) (env : env) =
       Map.Exceptionless.find x env.e_globals
@@ -275,10 +329,11 @@ end = struct
     let find (x : S.symbol) (env : env) =
       Map.Exceptionless.find x env.e_funs
 
-    let push (v : unit P.pfunc) rty (env : env) =
+    let push env (v : unit P.pfunc) rty =
       let name = v.P.f_name.P.fn_name in
       match find name env with
-      | None -> { env with e_funs = Map.add name (v,rty) env.e_funs; }
+      | None -> { env with e_funs = Map.add name (v,rty) env.e_funs;
+                           e_decls = P.MIfun v :: env.e_decls }
       | Some (fd,_) -> 
         rs_tyerror ~loc:v.P.f_loc (DuplicateFun(name, fd.P.f_loc))
 
@@ -914,7 +969,7 @@ let tt_vardecl dfl_writable (env : Env.env) ((sto, xty), x) =
 let tt_vardecls_push dfl_writable (env : Env.env) pxs =
   let xs  = List.map (tt_vardecl dfl_writable env) pxs in
   let env = 
-    List.fold_left (fun env x -> Env.Vars.push (L.unloc x) env) env xs in
+    List.fold_left (fun env x -> Env.Vars.push env (L.unloc x)) env xs in
   (env, xs)
 
 (* -------------------------------------------------------------------- *)
@@ -922,16 +977,16 @@ let tt_vardecl_push dfl_writable (env : Env.env) px =
   snd_map as_seq1 (tt_vardecls_push dfl_writable env [px])
 
 (* -------------------------------------------------------------------- *)
-let tt_param (env : Env.env) _loc (pp : S.pparam) : Env.env * (P.pvar * P.pexpr) =
+let tt_param (env : Env.env) _loc (pp : S.pparam) : Env.env =
   let ty = tt_type env pp.ppa_ty in
   let pe, ety = tt_expr ~mode:`OnlyParam env pp.S.ppa_init in
 
   check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ty ~to_:ety;
 
   let x = P.PV.mk (L.unloc pp.ppa_name) P.Const ty (L.loc pp.ppa_name) in
-  let env = Env.Vars.push x env in
+  let env = Env.Vars.push_param env (x,pe) in
+  env
 
-  (env, (x, pe))
 
 (* -------------------------------------------------------------------- *)
 let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
@@ -1438,7 +1493,7 @@ let process_f_annot loc annot =
 
 
 (* -------------------------------------------------------------------- *)
-let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
+let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env =
   let inret = odfl [] (omap (List.map L.unloc) pf.pdf_body.pdb_ret) in
   let dfl_mut x = List.mem x inret in
   let envb, args = tt_vardecls_push dfl_mut env pf.pdf_args in
@@ -1460,7 +1515,7 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env * unit P.pfunc =
   check_sig ~loc:(`IfEmpty (L.loc pf.S.pdf_name)) rty
     (List.map (fun x -> (L.loc x, (L.unloc x).P.v_ty)) xret);
 
-  (Env.Funs.push fdef rty env, fdef)
+  Env.Funs.push env fdef rty
 
 (* -------------------------------------------------------------------- *)
 let tt_global_def env (gd:S.gpexpr) = 
@@ -1473,8 +1528,7 @@ let tt_global_def env (gd:S.gpexpr) =
   | S.GEarray es ->
     `Array (List.map f es) 
 
-let tt_global (env : Env.env) _loc (gd: S.pglobal) : 
-  Env.env * (P.pvar * P.pexpr P.ggexpr) =
+let tt_global (env : Env.env) _loc (gd: S.pglobal) : Env.env =
 
   let open P in
   let mk_pe ws (pe,ety) = 
@@ -1501,25 +1555,39 @@ let tt_global (env : Env.env) _loc (gd: S.pglobal) :
 
   let x = P.PV.mk (L.unloc gd.S.pgd_name) P.Global ty (L.loc gd.S.pgd_name) in
 
-  let env = Env.Globals.push x env in
-
-  (env, (x, d))
+  Env.Globals.push env (x,d)
 
 (* -------------------------------------------------------------------- *)
-let tt_item (env : Env.env) pt : Env.env * (unit P.pmod_item list) =
+let rec tt_item (env : Env.env) pt : Env.env =
   match L.unloc pt with
-  | S.PParam  pp -> snd_map (fun x -> [P.MIparam x]) (tt_param  env (L.loc pt) pp)
-  | S.PFundef pf -> snd_map (fun x -> [P.MIfun   x]) (tt_fundef env (L.loc pt) pf)
-  | S.PGlobal pg -> snd_map (fun (x, y) -> [P.MIglobal (x, y)]) (tt_global env (L.loc pt) pg)
-  | S.Pexec   pf -> Env.Exec.push (fst (tt_fun env pf.pex_name)).P.f_name pf.pex_mem env, []
+  | S.PParam  pp -> tt_param  env (L.loc pt) pp
+  | S.PFundef pf -> tt_fundef env (L.loc pt) pf
+  | S.PGlobal pg -> tt_global env (L.loc pt) pg
+  | S.Pexec   pf -> 
+    Env.Exec.push (fst (tt_fun env pf.pex_name)).P.f_name pf.pex_mem env
+  | S.Prequire fs -> 
+    List.fold_left tt_file_loc env fs 
+
+and tt_file_loc env fname = 
+  fst (tt_file env (L.unloc fname))
+
+and tt_file env fname = 
+  match Env.enter_file env fname with
+  | None -> env, []
+  | Some(env, fname) -> 
+    let ast   = Parseio.parse_program ~name:fname in
+    let ast   = BatFile.with_file_in fname ast in
+    let env   = List.fold_left tt_item env ast in
+    Env.exit_file env, ast
 
 (* -------------------------------------------------------------------- *)
-let tt_program (env : Env.env) (pm : S.pprogram) : Env.env * unit P.pprog =
-  let env, l = List.map_fold tt_item env pm in
-  env, List.flatten (List.rev l)
+let tt_program (env : Env.env) (fname : string) =
+  let env, ast = tt_file env fname in
+  env, Env.decls env, ast
 
 (* FIXME :
    - Les fonctions exportees doivent pas avoir de tableau en argument,
      rendre au plus un argument (pas un tableau).
    - Verifier les kind dans les applications de fonctions
 *)
+

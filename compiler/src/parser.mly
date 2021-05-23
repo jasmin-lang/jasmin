@@ -63,6 +63,7 @@
 %token QUESTIONMARK
 %token RARROW
 %token REG
+%token REQUIRE
 %token RETURN
 %token SEMICOLON
 %token <Syntax.swsize>SWSIZE
@@ -408,11 +409,19 @@ range:
 | ptr=INT COLON size=INT { ptr, size }
 
 (* -------------------------------------------------------------------- *)
+prequire1:
+| s=loc(STRING) { s }
+
+prequire:
+| REQUIRE x=plist1(prequire1, empty) { x }
+
+(* -------------------------------------------------------------------- *)
 top:
-| x=pfundef { S.PFundef x }
-| x=pparam  { S.PParam  x }
-| x=pglobal { S.PGlobal x }
-| x=pexec   { S.Pexec   x }
+| x=pfundef  { S.PFundef x }
+| x=pparam   { S.PParam  x }
+| x=pglobal  { S.PGlobal x }
+| x=pexec    { S.Pexec   x }
+| x=prequire { S.Prequire x}
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=loc(top)* EOF

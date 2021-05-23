@@ -248,15 +248,14 @@ let main () =
     if !help_intrinsics
     then (Help.show_intrinsics (); exit 0);
 
-    let fname = !infile in
-    let ast   = Parseio.parse_program ~name:fname in
-    let ast   = BatFile.with_file_in fname ast in
-
     let () = if !check_safety then
         match !safety_config with
         | Some conf -> SafetyConfig.load_config conf
         | None -> () in
 
+    let fname = !infile in
+    let env, pprog, ast = Pretyping.tt_program Pretyping.Env.empty fname in
+ 
     if !latexfile <> "" then begin
       let out = open_out !latexfile in
       let fmt = Format.formatter_of_out_channel out in
@@ -264,8 +263,7 @@ let main () =
       close_out out;
       if !debug then Format.eprintf "Pretty printed to LATEX@."
     end;
-
-    let env, pprog  = Pretyping.tt_program Pretyping.Env.empty ast in
+  
     eprint Compiler.Typing Printer.pp_pprog pprog;
 
     let prog = Subst.remove_params pprog in

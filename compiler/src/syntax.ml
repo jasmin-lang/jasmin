@@ -263,11 +263,15 @@ type pexec = {
 }
 
 (* -------------------------------------------------------------------- *)
+type prequire = string L.located
+
+(* -------------------------------------------------------------------- *)
 type pitem =
   | PFundef of pfundef
   | PParam of pparam
   | PGlobal of pglobal
   | Pexec of pexec
+  | Prequire of prequire list
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list
