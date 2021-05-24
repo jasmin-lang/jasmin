@@ -1115,13 +1115,6 @@ Definition init_local_map vrip vrsp fn globals sao :=
     ok (stack, locals, rmap, sv)
   else cferror fn "stack size, please report".
 
-(* TODO : move *)
-Definition add_err_fun (A : Type) (f : funname) (r : cexec A) :=
-  match r with
-  | ok _ a => ok a
-  | Error e => Error (Ferr_fun f e)
-  end.
-
 (** For each function, the oracle returns:
   - the size of the stack block;
   - an allocation for local variables;

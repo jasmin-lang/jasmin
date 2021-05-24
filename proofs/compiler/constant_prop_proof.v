@@ -1167,14 +1167,6 @@ Section PROOF.
     by have [v2 -> /value_uincl_bool1 ->]:= sem_pexpr_uincl h He.
   Qed.
 
-  (* TODO: move this *)
-  Lemma sem_seq1_iff (P : prog) (Ev: extra_val_t) (i : instr) s1 s2:
-     sem_I P Ev s1 i s2 <-> sem P Ev s1 [:: i] s2.
-  Proof.
-    split; first by apply sem_seq1.
-    by case/semE => ? [?] /semE ->.
-  Qed.
-
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 s3 s4 a c e c' Hc1 Hc He Hc1' Hc' Hw1 Hw m ii Hm /=.

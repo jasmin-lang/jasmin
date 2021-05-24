@@ -106,15 +106,8 @@ Section PROOF.
        sem_call p' ev m1 fn vargs' m2 vres' /\
        List.Forall2 value_uincl (fn_keep_only onfun fn vres) vres'.
 
-    (*sem_call p' ev m1 fn vargs m2 (fn_keep_only onfun fn vres).*)
-
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof. by move=> s1 s2 Hwf vm' Hvm; exists vm'; split=> //; constructor. Qed.
-
-  (* FIXME: MOVE THIS *)
-  Lemma wf_sem_I p0 ev0 s1 i s2 :
-    sem_I p0 ev0 s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
-  Proof. by move=> H;have := sem_seq1 H; apply: wf_sem. Qed.
 
   Local Lemma Hcons : sem_Ind_cons p ev Pc Pi.
   Proof.

@@ -704,14 +704,6 @@ Lemma alloc_funP_eq p ev fn f f' m1 m2 vargs vargs' vres vres' s0 s1 s2:
 
 End MakeCheckAlloc.
 
- (* FIXME : move this in psem ? *)
-Definition wextend_type t1 t2 := 
-  (t1 == t2) ||
-    match t1, t2 with
-    | sword s1, sword s2 => (s1 <= s2)%CMP
-    | _, _ => false
-    end.
-
 Lemma wextend_typeP t1 t2 : 
   reflect (t1 = t2 \/ exists s1 s2, [/\ t1 = sword s1, t2 = sword s2 & (s1 <= s2)%CMP])
           (wextend_type t1 t2).

@@ -107,6 +107,13 @@ Proof.
   by rewrite sumbool_of_boolET => - [<-]; exists w'.
 Qed.
 
+Definition wextend_type t1 t2 := 
+  (t1 == t2) ||
+    match t1, t2 with
+    | sword s1, sword s2 => (s1 <= s2)%CMP
+    | _, _ => false
+    end.
+
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
@@ -687,6 +694,13 @@ Lemma sem_seq1 i s1 s2:
   sem_I s1 i s2 -> sem s1 [::i] s2.
 Proof.
   move=> Hi; apply (Eseq Hi);constructor.
+Qed.
+
+Lemma sem_seq1_iff (i : instr) s1 s2:
+  sem_I s1 i s2 <-> sem s1 [:: i] s2.
+Proof.
+  split; first by apply sem_seq1.
+  by case/semE => ? [?] /semE ->.
 Qed.
 
 End SEM.
@@ -2929,6 +2943,10 @@ Section WF.
   Definition wf_init := forall fe pe ev s1 s2,
     init_state fe pe ev s1 = ok s2 ->
     wf_vm (evm s1) -> wf_vm (evm s2).
+
+  Lemma wf_sem_I p0 ev0 s1 i s2 :
+    sem_I p0 ev0 s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
+  Proof. by move=> H;have := sem_seq1 H; apply: wf_sem. Qed.
 
 End WF.
 

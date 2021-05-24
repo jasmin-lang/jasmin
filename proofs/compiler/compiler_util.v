@@ -160,6 +160,12 @@ Definition add_err_msg (A : Type) (r : cexec A) :=
   | Error e => Error (Ferr_msg e)
   end.
 
+Definition add_err_fun (A : Type) (f : funname) (r : cexec A) :=
+  match r with
+  | ok _ a => ok a
+  | Error e => Error (Ferr_fun f e)
+  end.
+
 Lemma add_iinfoP A (a:A) (e:cexec A) ii (P:Prop):
   (e = ok a -> P) ->
   add_iinfo ii e = ok a -> P.

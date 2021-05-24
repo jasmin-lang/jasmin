@@ -390,20 +390,6 @@ Proof.
   by rewrite wandC wand0 wxor0.
 Qed.
 
-(* TODO: move this *)
-Lemma var_of_xmm_register_inj x y :
-  var_of_xmm_register x = var_of_xmm_register y →
-  x = y.
-Proof. by move=> [];apply inj_string_of_xmm_register. Qed.
-
-(* TODO: move and change def of reg_of_var *)
-Lemma var_of_reg_of_var ii v r: reg_of_var ii v = ok r → var_of_register r = v.
-Proof.
-  rewrite /reg_of_var /var_of_register; case: v => -[] // [] // xn.
-  case heq : reg_of_string => [r' | ] => // -[<-]; apply f_equal.
-  by apply: inj_reg_of_string heq; apply reg_of_stringK.
-Qed.
-
 Lemma compile_lval rip ii msb_flag max_imm loargs ad ty (vt:sem_ot ty) m m' s lv1 e1:
   lom_eqv rip m s ->
   check_arg_dest ad ty ->
