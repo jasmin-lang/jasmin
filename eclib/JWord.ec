@@ -1,5 +1,6 @@
 (* -------------------------------------------------------------------- *)
-require import AllCore BitEncoding IntDiv SmtMap List StdOrder BitEncoding Bool Distr.
+require import AllCore BitEncoding FinType IntDiv SmtMap List.
+require import StdOrder BitEncoding Bool Distr.
 (*---*) import Ring.IntID IntOrder BS2Int.
 require import JUtils JArray.
 
