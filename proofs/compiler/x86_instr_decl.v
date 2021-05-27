@@ -149,6 +149,11 @@ Variant asm_op : Type :=
 | VPMOVMSKB of wsize & wsize (* source size (U128/256) & dest. size (U32/64) *)
 | VPCMPEQ of velem & wsize
 | VPCMPGT of velem & wsize
+
+(* Monitoring *)
+| RDTSC   of wsize
+| RDTSCP  of wsize
+
 (* AES instructions *)
 | AESDEC
 | VAESDEC
@@ -1460,6 +1465,47 @@ Definition Ox86_VPCMPGT_instr :=
                 ,("VPCMPGT"%string, PrimV VPCMPGT)
   ).
 
+(* Monitoring instructions.
+   These instructions are declared for the convenience of the programmer.
+   Nothing can be proved about programs that use these instructions;
+   in particular the correctness theorem does not apply to programs using them. *)
+
+Definition Ox86_RDTSC_instr :=
+  (fun sz => mk_instr
+              (pp_sz "RDTSC"%string sz) (* Jasmin name *)
+              nil (* args type *)
+              (w2_ty sz sz) (* result type *)
+              nil (* args *)
+              [:: R RDX; R RAX] (* results *)
+              MSB_CLEAR (* clear MostSignificantBits *)
+              (Error ErrType) (* No semantics *)
+              [:: [::]]
+              0 (* nargs *)
+              sz (* size *)
+              None (* no immediate arg. *)
+              [::]
+              (pp_name_ty "rdtsc" [:: sz; sz]) (* asm pretty-print*)
+   ,("RDTSC"%string, PrimP U64 RDTSC) (* jasmin concrete syntax *)
+  ).
+
+Definition Ox86_RDTSCP_instr :=
+  (fun sz => mk_instr
+              (pp_sz "RDTSCP"%string sz) (* Jasmin name *)
+              nil (* args type *)
+              (w3_ty sz) (* result type *)
+              nil (* args *)
+              [:: R RDX; R RAX; R RCX] (* results *)
+              MSB_CLEAR (* clear MostSignificantBits *)
+              (Error ErrType) (* No semantics *)
+              [:: [::]] (* arg checks *)
+              0 (* nargs *)
+              sz (* size *)
+              None (* no immediate arg. *)
+              [::]
+              (pp_name_ty "rdtscp" [:: sz; sz; sz]) (* asm pprinter *)
+   ,("RDTSCP"%string, PrimP U64 RDTSCP) (* jasmin concrete syntax *)
+  ).
+
 (* AES instructions *)
 Definition mk_instr_aes2 jname aname constr x86_sem msb_flag :=
   mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: E 0; E 1] [:: E 0] msb_flag x86_sem
@@ -1603,6 +1649,8 @@ Definition instr_desc o : instr_desc_t :=
   | VPMOVMSKB sz sz'   => Ox86_PMOVMSKB_instr.1 sz sz'
   | VPCMPEQ ve sz      => Ox86_VPCMPEQ_instr.1 ve sz
   | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
+  | RDTSC sz           => Ox86_RDTSC_instr.1 sz
+  | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | AESDEC             => Ox86_AESDEC_instr.1          
   | VAESDEC            => Ox86_VAESDEC_instr.1         
   | AESDECLAST         => Ox86_AESDECLAST_instr.1      
@@ -1709,6 +1757,8 @@ Definition prim_string :=
    Ox86_PMOVMSKB_instr.2;
    Ox86_VPCMPEQ_instr.2;
    Ox86_VPCMPGT_instr.2;
+   Ox86_RDTSC_instr.2;
+   Ox86_RDTSCP_instr.2;
    Ox86_AESDEC_instr.2;            
    Ox86_VAESDEC_instr.2;         
    Ox86_AESDECLAST_instr.2;      
