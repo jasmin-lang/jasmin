@@ -149,6 +149,8 @@ Variant asm_op : Type :=
 | VPERMD
 | VPERMQ
 | VPMOVMSKB of wsize & wsize (* source size (U128/256) & dest. size (U32/64) *)
+| VPCMPEQ of velem & wsize
+| VPCMPGT of velem & wsize
 (* AES instructions *)
 | AESDEC
 | VAESDEC
@@ -819,6 +821,16 @@ Definition x86_VPMOVMSKB ssz dsz (v : word ssz): ex_tpl (w_ty dsz) :=
   Let _ := check_size_128_256 ssz in
   ok (wpmovmskb dsz v).
 
+(* ---------------------------------------------------------------- *)
+Definition x86_VPCMPEQ (ve: velem) sz (v1 v2: word sz): ex_tpl(w_ty sz) :=
+  Let _ := check_size_8_64 ve in
+  Let _ := check_size_128_256 sz in
+  ok (wpcmpeq ve v1 v2).
+
+Definition x86_VPCMPGT (ve: velem) sz (v1 v2: word sz): ex_tpl(w_ty sz) :=
+  Let _ := check_size_8_64 ve in
+  Let _ := check_size_128_256 sz in
+  ok (wpcmpgt ve v1 v2).
 
 (* TODO: move this in word *)
 (* FIXME: Extraction fail if they are parameter, more exactly extracted program fail *)
@@ -1469,6 +1481,42 @@ Definition Ox86_PMOVMSKB_instr :=
   , ("VPMOVMSKB"%string, PrimX VPMOVMSKB) (* jasmin concrete syntax *)
   ).
 
+Definition Ox86_VPCMPEQ_instr :=
+  (fun (ve: velem) sz => mk_instr
+                  (pp_ve_sz "VPCMPEQ"%string ve sz)
+                  (w2_ty sz sz)
+                  (w_ty sz)
+                  [:: E 1; E 2]
+                  [:: E 0]
+                  MSB_CLEAR
+                  (@x86_VPCMPEQ ve sz)
+                  (check_xmm_xmm_xmmm sz)
+                  3
+                  sz
+                  None
+                  [::]
+                  (pp_viname "vpcmpeq" ve sz)
+                ,("VPCMPEQ"%string, PrimV VPCMPEQ)
+  ).
+
+Definition Ox86_VPCMPGT_instr :=
+  (fun (ve: velem) sz => mk_instr
+                  (pp_ve_sz "VPCMPGT"%string ve sz)
+                  (w2_ty sz sz)
+                  (w_ty sz)
+                  [:: E 1; E 2]
+                  [:: E 0]
+                  MSB_CLEAR
+                  (@x86_VPCMPGT ve sz)
+                  (check_xmm_xmm_xmmm sz)
+                  3
+                  sz
+                  None
+                  [::]
+                  (pp_viname "vpcmpgt" ve sz)
+                ,("VPCMPGT"%string, PrimV VPCMPGT)
+  ).
+
 (* AES instructions *)
 Definition mk_instr_aes2 jname aname constr x86_sem msb_flag :=
   mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: E 0; E 1] [:: E 0] msb_flag x86_sem
@@ -1612,6 +1660,8 @@ Definition instr_desc o : instr_desc_t :=
   | VINSERTI128        => Ox86_VINSERTI128_instr.1
   | VPEXTR ve          => Ox86_VPEXTR_instr.1 ve
   | VPMOVMSKB sz sz'   => Ox86_PMOVMSKB_instr.1 sz sz'
+  | VPCMPEQ ve sz      => Ox86_VPCMPEQ_instr.1 ve sz
+  | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
   | AESDEC             => Ox86_AESDEC_instr.1          
   | VAESDEC            => Ox86_VAESDEC_instr.1         
   | AESDECLAST         => Ox86_AESDECLAST_instr.1      
@@ -1718,6 +1768,8 @@ Definition prim_string :=
    Ox86_VINSERTI128_instr.2;
    Ox86_VPEXTR_instr.2;
    Ox86_PMOVMSKB_instr.2;
+   Ox86_VPCMPEQ_instr.2;
+   Ox86_VPCMPGT_instr.2;
    Ox86_AESDEC_instr.2;            
    Ox86_VAESDEC_instr.2;         
    Ox86_AESDECLAST_instr.2;      

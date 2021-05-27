@@ -1250,6 +1250,17 @@ Definition wpslldq := wpsxldq (@wshl _).
 Definition wpsrldq := wpsxldq (@wshr _).
 
 (* -------------------------------------------------------------------*)
+Definition wpcmpu1 (cmp: Z → Z → bool) ve (x y: word ve) : word ve :=
+  if cmp (wunsigned x) (wunsigned y) then (-1)%R else 0%R.
+Arguments wpcmpu1 cmp {ve} _ _.
+
+Definition wpcmpeq ve sz (w1 w2: word sz) : word sz :=
+  lift2_vec ve (wpcmpu1 Z.eqb) sz w1 w2.
+
+Definition wpcmpgt ve sz (w1 w2: word sz) : word sz :=
+  lift2_vec ve (wpcmpu1 Z.gtb) sz w1 w2.
+
+(* -------------------------------------------------------------------*)
 Definition wpack sz pe (arg: seq Z) : word sz :=
   let w := map (CoqWord.word.mkword pe) arg in
   wrepr sz (word.wcat_r w).
