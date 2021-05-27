@@ -103,6 +103,8 @@ Variant asm_op : Type :=
 | BSWAP  of wsize                     (* byte swap *)
 | POPCNT of wsize    (* Count bits set to 1 *)
 
+| PEXT   of wsize    (* parallel bits extract *)
+
   (* SSE instructions *)
 | MOVD     of wsize
 | VMOVDQU  `(wsize)
@@ -585,6 +587,11 @@ Definition x86_POPCNT sz (v: word sz): ex_tpl (b5w_ty sz) :=
   Let _ := check_size_16_64 sz in
   let r := popcnt  v in
   ok (:: Some false, Some false, Some false, Some false, Some (ZF_of_word v) & r).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_PEXT sz (v1 v2: word sz): ex_tpl (w_ty sz) :=
+  let _ := check_size_32_64 sz in
+  ok (@pextr sz v1 v2).
 
 (* ---------------------------------------------------------------- *)
 Definition x86_MOVD sz (v: word sz) : ex_tpl (w_ty U128) :=
@@ -1239,6 +1246,9 @@ Definition Ox86_BSWAP_instr :=
 Definition Ox86_POPCNT_instr :=
   mk_instr_w_b5w "POPCNT" x86_POPCNT msb_dfl [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) no_imm (primP POPCNT) (pp_name "popcnt").
 
+Definition Ox86_PEXT_instr :=
+  mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm true]]) no_imm (primP PEXT) (pp_name "pext").
+
 (* Vectorized instruction *)
 Definition pp_movd sz args :=
  pp_name_ty (if sz == U64 then "movq"%string else "movd"%string)
@@ -1567,6 +1577,7 @@ Definition instr_desc o : instr_desc_t :=
   | CMOVcc sz          => Ox86_CMOVcc_instr.1 sz
   | BSWAP sz           => Ox86_BSWAP_instr.1 sz
   | POPCNT sz          => Ox86_POPCNT_instr.1 sz
+  | PEXT sz            => Ox86_PEXT_instr.1 sz
   | CQO sz             => Ox86_CQO_instr.1 sz
   | ADD sz             => Ox86_ADD_instr.1 sz
   | SUB sz             => Ox86_SUB_instr.1 sz
@@ -1675,6 +1686,7 @@ Definition prim_string :=
    Ox86_CMOVcc_instr.2;
    Ox86_BSWAP_instr.2;
    Ox86_POPCNT_instr.2;
+   Ox86_PEXT_instr.2;
    Ox86_CQO_instr.2;
    Ox86_ADD_instr.2;
    Ox86_SUB_instr.2;
