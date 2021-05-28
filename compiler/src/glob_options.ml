@@ -50,6 +50,8 @@ let set_stop_after p () =
 let set_all_print () =
   print_list := poptions
 
+let private_annot = ref false
+
 let set_ec f =
   ec_list := f :: !ec_list
 
@@ -121,6 +123,7 @@ let options = [
     "-nowarning", Arg.Unit (nowarning), ": do no print warning";
     "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
+    "-print-private-annot", Arg.Set private_annot, "print private annotations of program signatures";
   ] @  List.map print_option poptions @ List.map stop_after_option poptions
 
 let usage_msg = "Usage : jasminc [option] filename"

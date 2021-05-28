@@ -221,6 +221,14 @@ let pp_arg fmt (sty, x) =
     pp_sto_ty sty
     pp_var x
 
+let pp_aarg fmt (_a,(sty, x)) =
+  F.fprintf
+    fmt
+    "%a %a"
+    pp_sto_ty sty
+    pp_var x
+
+
 let pp_args fmt (sty, xs) =
   F.fprintf
     fmt
@@ -306,14 +314,14 @@ let pp_funbody fmt { pdb_vars ; pdb_instr ; pdb_ret } =
         (pp_list ", " pp_var) ret;
   ) fmt pdb_ret
 
-let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body } =
+let pp_fundef fmt {pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body } =
   F.fprintf
     fmt
     "%a%a %a(%a)%a %a"
     pp_cc pdf_cc
     kw "fn"
     dname (L.unloc pdf_name)
-    (pp_list ", " pp_arg) pdf_args
+    (pp_list ", " pp_aarg) pdf_args
     pp_rty pdf_rty
     (pp_inbraces 0 pp_funbody) pdf_body;
   F.fprintf fmt eol

@@ -77,6 +77,10 @@ let string_of_string0 s0 =
   let sz = Array.length s0 in
   String.init sz (fun i -> s0.(i))
 
+let cannot_of_annot l = List.map (fun (x,y) -> string0_of_string x, string0_of_string y) l
+
+let annot_of_cannot l = List.map (fun (x,y) -> string_of_string0 x, string_of_string0 y) l
+
 (* ------------------------------------------------------------------------ *)
 
 let cty_of_ty = function

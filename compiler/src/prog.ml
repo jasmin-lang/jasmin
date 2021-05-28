@@ -171,11 +171,14 @@ type returnaddress_kind =
   | OnStack
   | OnReg
 
+type annot = (string * string) list
+
 type f_annot = { 
     retaddr_kind  : returnaddress_kind option;
     stack_allocation_size : B.zint option;
     stack_size    : B.zint option;
     stack_align   : wsize option;
+    sig_annot    : (annot list) * annot
   }
 
 let f_annot_empty = {
@@ -183,6 +186,7 @@ let f_annot_empty = {
     stack_allocation_size = None;
     stack_size    = None;
     stack_align   = None;
+    sig_annot    = ([],[])
   } 
     
 type ('len,'info) gfunc = {

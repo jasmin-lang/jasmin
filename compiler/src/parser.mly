@@ -78,6 +78,7 @@
 %token EXPORT
 %token ARRAYINIT
 %token <string> NID
+%token <string> ANNOT
 %token <Bigint.zint> INT
 %token <string> STRING
 
@@ -113,6 +114,7 @@ attribute:
 
 annotation:
   | SHARPLBRACKET a=separated_list(COMMA, attribute) RBRACKET { a }
+  | s = ANNOT {[s,""]} (* lightweigth annotation *)
 
 annotations:
   | a = list(annotation) { List.concat a }
@@ -356,6 +358,9 @@ storage:
 %inline pvardecl(S):
 | ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }
 
+%inline pargdecl(S):
+| a = annotations ty=stor_type vs=separated_nonempty_list(S, var) { (a, ty, vs) }
+
 pfunbody :
 | LBRACE
     vs = postfix(pvardecl(COMMA?), SEMICOLON)*
@@ -375,7 +380,7 @@ pfundef:
     cc=call_conv?
     FN
     name = ident
-    args = parens_tuple(pvardecl(empty))
+    args = parens_tuple(pargdecl(empty))
     rty  = prefix(RARROW, tuple(stor_type))?
     body = pfunbody
 
@@ -383,7 +388,7 @@ pfundef:
       pdf_cc   = cc;
       pdf_name = name;
       pdf_args = 
-        List.flatten (List.map (fun (str, ids) -> List.map (fun id -> (str, id)) ids) args);
+        List.flatten (List.map (fun (a, str, ids) -> List.map (fun id -> (a,(str, id))) ids) args);
       pdf_rty  = rty ;
       pdf_body = body; } }
 

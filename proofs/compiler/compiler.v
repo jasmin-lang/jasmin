@@ -27,6 +27,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import x86_gen expr.
 Import ZArith.
 Require merge_varmaps.
+Require Import query.
 Require Import compiler_util allocation array_init inline dead_calls unrolling remove_globals
    constant_prop dead_code array_expansion lowering makeReferenceArguments stack_alloc linear tunneling x86_sem.
 Import Utf8.
@@ -105,6 +106,7 @@ Record compiler_params := {
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
+  get_sig_annot    : funname -> (list annot) * annot;
 }.
 
 Definition var_alloc_prog cp (p: _uprog) : _uprog :=

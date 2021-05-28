@@ -240,11 +240,13 @@ type pcall_conv = [
   | `Inline
 ]
 
+type annot = (string * string) list
+
 type pfundef = {
-  pdf_annot : (string * string) list;
+  pdf_annot : annot;
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
-  pdf_args : (pstotype * pident) list;
+  pdf_args : (annot * (pstotype * pident)) list;
   pdf_rty  : pstotype list option;
   pdf_body : pfunbody;
 }

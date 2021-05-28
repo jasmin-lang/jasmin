@@ -406,7 +406,12 @@ let main () =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
       is_stack_kind v.v_kind in
 
-
+    let get_sig_annot fn =
+      let _ , f_annot, _ = Conv.get_finfo tbl fn in
+      (List.map Conv.cannot_of_annot (fst f_annot.sig_annot),
+       Conv.cannot_of_annot (snd f_annot.sig_annot))
+    in
+      
      (* TODO: update *)
     (* (\* Check safety and calls exit(_). *\)
      * let check_safety_cp s cp =
@@ -514,7 +519,8 @@ let main () =
       Compiler.is_reg_ptr  = is_reg_ptr;
       Compiler.is_ptr      = is_ptr;
       Compiler.is_reg_array = is_reg_array;
-    } in
+      Compiler.get_sig_annot = get_sig_annot;
+      } in
 
     let export_functions, subroutines =
       let conv fd = Conv.cfun_of_fun tbl fd.f_name in
@@ -528,6 +534,16 @@ let main () =
         (snd prog)
         ([], []) in
 
+    let _ =
+      if ! Glob_options.private_annot
+      then
+        Printer.(begin
+                    let l = Query.collect_ctt_signature get_sig_annot (Expr.to_uprog cprog) in
+                    List.iter
+                      (fun (fn,(lb,b)) ->
+                        Format.printf "%s : %a -> %a\n" (Conv.fun_of_cfun tbl fn).fn_name (pp_list "->" pp_bool) lb   pp_bool b    ) l
+                  end) in
+    
     begin match
       Compiler.compile_prog_to_x86 cparams export_functions subroutines (Expr.to_uprog cprog) with
     | Utils0.Error e ->

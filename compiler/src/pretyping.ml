@@ -1459,7 +1459,7 @@ let ws_of_string =
             [U8;U16;U32;U64;U128;U256] in
   fun s -> List.assoc s l 
 
-let process_f_annot loc annot = 
+let process_f_annot loc annot args_annot = 
   let open P in
   let do1 name mk_info = 
     match List.assoc name annot with
@@ -1488,7 +1488,9 @@ let process_f_annot loc annot =
   { retaddr_kind = do1 "returnaddress" mk_ra;
     stack_allocation_size = do1 "stackallocsize" mk_stksize;
     stack_size = do1 "stacksize" mk_stksize;
-    stack_align = do1 "stackalign" mk_stkalign; }
+    stack_align = do1 "stackalign" mk_stkalign;
+    sig_annot  = (args_annot,annot) (* Could remove the "known" attributes *)
+  }
 
 
 
@@ -1496,14 +1498,14 @@ let process_f_annot loc annot =
 let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env =
   let inret = odfl [] (omap (List.map L.unloc) pf.pdf_body.pdb_ret) in
   let dfl_mut x = List.mem x inret in
-  let envb, args = tt_vardecls_push dfl_mut env pf.pdf_args in
+  let envb, args = tt_vardecls_push dfl_mut env (List.map snd pf.pdf_args) in
   let rty  = odfl [] (omap (List.map (tt_type env |- snd)) pf.pdf_rty) in
   let body, xret = tt_funbody envb pf.pdf_body in
   let f_cc = tt_call_conv loc args xret pf.pdf_cc in
   let args = List.map L.unloc args in
   let fdef =
     { P.f_loc   = loc;
-      P.f_annot = process_f_annot loc pf.pdf_annot;
+      P.f_annot = process_f_annot loc pf.pdf_annot (List.map fst pf.pdf_args);
       P.f_cc    = f_cc;
       P.f_name  = P.F.mk (L.unloc pf.pdf_name);
       P.f_tyin  = List.map (fun { P.v_ty } -> v_ty) args;
