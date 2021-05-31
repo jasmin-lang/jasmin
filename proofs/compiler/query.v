@@ -58,16 +58,16 @@ Definition match_pattern (p:pattern) (s:string)  : bool :=
   | PEQ s' => eqb s s'
   end.
 
-Fixpoint match_assoc (q:query) (a:assoc) : bool :=
+Definition match_attribute (p1 p2:pattern) (a:annot) : bool :=
+  List.existsb (fun '(x,v) => match_pattern p1 x && match_pattern p2 v) a.
+
+Fixpoint match_query (q:query) (a:annot) : bool :=
   match q with
   | QTRUE => true
-  | QATTR x v => match_pattern x a.1 &&   match_pattern v a.2
-  | QAND q1 q2 => (match_assoc q1 a) && (match_assoc q2 a)
-  | QOR q1 q2 => (match_assoc q1 a) || (match_assoc q2 a)
+  | QATTR x v => match_attribute x v a
+  | QAND q1 q2 => (match_query q1 a) && (match_query q2 a)
+  | QOR q1 q2 => (match_query q1 a) || (match_query q2 a)
   end.
-
-Definition match_query (q:query) (a:annot) : bool :=
-  List.existsb (match_assoc q) a.
 
 (** * Interface *)
 
