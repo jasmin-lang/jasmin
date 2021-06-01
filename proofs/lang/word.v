@@ -1020,6 +1020,10 @@ Definition popcnt sz (w: word sz) :=
  wrepr sz (count id (w2t w)).
 
 (* -------------------------------------------------------------------*)
+Definition pextr sz (w1 w2: word sz) :=
+ wrepr sz (t2w (in_tuple (mask (w2t w2) (w2t w1)))).
+
+(* -------------------------------------------------------------------*)
 Definition halve_list A : seq A → seq A :=
   fix loop m := if m is a :: _ :: m' then a :: loop m' else m.
 
