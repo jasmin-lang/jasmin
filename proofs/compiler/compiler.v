@@ -35,17 +35,18 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition unroll1 (p:uprog) : cfexec uprog:=
+Definition unroll1 (p:uprog) : cexecpp uprog:=
   let p := unroll_prog p in
   let p := const_prop_prog p in
   dead_code_prog p.
 
+(* FIXME: error really not clear for the user *)
 Fixpoint unroll (n:nat) (p:uprog) :=
   match n with
-  | O   => cferror Ferr_loop
+  | O   => cerrorpp (pp_s "Loop operator too small")
   | S n =>
     Let p' := unroll1 p in
-    if ((p_funcs p: ufun_decls) == (p_funcs p': ufun_decls)) then cfok p
+    if ((p_funcs p: ufun_decls) == (p_funcs p': ufun_decls)) then cokpp p
     else unroll n p'
   end.
 
@@ -129,7 +130,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : result fun_err
   Let p := dead_calls_err_seq to_keep p in
   let p := cparams.(print_uprog) RemoveUnusedFunction p in
 
-  Let p := unroll Loop.nb p in
+  Let p := add_pp (unroll Loop.nb p) in
   let p := cparams.(print_uprog) Unrolling p in
 
   let p := const_prop_prog p in
@@ -138,7 +139,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : result fun_err
   let pv := var_alloc_prog cparams p in
   let pv := cparams.(print_uprog) AllocInlineAssgn pv in
   Let _ := CheckAllocRegU.check_prog p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
-  Let pv := dead_code_prog pv in
+  Let pv := add_pp (dead_code_prog pv) in
   let pv := cparams.(print_uprog) DeadCode_AllocInlineAssgn pv in
 
   let pr := remove_init_prog cparams.(is_reg_array) pv in
@@ -165,14 +166,14 @@ Definition compiler_third_part (entries: seq funname) (ps: sprog) : result fun_e
 
   let rminfo := cparams.(removereturn) ps in
   Let _ := check_removeturn entries rminfo in
-  Let pr := dead_code_prog_tokeep rminfo ps in
+  Let pr := add_pp (dead_code_prog_tokeep rminfo ps) in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
   let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
   Let _ := CheckAllocRegS.check_prog pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 
-  Let pd := dead_code_prog pa in
+  Let pd := add_pp (dead_code_prog pa) in
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
 
   ok pd.

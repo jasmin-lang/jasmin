@@ -35,37 +35,41 @@ Local Open Scope vmap.
 Local Open Scope seq_scope.
 
 
-Definition dead_code_c (dead_code_i: instr -> Sv.t -> ciexec (Sv.t * cmd))
-                       c s :  ciexec (Sv.t * cmd):=
+Definition dead_code_c (dead_code_i: instr -> Sv.t -> cexecpp (Sv.t * cmd))
+                       c s :  cexecpp (Sv.t * cmd):=
   foldr (fun i r =>
     Let r := r in
     Let ri := dead_code_i i r.1 in
-    ciok (ri.1, ri.2 ++ r.2)) (ciok (s,[::])) c.
+    cokpp (ri.1, ri.2 ++ r.2)) (cokpp (s,[::])) c.
 
 Section LOOP.
 
-  Variable dead_code_c : Sv.t -> ciexec (Sv.t * cmd).
-  Variable dead_code_c2 : Sv.t -> ciexec (Sv.t * (Sv.t * (cmd*cmd))).
+  Variable dead_code_c : Sv.t -> cexecpp (Sv.t * cmd).
+  Variable dead_code_c2 : Sv.t -> cexecpp (Sv.t * (Sv.t * (cmd*cmd))).
   Variable ii : instr_info.
 
-  Fixpoint loop (n:nat) (rx:Sv.t) (wx:Sv.t) (s:Sv.t) : ciexec (Sv.t * cmd) :=
+  (* TODO: shoud we add an argument of type unit? *)
+  Definition pp_loop_error :=
+    pp_hov [:: pp_s "loop iterator too small"; PPEbreak; pp_s "in dead_code"].
+
+  Fixpoint loop (n:nat) (rx:Sv.t) (wx:Sv.t) (s:Sv.t) : cexecpp (Sv.t * cmd) :=
     match n with
-    | O => cierror ii (Cerr_Loop "dead_code")
+    | O => cerrorpp (pp_at ii pp_loop_error)
     | S n =>
       Let sc := dead_code_c s in
       let: (s',c') := sc in
       let s' := Sv.union rx (Sv.diff s' wx) in
-      if Sv.subset s' s then ciok (s,c')
+      if Sv.subset s' s then cokpp (s,c')
       else loop n rx wx (Sv.union s s')
     end.
 
-  Fixpoint wloop (n:nat) (s:Sv.t) : ciexec (Sv.t * (cmd * cmd)) :=
+  Fixpoint wloop (n:nat) (s:Sv.t) : cexecpp (Sv.t * (cmd * cmd)) :=
     match n with
-    | O =>  cierror ii (Cerr_Loop "dead_code")
+    | O => cerrorpp (pp_at ii pp_loop_error)
     | S n =>
       Let sc := dead_code_c2 s in
       let: (s',sic) := sc in
-      if Sv.subset s' s then ciok sic
+      if Sv.subset s' s then cokpp sic
       else wloop n (Sv.union s s')
     end.
 
@@ -104,7 +108,10 @@ Definition fn_keep_only {T:Type} (fn:funname) (l:seq T) :=
   | Some tokeep => keep_only l tokeep
   end.
 
-Fixpoint check_keep_only ii (xs:lvals) (tokeep: seq bool) s := 
+(* TODO: could be written using [fmapM2] I think. Is it worth it? *)
+(* FIXME: initially, it was a linear error, why? *)
+(* TODO: probably should be of the "please report" kind *)
+Fixpoint check_keep_only ii (xs:lvals) (tokeep: seq bool) s : cexecpp (Sv.t * lvals) :=
   match tokeep, xs with
   | [::], [::] => ok (s, [::])
   | b::tokeep, x::xs =>
@@ -115,41 +122,41 @@ Fixpoint check_keep_only ii (xs:lvals) (tokeep: seq bool) s :=
     else
       let w := vrv x in
       if disjoint s w && negb (lv_write_mem x) then ok (s, xs)
-      else cierror ii (Cerr_linear "dead code: check_keep_only")
-  | _, _ => cierror ii (Cerr_linear "dead code: check_keep_only invalid size")
+      else cerrorpp (pp_at ii (pp_s "dead code: check_keep_only"))
+  | _, _ => cerrorpp (pp_at ii (pp_s "dead code: check_keep_only invalid size"))
   end.
 
-Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
+Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexecpp (Sv.t * cmd) :=
   let (ii,ir) := i in
   match ir with
   | Cassgn x tag ty e =>
     let w := write_i ir in
     if tag != AT_keep then
-      if disjoint s w && negb (lv_write_mem x) then ciok (s, [::])
-      else if check_nop x ty e then ciok (s, [::])
-      else ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
-    else   ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
+      if disjoint s w && negb (lv_write_mem x) then cokpp (s, [::])
+      else if check_nop x ty e then cokpp (s, [::])
+      else cokpp (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
+    else   cokpp (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
 
   | Copn xs tag o es =>
     let w := vrvs xs in
     if tag != AT_keep then
-      if disjoint s w && negb (has lv_write_mem xs) then ciok (s, [::])
-      else if check_nop_opn xs o es then ciok (s, [::])
-      else ciok (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, [:: i])
-    else ciok (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, [:: i])
+      if disjoint s w && negb (has lv_write_mem xs) then cokpp (s, [::])
+      else if check_nop_opn xs o es then cokpp (s, [::])
+      else cokpp (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, [:: i])
+    else   cokpp (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, [:: i])
 
   | Cif b c1 c2 =>
     Let sc1 := dead_code_c dead_code_i c1 s in
     Let sc2 := dead_code_c dead_code_i c2 s in
     let: (s1,c1) := sc1 in
     let: (s2,c2) := sc2 in
-    ciok (read_e_rec (Sv.union s1 s2) b, [:: MkI ii (Cif b c1 c2)])
+    cokpp (read_e_rec (Sv.union s1 s2) b, [:: MkI ii (Cif b c1 c2)])
 
   | Cfor x (dir, e1, e2) c =>
     Let sc := loop (dead_code_c dead_code_i c) ii Loop.nb
                    (read_rv (Lvar x)) (vrv (Lvar x)) s in
     let: (s, c) := sc in
-    ciok (read_e_rec (read_e_rec s e2) e1,[:: MkI ii (Cfor x (dir,e1,e2) c) ])
+    cokpp (read_e_rec (read_e_rec s e2) e1,[:: MkI ii (Cfor x (dir,e1,e2) c) ])
 
   | Cwhile a c e c' =>
     let dobody s_o :=
@@ -161,32 +168,32 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd) :=
       ok (s_i', (s_i, (c,c'))) in
     Let sc := wloop dobody ii Loop.nb s in
     let: (s, (c,c')) := sc in
-    ciok (s, [:: MkI ii (Cwhile a c e c') ])
+    cokpp (s, [:: MkI ii (Cwhile a c e c') ])
 
   | Ccall ini xs fn es =>
     Let sxs := 
       match onfun fn with
-      | None => ciok (read_rvs_rec (Sv.diff s (vrvs xs)) xs, xs) 
+      | None => cokpp (read_rvs_rec (Sv.diff s (vrvs xs)) xs, xs) 
       | Some bs => check_keep_only ii xs bs s 
       end in
     let '(si,xs) := sxs in
-    ciok (read_es_rec si es, [:: MkI ii (Ccall ini xs fn es)])
+    cokpp (read_es_rec si es, [:: MkI ii (Ccall ini xs fn es)])
   end.
 
 Section Section.
 
 Context {T} {pT:progT T}.
 
-Definition dead_code_fd {eft} fn (fd: _fundef eft) :=
+Definition dead_code_fd {eft} fn (fd: _fundef eft) : cexecpp (_fundef eft) :=
   let 'MkFun ii tyi params c tyo res ef := fd in
   let res := fn_keep_only fn res in
   let tyo := fn_keep_only fn tyo in
   let s := read_es (map Plvar res) in
   Let c := dead_code_c dead_code_i c s in
-  ciok (MkFun ii tyi params c.2 tyo res ef).
+  cokpp (MkFun ii tyi params c.2 tyo res ef).
 
-Definition dead_code_prog_tokeep (p: prog) : cfexec prog :=
-  Let funcs := map_cfprog_name dead_code_fd (p_funcs p) in
+Definition dead_code_prog_tokeep (p: prog) : cexecpp prog :=
+  Let funcs := map_cfprog_name_pp dead_code_fd (p_funcs p) in
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
 
 End Section.
