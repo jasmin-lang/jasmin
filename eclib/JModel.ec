@@ -186,6 +186,13 @@ op VPERMQ (w:W256.t) (i:W8.t) : W256.t =
   let choose = fun n => w \bits64 ((to_uint i %/ n) %% 4) in
   pack4 [choose 1; choose 4; choose 16; choose 64].
 
+op permd (v: W256.t) (i: W32.t) : W32.t =
+  let idx = i `>>>` 29 in
+  v \bits32 ((to_uint idx) %% 3).
+
+op VPERMD (w: W256.t) (i: W256.t) : W256.t =
+  map (permd w) i.
+
 op VEXTRACTI128 (w:W256.t) (i:W8.t) : W128.t =
   w \bits128 b2i i.[0].
 
@@ -249,6 +256,31 @@ op VPUNPCKH_4u64 (w1 w2: W256.t) =
   map2 VPUNPCKH_2u64 w1 w2.
 
 (* ------------------------------------------------------------------- *)
+op packus_32 (w: W256.t, off: int) : W64.t =
+  let pack = fun n =>
+  if (w \bits32 n) \slt W32.zero then W16.zero
+  else if (W32.of_int W16.max_uint) \sle (w \bits32 n) then (W16.of_int W16.max_uint)
+  else (w \bits16 (2*n))
+  in
+  pack4 [pack off; pack (off+1); pack (off+2); pack (off+3)].
+
+op VPACKUS_8u32 (w1 w2: W256.t) : W256.t =
+  pack4 [packus_32 w1 0; packus_32 w2 0; packus_32 w1 4; packus_32 w2 4].
+
+(* ------------------------------------------------------------------- *)
+op VPMULH_8u16 (w1 w2: W128.t) : W128.t =
+  map2 (fun (x y:W16.t) => wmulhs x y) w1 w2.
+
+op VPMULH_16u16 (w1 w2: W256.t) : W256.t =
+  map2 (fun (x y:W16.t) => wmulhs x y) w1 w2.
+
+op VPMULL_8u16 (w1 w2: W128.t) : W128.t =
+  map2 (fun (x y:W16.t) => wmulls x y) w1 w2.
+
+op VPMULL_16u16 (w1 w2: W256.t) : W256.t =
+  map2 (fun (x y:W16.t) => wmulls x y) w1 w2.
+
+(* ------------------------------------------------------------------- *)
 op VPSLLDQ_128 (w1:W128.t) (w2:W8.t) =
   let n = to_uint w2 in
   let i = min n 16 in
@@ -281,11 +313,56 @@ op VPBLENDD_128 (w1 w2: W128.t) (i:W8.t) : W128.t =
      w \bits32 n in
   pack4 [choose 0; choose 1; choose 2; choose 3].
 
+op VPBLENDD_16u16 (w1 w2: W256.t) (i: W8.t) : W256.t =
+  let choose = fun n =>
+    let w = if i.[n] then w2 else w1 in
+    w \bits16 n in
+  pack16 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7;
+          choose 8; choose 9; choose 10; choose 11; choose 12; choose 13; choose 14; choose 15].
+
 op VPBLENDD_256 (w1 w2: W256.t) (i:W8.t) : W256.t =
   let choose = fun n =>
      let w = if i.[n] then w2 else w1 in
      w \bits32 n in
   pack8 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7].
+
+(* ------------------------------------------------------------------- *)
+op VPMOVMSKB_128 (v: W128.t) : W16.t =
+  let vb = w2bits v in
+  W16.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 16).
+
+op VPMOVMSKB_256 (v: W256.t) : W32.t =
+  let vb = w2bits v in
+  W32.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 32).
+
+(* ------------------------------------------------------------------- *)
+(* FIXME
+op add_pairs (l: int list) =
+    let tl = behead l in
+    map2 Int.(+) l tl.
+
+op VPMADDWD_128 (w1 w2: W128.t) : W128.t =
+  add_pairs (map2 (fun (x y: W16.t) => (to_sint x) + (to_sint y)) w1 w2).
+
+
+op VPMADDWD_256 (w1 w2: W256.t) : W256.t =
+  add_pairs (map2 (fun (x y: W16.t) => (to_sint x) + (to_sint y)) w1 w2).
+
+(* ------------------------------------------------------------------- *)
+op VPMADDUBSW_128 (w1 w2: W128.t) : W128.t =
+  add_pairs (map2 (fun (x y: W8.t) => (to_sint x) + (to_uint y)) w1 w2).
+
+
+op VPMADDUBSW_256 (w1 w2: W256.t) : W256.t =
+  add_pairs (map2 (fun (x y: W8.t) => (to_sint x) + (to_uint y)) w1 w2).
+*)
+(* ------------------------------------------------------------------- *)
+
+op VPMOVLPD (w: W128.t) : W64.t =
+  nth W64.zero (W2u64.to_list w) 0.
+
+op VMOVHPD (w: W128.t) : W64.t =
+  nth W64.zero (W2u64.to_list w) 1.
 
 (* ------------------------------------------------------------------- *)
 
@@ -303,9 +380,18 @@ abbrev [-printing] (\vshr32u128) (w1:W128.t) (w2:W8.t) = VPSRL_4u32 w1 w2.
 abbrev [-printing] (\vshl32u128) (w1:W128.t) (w2:W8.t) = VPSLL_4u32 w1 w2.
 abbrev [-printing] (\vadd32u128) (w1 w2:W128.t) = VPADD_4u32 w1 w2.
 
+abbrev [-printing] (\vpcmpgt8u128)  (w1 w2:W128.t) = VPCMPGT_16u8 w1 w2.
+abbrev [-printing] (\vpcmpgt16u128) (w1 w2:W128.t) = VPCMPGT_8u16 w1 w2.
+abbrev [-printing] (\vpcmpgt32u128) (w1 w2:W128.t) = VPCMPGT_4u32 w1 w2.
+abbrev [-printing] (\vpcmpgt64u128) (w1 w2:W128.t) = VPCMPGT_2u64 w1 w2.
 
 abbrev [-printing] (\vshr32u256) (w1:W256.t) (w2:W8.t) = VPSRL_8u32 w1 w2.
 abbrev [-printing] (\vshl32u256) (w1:W256.t) (w2:W8.t) = VPSLL_8u32 w1 w2.
+
+abbrev [-printing] (\vpcmpeq8u128)  (w1 w2:W128.t) = VPCMPEQ_16u8 w1 w2.
+abbrev [-printing] (\vpcmpeq16u128) (w1 w2:W128.t) = VPCMPEQ_8u16 w1 w2.
+abbrev [-printing] (\vpcmpeq32u128) (w1 w2:W128.t) = VPCMPEQ_4u32 w1 w2.
+abbrev [-printing] (\vpcmpeq64u128) (w1 w2:W128.t) = VPCMPEQ_2u64 w1 w2.
 
 abbrev [-printing] (\vshr64u256) (w1:W256.t) (w2:W8.t) = VPSRL_4u64 w1 w2.
 abbrev [-printing] (\vshl64u256) (w1:W256.t) (w2:W8.t) = VPSLL_4u64 w1 w2.
@@ -313,6 +399,16 @@ abbrev [-printing] (\vshl64u256) (w1:W256.t) (w2:W8.t) = VPSLL_4u64 w1 w2.
 abbrev [-printing] (\vadd32u256) (w1 w2:W256.t) = VPADD_8u32 w1 w2.
 abbrev [-printing] (\vadd64u256) (w1 w2:W256.t) = VPADD_4u64 w1 w2.
 (*abbrev [-printing] (\vsub64u256) (w1:W256.t) (w2:W8.t) = VPSUB_4u64 w1 w2.*)
+
+abbrev [-printing] (\vpcmpgt8u256)  (w1 w2:W256.t) = VPCMPGT_32u8 w1 w2.
+abbrev [-printing] (\vpcmpgt16u256) (w1 w2:W256.t) = VPCMPGT_16u16 w1 w2.
+abbrev [-printing] (\vpcmpgt32u256) (w1 w2:W256.t) = VPCMPGT_8u32 w1 w2.
+abbrev [-printing] (\vpcmpgt64u256) (w1 w2:W256.t) = VPCMPGT_4u64 w1 w2.
+
+abbrev [-printing] (\vpcmpeq8u256)  (w1 w2:W256.t) = VPCMPEQ_32u8 w1 w2.
+abbrev [-printing] (\vpcmpeq16u256) (w1 w2:W256.t) = VPCMPEQ_16u16 w1 w2.
+abbrev [-printing] (\vpcmpeq32u256) (w1 w2:W256.t) = VPCMPEQ_8u32 w1 w2.
+abbrev [-printing] (\vpcmpeq64u256) (w1 w2:W256.t) = VPCMPEQ_4u64 w1 w2.
 
 (* ------------------------------------------------------------------- *)
 (* Leakages                                                            *)
