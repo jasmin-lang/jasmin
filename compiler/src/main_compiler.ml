@@ -16,6 +16,10 @@ let parse () =
 
 (*--------------------------------------------------------------------- *)
 
+let pp_var tbl fmt v =
+  let v = Conv.var_of_cvar tbl v in
+  Printer.pp_var ~debug:true fmt v
+
 let pp_var_i tbl fmt vi =
   let vi = Conv.vari_of_cvari tbl vi in
   Printer.pp_var ~debug:true fmt (Prog.L.unloc vi)
@@ -27,6 +31,22 @@ let pp_clval tbl fmt lv =
 let saved_rev_alloc : (var -> Sv.t) option ref = ref None
 let saved_extra_free_registers : (i_loc -> var option) ref = ref (fun _ -> None)
 let saved_live_calls : (funname -> Sv.t) option ref = ref None
+
+let rec pp_err tbl fmt (pp_e : Compiler_util.pp_error) =
+  match pp_e with
+  | Compiler_util.PPEstring s -> Format.fprintf fmt "%a" Printer.pp_string0 s
+  | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" (pp_var tbl) v
+  | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" (Conv.fun_of_cfun tbl fn).fn_name
+  | Compiler_util.PPEiinfo ii ->
+    let (i_loc, _) = Conv.get_iinfo tbl ii in
+    Format.fprintf fmt "%a" Printer.pp_iloc i_loc
+  | Compiler_util.PPEbox (box, pp_e) ->
+      begin match box with
+      | Compiler_util.Hbox -> Format.fprintf fmt "@[<h>%a@]" (Format.pp_print_list ~pp_sep:(fun _ () -> ()) (pp_err tbl)) pp_e
+      | Compiler_util.Vbox -> Format.fprintf fmt "@[<v>%a@]" (Format.pp_print_list ~pp_sep:(fun _ () -> ()) (pp_err tbl)) pp_e
+      | Compiler_util.HoVbox -> Format.fprintf fmt "@[<hov>%a@]" (Format.pp_print_list ~pp_sep:(fun _ () -> ()) (pp_err tbl)) pp_e
+      end
+  | Compiler_util.PPEbreak -> Format.fprintf fmt "@;<1 2>"
 
 let rec pp_comp_err tbl fmt =
   let open Printer in
@@ -174,6 +194,8 @@ and pp_comp_ferr tbl fmt = function
     Format.fprintf fmt "duplicate global: please report"
   | Compiler_util.Ferr_msg msg ->
     pp_comp_err tbl fmt msg
+  | Compiler_util.Ferr_pp pp ->
+    pp_err tbl fmt pp
 
 
 (* -------------------------------------------------------------------- *)
@@ -531,7 +553,7 @@ let main () =
     begin match
       Compiler.compile_prog_to_x86 cparams export_functions subroutines (Expr.to_uprog cprog) with
     | Utils0.Error e ->
-      Utils.hierror "compilation error %a@."
+        Utils.hierror "@[<hov>compilation error@;<1 2>%a@]@."
          (pp_comp_ferr tbl) e
     | Utils0.Ok asm ->
       if !outfile <> "" then begin

@@ -17,7 +17,6 @@ Variant warning_msg : Set :=
 (* ** Compiler error
  * -------------------------------------------------------------------------- *)
 
-(*
 Variant box := 
   | Vbox
   | Hbox
@@ -26,17 +25,17 @@ Variant box :=
 Inductive pp_error :=
   | PPEstring  `(string)
   | PPEvar     `(var)
-  | PPEop1     `(sop1)
-  | PPEop2     `(sop2)
-  | PPEopN     `(opN)
-  | PPEsopn    `(sopn)
-  | PPEexpr    `(pexpr)
-  | PPElval    `(lval)
+(*   | PPEop1     `(sop1) *)
+(*   | PPEop2     `(sop2) *)
+(*   | PPEopN     `(opN) *)
+(*   | PPEsopn    `(sopn) *)
+(*   | PPEexpr    `(pexpr) *)
+(*   | PPElval    `(lval) *)
   | PPEfunname `(funname)
-  | PPEinstr   `(instr_r)
+(*   | PPEinstr   `(instr_r) *)
   | PPEiinfo   `(instr_info)
   | PPEbox     `(box) `(seq pp_error)
-  | PPEbreack.
+  | PPEbreak.
 
 (*
 Fixpoint pp_seq_aux sep (xs: list pp_error) := 
@@ -66,14 +65,16 @@ Definition pp_vbox := PPEbox Vbox.
 
 Definition pp_s    := PPEstring.
 Definition pp_v    := PPEvar.
-Definition pp_op1  := PPEop1.
+(* Definition pp_op1  := PPEop1. *)
+Definition pp_fn   := PPEfunname.
 
 Definition pp_neq {A:Type} (pp_e: A -> pp_error) e1 e2 (_: unit):=
   pp_hov [:: pp_e e1; pp_s "should be equal to"; pp_e e2].
 
+(* could we decide that each ';' means a break? *)
 Definition pp_at (ii:instr_info) (e:pp_error) := 
-  pp_box [:: pp_s "at "; PPEiinfo ii].
-*)
+  pp_hov [:: pp_box [:: pp_s "at "; PPEiinfo ii; pp_s ":"]; PPEbreak; e].
+
 
 Variant asm_error :=
   | AsmErr_string of string & option pexpr
@@ -119,22 +120,33 @@ with fun_error   :=
   | Ferr_uniqglob : fun_error
   | Ferr_topo     : fun_error
   | Ferr_lowering : fun_error
-  | Ferr_glob_neq : fun_error.
+  | Ferr_glob_neq : fun_error
+  | Ferr_pp : pp_error -> fun_error.
 
 
 Notation instr_error := (instr_info * error_msg)%type.
 
+(* TODO: remove the 3 next lines and replace cexpp with cexec *)
 Definition cexec A := result error_msg A.
 Definition ciexec A := result instr_error A.
 Definition cfexec A := result fun_error A.
+Definition cexecpp A := result pp_error A.
 
 Definition cok {A} (a:A) : cexec A := @Ok error_msg A a.
 Definition ciok {A} (a:A) : ciexec A := @Ok instr_error A a.
 Definition cfok {A} (a:A) : cfexec A := @Ok fun_error A a.
+Definition cokpp {A} (a:A) : cexecpp A := @Ok pp_error A a.
 
 Definition cerror  (c:error_msg) {A} : cexec A := @Error _ A c.
 Definition cierror (ii:instr_info) (c:error_msg) {A} : ciexec A := @Error _ A (ii,c).
 Definition cferror  (c:fun_error) {A} : cfexec A := @Error _ A c.
+Definition cerrorpp (pp:pp_error) {A} : cexecpp A := @Error _ A pp.
+
+Definition add_pp {A} (r:cexecpp A) : cfexec A :=
+  match r with
+  | Ok a => @Ok _ A a
+  | Error pp_e => Error (Ferr_pp pp_e)
+  end.
 
 Definition add_iinfo {A} ii (r:cexec A) : ciexec A :=
   match r with
@@ -146,6 +158,12 @@ Definition add_finfo {A} f1 f2 (r:ciexec A) : cfexec A :=
   match r with
   | Ok a => @Ok _ A a
   | Error e  => Error (Ferr_in_body f1 f2 e)
+  end.
+
+Definition add_finfo_pp {A} fn (r:cexecpp A) : cexecpp A :=
+  match r with
+  | Ok a => @Ok _ A a
+  | Error pp_e => Error (pp_hov [:: pp_box [:: pp_s "in function "; pp_fn fn]; PPEbreak; pp_e])
   end.
 
 Definition add_infun {A} (ii:instr_info) (r:cfexec A) : ciexec A :=
@@ -188,6 +206,9 @@ Proof. by case: e => //= ? h [] heq; apply: h;rewrite heq. Qed.
 
 Definition map_cfprog_name {T1 T2} (F: funname -> T1 -> ciexec T2) :=
   mapM (fun (f:funname * T1) => Let x := add_finfo f.1 f.1 (F f.1 f.2) in cfok (f.1, x)).
+
+Definition map_cfprog_name_pp {T1 T2} (F: funname -> T1 -> cexecpp T2) :=
+  mapM (fun (f:funname * T1) => Let x := add_finfo_pp f.1 (F f.1 f.2) in cokpp (f.1, x)).
 
 Definition map_cfprog {T1 T2} (F: T1 -> ciexec T2) :=
   map_cfprog_name (fun _ t1 => F t1).
