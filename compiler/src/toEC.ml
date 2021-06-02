@@ -111,8 +111,7 @@ let rec leaks_e_rec leaks e =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> leaks
   | Pload (_,x,e) -> leaks_e_rec (int_of_word U64 (snd (add64 (gkvar x) e)) :: leaks) e
-  | Pget (_,_,_, e) -> leaks_e_rec (e::leaks) e 
-  | Psub _ -> assert false (* NOT IMPLEMENTED *)
+  | Pget (_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec (e::leaks) e 
   | Papp1 (_, e) -> leaks_e_rec leaks e
   | Papp2 (_, e1, e2) -> leaks_e_rec (leaks_e_rec leaks e1) e2
   | PappN (_, es) -> leaks_es_rec leaks es
@@ -124,8 +123,7 @@ let leaks_es es = leaks_es_rec [] es
 
 let leaks_lval = function
   | Lnone _ | Lvar _ -> []
-  | Laset (_,_,_, e) -> leaks_e_rec [e] e
-  | Lasub _ -> assert false (* NOT IMPLEMENTED *)
+  | Laset (_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec [e] e
   | Lmem (_, x,e) -> leaks_e_rec [int_of_word U64 (snd (add64 (gkvar x) e))] e
 
 (* FIXME: generate this list automatically *)
@@ -329,7 +327,8 @@ let ty_lval = function
   | Lvar x -> (L.unloc x).v_ty
   | Lmem (ws,_,_) -> Bty (U ws)
   | Laset(_,ws, _, _) -> Bty (U ws)
-  | Lasub _ -> assert false (* NOT IMPLEMENTED *)
+  | Lasub (_,ws, len, _, _) -> Arr(ws, len) 
+
 
 let pp_ty _option fmt ty = 
   match ty with
@@ -485,7 +484,7 @@ let rec ty_expr = function
   | Pvar x         -> x.gv.L.pl_desc.v_ty
   | Pload (sz,_,_) -> tu sz
   | Pget  (_,sz,_,_) -> tu sz
-  | Psub _ -> assert false (* NOT IMPLEMENTED *)
+  | Psub (_,ws, len, _, _) -> Arr(ws, len)
   | Papp1 (op,_)   -> out_ty_op1 op
   | Papp2 (op,_,_) -> out_ty_op2 op
   | PappN (op, _)  -> out_ty_opN op
@@ -494,11 +493,6 @@ let rec ty_expr = function
 let wsize = function
   | Coq_sword sz -> sz
   | _ -> assert false
-
-let pp_cast pp fmt (ty,ety,e) = 
-  if ety = ty then pp fmt e 
-  else 
-    Format.fprintf fmt "(%a %a)" pp_zeroext (ws_of_ty ety, ws_of_ty ty) pp e 
 
 let check_array env x = 
   match (L.unloc x).v_ty with
@@ -509,16 +503,31 @@ let oarray option = if option then "OArray" else "Array"
 
 let pp_oarray env = oarray (for_safety env)
 
-let pp_initi env fmt (x, n, ws) =
+let pp_initi pp fmt (x, n, ws) =
   Format.fprintf fmt 
     "@[(WArray%i.init%i (fun i => %a.[i]))@]"
-    (arr_size ws n) (int_of_ws ws) (pp_var env) x
+    (arr_size ws n) (int_of_ws ws) pp x
     
 let pp_print_i fmt z = 
   if B.le B.zero z then B.pp_print fmt z 
   else Format.fprintf fmt "(%a)" B.pp_print z 
 
 let pp_access aa = if aa = Warray_.AAdirect then "_direct" else ""
+
+let pp_cast pp fmt (ty,ety,e) = 
+  if ety = ty then pp fmt e 
+  else 
+    match ty with
+    | Bty _ ->
+      Format.fprintf fmt "(%a %a)" pp_zeroext (ws_of_ty ety, ws_of_ty ty) pp e 
+    | Arr(ws, n) ->
+      let wse, ne = array_kind ety in
+      Format.fprintf fmt 
+        "@[(Array%i.init@ (fun i => get%i@ %a@ i))@]"
+        n
+        (int_of_ws ws)
+        (pp_initi pp) (e, ne, wse)
+
 
 let rec pp_expr env fmt (e:expr) = 
   match e with
@@ -544,13 +553,36 @@ let rec pp_expr env fmt (e:expr) =
         Format.fprintf fmt "@[(get%i%s@ %a@ %a)@]" 
           (int_of_ws ws) 
           (pp_access aa)
-          (pp_initi env) (x, n, xws) (pp_expr env) e in
+          (pp_initi (pp_var env)) (x, n, xws) (pp_expr env) e in
     let option = 
-      for_safety env &&  snd (Mv.find (L.unloc x.gv) env.vars) in
+      for_safety env && snd (Mv.find (L.unloc x.gv) env.vars) in
     pp_oget option pp fmt (x,e)
 
-  | Psub _ -> assert false (* NOT IMPLEMENTED *)
+  | Psub (aa, ws, len, x, e) -> 
+    assert (check_array env x.gv);
+    let i = create_name env "i" in
+    let x = x.gv in
+    let x = L.unloc x in
+    let (xws,n) = array_kind x.v_ty in
+    if ws = xws && aa = Warray_.AAscale then
+      Format.fprintf fmt "@[(Array%i.init (fun %s => %a.[%a + %s]))@]"
+        len
+        i
+        (pp_var env) x
+        (pp_expr env) e
+        i
+    else 
+      Format.fprintf fmt 
+        "@[(Array%i.init (fun %s => (get%i%s@ %a@ (%a + %s))))@]" 
+        len
+        i
+        (int_of_ws ws) 
+        (pp_access aa)
+        (pp_initi (pp_var env)) (x, n, xws) 
+        (pp_expr env) e 
+        i 
 
+    
   | Pload (sz, x, e) -> 
     Format.fprintf fmt "(loadW%a Glob.mem (W64.to_uint %a))" 
       pp_size sz (pp_wcast env) (add64 (gkvar x) e)
@@ -640,7 +672,7 @@ let pp_lval1 env pp_e fmt (lv, (ety, e)) =
       (pp_wcast env) (add64 (gkvar x) e1) pp_e e
   | Lvar x  -> 
     Format.fprintf fmt "@[%a <-@ %a;@]" (pp_var env) (L.unloc x) pp_e e
-  | Laset (aa, ws, x,e1) -> 
+  | Laset (aa, ws, x, e1) -> 
     assert (check_array env x);
     let x = L.unloc x in
     let (xws,n) = array_kind x.v_ty in
@@ -654,8 +686,45 @@ let pp_lval1 env pp_e fmt (lv, (ety, e)) =
         "@[%a <-@ @[Array%i.init@ (WArray%i.get%i (WArray%i.set%i%s %a %a %a));@]@]"
         (pp_var env) x n nws8 (int_of_ws xws) nws8 (int_of_ws ws)
         (pp_access aa)
-        (pp_initi env) (x, n, xws) (pp_expr env) e1 pp_e e
-  | Lasub _ -> assert false (* NOT IMPLEMENTED *)
+        (pp_initi (pp_var env)) (x, n, xws) (pp_expr env) e1 pp_e e
+  | Lasub (aa, ws, len, x, e1) -> 
+    assert (check_array env x);
+    let x = L.unloc x in
+    let (xws, n) = array_kind x.v_ty in
+    if ws = xws && aa = Warray_.AAscale then
+      Format.fprintf fmt 
+      "@[%a <- @[Array%i.init@ @[(fun i => if %a <= i < %a + %i@ then %a.[i-%a]@ else %a.[i]);@]@]@]"
+      (pp_var env) x 
+      n 
+      (pp_expr env) e1 (pp_expr env) e1 len 
+      pp_e e (pp_expr env) e1
+      (pp_var env) x
+    else 
+      let nws = n * int_of_ws xws in
+      let nws8 = nws / 8 in
+      let pp_start fmt () = 
+        if aa = Warray_.AAscale then
+          Format.fprintf fmt "(%i * %a)" (int_of_ws ws / 8) (pp_expr env) e1
+        else
+          Format.fprintf fmt "%a" (pp_expr env) e1 in
+      let len8 = len * int_of_ws ws / 8 in
+      let pp_a fmt () =
+        Format.fprintf fmt 
+          "@[(WArray%i.init8@ (fun i =>@ if %a <= i < %a + %i@ then WArray%i.get8 %a (i - %a)@ else WArray%i.get8 %a i))@]"
+        nws8
+        pp_start () pp_start () len8
+        len8 (pp_initi pp_e) (e, len, ws) pp_start () 
+        nws8 (pp_initi (pp_var env)) (x,nws8,U8)
+        
+        in
+        
+      Format.fprintf fmt "@[%a <- @[Array%i.init@ @[(WArray%i.get%i %a);@]"
+       (pp_var env) x 
+       n 
+       nws8 (int_of_ws ws)
+       pp_a ()
+       
+                          
 
 let pp_lval env fmt = function
   | Lnone _ -> assert false

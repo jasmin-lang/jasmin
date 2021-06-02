@@ -1,0 +1,38 @@
+export
+fn test_rdtsc32(reg u64 x) {
+  reg u32 a b;
+
+  b, a = #RDTSC_32();
+  (u32)[x] = a;
+  (u32)[x+4] = b;
+}
+
+export
+fn test_rdtsc64(reg u64 x) {
+  reg u64 a b;
+
+  b, a = #RDTSC_64();
+  [x] = a;
+  [x+8] = b;
+}
+
+export
+fn test_rdtscp32(reg u64 x) {
+  reg u32 a b c;
+
+  b, a, c = #RDTSCP_32();
+  (u32)[x] = a;
+  (u32)[x+4] = b;
+  (u32)[x+8] = c;
+}
+
+export
+fn test_rdtscp64(reg u64 x) {
+  reg u64 a b c;
+
+  b, a, c = #RDTSCP_64();
+  [x] = a;
+  [x+8] = b;
+  [x+16] = c;
+}
+
