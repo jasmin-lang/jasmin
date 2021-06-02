@@ -265,5 +265,54 @@ Proof.
   by case: t2.
 Qed.
 
+(* -------------------------------------------------------------------- *)
+Definition subtype (t t': stype) :=
+  match t with
+  | sword w => if t' is sword w' then (w ≤ w')%CMP else false
+  | sarr n =>
+    if t' is sarr n' then (n <=? n')%Z else false
+  | _ => t == t'
+  end.
+
+Lemma subtypeE ty ty' :
+  subtype ty ty' →
+  match ty' with
+  | sword sz' => ∃ sz, ty = sword sz ∧ (sz ≤ sz')%CMP
+  | sarr n'   => ∃ n, ty = sarr n ∧ (n <= n')%Z
+  | _         => ty = ty'
+end.
+Proof.
+  destruct ty; try by move/eqP => <-.
+  + by case: ty'=> //= p' /ZleP ?; eauto.
+  by case: ty' => //; eauto.
+Qed.
+
+Lemma subtypeEl ty ty' :
+  subtype ty ty' →
+  match ty with
+  | sword sz => ∃ sz', ty' = sword sz' ∧ (sz ≤ sz')%CMP
+  | sarr n   => ∃ n', ty' = sarr n' ∧ (n <= n')%Z
+  | _        => ty' = ty
+  end.
+Proof.
+  destruct ty; try by move/eqP => <-.
+  + by case: ty'=> //= p' /ZleP ?; eauto.
+  by case: ty' => //; eauto.
+Qed.
+
+Lemma subtype_refl x : subtype x x.
+Proof. case: x => //= ?;apply Z.leb_refl. Qed.
+Hint Resolve subtype_refl : core.
+
+Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.
+Proof.
+  case: x => //= [/eqP<-|/eqP<-|n1|sx] //.
+  + case: y => //= n2 /ZleP h1;case: z => //= n3 /ZleP h2.
+    by apply /ZleP;apply: Z.le_trans h1 h2.
+  case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
+Qed.
+
+
+
 
 

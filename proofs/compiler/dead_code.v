@@ -73,7 +73,7 @@ End LOOP.
 
 Definition check_nop (rv:lval) ty (e:pexpr) :=
   match rv, e with
-  | Lvar x1, Pvar x2 => is_lvar x2 && (x1.(v_var) == x2.(gv).(v_var)) && (ty <= vtype x1.(v_var))%CMP
+  | Lvar x1, Pvar x2 => is_lvar x2 && (x1.(v_var) == x2.(gv).(v_var)) && (subtype ty (vtype x1.(v_var)))
   | _, _ => false
   end.
 

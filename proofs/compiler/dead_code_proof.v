@@ -126,7 +126,7 @@ Section PROOF.
   Proof. move=> ii i s1 s2 _ Hi; exact: Hi. Qed.
 
   Lemma check_nop_spec (r:lval) ty (e:pexpr): check_nop r ty e ->
-    exists x i1 i2, [/\ r = (Lvar (VarI x i1)), e = (Plvar(VarI x i2)) & (ty <= vtype x)%CMP] .
+    exists x i1 i2, [/\ r = (Lvar (VarI x i1)), e = (Plvar(VarI x i2)) & (subtype ty (vtype x))] .
   Proof.
     case: r e => //= -[x1 i1] [] //= [[x2 i2] k2] /andP [] /andP [] /eqP /= -> /eqP <- H.
     by exists x1, i1, i2.
@@ -187,7 +187,7 @@ Section PROOF.
 
   Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
   Proof.
-   move => [m1 vm1] [m2 vm2] x tag ty e v v' Hv htr Hw ii s /=.
+    move => [m1 vm1] [m2 vm2] x tag ty e v v' Hv htr Hw ii s /=.
     case: ifPn=> _ /=; last by apply: Hassgn_aux Hv htr Hw.
     case: ifPn=> /= [ | _].
     + rewrite write_i_assgn => /andP [Hdisj Hwmem] Hwf vm1' Hvm.
@@ -198,30 +198,41 @@ Section PROOF.
     move=> Hwf vm1' Hvm.
     have [-> Hs] : m1 = m2 /\ vm2 <=[s] vm1.
     + move: (check_nop_spec Hnop)=> {Hnop} [x0 [i1 [i2 [Hx He Hty]]]];subst x e.
-      case: x0 Hty Hv Hw => hty xn0 /= H Hv Hw.
-      have ?: v' = v.
-      (*+ admit. (*by apply: on_vuP Hv => //= ???;subst; apply: truncate_pto_val htr.*)
-      subst.
-      move: Hw;rewrite /= /write_var/set_var /=.
-      apply: on_vuP Hv => //= t Hx0 ?;subst v.
-      rewrite pof_val_pto_val /= => -[<- <-]; split => // z.
-      case: ({|vtype := ty;vname := xn0|} =P z) => [<-|/eqP Hne];
-      rewrite ?Fv.setP_eq ?Fv.setP_neq. move=> Hin /=. rewrite Hx0 /=. done.
-      move=> Hin /=. done. done.
-    eexists; split; last by exact: Eskip.
-    + apply: vmap_uincl_onT=> //.    
-    have Hvm' : vm2 <=[s]  vm1'. apply: vmap_uincl_onT. apply Hs. by apply Hvm. done.
-  Qed.*) Admitted.
+      case: x0 Hty Hv Hw => ty'' xn0 /= Hty'' Hv Hw. 
+      have Hv': value_uincl v' v.
+      + apply: on_vuP Hv=> //= pty'' /= Ht pty; subst. have htr':= truncate_value_uincl htr.
+        apply htr'.
+     move: Hw; rewrite /= /write_var /set_var /=. t_xrbindP=> vm2'. 
+     apply: on_vuP=> //=.
+     + move=>v'' hv'' <- <- <- /=; split=> //=. move=> z Hin. 
+       case: ({| vtype := ty''; vname := xn0 |} =P z)=> //=.
+       + move=> Hz. subst z. rewrite Fv.setP_eq. move: Hv. rewrite /get_gvar /= /get_var /=. 
+         apply: on_vuP=> //= v1 -> /= hv1; subst. have [v1' [/= h1 h2]]:= pof_val_uincl Hv' hv''.
+         rewrite pof_val_pto_val in h1. by case: h1=> ->.
+         move=> Hz. rewrite Fv.setP_neq //. by apply /eqP.
+     move=> Hz. case: ifP=> //= Hb [] <- <- <- /=; split=> //=.
+     move=> z Hin. case: ({| vtype := ty''; vname := xn0 |} =P z)=> //=.
+     + move=> Hz'. subst z. rewrite Fv.setP_eq. move: Hv. rewrite /get_gvar /= /get_var /=. 
+       apply: on_vuP=> //= v1 -> /= hv1; subst. move: Hb. move=> /is_sboolP Hb; subst. 
+       by have /= h1 := pof_val_undef Hv' Hz.
+       move=> Hz'. rewrite Fv.setP_neq //. by apply /eqP.
+   eexists; split; last by exact: Eskip.
+   + apply: vmap_uincl_onT=> //.    
+     have Hvm' : vm2 <=[s]  vm1'. apply: vmap_uincl_onT. apply Hs. by apply Hvm. done.
+  Qed.
 
   Lemma check_nop_opn_spec (xs:lvals) (o:sopn) (es:pexprs): check_nop_opn xs o es ->
-    exists x i1 sz i2,
+    exists x i1 sz sz' i2,
 
-      [/\ xs = [:: Lvar (VarI (Var (sword sz) x) i1)], 
-          (o = Ox86 (MOV sz) \/ o = Ox86 (VMOVDQU sz)) &
-          es = [:: Plvar (VarI (Var (sword sz) x) i2)] ].
+      [/\ xs = [:: Lvar (VarI (Var (sword sz') x) i1)], 
+          (o = Ox86 (MOV sz) \/ o = Ox86 (VMOVDQU sz)),
+          es = [:: Plvar (VarI (Var (sword sz') x) i2)] & subtype (sword sz) (sword sz')].
   Proof.
-    case: xs o es => // rv [] // [] // [] // sz [] // e [] //= /check_nop_spec [x [i1 [i2 []]]] -> -> /=;
-      case: x => ty xn /= <-;exists xn, i1, sz, i2; split => //; auto.
+    case: xs o es=> // rv [] // [] // [] // sz [] // e [] //= /check_nop_spec
+    [x [i1 [i2 []]]] -> -> hty /=;
+    have [sz' [{hty} hty hsz]] := subtypeEl hty;
+    case: x hty=> //= ty xn /= hty; subst ty;
+    exists xn, i1, sz, sz', i2; split=> //; auto.
   Qed.
 
   Lemma set_get_word vm1 vm2 sz xn v:
@@ -292,26 +303,33 @@ Section PROOF.
       have [/= H ->]:= Hwrites_disj Hw Hdisj Hnh; split; last by constructor.
       apply: vmap_uincl_onT Heq. move=> z Hin. rewrite (H z). done. done.
     case:ifPn => [ | _ /=]; last by apply: Hopn_aux Hexpr Hopn Hw.
-    move=> /check_nop_opn_spec [x [i1 [sz [i2 [? ho ?]]]]]; subst xs es=> /= Hwf vm1' Hvm.
+    move=> /check_nop_opn_spec [x [i1 [sz [sz' [i2 [? ho ? hty]]]]]]; 
+    subst xs es=> /= Hwf vm1' Hvm.
     rewrite (surj_estate s1) (surj_estate s2) /with_vm /=.
     have [ -> Hs ]: emem s1 = emem s2 ∧ evm s2 <=[s0] evm s1.
     + case: x0 Hexpr Hopn => [ | vx] /=; first by t_xrbindP.
       case; t_xrbindP => // vx' hgetx ? hs; subst vx'.
-      have ? : v = [::vx].
-      + case: ho hs => ->; rewrite /exec_sopn /=; 
-        t_xrbindP => v1 w1 /to_wordI [sz' [w' [hsz' ??]]]; subst vx w1.
+      have Hvs : List.Forall2 value_uincl v [:: vx].
+      + case: ho hs => ->; rewrite /exec_sopn /=;
+        t_xrbindP => v1 w1 /to_wordI [sz'' [w' [hsz' ??]]]; subst vx w1.
         + rewrite /sopn_sem /= /x86_MOV; t_xrbindP => ? /assertP ha ??; subst v1 v.
-          have [sz'' /= [[? hle']]]:= get_var_word hgetx;subst sz''.
-          have ? := cmp_le_antisym hsz' hle'; subst sz'.
-          by rewrite zero_extend_u.
+          have [sz''' /= [[? hle']]]:= get_var_word hgetx;subst sz'''.
+          have hle1 := cmp_le_trans hsz' hle'. constructor. 
+          by have := @value_uincl_zero_ext sz sz'' w' hsz'. by constructor.
         rewrite /sopn_sem /= /x86_VMOVDQU; t_xrbindP => ? /assertP ha ??; subst v1 v.
-        have [sz'' /= [[? hle']]]:= get_var_word hgetx;subst sz''.
-        have ? := cmp_le_antisym hsz' hle'; subst sz'.
-        by rewrite zero_extend_u.
-      subst v; move: Hw; rewrite /= /write_var; t_xrbindP => s2' vm2 hw ??; subst s2 s2'.
-      case: s1 Hwf Hvm hgetx hw => mem1 vm1 /= Hwf Hvm hgetx hw.
-      have := set_get_word hgetx hw. move=> Heq; split=> //. move=> z Hin.
-      by rewrite (Heq z).
+        have [sz''' /= [[? hle']]]:= get_var_word hgetx;subst sz'''.
+        have hle1 := cmp_le_trans hsz' hle'. constructor. 
+        by have := @value_uincl_zero_ext sz sz'' w' hsz'. by constructor.
+     move: Hw; rewrite /= /write_var /set_var /=. case: v hs Hvs=> //= v vs hs Hvs.
+     t_xrbindP=> s2' vm3.
+     apply: on_vuP=> //=.
+     move=> ps //= hp <- //= <- //=. case: vs hs Hvs=> //= hs Hvs [] <- //=; split=> //.
+     move=> z Hin. case: ({| vtype := sword sz'; vname := x|} =P z)=> //=.
+     + move=> Hz. subst z. rewrite Fv.setP_eq. move: hgetx. rewrite /get_gvar /= /get_var /=. 
+       apply: on_vuP=> //= v1 -> /= hv1; subst. inversion Hvs; subst.
+       rewrite /pval_uincl. apply: value_uincl_pof_val. by rewrite -hp /=.
+       by rewrite /pto_val.
+     move=> Hz. rewrite Fv.setP_neq //. by apply /eqP.
     eexists; split; last exact: Eskip. by apply: vmap_uincl_onT Hvm.
    Qed.
 
