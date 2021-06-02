@@ -151,6 +151,8 @@ Variant asm_op : Type :=
 | VPMOVMSKB of wsize & wsize (* source size (U128/256) & dest. size (U32/64) *)
 | VPCMPEQ of velem & wsize
 | VPCMPGT of velem & wsize
+| VPMADDUBSW of wsize
+| VPMADDWD of wsize
 
 (* Monitoring *)
 | RDTSC   of wsize
@@ -796,6 +798,15 @@ Definition x86_VPCMPGT (ve: velem) sz (v1 v2: word sz): ex_tpl(w_ty sz) :=
   Let _ := check_size_8_64 ve in
   Let _ := check_size_128_256 sz in
   ok (wpcmpgt ve v1 v2).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_VPMADDUBSW sz (v v1: word sz) : ex_tpl (w_ty sz) :=
+  Let _ := check_size_128_256 sz in
+  ok (wpmaddubsw v v1).
+
+Definition x86_VPMADDWD sz (v v1: word sz) : ex_tpl (w_ty sz) :=
+  Let _ := check_size_128_256 sz in
+  ok (wpmaddwd v v1).
 
 (* TODO: move this in word *)
 (* FIXME: Extraction fail if they are parameter, more exactly extracted program fail *)
@@ -1475,6 +1486,42 @@ Definition Ox86_VPCMPGT_instr :=
                 ,("VPCMPGT"%string, PrimV VPCMPGT)
   ).
 
+Definition Ox86_VPMADDUBSW_instr :=
+  (fun sz => mk_instr
+                (pp_sz "VPMADDUBSW"%string sz)
+                (w2_ty sz sz)
+                (w_ty sz)
+                [:: E 1; E 2]
+                [:: E 0 ]
+                MSB_CLEAR
+                (@x86_VPMADDUBSW sz)
+                (check_xmm_xmm_xmmm sz)
+                3
+                sz
+                (no_imm sz)
+                [::]
+                (pp_name_ty "vpmaddubsw" [:: sz; sz; sz])
+             ,("VPMADDUBSW"%string, PrimP U128 VPMADDUBSW)
+  ).
+
+Definition Ox86_VPMADDWD_instr :=
+  (fun sz => mk_instr
+                (pp_sz "VPMADDWD"%string sz)
+                (w2_ty sz sz)
+                (w_ty sz)
+                [:: E 1; E 2]
+                [:: E 0 ]
+                MSB_CLEAR
+                (@x86_VPMADDWD sz)
+                (check_xmm_xmm_xmmm sz)
+                3
+                sz
+                (no_imm sz)
+                [::]
+                (pp_name_ty "vpmaddwd" [:: sz; sz; sz])
+             ,("VPMADDWD"%string, PrimP U128 VPMADDWD)
+  ).
+
 (* Monitoring instructions.
    These instructions are declared for the convenience of the programmer.
    Nothing can be proved about programs that use these instructions;
@@ -1660,6 +1707,8 @@ Definition instr_desc o : instr_desc_t :=
   | VPMOVMSKB sz sz'   => Ox86_PMOVMSKB_instr.1 sz sz'
   | VPCMPEQ ve sz      => Ox86_VPCMPEQ_instr.1 ve sz
   | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
+  | VPMADDUBSW sz      => Ox86_VPMADDUBSW_instr.1 sz
+  | VPMADDWD sz        => Ox86_VPMADDWD_instr.1 sz
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | AESDEC             => Ox86_AESDEC_instr.1          
@@ -1769,6 +1818,8 @@ Definition prim_string :=
    Ox86_PMOVMSKB_instr.2;
    Ox86_VPCMPEQ_instr.2;
    Ox86_VPCMPGT_instr.2;
+   Ox86_VPMADDUBSW_instr.2;
+   Ox86_VPMADDWD_instr.2;
    Ox86_RDTSC_instr.2;
    Ox86_RDTSCP_instr.2;
    Ox86_AESDEC_instr.2;            

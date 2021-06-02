@@ -1129,6 +1129,38 @@ Definition wpcmpgt ve sz (w1 w2: word sz) : word sz :=
   lift2_vec ve (wpcmpu1 Z.gtb) sz w1 w2.
 
 (* -------------------------------------------------------------------*)
+Definition saturated_signed (sz: wsize) (x: Z): Z :=
+ Z.max (wmin_signed sz) (Z.min (wmax_signed sz) x).
+
+Definition wrepr_saturated_signed (sz: wsize) (x: Z) : word sz :=
+ wrepr sz (saturated_signed sz x).
+
+Fixpoint add_pairs (m: seq Z) : seq Z :=
+  if m is x :: y :: z then x + y :: add_pairs z
+  else [::].
+
+Definition wpmaddubsw sz (v1 v2: word sz) : word sz :=
+  let w1 := map wunsigned (split_vec VE8 v1) in
+  let w2 := map wsigned (split_vec VE8 v2) in
+  let result := [seq wrepr_saturated_signed sz z | z <- add_pairs (map2 *%R w1 w2) ] in
+  make_vec sz result.
+
+Definition wpmaddwd sz (v1 v2: word sz) : word sz :=
+  let w1 := map wsigned (split_vec VE16 v1) in
+  let w2 := map wsigned (split_vec VE16 v2) in
+  let result := [seq wrepr sz z | z <- add_pairs (map2 *%R w1 w2) ] in
+  make_vec sz result.
+
+(* Test case from the documentation: VPMADDWD wraps when all inputs are min-signed *)
+Local Lemma test_wpmaddwd_wraps :
+  let: s16 := wrepr U16 (wmin_signed U16) in
+  let: s32 := make_vec U32 [:: s16 ; s16 ] in
+  let: res := wpmaddwd s32 s32 in
+  let: expected := wrepr U32 (wmin_signed U32) in
+  res = expected.
+Proof. vm_compute. by apply/eqP. Qed.
+
+(* -------------------------------------------------------------------*)
 Definition wpack sz pe (arg: seq Z) : word sz :=
   let w := map (CoqWord.word.mkword pe) arg in
   wrepr sz (word.wcat_r w).
