@@ -375,13 +375,15 @@ call_conv :
 | EXPORT { `Export }
 | INLINE { `Inline }
 
+atype: a=annotations ty=stor_type {(a,ty)}
+
 pfundef:
 |  pdf_annot = annotations
     cc=call_conv?
     FN
     name = ident
     args = parens_tuple(pargdecl(empty))
-    rty  = prefix(RARROW, tuple(stor_type))?
+    rty  = prefix(RARROW, tuple(atype))?
     body = pfunbody
 
   { { pdf_annot;

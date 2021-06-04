@@ -106,8 +106,9 @@ Record compiler_params := {
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
-  get_sig_annot    : funname -> (list annot) * annot;
+  get_sig_annot    : instr_info -> (list annot) * (list annot);
 }.
+
 
 Definition var_alloc_prog cp (p: _uprog) : _uprog :=
   map_prog_name cp.(var_alloc_fd) p.

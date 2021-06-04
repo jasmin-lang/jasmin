@@ -247,7 +247,7 @@ type pfundef = {
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
   pdf_args : (annot * (pstotype * pident)) list;
-  pdf_rty  : pstotype list option;
+  pdf_rty  : (annot * pstotype) list option;
   pdf_body : pfunbody;
 }
 

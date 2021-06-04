@@ -71,8 +71,8 @@ Fixpoint match_query (q:query) (a:annot) : bool :=
 
 (** * Interface *)
 
-Definition get_signature (q:query) (a : (list annot) * annot) :=
-  (List.map (match_query q) a.1 , match_query q a.2).
+Definition get_signature (q:query) (a : (list annot) * (list annot)) :=
+  (List.map (match_query q) a.1 , List.map (match_query q) a.2).
 
 (* Example *)
 
@@ -82,8 +82,8 @@ Definition get_ctt_signature := get_signature (QATTR (PEQ "private") PANY).
 Section Section.
 
   (* From compiler params *)
-  Variable get_annot_sig : funname -> (list annot) * annot.
+  Variable get_annot_sig : funname -> (list annot) * (list annot).
 
-  Definition collect_ctt_signature (p:uprog) : seq (funname * ((seq bool) * bool)) :=
+  Definition collect_ctt_signature (p:uprog) : seq (funname * ((seq bool) * (seq bool))) :=
       List.map (fun f => (f.1 , get_ctt_signature (get_annot_sig f.2.(f_iinfo)))) p.(expr.p_funcs).
 End Section.

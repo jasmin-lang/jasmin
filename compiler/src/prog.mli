@@ -155,9 +155,8 @@ type f_annot = {
     stack_size    : B.zint option;
     stack_align   : wsize option;
     (* [args_annot] gathers the annotations for the arguments 
-       and the function result.
-       [List.length (fst args_annot)] is the number of arguments. *)
-    sig_annot    : (annot list) * annot 
+       and the function results. *)
+    sig_annot    : (annot list) * (annot list)
   }
 
 

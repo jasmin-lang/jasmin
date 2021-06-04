@@ -178,7 +178,7 @@ type f_annot = {
     stack_allocation_size : B.zint option;
     stack_size    : B.zint option;
     stack_align   : wsize option;
-    sig_annot    : (annot list) * annot
+    sig_annot    : (annot list) * (annot list)
   }
 
 let f_annot_empty = {

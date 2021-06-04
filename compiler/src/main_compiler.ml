@@ -409,7 +409,7 @@ let main () =
     let get_sig_annot fn =
       let _ , f_annot, _ = Conv.get_finfo tbl fn in
       (List.map Conv.cannot_of_annot (fst f_annot.sig_annot),
-       Conv.cannot_of_annot (snd f_annot.sig_annot))
+       (List.map Conv.cannot_of_annot (snd f_annot.sig_annot)))
     in
       
      (* TODO: update *)
@@ -538,10 +538,12 @@ let main () =
       if ! Glob_options.private_annot
       then
         Printer.(begin
-                    let l = Query.collect_ctt_signature get_sig_annot (Expr.to_uprog cprog) in
+                    let p = Expr.to_uprog cprog in
+                    let l = Query.collect_ctt_signature get_sig_annot p in
                     List.iter
-                      (fun (fn,(lb,b)) ->
-                        Format.printf "%s : %a -> %a\n" (Conv.fun_of_cfun tbl fn).fn_name (pp_list "->" pp_bool) lb   pp_bool b    ) l
+                      (fun (fn,(la,lr)) ->
+                        Format.printf "%s : %a->%a\n" (Conv.fun_of_cfun tbl fn).fn_name (pp_list "->" pp_bool) la
+                          (pp_list "*" pp_bool)  lr    ) l;
                   end) in
     
     begin match

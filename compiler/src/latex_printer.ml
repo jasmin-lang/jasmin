@@ -322,7 +322,7 @@ let pp_fundef fmt {pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body } =
     kw "fn"
     dname (L.unloc pdf_name)
     (pp_list ", " pp_aarg) pdf_args
-    pp_rty pdf_rty
+    pp_rty (Utils.omap (List.map snd) pdf_rty)
     (pp_inbraces 0 pp_funbody) pdf_body;
   F.fprintf fmt eol
 
