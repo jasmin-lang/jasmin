@@ -800,22 +800,21 @@ Section PROOF.
     MM {
        read_incl  : ∀ p w, read m p U8 = ok w → read m' p U8 = ok w
      ; valid_incl : ∀ p, validw m p U8 → validw m' p U8
-     ; valid_stk  : ∀ p, 
+     ; valid_stk  : ∀ p,
          (wunsigned (stack_limit m) <= wunsigned p < wunsigned(stack_root m))%Z
        → validw m' p U8
       }.
-   
-  Lemma mm_free : ∀ m1 m1',
-  match_mem m1 m1' →
-  match_mem (free_stack m1) m1'.
+
+  Lemma mm_free m1 m1' :
+    match_mem m1 m1' →
+    match_mem (free_stack m1) m1'.
   Proof.
-  move=> m1 m1' [] Hrm Hvm Hsm. constructor.
+  case => Hrm Hvm Hsm; split.
   (* read *)
-  + move=> p1 w1 Hr. have Hv := (readV Hr).
-    have Hs := free_stackP. move: (Hs m1)=> Hm1. move: (Hs m1')=> Hm1'.
-    apply Hrm. rewrite -Hr. eapply fss_read_old. apply Hm1. apply Hv.
+  + move=> p1 w1 Hr.
+    apply: Hrm. rewrite -Hr. apply: fss_read_old; [ exact: free_stackP | exact: readV Hr ].
   (* valid *)
-  + move=> p1 Hv. 
+  + move=> p1 Hv.
     have Hs := free_stackP. move: (Hs m1)=> Hm1. move: (Hs m1')=> Hm1'.
     have Heq := (fss_valid Hm1). have Heq' := (fss_valid Hm1').
     apply Hvm. rewrite Heq in Hv. move: Hv. move=>/andP [] Hv1 Hv2.
@@ -823,7 +822,7 @@ Section PROOF.
   (* stack *)
   have Hs := free_stackP. move: (Hs m1)=> Hm1. move: (Hs m1')=> Hm1'.
   have Heq := (fss_valid Hm1).
-  move=> p1 Hs'. apply Hsm. have <- := fss_root Hm1. by have <- := fss_limit Hm1. 
+  move=> p1 Hs'. apply Hsm. have <- := fss_root Hm1. by have <- := fss_limit Hm1.
   Qed.
 
   Lemma mm_read_ok : ∀ m m' a s v,
@@ -869,25 +868,29 @@ Section PROOF.
   by move=> -> -> _.
   Qed.
 
-  Lemma mm_alloc : ∀ m1 m1' al sz es' m2,
-  match_mem m1 m1' →
-  alloc_stack m1 al sz es' = ok m2 →
-  match_mem m2 m1'.
+  Lemma mm_alloc m1 m1' al sz es' m2 :
+    match_mem m1 m1' →
+    alloc_stack m1 al sz es' = ok m2 →
+    match_mem m2 m1'.
   Proof.
-  move=> m1 m1' sz sz' z m2 [] Hvm Hrm Hs Ha.
-  have := alloc_stackP Ha. move=> [] Hvr Hve Hveq {Ha} Ha Hs' Hs'' Hsr Hsl Hf.
-  constructor.
-  (* read *)
-  + move=> p1 w1 Hr1. case: (@idP (validw m1 p1 U8)).  case Heq: (validw m1 p1 U8)=> //. 
-    + move: (Hvr p1 Heq)=> {Hvr} Hvr. move: (Hvm p1)=> {Hvm} Hvm. 
-      rewrite Hvr in Hvm. move=> _. by apply Hvm.
-    admit.
-  (* valid *)
-  + move=> p1 Hv1. apply Hrm. move: (Hveq p1)=> {Hveq} Hveq.
-    admit.
-  (* stack *)
-  move=> p1 Hs'''. apply Hs. by rewrite -Hsr -Hsl.
-  Admitted.
+    case => Hvm Hrm Hs /alloc_stackP[] Hvr Hve Hveq Ha Hs' Hs'' Hsr Hsl Hf.
+    constructor.
+    (* read *)
+    + move=> p1 w1 /dup[] Hr1.
+      move: (Hve p1) (Hvr p1).
+      have -> := readV Hr1.
+      case: validw.
+      * by move => _ <- // /Hvm.
+      by move => ->.
+    (* valid *)
+    + move => p1; rewrite Hveq => /orP[]; first exact: Hrm.
+      move => range; apply: Hs; move: range; rewrite !zify => - [] lo.
+      change (wsize_size U8) with 1%Z.
+      generalize (top_stack_below_root _ m1); rewrite -/(top_stack m1).
+      lia.
+    (* stack *)
+    move=> p1 Hs'''. apply Hs. by rewrite -Hsr -Hsl.
+  Qed.
 
   Lemma mm_write_invalid : ∀ m m1' p s (w: word s),
   match_mem m m1' →
