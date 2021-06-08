@@ -786,6 +786,9 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
     f
   in
   let funcs : unit func list = List.map preprocess funcs in
+  if !Glob_options.debug then
+    Format.printf "Before REGALLOC:@.%a@."
+      Printer.(pp_list "@ @ " (pp_func ~debug:true)) (List.rev funcs);
   (* Live variables at the end of each function, in addition to returned local variables *)
   let get_liveness =
     let live : Sv.t Hf.t = Hf.create 17 in
