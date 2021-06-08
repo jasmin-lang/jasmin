@@ -1,0 +1,79 @@
+param int N = 10;
+
+fn dot_product (reg ptr u64[N] v1, reg ptr u64[N] v2) -> reg u64 {
+  reg u64 res;
+  reg u64 tmp;
+  inline int i;
+
+  res = 0;
+  for i = 0 to N {
+    tmp = v1[i];
+    tmp *= v2[i];
+    res += tmp;
+  }
+  return res;
+}
+
+fn product_matrix_vector (reg ptr u64[N*N] m, reg ptr u64[N] v, reg ptr u64[N] res) -> reg ptr u64[N] {
+  reg u64 tmp;
+  inline int i;
+
+  for i = 0 to N {
+    tmp = dot_product(m[i*N:N], v);
+    res[i] = tmp;
+  }
+  return res;
+}
+
+fn transpose (reg ptr u64[N*N] m, reg ptr u64[N*N] res) -> reg ptr u64[N*N] {
+  inline int i, j;
+  reg u64 tmp;
+
+  for i = 0 to N {
+    for j = 0 to N {
+      tmp = m[j+i*N];
+      res[i+j*N] = tmp;
+    }
+  }
+
+  return res;
+}
+
+// m2 and res are transposed
+fn product_matrix_matrix (reg ptr u64[N*N] m1, reg ptr u64[N*N] m2, reg ptr u64[N*N] res) -> reg ptr u64[N*N] {
+  inline int i;
+  stack u64[N*N] m2t;
+  stack u64[N*N] rest;
+  reg ptr u64[N * N] pres;
+
+  pres = res;
+  m2t = transpose (m2, m2t);
+  for i = 0 to N {
+    rest[i*N:N] = product_matrix_vector(m1, m2t[i*N:N], rest[i*N:N]);
+  }
+  res = pres;
+  res = transpose (rest, res);
+
+  return res;
+}
+
+/* Multiplies row-major matrices in memory at adresses x and y and writes the result at adress z.
+  Regions may overlap.
+*/
+export
+fn productMM(reg u64 x y z) {
+  inline int i;
+  stack u64[N * N] mx my mz;
+  reg u64 tmp;
+  for i = 0 to N * N {
+    tmp = (u64)[x + 8 * i];
+    mx[i] = tmp;
+    tmp = (u64)[y + 8 * i];
+    my[i] = tmp;
+  }
+  mz = product_matrix_matrix(mx, my, mz);
+  for i = 0 to N * N {
+    tmp = mz[i];
+    (u64)[z + 8 * i] = tmp;
+  }
+}
