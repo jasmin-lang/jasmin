@@ -880,6 +880,14 @@ Definition wbswap sz (w: word sz) : word sz :=
   make_vec sz (rev (split_vec U8 w)).
 
 (* -------------------------------------------------------------------*)
+Definition popcnt sz (w: word sz) :=
+ wrepr sz (count id (w2t w)).
+
+(* -------------------------------------------------------------------*)
+Definition pextr sz (w1 w2: word sz) :=
+ wrepr sz (t2w (in_tuple (mask (w2t w2) (w2t w1)))).
+
+(* -------------------------------------------------------------------*)
 Definition halve_list A : seq A → seq A :=
   fix loop m := if m is a :: _ :: m' then a :: loop m' else m.
 
@@ -1086,6 +1094,16 @@ Definition wperm2i128 (w1 w2: u256) (i: u8) : u256 :=
   make_vec U256 [:: lo ; hi ].
 
 (* -------------------------------------------------------------------*)
+Definition wpermd1 (v: seq u32) (idx: u32) :=
+  let off := wunsigned idx mod 8 in
+  (v`_(Z.to_nat off))%R.
+
+Definition wpermd sz (w1 idx: word sz) : word sz :=
+  let v := split_vec U32 w1 in
+  let i := split_vec U32 idx in
+  make_vec sz (map (wpermd1 v) i).
+
+(* -------------------------------------------------------------------*)
 Definition wpermq (w: u256) (i: u8) : u256 :=
   let v := split_vec U64 w in
   let j := split_vec 2 i in
@@ -1100,6 +1118,21 @@ Definition wpslldq := wpsxldq (@wshl _).
 Definition wpsrldq := wpsxldq (@wshr _).
 
 (* -------------------------------------------------------------------*)
+Definition wpcmpu1 (cmp: Z → Z → bool) ve (x y: word ve) : word ve :=
+  if cmp (wunsigned x) (wunsigned y) then (-1)%R else 0%R.
+Arguments wpcmpu1 cmp {ve} _ _.
+
+Definition wpcmpeq ve sz (w1 w2: word sz) : word sz :=
+  lift2_vec ve (wpcmpu1 Z.eqb) sz w1 w2.
+
+Definition wpcmpgt ve sz (w1 w2: word sz) : word sz :=
+  lift2_vec ve (wpcmpu1 Z.gtb) sz w1 w2.
+
+(* -------------------------------------------------------------------*)
 Definition wpack sz pe (arg: seq Z) : word sz :=
   let w := map (CoqWord.word.mkword pe) arg in
   wrepr sz (word.wcat_r w).
+
+(* -------------------------------------------------------------------*)
+Definition wpmovmskb (dsz ssz: wsize) (w : word ssz) : word dsz :=
+  wrepr dsz (t2w_def [tuple of map msb (split_vec U8 w)]).

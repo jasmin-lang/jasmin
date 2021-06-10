@@ -101,6 +101,9 @@ Variant asm_op : Type :=
 | ADOX    of wsize  (* add with overflow flag, only writes overflow flag *)
 
 | BSWAP  of wsize                     (* byte swap *)
+| POPCNT of wsize    (* Count bits set to 1 *)
+
+| PEXT   of wsize    (* parallel bits extract *)
 
   (* SSE instructions *)
 | MOVD     of wsize
@@ -143,7 +146,16 @@ Variant asm_op : Type :=
 | VEXTRACTI128
 | VINSERTI128
 | VPERM2I128
+| VPERMD
 | VPERMQ
+| VPMOVMSKB of wsize & wsize (* source size (U128/256) & dest. size (U32/64) *)
+| VPCMPEQ of velem & wsize
+| VPCMPGT of velem & wsize
+
+(* Monitoring *)
+| RDTSC   of wsize
+| RDTSCP  of wsize
+
 (* AES instructions *)
 | AESDEC
 | VAESDEC
@@ -571,6 +583,17 @@ Definition x86_BSWAP sz (v: word sz) : ex_tpl (w_ty sz) :=
   ok (wbswap v).
 
 (* ---------------------------------------------------------------- *)
+Definition x86_POPCNT sz (v: word sz): ex_tpl (b5w_ty sz) :=
+  Let _ := check_size_16_64 sz in
+  let r := popcnt  v in
+  ok (:: Some false, Some false, Some false, Some false, Some (ZF_of_word v) & r).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_PEXT sz (v1 v2: word sz): ex_tpl (w_ty sz) :=
+  let _ := check_size_32_64 sz in
+  ok (@pextr sz v1 v2).
+
+(* ---------------------------------------------------------------- *)
 Definition x86_MOVD sz (v: word sz) : ex_tpl (w_ty U128) :=
   Let _ := check_size_32_64 sz in
   ok (zero_extend U128 v).
@@ -741,6 +764,9 @@ Definition x86_VINSERTI128 (v1: u256) (v2: u128) (m: u8) : ex_tpl (w_ty U256) :=
 Definition x86_VPERM2I128 (v1 v2: u256) (m: u8) : ex_tpl (w_ty U256) :=
   ok (wperm2i128 v1 v2 m).
 
+Definition x86_VPERMD (v1 v2: u256): ex_tpl w256_ty :=
+  ok (wpermd v1 v2).
+
 Definition x86_VPERMQ (v: u256) (m: u8) : ex_tpl (w_ty U256) :=
   ok (wpermq v m).
 
@@ -753,6 +779,23 @@ Definition x86_VPALIGNR128 (m:u8) (v1 v2: word U128) : word U128 :=
 Definition x86_VPALIGNR sz (v1 v2: word sz) (m:u8) : ex_tpl (w_ty sz) := 
   Let _ := check_size_128_256 sz in
   ok (lift2_vec U128 (x86_VPALIGNR128 m) sz v1 v2).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_VPMOVMSKB ssz dsz (v : word ssz): ex_tpl (w_ty dsz) :=
+  Let _ := check_size_32_64 dsz in
+  Let _ := check_size_128_256 ssz in
+  ok (wpmovmskb dsz v).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_VPCMPEQ (ve: velem) sz (v1 v2: word sz): ex_tpl(w_ty sz) :=
+  Let _ := check_size_8_64 ve in
+  Let _ := check_size_128_256 sz in
+  ok (wpcmpeq ve v1 v2).
+
+Definition x86_VPCMPGT (ve: velem) sz (v1 v2: word sz): ex_tpl(w_ty sz) :=
+  Let _ := check_size_8_64 ve in
+  Let _ := check_size_128_256 sz in
+  ok (wpcmpgt ve v1 v2).
 
 (* TODO: move this in word *)
 (* FIXME: Extraction fail if they are parameter, more exactly extracted program fail *)
@@ -1200,6 +1243,12 @@ Definition Ox86_SHRD_instr :=
 Definition Ox86_BSWAP_instr :=
   mk_instr_w_w "BSWAP" x86_BSWAP msb_dfl [:: E 0] [:: E 0] 1 (fun _ => [:: [::r]]) no_imm (primP BSWAP) (pp_iname "bswap").
 
+Definition Ox86_POPCNT_instr :=
+  mk_instr_w_b5w "POPCNT" x86_POPCNT msb_dfl [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) no_imm (primP POPCNT) (pp_name "popcnt").
+
+Definition Ox86_PEXT_instr :=
+  mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm true]]) no_imm (primP PEXT) (pp_name "pext").
+
 (* Vectorized instruction *)
 Definition pp_movd sz args :=
  pp_name_ty (if sz == U64 then "movq"%string else "movd"%string)
@@ -1364,9 +1413,108 @@ Definition Ox86_VPERM2I128_instr :=
   mk_instr_pp "VPERM2I128" w256x2w8_ty w256_ty [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR x86_VPERM2I128
               (check_xmm_xmm_xmmm_imm8 U256) 4 U256 (imm8 U256) (PrimM VPERM2I128) (pp_name_ty "vperm2i128" [::U256;U256;U256;U8]).
 
+Definition Ox86_VPERMD_instr :=
+  mk_instr_pp "VPERMD" (w2_ty U256 U256) w256_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VPERMD
+       (check_xmm_xmm_xmmm U256) 3 U256 None (PrimM VPERMD) (pp_name "vpermd" U256).
+
 Definition Ox86_VPERMQ_instr :=
   mk_instr_pp "VPERMQ" w256w8_ty w256_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VPERMQ
               (check_xmm_xmmm_imm8 U256) 3 U256 (imm8 U256) (PrimM VPERMQ) (pp_name_ty "vpermq" [::U256;U256;U8]).
+
+Definition Ox86_PMOVMSKB_instr :=
+  (fun ssz dsz => mk_instr
+    (pp_sz_sz "VPMOVMSKB"%string false ssz dsz) (* Jasmin name *)
+    (w_ty ssz) (* args type *)
+    (w_ty dsz) (* result type *)
+    [:: E 1 ] (* args *)
+    [:: E 0 ]  (* results *)
+    MSB_CLEAR (* clear MostSignificantBits *)
+    (@x86_VPMOVMSKB ssz dsz) (* semantics *)
+    [:: [:: r ; xmm ] ] (* arg checks *)
+    2 (* nargs *)
+    ssz (* size *)
+    None (* no immediate arg. *)
+    [::]
+    (pp_name_ty "vpmovmskb" [:: dsz; ssz]) (* asm pprinter *)
+  , ("VPMOVMSKB"%string, PrimX VPMOVMSKB) (* jasmin concrete syntax *)
+  ).
+
+Definition Ox86_VPCMPEQ_instr :=
+  (fun (ve: velem) sz => mk_instr
+                  (pp_ve_sz "VPCMPEQ"%string ve sz)
+                  (w2_ty sz sz)
+                  (w_ty sz)
+                  [:: E 1; E 2]
+                  [:: E 0]
+                  MSB_CLEAR
+                  (@x86_VPCMPEQ ve sz)
+                  (check_xmm_xmm_xmmm sz)
+                  3
+                  sz
+                  None
+                  [::]
+                  (pp_viname "vpcmpeq" ve sz)
+                ,("VPCMPEQ"%string, PrimV VPCMPEQ)
+  ).
+
+Definition Ox86_VPCMPGT_instr :=
+  (fun (ve: velem) sz => mk_instr
+                  (pp_ve_sz "VPCMPGT"%string ve sz)
+                  (w2_ty sz sz)
+                  (w_ty sz)
+                  [:: E 1; E 2]
+                  [:: E 0]
+                  MSB_CLEAR
+                  (@x86_VPCMPGT ve sz)
+                  (check_xmm_xmm_xmmm sz)
+                  3
+                  sz
+                  None
+                  [::]
+                  (pp_viname "vpcmpgt" ve sz)
+                ,("VPCMPGT"%string, PrimV VPCMPGT)
+  ).
+
+(* Monitoring instructions.
+   These instructions are declared for the convenience of the programmer.
+   Nothing can be proved about programs that use these instructions;
+   in particular the correctness theorem does not apply to programs using them. *)
+
+Definition Ox86_RDTSC_instr :=
+  (fun sz => mk_instr
+              (pp_sz "RDTSC"%string sz) (* Jasmin name *)
+              nil (* args type *)
+              (w2_ty sz sz) (* result type *)
+              nil (* args *)
+              [:: R RDX; R RAX] (* results *)
+              MSB_CLEAR (* clear MostSignificantBits *)
+              (Error ErrType) (* No semantics *)
+              [:: [::]]
+              0 (* nargs *)
+              sz (* size *)
+              None (* no immediate arg. *)
+              [::]
+              (pp_name_ty "rdtsc" [:: sz; sz]) (* asm pretty-print*)
+   ,("RDTSC"%string, PrimP U64 RDTSC) (* jasmin concrete syntax *)
+  ).
+
+Definition Ox86_RDTSCP_instr :=
+  (fun sz => mk_instr
+              (pp_sz "RDTSCP"%string sz) (* Jasmin name *)
+              nil (* args type *)
+              (w3_ty sz) (* result type *)
+              nil (* args *)
+              [:: R RDX; R RAX; R RCX] (* results *)
+              MSB_CLEAR (* clear MostSignificantBits *)
+              (Error ErrType) (* No semantics *)
+              [:: [::]] (* arg checks *)
+              0 (* nargs *)
+              sz (* size *)
+              None (* no immediate arg. *)
+              [::]
+              (pp_name_ty "rdtscp" [:: sz; sz; sz]) (* asm pprinter *)
+   ,("RDTSCP"%string, PrimP U64 RDTSCP) (* jasmin concrete syntax *)
+  ).
 
 (* AES instructions *)
 Definition mk_instr_aes2 jname aname constr x86_sem msb_flag :=
@@ -1428,6 +1576,8 @@ Definition instr_desc o : instr_desc_t :=
   | MOVZX sz sz'       => Ox86_MOVZX_instr.1 sz sz'
   | CMOVcc sz          => Ox86_CMOVcc_instr.1 sz
   | BSWAP sz           => Ox86_BSWAP_instr.1 sz
+  | POPCNT sz          => Ox86_POPCNT_instr.1 sz
+  | PEXT sz            => Ox86_PEXT_instr.1 sz
   | CQO sz             => Ox86_CQO_instr.1 sz
   | ADD sz             => Ox86_ADD_instr.1 sz
   | SUB sz             => Ox86_SUB_instr.1 sz
@@ -1503,9 +1653,15 @@ Definition instr_desc o : instr_desc_t :=
   | VPALIGNR sz        => Ox86_VPALIGNR_instr.1 sz 
   | VBROADCASTI128     => Ox86_VBROADCASTI128_instr.1
   | VPERM2I128         => Ox86_VPERM2I128_instr.1
+  | VPERMD             => Ox86_VPERMD_instr.1
   | VPERMQ             => Ox86_VPERMQ_instr.1
   | VINSERTI128        => Ox86_VINSERTI128_instr.1
   | VPEXTR ve          => Ox86_VPEXTR_instr.1 ve
+  | VPMOVMSKB sz sz'   => Ox86_PMOVMSKB_instr.1 sz sz'
+  | VPCMPEQ ve sz      => Ox86_VPCMPEQ_instr.1 ve sz
+  | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
+  | RDTSC sz           => Ox86_RDTSC_instr.1 sz
+  | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | AESDEC             => Ox86_AESDEC_instr.1          
   | VAESDEC            => Ox86_VAESDEC_instr.1         
   | AESDECLAST         => Ox86_AESDECLAST_instr.1      
@@ -1529,6 +1685,8 @@ Definition prim_string :=
    Ox86_MOVZX_instr.2;
    Ox86_CMOVcc_instr.2;
    Ox86_BSWAP_instr.2;
+   Ox86_POPCNT_instr.2;
+   Ox86_PEXT_instr.2;
    Ox86_CQO_instr.2;
    Ox86_ADD_instr.2;
    Ox86_SUB_instr.2;
@@ -1604,9 +1762,15 @@ Definition prim_string :=
    Ox86_VPALIGNR_instr.2;
    Ox86_VBROADCASTI128_instr.2;
    Ox86_VPERM2I128_instr.2;
+   Ox86_VPERMD_instr.2;
    Ox86_VPERMQ_instr.2;
    Ox86_VINSERTI128_instr.2;
    Ox86_VPEXTR_instr.2;
+   Ox86_PMOVMSKB_instr.2;
+   Ox86_VPCMPEQ_instr.2;
+   Ox86_VPCMPGT_instr.2;
+   Ox86_RDTSC_instr.2;
+   Ox86_RDTSCP_instr.2;
    Ox86_AESDEC_instr.2;            
    Ox86_VAESDEC_instr.2;         
    Ox86_AESDECLAST_instr.2;      
@@ -1618,14 +1782,5 @@ Definition prim_string :=
    Ox86_AESIMC_instr.2;          
    Ox86_VAESIMC_instr.2;         
    Ox86_AESKEYGENASSIST_instr.2; 
-   Ox86_VAESKEYGENASSIST_instr.2  
+   Ox86_VAESKEYGENASSIST_instr.2
  ].
-  
-  
-  
-  
-  
-  
-  
-  
-  
