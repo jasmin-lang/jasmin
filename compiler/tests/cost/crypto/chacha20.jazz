@@ -305,7 +305,7 @@ fn increment_counter(stack u32[16] st) -> stack u32[16]
   return st;
 }
 
-
+export fn chacha20_stub(reg u64 output plain, reg u32 len, reg u64 key nonce, reg u32 counter) { }
 
 export fn chacha20_ref(reg u64 output plain, reg u32 len, reg u64 key nonce, reg u32 counter)
 {
@@ -337,4 +337,3 @@ export fn chacha20_ref(reg u64 output plain, reg u32 len, reg u64 key nonce, reg
     store_last(s_output, s_plain, s_len, k, k15); 
   }
 }
-

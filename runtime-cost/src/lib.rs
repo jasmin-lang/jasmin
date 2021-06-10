@@ -36,6 +36,40 @@ pub fn blake2b(hash: &mut [u8; 64], perso: &[u8; 16], data: &[u8]) {
     }
 }
 
+pub fn chacha20_stub(
+    output: &mut [u8],
+    key: &[u8; 32],
+    counter: u32,
+    nonce: &[u8; 12],
+    plain: &[u8],
+) {
+    let length = plain.len();
+    unsafe {
+        jlib_sys::chacha20_stub(
+            output.as_mut_ptr(),
+            plain.as_ptr(),
+            length as u32,
+            key.as_ptr(),
+            nonce.as_ptr(),
+            counter,
+        )
+    }
+}
+
+pub fn chacha20(output: &mut [u8], key: &[u8; 32], counter: u32, nonce: &[u8; 12], plain: &[u8]) {
+    let length = plain.len();
+    unsafe {
+        jlib_sys::chacha20_ref(
+            output.as_mut_ptr(),
+            plain.as_ptr(),
+            length as u32,
+            key.as_ptr(),
+            nonce.as_ptr(),
+            counter,
+        )
+    }
+}
+
 pub fn gimli_stub(state: &mut [u8; 48]) {
     unsafe { jlib_sys::gimli_stub(state.as_mut_ptr()) }
 }
