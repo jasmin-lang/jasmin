@@ -1,0 +1,12 @@
+export
+fn test_vpermd(reg u64 tmp)
+{
+  reg u256 t0 t1;
+
+  t0 = #set0_256();
+  t1 = #set0_256();
+
+  t0 = #VPERMD(t0, t1);
+  t0 = #VPERMD(t0, (u256)[tmp]);
+  (u256)[tmp] = t0;
+}
