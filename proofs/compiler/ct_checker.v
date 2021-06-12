@@ -109,6 +109,8 @@ Fixpoint readm (e: pexpr) :=
   | Pif _ e1 e2 e3 => [|| readm e1, readm e2 | readm e3]
   end.
 
+Definition readms (es: pexprs) := has readm es.
+
 (* forall e, 
      ~readm e -> 
      forall s1 s2, evm s1 = evm s2 -> eval_expr s1 e1 = eval_expr s2 e2 *)
@@ -131,6 +133,9 @@ Fixpoint ct_e (e: pexpr) :=
   | PappN _ es     => foldl (fun s e => Dep.union s (ct_e e)) Dep.empty es 
   | Pif _ e1 e2 e3 => Dep.union (ct_e e1) (Dep.union (ct_e e2) (ct_e e3))
   end.
+
+Definition ct_es (es: pexprs) := 
+  foldl (fun s e => Dep.union s (ct_e e)) Dep.empty es.
 
 (* 
     ct_expr e = (s, usem) ->
@@ -163,23 +168,53 @@ Definition read_em (ii:instr_info) (e:pexpr) :=
   if usem then error ii 
   else ok se.
 
+Definition read_ems (ii: instr_info) (es:pexprs) :=
+  let se := read_es es in
+  let usem := readms es in
+  if usem then error ii 
+  else ok se.
+
 Definition read_ctem (ii:instr_info) (e:pexpr) :=
    let (se,usem) := ct_e e in
    if usem then error ii
    else ok se.
 
+Definition read_ctems (ii:instr_info) (es:pexprs) :=
+   let (se,usem) := ct_es es in
+   if usem then error ii
+   else ok se.
+
+(* [l1::l2::l3] => ((empty U ct_lval l1) U ct_lval l2) U ct_lval l3 *)
+Definition ct_lvals (lvs: lvals) := 
+  foldl (fun s e => Dep.union s (ct_lval e)) Dep.empty lvs.
+
+Definition readm_lvals (ii: instr_info) (lvs: lvals) : ciexec Sv.t :=
+  let rs := ct_lvals lvs in 
+  if rs.2 then error ii else ok rs.1.
+               
 Fixpoint ct_i (i:instr) (s:Sv.t) {struct i} : ciexec Sv.t :=
   let (ii,ir) := i in
   match ir with
   | Cassgn x tag ty e =>
     let sx := vrv x in
     Let sx' := readm_lval ii x in 
-    if Sv.exists_ (fun x => Sv.mem x s) sx then
-      Let se := read_em ii e in 
-      ok (Sv.union sx' (Sv.union (Sv.diff s sx) se))
-    else 
+    if disjoint s sx then
       Let se := read_ctem ii e in 
       ok (Sv.union sx' (Sv.union se s))
+    else
+      Let se := read_em ii e in 
+      ok (Sv.union sx' (Sv.union (Sv.diff s sx) se))      
+
+  (* {I} xs := o(es) {O} *)
+  | Copn xs tag o es => 
+    let sx := vrvs xs in
+    Let sx' := readm_lvals ii xs in 
+      if disjoint s sx then 
+        Let se := read_ctems ii es in 
+        ok (Sv.union sx' (Sv.union se s))
+      else 
+        Let se := read_ems ii es in 
+        ok (Sv.union sx' (Sv.union (Sv.diff s sx) se)) 
 
   | Cif b c1 c2 =>
     Let s1 := ct_c ct_i c1 s in
@@ -187,9 +222,28 @@ Fixpoint ct_i (i:instr) (s:Sv.t) {struct i} : ciexec Sv.t :=
     Let sb := read_em ii b in
     ok (Sv.union (Sv.union s1 s2) sb)
 
+  | Cwhile a c e c' =>
+    Let se := read_em ii e in 
+    Let sc := ct_c ct_i c se in 
+    Let sc' := ct_c ct_i c' sc in
+    
+    error ii
+
+
+
+    (*let dobody s_o :=
+    let s_o' := read_e_rec s_o e in
+    Let sci := dead_code_c dead_code_i c s_o' in
+    let: (s_i, c, Fc) := sci in
+    Let sci' := dead_code_c dead_code_i c' s_i in
+    let: (s_i', c', Fc') := sci' in
+    ok (s_i', (s_i, (c,c'), (Fc,Fc'))) in
+    Let sc := wloop dobody ii Loop.nb s in
+    let: (s, (c,c'), (Fc,Fc')) := sc in
+    ciok (s, [:: MkI ii (Cwhile a c e c') ], LT_iwhile Fc LT_id Fc')*)
+
 | _ => error ii
 end.
-
 
       
     (* x = e *)
@@ -231,14 +285,14 @@ end.
 
   | Cwhile a c e c' =>
     let dobody s_o :=
-    let s_o' := read_e_rec s_o e in
-    Let sci := dead_code_c dead_code_i c s_o' in
-    let: (s_i, c, Fc) := sci in
-    Let sci' := dead_code_c dead_code_i c' s_i in
-    let: (s_i', c', Fc') := sci' in
-    ok (s_i', (s_i, (c,c'), (Fc,Fc'))) in
+     let s_o' := read_e_rec s_o e in
+     Let sci := dead_code_c dead_code_i c s_o' in
+     let: (s_i, c, Fc) := sci in
+     Let sci' := dead_code_c dead_code_i c' s_i in
+     let: (s_i', c', Fc') := sci' in
+     ok (s_i', (s_i, (c,c'), (Fc,Fc'))) in
     Let sc := wloop dobody ii Loop.nb s in
-    let: (s, (c,c'), (Fc,Fc')) := sc in
+     let: (s, (c,c'), (Fc,Fc')) := sc in
     ciok (s, [:: MkI ii (Cwhile a c e c') ], LT_iwhile Fc LT_id Fc')
 
   | Ccall _ xs f es =>
