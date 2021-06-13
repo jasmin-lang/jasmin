@@ -166,7 +166,6 @@ Fixpoint check_c (ii: instr_info) (c1 c2 : cmd) (r:M.t) : ciexec (M.t * seq leak
 
 End CMD.
 
-
 Fixpoint check_i iinfo i1 i2 r : ciexec (M.t * leak_i_tr) :=
   match i1, i2 with
   | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
@@ -179,7 +178,7 @@ Fixpoint check_i iinfo i1 i2 r : ciexec (M.t * leak_i_tr) :=
     if o1 == o2 then
       Let res := add_iinfo iinfo (check_es es1 es2 r) in
       Let rls := add_iinfo iinfo (check_lvals xs1 xs2 res.1) in
-      ciok (rls.1, LT_ile (LT_map [:: LT_map res.2 ; LT_map rls.2]))
+      ciok (rls.1, LT_ile (LT_map [:: LT_map res.2 ; LT_id; LT_map rls.2]))
       (*add_iinfo iinfo (check_es es1 es2 r >>= check_lvals xs1 xs2)*)
     else cierror iinfo (Cerr_neqop o1 o2 salloc)
   | Ccall _ x1 f1 arg1, Ccall _ x2 f2 arg2 =>
@@ -371,7 +370,7 @@ Section PROOF.
   Local Lemma Hopn : sem_Ind_opn p1 Pi_r.
   Proof.
     move => s1 s2 t o xs es lo. rewrite /sem_sopn.
-    t_xrbindP. move=> ves Hes vo Hex [vw vl] Hws <- <- /=.
+    t_xrbindP. move=> ves Hes vo Hex [vw vl] Hws l Hl <- <- /=.
     rewrite /Pi_r. move=> ii r1 [] //= xs1 t' o1 es1 r2 lti vm1 Hvm1.
     case: ifPn => //= /eqP <-. t_xrbindP. move=> [yv yl]. apply: add_iinfoP.
     move=> Hces [rv ltv]. apply: add_iinfoP. move=> Hcvs [] <- <-.
@@ -382,8 +381,9 @@ Section PROOF.
     move=> [] vo' [] {Hex'} Hex' Hvo.
     move: (Hcvs' gd xs xs1 vo vo' yv rv ltv s1 vw vl vm1 stk Hcvs Hvm2 Hvo Hws).
     move=> {Hcvs'} [] vm2 [] Hws' Hvm3. exists vm2; split=> //; apply sem_seq1. econstructor. econstructor.
-    rewrite /sem_sopn /=. rewrite Hes /=. rewrite Hex' /=.
-    replace (p_globs p2) with gd. rewrite Hws' /=. rewrite Hls /=. auto.
+    rewrite /sem_sopn Hes /= Hex' /=. 
+    replace (p_globs p2) with gd. 
+    rewrite Hws' /=. rewrite Hls /=. by have -> /= := leak_sopn_eq Hvs Hl. 
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p1 Pc Pi_r.
@@ -806,7 +806,7 @@ Section PROOF_WF.
   Local Lemma Hopn_WF : sem_Ind_opn p1 Pi_r.
   Proof.
     move => s1 s2 t o xs es lo. rewrite /sem_sopn.
-    t_xrbindP. move=> ves Hes vo Hex [vw vl] Hws <- <- /=.
+    t_xrbindP. move=> ves Hes vo Hex [vw vl] Hws l Hl <- <- /=.
     rewrite /Pi_r. move=> ii r1 [] //= xs1 t' o1 es1 r2 lti. 
     case: ifPn => //= /eqP _. t_xrbindP. move=> [yv yl]. apply: add_iinfoP.
     move=> Hces [rv ltv]. apply: add_iinfoP. move=> Hcvs [] _ <-.
@@ -1034,7 +1034,7 @@ Qed.
 Local Lemma Iopn : sem_Ind_opn p Pi_r.
 Proof.
  move=> [] s1 s1' s2 t o xs es lo. rewrite /sem_sopn /=.
- t_xrbindP. move=> vs Hes vo Hex -[vs' ls] Hws <- <- /=.
+ t_xrbindP. move=> vs Hes vo Hex -[vs' ls] Hws les Hl <- <- /=.
  rewrite /Pi_r /=. move=> ii [] // l t' s e' r rlt. case: eqP => // h.
  t_xrbindP. move=> -[r' lr']. apply: add_iinfoP=>/check_esP_id Hes'. move=> -[r'' lr''].
  apply: add_iinfoP=> /check_lvalsP_id Hvs' [] <- /=. move: (Hes' (unzip2 vs)). move=> ->.
@@ -2039,10 +2039,10 @@ End CHECKE.
       - move=> op1 e1 He1 [] // op2 e2 r re vm1 /=.
         case: eqP => // <-. move=> Hce Hvm1.
         move: (He1 e2 r re vm1 Hce Hvm1). move=> [] Hvm' He.
-        split. auto. t_xrbindP. move=> vm1' v l [yv yl] he vo Ho <- <- /=.
+        split. auto. t_xrbindP. move=> vm1' v l [yv yl] he vo Ho les Hl <- <- /=.
         move: (He vm1' yv yl he). move=> {He} [] yv2 [] -> Hyv /=.
         move: vuincl_sem_sop1. move=> Ho'. move: (Ho' op1 yv yv2 vo Hyv Ho).
-        move=> -> /=. by exists vo.
+        move=> -> /=. exists vo. by have -> /= := leak_sop1_eq Hyv Hl.
       - move=> op1 e11 He11 e12 He12 [] // op2 e21 e22 r re vm1 /=.
         case: eqP => // <-. t_xrbindP. move=> r' He1 He2 Hvm1.
         move: (He11 e21 r r' vm1). rewrite He1. move=> []. auto. auto.
@@ -2050,19 +2050,20 @@ End CHECKE.
         move: (He12 e22 r' re vm1). rewrite He2. move=> []. auto. auto.
         move=> Hvm2' He2'.
         split. auto. t_xrbindP. move=> vm1' v l [v1' l1'] he1 [v2' l2'] he2 /=.
-        move: (He1' vm1' v1' l1' he1). move=> [] v2 [] -> Hv vo Ho' <- <- /=.
+        move: (He1' vm1' v1' l1' he1). move=> [] v2 [] -> Hv vo Ho' les Hl <- <- /=.
         move: (He2' vm1' v2' l2' he2). move=> [] v3 [] -> Hov /=.
         move: vuincl_sem_sop2. move=> Ho''.
         move: (Ho'' op1 v1' v2 v2' v3 vo Hv Hov Ho').
-        move=> {Ho''} -> /=. by exists vo.
+        move=> {Ho''} -> /=. exists vo. by have -> /= := leak_sop2_eq Hv Hov Hl.
       - move=> op1 es1 Hes1 [] // op2 es2 r re vm1.
         case: eqP => // <- {op2}. t_xrbindP. move=> ok_re Heq.
         move: (Hes1 es2 r re vm1).
         rewrite ok_re /=. move=> []. auto. auto. move=> Heq' Hes'. split=> //.
-        t_xrbindP. move=> m v le vs Hes vo Ho <- Hle. rewrite /sem_pexprs in Hes'.
+        t_xrbindP. move=> m v le vs Hes vo Ho les Hl <- Hle. rewrite /sem_pexprs in Hes'.
         move: (Hes' m vs Hes). move=> [] vs' [] -> [] Hv' Hl' /=.
         move: vuincl_sem_opN. move=> Ho'. move: (Ho' op1 (unzip1 vs) vo (unzip1 vs') Ho Hv').
-        move=> [] vo' -> Hvo /=. exists vo'. split=> //. rewrite -Hle. by rewrite -Hl'.
+        move=> [] vo' -> Hvo /=. exists vo'. split=> //. rewrite -Hle. rewrite -Hl'.
+        by have -> /= := leak_opN_eq Hv' Hl.
       move=> t e He e11 He11 e12 He12 [] // t' e2 e21 e22 r re vm1 /=.
       case: eqP => // <-.
       t_xrbindP. move=> m m' Hce Hce1 Hce2 Hvm.

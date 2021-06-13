@@ -36,7 +36,7 @@ Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import x86_decl.
+Require Import x86_decl leakage.
 
 (* -------------------------------------------------------------------- *)
 
@@ -263,6 +263,16 @@ Definition rflags_of_bwop_w sz (w : word sz) :=
 
 Notation "'ex_tpl' A" := (exec (sem_tuple A)) (at level 200, only parsing).
 
+Fixpoint op_leak_cst (A: Type) (a: A) (l: seq stype) : sem_prod l A:=
+  match l return sem_prod l A with 
+    | [::] => a
+    | t :: l => fun _ => op_leak_cst a l
+  end.
+
+Fixpoint op_leak_ty (l : seq stype) : sem_prod l (exec leak_e) := op_leak_cst (Ok error LEmpty) l.
+
+Definition div_leak (sz : wsize) (hi lo div: word sz) : exec leak_e := ok (LSub [:: Lop hi; Lop lo; Lop div]).
+
 Definition x86_MOV sz (x: word sz) : exec (word sz) :=
   Let _ := check_size_8_64 sz in
   ok x.
@@ -311,6 +321,7 @@ Definition x86_MUL sz (v1 v2: word sz) : ex_tpl (b5w2_ty sz) :=
   let ov := wdwordu hi lo in
   let ov := (ov >? wbase sz - 1)%Z in
   ok (flags_w2 (rflags_of_mul ov) (:: hi & lo)).
+
 
 Definition x86_IMUL_overflow sz (hi lo: word sz) : bool :=
   let ov := wdwords hi lo in
@@ -830,7 +841,7 @@ Definition check_args_kinds (a:asm_args) (cond:args_kinds) :=
 Definition check_i_args_kinds (cond:i_args_kinds) (a:asm_args) :=
   has (check_args_kinds a) cond.
 
-Notation mk_instr str_jas tin tout ain aout msb semi check nargs wsizei max_imm safe_cond pp_asm:=
+Notation mk_instr str_jas tin tout ain aout msb semi seml check nargs wsizei max_imm safe_cond pp_asm:=
  {|
   id_msb_flag := msb;
   id_tin      := tin;
@@ -838,6 +849,7 @@ Notation mk_instr str_jas tin tout ain aout msb semi check nargs wsizei max_imm 
   id_tout     := tout;
   id_out      := aout;
   id_semi     := semi;
+  id_seml     := seml;
   id_nargs    := nargs;
   id_check    := (fun a => check_i_args_kinds check a);
   id_eq_size  := refl_equal;
@@ -850,88 +862,90 @@ Notation mk_instr str_jas tin tout ain aout msb semi check nargs wsizei max_imm 
   id_pp_asm   := pp_asm;
 |}.
 
-Notation mk_instr_pp  name tin tout ain aout msb semi check nargs wsizei max_imm prc pp_asm :=
-  (mk_instr (pp_s name%string) tin tout ain aout msb semi check nargs wsizei max_imm [::] pp_asm,
+Notation mk_instr_pp  name tin tout ain aout msb semi seml check nargs wsizei max_imm prc pp_asm :=
+  (mk_instr (pp_s name%string) tin tout ain aout msb semi seml check nargs wsizei max_imm [::] pp_asm,
    (name%string, prc)) (only parsing).
 
 Notation mk_instr_w_w name semi msb ain aout nargs check max_imm prc pp_asm :=
  ((fun sz =>
-  mk_instr (pp_sz name sz) (w_ty sz) (w_ty sz) ain aout msb (semi sz) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc)) (only parsing).
+  mk_instr (pp_sz name sz) (w_ty sz) (w_ty sz) ain aout msb (semi sz) (op_leak_ty (w_ty sz)) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc)) (only parsing).
 
 Notation mk_instr_w_w'_10 name sign semi check max_imm prc pp_asm :=
  ((fun szo szi =>
-  mk_instr (pp_sz_sz name sign szi szo) (w_ty szi) (w_ty szo) [:: E 1] [:: E 0] MSB_CLEAR (semi szi szo) (check szi szo) 2 szi (max_imm szi) [::] (pp_asm szi szo)), (name%string,prc)) (only parsing).
+  mk_instr (pp_sz_sz name sign szi szo) (w_ty szi) (w_ty szo) [:: E 1] [:: E 0] MSB_CLEAR (semi szi szo) (op_leak_ty (w_ty szi)) (check szi szo) 2 szi (max_imm szi) [::] (pp_asm szi szo)), (name%string,prc)) (only parsing).
 
 Notation mk_instr_bw2_w_0211 name semi check max_imm prc pp_asm :=
  ((fun sz =>
-  mk_instr (pp_sz name sz) (bw2_ty sz) (w_ty sz) [:: E 0; E 2; E 1] [:: E 1] MSB_CLEAR (semi sz) (check sz) 3 sz (max_imm sz) [::] (pp_asm sz)), (name%string, prc))  (only parsing).
+  mk_instr (pp_sz name sz) (bw2_ty sz) (w_ty sz) [:: E 0; E 2; E 1] [:: E 1] MSB_CLEAR (semi sz) (op_leak_ty (bw2_ty sz)) (check sz) 3 sz (max_imm sz) [::] (pp_asm sz)), (name%string, prc))  (only parsing).
 
 Notation mk_instr_w_b5w name semi msb ain aout nargs check max_imm prc pp_asm :=
  ((fun sz =>
-  mk_instr (pp_sz name sz) (w_ty sz) (b5w_ty sz) ain (implicit_flags ++ aout) msb (semi sz) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w_ty sz) (b5w_ty sz) ain (implicit_flags ++ aout) msb (semi sz)  (op_leak_ty (w_ty sz)) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w_b4w_00 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w_ty sz) (b4w_ty sz) [:: E 0] (implicit_flags_noCF ++ [:: E 0]) MSB_CLEAR (semi sz) (check sz) 1 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w_ty sz) (b4w_ty sz) [:: E 0] (implicit_flags_noCF ++ [:: E 0]) MSB_CLEAR (semi sz) (op_leak_ty (w_ty sz)) (check sz) 1 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_b name semi msb ain aout nargs check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2_ty sz sz) (b_ty) ain aout msb (semi sz) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w2_ty sz sz) (b_ty) ain aout msb (semi sz) (op_leak_ty (w2_ty sz sz)) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_b5 name semi msb ain nargs check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2_ty sz sz) (b5_ty) ain implicit_flags msb (semi sz) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w2_ty sz sz) (b5_ty) ain implicit_flags msb (semi sz) (op_leak_ty (w2_ty sz sz)) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_b5w name semi msb ain aout nargs check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2_ty sz sz) (b5w_ty sz) ain (implicit_flags ++ aout) msb (semi sz) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w2_ty sz sz) (b5w_ty sz) ain (implicit_flags ++ aout) msb (semi sz) (op_leak_ty (w2_ty sz sz)) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_b5w_010 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2_ty sz sz) (b5w_ty sz) [:: E 0; E 1] (implicit_flags ++ [:: E 0]) MSB_CLEAR (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc)) (only parsing).
+  mk_instr (pp_sz name sz) (w2_ty sz sz) (b5w_ty sz) [:: E 0; E 1] (implicit_flags ++ [:: E 0]) MSB_CLEAR (semi sz) (op_leak_ty (w2_ty sz sz)) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc)) (only parsing).
 
 Notation mk_instr_w2b_b5w_010 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2b_ty sz sz) (b5w_ty sz) ([:: E 0; E 1] ++ [::iCF]) (implicit_flags ++ [:: E 0]) MSB_CLEAR (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w2b_ty sz sz) (b5w_ty sz) ([:: E 0; E 1] ++ [::iCF]) (implicit_flags ++ [:: E 0]) MSB_CLEAR (semi sz) 
+  (op_leak_ty (w2b_ty sz sz)) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2b_bw name semi flag check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2b_ty sz sz) (bw_ty sz) ([:: E 0; E 1] ++ [::F flag]) ([::F flag; E 0]) MSB_CLEAR (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w2b_ty sz sz) (bw_ty sz) ([:: E 0; E 1] ++ [::F flag]) ([::F flag; E 0]) MSB_CLEAR (semi sz) (op_leak_ty (w2b_ty sz sz)) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_b5w2 name semi msb ain aout nargs check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2_ty sz sz) (b5w2_ty sz) ain (implicit_flags ++ aout) msb (semi sz) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w2_ty sz sz) (b5w2_ty sz) ain (implicit_flags ++ aout) msb (semi sz) (op_leak_ty (w2_ty sz sz)) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w3_b5w2_da0ad name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; E 0]  (implicit_flags ++ [:: R RAX; R RDX]) MSB_CLEAR (semi sz) (check sz) 1 sz (max_imm sz) [::NotZero sz 2] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; E 0]  (implicit_flags ++ [:: R RAX; R RDX]) MSB_CLEAR (semi sz) (@div_leak sz)
+  (check sz) 1 sz (max_imm sz) [::NotZero sz 2] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_w_120 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (semi sz) (check sz) 3 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (semi sz)  (op_leak_ty (w2_ty sz sz)) (check sz) 3 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w4_w name semi msb ain aout nargs check max_imm prc pp_asm:= ((fun sz =>
-  mk_instr (pp_sz name sz) (w4_ty sz) (w_ty sz) ain aout msb (semi sz) check nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w4_ty sz) (w_ty sz) ain aout msb (semi sz) (op_leak_ty (w4_ty sz)) check nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing). 
 
 Notation mk_instr_ww8_w_120 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (ww8_ty sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0]  MSB_CLEAR (semi sz) (check sz) 3 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (ww8_ty sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0]  MSB_CLEAR (semi sz) (op_leak_ty (ww8_ty sz)) (check sz) 3 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_ww8_b2w_0c0 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (ww8_ty sz) (b2w_ty sz) [:: E 0; ADExplicit 1 (Some RCX)] [::F OF; F CF; E 0] MSB_CLEAR (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (ww8_ty sz) (b2w_ty sz) [:: E 0; ADExplicit 1 (Some RCX)] [::F OF; F CF; E 0] MSB_CLEAR (semi sz) (op_leak_ty (ww8_ty sz)) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_ww8b_b2w_0c0 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (ww8b_ty sz) (b2w_ty sz) [:: E 0; ADExplicit 1 (Some RCX); F CF] [::F OF; F CF; E 0] MSB_CLEAR (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (ww8b_ty sz) (b2w_ty sz) [:: E 0; ADExplicit 1 (Some RCX); F CF] [::F OF; F CF; E 0] MSB_CLEAR (semi sz) (op_leak_ty (ww8b_ty sz)) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_ww8_b5w_0c0 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (ww8_ty sz) (b5w_ty sz) [:: E 0; ADExplicit 1 (Some RCX)] (implicit_flags ++ [:: E 0]) MSB_CLEAR (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (ww8_ty sz) (b5w_ty sz) [:: E 0; ADExplicit 1 (Some RCX)] (implicit_flags ++ [:: E 0]) MSB_CLEAR (semi sz) (op_leak_ty (ww8_ty sz)) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2w8_b5w_01c0 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2w8_ty sz) (b5w_ty sz) [:: E 0; E 1; ADExplicit 2 (Some RCX)] (implicit_flags ++ [:: E 0]) MSB_CLEAR (semi sz) (check sz) 3 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w2w8_ty sz) (b5w_ty sz) [:: E 0; E 1; ADExplicit 2 (Some RCX)] (implicit_flags ++ [:: E 0]) MSB_CLEAR (semi sz) (op_leak_ty (w2w8_ty sz)) (check sz) 3 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2w8_w_1230 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR (semi sz) (check sz) 4 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR (semi sz) (op_leak_ty (w2w8_ty sz)) (check sz) 4 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w_w128_10 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w_ty sz) (w128_ty) [:: E 1] [:: E 0] MSB_MERGE (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_sz name sz) (w_ty sz) (w128_ty) [:: E 1] [:: E 0] MSB_MERGE (semi sz) (op_leak_ty (w_ty sz)) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_ve_instr_w_w_10 name semi check max_imm prc pp_asm := ((fun (ve:velem) sz =>
-  mk_instr (pp_ve_sz name ve sz) (w_ty _) (w_ty sz) [:: E 1] [:: E 0] MSB_CLEAR (semi ve sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_ve_sz name ve sz) (w_ty _) (w_ty sz) [:: E 1] [:: E 0] MSB_CLEAR (semi ve sz) (op_leak_ty (w_ty _)) (check sz) 2 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
 
 Notation mk_ve_instr_w2_w_120 name semi check max_imm prc pp_asm := ((fun (ve:velem) sz =>
-  mk_instr (pp_ve_sz name ve sz) (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (semi ve sz) (check sz) 3 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_ve_sz name ve sz) (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (semi ve sz) (op_leak_ty (w2_ty sz sz)) (check sz) 3 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
 
 Notation mk_ve_instr_ww8_w_120 name semi check max_imm prc pp_asm := ((fun ve sz =>
-  mk_instr (pp_ve_sz name ve sz) (ww8_ty sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (semi ve sz) (check sz) 3 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
+  mk_instr (pp_ve_sz name ve sz) (ww8_ty sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (semi ve sz) (op_leak_ty (ww8_ty sz)) (check sz) 3 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
 
 Definition msb_dfl := MSB_CLEAR.
 
@@ -1049,7 +1063,7 @@ Definition xmmm_xmm := [::xmmm false; xmm].
 Definition xmm_xmm_xmmm := [::xmm; xmm; xmmm true].
 
 
-Definition check_mov sz := [:: r_rmi sz; m_ri sz].
+Definition check_mov sz := [:: r_rmi sz; m_ri sz]. 
 Definition Ox86_MOV_instr               :=
   mk_instr_w_w "MOV" x86_MOV msb_dfl [:: E 1] [:: E 0] 2
                check_mov (fun sz => Some sz) (primP MOV) (pp_iname "mov").
@@ -1115,7 +1129,7 @@ Definition Ox86_MULX_instr :=
    ((fun (sz:wsize) =>
      mk_instr (pp_sz name sz) (w2_ty sz sz) (w2_ty sz sz)
          [::R RDX; E 2] [:: E 0; E 1] MSB_CLEAR
-         (@x86_MULX sz) check_mulx 3 sz (no_imm sz) [::] (pp_iname name sz)),
+         (@x86_MULX sz) (op_leak_ty (w2_ty sz sz)) check_mulx 3 sz (no_imm sz) [::] (pp_iname name sz)),
     (name, PrimP U64 MULX)).
 
 Definition check_neg (_:wsize) := [::[::rm false]].
@@ -1130,7 +1144,7 @@ Definition Ox86_DEC_instr :=
 
 Definition check_setcc := [:: [::c; rm false]].
 Definition Ox86_SETcc_instr             :=
-  mk_instr_pp "SETcc" b_ty w8_ty [:: E 0] [:: E 1] msb_dfl x86_SETcc check_setcc 2 U8 (no_imm U8) (PrimM SETcc) (pp_ct "set" U8).
+  mk_instr_pp "SETcc" b_ty w8_ty [:: E 0] [:: E 1] msb_dfl x86_SETcc (op_leak_ty (b_ty)) check_setcc 2 U8 (no_imm U8) (PrimM SETcc) (pp_ct "set" U8).
 
 Definition check_bt (_:wsize) := [:: [::rm true; ri U8]].
 Definition Ox86_BT_instr                :=
@@ -1217,7 +1231,7 @@ Definition Ox86_VPMOVSX_instr :=
   let name := "VPMOVSX"%string in
   (λ ve sz ve' sz',
    mk_instr (λ _, name) [:: sword sz ] [:: sword sz' ] [:: E 1 ] [:: E 0 ]
-            MSB_CLEAR (@x86_VPMOVSX ve sz ve' sz') [:: [:: xmm ; xmmm true]] 2 sz None [::] (pp_vpmovx "vpmovsx" ve sz ve' sz'),
+            MSB_CLEAR (@x86_VPMOVSX ve sz ve' sz') (op_leak_ty  [:: sword sz ]) [:: [:: xmm ; xmmm true]] 2 sz None [::] (pp_vpmovx "vpmovsx" ve sz ve' sz'),
    (name, PrimVV VPMOVSX)
    ).
 
@@ -1225,7 +1239,7 @@ Definition Ox86_VPMOVZX_instr :=
   let name := "VPMOVZX"%string in
   (λ ve sz ve' sz',
    mk_instr (λ _, name) [:: sword sz ] [:: sword sz' ] [:: E 1 ] [:: E 0 ]
-            MSB_CLEAR (@x86_VPMOVZX ve sz ve' sz') [:: [:: xmm ; xmmm true]] 2 sz None [::] (pp_vpmovx "vpmovzx" ve sz ve' sz'),
+            MSB_CLEAR (@x86_VPMOVZX ve sz ve' sz')  (op_leak_ty  [:: sword sz ]) [:: [:: xmm ; xmmm true]] 2 sz None [::] (pp_vpmovx "vpmovzx" ve sz ve' sz'),
    (name, PrimVV VPMOVZX)
    ).
 
@@ -1239,7 +1253,7 @@ Definition Ox86_VPADD_instr  := mk_ve_instr_w2_w_120 "VPADD"   x86_VPADD  check_
 Definition Ox86_VPSUB_instr  := mk_ve_instr_w2_w_120 "VPSUB"   x86_VPSUB  check_xmm_xmm_xmmm no_imm (PrimV VPSUB) (pp_viname "vpsub").
 
 Definition Ox86_VPMULL_instr := mk_ve_instr_w2_w_120 "VPMULL" x86_VPMULL check_xmm_xmm_xmmm no_imm (PrimV VPMULL) (pp_viname "vpmull").
-Definition Ox86_VPMULU_instr := ((fun sz => mk_instr (pp_s "VPMULU") (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (@x86_VPMULU sz) (check_xmm_xmm_xmmm sz) 3 sz (no_imm sz) [::] (pp_name "vpmuludq" sz)), ("VPMULU"%string, (PrimP U128 VPMULU))).
+Definition Ox86_VPMULU_instr := ((fun sz => mk_instr (pp_s "VPMULU") (w2_ty sz sz) (w_ty sz) [:: E 1 ; E 2] [:: E 0] MSB_CLEAR (@x86_VPMULU sz)  (op_leak_ty (w2_ty sz sz)) (check_xmm_xmm_xmmm sz) 3 sz (no_imm sz) [::] (pp_name "vpmuludq" sz)), ("VPMULU"%string, (PrimP U128 VPMULU))).
 
 Definition Ox86_VPMULH_instr := mk_ve_instr_w2_w_120 "VPMULH" x86_VPMULH check_xmm_xmm_xmmm no_imm (PrimV VPMULH) (pp_viname "vpmulh").
 Definition Ox86_VPMULHU_instr := mk_ve_instr_w2_w_120 "VPMULHU" x86_VPMULHU check_xmm_xmm_xmmm no_imm (PrimV VPMULHU) (pp_viname "vpmulhu").
@@ -1256,7 +1270,7 @@ Definition pp_viname_t name ve (ts:seq wsize) args :=
 Definition Ox86_VPEXTR_instr :=
   ((fun sz =>
       let ve := if sz == U32 then  VE32 else VE64 in
-      mk_instr (pp_sz "VPEXTR" sz) w128w8_ty (w_ty sz) [:: E 1 ; E 2] [:: E 0] msb_dfl (@x86_VPEXTR sz)
+      mk_instr (pp_sz "VPEXTR" sz) w128w8_ty (w_ty sz) [:: E 1 ; E 2] [:: E 0] msb_dfl (@x86_VPEXTR sz) (op_leak_ty w128w8_ty)
                        (check_vpextr sz) 3 U128 (imm8 U128) [::]
                        (pp_viname_t "vpextr" ve [:: sz; U128; U8])),
     ("VPEXTR"%string, (primP VPEXTR))).
@@ -1270,7 +1284,7 @@ Definition pp_vpinsr ve args :=
 Definition check_vpinsr (_:wsize) :=  [:: [:: xmm; xmm; rm true; i U8] ].
 Definition Ox86_VPINSR_instr  :=
   ((fun (sz:velem) => mk_instr (pp_ve_sz "VPINSR" sz U128) (w128ww8_ty sz) w128_ty [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR (x86_VPINSR sz)
-                               (check_vpinsr sz) 4 U128 (imm8 sz) [::] (pp_vpinsr sz)),
+                      (op_leak_ty (w128ww8_ty sz)) (check_vpinsr sz) 4 U128 (imm8 sz) [::] (pp_vpinsr sz)),
    ("VPINSR"%string, PrimV (fun ve _ => VPINSR ve))).
 
 Definition check_xmm_xmm_imm8 (_:wsize) := [:: [:: xmm; xmm; i U8]].
@@ -1341,40 +1355,40 @@ Definition Ox86_VMOVSLDUP_instr :=
 Definition Ox86_VPALIGNR_instr := 
   ((fun sz =>
      mk_instr (pp_sz "VPALIGNR" sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR 
-      (@x86_VPALIGNR sz) (check_xmm_xmm_xmmm_imm8 sz) 4 sz (imm8 sz) [::] (pp_name "vpalignr" sz)), ("VPALIGNR"%string, PrimP U128 VPALIGNR)).
+      (@x86_VPALIGNR sz) (op_leak_ty (w2w8_ty sz)) (check_xmm_xmm_xmmm_imm8 sz) 4 sz (imm8 sz) [::] (pp_name "vpalignr" sz)), ("VPALIGNR"%string, PrimP U128 VPALIGNR)).
 
 (* 256 *)
 
 Definition Ox86_VBROADCASTI128_instr    :=
-  (mk_instr (pp_s "VBROADCAST_2u128") w128_ty w256_ty [:: E 1] [:: E 0] MSB_CLEAR (x86_VPBROADCAST U256)
+  (mk_instr (pp_s "VBROADCAST_2u128") w128_ty w256_ty [:: E 1] [:: E 0] MSB_CLEAR (x86_VPBROADCAST U256) (op_leak_ty w128_ty)
             ([:: [::xmm; m true]]) 2 U256 (no_imm U256) [::] (pp_name_ty "vbroadcasti128" [::U256; U128]),
    ("VPBROADCAST_2u128"%string, (PrimM VBROADCASTI128))).
 
 Definition check_xmmm_xmm_imm8 (_:wsize) := [:: [:: xmmm false; xmm; i U8]].
 
 Definition Ox86_VEXTRACTI128_instr :=
-  mk_instr_pp "VEXTRACTI128" w256w8_ty w128_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VEXTRACTI128
+  mk_instr_pp "VEXTRACTI128" w256w8_ty w128_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VEXTRACTI128 (op_leak_ty w256w8_ty)
               (check_xmmm_xmm_imm8 U256) 3 U256 (imm8 U256) (PrimM VEXTRACTI128) (pp_name_ty "vextracti128" [::U128; U256; U8]).
 
 Definition Ox86_VINSERTI128_instr :=
-  mk_instr_pp "VINSERTI128" w256w128w8_ty w256_ty [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR x86_VINSERTI128
+  mk_instr_pp "VINSERTI128" w256w128w8_ty w256_ty [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR x86_VINSERTI128 (op_leak_ty w256w128w8_ty)
               (check_xmm_xmm_xmmm_imm8 U256) 4 U256 (imm8 U256) (PrimM VINSERTI128) (pp_name_ty "vinserti128" [::U256;U256; U128; U8]).
 
 Definition Ox86_VPERM2I128_instr :=
-  mk_instr_pp "VPERM2I128" w256x2w8_ty w256_ty [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR x86_VPERM2I128
+  mk_instr_pp "VPERM2I128" w256x2w8_ty w256_ty [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR x86_VPERM2I128 (op_leak_ty w256x2w8_ty)
               (check_xmm_xmm_xmmm_imm8 U256) 4 U256 (imm8 U256) (PrimM VPERM2I128) (pp_name_ty "vperm2i128" [::U256;U256;U256;U8]).
 
 Definition Ox86_VPERMQ_instr :=
-  mk_instr_pp "VPERMQ" w256w8_ty w256_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VPERMQ
+  mk_instr_pp "VPERMQ" w256w8_ty w256_ty [:: E 1; E 2] [:: E 0] MSB_CLEAR x86_VPERMQ  (op_leak_ty w256w8_ty)
               (check_xmm_xmmm_imm8 U256) 3 U256 (imm8 U256) (PrimM VPERMQ) (pp_name_ty "vpermq" [::U256;U256;U8]).
 
 (* AES instructions *)
 Definition mk_instr_aes2 jname aname constr x86_sem msb_flag :=
-  mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: E 0; E 1] [:: E 0] msb_flag x86_sem
+  mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: E 0; E 1] [:: E 0] msb_flag x86_sem  (op_leak_ty (w2_ty U128 U128))
          (check_xmm_xmmm U128) 2 U128 (imm8 U128) (PrimM constr) (pp_name_ty aname [::U128;U128]).
 
 Definition mk_instr_aes3 jname aname constr x86_sem msb_flag :=
-  mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: E 1; E 2] [:: E 0] msb_flag x86_sem
+  mk_instr_pp jname (w2_ty U128 U128) (w_ty U128) [:: E 1; E 2] [:: E 0] msb_flag x86_sem  (op_leak_ty (w2_ty U128 U128))
          (check_xmm_xmm_xmmm U128) 3 U128 (imm8 U128) (PrimM constr) (pp_name_ty aname [::U128;U128;U128]).
 
 Definition Ox86_AESDEC_instr := 
@@ -1402,22 +1416,22 @@ Definition Ox86_VAESENCLAST_instr :=
   mk_instr_aes3 "VAESENCLAST" "vaesenclast" VAESENCLAST x86_AESENCLAST MSB_CLEAR.
 
 Definition Ox86_AESIMC_instr := 
-  mk_instr_pp "AESIMC" (w_ty U128) (w_ty U128) [:: E 1] [:: E 0] MSB_MERGE x86_AESIMC
+  mk_instr_pp "AESIMC" (w_ty U128) (w_ty U128) [:: E 1] [:: E 0] MSB_MERGE x86_AESIMC  (op_leak_ty (w_ty U128))
          (check_xmm_xmmm U128) 2 U128 (imm8 U128) (PrimM AESIMC) (pp_name_ty "aesimc" [::U128;U128]).
 
 Definition Ox86_VAESIMC_instr := 
-  mk_instr_pp "VAESIMC" (w_ty U128) (w_ty U128) [:: E 1] [:: E 0] MSB_CLEAR x86_AESIMC
+  mk_instr_pp "VAESIMC" (w_ty U128) (w_ty U128) [:: E 1] [:: E 0] MSB_CLEAR x86_AESIMC  (op_leak_ty (w_ty U128))
          (check_xmm_xmmm U128) 2 U128 (imm8 U128) (PrimM VAESIMC) (pp_name_ty "vaesimc" [::U128;U128]).
 
 Definition Ox86_AESKEYGENASSIST_instr := 
   mk_instr_pp "AESKEYGENASSIST" (w2_ty U128 U8) (w_ty U128) [:: E 1; E 2] [:: E 0] 
-    MSB_MERGE x86_AESKEYGENASSIST
+    MSB_MERGE x86_AESKEYGENASSIST  (op_leak_ty (w2_ty U128 U8))
    (check_xmm_xmmm_imm8 U128) 3 U128 (imm8 U8) (PrimM AESKEYGENASSIST) 
    (pp_name_ty "aeskeygenassist" [::U128;U128;U8]).
 
 Definition Ox86_VAESKEYGENASSIST_instr := 
   mk_instr_pp "VAESKEYGENASSIST" (w2_ty U128 U8) (w_ty U128) [:: E 1; E 2] [:: E 0] 
-    MSB_CLEAR x86_AESKEYGENASSIST
+    MSB_CLEAR x86_AESKEYGENASSIST (op_leak_ty (w2_ty U128 U8))
    (check_xmm_xmmm_imm8 U128) 3 U128 (imm8 U8) (PrimM VAESKEYGENASSIST) 
    (pp_name_ty "vaeskeygenassist" [::U128;U128;U8]).
 

@@ -37,7 +37,8 @@ global
 oseq
 Utf8
 Relation_Operators
-sem_type.
+sem_type
+leakage.
 
 (* Import Memory. *)
 
@@ -182,7 +183,7 @@ Qed.
 Definition scale_eqMixin := Equality.Mixin scale_eq_axiom.
 Canonical scale_eqType := EqType scale scale_eqMixin.
 
-Definition address_beq (addr1: address) addr2 :=
+Definition address_beq (addr1 addr2 : address) :=
   match addr1, addr2 with
   | mkAddress d1 b1 s1 o1, mkAddress d2 b2 s2 o2 =>
     [&& d1 == d2, b1 == b2, s1 == s2 & o1 == o2]
@@ -428,6 +429,7 @@ Record instr_desc_t := mk_instr_desc {
   id_tout     : seq stype;
   id_out      : seq arg_desc;
   id_semi     : sem_prod id_tin (exec (sem_tuple id_tout));
+  id_seml     : sem_prod id_tin (exec leak_e);
   id_check    : list asm_arg -> bool;
   id_nargs    : nat;
   (* Info for jasmin *)

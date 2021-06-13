@@ -29,6 +29,7 @@ Require Import oseq.
 Require Export ZArith Setoid Morphisms.
 From CoqWord Require Import ssrZ.
 Require Export strings word utils type var global sem_type x86_decl x86_instr_decl.
+Require Export leakage.
 Require Import xseq.
 Import Utf8 ZArith.
 
@@ -176,18 +177,20 @@ Record instruction := mkInstruction {
   tout     : list stype;
   i_out    : seq arg_desc;
   semi     : sem_prod tin (exec (sem_tuple tout));
+  seml     : sem_prod tin (exec leak_e);
   tin_narr : all is_not_sarr tin;
   wsizei   : wsize;
   i_safe   : seq safe_cond;
 }.
 
-Notation mk_instr str tin i_in tout i_out semi wsizei safe:=
+Notation mk_instr str tin i_in tout i_out semi seml wsizei safe:=
   {| str      := str;
      tin      := tin;
      i_in     := i_in;
      tout     := tout;
      i_out    := i_out;
      semi     := semi;
+     seml     := seml;
      tin_narr := refl_equal;
      wsizei   := wsizei;
      i_safe   := safe;
@@ -198,7 +201,8 @@ Notation mk_instr str tin i_in tout i_out semi wsizei safe:=
 Definition Omulu_instr sz := 
   mk_instr (pp_sz "mulu" sz) 
            (w2_ty sz sz) [:: R RAX; E 0]
-           (w2_ty sz sz) [:: R RDX; R RAX] (fun x y => ok (@wumul sz x y)) sz [::].
+           (w2_ty sz sz) [:: R RDX; R RAX] (fun x y => ok (@wumul sz x y)) 
+           (op_leak_ty (w2_ty sz sz)) sz [::].
  
 Definition Oaddcarry_instr sz := 
   mk_instr (pp_sz "addc" sz) 
@@ -207,14 +211,14 @@ Definition Oaddcarry_instr sz :=
            (sbool :: (w_ty sz))  
            [:: F CF; E 0]
            (fun x y c => let p := @waddcarry sz x y c in ok (Some p.1, p.2))
-           sz [::].
+           (op_leak_ty [::sword sz; sword sz; sbool]) sz [::].
 
 Definition Osubcarry_instr sz:= 
   mk_instr (pp_sz "subc" sz) 
            [::sword sz; sword sz; sbool] [::E 0; E 1; F CF]
            (sbool :: (w_ty sz)) [:: F CF; E 0] 
            (fun x y c => let p := @wsubcarry sz x y c in ok (Some p.1, p.2))
-           sz [::].
+           (op_leak_ty [::sword sz; sword sz; sbool]) sz [::].
 
 Definition Oset0_instr sz  :=
   if (sz <= U64)%CMP then 
@@ -223,26 +227,26 @@ Definition Oset0_instr sz  :=
              (b5w_ty sz) (implicit_flags ++ [::E 0])
              (let vf := Some false in
               ok (::vf, vf, vf, vf, Some true & (0%R: word sz)))
-             sz [::]
+             (op_leak_ty [::]) sz [::]
   else 
     mk_instr (pp_sz "setw0" sz)
              [::] [::]  
              (w_ty sz) [::E 0] 
-             (ok (0%R: word sz)) sz [::].
+             (ok (0%R: word sz)) (op_leak_ty [::]) sz [::].
 
 Definition Ox86MOVZX32_instr := 
   mk_instr (pp_s "MOVZX32") 
            [:: sword32] [:: E 1] 
            [:: sword64] [:: E 0] 
            (λ x : u32, ok (zero_extend U64 x)) 
-           U32 [::].
+           (op_leak_ty [:: sword32]) U32 [::].
 
 Definition Oconcat128_instr := 
   mk_instr (pp_s "concat_2u128") 
            [:: sword128; sword128 ] [:: E 1; E 2] 
            [:: sword256] [:: E 0] 
            (λ h l : u128, ok (make_vec U256 [::l;h]))
-           U128 [::].
+           (op_leak_ty [:: sword128; sword128]) U128 [::].
 
 Definition get_instr o :=
   match o with
@@ -261,6 +265,7 @@ Definition get_instr o :=
         i_out    := id.(id_out);
         tout     := id.(id_tout);
         semi     := id.(id_semi);
+        seml     := id.(id_seml);
         tin_narr := id.(id_tin_narr);
         wsizei   := id.(id_wsize);
         i_safe   := id.(id_safe)
@@ -722,10 +727,6 @@ Definition inline_info_eqMixin     := Equality.Mixin inline_info_eq_axiom.
 Canonical  inline_info_eqType      := Eval hnf in EqType inline_info inline_info_eqMixin.
 
 (* -------------------------------------------------------------------- *)
-
-Variant align := 
-  | Align
-  | NoAlign.
 
 Scheme Equality for align.
 

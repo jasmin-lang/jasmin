@@ -452,6 +452,38 @@ Qed.
 Definition is_defined (v: value) : bool :=
   if v is Vundef _ then false else true.
 
+Definition leak_sop1_typed (o: sop1) := let t := type_of_op1 o in op_leak_ty [:: t.1].
+
+Definition leak_sop1 (o: sop1) (v: value) : exec leak_e :=
+  let t := type_of_op1 o in
+  Let x := of_val _ v in
+  @leak_sop1_typed o x.
+
+Definition leak_sop2_typed (o: sop2) :=
+  match o return sem_prod [::(type_of_op2 o).1.1; (type_of_op2 o).1.2] (exec leak_e) with 
+  | Odiv (Cmp_w u s) | Omod (Cmp_w u s) => op_leak_ty [::sword s; sword s] (*FIXME*)
+  | o => op_leak_ty [::(type_of_op2 o).1.1; (type_of_op2 o).1.2]
+  end.
+
+Definition leak_sop2 (o: sop2) (v1 v2: value) : exec leak_e :=
+  let t := type_of_op2 o in
+  Let x1 := of_val _ v1 in
+  Let x2 := of_val _ v2 in
+  (@leak_sop2_typed o x1 x2).
+
+Definition leak_opN_typed (o : opN) := let t := type_of_opN o in op_leak_cst (Ok error LEmpty) t.1.
+
+Definition leak_opN (op: opN) (vs: values) : exec leak_e :=
+  app_sopn _ (leak_opN_typed op) vs.
+
+
+Definition sopn_leak  o := seml (get_instr o).
+
+Definition leak_sopn (o:sopn) (vs:values) : exec leak_e :=
+  let seml := sopn_leak o in
+  Let t := app_sopn _ seml vs in
+  ok t.
+
 Section SEM_PEXPR.
 
 Context (gd: glob_decls).
@@ -481,16 +513,19 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leak_e)  :=
   | Papp1 o e1 =>
     Let vl := sem_pexpr s e1 in
     Let v := sem_sop1 o vl.1 in 
-    ok (v, vl.2)
+    Let l := leak_sop1 o vl.1 in
+    ok (v, LSub [:: vl.2; l])
   | Papp2 o e1 e2 =>
     Let vl1 := sem_pexpr s e1 in
     Let vl2 := sem_pexpr s e2 in
     Let v := sem_sop2 o vl1.1 vl2.1 in
-    ok (v, LSub [:: vl1.2; vl2.2])
+    Let l := leak_sop2 o vl1.1 vl2.1 in
+    ok (v, LSub [:: vl1.2; vl2.2; l])
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
     Let v := sem_opN op (unzip1 vs) in
-    ok (v, LSub (unzip2 vs))
+    Let r := leak_opN op (unzip1 vs) in
+    ok (v, LSub [:: LSub (unzip2 vs); r])
   | Pif t e e1 e2 =>
     Let vl := sem_pexpr s e in
     Let b := to_bool vl.1in
@@ -615,7 +650,8 @@ Definition sem_sopn gd o m lvs args :=
   Let vas := sem_pexprs gd m args in
   Let vs := exec_sopn o (unzip1 vas) in 
   Let ml := write_lvals gd m lvs vs in
-  ok (ml.1, LSub [:: LSub (unzip2 vas) ; LSub ml.2]).
+  Let r := leak_sopn o (unzip1 vas) in
+  ok (ml.1, LSub [:: LSub (unzip2 vas); r; LSub ml.2]).
 
 Inductive sem : estate -> cmd -> leak_c -> estate -> Prop :=
 | Eskip s :

@@ -453,14 +453,14 @@ Module CBEA.
                                           let bl' := check_var m x1 x2 in 
                              (((sw1 == sw2) && bl'.1 && bl.1), LT_map [:: bl.2 ; bl'.2])
     | Papp1 o1 e1, Papp1 o2 e2 => let bl := check_eb m e1 e2 in
-                                  (((o1 == o2) && bl.1), bl.2)
+                                  (((o1 == o2) && bl.1), LT_map [:: bl.2; LT_id])
     | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
       let bl := check_eb m e11 e21 in
       let bl' := check_eb m e12 e22 in 
-      (((o1 == o2) && bl.1 && bl'.1), LT_map [:: bl.2; bl'.2])
+      (((o1 == o2) && bl.1 && bl'.1), LT_map [:: bl.2; bl'.2; LT_id])
     | PappN o1 es1, PappN o2 es2 =>
       let bl := all2_map (check_eb m) es1 es2 in
-      ((o1 == o2) && bl.1, LT_map bl.2)
+      ((o1 == o2) && bl.1, LT_map [:: LT_map bl.2; LT_id])
     | Pif t e e1 e2, Pif t' e' e1' e2' =>
       let bl1 := check_eb m e e' in
       let bl2 := check_eb m e1 e1' in
@@ -600,25 +600,25 @@ Module CBEA.
       - (* Papp1 *)
         move=> op e He [] // op1 e2 v1 l /=.
         move=> /andP [] /eqP <- /= Hce. t_xrbindP.
-        move=> [ve le] He' vo Ho <- <-. move: (He e2 ve le Hce He'). move=> {He} [] ve' -> /= Hv.
+        move=> [ve le] He' vo Ho les /= Hl <- <-. move: (He e2 ve le Hce He'). move=> {He} [] ve' -> /= Hv.
 
         move: vuincl_sem_sop1. move=> Ho'. move: (Ho' op ve ve' vo Hv Ho). move=> -> /=.
-        by exists vo.
+        exists vo. by have -> /= := leak_sop1_eq Hv Hl. auto.
       - (* Papp2 *)
         move=> op e1 He1 e2 He2 [] //= op1 e1' e2' v1 l.
         move=> /andP [] /andP [] /eqP <- Hce1 Hce2. t_xrbindP.
-        move=> [ve le] He [ve' le'] He' vo Ho <- <- /=.
+        move=> [ve le] He [ve' le'] He' vo Ho les Hl <- <- /=.
         move: (He1 e1' ve le Hce1 He). move=> [] ve'' -> Hv.
         move: (He2 e2' ve' le' Hce2 He'). move=> [] ve''' ->  Hv' /=.
         move: vuincl_sem_sop2. move=> H. move: (H op ve ve'' ve' ve''' vo Hv Hv' Ho).
-        move=> -> /=. by exists vo.
+        move=> -> /=. exists vo. by have -> /= := leak_sop2_eq Hv Hv' Hl. auto.
       - (* PappN *)
         move=> op1 es1 ih [] //= o es2 v1 l /andP [] /eqP <- rec.
-        t_xrbindP. move=> vs ok_vs v' ok_v1 <- <- /=. rewrite /sem_pexprs in ih.
+        t_xrbindP. move=> vs ok_vs v' ok_v1 le hl <- <- /=. rewrite /sem_pexprs in ih.
         move: (ih es2 vs rec ok_vs). move=> [] vs' [] -> /= [] hvs hls.
         move: (vuincl_sem_opN). move=> Ho. move: (Ho op1 (unzip1 vs) v' (unzip1 vs') ok_v1 hvs).
         move=> [] v'' -> /= hv'. case: hls=> hls1. exists v''.
-        by rewrite hls1 /=. auto.
+        have -> /= := leak_opN_eq hvs hl. by rewrite hls1 /=. auto.
       (* Pif *)
       move=> t e He e1 He1 e2 He2 [] //= t' e' e1' e2' v1 l.
       move=> /andP [] /andP [] /andP [] /eqP <- Hce Hce1 Hce2.

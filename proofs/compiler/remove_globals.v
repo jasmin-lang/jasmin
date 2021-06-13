@@ -127,14 +127,14 @@ Section REMOVE.
           ok ((Pload ws xi e.1), LT_map [:: e.2; LT_id])
       | Papp1 o e =>
         Let e := remove_glob_e ii env e in
-        ok ((Papp1 o e.1), e.2)
+        ok ((Papp1 o e.1), LT_map [:: e.2; LT_id])
       | Papp2 o e1 e2 =>
         Let e1 := remove_glob_e ii env e1 in
         Let e2 := remove_glob_e ii env e2 in
-        ok ((Papp2 o e1.1 e2.1), LT_map [:: e1.2; e2.2]) 
+        ok ((Papp2 o e1.1 e2.1), LT_map [:: e1.2; e2.2; LT_id]) 
       | PappN op es =>
         Let vs := mapM (remove_glob_e ii env) es in
-        ok ((PappN op (unzip1 vs)), LT_map (unzip2 vs))
+        ok ((PappN op (unzip1 vs)), LT_map [:: LT_map (unzip2 vs); LT_id])
       | Pif t e e1 e2 =>
         Let e := remove_glob_e ii env e in
         Let e1 := remove_glob_e ii env e1 in
@@ -258,7 +258,7 @@ Section REMOVE.
           Let rlvs := mapM (remove_glob_lv ii env) lvs in
           Let res  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Copn (unzip1 rlvs) tag o (unzip1 res))],
-              LT_ile (LT_map [:: LT_map (unzip2 res) ; LT_map (unzip2 rlvs)]))
+              LT_ile (LT_map [:: LT_map (unzip2 res) ; LT_id; LT_map (unzip2 rlvs)]))
         | Cif e c1 c2 =>
           Let e := remove_glob_e ii env e in
           Let envc1 := remove_glob remove_glob_i env c1 in
@@ -319,13 +319,6 @@ Section REMOVE.
     Let gd := extend_glob_prog p in
       if uniq (map fst gd) then
       Let fs := map_fnprog_leak (remove_glob_fundef gd) (p_funcs p) in
-     (* Let fs := mapM (remove_glob_fundef gd) (p_funcs p) in
-      let fnfds := unzip1 fs in
-      let rfns := unzip1 fnfds in
-      let rfds := unzip2 fnfds in
-      let lts := unzip2 fs in
-      let Fs := zip rfns lts in
-      let funcs := zip rfns rfds in*)
       ok ({| p_globs := gd; p_funcs := fs.1|}, fs.2)
     else cferror Ferr_uniqglob.
 

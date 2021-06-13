@@ -67,13 +67,13 @@ Module INCL. Section INCL.
       - move=> sz x e rec v l. t_xrbindP.
         by move=> vp vg -> /= -> /= [ve le] /rec -> /= vp' -> /= vw -> /= <- <- /=.
       (* Papp1 *)
-      - move=> op e rec v l. t_xrbindP. by move=> [ve le] /rec -> /= vo -> <- <- /=.
+      - move=> op e rec v l. t_xrbindP. by move=> [ve le] /rec -> /= vo -> les -> <- <- /=.
       (* Papp2 *)
       - move=> op e1 rec1 e2 rec2 v l. t_xrbindP.
-        by move=> [ve le] /rec1 -> /= [ve' le'] /rec2 -> /= vo -> /= <- <- /=.
+        by move=> [ve le] /rec1 -> /= [ve' le'] /rec2 -> /= vo -> les -> /= <- <- /=.
       (* PappN *)
       - move=> op es rec v le. t_xrbindP. rewrite /sem_pexprs in rec.
-        by move=> ys /rec -> /= vo -> /= <- <-.
+        by move=> ys /rec -> /= vo -> les ->  /= <- <-.
       (* Pif *)    
       - move=> ty e rece e1 rece1 e2 rece2. t_xrbindP.
         by move=> hv hl [ve le] /rece -> /= be -> /= [ve1 le1] /rece1 -> /=
@@ -154,9 +154,9 @@ Module INCL. Section INCL.
     Pi_r s1 (Copn xs t o es) (Lopn lo) s2.
   Proof.
     move=> s1 s2 ty o xs es lo;rewrite /sem_sopn.
-    t_xrbindP. move=> ys /(gd_incl_es hincl) h1 ve h2 [vws lws] /(gd_incl_wls hincl) h3 <- <-.
+    t_xrbindP. move=> ys /(gd_incl_es hincl) h1 ve h2 [vws lws] /(gd_incl_wls hincl) h3 le hl <- <-.
     econstructor. rewrite /sem_sopn. replace (p_globs P2) with gd2. rewrite h1 /=.
-    rewrite h2 /=. rewrite h3 /=. auto. constructor.
+    rewrite h2 /=. rewrite h3 hl /=. auto. constructor.
   Qed.
 
   Local Lemma Hif_true : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) le lc,
@@ -401,16 +401,16 @@ Module RGP. Section PROOFS.
         move: (he ve' ve1 lte1 lte' hre he1). move=> -> /=. move: (hm1 x hx). move=> h.
         rewrite -h /=. rewrite hg /=. rewrite hp' /=. rewrite hp /=. rewrite -hmem /=. by rewrite hr /=.
       (* Pop1 *)
-      - move=> op1 e he. t_xrbindP. move=> h h0 le lte [ve lte'] hre <- <- [ve1 lte1] he' vo ho <- <- /=.
-        move: (he ve ve1 lte1 lte' hre he'). move=> -> /=. by rewrite ho /=.
+      - move=> op1 e he. t_xrbindP. move=> h h0 le lte [ve lte'] hre <- <- [ve1 lte1] he' vo ho les hl <- <- /=.
+        move: (he ve ve1 lte1 lte' hre he'). move=> -> /=. by rewrite ho hl /=.
       (* Pop2 *)
       - move=> op2 e1 he1 e2 he2. t_xrbindP. move=> h h0 le1 lte1 [ve1 lte1'] hr1 [ve2 lte2] hr2 <- <-.
-        move=> [vee1 ltee1] hee1 [vee2 ltee2] hee2 vo hop <- <- /=. move: (he1 ve1 vee1 ltee1 lte1' hr1 hee1).
-        move=> -> /=. move: (he2 ve2 vee2 ltee2 lte2 hr2 hee2). move=> -> /=. by rewrite hop /=.
+        move=> [vee1 ltee1] hee1 [vee2 ltee2] hee2 vo hop le hle <- <- /=. move: (he1 ve1 vee1 ltee1 lte1' hr1 hee1).
+        move=> -> /=. move: (he2 ve2 vee2 ltee2 lte2 hr2 hee2). move=> -> /=. by rewrite hop hle /=.
       (* PopN *)
-      - move=> opN es hes e ve lte lte'. t_xrbindP. move=> ves hm <- <- ves' hm' vo ho <- <- /=. 
+      - move=> opN es hes e ve lte lte'. t_xrbindP. move=> ves hm <- <- ves' hm' vo ho le hle <- <- /=. 
         rewrite /sem_pexprs in hes. move: (hes ves ves' hm hm'). move=> -> /=. rewrite unzip1_zip.
-        rewrite ho /=. rewrite unzip2_zip. auto.
+        rewrite ho hle /=. rewrite unzip2_zip. auto.
         rewrite map2E size_map size1_zip.
         + by rewrite !size_map -(mapM_size hm) -(mapM_size hm').
           by rewrite !size_map -(mapM_size hm) -(mapM_size hm').
@@ -651,7 +651,7 @@ Qed.
    move: hrm. t_xrbindP. move=> xs' /(remove_glob_lvsP hval) hxs' es' hes_es'.
    move: (hes_es') => /(remove_glob_esP hval) hes' <- <- <-.
    move: ho; rewrite /sem_sopn; t_xrbindP. move=> vs hes_vs. 
-   move: (hes_vs) => /hes' h1 vs' h2 [s3 lt3] /hxs' [s2' [hval' h]] <- <-.
+   move: (hes_vs) => /hes' h1 vs' h2 [s3 lt3] /hxs' [s2' [hval' h]] le hl <- <-.
    split. + constructor.
    exists s2'. split=> //.
    apply sem_seq1; constructor; constructor.
@@ -660,7 +660,7 @@ Qed.
      have <- := mapM_size hes_es'; have -> := mapM_size hes_vs.
      by rewrite minnn.
    rewrite /sem_sopn h1 /= unzip1_zip /=; last by rewrite heq.
-   by rewrite h2 /= h /= unzip2_zip /= ?heq.
+   rewrite h2 /= h /= unzip2_zip /= ?heq. by rewrite hl /=. auto.
   Qed.
 
   Lemma MinclP m1 m2 x g :

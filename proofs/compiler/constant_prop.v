@@ -55,12 +55,12 @@ Definition sint_of_word sz (e: pexpr) :=
 
 Definition ssign_extend sz sz' (e: pexpr) :=
   if is_wconst sz' e is Some w
-  then (Papp1 (Oword_of_int sz) (Pconst (wunsigned (sign_extend sz w))), LT_remove)
+  then (Papp1 (Oword_of_int sz) (Pconst (wunsigned (sign_extend sz w))), LT_map [:: LT_remove; LT_id])
   else (Papp1 (Osignext sz sz') e, LT_id).
 
 Definition szero_extend sz sz' (e: pexpr) :=
   if is_wconst sz' e is Some w
-  then (Papp1 (Oword_of_int sz) (Pconst (wunsigned (zero_extend sz w))), LT_remove)
+  then (Papp1 (Oword_of_int sz) (Pconst (wunsigned (zero_extend sz w))), LT_map [:: LT_remove; LT_id])
   else (Papp1 (Ozeroext sz sz') e, LT_id).
 
 Definition snot_bool (e:pexpr) : (pexpr * leak_e_tr) :=
@@ -72,20 +72,20 @@ Definition snot_bool (e:pexpr) : (pexpr * leak_e_tr) :=
 
 Definition snot_w (sz: wsize) (e:pexpr) : (pexpr * leak_e_tr) :=
   match is_wconst sz e with
-  | Some n => (wconst (wnot n),LT_remove)
+  | Some n => (wconst (wnot n), LT_map[:: LT_remove; LT_remove])
   | None   => (Papp1 (Olnot sz) e, LT_id)
   end.
 
 Definition sneg_int (e: pexpr) : (pexpr * leak_e_tr) :=
   match e with
-  | Pconst z => (Pconst (- z), LT_remove)
+  | Pconst z => (Pconst (- z), LT_map[:: LT_remove; LT_remove])
   | Papp1 (Oneg Op_int) e' => (e', LT_id)
   | _ => (Papp1 (Oneg Op_int) e, LT_id)
   end.
 
 Definition sneg_w (sz: wsize) (e:pexpr) : (pexpr * leak_e_tr) :=
   match is_wconst sz e with
-  | Some n => (wconst (- n)%R, LT_remove)
+  | Some n => (wconst (- n)%R, LT_map[:: LT_remove; LT_remove])
   | None   => (Papp1 (Oneg (Op_w sz)) e, LT_id)
   end.
 
@@ -106,15 +106,15 @@ Definition s_op1 o e :=
 
 Definition sand e1 e2 :=
   match is_bool e1, is_bool e2 with
-  | Some b, _ => if b then (e2, LT_subi 1) else (Pbool false, LT_remove)
-  | _, Some b => if b then (e1, LT_subi 0) else (Pbool false, LT_remove)
+  | Some b, _ => if b then (e2, LT_subi 1) else (Pbool false, LT_map[:: LT_remove; LT_remove])
+  | _, Some b => if b then (e1, LT_subi 0) else (Pbool false, LT_map[:: LT_remove; LT_remove])
   | _, _      => (Papp2 Oand e1 e2, LT_id)
   end.
 
 Definition sor e1 e2 :=
    match is_bool e1, is_bool e2 with
-  | Some b, _ => if b then (Pbool true, LT_remove) else (e2, LT_subi 1)
-  | _, Some b => if b then (Pbool true, LT_remove) else (e1, LT_subi 0)
+  | Some b, _ => if b then (Pbool true, LT_map[:: LT_remove; LT_remove]) else (e2, LT_subi 1)
+  | _, Some b => if b then (Pbool true, LT_map[:: LT_remove; LT_remove]) else (e1, LT_subi 0)
   | _, _       => (Papp2 Oor e1 e2, LT_id)
   end.
 
@@ -122,7 +122,7 @@ Definition sor e1 e2 :=
 
 Definition sadd_int e1 e2 :=
   match is_const e1, is_const e2 with
-  | Some n1, Some n2 => (Pconst (n1 + n2), LT_remove)
+  | Some n1, Some n2 => (Pconst (n1 + n2), LT_map[:: LT_remove; LT_remove])
   | Some n, _ =>
     if (n == 0)%Z then (e2, LT_subi 1) 
                   else (Papp2 (Oadd Op_int) e1 e2, LT_id)
@@ -134,7 +134,7 @@ Definition sadd_int e1 e2 :=
 
 Definition sadd_w sz e1 e2 :=
   match is_wconst sz e1, is_wconst sz e2 with
-  | Some n1, Some n2 => (wconst (n1 + n2), LT_remove)
+  | Some n1, Some n2 => (wconst (n1 + n2), LT_map[:: LT_remove; LT_remove])
   | Some n, _ => if n == 0%R then (e2, LT_subi 1) 
                              else (Papp2 (Oadd (Op_w sz)) e1 e2, LT_id)
   | _, Some n => if n == 0%R then (e1, LT_subi 0) 
@@ -150,7 +150,7 @@ Definition sadd ty :=
 
 Definition ssub_int e1 e2 :=
   match is_const e1, is_const e2 with
-  | Some n1, Some n2 => (Pconst (n1 - n2), LT_remove)
+  | Some n1, Some n2 => (Pconst (n1 - n2), LT_map[:: LT_remove; LT_remove])
   | _, Some n =>
     if (n == 0)%Z then (e1, LT_subi 0) 
                   else (Papp2 (Osub Op_int) e1 e2, LT_id)
@@ -159,7 +159,7 @@ Definition ssub_int e1 e2 :=
 
 Definition ssub_w sz e1 e2 :=
   match is_wconst sz e1, is_wconst sz e2 with
-  | Some n1, Some n2 => (wconst (n1 - n2), LT_remove)
+  | Some n1, Some n2 => (wconst (n1 - n2), LT_map[:: LT_remove; LT_remove])
   | _, Some n => if n == 0%R then (e1, LT_subi 0) 
                              else (Papp2 (Osub (Op_w sz)) e1 e2, LT_id)
   | _, _ => (Papp2 (Osub (Op_w sz)) e1 e2, LT_id)
@@ -173,13 +173,13 @@ Definition ssub ty :=
 
 Definition smul_int e1 e2 :=
   match is_const e1, is_const e2 with
-  | Some n1, Some n2 => (Pconst (n1 * n2), LT_remove)
+  | Some n1, Some n2 => (Pconst (n1 * n2), LT_map[:: LT_remove; LT_remove])
   | Some n, _ =>
-    if (n == 0)%Z then (Pconst 0, LT_remove)
+    if (n == 0)%Z then (Pconst 0, LT_map[:: LT_remove; LT_remove])
     else if (n == 1)%Z then (e2, LT_subi 1)
     else (Papp2 (Omul Op_int) e1 e2, LT_id)
   | _, Some n =>
-    if (n == 0)%Z then (Pconst 0, LT_remove)
+    if (n == 0)%Z then (Pconst 0, LT_map[:: LT_remove; LT_remove])
     else if (n == 1)%Z then (e1, LT_subi 0)
     else (Papp2 (Omul Op_int) e1 e2, LT_id)
   | _, _ => (Papp2 (Omul Op_int) e1 e2, LT_id)
@@ -187,13 +187,13 @@ Definition smul_int e1 e2 :=
 
 Definition smul_w sz e1 e2 :=
   match is_wconst sz e1, is_wconst sz e2 with
-  | Some n1, Some n2 => (wconst (n1 * n2), LT_remove)
+  | Some n1, Some n2 => (wconst (n1 * n2), LT_map[:: LT_remove; LT_remove])
   | Some n, _ =>
-    if n == 0%R then (@wconst sz 0, LT_remove)
+    if n == 0%R then (@wconst sz 0, LT_map[:: LT_remove; LT_remove])
     else if n == 1%R then (e2, LT_subi 1)
     else (Papp2 (Omul (Op_w sz)) (wconst n) e2, LT_map [:: LT_remove; LT_id])
   | _, Some n =>
-    if n == 0%R then (@wconst sz 0, LT_remove)
+    if n == 0%R then (@wconst sz 0, LT_map[:: LT_remove; LT_remove])
     else if n == 1%R then (e1, LT_subi 0)
     else (Papp2 (Omul (Op_w sz)) e1 (wconst n), LT_map [:: LT_id; LT_remove])
   | _, _ => (Papp2 (Omul (Op_w sz)) e1 e2, LT_id)

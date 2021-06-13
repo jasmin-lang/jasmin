@@ -99,13 +99,13 @@ rewrite /sint_of_word. rewrite /trans_sem /=.
 case: (is_wconst _ _) (@is_wconstP gd s sz e).
 + move => w /(_ _ erefl). t_xrbindP.
   move=> [ve le] He /= Hw. rewrite /= /sem_sop1 /=.
-  t_xrbindP. move=> [yv yl] He' h0 h1 /= Hw1 <- <- Hle.
+  t_xrbindP. move=> [yv yl] He' h0 h1 /= Hw1 <- lo hlo <- Hle.
   exists (wunsigned w). split. auto.
   rewrite He in He'. case: He' => He1' He2'.
   rewrite He1' in Hw. rewrite Hw1 in Hw. by case: Hw => ->.
 + move=> _ /=. t_xrbindP.
-  move=> [yv yl] He vo Ho <- /= Hl.
-  exists vo. rewrite He /=. rewrite Ho /=.
+  move=> [yv yl] He vo Ho lo Hlo <- /= Hl.
+  exists vo. rewrite He /=. rewrite Ho Hlo /=.
   split. by rewrite Hl /=. auto.
 Qed.
 
@@ -121,14 +121,15 @@ rewrite /ssign_extend. rewrite /trans_sem.
 case: (is_wconst _ _) (@is_wconstP gd s sz' e).
 + move => w /(_ _ erefl). t_xrbindP. move => [yv yl] ok_v /= ok_w /=.
   rewrite /sem_sop1 /=. t_xrbindP.
-  move=> [yv' yl'] He h0 h1 /= Hw Hv <- Hl /=. rewrite wrepr_unsigned.
-  exists (Vword (sign_extend sz w)). split. auto. rewrite -Hv.
-  rewrite ok_v in He. case: He => He1 _. rewrite He1 in ok_w.
+  move=> [yv' yl'] He h0 h1 /= Hw Hv lo /= Hlo <- <- /=. rewrite wrepr_unsigned.
+  exists (Vword (sign_extend sz w)). split. auto. rewrite /leak_sop1 in Hlo.
+  move: Hlo. t_xrbindP=> //= w' hw'. rewrite /leak_sop1_typed /=. by move=> [] <- /=.
+  rewrite -Hv. rewrite ok_v in He. case: He => He1 _. rewrite He1 in ok_w.
   rewrite ok_w in Hw. by case: Hw => ->.
 + move=> _ /=. t_xrbindP.
-  move=> [yv yl] He vo Ho <- /= Hl /=.
+  move=> [yv yl] He vo Ho le Hle <- /= Hl /=.
   exists vo. rewrite He /=.
-  rewrite Ho /=. by rewrite Hl.
+  rewrite Ho /=. by rewrite Hle /= Hl.
 Qed.
 
 Lemma szero_extendPl sz sz' s e v l:
@@ -142,14 +143,16 @@ rewrite /szero_extend. rewrite /trans_sem.
 case: (is_wconst _ _) (@is_wconstP gd s sz' e).
 + move => w /(_ _ erefl). t_xrbindP. move => [yv yl] ok_v ok_w /=.
   rewrite /sem_sop1 /=. t_xrbindP.
-  move=> [yv' yl'] He h0 h1 Hw Hv Hvv Hl /=. rewrite wrepr_unsigned.
-  exists (Vword (zero_extend sz w)). split. auto. rewrite Hvv in Hv. rewrite -Hv.
-  rewrite ok_v in He. case: He => He1 _. rewrite He1 in ok_w.
+  move=> [yv' yl'] He h0 h1 Hw Hv le Hlo Hvv <- /=. rewrite wrepr_unsigned.
+  exists (Vword (zero_extend sz w)). split. auto. rewrite Hvv in Hv.
+  rewrite /leak_sop1 in Hlo.
+  move: Hlo. t_xrbindP=> //= w' hw'. rewrite /leak_sop1_typed /=. by move=> [] <- /=.
+  subst. rewrite ok_v in He. case: He => He1 _. rewrite He1 in ok_w.
   rewrite ok_w in Hw. by case: Hw => ->.
 + move=> _ /=. t_xrbindP.
-  move=> [yv yl] He vo Ho <- /= Hl /=.
+  move=> [yv yl] He vo Ho le Hle <- /= <- /=.
   exists vo. rewrite He /=.
-  rewrite Ho /=. by rewrite Hl.
+  by rewrite Ho Hle /=.
 Qed.
 
 Lemma snot_boolPl s e v l:
@@ -161,25 +164,21 @@ value_uincl (trans_sem t (v, l)).1 v'.
 Proof.
 rewrite /snot_bool. rewrite /trans_sem.
 case: e=> //= ;try auto.
-+ move=> b [] <- Hl. by exists (~~b).
++ move=> b [] <- _. by exists (~~b).
 + move=> x. t_xrbindP.
   move=> [yv yl] h Hg [] Hv1 Hv2. rewrite /sem_sop1 /=.
-  t_xrbindP. move=> h0 y Hb Hv' Hv'' Hl. rewrite Hg /=. rewrite -Hv1 in Hb.
-  rewrite Hb /=. rewrite Hl in Hv2. rewrite -Hv2. rewrite -Hv' in Hv''.
-  rewrite -Hv''. by exists (~~y).
+  t_xrbindP. move=> h0 y Hb Hv' le Hlo Hv'' Hl. rewrite Hg /=. rewrite -Hv1 in Hb.
+  rewrite Hb /=. subst. rewrite Hlo /=. by exists (~~y).
 + move=> g. t_xrbindP.
   move=> [yv yl] vg Hg [] <- Heyl. rewrite /sem_sop1 /=.
-  t_xrbindP. move=> vb b Hb Heb Hv Hl.
-  rewrite Hg /=. rewrite Hb /=. rewrite -Heb in Hv.
-  rewrite -Hv. rewrite -Heyl in Hl. rewrite -Hl.
-  by exists (~~ b).
+  t_xrbindP. move=> vb b Hb Heb le Hlo Hv Hl. subst.
+  rewrite Hg /= Hb /= Hlo /=. by exists (~~ b).
 + move=> w v0 e. t_xrbindP. move=> [yv yl].
   apply: on_arr_varP => n t Hsub; rewrite /on_arr_var => -> /=.
   t_xrbindP. move=> [yv' yl'] He z Hi w' Ha Hv Hl. 
   rewrite /sem_sop1 /=. t_xrbindP.
-  move=> vb b Hb /= Heb <- Hel /=. rewrite He /=.
-  rewrite Hi /=. rewrite -Hv in Hb. rewrite /= in Hb. rewrite Ha /=.
-  exists (~~b). rewrite -Heb. split. inversion Hb. auto.
+  move=> vb b Hb /= Heb le Hlo <- Hel /=. rewrite He /= Hi /= Ha /=; subst.
+  exists (~~b). split. inversion Hb. auto.
 + move=> w x e. t_xrbindP.
   move=> [yv yl] h v0 Hg Hp [yv' yl'] He h' Hp' w' Hr He' /=.
   rewrite /sem_sop1 /=. t_xrbindP. move=> bv b Hb Hh Hhv Hyl.

@@ -25,7 +25,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Psatz xseq.
-Require Export array expr gen_map low_memory warray_ sem_type.
+Require Export array gen_map low_memory warray_ sem_type.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -35,11 +35,19 @@ Unset Printing Implicit Defensive.
 Delimit Scope leakage_scope with leakage.
 Open Scope leakage_scope.
 
+
+Variant align := 
+  | Align
+  | NoAlign.
+
+Print size.
+
 Inductive leak_e :=
 | LEmpty : leak_e (* no leak *)
 | LIdx : Z -> leak_e (* array access at given index *)
 | LAdr : pointer -> leak_e (* memory access at given address *)
-| LSub: (seq leak_e) -> leak_e. (* forest of leaks *)
+| LSub: (seq leak_e) -> leak_e (* forest of leaks *)
+| Lop : forall ws, word ws -> leak_e. (* nat represents size (seq T)*)
 
 Notation leak_es := (seq leak_e).
 
@@ -927,6 +935,7 @@ Fixpoint leak_e_asm (l : leak_e) : seq pointer :=
   | LIdx i => [::]
   | LAdr p => [:: p]
   | LSub l => flatten (map leak_e_asm l)
+  | Lop sz wsz => [::] (* FIXME *)
   end.
 
 (* Transforms leakage for intermediate langauge to leakage for assembly *)
