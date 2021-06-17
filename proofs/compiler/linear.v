@@ -162,6 +162,8 @@ Section CHECK.
                     | RAnone => true
                     | RAreg ra => vtype ra == sword Uptr
                     | RAstack ofs => (sf_stk_sz e <=? ofs )%Z && (ofs + wsize_size Uptr <=? stack_frame_allocation_size e)%Z
+                                     && (Uptr ≤ sf_align e)%CMP (* Stack frame is aligned for storing pointers *)
+                                     && (is_align (wrepr Uptr ofs) Uptr) (* Stack slot is aligned *)
                                      && (stack_frame_allocation_size e <? wbase Uptr)%Z (* FIXME: this check seems redundant *)
                     end
                     (Ferr_fun fn (Cerr_linear "bad return-address")) in

@@ -1655,7 +1655,7 @@ Section PROOF.
       exact: M'.
     }
     (* Internal function, return address at offset [z]. *)
-    case fr_eq: extra_free_registers ok_ra ok_ret_addr => [ fr | // ] /andP[] fr_well_typed fr_neq_RSP /andP[] /andP[] z_pos z_bound sz_noof [] ? ?; subst lbli li.
+    case fr_eq: extra_free_registers ok_ra ok_ret_addr => [ fr | // ] /andP[] fr_well_typed fr_neq_RSP /andP[] /andP[] /andP[] /andP[] z_pos z_bound sf_aligned_for_ptr z_aligned sz_noof [] ? ?; subst lbli li.
     have ok_ra_of : is_ra_of fn' (RAstack z) by rewrite /is_ra_of; exists fd'; assumption.
     move: ih => /(_ _ _ _ _ _ _ _ _ ok_ra_of) ih.
     move: (X (var_of_register RSP)).
@@ -2134,7 +2134,7 @@ Section PROOF.
         rewrite /= /set_RSP Fv.setP_eq /=.
         case: vm2.[_]%vmap => // - [] ??? /pword_of_word_uincl /= [] ??; subst.
         rewrite truncate_word_u /= zero_extend_u.
-        move: ok_ret_addr; rewrite !zify => - [] [] rastack_lo rastack_h sf_noovf.
+        move: ok_ret_addr; rewrite !zify => - [] [] [] [] rastack_lo rastack_h sf_aligned_for_ptr rastack_aligned sf_noovf.
         move: ok_stk_sz; rewrite !zify => - [] stk_sz_pos stk_extra_pos.
         assert (root_range := wunsigned_range (stack_root m1')).
         have A := alloc_stackP ok_m1'.
