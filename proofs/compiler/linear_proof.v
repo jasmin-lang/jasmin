@@ -892,18 +892,38 @@ Section PROOF.
     move=> p1 Hs'''. apply Hs. by rewrite -Hsr -Hsl.
   Qed.
 
-  Lemma mm_write_invalid : ∀ m m1' p s (w: word s),
-  match_mem m m1' →
-  (wunsigned (stack_limit m) <= wunsigned p ∧ wunsigned p + wsize_size s <= wunsigned (top_stack m))%Z →
-  exists2 m2', write m1' p w = ok m2' & match_mem m m2'.
+  Lemma mm_write_invalid m m1' a s (w: word s) :
+    match_mem m m1' →
+    (wunsigned (stack_limit m) <= wunsigned a ∧ wunsigned a + wsize_size s <= wunsigned (top_stack m))%Z →
+    is_align a s →
+    exists2 m2', write m1' a w = ok m2' & match_mem m m2'.
   Proof.
-  move=> m m1' p1 sz w [] Hrm Hvm Hs Hs'.
-  apply mm_write with m. constructor.
-  apply Hrm. apply Hvm. apply Hs.
-  (* can it be same memory after writting at a location? *)
-  move: (Hs p1)=> {Hs} Hs. 
-  Admitted.
-
+    case => Hrm Hvm Hs Hs' al.
+    have /writeV : validw m1' a s.
+    - apply/validwP; split; first exact: al.
+      move => k [] klo khi; apply: Hs.
+      have a_range := wunsigned_range a.
+      assert (r_range := wunsigned_range (stack_root m)).
+      generalize (top_stack_below_root _ m); rewrite -/(top_stack m) => R.
+      rewrite wunsigned_add; lia.
+    move => /(_ w) [] m' ok_m'; exists m'; first exact: ok_m'.
+    split.
+    - move => x y ok_y.
+      rewrite (writeP_neq ok_m'); first exact: Hrm.
+      move => i j [] i_low i_hi; change (wsize_size U8) with 1%Z => j_range.
+      have ? : j = 0%Z by lia.
+      subst j => { j_range }.
+      rewrite add_0 => ?; subst x.
+      apply/negP: (readV ok_y).
+      apply: stack_region_is_free.
+      rewrite -/(top_stack m) wunsigned_add; first lia.
+      have := wunsigned_range a.
+      generalize (wunsigned_range (top_stack m)).
+      lia.
+    1-2: move => b; rewrite (CoreMem.write_validw _ _ ok_m').
+    - exact/Hvm.
+    exact/Hs.
+  Qed.
 
   Section MATCH_MEM_SEM_PEXPR.
     Context (m m': mem) (vm: vmap) (M: match_mem m m').
@@ -1677,7 +1697,10 @@ Section PROOF.
     have : exists2 m1', write m1 (top_stack_after_alloc (top_stack (emem s1)) (sf_align (f_extra fd'))
                   (sf_stk_sz (f_extra fd') + sf_stk_extra_sz (f_extra fd')) + wrepr U64 z)%R ptr = ok m1' &
                         match_mem s1 m1'.
-    + apply: mm_write_invalid; first exact: M.
+    + apply: mm_write_invalid; first exact: M; last first.
+      * apply: is_align_add z_aligned.
+        apply: is_align_m; last exact: do_align_is_align.
+        exact: sf_aligned_for_ptr.
       have := (Memory.alloc_stackP ok_m).(ass_above_limit).
       rewrite (alloc_stack_top_stack ok_m).
       rewrite top_stack_after_aligned_alloc // wrepr_opp.
