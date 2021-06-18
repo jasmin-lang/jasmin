@@ -223,8 +223,9 @@ Section CHECK.
     Let _ := assert (all (λ x : var_i, v_var x != vid (string_of_register RSP)) fd.(f_res))
                     (Ferr_fun fn (Cerr_one_varmap "the functions returns RSP")) in
     let J := set_of_var_i_seq magic_variables fd.(f_params) in
+    (* This need to be removed *)
     Let _ := assert (Sv.subset I J)
-                    (Ferr_fun fn (Cerr_one_varmap_free fn (Sv.elements I))) in
+                    (Ferr_fun fn (Cerr_one_varmap_free fn (Sv.elements (Sv.diff I J)))) in
     Let _ := assert (var.disjoint (writefun_ra writefun fn) magic_variables)
                     (Ferr_fun fn (Cerr_one_varmap "the function writes to RSP or global-data")) in
     let W := writefun fn in

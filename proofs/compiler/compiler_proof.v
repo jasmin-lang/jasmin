@@ -29,7 +29,7 @@ Require Import allocation inline_proof dead_calls_proof
                makeReferenceArguments_proof
                array_init_proof
                unrolling_proof constant_prop_proof dead_code_proof
-               array_expansion remove_globals_proof stack_alloc_proof
+               array_expansion array_expansion_proof remove_globals_proof stack_alloc_proof
                lowering_proof
                linear_proof
                merge_varmaps_proof
@@ -111,15 +111,15 @@ Proof.
   rewrite print_uprogP => ok_pa pb.
   rewrite print_uprogP => ok_pb pc.
   rewrite print_uprogP => ok_pc [].
-  rewrite !print_uprogP => ok_pd pe ok_pe [].
-  rewrite !print_uprogP => ok_pf pg.
-  rewrite print_uprogP => ok_pg ph ok_ph _ /assertP.
+  rewrite !print_uprogP => ok_pd pe ok_pe.
+  rewrite !print_uprogP => pf ok_pf pg.
+  rewrite !print_uprogP => ok_pg ph ok_ph _ /assertP.
   rewrite print_uprogP => ok_fvars.
   rewrite print_uprogP => <- {p'} ok_fn exec_p.
   apply: Ki; first by move => vr'; apply: (lower_callP (lowering_opt cparams) (warning cparams) (is_var_in_memory cparams) ok_fvars).
   apply: Ki; first by move => vr'; apply: (makeReferenceArguments_callP ok_ph).
   apply: Ki; first by move => vr'; apply: (RGP.remove_globP ok_pg).
-  apply: K; first by move =>vr'; apply: (CheckExpansion.alloc_callP ok_pf).
+  apply: Ki; first by move=> vr'; apply:(expand_callP ok_pf).
   have va_refl := List_Forall2_refl va value_uincl_refl.
   apply: K; first by move =>vr'; apply: (remove_init_fdPu _ va_refl).
   apply: K; first by move => vr' Hvr'; apply: (dead_code_callPu ok_pe va_refl); exact: Hvr'.

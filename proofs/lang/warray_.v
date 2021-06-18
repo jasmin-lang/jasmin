@@ -119,7 +119,7 @@ Module WArray.
 
     Definition get8 (m:array s) (i:pointer) :=
       Let _ := assert (in_bound m i) ErrOob in
-      Let _ := assert (is_init m i) ErrAddrInvalid in
+      Let _ := assert (is_init m i) ErrAddrUndef in
       ok (odflt 0%R (Mz.get m.(arr_data) i)).
 
     Definition set8 (m:array s) (i:pointer) (v:u8) : result _ (array s):=
@@ -354,13 +354,13 @@ Module WArray.
   Qed.
 
   Lemma get_empty (n:positive) off : 
-    read (empty n) off U8 = if (0 <=? off) && (off <? n) then Error ErrAddrInvalid else Error ErrOob.
+    read (empty n) off U8 = if (0 <=? off) && (off <? n) then Error ErrAddrUndef else Error ErrOob.
   Proof.
     by rewrite -get_read8 /memory_model.get /= /get8 /in_bound /is_init /=; case: ifP.
   Qed.
 
   Lemma get0 (n:positive) off : (0 <= off ∧ off < n)%Z -> 
-    read (empty n) off U8 = Error ErrAddrInvalid.
+    read (empty n) off U8 = Error ErrAddrUndef.
   Proof. by rewrite get_empty => -[/ZleP -> /ZltP ->]. Qed.
 
   Lemma set_sub_data_get8 aa ws a len p t k: 

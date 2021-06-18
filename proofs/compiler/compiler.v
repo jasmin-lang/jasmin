@@ -35,6 +35,9 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+
+Instance pT : progT [eqType of unit] := progUnit.
+
 Definition unroll1 (p:uprog) : cfexec uprog:=
   let p := unroll_prog p in
   let p := const_prop_prog p in
@@ -85,7 +88,7 @@ Record stack_alloc_oracles : Type :=
 
 Record compiler_params := {
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
-  expand_fd        : funname -> _ufundef -> _ufundef;
+  expand_fd        : funname -> _ufundef -> expand_info;
   var_alloc_fd     : funname -> _ufundef -> _ufundef;
   lowering_vars    : fresh_vars;
   inline_var       : var -> bool;
@@ -111,8 +114,6 @@ Definition var_alloc_prog cp (p: _uprog) : _uprog :=
   map_prog_name cp.(var_alloc_fd) p.
 
 Variable cparams : compiler_params.
-
-Definition expand_prog (p:uprog) := map_prog_name cparams.(expand_fd) p.
 
 (* Ensure that export functions are preserved *)
 Definition check_removeturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
@@ -144,9 +145,8 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : result fun_err
   let pr := remove_init_prog cparams.(is_reg_array) pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
-  let pe := expand_prog pr in
+  Let pe := expand_prog cparams.(expand_fd) pr in
   let pe := cparams.(print_uprog) RegArrayExpansion pe in
-  Let _ := CheckExpansion.check_prog pr.(p_extra) pr.(p_funcs) pe.(p_extra) pe.(p_funcs) in
 
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in

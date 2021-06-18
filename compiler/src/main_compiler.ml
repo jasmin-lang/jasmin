@@ -439,6 +439,21 @@ let main () =
         Subst.extend_iinfo ii fd in
       apply "rename_fd" doit fn cfd in
 
+    let expand_fd fn cfd = 
+      let fd = Conv.fdef_of_cufdef tbl (fn, cfd) in
+      let vars, harrs = Array_expand.init_tbl fd in
+      let cvar = Conv.cvar_of_var tbl in
+      let vars = List.map cvar (Sv.elements vars) in
+      let arrs = ref [] in
+      let doarr x (ws, xs) = 
+        arrs := 
+          Array_expansion.{ 
+            vi_v = cvar x;
+            vi_s = ws;
+            vi_n = List.map (fun x -> (cvar x).Var0.Var.vname) (Array.to_list xs); } :: !arrs in
+      Hv.iter doarr harrs;
+      { Array_expansion.vars = vars; arrs = !arrs } in
+
     let warning ii msg =
       if not !Glob_options.lea then begin
           let loc,_ = Conv.get_iinfo tbl ii in
@@ -489,7 +504,7 @@ let main () =
 
     let cparams = {
       Compiler.rename_fd    = rename_fd;
-      Compiler.expand_fd    = apply "arr exp" Array_expand.arrexp_func;
+      Compiler.expand_fd    = expand_fd;
       Compiler.var_alloc_fd = apply "var alloc" var_alloc_fd;
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
       Compiler.stackalloc    = memory_analysis;
