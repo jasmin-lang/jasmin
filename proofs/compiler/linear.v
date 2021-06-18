@@ -150,6 +150,13 @@ Section CHECK.
 
   End CHECK_i.
 
+  Let check_stack_ofs e ofs : bool :=
+    (sf_stk_sz e <=? ofs )%Z && (ofs + wsize_size Uptr <=? stack_frame_allocation_size e)%Z
+    && (Uptr ≤ sf_align e)%CMP (* Stack frame is aligned for storing pointers *)
+    && (is_align (wrepr Uptr ofs) Uptr) (* Stack slot is aligned *)
+    && (stack_frame_allocation_size e <? wbase Uptr)%Z (* FIXME: this check seems redundant *)
+  .
+
   Definition check_fd (ffd:sfun_decl) :=
     let (fn,fd) := ffd in
     let e := fd.(f_extra) in
@@ -161,17 +168,14 @@ Section CHECK.
     Let _ := assert match sf_return_address e with
                     | RAnone => true
                     | RAreg ra => vtype ra == sword Uptr
-                    | RAstack ofs => (sf_stk_sz e <=? ofs )%Z && (ofs + wsize_size Uptr <=? stack_frame_allocation_size e)%Z
-                                     && (Uptr ≤ sf_align e)%CMP (* Stack frame is aligned for storing pointers *)
-                                     && (is_align (wrepr Uptr ofs) Uptr) (* Stack slot is aligned *)
-                                     && (stack_frame_allocation_size e <? wbase Uptr)%Z (* FIXME: this check seems redundant *)
+                    | RAstack ofs => check_stack_ofs e ofs
                     end
                     (Ferr_fun fn (Cerr_linear "bad return-address")) in
     Let _ := assert ((sf_return_address e != RAnone)
                      || match sf_save_stack e with
                         | SavedStackNone => (stack_align == U8) && (sf_stk_sz e == 0) && (sf_stk_extra_sz e == 0)
                         | SavedStackReg r => (vtype r == sword Uptr) && (sf_to_save e == [::])
-                        | SavedStackStk _ => true (* TODO? *)
+                        | SavedStackStk ofs => check_stack_ofs e ofs
                         end)
                     (Ferr_fun fn (Cerr_linear "bad save-stack")) in
     ok tt.
