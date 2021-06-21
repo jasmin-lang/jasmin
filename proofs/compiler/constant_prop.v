@@ -63,23 +63,24 @@ Definition szero_extend sz sz' (e: pexpr) :=
   then (Papp1 (Oword_of_int sz) (Pconst (wunsigned (zero_extend sz w))), LT_map [:: LT_remove; LT_id])
   else (Papp1 (Ozeroext sz sz') e, LT_id).
 
+(* not (not e) ==> e *) 
 Definition snot_bool (e:pexpr) : (pexpr * leak_e_tr) :=
   match e with
   | Pbool b      => (Pbool (negb b), LT_remove)
-  | Papp1 Onot e0 => (e0, LT_id)
+  | Papp1 Onot e0 => (e0, LT_compose (LT_subi 0) (LT_subi 0))
   | _            => (Papp1 Onot e, LT_id)
   end.
 
 Definition snot_w (sz: wsize) (e:pexpr) : (pexpr * leak_e_tr) :=
   match is_wconst sz e with
-  | Some n => (wconst (wnot n), LT_map[:: LT_remove; LT_remove])
+  | Some n => (wconst (wnot n), LT_map[:: LT_remove; LT_id])
   | None   => (Papp1 (Olnot sz) e, LT_id)
   end.
 
 Definition sneg_int (e: pexpr) : (pexpr * leak_e_tr) :=
   match e with
-  | Pconst z => (Pconst (- z), LT_map[:: LT_remove; LT_remove])
-  | Papp1 (Oneg Op_int) e' => (e', LT_id)
+  | Pconst z => (Pconst (- z), LT_remove)
+  | Papp1 (Oneg Op_int) e' => (e', LT_compose (LT_subi 0) (LT_subi 0))
   | _ => (Papp1 (Oneg Op_int) e, LT_id)
   end.
 
@@ -106,15 +107,15 @@ Definition s_op1 o e :=
 
 Definition sand e1 e2 :=
   match is_bool e1, is_bool e2 with
-  | Some b, _ => if b then (e2, LT_subi 1) else (Pbool false, LT_map[:: LT_remove; LT_remove])
-  | _, Some b => if b then (e1, LT_subi 0) else (Pbool false, LT_map[:: LT_remove; LT_remove])
+  | Some b, _ => if b then (e2, LT_compose (LT_subi 0) (LT_subi 1)) else (Pbool false, LT_remove)
+  | _, Some b => if b then (e1, LT_compose (LT_subi 0) (LT_subi 0)) else (Pbool false, LT_remove)
   | _, _      => (Papp2 Oand e1 e2, LT_id)
   end.
 
 Definition sor e1 e2 :=
    match is_bool e1, is_bool e2 with
-  | Some b, _ => if b then (Pbool true, LT_map[:: LT_remove; LT_remove]) else (e2, LT_subi 1)
-  | _, Some b => if b then (Pbool true, LT_map[:: LT_remove; LT_remove]) else (e1, LT_subi 0)
+  | Some b, _ => if b then (Pbool true, LT_remove) else (e2, LT_compose (LT_subi 0) (LT_subi 1))
+  | _, Some b => if b then (Pbool true, LT_remove) else (e1, LT_compose (LT_subi 0) (LT_subi 0))
   | _, _       => (Papp2 Oor e1 e2, LT_id)
   end.
 
@@ -122,22 +123,22 @@ Definition sor e1 e2 :=
 
 Definition sadd_int e1 e2 :=
   match is_const e1, is_const e2 with
-  | Some n1, Some n2 => (Pconst (n1 + n2), LT_map[:: LT_remove; LT_remove])
+  | Some n1, Some n2 => (Pconst (n1 + n2), LT_remove)
   | Some n, _ =>
-    if (n == 0)%Z then (e2, LT_subi 1) 
+    if (n == 0)%Z then (e2, LT_compose (LT_subi 0) (LT_subi 1))
                   else (Papp2 (Oadd Op_int) e1 e2, LT_id)
   | _, Some n =>
-    if (n == 0)%Z then (e1, LT_subi 0) 
+    if (n == 0)%Z then (e1, LT_compose (LT_subi 0) (LT_subi 0))
                   else (Papp2 (Oadd Op_int) e1 e2, LT_id)
   | _, _ => (Papp2 (Oadd Op_int) e1 e2, LT_id)
   end.
 
 Definition sadd_w sz e1 e2 :=
   match is_wconst sz e1, is_wconst sz e2 with
-  | Some n1, Some n2 => (wconst (n1 + n2), LT_map[:: LT_remove; LT_remove])
-  | Some n, _ => if n == 0%R then (e2, LT_subi 1) 
+  | Some n1, Some n2 => (wconst (n1 + n2), LT_map[:: LT_remove; LT_id])
+  | Some n, _ => if n == 0%R then (e2, LT_compose (LT_subi 0) (LT_subi 1))
                              else (Papp2 (Oadd (Op_w sz)) e1 e2, LT_id)
-  | _, Some n => if n == 0%R then (e1, LT_subi 0) 
+  | _, Some n => if n == 0%R then (e1, LT_compose (LT_subi 0) (LT_subi 0))
                              else (Papp2 (Oadd (Op_w sz)) e1 e2, LT_id)
   | _, _ => (Papp2 (Oadd (Op_w sz)) e1 e2, LT_id)
   end.
@@ -150,17 +151,17 @@ Definition sadd ty :=
 
 Definition ssub_int e1 e2 :=
   match is_const e1, is_const e2 with
-  | Some n1, Some n2 => (Pconst (n1 - n2), LT_map[:: LT_remove; LT_remove])
+  | Some n1, Some n2 => (Pconst (n1 - n2), LT_remove)
   | _, Some n =>
-    if (n == 0)%Z then (e1, LT_subi 0) 
+    if (n == 0)%Z then (e1, LT_compose (LT_subi 0) (LT_subi 0))
                   else (Papp2 (Osub Op_int) e1 e2, LT_id)
   | _, _ => (Papp2 (Osub Op_int) e1 e2, LT_id)
   end.
 
 Definition ssub_w sz e1 e2 :=
   match is_wconst sz e1, is_wconst sz e2 with
-  | Some n1, Some n2 => (wconst (n1 - n2), LT_map[:: LT_remove; LT_remove])
-  | _, Some n => if n == 0%R then (e1, LT_subi 0) 
+  | Some n1, Some n2 => (wconst (n1 - n2),  LT_map[:: LT_remove; LT_id])
+  | _, Some n => if n == 0%R then (e1, LT_compose (LT_subi 0) (LT_subi 0))
                              else (Papp2 (Osub (Op_w sz)) e1 e2, LT_id)
   | _, _ => (Papp2 (Osub (Op_w sz)) e1 e2, LT_id)
   end.
@@ -173,28 +174,30 @@ Definition ssub ty :=
 
 Definition smul_int e1 e2 :=
   match is_const e1, is_const e2 with
-  | Some n1, Some n2 => (Pconst (n1 * n2), LT_map[:: LT_remove; LT_remove])
+  | Some n1, Some n2 => (Pconst (n1 * n2), LT_remove)
   | Some n, _ =>
-    if (n == 0)%Z then (Pconst 0, LT_map[:: LT_remove; LT_remove])
-    else if (n == 1)%Z then (e2, LT_subi 1)
+    if (n == 0)%Z then (Pconst 0, LT_remove)
+    else if (n == 1)%Z then (e2, LT_compose (LT_subi 0) (LT_subi 1))
     else (Papp2 (Omul Op_int) e1 e2, LT_id)
   | _, Some n =>
-    if (n == 0)%Z then (Pconst 0, LT_map[:: LT_remove; LT_remove])
-    else if (n == 1)%Z then (e1, LT_subi 0)
+    if (n == 0)%Z then (Pconst 0, LT_remove)
+    else if (n == 1)%Z then (e1, LT_compose (LT_subi 0) (LT_subi 0))
     else (Papp2 (Omul Op_int) e1 e2, LT_id)
   | _, _ => (Papp2 (Omul Op_int) e1 e2, LT_id)
   end.
 
 Definition smul_w sz e1 e2 :=
   match is_wconst sz e1, is_wconst sz e2 with
-  | Some n1, Some n2 => (wconst (n1 * n2), LT_map[:: LT_remove; LT_remove])
+  | Some n1, Some n2 => (wconst (n1 * n2), LT_map[:: LT_remove; LT_id])
   | Some n, _ =>
-    if n == 0%R then (@wconst sz 0, LT_map[:: LT_remove; LT_remove])
-    else if n == 1%R then (e2, LT_subi 1)
-    else (Papp2 (Omul (Op_w sz)) (wconst n) e2, LT_map [:: LT_remove; LT_id])
+    if n == 0%R then (@wconst sz 0, LT_map[:: LT_remove; LT_id])
+    else if n == 1%R then (e2, LT_compose (LT_subi 0) (LT_subi 1))
+    else (Papp2 (Omul (Op_w sz)) (wconst n) e2, 
+         LT_map [:: LT_compose (LT_subi 0) (LT_map [:: LT_remove; LT_remove]); LT_remove])
+          (*LT_map [:: LT_compose (LT_subi 0) (LT_map [:: LT_remove; LT_remove]) ; LT_id]) *)
   | _, Some n =>
-    if n == 0%R then (@wconst sz 0, LT_map[:: LT_remove; LT_remove])
-    else if n == 1%R then (e1, LT_subi 0)
+    if n == 0%R then (@wconst sz 0, LT_map[:: LT_remove; LT_id])
+    else if n == 1%R then (e1, LT_compose (LT_subi 0) (LT_subi 0))
     else (Papp2 (Omul (Op_w sz)) e1 (wconst n), LT_map [:: LT_id; LT_remove])
   | _, _ => (Papp2 (Omul (Op_w sz)) e1 e2, LT_id)
   end.
@@ -268,7 +271,7 @@ Definition sge ty e1 e2 :=
 
 Definition sbitw i (z: ∀ sz, word sz → word sz → word sz) sz e1 e2 :=
   match is_wconst sz e1, is_wconst sz e2 with
-  | Some n1, Some n2 => (wconst (z sz n1 n2), LT_remove)
+  | Some n1, Some n2 => (wconst (z sz n1 n2), LT_map[:: LT_remove; LT_remove])
   | _, _ => (Papp2 (i sz) e1 e2, LT_id)
   end.
 
@@ -282,7 +285,7 @@ Definition sbituw i (z: signedness -> ∀ sz, word sz → word sz → word sz) u
   match is_wconst sz e1, is_wconst sz e2 with
   | Some n1, Some n2 =>
     if n2 == 0%R then (Papp2 (i (Cmp_w u sz)) e1 e2, LT_id)
-    else (wconst (z u sz n1 n2), LT_remove)
+    else (wconst (z u sz n1 n2), LT_map[:: LT_remove; if u is Unsigned then LT_remove else LT_remove])
   | _, _ => (Papp2 (i (Cmp_w u sz)) e1 e2, LT_id)
   end.
 
@@ -305,7 +308,7 @@ Definition slxor := sbitw Olxor (@wxor).
 
 Definition sbitw8 i (z: ∀ sz, word sz → u8 → word sz) sz e1 e2 :=
   match is_wconst sz e1, is_wconst U8 e2 with
-  | Some n1, Some n2 => (wconst (z sz n1 n2), LT_remove)
+  | Some n1, Some n2 => (wconst (z sz n1 n2), LT_map[:: LT_remove; LT_remove])
   | _, _ => (Papp2 (i sz) e1 e2, LT_id)
   end.
 
@@ -371,14 +374,14 @@ Definition force_int e :=
 
 Definition s_opN op es :=
   match (mapM force_int es >>= sem_opN op) with
-  | Ok (Vword sz w) => (Papp1 (Oword_of_int sz) (Pconst (wunsigned w)), LT_remove)
+  | Ok (Vword sz w) => (Papp1 (Oword_of_int sz) (Pconst (wunsigned w)), LT_map[:: LT_remove; LT_remove])
   | _ => (PappN op es, LT_id)
   end.
 
 Definition s_if t e e1 e2 :=
   match is_bool e with
-  | Some b => if b then (e1, (LT_subi 1))
-                   else (e2, (LT_subi 2))
+  | Some b => if b then (e1, LT_compose (LT_subi 0) (LT_subi 1))
+                   else (e2, LT_compose (LT_subi 0) (LT_subi 2))
   | None   => (Pif t e e1 e2, LT_id)
   end.
 
@@ -438,20 +441,20 @@ Fixpoint const_prop_e (m:cpm) e : (pexpr * leak_e_tr) :=
                       (Pload sz x lte.1, LT_map [:: lte.2; LT_id])
   | Papp1 o e0     => let lte := (const_prop_e m e0) in 
                       let ltop := (s_op1 o lte.1) in 
-                      (ltop.1, LT_compose lte.2 ltop.2)
+                      (ltop.1, LT_compose (LT_map [:: lte.2; LT_id]) ltop.2)
   | Papp2 o e1 e2 => let lte1 := (const_prop_e m e1) in
                      let lte2 := (const_prop_e m e2) in
                      let ltop := s_op2 o lte1.1 lte2.1 in
-                     (ltop.1, LT_compose (LT_map [:: lte1.2; lte2.2]) ltop.2)
+                     (ltop.1, LT_compose (LT_map [:: LT_map [:: lte1.2; lte2.2]; LT_id]) ltop.2)
   | PappN op es   =>
     let esk := map (const_prop_e m) es in
     let ek := s_opN op (unzip1 esk) in
-    (ek.1, LT_compose (LT_map (unzip2 esk)) ek.2)
+    (ek.1, LT_compose (LT_map [:: LT_id; (LT_map (unzip2 esk))]) ek.2)
   | Pif t e0 e1 e2 => let lte0 := (const_prop_e m e0) in
                       let lte1 := (const_prop_e m e1) in
                       let lte2 := (const_prop_e m e2) in
                       let ltif := s_if t lte0.1 lte1.1 lte2.1 in
-                      (ltif.1, LT_compose (LT_map [:: lte0.2 ; lte1.2; lte2.2]) ltif.2)
+                      (ltif.1, LT_compose (LT_map [:: LT_compose (LT_subi 0) lte0.2;  LT_compose (LT_subi 0) lte1.2;  LT_compose (LT_subi 0) lte2.2]) ltif.2)
   end.
 
 Definition empty_cpm : cpm := @Mvar.empty const_v.
@@ -532,7 +535,7 @@ Section CMD.
       (m, ic ++ c, (lti :: ltc))
     end.
 
-End CMD.
+End CMD. 
 
 Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
   match ir with
@@ -547,7 +550,7 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd * leak_i_tr :=
     let es := map (const_prop_e m) es in
     let: (m,xs, lts) := const_prop_rvs m xs in
     (m, [:: MkI ii (Copn xs t o (unzip1 es)) ], 
-     LT_ile (LT_map [:: LT_map (unzip2 es) ; LT_map lts]))
+     LT_ile (LT_map [:: LT_map (unzip2 es) ; LT_id; LT_map lts]))
             
   | Cif b c1 c2 =>
     let (b, ltb) := const_prop_e m b in

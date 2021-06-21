@@ -131,7 +131,7 @@ Section REMOVE.
       | Papp2 o e1 e2 =>
         Let e1 := remove_glob_e ii env e1 in
         Let e2 := remove_glob_e ii env e2 in
-        ok ((Papp2 o e1.1 e2.1), LT_map [:: e1.2; e2.2; LT_id]) 
+        ok ((Papp2 o e1.1 e2.1), LT_map [:: LT_map[:: e1.2; e2.2]; LT_id]) 
       | PappN op es =>
         Let vs := mapM (remove_glob_e ii env) es in
         ok ((PappN op (unzip1 vs)), LT_map [:: LT_map (unzip2 vs); LT_id])

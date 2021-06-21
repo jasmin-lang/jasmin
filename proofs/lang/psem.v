@@ -203,7 +203,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leak_e)  :=
     Let vl2 := sem_pexpr s e2 in
     Let v := sem_sop2 o vl1.1 vl2.1 in
     Let l := leak_sop2 o vl1.1 vl2.1 in 
-    ok (v, LSub [:: vl1.2; vl2.2; l])
+    ok (v, LSub [:: LSub[:: vl1.2; vl2.2]; l])
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
     Let v := sem_opN op (unzip1 vs) in
@@ -1829,87 +1829,87 @@ Lemma sem_pexpr_rec_uincl gd s1 vm2 es vs1:
    exists2 v2 : value,
    sem_pexpr gd {| emem := emem s1; evm := vm2 |} e = ok (v2, le) &
    value_uincl v1 v2) →
-   exists2 vs2,
-     sem_pexprs gd (Estate s1.(emem) vm2) es = ok vs2
-     & List.Forall2 value_uincl (unzip1 vs1) (unzip1 vs2)
-     /\ unzip2 vs1 = unzip2 vs2.
+  exists2 vs2,
+  sem_pexprs gd (Estate s1.(emem) vm2) es = ok vs2
+  & List.Forall2 value_uincl (unzip1 vs1) (unzip1 vs2)
+    /\ unzip2 vs1 = unzip2 vs2.
 Proof.
- move=> hvm; elim: es vs1.
- + move=> vs1 Hm He. case: Hm => <-. exists [::]; auto. split. constructor. auto.
- move=> e es ih vs1 /=. t_xrbindP.
- move=> [v l] ok_v vs ok_vs <-{vs1} rec.
- move: ih => /(_ _ ok_vs) [].
- + by move => e' he'; apply: rec; rewrite in_cons he' orbT.
- move => vs' ok_vs' hs.
- move: rec => /(_ e _ _ _ ok_v) [].
- + by rewrite in_cons eqxx.
- move => v' ok_v' h. rewrite ok_v' /=.
- rewrite ok_vs' /=.
- exists ((v', l) :: vs'). auto.
- split. simpl. constructor. case hs => hs1 hs2.
- auto. case hs => hs1 hs2. auto.
- case hs => hs1 -> /=; auto.
+  move=> hvm; elim: es vs1.
+  + move=> vs1 Hm He. case: Hm => <-. exists [::]; auto. split. by constructor. auto.
+  move=> e es ih vs1 /=. t_xrbindP.
+  move=> [v l] ok_v vs ok_vs <-{vs1} rec.
+  move: ih => /(_ _ ok_vs) [].
+  + by move => e' he'; apply: rec; rewrite in_cons he' orbT.
+  move => vs' ok_vs' hs.
+  move: rec => /(_ e _ _ _ ok_v) [].
+  + by rewrite in_cons eqxx.
+  move => v' ok_v' h. rewrite ok_v' /=.
+  rewrite ok_vs' /=.
+  exists ((v', l) :: vs'). auto.
+  split. simpl. constructor. case hs => hs1 hs2.
+  auto. case hs => hs1 hs2. auto.
+  case hs => hs1 -> /=; auto.
 Qed.
 
 Lemma leak_sop1_eq o v1 v2 l:
- value_uincl v1 v2 ->
-leak_sop1 o v1 = ok l ->
-leak_sop1 o v2 = ok l.
+  value_uincl v1 v2 ->
+  leak_sop1 o v1 = ok l ->
+  leak_sop1 o v2 = ok l.
 Proof.
-move=> hv; rewrite /leak_sop1 /=; t_xrbindP=> s ok_s hl.
-have {ok_s} [z1 [-> /= hz1]]:= of_val_uincl hv ok_s.
-case: o s hl z1 hz1=> //=.
+  move=> hv; rewrite /leak_sop1 /=; t_xrbindP=> s ok_s hl.
+  have {ok_s} [z1 [-> /= hz1]]:= of_val_uincl hv ok_s.
+  case: o s hl z1 hz1=> //=.
 Qed.
 
 Lemma leak_sop2_eq o v1 v2 v3 v4 l: 
-value_uincl v1 v2 -> 
-value_uincl v3 v4 ->
-leak_sop2 o v1 v3 = ok l ->
-leak_sop2 o v2 v4 = ok l.
+  value_uincl v1 v2 -> 
+  value_uincl v3 v4 ->
+  leak_sop2 o v1 v3 = ok l ->
+  leak_sop2 o v2 v4 = ok l.
 Proof.
-move => h1 h2; rewrite /leak_sop2 /=; t_xrbindP => s ok_s s' ok_s' <-.
-have {ok_s} [z1 [-> /= hz1]] := of_val_uincl h1 ok_s.
-have {ok_s'} [z2 [-> /= hz2]] := of_val_uincl h2 ok_s'.
-case: o s s' z1 hz1 z2 hz2 => /=
+  move => h1 h2; rewrite /leak_sop2 /=; t_xrbindP => s ok_s s' ok_s' <-.
+  have {ok_s} [z1 [-> /= hz1]] := of_val_uincl h1 ok_s.
+  have {ok_s'} [z2 [-> /= hz2]] := of_val_uincl h2 ok_s'.
+  case: o s s' z1 hz1 z2 hz2 => /=
    [||[|s]|[|s]|[|s]| [|u s]|[|u s]| s|s|s|s|s|s| [|s]|[|s]| [|u s]|[|u s]|[|u s]|[|u s]
-    | ve s | ve s | ve s | ve s | ve s | ve s ] /=;
-by move=> w1 w2 z1 _ _ _.
+    | ve s | ve s | ve s | ve s | ve s | ve s ] /= w1 w2 z1 hv b hv'; auto;
+  have -> := val_uincl_sword hv; by have -> := val_uincl_sword hv'.
 Qed.
 
 Lemma leak_opN_aux o vs vs' l:
-all is_not_sarr (type_of_opN o).1 ->
-List.Forall2 value_uincl vs vs' ->
-app_sopn (type_of_opN o).1 (leak_opN_typed o) vs = ok l ->
-app_sopn (type_of_opN o).1 (leak_opN_typed o) vs' = ok l.
+  all is_not_sarr (type_of_opN o).1 ->
+  List.Forall2 value_uincl vs vs' ->
+  app_sopn (type_of_opN o).1 (leak_opN_typed o) vs = ok l ->
+  app_sopn (type_of_opN o).1 (leak_opN_typed o) vs' = ok l.
 Proof.
-rewrite /leak_opN_typed /=.
-elim: (type_of_opN o).1 vs vs'=> /= [ | t ts Hrec] [] //=. 
-+ move=> [] //= v vs _ //= Hvs. inversion Hvs.
-move=> n vs vs' /andP [] ht hts /List_Forall2_inv_l [v'] [vs''] [->] {vs'} [hv hvs].
-case: t o ht => //= [ | | sz ] o _; apply: rbindP.
-+ by move=> b /(value_uincl_bool hv) [] _ -> /= /(Hrec _ _ hts hvs).
-+ by move=> z /(value_uincl_int hv) [] _ -> /= /(Hrec _ _ hts hvs).
-by move=> w /(value_uincl_word hv) -> /= /(Hrec _ _ hts hvs).
+  rewrite /leak_opN_typed /=.
+  elim: (type_of_opN o).1 vs vs'=> /= [ | t ts Hrec] [] //=. 
+  + move=> [] //= v vs _ //= Hvs. by inversion Hvs.
+  move=> n vs vs' /andP [] ht hts /List_Forall2_inv_l [v'] [vs''] [->] {vs'} [hv hvs].
+  case: t o ht => //= [ | | sz ] o _; apply: rbindP.
+  + by move=> b /(value_uincl_bool hv) [] _ -> /= /(Hrec _ _ hts hvs).
+  + by move=> z /(value_uincl_int hv) [] _ -> /= /(Hrec _ _ hts hvs).
+  by move=> w /(value_uincl_word hv) -> /= /(Hrec _ _ hts hvs).
 Qed.
 
 Lemma leak_opN_eq o vs vs' l:
-List.Forall2 value_uincl vs vs' ->
-leak_opN o vs = ok l ->
-leak_opN o vs' = ok l.
+  List.Forall2 value_uincl vs vs' ->
+  leak_opN o vs = ok l ->
+  leak_opN o vs' = ok l.
 Proof.
-rewrite /leak_opN /=. move=> hvs happ.
-have -> /= := leak_opN_aux _ hvs happ. + by auto.
-case: {happ} o=> //.
-by move => sz n; rewrite /= all_nseq orbT.
+  rewrite /leak_opN /=. move=> hvs happ.
+  have -> /= := leak_opN_aux _ hvs happ. + by auto.
+  case: {happ} o=> //.
+  by move => sz n; rewrite /= all_nseq orbT.
 Qed.
 
 Lemma leak_sopn_eq o vs vs' l:
-List.Forall2 value_uincl vs vs' ->
-leak_sopn o vs = ok l ->
-leak_sopn o vs' = ok l.
+  List.Forall2 value_uincl vs vs' ->
+  leak_sopn o vs = ok l ->
+  leak_sopn o vs' = ok l.
 Proof.
-rewrite /leak_sopn => h1; t_xrbindP => vs1 h2 h3.
-by have -> /= := vuincl_sopn (tin_narr _) h1 h2;rewrite h3.
+  rewrite /leak_sopn => h1; t_xrbindP => vs1 h2 h3.
+  by have -> /= := vuincl_sopn (tin_narr _) h1 h2;rewrite h3.
 Qed.
 
 Lemma sem_pexpr_uincl gd s1 vm2 e v1 le:
@@ -2024,24 +2024,24 @@ Qed.
 Lemma of_val_error t v:
   of_val t v = undef_error -> exists2 t', v = Vundef t' & subtype t t'.
 Proof.
-case: t v => [||p|sz] [] //=.
-+ by case => //; eauto.
-+ by case => //; eauto.
-+ by move => n a; rewrite /WArray.cast; case: ifPn.
-+ by case => // ?;case:ifP => // ? _; eexists; first by reflexivity.
-+ by move=> ??;rewrite /truncate_word;case:ifP.
-by case => // sz'; case: ifP => // hle _; eauto.
+  case: t v => [||p|sz] [] //=.
+  + by case => //; eauto.
+  + by case => //; eauto.
+  + by move => n a; rewrite /WArray.cast; case: ifPn.
+  + by case => // ?;case:ifP => // ? _; eexists; first by reflexivity.
+  + by move=> ??;rewrite /truncate_word;case:ifP.
+  by case => // sz'; case: ifP => // hle _; eauto.
 Qed.
 
 Lemma pof_val_error t v:
   pof_val t v = undef_error -> exists t', subtype (vundef_type t) t' /\ v = Vundef t'.
 Proof.
-case: t v => [||p|sz] [] //=.
-+ by case => //;eauto.
-+ by case => //;eauto.
-+ by move => [].
-case => // s _;eexists;split;last reflexivity.
-by apply wsize_le_U8.
+  case: t v => [||p|sz] [] //=.
+  + by case => //;eauto.
+  + by case => //;eauto.
+  + by move => [].
+  case => // s _;eexists;split;last reflexivity.
+  by apply wsize_le_U8.
 Qed.
 
 (*

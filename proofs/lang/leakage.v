@@ -40,14 +40,16 @@ Variant align :=
   | Align
   | NoAlign.
 
-Print size.
-
 Inductive leak_e :=
 | LEmpty : leak_e (* no leak *)
 | LIdx : Z -> leak_e (* array access at given index *)
 | LAdr : pointer -> leak_e (* memory access at given address *)
 | LSub: (seq leak_e) -> leak_e (* forest of leaks *)
 | Lop : forall ws, word ws -> leak_e. (* nat represents size (seq T)*)
+
+Definition div_leak (sz : wsize) (hi lo div: word sz) : exec leak_e := ok (LSub [:: Lop hi; Lop lo; Lop div]).
+
+Definition div_leak_ (sz : wsize) (hi lo div: word sz) : leak_e := (LSub [:: Lop hi; Lop lo; Lop div]).
 
 Notation leak_es := (seq leak_e).
 

@@ -455,7 +455,6 @@ Qed.
   Definition sbool5 := [:: sbool;sbool;sbool;sbool;sbool].
   
   (* Defining the semantics of lower_cond_classify *)
-  (* Need to confirm with Benjamin *)
   Lemma lower_cond_classifyP ii e cond s1' le:
     sem_pexpr gd s1' e = ok (cond, le) ->
     match lower_cond_classify fv ii e with
@@ -519,10 +518,11 @@ Qed.
     + case: o He => // -[] // => [ sz' | [] sz' | [] sz' | [] sz' | [] sz' ] //=;
       t_xrbindP => -[v1 l1] ok_v1 -[v2 l2] ok_v2 vo /sem_sop2I [w1'] [w2'] [w3'] [];
         move => /to_wordI [sz1] [w1] [hle1 /= hv1 hv1']; subst;
-        move => /to_wordI [sz2] [w2] [hle2 /= hv2 hv2']; subst => /= -[] h1 h2 h3 h4 [] hl hsz hv hx hy; subst;
+        move => /to_wordI [sz2] [w2] [hle2 /= hv2 hv2']; subst => 
+        /= -[] h1 h2 leo Hlo h3 h4 [] hl hsz hv hx hy; subst;
         rewrite ok_v1 ok_v2 /=.
       + eexists _, _, _, _, _, _; split; first by reflexivity. split=> //.
-        split => // Hsz.
+        split => //. move=>Hsz.
         rewrite /x86_CMP /check_size_8_64 Hsz /=.
         eexists _, _; split; first by reflexivity.
         do 2 split => //.

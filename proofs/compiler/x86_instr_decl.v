@@ -271,8 +271,6 @@ Fixpoint op_leak_cst (A: Type) (a: A) (l: seq stype) : sem_prod l A:=
 
 Fixpoint op_leak_ty (l : seq stype) : sem_prod l (exec leak_e) := op_leak_cst (Ok error LEmpty) l.
 
-Definition div_leak (sz : wsize) (hi lo div: word sz) : exec leak_e := ok (LSub [:: Lop hi; Lop lo; Lop div]).
-
 Definition x86_MOV sz (x: word sz) : exec (word sz) :=
   Let _ := check_size_8_64 sz in
   ok x.

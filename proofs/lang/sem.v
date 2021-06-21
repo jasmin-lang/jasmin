@@ -461,7 +461,12 @@ Definition leak_sop1 (o: sop1) (v: value) : exec leak_e :=
 
 Definition leak_sop2_typed (o: sop2) :=
   match o return sem_prod [::(type_of_op2 o).1.1; (type_of_op2 o).1.2] (exec leak_e) with 
-  | Odiv (Cmp_w u s) | Omod (Cmp_w u s) => op_leak_ty [::sword s; sword s] (*FIXME*)
+  | Odiv (Cmp_w u s) | Omod (Cmp_w u s) => 
+    fun lo div => 
+      let hi := 
+          if u is Unsigned then 0%R 
+          else (if (wsigned lo < 0%Z)%CMP then (-1)%R else 0%R) in 
+      @div_leak s hi lo div
   | o => op_leak_ty [::(type_of_op2 o).1.1; (type_of_op2 o).1.2]
   end.
 
@@ -520,7 +525,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leak_e)  :=
     Let vl2 := sem_pexpr s e2 in
     Let v := sem_sop2 o vl1.1 vl2.1 in
     Let l := leak_sop2 o vl1.1 vl2.1 in
-    ok (v, LSub [:: vl1.2; vl2.2; l])
+    ok (v, LSub [:: LSub[:: vl1.2; vl2.2]; l])
   | PappN op es =>
     Let vs := mapM (sem_pexpr s) es in
     Let v := sem_opN op (unzip1 vs) in

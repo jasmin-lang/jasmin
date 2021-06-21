@@ -457,7 +457,7 @@ Module CBEA.
     | Papp2 o1 e11 e12, Papp2 o2 e21 e22 =>
       let bl := check_eb m e11 e21 in
       let bl' := check_eb m e12 e22 in 
-      (((o1 == o2) && bl.1 && bl'.1), LT_map [:: bl.2; bl'.2; LT_id])
+      (((o1 == o2) && bl.1 && bl'.1), LT_map [:: LT_map[::bl.2; bl'.2]; LT_id])
     | PappN o1 es1, PappN o2 es2 =>
       let bl := all2_map (check_eb m) es1 es2 in
       ((o1 == o2) && bl.1, LT_map [:: LT_map bl.2; LT_id])
