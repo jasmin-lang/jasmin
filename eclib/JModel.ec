@@ -255,6 +255,18 @@ op VPUNPCKH_4u64 (w1 w2: W256.t) =
   map2 VPUNPCKH_2u64 w1 w2.
 
 (* ------------------------------------------------------------------- *)
+op packus_4u32 (w: W256.t, off: int) : W64.t =
+  let pack = fun n =>
+  if (w \bits32 n) \slt W32.zero then W16.zero
+  else if (W32.of_int W16.max_uint) \sle (w \bits32 n) then (W16.of_int W16.max_uint)
+  else (w \bits16 (2*n))
+  in
+  pack4 [pack off; pack (off+1); pack (off+2); pack (off+3)].
+
+op VPACKUS_8u32 (w1 w2: W256.t) : W256.t =
+  pack4 [packus_4u32 w1 0; packus_4u32 w2 0; packus_4u32 w1 4; packus_4u32 w2 4].
+
+(* ------------------------------------------------------------------- *)
 op VPSLLDQ_128 (w1:W128.t) (w2:W8.t) =
   let n = to_uint w2 in
   let i = min n 16 in
