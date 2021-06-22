@@ -186,6 +186,12 @@ op VPERMQ (w:W256.t) (i:W8.t) : W256.t =
   let choose = fun n => w \bits64 ((to_uint i %/ n) %% 4) in
   pack4 [choose 1; choose 4; choose 16; choose 64].
 
+op permd (v: W256.t) (i: W32.t) : W32.t =
+  v \bits32 (to_uint i %% 8).
+
+op VPERMD (w: W256.t) (i: W256.t) : W256.t =
+  map (permd w) i.
+
 op VEXTRACTI128 (w:W256.t) (i:W8.t) : W128.t =
   w \bits128 b2i i.[0].
 
