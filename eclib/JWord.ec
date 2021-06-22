@@ -1447,6 +1447,14 @@ op rflags_of_andn (w: t) =
   let ZF = ZF_of w in
   (OF, CF, SF, PF, ZF).
 
+op rflags_of_popcnt (w: t) =
+  let OF = false in
+  let CF = false in
+  let SF = false in
+  let PF = false in
+  let ZF = ZF_of w in
+  (OF, CF, SF, PF, ZF).
+
 op rflags_of_aluop_nocf_w (w : t) (vs : int) =
   let OF = to_sint w <> vs in
   let SF = SF_of w in
@@ -1617,6 +1625,11 @@ proof.
   + by apply negP => heq; apply hc0; rewrite -(to_uintK c) heq.
   rewrite to_uintB /= 1:uleE /=; smt (to_uint_cmp).
 qed.
+
+op POPCNT_XX (v: t) =
+  let vb = w2bits v in
+  let wcnt = of_int (count idfun vb) in
+  flags_w (rflags_of_popcnt wcnt) wcnt.
 
 end ALU.
 
