@@ -2203,6 +2203,15 @@ abstract theory W_WS.
    op VPBROADCAST_'Ru'S (w : WS.t) =
      pack'R (map (fun i => w) (iota_ 0 r)).
 
+   op wucmp (cmp: int -> int -> bool) (x y: WS.t) : WS.t =
+     if cmp (to_uint x) (to_uint y) then (WS.of_int (-1)) else (WS.of_int 0).
+
+   op VPCMPGT_'Ru'S (w1 : WB.t) (w2: WB.t) =
+     map2 (wucmp Int.(<=)) w2 w1.
+
+   op VPCMPEQ_'Ru'S (w1 : WB.t) (w2: WB.t) =
+     map2 (wucmp (=)) w1 w2.
+
    op VPMAXU_'Ru'S (w1 : WB.t) (w2 : WB.t) = 
      map2 (fun x y => if WS.to_uint x < WS.to_uint y then y else x) w1 w2.
   
