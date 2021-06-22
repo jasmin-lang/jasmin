@@ -267,6 +267,19 @@ op VPACKUS_8u32 (w1 w2: W256.t) : W256.t =
   pack4 [packus_4u32 w1 0; packus_4u32 w2 0; packus_4u32 w1 4; packus_4u32 w2 4].
 
 (* ------------------------------------------------------------------- *)
+op VPMULH_8u16 (w1 w2: W128.t) : W128.t =
+  map2 (fun (x y:W16.t) => wmulhs x y) w1 w2.
+
+op VPMULH_16u16 (w1 w2: W256.t) : W256.t =
+  map2 (fun (x y:W16.t) => wmulhs x y) w1 w2.
+
+op VPMULL_8u16 (w1 w2: W128.t) : W128.t =
+  map2 (fun (x y:W16.t) => x * y) w1 w2.
+
+op VPMULL_16u16 (w1 w2: W256.t) : W256.t =
+  map2 (fun (x y:W16.t) => x * y) w1 w2.
+
+(* ------------------------------------------------------------------- *)
 op VPSLLDQ_128 (w1:W128.t) (w2:W8.t) =
   let n = to_uint w2 in
   let i = min n 16 in
