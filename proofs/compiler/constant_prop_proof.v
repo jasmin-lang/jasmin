@@ -686,7 +686,7 @@ case h2: (is_wconst sz e2) => [ n2 | ] // /=.
     rewrite wrepr_unsigned truncate_word_u. rewrite Hyv' /=. 
     have:= is_wconstP gd s h1. t_xrbindP.
     move=> [yv1 yl1] He1'. rewrite He1 in He1'. case: He1' => he1 he2; subst. rewrite Hyv /=. 
-    move=> [] hn /=; subst. exists (Vword (n1 * h3)). rewrite /=.  admit.
+    move=> [] hn /=; subst. exists (Vword (n1 * h3)).  admit.
 + case: eqP => hn1.
   - t_xrbindP. move=> [yv yl] He1 [yv' yl'] He2. rewrite /sem_sop2 /=.
     have:= is_wconstP gd s h2. t_xrbindP. rewrite He2 /=.
@@ -1410,10 +1410,10 @@ try (intros; clarify; eauto; fail).
 - move=> x v l. move: Hvalid => /(_ x).
   case: Mvar.get => [n /(_ _ erefl) | _ /= -> ]; last by eauto.
   move=> -> /= [] <- Hl.
-  case: n => [ b | n | sz w ] /=. 
+  case: n => [ b | n | sz w ] /=.
   + by exists b. + by exists n.
   exists (Vword (wrepr sz (wunsigned w))). split.
-  auto. rewrite wrepr_unsigned. admit. by rewrite wrepr_unsigned.
+  auto. by rewrite wrepr_unsigned.
 - move=> sz x e He. move=> v l.
   apply: on_arr_varP => n t Hsub; rewrite /on_arr_var => Hg.
   t_xrbindP. move=> [yv yl] He' /=. move: (He yv yl He').
@@ -1445,9 +1445,9 @@ try (intros; clarify; eauto; fail).
   have [v' ok_v' hv' ] := vuincl_sem_opN ok_v hvs'.
   exists v'; split; last exact: hv'.
   set esk := map (const_prop_e m) es.
-  have /= := @s_opNPl s op (unzip1 esk) v' (LSub (unzip2 vs')).
+  have /= := @s_opNPl s op (unzip1 esk) v' (LSub [:: LSub (unzip2 vs'); le]).
   have Hlo' := leak_opN_eq hvs' Hlo.
-  rewrite -/(sem_pexprs gd s (unzip1 esk)) ok_vs' /= ok_v' hk /= Hlo' /=. (*=> /(_ erefl). ->.*) admit.
+  by rewrite -/(sem_pexprs gd s (unzip1 esk)) ok_vs' /= ok_v' hk /= Hlo' /= => /(_ erefl) ->. 
 + move=> t e He e1 He1 e2 He2 v l. t_xrbindP.
   move=> [yv yl] /He/= [] x [] He' Hyv h0 
   /(value_uincl_bool Hyv) [] Hx Hxl; subst.
@@ -1455,7 +1455,7 @@ try (intros; clarify; eauto; fail).
   move=> [yv2 yl2] /He2/= [] x3 [] He2' Hyv2.
   move=> h6 /(truncate_value_uincl Hyv1) [] x Ht Hv h8
   /(truncate_value_uincl Hyv2) [] x0 Ht' Hv'.
-  move=> <- <-.
+  move=> <- Hl.
   rewrite /s_if. case: is_boolP He'.
   - move=> a. case: (a).
     * move=> /= Htr. case: Htr => <- Hlt. exists x1.
@@ -1673,7 +1673,9 @@ Proof.
   + by move=> ?? ->.
   + by move=> ?? -> ? ->.
   + move => op es h /=.
-    (do 4 f_equal; last f_equal); apply: map_ext => e /InP; exact: h.
+    (do 4 f_equal; last f_equal). + apply: map_ext=> e /InP He; exact: h. (*apply: map_ext => e /InP; exact: h.*)
+    + do 2 f_equal. apply: map_ext=> e /InP He; exact: h.
+    apply: map_ext=> e /InP He; exact: h.
   + move=> t e He e1 He1 e2 He2.
     by rewrite He He1 He2.
 Qed.
@@ -2084,9 +2086,9 @@ Section PROOF.
     move: (Ho' o (unzip1 vs) (unzip1 vs2) ves (Forall2_trans value_uincl_trans Hvc Hee) Ho).
     move=> -> {Ho'} /=. rewrite Hw'' /=. rewrite -Hl Hs /=.
     rewrite /= in Hlc. rewrite Hel in Hlc. case: Hlc => -> /=.
-    have Hlo' := leak_sopn_eq Hvc Hlo. have -> /= := leak_sopn_eq Hee Hlo'.
-    rewrite -Hs /=. admit.
-  Admitted.
+    have Hlo' := leak_sopn_eq Hvc Hlo. by have -> /= := leak_sopn_eq Hee Hlo'.
+    by rewrite -Hs /=. 
+  Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
   Proof.

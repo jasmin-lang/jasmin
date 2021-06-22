@@ -790,7 +790,10 @@ Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : 
     [:: Lempty]*)
 
   | LT_ilkeepa, Lopn le => 
-    [:: Lopnl (LSub (map (fun x => LSub [:: x]) (get_seq_leak_e le)))]
+    let r := (LSub (map (fun x => LSub [:: x]) (get_seq_leak_e le))) in 
+    let r1 := leak_E stk (LT_subi 0) r in 
+    let r2 := leak_E stk (LT_subi 1) r in 
+    [:: Lopnl (LSub [:: r1 ; LEmpty; r2])]
 
   | LT_ilkeep, Lopn le => 
     [:: Lopnl le]

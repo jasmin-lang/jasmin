@@ -377,7 +377,7 @@ elim: e b le=> //=; try auto.
 (* Pvar *)
 - by move=> x b le; t_xrbindP=> vg -> -> <- /=.
 (* Pglobal *)
-- by move=> g b le; t_xrbindP=> vg -> -> <- /=. 
+- by move=> g b le; t_xrbindP=> vg -> -> <- /=.
 (* Pget *)
 - move=> sz x e He b le /=. 
   apply: on_arr_varP => n t Hsub; rewrite /on_arr_var => -> /=; t_xrbindP.
@@ -402,98 +402,100 @@ elim: e b le=> //=; try auto.
     move=> b' le [v l] -> /= vo. t_xrbindP. move=> z -> <- //=.
   (* op = Onot *)
   + t_xrbindP. rewrite /sem_sop1 /=.
-    move=> b le [v l] -> /= vo. t_xrbindP=> vb /to_boolI //= -> <- [] <- <- //=. by rewrite negbK.
+    move=> b le [v l] -> /= vo. t_xrbindP=> vb /to_boolI //= -> <- lo Hlo [] <- <- //=. by rewrite negbK.
   (* op = Olnot *)
   + t_xrbindP. move=> He b le. rewrite /sem_sop1 /=.
-    move=> [v l] -> /= vo. t_xrbindP. move=> z -> <- //=.
+    move=> [v l] -> /= vo. t_xrbindP. by move=> z -> <- //=.
   (* op = Oneg *)
-  by t_xrbindP; move=> He b le [v l] -> vo /= -> //= -> -> /=.
+  by t_xrbindP; move=> He b le [v l] -> vo /= -> //= lo -> -> <- /=.
 (* Papp2 *)
 - case=> //=.
   + move=> e1 He1 e2 He2 b le /=; t_xrbindP. 
     move=>[v1 l1] h1 [v2 l2] h2; move=> vo.
-    move=>/sem_sop2I [b1 [b2 [b3]]] [] /to_boolI /= hb1 /to_boolI /= hb2 [h] h' h'' <- /=.
+    move=>/sem_sop2I [b1 [b2 [b3]]] [] /to_boolI /= hb1 /to_boolI /= hb2 [h] h' lo Hlo h'' <- /=.
     rewrite hb1 in h1. rewrite hb2 in h2. move: (He1 b1 l1 h1). move=> -> /=.
     move: (He2 b2 l2 h2). move=> -> /=; apply: (f_equal (@Ok _ _)); rewrite /= ?negb_and ?negb_or /=.
     rewrite h'' in h'. case: h'=> h1'. rewrite -h1' in h. rewrite -h /= negb_and. auto.
+    rewrite /leak_sop2 in Hlo. move: Hlo. by t_xrbindP=> st /= Hb b' Hb' [] <-.
   + move=> e1 He1 e2 He2 b le /=; t_xrbindP. 
     move=>[v1 l1] h1 [v2 l2] h2; move=> vo.
-    move=>/sem_sop2I [b1 [b2 [b3]]] [] /to_boolI /= hb1 /to_boolI /= hb2 [h] h' h'' <- /=.
+    move=>/sem_sop2I [b1 [b2 [b3]]] [] /to_boolI /= hb1 /to_boolI /= hb2 [h] h' lo Hlo h'' <- /=.
     rewrite hb1 in h1. rewrite hb2 in h2. move: (He1 b1 l1 h1). move=> -> /=.
     move: (He2 b2 l2 h2). move=> -> /=; apply: (f_equal (@Ok _ _)); rewrite /= ?negb_and ?negb_or /=.
     rewrite h'' in h'. case: h'=> h1'. rewrite -h1' in h. rewrite -h /= negb_or. auto.
+    rewrite /leak_sop2 in Hlo. move: Hlo. by t_xrbindP=> st /= Hb b' Hb' [] <-.
   + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=. rewrite h1 /= h2 /= ho /=.
-    rewrite /sem_sop1 /=. by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo /= hb. 
   + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=. rewrite h1 /= h2 /= ho /=.
-    rewrite /sem_sop1 /=. by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb /=. 
   + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=. rewrite h1 /= h2 /= ho /=.
-    rewrite /sem_sop1 /=. by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
   + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=. rewrite h1 /= h2 /= ho /=.
-    rewrite /sem_sop1 /=. by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
   + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=. rewrite h1 /= h2 /= ho /=.
-    rewrite /sem_sop1 /=. by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
   + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=. rewrite h1 /= h2 /= ho /=.
-    rewrite /sem_sop1 /=. by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
   + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=. rewrite h1 /= h2 /= ho /=.
-    rewrite /sem_sop1 /=. by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
   + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=. rewrite h1 /= h2 /= ho /=.
-    rewrite /sem_sop1 /=. by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
   + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=. rewrite h1 /= h2 /= ho /=.
-    rewrite /sem_sop1 /=. by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
   + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=. rewrite h1 /= h2 /= ho /=.
-    rewrite /sem_sop1 /=. by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
   + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=. rewrite h1 /= h2 /= ho /=.
-    rewrite /sem_sop1 /=. by rewrite hb /=.
-  + move=> o e1 He1 e2 He2 b le /=; t_xrbindP; 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=; rewrite h1 /= h2 /= ho /=;
-    rewrite /sem_sop1 /=; by rewrite hb /=.
-  + move=> o e1 He1 e2 He2 b le /=; t_xrbindP; 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=; rewrite h1 /= h2 /= ho /=;
-    rewrite /sem_sop1 /=; by rewrite hb /=.
-  + move=> o e1 He1 e2 He2 b le /=; t_xrbindP; 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=; rewrite h1 /= h2 /= ho /=;
-    rewrite /sem_sop1 /=; by rewrite hb /=.
-  + move=> o e1 He1 e2 He2 b le /=; t_xrbindP; 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=; rewrite h1 /= h2 /= ho /=;
-    rewrite /sem_sop1 /=; by rewrite hb /=.
-  + move=> o e1 He1 e2 He2 b le /=; t_xrbindP; 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=; rewrite h1 /= h2 /= ho /=;
-    rewrite /sem_sop1 /=; by rewrite hb /=.
-  + move=> o e1 He1 e2 He2 b le /=; t_xrbindP; 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=; rewrite h1 /= h2 /= ho /=;
-    rewrite /sem_sop1 /=; by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
+  + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
+  + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
+  + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
+  + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
+  + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
+  + move=> o e1 He1 e2 He2 b le /=; t_xrbindP. 
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=. rewrite h1 /= h2 /= ho /=.
+    by rewrite /sem_sop1 /= Hlo hb. 
   + move=> o o' e1 He1 e2 He2 b le /=; t_xrbindP;
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=; rewrite h1 /= h2 /= ho /=;
-    rewrite /sem_sop1 /=; by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=; rewrite h1 /= h2 /= ho /=;
+    by rewrite /sem_sop1 /= Hlo hb.
   + move=> o o' e1 He1 e2 He2 b le /=; t_xrbindP; 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=; rewrite h1 /= h2 /= ho /=;
-    rewrite /sem_sop1 /=; by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=; rewrite h1 /= h2 /= ho /=;
+    by rewrite /sem_sop1 /= Hlo hb.
   + move=> o o' e1 He1 e2 He2 b le /=; t_xrbindP; 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=; rewrite h1 /= h2 /= ho /=;
-    rewrite /sem_sop1 /=; by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=; rewrite h1 /= h2 /= ho /=;
+    by rewrite /sem_sop1 /= Hlo hb.
   + move=> o o' e1 He1 e2 He2 b le /=; t_xrbindP; 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=; rewrite h1 /= h2 /= ho /=;
-    rewrite /sem_sop1 /=; by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=; rewrite h1 /= h2 /= ho /=;
+    by rewrite /sem_sop1 /= Hlo hb /=.
   + move=> o o' e1 He1 e2 He2 b le /=; t_xrbindP; 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=; rewrite h1 /= h2 /= ho /=;
-    rewrite /sem_sop1 /=; by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=; rewrite h1 /= h2 /= ho /=;
+    by rewrite /sem_sop1 /= Hlo hb /=.
   + move=> o o' e1 He1 e2 He2 b le /=; t_xrbindP; 
-    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho hb <- /=; rewrite h1 /= h2 /= ho /=;
-    rewrite /sem_sop1 /=; by rewrite hb /=.
+    move=>[v1 l1] h1 [v2 l2] h2; move=> vo //= ho lo Hlo hb <- /=; rewrite h1 /= h2 /= ho /=;
+    by rewrite /sem_sop1 /= Hlo hb.
 (* PopN *)
 - move=> op es He b le. t_xrbindP.
-  move=> vs -> vo ho hb <- /=. rewrite ho /=. by rewrite /sem_sop1 /= hb /=.
+  move=> vs -> vo ho lo Hlo hb <- /=. rewrite ho /=. by rewrite /sem_sop1 /= Hlo hb /=.
 (* Pif *)
 move => st p hp e1 he1 e2 he2 b l /=.
 t_xrbindP => -[vp lp] -> /= bp -> /= [v1 l1] h1 [v2 l2] h2 trv1 htr1 trv2 htr2 /= h <-.
@@ -716,9 +718,11 @@ Section PROOF.
     rewrite /lsem /=. apply tc_step. rewrite /lsem1 /step /= /eval_instr /= !to_of_estate.
     case: ifP => hsz.
     + by rewrite /sem_sopn /sem_pexprs /= /exec_sopn /sopn_sem /= ok_v /= 
-      /truncate_word hle /x86_MOV /check_size_8_64 hsz /= ok_s2 /=. 
+      /truncate_word hle /x86_MOV /check_size_8_64 hsz /= ok_s2 /= /leak_sopn /= /sopn_leak /=
+      /truncate_word /= hle /=.
     by rewrite /sem_sopn /= /exec_sopn /sopn_sem /= ok_v /= /truncate_word hle /=
-    /x86_VMOVDQU (wsize_nle_u64_check_128_256 hsz) /= ok_s2 /=. 
+    /x86_VMOVDQU (wsize_nle_u64_check_128_256 hsz) /= ok_s2 /= /leak_sopn /= /sopn_leak /=
+    /truncate_word /= hle /=. 
   Qed.
 
   Let Hopn : forall xs t o es, Pi_r (Copn xs t o es).

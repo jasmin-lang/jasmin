@@ -121,21 +121,21 @@ Definition next_lbl lbl := (lbl + 1)%positive.
 
 Fixpoint snot e : (pexpr * leak_e_tr) :=
   match e with
-  | Papp1 Onot e => (e, LT_id)
+  | Papp1 Onot e => (e, LT_compose (LT_subi 0) LT_id)
   | Papp2 Oand e1 e2 => let re1 := (snot e1) in 
                         let re2 := (snot e2) in 
                         (Papp2 Oor re1.1 re2.1,
-                         LT_map [:: re1.2; re2.2])
+                         LT_map[:: LT_map [:: re1.2; re2.2]; LT_id])
   | Papp2 Oor e1 e2 => let re1 := (snot e1) in
                        let re2 := (snot e2) in 
                        (Papp2 Oand re1.1 re2.1,
-                        LT_map [:: re1.2; re2.2])
+                        LT_map[:: LT_map [:: re1.2; re2.2]; LT_id])
   | Pif t e e1 e2 => let re1 := (snot e1) in 
                      let re2 := (snot e2) in 
                      (Pif t e re1.1 re2.1,
                       LT_map [:: LT_id; re1.2; re2.2])
   | Pbool b => (Pbool (~~ b), LT_id)
-  | _ => (Papp1 Onot e, LT_id)
+  | _ => (Papp1 Onot e, LT_seq [:: LT_id; LT_remove])
   end.
 
 (* Adds an alignment instruction in front of the seqence of instructions *)

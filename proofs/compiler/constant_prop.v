@@ -192,14 +192,13 @@ Definition smul_w sz e1 e2 :=
   | Some n, _ =>
     if n == 0%R then (@wconst sz 0, LT_map[:: LT_remove; LT_id])
     else if n == 1%R then (e2, LT_compose (LT_subi 0) (LT_subi 1))
-    else (Papp2 (Omul (Op_w sz)) (wconst n) e2, 
-         LT_map [:: LT_compose (LT_subi 0) (LT_map [:: LT_remove; LT_remove]); LT_remove])
-          (*LT_map [:: LT_compose (LT_subi 0) (LT_map [:: LT_remove; LT_remove]) ; LT_id]) *)
+    else (Papp2 (Omul (Op_w sz)) (wconst n) e2, LT_remove) (* FIXME *)
+          (*LT_map [:: LT_compose (LT_subi 0) (LT_map [:: LT_remove; LT_remove]) ; LT_id]*) 
   | _, Some n =>
     if n == 0%R then (@wconst sz 0, LT_map[:: LT_remove; LT_id])
     else if n == 1%R then (e1, LT_compose (LT_subi 0) (LT_subi 0))
     else (Papp2 (Omul (Op_w sz)) e1 (wconst n), LT_map [:: LT_id; LT_remove])
-  | _, _ => (Papp2 (Omul (Op_w sz)) e1 e2, LT_id)
+  | _, _ => (Papp2 (Omul (Op_w sz)) e1 e2, LT_id) (* FIXME *) 
   end.
 
 Definition smul ty :=
@@ -420,11 +419,11 @@ Canonical  const_v_eqType      := Eval hnf in EqType const_v const_v_eqMixin.
 
 Local Notation cpm := (Mvar.t const_v).
 
-Definition const v :=
+Definition const v : (pexpr * leak_e_tr) :=
   match v with
-  | Cbool b => Pbool b
-  | Cint z  => Pconst z
-  | Cword sz z => wconst z
+  | Cbool b => (Pbool b, LT_remove)
+  | Cint z  => (Pconst z, LT_remove)
+  | Cword sz z => (wconst z, LT_seq [:: LT_remove; LT_remove])
   end.
 
 Fixpoint const_prop_e (m:cpm) e : (pexpr * leak_e_tr) :=
@@ -433,7 +432,7 @@ Fixpoint const_prop_e (m:cpm) e : (pexpr * leak_e_tr) :=
   | Pbool  _
   | Parr_init _
     => (e, LT_id)
-  | Pvar  x       => if Mvar.get m x is Some n then (const n, LT_remove) else (e, LT_id)
+  | Pvar  x       => if Mvar.get m x is Some n then (const n) else (e, LT_id)
   | Pglobal _     => (e, LT_id)
   | Pget  sz x e0  => let lte := (const_prop_e m e0) 
                       in (Pget sz x lte.1, LT_map [ :: lte.2; LT_id])
@@ -449,12 +448,12 @@ Fixpoint const_prop_e (m:cpm) e : (pexpr * leak_e_tr) :=
   | PappN op es   =>
     let esk := map (const_prop_e m) es in
     let ek := s_opN op (unzip1 esk) in
-    (ek.1, LT_compose (LT_map [:: LT_id; (LT_map (unzip2 esk))]) ek.2)
+    (ek.1, LT_compose (LT_map [:: LT_map (unzip2 esk); LT_id]) ek.2)
   | Pif t e0 e1 e2 => let lte0 := (const_prop_e m e0) in
                       let lte1 := (const_prop_e m e1) in
                       let lte2 := (const_prop_e m e2) in
                       let ltif := s_if t lte0.1 lte1.1 lte2.1 in
-                      (ltif.1, LT_compose (LT_map [:: LT_compose (LT_subi 0) lte0.2;  LT_compose (LT_subi 0) lte1.2;  LT_compose (LT_subi 0) lte2.2]) ltif.2)
+                      (ltif.1, LT_remove) (*FIXME*) (*LT_compose (LT_map [:: lte0.2; lte1.2; lte2.2]) ltif.2*)
   end.
 
 Definition empty_cpm : cpm := @Mvar.empty const_v.
@@ -489,15 +488,6 @@ Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals * seq leak_e_tr :=
     let: (m,rvs, lts) := const_prop_rvs m rvs in
     (m, rv::rvs, (lt :: lts))
   end.
-
-(*Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals * seq leak_tr :=
-  match rvs with
-  | [::] => (m, [::], [::])
-  | rv::rvs =>
-    let: (m,rv, lt)  := const_prop_rv m rv in
-    let: (m,rvs, lts) := const_prop_rvs m rvs in
-    (m, rv::rvs, ([::lt] ++ lts))
-  end.*)
 
 Definition wsize_of_stype (ty: stype) : wsize :=
   if ty is sword sz then sz else U64.
