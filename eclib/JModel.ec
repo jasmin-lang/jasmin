@@ -333,6 +333,16 @@ op VPBLENDD_256 (w1 w2: W256.t) (i:W8.t) : W256.t =
 
 (* ------------------------------------------------------------------- *)
 
+op VPMOVMSKB_128 (v: W128.t) : W16.t =
+  let vb = w2bits v in
+  W16.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 16).
+
+op VPMOVMSKB_256 (v: W256.t) : W32.t =
+  let vb = w2bits v in
+  W32.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 32).
+
+(* ------------------------------------------------------------------- *)
+
 (* AES instruction *)
 
 abbrev [-printing] VAESDEC          = AESDEC.
