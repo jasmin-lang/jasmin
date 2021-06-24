@@ -1140,11 +1140,16 @@ Section PROOF.
        (λ m2 _, preserved_metadata s1 m1 m2)
        (λ m2 _, match_mem s2 m2).
 
+Let vgd : var := vid p.(p_extra).(sp_rip).
+Let vrsp : var := vid (string_of_register RSP).
+
   Let Pi_r (ii: instr_info) (k: Sv.t) (s1: estate) (i: instr_r) (s2: estate) : Prop :=
     ∀ fn lbl,
       checked_i fn (MkI ii i) →
       let: (lbli, li) := linear_i fn (MkI ii i) lbl [::] in
-      (if extra_free_registers ii is Some fr then if vtype fr is sword _ then s1.[fr]%vmap = Error ErrAddrUndef else True else True) →
+      (if extra_free_registers ii is Some fr then 
+           [/\ fr <> vgd, fr <> vrsp, vtype fr = sword Uptr & s1.[fr]%vmap = Error ErrAddrUndef]
+       else True) →
      ∀ m1 vm1 P Q,
        wf_vm vm1 →
        match_mem s1 m1 →
@@ -1257,16 +1262,20 @@ Section PROOF.
     move => ii k i s1 s2 ok_fr _ h _ fn lbl chk.
     move: h => /(_ fn lbl chk); case: linear_i (valid_i fn (MkI ii i) lbl) => lbli li [L V] S.
     move => m1 vm1 P Q W M X D C.
-    have E : match extra_free_registers ii return Prop with
-      | Some fr => if vtype fr is sword _ then ((kill_extra_register extra_free_registers ii s1).[fr])%vmap = Error ErrAddrUndef else True
+    have E : 
+      match extra_free_registers ii return Prop with
+      | Some fr =>
+          [/\ fr ≠ vgd, fr ≠ vrsp, vtype fr = sword64
+            & ((kill_extra_register extra_free_registers ii s1).[fr])%vmap = Error ErrAddrUndef]
       | None => True
       end.
-    - rewrite /kill_extra_register /kill_extra_register_vmap /=.
-      case: extra_free_registers => // - [] [] //= sz fr.
-      case h1: s1.[ Var (sword sz) fr ]%vmap => /= [ v | e ].
-      + by rewrite Fv.setP_eq.
-      move: (X (Var (sword sz) fr)) (W (Var (sword sz) fr)); rewrite h1 {h1} /=.
-      by case: _.[_]%vmap => //=; case: e => // e <-.
+    + rewrite /kill_extra_register /kill_extra_register_vmap.  
+      case: extra_free_registers ok_fr => // fr /and3P [] /eqP hrip /eqP hrsp /eqP hty; split => //=.
+      rewrite /=; case heq: s1.[fr]%vmap (W fr) (X fr) => [vfr | efr /=].
+      + by move=> _ _;rewrite Fv.setP_eq hty.
+      rewrite heq; case: vm1.[fr]%vmap. 
+      + by move=> _ _; case efr.
+      by move=> [] // _; case: (efr).
     have {S E} S := S E.
     have [ | {W M X} ] := S _ vm1 _ _ W M _ D C.
     - by apply: vm_uincl_trans; first exact: kill_extra_register_vm_uincl.
@@ -1675,7 +1684,8 @@ Section PROOF.
       exact: M'.
     }
     (* Internal function, return address at offset [z]. *)
-    case fr_eq: extra_free_registers ok_ra ok_ret_addr => [ fr | // ] /andP[] fr_well_typed fr_neq_RSP /andP[] /andP[] /andP[] /andP[] z_pos z_bound sf_aligned_for_ptr z_aligned sz_noof [] ? ?; subst lbli li.
+    case fr_eq: extra_free_registers ok_ra fr_undef ok_ret_addr => [fr | //] _.
+    move=> [] fr_neq_RIP fr_neq_RSP fr_well_typed fr_undef /andP[] /andP[] /andP[] /andP[] z_pos z_bound sf_aligned_for_ptr z_aligned sz_noof [] ? ?; subst lbli li.
     have ok_ra_of : is_ra_of fn' (RAstack z) by rewrite /is_ra_of; exists fd'; assumption.
     move: ih => /(_ _ _ _ _ _ _ _ _ ok_ra_of) ih.
     move: (X (var_of_register RSP)).
@@ -1719,10 +1729,8 @@ Section PROOF.
       have T_range := wunsigned_range T.
       rewrite wunsigned_add TmS; lia.
     case => m1' ok_m1' M1'.
-    move: ih => /(_ _ _ _ _ _ M1') ih.
-    move: fr_undef; rewrite fr_eq.
-    move/eqP: fr_well_typed C fr_eq fr_neq_RSP.
-    case: fr => ? fr /= -> C fr_eq fr_neq_RSP fr_undef.
+    move: ih => /(_ _ _ _ _ _ M1') ih {fr_neq_RIP}.
+    case: fr fr_well_typed C fr_eq fr_neq_RSP fr_undef => ? fr /= -> C fr_eq fr_neq_RSP fr_undef.
     set vm1' := vm2.[var_of_register RSP <- ok (pword_of_word (top_stack_after_alloc (top_stack (emem s1)) (sf_align (f_extra fd')) (sf_stk_sz (f_extra fd') + sf_stk_extra_sz (f_extra fd'))))].[ {| vtype := sword Uptr ; vname := fr |} <- ok (pword_of_word ptr)]%vmap.
     have {W} W : wf_vm vm1'.
     + rewrite /vm1' => x; rewrite Fv.setP; case: eqP => ?; first by subst.
@@ -1733,12 +1741,13 @@ Section PROOF.
     set body := P ++ _.
     move => C.
     set sp := top_stack_after_alloc (top_stack (emem s1)) (sf_align (f_extra fd')) (sf_stk_sz (f_extra fd') + sf_stk_extra_sz (f_extra fd')).
+    move/eqP: fr_neq_RSP => fr_neq_RSP.
     have XX : vm_uincl s1.[var_of_register RSP <- ok (pword_of_word sp)] vm1'.
     + rewrite /vm1' => x; rewrite Fv.setP; case: eqP => x_rsp.
       * by subst; rewrite Fv.setP_neq // Fv.setP_eq.
       rewrite Fv.setP; case: eqP => x_fr.
       * by subst; rewrite fr_undef.
-      by rewrite Fv.setP_neq // ; apply/eqP.
+      by rewrite Fv.setP_neq //; apply/eqP.
     move: ih => /(_ vm1' _ _ W XX).
     have RA : value_of_ra m1' vm1' (RAstack z) (Some ((fn, lbl), body, size P + 4)).
     + split.

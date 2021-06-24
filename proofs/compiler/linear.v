@@ -139,7 +139,7 @@ Section CHECK.
         Let _ := assert match sf_return_address e with
                         | RAnone => false
                         | RAreg ra => true
-                        | RAstack ofs => (if extra_free_registers ii is Some ra then (vtype ra == sword Uptr) && (ra != var_of_register RSP) else false)
+                        | RAstack ofs => extra_free_registers ii != None 
                         end
           (ii, Cerr_one_varmap "nowhere to store the return address") in
         Let _ := assert (sf_align e <= stack_align)%CMP
