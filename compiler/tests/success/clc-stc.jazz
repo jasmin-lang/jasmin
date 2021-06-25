@@ -1,0 +1,23 @@
+export
+fn test_stc() -> reg u64 {
+  reg bool cf;
+  reg u64 r;
+  r = #set0();
+  cf = #STC();
+  _, r += r + cf;
+  return r;
+}
+
+exec test_stc()
+
+export
+fn test_clc() -> reg u64 {
+  reg u64 r;
+  reg bool cf;
+  r = #set0();
+  cf = #CLC();
+  _, r += r + cf;
+  return r;
+}
+
+exec test_clc()

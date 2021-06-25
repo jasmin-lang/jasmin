@@ -69,6 +69,8 @@ Variant asm_op : Type :=
   (* Flag *)
 | SETcc                           (* Set byte on condition *)
 | BT     of wsize                  (* Bit test, sets result to CF *)
+| CLC                          (* Clear CF *)
+| STC                          (* Set CF *)
 
   (* Pointer arithmetic *)
 | LEA    of wsize              (* Load Effective Address *)
@@ -430,6 +432,11 @@ Definition x86_BT sz (x y: word sz) : ex_tpl (b_ty) :=
   Let _  := check_size_8_64 sz in
   ok (Some (wbit x y)).
 
+(* -------------------------------------------------------------------- *)
+Definition x86_CLC : ex_tpl b_ty := ok (Some false).
+Definition x86_STC : ex_tpl b_ty := ok (Some true).
+
+(* -------------------------------------------------------------------- *)
 Definition x86_LEA sz (addr: word sz) : ex_tpl (w_ty sz) :=
   Let _  := check_size_16_64 sz in
   ok (addr).
@@ -1239,6 +1246,14 @@ Definition check_bt (_:wsize) := [:: [::rm true; ri U8]].
 Definition Ox86_BT_instr                :=
   mk_instr_w2_b "BT" x86_BT msb_dfl [:: E 0; E 1] [:: F CF] 2 check_bt imm8 (primP BT) (pp_iname_w_8 "bt").
 
+(* -------------------------------------------------------------------- *)
+Definition Ox86_CLC_instr :=
+  mk_instr_pp "CLC" [::] b_ty [::] [:: F CF ] msb_dfl x86_CLC [:: [::]] 0 U8 None (PrimM CLC) (pp_name "clc" U8).
+
+Definition Ox86_STC_instr :=
+  mk_instr_pp "STC" [::] b_ty [::] [:: F CF ] msb_dfl x86_STC [:: [::]] 0 U8 None (PrimM STC) (pp_name "stc" U8).
+
+(* -------------------------------------------------------------------- *)
 Definition check_lea (_:wsize) := [:: [::r; m true]].
 Definition Ox86_LEA_instr :=
   mk_instr_w_w "LEA" x86_LEA msb_dfl [:: E 1] [:: E 0] 2 check_lea no_imm (primP LEA) (pp_iname "lea").
@@ -1701,6 +1716,8 @@ Definition instr_desc o : instr_desc_t :=
   | DEC sz             => Ox86_DEC_instr.1 sz
   | SETcc              => Ox86_SETcc_instr.1
   | BT sz              => Ox86_BT_instr.1 sz
+  | CLC                => Ox86_CLC_instr.1
+  | STC                => Ox86_STC_instr.1
   | LEA sz             => Ox86_LEA_instr.1 sz
   | TEST sz            => Ox86_TEST_instr.1 sz
   | CMP sz             => Ox86_CMP_instr.1 sz
@@ -1814,6 +1831,8 @@ Definition prim_string :=
    Ox86_DEC_instr.2;
    Ox86_SETcc_instr.2;
    Ox86_BT_instr.2;
+   Ox86_CLC_instr.2;
+   Ox86_STC_instr.2;
    Ox86_LEA_instr.2;
    Ox86_TEST_instr.2;
    Ox86_CMP_instr.2;
