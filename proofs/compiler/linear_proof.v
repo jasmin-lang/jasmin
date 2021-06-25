@@ -1685,7 +1685,7 @@ Let vrsp : var := vid (string_of_register RSP).
     }
     (* Internal function, return address at offset [z]. *)
     case fr_eq: extra_free_registers ok_ra fr_undef ok_ret_addr => [fr | //] _.
-    move=> [] fr_neq_RIP fr_neq_RSP fr_well_typed fr_undef /andP[] /andP[] /andP[] /andP[] z_pos z_bound sf_aligned_for_ptr z_aligned sz_noof [] ? ?; subst lbli li.
+    move=> [] fr_neq_RIP fr_neq_RSP fr_well_typed fr_undef /andP[] /andP[] /andP[] z_pos z_bound sf_aligned_for_ptr z_aligned [] ? ?; subst lbli li.
     have ok_ra_of : is_ra_of fn' (RAstack z) by rewrite /is_ra_of; exists fd'; assumption.
     move: ih => /(_ _ _ _ _ _ _ _ _ ok_ra_of) ih.
     move: (X (var_of_register RSP)).
@@ -1695,7 +1695,7 @@ Let vrsp : var := vid (string_of_register RSP).
     rewrite /allocate_stack_frame.
     case: ifP.
     + move => /eqP K; exfalso.
-      case/andP: ok_stk_sz => /lezP A /lezP B.
+      case/and3P: ok_stk_sz => /lezP A /lezP B _.
       move/lezP: z_bound.
       move/lezP: z_pos.
       have := round_ws_range (sf_align (f_extra fd')) (sf_stk_sz (f_extra fd') + sf_stk_extra_sz (f_extra fd')).
@@ -1714,8 +1714,8 @@ Let vrsp : var := vid (string_of_register RSP).
       have := (Memory.alloc_stackP ok_m).(ass_above_limit).
       rewrite (alloc_stack_top_stack ok_m).
       rewrite top_stack_after_aligned_alloc // wrepr_opp.
-      move: ok_stk_sz z_pos z_bound sz_noof; clear.
-      rewrite !zify -/(stack_frame_allocation_size (f_extra fd')) => - [] sz_pos extra_pos z_pos z_bound sz_noof.
+      move: ok_stk_sz z_pos z_bound; clear.
+      rewrite !zify -/(stack_frame_allocation_size (f_extra fd')) => - [] sz_pos [] extra_pos sz_noof z_pos z_bound.
       set L := stack_limit (emem s1).
       have L_range := wunsigned_range L.
       change (wsize_size Uptr) with 8%Z in *.
@@ -1809,7 +1809,7 @@ Let vrsp : var := vid (string_of_register RSP).
       by move: (X' x); rewrite Fv.setP_neq //; apply/eqP.
     - etransitivity; last exact: H'.
       have := alloc_stackP ok_m.
-      clear - ok_m ok_m1' ok_stk_sz z_pos z_bound sz_noof sp_aligned => A a [] a_lo a_hi _.
+      clear - ok_m ok_m1' ok_stk_sz z_pos z_bound sp_aligned => A a [] a_lo a_hi _.
       have top_range := ass_above_limit A.
       rewrite (writeP_neq ok_m1'); first reflexivity.
       apply: disjoint_range_U8 => i i_range ? {ok_m1'}; subst a.
@@ -1828,7 +1828,7 @@ Let vrsp : var := vid (string_of_register RSP).
       rewrite Z.le_0_sub.
       apply: aligned_alloc_no_overflow.
       1-2: lia.
-      + by move: sz_noof; rewrite zify.
+      + by case: ok_stk_sz => _ [] _.
       + exact: sp_aligned.
       exact: ok_m.
     exact: M'.
@@ -1871,7 +1871,7 @@ Let vrsp : var := vid (string_of_register RSP).
         have ok_body : is_linear_of fn (lbody ++ [::]).
         + by rewrite /is_linear_of cats0 ok_fd' /=; eauto.
         have M' := mm_alloc M ok_m1'.
-        case/andP: ok_save_stack => /andP[] /eqP sf_align_1 /eqP stk_sz_0 /eqP stk_extra_sz_0.
+        case/and3P: ok_save_stack => /eqP sf_align_1 /eqP stk_sz_0 /eqP stk_extra_sz_0.
         have top_stack_preserved : top_stack m1' = top_stack (s1: mem).
         + rewrite (alloc_stack_top_stack ok_m1') sf_align_1.
           rewrite Memory.top_stack_after_aligned_alloc.
@@ -2166,8 +2166,8 @@ Let vrsp : var := vid (string_of_register RSP).
         rewrite /= /set_RSP Fv.setP_eq /=.
         case: vm2.[_]%vmap => // - [] ??? /pword_of_word_uincl /= [] ??; subst.
         rewrite truncate_word_u /= zero_extend_u.
-        move: ok_ret_addr; rewrite !zify => - [] [] [] [] rastack_lo rastack_h sf_aligned_for_ptr rastack_aligned sf_noovf.
-        move: ok_stk_sz; rewrite !zify => - [] stk_sz_pos stk_extra_pos.
+        move: ok_ret_addr; rewrite !zify => - [] [] [] rastack_lo rastack_h sf_aligned_for_ptr rastack_aligned.
+        move: ok_stk_sz; rewrite !zify => - [] stk_sz_pos [] stk_extra_pos sf_noovf.
         assert (root_range := wunsigned_range (stack_root m1')).
         have A := alloc_stackP ok_m1'.
         have top_range := ass_above_limit A.
