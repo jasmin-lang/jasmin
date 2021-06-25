@@ -306,7 +306,10 @@ Definition is_LT_ilds li := if li is LT_ilds then true else false.
 Definition leak_EI (stk : pointer) (lti : leak_e_i_tr) (le : leak_e) : seq leak_i :=
   match lti with 
   | LT_iconditionl lte => 
-    [:: Lopn (LSub [:: leak_E stk lte le; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])]
+    let r := leak_E stk lte le in
+    let r1 := leak_E stk (LT_subi 0) r in 
+    let r2 := leak_E stk (LT_subi 1) r in
+    [:: Lopn (LSub [:: r1 ; r2; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])]
   | LT_iemptyl => 
     [::]
   end.

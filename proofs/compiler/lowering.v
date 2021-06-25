@@ -193,19 +193,24 @@ Definition lower_condition vi (pe: pexpr) : (seq instr_r * leak_e_i_tr) * (pexpr
     (([:: Copn l AT_none (Ox86 (CMP sz)) [:: x; y] ], LT_iconditionl (LT_id)), 
     match r with
     | Cond1 CondVar v => (Pvar v, LT_remove)
-    | Cond1 CondNotVar v => (Papp1 Onot (Pvar v), LT_remove)
-    | Cond2 CondEq v1 v2 => (eq_f v2 v1, LT_seq [:: LT_remove; LT_remove; LT_remove])
-    | Cond2 CondNeq v1 v2 => (neq_f v2 v1, LT_seq [:: LT_remove; LT_remove; LT_remove])
-    | Cond2 CondOr v1 v2 => (Papp2 Oor v1 v2, LT_seq [:: LT_remove; LT_remove])
+    | Cond1 CondNotVar v => (Papp1 Onot (Pvar v), LT_seq [:: LT_remove; LT_remove])
+    | Cond2 CondEq v1 v2 => (eq_f v2 v1, LT_seq [:: LT_remove; LT_remove; LT_seq [:: LT_remove; LT_remove]])
+    | Cond2 CondNeq v1 v2 => (neq_f v2 v1, LT_seq [:: LT_remove; LT_seq[:: LT_remove; LT_remove]; LT_remove])
+    | Cond2 CondOr v1 v2 => (Papp2 Oor v1 v2, LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_remove])
     | Cond2 CondAndNot v1 v2 => 
-       (Papp2 Oand (Papp1 Onot (Pvar v1)) (Papp1 Onot (Pvar v2)), LT_seq [:: LT_remove; LT_remove])
-    | Cond3 CondOrNeq v1 v2 v3 => (Papp2 Oor v3 (neq_f v2 v1), LT_seq [:: LT_remove; LT_seq [:: LT_remove; LT_remove; LT_remove]])
-    | Cond3 CondAndNotEq v1 v2 v3 => (Papp2 Oand (Papp1 Onot v3) (eq_f v2 v1), 
-      LT_seq[:: LT_remove; LT_seq [:: LT_remove; LT_remove; LT_remove]])
+       (Papp2 Oand (Papp1 Onot (Pvar v1)) (Papp1 Onot (Pvar v2)), 
+        LT_seq [:: LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_seq [:: LT_remove; LT_remove]]; LT_remove])
+    | Cond3 CondOrNeq v1 v2 v3 => 
+       (Papp2 Oor v3 (neq_f v2 v1), 
+        LT_seq [:: LT_seq [:: LT_remove; LT_seq [:: LT_remove; LT_seq [:: LT_remove; LT_remove]; LT_remove]]; LT_remove])
+    | Cond3 CondAndNotEq v1 v2 v3 => 
+       (Papp2 Oand (Papp1 Onot v3) (eq_f v2 v1), 
+        LT_seq[:: LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_seq [:: LT_remove; LT_remove; LT_seq [:: LT_remove; LT_remove]]]; LT_remove])
     end)
     else (([::], LT_iemptyl), (pe, LT_id))
   | None => (([::], LT_iemptyl), (pe, LT_id))
   end.
+
 
 (* Lowering of Cassgn
 *)
@@ -349,42 +354,56 @@ Fixpoint mk_lea_rec (sz:wsize) e : option lea :=
 Fixpoint push_cast_sz sz e := 
   match e with
   | Papp2 (Oadd Op_int) e1 e2 => 
-    Papp2 (Oadd (Op_w sz)) (push_cast_sz sz e1) (push_cast_sz sz e2)
+    let r1 := push_cast_sz sz e1 in 
+    let r2 := push_cast_sz sz e2 in
+    (Papp2 (Oadd (Op_w sz)) r1.1 r2.1, 
+     LT_map [:: LT_compose (LT_subi 0) (LT_seq [:: LT_map [:: r1.2; r2.2]; LT_remove]); LT_id])
 
   | Papp2 (Omul Op_int) e1 e2 => 
-    Papp2 (Omul (Op_w sz)) (push_cast_sz sz e1) (push_cast_sz sz e2)
+    let r1 := push_cast_sz sz e1 in 
+    let r2 := push_cast_sz sz e2 in
+    (Papp2 (Omul (Op_w sz)) r1.1 r2.1,
+     LT_map [:: LT_compose (LT_subi 0) (LT_map [:: r1.2; r2.2]); LT_id])
 
   | Papp2 (Osub Op_int) e1 e2 => 
-    Papp2 (Osub (Op_w sz)) (push_cast_sz sz e1) (push_cast_sz sz e2)
+    let r1 := push_cast_sz sz e1 in 
+    let r2 := push_cast_sz sz e2 in
+    (Papp2 (Osub (Op_w sz)) r1.1 r2.1,
+    LT_map [:: LT_compose (LT_subi 0) (LT_map [:: r1.2; r2.2]); LT_id])
 
 (*  | Papp1 (Oneg Op_int) e1 =>
     Papp1 (Oneg (Op_w sz)) (push_cast_sz sz e1) *)
   
   | Papp1 (Oint_of_word sz') e1 => 
-    if (sz <= sz')%CMP then e1
-    else Papp1 (Oword_of_int sz) e 
-  | _ => Papp1 (Oword_of_int sz) e
+    if (sz <= sz')%CMP then (e1, LT_compose (LT_subi 0) (LT_subi 0)) 
+    else (Papp1 (Oword_of_int sz) e, LT_id) 
+  | _ => (Papp1 (Oword_of_int sz) e, LT_id)
   end.
 
 Fixpoint push_cast e :=
   match e with
-  | Papp1 (Oword_of_int sz) e1 => push_cast_sz sz (push_cast e1)
-  | Papp1 o e1                 => Papp1 o (push_cast e1)
-  | Papp2 o e1 e2              => Papp2 o (push_cast e1) (push_cast e2)
-  | _                          => e
+  | Papp1 (Oword_of_int sz) e1 => let r1 := push_cast e1 in 
+                                  let r := push_cast_sz sz r1.1 in 
+                                  (r.1, LT_id)
+  | Papp1 o e1                 => let r := push_cast e1 in (Papp1 o r.1, r.2)
+  | Papp2 o e1 e2              => let r1 := push_cast e1 in 
+                                  let r2 := push_cast e2 in
+                                  (Papp2 o r1.1 r2.1, LT_id)
+  | _                          => (e, LT_id)
   end.
 
-Definition mk_lea sz e := mk_lea_rec sz (push_cast e).
+Definition mk_lea sz e := let r := push_cast e in (mk_lea_rec sz r.1, r.2).
 
+(* FIXME: Not using the leakage transformer *)
 Definition is_lea sz x e :=
   if ((U16 ≤ sz)%CMP && (sz ≤ U64)%CMP) && ~~ is_lval_in_memory x then
     match mk_lea sz e with
-    | Some (MkLea d b sc o) =>
+    | (Some (MkLea d b sc o), lt) =>
       let check o := match o with Some x => ~~(is_var_in_memory x) | None => true end in
       (* FIXME: check that d is not to big *)
       if check_scale (wunsigned sc) && check b && check o then  Some (MkLea d b sc o)
       else None
-    | None => None
+    | (None, lt) => None
     end
   else None.
 

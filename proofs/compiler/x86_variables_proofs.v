@@ -130,9 +130,11 @@ move=> eqv; case: e => //.
   by case: {ok_r ok_v} r ok_ct => // -[<-] {c} /= h; eexists; split; eauto; case: (rf _).
 + do 2! case=> //; move=> x /=; t_xrbindP => r.
   move => ok_r ok_ct [vx lx] vg' ok_vx [] <- <- vo /sem_sop1I. 
-  move=> [] /= vb ok_vb -> <- <-.
+  move=> [] /= vb ok_vb -> leo Hlo <- <-.
   have := xgetflag eqv ok_r ok_vx ok_vb.
-  by case: {ok_r ok_vx ok_vb} r ok_ct => // -[<-] {c} /= -> /=; eexists.
+  rewrite /leak_sop1 in Hlo. move: Hlo. t_xrbindP.
+  move=> st /= hb.
+  case: {ok_r ok_vx ok_vb} r ok_ct => // -[<-] {c} /= -> /=; eexists.
 + case=> //; first do 3! case=> //;move=> x.
   * case=> //; first do 2! case=> //.
     - move=> y /=; t_xrbindP => r1 ok_r1 r2 ok_r2.
