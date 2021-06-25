@@ -787,7 +787,7 @@ Proof.
   rewrite {1}/wbit_n /wunsigned mkwordK.
   rewrite /CoqWord.word.wbit /modulus two_power_nat_equiv.
   rewrite Z.mod_pow2_bits_low //.
-  have /leP := ltn_ord i.
+  have /ssrnat.leP := ltn_ord i.
   lia.
 Qed.
 
