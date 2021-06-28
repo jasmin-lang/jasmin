@@ -1,0 +1,63 @@
+export fn minmax(reg u64 inp) {
+   reg u128 x1, x2;
+   reg u256 y1, y2;
+   x1 = (u128)[inp];
+   x2 = (u128)[inp + 16];
+   y1 = (u256)[inp];
+   y2 = (u256)[inp + 32];
+   x1 = #VPMINS_4u32(x1, x2);
+   x1 = #VPMINU_4u32(x1, x2);
+   x1 = #VPMINS_8u16(x1, x2);
+   x1 = #VPMINU_8u16(x1, x2);
+   x1 = #VPMINS_16u8(x1, x2);
+   x1 = #VPMINU_16u8(x1, x2);
+   x1 = #VPMAXS_4u32(x1, x2);
+   x1 = #VPMAXU_4u32(x1, x2);
+   x1 = #VPMAXS_8u16(x1, x2);
+   x1 = #VPMAXU_8u16(x1, x2);
+   x1 = #VPMAXS_16u8(x1, x2);
+   x1 = #VPMAXU_16u8(x1, x2);
+
+   y1 = #VPMINS_8u32(y1, y2);
+   y1 = #VPMINU_8u32(y1, y2);
+   y1 = #VPMINS_16u16(y1, y2);
+   y1 = #VPMINU_16u16(y1, y2);
+   y1 = #VPMINS_32u8(y1, y2);
+   y1 = #VPMINU_32u8(y1, y2);
+   y1 = #VPMAXS_8u32(y1, y2);
+   y1 = #VPMAXU_8u32(y1, y2);
+   y1 = #VPMAXS_16u16(y1, y2);
+   y1 = #VPMAXU_16u16(y1, y2);
+   y1 = #VPMAXS_32u8(y1, y2);
+   y1 = #VPMAXU_32u8(y1, y2);
+
+   x1 = #VPMIN_4s32(x1, x2);
+   x1 = #VPMIN_4u32(x1, x2);
+   x1 = #VPMIN_8s16(x1, x2);
+   x1 = #VPMIN_8u16(x1, x2);
+   x1 = #VPMIN_16s8(x1, x2);
+   x1 = #VPMIN_16u8(x1, x2);
+   x1 = #VPMAX_4s32(x1, x2);
+   x1 = #VPMAX_4u32(x1, x2);
+   x1 = #VPMAX_8s16(x1, x2);
+   x1 = #VPMAX_8u16(x1, x2);
+   x1 = #VPMAX_16s8(x1, x2);
+   x1 = #VPMAXU_16u8(x1, x2);
+
+   y1 = #VPMIN_8s32(y1, y2);
+   y1 = #VPMIN_8u32(y1, y2);
+   y1 = #VPMIN_16s16(y1, y2);
+   y1 = #VPMIN_16u16(y1, y2);
+   y1 = #VPMIN_32s8(y1, y2);
+   y1 = #VPMIN_32u8(y1, y2);
+   y1 = #VPMAX_8s32(y1, y2);
+   y1 = #VPMAX_8u32(y1, y2);
+   y1 = #VPMAX_16s16(y1, y2);
+   y1 = #VPMAX_16u16(y1, y2);
+   y1 = #VPMAX_32s8(y1, y2);
+   y1 = #VPMAX_32u8(y1, y2);
+
+   (u128)[inp] = x1;
+   (u256)[inp] = y1;
+
+}

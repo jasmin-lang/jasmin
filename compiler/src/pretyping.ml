@@ -1032,7 +1032,7 @@ let prim_sig (type a) p : a P.gty list * a P.gty list =
 type prim_constructor =
   | PrimP of W.wsize * (W.wsize -> Expr.sopn)
   | PrimM of Expr.sopn
-  | PrimV of (W.velem -> W.wsize -> Expr.sopn)
+  | PrimV of (W.signedness -> W.velem -> W.wsize -> Expr.sopn)
   | PrimX of (W.wsize -> W.wsize -> Expr.sopn)
   | PrimVV of (W.velem -> W.wsize -> W.velem -> W.wsize -> Expr.sopn)
 
@@ -1044,19 +1044,20 @@ let prim_string =
     "set0", PrimP (W.U64, fun sz -> Oset0 sz);
     "concat_2u128", PrimM (Oconcat128) ] @
   List.map (fun (s, prc) ->
-        let s = Conv.string_of_string0 s in
-        let prc = 
-          match prc with
-          | X86_instr_decl.PrimP(x1,x2) -> PrimP(x1, fun sz -> Ox86 (x2 sz))
-          | X86_instr_decl.PrimM(x)     -> PrimM(Ox86 x)
-          | X86_instr_decl.PrimV(x)     -> PrimV(fun sz sz' -> Ox86 (x sz sz'))
-          | X86_instr_decl.PrimX(x)     -> PrimX(fun sz sz' -> Ox86 (x sz sz'))
-          | X86_instr_decl.PrimVV(x)    -> PrimVV(fun ve sz ve' sz' -> Ox86 (x ve sz ve' sz'))
-        in (s, prc)) X86_instr_decl.prim_string
+      let s = Conv.string_of_string0 s in
+      let prc = 
+        match prc with
+        | X86_instr_decl.PrimP(x1,x2) -> PrimP(x1, fun sz -> Ox86 (x2 sz))
+        | X86_instr_decl.PrimM(x)     -> PrimM(Ox86 x)
+        | X86_instr_decl.PrimV(x)     -> PrimV(fun _ sz sz' -> Ox86 (x sz sz'))
+        | X86_instr_decl.PrimSV(x)    -> PrimV(fun s sz sz' -> Ox86 (x s sz sz'))
+        | X86_instr_decl.PrimX(x)     -> PrimX(fun sz sz' -> Ox86 (x sz sz'))
+        | X86_instr_decl.PrimVV(x)    -> PrimVV(fun ve sz ve' sz' -> Ox86 (x ve sz ve' sz')) in
+      (s, prc)) X86_instr_decl.prim_string
             
 type size_annotation =
   | SAw of W.wsize
-  | SAv of W.velem * W.wsize
+  | SAv of W.signedness * W.velem * W.wsize
   | SAx of W.wsize * W.wsize
   | SAvv of W.velem * W.wsize * W.velem * W.wsize
   | SA
@@ -1064,26 +1065,42 @@ type size_annotation =
 let extract_size str : string * size_annotation =
   let get_size =
     function
-    | "8" -> SAw W.U8
-    | "16" -> SAw W.U16
-    | "32" -> SAw W.U32
-    | "64" -> SAw W.U64
+    | "8"   -> SAw W.U8
+    | "16"  -> SAw W.U16
+    | "32"  -> SAw W.U32
+    | "64"  -> SAw W.U64
     | "128" -> SAw W.U128
     | "256" -> SAw W.U256
-    | "2u8" -> SAv (W.VE8, W.U16)
-    | "4u8" -> SAv (W.VE8, W.U32)
-    | "2u16" -> SAv (W.VE16, W.U32)
-    | "8u8" -> SAv (W.VE8, W.U64)
-    | "4u16" -> SAv (W.VE16, W.U64)
-    | "2u32" -> SAv (W.VE32, W.U64)
-    | "16u8" -> SAv (W.VE8, W.U128)
-    | "8u16" -> SAv (W.VE16, W.U128)
-    | "4u32" -> SAv (W.VE32, W.U128)
-    | "2u64" -> SAv (W.VE64, W.U128)
-    | "32u8" -> SAv (W.VE8, W.U256)
-    | "16u16" -> SAv (W.VE16, W.U256)
-    | "8u32" -> SAv (W.VE32, W.U256)
-    | "4u64" -> SAv (W.VE64, W.U256)
+
+    | "2u8"   -> SAv (W.Unsigned, W.VE8,  W.U16)
+    | "4u8"   -> SAv (W.Unsigned, W.VE8,  W.U32)
+    | "2u16"  -> SAv (W.Unsigned, W.VE16, W.U32)
+    | "8u8"   -> SAv (W.Unsigned, W.VE8,  W.U64)
+    | "4u16"  -> SAv (W.Unsigned, W.VE16, W.U64)
+    | "2u32"  -> SAv (W.Unsigned, W.VE32, W.U64)
+    | "16u8"  -> SAv (W.Unsigned, W.VE8,  W.U128)
+    | "8u16"  -> SAv (W.Unsigned, W.VE16, W.U128)
+    | "4u32"  -> SAv (W.Unsigned, W.VE32, W.U128)
+    | "2u64"  -> SAv (W.Unsigned, W.VE64, W.U128)
+    | "32u8"  -> SAv (W.Unsigned, W.VE8,  W.U256)
+    | "16u16" -> SAv (W.Unsigned, W.VE16, W.U256)
+    | "8u32"  -> SAv (W.Unsigned, W.VE32, W.U256)
+    | "4u64"  -> SAv (W.Unsigned, W.VE64, W.U256)
+
+    | "2s8"   -> SAv (W.Signed, W.VE8,  W.U16)
+    | "4s8"   -> SAv (W.Signed, W.VE8,  W.U32)
+    | "2s16"  -> SAv (W.Signed, W.VE16, W.U32)
+    | "8s8"   -> SAv (W.Signed, W.VE8,  W.U64)
+    | "4s16"  -> SAv (W.Signed, W.VE16, W.U64)
+    | "2s32"  -> SAv (W.Signed, W.VE32, W.U64)
+    | "16s8"  -> SAv (W.Signed, W.VE8,  W.U128)
+    | "8s16"  -> SAv (W.Signed, W.VE16, W.U128)
+    | "4s32"  -> SAv (W.Signed, W.VE32, W.U128)
+    | "2s64"  -> SAv (W.Signed, W.VE64, W.U128)
+    | "32s8"  -> SAv (W.Signed, W.VE8,  W.U256)
+    | "16s16" -> SAv (W.Signed, W.VE16, W.U256)
+    | "8s32"  -> SAv (W.Signed, W.VE32, W.U256)
+    | "4s64"  -> SAv (W.Signed, W.VE64, W.U256)
     | s -> 
       let wsize_of_int = function
         | 8   -> W.U8
@@ -1104,7 +1121,7 @@ let extract_size str : string * size_annotation =
   | [] -> str, SA
   | suf2 :: ((suf1 :: s) as tail) ->
      begin match get_size suf1, get_size suf2 with
-     | SAv (ve1, sz1), SAv (ve2, sz2) -> String.concat "_" (List.rev s), SAvv (ve1, sz1, ve2, sz2)
+     | SAv (_, ve1, sz1), SAv (_, ve2, sz2) -> String.concat "_" (List.rev s), SAvv (ve1, sz1, ve2, sz2)
      | _, SA -> str, SA
      | _, sz -> String.concat "_" (List.rev tail), sz
      end
@@ -1124,7 +1141,7 @@ let tt_prim id =
         | SAv _ | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
         | SAx _ -> rs_tyerror ~loc (PrimNotX s))
   | PrimM pr -> if sz = SA then pr else rs_tyerror ~loc (PrimNoSize s)
-  | PrimV pr -> (match sz with SAv (ve, sz) -> pr ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
+  | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
   | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
   | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
   | exception Not_found -> rs_tyerror ~loc (UnknownPrim s)

@@ -1265,6 +1265,16 @@ Definition wpcmpgt ve sz (w1 w2: word sz) : word sz :=
   lift2_vec ve (wpcmpu1 Z.gtb) sz w1 w2.
 
 (* -------------------------------------------------------------------*)
+Definition wminmax1 ve (cmp : word ve -> word ve -> bool) (x y : word ve) : word ve :=
+  if cmp x y then x else y.
+
+Definition wmin sg ve sz (x y : word sz) :=
+  lift2_vec ve (wminmax1 (wlt sg)) sz x y.
+
+Definition wmax sg ve sz (x y : word sz) :=
+  lift2_vec ve (wminmax1 (fun u v => wlt sg v u)) sz x y.
+
+(* -------------------------------------------------------------------*)
 Definition saturated_signed (sz: wsize) (x: Z): Z :=
  Z.max (wmin_signed sz) (Z.min (wmax_signed sz) x).
 

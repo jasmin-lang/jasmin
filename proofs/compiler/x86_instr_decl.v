@@ -157,6 +157,10 @@ Variant asm_op : Type :=
 | VPCMPGT of velem & wsize
 | VPMADDUBSW of wsize
 | VPMADDWD of wsize
+| VPMINU of velem & wsize
+| VPMINS of velem & wsize
+| VPMAXU of velem & wsize
+| VPMAXS of velem & wsize
 
 (* Monitoring *)
 | RDTSC   of wsize
@@ -862,6 +866,30 @@ Definition x86_VPMADDWD sz (v v1: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in
   ok (wpmaddwd v v1).
 
+(* ---------------------------------------------------------------- *)
+
+Definition x86_VPMINU (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) := 
+  Let _ := check_size_8_32 ve in
+  Let _ := check_size_128_256 sz in
+  ok (wmin Unsigned ve x y).
+
+Definition x86_VPMINS (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) := 
+  Let _ := check_size_8_32 ve in
+  Let _ := check_size_128_256 sz in
+  ok (wmin Signed ve x y).
+
+Definition x86_VPMAXU (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) := 
+  Let _ := check_size_8_32 ve in
+  Let _ := check_size_128_256 sz in
+  ok (wmax Unsigned ve x y).
+
+Definition x86_VPMAXS (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) := 
+  Let _ := check_size_8_32 ve in
+  Let _ := check_size_128_256 sz in
+  ok (wmax Signed ve x y).
+
+(* ---------------------------------------------------------------- *)
+
 (* TODO: move this in word *)
 (* FIXME: Extraction fail if they are parameter, more exactly extracted program fail *)
 (*
@@ -899,12 +927,12 @@ Definition iCF := F CF.
 (* -------------------------------------------------------------------- *)
 
 Variant prim_constructor :=
-  | PrimP of wsize & (wsize -> asm_op)
-  | PrimM of asm_op
-  | PrimV of (velem -> wsize -> asm_op)
-  | PrimX of (wsize -> wsize -> asm_op)
-  | PrimVV of (velem → wsize → velem → wsize → asm_op)
-  .
+  | PrimP  of wsize & (wsize -> asm_op)
+  | PrimM  of asm_op
+  | PrimV  of (velem -> wsize -> asm_op)
+  | PrimSV of (signedness -> velem -> wsize -> asm_op)
+  | PrimX  of (wsize -> wsize -> asm_op)
+  | PrimVV of (velem → wsize → velem → wsize → asm_op).
 
 Variant arg_kind :=
   | CAcond
@@ -1594,6 +1622,19 @@ Definition Ox86_VPMADDWD_instr :=
              ,("VPMADDWD"%string, PrimP U128 VPMADDWD)
   ).
 
+Definition Ox86_VPMINS_instr  := 
+  mk_ve_instr_w2_w_120 "VPMINS" x86_VPMINS check_xmm_xmm_xmmm no_imm (PrimV VPMINS) (pp_viname "vpmins").
+
+Definition Ox86_VPMINU_instr  := 
+  mk_ve_instr_w2_w_120 "VPMINU" x86_VPMINU check_xmm_xmm_xmmm no_imm (PrimV VPMINU) (pp_viname "vpminu").
+
+Definition Ox86_VPMAXS_instr  := 
+  mk_ve_instr_w2_w_120 "VPMAXS" x86_VPMAXS check_xmm_xmm_xmmm no_imm (PrimV VPMAXS) (pp_viname "vpmaxs").
+
+Definition Ox86_VPMAXU_instr  := 
+  mk_ve_instr_w2_w_120 "VPMAXU" x86_VPMAXU check_xmm_xmm_xmmm no_imm (PrimV VPMAXU) (pp_viname "vpmaxu").
+
+
 (* Monitoring instructions.
    These instructions are declared for the convenience of the programmer.
    Nothing can be proved about programs that use these instructions;
@@ -1785,6 +1826,10 @@ Definition instr_desc o : instr_desc_t :=
   | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
   | VPMADDUBSW sz      => Ox86_VPMADDUBSW_instr.1 sz
   | VPMADDWD sz        => Ox86_VPMADDWD_instr.1 sz
+  | VPMINU ve sz       => Ox86_VPMINU_instr.1 ve sz
+  | VPMINS ve sz       => Ox86_VPMINS_instr.1 ve sz
+  | VPMAXU ve sz       => Ox86_VPMAXU_instr.1 ve sz
+  | VPMAXS ve sz       => Ox86_VPMAXS_instr.1 ve sz
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | AESDEC             => Ox86_AESDEC_instr.1          
@@ -1900,6 +1945,10 @@ Definition prim_string :=
    Ox86_VPCMPGT_instr.2;
    Ox86_VPMADDUBSW_instr.2;
    Ox86_VPMADDWD_instr.2;
+   Ox86_VPMINU_instr.2;   
+   Ox86_VPMINS_instr.2;
+   Ox86_VPMAXU_instr.2;
+   Ox86_VPMAXS_instr.2;
    Ox86_RDTSC_instr.2;
    Ox86_RDTSCP_instr.2;
    Ox86_AESDEC_instr.2;            
@@ -1913,5 +1962,11 @@ Definition prim_string :=
    Ox86_AESIMC_instr.2;          
    Ox86_VAESIMC_instr.2;         
    Ox86_AESKEYGENASSIST_instr.2; 
-   Ox86_VAESKEYGENASSIST_instr.2
+   Ox86_VAESKEYGENASSIST_instr.2;
+   ("VPMAX"%string, 
+     PrimSV (fun signedness ve sz => 
+              if signedness is Signed then VPMAXS ve sz else VPMAXU ve sz));
+   ("VPMIN"%string, 
+     PrimSV (fun signedness ve sz => 
+              if signedness is Signed then VPMINS ve sz else VPMINU ve sz))
  ].
