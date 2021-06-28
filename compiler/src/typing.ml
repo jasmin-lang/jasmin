@@ -1173,9 +1173,11 @@ let check_call loc doInline lvs f es =
     let check_arg x e = 
       match e with
       | P.Pvar y -> let y = P.L.unloc y in add_var x y m_xy; add_var y x m_yx 
-      | _      -> 
-        F.eprintf "WARNING: at %a the argument %a is not a variable, inlining will introduce an assigment@."
-          P.L.pp_loc loc Printer.pp_pexpr e                         
+      | _      ->
+         if x.P.v_kind <> P.Inline
+         then
+           F.eprintf "WARNING: at %a the argument %a is not a variable, inlining will introduce an assigment@."
+             P.L.pp_loc loc Printer.pp_pexpr e
     in
     List.iter2 check_arg f.P.f_args es;
     let check_res x l = 
