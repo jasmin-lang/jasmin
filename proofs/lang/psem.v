@@ -1031,6 +1031,7 @@ Proof. by move=> s1 s2 H vm1 ? <- vm2 ? <-;apply: vmap_eq_exceptI. Qed.
 Global Instance vmap_eq_except_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) vmap_eq_except.
 Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: vmap_eq_exceptI;rewrite Heq. Qed.
 
+
 Lemma vrvP_var (x:var_i) v s1 s2 :
   write_var x v s1 = ok s2 ->
   s1.(evm) = s2.(evm) [\ Sv.add x Sv.empty].
@@ -1848,8 +1849,6 @@ Proof.
  case hs => hs1 -> /=; auto.
 Qed.
 
-
-(* FIXME: no need for “le'”; just use “le” *) (** FIXED **)
 Lemma sem_pexpr_uincl gd s1 vm2 e v1 le:
   vm_uincl s1.(evm) vm2 →
   sem_pexpr gd s1 e = ok (v1, le) →
@@ -2916,6 +2915,11 @@ Local Open Scope vmap.
   Lemma wf_vmap0 : wf_vm vmap0.
   Proof. by move=> x;rewrite /vmap0 Fv.get0;case:vtype. Qed.
 
+  Lemma wf_sem_I p0 s1 i li s2 :
+    sem_I p0 s1 i li s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
+  Proof.
+    move=> H;have := sem_seq1 H; apply: wf_sem.
+  Qed.
 
 End WF.
 

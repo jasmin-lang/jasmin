@@ -24,8 +24,8 @@
  * ----------------------------------------------------------------------- *)
 
 (* ** Imports and settings *)
-From mathcomp Require Import all_ssreflect.
-Require Import expr compiler_util ZArith.
+From mathcomp Require Import all_ssreflect all_algebra.
+Require Import expr compiler_util ZArith psem compiler_util.
 Require Export leakage.
 
 Set Implicit Arguments.
@@ -115,7 +115,6 @@ Definition readms (es: pexprs) := has readm es.
      ~readm e -> 
      forall s1 s2, evm s1 = evm s2 -> eval_expr s1 e1 = eval_expr s2 e2 *)
 
-
 Fixpoint ct_e (e: pexpr) := 
   match e with
   | Pconst _ 
@@ -174,12 +173,12 @@ Definition read_ems (ii: instr_info) (es:pexprs) :=
   if usem then error ii 
   else ok se.
 
-Definition read_ctem (ii:instr_info) (e:pexpr) :=
+Definition readm_cte (ii:instr_info) (e:pexpr) :=
    let (se,usem) := ct_e e in
    if usem then error ii
    else ok se.
 
-Definition read_ctems (ii:instr_info) (es:pexprs) :=
+Definition readm_ctes (ii:instr_info) (es:pexprs) :=
    let (se,usem) := ct_es es in
    if usem then error ii
    else ok se.
@@ -195,11 +194,12 @@ Definition readm_lvals (ii: instr_info) (lvs: lvals) : ciexec Sv.t :=
 Fixpoint ct_i (i:instr) (s:Sv.t) {struct i} : ciexec Sv.t :=
   let (ii,ir) := i in
   match ir with
+  (* {I} x := e {O} *)
   | Cassgn x tag ty e =>
     let sx := vrv x in
     Let sx' := readm_lval ii x in 
     if disjoint s sx then
-      Let se := read_ctem ii e in 
+      Let se := readm_cte ii e in 
       ok (Sv.union sx' (Sv.union se s))
     else
       Let se := read_em ii e in 
@@ -210,7 +210,7 @@ Fixpoint ct_i (i:instr) (s:Sv.t) {struct i} : ciexec Sv.t :=
     let sx := vrvs xs in
     Let sx' := readm_lvals ii xs in 
       if disjoint s sx then 
-        Let se := read_ctems ii es in 
+        Let se := readm_ctes ii es in 
         ok (Sv.union sx' (Sv.union se s))
       else 
         Let se := read_ems ii es in 
@@ -245,70 +245,178 @@ Fixpoint ct_i (i:instr) (s:Sv.t) {struct i} : ciexec Sv.t :=
 | _ => error ii
 end.
 
-      
-    (* x = e *)
-    (* s1 = 
-        if x \in read_e then 
-          s \{x} U read_e 
-        else s
-       ct_expr e -> Sv.t 
-        
+ 
+
+Section Correctness_Proof.
+
+Variables p : prog.
+
+  (* ct_i inst o = i
+     m1 =i m2 ->
+     exists m2', m1' =o m2' /\ sem p m1' [:: inst] [:: li] m2' *)  
+     
+  Let Pi_r (s:estate) (i:instr_r) (li:leak_i) (s':estate) :=
+    forall ii s2,
+      match ct_i (MkI ii i) s2 with
+      | Ok s1 =>
+        wf_vm s.(evm) ->
+        forall vm1', s.(evm) =[s1] vm1' ->
+          exists vm2', s'.(evm) =[s2] vm2' /\
+          sem p (Estate s.(emem) vm1') [::(MkI ii i)] [::li] (Estate s'.(emem) vm2') 
+      | _ => True
+      end.
 
 
-    let w := write_i ir in
-    if tag != AT_keep then
-      if disjoint s w && negb (write_mem x) then ciok (s, [::], LT_iremove)
-      else if check_nop x ty e then ciok (s, [::], LT_iremove)
-      else ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ], LT_ikeep)
-    else   ciok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ], LT_ikeep)
+  Let Pi (s:estate) (i:instr) (li:leak_i) (s':estate) :=
+    forall s2,
+      match ct_i i s2 with
+      | Ok s1 =>
+        wf_vm s.(evm) ->
+        forall vm1', s.(evm) =[s1] vm1' ->
+          exists vm2', s'.(evm) =[s2] vm2' /\
+          sem p (Estate s.(emem) vm1') [:: i] [::li] (Estate s'.(emem) vm2') 
+      | _ => True
+      end.
 
-  | Copn xs tag o es =>
-    let w := vrvs xs in
-    if tag != AT_keep then
-      if disjoint s w && negb (has write_mem xs) then ciok (s, [::], LT_iremove)
-      else if check_nop_opn xs o es then ciok (s, [::], LT_iremove)
-      else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i], LT_ikeep)
-    else ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i], LT_ikeep)
+  Let Pc (s:estate) (c:cmd) (lc:leak_c) (s':estate) :=
+    forall s2,
+      match ct_c ct_i c s2 with
+      | Ok s1 =>
+        wf_vm s.(evm) ->
+        forall vm1', s.(evm) =[s1] vm1' ->
+          exists vm2', s'.(evm) =[s2] vm2' /\
+          sem p (Estate s.(emem) vm1') c lc (Estate s'.(emem) vm2') 
+      | _ => True
+      end.
 
-  | Cif b c1 c2 =>
-    Let sc1 := dead_code_c dead_code_i c1 s in
-    Let sc2 := dead_code_c dead_code_i c2 s in
-    let: (s1,c1,F1) := sc1 in
-    let: (s2,c2,F2) := sc2 in
-    ciok (read_e_rec (Sv.union s1 s2) b, [:: MkI ii (Cif b c1 c2)], LT_icond (LT_id) F1 F2)
 
-  | Cfor x (dir, e1, e2) c =>
-    Let sc := loop (dead_code_c dead_code_i c) ii Loop.nb
-                   (read_rv (Lvar x)) (vrv (Lvar x)) s in
-    let: (s, c, F) := sc in
-    ciok (read_e_rec (read_e_rec s e2) e1,[:: MkI ii (Cfor x (dir,e1,e2) c) ], LT_ifor LT_id F)
+Local Lemma Hskip : sem_Ind_nil Pc.
+  Proof.
+    case=> mem vm s2 Hwf vm' Hvm.
+    exists vm'; split=> //.
+    constructor.
+  Qed.
 
-  | Cwhile a c e c' =>
-    let dobody s_o :=
-     let s_o' := read_e_rec s_o e in
-     Let sci := dead_code_c dead_code_i c s_o' in
-     let: (s_i, c, Fc) := sci in
-     Let sci' := dead_code_c dead_code_i c' s_i in
-     let: (s_i', c', Fc') := sci' in
-     ok (s_i', (s_i, (c,c'), (Fc,Fc'))) in
-    Let sc := wloop dobody ii Loop.nb s in
-     let: (s, (c,c'), (Fc,Fc')) := sc in
-    ciok (s, [:: MkI ii (Cwhile a c e c') ], LT_iwhile Fc LT_id Fc')
+Local Lemma Hcons : sem_Ind_cons p Pc Pi.
+  Proof.
+    move=> s1 s2 s3 i c li lc H Hi H' Hc sv3 /=.
+    have := Hc sv3.
+    case: (ct_c ct_i c sv3) => [sv2|//] Hc' /=.
+    have := Hi sv2.
+    case: (ct_i i sv2)=> [sv1|] //= Hi' Hwf vm1' /(Hi' Hwf).
+    have Hwf2 := wf_sem_I H Hwf.
+    move=> [vm2' [Heq2 Hsi']];case: (Hc' Hwf2 _ Heq2) => [vm3' [Heq3 Hsc']].
+    exists vm3';split=> //.
+    by apply: sem_app Hsi' Hsc'.
+  Qed.
 
-  | Ccall _ xs f es =>
-    ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i], LT_icall f LT_id LT_id)
-  end.
+Local Lemma HmkI : sem_Ind_mkI p Pi_r Pi.
+  Proof. move=> ii i s1 s2 li Hi Hp. exact: Hp. Qed.
 
-Definition dead_code_fd (fd: fundef) :=
-  let 'MkFun ii tyi params c tyo res := fd in
-  let s := read_es (map Pvar res) in
-  Let c := dead_code_c dead_code_i c s in
-  let: (s,c,F) := c in
-  ciok (MkFun ii tyi params c tyo res, F).
 
-Definition dead_code_prog (p: prog) : cfexec (prog * leak_f_tr) :=
-  Let funcs := map_cfprog_leak dead_code_fd (p_funcs p) in
-  ok ({| p_globs := p_globs p; p_funcs := funcs.1 |}, funcs.2).
+Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
+  Proof.
+    move=> s1 s2 e c1 c2 le lc Hval Hp Hc ii sv0 /=.
+    case Heq: (ct_c ct_i c1 sv0)=> [sv1 /=|//].
+    case: (ct_c ct_i c2 sv0)=> [sv2 /=|//]. 
+    rewrite /read_em /=. case: (readm e)=> //= Hwf vm1' Hvm.
+    move: (Hc sv0).
+    rewrite Heq.
+    move=> /(_ Hwf vm1') [|vm2' [Hvm2' Hvm2'1]].
+    apply: eq_onI Hvm; SvD.fsetdec.
+    exists vm2'; split=> //.
+    econstructor; constructor.
+    constructor=> //.
+    symmetry in Hvm. admit.
+  Admitted.
+
+Local Lemma Hif_false : sem_Ind_if_false p Pc Pi_r.
+  Proof.
+    move=> s1 s2 e c1 c2 le lc Hval Hp Hc ii sv0 /=.
+    case Heq: (ct_c ct_i c2 sv0)=> [sv1 /=|//].
+    case: (ct_c ct_i c1 sv0)=> [sv2 /=|//].
+    rewrite /read_em /=. case: (readm e)=> //= Hwf vm1' Hvm.
+    move: (Hc sv0).
+    rewrite Heq.
+    move=> /(_ Hwf vm1') [|vm2' [Hvm2' Hvm2'1]].
+    apply: eq_onI Hvm; SvD.fsetdec.
+    exists vm2'; split=> //.
+    econstructor; constructor.
+    constructor=> //.
+    symmetry in Hvm. admit.
+  Admitted.
+
+  Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
+  Proof.
+    move => s1 s2 x tag ty e v v' le lw.
+    move: s1 s2 => [m1 vm1] [m2 vm2] Hv htr Hw ii s2 /=.
+    rewrite /readm_lval /=. case: (ct_lval x).2=> //=.
+    rewrite /readm_cte /=. case: ifP=> //=.
+    (* x is not in s2 *)
+    + move=> Hdisj. case: (ct_e e)=> //=. move=> sv1 b. case: ifP=> //=.
+      move=> Hb Hwf vm1' Hvm.
+      eexists; split=> //=.
+      econstructor. econstructor. apply Eassgn with v v'.
+      rewrite /ct_lval in Hvm. case: x Hw Hvm Hdisj=> //=.
+      (* var *)
+      + move=> x xty. t_xrbindP. move=> s2' /= Hw Hs Hl /= Hvm Hdisj.
+        subst. 
+  Admitted.
+
+
+End Correctness_Proof.
+
+Section Checker_Proof.
+
+Variables p : prog.
+
+  (* ct_i inst o = i
+     m1 =i m2 ->
+     sem p m1 [:: inst] [:: li] m1' ->
+     exists m2' li', sem p m2 [:: inst] [:: li'] m2' ->
+     m1' =o m2' /\ li = li'.*) 
+     
+  Let Pi_r (s:estate) (i:instr_r) (li:leak_i) (s':estate) :=
+    forall ii s2,
+      match ct_i (MkI ii i) s2 with
+      | Ok s1 =>
+        wf_vm s.(evm) ->
+        forall vm1', s.(evm) =[s1] vm1' ->
+        sem p (Estate s.(emem) s.(evm)) [::(MkI ii i)] [::li] (Estate s'.(emem) vm1') -> 
+        exists vm2' li', sem p (Estate s.(emem) vm1') [::(MkI ii i)] [::li'] (Estate s'.(emem) vm2') /\
+                     s'.(evm) =[s2] vm2' /\ [:: li] = [:: li']
+     | _ => True
+     end.
+
+  Let Pi (s:estate) (i:instr) (li:leak_i) (s':estate) :=
+    forall s2,
+      match ct_i i s2 with
+      | Ok s1 =>
+        wf_vm s.(evm) ->
+        forall vm1', s.(evm) =[s1] vm1' ->
+        sem p (Estate s.(emem) s.(evm)) [:: i] [::li] (Estate s'.(emem) vm1') -> 
+        exists vm2' li', sem p (Estate s.(emem) vm1') [:: i] [::li'] (Estate s'.(emem) vm2') /\
+                     s'.(evm) =[s2] vm2' /\ [:: li] = [:: li']
+     | _ => True
+     end.
+
+  Let Pc (s:estate) (c:cmd) (lc:leak_c) (s':estate) :=
+    forall s2,
+      match ct_c ct_i c s2 with
+      | Ok s1 =>
+        wf_vm s.(evm) ->
+        forall vm1', s.(evm) =[s1] vm1' ->
+        sem p (Estate s.(emem) s.(evm)) c lc (Estate s'.(emem) vm1') -> 
+        exists vm2' lc', sem p (Estate s.(emem) vm1') c lc' (Estate s'.(emem) vm2') /\
+                     s'.(evm) =[s2] vm2' /\ lc = lc'
+     | _ => True
+     end.
+
+
+End Checker_Proof.
+
+
+
 
 
 
