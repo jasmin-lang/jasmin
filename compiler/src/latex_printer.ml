@@ -277,12 +277,17 @@ let rec pp_instr depth fmt p =
     | Some el -> F.fprintf fmt " %a %a" kw "else" (pp_block depth) el
     | None -> () end
   | PIFor (i, (d, lo, hi), body) ->
+     let from, direction, limit =
+       match d with
+       | `Down -> hi, "downto", lo
+       | `Up -> lo, "to", hi
+     in
     F.fprintf fmt "%a %a = %a %a %a %a"
       kw "for"
       pp_var i
-      pp_expr lo
-      kw (match d with `Down -> "downto" | `Up -> "to")
-      pp_expr hi
+      pp_expr from
+      kw direction
+      pp_expr limit
       (pp_inbraces depth (pp_list eol (pp_instr (depth + 1)))) (L.unloc body)
   | PIWhile (_, pre, b, body) ->
     F.fprintf fmt "%a %a (%a) %a"

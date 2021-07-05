@@ -283,7 +283,7 @@ Proof.
   move => ii k i s1 s2 h _ _ ih.
   apply: disjoint_union ih.
   move: h; rewrite /extra_free_registers_at.
-  case: extra_free_registers => // ra /andP[] /eqP r_neq_gd /eqP r_neq_rsp.
+  case: extra_free_registers => // ra /and3P[] /eqP r_neq_gd /eqP r_neq_rsp ?.
   rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec.
   SvD.fsetdec.
 Qed.

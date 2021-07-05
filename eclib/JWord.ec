@@ -2182,13 +2182,13 @@ abstract theory W_WS.
      by move=> ?;apply ler_pemulr => // /#.
    qed.
 
-   op VPADD_'Ru'S (w1 : WB.t) (w2:WB.t) =
+   op VPADD_'Ru'S (w1 : WB.t) (w2 : WB.t) =
      map2 WS.(+) w1 w2.
 
-   op VPSUB_'Ru'S (w1 : WB.t) (w2:WB.t) =
+   op VPSUB_'Ru'S (w1 : WB.t) (w2 : WB.t) =
      map2 (fun (x y:WS.t) => x + (- y)) w1 w2. 
 
-   op VPMUL_'Ru'S (w1 : WB.t) (w2:WB.t) =
+   op VPMUL_'Ru'S (w1 : WB.t) (w2 : WB.t) =
      map2 WS.( * ) w1 w2. 
 
    op VPSLL_'Ru'S (w : WB.t) (cnt : W8.t) =
@@ -2200,7 +2200,7 @@ abstract theory W_WS.
    op VPSRA_'Ru'S (w : WB.t) (cnt : W8.t) =
      map (fun (w:WS.t) => w `|>>` cnt) w.
 
-   op VPBROADCAST_'Ru'S (w: WS.t) =
+   op VPBROADCAST_'Ru'S (w : WS.t) =
      pack'R (map (fun i => w) (iota_ 0 r)).
 
    op wucmp (cmp: int -> int -> bool) (x y: WS.t) : WS.t =
@@ -2212,6 +2212,18 @@ abstract theory W_WS.
    op VPCMPEQ_'Ru'S (w1 : WB.t) (w2: WB.t) =
      map2 (wucmp (=)) w1 w2.
 
+   op VPMAXU_'Ru'S (w1 : WB.t) (w2 : WB.t) = 
+     map2 (fun x y => if WS.to_uint x < WS.to_uint y then y else x) w1 w2.
+  
+   op VPMAXS_'Ru'S (w1 : WB.t) (w2 : WB.t) = 
+     map2 (fun x y => if WS.to_sint x < WS.to_sint y then y else x) w1 w2.
+  
+   op VPMINU_'Ru'S (w1 : WB.t) (w2 : WB.t) = 
+     map2 (fun x y => if WS.to_uint x < WS.to_uint y then x else y) w1 w2.
+
+   op VPMINS_'Ru'S (w1 : WB.t) (w2 : WB.t) = 
+     map2 (fun x y => if WS.to_sint x < WS.to_sint y then x else y) w1 w2.
+ 
    (** TODO CHECKME : still x86 **)
    lemma x86_'Ru'S_rol_xor i w : 0 < i < sizeS =>
       VPSLL_'Ru'S w (W8.of_int i) +^ VPSRL_'Ru'S w (W8.of_int (sizeS - i)) =

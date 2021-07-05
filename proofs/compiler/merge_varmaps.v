@@ -3,7 +3,7 @@
 Require Import psem sem_one_varmap.
 Import Utf8.
 Import all_ssreflect.
-Import compiler_util.
+Import var compiler_util.
 Import x86_variables.
 
 Set Implicit Arguments.
@@ -24,6 +24,19 @@ Context (p: sprog) (extra_free_registers: instr_info → option var).
 
 (** Set of variables written by a function (including RA and extra registers),
       assuming this information is known for the called functions. *)
+
+Definition add_extra_free_registers ii (D:Sv.t) := 
+  if extra_free_registers ii is Some r then Sv.add r D
+  else D.
+
+Local Notation extra_free_registers_at := (extra_free_registers_at extra_free_registers).
+
+Lemma add_extra_free_registersE ii D : 
+  Sv.Equal (add_extra_free_registers ii D) (Sv.union (extra_free_registers_at ii) D).
+Proof.
+  rewrite /add_extra_free_registers /extra_free_registers_at; case: extra_free_registers; SvD.fsetdec.
+Qed.
+
 Section WRITE1.
 
   Context (writefun: funname → Sv.t).
@@ -57,11 +70,7 @@ Section WRITE1.
     end
   with write_I_rec s i :=
     match i with
-    | MkI ii i =>
-      let result := write_i_rec s i in
-      if extra_free_registers ii is Some r
-      then Sv.add r result
-      else result
+    | MkI ii i => add_extra_free_registers ii (write_i_rec s i)
     end.
 
   Definition write_I := write_I_rec Sv.empty.
@@ -78,7 +87,7 @@ Section WRITE1.
               (λ i, ∀ s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
               (λ i, ∀ s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
               (λ c, ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)))).
-    - by move => i ii ih s; rewrite /write_I /=; case: extra_free_registers => [ r | ]; rewrite ih; SvD.fsetdec.
+    - by move => i ii ih s; rewrite /write_I /= !add_extra_free_registersE !ih; SvD.fsetdec.
     - by SvD.fsetdec.
     - by move => i c' hi hc' s; rewrite /write_c /= !hc' -/write_I hi; SvD.fsetdec.
     - by move => x tg ty e s; rewrite /write_i /= -vrv_recE.
@@ -89,13 +98,10 @@ Section WRITE1.
     - by move => i xs fn es s; rewrite /write_i /=; SvD.fsetdec.
   Qed.
 
-  Definition extra_free_registers_at ii : Sv.t :=
-    if extra_free_registers ii is Some r then Sv.singleton r else Sv.empty.
-
   Lemma write_I_recE ii i s :
     Sv.Equal (write_I_rec s (MkI ii i))
              (Sv.union (write_i_rec s i) (extra_free_registers_at ii)).
-  Proof. rewrite /extra_free_registers_at /=; case: extra_free_registers => *; SvD.fsetdec. Qed.
+  Proof. rewrite /= add_extra_free_registersE; SvD.fsetdec. Qed.
 
 End WRITE1.
 
@@ -111,133 +117,172 @@ Definition mk_wmap :=
 Definition check_wmap (wmap: Mp.t Sv.t) : bool :=
   all (λ '(f, fd), Sv.subset (write_fd (get_wmap wmap) fd) (get_wmap wmap f)) (p_funcs p).
 
+Definition check_fv (ii:instr_info) (D R : Sv.t) :=
+  assert (disjoint D R) (ii, (Cerr_one_varmap "modified expression")).
+
+Definition check_e (ii:instr_info) (D : Sv.t) (e : pexpr) :=
+  check_fv ii D (read_e e).
+
+Definition check_es ii D es := 
+  foldM (fun e _ => check_e ii D e) tt es.
+
 Section CHECK.
 
   Context (writefun: funname → Sv.t).
 
   Section CHECK_c.
 
-    Context (check_i: instr → Sv.t → ciexec Sv.t).
+    Context (check_i: Sv.t → instr → ciexec Sv.t).
 
-    Fixpoint check_c (c: cmd) (s: Sv.t) :=
+    Fixpoint check_c (D: Sv.t) (c: cmd) :=
       if c is i :: c' then
-        Let s := check_c c' s in
-        check_i i s
-      else ok s.
+        Let D := check_i D i in 
+        check_c D c'
+      else ok D.
 
-    Context (ii: instr_info) (c1: cmd) (e: pexpr) (c2: cmd).
+    Context (ii: instr_info) (c1: cmd) (efv: Sv.t) (c2: cmd).
 
-    Fixpoint wloop (n: nat) (s: Sv.t) :=
+    Fixpoint wloop (n: nat) (D: Sv.t) :=
       if n is S n' then
         (* while c1 e c2 = c1; while e do c2; c1 *)
-        let se := read_e_rec s e in
-        Let s1 := check_c c1 se in
-        Let s2 := check_c c2 s1 in
-        if Sv.subset s2 s then ok s1
-        else wloop n' (Sv.union s2 s)
+        Let D1 := check_c D c1 in
+        Let _ := check_fv ii  D1 efv in
+        Let D2 := check_c D1 c2 in
+        if Sv.subset D2 D then ok D1
+        else wloop n' (Sv.union D2 D)      
       else cierror ii (Cerr_Loop "MVM check").
 
   End CHECK_c.
 
   Section CHECK_i.
 
-  Fixpoint check_i (sz: wsize) (i: instr) (D: Sv.t) :=
+  Definition check_lv ii (D:Sv.t) (x:lval) := 
+    Let _ := check_fv ii D (read_rv x) in
+    ok (Sv.diff D (vrv x)).
+
+  Definition check_lvs ii (D:Sv.t) (xs:lvals) := 
+    foldM (fun x D => check_lv ii D x) D xs.
+  
+  Fixpoint check_i (sz: wsize) (D:Sv.t) (i: instr) : ciexec Sv.t :=
     let: MkI ii ir := i in
-    Let D2 := check_ir sz ii ir D in
-    Let _ := assert (if extra_free_registers ii is Some r then negb (Sv.mem r D2) else true)
-                        (ii, Cerr_one_varmap "extra register (for rastack) is not free") in
-    ok D2
-  with check_ir sz ii ir D :=
+    Let _ := 
+      assert (if extra_free_registers ii is Some r then vtype r == sword Uptr else true)
+         (ii, (Cerr_one_varmap "bad type for extra free register : Please report")) in
+    check_ir sz ii (add_extra_free_registers ii D) ir
+
+  with check_ir sz ii D ir :=
     match ir with
     | Cassgn x tag ty e =>
-      ok (read_rv_rec (read_e_rec (Sv.diff D (vrv x)) e) x)
+      Let _ := check_e ii D e in
+      check_lv ii D x 
     | Copn xs tag o es =>
-      ok (read_es_rec (read_rvs_rec (Sv.diff D (vrvs xs)) xs) es)
+      Let _ := check_es ii D es in
+      check_lvs ii D xs
     | Cif b c1 c2 =>
-      Let D1 := check_c (check_i sz) c1 D in
-      Let D2 := check_c (check_i sz) c2 D in
-      ok (read_e_rec (Sv.union D1 D2) b)
+      Let _ := check_e ii D b in
+      Let D1 := check_c (check_i sz) D c1 in
+      Let D2 := check_c (check_i sz) D c2 in
+      ok (Sv.union D1 D2)
     | Cfor _ _ _ =>
       cierror ii (Cerr_one_varmap "for loop should be unrolled")
     | Cwhile _ c e c' =>
-      if e == Pbool false then check_c (check_i sz) c D
-      else wloop (check_i sz) ii c e c' Loop.nb D
+      
+      if e == Pbool false then check_c (check_i sz) D c
+      else wloop (check_i sz) ii c (read_e e) c' Loop.nb D
+
     | Ccall _ xs fn es =>
       if get_fundef (p_funcs p) fn is Some fd then
+        Let _ := check_es ii D es in
         Let _ := assert (sf_align (f_extra fd) ≤ sz)%CMP
           (ii, Cerr_one_varmap "alignment constraints error") in
         Let _ := assert (if sf_return_address (f_extra fd) is RAstack _ then extra_free_registers ii != None else true)
           (ii, Cerr_one_varmap "no extra free register to compute the return address") in
-        Let _ := assert
+        Let _ := assert 
           (all2 (λ e a, if e is Pvar (Gvar v Slocal) then v_var v == v_var a else false) es (f_params fd))
           (ii, Cerr_one_varmap "bad call args") in
         Let _ := assert
           (all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd))
           (ii, Cerr_one_varmap "bad call dests") in
         let W := writefun_ra writefun fn in
-        let D1 := Sv.diff D (vrvs xs) in
-        let inter := Sv.inter D1 W in
-        Let _ := assert (Sv.is_empty inter) (ii, Cerr_needspill fn (Sv.elements inter)) in
-        ok (read_es_rec D1 es)
+        ok (Sv.diff (Sv.union D W) (set_of_var_i_seq Sv.empty (f_res fd)))
       else cierror ii (Cerr_one_varmap "call to unknown function")
     end.
 
   Lemma check_ir_CwhileP sz ii aa c e c' D D' :
-    check_ir sz ii (Cwhile aa c e c') D = ok D' →
+    check_ir sz ii D (Cwhile aa c e c') = ok D' →
     if e == Pbool false
-    then check_c (check_i sz) c D = ok D'
+    then check_c (check_i sz) D c = ok D'
     else
       ∃ D1 D2,
-        [/\ check_c (check_i sz) c (read_e_rec D1 e) = ok D',
-         check_c (check_i sz) c' D' = ok D2,
-         Sv.Subset D D1 &
-         Sv.Subset D2 D1 ].
+        [/\ check_c (check_i sz) D1 c = ok D',
+            check_e ii D' e = ok tt,
+            check_c (check_i sz) D' c' = ok D2,
+            check_ir sz ii D1 (Cwhile aa c e c') = ok D' &
+            Sv.Subset D D1 /\ Sv.Subset D2 D1 ].
   Proof.
     rewrite /check_ir; case: eqP => // _; rewrite -/check_i.
-    elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 D2 h2; case: (equivP idP (Sv.subset_spec _ _)) => cnd.
-    - by case => ?; subst D1; exists D, D2; split.
-    move => /ih{ih} [D4] [D3] [ h h' le le' ].
-    exists D4, D3; split => //; SvD.fsetdec.
+    elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 [] he D2 h2.
+    case: (equivP idP (Sv.subset_spec _ _)) => d.
+    - case => ?; subst D1; exists D, D2; split => //; last by split.
+      by rewrite h1 /= he /= h2 /=; move /Sv.subset_spec : d => ->.
+    move => /ih{ih} [D4] [D3]; rewrite /check_e => -[ h he' h' heq [le le'] ].
+    exists D4, D3; split => //; last by split; SvD.fsetdec.
+    by rewrite h /= he' /= h' /=; move /Sv.subset_spec: le' => ->.
   Qed.
 
   End CHECK_i.
 
   Notation check_cmd sz := (check_c (check_i sz)).
 
-  Definition live_after_fd (fd: sfundef) : Sv.t :=
-    set_of_var_i_seq Sv.empty fd.(f_res).
-
   Let magic_variables : Sv.t :=
     magic_variables p.
 
   Let check_preserved_register fn W J name r :=
-    Let _ := assert (~~ Sv.mem r W) (Ferr_fun fn (Cerr_one_varmap ("the function writes its " ++ name))) in
+    Let _ := 
+      assert (vtype r == sword Uptr) (Ferr_fun fn (Cerr_one_varmap ("bad register type for " ++ name))) in
+    Let _ := 
+      assert (~~ Sv.mem r W) (Ferr_fun fn (Cerr_one_varmap ("the function writes its " ++ name))) in
     assert (~~Sv.mem r J) (Ferr_fun fn (Cerr_one_varmap ("the function depends on its " ++ name))).
 
   Definition check_fd (ffd: sfun_decl) :=
     let: (fn, fd) := ffd in
-    let O := live_after_fd fd in
-    Let I := add_finfo fn fn (check_cmd fd.(f_extra).(sf_align) fd.(f_body) O) in
-    Let _ := assert (all (λ x : var_i, ~~ Sv.mem x magic_variables) fd.(f_params))
+    let DI := 
+      match sf_return_address (f_extra fd) with
+      | RAnone =>
+        match sf_save_stack (f_extra fd) with
+        | SavedStackReg r => Sv.add r (sv_of_flags rflags)
+        | _ => sv_of_flags rflags
+        end 
+    | RAreg ra => Sv.singleton ra
+    | RAstack _ => Sv.empty 
+    end in
+
+    Let D := add_finfo fn fn (check_cmd fd.(f_extra).(sf_align) DI fd.(f_body)) in
+    let params := set_of_var_i_seq Sv.empty fd.(f_params) in
+    let res := set_of_var_i_seq Sv.empty fd.(f_res) in
+    Let _ := 
+      assert (disjoint D res)
+             (Ferr_fun fn (Cerr_one_varmap "not able to ensure equality of the result")) in
+    Let _ := assert (var.disjoint params magic_variables)
                     (Ferr_fun fn (Cerr_one_varmap "the function has RSP or global-data as parameter")) in
-    Let _ := assert (all (λ x : var_i, v_var x != vid (string_of_register RSP)) fd.(f_res))
+    Let _ := assert (~~ Sv.mem (vid (string_of_register RSP)) res)
                     (Ferr_fun fn (Cerr_one_varmap "the functions returns RSP")) in
-    let J := set_of_var_i_seq magic_variables fd.(f_params) in
-    (* This need to be removed *)
-    Let _ := assert (Sv.subset I J)
-                    (Ferr_fun fn (Cerr_one_varmap_free fn (Sv.elements (Sv.diff I J)))) in
     Let _ := assert (var.disjoint (writefun_ra writefun fn) magic_variables)
                     (Ferr_fun fn (Cerr_one_varmap "the function writes to RSP or global-data")) in
     let W := writefun fn in
+    let J := Sv.union magic_variables params in
     let e := fd.(f_extra) in
-    Let _  := if sf_save_stack e is SavedStackReg r then check_preserved_register fn W J "saved stack pointer" r else ok tt in
-    Let _ := match sf_return_address e with
-             | RAreg ra => check_preserved_register fn W J "return address" ra
-             | RAstack _ => ok tt
-             | RAnone => assert (all (λ x : var_i, if vtype x is sword _ then true else false ) (f_params fd))
-                                (Ferr_fun fn (Cerr_one_varmap "the export function has non-word arguments"))
-             end in
-    ok tt.
+    Let _  := 
+      if sf_save_stack e is SavedStackReg r then 
+         check_preserved_register fn W J "saved stack pointer" r 
+      else ok tt in
+    match sf_return_address e with
+    | RAreg ra => check_preserved_register fn W J "return address" ra
+    | RAstack _ => ok tt
+    | RAnone => 
+        assert (all (λ x : var_i, if vtype x is sword _ then true else false ) (f_params fd))
+            (Ferr_fun fn (Cerr_one_varmap "the export function has non-word arguments"))
+    end.
 
   Definition check_prog := mapM check_fd (p_funcs p).
 
@@ -251,4 +296,3 @@ Definition check :=
   ok tt.
 
 End PROG.
-

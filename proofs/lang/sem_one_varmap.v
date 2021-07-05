@@ -116,7 +116,7 @@ Inductive sem : Sv.t → estate → cmd → estate → Prop :=
 
 with sem_I : Sv.t → estate → instr → estate → Prop :=
 | EmkI ii k i s1 s2:
-    (if extra_free_registers ii is Some r then (r != vgd) && (r != vrsp) else true) →
+    (if extra_free_registers ii is Some r then [&& r != vgd, r != vrsp & vtype r == sword Uptr] else true) →
     sem_i ii k (kill_extra_register ii s1) i s2 →
     disjoint k magic_variables →
     sem_I (Sv.union (extra_free_registers_at ii) k) s1 (MkI ii i) s2
@@ -212,7 +212,7 @@ Lemma sem_IE k s i s' :
   let: MkI ii r := i in
   ∃ k',
   [/\
-  ((if extra_free_registers ii is Some r then (r != vgd) && (r != vrsp) else true) : bool),
+  ((if extra_free_registers ii is Some r then [&& r != vgd, r != vrsp & vtype r == sword Uptr] else true) : bool),
   sem_i ii k' (kill_extra_register ii s) r s',
   disjoint k' magic_variables &
   k = Sv.union (extra_free_registers_at ii) k' ].
@@ -298,7 +298,7 @@ Section SEM_IND.
 
   Definition sem_Ind_mkI : Prop :=
     ∀ (ii : instr_info) (k: Sv.t) (i : instr_r) (s1 s2 : estate),
-      (if extra_free_registers ii is Some r then (r != vgd) && (r != vrsp) else true) →
+      (if extra_free_registers ii is Some r then [&& r != vgd, r != vrsp & vtype r == sword Uptr] else true) →
       sem_i ii k (kill_extra_register ii s1) i s2 →
       Pi_r ii k (kill_extra_register ii s1) i s2 →
       disjoint k magic_variables →
