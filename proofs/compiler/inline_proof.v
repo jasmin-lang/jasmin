@@ -381,8 +381,8 @@ Section WF.
     + move=> x t ty e s1 s2 li /sem_iE [v] [v'] [le] [lw] [hv hv' ok_s2] hw.
       by apply: wf_write_lval ok_s2.
     + move=> xs t o es s1 s2 li /sem_iE [lo]. rewrite /sem_sopn. t_xrbindP.
-      move=> vs Hes vs' Hex [s1' le'] Hws les Hle <- Hl /=.
-      move: wf_write_lvals. move=> Hws' Hwf. 
+      move=> vs Hes [vs' lo'] Hex [s1' le'] Hws les Hle <- Hl /=.
+      move: wf_write_lvals. move=> Hws' Hwf.
       by move: (Hws' (p_globs p) xs vs' s1 s1' le' Hwf Hws).
     + by move=> e c1 c2 Hc1 Hc2 s1 s2 li /sem_iE [b] [le] [lw] [_]; case: b; [apply Hc1 | apply Hc2].
     + move=> i dir lo hi c Hc s1 s2 li /sem_iE [wr] [lr] [lf] []. rewrite /sem_range.
@@ -628,7 +628,7 @@ Section PROOF.
     rewrite read_i_opn => Hwf /= Hvm.
     have /sem_pexprs_uincl_on -/(_ _ _ _ Hse): svm1 <=[read_es es] vm1  by apply: vm_uincl_onI Hvm;SvD.fsetdec.
     move=> [v2 Hv2 [] Huv2 ->].
-    have [v2' [Hso' Huv2']]:= vuincl_exec_opn Huv2 Hso.
+    have [[v2' l2'] [Hso' [Huv2' ->]]]:= vuincl_exec_opn Huv2 Hso.
     have [ | vm2 /=Hvm2 Hw']:= write_lvals_uincl_on _ Huv2' Hw Hvm; first by SvD.fsetdec.
     split. constructor.
     exists vm2;split.
@@ -1122,11 +1122,11 @@ Section REMOVE_INIT.
   Proof.
     move=> s1 s2 t o xs es lo H ii vm1 Hvm1;move: H;rewrite /sem_sopn;t_xrbindP=> rs.
     move=> /(sem_pexprs_uincl Hvm1) [] vs' H1 [] H2 H2' vs.
-    move=> /(vuincl_exec_opn H2) [] rs' [] H3 H4 [s1' lt'].
-    move=> /(writes_uincl Hvm1 H4) [] vm2 Hw Hm l Hl <- <- /=.
+    move=> /(vuincl_exec_opn H2) [] rs' [] H3 [H4 ->] [s1' lt'].
+    move=> /(writes_uincl Hvm1 H4) [] vm2 Hw Hm l Hl' <- <- /=.
     exists vm2;split => //=;last by apply: wf_write_lvals Hw.
     apply sem_seq1;constructor;constructor;rewrite /sem_sopn eq_glob H1 /= H3 /= Hw /= H2'.
-    by have -> /= := leak_sopn_eq H2 Hl.
+    by have -> /= := leak_sopn_eq H2 Hl'.
   Qed.
 
   Local Lemma Rif_true : sem_Ind_if_true p Pc Pi_r.

@@ -2065,7 +2065,7 @@ Section PROOF.
   Proof.
     move=> s1 s2 t o xs es lo H m ii Hm.
     apply: rbindP H=> vs Hes. t_xrbindP.
-    move=> ves Ho [sw lw] Hw /= le Hlo Hs Hl.
+    move=> [ves les] Ho [sw lw] Hw /= le Hlo Hs Hl.
     move: (const_prop_esP). move=> Hesc.
     move: (Hesc gd stk es s1 m Hm vs Hes). move=> [] vs' [] Hes' [] Hvc Hlc {Hesc}.
     move: const_prop_rvsP. move=> Hwc. move: (Hwc gd stk s1 sw m xs ves lw).
@@ -2083,7 +2083,7 @@ Section PROOF.
     move: (Hesu gd s1 vm1 (unzip1 [seq const_prop_e m i | i <- es]) vs' Hvm1 Hes').
     move=> [] vs2 Hes''[]  Hee Hel {Hesu}. rewrite p'_def /=. rewrite Hes'' /=.
     move: (vuincl_exec_opn_eq). move=> Ho'.
-    move: (Ho' o (unzip1 vs) (unzip1 vs2) ves (Forall2_trans value_uincl_trans Hvc Hee) Ho).
+    move: (Ho' o (unzip1 vs) (unzip1 vs2) (ves, les) (Forall2_trans value_uincl_trans Hvc Hee) Ho).
     move=> -> {Ho'} /=. rewrite Hw'' /=. rewrite -Hl Hs /=.
     rewrite /= in Hlc. rewrite Hel in Hlc. case: Hlc => -> /=.
     have Hlo' := leak_sopn_eq Hvc Hlo. by have -> /= := leak_sopn_eq Hee Hlo'.

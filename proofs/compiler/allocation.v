@@ -370,15 +370,15 @@ Section PROOF.
   Local Lemma Hopn : sem_Ind_opn p1 Pi_r.
   Proof.
     move => s1 s2 t o xs es lo. rewrite /sem_sopn.
-    t_xrbindP. move=> ves Hes vo Hex [vw vl] Hws l Hl <- <- /=.
+    t_xrbindP. move=> ves Hes [vo lo'] Hex [vw vl] Hws l Hl <- <- /=.
     rewrite /Pi_r. move=> ii r1 [] //= xs1 t' o1 es1 r2 lti vm1 Hvm1.
     case: ifPn => //= /eqP <-. t_xrbindP. move=> [yv yl]. apply: add_iinfoP.
     move=> Hces [rv ltv]. apply: add_iinfoP. move=> Hcvs [] <- <-.
     move: check_esP. move=> Hces'. move: (Hces' es es1 r1 yv yl s1 vm1 Hces Hvm1).
     move=> {Hces'} [] Hvm2 Hes'. move: (Hes' ves Hes). move=> {Hes} [] ves' [] Hes [] Hvs Hls.
     move: check_lvalsP. move=> Hcvs'.
-    move: vuincl_exec_opn. move=> Hex'. move: (Hex' o (unzip1 ves) (unzip1 ves') vo Hvs Hex).
-    move=> [] vo' [] {Hex'} Hex' Hvo.
+    move: vuincl_exec_opn. move=> Hex'. move: (Hex' o (unzip1 ves) (unzip1 ves') (vo, lo') Hvs Hex).
+    move=> [] [vo' lo''] [] {Hex'} Hex' /= [Hvo ->].
     move: (Hcvs' gd xs xs1 vo vo' yv rv ltv s1 vw vl vm1 stk Hcvs Hvm2 Hvo Hws).
     move=> {Hcvs'} [] vm2 [] Hws' Hvm3. exists vm2; split=> //; apply sem_seq1. econstructor. econstructor.
     rewrite /sem_sopn Hes /= Hex' /=. 

@@ -718,11 +718,11 @@ Section PROOF.
     rewrite /lsem /=. apply tc_step. rewrite /lsem1 /step /= /eval_instr /= !to_of_estate.
     case: ifP => hsz.
     + by rewrite /sem_sopn /sem_pexprs /= /exec_sopn /sopn_sem /= ok_v /= 
-      /truncate_word hle /x86_MOV /check_size_8_64 hsz /= ok_s2 /= /leak_sopn /= /sopn_leak /=
-      /truncate_word /= hle /=.
+      /truncate_word hle /x86_MOV /check_size_8_64 hsz /= /leak_sopn /= /sopn_leak /=
+      /truncate_word /= hle /= ok_s2 /=.
     by rewrite /sem_sopn /= /exec_sopn /sopn_sem /= ok_v /= /truncate_word hle /=
-    /x86_VMOVDQU (wsize_nle_u64_check_128_256 hsz) /= ok_s2 /= /leak_sopn /= /sopn_leak /=
-    /truncate_word /= hle /=. 
+    /x86_VMOVDQU (wsize_nle_u64_check_128_256 hsz) /= /leak_sopn /= /sopn_leak /=
+    /truncate_word /= hle /= ok_s2 /=. 
   Qed.
 
   Let Hopn : forall xs t o es, Pi_r (Copn xs t o es).

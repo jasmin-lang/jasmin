@@ -170,8 +170,8 @@ Section PROOF.
   (* TODO: MOVE *)
 
   Lemma cast_ptrP s e i le: sem_pexpr gd s e = ok ((Vint i), le) ->
-    sem_pexpr gd s (cast_ptr e) = ok ((Vword (wrepr U64 i)), le).
-  Proof. by move=> h;rewrite /cast_ptr /cast_w /= h. Qed.
+    sem_pexpr gd s (cast_ptr e) = ok ((Vword (wrepr U64 i)), LSub [:: le; LEmpty]).
+  Proof. by move=> h;rewrite /cast_ptr /cast_w /= h /=. Qed.
 
   Lemma cast_wordP s e i le: sem_pexpr gd s e = ok ((Vint i), le) ->
     exists sz (w:word sz), sem_pexpr gd s (cast_word e).1 = 

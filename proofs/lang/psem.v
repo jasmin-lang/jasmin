@@ -286,9 +286,9 @@ Definition sem_range (s : estate) (r : range) :=
 Definition sem_sopn gd o m lvs args := 
   Let vas := sem_pexprs gd m args in
   Let vs := exec_sopn o (unzip1 vas) in 
-  Let ml := write_lvals gd m lvs vs in
+  Let ml := write_lvals gd m lvs vs.1 in
   Let r := leak_sopn o (unzip1 vas) in
-  ok (ml.1, LSub [:: LSub (unzip2 vas); r; LSub ml.2]).
+  ok (ml.1, LSub [:: LSub (unzip2 vas); vs.2; LSub ml.2]).
 
 Inductive sem : estate -> cmd -> leak_c -> estate -> Prop :=
 | Eskip s :
@@ -765,8 +765,8 @@ Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
 Proof.
   rewrite /exec_sopn /sopn_tin /sopn_sem.
   case (get_instr o) => /= _ tin _ tout _ semi _ _ _ _.
-  t_xrbindP => p hp _.
-  elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
+  t_xrbindP => p hp lo hlo _.
+  elim: tin (vs) semi hp=> /= [ | t tin hrec] [ | v vs''] // semi. 
   by t_xrbindP => sv /= /of_val_subtype -> /hrec.
 Qed.
 
@@ -2004,13 +2004,13 @@ Lemma vuincl_exec_opn_eq o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
   exec_sopn o vs' = ok v.
 Proof.
-rewrite /exec_sopn /sopn_sem => h1; t_xrbindP => vs1 h2 h3.
-by have -> /= := vuincl_sopn (tin_narr _) h1 h2;rewrite h3.
+rewrite /exec_sopn /sopn_sem => h1; t_xrbindP => vs1 h2 lo hlo h3.
+by have -> /= := vuincl_sopn (tin_narr _) h1 h2; have -> /= := leak_sopn_eq h1 hlo; rewrite h3.
 Qed.
 
 Lemma vuincl_exec_opn o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
-  exists v', exec_sopn o vs' = ok v' /\ List.Forall2  value_uincl v v'.
+  exists v', exec_sopn o vs' = ok v' /\ List.Forall2  value_uincl v.1 v'.1 /\ v.2 = v'.2.
 Proof. move => /vuincl_exec_opn_eq h /h {h}; eauto using List_Forall2_refl. Qed.
 
 Lemma set_vm_uincl vm vm' x z z' :
@@ -2581,7 +2581,7 @@ Proof.
   move => vs Hsem.
   move: (sem_pexprs_uincl Hvm1 Hsem) => [] vs' H1 [] H2 H3.
   t_xrbindP => y Hon [v' l'] Hw /= l Hl <- <- /=.
-  move: (vuincl_exec_opn H2 Hon) => [] x Hop. case: Hop=> Hop H3'.
+  move: (vuincl_exec_opn H2 Hon) => [] x Hop. case: Hop=> Hop [H3' ->].
   move: (writes_uincl Hvm1 H3' Hw) => [] vm2 Hws Hvms.
   exists vm2. split => //. constructor.
   rewrite /sem_sopn. rewrite H1 /= Hop /= Hws /=. rewrite -H3 /=.

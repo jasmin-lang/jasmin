@@ -207,10 +207,10 @@ Definition leak_E_S (stk: pointer) (lts: seq leak_e_tr) (ls : seq leak_e) : seq 
 (* Transformation from leakage to sequence of leakage *)
 Definition leak_ES (stk : pointer) (lte : leak_e_es_tr) (le : leak_e) : seq leak_e :=
   match lte with
-  | LT_leseq      => [:: le]
+  | LT_leseq      => [:: leak_E stk (LT_subi 0) le]
   | LT_emseq      => [::]
-  | LT_subseq lte => [:: leak_E stk lte le]
-  | LT_idseq lte  => get_seq_leak_e (leak_E stk lte le)
+  | LT_subseq lte => [:: leak_E stk (LT_compose (LT_subi 0) lte) le]
+  | LT_idseq lte  => get_seq_leak_e (leak_E stk (LT_compose (LT_subi 0) lte) le)
   | LT_dfst       => [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; le; LEmpty]
   | LT_dsnd       => [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; le]
   end.  

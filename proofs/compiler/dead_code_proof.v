@@ -25,7 +25,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import psem compiler_util (*inline_proof*).
+Require Import psem compiler_util.
 Require Export dead_code.
 Import Utf8.
 
@@ -263,18 +263,17 @@ Section PROOF.
     by exists sz';split=> //;apply pw_proof.
   Qed.
 
-  Local Lemma Hopn_aux s0 ii xs t o es v vs lw s1 s2 r:
+  Local Lemma Hopn_aux s0 ii xs t o es v vs lw s1 s2:
     sem_pexprs gd s1 es = ok vs ->
     exec_sopn o (unzip1 vs) = ok v ->
-    leak_sopn o (unzip1 vs) = ok r ->
-    write_lvals gd s1 xs v = ok (s2, lw) ->
+    write_lvals gd s1 xs v.1 = ok (s2, lw) ->
     wf_vm (evm s1) → ∀ vm1' : vmap,
     evm s1 =[read_es_rec (read_rvs_rec (Sv.diff s0 (vrvs xs)) xs) es]  vm1' →
     ∃ vm2' : vmap, evm s2 =[s0]  vm2' ∧
        sem p' {| emem := emem s1; evm := vm1' |} [:: MkI ii (Copn xs t o es)] 
-       ([::(Lopn (LSub [:: LSub (unzip2 vs) ; r; LSub lw]))]) {| emem := emem s2; evm := vm2' |}.
+       ([::(Lopn (LSub [:: LSub (unzip2 vs) ; v.2; LSub lw]))]) {| emem := emem s2; evm := vm2' |}.
   Proof.
-    move=> /= Hexpr Hopn Hl Hw Hwf vm1' Hvm.
+    move=> /= Hexpr Hopn Hw Hwf vm1' Hvm.
     move: Hvm; rewrite read_esE read_rvsE=> Hvm.
     have [|vm2 [Hvm2 Hvm2']] := write_lvals_eq_on _ Hw Hvm; first by SvD.fsetdec.
     exists vm2. split.
@@ -283,7 +282,8 @@ Section PROOF.
     constructor; constructor; rewrite -eq_globs.
     rewrite /sem_sopn (@read_es_eq_on gd es Sv.empty (emem s1) vm1' (evm s1)).
     + have ->: {| emem := emem s1; evm := evm s1 |} = s1 by case: (s1).
-      by rewrite Hexpr /= Hopn /= Hvm2' Hl /=.
+      rewrite Hexpr /= Hopn /= Hvm2' /=. rewrite /exec_sopn in Hopn.
+      move: Hopn. by t_xrbindP=> y happ lo -> /= <-.
     by rewrite read_esE; symmetry; apply: eq_onI Hvm;SvD.fsetdec.
   Qed.
 
@@ -292,32 +292,32 @@ Section PROOF.
    move => s1 s2 t o xs es lo. rewrite /sem_sopn /=.
     t_xrbindP=> x0 Hexpr v Hopn [s2' lw] Hw l Hl /= hs2; rewrite hs2 in Hw; move=> {hs2} <- /=.
     rewrite /Pi_r /= => ii s0.
-    case: ifPn => _ /=;last by apply: Hopn_aux Hexpr Hopn Hl Hw.
+    case: ifPn => _ /=; last by apply: Hopn_aux Hexpr Hopn Hw.
     case:ifPn => [ | _] /=.
     + move=> /andP [Hdisj Hnh] Hwf vm1' Heq;exists vm1'.
       case: s1 s2 Hw Hexpr Hwf Heq => m1 vm1 [m2 vm2] Hw _ Hwf /= Heq.
       have [? ->]:= Hwrites_disj Hw Hdisj Hnh;split;last by constructor.
       by apply: eq_onT Heq;apply eq_onS.
-    case:ifPn => [ | _ /=]; last by apply: Hopn_aux Hexpr Hopn Hl Hw.
+    case:ifPn => [ | _ /=]; last by apply: Hopn_aux Hexpr Hopn Hw.
     move=> /check_nop_opn_spec [x [i1 [sz [i2 [? ho ?]]]]]; subst xs es=> /=.
     move=> Hwf vm1' Hvm.
     have [ -> Hs ] : emem s1 = emem s2 ∧ evm s1 =v evm s2;
-      last by eexists; split; last exact: Eskip; apply: eq_onT _ Hvm.
+    last by eexists; split; last exact: Eskip; apply: eq_onT _ Hvm.
     case: x0 Hexpr Hopn Hl => [ | vx] /=; first by t_xrbindP.
-    case; t_xrbindP=> // -[vx' lx'] vx'' hgetx [] <- <- <- /= hs.
-    have ? : v = [::vx''].
+    case; t_xrbindP=> // -[vx' lx'] vx'' hgetx [] <- <- <- /= hs hlo.
+    have hv : v = ([:: vx''], LEmpty).
     + case: ho hs => ->; rewrite /exec_sopn /=; t_xrbindP => v1 w1 /to_wordI [sz' [w' [hsz' ??]]]; subst vx'' w1.
-      + rewrite /sopn_sem /= /x86_MOV; t_xrbindP => ? /assertP ha ??; subst v1 v.
+      + rewrite /sopn_sem /= /x86_MOV; t_xrbindP => ? /assertP ha h1 lo' hlo' ?; subst v1 v.
         have [sz'' /= [[? hle']]]:= get_var_word hgetx;subst sz''.
-        have ? := cmp_le_antisym hsz' hle'; subst sz'.
-        by rewrite zero_extend_u.
-      rewrite /sopn_sem /= /x86_VMOVDQU; t_xrbindP => ? /assertP ha ??; subst v1 v.
+        have ? := cmp_le_antisym hsz' hle'; subst sz'. rewrite zero_extend_u. rewrite /leak_sopn /= in hlo'.
+        move: hlo'. t_xrbindP=> lo'' /= wsz /= ht. rewrite /sopn_leak /=. by move=> [] <- <-.
+      rewrite /sopn_sem /= /x86_VMOVDQU; t_xrbindP => ? /assertP ha h1 lo' hlo' ?; subst v1 v.
       have [sz'' /= [[? hle']]]:= get_var_word hgetx;subst sz''.
-      have ? := cmp_le_antisym hsz' hle'; subst sz'.
-      by rewrite zero_extend_u.
-    subst v; move: Hw; rewrite /= /write_var; t_xrbindP => -[s2'' l2'] vm2 vm2' hw <- [] <- <- /= <- hlw.
-    case: s1 Hwf Hvm hgetx hw => mem1 vm1 /= Hwf Hvm hgetx hw.
-    by have := set_get_word hgetx hw. 
+      have ? := cmp_le_antisym hsz' hle'; subst sz'. rewrite zero_extend_u.
+      rewrite /leak_sopn /= in hlo'. move: hlo'. t_xrbindP=> lo'' /= wsz /= ht. rewrite /sopn_leak /=. by move=> [] <- <-.
+   subst v; move: Hw; rewrite /= /write_var; t_xrbindP => -[s2'' l2'] vm2 vm2' hw <- [] <- <- /= <- hlw.
+   case: s1 Hwf Hvm hgetx hw => mem1 vm1 /= Hwf Hvm hgetx hw.
+   by have := set_get_word hgetx hw.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
