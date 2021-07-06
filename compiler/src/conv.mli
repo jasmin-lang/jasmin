@@ -7,6 +7,9 @@ type 'info coq_tbl
 val string0_of_string : string -> 'a (* coq string *)
 val string_of_string0 : 'a (* coq string *) -> string
 
+val cannot_of_annot : (string * string) list -> ('a * 'a) list (* 'a = coq string *)
+val annot_of_cannot : ('a * 'a) list -> (string * string) list (* 'a = coq string *)
+
 val bi_of_nat  : Datatypes.nat -> Bigint.zint
 val int_of_nat : Datatypes.nat -> int
 val nat_of_int : int -> Datatypes.nat
@@ -49,6 +52,8 @@ val cfun_of_fun : 'info coq_tbl -> funname -> BinNums.positive
 val fun_of_cfun : 'info coq_tbl -> BinNums.positive -> funname
 
 val get_iinfo   : 'info coq_tbl -> BinNums.positive -> (L.t * L.t list) * 'info
+
+val get_finfo   : 'info coq_tbl -> BinNums.positive -> L.t * f_annot * call_conv
 
 val cufdef_of_fdef : 'info coq_tbl -> 'info func -> BinNums.positive * Expr._ufundef
 val fdef_of_cufdef : 'info coq_tbl -> BinNums.positive * Expr._ufundef -> 'info func

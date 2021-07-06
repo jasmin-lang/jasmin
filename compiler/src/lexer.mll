@@ -114,7 +114,6 @@ let signletter = ['s' 'u']
 let gensize = "1" | "2" | "4" | "8" | "16" | "32" | "64" | "128" 
 let vsize   = "2" | "4" | "8" | "16" | "32" 
 
-
 (* -------------------------------------------------------------------- *)
 rule main = parse
   | newline { Lexing.new_line lexbuf; main lexbuf }
@@ -136,6 +135,7 @@ rule main = parse
 
   | ident+ as s
       { odfl (NID s) (Hash.find_option keywords s) }
+  | "@" (ident+	as s) {ANNOT s}
 
   | (size as sw) (signletter as s)                { SWSIZE(mksizesign sw s)  }
   | (vsize as r) (signletter as s) (gensize as g) { SVSIZE(mkvsizesign r s g)}

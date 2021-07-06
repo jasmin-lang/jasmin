@@ -147,12 +147,18 @@ type returnaddress_kind =
   | OnStack
   | OnReg
 
+type annot = (string * string) list
+
 type f_annot = {
     retaddr_kind  : returnaddress_kind option;
     stack_allocation_size : B.zint option;
     stack_size    : B.zint option;
     stack_align   : wsize option;
+    (* [args_annot] gathers the annotations for the arguments 
+       and the function results. *)
+    sig_annot    : (annot list) * (annot list)
   }
+
 
 val f_annot_empty : f_annot
 
