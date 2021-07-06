@@ -1,0 +1,16 @@
+export
+fn test_vmovhpd(reg u64 tmp) {
+  reg u128 x;
+
+  x = #set0_128();
+  (u64) [tmp] = #VMOVHPD(x);
+}
+
+export
+fn vmovhpd_to_stack(reg u128 x) -> reg u64 {
+  stack u64 y;
+  reg u64 z;
+  y = #VMOVHPD(x);
+  z = y;
+  return z;
+}

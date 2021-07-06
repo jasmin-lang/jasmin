@@ -157,6 +157,8 @@ Variant asm_op : Type :=
 | VPCMPGT of velem & wsize
 | VPMADDUBSW of wsize
 | VPMADDWD of wsize
+| VMOVLPD   (* Store low 64-bits from XMM register *)
+| VMOVHPD   (* Store high 64-bits from XMM register *)
 | VPMINU of velem & wsize
 | VPMINS of velem & wsize
 | VPMAXU of velem & wsize
@@ -867,7 +869,13 @@ Definition x86_VPMADDWD sz (v v1: word sz) : ex_tpl (w_ty sz) :=
   ok (wpmaddwd v v1).
 
 (* ---------------------------------------------------------------- *)
+Definition x86_VMOVLPD (v: u128): ex_tpl (w_ty U64) :=
+  ok (zero_extend U64 v).
 
+Definition x86_VMOVHPD (v: u128): ex_tpl (w_ty U64) :=
+  ok (zero_extend U64 (wshr v 64)).
+
+(* ---------------------------------------------------------------- *)
 Definition x86_VPMINU (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) := 
   Let _ := check_size_8_32 ve in
   Let _ := check_size_128_256 sz in
@@ -1622,6 +1630,14 @@ Definition Ox86_VPMADDWD_instr :=
              ,("VPMADDWD"%string, PrimP U128 VPMADDWD)
   ).
 
+Definition check_movpd := [:: [::m false; xmm]].
+
+Definition Ox86_VMOVLPD_instr :=
+  mk_instr_pp "VMOVLPD" (w_ty U128) (w_ty U64) [:: E 1] [:: E 0] MSB_CLEAR x86_VMOVLPD check_movpd 2 U64 None (PrimM VMOVLPD) (pp_name_ty "vmovlpd" [::U64; U128]).
+
+Definition Ox86_VMOVHPD_instr :=
+  mk_instr_pp "VMOVHPD" (w_ty U128) (w_ty U64) [:: E 1] [:: E 0] MSB_CLEAR x86_VMOVHPD check_movpd 2 U64 None (PrimM VMOVHPD) (pp_name_ty "vmovhpd" [::U64;U128]).
+
 Definition Ox86_VPMINS_instr  := 
   mk_ve_instr_w2_w_120 "VPMINS" x86_VPMINS check_xmm_xmm_xmmm no_imm (PrimV VPMINS) (pp_viname "vpmins").
 
@@ -1826,6 +1842,8 @@ Definition instr_desc o : instr_desc_t :=
   | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
   | VPMADDUBSW sz      => Ox86_VPMADDUBSW_instr.1 sz
   | VPMADDWD sz        => Ox86_VPMADDWD_instr.1 sz
+  | VMOVLPD            => Ox86_VMOVLPD_instr.1
+  | VMOVHPD            => Ox86_VMOVHPD_instr.1
   | VPMINU ve sz       => Ox86_VPMINU_instr.1 ve sz
   | VPMINS ve sz       => Ox86_VPMINS_instr.1 ve sz
   | VPMAXU ve sz       => Ox86_VPMAXU_instr.1 ve sz
@@ -1945,6 +1963,8 @@ Definition prim_string :=
    Ox86_VPCMPGT_instr.2;
    Ox86_VPMADDUBSW_instr.2;
    Ox86_VPMADDWD_instr.2;
+   Ox86_VMOVLPD_instr.2;
+   Ox86_VMOVHPD_instr.2;
    Ox86_VPMINU_instr.2;   
    Ox86_VPMINS_instr.2;
    Ox86_VPMAXU_instr.2;
