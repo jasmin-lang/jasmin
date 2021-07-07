@@ -30,7 +30,7 @@ let pp_bool fmt b =
 (* -------------------------------------------------------------------- *)
 let pp_btype fmt = function
   | Bool -> F.fprintf fmt "bool"
-  | U i  -> F.fprintf fmt "U%i" (int_of_ws i)
+  | U i  -> F.fprintf fmt "u%i" (int_of_ws i)
   | Int  -> F.fprintf fmt "int"
 
 (* -------------------------------------------------------------------- *)
@@ -194,9 +194,13 @@ let rec pp_gi pp_info pp_len pp_var fmt i =
       (pp_gtype pp_len) ty
       (pp_ge pp_len pp_var) e
 
-  | Copn(x, t, o, e) -> (* FIXME *)
-    F.fprintf fmt "@[<hov 2>%a %s=@ %s(%a);@]"
-       (pp_glvs pp_len pp_var) x (pp_tag t) (pp_opn o)
+  | Copn(x, t, o, e) -> 
+    let pp_cast fmt = function
+      | E.Ox86'(Some ws, _) -> Format.fprintf fmt "(%a)" pp_btype (U ws) 
+      | _ -> () in
+
+    F.fprintf fmt "@[<hov 2>%a %s=@ %a%s(%a);@]"
+       (pp_glvs pp_len pp_var) x (pp_tag t) pp_cast o (pp_opn o)
        (pp_ges pp_len pp_var) e
 
   | Cif(e, c, []) ->

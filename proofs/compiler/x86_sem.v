@@ -46,7 +46,7 @@ Variant asm : Type :=
 | JMP    of remote_label (* Direct jump *)
 | JMPI of asm_arg (* Indirect jump *)
 | Jcc    of label & condt  (* Conditional jump *)
-| AsmOp     of asm_op & asm_args.
+| AsmOp     of asm_op' & asm_args.
 
 (* -------------------------------------------------------------------- *)
 Record xfundef := XFundef {
@@ -355,13 +355,13 @@ Definition exec_instr_op idesc args (s:x86_mem) : exec x86_mem :=
   mem_write_vals idesc.(id_msb_flag) s args idesc.(id_out) idesc.(id_tout) vs.
 
 (* -------------------------------------------------------------------- *)
-Definition is_special o :=
+Definition is_special (o:asm_op') :=
   match o with
   | LEA _ => true
   | _     => false
   end.
 
-Definition eval_special o args m :=
+Definition eval_special (o:asm_op') args m :=
   match o, args with
   | LEA sz, [:: Reg r; Adr addr] =>
     Let _ := check_size_16_64 sz in
@@ -374,7 +374,7 @@ Definition eval_op o args m :=
   if is_special o then
     eval_special o args m
   else
-    let id := instr_desc o in
+    let id := instr_desc' o in
     exec_instr_op id args m.
 
 Section PROG.

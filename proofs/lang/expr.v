@@ -115,8 +115,10 @@ Variant sopn : Set :=
 | Oset0     of wsize  (* set register + flags to 0 (implemented using XOR x x or VPXOR x x) *)
 | Oconcat128          (* concatenate 2 128 bits word into 1 256 word register *)   
 | Ox86MOVZX32
-| Ox86      of asm_op  (* x86 instruction *)
+| Ox86'      of asm_op  (* x86 instruction *)
 .
+
+Definition Ox86 o := Ox86'(None, o).
 
 Scheme Equality for sop1.
 (* Definition sop1_beq : sop1 -> sop1 -> bool *)
@@ -156,13 +158,35 @@ Qed.
 Definition opN_eqMixin     := Equality.Mixin opN_eq_axiom.
 Canonical  opN_eqType      := Eval hnf in EqType opN opN_eqMixin.
 
-Scheme Equality for sopn.
-(* Definition sopn_beq : sopn -> sopn -> bool *)
-Lemma sopn_eq_axiom : Equality.axiom sopn_beq.
+Scheme Equality for asm_op'.
+(* Definition asm_op'_beq : asm_op' -> asm_op' -> bool *)
+Lemma asm_op'_eq_axiom : Equality.axiom asm_op'_beq.
 Proof.
   move=> x y;apply:(iffP idP).
-  + by apply: internal_sopn_dec_bl.
-  by apply: internal_sopn_dec_lb.
+  + by apply: internal_asm_op'_dec_bl.
+  by apply: internal_asm_op'_dec_lb.
+Qed.
+
+Definition asm_op'_eqMixin     := Equality.Mixin asm_op'_eq_axiom.
+Canonical  asm_op'_eqType      := Eval hnf in EqType asm_op' asm_op'_eqMixin.
+
+Definition sopn_beq (o1 o2:sopn) := 
+  match o1, o2 with 
+  | Onop, Onop => true
+  | Omulu w1, Omulu w2 => w1 == w2
+  | Oaddcarry w1, Oaddcarry w2 => w1 == w2
+  | Osubcarry w1, Osubcarry w2 => w1 == w2
+  | Oset0 w1, Oset0 w2 => w1 == w2 
+  | Oconcat128, Oconcat128 => true 
+  | Ox86MOVZX32, Ox86MOVZX32 => true 
+  | Ox86' o1, Ox86' o2 => o1 == o2
+  | _, _ => false
+  end.
+
+Lemma sopn_eq_axiom : Equality.axiom sopn_beq.
+Proof.
+  move=> x y; case: x; case: y => //=; try by constructor.
+  all: move=> y x; case (x =P y) => h; constructor; congruence.
 Qed.
 
 Definition sopn_eqMixin     := Equality.Mixin sopn_eq_axiom.
@@ -261,7 +285,7 @@ Definition get_instr o :=
   | Oset0     sz => Oset0_instr sz
   | Oconcat128   => Oconcat128_instr 
   | Ox86MOVZX32  => Ox86MOVZX32_instr
-  | Ox86   instr =>
+  | Ox86'   instr =>
       let id := instr_desc instr in
       {|
         str      := id.(id_str_jas);

@@ -100,7 +100,7 @@ Definition assemble_x86_opn_aux rip ii op (outx : lvals) (inx : pexprs) :=
   | Some asm_args =>
       (* This should allows to fix the problem with "MOV addr (IMM U64 w)" *)
       Let asm_args := 
-        match op, asm_args with
+        match op.2, asm_args with
         | MOV U64, [:: Adr a; Imm U64 w] =>
           match truncate_word U32 w with
           | Ok w' => 
@@ -130,7 +130,7 @@ Definition is_lea ii op (outx : lvals) (inx : pexprs) :=
   end.
 
 Definition assemble_x86_opn rip ii op (outx : lvals) (inx : pexprs) := 
-  Let is_lea := is_lea ii op outx inx in
+  Let is_lea := is_lea ii op.2 outx inx in
   match is_lea with
   | Some (sz, x, e) =>
     Let r := reg_of_var ii x.(v_var) in 
@@ -147,7 +147,7 @@ Definition assemble_x86_opn rip ii op (outx : lvals) (inx : pexprs) :=
     Let _ := assert (check_sopn_args rip ii max_imm asm_args inx (zip id.(id_in) id.(id_tin)) &&
                      check_sopn_dests rip ii max_imm asm_args outx (zip id.(id_out) id.(id_tout)))
        (ii, Cerr_assembler (AsmErr_string "assemble_x86_opn: cannot check, please repport" None)) in
-    ok (op, asm_args)
+    ok (op.2, asm_args)
   end.
 
 Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
@@ -167,7 +167,7 @@ Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
         cierror ii 
           (Cerr_assembler (AsmErr_string "assemble_sopn set0: destination is not a register" None))
       end in
-    assemble_x86_opn rip ii op outx [::Plvar x; Plvar x]
+    assemble_x86_opn rip ii (None, op) outx [::Plvar x; Plvar x]
   | Ox86MOVZX32 =>
     Let x := 
       match outx with 
@@ -176,7 +176,7 @@ Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
         cierror ii 
           (Cerr_assembler (AsmErr_string "assemble_sopn Ox86MOVZX32: destination is not a register" None))
       end in
-    assemble_x86_opn rip ii (MOV U32) outx inx 
+    assemble_x86_opn rip ii (None, MOV U32) outx inx 
 
   | Oconcat128 =>
     Let inx := 

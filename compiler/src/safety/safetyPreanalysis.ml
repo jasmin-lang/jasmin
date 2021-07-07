@@ -305,7 +305,7 @@ end = struct
   and pa_flag_setfrom_i v i = match i.i_desc with
     | Cassgn _ -> None
 
-    | Copn (lvs, _, E.Ox86 (X86_instr_decl.CMP _), es) ->
+    | Copn (lvs, _, E.Ox86' (_, X86_instr_decl.CMP _), es) ->
       if flag_mem_lvs v lvs then
         let rs = List.fold_left expr_vars_smpl [] es in
         print_flag_set_from v rs (fst i.i_loc);

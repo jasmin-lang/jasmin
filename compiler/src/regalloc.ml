@@ -83,7 +83,7 @@ let x86_equality_constraints (int_of_var: var_i -> int option) (k: int -> int ->
        | Some j -> k i j
   in
   begin match op, lvs, es with
-  | Ox86 (MOV _), [ Lvar x ], [ Pvar y ] when is_gkvar y &&
+  | Ox86' (None, MOV _), [ Lvar x ], [ Pvar y ] when is_gkvar y &&
                                               kind_i x = kind_i y.gv ->
     merge k' x y.gv
   | _, _, _ ->
