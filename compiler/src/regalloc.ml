@@ -365,7 +365,7 @@ module A : sig
   val mem: int -> allocation -> bool
 end = struct
 type allocation = var option array * IntSet.t Hv.t
-let empty nv = Array.create nv None, Hv.create nv
+let empty nv = Array.make nv None, Hv.create nv
 let find n (a, _) = a.(n)
 let rfind x (_, r) = Hv.find_default r x IntSet.empty
 let set n x (a, r) =
@@ -599,7 +599,7 @@ let get_friend_registers (dflt: var) (fr: friend) (a: A.allocation) (i: int) (re
 (* Gets the type of all variables in the list.
    Fails if the list has variables of different types. *)
 let type_of_vars (vars: var list) : ty =
-  match List.sort_unique Pervasives.compare (List.map (fun x -> x.v_ty) vars) with
+  match List.sort_unique Stdlib.compare (List.map (fun x -> x.v_ty) vars) with
   | [ty] -> ty
   | _ :: _ ->
     hierror "Register allocation: heterogeneous class %a"
