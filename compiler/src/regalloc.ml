@@ -236,10 +236,29 @@ let collect_equality_constraints_in_prog
    (equality constraints mandated by the architecture).
 *)
 
-type conflicts = IntSet.t IntMap.t
+module Conflicts :
+  sig
+    type conflicts
+    val empty_conflicts : conflicts
+    val get_conflicts : int -> conflicts -> IntSet.t
+    val add_conflicts : int -> int -> conflicts -> conflicts
+  end
+=
+struct
+  type conflicts = IntSet.t IntMap.t
 
-let get_conflicts (v: int) (c: conflicts) : IntSet.t =
-  IntMap.find_default IntSet.empty v c
+  let empty_conflicts = IntMap.empty
+
+  let get_conflicts (v: int) (c: conflicts) : IntSet.t =
+    IntMap.find_default IntSet.empty v c
+
+  let add_conflicts (v: int) (w: int) (c: conflicts) : conflicts =
+    IntMap.modify_opt v (function
+        | None -> Some (IntSet.singleton w)
+        | Some x -> Some (IntSet.add w x)
+      ) c
+end
+open Conflicts
 
 let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   let e = Sv.elements i in
@@ -257,10 +276,6 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   fun a -> loop a e
 
 let conflicts_add_one tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
-  let add_one_aux (v: int) (w: int) (c: conflicts) : conflicts =
-    let x = get_conflicts v c in
-    IntMap.add v (IntSet.add w x) c
-  in
   try
     let i = Hv.find tbl v in
     let j = Hv.find tbl w in
@@ -269,7 +284,7 @@ let conflicts_add_one tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
                     (Printer.pp_var ~debug:true) v
                     (Printer.pp_var ~debug:true) w
                     (pp_trace i) tr;
-    c |> add_one_aux i j |> add_one_aux j i
+    c |> add_conflicts i j |> add_conflicts j i
   with Not_found -> c
 
 let collect_conflicts
@@ -811,9 +826,9 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
         collect_conflicts vars tr lf conflicts
       )
       liveness_table
-      IntMap.empty
+      empty_conflicts
   in
-  let may_conflicts = List.fold_left (fun a f -> collect_may_conflicts vars tr (get_liveness f.f_name) f a) IntMap.empty funcs in
+  let may_conflicts = List.fold_left (fun a f -> collect_may_conflicts vars tr (get_liveness f.f_name) f a) empty_conflicts funcs in
   let a = A.empty nv in
   List.iter (fun f -> allocate_forced_registers translate_var vars conflicts f a) funcs;
   greedy_allocation vars nv conflicts may_conflicts fr a;
