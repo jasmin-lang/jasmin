@@ -392,7 +392,7 @@ end
 exception AlreadyAllocated
 
 let does_not_conflict i (cnf: conflicts) (a: A.allocation) (x: var) : bool =
-  IntSet.inter (get_conflicts i cnf) (A.rfind x a) |> IntSet.is_empty
+  IntSet.disjoint (get_conflicts i cnf) (A.rfind x a)
 
 let allocate_one loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.allocation) : unit =
   match A.find x a with
