@@ -1,0 +1,18 @@
+inline
+fn inc(inline int x) -> inline int {
+  inline int y;
+  y = x + 1;
+  return y;
+}
+
+export
+fn snd(reg u64 a b) -> reg u64 {
+  inline int k;
+  reg u64[2] t;
+  reg u64 r;
+  t[0] = a;
+  t[1] = b;
+  k = inc(0);
+  r = t[k];
+  return r;
+}

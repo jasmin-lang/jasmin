@@ -232,6 +232,12 @@ Definition is_sarr t :=
   | _      => false
   end.
 
+Lemma is_sarrP ty : reflect (exists n, ty = sarr n) (is_sarr ty).
+Proof.
+  case: ty => /= [||n|ws]; constructor; try by move => -[].
+  by exists n.
+Qed.
+
 Definition is_word_type (t:stype) :=
   if t is sword sz then Some sz else None.
 

@@ -48,6 +48,8 @@ Definition is_empty n := n.(imax) <=? n.(imin).
 
 Definition subset n1 n2 := (n2.(imin) <=? n1.(imin)) && (n1.(imax) <=? n2.(imax)).
 
+Definition disjoint n1 n2 := (n1.(imax) <=? n2.(imin)) || (n2.(imax) <=? n1.(imin)).
+
 Definition inter n1 n2 :=
   {| imin := Z.max n1.(imin) n2.(imin); imax := Z.min n1.(imax) n2.(imax) |}.
 
@@ -77,8 +79,19 @@ Proof.
   by rewrite /I.subset; case: andP => h; constructor; move: h; rewrite !zify.
 Qed.
 
+Lemma disjointP n n' : reflect (imax n <= imin n' \/ imax n' <= imin n) (I.disjoint n n').
+Proof.
+  by rewrite /I.disjoint; case: orP => h; constructor; move: h; rewrite !zify.
+Qed.
+
 Lemma memi_imin n : wf n -> memi n (imin n).
 Proof. move=> /ZleP; rewrite /memi !zify; lia. Qed.
+
+Lemma memi_incl i1 i2 n :
+  I.subset i1 i2 ->
+  I.memi i1 n ->
+  I.memi i2 n.
+Proof. by move=> /I.subsetP hsub /I.memiP hmem; apply /I.memiP; lia. Qed.
 
 End I.
 
@@ -89,9 +102,10 @@ Module Type ByteSetType.
   Parameter empty  : t.
   Parameter is_empty : t -> bool.
 
-  Parameter memi   : t -> Z -> bool.
-  Parameter mem    : t -> interval -> bool.
-  Parameter subset : t -> t -> bool.
+  Parameter memi     : t -> Z -> bool.
+  Parameter mem      : t -> interval -> bool.
+  Parameter subset   : t -> t -> bool.
+  Parameter disjoint : t -> t -> bool.
 
   Parameter full   : interval -> t.
   Parameter add    : interval -> t -> t.
@@ -99,7 +113,8 @@ Module Type ByteSetType.
   Parameter inter  : t -> t -> t.
   Parameter union  : t -> t -> t.
 
-  Parameter is_emptyP : forall t, reflect (t = empty) (is_empty t).
+  Parameter is_emptyP : forall t, reflect (forall i, ~~ memi t i) (is_empty t).
+  Parameter is_empty_ext : forall t, is_empty t -> t = empty.
   Parameter emptyE : forall i, memi empty i = false.
 
   Parameter fullE : forall n i, memi (full n) i = I.memi n i.
@@ -111,6 +126,8 @@ Module Type ByteSetType.
   Parameter removeE : forall e t i, memi (remove t e) i = memi t i && ~~I.memi e i.
 
   Parameter subsetP : forall t1 t2, reflect (forall i, memi t1 i -> memi t2 i) (subset t1 t2).
+
+  Parameter disjointP : forall t1 t2, reflect (forall i, memi t1 i -> ~ memi t2 i) (disjoint t1 t2).
 
   Parameter interE : forall t1 t2 i, memi (inter t1 t2) i = memi t1 i && memi t2 i.
 
@@ -205,12 +222,19 @@ Definition empty : t := @mkBytes [::] erefl.
 
 Definition is_empty (t: t) := if val t is [::] then true else false.
 
-Lemma is_emptyP t : reflect (t = empty) (is_empty t).
+Lemma is_emptyP t : reflect (forall i, ~~ memi t i) (is_empty t).
+Proof.
+  rewrite /is_empty.
+  case: t => -[|n t] /= wf; constructor => //.
+  move => /(_ n.(imin)); rewrite /memi /= I.memi_imin //.
+  by move /andP : wf => [].
+Qed.
+
+Lemma is_empty_ext t : is_empty t -> t = empty.
 Proof.
   rewrite /is_empty /empty.
-  case: t => - [ | n t] /= wf; constructor.
-  + by rewrite (Eqdep_dec.UIP_dec Bool.bool_dec wf erefl).
-  by move=> [].
+  case: t => -[|n t] /= wf // _.
+  by rewrite (Eqdep_dec.UIP_dec Bool.bool_dec wf erefl).
 Qed.
 
 Lemma emptyE i : memi empty i = false.
@@ -515,6 +539,92 @@ Qed.
 
 (* ----------------------------------------- *)
 
+Definition _disjoint : forall (t1 t2:bytes), Acc lt (size t1 + size t2)%nat -> bool.
+fix _disjoint 3.
+move=> t1 t2 h; case h => {h}.
+case t1 => [ | n1 t1'].
++ exact (fun _ => true).
+case t2 => [ | n2 t2'] hacc.
++ exact true.
+refine
+  (match @idP (n1.(imax) <=? n2.(imin)) with
+   | ReflectT h3 => @_disjoint t1' (n2::t2') (hacc _ _)
+   | ReflectF h3 =>
+     match @idP (n2.(imax) <=? n1.(imin)) with
+     | ReflectT h4 => @_disjoint (n1::t1') t2' (hacc _ _) 
+     | ReflectF h4 => false
+     end
+   end).
++ abstract by rewrite /= -addSnnS -addSnnS !addSn; auto.
+abstract by rewrite /= -addSnnS !addSn; auto.
+Defined.
+
+Inductive _disjoint_ind : bytes -> bytes -> bool -> Type := 
+  | I_disjoint_1 : forall t2, _disjoint_ind [::] t2 true
+  | I_disjoint_2 : forall t1, _disjoint_ind t1 [::] true
+  | I_disjoint_3 : forall n1 t1' n2 t2' b,
+    n1.(imax) <= n2.(imin) -> _disjoint_ind t1' (n2::t2') b -> _disjoint_ind (n1::t1') (n2::t2') b
+  | I_disjoint_4 : forall n1 t1' n2 t2' t, 
+    n2.(imax) <= n1.(imin) -> _disjoint_ind (n1::t1') t2' t -> _disjoint_ind (n1::t1') (n2::t2') t
+  | I_disjoint_5 : forall n1 t1' n2 t2',
+    ~n1.(imax) <= n2.(imin) -> ~n2.(imax) <= n1.(imin) ->
+    _disjoint_ind (n1::t1') (n2::t2') false.
+
+Lemma _disjoint_eq (t1 t2:bytes) (h:Acc lt (size t1 + size t2)%nat) : 
+  _disjoint_ind t1 t2 (_disjoint h).
+Proof.
+move: t1 t2 h; fix _disjoint_eq 3.
+move=> t1 t2 [] /=.
+case: t1 => [ | n1 t1']; first by constructor.
+case: t2 => [ | n2 t2'] hacc; first by constructor.
+case (@idP (n1.(imax) <=? n2.(imin))) => h3.
++ apply I_disjoint_3; last by apply _disjoint_eq.
+  by apply /ZleP.
+case (@idP (n2.(imax) <=? n1.(imin))) => h4.
++ apply: I_disjoint_4; last by apply _disjoint_eq.
+  by apply /ZleP.
+apply I_disjoint_5.
++ by apply/ZleP/negP.
+by apply/ZleP/negP.
+Qed.
+
+Definition disjoint (t1 t2:t) := @_disjoint t1 t2 (Nat.lt_wf_0 _).
+
+Lemma disjointP t1 t2 : reflect (forall i, memi t1 i -> ~ memi t2 i) (disjoint t1 t2).
+Proof.
+rewrite /disjoint /memi /=.
+move: (Nat.lt_wf_0 _) => h.
+elim : (_disjoint_eq h) (_wf t1) (_wf t2) => {t1 t2 h}.
++ by move=> t2 *;constructor.
++ by move=> t1 *;constructor.
++ move=> n1 t1' n2 t2' b hle _ ih wf1 wf2.
+  move: wf1; rewrite /= wf_auxE => /and3P [] /ZleP h1 /ZltP h2 wf1.
+  move: (wf2); rewrite /= wf_auxE => /and3P [] /ZleP h1' /ZltP h2' wf2'.
+  apply: (equivP (ih wf1 wf2)) => /=; split => hh i; have := hh i; rewrite !zify.
+  + by move=> h [|[_ /h] //]; lia.
+  move=> h hmem1; apply h; right; split=> //.
+  by have  /(_ (imax n1 + 1) i hmem1) := _memi_least wf1; lia.
++ move=> n1 t1' n2 t2' b hle _ ih wf1 wf2.
+  move: (wf1); rewrite /= wf_auxE => /and3P [] /ZleP h1 /ZltP h2 wf1'.
+  move: wf2; rewrite /= wf_auxE => /and3P [] /ZleP h1' /ZltP h2' wf2.
+  apply: (equivP (ih wf1 wf2)) => /=; split => hh i; have := hh i; rewrite !zify.
+  + move=> h /dup[] /h{h}h.
+    by move=> ? [|[_ ?] //]; lia.
+  move=> h /dup[] /h{h}h _ hmem2; apply h; right; split=> //.
+  by have /(_ (imax n2 + 1) i hmem2) := _memi_least wf2; lia.
+move=> n1 t1' n2 t2' hlt1 hlt2 wf1 wf2;constructor.
+move: wf1; rewrite /= wf_auxE => /and3P [] h1 /ZltP h2 wf1.
+move: wf2; rewrite /= wf_auxE => /and3P [] h1' /ZltP h2' wf2 hh1.
+set m := Z.max (imin n1) (imin n2).
+have hmem1: I.memi n1 m.
++ by move: h1; rewrite /I.wf /I.is_empty /I.memi !zify; lia.
+have hmem2: I.memi n2 m.
++ by move: h1'; rewrite /I.wf /I.is_empty /I.memi !zify; lia.
+by move: (hh1 m); rewrite hmem1 hmem2 /= => /(_ erefl).
+Qed.
+
+(* ----------------------------------------- *)
+
 Fixpoint nb_elems (t:bytes) : Z := 
   match t with
   | [::] => 0
@@ -805,3 +915,126 @@ Proof.
   Qed.
 
 End ByteSet.
+
+Import ByteSet.
+
+Lemma is_empty_empty : is_empty empty.
+Proof.
+  apply /is_emptyP => i.
+  apply /negPf.
+  by apply emptyE.
+Qed.
+
+Lemma subset_refl bytes : subset bytes bytes.
+Proof. by apply /subsetP. Qed.
+
+Lemma subset_is_empty bytes1 bytes2 : is_empty bytes1 -> subset bytes1 bytes2.
+Proof.
+  move=> /is_emptyP hempty.
+  apply /subsetP => i hmem1.
+  by move /negP : (hempty i).
+Qed.
+
+Lemma is_empty_incl bytes1 bytes2 :
+  subset bytes1 bytes2 -> is_empty bytes2 -> is_empty bytes1.
+Proof.
+  move=> /subsetP hsubset /is_emptyP hempty.
+  apply /is_emptyP => i.
+  apply /negP => /hsubset hmem1.
+  by move /negP : (hempty i).
+Qed.
+
+Lemma subset_trans bytes1 bytes2 bytes3 :
+  subset bytes1 bytes2 ->
+  subset bytes2 bytes3 ->
+  subset bytes1 bytes3.
+Proof.
+  move=> /subsetP h12 /subsetP h23.
+  by apply /subsetP; auto.
+Qed.
+
+Lemma mem_is_empty_l bytes i : mem bytes i -> is_empty bytes -> I.is_empty i.
+Proof.
+  move=> /memP hmem /is_emptyP hempty.
+  apply /I.is_emptyP => z.
+  apply /negP => /hmem hmemi.
+  by move /negP : (hempty z).
+Qed.
+
+Lemma mem_is_empty_r i bytes : I.is_empty i -> mem bytes i.
+Proof.
+  move=> /I.is_emptyP hempty.
+  apply /memP => z hmem.
+  by move /negP : (hempty z).
+Qed.
+
+Lemma mem_incl_l bytes1 bytes2 i :
+  subset bytes1 bytes2 ->
+  mem bytes1 i ->
+  mem bytes2 i.
+Proof. move=> /subsetP hsubset /memP hmem; apply /memP; eauto. Qed.
+
+Lemma mem_incl_r bytes i1 i2 :
+  I.subset i1 i2 ->
+  mem bytes i2 ->
+  mem bytes i1.
+Proof. by move=> /I.memi_incl hsub /memP hmem; apply /memP; eauto. Qed.
+
+Lemma mem_full i : mem (full i) i.
+Proof. by apply /memP => k; rewrite fullE. Qed.
+
+Lemma subset_inter_l bytes1 bytes2 :
+  subset (inter bytes1 bytes2) bytes1.
+Proof.
+  apply /subsetP => i.
+  by rewrite interE => /andP [].
+Qed.
+
+Lemma subset_inter_r bytes1 bytes2 :
+  subset (inter bytes1 bytes2) bytes2.
+Proof.
+  apply /subsetP => i.
+  by rewrite interE => /andP [].
+Qed.
+
+Lemma remove_empty e : remove empty e = empty.
+Proof.
+  apply is_empty_ext; apply /is_emptyP => i.
+  by rewrite removeE emptyE.
+Qed.
+
+Lemma mem_remove bytes i1 i2 : I.wf i1 -> I.wf i2 ->
+  mem (remove bytes i1) i2 -> mem bytes i2 /\ I.disjoint i1 i2.
+Proof.
+  move=> hwf1 hwf2.
+  move=> /memP hsubset; split.
+  + apply /memP => n /hsubset.
+    by rewrite removeE => /andP [].
+  apply /I.disjointP.
+  have: ~ I.memi i2 i1.(imin).
+  + move=> /hsubset.
+    by move: hwf1; rewrite removeE /I.wf /I.is_empty /I.memi !zify; lia.
+  have: ~ I.memi i1 i2.(imin).
+  + have := hsubset _ (I.memi_imin hwf2).
+    by rewrite removeE => /andP [_ /negP].
+  by rewrite /I.memi !zify; lia.
+Qed.
+
+Lemma disjoint_incl_l b1 b2 b :
+  subset b1 b2 ->
+  disjoint b2 b ->
+  disjoint b1 b.
+Proof.
+  move=> /subsetP hsubset /disjointP hdisj.
+  by apply /disjointP; eauto.
+Qed.
+
+(* eauto cannot unfold [not]... *)
+Lemma disjoint_incl_r b1 b2 b:
+  subset b1 b2 ->
+  disjoint b b2 ->
+  disjoint b b1.
+Proof.
+  move=> /subsetP hsubset /disjointP; rewrite /not => hdisj.
+  by apply /disjointP; eauto.
+Qed.

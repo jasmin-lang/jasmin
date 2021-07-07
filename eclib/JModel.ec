@@ -186,6 +186,12 @@ op VPERMQ (w:W256.t) (i:W8.t) : W256.t =
   let choose = fun n => w \bits64 ((to_uint i %/ n) %% 4) in
   pack4 [choose 1; choose 4; choose 16; choose 64].
 
+op permd (v: W256.t) (i: W32.t) : W32.t =
+  v \bits32 (to_uint i %% 8).
+
+op VPERMD (w: W256.t) (i: W256.t) : W256.t =
+  map (permd w) i.
+
 op VEXTRACTI128 (w:W256.t) (i:W8.t) : W128.t =
   w \bits128 b2i i.[0].
 
@@ -249,6 +255,31 @@ op VPUNPCKH_4u64 (w1 w2: W256.t) =
   map2 VPUNPCKH_2u64 w1 w2.
 
 (* ------------------------------------------------------------------- *)
+op packus_4u32 (w: W256.t, off: int) : W64.t =
+  let pack = fun n =>
+  if (w \bits32 n) \slt W32.zero then W16.zero
+  else if (W32.of_int W16.max_uint) \sle (w \bits32 n) then (W16.of_int W16.max_uint)
+  else (w \bits16 (2*n))
+  in
+  pack4 [pack off; pack (off+1); pack (off+2); pack (off+3)].
+
+op VPACKUS_8u32 (w1 w2: W256.t) : W256.t =
+  pack4 [packus_4u32 w1 0; packus_4u32 w2 0; packus_4u32 w1 4; packus_4u32 w2 4].
+
+(* ------------------------------------------------------------------- *)
+op VPMULH_8u16 (w1 w2: W128.t) : W128.t =
+  map2 (fun (x y:W16.t) => wmulhs x y) w1 w2.
+
+op VPMULH_16u16 (w1 w2: W256.t) : W256.t =
+  map2 (fun (x y:W16.t) => wmulhs x y) w1 w2.
+
+op VPMULL_8u16 (w1 w2: W128.t) : W128.t =
+  map2 (fun (x y:W16.t) => x * y) w1 w2.
+
+op VPMULL_16u16 (w1 w2: W256.t) : W256.t =
+  map2 (fun (x y:W16.t) => x * y) w1 w2.
+
+(* ------------------------------------------------------------------- *)
 op VPSLLDQ_128 (w1:W128.t) (w2:W8.t) =
   let n = to_uint w2 in
   let i = min n 16 in
@@ -275,6 +306,19 @@ op VPSRLV_4u64 (w1:W256.t) (w2:W256.t) =
   map2 srl w1 w2.
 
 (* ------------------------------------------------------------------- *)
+op VPBLENDW_128 (w1 w2: W128.t) (i: W8.t) : W128.t =
+  let choose = fun n =>
+    let w = if i.[n] then w2 else w1 in
+    w \bits16 n in
+  pack8 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7].
+
+op VPBLENDW_256 (w1 w2: W256.t) (i: W8.t) : W256.t =
+  let choose = fun n =>
+    let w = if i.[n] then w2 else w1 in
+    w \bits16 n in
+  pack16 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7;
+          choose 8; choose 9; choose 10; choose 11; choose 12; choose 13; choose 14; choose 15].
+
 op VPBLENDD_128 (w1 w2: W128.t) (i:W8.t) : W128.t =
   let choose = fun n =>
      let w = if i.[n] then w2 else w1 in
@@ -286,6 +330,16 @@ op VPBLENDD_256 (w1 w2: W256.t) (i:W8.t) : W256.t =
      let w = if i.[n] then w2 else w1 in
      w \bits32 n in
   pack8 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7].
+
+(* ------------------------------------------------------------------- *)
+
+op VPMOVMSKB_128 (v: W128.t) : W16.t =
+  let vb = w2bits v in
+  W16.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 16).
+
+op VPMOVMSKB_256 (v: W256.t) : W32.t =
+  let vb = w2bits v in
+  W32.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 32).
 
 (* ------------------------------------------------------------------- *)
 

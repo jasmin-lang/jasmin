@@ -79,7 +79,10 @@ Module WArray.
 
   Local Notation pointer := [eqType of Z].
 
-  Local Instance PointerZ : pointer_op pointer.
+  (* We set the priority to 1, so that memory_model.Pointer is selected by
+     default.
+  *)
+  Instance PointerZ : pointer_op pointer | 1.
   Proof.
     refine {| add x y := (x + y)%Z
             ; sub x y := (x - y)%Z
@@ -102,6 +105,12 @@ Module WArray.
 
   Lemma is_align_scale (p:pointer) ws : is_align (p * mk_scale AAscale ws)%Z ws.
   Proof. by rewrite /is_align /mk_scale /= Z_mod_mult. Qed.
+
+  Lemma arr_is_align i ws :
+    is_align (wrepr Uptr i) ws = is_align i ws.
+  Proof.
+    by rewrite /is_align p_to_zE memory_model.p_to_zE wunsigned_repr mod_wbase_wsize_size.
+  Qed.
 
   Section CM.
     Variable (s:positive).
@@ -270,20 +279,22 @@ Module WArray.
     WArray.cast len1 (empty len2) = ok t -> t = empty len1.
   Proof. by move=> /dup[]/cast_len/ZleP; rewrite cast_empty => -> [<-]. Qed.
 
-  Lemma cast_get8 len1 len2 (m : array len2) m' k :
+  Lemma cast_get8 len1 len2 (m : array len2) m' :
     cast len1 m = ok m' ->
-    read m' k U8 = 
-      if k <? len1 then read m k U8 else Error ErrOob.
+    forall k,
+      read m' k U8 = 
+        if k <? len1 then read m k U8 else Error ErrOob.
   Proof.
-    rewrite /cast -!get_read8 /memory_model.get /= /get8; case: ZleP => // hle [<-].
-    by rewrite /in_bound /is_init /=; case: ZleP => /=; case: ZltP => //=; case: ZltP => //; lia.
+    rewrite /cast; case: ZleP => // hle [<-] k.
+    rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound /=.
+    by case: ZleP => /=; case: ZltP => //=; case: ZltP => //; lia.
   Qed.
- 
+
   Lemma cast_uincl len1 len2 (t2 : WArray.array len2) t1 : 
     cast len1 t2 = ok t1 -> uincl t1 t2.
   Proof.
     move=> hc; split; first by apply: cast_len hc.
-    by move=> i w; rewrite (cast_get8 i hc); case: ifP.
+    by move=> i w; rewrite (cast_get8 hc); case: ifP.
   Qed.
 
   Lemma uincl_cast len1 len2 (a1: array len1) (a2:array len2) len a1' : 
@@ -292,7 +303,7 @@ Module WArray.
     exists a2', cast len a2 = ok a2' /\ uincl a1' a2'.
   Proof.
     move=> [hle hu] hc.
-    have:= (cast_get8 _ hc). have:= @cast_get8 len len2 a2.
+    have:= (cast_get8 hc). have:= @cast_get8 len len2 a2.
     move: hc; rewrite /cast; case: ZleP => // hle1 _. 
     case: ZleP => hle2 hg2 hg1; last lia.
     eexists;split; first by eauto.
@@ -303,20 +314,25 @@ Module WArray.
   Lemma mk_scale_U8 aa : mk_scale aa U8 = 1%Z.
   Proof. by rewrite /mk_scale wsize8; case aa. Qed.
 
-  Lemma set_get8 len (m m':array len) aa p ws (v: word ws) k :    
+  Lemma get8_read len (m : array len) aa k :
+    get aa U8 m k = read m k U8.
+  Proof. by rewrite /get mk_scale_U8 Z.mul_1_r. Qed.
+
+  Lemma set_get8 len (m m':array len) aa p ws (v: word ws) :
     set m aa p v = ok m' ->
-    read m' k U8 = 
-      let i := (k - p * mk_scale aa ws)%Z in
-       if ((0 <=? i) && (i <? wsize_size ws))%Z then ok (LE.wread8 v i)
-       else read m k U8.
-  Proof. by move=> hs; have -> := write_read8 hs. Qed.
+    forall k,
+      read m' k U8 = 
+        let i := (k - p * mk_scale aa ws)%Z in
+         if ((0 <=? i) && (i <? wsize_size ws))%Z then ok (LE.wread8 v i)
+         else read m k U8.
+  Proof. by apply: write_read8. Qed.
 
   Lemma setP len (m m':array len) p1 p2 ws (v: word ws) :
     set m AAscale p1 v = ok m' -> 
     get AAscale ws m' p2 = if p1 == p2 then ok v else get AAscale ws m p2.
   Proof. 
     rewrite /set /get; case:eqP => [<- | hne hw]; first by apply writeP_eq.
-    apply: (writeP_neq hw); move=> ??; rewrite !addE /mk_scale;nia. 
+    apply: (CoreMem.writeP_neq hw); move=> ??; rewrite !addE /mk_scale;nia. 
   Qed.
 
   Lemma setP_eq len (m m':array len) p1 ws (v: word ws) :
@@ -385,17 +401,23 @@ Module WArray.
     rewrite Mz.removeP; case eqP => [? | //]; lia.
   Qed.
 
-  Lemma set_sub_get8 aa ws lena a len p t a' k: 
+  Lemma set_sub_get8 aa ws lena a len p t a' : 
     @set_sub lena aa ws len a p t = ok a' -> 
-    read a' k U8 = 
-      let i := (k - p * mk_scale aa ws)%Z in
-      if (0 <=? i) && (i <? arr_size ws len) then read t i U8
-      else read a k U8.
+    forall k,
+      read a' k U8 = 
+        let i := (k - p * mk_scale aa ws)%Z in
+        if (0 <=? i) && (i <? arr_size ws len) then read t i U8
+        else read a k U8.
   Proof.
-    rewrite /set_sub; case: andP => // -[/ZleP h1 /ZleP h2] [<-] /=.
+    rewrite /set_sub; case: andP => // -[/ZleP h1 /ZleP h2] [<-] /= k.
     rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound set_sub_data_get8 /=.
     case: andP; rewrite !zify //= => ?; case: andP; rewrite !zify //= => ?; lia.
   Qed.
+
+  Lemma set_sub_bound aa ws lena a len p t a' :
+    @set_sub lena aa ws len a p t = ok a' ->
+    0 <= p * mk_scale aa ws /\ p * mk_scale aa ws + arr_size ws len <= lena.
+  Proof. by rewrite /set_sub; case: ifP => //; rewrite !zify. Qed.
 
   Lemma get_sub_data_get8 aa ws a len p k: 
     Mz.get (get_sub_data aa ws len a p) k = 
@@ -417,17 +439,23 @@ Module WArray.
     by rewrite Mz.removeP; case: eqP => //; nia.
   Qed.
 
-  Lemma get_sub_get8 aa ws lena a len p a' k: 
+  Lemma get_sub_get8 aa ws lena a len p a' : 
     @get_sub lena aa ws len a p = ok a' -> 
-    read a' k U8 = 
-      let start := (p * mk_scale aa ws)%Z in
-      if (0 <=? k) && (k <? arr_size ws len) then read a (start + k) U8
-      else Error ErrOob.
+    forall k,
+      read a' k U8 = 
+        let start := (p * mk_scale aa ws)%Z in
+        if (0 <=? k) && (k <? arr_size ws len) then read a (start + k) U8
+        else Error ErrOob.
   Proof.
-    rewrite /get_sub -!get_read8 /memory_model.get /= /get8 /in_bound /is_init. 
-    case: andP => // -[/ZleP h1 /ZleP h2] [<-] /=; rewrite get_sub_data_get8 /=.
-    case: andP => //=; case: andP => //=; rewrite !zify; lia.
+    rewrite /get_sub; case: andP => // -[/ZleP h1 /ZleP h2] [<-] /= k.
+    rewrite -!get_read8 /memory_model.get /= /get8 /is_init /in_bound get_sub_data_get8 /=.
+    case: andP; rewrite !zify //= => ?; case: andP; rewrite !zify //= => ?; lia.
   Qed.
+
+  Lemma get_sub_bound aa ws lena a len p a' :
+    @get_sub lena aa ws len a p = ok a' ->
+    0 <= p * mk_scale aa ws /\ p * mk_scale aa ws + arr_size ws len <= lena.
+  Proof. by rewrite /get_sub; case: ifP => //; rewrite !zify. Qed.
 
   Lemma uincl_get_sub {len1 len2} (a1 : array len1) (a2 : array len2) 
       aa ws len i t1 :
@@ -436,11 +464,11 @@ Module WArray.
     exists2 t2, get_sub aa ws len a2 i = ok t2 & uincl t1 t2.
   Proof. 
     move=> [hlen hu] hget.
-    have := get_sub_get8 _ hget.
+    have := get_sub_get8 hget.
     have := @get_sub_get8 aa ws len2 a2 len i _.
     move: hget; rewrite /get_sub; case: andP => // -[/ZleP h1 /ZleP h2] [_].
     case: andP; rewrite !zify => h3; last by lia.
-    move=> /(_ _ _ refl_equal) hr2 hr1; eexists => //; split; first by lia.
+    move=> /(_ _ refl_equal) hr2 hr1; eexists => //; split; first by lia.
     by move=> k w; rewrite hr1 hr2; case: ifP => // ? /hu.
   Qed.
 
@@ -451,11 +479,11 @@ Module WArray.
     exists2 a2', set_sub aa a2 i t2 = ok a2' & uincl a1' a2'.
   Proof.
     move=> [hlen1 hget1] [hlen2 hget2] hset.
-    have := set_sub_get8 _ hset.
+    have := set_sub_get8 hset.
     have := @set_sub_get8 aa ws len2 a2 len i _.
     move: hset; rewrite /set_sub; case: andP => // -[/ZleP h1 /ZleP h2] [_].
     case: andP; rewrite !zify => h3; last by lia.
-    move=> /(_ _ _ _ refl_equal) hr2 hr1; eexists => //; split; first by lia.
+    move=> /(_ _ _ refl_equal) hr2 hr1; eexists => //; split; first by lia.
     by move=> k w; rewrite hr1 hr2; case: ifP => // [ ? /hget2| ? /hget1].
   Qed.
 

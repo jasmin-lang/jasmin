@@ -62,7 +62,7 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
   let cget_sao fn = get_sao (Conv.fun_of_cfun tbl fn) in
   
   let sp' = 
-    match Stack_alloc.alloc_prog crip gao.gao_data cglobs cget_sao up with
+    match Stack_alloc.alloc_prog false crip gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
       Utils.hierror "compilation error %a@." (pp_comp_ferr tbl) e in
@@ -121,12 +121,11 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
       let stk_size = 
         Bigint.add (Conv.bi_of_z csao.Stack_alloc.sao_size)
                    (Bigint.of_int extra_size) in
-      let ws = csao.Stack_alloc.sao_align in
       let stk_size = 
         match fd.f_cc with
-        | Export       -> Bigint.add stk_size (Bigint.of_int (size_of_ws ws - 1))
+        | Export       -> Bigint.add stk_size (Bigint.of_int (size_of_ws align - 1))
         | Subroutine _ -> 
-          Conv.bi_of_z (Memory_model.round_ws ws (Conv.z_of_bi stk_size))
+          Conv.bi_of_z (Memory_model.round_ws align (Conv.z_of_bi stk_size))
         | Internal -> assert false in
       Bigint.add max_stk stk_size in
     let saved_stack = 

@@ -858,12 +858,12 @@ Section PROOF.
     have hr2 := write_read8 Hw'' p1. move: Hr2. rewrite hr2 hr1 /=.
     case: ifP=> // _. by apply H1. 
   (* valid *)
-  + move=> p1 Hv. have Hv1 := (CoreMem.write_validw p1 U8 Hw).
-    have Hv2 := (CoreMem.write_validw p1 U8 Hw''). rewrite Hv2.
+  + move=> p1 Hv. have Hv1 := (CoreMem.write_validw_eq Hw).
+    have Hv2 := (CoreMem.write_validw_eq Hw''). rewrite Hv2.
     apply H2. by rewrite -Hv1.
   (* stack *)
-  move=> p1 H. have Hv1 := (CoreMem.write_validw p1 U8 Hw).
-  have Hv2 := (CoreMem.write_validw p1 U8 Hw''). rewrite Hv2.
+  move=> p1 H. have Hv1 := (CoreMem.write_validw_eq Hw).
+  have Hv2 := (CoreMem.write_validw_eq Hw''). rewrite Hv2.
   apply H3. have Hst := write_mem_stable Hw. case: Hst.
   by move=> -> -> _.
   Qed.
@@ -909,7 +909,7 @@ Section PROOF.
     move => /(_ w) [] m' ok_m'; exists m'; first exact: ok_m'.
     split.
     - move => x y ok_y.
-      rewrite (writeP_neq ok_m'); first exact: Hrm.
+      rewrite (CoreMem.writeP_neq ok_m'); first exact: Hrm.
       move => i j [] i_low i_hi; change (wsize_size U8) with 1%Z => j_range.
       have ? : j = 0%Z by lia.
       subst j => { j_range }.
@@ -920,7 +920,7 @@ Section PROOF.
       have := wunsigned_range a.
       generalize (wunsigned_range (top_stack m)).
       lia.
-    1-2: move => b; rewrite (CoreMem.write_validw _ _ ok_m').
+    1-2: move => b; rewrite (CoreMem.write_validw_eq ok_m').
     - exact/Hvm.
     exact/Hs.
   Qed.
@@ -1077,7 +1077,7 @@ Section PROOF.
       rewrite (value_uincl_word ev_ev' ok_ofs) /=.
       t_xrbindP => w' ok_w' tm' ok_tm' <-{t'} /=.
       move => ptr ptr_range /negP ptr_not_valid.
-      rewrite (writeP_neq ok_tm'); first reflexivity.
+      rewrite (CoreMem.writeP_neq ok_tm'); first reflexivity.
       apply: disjoint_range_U8 => i i_range ?; subst ptr.
       apply: ptr_not_valid.
       rewrite -valid8_validw.
@@ -1685,7 +1685,7 @@ Let vrsp : var := vid (string_of_register RSP).
     }
     (* Internal function, return address at offset [z]. *)
     case fr_eq: extra_free_registers ok_ra fr_undef ok_ret_addr => [fr | //] _.
-    move=> [] fr_neq_RIP fr_neq_RSP fr_well_typed fr_undef /andP[] /andP[] /andP[] z_pos z_bound sf_aligned_for_ptr z_aligned [] ? ?; subst lbli li.
+    move=> [] fr_neq_RIP fr_neq_RSP fr_well_typed fr_undef /and4P[] z_pos z_bound sf_aligned_for_ptr z_aligned [] ? ?; subst lbli li.
     have ok_ra_of : is_ra_of fn' (RAstack z) by rewrite /is_ra_of; exists fd'; assumption.
     move: ih => /(_ _ _ _ _ _ _ _ _ ok_ra_of) ih.
     move: (X (var_of_register RSP)).
@@ -1811,7 +1811,7 @@ Let vrsp : var := vid (string_of_register RSP).
       have := alloc_stackP ok_m.
       clear - ok_m ok_m1' ok_stk_sz z_pos z_bound sp_aligned => A a [] a_lo a_hi _.
       have top_range := ass_above_limit A.
-      rewrite (writeP_neq ok_m1'); first reflexivity.
+      rewrite (CoreMem.writeP_neq ok_m1'); first reflexivity.
       apply: disjoint_range_U8 => i i_range ? {ok_m1'}; subst a.
       move: a_lo {a_hi}.
       rewrite (top_stack_after_aligned_alloc _ sp_aligned) -/(stack_frame_allocation_size (f_extra fd')).
@@ -1874,7 +1874,7 @@ Let vrsp : var := vid (string_of_register RSP).
         case/and3P: ok_save_stack => /eqP sf_align_1 /eqP stk_sz_0 /eqP stk_extra_sz_0.
         have top_stack_preserved : top_stack m1' = top_stack (s1: mem).
         + rewrite (alloc_stack_top_stack ok_m1') sf_align_1.
-          rewrite Memory.top_stack_after_aligned_alloc.
+          rewrite top_stack_after_aligned_alloc.
           2: exact: is_align8.
           by rewrite stk_sz_0 stk_extra_sz_0 -addE add_0.
         have X' : vm_uincl (set_RSP m1' (kill_flags s1 rflags)) vm1.
@@ -2166,7 +2166,7 @@ Let vrsp : var := vid (string_of_register RSP).
         rewrite /= /set_RSP Fv.setP_eq /=.
         case: vm2.[_]%vmap => // - [] ??? /pword_of_word_uincl /= [] ??; subst.
         rewrite truncate_word_u /= zero_extend_u.
-        move: ok_ret_addr; rewrite !zify => - [] [] [] rastack_lo rastack_h sf_aligned_for_ptr rastack_aligned.
+        case/and4P: ok_ret_addr; rewrite !zify => rastack_lo rastack_h sf_aligned_for_ptr rastack_aligned.
         move: ok_stk_sz; rewrite !zify => - [] stk_sz_pos [] stk_extra_pos sf_noovf.
         assert (root_range := wunsigned_range (stack_root m1')).
         have A := alloc_stackP ok_m1'.

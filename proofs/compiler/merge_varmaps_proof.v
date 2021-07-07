@@ -279,11 +279,11 @@ Section LEMMA.
     - have [ not_written_gd not_written_rsp ] := not_written_magic (mvp_not_written ok_W1).
       split.
       + by move: (mvp_not_written ok_W); rewrite write_c_cons; apply: disjoint_w; SvD.fsetdec.
-      + rewrite -(ss_top_stack (sem_I_stack_stable exec_i)) -(mvp_top_stack ok_W) (sem_I_not_written texec_i) //.
+      + rewrite -(ss_top_stack (sem_I_stack_stable_sprog exec_i)) -(mvp_top_stack ok_W) (sem_I_not_written texec_i) //.
         by SvD.fsetdec.
       + rewrite -(mvp_global_data ok_W) (sem_I_not_written texec_i) //.
         by SvD.fsetdec.
-      by rewrite -(ss_top_stack (sem_I_stack_stable exec_i)) (mvp_stack_aligned ok_W).
+      by rewrite -(ss_top_stack (sem_I_stack_stable_sprog exec_i)) (mvp_stack_aligned ok_W).
     have [t3 [kc texec_c hkc] sim3]:= hc _ _ _ _ ok_c ok_W2 sim2.
     exists t3 => //; exists (Sv.union ki kc); first by econstructor; eauto.
     rewrite write_c_cons; SvD.fsetdec.
@@ -489,11 +489,11 @@ Section LEMMA.
       split.
       + move: (mvp_not_written pre).
         by apply disjoint_w; rewrite write_i_while; SvD.fsetdec.
-      + rewrite -(ss_top_stack (sem_stack_stable sexec)) -(mvp_top_stack pre) (sem_not_written texec_c) //.
+      + rewrite -(ss_top_stack (sem_stack_stable_sprog sexec)) -(mvp_top_stack pre) (sem_not_written texec_c) //.
         by SvD.fsetdec.
       + rewrite -(sem_not_written texec_c); last SvD.fsetdec.
         exact: mvp_global_data pre1.
-      rewrite -(ss_top_stack (sem_stack_stable sexec)).
+      rewrite -(ss_top_stack (sem_stack_stable_sprog sexec)).
       exact: mvp_stack_aligned pre1.
     have [t3 [ k' texec_c' hk' ] sim3] := ih' _ _ _ _ check_c' pre2 sim2.
     case: (rec sz ii D1 O t3 checked).
@@ -501,10 +501,10 @@ Section LEMMA.
       split.
       + exact: mvp_not_written pre.
       + rewrite -(sem_not_written texec_c'); last SvD.fsetdec.
-        by rewrite (mvp_top_stack pre2) (ss_top_stack (sem_stack_stable sexec')).
+        by rewrite (mvp_top_stack pre2) (ss_top_stack (sem_stack_stable_sprog sexec')).
       + rewrite -(sem_not_written texec_c'); last SvD.fsetdec.
         by rewrite (mvp_global_data pre2).
-      rewrite -(ss_top_stack (sem_stack_stable sexec')).
+      rewrite -(ss_top_stack (sem_stack_stable_sprog sexec')).
       exact: mvp_stack_aligned pre2.
     - by apply: match_estateI sim3.
     move => t4 [ krec texec hkrec ] sim4.
@@ -783,8 +783,8 @@ Section LEMMA.
     have top_stack2 : top_stack (free_stack (emem s2)) = top_stack m.
     + have ok_alloc := Memory.alloc_stackP ok_m'.
       have ok_free := Memory.free_stackP (emem s2).
-      by rewrite {1}/top_stack ok_free.(fss_frames) ok_free.(fss_root) -(sem_stack_stable sexec).(ss_root)
-         -(sem_stack_stable sexec).(ss_frames) -(write_vars_emem ok_s1) ok_alloc.(ass_root) ok_alloc.(ass_frames).
+      by rewrite {1}/top_stack ok_free.(fss_frames) ok_free.(fss_root) -(sem_stack_stable_sprog sexec).(ss_root)
+         -(sem_stack_stable_sprog sexec).(ss_frames) -(write_vars_emem ok_s1) ok_alloc.(ass_root) ok_alloc.(ass_frames).
     have [ t2 [ k texec hk ] sim2 ] := ih _ _ _ t1' checked_body pre1 sim1.
     have [ tres ok_tres res_uincl ] : exists2 tres,
        mapM (λ x : var_i, get_var (set_RSP (free_stack (emem t2)) (evm t2)) x) (f_res fd) = ok tres
@@ -836,7 +836,7 @@ Section LEMMA.
           congr (ok (pword_of_word _)).
           rewrite -(mvm_mem sim2).
           move: ok_s1; rewrite (write_vars_lvals [::]) => /write_lvals_stack_stable /ss_top_stack ->.
-          by move/sem_stack_stable: sexec => /ss_top_stack.
+          by move/sem_stack_stable_sprog: sexec => /ss_top_stack.
         move/Sv.subset_spec: ok_wrf; rewrite /write_fd /= => ok_wrf.
         have [_]:= not_written_magic preserved_magic.
         by rewrite /vrsp /= /writefun_ra; SvD.fsetdec.

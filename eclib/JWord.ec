@@ -1447,6 +1447,14 @@ op rflags_of_andn (w: t) =
   let ZF = ZF_of w in
   (OF, CF, SF, PF, ZF).
 
+op rflags_of_popcnt (w: t) =
+  let OF = false in
+  let CF = false in
+  let SF = false in
+  let PF = false in
+  let ZF = ZF_of w in
+  (OF, CF, SF, PF, ZF).
+
 op rflags_of_aluop_nocf_w (w : t) (vs : int) =
   let OF = to_sint w <> vs in
   let SF = SF_of w in
@@ -1617,6 +1625,15 @@ proof.
   + by apply negP => heq; apply hc0; rewrite -(to_uintK c) heq.
   rewrite to_uintB /= 1:uleE /=; smt (to_uint_cmp).
 qed.
+
+op POPCNT_XX (v: t) =
+  let vb = w2bits v in
+  let wcnt = of_int (count idfun vb) in
+  flags_w (rflags_of_popcnt wcnt) wcnt.
+
+op PEXT_XX (v m: t) =
+  let vbi = filter (fun i => m.[i]) (iota_ 0 size) in
+  bits2w (map (fun i => v.[i]) vbi).
 
 end ALU.
 
@@ -2185,6 +2202,15 @@ abstract theory W_WS.
 
    op VPBROADCAST_'Ru'S (w : WS.t) =
      pack'R (map (fun i => w) (iota_ 0 r)).
+
+   op wucmp (cmp: int -> int -> bool) (x y: WS.t) : WS.t =
+     if cmp (to_uint x) (to_uint y) then (WS.of_int (-1)) else (WS.of_int 0).
+
+   op VPCMPGT_'Ru'S (w1 : WB.t) (w2: WB.t) =
+     map2 (wucmp Int.(<=)) w2 w1.
+
+   op VPCMPEQ_'Ru'S (w1 : WB.t) (w2: WB.t) =
+     map2 (wucmp (=)) w1 w2.
 
    op VPMAXU_'Ru'S (w1 : WB.t) (w2 : WB.t) = 
      map2 (fun x y => if WS.to_uint x < WS.to_uint y then y else x) w1 w2.

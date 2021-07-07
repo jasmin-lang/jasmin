@@ -192,43 +192,19 @@ Definition map_cfprog_name {T1 T2} (F: funname -> T1 -> ciexec T2) :=
 Definition map_cfprog {T1 T2} (F: T1 -> ciexec T2) :=
   map_cfprog_name (fun _ t1 => F t1).
 
-(* Note: this lemma cannot be extended to mapM because it needs the names to be conserved *)
-Lemma map_cfprog_name_get {T1 T2} F p p' fn (f: T1) (f': T2):
-  map_cfprog_name F p = ok p' ->
-  get_fundef p fn = Some f ->
-  F fn f = ok f' ->
-  get_fundef p' fn = Some f'.
-Proof.
-  elim: p p'=> // -[fn1 fd1] pl IH p'.
-  rewrite /map_cfprog /= -/(map_cfprog _ _).
-  apply: rbindP=> -[fn1' fd1']; apply: rbindP=> fd1'' Hfd1 [] Hfn1 Hfd1''.
-  subst fn1'; subst fd1''.
-  apply: rbindP=> pl' Hpl' [] <-.
-  rewrite get_fundef_cons /=.
-  case: ifP.
-  + move=> /eqP Hfn.
-    subst fn1=> -[] Hf.
-    subst fd1=> Hf'.
-    rewrite Hf' in Hfd1.
-    by move: Hfd1=> -[] ->.
-  + move=> Hfn Hf Hf'.
-    exact: IH.
-Qed.
-
 Lemma get_map_cfprog_name {T1 T2} (F: funname -> T1 -> ciexec T2) p p' fn f:
   map_cfprog_name F p = ok p' ->
   get_fundef p fn = Some f ->
   exists2 f', F fn f = ok f' & get_fundef p' fn = Some f'.
 Proof.
   move=> Hmap H.
-  have Hp := (get_fundef_in' H).
-  move: (mapM_In Hmap Hp)=> [[fn' fd'] /= [Hfd Hok]].
-  apply: rbindP Hok=> f' Hf' [] Hfn' Hfd'.
-  subst fn'; subst fd'.
-  have Hf: F fn f = ok f'.
-    rewrite /add_finfo in Hf'.
-    by case: (F fn f) Hf'=> // a []<-.
-  exists f' => //; exact: (map_cfprog_name_get Hmap H).
+  have [|f' /= hF hf'] := mapM_assoc _ Hmap H.
+  + move=> {fn f H} [fn f] [fn' f'] /=.
+    t_xrbindP=> f''.
+    by apply: add_finfoP => _ [<- _].
+  exists f' => //.
+  move: hF; t_xrbindP=> f''.
+  by apply: add_finfoP => ? [<-].
 Qed.
 
 Lemma get_map_cfprog {T1 T2} (F: T1 -> ciexec T2) p p' fn f:
@@ -242,12 +218,14 @@ Lemma get_map_cfprog_name' {T1 T2} (F: funname -> T1 -> ciexec T2) p p' fn f':
   get_fundef p' fn = Some f' ->
   exists2 f, F fn f = ok f' & get_fundef p fn = Some f.
 Proof.
-  elim: p p' f'.
-  + by move => _ f' [<-].
-  case => n d p ih p'' f' /=; t_xrbindP => - [x y] d'; apply: add_finfoP => ok_d' [??]; subst x y => p' rec <- {p''} /=.
-  case: ifP.
-  + by move => /eqP -> [<-]; eauto.
-  by move => _ /(ih _ _ rec).
+  move=> Hmap H.
+  have [|f /= hF hf] := mapM_assoc' _ Hmap H.
+  + move=> {fn f' H} [fn f] [fn' f'] /=.
+    t_xrbindP=> f''.
+    by apply: add_finfoP => _ [<- _].
+  exists f => //.
+  move: hF; t_xrbindP=> f''.
+  by apply: add_finfoP => ? [<-].
 Qed.
 
 Lemma get_map_cfprog' {T1 T2} (F: T1 -> ciexec T2) p p' fn f':

@@ -19,6 +19,7 @@ compiler/array_expansion_proof.v
 compiler/array_init.v
 compiler/array_init_proof.v
 compiler/asmgen.v
+compiler/asmgen_proof.v
 compiler/byteset.v
 compiler/compiler_util.v
 compiler/compiler.v
@@ -44,11 +45,13 @@ compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/stack_alloc.v
 compiler/stack_alloc_proof.v
+compiler/stack_alloc_proof_2.v
 compiler/tunneling.v
 compiler/unrolling.v
 compiler/unrolling_proof.v
 compiler/x86_decl.v
 compiler/x86_gen.v
+compiler/x86_gen_proof.v
 compiler/x86_instr_decl.v
 compiler/x86_sem.v
 compiler/x86_variables.v

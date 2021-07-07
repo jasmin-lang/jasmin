@@ -417,6 +417,9 @@ Definition mk_lvar x := {| gv := x; gs := Slocal |}.
 Definition is_lvar (x:gvar) := x.(gs) == Slocal.
 Definition is_glob (x:gvar) := x.(gs) == Sglob.
 
+Lemma is_lvar_is_glob x : is_lvar x = ~~is_glob x.
+Proof. by case: x => ? []. Qed.
+
 Definition gvar_beq (x1 x2:gvar) := 
   (x1.(gs) == x2.(gs)) && (x1.(gv) == x2.(gv)).
 
