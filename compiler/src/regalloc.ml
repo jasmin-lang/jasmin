@@ -846,7 +846,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   , Hashtbl.find_opt extra_free_registers
 
 type reg_oracle_t = {
-    ro_to_save: var list;  (* TODO: allocate them in the stack rather than push/pop *)
+    ro_to_save: var list;
     ro_rsp: var option;
     ro_return_address: var option;
   }

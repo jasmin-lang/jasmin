@@ -158,17 +158,30 @@ Section CHECK.
      is_align (wrepr Uptr ofs) ws (* Stack slot is aligned *)
     ].
 
-  Let check_to_save e '(x, ofs) : bool :=
-    if is_word_type x.(vtype) is Some ws
-    then check_stack_ofs e ofs ws
-    else false.
+  Definition all_disjoint_aligned_between (fn: funname) (msg: string) (lo hi: Z) (al: wsize) A (m: seq A) (slot: A → cfexec (Z * wsize)) : cfexec unit :=
+    Let last := foldM (λ a base,
+                       Let ofs_ws := slot a in
+                       let: (ofs, ws) := ofs_ws in
+                       Let _ := assert (base <=? ofs)%Z (Ferr_fun fn (Cerr_linear (msg ++ "overlap"))) in
+                       Let _ := assert (ws ≤ al)%CMP (Ferr_fun fn (Cerr_linear (msg ++ "bad frame alignement"))) in
+                       Let _ := assert (is_align (wrepr Uptr ofs) ws) (Ferr_fun fn (Cerr_linear (msg ++ "bad slot alignement"))) in
+                       ok (ofs + wsize_size ws)%Z
+                      ) lo m in
+    assert (last <=? hi)%Z (Ferr_fun fn (Cerr_linear (msg ++ "overflow in the stack frame"))).
+
+  Definition check_to_save (fn: funname) (e: stk_fun_extra) : cfexec unit :=
+    if sf_return_address e is RAnone
+    then
+      all_disjoint_aligned_between fn "to-save: " (sf_stk_sz e) (stack_frame_allocation_size e) (sf_align e) (sf_to_save e)
+        (λ '(x, ofs), if is_word_type x.(vtype) is Some ws then ok (ofs, ws) else Error (Ferr_fun fn (Cerr_linear ("to-save: not a word"))))
+    else ok tt.
 
   Definition check_fd (ffd:sfun_decl) :=
     let (fn,fd) := ffd in
     let e := fd.(f_extra) in
     let stack_align := e.(sf_align) in
     Let _ := add_finfo fn fn (check_c (check_i fn stack_align) fd.(f_body)) in
-    Let _ := assert ((e.(sf_return_address) != RAnone) || (all (check_to_save e) e.(sf_to_save))) (Ferr_fun fn (Cerr_linear "bad to-save")) in
+    Let _ := check_to_save fn e in
     Let _ := assert [&& 0 <=? sf_stk_sz e, 0 <=? sf_stk_extra_sz e & stack_frame_allocation_size e <? wbase Uptr]%Z
                     (Ferr_fun fn (Cerr_linear "bad stack size")) in
     Let _ := assert match sf_return_address e with

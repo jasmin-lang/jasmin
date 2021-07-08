@@ -134,18 +134,25 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
         | Some x -> Expr.SavedStackReg (Conv.cvar_of_var tbl x)
         | None   -> Expr.SavedStackStk (Conv.z_of_int (List.assoc rsp extrapos))
       else Expr.SavedStackNone in
-  
+
     let conv_to_save x =
       Conv.cvar_of_var tbl x,
-      (try List.assoc x extrapos with Not_found -> -1) |> Conv.z_of_int
+      try List.assoc x extrapos with Not_found -> -1
     in
-  
-    let csao = 
+
+    let compare_to_save (_, x) (_, y) = Stdlib.Int.compare y x in
+
+    (* Stack slots for saving callee-saved registers are sorted in increasing order to simplify the check that they are all disjoint. *)
+    let convert_to_save m =
+      m |> List.rev_map conv_to_save |> List.sort compare_to_save |> List.rev_map (fun (x, n) -> x, Conv.z_of_int n)
+    in
+
+    let csao =
       Stack_alloc.{ csao with
         sao_align = align;
         sao_extra_size = Conv.z_of_int extra_size;
         sao_max_size = Conv.z_of_bi max_size;
-        sao_to_save = List.map conv_to_save ro.ro_to_save;
+        sao_to_save = convert_to_save ro.ro_to_save;
         sao_rsp  = saved_stack;
         sao_return_address =
           if rastack
