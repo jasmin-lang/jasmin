@@ -335,8 +335,6 @@ let pp_glob_def fmt (gd:Global.glob_decl) : unit =
   let z = Prog.clamp ws z in
   let m = mangle n in
   pp_gens fmt ([
-    `Instr (".globl", [m]);
-    `Instr (".globl", [n]);
     `Instr (".p2align", [pp_align ws]);
     `Label m;
     `Label n
