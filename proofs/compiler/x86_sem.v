@@ -191,7 +191,7 @@ Definition check_oreg or ai :=
   | None, _        => true
   end.
 
-Definition eval_asm_arg (s: x86_mem) (a: asm_arg) (ty: stype) : exec value :=
+Definition eval_asm_arg k (s: x86_mem) (a: asm_arg) (ty: stype) : exec value :=
   match a with
   | Condt c   => Let b := eval_cond c s.(xrf) in ok (Vbool b)
   | Imm sz' w =>
@@ -200,9 +200,14 @@ Definition eval_asm_arg (s: x86_mem) (a: asm_arg) (ty: stype) : exec value :=
     | _        => type_error
     end
   | Reg r     => ok (Vword (s.(xreg) r))
-  | Adr adr   =>
+  | Adr adr =>
+    let a := decode_addr s adr in
     match ty with
-    | sword sz => Let w := read s.(xmem) (decode_addr s adr) sz in ok (Vword w)
+    | sword sz => 
+      if k == AK_compute then ok (Vword (zero_extend sz a)) 
+      else
+        Let w := read s.(xmem) a sz in 
+        ok (Vword w)
     | _        => type_error
     end
   | XMM x     => ok (Vword (s.(xxreg) x))
@@ -212,12 +217,12 @@ Definition eval_arg_in_v (s:x86_mem) (args:asm_args) (a:arg_desc) (ty:stype) : e
   match a with
   | ADImplicit (IAreg r)   => ok (Vword (s.(xreg) r))
   | ADImplicit (IArflag f) => Let b := st_get_rflag f s in ok (Vbool b)
-  | ADExplicit i or =>
+  | ADExplicit k i or =>
     match onth args i with
     | None => type_error
     | Some a =>
       Let _ := assert (check_oreg or a) ErrType in
-      eval_asm_arg s a ty
+      eval_asm_arg k s a ty
     end
   end.
 
@@ -254,33 +259,38 @@ Definition mem_write_mem (l : pointer) sz (w : word sz) (s : x86_mem) :=
   |}.
 
 (* -------------------------------------------------------------------- *)
-Definition mem_write_xreg (r: xmm_register) (w: u256) (m: x86_mem) :=
+
+Definition mask_word (f : msb_flag) (sz szr : wsize) (old : word szr) : word szr :=
+  let mask := if f is MSB_MERGE then wshl (-1)%R (wsize_bits sz) 
+             else 0%R in
+  wand old mask.
+
+Definition word_extend 
+   (f:msb_flag) (sz szr : wsize) (old : word szr) (new : word sz) : word szr := 
+ wxor (mask_word f sz old) (zero_extend szr new).
+
+(* -------------------------------------------------------------------- *)
+Definition mem_write_reg (f: msb_flag) (r: register) sz (w: word sz) (m: x86_mem) :=
   {|
     xmem := m.(xmem);
-    xreg := m.(xreg);
+    xreg := RegMap.set m.(xreg) r (word_extend f (m.(xreg) r) w);
     xrip  := m.(xrip); 
-    xxreg := XRegMap.set m.(xxreg) r w;
+    xxreg := m.(xxreg);
     xrf  := m.(xrf);
   |}.
 
-Definition update_u256 (f: msb_flag) (old: u256) (sz: wsize) (new: word sz) : u256 :=
-  match f with
-  | MSB_CLEAR => zero_extend U256 new
-  | MSB_MERGE =>
-    let m : u256 := wshl (-1)%R (wsize_bits sz) in
-    wxor (wand old m) (zero_extend U256 new)
-  end.
-
-Definition mem_update_xreg f (r: xmm_register) sz (w: word sz) (m: x86_mem) : x86_mem :=
-  let old := xxreg m r in
-  let w' := update_u256 f old w in
-  mem_write_xreg r w' m.
+(* -------------------------------------------------------------------- *)
+Definition mem_write_xreg (f: msb_flag) (r: xmm_register) sz (w: word sz) (m: x86_mem) :=
+  {|
+    xmem := m.(xmem);
+    xreg := m.(xreg);    
+    xrip  := m.(xrip); 
+    xxreg := XRegMap.set m.(xxreg) r (word_extend f (m.(xxreg) r) w);
+    xrf  := m.(xrf);
+  |}.
 
 (* -------------------------------------------------------------------- *)
-
-Definition word_extend_reg (r: register) sz (w: word sz) (m: x86_mem) :=
-  merge_word (m.(xreg) r) w.
-
+(*
 Lemma word_extend_reg_id r sz (w: word sz) m :
   (U32 ≤ sz)%CMP →
   word_extend_reg r w m = zero_extend U64 w.
@@ -288,29 +298,22 @@ Proof.
 rewrite /word_extend_reg /merge_word.
 by case: sz w => //= w _; rewrite wand0 wxor0.
 Qed.
+*)
 
-Definition mem_write_reg (r: register) sz (w: word sz) (m: x86_mem) :=
-  {|
-    xmem := m.(xmem);
-    xreg := RegMap.set m.(xreg) r (word_extend_reg r w m);
-    xrip  := m.(xrip); 
-    xxreg := m.(xxreg);
-    xrf  := m.(xrf);
-  |}.
-
+(* -------------------------------------------------------------------- *)
 Definition mem_write_word (f:msb_flag) (s:x86_mem) (args:asm_args) (ad:arg_desc) (sz:wsize) (w: word sz) : exec x86_mem :=
   match ad with
-  | ADImplicit (IAreg r)   => ok (mem_write_reg r w s)
-  | ADImplicit (IArflag f) => type_error
-  | ADExplicit i or    =>
+  | ADImplicit (IAreg r)   => ok (mem_write_reg f r w s)
+  | ADImplicit (IArflag _) => type_error
+  | ADExplicit _ i or    =>
     match onth args i with
     | None => type_error
     | Some a =>
       Let _ := assert (check_oreg or a) ErrType in
       match a with
-      | Reg r     => ok (mem_write_reg r w s)
+      | Reg r     => ok (mem_write_reg f r w s)
       | Adr adr   => mem_write_mem (decode_addr s adr) w s
-      | XMM x     => ok (mem_update_xreg f x w s)
+      | XMM x     => ok (mem_write_xreg f x w s)
       | _         => type_error
       end
     end
@@ -355,27 +358,8 @@ Definition exec_instr_op idesc args (s:x86_mem) : exec x86_mem :=
   mem_write_vals idesc.(id_msb_flag) s args idesc.(id_out) idesc.(id_tout) vs.
 
 (* -------------------------------------------------------------------- *)
-Definition is_special (o:asm_op') :=
-  match o with
-  | LEA _ => true
-  | _     => false
-  end.
-
-Definition eval_special (o:asm_op') args m :=
-  match o, args with
-  | LEA sz, [:: Reg r; Adr addr] =>
-    Let _ := check_size_16_64 sz in
-    let p := decode_addr m addr in
-    ok (mem_write_reg r (zero_extend sz p) m)
-  | _, _ => type_error
-  end.
-
 Definition eval_op o args m := 
-  if is_special o then
-    eval_special o args m
-  else
-    let id := instr_desc' o in
-    exec_instr_op id args m.
+  exec_instr_op (instr_desc' o) args m.
 
 Section PROG.
 
@@ -400,7 +384,7 @@ Definition eval_instr (i : asm) (s: x86_state) : exec x86_state :=
     else type_error
   | JMP lbl   => eval_JMP p lbl s
   | JMPI d =>
-    Let v := eval_asm_arg s d (sword Uptr) >>= to_pointer in
+    Let v := eval_asm_arg AK_mem s d (sword Uptr) >>= to_pointer in
     if decode_label labels v is Some lbl then
       eval_JMP p lbl s
     else type_error

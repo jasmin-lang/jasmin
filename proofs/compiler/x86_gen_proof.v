@@ -96,13 +96,14 @@ by rewrite (mapM_size ok_i) (assemble_c_find_is_label lbl ok_i).
 Qed.
 
 (* -------------------------------------------------------------------- *)
+
 Lemma eval_assemble_word rip ii sz e a s xs v :
   lom_eqv rip s xs →
-  assemble_word rip ii sz None e = ok a →
+  assemble_word_mem rip ii sz None e = ok a →
   sem_pexpr [::] s e = ok v →
-  exists2 v', eval_asm_arg xs a (sword sz) = ok v' & value_uincl v v'.
+  exists2 v', eval_asm_arg AK_mem xs a (sword sz) = ok v' & value_uincl v v'.
 Proof.
-  move => eqm.
+  rewrite /assemble_word /eval_asm_arg => eqm.
   case: e => //=; t_xrbindP.
   - move => x _ /assertP ok_x /xreg_of_varI h.
     rewrite /get_gvar ok_x => ok_v.
@@ -130,11 +131,11 @@ Proof.
   by exists fd'.
 Qed.
 
-Lemma lom_eqv_write_var rip s xs (x: var_i) sz (w: word sz) s' r :
+Lemma lom_eqv_write_var f rip s xs (x: var_i) sz (w: word sz) s' r :
   lom_eqv rip s xs →
   write_var x (Vword w) s = ok s' →
   var_of_register r = x →
-  lom_eqv rip s' (mem_write_reg r w xs).
+  lom_eqv rip s' (mem_write_reg f r w xs).
 Proof.
   case => eqm ok_rip [ dr dx df ] eqr eqx eqf.
   rewrite /mem_write_reg /write_var; t_xrbindP.
@@ -150,13 +151,9 @@ Proof.
   - move => _; case: eqP => [ ? | _ ]; last exact: eqr.
     by elim h; congr var_of_register.
   move => /(_ h) ->; rewrite eqxx; t_xrbindP => /= w' ok_w' <- /=.
-  rewrite /word_extend_reg.
-  case: Sumbool.sumbool_of_bool ok_w' => le [] <-{w'} /=.
-  - rewrite -{1}(zero_extend_u w).
-    exact: word_uincl_ze_mw.
-  apply: word_uincl_ze_mw => //.
-  clear -le.
-  by case: sz le.
+  case: Sumbool.sumbool_of_bool ok_w' => hsz [] <-{w'} /=.
+  + by apply word_uincl_word_extend.
+  by rewrite word_extend_big // hsz.
 Qed.
 
 Lemma assemble_iP i j ls ls' lc xs :

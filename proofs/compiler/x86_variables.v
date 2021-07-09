@@ -428,6 +428,8 @@ Definition assemble_lea ii lea :=
     |}).
 
 Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) := 
+  Let _ := assert (sz <= Uptr)%CMP 
+                  (ii, Cerr_assembler (AsmErr_string "Bad type for address" None)) in
   match lowering.mk_lea sz e with
   | Some lea => 
      match lea.(lea_base) with
@@ -451,7 +453,7 @@ Definition xreg_of_var ii (x: var) : ciexec asm_arg :=
   else if register_of_var x is Some r then ok (Reg r)
   else cierror ii (Cerr_assembler (AsmErr_string "Not a (x)register" None)).
 
-Definition assemble_word rip ii (sz:wsize) max_imm (e:pexpr) :=
+Definition assemble_word_mem rip ii (sz:wsize) max_imm (e:pexpr) :=
   match e with
   | Papp1 (Oword_of_int sz') (Pconst z) =>
     match max_imm with
@@ -478,10 +480,18 @@ Definition assemble_word rip ii (sz:wsize) max_imm (e:pexpr) :=
   | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for word" (Some e)))
   end.
 
-Definition arg_of_pexpr rip ii (ty:stype) max_imm (e:pexpr) :=
+Definition assemble_word (k:adr_kind) rip ii (sz:wsize) max_imm (e:pexpr) :=
+  match k with
+  | AK_mem => assemble_word_mem rip ii (sz:wsize) max_imm (e:pexpr)
+  | AK_compute => 
+    Let w := addr_of_pexpr rip ii sz e in
+    ok (Adr w)
+  end.
+
+Definition arg_of_pexpr k rip ii (ty:stype) max_imm (e:pexpr) :=
   match ty with
   | sbool => Let c := assemble_cond ii e in ok (Condt c)
-  | sword sz => assemble_word rip ii sz max_imm e
+  | sword sz => assemble_word k rip ii sz max_imm e
   | sint  => cierror ii (Cerr_assembler (AsmErr_string "sint ???" (Some e)))
   | sarr _ => cierror ii (Cerr_assembler (AsmErr_string "sarr ???" (Some e)))
   end.

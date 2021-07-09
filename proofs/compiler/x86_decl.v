@@ -377,20 +377,40 @@ Variant implicite_arg : Type :=
   | IArflag of rflag
   | IAreg   of register.
 
+Variant adr_kind : Type := 
+  | AK_compute (* Compute the address *)
+  | AK_mem.    (* Compute the address and load from memory *)
+
 Variant arg_desc :=
 | ADImplicit  of implicite_arg
-| ADExplicit  of nat & option register.
+| ADExplicit  of adr_kind & nat & option register.
 
-Definition E n := ADExplicit n None.
+Definition F  f   := ADImplicit (IArflag f).
+Definition R  r   := ADImplicit (IAreg   r).
+Definition E  n   := ADExplicit AK_mem n None.
+Definition Ec n := ADExplicit AK_compute n None.
+Definition Ef n r := ADExplicit AK_mem n (Some  r).
+
+Scheme Equality for adr_kind.
+
+Lemma adr_kind_eq_axiom : Equality.axiom adr_kind_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_adr_kind_dec_bl.
+  by apply: internal_adr_kind_dec_lb.
+Qed.
+
+Definition adr_kind_eqMixin := Equality.Mixin adr_kind_eq_axiom.
+Canonical adr_kind_eqType := EqType _ adr_kind_eqMixin.
 
 Definition asm_arg_beq (a1 a2:asm_arg) :=
   match a1, a2 with
-  | Condt t1, Condt t2 => t1 == t2
+  | Condt t1  , Condt t2   => t1 == t2
   | Imm sz1 w1, Imm sz2 w2 => (sz1 == sz2) && (wunsigned w1 == wunsigned w2)
-  | Reg r1, Reg r2 => r1 == r2
-  | Adr a1, Adr a2 => a1 == a2
-  | XMM r1, XMM r2 => r1 == r2
-  | _, _ => false
+  | Reg r1    , Reg r2     => r1 == r2
+  | Adr a1    , Adr a2     => a1 == a2
+  | XMM r1    , XMM r2     => r1 == r2
+  | _         , _          => false
   end.
 
 Definition Imm_inj sz sz' w w' (e: @Imm sz w = @Imm sz' w') :
@@ -431,7 +451,7 @@ Canonical msb_flag_eqType := EqType msb_flag msb_flag_eqMixin.
 Definition check_arg_dest (ad:arg_desc) (ty:stype) :=
   match ad with
   | ADImplicit _ => true
-  | ADExplicit _ _ => ty != sbool
+  | ADExplicit _ _ _ => ty != sbool
   end.
 
 Inductive pp_asm_op_ext :=

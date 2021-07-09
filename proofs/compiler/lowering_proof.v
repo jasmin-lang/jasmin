@@ -1646,6 +1646,7 @@ Section PROOF.
       case. case => [ws | ];
       case => //=;
         try (move => ?? -> || move => ? -> || move => -> ) => //.
+      + by move=> w; rewrite /sopn_sem /=; case: (reg_msb_flag w == MSB_CLEAR) => //= ->.
       1-4: by t_xrbindP.
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.

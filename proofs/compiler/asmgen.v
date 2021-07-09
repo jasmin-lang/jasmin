@@ -39,8 +39,8 @@ Definition compile_arg rip ii max_imm (ade: (arg_desc * stype) * pexpr) (m: nmap
       assert (eq_expr (Plvar (VarI (var_of_implicit i) xH)) e)
              (ii, Cerr_assembler (AsmErr_string "compile_arg : bad implicit" (Some e))) in
     ok m
-  | ADExplicit n o =>
-    Let a := arg_of_pexpr rip ii ad.2 max_imm e in
+  | ADExplicit k n o =>
+    Let a := arg_of_pexpr k rip ii ad.2 max_imm e in
     Let _ :=
       assert (check_oreg o a)
              (ii, Cerr_assembler (AsmErr_string "compile_arg : bad forced register" (Some e))) in
@@ -64,10 +64,10 @@ Definition compat_imm ty a' a :=
 Definition check_sopn_arg rip ii max_imm (loargs : seq asm_arg) (x : pexpr) (adt : arg_desc * stype) :=
   match adt.1 with
   | ADImplicit i => eq_expr x (Plvar (VarI (var_of_implicit i) xH))
-  | ADExplicit n o =>
+  | ADExplicit k n o =>
     match onth loargs n with
     | Some a =>
-      if arg_of_pexpr rip ii adt.2 max_imm x is Ok a' then compat_imm adt.2 a a' && check_oreg o a
+      if arg_of_pexpr k rip ii adt.2 max_imm x is Ok a' then compat_imm adt.2 a a' && check_oreg o a
       else false
     | None => false
     end
@@ -76,10 +76,10 @@ Definition check_sopn_arg rip ii max_imm (loargs : seq asm_arg) (x : pexpr) (adt
 Definition check_sopn_dest rip ii max_imm (loargs : seq asm_arg) (x : pexpr) (adt : arg_desc * stype) :=
   match adt.1 with
   | ADImplicit i => eq_expr x (Plvar (VarI (var_of_implicit i) xH))
-  | ADExplicit n o =>
+  | ADExplicit _ n o =>
     match onth loargs n with
     | Some a =>
-      if arg_of_pexpr rip ii adt.2 max_imm x is Ok a' then (a == a') && check_oreg o a
+      if arg_of_pexpr AK_mem rip ii adt.2 max_imm x is Ok a' then (a == a') && check_oreg o a
       else false
     | None => false
     end
@@ -121,33 +121,17 @@ Definition check_sopn_dests rip ii max_imm (loargs : seq asm_arg) (outx : seq lv
   | _  => false
   end.
 
-Definition is_lea ii op (outx : lvals) (inx : pexprs) := 
-  match op, outx, inx with
-  | LEA sz, [:: Lvar x], [:: e] => ok (Some (sz, x, e))
-  | LEA _, _, _ => cierror ii (Cerr_assembler (AsmErr_string "lea: invalid lea instruction" None))
-  | _, _, _ => ok None
-  end.
-
 Definition assemble_x86_opn rip ii op (outx : lvals) (inx : pexprs) := 
-  Let is_lea := is_lea ii op.2 outx inx in
-  match is_lea with
-  | Some (sz, x, e) =>
-    Let r := reg_of_var ii x.(v_var) in 
-    Let adr := addr_of_pexpr rip ii sz e in
-    ok (LEA sz, [::Reg r; Adr adr])
-
-  | None =>
-    let id := instr_desc op in
-    let max_imm := id.(id_max_imm) in
-    Let asm_args := assemble_x86_opn_aux rip ii op outx inx in
-    let s := id.(id_str_jas) tt in
-    Let _ := assert (id_check id asm_args) 
+  let id := instr_desc op in
+  let max_imm := id.(id_max_imm) in
+  Let asm_args := assemble_x86_opn_aux rip ii op outx inx in
+  let s := id.(id_str_jas) tt in
+  Let _ := assert (id_check id asm_args) 
        (ii, Cerr_assembler (AsmErr_string ("assemble_x86_opn : invalid instruction (check) " ++ s) None)) in
-    Let _ := assert (check_sopn_args rip ii max_imm asm_args inx (zip id.(id_in) id.(id_tin)) &&
+  Let _ := assert (check_sopn_args rip ii max_imm asm_args inx (zip id.(id_in) id.(id_tin)) &&
                      check_sopn_dests rip ii max_imm asm_args outx (zip id.(id_out) id.(id_tout)))
        (ii, Cerr_assembler (AsmErr_string "assemble_x86_opn: cannot check, please repport" None)) in
-    ok (op.2, asm_args)
-  end.
+  ok (op.2, asm_args).
 
 Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
   match op with
@@ -185,15 +169,15 @@ Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
           cierror ii 
             (Cerr_assembler (AsmErr_string "assemble_sopn Oconcat: assert false" None))
         end in
-    assemble_x86_opn rip ii VINSERTI128 outx inx
+    assemble_x86_opn rip ii (None, VINSERTI128) outx inx
     
-  | Ox86 op =>
+  | Ox86' op =>
     assemble_x86_opn rip ii op outx inx 
   end.
 
 Lemma id_semi_sopn_sem op :
   let id := instr_desc op in
-  id_semi id = sopn_sem (Ox86 op).
+  id_semi id = sopn_sem (Ox86' op).
 Proof. by []. Qed.
 
 Lemma word_of_scale1 : word_of_scale Scale1 = 1%R.

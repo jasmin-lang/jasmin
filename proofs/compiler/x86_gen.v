@@ -22,7 +22,7 @@ Definition assemble_i rip (i: linstr) : ciexec asm :=
   | Lgoto lbl => ciok (JMP lbl)
 
   | Ligoto e =>
-    Let arg := assemble_word rip ii Uptr None e in
+    Let arg := assemble_word AK_mem rip ii Uptr None e in
     ciok (JMPI arg)
   | LstoreLabel x lbl =>
     let fail (msg: string) := cierror ii (Cerr_assembler (AsmErr_string ("store-label: " ++ msg) None)) in
