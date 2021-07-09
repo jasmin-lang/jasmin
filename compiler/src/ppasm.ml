@@ -330,8 +330,6 @@ let pp_glob_data fmt gd =
     begin
       pp_gens fmt ([
             `Instr (".data", []);
-            `Instr (".globl", [m]);
-            `Instr (".globl", [n]);
             `Instr (".p2align", [pp_align U256]);
             `Label m;
             `Label n]);
