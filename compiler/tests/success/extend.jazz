@@ -58,6 +58,19 @@ x ^= y;
 (u128)[ptr_ + 0] = x;
 }
 
+
+export
+fn test_u256(reg u64 ptr_, reg u64 v, reg u32 w) {
+reg u256 x, y;
+
+y = (256u)#VMOV(v);
+x ^= y;
+y = (256u)#VMOV_32(w);
+x ^= y;
+(u128)[ptr_ + 0] = x;
+(u256)[ptr_ + 16] = x;
+} 
+
 export
 fn test_imm(reg u64 p) {
 inline u8 a;
