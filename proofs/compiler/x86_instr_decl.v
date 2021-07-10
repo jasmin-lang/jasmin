@@ -109,6 +109,7 @@ Variant asm_op : Type :=
 
   (* SSE instructions *)
 | MOVD     of wsize
+| VMOV     of wsize 
 | VMOVDQU  `(wsize)
 | VPMOVSX of velem & wsize & velem & wsize (* parallel sign-extension: sizes are source, source, target, target *)
 | VPMOVZX of velem & wsize & velem & wsize (* parallel zero-extension: sizes are source, source, target, target *)
@@ -991,8 +992,8 @@ Notation mk_instr_w2w8_b5w_01c0 name semi check max_imm prc pp_asm := ((fun sz =
 Notation mk_instr_w2w8_w_1230 name semi check max_imm prc pp_asm := ((fun sz =>
   mk_instr (pp_sz name sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR (semi sz) (check sz) 4 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
-Notation mk_instr_w_w128_10 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w_ty sz) (w128_ty) [:: E 1] [:: E 0] MSB_MERGE (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+Notation mk_instr_w_w128_10 name msb semi check max_imm prc pp_asm := ((fun sz =>
+  mk_instr (pp_sz name sz) (w_ty sz) (w128_ty) [:: E 1] [:: E 0] msb (semi sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_ve_instr_w_w_10 name semi check max_imm prc pp_asm := ((fun (ve:velem) sz =>
   mk_instr (pp_ve_sz name ve sz) (w_ty _) (w_ty sz) [:: E 1] [:: E 0] MSB_CLEAR (semi ve sz) (check sz) 2 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
@@ -1285,13 +1286,17 @@ Definition Ox86_PEXT_instr :=
   mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm true]]) no_imm (primP PEXT) (pp_name "pext").
 
 (* Vectorized instruction *)
-Definition pp_movd sz args :=
- pp_name_ty (if sz == U64 then "movq"%string else "movd"%string)
+
+Definition pp_movd name sz args :=
+ pp_name_ty (if sz == U64 then (name ++ "q")%string else (name ++ "d")%string)
             ([::U128; sz]) args.
 
 Definition check_movd (_:wsize) := [:: [::xmm; rm true]].
 Definition Ox86_MOVD_instr :=
-  mk_instr_w_w128_10 "MOVD" x86_MOVD check_movd no_imm (primP MOVD) pp_movd.
+  mk_instr_w_w128_10 "MOVD" MSB_MERGE x86_MOVD check_movd no_imm (primP MOVD) (pp_movd "mov").
+
+Definition Ox86_VMOV_instr :=
+  mk_instr_w_w128_10 "VMOV" MSB_CLEAR x86_MOVD check_movd no_imm (primP VMOV) (pp_movd "vmov").
 
 Definition check_vmovdqu (_:wsize) := [:: xmm_xmmm; xmmm_xmm].
 Definition Ox86_VMOVDQU_instr :=
@@ -1697,6 +1702,7 @@ Definition instr_desc o : instr_desc_t :=
   | SHLD sz            => Ox86_SHLD_instr.1 sz
   | SHRD sz            => Ox86_SHRD_instr.1 sz
   | MOVD sz            => Ox86_MOVD_instr.1 sz
+  | VMOV sz            => Ox86_VMOV_instr.1 sz
   | VPINSR sz          => Ox86_VPINSR_instr.1 sz
   | VEXTRACTI128       => Ox86_VEXTRACTI128_instr.1
   | VMOVDQU sz         => Ox86_VMOVDQU_instr.1 sz
@@ -1812,6 +1818,7 @@ Definition prim_string :=
    Ox86_SHLD_instr.2;
    Ox86_SHRD_instr.2;
    Ox86_MOVD_instr.2;
+   Ox86_VMOV_instr.2;
    Ox86_VPMOVSX_instr.2;
    Ox86_VPMOVZX_instr.2;
    Ox86_VPINSR_instr.2;
