@@ -139,8 +139,14 @@ op VPEXTR_64 (w:W128.t) (i:W8.t) =
   else if W8.to_uint i = 1 then (w \bits64 1)
   else W64.of_int 0.
 
-op MOVD_64 (v:W64.t) =
+op VMOV_32 (v:W32.t) =
+  pack4 [v; W32.zero; W32.zero; W32.zero].
+
+op VMOV_64 (v:W64.t) =
   pack2 [v; W64.zero].
+
+abbrev [-printing] MOVD_32 = VMOV_32.
+abbrev [-printing] MOVD_64 = VMOV_64.
 
 op VPINSR_2u64 (v1:W128.t) (v2:W64.t) (i:W8.t) =
   let i = W8.to_uint i %% 2 in
@@ -161,7 +167,6 @@ abbrev [-printing] VPOR_256  = W256.(`|`).
 abbrev [-printing] VPXOR_256 = W256.(`^`).
 
 op VPANDN_256 (x y:W256.t) = W256.invw x `&` y.
-
 
 op VPMULU_128 (w1 w2: W128.t) =
   map2 mulu64 w1 w2.

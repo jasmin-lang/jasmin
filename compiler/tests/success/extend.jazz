@@ -51,6 +51,10 @@ y = #MOVD_32(w);
 
 x ^= y;
 
+y = #VMOV(v);
+x ^= y;
+y = #VMOV_32(w);
+x ^= y;
 (u128)[ptr_ + 0] = x;
 }
 
