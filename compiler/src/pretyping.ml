@@ -10,16 +10,8 @@ module W = Wsize
 module T = Type
 
 (* -------------------------------------------------------------------- *)
-let loc_of_tuples base locs =
-  match base with
-  | Some (`Force loc) ->
-      loc
-  | Some (`IfEmpty _) when List.is_empty locs ->
-      List.fold_left L.merge L._dummy locs
-  | None ->
-      List.fold_left L.merge L._dummy locs
-  | Some (`IfEmpty loc) ->
-      loc
+let loc_of_tuples locs =
+  List.fold_left L.merge L._dummy locs
 
 (* -------------------------------------------------------------------- *)
 type typattern = TPBool | TPInt | TPWord | TPArray
@@ -32,6 +24,8 @@ type tyerror =
   | TypeMismatch        of P.pty pair
   | NoOperator          of sop * P.pty list
   | InvalidOperator     of sop
+  | NoReturnStatement   of P.funname * int
+  | InvalidReturnStatement of P.funname * int * int
   | InvalidArgCount     of int * int
   | InvalidLvalCount    of int * int
   | DuplicateFun        of S.symbol * L.t
@@ -141,6 +135,12 @@ let pp_tyerror fmt (code : tyerror) =
         "no operator %s for these type %a"
         (S.string_of_peop1 o)
         (Printer.pp_list " * " Printer.pp_ptype) ts
+
+  | NoReturnStatement (name, expected) ->
+     F.fprintf fmt "function “%s” has no return statement (but its signature claims that %d values should be returned)" name.P.fn_name expected
+
+  | InvalidReturnStatement (name, given, expected) ->
+      F.fprintf fmt "return statement of function %s has %d values instead of %d (as claimed by the signature)" name.P.fn_name given expected
 
   | InvalidArgCount (n1, n2) ->
       F.fprintf fmt
@@ -441,20 +441,23 @@ let check_ty_bool ~loc ty =
   check_ty_eq ~loc ~from:ty ~to_:P.tbool
 
 (* -------------------------------------------------------------------- *)
-let check_sig ?loc (sig_ : P.pty list) (given : (L.t * P.pty) list) =
-  let loc () = loc_of_tuples loc (List.map fst given) in
-
-  let n1, n2 = (List.length sig_, List.length given) in
-
-  if n1 <> n2 then
-    rs_tyerror ~loc:(loc ()) (InvalidArgCount (n1, n2));
+let check_return_statement ~loc name (declared : P.pty list) (given : (L.t * P.pty) list) : unit =
+  let given_size = List.length given in
+  let declared_size = List.length declared in
+  if Stdlib.Int.equal 0 given_size
+  then
+    (if not (Stdlib.Int.equal 0 declared_size)
+     then rs_tyerror ~loc (NoReturnStatement (name, declared_size)))
+  else
+    if not (Stdlib.Int.equal given_size declared_size)
+    then rs_tyerror ~loc:(loc_of_tuples (List.rev_map fst given)) (InvalidReturnStatement (name, given_size, declared_size));
   List.iter2
     (fun ty1 (loc, ty2) -> check_ty_eq ~loc ~from:ty2 ~to_:ty1)
-    sig_ given
+    declared given
 
 (* -------------------------------------------------------------------- *)
-let check_sig_lvs ?loc sig_ lvs =
-  let loc () = loc_of_tuples loc (List.map (fun (l,_,_) -> l) lvs) in
+let check_sig_lvs sig_ lvs =
+  let loc () = loc_of_tuples (List.map (fun (l,_,_) -> l) lvs) in
 
   let nsig_ = List.length sig_ in
   let nlvs  = List.length lvs  in
@@ -1242,14 +1245,14 @@ let tt_lvalues env pls tys =
   let ls = 
     if n1 < n2 then
       let n = n2 - n1 in
-      let loc = loc_of_tuples None (List.map P.L.loc pls) in
+      let loc = loc_of_tuples (List.map P.L.loc pls) in
       warning IntroduceNone "at %a, introduce %d _ lvalues" P.L.pp_sloc loc n;
       List.make n (loc, (fun ty ->  P.Lnone(loc,ty)), None) @ ls
     else ls in
   check_sig_lvs tys ls
 
 let tt_exprs_cast env les tys =
-  let loc () = loc_of_tuples None (List.map L.loc les) in
+  let loc () = loc_of_tuples (List.map L.loc les) in
   let n1 = List.length les in
   let n2 = List.length tys in
   if n1 <> n2 then 
@@ -1529,7 +1532,7 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env =
       P.f_tyout = rty;
       P.f_ret   = xret; } in
 
-  check_sig ~loc:(`IfEmpty (L.loc pf.S.pdf_name)) rty
+  check_return_statement ~loc fdef.P.f_name rty
     (List.map (fun x -> (L.loc x, (L.unloc x).P.v_ty)) xret);
 
   Env.Funs.push env fdef rty
