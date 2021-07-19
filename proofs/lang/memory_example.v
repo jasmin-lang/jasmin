@@ -354,11 +354,11 @@ Module MemoryI : MemoryT.
   Qed.
 
   (** Allocation of a fresh block. *)
-  Lemma alloc_stack_framesP (m: mem) s :
-    valid_frame s && (footprint_of_frame s + footprint_of_stack m.(frames) <=? wunsigned m.(stk_root) - wunsigned m.(stk_limit)) →
+  Lemma alloc_stack_framesP C (m: mem) s :
+     [&& valid_frame s, footprint_of_frame s + footprint_of_stack m.(frames) <=? wunsigned m.(stk_root) - wunsigned m.(stk_limit) & C] →
     valid_frames m.(stk_limit) m.(stk_root) (s :: m.(frames)).
   Proof.
-    case/andP => ok_s ofs; apply/andP; split; first (apply/andP; split).
+    case/and3P => ok_s ofs _; apply/andP; split; first (apply/andP; split).
     - exact: ok_s.
     - by have /andP[? _] := m.(framesP).
     exact: ofs.
@@ -373,8 +373,8 @@ Module MemoryI : MemoryT.
   Qed.
   Arguments alloc_stack_stk_allocP [m f] x.
 
-  Lemma alloc_stack_stk_freeP (m: mem) f x :
-    (valid_frame f && (footprint_of_frame f + footprint_of_stack (frames m) <=? wunsigned (stk_root m) - wunsigned (stk_limit m))) →
+  Lemma alloc_stack_stk_freeP C (m: mem) f x :
+    [&& valid_frame f, footprint_of_frame f + footprint_of_stack (frames m) <=? wunsigned (stk_root m) - wunsigned (stk_limit m) & C] →
     0 <= x < wunsigned (stk_root m) - footprint_of_stack (f :: frames m) →
     is_zalloc (set_alloc true (alloc m) (wunsigned (stk_root m) - (footprint_of_frame f + footprint_of_stack (frames m))) (frame_size f)) x = false.
   Proof.
@@ -392,7 +392,8 @@ Module MemoryI : MemoryT.
     let: f := {| frame_size := sz ; frame_padding := padding |} in
     let: ok_f := valid_frame f in
     let: no_overflow := footprint_of_frame f + footprint_of_stack (frames m) <=? wunsigned (stk_root m) - wunsigned (stk_limit m) in
-    match Sumbool.sumbool_of_bool (ok_f && no_overflow) with
+    let: enough_padding := sz' <=? padding in
+    match Sumbool.sumbool_of_bool [&& ok_f, no_overflow & enough_padding ] with
     | right _ => Error ErrStack
     | left C =>
       ok
@@ -616,8 +617,8 @@ Module MemoryI : MemoryT.
   Proof.
     rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-] p.
     rewrite -!valid8_validw /valid8 /= /is_alloc /top_stack /=.
-    case/andP: h.
-    set fr := {| frame_size := sz |} => ok_f /lezP no_ovf.
+    case/and3P: h.
+    set fr := {| frame_size := sz |} => ok_f /lezP no_ovf _.
     rewrite set_allocP /between /zbetween.
     have b_pos := wunsigned_range m.(stk_root).
     have l_pos := wunsigned_range m.(stk_limit).
@@ -643,7 +644,7 @@ Module MemoryI : MemoryT.
     split. apply wunsigned_range.
     apply: (Z.lt_le_trans _ _ _ X).
     clear X.
-    case/andP: h => ok_f /lezP ovf.
+    case/and3P: h => ok_f /lezP ovf _.
     have rt_range := wunsigned_range (stk_root m).
     have l_range := wunsigned_range (stk_limit m).
     have {ok_f}/= := frame_size_in_footprint ok_f.
@@ -659,8 +660,8 @@ Module MemoryI : MemoryT.
   Proof.
     rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-] p.
     rewrite /= /is_init /top_stack /=.
-    case/andP: h.
-    set fr := {| frame_size := sz |} => ok_f /lezP no_ovf.
+    case/and3P: h.
+    set fr := {| frame_size := sz |} => ok_f /lezP no_ovf _.
     rewrite clear_dataP /between /zbetween.
     have b_pos := wunsigned_range m.(stk_root).
     have l_pos := wunsigned_range m.(stk_limit).
@@ -690,8 +691,8 @@ Module MemoryI : MemoryT.
     case heq: is_init => //=; do 2!f_equal.
     rewrite /= /clear_data set_alloc_auxP.
     case: ifP => //.
-    case/andP: h hfresh.
-    set fr := {| frame_size := sz |} => ok_f /lezP no_ovf.
+    case/and3P: h hfresh.
+    set fr := {| frame_size := sz |} => ok_f /lezP no_ovf _.
     have b_pos := wunsigned_range m.(stk_root).
     have l_pos := wunsigned_range m.(stk_limit).
     have f_pos := footprint_of_stack_pos m.
@@ -732,16 +733,17 @@ Module MemoryI : MemoryT.
   Lemma ass_above_limit m ws_stk sz sz' m' :
     alloc_stack m ws_stk sz sz' = ok m' →
     wunsigned (stack_limit m) <= wunsigned (top_stack m')
-    ∧ wunsigned (top_stack m') + sz <= wunsigned (top_stack m).
+    ∧ wunsigned (top_stack m') + sz + Z.max 0 sz' <= wunsigned (top_stack m).
   Proof.
     rewrite /alloc_stack; case: Sumbool.sumbool_of_bool => // h [<-].
     rewrite /top_stack /=.
     rewrite !addE.
-    case/andP: h => ok_f /lezP.
+    case/and3P: h => ok_f /lezP.
     case/andP: (ok_f) => /lezP /= sz_pos /lezP padding_pos.
     have {ok_f} := footprint_of_valid_frame ok_f.
     set f := {| frame_size := sz |}.
     move => f_pos h.
+    move => /lezP large_padding.
     have fs_pos := footprint_of_stack_pos m.
     have limit_range := wunsigned_range (stk_limit m).
     have root_range := wunsigned_range (stk_root m).
