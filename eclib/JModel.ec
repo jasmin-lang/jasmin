@@ -311,6 +311,15 @@ op VPSRLV_4u64 (w1:W256.t) (w2:W256.t) =
   map2 srl w1 w2.
 
 (* ------------------------------------------------------------------- *)
+op VPSLLV_8u32 (w1:W256.t) (w2:W256.t) =
+  let sll = fun (x1 x2:W32.t) => x1 `<<<` W32.to_uint x2 in
+  map2 sll w1 w2.
+
+op VPSRLV_8u32 (w1:W256.t) (w2:W256.t) =
+  let srl = fun (x1 x2:W32.t) => x1 `>>>` W32.to_uint x2 in
+  map2 srl w1 w2.
+
+(* ------------------------------------------------------------------- *)
 op VPBLENDW_128 (w1 w2: W128.t) (i: W8.t) : W128.t =
   let choose = fun n =>
     let w = if i.[n] then w2 else w1 in
