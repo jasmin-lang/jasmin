@@ -674,7 +674,7 @@ Proof.
       rewrite /SF_of_word msb0.
       by apply: (@compile_lvals ii id.(id_max_imm) gd m lvs m' s [:: Reg r; Reg r]
              id.(id_out) id.(id_tout)
-             (let vf := Some false in (::vf, vf, vf, vf, Some true & (0%R: word sz)))
+             (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word sz)))
              MSB_CLEAR (refl_equal _) hw hlo hcd id.(id_check_dest)).
     t_xrbindP => ? []// ?? [<-] /= <-.
     move=> hw x hx; rewrite /assemble_x86_opn /is_lea /=.
