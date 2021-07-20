@@ -348,6 +348,12 @@ op VPMOVMSKB_256 (v: W256.t) : W32.t =
 
 (* ------------------------------------------------------------------- *)
 
+op VMOVLPD (v: W128.t) : W64.t =
+  v \bits64 0.
+
+op VMOVHPD (v: W128.t) : W64.t =
+  v \bits64 1.
+
 (* AES instruction *)
 
 abbrev [-printing] VAESDEC          = AESDEC.
