@@ -346,6 +346,9 @@ op VPMOVMSKB_256 (v: W256.t) : W32.t =
   let vb = w2bits v in
   W32.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 32).
 
+abbrev [-printing] VPMOVMSKB_u128_u16 = VPMOVMSKB_128.
+abbrev [-printing] VPMOVMSKB_u256_u32 = VPMOVMSKB_256.
+
 (* ------------------------------------------------------------------- *)
 
 op VMOVLPD (v: W128.t) : W64.t =
