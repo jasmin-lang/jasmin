@@ -1,0 +1,26 @@
+inline
+fn case(reg u64 x) -> reg u64 {
+  reg u64 a b;
+  reg bool pf;
+  a = 0;
+  b = 1;
+  _, _, _, pf, _ = #TEST(x, x);
+  a = b if pf;
+  return a;
+}
+
+export
+fn test_parity() -> reg u64 {
+  reg u64 tmp result;
+  inline int i;
+  result = 0;
+  for i = 0 to 4 {
+    tmp = i;
+    tmp = case(tmp);
+    result <<= 1;
+    result |= tmp;
+  }
+  return result;
+}
+
+exec test_parity()
