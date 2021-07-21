@@ -58,6 +58,9 @@ abbrev modulus = 2 ^ size.
 abbrev max_uint = modulus - 1.
 lemma max_uintS: max_uint + 1 = modulus by done.
 
+abbrev min_sint = - 2 ^ (size - 1).
+abbrev max_sint =  2 ^ (size - 1) - 1.
+
 lemma ge2_modulus : 2 <= modulus.
 proof. rewrite powS_minus ?gt0_size; smt (gt0_size expr_gt0). qed.
 
