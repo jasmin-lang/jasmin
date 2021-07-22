@@ -476,7 +476,7 @@ let out_ty_op2 op =
 let out_ty_opN op =
   Conv.ty_of_cty (snd (E.type_of_opN op))
 
-let rec ty_expr = function
+let ty_expr = function
   | Pconst _       -> tint 
   | Pbool _        -> tbool
   | Parr_init _    -> assert false 

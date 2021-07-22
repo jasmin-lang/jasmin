@@ -47,9 +47,6 @@ val curry3   : ('a1 -> 'a2 -> 'a3 -> 'b) -> 'a1 * 'a2 * 'a3 -> 'b
 val uncurry3 : ('a1 * 'a2 * 'a3 -> 'b) -> 'a1 -> 'a2 -> 'a3 -> 'b
 
 (* -------------------------------------------------------------------- *)
-val clamp : min:int -> max:int -> int -> int
-
-(* -------------------------------------------------------------------- *)
 val copy : 'a -> 'a
 
 (* -------------------------------------------------------------------- *)
@@ -256,7 +253,7 @@ module List : sig
 
   (* Functions working on 2 lists in parallel *)
   module Parallel : sig
-    val iter2i    : (int -> 'a -> 'b -> 'c) -> 'a list -> 'b list -> unit
+    val iter2i    : (int -> 'a -> 'b -> unit) -> 'a list -> 'b list -> unit
     val iter2o    : ('a option -> 'b option -> 'c) -> 'a list -> 'b list -> unit
     val filter2   : ('a -> 'b -> bool) -> 'a list -> 'b list -> 'a list * 'b list
     val all2      : ('a -> 'b -> bool) -> 'a list -> 'b list -> bool
@@ -308,7 +305,6 @@ module Parray : sig
   val fmap : ('a -> 'b) -> 'a list -> 'b t
   val fold_left : ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
   val fold_right : ('b -> 'a -> 'a) -> 'b t -> 'a -> 'a
-  val fold_left2 : ('a -> 'b -> 'c -> 'a) -> 'a -> 'b t -> 'c t -> 'a
   val iter : ('a -> unit) -> 'a t -> unit
   val iter2 : ('a -> 'b -> unit) -> 'a t -> 'b t -> unit
   val split : ('a * 'b) t -> ('a t * 'b t)

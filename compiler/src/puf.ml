@@ -53,7 +53,7 @@ module Pa = struct
 
   let reroot t = rerootk t (fun () -> ())
 
-  let rec get t i = match !t with
+  let get t i = match !t with
     | Array a ->
       a.(i)
     | Diff _ ->

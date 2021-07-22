@@ -27,10 +27,6 @@ type 'a eq  = 'a -> 'a -> bool
 type 'a cmp = 'a -> 'a -> int
 
 (* -------------------------------------------------------------------- *)
-let clamp ~min ~max i =
-  Pervasives.min max (Pervasives.max min i)
-
-(* -------------------------------------------------------------------- *)
 let tryexn (ignoreexn : exn -> bool) (f : unit -> 'a) =
   try  Some (f ())
   with e -> if ignoreexn e then None else raise e
@@ -576,14 +572,6 @@ module Parray = struct
     (Array.init (Array.length a) (fun i -> fst a.(i)),
      Array.init (Array.length a) (fun i -> snd a.(i)))
 
-  let fold_left2 f a t1 t2 =
-    if Array.length t1 <> Array.length t2 then
-      raise (Invalid_argument "Parray.fold_left2");
-    let rec aux i a t1 t2 =
-      if i < Array.length t1 then f a t1.(i) t2.(i)
-      else a in
-    aux 0 a t1 t2
-
   let iter2 (f : 'a -> 'b -> unit) a1 a2 =
     for i = 0 to (min (length a1) (length a2)) - 1 do
       f a1.(i) a2.(i)
@@ -606,7 +594,7 @@ end
 module String = struct
   include BatString
 
-  let split_lines = nsplit ~by:"\n"
+  let split_lines = split_on_string ~by:"\n"
 
   let trim (s : string) =
     let aout = BatString.trim s in
@@ -760,7 +748,7 @@ let pp_enclose ~pre ~post pp fmt x =
 
 (* -------------------------------------------------------------------- *)
 let pp_paren pp fmt x =
-  pp_enclose "(" ")" pp fmt x
+  pp_enclose ~pre:"(" ~post:")" pp fmt x
 
 (* -------------------------------------------------------------------- *)
 let pp_maybe_paren c pp =

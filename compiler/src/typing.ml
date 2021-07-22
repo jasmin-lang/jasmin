@@ -302,8 +302,8 @@ let tt_var_global (mode:tt_mode) (env : Env.env) v =
     
 
 (* -------------------------------------------------------------------- *)
-let tt_fun (env : Env.env) { L.pl_desc = x; L.pl_loc = lc; } =
-  Env.Funs.find x env |> oget ~exn:(tyerror lc (UnknownFun x))
+let tt_fun (env : Env.env) { L.pl_desc = x; L.pl_loc = loc; } =
+  Env.Funs.find x env |> oget ~exn:(tyerror ~loc (UnknownFun x))
 
 (* -------------------------------------------------------------------- *)
 let check_ty (ety : typattern) (loc, ty) =
