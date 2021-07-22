@@ -335,21 +335,21 @@ Fixpoint last_leak (ls : seq leak_e) : leak_e :=
   end.
 
 (* Transformation from expressions (seq of expression) leakage to instruction leakage *)
-Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': seq leak_e) : seq leak_i :=
+Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (lo: leak_e) (les': seq leak_e) : seq leak_i :=
   match lti with 
   | LT_iopn5f_large => 
-    [:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LSub [:: LEmpty]])] ++
+    [:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LEmpty; LSub [:: LEmpty]])] ++ 
     [:: Lopn (LSub [:: LSub [::nth LEmpty les 0, LEmpty & drop 2 les]; LSub les'])]
 
   | LT_iopn5f_other =>
-    [:: Lopn (LSub [:: LSub les ; LSub les'])]
+    [:: Lopn (LSub [:: LSub les ; lo; LSub les'])]
 
   | LT_iaddcarryf ltes => 
-    leak_ESI stk ltes (remove_last_leak les) 
+    leak_ESI stk ltes (remove_last_leak les) LEmpty
       [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
 
   | LT_iaddcarry ltes =>  
-    leak_ESI stk ltes les 
+    leak_ESI stk ltes les LEmpty
       [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
 
   | LT_ianone => 
@@ -491,14 +491,14 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
 
 
   | LT_icopn ltes, Lopn le => 
-    leak_ESI stk ltes (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 
+    leak_ESI stk ltes (get_seq_leak_e (leak_E stk (LT_subi 0) le)) LEmpty
                                       (get_seq_leak_e (leak_E stk (LT_subi 1) le))
 
   
   | LT_idouble lti, Lopn le => 
     match lti with 
-     | LT_ilmov1_ => [:: Lopn (LSub [:: LSub [:: leak_E stk (LT_subi 0) le]; LSub [:: LEmpty]]) ; 
-                         Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: leak_E stk (LT_subi 1) le]])]
+     | LT_ilmov1_ => [:: Lopn (LSub [:: LSub [:: leak_E stk (LT_subi 0) le]; LEmpty; LSub [:: LEmpty]]) ; 
+                         Lopn (LSub [:: LSub [:: LEmpty]; LEmpty; LSub [:: leak_E stk (LT_subi 1) le]])]
      | LT_ildcn_ => [:: Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: LEmpty]]);
                         Lopn (LSub [:: LSub [:: LEmpty; LEmpty]; 
                                LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]])]
@@ -515,7 +515,7 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
         LSub [:: LSub [::]; LSub [:: leak_E stk (LT_subi 1) le]]
              
       | LT_ilmov4_ => 
-        LSub [:: LSub [:: leak_E stk (LT_subi 0) le]; LSub [:: leak_E stk (LT_subi 1) le]]
+        LSub [:: LSub [:: leak_E stk (LT_subi 0) le]; LEmpty; LSub [:: leak_E stk (LT_subi 1) le]]
 
       | LT_ild_ => 
         LSub [:: LSub[:: LEmpty]; 
@@ -566,11 +566,11 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
                        LSub [:: leak_E stk (LT_subi 1) le]])]
 
   | LT_ilmul lest ltes, Lopn le =>  
-    leak_ESI stk lest (get_seq_leak_e (leak_E stk ltes (LSub [:: LEmpty; LEmpty])))
+    leak_ESI stk lest (get_seq_leak_e (leak_E stk ltes (LSub [:: LEmpty; LEmpty]))) LEmpty
               [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]
 
   | LT_ilfopn lest lte, Lopn le => 
-    leak_ESI stk lest (leak_ES stk lte (leak_E stk (LT_subi 0) le)) 
+    leak_ESI stk lest (leak_ES stk lte (leak_E stk (LT_subi 0) le)) LEmpty
               [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]
 
   | LT_ildiv lti ltes, Lopn le =>  
