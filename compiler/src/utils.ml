@@ -495,7 +495,6 @@ module List = struct
     | x :: xs -> not (List.exists (eq x) xs) && (is_unique ~eq xs)
 
   let sum  xs = List.fold_left (+)  0  xs
-  let sumf xs = List.fold_left (+.) 0. xs
 
   let rotate (d : [`Left|`Right]) (i : int) (xs : 'a list) =
     if i < 0 then invalid_arg "List.rotate: [i < 0]";
@@ -515,11 +514,6 @@ module List = struct
       | true  -> (fun y x -> cmp (key x) (key y)) in
     let sort = if stable then List.stable_sort else List.sort in
     sort cmp xs
-
-  let is_singleton l =
-    match l with
-    | [_] -> true
-    |  _  -> false
 
   (* ------------------------------------------------------------------ *)
   let fst xs = List.map fst xs

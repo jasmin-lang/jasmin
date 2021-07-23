@@ -27,19 +27,6 @@ module Pa = struct
   let init n f = ref (Array (Array.init n f))
 
   (* reroot t ensures that t becomes an Array node *)
-  let rec reroot t = match !t with
-    | Array _ -> ()
-    | Diff (i, v, t') ->
-      reroot t';
-      begin match !t' with
-        | Array a as n ->
-          let v' = a.(i) in
-          a.(i) <- v;
-          t := n;
-          t' := Diff (i, v', t)
-        | Diff _ -> assert false
-      end
-
   let rec rerootk t k = match !t with
     | Array _ -> k ()
     | Diff (i, v, t') ->
