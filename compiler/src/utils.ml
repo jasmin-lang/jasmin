@@ -77,29 +77,6 @@ let reffold (f : 'a -> 'b * 'a) (r : 'a ref) : 'b =
 let postincr (i : int ref) = incr i; !i
 
 (* -------------------------------------------------------------------- *)
-let compare_tag (x1 : 'a) (x2 : 'a) =
-  match Obj.tag (Obj.repr x1), Obj.tag (Obj.repr x2) with
-  | n1, n2 when (n1, n2) = (Obj.int_tag, Obj.int_tag) ->
-      Pervasives.compare (Obj.magic x1 : int) (Obj.magic x2 : int)
-
-  | n1, _ when n1 = Obj.int_tag ->  1
-  | _, n2 when n2 = Obj.int_tag -> -1
-
-  | n1, n2 -> Pervasives.compare n1 n2
-
-type lzcmp = int lazy_t
-
-let compare2 (c1 : lzcmp) (c2 : lzcmp) =
-  match c1 with
-  | lazy 0 -> Lazy.force c2
-  | lazy n -> n
-
-let compare3 (c1 : lzcmp) (c2 : lzcmp) (c3 : lzcmp) =
-  match c1 with
-  | lazy 0 -> compare2 c2 c3
-  | lazy n -> n
-
-(* -------------------------------------------------------------------- *)
 type 'a tuple0 = unit
 type 'a tuple1 = 'a
 type 'a tuple2 = 'a * 'a
@@ -539,12 +516,6 @@ module List = struct
     let sort = if stable then List.stable_sort else List.sort in
     sort cmp xs
 
-  let min ?(cmp = Pervasives.compare) s =
-    reduce (fun x y -> if cmp x y < 0 then x else y) s
-
-  let max ?(cmp = Pervasives.compare) s =
-    reduce (fun x y -> if cmp x y > 0 then x else y) s
-
   let is_singleton l =
     match l with
     | [_] -> true
@@ -602,89 +573,10 @@ module String = struct
 
   let rev (s:string) = init (length s) (fun i -> s.[length s - 1 - i])
 
-  (* ------------------------------------------------------------------ *)
-  module OptionMatching = struct
-    let all_matching tomatch s =
-      let matched = List.map (fun s -> (s, 0)) tomatch in
-
-      let rec aux matched i =
-        if   i = length s || List.is_empty matched
-        then List.map fst matched
-        else
-          let c = s.[i] in
-          let do1 (tomatch, k) =
-            try Some (tomatch, index_from tomatch k c + 1)
-            with Invalid_argument _ | Not_found -> None
-          in aux (List.filter_map do1 matched) (i+1)
-      in aux matched 0
-
-    let first_matching tomatch s =
-      let matched = List.map (fun s -> (s, 0)) tomatch in
-      let rec aux matched i =
-        if   i = length s || List.is_empty matched
-        then List.map fst matched
-        else
-          let do1 (tomatch,k) =
-            try Some (tomatch, index_from tomatch k s.[i] + 1)
-            with Invalid_argument _ | Not_found -> None in
-
-          let matched = List.filter_map do1 matched in
-
-          if List.is_empty matched then [] else begin
-            let min = snd (List.min ~cmp:(fun (_, x) (_, y) -> x - y) matched) in
-            let oge = fun x -> if snd x <= min then Some x else None in
-            let matched = List.filter_map oge matched in
-
-            if   List.is_singleton matched
-            then List.map fst matched
-            else aux matched (i+1)
-          end
-
-      in aux matched 0
-
-    let last_matching tomatch s =
-      first_matching (List.map rev tomatch) (rev s)
-  end
-
-  let option_matching tomatch s =
-    match OptionMatching.all_matching tomatch s with
-    | [s] -> [s] | matched ->
-    match OptionMatching.first_matching matched s with
-    | [s] -> [s] | matched -> OptionMatching.last_matching matched s
 end
 
 (* -------------------------------------------------------------------- *)
 module IO = BatIO
-
-(* -------------------------------------------------------------------- *)
-module File = struct
-  include BatFile
-
-  let read_from_file ~offset ~length source =
-    try
-      let input = Pervasives.open_in_bin source in
-      try_finally
-        (fun () ->
-          Pervasives.seek_in input offset;
-          Pervasives.really_input_string input length)
-        (fun () -> Pervasives.close_in input)
-    with
-    | End_of_file
-    | Invalid_argument _
-    | Sys_error _ -> invalid_arg "File.read_from_file"
-
-  let write_to_file ~output data =
-    try
-      let output = Pervasives.open_out_bin output in
-      try_finally
-        (fun () ->
-          Pervasives.output_string output data;
-          Pervasives.flush output)
-        (fun () -> Pervasives.close_out output)
-    with
-    | Invalid_argument _
-    | Sys_error _ -> invalid_arg "File.write_to_file"
-end
 
 (* -------------------------------------------------------------------- *)
 module Buffer = struct

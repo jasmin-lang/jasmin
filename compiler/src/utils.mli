@@ -109,11 +109,6 @@ val pair_equal : 'a eq -> 'b eq -> ('a * 'b) eq
 val opt_equal  : 'a eq -> 'a option eq
 
 (* -------------------------------------------------------------------- *)
-val compare_tag : 'a cmp
-val compare2: int lazy_t -> int lazy_t -> int
-val compare3: int lazy_t -> int lazy_t -> int lazy_t -> int
-
-(* -------------------------------------------------------------------- *)
 val none : 'a option
 val some : 'a -> 'a option
 
@@ -202,24 +197,11 @@ module String : sig
   include module type of BatString
 
   val split_lines : string -> string list
-
-  val option_matching : string list -> string -> string list
 end
 
 (* -------------------------------------------------------------------- *)
 module IO : sig
   include module type of BatIO
-end
-
-(* -------------------------------------------------------------------- *)
-module File : sig
-  include module type of BatFile
-
-  val read_from_file :
-    offset:int -> length:int -> string -> string
-
-  val write_to_file :
-    output:string -> string -> unit
 end
 
 (* -------------------------------------------------------------------- *)
@@ -254,7 +236,7 @@ module List : sig
   (* Functions working on 2 lists in parallel *)
   module Parallel : sig
     val iter2i    : (int -> 'a -> 'b -> unit) -> 'a list -> 'b list -> unit
-    val iter2o    : ('a option -> 'b option -> 'c) -> 'a list -> 'b list -> unit
+    val iter2o    : ('a option -> 'b option -> unit) -> 'a list -> 'b list -> unit
     val filter2   : ('a -> 'b -> bool) -> 'a list -> 'b list -> 'a list * 'b list
     val all2      : ('a -> 'b -> bool) -> 'a list -> 'b list -> bool
     val map_fold2 : ('a -> 'b -> 'c -> 'a * 'd) -> 'a -> 'b list -> 'c list -> 'a * 'd list
@@ -266,9 +248,6 @@ module List : sig
   (*------------------------------------------------------------------ *)
   val fst : ('a * 'b) list -> 'a list
   val snd : ('a * 'b) list -> 'b list
-
-  val min : ?cmp:('a -> 'a -> int) -> 'a list -> 'a
-  val max : ?cmp:('a -> 'a -> int) -> 'a list -> 'a
 
   val mbfilter   : ('a -> bool) -> 'a list -> 'a list
   val fusion     : ('a -> 'a -> 'a) -> 'a list -> 'a list -> 'a list
