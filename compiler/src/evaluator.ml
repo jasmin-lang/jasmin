@@ -132,10 +132,8 @@ let small_step1 s =
               s_estate = sf;
               s_stk = stk }
 
-let rec small_stepn n s = 
-  if n = 0 then s else small_stepn (n-1) (small_step1 s)
 
-let rec small_step s = 
+let rec small_step s =
   small_step (small_step1 s)
 
 let init_state p fn m = 
@@ -149,10 +147,6 @@ let init_state p fn m =
     s_estate = {emem = m; evm = vmap0 };
     s_stk = Sempty(Coq_xO Coq_xH, f) }
 
-
-let execn p fn m n = 
-  let s = init_state p fn m in
-  small_stepn n s
 
 let exec p fn m = 
   let s = init_state p fn m in

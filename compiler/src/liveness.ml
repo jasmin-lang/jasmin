@@ -153,12 +153,6 @@ let normalize_repr (_c,m) =
 
 exception SetSameConflict
 
-let pp_map fmt m =
-  Mv.iter (fun v1 v2 ->
-      Format.fprintf fmt "%a ----> %a@."
-         (Printer.pp_var ~debug:true) v1 (Printer.pp_var ~debug:true) v2)
-      m
-
 let merge_class1 cf rx xc ry yc =
   (* ajoute x dans les conflits de y *)
   let add_conflict x y cf =
@@ -171,6 +165,13 @@ let merge_class1 cf rx xc ry yc =
   let cf = Mv.add ry c cf in
   cf
 
+(*
+let pp_map fmt m =
+  Mv.iter (fun v1 v2 ->
+      Format.fprintf fmt "%a ----> %a@."
+         (Printer.pp_var ~debug:true) v1 (Printer.pp_var ~debug:true) v2)
+      m
+ *)
 
 let set_same (cf, m as cfm) x y =
   let rx = get_repr m x in

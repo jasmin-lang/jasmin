@@ -27,10 +27,6 @@ type 'a eq  = 'a -> 'a -> bool
 type 'a cmp = 'a -> 'a -> int
 
 (* -------------------------------------------------------------------- *)
-let clamp ~min ~max i =
-  Pervasives.min max (Pervasives.max min i)
-
-(* -------------------------------------------------------------------- *)
 let tryexn (ignoreexn : exn -> bool) (f : unit -> 'a) =
   try  Some (f ())
   with e -> if ignoreexn e then None else raise e
@@ -79,29 +75,6 @@ let reffold (f : 'a -> 'b * 'a) (r : 'a ref) : 'b =
   let (x, v) = f !r in r := v; x
 
 let postincr (i : int ref) = incr i; !i
-
-(* -------------------------------------------------------------------- *)
-let compare_tag (x1 : 'a) (x2 : 'a) =
-  match Obj.tag (Obj.repr x1), Obj.tag (Obj.repr x2) with
-  | n1, n2 when (n1, n2) = (Obj.int_tag, Obj.int_tag) ->
-      Pervasives.compare (Obj.magic x1 : int) (Obj.magic x2 : int)
-
-  | n1, _ when n1 = Obj.int_tag ->  1
-  | _, n2 when n2 = Obj.int_tag -> -1
-
-  | n1, n2 -> Pervasives.compare n1 n2
-
-type lzcmp = int lazy_t
-
-let compare2 (c1 : lzcmp) (c2 : lzcmp) =
-  match c1 with
-  | lazy 0 -> Lazy.force c2
-  | lazy n -> n
-
-let compare3 (c1 : lzcmp) (c2 : lzcmp) (c3 : lzcmp) =
-  match c1 with
-  | lazy 0 -> compare2 c2 c3
-  | lazy n -> n
 
 (* -------------------------------------------------------------------- *)
 type 'a tuple0 = unit
@@ -522,7 +495,6 @@ module List = struct
     | x :: xs -> not (List.exists (eq x) xs) && (is_unique ~eq xs)
 
   let sum  xs = List.fold_left (+)  0  xs
-  let sumf xs = List.fold_left (+.) 0. xs
 
   let rotate (d : [`Left|`Right]) (i : int) (xs : 'a list) =
     if i < 0 then invalid_arg "List.rotate: [i < 0]";
@@ -542,17 +514,6 @@ module List = struct
       | true  -> (fun y x -> cmp (key x) (key y)) in
     let sort = if stable then List.stable_sort else List.sort in
     sort cmp xs
-
-  let min ?(cmp = Pervasives.compare) s =
-    reduce (fun x y -> if cmp x y < 0 then x else y) s
-
-  let max ?(cmp = Pervasives.compare) s =
-    reduce (fun x y -> if cmp x y > 0 then x else y) s
-
-  let is_singleton l =
-    match l with
-    | [_] -> true
-    |  _  -> false
 
   (* ------------------------------------------------------------------ *)
   let fst xs = List.map fst xs
@@ -576,14 +537,6 @@ module Parray = struct
     (Array.init (Array.length a) (fun i -> fst a.(i)),
      Array.init (Array.length a) (fun i -> snd a.(i)))
 
-  let fold_left2 f a t1 t2 =
-    if Array.length t1 <> Array.length t2 then
-      raise (Invalid_argument "Parray.fold_left2");
-    let rec aux i a t1 t2 =
-      if i < Array.length t1 then f a t1.(i) t2.(i)
-      else a in
-    aux 0 a t1 t2
-
   let iter2 (f : 'a -> 'b -> unit) a1 a2 =
     for i = 0 to (min (length a1) (length a2)) - 1 do
       f a1.(i) a2.(i)
@@ -606,7 +559,7 @@ end
 module String = struct
   include BatString
 
-  let split_lines = nsplit ~by:"\n"
+  let split_lines = split_on_string ~by:"\n"
 
   let trim (s : string) =
     let aout = BatString.trim s in
@@ -614,89 +567,10 @@ module String = struct
 
   let rev (s:string) = init (length s) (fun i -> s.[length s - 1 - i])
 
-  (* ------------------------------------------------------------------ *)
-  module OptionMatching = struct
-    let all_matching tomatch s =
-      let matched = List.map (fun s -> (s, 0)) tomatch in
-
-      let rec aux matched i =
-        if   i = length s || List.is_empty matched
-        then List.map fst matched
-        else
-          let c = s.[i] in
-          let do1 (tomatch, k) =
-            try Some (tomatch, index_from tomatch k c + 1)
-            with Invalid_argument _ | Not_found -> None
-          in aux (List.filter_map do1 matched) (i+1)
-      in aux matched 0
-
-    let first_matching tomatch s =
-      let matched = List.map (fun s -> (s, 0)) tomatch in
-      let rec aux matched i =
-        if   i = length s || List.is_empty matched
-        then List.map fst matched
-        else
-          let do1 (tomatch,k) =
-            try Some (tomatch, index_from tomatch k s.[i] + 1)
-            with Invalid_argument _ | Not_found -> None in
-
-          let matched = List.filter_map do1 matched in
-
-          if List.is_empty matched then [] else begin
-            let min = snd (List.min ~cmp:(fun (_, x) (_, y) -> x - y) matched) in
-            let oge = fun x -> if snd x <= min then Some x else None in
-            let matched = List.filter_map oge matched in
-
-            if   List.is_singleton matched
-            then List.map fst matched
-            else aux matched (i+1)
-          end
-
-      in aux matched 0
-
-    let last_matching tomatch s =
-      first_matching (List.map rev tomatch) (rev s)
-  end
-
-  let option_matching tomatch s =
-    match OptionMatching.all_matching tomatch s with
-    | [s] -> [s] | matched ->
-    match OptionMatching.first_matching matched s with
-    | [s] -> [s] | matched -> OptionMatching.last_matching matched s
 end
 
 (* -------------------------------------------------------------------- *)
 module IO = BatIO
-
-(* -------------------------------------------------------------------- *)
-module File = struct
-  include BatFile
-
-  let read_from_file ~offset ~length source =
-    try
-      let input = Pervasives.open_in_bin source in
-      try_finally
-        (fun () ->
-          Pervasives.seek_in input offset;
-          Pervasives.really_input_string input length)
-        (fun () -> Pervasives.close_in input)
-    with
-    | End_of_file
-    | Invalid_argument _
-    | Sys_error _ -> invalid_arg "File.read_from_file"
-
-  let write_to_file ~output data =
-    try
-      let output = Pervasives.open_out_bin output in
-      try_finally
-        (fun () ->
-          Pervasives.output_string output data;
-          Pervasives.flush output)
-        (fun () -> Pervasives.close_out output)
-    with
-    | Invalid_argument _
-    | Sys_error _ -> invalid_arg "File.write_to_file"
-end
 
 (* -------------------------------------------------------------------- *)
 module Buffer = struct
@@ -760,7 +634,7 @@ let pp_enclose ~pre ~post pp fmt x =
 
 (* -------------------------------------------------------------------- *)
 let pp_paren pp fmt x =
-  pp_enclose "(" ")" pp fmt x
+  pp_enclose ~pre:"(" ~post:")" pp fmt x
 
 (* -------------------------------------------------------------------- *)
 let pp_maybe_paren c pp =

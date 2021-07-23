@@ -318,7 +318,7 @@ let remove_params (prog : 'info pprog) =
 
 let csubst_v () =
   let tbl = Hv.create 101 in
-  let rec aux v =
+  let aux v =
     if not (is_gkvar v) then Pvar v
     else
       let v_ = v.gv.L.pl_desc in

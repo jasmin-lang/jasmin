@@ -9,22 +9,6 @@ module W = Wsize
 type rsize = [ `U8 | `U16 | `U32 | `U64 ]
 
 (* -------------------------------------------------------------------- *)
-let rs_of_ws =
-  function
-  | W.U8 -> `U8
-  | W.U16 -> `U16
-  | W.U32 -> `U32
-  | W.U64 -> `U64
-  | _ -> assert false
-
-let rs_of_ve =
-  function
-  | W.VE8 -> `U8
-  | W.VE16 -> `U16
-  | W.VE32 -> `U32
-  | W.VE64 -> `U64
-
-(* -------------------------------------------------------------------- *)
 exception InvalidRegSize of W.wsize
 
 (* -------------------------------------------------------------------- *)
@@ -37,9 +21,9 @@ let pp_gen (fmt : Format.formatter) = function
   | `Label lbl ->
       Format.fprintf fmt "%s:" lbl
   | `Instr (s, []) ->
-      Format.fprintf fmt "\t%-.*s" iwidth s
+      Format.fprintf fmt "\t%-*s" iwidth s
   | `Instr (s, args) ->
-      Format.fprintf fmt "\t%-.*s\t%s"
+      Format.fprintf fmt "\t%-*s\t%s"
         iwidth s (String.join ", " args)
 
 let pp_gens (fmt : Format.formatter) xs =
@@ -86,14 +70,6 @@ let rsize_of_wsize (ws : W.wsize) =
   | U32 -> `U32
   | U64 -> `U64
   | _   -> raise (InvalidRegSize ws)
-
-(* -------------------------------------------------------------------- *)
-let pp_instr_rsize (rs : rsize) =
-  match rs with
-  | `U8  -> "b"
-  | `U16 -> "w"
-  | `U32 -> "l"
-  | `U64 -> "q"
 
 (* -------------------------------------------------------------------- *)
 let pp_register (ws : rsize) (reg : X86_decl.register) =
