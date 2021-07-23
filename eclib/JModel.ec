@@ -378,6 +378,40 @@ op VMOVLPD (v: W128.t) : W64.t =
 op VMOVHPD (v: W128.t) : W64.t =
   v \bits64 1.
 
+(* ------------------------------------------------------------------- *)
+op hadd: int list -> int list.
+
+axiom hadd_nil : hadd [] = [].
+axiom hadd_cons2 x y t : hadd (x :: y :: t) = (x + y) :: hadd t.
+
+hint rewrite haddE: hadd_nil hadd_cons2.
+
+op packssw(x: int): W16.t =
+  if x < W16.min_sint then (W16.of_int W16.min_sint)
+  else if W16.max_sint <= x then (W16.of_int W16.max_sint)
+  else (W16.of_int x).
+
+op VPMADDUBSW_128 (w1 w2: W128.t) : W128.t =
+  let v1 = map W8.to_uint (W16u8.to_list w1) in
+  let v2 = map W8.to_sint (W16u8.to_list w2) in
+  pack8 (map packssw (hadd (map2 Int.( * ) v1 v2))).
+
+op VPMADDUBSW_256 (w1 w2: W256.t) : W256.t =
+  let v1 = map W8.to_uint (W32u8.to_list w1) in
+  let v2 = map W8.to_sint (W32u8.to_list w2) in
+  pack16 (map packssw (hadd (map2 Int.( * ) v1 v2))).
+
+op VPMADDWD_128 (w1 w2: W128.t) : W128.t =
+  let v1 = map W16.to_sint (W8u16.to_list w1) in
+  let v2 = map W16.to_sint (W8u16.to_list w2) in
+  pack4 (map W32.of_int (hadd (map2 Int.( * ) v1 v2))).
+
+op VPMADDWD_256 (w1 w2: W256.t) : W256.t =
+  let v1 = map W16.to_sint (W16u16.to_list w1) in
+  let v2 = map W16.to_sint (W16u16.to_list w2) in
+  pack8 (map W32.of_int (hadd (map2 Int.( * ) v1 v2))).
+
+(* ------------------------------------------------------------------- *)
 (* AES instruction *)
 
 abbrev [-printing] VAESDEC          = AESDEC.
