@@ -386,7 +386,6 @@ abbrev [-printing] VPMOVMSKB_u128_u16 = VPMOVMSKB_128.
 abbrev [-printing] VPMOVMSKB_u256_u32 = VPMOVMSKB_256.
 
 (* ------------------------------------------------------------------- *)
-
 op VMOVLPD (v: W128.t) : W64.t =
   v \bits64 0.
 
@@ -435,6 +434,24 @@ op VMOVSLDUP_256 (v: W256.t): W256.t =
 
 abbrev [-printing] VMOVSLDUP_4u32 = VMOVSLDUP_128.
 abbrev [-printing] VMOVSLDUP_8u32 = VMOVSLDUP_256.
+
+(* ------------------------------------------------------------------- *)
+op round_scalew(x: int): W16.t =
+  let p = ((W32.of_int x) `>>` (W8.of_int 14)) + (W32.of_int 1) in
+  W2u16.truncateu16 (p `>>` (W8.of_int 1)).
+
+op VPMULHRSW_128 (w1 w2: W128.t): W128.t =
+  let v1 = map W16.to_sint (W8u16.to_list w1) in
+  let v2 = map W16.to_sint (W8u16.to_list w2) in
+  pack8 (map round_scalew (map2 Int.( * ) v1 v2)).
+
+op VPMULHRSW_256 (w1 w2: W256.t): W256.t =
+  let v1 = map W16.to_sint (W16u16.to_list w1) in
+  let v2 = map W16.to_sint (W16u16.to_list w2) in
+  pack16 (map round_scalew (map2 Int.( * ) v1 v2)).
+
+abbrev [-printing] VPMULHRS_8u16 = VPMULHRSW_128.
+abbrev [-printing] VPMULHRS_16u16 = VPMULHRSW_256.
 
 (* ------------------------------------------------------------------- *)
 (* AES instruction *)
