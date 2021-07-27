@@ -368,8 +368,12 @@ op VPBLENDD_256 (w1 w2: W256.t) (i:W8.t) : W256.t =
      w \bits32 n in
   pack8 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7].
 
-(* ------------------------------------------------------------------- *)
+abbrev [-printing] VPBLEND_8u16 = VPBLENDW_128.
+abbrev [-printing] VPBLEND_4u32 = VPBLENDD_128.
+abbrev [-printing] VPBLEND_16u16 = VPBLENDW_256.
+abbrev [-printing] VPBLEND_8u32 = VPBLENDD_256.
 
+(* ------------------------------------------------------------------- *)
 op VPMOVMSKB_128 (v: W128.t) : W16.t =
   let vb = w2bits v in
   W16.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 16).
