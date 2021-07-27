@@ -427,6 +427,16 @@ op VPMADDWD_256 (w1 w2: W256.t) : W256.t =
   pack8 (map W32.of_int (hadd (map2 Int.( * ) v1 v2))).
 
 (* ------------------------------------------------------------------- *)
+op VMOVSLDUP_128 (v: W128.t): W128.t =
+  pack4 [v \bits32 0; v \bits32 0; v \bits32  2; v \bits32 2].
+
+op VMOVSLDUP_256 (v: W256.t): W256.t =
+  pack8 [v \bits32 0; v \bits32 0; v \bits32  2; v \bits32 2; v \bits32 4; v \bits32 4; v \bits32  6; v \bits32 6].
+
+abbrev [-printing] VMOVSLDUP_4u32 = VMOVSLDUP_128.
+abbrev [-printing] VMOVSLDUP_8u32 = VMOVSLDUP_256.
+
+(* ------------------------------------------------------------------- *)
 (* AES instruction *)
 
 abbrev [-printing] VAESDEC          = AESDEC.
