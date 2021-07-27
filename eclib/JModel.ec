@@ -271,6 +271,17 @@ op packus_4u32 (w: W256.t, off: int) : W64.t =
 op VPACKUS_8u32 (w1 w2: W256.t) : W256.t =
   pack4 [packus_4u32 w1 0; packus_4u32 w2 0; packus_4u32 w1 4; packus_4u32 w2 4].
 
+op packus_8u16 (w: W256.t, off: int) : W64.t =
+  let pack = fun n =>
+  if (w \bits16 n) \slt W16.zero then W8.zero
+  else if (W16.of_int W8.max_uint) \sle (w \bits16 n) then (W8.of_int W8.max_uint)
+  else (w \bits8 (2*n))
+  in
+  pack8 [pack off; pack (off+1); pack (off+2); pack (off+3); pack (off+4); pack (off+5); pack (off+6); pack (off+7)].
+
+op VPACKUS_16u16 (w1 w2: W256.t) : W256.t =
+  pack4 [packus_8u16 w1 0; packus_8u16 w2 0; packus_8u16 w1 8; packus_8u16 w2 8].
+
 (* ------------------------------------------------------------------- *)
 op packss_8u16 (w: W256.t, off: int) : W64.t =
   let pack = fun n =>
