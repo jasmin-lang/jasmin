@@ -335,8 +335,8 @@ Section PROOF.
         move: hget;rewrite /get_var; apply on_vuP => //= t1 ht1 /Varr_inj.
         move=> [e]; subst n' => /= ?;subst t.
         rewrite (get_arr_read_mem heq hva halign ht1 hti) /=.
-        exists (Vword w). split=> //. rewrite /=.
-        rewrite wrepr_add. by rewrite wrepr_mul.
+        exists (Vword w). split=> //.
+        by rewrite wrepr_add wrepr_mul GRing.addrA.
       (* Pload *)
       - move=> sz x e he e' v lte le. case: ifP=> // hc.
         t_xrbindP=> -[e1' le1'] /he hrec <- <- wv1 vv1 /= hget hto' [we1 le1''].
@@ -922,7 +922,7 @@ Section PROOF.
       write_mem (emem s2) (pstk + wrepr Uptr (ve * wsize_size sz + ofs)) sz vw = ok m').
     - case => m' Hm'; rewrite Hm' /=. 
       exists {| emem := m'; evm := evm s2 |}. split.
-      + by rewrite -wrepr_mul -wrepr_add.
+      + by rewrite wrepr_add wrepr_mul GRing.addrA.
       rewrite /WArray.inject Z.ltb_irrefl.
       by have := valid_arr_stk Hget hget Hm' haset Hv; case: (t'').
     apply/Memory.writeV.

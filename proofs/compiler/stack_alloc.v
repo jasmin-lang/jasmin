@@ -156,8 +156,6 @@ Definition cast_word e :=
   | _  => (cast_ptr e, LT_id)
   end.
 
-(* End TODO *)
-
 Definition stk_not_fresh {A} :=
   @cerror (Cerr_stk_alloc "the stack variable is not fresh") A.
 
@@ -170,13 +168,20 @@ Definition not_aligned {A} :=
 Definition invalid_var {A} :=
   @cerror (Cerr_stk_alloc "invalid variable") A.
 
+Section Notations.
+(* Declare Scope ls_scope. *)
+Delimit Scope ls_scope with LS.
+
+Notation "'cst' n" := (LS_const (wrepr Uptr n)) (at level 0) : ls_scope.
+Notation "'sp'" := (LS_stk) (at level 0): ls_scope.
+Infix "+" := LS_Add : ls_scope.
+Infix "×" := LS_Mul (at level 30) : ls_scope.
+
 Definition mk_ofs ws e1 ofs : pexpr * leak_e_tr :=
   let sz := wsize_size ws in
   if is_const e1 is Some i then
-    ((cast_const (i * sz + ofs)%Z), (LT_lidx (fun i => 
-      (LS_Add LS_stk
-        (LS_Add (LS_Mul (LS_const (wrepr U64 i)) (LS_const (wrepr U64 sz))) 
-                (LS_const (wrepr U64 ofs)))))))
+    ((cast_const (i * sz + ofs)%Z),
+     (LT_lidx (fun i => sp + cst i × cst sz + cst ofs)))%LS
   else
     (add (mul (cast_const sz) (cast_word e1).1) (cast_const ofs),
      LT_seq [:: (LT_seq [:: LT_remove ; (cast_word e1).2]) ; LT_remove]).
@@ -190,8 +195,8 @@ Fixpoint alloc_e (m:map) (e: pexpr) : cexec (pexpr * leak_e_tr) :=
       if is_word_type (vtype x) is Some ws then
         let ofs' := cast_const ofs in
         let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
-        ok ((Pload ws stk ofs'), 
-             LT_seq [:: LT_id; LT_const (LS_Add LS_stk (LS_const (wrepr U64 ofs)))]) 
+        ok ((Pload ws stk ofs'),
+             LT_seq [:: LT_id; LT_const (sp + cst ofs)%LS ])
         (*LT_var ofs'.2 (LAdr (wrepr U64 ofs)))*)
         (* we should also leak the pointer stored in the variable (vstk m) in evm *)
       else Let r := not_a_word_v in ok (r, LT_id)
@@ -208,9 +213,8 @@ Fixpoint alloc_e (m:map) (e: pexpr) : cexec (pexpr * leak_e_tr) :=
         let ofs' := mk_ofs ws er.1 ofs in 
         ok (Pload ws stk ofs'.1,
             LT_map [:: LT_compose er.2 ofs'.2;
-            (LT_lidx (fun i => 
-              (LS_Add LS_stk
-                (LS_Add (LS_Mul (LS_const (wrepr U64 i)) (LS_const (wrepr U64 (wsize_size ws)))) (LS_const (wrepr U64 ofs))))))])
+            (LT_lidx (fun i =>
+              sp + cst i × cst (wsize_size ws) + cst ofs)%LS)])
             (*LT_map [:: LT_compose er.2 ofs'.2; 
                       (LT_lidx (fun i => 
                                  (LS_Add LS_stk 
@@ -264,8 +268,8 @@ Definition alloc_lval (m:map) (r:lval) ty : cexec (lval * leak_e_tr) :=
         if ty == sword ws then
           let ofs' := cast_const ofs in
           let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
-          ok ((Lmem ws stk ofs'), 
-               LT_seq [:: LT_id; LT_const (LS_Add LS_stk (LS_const (wrepr U64 ofs)))])
+          ok (Lmem ws stk ofs',
+              LT_seq [:: LT_id; LT_const (sp + cst ofs)%LS])
         else Let r := cerror (Cerr_stk_alloc "invalid type for Lvar") in ok (r, LT_remove)
       else not_a_word_v
     | None     =>
@@ -287,9 +291,8 @@ Definition alloc_lval (m:map) (r:lval) ty : cexec (lval * leak_e_tr) :=
         let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
         let ofs' := mk_ofs ws er.1 ofs in
         ok ((Lmem ws stk ofs'.1), LT_map [:: LT_compose er.2 ofs'.2;
-            (LT_lidx (fun i => 
-              (LS_Add LS_stk
-                (LS_Add (LS_Mul (LS_const (wrepr U64 i)) (LS_const (wrepr U64 (wsize_size ws)))) (LS_const (wrepr U64 ofs))))))])
+            (LT_lidx (fun i =>
+                        sp + cst i × cst (wsize_size ws) + cst ofs)%LS)])
       else Let r  := not_aligned in ok(r, LT_remove)
 
     | None =>
@@ -333,6 +336,7 @@ Fixpoint alloc_i (m: map) (i: instr) : ciexec (instr * leak_i_tr) :=
     end in
   ok ((MkI ii ir.1), ir.2).
 
+End Notations.
 
 Definition add_err_fun (A : Type) (f : funname) (r : cexec A) :=
   match r with
