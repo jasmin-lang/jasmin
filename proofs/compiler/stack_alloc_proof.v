@@ -194,14 +194,15 @@ Section PROOF.
 
   Lemma mk_ofsP sz s2 ofs e i le:
     sem_pexpr gd s2 e = ok ((Vint i), le) ->
-    sem_pexpr gd s2 (mk_ofs sz e ofs).1 = 
-    ok ((Vword (wrepr U64 (i * wsize_size sz + ofs)%Z)), 
+    sem_pexpr gd s2 (mk_ofs sz e ofs).1 =
+    ok ((Vword (wrepr U64 (i * wsize_size sz + ofs)%Z)),
     (leak_E pstk (mk_ofs sz e ofs).2 le)).
   Proof.
     rewrite /mk_ofs. case (is_constP e).
     + by move=>  z [] <- <- /=.
-    move=> e' he' /=. rewrite /sem_sop2.
-    have [sz' [w [-> /= -> /=]]]:= cast_wordP he'.
+    move=> e' /cast_wordP[] sz' [] w [].
+    case: cast_word => w' t /= -> /=.
+    rewrite /sem_sop2 /= => -> /=.
     by rewrite !zero_extend_u wrepr_add wrepr_mul GRing.mulrC.
   Qed.
 
@@ -323,15 +324,16 @@ Section PROOF.
           move=>w hw <- <- /=.
           case: v' Hu=> //= n' a hincl; have := WArray.uincl_get hincl hw.
           move=> -> /=. by exists (Vword w); split=> //.
-        case: ifP=> //= halign [<- <-].
-        apply: on_arr_varP => n t hsubt hget. t_xrbindP.
-        move=> [v1 l1] /hrec [] v1' [] hve' sve' i  /(value_uincl_int sve') [] hi hi'.
-        move=> w hti <- <- /=; subst v1 v1'=> /=.
+        case: ifP => // halign h.
+        apply: on_arr_varP => n t hsubt hget.
+        t_xrbindP => - [ v1 l1 ] /hrec [] v1' [] hve' sve' i /(value_uincl_int sve') [] hi hi' w hti <- <-; subst.
         set v1 := {| vtype := tv1; vname := nv1 |}.
         case: (Hv) => _ _ _ _ hstk _ /(_ v1); rewrite heq.
         have [n' [/= heqt hnn']]:= subtypeEl hsubt; subst tv1.
-        have H := (mk_ofsP sz1 ofs hve'). rewrite H /= !zero_extend_u.
-        rewrite hstk /= zero_extend_u => hva.
+        have := (mk_ofsP sz1 ofs hve').
+        case: mk_ofs h => ofs' r [<- <-] /=.
+        rewrite hstk /= => -> /= hva.
+        rewrite !zero_extend_u.
         move: hget;rewrite /get_var; apply on_vuP => //= t1 ht1 /Varr_inj.
         move=> [e]; subst n' => /= ?;subst t.
         rewrite (get_arr_read_mem heq hva halign ht1 hti) /=.
@@ -339,7 +341,7 @@ Section PROOF.
         by rewrite wrepr_add wrepr_mul GRing.addrA.
       (* Pload *)
       - move=> sz x e he e' v lte le. case: ifP=> // hc.
-        t_xrbindP=> -[e1' le1'] /he hrec <- <- wv1 vv1 /= hget hto' [we1 le1''].
+        t_xrbindP=> -[e1' le1'] /he hrec [<- <-] wv1 vv1 /= hget hto' [we1 le1''].
         move=> /hrec [] ve1' [] -> hu /= wv2 hto wr hr <- <-.
         have [vv1' [] -> hu' /=]:= check_varP hc Hvm hget.
         rewrite (value_uincl_word hu hto) (value_uincl_word hu' hto') /=.
@@ -348,7 +350,7 @@ Section PROOF.
         by rewrite hr /=;eexists;(split;first by reflexivity) => /=.
       (* Pop1 *)
       - move=> o1 e1 Ih e2 v lte le. t_xrbindP.
-        move=> [ve le'] /Ih hrec <- <- [ve' le''] /= /hrec [] ve1' [] -> Hv'.
+        move=> [ve le'] /Ih hrec [<- <-] [ve' le''] /= /hrec [] ve1' [] -> Hv'.
         move=> vo /(vuincl_sem_sop1 Hv') /= -> <- <- /=.
         by eexists;split;first by reflexivity.
       (* Pop2 *)

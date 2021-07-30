@@ -187,14 +187,14 @@ Notation "[ x ; .. ; y ]" := (LT_seq (cons x%LT .. (cons y%LT nil) ..)) : lt_sco
 Notation "'C' e" := (LT_const e%LS) (at level 0) : lt_scope.
 Notation "[[ i ↦ e ]]" := (LT_lidx (fun i => e%LS)) (i ident) : lt_scope.
 
-Definition mk_ofs ws e1 ofs : pexpr * leak_e_tr :=
+Definition mk_ofs ws e ofs : pexpr * leak_e_tr :=
   let sz := wsize_size ws in
-  if is_const e1 is Some i then
+  if is_const e is Some i then
     ((cast_const (i * sz + ofs)%Z),
      [[ i ↦ sp + cst i × cst sz + cst ofs ]]%LT)
   else
-    (add (mul (cast_const sz) (cast_word e1).1) (cast_const ofs),
-     [ [ • ; (cast_word e1).2] ; • ]%LT).
+    let: (e, t) := cast_word e in
+    (add (mul (cast_const sz) e) (cast_const ofs), [ [ • ; t] ; • ]%LT).
 
 Let ret {E} e t : cexec (E * leak_e_tr) := ok (e, t).
 Arguments ret {_} _ _%LT.
@@ -205,35 +205,34 @@ Fixpoint alloc_e (m: map) (e: pexpr) : cexec (pexpr * leak_e_tr) :=
   | Pvar   x =>
     if Mvar.get m.1 x is Some ofs then
       if is_word_type (vtype x) is Some ws then
-        let ofs' := cast_const ofs in
         let stk := {| v_var := vstk m; v_info := v_info x |} in
-        ret (Pload ws stk ofs') [ id; C (sp + cst ofs) ]
+        ret (Pload ws stk (cast_const ofs)) [ id; C (sp + cst ofs) ]
       else not_a_word_v
     else
       if is_vstk m x then stk_not_fresh
       else ret e id
 
-  | Pget ws x e1 =>
-    Let er := alloc_e m e1 in
+  | Pget ws x e =>
+    Let: (e, r) := alloc_e m e in
     if Mvar.get m.1 x is Some ofs then
       if is_align (wrepr Uptr ofs) ws then
         let stk := {| v_var := vstk m; v_info := v_info x |} in
-        let ofs' := mk_ofs ws er.1 ofs in
-        ret (Pload ws stk ofs'.1) [ er.2 ∘ ofs'.2, [[ i ↦ sp + cst i × cst (wsize_size ws) + cst ofs ]] ]
+        let: (ofs', t) := mk_ofs ws e ofs in
+        ret (Pload ws stk ofs') [ r ∘ t, [[ i ↦ sp + cst i × cst (wsize_size ws) + cst ofs ]] ]
       else not_aligned
     else
       if is_vstk m x then stk_not_fresh
-      else ret (Pget ws x er.1) [ er.2 , id]
+      else ret (Pget ws x e) [ r, id ]
   (* LT_id corresponds to address leaked *)
-  | Pload ws x e1 =>
+  | Pload ws x e =>
     if check_var m x then
-      Let er := alloc_e m e1 in (* offset *)
-      ret (Pload ws x er.1) [ er.2, id]
+      Let: (e, r) := alloc_e m e in (* offset *)
+      ret (Pload ws x e) [ r, id ]
     else invalid_var
 
-  | Papp1 o e1 =>
-    Let er := alloc_e m e1 in
-    ok ((Papp1 o er.1), er.2)
+  | Papp1 o e =>
+    Let: (e, r) := alloc_e m e in
+    ret (Papp1 o e) r
 
   | Papp2 o e1 e2 =>
     Let er1 := alloc_e m e1 in
