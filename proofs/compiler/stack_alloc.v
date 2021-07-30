@@ -179,20 +179,19 @@ Notation "'sp'" := (LS_stk) (at level 0): ls_scope.
 Notation "x + y" := (LS_Add x%LS y%LS) : ls_scope.
 Infix "×" := LS_Mul (at level 30) : ls_scope.
 
-Arguments LT_const _%LS.
-Arguments LT_lidx _%LS.
-
 Notation "'id'" := LT_id : lt_scope.
 Notation "•" := LT_remove : lt_scope.
 Infix "∘" := LT_compose (at level 60) : lt_scope.
 Notation "[ x , .. , y ]" := (LT_map (cons x%LT .. (cons y%LT nil) ..)) : lt_scope.
 Notation "[ x ; .. ; y ]" := (LT_seq (cons x%LT .. (cons y%LT nil) ..)) : lt_scope.
+Notation "'C' e" := (LT_const e%LS) (at level 0) : lt_scope.
+Notation "[[ i ↦ e ]]" := (LT_lidx (fun i => e%LS)) (i ident) : lt_scope.
 
 Definition mk_ofs ws e1 ofs : pexpr * leak_e_tr :=
   let sz := wsize_size ws in
   if is_const e1 is Some i then
     ((cast_const (i * sz + ofs)%Z),
-     (LT_lidx (fun i => sp + cst i × cst sz + cst ofs)))%LS
+     [[ i ↦ sp + cst i × cst sz + cst ofs ]]%LT)
   else
     (add (mul (cast_const sz) (cast_word e1).1) (cast_const ofs),
      [ [ • ; (cast_word e1).2] ; • ]%LT).
@@ -208,7 +207,7 @@ Fixpoint alloc_e (m: map) (e: pexpr) : cexec (pexpr * leak_e_tr) :=
       if is_word_type (vtype x) is Some ws then
         let ofs' := cast_const ofs in
         let stk := {| v_var := vstk m; v_info := v_info x |} in
-        ret (Pload ws stk ofs') [ id; LT_const (sp + cst ofs) ]
+        ret (Pload ws stk ofs') [ id; C (sp + cst ofs) ]
       else not_a_word_v
     else
       if is_vstk m x then stk_not_fresh
@@ -220,7 +219,7 @@ Fixpoint alloc_e (m: map) (e: pexpr) : cexec (pexpr * leak_e_tr) :=
       if is_align (wrepr Uptr ofs) ws then
         let stk := {| v_var := vstk m; v_info := v_info x |} in
         let ofs' := mk_ofs ws er.1 ofs in
-        ret (Pload ws stk ofs'.1) [ er.2 ∘ ofs'.2, LT_lidx (fun i => sp + cst i × cst (wsize_size ws) + cst ofs)%LS]
+        ret (Pload ws stk ofs'.1) [ er.2 ∘ ofs'.2, [[ i ↦ sp + cst i × cst (wsize_size ws) + cst ofs ]] ]
       else not_aligned
     else
       if is_vstk m x then stk_not_fresh
@@ -262,7 +261,7 @@ Definition alloc_lval (m:map) (r:lval) ty : cexec (lval * leak_e_tr) :=
         if ty == sword ws then
           let ofs' := cast_const ofs in
           let stk := {| v_var := vstk m; v_info := v_info x |} in
-          ret (Lmem ws stk ofs') [ id; LT_const (sp + cst ofs)]
+          ret (Lmem ws stk ofs') [ id; C (sp + cst ofs)]
         else cerror (Cerr_stk_alloc "invalid type for Lvar")
       else not_a_word_v
     else
@@ -281,7 +280,7 @@ Definition alloc_lval (m:map) (r:lval) ty : cexec (lval * leak_e_tr) :=
       if is_align (wrepr Uptr ofs) ws then
         let stk := {| v_var := vstk m; v_info := v_info x |} in
         let ofs' := mk_ofs ws er.1 ofs in
-        ret (Lmem ws stk ofs'.1) [ er.2 ∘ ofs'.2, LT_lidx (fun i => sp + cst i × cst (wsize_size ws) + cst ofs)%LS]
+        ret (Lmem ws stk ofs'.1) [ er.2 ∘ ofs'.2, [[ i ↦ sp + cst i × cst (wsize_size ws) + cst ofs ]] ]
       else not_aligned
     else
       if is_vstk m x then stk_not_fresh
