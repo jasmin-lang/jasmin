@@ -130,7 +130,8 @@ Notation rmap  := Result.map.
 Notation ok    := (@Ok _).
 
 Notation "m >>= f" := (rbind f m) (at level 25, left associativity).
-Notation "'Let' x ':=' m 'in' body" := (m >>= (fun x => body)) (at level 25).
+Notation "'Let' x ':=' m 'in' body" := (m >>= (fun x => body)) (x ident, at level 25).
+Notation "'Let:' x ':=' m 'in' body" := (m >>= (fun x => body)) (x strict pattern, at level 25).
 
 Lemma bindA eT aT bT cT (f : aT -> result eT bT) (g: bT -> result eT cT) m:
   m >>= f >>= g = m >>= (fun a => f a >>= g).
