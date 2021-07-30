@@ -499,7 +499,7 @@ let get_friend_registers (dflt: var) (fr: friend) (a: allocation) (i: int) (regs
 (* Gets the type of all variables in the list.
    Fails if the list has variables of different types. *)
 let type_of_vars (vars: var list) : ty =
-  match List.sort_unique Pervasives.compare (List.map (fun x -> x.v_ty) vars) with
+  match List.sort_unique Stdlib.compare (List.map (fun x -> x.v_ty) vars) with
   | [ty] -> ty
   | _ :: _ ->
     hierror "Register allocation: heterogeneous class %a"

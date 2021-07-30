@@ -737,7 +737,7 @@ Proof.
       rewrite /SF_of_word msb0 /=. move : compile_lvals. move=> Hc.
       move: (Hc ii id.(id_max_imm) gd m lvs m1 l1 s [:: Reg r; Reg r]
              id.(id_out) id.(id_tout)
-             (let vf := Some false in (::vf, vf, vf, vf, Some true & (0%R: word sz)))
+             (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word sz)))
              MSB_CLEAR (refl_equal _) hw hlo hcd id.(id_check_dest)).
      move=> [] m2 [] hm hlo'. exists m2. split=> //. rewrite /= in hm. by rewrite hm /= cats0.
     t_xrbindP. move=> [] // /= hes vs vt [] <- /= <- [m1 l1].

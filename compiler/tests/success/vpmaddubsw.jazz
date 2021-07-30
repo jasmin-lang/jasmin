@@ -1,0 +1,17 @@
+export
+fn test_pmaddubsw(reg u64 rp) {
+  reg u256 f0 f1 f2;
+  reg u128 t0 t1 t2;
+
+  f0 = #set0_256();
+  f1 = #set0_256();
+  f2 = #VPMADDUBSW_256(f0, f1);
+  f0 = #VPMADDUBSW_256(f2, (u256)[rp]);
+  (u256)[rp] = f0;
+
+  t0 = #set0_128();
+  t1 = #set0_128();
+  t2 = #VPMADDUBSW_128(t0, t1);
+  t0 = #VPMADDUBSW_128(t2, (u128)[rp + 32]);
+  (u128)[rp + 32] = t0;
+}

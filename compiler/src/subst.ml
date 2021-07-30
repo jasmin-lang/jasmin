@@ -251,7 +251,7 @@ let remove_params (prog : 'info pprog) =
 
 let csubst_v () =
   let tbl = Hv.create 101 in
-  let rec aux v =
+  let aux v =
     let v_ = v.L.pl_desc in
     let v' = 
       try Hv.find tbl v_

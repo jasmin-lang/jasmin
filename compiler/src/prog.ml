@@ -272,7 +272,7 @@ let rec rvars_e s = function
 
 and rvars_es s es = List.fold_left rvars_e s es
 
-let rec rvars_lv s = function
+let rvars_lv s = function
  | Lnone _       -> s
  | Lvar x        -> Sv.add (L.unloc x) s
  | Lmem (_,x,e)
