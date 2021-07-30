@@ -250,7 +250,9 @@ Fixpoint alloc_e (m: map) (e: pexpr) : cexec (pexpr * leak_e_tr) :=
     ret (Pif t er.1 er1.1 er2.1) [ er.2, er1.2, er2.2]
   end.
 
-Definition alloc_lval (m:map) (r:lval) ty : cexec (lval * leak_e_tr) :=
+Definition ill_typed_lvar : cexec (lval * leak_e_tr) := cerror (Cerr_stk_alloc "invalid type for Lvar").
+
+Definition alloc_lval (m: map) (r: lval) ty : cexec (lval * leak_e_tr) :=
   match r with
   | Lnone _ _ => ret r id
 
@@ -261,29 +263,29 @@ Definition alloc_lval (m:map) (r:lval) ty : cexec (lval * leak_e_tr) :=
           let ofs' := cast_const ofs in
           let stk := {| v_var := vstk m; v_info := v_info x |} in
           ret (Lmem ws stk ofs') [ id; C (sp + cst ofs)]
-        else cerror (Cerr_stk_alloc "invalid type for Lvar")
+        else ill_typed_lvar
       else not_a_word_v
     else
       if is_vstk m x then stk_not_fresh
       else ret r id
 
-  | Lmem ws x e1 =>
+  | Lmem ws x e =>
     if check_var m x then
-      Let er := alloc_e m e1 in
-      ret (Lmem ws x er.1) [ er.2, LT_id]
+      Let: (e, r) := alloc_e m e in
+      ret (Lmem ws x e) [ r, id ]
     else invalid_var
 
-  | Laset ws x e1 =>
-    Let er := alloc_e m e1 in
+  | Laset ws x e =>
+    Let: (e, r) := alloc_e m e in
     if Mvar.get m.1 x is Some ofs then
       if is_align (wrepr Uptr ofs) ws then
         let stk := {| v_var := vstk m; v_info := v_info x |} in
-        let ofs' := mk_ofs ws er.1 ofs in
-        ret (Lmem ws stk ofs'.1) [ er.2 ∘ ofs'.2, [[ i ↦ sp + cst i × cst (wsize_size ws) + cst ofs ]] ]
+        let: (ofs', t) := mk_ofs ws e ofs in
+        ret (Lmem ws stk ofs') [ r ∘ t, [[ i ↦ sp + cst i × cst (wsize_size ws) + cst ofs ]] ]
       else not_aligned
     else
       if is_vstk m x then stk_not_fresh
-      else ret (Laset ws x er.1) [ er.2, id]
+      else ret (Laset ws x e) [ r, id ]
   end.
 
 Definition bad_lval_number := Cerr_stk_alloc "invalid number of lval".

@@ -908,8 +908,8 @@ Section PROOF.
       rewrite /is_in_stk Hget. move=> /= H. move: (H hnis).
       move=> [] s2' [] {H} H Hvalid.
       exists s2'. split=> //=.
-    case: ifP => // hal [<- <-].
-    case: vi Hget => [[vty vn] vi] /= Hget.
+    case: ifP => // hal.
+    case: vi Hget => [[vty vn] vi] /= Hget h.
     case: (Hv) => H1 H2 H3 H4 H5 Hpstk H6 s1' le'.
     apply on_arr_varP => n' t' /subtypeEl [n1] /= [??];subst vty => hget.
     have ? : n1 = n'; last subst n1.
@@ -917,7 +917,7 @@ Section PROOF.
     t_xrbindP => -[i lti'] he ve hi vw hvw t'' haset vm hset ? <-;subst s1'.
     have [ve' [hve' vu]]:= alloc_eP Hv ha he.
     have [h1 h2] := value_uincl_int vu hi;subst i ve'.
-    have -> /= := mk_ofsP sz ofs hve'.
+    case: mk_ofs h (mk_ofsP sz ofs hve') => ofs' t [<- <-] /= -> /=.
     rewrite H5 (value_uincl_word Hu hvw) /= !zero_extend_u.
     apply: set_varP hset => //= t1 []??; subst t1 vm.
     cut (exists m',
