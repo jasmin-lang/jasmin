@@ -271,6 +271,29 @@ op packus_4u32 (w: W256.t, off: int) : W64.t =
 op VPACKUS_8u32 (w1 w2: W256.t) : W256.t =
   pack4 [packus_4u32 w1 0; packus_4u32 w2 0; packus_4u32 w1 4; packus_4u32 w2 4].
 
+op packus_8u16 (w: W256.t, off: int) : W64.t =
+  let pack = fun n =>
+  if (w \bits16 n) \slt W16.zero then W8.zero
+  else if (W16.of_int W8.max_uint) \sle (w \bits16 n) then (W8.of_int W8.max_uint)
+  else (w \bits8 (2*n))
+  in
+  pack8 [pack off; pack (off+1); pack (off+2); pack (off+3); pack (off+4); pack (off+5); pack (off+6); pack (off+7)].
+
+op VPACKUS_16u16 (w1 w2: W256.t) : W256.t =
+  pack4 [packus_8u16 w1 0; packus_8u16 w2 0; packus_8u16 w1 8; packus_8u16 w2 8].
+
+(* ------------------------------------------------------------------- *)
+op packss_8u16 (w: W256.t, off: int) : W64.t =
+  let pack = fun n =>
+  if (w \bits16 n) \slt (W16.of_int W8.min_sint) then (W8.of_int W8.min_sint)
+  else if (W16.of_int W8.max_sint) \sle (w \bits16 n) then (W8.of_int W8.max_sint)
+  else (w \bits8 (2*n))
+  in
+  pack8 [pack off; pack (off + 1); pack (off+2); pack (off+3); pack (off+4); pack (off+5); pack (off+6); pack (off+7)].
+
+op VPACKSS_16u16 (w1 w2: W256.t) : W256.t =
+  pack4 [packss_8u16 w1 0; packss_8u16 w2 0; packss_8u16 w1 8; packss_8u16 w2 8].
+
 (* ------------------------------------------------------------------- *)
 op VPMULH_8u16 (w1 w2: W128.t) : W128.t =
   map2 (fun (x y:W16.t) => wmulhs x y) w1 w2.
@@ -311,6 +334,15 @@ op VPSRLV_4u64 (w1:W256.t) (w2:W256.t) =
   map2 srl w1 w2.
 
 (* ------------------------------------------------------------------- *)
+op VPSLLV_8u32 (w1:W256.t) (w2:W256.t) =
+  let sll = fun (x1 x2:W32.t) => x1 `<<<` W32.to_uint x2 in
+  map2 sll w1 w2.
+
+op VPSRLV_8u32 (w1:W256.t) (w2:W256.t) =
+  let srl = fun (x1 x2:W32.t) => x1 `>>>` W32.to_uint x2 in
+  map2 srl w1 w2.
+
+(* ------------------------------------------------------------------- *)
 op VPBLENDW_128 (w1 w2: W128.t) (i: W8.t) : W128.t =
   let choose = fun n =>
     let w = if i.[n] then w2 else w1 in
@@ -336,8 +368,12 @@ op VPBLENDD_256 (w1 w2: W256.t) (i:W8.t) : W256.t =
      w \bits32 n in
   pack8 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7].
 
-(* ------------------------------------------------------------------- *)
+abbrev [-printing] VPBLEND_8u16 = VPBLENDW_128.
+abbrev [-printing] VPBLEND_4u32 = VPBLENDD_128.
+abbrev [-printing] VPBLEND_16u16 = VPBLENDW_256.
+abbrev [-printing] VPBLEND_8u32 = VPBLENDD_256.
 
+(* ------------------------------------------------------------------- *)
 op VPMOVMSKB_128 (v: W128.t) : W16.t =
   let vb = w2bits v in
   W16.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 16).
@@ -346,8 +382,78 @@ op VPMOVMSKB_256 (v: W256.t) : W32.t =
   let vb = w2bits v in
   W32.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 32).
 
-(* ------------------------------------------------------------------- *)
+abbrev [-printing] VPMOVMSKB_u128_u16 = VPMOVMSKB_128.
+abbrev [-printing] VPMOVMSKB_u256_u32 = VPMOVMSKB_256.
 
+(* ------------------------------------------------------------------- *)
+op VMOVLPD (v: W128.t) : W64.t =
+  v \bits64 0.
+
+op VMOVHPD (v: W128.t) : W64.t =
+  v \bits64 1.
+
+(* ------------------------------------------------------------------- *)
+op hadd: int list -> int list.
+
+axiom hadd_nil : hadd [] = [].
+axiom hadd_cons2 x y t : hadd (x :: y :: t) = (x + y) :: hadd t.
+
+hint rewrite haddE: hadd_nil hadd_cons2.
+
+op packssw(x: int): W16.t =
+  if x < W16.min_sint then (W16.of_int W16.min_sint)
+  else if W16.max_sint <= x then (W16.of_int W16.max_sint)
+  else (W16.of_int x).
+
+op VPMADDUBSW_128 (w1 w2: W128.t) : W128.t =
+  let v1 = map W8.to_uint (W16u8.to_list w1) in
+  let v2 = map W8.to_sint (W16u8.to_list w2) in
+  pack8 (map packssw (hadd (map2 Int.( * ) v1 v2))).
+
+op VPMADDUBSW_256 (w1 w2: W256.t) : W256.t =
+  let v1 = map W8.to_uint (W32u8.to_list w1) in
+  let v2 = map W8.to_sint (W32u8.to_list w2) in
+  pack16 (map packssw (hadd (map2 Int.( * ) v1 v2))).
+
+op VPMADDWD_128 (w1 w2: W128.t) : W128.t =
+  let v1 = map W16.to_sint (W8u16.to_list w1) in
+  let v2 = map W16.to_sint (W8u16.to_list w2) in
+  pack4 (map W32.of_int (hadd (map2 Int.( * ) v1 v2))).
+
+op VPMADDWD_256 (w1 w2: W256.t) : W256.t =
+  let v1 = map W16.to_sint (W16u16.to_list w1) in
+  let v2 = map W16.to_sint (W16u16.to_list w2) in
+  pack8 (map W32.of_int (hadd (map2 Int.( * ) v1 v2))).
+
+(* ------------------------------------------------------------------- *)
+op VMOVSLDUP_128 (v: W128.t): W128.t =
+  pack4 [v \bits32 0; v \bits32 0; v \bits32  2; v \bits32 2].
+
+op VMOVSLDUP_256 (v: W256.t): W256.t =
+  pack8 [v \bits32 0; v \bits32 0; v \bits32  2; v \bits32 2; v \bits32 4; v \bits32 4; v \bits32  6; v \bits32 6].
+
+abbrev [-printing] VMOVSLDUP_4u32 = VMOVSLDUP_128.
+abbrev [-printing] VMOVSLDUP_8u32 = VMOVSLDUP_256.
+
+(* ------------------------------------------------------------------- *)
+op round_scalew(x: int): W16.t =
+  let p = ((W32.of_int x) `>>` (W8.of_int 14)) + (W32.of_int 1) in
+  W2u16.truncateu16 (p `>>` (W8.of_int 1)).
+
+op VPMULHRSW_128 (w1 w2: W128.t): W128.t =
+  let v1 = map W16.to_sint (W8u16.to_list w1) in
+  let v2 = map W16.to_sint (W8u16.to_list w2) in
+  pack8 (map round_scalew (map2 Int.( * ) v1 v2)).
+
+op VPMULHRSW_256 (w1 w2: W256.t): W256.t =
+  let v1 = map W16.to_sint (W16u16.to_list w1) in
+  let v2 = map W16.to_sint (W16u16.to_list w2) in
+  pack16 (map round_scalew (map2 Int.( * ) v1 v2)).
+
+abbrev [-printing] VPMULHRS_8u16 = VPMULHRSW_128.
+abbrev [-printing] VPMULHRS_16u16 = VPMULHRSW_256.
+
+(* ------------------------------------------------------------------- *)
 (* AES instruction *)
 
 abbrev [-printing] VAESDEC          = AESDEC.

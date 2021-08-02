@@ -223,8 +223,8 @@ Definition w256x2w8_ty      := [:: sword256; sword256; sword8].
 Definition SF_of_word sz (w : word sz) :=
   msb w.
 
-Definition PF_of_word sz (w : word sz) :=
-  lsb w.
+Definition PF_of_word sz (w : word sz) : bool :=
+  foldl xorb true [seq wbit_n w i | i <- iota 0 8].
 
 Definition ZF_of_word sz (w : word sz) :=
   w == 0%R.
