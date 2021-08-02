@@ -13,8 +13,8 @@ let rec pp_leak_e fmt =
 let rec pp_tr_p fmt =
   let p s = fprintf fmt "%s" s in
   function
-  | LS_const _n -> p "const"
-  | LS_stk -> p "stk"
+  | LS_const n -> fprintf fmt "cst %a" Bigint.pp_print (Conv.bi_of_int64 n)
+  | LS_stk -> p "sp"
   | LS_Add (x, y) -> fprintf fmt "%a + %a" pp_tr_p x pp_tr_p y
   | LS_Mul (x, y) -> fprintf fmt "%a × %a" pp_tr_p x pp_tr_p y
 
@@ -25,8 +25,8 @@ let rec pp_e_tr fmt =
   | LT_remove -> p "remove"
   | LT_const p -> pp_tr_p fmt p
   | LT_subi _n -> p "subi"
-  | LT_lidx _n -> p "lidx"
-  | LT_map m -> fprintf fmt "[↦%a]" (pp_list "; " pp_e_tr) m
+  | LT_lidx n -> fprintf fmt "⟦ 37 ↦ %a ⟧" pp_tr_p (n (Conv.z_of_int 37)) (* dummy value easy to recognize *)
+  | LT_map m -> fprintf fmt "(%a)" (pp_list ", " pp_e_tr) m
   | LT_seq m -> fprintf fmt "[%a]" (pp_list "; " pp_e_tr) m
   | LT_compose (e, f) -> fprintf fmt "%a ∘ %a" pp_e_tr e pp_e_tr f
   | LT_rev -> p "rev"
