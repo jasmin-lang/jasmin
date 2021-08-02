@@ -2,13 +2,24 @@ open Format
 open Printer
 open Leakage
 
+(* ---------------------------------------------------------------- *)
+(* Leakage *)
 let rec pp_leak_e fmt =
   let p s = fprintf fmt "%s" s in
   function
   | LEmpty -> p "ε"
-  | LIdx _i -> p "ι"
+  | LIdx i -> fprintf fmt "[%a]" Bigint.pp_print (Conv.bi_of_z i)
   | LAdr _a -> p "α"
-  | LSub s -> fprintf fmt "sub(%a)" (pp_list ", " pp_leak_e) s
+  | LSub s -> fprintf fmt "(%a)" (pp_list ", " pp_leak_e) s
+
+let pp_leak_i fmt =
+  function
+  | Lopn (LSub [ rhs ; lhs ]) ->
+     fprintf fmt "%a := %a" pp_leak_e lhs pp_leak_e rhs
+  | _ -> fprintf fmt "TODO"
+
+(* ---------------------------------------------------------------- *)
+(* Leakage transformers *)
 
 let rec pp_tr_p fmt =
   let p s = fprintf fmt "%s" s in

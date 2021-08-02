@@ -36,6 +36,6 @@ Cd  "lang/ocaml".
 
 Extraction Blacklist String List Nat Utils Var Array.
 
-Separate Extraction utils expr sem x86_instr_decl compiler cost_linear.transform_costs_l.
+Separate Extraction utils expr sem x86_instr_decl compiler cost_linear.transform_costs_l leakage.leak_I.
 
 Cd  "../..".
