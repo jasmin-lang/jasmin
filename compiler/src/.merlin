@@ -8,7 +8,6 @@ PKG batteries
 PKG menhirLib
 PKG zarith
 PKG apron
-PKG ppl
 PKG yojson
 
 FLG -rectypes
