@@ -198,8 +198,8 @@ Section PROOF.
     ok ((Vword (wrepr U64 (i * wsize_size sz + ofs)%Z)),
     (leak_E pstk (mk_ofs sz e ofs).2 le)).
   Proof.
-    rewrite /mk_ofs. case (is_constP e).
-    + by move=>  z [] <- <- /=.
+    rewrite /mk_ofs. case: is_constP => /=.
+    + by move=>  z [] <-.
     move=> e' /cast_wordP[] sz' [] w [].
     case: cast_word => w' t /= -> /=.
     rewrite /sem_sop2 /= => -> /=.

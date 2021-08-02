@@ -190,8 +190,7 @@ Notation "[[ i ↦ e ]]" := (LT_lidx (fun i => e%LS)) (i ident) : lt_scope.
 Definition mk_ofs ws e ofs : pexpr * leak_e_tr :=
   let sz := wsize_size ws in
   if is_const e is Some i then
-    ((cast_const (i * sz + ofs)%Z),
-     [[ i ↦ sp + cst i × cst sz + cst ofs ]]%LT)
+    ((cast_const (i * sz + ofs)%Z), •)%LT
   else
     let: (e, t) := cast_word e in
     (add (mul (cast_const sz) e) (cast_const ofs), [ [ • ; t] ; • ]%LT).
