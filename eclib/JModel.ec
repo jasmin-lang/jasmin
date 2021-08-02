@@ -375,12 +375,12 @@ abbrev [-printing] VPBLEND_8u32 = VPBLENDD_256.
 
 (* ------------------------------------------------------------------- *)
 op VPMOVMSKB_128 (v: W128.t) : W16.t =
-  let vb = w2bits v in
-  W16.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 16).
+  let vb = W16u8.to_list v in
+  W16.bits2w (map W8.msb vb).
 
 op VPMOVMSKB_256 (v: W256.t) : W32.t =
-  let vb = w2bits v in
-  W32.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 32).
+  let vb = W32u8.to_list v in
+  W32.bits2w (map W8.msb vb).
 
 abbrev [-printing] VPMOVMSKB_u128_u16 = VPMOVMSKB_128.
 abbrev [-printing] VPMOVMSKB_u256_u32 = VPMOVMSKB_256.

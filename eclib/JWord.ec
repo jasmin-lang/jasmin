@@ -874,6 +874,8 @@ abbrev (`&`) = andw.
 abbrev (`|`) = orw.
 abbrev (`^`) = (+^).
 
+op msb (b: t): bool = 2^(size - 1) <= (to_uint b).
+
 op (`>>>`) (x : t) (i : int) =
   init (fun j => x.[j + i])
 axiomatized by wlsrE.
