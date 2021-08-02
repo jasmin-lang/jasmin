@@ -12,7 +12,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Lemma assemble_leaP rip ii sz sz' (w:word sz') lea adr m s:
-  (sz ≤ Uptr)%CMP → 
+  (sz ≤ Uptr)%CMP →
   (sz ≤ sz')%CMP →
   lom_eqv rip m s →
   sem_lea sz (evm m) lea = ok (zero_extend sz w) → 
@@ -190,16 +190,16 @@ Qed.
 *)
 
 (*Definition mask_word (f : msb_flag) (sz szr : wsize) (old : word szr) : word szr :=
-  let mask := if f is MSB_MERGE then wshl (-1)%R (wsize_bits sz) 
+  let mask := if f is MSB_MERGE then wshl (-1)%R (wsize_bits sz)
              else 0%R in
   wand old mask.
 
-Definition word_extend 
-   (f:msb_flag) (sz szr : wsize) (old : word szr) (new : word sz) : word szr := 
+Definition word_extend
+   (f:msb_flag) (sz szr : wsize) (old : word szr) (new : word sz) : word szr :=
  wxor (mask_word f sz old) (zero_extend szr new).
 *)
 (* word_uincl_update_u256 *)
-Lemma word_extend_CLEAR sz szo (w : word sz) (old : word szo) : 
+Lemma word_extend_CLEAR sz szo (w : word sz) (old : word szo) :
   word_extend MSB_CLEAR old w = zero_extend szo w.
 Proof. by rewrite /word_extend /= /mask_word wandC wand0 wxor0. Qed.
 
@@ -214,7 +214,7 @@ Proof.
     rewrite word_extend_CLEAR; apply: (word_uincl_trans h).
     by apply: word_uincl_zero_extR.
   (* MSB_MERGE *)
-  have hsz := cmp_le_trans hsz_sz' hsz'. 
+  have hsz := cmp_le_trans hsz_sz' hsz'.
   apply/andP; split => //; rewrite /word_extend /mask_word.
   rewrite -wxor_zero_extend // -wand_zero_extend //.
   rewrite zero_extend_wshl // zero_extend_idem // wshl_ovf; last first.
@@ -223,7 +223,7 @@ Proof.
 Qed.
 
 Lemma word_extend_big sz szo f (w : word sz) (old : word szo) :
-  ~(sz <= szo)%CMP ->       
+  ~(sz <= szo)%CMP ->
   (word_extend f old w) = zero_extend szo w.
 Proof.
   move=> h; case: f; first by rewrite word_extend_CLEAR.
@@ -403,7 +403,7 @@ Proof. elim: tys vs g => [ | ty tys hrec] [ | v vs] //= g; case: of_val => //=. 
 (* TODO: move *)
 Lemma zero_extend_comp sz sz' szo (v : word sz') :
   (sz' ≤ sz)%CMP ->
-  zero_extend szo (zero_extend sz v) = 
+  zero_extend szo (zero_extend sz v) =
   zero_extend szo v.
 Proof.
   move=> h; rewrite /zero_extend wunsigned_repr_small //.
@@ -412,7 +412,7 @@ Proof.
   have := wunsigned_range v; Psatz.lia.
 Qed.
 
-Lemma check_check1_write asm_args ad ws ty (v: sem_ot ty) s : 
+Lemma check_check1_write asm_args ad ws ty (v: sem_ot ty) s :
   clear_check1 asm_args ad ->
   mem_write_val MSB_CLEAR asm_args (ad, extend_size ws ty)
        (oto_val (wextend_size ws v)) s =
@@ -429,14 +429,14 @@ Proof.
 Qed.
 
 Lemma clear_check_write s ws asm_args id_out id_tout (t : sem_tuple id_tout) :
-  size id_out = size id_tout → 
-  clear_check id_out asm_args → 
+  size id_out = size id_tout →
+  clear_check id_out asm_args →
   mem_write_vals MSB_CLEAR s asm_args id_out [seq extend_size ws i | i <- id_tout]
         (list_ltuple (extend_tuple ws t)) =
   mem_write_vals MSB_CLEAR s asm_args id_out id_tout (list_ltuple t).
 Proof.
   rewrite /mem_write_vals.
-  elim: id_out id_tout t s => [ | ad id_out hrec] [ | ty id_tout] //= t s [] 
+  elim: id_out id_tout t s => [ | ad id_out hrec] [ | ty id_tout] //= t s []
      hsize /andP [] hc1 hcs.
   case: id_tout t hsize hcs.
   + by move=> {hrec}; case: id_out => //= v _ _; rewrite check_check1_write.
@@ -446,7 +446,7 @@ Proof.
   case: mem_write_val => //=.
 Qed.
 
-Lemma exec_desc_desc' op asm_args s :  
+Lemma exec_desc_desc' op asm_args s :
   id_check (instr_desc op) asm_args ->
   exec_instr_op (instr_desc op) asm_args s = exec_instr_op (instr_desc' op.2) asm_args s.
 Proof.

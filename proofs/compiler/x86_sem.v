@@ -203,10 +203,10 @@ Definition eval_asm_arg k (s: x86_mem) (a: asm_arg) (ty: stype) : exec value :=
   | Adr adr =>
     let a := decode_addr s adr in
     match ty with
-    | sword sz => 
-      if k == AK_compute then ok (Vword (zero_extend sz a)) 
+    | sword sz =>
+      if k == AK_compute then ok (Vword (zero_extend sz a))
       else
-        Let w := read s.(xmem) a sz in 
+        Let w := read s.(xmem) a sz in
         ok (Vword w)
     | _        => type_error
     end
@@ -261,12 +261,12 @@ Definition mem_write_mem (l : pointer) sz (w : word sz) (s : x86_mem) :=
 (* -------------------------------------------------------------------- *)
 
 Definition mask_word (f : msb_flag) (sz szr : wsize) (old : word szr) : word szr :=
-  let mask := if f is MSB_MERGE then wshl (-1)%R (wsize_bits sz) 
+  let mask := if f is MSB_MERGE then wshl (-1)%R (wsize_bits sz)
              else 0%R in
   wand old mask.
 
-Definition word_extend 
-   (f:msb_flag) (sz szr : wsize) (old : word szr) (new : word sz) : word szr := 
+Definition word_extend
+   (f:msb_flag) (sz szr : wsize) (old : word szr) (new : word sz) : word szr :=
  wxor (mask_word f sz old) (zero_extend szr new).
 
 (* -------------------------------------------------------------------- *)
@@ -283,8 +283,8 @@ Definition mem_write_reg (f: msb_flag) (r: register) sz (w: word sz) (m: x86_mem
 Definition mem_write_xreg (f: msb_flag) (r: xmm_register) sz (w: word sz) (m: x86_mem) :=
   {|
     xmem := m.(xmem);
-    xreg := m.(xreg);    
-    xrip  := m.(xrip); 
+    xreg := m.(xreg);
+    xrip  := m.(xrip);
     xxreg := XRegMap.set m.(xxreg) r (word_extend f (m.(xxreg) r) w);
     xrf  := m.(xrf);
   |}.

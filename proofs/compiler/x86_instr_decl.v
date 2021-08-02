@@ -976,7 +976,7 @@ Definition check_args_kinds (a:asm_args) (cond:args_kinds) :=
 Definition check_i_args_kinds (cond:i_args_kinds) (a:asm_args) :=
   has (check_args_kinds a) cond.
 
-Definition reg_msb_flag (sz : wsize) := 
+Definition reg_msb_flag (sz : wsize) :=
   if (sz <= U16)%CMP then MSB_MERGE
   else MSB_CLEAR.
 
@@ -1870,7 +1870,7 @@ Definition instr_desc' o : instr_desc_t :=
   | VAESKEYGENASSIST   => Ox86_VAESKEYGENASSIST_instr.1 
   end.
 
-Definition extend_size (ws: wsize) (t:stype) := 
+Definition extend_size (ws: wsize) (t:stype) :=
   match t with
   | sword ws' => if (ws' <= ws)%CMP then sword ws else sword ws'
   | _ => t
@@ -1878,8 +1878,8 @@ Definition extend_size (ws: wsize) (t:stype) :=
 
 Definition wextend_size (ws: wsize) (t:stype) : sem_ot t -> sem_ot (extend_size ws t) :=
   match t return sem_ot t -> sem_ot (extend_size ws t) with
-  | sword ws' => 
-    fun (w: word ws') => 
+  | sword ws' =>
+    fun (w: word ws') =>
     match (ws' <= ws)%CMP as b return sem_ot (if b then sword ws else sword ws') with
     | true => zero_extend ws w
     | false => w
@@ -1887,12 +1887,12 @@ Definition wextend_size (ws: wsize) (t:stype) : sem_ot t -> sem_ot (extend_size 
   | _ => fun x => x
   end.
 
-Fixpoint extend_tuple (ws:wsize) (id_tout : list stype) (t: sem_tuple id_tout) : 
+Fixpoint extend_tuple (ws:wsize) (id_tout : list stype) (t: sem_tuple id_tout) :
    sem_tuple (map (extend_size ws) id_tout) :=
  match id_tout return sem_tuple id_tout -> sem_tuple (map (extend_size ws) id_tout) with
  | [::] => fun _ => tt
  | t :: ts =>
-   match ts return 
+   match ts return
      (sem_tuple ts -> sem_tuple (map (extend_size ws) ts)) ->
      sem_tuple (t::ts) -> sem_tuple (map (extend_size ws) (t::ts)) with
    | [::] => fun rec_ x => wextend_size ws x
@@ -1900,18 +1900,18 @@ Fixpoint extend_tuple (ws:wsize) (id_tout : list stype) (t: sem_tuple id_tout) :
    end (@extend_tuple ws ts)
  end t.
 
-Fixpoint apply_lprod (A B : Type) (f : A -> B) (ts:list Type) : lprod ts A -> lprod ts B := 
+Fixpoint apply_lprod (A B : Type) (f : A -> B) (ts:list Type) : lprod ts A -> lprod ts B :=
   match ts return lprod ts A -> lprod ts B with
   | [::] => fun a => f a
   | t :: ts' => fun g x => apply_lprod f (g x)
-  end.   
+  end.
 
-Lemma instr_desc_aux1 ws (id_in id_out : list arg_desc) (id_tin id_tout : list stype) : 
+Lemma instr_desc_aux1 ws (id_in id_out : list arg_desc) (id_tin id_tout : list stype) :
   is_true ((size id_in == size id_tin) && (size id_out == size id_tout)) ->
   is_true ((size id_in == size id_tin) && (size id_out == size (map (extend_size ws) id_tout))).
 Proof. by rewrite size_map. Qed.
 
-Lemma instr_desc_aux2 ws (id_out : list arg_desc) (id_tout : list stype) : 
+Lemma instr_desc_aux2 ws (id_out : list arg_desc) (id_tout : list stype) :
   is_true (utils.all2 check_arg_dest id_out id_tout) ->
   is_true (utils.all2 check_arg_dest id_out (map (extend_size ws) id_tout)).
 Proof.
@@ -1921,9 +1921,9 @@ Proof.
   by rewrite /extend_size /check_arg_dest; case: a => //; case: ifP.
 Qed.
 
-Definition clear_check1 (args : asm_args) (d:arg_desc) := 
-  match d with 
-  | ADExplicit _ i _ => 
+Definition clear_check1 (args : asm_args) (d:arg_desc) :=
+  match d with
+  | ADExplicit _ i _ =>
     match onth args i with
     | Some (Adr _) => false
     | _ => true
@@ -1932,39 +1932,38 @@ Definition clear_check1 (args : asm_args) (d:arg_desc) :=
   end.
 
 (* Remark: if the cast is explicit and do nothing then this code will reject store in memory
-   while assembly accepts it. 
+   while assembly accepts it.
    It is our choice... *)
 
-Definition clear_check (id_out : seq arg_desc) (args : asm_args) :=   
+Definition clear_check (id_out : seq arg_desc) (args : asm_args) :=
   all (clear_check1 args) id_out.
 
 Definition instr_desc (o : asm_op) : instr_desc_t :=
   let (ws, o) := o in
   let d := instr_desc' o in
-  if ws is Some ws then 
+  if ws is Some ws then
     if d.(id_msb_flag) == MSB_CLEAR then
     {| id_msb_flag := d.(id_msb_flag);
        id_tin      := d.(id_tin);
-       id_in       := d.(id_in); 
+       id_in       := d.(id_in);
        id_tout     := map (extend_size ws) d.(id_tout);
-       id_out      := d.(id_out); 
-       id_semi     := 
+       id_out      := d.(id_out);
+       id_semi     :=
          apply_lprod (Result.map (@extend_tuple ws d.(id_tout))) d.(id_semi);
-      id_check     := (fun args => d.(id_check) args && clear_check d.(id_out) args); 
-      id_nargs     := d.(id_nargs); 
+      id_check     := (fun args => d.(id_check) args && clear_check d.(id_out) args);
+      id_nargs     := d.(id_nargs);
       id_eq_size   := instr_desc_aux1 ws d.(id_eq_size);
-      id_max_imm   := d.(id_max_imm); 
-      id_tin_narr  := d.(id_tin_narr); 
+      id_max_imm   := d.(id_max_imm);
+      id_tin_narr  := d.(id_tin_narr);
       id_str_jas   := d.(id_str_jas);
       id_check_dest:= instr_desc_aux2 ws d.(id_check_dest);
-      id_safe      := d.(id_safe); 
-      id_wsize     := d.(id_wsize); 
+      id_safe      := d.(id_safe);
+      id_wsize     := d.(id_wsize);
       id_pp_asm    := d.(id_pp_asm); |}
 else d (* FIXME do the case for MSB_KEEP *)
   else
-    
     d.
- 
+
 (* -------------------------------------------------------------------- *)
 
 Definition prim_string :=

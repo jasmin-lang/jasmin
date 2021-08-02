@@ -126,7 +126,7 @@ Definition assemble_x86_opn rip ii op (outx : lvals) (inx : pexprs) :=
   let max_imm := id.(id_max_imm) in
   Let asm_args := assemble_x86_opn_aux rip ii op outx inx in
   let s := id.(id_str_jas) tt in
-  Let _ := assert (id_check id asm_args) 
+  Let _ := assert (id_check id asm_args)
        (ii, Cerr_assembler (AsmErr_string ("assemble_x86_opn : invalid instruction (check) " ++ s) None)) in
   Let _ := assert (check_sopn_args rip ii max_imm asm_args inx (zip id.(id_in) id.(id_tin)) &&
                      check_sopn_dests rip ii max_imm asm_args outx (zip id.(id_out) id.(id_tout)))
@@ -159,7 +159,7 @@ Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
         cierror ii 
           (Cerr_assembler (AsmErr_string "assemble_sopn Ox86MOVZX32: destination is not a register" None))
       end in
-    assemble_x86_opn rip ii (None, MOV U32) outx inx 
+    assemble_x86_opn rip ii (None, MOV U32) outx inx
 
   | Oconcat128 =>
     Let inx := 

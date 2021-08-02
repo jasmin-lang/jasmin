@@ -377,7 +377,7 @@ Variant implicite_arg : Type :=
   | IArflag of rflag
   | IAreg   of register.
 
-Variant adr_kind : Type := 
+Variant adr_kind : Type :=
   | AK_compute (* Compute the address *)
   | AK_mem.    (* Compute the address and load from memory *)
 

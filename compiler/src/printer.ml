@@ -194,9 +194,9 @@ let rec pp_gi pp_info pp_len pp_var fmt i =
       (pp_gtype pp_len) ty
       (pp_ge pp_len pp_var) e
 
-  | Copn(x, t, o, e) -> 
+  | Copn(x, t, o, e) ->
     let pp_cast fmt = function
-      | E.Ox86'(Some ws, _) -> Format.fprintf fmt "(%a)" pp_btype (U ws) 
+      | E.Ox86'(Some ws, _) -> Format.fprintf fmt "(%a)" pp_btype (U ws)
       | _ -> () in
 
     F.fprintf fmt "@[<hov 2>%a %s=@ %a%s(%a);@]"

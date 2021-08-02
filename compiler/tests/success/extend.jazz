@@ -69,7 +69,7 @@ y = (256u)#VMOV_32(w);
 x ^= y;
 (u128)[ptr_ + 0] = x;
 (u256)[ptr_ + 16] = x;
-} 
+}
 
 export
 fn test_imm(reg u64 p) {

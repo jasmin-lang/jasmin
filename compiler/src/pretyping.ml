@@ -1138,7 +1138,7 @@ let tt_prim ws id =
   let name, sz = extract_size s in
   match List.assoc name prim_string with
   | PrimP (d, pr) ->
-    pr ws (match sz with 
+    pr ws (match sz with
         | SAw sz -> sz 
         | SA -> d 
         | SAv _ | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
@@ -1331,7 +1331,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let es  = tt_exprs_cast env args tes in
       P.Copn(lvs, AT_none, p, es)
 
-    | S.PIAssign (ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None) 
+    | S.PIAssign (ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None)
       ->
       let ws, s = ct in
       let ws = tt_ws ws in
@@ -1341,8 +1341,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let lvs = tt_lvalues env ls tlvs in
       let es  = tt_exprs_cast env args tes in
       P.Copn(lvs, AT_none, p, es)
-      
-  
+
     | PIAssign([lv], `Raw, pe, None) ->
       let _, flv, vty = tt_lvalue env lv in
       let e, ety = tt_expr ~mode:`AllVar env pe in

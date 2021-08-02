@@ -170,15 +170,15 @@ Qed.
 Definition asm_op'_eqMixin     := Equality.Mixin asm_op'_eq_axiom.
 Canonical  asm_op'_eqType      := Eval hnf in EqType asm_op' asm_op'_eqMixin.
 
-Definition sopn_beq (o1 o2:sopn) := 
-  match o1, o2 with 
+Definition sopn_beq (o1 o2:sopn) :=
+  match o1, o2 with
   | Onop, Onop => true
   | Omulu w1, Omulu w2 => w1 == w2
   | Oaddcarry w1, Oaddcarry w2 => w1 == w2
   | Osubcarry w1, Osubcarry w2 => w1 == w2
-  | Oset0 w1, Oset0 w2 => w1 == w2 
-  | Oconcat128, Oconcat128 => true 
-  | Ox86MOVZX32, Ox86MOVZX32 => true 
+  | Oset0 w1, Oset0 w2 => w1 == w2
+  | Oconcat128, Oconcat128 => true
+  | Ox86MOVZX32, Ox86MOVZX32 => true
   | Ox86' o1, Ox86' o2 => o1 == o2
   | _, _ => false
   end.

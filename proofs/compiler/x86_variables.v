@@ -428,7 +428,7 @@ Definition assemble_lea ii lea :=
     |}).
 
 Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) := 
-  Let _ := assert (sz <= Uptr)%CMP 
+  Let _ := assert (sz <= Uptr)%CMP
                   (ii, Cerr_assembler (AsmErr_string "Bad type for address" None)) in
   match lowering.mk_lea sz e with
   | Some lea => 
@@ -483,7 +483,7 @@ Definition assemble_word_mem rip ii (sz:wsize) max_imm (e:pexpr) :=
 Definition assemble_word (k:adr_kind) rip ii (sz:wsize) max_imm (e:pexpr) :=
   match k with
   | AK_mem => assemble_word_mem rip ii (sz:wsize) max_imm (e:pexpr)
-  | AK_compute => 
+  | AK_compute =>
     Let w := addr_of_pexpr rip ii sz e in
     ok (Adr w)
   end.

@@ -727,13 +727,13 @@ let pp_aux_lvs fmt aux =
   | [x] -> Format.fprintf fmt "%s" x
   | xs  -> Format.fprintf fmt "(%a)" (pp_list ",@ " pp_string) xs
 
-let pp_wzeroext pp_e fmt tyo tyi e = 
+let pp_wzeroext pp_e fmt tyo tyi e =
   if tyi = tyo then pp_e fmt e
-  else 
+  else
     let szi, szo = ws_of_ty tyi, ws_of_ty tyo in
-    Format.fprintf fmt "%a(%a)" pp_zeroext (szi, szo) pp_e e 
+    Format.fprintf fmt "%a(%a)" pp_zeroext (szi, szo) pp_e e
 
-let base_op = function 
+let base_op = function
   | Expr.Ox86' (_, o) -> Expr.Ox86'(None,o)
   | o -> o
 
@@ -771,15 +771,15 @@ module Normal = struct
    
   and init_aux env c = List.fold_left init_aux_i env c
 
-  let pp_assgn_i env fmt lv ((etyo, etyi), aux) = 
-    let pp_e fmt aux = 
+  let pp_assgn_i env fmt lv ((etyo, etyi), aux) =
+    let pp_e fmt aux =
       pp_wzeroext pp_string fmt etyo etyi aux in
     Format.fprintf fmt "@ %a" (pp_lval1 env (pp_cast pp_e)) (lv, (etyo,aux))
 
- 
-  let pp_call env fmt lvs etyso etysi pp a = 
+
+  let pp_call env fmt lvs etyso etysi pp a =
     let ltys = List.map (fun lv -> ty_lval lv) lvs in
-    if check_lvals lvs && ltys = etyso && etyso = etysi then 
+    if check_lvals lvs && ltys = etyso && etyso = etysi then
       Format.fprintf fmt "@[%a %a;@]" (pp_lvals env) lvs pp a
     else
       let auxs = get_aux env etysi in
@@ -787,8 +787,7 @@ module Normal = struct
       let tyauxs = List.combine (List.combine etyso etysi) auxs in
       List.iter2 (pp_assgn_i env fmt) lvs tyauxs
   
-      
-   let rec pp_cmd env fmt c = 
+   let rec pp_cmd env fmt c =
     Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr env)) c
 
   and pp_instr env fmt i = 
@@ -798,7 +797,7 @@ module Normal = struct
       pp_lval1 env pp_e fmt (lv , (ty_expr e, e))
 
     | Copn(lvs, _, op, es) ->
-      let op' = base_op op in 
+      let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
       let otys,itys = List.map Conv.ty_of_cty (E.sopn_tout op), List.map Conv.ty_of_cty (E.sopn_tin op) in
       let otys' = List.map Conv.ty_of_cty (E.sopn_tout op') in
@@ -813,7 +812,7 @@ module Normal = struct
       else
         let pp fmt (op, es) = 
           Format.fprintf fmt "<- %a" pp_e (op,es) in
-        pp_call env fmt lvs otys otys' pp (op,es) 
+        pp_call env fmt lvs otys otys' pp (op,es)
         
     | Ccall(_, lvs, f, es) ->
       let otys, itys = get_funtype env f in
@@ -824,7 +823,7 @@ module Normal = struct
       else
         let pp fmt es = 
           Format.fprintf fmt "<%@ %a (%a)" (pp_fname env) f pp_args es in
-        pp_call env fmt lvs otys otys pp es 
+        pp_call env fmt lvs otys otys pp es
 
     | Cif(e,c1,c2) ->
       Format.fprintf fmt "@[<v>if (%a) {@   %a@ } else {@   %a@ }@]"
@@ -1046,14 +1045,14 @@ module Leak = struct
       | Lasub _ -> assert false (* NOT IMPLEMENTED *) 
     else pp fmt e
 
-  let pp_assgn_i env fmt lv ((etyo, etyi), aux) = 
+  let pp_assgn_i env fmt lv ((etyo, etyi), aux) =
     Format.fprintf fmt "@ "; pp_leaks_lv env fmt lv;
-    let pp_e fmt aux = 
+    let pp_e fmt aux =
       pp_wzeroext pp_string fmt etyo etyi aux in
     let pp_e = pp_some env (pp_cast pp_e) lv in
     pp_lval1 env pp_e fmt (lv, (etyo,aux))
 
-  let pp_call env fmt lvs etyso etysi pp a = 
+  let pp_call env fmt lvs etyso etysi pp a =
     let auxs = get_aux env etyso in
     Format.fprintf fmt "@[%a %a;@]" pp_aux_lvs auxs pp a;
     let tyauxs = List.combine (List.combine etyso etysi) auxs in
@@ -1068,10 +1067,10 @@ module Leak = struct
       pp_leaks_e env fmt e;
       let pp fmt e = Format.fprintf fmt "<- %a" (pp_expr env) e in
       let tys = [ty_expr e] in
-      pp_call env fmt [lv] tys tys pp e 
+      pp_call env fmt [lv] tys tys pp e
 
     | Copn(lvs, _, op, es) ->
-      let op' = base_op op in 
+      let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
       let otys,itys = List.map Conv.ty_of_cty (E.sopn_tout op), List.map Conv.ty_of_cty (E.sopn_tin op) in
       let otys' = List.map Conv.ty_of_cty (E.sopn_tout op') in
@@ -1091,7 +1090,7 @@ module Leak = struct
       else
         let pp fmt es = 
           Format.fprintf fmt "<%@ %a (%a)" (pp_fname env) f pp_args es in
-        pp_call env fmt lvs otys otys pp es 
+        pp_call env fmt lvs otys otys pp es
 
     | Cif(e,c1,c2) ->
       pp_leaks_if env fmt e;
