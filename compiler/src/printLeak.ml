@@ -52,7 +52,8 @@ let pp_i tbl fmt =
   let p s = fprintf fmt "%s" s in
   function
   | LT_ikeep -> p "ikeep"
-  | LT_ile e -> fprintf fmt "ile(%a)" pp_e_tr e
+  | LT_ile (LT_map [ lhs ; rhs ]) -> fprintf fmt "%a := %a" pp_e_tr rhs pp_e_tr lhs
+  | LT_ile _ -> assert false
   | LT_icond (b, t, e) -> fprintf fmt "icond(%a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) t (pp_list ";" pp_i) e
   | LT_icond_eval (b, a) -> fprintf fmt "icond_eval(%a, %a)" pp_bool b (pp_list ";" pp_i) a
   | LT_iwhile (a, b, c) -> fprintf fmt "iwhile(%a, %a, %a)" (pp_list ";" pp_i) a pp_e_tr b  (pp_list ";" pp_i) c
