@@ -374,15 +374,13 @@ abbrev [-printing] VPBLEND_16u16 = VPBLENDW_256.
 abbrev [-printing] VPBLEND_8u32 = VPBLENDD_256.
 
 (* ------------------------------------------------------------------- *)
-op msb (b: W8.t): bool = 128 <= (to_uint b).
-
 op VPMOVMSKB_128 (v: W128.t) : W16.t =
   let vb = W16u8.to_list v in
-  W16.bits2w (map msb vb).
+  W16.bits2w (map W8.msb vb).
 
 op VPMOVMSKB_256 (v: W256.t) : W32.t =
   let vb = W32u8.to_list v in
-  W32.bits2w (map msb vb).
+  W32.bits2w (map W8.msb vb).
 
 abbrev [-printing] VPMOVMSKB_u128_u16 = VPMOVMSKB_128.
 abbrev [-printing] VPMOVMSKB_u256_u32 = VPMOVMSKB_256.
