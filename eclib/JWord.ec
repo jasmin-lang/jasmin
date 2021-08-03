@@ -101,6 +101,11 @@ proof.
   by rewrite to_uintE bs2int_ge0 -(size_w2bits x) bs2int_le2Xs.
 qed.
 
+lemma to_sint_cmp (x : t) : min_sint <= to_sint x <= max_sint.
+proof.
+ by rewrite /to_sint /= /smod /=; smt.
+qed.
+
 lemma of_uintK (x : int) : to_uint (of_int x) = x %% modulus.
 proof.
   by rewrite to_uintE of_intE bits2wK 1:size_int2bs // int2bsK // modz_cmp.
