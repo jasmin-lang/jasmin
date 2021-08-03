@@ -185,7 +185,7 @@ Infix "×" := LS_Mul (at level 30) : ls_scope.
 
 Notation "'id'" := LT_id : lt_scope.
 Notation "•" := LT_remove : lt_scope.
-Infix "∘" := LT_compose (at level 60) : lt_scope.
+Infix "∘" := lt_compose (at level 60) : lt_scope.
 Notation "[ x , .. , y ]" := (LT_map (cons x%LT .. (cons y%LT nil) ..)) : lt_scope.
 Notation "[ x ; .. ; y ]" := (LT_seq (cons x%LT .. (cons y%LT nil) ..)) : lt_scope.
 Notation "'C' e" := (LT_const e%LS) (at level 0) : lt_scope.

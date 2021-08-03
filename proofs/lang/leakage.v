@@ -168,6 +168,10 @@ Inductive leak_e_tr :=
   (* lowering *)
   | LT_rev : leak_e_tr. (* reverse transformation *)
 
+(* Smart constructor for LT_compose *)
+Definition lt_compose (a b: leak_e_tr) : leak_e_tr :=
+  if a is LT_id then b else if b is LT_id then a else LT_compose a b.
+
 Inductive leak_e_es_tr :=
   | LT_leseq : leak_e_es_tr
   | LT_emseq : leak_e_es_tr
