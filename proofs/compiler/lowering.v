@@ -259,6 +259,7 @@ Variant lower_cassgn_t : Type :=
   | LowerLt   of wsize & pexpr & pexpr
   | LowerIf   of stype & pexpr & pexpr & pexpr
   | LowerDivMod of divmod_pos & signedness & wsize & sopn & pexpr & pexpr
+  | LowerConcat of pexpr & pexpr
   | LowerAssgn.
 
 Context (is_var_in_memory : var_i → bool).
@@ -536,6 +537,10 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
       k16 (wsize_of_lval x) (LowerIf t e e1 e2)
     else
       LowerAssgn
+
+  | PappN (Opack U256 PE128) [:: Papp1 (Oint_of_word U128) h ; Papp1 (Oint_of_word U128) (Pvar _ as l) ] =>
+    if sz' == U256 then LowerConcat h l else LowerAssgn
+
   | _ => LowerAssgn
   end.
 
@@ -676,6 +681,9 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
       end in
 
     [::MkI ii i1; MkI ii (Copn lv tg op [::Pvar c; a; b]) ]
+
+  | LowerConcat h l =>
+    [:: MkI ii (Copn [:: x ] tg Oconcat128 [:: h ; l ]) ]
 
   | LowerAssgn => [::  MkI ii (Cassgn x tg ty e)]
   end.

@@ -1155,6 +1155,8 @@ Section PROOF.
        Sv.Subset (read_lea l) (read_e e) ∧
        exists w: word sz,
         v' = Vword w /\ sem_lea sz (evm s) l = ok w)
+    | LowerConcat hi lo =>
+      sem_pexprs gd s [:: hi ; lo ] >>= exec_sopn Oconcat128 = ok [:: v' ]
     | LowerAssgn => True
     end.
   Proof.
@@ -1609,6 +1611,20 @@ Section PROOF.
         rewrite ok_v1 /= ok_v2 /= /x86_VPSRA /x86_u128_shift /=.
         rewrite (check_size_128_256_ge hle2) (check_size_16_64_ve hle1) /=.
         by rewrite /truncate_word hw1 hw2 /= zero_extend_u.
+    (* PappN *)
+    + case: op => // - [] // - [] //.
+      case: es => // - [] // [] // [] // hi.
+      case => // [] // [] // [] // [] // [] // lo [] //.
+      case: ty Hv' => // - [] //= ok_v'.
+      rewrite /= /sem_opN /exec_sopn /sem_sop1 /=.
+      t_xrbindP => ??? -> _ /to_wordI[] szhi [] whi [] szhi_ge -> -> <- ??? ->.
+      move => ? /to_wordI[] szlo [] wlo [] szlo_ge -> -> <- <- <- ?.
+      t_xrbindP => _ /to_intI[] <- _ /to_intI[] <- [] <- ?; subst => /=.
+      case: ok_v' => <-{Hw v'}.
+      rewrite /truncate_word zero_extend_u szlo_ge /=.
+      rewrite szhi_ge /=.
+      congr (ok [:: (Vword (wrepr _ (word.wcat_r _))) ]).
+      by rewrite /= -!/(wrepr U128 _) !wrepr_unsigned.
      (* Pif *)
      rewrite /check_size_16_64.
      by case: stype_of_lval => //= w hv; case: andP => // - [] -> /eqP ->; eauto.
@@ -1902,6 +1918,11 @@ Section PROOF.
         by case: d hsem => hsem;apply sem_seq1;apply: EmkI; apply: Eopn;
            move: hsem; rewrite /sem_sopn /= hget /= hwa1 /=; t_xrbindP => ? -> ? /= ->.
       apply: eq_exc_freshT heqe Hs2'.
+    (* LowerConcat *)
+    + t_xrbindP => hi lo vs ok_vs ok_v'.
+      exists s2'; split; last exact: Hs2'.
+      apply: sem_seq1; apply: EmkI; apply: Eopn.
+      by rewrite /sem_sopn ok_vs /= ok_v' /= Hw'.
     (* LowerAssgn *)
     move=> _.
     exists s2'; split=> //.
