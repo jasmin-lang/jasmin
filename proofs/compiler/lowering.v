@@ -753,8 +753,10 @@ Definition lower_addcarry sz (sub: bool) (xs: lvals) tg (es: pexprs) : seq instr
   match lower_addcarry_classify sub xs es with
   | Some (vi, o, es, cf, r) => if ((List.length es) == 2) 
     then ((opn_5flags (Some U32) vi cf r tg (Ox86 (o sz)) es).1,  LT_iaddcarryf (opn_5flags (Some U32) vi cf r tg (Ox86 (o sz)) es).2)
-    else ((opn_5flags (Some U32) vi cf r tg (Ox86 (o sz)) es).1,  LT_iaddcarry (opn_5flags (Some U32) vi cf r tg (Ox86 (o sz)) es).2)  (*  [:: Lopn (LSub [:: LSub (unzip2 leakage of es); LSub l1''])] *)
-  | None => ([:: Copn xs tg ((if sub then Osubcarry else Oaddcarry) sz) es ], LT_ianone)  (* [:: Lopn (LSub [:: LSub (unzip2 leakage of es); LSub (leakage for xs)])]*)
+    else ((opn_5flags (Some U32) vi cf r tg (Ox86 (o sz)) es).1,  LT_iaddcarry (opn_5flags (Some U32) vi cf r tg (Ox86 (o sz)) es).2)  
+     (*  [:: Lopn (LSub [:: LSub (unzip2 leakage of es); LSub l1''])] *)
+  | None => ([:: Copn xs tg ((if sub then Osubcarry else Oaddcarry) sz) es ], LT_ianone)  
+              (* [:: Lopn (LSub [:: LSub (unzip2 leakage of es); LSub (leakage for xs)])]*)
   end
   else ([:: Copn xs tg ((if sub then Osubcarry else Oaddcarry) sz) es ], LT_ianone).
 
