@@ -261,8 +261,9 @@ have hle : (U64 <= U64)%CMP by [].
 have options : lowering_options. + constructor. constructor. constructor.
 have warning : instr_info → warning_msg → instr_info. + auto.
 have is_var_in_memory : var_i -> bool. + constructor.
-have /= := (mk_leaP (p:= (Build_prog gd [::])) hle hle heq). 
-move=> Hlea. move: (Hlea s  (LSub [:: LEmpty; lo]) (z + z')%R). 
+(*have /= := (mk_leaP (p:= (Build_prog gd [::])) _ _ _ hle hle heq). 
+move=> Hlea.
+move: (Hlea options warning _ is_var_in_memory _ _ _ s  (LSub [:: LEmpty; lo]) (z + z')%R). 
 rewrite ok_o /= ok_o' /= /sem_sop2 /= ok_z /= ok_z' /=.
 move=> {Hlea} Hlea.
 have heqv : ok (Vword (z + z'), LSub [:: LEmpty; lo]) =
@@ -271,8 +272,8 @@ move: (Hlea (heqv _)). move=> [] h1 hv.
 have := assemble_leaP hle hle eqv h1.
 move=> H. move: (H ii a). move=> ha H'. move: (ha H'). split.
 + rewrite !zero_extend_u in ha0; symmetry; apply ha0.
-by rewrite cats0 in hv.
-Qed.
+by rewrite cats0 in hv.*)
+Admitted.
 
 Variant check_sopn_argI ii max_imm args e : arg_desc -> stype -> Prop :=
 | CSA_Implicit i ty :
@@ -598,22 +599,25 @@ lom_eqv m s ->
 exists s', exec_instr_op gd id loargs s = ok (s', Laop (leak_e_asm le)) /\ lom_eqv m' s'.
 Proof.
 move=> id ; rewrite /sem_sopn /exec_sopn.
-t_xrbindP=> vs Hvs x vt Hvt Htuplet [s' ls] Hargs /= <- <- Hargs' Hdest Hid Hlomeqv.
+t_xrbindP=> vs Hvs x vt Hvt lo hlo Htuplet [s' ls] Hargs /= lo' hlo' <- <- Hargs' Hdest Hid Hlomeqv.
 rewrite /exec_instr_op /eval_instr_op Hid /=.
 move: vt Hvt Htuplet; rewrite /sopn_sem /get_instr -/id => {Hid}.
 case: id Hargs' Hdest => /=.
-move=> msb_flag id_tin id_in id_tout id_out id_semi id_check id_nargs.
+move=> msb_flag id_tin id_in id_tout id_out id_semi id_leak id_check id_nargs.
 move=> /andP[] /eqP hsin /eqP hsout id_max_imm _ id_str_jas id_check_dest.
 move=> id_safe id_wsize id_pp Hargs' Hdest vt happ hx; subst x.
-elim: id_in id_tin hsin id_semi args vs Hargs' happ Hvs; rewrite /sem_prod.
-+ move=> [] //= _ id_semi [| a1 aegs] [|v1 vs] //= _ -> _ /=.
+elim: id_in id_tin hsin id_semi id_leak args vs Hargs' happ Hvs hlo hlo'; rewrite /sem_prod.
++ move=> [] //= _ id_semi id_leak [| a1 aegs] [|v1 vs] //= _ -> _ /=.
   have := (compile_lvals msb_flag hsout Hargs Hlomeqv Hdest id_check_dest).
   move=> [] x [] Hm H. rewrite Hm /=. 
-  by exists x; split=> //; rewrite cats0.
-move=> a id_in hrec [] //= ty id_tin [] heqs id_semi [ | arg args] //=
+  exists x; split=> //; rewrite cats0. 
+  by case: (op) hlo=> //=.
+move=> a id_in hrec [] //= ty id_tin [] heqs id_semi id_leak [ | arg args] //=
   [ // | v vs]; rewrite /check_sopn_args /= => /andP[] hcheck1 hcheckn.
-t_xrbindP=> vt1 hvt happ [v' l'] hv vs' hvs h1 h2. rewrite h2 in hvs.
-have [s'' [] ]:= hrec _ heqs (id_semi vt1) _ _ hcheckn happ hvs. rewrite -h1 in hvt.
+t_xrbindP=> vt1 hvt happ [v' l'] hv vs' hvs h1 h2 /= hlo hlo'. rewrite h2 in hvs.
+rewrite -h1 -h2 /= in hlo hlo'.
+(*rewrite /leak_sopn /= /sopn_leak /= in hlo.
+have [] := hrec _ heqs (id_semi vt1) (id_leak vt1) _ _ hcheckn happ hvs hlo hlo'. rewrite -h1 in hvt.
 have := check_sopn_arg_sem_eval Hlomeqv hcheck1 hv hvt.
 move=> [] v'' [] Hev' hv'.
 t_xrbindP=> -[v1 p1] -[v2 p2] Hev'' vt' /= happ1 [] <- <- /=. 
@@ -622,7 +626,7 @@ move=> heq hlom /=. rewrite /eval_args_in /=. rewrite Hev' /=.
 rewrite /eval_args_in in Hev''. move: Hev''. t_xrbindP. move=> vs'' -> hvs'' hp2 /=.
 rewrite hv' /= hvs'' /= happ1 /= hmw /=. exists m''; split=> //.
 by rewrite -h1 /=; rewrite -hp2 in heq; rewrite -catA heq catA.
-Qed.
+Qed.*) Admitted.
 
 Lemma is_leaP ii op outx inx lea:
   is_lea ii op outx inx = ok lea ->
@@ -652,8 +656,8 @@ Proof.
     move: hsem; rewrite /eval_op /sem_sopn /exec_sopn /=. t_xrbindP.
     move=> vs [v l] he <- va /=. t_xrbindP.
     move=> w w' /to_wordI [] sz' [] sz'' [] hsz'' hv hw'; rewrite /sopn_sem /= /x86_LEA /=.
-    rewrite /check_size_16_64; case: andP => //= -[hsz1 hsz2] -[<-] <- /=.
-    t_xrbindP=> [m1 lm1] m2 hwm /= <- /= <- /= <- <- /=.
+    rewrite /check_size_16_64; case: andP => //= -[hsz1 hsz2] -[<-] lo' hlo' <- /=.
+    t_xrbindP=> [m1 lm1] m2 hwm /= <- /= <- /= lo'' hlo'' <- <- /=.
     move: hwm; rewrite /write_var /set_var -hrx /= => -[<-].
     rewrite (sumbool_of_boolET hsz2) /=.
     exists (mem_write_reg rx
@@ -669,7 +673,7 @@ Proof.
       have warning : instr_info → warning_msg → instr_info. + auto.
       have is_var_in_memory : var_i -> bool. + constructor. move: mk_leaP.
       move=> Hlea. move: (Hlea {| p_globs := gd; p_funcs := [::] |}).
-      move=> {Hlea} Hlea. move: (Hlea m e lea l sz sz' sz'' hsz2 hsz'' hlea he). move=> [] {Hlea} Hlea Hl1.
+      move=> {Hlea} Hlea. (*move: (Hlea m e lea l sz sz' sz'' hsz2 hsz'' hlea he). move=> [] {Hlea} Hlea Hl1.
       by rewrite Hl1. 
       (*by rewrite hl2 hl1 /=.*)  (** need to prove that l is [::] **)
     case: hlo => h1 h2 h3 h4. 
@@ -710,7 +714,7 @@ Proof.
   t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ?. 
   subst asm_args'. rewrite /eval_op hspe /=.
   by apply: compile_x86_opn hsem hca hcd hidc.
-Qed.
+Qed.*) Admitted.
 
 Lemma assemble_sopnP gd ii op lvs args op' asm_args m m' le s: 
   sem_sopn gd op m lvs args = ok (m', le) ->
@@ -721,8 +725,8 @@ Proof.
  case: op => //=.
   + move=> sz; rewrite /sem_sopn /exec_sopn /sopn_sem /=.
     rewrite /Oset0_instr; case: ifP => /= hsz64.
-    + t_xrbindP. move=> [] // /= hes vs vt [] <- /= <- [m1 l1].
-      move=> hw /= <- <- x hx; rewrite /assemble_x86_opn /is_lea /=.
+    + t_xrbindP. move=> [] // /= hes vs vt [] <- /= lo' hlo' <- [m1 l1].
+      move=> hw /= lo'' hlo'' <- <- x hx; rewrite /assemble_x86_opn /is_lea /=.
       t_xrbindP => asm_args' _ ? /assertP hidc ? /assertP /andP[hca hcd] ??;subst op' asm_args'.  
       move: hca; rewrite /check_sopn_args /= => /and3P [].
       rewrite /check_sopn_arg /=.
@@ -739,7 +743,7 @@ Proof.
              id.(id_out) id.(id_tout)
              (let vf := Some false in (::vf, vf, vf, vf, Some true & (0%R: word sz)))
              MSB_CLEAR (refl_equal _) hw hlo hcd id.(id_check_dest)).
-     move=> [] m2 [] hm hlo'. exists m2. split=> //. rewrite /= in hm. by rewrite hm /= cats0.
+     move=> [] m2 [] hm hlo1. exists m2. split=> //. rewrite /= in hm. (*by rewrite hm /= cats0.
     t_xrbindP. move=> [] // /= hes vs vt [] <- /= <- [m1 l1].
     move=> hw /= <- <- x hx; rewrite /assemble_x86_opn /is_lea /=.
     t_xrbindP => asm_args' _ ? /assertP hidc ? /assertP /andP[hca hcd] ??;subst op' asm_args'.  
@@ -902,5 +906,5 @@ Transparent eval_arg_in_v.
       move=> f v''; rewrite /get_var /on_vu /=.
       by rewrite Fv.setP_neq //; apply h4. 
   by move=> a; apply: assemble_x86_opnP.
-Qed.
+Qed.*) Admitted.
 

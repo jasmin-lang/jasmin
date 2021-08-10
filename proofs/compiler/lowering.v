@@ -415,7 +415,7 @@ Definition is_lnot a :=
 Definition is_andn  a b :=
   match is_lnot a, is_lnot b with
   | Some a, _      => (Some (a, b), LT_id)
-  | None  , Some b => (Some (b, a), LT_rev)
+  | None  , Some b => (Some (b, a), LT_seq [:: LT_compose (LT_subi 0) LT_rev; (LT_subi 1)])
   | None  , None   => (None, LT_id)
   end.
 
@@ -508,8 +508,8 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t * leak_e_es_tr :=
       match is_andn a b with
       | (Some (a,b), lte) =>
         if (sz ≤ U64)%CMP
-        then (k32 sz (LowerFopn (Ox86 (ANDN sz)) [:: a ; b ] None),  LT_idseq lte)
-        else (kb true sz (LowerCopn (Ox86 (VPANDN sz)) [:: a ; b ]), LT_idseq lte)
+        then (k32 sz (LowerFopn (Ox86 (ANDN sz)) [:: a ; b ] None),  LT_idseq' lte)
+        else (kb true sz (LowerCopn (Ox86 (VPANDN sz)) [:: a ; b ]), LT_idseq' lte)
       | (None, lte) =>
         if (sz ≤ U64)%CMP
         then (k8 sz (LowerFopn (Ox86 (AND sz)) [:: a ; b ] (Some U32)), LT_idseq lte)

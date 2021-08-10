@@ -170,6 +170,7 @@ Inductive leak_e_es_tr :=
   | LT_emseq : leak_e_es_tr
   | LT_subseq : leak_e_tr -> leak_e_es_tr
   | LT_idseq : leak_e_tr -> leak_e_es_tr
+  | LT_idseq' : leak_e_tr -> leak_e_es_tr
   | LT_dfst : leak_e_es_tr
   | LT_dsnd : leak_e_es_tr.
 
@@ -211,6 +212,9 @@ Definition leak_ES (stk : pointer) (lte : leak_e_es_tr) (le : leak_e) : seq leak
   | LT_emseq      => [::]
   | LT_subseq lte => [:: leak_E stk (LT_compose (LT_subi 0) lte) le]
   | LT_idseq lte  => get_seq_leak_e (leak_E stk (LT_compose (LT_subi 0) lte) le)
+  | LT_idseq' lte  => get_seq_leak_e (leak_E stk (LT_seq [:: LT_compose (LT_subi 0) (LT_compose (LT_subi 0) (LT_subi 0));
+                                                 LT_compose (LT_subi 0) (LT_subi 1)])
+                      (LSub [:: (leak_E stk (LT_subi 0) (LSub (get_seq_leak_e (leak_E stk lte le))))]))
   | LT_dfst       => [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; le; LEmpty]
   | LT_dsnd       => [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; le]
   end.  
@@ -369,7 +373,7 @@ Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (lo: le
                 LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])]
 
   | LT_imul4 => 
-    [:: Lopn (LSub [:: LSub les ; LSub les'])]
+    [:: Lopn (LSub [:: LSub les ; LEmpty; LSub les'])]
 
   | LT_iemptysl => [::]
   end.
