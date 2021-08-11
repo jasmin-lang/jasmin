@@ -132,13 +132,6 @@ op mulu64 (w1 w2 : W64.t) =
   (W2u32.zeroextu64 (W2u32.truncateu32 w2)).
 
 (* -------------------------------------------------------------------- *)
-
-(* FIXME it is really the semantics? In particular the last if *)
-op VPEXTR_64 (w:W128.t) (i:W8.t) =
-  if W8.to_uint i = 0 then (w \bits64 0)
-  else if W8.to_uint i = 1 then (w \bits64 1)
-  else W64.of_int 0.
-
 op VMOV_32 (v:W32.t) =
   pack4 [v; W32.zero; W32.zero; W32.zero].
 
