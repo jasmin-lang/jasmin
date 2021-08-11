@@ -24,7 +24,7 @@
  * ----------------------------------------------------------------------- *)
 
 (* ** Imports and settings *)
-Require Import Setoid Morphisms.
+Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import strings utils gen_map type ident.
 Require Import Utf8.
@@ -51,6 +51,23 @@ Module MvMake (I:IDENT).
   Existing Instance K.cmpO.
 
   Record var := Var { vtype : stype; vname : ident }.
+
+  Definition var_info := positive.
+
+  Record var_i := VarI {
+                      v_var :> var;
+                      v_info : var_info
+                    }.
+
+  Record var_attr := VarA {
+                         va_pub : bool
+                       }.
+
+Definition var_info_to_attr (vi: var_info) :=
+  match vi with
+  | xI _ => VarA true
+  | _ => VarA false
+  end.
 
   Definition var_beq (v1 v2:var) :=
     let (t1,n1) := v1 in

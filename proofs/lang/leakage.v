@@ -25,7 +25,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Psatz xseq.
-Require Export array gen_map low_memory warray_ sem_type.
+Require Export array gen_map low_memory warray_ sem_type var.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -105,6 +105,36 @@ match l with
 *)
 
 (* ------------------------------------------------------------------------ *)
+
+Definition leak_lea_exp' (b: option var_i) (o: option var_i) : leak_e := 
+match (b, o) with 
+| (Some y, Some z) => LSub [:: LSub [:: LSub [:: LEmpty; LEmpty];
+                               LSub [:: LSub [:: LEmpty; 
+                                                 LSub [:: LSub [:: LSub [:: LEmpty; LEmpty]; 
+                                                                   LEmpty]; 
+                                                 LEmpty]]; 
+                                        LEmpty]];
+                               LEmpty]
+| (None, None) => LSub [:: LSub [:: LSub [:: LEmpty; LEmpty];
+                                    LSub [:: LSub [:: LSub [:: LEmpty; LEmpty] ; 
+                                                      LSub [:: LSub [:: LSub [:: LEmpty; LEmpty]; 
+                                                                        LSub [:: LEmpty; LEmpty]]; 
+                                                      LEmpty]]; 
+                                             LEmpty]];
+                           LEmpty]
+| (Some y, None) => LSub [:: LSub [:: LSub [:: LEmpty; LEmpty];
+                             LSub [:: LSub [:: LEmpty; 
+                                               LSub [:: LSub [:: LSub [:: LEmpty; LEmpty]; LSub [:: LEmpty; LEmpty]]; LEmpty]]; 
+                                      LEmpty]];
+                             LEmpty]
+| (None, Some z) => LSub [:: LSub [:: LSub [:: LEmpty; LEmpty];
+                                    LSub [:: LSub [:: LSub [:: LEmpty; LEmpty] ; 
+                                                      LSub [:: LSub [:: LSub [:: LEmpty; LEmpty]; 
+                                                                       LEmpty]; 
+                                                               LEmpty]]; 
+                                             LEmpty]];
+                           LEmpty]
+end.
 
 Definition leak_lea_exp : leak_e :=
   LSub [:: LEmpty; LSub [:: LEmpty; LSub [:: LEmpty; LEmpty]]].
@@ -241,7 +271,7 @@ Variant leak_i_tr_single :=
  | LT_ilmov4_
  | LT_ild_
  | LT_ildc_
- | LT_ilea_
+ | LT_ilea_ : (option var_i) -> (option var_i) -> leak_i_tr_single
  | LT_ilsc_
  | LT_ilds_
  | LT_ildus_
@@ -290,7 +320,7 @@ Notation LT_ilmov3 := (LT_isingle LT_ilmov3_).
 Notation LT_ilmov4 := (LT_isingle LT_ilmov4_).
 Notation LT_ild := (LT_isingle LT_ild_).
 Notation LT_ildc := (LT_isingle LT_ildc_).
-Notation LT_ilea := (LT_isingle LT_ilea_).
+Notation LT_ilea b o := (LT_isingle (LT_ilea_ b o)).
 Notation LT_ilsc := (LT_isingle LT_ilsc_).
 Notation LT_ilds := (LT_isingle LT_ilds_).
 Notation LT_ildus := (LT_isingle LT_ildus_).
@@ -527,8 +557,8 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
       | LT_ildc_ => 
         LSub [:: LSub[:: LEmpty; LEmpty]; 
                        LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]]
-      | LT_ilea_ =>
-        LSub [:: LSub [:: leak_lea_exp]; LSub [:: leak_E stk (LT_subi 1) le]]
+      | LT_ilea_ b o =>
+        LSub [:: LSub [:: leak_lea_exp' b o]; LEmpty; LSub [:: leak_E stk (LT_subi 1) le]]
       
       | LT_ilsc_ => 
         LSub [:: leak_E stk (LT_subi 1) (leak_E stk (LT_subi 1) leak_lea_exp); LEmpty;  

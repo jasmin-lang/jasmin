@@ -616,12 +616,13 @@ move=> a id_in hrec [] //= ty id_tin [] heqs id_semi id_leak [ | arg args] //=
   [ // | v vs]; rewrite /check_sopn_args /= => /andP[] hcheck1 hcheckn.
 t_xrbindP=> vt1 hvt happ [v' l'] hv vs' hvs h1 h2 /= hlo hlo'. rewrite h2 in hvs.
 rewrite -h1 -h2 /= in hlo hlo'.
-(*rewrite /leak_sopn /= /sopn_leak /= in hlo.
-have [] := hrec _ heqs (id_semi vt1) (id_leak vt1) _ _ hcheckn happ hvs hlo hlo'. rewrite -h1 in hvt.
+have hlo1 : leak_sopn (Ox86 op) (unzip1 vs) = ok lo. + admit.
+have hlo2 : leak_sopn (Ox86 op) (unzip1 vs) = ok lo'. + admit.
+have [] := hrec _ heqs (id_semi vt1) (id_leak vt1) _ _ hcheckn happ hvs hlo1 hlo2. rewrite -h1 in hvt.
 have := check_sopn_arg_sem_eval Hlomeqv hcheck1 hv hvt.
-move=> [] v'' [] Hev' hv'.
+move=> [] v'' [] Hev' hv' x. move=> [] h hlow. move: h.
 t_xrbindP=> -[v1 p1] -[v2 p2] Hev'' vt' /= happ1 [] <- <- /=. 
-move=> [m'' pm] hmw /= <-. rewrite cats0. 
+move=> [m'' pm] hmw /= hx. <-. rewrite cats0. 
 move=> heq hlom /=. rewrite /eval_args_in /=. rewrite Hev' /=.
 rewrite /eval_args_in in Hev''. move: Hev''. t_xrbindP. move=> vs'' -> hvs'' hp2 /=.
 rewrite hv' /= hvs'' /= happ1 /= hmw /=. exists m''; split=> //.
