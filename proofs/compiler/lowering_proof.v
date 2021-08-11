@@ -2255,31 +2255,23 @@ Qed.
         rewrite /truncate_word /= cmp_le_refl /=. move=> [] hrs; subst rs. rewrite /= in Hlea'. subst ob oo.
         have Hvb' := (sem_pexpr_var_empty Hvb). have Hvo' := (sem_pexpr_var_empty Hvo). 
         rewrite /leak_lea_exp'. 
-        case: b elea hrl Hslea Hvb Hvb' Hlea'=> //= b1 elea hrl Hslea Hvb Hvb'. 
-        case: o Hvo Hvo' hrl Hslea=> //=.
-        + split=> //. rewrite Hvb' Hvo' in Hlea'. apply Hlea'.  
-        + split=> //. rewrite Hvb' Hvo' in Hlea'. apply Hlea'. 
-        + split=> //. rewrite Hvb' Hvo' in Hlea'. apply Hlea'.  
- 
-
-
-apply: sem_seq1; apply: EmkI; apply: Eopn.
-          rewrite /sem_pexprs /= /sem_sopn /= /exec_sopn /leak_sop2 /= /leak_sopn /= 
-          /sem_sop2 /= /truncate_word hsz2 /=.
-          rewrite Hvo /= Hwo /=. inversion Hlea'; subst. inversion H5; subst.
-        split=> //. apply: sem_seq1;apply: EmkI; apply: Eopn.
-        rewrite /sem_pexprs /= /sem_sopn /= /exec_sopn /leak_sop2 /= /leak_sopn /= 
-          /sem_sop2 /= /truncate_word hsz2 /=.
-        rewrite Hvo /= Hwo /=.
+        case: b elea hrl Hslea Hvb Hvb' Hlea'=> //=. 
+        case: o Hvo Hvo'=> //=.
+        + split=> //. rewrite Hvb' Hvo' in Hlea'. by apply Hlea'.  
+        + split=> //. rewrite Hvb' Hvo' in Hlea'. by apply Hlea'. 
+        case: o Hvo Hvo'=> //=.
+        + split=> //. rewrite Hvb' Hvo' in Hlea'. by apply Hlea'. 
+        split=> //. rewrite Hvb' Hvo' in Hlea'. by apply Hlea'.  
       subst w.
       case: eqP => [ ? | _ ].
       (* d = 0 *)
       + subst d; case: eqP => [ ? | _].
         (* sc = 1 *)
         + subst sc. split. constructor. exists s2'; split => //; apply sem_seq1; constructor; constructor.
-          move: Hw'; rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /= Hvb Hvo /= Hwb Hwo /= /x86_ADD /=.
+          move: Hw'; rewrite /sem_sopn /sem_pexprs /exec_sopn /leak_sopn /sopn_sem /= Hvb Hvo /= 
+                             Hwb Hwo /= /x86_ADD /=.
           rewrite /check_size_8_64 hsz2 /= zero_extend0 zero_extend1 GRing.add0r GRing.mul1r => -> /=.
-          rewrite /leak_lea_exp /=. have -> := (sem_pexpr_var_empty Hvb). by have -> := (sem_pexpr_var_empty Hvo).
+          rewrite /leak_lea_exp' /=. have -> := (sem_pexpr_var_empty Hvb). by have -> := (sem_pexpr_var_empty Hvo).
         case: eqP => [ Eob | _ ] /=. 
         + (* b is wconst 0 *)
           case Heq : mulr => [[o1 e'] lte'].
