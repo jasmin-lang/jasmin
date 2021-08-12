@@ -2236,7 +2236,7 @@ abstract theory W_WS.
    op VPMINS_'Ru'S (w1 : WB.t) (w2 : WB.t) = 
      map2 (fun x y => if WS.to_sint x < WS.to_sint y then x else y) w1 w2.
 
-  op VPEXTR_'S (w: WB.t) (i: W8.t) = w \bits'S (W8.to_uint i).
+   op VPEXTR_'S (w: WB.t) (i: W8.t) = w \bits'S (W8.to_uint i).
 
    (** TODO CHECKME : still x86 **)
    lemma x86_'Ru'S_rol_xor i w : 0 < i < sizeS =>
