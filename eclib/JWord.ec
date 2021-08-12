@@ -1683,6 +1683,8 @@ theory W8.
 
   op (`|>>`) (w1 w2 : W8.t) = sar w1 (to_uint w2 %% size).
 
+  op SETcc (b: bool) = b ? W8.one : W8.zero.
+
   theory SHIFT.
 
   op shift_mask i = to_uint i %% 32.
