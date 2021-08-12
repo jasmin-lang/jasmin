@@ -190,8 +190,14 @@ op permd (v: W256.t) (i: W32.t) : W32.t =
 op VPERMD (w: W256.t) (i: W256.t) : W256.t =
   map (permd w) i.
 
+(* ------------------------------------------------------------------- *)
 op VEXTRACTI128 (w:W256.t) (i:W8.t) : W128.t =
   w \bits128 b2i i.[0].
+
+
+op VINSERTI128 (w:W256.t) (x: W128.t) (i:W8.t): W256.t =
+  let i = W8.to_uint i %% 2 in
+  pack2 (map (fun j => if j = i then x else w \bits128 j) [0;1]).
 
 (* ------------------------------------------------------------------- *)
 op interleave_gen ['elem]
