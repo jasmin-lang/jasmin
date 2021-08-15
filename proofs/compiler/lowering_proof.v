@@ -2844,10 +2844,10 @@ Qed.
                    ∧ eq_exc_fresh s2' s2.
     + by exists s2'; rewrite -hs1''; split=> //;apply: sem_seq1; apply: EmkI; apply: Eopn; rewrite /sem_sopn Hx' /=; 
       rewrite /= in Hv; rewrite Hv /= Hw' /= hlo' /=.
-    case: (o) Hv default => //; (move => sz Hv default || move => Hv default).
+    case: o Hv default hlo'=> //; (move => sz Hv default || move => Hv default).
     (* Omulu *)
     + move: Hv; rewrite /exec_sopn; t_xrbindP => y hy.
-      have := app_ww_dec hy => -[sz1] [w1] [sz2] [w2] [hsz1] [hsz2] [hvs] [hs] lo'' hlo'' hv hlv; subst.
+      have := app_ww_dec hy => -[sz1] [w1] [sz2] [w2] [hsz1] [hsz2] [hvs] [hs] lo1 hlo1 hv hlv; subst v y lv.
       move=> {Hx Hw}.
       have [x1 [x2 ?]] := write_lvals_dec2_s Hw'; subst xs.
       move: sem_pexprs_dec2_esvs. move=> Hes'. move: (Hes' s1' es vs (Vword w1) (Vword w2) Hx' hvs).
@@ -2858,20 +2858,24 @@ Qed.
       have hdefault : ∃ s1'0 : estate,
           sem p'.1 s1'
               [seq MkI ii i | i <- [:: Copn [:: x1; x2] t (Omulu sz) [:: e1; e2]]] 
-              [:: Lopn (LSub [:: LSub [:: le1; le2]; LEmpty; LSub l1''])] s1'0
+              [:: Lopn (LSub [:: LSub [:: le1; le2]; LEmpty;  LSub l1''])] s1'0
           ∧ eq_exc_fresh s1'0 s2.
-      + exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
-        rewrite /sem_sopn /exec_sopn /sopn_sem /leak_sopn /= He1 He2 /= /truncate_word hsz1 hsz2 /=. rewrite /= in Hw'.
+      + exists s2'; rewrite -hs1''; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
+        rewrite /sem_sopn /= /exec_sopn /leak_sopn /sopn_sem /= He1 He2 /= /truncate_word hsz1 hsz2 /=. 
+        rewrite /= in Hw'.
         by move: Hw'; t_xrbindP;move=> [y ly] -> /= [y' ly'] [y'' ly''] -> /= [] <- <- /= <- <- /=.
       split. constructor.
       rewrite /lower_mulu; case hsz: check_size_16_64 => //;last first.
-      + eexists. rewrite hvs' /=.
-        split=> //=. repeat econstructor. rewrite hvs in hlo''.
-        rewrite /sem_sopn /= He1 /= He2 /= hlo'' /=. 
-        rewrite /exec_sopn /= hlo'' /= /truncate_word /= hsz1 /= hsz2 /=. 
-        rewrite /write_lvals /= in Hw'. rewrite Hw' /=. rewrite /leak_sopn in hlo''.
-        move: hlo''. t_xrbindP=> yt /=. rewrite /truncate_word /= hsz1 /= hsz2 /= /sopn_leak /=.
-        move=> [] <- <-. admit.
+      + rewrite -hlo hvs' /=. exists s2'. repeat econstructor.
+        + rewrite /sem_sopn /= He1 /=.
+          rewrite He2 /= /exec_sopn /= /leak_sopn /= /truncate_word /= hsz1 /= hsz2 /=.
+          rewrite /write_lvals /= in Hw'. move: Hw'. 
+          t_xrbindP=> -[vw lw] -> /= -[vw' lw'] /= -[vw'' lw''] -> /= [] <- <- hs2' <- /=; subst.
+          rewrite /leak_sopn /= in hlo1. move: hlo1. rewrite /truncate_word /= hsz1 /= hsz2 /=.
+          by move=> [] <-.  
+        + rewrite -hs1''. rewrite /eq_exc_fresh in Hs2'. case: Hs2'=> h1 h2.
+          by apply h1.
+        rewrite -hs1''. rewrite /eq_exc_fresh in Hs2'. case: Hs2'=> h1 h2. by apply h2.
       have /andP [hsz16 hsz64] := assertP hsz.
       have := @is_wconstP gd s1' sz e1; case: is_wconst => [ n1 | _ ].
       + move => /(_ _ erefl) /=; rewrite He1 /= /truncate_word hsz1 => - [?]; subst n1.
@@ -2886,20 +2890,23 @@ Qed.
         - move: Hdisje.
           rewrite (disj_fvars_m (read_es_cons _ _)) => /disj_fvars_union [_].
           rewrite (disj_fvars_m (read_es_cons _ _)) => /disj_fvars_union [//].
-        have He2' := sem_pexpr_same Hd2 Heq He2. move: Hw''. rewrite /write_lvals; t_xrbindP.
-        (*move=> [y yl] hx1 [y' yl'] [y'' yl''] hx2 [y''' yl'''] [] <- <- /= [] <- <- hs3 hl /=.
+        have He2' := sem_pexpr_same Hd2 Heq He2. move: Hw''. rewrite /write_lvals /=; t_xrbindP.
+        move=> [y yl] hx1 [y' yl'] [y'' yl''] hx2 [y''' yl'''] /= hs3 hl /=.
         rewrite -hlo hvs' -hl /=.
         eexists; split.
         + apply: Eseq.
           + apply: EmkI; apply: Eopn; eauto.
-            rewrite /sem_sopn /sem_pexprs /= /exec_sopn /sopn_sem /= He1 /= /truncate_word hsz1 /= /x86_MOV /check_size_8_64 hsz64 /=.
+            rewrite /sem_sopn /sem_pexprs /= /exec_sopn /leak_sopn /sopn_sem /= He1 /= 
+             /truncate_word hsz1 /= /x86_MOV /check_size_8_64 hsz64 /=.
             by rewrite /write_var /set_var /= sumbool_of_boolET.
           + apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
             rewrite /= /read_es /= in Hdisje.
             rewrite /sem_sopn /sem_pexprs /= He2' /=.
-            rewrite /get_var /on_vu /= Fv.setP_eq /= /exec_sopn /sopn_sem /= /truncate_word hsz2 cmp_le_refl /x86_MUL hsz /= 
-            zero_extend_u wmulhuE Z.mul_comm GRing.mulrC wmulE /= hx1 /=. rewrite /wumul /= in hx2. by rewrite hx2 /=.
-        + rewrite -hs3 in Hs3''. rewrite -hs1''. by move: (eq_exc_freshT Hs3'' Hs2'). rewrite -hlo /=.
+            rewrite /get_var /on_vu /= Fv.setP_eq /= /exec_sopn /= /leak_sopn /= /sopn_sem /= 
+                    /truncate_word hsz2 cmp_le_refl /x86_MUL hsz /= 
+            zero_extend_u wmulhuE Z.mul_comm GRing.mulrC wmulE /= hx1 /=. rewrite /wumul /= in hx2; subst.
+            by rewrite hx2 /=.
+        + rewrite -hs3 in Hs3''; subst. by move: (eq_exc_freshT Hs3'' Hs2'). rewrite -hlo /=.
       have := @is_wconstP gd s1' sz e2; case: is_wconst => [ n2 | _ ].
       + move => /(_ _ erefl) /=; rewrite He2 /= /truncate_word hsz2 => - [?]; subst n2.
         set s2'' := {| emem := emem s1'; evm := (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w2)) ] |}.
@@ -2911,40 +2918,45 @@ Qed.
         have [s3'' [Hw'' Hs3'']] := write_lvals_same Hdisjl Heq Hw'.
         have Hd1 : disj_fvars (read_e e1).
         * by move: Hdisje; rewrite (disj_fvars_m (read_es_cons _ _)) => /disj_fvars_union [].
-        have He1' := sem_pexpr_same Hd1 Heq He1.  move: Hw''. rewrite /write_lvals; t_xrbindP.
-        move=> [y yl] hx1 [y' yl'] [y'' yl''] hx2 [y''' yl'''] [] <- <- /= [] <- <- hs3 hl /=.
+        have He1' := sem_pexpr_same Hd1 Heq He1.  move: Hw''. rewrite /write_lvals /=; t_xrbindP.
+        move=> [y yl] hx1 [y' yl'] [y'' yl''] hx2 [y''' yl'''] /= hs3 hl /=.
         rewrite hvs' -hl /=.
         eexists; split.
         + apply: Eseq.
           + apply: EmkI; apply: Eopn; eauto.
-            rewrite /sem_sopn /sem_pexprs /= He2 /= /exec_sopn /sopn_sem /= /truncate_word hsz2 /= /x86_MOV /check_size_8_64 hsz64 /=.
+            rewrite /sem_sopn /sem_pexprs /= He2 /= /exec_sopn /leak_sopn /= /sopn_sem /= 
+                    /truncate_word hsz2 /= /x86_MOV /check_size_8_64 hsz64 /=.
             by rewrite /write_var /set_var /= sumbool_of_boolET.
           + apply: sem_seq1; apply: EmkI; apply: Eopn=> /=.
             rewrite /= /read_es /= in Hdisje.
             rewrite /sem_sopn /sem_pexprs /= He1' /=.
-            rewrite /get_var /on_vu /= Fv.setP_eq /= /exec_sopn /sopn_sem /= /truncate_word hsz1 
-            cmp_le_refl /x86_MUL hsz /= zero_extend_u wmulhuE wmulE /= hx1 /=. rewrite /wumul /= in hx2. by rewrite hx2 /=.
-        + rewrite -hs3 in Hs3''. rewrite -hs1''. by move: (eq_exc_freshT Hs3'' Hs2').
-      move: Hw'. rewrite /write_lvals; t_xrbindP.
-      move=> [y yl] hx1 [y' yl'] [y'' yl''] hx2 [y''' yl'''] [] <- <- /= [] <- <- hs3 hl /=. rewrite hvs' -hl /=.
+            rewrite /get_var /on_vu /= Fv.setP_eq /= /exec_sopn /= /leak_sopn /= /sopn_sem /= /truncate_word hsz1 
+            cmp_le_refl /x86_MUL hsz /= zero_extend_u wmulhuE wmulE /= hx1 /=. rewrite /wumul /= in hx2; subst.
+            by rewrite hx2 /=.
+        + rewrite -hs3 in Hs3''. rewrite -hs1''; subst. by move: (eq_exc_freshT Hs3'' Hs2').
+      move: Hw'. rewrite /write_lvals /=; t_xrbindP.
+      move=> [y yl] hx1 [y' yl'] [y'' yl''] hx2 [y''' yl'''] /= hs3 hl /=. rewrite hvs' -hl /=.
       exists s2'; rewrite -hs1''; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
-      rewrite /sem_sopn Hx' /= /exec_sopn /sopn_sem /= /truncate_word hsz1 hsz2 /x86_MUL hsz /=.
-      rewrite /wumul -wmulhuE /= in hx1. rewrite /wumul -wmulhuE /= in hx2. by rewrite hx1 /= hx2 /= hs3. 
+      rewrite /sem_sopn Hx' /= /exec_sopn /= /leak_sopn /= /sopn_sem /= 
+       /truncate_word hsz1 hsz2 /x86_MUL hsz /=; subst.
+      rewrite /wumul -wmulhuE /= in hx1. rewrite /wumul /= in hx2. by rewrite hx1 /= hx2 /=.
     (* Oaddcarry *)
     + case: (lower_addcarry_correct ii t (sub:= false) Hs1' Hdisjl Hdisje Hx' Hv Hw'). move=> x [] H H'. 
-      split. constructor. exists x. split=> //. rewrite /=.
-      by rewrite -hlo /=. rewrite -hs1''. 
-      by intuition eauto using eq_exc_freshT.
+      split. constructor. exists x. split=> //=.
+      + rewrite -hlo /=. rewrite /exec_sopn in Hv. move: Hv.
+        t_xrbindP=> /=. case: (unzip1 vs)=> //=. 
+      by rewrite -hs1''; intuition eauto using eq_exc_freshT.
     (* Osubcarry *)
     + case: (lower_addcarry_correct ii t (sub:= true) Hs1' Hdisjl Hdisje Hx' Hv Hw').
-      move=> x [] H H'. split. constructor. exists x. split=> //. by rewrite -hlo /=.
-      rewrite -hs1''. 
-      by intuition eauto using eq_exc_freshT.
-    + rewrite -hlo /=. split. constructor. apply default.
-    + rewrite -hlo /=. split. constructor. apply default.
-    + rewrite -hlo /=. split. constructor. apply default.
-    rewrite -hlo /=.  split. constructor. apply default.
-   Qed.*) Admitted.
+      move=> x [] H H'. split. constructor. exists x. split=> //. rewrite -hlo /=.
+      + rewrite /exec_sopn in Hv. move: Hv.
+        t_xrbindP=> /=. case: (unzip1 vs)=> //=.
+      by rewrite -hs1'';intuition eauto using eq_exc_freshT.
+    + rewrite -hlo /=. split. constructor. by apply default.
+    + rewrite -hlo /=. split. constructor. by apply Hv.
+    + rewrite -hlo /=. split. constructor. by apply Hv.
+    rewrite -hlo /=. split. constructor. apply default.
+  Qed.
 
   (* TODO: move *)
   Lemma write_Ii ii i: write_I (MkI ii i) = write_i i.
