@@ -39,70 +39,6 @@ type glob_alloc_oracle_t =
 
  
 (* --------------------------------------------------- *)
-
-let pp_var = Printer.pp_var ~debug: true
-
-let pp_range fmt (x, (lo, hi)) =
-  Format.fprintf fmt "%a: [%d; %d]" pp_var x lo hi
-
-let pp_ranges fmt (sz, g) =
-  Format.fprintf fmt "%d ↦ %a" sz (pp_list "@ " pp_range) (Mv.bindings g)
-
-let pp_color fmt (x, i) =
-  Format.fprintf fmt "%a: %a" pp_var x pp_var i
-
-let pp_coloring fmt (sz, c) =
-  Format.fprintf fmt "%d ↦ %a" sz (pp_list "@ " pp_color) (Mv.bindings c)
-
-let pp_tbl fmt (name,tbl) =
-  Format.fprintf fmt "@[<v>%s@ %a@]" name 
-    (pp_list "@ " (fun fmt (x,ws) -> Format.fprintf fmt "%a -> %s" pp_var x (string_of_ws ws)))
-    (Hv.to_list tbl )
-
-(* dead code *)
-let pp_stk fmt (x, stkk) =
-  match stkk with
-  | Direct  (y, r, sc) ->
-    Format.fprintf fmt "%a -> %s%a" pp_var x (match sc with | E.Slocal -> "" | E.Sglob -> "%G") pp_range (y,(r.min,r.max))
-  | StackPtr y -> Format.fprintf fmt "%a |s-> %a" pp_var x pp_var y 
-  | RegPtr   y -> Format.fprintf fmt "%a |r-> %a" pp_var x pp_var y 
-
-let pp_var_ty fmt x = 
-  Format.fprintf fmt "%a %a" Printer.pp_ty x.v_ty pp_var x
-
-let pp_param_info fmt pi = 
-  match pi with
-  | None -> Format.fprintf fmt "_"
-  | Some pi ->
-    Format.fprintf fmt "(%s %a align %s)" 
-      (if pi.pi_writable then "mut" else "const") 
-      pp_var_ty pi.pi_ptr
-      (string_of_ws pi.pi_align) 
- 
-let pp_slot fmt (x,ws,pos) = 
-  Format.fprintf fmt "%i: %a align %s" 
-    pos pp_var_ty x (string_of_ws ws) 
-
-let pp_ptr_kind fmt (x,stkk) = 
-  match stkk with
-  | Direct  (y, r, sc) ->
-    Format.fprintf fmt "%a -> %s%a" pp_var x (match sc with | E.Slocal -> "" | E.Sglob -> "%G") pp_range (y,(r.min,r.max))
-  | StackPtr y -> Format.fprintf fmt "%a |s-> %a" pp_var x pp_var y 
-  | RegPtr   y -> Format.fprintf fmt "%a |r-> %a" pp_var x pp_var_ty y 
-
-let pp_sao fmt sao = 
-  Format.fprintf fmt "calls = %a@." 
-    (Printer.pp_list ",@ " (fun fmt f -> Format.fprintf fmt "%s" f.fn_name)) 
-    (Sf.elements sao.sao_calls);
-  Format.fprintf fmt "params = %a@."
-    (Printer.pp_list ",@ " pp_param_info) sao.sao_params;
-  Format.fprintf fmt "slots =@.  @[<v>%a@]@."
-    (Printer.pp_list "@ " pp_slot) sao.sao_slots;
-  Format.fprintf fmt "alloc =@. @[<v>%a@]@."
-    (Printer.pp_list "@ " pp_ptr_kind) (Hv.to_list sao.sao_alloc)
-
-
-(* --------------------------------------------------- *)
 let incr_liverange r x d : liverange =
   let s = size_of x.v_ty in
   let g = Mint.find_default Mv.empty s r in
@@ -199,7 +135,7 @@ let classes_alignment (onfun : funname -> param_info option list) gtbl alias c =
         if (fst c.range + i) land (size_of_ws ws - 1) <> 0 then
             hierror "Varalloc.classes_alignment: at line %a: bad range alignment for %a[%d]/%s in %a"
               L.pp_loc (L.loc x.gv)
-              pp_var x' i (string_of_ws ws)
+              (Printer.pp_var ~debug:true) x' i (string_of_ws ws)
               Alias.pp_slice c
       end
     else set x' E.Sglob ws in
@@ -408,20 +344,10 @@ let alloc_stack_fd get_info gtbl fd =
 
   let coloring = Mint.mapi G.solve ranges in
 
-(*  Format.eprintf "Ranges: %a@." (pp_list "@ " pp_ranges) (Mint.bindings ranges);
-  Format.eprintf "Colors: %a@." (pp_list "@ " pp_coloring) (Mint.bindings coloring);
-  Format.eprintf "alias: %a@." Alias.pp_alias alias; *)
-
-  
   let slots, lalloc = init_slots stack_pointers alias coloring (vars_fc fd) in
-
-(*  Format.eprintf "slots = %a@." (pp_list "@ " pp_var) (Sv.elements slots);
-  Format.eprintf "lalloc : @[<v>%a@]@." (pp_list "@ " pp_stk) 
-    (Hv.to_list lalloc); *)
 
   let getfun fn = (get_info fn).sao_params in
   let ctbl, sao_calls = classes_alignment getfun gtbl alias fd.f_body in
-(*  Format.eprintf "%a@ %a@." pp_tbl ("globals", gtbl) pp_tbl ("classes", ctbl); *)
   let sao_params, atbl = all_alignment ctbl alias fd.f_args lalloc in
   let sao_return = 
     match fd.f_cc with
@@ -446,7 +372,6 @@ let alloc_stack_fd get_info gtbl fd =
     sao_alloc; 
     sao_modify_rsp;
   } in
-(*  Format.eprintf "%a\n\n@." pp_sao sao; *)
   sao
 
 let alloc_mem gtbl globs =
