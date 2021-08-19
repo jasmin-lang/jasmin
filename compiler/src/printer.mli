@@ -58,6 +58,13 @@ val pp_prog  : debug:bool ->
 
 val pp_datas : Format.formatter -> Ssralg.GRing.ComRing.sort list -> unit
 
+val pp_to_save : debug:bool -> 'a Conv.coq_tbl ->
+                 Format.formatter -> Var0.Var.var * BinNums.coq_Z -> unit
+val pp_saved_stack : debug:bool -> 'a Conv.coq_tbl ->
+                     Format.formatter -> Expr.saved_stack -> unit
+val pp_return_address : debug:bool -> 'a Conv.coq_tbl ->
+                        Format.formatter -> Expr.return_address_location -> unit
+
 val pp_sprog : debug:bool -> 
                'a Conv.coq_tbl -> Format.formatter -> 'info sprog -> unit
 
