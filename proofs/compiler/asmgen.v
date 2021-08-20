@@ -261,6 +261,8 @@ have hle : (U64 <= U64)%CMP by [].
 have options : lowering_options. + constructor. constructor. constructor.
 have warning : instr_info → warning_msg → instr_info. + auto.
 have is_var_in_memory : var_i -> bool. + constructor.
+Print fvars_correct.
+have := mk_leaP.
 have /= Hlea := mk_leaP (p:= (Build_prog gd [::])) _ _ _ hle hle heq.
 (*have /= := (mk_leaP (p:= (Build_prog gd [::])) _ _ _ hle hle heq). 
 move=> Hlea.
@@ -599,37 +601,35 @@ id.(id_check) loargs ->
 lom_eqv m s ->
 exists s', exec_instr_op gd id loargs s = ok (s', Laop (leak_e_asm le)) /\ lom_eqv m' s'.
 Proof.
-move=> id ; rewrite /sem_sopn /exec_sopn.
-t_xrbindP=> vs Hvs x vt Hvt lo hlo Htuplet [s' ls] Hargs /= lo' hlo' <- <- Hargs' Hdest Hid Hlomeqv.
+move=> id; rewrite /sem_sopn /exec_sopn /leak_sopn /sopn_leak.
+t_xrbindP=> vs Hvs x vt Hvt lo lo' Hlo <- Htuplet [s' ls] /= Hw lo1 lo2. 
+rewrite Hlo /=. move=> [] <- Hl <- <- Hargs Hdest Hid Hlomeqv.
 rewrite /exec_instr_op /eval_instr_op Hid /=.
-move: vt Hvt Htuplet; rewrite /sopn_sem /get_instr -/id => {Hid}.
-case: id Hargs' Hdest => /=.
+move: vt Hvt Htuplet Hlo; rewrite /sopn_sem /get_instr -/id=> {Hid}.
+case: id Hargs Hdest => /=.
 move=> msb_flag id_tin id_in id_tout id_out id_semi id_leak id_check id_nargs.
 move=> /andP[] /eqP hsin /eqP hsout id_max_imm _ id_str_jas id_check_dest.
-move=> id_safe id_wsize id_pp Hargs' Hdest vt happ hx; subst x.
-elim: id_in id_tin hsin id_semi id_leak args vs Hargs' happ Hvs hlo hlo'; rewrite /sem_prod.
-+ move=> [] //= _ id_semi id_leak [| a1 aegs] [|v1 vs] //= _ -> _ /=.
-  have := (compile_lvals msb_flag hsout Hargs Hlomeqv Hdest id_check_dest).
-  move=> [] x [] Hm H Hl Hl'.
-  exists x; split=> //=; rewrite cats0. 
-  by case: (op) Hl Hl'=> //=.
+move=> id_safe id_wsize id_pp Hargs Hdest vt happ hx Hlo; subst x. rewrite /= in Hargs |- *.
+rewrite /= in Hw.
+elim: id_in id_tin hsin id_semi id_leak args vs Hargs happ Hvs Hlo; rewrite /sem_prod.
++ move=> [] //= _ id_semi id_leak [| a1 aegs] [|v1 vs] //= _ -> _ /= -> /=.
+  have := (compile_lvals msb_flag hsout Hw Hlomeqv Hdest id_check_dest).
+  move=> [] x [] Hm H.
+  by exists x; split=> //=; rewrite cats0 /=; rewrite Hm.
 move=> a id_in hrec [] //= ty id_tin [] heqs id_semi id_leak [ | arg args] //=
-  [ // | -[v l] vs]; rewrite /check_sopn_args /= => /andP[] hcheck1 hcheckn.
-t_xrbindP=> vt1 hvt happ [v' l'] hv vs'' hvs h1 h2 /= hlo hlo'. rewrite h2 in hvs.
-case: h1=> h1' h1''. rewrite -h1' in hvt.
-have [v'' [Heval Ht]]:= check_sopn_arg_sem_eval Hlomeqv hcheck1 hv hvt.
-have := hrec _ heqs (id_semi vt1) (id_leak vt1) args vs hcheckn happ hvs.
-(*rewrite /leak_sopn /sopn_leak in hlo. move: hlo. t_xrbindP=> yt happ' hlo.
-have [] := hrec _ heqs (id_semi vt1) (id_leak vt1). _ _ hcheckn happ hvs hlo1 hlo2. rewrite -h1 in hvt.
+  [ // | v vs]; rewrite /check_sopn_args /= => /andP[] hcheck1 hcheckn.
+t_xrbindP=> vt1 hvt happ [v' l'] hv vs' hvs h1 h2 vt' hvt' hlo; subst. 
+have [s'' [] []] := hrec _ heqs (id_semi vt1) (id_leak vt') _ _ hcheckn happ hvs hlo.
 have := check_sopn_arg_sem_eval Hlomeqv hcheck1 hv hvt.
-move=> [] v'' [] Hev' hv' x. move=> [] h hlow. move: h.
-t_xrbindP=> -[v1 p1] -[v2 p2] Hev'' vt' /= happ1 [] <- <- /=. 
-move=> [m'' pm] hmw /= hx. <-. rewrite cats0. 
+move=> [] v'' [] Hev' hv'.
+t_xrbindP=> -[v1 p1] -[v2 p2] Hev'' vt'' /= happ1 leo hleo [] <- <- /=.
+move=> [m'' pm] hmw /= <-. rewrite cats0. 
 move=> heq hlom /=. rewrite /eval_args_in /=. rewrite Hev' /=.
 rewrite /eval_args_in in Hev''. move: Hev''. t_xrbindP. move=> vs'' -> hvs'' hp2 /=.
-rewrite hv' /= hvs'' /= happ1 /= hmw /=. exists m''; split=> //.
-by rewrite -h1 /=; rewrite -hp2 in heq; rewrite -catA heq catA.
-Qed.*) Admitted.
+rewrite hvt in hvt'. case: hvt'=> hvteq. rewrite -hvteq in hleo.
+rewrite hv' /= hvs'' /= happ1 /= hleo /= hmw /=. exists m''; split=> //.
+by rewrite -hp2 in heq; rewrite -catA -catA -catA catA -heq catA -catA -catA -catA.
+Qed.
 
 Lemma is_leaP ii op outx inx lea:
   is_lea ii op outx inx = ok lea ->

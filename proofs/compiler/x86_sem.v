@@ -200,12 +200,11 @@ Definition eval_arg_in_v (s:x86_mem) (args:asm_args) (a:arg_desc) (ty:stype) : e
 Definition eval_args_in (s:x86_mem) (args:asm_args) (ain : seq arg_desc) (tin : seq stype) :=
   Let r := mapM2 ErrType (eval_arg_in_v s args) ain tin in ok (unzip1 r, flatten (unzip2 r)).
 
-(* Check with Benjamin *)
 Definition eval_instr_op idesc args (s:x86_mem) :=
   Let _   := assert (idesc.(id_check) args) ErrType in
   Let vs  := eval_args_in s args idesc.(id_in) idesc.(id_tin) in
-  Let t   := app_sopn _ idesc.(id_semi) vs.1 in
-  Let l := app_sopn _  idesc.(id_seml) vs.1 in
+  Let t   := app_sopn idesc.(id_tin) idesc.(id_semi) vs.1 in
+  Let l   := app_sopn idesc.(id_tin) idesc.(id_seml) vs.1 in
   ok (list_ltuple t, vs.2 ++ leak_e_asm l).
 
 (* -------------------------------------------------------------------- *)
