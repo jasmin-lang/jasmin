@@ -1066,82 +1066,68 @@ Qed.
     sem_pexpr gd s e = ok (v, le) ->
     exists v' lt, sem_pexpr gd s (push_cast e) = ok (v', leak_E stk lt le) /\ value_uincl v v'.
   Proof. 
-    elim: e v le; eauto.
+    elim: e v le=> [ z v le | b v le | n v le | x v le | gb v le | sz x e he v le | sz x e he v le | o e1 he1 v le 
+                     | op e1 hrec1 e2 hrec2 v le | op es hrec v le | sty e hrec e1 hrec1 e2 hrec2 v le] /=.
     (* Pconst *)
-    + move=> z v le /= [] <- <-. exists z. by exists LT_id.
+    + move=> [] <- <-. eexists. by exists LT_id.
     (* Pbool *)
-    + move=> b v le /= [] <- <-. exists b. by exists LT_id.
+    + move=> [] <- <-. exists b. by exists LT_id.
     (* Parr_init *)
-    + move=> n v le /= [] <- <-. eexists. by exists LT_id.
+    + move=> [] <- <-. eexists. by exists LT_id.
     (* Pvar *)
-    + move=> x v le /=. t_xrbindP=> vg -> <- <- /=. exists vg. by exists LT_id.
+    + t_xrbindP=> vg -> <- <- /=. eexists. by exists LT_id.
     (* Pglobal *)
-    + move=> gb v le /=. t_xrbindP=> gb' -> <- <- /=. exists gb'. by exists LT_id.
+    + t_xrbindP=> gb' -> <- <- /=. eexists. by exists LT_id.
     (* Pget *)
-    + move=> sz x e /= he v le /=. rewrite /on_arr_var /=. t_xrbindP=> vg -> /=.
+    + rewrite /on_arr_var /=. t_xrbindP=> vg -> /=.
       case: vg=> //=. move=> n a. t_xrbindP=> -[v1 l1] -> /= z -> /= wsz -> <- <- /=.
       exists (Vword wsz). by exists (LT_map [:: LT_id; LT_id]).
     (* Pload *)
-    + move=> sz x e he v le /=. t_xrbindP=> u vg -> /= -> -[v1 l1] -> /= u' -> /= w -> <- /= <-.
+    + t_xrbindP=> u vg -> /= -> -[v1 l1] -> /= u' -> /= w -> <- /= <-.
       exists (Vword w). by exists (LT_map [:: LT_id; LT_id]).
     (* Papp1 *)
-    + move=> o e1 he1 v le /=.
-      t_xrbindP => -[v1 l1] /he1{he1} [v1' [lt1 [he1 hu]]].
+    + t_xrbindP => -[v1 l1] /he1{he1} [v1' [lt1 [he1 hu]]].
       move=> vo /(vuincl_sem_sop1 hu).
-      case o=> [sz | sz | sz sz' | sz sz' | | sz | op] he1' lo /= hlo <- <- /=.
+      case o=> [sz | sz | sz sz' | sz sz' | | sz | op] //= ho lo /= hlo <- <- /=;
+      try by rewrite he1 /= ho /=; have -> /= := leak_sop1_eq hu hlo; exists vo; exists (LT_map [:: lt1; LT_id]).
       (* Oword_of_int *)
-      + (*apply push_cast_szP. rewrite /=. 
-        exists vo. exists (LT_map [:: lt1; LT_id]). split=> //=. 
-        apply push_cast_szP. rewrite /= he1 /= he1' /=.
-        have -> /= := leak_sop1_eq hu hlo.*) admit.
-      (* Oint_of_word *)
-      + rewrite he1 /= he1' /=. have -> /= := leak_sop1_eq hu hlo. exists vo.
-        by exists (LT_map [:: lt1; LT_id]).
-      (* Osignnext *)
-      + rewrite he1 /= he1' /=. have -> /= := leak_sop1_eq hu hlo. exists vo.
-        by exists (LT_map [:: lt1; LT_id]).
-      (* Ozeroext *)
-      + rewrite he1 /= he1' /=. have -> /= := leak_sop1_eq hu hlo. exists vo.
-        by exists (LT_map [:: lt1; LT_id]).
-      (* Onot *)
-      + rewrite he1 /= he1' /=. have -> /= := leak_sop1_eq hu hlo. exists vo.
-        by exists (LT_map [:: lt1; LT_id]).
-      (* Olnot *)
-      + rewrite he1 /= he1' /=. have -> /= := leak_sop1_eq hu hlo. exists vo.
-        by exists (LT_map [:: lt1; LT_id]).
-      (* Oneg *)
-      + rewrite he1 /= he1' /=. have -> /= := leak_sop1_eq hu hlo. exists vo.
-        by exists (LT_map [:: lt1; LT_id]).
+      have Hp := push_cast_szP. move: (Hp sz (push_cast e1) s). 
+      have hlo' /= := leak_sop1_eq hu hlo.
+      rewrite /= he1 /= ho /= hlo' /=. move=> {Hp} Hp.
+      move: (Hp vo (leak_E stk lt1 l1) lo)=> {Hp} Hp.
+      have Heq :  ok (vo, LSub [:: leak_E stk lt1 l1; lo]) = ok (vo, LSub [:: leak_E stk lt1 l1; lo]). + move=> T. reflexivity.
+      move: (Hp (Heq _))=> {Hp} [] v' [] lt' [] Hp Hv. rewrite Hp /=.
+      exists v'. by exists (LT_compose (LT_seq [:: LT_compose (LT_subi 0) lt1; LT_subi 1]) lt'). 
     (* Papp2 *)
-    + move=> op e1 hrec1 e2 hrec2 /= v le. t_xrbindP=> -[v1 l1] he1 -[v2 l2] he2 vo ho lo hlo <- <-.
+    + t_xrbindP=> -[v1 l1] he1 -[v2 l2] he2 vo ho lo hlo <- <-.
       have [v1' [lt1' [-> hv1 /=]]]:= hrec1 v1 l1 he1. have [v2' [lt2' [-> hv2 /=]]]:= hrec2 v2 l2 he2.
       have -> /= := vuincl_sem_sop2 hv1 hv2 ho. have -> /= := leak_sop2_eq hv1 hv2 hlo. exists vo. 
       by exists (LT_seq [:: (LT_compose (LT_subi 0) (LT_map [:: lt1'; lt2'])); LT_compose (LT_subi 1) LT_id]).
     (* PappN *)
-    + move=> op es hrec /= v le. t_xrbindP=> vs -> vo ho lo hlo /= <- <- /=. 
+    + t_xrbindP=> vs -> vo ho lo hlo /= <- <- /=. 
       rewrite ho /= hlo /=. exists vo. by exists LT_id.
     (* Pif *)
-    move=> sty e hrec e1 hrec1 e2 hrec2 /= v le. t_xrbindP=> -[v1 l1] -> b /= -> -[v2 l2] -> /=.
+    t_xrbindP=> -[v1 l1] -> b /= -> -[v2 l2] -> /=.
     move=> -[v3 l3] -> vt -> /= vt' -> <- <- /=. eexists. by exists LT_id.
-  Admitted.
+  Qed.
 
   Lemma mk_leaP s e l le sz sz' (w: word sz') :
     (sz <= U64)%CMP -> 
     (sz ≤ sz')%CMP →
     mk_lea sz e = Some l ->
     sem_pexpr gd s e = ok (Vword w, le) ->
-    sem_lea sz (evm s) l = ok (zero_extend sz w) 
-    /\ leak_e_asm le = [::].
+    exists lt, sem_lea sz (evm s) l = ok (zero_extend sz w) 
+    /\ leak_e_asm (leak_E stk lt le) = [::].
   Proof.
     rewrite /mk_lea => h1 h2 hrec.
     move=> /push_castP [v' [lt [he hu]]].
     have [sz1 [w1 [? /andP [] hle /eqP ->]]]:= value_uinclE hu; subst v'.
     rewrite zero_extend_idem //.
+    have Hm := mk_lea_recP.
     have h3 := cmp_le_trans h2 hle.
-    have /= hlea :=  mk_lea_recP h1 h3 hrec.
-    have [he' hl] := hlea s (leak_E stk lt le) w1 he.
-    split=> //=. (* we don't have information about lt that comes from push_cast *)
-  Admitted.
+    move: (Hm s (push_cast e) l (leak_E stk lt le) sz sz1 w1 h1 h3 hrec he)=> [] -> hl.
+    by exists lt.  
+  Qed.
 
   Definition read_ovar (o: option var_i) : Sv.t :=
     if o is Some v then read_e v else Sv.empty.
@@ -1528,7 +1514,7 @@ Qed.
           move: (Hlea ((zero_extend sz'' z1) + (zero_extend sz'' z2))%R). rewrite -hle /=.
           have : (ok (Vword (zero_extend sz'' z1 + zero_extend sz'' z2), LSub [:: LSub [:: l1; l2]; lo]) = 
                   ok (Vword (zero_extend sz'' z1 + zero_extend sz'' z2), LSub [:: LSub [:: l1; l2]; lo])). auto.
-         move=> Heq. move=> H. move: (H (Heq _)). move=> [Hlea''] Hl. auto.
+         move=> Heq. move=> H. move: (H (Heq _)). move=> [] lt [Hlea''] Hl. auto.
 
         move => {Heq}.
         have /= := @add_inc_dec_classifyP s sz'' e1 e2.
@@ -1579,7 +1565,7 @@ Qed.
           move: (Hlea (zero_extend sz'' z1 * zero_extend sz'' z2)%R). rewrite -hl /=.
           have : (ok (Vword (zero_extend sz'' z1 * zero_extend sz'' z2), LSub [:: LSub [:: l1; l2]; lo]) = 
                   ok (Vword (zero_extend sz'' z1 * zero_extend sz'' z2), LSub [:: LSub [:: l1; l2]; lo])). auto.
-         move=> Heq. move=> H. move: (H (Heq _)). move=> [Hlea''] Hl. auto.
+         move=> Heq. move=> H. move: (H (Heq _)). move=> [] lt [Hlea''] Hl. auto.
         move => {Heq}. 
         case Heq : mulr => [[o e'] lte'] //=.
         have := mulr_ok ok_v1 ok_v2 hle1 hle2 hsz64 Hw Heq. move=> [vs] [vs'] [Hsub] -> /=. move=> Hx Hl Hws.
@@ -1607,7 +1593,7 @@ Qed.
           move: (Hlea (zero_extend sz'' z1 - zero_extend sz'' z2)%R).  rewrite -hl /=.
           have : (ok (Vword (zero_extend sz'' z1 - zero_extend sz'' z2), LSub [:: LSub [:: l1; l2]; lo]) = 
                   ok (Vword (zero_extend sz'' z1 - zero_extend sz'' z2), LSub [:: LSub [:: l1; l2]; lo])). auto.
-         move=> Heq. move=> H. move: (H (Heq _)). move=> [Hlea''] Hl. auto.
+         move=> Heq. move=> H. move: (H (Heq _)). move=> [] lt [Hlea''] Hl. auto.
 
         have := sub_inc_dec_classifyP sz'' e2.
         case: (sub_inc_dec_classify _ _)=> [He2|He2|//]; try subst e2.
@@ -1666,7 +1652,8 @@ Qed.
         have hw2' : (wunsigned w2 == 0%Z) = false.
         + by apply /negbTE; apply /eqP => h; apply neq, wunsigned_inj. rewrite -hl /=. 
           rewrite /leak_sop2 in hlo. move: hlo. t_xrbindP. move=> so /=. rewrite hw1 /= hw2 /=. 
-          move=> [] <- wsz' [] <- /=. rewrite /div_leak /=. move=> [] <-. split=> //. admit.
+          move=> [] <- wsz' [] <- /=. rewrite /div_leak /=. move=> [] <-. split=> //.
+          admit.
         move: Hw ;rewrite /wdivi zero_extend_u => /(write_lval_same hl' hs1) [s1' [hs1'] ?] /=.
         rewrite /= /exec_sopn /sopn_sem /= /leak_sopn /= /x86_IDIV /x86_DIV !truncate_word_u
              /check_size_16_64 /= hsz1 hsz2 /= hw1 /= hw2 /=.

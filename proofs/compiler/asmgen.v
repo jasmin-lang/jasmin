@@ -263,7 +263,6 @@ have warning : instr_info → warning_msg → instr_info. + auto.
 have is_var_in_memory : var_i -> bool. + constructor.
 Print fvars_correct.
 have := mk_leaP.
-have /= Hlea := mk_leaP (p:= (Build_prog gd [::])) _ _ _ hle hle heq.
 (*have /= := (mk_leaP (p:= (Build_prog gd [::])) _ _ _ hle hle heq). 
 move=> Hlea.
 move: (Hlea options warning _ is_var_in_memory _ _ _ s  (LSub [:: LEmpty; lo]) (z + z')%R). 
@@ -676,7 +675,7 @@ Proof.
       have options : lowering_options. + constructor. constructor. constructor.
       have warning : instr_info → warning_msg → instr_info. + auto.
       have is_var_in_memory : var_i -> bool. + constructor.
-      have /= Hlea := mk_leaP (p:= (Build_prog gd [::])) _  _ _  hsz2 hsz'' hlea he. 
+      have /= Hlea := mk_leaP (p:= (Build_prog gd [::])) _ hsz2 hsz'' hlea he.  
       rewrite /sopn_leak /= in hlo'. case: hlo'=> [] <- /=.
       have Hl : leak_e_asm l = [::]. + admit. by rewrite Hl.
     case: hlo => h1 h2 h3 h4. 
@@ -686,7 +685,7 @@ Proof.
       have options : lowering_options. + constructor. constructor. constructor.
       have warning : instr_info → warning_msg → instr_info. + auto.
       have is_var_in_memory : var_i -> bool. + constructor.
-      have /= Hlea':= mk_leaP (p:= (Build_prog gd [::])) _ _ _  hsz2 hsz'' hlea he. 
+      have /= Hlea':= mk_leaP (p:= (Build_prog gd [::])) _ hsz2 hsz'' hlea he. 
       have Hlea : sem_lea sz (evm m) lea = ok (zero_extend sz sz''). + admit.
       have Hl : leak_e_asm l = [::]. + admit.
       move: Hlea.
