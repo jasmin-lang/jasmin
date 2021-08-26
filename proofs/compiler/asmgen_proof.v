@@ -4,8 +4,8 @@ Require Import low_memory psem x86_sem compiler_util lowering lowering_proof x86
 
 Import Utf8.
 Import GRing.
-Import oseq.
 Import x86_variables psem.
+Import oseq.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
