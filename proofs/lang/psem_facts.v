@@ -98,7 +98,7 @@ Proof.
   apply: all_ziota => i hi.
   rewrite !valid8_validw.
   rewrite hfss.(fss_valid) -hvalid hass.(ass_valid).
-  rewrite -hss.(ss_top_stack) -(alloc_free_stack_stable hass hss hfss).(ss_top_stack).
+  rewrite -(ss_top_stack hss) -(ss_top_stack (alloc_free_stack_stable hass hss hfss)).
   rewrite /pointer_range.
   have [L H] := ass_above_limit hass.
   case: (@andP (_ <=? _)%Z); rewrite !zify.

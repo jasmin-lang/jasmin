@@ -1805,7 +1805,7 @@ Let vrsp : var := vid (string_of_register RSP).
     - rewrite /sp top_stack_after_aligned_alloc // wrepr_opp GRing.subrK.
       move => x; rewrite Fv.setP; case: eqP => x_rsp.
       + subst.
-        by rewrite (sem_call_stack_stable exec_call).(ss_top_stack) s2_eq /= /set_RSP Fv.setP_eq.
+        by rewrite (ss_top_stack (sem_call_stack_stable exec_call)) s2_eq /= /set_RSP Fv.setP_eq.
       by move: (X' x); rewrite Fv.setP_neq //; apply/eqP.
     - etransitivity; last exact: H'.
       have := alloc_stackP ok_m.
