@@ -307,7 +307,7 @@ apply: ih.
 case: h => h1 hrip hd h2 h3 h4 {ok_s3 ok_rs rec}.
 case: r ok_r hv => // r => [ /var_of_register_of_var | /xmm_register_of_varI ] rx /=.
 all: move: ok_s2; rewrite /write_var/set_var -rx /=; t_xrbindP => vm; apply: on_vuP => // w hw <-{vm} <-{s2}.
-all: constructor => //=; (only 2-4, 6-9: move => r' v'); rewrite /get_var /on_vu.
+all: constructor => //=; (only 2-4, 6-8: move => r' v'); rewrite /get_var /on_vu.
 1, 8: by rewrite Fv.setP_neq; first exact: hrip; apply/eqP; case: hd.
 2-4, 6: rewrite Fv.setP_neq //.
 2: exact: h3.
