@@ -1252,6 +1252,12 @@ Qed.
        Sv.Subset (read_lea l) (read_e e) ∧
        exists w: word sz,
         v' = Vword w /\ sem_lea sz (evm s) l = ok w) (* don't know how to get le = l1 ; l2 where l1, l2 is leak corresponding to a and b*)
+    | (LowerConcat hi lo, lte) =>
+      ∃ vs,
+        [/\ sem_pexprs gd s [:: hi ; lo ] = ok vs,
+         exec_sopn Oconcat128 (unzip1 vs) = ok [:: v' ]
+         & unzip2 vs = leak_ES stk lte le]
+
     | (LowerAssgn, lte) => (True (*/\ lte = LT_idseq LT_id*)) 
     end.
   Proof.
@@ -1841,7 +1847,23 @@ Qed.
         exists [:: (Vword w1, l1); (Vword w2, l2)]. split=> //=.
         by rewrite /truncate_word hw1 hw2 /= zero_extend_u.
         by rewrite -hle.
-     
+
+    (* PappN *)
+    + case: op => // - [] // - [] //.
+      case: es => // - [] // [] // [] // hi.
+      case => // [] // [] // [] // [] // [] // lo [] //.
+      case: ty Hv' => // - [] //= ok_v'.
+      rewrite /= /sem_opN /exec_sopn /sem_sop1 /=.
+      t_xrbindP => ?? [] ?? -> ?? /to_wordI[] szhi [] whi [] szhi_ge /= -> -> <- <- ???? -> <-.
+      move => ?? /to_wordI[] szlo [] wlo [] szlo_ge /= -> -> <- <- <- <- ?? /(@ok_inj _ _ _ _) <- <- ??.
+      subst => /=.
+      case: ok_v' => <-{Hw v'}.
+      eexists; split; first reflexivity; last reflexivity.
+      rewrite /= /truncate_word zero_extend_u szlo_ge.
+      rewrite szhi_ge /=.
+      congr (ok [:: (Vword (wrepr _ (word.wcat_r _))) ]).
+      by rewrite /= -!/(wrepr U128 _) !wrepr_unsigned.
+
      (* Pif *)
      rewrite /check_size_16_64.
      by case: stype_of_lval => //= w hv; case: andP => // - [] -> /eqP ->; eauto.
@@ -2255,6 +2277,12 @@ Qed.
         rewrite /sem_sopn /= hget /= Hp0' /= Hp1' /= Hex' /=. rewrite /write_lvals /= in Hws'. by rewrite Hws' Hlv' /=.
         apply sem_seq1. apply EmkI. apply Eopn. rewrite /sem_sopn /= hget /= Hp0' /= Hp1' /= Hex' /=. rewrite /write_lvals /= in Hws'. by rewrite Hws' Hlv' /=.
       apply: eq_exc_freshT Hs2'' Hs2'.
+    (* LowerConcat *)
+    + move => hi lo [] vs [] ok_vs ok_v' ok_lte.
+      split; first by constructor.
+      exists s2'; split; last exact: Hs2'.
+      apply: sem_seq1; apply: EmkI; apply: Eopn.
+      by rewrite /sem_sopn ok_vs /= ok_v' /= Hw' ok_lte.
     (* LowerAssgn *)
     move=> _. split. constructor.
     exists s2'; split=> //=.

@@ -436,21 +436,25 @@ let kind_of_type =
 
 let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
     (f: 'info func) (a: allocation) : allocation =
-  let alloc_from_list loc rs xs q a vs =
+  let split ~ctxt =
+    function
+    | hd :: tl -> hd, tl
+    | [] ->
+       hierror "%a: function %s has too many %s according to the ABI"
+         L.pp_loc f.f_loc
+         f.f_name.fn_name
+         ctxt
+  in
+  let alloc_from_list loc ~ctxt rs xs q a vs =
     let f x = Hv.find vars x in
     List.fold_left (fun (rs, xs, a) p ->
         let p = q p in
         match f p with
         | i ->
-          let split =
-            function
-            | a :: b -> (a, b)
-            | [] -> hierror "Register allocation: dame…"
-          in
           let d, rs, xs =
             match kind_of_type p.v_ty with
-            | Word -> let d, rs = split rs in d, rs, xs
-            | Vector -> let d, xs = split xs in d, rs, xs
+            | Word -> let d, rs = split ~ctxt rs in d, rs, xs
+            | Vector -> let d, xs = split ~ctxt xs in d, rs, xs
             | Unknown ty ->
               hierror "Register allocation: unknown type %a for forced register %a"
                 Printer.pp_ty ty (Printer.pp_var ~debug:true) p
@@ -461,8 +465,8 @@ let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
       vs
     |> fun (_, _, a) -> a
   in
-  let alloc_args loc = alloc_from_list loc X64.arguments X64.xmm_arguments identity in
-  let alloc_ret loc = alloc_from_list loc X64.ret X64.xmm_ret L.unloc in
+  let alloc_args loc = alloc_from_list loc ~ctxt:"parameters" X64.arguments X64.xmm_arguments identity in
+  let alloc_ret loc = alloc_from_list loc ~ctxt:"return values" X64.ret X64.xmm_ret L.unloc in
   let rec alloc_instr_r loc a =
     function
     | Cfor (_, _, s)

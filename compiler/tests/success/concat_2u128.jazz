@@ -1,0 +1,9 @@
+export
+fn concat_2u128(reg u64 x y z) {
+  reg u128 a b;
+  reg u256 c;
+  a = (u128)[x];
+  b = (u128)[y];
+  c = (2u128)[a, b];
+  (u256)[z] = c;
+}
