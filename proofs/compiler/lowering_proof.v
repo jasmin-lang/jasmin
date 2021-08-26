@@ -1302,12 +1302,12 @@ Qed.
     mulr sz e1 e2 = (o, e', lte) -> 
     exists vs vs', 
     [ /\ Sv.Subset (read_es e') (read_e (Papp2 (Omul (Op_w sz )) e1 e2)), 
-      sem_pexprs gd s e' = ok vs, exec_sopn (Ox86 o) (unzip1 vs) = ok vs',
+      sem_pexprs gd s e' = ok vs, exec_sopn (Ox86 o) (unzip1 vs) = ok (vs', LEmpty),
       (unzip2 vs) = get_seq_leak_e (leak_E stk lte (LSub [:: le1; le2])) &
       write_lvals gd s
              [:: Lnone (var_info_of_lval l) sbool; Lnone (var_info_of_lval l) sbool;
                  Lnone (var_info_of_lval l) sbool; Lnone (var_info_of_lval l) sbool;
-                 Lnone (var_info_of_lval l) sbool; l] vs'.1 = ok (s', [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lv])].
+                 Lnone (var_info_of_lval l) sbool; l] vs' = ok (s', [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lv])].
   Proof.
     rewrite /mulr => ok_v1 ok_v2 hle1 hle2 hsz64 Hw.
     case Heq: (is_wconst _ _) => [z | ].
@@ -1350,8 +1350,8 @@ Qed.
       let vi := var_info_of_lval l in
       let f  := Lnone vi sbool in
       Sv.Subset (read_es e') (read_e e) ∧
-      ∃ vs vs', [/\ sem_pexprs gd s e' = ok vs,  exec_sopn o (unzip1 vs) = ok vs', 
-                write_lvals gd s [:: f; f; f; f; f; l] vs'.1 = ok (s',  [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lv]) &
+      ∃ vs vs', [/\ sem_pexprs gd s e' = ok vs,  exec_sopn o (unzip1 vs) = ok (vs', LEmpty), 
+                write_lvals gd s [:: f; f; f; f; f; l] vs' = ok (s',  [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lv]) &
                 unzip2 vs = leak_ES stk lte le] 
     | (LowerDivMod p u sz o a b, lte) => 
       let vi := var_info_of_lval l in
@@ -1652,7 +1652,7 @@ Qed.
         have hw2' : (wunsigned w2 == 0%Z) = false.
         + by apply /negbTE; apply /eqP => h; apply neq, wunsigned_inj. rewrite -hl /=. 
           rewrite /leak_sop2 in hlo. move: hlo. t_xrbindP. move=> so /=. rewrite hw1 /= hw2 /=. 
-          move=> [] <- wsz' [] <- /=. rewrite /div_leak /=. move=> [] <-. split=> //.
+          move=> [] <- wsz' [] <- /=. rewrite /div_leak /=. move=> [] <-. split=> //=.
           admit.
         move: Hw ;rewrite /wdivi zero_extend_u => /(write_lval_same hl' hs1) [s1' [hs1'] ?] /=.
         rewrite /= /exec_sopn /sopn_sem /= /leak_sopn /= /x86_IDIV /x86_DIV !truncate_word_u
@@ -2121,6 +2121,7 @@ Qed.
         rewrite /leak_sopn /= hw /= ht /=. case: (unzip1 z1) hm=> //= hm. 
       have hr' := hr. rewrite hr /= h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= drop0. 
       move: hr'. rewrite /exec_sopn /=. by t_xrbindP=> yt sz' lo -> /= _ _.
+    (* Opn5f_other *)
     case: ys hr hs=> // a' l hr /=. t_xrbindP.
     move=> -[s1 l1] s1' /= h1 [] <- <- h1'. case: l hr=> // a0 l hr. t_xrbindP=> -[s2 l2] /= h2 h2'.
     case: l hr=> // a1 l hr. t_xrbindP=> -[s3 l3] /= h3 h3' [] <- <-. 
@@ -2130,7 +2131,7 @@ Qed.
     case: l hr hl=> // hr /= [] hl /=; rewrite -hl in hs''; rewrite -hl /=.
     exists s'. exists l2. exists l6. split => //.
     repeat econstructor. rewrite /sem_sopn /= hx /= hr /=. rewrite h1 /= h2 /= h3' /= h4 /= h5 /= h6 -hs'' /=; subst.
-    rewrite /exec_sopn in hr. move: hr. by t_xrbindP=> y /= h lo -> _ /= <- /=.
+    rewrite /exec_sopn /= in hr. move: hr. by t_xrbindP=> yt happ lo -> _ <- /=. 
    Qed.
 
   Lemma reduce_wconstP s e sz sz' (v: word sz') le :
@@ -2307,7 +2308,7 @@ Qed.
           rewrite zero_extend0 !GRing.add0r GRing.mulrC in Hw'. 
           case: vo Hvo Hwo h1 Hlea'=> vov vol Hvo Hwo /= h1 Hlea'. rewrite h1 in Hvo.
           have [] := mulr_ok Hvo Hsc1 hle1 hsz2 _ Hw' Heq; first by rewrite hsz1.
-          move=> vs [] [vo lo] [Hsub] hvs hvo hl hw.
+          move=> vs [] vo [Hsub] hvs hvo hl hw.
           case: (opn_5flags_correct ii tag (Some U32) _ _ hvs hvo hw).
           + apply: disjoint_w Hdisje .
             apply: SvP.MP.subset_trans hrl.
@@ -2317,18 +2318,13 @@ Qed.
           + by apply Hdisjl.
           move=> s2'' [] /= lcf [lr] [hls] H Hex /=. split. constructor.
           exists s2''. subst f. rewrite /Lnone_b /=. 
-          split=> //=. 
+          split=> //=.
           + rewrite hl /= in H. subst oo. 
-            have /= hvo' := (sem_pexpr_var_empty Hvo). rewrite /leak_lea_exp_b2 /=.
+            have /= hvo' := (sem_pexpr_var_empty Hvo). rewrite /leak_lea_exp_b1 /=.
             case: o Hslea hrl elea hes Hlea' Heq Hvo Hsub hvo'=> //= o Hslea hrl elea hes Hlea' Heq Hvo Hsub. 
-            + move=> hvol /=. rewrite hvol /= in H. 
-              move: hvo. rewrite /exec_sopn /= /leak_sopn /= /sopn_leak /get_instr /= /sopn_sem /=. admit. 
-            rewrite Hsub /= in H. admit.
+            + move=> hvol /=. rewrite hvol /= in H. subst. by apply H.
+            rewrite Hsub /= in H. by apply H.
           eauto using eq_exc_freshT. 
-         (*case: o Hslea hrl elea hes Hlea' Heq Hvo Hsub hvo'=> //=. 
-         + move=> a1 Hslea hrl elea hes Hlea' Heq Hvo Hsub hvo'. rewrite hvo' in H. 
-           move: hvo. rewrite /exec_sopn. t_xrbindP=> yt happ lo' /=. 
-           rewrite /leak_sopn /= /sopn_leak /=. apply H. eauto using eq_exc_freshT.*)
         split. constructor. exists s2'. rewrite /leak_lea_exp. rewrite /= in hes. 
         move: hes. rewrite Hvb /= Hvo /= /sem_sop2 /= /leak_sop2 /= Hwo /= Hwb /= 
         /truncate_word /= hsz2 /= /truncate_word /= cmp_le_refl /=.
@@ -2414,14 +2410,12 @@ Qed.
 
     (* LowerFopn *) (* we don't know if o is no leak operation or div/modulo *)
     + set vi := var_info_of_lval _.
-      move=> o a m [] LE. move=> [ys] [] -[xs ls] [hys] hxs hs2 hl.
+      move=> o a m [] LE. move=> [ys] [] xs [hys] hxs hs2 hl.
       case: (opn_5flags_correct ii tag m _ _ hys hxs hs2). 
       move: LE Hdisje. apply disjoint_w.
       exact Hdisjl.
       move=> s2'' [lcf] [lr] [hls]; eauto using eq_exc_freshT. move=> H Heq /=. rewrite -hl. split. constructor. 
       exists s2''. split=> //. 
-      + rewrite /exec_sopn in hxs. move: hxs. t_xrbindP=> yt happ le'. 
-        rewrite /leak_sopn /= /sopn_leak /=. admit.
       by have Heq' := (eq_exc_freshT Heq Hs2').
     (* LowerEq *) (* done *)
     + move=> sz e1 e2 [b1 [b2 [b3 [b4 H]]]]. move: H.
@@ -2554,7 +2548,7 @@ Qed.
     * by rewrite Hv'.
     * exact: hty.
     exact: Hw'.
-  Admitted.
+  Qed.
 
   Lemma vars_I_opn ii xs t o es:
     Sv.Equal (vars_I (MkI ii (Copn xs t o es))) (Sv.union (vars_lvals xs) (read_es es)).
