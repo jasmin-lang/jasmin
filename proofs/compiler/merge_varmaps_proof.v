@@ -76,7 +76,7 @@ Proof. move=> Hs Heq x Hin;apply Heq;SvD.fsetdec. Qed.
 
 Lemma vmap_uincl_ex_refl X vm : vm <=[\X] vm.
 Proof. done. Qed.
-Hint Resolve vmap_uincl_ex_refl.
+Hint Resolve vmap_uincl_ex_refl : core.
 
 Lemma eq_on_uincl_on X vm1 vm2 : vm1 = vm2 [\X] -> vm1 <=[\X] vm2.
 Proof. by move=> H ? /H ->. Qed.

@@ -450,8 +450,8 @@ Section Prefix.
   Lemma prefix_refl s : prefix s s.
   Proof. by apply/prefixP; exists [::]; rewrite cats0. Qed.
 
-  Hint Resolve prefix_refl.
-  
+  Hint Resolve prefix_refl : core.
+
   Lemma subseq_prefix s1 s2 : prefix s1 s2 -> subseq s1 s2.
   Proof.
     move=> pl; apply/subseqP.
