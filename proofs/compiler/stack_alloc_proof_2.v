@@ -448,6 +448,7 @@ Lemma wunsigned_Addr_globals s ofs ws :
   Mvar.get mglob s = Some (ofs, ws) ->
   wunsigned (Addr_globals s) = wunsigned rip + ofs.
 Proof.
+  clear disjoint_zrange_globals_locals.
   move=> hget.
   rewrite /Addr_globals /Offset_slots hget.
   rewrite wunsigned_add //.
@@ -473,6 +474,7 @@ Lemma wunsigned_Addr_locals s ofs ws :
   Mvar.get stack s = Some (ofs, ws) ->
   wunsigned (Addr_locals s) = wunsigned rsp + ofs.
 Proof.
+  clear disjoint_zrange_globals_locals.
   move=> hget.
   rewrite /Addr_locals /Offset_slots hget.
   rewrite wunsigned_add //.
@@ -928,6 +930,7 @@ Lemma init_map_wf_rmap vnew' s1 s2 :
     read (emem s2) (rip + wrepr U64 i)%R U8 = ok (nth 0%R global_data (Z.to_nat i))) ->
   wf_rmap (lmap (Mvar.empty _) vnew') Slots Addr Writable Align P empty s1 s2.
 Proof.
+  clear disjoint_zrange_globals_locals.
   move=> heqvalg.
   split=> //=.
   move=> y sry bytesy vy.
@@ -1559,6 +1562,7 @@ Lemma init_stk_state_valid_state m3 sz' ws :
   let s2 := {| emem := m3; evm := vmap0.[vrsp0 <- ok (pword_of_word rsp)].[vrip0 <- ok (pword_of_word rip)] |} in
   valid_state (lmap locals1 vnew1) glob_size rsp rip Slots Addr Writable Align P rmap1 m2 {| evm := vmap0; emem := m1 |} s2.
 Proof.
+  clear disjoint_zrange_globals_locals.
   move=> hext hass hrsp hneq /=.
   constructor=> //=.
   + move=> s w hin hb.
@@ -2588,7 +2592,7 @@ Proof.
     by apply: no_overflow_incl hb hargp.(wap_no_overflow).
 
   have hsub := write_vars_subtype (init_params_sarr hparams) hs1. (* 'backported' from write_vars of args *)
-  have /= hvs := init_stk_state_valid_state hlayout hover hdisj_glob_locals
+  have /= hvs := init_stk_state_valid_state hlayout hover
     hargs' hsub hlocal_map hparams hext hass refl_equal rip_rsp_neq.
   have hpmap := init_params_wf_pmap hlayout rsp vargs1' vargs2' hlocal_map hparams.
   have hslots := Hwf_Slots hlayout hover hdisj_glob_locals hext.(em_align)
@@ -2675,7 +2679,7 @@ Proof.
   rewrite -hfss.(fss_read_old8) -?hvalideq2 //.
   have /vs_unchanged := hvs'''; apply => //.
   + by rewrite -hvalideq1.
-  apply (disjoint_from_writable_params_all_slots hlayout hover hdisj_glob_locals hargs'' hsub hparams).
+  apply (disjoint_from_writable_params_all_slots hlayout hover hargs'' hsub hparams).
   + by apply (value_uincl_disjoint_from_writable_params huincl hptreq hdisjp).
   have ? := hass.(ass_fresh) hvalid1.
   split.
