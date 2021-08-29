@@ -113,11 +113,12 @@ rewrite /assemble_c /linear.find_label /x86_sem.find_label => ok_i.
 by rewrite (mapM_size ok_i) (assemble_c_find_is_label lbl ok_i).
 Qed.
 
-Lemma assemble_iP gd i j ls ls' li xs :
+Lemma assemble_iP gd i j ls ls' li xs:
   match_state ls xs →
   assemble_i i = ok j →
   linear_sem.eval_instr gd i ls = ok (ls', li) →
   ∃ xs' : x86_state,
+    (* type of li is leak_il: intermediate leakage *)
     x86_sem.eval_instr gd j xs = ok (xs', leak_i_asm li) ∧
     match_state ls' xs'.
 Proof.

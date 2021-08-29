@@ -175,20 +175,20 @@ Section PROOF.
 
   Lemma cast_wordP s e i le: sem_pexpr gd s e = ok ((Vint i), le) ->
     exists sz (w:word sz), sem_pexpr gd s (cast_word e).1 = 
-        ok ((Vword w), leak_E pstk (cast_word e).2 le) /\
+        ok ((Vword w), leak_E pstk (cast_word e).2 (LSub[::le; LEmpty])) /\
                            truncate_word U64 w = ok (wrepr U64 i).
   Proof.
     move=> he.
     have : exists sz (w:word sz),
-                sem_pexpr gd s (cast_ptr e) = ok ((Vword w), le) /\
+                sem_pexpr gd s (cast_ptr e) = ok ((Vword w), LSub[:: le; LEmpty]) /\
                         truncate_word U64 w = ok (wrepr U64 i).
     + exists U64. exists (wrepr U64 i).
       split; first by apply cast_ptrP.
       by rewrite truncate_word_u.
-    case: e he => // -[] // [] //=.
+    case: e he => -[] // [] //=.
     move=> e he _. move: he; rewrite /sem_sop1 /=; t_xrbindP=> -[v1 l1] -> w.
-    case v1 => //= [sw w'| []//] vp /truncate_wordP [] hsw -> <- [] <- <-.
-    exists sw. exists w'. split => //.
+    case v1 => //= [sw w'| []//] vp /truncate_wordP [] hsw -> <- lo hlo [] <- <-.
+    exists sw. exists w'. split => //=.
     by rewrite /truncate_word hsw wrepr_unsigned.
   Qed.
 
@@ -196,13 +196,13 @@ Section PROOF.
     sem_pexpr gd s2 e = ok ((Vint i), le) ->
     sem_pexpr gd s2 (mk_ofs sz e ofs).1 = 
     ok ((Vword (wrepr U64 (i * wsize_size sz + ofs)%Z)), 
-    (leak_E pstk (mk_ofs sz e ofs).2 le)).
+    (leak_E pstk (mk_ofs sz e ofs).2 (LSub [:: le; LEmpty]))).
   Proof.
     rewrite /mk_ofs. case (is_constP e).
     + by move=>  z [] <- <- /=.
-    move=> e' he' /=. rewrite /sem_sop2.
-    have [sz' [w [-> /= -> /=]]]:= cast_wordP he'.
-    by rewrite !zero_extend_u wrepr_add wrepr_mul GRing.mulrC.
+    move=> e' he' /=. rewrite /sem_sop2 /= /leak_sop2 /=.
+    have [sz' [w [-> /= -> /=]]] /=:= cast_wordP he'.
+    by rewrite !zero_extend_u wrepr_add wrepr_mul GRing.mulrC /=.
   Qed.
 
 (* Move this *)
@@ -349,20 +349,26 @@ Section PROOF.
       (* Pop1 *)
       - move=> o1 e1 Ih e2 v lte le. t_xrbindP.
         move=> [ve le'] /Ih hrec <- <- [ve' le''] /= /hrec [] ve1' [] -> Hv'.
-        move=> vo /(vuincl_sem_sop1 Hv') /= -> <- <- /=.
+        move=> vo /(vuincl_sem_sop1 Hv') /= -> lo hlo <- <- /=.
+        have -> /= := leak_sop1_eq Hv' hlo. 
+        rewrite /leak_sop1 /= /leak_sop1_typed /= in hlo.
+        move: hlo. t_xrbindP=> yt happ <- /=.
         by eexists;split;first by reflexivity.
       (* Pop2 *)
       - move=> o1 e1 H1 e1' H1' e2 v lte le.
         t_xrbindP. move=> [e l] /H1 hrec [e' l'] /H1' hrec' <- <- [ve1 le1] /hrec.
         move=> [] ve1' /= [] -> hu /= [ve2 le2] /hrec' /= [] ve2' /= [] -> hu' /= vo.
-        move=> /(vuincl_sem_sop2 hu hu') -> <- <- /=.
+        move=> /(vuincl_sem_sop2 hu hu') -> lo hlo <- <- /=.
+        have -> /= := leak_sop2_eq hu hu' hlo.
         by eexists;split;first by reflexivity.
       (* PopN *)
       - move=> e1 es1 H1 e2 v lte le. t_xrbindP.
         move=> es1' /H1{H1}H1 <- <- vs /H1{H1} /= [] vs' []. 
         rewrite /sem_pexprs. move=> -> [] hv hl opn hopn.
-        have := vuincl_sem_opN hopn hv. move=> [] vo hopn' hv' <- <- /=.
-        rewrite hopn' /=. case: hl=> ->. by exists vo.
+        have := vuincl_sem_opN hopn hv. move=> [] vo hopn' hv' lo hlo <- <- /=.
+        rewrite hopn' /=. case: hl=> ->. 
+        have -> /= := leak_opN_eq hv hlo.
+        by exists vo.
       (* Pif *)
       - move=> t e He e1 H1 e1' H1' e2 v lte le. t_xrbindP.
         move=> [v1 l1] /He he [v2 l2] /H1 hrec [v3 l3] /H1' hrec' <- <-.
@@ -372,7 +378,7 @@ Section PROOF.
         have [vt'' -> /= hvt] := truncate_value_uincl hv2 ht. 
         have [vt''' -> /= hvt' /=] := truncate_value_uincl hv3 ht'. 
         have [hb' -> /=] := value_uincl_bool hv1 hb.
-        eexists; split; first by reflexivity.
+        eexists; split;first by reflexivity.
         by case: (b).
   Qed.
 
@@ -1023,17 +1029,17 @@ Section PROOF.
   Local Lemma Hopn : sem_Ind_opn P Pi_r.
   Proof.
     move => s1 s2 t o xs es lo.
-    rewrite /sem_sopn;t_xrbindP => vs He va Hop [s lt] Hw /= <- <- ii1 ii2 i2 lti.
+    rewrite /sem_sopn;t_xrbindP => vs He va Hop [s lt] Hw /= lo' hlo <- <- ii1 ii2 i2 lti.
     move=> H. rewrite /= in H. move: H.
     t_xrbindP => -[i' lti'] x' ; apply: add_iinfoP => ha e'.
     apply: add_iinfoP => he [] h1 h2 h3 h4 h5 s1' hs1; subst i' i2 ii1.
     have [va' [He' [] Uvv' hl]] := (alloc_esP he hs1 He).
-    have [w' [Hop' Uww']]:= vuincl_exec_opn Uvv' Hop.
+    have [w' [Hop' [Uww' hv]]]:= vuincl_exec_opn Uvv' Hop.
     have [s2' [Hw' Hvalid']] := alloc_lvalsP ha hs1 (sopn_toutP Hop) Uww' Hw.
     exists s2'; split=> //. rewrite /leak_I /=. rewrite -h2 in h5.
     rewrite /= in h5. rewrite -h5 /=. apply S.sem_seq1. apply S.EmkI.
     apply S.Eopn. rewrite /sem_sopn He' /= Hop' /=.
-    rewrite Hw' /=. by rewrite hl /=.
+    rewrite Hw' /=. have -> /= := leak_sopn_eq Uvv' hlo. by rewrite hl hv /=.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true P Pc Pi_r.
@@ -1176,7 +1182,7 @@ Section WF_Proof.
   Local Lemma Hopn_WF : sem_Ind_opn P Pi_r.
   Proof.
     move => s1 s2 t o xs es lo.
-    rewrite /sem_sopn;t_xrbindP => vs He va Hop [s lt] Hw /= <- <- m ii1 ii2 i2 lti.
+    rewrite /sem_sopn;t_xrbindP => vs He va Hop [s lt] Hw /= lo' hlo <- <- m ii1 ii2 i2 lti.
     move=> H. rewrite /= in H. move: H.
     t_xrbindP => -[i' lti'] x' ; apply: add_iinfoP => ha e'.
     apply: add_iinfoP => he [] h1 <- h3 h4 <-; subst i' i2 ii1.

@@ -186,7 +186,7 @@ Section SEM_PEXPR_SIM.
     + rewrite /sem.sem_pexprs. move=> op es H.
       t_xrbindP.  move=> [hv hl] y Hm.
       move: (H y Hm). rewrite /sem_pexprs. move=> -> /=.
-      by move=> h1 -> <- /=.
+      by move=> h1 -> lo -> [] <- <- /=.
     t_xrbindP=> *;sem_pexpr_sim_t.
   Qed.
 
@@ -321,15 +321,15 @@ apply: (@sem.sem_call_Ind p Pc Pi_r Pi Pfor Pfun) => {m fn va l m' vr}.
   exists s2'; split; first exact: hss'2.
   by econstructor; eauto.
 - move => s1 s2 tg op xs es lo. rewrite /sem.sem_sopn. rewrite /sem.sem_pexprs.
-  t_xrbindP. move=> y Hm h2 Hex [hv hl] Hw <- /= <-.
+  t_xrbindP. move=> y Hm -[v2 l2] Hex [hv hl] Hw <- /= <-.
   move=> s1' H.
   move: (sem_pexprs_sim) => Hm'. rewrite /sem.sem_pexprs in Hm'.
   move: (Hm' s1 es y s1' H Hm) => Hmm.
-  move: (write_lvals_sim) => Hw'. move: (Hw' s1 xs h2 hv hl s1' H Hw) => [] s2' [] Hvm' Hww. exists s2'.
+  move: (write_lvals_sim) => Hw'. move: (Hw' s1 xs v2 hv hl s1' H Hw) => [] s2' [] Hvm' Hww. exists s2'.
   split. auto.
   constructor. rewrite /sem_sopn. rewrite /sem_pexprs.
   rewrite /sem_pexprs in Hmm. rewrite Hmm /=. rewrite Hex /=.
-  by rewrite Hww /=.
+  rewrite Hww /=. move: Hex. rewrite /exec_sopn /=. by t_xrbindP=> yt happ lo' -> /= _ _.
 - move => s1 s2 e th el le lc /sem_pexpr_sim he _ ih s1' hss'1.
   case: (ih _ hss'1) => s2' [hss'2 hth].
   exists s2'; split; first exact hss'2.

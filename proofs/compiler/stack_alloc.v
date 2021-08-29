@@ -152,7 +152,7 @@ Definition add := Papp2 (Oadd (Op_w Uptr)).
 
 Definition cast_word e :=
   match e with
-  | Papp1 (Oint_of_word U64) e1 => (e1, LT_id)
+  | Papp1 (Oint_of_word U64) e1 => (e1, LT_compose (LT_subi 0) (LT_subi 0))
   | _  => (cast_ptr e, LT_id)
   end.
 
@@ -173,13 +173,14 @@ Definition invalid_var {A} :=
 Definition mk_ofs ws e1 ofs : pexpr * leak_e_tr :=
   let sz := wsize_size ws in
   if is_const e1 is Some i then
-    ((cast_const (i * sz + ofs)%Z), (LT_lidx (fun i => 
+    ((cast_const (i * sz + ofs)%Z), LT_seq [:: (LT_lidx (fun i => 
       (LS_Add LS_stk
         (LS_Add (LS_Mul (LS_const (wrepr U64 i)) (LS_const (wrepr U64 sz))) 
-                (LS_const (wrepr U64 ofs)))))))
+                (LS_const (wrepr U64 ofs)))))); LT_remove])
   else
     (add (mul (cast_const sz) (cast_word e1).1) (cast_const ofs),
-     LT_seq [:: (LT_seq [:: LT_remove ; (cast_word e1).2]) ; LT_remove]).
+     LT_seq [:: LT_seq [:: LT_seq [:: (LT_seq [:: LT_seq [:: LT_remove; LT_remove] ; (cast_word e1).2]) ; LT_remove]; 
+     LT_seq [:: LT_remove; LT_remove]] ; LT_remove]).
 
 Fixpoint alloc_e (m:map) (e: pexpr) : cexec (pexpr * leak_e_tr) :=
   match e with
@@ -191,7 +192,7 @@ Fixpoint alloc_e (m:map) (e: pexpr) : cexec (pexpr * leak_e_tr) :=
         let ofs' := cast_const ofs in
         let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
         ok ((Pload ws stk ofs'), 
-             LT_seq [:: LT_id; LT_const (LS_Add LS_stk (LS_const (wrepr U64 ofs)))]) 
+             LT_seq [:: LT_seq [:: LT_id; LT_remove]; LT_const (LS_Add LS_stk (LS_const (wrepr U64 ofs)))]) 
         (*LT_var ofs'.2 (LAdr (wrepr U64 ofs)))*)
         (* we should also leak the pointer stored in the variable (vstk m) in evm *)
       else Let r := not_a_word_v in ok (r, LT_id)
@@ -207,7 +208,7 @@ Fixpoint alloc_e (m:map) (e: pexpr) : cexec (pexpr * leak_e_tr) :=
         let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
         let ofs' := mk_ofs ws er.1 ofs in 
         ok (Pload ws stk ofs'.1,
-            LT_map [:: LT_compose er.2 ofs'.2;
+            LT_map [:: LT_compose (LT_seq [:: er.2; LT_remove]) ofs'.2;
             (LT_lidx (fun i => 
               (LS_Add LS_stk
                 (LS_Add (LS_Mul (LS_const (wrepr U64 i)) (LS_const (wrepr U64 (wsize_size ws)))) (LS_const (wrepr U64 ofs))))))])
@@ -235,16 +236,16 @@ Fixpoint alloc_e (m:map) (e: pexpr) : cexec (pexpr * leak_e_tr) :=
 
   | Papp1 o e1 =>
     Let er := alloc_e m e1 in
-    ok ((Papp1 o er.1), er.2)
+    ok ((Papp1 o er.1), LT_map[:: er.2; LT_remove])
 
   | Papp2 o e1 e2 =>
     Let er1 := alloc_e m e1 in
     Let er2 := alloc_e m e2 in
-    ok ((Papp2 o er1.1 er2.1), LT_map [:: er1.2; er2.2])
+    ok ((Papp2 o er1.1 er2.1), LT_map [:: LT_map [:: er1.2; er2.2]; LT_id])
 
   | PappN o es =>
     Let ers := mapM (alloc_e m) es in
-    ok ((PappN o (unzip1 ers)), LT_map (unzip2 ers))
+    ok ((PappN o (unzip1 ers)), LT_map [:: LT_map (unzip2 ers); LT_id])
 
   | Pif t e e1 e2 =>
     Let er := alloc_e m e in
@@ -265,7 +266,7 @@ Definition alloc_lval (m:map) (r:lval) ty : cexec (lval * leak_e_tr) :=
           let ofs' := cast_const ofs in
           let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
           ok ((Lmem ws stk ofs'), 
-               LT_seq [:: LT_id; LT_const (LS_Add LS_stk (LS_const (wrepr U64 ofs)))])
+               LT_seq [:: LT_seq [:: LT_id; LT_remove]; LT_const (LS_Add LS_stk (LS_const (wrepr U64 ofs)))])
         else Let r := cerror (Cerr_stk_alloc "invalid type for Lvar") in ok (r, LT_remove)
       else not_a_word_v
     | None     =>
@@ -286,7 +287,7 @@ Definition alloc_lval (m:map) (r:lval) ty : cexec (lval * leak_e_tr) :=
       if is_align (wrepr _ ofs) ws then
         let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
         let ofs' := mk_ofs ws er.1 ofs in
-        ok ((Lmem ws stk ofs'.1), LT_map [:: LT_compose er.2 ofs'.2;
+        ok ((Lmem ws stk ofs'.1), LT_map [:: LT_compose (LT_seq [:: er.2; LT_remove]) ofs'.2;
             (LT_lidx (fun i => 
               (LS_Add LS_stk
                 (LS_Add (LS_Mul (LS_const (wrepr U64 i)) (LS_const (wrepr U64 (wsize_size ws)))) (LS_const (wrepr U64 ofs))))))])
@@ -314,7 +315,7 @@ Fixpoint alloc_i (m: map) (i: instr) : ciexec (instr * leak_i_tr) :=
       Let rs := add_iinfo ii (mapM2 bad_lval_number (alloc_lval m) rs (sopn_tout o)) in
       Let e  := add_iinfo ii (mapM  (alloc_e m) e) in
       ok ((Copn (unzip1 rs) t o (unzip1 e)), 
-           LT_ile (LT_map [:: LT_map (unzip2 e); LT_map (unzip2 rs)]))
+           LT_ile (LT_map [:: LT_map (unzip2 e); LT_id; LT_map (unzip2 rs)]))
 
     | Cif e c1 c2 =>
       Let e := add_iinfo ii (alloc_e m e) in

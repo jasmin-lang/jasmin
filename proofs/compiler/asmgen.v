@@ -254,28 +254,23 @@ Lemma addr_of_pexprP ii gd e a (x:var_i) o z o' lo z' m s:
   addr_of_pexpr ii Uptr x e = ok a →
   (z + z')%R = decode_addr m a /\ leak_e_asm lo = [::].
 Proof.
-move => eqv ok_o ok_z ok_o' ok_z'. 
+move => eqv ok_o ok_z ok_o' ok_z'.
 rewrite /addr_of_pexpr.
 case heq: mk_lea => [lea | //].
 have hle : (U64 <= U64)%CMP by [].
-have options : lowering_options. + constructor. constructor. constructor.
-have warning : instr_info → warning_msg → instr_info. + auto.
-have is_var_in_memory : var_i -> bool. + constructor.
-Print fvars_correct.
-have := mk_leaP.
-(*have /= := (mk_leaP (p:= (Build_prog gd [::])) _ _ _ hle hle heq). 
-move=> Hlea.
-move: (Hlea options warning _ is_var_in_memory _ _ _ s  (LSub [:: LEmpty; lo]) (z + z')%R). 
+have /= := (mk_leaP (p:= (Build_prog gd [::])) hle hle heq). 
+move=> Hlea. move: (Hlea s (LSub [:: LSub [:: LEmpty; lo]; LEmpty]) (z + z')%R). 
 rewrite ok_o /= ok_o' /= /sem_sop2 /= ok_z /= ok_z' /=.
+rewrite /leak_sop2 /= ok_z /= ok_z' /=.
 move=> {Hlea} Hlea.
-have heqv : ok (Vword (z + z'), LSub [:: LEmpty; lo]) =
-         ok (Vword (z + z'), LSub [:: LEmpty; lo]). auto.
+have heqv : ok (Vword (z + z'), (LSub [:: LSub [:: LEmpty; lo]; LEmpty])) =
+         ok (Vword (z + z'), (LSub [:: LSub [:: LEmpty; lo]; LEmpty])). auto.
 move: (Hlea (heqv _)). move=> [] h1 hv.
 have := assemble_leaP hle hle eqv h1.
 move=> H. move: (H ii a). move=> ha H'. move: (ha H'). split.
 + rewrite !zero_extend_u in ha0; symmetry; apply ha0.
-by rewrite cats0 in hv.*)
-Admitted.
+by rewrite !cats0 in hv.
+Qed.
 
 Variant check_sopn_argI ii max_imm args e : arg_desc -> stype -> Prop :=
 | CSA_Implicit i ty :
@@ -618,7 +613,7 @@ elim: id_in id_tin hsin id_semi id_leak args vs Hargs happ Hvs Hlo; rewrite /sem
 move=> a id_in hrec [] //= ty id_tin [] heqs id_semi id_leak [ | arg args] //=
   [ // | v vs]; rewrite /check_sopn_args /= => /andP[] hcheck1 hcheckn.
 t_xrbindP=> vt1 hvt happ [v' l'] hv vs' hvs h1 h2 vt' hvt' hlo; subst. 
-have [s'' [] []] := hrec _ heqs (id_semi vt1) (id_leak vt') _ _ hcheckn happ hvs hlo.
+have [s'' []] := hrec _ heqs (id_semi vt1) (id_leak vt') _ _ hcheckn happ hvs hlo.
 have := check_sopn_arg_sem_eval Hlomeqv hcheck1 hv hvt.
 move=> [] v'' [] Hev' hv'.
 t_xrbindP=> -[v1 p1] -[v2 p2] Hev'' vt'' /= happ1 leo hleo [] <- <- /=.
@@ -672,23 +667,15 @@ Proof.
                ad_scale := sc;
                ad_offset := ro |})) s); split.
     + subst v w'.
-      have options : lowering_options. + constructor. constructor. constructor.
-      have warning : instr_info → warning_msg → instr_info. + auto.
-      have is_var_in_memory : var_i -> bool. + constructor.
-      have /= Hlea := mk_leaP (p:= (Build_prog gd [::])) _ hsz2 hsz'' hlea he.  
+      have /= [Hlea Hl] := mk_leaP (p:= (Build_prog gd [::])) hsz2 hsz'' hlea he.  
       rewrite /sopn_leak /= in hlo'. case: hlo'=> [] <- /=.
-      have Hl : leak_e_asm l = [::]. + admit. by rewrite Hl.
+      by rewrite Hl.
     case: hlo => h1 h2 h3 h4. 
     constructor=> //=.
     + move=> r' v'; rewrite /get_var /on_vu /= /RegMap.set ffunE.
-      (*have [sz' [w'' [hsz' h h']]]:= to_wordI hw;*) subst v w'.
-      have options : lowering_options. + constructor. constructor. constructor.
-      have warning : instr_info → warning_msg → instr_info. + auto.
-      have is_var_in_memory : var_i -> bool. + constructor.
-      have /= Hlea':= mk_leaP (p:= (Build_prog gd [::])) _ hsz2 hsz'' hlea he. 
-      have Hlea : sem_lea sz (evm m) lea = ok (zero_extend sz sz''). + admit.
-      have Hl : leak_e_asm l = [::]. + admit.
-      move: Hlea.
+      subst v w'.
+      have /= [Hlea' Hl]:= mk_leaP (p:= (Build_prog gd [::])) hsz2 hsz'' hlea he. 
+      move: Hlea'.
       case: eqP => [-> | hne] hlea'.
       + rewrite Fv.setP_eq  /word_extend_reg => -[<-] /=.
         move: hlea'; rewrite /sem_lea /decode_addr /=.
@@ -717,7 +704,7 @@ Proof.
   t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ?. 
   subst asm_args'. rewrite /eval_op hspe /=.
   by apply: compile_x86_opn hsem hca hcd hidc.
-Admitted.
+Qed.
 
 Lemma assemble_sopnP gd ii op lvs args op' asm_args m m' le s: 
   sem_sopn gd op m lvs args = ok (m', le) ->
@@ -916,10 +903,3 @@ Transparent eval_arg_in_v.
       by rewrite Fv.setP_neq //; apply h4. 
   by move=> a; apply: assemble_x86_opnP.
 Qed.
-
-
-
-
-
-
-
