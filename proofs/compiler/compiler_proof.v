@@ -30,7 +30,7 @@ Require Import allocation inline_proof dead_calls_proof
                array_expansion remove_globals_proof stack_alloc_proof
                lowering_proof
                linear_proof
-               psem_of_sem_proof cost cost_linear cost_asm.
+               psem_of_sem_proof.
 Import Utf8.
 Import x86_sem x86_gen.
 
@@ -267,9 +267,9 @@ Proof.
   by exists st1'', st2'', (leak_compile_x86 (top_stack st1') lts (f, lf)).
 Qed.
 
-Lemma compile_prog_to_x86P_cost entries (p: prog) (gd: glob_decls) (xp: xprog) m1 fn va m2 vr lts lf sp ms:
+Lemma compile_prog_to_x86P_cost entries (p: prog) (gd: glob_decls) (xp: xprog) m1 fn va m2 vr lts lf sp:
   compile_prog_to_x86 cparams entries p = cfok (gd,xp, lts) →
-  transform_costs_l lts = Some ms ->
+  (*transform_costs_l lts = Some ms ->*)
   fn \in entries →
   sem.sem_call p m1 fn va (fn, lf) m2 vr →
   (∀ f, get_fundef xp fn = Some f →
@@ -282,19 +282,17 @@ Lemma compile_prog_to_x86P_cost entries (p: prog) (gd: glob_decls) (xp: xprog) m
     List.Forall2 value_uincl va' (get_arg_values st1 fd'.(xfd_arg)) →
     st1.(xmem) = m1 ->
   ∃ st2,
-    x86sem_fd xp gd fn st1 (leak_compile_x86 (top_stack sp) lts (fn, lf)) st2 ∧
+    x86sem_fd xp gd fn st1 (leak_compile_x86 (top_stack sp) lts (fn, lf)) st2. (*∧
     cost_linear.leqc 
        (asmcost 0 (leak_compile_x86 (top_stack sp) lts (fn, lf))).1
-       (Sm.linterp (enter_cost_c cost_i [::] lf) (ms fn)).
+       (Sm.linterp (enter_cost_c cost_i [::] lf) (ms fn))*)
 Proof.
-  move=> hc ht he hsem ha.
-  have [h1 [fd [va']]] := compile_prog_to_x86P hc he hsem ha.
+  move=> hc ht he hsem.
+  have [h1 [fd [va']]] := compile_prog_to_x86P hc ht he hsem.
   move=> [h2 [h3 [fd' [h4 h5]]]].  
   exists fd, va'; split => //; split => //.
   exists fd'; split => // st1 hall heq.
-  case: (h5 st1 hall heq) => st2 [] h6 _; exists st2; split => //.
-  rewrite trasnform_cost_il_ok.
-  by apply transform_costs_l_ok.
+  by case: (h5 st1 hall heq) => st2 [] h6 _; exists st2.
 Qed.
 
 End PROOF.

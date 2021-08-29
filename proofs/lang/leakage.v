@@ -980,7 +980,19 @@ with leak_w_WF  : seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i -> Prop :=
       leak_w_WF lti lti' li' -> 
       leak_w_WF lti lti' (Lwhile_true lis le lis' li').
 
+Fixpoint leak_WF_rec fn stk (lts:seq (seq (funname * leak_c_tr))) lc := 
+  match lts with 
+  | [::] => True
+  | lF :: lts => leak_WFs (leak_Fun lF) (leak_Fun lF fn) lc /\
+               let lc := leak_Is (leak_I (leak_Fun lF)) stk (leak_Fun lF fn) lc in
+               leak_WF_rec fn stk lts lc
+  end.
 
+Lemma leak_WF_rec_cat fn stk lts1 lts2 lc :
+  leak_WF_rec fn stk lts1 lc -> 
+  leak_WF_rec fn stk lts2 (leak_compile stk lts1 (fn, lc)) ->
+  leak_WF_rec fn stk (lts1 ++ lts2) lc.
+Proof. by elim: lts1 lc => //= lF lts1 hrec lc [?] h1 h2; split => //; apply hrec. Qed.
 
 Section Leak_Call_Imp_L.
 
