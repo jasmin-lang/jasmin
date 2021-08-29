@@ -28,7 +28,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith psem compiler_util.
-Require Export unrolling cost.
+Require Export unrolling.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
