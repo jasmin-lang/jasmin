@@ -192,12 +192,12 @@ Definition smul_w sz e1 e2 :=
   | Some n, _ =>
     if n == 0%R then (@wconst sz 0, LT_map[:: LT_remove; LT_id])
     else if n == 1%R then (e2, LT_compose (LT_subi 0) (LT_subi 1))
-    else (Papp2 (Omul (Op_w sz)) (wconst n) e2, LT_remove) (* FIXME *)
+    else (Papp2 (Omul (Op_w sz)) (wconst n) e2, LT_compose LT_id (LT_map [:: LT_seq [:: LT_seq[:: LT_remove; LT_remove]; LT_subi 1]; LT_id])) (* FIXME *)
           (*LT_map [:: LT_compose (LT_subi 0) (LT_map [:: LT_remove; LT_remove]) ; LT_id]*) 
   | _, Some n =>
     if n == 0%R then (@wconst sz 0, LT_map[:: LT_remove; LT_id])
     else if n == 1%R then (e1, LT_compose (LT_subi 0) (LT_subi 0))
-    else (Papp2 (Omul (Op_w sz)) e1 (wconst n), LT_map [:: LT_id; LT_remove])
+    else (Papp2 (Omul (Op_w sz)) e1 (wconst n), LT_compose LT_id (LT_map [:: LT_seq [:: LT_subi 0; LT_seq[:: LT_remove; LT_remove]]; LT_id]))
   | _, _ => (Papp2 (Omul (Op_w sz)) e1 e2, LT_id) (* FIXME *) 
   end.
 
@@ -379,8 +379,8 @@ Definition s_opN op es :=
 
 Definition s_if t e e1 e2 :=
   match is_bool e with
-  | Some b => if b then (e1, LT_compose (LT_subi 0) (LT_subi 1))
-                   else (e2, LT_compose (LT_subi 0) (LT_subi 2))
+  | Some b => if b then (e1, LT_subi 1)
+                   else (e2, LT_subi 2)
   | None   => (Pif t e e1 e2, LT_id)
   end.
 
@@ -453,7 +453,7 @@ Fixpoint const_prop_e (m:cpm) e : (pexpr * leak_e_tr) :=
                       let lte1 := (const_prop_e m e1) in
                       let lte2 := (const_prop_e m e2) in
                       let ltif := s_if t lte0.1 lte1.1 lte2.1 in
-                      (ltif.1, LT_remove) (*FIXME*) (*LT_compose (LT_map [:: lte0.2; lte1.2; lte2.2]) ltif.2*)
+                      (ltif.1, LT_compose (LT_map [:: lte0.2; lte1.2; lte2.2]) ltif.2)
   end.
 
 Definition empty_cpm : cpm := @Mvar.empty const_v.
