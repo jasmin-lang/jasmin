@@ -80,7 +80,7 @@ type 'a located = {
   pl_desc : 'a;
 }
 
-type 'a mloc = ('a, t) Utils.tagged
+(* type 'a mloc = ('a, t) Utils.tagged *)
 
 (* -------------------------------------------------------------------- *)
 let loc    x = x.pl_loc

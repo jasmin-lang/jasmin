@@ -502,7 +502,12 @@ let main () =
           Format.printf "%a%!" (Ppasm.pp_prog tbl) asm
     end
   with
-  | Utils.HiError s ->
+  | Utils.HiError (loc, s) ->
+      begin match loc with
+      | Lnone -> ()
+      | Lone loc -> Format.eprintf "%a" L.pp_loc loc
+      | Lmore l -> Format.eprintf "%a" Printer.pp_iloc l
+      end;
       Format.eprintf "%s\n%!" s; exit 1
 
   | UsageError ->

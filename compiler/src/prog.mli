@@ -114,9 +114,7 @@ type funname = private {
 
 type range_dir = UpTo | DownTo
 type 'len grange = range_dir * 'len gexpr * 'len gexpr
-
-type i_loc = L.t * L.t list
-
+type i_loc = Utils.i_loc
 type ('len,'info) ginstr_r =
   | Cassgn of 'len glval * assgn_tag * 'len gty * 'len gexpr
   | Copn   of 'len glvals * assgn_tag * E.sopn * 'len gexprs

@@ -293,9 +293,11 @@ end
 
 (* -------------------------------------------------------------------- *)
 
-exception HiError of string
+type i_loc = Location.t * Location.t list 
+type loc__ = Lnone | Lone of Location.t | Lmore of i_loc
+exception HiError of loc__ * string
 
-val hierror : ('a, Format.formatter, unit, 'b) format4 -> 'a
+val hierror : ?loc:loc__ -> ('a, Format.formatter, unit, 'b) format4 -> 'a
 
 (* -------------------------------------------------------------------- *)
 type 'a pp = Format.formatter -> 'a -> unit

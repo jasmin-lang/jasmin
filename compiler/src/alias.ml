@@ -194,7 +194,7 @@ let rec analyze_instr_r params cc a =
      in loop (analyze_stmt params cc a s1 |> normalize_map)
 and analyze_instr params cc a { i_loc ; i_desc } =
   try analyze_instr_r params cc a i_desc
-  with HiError e -> hierror "At %a: %s" pp_iloc i_loc e
+  with HiError (Lnone, e) -> raise (HiError (Lmore i_loc, e))
 and analyze_stmt params cc a s =
   List.fold_left (analyze_instr params cc) a s
 

@@ -109,10 +109,10 @@ and live_ranges_stmt d_acc s =
 in live_ranges_stmt d c, stack_pointers
 
 (* --------------------------------------------------- *)
-let check_class ptr_classes args x s =
+let check_class f_loc ptr_classes args x s =
   let s = Sv.add x s in
   if not (Sv.disjoint args s) && not (Sv.mem x ptr_classes) then
-    hierror "cannot put a reg ptr argument into the local stack"
+    hierror ~loc:(Lone f_loc) "cannot put a reg ptr argument into the local stack"
 
 (* --------------------------------------------------- *)
 
@@ -336,7 +336,7 @@ let alloc_stack_fd get_info gtbl fd =
     Mv.fold (fun x s acc -> 
         if Sv.for_all (fun y -> is_ptr y.v_kind) (Sv.add x s) then Sv.add x acc else acc) 
       classes Sv.empty in
-  Mv.iter (check_class ptr_classes ptr_args) classes;
+  Mv.iter (check_class fd.f_loc ptr_classes ptr_args) classes;
 
   let fd = Live.live_fd false fd in
   let (_, ranges), stack_pointers =
