@@ -138,8 +138,8 @@ type funname = {
 type range_dir = UpTo | DownTo
 type 'len grange = range_dir * 'len gexpr * 'len gexpr
 
-type i_loc = L.t * L.t list 
 
+type i_loc = Utils.i_loc
 type ('len,'info) ginstr_r =
   | Cassgn of 'len glval * assgn_tag * 'len gty * 'len gexpr
   | Copn   of 'len glvals * assgn_tag * Expr.sopn * 'len gexprs
@@ -147,10 +147,9 @@ type ('len,'info) ginstr_r =
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info) gstmt
   | Cwhile of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
   | Ccall  of inline_info * 'len glvals * funname * 'len gexprs
-
 and ('len,'info) ginstr = {
     i_desc : ('len,'info) ginstr_r;
-    i_loc  : i_loc;
+    i_loc  : Utils.i_loc;
     i_info : 'info;
   }
 

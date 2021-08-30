@@ -596,16 +596,18 @@ end
 
 
 (* -------------------------------------------------------------------- *)
-exception HiError of string
+type i_loc = Location.t * Location.t list 
+type loc__ = Lnone | Lone of Location.t | Lmore of i_loc
+exception HiError of loc__ * string
 
-let hierror fmt =
+let hierror ?(loc=Lnone) fmt =
   let buf  = Buffer.create 127 in
   let bfmt = Format.formatter_of_buffer buf in
 
   Format.kfprintf
     (fun _ ->
       Format.pp_print_flush bfmt ();
-      raise (HiError (Buffer.contents buf)))
+      raise (HiError (loc, Buffer.contents buf)))
     bfmt fmt
 
 (* -------------------------------------------------------------------- *)
