@@ -242,11 +242,9 @@ Qed.
 
 End NOT_WRITTEN.
 
-Lemma disjoint_union a b c :
-  disjoint a c →
-  disjoint b c →
-  disjoint (Sv.union a b) c.
-Proof. rewrite /disjoint /is_true !Sv.is_empty_spec; SvD.fsetdec. Qed.
+Lemma disjoint_unionE a b c :
+  disjoint (Sv.union a b) c = disjoint a c && disjoint b c.
+Proof. rewrite Bool.eq_iff_eq_true /disjoint /is_true Bool.andb_true_iff !Sv.is_empty_spec; intuition SvD.fsetdec. Qed.
 
 Lemma eq_except_disjoint_eq_on s s' x y :
   x = y [\s] →
@@ -274,14 +272,14 @@ Qed.
 
 Lemma Hcons_pm : sem_Ind_cons p extra_free_registers Pc Pi.
 Proof.
-  move => ki kc x y z i c _ xy _ yz.
-  exact: disjoint_union yz.
+  move => ki kc x y z i c _ xy _.
+  by rewrite /Pc disjoint_unionE xy.
 Qed.
 
 Lemma HmkI_pm : sem_Ind_mkI p extra_free_registers Pi Pi_r.
 Proof.
   move => ii k i s1 s2 h _ _ ih.
-  apply: disjoint_union ih.
+  rewrite /Pi disjoint_unionE ih andbT.
   move: h; rewrite /extra_free_registers_at.
   case: extra_free_registers => // ra /and3P[] /eqP r_neq_gd /eqP r_neq_rsp ?.
   rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec.
@@ -327,8 +325,8 @@ Qed.
 Lemma Hproc_pm : sem_Ind_proc p extra_free_registers Pc Pfun.
 Proof.
   red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' ->.
-  apply: (disjoint_union ih).
-  apply: disjoint_union.
+  rewrite /Pfun !disjoint_unionE ih /=.
+  apply/andP; split.
   1: case: sf_return_address ok_ra => //.
   1: move => _; exact: flags_not_magic.
   2: case: sf_save_stack ok_ss => //.
