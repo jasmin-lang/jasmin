@@ -1850,6 +1850,13 @@ Let vrsp : var := vid (string_of_register RSP).
     Sv.In (var_of_register RSP) (magic_variables p).
   Proof. by rewrite Sv.add_spec Sv.singleton_spec; right. Qed.
 
+  Lemma push_to_save_has_no_label ii lbl m :
+    ~~ has (is_label lbl) (push_to_save ii m).
+  Proof.
+    elim: m => // - [] x ofs m /= /negbTE ->.
+    by case: is_word_type.
+  Qed.
+
   Local Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
   Proof.
     red => ii k s1 _ fn fd m1' s2' ok_fd free_ra ok_ss rsp_aligned valid_rsp ok_m1' exec_body ih valid_rsp' -> m1 vm1 _ ra lret sp W M X [] fd' ok_fd' <- [].
@@ -1967,7 +1974,6 @@ Let vrsp : var := vid (string_of_register RSP).
         + repeat apply: wf_vm_set; exact: ok_vm.
         have X' : vm_uincl (set_RSP m1' (kill_flags s1.[Var (sword Uptr) saved_stack <- undef_error]%vmap rflags).[var_of_register RAX <- undef_error]) vm'.
         + rewrite /set_RSP /vm' => x.
-          change (v_var (vid (string_of_register RSP))) with (var_of_register RSP).
           move: (X x) (W x).
           rewrite !Fv.setP; case: eqP => x_rsp; first by subst.
           case: eqP => x_rax.
