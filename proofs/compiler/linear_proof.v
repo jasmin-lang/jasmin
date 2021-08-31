@@ -278,69 +278,6 @@ Proof.
   by case: ifP.
 Qed.
 
-(*
->>>>>>> glob_array3
-Lemma find_instr_cat_tl c fn s i :
-  find_instr s = Some i ->
-  find_instr (setc s fn (lc s ++ c)) = Some i.
-Proof.
-  move => /(oseq.onthP i) /andP [Hs Hnth].
-  by apply /(oseq.onthP i);rewrite size_cat nth_cat Hs (ltn_addr _ Hs).
-Qed.
-*)
-
-Lemma to_estate_setc s fn : to_estate (setc s fn) = to_estate s.
-Proof. by case: s. Qed.
-
-(*
-Lemma lsem_cat_tl c2 p s1 s2 :
-  lsem p s1 s2 →
-  lsem p
-       (setc s1 s1.(lfn) (s1.(lc)++c2))
-       (setc s2 s2.(lfn) (if s1.(lfn) == s2.(lfn) then s2.(lc) ++ c2  else s2.(lc))).
-Proof.
-  move=> H; elim H using lsem_ind; clear.
-  + move => s; rewrite eqxx; once (econstructor; fail).
-  rewrite /lsem1 /step /eval_instr => s1 s2 s3.
-  case Heq: find_instr => [ i | // ].
-  move: Heq => /find_instr_cat_tl - /(_ c2 s1.(lfn)).
-  move => X Y _ Z.
-  apply: lsem_step.
-  move=> s1 s2 s3.
-  apply: lsem_step.
-  move: Hsem1;rewrite /lsem1 /step.
-  case Heq : find_instr => [i |//].
-  rewrite (find_instr_cat_tl c2 _ Heq) /eval_instr => {Heq}; case: i => [ii [lv o e | | l | [fn l] | e | lv l |e l]] /=;
-    rewrite ?to_estate_setc;t_xrbindP.
-  + by move=> [m vm] /= -> <- /=;case: s1.
-  + by move=> <-;case:s1.
-  + by move=> <-;case:s1.
-  + case: get_fundef => // fd; case: find_label => //= lbl [<-].
-    rewrite /=.
-
-    f_equal.
-    rewrite /setcpc /setc /=.
-    f_equal.
-
-    case: s1 => //.
-    apply bind_eq.
-  + by move=> y /(find_label_cat_tl c2) -> <- /=;case:s1.
-  move=> b vb -> /= -> /=;case:b.
-  + by t_xrbindP => pc /(find_label_cat_tl c2) -> <- /=;case:s1.
-  by move=> [<-];case:s1.
-Qed.
-*)
-
-(* FIXME
-Definition is_jump (lbl: label) (i: linstr) :=
- let: MkLI ii ir := i in
- match ir with
- | Lgoto lbl' => lbl == lbl'
- | Lcond _ lbl' => lbl == lbl'
- | _ => false
-end.
-*)
-
 Lemma find_label_cat_hd lbl c1 c2:
   ~~ has (is_label lbl) c1 ->
   find_label lbl (c1 ++ c2) =
@@ -402,133 +339,6 @@ Proof.
   move => /(valid_disjoint_labels) - /(_ lbl (lbl + 1)%positive) V R; apply: V; lia.
 Qed.
 
-(* FIXME
-Definition disjoint_lbl c1 c2 :=
-  forall lbl, ~~(has (is_label lbl) c1 && has (is_jump lbl) c2).
-
-Lemma disjoint_lbl_cons i c1 c2:
-  disjoint_lbl c1 (i :: c2) -> disjoint_lbl c1 c2.
-Proof.
-  by move=> Hd lbl;apply: contra (Hd lbl)=> /= /andP[]->->;rewrite orbC.
-Qed.
-
-*)
-(*
-Definition add_hd_c c s := {| lmem := lmem s; lvm := lvm s; lfn := lfn s; lc := c ++ s.(lc); lpc := size c + s.(lpc) |}.
-*)
-
-(* This lemma is wrong: code is not preserved when calling a function
-Lemma lsem1_lc p s1 s2: lsem1 p s1 s2 -> lc s1 = lc s2.
-Proof.
-  rewrite /lsem1 /step;case: find_instr => // -[ii [lv o e | | l | [fn l] | e | lv l | e l]] /=;
-    rewrite /eval_instr /=;t_xrbindP.
-  + by move=> ?? <-.
-  + by move=> <-.
-  + by move=> <-.
-  + case: get_fundef => // fd; case: find_label => //= lbl [<-] /=.
-  + by move=> ?? <-.
-  move=> ????;case:ifP => [ ? | ? [<-] //].
-  by t_xrbindP => ?? <-.
-Qed.
-*)
-
-(*
-Lemma find_instr_add_hd_c c s : find_instr (add_hd_c c s) = find_instr s.
-Proof.
-  rewrite /find_instr /add_hd_c /= !oseq.onth_nth map_cat nth_cat size_map.
-  rewrite ltnNge leq_addr /=;f_equal;rewrite -minusE -plusE; omega.
-Qed.
-
-Lemma to_estate_add_hd_c c s : to_estate (add_hd_c c s) = to_estate s.
-Proof. by case: s. Qed.
-*)
-
-(*
-Lemma find_instr_has (p:linstr->bool) s i :
-  find_instr s = Some i -> p i -> has p (lc s).
-Proof.
-  rewrite /find_instr => /(oseq.onthP i) => /andP [H1 /eqP <-] Hp.
-  apply /(has_nthP i);eauto.
-Qed.
-*)
-
-(* FIXME
-Lemma lsem_cat_hd c s1 s2 :
-  disjoint_lbl c s1.(lc) ->
-  lsem s1 s2 ->
-  lsem (add_hd_c c s1) (add_hd_c c s2).
-Proof.
-  move=> Hdisj Hsem; revert Hdisj.
-  elim/lsem_ind: Hsem; clear.
-  + by move=> s1 Hdisjc; apply: rt_refl.
-  move=> s1 s2 s3 Hsem1 _ Hrec Hdisj.
-  move: Hrec;rewrite -(lsem1_lc Hsem1) => /(_ Hdisj); apply: lsem_step.
-  move: Hsem1;rewrite /lsem1 /step.
-  have Hnext : forall s s1,
-    of_estate s (c ++ lc s1) (size c + lpc s1).+1 = add_hd_c c (of_estate s (lc s1) (lpc s1).+1).
-  + by move=> s [????];rewrite /of_estate /add_hd_c /= addnS.
-  have Hset : forall pc s1,
-    setpc (add_hd_c c s1) (size c + pc).+1 = add_hd_c c (setpc s1 pc.+1).
-  + by move=> pc [????];rewrite /setpc /add_hd_c /= addnS.
-  rewrite find_instr_add_hd_c;case Heq:find_instr => [ [ii [lv o e||l|l|e l]] | //];
-    rewrite /eval_instr /= ?to_estate_add_hd_c;t_xrbindP.
-  + by move=> ? -> <- /=;rewrite Hnext.
-  + by move=> <-;rewrite Hset.
-  + by move=> <-;rewrite Hset.
-  + move=> pc' Hfind <-.
-    rewrite find_label_cat_hd ?Hfind /= ? Hset //.
-    by move: (Hdisj l);rewrite /disjoint_lbl (@find_instr_has (is_jump l) _ _ Heq) ?andbT /is_jump.
-  move=> b vb -> /= -> /=;case:ifPn => Hb.
-  + t_xrbindP => ? Hfind <-.
-    rewrite find_label_cat_hd ?Hfind /= ? Hset //.
-    by move: (Hdisj l);rewrite /disjoint_lbl (@find_instr_has (is_jump l) _ _ Heq) ?andbT /is_jump.
-  by move=> [<-];rewrite Hset.
-Qed.
-
-Lemma valid_has c lbl p1 p2 :
-  valid p1 p2 c -> has (is_label lbl) c || has (is_jump lbl) c ->
-  ((p1 <=? lbl) && (lbl <? p2))%positive.
-Proof.
-  elim: c => //= i c Hrec /andP[] H /Hrec.
-  by case: i H=>[ii [||lbl'|lbl'|e lbl']] //=;
-  rewrite {2}/is_label /=; case: eqP=> [->|].
-Qed.
-
-Lemma valid_disjoint p1 p2 p3 p4 c1 c2 :
-  ((p2 <=? p3) || (p4 <=? p1))%positive ->
-  valid p1 p2 c1 ->
-  valid p3 p4 c2 ->
-  disjoint_lbl c1 c2.
-Proof.
-  move=> Hp Hv1 Hv2 lbl;apply /negP=>/andP[] H1 H2.
-  have := @valid_has _ lbl _ _ Hv1;rewrite H1=> /(_ isT) /andP[]/P_leP ? /P_ltP ?.
-  have := @valid_has _ lbl _ _ Hv2;rewrite H2 orbT => /(_ isT) /andP[]/P_leP ? /P_ltP ?.
-  case/orP: Hp => /P_leP ?;omega.
-Qed.
-
-Lemma disjoint_cat_l c1 c2 c :
-  disjoint_lbl (c1++c2) c <-> (disjoint_lbl c1 c /\ disjoint_lbl c2 c).
-Proof.
-  rewrite /disjoint_lbl;split.
-  + move=> H1;split=> lbl;have := H1 lbl;rewrite has_cat;apply contra=>/andP[]->->//.
-    by rewrite orbC.
-  move=> [H1 H2] lbl;rewrite has_cat;apply /negP => /andP[]/orP []H H'.
-  + by move: (H1 lbl);rewrite H H'.
-  by move: (H2 lbl);rewrite H H'.
-Qed.
-
-Lemma disjoint_cat_r c1 c2 c :
-  disjoint_lbl c (c1++c2) <-> (disjoint_lbl c c1 /\ disjoint_lbl c c2).
-Proof.
-  rewrite /disjoint_lbl;split.
-  + move=> H1;split=> lbl;have := H1 lbl;rewrite has_cat;apply contra=>/andP[]->->//.
-    by rewrite orbC.
-  move=> [H1 H2] lbl;rewrite has_cat;apply /negP => /andP[] H /orP[]H'.
-  + by move: (H1 lbl);rewrite H H'.
-  by move: (H2 lbl);rewrite H H'.
-Qed.
-*)
-
 Definition LSem_step p s1 s2 : lsem1 p s1 s2 -> lsem p s1 s2 := rt_step _ _ s1 s2.
 
 Lemma snot_spec gd s e b :
@@ -553,17 +363,6 @@ have : exists (b1 b2:bool), st = sbool /\ sem_pexpr gd s e1 = ok (Vbool b1) /\ s
 move=> [b1 [b2 [-> []/dup[]hb1 /he1 -> /dup[]hb2 /he2 ->]]] /=.
 by rewrite hb1 hb2 /=; case bp.
 Qed.
-
-(* FIXME
-Lemma lsem_add_align s c ii a s' :
-  lsem (of_estate s c 0) (of_estate s' c (size c)) ->
-  lsem (of_estate s (add_align ii a c) 0) (of_estate s' (add_align ii a c) (size (add_align ii a c))).
-Proof.
-  rewrite /add_align;case: a s s' => -[] m vm [] m' vm' h //.
-  apply (lsem_step  (s2:=(of_estate {| emem := m; evm := vm |} ({| li_ii := ii; li_i := Lalign |} :: c) 1))); first by constructor.
-  by apply: (lsem_cat_hd (c:=[::{| li_ii := ii; li_i := Lalign |}]) _ h).
-Qed.
-*)
 
 Lemma add_align_nil ii a c : add_align ii a c = add_align ii a [::] ++ c.
 Proof. by case: a. Qed.
@@ -2281,25 +2080,3 @@ Let vrsp : var := vid (string_of_register RSP).
    *)
 
 End PROOF.
-
-(* left overs 
-  Lemma of_estate_add_hd_c s fn li lc pc:
-    add_hd_c li (of_estate s fn lc pc) = of_estate s fn (li ++ lc) (size li + pc).
-  Proof. done. Qed.
-
-  Lemma to_of_estate s fn c pc : to_estate (of_estate s fn c pc) = s.
-  Proof. by case: s. Qed.
-
-  Lemma find_label_hd lbl ii c :
-    find_label lbl ({|li_ii:= ii; li_i := Llabel lbl|} :: c ) = ok 0.
-  Proof. by rewrite /find_label /= /is_label /= eqxx. Qed.
-
-  Lemma setc_of_estate s c pc c' :setc (of_estate s c pc) c' = of_estate s c' pc.
-  Proof. done. Qed.
-
-  Lemma lc_of_estate s lc pc : linear_sem.lc (of_estate s lc pc) = lc.
-  Proof. by case: s. Qed.
-
-  Lemma setpc_of_estate s C pc pc' : setpc (of_estate s C pc) pc' = of_estate s C pc'.
-  Proof. done. Qed.
-*)
