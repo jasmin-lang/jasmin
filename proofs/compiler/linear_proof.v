@@ -1186,7 +1186,12 @@ Let vrsp : var := vid (string_of_register RSP).
     ∀ m1 vm1 body ra lret sp,
        wf_vm vm1 →
       match_mem s1 m1 →
-      vm_uincl (if ra is RAreg x then s1.[x <- undef_error] else s1).[var_of_register RSP <- ok (pword_of_word sp)]%vmap vm1 →
+      vm_uincl
+        match ra with
+        | RAnone => s1.[var_of_register RAX <- undef_error]
+        | RAreg x => s1.[x <- undef_error]
+        | RAstack _ => s1
+        end.[var_of_register RSP <- ok (pword_of_word sp)]%vmap vm1 →
       is_linear_of fn body →
       (* RA contains a safe return address “lret” *)
       is_ra_of fn ra →
@@ -1879,9 +1884,10 @@ Let vrsp : var := vid (string_of_register RSP).
           rewrite top_stack_after_aligned_alloc.
           2: exact: is_align8.
           by rewrite stk_sz_0 stk_extra_sz_0 -addE add_0.
-        have X' : vm_uincl (set_RSP m1' (kill_flags s1 rflags)) vm1.
+        have X' : vm_uincl (set_RSP m1' (kill_flags s1 rflags).[var_of_register RAX <- undef_error]) vm1.
         + rewrite /set_RSP top_stack_preserved.
           apply: vm_uincl_trans X.
+          apply: set_vm_uincl; last exact: eval_uincl_refl.
           apply: set_vm_uincl; last exact: eval_uincl_refl.
           exact: kill_flags_uincl.
         have {E} [m2 vm2] := E m1 vm1 [::] [::] W M' X' (λ _ _, erefl) ok_body.
@@ -1959,11 +1965,16 @@ Let vrsp : var := vid (string_of_register RSP).
         set vm' := ((((((vm.[var_of_flag OF <- ok false]).[var_of_flag CF <- ok false]).[var_of_flag SF <- ok (SF_of_word rsp')]).[var_of_flag PF <- ok (PF_of_word rsp')]).[var_of_flag ZF <- ok (ZF_of_word rsp')]).[var_of_register RSP <- ok (pword_of_word rsp')])%vmap.
         have wf_vm' : wf_vm vm'.
         + repeat apply: wf_vm_set; exact: ok_vm.
-        have X' : vm_uincl (set_RSP m1' (kill_flags s1.[Var (sword Uptr) saved_stack <- undef_error]%vmap rflags)) vm'.
+        have X' : vm_uincl (set_RSP m1' (kill_flags s1.[Var (sword Uptr) saved_stack <- undef_error]%vmap rflags).[var_of_register RAX <- undef_error]) vm'.
         + rewrite /set_RSP /vm' => x.
           change (v_var (vid (string_of_register RSP))) with (var_of_register RSP).
           move: (X x) (W x).
           rewrite !Fv.setP; case: eqP => x_rsp; first by subst.
+          case: eqP => x_rax.
+          * subst.
+            repeat case: eqP => // *.
+            move: (ok_vm (var_of_register RAX)).
+            by case: _.[_]%vmap => // - [].
           rewrite kill_flagsE !inE !(eq_sym x).
           do 5 (
           case: eqP => ? ;
