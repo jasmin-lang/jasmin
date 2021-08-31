@@ -101,6 +101,11 @@ proof.
   by rewrite to_uintE bs2int_ge0 -(size_w2bits x) bs2int_le2Xs.
 qed.
 
+lemma to_sint_cmp (x : t) : min_sint <= to_sint x <= max_sint.
+proof.
+ by rewrite /to_sint /= /smod /=; smt.
+qed.
+
 lemma of_uintK (x : int) : to_uint (of_int x) = x %% modulus.
 proof.
   by rewrite to_uintE of_intE bits2wK 1:size_int2bs // int2bsK // modz_cmp.
@@ -873,6 +878,8 @@ op mulu (x y: t): t * t = (mulhi x y, x*y) axiomatized by muluE.
 abbrev (`&`) = andw.
 abbrev (`|`) = orw.
 abbrev (`^`) = (+^).
+
+op msb (b: t): bool = 2^(size - 1) <= (to_uint b).
 
 op (`>>>`) (x : t) (i : int) =
   init (fun j => x.[j + i])
@@ -1676,6 +1683,8 @@ theory W8.
 
   op (`|>>`) (w1 w2 : W8.t) = sar w1 (to_uint w2 %% size).
 
+  op SETcc (b: bool) = b ? W8.one : W8.zero.
+
   theory SHIFT.
 
   op shift_mask i = to_uint i %% 32.
@@ -2226,7 +2235,9 @@ abstract theory W_WS.
 
    op VPMINS_'Ru'S (w1 : WB.t) (w2 : WB.t) = 
      map2 (fun x y => if WS.to_sint x < WS.to_sint y then x else y) w1 w2.
- 
+
+   op VPEXTR_'S (w: WB.t) (i: W8.t) = w \bits'S (W8.to_uint i).
+
    (** TODO CHECKME : still x86 **)
    lemma x86_'Ru'S_rol_xor i w : 0 < i < sizeS =>
       VPSLL_'Ru'S w (W8.of_int i) +^ VPSRL_'Ru'S w (W8.of_int (sizeS - i)) =

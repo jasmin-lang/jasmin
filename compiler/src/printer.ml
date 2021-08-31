@@ -87,7 +87,7 @@ let string_of_op2 = function
 
 
 let string_of_op1 = function
-  | E.Oint_of_word ws -> F.sprintf "(int-of-u%d)" (int_of_ws ws)
+  | E.Oint_of_word sz -> F.sprintf "(int of u%d)" (int_of_ws sz)
   | E.Osignext (szo, _) -> F.sprintf "(%ds)" (int_of_ws szo)
   | E.Oword_of_int szo
   | E.Ozeroext (szo, _) -> F.sprintf "(%du)" (int_of_ws szo)
@@ -407,12 +407,12 @@ let pp_datas fmt data =
 let pp_to_save ~debug tbl fmt (x, ofs) =
   Format.fprintf fmt "%a/%a" (pp_var ~debug) (Conv.var_of_cvar tbl x) B.pp_print (Conv.bi_of_z ofs)
 
-let pp_saved_stack tbl ~debug fmt = function
+let pp_saved_stack ~debug tbl fmt = function
   | Expr.SavedStackNone  -> Format.fprintf fmt "none"
   | Expr.SavedStackReg x -> Format.fprintf fmt "in reg %a" (pp_var ~debug) (Conv.var_of_cvar tbl x) 
   | Expr.SavedStackStk z -> Format.fprintf fmt "in stack %a" B.pp_print (Conv.bi_of_z z)
 
-let pp_return_address tbl ~debug fmt = function
+let pp_return_address ~debug tbl fmt = function
   | Expr.RAreg x -> Format.fprintf fmt "%a" (pp_var ~debug) (Conv.var_of_cvar tbl x)
   | Expr.RAstack z -> Format.fprintf fmt "RSP + %a" B.pp_print (Conv.bi_of_z z)
   | Expr.RAnone   -> Format.fprintf fmt "_"
@@ -420,12 +420,13 @@ let pp_return_address tbl ~debug fmt = function
 let pp_sprog ~debug tbl fmt ((funcs, p_extra):'info Prog.sprog) =
   let pp_var = pp_var ~debug in
   let pp_f_extra fmt f_extra = 
-    Format.fprintf fmt "(* @[<v>stack size = %a; alignment = %s;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"
+    Format.fprintf fmt "(* @[<v>stack size = %a + %a; alignment = %s;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"
       B.pp_print (Conv.bi_of_z f_extra.Expr.sf_stk_sz)
+      B.pp_print (Conv.bi_of_z f_extra.Expr.sf_stk_extra_sz)
       (string_of_ws f_extra.Expr.sf_align)
       (pp_list ",@ " (pp_to_save ~debug tbl)) (f_extra.Expr.sf_to_save)
-      (pp_saved_stack tbl ~debug) (f_extra.Expr.sf_save_stack) 
-      (pp_return_address tbl ~debug)  (f_extra.Expr.sf_return_address) 
+      (pp_saved_stack ~debug tbl) (f_extra.Expr.sf_save_stack)
+      (pp_return_address ~debug tbl)  (f_extra.Expr.sf_return_address)
   in
   let pp_fun fmt (f_extra,f) = 
     Format.fprintf fmt "@[<v>%a@ %a@]" pp_f_extra f_extra (pp_fun pp_var) f in

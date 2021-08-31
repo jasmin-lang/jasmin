@@ -153,7 +153,7 @@ Section CHECK.
   Let check_stack_ofs e ofs ws : bool :=
     [&&
      (sf_stk_sz e <=? ofs )%Z,
-     (ofs + wsize_size ws <=? stack_frame_allocation_size e)%Z,
+     (ofs + wsize_size ws <=? sf_stk_sz e + sf_stk_extra_sz e)%Z,
      (ws ≤ sf_align e)%CMP (* Stack frame is aligned for storing words of size ws *) &
      is_align (wrepr Uptr ofs) ws (* Stack slot is aligned *)
     ].

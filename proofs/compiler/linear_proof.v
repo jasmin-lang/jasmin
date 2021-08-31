@@ -1186,7 +1186,12 @@ Let vrsp : var := vid (string_of_register RSP).
     ∀ m1 vm1 body ra lret sp,
        wf_vm vm1 →
       match_mem s1 m1 →
-      vm_uincl (if ra is RAreg x then s1.[x <- undef_error] else s1).[var_of_register RSP <- ok (pword_of_word sp)]%vmap vm1 →
+      vm_uincl
+        match ra with
+        | RAnone => s1.[var_of_register RAX <- undef_error]
+        | RAreg x => s1.[x <- undef_error]
+        | RAstack _ => s1
+        end.[var_of_register RSP <- ok (pword_of_word sp)]%vmap vm1 →
       is_linear_of fn body →
       (* RA contains a safe return address “lret” *)
       is_ra_of fn ra →
@@ -1685,7 +1690,7 @@ Let vrsp : var := vid (string_of_register RSP).
     }
     (* Internal function, return address at offset [z]. *)
     case fr_eq: extra_free_registers ok_ra fr_undef ok_ret_addr => [fr | //] _.
-    move=> [] fr_neq_RIP fr_neq_RSP fr_well_typed fr_undef /and4P[] z_pos z_bound sf_aligned_for_ptr z_aligned [] ? ?; subst lbli li.
+    move=> [] fr_neq_RIP fr_neq_RSP fr_well_typed fr_undef /and4P[] z_pos /lezP z_bound sf_aligned_for_ptr z_aligned [] ? ?; subst lbli li.
     have ok_ra_of : is_ra_of fn' (RAstack z) by rewrite /is_ra_of; exists fd'; assumption.
     move: ih => /(_ _ _ _ _ _ _ _ _ ok_ra_of) ih.
     move: (X (var_of_register RSP)).
@@ -1696,7 +1701,7 @@ Let vrsp : var := vid (string_of_register RSP).
     case: ifP.
     + move => /eqP K; exfalso.
       case/and3P: ok_stk_sz => /lezP A /lezP B _.
-      move/lezP: z_bound.
+      move: z_bound.
       move/lezP: z_pos.
       have := round_ws_range (sf_align (f_extra fd')) (sf_stk_sz (f_extra fd') + sf_stk_extra_sz (f_extra fd')).
       move: K A B; clear.
@@ -1704,6 +1709,10 @@ Let vrsp : var := vid (string_of_register RSP).
       change (wsize_size Uptr) with 8%Z.
       lia.
     move => sz_nz k_eq.
+    have : (z + wsize_size Uptr <= stack_frame_allocation_size (f_extra fd'))%Z.
+    * etransitivity; first exact: z_bound.
+      exact: proj1 (round_ws_range _ _).
+    move => {z_bound} z_bound.
     have : exists2 m1', write m1 (top_stack_after_alloc (top_stack (emem s1)) (sf_align (f_extra fd'))
                   (sf_stk_sz (f_extra fd') + sf_stk_extra_sz (f_extra fd')) + wrepr U64 z)%R ptr = ok m1' &
                         match_mem s1 m1'.
@@ -1805,7 +1814,7 @@ Let vrsp : var := vid (string_of_register RSP).
     - rewrite /sp top_stack_after_aligned_alloc // wrepr_opp GRing.subrK.
       move => x; rewrite Fv.setP; case: eqP => x_rsp.
       + subst.
-        by rewrite (sem_call_stack_stable exec_call).(ss_top_stack) s2_eq /= /set_RSP Fv.setP_eq.
+        by rewrite (ss_top_stack (sem_call_stack_stable exec_call)) s2_eq /= /set_RSP Fv.setP_eq.
       by move: (X' x); rewrite Fv.setP_neq //; apply/eqP.
     - etransitivity; last exact: H'.
       have := alloc_stackP ok_m.
@@ -1816,8 +1825,6 @@ Let vrsp : var := vid (string_of_register RSP).
       move: a_lo {a_hi}.
       rewrite (top_stack_after_aligned_alloc _ sp_aligned) -/(stack_frame_allocation_size (f_extra fd')).
       rewrite addE -!GRing.addrA.
-      move: z_bound.
-      rewrite !zify => z_bound.
       replace (wrepr _ _ + _)%R with (- wrepr Uptr (stack_frame_allocation_size (f_extra fd') - z - i))%R; last first.
       + by rewrite !wrepr_add !wrepr_opp; ssrring.ssring.
       rewrite wunsigned_sub; first lia.
@@ -1877,9 +1884,10 @@ Let vrsp : var := vid (string_of_register RSP).
           rewrite top_stack_after_aligned_alloc.
           2: exact: is_align8.
           by rewrite stk_sz_0 stk_extra_sz_0 -addE add_0.
-        have X' : vm_uincl (set_RSP m1' (kill_flags s1 rflags)) vm1.
+        have X' : vm_uincl (set_RSP m1' (kill_flags s1 rflags).[var_of_register RAX <- undef_error]) vm1.
         + rewrite /set_RSP top_stack_preserved.
           apply: vm_uincl_trans X.
+          apply: set_vm_uincl; last exact: eval_uincl_refl.
           apply: set_vm_uincl; last exact: eval_uincl_refl.
           exact: kill_flags_uincl.
         have {E} [m2 vm2] := E m1 vm1 [::] [::] W M' X' (λ _ _, erefl) ok_body.
@@ -1957,11 +1965,16 @@ Let vrsp : var := vid (string_of_register RSP).
         set vm' := ((((((vm.[var_of_flag OF <- ok false]).[var_of_flag CF <- ok false]).[var_of_flag SF <- ok (SF_of_word rsp')]).[var_of_flag PF <- ok (PF_of_word rsp')]).[var_of_flag ZF <- ok (ZF_of_word rsp')]).[var_of_register RSP <- ok (pword_of_word rsp')])%vmap.
         have wf_vm' : wf_vm vm'.
         + repeat apply: wf_vm_set; exact: ok_vm.
-        have X' : vm_uincl (set_RSP m1' (kill_flags s1.[Var (sword Uptr) saved_stack <- undef_error]%vmap rflags)) vm'.
+        have X' : vm_uincl (set_RSP m1' (kill_flags s1.[Var (sword Uptr) saved_stack <- undef_error]%vmap rflags).[var_of_register RAX <- undef_error]) vm'.
         + rewrite /set_RSP /vm' => x.
           change (v_var (vid (string_of_register RSP))) with (var_of_register RSP).
           move: (X x) (W x).
           rewrite !Fv.setP; case: eqP => x_rsp; first by subst.
+          case: eqP => x_rax.
+          * subst.
+            repeat case: eqP => // *.
+            move: (ok_vm (var_of_register RAX)).
+            by case: _.[_]%vmap => // - [].
           rewrite kill_flagsE !inE !(eq_sym x).
           do 5 (
           case: eqP => ? ;
@@ -2176,7 +2189,9 @@ Let vrsp : var := vid (string_of_register RSP).
         * assert (top_stack_range := wunsigned_range (top_stack m1')).
           assert (old_top_stack_range := wunsigned_range (top_stack (emem s1))).
           have sf_large : (8 <= stack_frame_allocation_size (f_extra fd))%Z.
-          - move: (stack_frame_allocation_size _) rastack_h; change (wsize_size _) with 8%Z => s; lia.
+          - apply: Z.le_trans; last exact: proj1 (round_ws_range _ _).
+            apply: Z.le_trans; last exact: rastack_h.
+            change (wsize_size _) with 8%Z; lia.
           split; first lia.
           rewrite (alloc_stack_top_stack ok_m1') top_stack_after_aligned_alloc // wrepr_opp.
           rewrite -/(stack_frame_allocation_size _) wunsigned_sub; last first.
@@ -2186,8 +2201,10 @@ Let vrsp : var := vid (string_of_register RSP).
           etransitivity; last exact: top_stack_below_root.
           rewrite -/(top_stack (emem s1)).
           move: stk_extra_pos rastack_lo rastack_h; clear.
+          have := proj1 (round_ws_range (sf_align (f_extra fd)) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))).
           change (wsize_size Uptr) with 8%Z.
-          move: (stack_frame_allocation_size _) => n; lia.
+          rewrite /stack_frame_allocation_size.
+          move: (sf_stk_sz _ + sf_stk_extra_sz _)%Z => n; lia.
         have -> : read m2 (top_stack m1' + wrepr U64 rastack)%R U64 = read m1 (top_stack m1' + wrepr U64 rastack)%R U64.
         * apply: eq_read => i [] i_lo i_hi; symmetry; apply: H2.
           - rewrite addE !wunsigned_add; lia.
@@ -2195,6 +2212,9 @@ Let vrsp : var := vid (string_of_register RSP).
           apply/orP; case.
           - apply/negP; apply: stack_region_is_free.
             rewrite -/(top_stack _).
+            have : (rastack + wsize_size Uptr <= stack_frame_allocation_size (f_extra fd))%Z :=
+               Z.le_trans _ _ _ rastack_h (proj1 (round_ws_range _ _)).
+            move: (stack_frame_allocation_size _) top_stackE => n top_stackE.
             rewrite addE !wunsigned_add; lia.
           rewrite addE -GRing.addrA -wrepr_add !zify => - [] _.
           rewrite wunsigned_add; last lia.

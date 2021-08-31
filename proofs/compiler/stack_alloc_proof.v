@@ -1633,7 +1633,7 @@ Proof.
     + by apply (wfr_VAL_set_sub_region hwfr hwf hofs hreadeq hset heqval).
     by apply (wfr_PTR_set_sub_region hlx hwf hpk hreadeq hofs hset hptr).
   + by apply (eq_mem_source_write_slot hvs hwf' hreadeq).
-  by rewrite -hss.(ss_top_stack).
+  by rewrite -(ss_top_stack hss).
 Qed.
 
 Lemma set_arr_wordP rmap m0 s1 s2 x ofs ws rmap2 :
@@ -1801,7 +1801,7 @@ Proof.
     + move=> p; rewrite (write_validw_eq hmem1) => hv.
       apply: read_write_any_mem hmem1 hmem2.
       by apply heqmem.
-    by rewrite -(Memory.write_mem_stable hmem2).(ss_top_stack).
+    by rewrite -(ss_top_stack (Memory.write_mem_stable hmem2)).
 
   (* Laset *)
   move=> aa ws x e1 /=; t_xrbindP => e1' /(alloc_eP hvs) he1.
@@ -2315,7 +2315,7 @@ Proof.
     apply (valid_pk_set_stack_ptr hlocal hreadeq hneq hly).
     by apply (valid_pk_set_move sr (wf_vnew hlx) (wf_locals hly) hpky).
   + by apply (eq_mem_source_write_slot hvs hwfs hreadeq).
-  by rewrite -hss.(ss_top_stack).
+  by rewrite -(ss_top_stack hss).
 Qed.
 
 Lemma valid_state_set_move_sub rmap m0 s1 s2 x pk v sr :
@@ -3558,7 +3558,7 @@ Proof.
   + case: (hwfr) => hwfsr hval hptr; split=> //.
     + by apply (wfr_VAL_holed_rmap hvs hlwf hlunch hldisj).
     by apply (wfr_PTR_holed_rmap hvs hlwf hlunch hldisj).
-  by rewrite -hss2.(ss_top_stack).
+  by rewrite -(ss_top_stack hss2).
 Qed.
 
 Lemma check_lval_reg_callP r tt :

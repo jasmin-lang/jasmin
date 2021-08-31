@@ -132,13 +132,6 @@ op mulu64 (w1 w2 : W64.t) =
   (W2u32.zeroextu64 (W2u32.truncateu32 w2)).
 
 (* -------------------------------------------------------------------- *)
-
-(* FIXME it is really the semantics? In particular the last if *)
-op VPEXTR_64 (w:W128.t) (i:W8.t) =
-  if W8.to_uint i = 0 then (w \bits64 0)
-  else if W8.to_uint i = 1 then (w \bits64 1)
-  else W64.of_int 0.
-
 op VMOV_32 (v:W32.t) =
   pack4 [v; W32.zero; W32.zero; W32.zero].
 
@@ -197,8 +190,14 @@ op permd (v: W256.t) (i: W32.t) : W32.t =
 op VPERMD (w: W256.t) (i: W256.t) : W256.t =
   map (permd w) i.
 
+(* ------------------------------------------------------------------- *)
 op VEXTRACTI128 (w:W256.t) (i:W8.t) : W128.t =
   w \bits128 b2i i.[0].
+
+
+op VINSERTI128 (w:W256.t) (x: W128.t) (i:W8.t): W256.t =
+  let i = W8.to_uint i %% 2 in
+  pack2 (map (fun j => if j = i then x else w \bits128 j) [0;1]).
 
 (* ------------------------------------------------------------------- *)
 op interleave_gen ['elem]
@@ -374,16 +373,21 @@ abbrev [-printing] VPBLEND_16u16 = VPBLENDW_256.
 abbrev [-printing] VPBLEND_8u32 = VPBLENDD_256.
 
 (* ------------------------------------------------------------------- *)
-op VPMOVMSKB_128 (v: W128.t) : W16.t =
-  let vb = w2bits v in
-  W16.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 16).
+op VPMOVMSKB_u128_u32 (v: W128.t) =
+   let vb = W16u8.to_list v in
+   W32.bits2w (map W8.msb vb).
 
-op VPMOVMSKB_256 (v: W256.t) : W32.t =
-  let vb = w2bits v in
-  W32.bits2w (mkseq (fun i => nth false vb (8*i + 7)) 32).
+op VPMOVMSKB_u128_u64 (v: W128.t) =
+   let vb = W16u8.to_list v in
+   W64.bits2w (map W8.msb vb).
 
-abbrev [-printing] VPMOVMSKB_u128_u16 = VPMOVMSKB_128.
-abbrev [-printing] VPMOVMSKB_u256_u32 = VPMOVMSKB_256.
+op VPMOVMSKB_u256_u32 (v: W256.t) =
+  let vb = W32u8.to_list v in
+  W32.bits2w (map W8.msb vb).
+
+op VPMOVMSKB_u256_u64 (v: W256.t) =
+  let vb = W32u8.to_list v in
+  W64.bits2w (map W8.msb vb).
 
 (* ------------------------------------------------------------------- *)
 op VMOVLPD (v: W128.t) : W64.t =

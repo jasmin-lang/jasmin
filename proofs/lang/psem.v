@@ -1934,7 +1934,7 @@ Lemma vmap_uincl_on_empty vm1 vm2 :
   vmap_uincl_on Sv.empty vm1 vm2.
 Proof. by move => ?; SvD.fsetdec. Qed.
 
-Hint Resolve vmap_uincl_on_empty.
+Hint Resolve vmap_uincl_on_empty : core.
 
 Lemma vmap_uincl_on_union dom dom' vm1 vm2 :
   vmap_uincl_on (Sv.union dom dom') vm1 vm2 ↔

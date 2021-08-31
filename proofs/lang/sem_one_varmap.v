@@ -28,6 +28,9 @@ The semantics also ensures some properties:
  - Calls to “rastack” functions are annotated with free variables
  - The RSP local variable always hold the pointer to the top of the stack
  - The sp_rip local variable is assumed to hold the pointer to the static global data
+ - The RAX local variable is free at the beginning of export functions
+
+The semantic predicates are indexed by a set of variables which is *precisely* the set of variables that are written during the execution.
  *)
 
 Definition get_pvar (e: pexpr) : exec var :=
@@ -88,7 +91,7 @@ Proof.
 Qed.
 
 Let vgd : var := vid p.(p_extra).(sp_rip).
-Let vrsp : var := vid (string_of_register RSP).
+Let vrsp : var := var_of_register RSP.
 
 Definition magic_variables : Sv.t :=
   Sv.add vgd (Sv.singleton vrsp).
@@ -165,8 +168,8 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     get_fundef (p_funcs p) fn = Some f →
     match f.(f_extra).(sf_return_address) with
     | RAstack _ => extra_free_registers ii != None
-    | RAreg ra => (ra != vid p.(p_extra).(sp_rip)) && (ra != var_of_register RSP) && (~~ Sv.mem ra k)
-    | RAnone => true
+    | RAreg ra => (ra != vgd) && (ra != vrsp) && (~~ Sv.mem ra k)
+    | RAnone => (var_of_register RAX != vgd)
     end →
     match f.(f_extra).(sf_save_stack) with
     | SavedStackReg r => (r != vid p.(p_extra).(sp_rip)) && (r != var_of_register RSP) && (~~ Sv.mem r k)
@@ -175,7 +178,7 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     (f.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s1.(emem)) f.(f_extra).(sf_align) →
     valid_RSP s1.(emem) s1.(evm) →
     alloc_stack s1.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1 →
-    sem k {| emem := m1 ; evm := set_RSP m1 match f.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => kill_flags (if f.(f_extra).(sf_save_stack) is SavedStackReg r then s1.(evm).[r <- undef_error] else s1.(evm)) rflags end |} f.(f_body) s2' →
+    sem k {| emem := m1 ; evm := set_RSP m1 match f.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => (kill_flags (if f.(f_extra).(sf_save_stack) is SavedStackReg r then s1.(evm).[r <- undef_error] else s1.(evm)) rflags).[var_of_register RAX <- undef_error] end |} f.(f_body) s2' →
     valid_RSP s2'.(emem) s2'.(evm) →
     let m2 := free_stack s2'.(emem) in
     s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
@@ -183,7 +186,7 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
                                match f.(f_extra).(sf_return_address) with
                                | RAreg ra => Sv.singleton ra
                                | RAstack _ => Sv.empty
-                               | RAnone => sv_of_flags rflags
+                               | RAnone => Sv.add (var_of_register RAX) (sv_of_flags rflags)
                                end
                                (if f.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))) s1 fn s2.
 
@@ -252,8 +255,8 @@ Lemma sem_callE ii k s fn s' :
     (λ f _ _ _, get_fundef (p_funcs p) fn = Some f)
     (λ f _ _ k', match f.(f_extra).(sf_return_address) with
               | RAstack _ => extra_free_registers ii != None
-              | RAreg ra => (ra != vid p.(p_extra).(sp_rip)) && (ra != var_of_register RSP) && (~~ Sv.mem ra k')
-              | RAnone => true
+              | RAreg ra => (ra != vgd) && (ra != vrsp) && (~~ Sv.mem ra k')
+              | RAnone => (var_of_register RAX != vgd)
               end : bool)
     (λ f _ _ k', match f.(f_extra).(sf_save_stack) with
                 | SavedStackReg r => (r != vid p.(p_extra).(sp_rip)) && (r != var_of_register RSP) && (~~ Sv.mem r k')
@@ -262,12 +265,12 @@ Lemma sem_callE ii k s fn s' :
     (λ f _ _ _, (f.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s.(emem)) f.(f_extra).(sf_align))
     (λ _ _ _ _, valid_RSP s.(emem) s.(evm))
     (λ f m1 _ _, alloc_stack s.(emem) f.(f_extra).(sf_align) f.(f_extra).(sf_stk_sz) f.(f_extra).(sf_stk_extra_sz) = ok m1)
-    (λ f m1 s2' k', sem k' {| emem := m1 ; evm := set_RSP m1 match f.(f_extra).(sf_return_address) with RAreg x => s.(evm).[x <- undef_error] | RAstack _ => s.(evm) | RAnone => kill_flags (if f.(f_extra).(sf_save_stack) is SavedStackReg r then s.(evm).[r <- undef_error] else s.(evm)) rflags end |} f.(f_body) s2')
+    (λ f m1 s2' k', sem k' {| emem := m1 ; evm := set_RSP m1 match f.(f_extra).(sf_return_address) with RAreg x => s.(evm).[x <- undef_error] | RAstack _ => s.(evm) | RAnone => (kill_flags (if f.(f_extra).(sf_save_stack) is SavedStackReg r then s.(evm).[r <- undef_error] else s.(evm)) rflags).[var_of_register RAX <- undef_error] end |} f.(f_body) s2')
     (λ _ _ s2' _, valid_RSP s2'.(emem) s2'.(evm))
     (λ f _ s2' _,
       let m2 := free_stack s2'.(emem) in
       s' = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |})
-    (λ f _ _ k', k = Sv.union k' (Sv.union match f.(f_extra).(sf_return_address) with RAreg ra => Sv.singleton ra | RAstack _ => Sv.empty | RAnone => sv_of_flags rflags end (if f.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))).
+    (λ f _ _ k', k = Sv.union k' (Sv.union match f.(f_extra).(sf_return_address) with RAreg ra => Sv.singleton ra | RAstack _ => Sv.empty | RAnone => Sv.add (var_of_register RAX) (sv_of_flags rflags) end (if f.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))).
 Proof.
   case => { ii k s fn s' } ii k s s' fn f m1 s2' => ok_f ok_ra ok_ss ok_sp ok_RSP ok_alloc exec_body ok_RSP' /= ->.
   by exists f m1 s2' k.
@@ -363,8 +366,8 @@ Section SEM_IND.
       get_fundef (p_funcs p) fn = Some fd →
       match fd.(f_extra).(sf_return_address) with
       | RAstack _ => extra_free_registers ii != None
-      | RAreg ra => (ra != vid p.(p_extra).(sp_rip)) && (ra != var_of_register RSP) && (~~ Sv.mem ra k)
-      | RAnone => true
+      | RAreg ra => (ra != vgd) && (ra != vrsp) && (~~ Sv.mem ra k)
+      | RAnone => (var_of_register RAX != vgd)
       end →
       match fd.(f_extra).(sf_save_stack) with
       | SavedStackReg r => (r != vid p.(p_extra).(sp_rip)) && (r != var_of_register RSP) && (~~ Sv.mem r k)
@@ -373,12 +376,12 @@ Section SEM_IND.
       (fd.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s1.(emem)) fd.(f_extra).(sf_align) →
       valid_RSP s1.(emem) s1.(evm) →
       alloc_stack s1.(emem) fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 →
-      sem k {| emem := m1 ; evm := set_RSP m1 match fd.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => kill_flags (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then s1.(evm).[r <- undef_error] else s1.(evm)) rflags end |} fd.(f_body) s2' →
-      Pc k {| emem := m1 ; evm := set_RSP m1 match fd.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => kill_flags (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then s1.(evm).[r <- undef_error] else s1.(evm)) rflags end |} fd.(f_body) s2' →
+      sem k {| emem := m1 ; evm := set_RSP m1 match fd.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => (kill_flags (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then s1.(evm).[r <- undef_error] else s1.(evm)) rflags).[var_of_register RAX <- undef_error] end |} fd.(f_body) s2' →
+      Pc k {| emem := m1 ; evm := set_RSP m1 match fd.(f_extra).(sf_return_address) with RAreg x => s1.(evm).[x <- undef_error] | RAstack _ => s1.(evm) | RAnone => (kill_flags (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then s1.(evm).[r <- undef_error] else s1.(evm)) rflags).[var_of_register RAX <- undef_error] end |} fd.(f_body) s2' →
       valid_RSP s2'.(emem) s2'.(evm) →
       let m2 := free_stack s2'.(emem) in
       s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |}  →
-      Pfun ii (Sv.union k (Sv.union match fd.(f_extra).(sf_return_address) with RAreg ra => Sv.singleton ra | RAstack _ => Sv.empty | RAnone => sv_of_flags rflags end (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))) s1 fn s2.
+      Pfun ii (Sv.union k (Sv.union match fd.(f_extra).(sf_return_address) with RAreg ra => Sv.singleton ra | RAstack _ => Sv.empty | RAnone => Sv.add (var_of_register RAX) (sv_of_flags rflags) end (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))) s1 fn s2.
 
   Hypotheses
     (Hcall: sem_Ind_call)

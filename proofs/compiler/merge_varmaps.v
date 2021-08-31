@@ -48,7 +48,7 @@ Section WRITE1.
       | Some fd =>
         Sv.union
           match fd.(f_extra).(sf_return_address) with
-          | RAnone => sv_of_flags rflags
+          | RAnone => Sv.add (var_of_register RAX) (sv_of_flags rflags)
           | RAreg ra => Sv.singleton ra
           | RAstack _ => Sv.empty
           end
@@ -249,10 +249,11 @@ Section CHECK.
     let DI := 
       match sf_return_address (f_extra fd) with
       | RAnone =>
+        Sv.add (var_of_register RAX)
         match sf_save_stack (f_extra fd) with
         | SavedStackReg r => Sv.add r (sv_of_flags rflags)
         | _ => sv_of_flags rflags
-        end 
+        end
     | RAreg ra => Sv.singleton ra
     | RAstack _ => Sv.empty 
     end in
@@ -279,7 +280,8 @@ Section CHECK.
     match sf_return_address e with
     | RAreg ra => check_preserved_register fn W J "return address" ra
     | RAstack _ => ok tt
-    | RAnone => 
+    | RAnone =>
+        Let _ := assert (string_of_register RAX != p.(p_extra).(sp_rip)) (Ferr_fun fn (Cerr_one_varmap "RAX and RIP clash, please report")) in
         assert (all (λ x : var_i, if vtype x is sword _ then true else false ) (f_params fd))
             (Ferr_fun fn (Cerr_one_varmap "the export function has non-word arguments"))
     end.

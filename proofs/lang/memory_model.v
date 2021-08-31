@@ -645,7 +645,7 @@ Section SPEC.
     ass_read_new  : forall p, ~validw m p U8 -> validw m' p U8 -> read m' p U8 = Error ErrAddrInvalid;
     ass_valid     : forall p, validw m' p U8 = validw m p U8 || between pstk sz p U8;
     ass_align_stk : is_align pstk ws;
-    ass_above_limit: wunsigned (stack_limit m) <= wunsigned pstk ∧ wunsigned pstk + sz <= wunsigned (top_stack m);
+    ass_above_limit: wunsigned (stack_limit m) <= wunsigned pstk ∧ wunsigned pstk + sz + Z.max 0 sz' <= wunsigned (top_stack m);
     ass_fresh     : forall p s, validw m p s ->
                         (wunsigned p + wsize_size s <= wunsigned pstk \/
                          wunsigned pstk + sz <= wunsigned p)%Z;

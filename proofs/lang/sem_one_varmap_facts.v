@@ -197,9 +197,10 @@ Proof.
   rewrite -(ih r). 2: SvD.fsetdec.
   rewrite /set_RSP Fv.setP_neq //.
   move: hr; case: sf_return_address; last by [].
-  - move => /Sv.union_spec /Decidable.not_or[] _ /Sv.union_spec /Decidable.not_or[].
+  - move => /Sv.union_spec /Decidable.not_or[] _ /Sv.union_spec /Decidable.not_or[] /Sv.add_spec /Decidable.not_or[].
     clear.
-    rewrite /sv_of_flags => r_not_flag r_not_save_stack.
+    rewrite /sv_of_flags => r_not_rax r_not_flag r_not_save_stack.
+    rewrite Fv.setP_neq; last by apply/eqP => ?; apply: r_not_rax.
     rewrite kill_flagsE; case: ifP => rx.
     + elim: r_not_flag; move: rx.
       rewrite !Sv.add_spec SvD.F.empty_iff !inE.
@@ -242,11 +243,16 @@ Qed.
 
 End NOT_WRITTEN.
 
-Lemma disjoint_union a b c :
-  disjoint a c →
-  disjoint b c →
-  disjoint (Sv.union a b) c.
-Proof. rewrite /disjoint /is_true !Sv.is_empty_spec; SvD.fsetdec. Qed.
+Lemma disjoint_unionE a b c :
+  disjoint (Sv.union a b) c = disjoint a c && disjoint b c.
+Proof. rewrite Bool.eq_iff_eq_true /disjoint Bool.andb_true_iff !Sv.is_empty_spec; intuition SvD.fsetdec. Qed.
+
+Lemma disjoint_singletonE a b :
+  disjoint (Sv.singleton a) b = ~~ Sv.mem a b.
+Proof.
+  rewrite Bool.eq_iff_eq_true /disjoint Sv.is_empty_spec Bool.negb_true_iff -SvD.F.not_mem_iff.
+  intuition SvD.fsetdec.
+Qed.
 
 Lemma eq_except_disjoint_eq_on s s' x y :
   x = y [\s] →
@@ -274,14 +280,14 @@ Qed.
 
 Lemma Hcons_pm : sem_Ind_cons p extra_free_registers Pc Pi.
 Proof.
-  move => ki kc x y z i c _ xy _ yz.
-  exact: disjoint_union yz.
+  move => ki kc x y z i c _ xy _.
+  by rewrite /Pc disjoint_unionE xy.
 Qed.
 
 Lemma HmkI_pm : sem_Ind_mkI p extra_free_registers Pi Pi_r.
 Proof.
   move => ii k i s1 s2 h _ _ ih.
-  apply: disjoint_union ih.
+  rewrite /Pi disjoint_unionE ih andbT.
   move: h; rewrite /extra_free_registers_at.
   case: extra_free_registers => // ra /and3P[] /eqP r_neq_gd /eqP r_neq_rsp ?.
   rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec.
@@ -327,10 +333,12 @@ Qed.
 Lemma Hproc_pm : sem_Ind_proc p extra_free_registers Pc Pfun.
 Proof.
   red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' ->.
-  apply: (disjoint_union ih).
-  apply: disjoint_union.
+  rewrite /Pfun !disjoint_unionE ih /=.
+  apply/andP; split.
   1: case: sf_return_address ok_ra => //.
-  1: move => _; exact: flags_not_magic.
+  1: rewrite SvP.MP.add_union_singleton disjoint_unionE => /eqP /(@sym_not_eq _ _ _) rax_neq_gd.
+  1: apply/andP; split; last exact: flags_not_magic.
+  1: by rewrite disjoint_singletonE /magic_variables SvP.add_mem_2.
   2: case: sf_save_stack ok_ss => //.
   all: move => /= r /andP[] /andP[] /eqP r_neq_gd /eqP r_neq_rsp _.
   all: rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec.

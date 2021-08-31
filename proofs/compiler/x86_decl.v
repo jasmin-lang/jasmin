@@ -420,8 +420,8 @@ Definition Imm_inj sz sz' w w' (e: @Imm sz w = @Imm sz' w') :
 Lemma asm_arg_eq_axiom : Equality.axiom asm_arg_beq.
 Proof.
   case => [t1 | sz1 w1 | r1 | a1 | xr1] [t2 | sz2 w2 | r2 | a2 | xr2]; apply: (iffP idP) => //=.
-  1, 5, 7, 9, 11: by move => /eqP ->.
-  1, 4-7: by case => ->.
+  1, 5, 7, 9: by move => /eqP ->.
+  1, 4-6: by case => ->.
   + by move=> /andP [] /eqP ? /eqP; subst => /wunsigned_inj ->.
   by move=> /Imm_inj [? ];subst => /= ->;rewrite !eqxx.
 Qed.
