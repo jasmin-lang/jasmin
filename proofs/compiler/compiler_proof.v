@@ -156,14 +156,15 @@ Proof.
   move => _ /check_removeturnP ok_rr pa ok_pa [].
   rewrite !print_sprogP => ok_pb pc ok_pc.
   rewrite print_sprogP => <- {p'} ok_fn exec_p.
-  have va_refl : List.Forall2 value_uincl va va. apply List_Forall2_refl. done.
-  (*apply: Ki; first by move => vr' Hvr'; apply: (dead_code_callPs ok_pc va_refl); exact: Hvr'.
+  have va_refl : List.Forall2 value_uincl va va.
+  - exact: List_Forall2_refl.
+  apply: K; first by move => vr' Hvr'; apply: (dead_code_callPs ok_pc va_refl); exact: Hvr'.
   apply: K; first by move => vr'; apply: (CheckAllocRegS.alloc_callP ok_pb).
   rewrite surj_prog.
-  exists vr; first exact: (List_Forall2_refl _ value_uincl_refl).
-  have := dead_code_tokeep_callPs ok_pa exec_p.
-  by rewrite /fn_keep_only ok_rr.*)
-Admitted.
+  have [vr' [exec_pa]]:= dead_code_tokeep_callPs ok_pa va_refl exec_p.
+  rewrite /fn_keep_only (ok_rr _ ok_fn) => vr_vr'.
+  by exists vr'.
+Qed.
 
 (*
 Let Kj : ∀ rip glob m vr (P Q: _ → _ → Prop),
