@@ -18,6 +18,7 @@ param int i_32 = 32;
 
 
 
+inline
 fn load_shufb_cmd() -> stack u256, stack u256
 {
   reg   u256   r16,   r8;
@@ -34,6 +35,7 @@ fn load_shufb_cmd() -> stack u256, stack u256
 
 
 // init
+inline
 fn init_x2(reg u64 key nonce, reg u32 counter) -> reg u256[4]
 {
   reg u256[4] st;
@@ -60,6 +62,7 @@ fn init_x2(reg u64 key nonce, reg u32 counter) -> reg u256[4]
   return st;
 }
 
+inline
 fn init_x8(reg u64 key nonce, reg u32 counter) -> stack u256[16]
 {
   inline int i;
@@ -102,6 +105,7 @@ fn init_x8(reg u64 key nonce, reg u32 counter) -> stack u256[16]
 
 
 // copy state
+inline
 fn copy_state_x2(reg u256[4] st) -> reg u256[4]
 {
   reg u256[4] k;
@@ -109,6 +113,7 @@ fn copy_state_x2(reg u256[4] st) -> reg u256[4]
   return k;
 }
 
+inline
 fn copy_state_x4(reg u256[4] st) -> reg u256[4], reg u256[4]
 {
   reg u256[4] k1 k2;
@@ -124,6 +129,7 @@ fn copy_state_x4(reg u256[4] st) -> reg u256[4], reg u256[4]
   return k1, k2;
 }
 
+inline
 fn copy_state_x8(stack u256[16] st) -> reg u256[16]
 {
   reg u256[16] k;
@@ -134,6 +140,7 @@ fn copy_state_x8(stack u256[16] st) -> reg u256[16]
 
 
 // sum states
+inline
 fn sum_states_x2(reg u256[4] k st) -> reg u256[4]
 {
   inline int i;
@@ -142,6 +149,7 @@ fn sum_states_x2(reg u256[4] k st) -> reg u256[4]
   return k;
 }
 
+inline
 fn sum_states_x4(reg u256[4] k1 k2 st) -> reg u256[4], reg u256[4]
 {
   k1 = sum_states_x2(k1, st);
@@ -150,6 +158,7 @@ fn sum_states_x4(reg u256[4] k1 k2 st) -> reg u256[4], reg u256[4]
   return k1, k2;
 }
 
+inline
 fn sum_states_x8(reg u256[16] k, stack u256[16] st) -> reg u256[16]
 {
   inline int i;
@@ -161,6 +170,7 @@ fn sum_states_x8(reg u256[16] k, stack u256[16] st) -> reg u256[16]
 
 
 // increment
+inline
 fn increment_counter_x8(stack u256[16] s) -> stack u256[16]
 {
   reg u256 t;
@@ -173,6 +183,7 @@ fn increment_counter_x8(stack u256[16] s) -> stack u256[16]
 
 
 // store auxiliary functions
+inline
 fn update_ptr(reg u64 output plain, reg u32 len, inline int n) -> reg u64, reg u64, reg u32
 {
   output += n;
@@ -198,6 +209,7 @@ fn update_ptr(reg u64 output plain, reg u32 len, inline int n) -> reg u64, reg u
 //   pk[2] = { k2[7],  k2[6],  k2[5],  k2[4],    k2[3],  k2[2],  k2[1],  k2[0] }
 //   pk[2] = { k2[15], k2[14], k2[13], k2[12],   k2[11], k2[10], k2[9],  k2[8] }
 //
+inline
 fn perm_x2(reg u256[4] k) -> reg u256[4]
 {
   reg u256[4] pk;
@@ -210,6 +222,7 @@ fn perm_x2(reg u256[4] k) -> reg u256[4]
 
 // perm_x4 is the same as perm_x2, only difference is that it works for 4 blocks
 // of stream
+inline
 fn perm_x4(reg u256[4] k1 k2) -> reg u256[4], reg u256[4]
 {
   reg u256[4] pk1 pk2;
@@ -222,6 +235,7 @@ fn perm_x4(reg u256[4] k1 k2) -> reg u256[4], reg u256[4]
 // store functions
 
 // stores 64 bytes
+inline
 fn store(reg u64 output plain, reg u32 len, reg u256[2] k) -> reg u64, reg u64, reg u32, reg u256[2]
 {
   k[0] ^= (u256)[plain +  0];
@@ -236,6 +250,7 @@ fn store(reg u64 output plain, reg u32 len, reg u256[2] k) -> reg u64, reg u64, 
 }
 
 // stores up to 64 bytes
+inline
 fn store_last(reg u64 output plain, reg u32 len, reg u256[2] k)
 {
   reg u256     r0;
@@ -281,6 +296,7 @@ fn store_last(reg u64 output plain, reg u32 len, reg u256[2] k)
 }
 
 // stores 128 bytes
+inline
 fn store_x2(reg u64 output plain, reg u32 len, reg u256[4] k) -> reg u64, reg u64, reg u32, reg u256[4]
 {
   inline int i;
@@ -297,6 +313,7 @@ fn store_x2(reg u64 output plain, reg u32 len, reg u256[4] k) -> reg u64, reg u6
 }
 
 // stores up to 128 bytes
+inline
 fn store_x2_last(reg u64 output plain, reg u32 len, reg u256[4] k)
 {
   reg u256[2] r;
@@ -315,6 +332,7 @@ fn store_x2_last(reg u64 output plain, reg u32 len, reg u256[4] k)
 }
 
 // stores 256 bytes
+inline
 fn store_x4(reg u64 output plain, reg u32 len, reg u256[8] k) -> reg u64, reg u64, reg u32
 {
   inline int i;
@@ -331,6 +349,7 @@ fn store_x4(reg u64 output plain, reg u32 len, reg u256[8] k) -> reg u64, reg u6
 }
 
 // stores up to 256 bytes
+inline
 fn store_x4_last(reg u64 output plain, reg u32 len, reg u256[8] k)
 {
   inline int i;
@@ -349,6 +368,7 @@ fn store_x4_last(reg u64 output plain, reg u32 len, reg u256[8] k)
 
 
 // stores 512 bytes auxiliary functions
+inline
 fn store_half_x8(reg u64 output plain, reg u32 len, reg u256[8] k, inline int o)
 {
   inline int i;
@@ -360,6 +380,7 @@ fn store_half_x8(reg u64 output plain, reg u32 len, reg u256[8] k, inline int o)
 }
 
 
+inline
 fn sub_rotate(reg u256[8] t) -> reg u256[8]
 {
   inline int i;
@@ -382,6 +403,7 @@ fn sub_rotate(reg u256[8] t) -> reg u256[8]
   return t;
 }
 
+inline
 fn rotate(reg u256[8] x) -> reg u256[8]
 {
   inline int i;
@@ -396,6 +418,7 @@ fn rotate(reg u256[8] x) -> reg u256[8]
   return t;
 }
 
+inline
 fn rotate_stack(stack u256[8] s) -> reg u256[8]
 {
   inline int i;
@@ -413,6 +436,7 @@ fn rotate_stack(stack u256[8] s) -> reg u256[8]
   return t;
 }
 
+inline
 fn rotate_first_half_x8(reg u256[16] k) -> reg u256[8], stack u256[8]
 {
   inline int i;
@@ -430,6 +454,7 @@ fn rotate_first_half_x8(reg u256[16] k) -> reg u256[8], stack u256[8]
   return k0_7, s_k8_15;
 }
 
+inline
 fn rotate_second_half_x8(stack u256[8] s_k8_15) -> reg u256[8]
 {
   inline int i;
@@ -438,6 +463,7 @@ fn rotate_second_half_x8(stack u256[8] s_k8_15) -> reg u256[8]
   return k8_15;
 }
 
+inline
 fn interleave(stack u256[8] s, reg u256[8] k, inline int o) -> reg u256[8]
 {
   inline int i;
@@ -451,6 +477,7 @@ fn interleave(stack u256[8] s, reg u256[8] k, inline int o) -> reg u256[8]
 }
 
 // stores 512 bytes
+inline
 fn store_x8(reg u64 output plain, reg u32 len, reg u256[16] k) -> reg u64, reg u64, reg u32
 {
   stack u256[8] s_k8_15;
@@ -467,6 +494,7 @@ fn store_x8(reg u64 output plain, reg u32 len, reg u256[16] k) -> reg u64, reg u
 }
 
 // stores up to 512 bytes
+inline
 fn store_x8_last(reg u64 output plain, reg u32 len, reg u256[16] k)
 {
   inline int i;
@@ -567,6 +595,7 @@ fn store_x8_last(reg u64 output plain, reg u32 len, reg u256[16] k)
 // in order to rotate by 12 and 7 it is necessary to perform a shift left, right and then or or xor
 // we can define a rotate_x8 function to abstract the previously described behaviours:
 
+inline
 fn rotate_x8(reg u256[4] k, inline int i r, reg u256 r16 r8) -> reg u256[4]
 {
   reg u256 t;
@@ -589,6 +618,7 @@ fn rotate_x8(reg u256[4] k, inline int i r, reg u256 r16 r8) -> reg u256[4]
 
 // line_x8 function performs 8 lines computations across "quarter_round's" and
 // "blocks" as previously described
+inline
 fn line_x8(reg u256[4] k, inline int a b c r, reg u256 r16 r8) -> reg u256[4]
 {
   k[a/4] +8u32= k[b/4];
@@ -604,6 +634,7 @@ fn line_x8(reg u256[4] k, inline int a b c r, reg u256 r16 r8) -> reg u256[4]
 //
 // since we wrote line_x8 with /4 at the indexes we can just define round_x2 as:
 //
+inline
 fn round_x2(reg u256[4] k, reg u256 r16 r8) -> reg u256[4]
 {
   k = line_x8(k, 0, 4, 12, 16, r16, r8);
@@ -614,6 +645,7 @@ fn round_x2(reg u256[4] k, reg u256 r16 r8) -> reg u256[4]
 }
 
 // and the function column_round_x2 consists in just a call to round_x2
+inline
 fn column_round_x2(reg u256[4] k, reg u256 r16 r8) -> reg u256[4]
 {
   k = round_x2(k, r16, r8);
@@ -650,6 +682,7 @@ fn column_round_x2(reg u256[4] k, reg u256 r16 r8) -> reg u256[4]
 //
 // this transformation of the state can be achieved with the following function:
 
+inline
 fn shuffle_state(reg u256[4] k) -> reg u256[4]
 {
   k[1] = #VPSHUFD_256(k[1], (4u2)[0,3,2,1]);
@@ -659,6 +692,7 @@ fn shuffle_state(reg u256[4] k) -> reg u256[4]
 }
 
 // and we also need the inverse function to put everything back into its place:
+inline
 fn reverse_shuffle_state(reg u256[4] k) -> reg u256[4]
 {
   k[1] = #VPSHUFD_256(k[1], (4u2)[2,1,0,3]);
@@ -668,6 +702,7 @@ fn reverse_shuffle_state(reg u256[4] k) -> reg u256[4]
 }
 
 // finally, diagonal_round_x2 can be defined as:
+inline
 fn diagonal_round_x2(reg u256[4] k, reg u256 r16 r8) -> reg u256[4]
 {
   k = shuffle_state(k);
@@ -677,6 +712,7 @@ fn diagonal_round_x2(reg u256[4] k, reg u256 r16 r8) -> reg u256[4]
 }
 
 // and the rounds_x2 function as:
+inline
 fn rounds_x2(reg u256[4] k) -> reg u256[4]
 {
   reg u64 c;
@@ -701,6 +737,7 @@ fn rounds_x2(reg u256[4] k) -> reg u256[4]
 // one described for round_x2.
 //
 // round_x4 goes through 4 blocks at a time:
+inline
 fn round_x4(reg u256[4] k1 k2, reg u256 r16 r8) -> reg u256[4], reg u256[4]
 {
   k1 = round_x2(k1, r16, r8);
@@ -709,12 +746,14 @@ fn round_x4(reg u256[4] k1 k2, reg u256 r16 r8) -> reg u256[4], reg u256[4]
 }
 
 // the following functions are just reusing previous definitions for rounds_x2
+inline
 fn column_round_x4(reg u256[4] k1 k2, reg u256 r16 r8) -> reg u256[4], reg u256[4]
 {
   k1, k2 = round_x4(k1, k2, r16, r8);
   return k1, k2;
 }
 
+inline
 fn shuffle_state_x2(reg u256[4] k1 k2) -> reg u256[4], reg u256[4]
 {
   k1 = shuffle_state(k1);
@@ -722,6 +761,7 @@ fn shuffle_state_x2(reg u256[4] k1 k2) -> reg u256[4], reg u256[4]
   return k1, k2;
 }
 
+inline
 fn reverse_shuffle_state_x2(reg u256[4] k1 k2) -> reg u256[4], reg u256[4]
 {
   k1 = reverse_shuffle_state(k1);
@@ -730,6 +770,7 @@ fn reverse_shuffle_state_x2(reg u256[4] k1 k2) -> reg u256[4], reg u256[4]
 }
 
 
+inline
 fn diagonal_round_x4(reg u256[4] k1 k2, reg u256 r16 r8) -> reg u256[4], reg u256[4]
 {
   k1, k2 = shuffle_state_x2(k1, k2);
@@ -738,6 +779,7 @@ fn diagonal_round_x4(reg u256[4] k1 k2, reg u256 r16 r8) -> reg u256[4], reg u25
   return k1, k2;
 }
 
+inline
 fn rounds_x4(reg u256[4] k1 k2) -> reg u256[4], reg u256[4]
 {
   reg u64 c;
@@ -792,6 +834,7 @@ fn rounds_x4(reg u256[4] k1 k2) -> reg u256[4], reg u256[4]
 // since we want to have as much free registers as possible we just need an alternative
 // definition of rotate_x8 that receives r16 and r8 as stack values (instead of registers):
 
+inline
 fn rotate_x8_s(reg u256[16] k, inline int i r, stack u256 r16 r8) -> reg u256[16]
 {
   reg u256 t;
@@ -813,6 +856,7 @@ fn rotate_x8_s(reg u256[16] k, inline int i r, stack u256 r16 r8) -> reg u256[16
 }
 
 // we can now define a function _line_x8_v such that:
+inline
 fn _line_x8_v(reg u256[16] k, inline int a b c r, stack u256 r16 r8) -> reg u256[16]
 {
   k[a] +8u32= k[b];
@@ -824,6 +868,7 @@ fn _line_x8_v(reg u256[16] k, inline int a b c r, stack u256 r16 r8) -> reg u256
 // and now a quarter_round function: (not used for compilation, just here for the
 // sake of the explanation):
 /*
+inline
 fn _quarter_round_x8(reg u256[16] k, inline int a b c d, stack u256 r16 r8) -> reg u256[16]
 {
   k = _line_x8_v(k, a, b, d, 16, r16, r8);
@@ -837,6 +882,7 @@ fn _quarter_round_x8(reg u256[16] k, inline int a b c d, stack u256 r16 r8) -> r
 // you can check the definition of rounds_x8 down bellow. But imagine that you want to
 // do some micro optimizations: let's say you wanted to merge both _quarter_round_x8 into
 // one double_quarter_round_x8 such that line_x8_v performs as follows:
+inline
 fn line_x8_v(reg u256[16] k, inline int a0 b0 c0 r0
                                         a1 b1 c1 r1, stack u256 r16 r8) -> reg u256[16]
 {
@@ -855,6 +901,7 @@ fn line_x8_v(reg u256[16] k, inline int a0 b0 c0 r0
 // and double quarter_round could be defined as (not used for compilation, just
 // here for the sake of the explanation):
 /*
+inline
 fn _double_quarter_round_x8(reg u256[16] k, inline int a0 b0 c0 d0
                                                        a1 b1 c1 d1, stack u256 r16 r8) -> reg u256[16]
 {
@@ -870,6 +917,7 @@ fn _double_quarter_round_x8(reg u256[16] k, inline int a0 b0 c0 d0
 // but imagine that you don't want to execute 2 shuffles (from memory operands)
 // next to each other...
 // we can just define a variant of the double_quarter_round_x8 such that:
+inline
 fn double_quarter_round_x8(reg u256[16] k, inline int a0 b0 c0 d0
                                                        a1 b1 c1 d1, stack u256 r16 r8) -> reg u256[16]
 {
@@ -883,6 +931,7 @@ fn double_quarter_round_x8(reg u256[16] k, inline int a0 b0 c0 d0
 }
 
 
+inline
 fn column_round_x8(reg u256[16] k, stack u256 k15 s_r16 s_r8) -> reg u256[16], stack u256
 {
   stack u256 k_;
@@ -897,6 +946,7 @@ fn column_round_x8(reg u256[16] k, stack u256 k15 s_r16 s_r8) -> reg u256[16], s
   return k, k_;
 }
 
+inline
 fn diagonal_round_x8(reg u256[16] k, stack u256 k14 s_r16 s_r8) -> reg u256[16], stack u256
 {
   stack u256 k_;
@@ -912,6 +962,7 @@ fn diagonal_round_x8(reg u256[16] k, stack u256 k14 s_r16 s_r8) -> reg u256[16],
 }
 
 
+inline
 fn rounds_x8(reg u256[16] k, stack u256 s_r16 s_r8) -> reg u256[16]
 {
   reg u64 c;
@@ -940,6 +991,7 @@ fn rounds_x8(reg u256[16] k, stack u256 s_r16 s_r8) -> reg u256[16]
 
 
 
+inline
 fn chacha20_more_than_256(reg u64 output plain, reg u32 len, reg u64 key nonce, reg u32 counter)
 {
   stack u256[16] st;
@@ -970,6 +1022,7 @@ fn chacha20_more_than_256(reg u64 output plain, reg u32 len, reg u64 key nonce, 
 
 
 
+inline
 fn chacha20_less_than_257(reg u64 output plain, reg u32 len, reg u64 key nonce, reg u32 counter)
 {
   reg u256[4] st k1 k2;

@@ -1,4 +1,5 @@
 // little endian for loads and stores
+inline
 fn load2(reg u64 p) -> reg u64[2]
 {
   reg u64[2] x;
@@ -9,6 +10,7 @@ fn load2(reg u64 p) -> reg u64[2]
 
 
 
+inline
 fn load_add(reg u64[3] h, reg u64 in) -> reg u64[3]
 {
   reg bool cf;
@@ -20,6 +22,7 @@ fn load_add(reg u64[3] h, reg u64 in) -> reg u64[3]
 
 
 
+inline
 fn load_last_add(reg u64[3] h, reg u64 in, reg u64 len) -> reg u64[3]
 {
   reg bool cf;
@@ -48,6 +51,7 @@ fn load_last_add(reg u64[3] h, reg u64 in, reg u64 len) -> reg u64[3]
 
 
 
+inline
 fn store2(reg u64 p, reg u64[2] x)
 {
   [p + 0] = x[0];
@@ -56,6 +60,7 @@ fn store2(reg u64 p, reg u64[2] x)
 
 
 
+inline
 fn clamp(reg u64 k) -> reg u64[3]
 {
   reg u64[3] r;
@@ -72,6 +77,7 @@ fn clamp(reg u64 k) -> reg u64[3]
 
 
 // h += s
+inline
 fn add2(reg u64[2] h, reg u64[2] s) -> reg u64[2]
 {
   reg bool cf;
@@ -82,6 +88,7 @@ fn add2(reg u64[2] h, reg u64[2] s) -> reg u64[2]
 
 
 
+inline
 fn mulmod(reg u64[3] h, reg u64[3] r) -> reg u64[3]
 {
   reg bool cf;
@@ -133,6 +140,7 @@ fn mulmod(reg u64[3] h, reg u64[3] r) -> reg u64[3]
 
 
 
+inline
 fn freeze(reg u64[3] h) -> reg u64[2]
 {
   reg bool cf;
@@ -174,6 +182,7 @@ fn freeze(reg u64[3] h) -> reg u64[2]
 
 
 
+inline
 fn poly1305_ref3_setup(reg u64 k) -> reg u64[3], reg u64[3], reg u64
 {
   inline int i;
@@ -189,6 +198,7 @@ fn poly1305_ref3_setup(reg u64 k) -> reg u64[3], reg u64[3], reg u64
 
 
 
+inline
 fn poly1305_ref3_update(reg u64 in, reg u64 inlen, reg u64[3] h, reg u64[3] r) -> reg u64, reg u64, reg u64[3]
 {
   reg bool cf;
@@ -207,6 +217,7 @@ fn poly1305_ref3_update(reg u64 in, reg u64 inlen, reg u64[3] h, reg u64[3] r) -
 
 
 
+inline
 fn poly1305_ref3_last(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k, reg u64[3] h, reg u64[3] r)
 {
   reg u64[2] m, s;
@@ -226,6 +237,7 @@ fn poly1305_ref3_last(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k, reg u64
 
 
 
+inline
 fn poly1305_ref3_local(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k)
 {
   reg u64[3] h;
@@ -250,6 +262,7 @@ u64 bit25_u64 = 0x1000000;
 
 
 
+inline
 fn times_5(stack u256[5] r1234) -> stack u256[4]
 {
   inline int i;
@@ -265,6 +278,7 @@ fn times_5(stack u256[5] r1234) -> stack u256[4]
 
 
 
+inline
 fn broadcast_r4(stack u256[5] r1234, stack u256[4] r1234x5) -> stack u256[5], stack u256[4]
 {
   inline int i;
@@ -285,6 +299,7 @@ fn broadcast_r4(stack u256[5] r1234, stack u256[4] r1234x5) -> stack u256[5], st
 
 
 
+inline
 fn poly1305_avx2_setup(reg u64[3] r) ->
   stack u256[5], stack u256[4],
   stack u256[5], stack u256[4]
@@ -309,7 +324,7 @@ fn poly1305_avx2_setup(reg u64[3] r) ->
     l &= mask26;
     r1234[u64  3 + 4] = l;
     l =  rt[0];
-    l = #SHRD(l,  rt[1], 52);
+    _, _, _, _, _, l = #SHRD(l,  rt[1], 52);
     h = l;
     l &= mask26;
     r1234[u64  3 + 8] = l;
@@ -318,7 +333,7 @@ fn poly1305_avx2_setup(reg u64[3] r) ->
     l &= mask26;
     r1234[u64  3 + 12] = l;
     l =  rt[1];
-    l = #SHRD(l,  rt[2], 40);
+    _, _, _, _, _, l = #SHRD(l,  rt[2], 40);
     r1234[u64  3 + 16] = l;
   
 
@@ -335,7 +350,7 @@ fn poly1305_avx2_setup(reg u64[3] r) ->
     l &= mask26;
     r1234[u64  (2-i) + 4] = l;
     l =  rt[0];
-    l = #SHRD(l,  rt[1], 52);
+    _, _, _, _, _, l = #SHRD(l,  rt[1], 52);
     h = l;
     l &= mask26;
     r1234[u64  (2-i) + 8] = l;
@@ -344,7 +359,7 @@ fn poly1305_avx2_setup(reg u64[3] r) ->
     l &= mask26;
     r1234[u64  (2-i) + 12] = l;
     l =  rt[1];
-    l = #SHRD(l,  rt[2], 40);
+    _, _, _, _, _, l = #SHRD(l,  rt[2], 40);
     r1234[u64  (2-i) + 16] = l;
       }
 
@@ -362,6 +377,7 @@ fn poly1305_avx2_setup(reg u64[3] r) ->
 // very close (pratically the same except the first 5 lines) adaptation of the
 // strategy used by OpenSSL's AVX2 codepath to load 64 bytes for poly1305
 // it includes some annotations to easy out the correction proof
+inline
 fn load_avx2(reg u64 in, reg u256 mask26, stack u256 s_bit25) -> reg u256[5], reg u64
 {
   reg u256[5] m;
@@ -425,6 +441,7 @@ fn load_avx2(reg u64 in, reg u256 mask26, stack u256 s_bit25) -> reg u256[5], re
 
 
 
+inline
 fn pack_avx2(reg u256[5] h) -> reg u64[3]
 {
   reg bool cf;
@@ -518,6 +535,7 @@ fn pack_avx2(reg u256[5] h) -> reg u64[3]
 
 
 
+inline
 fn carry_reduce_avx2(reg u256[5] x, reg u256 mask26) -> reg u256[5]
 {
   reg u256[2] z;
@@ -610,6 +628,7 @@ fn carry_reduce_avx2(reg u256[5] x, reg u256 mask26) -> reg u256[5]
 //  (h3*r0 + h2*r1 + h4*r4*5 + h1*r2   +         + h0*r3                    ) * 2^78 +
 //  (h4*r0 + h3*r1 +           h2*r2   +         + h1*r3 +           h0*r4  ) * 2^104
 
+inline
 fn add_mulmod_avx2(
   reg u256[5] h,
   reg u256[5] m,
@@ -745,6 +764,7 @@ fn add_mulmod_avx2(
 
 
 
+inline
 fn mainloop_avx2_v0(
   reg u256[5] h,
   reg u256[5] m,
@@ -769,6 +789,7 @@ fn mainloop_avx2_v0(
 
 
 // full inline and instruction permutation of mainloop_avx2_v0
+inline
 fn mainloop_avx2_v1(
   reg u256[5] h,
   reg u256[5] m,
@@ -950,6 +971,7 @@ fn mainloop_avx2_v1(
 
 
 
+inline
 fn final_avx2_v0(
   reg u256[5] h,
   reg u256[5] m,
@@ -971,6 +993,7 @@ fn final_avx2_v0(
 
 
 // update AVX2
+inline
 fn poly1305_avx2_update(
   reg u64 in, reg u64 len,
   stack u256[5] r4444,  
@@ -1007,6 +1030,7 @@ fn poly1305_avx2_update(
 
 
 
+inline
 fn poly1305_avx2_wrapper(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k)
 {
   reg u64[3] h;
