@@ -5,6 +5,7 @@ param int rem_p = 38; /* 2^(4*64) mod p */
 // ** addition
 // ************************************************************************
 
+inline
 fn add(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
 
   reg u64    add0;
@@ -39,6 +40,7 @@ fn add(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
 // ** subtraction
 // ************************************************************************
 
+inline
 fn sub(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
 
   reg u64 sub0;
@@ -75,6 +77,7 @@ fn sub(reg u64[4] x, stack u64[4] ya) -> reg u64[4] {
 // ** reduction from 8 limbs to 4 limbs
 // ************************************************************************
 
+inline
 fn reduce(reg u64[8] z) -> reg u64[4] {
 
   reg u64 z8;
@@ -141,6 +144,7 @@ fn reduce(reg u64[8] z) -> reg u64[4] {
 // ** multiplication
 // ************************************************************************
 
+inline
 fn mul(stack u64[4] xa, stack u64[4] ya) -> reg u64[4] {
 
   reg u64[8] z;
@@ -201,6 +205,7 @@ fn mul(stack u64[4] xa, stack u64[4] ya) -> reg u64[4] {
 // ** multiplication by small constant 121666
 // ************************************************************************
 
+inline
 fn mul121666(stack u64[4] xa) -> reg u64[4] {
  
   reg u64 rax;
@@ -257,6 +262,7 @@ fn mul121666(stack u64[4] xa) -> reg u64[4] {
 // ** squaring
 // ************************************************************************
 
+inline
 fn square(stack u64[4] xa) -> reg u64[4] {
 
   reg u64 zero;
@@ -364,6 +370,7 @@ fn square(stack u64[4] xa) -> reg u64[4] {
 }
 
 
+inline
 fn iterated_square(stack u64[4] xa, stack u64 n) -> stack u64[4] {
 
   reg u64[8] z;
@@ -471,6 +478,7 @@ fn iterated_square(stack u64[4] xa, stack u64 n) -> stack u64[4] {
 // ** ladderstep
 // ************************************************************************
 
+inline
 fn ladderstep(stack u64[4] x1p, reg u64[4] x2, stack u64[4] z2p, stack u64[4] x3p, stack u64[4] z3p)
     -> (reg u64[4] , stack u64[4] , stack u64[4] , stack u64[4]) {
 
@@ -549,6 +557,7 @@ fn ladderstep(stack u64[4] x1p, reg u64[4] x2, stack u64[4] z2p, stack u64[4] x3
 // ** cswap
 // ************************************************************************
 
+inline
 fn cswap(stack u64[4] x2p, stack u64[4] z2p, stack u64[4] x3p, stack u64[4] z3p, reg u64 swap)
     -> (reg u64[4] , stack u64[4] , stack u64[4] , stack u64[4]) {
 
@@ -586,6 +595,7 @@ fn cswap(stack u64[4] x2p, stack u64[4] z2p, stack u64[4] x3p, stack u64[4] z3p,
 // ** montgomery ladder
 // ************************************************************************
 
+inline
 fn mladder(stack u64[4] x2, stack u64[4] z2, stack u64[4] xr, reg u64 sp) -> (stack u64[4], stack u64[4]) {
 
   stack u64    s;
@@ -640,6 +650,7 @@ fn mladder(stack u64[4] x2, stack u64[4] z2, stack u64[4] xr, reg u64 sp) -> (st
 // ** inversion
 // ************************************************************************
 
+inline
 fn invert(stack u64[4] xa) -> stack u64[4] {
   stack u64[4] z2;
   stack u64[4] t;
@@ -707,6 +718,7 @@ fn invert(stack u64[4] xa) -> stack u64[4] {
 // ** unpack_point
 // ************************************************************************
 
+inline
 fn unpack_point(stack u64[4] xa, reg u64 xp) -> stack u64[4] {
   reg u64 x3;
   reg u64 buf;
@@ -725,6 +737,7 @@ fn unpack_point(stack u64[4] xa, reg u64 xp) -> stack u64[4] {
 // ** unpack_secret
 // ************************************************************************
 
+inline
 fn unpack_secret(reg u64 sp) {
   reg u64[4] sa;
   reg u64 si;
@@ -748,6 +761,7 @@ fn unpack_secret(reg u64 sp) {
 // ** freeze
 // ************************************************************************
 
+inline
 fn freeze(reg u64[4] xa) -> reg u64[4] {
   reg u64[4] r;
   reg u64[4] t;
@@ -789,6 +803,7 @@ fn freeze(reg u64[4] xa) -> reg u64[4] {
 // ************************************************************************
 
 // assumes input x reduced below 2^255 */
+inline
 fn pack(reg u64 rp, reg u64[4] xa) {
   inline int i;
 
