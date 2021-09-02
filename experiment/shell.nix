@@ -7,12 +7,12 @@ let inherit (coqPackages) coq; in
 
 let jasmin =
 stdenv.mkDerivation rec {
-  name = "jasmin-20210408";
+  name = "jasmin-20210826";
   src = fetchFromGitHub {
     owner = "jasmin-lang";
     repo = "jasmin";
-    rev = "ac5e3c913a56e487abbcf73d3c0214199941269e";
-    sha256 = "0s63c055hjxbs1mggnj42qvahzcssjk5c4w3fs7mz6b1x71iscl1";
+    rev = "7eedba4f4b68e8cf06b0ec9e1beaac1c6f54f104";
+    sha256 = "1gmqdbkiwy3510zq76z05pg1lnmc5r79r18qy6gsd7bl17074mw9";
   };
 
   buildInputs = [ coq coqword mpfr ppl ]
