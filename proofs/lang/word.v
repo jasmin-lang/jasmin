@@ -408,17 +408,6 @@ Lemma wsignedE sz (w: word sz) :
   wsigned w = if msb w then wunsigned w - wbase sz else wunsigned w.
 Proof. done. Qed.
 
-Lemma wsigned_msb sz (w: word sz) : 
- (wsigned w < 0%Z)%CMP = msb w.
-Proof. 
-have [h1 h2] := wunsigned_range w. rewrite /wunsigned /= urepr_word /= in h2 h1. 
-rewrite wsignedE /= /wunsigned /= urepr_word /=.
-case: msb=> //=.
-+ admit.
-case: (w) h1=> //= z h1 h1'.
-have heq := Z_le_lt_eq_dec 0 z h1'.
-Admitted.
-
 (* -------------------------------------------------------------------*)
 Lemma msb0 sz : @msb sz 0 = false.
 Proof. by case: sz. Qed.

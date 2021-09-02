@@ -465,7 +465,7 @@ Definition leak_sop2_typed (o: sop2) :=
     fun lo div => 
       let hi := 
           if u is Unsigned then 0%R 
-          else (if (wsigned lo < 0%Z)%CMP then (-1)%R else 0%R) in 
+          else (if (*(wsigned lo < 0%Z)%CMP*) (msb lo) then (-1)%R else 0%R) in 
       @div_leak s hi lo div
   | o => op_leak_ty [::(type_of_op2 o).1.1; (type_of_op2 o).1.2]
   end.

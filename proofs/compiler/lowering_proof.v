@@ -1032,9 +1032,9 @@ Qed.
     (sz ≤ sz')%CMP →
     mk_lea sz e = Some l ->
     sem_pexpr gd s e = ok (Vword w, le) ->
-    (*exists lt,*) sem_lea sz (evm s) l = ok (zero_extend sz w) 
-    /\ leak_e_asm le (*(leak_E stk lt le)*) = [::].
-  Proof. Print mk_lea.
+    sem_lea sz (evm s) l = ok (zero_extend sz w) 
+    /\ leak_e_asm le = [::].
+  Proof. 
     rewrite /mk_lea => h1 h2 hrec.
     move=> /push_castP [v' [le' [he [hu hl]]]].
     have [sz1 [w1 [? /andP [] hle /eqP ->]]]:= value_uinclE hu; subst v'.
@@ -1566,8 +1566,7 @@ Qed.
           move: Hw. rewrite /wdivi zero_extend_u => /(write_lval_same hl' hs1) [s1' [hs1'] ?] /=.
           exists s1'. eexists. exists [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lv; LEmpty]. split=> //=.
           by rewrite hs1' /=. rewrite -hl /=. split=> //=. rewrite /div_leak in hh. case: hh=> <- /=.
-          rewrite hw2 in hw5. case: hw5=> <-. rewrite hw1 in hw4. case: hw4=> ->.
-          by rewrite wsigned_msb.
+          rewrite hw2 in hw5. case: hw5=> <-. rewrite hw1 in hw4. by case: hw4=> ->.
         have hw2' : (wunsigned w2 == 0%Z) = false.
         + by apply /negbTE; apply /eqP => h; apply neq, wunsigned_inj.
         move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl' hs1) [s1' [hs1'] ?] /=.
@@ -1603,8 +1602,7 @@ Qed.
           move: Hw. rewrite /wdivi zero_extend_u => /(write_lval_same hl' hs1) [s1' [hs1'] ?] /=.
           exists s1'. eexists. exists [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; lv]. split=> //=.
           by rewrite hs1' /=. rewrite -hl /=. split=> //=. rewrite /div_leak in hh. case: hh=> <- /=.
-          rewrite hw2 in hw5. case: hw5=> <-. rewrite hw1 in hw4. case: hw4=> ->.
-          by rewrite wsigned_msb.
+          rewrite hw2 in hw5. case: hw5=> <-. rewrite hw1 in hw4. by case: hw4=> ->.
         have hw2' : (wunsigned w2 == 0%Z) = false.
         + by apply /negbTE; apply /eqP => h; apply neq, wunsigned_inj.
         move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl' hs1) [s1' [hs1'] ?] /=.
