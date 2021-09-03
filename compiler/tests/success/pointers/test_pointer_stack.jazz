@@ -12,7 +12,7 @@ inline fn sum (stack u64[1] a, stack u64[1] b) -> stack u64[1] {
    return d;
 }
 
-#[stacksize="16"]
+@stacksize=16
 export fn test() -> reg u64 {
   stack u64[1] a1;
   stack u64[1] a2;

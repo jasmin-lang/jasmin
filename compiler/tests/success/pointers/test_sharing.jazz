@@ -11,7 +11,7 @@ inline fn mul5 (reg u64 x) -> reg u64 {
 }
 
 /* the size of the stack frame should be 32 */
-#[stacksize="32"]
+@stacksize=32
 export fn main(reg u64 in) -> reg u64 {
   reg u64 x;
   reg u64 r;

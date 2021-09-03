@@ -15,7 +15,6 @@
 
 %token LBRACKET
 %token RBRACKET
-%token SHARPLBRACKET
 %token LBRACE
 %token RBRACE
 %token LPAREN
@@ -80,7 +79,7 @@
 %token <string> NID
 %token <Bigint.zint> INT
 %token <string> STRING
-
+%token AT
 %nonassoc COLON QUESTIONMARK
 %left PIPEPIPE
 %left AMPAMP
@@ -108,14 +107,42 @@ var:
 
 (* ** Annotations
 * -------------------------------------------------------------------- *)
-attribute:
+(*attribute:
   | k=NID EQ v=STRING { (k, v) }
 
 annotation:
   | SHARPLBRACKET a=separated_list(COMMA, attribute) RBRACKET { a }
 
 annotations:
-  | a = list(annotation) { List.concat a }
+  | a = list(annotation) { List.concat a } *)
+
+int: 
+  | i=INT       { i }
+  | MINUS i=INT { Bigint.neg i } 
+
+simple_attribute:
+  | i=int    { Aint i    }
+  | id=NID   { Aid id    }
+  | s=STRING { Astring s }
+  | ws=utype { Aws ws    } 
+
+attribute_param:
+  | EQ ap=separated_nonempty_list(COMMA, loc(simple_attribute)) { Alist ap }
+  | EQ s=struct_annot                                           { Astruct s }
+
+attribute:
+  | k=ident v=attribute_param? { k, v }
+
+struct_annot:
+  | LBRACE a=separated_list(SEMICOLON, attribute) RBRACE { a }
+  
+annotation:
+  | AT a=attribute    { [a] }
+  | AT a=struct_annot {  a }
+
+annotations:
+  | l=list(annotation) { List.concat l }
+  
 
 (* ** Type expressions
  * -------------------------------------------------------------------- *)

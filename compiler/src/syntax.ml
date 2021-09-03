@@ -74,6 +74,21 @@ let string_of_svsize (sv,sg,ve) =
     (int_of_vsize sv) (suffix_of_sign sg) (bits_of_vesize ve)
 
 (* -------------------------------------------------------------------- *)
+type simple_attribute = 
+  | Aint    of Bigint.zint 
+  | Aid     of symbol
+  | Astring of string
+  | Aws     of wsize 
+
+type attribute =
+  | Alist of simple_attribute L.located list
+  | Astruct of annotation list 
+
+and annotation = pident * attribute option
+
+and annotations = annotation list
+
+(* -------------------------------------------------------------------- *)
 type cast = [ `ToWord  of swsize | `ToInt ]
 
 type peop1 = [ 
@@ -241,7 +256,7 @@ type pcall_conv = [
 ]
 
 type pfundef = {
-  pdf_annot : (string * string) list;
+  pdf_annot : annotations;
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
   pdf_args : (pstotype * pident) list;

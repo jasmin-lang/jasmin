@@ -1474,36 +1474,72 @@ let tt_call_conv loc params returns cc =
 
 (* -------------------------------------------------------------------- *)
 
+let get_single_attribute id a = 
+  match a with
+  | Some (S.Alist [a]) -> a
+  | _ -> rs_tyerror ~loc:(L.loc id) (string_error "single attribute expected for “%s”" (L.unloc id))
+
+let string_attribute id a =
+  match L.unloc a with
+  | S.Astring s -> s
+  | S.Aid s     -> s
+  | _ -> rs_tyerror ~loc:(L.loc a) (string_error "attribute for “%s” should be a string or an ident" id)
+
 let ws_of_string = 
   let l = List.map (fun ws -> P.string_of_ws ws, ws) 
             [U8;U16;U32;U64;U128;U256] in
   fun s -> List.assoc s l 
 
-let process_f_annot loc annot = 
+
+let find_attribute name annot =
+  List.find (fun (id,_) -> L.unloc id = name) annot 
+
+let process_f_annot annot = 
   let open P in
   let do1 name mk_info = 
-    match List.assoc name annot with
+    match find_attribute name annot with
     | v -> Some (mk_info v)
     | exception Not_found -> None in
 
-  let mk_ra = function
+  let mk_ra (id, a) =
+    let a = get_single_attribute id a in
+    let name = L.unloc id in
+    match string_attribute name a with 
     | "stack" -> OnStack
     | "reg"   -> OnReg
     | s       -> 
-      rs_tyerror ~loc 
+      rs_tyerror ~loc:(L.loc a)
         (string_error
-    "Bad value for “returnaddress” annotation (expected “reg” or “stack”): %s" 
-    s) in
+           "Bad attribute for “%s” annotation (expected “reg” or “stack”): %s" name s) in
 
-  let mk_stksize s =
-    try B.of_string s 
-    with B.InvalidString ->
-      rs_tyerror ~loc (string_error "Bad value for “stacksize”") in
+  let mk_stksize (id,a) =
+    let a = get_single_attribute id a in
+    let name = L.unloc id in
+    let error () =
+      rs_tyerror ~loc:(L.loc a) (string_error "attribute for “%s” should be a positive integer" name) in
+    let i = 
+      match L.unloc a with
+      | S.Astring s ->
+        begin 
+          try B.of_string s 
+          with B.InvalidString -> error()
+        end
+      | S.Aint i -> i
+      | _ -> error () in
+    if Bigint.lt i Bigint.zero then error();
+    i 
+  in
   
-  let mk_stkalign s =
-    try ws_of_string s 
-    with Not_found ->
-      rs_tyerror ~loc (string_error "Bad value for “stackalign”") in
+  let mk_stkalign (id,a) =
+    let a = get_single_attribute id a in
+    let name = L.unloc id in
+    let error () =
+      rs_tyerror ~loc:(L.loc a) (string_error "attribute for “%s” should be word size" name) in
+    match L.unloc a with
+    | S.Astring s -> (try ws_of_string s with Not_found -> error ())
+    | S.Aws ws    -> tt_ws ws
+    | _ -> error ()
+    in
 
   { retaddr_kind = do1 "returnaddress" mk_ra;
     stack_allocation_size = do1 "stackallocsize" mk_stksize;
@@ -1523,7 +1559,7 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env =
   let args = List.map L.unloc args in
   let fdef =
     { P.f_loc   = loc;
-      P.f_annot = process_f_annot loc pf.pdf_annot;
+      P.f_annot = process_f_annot pf.pdf_annot;
       P.f_cc    = f_cc;
       P.f_name  = P.F.mk (L.unloc pf.pdf_name);
       P.f_tyin  = List.map (fun { P.v_ty } -> v_ty) args;

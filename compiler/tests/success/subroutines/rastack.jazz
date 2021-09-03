@@ -1,4 +1,4 @@
-#[returnaddress="stack", stacksize="8"]
+@{returnaddress="stack"; stacksize=8}
 fn copy(reg u64 x) -> reg u64 {
 reg u64 r;
 stack u64 t;
@@ -7,7 +7,7 @@ r = t;
 return r;
 }
 
-#[stacksize="0"]
+@stacksize=0
 export
 fn main(reg u64 arg) -> reg u64 {
 reg u64 result;
@@ -15,7 +15,7 @@ result = copy(arg);
 return result;
 }
 
-#[returnaddress="stack"]
+@returnaddress="stack"
 fn copy32(reg u32 x) -> reg u32 {
 reg u32 r;
 stack u32 t;
@@ -24,7 +24,7 @@ r = t;
 return r;
 }
 
-#[stacksize="0", stackalign="u64"]
+@{stacksize=0; stackalign=u64}
 export
 fn main32(reg u32 arg) -> reg u32 {
 reg u32 result;
@@ -40,7 +40,7 @@ r = t;
 return r;
 }
 
-#[stacksize="0", stackalign="u32"]
+@{stacksize=0; stackalign=u32}
 export
 fn main32_32(reg u32 arg) -> reg u32 {
 reg u32 result;
@@ -48,7 +48,7 @@ result = copy32_32(arg);
 return result;
 }
 
-#[returnaddress="stack", stacksize="20", stackalign="u128"]
+@{returnaddress="stack"; stacksize=20; stackalign=u128}
 fn copy128(reg u128 x) -> reg u128 {
 reg u128 r w;
 stack u128 t;
@@ -61,7 +61,7 @@ r +4u32= w;
 return r;
 }
 
-#[stacksize="0"]
+@stacksize=0
 export
 fn main128(reg u128 arg) -> reg u128 {
 reg u128 result;
