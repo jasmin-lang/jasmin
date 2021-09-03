@@ -222,9 +222,11 @@ type peqop = [
 (* -------------------------------------------------------------------- *)
 type align = [`Align | `NoAlign]
 
+type plvals = annotations L.located option * plvalue list
+
 type pinstr_r =
   | PIArrayInit of pident
-  | PIAssign    of plvalue list * peqop * pexpr * pexpr option
+  | PIAssign    of plvals * peqop * pexpr * pexpr option
   | PIIf        of pexpr * pblock * pblock option
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock
   | PIWhile     of align * pblock option * pexpr * pblock option

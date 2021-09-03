@@ -136,6 +136,30 @@ let pp_svsize fmt (vs,s,ve) =
 let pp_space fmt _ =
   F.fprintf fmt " "
 
+let pp_simple_attribute fmt a = 
+  match L.unloc a with 
+  | Aint i -> Bigint.pp_print fmt i
+  | Aid s | Astring s -> Format.fprintf fmt "%s" s
+  | Aws ws -> Format.fprintf fmt "u%i" (bits_of_wsize ws)
+
+let rec pp_attribute fmt = function
+  | Some (Alist l) -> Format.fprintf fmt "=@ @[%a@]" (pp_list "@ " pp_simple_attribute) l
+  | Some (Astruct struct_) -> Format.fprintf fmt "=@ %a" pp_struct_attribute struct_ 
+  | None -> ()
+
+and pp_struct_attribute fmt struct_ =   
+  Format.fprintf fmt "@[<hov 1 2>{ %a }@]" (pp_list ",@ " pp_annotation) struct_
+
+and pp_annotation fmt (id,atr) = 
+  Format.fprintf fmt "@[%s = %a@]" (L.unloc id) pp_attribute atr
+
+let pp_top_annotations fmt annot = 
+  match annot with
+  | []  -> ()
+  | [a] -> Format.fprintf fmt "@@%a" pp_annotation a
+  | _   -> Format.fprintf fmt "@@%a" pp_struct_attribute annot
+
+  
 let rec pp_expr_rec prio fmt pe =
   match L.unloc pe with
   | PEParens e -> pp_expr_rec prio fmt e
@@ -260,10 +284,17 @@ let rec pp_instr depth fmt p =
   indent fmt depth;
   match L.unloc p with
   | PIArrayInit x -> F.fprintf fmt "%a (%a);" kw "arrayinit" pp_var x
-  | PIAssign (lvs, op, e, cnd) ->
-    begin match lvs with
-    | [] -> ()
-    | _ -> F.fprintf fmt "%a %a " (pp_list ", " pp_lv) lvs pp_eqop op end;
+  | PIAssign ((pimp,lvs), op, e, cnd) ->
+    begin match pimp, lvs with
+    | None, [] -> ()
+    | None, _ -> F.fprintf fmt "%a %a " (pp_list ", " pp_lv) lvs pp_eqop op 
+    | Some pimp, _ -> 
+      F.fprintf fmt "?{%a}, %a %a " 
+        pp_struct_attribute (L.unloc pimp)
+        (pp_list ", " pp_lv) lvs 
+        pp_eqop op
+      
+    end;
     F.fprintf fmt "%a%a;"
       pp_expr e
       (pp_opt pp_sidecond) cnd

@@ -71,7 +71,7 @@ result = copy(x);
 return result;
 }
 
-@{stacksize="0"; stackalign="u64"}
+@{stacksize="0", stackalign="u64"}
 export
 fn test5(reg u64 x) -> reg u64 {
 reg u64 result;
@@ -81,7 +81,7 @@ result = copy(x);
 return result;
 }
 
-@{stacksize=0; stackalign=u64}
+@{stacksize=0, stackalign=u64}
 export
 fn test6(reg u64 x) -> reg u64 {
 reg u64 result;

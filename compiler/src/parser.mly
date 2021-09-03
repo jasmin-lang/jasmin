@@ -107,14 +107,6 @@ var:
 
 (* ** Annotations
 * -------------------------------------------------------------------- *)
-(*attribute:
-  | k=NID EQ v=STRING { (k, v) }
-
-annotation:
-  | SHARPLBRACKET a=separated_list(COMMA, attribute) RBRACKET { a }
-
-annotations:
-  | a = list(annotation) { List.concat a } *)
 
 int: 
   | i=INT       { i }
@@ -127,14 +119,14 @@ simple_attribute:
   | ws=utype { Aws ws    } 
 
 attribute_param:
-  | EQ ap=separated_nonempty_list(COMMA, loc(simple_attribute)) { Alist ap }
-  | EQ s=struct_annot                                           { Astruct s }
+  | EQ ap=nonempty_list(loc(simple_attribute)) { Alist ap }
+  | EQ s=struct_annot                          { Astruct s }
 
 attribute:
   | k=ident v=attribute_param? { k, v }
 
 struct_annot:
-  | LBRACE a=separated_list(SEMICOLON, attribute) RBRACE { a }
+  | LBRACE a=separated_list(COMMA, attribute) RBRACE { a }
   
 annotation:
   | AT a=attribute    { [a] }
@@ -314,18 +306,22 @@ plvalue:
 
 (* ** Control instructions
  * -------------------------------------------------------------------- *)
+plvalues:
+| lv=tuple1(plvalue) { None, lv }
+| QUESTIONMARK s=loc(struct_annot) { Some s, [] }
+| QUESTIONMARK s=loc(struct_annot) COMMA lv=rtuple1(plvalue) { Some s, lv }
 
 pinstr_r:
 | ARRAYINIT x=parens(var) SEMICOLON
     { PIArrayInit x }
 
-| x=tuple1(plvalue) o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON
+| x=plvalues o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON
     { PIAssign (x, o, e, c) }
 
 | fc=loc(f=var args=parens_tuple(pexpr) { (f, args) })
     c=prefix(IF, pexpr)? SEMICOLON
     { let { L.pl_loc = loc; L.pl_desc = (f, args) } = fc in
-      PIAssign ([], `Raw, L.mk_loc loc (PECall (f, args)), c) }
+      PIAssign ((None, []), `Raw, L.mk_loc loc (PECall (f, args)), c) }
 
 | IF c=pexpr i1s=pblock
     { PIIf (c, i1s, None) }

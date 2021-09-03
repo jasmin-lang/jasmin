@@ -347,6 +347,18 @@ end = struct
 end
 
 (* -------------------------------------------------------------------- *)
+let get_single_attribute id a = 
+  match a with
+  | Some (S.Alist [a]) -> a
+  | _ -> rs_tyerror ~loc:(L.loc id) (string_error "single attribute expected for “%s”" (L.unloc id))
+
+let string_attribute id a =
+  match L.unloc a with
+  | S.Astring s -> s
+  | S.Aid s     -> s
+  | _ -> rs_tyerror ~loc:(L.loc a) (string_error "attribute for “%s” should be a string or an ident" id)
+
+(* -------------------------------------------------------------------- *)
 let tt_ws (ws : S.wsize) =
   match ws with
   | `W8   -> W.U8
@@ -1027,10 +1039,12 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 let f_sig f =
   List.map P.ty_i f.P.f_ret, List.map (fun v -> v.P.v_ty) f.P.f_args
 
-let prim_sig (type a) p : a P.gty list * a P.gty list =
+let prim_sig (type a) p : a P.gty list * a P.gty list * X86_decl.arg_desc list =
   let f = conv_ty in
-  List.map f (E.sopn_tout p),
-  List.map f (E.sopn_tin p)
+  let o = E.get_instr p in
+  List.map f o.E.tout,
+  List.map f o.E.tin,
+  o.E.i_out
 
 type prim_constructor =
   | PrimP of W.wsize * (W.wsize -> Expr.sopn)
@@ -1238,17 +1252,63 @@ let pexpr_of_plvalue exn l =
   | S.PLMem(ty,x,e) -> L.mk_loc (L.loc l) (S.PEFetch(ty,x,e))
 
 
-let tt_lvalues env pls tys =
+let tt_lvalues env (pimp, pls) implicit tys =
+  let open X86_decl in
+  let loc = loc_of_tuples (List.map P.L.loc pls) in
+  let ignore_ = L.mk_loc loc S.PLIgnore in
+
+
+  let extend_pls n = 
+     let nargs = List.length pls in
+     if nargs < n then
+       let nextra = n - nargs in
+       warning IntroduceNone "at %a, introduce %d _ lvalues" P.L.pp_sloc loc nextra;
+       List.make nextra ignore_ @ pls
+     else pls in
+
+  let pls = 
+    match pimp, implicit with
+    | None, _ -> extend_pls (List.length tys)
+    | Some pimp, None -> rs_tyerror ~loc:(L.loc pimp) (string_error "no implicit argument expected");
+    | Some pimp, Some implicit ->
+      let pimp = L.unloc pimp in
+      let nb_explicit = 
+        List.count_matching (function ADExplicit _ -> true | _ -> false) implicit in
+      let pls = extend_pls nb_explicit in
+      let implicit = 
+        let open X86_variables in
+        List.map (function ADExplicit _           -> None 
+                         | ADImplicit (IArflag f) -> Some (Conv.string_of_string0 (string_of_rflag f))
+                         | ADImplicit (IAreg r)   -> Some (Conv.string_of_string0 (string_of_register r))) implicit in
+
+      let mk_implicit (id, a) = 
+        let loc = L.loc id in
+        let nid = L.unloc id in
+        if not (List.mem (Some nid) implicit) then 
+          rs_tyerror ~loc (string_error "unknown implicit label %s" nid);
+        let name = 
+          match a with 
+          | None -> id 
+          | Some _ -> 
+            let a = get_single_attribute id a in
+            L.mk_loc (L.loc a) (string_attribute nid a) 
+        in
+        (nid, L.mk_loc (L.loc name) (S.PLVar name)) in
+      let pimp = List.map mk_implicit pimp in
+
+      let get_implicit i = 
+        try List.assoc i pimp 
+        with Not_found -> ignore_ in
+
+      let rec aux implicit pls = 
+        match implicit, pls with
+        | [], _                      -> pls 
+        | None :: implicit, x :: pls -> x :: aux implicit pls 
+        | None :: _, []              -> assert false  
+        | Some i :: implicit, pls    -> get_implicit i :: aux implicit pls in
+      aux implicit pls in
+
   let ls = List.map (tt_lvalue env) pls in
-  let n1 = List.length ls in
-  let n2 = List.length tys in
-  let ls = 
-    if n1 < n2 then
-      let n = n2 - n1 in
-      let loc = loc_of_tuples (List.map P.L.loc pls) in
-      warning IntroduceNone "at %a, introduce %d _ lvalues" P.L.pp_sloc loc n;
-      List.make n (loc, (fun ty ->  P.Lnone(loc,ty)), None) @ ls
-    else ls in
   check_sig_lvs tys ls
 
 let tt_exprs_cast env les tys =
@@ -1316,7 +1376,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
     | S.PIAssign (ls, `Raw, { pl_desc = PECall (f, args) }, None) ->
       let (f,tlvs) = tt_fun env f in
       let _tlvs, tes = f_sig f in
-      let lvs = tt_lvalues env ls tlvs in
+      let lvs = tt_lvalues env ls None tlvs in
       let es  = tt_exprs_cast env args tes in
       let is_inline = 
         match f.P.f_cc with 
@@ -1326,12 +1386,12 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
 
     | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim f in
-      let tlvs, tes = prim_sig p in
-      let lvs = tt_lvalues env ls tlvs in
+      let tlvs, tes, implicit = prim_sig p in
+      let lvs = tt_lvalues env ls (Some implicit) tlvs in
       let es  = tt_exprs_cast env args tes in
       P.Copn(lvs, AT_none, p, es)
 
-    | PIAssign([lv], `Raw, pe, None) ->
+    | PIAssign((None,[lv]), `Raw, pe, None) ->
       let _, flv, vty = tt_lvalue env lv in
       let e, ety = tt_expr ~mode:`AllVar env pe in
       let e = vty |> omap_dfl (cast (L.loc pe) e ety) e in
@@ -1356,14 +1416,14 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let i = L.mk_loc loc (S.PIAssign(ls, `Raw, pe, None)) in
       (tt_instr env i).P.i_desc
 
-    | S.PIAssign(ls, eqop, pe, None) ->
+    | S.PIAssign((pimp,ls), eqop, pe, None) ->
       let op = oget (peop2_of_eqop eqop) in
       let loc = L.loc pi in
       let exn = tyerror ~loc EqOpWithNoLValue in
       if List.is_empty ls then raise exn;
       let pe1 = pexpr_of_plvalue exn (List.last ls) in
       let pe  = L.mk_loc loc (S.PEOp2(op,(pe1,pe))) in
-      let i   = L.mk_loc loc (S.PIAssign(ls, `Raw, pe, None)) in
+      let i   = L.mk_loc loc (S.PIAssign((pimp, ls), `Raw, pe, None)) in
       (tt_instr env i).P.i_desc
 
     | PIAssign (ls, eqop, e, Some cp) ->
@@ -1473,17 +1533,6 @@ let tt_call_conv loc params returns cc =
     P.Subroutine {returned_params}
 
 (* -------------------------------------------------------------------- *)
-
-let get_single_attribute id a = 
-  match a with
-  | Some (S.Alist [a]) -> a
-  | _ -> rs_tyerror ~loc:(L.loc id) (string_error "single attribute expected for “%s”" (L.unloc id))
-
-let string_attribute id a =
-  match L.unloc a with
-  | S.Astring s -> s
-  | S.Aid s     -> s
-  | _ -> rs_tyerror ~loc:(L.loc a) (string_error "attribute for “%s” should be a string or an ident" id)
 
 let ws_of_string = 
   let l = List.map (fun ws -> P.string_of_ws ws, ws) 
