@@ -6,7 +6,7 @@ fn foo (@public reg u64 x y) -> @secret reg u64, @secret reg u64 {
 }
 
 fn foo2 (@level={l1,l2} reg u64 x y) -> @level=l1 reg u64, @level=l2 reg u64 {
-   reg u64 r1, r2;
+   @public reg u64 r1, r2;
    r1 = x;
    r2 = y;
    return r1, r2;
