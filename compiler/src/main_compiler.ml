@@ -138,7 +138,7 @@ and pp_comp_ferr tbl fmt = function
   | Compiler_util.Ferr_in_body(f1,f2,(ii, err_msg)) ->
     let f1 = Conv.fun_of_cfun tbl f1 in
     let f2 = Conv.fun_of_cfun tbl f2 in
-    let (i_loc, _) = Conv.get_iinfo tbl ii in
+    let (i_loc, _, _) = Conv.get_iinfo tbl ii in
     Format.fprintf fmt "in functions %s and %s at position %a: %a"
       f1.fn_name f2.fn_name Printer.pp_iloc i_loc
       (pp_comp_err tbl) err_msg
@@ -166,7 +166,7 @@ and pp_comp_ferr tbl fmt = function
     Format.fprintf fmt "in function %s: %a"
       f.fn_name (pp_comp_err tbl) err_msg
   | Ferr_remove_glob (ii, x) ->
-    let i_loc, _ = Conv.get_iinfo tbl ii in
+    let i_loc, _, _ = Conv.get_iinfo tbl ii in
     Format.fprintf fmt "Cannot remove global variable %a at %a"
      (pp_var_i tbl) x
      Printer.pp_iloc i_loc
@@ -331,7 +331,7 @@ let main () =
 
     let lowering_vars = Lowering.(
         let f ty n = 
-          let v = V.mk n (Reg Direct) ty L._dummy in
+          let v = V.mk n (Reg Direct) ty L._dummy [] in
           Conv.cvar_of_var tbl v in
         let b = f tbool in
         { fresh_OF = (b "OF").vname
@@ -433,7 +433,7 @@ let main () =
       PrintLinear.pp_prog tbl fmt lp in
 
     let rename_fd ii fn cfd =
-      let ii,_ = Conv.get_iinfo tbl ii in
+      let ii, _, _ = Conv.get_iinfo tbl ii in
       let doit fd =
         let fd = Subst.clone_func fd in
         Subst.extend_iinfo ii fd in
@@ -456,7 +456,7 @@ let main () =
 
     let warning ii msg =
       if not !Glob_options.lea then begin
-          let loc,_ = Conv.get_iinfo tbl ii in
+          let loc, _, _ = Conv.get_iinfo tbl ii in
           warning UseLea "at %a, %a" Printer.pp_iloc loc Printer.pp_warning_msg msg
         end;
       ii in
@@ -511,7 +511,7 @@ let main () =
       Compiler.removereturn  = removereturn;
       Compiler.regalloc      = global_regalloc;
       Compiler.extra_free_registers = (fun ii ->
-        let loc, _ = Conv.get_iinfo tbl ii in
+        let loc, _, _ = Conv.get_iinfo tbl ii in
         !saved_extra_free_registers loc |> omap (Conv.cvar_of_var tbl)
       );
       Compiler.lowering_vars = lowering_vars;

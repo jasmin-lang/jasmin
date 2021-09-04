@@ -20,12 +20,12 @@ let is_array_copy (x:lval) e =
   | _ -> None
 
 let array_copy z ws n y =
-  let i = gkvar (L.mk_loc (L.loc z) (V.mk "i" Inline (Bty Int) (L.loc z))) in
+  let i = gkvar (L.mk_loc (L.loc z) (V.mk "i" Inline (Bty Int) (L.loc z) [])) in
   Cfor(i.gv, (UpTo, Pconst B.zero, Pconst (B.of_int n)), [
       let i_desc =
         Cassgn (Laset (Warray_.AAscale, ws, z, Pvar i), AT_none, Bty (U ws), 
                  Pget (Warray_.AAscale, ws, y, Pvar i)) in
-      { i_desc ; i_loc = L.loc z, [] ; i_info = () }
+      { i_desc ; i_loc = L.loc z, [] ; i_info = (); i_annot = [] }
     ])
 
 let rec iac_stmt is = List.map iac_instr is

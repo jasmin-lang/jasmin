@@ -198,7 +198,7 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
     let has_stack = has_stack fd || to_save <> [] in
     let rastack = odfl OnReg fd.f_annot.retaddr_kind = OnStack in
     let rsp = V.clone rsp in
-    let ra = V.mk "RA" (Stack Direct) u64 L._dummy in
+    let ra = V.mk "RA" (Stack Direct) u64 L._dummy [] in
     let extra =
       let extra = to_save in
       let extra = if rastack then ra :: extra else extra in

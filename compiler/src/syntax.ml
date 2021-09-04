@@ -195,7 +195,7 @@ type pstorage = [ `Reg of ptr | `Stack of ptr | `Inline | `Global]
 
 (* -------------------------------------------------------------------- *)
 type pstotype = pstorage * ptype
-
+type annot_pstotype = annotations * pstotype
 (* -------------------------------------------------------------------- *)
 type plvalue_r =
   | PLIgnore
@@ -223,12 +223,15 @@ type align = [`Align | `NoAlign]
 
 type plvals = annotations L.located option * plvalue list
 
+type vardecls = pstotype * pident list
+
 type pinstr_r =
   | PIArrayInit of pident
   | PIAssign    of plvals * peqop * pexpr * pexpr option
   | PIIf        of pexpr * pblock * pblock option
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock
   | PIWhile     of pblock option * pexpr * pblock option
+  | PIdecl      of vardecls 
 
 and pblock_r = pinstr list
 and fordir   = [ `Down | `Up ]
@@ -245,7 +248,6 @@ type pparam = {
 
 (* -------------------------------------------------------------------- *)
 type pfunbody = {
-  pdb_vars  : (pstotype * pident list) list;
   pdb_instr : pinstr list;
   pdb_ret   : pident list option;
 }
@@ -260,8 +262,8 @@ type pfundef = {
   pdf_annot : annotations;
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
-  pdf_args : (pstotype * pident) list;
-  pdf_rty  : pstotype list option;
+  pdf_args : (annotations * vardecls) list;
+  pdf_rty  : (annotations * pstotype) list option;
   pdf_body : pfunbody;
 }
 

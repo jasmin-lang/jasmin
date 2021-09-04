@@ -1098,12 +1098,12 @@ let tt_expr_bool env pe = tt_expr_ty env pe P.tbool
 let tt_expr_int  env pe = tt_expr_ty env pe P.tint
 
 (* -------------------------------------------------------------------- *)
-let tt_vardecl dfl_writable (env : Env.env) ((sto, xty), x) =
+let tt_vardecl dfl_writable (env : Env.env) ((annot, (sto, xty)), x) =
   let { L.pl_desc = x; L.pl_loc = xlc; } = x in
   let (sto, xty) = (tt_sto (dfl_writable x) sto, tt_type env xty) in
   if P.is_ptr sto && not (P.is_ty_arr xty) then
     rs_tyerror ~loc:xlc PtrOnlyForArray;
-  L.mk_loc xlc (P.PV.mk x sto xty xlc)
+  L.mk_loc xlc (P.PV.mk x sto xty xlc annot)
 
 (* -------------------------------------------------------------------- *)
 let tt_vardecls_push dfl_writable (env : Env.env) pxs =
@@ -1123,7 +1123,7 @@ let tt_param (env : Env.env) _loc (pp : S.pparam) : Env.env =
 
   check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ty ~to_:ety;
 
-  let x = P.PV.mk (L.unloc pp.ppa_name) P.Const ty (L.loc pp.ppa_name) in
+  let x = P.PV.mk (L.unloc pp.ppa_name) P.Const ty (L.loc pp.ppa_name) [] in
   let env = Env.Vars.push_param env (x,pe) in
   env
 
@@ -1491,13 +1491,22 @@ let mk_call loc is_inline lvs f es =
   end;
   P.Ccall (is_inline, lvs, f.P.f_name, es)
 
-let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : unit P.pinstr  =
+let tt_annot_vardecls dfl_writable env (annot, (ty,vs)) = 
+  let aty = annot, ty in
+  let vars = List.map (fun v -> aty, v) vs in
+  tt_vardecls_push dfl_writable env vars 
+  
+let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pinstr option  =
 
-  let instr = match L.unloc pi with
+  let env, instr = match L.unloc pi with
+    | S.PIdecl tvs -> 
+      let env, _ = tt_annot_vardecls (fun _ -> true) env (annot, tvs) in 
+      env, None
+
     | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
       let x = tt_var `AllVar env x in
       let xi = (L.mk_loc lc x) in
-      arr_init xi
+      env, Some (arr_init xi)
   
     | S.PIAssign (ls, `Raw, { pl_desc = PECall (f, args) }, None) ->
       let (f,tlvs) = tt_fun env f in
@@ -1511,14 +1520,14 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : unit P.pinstr  =
           match f.P.f_cc with 
           | P.Internal -> P.DoInline 
           | P.Export | P.Subroutine _ -> P.NoInline in
-      mk_call (L.loc pi) is_inline lvs f es
+      env, Some(mk_call (L.loc pi) is_inline lvs f es)
 
     | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim f in
       let tlvs, tes, arguments = prim_sig p in
       let lvs = tt_lvalues env ls (Some arguments) tlvs in
       let es  = tt_exprs_cast env args tes in
-      P.Copn(lvs, AT_none, p, es)
+      env, Some(P.Copn(lvs, AT_none, p, es))
 
     | PIAssign((None,[lv]), `Raw, pe, None) ->
       let _, flv, vty = tt_lvalue env lv in
@@ -1536,14 +1545,15 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : unit P.pinstr  =
         P.(match v with
             | Lvar v -> (match kind_i v with Inline -> AT_inline | _ -> AT_none)
             | _ -> AT_none) in
-      cassgn_for v tg ety e
+      env, Some(cassgn_for v tg ety e)
         
     | PIAssign(ls, `Raw, pe, None) ->
       (* Try to match addc, subc, mulu *)
       let pe = prim_of_pe pe in
       let loc = L.loc pi in
       let i = annot, L.mk_loc loc (S.PIAssign(ls, `Raw, pe, None)) in
-      (tt_instr env i).P.i_desc
+      let env, i = tt_instr env i in
+      env, omap (fun i -> i.P.i_desc) i
 
     | S.PIAssign((pimp,ls), eqop, pe, None) ->
       let op = oget (peop2_of_eqop eqop) in
@@ -1553,24 +1563,25 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : unit P.pinstr  =
       let pe1 = pexpr_of_plvalue exn (List.last ls) in
       let pe  = L.mk_loc loc (S.PEOp2(op,(pe1,pe))) in
       let i   = annot, L.mk_loc loc (S.PIAssign((pimp, ls), `Raw, pe, None)) in
-      (tt_instr env i).P.i_desc
+      let env, i = tt_instr env i in
+      env, omap (fun i -> i.P.i_desc) i
 
     | PIAssign (ls, eqop, e, Some cp) ->
       let loc = L.loc pi in
       let exn = Unsupported "if not allowed here" in
       if peop2_of_eqop eqop <> None then rs_tyerror ~loc exn;
       let cpi = S.PIAssign (ls, eqop, e, None) in
-      let i = tt_instr env (annot, L.mk_loc loc cpi) in
-      let x, _, ty, e = P.destruct_move i in
+      let env, i = tt_instr env (annot, L.mk_loc loc cpi) in
+      let x, _, ty, e = P.destruct_move (oget i) in
       let e' = ofdfl (fun _ -> rs_tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool env cp in
-      P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))
+      env, Some (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e')))
 
     | PIIf (cp, st, sf) ->
       let c  = tt_expr_bool env cp in
       let st = tt_block env st in
       let sf = odfl [] (omap (tt_block env) sf) in
-      P.Cif (c, st, sf)
+      env, Some (P.Cif (c, st, sf))
 
     | PIFor ({ pl_loc = lx } as x, (d, i1, i2), s) ->
       let i1   = tt_expr_int env i1 in
@@ -1579,7 +1590,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : unit P.pinstr  =
       check_ty_eq ~loc:lx ~from:vx.P.v_ty ~to_:P.tint;
       let s    = tt_block env s in
       let d    = match d with `Down -> P.DownTo | `Up -> P.UpTo in
-      P.Cfor (L.mk_loc lx vx, (d, i1, i2), s)
+      env, Some (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))
 
     | PIWhile (s1, c, s2) ->
       let c  = tt_expr_bool env c in
@@ -1587,22 +1598,31 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : unit P.pinstr  =
       let s2 = omap_dfl (tt_block env) [] s2 in
       let a = 
         omap_dfl (fun () -> E.Align) E.NoAlign (Annot.ensure_uniq1 "align" Annot.none annot) in
-      P.Cwhile (a, s1, c, s2)
+      env, Some (P.Cwhile (a, s1, c, s2))
 
- in { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); }
+ in 
+ env, omap (fun instr -> { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); P.i_annot = annot}) instr
 
 (* -------------------------------------------------------------------- *)
 and tt_block (env : Env.env) (pb : S.pblock) =
-  List.map (tt_instr env) (L.unloc pb)
+  snd (tt_cmd env (L.unloc pb))
+
+and tt_cmd env c = 
+  match c with
+  | [] -> env, []
+  | i::c -> 
+    let env, i = tt_instr env i in
+    let env, c = tt_cmd env c in
+    env, List.ocons i c
 
 (* -------------------------------------------------------------------- *)
 let tt_funbody (env : Env.env) (pb : S.pfunbody) =
-  let vars = List.(pb.pdb_vars |> map (fun (ty, vs) -> map (fun v -> (ty, v)) vs) |> flatten) in
-  let env = fst (tt_vardecls_push (fun _ -> true) env vars) in
+ (* let vars = List.(pb.pdb_vars |> map (fun (ty, vs) -> map (fun v -> (ty, v)) vs) |> flatten) in 
+  let env = fst (tt_vardecls_push (fun _ -> true) env vars) in *)
+  let env, bdy = tt_cmd env pb.S.pdb_instr in
   let ret =
     let for1 x = L.mk_loc (L.loc x) (tt_var `AllVar env x) in
     List.map for1 (odfl [] pb.pdb_ret) in
-  let bdy =  List.map (tt_instr env) pb.S.pdb_instr in
   (bdy, ret)
 
 
@@ -1678,8 +1698,11 @@ let process_f_annot annot =
 let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env =
   let inret = odfl [] (omap (List.map L.unloc) pf.pdf_body.pdb_ret) in
   let dfl_mut x = List.mem x inret in
-  let envb, args = tt_vardecls_push dfl_mut env pf.pdf_args in
-  let rty  = odfl [] (omap (List.map (tt_type env |- snd)) pf.pdf_rty) in
+  let envb, args = 
+    let env, args = List.map_fold (tt_annot_vardecls dfl_mut) env pf.pdf_args in
+    env, List.flatten args in
+  let rty  = odfl [] (omap (List.map (tt_type env |- snd |- snd)) pf.pdf_rty) in
+  let oannot = odfl [] (omap (List.map fst) pf.pdf_rty) in
   let body, xret = tt_funbody envb pf.pdf_body in
   let f_cc = tt_call_conv loc args xret pf.pdf_cc in
   let args = List.map L.unloc args in
@@ -1692,6 +1715,7 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env =
       P.f_args  = args;
       P.f_body  = body;
       P.f_tyout = rty;
+      P.f_outannot = oannot;
       P.f_ret   = xret; } in
 
   check_return_statement ~loc fdef.P.f_name rty
@@ -1735,7 +1759,7 @@ let tt_global (env : Env.env) _loc (gd: S.pglobal) : Env.env =
     | ty,_ -> rs_tyerror ~loc:(L.loc gd.S.pgd_type) (InvalidTypeForGlobal ty)
   in
 
-  let x = P.PV.mk (L.unloc gd.S.pgd_name) P.Global ty (L.loc gd.S.pgd_name) in
+  let x = P.PV.mk (L.unloc gd.S.pgd_name) P.Global ty (L.loc gd.S.pgd_name) [] in
 
   Env.Globals.push env (x,d)
 

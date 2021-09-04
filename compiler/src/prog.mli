@@ -42,7 +42,8 @@ type 'len gvar = private {
   v_id   : uid;
   v_kind : v_kind;
   v_ty   : 'len gty;
-  v_dloc : L.t   (* location where declared *)
+  v_dloc : L.t;   (* location where declared *)
+  v_annot : Syntax.annotations;
 }
 
 type 'len gvar_i = 'len gvar L.located
@@ -129,6 +130,7 @@ and ('len,'info) ginstr = {
   i_desc : ('len,'info) ginstr_r;
   i_loc  : i_loc;
   i_info : 'info;
+  i_annot : Syntax.annotations;
 }
 
 and ('len,'info) gstmt = ('len,'info) ginstr list
@@ -165,6 +167,7 @@ type ('len,'info) gfunc = {
     f_args : 'len gvar list;
     f_body : ('len,'info) gstmt;
     f_tyout : 'len gty list;
+    f_outannot : Syntax.annotations list; (* annotation attach to return type *)
     f_ret  : 'len gvar_i list
   }
 
@@ -201,7 +204,7 @@ type 'info pprog     = (pexpr,'info) gprog
 module PV : sig
   type t = pvar
 
-  val mk : Name.t -> v_kind -> pty -> L.t -> pvar
+  val mk : Name.t -> v_kind -> pty -> L.t -> Syntax.annotations -> pvar
 
   val compare : pvar -> pvar -> int
 
@@ -246,7 +249,7 @@ type 'info prog     = global_decl list * 'info func list
 module V : sig
   type t = var
 
-  val mk : Name.t -> v_kind -> ty -> L.t -> var
+  val mk : Name.t -> v_kind -> ty -> L.t -> Syntax.annotations -> var
 
   val clone : var -> var
 

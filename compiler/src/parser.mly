@@ -346,6 +346,9 @@ pinstr_r:
 | WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
     { PIWhile (is1, b, is2) }
 
+| vd=postfix(pvardecl(COMMA?), SEMICOLON) 
+    { PIdecl vd }
+
 pinstr:
 | a=annotations i=loc(pinstr_r) { (a,i) }
 
@@ -360,6 +363,9 @@ pblock:
 
 stor_type:
 | sto=storage ty=ptype { (sto, ty) }
+
+annot_stor_type:
+| a=annotations stoty=stor_type { (a,stoty) }
 
 writable:
 | CONSTANT    {`Constant }
@@ -384,14 +390,15 @@ storage:
 %inline pvardecl(S):
 | ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }
 
+annot_pvardecl: 
+| a=annotations vd=pvardecl(empty) { (a,vd) }
+
 pfunbody :
 | LBRACE
-    vs = postfix(pvardecl(COMMA?), SEMICOLON)*
     is = pinstr*
     rt = option(RETURN vs=tuple(var) SEMICOLON { vs })
   RBRACE
-    { { pdb_vars  = vs;
-        pdb_instr = is;
+    { { pdb_instr = is;
         pdb_ret   = rt; } }
 
 call_conv :
@@ -403,15 +410,14 @@ pfundef:
     cc=call_conv?
     FN
     name = ident
-    args = parens_tuple(pvardecl(empty))
-    rty  = prefix(RARROW, tuple(stor_type))?
+    args = parens_tuple(annot_pvardecl)
+    rty  = prefix(RARROW, tuple(annot_stor_type))?
     body = pfunbody
 
   { { pdf_annot;
       pdf_cc   = cc;
       pdf_name = name;
-      pdf_args = 
-        List.flatten (List.map (fun (str, ids) -> List.map (fun id -> (str, id)) ids) args);
+      pdf_args = args;
       pdf_rty  = rty ;
       pdf_body = body; } }
 

@@ -257,7 +257,7 @@ let pp_rty =
     (fun fmt tys ->
        F.fprintf fmt " %a %a"
          arrow ()
-         (pp_list ", " pp_sto_ty) tys)
+         (pp_list ", " (fun fmt (_annot, ty) -> pp_sto_ty fmt ty)) tys)
 
 let pp_inbraces depth p fmt x =
   openbrace fmt ();
@@ -280,9 +280,13 @@ let pp_eqop fmt op =
 let pp_sidecond fmt =
   F.fprintf fmt " %a %a" kw "if" pp_expr
 
+let pp_vardecls fmt d =
+  F.fprintf fmt "%a%a;" indent 1 pp_args d; F.fprintf fmt eol
+
 let rec pp_instr depth fmt (_annot, p) =
   indent fmt depth;
   match L.unloc p with
+  | PIdecl d -> pp_vardecls fmt d 
   | PIArrayInit x -> F.fprintf fmt "%a (%a);" kw "arrayinit" pp_var x
   | PIAssign ((pimp,lvs), op, e, cnd) ->
     begin match pimp, lvs with
@@ -331,8 +335,7 @@ let rec pp_instr depth fmt (_annot, p) =
 and pp_block depth fmt blk =
   pp_inbraces depth (pp_list eol (pp_instr (depth + 1))) fmt (L.unloc blk)
 
-let pp_funbody fmt { pdb_vars ; pdb_instr ; pdb_ret } =
-  List.iter (fun d -> F.fprintf fmt "%a%a;" indent 1 pp_args d; F.fprintf fmt eol) pdb_vars;
+let pp_funbody fmt { pdb_instr ; pdb_ret } =
   pp_list eol (pp_instr 1) fmt pdb_instr;
   pp_opt (
     fun fmt ret ->
@@ -350,7 +353,7 @@ let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body } =
     pp_cc pdf_cc
     kw "fn"
     dname (L.unloc pdf_name)
-    (pp_list ", " pp_arg) pdf_args
+    (pp_list ", " (fun fmt (_annot, d) -> pp_vardecls fmt d)) pdf_args
     pp_rty pdf_rty
     (pp_inbraces 0 pp_funbody) pdf_body;
   F.fprintf fmt eol

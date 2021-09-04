@@ -30,7 +30,7 @@ let is_move_op = function
 (* When [weak] is true, the out live-set contains also the written variables. *)
 let rec live_i weak i s_o =
   let s_i, s_o, d = live_d weak i.i_desc s_o in
-  s_i, { i_desc = d; i_loc = i.i_loc; i_info = (s_i, s_o); }
+  s_i, { i_desc = d; i_loc = i.i_loc; i_info = (s_i, s_o); i_annot = []}
 
 and live_d weak d (s_o: Sv.t) =
   match d with

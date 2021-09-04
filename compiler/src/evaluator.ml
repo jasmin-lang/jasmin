@@ -11,7 +11,7 @@ open Sem
 exception Eval_error of instr_info * Utils0.error 
 
 let pp_error fmt (tbl, ii, err) = 
-  let i_loc, _ = Conv.get_iinfo tbl ii in
+  let i_loc, _, _ = Conv.get_iinfo tbl ii in
   let msg = 
     match err with
     | ErrOob -> "out_of_bound"

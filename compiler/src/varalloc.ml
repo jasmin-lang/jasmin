@@ -57,7 +57,7 @@ let stack_pointers = Hv.create 117 in
 let get_stack_pointer x =
   try Hv.find stack_pointers x
   with Not_found ->
-    let r = V.mk x.v_name (Stack Direct) u64 x.v_dloc in
+    let r = V.mk x.v_name (Stack Direct) u64 x.v_dloc x.v_annot in
     Hv.add stack_pointers x r;
     r
 in
@@ -231,7 +231,7 @@ let init_slots stack_pointers alias coloring fv =
       add_slot slot;
       add_local v (StackPtr slot)
     | Reg (Pointer _) ->
-      let p = V.mk v.v_name (Reg Direct) u64 v.v_dloc in
+      let p = V.mk v.v_name (Reg Direct) u64 v.v_dloc v.v_annot in
       add_local v (RegPtr p) 
     | _ -> () in
 

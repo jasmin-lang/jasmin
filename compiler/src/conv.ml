@@ -99,10 +99,10 @@ type 'info coq_tbl = {
      var           : (Var.var, var) Hashtbl.t;
      cvar          : Var.var Hv.t;
      vari          : (int, L.t) Hashtbl.t;
-     iinfo         : (int, (L.t * L.t list) * 'info) Hashtbl.t;
+     iinfo         : (int, (L.t * L.t list) * 'info * Syntax.annotations) Hashtbl.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
-     finfo         : (int, L.t * f_annot * call_conv) Hashtbl.t;
+     finfo         : (int, L.t * f_annot * call_conv * Syntax.annotations list) Hashtbl.t;
   }
 
 let new_count tbl =
@@ -286,9 +286,9 @@ let fun_of_cfun tbl p =
 
 (* ------------------------------------------------------------------------ *)
 
-let set_iinfo tbl loc ii =
+let set_iinfo tbl loc ii ia =
   let n = new_count tbl in
-  Hashtbl.add tbl.iinfo n (loc, ii);
+  Hashtbl.add tbl.iinfo n (loc, ii, ia);
   pos_of_int n
 
 let get_iinfo tbl n =
@@ -296,10 +296,10 @@ let get_iinfo tbl n =
   try Hashtbl.find tbl.iinfo n
   with Not_found ->
     Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." n;
-    (L._dummy, []), tbl.dft_info
+    (L._dummy, []), tbl.dft_info, []
 
 let rec cinstr_of_instr tbl i c =
-  let n = set_iinfo tbl i.i_loc i.i_info in
+  let n = set_iinfo tbl i.i_loc i.i_info i.i_annot in
   cinstr_r_of_instr_r tbl n i.i_desc c
 
 and cinstr_r_of_instr_r tbl p i tl =
@@ -342,9 +342,9 @@ and cstmt_of_stmt tbl c tl =
 let rec instr_of_cinstr tbl i =
   match i with
   | C.MkI(p, ir) ->
-    let (i_loc, i_info) = get_iinfo tbl p in
+    let (i_loc, i_info, i_annot) = get_iinfo tbl p in
     let i_desc = instr_r_of_cinstr_r tbl ir in
-    { i_desc; i_loc; i_info }
+    { i_desc; i_loc; i_info; i_annot }
 
 and instr_r_of_cinstr_r tbl = function
   | C.Cassgn(x,t, ty,e) ->
@@ -377,9 +377,9 @@ and stmt_of_cstmt tbl c =
 
 (* ------------------------------------------------------------------------ *)
 
-let set_finfo tbl loc annot cc =
+let set_finfo tbl loc annot cc oannot =
   let n = new_count tbl in
-  Hashtbl.add tbl.finfo n (loc, annot, cc);
+  Hashtbl.add tbl.finfo n (loc, annot, cc, oannot);
   pos_of_int n
 
 let get_finfo tbl n =
@@ -388,7 +388,7 @@ let get_finfo tbl n =
 
 let cufdef_of_fdef tbl fd =
   let fn = cfun_of_fun tbl fd.f_name in
-  let f_iinfo = set_finfo tbl fd.f_loc fd.f_annot fd.f_cc in
+  let f_iinfo = set_finfo tbl fd.f_loc fd.f_annot fd.f_cc fd.f_outannot in
   let f_params =
     List.map (fun x -> cvari_of_vari tbl (L.mk_loc L._dummy x)) fd.f_args in
   let f_body = cstmt_of_stmt tbl fd.f_body [] in
@@ -404,7 +404,7 @@ let cufdef_of_fdef tbl fd =
 
 
 let fdef_of_cufdef tbl (fn, fd) =
-  let f_loc, f_annot, f_cc = get_finfo tbl fd.C.f_iinfo in
+  let f_loc, f_annot, f_cc, f_outannot = get_finfo tbl fd.C.f_iinfo in
   { f_loc;
     f_annot;
     f_cc;
@@ -413,6 +413,7 @@ let fdef_of_cufdef tbl (fn, fd) =
     f_args = List.map (fun v -> L.unloc (vari_of_cvari tbl v)) fd.C.f_params;
     f_body = stmt_of_cstmt tbl fd.C.f_body;
     f_tyout = List.map ty_of_cty fd.C.f_tyout;
+    f_outannot; 
     f_ret  = List.map (vari_of_cvari tbl) fd.C.f_res;
   }
 
@@ -425,7 +426,7 @@ let gd_of_cgd tbl (x, gd) =
 let cuprog_of_prog (all_registers: var list) info p =
   let tbl = empty_tbl info in
   (* init dummy iinfo *)
-  let _ = set_iinfo tbl (L._dummy, []) info in
+  let _ = set_iinfo tbl (L._dummy, []) info [] in
   (* First add registers *)
   List.iter
     (fun x -> ignore (cvar_of_reg tbl x))
