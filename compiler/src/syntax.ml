@@ -79,15 +79,14 @@ type simple_attribute =
   | Aid     of symbol
   | Astring of string
   | Aws     of wsize 
+  | Astruct of annotations
 
-type attribute =
-  | Alist of simple_attribute L.located list
-  | Astruct of annotation list 
+and attribute = simple_attribute L.located
 
 and annotation = pident * attribute option
 
 and annotations = annotation list
-
+  
 (* -------------------------------------------------------------------- *)
 type cast = [ `ToWord  of swsize | `ToInt ]
 
@@ -229,12 +228,12 @@ type pinstr_r =
   | PIAssign    of plvals * peqop * pexpr * pexpr option
   | PIIf        of pexpr * pblock * pblock option
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock
-  | PIWhile     of align * pblock option * pexpr * pblock option
+  | PIWhile     of pblock option * pexpr * pblock option
 
 and pblock_r = pinstr list
 and fordir   = [ `Down | `Up ]
 
-and pinstr = pinstr_r L.located
+and pinstr = annotations * pinstr_r L.located
 and pblock = pblock_r L.located
 
 (* -------------------------------------------------------------------- *)

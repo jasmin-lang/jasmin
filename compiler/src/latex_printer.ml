@@ -136,19 +136,19 @@ let pp_svsize fmt (vs,s,ve) =
 let pp_space fmt _ =
   F.fprintf fmt " "
 
-let pp_simple_attribute fmt a = 
+let rec pp_simple_attribute fmt a = 
   match L.unloc a with 
   | Aint i -> Bigint.pp_print fmt i
   | Aid s | Astring s -> Format.fprintf fmt "%s" s
   | Aws ws -> Format.fprintf fmt "u%i" (bits_of_wsize ws)
-
-let rec pp_attribute fmt = function
-  | Some (Alist l) -> Format.fprintf fmt "=@ @[%a@]" (pp_list "@ " pp_simple_attribute) l
-  | Some (Astruct struct_) -> Format.fprintf fmt "=@ %a" pp_struct_attribute struct_ 
-  | None -> ()
+  | Astruct struct_ -> pp_struct_attribute fmt struct_
 
 and pp_struct_attribute fmt struct_ =   
   Format.fprintf fmt "@[<hov 1 2>{ %a }@]" (pp_list ",@ " pp_annotation) struct_
+
+and pp_attribute fmt = function
+  | Some a -> Format.fprintf fmt "=@ %a" pp_simple_attribute a
+  | None -> ()
 
 and pp_annotation fmt (id,atr) = 
   Format.fprintf fmt "@[%s = %a@]" (L.unloc id) pp_attribute atr
@@ -280,7 +280,7 @@ let pp_eqop fmt op =
 let pp_sidecond fmt =
   F.fprintf fmt " %a %a" kw "if" pp_expr
 
-let rec pp_instr depth fmt p =
+let rec pp_instr depth fmt (_annot, p) =
   indent fmt depth;
   match L.unloc p with
   | PIArrayInit x -> F.fprintf fmt "%a (%a);" kw "arrayinit" pp_var x
@@ -320,7 +320,8 @@ let rec pp_instr depth fmt p =
       kw direction
       pp_expr limit
       (pp_inbraces depth (pp_list eol (pp_instr (depth + 1)))) (L.unloc body)
-  | PIWhile (_, pre, b, body) ->
+
+  | PIWhile (pre, b, body) ->
     F.fprintf fmt "%a %a (%a) %a"
       kw "while"
       (pp_opt (pp_block depth)) pre

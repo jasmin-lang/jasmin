@@ -24,7 +24,6 @@
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT 
 
 %token SHARP
-%token ALIGN
 %token AMP
 %token AMPAMP
 %token BANG
@@ -108,32 +107,41 @@ var:
 (* ** Annotations
 * -------------------------------------------------------------------- *)
 
+keyword:
+  | INLINE { "inline" }
+  | EXPORT { "export" }
+(*  | ALIGN  { "align" } *)
+
+annotationlabel:
+  | id=ident {id}
+  | id=loc(keyword) { id }
+
 int: 
   | i=INT       { i }
   | MINUS i=INT { Bigint.neg i } 
 
 simple_attribute:
-  | i=int    { Aint i    }
-  | id=NID   { Aid id    }
-  | s=STRING { Astring s }
-  | ws=utype { Aws ws    } 
-
-attribute_param:
-  | EQ ap=nonempty_list(loc(simple_attribute)) { Alist ap }
-  | EQ s=struct_annot                          { Astruct s }
+  | i=int          { Aint i    }
+  | id=NID         { Aid id    }
+  | s=STRING       { Astring s }
+  | ws=utype       { Aws ws    } 
+  | s=struct_annot { Astruct s }
 
 attribute:
-  | k=ident v=attribute_param? { k, v }
+  | EQ ap=loc(simple_attribute) { ap }
+
+annotation:
+  | k=annotationlabel v=attribute? { k, v }
 
 struct_annot:
-  | LBRACE a=separated_list(COMMA, attribute) RBRACE { a }
+  | LBRACE a=separated_list(COMMA, annotation) RBRACE { a }
   
-annotation:
-  | AT a=attribute    { [a] }
+top_annotation:
+  | AT a=annotation    { [a] }
   | AT a=struct_annot {  a }
 
 annotations:
-  | l=list(annotation) { List.concat l }
+  | l=list(top_annotation) { List.concat l }
   
 
 (* ** Type expressions
@@ -335,14 +343,11 @@ pinstr_r:
 | FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr is=pblock
     { PIFor (v, (`Down, ce2, ce1), is) }
 
-| a=align WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
-    { PIWhile (a,is1, b, is2) }
-
-%inline align:
-| a=ALIGN? { if a = None then `NoAlign else `Align }
+| WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
+    { PIWhile (is1, b, is2) }
 
 pinstr:
-| i=loc(pinstr_r) { i }
+| a=annotations i=loc(pinstr_r) { (a,i) }
 
 pblock_r:
 | s=braces(pinstr*) { s }

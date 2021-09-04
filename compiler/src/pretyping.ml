@@ -17,6 +17,7 @@ let loc_of_tuples locs =
 type typattern = TPBool | TPInt | TPWord | TPArray
 
 type sop = [ `Op2 of S.peop2 | `Op1 of S.peop1]
+
 type tyerror =
   | UnknownVar          of S.symbol
   | UnknownFun          of S.symbol
@@ -217,7 +218,7 @@ let pp_tyerror fmt (code : tyerror) =
   
   | StringError s ->
     F.fprintf fmt "%s" s
-
+  
 (* -------------------------------------------------------------------- *)
 module Env : sig
   type env
@@ -347,18 +348,6 @@ end = struct
 end
 
 (* -------------------------------------------------------------------- *)
-let get_single_attribute id a = 
-  match a with
-  | Some (S.Alist [a]) -> a
-  | _ -> rs_tyerror ~loc:(L.loc id) (string_error "single attribute expected for “%s”" (L.unloc id))
-
-let string_attribute id a =
-  match L.unloc a with
-  | S.Astring s -> s
-  | S.Aid s     -> s
-  | _ -> rs_tyerror ~loc:(L.loc a) (string_error "attribute for “%s” should be a string or an ident" id)
-
-(* -------------------------------------------------------------------- *)
 let tt_ws (ws : S.wsize) =
   match ws with
   | `W8   -> W.U8
@@ -367,6 +356,142 @@ let tt_ws (ws : S.wsize) =
   | `W64  -> W.U64
   | `W128 -> W.U128
   | `W256 -> W.U256
+
+(* -------------------------------------------------------------------- *)
+
+module Annot = struct
+  let find_annotation name annot =
+    List.find (fun (id,_) -> L.unloc id = name) annot 
+
+  let on_attribute ?on_empty ?on_int ?on_id ?on_string ?on_ws ?on_struct error (id, attribute)  =
+    let doit loc o arg = 
+      match o with
+      | None -> error loc 
+      | Some f -> f loc arg in
+    match attribute with
+    | None -> doit (L.loc id) on_empty ()
+    | Some a ->
+      let loc = L.loc a in
+      match L.unloc a with
+      | S.Aint i    -> doit loc on_int i 
+      | S.Aid id    -> doit loc on_id id
+      | S.Astring s -> doit loc on_string s 
+      | S.Aws ws    -> doit loc on_ws ws 
+      | S.Astruct s -> doit loc on_struct s
+
+  let pp_dfl_attribute pp fmt dfl = 
+    match dfl with
+    | Some a -> Format.fprintf fmt "@ default is “%a”" pp a 
+    | None   -> () 
+
+  let error_attribute loc id pp a pp_dfl dfl = 
+    rs_tyerror ~loc (string_error "attribute for “%s” should be %a%a"
+                       id pp a (pp_dfl_attribute pp_dfl) dfl)
+
+  let on_empty error dfl loc () = 
+    match dfl with
+    | None -> error loc
+    | Some d -> d
+
+  let filter_string_list dfl l ((id,_) as arg) = 
+    let error loc = 
+      assert (l<> []);
+      let pp fmt l = 
+        Format.fprintf fmt "(@[%a@])" (pp_list " |@ " (fun fmt (s,_) -> Format.pp_print_string fmt s)) l in
+      error_attribute loc (L.unloc id) pp l Format.pp_print_string dfl in
+    let on_string loc s =
+      try List.assoc s l 
+      with Not_found -> error loc in
+    on_attribute  
+      ~on_empty:(fun loc () -> on_string loc (on_empty error dfl loc ()))
+      ~on_id:(on_string) 
+      ~on_string error arg
+
+  let bool dfl = 
+    filter_string_list 
+      (Some (if dfl then "yes" else "no"))
+      ["yes", true; "no", false]
+
+  let none ((id,_) as arg) = 
+    on_attribute
+      ~on_empty:(fun _loc () -> ())
+      (fun loc -> 
+        rs_tyerror ~loc 
+          (string_error "attribute for “%s” should be empty" (L.unloc id)))
+      arg
+    
+  let int dfl (id, _ as arg) = 
+    let error loc =
+       error_attribute loc (L.unloc id) Format.pp_print_string "an integer"
+                              Bigint.pp_print dfl in
+    let on_empty loc () = 
+      match dfl with
+      | Some i -> i
+      | None -> error loc in
+
+    let on_string loc s = 
+      try Bigint.of_string s 
+      with Bigint.InvalidString -> error loc in
+
+    on_attribute 
+      ~on_empty
+      ~on_int:(fun _loc i -> i)
+      ~on_string 
+      error arg 
+
+  let pos_int dfl (id, _ as arg) = 
+    let i = int dfl arg in
+    if Bigint.lt i Bigint.zero then 
+      error_attribute (L.loc id) (L.unloc id) 
+        Format.pp_print_string "a positive integer"
+        Bigint.pp_print dfl;
+    i
+        
+  let ws_of_string = 
+    let l = List.map (fun ws -> P.string_of_ws ws, ws) 
+              [U8;U16;U32;U64;U128;U256] in
+    fun s -> List.assoc s l 
+
+  let wsize dfl (id, _ as arg) = 
+    let error loc =
+      error_attribute loc (L.unloc id) 
+        Format.pp_print_string "a word size"
+        (fun fmt ws -> Format.fprintf fmt "%s" (P.string_of_ws ws)) dfl in
+    let on_empty loc () = 
+      match dfl with
+      | Some ws -> ws
+      | None -> error loc in
+    let on_string loc s = 
+      try ws_of_string s with Not_found -> error loc in
+    let on_ws _loc ws = tt_ws ws in
+    on_attribute 
+      ~on_empty
+      ~on_string 
+      ~on_ws 
+      error arg 
+  
+  let filter_attribute name (f: S.annotation -> 'a) (annot:S.annotations) = 
+    List.pmap (fun (id,_ as arg) -> if L.unloc id = name then Some (id, f arg) else None) annot
+
+  let process_annot (filters: (string * (S.annotation -> 'a)) list) annot = 
+    List.flatten 
+      (List.map (fun (name,f) -> filter_attribute name f annot) filters)
+    
+  let ensure_uniq (filters: (string * (S.annotation -> 'a)) list) annot = 
+    match process_annot filters annot with
+    | [] -> None
+    | [_, r] -> Some r
+    | (id, _) :: _ as l -> 
+      rs_tyerror ~loc:(L.loc id) (string_error "only one of the attribute %a is expected"
+                                 (pp_list ", " (fun fmt (id, _) -> Format.fprintf fmt "%s" (L.unloc id))) l)
+
+  let ensure_uniq1 id f annot = 
+    ensure_uniq [id, f] annot
+end 
+
+
+
+
 
 (* -------------------------------------------------------------------- *)
 let tt_pointer dfl_writable (p:S.ptr) : P.pointer = 
@@ -1275,38 +1400,39 @@ let tt_lvalues env (pimp, pls) implicit tys =
       let nb_explicit = 
         List.count_matching (function ADExplicit _ -> true | _ -> false) implicit in
       let pls = extend_pls nb_explicit in
-      let implicit = 
+      let arguments = 
         let open X86_variables in
         List.map (function ADExplicit _           -> None 
                          | ADImplicit (IArflag f) -> Some (Conv.string_of_string0 (string_of_rflag f))
                          | ADImplicit (IAreg r)   -> Some (Conv.string_of_string0 (string_of_register r))) implicit in
 
-      let mk_implicit (id, a) = 
+      let check (id, _) = 
         let loc = L.loc id in
         let nid = L.unloc id in
-        if not (List.mem (Some nid) implicit) then 
-          rs_tyerror ~loc (string_error "unknown implicit label %s" nid);
-        let name = 
-          match a with 
-          | None -> id 
-          | Some _ -> 
-            let a = get_single_attribute id a in
-            L.mk_loc (L.loc a) (string_attribute nid a) 
-        in
-        (nid, L.mk_loc (L.loc name) (S.PLVar name)) in
-      let pimp = List.map mk_implicit pimp in
+        if not (List.mem (Some nid) arguments) then 
+          rs_tyerror ~loc (string_error "unknown implicit label %s" nid) in
+      List.iter check pimp;
 
       let get_implicit i = 
-        try List.assoc i pimp 
-        with Not_found -> ignore_ in
+        let error loc = 
+          rs_tyerror ~loc (string_error "a ident is expected (default is %s)" i) in
+        let mk loc s = 
+          L.mk_loc loc (S.PLVar (L.mk_loc loc s)) in
+        let a = 
+          Annot.ensure_uniq1 i (Annot.on_attribute ~on_empty:(fun loc () -> mk loc i)
+                                                   ~on_id:(fun loc s -> mk loc s) 
+                                                   error) pimp in
+        match a with
+        | None -> L.mk_loc loc (S.PLIgnore)
+        | Some a -> a in
 
-      let rec aux implicit pls = 
-        match implicit, pls with
+      let rec aux arguments pls = 
+        match arguments, pls with
         | [], _                      -> pls 
-        | None :: implicit, x :: pls -> x :: aux implicit pls 
+        | None :: arguments, x :: pls -> x :: aux arguments pls 
         | None :: _, []              -> assert false  
-        | Some i :: implicit, pls    -> get_implicit i :: aux implicit pls in
-      aux implicit pls in
+        | Some i :: arguments, pls    -> get_implicit i :: aux arguments pls in
+      aux arguments pls in
 
   let ls = List.map (tt_lvalue env) pls in
   check_sig_lvs tys ls
@@ -1365,7 +1491,7 @@ let mk_call loc is_inline lvs f es =
   end;
   P.Ccall (is_inline, lvs, f.P.f_name, es)
 
-let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
+let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : unit P.pinstr  =
 
   let instr = match L.unloc pi with
     | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
@@ -1379,15 +1505,18 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let lvs = tt_lvalues env ls None tlvs in
       let es  = tt_exprs_cast env args tes in
       let is_inline = 
-        match f.P.f_cc with 
-        | P.Internal -> P.DoInline 
-        | P.Export | P.Subroutine _ -> P.NoInline in
+        match Annot.ensure_uniq1 "inline" (Annot.none) annot with
+        | Some () -> P.DoInline 
+        | None -> 
+          match f.P.f_cc with 
+          | P.Internal -> P.DoInline 
+          | P.Export | P.Subroutine _ -> P.NoInline in
       mk_call (L.loc pi) is_inline lvs f es
 
     | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim f in
-      let tlvs, tes, implicit = prim_sig p in
-      let lvs = tt_lvalues env ls (Some implicit) tlvs in
+      let tlvs, tes, arguments = prim_sig p in
+      let lvs = tt_lvalues env ls (Some arguments) tlvs in
       let es  = tt_exprs_cast env args tes in
       P.Copn(lvs, AT_none, p, es)
 
@@ -1413,7 +1542,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       (* Try to match addc, subc, mulu *)
       let pe = prim_of_pe pe in
       let loc = L.loc pi in
-      let i = L.mk_loc loc (S.PIAssign(ls, `Raw, pe, None)) in
+      let i = annot, L.mk_loc loc (S.PIAssign(ls, `Raw, pe, None)) in
       (tt_instr env i).P.i_desc
 
     | S.PIAssign((pimp,ls), eqop, pe, None) ->
@@ -1423,7 +1552,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       if List.is_empty ls then raise exn;
       let pe1 = pexpr_of_plvalue exn (List.last ls) in
       let pe  = L.mk_loc loc (S.PEOp2(op,(pe1,pe))) in
-      let i   = L.mk_loc loc (S.PIAssign((pimp, ls), `Raw, pe, None)) in
+      let i   = annot, L.mk_loc loc (S.PIAssign((pimp, ls), `Raw, pe, None)) in
       (tt_instr env i).P.i_desc
 
     | PIAssign (ls, eqop, e, Some cp) ->
@@ -1431,7 +1560,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let exn = Unsupported "if not allowed here" in
       if peop2_of_eqop eqop <> None then rs_tyerror ~loc exn;
       let cpi = S.PIAssign (ls, eqop, e, None) in
-      let i = tt_instr env (L.mk_loc loc cpi) in
+      let i = tt_instr env (annot, L.mk_loc loc cpi) in
       let x, _, ty, e = P.destruct_move i in
       let e' = ofdfl (fun _ -> rs_tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool env cp in
@@ -1452,11 +1581,12 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let d    = match d with `Down -> P.DownTo | `Up -> P.UpTo in
       P.Cfor (L.mk_loc lx vx, (d, i1, i2), s)
 
-    | PIWhile (a, s1, c, s2) ->
+    | PIWhile (s1, c, s2) ->
       let c  = tt_expr_bool env c in
       let s1 = omap_dfl (tt_block env) [] s1 in
       let s2 = omap_dfl (tt_block env) [] s2 in
-      let a = if a = `NoAlign then E.NoAlign else E.Align in
+      let a = 
+        omap_dfl (fun () -> E.Align) E.NoAlign (Annot.ensure_uniq1 "align" Annot.none annot) in
       P.Cwhile (a, s1, c, s2)
 
  in { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); }
@@ -1534,68 +1664,15 @@ let tt_call_conv loc params returns cc =
 
 (* -------------------------------------------------------------------- *)
 
-let ws_of_string = 
-  let l = List.map (fun ws -> P.string_of_ws ws, ws) 
-            [U8;U16;U32;U64;U128;U256] in
-  fun s -> List.assoc s l 
-
-
-let find_attribute name annot =
-  List.find (fun (id,_) -> L.unloc id = name) annot 
-
 let process_f_annot annot = 
   let open P in
-  let do1 name mk_info = 
-    match find_attribute name annot with
-    | v -> Some (mk_info v)
-    | exception Not_found -> None in
 
-  let mk_ra (id, a) =
-    let a = get_single_attribute id a in
-    let name = L.unloc id in
-    match string_attribute name a with 
-    | "stack" -> OnStack
-    | "reg"   -> OnReg
-    | s       -> 
-      rs_tyerror ~loc:(L.loc a)
-        (string_error
-           "Bad attribute for “%s” annotation (expected “reg” or “stack”): %s" name s) in
-
-  let mk_stksize (id,a) =
-    let a = get_single_attribute id a in
-    let name = L.unloc id in
-    let error () =
-      rs_tyerror ~loc:(L.loc a) (string_error "attribute for “%s” should be a positive integer" name) in
-    let i = 
-      match L.unloc a with
-      | S.Astring s ->
-        begin 
-          try B.of_string s 
-          with B.InvalidString -> error()
-        end
-      | S.Aint i -> i
-      | _ -> error () in
-    if Bigint.lt i Bigint.zero then error();
-    i 
-  in
-  
-  let mk_stkalign (id,a) =
-    let a = get_single_attribute id a in
-    let name = L.unloc id in
-    let error () =
-      rs_tyerror ~loc:(L.loc a) (string_error "attribute for “%s” should be word size" name) in
-    match L.unloc a with
-    | S.Astring s -> (try ws_of_string s with Not_found -> error ())
-    | S.Aws ws    -> tt_ws ws
-    | _ -> error ()
-    in
-
-  { retaddr_kind = do1 "returnaddress" mk_ra;
-    stack_allocation_size = do1 "stackallocsize" mk_stksize;
-    stack_size = do1 "stacksize" mk_stksize;
-    stack_align = do1 "stackalign" mk_stkalign; }
-
-
+  let mk_ra = Annot.filter_string_list None ["stack", OnStack; "reg", OnReg] in
+ 
+  { retaddr_kind          = Annot.ensure_uniq1 "returnaddress"  mk_ra                annot;
+    stack_allocation_size = Annot.ensure_uniq1 "stackallocsize" (Annot.pos_int None) annot; 
+    stack_size            = Annot.ensure_uniq1 "stacksize"      (Annot.pos_int None) annot; 
+    stack_align           = Annot.ensure_uniq1 "stackalign"     (Annot.wsize None)   annot}
 
 (* -------------------------------------------------------------------- *)
 let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env =
