@@ -412,7 +412,7 @@ module Annot = struct
       (Some (if dfl then "yes" else "no"))
       ["yes", true; "no", false]
 
-  let none ((id,_) as arg) = 
+  let none (id,_ as arg) = 
     on_attribute
       ~on_empty:(fun _loc () -> ())
       (fun loc -> 
