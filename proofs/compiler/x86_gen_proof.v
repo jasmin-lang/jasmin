@@ -15,14 +15,15 @@ Lemma assemble_progP p p' :
   assemble_prog p = ok p' →
   let rip := mk_rip p.(lp_rip) in
   [/\ disj_rip rip,
+   reg_of_string p.(lp_rsp) = Some RSP,
    xp_globs p' = lp_globs p &
    map_cfprog (assemble_fd RSP rip) p.(lp_funcs) = ok (xp_funcs p') ].
 Proof.
-  apply: rbindP => _ /assertP /eqP h.
-  apply: rbindP => fds ok_fds [<-].
+  rewrite /assemble_prog.
+  t_xrbindP => _ /assertP /eqP ok_rip _ /assertP /eqP ok_rsp fds ok_fds <-{p'}.
   split => //.
   split => r heq //.
-  by move: h; rewrite -heq register_of_var_of_register.
+  by move: ok_rip; rewrite -heq register_of_var_of_register.
 Qed.
 
 (* Assembling preserves labels *)
@@ -53,7 +54,7 @@ Lemma assemble_prog_labels p p' :
   assemble_prog p = ok p' →
   label_in_lprog p = label_in_xprog p'.
 Proof.
-  case/assemble_progP => _ _ /mapM_Forall2.
+  case/assemble_progP => _ _ _ /mapM_Forall2.
   rewrite /label_in_lprog /label_in_xprog.
   elim => //; t_xrbindP => - [] fn lfd fn' lfds xfds xfd.
   apply: add_finfoP => /= ok_xfd [] <- {fn'} _ ih.
@@ -125,7 +126,7 @@ Lemma ok_get_fundef fn fd :
   get_fundef (lp_funcs p) fn = Some fd →
   exists2 fd', get_fundef (xp_funcs p') fn = Some fd' & assemble_fd RSP (mk_rip p.(lp_rip)) fd = ok fd'.
 Proof.
-  have [_ _ x y ] := assemble_progP ok_p'.
+  have [_ _ _ x y ] := assemble_progP ok_p'.
   have [fd' ??] := get_map_cfprog x y.
   by exists fd'.
 Qed.

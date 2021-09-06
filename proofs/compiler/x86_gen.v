@@ -68,6 +68,8 @@ Definition assemble_prog (p: lprog) : cfexec xprog :=
   let rip := mk_rip p.(lp_rip) in
   Let _ := assert (register_of_var rip == None)
                     (Ferr_msg (Cerr_assembler ( AsmErr_string "Invalid RIP: please report" None))) in
+  Let _ := assert (reg_of_string p.(lp_rsp) == Some RSP)
+                    (Ferr_msg (Cerr_assembler ( AsmErr_string "Invalid RSP: please report" None))) in
   Let fds := map_cfprog (assemble_fd RSP rip) p.(lp_funcs) in
   ok {| xp_globs := p.(lp_globs); xp_funcs := fds |}
   .

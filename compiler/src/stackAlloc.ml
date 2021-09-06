@@ -92,6 +92,7 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
   
   (* build coq info *)
   let crip = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip) in
+  let crsp = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp) in
   let do_slots slots = 
     List.map (fun (x,ws,ofs) -> ((Conv.cvar_of_var tbl x, ws), Conv.z_of_int ofs)) slots in                            
   let cglobs = do_slots gao.gao_slots in
@@ -159,7 +160,7 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
   end;
 
   let sp' = 
-    match Stack_alloc.alloc_prog false crip gao.gao_data cglobs cget_sao up with
+    match Stack_alloc.alloc_prog false crip crsp gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
       Utils.hierror "compilation error %a@." (pp_comp_ferr tbl) e in

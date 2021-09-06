@@ -266,7 +266,7 @@ Section CHECK.
              (Ferr_fun fn (Cerr_one_varmap "not able to ensure equality of the result")) in
     Let _ := assert (var.disjoint params magic_variables)
                     (Ferr_fun fn (Cerr_one_varmap "the function has RSP or global-data as parameter")) in
-    Let _ := assert (~~ Sv.mem (vid (string_of_register RSP)) res)
+    Let _ := assert (~~ Sv.mem (vid p.(p_extra).(sp_rsp)) res)
                     (Ferr_fun fn (Cerr_one_varmap "the functions returns RSP")) in
     Let _ := assert (var.disjoint (writefun_ra writefun fn) magic_variables)
                     (Ferr_fun fn (Cerr_one_varmap "the function writes to RSP or global-data")) in
@@ -281,7 +281,7 @@ Section CHECK.
     | RAreg ra => check_preserved_register fn W J "return address" ra
     | RAstack _ => ok tt
     | RAnone =>
-        Let _ := assert (string_of_register RAX != p.(p_extra).(sp_rip)) (Ferr_fun fn (Cerr_one_varmap "RAX and RIP clash, please report")) in
+        Let _ := assert (~~ Sv.mem (var_of_register RAX) magic_variables) (Ferr_fun fn (Cerr_one_varmap "RAX clashes with RSP or RIP, please report")) in
         assert (all (λ x : var_i, if vtype x is sword _ then true else false ) (f_params fd))
             (Ferr_fun fn (Cerr_one_varmap "the export function has non-word arguments"))
     end.
@@ -293,7 +293,7 @@ End CHECK.
 Definition check :=
   let wmap := mk_wmap in
   Let _ := assert (check_wmap wmap) (Ferr_msg (Cerr_one_varmap "invalid wmap")) in
-  Let _ := assert (p.(p_extra).(sp_rip) != string_of_register RSP) (Ferr_msg (Cerr_one_varmap "rip and rsp clash, please report")) in
+  Let _ := assert (p.(p_extra).(sp_rip) != p.(p_extra).(sp_rsp)) (Ferr_msg (Cerr_one_varmap "rip and rsp clash, please report")) in
   Let _ := check_prog (get_wmap wmap) in
   ok tt.
 

@@ -2338,7 +2338,7 @@ Proof.
   by constructor.
 Qed.
 
-Hypothesis rip_rsp_neq : P'.(p_extra).(sp_rip) <> x86_variables.string_of_register RSP.
+Hypothesis rip_rsp_neq : P'.(p_extra).(sp_rip) <> P'.(p_extra).(sp_rsp).
 
 (* could probably be written
    Forall2 (fun x v2 => is_sarr x.(vtype) -> size_slot x <= size_val v) l params
@@ -2548,7 +2548,7 @@ Proof.
   set rsp := top_stack m2'.
   have hinit: init_stk_state fex (p_extra P') rip {| emem := m2; evm := vmap0 |} =
     ok {| emem := m2';
-          evm  := vmap0.[x86_variables.var_of_register RSP <- ok (pword_of_word rsp)]
+          evm  := vmap0.[{| vtype := sword Uptr; vname := P'.(p_extra).(sp_rsp) |} <- ok (pword_of_word rsp)]
                        .[{|vtype := sword64; vname := P'.(p_extra).(sp_rip)|} <- ok (pword_of_word rip)] |}.
   + by rewrite /init_stk_state halloc_stk /= !pword_of_wordE.
   have hover := ass_no_overflow hass.
@@ -2746,8 +2746,8 @@ Qed.
    - mem_unchanged_params: the function call does not modify the stack region,
       except for the regions pointed to by the writable [reg ptr]s given as arguments.
 *)
-Theorem alloc_progP nrip data oracle_g oracle (P: uprog) (SP: sprog) fn:
-  alloc_prog nrip data oracle_g oracle P = ok SP ->
+Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
+  alloc_prog nrip nrsp data oracle_g oracle P = ok SP ->
   forall ev m1 vargs1 m1' vres1,
     sem_call (sCP := sCP_unit) P ev m1 fn vargs1 m1' vres1 ->
     forall rip m2 vargs2,
