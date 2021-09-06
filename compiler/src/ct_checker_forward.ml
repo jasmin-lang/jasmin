@@ -11,7 +11,7 @@ module Vl : sig
   val compare : t -> t -> int
   val is_flex : t -> bool
   val is_poly : t -> bool
-  val mk_uni  : unit -> t
+  val mk_uni  : string -> t
   val mk_poly : string -> t
   val pp      : Format.formatter -> t -> unit
 end = struct
@@ -27,13 +27,8 @@ end = struct
   let is_flex vl = vl.vl_flex
   let is_poly vl = not vl.vl_flex
 
-  let count = ref 0
 
-  let mk_uni () = 
-    let name = string_of_int !count in
-    incr count;
-    { vl_name = name; vl_flex = true }
-
+  let mk_uni  name = { vl_name = name; vl_flex = true }
   let mk_poly name = { vl_name = name; vl_flex = false }
        
   let pp fmt vl = Format.fprintf fmt "%s" vl.vl_name 
@@ -52,9 +47,9 @@ module Lvl : sig
 
   val poly1 : Vl.t -> t
  
-  val min : t -> t -> t
+  val max : t -> t -> t
 
-  val mins : t list -> t
+  val maxs : t list -> t
 
   val le : t -> t -> bool
 
@@ -67,13 +62,13 @@ end = struct
 
   let poly1 vl = Poly (Svl.singleton vl)
 
-  let min l1 l2 = 
+  let max l1 l2 = 
     match l1, l2 with
-    | Public, _ | _, Public -> Public
-    | Secret, l | l, Secret -> l
+    | Secret, _ | _, Secret -> Secret
+    | Public, l | l, Public -> l
     | Poly l1, Poly l2 -> Poly (Svl.union l1 l2)
 
-  let mins ls = List.fold_left min Secret ls 
+  let maxs ls = List.fold_left max Public ls 
               
   let le l1 l2 = 
     match l1, l2 with
@@ -135,67 +130,76 @@ type 'info fenv = {
 module Env : sig 
   type env
   val empty : env
+  val norm_lvl : env -> Lvl.t -> Lvl.t 
+  val lvl_le   : env -> Lvl.t -> Lvl.t -> bool
 
   val set  : env -> var -> Lvl.t -> env
   val seti : env -> var_i -> Lvl.t -> env
 
-  val min : env -> env -> env
+  val max : env -> env -> env
   val le  : env -> env -> bool
 
   val get : public:bool -> env -> var_i -> env * Lvl.t 
   val gget : public:bool -> env -> int ggvar -> env * Lvl.t 
 
-  val pp : Format.formatter -> env -> unit 
+  val pp : Format.formatter -> env -> unit
 end = struct
 
-  type env = Lvl.t Mv.t
+  type env = 
+    { env_v  : Lvl.t Mv.t
+    ; env_vl : Svl.t (* vlevel that need to be public *) }
 
-  let empty = Mv.empty
+  let empty = 
+    { env_v  = Mv.empty
+    ; env_vl = Svl.empty }
 
-  let set env x lvl = Mv.add x lvl env
-  let seti env x lvl = set env (L.unloc x) lvl
+  let is_public_vl env vl = 
+    Svl.mem vl env.env_vl
 
-  let get_var ~public env x = 
-    let x = L.unloc x in
-    try env, Mv.find x env
-    with Not_found -> 
-      let lvl = 
-        if public then Public 
-        else Lvl.poly1 (Vl.mk_uni ()) in
-      set env x lvl, lvl
+  let norm_lvl env = function
+    | Secret -> Secret
+    | Public -> Public
+    | Poly s -> 
+      let s = Svl.diff s env.env_vl in
+      if Svl.is_empty s then Public else Poly s
+
+  let get_var env x = 
+    try norm_lvl env (Mv.find (L.unloc x) env.env_v)
+    with Not_found -> Public 
             
+  let lvl_le env lvl1 lvl2 = 
+    Lvl.le (norm_lvl env lvl1) (norm_lvl env lvl2)
 
-  let min env1 env2 = 
+  let max env1 env2 = 
     let merge_lvl _ lvl1 lvl2 = 
       match lvl1, lvl2 with
       | None, _ -> lvl2
       | _, None -> lvl1
-      | Some lvl1, Some lvl2 -> Some (Lvl.min lvl1 lvl2)
+      | Some lvl1, Some lvl2 -> Some (Lvl.max lvl1 lvl2)
     in
-    Mv.merge merge_lvl env1 env2
+    { env_v  = Mv.merge merge_lvl env1.env_v env2.env_v;
+      env_vl = Svl.union env1.env_vl env2.env_vl }
 
   let le env1 env2 = 
     try 
       let _ = 
         Mv.merge (fun _ lvl1 lvl2 ->
-            let lvl1 = (odfl Secret lvl1) in
-            let lvl2 = (odfl Secret lvl2) in
+            let lvl1 = norm_lvl env1 (odfl Public lvl1) in
+            let lvl2 = norm_lvl env2 (odfl Public lvl2) in
             if Lvl.le lvl1 lvl2 then None
-            else raise Not_found) env1 env2 in 
-      true
+            else raise Not_found) env1.env_v env2.env_v in 
+      Svl.subset env1.env_vl env2.env_vl 
     with Not_found -> false 
 
-  let set_uni_public env s =
-    Mv.map (fun lvl ->
-        match lvl with
-        | Public | Secret -> lvl
-        | Poly s' -> 
-          if Svl.is_empty (Svl.inter s s') then lvl
-          else Public) env
+  let set env x lvl =
+    let lvl = norm_lvl env lvl in
+    { env with env_v = Mv.add x lvl env.env_v }
+  
+  let seti env x lvl = set env (L.unloc x) lvl
 
   let get ~(public:bool) env x = 
     let loc = L.loc x in
-    let env, lvl = get_var ~public env x in
+    let lvl = get_var env x in
     if public then
       match lvl with
       | Secret -> 
@@ -205,7 +209,7 @@ end = struct
       | Public -> env, Public
       | Poly s ->
         let poly = Svl.filter Vl.is_poly s in
-        if Svl.is_empty poly then set_uni_public env s, Public
+        if Svl.is_empty poly then { env with env_vl = Svl.union s env.env_vl }, Public
         else
           Pt.rs_tyerror ~loc 
             (Pt.string_error 
@@ -222,7 +226,9 @@ end = struct
   let pp fmt env = 
     let pp_ty fmt (x, lvl) = 
       Format.fprintf fmt "@[%a : %a@]" (Printer.pp_var ~debug:false) x Lvl.pp lvl in
-    Format.fprintf fmt "@[%a@]" (pp_list ";@ " pp_ty) (Mv.bindings env)
+    Format.fprintf fmt "@[<v>type = @[%a@]@ vlevel= @[%a@]@]"
+       (pp_list ";@ " pp_ty) (Mv.bindings env.env_v)
+       (pp_list "@ " Vl.pp) (Svl.elements env.env_vl)
 
 end
     
@@ -239,7 +245,7 @@ module UE = struct
   let set (ue:unienv) s ty = 
     assert (Svl.cardinal s = 1);
     let vl = Svl.choose s in
-    Hashtbl.add ue vl (Lvl.min (get ue vl) ty) 
+    Hashtbl.add ue vl (Lvl.max (get ue vl) ty) 
 
 end (* UE *)
 
@@ -257,7 +263,7 @@ let unify uty ety : UE.unienv =
 let instanciate ue ty = 
   match ty with
   | Secret | Public -> ty
-  | Poly s -> Svl.fold (fun vl lvl -> Lvl.min (UE.get ue vl) lvl) s Public
+  | Poly s -> Svl.fold (fun vl lvl -> Lvl.max (UE.get ue vl) lvl) s Public
   
 let instanciates ue tyin = 
   List.map (instanciate ue) tyin
@@ -277,9 +283,7 @@ let instanciate_fty fty lvls  =
 
 let rec ty_expr ~(public:bool) env (e:expr) = 
   match e with
-  | Pconst _ | Pbool _  -> env, Public
-
-  | Parr_init _ -> env, Lvl.poly1 (Vl.mk_uni ())
+  | Pconst _ | Pbool _ | Parr_init _ -> env, Public
 
   | Pvar x -> Env.gget ~public env x
 
@@ -294,16 +298,16 @@ let rec ty_expr ~(public:bool) env (e:expr) =
     env, Secret 
 
   | Papp1(_, e)        -> ty_expr ~public env e 
-  | Papp2(_, e1, e2)   -> ty_exprs_min ~public env [e1; e2]  
-  | PappN(_, es)       -> ty_exprs_min ~public env es 
-  | Pif(_, e1, e2, e3) -> ty_exprs_min ~public env [e1; e2; e3] 
+  | Papp2(_, e1, e2)   -> ty_exprs_max ~public env [e1; e2]  
+  | PappN(_, es)       -> ty_exprs_max ~public env es 
+  | Pif(_, e1, e2, e3) -> ty_exprs_max ~public env [e1; e2; e3] 
 
 and ty_exprs ~public env es = 
   List.map_fold (ty_expr ~public) env es 
 
-and ty_exprs_min ~public env es =
+and ty_exprs_max ~public env es =
   let env, lvls = ty_exprs ~public env es in
-  env, Lvl.mins lvls
+  env, Lvl.maxs lvls
 
 (* -----------------------------------------------------------*)
 let ty_lval env x lvl = 
@@ -315,10 +319,10 @@ let ty_lval env x lvl =
     let env, _ = ty_expr ~public:true env i in
     env
   | Laset(_, _, x, i) | Lasub(_, _, _, x, i) ->
-    (* FIXME: is it really correct ? *)
-    let env, xlvl = Env.get ~public:(lvl = Public) env x in
+    (* x[i] = e is x = x[i <- e] *)
+    let env, xlvl = Env.get ~public:false env x in
     let env, _    = ty_expr ~public:true env i in
-    Env.seti env x (Lvl.min xlvl lvl)
+    Env.seti env x (Lvl.max xlvl lvl)
  
 let ty_lvals env xs lvls =
   List.fold_left2 ty_lval env xs lvls
@@ -342,11 +346,11 @@ let get_annot ensure_annot f =
     (check_defined "result types" aout; check_defined "function parameters" ain);
   (* fill the missing input type *)
   let ain = 
-    let doit o = 
+    let doit i o = 
       match o with 
-      | None -> Lvl.poly1 (Vl.mk_uni ())
+      | None -> Lvl.poly1 (Vl.mk_uni (string_of_int i))
       | Some lvl -> lvl in
-    List.map doit ain 
+    List.mapi doit ain 
   in
   (* check that the output type only depend on variable level declared in the input type *)
   let known = 
@@ -376,14 +380,14 @@ let rec ty_instr fenv env i =
     ty_lval env x lvl
 
   | Copn(xs, _, _, es) ->
-    let env, lvl = ty_exprs_min ~public:false env es in
+    let env, lvl = ty_exprs_max ~public:false env es in
     ty_lvals1 env xs lvl 
 
   | Cif(e, c1, c2) ->
     let env, _ = ty_expr ~public:true env e in
     let env1 = ty_cmd fenv env c1 in
     let env2 = ty_cmd fenv env c2 in
-    Env.min env1 env2
+    Env.max env1 env2
 
   | Cfor(x, (_, e1, e2), c) -> 
     let env, _ = ty_exprs ~public:true env [e1; e2] in
@@ -391,7 +395,7 @@ let rec ty_instr fenv env i =
       let env1 = Env.seti env x Public in
       let env1 = ty_cmd fenv env1 c in
       if Env.le env1 env then env (* G <= G' G' |- c : G''   G |- c : G'' *)
-      else loop (Env.min env1 env) in
+      else loop (Env.max env1 env) in
     loop env 
 
   | Cwhile(_, c1, e, c2) -> 
@@ -406,7 +410,7 @@ let rec ty_instr fenv env i =
       let env1,_ = ty_expr ~public:true env1 e in
       let env2 = ty_cmd fenv env1 c2 in
       if Env.le env2 env then env1 
-      else loop (Env.min env1 env) in
+      else loop (Env.max env1 env) in
     loop env
 
   | Ccall (_, xs, f, es) -> 
@@ -417,7 +421,8 @@ let rec ty_instr fenv env i =
     let olvls = instanciate_fty fty elvls in
     ty_lvals env xs olvls 
   in
-  Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (fst i.i_loc) Env.pp env Env.pp env1;
+  if !Glob_options.debug then
+    Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (fst i.i_loc) Env.pp env Env.pp env1;
   env1
 
 and ty_cmd fenv env c = 
@@ -436,21 +441,31 @@ and ty_fun fenv fn =
   let tyin, aout = get_annot fenv.ensure_annot f in
   let env = List.fold_left2 Env.set Env.empty f.f_args tyin in
   let env = ty_cmd fenv env f.f_body in
+  (* First ensure that all return that are required to be public are publics *)
+  let set_pub env x aout =
+    if aout = Some Public then 
+      let env, _ = Env.get ~public:true env x in
+      env
+    else env in
+  let env = List.fold_left2 set_pub env f.f_ret aout in
+  if !Glob_options.debug then Format.eprintf "env return %a@." Env.pp env; 
+  (* Compute the return type *)
   let do_r env x aout =
-    let public = aout = Some Public in
-    let env, lvl = Env.get ~public env x in
+    let _, lvl = Env.get ~public:false env x in
     let lvl = 
       match aout with
       | None -> lvl
       | Some alvl ->
-        if Env.lvl_le env lvl alvl then alvl 
+        if Lvl.le lvl alvl then alvl 
         else 
           Pt.rs_tyerror ~loc:(L.loc x) 
             (Pt.string_error "the variable %a has type %a instead of %a"
               (Printer.pp_var ~debug:false) (L.unloc x)
               Lvl.pp lvl Lvl.pp alvl) in
-    env, lvl in
-  let _, tyout = List.map_fold2 do_r env f.f_ret aout in
+    lvl in
+  let tyout = List.map2 (do_r env) f.f_ret aout in
+  (* Normalize the input type *)
+  let tyin = List.map (Env.norm_lvl env) tyin in
   let fty = {tyin; tyout} in
   let pp_arg fmt (x, lvl) = 
     Format.fprintf fmt "%a %a"
