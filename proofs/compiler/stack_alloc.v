@@ -173,8 +173,8 @@ Definition ls_add (x y: leak_tr_p) : leak_tr_p :=
   if x == LS_const 0 then y else if y == LS_const 0 then x else LS_Add x y.
 
 Section Notations.
-(* Declare Scope lt_scope. *)
-(* Declare Scope ls_scope. *)
+Declare Scope lt_scope.
+Declare Scope ls_scope.
 Delimit Scope lt_scope with LT.
 Delimit Scope ls_scope with LS.
 

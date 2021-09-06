@@ -4,6 +4,12 @@
 -arg -extraction-reserved-identifier
 -arg -w
 -arg -extraction-opaque-accessed
+-arg -w
+-arg -ambiguous-paths
+-arg -w
+-arg -duplicate-clear
+-arg -w
+-arg -omega-is-deprecated
 
 -R 3rdparty Jasmin
 -R compiler Jasmin
