@@ -10,7 +10,7 @@ fn test() -> reg u64 {
     acc += i;
     (_, _, _, zf, i) = #DEC(i);
 
-  } (!zf)
+  } (!zf);
 
   return acc;
 }

@@ -25,7 +25,7 @@ return r;
 }
 
 
-@stacksize=8
+#stacksize=8
 export
 fn main(reg u64 x) -> reg u64 {
 reg u64 result;

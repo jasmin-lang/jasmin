@@ -4,9 +4,9 @@ export fn test_while(reg u64 x) -> reg u64 {
 
   i = 10;
   r = 0;
-  @align while {
+  #align while {
    r += 1;
-   zf, _, i = #DEC(i);
+   {ZF=zf}, i = #DEC(i);
   } (!zf) { 
    r += 2; 
   }

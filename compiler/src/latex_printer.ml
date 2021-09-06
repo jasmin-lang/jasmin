@@ -141,10 +141,10 @@ let rec pp_simple_attribute fmt a =
   | Aint i -> Bigint.pp_print fmt i
   | Aid s | Astring s -> Format.fprintf fmt "%s" s
   | Aws ws -> Format.fprintf fmt "u%i" (bits_of_wsize ws)
-  | Astruct struct_ -> pp_struct_attribute fmt struct_
+  | Astruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
 
 and pp_struct_attribute fmt struct_ =   
-  Format.fprintf fmt "@[<hov 1 2>{ %a }@]" (pp_list ",@ " pp_annotation) struct_
+  Format.fprintf fmt "@[<hov 1 2>%a@]" (pp_list ",@ " pp_annotation) struct_
 
 and pp_attribute fmt = function
   | Some a -> Format.fprintf fmt "=@ %a" pp_simple_attribute a
@@ -156,8 +156,8 @@ and pp_annotation fmt (id,atr) =
 let pp_top_annotations fmt annot = 
   match annot with
   | []  -> ()
-  | [a] -> Format.fprintf fmt "@@%a" pp_annotation a
-  | _   -> Format.fprintf fmt "@@%a" pp_struct_attribute annot
+  | [a] -> Format.fprintf fmt "#%a" pp_annotation a
+  | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
 
   
 let rec pp_expr_rec prio fmt pe =

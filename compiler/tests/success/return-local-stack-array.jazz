@@ -13,7 +13,7 @@ fn invert(stack u64[1] xa) {
   stack u64[1] t;
   reg u64 k;
   t = xa;
-  k = 1; while { t = squarea(t); k+=1; } (k<5)
+  k = 1; while { t = squarea(t); k+=1; } (k<5);
 }
 
 export fn scalarmult() {

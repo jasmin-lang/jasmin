@@ -82,14 +82,14 @@ end = struct
   let spublic = "public" 
 
   let pp fmt = function 
-    | Secret -> Format.fprintf fmt "@@%s" ssecret 
+    | Secret -> Format.fprintf fmt "#%s" ssecret 
     | Poly s -> 
       let l = Svl.elements s in
       begin match l with
-      | [vl] -> Format.fprintf fmt "@@%s=%a" spoly Vl.pp vl
-      | _ -> Format.fprintf fmt "@@%s={@[%a@]}" spoly (pp_list ",@ " Vl.pp) l 
+      | [vl] -> Format.fprintf fmt "#%s=%a" spoly Vl.pp vl
+      | _ -> Format.fprintf fmt "#%s=(@[%a@])" spoly (pp_list ",@ " Vl.pp) l 
       end
-    | Public -> Format.fprintf fmt "@@%s" spublic
+    | Public -> Format.fprintf fmt "#%s" spublic
 
   let parse ~(single:bool) (annot: S.annotations) = 
     let module A = Pt.Annot in

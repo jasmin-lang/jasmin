@@ -13,7 +13,7 @@ export fn foo (reg u64 x) -> reg u64 {
 
                   x = f1(x);
                   x = f2(x);
-  @inline         x = f1(x);
+  #inline         x = f1(x);
   r = x;
   return r;
 }

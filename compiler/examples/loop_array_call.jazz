@@ -11,7 +11,7 @@ fn iterated_square(reg u64[1] xa, stack u64 n) -> reg u64[1] {
 	while {
 		xa = reduce();
 		cf, n -= 1;
-	}(!cf)
+	}(!cf);
 	return xa;
 }
 

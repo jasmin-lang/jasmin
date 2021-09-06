@@ -78,7 +78,6 @@
 %token <string> NID
 %token <Bigint.zint> INT
 %token <string> STRING
-%token AT
 %nonassoc COLON QUESTIONMARK
 %left PIPEPIPE
 %left AMPAMP
@@ -110,7 +109,8 @@ var:
 keyword:
   | INLINE { "inline" }
   | EXPORT { "export" }
-(*  | ALIGN  { "align" } *)
+  | REG    { "reg" }
+  | STACK  { "stack" }
 
 annotationlabel:
   | id=ident {id}
@@ -124,21 +124,22 @@ simple_attribute:
   | i=int          { Aint i    }
   | id=NID         { Aid id    }
   | s=STRING       { Astring s }
-  | ws=utype       { Aws ws    } 
-  | s=struct_annot { Astruct s }
+  | s=keyword      { Astring s }
+  | ws=utype       { Aws ws    }
 
 attribute:
   | EQ ap=loc(simple_attribute) { ap }
+  | EQ s=loc(parens(struct_annot)) { L.mk_loc (L.loc s) (Astruct (L.unloc s)) }
 
 annotation:
   | k=annotationlabel v=attribute? { k, v }
 
 struct_annot:
-  | LBRACE a=separated_list(COMMA, annotation) RBRACE { a }
+  | a=separated_list(COMMA, annotation) { a }
   
 top_annotation:
-  | AT a=annotation    { [a] }
-  | AT a=struct_annot {  a }
+  | SHARP a=annotation    { [a] }
+  | SHARP LBRACKET a=struct_annot RBRACKET { a }
 
 annotations:
   | l=list(top_annotation) { List.concat l }
@@ -316,8 +317,8 @@ plvalue:
  * -------------------------------------------------------------------- *)
 plvalues:
 | lv=tuple1(plvalue) { None, lv }
-| QUESTIONMARK s=loc(struct_annot) { Some s, [] }
-| QUESTIONMARK s=loc(struct_annot) COMMA lv=rtuple1(plvalue) { Some s, lv }
+| s=loc(braces(struct_annot)) { Some s, [] }
+| s=loc(braces(struct_annot)) COMMA lv=rtuple1(plvalue) { Some s, lv }
 
 pinstr_r:
 | ARRAYINIT x=parens(var) SEMICOLON
@@ -343,14 +344,17 @@ pinstr_r:
 | FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr is=pblock
     { PIFor (v, (`Down, ce2, ce1), is) }
 
-| WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
-    { PIWhile (is1, b, is2) }
+| WHILE is1=pblock? LPAREN b=pexpr RPAREN SEMICOLON
+    { PIWhile (is1, b, None) }
 
+| WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock
+    { PIWhile (is1, b, Some is2) }
 | vd=postfix(pvardecl(COMMA?), SEMICOLON) 
     { PIdecl vd }
 
+
 pinstr:
-| a=annotations i=loc(pinstr_r) { (a,i) }
+| a=annotations i=loc(pinstr_r)  { (a,i) }
 
 pblock_r:
 | s=braces(pinstr*) { s }
