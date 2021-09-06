@@ -360,14 +360,13 @@ let tt_ws (ws : S.wsize) =
 (* -------------------------------------------------------------------- *)
 
 module Annot = struct
-  let find_annotation name annot =
-    List.find (fun (id,_) -> L.unloc id = name) annot 
-
-  let on_attribute ?on_empty ?on_int ?on_id ?on_string ?on_ws ?on_struct error (id, attribute)  =
+ 
+  let on_attribute ?on_empty ?on_int ?on_id ?on_string ?on_ws ?on_struct error (id, attribute) =
+    let nid = L.unloc id in
     let doit loc o arg = 
       match o with
-      | None -> error loc 
-      | Some f -> f loc arg in
+      | None -> error loc nid 
+      | Some f -> f loc nid arg in
     match attribute with
     | None -> doit (L.loc id) on_empty ()
     | Some a ->
@@ -388,22 +387,22 @@ module Annot = struct
     rs_tyerror ~loc (string_error "attribute for “%s” should be %a%a"
                        id pp a (pp_dfl_attribute pp_dfl) dfl)
 
-  let on_empty error dfl loc () = 
+  let on_empty error dfl loc nid () = 
     match dfl with
-    | None -> error loc
+    | None -> error loc nid
     | Some d -> d
 
-  let filter_string_list dfl l ((id,_) as arg) = 
-    let error loc = 
+  let filter_string_list dfl l arg = 
+    let error loc nid = 
       assert (l<> []);
       let pp fmt l = 
         Format.fprintf fmt "(@[%a@])" (pp_list " |@ " (fun fmt (s,_) -> Format.pp_print_string fmt s)) l in
-      error_attribute loc (L.unloc id) pp l Format.pp_print_string dfl in
-    let on_string loc s =
+      error_attribute loc nid pp l Format.pp_print_string dfl in
+    let on_string loc nid s =
       try List.assoc s l 
-      with Not_found -> error loc in
+      with Not_found -> error loc nid in
     on_attribute  
-      ~on_empty:(fun loc () -> on_string loc (on_empty error dfl loc ()))
+      ~on_empty:(fun loc nid () -> on_string loc nid (on_empty error dfl loc nid ()))
       ~on_id:(on_string) 
       ~on_string error arg
 
@@ -414,28 +413,28 @@ module Annot = struct
 
   let none (id,_ as arg) = 
     on_attribute
-      ~on_empty:(fun _loc () -> ())
-      (fun loc -> 
+      ~on_empty:(fun _loc _nid () -> ())
+      (fun loc _nid -> 
         rs_tyerror ~loc 
           (string_error "attribute for “%s” should be empty" (L.unloc id)))
       arg
     
-  let int dfl (id, _ as arg) = 
-    let error loc =
-       error_attribute loc (L.unloc id) Format.pp_print_string "an integer"
+  let int dfl arg = 
+    let error loc nid =
+       error_attribute loc nid Format.pp_print_string "an integer"
                               Bigint.pp_print dfl in
-    let on_empty loc () = 
+    let on_empty loc nid () = 
       match dfl with
       | Some i -> i
-      | None -> error loc in
+      | None -> error loc nid in
 
-    let on_string loc s = 
+    let on_string loc nid s = 
       try Bigint.of_string s 
-      with Bigint.InvalidString -> error loc in
+      with Bigint.InvalidString -> error loc nid in
 
     on_attribute 
       ~on_empty
-      ~on_int:(fun _loc i -> i)
+      ~on_int:(fun _loc _nid i -> i)
       ~on_string 
       error arg 
 
@@ -452,41 +451,47 @@ module Annot = struct
               [U8;U16;U32;U64;U128;U256] in
     fun s -> List.assoc s l 
 
-  let wsize dfl (id, _ as arg) = 
-    let error loc =
-      error_attribute loc (L.unloc id) 
+  let wsize dfl arg = 
+    let error loc nid =
+      error_attribute loc nid 
         Format.pp_print_string "a word size"
         (fun fmt ws -> Format.fprintf fmt "%s" (P.string_of_ws ws)) dfl in
-    let on_empty loc () = 
+    let on_empty loc nid () = 
       match dfl with
       | Some ws -> ws
-      | None -> error loc in
-    let on_string loc s = 
-      try ws_of_string s with Not_found -> error loc in
-    let on_ws _loc ws = tt_ws ws in
+      | None -> error loc nid in
+    let on_string loc nid s = 
+      try ws_of_string s with Not_found -> error loc nid in
+    let on_ws _loc _nid ws = tt_ws ws in
     on_attribute 
       ~on_empty
       ~on_string 
       ~on_ws 
       error arg 
   
-  let filter_attribute name (f: S.annotation -> 'a) (annot:S.annotations) = 
-    List.pmap (fun (id,_ as arg) -> if L.unloc id = name then Some (id, f arg) else None) annot
+  let filter_attribute ?(case_sensitive=true) name (f: S.annotation -> 'a) (annot:S.annotations) = 
+    let test = 
+      if case_sensitive then fun id -> L.unloc id = name 
+      else 
+        let name = String.uppercase_ascii name in
+        fun id -> String.uppercase_ascii (L.unloc id) = name in
 
-  let process_annot (filters: (string * (S.annotation -> 'a)) list) annot = 
+    List.pmap (fun (id,_ as arg) -> if test id then Some (id, f arg) else None) annot
+
+  let process_annot ?(case_sensitive=true) (filters: (string * (S.annotation -> 'a)) list) annot = 
     List.flatten 
-      (List.map (fun (name,f) -> filter_attribute name f annot) filters)
+      (List.map (fun (name,f) -> filter_attribute ~case_sensitive name f annot) filters)
     
-  let ensure_uniq (filters: (string * (S.annotation -> 'a)) list) annot = 
-    match process_annot filters annot with
+  let ensure_uniq ?(case_sensitive=true) (filters: (string * (S.annotation -> 'a)) list) annot = 
+    match process_annot ~case_sensitive filters annot with
     | [] -> None
     | [_, r] -> Some r
     | (id, _) :: _ as l -> 
       rs_tyerror ~loc:(L.loc id) (string_error "only one of the attribute %a is expected"
                                  (pp_list ", " (fun fmt (id, _) -> Format.fprintf fmt "%s" (L.unloc id))) l)
 
-  let ensure_uniq1 id f annot = 
-    ensure_uniq [id, f] annot
+  let ensure_uniq1 ?(case_sensitive=true) id f annot = 
+    ensure_uniq ~case_sensitive [id, f] annot
 end 
 
 
@@ -1400,22 +1405,18 @@ let tt_lvalues env (pimp, pls) implicit tys =
       let nb_explicit = 
         List.count_matching (function ADExplicit _ -> true | _ -> false) implicit in
       let pls = extend_pls nb_explicit in
-      let pimp = 
-        let upper (id, arg) =
-          let arg = if arg = None then Some (L.lmap (fun x -> S.Aid x) id) else arg in
-          let id = L.lmap String.uppercase_ascii id in 
-          (id, arg) in
-        List.map upper pimp in
       let arguments = 
         let open X86_variables in
         List.map (function ADExplicit _           -> None 
-                         | ADImplicit (IArflag f) -> Some (String.uppercase_ascii (Conv.string_of_string0 (string_of_rflag f)))
-                         | ADImplicit (IAreg r)   -> Some (String.uppercase_ascii (Conv.string_of_string0 (string_of_register r)))) implicit in
+                         | ADImplicit (IArflag f) -> Some (Conv.string_of_string0 (string_of_rflag f))
+                         | ADImplicit (IAreg r)   -> Some (Conv.string_of_string0 (string_of_register r))) implicit in
 
+      let iargs = List.pmap (omap String.uppercase_ascii) arguments in
       let check (id, _) = 
         let loc = L.loc id in
         let nid = L.unloc id in
-        if not (List.mem (Some nid) arguments) then 
+        let nID = String.uppercase_ascii nid in
+        if not (List.mem nID iargs) then 
           rs_tyerror ~loc (string_error "unknown implicit label %s" nid) in
       List.iter check pimp;
 
@@ -1425,8 +1426,8 @@ let tt_lvalues env (pimp, pls) implicit tys =
         let mk loc s = 
           L.mk_loc loc (S.PLVar (L.mk_loc loc s)) in
         let a = 
-          Annot.ensure_uniq1 i (Annot.on_attribute ~on_empty:(fun loc () -> mk loc i)
-                                                   ~on_id:(fun loc s -> mk loc s) 
+          Annot.ensure_uniq1 ~case_sensitive:false i (Annot.on_attribute ~on_empty:(fun loc nid () -> mk loc nid)
+                                                   ~on_id:(fun loc _nid s -> mk loc s) 
                                                    error) pimp in
         match a with
         | None -> L.mk_loc loc (S.PLIgnore)

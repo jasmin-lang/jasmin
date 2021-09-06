@@ -93,15 +93,15 @@ end = struct
 
   let parse ~(single:bool) (annot: S.annotations) = 
     let module A = Pt.Annot in
-    let on_struct loc (s:S.annotations) = 
+    let on_struct loc _nid (s:S.annotations) = 
       List.iter A.none s;
       let s = List.fold_left (fun s (id, _) -> Svl.add (Vl.mk_poly (L.unloc id)) s) Svl.empty s in
       if single && Svl.cardinal s <> 1 then 
         Pt.rs_tyerror ~loc 
           (Pt.string_error "= ident or = { ident } is expected after “%s”" spoly);
       Poly s in
-    let on_id _loc id = poly1 (Vl.mk_poly id) in
-    let error loc =
+    let on_id _loc _nid id = poly1 (Vl.mk_poly id) in
+    let error loc _nid =
       Pt.rs_tyerror ~loc 
         (Pt.string_error "= ident or = { ident, ..., ident } is expected after “%s”" spoly) in
     let poly arg = A.on_attribute ~on_id ~on_struct error arg in
