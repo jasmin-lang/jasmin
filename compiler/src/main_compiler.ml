@@ -506,6 +506,7 @@ let main () =
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = expand_fd;
       Compiler.var_alloc_fd = apply "var alloc" var_alloc_fd;
+      Compiler.stack_register_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
       Compiler.stackalloc    = memory_analysis;
       Compiler.removereturn  = removereturn;

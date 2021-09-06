@@ -759,10 +759,10 @@ Section TunnelingSem.
     setfb fd (tunnel_partial fn (tunnel_plan fn LUF.empty lc) lc').
 
   Definition setfuncs lf :=
-    Build_lprog
-      p.(lp_rip)
-      p.(lp_globs)
-      lf.
+    {| lp_rip := lp_rip p
+     ; lp_rsp := lp_rsp p
+     ; lp_globs := lp_globs p
+     ; lp_funcs := lf |}.
 
   Lemma lp_funcs_setfuncs lf : lp_funcs (setfuncs lf) = lf.
   Proof. by case: p. Qed.
@@ -1166,7 +1166,7 @@ Section TunnelingProof.
           end)
       = label_in_lprog p.
   Proof.
-    move: wf_p => /andP; case: p => rip globs funcs /= [Huniq _].
+    move: wf_p => /andP; case: p => rip rsp globs funcs /= [Huniq _].
     rewrite /label_in_lprog /=; f_equal.
     case Hgfd: get_fundef => [fd|] // fb.
     rewrite lp_funcs_setfuncs -map_comp /=.
@@ -1754,7 +1754,7 @@ Section TunnelingCompiler.
     well_formed_lprog p ->
     well_formed_lprog (lprog_tunnel fn p).
   Proof.
-    rewrite /well_formed_lprog /lprog_tunnel; case: p => /= rip globs funcs.
+    rewrite /well_formed_lprog /lprog_tunnel; case: p => /= rip rsp globs funcs.
     move => /andP [Huniq Hall]; apply/andP; split.
     + move: Huniq {Hall}; case Hgfd: (get_fundef _ _) => [fd|] //=.
       by rewrite -map_comp (@eq_map _ _ _ fst).

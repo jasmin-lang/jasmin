@@ -107,7 +107,7 @@ End STACK_STABLE.
 (** Function calls resets RSP to the stack pointer of the initial memory. *)
 Lemma sem_call_valid_RSP ii k s1 fn s2 :
   sem_call p extra_free_registers ii k s1 fn s2 →
-  valid_RSP (emem s1) (evm s2).
+  valid_RSP p (emem s1) (evm s2).
 Proof.
   case/sem_callE => fd m s k' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m exec_body ok_RSP' -> /= _.
   rewrite /valid_RSP /set_RSP Fv.setP_eq /top_stack.
@@ -336,9 +336,9 @@ Proof.
   rewrite /Pfun !disjoint_unionE ih /=.
   apply/andP; split.
   1: case: sf_return_address ok_ra => //.
-  1: rewrite SvP.MP.add_union_singleton disjoint_unionE => /eqP /(@sym_not_eq _ _ _) rax_neq_gd.
+  1: rewrite SvP.MP.add_union_singleton disjoint_unionE => rax_not_magic.
   1: apply/andP; split; last exact: flags_not_magic.
-  1: by rewrite disjoint_singletonE /magic_variables SvP.add_mem_2.
+  1: by rewrite disjoint_singletonE /magic_variables.
   2: case: sf_save_stack ok_ss => //.
   all: move => /= r /andP[] /andP[] /eqP r_neq_gd /eqP r_neq_rsp _.
   all: rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec.

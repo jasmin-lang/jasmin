@@ -1147,7 +1147,8 @@ Qed.
 Definition sfe_eqMixin   := Equality.Mixin sfe_eq_axiom.
 Canonical  sfe_eqType      := Eval hnf in EqType stk_fun_extra sfe_eqMixin.
 
-Record sprog_extra := { 
+Record sprog_extra := {
+  sp_rsp   : Ident.ident;
   sp_rip   : Ident.ident;
   sp_globs : seq u8;
 }.
