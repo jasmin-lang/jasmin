@@ -357,7 +357,7 @@ Section PROOF.
   by case: o => // -[] // => [ | | [] | [] | [] | [] ] sz [] _ <- <-.
   Qed.
 
-  Lemma between_ZR (a b c: ssrZ.Z_numType) :
+  Lemma between_ZR (a b c: Z) :
     (a <= b < c)%R →
     (a <= b < c)%Z.
   Proof. by case/andP => /ssrZ.lezP ? /ssrZ.ltzP. Qed.
@@ -366,7 +366,7 @@ Section PROOF.
     wle Unsigned β α = (wunsigned (β - α) != (wunsigned β - wunsigned α)%Z) || (β == α).
   Proof.
   case: (β =P α).
-  + by move => <-; rewrite orbT /= Num.Theory.lerr.
+  + by move => <-; rewrite orbT /= Order.POrderTheory.lexx.
   rewrite orbF /wunsigned /=.
   case: α β => α hα [] β hβ ne'.
   Transparent word.
@@ -496,7 +496,7 @@ Section PROOF.
       rewrite /vsf /SF_of_word /vof; f_equal.
       set α := zero_extend _ w1; set β := zero_extend _ w2.
       case: (α =P β).
-      - by move => <-; rewrite GRing.subrr msb0 wsigned0 Z.sub_diag /= Num.Theory.lerr.
+      - by move => <-; rewrite GRing.subrr msb0 wsigned0 Z.sub_diag /= Order.POrderTheory.lexx.
       exact: wlesE.
     (* Cond2 CondNeq *)
     + case: o He => // [] // [] // [] sz' //=.
@@ -513,7 +513,7 @@ Section PROOF.
       rewrite /vsf /SF_of_word /vof; f_equal.
       set α := zero_extend _ w1; set β := zero_extend _ w2.
       case: (α =P β).
-      + by move => <-; rewrite /= Num.Theory.ltrr GRing.subrr Z.sub_diag wsigned0 msb0.
+      + by move => <-; rewrite /= Order.POrderTheory.ltxx GRing.subrr Z.sub_diag wsigned0 msb0.
       exact: wltsE.
     (* Cond2 CondOr *)
     + case: o He => // [] // [] // [] sz' //=.
@@ -558,7 +558,7 @@ Section PROOF.
       rewrite /vzf /ZF_of_word /vsf /SF_of_word /vof GRing.subr_eq0; f_equal.
       set α := zero_extend _ w1; set β := zero_extend _ w2.
       case: (α =P β).
-      - move => ->; exact: Num.Theory.lerr.
+      - move => ->; exact: Order.POrderTheory.lexx.
       exact: wlesE'.
     (* Cond3 CondAndNotEq *)
     + case: o He => // [] // [] // [] sz' //=.
@@ -576,7 +576,7 @@ Section PROOF.
       + rewrite /vzf /vsf /vof /ZF_of_word /SF_of_word GRing.subr_eq0; f_equal.
         set α := zero_extend _ w1; set β := zero_extend _ w2.
         case: (α =P _).
-        * by move => -> /=; exact: Num.Theory.ltrr.
+        * by move => -> /=; exact: Order.POrderTheory.ltxx.
         exact: wltsE'.
   Qed.
 
