@@ -232,7 +232,7 @@ let check_safety_p s p source_p =
 
           AbsInt.analyze ())
       (List.rev (snd p)) in
-  exit 0 
+  ()
 
 (* -------------------------------------------------------------------- *)
 let main () =
@@ -274,11 +274,15 @@ let main () =
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
     
+    let do_compile = ref true in
+    let donotcompile () = do_compile := false in
     if SafetyConfig.sc_comp_pass () = Compiler.ParamsExpansion &&
        !check_safety
-    then check_safety_p Compiler.ParamsExpansion prog source_prog
-    else
-            
+    then begin
+      check_safety_p Compiler.ParamsExpansion prog source_prog;
+      donotcompile()
+    end;
+     
     if !ec_list <> [] then begin
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
@@ -295,9 +299,15 @@ let main () =
         BatPervasives.ignore_exceptions
           (fun () -> if !ecfile <> "" then Unix.unlink !ecfile) ();
         raise e end;
-      exit 0
+      donotcompile()
     end;
 
+    if !ct_list <> None then begin
+        Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list);
+        donotcompile()
+    end;
+
+    if !do_compile then begin
     (* FIXME: why this is not certified *)
     let prog = Inline_array_copy.doit prog in
 
@@ -556,6 +566,7 @@ let main () =
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
           Format.printf "%a%!" (Ppasm.pp_prog tbl) asm
+    end
     end
   with
   | Utils.HiError s ->

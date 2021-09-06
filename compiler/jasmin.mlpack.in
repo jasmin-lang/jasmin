@@ -4,6 +4,7 @@ src/Array_expand
 src/Bigint
 src/BigintCore
 src/Conv
+src/Ct_checker_forward
 src/Evaluator
 src/Help
 src/Inline_array_copy

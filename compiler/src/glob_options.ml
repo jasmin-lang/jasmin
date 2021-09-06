@@ -14,6 +14,9 @@ let stop_after = ref None
 let safety_makeconfigdoc = ref None   
 let help_intrinsics = ref false
 
+let ct_list = ref None
+let infer   = ref false 
+
 let lea = ref false
 let set0 = ref false
 let model = ref Normal
@@ -61,7 +64,16 @@ let set_checksafety () = check_safety := true
 let set_safetyparam s = safety_param := Some s
 let set_safetyconfig s = safety_config := Some s
 let set_safety_makeconfigdoc s = safety_makeconfigdoc := Some s
-      
+
+let set_ct () =  
+  if !ct_list = None then ct_list := Some []
+
+let set_ct_on s = 
+  ct_list := 
+    Some (match !ct_list with
+          | None -> [s]
+          | Some l -> s::l)
+
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "constant expansion"
@@ -105,6 +117,9 @@ let options = [
     "-ec"       , Arg.String  set_ec    , "[f]: extract function [f] and its dependencies to an easycrypt file";
     "-oec"     ,  Arg.Set_string ecfile , "[filename]: use filename as output destination for easycrypt extraction";
     "-CT" , Arg.Unit set_constTime      , ": generates model for constant time verification";
+    "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system)";
+    "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system)";
+    "-infer"    , Arg.Set infer         , "infers security level annotations of the constant time type system";          
     "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
     "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,
