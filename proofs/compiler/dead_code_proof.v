@@ -710,3 +710,10 @@ Lemma dead_code_callPs (p p': sprog) fn wrip mem mem' va va' vr:
   exists vr',
     sem_call p' wrip mem fn va mem' vr' /\ List.Forall2 value_uincl vr vr'.
 Proof. apply dead_code_tokeep_callPs. Qed.
+
+Lemma dead_code_prog_tokeep_meta (p p': sprog) onfun :
+  dead_code_prog_tokeep onfun p = ok p' →
+  p_globs p' = p_globs p ∧ p_extra p' = p_extra p.
+Proof.
+  by rewrite /dead_code_prog_tokeep; t_xrbindP => _ _ <- /=.
+Qed.
