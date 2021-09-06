@@ -655,10 +655,10 @@ Section PROOF.
   move: (Hw' w). move=> [] m2' Hw''. exists m2'.
   + by apply Hw''.
   constructor.
-  (* read *) 
-  + move=> p1 w1 Hr2. have hr1:= write_read8 Hw p1. 
+  (* read *)
+  + move=> p1 w1 Hr2. have hr1:= write_read8 Hw p1.
     have hr2 := write_read8 Hw'' p1. move: Hr2. rewrite hr2 hr1 /=.
-    case: ifP=> // _. by apply H1. 
+    case: ifP=> // _. by apply H1.
   (* valid *)
   + move=> p1 Hv. have Hv1 := (CoreMem.write_validw_eq Hw).
     have Hv2 := (CoreMem.write_validw_eq Hw''). rewrite Hv2.
@@ -946,7 +946,7 @@ Section PROOF.
     ∀ fn lbl,
       checked_i fn (MkI ii i) →
       let: (lbli, li) := linear_i fn (MkI ii i) lbl [::] in
-      (if extra_free_registers ii is Some fr then 
+      (if extra_free_registers ii is Some fr then
            [/\ fr <> vgd, fr <> vrsp, vtype fr = sword Uptr & s1.[fr]%vmap = Error ErrAddrUndef]
        else True) →
      ∀ m1 vm1 P Q,
@@ -1066,18 +1066,18 @@ Section PROOF.
     move => ii k i s1 s2 ok_fr _ h _ fn lbl chk.
     move: h => /(_ fn lbl chk); case: linear_i (valid_i fn (MkI ii i) lbl) => lbli li [L V] S.
     move => m1 vm1 P Q W M X D C.
-    have E : 
+    have E :
       match extra_free_registers ii return Prop with
       | Some fr =>
           [/\ fr ≠ vgd, fr ≠ vrsp, vtype fr = sword64
             & ((kill_extra_register extra_free_registers ii s1).[fr])%vmap = Error ErrAddrUndef]
       | None => True
       end.
-    + rewrite /kill_extra_register /kill_extra_register_vmap.  
+    + rewrite /kill_extra_register /kill_extra_register_vmap.
       case: extra_free_registers ok_fr => // fr /and3P [] /eqP hrip /eqP hrsp /eqP hty; split => //=.
       rewrite /=; case heq: s1.[fr]%vmap (W fr) (X fr) => [vfr | efr /=].
       + by move=> _ _;rewrite Fv.setP_eq hty.
-      rewrite heq; case: vm1.[fr]%vmap. 
+      rewrite heq; case: vm1.[fr]%vmap.
       + by move=> _ _; case efr.
       by move=> [] // _; case: (efr).
     have {S E} S := S E.
