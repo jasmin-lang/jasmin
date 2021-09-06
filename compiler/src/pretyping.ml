@@ -1400,11 +1400,17 @@ let tt_lvalues env (pimp, pls) implicit tys =
       let nb_explicit = 
         List.count_matching (function ADExplicit _ -> true | _ -> false) implicit in
       let pls = extend_pls nb_explicit in
+      let pimp = 
+        let upper (id, arg) =
+          let arg = if arg = None then Some (L.lmap (fun x -> S.Aid x) id) else arg in
+          let id = L.lmap String.uppercase_ascii id in 
+          (id, arg) in
+        List.map upper pimp in
       let arguments = 
         let open X86_variables in
         List.map (function ADExplicit _           -> None 
-                         | ADImplicit (IArflag f) -> Some (Conv.string_of_string0 (string_of_rflag f))
-                         | ADImplicit (IAreg r)   -> Some (Conv.string_of_string0 (string_of_register r))) implicit in
+                         | ADImplicit (IArflag f) -> Some (String.uppercase_ascii (Conv.string_of_string0 (string_of_rflag f)))
+                         | ADImplicit (IAreg r)   -> Some (String.uppercase_ascii (Conv.string_of_string0 (string_of_register r)))) implicit in
 
       let check (id, _) = 
         let loc = L.loc id in
@@ -1415,7 +1421,7 @@ let tt_lvalues env (pimp, pls) implicit tys =
 
       let get_implicit i = 
         let error loc = 
-          rs_tyerror ~loc (string_error "a ident is expected (default is %s)" i) in
+          rs_tyerror ~loc (string_error "an ident is expected (default is %s)" i) in
         let mk loc s = 
           L.mk_loc loc (S.PLVar (L.mk_loc loc s)) in
         let a = 
@@ -1514,7 +1520,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let lvs = tt_lvalues env ls None tlvs in
       let es  = tt_exprs_cast env args tes in
       let is_inline = 
-        match Annot.ensure_uniq1 "inline" (Annot.none) annot with
+        match Annot.ensure_uniq1 "inline" Annot.none annot with
         | Some () -> P.DoInline 
         | None -> 
           match f.P.f_cc with 
