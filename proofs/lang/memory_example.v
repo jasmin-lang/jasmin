@@ -104,7 +104,7 @@ Qed.
 (** An example instance of the memory *)
 Module MemoryI : MemoryT.
 
-  Lemma addP p k: add p k = (p + wrepr U64 k)%R.
+  Lemma addP p k: add p k = (p + wrepr Uptr k)%R.
   Proof. done. Qed.
 
   Definition is_zalloc T (m: Mz.t T) (p:Z) : bool :=
@@ -725,7 +725,7 @@ Module MemoryI : MemoryT.
     move: (footprint_of_stack _) sz_pos fs_pos => fs sz_pos fs_pos _.
     rewrite !addE !subE !(wrepr_opp, wrepr_add, wrepr_unsigned, align_wordE).
     set x := (X in is_align X).
-    have -> : x = align_word ws_stk (stk_root m - wrepr U64 fs - (wrepr U64 sz + wrepr U64 sz')).
+    have -> : x = align_word ws_stk (stk_root m - wrepr _ fs - (wrepr _ sz + wrepr _ sz')).
     + by rewrite /x;ssrring.ssring.
     rewrite /is_align p_to_zE; apply align_word_aligned.
   Qed.
