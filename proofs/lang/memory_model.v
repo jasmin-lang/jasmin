@@ -476,7 +476,7 @@ Qed.
 
 (* -------------------------------------------------- *)
 (** Pointer arithmetic *)
-  
+
 Instance Pointer : pointer_op pointer.
 Proof.
 refine
@@ -486,8 +486,11 @@ refine
   |}.
 - abstract (move=> p k; rewrite wrepr_unsigned; ssrring.ssring).
 - abstract (move=> p k => hk;
-  rewrite -{2}(@wunsigned_repr_small Uptr k); last (by have := wsize_size_wbase U256; Psatz.lia);
-  f_equal; ssrring.ssring).
+  rewrite -{2}(@wunsigned_repr_small Uptr k);
+    [ f_equal; ssrring.ssring
+    | have := wsize_size_wbase U256;
+      have := wbase_m (wsize_le_U8 Uptr);
+      Lia.lia ]).
 - abstract (move => p; rewrite wrepr0; ssrring.ssring).
 Defined.
 

@@ -142,7 +142,7 @@ Lemma wsize_size_pos sz :
   0 < wsize_size sz.
 Proof. done. Qed.
 
-Lemma wsize_size_wbase s : wsize_size s < wbase U64.
+Lemma wsize_size_wbase s : wsize_size s < wbase U8.
 Proof. by apply /ZltP; case: s; vm_compute. Qed.
 
 Lemma wsize_size_div_wbase sz sz' : (wsize_size sz | wbase sz').
@@ -164,6 +164,16 @@ Lemma wsize_size_m s s' :
   wsize_size_minus_1 s ≤ wsize_size_minus_1 s'.
 Proof.
 by move=> /eqP; rewrite /cmp_le /gcmp wsize_cmpP Nat.compare_ge_iff.
+Qed.
+
+Lemma wbase_m s s' :
+  (s ≤ s')%CMP →
+  wbase s <= wbase s'.
+Proof.
+  rewrite /wbase /modulus !two_power_nat_S !two_power_nat_equiv => /wsize_size_m s_le_s'.
+  apply: Z.mul_le_mono_nonneg_l; first by [].
+  apply: Z.pow_le_mono_r; first by [].
+  Lia.lia.
 Qed.
 
 Lemma wsize_size_le a b :
