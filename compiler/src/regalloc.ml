@@ -641,16 +641,14 @@ let greedy_allocation
         | Unknown ty -> hierror_reg ~loc:Lnone "no register bank for type %a" Printer.pp_ty ty
       in
       match List.filter has_no_conflict bank with
-      | (x :: regs) as bank ->
+      | [] -> hierror_reg ~loc:Lnone "no more register to allocate %a" Printer.(pp_list "; " (pp_var ~debug:true)) vi
+      | bank ->
          begin match List.filter has_no_may_conflict bank with
          | x :: regs ->
             let y = get_friend_registers x fr a i regs in
             A.set i y a
-         | [] ->
-            let y = get_friend_registers x fr a i regs in
-            A.set i y a
+         | [] -> hierror "Register allocation: no more register to allocate %a (please do some spilling at some call-site)" Printer.(pp_list "; " (pp_var ~debug:true)) vi
          end
-      | [] -> hierror_reg ~loc:Lnone "no more register to allocate %a" Printer.(pp_list "; " (pp_var ~debug:true)) vi
     )
     )
   done
@@ -732,11 +730,7 @@ let post_process ~stack_needed ~extra_free_registers (live: Sv.t) ~(killed: funn
            let globally_free_regs = Sv.diff free_regs live in
            begin match Sv.Exceptionless.any globally_free_regs with
            | None ->
-             begin match Sv.any free_regs with
-             | r -> Some r
-             | exception Not_found ->
-               hierror_reg ~loc:(Lone f.f_loc) ~funname:f.f_name.fn_name "no free register for the return address"
-             end
+             hierror_reg ~loc:(Lone f.f_loc) ~funname:f.f_name.fn_name "no free register for the return address"
            | r -> r
            end
          else None
