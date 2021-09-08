@@ -717,3 +717,23 @@ Lemma dead_code_prog_tokeep_meta (p p': sprog) onfun :
 Proof.
   by rewrite /dead_code_prog_tokeep; t_xrbindP => _ _ <- /=.
 Qed.
+
+Lemma dead_code_prog_tokeep_get_fundef (p p': sprog) onfun fn f :
+  dead_code_prog_tokeep onfun p = ok p' →
+  get_fundef (p_funcs p) fn = Some f →
+  exists2 f', dead_code_fd onfun fn f = ok f' & get_fundef (p_funcs p') fn = Some f'.
+Proof.
+  apply: rbindP => fds ok_fds [<-{p'}].
+  exact: get_map_cfprog_name.
+Qed.
+
+Lemma dead_code_fd_meta onfun fn (fd fd': sfundef) :
+  dead_code_fd onfun fn fd = ok fd' →
+  [/\
+   fd'.(f_tyin) = fd.(f_tyin),
+   fd'.(f_params) = fd.(f_params) &
+   fd'.(f_extra) = fd.(f_extra)
+  ].
+Proof.
+  by case: fd => /= ; t_xrbindP => /= ????????? [<-].
+Qed.

@@ -298,6 +298,21 @@ Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Da
     ok tt)
   else cferror (Ferr_neqfun f1 f2).
 
+Lemma check_fundef_meta ep1 ep2 ffd1 ffd2 u u' :
+  check_fundef ep1 ep2 ffd1 ffd2 u = ok u' →
+  let fd1 := ffd1.2 in
+  let fd2 := ffd2.2 in
+  [/\
+   ffd1.1 = ffd2.1,
+   fd1.(f_tyin) = fd2.(f_tyin),
+   fd1.(f_tyout) = fd2.(f_tyout) &
+   fd1.(f_extra) = fd2.(f_extra)
+  ].
+Proof.
+  case: ffd1 ffd2 => f1 fd1 [] f2 fd2.
+  by rewrite /check_fundef; case: andP => // - [] /andP[] /andP[] /eqP -> /eqP -> /eqP -> /eqP -> _.
+Qed.
+
 Definition check_prog ep1 p_funcs1 ep2 p_funcs2 := 
   fold2 Ferr_neqprog (check_fundef ep1 ep2) p_funcs1 p_funcs2 tt.
 
