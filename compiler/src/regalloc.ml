@@ -623,7 +623,7 @@ let type_of_vars (vars: var list) : ty =
 
 let greedy_allocation
     (vars: int Hv.t)
-    (nv: int) (cnf: conflicts) (may_cnf: conflicts)
+    (nv: int) (cnf: conflicts)
     (fr: friend)
     (a: A.allocation) : unit =
   let classes : var list array = Array.make nv [] in
@@ -633,7 +633,6 @@ let greedy_allocation
       let vi = classes.(i) in
       if vi <> [] then (
       let has_no_conflict v = does_not_conflict i cnf a v in
-      let has_no_may_conflict v = does_not_conflict i may_cnf a v in
       let bank =
         match kind_of_type (type_of_vars vi) with
         | Word -> X64.allocatable
@@ -642,14 +641,10 @@ let greedy_allocation
       in
       match List.filter has_no_conflict bank with
       | [] -> hierror_reg ~loc:Lnone "no more register to allocate %a" Printer.(pp_list "; " (pp_var ~debug:true)) vi
-      | bank ->
-         begin match List.filter has_no_may_conflict bank with
-         | x :: regs ->
-            let y = get_friend_registers x fr a i regs in
-            A.set i y a
-         | [] -> hierror "Register allocation: no more register to allocate %a (please do some spilling at some call-site)" Printer.(pp_list "; " (pp_var ~debug:true)) vi
-         end
-    )
+      | x :: regs ->
+         let y = get_friend_registers x fr a i regs in
+         A.set i y a
+      )
     )
   done
 
@@ -822,10 +817,10 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
       liveness_table
       empty_conflicts
   in
-  let may_conflicts = List.fold_left (fun a f -> collect_may_conflicts vars tr (get_liveness f.f_name) f a) empty_conflicts funcs in
+  let conflicts = List.fold_left (fun a f -> collect_may_conflicts vars tr (get_liveness f.f_name) f a) conflicts funcs in
   let a = A.empty nv in
   List.iter (fun f -> allocate_forced_registers translate_var vars conflicts f a) funcs;
-  greedy_allocation vars nv conflicts may_conflicts fr a;
+  greedy_allocation vars nv conflicts fr a;
   let subst = var_subst_of_allocation vars a in
 
   let extra_free_registers = Hashtbl.create 137 in
