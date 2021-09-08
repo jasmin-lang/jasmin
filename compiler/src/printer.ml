@@ -437,3 +437,28 @@ let pp_sprog ~debug tbl fmt ((funcs, p_extra):'info Prog.sprog) =
 let pp_warning_msg fmt = function
   | Compiler_util.Use_lea -> Format.fprintf fmt "LEA instruction is used"
 
+let pp_hierror fmt e =
+  let open Utils in
+  let pp_loc fmt =
+    match e.err_loc with
+    | Lnone -> ()
+    | Lone l -> Format.fprintf fmt "%a@ " Location.pp_loc l
+    | Lmore i_loc -> Format.fprintf fmt "%a@ " pp_iloc i_loc
+  in
+  let pp_funname fmt funname =
+    match funname with
+    | Some fn -> Format.fprintf fmt " in function %s" fn
+    | None -> ()
+  in
+  let pp_err fmt =
+    match e.err_sub_kind with
+    | Some s ->
+      Format.fprintf fmt "%s: %t" s e.err_msg
+    | None -> Format.fprintf fmt "%t" e.err_msg
+  in
+  let pp_internal fmt b =
+    if b then
+      Format.fprintf fmt "@[<v>Internal error:@;<0 2>%t@ Please report at https://github.com/jasmin-lang/jasmin/issues@]" pp_err
+    else pp_err fmt
+  in
+  Format.fprintf fmt "@[<v>%t%s%a@ %a@]" pp_loc e.err_kind pp_funname e.err_funname pp_internal e.err_internal

@@ -293,11 +293,23 @@ end
 
 (* -------------------------------------------------------------------- *)
 
-type i_loc = Location.t * Location.t list 
-type loc__ = Lnone | Lone of Location.t | Lmore of i_loc
-exception HiError of loc__ * string
+type error_loc = Lnone | Lone of Location.t | Lmore of Location.i_loc
+type hierror = {
+  err_msg      : Format.formatter -> unit; (* a printer of the main error message              *)
+  err_loc      : error_loc;                (* the location                                     *)
+  err_funname  : string option;            (* the name of the function, if any                 *)
+  err_kind     : string;                   (* kind of error (e.g. typing, compilation)         *)
+  err_sub_kind : string option;            (* sub-kind (e.g. the name of the compilation pass) *)
+  err_internal : bool;                     (* whether the error is unexpected                  *)
+}
+exception HiError of hierror
 
-val hierror : ?loc:loc__ -> ('a, Format.formatter, unit, 'b) format4 -> 'a
+val add_iloc : hierror -> Location.i_loc -> hierror
+
+val hierror :
+      loc:error_loc -> ?funname:string -> kind:string
+   -> ?sub_kind:string -> ?internal:bool
+   -> ('a, Format.formatter, unit, 'b) format4 -> 'a
 
 (* -------------------------------------------------------------------- *)
 type 'a pp = Format.formatter -> 'a -> unit

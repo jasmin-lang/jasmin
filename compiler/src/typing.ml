@@ -4,7 +4,7 @@ open Wsize
 open Prog
 
 (* -------------------------------------------------------------------- *)
-exception TyError of i_loc * string 
+exception TyError of L.i_loc * string
 
 let error loc fmt =
   let buf  = Buffer.create 127 in

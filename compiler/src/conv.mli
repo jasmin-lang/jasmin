@@ -68,3 +68,6 @@ val prog_of_csprog : 'info coq_tbl -> Expr._sprog -> 'info sprog
 val to_array : 
   Prog.ty -> BinNums.positive -> Warray_.WArray.array -> wsize * Prog.B.zint array
 
+val error_of_cerror :
+  (Format.formatter -> Compiler_util.pp_error -> unit) ->
+  'info coq_tbl -> Compiler_util.pp_error_loc -> Utils.hierror

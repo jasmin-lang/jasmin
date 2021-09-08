@@ -29,7 +29,7 @@ let pp_clval tbl fmt lv =
   Printer.(pp_lval ~debug:true) fmt
 
 let saved_rev_alloc : (var -> Sv.t) option ref = ref None
-let saved_extra_free_registers : (i_loc -> var option) ref = ref (fun _ -> None)
+let saved_extra_free_registers : (L.i_loc -> var option) ref = ref (fun _ -> None)
 let saved_live_calls : (funname -> Sv.t) option ref = ref None
 
 let rec pp_err tbl fmt (pp_e : Compiler_util.pp_error) =
@@ -67,57 +67,6 @@ let patch_vi_loc tbl (e : Compiler_util.pp_error_loc) =
     if L.isdummy l then { e with Compiler_util.pel_vi = None }
     else e
 
-(* do we want more complex logic, e.g. if both vi and ii are <> None,
-   we could check whether they point to the same line. If not, we could
-   decide to print both locations.
-*)
-let pp_err_loc tbl fmt (e : Compiler_util.pp_error_loc) =
-  let open Compiler_util in
-  let e = patch_vi_loc tbl e in
-  let pp_loc fmt e =
-    match e.pel_vi with
-    | Some vi ->
-      let loc = Conv.get_loc tbl vi in
-      begin match e.pel_ii with
-      | None ->
-        L.pp_loc fmt loc
-      | Some ii ->
-        (* if there are some locations coming from inlining, we print them *)
-        let ((_, locs), _) = Conv.get_iinfo tbl ii in
-        Printer.pp_iloc fmt (loc, locs)
-      end
-    | None ->
-      begin match e.pel_ii with
-      | Some ii ->
-        let (i_loc, _) = Conv.get_iinfo tbl ii in
-        Printer.pp_iloc fmt i_loc
-      | None ->
-        begin match e.pel_fi with
-        | Some fi ->
-          let (f_loc, _, _) = Conv.get_finfo tbl fi in
-          L.pp_loc fmt f_loc
-        | None -> Format.fprintf fmt "no location info"
-       end
-     end
-  in
-  let pp_err fmt e =
-    match e.pel_pass with
-    | Some s ->
-      Format.fprintf fmt "%a: %a" Printer.pp_string0 s (pp_err tbl) e.pel_msg
-    | None -> pp_err tbl fmt e.pel_msg
-  in
-  let pp_funname fmt e =
-    match e.pel_fn with
-    | Some fn ->
-        Format.fprintf fmt " in function %s" (Conv.fun_of_cfun tbl fn).fn_name
-    | None -> ()
-  in
-  let pp_internal fmt (b,e) =
-    if b then
-      Format.fprintf fmt "@[<v>Internal error:@;<0 2>%a@ Please report at https://github.com/jasmin-lang/jasmin/issues@]" pp_err e
-    else pp_err fmt e
-  in
-  Format.fprintf fmt "@[<v>%a@ compilation error%a@ %a@]" pp_loc e pp_funname e pp_internal (e.pel_internal, e)
 
 (* -------------------------------------------------------------------- *)
 let rec warn_extra_i i = 
@@ -130,9 +79,8 @@ let rec warn_extra_i i =
         Printer.pp_iloc i.i_loc
         (Printer.pp_instr ~debug:false) i
     | AT_inline ->
-      hierror 
-        "@[<v> at @[%a@] AT_inline flag remains @ @[%a@]@]@ PLEASE REPORT" 
-        Printer.pp_iloc i.i_loc
+      hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
+        "@[<v>AT_inline flag remains in instruction:@;<0 2>@[%a@]@]"
         (Printer.pp_instr ~debug:false) i
     | _ -> ()
     end
@@ -140,8 +88,8 @@ let rec warn_extra_i i =
     List.iter warn_extra_i c1;
     List.iter warn_extra_i c2;
   | Cfor _ ->
-    hierror "at @[%a@] for loop remains"
-      Printer.pp_iloc i.i_loc
+    hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
+      "for loop remains"
   | Ccall _ -> ()
 
 let warn_extra_fd (_, fd) =
@@ -266,7 +214,8 @@ let main () =
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
           with Evaluator.Eval_error (ii,err) ->
-            hierror "%a" Evaluator.pp_error (tbl, ii, err)
+            let (i_loc, _) = Conv.get_iinfo tbl ii in
+            hierror ~loc:(Lmore i_loc) ~kind:"evaluation error" "%a" Evaluator.pp_error (tbl, ii, err)
         in
         List.iter exec to_exec
       end;
@@ -298,7 +247,7 @@ let main () =
     let translate_var = Conv.var_of_cvar tbl in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      StackAlloc.memory_analysis pp_err_loc ~debug:!debug tbl up
+      StackAlloc.memory_analysis pp_err ~debug:!debug tbl up
      in
 
     let global_regalloc fds =
@@ -306,14 +255,18 @@ let main () =
       let fds = List.map (Conv.fdef_of_csfdef tbl) fds in
       (* TODO: move *)
       (* Check the stacksize, stackallocsize & stackalign annotations, if any *)
-      List.iter (fun ({ Expr.sf_stk_sz ; Expr.sf_stk_extra_sz ; Expr.sf_align }, { f_annot ; f_name }) ->
+      List.iter (fun ({ Expr.sf_stk_sz ; Expr.sf_stk_extra_sz ; Expr.sf_align }, { f_loc ; f_annot ; f_name }) ->
+          let hierror fmt =
+            hierror ~loc:(Lone f_loc) ~funname:f_name.fn_name
+              ~kind:"compilation error" ~sub_kind:"register allocation" fmt
+          in
           begin match f_annot.stack_size with
           | None -> ()
           | Some expected ->
              let actual = Conv.bi_of_z sf_stk_sz in
              if B.equal actual expected
              then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%a)@." f_name.fn_name B.pp_print expected)
-             else hierror "Function %s has a stack of size %a (expected: %a)" f_name.fn_name B.pp_print actual B.pp_print expected
+             else hierror "the stack has size %a (expected: %a)" B.pp_print actual B.pp_print expected
           end;
           begin match f_annot.stack_allocation_size with
           | None -> ()
@@ -321,7 +274,7 @@ let main () =
              let actual = Conv.bi_of_z (Memory_model.round_ws sf_align (BinInt.Z.add sf_stk_sz sf_stk_extra_sz)) in
              if B.equal actual expected
              then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%a)@." f_name.fn_name B.pp_print expected)
-             else hierror "Function %s has a stack of size %a (expected: %a)" f_name.fn_name B.pp_print actual B.pp_print expected
+             else hierror "the stack has size %a (expected: %a)" B.pp_print actual B.pp_print expected
           end;
           begin match f_annot.stack_align with
           | None -> ()
@@ -329,7 +282,7 @@ let main () =
              let actual = sf_align in
              if actual = expected
              then (if !debug then Format.eprintf "INFO: %s has the expected stack alignment (%s)@." f_name.fn_name (string_of_ws expected))
-             else hierror "Function %s has a stack alignment %s (expected: %s)" f_name.fn_name (string_of_ws actual) (string_of_ws expected)
+             else hierror "the stack has alignment %s (expected: %s)" (string_of_ws actual) (string_of_ws expected)
           end
         ) fds;
 
@@ -490,8 +443,8 @@ let main () =
     begin match
       Compiler.compile_prog_to_x86 cparams export_functions subroutines (Expr.to_uprog cprog) with
     | Utils0.Error e ->
-        Utils.hierror "%a@."
-         (pp_err_loc tbl) e
+      let e = Conv.error_of_cerror (pp_err tbl) tbl e in
+      raise (HiError e)
     | Utils0.Ok asm ->
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->
@@ -502,13 +455,9 @@ let main () =
           Format.printf "%a%!" (Ppasm.pp_prog tbl) asm
     end
   with
-  | Utils.HiError (loc, s) ->
-      begin match loc with
-      | Lnone -> ()
-      | Lone loc -> Format.eprintf "%a" L.pp_loc loc
-      | Lmore l -> Format.eprintf "%a" Printer.pp_iloc l
-      end;
-      Format.eprintf "%s\n%!" s; exit 1
+  | Utils.HiError e ->
+      Format.eprintf "%a@." Printer.pp_hierror e;
+      exit 1
 
   | UsageError ->
       Arg.usage options usage_msg;
