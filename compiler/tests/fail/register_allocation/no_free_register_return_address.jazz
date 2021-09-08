@@ -1,4 +1,4 @@
-param int n = 13;
+param int n = 14;
 
 fn gosub(reg u64 a) -> reg u64 {
 reg u64[n] tab;
