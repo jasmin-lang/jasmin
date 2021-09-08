@@ -596,19 +596,47 @@ end
 
 
 (* -------------------------------------------------------------------- *)
-type i_loc = Location.t * Location.t list 
-type loc__ = Lnone | Lone of Location.t | Lmore of i_loc
-exception HiError of loc__ * string
+(* An [error_loc] is either unknown, a single location or a pair of a location
+   and a list of locations (this list comes from the inlining pass).
+   We could probably just have an [i_loc], though, since we can simulate
+   the other cases with a dummy location and an empty list.
+*)
+type error_loc = Lnone | Lone of Location.t | Lmore of Location.i_loc
+type hierror = {
+  err_msg      : Format.formatter -> unit; (* a printer of the main error message              *)
+  err_loc      : error_loc;                (* the location                                     *)
+  err_funname  : string option;            (* the name of the function, if any                 *)
+  err_kind     : string;                   (* kind of error (e.g. typing, compilation)         *)
+  err_sub_kind : string option;            (* sub-kind (e.g. the name of the compilation pass) *)
+  err_internal : bool;                     (* whether the error is unexpected                  *)
+}
+exception HiError of hierror
 
-let hierror ?(loc=Lnone) fmt =
-  let buf  = Buffer.create 127 in
-  let bfmt = Format.formatter_of_buffer buf in
+(* We fetch from [i_loc] the locations coming from the inlining pass *)
+let add_iloc e i_loc =
+  let err_loc =
+    match e.err_loc with
+    | Lnone -> Lmore i_loc
+    | Lone loc -> Lmore (loc, snd i_loc)
+    | Lmore _ as err_loc -> err_loc (* we already have a more precise location *)
+  in
+  { e with err_loc }
 
-  Format.kfprintf
-    (fun _ ->
-      Format.pp_print_flush bfmt ();
-      raise (HiError (loc, Buffer.contents buf)))
-    bfmt fmt
+(* In general, we want a [loc], that's why it is not optional. If you really
+   don't want to give a [loc], pass [Lnone].
+*)
+let hierror ~loc ?funname ~kind ?sub_kind ?(internal=false) =
+  Format.kdprintf
+    (fun pp ->
+      let err = {
+        err_msg = pp;
+        err_loc = loc;
+        err_funname = funname;
+        err_kind = kind;
+        err_sub_kind = sub_kind;
+        err_internal = internal;
+      } in
+      raise (HiError err))
 
 (* -------------------------------------------------------------------- *)
 type 'a pp = Format.formatter -> 'a -> unit

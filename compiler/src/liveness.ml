@@ -90,7 +90,7 @@ let liveness weak prog =
   let fds = List.map (live_fd weak) (snd prog) in
   fst prog, fds
 
-let iter_call_sites (cb: i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) (f: (Sv.t * Sv.t) func) : unit =
+let iter_call_sites (cb: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) (f: (Sv.t * Sv.t) func) : unit =
   let rec iter_instr_r loc ii =
     function
     | (Cassgn _ | Copn _) -> ()

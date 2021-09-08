@@ -18,6 +18,8 @@ let _dummy = {
   loc_echar = -1;
 }
 
+type i_loc = t * t list
+
 (* -------------------------------------------------------------------- *)
 let make (p1 : position) (p2 : position) =
   let mkpos (p : position) =
@@ -79,8 +81,6 @@ type 'a located = {
   pl_loc  : t;
   pl_desc : 'a;
 }
-
-(* type 'a mloc = ('a, t) Utils.tagged *)
 
 (* -------------------------------------------------------------------- *)
 let loc    x = x.pl_loc

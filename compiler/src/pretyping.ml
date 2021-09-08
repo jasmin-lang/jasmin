@@ -1443,8 +1443,8 @@ let tt_call_conv loc params returns cc =
             Printer.pp_kind (L.unloc x).P.v_kind s) in
     List.iter (check "parameter") params;
     List.iter (check "result") returns;
-    if 1 < List.length returns then 
-      rs_tyerror ~loc (string_error "export function should return at most one argument");
+    if 2 < List.length returns then
+      rs_tyerror ~loc (string_error "export function should return at most two arguments");
     P.Export 
 
   | None         -> 

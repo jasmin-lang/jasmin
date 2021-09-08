@@ -85,7 +85,7 @@ let pp_oracle tbl up fmt saos =
     (Printer.pp_list "@;" (pp_slot tbl)) ao_global_alloc
     (Printer.pp_list "@;" pp_stack_alloc) fs
 
-let memory_analysis pp_comp_ferr ~debug tbl up = 
+let memory_analysis pp_err ~debug tbl up =
   if debug then Format.eprintf "START memory analysis@.";
   let p = Conv.prog_of_cuprog tbl up in
   let gao, sao = Varalloc.alloc_stack_prog p in
@@ -163,7 +163,9 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
     match Stack_alloc.alloc_prog false crip crsp gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
-        Utils.hierror "%a@." (pp_comp_ferr tbl) e in
+      let e = Conv.error_of_cerror (pp_err tbl) tbl e in
+      raise (HiError e)
+  in
   let fds, _ = Conv.prog_of_csprog tbl sp' in
   
   if debug then

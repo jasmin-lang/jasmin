@@ -64,7 +64,7 @@ let set_safety_makeconfigdoc s = safety_makeconfigdoc := Some s
       
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
-  | Compiler.ParamsExpansion             -> "cstexp"   , "constant expansion"
+  | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
   | Compiler.AddArrInit                  -> "addarrinit", "add array initialisation"
   | Compiler.Inlining                    -> "inline"   , "inlining"
   | Compiler.RemoveUnusedFunction        -> "rmfunc"   , "remove unused function"
