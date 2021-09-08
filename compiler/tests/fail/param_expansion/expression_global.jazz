@@ -1,0 +1,2 @@
+param int N = (int)(64u) 3;
+u64[N] a = {1,2};

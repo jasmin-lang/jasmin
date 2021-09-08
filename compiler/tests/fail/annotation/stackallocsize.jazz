@@ -1,0 +1,29 @@
+fn g () -> reg u32 {
+  stack u256 a;
+  reg u32 r;
+  a = 0;
+  r = a;
+  return r;
+}
+
+/* Stack alloc size is 32 bytes.
+   32 = [8 (size) + 8 (extra size)] aligned on u256
+*/
+#[returnaddress="stack", stacksize="8", stackallocsize="21"]
+fn f () -> reg u32, reg u32 {
+  stack u32 s1 s2;
+  reg u32 res res2;
+  s1 = 0;
+  s2 = 2;
+  res = s1;
+  res2 = g ();
+  res += s2;
+
+  return res, res2;
+}
+
+export fn main () -> reg u32 {
+  reg u32 res res1;
+  res, res1 = f();
+  return res;
+}

@@ -1,0 +1,2 @@
+param int N = 4;
+u64[N] g = {1};

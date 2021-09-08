@@ -1,0 +1,12 @@
+fn f(reg u64 arg) -> reg u64 {
+  reg u64 res;
+  res = arg + 3;
+  return res;
+}
+
+export fn main (reg u64 x) -> reg u64 {
+  reg u64 res;
+  reg u64 z;
+  res = z;
+  return res;
+}

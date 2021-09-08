@@ -1,0 +1,8 @@
+fn f () -> reg u64 {
+  stack u64[2] a;
+  reg u64 res;
+  a[0] = 1;
+  a[1:1] = a[0:1];
+  res = a[1];
+  return res;
+}
