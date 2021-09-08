@@ -66,6 +66,7 @@ Variant asm_op : Type :=
 | INC    of wsize                         (* increment *)
 | DEC    of wsize                         (* decrement *)
 
+| LZCNT  of wsize             (* number of leading zero *)
   (* Flag *)
 | SETcc                           (* Set byte on condition *)
 | BT     of wsize                  (* Bit test, sets result to CF *)
@@ -432,6 +433,24 @@ Definition x86_DEC sz (w: word sz) : ex_tpl (b4w_ty sz) :=
   ok (rflags_of_aluop_nocf_w
     (w - 1)
     (wsigned w - 1)%Z).
+
+
+Fixpoint leading_zero_aux (n: Z) (k : nat) :=
+  if (n <? 2^(64 - k))%Z then k 
+  else match k with 
+  | 0 => 0
+  | S k' => leading_zero_aux n k'
+  end.
+      
+Definition leading_zero sz (w: word sz) : word sz := 
+  wrepr sz (leading_zero_aux (wunsigned w) sz).
+
+Definition x86_LZCNT sz (w: word sz) : ex_tpl (b5w_ty sz) := 
+   Let _ := check_size_16_64 sz in
+   let v := leading_zero w in 
+   ok (flags_w 
+        (*  OF;     CF;                  SF;   PF;    ZF  *)
+         ((:: None, Some (ZF_of_word w), None, None & Some (ZF_of_word v)) : sem_tuple b5_ty) v).
 
 Definition x86_SETcc (b:bool) : ex_tpl (w_ty U8) := ok (wrepr U8 (Z.b2z b)).
 
@@ -1275,6 +1294,9 @@ Definition Ox86_INC_instr               :=
 Definition Ox86_DEC_instr :=
   mk_instr_w_b4w_00 "DEC" x86_DEC check_neg no_imm (primP DEC) (pp_iname "dec").
 
+Definition Ox86_LZCNT_instr               :=
+  mk_instr_w_b5w "LZCNT" x86_LZCNT msb_dfl [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) no_imm (primP LZCNT) (pp_iname "lzcnt").
+
 Definition check_setcc := [:: [::c; rm false]].
 Definition Ox86_SETcc_instr             :=
   mk_instr_pp "SETcc" b_ty w8_ty [:: E 0] [:: E 1] msb_dfl x86_SETcc check_setcc 2 U8 (no_imm U8) (PrimM SETcc) (pp_ct "set" U8).
@@ -1776,6 +1798,7 @@ Definition instr_desc o : instr_desc_t :=
   | NEG sz             => Ox86_NEG_instr.1 sz
   | INC sz             => Ox86_INC_instr.1 sz
   | DEC sz             => Ox86_DEC_instr.1 sz
+  | LZCNT sz           => Ox86_LZCNT_instr.1 sz
   | SETcc              => Ox86_SETcc_instr.1
   | BT sz              => Ox86_BT_instr.1 sz
   | CLC                => Ox86_CLC_instr.1
@@ -1815,7 +1838,7 @@ Definition instr_desc o : instr_desc_t :=
   | VPMULU sz          => Ox86_VPMULU_instr.1 sz
   | VPMULH ve sz       => Ox86_VPMULH_instr.1 ve sz
   | VPMULHU ve sz      => Ox86_VPMULHU_instr.1 ve sz
-  | VPMULHRS ve sz => Ox86_VPMULHRS_instr.1 ve sz
+  | VPMULHRS ve sz     => Ox86_VPMULHRS_instr.1 ve sz
   | VPSLL sz sz'       => Ox86_VPSLL_instr.1 sz sz'
   | VPSRL sz sz'       => Ox86_VPSRL_instr.1 sz sz'
   | VPSRA sz sz'       => Ox86_VPSRA_instr.1 sz sz'
@@ -1834,8 +1857,8 @@ Definition instr_desc o : instr_desc_t :=
   | VPACKUS ve sz      => Ox86_VPACKUS_instr.1 ve sz
   | VPACKSS ve sz      => Ox86_VPACKSS_instr.1 ve sz
   | VPBROADCAST sz sz' => Ox86_VPBROADCAST_instr.1 sz sz'
-  | VMOVSHDUP sz sz' => Ox86_VMOVSHDUP_instr.1 sz sz'
-  | VMOVSLDUP sz sz' => Ox86_VMOVSLDUP_instr.1 sz sz'
+  | VMOVSHDUP sz sz'   => Ox86_VMOVSHDUP_instr.1 sz sz'
+  | VMOVSLDUP sz sz'   => Ox86_VMOVSLDUP_instr.1 sz sz'
   | VPALIGNR sz        => Ox86_VPALIGNR_instr.1 sz 
   | VBROADCASTI128     => Ox86_VBROADCASTI128_instr.1
   | VPERM2I128         => Ox86_VPERM2I128_instr.1
@@ -1898,6 +1921,7 @@ Definition prim_string :=
    Ox86_NEG_instr.2;
    Ox86_INC_instr.2;
    Ox86_DEC_instr.2;
+   Ox86_LZCNT_instr.2;
    Ox86_SETcc_instr.2;
    Ox86_BT_instr.2;
    Ox86_CLC_instr.2;
