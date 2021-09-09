@@ -57,6 +57,10 @@ let pp_loc fmt (p:t) =
 let pp_sloc fmt (p:t) = 
   Format.fprintf fmt "line %d" (fst p.loc_start)
 
+let pp_iloc fmt (l,ls) =
+  let pp_sep fmt () = Format.fprintf fmt "@ from " in
+  Format.fprintf fmt "@[<v 2>%a@]" (Format.pp_print_list ~pp_sep pp_loc) (l::ls)
+
 let isdummy (p : t) =
   p.loc_bchar < 0 || p.loc_echar < 0
 

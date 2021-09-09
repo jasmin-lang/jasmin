@@ -1,0 +1,6 @@
+fn f () -> reg u64 {
+  reg u64 res res1;
+  res1 = 4;
+  res += 3 + res1;
+  return res;
+}

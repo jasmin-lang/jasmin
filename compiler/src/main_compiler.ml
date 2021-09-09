@@ -16,57 +16,9 @@ let parse () =
 
 (*--------------------------------------------------------------------- *)
 
-let pp_var tbl fmt v =
-  let v = Conv.var_of_cvar tbl v in
-  Format.fprintf fmt "%a (defined at %a)" (Printer.pp_var ~debug:!debug) v L.pp_sloc v.v_dloc
-
-let pp_var_i tbl fmt vi =
-  let vi = Conv.vari_of_cvari tbl vi in
-  Printer.pp_var ~debug:true fmt (Prog.L.unloc vi)
-
-let pp_clval tbl fmt lv =
-  Conv.lval_of_clval tbl lv |>
-  Printer.(pp_lval ~debug:true) fmt
-
 let saved_rev_alloc : (var -> Sv.t) option ref = ref None
 let saved_extra_free_registers : (L.i_loc -> var option) ref = ref (fun _ -> None)
 let saved_live_calls : (funname -> Sv.t) option ref = ref None
-
-let rec pp_err tbl fmt (pp_e : Compiler_util.pp_error) =
-  match pp_e with
-  | Compiler_util.PPEstring s -> Format.fprintf fmt "%a" Printer.pp_string0 s
-  | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" (pp_var tbl) v
-  | Compiler_util.PPEvarinfo vi ->
-    let loc = Conv.get_loc tbl vi in
-    Format.fprintf fmt "%a" L.pp_loc loc
-  | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" (Conv.fun_of_cfun tbl fn).fn_name
-  | Compiler_util.PPEiinfo ii ->
-    let (i_loc, _) = Conv.get_iinfo tbl ii in
-    Format.fprintf fmt "%a" Printer.pp_iloc i_loc
-  | Compiler_util.PPEfuninfo fi ->
-    let (f_loc, _, _) = Conv.get_finfo tbl fi in
-    Format.fprintf fmt "%a" L.pp_sloc f_loc
-  | Compiler_util.PPEexpr e ->
-    let e = Conv.expr_of_cexpr tbl e in
-    Printer.pp_expr ~debug:!debug fmt e
-  | Compiler_util.PPEbox (box, pp_e) ->
-    begin match box with
-    | Compiler_util.Hbox -> Format.fprintf fmt "@[<h>%a@]" (pp_list "@ " (pp_err tbl)) pp_e
-    | Compiler_util.Vbox -> Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_err tbl)) pp_e
-    | Compiler_util.HoVbox -> Format.fprintf fmt "@[<hov>%a@]" (pp_list "@ " (pp_err tbl)) pp_e
-    | Compiler_util.Nobox -> Format.fprintf fmt "%a" (pp_list "" (pp_err tbl)) pp_e
-    end
-  | Compiler_util.PPEbreak -> Format.fprintf fmt "@ "
-
-(* This avoids printing dummy locations. Hope that it will not hide errors. *)
-let patch_vi_loc tbl (e : Compiler_util.pp_error_loc) =
-  match e.Compiler_util.pel_vi with
-  | None -> e
-  | Some vi ->
-    let l = Conv.get_loc tbl vi in
-    if L.isdummy l then { e with Compiler_util.pel_vi = None }
-    else e
-
 
 (* -------------------------------------------------------------------- *)
 let rec warn_extra_i i = 
@@ -74,9 +26,8 @@ let rec warn_extra_i i =
   | Cassgn (_, tag, _, _) | Copn (_, tag, _, _) ->
     begin match tag with
     | AT_rename ->
-      warning ExtraAssignment 
-        ": @[<v> at @[%a@] extra assignment introduced@ @[%a@]@]"
-        Printer.pp_iloc i.i_loc
+      warning ExtraAssignment i.i_loc
+        "@[<v>extra assignment introduced:@;<0 2>%a@]"
         (Printer.pp_instr ~debug:false) i
     | AT_inline ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
@@ -262,7 +213,7 @@ let main () =
     let translate_var = Conv.var_of_cvar tbl in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      StackAlloc.memory_analysis pp_err ~debug:!debug tbl up
+      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl up
      in
 
     let global_regalloc fds =
@@ -273,7 +224,7 @@ let main () =
       List.iter (fun ({ Expr.sf_stk_sz ; Expr.sf_stk_extra_sz ; Expr.sf_align }, { f_loc ; f_annot ; f_name }) ->
           let hierror fmt =
             hierror ~loc:(Lone f_loc) ~funname:f_name.fn_name
-              ~kind:"compilation error" ~sub_kind:"register allocation" fmt
+              ~kind:"compilation error" ~sub_kind:"stack allocation" fmt
           in
           begin match f_annot.stack_size with
           | None -> ()
@@ -368,7 +319,7 @@ let main () =
     let warning ii msg =
       if not !Glob_options.lea then begin
           let loc,_ = Conv.get_iinfo tbl ii in
-          warning UseLea "at %a, %a" Printer.pp_iloc loc Printer.pp_warning_msg msg
+          warning UseLea loc "%a" Printer.pp_warning_msg msg
         end;
       ii in
 
@@ -458,7 +409,7 @@ let main () =
     begin match
       Compiler.compile_prog_to_x86 cparams export_functions subroutines (Expr.to_uprog cprog) with
     | Utils0.Error e ->
-      let e = Conv.error_of_cerror (pp_err tbl) tbl e in
+      let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
       raise (HiError e)
     | Utils0.Ok asm ->
       if !outfile <> "" then begin
@@ -471,7 +422,7 @@ let main () =
     end
   with
   | Utils.HiError e ->
-      Format.eprintf "%a@." Printer.pp_hierror e;
+      Format.eprintf "%a@." pp_hierror e;
       exit 1
 
   | UsageError ->

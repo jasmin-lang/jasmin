@@ -423,8 +423,7 @@ let check_ty (ety : typattern) (loc, ty) =
 
 (* -------------------------------------------------------------------- *)
 let warn_arr loc from to_ = 
-  warning Always "At %a, can not ensure that the type %a is compatible with %a"
-    L.pp_loc loc 
+  warning Always (loc,[]) "cannot ensure that the type %a is compatible with %a"
     Printer.pp_ptype from Printer.pp_ptype to_
 
 let check_ty_eq ~loc ~(from : P.pty) ~(to_ : P.pty) =
@@ -1246,7 +1245,7 @@ let tt_lvalues env pls tys =
     if n1 < n2 then
       let n = n2 - n1 in
       let loc = loc_of_tuples (List.map P.L.loc pls) in
-      warning IntroduceNone "at %a, introduce %d _ lvalues" P.L.pp_sloc loc n;
+      warning IntroduceNone (loc, []) "introduce %d _ lvalues" n;
       List.make n (loc, (fun ty ->  P.Lnone(loc,ty)), None) @ ls
     else ls in
   check_sig_lvs tys ls
@@ -1454,8 +1453,8 @@ let tt_call_conv loc params returns cc =
         | P.Reg Direct -> None
         | P.Reg (Pointer writable) -> 
           if writable = Constant then
-            warning Always "At %a, not need to return a [reg const ptr] %a"
-              L.pp_loc loc Printer.pp_pvar x;
+            warning Always (loc,[]) "no need to return a [reg const ptr] %a"
+              Printer.pp_pvar x;
           let i = List.index_of x args in
           if i = None then 
             rs_tyerror ~loc (string_error "%a should be one of the paramaters"
