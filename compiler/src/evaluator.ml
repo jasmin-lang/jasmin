@@ -10,8 +10,7 @@ open Sem
          
 exception Eval_error of instr_info * Utils0.error 
 
-let pp_error fmt (tbl, ii, err) = 
-  let i_loc, _ = Conv.get_iinfo tbl ii in
+let pp_error fmt err =
   let msg = 
     match err with
     | ErrOob -> "out_of_bound"
@@ -19,8 +18,7 @@ let pp_error fmt (tbl, ii, err) =
     | ErrAddrInvalid -> "invalid address"
     | ErrStack -> "stack error"
     | ErrType  -> "type error" in
-  Format.fprintf fmt "Evaluation error at position %a: %s" 
-    Printer.pp_iloc i_loc msg
+  Format.fprintf fmt "%s" msg
 
 let exn_exec (ii:instr_info) (r: 't exec) = 
   match r with

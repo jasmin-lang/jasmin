@@ -446,23 +446,39 @@ let pp_hierror fmt e =
   let pp_loc fmt =
     match e.err_loc with
     | Lnone -> ()
-    | Lone l -> Format.fprintf fmt "%a@ " Location.pp_loc l
-    | Lmore i_loc -> Format.fprintf fmt "%a@ " pp_iloc i_loc
+    | Lone l -> Format.fprintf fmt "%a:@ " Location.pp_loc l
+    | Lmore i_loc -> Format.fprintf fmt "%a:@ " pp_iloc i_loc
   in
-  let pp_funname fmt funname =
-    match funname with
+  let pp_kind fmt =
+    if e.err_internal then
+      Format.fprintf fmt "internal %s" e.err_kind
+    else
+      Format.fprintf fmt "%s" e.err_kind
+  in
+  let pp_funname fmt =
+    match e.err_funname with
     | Some fn -> Format.fprintf fmt " in function %s" fn
     | None -> ()
   in
+  (* this function decides whether we open a new line *)
+  let pp_other_line fmt =
+    if e.err_internal then
+      (* if the error is internal, we go to a new line with an indent *)
+      Format.fprintf fmt "@;<1 2>"
+    else if e.err_funname <> None || e.err_sub_kind <> None then
+      (* if there is at least a funname or a sub-kind, we go to a new line *)
+      Format.fprintf fmt "@ "
+    else
+      (* otherwise, we keep the same line *)
+      Format.fprintf fmt " "
+  in
   let pp_err fmt =
     match e.err_sub_kind with
-    | Some s ->
-      Format.fprintf fmt "%s: %t" s e.err_msg
+    | Some s -> Format.fprintf fmt "%s: %t" s e.err_msg
     | None -> Format.fprintf fmt "%t" e.err_msg
   in
-  let pp_internal fmt b =
-    if b then
-      Format.fprintf fmt "@[<v>Internal error:@;<0 2>%t@ Please report at https://github.com/jasmin-lang/jasmin/issues@]" pp_err
-    else pp_err fmt
+  let pp_post fmt =
+    if e.err_internal then
+      Format.fprintf fmt "@ Please report at https://github.com/jasmin-lang/jasmin/issues"
   in
-  Format.fprintf fmt "@[<v>%t%s%a@ %a@]" pp_loc e.err_kind pp_funname e.err_funname pp_internal e.err_internal
+  Format.fprintf fmt "@[<v>%t%t%t:%t%t%t@]" pp_loc pp_kind pp_funname pp_other_line pp_err pp_post

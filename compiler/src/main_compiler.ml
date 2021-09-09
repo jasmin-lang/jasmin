@@ -127,7 +127,7 @@ let check_safety_p s p source_p =
 
 (* -------------------------------------------------------------------- *)
 let main () =
-  try    
+  try
     parse();
 
     if !safety_makeconfigdoc <> None
@@ -145,7 +145,18 @@ let main () =
         | None -> () in
 
     let fname = !infile in
-    let env, pprog, ast = Pretyping.tt_program Pretyping.Env.empty fname in
+    let env, pprog, ast =
+      try Pretyping.tt_program Pretyping.Env.empty fname
+      with
+      | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
+      | Syntax.ParseError (loc, msg) ->
+          let msg =
+            match msg with
+            | None -> "unexpected token" (* default message *)
+            | Some msg -> msg
+          in
+          hierror ~loc:(Lone loc) ~kind:"parse error" "%s" msg
+    in
  
     if !latexfile <> "" then begin
       let out = open_out !latexfile in
@@ -160,7 +171,11 @@ let main () =
     let prog = Subst.remove_params pprog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
-    Typing.check_prog prog;
+    begin try
+      Typing.check_prog prog
+    with Typing.TyError(loc, code) ->
+      hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
+    end;
     
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
@@ -215,7 +230,7 @@ let main () =
               (pp_list "@ " Evaluator.pp_val) vs
           with Evaluator.Eval_error (ii,err) ->
             let (i_loc, _) = Conv.get_iinfo tbl ii in
-            hierror ~loc:(Lmore i_loc) ~kind:"evaluation error" "%a" Evaluator.pp_error (tbl, ii, err)
+            hierror ~loc:(Lmore i_loc) ~kind:"evaluation error" "%a" Evaluator.pp_error err
         in
         List.iter exec to_exec
       end;
@@ -461,26 +476,7 @@ let main () =
 
   | UsageError ->
       Arg.usage options usage_msg;
-      exit 1;
-
-  | Syntax.ParseError (loc, None) ->
-      Format.eprintf "%s: parse error\n%!"
-        (Location.tostring loc);
       exit 1
-
-  | Syntax.ParseError (loc, Some msg) ->
-      Format.eprintf "%s: parse error: %s\n%!"
-        (Location.tostring loc) msg;
-      exit 1
-
-  | Pretyping.TyError (loc, code) ->
-      Format.eprintf "%s: typing error: %a\n%!"
-        (Location.tostring loc)
-        Pretyping.pp_tyerror code;
-      exit 1
-  | Typing.TyError(loc, code) ->
-    Format.eprintf "%a: typing error : %s\n%!"
-      Printer.pp_iloc loc code
 
 (* -------------------------------------------------------------------- *)
 let () = main ()

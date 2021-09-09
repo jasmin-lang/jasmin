@@ -9,4 +9,4 @@ val exec :
 val pp_val : Format.formatter -> Sem.value -> unit
 
 val pp_error :
-  Format.formatter -> 'a Conv.coq_tbl * BinNums.positive * Utils0.error -> unit
+  Format.formatter -> Utils0.error -> unit
