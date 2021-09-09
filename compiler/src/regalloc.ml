@@ -108,7 +108,7 @@ let pp_trace (i: int) fmt (tr: 'info trace) =
   let j = try Hashtbl.find tr i with Not_found -> [] in
   let pp_i fmt i =
     Format.fprintf fmt "@[<v>at %a:@;<1 2>%a@]"
-      Printer.pp_iloc i.i_loc
+      L.pp_iloc i.i_loc
       (Printer.pp_instr ~debug:true) i
   in
   Format.fprintf fmt "@[<v>%a@]" (Printer.pp_list "@ " pp_i) j

@@ -18,6 +18,7 @@ val of_lexbuf : lexbuf -> t
 val tostring  : t -> string
 val pp_loc    : Format.formatter -> t -> unit
 val pp_sloc   : Format.formatter -> t -> unit
+val pp_iloc   : Format.formatter -> i_loc -> unit
 val merge     : t -> t -> t
 val mergeall  : t list -> t
 val isdummy   : t -> bool

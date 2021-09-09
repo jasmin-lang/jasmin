@@ -15,10 +15,6 @@ let rec pp_list sep pp fmt xs =
     | x :: xs -> Format.fprintf fmt "%a%(%)%a" pp x sep pp_list xs
 
 (* -------------------------------------------------------------------- *)
-let pp_iloc fmt (l,ls) =
-  Format.fprintf fmt "@[<v 2>%a@]" (pp_list "@ from " L.pp_loc) (l::ls)
-
-(* -------------------------------------------------------------------- *)
 let pp_string0 fmt str =
   F.fprintf fmt "%a" (pp_list "" F.pp_print_char) str
 
@@ -441,44 +437,35 @@ let pp_sprog ~debug tbl fmt ((funcs, p_extra):'info Prog.sprog) =
 let pp_warning_msg fmt = function
   | Compiler_util.Use_lea -> Format.fprintf fmt "LEA instruction is used"
 
-let pp_hierror fmt e =
-  let open Utils in
-  let pp_loc fmt =
-    match e.err_loc with
-    | Lnone -> ()
-    | Lone l -> Format.fprintf fmt "%a:@ " Location.pp_loc l
-    | Lmore i_loc -> Format.fprintf fmt "%a:@ " pp_iloc i_loc
+let pp_err ~debug tbl fmt (pp_e : Compiler_util.pp_error) =
+  let pp_var tbl fmt v =
+    let v = Conv.var_of_cvar tbl v in
+    Format.fprintf fmt "%a (defined at %a)" (pp_var ~debug) v L.pp_sloc v.v_dloc
   in
-  let pp_kind fmt =
-    if e.err_internal then
-      Format.fprintf fmt "internal %s" e.err_kind
-    else
-      Format.fprintf fmt "%s" e.err_kind
+  let rec pp_err fmt pp_e =
+    match pp_e with
+    | Compiler_util.PPEstring s -> Format.fprintf fmt "%a" pp_string0 s
+    | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" (pp_var tbl) v
+    | Compiler_util.PPEvarinfo vi ->
+      let loc = Conv.get_loc tbl vi in
+      Format.fprintf fmt "%a" L.pp_loc loc
+    | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" (Conv.fun_of_cfun tbl fn).fn_name
+    | Compiler_util.PPEiinfo ii ->
+      let (i_loc, _) = Conv.get_iinfo tbl ii in
+      Format.fprintf fmt "%a" L.pp_iloc i_loc
+    | Compiler_util.PPEfuninfo fi ->
+      let (f_loc, _, _) = Conv.get_finfo tbl fi in
+      Format.fprintf fmt "%a" L.pp_sloc f_loc
+    | Compiler_util.PPEexpr e ->
+      let e = Conv.expr_of_cexpr tbl e in
+      pp_expr ~debug fmt e
+    | Compiler_util.PPEbox (box, pp_e) ->
+      begin match box with
+      | Compiler_util.Hbox -> Format.fprintf fmt "@[<h>%a@]" (pp_list "@ " pp_err) pp_e
+      | Compiler_util.Vbox -> Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_err) pp_e
+      | Compiler_util.HoVbox -> Format.fprintf fmt "@[<hov>%a@]" (pp_list "@ " pp_err) pp_e
+      | Compiler_util.Nobox -> Format.fprintf fmt "%a" (pp_list "" pp_err) pp_e
+      end
+    | Compiler_util.PPEbreak -> Format.fprintf fmt "@ "
   in
-  let pp_funname fmt =
-    match e.err_funname with
-    | Some fn -> Format.fprintf fmt " in function %s" fn
-    | None -> ()
-  in
-  (* this function decides whether we open a new line *)
-  let pp_other_line fmt =
-    if e.err_internal then
-      (* if the error is internal, we go to a new line with an indent *)
-      Format.fprintf fmt "@;<1 2>"
-    else if e.err_funname <> None || e.err_sub_kind <> None then
-      (* if there is at least a funname or a sub-kind, we go to a new line *)
-      Format.fprintf fmt "@ "
-    else
-      (* otherwise, we keep the same line *)
-      Format.fprintf fmt " "
-  in
-  let pp_err fmt =
-    match e.err_sub_kind with
-    | Some s -> Format.fprintf fmt "%s: %t" s e.err_msg
-    | None -> Format.fprintf fmt "%t" e.err_msg
-  in
-  let pp_post fmt =
-    if e.err_internal then
-      Format.fprintf fmt "@ Please report at https://github.com/jasmin-lang/jasmin/issues"
-  in
-  Format.fprintf fmt "@[<v>%t%t%t:%t%t%t@]" pp_loc pp_kind pp_funname pp_other_line pp_err pp_post
+  pp_err fmt pp_e

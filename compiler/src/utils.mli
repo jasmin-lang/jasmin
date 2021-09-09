@@ -305,6 +305,7 @@ type hierror = {
 exception HiError of hierror
 
 val add_iloc : hierror -> Location.i_loc -> hierror
+val pp_hierror : Format.formatter -> hierror -> unit
 
 val hierror :
       loc:error_loc -> ?funname:string -> kind:string
@@ -349,5 +350,5 @@ type warning =
 
 val nowarning : unit -> unit
 val add_warning : warning -> unit -> unit 
-val warning : warning -> ('a, Format.formatter, unit) format -> 'a
+val warning : warning -> Location.i_loc -> ('a, Format.formatter, unit) format -> 'a
 

@@ -1,7 +1,8 @@
 open Prog
 
 val pp_warning_msg :  Format.formatter -> Compiler_util.warning_msg -> unit
-val pp_hierror : Format.formatter -> Utils.hierror -> unit
+val pp_err : debug:bool -> 'info Conv.coq_tbl ->
+             Format.formatter -> Compiler_util.pp_error -> unit
 
 val pp_list :
    ('a, 'b, 'c, 'd, 'd, 'a) CamlinternalFormatBasics.format6 ->
@@ -14,7 +15,6 @@ val pp_string0 : Format.formatter -> char list -> unit
 
 val pp_kind  : Format.formatter -> v_kind -> unit
 
-val pp_iloc  : Format.formatter -> L.i_loc -> unit
 val pp_pvar  : Format.formatter -> pvar -> unit
 val pp_ptype : Format.formatter -> pty -> unit
 val pp_plval : Format.formatter -> pexpr glval -> unit
