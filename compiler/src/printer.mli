@@ -4,11 +4,6 @@ val pp_warning_msg :  Format.formatter -> Compiler_util.warning_msg -> unit
 val pp_err : debug:bool -> 'info Conv.coq_tbl ->
              Format.formatter -> Compiler_util.pp_error -> unit
 
-val pp_list :
-   ('a, 'b, 'c, 'd, 'd, 'a) CamlinternalFormatBasics.format6 ->
-   (Format.formatter -> 'e -> unit) ->
-   Format.formatter -> 'e list -> unit
-
 val pp_bool : Format.formatter -> bool -> unit
 
 val pp_string0 : Format.formatter -> char list -> unit

@@ -1,18 +1,11 @@
 (* -------------------------------------------------------------------- *)
+open Utils
 open Prog
 module W = Wsize
 module T = Type
 module E = Expr
 module F = Format
 module B = Bigint
-
-(* -------------------------------------------------------------------- *)
-let rec pp_list sep pp fmt xs =
-  let pp_list = pp_list sep pp in
-    match xs with
-    | []      -> ()
-    | [x]     -> Format.fprintf fmt "%a" pp x
-    | x :: xs -> Format.fprintf fmt "%a%(%)%a" pp x sep pp_list xs
 
 (* -------------------------------------------------------------------- *)
 let pp_string0 fmt str =

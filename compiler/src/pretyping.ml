@@ -128,13 +128,13 @@ let pp_tyerror fmt (code : tyerror) =
       F.fprintf fmt
         "no operator %s for these types %a"
         (S.string_of_peop2 o)
-        (Printer.pp_list " * " Printer.pp_ptype) ts
+        (pp_list " * " Printer.pp_ptype) ts
 
   | NoOperator (`Op1 o, ts) ->
       F.fprintf fmt
         "no operator %s for these type %a"
         (S.string_of_peop1 o)
-        (Printer.pp_list " * " Printer.pp_ptype) ts
+        (pp_list " * " Printer.pp_ptype) ts
 
   | NoReturnStatement (name, expected) ->
      F.fprintf fmt "function “%s” has no return statement (but its signature claims that %d values should be returned)" name.P.fn_name expected
