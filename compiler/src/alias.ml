@@ -128,7 +128,7 @@ let merge_slices params a s1 s2 =
   let c = compare_gvar params s1.in_var s1.scope s2.in_var s2.scope in
   if c = 0 then
     if s1 = s2 then a
-    else hierror_no_loc "Cannot merge distinct slices of the same array: %a and %a@." pp_slice s1 pp_slice s2
+    else hierror_no_loc "cannot merge distinct slices of the same array: %a and %a" pp_slice s1 pp_slice s2
   else
     let s1, s2 = if c < 0 then s1, s2 else s2, s1 in
     let x = s1.in_var in
@@ -145,7 +145,7 @@ let merge params a1 a2 =
 
 let range_of_asub aa ws len { gv } i =
   match get_ofs aa ws i with
-  | None -> hierror ~loc:(Lone (L.loc gv)) "Cannot compile sub-array %a that has a non-constant start index" pp_var (L.unloc gv)
+  | None -> hierror ~loc:(Lone (L.loc gv)) "cannot compile sub-array %a that has a non-constant start index" pp_var (L.unloc gv)
   | Some start -> start, start + arr_size ws len
 
 let normalize_asub a aa ws len x i =
