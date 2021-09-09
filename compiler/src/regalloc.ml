@@ -111,7 +111,7 @@ let pp_trace (i: int) fmt (tr: 'info trace) =
       L.pp_iloc i.i_loc
       (Printer.pp_instr ~debug:true) i
   in
-  Format.fprintf fmt "@[<v>%a@]" (Printer.pp_list "@ " pp_i) j
+  Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_i) j
 
 let normalize_trace (eqc: Puf.t) (tr: 'info instr list array) : 'info trace =
   let tbl = Hashtbl.create 97 in
