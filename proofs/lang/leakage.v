@@ -47,9 +47,18 @@ Inductive leak_e :=
 | LSub: (seq leak_e) -> leak_e (* forest of leaks *)
 | Lop : forall ws, word ws -> leak_e. (* nat represents size (seq T)*)
 
-Definition div_leak (sz : wsize) (hi lo div: word sz) : exec leak_e := ok (LSub [:: Lop hi; Lop lo; Lop div]).
+Class LeakOp := {
+   div_leak_ : forall (sz:wsize), word sz -> word sz -> word sz -> leak_e;
+   mem_leak_ : word Uptr -> word Uptr;
+}.
 
-Definition div_leak_ (sz : wsize) (hi lo div: word sz) : leak_e := (LSub [:: Lop hi; Lop lo; Lop div]).
+Section Section.
+ 
+Context {LO:LeakOp}.
+
+Definition div_leak (sz : wsize) (hi lo div: word sz) : exec leak_e := ok (div_leak_ hi lo div).
+
+End Section.
 
 Notation leak_es := (seq leak_e).
 

@@ -248,6 +248,9 @@ Definition Oconcat128_instr :=
            (λ h l : u128, ok (make_vec U256 [::l;h]))
            (op_leak_ty [:: sword128; sword128]) U128 [::].
 
+Section LO.
+Context {LO:LeakOp}.
+
 Definition get_instr o :=
   match o with
   | Omulu     sz => Omulu_instr sz
@@ -278,6 +281,8 @@ Definition sopn_tin o : list stype := tin (get_instr o).
 Definition sopn_tout o : list stype := tout (get_instr o).
 Definition sopn_sem  o := semi (get_instr o).
 Definition wsize_of_sopn o : wsize := wsizei (get_instr o).
+
+End LO.
 
 (* Type of unany operators: input, output *)
 Definition type_of_op1 (o: sop1) : stype * stype :=

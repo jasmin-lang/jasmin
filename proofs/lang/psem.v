@@ -169,7 +169,7 @@ Notation "'Let' ( n , t ) ':=' s '.[' x ']' 'in' body" :=
 
 Section SEM_PEXPR.
 
-Context (gd: glob_decls).
+Context {LO:LeakOp} (gd: glob_decls).
 
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leak_e)  :=
  match e with
@@ -192,7 +192,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leak_e)  :=
     Let w2 := to_pointer vl2.1 in
     let adr := (w1 + w2)%R in 
     Let w  := read_mem s.(emem) adr sz in
-    ok (@to_val (sword sz) w, LSub [ :: vl2.2;  (LAdr adr)])
+    ok (@to_val (sword sz) w, LSub [ :: vl2.2;  (LAdr (mem_leak_ adr))])
   | Papp1 o e1 =>
     Let vl := sem_pexpr s e1 in
     Let v := sem_sop1 o vl.1 in 
@@ -243,7 +243,7 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec (estate * leak_e) :=
     let p := (vx + ve)%R in
     Let w := to_word sz v in
     Let m :=  write_mem s.(emem) p sz w in
-    ok ({| emem := m;  evm := s.(evm) |}, LSub [:: vl.2; (LAdr p)])
+    ok ({| emem := m;  evm := s.(evm) |}, LSub [:: vl.2; (LAdr (mem_leak_ p))])
   | Laset ws x i =>
     Let (n,t) := s.[x] in
     Let vl := sem_pexpr s i in 
@@ -271,7 +271,7 @@ End SEM_PEXPR.
  * -------------------------------------------------------------------- *)
 
 Section SEM.
-
+Context {LO:LeakOp}.
 Variable P:prog.
 Notation gd := (p_globs P).
 
@@ -760,6 +760,9 @@ Proof.
   by move=> /to_wordI [ws' [w [? -> ?]]] /=.
 Qed.
 
+Section Section. 
+Context {LO:LeakOp}.
+
 Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
   all2 subtype (sopn_tin o) (List.map type_of_val vs).
 Proof.
@@ -884,8 +887,13 @@ Qed.
 Definition eq_on (s : Sv.t) (vm1 vm2 : vmap) :=
   forall x, Sv.In x s -> vm1.[x]%vmap = vm2.[x]%vmap.
 
+End Section.
+
 Notation "vm1 '=[' s ']' vm2" := (eq_on s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  =[ s ]  '/'  vm2 ']'").
+
+Section Section.
+Context {LO:LeakOp}.
 
 Lemma eq_onT s vm1 vm2 vm3:
   vm1 =[s] vm2 -> vm2 =[s] vm3 -> vm1 =[s] vm3.
@@ -1007,8 +1015,13 @@ Qed.
 Definition vmap_eq_except (s : Sv.t) (vm1 vm2 : vmap) :=
   forall x, ~Sv.In x s -> vm1.[x]%vmap = vm2.[x]%vmap.
 
+End Section.
+
 Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
+
+Section Section.
+Context {LO:LeakOp}.
 
 Lemma vmap_eq_exceptT vm2 s vm1 vm3:
   vm1 = vm2 [\s] -> vm2 = vm3 [\s] -> vm1 = vm3 [\s].
@@ -1081,7 +1094,7 @@ Qed.
 Lemma writeP P c s1 s2 lc:
    sem P s1 c lc s2 -> s1.(evm) = s2.(evm) [\ write_c c].
 Proof.
-  apply (@sem_Ind P (fun s1 c lc s2 => s1.(evm) = s2.(evm) [\ write_c c])
+  apply (@sem_Ind _ P (fun s1 c lc s2 => s1.(evm) = s2.(evm) [\ write_c c])
                   (fun s1 i li s2 => s1.(evm) = s2.(evm) [\ write_i i])
                   (fun s1 i li s2 => s1.(evm) = s2.(evm) [\ write_I i])
                   (fun x ws s1 c lc s2 =>
@@ -1280,6 +1293,8 @@ Proof.
   have [ |vm2 [Hvm2 /= ->]]:= Hrec _ _ _ _ _ _ _ Hws Hvm1';first by SvD.fsetdec.
   by exists vm2;split => //;rewrite vrvs_cons;apply: eq_onI Hvm2;SvD.fsetdec.
 Qed.
+
+End Section.
 
 Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
@@ -1820,6 +1835,9 @@ Proof.
  auto. case hs => hs1 hs2. auto.
  case hs => hs1 -> /=; auto.
 Qed.*)
+
+Section Section.
+Context {LO:LeakOp}.
 
 Lemma sem_pexpr_rec_uincl gd s1 vm2 es vs1:
   vm_uincl s1.(evm) vm2 →
@@ -2706,7 +2724,7 @@ Lemma sem_call_uincl vargs m1 f lf m2 vres vargs':
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_call_Ind _ p Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2719,7 +2737,7 @@ Lemma sem_i_uincl s1 i li s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_i_Ind p Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_i_Ind _ p Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2732,7 +2750,7 @@ Lemma sem_I_uincl s1 i li s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_I_Ind p Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_I_Ind _ p Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2745,7 +2763,7 @@ Lemma sem_uincl s1 c lc s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_Ind p Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_Ind _ p Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2979,3 +2997,4 @@ Local Open Scope vmap.
 
 End WF.
 
+End Section.

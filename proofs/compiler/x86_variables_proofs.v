@@ -7,6 +7,9 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Section Section.
+Context {LO:LeakOp}.
+
 (* -------------------------------------------------------------------- *)
 Lemma xreg_of_varI ii x y :
   xreg_of_var ii x = ok y →
@@ -258,3 +261,4 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------- *)
+End Section.

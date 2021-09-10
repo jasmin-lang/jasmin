@@ -44,8 +44,9 @@ Local Open Scope seq_scope.
 Module S.
   Notation vstk nstk := {|v_var := {|vtype := sword U64; vname := nstk|}; v_info := xH|}.
 
+  Section Section.
+  Context {LO:LeakOp}.
   Section SEM.
-
   Variable P:sprog.
   Context (gd: glob_decls).
 
@@ -249,4 +250,5 @@ Proof.
   exists vres.
 Qed.
 
+End Section.
 End S.

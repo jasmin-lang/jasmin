@@ -40,6 +40,10 @@ Require Import x86_decl leakage.
 
 (* -------------------------------------------------------------------- *)
 
+Section Section.
+
+Context {LO:LeakOp}.
+
 Variant asm_op : Type :=
   (* Data transfert *)
 | MOV    of wsize              (* copy *)
@@ -906,7 +910,7 @@ Notation mk_instr_w2_b5w2 name semi msb ain aout nargs check max_imm prc pp_asm 
   mk_instr (pp_sz name sz) (w2_ty sz sz) (b5w2_ty sz) ain (implicit_flags ++ aout) msb (semi sz) (op_leak_ty (w2_ty sz sz)) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w3_b5w2_da0ad name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; E 0]  (implicit_flags ++ [:: R RAX; R RDX]) MSB_CLEAR (semi sz) (@div_leak sz)
+  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; E 0]  (implicit_flags ++ [:: R RAX; R RDX]) MSB_CLEAR (semi sz) (@div_leak LO sz)
   (check sz) 1 sz (max_imm sz) [::NotZero sz 2] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_w_120 name semi check max_imm prc pp_asm := ((fun sz =>
@@ -1633,6 +1637,7 @@ Definition prim_string :=
    Ox86_VAESKEYGENASSIST_instr.2  
  ].
   
+End Section.
   
   
   

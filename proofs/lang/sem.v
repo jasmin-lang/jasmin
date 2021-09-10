@@ -459,6 +459,17 @@ Definition leak_sop1 (o: sop1) (v: value) : exec leak_e :=
   Let x := of_val _ v in
   @leak_sop1_typed o x.
 
+Definition leak_opN_typed (o : opN) := let t := type_of_opN o in op_leak_cst (Ok error LEmpty) t.1.
+
+Definition leak_opN (op: opN) (vs: values) : exec leak_e :=
+  app_sopn _ (leak_opN_typed op) vs.
+
+
+
+Section SEM_PEXPR.
+
+Context {LO:LeakOp}.
+
 Definition leak_sop2_typed (o: sop2) :=
   match o return sem_prod [::(type_of_op2 o).1.1; (type_of_op2 o).1.2] (exec leak_e) with 
   | Odiv (Cmp_w u s) | Omod (Cmp_w u s) => 
@@ -466,7 +477,7 @@ Definition leak_sop2_typed (o: sop2) :=
       let hi := 
           if u is Unsigned then 0%R 
           else (if (*(wsigned lo < 0%Z)%CMP*) (msb lo) then (-1)%R else 0%R) in 
-      @div_leak s hi lo div
+      div_leak hi lo div
   | o => op_leak_ty [::(type_of_op2 o).1.1; (type_of_op2 o).1.2]
   end.
 
@@ -476,20 +487,12 @@ Definition leak_sop2 (o: sop2) (v1 v2: value) : exec leak_e :=
   Let x2 := of_val _ v2 in
   (@leak_sop2_typed o x1 x2).
 
-Definition leak_opN_typed (o : opN) := let t := type_of_opN o in op_leak_cst (Ok error LEmpty) t.1.
-
-Definition leak_opN (op: opN) (vs: values) : exec leak_e :=
-  app_sopn _ (leak_opN_typed op) vs.
-
-
 Definition sopn_leak  o := seml (get_instr o).
 
 Definition leak_sopn (o:sopn) (vs:values) : exec leak_e :=
   let seml := sopn_leak o in
   Let t := app_sopn _ seml vs in
   ok t.
-
-Section SEM_PEXPR.
 
 Context (gd: glob_decls).
 
@@ -514,7 +517,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec (value * leak_e)  :=
     Let w2 := to_pointer vl2.1 in
     let adr := (w1 + w2)%R in 
     Let w  := read_mem s.(emem) adr sz in
-    ok (@to_val (sword sz) w, LSub [ :: vl2.2;  (LAdr adr)])
+    ok (@to_val (sword sz) w, LSub [ :: vl2.2; LAdr (mem_leak_ adr)])
   | Papp1 o e1 =>
     Let vl := sem_pexpr s e1 in
     Let v := sem_sop1 o vl.1 in 
@@ -565,7 +568,7 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec (estate * leak_e) :=
     let p := (vx + ve)%R in
     Let w := to_word sz v in
     Let m :=  write_mem s.(emem) p sz w in
-    ok ({| emem := m;  evm := s.(evm) |}, LSub [:: vl.2; (LAdr p)])
+    ok ({| emem := m;  evm := s.(evm) |}, LSub [:: vl.2; (LAdr (mem_leak_ p))])
   | Laset ws x i =>
     Let (n,t) := s.[x] in
     Let vl := sem_pexpr s i in 
@@ -617,11 +620,6 @@ Fixpoint list_ltuple (ts:list stype) : sem_tuple ts -> values :=
     end rec
   end.
 
-Definition exec_sopn (o:sopn) (vs:values) : exec (values * leak_e) :=
-  let semi := sopn_sem o in
-  Let t := app_sopn _ semi vs in
-  Let r := leak_sopn o vs in 
-  ok (list_ltuple t, r).
 
 Lemma type_of_val_ltuple tout (p : sem_tuple tout) :
   List.map type_of_val (list_ltuple p) = tout.
@@ -631,14 +629,20 @@ Proof.
   by move=> hrec [] x xs /=; rewrite type_of_oto_val hrec.
 Qed.
 
+Section SEM.
+Context {LO:LeakOp}.
+Definition exec_sopn (o:sopn) (vs:values) : exec (values * leak_e) :=
+  let semi := sopn_sem o in
+  Let t := app_sopn _ semi vs in
+  Let r := leak_sopn o vs in 
+  ok (list_ltuple t, r).
+
 Lemma sopn_toutP o vs vs' : exec_sopn o vs = ok vs' ->
   List.map type_of_val vs'.1 = sopn_tout o.
 Proof.
   rewrite /exec_sopn /sopn_tout /sopn_sem.
   t_xrbindP => p _ le hlo <-;apply type_of_val_ltuple.
 Qed.
-
-Section SEM.
 
 Variable P:prog.
 

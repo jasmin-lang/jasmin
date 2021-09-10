@@ -66,6 +66,9 @@ Module Type CheckB.
     eq_alloc r1 vm vm' ->
     eq_alloc r2 vm vm'.
 
+  Section Section.
+  Context {LO:LeakOp}.
+
   Parameter check_eP : forall gd e1 e2 r re lte vm1 vm2 stk,
     check_e e1 e2 r = ok (re, lte) ->
     eq_alloc r vm1 vm2 ->
@@ -85,6 +88,7 @@ Module Type CheckB.
     exists vm1',
       write_lval gd x2 v2 (Estate s1.(emem) vm1) = ok (Estate s1'.(emem) vm1', leak_E stk ltr1' l1') /\
       eq_alloc r1' s1'.(evm) vm1'.
+  End Section.
 
 End CheckB.
 
@@ -244,7 +248,7 @@ Definition check_prog prog1 prog2 :=
   if prog1.(p_globs) == prog2.(p_globs) then check_prog_aux prog1 prog2
   else cferror Ferr_glob_neq.
 
-Lemma check_lvalsP gd xs1 xs2 vs1 vs2 r1 r2 lts s1 s2 l2 vm1 stk:
+Lemma check_lvalsP {LO:LeakOp} gd xs1 xs2 vs1 vs2 r1 r2 lts s1 s2 l2 vm1 stk:
   check_lvals xs1 xs2 r1 = ok (r2, lts) ->
   eq_alloc r1 s1.(evm) vm1 ->
   List.Forall2 value_uincl vs1 vs2 ->
@@ -265,6 +269,8 @@ Proof.
 Qed.
 
 Section PROOF.
+
+  Context {LO:LeakOp}.
 
   Variable p1 p2:prog.
   Variable Fs: seq (funname * seq leak_i_tr).
@@ -336,7 +342,8 @@ Section PROOF.
     move: (Hce gd svm1 vm1 stk Hvm1). move=> [] Hvm2 He'. move: (He' sm1 v le He).
     move=> [] v'' [] {He'} He' Hv. move: truncate_value_uincl.
     move=> Ht. move: (Ht ty v v'' v' Hv Htr). move=> [] v''' Htr' {Ht} Hv'.
-    move: check_lvalP. move=> Hcv'.
+
+    move: (@check_lvalP LO) => Hcv'.
     move: (Hcv' gd re rv ltv x x2 (Some (ty, e2)) {|emem := sm1; evm := svm1|}
                 s2 lw vm1 v' v''' stk Hcv Hvm2 Hv').
     move=> /= {Hcv'}. rewrite He' /=. move=> H. move: (H Htr' Hw). move=> {H} [] vm2 [] Hcv' Hvm3.
@@ -376,8 +383,8 @@ Section PROOF.
     move=> Hces [rv ltv]. apply: add_iinfoP. move=> Hcvs [] <- <-.
     move: check_esP. move=> Hces'. move: (Hces' es es1 r1 yv yl s1 vm1 Hces Hvm1).
     move=> {Hces'} [] Hvm2 Hes'. move: (Hes' ves Hes). move=> {Hes} [] ves' [] Hes [] Hvs Hls.
-    move: check_lvalsP. move=> Hcvs'.
-    move: vuincl_exec_opn. move=> Hex'. move: (Hex' o (unzip1 ves) (unzip1 ves') (vo, lo') Hvs Hex).
+    move: (@check_lvalsP LO). move=> Hcvs'.
+    move: (@vuincl_exec_opn LO). move=> Hex'. move: (Hex' o (unzip1 ves) (unzip1 ves') (vo, lo') Hvs Hex).
     move=> [] [vo' lo''] [] {Hex'} Hex' /= [Hvo ->].
     move: (Hcvs' gd xs xs1 vo vo' yv rv ltv s1 vw vl vm1 stk Hcvs Hvm2 Hvo Hws).
     move=> {Hcvs'} [] vm2 [] Hws' Hvm3. exists vm2; split=> //; apply sem_seq1. econstructor. econstructor.
@@ -438,7 +445,7 @@ Section PROOF.
     move=> {Hq} Hvm1'. rewrite /Pc in Hc.
     move: (Hc ii r1' c2 ri ltci vm1 Hvm1' Hi).
     move=> [] vm2 [] Hvm2 /= Hc1 {Hc}.
-    move: check_eP. move=> Hce. move: (Hce gd e e1 ri re lte' svm2 vm2 stk He Hvm2). 
+    move: (@check_eP LO). move=> Hce. move: (Hce gd e e1 ri re lte' svm2 vm2 stk He Hvm2). 
     move=> {Hce} [] Hvme He'. rewrite /Pc in Hc'.
     move: (Hc' ii re c2' ri' ltci' vm2 Hvme Hi').
     move=> {Hc'} [] vm3 [] Hvm3 Hc1'.
@@ -470,7 +477,7 @@ Section PROOF.
     move=> {Hq} Hvm1'. rewrite /Pc in Hc.
     move: (Hc ii r1' c2 ri ltci vm1 Hvm1' Hi).
     move=> [] vm2 [] Hvm2 /= Hc1 {Hc}.
-    move: check_eP. move=> Hce. move: (Hce gd e e1 ri re lte' svm2 vm2 stk He Hvm2). 
+    move: (@check_eP LO). move=> Hce. move: (Hce gd e e1 ri re lte' svm2 vm2 stk He Hvm2). 
     move=> {Hce} [] Hvme He'. exists vm2.
     split=> //. apply sem_seq1. constructor. econstructor. rewrite hl in Hc1. auto.
     move: (He' sm2 false le Hse). move=> {He'} [] v [] Hse' /value_uincl_bool1.
@@ -525,7 +532,7 @@ Section PROOF.
   Proof.
     move=> s1 s1' s2 s3 i w ws c lc lf Hwi Hsc Hc Hsfor Hfor
               i2 ii r1 r1' ltv c2 r2 ltf vm2 Heq Hr1' Hcc Hincl.
-    move: check_lvalP. move=> Hcv. rewrite /check_var in Hr1'.
+    move: (@check_lvalP LO). move=> Hcv. rewrite /check_var in Hr1'.
     move: (Hcv gd r1 r1' ltv i i2 None s1 s1'). rewrite /=. move=> {Hcv} Hcv.
     move: (Hcv LEmpty vm2 w w stk Hr1' Heq (value_uincl_refl _)). rewrite Hwi /=.
     have H : (is_true true). auto. have : (ok (s1', LEmpty) = ok (s1', LEmpty)).
@@ -550,10 +557,10 @@ Section PROOF.
     move=> {Hces'} [] Hr1' Hes''. move: (Hes'' vargs Hes).
     move=> {Hes''} [] vargs' [] Hes' [] Hv Hl. rewrite /Pfun in Hfun.
     move: (Hfun (unzip1 vargs') Hv). move=> {Hfun} [] vs' [] Hcall Hv'.
-    move: check_lvalsP. move=> Hcvs'.
+    move: (@check_lvalsP LO). move=> Hcvs'.
     move: (Hcvs' gd xs xs2 vs vs' res rvs ltvs {| emem := m2; evm := evm s1 |}
            s2 lw vm1 stk Hcvs Hr1' Hv' Hw). move=>  [] vm2 [] Hw' Hr1''.
-    exists vm2. split. auto. move: Ecall. move=> Hcall'. rewrite /= in Hcall. 
+    exists vm2. split. auto. move: (@Ecall LO). move=> Hcall'. rewrite /= in Hcall. 
     replace gd with (p_globs p2) in Hw'. rewrite /= in Hw'.
     move: (Hcall' p2 {| emem := emem s1; evm := vm1 |} m2 {| emem := emem s2; evm := vm2 |} ii2 xs2 fn args2 vargs' vs' 
                   (fn', leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs fn') lfn) (map2 (leak_E stk) ltvs lw) Hes'). rewrite /=.
@@ -628,14 +635,14 @@ Section PROOF.
     have [l /(check_lvalsP stk Hcparams)] := (write_lvals_vars gd Hcr).
     move=> /(_ vargs _ eq_alloc_empty) [ | vm3 /= [Hw2 Hvm3]].
     + by apply: List_Forall2_refl.
-      move=> /(sem_Ind Hskip Hcons HmkI Hassgn Hopn Hif_true Hif_false
+    move=> /(sem_Ind Hskip Hcons HmkI Hassgn Hopn Hif_true Hif_false
                 Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc_eq) Hc.
    rewrite /Pc in Hc. 
    move: (Hc (f_iinfo f) r1 (f_body f') r2 lt2 vm3 Hvm3 Hcc).
    move=> [] vm4 /= [] Hvm4 Hsc2. move: check_esP. move=> Hes.
    move: (Hes (map Pvar (f_res f)) (map Pvar (f_res f')) r2 r3 lt3 s2 vm4 Hcres Hvm4).
    move=> [] /= Hr3 H {Hes} Hres.
-   have /= H1:= (get_var_sem_pexprs_empty gd Hres).
+   have /= /(_ LO) H1 := (get_var_sem_pexprs_empty gd Hres).
    move: (H (zip vres [seq LEmpty | _ <- vres]) H1).
    move=> [] vres1'' [] Hes' [] /= Hv Hv'. 
    rewrite unzip1_zip in Hv; last first.
@@ -699,7 +706,7 @@ Section PROOF.
    move: (Hes (map Pvar (f_res f)) (map Pvar (f_res fd2)) r2 r3 lt3 {| emem := emem s1; evm := vm2 |} vm4 Hcres Hvm4). move=> [] /= Hr3 H {Hes}.
    have hvm : vm2 = evm{| emem := emem s1; evm := vm2 |} by []. 
    rewrite hvm in Hres.
-   have /= H1:= (get_var_sem_pexprs_empty gd Hres).
+   have /= /(_ LO) H1:= (get_var_sem_pexprs_empty gd Hres).
    move: (H (zip vres [seq LEmpty | _ <- vres]) H1).
    move=> [] vres1'' [] Hes' [] /= Hv Hv'. 
    rewrite unzip1_zip in Hv; last first.
@@ -724,7 +731,7 @@ Section PROOF.
     exists vr', sem_call p2 mem f va (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
     move=>
-      /(@sem_call_Ind p1 Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+      /(@sem_call_Ind _ p1 Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
     move=> H;apply H.
     apply List_Forall2_refl;apply value_uincl_refl.
@@ -734,7 +741,7 @@ End PROC.
 
 End PROOF.
 
-Lemma alloc_callP p1 p2 Fs (H: check_prog p1 p2 = ok Fs) f mem mem' va vr stk lf:
+Lemma alloc_callP {LO:LeakOp} p1 p2 Fs (H: check_prog p1 p2 = ok Fs) f mem mem' va vr stk lf:
     sem_call p1 mem f va (f, lf) mem' vr ->
     exists vr', sem_call p2 mem f va (f, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs f) lf)) mem' vr'
                 /\ List.Forall2 value_uincl vr vr'.
@@ -744,6 +751,7 @@ Proof.
 Qed.
 
 Section PROOF_WF.
+  Context {LO:LeakOp}.
 
   Variable p1 p2:prog.
   Variable Fs: seq (funname * seq leak_i_tr).
@@ -932,14 +940,14 @@ Section PROOF_WF.
     sem_call p1 mem f va (f,lf) mem' vr ->
     leak_WFs (leak_Fun Fs) (leak_Fun Fs f) lf.
   Proof.
-    apply (@sem_call_Ind p1 Pc Pi_r Pi Pfor Pfun Hskip_WF Hcons_WF HmkI_WF Hassgn_WF Hopn_WF
+    apply (@sem_call_Ind _ p1 Pc Pi_r Pi Pfor Pfun Hskip_WF Hcons_WF HmkI_WF Hassgn_WF Hopn_WF
              Hif_true_WF Hif_false_WF Hwhile_true_WF Hwhile_false_WF Hfor_WF Hfor_nil_WF Hfor_cons_WF
              Hcall_WF Hproc_WF).
   Qed.
 
 End PROOF_WF. 
 
-Lemma alloc_callP_wf p1 p2 Fs (H: check_prog p1 p2 = ok Fs) f mem mem' va vr stk lf:
+Lemma alloc_callP_wf {LO:LeakOp} p1 p2 Fs (H: check_prog p1 p2 = ok Fs) f mem mem' va vr stk lf:
     sem_call p1 mem f va (f, lf) mem' vr ->
     leak_WFs (leak_Fun Fs) (leak_Fun Fs f) lf /\
     exists vr', sem_call p2 mem f va (f, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs f) lf)) mem' vr'
@@ -951,6 +959,7 @@ Proof.
 Qed.
 
 Section REFL.
+Context {LO:LeakOp}.
 
 Context (check_eP_id : forall e1 e2 r rlte stk l,
           check_e e1 e2 r = ok rlte ->
@@ -1130,7 +1139,7 @@ move=> Hcall. inversion_clear Hcall=> //=.
 case: lc H2=> //=.
 move=> li lc Hs.
 have Heq := leak_map_id. rewrite /lF.
-move: (Heq p leak_id stk (li :: lc) (f_body f) s0 {| emem := s2; evm := vm2 |} Hs).
+move: (Heq LO p leak_id stk (li :: lc) (f_body f) s0 {| emem := s2; evm := vm2 |} Hs).
 move=> Hrec. 
 have Heq' : (leak_Fun leak_id fn) =  [seq LT_ikeep | _ <- f_body f].
 move: (Fs_id fn). rewrite /get_leak. rewrite /leak_Fun. move=> -> /=.
@@ -1160,7 +1169,7 @@ Lemma check_cmd_id ii c1 c2 r rlt lc s1 s2:
    leak_Is (leak_I lF) stk rlt.2 lc = lc.
 Proof.
   move=> hsem;
-  by apply: (@sem_Ind p Pc Pi_r Pi Pfor Pfun Iskip Icons ImkI Iassgn Iopn Iif_true Iif_false 
+  by apply: (@sem_Ind _ p Pc Pi_r Pi Pfor Pfun Iskip Icons ImkI Iassgn Iopn Iif_true Iif_false 
             Iwhile_true Iwhile_false Ifor Ifor_nil Ifor_cons Icall Iproc _ _ _ _ hsem).
 Qed.
 
@@ -1947,6 +1956,9 @@ End CHECKE.
     by rewrite heq; case: (vm2.[_]) => //= a ?; eexists;split;first by reflexivity.
   Qed.
 
+Section Section.
+Context {LO:LeakOp}.
+
   Section CHECK_EP.
     Context (gd: glob_decls) (vm2: vmap).
 
@@ -2331,12 +2343,13 @@ End CHECKE.
     have [vm2' [-> ?] /=]:= check_varcP Hr1' Hcva Hvm2 Hu.
     by exists vm2'.
   Qed.
+End Section.
 
 End CBAreg.
 
 Module CheckAllocReg :=  MakeCheckAlloc CBAreg.
 
-Lemma alloc_reg_funP_eq p fn fn' f f' m1 vargs vargs' vres vres' s1 s2 ltc lc: 
+Lemma alloc_reg_funP_eq {LO:LeakOp} p fn fn' f f' m1 vargs vargs' vres vres' s1 s2 ltc lc: 
     CheckAllocReg.check_fundef (fn, f) (fn, f') = ok (fn', ltc)
   → mapM2 ErrType truncate_val (f_tyin f) vargs' = ok vargs
   → write_vars (f_params f) vargs {| emem := m1; evm := vmap0 |} = ok s1

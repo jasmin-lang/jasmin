@@ -514,6 +514,9 @@ Module CBEA.
     by case: vm2.[x1] => //= a Ha; eauto.
   Qed.
 
+  Section Section.
+    Context {LO:LeakOp}.
+
   Section CHECK_EBP.
 
     Context (gd: glob_decls) (r: M.expansion) (m: mem) (vm1 vm2: vmap)
@@ -770,7 +773,7 @@ Module CBEA.
     exists vs''. by split. by case: (s1).
    Qed.
 
-
+End Section.
 End CBEA.
 
 Module CheckExpansion :=  MakeCheckAlloc CBEA.

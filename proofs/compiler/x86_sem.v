@@ -352,6 +352,7 @@ Definition eval_special o args m :=
   | _, _ => type_error
   end.
 
+Context {LO:LeakOp}.
 Definition eval_op o args m := 
   if is_special o then
     eval_special o args m
@@ -407,7 +408,7 @@ Definition xprog : Type :=
 
 (* TODO: flags may be preserved *)
 (* TODO: restore stack pointer of caller? *)
-Variant x86sem_fd (P: xprog) (gd: glob_decls) fn st l st' : Prop :=
+Variant x86sem_fd {LO:LeakOp} (P: xprog) (gd: glob_decls) fn st l st' : Prop :=
 | X86Sem_fd fd mp st2
    `(get_fundef P fn = Some fd)
    `(alloc_stack st.(xmem) fd.(xfd_stk_size) = ok mp)
@@ -417,7 +418,7 @@ Variant x86sem_fd (P: xprog) (gd: glob_decls) fn st l st' : Prop :=
     `(st' = {| xmem := free_stack st2.(xmem) fd.(xfd_stk_size) ; xreg := st2.(xreg) ; xxreg := st2.(xxreg) ; xrf := rflagmap0 |})
     .
 
-Definition x86sem_fd_noleak xp gd fn st1 st2 :=
+Definition x86sem_fd_noleak {LO:LeakOp} xp gd fn st1 st2 :=
  exists l, x86sem_fd xp gd fn st1 l st2.
 
 

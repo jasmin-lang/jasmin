@@ -39,6 +39,9 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+Section Section.
+Context {LO:LeakOp}.
+
 Variant saved_stack :=
 | SavedStackNone
 | SavedStackReg of var
@@ -372,6 +375,5 @@ Definition alloc_prog stk_alloc_fd P : cfexec (sprog * leak_f_tr) :=
   let ltfs := zip fn (unzip2 r) in
   ok (rfn, ltfs).
 
-
-
+End Section.
 

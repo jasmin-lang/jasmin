@@ -30,6 +30,8 @@ Require Import compiler_util expr low_memory leakage.
 
 Section LOWERING.
 
+Context {LO:LeakOp}.
+
 Record fresh_vars : Type :=
   {
     fresh_OF : Equality.sort Ident.ident;
