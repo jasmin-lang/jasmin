@@ -7,6 +7,10 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Section Section.
+
+Context {LO: LeakOp}.
+
 (* -------------------------------------------------------------------- *)
 Definition assemble_i (i: linstr) : ciexec asm :=
   let '{| li_ii := ii ; li_i := ir |} := i in
@@ -339,3 +343,5 @@ by case: reg_of_string => //; t_xrbindP => ? ? ? ? ? ? ? ? ? ? ? [<-].
 Qed.
 
 End PROG.
+
+End Section.

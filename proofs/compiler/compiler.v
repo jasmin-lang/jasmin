@@ -54,6 +54,8 @@ Definition unroll_loop (p:prog) : cfexec (prog * seq leak_f_tr) := unroll Loop.n
 
 Section COMPILER.
 
+Context {LO: LeakOp}.
+
 Variant compiler_step :=
   | Typing                      : compiler_step
   | ParamsExpansion             : compiler_step

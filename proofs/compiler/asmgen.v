@@ -10,6 +10,10 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Section Section.
+
+Context {LO: LeakOp}.
+
 Definition pexpr_of_lval ii (lv:lval) : ciexec pexpr :=
   match lv with
   | Lvar x    => ok (Pvar x)
@@ -259,7 +263,7 @@ rewrite /addr_of_pexpr.
 case heq: mk_lea => [lea | //].
 have hle : (U64 <= U64)%CMP by [].
 have /= := (mk_leaP (p:= (Build_prog gd [::])) hle hle heq). 
-move=> Hlea. move: (Hlea s (LSub [:: LSub [:: LEmpty; lo]; LEmpty]) (z + z')%R). 
+move=> Hlea. move: (Hlea LO s (LSub [:: LSub [:: LEmpty; lo]; LEmpty]) (z + z')%R). 
 rewrite ok_o /= ok_o' /= /sem_sop2 /= ok_z /= ok_z' /=.
 rewrite /leak_sop2 /= ok_z /= ok_z' /=.
 move=> {Hlea} Hlea.
@@ -903,3 +907,5 @@ Transparent eval_arg_in_v.
       by rewrite Fv.setP_neq //; apply h4. 
   by move=> a; apply: assemble_x86_opnP.
 Qed.
+
+End Section.

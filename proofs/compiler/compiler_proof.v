@@ -40,6 +40,8 @@ Unset Printing Implicit Defensive.
 
 Section PROOF.
 
+Context {LO: LeakOp}.
+
 Variable cparams : compiler_params.
 
 Hypothesis print_progP : forall s p, cparams.(print_prog) s p = p.

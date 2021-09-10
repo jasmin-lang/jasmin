@@ -36,6 +36,10 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+Section Section.
+
+Context {LO: LeakOp}.
+
 Lemma write_memP gd (x:lval) v m1 m2 vm1 vm2 l:
   ~~ write_mem x ->
   write_lval gd x v {| emem := m1; evm := vm1 |} = ok ({| emem := m2; evm := vm2 |}, l) ->
@@ -164,7 +168,7 @@ Section PROOF.
     have [|vm2' [Hvm2 Hw2]] := write_lval_eq_on _ Hw Hvm; first by SvD.fsetdec.
     exists vm2'. split;first by apply: eq_onI Hvm2; SvD.fsetdec.
     apply: sem_seq1; constructor; econstructor; eauto;rewrite -eq_globs => //.
-    rewrite (@read_e_eq_on gd Sv.empty vm1 vm1') ?Hv // read_eE.
+    rewrite (@read_e_eq_on LO gd Sv.empty vm1 vm1') ?Hv // read_eE.
     by apply: eq_onS; apply: eq_onI Hvm; SvD.fsetdec.
   Qed.
 
@@ -280,7 +284,7 @@ Section PROOF.
     + by apply: eq_onI Hvm2; SvD.fsetdec.
     econstructor;last by constructor.
     constructor; constructor; rewrite -eq_globs.
-    rewrite /sem_sopn (@read_es_eq_on gd es Sv.empty (emem s1) vm1' (evm s1)).
+    rewrite /sem_sopn (@read_es_eq_on LO gd es Sv.empty (emem s1) vm1' (evm s1)).
     + have ->: {| emem := emem s1; evm := evm s1 |} = s1 by case: (s1).
       rewrite Hexpr /= Hopn /= Hvm2' /=. rewrite /exec_sopn in Hopn.
       move: Hopn. by t_xrbindP=> y happ lo -> /= <-.
@@ -537,10 +541,10 @@ Section PROOF.
       replace (leak_Fun Ffs fn) with slt. exact: Hvm2'2.
       rewrite /leak_Fun /=. by rewrite p0 /=.
       2: exact Hfull. replace vres with (unzip1 (map_v_el vres)).
-      have /= H1 := (@sem_pexprs_get_var gd (Estate m2 vm2) f'_res (map_v_el vres)).
+      have /= H1 := (@sem_pexprs_get_var LO gd (Estate m2 vm2) f'_res (map_v_el vres)).
       replace vres with (unzip1 (map_v_el vres)) in Hres.
-      have /= H2 := (@sem_pexprs_get_var gd (Estate m2 vm2') f'_res (map_v_el vres)); auto.
-      move: (read_es_eq_on gd m2 Hvm2'1). move=> Heq /=. rewrite -Heq in H2.
+      have /= H2 := (@sem_pexprs_get_var LO gd (Estate m2 vm2') f'_res (map_v_el vres)); auto.
+      have /(_ LO) Heq /= := (read_es_eq_on gd m2 Hvm2'1). rewrite -Heq in H2.
       apply H2. rewrite /sem_pexprs. apply sem_pexprs_get_var_map. replace vres with (unzip1 (map_v_el vres)).
       rewrite /=. auto; rewrite /map_v_el /=; elim: (vres); auto; move=> a l Hal; rewrite /=;
       by rewrite Hal /=. rewrite /map_v_el /=; elim: (vres); auto; move=> a l Hal; rewrite /=;
@@ -553,14 +557,18 @@ Section PROOF.
     sem_call p mem fn va (fn, lf) mem' vr ->
     sem_call p' mem fn va (fn, (leak_Is (leak_I (leak_Fun Ffs)) stk (leak_Fun Ffs fn) lf)) mem' vr.
   Proof.
-    apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_call_Ind _ p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
 End PROOF.
 
+End Section.
+
 
 Section WF_PROOF.
+
+  Context {LO: LeakOp}.
 
   Variables p p' : prog.
   Variable Ffs : seq (funname * leak_c_tr).
@@ -751,14 +759,14 @@ Section WF_PROOF.
     sem_call p mem f va (f, lf) mem' vr ->
     leak_WFs (leak_Fun Ffs) (leak_Fun Ffs f) lf.
   Proof.
-     apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip_WF Hcons_WF HmkI_WF Hassgn_WF Hopn_WF
+     apply (@sem_call_Ind _ p Pc Pi_r Pi Pfor Pfun Hskip_WF Hcons_WF HmkI_WF Hassgn_WF Hopn_WF
              Hif_true_WF Hif_false_WF Hwhile_true_WF Hwhile_false_WF Hfor_WF Hfor_nil_WF Hfor_cons_WF
              Hcall_WF Hproc_WF).
   Qed.
 
 End WF_PROOF.
 
-Lemma dead_code_callP_wf p p' Ffs stk fn mem mem' va vr lf : 
+Lemma dead_code_callP_wf {LO: LeakOp} p p' Ffs stk fn mem mem' va vr lf : 
   dead_code_prog p = ok (p', Ffs) → 
   sem_call p mem fn va (fn, lf) mem' vr → 
   leak_WFs (leak_Fun Ffs) (leak_Fun Ffs fn) lf /\

@@ -75,6 +75,8 @@ the reached state has no instruction left to execute.
 *)
 Section LSEM.
 
+Context {LO: LeakOp}.
+
 Context (gd: glob_decls).
 
 Definition eval_instr (i : linstr) (s1: lstate) : exec (lstate * leak_il) :=
@@ -140,7 +142,7 @@ Qed.
 
 End LSEM.
 
-Variant lsem_fd gd m1 fn va' (fnlc: funname * seq leak_il) m2 vr': Prop :=
+Variant lsem_fd {LO: LeakOp} gd m1 fn va' (fnlc: funname * seq leak_il) m2 vr': Prop :=
 | LSem_fd : forall m1' fd va vm2 m2' s1 s2 vr,
     get_fundef P fn = Some fd ->
     alloc_stack m1 fd.(lfd_stk_size) = ok m1' ->

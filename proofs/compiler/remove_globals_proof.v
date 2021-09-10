@@ -43,7 +43,7 @@ Proof. by move=> h1 h2 g v /h1 /h2. Qed.
 Module INCL. Section INCL.
 
   Section INCL_E.
-    Context (gd1 gd2: glob_decls) (s: estate) (hincl: gd_incl gd1 gd2).
+    Context {LO: LeakOp} (gd1 gd2: glob_decls) (s: estate) (hincl: gd_incl gd1 gd2).
     Let P e : Prop :=
       ∀ v le, sem_pexpr gd1 s e = ok (v, le) → sem_pexpr gd2 s e = ok (v, le).
     Let Q es : Prop :=
@@ -82,13 +82,13 @@ Module INCL. Section INCL.
 
   End INCL_E.
 
-  Definition gd_incl_e gd1 gd2 s e v h :=
-    (@gd_incl_e_es gd1 gd2 s h).1 e v.
+  Definition gd_incl_e {LO: LeakOp} gd1 gd2 s e v h :=
+    (@gd_incl_e_es LO gd1 gd2 s h).1 e v.
 
-  Definition gd_incl_es gd1 gd2 s es vs h :=
-    (@gd_incl_e_es gd1 gd2 s h).2 es vs.
+  Definition gd_incl_es {LO: LeakOp} gd1 gd2 s es vs h :=
+    (@gd_incl_e_es LO gd1 gd2 s h).2 es vs.
 
-  Lemma gd_incl_wl gd1 gd2 x v s1 s2 lw:
+  Lemma gd_incl_wl {LO: LeakOp} gd1 gd2 x v s1 s2 lw:
     gd_incl gd1 gd2 ->
     write_lval gd1 x v s1 = ok (s2, lw) ->
     write_lval gd2 x v s1 = ok (s2, lw).
@@ -102,7 +102,7 @@ Module INCL. Section INCL.
     by move=> [ve le] /(gd_incl_e hincl) -> /= vi -> /= vw -> /= va -> /= vm -> /= <- <-.
   Qed.
 
-  Lemma gd_incl_wls gd1 gd2 xs vs s1 s2 lw:
+  Lemma gd_incl_wls {LO: LeakOp} gd1 gd2 xs vs s1 s2 lw:
     gd_incl gd1 gd2 ->
     write_lvals gd1 s1 xs vs = ok (s2, lw) ->
     write_lvals gd2 s1 xs vs = ok (s2, lw).
@@ -112,7 +112,7 @@ Module INCL. Section INCL.
     t_xrbindP. by move=> [s' lw'] /(gd_incl_wl hincl) -> /= [s'' lws] /hrec -> <- <- /=.
   Qed.
 
-  Context (P1:prog) (gd2:glob_decls).
+  Context {LO: LeakOp} (P1:prog) (gd2:glob_decls).
 
   Notation gd := (P1.(p_globs)).
 
@@ -225,7 +225,7 @@ Module INCL. Section INCL.
   Lemma gd_incl_fun m (fn : funname) (l : seq value) m0 vs lf:
       sem_call P1 m fn l (fn, lf) m0 vs -> Pfun m fn l (fn, lf) m0 vs.
   Proof.
-    apply: (@sem_call_Ind P1 Pc Pi_r Pi Pfor Pfun
+    apply: (@sem_call_Ind _ P1 Pc Pi_r Pi Pfor Pfun
              Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false
              Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
@@ -350,7 +350,7 @@ Module RGP. Section PROOFS.
            get_global gd g = ok v) ].
 
   Section REMOVE_GLOB_E.
-    Context (m: venv) (ii: instr_info) (s1 s2: estate) (hvalid: valid m s1 s2).
+    Context {LO: LeakOp} (m: venv) (ii: instr_info) (s1 s2: estate) (hvalid: valid m s1 s2).
     Variable stk: pointer.
 
     Let Pe e : Prop :=
@@ -427,13 +427,17 @@ Module RGP. Section PROOFS.
 
 
   End REMOVE_GLOB_E.
+
+  Section Section.
+
+  Context {LO: LeakOp}.
   
   Variable stk: pointer.
   Definition remove_glob_eP m ii s1 s2 e e' v h:=
-    (@remove_glob_e_esP m ii s1 s2 h stk).1 e e' v.
+    (@remove_glob_e_esP LO m ii s1 s2 h stk).1 e e' v.
 
   Definition remove_glob_esP m ii s1 s2 es es' vs h:=
-    (@remove_glob_e_esP m ii s1 s2 h stk).2 es es' vs.
+    (@remove_glob_e_esP LO m ii s1 s2 h stk).2 es es' vs.
 
   Lemma write_var_remove (x:var_i) m s1 s2 v vm :
     ~~ is_glob x ->
@@ -503,7 +507,7 @@ Module RGP. Section PROOFS.
     t_xrbindP. by move=> vm' -> /= <-.
   Qed.
    
-  Lemma remove_glob_lvsP  m ii s1 s1' s2 lv lv' v les:
+  Lemma remove_glob_lvsP m ii s1 s1' s2 lv lv' v les:
     valid m s1 s2 ->
     mapM (remove_glob_lv is_glob ii m) lv = ok lv' ->
     write_lvals gd s1 lv v = ok (s1', les) ->
@@ -851,7 +855,7 @@ Qed.
     rewrite hcall in Hwf. apply Hwf.
     exists s2'; split=> //.
     apply sem_seq1;constructor.
-    rewrite /=. move: Ecall.
+    rewrite /=. have /(_ LO) := Ecall.
     move=> H. rewrite hlf in hfun. rewrite /Pfun in hfun. rewrite /= in hfun.
     replace gd with (p_globs P') in hes'.
     rewrite /valid in hval. move: hval. move=> [] h1 h2 h3 h4. rewrite h1 in hfun.
@@ -923,13 +927,14 @@ Qed.
     sem_call P m1 f vargs lf m2 vres ->
     Pfun m1 f vargs lf m2 vres.
   Proof.
-     apply /(@sem_call_Ind P Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
+     apply /(@sem_call_Ind _ P Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
                              Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
+  End Section.
   End FDS.
 
-  Lemma remove_globP P P' f mem mem' va vr lf lft stk:
+  Lemma remove_globP {LO: LeakOp} P P' f mem mem' va vr lf lft stk:
     remove_glob_prog is_glob fresh_id P = ok (P', lft) ->
     sem_call P mem f va (f, lf) mem' vr ->
     leak_WFs (leak_Fun lft) (leak_Fun lft f) lf /\

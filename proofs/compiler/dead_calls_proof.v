@@ -152,6 +152,8 @@ Proof.
 Qed.
 
 Section PROOF.
+  Context {LO: LeakOp}.
+
   Variables (K : Sp.t) (p: prog).
   Notation gd := (p_globs p).
   Variable Ffs : seq (funname * leak_c_tr).
@@ -304,7 +306,7 @@ Section PROOF.
     sem_call p' mem fd va lf mem' vr.
   Proof.
     move=> Hincl H.
-    apply: (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply: (@sem_call_Ind _ p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc)=> //.
     move => x Hx.
     SpD.fsetdec.
@@ -332,7 +334,7 @@ apply: foldl_compat; SpD.fsetdec.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma dead_calls_errP (s : Sp.t) (p p': prog) :
+Lemma dead_calls_errP {LO : LeakOp} (s : Sp.t) (p p': prog) :
   dead_calls_err s p = cfok p' →
   ∀ f m args m' res lf, Sp.In f s →
     sem_call p m f args lf m' res →
@@ -343,7 +345,7 @@ apply: dead_calls_callP=> //.
 apply: live_calls_subset fins.
 Qed.
 
-Theorem dead_calls_err_seqP (s : seq funname) (p p': prog) :
+Theorem dead_calls_err_seqP {LO : LeakOp} (s : seq funname) (p p': prog) :
   dead_calls_err_seq s p = cfok p' →
   ∀ f m args m' res lf, f \in s →
     sem_call p m f args lf m' res →

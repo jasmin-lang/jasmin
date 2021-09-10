@@ -562,9 +562,9 @@ Section PROOF.
            s2 lw vm1 stk Hcvs Hr1' Hv' Hw). move=>  [] vm2 [] Hw' Hr1''.
     exists vm2. split. auto. move: (@Ecall LO). move=> Hcall'. rewrite /= in Hcall. 
     replace gd with (p_globs p2) in Hw'. rewrite /= in Hw'.
-    move: (Hcall' p2 {| emem := emem s1; evm := vm1 |} m2 {| emem := emem s2; evm := vm2 |} ii2 xs2 fn args2 vargs' vs' 
+    have /(_ LO) {Hcall'} Hcall' := (Hcall' p2 {| emem := emem s1; evm := vm1 |} m2 {| emem := emem s2; evm := vm2 |} ii2 xs2 fn args2 vargs' vs' 
                   (fn', leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs fn') lfn) (map2 (leak_E stk) ltvs lw) Hes'). rewrite /=.
-    move=> {Hcall'} Hcall'. move: (Hcall' Hcall Hw'). move=> {Hcall'} Hcall'. apply sem_seq1. econstructor. 
+    move: (Hcall' LO Hcall Hw'). move=> {Hcall'} Hcall'. apply sem_seq1. econstructor. 
     by rewrite -H -Hl. 
   Qed.
 

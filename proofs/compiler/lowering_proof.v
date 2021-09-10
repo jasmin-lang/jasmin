@@ -44,6 +44,7 @@ Section PROOF.
 
   Variable p : prog.
   Notation gd := (p_globs p).
+  Context {LO: LeakOp}.
   Context (options: lowering_options).
   Context (warning: instr_info -> warning_msg -> instr_info).
   Variable fv : fresh_vars.
@@ -1227,7 +1228,7 @@ Qed.
   Proof.
     rewrite /mulr => ok_v1 ok_v2 hle1 hle2 hsz64 Hw.
     case Heq: (is_wconst _ _) => [z | ].
-    * have := is_wconstP gd s Heq; t_xrbindP => -[v1 l1] h1 hz [<- <-].
+    * have /(_ LO) := is_wconstP gd s Heq; t_xrbindP=> -[v1 l1] h1 hz [<- <-].
       exists [:: (Vword z2, le2); (Vword z1, le1)]. eexists.
       split; first done. rewrite /sem_pexprs /=.
       by rewrite /= ok_v1 ok_v2 /=. rewrite /exec_sopn /sopn_sem /= /leak_sopn /= /truncate_word hle1 hle2.
@@ -1235,7 +1236,7 @@ Qed.
       by rewrite -H.   
       by rewrite /= Hw /=.
     case Heq2: (is_wconst _ _) => [z | ].
-    * have := is_wconstP gd s Heq2; t_xrbindP => -[v2 l2] h2 hz [<- <-].
+    * have /(_ LO) := is_wconstP gd s Heq2; t_xrbindP => -[v2 l2] h2 hz [<- <-].
       eexists [:: (Vword z1, le1); (Vword z2, le2)]. eexists.
       split; first by rewrite read_es_swap. rewrite /sem_pexprs /=.
       by rewrite /= ok_v1 ok_v2 /=. rewrite /exec_sopn /sopn_sem /= /leak_sopn /= /truncate_word hle1 hle2.
@@ -2808,7 +2809,7 @@ Qed.
           by apply h1.
         rewrite -hs1''. rewrite /eq_exc_fresh in Hs2'. case: Hs2'=> h1 h2. by apply h2.
       have /andP [hsz16 hsz64] := assertP hsz.
-      have := @is_wconstP gd s1' sz e1; case: is_wconst => [ n1 | _ ].
+      have := @is_wconstP LO gd s1' sz e1; case: is_wconst => [ n1 | _ ].
       + move => /(_ _ erefl) /=; rewrite He1 /= /truncate_word hsz1 => - [?]; subst n1.
         set s2'' := {| emem := emem s1'; evm := (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w1)) ] |}.
         have Heq: eq_exc_fresh s2'' s1'.
@@ -2838,7 +2839,7 @@ Qed.
             zero_extend_u wmulhuE Z.mul_comm GRing.mulrC wmulE /= hx1 /=. rewrite /wumul /= in hx2; subst.
             by rewrite hx2 /=.
         + rewrite -hs3 in Hs3''; subst. by move: (eq_exc_freshT Hs3'' Hs2'). rewrite -hlo /=.
-      have := @is_wconstP gd s1' sz e2; case: is_wconst => [ n2 | _ ].
+      have := @is_wconstP LO gd s1' sz e2; case: is_wconst => [ n2 | _ ].
       + move => /(_ _ erefl) /=; rewrite He2 /= /truncate_word hsz2 => - [?]; subst n2.
         set s2'' := {| emem := emem s1'; evm := (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w2)) ] |}.
         have Heq: eq_exc_fresh s2'' s1'.
@@ -3088,13 +3089,13 @@ Qed.
       rewrite /leak_Fun. by rewrite Hlt.
       
     + have ->: vm1' = evm {| emem := m2; evm := vm1' |} by [].
-      have /= H1 := (@sem_pexprs_get_var gd (Estate m2 vm2) fres (map_v_el vres)).
+      have /= H1 := (@sem_pexprs_get_var LO gd (Estate m2 vm2) fres (map_v_el vres)).
       have : (unzip1 (map_v_el vres)) = vres. 
       rewrite /map_v_el /=; elim: (vres); auto; move=> a l Hal; rewrite /=.
       by rewrite Hal /=. move=> Heq. 
-      have /= H2 := (@sem_pexprs_get_var gd (Estate m2 vm1') fres (map_v_el vres)); auto.
+      have /= H2 := (@sem_pexprs_get_var LO gd (Estate m2 vm1') fres (map_v_el vres)); auto.
       rewrite -Hf'11 /=. rewrite -Heq /=. apply H2. rewrite -Heq in Hres.
-      move: get_var_sem_pexprs_empty'. move=> Hres'. move: (Hres' gd (Estate m2 vm2) fres (unzip1 (map_v_el vres)) Hres).
+      have /(_ LO) Hres' := get_var_sem_pexprs_empty'. move: (Hres' gd (Estate m2 vm2) fres (unzip1 (map_v_el vres)) Hres).
       move=> Hs. have Heq' : (map_v_el (unzip1 (map_v_el vres))) = (map_v_el vres). by rewrite Heq. rewrite Heq' in Hs. 
       move: (H1 Hs). move=> Hs1.
       apply: (sem_pexprs_same _ _ Hs). 
@@ -3112,7 +3113,7 @@ Qed.
     leak_WFs (leak_Fun p'.2) (leak_Fun p'.2 f) lf /\
     sem_call p'.1 mem f va (f, (leak_Is (leak_I (leak_Fun p'.2)) stk (leak_Fun p'.2 f) lf)) mem' vr.
   Proof.
-    apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_call_Ind _ p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 

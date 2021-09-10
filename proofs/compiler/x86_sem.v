@@ -158,6 +158,8 @@ Definition decode_addr (s : x86_mem) (a : address) : pointer := nosimpl (
 
 Section GLOB_DEFS.
 
+Context {LO: LeakOp}.
+
 Context (gd: glob_decls).
 
 Definition check_oreg or ai :=
@@ -189,7 +191,7 @@ Definition eval_arg_in_v (s:x86_mem) (args:asm_args) (a:arg_desc) (ty:stype) : e
       | Adr adr   => 
         match ty with
         | sword sz => let p :=(decode_addr s adr) in 
-                      Let w := read_mem s.(xmem) p sz in ok ((Vword w), [:: p])
+                      Let w := read_mem s.(xmem) p sz in ok ((Vword w), [:: mem_leak_ p])
         | _        => type_error
         end
       | XMM x     => ok ((Vword (s.(xxreg) x)), [::])
@@ -284,7 +286,7 @@ Definition mem_write_word (f:msb_flag) (s:x86_mem) (args:asm_args) (ad:arg_desc)
       | Reg r     => ok (mem_write_reg r w s, [::])
       | Adr adr   => let p := decode_addr s adr in  
                      Let m := mem_write_mem p w s in 
-                     ok (m, [::p])
+                     ok (m, [::mem_leak_ p])
       | XMM x     => ok (mem_update_xreg f x w s, [::])
       | _         => type_error
       end
@@ -352,7 +354,6 @@ Definition eval_special o args m :=
   | _, _ => type_error
   end.
 
-Context {LO:LeakOp}.
 Definition eval_op o args m := 
   if is_special o then
     eval_special o args m

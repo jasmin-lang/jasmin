@@ -32,6 +32,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section PROOF.
+Context {LO: LeakOp}.
 Context (p: prog).
 Notation gd := (p_globs p).
 
@@ -306,7 +307,7 @@ Lemma psem_call m fn va m' l vr :
   sem.sem_call p m fn va l m' vr →
   psem.sem_call p m fn va l m' vr.
 Proof.
-apply: (@sem.sem_call_Ind p Pc Pi_r Pi Pfor Pfun) => {m fn va l m' vr}.
+apply: (@sem.sem_call_Ind _ p Pc Pi_r Pi Pfor Pfun) => {m fn va l m' vr}.
 - by move => s s' hss'; exists s'; split; first exact: hss'; constructor.
 - move => s1 s2 s3 [ii i] c li lc [] {ii i s1 s2 li} ii i s1 s2 li _ ihi _ ihc s1' hss'1.
   case: (ihi s1' hss'1) => s2' [hss'2 hi].

@@ -70,6 +70,7 @@ Proof. by case/Memory.valid_pointerP. Qed.
 Hint Resolve is_align_no_overflow valid_align : core.
 
 Section PROOF.
+  Context {LO: LeakOp}.
   Variable P: prog.
   Notation gd := (p_globs P).
   Variable SP: (sprog * leak_f_tr).
@@ -1121,7 +1122,7 @@ Section PROOF.
 
   Lemma check_cP s1 c lc s2: sem P s1 c lc s2 -> Pc s1 c lc s2.
   Proof.
-    apply (@sem_Ind P Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_Ind _ P Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
@@ -1129,6 +1130,7 @@ End PROOF.
 
 Section WF_Proof.
 
+  Context {LO: LeakOp}.
   Variable P: prog.
   Notation gd := (p_globs P).
   Variable SP: (sprog * leak_f_tr).
@@ -1242,7 +1244,7 @@ Section WF_Proof.
 
   Lemma check_c_wf s1 c lc s2: sem P s1 c lc s2 -> Pc s1 c lc s2.
   Proof.
-    apply (@sem_Ind P Pc Pi_r Pi Pfor Pfun Hskip_WF Hcons_WF HmkI_WF Hassgn_WF Hopn_WF
+    apply (@sem_Ind _ P Pc Pi_r Pi Pfor Pfun Hskip_WF Hcons_WF HmkI_WF Hassgn_WF Hopn_WF
              Hif_true_WF Hif_false_WF Hwhile_true_WF Hwhile_false_WF Hfor_WF Hfor_nil_WF Hfor_cons_WF
              Hcall_WF Hproc_WF).
   Qed.
@@ -1295,7 +1297,7 @@ Proof.
   by exists sx;split=>//;split=>//;omega.
 Qed.
 
-Lemma getfun_alloc oracle (P:prog) SP fn fd:
+Lemma getfun_alloc {LO: LeakOp} oracle (P:prog) SP fn fd:
   alloc_prog oracle P = ok SP ->
   get_fundef (p_funcs P) fn = Some fd ->
   exists fd', exists ltc, 
@@ -1328,7 +1330,7 @@ Lemma oheadE T m (t x: T) :
   head x m = t.
 Proof. case: m => //= ? ?; apply: Some_inj. Qed.
 
-Lemma alloc_fdP oracle (P: prog) (SP: sprog * leak_f_tr) fn fd fd':
+Lemma alloc_fdP {LO: LeakOp} oracle (P: prog) (SP: sprog * leak_f_tr) fn fd fd':
   alloc_prog oracle P = ok SP ->
   get_fundef (p_funcs P) fn = Some fd ->
   get_fundef SP.1 fn = Some fd' ->
@@ -1449,7 +1451,7 @@ Proof.
   move=> [] //=.
 Qed.
 
-Lemma alloc_progP oracle (P: prog) (SP: sprog * leak_f_tr) fn:
+Lemma alloc_progP {LO: LeakOp} oracle (P: prog) (SP: sprog * leak_f_tr) fn:
   alloc_prog oracle P = ok SP ->
   forall m1 va lf m1' vr p,
     sem_call P m1 fn va (fn, lf) m1' vr ->

@@ -38,7 +38,7 @@ Local Open Scope vmap_scope.
 Local Open Scope seq_scope.
 
 Section PROOF.
-
+  Context {LO: LeakOp}.
   Variable p p': prog.
   Variable Fs: seq (funname * seq leak_i_tr).
   Variable stk: pointer.
@@ -203,25 +203,26 @@ Section PROOF.
     sem_call p  mem f va lf mem' vr ->
     sem_call p' mem f va (lf.1, (leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2)) mem' vr.
   Proof.
-    apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_call_Ind _ p Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
 End PROOF.
 
-Lemma unroll_callP : forall (p : prog) (stk : u64),
+Lemma unroll_callP : forall {LO: LeakOp} (p : prog) (stk : u64),
       let p' := (unroll_prog p).1 in
       let Fs := (unroll_prog p).2 in
       forall (f : funname) (mem : mem) (mem' : low_memory.mem) (va vr : seq value) (lf : leak_fun),
       sem_call p mem f va lf mem' vr ->
       sem_call p' mem f va (lf.1, leak_Is (leak_I (leak_Fun Fs)) stk (leak_Fun Fs lf.1) lf.2) mem' vr.
 Proof.
-move=> p' Fs. apply unroll_callP_aux; first by auto.
+move=> LO p' Fs. apply unroll_callP_aux; first by auto.
 by case: (unroll_prog p').
 Qed.
 
 Section WF_PROOF.
-
+  
+  Context {LO: LeakOp}.
   Variable p p': prog.
   Variable Fs: seq (funname * seq leak_i_tr).
   Variable stk: pointer.
@@ -352,14 +353,14 @@ Section WF_PROOF.
       sem_call p mem f va lf mem' vr ->
     leak_WFs (leak_Fun Fs) (leak_Fun Fs lf.1) lf.2.
   Proof.
-    apply (@sem_call_Ind p Pc Pi_r Pi Pfor Pfun Hskip_WF Hcons_WF HmkI_WF Hassgn_WF Hopn_WF
+    apply (@sem_call_Ind _ p Pc Pi_r Pi Pfor Pfun Hskip_WF Hcons_WF HmkI_WF Hassgn_WF Hopn_WF
              Hif_true_WF Hif_false_WF Hwhile_true_WF Hwhile_false_WF Hfor_WF Hfor_nil_WF Hfor_cons_WF 
              Hcall_WF Hproc_WF).
   Qed.
 
 End WF_PROOF.
 
-Lemma unroll_callP_wf p stk f mem mem' va vr lf:
+Lemma unroll_callP_wf {LO: LeakOp} p stk f mem mem' va vr lf:
   let p' := (unroll_prog p).1 in
   let Fs := (unroll_prog p).2 in
   sem_call p mem f va (f,lf) mem' vr ->
