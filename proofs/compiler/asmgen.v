@@ -9,13 +9,13 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition pexpr_of_lval ii (lv:lval) : ciexec pexpr :=
+Definition pexpr_of_lval ii (lv:lval) : cexec pexpr :=
   match lv with
-  | Lvar x    => ok (Plvar x)
-  | Lmem s x e  => ok (Pload s x e)
-  | Lnone _ _
-  | Laset _ _ _ _ 
-  | Lasub _ _ _ _ _ => cierror ii (Cerr_assembler (AsmErr_string "pexpr_of_lval" None))
+  | Lvar x          => ok (Plvar x)
+  | Lmem s x e      => ok (Pload s x e)
+  | Lnone _ _       => Error (E.internal_error ii "_ lval remains")
+  | Laset _ _ _ _   => Error (E.internal_error ii "Laset lval remains")
+  | Lasub _ _ _ _ _ => Error (E.internal_error ii "Lasub lval remains")
   end.
 
 Definition nmap (T:Type) := nat -> option T.
@@ -30,25 +30,25 @@ Definition var_of_implicit i :=
   | IAreg r   => var_of_register r
   end.
 
-Definition compile_arg rip ii max_imm (ade: (arg_desc * stype) * pexpr) (m: nmap asm_arg) : ciexec (nmap asm_arg) :=
+Definition compile_arg rip ii max_imm (ade: (arg_desc * stype) * pexpr) (m: nmap asm_arg) : cexec (nmap asm_arg) :=
   let ad := ade.1 in
   let e := ade.2 in
   match ad.1 with
   | ADImplicit i =>
     Let _ :=
       assert (eq_expr (Plvar (VarI (var_of_implicit i) xH)) e)
-             (ii, Cerr_assembler (AsmErr_string "compile_arg : bad implicit" (Some e))) in
+             (E.internal_error ii "(compile_arg) bad implicit register") in
     ok m
   | ADExplicit k n o =>
     Let a := arg_of_pexpr k rip ii ad.2 max_imm e in
     Let _ :=
       assert (check_oreg o a)
-             (ii, Cerr_assembler (AsmErr_string "compile_arg : bad forced register" (Some e))) in
+             (E.internal_error ii "(compile_arg) bad forced register") in
     match nget m n with
     | None => ok (nset m n a)
     | Some a' =>
       if a == a' then ok m
-      else cierror ii (Cerr_assembler (AsmErr_string "compile_arg : not compatible asm_arg" (Some e)))
+      else Error (E.internal_error ii "(compile_arg) not compatible asm_arg")
     end
   end.
 
@@ -85,8 +85,8 @@ Definition check_sopn_dest rip ii max_imm (loargs : seq asm_arg) (x : pexpr) (ad
     end
   end.
 
-Definition error_imm :=
- Cerr_assembler (AsmErr_string "Invalid asm: cannot truncate the immediate to a 32 bits immediate, move it to a register first" None).
+Definition error_imm ii :=
+ E.error ii (pp_s "Invalid asm: cannot truncate the immediate to a 32 bits immediate, move it to a register first").
 
 Definition assemble_x86_opn_aux rip ii op (outx : lvals) (inx : pexprs) :=
   let id := instr_desc op in
@@ -95,7 +95,7 @@ Definition assemble_x86_opn_aux rip ii op (outx : lvals) (inx : pexprs) :=
   Let eoutx := mapM (pexpr_of_lval ii) outx in
   Let m := compile_args rip ii max_imm (zip id.(id_out) id.(id_tout)) eoutx m in
   match oseq.omap (nget m) (iota 0 id.(id_nargs)) with
-  | None => cierror ii (Cerr_assembler (AsmErr_string "compile_arg : assert false nget" None))
+  | None => Error (E.internal_error ii "compile_arg : assert false nget")
   | Some asm_args =>
       (* This should allows to fix the problem with "MOV addr (IMM U64 w)" *)
       Let asm_args := 
@@ -103,9 +103,9 @@ Definition assemble_x86_opn_aux rip ii op (outx : lvals) (inx : pexprs) :=
         | MOV U64, [:: Adr a; Imm U64 w] =>
           match truncate_word U32 w with
           | Ok w' => 
-            Let _ := assert (sign_extend U64 w' == w) (ii, error_imm) in
+            Let _ := assert (sign_extend U64 w' == w) (error_imm ii) in
             ok [::Adr a; Imm w']
-          | _ => cierror ii error_imm 
+          | _ => Error (error_imm ii)
           end
         | _, _ => ok asm_args 
         end in
@@ -127,10 +127,10 @@ Definition assemble_x86_opn rip ii op (outx : lvals) (inx : pexprs) :=
   Let asm_args := assemble_x86_opn_aux rip ii op outx inx in
   let s := id.(id_str_jas) tt in
   Let _ := assert (id_check id asm_args)
-       (ii, Cerr_assembler (AsmErr_string ("assemble_x86_opn : invalid instruction (check) " ++ s) None)) in
+                  (E.error ii (pp_box [:: pp_s "invalid instruction, check do not pass :"; pp_s s])) in
   Let _ := assert (check_sopn_args rip ii max_imm asm_args inx (zip id.(id_in) id.(id_tin)) &&
                      check_sopn_dests rip ii max_imm asm_args outx (zip id.(id_out) id.(id_tout)))
-       (ii, Cerr_assembler (AsmErr_string "assemble_x86_opn: cannot check, please repport" None)) in
+                  (E.internal_error ii "assemble_x86_opn: cannot check") in
   ok (op.2, asm_args).
 
 Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
@@ -139,25 +139,21 @@ Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
   | Omulu     _ 
   | Oaddcarry _ 
   | Osubcarry _ =>
-    cierror ii (Cerr_assembler (AsmErr_string "assemble_sopn : invalid op" None))
+    Error (E.internal_error ii "assemble_sopn : invalid op")
   (* Low level x86 operations *)
   | Oset0 sz => 
     let op := if (sz <= U64)%CMP then (XOR sz) else (VPXOR sz) in
     Let x := 
       match rev outx with 
       | Lvar x :: _ =>  ok x
-      | _ => 
-        cierror ii 
-          (Cerr_assembler (AsmErr_string "assemble_sopn set0: destination is not a register" None))
+      | _ => Error (E.internal_error ii "set0 : destination is not a register")
       end in
     assemble_x86_opn rip ii (None, op) outx [::Plvar x; Plvar x]
   | Ox86MOVZX32 =>
     Let x := 
       match outx with 
       | [::Lvar x] =>  ok x
-      | _ => 
-        cierror ii 
-          (Cerr_assembler (AsmErr_string "assemble_sopn Ox86MOVZX32: destination is not a register" None))
+      | _ => Error (E.internal_error ii "Ox86MOVZX32: destination is not a register")
       end in
     assemble_x86_opn rip ii (None, MOV U32) outx inx
 
@@ -165,9 +161,7 @@ Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
     Let inx := 
         match inx with
         | [:: h; Pvar _ as l] => ok [:: l; h; @wconst U8 1%R]
-        |  _ => 
-          cierror ii 
-            (Cerr_assembler (AsmErr_string "assemble_sopn Oconcat: assert false" None))
+        |  _ => Error (E.internal_error ii "Oconcat: assert false")
         end in
     assemble_x86_opn rip ii (None, VINSERTI128) outx inx
     

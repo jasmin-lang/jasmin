@@ -41,8 +41,8 @@ Section INLINE.
 Context (inline_var: var -> bool).
 Variable rename_fd : instr_info -> funname -> ufundef -> ufundef.
 
-Lemma get_funP p ii f fd :
-  get_fun p ii f = ok fd -> get_fundef p f = Some fd.
+Lemma get_funP p f fd :
+  get_fun p f = ok fd -> get_fundef p f = Some fd.
 Proof. by rewrite /get_fun;case:get_fundef => // ? [->]. Qed.
 
 Local Notation inline_i' := (inline_i inline_var rename_fd).
@@ -66,25 +66,23 @@ Section INCL.
     inline_c (inline_i' p)  c X2 = ok (X1, c') ->
     inline_c (inline_i' p') c X2 = ok (X1, c').
 
+
   Lemma inline_c_incl c : Pc c.
   Proof.
     apply (@cmd_rect Pr Pi Pc) => // {c}.
-    + move=> i c Hi Hc X1 c' X2 /=.
-      apply:rbindP => -[Xc cc] /Hc -> /=.
-      by apply:rbindP => -[Xi ci] /Hi ->.
+    + move=> i c Hi Hc X1 c' X2 /=. 
+      by t_xrbindP => -[Xc cc] /Hc -> /= -[Xi ci] /Hi -> /= -> <-.
     + by move=> * ?.
     + by move=> * ?.
     + move=> e c1 c2 Hc1 Hc2 ii X1 c' X2 /=.
-      apply: rbindP => -[Xc1 c1'] /Hc1 -> /=.
-      by apply: rbindP => -[Xc2 c2'] /Hc2 -> /= [] <- <-.
+      by t_xrbindP => -[Xc1 c1'] /Hc1 -> /= -[Xc2 c2'] /Hc2 -> /= <- <-.
     + move=> i dir lo hi c Hc ii X1 c0 X2 /=.
-      by apply: rbindP => -[Xc c'] /Hc -> /=.
+      by t_xrbindP => -[Xc c'] /Hc -> /= <- <-.
     + move=> a c e c' Hc Hc' ii X1 c0 X2 /=.
-      apply: rbindP => -[Xc1 c1] /Hc -> /=.
-      by apply: rbindP => -[Xc1' c1'] /Hc' -> /=.
-    + move=> i xs f es ii X1 c' X2 /=.
-      case: i => //;apply: rbindP => fd /get_funP -/Incl.
-      by rewrite /get_fun => ->.
+      by t_xrbindP => -[Xc1 c1] /Hc -> /= -[Xc1' c1'] /Hc' -> /= <- <-.
+    move=> i xs f es ii X1 c' X2 /=.
+    case: i => //; t_xrbindP => fd /get_funP -/Incl.
+    by rewrite /get_fun => -> ? h <- <- /=; rewrite h.
   Qed.
 
   Lemma inline_incl fd fd' :
@@ -113,8 +111,7 @@ Proof.
   elim: p p' => [ | [f1 fd1] p Hrec] p' /=.
   + by move=> _ [<-].
   move=> /andP [] Hf1 Huniq.
-  apply: rbindP => p1 Hp1 /=.
-  apply: rbindP => fd1';apply: add_finfoP => Hinl [] <-.
+  rewrite /inline_fd_cons; t_xrbindP => p1 Hp1 /= fd1' Hinl <-.
   rewrite !get_fundef_cons /=;case: eqP => [? [?]| Hne].
   + subst f1 fd';exists fd1;split=>//.
     apply: inline_incl Hinl => f0 fd0;rewrite get_fundef_cons /=.
@@ -133,9 +130,7 @@ Lemma inline_progP' p p' f fd :
   exists fd', get_fundef p' f = Some fd' /\ inline_fd' p' fd = ok fd'.
 Proof.
   elim: p p' => [ | [f1 fd1] p Hrec] p' //.
-  rewrite /= => /andP [] Hf1 Huniq.
-  apply: rbindP => p1 Hp1.
-  apply: rbindP => fd1';apply: add_finfoP => Hinl [] <-.
+  rewrite /= /inline_fd_cons => /andP [] Hf1 Huniq; t_xrbindP => p1 Hp1 fd1' Hinl <-.
   rewrite !get_fundef_cons /=;case: eqP => [? [?]| Hne].
   + subst f1 fd1;exists fd1';split=>//.
     apply: inline_incl Hinl => f0 fd0;rewrite get_fundef_cons /=.
@@ -484,10 +479,10 @@ Section PROOF.
       + by apply: wf_write_lvals Hxs.
       + by apply: vmap_uincl_onI Hvm2; rewrite read_i_call;SvD.fsetdec.
       by apply sem_seq1;constructor;eapply Ecall;eauto;rewrite -eq_globs.
-    apply: rbindP => fd' /get_funP Hfd'.
+    t_xrbindP => fd' /get_funP Hfd'.
     have [fd [Hfd Hinline]] := inline_progP uniq_funname Hp Hfd'.
-    apply: rbindP => -[];apply:rbindP => -[];apply: add_infunP => Hcheckf /=.
-    case:ifP => // Hdisj _ [] ??;subst X1 c' => vm1 Hwf1 Hvm1.
+    rewrite /check_rename => -[]; t_xrbindP => -[] Hcheckf /=.
+    case:ifP => // Hdisj _ ??;subst X1 c' => vm1 Hwf1 Hvm1.
     have /(_ Sv.empty vm1) [|vargs' /= Hvargs' Huargs]:= sem_pexprs_uincl_on' _ Hes.
     + by apply: vmap_uincl_onI Hvm1;rewrite read_i_call;SvD.fsetdec.
     have [vres1 [Hscall Hvres]]:= Hfun _ Huargs.
@@ -584,7 +579,8 @@ Lemma inline_call_errP p p' f ev mem mem' va va' vr:
   exists vr',
       sem_call p' ev mem f va' mem' vr' /\  List.Forall2 value_uincl vr vr'.
 Proof.
-  rewrite /inline_prog_err;case:ifP => //= Hu; t_xrbindP => fds Hi <-.
+  rewrite /inline_prog_err;case:ifP => //= Hu.
+  t_xrbindP => fds Hi <-.
   by apply: (inline_callP (p':= {|p_globs := p_globs p; p_funcs:= fds|}) Hu Hi).
 Qed.
 

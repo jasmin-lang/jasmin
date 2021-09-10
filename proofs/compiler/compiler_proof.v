@@ -218,7 +218,7 @@ Proof.
  (* have Haok : alloc_ok pstk fn meml.
   + rewrite /alloc_ok=> fd Hfd.
     move: Hpl; rewrite /linear_prog; t_xrbindP => ?? lfuncs Hpl [] ?; subst pl.
-    move: (get_map_cfprog Hpl Hfd)=> [f' [Hf'1 Hf'2]].
+    move: (get_map_cfprog_gen Hpl Hfd)=> [f' [Hf'1 Hf'2]].
     apply: rbindP Hf'1=> [fn' Hfn'] [] Hf'.
     have := Halloc _ Hf'2.
     by rewrite -Hf' /=. *)
@@ -279,7 +279,7 @@ have hlsem := compile_progP hlp hfn hsem Hex.
 case: hlsem.
 - move => fd hfd.
   move: hxp; rewrite /assemble_prog; t_xrbindP => _ _; case: x86_variables.reg_of_string => // sp; t_xrbindP => fs hfs ?; subst xp.
-  have [xfd hxfd] := get_map_cfprog hfs hfd.
+  have [xfd hxfd] := get_map_cfprog_gen hfs hfd.
   by move => /hsafe; rewrite (assemble_fd_stk_size hxfd).
 move/ok_sig: hfn.
 case: hsem => {m1 m2 hsafe fn va vr Hex} m1 m2 fn fd va va' st1 vm2 vr vr1 ok_fd ok_va _ _ _ _ hsig m2' [vr'] [ok_vr'] [hm2' hlsem].

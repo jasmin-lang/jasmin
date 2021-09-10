@@ -34,6 +34,14 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+Module Import E.
+
+  Definition pass : string := "make reference arguments".
+
+  Definition make_ref_error := pp_internal_error_s_at pass.
+
+End E.
+
 Section Section.
 
 Context (is_reg_ptr : var -> bool) (fresh_id : glob_decls -> var -> Ident.ident).
@@ -69,7 +77,7 @@ Fixpoint make_prologue ii (X:Sv.t) xs tys es :=
     match is_reg_ptr_expr x e with
     | Some y => 
       Let _ := assert ([&& ty == vtype y, ~~is_sbool ty & ~~Sv.mem y X ])
-                      (ii, Cerr_stk_alloc "makeReferenceArguments: bad fresh id") in
+                      (make_ref_error ii "bad fresh id (prologue)") in
       Let pes := make_prologue ii (Sv.add y X) xs tys es in
       let: (p,es') := pes in 
       ok (MkI ii (Cassgn (Lvar y) AT_rename ty e) :: p, Plvar y :: es')
@@ -78,7 +86,7 @@ Fixpoint make_prologue ii (X:Sv.t) xs tys es :=
       let: (p,es') := pes in
       ok (p, e::es')
     end
-  | _, _, _ => Error (ii, Cerr_stk_alloc "prologue : assert false")
+  | _, _, _ => Error (make_ref_error ii "assert false (prologue)")
   end.
 
 Inductive pseudo_instr := 
@@ -93,14 +101,14 @@ Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) xs tys rs :=
      match is_reg_ptr_lval x r with
      | Some y => 
        Let _ := assert ([&& ty == vtype y, ~~is_sbool ty & ~~Sv.mem y X ])
-                        (ii, Cerr_stk_alloc "makeReferenceArguments: bad fresh id") in
+                       (make_ref_error ii "bad fresh id (epilogue)") in
        Let pis := make_pseudo_epilogue ii X xs tys rs in
        ok (PI_lv (Lvar y) :: (PI_i r ty y) :: pis)
      | None =>
        Let pis :=  make_pseudo_epilogue ii X xs tys rs in
        ok (PI_lv r :: pis) 
      end
-   | _, _, _ => Error (ii, Cerr_stk_alloc "epilogue: assert false")
+   | _, _, _ => Error (make_ref_error ii "assert false (epilogue)")
    end.
 
 Definition mk_ep_i ii r ty y :=  MkI ii (Cassgn r AT_rename ty (Plvar y)).
@@ -134,23 +142,23 @@ Fixpoint swapable (ii:instr_info) (pis : seq pseudo_instr) :=
     let: (lvs,ep) := lvep in
     let i := mk_ep_i ii r ty y in
     Let _ := assert (disjoint (read_rvs lvs) (write_I i))
-                    (ii, Cerr_stk_alloc "cannot swap 1") in
+                    (make_ref_error ii "cannot swap 1") in
     Let _ := assert (disjoint (vrvs lvs) (Sv.union (write_I i) (read_I i)))
-                    (ii, Cerr_stk_alloc "cannot swap 2") in
-    Let _ := assert (wf_lv r) (ii, Cerr_stk_alloc "cannot swap 3") in
+                     (make_ref_error ii "cannot swap 2") in
+    Let _ := assert (wf_lv r) (make_ref_error ii "cannot swap 3") in
     ok (lvs, i::ep)
   end.
 
 Definition make_epilogue ii (X:Sv.t) xs tys rs := 
   Let pis := make_pseudo_epilogue ii X xs tys rs in
   swapable ii pis.
-      
-Definition update_c (update_i : instr -> ciexec cmd) (c:cmd) :=
+
+Definition update_c (update_i : instr -> cexec cmd) (c:cmd) :=
   Let ls := mapM update_i c in
   ok (flatten ls).
 
 Fixpoint update_i (get_sig : funname -> seq var_i * seq stype * seq var_i * seq stype) 
-                  (X:Sv.t) (i:instr) : ciexec cmd :=
+                  (X:Sv.t) (i:instr) : cexec cmd :=
   let (ii,ir) := i in
   match ir with
   | Cassgn _ _ _ _ |  Copn _ _ _ _ => 
@@ -189,7 +197,7 @@ Definition get_sig (p:prog) n :=
         (fd.(f_params), fd.(f_tyin), fd.(f_res), fd.(f_tyout))
   else ([::], [::], [::], [::]).
 
-Definition makereference_prog : cfexec prog :=
+Definition makereference_prog : cexec prog :=
   Let funcs := map_cfprog (update_fd (get_sig p)) p.(p_funcs) in
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
 

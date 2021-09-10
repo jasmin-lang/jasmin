@@ -16,7 +16,7 @@ let rec pp_list sep pp fmt xs =
 
 (* -------------------------------------------------------------------- *)
 let pp_iloc fmt (l,ls) =
-  Format.fprintf fmt "@[%a@]" (pp_list " from@ " L.pp_sloc) (l::ls)
+  Format.fprintf fmt "@[<v 2>%a@]" (pp_list "@ from " L.pp_loc) (l::ls)
 
 (* -------------------------------------------------------------------- *)
 let pp_string0 fmt str =

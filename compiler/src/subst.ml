@@ -6,12 +6,24 @@ let gsubst_ty (flen: 'len1 -> 'len2) ty =
   | Bty ty -> Bty ty
   | Arr(ty, e) -> Arr(ty, flen e)
 
+(* We make sure that the locations of the variables are not lost during the
+   substitution.
+   TODO: is this the right place to do this? Or should we make sure that
+   function [f] makes thing correctly?
+*)
+let subst_gvar_loc v e =
+  match e with
+  | Pvar v' ->
+      let gv = L.mk_loc (L.loc v.gv) (L.unloc v'.gv) in
+      Pvar {v' with gv}
+  | e -> e
+
 let rec gsubst_e (flen: 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gexpr) e =
   match e with
   | Pconst c -> Pconst c
   | Pbool b  -> Pbool b
   | Parr_init n -> Parr_init (flen n)
-  | Pvar v -> f v
+  | Pvar v -> subst_gvar_loc v (f v)
   | Pget (aa, ws, v, e) -> Pget(aa, ws, gsubst_gvar f v, gsubst_e flen f e)
   | Psub (aa, ws, len, v, e) -> Psub(aa,ws,flen len, gsubst_gvar f v, gsubst_e flen f e)
   | Pload (ws, v, e) -> Pload (ws, gsubst_vdest f v, gsubst_e flen f e)
@@ -21,7 +33,7 @@ let rec gsubst_e (flen: 'len1 -> 'len2) (f: 'len1 ggvar -> 'len2 gexpr) e =
   | Pif   (ty, e, e1, e2)-> Pif(gsubst_ty flen ty, gsubst_e flen f e, gsubst_e flen f e1, gsubst_e flen f e2)
 
 and gsubst_gvar f v = 
-  match f v with
+  match subst_gvar_loc v (f v) with
   | Pvar v -> v
   | _      -> assert false
 

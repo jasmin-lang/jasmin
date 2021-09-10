@@ -1,0 +1,210 @@
+export fn main (reg u64 counter) -> reg u64 {
+  reg u64 res;
+  inline int i0;
+  inline int i1;
+  inline int i2;
+  inline int i3;
+  inline int i4;
+  inline int i5;
+  inline int i6;
+  inline int i7;
+  inline int i8;
+  inline int i9;
+  inline int i10;
+  inline int i11;
+  inline int i12;
+  inline int i13;
+  inline int i14;
+  inline int i15;
+  inline int i16;
+  inline int i17;
+  inline int i18;
+  inline int i19;
+  inline int i20;
+  inline int i21;
+  inline int i22;
+  inline int i23;
+  inline int i24;
+  inline int i25;
+  inline int i26;
+  inline int i27;
+  inline int i28;
+  inline int i29;
+  inline int i30;
+  inline int i31;
+  inline int i32;
+  inline int i33;
+  inline int i34;
+  inline int i35;
+  inline int i36;
+  inline int i37;
+  inline int i38;
+  inline int i39;
+  inline int i40;
+  inline int i41;
+  inline int i42;
+  inline int i43;
+  inline int i44;
+  inline int i45;
+  inline int i46;
+  inline int i47;
+  inline int i48;
+  inline int i49;
+  inline int i50;
+  inline int i51;
+  inline int i52;
+  inline int i53;
+  inline int i54;
+  inline int i55;
+  inline int i56;
+  inline int i57;
+  inline int i58;
+  inline int i59;
+  inline int i60;
+  inline int i61;
+  inline int i62;
+  inline int i63;
+  inline int i64;
+  inline int i65;
+  inline int i66;
+  inline int i67;
+  inline int i68;
+  inline int i69;
+  inline int i70;
+  inline int i71;
+  inline int i72;
+  inline int i73;
+  inline int i74;
+  inline int i75;
+  inline int i76;
+  inline int i77;
+  inline int i78;
+  inline int i79;
+  inline int i80;
+  inline int i81;
+  inline int i82;
+  inline int i83;
+  inline int i84;
+  inline int i85;
+  inline int i86;
+  inline int i87;
+  inline int i88;
+  inline int i89;
+  inline int i90;
+  inline int i91;
+  inline int i92;
+  inline int i93;
+  inline int i94;
+  inline int i95;
+  inline int i96;
+  inline int i97;
+  inline int i98;
+  inline int i99;
+  inline int i100;
+
+  for i0 = 1 to 200 {}
+  for i1 = 1 to i0 {}
+  for i2 = 1 to i1 {}
+  for i3 = 1 to i2 {}
+  for i4 = 1 to i3 {}
+  for i5 = 1 to i4 {}
+  for i6 = 1 to i5 {}
+  for i7 = 1 to i6 {}
+  for i8 = 1 to i7 {}
+  for i9 = 1 to i8 {}
+  for i10 = 1 to i9 {}
+  for i11 = 1 to i10 {}
+  for i12 = 1 to i11 {}
+  for i13 = 1 to i12 {}
+  for i14 = 1 to i13 {}
+  for i15 = 1 to i14 {}
+  for i16 = 1 to i15 {}
+  for i17 = 1 to i16 {}
+  for i18 = 1 to i17 {}
+  for i19 = 1 to i18 {}
+  for i20 = 1 to i19 {}
+  for i21 = 1 to i20 {}
+  for i22 = 1 to i21 {}
+  for i23 = 1 to i22 {}
+  for i24 = 1 to i23 {}
+  for i25 = 1 to i24 {}
+  for i26 = 1 to i25 {}
+  for i27 = 1 to i26 {}
+  for i28 = 1 to i27 {}
+  for i29 = 1 to i28 {}
+  for i30 = 1 to i29 {}
+  for i31 = 1 to i30 {}
+  for i32 = 1 to i31 {}
+  for i33 = 1 to i32 {}
+  for i34 = 1 to i33 {}
+  for i35 = 1 to i34 {}
+  for i36 = 1 to i35 {}
+  for i37 = 1 to i36 {}
+  for i38 = 1 to i37 {}
+  for i39 = 1 to i38 {}
+  for i40 = 1 to i39 {}
+  for i41 = 1 to i40 {}
+  for i42 = 1 to i41 {}
+  for i43 = 1 to i42 {}
+  for i44 = 1 to i43 {}
+  for i45 = 1 to i44 {}
+  for i46 = 1 to i45 {}
+  for i47 = 1 to i46 {}
+  for i48 = 1 to i47 {}
+  for i49 = 1 to i48 {}
+  for i50 = 1 to i49 {}
+  for i51 = 1 to i50 {}
+  for i52 = 1 to i51 {}
+  for i53 = 1 to i52 {}
+  for i54 = 1 to i53 {}
+  for i55 = 1 to i54 {}
+  for i56 = 1 to i55 {}
+  for i57 = 1 to i56 {}
+  for i58 = 1 to i57 {}
+  for i59 = 1 to i58 {}
+  for i60 = 1 to i59 {}
+  for i61 = 1 to i60 {}
+  for i62 = 1 to i61 {}
+  for i63 = 1 to i62 {}
+  for i64 = 1 to i63 {}
+  for i65 = 1 to i64 {}
+  for i66 = 1 to i65 {}
+  for i67 = 1 to i66 {}
+  for i68 = 1 to i67 {}
+  for i69 = 1 to i68 {}
+  for i70 = 1 to i69 {}
+  for i71 = 1 to i70 {}
+  for i72 = 1 to i71 {}
+  for i73 = 1 to i72 {}
+  for i74 = 1 to i73 {}
+  for i75 = 1 to i74 {}
+  for i76 = 1 to i75 {}
+  for i77 = 1 to i76 {}
+  for i78 = 1 to i77 {}
+  for i79 = 1 to i78 {}
+  for i80 = 1 to i79 {}
+  for i81 = 1 to i80 {}
+  for i82 = 1 to i81 {}
+  for i83 = 1 to i82 {}
+  for i84 = 1 to i83 {}
+  for i85 = 1 to i84 {}
+  for i86 = 1 to i85 {}
+  for i87 = 1 to i86 {}
+  for i88 = 1 to i87 {}
+  for i89 = 1 to i88 {}
+  for i90 = 1 to i89 {}
+  for i91 = 1 to i90 {}
+  for i92 = 1 to i91 {}
+  for i93 = 1 to i92 {}
+  for i94 = 1 to i93 {}
+  for i95 = 1 to i94 {}
+  for i96 = 1 to i95 {}
+  for i97 = 1 to i96 {}
+  for i98 = 1 to i97 {}
+  for i99 = 1 to i98 {}
+  for i100 = 1 to 2 {
+    res = 0;
+  }
+
+  return res;
+}

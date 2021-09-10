@@ -116,11 +116,11 @@ Notation wrf := (get_wmap wmap).
 Lemma checkP u (fn: funname) (fd: sfundef) :
   check p extra_free_registers = ok u →
   get_fundef (p_funcs p) fn = Some fd →
-  valid_writefun wrf (fn, fd) ∧ check_fd p extra_free_registers wrf (fn, fd) = ok tt.
+  valid_writefun wrf (fn, fd) ∧ check_fd p extra_free_registers wrf fn fd = ok tt.
 Proof.
   rewrite /check; t_xrbindP => _ /assertP ok_wmap _ _ ? ok_prog _ ok_fd; split.
   - exact: check_wmapP ok_fd ok_wmap.
-  by move: ok_fd => /(@get_fundef_in' sfundef) /(mapM_In ok_prog) [] [] [].
+  by have [ [] ] := get_map_cfprog_name_gen ok_prog ok_fd.
 Qed.
 
 Hypothesis ok_p : check p extra_free_registers = ok tt.
@@ -623,8 +623,7 @@ Section LEMMA.
     rewrite /check_instr_r /=; case heq : get_fundef => [ fd | //].
     t_xrbindP => ? hces _ /assertP hal _ /assertP hra _ /assertP hargs _ /assertP hres hxs pre sim.
     have [ok_wrf] := checkP ok_p heq.
-    rewrite /check_fd; t_xrbindP => D.
-    apply: add_finfoP => check_body _ /assertP hdisjoint _ /assertP checked_params.
+    rewrite /check_fd; t_xrbindP => D check_body _ /assertP hdisjoint _ /assertP checked_params.
     move=> _ /assertP RSP_not_result _ /assertP preserved_magic ? hsaved checked_ra.
     have [vargs' hvargs' hincl]:= check_esP hces sim ok_vargs.
     have [||| k [tvm2] [res'] [texec hwf hk get_res res_uincl] ] :=
@@ -687,7 +686,7 @@ Section LEMMA.
       ii fd' tvm1 args' ok_fd' ok_rastack sp_align vrsp_tv vgd_tv hwftvm1 ok_args' ok_args''.
     move: ok_fd'; rewrite ok_fd => /Some_inj ?; subst fd'.
     case: (checkP ok_p ok_fd) => ok_wrf.
-    rewrite /check_fd; t_xrbindP => D; apply: add_finfoP.
+    rewrite /check_fd; t_xrbindP => D. 
     set ID := (ID in check_cmd _ ID _).
     set res := set_of_var_i_seq Sv.empty (f_res fd).
     set params := set_of_var_i_seq Sv.empty (f_params fd).

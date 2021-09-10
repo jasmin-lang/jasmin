@@ -957,6 +957,8 @@ Section RECT.
 
 End RECT.
 
+Definition fun_info := positive.
+
 Class progT (eft:eqType) := {
   extra_prog_t : Type;
   extra_val_t  : Type;
@@ -965,7 +967,7 @@ Class progT (eft:eqType) := {
 Definition extra_fun_t {eft} {pT: progT eft} := eft.
 
 Record _fundef (extra_fun_t: Type) := MkFun {
-  f_iinfo  : instr_info;
+  f_info   : fun_info;
   f_tyin   : seq stype;
   f_params : seq var_i;
   f_body   : cmd;
@@ -1172,7 +1174,7 @@ Definition to_sprog (p:_sprog) : sprog := p.
 
 (* Update functions *)
 Definition with_body eft (fd:_fundef eft) body := {|
-  f_iinfo  := fd.(f_iinfo);
+  f_info   := fd.(f_info);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := body;
@@ -1182,7 +1184,7 @@ Definition with_body eft (fd:_fundef eft) body := {|
 |}.
 
 Definition swith_extra (fd:ufundef) f_extra : sfundef := {|
-  f_iinfo  := fd.(f_iinfo);
+  f_info   := fd.(f_info);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := fd.(f_body);

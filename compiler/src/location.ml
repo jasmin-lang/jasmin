@@ -47,7 +47,7 @@ let tostring (p : t) =
         (fst p.loc_start) (snd p.loc_start)
         (fst p.loc_end  ) (snd p.loc_end  )
   in
-    Printf.sprintf "%s: %s" p.loc_fname spos
+    Printf.sprintf "\"%s\": %s" p.loc_fname spos
 
 let pp_loc fmt (p:t) = 
   Format.fprintf fmt "%s" (tostring p)
