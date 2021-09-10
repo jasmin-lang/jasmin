@@ -292,27 +292,6 @@ module Parray : sig
 end
 
 (* -------------------------------------------------------------------- *)
-
-type error_loc = Lnone | Lone of Location.t | Lmore of Location.i_loc
-type hierror = {
-  err_msg      : Format.formatter -> unit; (* a printer of the main error message              *)
-  err_loc      : error_loc;                (* the location                                     *)
-  err_funname  : string option;            (* the name of the function, if any                 *)
-  err_kind     : string;                   (* kind of error (e.g. typing, compilation)         *)
-  err_sub_kind : string option;            (* sub-kind (e.g. the name of the compilation pass) *)
-  err_internal : bool;                     (* whether the error is unexpected                  *)
-}
-exception HiError of hierror
-
-val add_iloc : hierror -> Location.i_loc -> hierror
-val pp_hierror : Format.formatter -> hierror -> unit
-
-val hierror :
-      loc:error_loc -> ?funname:string -> kind:string
-   -> ?sub_kind:string -> ?internal:bool
-   -> ('a, Format.formatter, unit, 'b) format4 -> 'a
-
-(* -------------------------------------------------------------------- *)
 type 'a pp = Format.formatter -> 'a -> unit
 
 val pp_list : ('a, 'b, 'c, 'd, 'd, 'a) format6 -> 'e pp -> 'e list pp
@@ -340,7 +319,31 @@ type model =
   | ConstantTime
   | Safety
   | Normal
-  
+
+(* -------------------------------------------------------------------- *)
+(* Enables colors in errors and warnings.                               *)
+val enable_colors : unit -> unit
+
+(* -------------------------------------------------------------------- *)
+type error_loc = Lnone | Lone of Location.t | Lmore of Location.i_loc
+type hierror = {
+  err_msg      : Format.formatter -> unit; (* a printer of the main error message              *)
+  err_loc      : error_loc;                (* the location                                     *)
+  err_funname  : string option;            (* the name of the function, if any                 *)
+  err_kind     : string;                   (* kind of error (e.g. typing, compilation)         *)
+  err_sub_kind : string option;            (* sub-kind (e.g. the name of the compilation pass) *)
+  err_internal : bool;                     (* whether the error is unexpected                  *)
+}
+exception HiError of hierror
+
+val add_iloc : hierror -> Location.i_loc -> hierror
+val pp_hierror : Format.formatter -> hierror -> unit
+
+val hierror :
+      loc:error_loc -> ?funname:string -> kind:string
+   -> ?sub_kind:string -> ?internal:bool
+   -> ('a, Format.formatter, unit, 'b) format4 -> 'a
+
 (* -------------------------------------------------------------------- *)
 type warning = 
   | ExtraAssignment 
@@ -350,5 +353,7 @@ type warning =
 
 val nowarning : unit -> unit
 val add_warning : warning -> unit -> unit 
-val warning : warning -> Location.i_loc -> ('a, Format.formatter, unit) format -> 'a
+val warning :
+      warning -> Location.i_loc
+   -> ('a, Format.formatter, unit) format -> 'a
 

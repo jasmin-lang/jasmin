@@ -13,6 +13,8 @@ let safety_config = ref None
 let stop_after = ref None
 let safety_makeconfigdoc = ref None   
 let help_intrinsics = ref false
+type color = | Auto | Always | Never
+let color = ref Auto
 
 let lea = ref false
 let set0 = ref false
@@ -61,7 +63,16 @@ let set_checksafety () = check_safety := true
 let set_safetyparam s = safety_param := Some s
 let set_safetyconfig s = safety_config := Some s
 let set_safety_makeconfigdoc s = safety_makeconfigdoc := Some s
-      
+
+let set_color c =
+  let assoc = function
+    | "auto"   -> Auto
+    | "always" -> Always
+    | "never"  -> Never
+    | _        -> assert false
+  in
+  color := assoc c
+
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
@@ -120,6 +131,7 @@ let options = [
     "-w_"  , Arg.Unit (add_warning IntroduceNone), ": print warning when extra _ is introduced";
     "-wea", Arg.Unit (add_warning ExtraAssignment), ": print warning when assignment is introduced";
     "-nowarning", Arg.Unit (nowarning), ": do no print warning";
+    "-color", Arg.Symbol (["auto"; "always"; "never"], set_color), ": print messages with color";
     "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
     "-print-stack-alloc", Arg.Set print_stack_alloc, ": print the results of the stack allocation OCaml oracle";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";

@@ -594,6 +594,81 @@ module Os = struct
     BatEnum.fold (fun xs x -> x :: xs) [] (BatSys.files_of dir)
 end
 
+(* -------------------------------------------------------------------- *)
+type 'a pp = Format.formatter -> 'a -> unit
+
+let rec pp_list sep pp fmt xs =
+  let pp_list = pp_list sep pp in
+  match xs with
+  | []      -> ()
+  | [x]     -> Format.fprintf fmt "%a" pp x
+  | x :: xs -> Format.fprintf fmt "%a%(%)%a" pp x sep pp_list xs
+
+(* -------------------------------------------------------------------- *)
+let pp_if c pp1 pp2 fmt x =
+  match c with
+  | true  -> Format.fprintf fmt "%a" pp1 x
+  | false -> Format.fprintf fmt "%a" pp2 x
+
+(* -------------------------------------------------------------------- *)
+let pp_maybe c tx pp fmt x =
+  pp_if c (tx pp) pp fmt x
+
+(* -------------------------------------------------------------------- *)
+let pp_enclose ~pre ~post pp fmt x =
+  Format.fprintf fmt "%(%)%a%(%)" pre pp x post
+
+(* -------------------------------------------------------------------- *)
+let pp_paren pp fmt x =
+  pp_enclose ~pre:"(" ~post:")" pp fmt x
+
+(* -------------------------------------------------------------------- *)
+let pp_maybe_paren c pp =
+  pp_maybe c pp_paren pp
+
+(* -------------------------------------------------------------------- *)
+let pp_string fmt s =
+  Format.fprintf fmt "%s" s
+
+(* -------------------------------------------------------------------- *)
+type model =
+  | ConstantTime
+  | Safety
+  | Normal
+
+(* -------------------------------------------------------------------- *)
+(* Functions used to add colors to errors and warnings.                 *)
+
+(* for locations *)
+let pp_print_bold pp =
+  pp_enclose ~pre:"@{<\027[1m>" ~post:"@}" pp
+
+(* for error kind *)
+let pp_print_bold_red pp =
+  pp_enclose ~pre:"@{<\027[1;31m>" ~post:"@}" pp
+
+(* for warning kind *)
+let pp_print_bold_magenta pp =
+  pp_enclose ~pre:"@{<\027[1;35m>" ~post:"@}" pp
+
+(* Enabling the interpretation of semantic tags for the error channel, so that
+   error and warning messages are printed with colors.
+*)
+let enable_colors () =
+  let mark_open_stag s =
+    match s with
+    | Format.String_tag s -> s
+    | _ -> ""
+  in
+  let mark_close_stag _ = "\027[m" in
+  let stag_functions = Format.{
+    mark_open_stag;
+    mark_close_stag;
+    print_open_stag = (fun _ -> ());
+    print_close_stag = (fun _ -> ());
+  } in
+  Format.pp_set_formatter_stag_functions Format.err_formatter stag_functions;
+  Format.pp_set_mark_tags Format.err_formatter true
 
 (* -------------------------------------------------------------------- *)
 (* An [error_loc] is either unknown, a single location or a pair of a location
@@ -626,14 +701,17 @@ let pp_hierror fmt e =
   let pp_loc fmt =
     match e.err_loc with
     | Lnone -> ()
-    | Lone l -> Format.fprintf fmt "%a:@ " Location.pp_loc l
-    | Lmore i_loc -> Format.fprintf fmt "%a:@ " Location.pp_iloc i_loc
+    | Lone l -> Format.fprintf fmt "%a:@ " (pp_print_bold Location.pp_loc) l
+    | Lmore i_loc -> Format.fprintf fmt "%a:@ " (pp_print_bold Location.pp_iloc) i_loc
   in
   let pp_kind fmt =
-    if e.err_internal then
-      Format.fprintf fmt "internal %s" e.err_kind
-    else
-      Format.fprintf fmt "%s" e.err_kind
+    let pp fmt () =
+      if e.err_internal then
+        Format.fprintf fmt "internal %s" e.err_kind
+      else
+        Format.fprintf fmt "%s" e.err_kind
+    in
+    pp_print_bold_red pp fmt ()
   in
   let pp_funname fmt =
     match e.err_funname with
@@ -679,47 +757,6 @@ let hierror ~loc ?funname ~kind ?sub_kind ?(internal=false) =
       } in
       raise (HiError err))
 
-(* -------------------------------------------------------------------- *)
-type 'a pp = Format.formatter -> 'a -> unit
-
-let rec pp_list sep pp fmt xs =
-  let pp_list = pp_list sep pp in
-  match xs with
-  | []      -> ()
-  | [x]     -> Format.fprintf fmt "%a" pp x
-  | x :: xs -> Format.fprintf fmt "%a%(%)%a" pp x sep pp_list xs
-
-(* -------------------------------------------------------------------- *)
-let pp_if c pp1 pp2 fmt x =
-  match c with
-  | true  -> Format.fprintf fmt "%a" pp1 x
-  | false -> Format.fprintf fmt "%a" pp2 x
-
-(* -------------------------------------------------------------------- *)
-let pp_maybe c tx pp fmt x =
-  pp_if c (tx pp) pp fmt x
-
-(* -------------------------------------------------------------------- *)
-let pp_enclose ~pre ~post pp fmt x =
-  Format.fprintf fmt "%(%)%a%(%)" pre pp x post
-
-(* -------------------------------------------------------------------- *)
-let pp_paren pp fmt x =
-  pp_enclose ~pre:"(" ~post:")" pp fmt x
-
-(* -------------------------------------------------------------------- *)
-let pp_maybe_paren c pp =
-  pp_maybe c pp_paren pp
-  
-(* -------------------------------------------------------------------- *)
-let pp_string fmt s = 
-  Format.fprintf fmt "%s" s
-
-(* -------------------------------------------------------------------- *)
-type model = 
-  | ConstantTime
-  | Safety
-  | Normal
 
 (* -------------------------------------------------------------------- *)
 
@@ -747,4 +784,8 @@ let to_warn w =
 
 let warning (w:warning) loc =
   Format.kdprintf (fun pp ->
-    if to_warn w then Format.eprintf "@[<v>%a:@ warning: %t@]@." Location.pp_iloc loc pp)
+    if to_warn w then
+      let pp_warning fmt = pp_print_bold_magenta pp_string fmt "warning" in
+      Format.eprintf "@[<v>%a:@ %t: %t@]@."
+        (pp_print_bold Location.pp_iloc)
+        loc pp_warning pp)

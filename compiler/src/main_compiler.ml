@@ -11,6 +11,13 @@ let parse () =
     if !infile <> "" then error();
     infile := s  in
   Arg.parse options set_in usage_msg;
+  let c =
+    match !color with
+    | Auto -> Unix.isatty (Unix.descr_of_out_channel stderr)
+    | Always -> true
+    | Never -> false
+  in
+  if c then enable_colors ();
   if !infile = "" && (not !help_intrinsics) && (!safety_makeconfigdoc = None)
   then error()
 
@@ -422,12 +429,12 @@ let main () =
     end
   with
   | Utils.HiError e ->
-      Format.eprintf "%a@." pp_hierror e;
-      exit 1
+    Format.eprintf "%a@." pp_hierror e;
+    exit 1
 
   | UsageError ->
-      Arg.usage options usage_msg;
-      exit 1
+    Arg.usage options usage_msg;
+    exit 1
 
 (* -------------------------------------------------------------------- *)
 let () = main ()
