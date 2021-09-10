@@ -39,6 +39,43 @@ Local Open Scope vmap.
 
 Local Open Scope seq_scope.
 
+Module Import E.
+  Definition pass : string := "array expansion".
+
+  Definition reg_error (x:var_i) msg := {|
+    pel_msg := pp_box [:: pp_s "cannot expand variable"; pp_var x; pp_s msg];
+    pel_fn := None;
+    pel_fi := None;
+    pel_ii := None;
+    pel_vi := Some x.(v_info);
+    pel_pass := Some pass;
+    pel_internal := false
+  |}.
+
+  Definition reg_ferror (fi : fun_info) msg := {|
+    pel_msg := pp_s msg;
+    pel_fn := None;
+    pel_fi := Some fi;
+    pel_ii := None;
+    pel_vi := None;
+    pel_pass := Some pass;
+    pel_internal := false
+  |}.
+
+  Definition reg_ierror (x:var_i) msg := {|
+    pel_msg := pp_box [:: pp_s msg; pp_nobox [:: pp_s "("; pp_var x; pp_s ")"]];
+    pel_fn := None;
+    pel_fi := None;
+    pel_ii := None;
+    pel_vi := Some x.(v_info);
+    pel_pass := Some pass;
+    pel_internal := true
+  |}.
+
+  Definition reg_ierror_no_var := pp_internal_error_s pass.
+
+End E.
+
 Module CmpIndex.
 
   Definition t := [eqType of Z].
@@ -79,17 +116,17 @@ Definition of_list (l: list var) :=
 Definition init_elems ty id (svmi : Sv.t * Mi.t var * Z) := 
   let '(sv,mi,i) := svmi in
   let xi := {| vtype := ty; vname := id |} in
-  Let _ := assert (~~ Sv.mem xi sv) (Cerr_linear "array_expansion 2. Please report") in
+  Let _ := assert (~~ Sv.mem xi sv) (reg_ierror_no_var "init_elems") in
   ok (Sv.add xi sv, Mi.set mi i xi, (i + 1)%Z).
 
 Definition init_array_info (x : varr_info) (svm:Sv.t * Mvar.t array_info) :=
   let (sv,m) := svm in
   let ty := sword x.(vi_s) in
-  Let _ :=  assert (~~ Sv.mem x.(vi_v) sv) (Cerr_linear "array_expansion 1. Please report") in
+  Let _ :=  assert (~~ Sv.mem x.(vi_v) sv) (reg_ierror_no_var "init_array_info") in
   Let svelems := foldM (init_elems ty) (sv,Mi.empty _,0%Z) x.(vi_n) in
   let '(sv, mi, _) := svelems in
   ok (sv, Mvar.set m x.(vi_v) {| ai_ty := x.(vi_s); ai_elems := mi |}).
-        
+
 Definition init_map (fi : expand_info) := 
   let svars := of_list fi.(vars) in
   Let sarrs := foldM init_array_info (svars, Mvar.empty _) fi.(arrs) in
@@ -104,7 +141,7 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
   | Pconst _ | Pbool _ | Parr_init _ => ok e
 
   | Pvar x =>
-    Let _ := assert (check_gvar m x) (Cerr_linear "array_expansion : error 1") in 
+    Let _ := assert (check_gvar m x) (reg_error x.(gv) "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok e
 
   | Pget aa ws x e1 => 
@@ -115,22 +152,22 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
       let x := gv x in
       match Mvar.get m.(sarrs) x, is_const e1 with
       | Some ai, Some i =>
-        Let _ := assert (ai.(ai_ty) == ws) (Cerr_linear "array_expansion : error 2") in
-        Let _ := assert (aa == AAscale) (Cerr_linear "array_expansion : error 2 scale ") in
+        Let _ := assert (ai.(ai_ty) == ws) (reg_error x "(the default scale must be used)") in
+        Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
         match Mi.get ai.(ai_elems) i with
         | Some v => ok (Pvar (mk_lvar {| v_var := v; v_info := v_info x |}))
-        | _ => Error (Cerr_linear "array_expansion : error 3") 
+        | _ => Error (reg_ierror x "the new variable was not given")
         end 
-      | _, _ => Error (Cerr_linear "array_expansion : error 4") 
+      | _, _ => Error (reg_error x "(the index is not a constant)")
       end
   
   | Psub aa ws len x e1 => 
-    Let _ := assert (check_gvar m x) (Cerr_linear "array_expansion : error 5") in
+    Let _ := assert (check_gvar m x) (reg_error x.(gv) "(sub-reg arrays are not allowed)") in
     Let e1 := expand_e m e1 in
     ok (Psub aa ws len x e1)
 
   | Pload ws x e1 =>
-    Let _ := assert (Sv.mem x m.(svars)) (Cerr_linear "array_expansion : error 6") in
+    Let _ := assert (Sv.mem x m.(svars)) (reg_ierror x "reg array in memory access") in
     Let e1 := expand_e m e1 in
     ok (Pload ws x e1)
 
@@ -145,8 +182,8 @@ Fixpoint expand_e (m : t) (e : pexpr) : cexec pexpr :=
 
   | PappN o es => 
     Let es := mapM (expand_e m) es in
-    ok (PappN o es)   
-           
+    ok (PappN o es)
+
   | Pif ty e1 e2 e3 =>
     Let e1 := expand_e m e1 in
     Let e2 := expand_e m e2 in
@@ -160,11 +197,11 @@ Definition expand_lv (m : t) (x : lval)  :=
   | Lnone _ _ => ok x
 
   | Lvar x => 
-    Let _ := assert (Sv.mem x m.(svars)) (Cerr_linear "array_expansion : error 7") in
+    Let _ := assert (Sv.mem x m.(svars)) (reg_error x "(the array cannot be manipulated alone, you need to access its cells instead)") in
     ok (Lvar x)
 
   | Lmem ws x e => 
-    Let _ := assert (Sv.mem x m.(svars)) (Cerr_linear "array_expansion : error 8") in
+    Let _ := assert (Sv.mem x m.(svars)) (reg_ierror x "reg array in memory access") in
     Let e := expand_e m e in
     ok (Lmem ws x e)
 
@@ -175,17 +212,17 @@ Definition expand_lv (m : t) (x : lval)  :=
     else 
       match Mvar.get m.(sarrs) x, is_const e with
       | Some ai, Some i =>
-        Let _ := assert (ai.(ai_ty) == ws) (Cerr_linear "array_expansion : error 9") in
-        Let _ := assert (aa == AAscale) (Cerr_linear "array_expansion : error 9 scale ") in
+        Let _ := assert (ai.(ai_ty) == ws) (reg_error x "(the default scale must be used)") in
+        Let _ := assert (aa == AAscale) (reg_error x "(the default scale must be used)") in
         match Mi.get ai.(ai_elems) i with
         | Some v => ok (Lvar {| v_var := v; v_info := v_info x |})
-        | _ => Error (Cerr_linear "array_expansion : error 10") 
+        | _ => Error (reg_ierror x "the new variable was not given")
         end 
-      | _, _ => Error (Cerr_linear "array_expansion : error 11") 
+      | _, _ => Error (reg_error x "(the index is not a constant)")
       end
   
   | Lasub aa ws len x e =>
-    Let _ := assert (Sv.mem x m.(svars)) (Cerr_linear "array_expansion : error 12") in
+    Let _ := assert (Sv.mem x m.(svars)) (reg_error x "(sub-reg arrays are not allowed)") in
     Let e := expand_e m e in
     ok (Lasub aa ws len x e)
 
@@ -195,7 +232,7 @@ Definition expand_es m := mapM (expand_e m).
 
 Definition expand_lvs m := mapM (expand_lv m).
 
-Fixpoint expand_i (m : t) (i : instr) : ciexec instr :=
+Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
   let (ii,ir) := i in
   match ir with
   | Cassgn x tag ty e =>
@@ -215,7 +252,7 @@ Fixpoint expand_i (m : t) (i : instr) : ciexec instr :=
     ok (MkI ii (Cif b c1 c2))
 
   | Cfor x (dir, e1, e2) c =>
-    Let _  := add_iinfo ii (assert (Sv.mem x m.(svars)) (Cerr_linear "array_expansion : error 13")) in
+    Let _  := add_iinfo ii (assert (Sv.mem x m.(svars)) (reg_ierror x "reg array as a variable of a for loop")) in
     Let e1 := add_iinfo ii (expand_e m e1) in
     Let e2 := add_iinfo ii (expand_e m e2) in
     Let c  := mapM (expand_i m) c in 
@@ -233,23 +270,22 @@ Fixpoint expand_i (m : t) (i : instr) : ciexec instr :=
     ok (MkI ii (Ccall ini xs fn es))
   end.
 
-Definition expand_fd (fi : funname -> ufundef -> expand_info) (ffd : funname * ufundef) :=
-  let (f, fd) := ffd in
-  Let m := add_err_fun f (init_map (fi f fd)) in
+Definition expand_fd (fi : funname -> ufundef -> expand_info) (f : funname) (fd: ufundef) :=
+  Let m := init_map (fi f fd) in
   match fd with
-  | MkFun ii tyin params c tyout res ef =>
+  | MkFun fi tyin params c tyout res ef =>
     Let _ := 
-      add_err_fun f (assert (all (fun x => Sv.mem (v_var x) m.(svars)) params)
-                            (Cerr_linear "expand_fd : params")) in
+      assert (all (fun x => Sv.mem (v_var x) m.(svars)) params)
+             (reg_ferror fi "reg arrays are not allowed in parameters of non inlined function") in
     Let _ := 
-      add_err_fun f (assert (all (fun x => Sv.mem (v_var x) m.(svars)) res)
-                            (Cerr_linear "expand_fd : res")) in
+      assert (all (fun x => Sv.mem (v_var x) m.(svars)) res)
+             (reg_ferror fi "reg arrays are not allowed in the return type of non inlined function") in
 
-    Let c := add_finfo f f (mapM (expand_i m) c) in
-    ok (f, MkFun ii tyin params c tyout res ef)
+    Let c := mapM (expand_i m) c in
+    ok (MkFun fi tyin params c tyout res ef)
   end.
 
-Definition expand_prog (fi : funname -> ufundef -> expand_info) (p: uprog) : cfexec uprog :=
-  Let funcs := mapM (expand_fd fi) (p_funcs p) in
+Definition expand_prog (fi : funname -> ufundef -> expand_info) (p: uprog) : cexec uprog :=
+  Let funcs := map_cfprog_name (expand_fd fi) (p_funcs p) in
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
 

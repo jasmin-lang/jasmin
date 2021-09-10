@@ -30,7 +30,6 @@ type v_kind =
   | Reg   of pointer (* register variable *)
   | Inline           (* inline variable   *)
   | Global           (* global (in memory) constant *) 
-  [@@deriving compare,sexp]
 
 type 'len gty =
   | Bty of base_ty

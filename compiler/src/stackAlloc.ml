@@ -163,7 +163,7 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
     match Stack_alloc.alloc_prog false crip crsp gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
-      Utils.hierror "compilation error %a@." (pp_comp_ferr tbl) e in
+        Utils.hierror "%a@." (pp_comp_ferr tbl) e in
   let fds, _ = Conv.prog_of_csprog tbl sp' in
   
   if debug then

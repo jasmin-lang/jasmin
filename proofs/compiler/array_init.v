@@ -85,7 +85,7 @@ Definition remove_init_c c :=  foldr (fun i c => remove_init_i i ++ c) [::] c.
 Context {T} {pT:progT T}.
 
 Definition remove_init_fd (fd:fundef) :=
-  {| f_iinfo  := fd.(f_iinfo);
+  {| f_info   := fd.(f_info);
      f_tyin   := fd.(f_tyin);
      f_params := fd.(f_params);
      f_body   := remove_init_c fd.(f_body);
@@ -158,7 +158,7 @@ Context {T} {pT:progT T}.
 Definition add_init_fd (fd:fundef) :=
   let I := vrvs [seq (Lvar i) | i <- f_params fd] in
   let f_body  := (add_init_c add_init_i I fd.(f_body)).1 in
-  {| f_iinfo  := fd.(f_iinfo);
+  {| f_info   := fd.(f_info);
      f_tyin   := fd.(f_tyin);
      f_params := fd.(f_params);
      f_body   := f_body;

@@ -38,6 +38,41 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+Module Import E.
+
+  Definition pass : string := "stack allocation".
+
+  Definition stk_error_gen (internal:bool) (x:var_i) msg := {|
+    pel_msg := msg;
+    pel_fn := None;
+    pel_fi := None;
+    pel_ii := None;
+    pel_vi := Some x.(v_info);
+    pel_pass := Some pass;
+    pel_internal := internal
+  |}.
+
+  Definition stk_error  := stk_error_gen false.
+  Definition stk_ierror := stk_error_gen true.
+
+  Definition stk_ierror_basic x msg :=
+    stk_ierror x (pp_box [:: pp_s msg; pp_nobox [:: pp_s "("; pp_var x; pp_s ")"]]).
+
+  Definition stk_error_no_var_gen (internal:bool) msg := {|
+    pel_msg := pp_s msg;
+    pel_fn := None;
+    pel_fi := None;
+    pel_ii := None;
+    pel_vi := None;
+    pel_pass := Some pass;
+    pel_internal := internal
+  |}.
+
+  Definition stk_error_no_var  := stk_error_no_var_gen false.
+  Definition stk_ierror_no_var := stk_error_no_var_gen true.
+
+End E.
+
 (* TODO: could [wsize_size] return a [positive] rather than a [Z]?
    If so, [size_of] could return a positive too.
 *)
@@ -47,14 +82,6 @@ Definition size_of (t:stype) :=
   | sarr n   => Zpos n
   | sbool | sint => 1%Z
   end.
-
-Local
-Definition cerror {A} msg :=
-  @cerror (Cerr_stk_alloc msg) A.
-
-Local
-Definition cferror {A} fn msg :=
-  @Error _ A (Ferr_fun fn (Cerr_stk_alloc msg)).
 
 Definition slot := var.
 
@@ -175,15 +202,15 @@ Record pos_map := {
 
 (* TODO: Z.land or is_align ?
    Could be just is_align (sub_region_addr sr) ws ? *)
-Definition check_align (sr:sub_region) ws :=
+Definition check_align x (sr:sub_region) ws :=
   Let _ := assert (ws <= sr.(sr_region).(r_align))%CMP
-                  (Cerr_stk_alloc "unaligned offset") in
+                  (stk_ierror_basic x "unaligned offset") in
   assert (Z.land sr.(sr_zone).(z_ofs) (wsize_size ws - 1) == 0)%Z
-               (Cerr_stk_alloc "unaligned sub offset").
+         (stk_ierror_basic x "unaligned sub offset").
 
-Definition writable (r:region) := 
+Definition writable (x:var_i) (r:region) :=
   assert r.(r_writable)
-   (Cerr_stk_alloc "Cannot write a constant pointer").
+    (stk_error x (pp_box [:: pp_s "cannot write to the constant pointer"; pp_var x])).
 
 Module Region.
 
@@ -204,10 +231,10 @@ Definition empty := {|
   region_var := Mr.empty bytes_map;
 |}.
 
-Definition get_sub_region (rmap:region_map) (x:var) :=
+Definition get_sub_region (rmap:region_map) (x:var_i) :=
   match Mvar.get rmap.(var_region) x with
   | Some sr => ok sr
-  | None => cerror "no associated region"
+  | None => Error (stk_error x (pp_box [:: pp_s "no region associated to variable"; pp_var x]))
   end.
 
 Definition get_bytes_map (r:region) rv : bytes_map :=
@@ -239,7 +266,7 @@ Definition sub_region_at_ofs sr ofs len :=
      sr_zone   := sub_zone_at_ofs sr.(sr_zone) ofs len
   |}.
 
-Definition check_valid (rmap:region_map) (x:var) ofs len :=
+Definition check_valid (rmap:region_map) (x:var_i) ofs len :=
   (* we get the bytes associated to variable [x] *)
   Let sr := get_sub_region rmap x in
   let bytes := get_var_bytes rmap sr.(sr_region) x in
@@ -247,7 +274,7 @@ Definition check_valid (rmap:region_map) (x:var) ofs len :=
   let isub_ofs := interval_of_zone sr'.(sr_zone) in
   (* we check if [isub_ofs] is a subset of one of the intervals of [bytes] *)
   Let _   := assert (ByteSet.mem bytes isub_ofs)
-                    (Cerr_stk_alloc "check_valid: the region is partial") in
+                    (stk_error x (pp_box [:: pp_s "the region associated to variable"; pp_var x; pp_s "is partial"])) in
   ok (sr, sr').
 
 Definition clear_bytes i bytes := ByteSet.remove bytes i.
@@ -278,13 +305,13 @@ Definition set_pure_bytes rv (x:var) sr ofs len :=
   let bm := Mvar.set bm x bytes in
   Mr.set rv sr.(sr_region) bm.
 
-Definition set_bytes rv (x:var) sr (ofs : option Z) (len : Z) :=
-  Let _     := writable sr.(sr_region) in
+Definition set_bytes rv (x:var_i) sr (ofs : option Z) (len : Z) :=
+  Let _     := writable x sr.(sr_region) in
   ok (set_pure_bytes rv x sr ofs len).
 
 (* TODO: as many functions are similar, maybe we could have one big function
    taking flags as arguments that tell whether we have to check align/check valid... *)
-Definition set_sub_region rmap (x:var) sr (ofs : option Z) (len : Z) :=
+Definition set_sub_region rmap (x:var_i) sr (ofs : option Z) (len : Z) :=
   Let rv := set_bytes rmap x sr ofs len in
   ok {| var_region := Mvar.set rmap.(var_region) x sr;
         region_var := rv |}.
@@ -308,8 +335,8 @@ Definition check_stack_ptr rmap s ws z x' :=
   ByteSet.mem bytes i.
 
 (* Precondition size_of x = ws && length sr.sr_zone = wsize_size ws *)
-Definition set_word rmap (x:var) sr ws :=
-  Let _ := check_align sr ws in
+Definition set_word rmap (x:var_i) sr ws :=
+  Let _ := check_align x sr ws in
   set_sub_region rmap x sr (Some 0)%Z (size_slot x).
 
 (* If we write to array [x] at offset [ofs], we invalidate the corresponding
@@ -320,9 +347,9 @@ Definition set_word rmap (x:var) sr ws :=
    approximation.
 *)
 (* [set_word], [set_stack_ptr] and [set_arr_word] could be factorized? -> think more about it *)
-Definition set_arr_word (rmap:region_map) (x:var) ofs ws :=
+Definition set_arr_word (rmap:region_map) (x:var_i) ofs ws :=
   Let sr := get_sub_region rmap x in
-  Let _ := check_align sr ws in
+  Let _ := check_align x sr ws in
   set_sub_region rmap x sr ofs (wsize_size ws).
 
 Definition set_arr_call rmap x sr := set_sub_region rmap x sr (Some 0)%Z (size_slot x).
@@ -338,11 +365,15 @@ Definition set_move_sub (rmap:region_map) x sr :=
   {| var_region := rmap.(var_region);
      region_var := rv |}.
 
-Definition set_arr_sub (rmap:region_map) (x:var) ofs len sr_from :=
+Definition set_arr_sub (rmap:region_map) (x:var_i) ofs len sr_from :=
   Let sr := get_sub_region rmap x in
   let sr' := sub_region_at_ofs sr (Some ofs) len in
   Let _ := assert (sr' == sr_from)
-                  (Cerr_stk_alloc "set array: source and destination are not equal") in
+                  (stk_ierror x
+                    (pp_box [::
+                      pp_s "the assignment to sub-array"; pp_var x;
+                      pp_s "cannot be turned into a nop: source and destination regions are not equal"]))
+  in
   ok (set_move_sub rmap x sr').
 
 (* identical to [set_sub_region], except clearing
@@ -445,22 +476,25 @@ Section ALLOC_E.
 
 Variables (rmap: region_map).
 
-Definition get_global (x:var) := 
+Definition get_global (x:var_i) := 
   match Mvar.get pmap.(globals) x with
-  | None => cerror "unallocated global variable: please report"
+  | None => Error (stk_ierror_basic x "unallocated global variable")
   | Some z => ok z
   end.
 
 Definition get_local (x:var) := Mvar.get pmap.(locals) x.
 
-Definition check_diff (x:var) :=
-  if Sv.mem x pmap.(vnew) then cerror "the code write new variables, please report"
+Definition check_diff (x:var_i) :=
+  if Sv.mem x pmap.(vnew) then
+    Error (stk_ierror_basic x "the code writes to one of the new variables")
   else ok tt.
 
-Definition check_var (x:var) := 
+Definition check_var (x:var_i) := 
   match get_local x with
   | None => ok tt
-  | Some _ => cerror "not a reg variable"
+  | Some _ =>
+    Error (stk_error x (pp_box [::
+      pp_var x; pp_s "is a stack variable, but a reg variable is expected"]))
   end.
 
 Inductive vptr_kind := 
@@ -478,11 +512,13 @@ Definition base_ptr sc :=
   | Sglobal => pmap.(vrip)
   end.
 
-Definition addr_from_pk x (pk:ptr_kind) :=
+Definition addr_from_pk (x:var_i) (pk:ptr_kind) :=
   match pk with
   | Pdirect _ ofs _ z sc => ok (with_var x (base_ptr sc), ofs + z.(z_ofs))
   | Pregptr p            => ok (with_var x p,             0)
-  | Pstkptr _ _ _ _ _    => cerror "stack pointer in expression"
+  | Pstkptr _ _ _ _ _    =>
+    Error (stk_error x (pp_box [::
+      pp_var x; pp_s "is a stack pointer, it should not appear in an expression"]))
   end%Z.
 
 Definition addr_from_vpk x (vpk:vptr_kind) :=
@@ -515,7 +551,7 @@ Definition sub_region_glob x ws :=
   let r := {| r_slot := x; r_align := ws; r_writable := false |} in
   sub_region_full x r.
 
-Definition check_vpk rmap (x:var) vpk ofs len :=
+Definition check_vpk rmap (x:var_i) vpk ofs len :=
   match vpk with
   | VKglob (_, ws) =>
     let sr := sub_region_glob x ws in
@@ -538,7 +574,7 @@ Definition check_vpk rmap (x:var) vpk ofs len :=
 
 Definition check_vpk_word rmap x vpk ofs ws :=
   Let srs := check_vpk rmap x vpk ofs (wsize_size ws) in
-  check_align srs.1 ws.
+  check_align x srs.1 ws.
 
 Fixpoint alloc_e (e:pexpr) := 
   match e with
@@ -553,7 +589,7 @@ Fixpoint alloc_e (e:pexpr) :=
         Let _ := check_vpk_word rmap xv vpk (Some 0%Z) ws in
         Let pofs := mk_addr xv AAdirect ws vpk (Pconst 0) in
         ok (Pload ws pofs.1 pofs.2)
-      else cerror "not a word variable in expression, please report"
+      else Error (stk_ierror_basic xv "not a word variable in expression")
     end
 
   | Pget aa ws x e1 =>
@@ -567,9 +603,10 @@ Fixpoint alloc_e (e:pexpr) :=
       Let _ := check_vpk_word rmap xv vpk ofs ws in
       Let pofs := mk_addr xv aa ws vpk e1 in
       ok (Pload ws pofs.1 pofs.2)
-    end             
+    end
+
   | Psub aa ws len x e1 =>
-    cerror "Psub"
+    Error (stk_ierror_basic x.(gv) "Psub")
 
   | Pload ws x e1 =>
     Let _ := check_var x in
@@ -580,7 +617,7 @@ Fixpoint alloc_e (e:pexpr) :=
   | Papp1 o e1 =>
     Let e1 := alloc_e e1 in
     ok (Papp1 o e1)
-   
+
   | Papp2 o e1 e2 =>
     Let e1 := alloc_e e1 in
     Let e2 := alloc_e e2 in
@@ -588,7 +625,7 @@ Fixpoint alloc_e (e:pexpr) :=
 
   | PappN o es => 
     Let es := mapM alloc_e es in
-    ok (PappN o es)  
+    ok (PappN o es)
 
   | Pif t e e1 e2 =>
     Let e := alloc_e e in
@@ -608,10 +645,10 @@ Definition sub_region_direct x align sc z :=
 Definition sub_region_stack x align z :=
   sub_region_direct x align Slocal z.
 
-Definition sub_region_pk pk :=
+Definition sub_region_pk x pk :=
   match pk with
   | Pdirect x ofs align sub Slocal => ok (sub_region_stack x align sub)
-  | _ => cerror "not a pointer to stack: please report"
+  | _ => Error (stk_ierror x (pp_box [:: pp_var x; pp_s "is not in the stack"]))
   end.
 
 Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
@@ -626,12 +663,12 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
       if is_word_type (vtype x) is Some ws then 
         if subtype (sword ws) ty then 
           Let pofs := mk_addr_ptr x AAdirect ws pk (Pconst 0) in
-          Let sr   := sub_region_pk pk in
+          Let sr   := sub_region_pk x pk in
           let r := Lmem ws pofs.1 pofs.2 in
           Let rmap := Region.set_word rmap x sr ws in
           ok (rmap, r)
-        else cerror "invalid type for assignment"
-      else cerror "not a word variable in assignment"
+        else Error (stk_ierror_basic x "invalid type for assignment")
+      else Error (stk_ierror_basic x "not a word variable in assignment")
     end
 
   | Laset aa ws x e1 =>
@@ -645,9 +682,11 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
       Let pofs := mk_addr_ptr x aa ws pk e1 in
       let r := Lmem ws pofs.1 pofs.2 in
       ok (rmap, r)
-    end   
+    end
+
   | Lasub aa ws len x e1 =>
-    cerror "Lasub"
+    Error (stk_ierror_basic x "Lasub")
+
   | Lmem ws x e1 =>
     Let _ := check_var x in
     Let _ := check_diff x in
@@ -689,9 +728,9 @@ Definition get_addr is_spilling rmap x dx sry mk y ofs :=
   let rmap := Region.set_move rmap x sry in
   (rmap, ir).
 
-Definition get_ofs_sub aa ws e1 := 
+Definition get_ofs_sub aa ws x e1 := 
   match mk_ofsi aa ws e1 with
-  | None     => cerror "cannot take/set a subarray on a unknown starting position" 
+  | None     => Error (stk_ierror_basic x "cannot take/set a subarray on a unknown starting position")
   | Some ofs => ok ofs
   end.
 
@@ -699,18 +738,18 @@ Definition get_Lvar_sub lv :=
   match lv with
   | Lvar x => ok (x, None)
   | Lasub aa ws len x e1 =>
-    Let ofs := get_ofs_sub aa ws e1 in
+    Let ofs := get_ofs_sub aa ws x e1 in
     ok (x, Some (ofs, arr_size ws len))
-  | _      => cerror "variable/subarray expected : 1"
+  | _      => Error (stk_ierror_no_var "get_Lvar_sub: variable/subarray expected")
   end.
 
 Definition get_Pvar_sub e := 
   match e with
   | Pvar x => ok (x, None)
   | Psub aa ws len x e1 =>
-    Let ofs := get_ofs_sub aa ws e1 in
+    Let ofs := get_ofs_sub aa ws x.(gv) e1 in
     ok (x, Some (ofs, arr_size ws len))
-  | _      => cerror "variable/subarray expected : 2" 
+  | _      => Error (stk_ierror_no_var "get_Pvar_sub: variable/subarray expected")
   end.
 
 Definition is_stack_ptr vpk :=
@@ -726,7 +765,7 @@ Definition is_stack_ptr vpk :=
 Definition mk_addr_pexpr rmap x vpk :=
   if is_stack_ptr vpk is Some (s, ofs, ws, z, f) then
     Let _   := assert (check_stack_ptr rmap s ws z f)
-                      (Cerr_stk_alloc "mk_addr_pexpr: the region is partial") in
+                      (stk_error x (pp_box [:: pp_s "the stack pointer"; pp_var x; pp_s "is no longer valid"])) in
     ok (Pload Uptr (with_var x pmap.(vrsp)) (cast_const (ofs + z.(z_ofs))), 0%Z)
   else
     Let xofs := addr_from_vpk x vpk in
@@ -762,7 +801,7 @@ Definition alloc_array_move rmap r e :=
       end
     in
     match vk with
-    | None => cerror "alloc_array_move"
+    | None => Error (stk_ierror_basic vy "register array remains")
     | Some vpk =>
       Let srs := check_vpk rmap vy vpk (Some ofs) len in
       let sry := srs.2 in
@@ -775,13 +814,18 @@ Definition alloc_array_move rmap r e :=
   match subx with
   | None =>
     match get_local (v_var x) with
-    | None    => cerror "register array remains" 
+    | None    => Error (stk_ierror_basic x "register array remains")
     | Some pk => 
       match pk with
       | Pdirect s _ ws zx sc =>
         let sr := sub_region_direct s ws sc zx in
-        Let _  := assert (sr == sry)
-                         (Cerr_stk_alloc "invalid source 1") in
+        Let _  :=
+          assert (sr == sry)
+                 (stk_ierror x
+                    (pp_box [::
+                      pp_s "the assignment to array"; pp_var x;
+                      pp_s "cannot be turned into a nop: source and destination regions are not equal"]))
+        in
         let rmap := Region.set_move rmap x sry in
         ok (rmap, nop)
       | Pregptr p =>
@@ -794,7 +838,7 @@ Definition alloc_array_move rmap r e :=
     end
   | Some (ofs, len) =>
     match get_local (v_var x) with
-    | None   => cerror "register array remains 2"
+    | None   => Error (stk_ierror_basic x "register array remains")
     | Some _ => 
       Let rmap := Region.set_arr_sub rmap x ofs len sry in
       ok (rmap, nop)
@@ -823,14 +867,14 @@ Definition alloc_array_move_init rmap r e :=
       end in
     Let sr := 
       match get_local (v_var x) with
-      | None    => cerror "register array remains" 
+      | None    => Error (stk_ierror_basic x "register array remains")
       | Some pk =>
         match pk with
         | Pdirect x' _ ws z sc =>
           if sc is Slocal then
             ok (sub_region_stack x' ws z)
           else
-            cerror "array init glob"
+            Error (stk_error x (pp_box [:: pp_s "cannot initialize glob array"; pp_var x]))
         | _ => 
           get_sub_region rmap x
         end
@@ -840,7 +884,7 @@ Definition alloc_array_move_init rmap r e :=
     ok (rmap, nop)
   else alloc_array_move rmap r e.
 
-Definition bad_lval_number := Cerr_stk_alloc "invalid number of lval".
+Definition bad_lval_number := stk_ierror_no_var "invalid number of lval".
 
 Definition alloc_lvals rmap rs tys := 
   fmapM2 bad_lval_number alloc_lval rmap rs tys.
@@ -849,11 +893,11 @@ Section LOOP.
 
  Variable ii:instr_info.
 
- Variable check_c2 : region_map -> ciexec ((region_map * region_map) * (pexpr * (seq instr * seq instr)) ).
+ Variable check_c2 : region_map -> cexec ((region_map * region_map) * (pexpr * (seq instr * seq instr)) ).
 
  Fixpoint loop2 (n:nat) (m:region_map) := 
     match n with
-    | O => cierror ii (Cerr_Loop "stack_alloc")
+    | O => Error (pp_at_ii ii (stk_ierror_no_var "loop2"))
     | S n =>
       Let m' := check_c2 m in
       if incl m m'.1.2 then ok (m'.1.1, m'.2)
@@ -861,7 +905,7 @@ Section LOOP.
     end.
 
 End LOOP.
- 
+
 Record stk_alloc_oracle_t :=
   { sao_align : wsize 
   ; sao_size: Z
@@ -883,7 +927,7 @@ Context (local_alloc: funname -> stk_alloc_oracle_t).
 Definition get_Pvar e := 
   match e with
   | Pvar x => ok x
-  | _      => cerror "get_Pvar: variable expected" 
+  | _      => Error (stk_ierror_no_var "get_Pvar: variable expected")
   end.
 
 (* The name is chosen to be similar to [set_pure_bytes] and [set_move_bytes],
@@ -903,8 +947,8 @@ Definition set_clear_pure rmap sr ofs len :=
   {| var_region := rmap.(var_region);
      region_var := set_clear_bytes rmap sr ofs len |}.
 
-Definition set_clear rmap sr ofs len :=
-  Let _ := writable sr.(sr_region) in
+Definition set_clear rmap x sr ofs len :=
+  Let _ := writable x sr.(sr_region) in
   ok (set_clear_pure rmap sr ofs len).
 
 (* We clear the arguments. This is not necessary in the classic case, because
@@ -931,24 +975,24 @@ Definition set_clear rmap sr ofs len :=
 Definition alloc_call_arg_aux rmap0 rmap (sao_param: option param_info) (e:pexpr) := 
   Let x := get_Pvar e in
   Let _ := assert (~~is_glob x)
-                  (Cerr_stk_alloc "global variable in argument of a call") in
+                  (stk_ierror_basic x.(gv) "global variable in argument of a call") in
   let xv := gv x in
   match sao_param, get_local xv with
   | None, None =>
     Let _ := check_diff xv in
     ok (rmap, (None, Pvar x))
-  | None, Some _ => cerror "argument not a reg" 
+  | None, Some _ => Error (stk_ierror_basic xv "argument not a reg")
   | Some pi, Some (Pregptr p) => 
     Let srs := Region.check_valid rmap0 xv (Some 0%Z) (size_slot xv) in
     let sr := srs.1 in
-    Let rmap := if pi.(pp_writable) then set_clear rmap sr (Some 0%Z) (size_slot xv) else ok rmap in
-    Let _  := check_align sr pi.(pp_align) in
+    Let rmap := if pi.(pp_writable) then set_clear rmap xv sr (Some 0%Z) (size_slot xv) else ok rmap in
+    Let _  := check_align xv sr pi.(pp_align) in
     ok (rmap, (Some (pi.(pp_writable),sr), Pvar (mk_lvar (with_var xv p))))
-  | Some _, _ => cerror "the argument should be a reg ptr" 
+  | Some _, _ => Error (stk_ierror_basic xv "the argument should be a reg ptr")
   end.
 
 Definition alloc_call_args_aux rmap sao_params es :=
-  fmapM2 (Cerr_stk_alloc "bad params info:please report") (alloc_call_arg_aux rmap) rmap sao_params es.
+  fmapM2 (stk_ierror_no_var "bad params info") (alloc_call_arg_aux rmap) rmap sao_params es.
 
 Definition disj_sub_regions sr1 sr2 :=
   ~~(region_same sr1.(sr_region) sr2.(sr_region)) || 
@@ -970,21 +1014,21 @@ Fixpoint check_all_disj (notwritables writables:seq sub_region) (srs:seq (option
 
 Definition alloc_call_args rmap (sao_params: seq (option param_info)) (es:seq pexpr) := 
   Let es := alloc_call_args_aux rmap sao_params es in
-  Let _  := assert (check_all_disj [::] [::] es.2) 
-                   (Cerr_stk_alloc "some writable reg ptr are not disjoints") in
+  Let _  := assert (check_all_disj [::] [::] es.2)
+                   (stk_error_no_var "some writable reg ptr are not disjoints") in
   ok es.
 
 Definition check_lval_reg_call (r:lval) := 
   match r with
   | Lnone _ _ => ok tt
   | Lvar x =>
-    match get_local x with 
+    match get_local x with
     | None   => Let _ := check_diff x in ok tt
-    | Some _ => cerror "call result should be stored in reg"
+    | Some _ => Error (stk_ierror_basic x "call result should be stored in reg")
     end
-  | Laset aa ws x e1 => cerror "array assignement in lval of a call"
-  | Lasub aa ws len x e1 => cerror "sub array assignement in lval of a call"
-  | Lmem ws x e1     => cerror "call result should be stored in reg"
+  | Laset aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
+  | Lasub aa ws len x e1 => Error (stk_ierror_basic x "sub-array assignement in lval of a call")
+  | Lmem ws x e1     => Error (stk_ierror_basic x "call result should be stored in reg")
   end.
 
 Definition check_is_Lvar r (x:var) :=
@@ -996,7 +1040,7 @@ Definition check_is_Lvar r (x:var) :=
 Definition get_regptr (x:var_i) := 
   match get_local x with
   | Some (Pregptr p) => ok (with_var x p)
-  | _ => cerror "variable should be a reg ptr" 
+  | _ => Error (stk_ierror x (pp_box [:: pp_s "variable"; pp_var x; pp_s "should be a reg ptr"]))
   end.
 
 Definition alloc_lval_call (srs:seq (option (bool * sub_region) * pexpr)) rmap (r: lval) (i:option nat) :=
@@ -1011,14 +1055,14 @@ Definition alloc_lval_call (srs:seq (option (bool * sub_region) * pexpr)) rmap (
       | Lnone i _ => ok (rmap, Lnone i (sword Uptr))
       | Lvar x =>
         Let p := get_regptr x in
-        Let rmap := Region.set_arr_call rmap (v_var x) sr in
+        Let rmap := Region.set_arr_call rmap x sr in
         (* TODO: Lvar p or Lvar (with_var x p) like in alloc_call_arg? *)
         ok (rmap, Lvar p)
-      | Laset aa ws x e1 => cerror "array assignement in lval of a call"
-      | Lasub aa ws len x e1 => cerror "sub array assignement in lval of a call"
-      | Lmem ws x e1     => cerror "call result should be stored in reg ptr"
+      | Laset aa ws x e1 => Error (stk_ierror_basic x "array assignement in lval of a call")
+      | Lasub aa ws len x e1 => Error (stk_ierror_basic x "sub-array assignement in lval of a call")
+      | Lmem ws x e1     => Error (stk_ierror_basic x "call result should be stored in reg ptr")
       end
-    | (None, _) => cerror "alloc_lval_call : please report"
+    | (None, _) => Error (stk_ierror_no_var "alloc_lval_call")
     end
   end.
 
@@ -1034,7 +1078,7 @@ Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap ini rs fn es :=
   let '(rmap, es) := es in
   Let rs  := alloc_call_res rmap es sao_callee.(sao_return) rs in (*
   Let _   := assert_check (~~ is_RAnone sao_callee.(sao_return_address))
-               (Cerr_stk_alloc "cannot call export function, please report")
+               (Cerr_stk_alloc "cannot call export function")
   in *)
   Let _   :=
     let local_size :=
@@ -1044,15 +1088,15 @@ Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap ini rs fn es :=
         (round_ws sao_caller.(sao_align) (sao_caller.(sao_size) + sao_caller.(sao_extra_size)))%Z
     in
     assert_check (local_size + sao_callee.(sao_max_size) <=? sao_caller.(sao_max_size))%Z
-                 (Cerr_stk_alloc "error in max size computation, please report")
+                 (stk_ierror_no_var "error in max size computation")
   in
   Let _   := assert_check (sao_callee.(sao_align) <= sao_caller.(sao_align))%CMP
-                          (Cerr_stk_alloc "non aligned function call, please report")
+                          (stk_ierror_no_var "non aligned function call")
   in
   let es  := map snd es in
   ok (rs.1, Ccall ini rs.2 fn es).
 
-Fixpoint alloc_i sao (rmap:region_map) (i: instr) : result instr_error (region_map * instr) :=
+Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * instr) :=
   let (ii, ir) := i in
   Let ir :=
     match ir with
@@ -1066,15 +1110,15 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : result instr_error (region_m
     | Copn rs t o e => 
       Let e  := add_iinfo ii (alloc_es rmap e) in
       Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
-      ok (rs.1, Copn rs.2 t o e)               
-  
+      ok (rs.1, Copn rs.2 t o e)
+
     | Cif e c1 c2 => 
       Let e := add_iinfo ii (alloc_e rmap e) in
       Let c1 := fmapM (alloc_i sao) rmap c1 in
       Let c2 := fmapM (alloc_i sao) rmap c2 in
       let rmap:= merge c1.1 c2.1 in
       ok (rmap, Cif e c1.2 c2.2)
-  
+
     | Cwhile a c1 e c2 => 
       let check_c rmap := 
         Let c1 := fmapM (alloc_i sao) rmap c1 in
@@ -1088,7 +1132,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : result instr_error (region_m
     | Ccall ini rs fn es =>
       add_iinfo ii (alloc_call sao rmap ini rs fn es) 
 
-    | Cfor _ _ _  => cierror ii (Cerr_stk_alloc "don't deal with for loop")
+    | Cfor _ _ _  => Error (pp_at_ii ii (stk_ierror_no_var "don't deal with for loop"))
     end in
   ok (ir.1, MkI ii ir.2).
 
@@ -1096,13 +1140,13 @@ End PROG.
 
 End Section.
 
-Definition init_stack_layout fn (mglob : Mvar.t (Z * wsize)) sao := 
+Definition init_stack_layout (mglob : Mvar.t (Z * wsize)) sao := 
   let add (xsr: var * wsize * Z) 
           (slp:  Mvar.t (Z * wsize) * Z) :=
     let '(stack, p) := slp in
     let '(x,ws,ofs) := xsr in
-    if Mvar.get stack x is Some _ then cferror fn "duplicate stack region, please report"
-    else if Mvar.get mglob x is Some _ then cferror fn "a region is both glob and stack"
+    if Mvar.get stack x is Some _ then Error (stk_ierror_no_var "duplicate stack region")
+    else if Mvar.get mglob x is Some _ then Error (stk_ierror_no_var "a region is both glob and stack")
     else
       if (p <= ofs)%CMP then
         let len := size_slot x in
@@ -1110,27 +1154,27 @@ Definition init_stack_layout fn (mglob : Mvar.t (Z * wsize)) sao :=
           if (Z.land ofs (wsize_size ws - 1) == 0)%Z then
             let stack := Mvar.set stack x (ofs, ws) in
             ok (stack, (ofs + len)%Z)
-          else cferror fn "bad stack region alignment"
-        else cferror fn "bad stack alignment" 
-      else cferror fn "stack region overlap" in
+          else Error (stk_ierror_no_var "bad stack region alignment")
+        else Error (stk_ierror_no_var "bad stack alignment")
+      else Error (stk_ierror_no_var "stack region overlap") in
   Let sp := foldM add (Mvar.empty _, 0%Z) sao.(sao_slots) in
   let '(stack, size) := sp in
   if (size <= sao.(sao_size))%CMP then ok stack
-  else cferror fn "stack size, please report".
+  else Error (stk_ierror_no_var "stack size").
 
-Definition add_alloc fn globals stack (xpk:var * ptr_kind_init) (lrx: Mvar.t ptr_kind * region_map * Sv.t) :=
+Definition add_alloc globals stack (xpk:var * ptr_kind_init) (lrx: Mvar.t ptr_kind * region_map * Sv.t) :=
   let '(locals, rmap, sv) := lrx in
   let '(x, pk) := xpk in
-  if Sv.mem x sv then cferror fn "invalid reg pointer, please report"
+  if Sv.mem x sv then Error (stk_ierror_no_var "invalid reg pointer")
   else if Mvar.get locals x is Some _ then
-    cferror fn "the oracle returned two results for the same var, please report"
+    Error (stk_ierror_no_var "the oracle returned two results for the same var")
   else
     Let svrmap := 
       match pk with
       | PIdirect x' z sc =>
         let vars := if sc is Slocal then stack else globals in
         match Mvar.get vars x' with
-        | None => cferror fn "unknown region, please report"
+        | None => Error (stk_ierror_no_var "unknown region")
         | Some (ofs', ws') =>
           if [&& (size_slot x <= z.(z_len))%CMP, (0%Z <= z.(z_ofs))%CMP &
                  ((z.(z_ofs) + z.(z_len))%Z <= size_slot x')%CMP] then
@@ -1142,43 +1186,43 @@ Definition add_alloc fn globals stack (xpk:var * ptr_kind_init) (lrx: Mvar.t ptr
                 rmap
             in
             ok (sv, Pdirect x' ofs' ws' z sc, rmap)
-          else cferror fn "invalid slot, please report"
+          else Error (stk_ierror_no_var "invalid slot")
         end
       | PIstkptr x' z xp =>
         if ~~ is_sarr x.(vtype) then
-          cferror fn "a stk ptr variable should be an array, please report"
+          Error (stk_ierror_no_var "a stk ptr variable must be an array")
         else
         match Mvar.get stack x' with
-        | None => cferror fn "unknown stack region, please report"
+        | None => Error (stk_ierror_no_var "unknown stack region")
         | Some (ofs', ws') =>
-          if Sv.mem xp sv then cferror fn "invalid stk ptr (not uniq), please report"
-          else if xp == x then cferror fn "a pseudo-var is equal to a program var, please report"
-          else if Mvar.get locals xp is Some _ then cferror fn "a pseudo-var is equal to a program var, please report"
-          else                
+          if Sv.mem xp sv then Error (stk_ierror_no_var "invalid stk ptr (not unique)")
+          else if xp == x then Error (stk_ierror_no_var "a pseudo-var is equal to a program var")
+          else if Mvar.get locals xp is Some _ then Error (stk_ierror_no_var "a pseudo-var is equal to a program var")
+          else
             if [&& (Uptr <= ws')%CMP,
                 (0%Z <= z.(z_ofs))%CMP,
                 (Z.land z.(z_ofs) (wsize_size U64 - 1) == 0)%Z,
                 (wsize_size Uptr <= z.(z_len))%CMP &
                 ((z.(z_ofs) + z.(z_len))%Z <= size_slot x')%CMP] then
               ok (Sv.add xp sv, Pstkptr x' ofs' ws' z xp, rmap)
-          else cferror fn "invalid ptr kind, please report"
+          else Error (stk_ierror_no_var "invalid ptr kind")
         end
       | PIregptr p => 
         if ~~ is_sarr x.(vtype) then
-          cferror fn "a reg ptr variable should be an array, please report"
+          Error (stk_ierror_no_var "a reg ptr variable must be an array")
         else
-        if Sv.mem p sv then cferror fn "invalid reg pointer already exists, please report"
-        else if Mvar.get locals p is Some _ then cferror fn "a pointer is equal to a program var, please report"
-        else if vtype p != sword Uptr then cferror fn "invalid pointer type, please report"
+        if Sv.mem p sv then Error (stk_ierror_no_var "invalid reg pointer already exists")
+        else if Mvar.get locals p is Some _ then Error (stk_ierror_no_var "a pointer is equal to a program var")
+        else if vtype p != sword Uptr then Error (stk_ierror_no_var "invalid pointer type")
         else ok (Sv.add p sv, Pregptr p, rmap) 
       end in
     let '(sv,pk, rmap) := svrmap in
     let locals := Mvar.set locals x pk in
     ok (locals, rmap, sv).
 
-Definition init_local_map vrip vrsp fn globals stack sao :=
+Definition init_local_map vrip vrsp globals stack sao :=
   let sv := Sv.add vrip (Sv.add vrsp Sv.empty) in
-  Let aux := foldM (add_alloc fn globals stack) (Mvar.empty _, Region.empty, sv) sao.(sao_alloc) in
+  Let aux := foldM (add_alloc globals stack) (Mvar.empty _, Region.empty, sv) sao.(sao_alloc) in
   let '(locals, rmap, sv) := aux in
   ok (locals, rmap, sv).
 
@@ -1207,13 +1251,13 @@ Definition check_result pmap rmap paramsi params oi (x:var_i) :=
     match nth None paramsi i with
     | Some sr =>
       Let _ := assert (x.(vtype) == (nth x params i).(vtype))
-                      (Cerr_stk_alloc "reg ptr in result not corresponding to a parameter, please report") in
+                      (stk_ierror_no_var "reg ptr in result not corresponding to a parameter") in
       Let srs := check_valid rmap x (Some 0%Z) (size_slot x) in
       let sr' := srs.1 in
-      Let _  := assert (sr == sr') (Cerr_stk_alloc "invalid reg ptr in result") in
+      Let _  := assert (sr == sr') (stk_ierror_no_var "invalid reg ptr in result") in
       Let p  := get_regptr pmap x in
       ok p
-    | None => cerror "invalid function info:please report"
+    | None => Error (stk_ierror_no_var "invalid function info")
     end
   | None => 
     Let _ := check_var pmap x in
@@ -1231,26 +1275,26 @@ Definition check_all_writable_regions_returned paramsi (ret_pos:seq (option nat)
 
 Definition check_results pmap rmap paramsi params ret_pos res := 
   Let _ := assert (check_all_writable_regions_returned paramsi ret_pos)
-                  (Cerr_stk_alloc "a writable region is not returned, please report")
+                  (stk_ierror_no_var "a writable region is not returned")
   in
-  mapM2 (Cerr_stk_alloc "invalid function info:please report")
+  mapM2 (stk_ierror_no_var "invalid function info")
         (check_result pmap rmap paramsi params) ret_pos res.
 
 (* TODO: is duplicate region the best error msg ? *)
 Definition init_param (mglob stack : Mvar.t (Z * wsize)) accu pi (x:var_i) := 
   let: (disj, lmap, rmap) := accu in
-  Let _ := assert (~~ Sv.mem x disj) (Cerr_stk_alloc "a parameter already exists, please report") in
-  if Mvar.get lmap x is Some _ then Error (Cerr_stk_alloc "a stack variable also occurs as a parameter, please report")
+  Let _ := assert (~~ Sv.mem x disj) (stk_ierror_no_var "a parameter already exists") in
+  if Mvar.get lmap x is Some _ then Error (stk_ierror_no_var "a stack variable also occurs as a parameter")
   else
   match pi with
   | None => ok (accu, (None, x))
   | Some pi => 
-    Let _ := assert (vtype pi.(pp_ptr) == sword Uptr) (Cerr_stk_alloc "bad ptr type: please report") in
-    Let _ := assert (~~Sv.mem pi.(pp_ptr) disj) (Cerr_stk_alloc "duplicate region: please report") in
-    Let _ := assert (is_sarr x.(vtype)) (Cerr_stk_alloc "bad reg ptr type, please report") in
-    if Mvar.get lmap pi.(pp_ptr) is Some _ then Error (Cerr_stk_alloc "a pointer is equal to a local var, please report")
-    else if Mvar.get mglob x is Some _ then Error (Cerr_stk_alloc "a region is both glob and param, please report")
-    else if Mvar.get stack x is Some _ then Error (Cerr_stk_alloc "a region is both stack and param, please report")
+    Let _ := assert (vtype pi.(pp_ptr) == sword Uptr) (stk_ierror_no_var "bad ptr type") in
+    Let _ := assert (~~Sv.mem pi.(pp_ptr) disj) (stk_ierror_no_var "duplicate region") in
+    Let _ := assert (is_sarr x.(vtype)) (stk_ierror_no_var "bad reg ptr type") in
+    if Mvar.get lmap pi.(pp_ptr) is Some _ then Error (stk_ierror_no_var "a pointer is equal to a local var")
+    else if Mvar.get mglob x is Some _ then Error (stk_ierror_no_var "a region is both glob and param")
+    else if Mvar.get stack x is Some _ then Error (stk_ierror_no_var "a region is both stack and param")
     else
     let r :=
       {| r_slot := x;
@@ -1263,19 +1307,18 @@ Definition init_param (mglob stack : Mvar.t (Z * wsize)) accu pi (x:var_i) :=
   end.
 
 Definition init_params mglob stack disj lmap rmap sao_params params :=
-  fmapM2 (Cerr_stk_alloc "invalid function info:please report")
+  fmapM2 (stk_ierror_no_var "invalid function info")
     (init_param mglob stack) (disj, lmap, rmap) sao_params params.
 
-Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) sao (f: _ufun_decl) : cfexec _ufundef :=
-  let: (fn, fd) := f in
+Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) sao fd : cexec _ufundef :=
   let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
   let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_rsp) |} in
-  Let stack := init_stack_layout fn mglob sao in
-  Let mstk := init_local_map vrip vrsp fn mglob stack sao in
+  Let stack := init_stack_layout mglob sao in
+  Let mstk := init_local_map vrip vrsp mglob stack sao in
   let '(locals, rmap, disj) := mstk in
   (* adding params to the map *)
-  Let rparams := 
-    add_err_fun fn (init_params mglob stack disj locals rmap sao.(sao_params) fd.(f_params)) in
+  Let rparams :=
+    init_params mglob stack disj locals rmap sao.(sao_params) fd.(f_params) in
   let: (sv, lmap, rmap, alloc_params) := rparams in
   let paramsi := map fst alloc_params in
   let params : seq var_i := map snd alloc_params in
@@ -1287,7 +1330,7 @@ Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_
         vnew    := sv;
       |} in
   Let _ := assert (0 <=? sao.(sao_extra_size))%Z
-                  (Ferr_fun fn (Cerr_stk_alloc "negative extra size, please report"))
+                  (stk_ierror_no_var "negative extra size")
   in
   Let _ :=
     let local_size :=
@@ -1297,14 +1340,14 @@ Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_
         (round_ws sao.(sao_align) (sao.(sao_size) + sao.(sao_extra_size)))%Z
     in
     assert_check (local_size <=? sao.(sao_max_size))%Z
-                 (Ferr_fun fn (Cerr_stk_alloc "sao_max_size too small, please report"))
+                 (stk_ierror_no_var "sao_max_size too small")
   in
-  Let rbody := add_finfo fn fn (fmapM (alloc_i pmap local_alloc sao) rmap fd.(f_body)) in
+  Let rbody := fmapM (alloc_i pmap local_alloc sao) rmap fd.(f_body) in
   let: (rmap, body) := rbody in
-  Let res := 
-      add_err_fun fn (check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res)) in
+  Let res :=
+      check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res) in
   ok {|
-    f_iinfo := f_iinfo fd;
+    f_info := f_info fd;
     f_tyin := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_params) fd.(f_tyin); 
     f_params := params;
     f_body := body;
@@ -1312,9 +1355,9 @@ Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_
     f_res := res;
     f_extra := f_extra fd |}.
 
-Definition alloc_fd p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) (f: ufun_decl) :=
-  let: sao := local_alloc f.1 in
-  Let fd := alloc_fd_aux p_extra mglob local_alloc sao f in
+Definition alloc_fd p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) fn fd :=
+  let: sao := local_alloc fn in
+  Let fd := alloc_fd_aux p_extra mglob local_alloc sao fd in
   let f_extra := {|
         sf_align  := sao.(sao_align);
         sf_stk_sz := sao.(sao_size);
@@ -1324,7 +1367,7 @@ Definition alloc_fd p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) (
         sf_save_stack := sao.(sao_rsp);
         sf_return_address := sao.(sao_return_address);
       |} in
-  ok (f.1, swith_extra fd f_extra). 
+  ok (swith_extra fd f_extra).
 
 Definition check_glob (m: Mvar.t (Z*wsize)) (data:seq u8) (gd:glob_decl) := 
   let x := gd.1 in
@@ -1358,28 +1401,28 @@ Definition init_map (sz:Z) (l:list (var * wsize * Z)) : cexec (Mvar.t (Z*wsize))
     if (globals.2 <=? p)%Z then
       if Z.land p (wsize_size ws - 1) == 0%Z then
         let s := size_slot v in
-        cok (Mvar.set globals.1 v (p,ws), p + s)%Z
-      else cerror "bad global alignment: please report"
-    else cerror "global overlap: please report" in
+        ok (Mvar.set globals.1 v (p,ws), p + s)%Z
+      else Error (stk_ierror_no_var "bad global alignment")
+    else Error (stk_ierror_no_var "global overlap") in
   Let globals := foldM add (Mvar.empty (Z*wsize), 0%Z) l in
-  if (globals.2 <=? sz)%Z then cok globals.1
-  else cerror "global size:please report".
+  if (globals.2 <=? sz)%Z then ok globals.1
+  else Error (stk_ierror_no_var "global size").
 
-Definition alloc_prog rip rsp global_data global_alloc local_alloc (P:_uprog) : cfexec _sprog :=
-  Let mglob := add_err_msg (init_map (Z.of_nat (size global_data)) global_alloc) in
+Definition alloc_prog rip rsp global_data global_alloc local_alloc (P:_uprog) : cexec _sprog :=
+  Let mglob := init_map (Z.of_nat (size global_data)) global_alloc in
   let p_extra :=  {|
     sp_rip   := rip;
     sp_rsp   := rsp;
     sp_globs := global_data;
   |} in
-  if rip == rsp then Error (Ferr_msg (Cerr_stk_alloc "rip and rsp clash, please report"))
+  if rip == rsp then Error (stk_ierror_no_var "rip and rsp clash")
   else if check_globs P.(p_globs) mglob global_data then
-    Let p_funs := mapM (alloc_fd p_extra mglob local_alloc) P.(p_funcs) in
+    Let p_funs := map_cfprog_name (alloc_fd p_extra mglob local_alloc) P.(p_funcs) in
     ok  {| p_funcs  := p_funs;
            p_globs := [::];
            p_extra := p_extra;
         |}
   else 
-     Error (Ferr_msg (Cerr_stk_alloc "invalid data: please report")).
+     Error (stk_ierror_no_var "invalid data").
 
 End CHECK.

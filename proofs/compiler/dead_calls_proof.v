@@ -321,7 +321,7 @@ Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma dead_calls_errP (s : Sp.t) (p p': prog) :
-  dead_calls_err s p = cfok p' →
+  dead_calls_err s p = ok p' →
   ∀ f ev m args m' res, Sp.In f s →
     sem_call p ev m f args m' res →
     sem_call p' ev m f args m' res.
@@ -332,7 +332,7 @@ apply: live_calls_subset fins.
 Qed.
 
 Theorem dead_calls_err_seqP (s : seq funname) (p p': prog) :
-  dead_calls_err_seq s p = cfok p' →
+  dead_calls_err_seq s p = ok p' →
   ∀ f ev m args m' res, f \in s →
     sem_call p ev m f args m' res →
     sem_call p' ev m f args m' res.
@@ -345,7 +345,7 @@ Proof.
 Qed.
 
 Lemma dead_calls_err_get_fundef s p p' fn fd :
-  dead_calls_err s p = cfok p' →
+  dead_calls_err s p = ok p' →
   get_fundef (p_funcs p') fn = Some fd →
   get_fundef (p_funcs p) fn = Some fd.
 Proof.

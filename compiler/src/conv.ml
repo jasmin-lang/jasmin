@@ -388,12 +388,12 @@ let get_finfo tbl n =
 
 let cufdef_of_fdef tbl fd =
   let fn = cfun_of_fun tbl fd.f_name in
-  let f_iinfo = set_finfo tbl fd.f_loc fd.f_annot fd.f_cc in
+  let f_info = set_finfo tbl fd.f_loc fd.f_annot fd.f_cc in
   let f_params =
     List.map (fun x -> cvari_of_vari tbl (L.mk_loc L._dummy x)) fd.f_args in
   let f_body = cstmt_of_stmt tbl fd.f_body [] in
   let f_res = List.map (cvari_of_vari tbl) fd.f_ret in
-  fn, { C.f_iinfo  = f_iinfo;
+  fn, { C.f_info   = f_info;
         C.f_tyin   = List.map cty_of_ty fd.f_tyin;
         C.f_params = f_params;
         C.f_body   = f_body;
@@ -404,7 +404,7 @@ let cufdef_of_fdef tbl fd =
 
 
 let fdef_of_cufdef tbl (fn, fd) =
-  let f_loc, f_annot, f_cc = get_finfo tbl fd.C.f_iinfo in
+  let f_loc, f_annot, f_cc = get_finfo tbl fd.C.f_info in
   { f_loc;
     f_annot;
     f_cc;

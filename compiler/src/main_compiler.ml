@@ -16,6 +16,10 @@ let parse () =
 
 (*--------------------------------------------------------------------- *)
 
+let pp_var tbl fmt v =
+  let v = Conv.var_of_cvar tbl v in
+  Format.fprintf fmt "%a (defined at %a)" (Printer.pp_var ~debug:!debug) v L.pp_sloc v.v_dloc
+
 let pp_var_i tbl fmt vi =
   let vi = Conv.vari_of_cvari tbl vi in
   Printer.pp_var ~debug:true fmt (Prog.L.unloc vi)
@@ -28,153 +32,92 @@ let saved_rev_alloc : (var -> Sv.t) option ref = ref None
 let saved_extra_free_registers : (i_loc -> var option) ref = ref (fun _ -> None)
 let saved_live_calls : (funname -> Sv.t) option ref = ref None
 
-let rec pp_comp_err tbl fmt =
-  let open Printer in
-  function
-  | Compiler_util.Cerr_varalloc(x,y,msg) ->
-    Format.fprintf fmt "Variable allocation %a and %a: %a"
-     (pp_var_i tbl) x (pp_var_i tbl) y pp_string0 msg
-  | Compiler_util.Cerr_inline _ ->
-    Format.fprintf fmt "Inlining error"
-  | Compiler_util.Cerr_Loop s ->
-    Format.fprintf fmt "loop iterator to small in %a"
-      pp_string0 s
-  | Compiler_util.Cerr_fold2 s ->
-    Format.fprintf fmt "fold2 error in %a"
-      pp_string0 s
-  | Compiler_util.Cerr_neqty (_, _, s) ->
-    Format.fprintf fmt "neqty %a"
-      pp_string0 s
-  | Compiler_util.Cerr_neqop1(_, _, s) ->
-    Format.fprintf fmt "op1 not equal in %a"
-      pp_string0 s
-  | Compiler_util.Cerr_neqop2(_, _, s) ->
-    Format.fprintf fmt "op2 not equal in %a"
-      pp_string0 s
-  | Compiler_util.Cerr_neqopN(_, _, s) ->
-    Format.fprintf fmt "opN not equal in %a"
-      pp_string0 s
-  | Compiler_util.Cerr_neqop(_,_, s) ->
-    Format.fprintf fmt "opn not equal in %a"
-      pp_string0 s
-  | Compiler_util.Cerr_neqdir(s) ->
-    Format.fprintf fmt "dir not equal in %a"
-      pp_string0 s
-  | Compiler_util.Cerr_neqexpr(_,_,s) ->
-    Format.fprintf fmt "expression not equal in %a"
-      pp_string0 s
-  | Compiler_util.Cerr_neqlval(lv1, lv2, s) ->
-    Format.fprintf fmt "lval not equal in %a: %a and %a"
-      pp_string0 s (pp_clval tbl) lv1 (pp_clval tbl) lv2
-  | Compiler_util.Cerr_neqfun(_,_,s) ->
-    Format.fprintf fmt "funname not equal in %a"
-       pp_string0 s
-  | Compiler_util.Cerr_neqinstr(_,_,s) ->
-    Format.fprintf fmt "instruction not equal in %a"
-       pp_string0 s
-  | Compiler_util.Cerr_unknown_fun(f1,s) ->
-    Format.fprintf fmt "unknown function %s during %a"
-     (Conv.fun_of_cfun tbl f1).fn_name
-     pp_string0 s
-  | Compiler_util.Cerr_in_fun f ->
-    (pp_comp_ferr tbl) fmt f
-  | Compiler_util.Cerr_arr_exp (e1, e2) ->
-    Format.fprintf fmt "err arr exp %a and %a"
-      (Printer.pp_expr ~debug:true) (Conv.expr_of_cexpr tbl e1)
-      (Printer.pp_expr ~debug:true) (Conv.expr_of_cexpr tbl e2)
-  | Compiler_util.Cerr_arr_exp_v _ ->
-    Format.fprintf fmt "err arr exp: lval"
-  | Compiler_util.Cerr_stk_alloc s ->
-    Format.fprintf fmt "stack_alloc error %a"
-      pp_string0 s
-  | Compiler_util.Cerr_one_varmap s ->
-     Format.fprintf fmt "error in “one-varmap” checker: %a"
-       pp_string0 s
-  | Compiler_util.Cerr_one_varmap_free (n, s) ->
-     let pp_var fmt x =
-       Format.fprintf fmt "%a" (pp_var ~debug: false) (Conv.var_of_cvar tbl x)
-     in
-     Format.fprintf fmt "error in “one-varmap” checker: function %s has free variables among %a"
-       (Conv.fun_of_cfun tbl n).fn_name
-       (pp_list ";@ " pp_var) s
-  | Compiler_util.Cerr_linear s ->
-    Format.fprintf fmt "linearisation error %a"
-      pp_string0 s
-  | Compiler_util.Cerr_tunneling s ->
-    Format.fprintf fmt "tunneling error %a"
-      pp_string0 s
-  | Compiler_util.Cerr_needspill (fn, xs) ->
-     let pp =
-       match !saved_rev_alloc with
-       | None -> pp_var ~debug:false
-       | Some rev_alloc ->
-          let filter =
-            match !saved_live_calls with
-            | None -> fun s -> s
-            | Some live_calls -> Sv.inter (live_calls (Conv.fun_of_cfun tbl fn))
-          in
-          fun fmt x ->
-          let s = rev_alloc x |> filter |> Sv.elements in
-          Format.fprintf fmt "@[%a {@[ %a @]}@]" (pp_var ~debug: false) x (pp_list ";@ " (pp_var ~debug:true)) s
-     in
-     let xs = List.map (Conv.var_of_cvar tbl) xs in
-     Format.fprintf fmt "Need to spill @[<v>%a@]" (pp_list "@ " pp) xs
-  | Compiler_util.Cerr_assembler c ->
-    begin match c with
-    | Compiler_util.AsmErr_string (s, e) ->
-      Format.fprintf fmt "assembler error %a%a"
-        pp_string0 s
-        (fun fmt -> function
-          | None -> ()
-          | Some e -> Format.fprintf fmt ": %a" (Printer.pp_expr ~debug:true) (Conv.expr_of_cexpr tbl e))
-        e
-
-    | Compiler_util.AsmErr_cond e ->
-      Format.fprintf fmt "assembler error: invalid condition %a"
-        (Printer.pp_expr ~debug:true) (Conv.expr_of_cexpr tbl e)
-    end
-
-and pp_comp_ferr tbl fmt = function
-  | Compiler_util.Ferr_in_body(f1,f2,(ii, err_msg)) ->
-    let f1 = Conv.fun_of_cfun tbl f1 in
-    let f2 = Conv.fun_of_cfun tbl f2 in
+let rec pp_err tbl fmt (pp_e : Compiler_util.pp_error) =
+  match pp_e with
+  | Compiler_util.PPEstring s -> Format.fprintf fmt "%a" Printer.pp_string0 s
+  | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" (pp_var tbl) v
+  | Compiler_util.PPEvarinfo vi ->
+    let loc = Conv.get_loc tbl vi in
+    Format.fprintf fmt "%a" L.pp_loc loc
+  | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" (Conv.fun_of_cfun tbl fn).fn_name
+  | Compiler_util.PPEiinfo ii ->
     let (i_loc, _) = Conv.get_iinfo tbl ii in
-    Format.fprintf fmt "in functions %s and %s at position %a: %a"
-      f1.fn_name f2.fn_name Printer.pp_iloc i_loc
-      (pp_comp_err tbl) err_msg
-  | Compiler_util.Ferr_neqfun(f1,f2) ->
-    let f1 = Conv.fun_of_cfun tbl f1 in
-    let f2 = Conv.fun_of_cfun tbl f2 in
-    Format.fprintf fmt "function %s and %s not equal"
-      f1.fn_name f2.fn_name
-  | Compiler_util.Ferr_neqprog  ->
-    Format.fprintf fmt "program not equal"
-  | Compiler_util.Ferr_loop     ->
-    Format.fprintf fmt "loop iterator to small"
-  | Compiler_util.Ferr_uniqfun ->
-    Format.fprintf fmt "two function declarations with the same name"
-  | Compiler_util.Ferr_uniqglob ->
-    Format.fprintf fmt "two global declarations with the same name"
-  | Compiler_util.Ferr_topo ->
-    Format.fprintf fmt "program is not a topological sorting of the call-graph"
-  | Compiler_util.Ferr_lowering ->
-    Format.fprintf fmt "lowering check fails"
-  | Ferr_glob_neq ->
-    Format.fprintf fmt "error global not equal"
-  | Ferr_fun (f, err_msg) ->
-    let f =  Conv.fun_of_cfun tbl f in
-    Format.fprintf fmt "in function %s: %a"
-      f.fn_name (pp_comp_err tbl) err_msg
-  | Ferr_remove_glob (ii, x) ->
-    let i_loc, _ = Conv.get_iinfo tbl ii in
-    Format.fprintf fmt "Cannot remove global variable %a at %a"
-     (pp_var_i tbl) x
-     Printer.pp_iloc i_loc
-  | Ferr_remove_glob_dup (_, _) ->
-    Format.fprintf fmt "duplicate global: please report"
-  | Compiler_util.Ferr_msg msg ->
-    pp_comp_err tbl fmt msg
+    Format.fprintf fmt "%a" Printer.pp_iloc i_loc
+  | Compiler_util.PPEfuninfo fi ->
+    let (f_loc, _, _) = Conv.get_finfo tbl fi in
+    Format.fprintf fmt "%a" L.pp_sloc f_loc
+  | Compiler_util.PPEexpr e ->
+    let e = Conv.expr_of_cexpr tbl e in
+    Printer.pp_expr ~debug:!debug fmt e
+  | Compiler_util.PPEbox (box, pp_e) ->
+    begin match box with
+    | Compiler_util.Hbox -> Format.fprintf fmt "@[<h>%a@]" (pp_list "@ " (pp_err tbl)) pp_e
+    | Compiler_util.Vbox -> Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_err tbl)) pp_e
+    | Compiler_util.HoVbox -> Format.fprintf fmt "@[<hov>%a@]" (pp_list "@ " (pp_err tbl)) pp_e
+    | Compiler_util.Nobox -> Format.fprintf fmt "%a" (pp_list "" (pp_err tbl)) pp_e
+    end
+  | Compiler_util.PPEbreak -> Format.fprintf fmt "@ "
 
+(* This avoids printing dummy locations. Hope that it will not hide errors. *)
+let patch_vi_loc tbl (e : Compiler_util.pp_error_loc) =
+  match e.Compiler_util.pel_vi with
+  | None -> e
+  | Some vi ->
+    let l = Conv.get_loc tbl vi in
+    if L.isdummy l then { e with Compiler_util.pel_vi = None }
+    else e
+
+(* do we want more complex logic, e.g. if both vi and ii are <> None,
+   we could check whether they point to the same line. If not, we could
+   decide to print both locations.
+*)
+let pp_err_loc tbl fmt (e : Compiler_util.pp_error_loc) =
+  let open Compiler_util in
+  let e = patch_vi_loc tbl e in
+  let pp_loc fmt e =
+    match e.pel_vi with
+    | Some vi ->
+      let loc = Conv.get_loc tbl vi in
+      begin match e.pel_ii with
+      | None ->
+        L.pp_loc fmt loc
+      | Some ii ->
+        (* if there are some locations coming from inlining, we print them *)
+        let ((_, locs), _) = Conv.get_iinfo tbl ii in
+        Printer.pp_iloc fmt (loc, locs)
+      end
+    | None ->
+      begin match e.pel_ii with
+      | Some ii ->
+        let (i_loc, _) = Conv.get_iinfo tbl ii in
+        Printer.pp_iloc fmt i_loc
+      | None ->
+        begin match e.pel_fi with
+        | Some fi ->
+          let (f_loc, _, _) = Conv.get_finfo tbl fi in
+          L.pp_loc fmt f_loc
+        | None -> Format.fprintf fmt "no location info"
+       end
+     end
+  in
+  let pp_err fmt e =
+    match e.pel_pass with
+    | Some s ->
+      Format.fprintf fmt "%a: %a" Printer.pp_string0 s (pp_err tbl) e.pel_msg
+    | None -> pp_err tbl fmt e.pel_msg
+  in
+  let pp_funname fmt e =
+    match e.pel_fn with
+    | Some fn ->
+        Format.fprintf fmt " in function %s" (Conv.fun_of_cfun tbl fn).fn_name
+    | None -> ()
+  in
+  let pp_internal fmt (b,e) =
+    if b then
+      Format.fprintf fmt "@[<v>Internal error:@;<0 2>%a@ Please report at https://github.com/jasmin-lang/jasmin/issues@]" pp_err e
+    else pp_err fmt e
+  in
+  Format.fprintf fmt "@[<v>%a@ compilation error%a@ %a@]" pp_loc e pp_funname e pp_internal (e.pel_internal, e)
 
 (* -------------------------------------------------------------------- *)
 let rec warn_extra_i i = 
@@ -355,7 +298,7 @@ let main () =
     let translate_var = Conv.var_of_cvar tbl in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      StackAlloc.memory_analysis pp_comp_ferr ~debug:!debug tbl up
+      StackAlloc.memory_analysis pp_err_loc ~debug:!debug tbl up
      in
 
     let global_regalloc fds =
@@ -547,8 +490,8 @@ let main () =
     begin match
       Compiler.compile_prog_to_x86 cparams export_functions subroutines (Expr.to_uprog cprog) with
     | Utils0.Error e ->
-      Utils.hierror "compilation error %a@."
-         (pp_comp_ferr tbl) e
+        Utils.hierror "%a@."
+         (pp_err_loc tbl) e
     | Utils0.Ok asm ->
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->

@@ -11,6 +11,13 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
 
+Module Import E.
+
+  Definition pass : string := "tunneling".
+
+  Definition tunneling_error := pp_internal_error_s pass.
+
+End E.
 
 Module Type EqType.
 
@@ -741,6 +748,7 @@ Section TunnelingSem.
 
   Definition setfb fd fb:=
     LFundef
+      fd.(lfd_info)
       fd.(lfd_align)
       fd.(lfd_tyin)
       fd.(lfd_arg)
@@ -1176,7 +1184,7 @@ Section TunnelingProof.
     move => /eqP ?; subst fn'; case => [[?]|] //; subst fd'; f_equal; last first.
     + apply: IHfuncs => //; right; elim: tfuncs Hnotin {Huniq} => // -[fn' fd'] ttfuncs IHtfuncs /=.
       by rewrite in_cons Bool.negb_orb => /andP []; case: ifP.
-    case: fd {tfuncs IHfuncs Hnotin Huniq} => /= _ _ _ lc _ _ _.
+    case: fd {tfuncs IHfuncs Hnotin Huniq} => /= _ _ _ _ lc _ _ _.
     set uf:= tunnel_plan _ _ _; move: uf.
     elim: lc => // -[ii []] //=; last by move => [fn'] /=; case: (fn == fn') => /=.
     by move => l lc IHlc uf; rewrite IHlc.
@@ -1599,7 +1607,7 @@ Section TunnelingCompiler.
   Definition tunnel_program p :=
     if well_formed_lprog p
     then ok (foldr lprog_tunnel p (funnames p))
-    else Error (Ferr_msg (Cerr_tunneling "not well-formed")).
+    else Error (tunneling_error "not well-formed").
 
   Lemma all_if (T : Type) (a b c : pred T) (s : seq T) :
     all a (filter c s) ->
@@ -1809,10 +1817,3 @@ Section TunnelingCompiler.
   Qed.
 
 End TunnelingCompiler.
-
-(*
-Search _ (_ < _.+1).
-About "_ <= _".
-Print Scopes. About absz.
-Proof using ...
-*)
