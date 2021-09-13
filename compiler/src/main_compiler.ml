@@ -352,9 +352,6 @@ let main () =
       check_safety_p s p source_prog in
 
     let pp_cprog s cp =
-      if !cost_analysis && s |> print_strings |> fst = !cost_after_pass
-      then cp |> Conv.prog_of_cprog tbl |> CostAnalysis.analyze
-      else
       if s = SafetyConfig.sc_comp_pass () && !check_safety then
         check_safety_cp s cp
       else
@@ -387,7 +384,7 @@ let main () =
       List.map (fun fd -> Conv.cfun_of_fun tbl fd.f_name) ep in
 
     begin match
-      Compiler.compile_prog_to_x86 cparams entries cprog with
+      Compiler.compile_prog_to_x86 Leakage.dfl_LeakOp cparams entries cprog with
     | Utils0.Error e ->
       Utils.hierror "compilation error %a@.PLEASE REPORT"
          (pp_comp_ferr tbl) e
@@ -400,15 +397,6 @@ let main () =
       end else if List.mem Compiler.Assembly !print_list then
           Format.printf "%a%!" (Ppasm.pp_prog tbl) asm
       ; if !print_transformers then Format.printf "%a" (PrintLeak.pp tbl) leaks
-      ; if !print_cost_transformers then Format.printf "%a" (PrintCost.pp tbl (List.hd (snd asm))) leaks
-      ; if !dot_cfg then
-          begin
-            List.iter (fun (fn, fd) ->
-                let fn = Ppasm.string_of_funname tbl fn in
-                BatFile.with_file_out (Format.sprintf "jasmin_%s.dot" fn) (fun out ->
-                    AsmCFG.pp_cfg (BatFormat.formatter_of_out_channel out) fn fd.X86_sem.xfd_body)
-            ) (snd asm)
-          end
     end
   with
   | Utils.HiError s ->

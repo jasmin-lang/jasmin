@@ -151,7 +151,7 @@ let pp_glvs pp_var fmt lvs =
 
 (* -------------------------------------------------------------------- *)
 let pp_opn o =
-  Conv.string_of_string0 ((Expr.get_instr o).str ())
+  Conv.string_of_string0 ((Expr.get_instr Leakage.dfl_LeakOp o).str ())
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function
@@ -162,8 +162,8 @@ let pp_tag = function
   | AT_phinode -> ":φ"
 
 let pp_align fmt = function 
-  | E.Align -> Format.fprintf fmt "align "
-  | E.NoAlign -> ()
+  | Leakage.Align -> Format.fprintf fmt "align "
+  | Leakage.NoAlign -> ()
 
 let rec pp_gi pp_info pp_ty pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;

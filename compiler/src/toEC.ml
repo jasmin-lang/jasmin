@@ -40,8 +40,24 @@ type env = {
     auxv  : string list Mty.t;
   }
 
-let for_constTime env = env.model = Utils.ConstantTime
+let for_constTime env = 
+  match env.model with 
+  | Utils.ConstantTime _ -> true
+  | _ -> false
+
 let for_safety    env = env.model = Utils.Safety
+
+let leak_div env = 
+  match env.model with
+  | Utils.ConstantTime m -> m.div_leak
+  | _ -> assert false
+
+let leak_mem env = 
+  match env.model with
+  | Utils.ConstantTime m -> m.mem_leak
+  | _ -> assert false
+
+
 
 (* --------------------------------------------------------------- *)
 
@@ -106,15 +122,28 @@ let add64 x e =
 let int_of_word ws e = 
   Papp1 (E.Oint_of_word ws, e)
 
+type 'a leak_e = 
+  | LeakDiv2 of Wsize.signedness * Wsize.wsize * 'a Prog.gexpr * 'a Prog.gexpr
+  | LeakDiv3 of 'a Prog.gexpr * 'a Prog.gexpr * 'a Prog.gexpr
+  | LeakMem of 'a Prog.gexpr 
+  | LeakExpr of 'a Prog.gexpr 
+
 let rec leaks_e_rec leaks e =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ | Pglobal _ -> leaks
-  | Pload (_,x,e) -> leaks_e_rec (int_of_word U64 (snd (add64 x e)) :: leaks) e
-  | Pget (_,_, e) -> leaks_e_rec (e::leaks) e 
+  | Pload (_,x,e) -> leaks_e_rec (LeakMem (int_of_word U64 (snd (add64 x e))) :: leaks) e
+  | Pget (_,_, e) -> leaks_e_rec (LeakExpr e::leaks) e 
   | Papp1 (_, e) -> leaks_e_rec leaks e
-  | Papp2 (_, e1, e2) -> leaks_e_rec (leaks_e_rec leaks e1) e2
+  | Papp2 (op, e1, e2) -> 
+    let leaks = 
+      match op with
+      | E.Odiv (E.Cmp_w(s,ws)) | E.Omod (Cmp_w(s, ws)) -> 
+        LeakDiv2 (s, ws, e1, e2) :: leaks
+      | _ -> leaks in
+    leaks_e_rec (leaks_e_rec leaks e1) e2
   | PappN (_, es) -> leaks_es_rec leaks es
   | Pif  (_, e1, e2, e3) -> leaks_e_rec (leaks_e_rec (leaks_e_rec leaks e1) e2) e3
+
 and leaks_es_rec leaks es = List.fold_left leaks_e_rec leaks es
 
 let leaks_e e = leaks_e_rec [] e
@@ -122,8 +151,8 @@ let leaks_es es = leaks_es_rec [] es
 
 let leaks_lval = function
   | Lnone _ | Lvar _ -> []
-  | Laset (_,_, e) -> leaks_e_rec [e] e
-  | Lmem (_, x,e) -> leaks_e_rec [int_of_word U64 (snd (add64 x e))] e
+  | Laset (_,_, e) -> leaks_e_rec [LeakExpr e] e
+  | Lmem (_, x,e) -> leaks_e_rec [LeakMem (int_of_word U64 (snd (add64 x e)))] e
 
 (* FIXME: generate this list automatically *)
 let ec_keyword = 
@@ -692,7 +721,7 @@ module Normal = struct
     | Copn (lvs, _, op, _) -> 
       if List.length lvs = 1 then env 
       else
-        let tys  = List.map Conv.ty_of_cty (E.sopn_tout op) in
+        let tys  = List.map Conv.ty_of_cty (E.sopn_tout Leakage.dfl_LeakOp op) in
         let ltys = List.map ty_lval lvs in
         if all_vars lvs && ltys = tys then env
         else add_aux env tys
@@ -729,7 +758,7 @@ module Normal = struct
       pp_lval1 env pp_e fmt (lv , (ty_expr e, e))
 
     | Copn(lvs, _, op, es) ->
-      let otys,itys = List.map Conv.ty_of_cty (E.sopn_tout op), List.map Conv.ty_of_cty (E.sopn_tin op) in
+      let otys,itys = List.map Conv.ty_of_cty (E.sopn_tout Leakage.dfl_LeakOp op), List.map Conv.ty_of_cty (E.sopn_tin Leakage.dfl_LeakOp op) in
       let pp_e fmt (op,es) = 
         Format.fprintf fmt "%a %a" pp_opn op 
           (pp_list "@ " (pp_wcast env)) (List.combine itys es) in
@@ -850,7 +879,7 @@ module Leak = struct
   let safe_es env = List.fold_left (safe_e_rec env) []
 
   let safe_opn safe opn es = 
-    let id = Expr.get_instr opn in
+    let id = Expr.get_instr  Leakage.dfl_LeakOp opn in
     List.map (fun c ->
         match c with
         | X86_decl.NotZero(sz, i) ->
@@ -874,9 +903,32 @@ module Leak = struct
 
   let pp_safe_es env fmt es = pp_list "/\\@ " (pp_safe_e env) fmt es
 
+  let pp_leakE env fmt = function
+    | LeakDiv2(s, ws, e2, e3)     -> 
+      let leak_div = leak_div env in
+      if leak_div = None then Format.fprintf fmt "0"
+      else 
+        Format.fprintf fmt "%s (divextend_%s%i (%a)) (%a) (%a)" 
+          (oget leak_div) 
+          (if s = Signed then "s" else "u")
+          (int_of_ws ws)
+          (pp_expr env) e2 (pp_expr env) e2 (pp_expr env) e3
+
+    | LeakDiv3(e1, e2, e3) -> 
+      let leak_div = leak_div env in
+      if leak_div = None then Format.fprintf fmt "0"
+      else Format.fprintf fmt "%s (%a) (%a) (%a)" (oget leak_div) (pp_expr env) e1 (pp_expr env) e2 (pp_expr env) e3
+
+    | LeakExpr e           -> Format.fprintf fmt "%a" (pp_expr env) e
+    | LeakMem e            -> 
+      let leak_mem = leak_mem env in
+      if leak_mem = None then Format.fprintf fmt "%a" (pp_expr env) e  
+      else Format.fprintf fmt "%s (%a)" (oget leak_mem) (pp_expr env) e  
+
+ 
   let pp_leaks env fmt es = 
     Format.fprintf fmt "leakages <- LeakAddr(@[[%a]@]) :: leakages;@ "
-      (pp_list ";@ " (pp_expr env)) es
+      (pp_list ";@ " (pp_leakE env)) es
 
   let pp_safe_cond env fmt conds = 
     if conds <> [] then 
@@ -884,19 +936,19 @@ module Leak = struct
     
   let pp_leaks_e env fmt e =
     match env.model with
-    | ConstantTime -> pp_leaks env fmt (leaks_e e)
+    | ConstantTime _ -> pp_leaks env fmt (leaks_e e)
     | Safety -> pp_safe_cond env fmt (safe_e env e)
     | _ -> ()
 
   let pp_leaks_es env fmt es = 
     match env.model with
-    | ConstantTime -> pp_leaks env fmt (leaks_es es)
+    | ConstantTime _ -> pp_leaks env fmt (leaks_es es)
     | Safety -> pp_safe_cond env fmt (safe_es env es)
     | _ -> ()
     
   let pp_leaks_opn env fmt op es = 
     match env.model with
-    | ConstantTime -> pp_leaks env fmt (leaks_es es)
+    | ConstantTime _ -> pp_leaks env fmt (leaks_es es)
     | Safety -> 
       let conds = safe_opn (safe_es env es) op es in
       pp_safe_cond env fmt conds 
@@ -904,28 +956,28 @@ module Leak = struct
 
   let pp_leaks_if env fmt e = 
     match env.model with
-    | ConstantTime -> 
+    | ConstantTime _ -> 
       let leaks = leaks_e e in
       Format.fprintf fmt 
         "leakages <- LeakCond(%a) :: LeakAddr(@[[%a]@]) :: leakages;@ "
-        (pp_expr env) e (pp_list ";@ " (pp_expr env)) leaks
+        (pp_expr env) e (pp_list ";@ " (pp_leakE env)) leaks
     | Safety -> pp_safe_cond env fmt (safe_e env e)
     | Normal -> ()
 
   let pp_leaks_for env fmt e1 e2 = 
     match env.model with
-    | ConstantTime -> 
+    | ConstantTime _ -> 
       let leaks = leaks_es [e1;e2] in
       Format.fprintf fmt 
         "leakages <- LeakFor(%a,%a) :: LeakAddr(@[[%a]@]) :: leakages;@ "
         (pp_expr env) e1 (pp_expr env) e2 
-        (pp_list ";@ " (pp_expr env)) leaks
+        (pp_list ";@ " (pp_leakE env)) leaks
     | Safety -> pp_safe_cond env fmt (safe_es env [e1;e2])
     | Normal -> ()
 
   let pp_leaks_lv env fmt lv = 
     match env.model with
-    | ConstantTime -> 
+    | ConstantTime _ -> 
       let leaks = leaks_lval lv in
       if leaks <> [] then pp_leaks env fmt leaks
     | Safety -> pp_safe_cond env fmt (safe_lval env lv)
@@ -988,7 +1040,7 @@ module Leak = struct
       pp_call env fmt [lv] [ty_expr e] pp e 
 
     | Copn(lvs, _, op, es) ->
-      let otys,itys = List.map Conv.ty_of_cty (E.sopn_tout op), List.map Conv.ty_of_cty (E.sopn_tin op) in
+      let otys,itys = List.map Conv.ty_of_cty (E.sopn_tout Leakage.dfl_LeakOp op), List.map Conv.ty_of_cty (E.sopn_tin Leakage.dfl_LeakOp op) in
       let pp fmt (op, es) = 
         Format.fprintf fmt "<- %a %a" pp_opn op 
           (pp_list "@ " (pp_wcast env)) (List.combine itys es) in
@@ -1144,7 +1196,7 @@ let pp_prog fmt model globs funcs =
 
   let pp_leakages fmt env = 
     match env.model with
-    | ConstantTime ->
+    | ConstantTime _ ->
       Format.fprintf fmt "var leakages : leakages_t@ @ " 
     | Safety -> 
       Format.fprintf fmt "var safe : bool@ @ " 

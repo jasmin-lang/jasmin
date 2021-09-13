@@ -716,7 +716,6 @@ Definition inline_info_eqMixin     := Equality.Mixin inline_info_eq_axiom.
 Canonical  inline_info_eqType      := Eval hnf in EqType inline_info inline_info_eqMixin.
 
 (* -------------------------------------------------------------------- *)
-
 Scheme Equality for align.
 
 Lemma align_eq_axiom : Equality.axiom align_beq.

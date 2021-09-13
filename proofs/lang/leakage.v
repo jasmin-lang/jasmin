@@ -52,6 +52,10 @@ Class LeakOp := {
    mem_leak_ : word Uptr -> word Uptr;
 }.
 
+Definition dfl_LeakOp := 
+  {| div_leak_ := fun (sz:wsize) (_ _ _ : word sz) => LEmpty
+   ; mem_leak_ := fun p => p |}.
+
 Section Section.
  
 Context {LO:LeakOp}.

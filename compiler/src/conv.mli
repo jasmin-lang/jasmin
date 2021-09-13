@@ -38,7 +38,7 @@ val ty_of_cty : Type.stype -> Prog.ty
 (* -------------------------------------------------------------------- *)
 val cvar_of_var : 'a coq_tbl -> var -> Var0.Var.var
 val var_of_cvar : 'a coq_tbl -> Var0.Var.var -> var
-val vari_of_cvari : 'a coq_tbl -> Expr.var_i -> var L.located
+val vari_of_cvari : 'a coq_tbl -> Var0.Var.var_i -> var L.located
 
 val lval_of_clval : 'a coq_tbl -> Expr.lval -> Prog.lval
 

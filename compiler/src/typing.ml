@@ -894,8 +894,8 @@ let f_sig f =
 
 let prim_sig (type a) p : a P.gty list * a P.gty list =
   let f = conv_ty in
-  List.map f (E.sopn_tout p),
-  List.map f (E.sopn_tin p)
+  List.map f (E.sopn_tout Leakage.dfl_LeakOp p),
+  List.map f (E.sopn_tin Leakage.dfl_LeakOp p)
 
 type prim_constructor =
   | PrimP of W.wsize * (W.wsize -> Expr.sopn)
@@ -920,7 +920,7 @@ let prim_string =
           | X86_instr_decl.PrimV(x)     -> PrimV(fun sz sz' -> Ox86 (x sz sz'))
           | X86_instr_decl.PrimX(x)     -> PrimX(fun sz sz' -> Ox86 (x sz sz'))
           | X86_instr_decl.PrimVV(x)    -> PrimVV(fun ve sz ve' sz' -> Ox86 (x ve sz ve' sz'))
-        in (s, prc)) X86_instr_decl.prim_string
+        in (s, prc)) (X86_instr_decl.prim_string Leakage.dfl_LeakOp)
             
 type size_annotation =
   | SAw of W.wsize
@@ -1277,7 +1277,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let c  = tt_expr_bool env c in
       let s1 = omap_dfl (tt_block env) [] s1 in
       let s2 = omap_dfl (tt_block env) [] s2 in
-      let a = if a = `NoAlign then E.NoAlign else E.Align in
+      let a = if a = `NoAlign then Leakage.NoAlign else Leakage.Align in
       P.Cwhile (a, s1, c, s2) in
   { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); }
 

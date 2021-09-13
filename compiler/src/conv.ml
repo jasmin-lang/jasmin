@@ -3,6 +3,7 @@ open Prog
 module W = Wsize
 module T = Type
 module C = Expr
+module CV = Var0.Var
 
 let rec pos_of_bi bi =
   let open B.Notations in
@@ -163,11 +164,11 @@ let set_loc tbl loc =
 let cvari_of_vari tbl v =
   let p = set_loc tbl (L.loc v) in
   let cv = cvar_of_var tbl (L.unloc v) in
-  { C.v_var = cv; C.v_info = p }
+  { CV.v_var = cv; CV.v_info = p }
 
 let vari_of_cvari tbl v =
-  let loc =  get_loc tbl v.C.v_info in
-  L.mk_loc loc (var_of_cvar tbl v.C.v_var)
+  let loc =  get_loc tbl v.CV.v_info in
+  L.mk_loc loc (var_of_cvar tbl v.CV.v_var)
 
 (* ------------------------------------------------------------------------ *)
 

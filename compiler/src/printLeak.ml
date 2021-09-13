@@ -5,10 +5,11 @@ open Leakage
 let rec pp_leak_e fmt =
   let p s = fprintf fmt "%s" s in
   function
-  | LEmpty -> p "ε"
+  | LEmpty  -> p "ε"
   | LIdx _i -> p "ι"
   | LAdr _a -> p "α"
-  | LSub s -> fprintf fmt "sub(%a)" (pp_list ", " pp_leak_e) s
+  | LSub s  -> fprintf fmt "sub(%a)" (pp_list ", " pp_leak_e) s
+  | Lop _   -> p "w"  
 
 let rec pp_tr_p fmt =
   let p s = fprintf fmt "%s" s in
@@ -63,7 +64,7 @@ let pp_i tbl fmt =
   | LT_iwhilel(a, b, c, d) -> fprintf fmt "iwhilel(TODO, %a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_iremove -> p "iremove"
   | LT_icopn e -> p "icopn(TODO)"
-  | LT_ilmul (a, b) -> fprintf fmt "ilmul(TODO, %a)" pp_e_tr b
+  | LT_ilmul (a, b, c) -> fprintf fmt "ilmul(TODO, %a, TODO)" pp_e_tr b
   | LT_ilfopn (e, f) -> p "ilfopn(TODO, TODO)"
   | LT_icondl (a, b, c, d) -> fprintf fmt "icondl(TODO, %a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_ilif (a, b) -> fprintf fmt "ilif(TODO, %a)" pp_e_tr b

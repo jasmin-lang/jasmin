@@ -25,10 +25,6 @@ src/Ssa
 src/Subst
 src/Syntax
 src/ToEC
-src/cost/asmCFG
-src/cost/costAnalysis
-src/cost/costInstrumentation
-src/cost/printCost
 src/safety/safetyAbsExpr
 src/safety/safetyConfig
 src/safety/safetyConstr

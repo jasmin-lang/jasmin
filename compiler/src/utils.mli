@@ -346,8 +346,13 @@ val pp_maybe_paren : bool -> 'a pp -> 'a pp
 val pp_string : string pp
  
 (* -------------------------------------------------------------------- *)
+type constant_time = { 
+    div_leak : string option;
+    mem_leak : string option;
+  } 
+
 type model = 
-  | ConstantTime
+  | ConstantTime of constant_time
   | Safety
   | Normal
   

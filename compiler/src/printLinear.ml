@@ -23,7 +23,7 @@ let pp_stype fmt =
 
 (* ---------------------------------------------------------------- *)
 let pp_var_i tbl fmt x =
-  let y = Conv.var_of_cvar tbl x.E.v_var in
+  let y = Conv.var_of_cvar tbl x.Var0.Var.v_var in
   F.fprintf fmt "%s.%i" y.P.v_name (P.int_of_uid y.P.v_id)
 
 let rec pp_expr tbl fmt =
@@ -56,7 +56,7 @@ let pp_instr tbl fmt i =
   | Liopn (lvs, op, es) ->
     F.fprintf fmt "@[%a@] = %a@[(%a)@]"
       (Pr.pp_list ",@ " (pp_lval tbl)) lvs
-      Pr.pp_string0 (E.string_of_sopn op)
+      Pr.pp_string0 (E.string_of_sopn Leakage.dfl_LeakOp op)
       (Pr.pp_list ",@ " (pp_expr tbl)) es
   | Lialign     -> F.fprintf fmt "Align"
   | Lilabel lbl -> F.fprintf fmt "Label %a" pp_label lbl

@@ -771,7 +771,13 @@ let pp_string fmt s =
   Format.fprintf fmt "%s" s
 
 (* -------------------------------------------------------------------- *)
+
+type constant_time = { 
+    div_leak : string option;
+    mem_leak : string option;
+  } 
+
 type model = 
-  | ConstantTime
+  | ConstantTime of constant_time
   | Safety
   | Normal

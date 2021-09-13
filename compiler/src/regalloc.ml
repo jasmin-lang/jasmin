@@ -81,7 +81,7 @@ let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
   | Ox86 (MOV _), [ Lvar x ], [ Pvar y ] when kind_i x = kind_i y ->
     merge k' x y
   | _, _, _ ->
-    let id = get_instr op in
+    let id = get_instr Leakage.dfl_LeakOp op in
       find_equality_constraints id |>
       List.iter (fun constr ->
           constr |>
@@ -405,7 +405,7 @@ struct
     let mallocate_one x y a =
       match x with Pvar x -> allocate_one x y a | _ -> a
     in
-    let id = get_instr op in 
+    let id = get_instr Leakage.dfl_LeakOp op in 
     let a =
       List.fold_left2 (fun acc ad lv ->
           match ad with
@@ -499,7 +499,7 @@ let get_friend_registers (dflt: var) (fr: friend) (a: allocation) (i: int) (regs
 (* Gets the type of all variables in the list.
    Fails if the list has variables of different types. *)
 let type_of_vars (vars: var list) : ty =
-  match List.sort_unique Pervasives.compare (List.map (fun x -> x.v_ty) vars) with
+  match List.sort_unique Stdlib.compare (List.map (fun x -> x.v_ty) vars) with
   | [ty] -> ty
   | _ :: _ ->
     hierror "Register allocation: heterogeneous class %a"

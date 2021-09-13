@@ -52,7 +52,7 @@ let set_all_print () =
 let set_ec f =
   ec_list := f :: !ec_list
 
-let set_constTime () = model := ConstantTime
+let set_constTime () = model := ConstantTime {div_leak = Some "div_log"; mem_leak = Some "mem_div64" }
 let set_safety () = model := Safety
 
 let set_checksafety () = check_safety := true
