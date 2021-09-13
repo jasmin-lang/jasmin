@@ -43,6 +43,7 @@ type level =
   | Public
 
 module Lvl : sig
+
   type t = level
 
   val poly1 : Vl.t -> t
@@ -56,6 +57,7 @@ module Lvl : sig
   val pp : Format.formatter -> t -> unit
 
   val parse : single:bool -> S.annotations -> t option
+
 end = struct
 
   type t = level 
@@ -369,6 +371,18 @@ let get_annot ensure_annot f =
   ain, aout
     
 (* -----------------------------------------------------------*)
+let sdeclassify = "declassify"
+
+let is_declasify annot = 
+  Pt.Annot.ensure_uniq1 sdeclassify Pt.Annot.none annot <> None
+  
+let declassify_lvl annot lvl = 
+  if is_declasify annot then Public
+  else lvl
+
+let declassify_lvls annot lvls = 
+  if is_declasify annot then List.map (fun _ -> Public) lvls
+  else lvls
 
 (* [ty_instr env i] return env' such that env |- i : env' *)
 
@@ -377,11 +391,11 @@ let rec ty_instr fenv env i =
   match i.i_desc with
   | Cassgn(x, _, _, e) ->
     let env, lvl = ty_expr ~public:false env e in
-    ty_lval env x lvl
+    ty_lval env x (declassify_lvl i.i_annot lvl)
 
   | Copn(xs, _, _, es) ->
     let env, lvl = ty_exprs_max ~public:false env es in
-    ty_lvals1 env xs lvl 
+    ty_lvals1 env xs (declassify_lvl i.i_annot lvl)
 
   | Cif(e, c1, c2) ->
     let env, _ = ty_expr ~public:true env e in
@@ -419,7 +433,7 @@ let rec ty_instr fenv env i =
     let do_e env e lvl = ty_expr ~public:(lvl=Public) env e in
     let env, elvls = List.map_fold2 do_e env es fty.tyin in
     let olvls = instanciate_fty fty elvls in
-    ty_lvals env xs olvls 
+    ty_lvals env xs (declassify_lvls i.i_annot olvls)
   in
   if !Glob_options.debug then
     Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (fst i.i_loc) Env.pp env Env.pp env1;
@@ -470,7 +484,7 @@ and ty_fun fenv fn =
   let pp_arg fmt (x, lvl) = 
     Format.fprintf fmt "%a %a"
       Lvl.pp lvl (Printer.pp_var ~debug:false) x in
-  Format.eprintf "security type for @[%s(@[%a@]) :@ @[%a@]@]@."
+  Format.eprintf "security type for @[%s(@[%a@]) -> @ @[%a@]@]@."
     f.f_name.fn_name
     (pp_list ",@ " pp_arg) (List.combine f.f_args tyin)
     (pp_list ",@ " Lvl.pp) tyout;
