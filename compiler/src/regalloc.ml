@@ -141,19 +141,14 @@ let collect_equality_constraints_in_func
       (f: 'info func)
     : unit
   =
-  let get_var x =
-    match int_of_var x with
-    | Some i -> i
-    | None -> hierror "%s: unknown variable %a" msg (Printer.pp_var ~debug:true) (L.unloc x)
-  in
   let add ii x y =
     s.cac_trace.(x) <- ii :: s.cac_trace.(x);
     s.cac_eqc <- Puf.union s.cac_eqc x y
   in
   let addv ii x y =
-    let i = get_var x in
-    let j = get_var y in
-    add ii i j
+    match int_of_var x, int_of_var y with
+    | Some i, Some j -> add ii i j
+    | (None, _) | (_, None) -> ()
   in
   let addf i j = s.cac_friends <- set_friend i j s.cac_friends in
   let rec collect_instr_r ii =
@@ -333,7 +328,8 @@ let iter_variables (cb: var -> unit) (f: 'info func) : unit =
   and iter_instr { i_desc } = iter_instr_r i_desc
   and iter_stmt s = List.iter iter_instr s in
   iter_stmt f.f_body;
-  List.iter cb f.f_args
+  List.iter cb f.f_args;
+  List.iter (fun x -> cb (L.unloc x)) f.f_ret
 
 let make_counter () =
   let count = ref 0 in
