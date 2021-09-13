@@ -19,31 +19,11 @@ let lea = ref false
 let set0 = ref false
 let model = ref Normal
 
-let poptions = [
-    Compiler.Typing
-  ; Compiler.ParamsExpansion
-  ; Compiler.Inlining
-  ; Compiler.RemoveUnusedFunction
-  ; Compiler.Unrolling
-  ; Compiler.Splitting
-  ; Compiler.AllocInlineAssgn
-  ; Compiler.DeadCode_AllocInlineAssgn
-  ; Compiler.ShareStackVariable
-  ; Compiler.DeadCode_ShareStackVariable
-  ; Compiler.RegArrayExpansion
-  ; Compiler.RemoveGlobal
-  ; Compiler.LowerInstruction
-  ; Compiler.RegAllocation
-  ; Compiler.DeadCode_RegAllocation
-  ; Compiler.StackAllocation
-  ; Compiler.Linearisation
-  ; Compiler.Assembly ]
-
 let set_printing p () =
   print_list := p :: !print_list
 
 let set_all_print () =
-  print_list := poptions
+  print_list := Compiler.compiler_step_list
 
 let set_ec f =
   ec_list := f :: !ec_list
@@ -106,7 +86,7 @@ let options = [
     "-safetymakeconfigdoc", Arg.String set_safety_makeconfigdoc, "[dir]: make the safety checker configuration docs in [dir]";
     "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
-  ] @  List.map print_option poptions
+  ] @  List.map print_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"
 
