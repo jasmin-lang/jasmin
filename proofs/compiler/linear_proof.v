@@ -577,11 +577,11 @@ Section PROOF.
 
   Local Lemma checked_prog fn fd :
     get_fundef (p_funcs p) fn = Some fd →
-    check_fd p extra_free_registers (fn, fd) = ok tt.
+    check_fd p extra_free_registers fn fd = ok tt.
   Proof.
-    move: linear_ok; rewrite /linear_prog; apply: rbindP => - [] ok_p _ /(@get_fundef_in' _ _ _ _).
-    move: ok_p; rewrite /check_prog; apply: rbindP => r C _ M.
-    by have [ [] [] ] := mapM_In C M.
+    move: linear_ok; rewrite /linear_prog; t_xrbindP => ? ok_p _ /assertP /eqP _ hp'.
+    move: ok_p; rewrite /check_prog; t_xrbindP => r C _ M.
+    by have [[]]:= get_map_cfprog_name_gen C M.
   Qed.
 
   Lemma get_fundef_p' f fd :
@@ -1331,13 +1331,14 @@ Section PROOF.
     case linear_eq: linear_i => [lbli li].
     move => fr_undef m1 vm2 P Q W M X D C.
     move: chk_call => /=.
-    case: ifP => // fn'_neq_fn.
+    apply rbindP => _ /assertP /negbTE fn'_neq_fn.
     case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => _ /assertP ok_ra _ /assertP ok_align _.
     have := get_fundef_p' ok_fd'.
     set lfd' := linear_fd _ _ _ fd'.
     move => ok_lfd'.
     move: linear_eq; rewrite /= ok_fd' fn'_neq_fn.
-    move: (checked_prog ok_fd') => /=; t_xrbindP => - []; apply: add_finfoP => chk_body [] ok_to_save _ /assertP ok_stk_sz _ /assertP ok_ret_addr _ /assertP ok_save_stack _.
+    move: (checked_prog ok_fd') => /=; rewrite /check_fd.
+    t_xrbindP => -[] chk_body [] ok_to_save _ /assertP ok_stk_sz _ /assertP ok_ret_addr _ /assertP ok_save_stack _.
     have ok_body' : is_linear_of fn' (lfd_body lfd').
     - by rewrite /is_linear_of; eauto.
     move: ih; rewrite /Pfun; move => /(_ _ _ _ _ _ _ _ _ _ ok_body') ih A.
@@ -1500,11 +1501,11 @@ Section PROOF.
     case: ifP.
     + move => /eqP K; exfalso.
       case/and3P: ok_stk_sz => /lezP A /lezP B _.
-      move: z_bound.
+      move: z_bound. move => /=.
       move/lezP: z_pos.
       have := round_ws_range (sf_align (f_extra fd')) (sf_stk_sz (f_extra fd') + sf_stk_extra_sz (f_extra fd')).
       move: K A B; clear.
-      rewrite /stack_frame_allocation_size.
+      rewrite /stack_frame_allocation_size /=.
       change (wsize_size Uptr) with 8%Z.
       lia.
     move => sz_nz k_eq.
@@ -1626,10 +1627,10 @@ Section PROOF.
       rewrite addE -!GRing.addrA.
       replace (wrepr _ _ + _)%R with (- wrepr Uptr (stack_frame_allocation_size (f_extra fd') - z - i))%R; last first.
       + by rewrite !wrepr_add !wrepr_opp; ssrring.ssring.
-      rewrite wunsigned_sub; first lia.
+      rewrite wunsigned_sub; first by lia.
       assert (X := wunsigned_range (top_stack (emem s1))).
-      split; last lia.
-      move: ok_stk_sz z_pos; rewrite !zify => ok_stk_sz sz_pos.
+      split; last by lia.
+      move: ok_stk_sz z_pos; rewrite !zify => /= ok_stk_sz sz_pos.
       transitivity (wunsigned (top_stack (emem s1)) - (stack_frame_allocation_size (f_extra fd')))%Z; last lia.
       rewrite Z.le_0_sub.
       apply: aligned_alloc_no_overflow.
@@ -1662,7 +1663,8 @@ Section PROOF.
     rewrite ok_fd => _ /Some_inj <- ?; subst ra.
     rewrite /value_of_ra => ok_lret.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_sp.
-    move: (checked_prog ok_fd) => /=; t_xrbindP => - []; apply: add_finfoP => chk_body [] ok_to_save _ /assertP ok_stk_sz _ /assertP ok_ret_addr _ /assertP ok_save_stack _.
+    move: (checked_prog ok_fd); rewrite /check_fd /=.
+    t_xrbindP => - [] chk_body [] ok_to_save _ /assertP ok_stk_sz _ /assertP ok_ret_addr _ /assertP ok_save_stack _.
     have ? : fd' = linear_fd p extra_free_registers fn fd.
     - move: linear_ok ok_fd ok_fd'; clear.
       rewrite /linear_prog; t_xrbindP => _ _ _ _ <- /=.
@@ -2058,7 +2060,7 @@ Section PROOF.
     move=> m1 m2 fn sf vargs vargs' s0 s1 s2 vres vres' Hsf Hargs Hi Hw Hbody Hres Htyo Hfi.
     move: linear_ok; rewrite /linear_prog; t_xrbindP => _ /assertP _ funcs H0' hp'. 
     rewrite -hp'. 
-    have [f' Hf'1 Hf'2] := (get_map_cfprog H0' Hsf).
+    have [f' Hf'1 Hf'2] := (get_map_cfprog_gen H0' Hsf).
     have Hf'3 := Hf'1.
     apply: rbindP Hf'3=> [l Hc] [] Hf'3.
     rewrite /add_finfo in Hc.

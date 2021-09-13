@@ -145,15 +145,13 @@ Proof.
     apply: (value_uincl_word _ ok_w).
     + by apply: eqr; rewrite (var_of_register_of_var xr).
     by apply: eqx; rewrite (xmm_register_of_varI xr).
-  + move=> sz x p; case: eqP => [<- | //].
-    t_xrbindP => r hr ?; subst a'.
+  + move=> sz x p; t_xrbindP => _ /assertP /eqP <- r hr ?; subst a'.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
     move=> w1 wp vp hget htop wp' vp' hp hp' wr hwr <- /= htr.
     have -> := addr_of_xpexprP eqm hr hget htop hp hp'.
     by case: eqm => <- ?????; rewrite hwr /=; eauto.
   case => //= w' [] //= z; case: max_imm => //= w1.
-  t_xrbindP => ? /assertP /eqP heq h.
-  case: h hcomp => <-; rewrite /compat_imm /eval_asm_arg => /orP [/eqP <- | ].
+  t_xrbindP => ? /assertP /eqP heq h; move: hcomp; rewrite -h /compat_imm /eval_asm_arg => -/orP [/eqP <- | ].
   + move=> w [] <- /truncate_wordP [hsz ->].
     rewrite heq; eexists; split; first reflexivity.
     by rewrite /to_word truncate_word_u.
@@ -275,7 +273,7 @@ Proof.
     rewrite /write_var; t_xrbindP => vm hset <-.
     apply: set_varP hset; last by move=> /eqP heq heq'; rewrite heq in heq'.
     move=> t ht <-; rewrite truncate_word_u /= heq1 hc /= => /xreg_of_varI.
-    case: a heq1 hc => // r heq1 hc => [ /var_of_register_of_var | /xmm_register_of_varI ] ?; subst x;
+    case: a heq1 hc => // r heq1 hc => [ /var_of_register_of_var | /xmm_register_of_varI ] /= h; subst x;
       (eexists; split; first reflexivity); constructor => //=.
     2-4, 6-8: move => r' v'.
     1-8: rewrite /get_var/on_vu.
@@ -303,7 +301,7 @@ Proof.
   case: ty hty vt hw => //= sz' _ vt hw.
   case: eqP => // ?; subst sz'.
   move: hw; rewrite truncate_word_u => -[?]; subst vt.
-  t_xrbindP => adr hadr ?;subst a => /=.
+  t_xrbindP => /= _ _ adr hadr ?; subst a => /=.
   rewrite /= heq1 hc /= /mem_write_mem -h1.
   have -> := addr_of_xpexprP hlom hadr hget hp he hofs.
   rewrite hm1 /=; eexists; split; first by reflexivity.

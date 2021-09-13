@@ -27,7 +27,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import psem psem_facts compiler_util constant_prop_proof.
-Require Export psem stack_alloc.
+Require Export stack_alloc.
 Require Import byteset.
 Require Import Psatz.
 Import Utf8.
@@ -863,9 +863,9 @@ Section EXPR.
     by rewrite Z.ones_equiv.
   Qed.
 
-  Lemma check_alignP sr ty ws tt :
+  Lemma check_alignP x sr ty ws tt :
     wf_sub_region sr ty ->
-    check_align sr ws = ok tt ->
+    check_align x sr ws = ok tt ->
     is_align (sub_region_addr sr) ws.
   Proof.
     move=> hwf; rewrite /check_align; t_xrbindP => ? /assertP halign /assertP /eqP halign2.
@@ -1327,17 +1327,17 @@ Proof.
                                 (zbetween_zone_sub_zone_at_ofs_0 hwfy')).
 Qed.
 
-Lemma sub_region_pk_valid rmap s sr pk :
-  sub_region_pk pk = ok sr -> valid_pk rmap s sr pk.
+Lemma sub_region_pk_valid rmap x s sr pk :
+  sub_region_pk x pk = ok sr -> valid_pk rmap s sr pk.
 Proof. by case: pk => // v ofs ws z [|//] [<-]. Qed.
 
-Lemma sub_region_pk_wf x pk sr ws :
+Lemma sub_region_pk_wf (x:var_i) pk sr ws :
+  sub_region_pk x pk = ok sr ->
   get_local pmap x = Some pk ->
   x.(vtype) = sword ws ->
-  sub_region_pk pk = ok sr ->
   wf_sub_region sr x.(vtype).
 Proof.
-  case: pk => // v ofs ws' z [|//] /wf_locals /= hget hty /= [<-].
+  case: pk => // v ofs ws' z [|//] [<-] /wf_locals /= hget hty.
   case: hget => *.
   by rewrite /sub_region_addr /sub_region_stack; split.
 Qed.
@@ -1414,14 +1414,14 @@ Definition get_gvar_bytes rv r x :=
   else get_var_bytes rv r x.(gv).
 *)
 
-Lemma check_gvalid_set_sub_region rmap x sr ofs len rmap2 y sry bytes :
+Lemma check_gvalid_set_sub_region rmap (x:var_i) sr ofs len rmap2 y sry bytes :
   wf_sub_region sr x.(vtype) ->
   set_sub_region rmap x sr ofs len = ok rmap2 ->
   check_gvalid rmap2 y = Some (sry, bytes) ->
-    [/\ ~ is_glob y, x = gv y, sr = sry &
+    [/\ ~ is_glob y, x = gv y :> var, sr = sry &
          bytes = get_var_bytes rmap2 sr.(sr_region) x]
   \/
-    [/\ ~ is_glob y -> x <> gv y &
+    [/\ ~ is_glob y -> x <> gv y :> var &
         exists bytes', check_gvalid rmap y = Some (sry, bytes') /\
           bytes =
             if sr.(sr_region) != sry.(sr_region) then bytes'
@@ -1502,7 +1502,7 @@ Proof.
   by apply (distinct_regions_disjoint_zrange hwf2 hwf' (not_eq_sym heqr)).
 Qed.
 
-Lemma wfr_PTR_set_sub_region (rmap : region_map) s2 x pk sr ofs ty mem2 rmap2 :
+Lemma wfr_PTR_set_sub_region (rmap : region_map) s2 (x:var_i) pk sr ofs ty mem2 rmap2 :
   get_local pmap x = Some pk ->
   wf_sub_region sr x.(vtype) ->
   valid_pk rmap s2 sr pk ->
@@ -1528,7 +1528,7 @@ Proof.
 Qed.
 
 (* This lemma is used only for [set_sub_region]. *)
-Lemma wfr_VAL_set_sub_region rmap s1 s2 sr x ofs ty mem2 (rmap2 : region_map) v :
+Lemma wfr_VAL_set_sub_region rmap s1 s2 sr (x:var_i) ofs ty mem2 (rmap2 : region_map) v :
   wf_rmap rmap s1 s2 ->
   wf_sub_region sr x.(vtype) ->
   (forall zofs, ofs = Some zofs -> 0 <= zofs /\ zofs + size_of ty <= size_of x.(vtype)) ->
@@ -1543,7 +1543,8 @@ Lemma wfr_VAL_set_sub_region rmap s1 s2 sr x ofs ty mem2 (rmap2 : region_map) v 
 Proof.
   move=> hwfr hwf hofs hreadeq hset hval y sry bytesy vy.
   move=> /(check_gvalid_set_sub_region hwf hset) [].
-  + move=> [? ? <- ->]; subst x.
+  + case: x hval {hwf hofs hreadeq hset} => x xii /= hval.
+    move=> [? ? <- ->]; subst x.
     have [_ hty] := hval.
     rewrite get_gvar_eq //.
     apply on_vuP => //; rewrite -hty.
@@ -1574,7 +1575,7 @@ Proof.
   by apply (vs_disjoint hwf.(wfr_slot) hvp).
 Qed.
 
-Lemma set_wordP rmap x sr ws rmap2 :
+Lemma set_wordP rmap (x:var_i) sr ws rmap2 :
   wf_sub_region sr x.(vtype) ->
   set_word rmap x sr ws = ok rmap2 ->
     is_align (sub_region_addr sr) ws /\
@@ -1599,7 +1600,7 @@ Qed.
    the [valid_state] invariant.
    This lemma is used both for words and arrays.
 *)
-Lemma valid_state_set_sub_region rmap m0 s1 s2 sr x pk ofs ty mem2 v (rmap2 : region_map) :
+Lemma valid_state_set_sub_region rmap m0 s1 s2 sr (x:var_i) pk ofs ty mem2 v (rmap2 : region_map) :
   valid_state rmap m0 s1 s2 ->
   wf_sub_region sr x.(vtype) ->
   get_local pmap x = Some pk ->
@@ -1733,11 +1734,11 @@ Proof.
     have hpk := sub_region_pk_valid rmap s2 hsr.
     have [wx [wi [-> -> /= <-]]]:= check_mk_addr_ptr hvs he1 (wf_locals hlx) hpk ha.
     move: hvm1'; apply set_varP; last by rewrite {1}hty.
-    move=> {ha}; case: x hty hlx hsetw => -[xty xn] xii /= ->.
-    set x := {| vtype := sword ws; vname := xn |} => hlx hsetw /= w hto <-.
+    move=> {ha}; case: x hty hlx hsr hsetw => -[xty xn] xii /= ->.
+    set x := {| vtype := sword ws; vname := xn |} => hlx hsr hsetw /= w hto <-.
     have [ws' [w' [hle ??]]] := subtype_of_val_to_pword htyv hto; subst w v.
     rewrite /= /truncate_word hle /=.
-    have hwf := sub_region_pk_wf hlx refl_equal hsr.
+    have hwf := sub_region_pk_wf hsr hlx refl_equal.
     have hvp: validw (emem s2) (sub_region_addr sr + wrepr _ 0)%R ws.
     + rewrite wrepr0 GRing.addr0.
       have [halign _] := set_wordP hwf hsetw.
@@ -1839,7 +1840,7 @@ Proof.
   + done.
   have hofs' := ofs_bound_option hofs (mk_ofsiP he1).
   have hvalideq := write_validw_eq hmem2.
-  apply: (valid_state_set_sub_region hvs hwf hlx hpk hofs' _ hvalideq _ hset (v:=Varr t')).
+  apply: (valid_state_set_sub_region hvs hwf hlx hpk hofs' _ hvalideq _ hset (x:={|v_var:=x;v_info:=xii|}) (v:=Varr t')).
   + by apply (Memory.write_mem_stable hmem2).
   + move=> p ws' hdisj.
     apply (writeP_neq hmem2).
@@ -1884,9 +1885,9 @@ Hypothesis P'_globs : P'.(p_globs) = [::].
 
 Local Opaque arr_size.
 
-Lemma get_ofs_subP gd s i aa ws e ofs :
+Lemma get_ofs_subP gd s i aa ws x e ofs :
   sem_pexpr gd s e >>= to_int = ok i ->
-  get_ofs_sub aa ws e = ok ofs ->
+  get_ofs_sub aa ws x e = ok ofs ->
   ofs = i * mk_scale aa ws.
 Proof.
   move=> he; rewrite /get_ofs_sub.
@@ -2391,7 +2392,7 @@ Proof.
     rewrite -sub_region_addr_offset wrepr0 GRing.addr0 /= Z.add_0_r.
     by apply.
 
-  t_xrbindP=> aa ws {len}len _ e ofs' hofs -> <- [? <-]; subst ofs'.
+  t_xrbindP=> aa ws {len}len x' e ofs' hofs ? <- [? <-]; subst x' ofs'.
   apply: on_arr_varP.
   t_xrbindP=> nx ax htyx hxa i v he hv a2 ha2 a3 ha3 vm1'.
   have {he hv} he : sem_pexpr gd s1 e >>= to_int = ok i.
@@ -2756,8 +2757,8 @@ Proof.
   by apply (alloc_call_arg_aux_not_None halloc).
 Qed.
 
-Lemma set_clearP rmap sr ofs len rmap2 :
-  set_clear rmap sr ofs len = ok rmap2 ->
+Lemma set_clearP rmap x sr ofs len rmap2 :
+  set_clear rmap x sr ofs len = ok rmap2 ->
   sr.(sr_region).(r_writable) /\
   rmap2 = set_clear_pure rmap sr ofs len.
 Proof. by rewrite /set_clear; t_xrbindP=> _ /assertP -> <-. Qed.
@@ -3079,9 +3080,9 @@ Proof.
   by rewrite get_bytes_clear.
 Qed.
 
-Lemma check_gvalid_set_clear rmap sr ty ofs len rmap2 y sry bytes :
+Lemma check_gvalid_set_clear rmap x sr ty ofs len rmap2 y sry bytes :
   wf_sub_region sr ty ->
-  set_clear rmap sr ofs len = ok rmap2 ->
+  set_clear rmap x sr ofs len = ok rmap2 ->
   check_gvalid rmap2 y = Some (sry, bytes) ->
   exists bytes',
     check_gvalid rmap y = Some (sry, bytes') /\
@@ -3580,7 +3581,7 @@ Qed.
 (* Another lemma on [set_sub_region].
    See [valid_state_set_move_regptr].
 *)
-Lemma valid_state_set_sub_region_regptr rmap m0 s1 s2 x sr ofs ty v p rmap2 :
+Lemma valid_state_set_sub_region_regptr rmap m0 s1 s2 (x:var_i) sr ofs ty v p rmap2 :
   valid_state rmap m0 s1 s2 ->
   wf_sub_region sr x.(vtype) ->
   (forall zofs, ofs = Some zofs -> 0 <= zofs /\ zofs + size_of ty <= size_of x.(vtype)) ->
@@ -3608,7 +3609,8 @@ Proof.
     by have [_ ->] := set_sub_regionP hset.
   + move=> y sry bytesy vy.
     move=> /(check_gvalid_set_sub_region hwf hset) [].
-    + move=> [? ? <- ->]; subst x.
+    + case: x heqval {hwf hofs hlx hset hwf' hlocal} => x xii /= heqval.
+      move=> [? ? <- ->]; subst x.
       rewrite get_gvar_eq //.
       case: heqval => hread hty'.
       apply on_vuP => //; rewrite -hty'.
@@ -3696,7 +3698,7 @@ Proof.
   + rewrite /set_var /vp.
     by case: (p) hlocal.(wfr_rtype) => -[_ pn] pii /= ->.
   rewrite -(WArray.castK ax).
-  apply: (valid_state_set_sub_region_regptr hvs _ _ hlx hset (v:=Varr ax)) => /=.
+  apply: (valid_state_set_sub_region_regptr hvs _ _ hlx hset (x:={|v_var:=_;v_info:=xii|}) (v:=Varr ax)) => /=.
   + apply: wf_sub_region_subtype hwf.
     apply: subtype_trans hresp.(wrp_subtype).
     apply /ZleP.

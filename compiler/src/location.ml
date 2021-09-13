@@ -18,6 +18,8 @@ let _dummy = {
   loc_echar = -1;
 }
 
+type i_loc = t * t list
+
 (* -------------------------------------------------------------------- *)
 let make (p1 : position) (p2 : position) =
   let mkpos (p : position) =
@@ -47,13 +49,17 @@ let tostring (p : t) =
         (fst p.loc_start) (snd p.loc_start)
         (fst p.loc_end  ) (snd p.loc_end  )
   in
-    Printf.sprintf "%s: %s" p.loc_fname spos
+    Printf.sprintf "\"%s\", %s" p.loc_fname spos
 
 let pp_loc fmt (p:t) = 
   Format.fprintf fmt "%s" (tostring p)
 
 let pp_sloc fmt (p:t) = 
   Format.fprintf fmt "line %d" (fst p.loc_start)
+
+let pp_iloc fmt (l,ls) =
+  let pp_sep fmt () = Format.fprintf fmt "@ from " in
+  Format.fprintf fmt "@[<v 2>%a@]" (Format.pp_print_list ~pp_sep pp_loc) (l::ls)
 
 let isdummy (p : t) =
   p.loc_bchar < 0 || p.loc_echar < 0
@@ -79,8 +85,6 @@ type 'a located = {
   pl_loc  : t;
   pl_desc : 'a;
 }
-
-type 'a mloc = ('a, t) Utils.tagged
 
 (* -------------------------------------------------------------------- *)
 let loc    x = x.pl_loc

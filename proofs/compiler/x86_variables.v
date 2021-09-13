@@ -277,27 +277,65 @@ Qed.
 (* -------------------------------------------------------------------- *)
 (* Compilation of pexprs *)
 (* -------------------------------------------------------------------- *)
-Definition invalid_rflag (s: string) : asm_error :=
-  AsmErr_string ("Invalid rflag name: " ++ s) None.
+Import compiler_util.
 
-Definition invalid_register (s: string) : asm_error :=
-  AsmErr_string ("Invalid register name: " ++ s) None.
+Module E.
 
-Global Opaque invalid_rflag invalid_register.
+Definition pass_name := "asmgen"%string.
+
+Definition gen_error (internal:bool) (ii:option instr_info) (vi: option var_info) (msg:pp_error) := 
+  {| pel_msg      := msg
+   ; pel_fn       := None
+   ; pel_fi       := None
+   ; pel_ii       := ii
+   ; pel_vi       := vi
+   ; pel_pass     := Some pass_name
+   ; pel_internal := internal
+  |}.
+
+Definition internal_error ii msg := 
+  gen_error true (Some ii) None (pp_s msg).
+
+Definition error ii msg := 
+  gen_error false (Some ii) None msg.
+
+Definition verror internal msg ii (v:var_i) := 
+  gen_error internal (Some ii) (Some v.(v_info)) (pp_box [:: pp_s msg; pp_s ":"; pp_var v]).
+
+
+Definition invalid_rflag ii (v:var_i) :=
+   verror true "Invalid rflag name" ii v.
+
+Definition invalid_rflag_ty ii (v:var_i) :=
+  verror true "Invalid rflag type" ii v.
+
+Definition invalid_register ii (v:var_i) :=
+   verror true "Invalid register name" ii v.
+
+Definition invalid_register_ty ii (v:var_i) :=
+  verror true "Invalid register type" ii v.
+
+Definition berror ii e msg := 
+  gen_error false (Some ii) None (pp_vbox [::pp_box [:: pp_s "not able to compile the condition"; pp_e e];
+                                             pp_s msg]).
+
+Definition werror ii e msg := 
+  gen_error false (Some ii) None (pp_vbox [::pp_box [:: pp_s "invalid pexpr for oprd"; pp_e e];
+                                             pp_s msg]).
+
+End E.
 
 (* -------------------------------------------------------------------- *)
-Definition rflag_of_var ii (v: var) :=
-  match v with
-  | Var sbool s =>
-     match (rflag_of_string s) with
-     | Some r => ciok r
-     | None => cierror ii (Cerr_assembler (invalid_rflag s))
-     end
-  | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid rflag type" None))
+Definition rflag_of_var ii (vi: var_i) :=
+  let v := vi.(v_var) in
+  Let _ := assert (v.(vtype) == sbool) (E.invalid_rflag_ty ii vi) in
+  match rflag_of_string v.(vname) with
+  | Some r => ok r
+  | None => Error (E.invalid_rflag ii vi) 
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition assemble_cond ii (e: pexpr) : ciexec condt :=
+Definition assemble_cond ii (e: pexpr) : cexec condt :=
   match e with
   | Pvar v =>
     Let r := rflag_of_var ii v.(gv) in
@@ -307,7 +345,7 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     | ZF => ok E_ct
     | SF => ok S_ct
     | PF => ok P_ct
-    | DF => cierror ii (Cerr_assembler (AsmErr_string "Cannot branch on DF" None))
+    | DF => Error (E.berror ii e "Cannot branch on DF")
     end
 
   | Papp1 Onot (Pvar v) =>
@@ -318,38 +356,37 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     | ZF => ok NE_ct
     | SF => ok NS_ct
     | PF => ok NP_ct
-    | DF => cierror ii (Cerr_assembler (AsmErr_string "Cannot branch on ~~ DF" None))
+    | DF => Error (E.berror ii e "Cannot branch on DF")
     end
 
   | Papp2 Oor (Pvar vcf) (Pvar vzf) =>
     Let rcf := rflag_of_var ii vcf.(gv) in
     Let rzf := rflag_of_var ii vzf.(gv) in
-    if ((rcf == CF) && (rzf == ZF)) then
-      ok BE_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (BE)" None))
-
+    Let _   := assert ((rcf == CF) && (rzf == ZF)) 
+                      (E.berror ii e "Invalid condition (BE)") in
+    ok BE_ct
   | Papp2 Oand (Papp1 Onot (Pvar vcf)) (Papp1 Onot (Pvar vzf)) =>
     Let rcf := rflag_of_var ii vcf.(gv) in
     Let rzf := rflag_of_var ii vzf.(gv) in
-    if ((rcf == CF) && (rzf == ZF)) then
-      ok NBE_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NBE)" None))
+    Let _   := assert ((rcf == CF) && (rzf == ZF)) 
+                      (E.berror ii e "Invalid condition (NBE)") in
+    ok NBE_ct
 
   | Pif _ (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2) =>
     Let rsf := rflag_of_var ii vsf.(gv) in
     Let rof1 := rflag_of_var ii vof1.(gv) in
     Let rof2 := rflag_of_var ii vof2.(gv) in
-    if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
-      ok L_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (L)" None))
+    Let _ := assert [&& rsf == SF, rof1 == OF & rof2 == OF] 
+                    (E.berror ii e "Invalid condition (L)") in
+    ok L_ct
 
   | Pif _ (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2)) =>
     Let rsf := rflag_of_var ii vsf.(gv) in
     Let rof1 := rflag_of_var ii vof1.(gv) in
     Let rof2 := rflag_of_var ii vof2.(gv) in
-    if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
-      ok NL_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NL)" None))
+    Let _ := assert [&& rsf == SF, rof1 == OF& rof2 == OF]
+                    (E.berror ii e "Invalid condition (NL)") in
+    ok NL_ct
 
   | Papp2 Oor (Pvar vzf)
           (Pif _ (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2)) =>
@@ -357,9 +394,9 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     Let rsf := rflag_of_var ii vsf.(gv) in
     Let rof1 := rflag_of_var ii vof1.(gv) in
     Let rof2 := rflag_of_var ii vof2.(gv) in
-    if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
-      ok LE_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (LE)" None))
+    Let _ := assert [&& rzf == ZF, rsf == SF, rof1 == OF & rof2 == OF]
+                    (E.berror ii e "Invalid condition (LE)") in
+    ok LE_ct
 
   | Papp2 Oand
              (Papp1 Onot (Pvar vzf))
@@ -368,33 +405,32 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     Let rsf := rflag_of_var ii vsf.(gv) in
     Let rof1 := rflag_of_var ii vof1.(gv) in
     Let rof2 := rflag_of_var ii vof2.(gv) in
-    if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
-      ok NLE_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NLE)" None))
+    Let _ := assert [&& rzf == ZF, rsf == SF, rof1 == OF & rof2 == OF]
+                    (E.berror ii e "Invalid condition (NLE)") in
+    ok NLE_ct
 
-  | _ => cierror ii (Cerr_assembler (AsmErr_cond e))
+  | _ => Error (E.berror ii e "don't known how to compile the condition")
   end.
 
 (* -------------------------------------------------------------------- *)
 
-Definition reg_of_var ii (v: var) :=
-  match v with
-  | Var (sword U64) s =>
-     match (reg_of_string s) with
-     | Some r => ciok r
-     | None => cierror ii (Cerr_assembler (invalid_register s))
-     end
-  | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid register type" None))
+Definition reg_of_var ii (vi: var_i) :=
+  let v := vi.(v_var) in
+  Let _ := assert (v.(vtype) == sword U64) (E.invalid_register_ty ii vi) in
+  match reg_of_string v.(vname) with
+  | Some r => ok r 
+  | None => Error (E.invalid_register ii vi)
   end.
 
 Definition reg_of_vars ii (vs: seq var_i) :=
-  mapM (reg_of_var ii \o v_var) vs.
+  mapM (reg_of_var ii) vs.
 
 Lemma reg_of_var_register_of_var ii x r :
   reg_of_var ii x = ok r →
   register_of_var x = Some r.
 Proof.
- by rewrite /register_of_var; case: x => -[] //= [] // x; case: reg_of_string => // r' [->].
+ rewrite /reg_of_var /register_of_var; case: x => -[] ty s vi /=; t_xrbindP => _ /assertP /eqP ->.
+ by case: reg_of_string => // r' [->]; rewrite eqxx.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -404,7 +440,7 @@ Definition scale_of_z' ii (z:pointer) :=
   | 2 => ok Scale2
   | 4 => ok Scale4
   | 8 => ok Scale8
-  | _ => cierror ii (Cerr_assembler (AsmErr_string "invalid scale" None))
+  | _ => Error (E.error ii (pp_s "invalid scale"))
   end%Z.
 
 Definition reg_of_ovar ii (x:option var_i) := 
@@ -434,56 +470,56 @@ Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) :=
      | Some r =>
         if r.(v_var) == rip then
           Let _ := assert (lea.(lea_offset) == None) 
-            (ii, Cerr_assembler (AsmErr_string "Invalid global address" (Some e))) in
+                          (E.error ii (pp_box [::pp_s "Invalid global address :"; pp_e e])) in
            ok (Arip lea.(lea_disp))
         else assemble_lea ii lea
       | None => 
         assemble_lea ii lea
       end 
-  | None => cierror ii (Cerr_assembler (AsmErr_string "lea: not able to assemble address" (Some e)))
+  | None => Error (E.error ii (pp_box [::pp_s "not able to assemble address :"; pp_e e]))
   end.
 
 Definition addr_of_xpexpr rip ii sz v e :=
   addr_of_pexpr rip ii sz (Papp2 (Oadd (Op_w sz)) (Plvar v) e).
 
-Definition xreg_of_var ii (x: var) : ciexec asm_arg :=
+Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   if xmm_register_of_var x is Some r then ok (XMM r)
   else if register_of_var x is Some r then ok (Reg r)
-  else cierror ii (Cerr_assembler (AsmErr_string "Not a (x)register" None)).
+  else Error (E.verror false "Not a (x)register" ii x).
+
 
 Definition assemble_word rip ii (sz:wsize) max_imm (e:pexpr) :=
   match e with
   | Papp1 (Oword_of_int sz') (Pconst z) =>
     match max_imm with
-    | None =>  cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for oprd, constant not allowed" (Some e)))
+    | None =>  Error (E.werror ii e "constant not allowed")
     | Some sz1 =>
       let w := wrepr sz1 z in
       let w1 := sign_extend sz w in
       let w2 := zero_extend sz (wrepr sz' z) in
       Let _ := assert (w1 == w2)
-                (ii, Cerr_assembler (AsmErr_string "Invalid pexpr for oprd: out of bound constant" (Some e))) in
-      ciok (Imm w)
+                      (E.werror ii e "out of bound constant") in
+      ok (Imm w)
     end
   | Pvar x =>
     Let _ := assert (is_lvar x)
-              (ii, Cerr_assembler (AsmErr_string "Global variables remain" (Some e))) in
+                    (E.internal_error ii "Global variables remain") in
     let x := x.(gv) in
     xreg_of_var ii x
   | Pload sz' v e' =>
-    if (sz == sz') then
-      Let w := addr_of_xpexpr rip ii Uptr v e' in
-      ok (Adr w)
-    else
-      cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for word: invalid Load size" (Some e)))
-  | _ => cierror ii (Cerr_assembler (AsmErr_string "Invalid pexpr for word" (Some e)))
+    Let _ := assert (sz == sz') 
+                    (E.werror ii e "invalid Load size") in
+    Let w := addr_of_xpexpr rip ii Uptr v e' in
+    ok (Adr w)
+  | _ => Error (E.werror ii e "invalid pexpr for word")
   end.
 
 Definition arg_of_pexpr rip ii (ty:stype) max_imm (e:pexpr) :=
   match ty with
   | sbool => Let c := assemble_cond ii e in ok (Condt c)
   | sword sz => assemble_word rip ii sz max_imm e
-  | sint  => cierror ii (Cerr_assembler (AsmErr_string "sint ???" (Some e)))
-  | sarr _ => cierror ii (Cerr_assembler (AsmErr_string "sarr ???" (Some e)))
+  | sint  => Error (E.werror ii e "not able to assemble an expression of type int")
+  | sarr _ => Error (E.werror ii e "not able to assemble an expression of type array _")
   end.
 
 Lemma var_of_xmm_register_inj x y :
@@ -494,7 +530,7 @@ Proof. by move=> [];apply inj_string_of_xmm_register. Qed.
 (* TODO: change def of reg_of_var *)
 Lemma var_of_reg_of_var ii v r: reg_of_var ii v = ok r → var_of_register r = v.
 Proof.
-  rewrite /reg_of_var /var_of_register; case: v => -[] // [] // xn.
+  rewrite /reg_of_var /var_of_register; case: v => -[] ty vn vi /=; t_xrbindP => _ /assertP /eqP ->.
   case heq : reg_of_string => [r' | ] => // -[<-]; apply f_equal.
   by apply: inj_reg_of_string heq; apply reg_of_stringK.
 Qed.

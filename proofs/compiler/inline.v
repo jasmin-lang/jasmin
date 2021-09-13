@@ -37,6 +37,22 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+Module Import E.
+
+  Definition pass : string := "inlining".
+
+  Definition inline_error msg := {|
+    pel_msg := msg;
+    pel_fn := None;
+    pel_fi := None;
+    pel_ii := None;
+    pel_vi := None;
+    pel_pass := Some pass;
+    pel_internal := true
+  |}.
+
+End E.
+
 (* ** inlining
  * -------------------------------------------------------------------- *)
 
@@ -54,11 +70,11 @@ Definition assgn_tuple iinfo (xs:lvals) flag (tys:seq stype) (es:pexprs) :=
   let assgn xe := MkI iinfo (Cassgn xe.1 (get_flag xe.1 flag) xe.2.1 xe.2.2) in
   map assgn (zip xs (zip tys es)).
 
-Definition inline_c (inline_i: instr -> Sv.t -> ciexec (Sv.t * cmd)) c s :=
+Definition inline_c (inline_i: instr -> Sv.t -> cexec (Sv.t * cmd)) c s :=
   foldr (fun i r =>
     Let r := r in
     Let ri := inline_i i r.1 in
-    ciok (ri.1, ri.2 ++ r.2)) (ciok (s,[::])) c.
+    ok (ri.1, ri.2 ++ r.2)) (ok (s,[::])) c.
 
 Definition sparams (fd:ufundef) :=
   vrvs_rec Sv.empty (map Lvar fd.(f_params)).
@@ -72,49 +88,49 @@ Definition locals_p (fd:ufundef) :=
 Definition locals fd :=
   Sv.diff (locals_p fd) (sparams fd).
 
-Definition check_rename iinfo f (fd1 fd2:ufundef) (s:Sv.t) :=
-  Let _ := add_infun iinfo (CheckAllocRegU.check_fundef tt tt (f,fd1) (f,fd2) tt) in
+Definition check_rename f (fd1 fd2:ufundef) (s:Sv.t) :=
+  Let _ := CheckAllocRegU.check_fundef tt tt (f,fd1) (f,fd2) tt in
   let s2 := locals_p fd2 in
-  if disjoint s s2 then ciok tt
-  else cierror iinfo (Cerr_inline s s2).
+  if disjoint s s2 then ok tt
+  else Error (inline_error (pp_s "invalid refreshing in function")).
 
-Definition get_fun (p:ufun_decls) iinfo (f:funname) :=
+Definition get_fun (p:ufun_decls) (f:funname) :=
   match get_fundef p f with
-  | Some fd => ciok fd
-  | None    => cierror iinfo (Cerr_unknown_fun f "inlining")
+  | Some fd => ok fd
+  | None    => Error (inline_error (pp_box [::pp_s "Unknown function"; PPEfunname f]))
   end.
 
 Variable rename_fd : instr_info -> funname -> ufundef -> ufundef.
 
-Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd) :=
+Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
   match i with
   | MkI iinfo ir =>
     match ir with
-    | Cassgn x _ _ e => ciok (Sv.union (read_i ir) X, [::i])
-    | Copn xs _ o es => ciok (Sv.union (read_i ir) X, [::i])
+    | Cassgn x _ _ e => ok (Sv.union (read_i ir) X, [::i])
+    | Copn xs _ o es => ok (Sv.union (read_i ir) X, [::i])
     | Cif e c1 c2  =>
       Let c1 := inline_c (inline_i p) c1 X in
       Let c2 := inline_c (inline_i p) c2 X in
-      ciok (read_e_rec (Sv.union c1.1 c2.1) e, [::MkI iinfo (Cif e c1.2 c2.2)])
+      ok (read_e_rec (Sv.union c1.1 c2.1) e, [::MkI iinfo (Cif e c1.2 c2.2)])
     | Cfor x (d,lo,hi) c =>
       let X := Sv.union (read_i ir) X in
       Let c := inline_c (inline_i p) c X in
-      ciok (X, [::MkI iinfo (Cfor x (d, lo, hi) c.2)])
+      ok (X, [::MkI iinfo (Cfor x (d, lo, hi) c.2)])
     | Cwhile a c e c' =>
       let X := Sv.union (read_i ir) X in
       Let c := inline_c (inline_i p) c X in
       Let c' := inline_c (inline_i p) c' X in
-      ciok (X, [::MkI iinfo (Cwhile a c.2 e c'.2)])
+      ok (X, [::MkI iinfo (Cwhile a c.2 e c'.2)])
     | Ccall inline xs f es =>
       let X := Sv.union (read_i ir) X in
       if inline is InlineFun then
-        Let fd := get_fun p iinfo f in
+        Let fd := add_iinfo iinfo (get_fun p f) in
         let fd' := rename_fd iinfo f fd in
-        Let _ := check_rename iinfo f fd fd' (Sv.union (vrvs xs) X) in
-        ciok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
+        Let _ := add_iinfo iinfo (check_rename f fd fd' (Sv.union (vrvs xs) X)) in
+        ok (X,  assgn_tuple iinfo (map Lvar fd'.(f_params)) AT_rename fd'.(f_tyin) es ++
                   (fd'.(f_body) ++
                   assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Plvar fd'.(f_res))))
-      else ciok (X, [::i])
+      else ok (X, [::i])
     end
   end.
 
@@ -126,19 +142,19 @@ Definition inline_fd (p:ufun_decls) (fd:ufundef) :=
     ok (MkFun ii tyin params c.2 tyout res ef)
   end.
 
-Definition inline_fd_cons (ffd:funname * ufundef) (p:cfexec ufun_decls) :=
+Definition inline_fd_cons (ffd:funname * ufundef) (p:cexec ufun_decls) :=
   Let p := p in
   let f := ffd.1 in
-  Let fd := add_finfo f f (inline_fd p ffd.2) in
-  cfok ((f,fd):: p).
+  Let fd := add_funname f (add_finfo ffd.2.(f_info) (inline_fd p ffd.2)) in
+  ok ((f,fd):: p).
 
 Definition inline_prog (p:ufun_decls) :=
-  foldr inline_fd_cons (cfok [::]) p.
+  foldr inline_fd_cons (ok [::]) p.
 
 Definition inline_prog_err (p:uprog) :=
   if uniq [seq x.1 | x <- p_funcs p] then
     Let fds := inline_prog (p_funcs p) in
     ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := fds |}
-  else cferror Ferr_uniqfun.
+  else Error (inline_error (pp_s "two function declarations with the same name")).
 
 End INLINE.

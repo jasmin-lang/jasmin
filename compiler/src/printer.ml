@@ -1,22 +1,11 @@
 (* -------------------------------------------------------------------- *)
+open Utils
 open Prog
 module W = Wsize
 module T = Type
 module E = Expr
 module F = Format
 module B = Bigint
-
-(* -------------------------------------------------------------------- *)
-let rec pp_list sep pp fmt xs =
-  let pp_list = pp_list sep pp in
-    match xs with
-    | []      -> ()
-    | [x]     -> Format.fprintf fmt "%a" pp x
-    | x :: xs -> Format.fprintf fmt "%a%(%)%a" pp x sep pp_list xs
-
-(* -------------------------------------------------------------------- *)
-let pp_iloc fmt (l,ls) =
-  Format.fprintf fmt "@[%a@]" (pp_list " from@ " L.pp_sloc) (l::ls)
 
 (* -------------------------------------------------------------------- *)
 let pp_string0 fmt str =
@@ -437,3 +426,35 @@ let pp_sprog ~debug tbl fmt ((funcs, p_extra):'info Prog.sprog) =
 let pp_warning_msg fmt = function
   | Compiler_util.Use_lea -> Format.fprintf fmt "LEA instruction is used"
 
+let pp_err ~debug tbl fmt (pp_e : Compiler_util.pp_error) =
+  let pp_var tbl fmt v =
+    let v = Conv.var_of_cvar tbl v in
+    Format.fprintf fmt "%a (defined at %a)" (pp_var ~debug) v L.pp_sloc v.v_dloc
+  in
+  let rec pp_err fmt pp_e =
+    match pp_e with
+    | Compiler_util.PPEstring s -> Format.fprintf fmt "%a" pp_string0 s
+    | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" (pp_var tbl) v
+    | Compiler_util.PPEvarinfo vi ->
+      let loc = Conv.get_loc tbl vi in
+      Format.fprintf fmt "%a" L.pp_loc loc
+    | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" (Conv.fun_of_cfun tbl fn).fn_name
+    | Compiler_util.PPEiinfo ii ->
+      let (i_loc, _) = Conv.get_iinfo tbl ii in
+      Format.fprintf fmt "%a" L.pp_iloc i_loc
+    | Compiler_util.PPEfuninfo fi ->
+      let (f_loc, _, _) = Conv.get_finfo tbl fi in
+      Format.fprintf fmt "%a" L.pp_sloc f_loc
+    | Compiler_util.PPEexpr e ->
+      let e = Conv.expr_of_cexpr tbl e in
+      pp_expr ~debug fmt e
+    | Compiler_util.PPEbox (box, pp_e) ->
+      begin match box with
+      | Compiler_util.Hbox -> Format.fprintf fmt "@[<h>%a@]" (pp_list "@ " pp_err) pp_e
+      | Compiler_util.Vbox -> Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_err) pp_e
+      | Compiler_util.HoVbox -> Format.fprintf fmt "@[<hov>%a@]" (pp_list "@ " pp_err) pp_e
+      | Compiler_util.Nobox -> Format.fprintf fmt "%a" (pp_list "" pp_err) pp_e
+      end
+    | Compiler_util.PPEbreak -> Format.fprintf fmt "@ "
+  in
+  pp_err fmt pp_e

@@ -1,0 +1,10 @@
+fn f () -> reg u64 {
+  reg u64 r;
+  return r;
+}
+
+export fn main (reg u64 x) -> reg u64 {
+  reg u64 r;
+  r = f ();
+  return r;
+}

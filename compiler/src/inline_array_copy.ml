@@ -10,6 +10,8 @@ let is_array_copy (x:lval) e =
     | Arr (ws, n) ->
       begin match e with
       | Pvar y -> 
+        (* if we have x = g with x stack direct and g global,
+           we probably want to make a copy too *)
         if (L.unloc z).v_kind = Reg Direct || 
            (L.unloc y.gv).v_kind = Reg Direct then Some (z, ws, n, y)
         else None

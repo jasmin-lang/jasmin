@@ -1002,28 +1002,6 @@ Section Section.
     by elim : xs ys x0 => [|x xs ih] [|y ys] x0 //= ; t_xrbindP => // t _ /ih ->.
   Qed.
 
-(*
-  Lemma size_swapable ii pinstrs lvaout ep :
-    swapable ii pinstrs = ok (lvaout, ep) -> size pinstrs = size ep.
-  Proof.
-    elim : pinstrs lvaout ep => [|lvaout1 lvaout ih] [|ep1 ep] //=.
-    + by move => ep [<-].
-    + move => ep.
-      case lvaout1.
-      - by t_xrbindP => lv [lvs ep'] _ [].
-      t_xrbindP => lv t vi [lvs ep'] /(ih _ _) ->.
-      t_xrbindP => _ _ ; t_xrbindP => _ _ _ _.
-      move => ? ; subst lvs.
-      (*Weird it can't be one line...*)
-      move => eq.
-      by rewrite - eq.
-    move => ep0.
-    case lvaout1 => lv.
-    + t_xrbindP => [[lvs' ep'] ep''] [] ??? ; subst ep1 lvs' ep0.
-      (*Obviously impossible, so there is no size relation?*)
-  Qed.
-*)
-
   Lemma get_set_var vm vm' x v v':
     ~is_sbool (vtype x) ->
     truncate_val (vtype x) v = ok v' ->
@@ -1130,7 +1108,7 @@ Section Section.
 
     case=> [vmx] [vargs'] [wf_vmx sem_pl eval_vargs' trunc_vargs' eq_vm1_vmx].
 
-    case: (get_map_cfprog eq_funcs fnE) => fdef Hfdef Hget_fundef.
+    case: (get_map_cfprog_gen eq_funcs fnE) => fdef Hfdef Hget_fundef.
 
     have Hep:
     exists vm2 s2', [/\
@@ -1180,8 +1158,7 @@ Section Section.
       t_xrbindP => y h.
       case Hupdate_fd : (update_fd _ _ _ _ _) => //= - [] hh.
       rewrite hh in Hupdate_fd.
-      rewrite /cfok.
-      move => [] ? ; subst y.
+      move => ?; subst y.
       move => tfp'c Hmap_cfprog [? ?] ? ; subst hfp'1 ; subst hfp'2 ; subst tfp'c.
       case : (fn == hfp1) ; last by apply : ih.
       move => [?] [?] ; subst fnd ; subst f.
@@ -1208,7 +1185,7 @@ Section Section.
     rewrite /makereference_prog.
     t_xrbindP => y Hmap ?.
     subst p'.
-    case : (get_map_cfprog Hmap Hf) => x Hupdate Hy.
+    case : (get_map_cfprog_gen Hmap Hf) => x Hupdate Hy.
     move : Hupdate.
     rewrite /update_fd.
     t_xrbindP => z Hupdate_c Hwith_body.

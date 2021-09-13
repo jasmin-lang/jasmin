@@ -1,3 +1,8 @@
+/* The error should be that the type of "pt" is not compatible with the declared
+   return type of function "init".
+   Currently, the error is about returning a "reg ptr" that is not given as
+   an argument.
+*/
 fn init () -> stack u64[2] {
    stack u64[2] t;
    reg ptr u64[2] pt;

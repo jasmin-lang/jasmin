@@ -18,7 +18,7 @@ val liveness : bool -> 'info prog -> (Sv.t * Sv.t) prog
 
     Requires the function [f] to be annotated with liveness information
 *)
-val iter_call_sites : (i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) -> (Sv.t * Sv.t) func -> unit
+val iter_call_sites : (L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) -> (Sv.t * Sv.t) func -> unit
 
 val pp_info : Format.formatter -> Sv.t * Sv.t -> unit
 

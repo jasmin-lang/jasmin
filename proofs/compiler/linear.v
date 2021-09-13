@@ -71,6 +71,7 @@ Definition find_label (lbl : label) (c : seq linstr) :=
   if idx < size c then ok idx else type_error.
 
 Record lfundef := LFundef {
+ lfd_info : fun_info;
  lfd_align : wsize;
  lfd_tyin : seq stype;
  lfd_arg  : seq var_i;
@@ -89,8 +90,31 @@ Record lprog :=
     lp_globs : seq u8;
     lp_funcs : seq (funname * lfundef) }.
 
+Module E.
 
+Definition pass_name := "linearisation"%string.
 
+(* FIXME: are there internal errors? *)
+Definition gen_error (internal:bool) (ii:option instr_info) (msg:string) := 
+  {| pel_msg      := pp_s msg
+   ; pel_fn       := None
+   ; pel_fi       := None
+   ; pel_ii       := ii
+   ; pel_vi       := None
+   ; pel_pass     := Some pass_name
+   ; pel_internal := internal
+  |}.
+
+Definition ii_error (ii:instr_info) (msg:string) := 
+  gen_error false (Some ii) msg.
+
+Definition error (msg:string) := 
+  gen_error false None msg.
+
+Definition internal_error (msg:string) := 
+  gen_error true None msg.
+
+End E.
 
 (* --------------------------------------------------------------------------- *)
 Section PROG.
@@ -100,13 +124,11 @@ Context (p:sprog) (extra_free_registers: instr_info -> option var).
 Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
   round_ws e.(sf_align) (sf_stk_sz e + sf_stk_extra_sz e).
 
-Section CHECK.
-
   Section CHECK_c.
 
-    Context (check_i: instr -> ciexec unit).
+    Context (check_i: instr -> cexec unit).
 
-    Fixpoint check_c (c:cmd) : ciexec unit :=
+    Fixpoint check_c (c:cmd) : cexec unit :=
       match c with
       | [::] => ok tt
       | i::c => check_c c >> check_i i
@@ -118,23 +140,23 @@ Section CHECK.
 
   Context (this: funname) (stack_align : wsize).
 
-  Fixpoint check_i (i:instr) : ciexec unit :=
+  Fixpoint check_i (i:instr) : cexec unit :=
     let (ii,ir) := i in
     match ir with
     | Cassgn x tag ty e =>
       if ty is sword sz then ok tt
-      else cierror ii (Cerr_linear "assign not a word")
+      else Error (E.ii_error ii "assign not a word")
     | Copn xs tag o es =>
       ok tt
     | Cif b c1 c2 =>
       check_c check_i c1 >> check_c check_i c2
     | Cfor _ _ _ =>
-      cierror ii (Cerr_linear "for found in linear")
+      Error (E.ii_error ii "for found in linear")
     | Cwhile _ c e c' =>
       if e == Pbool false then check_c check_i c
       else check_c check_i c >> check_c check_i c'
     | Ccall _ xs fn es =>
-      if fn == this then cierror ii (Cerr_linear "call to self") else
+      Let _ := assert (fn != this) (E.ii_error ii "call to self") in
       if get_fundef (p_funcs p) fn is Some fd then
         let e := f_extra fd in
         Let _ := assert match sf_return_address e with
@@ -142,11 +164,11 @@ Section CHECK.
                         | RAreg ra => true
                         | RAstack ofs => extra_free_registers ii != None 
                         end
-          (ii, Cerr_one_varmap "nowhere to store the return address") in
+          (E.ii_error ii "(one_varmap) nowhere to store the return address") in
         Let _ := assert (sf_align e <= stack_align)%CMP
-          (ii, Cerr_linear "caller need alignment greater than callee") in
+          (E.ii_error ii "caller need alignment greater than callee") in
         ok tt
-      else cierror ii (Cerr_linear "call to unknown function")
+      else Error (E.ii_error ii "call to unknown function")
     end.
 
   End CHECK_i.
@@ -159,53 +181,50 @@ Section CHECK.
      is_align (wrepr Uptr ofs) ws (* Stack slot is aligned *)
     ].
 
-  Definition all_disjoint_aligned_between (fn: funname) (msg: string) (lo hi: Z) (al: wsize) A (m: seq A) (slot: A → cfexec (Z * wsize)) : cfexec unit :=
+  Definition all_disjoint_aligned_between (lo hi: Z) (al: wsize) A (m: seq A) (slot: A → cexec (Z * wsize)) : cexec unit :=
     Let last := foldM (λ a base,
                        Let ofs_ws := slot a in
                        let: (ofs, ws) := ofs_ws in
-                       Let _ := assert (base <=? ofs)%Z (Ferr_fun fn (Cerr_linear (msg ++ "overlap"))) in
-                       Let _ := assert (ws ≤ al)%CMP (Ferr_fun fn (Cerr_linear (msg ++ "bad frame alignement"))) in
-                       Let _ := assert (is_align (wrepr Uptr ofs) ws) (Ferr_fun fn (Cerr_linear (msg ++ "bad slot alignement"))) in
+                       Let _ := assert (base <=? ofs)%Z (E.error "to-save: overlap") in
+                       Let _ := assert (ws ≤ al)%CMP (E.error "to-save: bad frame alignement") in
+                       Let _ := assert (is_align (wrepr Uptr ofs) ws) (E.error "to-save: bad slot alignement") in
                        ok (ofs + wsize_size ws)%Z
                       ) lo m in
-    assert (last <=? hi)%Z (Ferr_fun fn (Cerr_linear (msg ++ "overflow in the stack frame"))).
+    assert (last <=? hi)%Z (E.error "to-save: overflow in the stack frame").
 
-  Definition check_to_save (fn: funname) (e: stk_fun_extra) : cfexec unit :=
+  Definition check_to_save (e: stk_fun_extra) : cexec unit :=
     if sf_return_address e is RAnone
     then
-      all_disjoint_aligned_between fn "to-save: " (sf_stk_sz e) (stack_frame_allocation_size e) (sf_align e) (sf_to_save e)
-        (λ '(x, ofs), if is_word_type x.(vtype) is Some ws then ok (ofs, ws) else Error (Ferr_fun fn (Cerr_linear ("to-save: not a word"))))
+      all_disjoint_aligned_between (sf_stk_sz e) (stack_frame_allocation_size e) (sf_align e) (sf_to_save e)
+        (λ '(x, ofs), if is_word_type x.(vtype) is Some ws then ok (ofs, ws) else (Error (E.error "to-save: not a word")))
     else ok tt.
 
-  Definition check_fd (ffd:sfun_decl) :=
-    let (fn,fd) := ffd in
+  Definition check_fd (fn: funname) (fd:sfundef) :=
     let e := fd.(f_extra) in
     let stack_align := e.(sf_align) in
-    Let _ := add_finfo fn fn (check_c (check_i fn stack_align) fd.(f_body)) in
-    Let _ := check_to_save fn e in
+    Let _ := check_c (check_i fn stack_align) fd.(f_body) in
+    Let _ := check_to_save e in
     Let _ := assert [&& 0 <=? sf_stk_sz e, 0 <=? sf_stk_extra_sz e & stack_frame_allocation_size e <? wbase Uptr]%Z
-                    (Ferr_fun fn (Cerr_linear "bad stack size")) in
+                    (E.error "bad stack size") in
     Let _ := assert match sf_return_address e with
                     | RAnone => true
                     | RAreg ra => vtype ra == sword Uptr
                     | RAstack ofs => check_stack_ofs e ofs Uptr
                     end
-                    (Ferr_fun fn (Cerr_linear "bad return-address")) in
+                    (E.error "bad return-address") in
     Let _ := assert ((sf_return_address e != RAnone)
                      || match sf_save_stack e with
                         | SavedStackNone => [&& stack_align == U8, sf_stk_sz e == 0 & sf_stk_extra_sz e == 0]
                         | SavedStackReg r => (vtype r == sword Uptr) && (sf_to_save e == [::])
                         | SavedStackStk ofs => check_stack_ofs e ofs Uptr
                         end)
-                    (Ferr_fun fn (Cerr_linear "bad save-stack")) in
+                    (E.error "bad save-stack") in
     ok tt.
 
   Definition check_prog := 
-    Let _ := mapM check_fd (p_funcs p) in
+    Let _ := map_cfprog_name check_fd (p_funcs p) in
     ok tt.
 
-End CHECK.
-  
                            
 (* --------------------------------------------------------------------------- *)
 (* Translation                                                                 *)
@@ -410,15 +429,15 @@ Definition linear_fd (fd: sfundef) :=
   let fd' := linear_c linear_i (f_body fd) lbl tail in
   let is_export := sf_return_address e == RAnone in
   let res := if is_export then f_res fd else [::] in
-  LFundef (sf_align e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) res
+  LFundef (f_info fd) (sf_align e) (f_tyin fd) (f_params fd) (head ++ fd'.2) (f_tyout fd) res
               is_export.
 
 End FUN.
 
-Definition linear_prog : cfexec lprog :=
+Definition linear_prog : cexec lprog :=
   Let _ := check_prog in
   Let _ := assert (size p.(p_globs) == 0)
-             (Ferr_msg (Cerr_linear "invalid p_globs, please report")) in
+             (E.internal_error "invalid p_globs") in
   let funcs := map (fun '(f,fd) => (f, linear_fd f fd)) p.(p_funcs) in
   ok {| lp_rip   := p.(p_extra).(sp_rip);
         lp_rsp   := p.(p_extra).(sp_rsp);

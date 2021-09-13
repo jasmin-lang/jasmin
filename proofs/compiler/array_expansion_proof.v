@@ -301,21 +301,12 @@ Proof. by move: Hcomp; rewrite /expand_prog; t_xrbindP => ?? <-. Qed.
 Lemma all_checked fn fd1 :
   get_fundef (p_funcs p1) fn = Some fd1 ->
   exists fd2, get_fundef (p_funcs p2) fn = Some fd2 /\ 
-              expand_fd fi (fn, fd1) = ok (fn, fd2).
+              expand_fd fi fn fd1 = ok fd2.
 Proof.
   move: Hcomp; case: p1 => pf1 pg pe.
-  rewrite /expand_prog; t_xrbindP => /= pf2 hpf2 <-.
-  elim: pf1 pf2 hpf2 => /= [ // | [fn' fd'] pf1 hrec] [ | [fn2' fd2'] pf2']; t_xrbindP => //.
-  move=> y_ hex pf2_ h' ??; subst y_ pf2_.
-  have ? : fn' = fn2'.
-  + move: hex; rewrite /expand_fd; t_xrbindP.
-    by move=> y ?; case: (fd') => ???????; t_xrbindP.
-  subst fn'.
-  case: ifP => [/eqP ? | hne].
-  + move=> [?]; subst fn2' fd'.
-    by exists fd2'; split => //; rewrite /get_fundef /= eqxx.
-  move=> /hrec -/(_ _ h') {hrec h'} [fd2 [h1 h2]]; exists fd2; split => //.
-  by rewrite /get_fundef /= hne.
+  rewrite /expand_prog; t_xrbindP => /= pf2 hpf2 <- hfd1.
+  have [fd2 hex hfd2]:= get_map_cfprog_name_gen hpf2 hfd1.
+  by exists fd2.
 Qed.
 
 Local Notation ev := tt.
@@ -369,7 +360,7 @@ Qed.
 Local Lemma Hassgn : sem_Ind_assgn p1 Pi_r.
 Proof.
   move => s1 s2 x tag ty e v v' hse htr hw ii m ii' i2 s1' hwf heqa /=.
-  t_xrbindP => x'; apply: add_iinfoP => hx e'; apply: add_iinfoP => he _ <-.
+  t_xrbindP => x' hx e' he _ <-.
   have ? := expand_eP hwf heqa he hse.
   have [s2' [hw' heqa']] := expand_lvP hwf heqa hx hw.
   exists s2'; split => //;econstructor; rewrite ?eq_globs; eauto.
@@ -378,8 +369,7 @@ Qed.
 Local Lemma Hopn : sem_Ind_opn p1 Pi_r.
 Proof.
   move => s1 s2 t o xs es; rewrite /sem_sopn; t_xrbindP => vs ves hse ho hws.
-  move=> ii m ii' e2 s1' hwf heqa /=; t_xrbindP => xs'.
-  apply: add_iinfoP => hxs es'; apply: add_iinfoP => hes _ <-.
+  move=> ii m ii' e2 s1' hwf heqa /=; t_xrbindP => xs' hxs es' hes _ <-.
   have := expand_esP hwf heqa hes hse.
   have := expand_lvsP hwf heqa hxs hws.
   rewrite -eq_globs => -[s2' [hws' ?]] hse'; exists s2'; split => //.
@@ -389,7 +379,7 @@ Qed.
 Local Lemma Hif_true : sem_Ind_if_true p1 ev Pc Pi_r.
 Proof.
   move => s1 s2 e c1 c2 hse hs hrec ii m ii' ? s1' hwf  heqa /=.
-  t_xrbindP => e'; apply: add_iinfoP => he c1' hc1 c2' hc2 _ <-.
+  t_xrbindP => e' he c1' hc1 c2' hc2 _ <-.
   have := expand_eP hwf heqa he hse; rewrite -eq_globs => hse'.
   have [s2' [??]] := hrec _ _ _ hwf heqa hc1.
   by exists s2'; split => //; apply Eif_true.
@@ -398,7 +388,7 @@ Qed.
 Local Lemma Hif_false : sem_Ind_if_false p1 ev Pc Pi_r.
 Proof.
   move => s1 s2 e c1 c2 hse hs hrec ii m ii' ? s1' hwf  heqa /=.
-  t_xrbindP => e'; apply: add_iinfoP => he c1' hc1 c2' hc2 _ <-.
+  t_xrbindP => e' he c1' hc1 c2' hc2 _ <-.
   have := expand_eP hwf heqa he hse; rewrite -eq_globs => hse'.
   have [s2' [??]] := hrec _ _ _ hwf heqa hc2.
   by exists s2'; split => //; apply Eif_false.
@@ -407,7 +397,7 @@ Qed.
 Local Lemma Hwhile_true : sem_Ind_while_true p1 ev Pc Pi_r.
 Proof.
   move => s1 s2 s3 s4 a c1 e c2 _ hrec1 hse _ hrec2 _ hrecw ii m ii' ? s1' hwf heqa /=.
-  t_xrbindP => e'; apply: add_iinfoP => he c1' hc1 c2' hc2 hii <-.
+  t_xrbindP => e' he c1' hc1 c2' hc2 hii <-.
   have [sc1 [heqa1 hs1]]:= hrec1 _ _ _ hwf heqa hc1.
   have := expand_eP hwf heqa1 he hse; rewrite -eq_globs => hse'.
   have [sc2 [heqa2 hs2]]:= hrec2 _ _ _ hwf heqa1 hc2.
@@ -419,7 +409,7 @@ Qed.
 Local Lemma Hwhile_false : sem_Ind_while_false p1 ev Pc Pi_r.
 Proof.
   move => s1 s2 a c e c' _ hrec1 hse ii m ii' ? s1' hwf heqa /=.
-  t_xrbindP => e'; apply: add_iinfoP => he c1' hc1 c2' hc2 hii <-.
+  t_xrbindP => e' he c1' hc1 c2' hc2 hii <-.
   have [s2' [heqa1 hs1]]:= hrec1 _ _ _ hwf heqa hc1.
   have := expand_eP hwf heqa1 he hse; rewrite -eq_globs => hse'.
   exists s2'; split => //; apply: Ewhile_false; eauto.
@@ -428,8 +418,7 @@ Qed.
 Local Lemma Hfor : sem_Ind_for p1 ev Pi_r Pfor.
 Proof.
   move => s1 s2 i d lo hi c vlo vhi hslo hshi _ hfor ii m ii' ? s1' hwf heqa /=.
-  t_xrbindP => ?; apply: add_iinfoP => /assertP hin lo'.
-  apply: add_iinfoP => hlo hi'; apply: add_iinfoP => hhi c' hc ? <-.
+  t_xrbindP => _ /assertP hin lo' hlo hi' hhi c' hc ? <-.
   have := expand_eP hwf heqa hlo hslo.
   have := expand_eP hwf heqa hhi hshi; rewrite -eq_globs => hshi' hslo'.
   have [s2' [??]]:= hfor _ _ _ hwf heqa hin hc.
@@ -453,18 +442,13 @@ Qed.
 Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
 Proof.
   move=> s1 m2 s2 ii xs fn args vargs vs Hes Hsc Hfun Hw ii1 m ii2 i2 s1' hwf heqa /=.
-  t_xrbindP => xs'; apply: add_iinfoP => hxs es'; apply: add_iinfoP => hes ? <-.
+  t_xrbindP => xs' hxs es' hes ? <-.
   have := expand_esP hwf heqa hes Hes.
   have heqa': eq_alloc m (with_mem s1 m2) (with_mem s1' m2) by case: heqa.
   have [s2' []]:= expand_lvsP hwf heqa' hxs Hw.
   rewrite -eq_globs => ???; exists s2'; split => //; econstructor; eauto.
   by case: heqa => _ <-.
 Qed.
-
-(* TODO: move this *)
-Lemma add_err_funP (A : Type) (a : A) (e : cexec A) fn  (P : Prop) :
-  (e = ok a → P) → add_err_fun fn e = ok a → P.
-Proof. by case: e => //= e h [heq]; apply h; rewrite heq. Qed.
 
 Lemma wf_init_map ffi m : init_map ffi = ok m -> wf_t m.
 Proof.
@@ -538,13 +522,11 @@ Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
 Proof.
   move=> m1 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hget Hca [?] Hw _ Hc Hres Hcr ?; subst s0 m2.
   have [fd2 [Hget2 /=] {Hget}]:= all_checked Hget.
-  t_xrbindP => m; apply: add_err_funP.
+  rewrite /expand_fd; t_xrbindP=> m.
   case: f Hca Hw Hc Hres Hcr => /=.
-  move=> fiinfo ftyin fparams fbody ftyout fres fextra.
-  set fd := {| f_iinfo := fiinfo |} => Hca Hw Hc Hres Hcr hinit.
-  t_xrbindP => ?; apply: add_err_funP => /assertP hparams ?.
-  apply: add_err_funP => /assertP hres body'.
-  apply: add_finfoP => hbody hfd2; rewrite /Pfun.
+  move=> finfo ftyin fparams fbody ftyout fres fextra.
+  set fd := {| f_info := finfo |} => Hca Hw Hc Hres Hcr hinit.
+  t_xrbindP => _ /assertP hparams _ /assertP hres body' hbody hfd2; rewrite /Pfun.
   have hwf := wf_init_map hinit.
   have heqa : eq_alloc m {| emem := m1; evm := vmap0 |} {| emem := m1; evm := vmap0 |}.
   + split => //; split => //.
