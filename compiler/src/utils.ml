@@ -594,20 +594,6 @@ module Os = struct
     BatEnum.fold (fun xs x -> x :: xs) [] (BatSys.files_of dir)
 end
 
-
-(* -------------------------------------------------------------------- *)
-exception HiError of string
-
-let hierror fmt =
-  let buf  = Buffer.create 127 in
-  let bfmt = Format.formatter_of_buffer buf in
-
-  Format.kfprintf
-    (fun _ ->
-      Format.pp_print_flush bfmt ();
-      raise (HiError (Buffer.contents buf)))
-    bfmt fmt
-
 (* -------------------------------------------------------------------- *)
 type 'a pp = Format.formatter -> 'a -> unit
 
@@ -639,16 +625,138 @@ let pp_paren pp fmt x =
 (* -------------------------------------------------------------------- *)
 let pp_maybe_paren c pp =
   pp_maybe c pp_paren pp
-  
+
 (* -------------------------------------------------------------------- *)
-let pp_string fmt s = 
+let pp_string fmt s =
   Format.fprintf fmt "%s" s
 
 (* -------------------------------------------------------------------- *)
-type model = 
+type model =
   | ConstantTime
   | Safety
   | Normal
+
+(* -------------------------------------------------------------------- *)
+(* Functions used to add colors to errors and warnings.                 *)
+
+(* for locations *)
+let pp_print_bold pp =
+  pp_enclose ~pre:"@{<\027[1m>" ~post:"@}" pp
+
+(* for error kind *)
+let pp_print_bold_red pp =
+  pp_enclose ~pre:"@{<\027[1;31m>" ~post:"@}" pp
+
+(* for warning kind *)
+let pp_print_bold_magenta pp =
+  pp_enclose ~pre:"@{<\027[1;35m>" ~post:"@}" pp
+
+(* Enabling the interpretation of semantic tags for the error channel, so that
+   error and warning messages are printed with colors.
+*)
+let enable_colors () =
+  let mark_open_stag s =
+    match s with
+    | Format.String_tag s -> s
+    | _ -> ""
+  in
+  let mark_close_stag _ = "\027[m" in
+  let stag_functions = Format.{
+    mark_open_stag;
+    mark_close_stag;
+    print_open_stag = (fun _ -> ());
+    print_close_stag = (fun _ -> ());
+  } in
+  Format.pp_set_formatter_stag_functions Format.err_formatter stag_functions;
+  Format.pp_set_mark_tags Format.err_formatter true
+
+(* -------------------------------------------------------------------- *)
+(* An [error_loc] is either unknown, a single location or a pair of a location
+   and a list of locations (this list comes from the inlining pass).
+   We could probably just have an [i_loc], though, since we can simulate
+   the other cases with a dummy location and an empty list.
+*)
+type error_loc = Lnone | Lone of Location.t | Lmore of Location.i_loc
+type hierror = {
+  err_msg      : Format.formatter -> unit; (* a printer of the main error message              *)
+  err_loc      : error_loc;                (* the location                                     *)
+  err_funname  : string option;            (* the name of the function, if any                 *)
+  err_kind     : string;                   (* kind of error (e.g. typing, compilation)         *)
+  err_sub_kind : string option;            (* sub-kind (e.g. the name of the compilation pass) *)
+  err_internal : bool;                     (* whether the error is unexpected                  *)
+}
+exception HiError of hierror
+
+(* We fetch from [i_loc] the locations coming from the inlining pass *)
+let add_iloc e i_loc =
+  let err_loc =
+    match e.err_loc with
+    | Lnone -> Lmore i_loc
+    | Lone loc -> Lmore (loc, snd i_loc)
+    | Lmore _ as err_loc -> err_loc (* we already have a more precise location *)
+  in
+  { e with err_loc }
+
+let pp_hierror fmt e =
+  let pp_loc fmt =
+    match e.err_loc with
+    | Lnone -> ()
+    | Lone l -> Format.fprintf fmt "%a:@ " (pp_print_bold Location.pp_loc) l
+    | Lmore i_loc -> Format.fprintf fmt "%a:@ " (pp_print_bold Location.pp_iloc) i_loc
+  in
+  let pp_kind fmt =
+    let pp fmt () =
+      if e.err_internal then
+        Format.fprintf fmt "internal %s" e.err_kind
+      else
+        Format.fprintf fmt "%s" e.err_kind
+    in
+    pp_print_bold_red pp fmt ()
+  in
+  let pp_funname fmt =
+    match e.err_funname with
+    | Some fn -> Format.fprintf fmt " in function %s" fn
+    | None -> ()
+  in
+  (* this function decides whether we open a new line *)
+  let pp_other_line fmt =
+    if e.err_internal then
+      (* if the error is internal, we go to a new line with an indent *)
+      Format.fprintf fmt "@;<1 2>"
+    else if e.err_funname <> None || e.err_sub_kind <> None then
+      (* if there is at least a funname or a sub-kind, we go to a new line *)
+      Format.fprintf fmt "@ "
+    else
+      (* otherwise, we keep the same line *)
+      Format.fprintf fmt " "
+  in
+  let pp_err fmt =
+    match e.err_sub_kind with
+    | Some s -> Format.fprintf fmt "%s: %t" s e.err_msg
+    | None -> Format.fprintf fmt "%t" e.err_msg
+  in
+  let pp_post fmt =
+    if e.err_internal then
+      Format.fprintf fmt "@ Please report at https://github.com/jasmin-lang/jasmin/issues"
+  in
+  Format.fprintf fmt "@[<v>%t%t%t:%t%t%t@]" pp_loc pp_kind pp_funname pp_other_line pp_err pp_post
+
+(* In general, we want a [loc], that's why it is not optional. If you really
+   don't want to give a [loc], pass [Lnone].
+*)
+let hierror ~loc ?funname ~kind ?sub_kind ?(internal=false) =
+  Format.kdprintf
+    (fun pp ->
+      let err = {
+        err_msg = pp;
+        err_loc = loc;
+        err_funname = funname;
+        err_kind = kind;
+        err_sub_kind = sub_kind;
+        err_internal = internal;
+      } in
+      raise (HiError err))
+
 
 (* -------------------------------------------------------------------- *)
 
@@ -674,8 +782,10 @@ let to_warn w =
   | None -> true
   | Some ws -> w = Always || List.mem w ws 
 
-let warning (w:warning) fmt =
-  (if to_warn w then Format.fprintf 
-   else Format.ifprintf) 
-    Format.err_formatter (format_of_string "warning: " ^^ fmt ^^ format_of_string "@.")
-
+let warning (w:warning) loc =
+  Format.kdprintf (fun pp ->
+    if to_warn w then
+      let pp_warning fmt = pp_print_bold_magenta pp_string fmt "warning" in
+      Format.eprintf "@[<v>%a:@ %t: %t@]@."
+        (pp_print_bold Location.pp_iloc)
+        loc pp_warning pp)

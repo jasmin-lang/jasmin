@@ -1,3 +1,4 @@
+// the compilation of this file fails without option -lea
 
 fn add (reg u64 x) -> reg u64 {
    reg u64 z;

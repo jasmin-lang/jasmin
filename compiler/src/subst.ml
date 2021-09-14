@@ -1,5 +1,13 @@
+open Utils
 open Prog
 module L = Location
+
+(* When there is no location, we report an internal error. *)
+let hierror ?loc fmt =
+  let h = hierror ~kind:"compilation error" ~sub_kind:"param expansion" in
+  match loc with
+  | None -> h ~loc:Lnone ~internal:true fmt
+  | Some loc -> h ~loc:(Lone loc) fmt
 
 let gsubst_ty (flen: 'len1 -> 'len2) ty = 
   match ty with
@@ -125,9 +133,13 @@ let psubst_prog (prog:'info pprog) =
     | MIglobal (v, e) :: items ->
       let g, p = aux items in
       let f = psubst_v !subst in
+      let v' =
+        let v =
+          gsubst_gvar f {gv = L.mk_loc L._dummy v; gs = Expr.Sglob} in
+        assert (not (is_gkvar v)); L.unloc v.gv in
       let e = psubst_ge f e in
-      subst := Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v))) !subst;
-      (v, e) :: g, p
+      subst := Mpv.add v (Pvar (gkglob (L.mk_loc L._dummy v'))) !subst;
+      (v', e) :: g, p
     | MIfun fc :: items ->
         let g, p = aux items in
         let subst_v = psubst_v !subst in
@@ -148,29 +160,31 @@ let psubst_prog (prog:'info pprog) =
 (* ---------------------------------------------------------------- *)
 (* Simplify type                                                    *)
 
-let int_of_op2 o i1 i2 =
+let int_of_op2 ?loc o =
   match o with
-  | Expr.Oadd Op_int -> B.add i1 i2
-  | Expr.Omul Op_int -> B.mul i1 i2
-  | Expr.Osub Op_int -> B.sub i1 i2
-  | Expr.Odiv Cmp_int -> B.div i1 i2
-  | Expr.Omod Cmp_int -> B.erem i1 i2
-  | _     -> Utils.hierror "operator %s not allowed in array size" (Printer.string_of_op2 o)
+  | Expr.Oadd Op_int -> B.add
+  | Expr.Omul Op_int -> B.mul
+  | Expr.Osub Op_int -> B.sub
+  | Expr.Odiv Cmp_int -> B.div
+  | Expr.Omod Cmp_int -> B.erem
+  | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (Printer.string_of_op2 o)
 
-let rec int_of_expr e =
+let rec int_of_expr ?loc e =
   match e with
   | Pconst i -> i
   | Papp2 (o, e1, e2) ->
-      int_of_op2 o (int_of_expr e1) (int_of_expr e2)
+      let op = int_of_op2 ?loc o in
+      op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
   | Pbool _ | Parr_init _ | Pvar _ 
-  | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ -> assert false
+  | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ ->
+      hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e
 
 
-let isubst_len e = B.to_int (int_of_expr e)
+let isubst_len ?loc e = B.to_int (int_of_expr ?loc e)
 
-let isubst_ty = function
+let isubst_ty ?loc = function
   | Bty ty -> Bty ty
-  | Arr(ty, e) -> Arr(ty, isubst_len e)
+  | Arr(ty, e) -> Arr(ty, isubst_len ?loc e)
 
 
 let isubst_prog glob prog =
@@ -180,15 +194,23 @@ let isubst_prog glob prog =
       let k = v0.gs in
       let v = v0.gv in
       let v_ = v.L.pl_desc in
-      try Mpv.find v_ !subst
-      with Not_found ->
-        let ty = isubst_ty v_.v_ty in
-        let v1 = V.mk v_.v_name v_.v_kind ty v_.v_dloc v_.v_annot in
-        let v  = { v with L.pl_desc = v1 } in
-        let v0 = { gv = v; gs = k } in
-        let e = Pvar v0 in
-        subst := Mpv.add v_ e !subst;
-        e in
+      let e =
+        try Mpv.find v_ !subst
+        with Not_found ->
+          let ty = isubst_ty ~loc:v_.v_dloc v_.v_ty in
+          let v1 = V.mk v_.v_name v_.v_kind ty v_.v_dloc v_.v_annot in
+          let v  = { v with L.pl_desc = v1 } in
+          let v0 = { gv = v; gs = k } in
+          let e = Pvar v0 in
+          subst := Mpv.add v_ e !subst;
+          e in
+      match e with
+      | Pvar x -> 
+        let k = x.gs in
+        let x = {x.gv with L.pl_loc = L.loc v} in
+        let x = {gv = x; gs = k} in
+        Pvar x
+      | _      -> e in
     aux in 
 
   let subst = ref Mpv.empty in
@@ -214,15 +236,24 @@ let isubst_prog glob prog =
     let subst_v = isubst_v subst in
     let dov v =
       L.unloc (gsubst_vdest subst_v (L.mk_loc L._dummy v)) in
+    (* Order matters so that the clearest error is triggered first.
+       We use let-in to enforce the right order *)
+    let f_args = List.map dov fc.f_args in
+    let f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret in
     let fc = {
         fc with
         f_tyin = List.map isubst_ty fc.f_tyin;
-        f_args = List.map dov fc.f_args;
+        f_args;
         f_body = gsubst_c isubst_len subst_v fc.f_body;
         f_tyout = List.map isubst_ty fc.f_tyout;
-        f_ret  = List.map (gsubst_vdest subst_v) fc.f_ret
+        f_ret;
       } in
-    fc in
+    fc
+  in
+  let isubst_item fc =
+    try isubst_item fc
+    with HiError e -> raise (HiError { e with err_funname = Some fc.f_name.fn_name })
+  in
 
   let prog = List.map isubst_item prog in
   glob, prog 
@@ -292,8 +323,7 @@ let remove_params (prog : 'info pprog) =
       x, Global.Gword (ws, mk_word ws e)
     | Arr (_ws, n), GEarray es when List.length es <> n ->
        let m = List.length es in
-       Utils.hierror "%s: array size mismatch for global variable %a: %d %s given (%d expected)"
-         (Location.tostring x.v_dloc)
+       hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%d expected)"
          (Printer.pp_var ~debug:false) x
          (List.length es)
          (if m > 1 then "values" else "value")

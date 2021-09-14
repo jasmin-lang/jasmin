@@ -5,6 +5,8 @@ open Prog
 module Live = Liveness
 module G = IntervalGraphColoring
 
+let hierror = hierror ~kind:"compilation error" ~sub_kind:"variable allocation"
+
 type liverange = G.graph Mint.t
 
 (* --------------------------------------------------- *)
@@ -109,10 +111,10 @@ and live_ranges_stmt d_acc s =
 in live_ranges_stmt d c, stack_pointers
 
 (* --------------------------------------------------- *)
-let check_class ptr_classes args x s =
+let check_class f_name f_loc ptr_classes args x s =
   let s = Sv.add x s in
   if not (Sv.disjoint args s) && not (Sv.mem x ptr_classes) then
-    hierror "cannot put a reg ptr argument into the local stack"
+    hierror ~loc:(Lone f_loc) ~funname:f_name "cannot put a reg ptr argument into the local stack"
 
 (* --------------------------------------------------- *)
 
@@ -133,8 +135,7 @@ let classes_alignment (onfun : funname -> param_info option list) gtbl alias c =
         let c = Alias.normalize_var alias x' in
         set c.in_var c.scope ws;
         if (fst c.range + i) land (size_of_ws ws - 1) <> 0 then
-            hierror "Varalloc.classes_alignment: at line %a: bad range alignment for %a[%d]/%s in %a"
-              L.pp_loc (L.loc x.gv)
+            hierror ~loc:(Lone (L.loc x.gv)) "bad range alignment for %a[%d]/%s in %a"
               (Printer.pp_var ~debug:true) x' i (string_of_ws ws)
               Alias.pp_slice c
       end
@@ -163,13 +164,15 @@ let classes_alignment (onfun : funname -> param_info option list) gtbl alias c =
     | Some pi, Psub(aa,ws,_, x, e) ->
       let i = 
         match get_ofs aa ws e with
-        | None -> hierror "not able to find the subindex" 
+        | None ->
+          (* this error is probably always caught before by the similar code in alias.ml *)
+          hierror ~loc:(Lone (L.loc x.gv)) "Cannot compile sub-array %a that has a non-constant start index" (Printer.pp_var ~debug:true) (L.unloc x.gv)
         | Some i -> i in
       add_ggvar x pi.pi_align i
     | _, _ -> assert false in
 
-  let rec add_i i = 
-    match i.i_desc with
+  let rec add_ir i_desc =
+    match i_desc with
     | Cassgn(x,_,_,e) -> add_lv x; add_e e
     | Copn(xs,_,_,es) -> add_lvs xs; add_es es
     | Cif(e,c1,c2) | Cwhile (_,c1,e,c2) -> 
@@ -179,6 +182,10 @@ let classes_alignment (onfun : funname -> param_info option list) gtbl alias c =
       add_lvs xs;
       calls := Sf.add fn !calls; 
       List.iter2 add_p (onfun fn) es 
+
+  and add_i { i_loc; i_desc } =
+    try add_ir i_desc
+    with HiError e -> raise (HiError (add_iloc e i_loc))
 
   and add_c c = List.iter add_i c in 
 
@@ -336,7 +343,7 @@ let alloc_stack_fd get_info gtbl fd =
     Mv.fold (fun x s acc -> 
         if Sv.for_all (fun y -> is_ptr y.v_kind) (Sv.add x s) then Sv.add x acc else acc) 
       classes Sv.empty in
-  Mv.iter (check_class ptr_classes ptr_args) classes;
+  Mv.iter (check_class fd.f_name.fn_name fd.f_loc ptr_classes ptr_args) classes;
 
   let fd = Live.live_fd false fd in
   let (_, ranges), stack_pointers =
@@ -347,7 +354,10 @@ let alloc_stack_fd get_info gtbl fd =
   let slots, lalloc = init_slots stack_pointers alias coloring (vars_fc fd) in
 
   let getfun fn = (get_info fn).sao_params in
-  let ctbl, sao_calls = classes_alignment getfun gtbl alias fd.f_body in
+  let ctbl, sao_calls =
+    try classes_alignment getfun gtbl alias fd.f_body
+    with HiError e -> raise (HiError { e with err_funname = Some fd.f_name.fn_name })
+  in
   let sao_params, atbl = all_alignment ctbl alias fd.f_args lalloc in
   let sao_return = 
     match fd.f_cc with

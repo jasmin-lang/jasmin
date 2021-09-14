@@ -27,13 +27,43 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import xseq.
-Require Import compiler_util ZArith expr.
+Require Import expr compiler_util ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
+
+Module Import E.
+
+  Definition pass : string := "remove globals".
+
+  Definition rm_glob_error (ii:instr_info) (x:var) := {|
+    pel_msg := pp_box [:: pp_s "Cannot remove global variable"; pp_var x];
+    pel_fn := None;
+    pel_fi := None;
+    pel_ii := Some ii;
+    pel_vi := None;
+    pel_pass := Some pass;
+    pel_internal := false
+  |}.
+
+  Definition rm_glob_error_dup (ii:instr_info) (x:var) := {|
+    pel_msg := pp_box [:: pp_s "Duplicate definition of global variable"; pp_var x];
+    pel_fn := None;
+    pel_fi := None;
+    pel_ii := Some ii;
+    pel_vi := None;
+    pel_pass := Some pass;
+    pel_internal := false
+  |}.
+
+  Definition loop_iterator := loop_iterator pass.
+
+  Definition rm_glob_ierror := pp_internal_error_s pass.
+
+End E.
 
 Section REMOVE.
 
@@ -61,7 +91,7 @@ Section REMOVE.
       if (sword ws == vtype gv.1) && (check_data gv.2 w) then Some gv.1
       else None in 
     match myfind test gd with 
-    | None => cferror (Ferr_remove_glob ii xi)
+    | None => Error (rm_glob_error ii xi)
     | Some g => ok g
     end. 
 
@@ -71,7 +101,7 @@ Section REMOVE.
     if has test gd then ok gd 
     else
       let gx := {| vtype := vtype x; vname := fresh_id gd x |} in
-      if has (fun g' => g'.1 == gx) gd then cferror (Ferr_remove_glob_dup ii gx)
+      if has (fun g' => g'.1 == gx) gd then Error (rm_glob_error_dup ii gx)
       else ok ((gx, Gword w) :: gd).
 
   Fixpoint extend_glob_i  (i:instr) (gd:glob_decls) :=
@@ -84,7 +114,7 @@ Section REMOVE.
         if is_glob x then
           match e with
           | Papp1 (Oword_of_int ws) (Pconst z) => add_glob ii x gd (wrepr ws z)
-          | _                   => cferror (Ferr_remove_glob ii xi)
+          | _                   => Error (rm_glob_error ii xi)
           end
         else ok gd
       | _ => ok gd
@@ -113,7 +143,7 @@ Section REMOVE.
         if is_glob x then
           match Mvar.get env x with
           | Some g => ok (mk_gvar (VarI g vi.(v_info)))
-          | None   => cferror (Ferr_remove_glob ii vi)
+          | None   => Error (rm_glob_error ii vi)
           end 
         else ok xi
       else ok xi.
@@ -138,7 +168,7 @@ Section REMOVE.
 
       | Pload ws xi e =>
         let x := xi.(v_var) in
-        if is_glob x then cferror (Ferr_remove_glob ii xi)
+        if is_glob x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
           ok (Pload ws xi e)
@@ -164,32 +194,32 @@ Section REMOVE.
       | Lnone _ _ => ok lv
       | Lvar xi =>
         let x := xi.(v_var) in
-        if is_glob x then cferror (Ferr_remove_glob ii xi)
+        if is_glob x then Error (rm_glob_error ii xi)
         else ok lv
       | Lmem ws xi e =>
         let x := xi.(v_var) in
-        if is_glob x then cferror (Ferr_remove_glob ii xi)
+        if is_glob x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
           ok (Lmem ws xi e)
       | Laset aa ws xi e =>
         let x := xi.(v_var) in
-        if is_glob x then cferror (Ferr_remove_glob ii xi)
+        if is_glob x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
           ok (Laset aa ws xi e)
       | Lasub aa ws len xi e =>
         let x := xi.(v_var) in
-        if is_glob x then cferror (Ferr_remove_glob ii xi)
+        if is_glob x then Error (rm_glob_error ii xi)
         else
           Let e := remove_glob_e ii env e in
           ok (Lasub aa ws len xi e)
       end.
 
     Section REMOVE_C.
-      Variable (remove_glob_i : venv -> instr -> cfexec (venv * cmd)).
+      Variable (remove_glob_i : venv -> instr -> cexec (venv * cmd)).
 
-      Fixpoint remove_glob (e:venv) (c:cmd) : cfexec (venv * cmd) :=
+      Fixpoint remove_glob (e:venv) (c:cmd) : cexec (venv * cmd) :=
         match c with
         | [::] => ok (e, [::])
         | i::c =>
@@ -214,15 +244,13 @@ Section REMOVE.
 
     Section INSTR.
 
-    Variable fn:funname.
-
     Section Loop2.
 
-      Variable check_c : venv -> cfexec (venv * cmd).
+      Variable check_c : venv -> cexec (venv * cmd).
 
       Fixpoint loop (n:nat) (m:venv) :=
         match n with
-        | O => cferror (Ferr_fun fn (Cerr_Loop "remove_glob"))
+        | O => Error loop_iterator
         | S n =>
           Let m' := check_c m in
           if Mincl m m'.1 then ok (m, m'.2)
@@ -235,11 +263,11 @@ Section REMOVE.
       Variant loop2_r :=
         | Loop2_r : pexpr -> cmd -> cmd -> venv ->loop2_r.
 
-      Variable check_c2 : venv -> cfexec check2_r.
+      Variable check_c2 : venv -> cexec check2_r.
 
       Fixpoint loop2 (n:nat) (m:venv) :=
         match n with
-        | O => cferror (Ferr_fun fn (Cerr_Loop "remove_glob"))
+        | O => Error loop_iterator
         | S n =>
           Let cr := check_c2 m in
           let: (Check2_r e (m1,c1) (m2,c2)) := cr in
@@ -248,7 +276,7 @@ Section REMOVE.
 
     End Loop2.
 
-    Fixpoint remove_glob_i (env:venv) (i:instr) : cfexec (venv * cmd) :=
+    Fixpoint remove_glob_i (env:venv) (i:instr) : cexec (venv * cmd) :=
       match i with
       | MkI ii i =>
         match i with
@@ -263,8 +291,8 @@ Section REMOVE.
                 if (ty == sword ws) && (vtype x == sword ws) then
                   Let g := find_glob ii xi gd (wrepr ws z) in
                   ok (Mvar.set env x g, [::])
-                else cferror (Ferr_remove_glob ii xi)
-              | _ => cferror (Ferr_remove_glob ii xi)
+                else Error (rm_glob_error ii xi)
+              | _ => Error (rm_glob_error ii xi)
               end
             else
               Let lv := remove_glob_lv ii env lv in
@@ -298,7 +326,7 @@ Section REMOVE.
           let: (Loop2_r e c1 c2 env) := lr in
           ok (env, [::MkI ii (Cwhile a c1 e c2)])
         | Cfor xi (d,e1,e2) c =>
-          if is_glob xi.(v_var) then cferror (Ferr_remove_glob ii xi)
+          if is_glob xi.(v_var) then Error (rm_glob_error ii xi)
           else
             Let e1 := remove_glob_e ii env e1 in
             Let e2 := remove_glob_e ii env e2 in
@@ -315,30 +343,30 @@ Section REMOVE.
 
     End INSTR.
 
-    Definition remove_glob_fundef (f:funname*ufundef) :=
-      let (fn,f) := f in
+    Definition remove_glob_fundef (f:ufundef) :=
       let env := Mvar.empty _ in
       let check_var xi :=
-        if is_glob xi.(v_var) then cferror (Ferr_remove_glob xH xi) else ok tt in
+        if is_glob xi.(v_var) then Error (rm_glob_error xH xi) else ok tt in
       Let _ := mapM check_var f.(f_params) in
       Let _ := mapM check_var f.(f_res) in
-      Let envc := remove_glob (remove_glob_i fn) env f.(f_body) in
+      Let envc := remove_glob remove_glob_i env f.(f_body) in
       ok
-        (fn, {| f_iinfo  := f.(f_iinfo);
-                f_tyin   := f.(f_tyin);
-                f_params := f.(f_params);
-                f_body   := envc.2;
-                f_tyout  := f.(f_tyout);
-                f_res    := f.(f_res); 
-                f_extra  := f.(f_extra);
-             |}).
+        {| f_info   := f.(f_info);
+           f_tyin   := f.(f_tyin);
+           f_params := f.(f_params);
+           f_body   := envc.2;
+           f_tyout  := f.(f_tyout);
+           f_res    := f.(f_res);
+           f_extra  := f.(f_extra);
+        |}.
   End GD.
 
   Definition remove_glob_prog (p:uprog) :=
     Let gd := extend_glob_prog p in
     if uniq (map fst gd) then
-      Let fs := mapM (remove_glob_fundef gd) (p_funcs p) in
+      Let fs := map_cfprog (remove_glob_fundef gd) (p_funcs p) in
       ok {| p_extra := p_extra p; p_globs := gd; p_funcs := fs |}
-    else cferror Ferr_uniqglob.
+    else Error (rm_glob_ierror "Two global declarations have the same name").
 
 End REMOVE.
+

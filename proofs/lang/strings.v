@@ -210,6 +210,7 @@ Module CmpString.
 End CmpString.
 
 Module Ms := Mmake CmpString.
+Declare Scope mstring_scope.
 Delimit Scope mstring_scope with ms.
 Notation "m .[ x ]" := (@Ms.get _ m x) : mstring_scope.
 Notation "m .[ x  <- v ]" := (@Ms.set _ m x v) : mstring_scope.

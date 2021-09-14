@@ -388,12 +388,12 @@ let get_finfo tbl n =
 
 let cufdef_of_fdef tbl fd =
   let fn = cfun_of_fun tbl fd.f_name in
-  let f_iinfo = set_finfo tbl fd.f_loc fd.f_annot fd.f_cc fd.f_outannot in
+  let f_info = set_finfo tbl fd.f_loc fd.f_annot fd.f_cc fd.f_outannot in
   let f_params =
     List.map (fun x -> cvari_of_vari tbl (L.mk_loc L._dummy x)) fd.f_args in
   let f_body = cstmt_of_stmt tbl fd.f_body [] in
   let f_res = List.map (cvari_of_vari tbl) fd.f_ret in
-  fn, { C.f_iinfo  = f_iinfo;
+  fn, { C.f_info   = f_info;
         C.f_tyin   = List.map cty_of_ty fd.f_tyin;
         C.f_params = f_params;
         C.f_body   = f_body;
@@ -404,7 +404,7 @@ let cufdef_of_fdef tbl fd =
 
 
 let fdef_of_cufdef tbl (fn, fd) =
-  let f_loc, f_annot, f_cc, f_outannot = get_finfo tbl fd.C.f_iinfo in
+  let f_loc, f_annot, f_cc, f_outannot = get_finfo tbl fd.C.f_info in
   { f_loc;
     f_annot;
     f_cc;
@@ -460,3 +460,60 @@ let to_array ty p t =
     | Utils0.Ok w -> bi_of_word ws w
     | _    -> assert false in
   ws, Array.init n get
+
+(* ---------------------------------------------------------------------------- *)
+
+(* This avoids printing dummy locations. Hope that it will not hide errors. *)
+let patch_vi_loc tbl (e : Compiler_util.pp_error_loc) =
+  match e.Compiler_util.pel_vi with
+  | None -> e
+  | Some vi ->
+    let l = get_loc tbl vi in
+    if L.isdummy l then { e with Compiler_util.pel_vi = None }
+    else e
+
+(* do we want more complex logic, e.g. if both vi and ii are <> None,
+   we could check whether they point to the same line. If not, we could
+   decide to return both.
+*)
+let iloc_of_loc tbl e =
+  let open Utils in
+  let e = patch_vi_loc tbl e in
+  match e.pel_vi with
+  | Some vi ->
+    let loc = get_loc tbl vi in
+    begin match e.pel_ii with
+    | None -> Lone loc
+    | Some ii ->
+      (* if there are some locations coming from inlining, we print them *)
+      let ((_, locs), _, _) = get_iinfo tbl ii in
+      Lmore (loc, locs)
+    end
+  | None ->
+    match e.pel_ii with
+    | Some ii ->
+      let (i_loc, _, _) = get_iinfo tbl ii in
+      Lmore i_loc
+    | None ->
+      match e.pel_fi with
+      | Some fi ->
+        let (f_loc, _, _, _) = get_finfo tbl fi in
+        Lone f_loc
+      | None -> Lnone
+
+(* Converts a Coq error into an OCaml one.
+   We take as an argument the printer [pp_err] used to print the error message.
+*)
+let error_of_cerror pp_err tbl e =
+  let open Utils in
+  let msg = Format.dprintf "%a" pp_err e.Compiler_util.pel_msg in
+  let iloc = iloc_of_loc tbl e in
+  let funname = omap (fun fn -> (fun_of_cfun tbl fn).fn_name) e.pel_fn in
+  let pass = omap string_of_string0 e.pel_pass in
+  { err_msg = msg;
+    err_loc = iloc;
+    err_funname = funname;
+    err_kind = "compilation error";
+    err_sub_kind = pass;
+    err_internal = e.pel_internal;
+  }

@@ -25,8 +25,8 @@
 
 (* * Pretty-print Jasmin program (concrete syntax) as LATEX fragments *)
 
+open Utils
 open Syntax
-open Printer
 
 module F = Format
 

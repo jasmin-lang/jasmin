@@ -1,0 +1,3 @@
+param int N = 2;
+
+inline fn f (reg u64[N&N] a) { }

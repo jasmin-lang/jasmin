@@ -2,6 +2,11 @@ open Utils
 open Printer
 open Prog
 
+let hierror = hierror ~kind:"compilation error" ~sub_kind:"stack allocation"
+(* Most of the errors have no location initially, but they are added later
+   by catching the exception and reemiting it with more information. *)
+let hierror_no_loc ?funname = hierror ~loc:Lnone ?funname
+
 (* Interval within a variable; [lo; hi[ *)
 type slice = { in_var : var ; scope : E.v_scope ; range : int * int }
 
@@ -36,7 +41,7 @@ let range_in_slice (lo, hi) s =
   let (u, v) = s.range in
   if u + hi <= v
   then { s with range = u + lo, u + hi }
-  else hierror "range [%a[ overflows slice %a" pp_range (lo, hi) pp_slice s
+  else hierror_no_loc "range [%a[ overflows slice %a" pp_range (lo, hi) pp_slice s
 
 let range_of_var x =
   0, size_of x.v_ty
@@ -85,8 +90,8 @@ let incl a1 a2 =
 
 (* Partial order on variables, by scope and size *)
 let compare_gvar params x gx y gy =
-  let check_size s1 s2 = 
-    if not (s1 <= s2) then hierror "merge size" in
+  let check_size x1 s1 x2 s2 =
+    if not (s1 <= s2) then hierror_no_loc "cannot merge variables %a (of size %i) and %a (of size %i): %a is too large" pp_var x1 s1 pp_var x2 s2 pp_var x1 in
       
   if V.equal x y
   then (assert (gx = gy); 0)
@@ -95,21 +100,21 @@ let compare_gvar params x gx y gy =
     let sy = size_of y.v_ty in
     match gx, gy with
     | E.Sglob, E.Sglob -> 
-      hierror "merge global and global";
+      hierror_no_loc "cannot merge two globals (%a and %a)" pp_var x pp_var y
     | E.Sglob, E.Slocal -> 
-      check_size sy sx; 
-      if (Sv.mem y params) then hierror "merge global and param";
+      check_size y sy x sx;
+      if (Sv.mem y params) then hierror_no_loc "cannot merge a global and a param (%a and %a)" pp_var x pp_var y;
       1
     | E.Slocal, E.Sglob -> 
-      check_size sx sy; 
-      if (Sv.mem y params) then hierror "merge global and param";
+      check_size x sx y sy; 
+      if (Sv.mem x params) then hierror_no_loc "cannot merge a param and a global (%a and %a)" pp_var x pp_var y;
       -1
     | E.Slocal, E.Slocal ->
       match Sv.mem x params, Sv.mem y params with
       | true, true -> 
-        hierror "merge param and param";
-      | true, false -> check_size sy sx; 1
-      | false, true -> check_size sx sy; -1
+        hierror_no_loc "cannot merge two params (%a and %a)" pp_var x pp_var y;
+      | true, false -> check_size y sy x sx; 1
+      | false, true -> check_size x sx y sy; -1
       | false, false ->
         let c = Stdlib.Int.compare sx sy in
         if c = 0 then V.compare x y
@@ -123,7 +128,7 @@ let merge_slices params a s1 s2 =
   let c = compare_gvar params s1.in_var s1.scope s2.in_var s2.scope in
   if c = 0 then
     if s1 = s2 then a
-    else hierror "Cannot merge distinct slices of the same array: %a and %a@." pp_slice s1 pp_slice s2
+    else hierror_no_loc "cannot merge distinct slices of the same array: %a and %a" pp_slice s1 pp_slice s2
   else
     let s1, s2 = if c < 0 then s1, s2 else s2, s1 in
     let x = s1.in_var in
@@ -138,14 +143,14 @@ let merge params a1 a2 =
       merge_slices params a s1 s2
     ) a1 a2
 
-let range_of_asub aa ws len i =
+let range_of_asub aa ws len { gv } i =
   match get_ofs aa ws i with
-  | None -> assert false
+  | None -> hierror ~loc:(Lone (L.loc gv)) "cannot compile sub-array %a that has a non-constant start index" pp_var (L.unloc gv)
   | Some start -> start, start + arr_size ws len
 
 let normalize_asub a aa ws len x i =
   let s = normalize_gvar a x in
-  range_in_slice (range_of_asub aa ws len i) s
+  range_in_slice (range_of_asub aa ws len x i) s
 
 let slice_of_pexpr a =
   function
@@ -194,13 +199,14 @@ let rec analyze_instr_r params cc a =
      in loop (analyze_stmt params cc a s1 |> normalize_map)
 and analyze_instr params cc a { i_loc ; i_desc } =
   try analyze_instr_r params cc a i_desc
-  with HiError e -> hierror "At %a: %s" pp_iloc i_loc e
+  with HiError e -> raise (HiError (add_iloc e i_loc))
 and analyze_stmt params cc a s =
   List.fold_left (analyze_instr params cc) a s
 
 let analyze_fd cc fd =
   let params = Sv.of_list fd.f_args in
-  analyze_stmt params cc Mv.empty fd.f_body |> normalize_map
+  try analyze_stmt params cc Mv.empty fd.f_body |> normalize_map
+  with (HiError e) -> raise (HiError { e with err_funname = Some fd.f_name.fn_name })
 
 let analyze_fd_ignore cc fd =
   let a = analyze_fd cc fd in

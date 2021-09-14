@@ -129,13 +129,13 @@ let pp_tyerror fmt (code : tyerror) =
       F.fprintf fmt
         "no operator %s for these types %a"
         (S.string_of_peop2 o)
-        (Printer.pp_list " * " Printer.pp_ptype) ts
+        (pp_list " * " Printer.pp_ptype) ts
 
   | NoOperator (`Op1 o, ts) ->
       F.fprintf fmt
         "no operator %s for these type %a"
         (S.string_of_peop1 o)
-        (Printer.pp_list " * " Printer.pp_ptype) ts
+        (pp_list " * " Printer.pp_ptype) ts
 
   | NoReturnStatement (name, expected) ->
      F.fprintf fmt "function “%s” has no return statement (but its signature claims that %d values should be returned)" name.P.fn_name expected
@@ -565,8 +565,7 @@ let check_ty (ety : typattern) (loc, ty) =
 
 (* -------------------------------------------------------------------- *)
 let warn_arr loc from to_ = 
-  warning Always "At %a, can not ensure that the type %a is compatible with %a"
-    L.pp_loc loc 
+  warning Always (loc,[]) "cannot ensure that the type %a is compatible with %a"
     Printer.pp_ptype from Printer.pp_ptype to_
 
 let check_ty_eq ~loc ~(from : P.pty) ~(to_ : P.pty) =
@@ -1177,29 +1176,29 @@ let prim_sig (type a) p : a P.gty list * a P.gty list * X86_decl.arg_desc list =
   o.E.i_out
 
 type prim_constructor =
-  | PrimP of W.wsize * (W.wsize -> Expr.sopn)
-  | PrimM of Expr.sopn
-  | PrimV of (W.signedness -> W.velem -> W.wsize -> Expr.sopn)
-  | PrimX of (W.wsize -> W.wsize -> Expr.sopn)
-  | PrimVV of (W.velem -> W.wsize -> W.velem -> W.wsize -> Expr.sopn)
+  | PrimP of W.wsize * (W.wsize option -> W.wsize -> Expr.sopn)
+  | PrimM of (W.wsize option -> Expr.sopn)
+  | PrimV of (W.wsize option -> W.signedness -> W.velem -> W.wsize -> Expr.sopn)
+  | PrimX of (W.wsize option -> W.wsize -> W.wsize -> Expr.sopn)
+  | PrimVV of (W.wsize option -> W.velem -> W.wsize -> W.velem -> W.wsize -> Expr.sopn)
 
 let prim_string =
   let open Expr in
-  [ "mulu", PrimP (W.U64, fun sz -> Omulu sz);
-    "adc", PrimP (W.U64, fun sz -> Oaddcarry sz);
-    "sbb", PrimP (W.U64, fun sz -> Osubcarry sz);
-    "set0", PrimP (W.U64, fun sz -> Oset0 sz);
-    "concat_2u128", PrimM (Oconcat128) ] @
+  [ "mulu", PrimP (W.U64, fun _ws sz -> Omulu sz);
+    "adc", PrimP (W.U64, fun _ws sz -> Oaddcarry sz);
+    "sbb", PrimP (W.U64, fun _ws sz -> Osubcarry sz);
+    "set0", PrimP (W.U64, fun _ws sz -> Oset0 sz);
+    "concat_2u128", PrimM (fun _ws -> Oconcat128) ] @
   List.map (fun (s, prc) ->
       let s = Conv.string_of_string0 s in
       let prc = 
         match prc with
-        | X86_instr_decl.PrimP(x1,x2) -> PrimP(x1, fun sz -> Ox86 (x2 sz))
-        | X86_instr_decl.PrimM(x)     -> PrimM(Ox86 x)
-        | X86_instr_decl.PrimV(x)     -> PrimV(fun _ sz sz' -> Ox86 (x sz sz'))
-        | X86_instr_decl.PrimSV(x)    -> PrimV(fun s sz sz' -> Ox86 (x s sz sz'))
-        | X86_instr_decl.PrimX(x)     -> PrimX(fun sz sz' -> Ox86 (x sz sz'))
-        | X86_instr_decl.PrimVV(x)    -> PrimVV(fun ve sz ve' sz' -> Ox86 (x ve sz ve' sz')) in
+        | X86_instr_decl.PrimP(x1,x2) -> PrimP(x1, fun ws sz -> Ox86' (ws, x2 sz))
+        | X86_instr_decl.PrimM(x)     -> PrimM(fun ws -> Ox86' (ws, x))
+        | X86_instr_decl.PrimV(x)     -> PrimV(fun ws _ sz sz' -> Ox86' (ws, x sz sz'))
+        | X86_instr_decl.PrimSV(x)    -> PrimV(fun ws s sz sz' -> Ox86' (ws, x s sz sz'))
+        | X86_instr_decl.PrimX(x)     -> PrimX(fun ws sz sz' -> Ox86' (ws, x sz sz'))
+        | X86_instr_decl.PrimVV(x)    -> PrimVV(fun ws ve sz ve' sz' -> Ox86' (ws, x ve sz ve' sz')) in
       (s, prc)) X86_instr_decl.prim_string
             
 type size_annotation =
@@ -1277,20 +1276,20 @@ let extract_size str : string * size_annotation =
     | SA -> str, SA
     | sz -> String.concat "_" (List.rev s), sz
 
-let tt_prim id =
+let tt_prim ws id =
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
   match List.assoc name prim_string with
   | PrimP (d, pr) ->
-    pr (match sz with 
+    pr ws (match sz with
         | SAw sz -> sz 
         | SA -> d 
         | SAv _ | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
         | SAx _ -> rs_tyerror ~loc (PrimNotX s))
-  | PrimM pr -> if sz = SA then pr else rs_tyerror ~loc (PrimNoSize s)
-  | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
-  | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
-  | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
+  | PrimM pr -> if sz = SA then pr ws else rs_tyerror ~loc (PrimNoSize s)
+  | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr ws s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
+  | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr ws sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
+  | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ws ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
   | exception Not_found -> rs_tyerror ~loc (UnknownPrim s)
 
 let prim_of_op exn loc o =
@@ -1392,7 +1391,7 @@ let tt_lvalues env (pimp, pls) implicit tys =
      let nargs = List.length pls in
      if nargs < n then
        let nextra = n - nargs in
-       warning IntroduceNone "at %a, introduce %d _ lvalues" P.L.pp_sloc loc nextra;
+       warning IntroduceNone (loc, []) "introduce %d _ lvalues" nextra;
        List.make nextra ignore_ @ pls
      else pls in
 
@@ -1530,7 +1529,18 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       env, Some(mk_call (L.loc pi) is_inline lvs f es)
 
     | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
-      let p = tt_prim f in
+      let p = tt_prim None f in
+      let tlvs, tes, arguments = prim_sig p in
+      let lvs = tt_lvalues env ls (Some arguments) tlvs in
+      let es  = tt_exprs_cast env args tes in
+      env, Some(P.Copn(lvs, AT_none, p, es))
+
+    | S.PIAssign (ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None)
+      ->
+      let ws, s = ct in
+      let ws = tt_ws ws in
+      assert (s = `Unsigned); (* FIXME *)
+      let p = tt_prim (Some ws) f in
       let tlvs, tes, arguments = prim_sig p in
       let lvs = tt_lvalues env ls (Some arguments) tlvs in
       let es  = tt_exprs_cast env args tes in
@@ -1649,8 +1659,8 @@ let tt_call_conv loc params returns cc =
             Printer.pp_kind (L.unloc x).P.v_kind s) in
     List.iter (check "parameter") params;
     List.iter (check "result") returns;
-    if 1 < List.length returns then 
-      rs_tyerror ~loc (string_error "export function should return at most one argument");
+    if 2 < List.length returns then
+      rs_tyerror ~loc (string_error "export function should return at most two arguments");
     P.Export 
 
   | None         -> 
@@ -1671,8 +1681,8 @@ let tt_call_conv loc params returns cc =
         | P.Reg Direct -> None
         | P.Reg (Pointer writable) -> 
           if writable = Constant then
-            warning Always "At %a, not need to return a [reg const ptr] %a"
-              L.pp_loc loc Printer.pp_pvar x;
+            warning Always (loc,[]) "no need to return a [reg const ptr] %a"
+              Printer.pp_pvar x;
           let i = List.index_of x args in
           if i = None then 
             rs_tyerror ~loc (string_error "%a should be one of the paramaters"

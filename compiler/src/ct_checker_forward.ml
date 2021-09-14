@@ -504,7 +504,7 @@ let ty_prog ~infer (prog:'info prog) fl =
     else 
       let get fn = 
         try (List.find (fun f -> f.f_name.fn_name = fn) prog).f_name 
-        with Not_found -> raise (hierror "constant type checker: unknown function %s" fn) in
+        with Not_found -> hierror ~loc:Lnone ~kind:"constant type checker" "unknown function %s" fn in
       List.map get fl in
   List.iter (fun fn -> ignore (get_fun fenv fn)) fl
 

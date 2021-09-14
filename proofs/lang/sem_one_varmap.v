@@ -1,11 +1,10 @@
 (*
 *)
-Require Import psem.
+Require Import psem x86_variables.
 Import Utf8.
 Import all_ssreflect.
 Import var.
 Import low_memory.
-Import x86_variables.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -26,7 +25,7 @@ The semantics also ensures some properties:
 
  - No for loop
  - Calls to “rastack” functions are annotated with free variables
- - The RSP local variable always hold the pointer to the top of the stack
+ - The sp_rsp local variable always hold the pointer to the top of the stack
  - The sp_rip local variable is assumed to hold the pointer to the static global data
  - The RAX local variable is free at the beginning of export functions
 
@@ -91,7 +90,7 @@ Proof.
 Qed.
 
 Let vgd : var := vid p.(p_extra).(sp_rip).
-Let vrsp : var := var_of_register RSP.
+Let vrsp : var := vid p.(p_extra).(sp_rsp).
 
 Definition magic_variables : Sv.t :=
   Sv.add vgd (Sv.singleton vrsp).
@@ -169,10 +168,10 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     match f.(f_extra).(sf_return_address) with
     | RAstack _ => extra_free_registers ii != None
     | RAreg ra => (ra != vgd) && (ra != vrsp) && (~~ Sv.mem ra k)
-    | RAnone => (var_of_register RAX != vgd)
+    | RAnone => ~~ Sv.mem (var_of_register RAX) magic_variables
     end →
     match f.(f_extra).(sf_save_stack) with
-    | SavedStackReg r => (r != vid p.(p_extra).(sp_rip)) && (r != var_of_register RSP) && (~~ Sv.mem r k)
+    | SavedStackReg r => (r != vgd) && (r != vrsp) && (~~ Sv.mem r k)
     | _ => true
     end →
     (f.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s1.(emem)) f.(f_extra).(sf_align) →
@@ -256,10 +255,10 @@ Lemma sem_callE ii k s fn s' :
     (λ f _ _ k', match f.(f_extra).(sf_return_address) with
               | RAstack _ => extra_free_registers ii != None
               | RAreg ra => (ra != vgd) && (ra != vrsp) && (~~ Sv.mem ra k')
-              | RAnone => (var_of_register RAX != vgd)
+              | RAnone => ~~ Sv.mem (var_of_register RAX) magic_variables
               end : bool)
     (λ f _ _ k', match f.(f_extra).(sf_save_stack) with
-                | SavedStackReg r => (r != vid p.(p_extra).(sp_rip)) && (r != var_of_register RSP) && (~~ Sv.mem r k')
+                | SavedStackReg r => (r != vgd) && (r != vrsp) && (~~ Sv.mem r k')
                 | _ => true
                 end : bool)
     (λ f _ _ _, (f.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s.(emem)) f.(f_extra).(sf_align))
@@ -367,10 +366,10 @@ Section SEM_IND.
       match fd.(f_extra).(sf_return_address) with
       | RAstack _ => extra_free_registers ii != None
       | RAreg ra => (ra != vgd) && (ra != vrsp) && (~~ Sv.mem ra k)
-      | RAnone => (var_of_register RAX != vgd)
+      | RAnone => ~~ Sv.mem (var_of_register RAX) magic_variables
       end →
       match fd.(f_extra).(sf_save_stack) with
-      | SavedStackReg r => (r != vid p.(p_extra).(sp_rip)) && (r != var_of_register RSP) && (~~ Sv.mem r k)
+      | SavedStackReg r => (r != vgd) && (r != vrsp) && (~~ Sv.mem r k)
       | _ => true
       end →
       (fd.(f_extra).(sf_return_address) == RAnone) || is_align (top_stack s1.(emem)) fd.(f_extra).(sf_align) →
@@ -429,4 +428,4 @@ End SEM_IND.
 
 End SEM.
 
-Arguments set_RSP _ _%vmap_scope.
+Arguments set_RSP _ _ _%vmap_scope.

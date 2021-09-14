@@ -373,7 +373,7 @@ Lemma between_byte pstk sz b i sz' :
   no_overflow b sz' →
   zbetween pstk sz b sz' →
   0 <= i ∧ i < sz' →
-  between pstk sz (b + wrepr U64 i) U8.
+  between pstk sz (b + wrepr Uptr i) U8.
 Proof.
   rewrite /zbetween !zify; change (wsize_size U8) with 1 => novf [] lo hi i_range.
   rewrite wunsigned_add; first Psatz.lia.
@@ -476,7 +476,7 @@ Qed.
 
 (* -------------------------------------------------- *)
 (** Pointer arithmetic *)
-  
+
 Instance Pointer : pointer_op pointer.
 Proof.
 refine
@@ -486,8 +486,11 @@ refine
   |}.
 - abstract (move=> p k; rewrite wrepr_unsigned; ssrring.ssring).
 - abstract (move=> p k => hk;
-  rewrite -{2}(@wunsigned_repr_small Uptr k); last (by have := wsize_size_wbase U256; Psatz.lia);
-  f_equal; ssrring.ssring).
+  rewrite -{2}(@wunsigned_repr_small Uptr k);
+    [ f_equal; ssrring.ssring
+    | have := wsize_size_wbase U256;
+      have := wbase_m (wsize_le_U8 Uptr);
+      Lia.lia ]).
 - abstract (move => p; rewrite wrepr0; ssrring.ssring).
 Defined.
 
@@ -515,10 +518,6 @@ Proof.
   have h2 := wunsigned_range p2.
   by rewrite !wunsigned_add; Psatz.lia.
 Qed.
-
-Lemma cut_wbase_Uptr sz :
-  wbase Uptr = (wsize_size sz * CoqWord.word.modulus (nat63.+3 - (Nat.log2 (wsize_size_minus_1 sz))))%Z.
-Proof. by case: sz; vm_compute. Qed.
 
 Lemma is_align_modE ptr sz : (wunsigned ptr mod wsize_size sz == 0)%Z = is_align ptr sz.
 Proof. by rewrite /is_align p_to_zE (rwP eqP). Qed.
@@ -564,7 +563,7 @@ Proof.
   have hn := wsize_size_pos sz.
   have hnz : wsize_size sz ≠ 0%Z by Psatz.lia.
   move: (wunsigned ptr) (wunsigned_range ptr) ha => {ptr} ptr.
-  rewrite (cut_wbase_Uptr sz); set a := CoqWord.word.modulus _.
+  have [a ->] := wsize_size_div_wbase sz Uptr.
   move: (wsize_size sz) hn hnz => n hn hnz hr /Zmod_divides [] // q ?; subst ptr.
   cut (q + 1 <= a)%Z; Psatz.nia.
 Qed.
@@ -727,18 +726,18 @@ Proof.
   rewrite align_wordE.
   rewrite !wrepr_opp.
 
-  have h: (wunsigned (p - wrepr U64 sz) mod wsize_size ws = - (sz mod wsize_size ws) mod wsize_size ws)%Z.
+  have h: (wunsigned (p - wrepr Uptr sz) mod wsize_size ws = - (sz mod wsize_size ws) mod wsize_size ws)%Z.
   + by rewrite wunsigned_sub_mod Zminus_mod hal Z.sub_0_l wunsigned_repr mod_wbase_wsize_size.
 
   case: eqP => hsz.
   + by rewrite h Z.mod_opp_l_z // ?Zmod_mod // Z.sub_0_r.
   rewrite Z.mod_opp_l_nz // Zmod_mod // in h.
   rewrite -Z.add_sub_assoc -h.
-  rewrite wrepr_add -{1}[p in RHS](GRing.subrK (wrepr U64 sz)) GRing.addrKA.
+  rewrite wrepr_add -{1}[p in RHS](GRing.subrK (wrepr Uptr sz)) GRing.addrKA.
   rewrite [RHS]wunsigned_sub //.
   have [hle hlt] := wunsigned_range (p - wrepr Uptr sz).
   have := Z.mod_le _ _ hle (wsize_size_pos ws).
-  have := Z_mod_lt (wunsigned (p - wrepr U64 sz)) (wsize_size ws) ltac:(done).
+  have := Z_mod_lt (wunsigned (p - wrepr Uptr sz)) (wsize_size ws) ltac:(done).
   by Psatz.lia.
 Qed.
 

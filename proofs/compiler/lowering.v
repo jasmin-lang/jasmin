@@ -558,7 +558,7 @@ Variant opn_5flags_cases_t (a: pexprs) : Type :=
 | Opn5f_other.
 
 Arguments Opn5f_large_immed [a] {x y n z} _ _.
-Arguments Opn5f_other [a].
+Arguments Opn5f_other {a}.
 
 Definition check_signed_range (m: option wsize) sz' (n: Z) : bool :=
   if m is Some ws then (
@@ -582,7 +582,7 @@ Definition opn_5flags_cases (a: pexprs) (m: option wsize) (sz: wsize) : opn_5fla
 
 Definition opn_no_imm op :=
   match op with
-  | Ox86 (IMULri sz) => Ox86 (IMULr sz)
+  | Ox86' (ws, IMULri sz) => Ox86' (ws, IMULr sz)
   | _ => op
   end.
 
@@ -769,7 +769,7 @@ Fixpoint lower_i (i:instr) : cmd :=
   end.
 
 Definition lower_fd (fd: fundef) : fundef :=
-  {| f_iinfo := f_iinfo fd;
+  {| f_info := f_info fd;
      f_tyin := f_tyin fd;
      f_params := f_params fd;
      f_body := lower_cmd lower_i (f_body fd);

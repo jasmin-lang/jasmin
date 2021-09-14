@@ -38,17 +38,21 @@ Unset Printing Implicit Defensive.
 
 Instance pT : progT [eqType of unit] := progUnit.
 
-Definition unroll1 (p:uprog) : cfexec uprog:=
+Definition unroll1 (p:uprog) : cexec uprog:=
   let p := unroll_prog p in
   let p := const_prop_prog p in
   dead_code_prog p.
 
+(* FIXME: error really not clear for the user *)
+(* TODO: command line option to specify the unrolling depth,
+   the error should suggest increasing the number
+*)
 Fixpoint unroll (n:nat) (p:uprog) :=
   match n with
-  | O   => cferror Ferr_loop
+  | O   => Error (loop_iterator "unrolling")
   | S n =>
     Let p' := unroll1 p in
-    if ((p_funcs p: ufun_decls) == (p_funcs p': ufun_decls)) then cfok p
+    if ((p_funcs p: ufun_decls) == (p_funcs p': ufun_decls)) then ok p
     else unroll n p'
   end.
 
@@ -93,6 +97,7 @@ Record compiler_params := {
   lowering_vars    : fresh_vars;
   inline_var       : var -> bool;
   is_var_in_memory : var_i → bool;
+  stack_register_symbol: Ident.ident;
   global_static_data_symbol: Ident.ident;
   stackalloc       : _uprog → stack_alloc_oracles;
   removereturn     : _sprog -> (funname -> option (seq bool));
@@ -117,9 +122,9 @@ Variable cparams : compiler_params.
 
 (* Ensure that export functions are preserved *)
 Definition check_removeturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
-  assert (pmap remove_return entries == [::]) Ferr_topo. (* FIXME: better error message *)
+  assert (pmap remove_return entries == [::]) (pp_internal_error_s "remove return" "Signature of some export functions are modified").
 
-Definition compiler_first_part (to_keep: seq funname) (p: prog) : result fun_error uprog :=
+Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   let p := add_init_prog cparams.(is_ptr) p in
   let p := cparams.(print_uprog) AddArrInit p in
@@ -154,14 +159,15 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : result fun_err
   Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_id) pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
-  Let _ := assert (fvars_correct cparams.(lowering_vars) (p_funcs pa)) Ferr_lowering in
+  Let _ := assert (fvars_correct cparams.(lowering_vars) (p_funcs pa)) 
+                  (pp_internal_error_s "lowering" "lowering check fails") in
 
   let pl := lower_prog cparams.(lowering_opt) cparams.(warning) cparams.(lowering_vars) cparams.(is_var_in_memory) pa in
   let pl := cparams.(print_uprog) LowerInstruction pl in
 
   ok pl.
 
-Definition compiler_third_part (entries: seq funname) (ps: sprog) : result fun_error sprog :=
+Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog :=
 
   let rminfo := cparams.(removereturn) ps in
   Let _ := check_removeturn entries rminfo in
@@ -186,7 +192,9 @@ Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
   let ao := cparams.(stackalloc) pl in
   Let ps :=
      stack_alloc.alloc_prog true
-       cparams.(global_static_data_symbol) ao.(ao_globals) ao.(ao_global_alloc)
+       cparams.(global_static_data_symbol)
+       cparams.(stack_register_symbol)
+       ao.(ao_globals) ao.(ao_global_alloc)
        ao.(ao_stack_alloc) pl in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
 
@@ -209,7 +217,7 @@ Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
     else true
   else true.
 
-Definition compile_prog_to_x86 entries subroutines (p: prog): result fun_error xprog :=
+Definition compile_prog_to_x86 entries subroutines (p: prog): cexec xprog :=
   Let lp := compile_prog entries subroutines p in
 (*  Let _ := assert (all (check_signature p lp) entries) Ferr_lowering in *)
   assemble_prog lp.

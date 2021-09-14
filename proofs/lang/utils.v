@@ -192,9 +192,7 @@ Ltac t_xrbindP :=
   match goal with
   | [ |- Result.bind _ _ = Ok _ _ -> _ ] =>
       let y := fresh "y" in
-      let h := fresh "h" in
-      apply: rbindP=> y; t_xrbindP=> h;
-      t_xrbindP; move: y h
+      apply: rbindP=> y; t_xrbindP; move: y 
   | [ |- ok _ = ok _ -> _ ] =>
       case; t_xrbindP
   | [ |- _ -> _ ] =>
@@ -1016,6 +1014,7 @@ Section CMP.
 
 End CMP.
 
+Declare Scope cmp_scope.
 Notation "m < n" := (cmp_lt m n) : cmp_scope.
 Notation "m <= n" := (cmp_le m n) : cmp_scope.
 Notation "m ≤ n" := (cmp_le m n) : cmp_scope.

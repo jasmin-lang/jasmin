@@ -116,8 +116,6 @@ type funname = private {
 type range_dir = UpTo | DownTo
 type 'len grange = range_dir * 'len gexpr * 'len gexpr
 
-type i_loc = L.t * L.t list
-
 type ('len,'info) ginstr_r =
   | Cassgn of 'len glval * assgn_tag * 'len gty * 'len gexpr
   | Copn   of 'len glvals * assgn_tag * E.sopn * 'len gexprs
@@ -128,7 +126,7 @@ type ('len,'info) ginstr_r =
 
 and ('len,'info) ginstr = {
   i_desc : ('len,'info) ginstr_r;
-  i_loc  : i_loc;
+  i_loc  : L.i_loc;
   i_info : 'info;
   i_annot : Syntax.annotations;
 }
@@ -302,7 +300,7 @@ val locals  : 'info func -> Sv.t
 
 (* -------------------------------------------------------------------- *)
 (* Written variables & called functions *)
-val written_vars_fc : 'info func -> Sv.t * i_loc list Mf.t
+val written_vars_fc : 'info func -> Sv.t * L.i_loc list Mf.t
 
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)

@@ -1,3 +1,4 @@
+open Utils
 open Prog
 
 (* Updates [s_o] to hold which variables are live before a write_lval. *)
@@ -24,7 +25,7 @@ let is_trivial_move x e =
   | _              -> false
 
 let is_move_op = function
-  | Expr.Ox86(MOV _) -> true
+  | Expr.Ox86'(None, MOV _) -> true
   | _        -> false
 
 (* When [weak] is true, the out live-set contains also the written variables. *)
@@ -90,7 +91,7 @@ let liveness weak prog =
   let fds = List.map (live_fd weak) (snd prog) in
   fst prog, fds
 
-let iter_call_sites (cb: i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) (f: (Sv.t * Sv.t) func) : unit =
+let iter_call_sites (cb: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) (f: (Sv.t * Sv.t) func) : unit =
   let rec iter_instr_r loc ii =
     function
     | (Cassgn _ | Copn _) -> ()
@@ -104,8 +105,8 @@ let iter_call_sites (cb: i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) (f: (
 
 let pp_info fmt (s1, s2) =
   Format.fprintf fmt "before: %a; after %a@ "
-    (Printer.pp_list " " (Printer.pp_var ~debug:true)) (Sv.elements s1)
-    (Printer.pp_list " " (Printer.pp_var ~debug:true)) (Sv.elements s2)
+    (pp_list " " (Printer.pp_var ~debug:true)) (Sv.elements s1)
+    (pp_list " " (Printer.pp_var ~debug:true)) (Sv.elements s2)
 
 let merge_class cf s =
   let add_conflict x cf =
@@ -188,9 +189,9 @@ let set_same (cf, m as cfm) x y =
         Format.eprintf "x = %a --> %a; y = %a --> %a@."
            pp_v x pp_v rx pp_v y pp_v ry;
         Format.eprintf "rx = %a@."
-           (Printer.pp_list " " pp_v) (Sv.elements xc);
+           (pp_list " " pp_v) (Sv.elements xc);
         Format.eprintf "ry = %a@."
-           (Printer.pp_list " " pp_v) (Sv.elements yc); *)
+           (pp_list " " pp_v) (Sv.elements yc); *)
         raise SetSameConflict
       end;
     merge_class1 cf rx xc ry yc, Mv.add rx ry m

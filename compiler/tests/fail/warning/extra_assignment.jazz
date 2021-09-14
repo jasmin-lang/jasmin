@@ -1,0 +1,17 @@
+inline fn f () -> reg u64 {
+  inline u64 res;
+  res = 0;
+  return res;
+}
+
+inline fn g () -> reg u64 {
+  reg u64 res;
+  res = f();
+  return res;
+}
+
+export fn main () -> reg u64 {
+  reg u64 res;
+  res = g();
+  return res;
+}

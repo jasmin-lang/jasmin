@@ -115,8 +115,10 @@ Variant sopn : Set :=
 | Oset0     of wsize  (* set register + flags to 0 (implemented using XOR x x or VPXOR x x) *)
 | Oconcat128          (* concatenate 2 128 bits word into 1 256 word register *)   
 | Ox86MOVZX32
-| Ox86      of asm_op  (* x86 instruction *)
+| Ox86'      of asm_op  (* x86 instruction *)
 .
+
+Definition Ox86 o := Ox86'(None, o).
 
 Scheme Equality for sop1.
 (* Definition sop1_beq : sop1 -> sop1 -> bool *)
@@ -156,13 +158,35 @@ Qed.
 Definition opN_eqMixin     := Equality.Mixin opN_eq_axiom.
 Canonical  opN_eqType      := Eval hnf in EqType opN opN_eqMixin.
 
-Scheme Equality for sopn.
-(* Definition sopn_beq : sopn -> sopn -> bool *)
-Lemma sopn_eq_axiom : Equality.axiom sopn_beq.
+Scheme Equality for asm_op'.
+(* Definition asm_op'_beq : asm_op' -> asm_op' -> bool *)
+Lemma asm_op'_eq_axiom : Equality.axiom asm_op'_beq.
 Proof.
   move=> x y;apply:(iffP idP).
-  + by apply: internal_sopn_dec_bl.
-  by apply: internal_sopn_dec_lb.
+  + by apply: internal_asm_op'_dec_bl.
+  by apply: internal_asm_op'_dec_lb.
+Qed.
+
+Definition asm_op'_eqMixin     := Equality.Mixin asm_op'_eq_axiom.
+Canonical  asm_op'_eqType      := Eval hnf in EqType asm_op' asm_op'_eqMixin.
+
+Definition sopn_beq (o1 o2:sopn) :=
+  match o1, o2 with
+  | Onop, Onop => true
+  | Omulu w1, Omulu w2 => w1 == w2
+  | Oaddcarry w1, Oaddcarry w2 => w1 == w2
+  | Osubcarry w1, Osubcarry w2 => w1 == w2
+  | Oset0 w1, Oset0 w2 => w1 == w2
+  | Oconcat128, Oconcat128 => true
+  | Ox86MOVZX32, Ox86MOVZX32 => true
+  | Ox86' o1, Ox86' o2 => o1 == o2
+  | _, _ => false
+  end.
+
+Lemma sopn_eq_axiom : Equality.axiom sopn_beq.
+Proof.
+  move=> x y; case: x; case: y => //=; try by constructor.
+  all: move=> y x; case (x =P y) => h; constructor; congruence.
 Qed.
 
 Definition sopn_eqMixin     := Equality.Mixin sopn_eq_axiom.
@@ -262,7 +286,7 @@ Definition get_instr o :=
   | Oset0     sz => Oset0_instr sz
   | Oconcat128   => Oconcat128_instr 
   | Ox86MOVZX32  => Ox86MOVZX32_instr
-  | Ox86   instr =>
+  | Ox86'   instr =>
       let id := instr_desc instr in
       {|
         str      := id.(id_str_jas);
@@ -933,6 +957,8 @@ Section RECT.
 
 End RECT.
 
+Definition fun_info := positive.
+
 Class progT (eft:eqType) := {
   extra_prog_t : Type;
   extra_val_t  : Type;
@@ -941,7 +967,7 @@ Class progT (eft:eqType) := {
 Definition extra_fun_t {eft} {pT: progT eft} := eft.
 
 Record _fundef (extra_fun_t: Type) := MkFun {
-  f_iinfo  : instr_info;
+  f_info   : fun_info;
   f_tyin   : seq stype;
   f_params : seq var_i;
   f_body   : cmd;
@@ -1123,7 +1149,8 @@ Qed.
 Definition sfe_eqMixin   := Equality.Mixin sfe_eq_axiom.
 Canonical  sfe_eqType      := Eval hnf in EqType stk_fun_extra sfe_eqMixin.
 
-Record sprog_extra := { 
+Record sprog_extra := {
+  sp_rsp   : Ident.ident;
   sp_rip   : Ident.ident;
   sp_globs : seq u8;
 }.
@@ -1147,7 +1174,7 @@ Definition to_sprog (p:_sprog) : sprog := p.
 
 (* Update functions *)
 Definition with_body eft (fd:_fundef eft) body := {|
-  f_iinfo  := fd.(f_iinfo);
+  f_info   := fd.(f_info);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := body;
@@ -1157,7 +1184,7 @@ Definition with_body eft (fd:_fundef eft) body := {|
 |}.
 
 Definition swith_extra (fd:ufundef) f_extra : sfundef := {|
-  f_iinfo  := fd.(f_iinfo);
+  f_info   := fd.(f_info);
   f_tyin   := fd.(f_tyin);
   f_params := fd.(f_params);
   f_body   := fd.(f_body);
