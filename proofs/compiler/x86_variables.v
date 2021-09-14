@@ -465,7 +465,7 @@ Definition assemble_lea ii lea :=
 
 Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) := 
   Let _ := assert (sz <= Uptr)%CMP
-                  (ii, Cerr_assembler (AsmErr_string "Bad type for address" None)) in
+                  (E.error ii (pp_s "Bad type for address")) in
   match lowering.mk_lea sz e with
   | Some lea => 
      match lea.(lea_base) with
@@ -527,7 +527,7 @@ Definition assemble_word (k:adr_kind) rip ii (sz:wsize) max_imm (e:pexpr) :=
 Definition arg_of_pexpr k rip ii (ty:stype) max_imm (e:pexpr) :=
   match ty with
   | sbool => Let c := assemble_cond ii e in ok (Condt c)
-  | sword sz => assemble_word rip ii sz max_imm e
+  | sword sz => assemble_word k rip ii sz max_imm e
   | sint  => Error (E.werror ii e "not able to assemble an expression of type int")
   | sarr _ => Error (E.werror ii e "not able to assemble an expression of type array _")
   end.

@@ -199,7 +199,7 @@ Definition word_extend
 (* word_uincl_update_u256 *)
 Lemma word_extend_CLEAR sz szo (w : word sz) (old : word szo) :
   word_extend MSB_CLEAR old w = zero_extend szo w.
-Proof. by rewrite /word_extend /= /mask_word wandC wand0 wxor0. Qed.
+Proof. by rewrite /word_extend /= /x86_sem.mask_word wandC wand0 wxor0. Qed.
 
 Lemma word_uincl_word_extend sz sz' szo (w: word sz) (w': word sz') fl (old:word szo) :
   (sz' <= szo)%CMP ->
@@ -213,7 +213,7 @@ Proof.
     by apply: word_uincl_zero_extR.
   (* MSB_MERGE *)
   have hsz := cmp_le_trans hsz_sz' hsz'.
-  apply/andP; split => //; rewrite /word_extend /mask_word.
+  apply/andP; split => //; rewrite /word_extend /x86_sem.mask_word.
   rewrite -wxor_zero_extend // -wand_zero_extend //.
   rewrite zero_extend_wshl // zero_extend_idem // wshl_ovf; last first.
   + by apply/leP; case: (sz) (sz') hsz_sz'=> -[].
@@ -225,7 +225,7 @@ Lemma word_extend_big sz szo f (w : word sz) (old : word szo) :
   (word_extend f old w) = zero_extend szo w.
 Proof.
   move=> h; case: f; first by rewrite word_extend_CLEAR.
-  rewrite /word_extend /mask_word wshl_ovf; last first.
+  rewrite /word_extend /x86_sem.mask_word wshl_ovf; last first.
   + by apply/leP; case: (sz) (szo) h => -[].
   by rewrite wandC wand0 wxor0.
 Qed.

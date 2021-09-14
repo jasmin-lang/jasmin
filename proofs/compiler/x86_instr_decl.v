@@ -1295,7 +1295,7 @@ Definition Ox86_DEC_instr :=
   mk_instr_w_b4w_00 "DEC" x86_DEC check_neg no_imm (primP DEC) (pp_iname "dec").
 
 Definition Ox86_LZCNT_instr               :=
-  mk_instr_w_b5w "LZCNT" x86_LZCNT msb_dfl [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) no_imm (primP LZCNT) (pp_iname "lzcnt").
+  mk_instr_w_b5w "LZCNT" x86_LZCNT [:: E 1] [:: E 0] 2 (fun _ => [::r_rm]) no_imm (primP LZCNT) (pp_iname "lzcnt").
 
 Definition check_setcc := [:: [::c; rm false]].
 Definition Ox86_SETcc_instr             :=
