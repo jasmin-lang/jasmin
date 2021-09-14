@@ -1166,15 +1166,15 @@ Proof. apply: (@equivP (Pos.lt x y)) => //;rewrite -Pos.ltb_lt;apply idP. Qed.
 
 Lemma Pos_leb_trans y x z:
   (x <=? y)%positive -> (y <=? z)%positive -> (x <=? z)%positive.
-Proof. move=> /P_leP ? /P_leP ?;apply /P_leP;omega. Qed.
+Proof. move=> /P_leP ? /P_leP ?;apply /P_leP; Lia.lia. Qed.
 
 Lemma Pos_lt_leb_trans y x z:
   (x <? y)%positive -> (y <=? z)%positive -> (x <? z)%positive.
-Proof. move=> /P_ltP ? /P_leP ?;apply /P_ltP;omega. Qed.
+Proof. move=> /P_ltP ? /P_leP ?;apply /P_ltP; Lia.lia. Qed.
 
 Lemma Pos_le_ltb_trans y x z:
   (x <=? y)%positive -> (y <? z)%positive -> (x <? z)%positive.
-Proof. move=> /P_leP ? /P_ltP ?;apply /P_ltP;omega. Qed.
+Proof. move=> /P_leP ? /P_ltP ?;apply /P_ltP; Lia.lia. Qed.
 
 Lemma pos_eqP : Equality.axiom Pos.eqb.
 Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Pos.eqb_eq. Qed.
