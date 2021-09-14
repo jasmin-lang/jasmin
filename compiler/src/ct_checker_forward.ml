@@ -242,12 +242,13 @@ module UE = struct
 
   let create n = Hashtbl.create n
 
-  let get (ue:unienv) vl = try Hashtbl.find ue vl with Not_found -> Secret 
+  let get (ue:unienv) vl = 
+    try Hashtbl.find ue vl with Not_found -> Public 
 
-  let set (ue:unienv) s ty = 
+  let set (ue:unienv) s lvl = 
     assert (Svl.cardinal s = 1);
     let vl = Svl.choose s in
-    Hashtbl.add ue vl (Lvl.max (get ue vl) ty) 
+    Hashtbl.add ue vl (Lvl.max (get ue vl) lvl) 
 
 end (* UE *)
 
