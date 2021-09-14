@@ -83,6 +83,47 @@ Variant compiler_step :=
   | Tunneling                   : compiler_step
   | Assembly                    : compiler_step.
 
+(* This is a list of the compiler passes. It is defined in Coq so that we can
+   show that it is exhaustive (cf. [compiler_step_list_complete]).
+*)
+Definition compiler_step_list := [::
+    Typing
+  ; ParamsExpansion
+  ; AddArrInit
+  ; Inlining
+  ; RemoveUnusedFunction
+  ; Unrolling
+  ; Splitting
+  ; AllocInlineAssgn
+  ; DeadCode_AllocInlineAssgn
+  ; RegArrayExpansion
+  ; RemoveArrInit
+  ; RemoveGlobal
+  ; LowerInstruction
+  ; MakeRefArguments
+  ; StackAllocation
+  ; RemoveReturn
+  ; RegAllocation
+  ; DeadCode_RegAllocation
+  ; Linearisation
+  ; Tunneling
+  ; Assembly
+].
+
+(* To use [Finite.axiom], we must first show that [compiler_step] is [eqType]. *)
+Scheme Equality for compiler_step.
+Lemma compiler_step_eq_axiom : Equality.axiom compiler_step_beq.
+Proof.
+  move=> x y; apply:(iffP idP).
+  + by apply: internal_compiler_step_dec_bl.
+  by apply: internal_compiler_step_dec_lb.
+Qed.
+Definition compiler_step_eqMixin := Equality.Mixin compiler_step_eq_axiom.
+Canonical  compiler_step_eqType  := Eval hnf in EqType compiler_step compiler_step_eqMixin.
+
+Lemma compiler_step_list_complete : Finite.axiom compiler_step_list.
+Proof. by case. Qed.
+
 Record stack_alloc_oracles : Type :=
   {
     ao_globals: seq u8; (* static global data: one array holding all data *)

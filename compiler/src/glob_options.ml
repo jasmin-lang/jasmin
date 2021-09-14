@@ -21,29 +21,6 @@ let set0 = ref false
 let model = ref Normal
 let print_stack_alloc = ref false
 
-let poptions = [
-    Compiler.Typing
-  ; Compiler.ParamsExpansion
-  ; Compiler.AddArrInit
-  ; Compiler.Inlining
-  ; Compiler.RemoveUnusedFunction
-  ; Compiler.Unrolling
-  ; Compiler.Splitting
-  ; Compiler.AllocInlineAssgn
-  ; Compiler.DeadCode_AllocInlineAssgn
-  ; Compiler.RegArrayExpansion
-  ; Compiler.RemoveArrInit 
-  ; Compiler.RemoveGlobal
-  ; Compiler.RegArrayExpansion
-  ; Compiler.MakeRefArguments
-  ; Compiler.LowerInstruction
-  ; Compiler.StackAllocation
-  ; Compiler.RegAllocation
-  ; Compiler.DeadCode_RegAllocation
-  ; Compiler.Linearisation
-  ; Compiler.Tunneling
-  ; Compiler.Assembly ]
-
 let set_printing p () =
   print_list := p :: !print_list
 
@@ -51,7 +28,7 @@ let set_stop_after p () =
   stop_after := Some p
 
 let set_all_print () =
-  print_list := poptions
+  print_list := Compiler.compiler_step_list
 
 let set_ec f =
   ec_list := f :: !ec_list
@@ -135,7 +112,7 @@ let options = [
     "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
     "-print-stack-alloc", Arg.Set print_stack_alloc, ": print the results of the stack allocation OCaml oracle";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
-  ] @  List.map print_option poptions @ List.map stop_after_option poptions
+  ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"
 
