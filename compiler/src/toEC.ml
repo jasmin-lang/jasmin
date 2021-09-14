@@ -427,6 +427,7 @@ let pp_vop2 fmt (s,ve,ws) =
   Format.fprintf fmt "\\v%s%iu%i" s (int_of_velem ve) (int_of_ws ws)
 
 let pp_op2 fmt = function
+  | E.Obeq   -> Format.fprintf fmt "="
   | E.Oand   -> Format.fprintf fmt "/\\"
   | E.Oor    -> Format.fprintf fmt "\\/"
   | E.Oadd _ -> Format.fprintf fmt "+"
@@ -596,6 +597,10 @@ let rec pp_expr env fmt (e:expr) =
           Format.fprintf fmt "@[(%a %%%% 2^%i +@ 2^%i * %a)@]"
             (pp_expr env) e i i aux es in
       Format.fprintf fmt "(W%a.of_int %a)" pp_size ws aux (List.rev es)
+    | Ocombine_flags c -> 
+      Format.fprintf fmt "@[<1,2>(%s %a)@]"
+        (Printer.string_of_combine_flags c) 
+        (pp_list "@ " (pp_expr env)) es
     end
 
   | Pif(_,e1,et,ef) -> 
@@ -859,7 +864,7 @@ module Leak = struct
     | _ -> assert false
 
   let safe_op2 safe _e1 e2 = function
-    | E.Oand    | E.Oor     
+    | E.Obeq    | E.Oand    | E.Oor     
     | E.Oadd _  | E.Omul _  | E.Osub _ 
     | E.Oland _ | E.Olor _  | E.Olxor _ 
     | E.Olsr _  | E.Olsl _  | E.Oasr _

@@ -49,13 +49,17 @@ let string_of_cmp_ty = function
 
 (* -------------------------------------------------------------------- *)
 
+let string_of_signess s = 
+  if s = W.Unsigned then "u" else "s"
+  
 let string_of_velem s ws ve = 
   let nws = int_of_ws ws in
   let nve = int_of_velem ve in
-  let s   = if s = W.Unsigned then "u" else "s" in
+  let s   = string_of_signess s in 
   Format.sprintf "%d%s%d" (nws/nve) s nve
 
 let string_of_op2 = function
+  | E.Obeq   -> "=" 
   | E.Oand   -> "&&"
   | E.Oor    -> "||"
   | E.Oadd _ -> "+"
@@ -95,13 +99,19 @@ let string_of_op1 = function
   | E.Onot    -> "~"
   | E.Oneg _ -> "-"
 
-let string_of_opN =
-  function
-  | E.Opack (sz, pe) ->
-    F.sprintf "Opack<%d, %d>"
-      (int_of_ws sz)
-      (int_of_pe pe)
+let string_of_combine_flags = function
+  | E.CF_LT s -> Format.sprintf "_%sLT" (string_of_signess s)
+  | E.CF_LE s -> Format.sprintf "_%sLE" (string_of_signess s)
+  | E.CF_EQ   -> Format.sprintf "_EQ" 
+  | E.CF_NEQ  -> Format.sprintf "_NEQ" 
+  | E.CF_GE s -> Format.sprintf "_%sGE" (string_of_signess s)
+  | E.CF_GT s -> Format.sprintf "_%sGT" (string_of_signess s)
 
+let string_of_Opack sz pe =
+  F.sprintf "Opack<%d, %d>"
+    (int_of_ws sz)
+    (int_of_pe pe)
+    
 (* -------------------------------------------------------------------- *)
 
 let pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e olen =
@@ -137,8 +147,10 @@ let pp_ge pp_len pp_var =
   | Papp2(op,e1,e2) ->
     F.fprintf fmt "@[(%a %s@ %a)@]"
       pp_expr e1 (string_of_op2 op) pp_expr e2
-  | PappN (op, es) ->
-    F.fprintf fmt "@[(%s [%a])@]" (string_of_opN op) (pp_list ",@ " pp_expr) es
+  | PappN (Opack(sz,pe) , es) ->
+    F.fprintf fmt "@[(%s [%a])@]" (string_of_Opack sz pe) (pp_list ",@ " pp_expr) es
+  | PappN (Ocombine_flags c, es) ->
+    F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es  
   | Pif(_, e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1  pp_expr e2

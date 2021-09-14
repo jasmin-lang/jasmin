@@ -110,7 +110,7 @@ let op2_to_abs_binop op2 = match op2 with
   | E.Olsl _ -> AB_Wop (Wshift `Unsigned_left)
   | E.Oasr _ -> AB_Wop (Wshift `Signed_right)
       
-  | E.Oand | E.Oor                   (* boolean connectives *)
+  | E.Obeq | E.Oand | E.Oor                   (* boolean connectives *)
   | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> AB_Unknown
 
   (* bit-wise boolean connectives *)
@@ -666,7 +666,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
       | E.Op_w ws -> E.Cmp_w (Unsigned, ws) in
 
     match op2 with
-    | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
+    | E.Obeq | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
     | E.Odiv _ | E.Omod _ | E.Oland _ | E.Olor _
     | E.Olxor _ | E.Olsr _ | E.Olsl _ | E.Oasr _ -> assert false
 
@@ -724,6 +724,9 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         | Ovadd (_, _) | Ovsub (_, _) | Ovmul (_, _)
         | Ovlsr (_, _) | Ovlsl (_, _) | Ovasr (_, _) -> assert false
 
+        | E.Obeq -> 
+          aux (Pif (Prog.tbool, e1, e2, Papp1(E.Onot, e2)))
+         
         | E.Oand -> BAnd ( aux e1, aux e2 )
 
         | E.Oor -> BOr ( aux e1, aux e2 )

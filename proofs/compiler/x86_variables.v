@@ -297,7 +297,44 @@ Definition rflag_of_var ii (v: var) :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition assemble_cond ii (e: pexpr) : ciexec condt :=
+
+Definition not_condt (c:condt) := 
+  match c with
+  | O_ct  => NO_ct
+  | NO_ct => O_ct
+  | B_ct  => NB_ct 
+  | NB_ct => B_ct
+  | E_ct  => NE_ct 
+  | NE_ct => E_ct 
+  | BE_ct => NBE_ct 
+  | NBE_ct => BE_ct 
+  | S_ct   => NS_ct 
+  | NS_ct  => S_ct 
+  | P_ct   => NP_ct 
+  | NP_ct  => P_ct 
+  | L_ct   => NL_ct 
+  | NL_ct  => L_ct 
+  | LE_ct  => NLE_ct 
+  | NLE_ct => LE_ct
+  end.
+
+Definition or_condt ii e c1 c2 : ciexec condt := 
+  match c1, c2 with
+  | L_ct, E_ct | E_ct, L_ct => ok LE_ct
+  | B_ct, E_ct | E_ct, B_ct => ok BE_ct 
+  | _, _ =>
+    cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (OR)" (Some e)))
+  end.
+
+Definition and_condt ii e c1 c2 := 
+  match c1, c2 with
+  | NB_ct, NE_ct | NE_ct, NB_ct => ok NBE_ct
+  | NE_ct, NL_ct | NL_ct, NE_ct => ok NLE_ct 
+  | _, _ => 
+    cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (AND)" (Some e)))
+  end.
+
+Fixpoint assemble_cond_r ii (e: pexpr) : ciexec condt := 
   match e with
   | Pvar v =>
     Let r := rflag_of_var ii v.(gv) in
@@ -309,71 +346,61 @@ Definition assemble_cond ii (e: pexpr) : ciexec condt :=
     | PF => ok P_ct
     | DF => cierror ii (Cerr_assembler (AsmErr_string "Cannot branch on DF" None))
     end
+  | Papp1 Onot e => 
+    Let c := assemble_cond_r ii e in
+    ok (not_condt c)
 
-  | Papp1 Onot (Pvar v) =>
-    Let r := rflag_of_var ii v.(gv) in
-    match r with
-    | OF => ok NO_ct
-    | CF => ok NB_ct
-    | ZF => ok NE_ct
-    | SF => ok NS_ct
-    | PF => ok NP_ct
-    | DF => cierror ii (Cerr_assembler (AsmErr_string "Cannot branch on ~~ DF" None))
-    end
-
-  | Papp2 Oor (Pvar vcf) (Pvar vzf) =>
-    Let rcf := rflag_of_var ii vcf.(gv) in
-    Let rzf := rflag_of_var ii vzf.(gv) in
-    if ((rcf == CF) && (rzf == ZF)) then
-      ok BE_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (BE)" None))
-
-  | Papp2 Oand (Papp1 Onot (Pvar vcf)) (Papp1 Onot (Pvar vzf)) =>
-    Let rcf := rflag_of_var ii vcf.(gv) in
-    Let rzf := rflag_of_var ii vzf.(gv) in
-    if ((rcf == CF) && (rzf == ZF)) then
-      ok NBE_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NBE)" None))
-
-  | Pif _ (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2) =>
-    Let rsf := rflag_of_var ii vsf.(gv) in
-    Let rof1 := rflag_of_var ii vof1.(gv) in
-    Let rof2 := rflag_of_var ii vof2.(gv) in
-    if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
+  | Papp2 Oor e1 e2 =>
+    Let c1 := assemble_cond_r ii e1 in
+    Let c2 := assemble_cond_r ii e2 in
+    or_condt ii e c1 c2
+  
+  | Papp2 Oand e1 e2 =>
+    Let c1 := assemble_cond_r ii e1 in
+    Let c2 := assemble_cond_r ii e2 in
+    and_condt ii e c1 c2
+    
+  | Papp2 Obeq (Pvar x1) (Pvar x2) =>
+    Let r1 := rflag_of_var ii x1.(gv) in
+    Let r2 := rflag_of_var ii x2.(gv) in
+    if (r1 == SF) && (r2 == OF) || (r1 == OF) && (r2 == SF) then ok NL_ct
+    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NL)" (Some e)))
+  
+  (* We keep this by compatibility but it will be nice to remove it *)
+  | Pif _ (Pvar v1) (Papp1 Onot (Pvar vn2)) (Pvar v2) =>
+    Let r1 := rflag_of_var ii v1.(gv) in
+    Let rn2 := rflag_of_var ii vn2.(gv) in
+    Let r2 := rflag_of_var ii v2.(gv) in
+    if [&& r1 == SF, rn2 == OF & r2 == OF] ||
+       [&& r1 == OF, rn2 == SF & r2 == SF] then
       ok L_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (L)" None))
+    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (L)" (Some e)))
 
-  | Pif _ (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2)) =>
-    Let rsf := rflag_of_var ii vsf.(gv) in
-    Let rof1 := rflag_of_var ii vof1.(gv) in
-    Let rof2 := rflag_of_var ii vof2.(gv) in
-    if ((rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
+  | Pif _ (Pvar v1) (Pvar v2) (Papp1 Onot (Pvar vn2)) =>
+    Let r1 := rflag_of_var ii v1.(gv) in
+    Let r2 := rflag_of_var ii v2.(gv) in
+    Let rn2 := rflag_of_var ii vn2.(gv) in
+    if [&& r1 == SF, rn2 == OF & r2 == OF] ||
+       [&& r1 == OF, rn2 == SF & r2 == SF] then
       ok NL_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NL)" None))
-
-  | Papp2 Oor (Pvar vzf)
-          (Pif _ (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2)) =>
-    Let rzf := rflag_of_var ii vzf.(gv) in
-    Let rsf := rflag_of_var ii vsf.(gv) in
-    Let rof1 := rflag_of_var ii vof1.(gv) in
-    Let rof2 := rflag_of_var ii vof2.(gv) in
-    if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
-      ok LE_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (LE)" None))
-
-  | Papp2 Oand
-             (Papp1 Onot (Pvar vzf))
-             (Pif _ (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2))) =>
-    Let rzf := rflag_of_var ii vzf.(gv) in
-    Let rsf := rflag_of_var ii vsf.(gv) in
-    Let rof1 := rflag_of_var ii vof1.(gv) in
-    Let rof2 := rflag_of_var ii vof2.(gv) in
-    if ((rzf == ZF) && (rsf == SF) && (rof1 == OF) && (rof2 == OF)) then
-      ok NLE_ct
-    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NLE)" None))
-
+    else cierror ii (Cerr_assembler (AsmErr_string "Invalid condition (NL)" (Some e)))
+  
   | _ => cierror ii (Cerr_assembler (AsmErr_cond e))
   end.
+
+(* FIXME: this is already defined in constant_prop, but circular dependencies *)
+Fixpoint snot (e:pexpr) :=
+  match e with
+  | Pbool b      => ~~b
+  | Papp1 Onot e => e
+  | Papp2 Oand e1 e2 => Papp2 Oor (snot e1) (snot e2)
+  | Papp2 Oor  e1 e2 => Papp2 Oand (snot e1) (snot e2)
+  | Pif t e e1 e2 => Pif t e (snot e1) (snot e2)
+  | _            => Papp1 Onot e
+  end.
+
+Definition assemble_cond ii (e: pexpr) : ciexec condt :=
+  assemble_cond_r ii (snot e).
 
 (* -------------------------------------------------------------------- *)
 

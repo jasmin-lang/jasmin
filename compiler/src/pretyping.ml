@@ -912,20 +912,26 @@ let type_of_op2 op =
 let tt_op2 (loc1, (e1, ety1)) (loc2, (e2, ety2))
            { L.pl_desc = pop; L.pl_loc = loc } =
 
-  let exn = tyerror ~loc (NoOperator (`Op2 pop, [ety1; ety2])) in
-  let ty = 
-    match pop with
-    | `And   | `Or    -> P.tbool 
-    | `ShR _ | `ShL _ -> ety1 
-    | `Add _ | `Sub _ | `Mul _ | `Div _ | `Mod _
-    | `BAnd _ | `BOr _ | `BXOr _
-    | `Eq _ | `Neq _ | `Lt _ | `Le _ | `Gt _ | `Ge _ ->
-      max_ty ety1 ety2 |> oget ~exn in
-  let op = op2_of_pop2 exn ty pop in
-  let ty1, ty2, tyo = type_of_op2 op in
-  let e1 = cast loc1 e1 ety1 ty1 in
-  let e2 = cast loc2 e2 ety2 ty2 in
-  P.Papp2(op, e1, e2), tyo
+  match pop with
+  | `Eq None when ety1 = P.tbool && ety2 = P.tbool ->
+    P.Papp2(E.Obeq, e1, e2), P.tbool
+  | `Neq None when ety1 = P.tbool && ety1 = P.tbool ->
+    P.Papp1 (E.Onot, P.Papp2(E.Obeq, e1, e2)), P.tbool
+  | _ -> 
+    let exn = tyerror ~loc (NoOperator (`Op2 pop, [ety1; ety2])) in
+    let ty = 
+      match pop with
+      | `And   | `Or    -> P.tbool 
+      | `ShR _ | `ShL _ -> ety1 
+      | `Add _ | `Sub _ | `Mul _ | `Div _ | `Mod _
+        | `BAnd _ | `BOr _ | `BXOr _
+        | `Eq _ | `Neq _ | `Lt _ | `Le _ | `Gt _ | `Ge _ ->
+        max_ty ety1 ety2 |> oget ~exn in
+    let op = op2_of_pop2 exn ty pop in
+    let ty1, ty2, tyo = type_of_op2 op in
+    let e1 = cast loc1 e1 ety1 ty1 in
+    let e2 = cast loc2 e2 ety2 ty2 in
+    P.Papp2(op, e1, e2), tyo
 
 let type_of_op1 op = 
   let ty, tyo = E.type_of_op1 op in
@@ -969,6 +975,18 @@ let tt_pack ~loc nb es =
   let n2 = S.bits_of_vesize es in
   wsize_of_bits ~loc (n1 * n2), pelem_of_bits ~loc n2, n1
 
+(* -------------------------------------------------------------------- *)
+let combine_flags = 
+  List.map (fun c -> Printer.string_of_combine_flags c, c)
+    [E.CF_LT Signed; E.CF_LT Unsigned;
+     E.CF_LE Signed; E.CF_LE Unsigned;
+     E.CF_EQ; E.CF_NEQ; 
+     E.CF_GE Signed; E.CF_GE Unsigned;
+     E.CF_GT Signed; E.CF_GT Unsigned]
+
+let is_combine_flags id =
+  List.mem_assoc (L.unloc id) combine_flags
+  
 (* -------------------------------------------------------------------- *)
 let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
   match L.unloc pe with
@@ -1036,9 +1054,28 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     let et2 = tt_expr ~mode env pe2 in
     tt_op2 (L.loc pe1, et1) (L.loc pe2, et2) (L.mk_loc (L.loc pe) pop)
 
+  | S.PECombF(id, args) ->
+    begin match List.assoc (L.unloc id) combine_flags with
+    | c ->
+      let nexp = List.length Expr.tin_combine_flags in
+      let nargs = List.length args in
+      if nargs <> nexp then
+        rs_tyerror ~loc:(L.loc pe) (InvalidArgCount(nargs, nexp));
+      let tt_expr pe =
+        let e, ety = tt_expr ~mode env pe in
+        check_ty_eq ~loc:(L.loc pe) ~from:ety ~to_:P.tbool;
+        e in
+      let args = List.map tt_expr args in
+      P.PappN (E.Ocombine_flags c, args), P.tbool
+    | exception Not_found -> assert false 
+    end
+
+  | S.PECall (id, args) when is_combine_flags id ->
+    tt_expr ~mode env (L.mk_loc (L.loc pe) (S.PECombF(id,args)))
+
   | S.PECall _ ->
     rs_tyerror ~loc:(L.loc pe) CallNotAllowed
-
+    
   | S.PEPrim _ ->
     rs_tyerror ~loc:(L.loc pe) PrimNotAllowed
 
@@ -1515,7 +1552,14 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let xi = (L.mk_loc lc x) in
       env, Some (arr_init xi)
   
-    | S.PIAssign (ls, `Raw, { pl_desc = PECall (f, args) }, None) ->
+    | S.PIAssign (ls, `Raw, { pl_desc = PECall (f, args); pl_loc = el }, None) ->
+      if is_combine_flags f then
+        let pi = 
+          L.mk_loc (L.loc pi) 
+            (S.PIAssign (ls, `Raw, L.mk_loc el (S.PECombF(f, args)), None)) in
+        let env, i = tt_instr env (annot, pi) in
+        env, omap (fun i -> i.P.i_desc) i 
+      else
       let (f,tlvs) = tt_fun env f in
       let _tlvs, tes = f_sig f in
       let lvs = tt_lvalues env ls None tlvs in
@@ -1703,6 +1747,8 @@ let process_f_annot annot =
 
 (* -------------------------------------------------------------------- *)
 let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env =
+  if is_combine_flags pf.pdf_name then
+    rs_tyerror ~loc:(L.loc pf.pdf_name) (string_error "invalid function name");
   let inret = odfl [] (omap (List.map L.unloc) pf.pdf_body.pdb_ret) in
   let dfl_mut x = List.mem x inret in
   let envb, args = 

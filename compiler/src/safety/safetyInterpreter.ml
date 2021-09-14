@@ -231,7 +231,7 @@ let arr_aligned access ws e = match access with
 
 (*------------------------------------------------------------*)
 let safe_op2 e2 = function
-  | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
+  | E.Obeq | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
   | E.Oland _ | E.Olor _ | E.Olxor _
   | E.Olsr _ | E.Olsl _ | E.Oasr _
   | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> []
@@ -277,7 +277,7 @@ let rec safe_e_rec safe = function
     
   | Papp1 (_, e) -> safe_e_rec safe e
   | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
-  | PappN (E.Opack _,_) -> safe
+  | PappN (_,es) -> List.fold_left safe_e_rec safe es
 
   | Pif  (_,e1, e2, e3) ->
     (* We do not check "is_defined e1 && is_defined e2" since

@@ -59,10 +59,13 @@ Definition szero_extend sz sz' (e: pexpr) :=
   then Papp1 (Oword_of_int sz) (Pconst (wunsigned (zero_extend sz w)))
   else Papp1 (Ozeroext sz sz') e.
 
-Definition snot_bool (e:pexpr) :=
+Fixpoint snot (e:pexpr) :=
   match e with
-  | Pbool b      => negb b
+  | Pbool b      => ~~b
   | Papp1 Onot e => e
+  | Papp2 Oand e1 e2 => Papp2 Oor (snot e1) (snot e2)
+  | Papp2 Oor  e1 e2 => Papp2 Oand (snot e1) (snot e2)
+  | Pif t e e1 e2 => Pif t e (snot e1) (snot e2)
   | _            => Papp1 Onot e
   end.
 
@@ -91,13 +94,22 @@ Definition s_op1 o e :=
   | Oint_of_word sz => sint_of_word sz e
   | Osignext sz sz' => ssign_extend sz sz' e
   | Ozeroext sz sz' => szero_extend sz sz' e
-  | Onot  => snot_bool e
+  | Onot  => snot e
   | Olnot sz => snot_w sz e
   | Oneg Op_int => sneg_int e
   | Oneg (Op_w sz) => sneg_w sz e
   end.
 
 (* ------------------------------------------------------------------------ *)
+
+Definition sbeq e1 e2 := 
+  match is_bool e1, is_bool e2 with
+  | Some b1, Some b2 => Pbool (b1 == b2)
+  | Some b, _ => if b then e2 else snot e2 
+  | _, Some b => if b then e1 else snot e1 
+  | _, _      => Papp2 Obeq e1 e2
+  end.
+  
 Definition sand e1 e2 :=
   match is_bool e1, is_bool e2 with
   | Some b, _ => if b then e2 else false
@@ -327,6 +339,7 @@ Definition svsar ve sz e1 e2 :=
 
 Definition s_op2 o e1 e2 :=
   match o with
+  | Obeq    => sbeq e1 e2 
   | Oand    => sand e1 e2
   | Oor     => sor  e1 e2
   | Oadd ty => sadd ty e1 e2
@@ -357,10 +370,46 @@ Definition s_op2 o e1 e2 :=
 Definition force_int e :=
   if e is Pconst z then ok (Vint z) else type_error.
 
+Definition force_bool e := 
+  if e is Pbool b then ok (Vbool b) else type_error.
+
+Definition sbneq e1 e2 := 
+  snot (sbeq e1 e2).
+
+Definition lower_cfc c es := 
+  match es with
+  | [:: Of; Cf; Zf; Sf] =>
+    Some match c with
+    | CFC_O => Of
+    | CFC_B => Cf
+    | CFC_E => Zf
+    | CFC_S => Sf
+    | CFC_L => sbneq Of Sf
+    | CFC_BE => sor Cf Zf
+    | CFC_LE => sor (sbneq Of Sf) Zf
+    end
+  | _ => None
+  end.
+
+Definition scfc c es := 
+  let (n, cfc) := cf_tbl c in
+  match lower_cfc cfc es with
+  | Some e' => if n then snot e' else e'
+  | None    => (* never happen *) PappN (Ocombine_flags c) es
+  end.
+
 Definition s_opN op es :=
-  match mapM force_int es >>= sem_opN op with
-  | Ok (Vword sz w) => Papp1 (Oword_of_int sz) (Pconst (wunsigned w))
-  | _ => PappN op es
+  match op with
+  | Opack _ _ =>
+    match mapM force_int es >>= sem_opN op with
+    | Ok (Vword sz w) => Papp1 (Oword_of_int sz) (Pconst (wunsigned w))
+    | _ => PappN op es
+    end
+  | Ocombine_flags c => 
+    match mapM force_bool es >>= sem_opN op with
+    | Ok (Vbool b) => Pbool b
+    | _ => PappN op es
+    end
   end.
 
 Definition s_if t e e1 e2 :=

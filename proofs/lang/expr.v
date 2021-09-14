@@ -67,6 +67,7 @@ Variant sop1 :=
 .
 
 Variant sop2 :=
+| Obeq                        (* const : sbool -> sbool -> sbool *)
 | Oand                        (* const : sbool -> sbool -> sbool *)
 | Oor                         (* const : sbool -> sbool -> sbool *)
 
@@ -100,8 +101,28 @@ Variant sop2 :=
 .
 
 (* N-ary operators *)
+Variant combine_flags_core := 
+| CFC_O       (* overflow:                                OF = 1 *)
+| CFC_B       (* below, not above or equal:               CF = 1 *)
+| CFC_E       (* equal, zero:                             ZF = 1 *)
+| CFC_S       (* sign:                                    SF = 1 *)
+| CFC_L       (* less than, not greater than or equal to: !(OF = SF) *)
+| CFC_BE      (* below or equal, not above:               CF = 1 \/ ZF = 1 *)
+| CFC_LE      (* less than or equal to, not greater than: (!(SF = OF) \/ ZF = 1 *)
+.
+
+Variant combine_flags :=
+| CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *) 
+| CF_LE    of signedness   (* Alias : signed => LE ; unsigned => BE  *)
+| CF_EQ                    (* Alias : E                              *)
+| CF_NEQ                   (* Alias : !E                             *)
+| CF_GE    of signedness   (* Alias : signed => !L ; unsigned => !B  *)
+| CF_GT    of signedness   (* Alias : signed => !LE; unsigned => !BE *)
+.
+
 Variant opN :=
 | Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
+| Ocombine_flags of combine_flags
 .
 
 Variant sopn : Set :=
@@ -143,6 +164,30 @@ Qed.
 
 Definition sop2_eqMixin     := Equality.Mixin sop2_eq_axiom.
 Canonical  sop2_eqType      := Eval hnf in EqType sop2 sop2_eqMixin.
+
+Scheme Equality for combine_flags_core.
+
+Lemma combine_flags_core_eq_axiom : Equality.axiom combine_flags_core_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_combine_flags_core_dec_bl.
+  by apply: internal_combine_flags_core_dec_lb.
+Qed.
+
+Definition combine_flags_core_eqMixin     := Equality.Mixin combine_flags_core_eq_axiom.
+Canonical  combine_flags_core_eqType      := Eval hnf in EqType combine_flags_core combine_flags_core_eqMixin.
+
+Scheme Equality for combine_flags.
+
+Lemma combine_flags_eq_axiom : Equality.axiom combine_flags_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_combine_flags_dec_bl.
+  by apply: internal_combine_flags_dec_lb.
+Qed.
+
+Definition combine_flags_eqMixin     := Equality.Mixin combine_flags_eq_axiom.
+Canonical  combine_flags_eqType      := Eval hnf in EqType combine_flags combine_flags_eqMixin.
 
 Scheme Equality for opN.
 
@@ -302,7 +347,7 @@ Definition type_of_op1 (o: sop1) : stype * stype :=
 (* Type of binany operators: inputs, output *)
 Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   match o with
-  | Oand | Oor => (sbool, sbool, sbool)
+  | Obeq | Oand | Oor => (sbool, sbool, sbool)
   | Oadd Op_int
   | Omul Op_int
   | Osub Op_int
@@ -328,11 +373,29 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   end.
 
 (* Type of n-ary operators: inputs, output *)
+
+Definition cf_tbl (c:combine_flags) := 
+  match c with
+  | CF_LT Signed   => (false, CFC_L)
+  | CF_LT Unsigned => (false, CFC_B)
+  | CF_LE Signed   => (false, CFC_LE)
+  | CF_LE Unsigned => (false, CFC_BE)
+  | CF_EQ          => (false, CFC_E)
+  | CF_NEQ         => (true , CFC_E)
+  | CF_GE Signed   => (true , CFC_L)
+  | CF_GE Unsigned => (true , CFC_B)
+  | CF_GT Signed   => (true , CFC_LE)
+  | CF_GT Unsigned => (true , CFC_BE)
+  end.
+  
+Definition tin_combine_flags := [:: sbool; sbool; sbool; sbool].
+
 Definition type_of_opN (op: opN) : seq stype * stype :=
   match op with
   | Opack ws p =>
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n sint, sword ws)
+  | Ocombine_flags c => (tin_combine_flags, sbool) 
   end.
 
 (* ** Expressions

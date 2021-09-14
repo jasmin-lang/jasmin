@@ -172,6 +172,8 @@ let rec pp_expr_rec prio fmt pe =
   | PEBool b -> F.fprintf fmt "%s" (if b then "true" else "false")
   | PEInt i -> F.fprintf fmt "%a" Bigint.pp_print i
   | PECall (f, args) -> F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
+  | PECombF (f, args) -> 
+    F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
   | PEPrim (f, args) -> F.fprintf fmt "%a%a(%a)" sharp () pp_var f (pp_list ", " pp_expr) args
   | PEOp1 (op, e) ->
     let p = prio_of_op1 op in

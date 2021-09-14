@@ -32,7 +32,7 @@ Require Import ZArith.
 Require Import Utf8.
 Import Relations.
 
-Require Import expr compiler_util x86_variables.
+Require Import expr compiler_util x86_variables constant_prop.
 Import ssrZ.
 
 Set Implicit Arguments.
@@ -229,16 +229,6 @@ Section LINEAR_C.
 End LINEAR_C.
 
 Definition next_lbl lbl := (lbl + 1)%positive.
-
-Fixpoint snot e :=
-  match e with
-  | Papp1 Onot e => e
-  | Papp2 Oand e1 e2 => Papp2 Oor (snot e1) (snot e2)
-  | Papp2 Oor e1 e2 => Papp2 Oand (snot e1) (snot e2)
-  | Pif t e e1 e2 => Pif t e (snot e1) (snot e2)
-  | Pbool b => Pbool (~~ b)
-  | _ => Papp1 Onot e
-  end.
 
 Definition add_align ii a (lc:lcmd) :=
   match a with

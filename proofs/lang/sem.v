@@ -247,11 +247,12 @@ Definition mk_sem_divmod sz o (w1 w2: word sz) : exec (word sz) :=
 
 Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 :=
   ok (o v1 v2).
-
+ 
 Definition sem_sop2_typed (o: sop2) :
   let t := type_of_op2 o in
   sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2) :=
   match o with
+  | Obeq => mk_sem_sop2 (@eq_op [eqType of bool])
   | Oand => mk_sem_sop2 andb
   | Oor  => mk_sem_sop2 orb
 
@@ -335,11 +336,33 @@ Definition curry A B (n: nat) (f: seq (sem_t A) → B) : sem_prod (nseq n A) B :
    | n'.+1 => λ acc a, loop n' (a :: acc)
    end) n [::].
 
+Definition neg_f (n:bool) (f:bool) := 
+  if n then ~~f else f.
+
+Definition sem_cfc (n:bool) (o:combine_flags_core) (OF CF SF ZF : bool) : exec bool := 
+  let r :=
+    match o with
+    | CFC_O => OF
+    | CFC_B => CF
+    | CFC_E => ZF
+    | CFC_S => SF
+    | CFC_L => OF!=SF
+    | CFC_BE => CF || ZF
+    | CFC_LE => (OF!=SF) || ZF
+    end in
+  ok (neg_f n r).
+
+Definition sem_combine_flags (o:combine_flags) : 
+  sem_prod tin_combine_flags (exec bool) := 
+    let c := cf_tbl o in
+    sem_cfc c.1 c.2.
+
 Definition sem_opN_typed (o: opN) :
   let t := type_of_opN o in
   sem_prod t.1 (exec (sem_t t.2)) :=
   match o with
   | Opack sz pe => curry (A := sint) (sz %/ pe) (λ vs, ok (wpack sz pe vs))
+  | Ocombine_flags o => sem_combine_flags o  
   end.
 
 Definition sem_opN (op: opN) (vs: values) : exec value :=

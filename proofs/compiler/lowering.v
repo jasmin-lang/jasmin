@@ -125,24 +125,11 @@ Definition wsize_of_lval (lv: lval) : wsize :=
   | Lasub _ _ _ _ _ => U64
   end.
 
-Variant lower_cond1 :=
-  | CondVar
-  | CondNotVar.
-
-Variant lower_cond2 :=
-  | CondEq
-  | CondNeq
-  | CondOr
-  | CondAndNot.
-
-Variant lower_cond3 :=
-  | CondOrNeq
-  | CondAndNotEq.
-
-Variant lower_cond_t : Type :=
-  | Cond1 of lower_cond1 & var_i
-  | Cond2 of lower_cond2 & var_i & var_i
-  | Cond3 of lower_cond3 & var_i & var_i & var_i.
+Definition enot e := Papp1 Onot e.
+Definition eq_f  e1 e2 := Papp2 Obeq e1 e2. 
+Definition neq_f e1 e2 := enot (eq_f e1 e2).
+Definition eor e1 e2   := Papp2 Oor e1 e2.
+Definition eand e1 e2  := Papp2 Oand e1 e2.
 
 Definition lower_cond_classify vi (e: pexpr) :=
   let nil := Lnone vi sbool in
@@ -150,65 +137,56 @@ Definition lower_cond_classify vi (e: pexpr) :=
   let vof := fr fresh_OF in
   let vcf := fr fresh_CF in
   let vsf := fr fresh_SF in
-  let vpf := fr fresh_PF in
   let vzf := fr fresh_ZF in
+
   let lof := Lvar vof in
   let lcf := Lvar vcf in
   let lsf := Lvar vsf in
-  let lpf := Lvar vpf in
   let lzf := Lvar vzf in
+
+  let eof := Plvar vof in
+  let ecf := Plvar vcf in
+  let esf := Plvar vsf in
+  let ezf := Plvar vzf in
+  
   match e with
   | Papp2 op x y =>
     match op with
     | Oeq (Op_w sz) =>
-      Some ([:: nil ; nil ; nil ; nil ; lzf ], sz, Cond1 CondVar vzf, x, y)
+      Some ([:: nil ; nil ; nil ; nil ; lzf ], sz, ezf, x, y)
     | Oneq (Op_w sz) =>
-      Some ([:: nil ; nil ; nil ; nil ; lzf ], sz, Cond1 CondNotVar vzf, x, y)
+      Some ([:: nil ; nil ; nil ; nil ; lzf ], sz, enot ezf, x, y)
     | Olt (Cmp_w Signed sz) =>
-      Some ([:: lof ; nil ; lsf ; nil ; nil ], sz, Cond2 CondNeq vof vsf, x, y)
+      Some ([:: lof ; nil ; lsf ; nil ; nil ], sz, neq_f eof esf, x, y)
     | Olt (Cmp_w Unsigned sz) =>
-      Some ([:: nil ; lcf ; nil ; nil ; nil ], sz, Cond1 CondVar vcf, x, y)
+      Some ([:: nil ; lcf ; nil ; nil ; nil ], sz, ecf, x, y)
     | Ole (Cmp_w Signed sz) =>
-      Some ([:: lof ; nil ; lsf ; nil ; lzf ], sz, Cond3 CondOrNeq vof vsf vzf, x, y)
+      Some ([:: lof ; nil ; lsf ; nil ; lzf ], sz, eor (neq_f eof esf) ezf, x, y)
     | Ole (Cmp_w Unsigned sz) =>
-      Some ([:: nil ; lcf ; nil ; nil ; lzf ], sz, Cond2 CondOr vcf vzf, x, y)
+      Some ([:: nil ; lcf ; nil ; nil ; lzf ], sz, eor ecf ezf, x, y)
     | Ogt (Cmp_w Signed sz) =>
-      Some ([:: lof ; nil ; lsf ; nil ; lzf ], sz, Cond3 CondAndNotEq vof vsf vzf, x, y)
+      Some ([:: lof ; nil ; lsf ; nil ; lzf ], sz, eand (eq_f eof esf) (enot ezf), x, y)
     | Ogt (Cmp_w Unsigned sz) =>
-      Some ([:: nil ; lcf ; nil ; nil ; lzf ], sz, Cond2 CondAndNot vcf vzf, x, y)
+      Some ([:: nil ; lcf ; nil ; nil ; lzf ], sz, eand (enot ecf) (enot ezf), x, y)
     | Oge (Cmp_w Signed sz) =>
-      Some ([:: lof ; nil ; lsf ; nil ; nil ], sz, Cond2 CondEq vof vsf, x, y)
+      Some ([:: lof ; nil ; lsf ; nil ; nil ], sz, eq_f eof esf, x, y)
     | Oge (Cmp_w Unsigned sz) =>
-      Some ([:: nil ; lcf ; nil ; nil ; nil ], sz, Cond1 CondNotVar vcf, x, y)
+      Some ([:: nil ; lcf ; nil ; nil ; nil ], sz, enot ecf, x, y)
     | _ => None
-    end
+    end   
   | _ => None
   end.
-
-Definition eq_f  v1 v2 := Pif sbool (Plvar v1) (Plvar v2) (Papp1 Onot (Plvar v2)).
-Definition neq_f v1 v2 := Pif sbool (Plvar v1) (Papp1 Onot (Plvar v2)) (Plvar v2).
 
 Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
   match lower_cond_classify vi pe with
   | Some (l, sz, r, x, y) =>
     if (sz ≤ U64)%CMP then
-    ([:: Copn l AT_none (Ox86 (CMP sz)) [:: x; y] ],
-    match r with
-    | Cond1 CondVar v => Plvar v
-    | Cond1 CondNotVar v => Papp1 Onot (Plvar v)
-    | Cond2 CondEq v1 v2 => eq_f v2 v1
-    | Cond2 CondNeq v1 v2 => neq_f v2 v1
-    | Cond2 CondOr v1 v2 => Papp2 Oor (Plvar v1) (Plvar v2)
-    | Cond2 CondAndNot v1 v2 => Papp2 Oand (Papp1 Onot (Plvar v1)) (Papp1 Onot (Plvar v2))
-    | Cond3 CondOrNeq v1 v2 v3 => Papp2 Oor (Plvar v3) (neq_f v2 v1)
-    | Cond3 CondAndNotEq v1 v2 v3 => Papp2 Oand (Papp1 Onot (Plvar v3)) (eq_f v2 v1)
-    end)
+    ([:: Copn l AT_none (Ox86 (CMP sz)) [:: x; y] ], r)
     else ([::], pe)
   | None => ([::], pe)
   end.
 
-(* Lowering of Cassgn
-*)
+(* Lowering of Cassgn *)
 
 Variant add_inc_dec : Type :=
   | AddInc of pexpr

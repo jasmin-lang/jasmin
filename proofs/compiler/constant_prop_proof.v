@@ -615,12 +615,19 @@ Lemma s_opNP op s es :
   sem_pexpr gd s (s_opN op es) = sem_pexpr gd s (PappN op es).
 Proof.
   rewrite /s_opN.
-  case hi: (mapM _ _) => [ i | ] //=.
+  case: op => [sz' pe | c];
+  case hi: (mapM _ _) => [ i | ] //=;
   case heq: (sem_opN _ _) => [ v | ] //.
-  case: v heq => // sz w'.
-  case: op => sz' pe /=.
-  rewrite /sem_opN /=; apply: rbindP => w h /ok_word_inj [] ?; subst => /= <-{w'}.
-  rewrite /sem_sop1 /= wrepr_unsigned -/(sem_pexprs _ _).
+  + case: v heq => // sz w'.
+    rewrite /sem_opN /=; apply: rbindP => w h /ok_word_inj [] ?; subst => /= <-{w'}.
+    rewrite /sem_sop1 /= wrepr_unsigned -/(sem_pexprs _ _).
+    have -> /= : sem_pexprs gd s es = ok i.
+    + elim: es i hi {h} => // - [] // z es ih /=; t_xrbindP => _ vs ok_vs <-.
+      by rewrite (ih _ ok_vs).
+    by rewrite h.
+  case: v heq => // b'.  
+  rewrite /sem_opN /=; apply: rbindP => b h [] <- {b'}.
+  rewrite -/(sem_pexprs _ _).
   have -> /= : sem_pexprs gd s es = ok i.
   + elim: es i hi {h} => // - [] // z es ih /=; t_xrbindP => _ vs ok_vs <-.
     by rewrite (ih _ ok_vs).

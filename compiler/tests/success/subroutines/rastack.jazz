@@ -1,4 +1,4 @@
-#[returnaddress=stack, stacksize=8]
+#[returnaddress=stack, stacksize=8] 
 fn copy(reg u64 x) -> reg u64 {
 reg u64 r;
 stack u64 t;
