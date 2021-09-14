@@ -12,7 +12,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Lemma assemble_leaP rip ii sz sz' (w:word sz') lea adr m s:
-  (sz ≤ U64)%CMP → 
+  (sz ≤ Uptr)%CMP →
   (sz ≤ sz')%CMP →
   lom_eqv rip m s →
   sem_lea sz (evm m) lea = ok (zero_extend sz w) → 
@@ -38,14 +38,14 @@ Proof.
 Qed.
 
 Lemma addr_of_pexprP rip ii sz sz' (w:word sz') e adr m s:
-  (sz ≤ U64)%CMP → 
   (sz ≤ sz')%CMP →
   lom_eqv rip m s →
   sem_pexpr [::] m e = ok (Vword w) ->
   addr_of_pexpr rip ii sz e = ok adr ->
   zero_extend sz (decode_addr s adr) = zero_extend sz w.
 Proof.
-  rewrite /addr_of_pexpr => hsz64 hsz lom he.
+  rewrite /addr_of_pexpr => hsz lom he.
+  t_xrbindP => _ /assertP hsz64.
   case heq: mk_lea => [lea | //].
   have hsemlea:= 
      mk_leaP (p:= (Build_prog (pT := progUnit) [::] [::] tt)) hsz64 hsz heq he.
@@ -70,7 +70,7 @@ Proof.
   rewrite /addr_of_xpexpr => eqm ha hx hvx hp hvp.
   have he: sem_pexpr [::] m (Papp2 (Oadd (Op_w U64)) (Plvar x) p) = ok (Vword (wx + wp)).
   + by rewrite /= /get_gvar /= hx /= hp /= /sem_sop2 /= hvx hvp.
-  have := addr_of_pexprP _ _ eqm he ha.
+  have := addr_of_pexprP _ eqm he ha.
   by rewrite !zero_extend_u => h;apply h.
 Qed.
 
@@ -79,17 +79,17 @@ Variant check_sopn_argI rip ii max_imm args e : arg_desc -> stype -> Prop :=
        (eq_expr e (Plvar {| v_var := var_of_implicit i; v_info := 1%positive |}))
     -> check_sopn_argI rip ii max_imm args e (ADImplicit i) ty
 
-| CSA_Explicit n o a a' ty :
+| CSA_Explicit k n o a a' ty :
        onth args n = Some a
-    -> arg_of_pexpr rip ii ty max_imm e = ok a'
+    -> arg_of_pexpr k rip ii ty max_imm e = ok a'
     -> compat_imm ty a a'
     -> check_oreg o a
-    -> check_sopn_argI rip ii max_imm args e (ADExplicit n o) ty.
+    -> check_sopn_argI rip ii max_imm args e (ADExplicit k n o) ty.
 
 Lemma check_sopn_argP rip ii max_imm args e sp :
   check_sopn_arg rip ii max_imm args e sp -> check_sopn_argI rip ii max_imm args e sp.1 sp.2.
 Proof.
-case: sp => -[i|n o] ty; first by apply: CSA_Implicit.
+case: sp => -[i|k n o] ty; first by apply: CSA_Implicit.
 rewrite /check_sopn_arg /=; case Enth: onth => [a|] //.
 case E: arg_of_pexpr => [a'|] // /andP[??].
 by apply: (CSA_Explicit (a := a) (a' := a')).
@@ -129,7 +129,7 @@ Proof.
   + move=> i {ty} ty /eq_exprP -> vt /=.
     case: i => /= [f | r]; first by apply: var_of_flagP eqm. 
     by apply: var_of_registerP eqm.
-  move=> n o a a' [ | | | ws] //= ->.
+  move=> k n o a a' [ | | | ws] //= ->.
   + t_xrbindP => c hac <-. 
     rewrite /compat_imm orbF => /eqP <- -> /= b hb.
     case: eqm => ????? eqf.
@@ -137,8 +137,14 @@ Proof.
     case: eval_cond => /= [ | [] [] // [] <- /value_uincl_undef [ty1 [he ->]] ]; last by case: ty1 he.
     move=> b' [[<-]] {hb}; case: v => // [b1 | [] //] -> ?. 
     by exists b'.
-  move=> haw hcomp -> /=; case: e haw => //=.
-  + rewrite /get_gvar /eval_asm_arg; move=> x; t_xrbindP => _ /assertP => ->.
+  move=> haw hcomp -> /=.
+  case: k haw => /=.
+  + t_xrbindP => adr hadr ? w he /to_wordI [ws' [w' [hws ??]]]; subst a' v w.
+    move: hcomp; rewrite /compat_imm orbF => /eqP ?; subst a => /=.
+    rewrite (addr_of_pexprP hws eqm he hadr); eexists; split; first reflexivity.
+    by rewrite /= truncate_word_u.
+  case: e => //=.
+  + rewrite /get_gvar /eval_asm_arg => x; t_xrbindP => _ /assertP => ->.
     case: eqm => _ _ _ eqr eqx _.
     move=> /xreg_of_varI; case: a' hcomp => // r; rewrite /compat_imm orbF => /eqP <- {a} xr w ok_v ok_w;
     (eexists; split; first reflexivity);
@@ -160,6 +166,8 @@ Proof.
   by rewrite /to_word truncate_word_u.
 Qed.
 
+
+(*
 Lemma zero_extend_mask_word sz sz' :
   (sz ≤ sz')%CMP →
   zero_extend sz (mask_word sz') = 0%R.
@@ -177,25 +185,48 @@ Proof.
 move => hle hle'.
 by rewrite /word_uincl hle' /= /merge_word -wxor_zero_extend // zero_extend_idem // -wand_zero_extend // zero_extend_mask_word // wand0 wxor0.
 Qed.
+*)
 
-Lemma word_uincl_update_u256 sz sz' (w: word sz) (w': word sz') fl old :
+(*Definition mask_word (f : msb_flag) (sz szr : wsize) (old : word szr) : word szr :=
+  let mask := if f is MSB_MERGE then wshl (-1)%R (wsize_bits sz)
+             else 0%R in
+  wand old mask.
+
+Definition word_extend
+   (f:msb_flag) (sz szr : wsize) (old : word szr) (new : word sz) : word szr :=
+ wxor (mask_word f sz old) (zero_extend szr new).
+*)
+(* word_uincl_update_u256 *)
+Lemma word_extend_CLEAR sz szo (w : word sz) (old : word szo) :
+  word_extend MSB_CLEAR old w = zero_extend szo w.
+Proof. by rewrite /word_extend /= /x86_sem.mask_word wandC wand0 wxor0. Qed.
+
+Lemma word_uincl_word_extend sz sz' szo (w: word sz) (w': word sz') fl (old:word szo) :
+  (sz' <= szo)%CMP ->
   word_uincl w w' →
-  word_uincl w (update_u256 fl old w').
+  word_uincl w (word_extend fl old w').
 Proof.
-  case: fl => h /=.
+  move=> hsz' /dup [] /andP[hsz_sz' /eqP ->] h.
+  case: fl.
   + (* MSB_CLEAR *)
-    apply: (word_uincl_trans h).
-    apply: word_uincl_zero_extR.
-    exact: wsize_ge_U256.
+    rewrite word_extend_CLEAR; apply: (word_uincl_trans h).
+    by apply: word_uincl_zero_extR.
   (* MSB_MERGE *)
-  apply/andP; split; first exact: wsize_ge_U256.
-  case/andP: h => hle /eqP -> {w}.
-  rewrite -wxor_zero_extend; last exact: wsize_ge_U256.
-  rewrite -wand_zero_extend; last exact: wsize_ge_U256.
-  rewrite zero_extend_wshl; last exact: wsize_ge_U256.
-  rewrite zero_extend_idem; last exact: wsize_ge_U256.
-  rewrite wshl_ovf; last first.
-  + by apply/leP; case: sz sz' {w' old} hle => -[].
+  have hsz := cmp_le_trans hsz_sz' hsz'.
+  apply/andP; split => //; rewrite /word_extend /x86_sem.mask_word.
+  rewrite -wxor_zero_extend // -wand_zero_extend //.
+  rewrite zero_extend_wshl // zero_extend_idem // wshl_ovf; last first.
+  + by apply/leP; case: (sz) (sz') hsz_sz'=> -[].
+  by rewrite wandC wand0 wxor0.
+Qed.
+
+Lemma word_extend_big sz szo f (w : word sz) (old : word szo) :
+  ~(sz <= szo)%CMP ->
+  (word_extend f old w) = zero_extend szo w.
+Proof.
+  move=> h; case: f; first by rewrite word_extend_CLEAR.
+  rewrite /word_extend /x86_sem.mask_word wshl_ovf; last first.
+  + by apply/leP; case: (sz) (szo) h => -[].
   by rewrite wandC wand0 wxor0.
 Qed.
 
@@ -207,7 +238,7 @@ Lemma compile_lval rip ii msb_flag max_imm loargs ad ty (vt:sem_ot ty) m m' s lv
   check_sopn_dest rip ii max_imm loargs e1 (ad, ty) ->
   exists s', mem_write_val msb_flag loargs (ad, ty) (oto_val vt) s = ok s' /\ lom_eqv rip m' s'.
 Proof.
-  move=> hlom; case:(hlom) => [h1 hrip hnrip h2 h3 h4]; case: ad => [ai _ | n o]; rewrite /check_sopn_dest /=.
+  move=> hlom; case:(hlom) => [h1 hrip hnrip h2 h3 h4]; case: ad => [ai _ | k n o]; rewrite /check_sopn_dest /=.
   case: ai => [f | r].
   + case: lv1 => //=; last by move=> ???? [<-].
     move=> x hw [] <- /= /eqP heq.
@@ -251,13 +282,9 @@ Proof.
     + by case:hlom => ? hget hd _ _ _;rewrite /get_var Fv.setP_neq //; apply /eqP;case: hd.
     + move=> r' v'; rewrite /get_var /on_vu /= /RegMap.set ffunE.
       case: eqP => [-> | hne].
-      + rewrite Fv.setP_eq  /word_extend_reg=> -[<-] /= .
-        case : Sumbool.sumbool_of_bool => /= hsz.
-        + have heq := zero_extend_u w.
-          by rewrite -{1}heq; apply word_uincl_ze_mw.
-        rewrite -(@zero_extend_idem sz U64 sz w); last by apply cmp_nle_le; rewrite hsz.
-        rewrite zero_extend_u. 
-        by apply word_uincl_ze_mw => //; apply cmp_nle_le; rewrite hsz.
+      + rewrite Fv.setP_eq => -[<-] /=.
+        case : Sumbool.sumbool_of_bool => /= hsz; first by apply word_uincl_word_extend.
+        by rewrite word_extend_big // hsz.
       rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply var_of_register_inj.
       by apply h2. 
     + move=> r' v'; rewrite /get_var /on_vu /=.
@@ -281,9 +308,8 @@ Proof.
     + rewrite /RegMap.set ffunE; case: eqP.
       * move => ->{r'}; rewrite Fv.setP_eq => -[<-]{v'}.
         case: ht => <-{t}; case: Sumbool.sumbool_of_bool => hsz /=.
-        - by rewrite -{1}(zero_extend_u vt); apply: word_uincl_ze_mw.
-        apply: word_uincl_ze_mw => //.
-        by apply: cmp_nle_le; rewrite hsz.
+        + by apply word_uincl_word_extend.
+        by rewrite word_extend_big // hsz.
       * move => hne; rewrite Fv.setP_neq; first exact: h2.
         by apply/eqP => /var_of_register_inj ?; apply: hne.
     1-3, 5: rewrite Fv.setP_neq //.
@@ -292,7 +318,7 @@ Proof.
     + exact: h2.
     rewrite /XRegMap.set ffunE; case: eqP.
     + move => ->{r'}; rewrite Fv.setP_eq => -[<-]{v'}.
-      apply: word_uincl_update_u256.
+      apply word_uincl_word_extend; first by apply wsize_ge_U256.
       by case: ht => <-{t}; rewrite (sumbool_of_boolET (wsize_ge_U256 sz)).
     move => hne; rewrite Fv.setP_neq; first exact: h3.
     apply/eqP => /var_of_xmm_register_inj ?; exact: hne.
@@ -342,7 +368,7 @@ Qed.
 
 Lemma compile_x86_opn rip ii (loargs : seq asm_arg) op m s args lvs m' :
 let id := instr_desc op in
-sem_sopn [::] (Ox86 op) m lvs args = ok m' ->
+sem_sopn [::] (Ox86' op) m lvs args = ok m' ->
 check_sopn_args rip ii id.(id_max_imm) loargs args (zip id.(id_in) id.(id_tin)) ->
 check_sopn_dests rip ii id.(id_max_imm) loargs lvs (zip id.(id_out) id.(id_tout)) ->
 id.(id_check) loargs ->
@@ -368,56 +394,80 @@ t_xrbindP => v1 v2 -> vt' /= happ1 ? hmw hlom; subst v1.
 by rewrite hev' /= hv' /= happ1 /=; eauto.
 Qed.
 
-Lemma is_leaP ii op outx inx lea:
-  is_lea ii op outx inx = ok lea ->
-  match lea with
-  | Some(sz, x, e) => [/\ op = LEA sz, outx = [::Lvar x] & inx = [:: e] ]
-  | None => is_special op = false
-  end.
+Lemma app_sopn_apply_lprod T1 T2 tys (f : T1 -> T2) g vs :
+  app_sopn tys (apply_lprod (rmap f) g) vs = rmap f (app_sopn tys g vs).
+Proof. elim: tys vs g => [ | ty tys hrec] [ | v vs] //= g; case: of_val => //=. Qed.
+
+(* TODO: move *)
+Lemma zero_extend_comp sz sz' szo (v : word sz') :
+  (sz' ≤ sz)%CMP ->
+  zero_extend szo (zero_extend sz v) =
+  zero_extend szo v.
 Proof.
-  case: op outx inx => //=;
-   try by move=> *; match goal with | H:ok _ = ok lea |- _ => case: H; move=> H;subst lea end.
-  by move=> sz [ | []] // x [] // [ | e []]// [<-].
+  move=> h; rewrite /zero_extend wunsigned_repr_small //.
+  (* TODO: add the lemma *)
+  have ? : (wbase sz' <= wbase sz)%Z by case: sz (sz') h => -[].
+  have := wunsigned_range v; Psatz.lia.
 Qed.
-  
+
+Lemma check_check1_write asm_args ad ws ty (v: sem_ot ty) s :
+  clear_check1 asm_args ad ->
+  mem_write_val MSB_CLEAR asm_args (ad, extend_size ws ty)
+       (oto_val (wextend_size ws v)) s =
+  mem_write_val MSB_CLEAR asm_args (ad, ty) (oto_val v) s.
+Proof.
+  case: ty v => // ws' v; rewrite /extend_size /wextend_size.
+  case heq: (ws' ≤ ws)%CMP => //=.
+  rewrite /mem_write_val /= !truncate_word_u /=.
+  case: ad => //= [[] // r _| k n or].
+  + by rewrite /= /mem_write_reg !word_extend_CLEAR zero_extend_comp.
+  case: onth => // -[] // r _; case: check_oreg => //=.
+  + by rewrite /mem_write_reg !word_extend_CLEAR zero_extend_comp.
+  by rewrite /mem_write_xreg !word_extend_CLEAR zero_extend_comp.
+Qed.
+
+Lemma clear_check_write s ws asm_args id_out id_tout (t : sem_tuple id_tout) :
+  size id_out = size id_tout →
+  clear_check id_out asm_args →
+  mem_write_vals MSB_CLEAR s asm_args id_out [seq extend_size ws i | i <- id_tout]
+        (list_ltuple (extend_tuple ws t)) =
+  mem_write_vals MSB_CLEAR s asm_args id_out id_tout (list_ltuple t).
+Proof.
+  rewrite /mem_write_vals.
+  elim: id_out id_tout t s => [ | ad id_out hrec] [ | ty id_tout] //= t s []
+     hsize /andP [] hc1 hcs.
+  case: id_tout t hsize hcs.
+  + by move=> {hrec}; case: id_out => //= v _ _; rewrite check_check1_write.
+  move=> a l [] v t hsz hc.
+  have := hrec (a::l) t _ hsz hc.
+  rewrite /= check_check1_write //.
+  case: mem_write_val => //=.
+Qed.
+
+Lemma exec_desc_desc' op asm_args s :
+  id_check (instr_desc op) asm_args ->
+  exec_instr_op (instr_desc op) asm_args s = exec_instr_op (instr_desc' op.2) asm_args s.
+Proof.
+  case: op => -[ws |] //= op.
+  case: eqP => //= hclear /andP [hc hcc].
+  rewrite /exec_instr_op /= /eval_instr_op /= hc hcc hclear /=.
+  case heq : eval_args_in => [vargs | ] //=.
+  rewrite app_sopn_apply_lprod.
+  case: app_sopn => //= t.
+  apply clear_check_write => //.
+  by have /andP [_ /eqP]:= id_eq_size (instr_desc' op).
+Qed.
+
 Lemma assemble_x86_opnP rip ii op lvs args op' asm_args s m m' : 
-  sem_sopn [::] (Ox86 op) m lvs args = ok m' ->
+  sem_sopn [::] (Ox86' op) m lvs args = ok m' ->
   assemble_x86_opn rip ii op lvs args = ok (op', asm_args) ->
   lom_eqv rip m s ->
   exists s', eval_op op' asm_args s = ok s' /\ lom_eqv rip m' s'.
 Proof.
-  rewrite /assemble_x86_opn.
-  t_xrbindP => hsem lea /is_leaP.
-  case: lea => [ [[sz x] e] [???] | hspe].
-  + subst op lvs args; t_xrbindP => rx /reg_of_var_register_of_var -/var_of_register_of_var hrx adr hadr ??.
-    subst op' asm_args => hlo.
-    move: hsem; rewrite /eval_op /sem_sopn /exec_sopn /=.
-    t_xrbindP => vs ? v he <- va.
-    t_xrbindP => w hw; rewrite /sopn_sem /= /x86_LEA.
-    rewrite /check_size_16_64; case: andP => //= -[hsz1 hsz2] -[<-] <-.
-    t_xrbindP => m1 hwm ?; subst m1.
-    have [sz1 [w1 [hz1 ??]]]:= to_wordI hw; subst v w.
-    have -> := addr_of_pexprP hsz2 hz1 hlo he hadr.
-    move: hwm; rewrite /write_var /set_var -hrx /= => -[<-].
-    rewrite (sumbool_of_boolET hsz2).
-    eexists; split; first reflexivity.
-    case: hlo => h1 hrip hd h2 h3 h4.
-    constructor => //=.
-    + by rewrite /get_var Fv.setP_neq //; apply /eqP;case: hd.
-    + move=> r' v'; rewrite /get_var /on_vu /= /RegMap.set ffunE.
-      case: eqP => [-> | hne].
-      + rewrite Fv.setP_eq  /word_extend_reg => -[<-] /=.
-        rewrite -{1}(zero_extend_u (zero_extend sz w1)).
-        by apply word_uincl_ze_mw.
-      rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply var_of_register_inj.
-      by apply h2. 
-    + move=> r' v'; rewrite /get_var /on_vu /=.
-      by rewrite Fv.setP_neq //; apply h3.
-    move=> f v'; rewrite /get_var /on_vu /=.
-    by rewrite Fv.setP_neq //; apply h4.
-  t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ?;subst asm_args'.
-  rewrite /eval_op hspe.
-  apply: compile_x86_opn hsem hca hcd hidc.
+  rewrite /assemble_x86_opn /eval_op => hsem.
+  t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ? hlo; subst asm_args'.
+  have [s' [he' hlo']]:= compile_x86_opn hsem hca hcd hidc hlo.
+  by exists s'; split => //; rewrite -exec_desc_desc'.
 Qed.
 
 Lemma assemble_sopnP rip ii op lvs args op' asm_args m m' s: 
@@ -441,12 +491,12 @@ Proof.
       case: y ok_y => // r xr; rewrite !orbF => /eqP ? /eqP ? _; subst a0 a1; last by [].
       rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
       rewrite /truncate_word /x86_XOR /check_size_8_64 hsz64 /= wxor_xx.
-      set id := instr_desc (XOR sz) => hlo.
+      set id := instr_desc' (XOR sz) => hlo.
       rewrite /SF_of_word msb0.
       by apply: (@compile_lvals rip ii id.(id_max_imm) m lvs m' s [:: Reg r; Reg r]
              id.(id_out) id.(id_tout)
              (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word sz)))
-             MSB_CLEAR (refl_equal _) hw hlo hcd id.(id_check_dest)).
+             (reg_msb_flag sz) (refl_equal _) hw hlo hcd id.(id_check_dest)).
     t_xrbindP => ? []// ?? [<-] /= <-.
     move=> hw x hx; rewrite /assemble_x86_opn /is_lea /=.
     t_xrbindP => asm_args' _ ? /assertP hidc ? /assertP /andP[hca hcd] ??;subst op' asm_args'.  
@@ -462,11 +512,11 @@ Proof.
     rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
     rewrite /truncate_word /x86_VPXOR hidc /= /x86_u128_binop /check_size_128_256 wsize_ge_U256. 
     have -> /= : (U128 ≤ sz)%CMP by case: (sz) hsz64. 
-    rewrite wxor_xx; set id := instr_desc (VPXOR sz) => hlo.
+    rewrite wxor_xx; set id := instr_desc' (VPXOR sz) => hlo.
     by apply: (@compile_lvals rip ii id.(id_max_imm) m lvs m' s [:: a0; XMM r; XMM r]
                id.(id_out) id.(id_tout)
                (0%R: word sz)
-               MSB_CLEAR (refl_equal _) hw hlo hcd id.(id_check_dest)).
+               (reg_msb_flag sz) (refl_equal _) hw hlo hcd id.(id_check_dest)).
   + t_xrbindP.
     case: args => // h [] // [] // x [] //=.
     rewrite /sem_sopn /exec_sopn /sopn_sem /=.
@@ -542,7 +592,7 @@ Transparent eval_arg_in_v.
     + by rewrite /get_var Fv.setP_neq //; apply /eqP;case: hd.
     + move=> r' v''; rewrite /get_var /on_vu /= /RegMap.set ffunE.
       case: eqP => [-> | hne].
-      + by rewrite Fv.setP_eq word_extend_reg_id // zero_extend_u => -[<-].
+      + by rewrite Fv.setP_eq /reg_msb_flag /= word_extend_CLEAR zero_extend_u => -[<-].
       rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply var_of_register_inj.
       by apply h2. 
     + move=> r' v''; rewrite /get_var /on_vu /=.

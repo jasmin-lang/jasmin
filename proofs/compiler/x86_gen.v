@@ -27,8 +27,9 @@ Definition assemble_i rip (i: linstr) : cexec asm :=
   | Lgoto lbl => ok (JMP lbl)
 
   | Ligoto e =>
-    Let arg := assemble_word rip ii Uptr None e in
+    Let arg := assemble_word AK_mem rip ii Uptr None e in
     ok (JMPI arg)
+
   | LstoreLabel x lbl =>
    
     Let dst := match x with

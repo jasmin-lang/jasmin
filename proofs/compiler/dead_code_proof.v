@@ -228,7 +228,7 @@ Section PROOF.
           (o = Ox86 (MOV sz) \/ o = Ox86 (VMOVDQU sz)),
           es = [:: Plvar (VarI (Var (sword sz') x) i2)] & subtype (sword sz) (sword sz')].
   Proof.
-    case: xs o es=> // rv [] // [] // [] // sz [] // e [] //= /check_nop_spec
+    case: xs o es=> // rv [] // [] // [] [] // [] // sz [] // e [] //= /check_nop_spec
     [x [i1 [i2 []]]] -> -> hty /=;
     have [sz' [{hty} hty hsz]] := subtypeEl hty;
     case: x hty=> //= ty xn /= hty; subst ty;

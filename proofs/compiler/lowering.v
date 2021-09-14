@@ -582,7 +582,7 @@ Definition opn_5flags_cases (a: pexprs) (m: option wsize) (sz: wsize) : opn_5fla
 
 Definition opn_no_imm op :=
   match op with
-  | Ox86 (IMULri sz) => Ox86 (IMULr sz)
+  | Ox86' (ws, IMULri sz) => Ox86' (ws, IMULr sz)
   | _ => op
   end.
 

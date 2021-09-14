@@ -1659,9 +1659,11 @@ Section PROOF.
       rewrite (sem_pexprs_same dz e hz1) /= /exec_sopn /sopn_sem /=.
       case: o hr => //=; rewrite /exec_sopn //=;
         try (move => ?? -> || move => ? -> || move => -> ) => //.
+      case. case => [ws | ];
       case => //=;
         try (move => ?? -> || move => ? -> || move => -> ) => //.
-      1-2: by t_xrbindP.
+      + by move=> w; rewrite /sopn_sem /=; case: (reg_msb_flag w == MSB_CLEAR) => //= ->.
+      1-4: by t_xrbindP.
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.
 

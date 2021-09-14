@@ -53,11 +53,11 @@ let find_equality_constraints (id: instruction) : arg_position list list =
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (p, _) -> set (int_of_nat p) (APout n)) id.i_out;
+      | ADExplicit (_, p, _) -> set (int_of_nat p) (APout n)) id.i_out;
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (p, _) -> set (int_of_nat p) (APin n)) id.i_in;
+      | ADExplicit (_, p, _) -> set (int_of_nat p) (APin n)) id.i_in;
   Hashtbl.fold
     (fun _ apl res ->
        match apl with
@@ -86,7 +86,7 @@ let x86_equality_constraints (int_of_var: var_i -> int option) (k: int -> int ->
        | Some j -> k i j
   in
   begin match op, lvs, es with
-  | Ox86 (MOV _), [ Lvar x ], [ Pvar y ] when is_gkvar y &&
+  | Ox86' (None, MOV _), [ Lvar x ], [ Pvar y ] when is_gkvar y &&
                                               kind_i x = kind_i y.gv ->
     merge k' x y.gv
   | _, _, _ ->
@@ -525,9 +525,9 @@ struct
         match ad with
         | ADImplicit v ->
            mallocate_one e (translate_var (Asmgen.var_of_implicit v)) a
-        | ADExplicit (_, Some r) ->
+        | ADExplicit (_, _, Some r) ->
            mallocate_one e (translate_var (X86_variables.var_of_register r)) a
-        | ADExplicit (_, None) -> ()) id.i_in es
+        | ADExplicit (_, _, None) -> ()) id.i_in es
 
 end
 

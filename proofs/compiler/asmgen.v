@@ -39,8 +39,8 @@ Definition compile_arg rip ii max_imm (ade: (arg_desc * stype) * pexpr) (m: nmap
       assert (eq_expr (Plvar (VarI (var_of_implicit i) xH)) e)
              (E.internal_error ii "(compile_arg) bad implicit register") in
     ok m
-  | ADExplicit n o =>
-    Let a := arg_of_pexpr rip ii ad.2 max_imm e in
+  | ADExplicit k n o =>
+    Let a := arg_of_pexpr k rip ii ad.2 max_imm e in
     Let _ :=
       assert (check_oreg o a)
              (E.internal_error ii "(compile_arg) bad forced register") in
@@ -64,10 +64,10 @@ Definition compat_imm ty a' a :=
 Definition check_sopn_arg rip ii max_imm (loargs : seq asm_arg) (x : pexpr) (adt : arg_desc * stype) :=
   match adt.1 with
   | ADImplicit i => eq_expr x (Plvar (VarI (var_of_implicit i) xH))
-  | ADExplicit n o =>
+  | ADExplicit k n o =>
     match onth loargs n with
     | Some a =>
-      if arg_of_pexpr rip ii adt.2 max_imm x is Ok a' then compat_imm adt.2 a a' && check_oreg o a
+      if arg_of_pexpr k rip ii adt.2 max_imm x is Ok a' then compat_imm adt.2 a a' && check_oreg o a
       else false
     | None => false
     end
@@ -76,10 +76,10 @@ Definition check_sopn_arg rip ii max_imm (loargs : seq asm_arg) (x : pexpr) (adt
 Definition check_sopn_dest rip ii max_imm (loargs : seq asm_arg) (x : pexpr) (adt : arg_desc * stype) :=
   match adt.1 with
   | ADImplicit i => eq_expr x (Plvar (VarI (var_of_implicit i) xH))
-  | ADExplicit n o =>
+  | ADExplicit _ n o =>
     match onth loargs n with
     | Some a =>
-      if arg_of_pexpr rip ii adt.2 max_imm x is Ok a' then (a == a') && check_oreg o a
+      if arg_of_pexpr AK_mem rip ii adt.2 max_imm x is Ok a' then (a == a') && check_oreg o a
       else false
     | None => false
     end
@@ -99,7 +99,7 @@ Definition assemble_x86_opn_aux rip ii op (outx : lvals) (inx : pexprs) :=
   | Some asm_args =>
       (* This should allows to fix the problem with "MOV addr (IMM U64 w)" *)
       Let asm_args := 
-        match op, asm_args with
+        match op.2, asm_args with
         | MOV U64, [:: Adr a; Imm U64 w] =>
           match truncate_word U32 w with
           | Ok w' => 
@@ -121,33 +121,17 @@ Definition check_sopn_dests rip ii max_imm (loargs : seq asm_arg) (outx : seq lv
   | _  => false
   end.
 
-Definition is_lea ii op (outx : lvals) (inx : pexprs) := 
-  match op, outx, inx with
-  | LEA sz, [:: Lvar x], [:: e] => ok (Some (sz, x, e))
-  | LEA _, _, _ => Error (E.error ii (pp_s "invalid lea instruction"))
-  | _, _, _ => ok None
-  end.
-
 Definition assemble_x86_opn rip ii op (outx : lvals) (inx : pexprs) := 
-  Let is_lea := is_lea ii op outx inx in
-  match is_lea with
-  | Some (sz, x, e) =>
-    Let r := reg_of_var ii x in 
-    Let adr := addr_of_pexpr rip ii sz e in
-    ok (LEA sz, [::Reg r; Adr adr])
-
-  | None =>
-    let id := instr_desc op in
-    let max_imm := id.(id_max_imm) in
-    Let asm_args := assemble_x86_opn_aux rip ii op outx inx in
-    let s := id.(id_str_jas) tt in
-    Let _ := assert (id_check id asm_args) 
-                    (E.error ii (pp_box [:: pp_s "invalid instruction, check do not pass :"; pp_s s])) in
-    Let _ := assert (check_sopn_args rip ii max_imm asm_args inx (zip id.(id_in) id.(id_tin)) &&
+  let id := instr_desc op in
+  let max_imm := id.(id_max_imm) in
+  Let asm_args := assemble_x86_opn_aux rip ii op outx inx in
+  let s := id.(id_str_jas) tt in
+  Let _ := assert (id_check id asm_args)
+                  (E.error ii (pp_box [:: pp_s "invalid instruction, check do not pass :"; pp_s s])) in
+  Let _ := assert (check_sopn_args rip ii max_imm asm_args inx (zip id.(id_in) id.(id_tin)) &&
                      check_sopn_dests rip ii max_imm asm_args outx (zip id.(id_out) id.(id_tout)))
-                    (E.internal_error ii "assemble_x86_opn: cannot check") in 
-    ok (op, asm_args)
-  end.
+                  (E.internal_error ii "assemble_x86_opn: cannot check") in
+  ok (op.2, asm_args).
 
 Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
   match op with
@@ -164,14 +148,14 @@ Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
       | Lvar x :: _ =>  ok x
       | _ => Error (E.internal_error ii "set0 : destination is not a register")
       end in
-    assemble_x86_opn rip ii op outx [::Plvar x; Plvar x]
+    assemble_x86_opn rip ii (None, op) outx [::Plvar x; Plvar x]
   | Ox86MOVZX32 =>
     Let x := 
       match outx with 
       | [::Lvar x] =>  ok x
       | _ => Error (E.internal_error ii "Ox86MOVZX32: destination is not a register")
       end in
-    assemble_x86_opn rip ii (MOV U32) outx inx 
+    assemble_x86_opn rip ii (None, MOV U32) outx inx
 
   | Oconcat128 =>
     Let inx := 
@@ -179,15 +163,15 @@ Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
         | [:: h; Pvar _ as l] => ok [:: l; h; @wconst U8 1%R]
         |  _ => Error (E.internal_error ii "Oconcat: assert false")
         end in
-    assemble_x86_opn rip ii VINSERTI128 outx inx
+    assemble_x86_opn rip ii (None, VINSERTI128) outx inx
     
-  | Ox86 op =>
+  | Ox86' op =>
     assemble_x86_opn rip ii op outx inx 
   end.
 
 Lemma id_semi_sopn_sem op :
   let id := instr_desc op in
-  id_semi id = sopn_sem (Ox86 op).
+  id_semi id = sopn_sem (Ox86' op).
 Proof. by []. Qed.
 
 Lemma word_of_scale1 : word_of_scale Scale1 = 1%R.
