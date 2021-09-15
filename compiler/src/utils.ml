@@ -772,12 +772,7 @@ let pp_string fmt s =
 
 (* -------------------------------------------------------------------- *)
 
-type constant_time = { 
-    div_leak : string option;
-    mem_leak : string option;
-  } 
-
 type model = 
-  | ConstantTime of constant_time
+  | ConstantTime
   | Safety
   | Normal

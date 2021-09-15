@@ -909,8 +909,8 @@ Notation mk_instr_w2b_bw name semi flag check max_imm prc pp_asm := ((fun sz =>
 Notation mk_instr_w2_b5w2 name semi msb ain aout nargs check max_imm prc pp_asm := ((fun sz =>
   mk_instr (pp_sz name sz) (w2_ty sz sz) (b5w2_ty sz) ain (implicit_flags ++ aout) msb (semi sz) (op_leak_ty (w2_ty sz sz)) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
-Notation mk_instr_w3_b5w2_da0ad name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; E 0]  (implicit_flags ++ [:: R RAX; R RDX]) MSB_CLEAR (semi sz) (@div_leak LO sz)
+Notation mk_instr_w3_b5w2_da0ad name s semi check max_imm prc pp_asm := ((fun sz =>
+  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; E 0]  (implicit_flags ++ [:: R RAX; R RDX]) MSB_CLEAR (semi sz) (@div_leak LO s sz)
   (check sz) 1 sz (max_imm sz) [::NotZero sz 2] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_w_120 name semi check max_imm prc pp_asm := ((fun sz =>
@@ -1104,10 +1104,10 @@ Definition Ox86_IMULri_instr :=
   (fun sz => [:: [::r; rm true; i (max_32 sz)]]) omax_32 (primP IMULri) (pp_iname "imul").
 
 Definition Ox86_DIV_instr :=
-  mk_instr_w3_b5w2_da0ad "DIV" x86_DIV check_mul no_imm (primP DIV) (pp_iname "div").
+  mk_instr_w3_b5w2_da0ad "DIV" Unsigned x86_DIV check_mul no_imm (primP DIV) (pp_iname "div").
 
 Definition Ox86_IDIV_instr :=
-  mk_instr_w3_b5w2_da0ad "IDIV" x86_IDIV check_mul no_imm (primP IDIV) (pp_iname "idiv").
+  mk_instr_w3_b5w2_da0ad "IDIV" Signed x86_IDIV check_mul no_imm (primP IDIV) (pp_iname "idiv").
 
 Definition Ox86_CQO_instr :=
   mk_instr_w_w "CQO" x86_CQO msb_dfl [:: R RAX] [:: R RDX] 0 (fun _ => [:: [::]]) no_imm (primP CQO) pp_cqo.

@@ -231,7 +231,7 @@ let safe_lval = function
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
 
 let safe_opn safe opn es = 
-  let id = Expr.get_instr Leakage.dfl_LeakOp opn in
+  let id = Expr.get_instr !Glob_options.dfl_LeakOp opn in
   List.map (fun c ->
       match c with
       | X86_decl.NotZero(sz, i) ->

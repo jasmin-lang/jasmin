@@ -48,19 +48,43 @@ Inductive leak_e :=
 | Lop : forall ws, word ws -> leak_e. (* nat represents size (seq T)*)
 
 Class LeakOp := {
-   div_leak_ : forall (sz:wsize), word sz -> word sz -> word sz -> leak_e;
+   div_leak_ : signedness -> forall (sz:wsize), word sz -> word sz -> word sz -> leak_e;
    mem_leak_ : word Uptr -> word Uptr;
 }.
 
-Definition dfl_LeakOp := 
-  {| div_leak_ := fun (sz:wsize) (_ _ _ : word sz) => LEmpty
-   ; mem_leak_ := fun p => p |}.
+Inductive div_leak_kind := 
+| DLK_none 
+| DLK_num_log.
+
+
+Definition build_div_leak dlk (s:signedness) (sz:wsize) (h l d:word sz) := 
+  match dlk with
+  | DLK_none => LEmpty
+  | DLK_num_log =>  
+    let i := if s == Signed then wdwordu h l else wdwords h l in 
+    LIdx (Z.log2 (Z.abs i))
+  end.
+
+Inductive mem_leak_kind := 
+| MLK_full 
+| MLK_div64.
+
+Definition build_mem_leak mlk (p:pointer) := 
+  match mlk with
+  | MLK_full => p
+  | MLK_div64 => wdiv p (wrepr Uptr 64)
+  end.
+
+
+Definition build_model (dlk:div_leak_kind) (mlk:mem_leak_kind) := 
+  {| div_leak_ := build_div_leak dlk
+   ; mem_leak_ := build_mem_leak mlk|}.
 
 Section Section.
  
 Context {LO:LeakOp}.
 
-Definition div_leak (sz : wsize) (hi lo div: word sz) : exec leak_e := ok (div_leak_ hi lo div).
+Definition div_leak s (sz : wsize) (hi lo div: word sz) : exec leak_e := ok (div_leak_ s hi lo div).
 
 End Section.
 

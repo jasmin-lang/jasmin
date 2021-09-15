@@ -274,7 +274,7 @@ let pp_instr name (i : X86_sem.asm) =
     let iname = Printf.sprintf "j%s" (pp_ct ct) in
     `Instr (iname, [pp_label name lbl])
   | AsmOp(op, args) ->
-    let id = X86_instr_decl.instr_desc Leakage.dfl_LeakOp op in 
+    let id = X86_instr_decl.instr_desc !Glob_options.dfl_LeakOp op in 
     let pp = id.id_pp_asm args in
     let name = pp_name_ext pp in
     let args = pp_asm_args pp.pp_aop_args in

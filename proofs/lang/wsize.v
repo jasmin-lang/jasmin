@@ -65,6 +65,19 @@ Variant signedness :=
   | Unsigned.
 
 (* -------------------------------------------------------------------- *)
+Scheme Equality for signedness.
+
+Lemma signedness_axiom : Equality.axiom signedness_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_signedness_dec_bl.
+  by apply: internal_signedness_dec_lb.
+Qed.
+
+Definition signedness_eqMixin     := Equality.Mixin signedness_axiom.
+Canonical  signedness_eqType      := Eval hnf in EqType signedness signedness_eqMixin.
+
+(* -------------------------------------------------------------------- *)
 Scheme Equality for wsize.
 
 Lemma wsize_axiom : Equality.axiom wsize_beq.

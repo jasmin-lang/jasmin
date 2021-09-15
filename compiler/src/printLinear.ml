@@ -56,7 +56,7 @@ let pp_instr tbl fmt i =
   | Liopn (lvs, op, es) ->
     F.fprintf fmt "@[%a@] = %a@[(%a)@]"
       (Pr.pp_list ",@ " (pp_lval tbl)) lvs
-      Pr.pp_string0 (E.string_of_sopn Leakage.dfl_LeakOp op)
+      Pr.pp_string0 (E.string_of_sopn !Glob_options.dfl_LeakOp op)
       (Pr.pp_list ",@ " (pp_expr tbl)) es
   | Lialign     -> F.fprintf fmt "Align"
   | Lilabel lbl -> F.fprintf fmt "Label %a" pp_label lbl

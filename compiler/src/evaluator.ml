@@ -67,7 +67,7 @@ let return s =
     let vres = 
       exn_exec ii (mapM (fun (x:Var.var_i) -> get_var vm2 x.v_var) f.f_res) in
     let vres' = exn_exec ii (mapM2 ErrType truncate_val f.f_tyout vres) in
-    let s1, _lk = exn_exec ii (write_lvals Leakage.dfl_LeakOp gd {emem = m2; evm = vm1 } xs vres') in
+    let s1, _lk = exn_exec ii (write_lvals !Glob_options.dfl_LeakOp gd {emem = m2; evm = vm1 } xs vres') in
     { s with 
       s_cmd = c;
       s_estate = s1;
@@ -92,25 +92,25 @@ let small_step1 s =
     match ir with
 
     | Cassgn(x,_,ty,e) ->
-      let v, _lkv  = exn_exec ii (sem_pexpr Leakage.dfl_LeakOp gd s1 e) in
+      let v, _lkv  = exn_exec ii (sem_pexpr !Glob_options.dfl_LeakOp gd s1 e) in
       let v' = exn_exec ii (truncate_val ty v) in
-      let s2, _lk = exn_exec ii (write_lval Leakage.dfl_LeakOp gd x v' s1) in
+      let s2, _lk = exn_exec ii (write_lval !Glob_options.dfl_LeakOp gd x v' s1) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Copn(xs,_,op,es) ->
-      let s2, _lk = exn_exec ii (sem_sopn Leakage.dfl_LeakOp gd op s1 xs es) in
+      let s2, _lk = exn_exec ii (sem_sopn !Glob_options.dfl_LeakOp gd op s1 xs es) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Cif(e,c1,c2) ->
-       let v, _lk = exn_exec ii (sem_pexpr Leakage.dfl_LeakOp gd s1 e) in
+       let v, _lk = exn_exec ii (sem_pexpr !Glob_options.dfl_LeakOp gd s1 e) in
       let b = of_val_b ii v in
       let c = (if b then c1 else c2) @ c in
       { s with s_cmd = c }
 
     | Cfor (i,((d,lo),hi), body) ->
-       let zlo, _lklo = exn_exec ii (sem_pexpr Leakage.dfl_LeakOp gd s1 lo) in
+       let zlo, _lklo = exn_exec ii (sem_pexpr !Glob_options.dfl_LeakOp gd s1 lo) in
       let vlo = of_val_z ii zlo in
-      let zhi, _lkhi = exn_exec ii (sem_pexpr Leakage.dfl_LeakOp gd s1 hi) in
+      let zhi, _lkhi = exn_exec ii (sem_pexpr !Glob_options.dfl_LeakOp gd s1 hi) in
       let vhi = of_val_z ii zhi in
       let rng = wrange d vlo vhi in
       let s =
@@ -121,7 +121,7 @@ let small_step1 s =
       { s with s_cmd = c1 @ MkI(ii, Cif(e, c2@[i],[])) :: c }
 
     | Ccall(_,xs,fn,es) ->
-      let vargs' = exn_exec ii (sem_pexprs Leakage.dfl_LeakOp gd s1 es) in
+      let vargs' = exn_exec ii (sem_pexprs !Glob_options.dfl_LeakOp gd s1 es) in
       let vargs', _lkargs = List.split vargs' in
       let f = 
         match get_fundef s.s_prog.p_funcs fn with

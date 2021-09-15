@@ -23,6 +23,9 @@ let lea = ref false
 let set0 = ref false
 let model = ref Normal
 
+let mem_leak_kind = ref Leakage.MLK_full
+let div_leak_kind = ref Leakage.DLK_none
+
 let poptions = [
     Compiler.Typing
   ; Compiler.ParamsExpansion
@@ -52,7 +55,7 @@ let set_all_print () =
 let set_ec f =
   ec_list := f :: !ec_list
 
-let set_constTime () = model := ConstantTime {div_leak = Some "div_log"; mem_leak = Some "mem_div64" }
+let set_constTime () = model := ConstantTime 
 let set_safety () = model := Safety
 
 let set_checksafety () = check_safety := true
@@ -60,6 +63,24 @@ let set_safetyparam s = safety_param := Some s
 let set_safetyconfig s = safety_config := Some s
 let set_safety_makeconfigdoc s = safety_makeconfigdoc := Some s
       
+let set_dlk s = 
+  match s with
+  | "none" -> div_leak_kind := Leakage.DLK_none 
+  | "log"  -> div_leak_kind := Leakage.DLK_num_log
+  | _      -> hierror "unknown model %s for division" s
+
+let set_mlk s = 
+  match s with
+  | "full" -> mem_leak_kind := Leakage.MLK_full
+  | "div64" -> mem_leak_kind := Leakage.MLK_div64
+  | _ -> hierror "unknown model %s for memory" s
+
+let dfl_LeakOp = 
+  ref (Leakage.build_model !div_leak_kind !mem_leak_kind)
+
+let set_dfl_LeakOp () = 
+  dfl_LeakOp := (Leakage.build_model !div_leak_kind !mem_leak_kind)
+
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "constant expansion"
@@ -114,6 +135,8 @@ let options = [
     "--lt", Arg.Set print_transformers, "Print the leak transformers to stdout";
     "--ct", Arg.Set print_cost_transformers, "Print the cost transformers to stdout";
     "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
+    "--dlk", Arg.String set_dlk, ": div leak model";
+    "--mlk", Arg.String set_mlk, ": mem leak model";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
   ] @  List.map print_option poptions
 

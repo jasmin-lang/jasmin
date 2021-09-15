@@ -11,6 +11,7 @@ let parse () =
     if !infile <> "" then error();
     infile := s  in
   Arg.parse options set_in usage_msg;
+  Glob_options.set_dfl_LeakOp ();
   if !infile = "" && (not !help_intrinsics) && (!safety_makeconfigdoc = None)
   then error()
 
@@ -384,7 +385,7 @@ let main () =
       List.map (fun fd -> Conv.cfun_of_fun tbl fd.f_name) ep in
 
     begin match
-      Compiler.compile_prog_to_x86 Leakage.dfl_LeakOp cparams entries cprog with
+      Compiler.compile_prog_to_x86 !Glob_options.dfl_LeakOp cparams entries cprog with
     | Utils0.Error e ->
       Utils.hierror "compilation error %a@.PLEASE REPORT"
          (pp_comp_ferr tbl) e
