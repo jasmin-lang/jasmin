@@ -1,0 +1,4 @@
+fn foo(#public reg u64 r) -> #flex reg u64 {
+   return r;
+}
+

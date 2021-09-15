@@ -1,0 +1,4 @@
+fn add(#public reg u64 p, #secret reg u64 s) -> reg u64 {
+   p += s;
+   return p;
+}
