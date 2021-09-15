@@ -898,23 +898,21 @@ module Leak = struct
   let pp_safe_es env fmt es = pp_list "/\\@ " (pp_safe_e env) fmt es
 
   let pp_leakE env fmt = function
-    | LeakDiv2(s, ws, e2, _e3)     -> 
+    | LeakDiv2(s, _, e2, _e3)     -> 
       
       begin match leak_div () with
       | Leakage.DLK_none -> Format.fprintf fmt "0"
       | Leakage.DLK_num_log -> 
-         Format.fprintf fmt "(zlog2 (divextend_%s%i (%a)))" 
-           (if s = Signed then "s" else "u")
-           (int_of_ws ws)
+         Format.fprintf fmt "(zlog2 (%s (%a)))" 
+           (if s = Signed then "to_sint" else "to_uint")
            (pp_expr env) e2
       end
-    | LeakDiv3(s, ws, e1, e2, _e3) -> 
+    | LeakDiv3(s, _, e1, e2, _e3) -> 
       begin match leak_div () with
       | Leakage.DLK_none -> Format.fprintf fmt "0"
       | Leakage.DLK_num_log -> 
-        Format.fprintf fmt "(zlog2 (dword_%s%i (%a) (%a)))" 
+        Format.fprintf fmt "(zlog2 (wdword%s (%a) (%a)))" 
           (if s = Signed then "s" else "u")
-          (int_of_ws ws)
           (pp_expr env) e1
           (pp_expr env) e2
       end
@@ -938,13 +936,13 @@ module Leak = struct
     
   let pp_leaks_e env fmt e =
     match env.model with
-    | ConstantTime _ -> pp_leaks env fmt (leaks_e e)
+    | ConstantTime -> pp_leaks env fmt (leaks_e e)
     | Safety -> pp_safe_cond env fmt (safe_e env e)
     | _ -> ()
 
   let pp_leaks_es env fmt es = 
     match env.model with
-    | ConstantTime _ -> pp_leaks env fmt (leaks_es es)
+    | ConstantTime -> pp_leaks env fmt (leaks_es es)
     | Safety -> pp_safe_cond env fmt (safe_es env es)
     | _ -> ()
     
@@ -971,7 +969,7 @@ module Leak = struct
 
   let pp_leaks_if env fmt e = 
     match env.model with
-    | ConstantTime _ -> 
+    | ConstantTime -> 
       let leaks = leaks_e e in
       Format.fprintf fmt 
         "leakages <- LeakCond(%a) :: LeakAddr(@[[%a]@]) :: leakages;@ "
@@ -981,7 +979,7 @@ module Leak = struct
 
   let pp_leaks_for env fmt e1 e2 = 
     match env.model with
-    | ConstantTime _ -> 
+    | ConstantTime -> 
       let leaks = leaks_es [e1;e2] in
       Format.fprintf fmt 
         "leakages <- LeakFor(%a,%a) :: LeakAddr(@[[%a]@]) :: leakages;@ "
@@ -992,7 +990,7 @@ module Leak = struct
 
   let pp_leaks_lv env fmt lv = 
     match env.model with
-    | ConstantTime _ -> 
+    | ConstantTime -> 
       let leaks = leaks_lval lv in
       if leaks <> [] then pp_leaks env fmt leaks
     | Safety -> pp_safe_cond env fmt (safe_lval env lv)
@@ -1211,7 +1209,7 @@ let pp_prog fmt model globs funcs =
 
   let pp_leakages fmt env = 
     match env.model with
-    | ConstantTime _ ->
+    | ConstantTime ->
       Format.fprintf fmt "var leakages : leakages_t@ @ " 
     | Safety -> 
       Format.fprintf fmt "var safe : bool@ @ " 

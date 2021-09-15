@@ -325,10 +325,6 @@ type leakage_t = [
 
 type leakages_t = leakage_t list.
 
-op divextend_u64 : W64.t -> W64.t.
-op div_log_u64 (* FIXME add the size *) : W64.t -> W64.t -> W64.t -> int.
-op div_log_s64 (* FIXME add the size *) : W64.t -> W64.t -> W64.t -> int.
 
-op mem_div64 (p:int) = p %/ 64.
-
+op zlog2 : int -> int.
 
