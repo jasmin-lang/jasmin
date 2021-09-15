@@ -9,12 +9,19 @@ module IntMap = Mint
 let hierror = hierror ~kind:"compilation error"
 let hierror_reg = hierror ~sub_kind:"register allocation"
 
+let make_counter () =
+  let count = ref 0 in
+  (fun () ->
+    let n = !count in
+    incr count;
+    n),
+  (fun () -> !count)
+
 let fill_in_missing_names (f: 'info func) : 'info func =
   let fresh_name : L.t -> ty -> var_i =
-    let count = ref 0 in
+    let fresh, _ = make_counter () in
     fun loc ty ->
-      let n = Printf.sprintf " _%d" !count in
-      incr count;
+      let n = Printf.sprintf " _%d" (fresh ()) in
       L.mk_loc loc (V.mk n (Reg Direct) ty L._dummy)
   in
   let fill_lv =
@@ -333,14 +340,6 @@ let iter_variables (cb: var -> unit) (f: 'info func) : unit =
   iter_stmt f.f_body;
   List.iter cb f.f_args;
   List.iter (fun x -> cb (L.unloc x)) f.f_ret
-
-let make_counter () =
-  let count = ref 0 in
-  (fun () ->
-    let n = !count in
-    incr count;
-    n),
-  (fun () -> !count)
 
 let collect_variables_aux ~(allvars: bool) (excluded: Sv.t) (fresh: unit -> int) (tbl: int Hv.t) (f: 'info func) : unit =
   (* Remove sp and rip *)
