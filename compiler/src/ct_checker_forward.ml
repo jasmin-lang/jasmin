@@ -427,10 +427,9 @@ let get_annot ensure_annot f =
     let (k, lvl) = Lvl.parse ~single:true ~kind_allowed:true x.v_annot in
     if k = Some Flexible then 
       begin 
-        warning Always 
-          "%s annotation will be ignored for local variable %a (declared at %a)"
-          Lvl.sflexible (Printer.pp_var ~debug:false) x 
-          L.pp_loc x.v_dloc;
+        warning Always (x.v_dloc, [])
+          "%s annotation will be ignored for local variable %a"
+          Lvl.sflexible (Printer.pp_var ~debug:false) x;
         decls
       end
     else 
