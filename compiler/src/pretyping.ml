@@ -732,7 +732,6 @@ let peop2_of_eqop (eqop : S.peqop) =
   | `BOr  s -> Some (`BOr s)
 
 (* -------------------------------------------------------------------- *)
-
 let cast loc e ety ty =
   match ety, ty with
   | P.Bty P.Int , P.Bty (P.U w) -> P.Papp1 (E.Oword_of_int w, e)
@@ -1348,9 +1347,7 @@ let rec tt_instr (env : Env.env) (pi : S.pinstr) : unit P.pinstr  =
       let ety =
         match vty with
         | None -> ety
-        | Some vty -> match max_ty ety vty with
-          | Some ty -> ty
-          | None -> rs_tyerror ~loc:(L.loc pi) (TypeMismatch (ety, vty))
+        | Some vty -> vty
       in
       let v = flv ety in
       let tg =
