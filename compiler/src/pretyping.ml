@@ -749,10 +749,7 @@ let cast_word loc ws e ety =
   | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.Bty (P.U ws)))
 
 let cast_int loc e ety = 
-  match ety with
-  | P.Bty P.Int    -> e 
-  | P.Bty (P.U ws) -> P.Papp1 (Oint_of_word ws, e)
-  | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.tint))
+  cast loc e ety P.tint 
 
 (* -------------------------------------------------------------------- *)
 let conv_ty = function
@@ -917,11 +914,10 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     check_ty_eq ~loc:(L.loc pe) ~from:ty2 ~to_:ty3;
     P.Pif(ty2, e1, e2, e3), ty2
 
-
-and tt_expr_cast64 ?(mode=`AllVar) (env : Env.env) pe =
-  let e, ty = tt_expr ~mode env pe in
-  cast (L.loc pe) e ty P.u64
-
+and tt_expr_cast ?(mode=`AllVar) (env : Env.env) pe ty = 
+  let e, ety = tt_expr ~mode env pe in
+  cast (L.loc pe) e ety ty 
+  
 and tt_mem_access ?(mode=`AllVar) (env : Env.env) 
            (ct, ({ L.pl_loc = xlc } as x), e) = 
   let x = tt_var `NoParam env x in
@@ -930,7 +926,7 @@ and tt_mem_access ?(mode=`AllVar) (env : Env.env)
     match e with
     | None -> P.Papp1 (Oword_of_int U64, P.Pconst (P.B.zero)) 
     | Some(k, e) -> 
-      let e = tt_expr_cast64 ~mode env e in
+      let e = tt_expr_cast ~mode env e P.u64 in
       match k with
       | `Add -> e
       | `Sub -> Papp1(E.Oneg (E.Op_w U64), e) in
@@ -950,13 +946,8 @@ and tt_type (env : Env.env) (pty : S.ptype) : P.pty =
 let tt_exprs (env : Env.env) es = List.map (tt_expr ~mode:`AllVar env) es
 
 (* -------------------------------------------------------------------- *)
-let tt_expr_ty (env : Env.env) pe ty =
-  let e, ety = tt_expr ~mode:`AllVar env pe in
-  check_ty_eq ~loc:(L.loc pe) ~from:ety ~to_:ty;
-  e
-
-let tt_expr_bool env pe = tt_expr_ty env pe P.tbool
-let tt_expr_int  env pe = tt_expr_ty env pe P.tint
+let tt_expr_bool env pe = tt_expr_cast env pe P.tbool
+let tt_expr_int  env pe = tt_expr_cast env pe P.tint
 
 (* -------------------------------------------------------------------- *)
 let tt_vardecl dfl_writable (env : Env.env) ((sto, xty), x) =
