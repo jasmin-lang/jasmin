@@ -278,7 +278,7 @@ let conflicts_add_one tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
   try
     let i = Hv.find tbl v in
     let j = Hv.find tbl w in
-    if i = j then hierror_reg ~loc:(Lmore loc) "conflicting variables %a and %a must be merged due to:@;<1 2>%a"
+    if i = j then hierror_reg ~loc:(Lmore loc) "conflicting variables “%a” and “%a” must be merged due to:@;<1 2>%a"
                     (Printer.pp_var ~debug:true) v
                     (Printer.pp_var ~debug:true) w
                     (pp_trace i) tr;
