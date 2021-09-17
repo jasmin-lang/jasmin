@@ -190,7 +190,7 @@ let memory_analysis pp_err ~debug tbl up =
   (* register allocation *)
   let translate_var = Conv.var_of_cvar tbl in
   let has_stack f = f.f_cc = Export && (Hf.find sao f.f_name).sao_modify_rsp in
-  let fds, _rev_alloc, _extra_free_registers, _live_calls = 
+  let fds, _extra_free_registers, _live_calls =
     Regalloc.alloc_prog translate_var (fun fd _ -> has_stack fd) fds in
   
   let fix_csao (_, ro, fd) =

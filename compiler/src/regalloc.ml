@@ -383,12 +383,20 @@ let set n x (a, r) =
 let mem n (a, _) = a.(n) <> None
 end
 
+let reverse_classes nv vars : Sv.t array =
+  let classes : var list array = Array.make nv [] in
+  Hv.iter (fun v i -> classes.(i) <- v :: classes.(i)) vars;
+  Array.map Sv.of_list classes
+
 exception AlreadyAllocated
 
-let does_not_conflict i (cnf: conflicts) (a: A.allocation) (x: var) : bool =
-  IntSet.disjoint (get_conflicts i cnf) (A.rfind x a)
+let get_conflict_set i (cnf: conflicts) (a: A.allocation) (x: var) : IntSet.t =
+  IntSet.inter (get_conflicts i cnf) (A.rfind x a)
 
-let allocate_one loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.allocation) : unit =
+let does_not_conflict i (cnf: conflicts) (a: A.allocation) (x: var) : bool =
+  get_conflict_set i cnf a x |> IntSet.is_empty
+
+let allocate_one nv vars loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.allocation) : unit =
   match A.find x a with
   | Some r' when r' = r -> ()
   | Some r' ->
@@ -399,11 +407,17 @@ let allocate_one loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.allocatio
        pv r'
 
   | None ->
-     if does_not_conflict x cnf a r
+     let c = get_conflict_set x cnf a r in
+     if IntSet.is_empty c
      then A.set x r a
      else
        let pv = Printer.pp_var ~debug:true in
-       hierror_reg ~loc:(Lmore loc) "variable %a must be allocated to conflicting register %a" pv x_ pv r
+       let regs = reverse_classes nv vars in
+       hierror_reg ~loc:(Lmore loc) "variable %a must be allocated to conflicting register %a { %a }"
+         pv x_
+         (Printer.pp_var ~debug:false) r
+         (pp_list "; " pv)
+         (IntSet.fold (fun i -> Sv.union regs.(i)) c Sv.empty |> Sv.elements)
 
 module X64 =
 struct
@@ -496,13 +510,13 @@ struct
 
   let all_registers = reserved @ allocatable @ xmm_allocatable @ flags
 
-  let forced_registers translate_var loc (vars: int Hv.t) (cnf: conflicts)
+  let forced_registers translate_var loc nv (vars: int Hv.t) (cnf: conflicts)
       (lvs: 'ty glvals) (op: sopn) (es: 'ty gexprs)
       (a: A.allocation) : unit =
     let f x = Hv.find vars (L.unloc x) in
     let allocate_one x y a =
       let i = f x in
-      allocate_one loc cnf (L.unloc x) i y a
+      allocate_one nv vars loc cnf (L.unloc x) i y a
     in
     let mallocate_one x y a =
       match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
@@ -534,7 +548,7 @@ let kind_of_type =
   | Bty (U (U128 | U256)) -> Vector
   | ty -> Unknown ty
 
-let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
+let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
     (f: 'info func) (a: A.allocation) : unit =
   let split ~ctxt =
     function
@@ -557,7 +571,7 @@ let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
               hierror_reg ~loc:(Lmore loc) "unknown type %a for forced register %a"
                 Printer.pp_ty ty (Printer.pp_var ~debug:true) p
           in
-          allocate_one loc cnf p i d a;
+          allocate_one nv vars loc cnf p i d a;
           (rs, xs)
         | exception Not_found -> (rs, xs))
       (rs, xs)
@@ -570,7 +584,7 @@ let allocate_forced_registers translate_var (vars: int Hv.t) (cnf: conflicts)
     function
     | Cfor (_, _, s)
       -> alloc_stmt s
-    | Copn (lvs, _, op, es) -> X64.forced_registers translate_var loc vars cnf lvs op es a
+    | Copn (lvs, _, op, es) -> X64.forced_registers translate_var loc nv vars cnf lvs op es a
     | Cwhile (_, s1, _, s2)
     | Cif (_, s1, s2)
         -> alloc_stmt s1; alloc_stmt s2
@@ -711,21 +725,7 @@ let post_process ~stack_needed (subst: var -> var) (live: Sv.t) ~(killed: funnam
        else to_save, None
      end
 
-(** Useful for error messages: maps each register (after allocation) to the set
-of variables (before allocation) it implements *)
-let reverse_allocation nv vars (a: A.allocation) : var -> Sv.t =
-  let classes : Sv.t array lazy_t =
-    lazy (
-        let classes : var list array = Array.make nv [] in
-        Hv.iter (fun v i -> classes.(i) <- v :: classes.(i)) vars;
-        Array.map Sv.of_list classes
-      )
-  in
-  fun x ->
-  let s = A.rfind x a in
-  IntSet.fold (fun i -> Sv.union (Lazy.force classes).(i)) s Sv.empty
-
-let global_allocation translate_var (funcs: 'info func list) : unit func list * (funname -> Sv.t) * (var -> var) * (var -> Sv.t) * (funname -> Sv.t) * (L.i_loc -> var option) * var Hf.t =
+let global_allocation translate_var (funcs: 'info func list) : unit func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * (L.i_loc -> var option) * var Hf.t =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
     - generate a fresh variable to hold the return address (if needed)
@@ -843,14 +843,13 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
         cnf |> Sv.fold (add_conflicts vars) live |> Sv.fold (add_conflicts live) vars
       ) funcs conflicts in
   let a = A.empty nv in
-  List.iter (fun f -> allocate_forced_registers translate_var vars conflicts f a) funcs;
+  List.iter (fun f -> allocate_forced_registers translate_var nv vars conflicts f a) funcs;
   greedy_allocation vars nv conflicts fr a;
   let subst = var_subst_of_allocation vars a in
 
   List.map (fun f -> f |> Subst.subst_func (subst_of_var_subst subst) |> Ssa.remove_phi_nodes) funcs,
   get_liveness,
-  subst,
-  reverse_allocation nv vars a
+  subst
   , killed
   , Hashtbl.find_opt extra_free_registers
   , return_addresses
@@ -862,9 +861,9 @@ type reg_oracle_t = {
   }
 
 let alloc_prog translate_var (has_stack: 'info func -> 'a -> bool) (dfuncs: ('a * 'info func) list)
-    : ('a * reg_oracle_t * unit func) list * (var -> Sv.t) * (L.i_loc -> var option) * (funname -> Sv.t)=
+    : ('a * reg_oracle_t * unit func) list * (L.i_loc -> var option) * (funname -> Sv.t)=
   let extra : 'a Hf.t = Hf.create 17 in
-  let funcs, get_liveness, subst, reva, killed, extra_free_registers, return_addresses =
+  let funcs, get_liveness, subst, killed, extra_free_registers, return_addresses =
     dfuncs
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
     |> global_allocation translate_var
@@ -882,6 +881,5 @@ let alloc_prog translate_var (has_stack: 'info func -> 'a -> bool) (dfuncs: ('a 
       let to_save = match ro_return_address with Some ra -> Sv.add ra to_save | None -> to_save in
       e, { ro_to_save = Sv.elements to_save ; ro_rsp ; ro_return_address }, f
     )
-  , reva
   , (fun loc -> extra_free_registers loc |> Option.map subst)
   , get_liveness
