@@ -388,8 +388,6 @@ let reverse_classes nv vars : Sv.t array =
   Hv.iter (fun v i -> classes.(i) <- v :: classes.(i)) vars;
   Array.map Sv.of_list classes
 
-exception AlreadyAllocated
-
 let get_conflict_set i (cnf: conflicts) (a: A.allocation) (x: var) : IntSet.t =
   IntSet.inter (get_conflicts i cnf) (A.rfind x a)
 
@@ -861,7 +859,7 @@ type reg_oracle_t = {
   }
 
 let alloc_prog translate_var (has_stack: 'info func -> 'a -> bool) (dfuncs: ('a * 'info func) list)
-    : ('a * reg_oracle_t * unit func) list * (L.i_loc -> var option) * (funname -> Sv.t)=
+    : ('a * reg_oracle_t * unit func) list * (L.i_loc -> var option) =
   let extra : 'a Hf.t = Hf.create 17 in
   let funcs, get_liveness, subst, killed, extra_free_registers, return_addresses =
     dfuncs
@@ -882,4 +880,3 @@ let alloc_prog translate_var (has_stack: 'info func -> 'a -> bool) (dfuncs: ('a 
       e, { ro_to_save = Sv.elements to_save ; ro_rsp ; ro_return_address }, f
     )
   , (fun loc -> extra_free_registers loc |> Option.map subst)
-  , get_liveness

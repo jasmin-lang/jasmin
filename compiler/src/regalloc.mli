@@ -31,4 +31,3 @@ val alloc_prog : (Var0.Var.var -> var) -> (unit func -> 'a -> bool) ->
  ('a * unit func) list ->
  ('a * reg_oracle_t * unit func) list
  * (L.i_loc -> var option)
- * (funname -> Sv.t)
