@@ -53,14 +53,14 @@ Lemma unroll1P (fn: funname) (p p':uprog) ev mem va va' mem' vr:
   unroll1 p = ok p' ->
   sem_call p ev mem fn va mem' vr ->
   List.Forall2 value_uincl va va' ->
-  exists vr', sem_call p' ev mem fn va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+  exists2 vr', sem_call p' ev mem fn va' mem' vr' & List.Forall2 value_uincl vr vr'.
 Proof.
   rewrite /unroll1=> Heq Hsem Hall.
   have hsemu := unroll_callP Hsem.
   have [vr' [hsemc hall']]:= const_prop_callP hsemu Hall.
   have Hall'' : List.Forall2 value_uincl va' va'. by apply List_Forall2_refl.
   have [vr'' [hsemc' hv]] := dead_code_callPu Heq Hall'' hsemc.
-  exists vr''; split => //. apply: Forall2_trans hall' hv. 
+  exists vr'' => //. apply: Forall2_trans hall' hv.
   move=> v1 v2 v3 h1 h2. by apply: value_uincl_trans h1 h2.
 Qed.
 
@@ -75,7 +75,7 @@ Proof.
   apply: rbindP=> z Hz.
   case: ifP=> [_ [] ->|_ Hu Hs Hall].
   + by move=> /sem_call_uincl h/h{h}.
-  have [vr' [hsem1 hall1]]:= unroll1P Hz Hs Hall.
+  have [vr' hsem1 hall1]:= unroll1P Hz Hs Hall.
   have [vr'' [hsem2 hall2]]:= Hn _ _ _ _ Hu hsem1 (List_Forall2_refl _ value_uincl_refl).
   exists vr'';split => //.
   by apply: Forall2_trans value_uincl_trans hall1 hall2.
