@@ -237,7 +237,7 @@ Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog 
 
   ok pd.
 
-Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
+Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : cexec sprog :=
 
   Let pl := compiler_first_part (entries ++ subroutines) p in
 
@@ -254,6 +254,12 @@ Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
 
   Let pd := compiler_third_part entries ps in
+
+  ok pd.
+
+Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
+
+  Let pd := compiler_front_end entries subroutines p in
 
   (* linearisation                     *)
   Let _ := merge_varmaps.check pd cparams.(extra_free_registers) in

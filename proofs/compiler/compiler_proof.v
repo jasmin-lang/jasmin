@@ -144,26 +144,163 @@ Proof.
   by rewrite h.
 Qed.
 
-Lemma compiler_third_partP entries (p: sprog) (p': sprog) (gd: pointer) m fn va m' vr :
+Lemma compiler_third_partP entries (p: sprog) (p': sprog) :
   compiler_third_part cparams entries p = ok p' →
-  fn \in entries →
-  psem.sem_call p gd m fn va m' vr →
-  exists2 vr',
-    List.Forall2 value_uincl vr vr' &
-    psem.sem_call p' gd m fn va m' vr'.
+  [/\
+    ∀ fn (gd: pointer) m va m' vr,
+      fn \in entries →
+      psem.sem_call p gd m fn va m' vr →
+      exists2 vr',
+      List.Forall2 value_uincl vr vr' &
+      psem.sem_call p' gd m fn va m' vr' &
+    ∀ fn m,
+      alloc_ok p' fn m → alloc_ok p fn m
+  ].
 Proof.
   rewrite /compiler_third_part; t_xrbindP.
   move => _ /check_removeturnP ok_rr pa ok_pa [].
   rewrite !print_sprogP => ok_pb pc ok_pc.
-  rewrite print_sprogP => <- {p'} ok_fn exec_p.
-  have va_refl : List.Forall2 value_uincl va va.
-  - exact: List_Forall2_refl.
-  apply: K; first by move => vr' Hvr'; apply: (dead_code_callPs ok_pc va_refl); exact: Hvr'.
-  apply: K; first by move => vr'; apply: (CheckAllocRegS.alloc_callP ok_pb).
-  rewrite surj_prog.
-  have [vr' [exec_pa]]:= dead_code_tokeep_callPs ok_pa va_refl exec_p.
-  rewrite /fn_keep_only (ok_rr _ ok_fn) => vr_vr'.
-  by exists vr'.
+  rewrite print_sprogP => <- {p'}.
+  split.
+  + move => fn gd m va m' vr ok_fn exec_p.
+    have va_refl : List.Forall2 value_uincl va va.
+    - exact: List_Forall2_refl.
+    apply: K; first by move => vr' Hvr'; apply: (dead_code_callPs ok_pc va_refl); exact: Hvr'.
+    apply: K; first by move => vr'; apply: (CheckAllocRegS.alloc_callP ok_pb).
+    rewrite surj_prog.
+    have [vr' [exec_pa]]:= dead_code_tokeep_callPs ok_pa va_refl exec_p.
+    rewrite /fn_keep_only (ok_rr _ ok_fn) => vr_vr'.
+    by exists vr'.
+  rewrite /alloc_ok => fn m alloc_pc fd get_fd.
+  have [fda ok_fda get_fda] := dead_code_prog_tokeep_get_fundef ok_pa get_fd.
+  have [fdb [get_fdb ok_fdb]] := CheckAllocRegS.all_checked ok_pb get_fda.
+  have [fdc ok_fdc get_fdc] := dead_code_prog_tokeep_get_fundef ok_pc get_fdb.
+  move: (alloc_pc _ get_fdc).
+  have [_ _ ->]:= dead_code_fd_meta ok_fdc.
+  have /=[_ _ _ <-] := CheckAllocRegS.check_fundef_meta ok_fdb.
+  have [_ _ ->]:= dead_code_fd_meta ok_fda.
+  done.
+Qed.
+
+Lemma compiler_third_part_meta entries (p p' : sprog) :
+  compiler_third_part cparams entries p = ok p' →
+  p_extra p' = p_extra p.
+Proof.
+  rewrite /compiler_third_part; t_xrbindP => _ _ pa /dead_code_prog_tokeep_meta[] _ ok_pa _ _ pb /dead_code_prog_tokeep_meta[].
+  rewrite !print_sprogP /= => _ ok_pb <- {p'}.
+  by rewrite ok_pb ok_pa.
+Qed.
+
+(* TODO: move *)
+Remark sp_globs_stack_alloc rip rsp data ga la (p: uprog) (p': sprog) :
+  alloc_prog rip rsp data ga la p = ok p' →
+  sp_globs (p_extra p') = data.
+Proof.
+  rewrite /alloc_prog; t_xrbindP => ??.
+  do 2 case: ifP => // _.
+  by t_xrbindP => ? _ <-.
+Qed.
+
+Lemma compiler_third_part_alloc_ok entries (p p' : sprog) (fn: funname) (m: mem) :
+  compiler_third_part cparams entries p = ok p' →
+  alloc_ok p' fn m →
+  alloc_ok p fn m.
+Proof. case/compiler_third_partP => _; exact. Qed.
+
+Lemma check_no_ptrP entries ao u fn :
+  check_no_ptr entries ao = ok u →
+  fn \in entries →
+  allNone (sao_params (ao fn)) ∧ allNone (sao_return (ao fn)).
+Proof.
+  clear.
+  case: u.
+  elim: entries => // e entries ih.
+  rewrite /check_no_ptr /=; t_xrbindP => - [] _ /assertP checked_params /assertP ok_return => /ih {ih} ih.
+  rewrite inE.
+  by case: eqP => // ? _; subst fn.
+Qed.
+
+Lemma allNone_nth {A} (m: seq (option A)) i :
+  allNone m ->
+  nth None m i = None.
+Proof.
+  elim: m i.
+  - by move => ? _; exact: nth_nil.
+  by case => // m ih [].
+Qed.
+
+Lemma sem_call_length (p: uprog) m fn va m' vr :
+  sem_call p tt m fn va m' vr →
+  ∃ fd,
+    [/\ get_fundef (p_funcs p) fn = Some fd,
+     size (f_params fd) = size va,
+     size (f_tyin fd) = size va,
+     size (f_tyout fd) = size vr &
+     size (f_res fd) = size vr].
+Proof.
+  case/sem_callE => fd [] -> [] va' [] ? [] ? [] ? [] vr' [] ok_args [] _ ok_va' _ [] /mapM_size ok_vr' ok_res _.
+  have := size_fold2 ok_va'.
+  have [<- <-] := mapM2_size ok_args.
+  have [size_vr' <-] := mapM2_size ok_res.
+  rewrite {2}size_vr' -ok_vr' => {1}<-.
+  by exists fd.
+Qed.
+
+Lemma compiler_front_endP entries subroutines (p: prog) (p': sprog) (gd: pointer) m mi fn va m' vr :
+  compiler_front_end cparams entries subroutines p = ok p' →
+  fn \in entries →
+  sem.sem_call p m fn va m' vr →
+  extend_mem m mi gd (sp_globs (p_extra p')) →
+  alloc_ok p' fn mi →
+  ∃ vr' mi',
+    [/\
+     List.Forall2 value_uincl vr vr',
+     psem.sem_call p' gd mi fn va mi' vr' &
+     extend_mem m' mi' gd (sp_globs (p_extra p'))
+    ].
+Proof.
+  rewrite /compiler_front_end; t_xrbindP.
+  move => p1 ok_p1 [] /check_no_ptrP checked_entries p2 ok_p2 p3.
+  rewrite print_sprogP => ok_p3 <- {p'} ok_fn exec_p.
+  rewrite (compiler_third_part_meta ok_p3) => m_mi ok_mi.
+  have {ok_mi} ok_mi : alloc_ok p2 fn mi.
+  - exact: compiler_third_part_alloc_ok ok_p3 ok_mi.
+  have := compiler_first_partP ok_p1 _ exec_p.
+  rewrite mem_cat ok_fn => /(_ erefl).
+  case => {p ok_p1 exec_p} vr1 vr_vr1 exec_p1.
+  have gd2 := sp_globs_stack_alloc ok_p2.
+  rewrite -gd2 in ok_p2.
+  case/sem_call_length: (exec_p1) => fd [] ok_fd size_params size_tyin size_tyout size_res.
+  case/alloc_prog_get_fundef: (ok_p2) => mglob ok_mglob /(_ _ _ ok_fd)[] fd' /alloc_fd_checked_sao[] ok_sao_p ok_sao_r ok_fd'.
+  move: checked_entries => /(_ _ ok_fn) [] params_noptr return_noptr.
+  have ok_va : wf_args (sp_globs (p_extra p2)) gd (ao_stack_alloc (stackalloc cparams p1)) m mi fn va va.
+  - move: params_noptr ok_sao_p.
+    rewrite size_params /wf_args.
+    move: (sao_params _); clear.
+    elim: va.
+    + by case => // _ _; constructor.
+    by move => v va ih [] // [] // pa /= /ih{}ih /succn_inj /ih{}ih; constructor.
+  have disjoint_va : disjoint_values (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)) va va.
+  - rewrite /disjoint_values => i1 pi1 w1 i2 pi2 w2.
+    by rewrite (allNone_nth _ params_noptr).
+  have := alloc_progP ok_p2 exec_p1 m_mi.
+  move => /(_ va ok_va disjoint_va ok_mi).
+  case => mi' [] vr2 [] exec_p2 [] m'_mi' [] ok_vr2 ?.
+  have [] := compiler_third_partP ok_p3.
+  case/(_ _ _ _ _ _ _ ok_fn exec_p2) => vr3 vr2_vr3 exec_p3.
+  exists vr3, mi'; split.
+  - apply: (Forall2_trans value_uincl_trans); first exact vr_vr1.
+    apply: (Forall2_trans value_uincl_trans); last exact vr2_vr3.
+    suff -> : vr1 = vr2 by exact: List_Forall2_refl.
+    move: ok_sao_r ok_vr2 return_noptr.
+    rewrite /wf_results size_res.
+    move: (sao_return _); clear.
+    elim: vr1 vr2.
+    + by case => // ??[] // _ /List_Forall3_inv.
+    move => r vr ih vr2 [] // [] // ns /= /succn_inj /ih{}ih /List_Forall3_inv.
+    by case: vr2 => // r2 vr2 [] /= -> /ih{}ih /ih ->.
+  - exact: exec_p3.
+  exact: m'_mi'.
 Qed.
 
 (*
