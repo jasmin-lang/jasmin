@@ -165,6 +165,19 @@ Variable cparams : compiler_params.
 Definition check_removeturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
   assert (pmap remove_return entries == [::]) (pp_internal_error_s "remove return" "Signature of some export functions are modified").
 
+(** Export functions (entry points) shall not have ptr arguments or return values. *)
+Definition allNone {A: Type} (m: seq (option A)) : bool :=
+  all (fun a => if a is None then true else false) m.
+
+Definition check_no_ptr entries (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
+  foldM
+    (fun fn _ =>
+       let: sao := ao fn in
+       assert (allNone sao.(sao_params)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” arguments")) >>
+       assert (allNone sao.(sao_return)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” return values")))
+    tt
+    entries.
+
 Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   let p := add_init_prog cparams.(is_ptr) p in
@@ -231,6 +244,7 @@ Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
   (* stack + register allocation *)
 
   let ao := cparams.(stackalloc) pl in
+  Let _ := check_no_ptr entries ao.(ao_stack_alloc) in
   Let ps :=
      stack_alloc.alloc_prog true
        cparams.(global_static_data_symbol)
