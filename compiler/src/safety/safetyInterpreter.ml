@@ -1201,7 +1201,7 @@ end = struct
     | E.Ox86' (x, X86_instr_decl.SHL ws) ->
       assert (x = None);
       let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Olsl ws, e1, e2) in
+      let e = Papp2 (E.Olsl (E.Op_w ws), e1, e2) in
       rflags_unknwon @ [Some e]
 
     (* shift, unsigned / right  *)
@@ -1215,7 +1215,7 @@ end = struct
     | E.Ox86' (x, X86_instr_decl.SAR ws) ->
       assert (x = None);
       let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Oasr ws, e1, e2) in
+      let e = Papp2 (E.Oasr (E.Op_w ws), e1, e2) in
       rflags_unknwon @ [Some e]
 
     (* FIXME: adding bit shift with flags *)

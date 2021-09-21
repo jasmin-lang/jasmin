@@ -516,8 +516,8 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
       then k8 sz (LowerFopn (Ox86 (XOR sz)) [:: a ; b ] (Some U32))
       else kb true sz (LowerCopn (Ox86 (VPXOR sz)) [:: a ; b ])
     | Olsr sz => k8 sz (LowerFopn (Ox86 (SHR sz)) [:: a ; b ] (Some U8))
-    | Olsl sz => k8 sz (LowerFopn (Ox86 (SHL sz)) [:: a ; b ] (Some U8))
-    | Oasr sz => k8 sz (LowerFopn (Ox86 (SAR sz)) [:: a ; b ] (Some U8))
+    | Olsl (Op_w sz) => k8 sz (LowerFopn (Ox86 (SHL sz)) [:: a ; b ] (Some U8))
+    | Oasr (Op_w sz) => k8 sz (LowerFopn (Ox86 (SAR sz)) [:: a ; b ] (Some U8))
     | Oeq (Op_w sz) => k8 sz (LowerEq sz a b)
     | Olt (Cmp_w Unsigned sz) => k8 sz (LowerLt sz a b)
 

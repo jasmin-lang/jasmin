@@ -643,23 +643,23 @@ let lxor_info = mk_logic_info (fun k -> E.Olxor k)
 
 let shr_info = 
   let mk = function
-    | OpKE (Cmp_int)     -> assert false 
+    | OpKE (Cmp_int)     -> E.Oasr E.Op_int 
     | OpKE (Cmp_w(s,ws)) -> 
-      if s = W.Unsigned then E.Olsr ws else E.Oasr ws
+      if s = W.Unsigned then E.Olsr ws else E.Oasr (E.Op_w ws)
     | OpKV (s,ve,ws)   -> 
       if s = W.Unsigned then E.Ovlsr(ve,ws) else E.Ovasr(ve,ws) in
   { opi_op   = mk;
-    opi_wcmp = false, cmp_8_256;
+    opi_wcmp = true, cmp_8_256;
     opi_vcmp = Some cmp_8_64;
   }
    
 let shl_info = 
   let mk = function
-    | OpKE (Cmp_int)      -> assert false 
-    | OpKE (Cmp_w(_s,ws)) -> E.Olsl ws
+    | OpKE (Cmp_int)      -> E.Olsl E.Op_int
+    | OpKE (Cmp_w(_s,ws)) -> E.Olsl (E.Op_w ws)
     | OpKV (_s,ve,ws)     -> E.Ovlsl(ve,ws) in
   { opi_op   = mk;
-    opi_wcmp = false, cmp_8_256;
+    opi_wcmp = true, cmp_8_256;
     opi_vcmp = Some cmp_8_64;
   } 
 
@@ -696,8 +696,8 @@ let op2_of_pop2 exn ty (op : S.peop2) =
   | `BAnd c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) land_info
   | `BOr  c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) lor_info
   | `BXOr c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) lxor_info
-  | `ShR  c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) shr_info
-  | `ShL  c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) shl_info
+  | `ShR  c -> op2_of_ty exn op c ty shr_info
+  | `ShL  c -> op2_of_ty exn op c ty shl_info
 
   | `Eq   c -> op2_of_ty exn op c ty eq_info 
   | `Neq  c -> op2_of_ty exn op c ty neq_info

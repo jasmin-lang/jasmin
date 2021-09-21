@@ -1476,8 +1476,9 @@ Section PROOF.
          move => _ /=.
          by case: ifP => /= _ ->.
       (* Olsl *)
-      + case: andP => // - [hsz64] /eqP ?; subst sz.
-        rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.
+      + case: sz => // sz.
+        case: andP => // - [hsz64] /eqP ?; subst sz.
+         rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.
          rewrite /sem_sop2 /exec_sopn /sopn_sem /=; t_xrbindP => w1 -> w2 -> /= ?; subst v.
          case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
          rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
@@ -1489,7 +1490,8 @@ Section PROOF.
          move => _ /=.
          by case: ifP => /= _ ->.
       (* Oasr *)
-      + case: andP => // - [hsz64] /eqP ?; subst sz.
+      + case: sz => // sz.
+        case: andP => // - [hsz64] /eqP ?; subst sz.
         rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.
          rewrite /sem_sop2 /exec_sopn /sopn_sem /=; t_xrbindP => w1 -> w2 -> /= ?; subst v.
          case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
