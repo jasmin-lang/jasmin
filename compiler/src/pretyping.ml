@@ -785,23 +785,23 @@ let lxor_info = mk_logic_info (fun k -> E.Olxor k)
 
 let shr_info = 
   let mk = function
-    | OpKE (Cmp_int)     -> assert false 
+    | OpKE (Cmp_int)     -> E.Oasr E.Op_int 
     | OpKE (Cmp_w(s,ws)) -> 
-      if s = W.Unsigned then E.Olsr ws else E.Oasr ws
+      if s = W.Unsigned then E.Olsr ws else E.Oasr (E.Op_w ws)
     | OpKV (s,ve,ws)   -> 
       if s = W.Unsigned then E.Ovlsr(ve,ws) else E.Ovasr(ve,ws) in
   { opi_op   = mk;
-    opi_wcmp = false, cmp_8_256;
+    opi_wcmp = true, cmp_8_256;
     opi_vcmp = Some cmp_8_64;
   }
    
 let shl_info = 
   let mk = function
-    | OpKE (Cmp_int)      -> assert false 
-    | OpKE (Cmp_w(_s,ws)) -> E.Olsl ws
+    | OpKE (Cmp_int)      -> E.Olsl E.Op_int
+    | OpKE (Cmp_w(_s,ws)) -> E.Olsl (E.Op_w ws)
     | OpKV (_s,ve,ws)     -> E.Ovlsl(ve,ws) in
   { opi_op   = mk;
-    opi_wcmp = false, cmp_8_256;
+    opi_wcmp = true, cmp_8_256;
     opi_vcmp = Some cmp_8_64;
   } 
 
@@ -838,8 +838,8 @@ let op2_of_pop2 exn ty (op : S.peop2) =
   | `BAnd c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) land_info
   | `BOr  c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) lor_info
   | `BXOr c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) lxor_info
-  | `ShR  c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) shr_info
-  | `ShL  c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) shl_info
+  | `ShR  c -> op2_of_ty exn op c ty shr_info
+  | `ShL  c -> op2_of_ty exn op c ty shl_info
 
   | `Eq   c -> op2_of_ty exn op c ty eq_info 
   | `Neq  c -> op2_of_ty exn op c ty neq_info
@@ -874,7 +874,6 @@ let peop2_of_eqop (eqop : S.peqop) =
   | `BOr  s -> Some (`BOr s)
 
 (* -------------------------------------------------------------------- *)
-
 let cast loc e ety ty =
   match ety, ty with
   | P.Bty P.Int , P.Bty (P.U w) -> P.Papp1 (E.Oword_of_int w, e)
@@ -892,10 +891,7 @@ let cast_word loc ws e ety =
   | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.Bty (P.U ws)))
 
 let cast_int loc e ety = 
-  match ety with
-  | P.Bty P.Int    -> e 
-  | P.Bty (P.U ws) -> P.Papp1 (Oint_of_word ws, e)
-  | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.tint))
+  cast loc e ety P.tint 
 
 (* -------------------------------------------------------------------- *)
 let conv_ty = function
@@ -1060,11 +1056,10 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     check_ty_eq ~loc:(L.loc pe) ~from:ty2 ~to_:ty3;
     P.Pif(ty2, e1, e2, e3), ty2
 
-
-and tt_expr_cast64 ?(mode=`AllVar) (env : Env.env) pe =
-  let e, ty = tt_expr ~mode env pe in
-  cast (L.loc pe) e ty P.u64
-
+and tt_expr_cast ?(mode=`AllVar) (env : Env.env) pe ty = 
+  let e, ety = tt_expr ~mode env pe in
+  cast (L.loc pe) e ety ty 
+  
 and tt_mem_access ?(mode=`AllVar) (env : Env.env) 
            (ct, ({ L.pl_loc = xlc } as x), e) = 
   let x = tt_var `NoParam env x in
@@ -1073,7 +1068,7 @@ and tt_mem_access ?(mode=`AllVar) (env : Env.env)
     match e with
     | None -> P.Papp1 (Oword_of_int U64, P.Pconst (P.B.zero)) 
     | Some(k, e) -> 
-      let e = tt_expr_cast64 ~mode env e in
+      let e = tt_expr_cast ~mode env e P.u64 in
       match k with
       | `Add -> e
       | `Sub -> Papp1(E.Oneg (E.Op_w U64), e) in
@@ -1093,13 +1088,8 @@ and tt_type (env : Env.env) (pty : S.ptype) : P.pty =
 let tt_exprs (env : Env.env) es = List.map (tt_expr ~mode:`AllVar env) es
 
 (* -------------------------------------------------------------------- *)
-let tt_expr_ty (env : Env.env) pe ty =
-  let e, ety = tt_expr ~mode:`AllVar env pe in
-  check_ty_eq ~loc:(L.loc pe) ~from:ety ~to_:ty;
-  e
-
-let tt_expr_bool env pe = tt_expr_ty env pe P.tbool
-let tt_expr_int  env pe = tt_expr_ty env pe P.tint
+let tt_expr_bool env pe = tt_expr_cast env pe P.tbool
+let tt_expr_int  env pe = tt_expr_cast env pe P.tint
 
 (* -------------------------------------------------------------------- *)
 let tt_vardecl dfl_writable (env : Env.env) ((annot, (sto, xty)), x) =
@@ -1553,9 +1543,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let ety =
         match vty with
         | None -> ety
-        | Some vty -> match max_ty ety vty with
-          | Some ty -> ty
-          | None -> rs_tyerror ~loc:(L.loc pi) (TypeMismatch (ety, vty))
+        | Some vty -> vty
       in
       let v = flv ety in
       let tg =

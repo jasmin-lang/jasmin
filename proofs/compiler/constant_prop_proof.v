@@ -79,31 +79,7 @@ Hint Resolve eeq_refl eeq_w_refl : core.
 Lemma eeq_weaken e1 e2 : eeq_w e1 e2 -> e1 =E e2.
 Proof. by move=> h ?;apply eqok_weaken;apply h. Qed.
 
-Lemma sint_of_wordP sz e : Papp1 (Oint_of_word sz) e =E sint_of_word sz e.
-Proof.
-  rewrite /sint_of_word => s.
-  case: (is_wconst _ _) (@is_wconstP gd s sz e); last by move => _ ?; eauto.
-  move => w /(_ _ erefl); t_xrbindP => v ok_v ok_w v'.
-  rewrite /= /sem_sop1 /= ok_v /= ok_w => - [<-{v'}]; eauto.
-Qed.
-
-Lemma ssign_extendP sz sz' e : Papp1 (Osignext sz sz') e =E ssign_extend sz sz' e.
-Proof.
-  rewrite /ssign_extend => s.
-  case: (is_wconst _ _) (@is_wconstP gd s sz' e); last by move => _ ?; eauto.
-  move => w /(_ _ erefl); t_xrbindP => v ok_v ok_w v' /=.
-  rewrite /sem_sop1 /= ok_v /= ok_w => - [<-{v'}].
-  rewrite wrepr_unsigned; eauto.
-Qed.
-
-Lemma szero_extendP sz sz' e : Papp1 (Ozeroext sz sz') e =E szero_extend sz sz' e.
-Proof.
-  rewrite /szero_extend => s.
-  case: (is_wconst _ _) (@is_wconstP gd s sz' e); last by move => _ ?; eauto.
-  move => w /(_ _ erefl); t_xrbindP => v ok_v ok_w v' /=.
-  rewrite /sem_sop1 /= ok_v /= ok_w => - [<-{v'}].
-  rewrite wrepr_unsigned; eauto.
-Qed.
+(* -------------------------------------------------------- *)
 
 Lemma snot_boolP e : Papp1 Onot e =E snot_bool e.
 Proof.
@@ -117,12 +93,6 @@ Proof.
   by case: w' Hb => //= [? [->] | []].
 Qed.
 
-Lemma snot_wP sz e : Papp1 (Olnot sz) e =E snot_w sz e.
-Proof.
-apply: eeq_weaken; rewrite /snot_w; case heq: is_wconst => [ w | ] // s v /=.
-by rewrite /= -bindA (is_wconstP gd s heq) /= => -[<-]; rewrite /sem_sop1 /= wrepr_unsigned.
-Qed.
-
 Lemma sneg_intP e : Papp1 (Oneg Op_int) e =E sneg_int e.
 Proof.
 apply: eeq_weaken; case: e => // [ z s v [] <- // | [] ] // [] // e s v /=; t_xrbindP => ? ? -> /=.
@@ -130,17 +100,41 @@ rewrite /sem_sop1; t_xrbindP => ? /of_val_int -> <- /= ? [<-] <-.
 by rewrite Z.opp_involutive.
 Qed.
 
-Lemma sneg_wP sz e : Papp1 (Oneg (Op_w sz)) e =E sneg_w sz e.
+Lemma e2boolP e b : 
+   e2bool e = ok b -> e = Pbool b.
+Proof. by case: e => //= ? [->]. Qed.
+
+Lemma e2intP e z : 
+   e2int e = ok z -> e = Pconst z.
+Proof. by case: e => //= ? [->]. Qed.
+  
+Lemma of_exprP rho t e v :  
+  of_expr t e = ok v ->
+  Let x := sem_pexpr gd rho e in of_val t x = ok v.
 Proof.
-apply: eeq_weaken; rewrite /sneg_w; case heq: is_wconst => [ w | ] // s v /=.
-by rewrite /= -bindA (is_wconstP gd s heq) /= => -[<-]; rewrite /sem_sop1 /= wrepr_unsigned.
+  case: t v => //= [b /e2boolP -> | z /e2intP -> | w] // v.
+  by rewrite /e2word; case heq : is_wconst => [w' | ] // [<-]; apply is_wconstP.
+Qed.
+
+Lemma to_exprP rho t (v:sem_t t) e : to_expr v = ok e -> sem_pexpr gd rho e = ok (to_val v).
+Proof.
+  case: t v => //= [b | z | ws w] [<-] //=.
+  by rewrite /sem_sop1 /= wrepr_unsigned.
+Qed.
+
+Lemma ssem_sop1P o e : Papp1 o e =E ssem_sop1 o e.
+Proof.
+  rewrite /ssem_sop1.
+  case heq : of_expr => [ v | ] //=.
+  apply: eeq_weaken => rho v' /dup[]h1 /=.
+  rewrite /sem_sop1 -Let_Let (of_exprP rho heq) /= => -[?]; subst v'.
+  by case heq' : to_expr => [e' | //]; apply to_exprP.
 Qed.
 
 Lemma s_op1P o e : Papp1 o e =E s_op1 o e.
 Proof.
   case: o => [?|?|??|??||?|[|?]];
-  eauto using sint_of_wordP, ssign_extendP, szero_extendP,
-    snot_boolP, snot_wP, sneg_intP, sneg_wP.
+  eauto using snot_boolP, sneg_intP, ssem_sop1P.
 Qed.
 
 (* * -------------------------------------------------------------------- *)
@@ -433,182 +427,22 @@ Proof.
     rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= ok_w1 ok_w2 /= Z.geb_leb ssrZ.lezE.
 Qed.
 
-Lemma sbitwP i (z: ∀ sz, word sz → word sz → word sz) sz e1 e2 :
-  (∀ sz1 (w1: word sz1) sz2 (w2: word sz2) v,
-      sem_sop2 (i sz) (Vword w1) (Vword w2) = ok v →
-      v = Vword (z sz (zero_extend sz w1) (zero_extend sz w2))) →
-  Papp2 (i sz) e1 e2 =E sbitw i z sz e1 e2.
+Lemma ssem_sop2P o e1 e2 : Papp2 o e1 e2 =E ssem_sop2 o e1 e2.
 Proof.
-rewrite /sbitw => h.
-case h1: is_wconst => [ n1 | ] //.
-case h2: is_wconst => [ n2 | ] //.
-move => s v /=; t_xrbindP => v1 k1 v2 k2 hv.
-rewrite /sem_sop1 /= wrepr_unsigned.
-eexists; split; first reflexivity.
-have := is_wconstP gd s h1; rewrite k1 => /of_val_word [sz1] [w1] [hle1 ??]; subst.
-have := is_wconstP gd s h2; rewrite k2 => /of_val_word [sz2] [w2] [hle2 ??]; subst.
-by rewrite (h _ _ _ _ _ hv).
-Qed.
-
-Lemma slandP ty e1 e2 : Papp2 (Oland ty) e1 e2 =E sland ty e1 e2.
-Proof.
-  apply: sbitwP => sz1 w1 sz2 w2 v.
-  apply: rbindP => v1 /truncate_wordP [_ ->].
-  apply: rbindP => v2 /truncate_wordP [_ ->].
-  by case.
-Qed.
-
-Lemma slorP ty e1 e2  : Papp2 (Olor ty) e1 e2 =E slor ty e1 e2.
-Proof.
-  apply: sbitwP => sz1 w1 sz2 w2 v.
-  apply: rbindP => v1 /truncate_wordP [_ ->].
-  apply: rbindP => v2 /truncate_wordP [_ ->].
-  by case.
-Qed.
-
-Lemma slxorP ty e1 e2 : Papp2 (Olxor ty) e1 e2 =E slxor ty e1 e2.
-Proof.
-  apply: sbitwP => sz1 w1 sz2 w2 v.
-  apply: rbindP => v1 /truncate_wordP [_ ->].
-  apply: rbindP => v2 /truncate_wordP [_ ->].
-  by case.
-Qed.
-
-Lemma sbitw8P i (z: ∀ sz, word sz → word U8 → word sz) sz e1 e2 :
-  (∀ sz1 (w1: word sz1) sz2 (w2: word sz2) v,
-      sem_sop2 (i sz) (Vword w1) (Vword w2) = ok v →
-      v = Vword (z sz (zero_extend sz w1) (zero_extend U8 w2))) →
-  Papp2 (i sz) e1 e2 =E sbitw8 i z sz e1 e2.
-Proof.
-rewrite /sbitw8 => h.
-case h1: is_wconst => [ n1 | ] //.
-case h2: is_wconst => [ n2 | ] //.
-move => s v /=; t_xrbindP => v1 k1 v2 k2 hv.
-rewrite /sem_sop1 /= wrepr_unsigned.
-eexists; split; first reflexivity.
-have := is_wconstP gd s h1; rewrite k1 => /of_val_word [sz1] [w1] [???]; subst.
-have := is_wconstP gd s h2; rewrite k2 => /of_val_word [sz2] [w2] [???]; subst.
-by rewrite (h _ _ _ _ _ hv).
-Qed.
-
-Lemma slslP sz e1 e2  : Papp2 (Olsl sz) e1 e2 =E sshl sz e1 e2.
-Proof.
-  apply: sbitw8P => sz1 w1 sz2 w2 v.
-  apply: rbindP => v1 /truncate_wordP [_ ->].
-  apply: rbindP => v2 /truncate_wordP [_ ->].
-  by case.
-Qed.
-
-Lemma slsrP sz e1 e2  : Papp2 (Olsr sz) e1 e2 =E sshr sz e1 e2.
-Proof.
-  apply: sbitw8P => sz1 w1 sz2 w2 v.
-  apply: rbindP => v1 /truncate_wordP [_ ->].
-  apply: rbindP => v2 /truncate_wordP [_ ->].
-  by case.
-Qed.
-
-Lemma sasrP sz e1 e2  : Papp2 (Oasr sz)  e1 e2 =E ssar sz e1 e2.
-Proof.
-  apply: sbitw8P => sz1 w1 sz2 w2 v.
-  apply: rbindP => v1 /truncate_wordP [_ ->].
-  apply: rbindP => v2 /truncate_wordP [_ ->].
-  by case.
-Qed.
-
-Lemma sdivP k e1 e2 : Papp2 (Odiv k) e1 e2 =E sdiv k e1 e2.
-Proof.
-  case: k => [ | u sz] /=.
-  + rewrite /soint.
-    case: (is_constP e1) => [n1| {e1} e1];
-    case: (is_constP e2) => [n2| {e2} e2] rho v /=;eauto.
-  rewrite /sbituw.
-  case h1: is_wconst => [ n1 | ] //.
-  case h2: is_wconst => [ n2 | ] //.
-  case:eqP => // neq s v.
-  rewrite /= /sem_sop2 /= /mk_sem_divmod.
-  t_xrbindP => v1 k1 v2 k2 w1' /of_val_word [sz1] [w1] [hle1 ? ?]
-                  w2' /of_val_word [sz2] [w2] [hle2 ? ?] ?; subst.
-  have := is_wconstP gd s h1; rewrite k1 /= /truncate_word hle1 => -[?]; subst.
-  have := is_wconstP gd s h2; rewrite k2 /= /truncate_word hle2 => -[?]; subst.
-  case: ifP => // _ [?] ?; subst.
-  eexists; split; first reflexivity.
-  by rewrite /sem_sop1 /= wrepr_unsigned;case: u.
-Qed.
-
-Lemma smodP k e1 e2 : Papp2 (Omod k) e1 e2 =E smod k e1 e2.
-Proof.
-  case: k => [ | u sz] /=.
-  + rewrite /soint.
-    case: (is_constP e1) => [n1| {e1} e1];
-    case: (is_constP e2) => [n2| {e2} e2] rho v /=;eauto.
-  rewrite /sbituw.
-  case h1: is_wconst => [ n1 | ] //.
-  case h2: is_wconst => [ n2 | ] //.
-  case:eqP => // neq s v.
-   rewrite /= /sem_sop2 /= /mk_sem_divmod.
-  t_xrbindP => v1 k1 v2 k2 w1' /of_val_word [sz1] [w1] [hle1 ? ?]
-                  w2' /of_val_word [sz2] [w2] [hle2 ? ?] ?; subst.
-  have := is_wconstP gd s h1; rewrite k1 /= /truncate_word hle1 => -[?]; subst.
-  have := is_wconstP gd s h2; rewrite k2 /= /truncate_word hle2 => -[?]; subst.
-  case: ifP => // _ [?] ?; subst.
-  eexists; split; first reflexivity.
-  by rewrite /sem_sop1 /= wrepr_unsigned;case: u.
-Qed.
-
-Lemma svaddP ve ws e1 e2 : Papp2 (Ovadd ve ws) e1 e2 =E svadd ve ws e1 e2.
-Proof.
-  apply: sbitwP => sz1 w1 sz2 w2 v.
-  apply: rbindP => v1 /truncate_wordP [_ ->].
-  apply: rbindP => v2 /truncate_wordP [_ ->].
-  by case.
-Qed.
-
-Lemma svsubP ve ws e1 e2 : Papp2 (Ovsub ve ws) e1 e2 =E svsub ve ws e1 e2.
-Proof.
-  apply: sbitwP => sz1 w1 sz2 w2 v.
-  apply: rbindP => v1 /truncate_wordP [_ ->].
-  apply: rbindP => v2 /truncate_wordP [_ ->].
-  by case.
-Qed.
-
-Lemma svmulP ve ws e1 e2 : Papp2 (Ovmul ve ws) e1 e2 =E svmul ve ws e1 e2.
-Proof.
-  apply: sbitwP => sz1 w1 sz2 w2 v.
-  apply: rbindP => v1 /truncate_wordP [_ ->].
-  apply: rbindP => v2 /truncate_wordP [_ ->].
-  by case.
-Qed.
-
-Lemma svshlP ve ws e1 e2 : Papp2 (Ovlsl ve ws) e1 e2 =E svshl ve ws e1 e2.
-Proof.
-  apply: @sbitw8P => sz1 w1 sz2 w2 v.
-  apply: rbindP => v1 /truncate_wordP [_ ->].
-  apply: rbindP => v2 /truncate_wordP [_ ->].
-  by case.
-Qed.
-
-Lemma svshrP ve ws e1 e2 : Papp2 (Ovlsr ve ws) e1 e2 =E svshr ve ws e1 e2.
-Proof.
-  apply: @sbitw8P => sz1 w1 sz2 w2 v.
-  apply: rbindP => v1 /truncate_wordP [_ ->].
-  apply: rbindP => v2 /truncate_wordP [_ ->].
-  by case.
-Qed.
-
-Lemma svsarP ve ws e1 e2 : Papp2 (Ovasr ve ws) e1 e2 =E svsar ve ws e1 e2.
-Proof.
-  apply: @sbitw8P => sz1 w1 sz2 w2 v.
-  apply: rbindP => v1 /truncate_wordP [_ ->].
-  apply: rbindP => v2 /truncate_wordP [_ ->].
-  by case.
+  rewrite /ssem_sop2.
+  case heq1 : (of_expr _ e1) => [ v1 | ] //=.
+  case heq2 : (of_expr _ e2) => [ v2 | ] //=.
+  apply: eeq_weaken => rho v' /dup[]h1 /=.
+  rewrite /sem_sop2.
+  move: (of_exprP rho heq1) (of_exprP rho heq2).
+  t_xrbindP => ? -> he1 ? -> he2 ? [<-] ? [<-]; rewrite he1 he2 => ?[<-] ?[<-] ? -> ? /=; subst v'.
+  by case heq' : to_expr => [e' | //]; apply to_exprP.
 Qed.
 
 Lemma s_op2P o e1 e2 : Papp2 o e1 e2 =E s_op2 o e1 e2.
 Proof.
-  case: o;eauto using sandP, sorP, saddP, smulP, ssubP, sdivP, smodP,
-                      s_eqP, sneqP, sltP, sleP, sgtP, sgeP,
-                      slandP, slorP, slxorP, slslP, slsrP, sasrP,
-                      svaddP, svsubP, svmulP, svshlP, svshrP, svsarP.
+  case: o;eauto using sandP, sorP, saddP, smulP, ssubP, 
+                      s_eqP, sneqP, sltP, sleP, sgtP, sgeP, ssem_sop2P.
 Qed.
 
 Lemma s_opNP op s es :

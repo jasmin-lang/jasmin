@@ -23,9 +23,7 @@ let parse () =
 
 (*--------------------------------------------------------------------- *)
 
-let saved_rev_alloc : (var -> Sv.t) option ref = ref None
 let saved_extra_free_registers : (L.i_loc -> var option) ref = ref (fun _ -> None)
-let saved_live_calls : (funname -> Sv.t) option ref = ref None
 
 (* -------------------------------------------------------------------- *)
 let rec warn_extra_i i = 
@@ -270,14 +268,12 @@ let main () =
           end
         ) fds;
 
-      let fds, rev_alloc, extra_free_registers, live_calls =
+      let fds, extra_free_registers =
         Regalloc.alloc_prog translate_var (fun _fd extra ->
             match extra.Expr.sf_save_stack with
             | Expr.SavedStackReg _ | Expr.SavedStackStk _ -> true
             | Expr.SavedStackNone -> false) fds in
-      saved_rev_alloc := Some rev_alloc;
       saved_extra_free_registers := extra_free_registers;
-      saved_live_calls := Some live_calls;
       let fds = List.map (fun (y,_,x) -> y, x) fds in
       let fds = List.map (Conv.csfdef_of_fdef tbl) fds in
       fds in

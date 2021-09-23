@@ -2761,3 +2761,34 @@ Proof.
   by apply (check_cP hext.(em_no_overflow) hmap hcheck (P':=P') refl_equal (get_alloc_fd hfds)
               hneq hsem1 hext hargs hdisj halloc).
 Qed.
+
+Lemma alloc_prog_get_fundef nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) :
+  alloc_prog nrip nrsp data oracle_g oracle P = ok SP →
+  exists2 mglob,
+    init_map (Z.of_nat (size data)) oracle_g = ok mglob &
+    ∀ fn fd,
+    get_fundef (p_funcs P) fn = Some fd →
+    exists2 fd',
+      alloc_fd {| sp_rsp := nrsp ; sp_rip := nrip ; sp_globs := data |} mglob oracle fn fd = ok fd' &
+      get_fundef (p_funcs SP) fn = Some fd'.
+Proof.
+  rewrite /alloc_prog; t_xrbindP => mglob ->.
+  case: eqP => // _.
+  case: ifP => // _.
+  t_xrbindP => fds ok_fds <- {SP} /=.
+  exists mglob; first reflexivity.
+  exact: get_alloc_fd.
+Qed.
+
+Lemma alloc_fd_checked_sao p_extra mglob oracle fn fd fd' :
+  alloc_fd p_extra mglob oracle fn fd = ok fd' →
+  [/\ size (sao_params (oracle fn)) = size (f_params fd) & size (sao_return (oracle fn)) = size (f_res fd) ].
+Proof.
+  rewrite /alloc_fd/alloc_fd_aux/check_results; t_xrbindP => ?? _ [] [] ??? _.
+  t_xrbindP => [] [] [] [] ???? ok_params.
+  t_xrbindP => _ _ _ _ [] ?? _.
+  t_xrbindP => ? _ _ ok_results ??; subst.
+  split.
+  - by case: (size_fmapM2 ok_params).
+  by case: (mapM2_size ok_results).
+Qed.

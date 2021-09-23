@@ -79,9 +79,9 @@ Variant sop2 :=
 | Oland of wsize
 | Olor  of wsize
 | Olxor of wsize
-| Olsr  of wsize
-| Olsl  of wsize
-| Oasr  of wsize
+| Olsr  of wsize 
+| Olsl  of op_kind
+| Oasr  of op_kind
 
 | Oeq   of op_kind
 | Oneq  of op_kind
@@ -331,6 +331,7 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   | Omul Op_int
   | Osub Op_int
   | Odiv Cmp_int | Omod Cmp_int
+  | Olsl Op_int | Oasr Op_int
     => (sint, sint, sint)
   | Oadd (Op_w s)
   | Omul (Op_w s)
@@ -338,7 +339,7 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   | Odiv (Cmp_w _ s) | Omod (Cmp_w _ s)
   | Oland s | Olor s | Olxor s | Ovadd _ s | Ovsub _ s | Ovmul _ s
     => let t := sword s in (t, t, t)
-  | Olsr s | Olsl s | Oasr s
+  | Olsr s | Olsl (Op_w s) | Oasr (Op_w s)
   | Ovlsr _ s | Ovlsl _ s | Ovasr _ s
     => let t := sword s in (t, sword8, t)
   | Oeq Op_int | Oneq Op_int

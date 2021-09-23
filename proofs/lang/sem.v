@@ -186,6 +186,13 @@ Qed.
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
+Definition zlsl (x i : Z) : Z :=
+  if (0 <=? i)%Z then (x * 2^i)%Z
+  else (x / 2^(-i))%Z.
+
+Definition zasr (x i : Z) : Z := 
+  zlsl x (-i).
+
 Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) :=
   let i :=  wunsigned (wand i (x86_shift_mask s)) in
   shift v i.
@@ -255,24 +262,26 @@ Definition sem_sop2_typed (o: sop2) :
   | Oand => mk_sem_sop2 andb
   | Oor  => mk_sem_sop2 orb
 
-  | Oadd Op_int   => mk_sem_sop2 Z.add
-  | Oadd (Op_w s) => mk_sem_sop2 +%R
-  | Omul Op_int   => mk_sem_sop2 Z.mul
-  | Omul (Op_w s) => mk_sem_sop2 *%R
-  | Osub Op_int   => mk_sem_sop2 Z.sub
-  | Osub (Op_w s) => mk_sem_sop2 (fun x y =>  x - y)%R
-  | Odiv Cmp_int  => mk_sem_sop2 Z.div
+  | Oadd Op_int      => mk_sem_sop2 Z.add
+  | Oadd (Op_w s)    => mk_sem_sop2 +%R
+  | Omul Op_int      => mk_sem_sop2 Z.mul
+  | Omul (Op_w s)    => mk_sem_sop2 *%R
+  | Osub Op_int      => mk_sem_sop2 Z.sub
+  | Osub (Op_w s)    => mk_sem_sop2 (fun x y =>  x - y)%R
+  | Odiv Cmp_int     => mk_sem_sop2 Z.div
   | Odiv (Cmp_w u s) => @mk_sem_divmod s (signed wdiv wdivi u)
-  | Omod Cmp_int  => mk_sem_sop2 Z.modulo
+  | Omod Cmp_int     => mk_sem_sop2 Z.modulo
   | Omod (Cmp_w u s) => @mk_sem_divmod s (signed wmod wmodi u)
 
-  | Oland s => mk_sem_sop2 wand
-  | Olor  s => mk_sem_sop2 wor
-  | Olxor s => mk_sem_sop2 wxor
-  | Olsr  s => mk_sem_sop2 sem_shr
-  | Olsl  s => mk_sem_sop2 sem_shl
-  | Oasr  s => mk_sem_sop2 sem_sar
-
+  | Oland s       => mk_sem_sop2 wand
+  | Olor  s       => mk_sem_sop2 wor
+  | Olxor s       => mk_sem_sop2 wxor
+  | Olsr s        => mk_sem_sop2 sem_shr
+  | Olsl Op_int   => mk_sem_sop2 zlsl 
+  | Olsl (Op_w s) => mk_sem_sop2 sem_shl
+  | Oasr Op_int   => mk_sem_sop2 zasr 
+  | Oasr (Op_w s) => mk_sem_sop2 sem_sar
+ 
   | Oeq Op_int    => mk_sem_sop2 Z.eqb
   | Oeq (Op_w s)  => mk_sem_sop2 eq_op
   | Oneq Op_int   => mk_sem_sop2 (fun x y => negb (Z.eqb x y))

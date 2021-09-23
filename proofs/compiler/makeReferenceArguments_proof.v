@@ -953,13 +953,6 @@ Section Section.
       by apply: (eq_onI _ eq_s1_vm1); SvD.fsetdec.
   Qed.
 
-  Lemma mapM_size {eT aT bT : Type} (f : aT -> result eT bT) xs ys :
-    mapM f xs = ok ys -> size xs = size ys.
-  Proof.
-  elim: xs ys => /= [|x xs ih] ys; first by case: ys.
-  by t_xrbindP=> v _ vs /ih -> <-.
-  Qed.
-
   Lemma read_es_eq_on_sym
      (gd : glob_decls) (es : pexprs) (X : Sv.t) (s : estate) (vm vm' : vmap)
   :
@@ -982,11 +975,6 @@ Section Section.
     if   is_reg_ptr_expr is_reg_ptr fresh_id pp (v_var x) e is Some y
     then Some (MkI ii (Cassgn y AT_rename fty e))
     else None.
-
-  Lemma size_mapM (E A B : Type) (f : (A → result E B)) v1 v2:
-    mapM f v1 = ok v2 ->
-    size v1 = size v2.
-  Proof. by elim: v1 v2 => [ | x xs ih ] /= [] // ; t_xrbindP => // ????? /ih -> _ ->. Qed.
 
   Lemma size_mapM2 (A B E R : Type) (e : E) (f : (A → B → result E R)) v1 v2 v3:
     mapM2 e f v1 v2 = ok v3 ->
