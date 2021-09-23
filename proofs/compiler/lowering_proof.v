@@ -1081,7 +1081,7 @@ Section PROOF.
   Lemma lower_cassgn_classifyP e l s s' v ty v' (Hs: sem_pexpr gd s e = ok v)
       (Hv': truncate_val ty v = ok v')
       (Hw: write_lval gd l v' s = ok s'):
-    match lower_cassgn_classify is_var_in_memory (wsize_of_stype ty) e l with
+    match lower_cassgn_classify is_var_in_memory ty e l with
     | LowerMov _ =>
       exists2 sz, ty = sword sz & (sz ≤ U64)%CMP ∧
       ∃ sz' (w : word sz'), (sz ≤ sz')%CMP ∧ v = Vword w
@@ -1164,49 +1164,46 @@ Section PROOF.
       + rewrite /= /sem_sop1 /=; t_xrbindP => sz sz' x ok_x x' /to_wordI [szx] [wx] [hle ??] ?.
         subst x x' v.
         case: sz' Hv' hle => // /truncate_val_word [sz'] [? hle'] ? hle; subst ty v'.
-        - case: andP => // - [] hs /eqP ?; subst sz.
+        - case: andP => // - [] hs /eqP[] ?; subst sz.
           by rewrite /= ok_x /= zero_extend_sign_extend /exec_sopn //= /truncate_word hle /=
            /sopn_sem /= /x86_MOVSX /check_size_16_64 hs.
-        - case: andP => // - [] hs /eqP ?; subst sz.
+        - case: andP => // - [] hs /eqP[] ?; subst sz.
           by rewrite /= ok_x /= zero_extend_sign_extend /exec_sopn //= /truncate_word hle /=
             /sopn_sem /= /x86_MOVSX /check_size_32_64 hs.
-        case: andP => // - [] /eqP ? /eqP /= ?; subst sz sz'.
+        case: andP => // - [] /eqP ? /eqP[] /= ?; subst sz sz'.
         by rewrite ok_x /= zero_extend_sign_extend // /exec_sopn /= /truncate_word hle
            /sopn_sem /= /x86_MOVSX.
       (* Ozeroext *)
       + rewrite /= /sem_sop1 /=; t_xrbindP => sz sz' x ok_x x' /to_wordI [szx] [wx] [hle ??] ?.
         subst x x' v.
         case: sz' Hv' hle => // /truncate_val_word [sz'] [? hle'] ? hle; subst ty v'.
-        - case: andP => // - [] hs /eqP ?; subst sz.
+        - case: andP => // - [] hs /eqP[] ?; subst sz.
           by rewrite /= ok_x /= zero_extend_u /exec_sopn /= /truncate_word hle /sopn_sem /= /x86_MOVZX /check_size_16_64 hs.
-        - case: andP => // - [] hs /eqP ?; subst sz.
+        - case: andP => // - [] hs /eqP[] ?; subst sz.
           by rewrite /= ok_x /= zero_extend_u /exec_sopn /= /truncate_word hle /sopn_sem /= /x86_MOVZX /check_size_32_64 hs.
-        case: andP => // - [] /eqP ? /eqP /= ?; subst sz sz'.
+        case: andP => // - [] /eqP ? /eqP[] /= ?; subst sz sz'.
         by rewrite ok_x /exec_sopn /= /truncate_word hle /= zero_extend_u.
       (* Olnot *)
       + rewrite /= /sem_sop1 => sz; t_xrbindP => w Hz z' /to_wordI [sz'] [z] [Hsz ??] ?; subst.
-        case: andP => // - [hsz] /eqP ?; subst sz.
-        case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
+        case: andP => // - [hsz] /eqP ?; subst ty.
         rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
         case: Hv' => ?; subst v'.
         by rewrite /sem_pexprs /= Hz /exec_sopn /= /truncate_word Hsz /= /sopn_sem /=
           /x86_NOT /check_size_8_64 hsz.
       (* Oneg *)
       + rewrite /= /sem_sop1 => - [] // sz; t_xrbindP => w Hv z' /to_wordI [sz'] [z] [Hsz ??] ?; subst.
-        case: andP => // - [hsz] /eqP ?; subst sz.
+        case: andP => // - [hsz] /eqP ?; subst ty.
         split. reflexivity.
-        have /subtypeE [sz'' [? _]] := truncate_val_subtype Hv'; subst ty.
         rewrite /truncate_val /= /truncate_word /= cmp_le_refl /= zero_extend_u in Hv'.
         case: Hv' => ?; subst v'.
         by rewrite /sem_pexprs /= Hv /exec_sopn /= /truncate_word Hsz /sopn_sem /= /x86_NEG /check_size_8_64 hsz /= Hw.
     + case: o => // [[] sz |[] sz|[] sz|[]// u sz| []// u sz|sz|sz|sz|sz|sz|sz|[]sz|[] // sg sz | ve sz | ve sz | ve sz | ve sz | ve sz | ve sz] //.
-      case: andP => // - [hsz64] /eqP ?; subst sz.
+      case: andP => // - [hsz64] /eqP ?; subst ty.
       (* Oadd Op_w *)
        + rewrite /= /sem_sop2 /=; t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI [w1] [z1] [hle1 ??]; subst.
         move => ? /to_wordI [w2] [z2] [hle2 ??]; subst.
         move => ?; subst v.
-        have /subtypeE [sz'' [? _]] := truncate_val_subtype Hv'; subst ty.
         rewrite /truncate_val /= /truncate_word /= cmp_le_refl /= zero_extend_u in Hv'.
         case: Hv' => ?; subst v'.
         case Heq: is_lea => [lea|].
@@ -1215,21 +1212,21 @@ Section PROOF.
           split; first by rewrite hsz1 hsz2.
           split => //; split => //=.
           eexists; split; first reflexivity.
-          rewrite -(zero_extend_u (zero_extend sz'' z1 + zero_extend sz'' z2)).
+          rewrite -(zero_extend_u (_ + _)).
           apply (mk_leaP hsz2 (cmp_le_refl _) hlea).
-          by rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word hle1 hle2.          
+          by rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word hle1 hle2.
         move => {Heq}.
-        have /= := @add_inc_dec_classifyP s sz'' e1 e2.
+        have /= := @add_inc_dec_classifyP s sz e1 e2.
         rewrite ok_v1 ok_v2 => /(_ _ _ _ _ erefl).
         case: (add_inc_dec_classify _ _ _) => [y|y|//].
         (* AddInc *)
         * case => sz' [w'] [hsz] []; rewrite /sem_pexprs /= => -> /= <-.
-          have hsz' : (sz'' ≤ sz')%CMP by case: hsz => ->.
+          have hsz' : (sz ≤ sz')%CMP by case: hsz => ->.
           by rewrite /exec_sopn /sopn_sem /= /x86_INC /rflags_of_aluop_nocf_w /flags_w /truncate_word hsz'
            /= /check_size_8_64 hsz64 /=; eauto.
         (* AddDec *)
         * case => sz' [w'] [hsz] []; rewrite /sem_pexprs /= => -> /= <-.
-          have hsz' : (sz'' ≤ sz')%CMP by case: hsz => ->.
+          have hsz' : (sz ≤ sz')%CMP by case: hsz => ->.
           by rewrite /exec_sopn /sopn_sem /= /x86_DEC /rflags_of_aluop_nocf_w /flags_w /truncate_word hsz' /= /check_size_8_64 hsz64 /=; eauto.
         (* AddNone *)
         move=> _;split.
@@ -1242,8 +1239,7 @@ Section PROOF.
         move => ? /to_wordI [w1] [z1] [hle1 ??]; subst.
         move => ? /to_wordI [w2] [z2] [hle2 ??]; subst.
         move => ?; subst v.
-        case: andP => // - [hsz64] /eqP ?; subst sz.
-        case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
+        case: andP => // - [hsz64] /eqP ?; subst ty.
         rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
         case: Hv' => ?; subst v'.
         case Heq: is_lea => [lea|].
@@ -1252,7 +1248,7 @@ Section PROOF.
           split; first by rewrite hsz1 hsz2.
           split => //; split => //=.
           eexists; split; first reflexivity.
-          rewrite -(zero_extend_u (zero_extend sz'' z1 * zero_extend sz'' z2)).
+          rewrite -(zero_extend_u (_ * _)).
           apply (mk_leaP hsz2 (cmp_le_refl _) hlea).
           by rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word hle1 hle2.
         move => {Heq}. 
@@ -1264,8 +1260,7 @@ Section PROOF.
         move => ? /to_wordI [w1] [z1] [hle1 ??]; subst.
         move => ? /to_wordI [w2] [z2] [hle2 ??]; subst.
         move => ?; subst v.
-        case: andP => // - [hsz64] /eqP ?; subst sz.
-        case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
+        case: andP => // - [hsz64] /eqP ?; subst ty.
         rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
         case: Hv' => ?; subst v'.
         case Heq: is_lea => [lea|].
@@ -1274,10 +1269,10 @@ Section PROOF.
           split; first by rewrite hsz1 hsz2.
           split => //; split => //=.
           eexists; split; first reflexivity.
-          rewrite -(zero_extend_u (zero_extend sz'' z1 - zero_extend sz'' z2)).
+          rewrite -(zero_extend_u (_ - _)).
           apply (mk_leaP hsz2 (cmp_le_refl _) hlea).
           by rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word hle1 hle2.
-        have := sub_inc_dec_classifyP sz'' e2.
+        have := sub_inc_dec_classifyP sz e2.
         case: (sub_inc_dec_classify _ _)=> [He2|He2|//]; try subst e2.
         (* SubInc *)
         * move: ok_v2 => /ok_word_inj [??]; subst.
@@ -1295,10 +1290,11 @@ Section PROOF.
         + split. by rewrite read_es_swap.
           by rewrite /= ok_v1 ok_v2 /= /exec_sopn /sopn_sem /= /truncate_word hle1 hle2 /x86_SUB /check_size_8_64 hsz64 /= Hw.
       (* Odiv (Cmp_w u sz) *)
-      + case: ifP => // /andP [] /andP [] hsz1 hsz2 /eqP ?;subst sz.
+      + case: ifP => // /andP [] /andP [] hsz1 hsz2 /eqP ?;subst ty.
         rewrite /sem_pexprs /=; t_xrbindP => v1 hv1 v2 hv2.
         rewrite /sem_sop2 /= /mk_sem_divmod;t_xrbindP => /= w1 hw1 w2 hw2 w3 hw3 ?; subst v.
-        have [sz' [ ? hle ?]]:= truncate_val_word Hv';subst ty v';simpl in *; split => //.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl /= => /ok_inj ?; subst v'.
+        split => //.
         exists v1, w1;split => //.
         move=> s1 hs1 hl he.
         have -> /= := sem_pexpr_same _ hs1 hv1; last first.
@@ -1324,10 +1320,11 @@ Section PROOF.
         by exists s1'.
 
       (* Omod (Cmp_w u sz) *)
-      + case: ifP => // /andP [] /andP [] hsz1 hsz2 /eqP ?;subst sz.
+      + case: ifP => // /andP [] /andP [] hsz1 hsz2 /eqP ?; subst ty.
         rewrite /sem_pexprs /=; t_xrbindP => v1 hv1 v2 hv2.
         rewrite /sem_sop2 /= /mk_sem_divmod;t_xrbindP => /= w1 hw1 w2 hw2 w3 hw3 ?; subst v.
-        have [sz' [ ? hle ?]]:= truncate_val_word Hv';subst ty v';simpl in *; split => //.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl /= => /ok_inj ?; subst v'.
+        split => //.
         exists v1, w1;split => //.
         move=> s1 hs1 hl he.
         have -> /= := sem_pexpr_same _ hs1 hv1; last first.
@@ -1389,86 +1386,65 @@ Section PROOF.
           subst v v1.
           case hty: (_ ≤ _)%CMP => /=.
           + case hty32: (_ ≤ _)%CMP => //=.
-            case : eqP => //= hz.
+            case : eqP => //= ?; subst ty.
             split;first by apply hread.
             rewrite /exec_sopn /sopn_sem /= ha1 /= ha2 /= hva1 /= hva2 /=.
             rewrite /x86_ANDN /check_size_32_64 hty32 hty /=.
-            case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
-            rewrite /= in hz;subst sz''; move: Hv'.
-            move: hwa2;rewrite /truncate_val /= /truncate_word cmp_le_refl /=.
-            rewrite !zero_extend_u => -[] ? [?]; subst wa2 v'.
+            move: Hv' hwa2; rewrite /truncate_val /= /truncate_word cmp_le_refl /=.
+            rewrite !zero_extend_u => /ok_inj ? /ok_inj ?; subst wa2 v'.
             by rewrite /wandn Hw.
-          case : eqP => //= hz.
+          case : eqP => //= ?; subst ty.
           rewrite /exec_sopn /sopn_sem /= ha1 /= ha2 /= hva1 /= hva2 /=.
           rewrite /x86_VPANDN /x86_u128_binop (wsize_nle_u64_check_128_256 hty) /=.
-          case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
-          rewrite /= in hz;subst sz''; move: Hv'.
-          move: hwa2;rewrite /truncate_val /= /truncate_word cmp_le_refl /=.
-          by rewrite !zero_extend_u => -[] ? [?]; subst wa2 v'.
+          move: Hv' hwa2; rewrite /truncate_val /= /truncate_word cmp_le_refl /=.
+          by rewrite !zero_extend_u => /ok_inj <- /ok_inj <-.
         case: eqP; last by rewrite andbF => _ _ /=; case: ifP.
-        move => -> {sz}; rewrite /= /sem_sop2 /=; t_xrbindP => v1 ok_v1 v2 ok_v2.
+        move => ?; subst ty; rewrite /= /sem_sop2 /=; t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
         case hty: (_ ≤ _)%CMP; rewrite /exec_sopn /sopn_sem /= ok_v1 ok_v2 /= /truncate_word hw1 hw2 /=.
         * (* AND *)
           split. by rewrite read_es_swap.
-          case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
-          rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
-          case: Hv' => ?; subst v'.
           by rewrite /x86_AND /check_size_8_64 hty /= Hw.
         (* VPAND *)
-        have [sz [? _ ?]] := truncate_val_word Hv'.
-        subst ty v'; rewrite /= in hty.
-        rewrite /=.
         rewrite /x86_VPAND /x86_u128_binop /=.
-        by rewrite (wsize_nle_u64_check_128_256 hty) /= zero_extend_u.
+        by rewrite (wsize_nle_u64_check_128_256 hty) /=.
       (* Olor Op_w *)
       + case: eqP; last by rewrite andbF => _ _ /=; case: ifP.
-        move => -> {sz}; rewrite /= /sem_sop2 /=; t_xrbindP => v1 ok_v1 v2 ok_v2.
+        move => ?; subst ty; rewrite /= /sem_sop2 /=; t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
         case hty: (_ ≤ _)%CMP; rewrite /exec_sopn /sopn_sem /= ok_v1 ok_v2 /= /truncate_word hw1 hw2 /=.
         * (* OR *)
           split. by rewrite read_es_swap.
-          case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
-          rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
-          case: Hv' => ?; subst v'.
           by rewrite /x86_OR /check_size_8_64 hty /= Hw.
         (* VPOR *)
-        have [sz [? _ ?]] := truncate_val_word Hv'.
-        subst ty v'; rewrite /= in hty.
-        rewrite /=.
         rewrite /x86_VPOR /x86_u128_binop /=.
-        by rewrite (wsize_nle_u64_check_128_256 hty) /= zero_extend_u.
+        by rewrite (wsize_nle_u64_check_128_256 hty).
       (* Olxor Op_w *)
       + case: eqP; last by rewrite andbF => _ _ /=; case: ifP.
-        move => -> {sz}; rewrite /= /sem_sop2 /=; t_xrbindP => v1 ok_v1 v2 ok_v2.
+        move => ?; subst ty; rewrite /= /sem_sop2 /=; t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
         case hty: (_ ≤ _)%CMP; rewrite /exec_sopn /sopn_sem /= ok_v1 ok_v2 /= /truncate_word hw1 hw2 /=.
         * (* XOR *)
           split. by rewrite read_es_swap.
-          case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
-          rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
-          case: Hv' => ?; subst v'.
           by rewrite /x86_XOR /check_size_8_64 hty /= Hw.
         (* VPXOR *)
-        have [sz [? _ ?]] := truncate_val_word Hv'.
-        subst ty v'; rewrite /= in hty.
-        rewrite /=.
         rewrite /x86_VPXOR /x86_u128_binop /=.
-        by rewrite (wsize_nle_u64_check_128_256 hty) /= zero_extend_u.
+        by rewrite (wsize_nle_u64_check_128_256 hty).
       (* Olsr *)
-      + case: andP => // - [hsz64] /eqP ?; subst sz.
+      + case: andP => // - [hsz64] /eqP ?; subst ty.
          rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.
          rewrite /sem_sop2 /exec_sopn /sopn_sem /=.
          t_xrbindP => w1 -> w2 -> /= ?; subst v.
-         case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
-         rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
-         case: Hv' => ?; subst v'.
+         move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
          split. by rewrite read_es_swap.
          move: Hw; rewrite /sem_shr /sem_shift /x86_SHR /check_size_8_64 hsz64 /=.
          case: eqP.
@@ -1477,12 +1453,10 @@ Section PROOF.
          by case: ifP => /= _ ->.
       (* Olsl *)
       + case: sz => // sz.
-        case: andP => // - [hsz64] /eqP ?; subst sz.
-         rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.
+        case: andP => // - [hsz64] /eqP ?; subst ty.
+        rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.
          rewrite /sem_sop2 /exec_sopn /sopn_sem /=; t_xrbindP => w1 -> w2 -> /= ?; subst v.
-         case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
-         rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
-         case: Hv' => ?; subst v'.
+         move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
          split. by rewrite read_es_swap.
          move: Hw; rewrite /sem_shl /sem_shift /x86_SHL /check_size_8_64 hsz64 /=.
          case: eqP.
@@ -1491,12 +1465,10 @@ Section PROOF.
          by case: ifP => /= _ ->.
       (* Oasr *)
       + case: sz => // sz.
-        case: andP => // - [hsz64] /eqP ?; subst sz.
+        case: andP => // - [hsz64] /eqP ?; subst ty.
         rewrite /sem_pexprs /=; t_xrbindP => v1 -> v2 ->.
          rewrite /sem_sop2 /exec_sopn /sopn_sem /=; t_xrbindP => w1 -> w2 -> /= ?; subst v.
-         case/subtypeE: (truncate_val_subtype Hv') => sz'' [? _]; subst ty.
-         rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u in Hv'.
-         case: Hv' => ?; subst v'.
+         move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
          split. by rewrite read_es_swap.
          move: Hw; rewrite /sem_sar /sem_shift /x86_SAR /check_size_8_64 hsz64 /=.
          case: eqP.
@@ -1504,92 +1476,86 @@ Section PROOF.
          move => _ /=.
          by case: ifP => /= _ ->.
       (* Oeq Op_w *)
-      + case: andP => // - [hsz64] /eqP ?; subst sz.
+      + case: andP => // - [hsz64] /eqP ?; subst ty.
         rewrite /= /sem_sop2 /=; t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
-        have /subtypeE/=? := truncate_val_subtype Hv'; subst ty.
-        case: Hv' => ?; subst v'.
+        move/ok_inj: Hv' => ?; subst v'.
         rewrite /exec_sopn /sopn_sem ok_v1 ok_v2 /= /truncate_word hw1 hw2 /x86_CMP /=.
-        rewrite -(GRing.subr_eq0 (zero_extend U64 w1)).
+        rewrite /check_size_8_64 hsz64 /=.
+        rewrite -(GRing.subr_eq0 (zero_extend sz w1)).
         eexists _, _, _, _. reflexivity.
       (* Olt Op_w *)
       + case: sg => //.
-        case: andP => // - [hsz64] /eqP ?; subst sz.
+        case: andP => // - [hsz64] /eqP ?; subst ty.
         rewrite /= /sem_sop2 /exec_sopn /sopn_sem /=; t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
-        have /subtypeE/=? := truncate_val_subtype Hv'; subst ty.
-        case: Hv' => ?; subst v'.
+        move/ok_inj: Hv' => ?; subst v'.
         rewrite ok_v1 ok_v2 /x86_CMP /rflags_of_aluop /= /truncate_word hw1 hw2 /=.
+        rewrite /check_size_8_64 hsz64.
         eexists _, _, _, _; repeat f_equal.
         by rewrite CoqWord.word.wltuE.
       (* Ovadd ve sz *)
-      + case: ifP => // /andP [hle /eqP hsz];subst sz.
+      + case: ifP => // /andP [hle /eqP ?]; subst ty.
         rewrite /= /sem_sop2 /exec_sopn /sopn_sem /=;t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
-        have [sz [? _ ?]] := truncate_val_word Hv'.
-        subst ty v'; rewrite /= in hle hw2 hw1 *.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
         rewrite ok_v1 /= ok_v2 /= /x86_VPADD /x86_u128_binop /=.
-        by rewrite (check_size_128_256_ge hle) /= /truncate_word hw1 hw2 /= zero_extend_u.
+        by rewrite (check_size_128_256_ge hle) /= /truncate_word hw1 hw2.
       (* Ovsub ve sz *)
-      + case: ifP => // /andP [hle /eqP hsz];subst sz.
+      + case: ifP => // /andP [hle /eqP ?]; subst ty.
         rewrite /= /sem_sop2 /exec_sopn /sopn_sem /=;t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
-        have [sz [? _ ?]] := truncate_val_word Hv'.
-        subst ty v'; rewrite /= in hle hw2 hw1 *.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
         rewrite ok_v1 /= ok_v2 /= /x86_VPSUB /x86_u128_binop /=.
-        by rewrite (check_size_128_256_ge hle) /= /truncate_word hw1 hw2 /= zero_extend_u.
+        by rewrite (check_size_128_256_ge hle) /= /truncate_word hw1 hw2.
       (* Ovmul ve sz *)
-      + case: ifP => // /andP [/andP[hle1 hle2] /eqP hsz];subst sz.
+      + case: ifP => // /andP [/andP[hle1 hle2] /eqP ?]; subst ty.
         rewrite /= /sem_sop2 /exec_sopn /sopn_sem /=;t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
-        have [sz [? _ ?]] := truncate_val_word Hv'.
-        subst ty v'; rewrite /= in hle1 hle2 hw2 hw1 *.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
         rewrite ok_v1 /= ok_v2 /= /x86_VPMULL /x86_u128_binop /=.
         rewrite (check_size_32_64_ve hle1) (check_size_128_256_ge hle2).
-        by rewrite /truncate_word hw1 hw2 /= zero_extend_u.
+        by rewrite /truncate_word hw1 hw2.
       (* Ovlsr ve sz *)
-      + case: ifP => // /andP [/andP [hle1 hle2] /eqP hsz];subst sz.
+      + case: ifP => // /andP [/andP [hle1 hle2] /eqP ?]; subst ty.
         rewrite /= /sem_sop2 /exec_sopn /sopn_sem /=;t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
-        have [sz [? _ ?]] := truncate_val_word Hv'.
-        subst ty v'; rewrite /= in hle1 hle2 hw2 hw1 *.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
         rewrite ok_v1 /= ok_v2 /= /x86_VPSRL /x86_u128_shift /=.
         rewrite (check_size_128_256_ge hle2) (check_size_16_64_ve hle1) /=.
-        by rewrite /truncate_word hw1 hw2 /= zero_extend_u.
+        by rewrite /truncate_word hw1 hw2.
       (* Ovlsl ve sz *)
-      + case: ifP => // /andP [/andP [hle1 hle2] /eqP hsz];subst sz.
+      + case: ifP => // /andP [/andP [hle1 hle2] /eqP ?]; subst ty.
         rewrite /= /sem_sop2 /exec_sopn /sopn_sem /=;t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
-        have [sz [? _ ?]] := truncate_val_word Hv'.
-        subst ty v'; rewrite /= in hle1 hle2 hw2 hw1 *.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
         rewrite ok_v1 /= ok_v2 /= /x86_VPSLL /x86_u128_shift /=.
         rewrite (check_size_128_256_ge hle2) (check_size_16_64_ve hle1) /=.
-        by rewrite /truncate_word hw1 hw2 /= zero_extend_u.
+        by rewrite /truncate_word hw1 hw2.
       (* Ovasr ve sz *)
-      + case: ifP => // /andP [/andP [hle1 hle2] /eqP hsz];subst sz.
+      + case: ifP => // /andP [/andP [hle1 hle2] /eqP ?]; subst ty.
         rewrite /= /sem_sop2 /exec_sopn /sopn_sem /=;t_xrbindP => v1 ok_v1 v2 ok_v2.
         move => ? /to_wordI [sz1] [w1] [hw1 ??]; subst.
         move => ? /to_wordI [sz2] [w2] [hw2 ??]; subst.
         move => ?; subst v.
-        have [sz [? _ ?]] := truncate_val_word Hv'.
-        subst ty v'; rewrite /= in hle1 hle2 hw2 hw1 *.
+        move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
         rewrite ok_v1 /= ok_v2 /= /x86_VPSRA /x86_u128_shift /=.
         rewrite (check_size_128_256_ge hle2) (check_size_16_64_ve hle1) /=.
-        by rewrite /truncate_word hw1 hw2 /= zero_extend_u.
+        by rewrite /truncate_word hw1 hw2.
     (* PappN *)
     + case: op => // - [] // - [] //.
       case: es => // - [] // [] // [] // hi.
@@ -1606,7 +1572,7 @@ Section PROOF.
       by rewrite /= -!/(wrepr U128 _) !wrepr_unsigned.
      (* Pif *)
      rewrite /check_size_16_64.
-     by case: stype_of_lval => //= w hv; case: andP => // - [] -> /eqP ->; eauto.
+     by case: stype_of_lval => // w hv; case: andP => // - [] /andP[] -> -> /eqP <-; eauto.
   Qed.
 
   Lemma vars_I_assgn ii l tag ty e:

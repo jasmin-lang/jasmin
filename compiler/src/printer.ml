@@ -36,6 +36,10 @@ let string_of_cmp_ty = function
   | E.Cmp_w (W.Unsigned, _) -> "u"
   | _        -> ""
 
+let string_of_op_kind = function
+  | E.Op_w ws -> Format.sprintf "%du" (int_of_ws ws)
+  | E.Op_int -> ""
+
 (* -------------------------------------------------------------------- *)
 
 let string_of_velem s ws ve = 
@@ -60,8 +64,8 @@ let string_of_op2 = function
   | E.Olsl _ -> "<<"
   | E.Oasr _ -> ">>s"
 
-  | E.Oeq  _ -> "=="
-  | E.Oneq _ -> "!="
+  | E.Oeq  k -> "==" ^ string_of_op_kind k
+  | E.Oneq k -> "!=" ^ string_of_op_kind k
   | E.Olt  k -> "<"  ^ string_of_cmp_ty k
   | E.Ole  k -> "<=" ^ string_of_cmp_ty k
   | E.Ogt  k -> ">"  ^ string_of_cmp_ty k

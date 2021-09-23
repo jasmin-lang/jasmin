@@ -417,9 +417,10 @@ Definition mulr sz a b :=
     end
  end.
 
-Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
+(* x =(ty) e *)
+Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
   let chk (b: bool) r := if b then r else LowerAssgn in
-  let kb b sz := chk (b && (sz == sz')) in
+  let kb b sz := chk (b && (sword sz == ty)) in
   let k8 sz := kb (sz ≤ U64)%CMP sz in
   let k16 sz := kb ((U16 ≤ sz) && (sz ≤ U64))%CMP sz in
   let k32 sz := kb ((U32 ≤ sz) && (sz ≤ U64))%CMP sz in
@@ -428,7 +429,7 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
     chk (sz ≤ U64)%CMP (LowerMov (if is_var_in_memory v then is_lval_in_memory x else false))
   | Pload sz _ _ => chk (sz ≤ U64)%CMP (LowerMov (is_lval_in_memory x))
 
-  | Papp1 (Oword_of_int sz) (Pconst _) => chk (sz' ≤ U64)%CMP (LowerMov false)
+  | Papp1 (Oword_of_int sz) (Pconst _) => chk (if ty is sword sz' then sz' ≤ U64 else false)%CMP (LowerMov false)
   | Papp1 (Olnot sz) a => k8 sz (LowerCopn (Ox86 (NOT sz)) [:: a ])
   | Papp1 (Oneg (Op_w sz)) a => k8 sz (LowerFopn (Ox86 (NEG sz)) [:: a] None)
   | Papp1 (Osignext szo szi) a =>
@@ -518,8 +519,8 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
     | Olsr sz => k8 sz (LowerFopn (Ox86 (SHR sz)) [:: a ; b ] (Some U8))
     | Olsl (Op_w sz) => k8 sz (LowerFopn (Ox86 (SHL sz)) [:: a ; b ] (Some U8))
     | Oasr (Op_w sz) => k8 sz (LowerFopn (Ox86 (SAR sz)) [:: a ; b ] (Some U8))
-    | Oeq (Op_w sz) => k8 sz (LowerEq sz a b)
-    | Olt (Cmp_w Unsigned sz) => k8 sz (LowerLt sz a b)
+    | Oeq (Op_w sz) => chk ((sz ≤ U64)%CMP && (ty == sbool)) (LowerEq sz a b)
+    | Olt (Cmp_w Unsigned sz) => chk ((sz ≤ U64)%CMP && (ty == sbool)) (LowerLt sz a b)
 
     | Ovadd ve sz =>
       kb (U128 <= sz)%CMP sz (LowerCopn (Ox86 (VPADD ve sz)) [::a; b])
@@ -544,7 +545,7 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
       LowerAssgn
 
   | PappN (Opack U256 PE128) [:: Papp1 (Oint_of_word U128) h ; Papp1 (Oint_of_word U128) (Pvar _ as l) ] =>
-    if sz' == U256 then LowerConcat h l else LowerAssgn
+    if ty == sword U256 then LowerConcat h l else LowerAssgn
 
   | _ => LowerAssgn
   end.
@@ -607,9 +608,9 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
   let f := Lnone_b vi in
   let copn o a := [:: MkI ii (Copn [:: x ] tg o a) ] in
   let inc o a := [:: MkI ii (Copn [:: f ; f ; f ; f ; x ] tg o [:: a ]) ] in
-  let szty := wsize_of_stype ty in
-  match lower_cassgn_classify szty e x with
+  match lower_cassgn_classify ty e x with
   | LowerMov b =>
+    let szty := wsize_of_stype ty in
     let e := reduce_wconst szty e in
     if b
     then
