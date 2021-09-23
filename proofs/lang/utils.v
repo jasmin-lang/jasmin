@@ -141,7 +141,7 @@ Lemma bind_eq eT aT rT (f1 f2 : aT -> result eT rT) m1 m2 :
    m1 = m2 -> f1 =1 f2 -> m1 >>= f1 = m2 >>= f2.
 Proof. move=> <- Hf; case m1 => //=. Qed.
 
-Definition ok_inj {E A} (a a': A) (H: Ok E a = ok a') : a = a' :=
+Definition ok_inj {E A} {a a': A} (H: Ok E a = ok a') : a = a' :=
   let 'Logic.eq_refl := H in Logic.eq_refl.
 
 Definition Error_inj {E A} (a a': E) (H: @Error E A a = Error a') : a = a' :=
