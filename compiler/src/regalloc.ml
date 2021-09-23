@@ -22,7 +22,7 @@ let fill_in_missing_names (f: 'info func) : 'info func =
     let fresh, _ = make_counter () in
     fun loc ty ->
       let n = Printf.sprintf " _%d" (fresh ()) in
-      L.mk_loc loc (V.mk n (Reg Direct) ty L._dummy)
+      L.mk_loc loc (V.mk n (Reg Direct) ty L._dummy [])
   in
   let fill_lv =
     function
@@ -757,7 +757,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
              | Some OnStack -> false
              | (None | Some OnReg) -> true
         then
-          let r = V.mk " ra" (Reg Direct) (Bty (U U64)) L._dummy in
+          let r = V.mk " ra" (Reg Direct) (Bty (U U64)) L._dummy [] in
           Hf.add return_addresses f.f_name r;
           Sv.add r written
         else written
@@ -767,7 +767,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
             let acc = Sv.union (killed fn) acc in
             if (get_annot fn).retaddr_kind = Some OnStack then
               List.fold_left (fun acc loc ->
-                  let r = V.mk (Format.sprintf " ra%d" (count())) (Reg Direct) (Bty (U U64)) (fst loc) in
+                  let r = V.mk (Format.sprintf " ra%d" (count())) (Reg Direct) (Bty (U U64)) (fst loc) [] in
                   Hashtbl.add extra_free_registers loc r;
                   Sv.add r acc
                 ) acc locs
