@@ -1,0 +1,4 @@
+fn foo(#public reg u64 r) -> #strict reg u64 {
+   return r;
+}
+

@@ -8,6 +8,14 @@ Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Module Import E.
+
+  Definition pass : string := "dead calls".
+
+  Definition dead_calls_error := pp_internal_error_s pass.
+
+End E.
+
 (* -------------------------------------------------------------------- *)
 Fixpoint i_calls (c : Sp.t) (i : instr) {struct i} : Sp.t :=
   let: MkI _ i := i in i_calls_r c i
@@ -41,15 +49,15 @@ Definition live_calls (s: Sp.t) (p: fun_decls) : Sp.t :=
 Definition dead_calls (K: Sp.t) (p: fun_decls) :=
   filter (λ x, Sp.mem x.1 K) p.
 
-Definition dead_calls_err (c : Sp.t) (p : prog) : cfexec prog :=
+Definition dead_calls_err (c : Sp.t) (p : prog) : cexec prog :=
   let fds := p_funcs p in
   let k := live_calls c fds in
   if Sp.subset (live_calls k fds) k then
-  cfok {| p_funcs := dead_calls k fds; p_globs := p_globs p; p_extra := p_extra p |}
-  else cferror Ferr_topo.
+  ok {| p_funcs := dead_calls k fds; p_globs := p_globs p; p_extra := p_extra p |}
+  else Error (dead_calls_error "program is not a topological sorting of the call-graph").
 
 (* -------------------------------------------------------------------- *)
-Definition dead_calls_err_seq (c : seq funname) (p : prog) : cfexec prog  :=
+Definition dead_calls_err_seq (c : seq funname) (p : prog) : cexec prog  :=
   dead_calls_err (foldl (fun f c => Sp.add c f) Sp.empty c) p.
 
 End Section.

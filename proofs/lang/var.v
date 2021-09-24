@@ -33,17 +33,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition ident := string.
-
 (* ** Variables map, to be used when computation is needed
  * -------------------------------------------------------------------- *)
-Module Type IDENT.
-
-  Parameter ident : eqType.
-
-  Declare Module Mid : MAP with Definition K.t := ident.
-
-End IDENT.
 
 Module MvMake (I:IDENT).
 
@@ -330,11 +321,7 @@ Notation vtype := Var.vtype.
 Notation vname := Var.vname.
 Notation Var   := Var.Var.
 
-Definition var2pair (v:var) := (v.(vtype), v.(vname)).
-Definition pair2var (p:stype * ident) := Var (fst p) (snd p).
-
-Lemma codeK_var : cancel var2pair pair2var. Proof. by rewrite /cancel; case => //. Qed.
-
+Declare Scope mvar_scope.
 Delimit Scope mvar_scope with mv.
 Notation "vm .[ x ]" := (@Mv.get _ vm x) : mvar_scope.
 Notation "vm .[ x  <- v ]" := (@Mv.set _ vm x v) : mvar_scope.
@@ -420,6 +407,7 @@ Module Fv : FvT.
 
 End Fv.
 
+Declare Scope vmap_scope.
 Delimit Scope vmap_scope with vmap.
 Notation "vm .[ id ]" := (Fv.get vm id) : vmap_scope.
 Notation "vm .[ k  <- v ]" := (@Fv.set _ vm k v) : vmap_scope.

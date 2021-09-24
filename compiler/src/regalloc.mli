@@ -30,6 +30,4 @@ reported as killed. Subroutines report ALL killed registers.
 val alloc_prog : (Var0.Var.var -> var) -> (unit func -> 'a -> bool) ->
  ('a * unit func) list ->
  ('a * reg_oracle_t * unit func) list
- * (var -> Sv.t)
- * (i_loc -> var option)
- * (funname -> Sv.t)
+ * (L.i_loc -> var option)

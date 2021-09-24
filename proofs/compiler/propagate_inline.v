@@ -148,9 +148,19 @@ Definition set_lv (pi:pimap) x tag ty (e:pexpr) :=
     else pi
   else pi.
 
+Module Import E.
+
+  Definition pass : string := "propagate inline".
+
+  Definition ii_loop_iterator := ii_loop_iterator pass.
+
+  Definition error := pp_internal_error_s pass.
+
+End E.
+
 Section LOOP.
 
-  Context (pi_i : pimap -> instr -> ciexec (pimap * instr)). 
+  Context (pi_i : pimap -> instr -> cexec (pimap * instr)). 
 
   (* TODO: add map_foldM in utils *)
   Fixpoint pi_c (pi:pimap) (c:cmd) := 
@@ -167,7 +177,7 @@ Section LOOP.
 
   Fixpoint loop_for (n:nat) (pi:pimap)  :=
     match n with
-    | O => cierror ii (Cerr_Loop "propagate_inline")
+    | O => Error (E.ii_loop_iterator ii)
     | S n =>
       let pii := remove pi x in
       Let pic := pi_c pii c in
@@ -179,13 +189,13 @@ Section LOOP.
 
   Fixpoint loop_while (n:nat) (pi:pimap) :=
     match n with
-    | O => cierror ii (Cerr_Loop "propagate_inline")
+    | O => Error (E.ii_loop_iterator ii)
     | S n =>
       (* c1; while e do c2; c1 *)
       Let pic1 := pi_c pi c1 in
       Let pic2 := pi_c pic1.1 c2 in
       if incl pi pic2.1 then ok (pic1.1, pic1.2, pi_e pic1.1 e, pic2.2)
-      else loop_while n pi  
+      else loop_while n (merge pi pic2.1) 
     end.
 
 End LOOP.

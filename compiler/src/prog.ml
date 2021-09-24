@@ -30,7 +30,6 @@ type v_kind =
   | Reg   of pointer (* register variable *)
   | Inline           (* inline variable   *)
   | Global           (* global (in memory) constant *) 
-  [@@deriving compare,sexp]
 
 type 'len gty =
   | Bty of base_ty
@@ -140,7 +139,6 @@ type funname = {
 type range_dir = UpTo | DownTo
 type 'len grange = range_dir * 'len gexpr * 'len gexpr
 
-type i_loc = L.t * L.t list 
 
 type ('len,'info) ginstr_r =
   | Cassgn of 'len glval * assgn_tag * 'len gty * 'len gexpr
@@ -149,10 +147,9 @@ type ('len,'info) ginstr_r =
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info) gstmt
   | Cwhile of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
   | Ccall  of inline_info * 'len glvals * funname * 'len gexprs
-
 and ('len,'info) ginstr = {
     i_desc : ('len,'info) ginstr_r;
-    i_loc  : i_loc;
+    i_loc  : L.i_loc;
     i_info : 'info;
     i_annot : Syntax.annotations;
   }

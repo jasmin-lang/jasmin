@@ -1,0 +1,14 @@
+param int n = 4;
+
+/* Stack alignment is u64. */
+#[stackalign="u32"]
+export
+fn main(reg u64 x) -> reg u64 {
+reg u64 result;
+stack u64[n] tab;
+inline int i;
+for i = 0 to n { tab[i] = x; }
+result = 0;
+for i = 0 to n { result += tab[i]; }
+return result;
+}

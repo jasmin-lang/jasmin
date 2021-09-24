@@ -1,0 +1,10 @@
+u64[2] g = {0,1};
+
+fn f (reg ptr u64[1] r1, reg ptr u64[1] r2) -> reg u64 {
+  reg u64 res;
+  reg ptr u64[2] rg;
+  rg = g;
+  r1[0:1] = rg[0:1];
+  res = r1[0];
+  return res;
+}

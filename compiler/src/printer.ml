@@ -1,22 +1,11 @@
 (* -------------------------------------------------------------------- *)
+open Utils
 open Prog
 module W = Wsize
 module T = Type
 module E = Expr
 module F = Format
 module B = Bigint
-
-(* -------------------------------------------------------------------- *)
-let rec pp_list sep pp fmt xs =
-  let pp_list = pp_list sep pp in
-    match xs with
-    | []      -> ()
-    | [x]     -> Format.fprintf fmt "%a" pp x
-    | x :: xs -> Format.fprintf fmt "%a%(%)%a" pp x sep pp_list xs
-
-(* -------------------------------------------------------------------- *)
-let pp_iloc fmt (l,ls) =
-  Format.fprintf fmt "@[%a@]" (pp_list " from@ " L.pp_sloc) (l::ls)
 
 (* -------------------------------------------------------------------- *)
 let pp_string0 fmt str =
@@ -30,7 +19,7 @@ let pp_bool fmt b =
 (* -------------------------------------------------------------------- *)
 let pp_btype fmt = function
   | Bool -> F.fprintf fmt "bool"
-  | U i  -> F.fprintf fmt "U%i" (int_of_ws i)
+  | U i  -> F.fprintf fmt "u%i" (int_of_ws i)
   | Int  -> F.fprintf fmt "int"
 
 (* -------------------------------------------------------------------- *)
@@ -46,6 +35,10 @@ let pp_gvar_i pp_var fmt v = pp_var fmt (L.unloc v)
 let string_of_cmp_ty = function
   | E.Cmp_w (W.Unsigned, _) -> "u"
   | _        -> ""
+
+let string_of_op_kind = function
+  | E.Op_w ws -> Format.sprintf "%du" (int_of_ws ws)
+  | E.Op_int -> ""
 
 (* -------------------------------------------------------------------- *)
 
@@ -75,8 +68,8 @@ let string_of_op2 = function
   | E.Olsl _ -> "<<"
   | E.Oasr _ -> ">>s"
 
-  | E.Oeq  _ -> "=="
-  | E.Oneq _ -> "!="
+  | E.Oeq  k -> "==" ^ string_of_op_kind k
+  | E.Oneq k -> "!=" ^ string_of_op_kind k
   | E.Olt  k -> "<"  ^ string_of_cmp_ty k
   | E.Ole  k -> "<=" ^ string_of_cmp_ty k
   | E.Ogt  k -> ">"  ^ string_of_cmp_ty k
@@ -206,9 +199,13 @@ let rec pp_gi pp_info pp_len pp_var fmt i =
       (pp_gtype pp_len) ty
       (pp_ge pp_len pp_var) e
 
-  | Copn(x, t, o, e) -> (* FIXME *)
-    F.fprintf fmt "@[<hov 2>%a %s=@ %s(%a);@]"
-       (pp_glvs pp_len pp_var) x (pp_tag t) (pp_opn o)
+  | Copn(x, t, o, e) ->
+    let pp_cast fmt = function
+      | E.Ox86'(Some ws, _) -> Format.fprintf fmt "(%a)" pp_btype (U ws)
+      | _ -> () in
+
+    F.fprintf fmt "@[<hov 2>%a %s=@ %a%s(%a);@]"
+       (pp_glvs pp_len pp_var) x (pp_tag t) pp_cast o (pp_opn o)
        (pp_ges pp_len pp_var) e
 
   | Cif(e, c, []) ->
@@ -449,3 +446,35 @@ let pp_sprog ~debug tbl fmt ((funcs, p_extra):'info Prog.sprog) =
 let pp_warning_msg fmt = function
   | Compiler_util.Use_lea -> Format.fprintf fmt "LEA instruction is used"
 
+let pp_err ~debug tbl fmt (pp_e : Compiler_util.pp_error) =
+  let pp_var tbl fmt v =
+    let v = Conv.var_of_cvar tbl v in
+    Format.fprintf fmt "%a (defined at %a)" (pp_var ~debug) v L.pp_sloc v.v_dloc
+  in
+  let rec pp_err fmt pp_e =
+    match pp_e with
+    | Compiler_util.PPEstring s -> Format.fprintf fmt "%a" pp_string0 s
+    | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" (pp_var tbl) v
+    | Compiler_util.PPEvarinfo vi ->
+      let loc = Conv.get_loc tbl vi in
+      Format.fprintf fmt "%a" L.pp_loc loc
+    | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" (Conv.fun_of_cfun tbl fn).fn_name
+    | Compiler_util.PPEiinfo ii ->
+      let (i_loc, _, _) = Conv.get_iinfo tbl ii in
+      Format.fprintf fmt "%a" L.pp_iloc i_loc
+    | Compiler_util.PPEfuninfo fi ->
+      let (f_loc, _, _, _) = Conv.get_finfo tbl fi in
+      Format.fprintf fmt "%a" L.pp_sloc f_loc
+    | Compiler_util.PPEexpr e ->
+      let e = Conv.expr_of_cexpr tbl e in
+      pp_expr ~debug fmt e
+    | Compiler_util.PPEbox (box, pp_e) ->
+      begin match box with
+      | Compiler_util.Hbox -> Format.fprintf fmt "@[<h>%a@]" (pp_list "@ " pp_err) pp_e
+      | Compiler_util.Vbox -> Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_err) pp_e
+      | Compiler_util.HoVbox -> Format.fprintf fmt "@[<hov>%a@]" (pp_list "@ " pp_err) pp_e
+      | Compiler_util.Nobox -> Format.fprintf fmt "%a" (pp_list "" pp_err) pp_e
+      end
+    | Compiler_util.PPEbreak -> Format.fprintf fmt "@ "
+  in
+  pp_err fmt pp_e

@@ -36,6 +36,8 @@ val bi_of_word : wsize -> Obj.t -> Bigint.zint
 val cty_of_ty : Prog.ty -> Type.stype
 val ty_of_cty : Type.stype -> Prog.ty
 (* -------------------------------------------------------------------- *)
+val get_loc : 'a coq_tbl -> BinNums.positive -> Prog.L.t
+
 val cvar_of_var : 'a coq_tbl -> var -> Var0.Var.var
 val var_of_cvar : 'a coq_tbl -> Var0.Var.var -> var
 val vari_of_cvari : 'a coq_tbl -> Expr.var_i -> var L.located
@@ -49,6 +51,8 @@ val cfun_of_fun : 'info coq_tbl -> funname -> BinNums.positive
 val fun_of_cfun : 'info coq_tbl -> BinNums.positive -> funname
 
 val get_iinfo   : 'info coq_tbl -> BinNums.positive -> (L.t * L.t list) * 'info * Syntax.annotations
+
+val get_finfo   : 'info coq_tbl -> BinNums.positive -> L.t * f_annot * call_conv * Syntax.annotations list
 
 val cufdef_of_fdef : 'info coq_tbl -> 'info func -> BinNums.positive * Expr._ufundef
 val fdef_of_cufdef : 'info coq_tbl -> BinNums.positive * Expr._ufundef -> 'info func
@@ -64,3 +68,6 @@ val prog_of_csprog : 'info coq_tbl -> Expr._sprog -> 'info sprog
 val to_array : 
   Prog.ty -> BinNums.positive -> Warray_.WArray.array -> wsize * Prog.B.zint array
 
+val error_of_cerror :
+  (Format.formatter -> Compiler_util.pp_error -> unit) ->
+  'info coq_tbl -> Compiler_util.pp_error_loc -> Utils.hierror

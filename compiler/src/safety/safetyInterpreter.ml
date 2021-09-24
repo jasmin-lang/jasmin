@@ -1088,32 +1088,36 @@ end = struct
       [Some (Papp1(E.Oword_of_int U64, Papp1(E.Oint_of_word U32, e)))]
 
     (* Idem than Ox86MOVZX32, but with different sizes. *)      
-    | E.Ox86 (X86_instr_decl.MOVZX (sz_o, sz_i)) ->
+    | E.Ox86' (x, X86_instr_decl.MOVZX (sz_o, sz_i)) ->
+      assert (x = None); (* FIXME *)
       assert (int_of_ws sz_o >= int_of_ws sz_i);
       let e = as_seq1 es in
       [Some (Papp1(E.Oword_of_int sz_o, Papp1(E.Oint_of_word sz_i, e)))]
 
     (* CMP flags are identical to SUB flags. *)
-    | E.Ox86 (X86_instr_decl.CMP ws) ->
+    | E.Ox86' (_, X86_instr_decl.CMP ws) ->
       (* Input types: ws, ws *)
       let el,er = as_seq2 es in
       rflags_of_sub ws el er
 
     (* add unsigned / signed *)
-    | E.Ox86 (X86_instr_decl.ADD ws) ->
+    | E.Ox86' (x, X86_instr_decl.ADD ws) ->
+      assert (x = None);
       opn_bin_alu ws (E.Oadd (E.Op_w ws)) (E.Oadd E.Op_int) es
 
     (* sub unsigned / signed *)
-    | E.Ox86 (X86_instr_decl.SUB ws) ->
+    | E.Ox86' (x, X86_instr_decl.SUB ws) ->
+      assert (x = None);
       opn_sub ws es
 
     (* mul unsigned *)
-    | E.Ox86 (X86_instr_decl.MUL ws)
+    | E.Ox86' (x, X86_instr_decl.MUL ws)
 
     (* mul signed *)
     (* since, for now, we ignore the upper-bits, 
        we do the same thing than for unsigned multiplication. *)
-    | E.Ox86 (X86_instr_decl.IMUL ws) ->
+    | E.Ox86' (x, X86_instr_decl.IMUL ws) ->
+      assert (x = None);
       let el,er = as_seq2 es in
       let w = Papp2 (E.Omul (E.Op_w ws), el, er) in
       (* FIXME: overflow bit to have the precise flags *)
@@ -1124,8 +1128,9 @@ end = struct
       rflags @ [  None; Some w]
 
     (* mul signed, no higher-bits *)
-    | E.Ox86 (X86_instr_decl.IMULr ws)
-    | E.Ox86 (X86_instr_decl.IMULri ws) ->
+    | E.Ox86' (x, X86_instr_decl.IMULr ws)
+    | E.Ox86' (x, X86_instr_decl.IMULri ws) ->
+      assert (x = None);
       let el,er = as_seq2 es in
       let w = Papp2 (E.Omul (E.Op_w ws), el, er) in
       (* FIXME: overflow bit to have the precise flags *)
@@ -1136,21 +1141,24 @@ end = struct
       rflags @ [Some w]
 
     (* div unsigned *)
-    | E.Ox86 (X86_instr_decl.DIV ws) ->
+    | E.Ox86' (x, X86_instr_decl.DIV ws) ->
+      assert (x = None);
       let el,er = as_seq2 es in
       let w = Papp2 (E.Odiv (E.Cmp_w (Unsigned, ws)), el, er) in
       let rflags = rflags_of_div in
       rflags @ [None; Some w]
 
     (* div signed *)
-    | E.Ox86 (X86_instr_decl.IDIV ws) ->
+    | E.Ox86' (x, X86_instr_decl.IDIV ws) ->
+      assert (x = None);
       let el,er = as_seq2 es in
       let w = Papp2 (E.Odiv (E.Cmp_w (Signed, ws)), el, er) in
       let rflags = rflags_of_div in
       rflags @ [None; Some w]
 
     (* increment *)
-    | E.Ox86 (X86_instr_decl.INC ws) ->
+    | E.Ox86' (x, X86_instr_decl.INC ws) ->
+      assert (x = None);
       let e = as_seq1 es in
       let w = Papp2 (E.Oadd (E.Op_w ws), e,
                      Papp1(E.Oword_of_int ws, Pconst (B.of_int 1))) in
@@ -1162,7 +1170,8 @@ end = struct
       rflags @ [Some w]
 
     (* decrement *)
-    | E.Ox86 (X86_instr_decl.DEC ws) ->
+    | E.Ox86' (x, X86_instr_decl.DEC ws) ->
+      assert (x = None);
       let e = as_seq1 es in
       let w = Papp2 (E.Osub (E.Op_w ws), e,
                      Papp1(E.Oword_of_int ws,Pconst (B.of_int 1))) in
@@ -1174,7 +1183,8 @@ end = struct
       rflags @ [Some w]
 
     (* negation *)
-    | E.Ox86 (X86_instr_decl.NEG ws) ->
+    | E.Ox86' (x, X86_instr_decl.NEG ws) ->
+      assert (x = None);
       let e = as_seq1 es in
       let w = Papp1 (E.Oneg (E.Op_w ws), e) in
       let vs = () in
@@ -1182,26 +1192,30 @@ end = struct
       rflags @ [Some w]
 
     (* copy *)
-    | E.Ox86 (X86_instr_decl.MOV _) ->
+    | E.Ox86' (x, X86_instr_decl.MOV _) ->
+      assert (x = None);
       let e = as_seq1 es in 
       [Some e]
 
     (* shift, unsigned / left  *)
-    | E.Ox86 (X86_instr_decl.SHL ws) ->
+    | E.Ox86' (x, X86_instr_decl.SHL ws) ->
+      assert (x = None);
       let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Olsl ws, e1, e2) in
+      let e = Papp2 (E.Olsl (E.Op_w ws), e1, e2) in
       rflags_unknwon @ [Some e]
 
     (* shift, unsigned / right  *)
-    | E.Ox86 (X86_instr_decl.SHR ws) ->
+    | E.Ox86' (x, X86_instr_decl.SHR ws) ->
+      assert (x = None);
       let e1, e2 = as_seq2 es in
       let e = Papp2 (E.Olsr ws, e1, e2) in
       rflags_unknwon @ [Some e]
 
     (* shift, signed / right  *)
-    | E.Ox86 (X86_instr_decl.SAR ws) ->
+    | E.Ox86' (x, X86_instr_decl.SAR ws) ->
+      assert (x = None);
       let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Oasr ws, e1, e2) in
+      let e = Papp2 (E.Oasr (E.Op_w ws), e1, e2) in
       rflags_unknwon @ [Some e]
 
     (* FIXME: adding bit shift with flags *)
@@ -1222,34 +1236,36 @@ end = struct
     *)
 
     (* conditional copy *)
-    | E.Ox86 (X86_instr_decl.CMOVcc sz) ->
+    | E.Ox86' (x, X86_instr_decl.CMOVcc sz) ->
+      assert (x = None);
       let c,el,er = as_seq3 es in
       let e = Pif (Bty (U sz), c, el, er) in
       [Some e] 
 
     (* bitwise operators *)
-    | E.Ox86 (X86_instr_decl.AND ws) ->
+    | E.Ox86' (x, X86_instr_decl.AND ws) ->
+      assert (x = None);
       let e1, e2 = as_seq2 es in
       let e = Papp2 (E.Oland ws, e1, e2) in
       rflags_unknwon @ [Some e]
 
-    | E.Ox86 (X86_instr_decl.OR ws) ->
+    | E.Ox86' (x, X86_instr_decl.OR ws) ->
+      assert (x = None);
       let e1, e2 = as_seq2 es in
       let e = Papp2 (E.Olor ws, e1, e2) in
       rflags_unknwon @ [Some e]
 
-    | E.Ox86 (X86_instr_decl.XOR ws) ->
+    | E.Ox86' (x, X86_instr_decl.XOR ws) ->
+      assert (x = None);
       let e1, e2 = as_seq2 es in
       let e = Papp2 (E.Olxor ws, e1, e2) in
       rflags_unknwon @ [Some e]
 
-    | E.Ox86 (X86_instr_decl.NOT ws) ->
+    | E.Ox86' (x, X86_instr_decl.NOT ws) ->
+      assert (x = None);
       let e1 = as_seq1 es in
       let e = Papp1 (E.Olnot ws, e1) in
       [Some e]
-
-    | E.Ox86 (X86_instr_decl.TEST _)
-    | E.Ox86 (X86_instr_decl.ANDN _)
 
     | _ ->
       debug (fun () ->
@@ -1283,14 +1299,16 @@ end = struct
                              (Mtexpr.cst (Coeff.s_of_int 1))); }
         
     (* decrement *) 
-    | E.Ox86 (X86_instr_decl.DEC _) ->
+    | E.Ox86' (x, X86_instr_decl.DEC _) ->
+      assert (x = None);
       Some { fh_zf = Some (Mtexpr.var v);
              fh_cf = Some (Mtexpr.binop Texpr1.Add
                              (Mtexpr.var v)
                              (Mtexpr.cst (Coeff.s_of_int 1))); }
 
     (* compare *)
-    | E.Ox86 (X86_instr_decl.CMP _) ->
+    | E.Ox86' (x, X86_instr_decl.CMP _) ->
+      assert (x = None);
       let exception Opn_heur_failed in
       let rec to_mvar = function
         | Pvar x ->
@@ -1307,7 +1325,7 @@ end = struct
         with Opn_heur_failed -> None end
       
     (* (\* sub with borrow *\)
-     * | E.Ox86 (X86_instr_decl.SBB _) *)
+     * | E.Ox86' (X86_instr_decl.SBB _) *)
     | _ ->
       debug (fun () ->
           Format.eprintf "No heuristic for the return flags of %s@."
@@ -1542,8 +1560,9 @@ end = struct
         let cr = { ginstr with i_desc = Cassgn (lv, tag, ty2, er) } in
         aeval_if ginstr c [cl] [cr] state
 
-      | Copn (lvs,tag,E.Ox86 (X86_instr_decl.CMOVcc sz),es)
+      | Copn (lvs,tag,E.Ox86' (x, X86_instr_decl.CMOVcc sz),es)
         when Config.sc_pif_movecc_as_if () ->
+        assert (x = None);
         let c,el,er = as_seq3 es in
         let lv = as_seq1 lvs in
         let cl = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), el) } in

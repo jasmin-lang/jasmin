@@ -61,11 +61,11 @@ let pp_sao tbl fmt sao =
     Bigint.pp_print (Conv.bi_of_z sao.sao_size)
     Bigint.pp_print (Conv.bi_of_z sao.sao_extra_size)
     Bigint.pp_print (Conv.bi_of_z sao.sao_max_size)
-    (Printer.pp_list "@;" (pp_param_info tbl)) sao.sao_params
-    (Printer.pp_list "@;" pp_return) sao.sao_return
-    (Printer.pp_list "@;" (pp_slot tbl)) sao.sao_slots
-    (Printer.pp_list "@;" (pp_alloc tbl)) sao.sao_alloc
-    (Printer.pp_list "@;" (Printer.pp_to_save ~debug:true tbl)) sao.sao_to_save
+    (pp_list "@;" (pp_param_info tbl)) sao.sao_params
+    (pp_list "@;" pp_return) sao.sao_return
+    (pp_list "@;" (pp_slot tbl)) sao.sao_slots
+    (pp_list "@;" (pp_alloc tbl)) sao.sao_alloc
+    (pp_list "@;" (Printer.pp_to_save ~debug:true tbl)) sao.sao_to_save
     (Printer.pp_saved_stack ~debug:true tbl) sao.sao_rsp
     (Printer.pp_return_address ~debug:true tbl) sao.sao_return_address
 
@@ -81,17 +81,18 @@ let pp_oracle tbl up fmt saos =
   in
   let _, fs = Conv.prog_of_cuprog tbl up in
   Format.fprintf fmt "@[<v>Global data:@;<2 2>@[<hov>%a@]@;Global slots:@;<2 2>@[<v>%a@]@;Stack alloc:@;<2 2>@[<v>%a@]@]"
-    (Printer.pp_list "@;" pp_global) ao_globals
-    (Printer.pp_list "@;" (pp_slot tbl)) ao_global_alloc
-    (Printer.pp_list "@;" pp_stack_alloc) fs
+    (pp_list "@;" pp_global) ao_globals
+    (pp_list "@;" (pp_slot tbl)) ao_global_alloc
+    (pp_list "@;" pp_stack_alloc) fs
 
-let memory_analysis pp_comp_ferr ~debug tbl up = 
+let memory_analysis pp_err ~debug tbl up =
   if debug then Format.eprintf "START memory analysis@.";
   let p = Conv.prog_of_cuprog tbl up in
   let gao, sao = Varalloc.alloc_stack_prog p in
   
   (* build coq info *)
   let crip = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip) in
+  let crsp = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp) in
   let do_slots slots = 
     List.map (fun (x,ws,ofs) -> ((Conv.cvar_of_var tbl x, ws), Conv.z_of_int ofs)) slots in                            
   let cglobs = do_slots gao.gao_slots in
@@ -159,10 +160,12 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
   end;
 
   let sp' = 
-    match Stack_alloc.alloc_prog false crip gao.gao_data cglobs cget_sao up with
+    match Stack_alloc.alloc_prog false crip crsp gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
-      Utils.hierror "compilation error %a@." (pp_comp_ferr tbl) e in
+      let e = Conv.error_of_cerror (pp_err tbl) tbl e in
+      raise (HiError e)
+  in
   let fds, _ = Conv.prog_of_csprog tbl sp' in
   
   if debug then
@@ -187,7 +190,7 @@ let memory_analysis pp_comp_ferr ~debug tbl up =
   (* register allocation *)
   let translate_var = Conv.var_of_cvar tbl in
   let has_stack f = f.f_cc = Export && (Hf.find sao f.f_name).sao_modify_rsp in
-  let fds, _rev_alloc, _extra_free_registers, _live_calls = 
+  let fds, _extra_free_registers =
     Regalloc.alloc_prog translate_var (fun fd _ -> has_stack fd) fds in
   
   let fix_csao (_, ro, fd) =

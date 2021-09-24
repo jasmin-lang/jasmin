@@ -29,7 +29,6 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import Psatz xseq.
 Require Export expr low_memory sem.
-Require Import x86_variables.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -1827,7 +1826,7 @@ Proof.
   have {ok_w1} [z1 [-> /= hz1]] := of_val_uincl h1 ok_w1.
   have {ok_w2} [z2 [-> /= hz2]] := of_val_uincl h2 ok_w2.
   case: o w1 w2 w3 ok_w3 z1 hz1 z2 hz2 => /=
-   [|||[|s]|[|s]|[|s]| [|u s]|[|u s]| s|s|s|s|s|s| [|s]|[|s]| [|u s]|[|u s]|[|u s]|[|u s]
+   [|||[|s]|[|s]|[|s]| [|u s]|[|u s]| s|s|s|s|[|s]|[|s]| [|s]|[|s]| [|u s]|[|u s]|[|u s]|[|u s]
     | ve s | ve s | ve s | ve s | ve s | ve s ] /=.
   11, 13: by rewrite /mk_sem_divmod => w1 w2 w3; case: ifP => // h [<-] z1 /val_uincl_eq -> // z2 /val_uincl_eq /(_ erefl) ->; rewrite h.
   all: by move => ??? [<-] ? /val_uincl_eq -> // ? /val_uincl_eq ->.
@@ -2973,7 +2972,7 @@ Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (
   let m1   := s.(emem) in
   let vm1  := s.(evm) in
   Let m1' := alloc_stack m1 sf.(sf_align) sf.(sf_stk_sz) sf.(sf_stk_extra_sz) in
-  write_vars [:: vid (string_of_register RSP) ; vid pe.(sp_rip)]
+  write_vars [:: vid pe.(sp_rsp) ; vid pe.(sp_rip)]
              [:: Vword (top_stack m1'); Vword wrip] (Estate m1' vmap0).
 
 Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=

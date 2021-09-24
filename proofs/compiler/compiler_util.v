@@ -17,222 +17,194 @@ Variant warning_msg : Set :=
 (* ** Compiler error
  * -------------------------------------------------------------------------- *)
 
-(*
 Variant box := 
   | Vbox
   | Hbox
-  | HoVbox.
+  | HoVbox
+  | Nobox.
 
 Inductive pp_error :=
   | PPEstring  `(string)
   | PPEvar     `(var)
-  | PPEop1     `(sop1)
-  | PPEop2     `(sop2)
-  | PPEopN     `(opN)
-  | PPEsopn    `(sopn)
-  | PPEexpr    `(pexpr)
-  | PPElval    `(lval)
+  | PPEvarinfo    `(var_info)
+(*   | PPEop1     `(sop1) *)
+(*   | PPEop2     `(sop2) *)
+(*   | PPEopN     `(opN) *)
+(*   | PPEsopn    `(sopn) *)
+(*   | PPEexpr    `(pexpr) *)
+(*   | PPElval    `(lval) *)
   | PPEfunname `(funname)
-  | PPEinstr   `(instr_r)
+  | PPEfuninfo `(fun_info)
+(*   | PPEinstr   `(instr_r) *)
   | PPEiinfo   `(instr_info)
+  | PPEexpr    `(pexpr)
   | PPEbox     `(box) `(seq pp_error)
-  | PPEbreack.
+  | PPEbreak.
 
-(*
-Fixpoint pp_seq_aux sep (xs: list pp_error) := 
-  match xs with
-  | [::] => [::]
-  | x::xs => sep :: x:: pp_seq_aux sep xs
-  end.
-
-Definition pp_seq_sep sep xs := 
-  PPEseq match xs with
-  | [::] => [::]
-  | [::x] => [::x]
-  | x::xs => x:: pp_seq_aux sep xs
-  end.
-
-Definition pp_seq := pp_seq_sep PPEbreack.
-
-Definition pp_list_sep {A:Type} sep (pp_e: A -> pp_error) xs :=
-  pp_seq_sep sep (map pp_e xs).
-
-Definition pp_list A := @pp_list_sep A PPEbreack.
+(* TODO: it was simpler to put pel_fn and pel_fi as separate fields; in the future,
+   do we want to merge them?
 *)
+Record pp_error_loc := {
+  pel_msg      : pp_error;
+  pel_fn       : option funname;
+  pel_fi       : option fun_info;
+  pel_ii       : option instr_info;
+  pel_vi       : option var_info;
+  pel_pass     : option string;
+  pel_internal : bool
+}.
 
 Definition pp_hov  := PPEbox HoVbox.
-Definition pp_box := PPEbox Hbox.
+Definition pp_box  := PPEbox Hbox.
 Definition pp_vbox := PPEbox Vbox.
+Definition pp_nobox := PPEbox Nobox.
 
-Definition pp_s    := PPEstring.
-Definition pp_v    := PPEvar.
-Definition pp_op1  := PPEop1.
+Notation pp_s    := PPEstring.
+Notation pp_var  := PPEvar.
+Notation pp_e    := PPEexpr.
+Notation pp_fn   := PPEfunname.
 
-Definition pp_neq {A:Type} (pp_e: A -> pp_error) e1 e2 (_: unit):=
-  pp_hov [:: pp_e e1; pp_s "should be equal to"; pp_e e2].
+(* Not currently used *)
+Definition pp_neq {A:Type} (pp_a: A -> pp_error) e1 e2 (_: unit):=
+  pp_hov [:: pp_a e1; pp_s "should be equal to"; pp_a e2].
 
-Definition pp_at (ii:instr_info) (e:pp_error) := 
-  pp_box [:: pp_s "at "; PPEiinfo ii].
+
+Definition cexec A := result pp_error_loc A.
+
+(* -------------------------------------------------------- *)
+(* Some helper functions                                    *)
+
+Definition pp_at_ii ii (e : pp_error_loc) := {|
+  pel_msg := e.(pel_msg);
+  pel_fn := e.(pel_fn);
+  pel_fi := e.(pel_fi);
+  pel_ii := Some ii;
+  pel_vi := e.(pel_vi);
+  pel_pass := e.(pel_pass);
+  pel_internal := e.(pel_internal) |}.
+
+Definition add_iinfo {T} (ii:instr_info) (x : cexec T) := 
+  match x with
+  | Ok a => ok a 
+  | Error e => Error (pp_at_ii ii e)
+  end.
+
+Definition pp_at_fi fi (e : pp_error_loc) := {|
+  pel_msg := e.(pel_msg);
+  pel_fn := e.(pel_fn);
+  pel_fi := Some fi;
+  pel_ii := e.(pel_ii);
+  pel_vi := e.(pel_vi);
+  pel_pass := e.(pel_pass);
+  pel_internal := e.(pel_internal) |}.
+
+Definition add_finfo {A} fi (r:cexec A) : cexec A :=
+  match r with
+  | Ok a => @Ok _ A a
+  | Error pp => Error (pp_at_fi fi pp)
+  end.
+
+Definition pp_at_fn fn (e : pp_error_loc) := {|
+  pel_msg := e.(pel_msg);
+  pel_fn := Some fn;
+  pel_fi := e.(pel_fi);
+  pel_ii := e.(pel_ii);
+  pel_vi := e.(pel_vi);
+  pel_pass := e.(pel_pass);
+  pel_internal := e.(pel_internal) |}.
+
+Definition add_funname {A} fn (r:cexec A) : cexec A :=
+  match r with
+  | Ok a => @Ok _ A a
+  | Error pp => Error (pp_at_fn fn pp)
+  end.
+
+Lemma add_iinfoP {A a} ii (e:cexec A):
+  add_iinfo ii e = ok a -> 
+  e = ok a.
+Proof. by case: e. Qed.
+
+Lemma add_finfoP {A a} fi (e:cexec A):
+  add_finfo fi e = ok a -> 
+  e = ok a.
+Proof. by case: e. Qed.
+
+Lemma add_funnameP {A a} fn (e:cexec A):
+  add_funname fn e = ok a -> 
+  e = ok a.
+Proof. by case: e. Qed.
+
+(* In general, [T1] is instantiated as [_fundef ?eft], so we can use [f_info].
+   But we also instantiate [T1] as [lfundef] (in x86_gen.v), and in this case we
+   need to use [lfd_info].
+   We take as an argument a fonction to access the [fun_info] so that both cases
+   are covered.
 *)
+Definition map_cfprog_name_gen {T1 T2} (info: T1 -> fun_info) (F: funname -> T1 -> cexec T2) :=
+  mapM (fun (f:funname * T1) => Let x := add_finfo (info f.2) (add_funname f.1 (F f.1 f.2)) in ok (f.1, x)).
 
-Variant asm_error :=
-  | AsmErr_string of string & option pexpr
-  | AsmErr_cond of pexpr.
+Definition map_cfprog_gen {T1 T2} (info : T1 -> fun_info) (F: T1 -> cexec T2) :=
+  map_cfprog_name_gen info (fun _ t1 => F t1).
 
-Inductive error_msg :=
-  | Cerr_varalloc : var_i -> var_i -> string -> error_msg
-  | Cerr_inline   : Sv.t -> Sv.t -> error_msg
-  | Cerr_Loop     : string -> error_msg
-  | Cerr_fold2    : string -> error_msg
-  | Cerr_neqty    : stype -> stype -> string -> error_msg
-  | Cerr_neqop1   : sop1 -> sop1 -> string -> error_msg
-  | Cerr_neqop2   : sop2 -> sop2 -> string -> error_msg
-  | Cerr_neqopN   : opN -> opN -> string -> error_msg
-  | Cerr_neqop    : sopn -> sopn -> string -> error_msg
-  | Cerr_neqdir   : string -> error_msg
-  | Cerr_neqexpr  : pexpr -> pexpr -> string -> error_msg
-  | Cerr_neqlval  : lval -> lval -> string -> error_msg
-  | Cerr_neqfun   : funname -> funname -> string -> error_msg
-  | Cerr_neqinstr : instr_r -> instr_r -> string -> error_msg
-  | Cerr_unknown_fun : funname -> string -> error_msg
-  | Cerr_in_fun   : fun_error -> error_msg
-  | Cerr_arr_exp  : pexpr -> pexpr -> error_msg
-  | Cerr_arr_exp_v: lval -> lval -> error_msg
-  | Cerr_stk_alloc: string -> error_msg
-  | Cerr_one_varmap: string -> error_msg
-  | Cerr_one_varmap_free: funname -> seq var -> error_msg
-  | Cerr_linear   : string -> error_msg
-  | Cerr_tunneling : string -> error_msg
-  | Cerr_needspill  : funname -> seq var -> error_msg
-  | Cerr_assembler: asm_error -> error_msg
+(* Some notations to use in the common case where we manipulate [_fundef ?eft]. *)
+Notation map_cfprog_name := (map_cfprog_name_gen (@f_info _)).
+Notation map_cfprog := (map_cfprog_gen (@f_info _)).
 
-with fun_error   :=
-  | Ferr_in_body  : funname -> funname -> (instr_info * error_msg) -> fun_error
-  | Ferr_neqfun   : funname -> funname -> fun_error
-  | Ferr_fun      : funname -> error_msg -> fun_error
-  | Ferr_remove_glob     : instr_info -> var_i -> fun_error
-  | Ferr_remove_glob_dup : instr_info -> var -> fun_error
-  | Ferr_msg      : error_msg -> fun_error
-  | Ferr_neqprog  : fun_error
-  | Ferr_loop     : fun_error
-  | Ferr_uniqfun  : fun_error
-  | Ferr_uniqglob : fun_error
-  | Ferr_topo     : fun_error
-  | Ferr_lowering : fun_error
-  | Ferr_glob_neq : fun_error.
-
-
-Notation instr_error := (instr_info * error_msg)%type.
-
-Definition cexec A := result error_msg A.
-Definition ciexec A := result instr_error A.
-Definition cfexec A := result fun_error A.
-
-Definition cok {A} (a:A) : cexec A := @Ok error_msg A a.
-Definition ciok {A} (a:A) : ciexec A := @Ok instr_error A a.
-Definition cfok {A} (a:A) : cfexec A := @Ok fun_error A a.
-
-Definition cerror  (c:error_msg) {A} : cexec A := @Error _ A c.
-Definition cierror (ii:instr_info) (c:error_msg) {A} : ciexec A := @Error _ A (ii,c).
-Definition cferror  (c:fun_error) {A} : cfexec A := @Error _ A c.
-
-Definition add_iinfo {A} ii (r:cexec A) : ciexec A :=
-  match r with
-  | Ok a => @Ok _ A a
-  | Error e  => Error (ii,e)
-  end.
-
-Definition add_finfo {A} f1 f2 (r:ciexec A) : cfexec A :=
-  match r with
-  | Ok a => @Ok _ A a
-  | Error e  => Error (Ferr_in_body f1 f2 e)
-  end.
-
-Definition add_infun {A} (ii:instr_info) (r:cfexec A) : ciexec A :=
-  match r with
-  | Ok a => @Ok _ A a
-  | Error e => Error (ii, Cerr_in_fun e)
-  end.
-
-Definition add_err_msg (A : Type) (r : cexec A) := 
-  match r with
-  | ok _ a => ok a
-  | Error e => Error (Ferr_msg e)
-  end.
-
-Definition add_err_fun (A : Type) (f : funname) (r : cexec A) :=
-  match r with
-  | ok _ a => ok a
-  | Error e => Error (Ferr_fun f e)
-  end.
-
-Lemma add_iinfoP A (a:A) (e:cexec A) ii (P:Prop):
-  (e = ok a -> P) ->
-  add_iinfo ii e = ok a -> P.
-Proof. by case: e=> //= a' H [] Heq;apply H;rewrite Heq. Qed.
-
-Lemma add_finfoP A (a:A) e f1 f2 (P:Prop):
-  (e = ok a -> P) ->
-  add_finfo f1 f2 e = ok a -> P.
-Proof. by case: e=> //= a' H [] Heq;apply H;rewrite Heq. Qed.
-
-Lemma add_infunP A a ii (e:cfexec A) (P:Prop):
-  (e = ok a -> P) ->
-  add_infun ii e = ok a -> P.
-Proof. by case: e=> //= a' H [] Heq;apply H;rewrite Heq. Qed.
-
-Lemma add_err_msgP A (a: A) e (P:Prop):
-  (e = ok a -> P) ->
-  add_err_msg e = ok a -> P.
-Proof. by case: e => //= ? h [] heq; apply: h;rewrite heq. Qed.
-
-Definition map_cfprog_name {T1 T2} (F: funname -> T1 -> ciexec T2) :=
-  mapM (fun (f:funname * T1) => Let x := add_finfo f.1 f.1 (F f.1 f.2) in cfok (f.1, x)).
-
-Definition map_cfprog {T1 T2} (F: T1 -> ciexec T2) :=
-  map_cfprog_name (fun _ t1 => F t1).
-
-Lemma get_map_cfprog_name {T1 T2} (F: funname -> T1 -> ciexec T2) p p' fn f:
-  map_cfprog_name F p = ok p' ->
+Lemma get_map_cfprog_name_gen {T1 T2} (info : T1 -> fun_info) (F: funname -> T1 -> cexec T2) p p' fn f:
+  map_cfprog_name_gen info F p = ok p' ->
   get_fundef p fn = Some f ->
   exists2 f', F fn f = ok f' & get_fundef p' fn = Some f'.
 Proof.
   move=> Hmap H.
   have [|f' /= hF hf'] := mapM_assoc _ Hmap H.
-  + move=> {fn f H} [fn f] [fn' f'] /=.
-    t_xrbindP=> f''.
-    by apply: add_finfoP => _ [<- _].
+  + by move=> {fn f H} [fn f] [fn' f'] /=; t_xrbindP.
   exists f' => //.
-  move: hF; t_xrbindP=> f''.
-  by apply: add_finfoP => ? [<-].
+  by move: hF; t_xrbindP => f'' /add_finfoP /add_funnameP -> ->.
 Qed.
 
-Lemma get_map_cfprog {T1 T2} (F: T1 -> ciexec T2) p p' fn f:
-  map_cfprog F p = ok p' ->
+Lemma get_map_cfprog_gen {T1 T2} (info : T1 -> fun_info) (F: T1 -> cexec T2) p p' fn f:
+  map_cfprog_gen info F p = ok p' ->
   get_fundef p fn = Some f ->
   exists2 f', F f = ok f' & get_fundef p' fn = Some f'.
-Proof. apply get_map_cfprog_name. Qed.
+Proof. by apply get_map_cfprog_name_gen. Qed.
 
-Lemma get_map_cfprog_name' {T1 T2} (F: funname -> T1 -> ciexec T2) p p' fn f':
-  map_cfprog_name F p = ok p' ->
+Lemma get_map_cfprog_name_gen' {T1 T2} (info : T1 -> fun_info) (F: funname -> T1 -> cexec T2) p p' fn f':
+  map_cfprog_name_gen info F p = ok p' ->
   get_fundef p' fn = Some f' ->
   exists2 f, F fn f = ok f' & get_fundef p fn = Some f.
 Proof.
   move=> Hmap H.
   have [|f /= hF hf] := mapM_assoc' _ Hmap H.
-  + move=> {fn f' H} [fn f] [fn' f'] /=.
-    t_xrbindP=> f''.
-    by apply: add_finfoP => _ [<- _].
+  + by move=> {fn f' H} [fn f] [fn' f'] /=; t_xrbindP.
   exists f => //.
-  move: hF; t_xrbindP=> f''.
-  by apply: add_finfoP => ? [<-].
+  by move: hF; t_xrbindP=> f'' /add_finfoP /add_funnameP -> ->.
 Qed.
 
-Lemma get_map_cfprog' {T1 T2} (F: T1 -> ciexec T2) p p' fn f':
-  map_cfprog F p = ok p' ->
+Lemma get_map_cfprog_gen' {T1 T2} (info: T1 -> fun_info) (F: T1 -> cexec T2) p p' fn f':
+  map_cfprog_gen info F p = ok p' ->
   get_fundef p' fn = Some f' ->
   exists2 f, F f = ok f' & get_fundef p fn = Some f.
-Proof. apply get_map_cfprog_name'. Qed.
+Proof. by apply get_map_cfprog_name_gen'. Qed.
+
+(* -------------------------------------------------------- *)
+(* Internal error                                           *)
+
+Definition pp_internal_error (pass:string) (pp : pp_error) := {|
+  pel_msg := pp;
+  pel_fn := None;
+  pel_fi := None;
+  pel_ii := None;
+  pel_vi := None;
+  pel_pass := Some pass;
+  pel_internal := true
+|}.
+
+Definition pp_internal_error_s (pass:string) (s:string) :=
+  pp_internal_error pass (pp_s s).
+
+Definition pp_internal_error_s_at pass (ii:instr_info) (s:string) :=
+  pp_at_ii ii (pp_internal_error_s pass s).
+
 
 Module Type LoopCounter.
   Parameter nb  : nat.
@@ -244,3 +216,45 @@ Module Loop : LoopCounter.
   Lemma nbP : nb = (nb.-1).+1.
   Proof. done. Qed.
 End Loop.
+
+Ltac t_xrbindP :=
+  match goal with
+  | [ |- Result.bind _ _ = Ok _ _ -> _ ] =>
+      let y := fresh "y" in
+      apply: rbindP=> y; t_xrbindP; move: y
+
+  | [ |- add_finfo _ _ = ok _ -> _] => 
+      move=> /add_finfoP; t_xrbindP
+
+  | [ |- add_funname _ _ = ok _ -> _] => 
+      move=> /add_funnameP; t_xrbindP
+
+  | [ |- add_iinfo _ _ = ok _ -> _] => 
+      move=> /add_iinfoP; t_xrbindP
+
+  | [ |- ok _ = ok _ -> _ ] =>
+      case; t_xrbindP
+
+  | [ |- _ -> _ ] =>
+      let h := fresh "h" in move=> h; t_xrbindP; move: h
+
+  | _ => idtac
+  end.
+
+(* Predefined errors *)
+
+Definition gen_loop_iterator pass_name (ii:option instr_info) :=
+  {| pel_msg      := pp_s "loop iterator too small"
+   ; pel_fn       := None
+   ; pel_fi       := None
+   ; pel_ii       := ii
+   ; pel_vi       := None
+   ; pel_pass     := Some pass_name
+   ; pel_internal := true
+  |}.
+
+Definition loop_iterator pass_name := 
+  gen_loop_iterator pass_name None.
+
+Definition ii_loop_iterator pass_name ii := 
+  gen_loop_iterator pass_name (Some ii).

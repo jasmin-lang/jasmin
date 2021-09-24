@@ -4,6 +4,12 @@
 -arg -extraction-reserved-identifier
 -arg -w
 -arg -extraction-opaque-accessed
+-arg -w
+-arg -ambiguous-paths
+-arg -w
+-arg -duplicate-clear
+-arg -w
+-arg -omega-is-deprecated
 
 -R 3rdparty Jasmin
 -R compiler Jasmin
@@ -41,6 +47,7 @@ compiler/makeReferenceArguments.v
 compiler/makeReferenceArguments_proof.v
 compiler/merge_varmaps.v
 compiler/merge_varmaps_proof.v
+compiler/propagate_inline.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/stack_alloc.v

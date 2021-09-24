@@ -44,7 +44,6 @@ fn otp_intern_v2(reg ptr u8[32] r, reg ptr u8[32] msg, reg ptr u8[32] key) -> re
 inline int i;
 reg u8 t;
 
-ArrayInit(r);
 for i = 0 to 32
 {
 t = msg[i];

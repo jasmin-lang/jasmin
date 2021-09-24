@@ -1,0 +1,8 @@
+inline 
+fn test(reg u64 buffer) -> inline int 
+{
+    inline int i j;
+    i = 0;
+    j = 1 << i;
+    return j;
+}

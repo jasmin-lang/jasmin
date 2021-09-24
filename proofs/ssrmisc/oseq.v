@@ -192,6 +192,7 @@ Qed.
 
 (* -------------------------------------------------------------------- *)
 
+Declare Scope option_scope.
 Delimit Scope option_scope with O.
 
 Notation "m >>= f" := (ssrfun.Option.bind f m)

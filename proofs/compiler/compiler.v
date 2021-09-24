@@ -28,7 +28,7 @@ Require Import x86_gen expr.
 Import ZArith.
 Require merge_varmaps.
 Require Import compiler_util allocation array_init inline dead_calls unrolling remove_globals
-   constant_prop dead_code array_expansion lowering makeReferenceArguments stack_alloc linear tunneling x86_sem.
+   constant_prop propagate_inline dead_code array_expansion lowering makeReferenceArguments stack_alloc linear tunneling x86_sem.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -38,17 +38,21 @@ Unset Printing Implicit Defensive.
 
 Instance pT : progT [eqType of unit] := progUnit.
 
-Definition unroll1 (p:uprog) : cfexec uprog:=
+Definition unroll1 (p:uprog) : cexec uprog:=
   let p := unroll_prog p in
   let p := const_prop_prog p in
   dead_code_prog p.
 
+(* FIXME: error really not clear for the user *)
+(* TODO: command line option to specify the unrolling depth,
+   the error should suggest increasing the number
+*)
 Fixpoint unroll (n:nat) (p:uprog) :=
   match n with
-  | O   => cferror Ferr_loop
+  | O   => Error (loop_iterator "unrolling")
   | S n =>
     Let p' := unroll1 p in
-    if ((p_funcs p: ufun_decls) == (p_funcs p': ufun_decls)) then cfok p
+    if ((p_funcs p: ufun_decls) == (p_funcs p': ufun_decls)) then ok p
     else unroll n p'
   end.
 
@@ -70,6 +74,7 @@ Variant compiler_step :=
   | RemoveArrInit               : compiler_step
   | RemoveGlobal                : compiler_step
   | LowerInstruction            : compiler_step
+  | PropagateInline             : compiler_step
   | MakeRefArguments            : compiler_step
   | StackAllocation             : compiler_step
   | RemoveReturn                : compiler_step
@@ -78,6 +83,48 @@ Variant compiler_step :=
   | Linearisation               : compiler_step
   | Tunneling                   : compiler_step
   | Assembly                    : compiler_step.
+
+(* This is a list of the compiler passes. It is defined in Coq so that we can
+   show that it is exhaustive (cf. [compiler_step_list_complete]).
+*)
+Definition compiler_step_list := [::
+    Typing
+  ; ParamsExpansion
+  ; AddArrInit
+  ; Inlining
+  ; RemoveUnusedFunction
+  ; Unrolling
+  ; Splitting
+  ; AllocInlineAssgn
+  ; DeadCode_AllocInlineAssgn
+  ; RegArrayExpansion
+  ; RemoveArrInit
+  ; RemoveGlobal
+  ; LowerInstruction
+  ; PropagateInline 
+  ; MakeRefArguments
+  ; StackAllocation
+  ; RemoveReturn
+  ; RegAllocation
+  ; DeadCode_RegAllocation
+  ; Linearisation
+  ; Tunneling
+  ; Assembly
+].
+
+(* To use [Finite.axiom], we must first show that [compiler_step] is [eqType]. *)
+Scheme Equality for compiler_step.
+Lemma compiler_step_eq_axiom : Equality.axiom compiler_step_beq.
+Proof.
+  move=> x y; apply:(iffP idP).
+  + by apply: internal_compiler_step_dec_bl.
+  by apply: internal_compiler_step_dec_lb.
+Qed.
+Definition compiler_step_eqMixin := Equality.Mixin compiler_step_eq_axiom.
+Canonical  compiler_step_eqType  := Eval hnf in EqType compiler_step compiler_step_eqMixin.
+
+Lemma compiler_step_list_complete : Finite.axiom compiler_step_list.
+Proof. by case. Qed.
 
 Record stack_alloc_oracles : Type :=
   {
@@ -93,6 +140,7 @@ Record compiler_params := {
   lowering_vars    : fresh_vars;
   inline_var       : var -> bool;
   is_var_in_memory : var_i → bool;
+  stack_register_symbol: Ident.ident;
   global_static_data_symbol: Ident.ident;
   stackalloc       : _uprog → stack_alloc_oracles;
   removereturn     : _sprog -> (funname -> option (seq bool));
@@ -117,9 +165,22 @@ Variable cparams : compiler_params.
 
 (* Ensure that export functions are preserved *)
 Definition check_removeturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
-  assert (pmap remove_return entries == [::]) Ferr_topo. (* FIXME: better error message *)
+  assert (pmap remove_return entries == [::]) (pp_internal_error_s "remove return" "Signature of some export functions are modified").
 
-Definition compiler_first_part (to_keep: seq funname) (p: prog) : result fun_error uprog :=
+(** Export functions (entry points) shall not have ptr arguments or return values. *)
+Definition allNone {A: Type} (m: seq (option A)) : bool :=
+  all (fun a => if a is None then true else false) m.
+
+Definition check_no_ptr entries (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
+  foldM
+    (fun fn _ =>
+       let: sao := ao fn in
+       assert (allNone sao.(sao_params)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” arguments")) >>
+       assert (allNone sao.(sao_return)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” return values")))
+    tt
+    entries.
+
+Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 
   let p := add_init_prog cparams.(is_ptr) p in
   let p := cparams.(print_uprog) AddArrInit p in
@@ -154,14 +215,18 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : result fun_err
   Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_id) pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
-  Let _ := assert (fvars_correct cparams.(lowering_vars) (p_funcs pa)) Ferr_lowering in
+  Let _ := assert (fvars_correct cparams.(lowering_vars) (p_funcs pa)) 
+                  (pp_internal_error_s "lowering" "lowering check fails") in
 
   let pl := lower_prog cparams.(lowering_opt) cparams.(warning) cparams.(lowering_vars) cparams.(is_var_in_memory) pa in
   let pl := cparams.(print_uprog) LowerInstruction pl in
 
-  ok pl.
+  Let pp := propagate_inline.pi_prog pl in
+  let pp := cparams.(print_uprog) PropagateInline pp in 
+  
+  ok pp.
 
-Definition compiler_third_part (entries: seq funname) (ps: sprog) : result fun_error sprog :=
+Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog :=
 
   let rminfo := cparams.(removereturn) ps in
   Let _ := check_removeturn entries rminfo in
@@ -177,20 +242,29 @@ Definition compiler_third_part (entries: seq funname) (ps: sprog) : result fun_e
 
   ok pd.
 
-Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
+Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : cexec sprog :=
 
   Let pl := compiler_first_part (entries ++ subroutines) p in
 
   (* stack + register allocation *)
 
   let ao := cparams.(stackalloc) pl in
+  Let _ := check_no_ptr entries ao.(ao_stack_alloc) in
   Let ps :=
      stack_alloc.alloc_prog true
-       cparams.(global_static_data_symbol) ao.(ao_globals) ao.(ao_global_alloc)
+       cparams.(global_static_data_symbol)
+       cparams.(stack_register_symbol)
+       ao.(ao_globals) ao.(ao_global_alloc)
        ao.(ao_stack_alloc) pl in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
 
   Let pd := compiler_third_part entries ps in
+
+  ok pd.
+
+Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
+
+  Let pd := compiler_front_end entries subroutines p in
 
   (* linearisation                     *)
   Let _ := merge_varmaps.check pd cparams.(extra_free_registers) in
@@ -209,7 +283,7 @@ Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
     else true
   else true.
 
-Definition compile_prog_to_x86 entries subroutines (p: prog): result fun_error xprog :=
+Definition compile_prog_to_x86 entries subroutines (p: prog): cexec xprog :=
   Let lp := compile_prog entries subroutines p in
 (*  Let _ := assert (all (check_signature p lp) entries) Ferr_lowering in *)
   assemble_prog lp.

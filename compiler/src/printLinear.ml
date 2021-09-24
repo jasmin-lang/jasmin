@@ -1,3 +1,4 @@
+open Utils
 open Linear
 
 module W = Wsize
@@ -52,9 +53,9 @@ let rec pp_expr tbl fmt =
   | E.Papp1 (op, e) -> F.fprintf fmt "(%s %a)" (Pr.string_of_op1 op) pp_expr e
   | E.Papp2 (op, e1, e2) -> F.fprintf fmt "(%a %s %a)" pp_expr e1 (Pr.string_of_op2 op) pp_expr e2
   | PappN (Opack(sz,pe) , es) ->
-    F.fprintf fmt "@[(%s [%a])@]" (Printer.string_of_Opack sz pe) (Utils.pp_list ",@ " pp_expr) es
+    F.fprintf fmt "@[(%s [%a])@]" (Pr.string_of_Opack sz pe) (pp_list ",@ " pp_expr) es
   | PappN (Ocombine_flags c, es) ->
-    F.fprintf fmt "@[%s(%a)@]" (Printer.string_of_combine_flags c) (Utils.pp_list ",@ " pp_expr) es 
+    F.fprintf fmt "@[%s(%a)@]" (Pr.string_of_combine_flags c) (pp_list ",@ " pp_expr) es 
 
   | E.Pif (_, c, e1, e2) -> F.fprintf fmt "(%a ? %a : %a)" pp_expr c pp_expr e1 pp_expr e2
 
@@ -80,9 +81,9 @@ let pp_instr tbl fmt i =
   match i.li_i with
   | Lopn (lvs, op, es) ->
     F.fprintf fmt "@[%a@] = %a@[(%a)@]"
-      (Pr.pp_list ",@ " (pp_lval tbl)) lvs
+      (pp_list ",@ " (pp_lval tbl)) lvs
       Pr.pp_string0 (E.string_of_sopn op)
-      (Pr.pp_list ",@ " (pp_expr tbl)) es
+      (pp_list ",@ " (pp_expr tbl)) es
   | Lalign     -> F.fprintf fmt "Align"
   | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl
   | Lgoto lbl -> F.fprintf fmt "Goto %a" (pp_remote_label tbl) lbl
@@ -101,19 +102,19 @@ let pp_stackframe fmt (sz, ws) =
 let pp_return tbl is_export fmt =
   function
   | [] -> if is_export then F.fprintf fmt "@ return"
-  | res -> F.fprintf fmt "@ return %a" (Pr.pp_list ",@ " (pp_var_i tbl)) res
+  | res -> F.fprintf fmt "@ return %a" (pp_list ",@ " (pp_var_i tbl)) res
 
 let pp_lfun tbl fmt (fn, fd) =
   let name = Conv.fun_of_cfun tbl fn in
   F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a%a@]@ }@]"
     name.P.fn_name
-    (Pr.pp_list ",@ " (pp_param tbl)) fd.lfd_arg
-    (Pr.pp_list ",@ " pp_stype) fd.lfd_tyout
-    (Pr.pp_list ";@ " (pp_instr tbl)) fd.lfd_body
+    (pp_list ",@ " (pp_param tbl)) fd.lfd_arg
+    (pp_list ",@ " pp_stype) fd.lfd_tyout
+    (pp_list ";@ " (pp_instr tbl)) fd.lfd_body
     (pp_return tbl fd.lfd_export) fd.lfd_res
 
 let pp_prog tbl fmt lp =
   F.fprintf fmt "@[<v>%a@ @ %a@]"
     Pr.pp_datas lp.lp_globs 
-    (Pr.pp_list "@ @ " (pp_lfun tbl)) (List.rev lp.lp_funcs)
+    (pp_list "@ @ " (pp_lfun tbl)) (List.rev lp.lp_funcs)
 

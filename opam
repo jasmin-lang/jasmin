@@ -6,7 +6,7 @@ authors: [ "Jasmin Team <jasmin@example.com>" ]
 homepage: "http://jasmin-lang.github.io/"
 bug-reports: "https://github.com/jasmin-lang/jasmin/issues"
 synopsis: "High-Assurance and High-Speed Cryptography"
-license: "GPLv2"
+license: "CeCILL-B"
 
 build: [
   make "build"
@@ -18,7 +18,6 @@ remove: [
   make "PREFIX=%{prefix}%" "uninstall"
 ]
 depends: [
-  "ocaml" {>= "4.09.0" & < "4.10"}
   "batteries" {>= "2.6"}
   "menhir" {>= "20160825"}
   "zarith"
@@ -27,8 +26,8 @@ depends: [
   "yojson"
   "ocamlbuild"
   "ocamlfind"
-  "coq" {>= "8.7" & < "8.10"}
-  "coq-mathcomp-ssreflect" {>= "1.10" & < "1.11"}
+  "coq" {>= "8.12.0" & < "8.13"}
+  "coq-mathcomp-ssreflect" {>= "1.11" & < "1.12"}
   "coq-mathcomp-algebra"
   "coq-word" {dev}
 ]

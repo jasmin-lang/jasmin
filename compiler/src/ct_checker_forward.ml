@@ -42,9 +42,22 @@ type level =
   | Poly of Svl.t (* The min of the polymorphic variable *)
   | Public
 
+(* [lvl_kind] indicate if the level of a program variable is allowed to varie 
+   at different point of the program *)
+type lvl_kind = 
+  | Strict    
+  | Flexible  
+
+let string_of_lvl_kind = function
+  | Strict -> "strict"
+  | Flexible -> "flexible"
+
 module Lvl : sig
 
   type t = level
+
+  val sstrict   : string
+  val sflexible : string
 
   val poly1 : Vl.t -> t
  
@@ -52,11 +65,14 @@ module Lvl : sig
 
   val maxs : t list -> t
 
+  val equal : t -> t -> bool
+
   val le : t -> t -> bool
 
   val pp : Format.formatter -> t -> unit
 
-  val parse : single:bool -> S.annotations -> t option
+  val parse : single:bool -> kind_allowed:bool -> S.annotations ->
+              lvl_kind option * t option
 
 end = struct
 
@@ -71,7 +87,14 @@ end = struct
     | Poly l1, Poly l2 -> Poly (Svl.union l1 l2)
 
   let maxs ls = List.fold_left max Public ls 
-              
+
+  let equal l1 l2 = 
+    match l1, l2 with
+    | Public, Public -> true
+    | Secret, Secret -> true
+    | Poly l1, Poly l2 -> Svl.equal l1 l2
+    | _, _ -> false 
+
   let le l1 l2 = 
     match l1, l2 with
     | Public, _ -> true
@@ -83,6 +106,9 @@ end = struct
   let spoly   = "poly" 
   let spublic = "public" 
 
+  let sflexible = "flex"
+  let sstrict   = "strict"
+ 
   let pp fmt = function 
     | Secret -> Format.fprintf fmt "#%s" ssecret 
     | Poly s -> 
@@ -93,7 +119,7 @@ end = struct
       end
     | Public -> Format.fprintf fmt "#%s" spublic
 
-  let parse ~(single:bool) (annot: S.annotations) = 
+  let parse ~(single:bool) ~(kind_allowed:bool) (annot: S.annotations) = 
     let module A = Pt.Annot in
     let on_struct loc _nid (s:S.annotations) = 
       List.iter A.none s;
@@ -111,13 +137,28 @@ end = struct
       [spublic, (fun a -> A.none a; Public);
        ssecret, (fun a -> A.none a; Secret);
        spoly  , poly] in
-    A.ensure_uniq filters annot 
+    let lvl = A.ensure_uniq filters annot in
+    let kind = 
+      let check_allowed (id,_) = 
+        if not kind_allowed then
+          Pt.rs_tyerror ~loc:(L.loc id) 
+            (Pt.string_error "%s not allowed here" (L.unloc id));
+        if lvl = None then
+          Pt.rs_tyerror ~loc:(L.loc id) 
+            (Pt.string_error "type level should be provided")
+      in
+      let filters = 
+        [ sflexible, (fun a -> check_allowed a; A.none a; Flexible);
+          sstrict,   (fun a -> check_allowed a; A.none a; Strict)] in
+      A.ensure_uniq filters annot in
+    kind, lvl
 
 end
 
 (* -----------------------------------------------------------*)
+
 type ty_fun = {
-    tyin : Lvl.t list; (* Poly are ensured to be singleton *)
+    tyin : (lvl_kind * Lvl.t) list; (* Poly are ensured to be singleton *)
     tyout: Lvl.t list; 
   }
 
@@ -130,13 +171,14 @@ type 'info fenv = {
 (* -----------------------------------------------------------*)
 
 module Env : sig 
+
   type env
   val empty : env
   val norm_lvl : env -> Lvl.t -> Lvl.t 
   val lvl_le   : env -> Lvl.t -> Lvl.t -> bool
 
-  val set  : env -> var -> Lvl.t -> env
-  val seti : env -> var_i -> Lvl.t -> env
+  val set  : env -> var_i -> Lvl.t -> env
+  val add : env -> var -> (lvl_kind * Lvl.t) -> env
 
   val max : env -> env -> env
   val le  : env -> env -> bool
@@ -144,11 +186,11 @@ module Env : sig
   val get : public:bool -> env -> var_i -> env * Lvl.t 
   val gget : public:bool -> env -> int ggvar -> env * Lvl.t 
 
-  val pp : Format.formatter -> env -> unit
+  val pp : Format.formatter -> env -> unit 
 end = struct
 
   type env = 
-    { env_v  : Lvl.t Mv.t
+    { env_v  : (lvl_kind * Lvl.t) Mv.t
     ; env_vl : Svl.t (* vlevel that need to be public *) }
 
   let empty = 
@@ -158,36 +200,46 @@ end = struct
   let is_public_vl env vl = 
     Svl.mem vl env.env_vl
 
-  let norm_lvl env = function
+  let norm_lvl_aux env_vl = function
     | Secret -> Secret
     | Public -> Public
     | Poly s -> 
-      let s = Svl.diff s env.env_vl in
+      let s = Svl.diff s env_vl in
       if Svl.is_empty s then Public else Poly s
 
+  let norm_lvl env lvl = norm_lvl_aux env.env_vl lvl
+
   let get_var env x = 
-    try norm_lvl env (Mv.find (L.unloc x) env.env_v)
-    with Not_found -> Public 
+    try 
+      let k, lvl = Mv.find (L.unloc x) env.env_v in
+      k, norm_lvl env lvl
+    with Not_found -> Flexible, Public 
             
   let lvl_le env lvl1 lvl2 = 
     Lvl.le (norm_lvl env lvl1) (norm_lvl env lvl2)
 
   let max env1 env2 = 
-    let merge_lvl _ lvl1 lvl2 = 
-      match lvl1, lvl2 with
-      | None, _ -> lvl2
-      | _, None -> lvl1
-      | Some lvl1, Some lvl2 -> Some (Lvl.max lvl1 lvl2)
+    let env_vl = Svl.union env1.env_vl env2.env_vl in
+    let merge_lvl _ klvl1 klvl2 =
+      match klvl1, klvl2 with
+      | None, _ -> klvl2
+      | _, None -> klvl1
+      | Some (k1, lvl1), Some (k2, lvl2) -> 
+        assert (k1 = k2 && (k1 = Flexible || Lvl.equal lvl1 lvl2)); 
+        Some (k1, Lvl.max (norm_lvl_aux env_vl lvl1) (norm_lvl_aux env_vl lvl2))
     in
     { env_v  = Mv.merge merge_lvl env1.env_v env2.env_v;
-      env_vl = Svl.union env1.env_vl env2.env_vl }
+      env_vl}
 
   let le env1 env2 = 
     try 
       let _ = 
-        Mv.merge (fun _ lvl1 lvl2 ->
-            let lvl1 = norm_lvl env1 (odfl Public lvl1) in
-            let lvl2 = norm_lvl env2 (odfl Public lvl2) in
+        Mv.merge (fun _ (klvl1) (klvl2) ->
+            let k1, lvl1 = odfl (Flexible, Public) klvl1 in
+            let k2, lvl2 = odfl (Flexible, Public) klvl2 in
+            let lvl1 = norm_lvl env1 lvl1 in 
+            let lvl2 = norm_lvl env2 lvl2 in
+            assert (k1 = k2 && (k1 = Flexible || Lvl.equal lvl1 lvl2));
             if Lvl.le lvl1 lvl2 then None
             else raise Not_found) env1.env_v env2.env_v in 
       Svl.subset env1.env_vl env2.env_vl 
@@ -195,13 +247,25 @@ end = struct
 
   let set env x lvl =
     let lvl = norm_lvl env lvl in
-    { env with env_v = Mv.add x lvl env.env_v }
+    let k, lvlx = get_var env x in
+    if k = Strict then 
+      if not (Lvl.equal lvl lvlx) then
+        Pt.rs_tyerror ~loc:(L.loc x) 
+          (Pt.string_error 
+             "%a has type #%s %a it cannot receive a value of type %a" 
+             (Printer.pp_var ~debug:false) (L.unloc x)
+             Lvl.sstrict Lvl.pp lvlx 
+             Lvl.pp lvl)
+      else env
+    else { env with env_v = Mv.add (L.unloc x) (Flexible, lvl) env.env_v }
   
-  let seti env x lvl = set env (L.unloc x) lvl
+  let add env x (k, lvl) = 
+    assert (not (Mv.mem x env.env_v));
+    { env with env_v = Mv.add x (k, lvl) env.env_v }
 
   let get ~(public:bool) env x = 
     let loc = L.loc x in
-    let lvl = get_var env x in
+    let _, lvl = get_var env x in
     if public then
       match lvl with
       | Secret -> 
@@ -226,8 +290,9 @@ end = struct
     else env, Public  
 
   let pp fmt env = 
-    let pp_ty fmt (x, lvl) = 
-      Format.fprintf fmt "@[%a : %a@]" (Printer.pp_var ~debug:false) x Lvl.pp lvl in
+    let pp_ty fmt (x, (k, lvl)) = 
+      Format.fprintf fmt "@[%a : %s %a@]" (Printer.pp_var ~debug:false) x 
+        (string_of_lvl_kind k) Lvl.pp lvl in
     Format.fprintf fmt "@[<v>type = @[%a@]@ vlevel= @[%a@]@]"
        (pp_list ";@ " pp_ty) (Mv.bindings env.env_v)
        (pp_list "@ " Vl.pp) (Svl.elements env.env_vl)
@@ -242,18 +307,19 @@ module UE = struct
 
   let create n = Hashtbl.create n
 
-  let get (ue:unienv) vl = try Hashtbl.find ue vl with Not_found -> Secret 
+  let get (ue:unienv) vl = 
+    try Hashtbl.find ue vl with Not_found -> Public 
 
-  let set (ue:unienv) s ty = 
+  let set (ue:unienv) s lvl = 
     assert (Svl.cardinal s = 1);
     let vl = Svl.choose s in
-    Hashtbl.add ue vl (Lvl.max (get ue vl) ty) 
+    Hashtbl.add ue vl (Lvl.max (get ue vl) lvl) 
 
 end (* UE *)
 
 let unify uty ety : UE.unienv = 
   let ue = UE.create 31 in
-  let doit uty ety =
+  let doit (_, uty) ety =
     match uty, ety with
     | Public, Public -> ()
     | Poly s, _      -> UE.set ue s ety
@@ -315,7 +381,7 @@ and ty_exprs_max ~public env es =
 let ty_lval env x lvl = 
   match x with
   | Lnone _ -> env
-  | Lvar x -> Env.seti env x lvl 
+  | Lvar x -> Env.set env x lvl 
   | Lmem(_, x, i) ->
     let env, _ = Env.get ~public:true env x in
     let env, _ = ty_expr ~public:true env i in
@@ -324,7 +390,7 @@ let ty_lval env x lvl =
     (* x[i] = e is x = x[i <- e] *)
     let env, xlvl = Env.get ~public:false env x in
     let env, _    = ty_expr ~public:true env i in
-    Env.seti env x (Lvl.max xlvl lvl)
+    Env.set env x (Lvl.max xlvl lvl)
  
 let ty_lvals env xs lvls =
   List.fold_left2 ty_lval env xs lvls
@@ -335,8 +401,9 @@ let ty_lvals1 env xs lvl =
 (* -----------------------------------------------------------*)
     
 let get_annot ensure_annot f = 
-  let ain  = List.map (fun x -> Lvl.parse ~single:true x.v_annot) f.f_args in
-  let aout = List.map (Lvl.parse ~single:false) f.f_outannot in
+  let ain  = List.map (fun x -> Lvl.parse ~single:true ~kind_allowed:true x.v_annot) f.f_args in
+  let aout = List.map (Lvl.parse ~single:false ~kind_allowed:false) f.f_outannot in
+  let aout = List.map snd aout in
 
   let check_defined msg l = 
     if List.exists (fun a -> a = None) l then
@@ -345,30 +412,51 @@ let get_annot ensure_annot f =
            "export functions should be fully annotated, missing some security annotations on %s.@ User option “-infer” to infer them." 
            msg) in
   if ensure_annot && f.f_cc = Export then 
-    (check_defined "result types" aout; check_defined "function parameters" ain);
+    (check_defined "result types" aout; 
+     check_defined "function parameters" (List.map snd ain));
   (* fill the missing input type *)
   let ain = 
-    let doit i o = 
+    let doit i (k, o) = 
       match o with 
-      | None -> Lvl.poly1 (Vl.mk_uni (string_of_int i))
-      | Some lvl -> lvl in
+      | None -> Flexible, Lvl.poly1 (Vl.mk_uni (string_of_int i))
+      | Some lvl -> odfl Strict k, lvl in
     List.mapi doit ain 
   in
+  (* Compute the local variables info *)
+  let do_local x decls = 
+    let (k, lvl) = Lvl.parse ~single:true ~kind_allowed:true x.v_annot in
+    if k = Some Flexible then 
+      begin 
+        warning Always (x.v_dloc, [])
+          "%s annotation will be ignored for local variable %a"
+          Lvl.sflexible (Printer.pp_var ~debug:false) x;
+        decls
+      end
+    else 
+      match lvl with
+      | Some lvl -> (x,lvl) :: decls
+      | None -> decls  
+  in
+  let ldecls = Sv.fold do_local (Prog.locals f) [] in
+          
   (* check that the output type only depend on variable level declared in the input type *)
   let known = 
     List.fold_left 
-      (fun s lvl -> match lvl with Poly s' -> Svl.union s s' | _ -> s) Svl.empty ain in
-  let check o = 
-    match o with
-    | Some (Poly s) ->
+      (fun s (_, lvl) -> match lvl with Poly s' -> Svl.union s s' | _ -> s) Svl.empty ain in
+
+  let check_lvl lvl =
+    match lvl with
+    | Poly s ->
       let diff = Svl.diff known s in
       if not (Svl.is_empty diff) then
         Pt.rs_tyerror ~loc:f.f_loc 
           (Pt.string_error "variable(s) level %a should be used in the input security annotations"
              (pp_list ",@ " Vl.pp) (Svl.elements diff))
-    | _ -> () in
-  List.iter check aout;
-  ain, aout
+    | _ -> () in 
+    
+  List.iter (oiter check_lvl) aout;
+  List.iter (fun (_, lvl) -> check_lvl lvl) ldecls;
+  ain, aout, ldecls
     
 (* -----------------------------------------------------------*)
 let sdeclassify = "declassify"
@@ -406,7 +494,7 @@ let rec ty_instr fenv env i =
   | Cfor(x, (_, e1, e2), c) -> 
     let env, _ = ty_exprs ~public:true env [e1; e2] in
     let rec loop env = 
-      let env1 = Env.seti env x Public in
+      let env1 = Env.set env x Public in
       let env1 = ty_cmd fenv env1 c in
       if Env.le env1 env then env (* G <= G' G' |- c : G''   G |- c : G'' *)
       else loop (Env.max env1 env) in
@@ -430,7 +518,7 @@ let rec ty_instr fenv env i =
   | Ccall (_, xs, f, es) -> 
     let fty = get_fun fenv f in
     (* Check the arguments *)
-    let do_e env e lvl = ty_expr ~public:(lvl=Public) env e in
+    let do_e env e (_,lvl) = ty_expr ~public:(lvl=Public) env e in
     let env, elvls = List.map_fold2 do_e env es fty.tyin in
     let olvls = instanciate_fty fty elvls in
     ty_lvals env xs (declassify_lvls i.i_annot olvls)
@@ -452,8 +540,9 @@ and get_fun fenv f =
 and ty_fun fenv fn = 
   (* TODO: we should have this defined *)
   let f = List.find (fun f -> F.equal f.f_name fn) fenv.env_def in
-  let tyin, aout = get_annot fenv.ensure_annot f in
-  let env = List.fold_left2 Env.set Env.empty f.f_args tyin in
+  let tyin, aout, ldecls = get_annot fenv.ensure_annot f in
+  let env = List.fold_left2 Env.add Env.empty f.f_args tyin in
+  let env = List.fold_left (fun env (x,lvl) -> Env.add env x (Strict, lvl)) env ldecls in
   let env = ty_cmd fenv env f.f_body in
   (* First ensure that all return that are required to be public are publics *)
   let set_pub env x aout =
@@ -479,12 +568,14 @@ and ty_fun fenv fn =
     lvl in
   let tyout = List.map2 (do_r env) f.f_ret aout in
   (* Normalize the input type *)
-  let tyin = List.map (Env.norm_lvl env) tyin in
+  let tyin = List.map (fun (k, lvl) -> k, Env.norm_lvl env lvl) tyin in
   let fty = {tyin; tyout} in
-  let pp_arg fmt (x, lvl) = 
-    Format.fprintf fmt "%a %a"
-      Lvl.pp lvl (Printer.pp_var ~debug:false) x in
-  Format.eprintf "security type for @[%s(@[%a@]) -> @ @[%a@]@]@."
+  let pp_k fmt k = 
+    if k = Flexible then Format.fprintf fmt "#%s " (string_of_lvl_kind k) else () in
+  let pp_arg fmt (x, (k, lvl)) = 
+    Format.fprintf fmt "%a%a %a"
+      pp_k k  Lvl.pp lvl (Printer.pp_var ~debug:false) x in
+  Format.eprintf "security type for @[<h>@[%s(@[%a@]) ->@ @[%a@]@]@]@."
     f.f_name.fn_name
     (pp_list ",@ " pp_arg) (List.combine f.f_args tyin)
     (pp_list ",@ " Lvl.pp) tyout;
@@ -503,7 +594,7 @@ let ty_prog ~infer (prog:'info prog) fl =
     else 
       let get fn = 
         try (List.find (fun f -> f.f_name.fn_name = fn) prog).f_name 
-        with Not_found -> raise (hierror "constant type checker: unknown function %s" fn) in
+        with Not_found -> hierror ~loc:Lnone ~kind:"constant type checker" "unknown function %s" fn in
       List.map get fl in
   List.iter (fun fn -> ignore (get_fun fenv fn)) fl
 

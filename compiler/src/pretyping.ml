@@ -129,13 +129,13 @@ let pp_tyerror fmt (code : tyerror) =
       F.fprintf fmt
         "no operator %s for these types %a"
         (S.string_of_peop2 o)
-        (Printer.pp_list " * " Printer.pp_ptype) ts
+        (pp_list " * " Printer.pp_ptype) ts
 
   | NoOperator (`Op1 o, ts) ->
       F.fprintf fmt
         "no operator %s for these type %a"
         (S.string_of_peop1 o)
-        (Printer.pp_list " * " Printer.pp_ptype) ts
+        (pp_list " * " Printer.pp_ptype) ts
 
   | NoReturnStatement (name, expected) ->
      F.fprintf fmt "function “%s” has no return statement (but its signature claims that %d values should be returned)" name.P.fn_name expected
@@ -565,8 +565,7 @@ let check_ty (ety : typattern) (loc, ty) =
 
 (* -------------------------------------------------------------------- *)
 let warn_arr loc from to_ = 
-  warning Always "At %a, can not ensure that the type %a is compatible with %a"
-    L.pp_loc loc 
+  warning Always (loc,[]) "cannot ensure that the type %a is compatible with %a"
     Printer.pp_ptype from Printer.pp_ptype to_
 
 let check_ty_eq ~loc ~(from : P.pty) ~(to_ : P.pty) =
@@ -786,23 +785,23 @@ let lxor_info = mk_logic_info (fun k -> E.Olxor k)
 
 let shr_info = 
   let mk = function
-    | OpKE (Cmp_int)     -> assert false 
+    | OpKE (Cmp_int)     -> E.Oasr E.Op_int 
     | OpKE (Cmp_w(s,ws)) -> 
-      if s = W.Unsigned then E.Olsr ws else E.Oasr ws
+      if s = W.Unsigned then E.Olsr ws else E.Oasr (E.Op_w ws)
     | OpKV (s,ve,ws)   -> 
       if s = W.Unsigned then E.Ovlsr(ve,ws) else E.Ovasr(ve,ws) in
   { opi_op   = mk;
-    opi_wcmp = false, cmp_8_256;
+    opi_wcmp = true, cmp_8_256;
     opi_vcmp = Some cmp_8_64;
   }
    
 let shl_info = 
   let mk = function
-    | OpKE (Cmp_int)      -> assert false 
-    | OpKE (Cmp_w(_s,ws)) -> E.Olsl ws
+    | OpKE (Cmp_int)      -> E.Olsl E.Op_int
+    | OpKE (Cmp_w(_s,ws)) -> E.Olsl (E.Op_w ws)
     | OpKV (_s,ve,ws)     -> E.Ovlsl(ve,ws) in
   { opi_op   = mk;
-    opi_wcmp = false, cmp_8_256;
+    opi_wcmp = true, cmp_8_256;
     opi_vcmp = Some cmp_8_64;
   } 
 
@@ -839,8 +838,8 @@ let op2_of_pop2 exn ty (op : S.peop2) =
   | `BAnd c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) land_info
   | `BOr  c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) lor_info
   | `BXOr c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) lxor_info
-  | `ShR  c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) shr_info
-  | `ShL  c -> op2_of_ty exn op c (max_ty ty P.u256 |> oget ~exn) shl_info
+  | `ShR  c -> op2_of_ty exn op c ty shr_info
+  | `ShL  c -> op2_of_ty exn op c ty shl_info
 
   | `Eq   c -> op2_of_ty exn op c ty eq_info 
   | `Neq  c -> op2_of_ty exn op c ty neq_info
@@ -875,7 +874,6 @@ let peop2_of_eqop (eqop : S.peqop) =
   | `BOr  s -> Some (`BOr s)
 
 (* -------------------------------------------------------------------- *)
-
 let cast loc e ety ty =
   match ety, ty with
   | P.Bty P.Int , P.Bty (P.U w) -> P.Papp1 (E.Oword_of_int w, e)
@@ -893,10 +891,7 @@ let cast_word loc ws e ety =
   | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.Bty (P.U ws)))
 
 let cast_int loc e ety = 
-  match ety with
-  | P.Bty P.Int    -> e 
-  | P.Bty (P.U ws) -> P.Papp1 (Oint_of_word ws, e)
-  | _             ->  rs_tyerror ~loc (InvalidCast(ety,P.tint))
+  cast loc e ety P.tint 
 
 (* -------------------------------------------------------------------- *)
 let conv_ty = function
@@ -1098,11 +1093,10 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     check_ty_eq ~loc:(L.loc pe) ~from:ty2 ~to_:ty3;
     P.Pif(ty2, e1, e2, e3), ty2
 
-
-and tt_expr_cast64 ?(mode=`AllVar) (env : Env.env) pe =
-  let e, ty = tt_expr ~mode env pe in
-  cast (L.loc pe) e ty P.u64
-
+and tt_expr_cast ?(mode=`AllVar) (env : Env.env) pe ty = 
+  let e, ety = tt_expr ~mode env pe in
+  cast (L.loc pe) e ety ty 
+  
 and tt_mem_access ?(mode=`AllVar) (env : Env.env) 
            (ct, ({ L.pl_loc = xlc } as x), e) = 
   let x = tt_var `NoParam env x in
@@ -1111,7 +1105,7 @@ and tt_mem_access ?(mode=`AllVar) (env : Env.env)
     match e with
     | None -> P.Papp1 (Oword_of_int U64, P.Pconst (P.B.zero)) 
     | Some(k, e) -> 
-      let e = tt_expr_cast64 ~mode env e in
+      let e = tt_expr_cast ~mode env e P.u64 in
       match k with
       | `Add -> e
       | `Sub -> Papp1(E.Oneg (E.Op_w U64), e) in
@@ -1131,13 +1125,8 @@ and tt_type (env : Env.env) (pty : S.ptype) : P.pty =
 let tt_exprs (env : Env.env) es = List.map (tt_expr ~mode:`AllVar env) es
 
 (* -------------------------------------------------------------------- *)
-let tt_expr_ty (env : Env.env) pe ty =
-  let e, ety = tt_expr ~mode:`AllVar env pe in
-  check_ty_eq ~loc:(L.loc pe) ~from:ety ~to_:ty;
-  e
-
-let tt_expr_bool env pe = tt_expr_ty env pe P.tbool
-let tt_expr_int  env pe = tt_expr_ty env pe P.tint
+let tt_expr_bool env pe = tt_expr_cast env pe P.tbool
+let tt_expr_int  env pe = tt_expr_cast env pe P.tint
 
 (* -------------------------------------------------------------------- *)
 let tt_vardecl dfl_writable (env : Env.env) ((annot, (sto, xty)), x) =
@@ -1214,29 +1203,29 @@ let prim_sig (type a) p : a P.gty list * a P.gty list * X86_decl.arg_desc list =
   o.E.i_out
 
 type prim_constructor =
-  | PrimP of W.wsize * (W.wsize -> Expr.sopn)
-  | PrimM of Expr.sopn
-  | PrimV of (W.signedness -> W.velem -> W.wsize -> Expr.sopn)
-  | PrimX of (W.wsize -> W.wsize -> Expr.sopn)
-  | PrimVV of (W.velem -> W.wsize -> W.velem -> W.wsize -> Expr.sopn)
+  | PrimP of W.wsize * (W.wsize option -> W.wsize -> Expr.sopn)
+  | PrimM of (W.wsize option -> Expr.sopn)
+  | PrimV of (W.wsize option -> W.signedness -> W.velem -> W.wsize -> Expr.sopn)
+  | PrimX of (W.wsize option -> W.wsize -> W.wsize -> Expr.sopn)
+  | PrimVV of (W.wsize option -> W.velem -> W.wsize -> W.velem -> W.wsize -> Expr.sopn)
 
 let prim_string =
   let open Expr in
-  [ "mulu", PrimP (W.U64, fun sz -> Omulu sz);
-    "adc", PrimP (W.U64, fun sz -> Oaddcarry sz);
-    "sbb", PrimP (W.U64, fun sz -> Osubcarry sz);
-    "set0", PrimP (W.U64, fun sz -> Oset0 sz);
-    "concat_2u128", PrimM (Oconcat128) ] @
+  [ "mulu", PrimP (W.U64, fun _ws sz -> Omulu sz);
+    "adc", PrimP (W.U64, fun _ws sz -> Oaddcarry sz);
+    "sbb", PrimP (W.U64, fun _ws sz -> Osubcarry sz);
+    "set0", PrimP (W.U64, fun _ws sz -> Oset0 sz);
+    "concat_2u128", PrimM (fun _ws -> Oconcat128) ] @
   List.map (fun (s, prc) ->
       let s = Conv.string_of_string0 s in
       let prc = 
         match prc with
-        | X86_instr_decl.PrimP(x1,x2) -> PrimP(x1, fun sz -> Ox86 (x2 sz))
-        | X86_instr_decl.PrimM(x)     -> PrimM(Ox86 x)
-        | X86_instr_decl.PrimV(x)     -> PrimV(fun _ sz sz' -> Ox86 (x sz sz'))
-        | X86_instr_decl.PrimSV(x)    -> PrimV(fun s sz sz' -> Ox86 (x s sz sz'))
-        | X86_instr_decl.PrimX(x)     -> PrimX(fun sz sz' -> Ox86 (x sz sz'))
-        | X86_instr_decl.PrimVV(x)    -> PrimVV(fun ve sz ve' sz' -> Ox86 (x ve sz ve' sz')) in
+        | X86_instr_decl.PrimP(x1,x2) -> PrimP(x1, fun ws sz -> Ox86' (ws, x2 sz))
+        | X86_instr_decl.PrimM(x)     -> PrimM(fun ws -> Ox86' (ws, x))
+        | X86_instr_decl.PrimV(x)     -> PrimV(fun ws _ sz sz' -> Ox86' (ws, x sz sz'))
+        | X86_instr_decl.PrimSV(x)    -> PrimV(fun ws s sz sz' -> Ox86' (ws, x s sz sz'))
+        | X86_instr_decl.PrimX(x)     -> PrimX(fun ws sz sz' -> Ox86' (ws, x sz sz'))
+        | X86_instr_decl.PrimVV(x)    -> PrimVV(fun ws ve sz ve' sz' -> Ox86' (ws, x ve sz ve' sz')) in
       (s, prc)) X86_instr_decl.prim_string
             
 type size_annotation =
@@ -1314,20 +1303,20 @@ let extract_size str : string * size_annotation =
     | SA -> str, SA
     | sz -> String.concat "_" (List.rev s), sz
 
-let tt_prim id =
+let tt_prim ws id =
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
   match List.assoc name prim_string with
   | PrimP (d, pr) ->
-    pr (match sz with 
+    pr ws (match sz with
         | SAw sz -> sz 
         | SA -> d 
         | SAv _ | SAvv _ -> rs_tyerror ~loc (PrimNotVector s)
         | SAx _ -> rs_tyerror ~loc (PrimNotX s))
-  | PrimM pr -> if sz = SA then pr else rs_tyerror ~loc (PrimNoSize s)
-  | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
-  | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
-  | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
+  | PrimM pr -> if sz = SA then pr ws else rs_tyerror ~loc (PrimNoSize s)
+  | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr ws s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
+  | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr ws sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
+  | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ws ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
   | exception Not_found -> rs_tyerror ~loc (UnknownPrim s)
 
 let prim_of_op exn loc o =
@@ -1429,13 +1418,24 @@ let tt_lvalues env (pimp, pls) implicit tys =
      let nargs = List.length pls in
      if nargs < n then
        let nextra = n - nargs in
-       warning IntroduceNone "at %a, introduce %d _ lvalues" P.L.pp_sloc loc nextra;
+       warning IntroduceNone (loc, []) "introduce %d _ lvalues" nextra;
        List.make nextra ignore_ @ pls
      else pls in
 
-  let pls = 
+  let combines = 
+        [ "<s" , E.CF_LT Wsize.Signed
+        ; "<u" , E.CF_LT Wsize.Unsigned
+        ; "<=s", E.CF_LE Wsize.Signed
+        ; "<=u", E.CF_LE Wsize.Unsigned
+        ; "==" , E.CF_EQ 
+        ; ">=s", E.CF_GE Wsize.Signed
+        ; ">=u", E.CF_GE Wsize.Unsigned
+        ; ">s" , E.CF_GT Wsize.Signed
+        ; ">u" , E.CF_GT Wsize.Unsigned ] in
+
+  let pls, pimp_c, implicits = 
     match pimp, implicit with
-    | None, _ -> extend_pls (List.length tys)
+    | None, _ -> extend_pls (List.length tys), [], []
     | Some pimp, None -> rs_tyerror ~loc:(L.loc pimp) (string_error "no implicit argument expected");
     | Some pimp, Some implicit ->
       let pimp = L.unloc pimp in
@@ -1449,23 +1449,28 @@ let tt_lvalues env (pimp, pls) implicit tys =
                          | ADImplicit (IAreg r)   -> Some (Conv.string_of_string0 (string_of_register r))) implicit in
 
       let iargs = List.pmap (omap String.uppercase_ascii) arguments in
+    
       let check (id, _) = 
         let loc = L.loc id in
         let nid = L.unloc id in
         let nID = String.uppercase_ascii nid in
-        if not (List.mem nID iargs) then 
+        if not (List.mem nID iargs || List.mem_assoc nID combines) then 
           rs_tyerror ~loc (string_error "unknown implicit label %s" nid) in
       List.iter check pimp;
+      let pimp_c, pimp_f = List.partition (fun (id,_) -> List.mem_assoc (L.unloc id) combines) pimp in
 
+      let implicits = ref [] in
       let get_implicit i = 
         let error loc = 
           rs_tyerror ~loc (string_error "an ident is expected (default is %s)" i) in
         let mk loc s = 
-          L.mk_loc loc (S.PLVar (L.mk_loc loc s)) in
+          let s = L.mk_loc loc s in
+          implicits := (i, L.mk_loc loc (S.PEVar s)) :: !implicits;
+          L.mk_loc loc (S.PLVar s) in
         let a = 
           Annot.ensure_uniq1 ~case_sensitive:false i (Annot.on_attribute ~on_empty:(fun loc nid () -> mk loc nid)
                                                    ~on_id:(fun loc _nid s -> mk loc s) 
-                                                   error) pimp in
+                                                   error) pimp_f in
         match a with
         | None -> L.mk_loc loc (S.PLIgnore)
         | Some a -> a in
@@ -1476,10 +1481,47 @@ let tt_lvalues env (pimp, pls) implicit tys =
         | None :: arguments, x :: pls -> x :: aux arguments pls 
         | None :: _, []              -> assert false  
         | Some i :: arguments, pls    -> get_implicit i :: aux arguments pls in
-      aux arguments pls in
+      let a = aux arguments pls in
+      a, pimp_c, !implicits
+  in
 
   let ls = List.map (tt_lvalue env) pls in
-  check_sig_lvs tys ls
+  let ls = check_sig_lvs tys ls in  
+  let li = 
+    match pimp_c with
+    | [] -> []
+    | (id, _) :: _ ->
+      let loc = L.loc id in
+      let get_implicit i = 
+        try List.assoc i implicits 
+        with Not_found -> 
+          rs_tyerror ~loc (string_error "implicit label %s need to be defined" i) in
+      let pargs = List.map get_implicit ["OF"; "CF"; "SF"; "ZF"] in
+      let args = List.map (tt_expr_bool env) pargs in
+      let doc (c, s) = 
+        let error loc = rs_tyerror ~loc (string_error "an ident is expected") in
+        let a = 
+         Annot.on_attribute 
+            ~on_id:(fun loc _nid s -> L.mk_loc loc (S.PLVar (L.mk_loc loc s)))
+            error (c,s) in
+        let _, flv, vty = tt_lvalue env a in
+        let e, ety = P.PappN (E.Ocombine_flags (List.assoc (L.unloc c) combines), args), P.tbool in
+        let e = vty |> omap_dfl (cast (L.loc a) e ety) e in
+        let ety =
+          match vty with
+          | None -> ety
+          | Some vty -> vty
+        in
+        let x = flv ety in
+        let tg = P.AT_inline in
+        P.{ i_desc = Cassgn (x, tg, P.tbool, e);
+            i_loc = L.loc c, [];
+            i_info = ();
+            i_annot = [] } in
+      List.map doc pimp_c in
+  ls, li
+
+    
 
 let tt_exprs_cast env les tys =
   let loc () = loc_of_tuples (List.map L.loc les) in
@@ -1540,29 +1582,31 @@ let tt_annot_vardecls dfl_writable env (annot, (ty,vs)) =
   let vars = List.map (fun v -> aty, v) vs in
   tt_vardecls_push dfl_writable env vars 
   
-let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pinstr option  =
+let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pinstr list  =
+  let mk_i instr = 
+    { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); P.i_annot = annot} in
+  match L.unloc pi with
+  | S.PIdecl tvs -> 
+    let env, _ = tt_annot_vardecls (fun _ -> true) env (annot, tvs) in 
+    env, []
 
-  let env, instr = match L.unloc pi with
-    | S.PIdecl tvs -> 
-      let env, _ = tt_annot_vardecls (fun _ -> true) env (annot, tvs) in 
-      env, None
-
-    | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
-      let x = tt_var `AllVar env x in
-      let xi = (L.mk_loc lc x) in
-      env, Some (arr_init xi)
+  | S.PIArrayInit ({ L.pl_loc = lc; } as x) ->
+    let x = tt_var `AllVar env x in
+    let xi = (L.mk_loc lc x) in
+    env, [mk_i (arr_init xi)]
   
-    | S.PIAssign (ls, `Raw, { pl_desc = PECall (f, args); pl_loc = el }, None) ->
-      if is_combine_flags f then
-        let pi = 
-          L.mk_loc (L.loc pi) 
-            (S.PIAssign (ls, `Raw, L.mk_loc el (S.PECombF(f, args)), None)) in
-        let env, i = tt_instr env (annot, pi) in
-        env, omap (fun i -> i.P.i_desc) i 
-      else
+  | S.PIAssign (ls, `Raw, { pl_desc = PECall (f, args); pl_loc = el }, None) ->
+    if is_combine_flags f then
+      let pi = 
+        L.mk_loc (L.loc pi) 
+          (S.PIAssign (ls, `Raw, L.mk_loc el (S.PECombF(f, args)), None)) in
+      tt_instr env (annot, pi) 
+
+    else
       let (f,tlvs) = tt_fun env f in
       let _tlvs, tes = f_sig f in
-      let lvs = tt_lvalues env ls None tlvs in
+      let lvs, is = tt_lvalues env ls None tlvs in
+      assert (is = []);
       let es  = tt_exprs_cast env args tes in
       let is_inline = 
         match Annot.ensure_uniq1 "inline" Annot.none annot with
@@ -1571,14 +1615,25 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
           match f.P.f_cc with 
           | P.Internal -> P.DoInline 
           | P.Export | P.Subroutine _ -> P.NoInline in
-      env, Some(mk_call (L.loc pi) is_inline lvs f es)
+      env, [mk_i (mk_call (L.loc pi) is_inline lvs f es)]
 
     | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
-      let p = tt_prim f in
+      let p = tt_prim None f in
       let tlvs, tes, arguments = prim_sig p in
-      let lvs = tt_lvalues env ls (Some arguments) tlvs in
+      let lvs, einstr = tt_lvalues env ls (Some arguments) tlvs in
       let es  = tt_exprs_cast env args tes in
-      env, Some(P.Copn(lvs, AT_none, p, es))
+      env, mk_i (P.Copn(lvs, AT_none, p, es)) :: einstr
+
+    | S.PIAssign (ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None)
+      ->
+      let ws, s = ct in
+      let ws = tt_ws ws in
+      assert (s = `Unsigned); (* FIXME *)
+      let p = tt_prim (Some ws) f in
+      let tlvs, tes, arguments = prim_sig p in
+      let lvs, einstr = tt_lvalues env ls (Some arguments) tlvs in
+      let es  = tt_exprs_cast env args tes in
+      env, mk_i (P.Copn(lvs, AT_none, p, es)) :: einstr
 
     | PIAssign((None,[lv]), `Raw, pe, None) ->
       let _, flv, vty = tt_lvalue env lv in
@@ -1587,24 +1642,21 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let ety =
         match vty with
         | None -> ety
-        | Some vty -> match max_ty ety vty with
-          | Some ty -> ty
-          | None -> rs_tyerror ~loc:(L.loc pi) (TypeMismatch (ety, vty))
+        | Some vty -> vty
       in
       let v = flv ety in
       let tg =
         P.(match v with
             | Lvar v -> (match kind_i v with Inline -> AT_inline | _ -> AT_none)
             | _ -> AT_none) in
-      env, Some(cassgn_for v tg ety e)
+      env, [mk_i (cassgn_for v tg ety e)]
         
     | PIAssign(ls, `Raw, pe, None) ->
       (* Try to match addc, subc, mulu *)
       let pe = prim_of_pe pe in
       let loc = L.loc pi in
       let i = annot, L.mk_loc loc (S.PIAssign(ls, `Raw, pe, None)) in
-      let env, i = tt_instr env i in
-      env, omap (fun i -> i.P.i_desc) i
+      tt_instr env i 
 
     | S.PIAssign((pimp,ls), eqop, pe, None) ->
       let op = oget (peop2_of_eqop eqop) in
@@ -1614,8 +1666,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let pe1 = pexpr_of_plvalue exn (List.last ls) in
       let pe  = L.mk_loc loc (S.PEOp2(op,(pe1,pe))) in
       let i   = annot, L.mk_loc loc (S.PIAssign((pimp, ls), `Raw, pe, None)) in
-      let env, i = tt_instr env i in
-      env, omap (fun i -> i.P.i_desc) i
+      tt_instr env i 
 
     | PIAssign (ls, eqop, e, Some cp) ->
       let loc = L.loc pi in
@@ -1623,16 +1674,20 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       if peop2_of_eqop eqop <> None then rs_tyerror ~loc exn;
       let cpi = S.PIAssign (ls, eqop, e, None) in
       let env, i = tt_instr env (annot, L.mk_loc loc cpi) in
-      let x, _, ty, e = P.destruct_move (oget i) in
+      let i, is =
+        match i with
+        | [] -> assert false
+        | i :: is -> i, is in
+      let x, _, ty, e = P.destruct_move i in
       let e' = ofdfl (fun _ -> rs_tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool env cp in
-      env, Some (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e')))
+      env, mk_i (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))) :: is
 
     | PIIf (cp, st, sf) ->
       let c  = tt_expr_bool env cp in
       let st = tt_block env st in
       let sf = odfl [] (omap (tt_block env) sf) in
-      env, Some (P.Cif (c, st, sf))
+      env, [mk_i (P.Cif (c, st, sf))]
 
     | PIFor ({ pl_loc = lx } as x, (d, i1, i2), s) ->
       let i1   = tt_expr_int env i1 in
@@ -1641,7 +1696,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       check_ty_eq ~loc:lx ~from:vx.P.v_ty ~to_:P.tint;
       let s    = tt_block env s in
       let d    = match d with `Down -> P.DownTo | `Up -> P.UpTo in
-      env, Some (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))
+      env, [mk_i (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))]
 
     | PIWhile (s1, c, s2) ->
       let c  = tt_expr_bool env c in
@@ -1649,10 +1704,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let s2 = omap_dfl (tt_block env) [] s2 in
       let a = 
         omap_dfl (fun () -> E.Align) E.NoAlign (Annot.ensure_uniq1 "align" Annot.none annot) in
-      env, Some (P.Cwhile (a, s1, c, s2))
-
- in 
- env, omap (fun instr -> { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); P.i_annot = annot}) instr
+      env, [mk_i (P.Cwhile (a, s1, c, s2))]
 
 (* -------------------------------------------------------------------- *)
 and tt_block (env : Env.env) (pb : S.pblock) =
@@ -1664,7 +1716,7 @@ and tt_cmd env c =
   | i::c -> 
     let env, i = tt_instr env i in
     let env, c = tt_cmd env c in
-    env, List.ocons i c
+    env, i @ c
 
 (* -------------------------------------------------------------------- *)
 let tt_funbody (env : Env.env) (pb : S.pfunbody) =
@@ -1693,8 +1745,8 @@ let tt_call_conv loc params returns cc =
             Printer.pp_kind (L.unloc x).P.v_kind s) in
     List.iter (check "parameter") params;
     List.iter (check "result") returns;
-    if 1 < List.length returns then 
-      rs_tyerror ~loc (string_error "export function should return at most one argument");
+    if 2 < List.length returns then
+      rs_tyerror ~loc (string_error "export function should return at most two arguments");
     P.Export 
 
   | None         -> 
@@ -1715,8 +1767,8 @@ let tt_call_conv loc params returns cc =
         | P.Reg Direct -> None
         | P.Reg (Pointer writable) -> 
           if writable = Constant then
-            warning Always "At %a, not need to return a [reg const ptr] %a"
-              L.pp_loc loc Printer.pp_pvar x;
+            warning Always (loc,[]) "no need to return a [reg const ptr] %a"
+              Printer.pp_pvar x;
           let i = List.index_of x args in
           if i = None then 
             rs_tyerror ~loc (string_error "%a should be one of the paramaters"

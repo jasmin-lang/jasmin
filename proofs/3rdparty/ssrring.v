@@ -21,6 +21,8 @@ Local Notation simpm := Monoid.simpm.
 Require Import NArith ZArith BinPos Ring_polynom Field_theory.
 
 (* -------------------------------------------------------------------- *)
+Declare Scope ssring.
+
 Reserved Notation "x %:S" (at level 2, left associativity, format "x %:S").
 
 Notation "c %:S"   := (PEc c)     : ssring.
@@ -37,6 +39,8 @@ Notation "1" := PEI : ssring.
 Delimit Scope ssring with S.
 
 (* -------------------------------------------------------------------- *)
+Declare Scope ssfield.
+
 Notation "c %:S"   := (FEc c)     : ssfield.
 Notation "''X_' i" := (FEX _ i)   : ssfield.
 Notation "x + y"   := (FEadd x y) : ssfield.

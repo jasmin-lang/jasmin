@@ -115,6 +115,7 @@ keyword:
 annotationlabel:
   | id=ident {id}
   | id=loc(keyword) { id }
+  | s=loc(STRING) { s }
 
 int: 
   | i=INT       { i }

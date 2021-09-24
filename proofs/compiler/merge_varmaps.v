@@ -18,6 +18,31 @@ Variables that are overwritten by the callee are not live at the call sites.
 
 *)
 
+Module E.
+
+Definition pass_name := "one-varmap checker"%string.
+
+Definition gen_error (internal:bool) (ii:option instr_info) (msg:pp_error) := 
+  {| pel_msg      := msg
+   ; pel_fn       := None
+   ; pel_fi       := None
+   ; pel_ii       := ii
+   ; pel_vi       := None
+   ; pel_pass     := Some pass_name
+   ; pel_internal := internal
+  |}.
+
+Definition internal_error ii msg := 
+  gen_error true (Some ii) (pp_s msg).
+
+Definition error ii msg := 
+  gen_error false (Some ii) (pp_s msg).
+
+Definition ii_loop_iterator := 
+  ii_loop_iterator pass_name.
+
+End E.
+
 Section PROG.
 
 Context (p: sprog) (extra_free_registers: instr_info → option var).
@@ -118,7 +143,7 @@ Definition check_wmap (wmap: Mp.t Sv.t) : bool :=
   all (λ '(f, fd), Sv.subset (write_fd (get_wmap wmap) fd) (get_wmap wmap f)) (p_funcs p).
 
 Definition check_fv (ii:instr_info) (D R : Sv.t) :=
-  assert (disjoint D R) (ii, (Cerr_one_varmap "modified expression")).
+  assert (disjoint D R) (E.error ii "modified expression").
 
 Definition check_e (ii:instr_info) (D : Sv.t) (e : pexpr) :=
   check_fv ii D (read_e e).
@@ -132,7 +157,7 @@ Section CHECK.
 
   Section CHECK_c.
 
-    Context (check_i: Sv.t → instr → ciexec Sv.t).
+    Context (check_i: Sv.t → instr → cexec Sv.t).
 
     Fixpoint check_c (D: Sv.t) (c: cmd) :=
       if c is i :: c' then
@@ -150,7 +175,7 @@ Section CHECK.
         Let D2 := check_c D1 c2 in
         if Sv.subset D2 D then ok D1
         else wloop n' (Sv.union D2 D)      
-      else cierror ii (Cerr_Loop "MVM check").
+      else Error (E.ii_loop_iterator ii).
 
   End CHECK_c.
 
@@ -163,11 +188,11 @@ Section CHECK.
   Definition check_lvs ii (D:Sv.t) (xs:lvals) := 
     foldM (fun x D => check_lv ii D x) D xs.
   
-  Fixpoint check_i (sz: wsize) (D:Sv.t) (i: instr) : ciexec Sv.t :=
+  Fixpoint check_i (sz: wsize) (D:Sv.t) (i: instr) : cexec Sv.t :=
     let: MkI ii ir := i in
     Let _ := 
       assert (if extra_free_registers ii is Some r then vtype r == sword Uptr else true)
-         (ii, (Cerr_one_varmap "bad type for extra free register : Please report")) in
+         (E.internal_error ii "bad type for extra free register") in
     check_ir sz ii (add_extra_free_registers ii D) ir
 
   with check_ir sz ii D ir :=
@@ -184,7 +209,7 @@ Section CHECK.
       Let D2 := check_c (check_i sz) D c2 in
       ok (Sv.union D1 D2)
     | Cfor _ _ _ =>
-      cierror ii (Cerr_one_varmap "for loop should be unrolled")
+      Error (E.error ii "for loop should be unrolled")
     | Cwhile _ c e c' =>
       
       if e == Pbool false then check_c (check_i sz) D c
@@ -194,18 +219,18 @@ Section CHECK.
       if get_fundef (p_funcs p) fn is Some fd then
         Let _ := check_es ii D es in
         Let _ := assert (sf_align (f_extra fd) ≤ sz)%CMP
-          (ii, Cerr_one_varmap "alignment constraints error") in
+          (E.error ii "alignment constraints error") in
         Let _ := assert (if sf_return_address (f_extra fd) is RAstack _ then extra_free_registers ii != None else true)
-          (ii, Cerr_one_varmap "no extra free register to compute the return address") in
+          (E.error ii "no extra free register to compute the return address") in
         Let _ := assert 
           (all2 (λ e a, if e is Pvar (Gvar v Slocal) then v_var v == v_var a else false) es (f_params fd))
-          (ii, Cerr_one_varmap "bad call args") in
+          (E.error ii "bad call args") in
         Let _ := assert
           (all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd))
-          (ii, Cerr_one_varmap "bad call dests") in
+          (E.error ii "bad call dests") in
         let W := writefun_ra writefun fn in
         ok (Sv.diff (Sv.union D W) (set_of_var_i_seq Sv.empty (f_res fd)))
-      else cierror ii (Cerr_one_varmap "call to unknown function")
+      else Error (E.error ii "call to unknown function")
     end.
 
   Lemma check_ir_CwhileP sz ii aa c e c' D D' :
@@ -237,15 +262,14 @@ Section CHECK.
   Let magic_variables : Sv.t :=
     magic_variables p.
 
-  Let check_preserved_register fn W J name r :=
+  Let check_preserved_register W J name r :=
     Let _ := 
-      assert (vtype r == sword Uptr) (Ferr_fun fn (Cerr_one_varmap ("bad register type for " ++ name))) in
+      assert (vtype r == sword Uptr) (E.gen_error true None (pp_box [::pp_s "bad register type for"; pp_s name; pp_var r])) in
     Let _ := 
-      assert (~~ Sv.mem r W) (Ferr_fun fn (Cerr_one_varmap ("the function writes its " ++ name))) in
-    assert (~~Sv.mem r J) (Ferr_fun fn (Cerr_one_varmap ("the function depends on its " ++ name))).
+      assert (~~ Sv.mem r W) (E.gen_error true None (pp_box [::pp_s "the function writes its"; pp_s name; pp_var r])) in
+    assert (~~Sv.mem r J) (E.gen_error true None (pp_box [::pp_s "the function depends on its"; pp_s name; pp_var r])).
 
-  Definition check_fd (ffd: sfun_decl) :=
-    let: (fn, fd) := ffd in
+  Definition check_fd (fn:funname) (fd: sfundef) :=
     let DI := 
       match sf_return_address (f_extra fd) with
       | RAnone =>
@@ -258,42 +282,41 @@ Section CHECK.
     | RAstack _ => Sv.empty 
     end in
 
-    Let D := add_finfo fn fn (check_cmd fd.(f_extra).(sf_align) DI fd.(f_body)) in
+    Let D := check_cmd fd.(f_extra).(sf_align) DI fd.(f_body) in
     let params := set_of_var_i_seq Sv.empty fd.(f_params) in
     let res := set_of_var_i_seq Sv.empty fd.(f_res) in
-    Let _ := 
-      assert (disjoint D res)
-             (Ferr_fun fn (Cerr_one_varmap "not able to ensure equality of the result")) in
+    Let _ := assert (disjoint D res) 
+                    (E.gen_error true None (pp_s "not able to ensure equality of the result")) in
     Let _ := assert (var.disjoint params magic_variables)
-                    (Ferr_fun fn (Cerr_one_varmap "the function has RSP or global-data as parameter")) in
-    Let _ := assert (~~ Sv.mem (vid (string_of_register RSP)) res)
-                    (Ferr_fun fn (Cerr_one_varmap "the functions returns RSP")) in
+                    (E.gen_error true None (pp_s "the function has RSP or global-data as parameter")) in
+    Let _ := assert (~~ Sv.mem (vid p.(p_extra).(sp_rsp)) res)
+                    (E.gen_error true None (pp_s "the function returns RSP")) in
     Let _ := assert (var.disjoint (writefun_ra writefun fn) magic_variables)
-                    (Ferr_fun fn (Cerr_one_varmap "the function writes to RSP or global-data")) in
+                    (E.gen_error true None (pp_s "the function writes to RSP or global-data")) in
     let W := writefun fn in
     let J := Sv.union magic_variables params in
     let e := fd.(f_extra) in
     Let _  := 
       if sf_save_stack e is SavedStackReg r then 
-         check_preserved_register fn W J "saved stack pointer" r 
+         check_preserved_register W J "saved stack pointer" r 
       else ok tt in
     match sf_return_address e with
-    | RAreg ra => check_preserved_register fn W J "return address" ra
+    | RAreg ra => check_preserved_register W J "return address" ra
     | RAstack _ => ok tt
     | RAnone =>
-        Let _ := assert (string_of_register RAX != p.(p_extra).(sp_rip)) (Ferr_fun fn (Cerr_one_varmap "RAX and RIP clash, please report")) in
+        Let _ := assert (~~ Sv.mem (var_of_register RAX) magic_variables) (E.gen_error true None (pp_s "RAX clashes with RSP or RIP")) in
         assert (all (λ x : var_i, if vtype x is sword _ then true else false ) (f_params fd))
-            (Ferr_fun fn (Cerr_one_varmap "the export function has non-word arguments"))
+            (E.gen_error true None (pp_s "the export function has non-word arguments"))
     end.
 
-  Definition check_prog := mapM check_fd (p_funcs p).
+  Definition check_prog := map_cfprog_name check_fd (p_funcs p).
 
 End CHECK.
 
 Definition check :=
   let wmap := mk_wmap in
-  Let _ := assert (check_wmap wmap) (Ferr_msg (Cerr_one_varmap "invalid wmap")) in
-  Let _ := assert (p.(p_extra).(sp_rip) != string_of_register RSP) (Ferr_msg (Cerr_one_varmap "rip and rsp clash, please report")) in
+  Let _ := assert (check_wmap wmap) (E.gen_error true None (pp_s "invalid wmap")) in
+  Let _ := assert (p.(p_extra).(sp_rip) != p.(p_extra).(sp_rsp)) (E.gen_error true None (pp_s "rip and rsp clash")) in
   Let _ := check_prog (get_wmap wmap) in
   ok tt.
 

@@ -13,6 +13,8 @@ let safety_config = ref None
 let stop_after = ref None
 let safety_makeconfigdoc = ref None   
 let help_intrinsics = ref false
+type color = | Auto | Always | Never
+let color = ref Auto
 
 let ct_list = ref None
 let infer   = ref false 
@@ -22,29 +24,6 @@ let set0 = ref false
 let model = ref Normal
 let print_stack_alloc = ref false
 
-let poptions = [
-    Compiler.Typing
-  ; Compiler.ParamsExpansion
-  ; Compiler.AddArrInit
-  ; Compiler.Inlining
-  ; Compiler.RemoveUnusedFunction
-  ; Compiler.Unrolling
-  ; Compiler.Splitting
-  ; Compiler.AllocInlineAssgn
-  ; Compiler.DeadCode_AllocInlineAssgn
-  ; Compiler.RegArrayExpansion
-  ; Compiler.RemoveArrInit 
-  ; Compiler.RemoveGlobal
-  ; Compiler.RegArrayExpansion
-  ; Compiler.MakeRefArguments
-  ; Compiler.LowerInstruction
-  ; Compiler.StackAllocation
-  ; Compiler.RegAllocation
-  ; Compiler.DeadCode_RegAllocation
-  ; Compiler.Linearisation
-  ; Compiler.Tunneling
-  ; Compiler.Assembly ]
-
 let set_printing p () =
   print_list := p :: !print_list
 
@@ -52,7 +31,7 @@ let set_stop_after p () =
   stop_after := Some p
 
 let set_all_print () =
-  print_list := poptions
+  print_list := Compiler.compiler_step_list
 
 let set_ec f =
   ec_list := f :: !ec_list
@@ -65,6 +44,15 @@ let set_safetyparam s = safety_param := Some s
 let set_safetyconfig s = safety_config := Some s
 let set_safety_makeconfigdoc s = safety_makeconfigdoc := Some s
 
+let set_color c =
+  let assoc = function
+    | "auto"   -> Auto
+    | "always" -> Always
+    | "never"  -> Never
+    | _        -> assert false
+  in
+  color := assoc c
+
 let set_ct () =  
   if !ct_list = None then ct_list := Some []
 
@@ -76,7 +64,7 @@ let set_ct_on s =
 
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
-  | Compiler.ParamsExpansion             -> "cstexp"   , "constant expansion"
+  | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
   | Compiler.AddArrInit                  -> "addarrinit", "add array initialisation"
   | Compiler.Inlining                    -> "inline"   , "inlining"
   | Compiler.RemoveUnusedFunction        -> "rmfunc"   , "remove unused function"
@@ -84,11 +72,12 @@ let print_strings = function
   | Compiler.Splitting                   -> "splitting", "liverange splitting"
   | Compiler.AllocInlineAssgn            -> "valloc"   , "inlined variables allocation"
   | Compiler.DeadCode_AllocInlineAssgn   -> "vallocd"  , "dead code after inlined variables allocation"
-  | Compiler.RemoveArrInit               -> "rmarrinit" , "remove array initialisation"
-  | Compiler.RemoveGlobal                -> "rmglobals" , "remove globals variables"
+  | Compiler.RemoveArrInit               -> "rmarrinit", "remove array initialisation"
+  | Compiler.RemoveGlobal                -> "rmglobals", "remove globals variables"
   | Compiler.RegArrayExpansion           -> "arrexp"   , "expansion of register arrays"
   | Compiler.LowerInstruction            -> "lowering" , "lowering of instructions"
-  | Compiler.MakeRefArguments             -> "makeref"   , "add assignments before and after call to ensure that arguments and results are ref ptr"
+  | Compiler.PropagateInline            -> "propagate", "propagate inline variables"
+  | Compiler.MakeRefArguments             -> "makeref" , "add assignments before and after call to ensure that arguments and results are ref ptr"
   | Compiler.StackAllocation             -> "stkalloc" , "stack allocation"
   | Compiler.RemoveReturn                -> "rmreturn" , "remove unused returned values"
   | Compiler.RegAllocation               -> "ralloc"   , "register allocation"
@@ -135,10 +124,11 @@ let options = [
     "-w_"  , Arg.Unit (add_warning IntroduceNone), ": print warning when extra _ is introduced";
     "-wea", Arg.Unit (add_warning ExtraAssignment), ": print warning when assignment is introduced";
     "-nowarning", Arg.Unit (nowarning), ": do no print warning";
+    "-color", Arg.Symbol (["auto"; "always"; "never"], set_color), ": print messages with color";
     "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
     "-print-stack-alloc", Arg.Set print_stack_alloc, ": print the results of the stack allocation OCaml oracle";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
-  ] @  List.map print_option poptions @ List.map stop_after_option poptions
+  ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"
 

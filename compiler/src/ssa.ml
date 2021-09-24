@@ -1,6 +1,8 @@
 open Prog
 open Utils
 
+let hierror = hierror ~kind:"compilation error" ~sub_kind:"SSA"
+
 type names = var Mv.t
 
 let rename_expr (m: names) (e: expr) : expr = Subst.vsubst_e m e
@@ -120,14 +122,17 @@ let remove_phi_nodes (f: 'info func) : 'info func =
           | Lvar v, Pvar v' when is_gkvar v' -> 
             if L.unloc v = L.unloc v'.gv then [] else
               let pv = Printer.pp_var ~debug:true in
-              hierror "SSA: cannot remove assignment %a = %a"
+              hierror ~loc:Lnone ~funname:f.f_name.fn_name ~internal:true
+                "cannot remove assignment %a = %a"
                 pv (L.unloc v) pv (L.unloc v'.gv)
           | _, _ -> [i])
        | _ -> [i])
     | Cif (b, s1, s2) -> [Cif (b, stmt s1, stmt s2)]
     | Cwhile (a, s1, b, s2) -> [Cwhile (a, stmt s1, b, stmt s2)]
     | (Copn _ | Cfor _ | Ccall _) as i -> [i]
-  and instr i = List.map (fun i_desc -> { i with i_desc }) (instr_r i.i_desc)
-  and stmt s = List.(flatten (map instr s)) in
+  and instr i =
+    try List.map (fun i_desc -> { i with i_desc }) (instr_r i.i_desc)
+    with HiError e -> raise (HiError (add_iloc e i.i_loc))
+  and stmt s = List.(flatten (map instr s)) in (* TODO: use List.concat_map with newer OCaml *)
   let f_body = stmt f.f_body in
   { f with f_body }
