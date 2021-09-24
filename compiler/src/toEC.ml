@@ -929,7 +929,7 @@ module Leak = struct
     let id = Expr.get_instr opn in
     List.map (fun c ->
         match c with
-        | X86_decl.NotZero(sz, i) ->
+        | Wsize.NotZero(sz, i) ->
           NotZero(sz, List.nth es (Conv.int_of_nat i))) id.i_safe @ safe
  
   let safe_lval env = function

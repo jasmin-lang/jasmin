@@ -37,26 +37,14 @@ global
 oseq
 Utf8
 Relation_Operators
-sem_type.
+sem_type
+arch_decl.
 
 (* Import Memory. *)
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-(* ==================================================================== *)
-Definition label := positive.
-Definition remote_label := (funname * label)%type.
-
-(* Indirect jumps use labels encoded as pointers: we assume such an encoding exists.
-  The encoding and decoding functions are parameterized by a domain:
-  they are assumed to succeed on this domain only.
-*)
-Parameter encode_label : seq remote_label → remote_label → option pointer.
-Parameter decode_label : seq remote_label → pointer → option remote_label.
-Axiom decode_encode_label : ∀ dom lbl, obind (decode_label dom) (encode_label dom lbl) = Some lbl.
-Axiom encode_label_dom : ∀ dom lbl, lbl \in dom → encode_label dom lbl ≠ None.
 
 (* -------------------------------------------------------------------- *)
 Variant register : Type :=
@@ -74,33 +62,6 @@ Variant xmm_register : Type :=
 
 (* -------------------------------------------------------------------- *)
 Variant rflag : Type := CF | PF | ZF | SF | OF | DF.
-
-(* -------------------------------------------------------------------- *)
-Variant scale : Type := Scale1 | Scale2 | Scale4 | Scale8.
-
-(* -------------------------------------------------------------------- *)
-Coercion word_of_scale (s : scale) : pointer :=
-  wrepr Uptr match s with
-  | Scale1 => 1
-  | Scale2 => 2
-  | Scale4 => 4
-  | Scale8 => 8
-  end.
-
-(* -------------------------------------------------------------------- *)
-(* disp + base + scale × offset *)
-Record reg_address : Type := mkAddress {
-  ad_disp   : pointer;
-  ad_base   : option register;
-  ad_scale  : scale;
-  ad_offset : option register;
-}.
-
-Definition rip_address := pointer.
-
-Inductive address := 
-  | Areg of reg_address
-  | Arip of pointer. 
 
 (* -------------------------------------------------------------------- *)
 Variant condt : Type :=
@@ -121,43 +82,10 @@ Variant condt : Type :=
 | LE_ct                 (* less than or equal to, not greater than *)
 | NLE_ct                (* not less than or equal to, greater than *).
 
-Definition string_of_condt (c: condt) : string :=
-  match c with
-  | O_ct => "O"
-  | NO_ct => "NO"
-  | B_ct => "B"
-  | NB_ct => "NB"
-  | E_ct => "E"
-  | NE_ct => "NE"
-  | BE_ct => "BE"
-  | NBE_ct => "NBE"
-  | S_ct => "S"
-  | NS_ct => "NS"
-  | P_ct => "P"
-  | NP_ct => "NP"
-  | L_ct => "L"
-  | NL_ct => "NL"
-  | LE_ct => "LE"
-  | NLE_ct => "NLE"
-  end.
 
 (* -------------------------------------------------------------------- *)
-(*
-Scheme Equality for sopn.
-(* Definition sopn_beq : sopn -> sopn -> bool *)
-Lemma sopn_eq_axiom : Equality.axiom sopn_beq.
-Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_sopn_dec_bl.
-  by apply: internal_sopn_dec_lb.
-Qed.
-*)
 
 Scheme Equality for register.
-Scheme Equality for xmm_register.
-Scheme Equality for rflag.
-Scheme Equality for scale.
-Scheme Equality for condt.
 
 Lemma reg_eq_axiom : Equality.axiom register_beq.
 Proof.
@@ -169,6 +97,10 @@ Qed.
 Definition reg_eqMixin := Equality.Mixin reg_eq_axiom.
 Canonical reg_eqType := EqType register reg_eqMixin.
 
+(* -------------------------------------------------------------------- *)
+
+Scheme Equality for xmm_register.
+
 Lemma xreg_eq_axiom : Equality.axiom xmm_register_beq.
 Proof.
   move=> x y;apply:(iffP idP).
@@ -178,6 +110,10 @@ Qed.
 
 Definition xreg_eqMixin := Equality.Mixin xreg_eq_axiom.
 Canonical xreg_eqType := EqType _ xreg_eqMixin.
+
+(* -------------------------------------------------------------------- *)
+
+Scheme Equality for rflag.
 
 Lemma rflag_eq_axiom : Equality.axiom rflag_beq.
 Proof.
@@ -189,48 +125,9 @@ Qed.
 Definition rflag_eqMixin := Equality.Mixin rflag_eq_axiom.
 Canonical rflag_eqType := EqType rflag rflag_eqMixin.
 
-Lemma scale_eq_axiom : Equality.axiom scale_beq.
-Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_scale_dec_bl.
-  by apply: internal_scale_dec_lb.
-Qed.
+(* -------------------------------------------------------------------- *)
 
-Definition scale_eqMixin := Equality.Mixin scale_eq_axiom.
-Canonical scale_eqType := EqType scale scale_eqMixin.
-
-Definition reg_address_beq (addr1: reg_address) addr2 :=
-  match addr1, addr2 with
-  | mkAddress d1 b1 s1 o1, mkAddress d2 b2 s2 o2 =>
-    [&& d1 == d2, b1 == b2, s1 == s2 & o1 == o2]
-  end.
-
-Lemma reg_address_eq_axiom : Equality.axiom reg_address_beq.
-Proof.
-case=> [d1 b1 s1 o1] [d2 b2 s2 o2]; apply: (iffP idP) => /=.
-+ by case/and4P ; do 4! move/eqP=> ->.
-by case; do 4! move=> ->; rewrite !eqxx.
-Qed.
-
-Definition reg_address_eqMixin := Equality.Mixin reg_address_eq_axiom.
-Canonical reg_address_eqType := EqType reg_address reg_address_eqMixin.
-
-Definition address_beq (addr1: address) addr2 :=
-  match addr1, addr2 with
-  | Areg ra1, Areg ra2 => ra1 == ra2
-  | Arip p1, Arip p2   => p1 == p2
-  | _, _ => false
-  end.
-
-Lemma address_eq_axiom : Equality.axiom address_beq.
-Proof.
- case=> [ra1 | p1] [ra2 | p2];apply: (iffP idP) => //=.
- + by move=> /eqP ->. + by move=> [->].
- + by move=> /eqP ->. + by move=> [->].
-Qed.
-
-Definition address_eqMixin := Equality.Mixin address_eq_axiom.
-Canonical address_eqType := EqType address address_eqMixin.
+Scheme Equality for condt.
 
 Lemma condt_eq_axiom : Equality.axiom condt_beq.
 Proof.
@@ -325,170 +222,125 @@ Module XRegMap.
 End XRegMap.
 
 (* -------------------------------------------------------------------- *)
-Module RflagMap.
-  Variant rflagv := Def of bool | Undef.
 
-  Definition map := {ffun rflag -> rflagv}.
+Definition x86_string_of_register r :=
+  match r with
+  | RAX => "RAX"
+  | RCX => "RCX"
+  | RDX => "RDX"
+  | RBX => "RBX"
+  | RSP => "RSP"
+  | RBP => "RBP"
+  | RSI => "RSI"
+  | RDI => "RDI"
+  | R8  => "R8"
+  | R9  => "R9"
+  | R10 => "R10"
+  | R11 => "R11"
+  | R12 => "R12"
+  | R13 => "R13"
+  | R14 => "R14"
+  | R15 => "R15"
+  end%string.
 
-  Definition set (m : map) (x : rflag) (y : bool) : map :=
-    [ffun z => if (z == x) then Def y else m z].
-
-  Definition oset (m : map) (x : rflag) (y : rflagv) : map :=
-    [ffun z => if (z == x) then y else m z].
-
-  Definition update (m : map) (f : rflag -> option rflagv) : map :=
-    [ffun rf => odflt (m rf) (f rf)].
-End RflagMap.
-
-(* -------------------------------------------------------------------- *)
-Notation regmap   := RegMap.map.
-Notation xregmap  := XRegMap.map.
-Notation rflagmap := RflagMap.map.
-Notation Def      := RflagMap.Def.
-Notation Undef    := RflagMap.Undef.
-
-Definition regmap0   : regmap   := [ffun x => 0%R].
-Definition rflagmap0 : rflagmap := [ffun x => Undef].
-
-Scheme Equality for RflagMap.rflagv.
-
-Lemma rflagv_eq_axiom : Equality.axiom rflagv_beq.
+Lemma x86_string_of_register_inj : injective x86_string_of_register.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_rflagv_dec_bl.
-  by apply: internal_rflagv_dec_lb.
+  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
 Qed.
 
-Definition rflagv_eqMixin := Equality.Mixin rflagv_eq_axiom.
-Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
+Instance eqTC_register : eqTypeC register :=
+  { ceqP := reg_eq_axiom }.
+
+Instance finC_register : finTypeC register := 
+  { cenumP := registers_fin_axiom }.
+
+Instance x86_reg_toS : ToString sword64 register :=
+  { category      := "register"
+  ; to_string     := x86_string_of_register
+  ; strings       := [seq (x86_string_of_register x, x) | x <- enum [finType of register]]
+  ; inj_to_string := x86_string_of_register_inj
+  ; stringsE      := refl_equal
+  }.
 
 (* -------------------------------------------------------------------- *)
-
-Variant asm_arg : Type :=
-  | Condt  `(condt)
-  | Imm    `(ws:wsize) `(word ws)
-  | Reg    `(register)
-  | Adr    `(address)
-  | XMM    `(xmm_register).
-
-Notation asm_args := (seq asm_arg).
-
-Variant implicite_arg : Type :=
-  | IArflag of rflag
-  | IAreg   of register.
-
-Variant adr_kind : Type :=
-  | AK_compute (* Compute the address *)
-  | AK_mem.    (* Compute the address and load from memory *)
-
-Variant arg_desc :=
-| ADImplicit  of implicite_arg
-| ADExplicit  of adr_kind & nat & option register.
-
-Definition F  f   := ADImplicit (IArflag f).
-Definition R  r   := ADImplicit (IAreg   r).
-Definition E  n   := ADExplicit AK_mem n None.
-Definition Ec n := ADExplicit AK_compute n None.
-Definition Ef n r := ADExplicit AK_mem n (Some  r).
-
-Scheme Equality for adr_kind.
-
-Lemma adr_kind_eq_axiom : Equality.axiom adr_kind_beq.
-Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_adr_kind_dec_bl.
-  by apply: internal_adr_kind_dec_lb.
-Qed.
-
-Definition adr_kind_eqMixin := Equality.Mixin adr_kind_eq_axiom.
-Canonical adr_kind_eqType := EqType _ adr_kind_eqMixin.
-
-Definition asm_arg_beq (a1 a2:asm_arg) :=
-  match a1, a2 with
-  | Condt t1  , Condt t2   => t1 == t2
-  | Imm sz1 w1, Imm sz2 w2 => (sz1 == sz2) && (wunsigned w1 == wunsigned w2)
-  | Reg r1    , Reg r2     => r1 == r2
-  | Adr a1    , Adr a2     => a1 == a2
-  | XMM r1    , XMM r2     => r1 == r2
-  | _         , _          => false
+Definition x86_string_of_xmm_register r : string :=
+  match r with
+  | XMM0 => "XMM0"
+  | XMM1 => "XMM1"
+  | XMM2 => "XMM2"
+  | XMM3 => "XMM3"
+  | XMM4 => "XMM4"
+  | XMM5 => "XMM5"
+  | XMM6 => "XMM6"
+  | XMM7 => "XMM7"
+  | XMM8 => "XMM8"
+  | XMM9 => "XMM9"
+  | XMM10 => "XMM10"
+  | XMM11 => "XMM11"
+  | XMM12 => "XMM12"
+  | XMM13 => "XMM13"
+  | XMM14 => "XMM14"
+  | XMM15 => "XMM15"
   end.
 
-Definition Imm_inj sz sz' w w' (e: @Imm sz w = @Imm sz' w') :
-  ∃ e : sz = sz', eq_rect sz (λ s, (word s)) w sz' e = w' :=
-  let 'Logic.eq_refl := e in (ex_intro _ erefl erefl).
-
-Lemma asm_arg_eq_axiom : Equality.axiom asm_arg_beq.
+Lemma x86_string_of_xmm_register_inj : injective x86_string_of_xmm_register.
 Proof.
-  case => [t1 | sz1 w1 | r1 | a1 | xr1] [t2 | sz2 w2 | r2 | a2 | xr2]; apply: (iffP idP) => //=.
-  1, 5, 7, 9: by move => /eqP ->.
-  1, 4-6: by case => ->.
-  + by move=> /andP [] /eqP ? /eqP; subst => /wunsigned_inj ->.
-  by move=> /Imm_inj [? ];subst => /= ->;rewrite !eqxx.
+  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
 Qed.
 
-Definition asm_arg_eqMixin := Equality.Mixin asm_arg_eq_axiom.
-Canonical asm_arg_eqType := EqType asm_arg asm_arg_eqMixin.
+Instance eqTC_xmm_register : eqTypeC xmm_register :=
+  { ceqP := xreg_eq_axiom }.
+
+Instance finC_xmm_register : finTypeC xmm_register := 
+  { cenumP := xmm_registers_fin_axiom }.
+
+Instance x86_xreg_toS : ToString sword256 xmm_register :=
+  { category      := "ymm_register"
+  ; to_string     := x86_string_of_xmm_register
+  ; strings       := [seq (x86_string_of_xmm_register x, x) | x <- enum [finType of xmm_register]]
+  ; inj_to_string := x86_string_of_xmm_register_inj
+  ; stringsE      := refl_equal
+  }.
 
 (* -------------------------------------------------------------------- *)
-(* Writing a large word to register or memory *)
-(* When writing to a register, depending on the instruction,
-  the most significant bits are either preserved or cleared. *)
-Variant msb_flag := MSB_CLEAR | MSB_MERGE.
-Scheme Equality for msb_flag.
+Definition x86_string_of_rflag (rf : rflag) : string :=
+  match rf with
+ | CF => "CF"
+ | PF => "PF"
+ | ZF => "ZF"
+ | SF => "SF"
+ | OF => "OF"
+ | DF => "DF"
+ end%string.
 
-Lemma msb_flag_eq_axiom : Equality.axiom msb_flag_beq.
+Lemma x86_string_of_rflag_inj : injective x86_string_of_rflag.
 Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_msb_flag_dec_bl.
-  by apply: internal_msb_flag_dec_lb.
+  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
 Qed.
 
-Definition msb_flag_eqMixin := Equality.Mixin msb_flag_eq_axiom.
-Canonical msb_flag_eqType := EqType msb_flag msb_flag_eqMixin.
+Instance eqTC_rflag : eqTypeC rflag :=
+  { ceqP := rflag_eq_axiom }.
+
+Instance finC_rflag : finTypeC rflag :=
+  { cenumP := rflags_fin_axiom }.
+
+Instance x86_rflag_toS : ToString sbool rflag :=
+  { category      := "rflag"
+  ; to_string     := x86_string_of_rflag
+  ; strings       := [seq (x86_string_of_rflag x, x) | x <- enum [finType of rflag]]
+  ; inj_to_string := x86_string_of_rflag_inj
+  ; stringsE      := refl_equal
+  }.
 
 (* -------------------------------------------------------------------- *)
 
-Definition check_arg_dest (ad:arg_desc) (ty:stype) :=
-  match ad with
-  | ADImplicit _ => true
-  | ADExplicit _ _ _ => ty != sbool
-  end.
+Instance eqC_condt : eqTypeC condt :=
+  { ceqP := condt_eq_axiom }.
 
-Inductive pp_asm_op_ext :=
-  | PP_error
-  | PP_name
-  | PP_iname of wsize
-  | PP_iname2 of wsize & wsize
-  | PP_viname of velem & bool (* long *)
-  | PP_viname2 of velem & velem (* source and target element sizes *)
-  | PP_ct of asm_arg.
-
-Record pp_asm_op := mk_pp_asm_op {
-  pp_aop_name : string;
-  pp_aop_ext  : pp_asm_op_ext;
-  pp_aop_args : seq (wsize * asm_arg);
-}.
-
-Variant safe_cond :=
-  | NotZero of wsize & nat. (* the nth argument of size sz is not zero *)
-
-Record instr_desc_t := mk_instr_desc {
-  (* Info for x86 sem *)
-  id_msb_flag : msb_flag;
-  id_tin      : seq stype;
-  id_in       : seq arg_desc;
-  id_tout     : seq stype;
-  id_out      : seq arg_desc;
-  id_semi     : sem_prod id_tin (exec (sem_tuple id_tout));
-  id_check    : list asm_arg -> bool;
-  id_nargs    : nat;
-  (* Info for jasmin *)
-  id_eq_size  : (size id_in == size id_tin) && (size id_out == size id_tout);
-  id_max_imm  : option wsize;
-  id_tin_narr : all is_not_sarr id_tin;
-  id_str_jas  : unit -> string;
-  id_check_dest : all2 check_arg_dest id_out id_tout;
-  id_safe     : seq safe_cond;
-  id_wsize    : wsize;  (* ..... *)
-  id_pp_asm   : asm_args -> pp_asm_op;
-}.
+Instance x86_decl : arch_decl register xmm_register rflag condt :=
+  { reg_size  := U64
+  ; xreg_size := U256
+  ; toS_r     := x86_reg_toS
+  ; toS_x     := x86_xreg_toS
+  ; toS_f     := x86_rflag_toS
+  }.

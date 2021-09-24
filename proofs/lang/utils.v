@@ -58,6 +58,77 @@ Qed.
 End FinIsCount.
 End FinIsCount.
 
+Class eqTypeC (T:Type) := 
+  { beq : T -> T -> bool
+  ; ceqP: Equality.axiom beq }.
+
+Section EqType.
+
+Context {T:Type} {ceqT : eqTypeC T}.
+Definition ceqT_eqMixin := Equality.Mixin ceqP.
+Definition ceqT_eqType  := Eval hnf in EqType T ceqT_eqMixin.
+
+End EqType.
+
+Notation "x == y ::> T" := (eq_op (T:= @ceqT_eqType T _) x y)
+  (at level 70, y at next level) : bool_scope.
+
+Notation "x == y ::>" := (eq_op (T:= @ceqT_eqType _ _) x y)
+  (at level 70, y at next level) : bool_scope.
+
+Class finTypeC (T:Type) := 
+  { _eqC   :> eqTypeC T
+  ; cenum  : seq T
+  ; cenumP : @Finite.axiom ceqT_eqType cenum
+  }.
+
+Section FinType.
+
+Context `{cfinT:finTypeC}.
+
+Definition cfinT_choiceMixin :=
+  PcanChoiceMixin (FinIsCount.pickleK cenumP).
+Definition cfinT_choiceType :=
+  Eval hnf in ChoiceType ceqT_eqType cfinT_choiceMixin.
+
+Definition cfinT_countMixin :=
+  PcanCountMixin (FinIsCount.pickleK cenumP).
+Definition cfinT_countType :=
+  Eval hnf in @Countable.pack T cfinT_countMixin cfinT_choiceType _ (fun x => x).
+
+Definition cfinT_finMixin :=
+  @Finite.EnumMixin cfinT_countType _ cenumP.
+Definition cfinT_finType :=
+  Eval hnf in 
+    (@Finite.pack T ceqT_eqMixin cfinT_finMixin cfinT_choiceType _ (fun x => x) _ (fun x => x)).
+
+End FinType.
+
+Module FinMap.
+
+Section Section.
+
+Context `{cfinT:finTypeC} (U:Type).
+
+(* Map from T -> U *)
+
+Definition map := @finfun_of cfinT_finType (fun _ => U) (Phant _).
+
+Definition of_fun := 
+  @FinfunDef.finfun cfinT_finType (fun _ => U).
+
+Definition set (m:map) (x: T) (y:U) : map := 
+  of_fun (fun z : T => if z == x ::> then y else m z).
+
+End Section.
+
+End FinMap.
+
+(* -------------------------------------------------------------------- *)
+Lemma reflect_inj (T:eqType) (U:Type) (f:T -> U) a b : 
+  injective f -> reflect (a = b) (a == b) -> reflect (f a = f b) (a == b).
+Proof. by move=> hinj heq; apply: (iffP heq) => [| /hinj ] ->. Qed.
+
 (* ** Result monad
  * -------------------------------------------------------------------- *)
 

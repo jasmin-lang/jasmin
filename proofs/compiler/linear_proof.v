@@ -35,7 +35,7 @@ Require Import ZArith Utf8.
 
 Require sem_one_varmap_facts.
 Import ssrZ.
-Import psem psem_facts sem_one_varmap compiler_util sem_one_varmap_facts.
+Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts.
 Require Export linear linear_sem.
 Import x86_variables.
 Import Memory.

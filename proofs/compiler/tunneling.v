@@ -2,7 +2,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith.
 Require Import Utf8.
 
-Require Import expr compiler_util x86_variables linear.
+Require Import expr compiler_util label x86_variables linear.
 Import ssrZ.
 
 Set Implicit Arguments.

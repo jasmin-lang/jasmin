@@ -1039,13 +1039,13 @@ let prim_string =
       let s = Conv.string_of_string0 s in
       let prc = 
         match prc with
-        | X86_instr_decl.PrimP(x1,x2) -> PrimP(x1, fun ws sz -> Ox86' (ws, x2 sz))
-        | X86_instr_decl.PrimM(x)     -> PrimM(fun ws -> Ox86' (ws, x))
-        | X86_instr_decl.PrimV(x)     -> PrimV(fun ws _ sz sz' -> Ox86' (ws, x sz sz'))
-        | X86_instr_decl.PrimSV(x)    -> PrimV(fun ws s sz sz' -> Ox86' (ws, x s sz sz'))
-        | X86_instr_decl.PrimX(x)     -> PrimX(fun ws sz sz' -> Ox86' (ws, x sz sz'))
-        | X86_instr_decl.PrimVV(x)    -> PrimVV(fun ws ve sz ve' sz' -> Ox86' (ws, x ve sz ve' sz')) in
-      (s, prc)) X86_instr_decl.prim_string
+        | Arch_decl.PrimP(x1,x2) -> PrimP(x1, fun ws sz -> Ox86' (ws, x2 sz))
+        | Arch_decl.PrimM(x)     -> PrimM(fun ws -> Ox86' (ws, x))
+        | Arch_decl.PrimV(x)     -> PrimV(fun ws _ sz sz' -> Ox86' (ws, x sz sz'))
+        | Arch_decl.PrimSV(x)    -> PrimV(fun ws s sz sz' -> Ox86' (ws, x s sz sz'))
+        | Arch_decl.PrimX(x)     -> PrimX(fun ws sz sz' -> Ox86' (ws, x sz sz'))
+        | Arch_decl.PrimVV(x)    -> PrimVV(fun ws ve sz ve' sz' -> Ox86' (ws, x ve sz ve' sz')) in
+      (s, prc)) X86_instr_decl.x86_prim_string
             
 type size_annotation =
   | SAw of W.wsize

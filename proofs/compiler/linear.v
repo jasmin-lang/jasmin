@@ -32,7 +32,7 @@ Require Import ZArith.
 Require Import Utf8.
 Import Relations.
 
-Require Import expr compiler_util x86_variables.
+Require Import expr compiler_util label x86_variables.
 Import ssrZ.
 
 Set Implicit Arguments.
