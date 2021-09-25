@@ -1,0 +1,40 @@
+inline
+fn condition2(reg u64 i n) -> inline bool {
+ reg u8 a b c;
+ reg bool result;
+
+ reg bool t;
+
+ t = i >s 0;
+ a = #SETcc(t);
+ t = i <s n;
+ b = #SETcc(t); 
+
+ c = b & a;
+ result = c == 1;
+ return result;
+}
+
+
+inline
+fn move(reg u64 i n x y) -> reg u64 {
+ reg bool c;
+ c = condition2(i, n);
+ x = y if c;
+ return x;
+}
+
+export
+fn test(reg u64 x y) -> reg u64 {
+
+ reg u64 a b r;
+ reg bool c;
+
+ a = 10;
+ b = 20;
+
+ r = x;
+ r = move(a, b, r, y);
+
+ return r;
+}
