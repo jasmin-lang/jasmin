@@ -96,13 +96,13 @@ Definition ssem_sop2 (o: sop2) (e1 e2: pexpr) : pexpr :=
 (* ** Smart constructors                                                      *)
 (* -------------------------------------------------------------------------- *)
 
-Fixpoint snot_bool (e:pexpr) :=
+Fixpoint snot (e:pexpr) :=
   match e with
   | Pbool b      => ~~b
   | Papp1 Onot e => e
-  | Papp2 Oand e1 e2 => Papp2 Oor (snot_bool e1) (snot_bool e2)
-  | Papp2 Oor  e1 e2 => Papp2 Oand (snot_bool e1) (snot_bool e2)
-  | Pif t e e1 e2 => Pif t e (snot_bool e1) (snot_bool e2)
+  | Papp2 Oand e1 e2 => Papp2 Oor (snot e1) (snot e2)
+  | Papp2 Oor  e1 e2 => Papp2 Oand (snot e1) (snot e2)
+  | Pif t e e1 e2 => Pif t e (snot e1) (snot e2)
   | _             => Papp1 Onot e
   end.
 
@@ -115,7 +115,7 @@ Definition sneg_int (e: pexpr) :=
 
 Definition s_op1 o e :=
   match o with
-  | Onot        => snot_bool e
+  | Onot        => snot e
   | Oneg Op_int => sneg_int e
   | _           => ssem_sop1 o e
   end.
@@ -125,8 +125,8 @@ Definition s_op1 o e :=
 Definition sbeq e1 e2 := 
   match is_bool e1, is_bool e2 with
   | Some b1, Some b2 => Pbool (b1 == b2)
-  | Some b, _ => if b then e2 else snot_bool e2 
-  | _, Some b => if b then e1 else snot_bool e1 
+  | Some b, _ => if b then e2 else snot e2 
+  | _, Some b => if b then e1 else snot e1 
   | _, _      => Papp2 Obeq e1 e2
   end.
   
@@ -310,31 +310,6 @@ Definition force_int e :=
 Definition force_bool e := 
   if e is Pbool b then ok (Vbool b) else type_error.
 
-Definition sbneq e1 e2 := 
-  snot_bool (sbeq e1 e2).
-
-Definition lower_cfc c es := 
-  match es with
-  | [:: Of; Cf; Zf; Sf] =>
-    Some match c with
-    | CFC_O => Of
-    | CFC_B => Cf
-    | CFC_E => Zf
-    | CFC_S => Sf
-    | CFC_L => sbneq Of Sf
-    | CFC_BE => sor Cf Zf
-    | CFC_LE => sor (sbneq Of Sf) Zf
-    end
-  | _ => None
-  end.
-
-Definition scfc c es := 
-  let (n, cfc) := cf_tbl c in
-  match lower_cfc cfc es with
-  | Some e' => if n then snot_bool e' else e'
-  | None    => (* never happen *) PappN (Ocombine_flags c) es
-  end.
-
 Definition s_opN op es :=
   match op with
   | Opack _ _ =>
@@ -345,7 +320,7 @@ Definition s_opN op es :=
   | Ocombine_flags c => 
     match mapM force_bool es >>= sem_opN op with
     | Ok (Vbool b) => Pbool b
-    | _ => PappN op es
+    | _ => PappN (Ocombine_flags c) es 
     end
   end.
 

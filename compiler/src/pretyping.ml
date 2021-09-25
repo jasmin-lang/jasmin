@@ -1454,7 +1454,7 @@ let tt_lvalues env (pimp, pls) implicit tys =
         let loc = L.loc id in
         let nid = L.unloc id in
         let nID = String.uppercase_ascii nid in
-        if not (List.mem nID iargs || List.mem_assoc nID combines) then 
+        if not (List.mem nID iargs || List.mem_assoc nid combines) then 
           rs_tyerror ~loc (string_error "unknown implicit label %s" nid) in
       List.iter check pimp;
       let pimp_c, pimp_f = List.partition (fun (id,_) -> List.mem_assoc (L.unloc id) combines) pimp in
@@ -1499,7 +1499,7 @@ let tt_lvalues env (pimp, pls) implicit tys =
       let pargs = List.map get_implicit ["OF"; "CF"; "SF"; "ZF"] in
       let args = List.map (tt_expr_bool env) pargs in
       let doc (c, s) = 
-        let error loc = rs_tyerror ~loc (string_error "an ident is expected") in
+        let error loc = rs_tyerror ~loc (string_error " = ident is expected after %s" (L.unloc c)) in
         let a = 
          Annot.on_attribute 
             ~on_id:(fun loc _nid s -> L.mk_loc loc (S.PLVar (L.mk_loc loc s)))

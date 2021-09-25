@@ -25,7 +25,7 @@
 
 (* ** Imports and settings *)
 From CoqWord Require Import ssrZ.
-Require Import compiler_util expr ZArith.
+Require Import compiler_util expr ZArith constant_prop.
 Import all_ssreflect.
 Import Utf8.
 
@@ -94,6 +94,31 @@ Definition incl (pi1 pi2:pimap) :=
 (* ** Transformation                                                          *)
 (* -------------------------------------------------------------------------- *)
 
+Definition sbneq e1 e2 := 
+  snot (sbeq e1 e2).
+
+Definition lower_cfc c es := 
+  match es with
+  | [:: Of; Cf; Sf; Zf] =>
+    Some match c with
+    | CFC_O => Of
+    | CFC_B => Cf
+    | CFC_E => Zf
+    | CFC_S => Sf
+    | CFC_L => sbneq Of Sf
+    | CFC_BE => sor Cf Zf
+    | CFC_LE => sor (sbneq Of Sf) Zf
+    end
+  | _ => None
+  end.
+
+Definition scfc c es := 
+  let (n, cfc) := cf_tbl c in
+  match lower_cfc cfc es with
+  | Some e' => if n then snot e' else e'
+  | None    => (* never happen *) PappN (Ocombine_flags c) es
+  end.
+
 Fixpoint pi_e (pi:pimap) (e:pexpr) := 
   match e with
   | Pconst _ | Pbool _ | Parr_init _ => e 
@@ -109,7 +134,12 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
   | Pload ws x e       => Pload ws x (pi_e pi e)
   | Papp1 o e          => Papp1 o (pi_e pi e)
   | Papp2 o e1 e2      => Papp2 o (pi_e pi e1) (pi_e pi e2)
-  | PappN o es         => PappN o (map (pi_e pi) es)
+  | PappN o es         => 
+    let es := (map (pi_e pi) es) in
+    match o with
+    | Opack _ _ => PappN o es
+    | Ocombine_flags c => scfc c es
+    end
   | Pif t e e1 e2      => Pif t (pi_e pi e) (pi_e pi e1) (pi_e pi e2)
   end.
 
