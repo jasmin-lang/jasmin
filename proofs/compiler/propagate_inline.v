@@ -33,62 +33,52 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Fixpoint use_mem (e : pexpr) := 
+  match e with 
+  | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false 
+  | Pload _ _ _ => true
+  | Pget _ _ _ e | Psub _ _ _ _ e | Papp1 _ e => use_mem e 
+  | Papp2 _ e1 e2 => use_mem e1 || use_mem e2 
+  | PappN _ es => has use_mem es 
+  | Pif _ e e1 e2 => use_mem e || use_mem e1 || use_mem e2 
+  end.
 
 (* -------------------------------------------------------------------------- *)
 (* ** Data structure used for the analisys                                    *)
 (* -------------------------------------------------------------------------- *)
 
-Record pimap := {
-   pi_defs : Mvar.t (pexpr * Sv.t);  (* pi_defs[x] = (e, read_e e), e is the value associate to x *)
-   pi_used : Mvar.t Sv.t;      (* pi_used[x] = xs, xs is the variables depending on x *)
+Record pi_cel := { 
+  pi_def : pexpr; (* associate expression *)
+  pi_fv  : Sv.t;  (* read_e pi_def        *)
+  pi_m   : bool;  (* use_mem pi_def       *) 
 }.
 
-Definition piempty := 
-  {| pi_defs := Mvar.empty _
-   ; pi_used := Mvar.empty _ |}.
+Definition pimap := Mvar.t pi_cel. 
 
-Definition get (pi:pimap) (x:var) := 
-  Mvar.get pi.(pi_defs) x.
-
-Definition on_used (f : Sv.t -> Sv.t) (fv:Sv.t) used :=
-  Sv.fold (fun y u => 
-                let xs := f (odflt Sv.empty (Mvar.get u y)) in
-                Mvar.set u y xs) fv used.
+Definition piempty : pimap := Mvar.empty _.
 
 Definition remove (pi:pimap) (x:var) := 
-  match get pi x with
-  | None => pi
-  | Some (_, fv) =>
-    let used := on_used (Sv.remove x) fv pi.(pi_used) in
-    {| pi_defs := Mvar.remove pi.(pi_defs) x
-     ; pi_used := used |}
-  end.
+  Mvar.filter_map (fun y c => if (x == y) || Sv.mem x c.(pi_fv) then None else Some c) pi.
+
+Definition remove_m (pi:pimap) := 
+  Mvar.filter_map (fun y c => if c.(pi_m) then None else Some c) pi.
 
 Definition set (pi:pimap) (x:var) (e:pexpr) := 
   let fv := read_e e in
-  let used := on_used (Sv.add x) fv pi.(pi_used) in
-  {| pi_defs := Mvar.set pi.(pi_defs) x (e,fv) 
-   ; pi_used := used |}.
+  Mvar.set pi x {| pi_def := e; pi_fv := read_e e; pi_m := use_mem e |}.
 
 Definition merge (pi1 pi2:pimap) := 
-  let ondefs (_:var) (o1 o2 : option (pexpr * Sv.t)) := 
+  let ondefs (_:var) (o1 o2 : option pi_cel) := 
     match o1, o2 with
-    | Some (e1,_), Some (e2, _) => 
-      if eq_expr e1 e2 then o1
+    | Some c1, Some c2 => 
+      if eq_expr c1.(pi_def) c2.(pi_def) then o1
       else None
     | _, _ => None
     end in
-  let onused (_:var) (o1 o2 : option Sv.t) := 
-    match o1, o2 with
-    | Some xs1, Some xs2 => Some (Sv.inter xs1 xs2)
-    | _, _ => None
-    end in  
-  {| pi_defs := Mvar.map2 ondefs pi1.(pi_defs) pi2.(pi_defs)
-   ; pi_used := Mvar.map2 onused pi1.(pi_used) pi2.(pi_used) |}.
+  Mvar.map2 ondefs pi1 pi2.
 
 Definition incl (pi1 pi2:pimap) := 
-  Mvar.incl (fun _ efv1 efv2 => eq_expr efv1.1 efv2.1) pi1.(pi_defs) pi2.(pi_defs)&&
-  Mvar.incl (fun _ s1 s2 => Sv.subset s1 s2) pi1.(pi_used) pi2.(pi_used).
+  Mvar.incl (fun _ c1 c2 => eq_expr c1.(pi_def) c2.(pi_def)) pi1 pi2.
   
 (* -------------------------------------------------------------------------- *)
 (* ** Transformation                                                          *)
@@ -124,8 +114,8 @@ Fixpoint pi_e (pi:pimap) (e:pexpr) :=
   | Pconst _ | Pbool _ | Parr_init _ => e 
   | Pvar x => 
     if is_lvar x then
-      match get pi x.(gv) with
-      | Some (e', _) => e'
+      match Mvar.get pi x.(gv) with
+      | Some c => c.(pi_def)
       | None => e 
       end 
     else e
@@ -150,7 +140,7 @@ Definition pi_lv (pi:pimap) (lv:lval) :=
   match lv with
   | Lnone _ _           => (pi, lv) 
   | Lvar x              => (remove pi x, lv)
-  | Lmem ws x e         => (pi, Lmem ws x (pi_e pi e))
+  | Lmem ws x e         => (remove_m pi, Lmem ws x (pi_e pi e))
   | Laset aa ws x e     => (remove pi x, Laset aa ws x (pi_e pi e))
   | Lasub aa ws len x e => (remove pi x, Lasub aa ws len x (pi_e pi e))
   end. 
@@ -283,6 +273,3 @@ Definition pi_prog (p:prog) :=
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
 
 End Section.
-
-
-
