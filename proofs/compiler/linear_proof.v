@@ -1657,6 +1657,29 @@ Section PROOF.
     by case: is_word_type.
   Qed.
 
+  Lemma all_disjoint_aligned_betweenP (lo hi: Z) (al: wsize) A (m: seq A) (slot: A → cexec (Z * wsize)) :
+    all_disjoint_aligned_between lo hi al m slot = ok tt →
+    if m is a :: m' then
+      exists ofs ws,
+        [/\ slot a = ok (ofs, ws),
+         (lo <= ofs)%Z,
+         (ws ≤ al)%CMP,
+         is_align (wrepr Uptr ofs) ws &
+         all_disjoint_aligned_between (ofs + wsize_size ws) hi al m' slot = ok tt
+        ]
+    else
+      (lo <= hi)%Z.
+  Proof.
+    case: m lo => [ | a m ] lo.
+    - by apply: rbindP => _ /ok_inj <- /assertP /lezP.
+    apply: rbindP => last /=.
+    apply: rbindP => mid.
+    case: (slot a) => // - [] ofs ws /=.
+    t_xrbindP => _ /assertP /lezP lo_le_ofs _ /assertP ok_ws _ /assertP aligned_ofs <-{mid} ih last_le_hi.
+    exists ofs, ws; split => //.
+    by rewrite /all_disjoint_aligned_between ih.
+  Qed.
+
   Local Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
   Proof.
     red => ii k s1 _ fn fd m1' s2' ok_fd free_ra ok_ss rsp_aligned valid_rsp ok_m1' exec_body ih valid_rsp' -> m1 vm1 _ ra lret sp W M X [] fd' ok_fd' <- [].
