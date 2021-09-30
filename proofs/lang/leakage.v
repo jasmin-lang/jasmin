@@ -44,8 +44,8 @@ Inductive leak_e :=
 | LEmpty : leak_e (* no leak *)
 | LIdx : Z -> leak_e (* array access at given index *)
 | LAdr : pointer -> leak_e (* memory access at given address *)
-| LSub: (seq leak_e) -> leak_e (* forest of leaks *)
-| Lop : forall ws, word ws -> leak_e. (* nat represents size (seq T)*)
+| LSub: (seq leak_e) -> leak_e. (* forest of leaks *)
+(*| Lop : forall ws, word ws -> leak_e. *)
 
 Class LeakOp := {
    div_leak_ : signedness -> forall (sz:wsize), word sz -> word sz -> word sz -> leak_e;
@@ -55,7 +55,6 @@ Class LeakOp := {
 Inductive div_leak_kind := 
 | DLK_none 
 | DLK_num_log.
-
 
 Definition build_div_leak dlk (s:signedness) (sz:wsize) (h l d:word sz) := 
   match dlk with
@@ -74,7 +73,6 @@ Definition build_mem_leak mlk (p:pointer) :=
   | MLK_full => p
   | MLK_div64 => wdiv p (wrepr Uptr 64)
   end.
-
 
 Definition build_model (dlk:div_leak_kind) (mlk:mem_leak_kind) := 
   {| div_leak_ := build_div_leak dlk
@@ -1083,7 +1081,6 @@ Fixpoint leak_e_asm (l : leak_e) : seq pointer :=
   | LIdx i => [::]
   | LAdr p => [:: p]
   | LSub l => flatten (map leak_e_asm l)
-  | Lop sz wsz => [::] (* FIXME *)
   end.
 
 (* Transforms leakage for intermediate langauge to leakage for assembly *)
