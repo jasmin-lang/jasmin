@@ -1713,6 +1713,42 @@ elim: es ih => // e es ih h /=; rewrite h.
 by rewrite in_cons eqxx.
 Qed.
 
+Lemma eq_gvar_trans x2 x1 x3 : eq_gvar x1 x2 → eq_gvar x2 x3 → eq_gvar x1 x3.
+Proof. by rewrite /eq_gvar => /andP[] /eqP -> /eqP -> /andP[] /eqP -> /eqP ->; rewrite !eqxx. Qed.
+
+Lemma eq_expr_trans e2 e1 e3 : 
+  eq_expr e1 e2 -> eq_expr e2 e3 -> eq_expr e1 e3.
+Proof.
+  elim: e1 e2 e3.
+  1-3: by move=> ? [] // ? [] //= ? /eqP -> /eqP ->.
+  + by move=> x1 [] // x2 [] //= x3; apply eq_gvar_trans.
+  + move=> ???? hrec [] //= ???? [] //= ????.
+    move=> /andP[]/andP[]/andP[]/eqP -> /eqP -> hx1 /hrec h1.
+    move=> /andP[]/andP[]/andP[]/eqP -> /eqP -> hx2 /h1 ->.
+    by rewrite !eqxx (eq_gvar_trans hx1 hx2).
+  + move=> ????? hrec [] //= ????? [] //= ?????.
+    move=> /andP[]/andP[]/andP[]/andP[]/eqP -> /eqP -> /eqP -> hx1 /hrec h1.
+    move=> /andP[]/andP[]/andP[]/andP[]/eqP -> /eqP -> /eqP -> hx2 /h1 ->.
+    by rewrite !eqxx (eq_gvar_trans hx1 hx2).
+  + move=> ??? hrec [] //= ??? [] //= ???.
+    move=> /andP[]/andP[]/eqP-> /eqP-> /hrec h1.
+    by move=> /andP[]/andP[]/eqP-> /eqP-> /h1 ->; rewrite !eqxx.
+  + move=> ?? hrec [] //= ?? [] //= ??.
+    move=> /andP[] /eqP-> /hrec h1.
+    by move=> /andP[] /eqP-> /h1 ->; rewrite eqxx.
+  + move=> ?? hrec1 ? hrec2 [] //= ??? [] //= ???.
+    move=> /andP[]/andP[]/eqP-> /hrec1 h1 /hrec2 h2.
+    by move=> /andP[]/andP[]/eqP-> /h1 -> /h2 ->; rewrite !eqxx.
+  + move=> o es1 hrec [] //= ? es2 [] ? es3 //=.
+    move=> /andP[]/eqP-> h1 /andP[]/eqP-> h2;rewrite eqxx /=.
+    elim: es1 hrec es2 es3 h1 h2 => [ | e1 es1 hrecs] hrec [] // e2 es2 [] //= e3 es3.
+    move=> /andP[]/hrec h1 /hrecs hs /andP[] /h1 ->; last by rewrite inE eqxx.
+    by move=> /hs -> // e hin; apply hrec; rewrite inE hin orbT.
+  move=> ?? hrec ? hrec1 ? hrec2 []//= ???? []//= ????.
+  move=> /andP[]/andP[]/andP[] /eqP-> /hrec h /hrec1 h1 /hrec2 h2.
+  by move=> /andP[]/andP[]/andP[] /eqP-> /h -> /h1 -> /h2 ->; rewrite eqxx.
+Qed.
+
 Definition eq_lval (x x': lval) : bool :=
   match x, x' with
   | Lnone _ ty,  Lnone _ ty' => ty == ty'

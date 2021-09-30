@@ -656,17 +656,13 @@ Proof.
   + apply: on_arr_varP;rewrite /on_arr_var => n t Htx -> /=.
     apply: rbindP => z;apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) [] z3 [] ->.
     move => /value_uincl_int h/h{h} [] ??; subst.
-    apply: rbindP => w -> /=;apply: rbindP => t' -> /=.
-    apply: rbindP => vm Hvm [<-];rewrite Hvm;split=>//=.
-    have H : write_var x (Varr t') s1 = ok (with_vm s1 vm) by rewrite /write_var Hvm.
-    by apply: remove_cpm1P H Hv.
+    apply: rbindP => w -> /=;apply: rbindP => t' -> /= h; split => //.
+    apply: remove_cpm1P h Hv.
   apply: on_arr_varP;rewrite /on_arr_var => n t Htx -> /=.
   apply: rbindP => z;apply: rbindP => z'' /(@const_prop_eP p _ _ Hv) [] z3 [] ->.
   move => /value_uincl_int h/h{h} [] ??; subst.
-  apply: rbindP => w -> /=;apply: rbindP => t' -> /=.
-  apply: rbindP => vm Hvm [<-];rewrite Hvm;split=>//=.
-  have H : write_var x (Varr t') s1 = ok (with_vm s1 vm) by rewrite /write_var Hvm.
-  by apply: remove_cpm1P H Hv.
+  apply: rbindP => w -> /=;apply: rbindP => t' -> /= h; split => //.
+  by apply: remove_cpm1P h Hv.
 Qed.
 
 Lemma const_prop_rvsP s1 s2 m x v:

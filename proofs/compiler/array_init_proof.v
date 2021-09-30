@@ -140,7 +140,7 @@ Section REMOVE_INIT.
     + by t_xrbindP.
     + by apply: on_arr_varP => ???; t_xrbindP.
     apply: on_arr_varP => /= tlen t ?; t_xrbindP => hg i vi hvi hi _ /WArray.cast_empty_ok ->.
-    move => t1 ht1 vm1' hset <- Wf1; subst xt.
+    move => t1 ht1; apply: rbindP => vm1' hset [<-] Wf1; subst xt.
     exists vm1;split => //=; first by constructor.
     move=> z;have := Hvm1 z.  
     move: hset; apply: set_varP => //= ? <- <-.

@@ -28,7 +28,7 @@ Require Import psem compiler_util compiler.
 Require Import allocation inline_proof dead_calls_proof
                makeReferenceArguments_proof
                array_init_proof
-               unrolling_proof constant_prop_proof dead_code_proof
+               unrolling_proof constant_prop_proof propagate_inline_proof dead_code_proof 
                array_expansion array_expansion_proof remove_globals_proof stack_alloc_proof_2
                lowering_proof
                linear_proof
@@ -115,12 +115,14 @@ Proof.
   rewrite !print_uprogP => pf ok_pf pg.
   rewrite !print_uprogP => ok_pg ph ok_ph _ /assertP.
   rewrite print_uprogP => ok_fvars.
+  rewrite print_uprogP => pp ok_pp.
   rewrite print_uprogP => <- {p'} ok_fn exec_p.
+  have va_refl := List_Forall2_refl va value_uincl_refl.
+  apply: K; first by move=> vr' Hvr'; apply: (pi_callP (sCP := sCP_unit) ok_pp va_refl); exact Hvr'.
   apply: Ki; first by move => vr'; apply: (lower_callP (lowering_opt cparams) (warning cparams) (is_var_in_memory cparams) ok_fvars).
   apply: Ki; first by move => vr'; apply: (makeReferenceArguments_callP ok_ph).
   apply: Ki; first by move => vr'; apply: (RGP.remove_globP ok_pg).
   apply: Ki; first by move=> vr'; apply:(expand_callP ok_pf).
-  have va_refl := List_Forall2_refl va value_uincl_refl.
   apply: K; first by move =>vr'; apply: (remove_init_fdPu _ va_refl).
   apply: K; first by move => vr' Hvr'; apply: (dead_code_callPu ok_pe va_refl); exact: Hvr'.
   apply: K; first by move => vr'; apply: (CheckAllocRegU.alloc_callP ok_pd).

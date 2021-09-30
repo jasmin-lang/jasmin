@@ -51,6 +51,8 @@ Record pi_cel := {
   pi_def : pexpr; (* associate expression *)
   pi_fv  : Sv.t;  (* read_e pi_def        *)
   pi_m   : bool;  (* use_mem pi_def       *) 
+  pi_fv_ok : pi_fv = read_e pi_def;
+  pi_m_ok  : pi_m = use_mem pi_def;
 }.
 
 Definition pimap := Mvar.t pi_cel. 
@@ -65,7 +67,10 @@ Definition remove_m (pi:pimap) :=
 
 Definition set (pi:pimap) (x:var) (e:pexpr) := 
   let fv := read_e e in
-  Mvar.set pi x {| pi_def := e; pi_fv := read_e e; pi_m := use_mem e |}.
+  let use := use_mem e in
+  if Sv.mem x fv then pi
+  else 
+    Mvar.set pi x {| pi_def := e; pi_fv_ok := erefl fv; pi_m_ok := erefl use |}.
 
 Definition merge (pi1 pi2:pimap) := 
   let ondefs (_:var) (o1 o2 : option pi_cel) := 
@@ -76,10 +81,10 @@ Definition merge (pi1 pi2:pimap) :=
     | _, _ => None
     end in
   Mvar.map2 ondefs pi1 pi2.
-
+  
 Definition incl (pi1 pi2:pimap) := 
   Mvar.incl (fun _ c1 c2 => eq_expr c1.(pi_def) c2.(pi_def)) pi1 pi2.
-  
+
 (* -------------------------------------------------------------------------- *)
 (* ** Transformation                                                          *)
 (* -------------------------------------------------------------------------- *)
@@ -162,9 +167,9 @@ End MF.
 
 Definition pi_lvs (pi:pimap) (xs:lvals) := map_fold pi_lv pi xs.
 
-Definition set_lv (pi:pimap) x tag ty (e:pexpr) :=
+Definition set_lv (pi:pimap) x tag (e:pexpr) :=
   if x is Lvar x then
-    if (tag == AT_inline) && (x.(vtype) == ty) then set pi x e
+    if tag == AT_inline then set pi x e
     else pi
   else pi.
 
@@ -226,7 +231,7 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
   | Cassgn x tag ty e =>
     let e := pi_e pi e in
     let (pi, x) := pi_lv pi x in 
-    let pi := set_lv pi x tag ty e in
+    let pi := set_lv pi x tag e in
     ok (pi, MkI ii (Cassgn x tag ty e))
 
   | Copn xs tag o es => 
@@ -254,7 +259,7 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
 
   | Ccall inline xs f es =>
     let es := pi_es pi es in
-    let (pi, xs) := pi_lvs pi xs in
+    let (pi, xs) := pi_lvs (remove_m pi) xs in
     ok (pi, MkI ii (Ccall inline xs f es))
 
   end.

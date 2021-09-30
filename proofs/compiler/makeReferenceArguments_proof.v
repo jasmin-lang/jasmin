@@ -740,7 +740,7 @@ Section Section.
         by case (Sv_memP z (vrvs lvs)) => hz; [apply hvm3 | apply heqnw]; SvD.fsetdec.
       move=> aa ws sc x e hnoload heqnw hrw hwr.
       apply: on_arr_varP => sz t htyx hget.
-      t_xrbindP=>  zi vi he hvi t1 -> t1' hsub vms3 hset ?; subst s3; rewrite /on_arr_var.
+      rewrite /write_var; t_xrbindP=>  zi vi he hvi t1 -> t1' hsub vms3 hset ?; subst s3; rewrite /on_arr_var.
       rewrite (@get_var_eq_on (Sv.singleton x) (evm s1)); first last.
       + by move=> z hz; have := vrvsP hw3; rewrite !evm_with_vm => -> //; SvD.fsetdec.
       + by SvD.fsetdec.
@@ -749,6 +749,7 @@ Section Section.
       + rewrite evm_with_vm; rewrite /with_vm /= in hw3 => z hz.
         by have /= -> // := vrvsP hw3; move: hwr; rewrite read_eE; SvD.fsetdec.
       rewrite /= hvi /= hsub /=.
+     
       have [vmi [-> hvmi hx]]:= set_var_spec vm3 hset; exists vmi; split => //.
       move=> z; case: ((v_var x) =P z) => hxz.
       + by subst z; rewrite hx; have /= -> // := vrvsP hws; SvD.fsetdec.

@@ -1807,14 +1807,14 @@ Proof.
   (* Laset *)
   move=> aa ws x e1 /=; t_xrbindP => e1' /(alloc_eP hvs) he1.
   move=> hr2 s1'; apply on_arr_varP => n t hty hxt.
-  t_xrbindP => i1 v1 /he1 he1' hi1 w hvw t' htt' vm1 hvm1 ?; subst s1'.
+  rewrite /write_var; t_xrbindP => i1 v1 /he1 he1' hi1 w hvw t' htt' vm1 hvm1 ?; subst s1'.
   case hlx: get_local hr2 => [pk | ]; last first.
   + t_xrbindP=> _ /check_diffP hnnew <-.
     have /get_var_kindP -/(_ _ hnnew hxt) : get_var_kind pmap (mk_lvar x) = ok None.
     + by rewrite /get_var_kind /= hlx.
     rewrite /get_gvar /= => hxt2.
     rewrite he1' /= hi1 hxt2 /= hvw /= htt' /=.
-    apply: set_varP hvm1=> [v' hv <- | ]; last by rewrite {1} hty.
+    rewrite /write_var; apply: set_varP hvm1=> [v' hv <- | ]; last by rewrite {1} hty.
     rewrite /set_var hv /=.
     by eexists;(split;first by reflexivity); apply valid_state_set_var.
   t_xrbindP => rmap2 /set_arr_wordP [sr [hget hal hset]] [xi ei] ha <- /=.
@@ -2394,7 +2394,7 @@ Proof.
 
   t_xrbindP=> aa ws {len}len x' e ofs' hofs ? <- [? <-]; subst x' ofs'.
   apply: on_arr_varP.
-  t_xrbindP=> nx ax htyx hxa i v he hv a2 ha2 a3 ha3 vm1'.
+  rewrite /write_var; t_xrbindP=> nx ax htyx hxa i v he hv a2 ha2 a3 ha3 vm1'.
   have {he hv} he : sem_pexpr gd s1 e >>= to_int = ok i.
   + by rewrite he.
   have {hofs} -> := get_ofs_subP he hofs.
@@ -2618,7 +2618,7 @@ Proof.
     by lia.
   move=> aa ws len' x' e.
   apply: on_arr_varP.
-  t_xrbindP=> n _ hty _ i v' he hv' _ _ _ /WArray.set_sub_bound hbound _ _ _ ofs' hofs' <- <- [<- <-].
+  rewrite /write_var; t_xrbindP=> n _ hty _ i v' he hv' _ _ _ /WArray.set_sub_bound hbound _ _ _ ofs' hofs' <- <- [<- <-].
   split=> //.
   rewrite hty.
   have {he hv'} he : sem_pexpr gd s1 e >>= to_int = ok i by rewrite he.

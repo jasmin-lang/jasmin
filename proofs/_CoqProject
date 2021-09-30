@@ -48,6 +48,7 @@ compiler/makeReferenceArguments_proof.v
 compiler/merge_varmaps.v
 compiler/merge_varmaps_proof.v
 compiler/propagate_inline.v
+compiler/propagate_inline_proof.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/stack_alloc.v

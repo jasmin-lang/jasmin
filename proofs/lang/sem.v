@@ -553,15 +553,13 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec estate :=
     Let i := sem_pexpr s i >>= to_int in
     Let v := to_word ws v in
     Let t := WArray.set t aa i v in
-    Let vm := set_var s.(evm) x (@to_val (sarr n) t) in
-    ok ({| emem := s.(emem); evm := vm |})
+    write_var x (@to_val (sarr n) t) s
   | Lasub aa ws len x i =>
     Let (n,t) := s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let t' := to_arr (Z.to_pos (arr_size ws len)) v in 
     Let t := @WArray.set_sub n aa ws len t i t' in
-    Let vm := set_var s.(evm) x (@to_val (sarr n) t) in
-    ok ({| emem := s.(emem); evm := vm |})
+    write_var x (@to_val (sarr n) t) s 
   end.
 
 Definition write_lvals (s:estate) xs vs :=
