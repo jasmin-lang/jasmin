@@ -1367,11 +1367,8 @@ Qed.
           eexists; split; first reflexivity.
           rewrite -(zero_extend_u (_ + _)).
           have Hlea := (mk_leaP hsz2 (cmp_le_refl _) hlea). move: (Hlea s le). rewrite /=.
-          rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word hle1 hle2 /=. move=> {Hlea} Hlea.
-          move: (Hlea ((zero_extend sz z1) + (zero_extend sz z2))%R). rewrite -hle /=.
-          have : (ok (Vword (zero_extend sz z1 + zero_extend sz z2), LSub [:: l1; l2]) = 
-                  ok (Vword (zero_extend sz z1 + zero_extend sz z2), LSub [:: l1; l2])). auto.
-         move=> Heq. move=> H. move: (H (Heq _)). move=> [Hlea''] Hl. auto.
+          rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word hle1 hle2 /=.
+          by rewrite hle => /(_ _ erefl) [].
 
         move => {Heq}.
         have /= := @add_inc_dec_classifyP s sz e1 e2.
@@ -1416,11 +1413,8 @@ Qed.
           eexists; split; first reflexivity.
           rewrite -(zero_extend_u (_ * _)).
           have Hlea := (mk_leaP hsz2 (cmp_le_refl _) hlea). move: (Hlea s le). rewrite /=.
-          rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word /= hle1 /= hle2 /=. move=> {Hlea} Hlea. 
-          move: (Hlea (zero_extend sz z1 * zero_extend sz z2)%R). rewrite -hl /=.
-          have : (ok (Vword (zero_extend sz z1 * zero_extend sz z2), LSub [:: l1; l2]) = 
-                  ok (Vword (zero_extend sz z1 * zero_extend sz z2), LSub [:: l1; l2])). auto.
-         move=> Heq. move=> H. move: (H (Heq _)). move=> [Hlea''] Hl. auto.
+          rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word /= hle1 /= hle2 /=.
+          by rewrite hl => /(_ _ erefl) [].
         move => {Heq}. 
         case Heq : mulr => [[o e'] lte'] //=.
         have := mulr_ok ok_v1 ok_v2 hle1 hle2 hsz64 Hw Heq. move=> [vs] [vs'] [Hsub] -> /=. move=> Hx Hl Hws.
@@ -1443,11 +1437,8 @@ Qed.
           eexists; split; first reflexivity.
           rewrite -(zero_extend_u (_ - _)).
           have Hlea := (mk_leaP hsz2 (cmp_le_refl _) hlea). move: (Hlea s le). rewrite /=.
-          rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word /= hle1 /= hle2 /=. move=> {Hlea} Hlea.
-          move: (Hlea (zero_extend sz z1 - zero_extend sz z2)%R).  rewrite -hl /=.
-          have : (ok (Vword (zero_extend sz z1 - zero_extend sz z2), LSub [:: l1; l2]) = 
-                  ok (Vword (zero_extend sz z1 - zero_extend sz z2), LSub [:: l1; l2])). auto.
-         move=> Heq. move=> H. move: (H (Heq _)). move=> [Hlea''] Hl. auto.
+          rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word /= hle1 /= hle2 /=.
+          by rewrite hl => /(_ _ erefl) [].
 
         have := sub_inc_dec_classifyP sz e2.
         case: (sub_inc_dec_classify _ _)=> [He2|He2|//]; try subst e2.
