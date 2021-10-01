@@ -226,7 +226,7 @@ let arr_aligned access ws e = match access with
   | Warray_.AAdirect ->
      begin match e with
      | Papp1 (Oint_of_word U64, e) -> [AlignedExpr (ws, e)]
-     | _ -> [AlignedExpr (ws, e)]
+     | _ -> [AlignedExpr (ws, Papp1 (Oword_of_int U64, e))]
      end
 
 (*------------------------------------------------------------*)
