@@ -495,9 +495,9 @@ let rec ty_instr fenv env i =
     let env, _ = ty_exprs ~public:true env [e1; e2] in
     let rec loop env = 
       let env1 = Env.set env x Public in
-      let env1 = ty_cmd fenv env1 c in
-      if Env.le env1 env then env (* G <= G' G' |- c : G''   G |- c : G'' *)
-      else loop (Env.max env1 env) in
+      let env1 = ty_cmd fenv env1 c in (*  env |- x = p; c : env1 <= env  *)
+      if Env.le env1 env then env      (* G <= G'  G' |- c : G''   G |- c : G'' *)
+      else loop (Env.max env1 env) in  (* le env/env1 (max env1 env) Check *)
     loop env 
 
   | Cwhile(_, c1, e, c2) -> 
@@ -508,11 +508,11 @@ let rec ty_instr fenv env i =
      *)
 
     let rec loop env = 
-      let env1 = ty_cmd fenv env c1 in
+      let env1 = ty_cmd fenv env c1 in   (* env |- c1 : env1 *)
       let env1,_ = ty_expr ~public:true env1 e in
-      let env2 = ty_cmd fenv env1 c2 in
+      let env2 = ty_cmd fenv env1 c2 in  (* env1 |- c2 : env2 *)   
       if Env.le env2 env then env1 
-      else loop (Env.max env1 env) in
+      else loop (Env.max env2 env) in
     loop env
 
   | Ccall (_, xs, f, es) -> 
