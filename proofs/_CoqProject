@@ -12,6 +12,7 @@
 -arg -omega-is-deprecated
 
 -R 3rdparty Jasmin
+-R arch Jasmin
 -R compiler Jasmin
 -R lang Jasmin
 -R ssrmisc Jasmin
@@ -19,6 +20,9 @@
 ssrmisc/oseq.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
+arch/arch_decl.v
+arch/arch_sem.v
+arch/label.v
 compiler/allocation.v
 compiler/array_expansion.v
 compiler/array_expansion_proof.v
@@ -83,6 +87,7 @@ lang/sem_type.v
 lang/strings.v
 lang/type.v
 lang/utils.v
+lang/values.v
 lang/var.v
 lang/warray_.v
 lang/word.v

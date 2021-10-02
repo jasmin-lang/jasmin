@@ -1,6 +1,8 @@
 (* -------------------------------------------------------------------- *)
 open Utils
 open Bigint.Notations
+open Arch_decl
+open Label
 open X86_decl
 (* -------------------------------------------------------------------- *)
 module W = Wsize
@@ -98,15 +100,16 @@ let pp_register ?(prefix = "%") (ws : rsize) (reg : X86_decl.register) =
   Printf.sprintf "%s%s" prefix (pp_register ws reg)
 
 (* -------------------------------------------------------------------- *)
-let pp_scale (scale : X86_decl.scale) =
+let pp_scale (scale : Datatypes.nat) =
   match scale with
-  | Scale1 -> "1"
-  | Scale2 -> "2"
-  | Scale4 -> "4"
-  | Scale8 -> "8"
+  | O -> "1"
+  | S O -> "2"
+  | S (S O) -> "4"
+  | S (S (S O)) -> "8"
+  | _ -> assert false
 
 (* -------------------------------------------------------------------- *)
-let pp_reg_address (addr : X86_decl.reg_address) =
+let pp_reg_address (addr : (_, _, _, _) Arch_decl.reg_address) =
   let disp = Conv.bi_of_int64 addr.ad_disp in
   let base = addr.ad_base in
   let off  = addr.ad_offset in
@@ -123,7 +126,7 @@ let pp_reg_address (addr : X86_decl.reg_address) =
     match off, scal with
     | None, _ ->
         Printf.sprintf "%s(%s)" disp base
-    | Some off, Scale1 ->
+    | Some off, O ->
         Printf.sprintf "%s(%s,%s)" disp base off
     | Some off, _ ->
         Printf.sprintf "%s(%s,%s,%s)" disp base off (pp_scale scal)
@@ -131,10 +134,10 @@ let pp_reg_address (addr : X86_decl.reg_address) =
 
 let global_datas = "glob_data"
 
-let pp_address (addr : X86_decl.address) =
+let pp_address (addr : (_, _, _, _) Arch_decl.address) =
   match addr with
-  | X86_decl.Areg ra -> pp_reg_address ra
-  | X86_decl.Arip d ->
+  | Areg ra -> pp_reg_address ra
+  | Arip d ->
     let disp = Bigint.to_string (Conv.bi_of_int64 d) in
     Printf.sprintf "%s + %s(%%rip)" global_datas disp
 
@@ -197,13 +200,13 @@ let pp_xmm_register (ws: W.wsize) (r: X86_decl.xmm_register) : string =
      | XMM15 -> 15)
 
 (* -------------------------------------------------------------------- *)
-let pp_asm_arg ((ws,op):(W.wsize * asm_arg)) =
+let pp_asm_arg ((ws,op):(W.wsize * (_, _, _, _) Arch_decl.asm_arg)) =
   match op with
   | Condt  _   -> assert false
   | Imm(ws, w) -> pp_imm (Conv.bi_of_word ws w)
   | Reg r      -> pp_register (rsize_of_wsize ws) r
-  | Adr addr   -> pp_address addr
-  | XMM r      -> pp_xmm_register ws r
+  | Addr addr  -> pp_address addr
+  | XReg r     -> pp_xmm_register ws r
 
 let pp_asm_args = List.rev_map pp_asm_arg
 
@@ -247,7 +250,7 @@ let pp_indirect_label lbl =
   Format.sprintf "*%s" (pp_asm_arg (W.U64, lbl))
 
 (* -------------------------------------------------------------------- *)
-let pp_instr tbl name (i : X86_sem.asm) =
+let pp_instr tbl name (i : (_, _, _, _, _) Arch_decl.asm_i) =
   match i with
   | ALIGN ->
     `Instr (".p2align", ["5"])
@@ -257,7 +260,7 @@ let pp_instr tbl name (i : X86_sem.asm) =
 
   | STORELABEL (dst, lbl) ->
      `Instr (Printf.sprintf "lea%s\t%s(%%rip), " (pp_instr_wsize W.U64) (string_of_label name lbl),
-        [pp_asm_arg (W.U64, dst)])
+        [pp_register `U64 dst])
 
   | JMP lbl ->
      `Instr ("jmp", [pp_remote_label tbl lbl])
@@ -267,7 +270,7 @@ let pp_instr tbl name (i : X86_sem.asm) =
     let iname = Printf.sprintf "j%s" (pp_ct ct) in
     `Instr (iname, [pp_label name lbl])
   | AsmOp(op, args) ->
-    let id = X86_instr_decl.instr_desc (None, op) in
+    let id = instr_desc X86_decl.x86_decl X86_instr_decl.x86_op_decl (None, op) in
     let pp = id.id_pp_asm args in
     let name = pp_name_ext pp in
     let args = pp_asm_args pp.pp_aop_args in
@@ -275,11 +278,11 @@ let pp_instr tbl name (i : X86_sem.asm) =
 
 
 (* -------------------------------------------------------------------- *)
-let pp_instr tbl name (fmt : Format.formatter) (i : X86_sem.asm) =
+let pp_instr tbl name (fmt : Format.formatter) (i : (_, _, _, _, _) Arch_decl.asm_i) =
   pp_gen fmt (pp_instr tbl name i)
 
 (* -------------------------------------------------------------------- *)
-let pp_instrs tbl name (fmt : Format.formatter) (is : X86_sem.asm list) =
+let pp_instrs tbl name (fmt : Format.formatter) (is : (_, _, _, _, _) Arch_decl.asm_i list) =
   List.iter (Format.fprintf fmt "%a\n%!" (pp_instr tbl name)) is
 
 (* -------------------------------------------------------------------- *)
@@ -317,31 +320,30 @@ type 'a tbl = 'a Conv.coq_tbl
 type  gd_t  = Global.glob_decl list
 
 let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
-   (asm : X86_sem.xprog) =
+   (asm : X86_sem.x86_prog) =
   pp_gens fmt
     [`Instr (".text"   , []);
      `Instr (".p2align", ["5"])];
 
   List.iter (fun (n, d) ->
-      if d.X86_sem.xfd_export then pp_gens fmt
+      if d.asm_fd_export then pp_gens fmt
     [`Instr (".globl", [mangle (string_of_funname tbl n)]);
      `Instr (".globl", [string_of_funname tbl n])])
-    asm.xp_funcs;
+    asm.asm_funcs;
 
-  let open X86_sem in
   List.iter (fun (n, d) ->
       let name = string_of_funname tbl n in
-      let export = d.xfd_export in
+      let export = d.asm_fd_export in
       if export then
       pp_gens fmt [
         `Label (mangle (string_of_funname tbl n));
         `Label name
       ];
 
-      pp_instrs tbl name fmt d.xfd_body;
+      pp_instrs tbl name fmt d.asm_fd_body;
 
       if export then
       pp_gens fmt [`Instr ("ret", [])]
-    ) asm.xp_funcs;
-  pp_glob_data fmt asm.xp_globs
+    ) asm.asm_funcs;
+  pp_glob_data fmt asm.asm_globs
 

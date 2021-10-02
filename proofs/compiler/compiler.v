@@ -283,7 +283,7 @@ Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
     else true
   else true.
 
-Definition compile_prog_to_x86 entries subroutines (p: prog): cexec xprog :=
+Definition compile_prog_to_x86 entries subroutines (p: prog): cexec x86_prog :=
   Let lp := compile_prog entries subroutines p in
 (*  Let _ := assert (all (check_signature p lp) entries) Ferr_lowering in *)
   assemble_prog lp.

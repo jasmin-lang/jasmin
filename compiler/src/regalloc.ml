@@ -1,7 +1,7 @@
 open Utils
 open Expr
 open Prog
-open X86_decl
+open Arch_decl
 
 module IntSet = Sint
 module IntMap = Mint

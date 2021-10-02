@@ -35,7 +35,7 @@ Require Import ZArith Utf8.
 
 Require sem_one_varmap_facts.
 Import ssrZ.
-Import psem psem_facts sem_one_varmap compiler_util sem_one_varmap_facts.
+Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts.
 Require Import constant_prop constant_prop_proof.
 Require Export linear linear_sem.
 Import x86_variables.
@@ -1656,6 +1656,29 @@ Section PROOF.
   Proof.
     elim: m => // - [] x ofs m /= /negbTE ->.
     by case: is_word_type.
+  Qed.
+
+  Lemma all_disjoint_aligned_betweenP (lo hi: Z) (al: wsize) A (m: seq A) (slot: A → cexec (Z * wsize)) :
+    all_disjoint_aligned_between lo hi al m slot = ok tt →
+    if m is a :: m' then
+      exists ofs ws,
+        [/\ slot a = ok (ofs, ws),
+         (lo <= ofs)%Z,
+         (ws ≤ al)%CMP,
+         is_align (wrepr Uptr ofs) ws &
+         all_disjoint_aligned_between (ofs + wsize_size ws) hi al m' slot = ok tt
+        ]
+    else
+      (lo <= hi)%Z.
+  Proof.
+    case: m lo => [ | a m ] lo.
+    - by apply: rbindP => _ /ok_inj <- /assertP /lezP.
+    apply: rbindP => last /=.
+    apply: rbindP => mid.
+    case: (slot a) => // - [] ofs ws /=.
+    t_xrbindP => _ /assertP /lezP lo_le_ofs _ /assertP ok_ws _ /assertP aligned_ofs <-{mid} ih last_le_hi.
+    exists ofs, ws; split => //.
+    by rewrite /all_disjoint_aligned_between ih.
   Qed.
 
   Local Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.

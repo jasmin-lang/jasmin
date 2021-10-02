@@ -24,7 +24,7 @@ Definition nset (T:Type) (m:nmap T) (n:nat) (t:T) :=
   fun x => if x == n then Some t else nget m x.
 Definition nempty (T:Type) := fun n:nat => @None T.
 
-Definition var_of_implicit i :=
+Definition var_of_implicit (i:implicit_arg) :=
   match i with
   | IArflag f => var_of_flag f
   | IAreg r   => var_of_register r
@@ -100,11 +100,11 @@ Definition assemble_x86_opn_aux rip ii op (outx : lvals) (inx : pexprs) :=
       (* This should allows to fix the problem with "MOV addr (IMM U64 w)" *)
       Let asm_args := 
         match op.2, asm_args with
-        | MOV U64, [:: Adr a; Imm U64 w] =>
+        | MOV U64, [:: Addr a; Imm U64 w] =>
           match truncate_word U32 w with
           | Ok w' => 
             Let _ := assert (sign_extend U64 w' == w) (error_imm ii) in
-            ok [::Adr a; Imm w']
+            ok [::Addr a; Imm w']
           | _ => Error (error_imm ii)
           end
         | _, _ => ok asm_args 
@@ -173,7 +173,3 @@ Lemma id_semi_sopn_sem op :
   let id := instr_desc op in
   id_semi id = sopn_sem (Ox86' op).
 Proof. by []. Qed.
-
-Lemma word_of_scale1 : word_of_scale Scale1 = 1%R.
-Proof. by rewrite /word_of_scale /= /wrepr; apply/eqP. Qed.
-

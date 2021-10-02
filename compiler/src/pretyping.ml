@@ -1195,7 +1195,7 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 let f_sig f =
   List.map P.ty_i f.P.f_ret, List.map (fun v -> v.P.v_ty) f.P.f_args
 
-let prim_sig (type a) p : a P.gty list * a P.gty list * X86_decl.arg_desc list =
+let prim_sig (type a) p : a P.gty list * a P.gty list * (_, _, _, _) Arch_decl.arg_desc list =
   let f = conv_ty in
   let o = E.get_instr p in
   List.map f o.E.tout,
@@ -1220,13 +1220,13 @@ let prim_string =
       let s = Conv.string_of_string0 s in
       let prc = 
         match prc with
-        | X86_instr_decl.PrimP(x1,x2) -> PrimP(x1, fun ws sz -> Ox86' (ws, x2 sz))
-        | X86_instr_decl.PrimM(x)     -> PrimM(fun ws -> Ox86' (ws, x))
-        | X86_instr_decl.PrimV(x)     -> PrimV(fun ws _ sz sz' -> Ox86' (ws, x sz sz'))
-        | X86_instr_decl.PrimSV(x)    -> PrimV(fun ws s sz sz' -> Ox86' (ws, x s sz sz'))
-        | X86_instr_decl.PrimX(x)     -> PrimX(fun ws sz sz' -> Ox86' (ws, x sz sz'))
-        | X86_instr_decl.PrimVV(x)    -> PrimVV(fun ws ve sz ve' sz' -> Ox86' (ws, x ve sz ve' sz')) in
-      (s, prc)) X86_instr_decl.prim_string
+        | Arch_decl.PrimP(x1,x2) -> PrimP(x1, fun ws sz -> Ox86' (ws, x2 sz))
+        | Arch_decl.PrimM(x)     -> PrimM(fun ws -> Ox86' (ws, x))
+        | Arch_decl.PrimV(x)     -> PrimV(fun ws _ sz sz' -> Ox86' (ws, x sz sz'))
+        | Arch_decl.PrimSV(x)    -> PrimV(fun ws s sz sz' -> Ox86' (ws, x s sz sz'))
+        | Arch_decl.PrimX(x)     -> PrimX(fun ws sz sz' -> Ox86' (ws, x sz sz'))
+        | Arch_decl.PrimVV(x)    -> PrimVV(fun ws ve sz ve' sz' -> Ox86' (ws, x ve sz ve' sz')) in
+      (s, prc)) X86_instr_decl.x86_prim_string
             
 type size_annotation =
   | SAw of W.wsize
@@ -1409,7 +1409,7 @@ let pexpr_of_plvalue exn l =
 
 
 let tt_lvalues env (pimp, pls) implicit tys =
-  let open X86_decl in
+  let open Arch_decl in
   let loc = loc_of_tuples (List.map P.L.loc pls) in
   let ignore_ = L.mk_loc loc S.PLIgnore in
 
@@ -1443,10 +1443,13 @@ let tt_lvalues env (pimp, pls) implicit tys =
         List.count_matching (function ADExplicit _ -> true | _ -> false) implicit in
       let pls = extend_pls nb_explicit in
       let arguments = 
-        let open X86_variables in
-        List.map (function ADExplicit _           -> None 
-                         | ADImplicit (IArflag f) -> Some (Conv.string_of_string0 (string_of_rflag f))
-                         | ADImplicit (IAreg r)   -> Some (Conv.string_of_string0 (string_of_register r))) implicit in
+        (* FIXME this is not generic *)
+        let open X86_decl in
+        List.map 
+          (function ADExplicit _           -> None 
+                  | ADImplicit (IArflag f) -> Some (Conv.string_of_string0 (x86_string_of_rflag f))
+                  | ADImplicit (IAreg r)   -> Some (Conv.string_of_string0 (x86_string_of_register r)))
+          implicit in
 
       let iargs = List.pmap (omap String.uppercase_ascii) arguments in
     

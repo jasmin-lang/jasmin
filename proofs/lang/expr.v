@@ -28,7 +28,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
 From CoqWord Require Import ssrZ.
-Require Export strings word utils type ident var global sem_type x86_decl x86_instr_decl.
+Require Export strings word utils type ident var global sem_type arch_decl x86_decl x86_instr_decl.
 Require Import xseq.
 Import Utf8 ZArith.
 
@@ -125,7 +125,7 @@ Variant opN :=
 | Ocombine_flags of combine_flags
 .
 
-Variant sopn : Set :=
+Variant sopn :=
 (* Generic operation *)
 | Onop
 | Omulu     of wsize   (* cpu   : [sword; sword]        -> [sword;sword] *)
@@ -136,7 +136,7 @@ Variant sopn : Set :=
 | Oset0     of wsize  (* set register + flags to 0 (implemented using XOR x x or VPXOR x x) *)
 | Oconcat128          (* concatenate 2 128 bits word into 1 256 word register *)   
 | Ox86MOVZX32
-| Ox86'      of asm_op  (* x86 instruction *)
+| Ox86'      of asm_op_t  (* x86 instruction *)
 .
 
 Definition Ox86 o := Ox86'(None, o).
@@ -202,18 +202,6 @@ Qed.
 
 Definition opN_eqMixin     := Equality.Mixin opN_eq_axiom.
 Canonical  opN_eqType      := Eval hnf in EqType opN opN_eqMixin.
-
-Scheme Equality for asm_op'.
-(* Definition asm_op'_beq : asm_op' -> asm_op' -> bool *)
-Lemma asm_op'_eq_axiom : Equality.axiom asm_op'_beq.
-Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_asm_op'_dec_bl.
-  by apply: internal_asm_op'_dec_lb.
-Qed.
-
-Definition asm_op'_eqMixin     := Equality.Mixin asm_op'_eq_axiom.
-Canonical  asm_op'_eqType      := Eval hnf in EqType asm_op' asm_op'_eqMixin.
 
 Definition sopn_beq (o1 o2:sopn) :=
   match o1, o2 with

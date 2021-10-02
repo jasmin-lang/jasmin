@@ -12,7 +12,7 @@ Lemma xreg_of_varI ii x y :
   xreg_of_var ii x = ok y →
   match y with
   | Reg r => register_of_var x = Some r
-  | XMM r => xmm_register_of_var x = Some r
+  | XReg r => xmm_register_of_var x = Some r
   | _ => False
   end.
 Proof.
@@ -36,7 +36,7 @@ by f_equal; apply: (inj_rflag_of_string Ex Ey).
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Definition of_rbool (v : RflagMap.rflagv) :=
+Definition of_rbool (v : rflagv) :=
   if v is Def b then Vbool b else undef_b.
 
 (* -------------------------------------------------------------------- *)
@@ -51,12 +51,12 @@ Variant disj_rip rip :=
 
 Variant lom_eqv rip (m : estate) (lom : x86_mem) :=
   | MEqv of
-         emem m = xmem lom
-    & get_var (evm m) rip = ok (Vword lom.(xrip)) 
+         emem m = asm_mem lom
+    & get_var (evm m) rip = ok (Vword lom.(asm_rip)) 
     & disj_rip rip 
-    & (∀ r v, get_var (evm m) (var_of_register r) = ok v → value_uincl v (Vword (xreg lom r)))
-    & (∀ r v, get_var (evm m) (var_of_xmm_register r) = ok v → value_uincl v (Vword (xxreg lom r)))
-    & eqflags m (xrf lom).
+    & (∀ r v, get_var (evm m) (var_of_register r) = ok v → value_uincl v (Vword (asm_reg lom r)))
+    & (∀ r v, get_var (evm m) (var_of_xmm_register r) = ok v → value_uincl v (Vword (asm_xreg lom r)))
+    & eqflags m (asm_flag lom).
 
 (* -------------------------------------------------------------------- *)
 Definition value_of_bool (b: exec bool) : exec value :=
@@ -71,7 +71,7 @@ Lemma xgetreg_ex rip x r v s xs :
   lom_eqv rip s xs →
   register_of_var x = Some r →
   get_var s.(evm) x = ok v →
-  value_uincl v (Vword (xs.(xreg) r)).
+  value_uincl v (Vword (xs.(asm_reg) r)).
 Proof. case => _ _ _ eqv _ _ /var_of_register_of_var <-{x}; exact: eqv. Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -79,7 +79,7 @@ Lemma xxgetreg_ex rip x r v s xs :
   lom_eqv rip s xs →
   xmm_register_of_var x = Some r →
   get_var (evm s) x = ok v →
-  value_uincl v (Vword (xxreg xs r)).
+  value_uincl v (Vword (asm_xreg xs r)).
 Proof. by case => _ _ _ _ eqr _ /xmm_register_of_varI ?; subst x; auto. Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -138,7 +138,7 @@ Proof.
 Qed.
 
 Lemma not_condtP (c:condt) rf b : 
-  eval_cond c rf = ok b -> eval_cond (not_condt c) rf = ok (negb b).
+  eval_cond rf c = ok b -> eval_cond rf (not_condt c) = ok (negb b).
 Proof.
   case: c => /=.
   1,3,5,9,11: by case: (rf _) => //= ? [->].
@@ -153,9 +153,9 @@ Qed.
 
 Lemma or_condtP ii e c1 c2 c rf b1 b2: 
   or_condt ii e c1 c2 = ok c ->  
-  eval_cond c1 rf = ok b1 ->
-  eval_cond c2 rf = ok b2 ->
-  eval_cond c rf = ok (b1 || b2).
+  eval_cond rf c1 = ok b1 ->
+  eval_cond rf c2 = ok b2 ->
+  eval_cond rf c  = ok (b1 || b2).
 Proof.
   case: c1 => //; case: c2 => //= -[<-] /=.
   + by case: (rf _) => // ? [->]; case: (rf _) => // ? [->].
@@ -166,9 +166,9 @@ Qed.
 
 Lemma and_condtP ii e c1 c2 c rf b1 b2: 
   and_condt ii e c1 c2 = ok c ->  
-  eval_cond c1 rf = ok b1 ->
-  eval_cond c2 rf = ok b2 ->
-  eval_cond c rf = ok (b1 && b2).
+  eval_cond rf c1 = ok b1 ->
+  eval_cond rf c2 = ok b2 ->
+  eval_cond rf c  = ok (b1 && b2).
 Proof.
   case: c1 => //; case: c2 => //= -[<-] /=.
   + by case: (rf _) => // ? [<-]; case: (rf _) => // ? [<-].
@@ -190,7 +190,9 @@ Lemma eval_assemble_cond_r ii m rf e c v:
   eqflags m rf →
   assemble_cond_r ii e = ok c →
   sem_pexpr [::] m e = ok v →
-  ∃ v', value_of_bool (eval_cond c rf) = ok v' ∧ value_uincl v v'.
+  let get x :=
+    if rf x is Def b then ok b else undef_error in
+  ∃ v', value_of_bool (eval_cond get c) = ok v' ∧ value_uincl v v'.
 Proof.
 move=> eqv; elim: e c v => //.
 + move => x c v /=; t_xrbindP => r ok_r ok_ct ok_v.
@@ -246,7 +248,9 @@ Lemma eval_assemble_cond ii m rf e c v:
   eqflags m rf →
   assemble_cond ii e = ok c →
   sem_pexpr [::] m e = ok v →
-  ∃ v', value_of_bool (eval_cond c rf) = ok v' ∧ value_uincl v v'.
+  let get x :=
+    if rf x is Def b then ok b else undef_error in
+  ∃ v', value_of_bool (eval_cond get c) = ok v' ∧ value_uincl v v'.
 Proof. apply eval_assemble_cond_r. Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -255,6 +259,6 @@ Lemma xscale_ok ii z sc :
   z = word_of_scale sc.
 Proof.
   rewrite /scale_of_z' -[X in _ -> X = _]wrepr_unsigned.
-  by case: sc (wunsigned z); do! case=> //.
+  case: (wunsigned z) => //.
+  do! (case=> //; try by move=> <-).
 Qed.
-

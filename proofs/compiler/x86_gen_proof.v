@@ -5,7 +5,7 @@ Require Import x86_gen x86_variables_proofs asmgen_proof.
 
 Import Utf8.
 Import Relation_Operators.
-Import linear linear_sem x86_sem x86_decl x86_variables.
+Import linear linear_sem label x86_sem x86_decl x86_variables.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -16,8 +16,8 @@ Lemma assemble_progP p p' :
   let rip := mk_rip p.(lp_rip) in
   [/\ disj_rip rip,
    reg_of_string p.(lp_rsp) = Some RSP,
-   xp_globs p' = lp_globs p &
-   map_cfprog_linear (assemble_fd RSP rip) p.(lp_funcs) = ok (xp_funcs p') ].
+   asm_globs p' = lp_globs p &
+   map_cfprog_linear (assemble_fd RSP rip) p.(lp_funcs) = ok (asm_funcs p') ].
 Proof.
   rewrite /assemble_prog.
   t_xrbindP => _ /assertP /eqP ok_rip _ /assertP /eqP ok_rsp fds ok_fds <-{p'}.
@@ -42,7 +42,7 @@ Qed.
 
 Lemma assemble_fd_labels rsp rip (fn: funname) fd fd' :
   assemble_fd rsp rip fd = ok fd' →
-  [seq (fn, lbl) | lbl <- label_in_lcmd (lfd_body fd)] = [seq (fn, lbl) | lbl <- label_in_asm (xfd_body fd')].
+  [seq (fn, lbl) | lbl <- label_in_lcmd (lfd_body fd)] = [seq (fn, lbl) | lbl <- label_in_asm (asm_fd_body fd')].
 Proof.
   rewrite /assemble_fd; t_xrbindP => c ok_c ?? <- {fd'} /=.
   by rewrite (assemble_c_labels ok_c).
@@ -50,10 +50,10 @@ Qed.
 
 Lemma assemble_prog_labels p p' :
   assemble_prog p = ok p' →
-  label_in_lprog p = label_in_xprog p'.
+  label_in_lprog p = label_in_asm_prog p'.
 Proof.
   case/assemble_progP => _ _ _ /mapM_Forall2.
-  rewrite /label_in_lprog /label_in_xprog.
+  rewrite /label_in_lprog /label_in_asm_prog.
   elim => //; t_xrbindP => - [] fn lfd fn' lfds xfds xfd /= ok_xfd <- {fn'} _ ih.
   congr (_ ++ _); last exact: ih.
   exact: assemble_fd_labels ok_xfd.
@@ -61,15 +61,15 @@ Qed.
 
 Variant match_state rip (ls: lstate) (lc : lcmd) (xs: x86_state) : Prop :=
 | MS
-  `(lom_eqv rip (to_estate ls) (xm xs))
-  `(lfn ls = xfn xs)
-  `(assemble_c rip lc = ok (xc xs))
-  `(lpc ls = xip xs)
+  `(lom_eqv rip (to_estate ls) (asm_m xs))
+  `(lfn ls = asm_f xs)
+  `(assemble_c rip lc = ok (asm_c xs))
+  `(lpc ls = asm_ip xs)
 .
 
 Lemma assemble_i_is_label rip a b lbl :
   assemble_i rip a = ok b →
-  linear.is_label lbl a = x86_sem.is_label lbl b.
+  linear.is_label lbl a = arch_sem.is_label lbl b.
 Proof.
 by (rewrite /assemble_i /linear.is_label ; case a =>  ii []; t_xrbindP) => /=
   [????? <- | <- | ? <- | ? <- | _ ? _ <- | _ ?? _ <- | ???? <-].
@@ -77,7 +77,7 @@ Qed.
 
 Lemma assemble_c_find_is_label rip c i lbl:
   assemble_c rip c = ok i →
-  find (linear.is_label lbl) c = find (x86_sem.is_label lbl) i.
+  find (linear.is_label lbl) c = find (arch_sem.is_label lbl) i.
 Proof.
 rewrite /assemble_c.
 elim: c i.
@@ -88,9 +88,9 @@ Qed.
 
 Lemma assemble_c_find_label rip c i lbl:
   assemble_c rip c = ok i →
-  linear.find_label lbl c = x86_sem.find_label lbl i.
+  linear.find_label lbl c = arch_sem.find_label lbl i.
 Proof.
-rewrite /assemble_c /linear.find_label /x86_sem.find_label => ok_i.
+rewrite /assemble_c /linear.find_label /arch_sem.find_label => ok_i.
 by rewrite (mapM_size ok_i) (assemble_c_find_is_label lbl ok_i).
 Qed.
 
@@ -119,11 +119,11 @@ Qed.
 
 Section PROG.
 
-Context (p: lprog) (p': xprog) (ok_p': assemble_prog p = ok p').
+Context (p: lprog) (p': asm_prog) (ok_p': assemble_prog p = ok p').
 
 Lemma ok_get_fundef fn fd :
   get_fundef (lp_funcs p) fn = Some fd →
-  exists2 fd', get_fundef (xp_funcs p') fn = Some fd' & assemble_fd RSP (mk_rip p.(lp_rip)) fd = ok fd'.
+  exists2 fd', get_fundef (asm_funcs p') fn = Some fd' & assemble_fd RSP (mk_rip p.(lp_rip)) fd = ok fd'.
 Proof.
   have [_ _ _ x y ] := assemble_progP ok_p'.
   have [fd' ??] := get_map_cfprog_gen x y.
@@ -162,13 +162,13 @@ Lemma assemble_iP i j ls ls' lc xs :
   assemble_i rip i = ok j →
   linear_sem.eval_instr p i ls = ok ls' →
   exists2 xs': x86_state,
-    x86_sem.eval_instr p' j xs = ok xs'  &
+    arch_sem.eval_instr p' j xs = ok xs'  &
     exists2 lc',
         omap lfd_body (get_fundef (lp_funcs p) (lfn ls')) = Some lc' &
         match_state rip ls' lc' xs'.
 Proof.
 move => omap_lc.
-rewrite /linear_sem.eval_instr /x86_sem.eval_instr; case => eqm eqfn eqc eqpc.
+rewrite /linear_sem.eval_instr /arch_sem.eval_instr; case => eqm eqfn eqc eqpc.
 case: i => ii [] /=.
 - move => lvs op pes; t_xrbindP => -[op' asm_args] hass <- m hsem ?; subst ls'.
   have [s [-> eqm' /=]]:= assemble_sopnP hsem hass eqm.
@@ -221,7 +221,7 @@ case: i => ii [] /=.
   exists lc; first exact: omap_lc.
   constructor => //=; last by congr _.+1.
   move: ok_s' ok_r_x.
-  rewrite to_estate_of_estate !zero_extend_u sign_extend_u wrepr_unsigned.
+  rewrite to_estate_of_estate zero_extend_u wrepr_unsigned.
   exact: lom_eqv_write_var.
 - t_xrbindP => cnd lbl cndt ok_c <- b v ok_v ok_b.
   case: eqm => eqm hrip hd eqr eqx eqf.
@@ -279,7 +279,7 @@ move => ls1 ls2 ls3 h1 h ih xs1 lc omap_lc m1.
 have [ xs2 x [ lc' omap_lc' m2 ] ] := match_state_step omap_lc m1 h1.
 have [xs3 [lc''] [y omap_lc'' m3]] := ih _ _ omap_lc' m2.
 exists xs3; exists lc''; split => //.
-apply: x86sem_trans; last by eauto.
+apply: asmsem_trans; last by eauto.
 exact: rt_step.
 Qed.
 
@@ -333,7 +333,7 @@ Lemma get_xreg_of_vars_uincl ii xs rs vm vs (rm: regmap) (xrm: xregmap) :
   mapM (xreg_of_var ii) xs = ok rs →
   mapM (λ x : var_i, get_var vm x) xs = ok vs →
   List.Forall2 value_uincl vs 
-     (map (λ a, match a with Reg r => Vword (rm r) | XMM r => Vword (xrm r) | _ => undef_w U64 end) rs).
+     (map (λ a, match a with Reg r => Vword (rm r) | XReg r => Vword (xrm r) | _ => undef_w U64 end) rs).
 Proof.
 move => hr hxr; elim: xs rs vs.
 + by move => _ _ [<-] [<-]; constructor.

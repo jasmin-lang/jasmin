@@ -32,7 +32,7 @@ Require Import ZArith.
 Require Import Utf8.
 Import Relations.
 
-Require Import expr compiler_util x86_variables constant_prop.
+Require Import expr compiler_util label x86_variables constant_prop.
 Import ssrZ.
 
 Set Implicit Arguments.
@@ -183,8 +183,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
 
   Definition all_disjoint_aligned_between (lo hi: Z) (al: wsize) A (m: seq A) (slot: A → cexec (Z * wsize)) : cexec unit :=
     Let last := foldM (λ a base,
-                       Let ofs_ws := slot a in
-                       let: (ofs, ws) := ofs_ws in
+                       Let: (ofs, ws) := slot a in
                        Let _ := assert (base <=? ofs)%Z (E.error "to-save: overlap") in
                        Let _ := assert (ws ≤ al)%CMP (E.error "to-save: bad frame alignement") in
                        Let _ := assert (is_align (wrepr Uptr ofs) ws) (E.error "to-save: bad slot alignement") in
@@ -195,7 +194,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
   Definition check_to_save (e: stk_fun_extra) : cexec unit :=
     if sf_return_address e is RAnone
     then
-      all_disjoint_aligned_between (sf_stk_sz e) (stack_frame_allocation_size e) (sf_align e) (sf_to_save e)
+      all_disjoint_aligned_between (sf_stk_sz e) (stack_frame_allocation_size e) U64 (sf_to_save e)
         (λ '(x, ofs), if is_word_type x.(vtype) is Some ws then ok (ofs, ws) else (Error (E.error "to-save: not a word")))
     else ok tt.
 
