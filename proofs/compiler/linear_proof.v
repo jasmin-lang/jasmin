@@ -1700,6 +1700,39 @@ Section PROOF.
     by rewrite /all_disjoint_aligned_between ih.
   Qed.
 
+  Lemma mm_can_write_after_alloc m al sz sz' m' m1 ofs ws (v: word ws) :
+    alloc_stack m al sz sz' = ok m' →
+    (0 <= sz)%Z →
+    (0 <= sz')%Z →
+    (ws ≤ al)%CMP →
+    is_align (wrepr Uptr ofs) ws →
+    (sz <= ofs)%Z →
+    (ofs + wsize_size ws <= sz + sz')%Z →
+    match_mem m m1 →
+    exists2 m2,
+    write m1 (top_stack m' + wrepr Uptr ofs)%R v = ok m2 & match_mem m m2.
+  Proof.
+    move => ok_m' sz_pos extra_pos frame_aligned ofs_aligned ofs_lo ofs_hi M.
+    have A := alloc_stackP ok_m'.
+    apply: mm_write_invalid; first exact: M; last first.
+    - apply: is_align_add ofs_aligned.
+      apply: is_align_m; first exact: frame_aligned.
+      rewrite (alloc_stack_top_stack ok_m').
+      exact: do_align_is_align.
+    rewrite wunsigned_add; last first.
+    - split; first by generalize (wunsigned_range (top_stack m')); lia.
+      apply: Z.le_lt_trans; last exact: proj2 (wunsigned_range (top_stack m)).
+      apply: Z.le_trans; last exact: proj2 (ass_above_limit A).
+      rewrite -Z.add_assoc -Z.add_le_mono_l Z.max_r //.
+      have := wsize_size_pos ws.
+      lia.
+      split.
+      - apply: Z.le_trans; first exact: proj1 (ass_above_limit A).
+        lia.
+      apply: Z.le_trans; last exact: proj2 (ass_above_limit A).
+      by rewrite -!Z.add_assoc -Z.add_le_mono_l Z.max_r.
+  Qed.
+
   Local Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
   Proof.
     red => ii k s1 _ fn fd m1' s2' ok_fd free_ra ok_ss rsp_aligned valid_rsp ok_m1' exec_body ih valid_rsp' -> m1 vm1 _ ra lret sp W M X [] fd' ok_fd' <- [].
