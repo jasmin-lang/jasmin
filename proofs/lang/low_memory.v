@@ -153,22 +153,3 @@ Qed.
 (* -------------------------------------------------------------- *)
 Definition allocatable_stack (m : mem) (z : Z) :=
   (0 <= z <= wunsigned (top_stack m) - wunsigned (stack_limit m))%Z.
-
-(*
-  Record allocatable_spec : Prop := {
-    as_alloc : forall z, allocatable_stack m z -> 0 <= sz + sz' + wsize_size ws < z -> 
-            exists m', alloc_stack m ws sz sz' = ok m' /\
-                       (allocatable_stack m z  -> 
-                          allocatable_stack m' (z - (sz + sz' + wsize_size ws - 1)));
-    as_alloc_align : forall z (ws wsp : wsize), 
-                     (ws <= wsp)%CMP ->
-                     is_align (top_stack m) wsp ->
-                     allocatable_stack m z ->
-            exists m', alloc_stack m ws sz sz' = ok m' /\
-                     allocatable_stack m z  -> 
-                     allocatable_stack m' (z - round_ws ws (sz + sz'));
-  }.
-
-Arguments allocatable_spec {_ _ _ } _ _ _.
-Parameter allocatable_stackP : forall m ws sz sz', allocatable_spec m ws sz sz'.
-*)
