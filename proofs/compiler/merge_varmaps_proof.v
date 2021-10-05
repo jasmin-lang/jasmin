@@ -660,19 +660,6 @@ Section LEMMA.
     by rewrite ok_z; apply: write_lval_uincl w.
   Qed.
 
-  Lemma sv_of_flagsE x l : Sv.mem x (sv_of_flags l) = (x \in map (fun r => var_of_flag r) l).
-  Proof.
-    suff h : forall s, Sv.mem x (foldl (λ (s : Sv.t) (r : rflag), Sv.add (var_of_flag r) s) s l) =
-                      (x \in [seq var_of_flag r | r <- l]) || Sv.mem x s by rewrite h orbF.
-    elim: l => //= z l hrec s.
-    rewrite hrec in_cons SvD.F.add_b /SvD.F.eqb.
-    case: SvD.F.eq_dec => [-> | /eqP]; first by rewrite eqxx /= orbT.
-    by rewrite eq_sym => /negbTE ->.
-  Qed.
-
-  Lemma sv_of_flagsP x l : reflect (Sv.In x (sv_of_flags l)) (x \in map (fun r => var_of_flag r) l).
-  Proof. rewrite -sv_of_flagsE; apply Sv_memP. Qed.
-
   Lemma wf_kill_flags vm fs : wf_vm vm -> wf_vm (kill_flags vm fs).
   Proof. 
     elim: fs vm => // f fs hrec vm hwf; apply: hrec.
