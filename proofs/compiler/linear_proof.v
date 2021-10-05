@@ -1700,6 +1700,19 @@ Section PROOF.
     by rewrite /all_disjoint_aligned_between ih.
   Qed.
 
+  Lemma all_disjoint_aligned_between_range (lo hi: Z) (al: wsize) A (m: seq A) (slot: A → cexec (Z * wsize)) :
+    all_disjoint_aligned_between lo hi al m slot = ok tt →
+    (lo <= hi)%Z.
+  Proof.
+    apply: rbindP => last h /assertP /lezP last_le_hi.
+    apply: Z.le_trans last_le_hi.
+    elim: m lo h.
+    - by move => ? /ok_inj ->; reflexivity.
+    move => a m ih lo /=; t_xrbindP => mid [] ofs x _; t_xrbindP => _ /assertP /lezP lo_le_ofs _ _ _ /assertP _ <-{mid} /ih.
+    have := wsize_size_pos x.
+    lia.
+  Qed.
+
   Lemma mm_can_write_after_alloc m al sz sz' m' m1 ofs ws (v: word ws) :
     alloc_stack m al sz sz' = ok m' →
     (0 <= sz)%Z →
