@@ -1676,6 +1676,13 @@ Section PROOF.
     by case: is_word_type.
   Qed.
 
+  Lemma not_magic_neq_rsp x :
+    ~~ Sv.mem x (magic_variables p) →
+    (x == vrsp) = false.
+  Proof.
+    rewrite /magic_variables => /Sv_memP ?; apply/eqP => ?; SvD.fsetdec.
+  Qed.
+
   Lemma all_disjoint_aligned_betweenP (lo hi: Z) (al: wsize) A (m: seq A) (slot: A → cexec (Z * wsize)) :
     all_disjoint_aligned_between lo hi al m slot = ok tt →
     if m is a :: m' then
