@@ -1768,6 +1768,16 @@ Section PROOF.
     lia.
   Qed.
 
+  Lemma pword_uincl ws (w: word ws) (z: pword ws) :
+    word_uincl w z.(pw_word) →
+    z = pword_of_word w.
+  Proof.
+    case: z => ws' w' ws'_le_ws /= /andP[] ws_le_ws' /eqP ->{w}.
+    have ? := cmp_le_antisym ws'_le_ws ws_le_ws'.
+    subst ws'.
+    by rewrite pword_of_wordE zero_extend_u.
+  Qed.
+
   Local Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
   Proof.
     red => ii k s1 _ fn fd m1' s2' ok_fd free_ra ok_ss rsp_aligned valid_rsp ok_m1' exec_body ih valid_rsp' -> m1 vm1 _ ra lret sp W M X [] fd' ok_fd' <- [].
