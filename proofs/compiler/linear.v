@@ -194,7 +194,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
   Definition check_to_save (e: stk_fun_extra) : cexec unit :=
     if sf_return_address e is RAnone
     then
-      all_disjoint_aligned_between (sf_stk_sz e) (stack_frame_allocation_size e) U64 (sf_to_save e)
+      all_disjoint_aligned_between (sf_stk_sz e) (sf_stk_sz e + sf_stk_extra_sz e) U64 (sf_to_save e)
         (λ '(x, ofs), if is_word_type x.(vtype) is Some ws then ok (ofs, ws) else (Error (E.error "to-save: not a word")))
     else ok tt.
 
