@@ -1489,7 +1489,11 @@ Fixpoint merge_tuple (l1 l2: list Type) : ltuple l1 -> ltuple l2 -> ltuple (l1 +
    end.
 
 (* ------------------------------------------------------------------------- *)
+  Lemma neq_sym (T: eqType) (x y: T) :
+    (x != y) = (y != x).
+  Proof. apply/eqP; case: eqP => //; exact: not_eq_sym. Qed.
 
+(* ------------------------------------------------------------------------- *)
 Lemma nth_not_default T x0 (s:seq T) n x :
   nth x0 s n = x ->
   x0 <> x ->
