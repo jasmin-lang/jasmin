@@ -530,6 +530,15 @@ Lemma in_disjoint_diff x a b c :
 Proof. rewrite /disjoint /is_true Sv.is_empty_spec; SvD.fsetdec. Qed.
 
 (* ---------------------------------------------------------------- *)
+Lemma Sv_mem_add (s: Sv.t) (x y: var) :
+  Sv.mem x (Sv.add y s) = (x == y) || Sv.mem x s.
+Proof.
+  case: eqP.
+  - move => <-; exact: SvP.add_mem_1.
+  move => ne; exact: (SvD.F.add_neq_b _ (not_eq_sym ne)).
+Qed.
+
+(* ---------------------------------------------------------------- *)
 Definition sv_of_list T (f: T → var) : seq T → Sv.t :=
   foldl (λ s r, Sv.add (f r) s) Sv.empty.
 
