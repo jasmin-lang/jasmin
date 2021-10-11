@@ -2591,6 +2591,47 @@ Lemma write_lvals_uincl_on gd X x v1 v2 s1 s2 vm1 :
     by move => aa ws len [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
   Qed.
 
+(* ---------------------------------------------------------------- *)
+(* value inclusion on vmap except on X   *)
+
+Definition vmap_uincl_ex (dom: Sv.t) : relation vmap :=
+  λ vm1 vm2,
+  ∀ x : var, ~Sv.In x dom → (eval_uincl vm1.[x] vm2.[x])%vmap.
+
+Notation "vm1 '<=[\' s ']' vm2" := (vmap_uincl_ex s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  <=[\ s ]  '/'  vm2 ']'").
+
+Lemma vmap_uincl_exT vm2 X vm1 vm3 :
+  vm1 <=[\X] vm2 -> vm2 <=[\X] vm3 -> vm1 <=[\X] vm3.
+Proof. move=> H1 H2 ? hnin;apply: eval_uincl_trans (H1 _ hnin) (H2 _ hnin). Qed.
+
+Lemma vmap_uincl_exI s1 s2 vm1 vm2 : Sv.Subset s2 s1 -> vm1 <=[\s2] vm2 -> vm1 <=[\s1] vm2.
+Proof. move=> Hs Heq x Hin;apply Heq;SvD.fsetdec. Qed.
+
+Lemma vmap_uincl_ex_refl X vm : vm <=[\X] vm.
+Proof. done. Qed.
+Hint Resolve vmap_uincl_ex_refl : core.
+
+Lemma vmap_eq_except_uincl_ex X vm1 vm2 :
+  vm1 = vm2 [\X] -> vm1 <=[\X] vm2.
+Proof. by move=> H ? /H ->. Qed.
+
+Lemma vm_uincl_vmap_uincl_ex dom vm1 vm2 :
+  vm_uincl vm1 vm2 →
+  vm1 <=[\dom] vm2.
+Proof. by move => h x _; exact: h. Qed.
+
+Global Instance vmap_uincl_ex_impl : Proper (Sv.Subset ==> eq ==> eq ==> Basics.impl)
+              vmap_uincl_ex.
+Proof. by move=> s1 s2 H vm1 ? <- vm2 ? <-;apply: vmap_uincl_exI. Qed.
+
+Global Instance vmap_uincl_ex_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) vmap_uincl_ex.
+Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: vmap_uincl_exI;rewrite Heq. Qed.
+
+Instance vmap_uincl_ex_trans dom : Transitive (vmap_uincl_ex dom).
+Proof. move => x y z xy yz r hr; apply: (eval_uincl_trans (xy _ hr)); exact: yz. Qed.
+
+(* ---------------------------------------------------------------- *)
 Section UNDEFINCL.
 
 Context {T} {pT:progT T} {sCP : semCallParams}.
