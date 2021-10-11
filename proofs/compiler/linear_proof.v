@@ -831,13 +831,18 @@ Section PROOF.
     | _, _ => False
     end%vmap.
 
-  (* Export functions save and restore the contents of “to-save” registers.
-     Said registers are assumed to hold safe values. *)
-  Definition safe_to_save (fn: funname) (vm: vmap) : Prop :=
+  (* Export functions save and restore the contents of “to-save” registers. *)
+  Definition is_callee_saved_of (fn: funname) (s: seq var) : Prop :=
     exists2 fd,
     get_fundef (p_funcs p) fn = Some fd &
     let e := f_extra fd in
-    (sf_return_address e != RAnone) || (all (λ '(x, _), is_ok (get_var vm x >>= of_val (vtype x))) (sf_to_save e)).
+    if sf_return_address e is RAnone then
+      s = map fst (sf_to_save e)
+    else s = [::].
+
+  (* Said registers are assumed to hold safe values. *)
+  Definition safe_to_save (vm: vmap) : seq var → Prop :=
+    all (λ x, is_ok (get_var vm x >>= of_val (vtype x))).
 
   (* Execution of linear programs preserve meta-data stored in the stack memory *)
   Definition preserved_metadata (m m1 m2: mem) : Prop :=
@@ -1010,7 +1015,7 @@ Section PROOF.
        (λ m2 _, match_mem s2 m2).
 
   Let Pfun (ii: instr_info) (k: Sv.t) (s1: estate) (fn: funname) (s2: estate) : Prop :=
-    ∀ m1 vm1 body ra lret sp,
+    ∀ m1 vm1 body ra lret sp callee_saved,
        wf_vm vm1 →
       match_mem s1 m1 →
       vm_uincl
@@ -1026,7 +1031,8 @@ Section PROOF.
       (* RSP points to the top of the stack according to the calling convention *)
       is_sp_for_call fn s1 sp →
       (* To-save variables are initialized in the initial linear state *)
-      safe_to_save fn vm1 →
+      is_callee_saved_of fn callee_saved →
+      safe_to_save vm1 callee_saved →
       ex2_6
       (λ m2 vm2,
       if lret is Some ((caller, lbl), _cbody, pc)
@@ -1035,7 +1041,7 @@ Section PROOF.
       else lsem p' (Lstate m1 vm1 fn 0) (Lstate m2 vm2 fn (size body)))
       (λ _ vm2, vm1 = vm2 [\ Sv.union k (extra_free_registers_at extra_free_registers ii)])
       (λ _ vm2, wf_vm vm2)
-      (λ _ vm2, vm_uincl s2.[vrsp <- ok (pword_of_word sp)] vm2)
+      (λ _ vm2, s2.[vrsp <- ok (pword_of_word sp)] <=[\ sv_of_list id callee_saved ] vm2)
       (λ m2 _, preserved_metadata s1 m1 m2)
       (λ m2 _, match_mem s2 m2).
 
@@ -1371,7 +1377,7 @@ Section PROOF.
     t_xrbindP => -[] chk_body [] ok_to_save _ /assertP ok_stk_sz _ /assertP ok_ret_addr _ /assertP ok_save_stack _.
     have ok_body' : is_linear_of fn' (lfd_body lfd').
     - by rewrite /is_linear_of; eauto.
-    move: ih; rewrite /Pfun; move => /(_ _ _ _ _ _ _ _ _ _ ok_body') ih A.
+    move: ih; rewrite /Pfun; move => /(_ _ _ _ _ _ _ _ _ _ _ ok_body') ih A.
     have lbl_valid : (fn, lbl) \in (label_in_lprog p').
     - clear -A C ok_ra.
       apply: (label_in_lfundef _ C).
@@ -1383,7 +1389,9 @@ Section PROOF.
     case ra_eq: (sf_return_address _) ok_ra ok_ret_addr ra_sem sp_aligned A => [ // | ra | z ] ok_ra ok_ret_addr ra_sem sp_aligned /=.
     { (* Internal function, return address in register [ra]. *)
       have ok_ra_of : is_ra_of fn' (RAreg ra) by rewrite /is_ra_of; exists fd'; assumption.
-      move: ih => /(_ _ _ _ _ _ _ _ _ ok_ra_of) ih.
+      have empty_callee_saved : is_callee_saved_of fn' [::]
+        by rewrite /is_callee_saved_of; exists fd'; last rewrite ra_eq.
+      move: ih => /(_ _ _ _ _ _ _ _ _ _ ok_ra_of _ _ empty_callee_saved) ih.
       case => ? ?; subst lbli li.
       case/andP: ra_sem => /andP[] ra_neq_GD ra_neq_RSP ra_not_written.
       move: C; rewrite /allocate_stack_frame; case: eqP => stack_size /= C.
@@ -1417,11 +1425,8 @@ Section PROOF.
         + exists fd'; first exact: ok_fd'.
           move: sp_aligned.
           by rewrite /= ra_eq stack_size GRing.subr0.
-        have STS : safe_to_save fn' vm.
-        + exists fd'; first exact: ok_fd'.
-          by rewrite /= ra_eq.
-        move: ih => /(_ _ XX SP STS).
-        case => m' vm' exec_fn' K' W' X' H' M' ?; subst k.
+        move: ih => /(_ _ XX SP erefl).
+        case => m' vm' exec_fn' K' W' /vmap_uincl_ex_empty X' H' M' ?; subst k.
         eexists; first apply: lsem_step; only 2: apply: lsem_step.
         + rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /= ok_ptr.
           rewrite /sem_sopn /= /write_var /= /to_estate /= /with_vm /= set_well_typed_var; last by apply/eqP.
@@ -1481,11 +1486,8 @@ Section PROOF.
       have SP : is_sp_for_call fn' s1 top.
       + exists fd'; first exact: ok_fd'.
         by rewrite /= ra_eq.
-      have STS : safe_to_save fn' vm.
-      + exists fd'; first exact: ok_fd'.
-        by rewrite /= ra_eq.
-      move: ih => /(_ _ XX SP STS).
-      case => m' vm' exec_fn' K' W' X' H' M' ?; subst k.
+      move: ih => /(_ _ XX SP erefl).
+      case => m' vm' exec_fn' K' W' /vmap_uincl_ex_empty X' H' M' ?; subst k.
       exists m' vm'.[vrsp <- ok (pword_of_word (top_stack (emem s1)))]%vmap.
       + apply: lsem_step; last apply: lsem_step; last apply: lsem_step; last apply: lsem_step_end.
         * rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /=.
@@ -1528,7 +1530,9 @@ Section PROOF.
     case fr_eq: extra_free_registers ok_ra fr_undef ok_ret_addr => [fr | //] _.
     move=> [] fr_neq_RIP fr_neq_RSP fr_well_typed fr_undef /and4P[] z_pos /lezP z_bound sf_aligned_for_ptr z_aligned [] ? ?; subst lbli li.
     have ok_ra_of : is_ra_of fn' (RAstack z) by rewrite /is_ra_of; exists fd'; assumption.
-    move: ih => /(_ _ _ _ _ _ _ _ _ ok_ra_of) ih.
+    have empty_callee_saved : is_callee_saved_of fn' [::]
+      by rewrite /is_callee_saved_of; exists fd'; last rewrite ra_eq.
+    move: ih => /(_ _ _ _ _ _ _ _ _ _ ok_ra_of _ _ empty_callee_saved) ih.
     move: (X vrsp).
     rewrite T.
     case vm2_rsp: vm2.[_]%vmap => [ top_ptr | // ] /= /pword_of_word_uincl[].
@@ -1608,10 +1612,7 @@ Section PROOF.
     + exists fd'; first exact: ok_fd'.
       rewrite /= ra_eq; split; first by [].
       by rewrite /sp top_stack_after_aligned_alloc // wrepr_opp.
-    have STS : safe_to_save fn' vm1'.
-    + exists fd'; first exact: ok_fd'.
-      by rewrite /= ra_eq.
-    move => /(_ SP STS) []m2' vm2' exec_fn' K' W' X' H' M'; subst k.
+    move => /(_ SP erefl) []m2' vm2' exec_fn' K' W' /vmap_uincl_ex_empty X' H' M'; subst k.
     exists m2' (vm2'.[vrsp <- ok (pword_of_word (sp + wrepr U64 (stack_frame_allocation_size (f_extra fd'))))])%vmap.
     - apply: lsem_step; only 2: apply: lsem_step; only 3: apply: lsem_step; only 4: apply: lsem_step; only 5: apply: lsem_trans.
       + rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /= /sem_sopn /= /get_gvar /= /get_var vm2_rsp /=.
@@ -1800,13 +1801,13 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
   Proof.
-    red => ii k s1 _ fn fd m1' s2' ok_fd free_ra ok_ss rsp_aligned valid_rsp ok_m1' exec_body ih valid_rsp' -> m1 vm1 _ ra lret sp W M X [] fd' ok_fd' <- [].
+    red => ii k s1 _ fn fd m1' s2' ok_fd free_ra ok_ss rsp_aligned valid_rsp ok_m1' exec_body ih valid_rsp' -> m1 vm1 _ ra lret sp callee_saved W M X [] fd' ok_fd' <- [].
     rewrite ok_fd => _ /Some_inj <- ?; subst ra.
     rewrite /value_of_ra => ok_lret.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_sp.
+    case; rewrite ok_fd => _ /Some_inj <- /= ok_callee_saved.
     move: (checked_prog ok_fd); rewrite /check_fd /=.
     t_xrbindP => - [] chk_body [] ok_to_save _ /assertP ok_stk_sz _ /assertP ok_ret_addr _ /assertP ok_save_stack _.
-    case; rewrite ok_fd => _ [] <-.
     have ? : fd' = linear_fd p extra_free_registers fn fd.
     - move: linear_ok ok_fd ok_fd'; clear.
       rewrite /linear_prog; t_xrbindP => _ _ _ _ <- /=.
@@ -1814,12 +1815,13 @@ Section PROOF.
     subst fd'.
     move: ok_fd'; rewrite /linear_fd.
     rewrite /check_to_save in ok_to_save.
-    case: sf_return_address free_ra ok_to_save ok_save_stack ok_ret_addr X ok_lret exec_body ih ok_sp =>
-      /= [ rax_not_magic ok_to_save ok_save_stack _ | ra free_ra _ _ ok_ret_addr | rastack free_ra _ _ ok_ret_addr ] X ok_lret exec_body ih.
+    case: sf_return_address free_ra ok_to_save ok_callee_saved ok_save_stack ok_ret_addr X ok_lret exec_body ih ok_sp =>
+      /= [ rax_not_magic ok_to_save ok_callee_saved ok_save_stack _ | ra free_ra _ _ _ ok_ret_addr | rastack free_ra _ _ _ ok_ret_addr ] X ok_lret exec_body ih.
     2-3: case => sp_aligned.
     all: move => ?; subst sp.
     - (* Export function *)
     { case: lret ok_lret => // _.
+      subst callee_saved.
       case: sf_save_stack ok_save_stack ok_ss exec_body ih =>
       [ | saved_rsp | stack_saved_rsp ] /= ok_save_stack ok_ss exec_body ih ok_fd' wf_to_save.
       + (* No need to save RSP *)
