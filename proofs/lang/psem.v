@@ -1915,12 +1915,6 @@ Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: vmap_uincl_onI;rewrite
 Lemma eq_on_uincl_on X vm1 vm2 : vm1 =[X] vm2 -> vm1 <=[X] vm2.
 Proof. by move=> H ? /H ->. Qed.
 
-(* TODO: remove this lemma it is the same than eq_on_uincl_on *)
-Lemma eq_on_vmap_uincl_on dom vm1 vm2 :
-  vm1 =[dom] vm2 →
-  vmap_uincl_on dom vm1 vm2.
-Proof. by move => heq x /heq ->. Qed.
-
 Lemma vm_uincl_vmap_uincl_on dom vm1 vm2 :
   vm_uincl vm1 vm2 →
   vmap_uincl_on dom vm1 vm2.
