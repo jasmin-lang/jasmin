@@ -2598,6 +2598,8 @@ Definition vmap_uincl_ex (dom: Sv.t) : relation vmap :=
   λ vm1 vm2,
   ∀ x : var, ~Sv.In x dom → (eval_uincl vm1.[x] vm2.[x])%vmap.
 
+Arguments vmap_uincl_ex _ _%vmap _%vmap.
+
 Notation "vm1 '<=[\' s ']' vm2" := (vmap_uincl_ex s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  <=[\ s ]  '/'  vm2 ']'").
 
@@ -2630,6 +2632,14 @@ Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: vmap_uincl_exI;rewrite
 
 Instance vmap_uincl_ex_trans dom : Transitive (vmap_uincl_ex dom).
 Proof. move => x y z xy yz r hr; apply: (eval_uincl_trans (xy _ hr)); exact: yz. Qed.
+
+Lemma vmap_uincl_ex_empty vm1 vm2 :
+  vm1 <=[\ Sv.empty ] vm2 ↔ vm_uincl vm1 vm2.
+Proof.
+  split; last exact: vm_uincl_vmap_uincl_ex.
+  move => h x; apply/h.
+  SvD.fsetdec.
+Qed.
 
 (* ---------------------------------------------------------------- *)
 Section UNDEFINCL.
