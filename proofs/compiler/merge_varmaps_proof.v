@@ -57,46 +57,6 @@ Lemma orbX (P Q: bool):
   P || Q = (P && ~~ Q) || Q.
 Proof. by case: Q; rewrite !(orbT, orbF, andbT). Qed.
 
-(* TODO: This should be moved else where *)
-(* value inclusion on vmap except on X   *)
-
-Definition vmap_uincl_ex (dom: Sv.t) : relation vmap :=
-  λ vm1 vm2,
-  ∀ x : var, ~Sv.In x dom → (eval_uincl vm1.[x] vm2.[x])%vmap.
-
-Notation "vm1 '<=[\' s ']' vm2" := (vmap_uincl_ex s vm1 vm2) (at level 70, vm2 at next level,
-  format "'[hv ' vm1  <=[\ s ]  '/'  vm2 ']'").
-
-Lemma vmap_uincl_exT vm2 X vm1 vm3 :
-  vm1 <=[\X] vm2 -> vm2 <=[\X] vm3 -> vm1 <=[\X] vm3.
-Proof. move=> H1 H2 ? hnin;apply: eval_uincl_trans (H1 _ hnin) (H2 _ hnin). Qed.
-
-Lemma vmap_uincl_exI s1 s2 vm1 vm2 : Sv.Subset s2 s1 -> vm1 <=[\s2] vm2 -> vm1 <=[\s1] vm2.
-Proof. move=> Hs Heq x Hin;apply Heq;SvD.fsetdec. Qed.
-
-Lemma vmap_uincl_ex_refl X vm : vm <=[\X] vm.
-Proof. done. Qed.
-Hint Resolve vmap_uincl_ex_refl : core.
-
-Lemma eq_on_uincl_on X vm1 vm2 : vm1 = vm2 [\X] -> vm1 <=[\X] vm2.
-Proof. by move=> H ? /H ->. Qed.
-
-Lemma vm_uincl_vmap_uincl_ex dom vm1 vm2 :
-  vm_uincl vm1 vm2 →
-  vm1 <=[\dom] vm2.
-Proof. by move => h x _; exact: h. Qed.
-
-
-Global Instance vmap_uincl_ex_impl : Proper (Sv.Subset ==> eq ==> eq ==> Basics.impl)
-              vmap_uincl_ex.
-Proof. by move=> s1 s2 H vm1 ? <- vm2 ? <-;apply: vmap_uincl_exI. Qed.
-
-Global Instance vmap_uincl_ex_m : Proper (Sv.Equal ==> eq ==> eq ==> iff) vmap_uincl_ex.
-Proof. by move=> s1 s2 Heq vm1 ? <- vm2 ? <-;split;apply: vmap_uincl_exI;rewrite Heq. Qed.
-
-Instance vmap_uincl_ex_trans dom : Transitive (vmap_uincl_ex dom).
-Proof. move => x y z xy yz r hr; apply: (eval_uincl_trans (xy _ hr)); exact: yz. Qed.
-
 Section PROG.
 
 Context (p: sprog) (extra_free_registers: instr_info → option var) (global_data: pointer).
@@ -338,7 +298,7 @@ Section LEMMA.
       + apply (@vmap_uincl_exT (evm t1)).
         + by apply: vmap_uincl_exI (mvm_vmap sim); rewrite heq; SvD.fsetdec.
         apply (@vmap_uincl_exI _ (extra_free_registers_at extra_free_registers ii)); first by SvD.fsetdec.
-        by apply/eq_on_uincl_on/vmap_eq_exceptS/kill_extra_register_vmap_eq_except.
+        by apply/vmap_eq_except_uincl_ex/vmap_eq_exceptS/kill_extra_register_vmap_eq_except.
       have hwf := mvm_wf sim.
       rewrite /t1' /kill_extra_register /kill_extra_register_vmap.
       case: extra_free_registers hextra => //= v; case: (evm t1).[v] => // _ /eqP heq1.
