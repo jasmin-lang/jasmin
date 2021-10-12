@@ -1709,28 +1709,44 @@ Section PROOF.
     (sz <= ofs)%Z →
     (ofs + wsize_size ws <= sz + sz')%Z →
     match_mem m m1 →
-    exists2 m2,
-    write m1 (top_stack m' + wrepr Uptr ofs)%R v = ok m2 & match_mem m m2.
+    ∃ m2,
+      [/\
+       write m1 (top_stack m' + wrepr Uptr ofs)%R v = ok m2,
+       preserved_metadata m m1 m2 &
+       match_mem m m2
+      ].
   Proof.
     move => ok_m' sz_pos extra_pos frame_aligned ofs_aligned ofs_lo ofs_hi M.
     have A := alloc_stackP ok_m'.
-    apply: mm_write_invalid; first exact: M; last first.
-    - apply: is_align_add ofs_aligned.
-      apply: is_align_m; first exact: frame_aligned.
-      rewrite (alloc_stack_top_stack ok_m').
-      exact: do_align_is_align.
-    rewrite wunsigned_add; last first.
+    have ofs_no_overflow : (0 <= wunsigned (top_stack m') + ofs)%Z ∧ (wunsigned (top_stack m') + ofs < wbase U64)%Z.
     - split; first by generalize (wunsigned_range (top_stack m')); lia.
       apply: Z.le_lt_trans; last exact: proj2 (wunsigned_range (top_stack m)).
       apply: Z.le_trans; last exact: proj2 (ass_above_limit A).
       rewrite -Z.add_assoc -Z.add_le_mono_l Z.max_r //.
       have := wsize_size_pos ws.
       lia.
-      split.
-      - apply: Z.le_trans; first exact: proj1 (ass_above_limit A).
-        lia.
-      apply: Z.le_trans; last exact: proj2 (ass_above_limit A).
+    have ofs_below : (wunsigned (top_stack m') + ofs + wsize_size ws <= wunsigned (top_stack m))%Z.
+    - apply: Z.le_trans; last exact: proj2 (ass_above_limit A).
       by rewrite -!Z.add_assoc -Z.add_le_mono_l Z.max_r.
+    cut (exists2 m2, write m1 (top_stack m' + wrepr Uptr ofs)%R v = ok m2 & match_mem m m2).
+    - case => m2 ok_m2 M2; exists m2; split; [ exact: ok_m2 | | exact: M2 ].
+      move => a [] a_lo a_hi _.
+      rewrite (write_read8 ok_m2) /=.
+      case: andP; last by [].
+      case => _ /ltzP a_below; exfalso.
+      move: a_below.
+      rewrite subE wunsigned_add -/(wunsigned (_ + _)) wunsigned_add //; first lia.
+      split; last by generalize (wunsigned_range a); lia.
+      have := wsize_size_pos ws; lia.
+    apply: mm_write_invalid; first exact: M; last first.
+    - apply: is_align_add ofs_aligned.
+      apply: is_align_m; first exact: frame_aligned.
+      rewrite (alloc_stack_top_stack ok_m').
+      exact: do_align_is_align.
+    rewrite wunsigned_add; last exact: ofs_no_overflow.
+    split; last exact: ofs_below.
+    apply: Z.le_trans; first exact: proj1 (ass_above_limit A).
+    lia.
   Qed.
 
   Local Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
