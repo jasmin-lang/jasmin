@@ -929,6 +929,25 @@ Section PROOF.
     exact: M'.
   Qed.
 
+  Lemma preserved_metadata_alloc m al sz sz' m' m1 m2 :
+    (0 <= sz)%Z →
+    alloc_stack m al sz sz' = ok m' →
+    preserved_metadata m' m1 m2 →
+    preserved_metadata m m1 m2.
+  Proof.
+    move => sz_pos ok_m' h a [] a_lo a_hi /negbTE a_not_valid.
+    have A := alloc_stackP ok_m'.
+    have [_ top_goes_down ] := ass_above_limit A.
+    apply: h.
+    - split; last by rewrite A.(ass_root).
+      apply: Z.le_trans a_lo.
+      etransitivity; last apply: (proj2 A.(ass_above_limit)).
+      lia.
+    rewrite A.(ass_valid) a_not_valid /= !zify.
+    change (wsize_size U8) with 1%Z.
+    lia.
+  Qed.
+
   (* ---------------------------------------------------- *)
   Variant ex2_6 (T1 T2: Type) (A B C D E F : T1 → T2 → Prop) : Prop :=
     Ex2_6 x1 x2 of A x1 x2 & B x1 x2 & C x1 x2 & D x1 x2 & E x1 x2 & F x1 x2.
