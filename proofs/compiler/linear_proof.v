@@ -1821,8 +1821,8 @@ Section PROOF.
     - (* Export function *)
     { case: lret ok_lret => // _.
       subst callee_saved.
-      case: sf_save_stack ok_save_stack ok_ss exec_body ih =>
-      [ | saved_rsp | stack_saved_rsp ] /= ok_save_stack ok_ss exec_body ih ok_fd' wf_to_save.
+      case: sf_save_stack ok_save_stack ok_ss ok_to_save exec_body ih =>
+      [ | saved_rsp | stack_saved_rsp ] /= ok_save_stack ok_ss ok_to_save exec_body ih ok_fd' wf_to_save.
       + (* No need to save RSP *)
       { have {ih} := ih fn xH.
         rewrite /checked_c ok_fd chk_body => /(_ erefl).
