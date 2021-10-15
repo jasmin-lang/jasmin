@@ -146,7 +146,7 @@ fn iterated_square(reg u64[4] xa, stack u64 n) -> reg u64[4] {
     xa = reduce(z);
 
   cf, n -= 1;
-  }(!cf);
+  }(!cf)
 
   return xa;
 }

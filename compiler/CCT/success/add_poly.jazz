@@ -25,7 +25,7 @@ fn add_H(reg u64 x, #secret reg u64 ya) -> reg u64 {
  return t;
 }
 
-fn add_P(#poly=l1 reg u64 x, #poly=l2 reg u64 ya) -> #poly=(l1,l2) reg u64 {
+fn add_P(#poly=l1 reg u64 x, #poly=l2 reg u64 ya) -> #poly={l1,l2} reg u64 {
 
  reg u64 t;
 

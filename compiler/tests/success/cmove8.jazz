@@ -48,7 +48,7 @@ fn f(reg u8 b, reg u64 x y) -> reg u64 {
   reg bool cf zf sf of b b1;
   inline bool b2;
 
-  {cf,zf,sf,of, "==" = b, "<s" = c, "<u" = b1} = #CMP_64(x,y);
+  ?{cf,zf,sf,of, "==" = b, "<s" = c, "<u" = b1} = #CMP_64(x,y);
   b2 = _uGT(of, cf, sf, zf);
   r = y if b;
   r = y if b1;

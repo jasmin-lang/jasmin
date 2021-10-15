@@ -5,7 +5,7 @@ fn foo (#public reg u64 x y) -> #secret reg u64, #secret reg u64 {
    return r1, r2;
 }
 
-fn foo2 (#poly=(l1,l2) reg u64 x y) -> #poly=l1 reg u64, #poly=l2 reg u64 {
+fn foo2 (#poly={l1,l2} reg u64 x y) -> #poly=l1 reg u64, #poly=l2 reg u64 {
    #public reg u64 r1, r2;
    r1 = x;
    r2 = y;

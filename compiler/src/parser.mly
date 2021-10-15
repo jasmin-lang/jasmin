@@ -130,7 +130,7 @@ simple_attribute:
 
 attribute:
   | EQ ap=loc(simple_attribute) { ap }
-  | EQ s=loc(parens(struct_annot)) { L.mk_loc (L.loc s) (Astruct (L.unloc s)) }
+  | EQ s=loc(braces(struct_annot)) { L.mk_loc (L.loc s) (Astruct (L.unloc s)) }
 
 annotation:
   | k=annotationlabel v=attribute? { k, v }
@@ -316,10 +316,13 @@ plvalue:
 
 (* ** Control instructions
  * -------------------------------------------------------------------- *)
+implicites:
+| QUESTIONMARK s=loc(braces(struct_annot)) { s }
+
 plvalues:
 | lv=tuple1(plvalue) { None, lv }
-| s=loc(braces(struct_annot)) { Some s, [] }
-| s=loc(braces(struct_annot)) COMMA lv=rtuple1(plvalue) { Some s, lv }
+| s=implicites { Some s, [] }
+| s=implicites COMMA lv=rtuple1(plvalue) { Some s, lv }
 
 pinstr_r:
 | ARRAYINIT x=parens(var) SEMICOLON
@@ -345,7 +348,7 @@ pinstr_r:
 | FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr is=pblock
     { PIFor (v, (`Down, ce2, ce1), is) }
 
-| WHILE is1=pblock? LPAREN b=pexpr RPAREN SEMICOLON
+| WHILE is1=pblock? LPAREN b=pexpr RPAREN 
     { PIWhile (is1, b, None) }
 
 | WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock

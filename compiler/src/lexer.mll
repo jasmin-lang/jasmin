@@ -22,7 +22,7 @@
 
     "bool"  , T_BOOL ;
     "int"   , T_INT  ;
-
+    
     "const" , CONSTANT; 
     "downto", DOWNTO ;
     "else"  , ELSE   ;
