@@ -12,5 +12,9 @@ trap "rm -r ${DIR}" EXIT
 set -x
 
 $(dirname $0)/../jasminc.native -o ${ASM} "$@"
+# Negative test cases should have failed by now
+# Succeed early if it’s not the case (i.e., do not try to assemble the result)
+(echo $@ | grep -q fail) && exit 0
+
 cc -c -o ${OBJ} ${ASM}
 cc -shared -o ${DLL} ${OBJ}
