@@ -59,7 +59,8 @@ Lemma eqok_weaken e1 e2 st : eqok_w e1 e2 st -> eqok e1 e2 st.
 Proof. by move=> h v /h h';exists v. Qed.
 
 Notation "e1 '=[' st ']' e2" := (eqok e1 e2 st)
- (at level 70, no associativity).
+ (at level 70, e2 at next level, no associativity,
+  format "'[hv ' e1  =[ st ]  '/'  e2 ']'").
 
 Definition eeq_w (e1 e2:pexpr) := forall rho, eqok_w e1 e2 rho.
 Definition eeq (e1 e2:pexpr) := forall rho, e1 =[rho] e2.
