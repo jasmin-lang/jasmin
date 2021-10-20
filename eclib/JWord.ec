@@ -1610,7 +1610,10 @@ op lzcnt (x:bool list ) =
   with x = [] => 0
   with x = b :: l => if b then 0 else 1 + lzcnt l.
 
-op LZCNT_XX (x:t) = lzcnt (rev (w2bits x)).
+op LZCNT_XX (w:t) = 
+  let v = of_int (lzcnt (rev (w2bits w))) in
+  (undefined_flag, ZF_of w, undefined_flag, undefined_flag, ZF_of v, v).
+
   
 lemma DEC_XX_counter n (c:t) :
   c <> zero =>
@@ -2194,7 +2197,7 @@ abstract theory W_WS.
    proof.
      move=> hr;rewrite /VPSRL_'Ru'S /VPSLL_'Ru'S.
      rewrite /map;apply wordP => j hj.
-     by rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft. 
+     rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft. 
    qed.
 
    (** TODO CHECKME : still x86 **)
