@@ -263,7 +263,7 @@ proof.
 qed.
 
 lemma to_uint_bits w : to_uint w = bs2int (bits w 0 size).
-proof. by rewrite to_uintE /w2bits /bits /= w2bitsE. qed.
+proof. by rewrite to_uintE /w2bits /bits /=. qed.
 
 (* -------------------------------------------------------------------- *)
 op zerow = zero.
@@ -1606,6 +1606,12 @@ op XOR_XX (v1 v2: t) =
 op NOT_XX (v: t) =
   invw v.
 
+op lzcnt (x:bool list ) = 
+  with x = [] => 0
+  with x = b :: l => if b then 0 else 1 + lzcnt l.
+
+op LZCNT_XX (x:t) = lzcnt (rev (w2bits x)).
+  
 lemma DEC_XX_counter n (c:t) :
   c <> zero =>
   (n - to_uint c + 1 = n - to_uint (DEC_XX c).`5 /\
