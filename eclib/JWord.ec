@@ -263,7 +263,7 @@ proof.
 qed.
 
 lemma to_uint_bits w : to_uint w = bs2int (bits w 0 size).
-proof. by rewrite to_uintE /w2bits /bits /= w2bitsE. qed.
+proof. by rewrite to_uintE /w2bits /bits /=. qed.
 
 (* -------------------------------------------------------------------- *)
 op zerow = zero.
@@ -1606,6 +1606,14 @@ op XOR_XX (v1 v2: t) =
 op NOT_XX (v: t) =
   invw v.
 
+op lzcnt (x:bool list ) =
+  with x = [] => 0
+  with x = b :: l => if b then 0 else 1 + lzcnt l.
+
+op LZCNT_XX (w:t) =
+  let v = of_int (lzcnt (rev (w2bits w))) in
+  (undefined_flag, ZF_of w, undefined_flag, undefined_flag, ZF_of v, v).
+
 lemma DEC_XX_counter n (c:t) :
   c <> zero =>
   (n - to_uint c + 1 = n - to_uint (DEC_XX c).`5 /\
@@ -2188,7 +2196,7 @@ abstract theory W_WS.
    proof.
      move=> hr;rewrite /VPSRL_'Ru'S /VPSLL_'Ru'S.
      rewrite /map;apply wordP => j hj.
-     by rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft. 
+     rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft. 
    qed.
 
    (** TODO CHECKME : still x86 **)
