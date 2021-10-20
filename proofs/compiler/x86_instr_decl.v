@@ -1206,7 +1206,7 @@ Definition Ox86_MOV_instr               :=
   mk_instr_w_w "MOV" x86_MOV [:: E 1] [:: E 0] 2
                check_mov (fun sz => Some sz) (primP MOV) (pp_iname "mov").
 
-Definition check_movsx (_ _:wsize) := [:: r_rm; m_r].
+Definition check_movsx (_ _:wsize) := [:: r_rm ].
 Definition Ox86_MOVSX_instr             :=
   mk_instr_w_w'_10 "MOVSX" true x86_MOVSX check_movsx no_imm (PrimX MOVSX) (pp_movx "movs").
 Definition Ox86_MOVZX_instr             :=
