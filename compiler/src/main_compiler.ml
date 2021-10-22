@@ -385,7 +385,7 @@ let main () =
       Compiler.print_uprog  = (fun s p -> eprint s pp_cuprog p; p);
       Compiler.print_sprog  = (fun s p -> warn_extra s p;
                                           eprint s pp_csprog p; p);
-      Compiler.print_linear = (fun p -> eprint Compiler.Linearisation pp_linear p; p);
+      Compiler.print_linear = (fun s p -> eprint s pp_linear p; p);
       Compiler.warning      = warning;
       Compiler.inline_var   = inline_var;
       Compiler.lowering_opt = Lowering.{ use_lea = !Glob_options.lea;
