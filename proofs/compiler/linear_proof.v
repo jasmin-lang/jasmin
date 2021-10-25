@@ -29,7 +29,7 @@
 Require Import Setoid Morphisms.
 
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import ZArith Utf8.
+Require Import ZArith Lia Utf8.
         Import Relations.
 
 Require Import psem compiler_util stack_alloc stack_sem.
@@ -170,12 +170,12 @@ Qed.
 
 Lemma le_next lbl : (lbl <=? next_lbl lbl)%positive.
 Proof.
-  by apply Pos.leb_le; have: (Zpos lbl <= Zpos lbl + 1)%Z by omega.
+  by apply Pos.leb_le; have: (Zpos lbl <= Zpos lbl + 1)%Z by lia.
 Qed.
 
 Lemma lt_next lbl : (lbl <? next_lbl lbl)%positive.
 Proof.
-  by apply Pos.ltb_lt; have: (Zpos lbl < Zpos lbl + 1)%Z by omega.
+  by apply Pos.ltb_lt; have: (Zpos lbl < Zpos lbl + 1)%Z by lia.
 Qed.
 
 Lemma find_label_cat_tl c2 c1 lbl p:
@@ -286,7 +286,7 @@ Qed.
 Lemma find_instr_add_hd_c c s : find_instr (add_hd_c c s) = find_instr s.
 Proof.
   rewrite /find_instr /add_hd_c /= !oseq.onth_nth map_cat nth_cat size_map.
-  rewrite ltnNge leq_addr /=;f_equal;rewrite -minusE -plusE; omega.
+  rewrite ltnNge leq_addr /=;f_equal;rewrite -minusE -plusE; lia.
 Qed.
 
 Lemma to_estate_add_hd_c c s : to_estate (add_hd_c c s) = to_estate s.
@@ -349,7 +349,7 @@ Proof.
   move=> Hp Hv1 Hv2 lbl;apply /negP=>/andP[] H1 H2.
   have := @valid_has _ lbl _ _ Hv1;rewrite H1=> /(_ isT) /andP[]/P_leP ? /P_ltP ?.
   have := @valid_has _ lbl _ _ Hv2;rewrite H2 orbT => /(_ isT) /andP[]/P_leP ? /P_ltP ?.
-  case/orP: Hp => /P_leP ?;omega.
+  case/orP: Hp => /P_leP ?; lia.
 Qed.
 
 Lemma disjoint_cat_l c1 c2 c :
@@ -472,7 +472,7 @@ Section PROOF.
     rewrite linear_i_nil.
     case Heqi: linear_i => [[lbli li]|] //= []??;subst lbl' l'.
     have {Hi}[Hle2 Hvi Hi]:= Hi _ _ _ Heqi;split.
-    + by apply /P_leP;move/P_leP: Hle1;move/P_leP: Hle2=> ??;omega.
+    + by apply /P_leP;move/P_leP: Hle1;move/P_leP: Hle2=> ??; lia.
     + by rewrite valid_cat (valid_le_min Hle1 Hvi) (valid_le_max Hle2 Hvc).
     move=> [m1 vm1] s2 /S.semE [[m2 vm2]] [H3 H5].
     apply (@lsem_trans gd (of_estate {| emem := m2; evm := vm2 |} (li ++ lc) (size li))).
@@ -620,9 +620,9 @@ Section PROOF.
       apply (lsem_trans Hsem); apply LSem_step.
       rewrite /lsem1 /step /setc /find_instr /= onth_cat.
       have -> : ((size lc2 + size lc1)%Nrec.+2 < size lc2) = false.
-      + by apply negbTE;apply /ltP;rewrite -addnE -plusE;omega.
+      + by apply negbTE;apply /ltP;rewrite -addnE -plusE; lia.
       have -> /= : (size lc2 + size lc1)%Nrec.+2 - size lc2 = (size lc1).+2.
-      + by rewrite -addnE -minusE -plusE;omega.
+      + by rewrite -addnE -minusE -plusE; lia.
       rewrite onth_cat ltnn subnn /= size_cat /= size_cat /eval_instr /=.
       by rewrite !addSn !addnS addn0.
     apply lsem_step with (of_estate {| emem := m1; evm := vm1 |} C 1).
