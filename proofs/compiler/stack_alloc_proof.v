@@ -1272,7 +1272,7 @@ Proof.
     (p.2 <= p'.2 /\
         valid_map (p'.1, nstk) p'.2).
   + elim:l => [|[v pn] l Hrec] p p'//=.
-    + by move=>[] <- ???;split=>//;omega.
+    + by move=>[] <- ???;split=>//; lia.
     case:ifPn=> //= /Z.leb_le Hle.
     case: ifP => // Hal.
     case Hs : size_of=> [svp|]//= /Hrec /= {Hrec}Hrec H2 H3 H4.
@@ -1280,25 +1280,25 @@ Proof.
     case:Hrec.
     + move=> x px;rewrite Mvar.setP;case:ifPn => /eqP Heq.
       + move=> [] ?;subst;exists svp;split=>//;split => //.
-        + omega. + omega.
+        + lia. + lia.
         move=> y py sy Hne.
-        by rewrite Mvar.setP_neq // => /H4 H /H ?;omega.
+        by rewrite Mvar.setP_neq // => /H4 H /H ?; lia.
       move=> /H2 [sx] [Hsx] [] Hle0 Hpx Hal' Hy;exists sx;split=>//;split=>//.
-      + omega.
+      + lia.
       move=> y py sy Hne;rewrite Mvar.setP;case:eqP=> [?[]? |].
-      + subst;rewrite Hs => -[] ?;subst; omega.
+      + subst;rewrite Hs => -[] ?;subst; lia.
       by move=> Hney;apply Hy.
-    + omega.
+    + lia.
     + move=> y py sy;rewrite Mvar.setP;case:eqP=> [?[]?|].
-      + subst;rewrite Hs => -[] ->;omega.
-      move=> ? /H4 H /H ?;omega.
-    move=> Hle2 H';split=>//;first by omega.
+      + subst;rewrite Hs => -[] ->; lia.
+      move=> ? /H4 H /H ?; lia.
+    move=> Hle2 H';split=>//;first by lia.
   move=> H;case Heq : foldM => [p'|]//=.
   case: (H _ _ Heq)=> //= Hp' Hv.
   rewrite /g;case:ifP => //= /Z.leb_le Hp Hq Hr [<-].
   split=>// x px Hx.
   case :(Hv x px Hx) => //= sx [] Hsx [] H1 H2 H3.
-  by exists sx;split=>//;split=>//;omega.
+  by exists sx;split=>//;split=>//; lia.
 Qed.
 
 Lemma getfun_alloc oracle (P:prog) SP fn fd:
