@@ -47,7 +47,7 @@ Variable cparams : compiler_params.
 
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
-Hypothesis print_linearP : forall p, cparams.(print_linear) p = p.
+Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
 
 Lemma unroll1P (fn: funname) (p p':uprog) ev mem va va' mem' vr:
   unroll1 p = ok p' ->
