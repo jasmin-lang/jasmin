@@ -8,8 +8,6 @@
 -arg -ambiguous-paths
 -arg -w
 -arg -duplicate-clear
--arg -w
--arg -omega-is-deprecated
 
 -R 3rdparty Jasmin
 -R arch Jasmin

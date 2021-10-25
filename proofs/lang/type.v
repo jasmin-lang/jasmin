@@ -195,8 +195,8 @@ Module CEDecStype.
   Proof.
     case: tt;case:t1 t2=> [||n|w] [||n'|w'] //=.
     + case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
-      move: (neq (erefl _))=> /eqP H _;rewrite !eqE /=.
-      by case H':positive_beq=> //;move:H'=> /internal_positive_dec_bl.
+      move => _; apply/eqP => -[].
+      by move/eqP: (neq erefl).
     case: wsize_eq_dec => // eqw.
     by move=> _;apply /eqP;congruence.
   Qed.
