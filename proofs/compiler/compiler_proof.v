@@ -213,11 +213,8 @@ Lemma check_no_ptrP entries ao u fn :
   allNone (sao_params (ao fn)) ∧ allNone (sao_return (ao fn)).
 Proof.
   clear.
-  case: u.
-  elim: entries => // e entries ih.
-  rewrite /check_no_ptr /=; t_xrbindP => - [] _ /assertP checked_params /assertP ok_return => /ih {ih} ih.
-  rewrite inE.
-  by case: eqP => // ? _; subst fn.
+  case: u => /allMP h ok_fn; move: (h _ ok_fn).
+  by t_xrbindP => _ /assertP -> /assertP.
 Qed.
 
 Lemma allNone_nth {A} (m: seq (option A)) i :
