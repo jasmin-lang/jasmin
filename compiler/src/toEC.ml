@@ -898,24 +898,28 @@ module Leak = struct
   let pp_safe_es env fmt es = pp_list "/\\@ " (pp_safe_e env) fmt es
 
   let pp_leakE env fmt = function
-    | LeakDiv2(s, _, e2, _e3)     -> 
+    | LeakDiv2(s, ws, e2, _e3)     -> 
       
       begin match leak_div () with
       | Leakage.DLK_none -> Format.fprintf fmt "0"
-      | Leakage.DLK_num_log -> 
-         Format.fprintf fmt "(zlog2 (%s (%a)))" 
-           (if s = Signed then "to_sint" else "to_uint")
+      | Leakage.DLK_num_log ->
+         assert (s <> Signed); (* Not implemented *)
+         Format.fprintf fmt "(W%a.ALU.leak_div (%a))" 
+           pp_size ws
            (pp_expr env) e2
       end
-    | LeakDiv3(s, _, e1, e2, _e3) -> 
+    | LeakDiv3(s, _, e1, e2, _e3) ->
+      assert false (* Not implemented *) 
+(* 
       begin match leak_div () with
       | Leakage.DLK_none -> Format.fprintf fmt "0"
       | Leakage.DLK_num_log -> 
-        Format.fprintf fmt "(zlog2 (wdword%s (%a) (%a)))" 
+        Format.fprintf fmt "(LZCNT_XX (wdword%s (%a) (%a)))" 
           (if s = Signed then "s" else "u")
           (pp_expr env) e1
           (pp_expr env) e2
       end
+*)
 
     | LeakExpr e           -> Format.fprintf fmt "%a" (pp_expr env) e
     | LeakMem e            ->
