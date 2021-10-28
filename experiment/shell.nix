@@ -21,6 +21,7 @@ stdenv.mkDerivation rec {
     (batteries.overrideAttrs (_: { doCheck = false; }))
     menhir zarith camlidl apron yojson
   ])
+  ++ [ (coq.ocamlPackages.menhirLib or null) ]
   ;
 
   buildPhase = ''

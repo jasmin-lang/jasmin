@@ -66,7 +66,7 @@ Section PROOF.
   Lemma eq_globs : gd = p_globs p'.
   Proof. by move: dead_code_ok; rewrite /dead_code_prog; t_xrbindP => ? _ <-. Qed.
 
-  Let Pi_r (s:estate) (i:instr_r) (li : leak_i) (s':estate) :=
+  Let Pi_r (s:estate) (i:instr_r) (li:leak_i) (s':estate) :=
     forall ii s2,
       match dead_code_i (MkI ii i) s2 with
       | Ok (s1, c', lti) =>
@@ -77,7 +77,7 @@ Section PROOF.
       | _ => True
       end.
 
-  Let Pi (s:estate) (i:instr) (li : leak_i) (s':estate) :=
+  Let Pi (s:estate) (i:instr) (li:leak_i) (s':estate) :=
     forall s2,
       match dead_code_i i s2 with
       | Ok (s1, c', lti) =>
@@ -88,7 +88,7 @@ Section PROOF.
       | _ => True
       end.
 
-  Let Pc (s:estate) (c:cmd) (lc : leak_c) (s':estate) :=
+  Let Pc (s:estate) (c:cmd) (lc:leak_c) (s':estate) :=
     forall s2,
       match dead_code_c dead_code_i c s2 with
       | Ok (s1, c', ltc) =>
@@ -119,13 +119,6 @@ Section PROOF.
     case=> mem vm s2 Hwf vm' Hvm.
     exists vm'; split=> //.
     constructor.
-  Qed.
-
-  (* FIXME: MOVE THIS *)
-  Lemma wf_sem_I p0 s1 i li s2 :
-    sem_I p0 s1 i li s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
-  Proof.
-    move=> H;have := sem_seq1 H; apply: wf_sem.
   Qed.
 
   Local Lemma Hcons : sem_Ind_cons p Pc Pi.

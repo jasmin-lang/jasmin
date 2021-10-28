@@ -74,6 +74,8 @@ Variant asm_op : Type :=
   (* Flag *)
 | SETcc                           (* Set byte on condition *)
 | BT     of wsize                  (* Bit test, sets result to CF *)
+| CLC                          (* Clear CF *)
+| STC                          (* Set CF *)
 
   (* Pointer arithmetic *)
 | LEA    of wsize              (* Load Effective Address *)
@@ -112,6 +114,7 @@ Variant asm_op : Type :=
 
   (* SSE instructions *)
 | MOVD     of wsize
+| VMOV     of wsize 
 | VMOVDQU  `(wsize)
 | VPMOVSX of velem & wsize & velem & wsize (* parallel sign-extension: sizes are source, source, target, target *)
 | VPMOVZX of velem & wsize & velem & wsize (* parallel zero-extension: sizes are source, source, target, target *)
@@ -156,6 +159,10 @@ Variant asm_op : Type :=
 | VPMOVMSKB of wsize & wsize (* source size (U128/256) & dest. size (U32/64) *)
 | VPCMPEQ of velem & wsize
 | VPCMPGT of velem & wsize
+| VPMADDUBSW of wsize
+| VPMADDWD of wsize
+| VMOVLPD   (* Store low 64-bits from XMM register *)
+| VMOVHPD   (* Store high 64-bits from XMM register *)
 
 (* Monitoring *)
 | RDTSC   of wsize
@@ -213,8 +220,8 @@ Definition w256x2w8_ty      := [:: sword256; sword256; sword8].
 Definition SF_of_word sz (w : word sz) :=
   msb w.
 
-Definition PF_of_word sz (w : word sz) :=
-  lsb w.
+Definition PF_of_word sz (w : word sz) : bool :=
+  foldl xorb true [seq wbit_n w i | i <- iota 0 8].
 
 Definition ZF_of_word sz (w : word sz) :=
   w == 0%R.
@@ -458,6 +465,11 @@ Definition x86_BT sz (x y: word sz) : ex_tpl (b_ty) :=
   Let _  := check_size_8_64 sz in
   ok (Some (wbit x y)).
 
+(* -------------------------------------------------------------------- *)
+Definition x86_CLC : ex_tpl b_ty := ok (Some false).
+Definition x86_STC : ex_tpl b_ty := ok (Some true).
+
+(* -------------------------------------------------------------------- *)
 Definition x86_LEA sz (addr: word sz) : ex_tpl (w_ty sz) :=
   Let _  := check_size_16_64 sz in
   ok (addr).
@@ -829,6 +841,22 @@ Definition x86_VPCMPGT (ve: velem) sz (v1 v2: word sz): ex_tpl(w_ty sz) :=
   Let _ := check_size_128_256 sz in
   ok (wpcmpgt ve v1 v2).
 
+(* ---------------------------------------------------------------- *)
+Definition x86_VPMADDUBSW sz (v v1: word sz) : ex_tpl (w_ty sz) :=
+  Let _ := check_size_128_256 sz in
+  ok (wpmaddubsw v v1).
+
+Definition x86_VPMADDWD sz (v v1: word sz) : ex_tpl (w_ty sz) :=
+  Let _ := check_size_128_256 sz in
+  ok (wpmaddwd v v1).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_VMOVLPD (v: u128): ex_tpl (w_ty U64) :=
+  ok (zero_extend U64 v).
+
+Definition x86_VMOVHPD (v: u128): ex_tpl (w_ty U64) :=
+  ok (zero_extend U64 (wshr v 64)).
+
 (* TODO: move this in word *)
 (* FIXME: Extraction fail if they are parameter, more exactly extracted program fail *)
 (*
@@ -999,8 +1027,8 @@ Notation mk_instr_w2w8_b5w_01c0 name semi check max_imm prc pp_asm := ((fun sz =
 Notation mk_instr_w2w8_w_1230 name semi check max_imm prc pp_asm := ((fun sz =>
   mk_instr (pp_sz name sz) (w2w8_ty sz) (w_ty sz) [:: E 1 ; E 2 ; E 3] [:: E 0] MSB_CLEAR (semi sz) (op_leak_ty (w2w8_ty sz)) (check sz) 4 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
-Notation mk_instr_w_w128_10 name semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w_ty sz) (w128_ty) [:: E 1] [:: E 0] MSB_MERGE (semi sz) (op_leak_ty (w_ty sz)) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
+Notation mk_instr_w_w128_10 name msb semi check max_imm prc pp_asm := ((fun sz =>
+  mk_instr (pp_sz name sz) (w_ty sz) (w128_ty) [:: E 1] [:: E 0] msb (semi sz) (op_leak_ty (w_ty sz)) (check sz) 2 sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_ve_instr_w_w_10 name semi check max_imm prc pp_asm := ((fun (ve:velem) sz =>
   mk_instr (pp_ve_sz name ve sz) (w_ty _) (w_ty sz) [:: E 1] [:: E 0] MSB_CLEAR (semi ve sz) (op_leak_ty (w_ty _)) (check sz) 2 sz (max_imm sz) [::] (pp_asm ve sz)), (name%string,prc))  (only parsing).
@@ -1217,6 +1245,14 @@ Definition check_bt (_:wsize) := [:: [::rm true; ri U8]].
 Definition Ox86_BT_instr                :=
   mk_instr_w2_b "BT" x86_BT msb_dfl [:: E 0; E 1] [:: F CF] 2 check_bt imm8 (primP BT) (pp_iname_w_8 "bt").
 
+(* -------------------------------------------------------------------- *)
+Definition Ox86_CLC_instr :=
+  mk_instr_pp "CLC" [::] b_ty [::] [:: F CF ] msb_dfl x86_CLC (op_leak_ty [::]) [:: [::]] 0 U8 None (PrimM CLC) (pp_name "clc" U8).
+
+Definition Ox86_STC_instr :=
+  mk_instr_pp "STC" [::] b_ty [::] [:: F CF ] msb_dfl x86_STC (op_leak_ty [::]) [:: [::]] 0 U8 None (PrimM STC) (pp_name "stc" U8).
+
+(* -------------------------------------------------------------------- *)
 Definition check_lea (_:wsize) := [:: [::r; m true]].
 Definition Ox86_LEA_instr :=
   mk_instr_w_w "LEA" x86_LEA msb_dfl [:: E 1] [:: E 0] 2 check_lea no_imm (primP LEA) (pp_iname "lea").
@@ -1288,13 +1324,17 @@ Definition Ox86_PEXT_instr :=
   mk_instr_w2_w_120 "PEXT" x86_PEXT (fun _ => [:: [:: r; r; rm true]]) no_imm (primP PEXT) (pp_name "pext").
 
 (* Vectorized instruction *)
-Definition pp_movd sz args :=
- pp_name_ty (if sz == U64 then "movq"%string else "movd"%string)
+
+Definition pp_movd name sz args :=
+ pp_name_ty (if sz == U64 then (name ++ "q")%string else (name ++ "d")%string)
             ([::U128; sz]) args.
 
 Definition check_movd (_:wsize) := [:: [::xmm; rm true]].
 Definition Ox86_MOVD_instr :=
-  mk_instr_w_w128_10 "MOVD" x86_MOVD check_movd no_imm (primP MOVD) pp_movd.
+  mk_instr_w_w128_10 "MOVD" MSB_MERGE x86_MOVD check_movd no_imm (primP MOVD) (pp_movd "mov").
+
+Definition Ox86_VMOV_instr :=
+  mk_instr_w_w128_10 "VMOV" MSB_CLEAR x86_MOVD check_movd no_imm (primP VMOV) (pp_movd "vmov").
 
 Definition check_vmovdqu (_:wsize) := [:: xmm_xmmm; xmmm_xmm].
 Definition Ox86_VMOVDQU_instr :=
@@ -1516,6 +1556,52 @@ Definition Ox86_VPCMPGT_instr :=
                 ,("VPCMPGT"%string, PrimV VPCMPGT)
   ).
 
+Definition Ox86_VPMADDUBSW_instr :=
+  (fun sz => mk_instr
+                (pp_sz "VPMADDUBSW"%string sz)
+                (w2_ty sz sz)
+                (w_ty sz)
+                [:: E 1; E 2]
+                [:: E 0 ]
+                MSB_CLEAR
+                (@x86_VPMADDUBSW sz)
+                (op_leak_ty (w2_ty sz sz))
+                (check_xmm_xmm_xmmm sz)
+                3
+                sz
+                (no_imm sz)
+                [::]
+                (pp_name_ty "vpmaddubsw" [:: sz; sz; sz])
+             ,("VPMADDUBSW"%string, PrimP U128 VPMADDUBSW)
+  ).
+
+Definition Ox86_VPMADDWD_instr :=
+  (fun sz => mk_instr
+                (pp_sz "VPMADDWD"%string sz)
+                (w2_ty sz sz)
+                (w_ty sz)
+                [:: E 1; E 2]
+                [:: E 0 ]
+                MSB_CLEAR
+                (@x86_VPMADDWD sz)
+                (op_leak_ty (w2_ty sz sz))
+                (check_xmm_xmm_xmmm sz)
+                3
+                sz
+                (no_imm sz)
+                [::]
+                (pp_name_ty "vpmaddwd" [:: sz; sz; sz])
+             ,("VPMADDWD"%string, PrimP U128 VPMADDWD)
+  ).
+
+Definition check_movpd := [:: [::m false; xmm]].
+
+Definition Ox86_VMOVLPD_instr :=
+  mk_instr_pp "VMOVLPD" (w_ty U128) (w_ty U64) [:: E 1] [:: E 0] MSB_CLEAR x86_VMOVLPD (op_leak_ty (w_ty U128)) check_movpd 2 U64 None (PrimM VMOVLPD) (pp_name_ty "vmovlpd" [::U64; U128]).
+
+Definition Ox86_VMOVHPD_instr :=
+  mk_instr_pp "VMOVHPD" (w_ty U128) (w_ty U64) [:: E 1] [:: E 0] MSB_CLEAR x86_VMOVHPD (op_leak_ty (w_ty U128)) check_movpd 2 U64 None (PrimM VMOVHPD) (pp_name_ty "vmovhpd" [::U64;U128]).
+
 (* Monitoring instructions.
    These instructions are declared for the convenience of the programmer.
    Nothing can be proved about programs that use these instructions;
@@ -1641,6 +1727,8 @@ Definition instr_desc o : instr_desc_t :=
   | LZCNT sz           => Ox86_LZCNT_instr.1 sz
   | SETcc              => Ox86_SETcc_instr.1
   | BT sz              => Ox86_BT_instr.1 sz
+  | CLC                => Ox86_CLC_instr.1
+  | STC                => Ox86_STC_instr.1
   | LEA sz             => Ox86_LEA_instr.1 sz
   | TEST sz            => Ox86_TEST_instr.1 sz
   | CMP sz             => Ox86_CMP_instr.1 sz
@@ -1660,6 +1748,7 @@ Definition instr_desc o : instr_desc_t :=
   | SHLD sz            => Ox86_SHLD_instr.1 sz
   | SHRD sz            => Ox86_SHRD_instr.1 sz
   | MOVD sz            => Ox86_MOVD_instr.1 sz
+  | VMOV sz            => Ox86_VMOV_instr.1 sz
   | VPINSR sz          => Ox86_VPINSR_instr.1 sz
   | VEXTRACTI128       => Ox86_VEXTRACTI128_instr.1
   | VMOVDQU sz         => Ox86_VMOVDQU_instr.1 sz
@@ -1704,6 +1793,10 @@ Definition instr_desc o : instr_desc_t :=
   | VPMOVMSKB sz sz'   => Ox86_PMOVMSKB_instr.1 sz sz'
   | VPCMPEQ ve sz      => Ox86_VPCMPEQ_instr.1 ve sz
   | VPCMPGT ve sz      => Ox86_VPCMPGT_instr.1 ve sz
+  | VPMADDUBSW sz      => Ox86_VPMADDUBSW_instr.1 sz
+  | VPMADDWD sz        => Ox86_VPMADDWD_instr.1 sz
+  | VMOVLPD            => Ox86_VMOVLPD_instr.1
+  | VMOVHPD            => Ox86_VMOVHPD_instr.1
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | AESDEC             => Ox86_AESDEC_instr.1          
@@ -1751,6 +1844,8 @@ Definition prim_string :=
    Ox86_LZCNT_instr.2;
    Ox86_SETcc_instr.2;
    Ox86_BT_instr.2;
+   Ox86_CLC_instr.2;
+   Ox86_STC_instr.2;
    Ox86_LEA_instr.2;
    Ox86_TEST_instr.2;
    Ox86_CMP_instr.2;
@@ -1770,6 +1865,7 @@ Definition prim_string :=
    Ox86_SHLD_instr.2;
    Ox86_SHRD_instr.2;
    Ox86_MOVD_instr.2;
+   Ox86_VMOV_instr.2;
    Ox86_VPMOVSX_instr.2;
    Ox86_VPMOVZX_instr.2;
    Ox86_VPINSR_instr.2;
@@ -1814,6 +1910,10 @@ Definition prim_string :=
    Ox86_PMOVMSKB_instr.2;
    Ox86_VPCMPEQ_instr.2;
    Ox86_VPCMPGT_instr.2;
+   Ox86_VPMADDUBSW_instr.2;
+   Ox86_VPMADDWD_instr.2;
+   Ox86_VMOVLPD_instr.2;
+   Ox86_VMOVHPD_instr.2;
    Ox86_RDTSC_instr.2;
    Ox86_RDTSCP_instr.2;
    Ox86_AESDEC_instr.2;            

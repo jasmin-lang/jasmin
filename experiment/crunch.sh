@@ -7,7 +7,7 @@ do
     echo -n '"'$P'", { ref = '
     grep jasmin-2021 $p | cut -d , -f 2,3
     echo -n '; ct = '
-    grep jasmin-ct $p | cut -d , -f 2,3
+    grep $JASMIN_CT.jasminc $p | cut -d , -f 2,3
     echo '} ;'
 done
 

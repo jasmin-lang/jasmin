@@ -1,0 +1,17 @@
+export
+fn test_pmaddwd(reg u64 rp) {
+  reg u256 f0 f1 f2 f3;
+  reg u128 t0 t1 t2 t3;
+
+  f0 = #set0_256();
+  f1 = #set0_256();
+  f2 = #VPMADDWD_256(f0, f1);
+  f3 = #VPMADDWD_256(f2, (u256)[rp]);
+  (u256)[rp] = f3;
+
+  t0 = #set0_128();
+  t1 = #set0_128();
+  t2 = #VPMADDWD_128(t0, t1);
+  t3 = #VPMADDWD_128(t2, (u128)[rp + 32]);
+  (u128)[rp + 32] = t3;
+}
