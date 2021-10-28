@@ -56,6 +56,12 @@ move=> h0 h1; have /= /#: 2 ^ (64 - n) <= 2^63.
 apply StdOrder.IntOrder.ler_weexpn2l => //. smt (lzcnt_size size_mkseq size_rev).
 qed.
 
+lemma add_lt (x y: W64.t) : !(x + y \ult x) <=> (to_uint x + to_uint y < W64.modulus).
+proof.
+  rewrite ultE W64.to_uintD.
+  move: (W64.to_uint_cmp x) (W64.to_uint_cmp y) => /= hx hy /#.
+qed.
+
 equiv l2 : M.verify_mod_const ~ M.verify_mod_const : ={M.leakages, b} /\ b{1} <> W64.zero ==> ={M.leakages}.
 proof.
   proc; inline *; wp; skip => /> &1 &2.
@@ -86,14 +92,13 @@ proof.
   + rewrite /W64.(`<<`).
     admit.
   move=> h; apply leak_div0.
-  rewrite W64.shl_shlw. 
+  move: h; rewrite W64.shl_shlw. 
   + rewrite /LZCNT_64 /= W64.to_uint_small /= 1:[smt(leak_div_bound)].
     smt (leak_div_bound leak_div64).
-  rewrite W64.to_uintD_small.
-  + admit.
-  rewrite W64.to_uint_shl.
-  + admit.
-  rewrite modz_small. admit.
+  move=> h; rewrite W64.to_uintD_small; 1: by rewrite -add_lt. 
+  rewrite W64.to_uint_shl; 1: smt(W64.to_uint_cmp).
+  rewrite modz_small. 
+admit.
   rewrite /LZCNT_64 /= /leak_div.
   have := lzcnt_bound (w2bits b).
   rewrite size_w2bits (eq_sym 64) leak_div64 1:// /= -W64.to_uintE => -[h1 _].
