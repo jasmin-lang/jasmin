@@ -268,6 +268,7 @@ Variant lower_cassgn_t : Type :=
   | LowerLt   of wsize & pexpr & pexpr
   | LowerIf   of stype & pexpr & pexpr & pexpr
   | LowerDivMod of divmod_pos & signedness & wsize & sopn & pexpr & pexpr
+  | LowerConcat of pexpr & pexpr
   | LowerAssgn.
 
 Context (is_var_in_memory : var_i → bool).
@@ -554,6 +555,10 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t * leak_e_es_tr :=
       (k16 (wsize_of_lval x) (LowerIf t e e1 e2), LT_idseq LT_id)
     else
       (LowerAssgn, LT_idseq LT_id)
+
+  | PappN (Opack U256 PE128) [:: Papp1 (Oint_of_word U128) h ; Papp1 (Oint_of_word U128) (Pvar _ as l) ] =>
+    (if sz' == U256 then LowerConcat h l else LowerAssgn, LT_idseq (LT_subi 0))
+
   | _ => (LowerAssgn, LT_idseq LT_id)
   end.
 
@@ -726,6 +731,9 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
       end in
     (* [:: leak for i1; Lopn (LSub [:: LSub [:: LEmpty; la ; lb] ; LSub lv.2]) *)
     ([::MkI ii i1.1; MkI ii (Copn lv tg op [::Pvar c; a; b]) ], LT_ildiv i1.2 lte)
+
+  | (LowerConcat h l, lte) =>
+    ([:: MkI ii (Copn [:: x ] tg Oconcat128 [:: h ; l ]) ], LT_ilcopn lte)
 
   | (LowerAssgn, lte) => ([::  MkI ii (Cassgn x tg ty e)], LT_ilasgn) (*[:: Lopn (LSub [:: le; lx])]*)
   end.

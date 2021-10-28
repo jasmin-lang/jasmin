@@ -1378,6 +1378,15 @@ Definition vconst c :=
 Definition valid_cpm (vm: vmap)  (m:cpm) :=
   forall x n, Mvar.get m x = Some n -> get_var vm x = ok (vconst n).
 
+Lemma lt_composeE p x y :
+  leak_E p (lt_compose x y) =1 leak_E p (LT_compose x y).
+Proof.
+  rewrite /lt_compose.
+  case: x; first by [].
+  all: by case: y.
+Qed.
+Global Opaque lt_compose.
+
 Section CONST_PROP_EP.
   Context s m (Hvalid: valid_cpm (evm s) m).
 
@@ -1436,7 +1445,8 @@ try (intros; clarify; eauto; fail).
   move: (value_uincl_word Hv Hp'). move=> -> /=.
   rewrite Hr /=. by split. 
 + move=> op e He. move=> v l. t_xrbindP.
-  move=> [yv yl] /He [] x [] He' Hyv h0 Hop le Hlo <- <- /=. 
+  move=> [yv yl] /He [] x [] He' Hyv h0 Hop le Hlo <- <- /=.
+  rewrite lt_composeE.
   apply /s_op1Pl. rewrite /=. rewrite He' /=.
   move: (vuincl_sem_sop1 Hyv Hop). move=> -> /=.
   by have -> /= := leak_sop1_eq Hyv Hlo.
@@ -1444,6 +1454,7 @@ try (intros; clarify; eauto; fail).
   move=> [yv yl] /He1 [] x [] He1' Hyv.
   move=> [yv1 yl'] /He2 [] x1 [] He2' Hyv'.
   move=> h2 Ho le Hlo <- <-.
+  rewrite lt_composeE.
   apply /s_op2Pl. rewrite /=. rewrite He1' /=.
   rewrite He2' /=. move: (vuincl_sem_sop2 Hyv Hyv' Ho).
   move=> -> /=. by have -> /= := leak_sop2_eq Hyv Hyv' Hlo.
@@ -1454,7 +1465,7 @@ try (intros; clarify; eauto; fail).
   set esk := map (const_prop_e m) es.
   have /= := @s_opNPl s op (unzip1 esk) v' (LSub [:: LSub (unzip2 vs'); le]).
   have Hlo' := leak_opN_eq hvs' Hlo.
-  by rewrite -/(sem_pexprs gd s (unzip1 esk)) ok_vs' /= ok_v' hk /= Hlo' /= => /(_ erefl) ->. 
+  by rewrite lt_composeE -/(sem_pexprs gd s (unzip1 esk)) ok_vs' /= ok_v' hk /= Hlo' /= => /(_ erefl) ->.
 move=> t e He e1 He1 e2 He2 v l. t_xrbindP.
 move=> [yv yl] /He/= [] x [] He' Hyv h0 
 /(value_uincl_bool Hyv) [] Hx Hxl; subst.

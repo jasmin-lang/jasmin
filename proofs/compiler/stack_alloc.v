@@ -171,6 +171,10 @@ Definition not_aligned {A} :=
 Definition invalid_var {A} :=
   @cerror (Cerr_stk_alloc "invalid variable") A.
 
+(** Smart constructor for LS_Add *)
+Definition ls_add (x y: leak_tr_p) : leak_tr_p :=
+  if x == LS_const 0 then y else if y == LS_const 0 then x else LS_Add x y.
+
 Section Notations.
 (* Declare Scope lt_scope. *)
 (* Declare Scope ls_scope. *)
@@ -179,22 +183,21 @@ Delimit Scope ls_scope with LS.
 
 Notation "'cst' n" := (LS_const (wrepr Uptr n)) (at level 0) : ls_scope.
 Notation "'sp'" := (LS_stk) (at level 0): ls_scope.
-Notation "x + y" := (LS_Add x%LS y%LS) : ls_scope.
+Notation "x + y" := (ls_add x%LS y%LS) : ls_scope.
 Infix "×" := LS_Mul (at level 30) : ls_scope.
 
 Notation "'id'" := LT_id : lt_scope.
 Notation "•" := LT_remove : lt_scope.
-Infix "∘" := LT_compose (at level 60) : lt_scope.
+Infix "∘" := lt_compose (at level 60) : lt_scope.
 Notation "[ x , .. , y ]" := (LT_map (cons x%LT .. (cons y%LT nil) ..)) : lt_scope.
 Notation "[ x ; .. ; y ]" := (LT_seq (cons x%LT .. (cons y%LT nil) ..)) : lt_scope.
 Notation "'C' e" := (LT_const e%LS) (at level 0) : lt_scope.
-Notation "[[ i ↦ e ]]" := (LT_lidx (fun i => e%LS)) (i ident) : lt_scope.
+Notation "'I' ( i ↦ e )" := (LT_lidx (fun i => e%LS)) (i ident) : lt_scope.
 
 Definition mk_ofs ws e ofs : pexpr * leak_e_tr :=
   let sz := wsize_size ws in
   if is_const e is Some i then
-    ((cast_const (i * sz + ofs)%Z),
-     [ [[ i ↦ sp + cst i × cst sz + cst ofs ]] ; • ]%LT)
+    ((cast_const (i * sz + ofs)%Z), [ • ; • ] )%LT
   else
     let: (e, t) := cast_word e in
     (add (mul (cast_const sz) e) (cast_const ofs),
@@ -222,7 +225,7 @@ Fixpoint alloc_e (m: map) (e: pexpr) : cexec (pexpr * leak_e_tr) :=
       if is_align (wrepr Uptr ofs) ws then
         let stk := {| v_var := vstk m; v_info := v_info x |} in
         let: (ofs', t) := mk_ofs ws e ofs in
-        ret (Pload ws stk ofs') [ [ r ; • ] ∘ t, [[ i ↦ sp + cst i × cst (wsize_size ws) + cst ofs ]] ]
+        ret (Pload ws stk ofs') [ [ r ; • ] ∘ t, I( x ↦ sp + cst x × cst (wsize_size ws) + cst ofs ) ]
       else not_aligned
     else
       if is_vstk m x then stk_not_fresh
@@ -285,7 +288,7 @@ Definition alloc_lval (m: map) (r: lval) ty : cexec (lval * leak_e_tr) :=
       if is_align (wrepr Uptr ofs) ws then
         let stk := {| v_var := vstk m; v_info := v_info x |} in
         let: (ofs', t) := mk_ofs ws e ofs in
-        ret (Lmem ws stk ofs') [ [ r ; • ] ∘ t, [[ i ↦ sp + cst i × cst (wsize_size ws) + cst ofs ]] ]
+        ret (Lmem ws stk ofs') [ [ r ; • ] ∘ t, I( x ↦ sp + cst x × cst (wsize_size ws) + cst ofs ) ]
       else not_aligned
     else
       if is_vstk m x then stk_not_fresh

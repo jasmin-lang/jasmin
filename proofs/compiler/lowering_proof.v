@@ -1315,6 +1315,12 @@ Qed.
        Sv.Subset (read_lea l) (read_e e) ∧
        exists w: word sz,
         v' = Vword w /\ sem_lea sz (evm s) l = ok w) (* don't know how to get le = l1 ; l2 where l1, l2 is leak corresponding to a and b*)
+    | (LowerConcat hi lo, lte) =>
+      ∃ vs,
+        [/\ sem_pexprs gd s [:: hi ; lo ] = ok vs,
+         exec_sopn Oconcat128 (unzip1 vs) = ok ([:: v' ], LEmpty)
+         & unzip2 vs = leak_ES stk lte le]
+
     | (LowerAssgn, lte) => (True (*/\ lte = LT_idseq LT_id*)) 
     end.
   Proof.
@@ -1958,7 +1964,27 @@ Qed.
         exists [:: (Vword w1, l1); (Vword w2, l2)]. split=> //=.
         + by rewrite /leak_sopn /= /truncate_word hw1 hw2 /= zero_extend_u.
         by rewrite -hle.
-     
+
+    (* PappN *)
+    + case: op => // - [] // - [] //.
+      case: es => // - [] // [] // [] // hi.
+      case => // [] // [] // [] // [] // [] // lo [] //.
+      case: ty Hv' => // - [] //= ok_v'.
+      rewrite /= /sem_opN /exec_sopn /sem_sop1 /=.
+      t_xrbindP => ?? [] ?? -> ?? /to_wordI[] szhi [] whi [] szhi_ge /= -> -> <- ?.
+      rewrite /leak_sop1 /=.
+      t_xrbindP => zhi ok_zhi [<-].
+      move => <- ???? -> <-.
+      move => ?? /to_wordI[] szlo [] wlo [] szlo_ge /= -> -> <- _ zlo ok_zlo [<-] <- <- <- ?? /(@ok_inj _ _ _ _) <- <- ?? ??.
+      subst => /=.
+      case: ok_v' => <-{Hw v'}.
+      eexists; split; first reflexivity; last reflexivity.
+      rewrite /leak_sopn.
+      rewrite /= /truncate_word zero_extend_u szlo_ge.
+      rewrite szhi_ge /=.
+      congr (ok ([:: (Vword (wrepr _ (word.wcat_r _))) ], _)).
+      by rewrite /= -!/(wrepr U128 _) !wrepr_unsigned.
+
      (* Pif *)
      rewrite /check_size_16_64.
      by case: stype_of_lval => //= w hv; case: andP => // - [] -> /eqP ->; eauto.
@@ -2461,7 +2487,16 @@ Qed.
         rewrite Hws' Hlv' /=. move: Hex'. rewrite /exec_sopn. by t_xrbindP=> yt happ lo -> /= _.
         apply sem_seq1. apply EmkI. apply Eopn. rewrite /sem_sopn /= hget /= Hp0' /= Hp1' /= Hex' /=. rewrite /write_lvals /= in Hws'. rewrite Hws' Hlv' /=. move: Hex'. rewrite /exec_sopn. by t_xrbindP=> yt happ lo -> /= _.
       apply: eq_exc_freshT Hs2'' Hs2'.
-    (* LowerAssgn *) (* done *)
+    (* LowerConcat *)
+    + move => hi lo [] vs [] ok_vs ok_v' ok_lte.
+      split; first by constructor.
+      exists s2'; split; last exact: Hs2'.
+      apply: sem_seq1; apply: EmkI; apply: Eopn.
+      rewrite /sem_sopn  ok_vs /= ok_v' /= Hw' ok_lte /=.
+      move: ok_v'; clear.
+      rewrite /exec_sopn /leak_sopn /=.
+      by t_xrbindP => /= ? _ ? ? ->.
+    (* LowerAssgn *)
     move=> _. split. constructor.
     exists s2'; split=> //=.
     apply: sem_seq1; apply: EmkI; apply: Eassgn.

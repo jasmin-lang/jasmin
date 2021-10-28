@@ -440,20 +440,20 @@ Fixpoint const_prop_e (m:cpm) e : (pexpr * leak_e_tr) :=
                       (Pload sz x lte.1, LT_map [:: lte.2; LT_id])
   | Papp1 o e0     => let lte := (const_prop_e m e0) in 
                       let ltop := (s_op1 o lte.1) in 
-                      (ltop.1, LT_compose (LT_map [:: lte.2; LT_id]) ltop.2)
+                      (ltop.1, lt_compose (LT_map [:: lte.2; LT_id ]) ltop.2)
   | Papp2 o e1 e2 => let lte1 := (const_prop_e m e1) in
                      let lte2 := (const_prop_e m e2) in
                      let ltop := s_op2 o lte1.1 lte2.1 in
-                     (ltop.1, LT_compose (LT_map [:: LT_map [:: lte1.2; lte2.2]; LT_id]) ltop.2)
+                     (ltop.1, lt_compose (LT_map [:: LT_map [:: lte1.2; lte2.2]; LT_id ]) ltop.2)
   | PappN op es   =>
     let esk := map (const_prop_e m) es in
     let ek := s_opN op (unzip1 esk) in
-    (ek.1, LT_compose (LT_map [:: LT_map (unzip2 esk); LT_id]) ek.2)
+    (ek.1, lt_compose (LT_map [:: LT_map (unzip2 esk); LT_id ]) ek.2)
   | Pif t e0 e1 e2 => let lte0 := (const_prop_e m e0) in
                       let lte1 := (const_prop_e m e1) in
                       let lte2 := (const_prop_e m e2) in
                       let ltif := s_if t lte0.1 lte1.1 lte2.1 in
-                      (ltif.1, LT_compose (LT_map [:: lte0.2; lte1.2; lte2.2]) ltif.2)
+                      (ltif.1, lt_compose (LT_map [:: lte0.2; lte1.2; lte2.2 ]) ltif.2)
   end.
 
 Definition empty_cpm : cpm := @Mvar.empty const_v.
