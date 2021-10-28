@@ -19,6 +19,22 @@ extern "C" {
         data: *const u8,
         length: u64,
     );
+    pub fn chacha20_stub(
+        output: *mut u8,
+        plain: *const u8,
+        len: u32,
+        key: *const u8,   // [u128; 2]
+        nonce: *const u8, // [u32; 2]
+        counter: u32,
+    );
+    pub fn chacha20_ref(
+        output: *mut u8,
+        plain: *const u8,
+        len: u32,
+        key: *const u8,   // [u128; 2]
+        nonce: *const u8, // [u32; 2]
+        counter: u32,
+    );
     // Gimli: in place permutation of [u8; 48]
     pub fn gimli_stub(state: *mut u8);
     pub fn gimli(state: *mut u8);
