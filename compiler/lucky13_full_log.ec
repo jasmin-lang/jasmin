@@ -411,6 +411,7 @@ proof.
 proc; inline *; sim.
 qed.
 
+(*
 equiv l4 : M.rotate_offset_div ~ M.rotate_offset_div:
 ={M.leakages, md_size, div_spoiler, scan_start} /\
 (0 <= (to_uint (mac_start - scan_start)) < 2^8){1} =
@@ -424,8 +425,9 @@ proof.
   skip=> />.
   move=> &1 &2 h1.
     
-  
+  *)
 (* mac_start : position of start of tag *)
+(*
 equiv l4 : M.rotate_offset_div ~ M.rotate_offset_div:
 ={M.leakages} /\
 zlog2 (to_uint (mac_start{1} + (md_size{1} `>>` W8.one `<<` (of_int 24)%W8) - scan_start{1})) =
@@ -438,6 +440,7 @@ proc.
 wp.
 skip=> /> &1 &2.
 qed.
+*)
 
 (* md_size : mac tag size --> public *)
 (* orig_len : length of record : header + data + mac tag + padding --> public *)
