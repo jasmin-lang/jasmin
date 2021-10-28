@@ -411,21 +411,24 @@ proof.
 proc; inline *; sim.
 qed.
 
+
 equiv l4 : M.rotate_offset_div ~ M.rotate_offset_div:
-={M.leakages, md_size, div_spoiler, scan_start} /\
-(0 <= (to_uint (mac_start - scan_start)) < 2^8){1} =
+={M.leakages, md_size, scan_start} /\
+(0 <= (to_uint (mac_start - scan_start)) < 2^8){1} /\ 
 (0 <= (to_uint (mac_start - scan_start)) < 2^8){2} /\
-(2^ 27 <= to_uint div_spoiler < 2^32){1} =
-(2^ 27 <= to_uint div_spoiler < 2^32){2}
+(16 <= to_uint md_size <= 64){1}
 ==> ={M.leakages}.
 proof.
+admitted.
+(*
   proc.
   wp.
   skip=> />.
   move=> &1 &2 h1.
     
-  
+  *)
 (* mac_start : position of start of tag *)
+(*
 equiv l4 : M.rotate_offset_div ~ M.rotate_offset_div:
 ={M.leakages} /\
 zlog2 (to_uint (mac_start{1} + (md_size{1} `>>` W8.one `<<` (of_int 24)%W8) - scan_start{1})) =
@@ -438,13 +441,43 @@ proc.
 wp.
 skip=> /> &1 &2.
 qed.
+*)
 
 (* md_size : mac tag size --> public *)
 (* orig_len : length of record : header + data + mac tag + padding --> public *)
 (* out : mac tag is stored in out --> public *)
 (* rec : whole message including header, message, tag, padding --> public *)
+
+lemma foo (orig_len mac_end : int) :  
+  1 <= orig_len - mac_end <= 256 => 
+  0 <= mac_end - orig_len +  256 < 256.
+smt().
+qed.
+
+lemma foo' (orig_len mac_end md_size : int) :
+(*  16 <= md_size <= 64 => *)
+  md_size <= mac_end =>
+  1 <= orig_len - mac_end <= 256 => 
+  !(md_size + 256 < orig_len) => 
+  0 <= mac_end - md_size < 256.
+smt().
+qed.
+
+op cond_md_size_mac_end mac_end orig_len md_size = 
+   
+  if (md_size + W32.of_int 256 \ult orig_len) then 
+     0 <= to_uint (mac_end - orig_len +  W32.of_int 256) < 256 
+  else 0 <= to_uint (mac_end - md_size) < 256.
+
+
 equiv l_final : M.ssl3_cbc_copy_mac_jasmin ~ M.ssl3_cbc_copy_mac_jasmin :
 ={M.leakages, md_size, orig_len, out, rec} /\
+16 <= to_uint md_size{2} <= 64 /\
+(* TODO : replace this two hyp by : 
+   md_size <= mac_end =>
+   1 <= orig_len - mac_end <= 256 *)
+cond_md_size_mac_end (loadW32 Glob.mem{1} (to_uint (rec{1} + W64.of_int 4))) orig_len{1} md_size{1} /\
+cond_md_size_mac_end (loadW32 Glob.mem{2} (to_uint (rec{2} + W64.of_int 4))) orig_len{2} md_size{2} /\
 (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){1} =
 (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){2}
 ==> ={M.leakages}.
@@ -454,31 +487,22 @@ wp.
 while (={M.leakages, out, i, j, md_size}).
 inline *; sim.
 conseq (: _ ==> ={M.leakages, i,j, md_size, out}) => //.
-sim 39 39.
-call l4; wp.
-simplify.
-inline *=> />.
-+ move=> &1 &2 [h1] [h2] [h3] [h4] h5 l ml sl l' ml' sl' [] [hl] hlog hlog'.
-  split=> //=.
-  + split=> //.
-    rewrite h2. by apply hlog.
-  move=> />. rewrite h2. by apply hlog'.
-simplify.
-wp.
-while (={M.leakages, out, i, j, md_size, orig_len}).
-inline *; sim.
-+ move=> &1 &2 [] [h1] [h2] [h3] [h4] [h5] h6 [h7] h8. split=> //=.
-  rewrite h3 h4 h6 h5 h1. split=> //=. admit.
-simplify.
-wp.
-while (={M.leakages, i, md_size}).
+wp; call l1; wp.
+while (={M.leakages, temp, out, md_size}).
 + by sim.
-wp. skip=> />.
-simplify; wp; simplify.
-
-case (md_size{2} + (of_int 256)%W32 \ult orig_len{2}).
-+ inline*=> />.
-  move=> &1 &2.
- admitted.
-
-
+wp => /=.
+conseq />.
+call l4.
+wp.
+while (={i, j, orig_len, data, md_size, M.leakages}); 1: by inline*;sim.
+wp => /=.
+while (={i, md_size, M.leakages}); 1: by sim.
+wp; skip => /> &1 &2 h1 h2 h3 h4 h5; split => h6 *.
++ pose mac_end1 := loadW32 _ _.
+  pose mac_end2 := loadW32 _ _.
+  have -> : (mac_end1 - md_size{2} - (orig_len{2} - (md_size{2} + W32.of_int 256))) = 
+          (mac_end1 - orig_len{2} +  W32.of_int 256) by ring.
+  by have -> /#: (mac_end2 - md_size{2} - (orig_len{2} - (md_size{2} + W32.of_int 256))) = 
+          (mac_end2 - orig_len{2} +  W32.of_int 256) by ring.
+rewrite !W32.WRingA.subr0 /#.
+qed.
