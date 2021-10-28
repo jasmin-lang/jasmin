@@ -173,14 +173,6 @@ Inductive leak_e_tr :=
 Definition lt_compose (a b: leak_e_tr) : leak_e_tr :=
   if a is LT_id then b else if b is LT_id then a else LT_compose a b.
 
-Inductive leak_e_es_tr :=
-  | LT_leseq : leak_e_es_tr
-  | LT_emseq : leak_e_es_tr
-  | LT_subseq : leak_e_tr -> leak_e_es_tr
-  | LT_idseq : leak_e_tr -> leak_e_es_tr
-  | LT_dfst : leak_e_es_tr
-  | LT_dsnd : leak_e_es_tr.
-
 Definition get_seq_leak_e_tr (l : leak_e_tr) : seq leak_e_tr := 
   match l with 
   | LT_seq le => le
@@ -213,15 +205,15 @@ Definition leak_E_S (stk: pointer) (lts: seq leak_e_tr) (ls : seq leak_e) : seq 
   map2 (leak_E stk) lts ls.
 
 (* Transformation from leakage to sequence of leakage *)
-Definition leak_ES (stk : pointer) (lte : leak_e_es_tr) (le : leak_e) : seq leak_e :=
-  match lte with
-  | LT_leseq      => [:: le]
-  | LT_emseq      => [::]
-  | LT_subseq lte => [:: leak_E stk lte le]
-  | LT_idseq lte  => get_seq_leak_e (leak_E stk lte le)
-  | LT_dfst       => [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; le; LEmpty]
-  | LT_dsnd       => [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; le]
-  end.  
+Definition leak_ES (stk: pointer) (lte: leak_e_tr) (le: leak_e) : leak_es :=
+  get_seq_leak_e (leak_E stk lte le).
+
+Definition LT_leseq : leak_e_tr := LT_seq [:: LT_id ].
+Definition LT_emseq : leak_e_tr := LT_remove.
+Definition LT_subseq (lte: leak_e_tr) : leak_e_tr := LT_seq [:: lte ].
+Definition LT_idseq (lte: leak_e_tr) : leak_e_tr := lte.
+Definition LT_dfst : leak_e_tr := LT_seq [:: LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_id ; LT_remove ].
+Definition LT_dsnd : leak_e_tr := LT_seq [:: LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_id ].
 
 Variant leak_e_i_tr :=
   | LT_iconditionl : leak_e_tr -> leak_e_i_tr (* lower condition transformer *)
@@ -250,10 +242,10 @@ Variant leak_i_tr_single :=
  | LT_ilds_
  | LT_ildus_
  | LT_ilasgn_
- | LT_ilinc_ of leak_e_es_tr
- | LT_ilcopn_ of leak_e_es_tr
- | LT_ileq_ of leak_e_es_tr
- | LT_illt_ of leak_e_es_tr.
+ | LT_ilinc_ of leak_e_tr
+ | LT_ilcopn_ of leak_e_tr
+ | LT_ileq_ of leak_e_tr
+ | LT_illt_ of leak_e_tr.
 
 
 Variant leak_i_tr_double :=
@@ -286,8 +278,8 @@ Inductive leak_i_tr :=
 | LT_ildcn : leak_i_tr*)
 | LT_ilmul : leak_es_i_tr -> leak_e_tr -> leak_i_tr
 | LT_ilif : leak_e_i_tr -> leak_e_tr -> leak_i_tr
-| LT_ilfopn : leak_es_i_tr -> leak_e_es_tr -> leak_i_tr
-| LT_ildiv : leak_i_tr -> leak_e_es_tr -> leak_i_tr.
+| LT_ilfopn : leak_es_i_tr -> leak_e_tr -> leak_i_tr
+| LT_ildiv : leak_i_tr -> leak_e_tr -> leak_i_tr.
 
 Notation LT_ilmov2 := (LT_isingle LT_ilmov2_).
 Notation LT_ilmov3 := (LT_isingle LT_ilmov3_).

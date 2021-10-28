@@ -415,7 +415,7 @@ Definition mulr sz a b :=
  end.
 
 (* x =(ty) e *)
-Definition lower_cassgn_classify ty e x : lower_cassgn_t * leak_e_es_tr :=
+Definition lower_cassgn_classify ty e x : lower_cassgn_t * leak_e_tr :=
   let chk (b: bool) r := if b then r else LowerAssgn in
   let kb b sz := chk (b && (sword sz == ty)) in
   let k8 sz := kb (sz ≤ U64)%CMP sz in

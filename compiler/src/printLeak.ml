@@ -42,20 +42,9 @@ let rec pp_e_tr fmt =
   | LT_compose (e, f) -> fprintf fmt "%a ∘ %a" pp_e_tr e pp_e_tr f
   | LT_rev -> p "rev"
 
-let pp_e_es_tr fmt =
-  let p s = fprintf fmt "%s" s in
-  let q s e = fprintf fmt "%s %a" s pp_e_tr e in
-  function
-  | LT_leseq -> p "leseq"
-  | LT_emseq -> p "emseq"
-  | LT_subseq e -> q "subseq" e
-  | LT_idseq e -> q "idseq" e
-  | LT_dfst -> p "dfst"
-  | LT_dsnd -> p "dsnd"
-
 let pp_i_tr_single fmt =
   let p s = fprintf fmt "%s" s in
-  let q s a = fprintf fmt "%s %a" s pp_e_es_tr a in
+  let q s a = fprintf fmt "%s %a" s pp_e_tr a in
   function
   | LT_ilmov2_ -> p "ilmov2"
   | LT_ilmov3_ -> p "ilmov3"

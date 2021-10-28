@@ -1581,14 +1581,16 @@ Qed.
             rewrite /x86_ANDN /check_size_32_64 hty32 hty /=. eexists. split=> //.
             move: Hv' hwa2; rewrite -hwa1 /truncate_val /= /truncate_word cmp_le_refl /=.
             rewrite !zero_extend_u => /ok_inj ? /ok_inj ?; subst wa2' v'.
-            by rewrite Hw /=. by rewrite -hl2 /= -hl1.
+            by rewrite Hw /=.
+            by rewrite /leak_ES -hl2 /= -hl1.
           case : eqP => //= ?; subst ty.
           rewrite /exec_sopn /sopn_sem /= ha1 /= ha2 /=. exists [:: (va1, la1); (va2, la2)]. split=> //=. 
           rewrite hva1 /= hva2 /=.
           rewrite /x86_VPANDN /x86_u128_binop (wsize_nle_u64_check_128_256 hty) /=.
           move: Hv' hwa2; rewrite -hwa1 /truncate_val /= /truncate_word cmp_le_refl /=.
           rewrite !zero_extend_u => /ok_inj ? /ok_inj ?; subst wa2' v'.
-          by []. by rewrite -hl2 /= -hl1.
+          by [].
+          by rewrite /leak_ES -hl2 /= -hl1.
         (* None *)
         rewrite /is_andn /=. case: eqP; last by rewrite andbF => _ _ /=; case: ifP.
         case: (is_lnot)=>//.  case: (is_lnot) => //. move=> hsz [] hlte. move: hsz.
