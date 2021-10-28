@@ -172,138 +172,124 @@ Definition invalid_var {A} :=
   @cerror (Cerr_stk_alloc "invalid variable") A.
 
 Section Notations.
+(* Declare Scope lt_scope. *)
 (* Declare Scope ls_scope. *)
+Delimit Scope lt_scope with LT.
 Delimit Scope ls_scope with LS.
 
 Notation "'cst' n" := (LS_const (wrepr Uptr n)) (at level 0) : ls_scope.
 Notation "'sp'" := (LS_stk) (at level 0): ls_scope.
-Infix "+" := LS_Add : ls_scope.
+Notation "x + y" := (LS_Add x%LS y%LS) : ls_scope.
 Infix "×" := LS_Mul (at level 30) : ls_scope.
 
-Definition mk_ofs ws e1 ofs : pexpr * leak_e_tr :=
+Notation "'id'" := LT_id : lt_scope.
+Notation "•" := LT_remove : lt_scope.
+Infix "∘" := LT_compose (at level 60) : lt_scope.
+Notation "[ x , .. , y ]" := (LT_map (cons x%LT .. (cons y%LT nil) ..)) : lt_scope.
+Notation "[ x ; .. ; y ]" := (LT_seq (cons x%LT .. (cons y%LT nil) ..)) : lt_scope.
+Notation "'C' e" := (LT_const e%LS) (at level 0) : lt_scope.
+Notation "[[ i ↦ e ]]" := (LT_lidx (fun i => e%LS)) (i ident) : lt_scope.
+
+Definition mk_ofs ws e ofs : pexpr * leak_e_tr :=
   let sz := wsize_size ws in
-  if is_const e1 is Some i then
+  if is_const e is Some i then
     ((cast_const (i * sz + ofs)%Z),
-     LT_seq [:: (LT_lidx (fun i => sp + cst i × cst sz + cst ofs))%LS; LT_remove ])
+     [ [[ i ↦ sp + cst i × cst sz + cst ofs ]] ; • ]%LT)
   else
-    (add (mul (cast_const sz) (cast_word e1).1) (cast_const ofs),
-     LT_seq [:: LT_seq [:: LT_seq [:: (LT_seq [:: LT_seq [:: LT_remove; LT_remove] ; (cast_word e1).2]) ; LT_remove]; 
-     LT_seq [:: LT_remove; LT_remove]] ; LT_remove]).
+    let: (e, t) := cast_word e in
+    (add (mul (cast_const sz) e) (cast_const ofs),
+      [ [ [ [ [ • ; • ] ; t ] ; • ] ; [ • ; • ] ] ; • ]%LT).
 
-Fixpoint alloc_e (m:map) (e: pexpr) : cexec (pexpr * leak_e_tr) :=
+Let ret {E} e t : cexec (E * leak_e_tr) := ok (e, t).
+Arguments ret {_} _ _%LT.
+
+Fixpoint alloc_e (m: map) (e: pexpr) : cexec (pexpr * leak_e_tr) :=
   match e with
-  | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ => ok (e, LT_id)
+  | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ => ret e id
   | Pvar   x =>
-    match Mvar.get m.1 x with
-    | Some ofs =>
+    if Mvar.get m.1 x is Some ofs then
       if is_word_type (vtype x) is Some ws then
-        let ofs' := cast_const ofs in
-        let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
-        ok ((Pload ws stk ofs'),
-             LT_seq [:: LT_seq [:: LT_id; LT_remove]; LT_const (sp + cst ofs)%LS ])
-        (*LT_var ofs'.2 (LAdr (wrepr U64 ofs)))*)
-        (* we should also leak the pointer stored in the variable (vstk m) in evm *)
-      else Let r := not_a_word_v in ok (r, LT_id)
-    | None     =>
+        let stk := {| v_var := vstk m; v_info := v_info x |} in
+        ret (Pload ws stk (cast_const ofs)) [ [ id ; • ] ; C (sp + cst ofs) ]
+      else not_a_word_v
+    else
       if is_vstk m x then stk_not_fresh
-      else ok (e, LT_id)
-    end
-  | Pget ws x e1 =>
-    Let er := alloc_e m e1 in
-    match Mvar.get m.1 x with
-    | Some ofs =>
-      if is_align (wrepr _ ofs) ws then
-        let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
-        let ofs' := mk_ofs ws er.1 ofs in 
-        ok (Pload ws stk ofs'.1,
-            LT_map [:: LT_compose (LT_seq [:: er.2; LT_remove]) ofs'.2;
-            (LT_lidx (fun i =>
-              sp + cst i × cst (wsize_size ws) + cst ofs)%LS)])
-            (*LT_map [:: LT_compose er.2 ofs'.2; 
-                      (LT_lidx (fun i => 
-                                 (LS_Add LS_stk 
-                                    (LS_Add (LS_Mul (LS_const (wrepr U64 i)) 
-                                                    (LS_const (wrepr U64 (wsize_size ws)))) 
-                                            (LS_const (wrepr U64 ofs))))))])*)
-        (*LT_adr (* we need to look in evm for stk*) (wsize_size ws) ofs])*)
-        (* we should also leak the pointer stored in the variable (vstk m) in evm *)
-      else Let r := not_aligned in ok (r, LT_remove)
+      else ret e id
 
-    | None =>
+  | Pget ws x e =>
+    Let: (e, r) := alloc_e m e in
+    if Mvar.get m.1 x is Some ofs then
+      if is_align (wrepr Uptr ofs) ws then
+        let stk := {| v_var := vstk m; v_info := v_info x |} in
+        let: (ofs', t) := mk_ofs ws e ofs in
+        ret (Pload ws stk ofs') [ [ r ; • ] ∘ t, [[ i ↦ sp + cst i × cst (wsize_size ws) + cst ofs ]] ]
+      else not_aligned
+    else
       if is_vstk m x then stk_not_fresh
-      else ok ((Pget ws x er.1), LT_map [:: er.2; LT_id])
-    end
-  (* load leak is correct *)
-  (* LT_id corresponds to address leaked *) 
-  | Pload ws x e1 =>
+      else ret (Pget ws x e) [ r, id ]
+  (* LT_id corresponds to address leaked *)
+  | Pload ws x e =>
     if check_var m x then
-      Let er := alloc_e m e1 in (* offset *)
-      ok ((Pload ws x er.1), LT_map [:: er.2; LT_id])
-    else Let r := invalid_var in ok(r, LT_remove)
+      Let: (e, r) := alloc_e m e in (* offset *)
+      ret (Pload ws x e) [ r, id ]
+    else invalid_var
 
-  | Papp1 o e1 =>
-    Let er := alloc_e m e1 in
-    ok ((Papp1 o er.1), LT_map[:: er.2; LT_remove])
+  | Papp1 o e =>
+    Let: (e, r) := alloc_e m e in
+    ret (Papp1 o e) [ r , • ]
 
   | Papp2 o e1 e2 =>
     Let er1 := alloc_e m e1 in
     Let er2 := alloc_e m e2 in
-    ok ((Papp2 o er1.1 er2.1), LT_map [:: LT_map [:: er1.2; er2.2]; LT_id])
+    ret (Papp2 o er1.1 er2.1) [ [ er1.2, er2.2], id ]
 
   | PappN o es =>
     Let ers := mapM (alloc_e m) es in
-    ok ((PappN o (unzip1 ers)), LT_map [:: LT_map (unzip2 ers); LT_id])
+    ret (PappN o (unzip1 ers)) [ LT_map (unzip2 ers), id ]
 
   | Pif t e e1 e2 =>
     Let er := alloc_e m e in
     Let er1 := alloc_e m e1 in
     Let er2 := alloc_e m e2 in
-    ok ((Pif t er.1 er1.1 er2.1), LT_map [:: er.2; er1.2; er2.2])
+    ret (Pif t er.1 er1.1 er2.1) [ er.2, er1.2, er2.2]
   end.
 
-Definition alloc_lval (m:map) (r:lval) ty : cexec (lval * leak_e_tr) :=
+Definition ill_typed_lvar : cexec (lval * leak_e_tr) := cerror (Cerr_stk_alloc "invalid type for Lvar").
+
+Definition alloc_lval (m: map) (r: lval) ty : cexec (lval * leak_e_tr) :=
   match r with
-  | Lnone _ _ => ok (r, LT_id)
+  | Lnone _ _ => ret r id
 
   | Lvar x =>
-    match Mvar.get m.1 x with
-    | Some ofs =>
+    if Mvar.get m.1 x is Some ofs then
       if is_word_type (vtype x) is Some ws then
         if ty == sword ws then
           let ofs' := cast_const ofs in
-          let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
-          ok (Lmem ws stk ofs',
-              LT_seq [:: LT_seq [:: LT_id; LT_remove]; LT_const (sp + cst ofs)%LS])
-        else Let r := cerror (Cerr_stk_alloc "invalid type for Lvar") in ok (r, LT_remove)
+          let stk := {| v_var := vstk m; v_info := v_info x |} in
+          ret (Lmem ws stk ofs') [ [ id ; • ] ; C (sp + cst ofs)]
+        else ill_typed_lvar
       else not_a_word_v
-    | None     =>
-      if is_vstk m x then Let r := stk_not_fresh in ok (r, LT_remove)
-      else ok (r, LT_id)
-    end
+    else
+      if is_vstk m x then stk_not_fresh
+      else ret r id
 
-  | Lmem ws x e1 =>
+  | Lmem ws x e =>
     if check_var m x then
-      Let er := alloc_e m e1 in
-      ok ((Lmem ws x er.1), LT_map [:: er.2; LT_id])
-    else Let r := invalid_var in ok(r, LT_remove)
+      Let: (e, r) := alloc_e m e in
+      ret (Lmem ws x e) [ r, id ]
+    else invalid_var
 
-  | Laset ws x e1 =>
-    Let er := alloc_e m e1 in
-    match Mvar.get m.1 x with
-    | Some ofs =>
-      if is_align (wrepr _ ofs) ws then
-        let stk := {| v_var := vstk m; v_info := x.(v_info) |} in
-        let ofs' := mk_ofs ws er.1 ofs in
-        ok ((Lmem ws stk ofs'.1), LT_map [:: LT_compose (LT_seq [:: er.2; LT_remove]) ofs'.2;
-            (LT_lidx (fun i =>
-                        sp + cst i × cst (wsize_size ws) + cst ofs)%LS)])
-      else Let r  := not_aligned in ok(r, LT_remove)
-
-    | None =>
-      if is_vstk m x then Let r:= stk_not_fresh in ok(r, LT_remove)
-      else ok ((Laset ws x er.1), LT_map [:: er.2; LT_id])
-    end
-
+  | Laset ws x e =>
+    Let: (e, r) := alloc_e m e in
+    if Mvar.get m.1 x is Some ofs then
+      if is_align (wrepr Uptr ofs) ws then
+        let stk := {| v_var := vstk m; v_info := v_info x |} in
+        let: (ofs', t) := mk_ofs ws e ofs in
+        ret (Lmem ws stk ofs') [ [ r ; • ] ∘ t, [[ i ↦ sp + cst i × cst (wsize_size ws) + cst ofs ]] ]
+      else not_aligned
+    else
+      if is_vstk m x then stk_not_fresh
+      else ret (Laset ws x e) [ r, id ]
   end.
 
 Definition bad_lval_number := Cerr_stk_alloc "invalid number of lval".
@@ -315,13 +301,13 @@ Fixpoint alloc_i (m: map) (i: instr) : ciexec (instr * leak_i_tr) :=
     | Cassgn r t ty e =>
       Let r := add_iinfo ii (alloc_lval m r ty) in
       Let e := add_iinfo ii (alloc_e m e) in
-      ok ((Cassgn r.1 t ty e.1), LT_ile (LT_map [:: e.2; r.2]))
+      ok ((Cassgn r.1 t ty e.1), LT_ile [ e.2, r.2]%LT)
 
     | Copn rs t o e =>
       Let rs := add_iinfo ii (mapM2 bad_lval_number (alloc_lval m) rs (sopn_tout o)) in
       Let e  := add_iinfo ii (mapM  (alloc_e m) e) in
-      ok ((Copn (unzip1 rs) t o (unzip1 e)), 
-           LT_ile (LT_map [:: LT_map (unzip2 e); LT_id; LT_map (unzip2 rs)]))
+      ok ((Copn (unzip1 rs) t o (unzip1 e)),
+           LT_ile [ LT_map (unzip2 e), id, LT_map (unzip2 rs)]%LT)
 
     | Cif e c1 c2 =>
       Let e := add_iinfo ii (alloc_e m e) in

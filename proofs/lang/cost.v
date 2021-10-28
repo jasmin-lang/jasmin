@@ -1513,11 +1513,12 @@ Proof.
   by case: (lastP sl) => // ?? _ /(congr1 size); rewrite size_rcons.
 Qed.
 
-Lemma disjoint_single_transform lt : 
+Lemma disjoint_single_transform lt :
   Sm.disjoint (Sm.single [::]) (transform_cost_C lt).1.
-Proof. 
-  move=> l; rewrite Sm.singleP; case: eqP => // -> _. 
-  by have [_ /(_ lt [::])] := bounded_transform; case: Sm.get => // ? [].
+Proof.
+  case => // _.
+  case: Sm.get (bounded_transform.2 lt [::]) => [ a | //] h.
+  elim: Bool.diff_false_true; exact: h.
 Qed.
 Hint Resolve disjoint_single_transform : disjoint.
 
