@@ -3,17 +3,8 @@ from Jasmin require import JModel.
 
 require import Mod_patch.
 
-(*
-lemma lzcnt_zero : forall w, LZCNT_64 (w << LZCNT_64 w) = 0.
-*)
-
 lemma lzcnt_size l : 0 <= lzcnt l <= size l.
 proof. elim l => //= /#. qed.
-
-(*
-lemma lzcnt_split l : lzcnt l = 0 => l = [] \/ exists l', l = true :: l'.
-proof. case: l => //; smt (lzcnt_size). qed.
-*)
 
 import BitEncoding.BS2Int.
 
