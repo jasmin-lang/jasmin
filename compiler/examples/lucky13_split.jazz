@@ -202,24 +202,29 @@ inline fn rotate_mac_cache(reg u32 md_size, reg u32 rotate_offset, reg u64 out, 
   i = 0;
   while (i < md_size) {
     // ((volatile unsigned char *)rotated_mac)[rotate_offset^32];
-    temp_32 = rotate_offset;
+   /* This is necessary only if the cache line is 32.
+      We do not use it in the current model. 
+      Furthermore I suppect this is not correct if the cache line is 32 */
+
+/*    temp_32 = rotate_offset;
     temp_32 ^= 32;
     temp = (64u) temp_32;
     temp_8 = (u8)[rotated_mac + temp];
-    temp_8 ^= temp_8;
+    temp_8 ^= temp_8; */
 
     // out[j++] = rotated_mac[rotate_offset++];
     temp = (64u) rotate_offset;
-    temp_8 += (u8)[rotated_mac + temp];
+    temp_8 = (u8)[rotated_mac + temp];
     rotate_offset += 1;
     temp = (64u) j;
     (u8)[out + temp] = temp_8;
     j += 1;
 
     // rotate_offset &= constant_time_lt(rotate_offset,md_size);
-    temp_32 = constant_time_lt_jasmin(rotate_offset, md_size);
-    temp = (64u) temp_32;
-    rotate_offset &= temp;
+    rotate_offset = 0 if md_size <= rotate_offset;
+    //temp_32 = constant_time_lt_jasmin(rotate_offset, md_size);
+    //temp = (64u) temp_32;
+    //rotate_offset &= temp_32;
     i += 1;
   } 
 }
