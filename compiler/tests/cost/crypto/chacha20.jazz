@@ -1,3 +1,4 @@
+inline
 fn init(reg u64 key nonce, reg u32 counter) -> stack u32[16]
 {
   inline int i;
@@ -26,6 +27,7 @@ fn init(reg u64 key nonce, reg u32 counter) -> stack u32[16]
 
 
 
+inline
 fn copy_state(stack u32[16] st) -> reg u32[16], stack u32
 {
   inline int i;
@@ -44,6 +46,7 @@ fn copy_state(stack u32[16] st) -> reg u32[16], stack u32
 
 
 
+inline
 fn line(reg u32[16] k, inline int a b c r) -> reg u32[16]
 {
   k[a] += k[b];
@@ -54,6 +57,7 @@ fn line(reg u32[16] k, inline int a b c r) -> reg u32[16]
 
 
 
+inline
 fn quarter_round(reg u32[16] k, inline int a b c d) -> reg u32[16]
 {
   k = line(k, a, b, d, 16);
@@ -63,6 +67,7 @@ fn quarter_round(reg u32[16] k, inline int a b c d) -> reg u32[16]
   return k;
 }
 
+inline
 fn inlined_double_quarter_round(
   reg u32[16] k,
   inline int a0 b0 c0 d0
@@ -115,6 +120,7 @@ fn inlined_double_quarter_round(
 
 
 
+inline
 fn rounds(reg u32[16] k, stack u32 k15) -> reg u32[16], stack u32
 {
   inline int i;
@@ -167,6 +173,7 @@ fn rounds(reg u32[16] k, stack u32 k15) -> reg u32[16], stack u32
 
 
 
+inline
 fn sum_states(reg u32[16] k, stack u32 k15, stack u32[16] st) -> reg u32[16], stack u32
 {
   inline int i;
@@ -187,6 +194,7 @@ fn sum_states(reg u32[16] k, stack u32 k15, stack u32[16] st) -> reg u32[16], st
 
 
 
+inline
 fn update_ptr(reg u64 output plain, reg u32 len, inline int n) -> reg u64, reg u64, reg u32
 {
   output += n;
@@ -195,6 +203,7 @@ fn update_ptr(reg u64 output plain, reg u32 len, inline int n) -> reg u64, reg u
   return output, plain, len;
 }
 
+inline
 fn sum_states_store(
   stack u64 s_output s_plain,
   stack u32 s_len,
@@ -255,6 +264,7 @@ fn sum_states_store(
 
 
 
+inline
 fn store_last(stack u64 s_output s_plain, stack u32 s_len, reg u32[16] k, stack u32 k15)
 {
   inline int i;
@@ -296,6 +306,7 @@ fn store_last(stack u64 s_output s_plain, stack u32 s_len, reg u32[16] k, stack 
 
 
 
+inline
 fn increment_counter(stack u32[16] st) -> stack u32[16]
 {
   reg u32 t;

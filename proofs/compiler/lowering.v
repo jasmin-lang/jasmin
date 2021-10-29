@@ -571,7 +571,7 @@ Variant opn_5flags_cases_t (a: pexprs) : Type :=
 | Opn5f_other.
 
 Arguments Opn5f_large_immed [a] {x y n z} _ _.
-Arguments Opn5f_other [a].
+Arguments Opn5f_other {a}.
 
 Definition check_signed_range (m: option wsize) sz' (n: Z) : bool :=
   if m is Some ws then (

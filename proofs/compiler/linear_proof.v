@@ -128,14 +128,14 @@ Section CAT.
 
   Lemma linear_i_nil i lbl l :
      linear_i i lbl l =
-     linear_i i lbl [::] >>= (fun (p:label*lcmd*leak_i_il_tr) => ok (p.1.1, p.1.2 ++ l, p.2)).
+     linear_i i lbl [::] >>= (fun (p:label * lcmd * leak_i_il_tr) => ok (p.1.1, p.1.2 ++ l, p.2)).
   Proof.
     apply (@instr_Rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
   Lemma linear_c_nil c lbl l :
      linear_c linear_i c lbl l =
-     linear_c linear_i c lbl [::] >>= (fun (p:label*lcmd*seq leak_i_il_tr) => 
+     linear_c linear_i c lbl [::] >>= (fun (p:label * lcmd * seq leak_i_il_tr) =>
      ok (p.1.1, p.1.2 ++ l, p.2)).
   Proof.
     apply (@cmd_rect Pr Pi Pc HmkI Hskip Hseq Hassgn Hopn Hif Hfor Hwhile Hcall).

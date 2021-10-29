@@ -16,7 +16,7 @@ fn perm2u128(reg u256 x, reg u256 y, inline int c) -> reg u256 {
 /* ---------------------------------------------------------------- */
 inline
 fn R4(inline int c, reg u256 x) -> reg u256 {
-  inline int d;
+  inline u256 d;
   reg u256 a, b, r;
   global u256 cr, dr;
   cr = c;
@@ -149,8 +149,9 @@ fn seq(inline int u0, inline int n) -> inline int {
 
 /* ---------------------------------------------------------------- */
 inline
-fn combine(inline int base, inline int a, inline int b, inline int c, inline int d) -> inline int {
-  inline int z, t1, t2, t3, t4;
+fn combine(inline int base, inline int a, inline int b, inline int c, inline int d) -> inline u256 {
+  inline int t1, t2, t3, t4;
+  inline u256 z;
   t1 = seq(base, d);
   t2 = seq(base, c);
   t3 = seq(base, b);
@@ -163,7 +164,7 @@ fn combine(inline int base, inline int a, inline int b, inline int c, inline int
 inline
 fn bashR(inline int kind, reg u256[6] w, inline u64 c) -> reg u256[6] {
   inline int m1, m2, n1, n2;
-  inline int p1, p2, p3, p4;
+  inline u256 p1, p2, p3, p4;
   reg u256 x, y, z;
   m1 = 8;
   n1 = 53;

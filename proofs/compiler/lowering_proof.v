@@ -420,7 +420,7 @@ Qed.
   by case: o => // -[] // => [ | | [] | [] | [] | [] ] sz [] _ <- <-.
   Qed.
 
-  Lemma between_ZR (a b c: ssrZ.Z_numType) :
+  Lemma between_ZR (a b c: Z) :
     (a <= b < c)%R →
     (a <= b < c)%Z.
   Proof. by case/andP => /ssrZ.lezP ? /ssrZ.ltzP. Qed.
@@ -429,7 +429,7 @@ Qed.
     wle Unsigned β α = (wunsigned (β - α) != (wunsigned β - wunsigned α)%Z) || (β == α).
   Proof.
   case: (β =P α).
-  + by move => <-; rewrite orbT /= Num.Theory.lerr.
+  + by move => <-; rewrite orbT /= Order.POrderTheory.lexx.
   rewrite orbF /wunsigned /=.
   case: α β => α hα [] β hβ ne'.
   Transparent word.
@@ -529,7 +529,7 @@ Qed.
           do 2 split => //.
           by rewrite /ZF_of_word GRing.subr_eq0.
         rewrite /leak_sop2 /= in hlo. move: hlo. t_xrbindP.
-        by move=> w /= Ht wsz Ht' <-.
+        by move=> w /= Ht wsz Ht' [] <-.
       eexists _, _, _, _, _, _; split; first by reflexivity. split=> //.
       split => //. 
       + move=> Hsz. rewrite /x86_CMP /check_size_8_64 Hsz.
@@ -537,7 +537,7 @@ Qed.
         do 2 split => //.
         by rewrite -CoqWord.word.wltuE.
       rewrite /leak_sop2 /= in hlo. move: hlo. t_xrbindP.
-      by move=> w /= Ht wsz Ht' <-.
+      by move=> w /= Ht wsz Ht' [] <-.
 
     (* Cond1 CondNotVar *)
     + case: o He => // -[] // => [ sz' | [] sz' | [] sz' | [] sz' | [] sz' ] //=;
@@ -551,14 +551,14 @@ Qed.
           eexists _, _; split; first by reflexivity.
           do 2 split => //. by rewrite /ZF_of_word; rewrite GRing.subr_eq0.
         rewrite /leak_sop2 /= in hlo. move: hlo. t_xrbindP.
-        by move=> w /= Ht wsz Ht' <-.
+        by move=> w /= Ht wsz Ht' [] <-.
       eexists _, _, _, _, _, _; split; first by reflexivity. split=> //.
       split => //. 
       + move=> Hsz. rewrite /x86_CMP /check_size_8_64 Hsz /=.
         eexists _, _; split; first by reflexivity.
         do 2 split => //. by rewrite negbK -wleuE.
       rewrite /leak_sop2 /= in hlo. move: hlo. t_xrbindP.
-      by move=> w /= Ht wsz Ht' <-.
+      by move=> w /= Ht wsz Ht' [] <-.
     (* Cond2 CondEq *)
     + case: o He => // -[] // => [] [] sz' //=.
       t_xrbindP => -[v1' l1] ok_v1 -[v2' l2] ok_v2 vo /sem_sop2I [w1'] [w2'] [w3'] [];
@@ -566,18 +566,18 @@ Qed.
         move => /to_wordI [sz2] [w2] [hle2 /= hv2 hv2']; subst => /= -[] h1 h2 lo hlo h3 h4 [] hl hsz hv hx hy; subst;
         rewrite ok_v1 ok_v2 /=.
       eexists _, _, _, _, _, _; split; first reflexivity. split=> //.
-      split => //. 
-      + move=>Hsz. rewrite /x86_CMP /check_size_8_64 Hsz /=.
-        set vof := wsigned (zero_extend sz _ - zero_extend sz _) != (wsigned (zero_extend sz _) - wsigned (zero_extend sz _))%Z.
-        set vsf := SF_of_word (zero_extend sz _ - zero_extend sz _).
-        exists vof, vsf, fv.(fresh_OF), fv.(fresh_SF); repeat split=> //=.
-        rewrite /vsf /SF_of_word /vof; f_equal.
-        set α := zero_extend _ w1; set β := zero_extend _ w2.
-        case: (α =P β).
-        - by move => <-; rewrite GRing.subrr msb0 wsigned0 Z.sub_diag /= Num.Theory.lerr.
-        exact: wlesE.
+      split => //.
+      rewrite /x86_CMP /check_size_8_64 => -> /=.
+      set vof := wsigned (zero_extend sz _ - zero_extend sz _) != (wsigned (zero_extend sz _) - wsigned (zero_extend sz _))%Z.
+      set vsf := SF_of_word (zero_extend sz _ - zero_extend sz _).
+      exists vof, vsf, fv.(fresh_OF), fv.(fresh_SF); repeat split=> //=.
+      rewrite /vsf /SF_of_word /vof; f_equal.
+      set α := zero_extend _ w1; set β := zero_extend _ w2.
+      case: (α =P β).
+      - by move => <-; rewrite GRing.subrr msb0 wsigned0 Z.sub_diag /= Order.POrderTheory.lexx.
+      exact: wlesE.
       rewrite /leak_sop2 /= in hlo. move: hlo. t_xrbindP.
-      by move=> w /= Ht wsz Ht' <-.
+      by move=> w /= Ht wsz Ht' [] <-.
     (* Cond2 CondNeq *)
     + case: o He => // [] // [] // [] sz' //=.
       t_xrbindP => -[v1' l1] ok_v1 -[v2' l2] ok_v2 vo /sem_sop2I [w1'] [w2'] [w3'] [];
@@ -585,18 +585,18 @@ Qed.
       move => /to_wordI [sz2] [w2] [hle2 /= hv2 hv2']; subst => /= /= -[] h1 h2 lo hlo h3 h4 [] hl hsz hv hx hy; subst;
       rewrite ok_v1 ok_v2 /=.
       eexists _, _, _, _, _, _; split; first reflexivity. split=> //.
-      split => //. 
-      + move=>Hsz. rewrite /x86_CMP /check_size_8_64 Hsz /=.
-        set vof := wsigned (zero_extend sz _ - zero_extend sz _) != (wsigned (zero_extend sz _) - wsigned (zero_extend sz _))%Z.
-        set vsf := SF_of_word (zero_extend sz _ - zero_extend sz _).
-        exists vof, vsf, fv.(fresh_OF), fv.(fresh_SF); repeat split=> //=.
-        rewrite /vsf /SF_of_word /vof; f_equal.
-        set α := zero_extend _ w1; set β := zero_extend _ w2.
-        case: (α =P β).
-        + by move => <-; rewrite /= Num.Theory.ltrr GRing.subrr Z.sub_diag wsigned0 msb0.
-        exact: wltsE.
+      split => //.
+      rewrite /x86_CMP /check_size_8_64 => -> /=.
+      set vof := wsigned (zero_extend sz _ - zero_extend sz _) != (wsigned (zero_extend sz _) - wsigned (zero_extend sz _))%Z.
+      set vsf := SF_of_word (zero_extend sz _ - zero_extend sz _).
+      exists vof, vsf, fv.(fresh_OF), fv.(fresh_SF); repeat split=> //=.
+      rewrite /vsf /SF_of_word /vof; f_equal.
+      set α := zero_extend _ w1; set β := zero_extend _ w2.
+      case: (α =P β).
+      + by move => <-; rewrite /= Order.POrderTheory.ltxx GRing.subrr Z.sub_diag wsigned0 msb0.
+      exact: wltsE.
      rewrite /leak_sop2 /= in hlo. move: hlo. t_xrbindP.
-     by move=> w /= Ht wsz Ht' <-.
+     by move=> w /= Ht wsz Ht' [] <-.
     (* Cond2 CondOr *)
     + case: o He => // [] // [] // [] sz' //=.
       t_xrbindP => -[v1' l1] ok_v1 -[v2' l2] ok_v2 vo /sem_sop2I [w1'] [w2'] [w3'] [];
@@ -612,7 +612,7 @@ Qed.
         exists vcf, vzf, fv.(fresh_CF), fv.(fresh_ZF); repeat split=> //.
         by rewrite /vcf /vzf /ZF_of_word -/(wle Unsigned _ _) wleuE' GRing.subr_eq0.
       rewrite /leak_sop2 /= in hlo. move: hlo. t_xrbindP.
-      by move=> w /= Ht wsz Ht' <-.
+      by move=> w /= Ht wsz Ht' [] <-.
     (* Cond2 CondAndNot *)
     + case: o He => // [] // [] // [] sz' //=.
       t_xrbindP => -[v1' l1] ok_v1 -[v2' l2] ok_v2 vo /sem_sop2I [w1'] [w2'] [w3'] [];
@@ -629,7 +629,7 @@ Qed.
         rewrite /vcf /vzf /ZF_of_word.
         by rewrite GRing.subr_eq0 negbK -/(wlt Unsigned _ _) wltuE'.
       rewrite /leak_sop2 /= in hlo. move: hlo. t_xrbindP.
-      by move=> w /= Ht wsz Ht' <-.
+      by move=> w /= Ht wsz Ht' [] <-.
     (* Cond3 CondOrNeq *)
     + case: o He => // [] // [] // [] sz' //=.
       t_xrbindP => -[v1' l1] ok_v1 -[v2' l2] ok_v2 vo /sem_sop2I [w1'] [w2'] [w3'] [];
@@ -637,20 +637,19 @@ Qed.
       move => /to_wordI [sz2] [w2] [hle2 /= hv2 hv2']; subst => /= -[] h1 h2 lo hlo h3 h4 [] hl hsz hv hx hy; subst;
       rewrite ok_v1 ok_v2 /=.
       eexists _, _, _, _, _, _; split; first reflexivity. split=> //.
-      split => //. 
-      + move=>Hsz. rewrite /x86_CMP /check_size_8_64 Hsz /=.
-        set vof := wsigned (zero_extend sz _ - zero_extend sz _) != 
-        (wsigned (zero_extend sz _) - wsigned (zero_extend sz _))%Z.
-        set vsf := SF_of_word (zero_extend sz _ - zero_extend sz _).
-        set vzf := ZF_of_word (zero_extend sz _ - zero_extend sz _).
-        exists vof, vsf, vzf, fv.(fresh_OF), fv.(fresh_SF), fv.(fresh_ZF); repeat split=> //=.
-        rewrite /vzf /ZF_of_word /vsf /SF_of_word /vof GRing.subr_eq0; f_equal.
-        set α := zero_extend _ w1; set β := zero_extend _ w2.
-        case: (α =P β).
-        - move => ->; exact: Num.Theory.lerr.
-        exact: wlesE'.
+      split => //.
+      rewrite /x86_CMP /check_size_8_64 => -> /=.
+      set vof := wsigned (zero_extend sz _ - zero_extend sz _) != (wsigned (zero_extend sz _) - wsigned (zero_extend sz _))%Z.
+      set vsf := SF_of_word (zero_extend sz _ - zero_extend sz _).
+      set vzf := ZF_of_word (zero_extend sz _ - zero_extend sz _).
+      exists vof, vsf, vzf, fv.(fresh_OF), fv.(fresh_SF), fv.(fresh_ZF); repeat split=> //=.
+      rewrite /vzf /ZF_of_word /vsf /SF_of_word /vof GRing.subr_eq0; f_equal.
+      set α := zero_extend _ w1; set β := zero_extend _ w2.
+      case: (α =P β).
+      - move => ->; exact: Order.POrderTheory.lexx.
+      exact: wlesE'.
       rewrite /leak_sop2 /= in hlo. move: hlo. t_xrbindP.
-      by move=> w /= Ht wsz Ht' <-.
+      by move=> w /= Ht wsz Ht' [] <-.
     (* Cond3 CondAndNotEq *)
     + case: o He => // [] // [] // [] sz' //=.
       t_xrbindP => -[v1' l1] ok_v1 -[v2' l2] ok_v2 vo /sem_sop2I [w1'] [w2'] [w3'] [];
@@ -658,19 +657,19 @@ Qed.
       move => /to_wordI [sz2] [w2] [hle2 /= hv2 hv2']; subst => /= -[] h1 h2 lo hlo h3 h4 [] hl hsz hv hx hy; subst;
       rewrite ok_v1 ok_v2 /=.
       eexists _, _, _, _, _, _; split; first reflexivity. split=> //.
-      split => //. 
-      + move=>Hsz. rewrite /x86_CMP /check_size_8_64 Hsz /=.
-        set vof := wsigned (zero_extend sz _ - zero_extend sz _) != (wsigned (zero_extend sz _) - wsigned (zero_extend sz _))%Z.
-        set vsf := SF_of_word _.
-        set vzf := ZF_of_word _.
-        exists vof, vsf, vzf, fv.(fresh_OF), fv.(fresh_SF), fv.(fresh_ZF); repeat split=> //=.
-        + rewrite /vzf /vsf /vof /ZF_of_word /SF_of_word GRing.subr_eq0; f_equal.
-          set α := zero_extend _ w1; set β := zero_extend _ w2.
-          case: (α =P _).
-          * by move => -> /=; exact: Num.Theory.ltrr.
+      split => //.
+      rewrite /x86_CMP /check_size_8_64 => -> /=.
+      set vof := wsigned (zero_extend sz _ - zero_extend sz _) != (wsigned (zero_extend sz _) - wsigned (zero_extend sz _))%Z.
+      set vsf := SF_of_word _.
+      set vzf := ZF_of_word _.
+      exists vof, vsf, vzf, fv.(fresh_OF), fv.(fresh_SF), fv.(fresh_ZF); repeat split=> //=.
+      + rewrite /vzf /vsf /vof /ZF_of_word /SF_of_word GRing.subr_eq0; f_equal.
+        set α := zero_extend _ w1; set β := zero_extend _ w2.
+        case: (α =P _).
+        * by move => -> /=; exact: Order.POrderTheory.ltxx.
         exact: wltsE'.
      rewrite /leak_sop2 /= in hlo. move: hlo. t_xrbindP.
-     by move=> w /= Ht wsz Ht' <-.
+     by move=> w /= Ht wsz Ht' [] <-.
   Qed.
 
   Lemma vboolI x y : x != y → vbool y != vbool x.

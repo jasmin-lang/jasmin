@@ -85,10 +85,6 @@ Definition trans_sem_estate t (vl:estate * leak_e) := (vl.1, leak_E stk t vl.2).
 
 Definition trans_sem_estates t (vl: estate* seq leak_e) := (vl.1, leak_E stk (LT_map t) (LSub (vl.2))).
 
-Lemma surj_pairing {T1 T2:Type} (p:T1 * T2) : (p.1,p.2) = p. 
-Proof. by case: p. Qed.
-Hint Resolve surj_pairing.
-
 Lemma sint_of_wordPl sz s e v l:
 let e' := (sint_of_word sz e).1 in
 let t := (sint_of_word sz e).2 in

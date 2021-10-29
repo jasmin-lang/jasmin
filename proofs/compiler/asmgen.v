@@ -821,7 +821,7 @@ Transparent eval_arg_in_v.
     t_xrbindP => vs1 [v1 l1] hva vs2 h <- vs3 v /=.
     case: args h => /=; t_xrbindP;last by move=> *; subst.
     move => <- u /= htwa [<-]. rewrite htwa /=. move=> lo1 lo2 u' [] hu [] <- <- <- /=. 
-    t_xrbindP => [m1 lm] m2 hwx <- <- lo3 lo4 u'' hu'' <- hlo3 <- <- /=. 
+    t_xrbindP => [m1 lm] m2 hwx <- <- lo3 lo4 u'' hu'' [] <- hlo3 <- <- /=.
     rewrite /assemble_x86_opn /is_lea /=.
     t_xrbindP => asm_args' _ ? /assertP hidc ? /assertP /andP[hca hcd] ?? hlo;subst op' asm_args'.  
     case: asm_args hidc hcd hca => // a0 [] // a1 []// hidc hcd;

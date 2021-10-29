@@ -701,7 +701,7 @@ Section PROOF.
       rewrite orbF;case:ifPn=> //;rewrite /SvD.F.eqb.
       by case: SvD.F.eq_dec => // -[->].
     + exists vm'.[{| vtype := sarr n; vname := xn0 |} <- ok (WArray.empty n)]; split.
-      + rewrite Hcat size_cat nseq_addn.
+      + rewrite Hcat size_cat nseqD.
         apply: (sem_app H1); apply: sem_seq1; constructor. 
         apply Eassgn with (@Varr n (WArray.empty n)) (@Varr n (WArray.empty n)) => //=.
         + by rewrite /truncate_val /= /WArray.cast Z.leb_refl.

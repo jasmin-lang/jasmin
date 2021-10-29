@@ -32,6 +32,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Declare Scope leakage_scope.
 Delimit Scope leakage_scope with leakage.
 Open Scope leakage_scope.
 
@@ -828,7 +829,7 @@ Inductive leak_il : Type :=
   | Lopnl : leak_e -> leak_il
   | Lcondl : int -> leak_e -> bool -> leak_il. 
 
-Fixpoint eq_leak_il (li: leak_il) (li': leak_il) : bool :=
+Definition eq_leak_il (li: leak_il) (li': leak_il) : bool :=
 match li, li' with 
  | Lempty0, Lempty0 => true
  | Lempty i1, Lempty i2 => i1 == i2

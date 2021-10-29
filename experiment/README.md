@@ -10,3 +10,6 @@ To compare the compilation time of both compilers, run:
 
     nix-shell --run './compilation-time.sh'
 
+To crunch the data, run:
+
+    nix-shell --run 'sh crunch.sh > data.ml && ocamlc data.ml && ocaml data.cmo crunch.ml'

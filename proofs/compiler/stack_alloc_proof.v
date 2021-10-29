@@ -365,7 +365,7 @@ Section PROOF.
         move=> vo /(vuincl_sem_sop1 Hv') /= -> lo hlo <- <- /=.
         have -> /= := leak_sop1_eq Hv' hlo. 
         rewrite /leak_sop1 /= /leak_sop1_typed /= in hlo.
-        move: hlo. t_xrbindP=> yt happ <- /=.
+        move: hlo. t_xrbindP=> yt happ [] <- /=.
         by eexists;split;first by reflexivity.
       (* Pop2 *)
       - move=> o1 e1 H1 e1' H1' e2 v lte le.
