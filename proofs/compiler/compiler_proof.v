@@ -119,7 +119,7 @@ Proof.
   assert (h := unrollP (top_stack sp) Hp hsem va_refl).
   case: h => {hsem Hp} [? [? [hsem /(htrans hall){hall}hall]]].
   set p2 := const_prop_prog (p1, lp1).1.
-  have hp2: const_prop_prog (p1, lp1).1 = (p2.1, p2.2) by rewrite surj_pairing.
+  have hp2: const_prop_prog (p1, lp1).1 = (p2.1, p2.2) by rewrite -surjective_pairing.
   assert (h := const_prop_callP (top_stack sp) refl_equal hp2 hsem va_refl).
   case: h => /= {hsem hp2 p2} [? [? [hsem /(htrans hall){hall}hall]]].
   apply: rbindP=> ltc - /= Hp.
@@ -135,7 +135,7 @@ Proof.
   assert (h := dead_code_callP_wf (top_stack sp) Hp hsem).
   case: h => /= {hsem Hp} ? hsem.
   set p2 := remove_init_prog ps'.
-  have hp2: remove_init_prog ps' = (p2.1, p2.2) by rewrite surj_pairing.
+  have hp2: remove_init_prog ps' = (p2.1, p2.2) by rewrite -surjective_pairing.
   assert (h := remove_init_fdP_wf (top_stack sp) hp2 va_refl hsem).
   case: h => /= {hsem hp2 p2} [? [? [hsem /(htrans hall){hall}hall]]].
   apply: rbindP => lr - Hp.

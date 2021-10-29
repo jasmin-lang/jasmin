@@ -180,37 +180,37 @@ fn xxh3_len_17to128_64b(reg u64 input len secret) -> reg u64 {
   if (len >u 32) {
     if (len >u 64) {
       if (len >u 96) {
-        p = input + 48;
-        q = secret + 96;
+        p = #LEA(input + 48);
+        q = #LEA(secret + 96);
         m = mix16b(p, q);
         acc += m;
-        p = input + len - 64;
-        q = secret + 112;
+        p = #LEA(input + len - 64);
+        q = #LEA(secret + 112);
         m = mix16b(p, q);
         acc += m;
       }
-      p = input + 32;
-      q = secret + 64;
+      p = #LEA(input + 3);
+      q = #LEA(secret + 64);
       m = mix16b(p, q);
       acc += m;
-      p = input + len - 48;
-      q = secret + 80;
+      p = #LEA(input + len - 48);
+      q = #LEA(secret + 80);
       m = mix16b(p, q);
       acc += m;
     }
-    p = input + 16;
-    q = secret + 32;
+    p = #LEA(input + 16);
+    q = #LEA(secret + 32);
     m = mix16b(p, q);
     acc += m;
-    p = input + len - 32;
-    q = secret + 48;
+    p = #LEA(input + len - 32);
+    q = #LEA(secret + 48);
     m = mix16b(p, q);
     acc += m;
   }
   m = mix16b(input, secret);
   acc += m;
-  p = input + len - 16;
-  q = secret + 16;
+  p = #LEA(input + len - 16);
+  q = #LEA(secret + 16);
   m = mix16b(p, q);
   acc += m;
 
@@ -226,8 +226,8 @@ fn xxh3_len_129to240_64b(reg u64 input len secret) -> reg u64 {
   acc *= prime64_1;
 
   for i = 0 to 8 {
-    p = input + 16 * i;
-    q = secret + 16 * i;
+    p = #LEA(input + 16 * i);
+    q = #LEA(secret + 16 * i);
     m = mix16b(p, q);
     acc +=m;
   }
@@ -236,17 +236,17 @@ fn xxh3_len_129to240_64b(reg u64 input len secret) -> reg u64 {
   rounds = len;
   rounds >>u= 4;
   rounds -= 8;
-  p = input + 128;
-  q = secret + 3;
+  p = #LEA(input + 128);
+  q = #LEA(secret + 3);
   while (rounds >u 0) {
     m = mix16b(p, q);
     acc += m;
-    p += 16;
-    q += 16;
+    p = #LEA(p + 16);
+    q = #LEA(q + 16);
     rounds -= 1;
   }
   p = input + len - 16;
-  q = secret + 136 - 17;
+  q = #LEA(secret + 136 - 17);
   m = mix16b(p, q);
   acc += m;
   acc = xxh3_avalanche(acc);
@@ -274,7 +274,7 @@ fn mergeAccs(stack u64[8] acc, reg u64 secret start) -> reg u64 {
   hash = start;
   for i = 0 to 4 {
     j = 2 * i;
-    sec = secret + 16 * i;
+    sec = #LEA(secret + 16 * i);
     m = mix2accs(acc, j, sec);
     hash += m;
   }
@@ -390,24 +390,24 @@ fn xxh3_internal_loop(stack u64[8] acc, reg u64 input len secret) -> stack u64[8
 inline
 fn xxh3_internal_loop(stack u64[8] acc, reg u64 input len secret) -> stack u64[8] {
   reg u64 nb_blocks n i s nbStripes;
-  nb_blocks = len - 1;
+  nb_blocks = #LEA(len - 1);
   nb_blocks >>= 10;
   n = 0;
   i = input;
   while (n <u nb_blocks) {
     acc = xxh3_accumulate(acc, i, secret, nb_rounds);
-    s = secret + (192 - 64);
+    s = #LEA(secret + (192 - 64));
     acc = scrambleAcc(acc, s);
     i += block_len;
     n += 1;
   }
   nb_blocks <<= 10;
-  nbStripes = len - 1;
+  nbStripes = #LEA(len - 1);
   nbStripes -= nb_blocks;
   nbStripes >>= 6;
   acc = xxh3_accumulate(acc, i, secret, nbStripes);
-  i = input + len - 64;
-  s = secret + 192 - 64 - 7;
+  i = #LEA(input + len - 64);
+  s = #LEA(secret + 192 - 64 - 7);
   acc = xxh3_accumulate_512(acc, i, s);
   return acc;
 }
@@ -436,7 +436,7 @@ fn xxh3_64b(reg u64 input len secret) -> reg u64 {
 
   acc = xxh3_internal_loop(acc, input, len, secret);
 
-  sec = secret + 11;
+  sec = #LEA(secret + 11);
   xlen = len * prime64_1;
   hash = mergeAccs(acc, sec, xlen);
   return hash;

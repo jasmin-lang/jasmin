@@ -32,6 +32,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Declare Scope leakage_scope.
 Delimit Scope leakage_scope with leakage.
 Open Scope leakage_scope.
 
@@ -229,19 +230,32 @@ Fixpoint make_leak_e_sub (l : leak_e) : leak_e :=
 (* Leakage trees and leakage transformations. *)
 
 Inductive leak_tr_p :=
-  | LS_const of pointer 
+  | LS_const of pointer
   | LS_stk
-  | LS_Add `(leak_tr_p) `(leak_tr_p) 
-  | LS_Mul `(leak_tr_p) `(leak_tr_p).
+  | LS_Add of leak_tr_p & leak_tr_p
+  | LS_Mul of leak_tr_p & leak_tr_p.
 
-Fixpoint eq_leak_tr_p (ltp : leak_tr_p) (ltp' : leak_tr_p) : bool :=
-  match ltp, ltp' with 
-  | LS_const p, LS_const p' => if p == p' then true else false
+Fixpoint leak_tr_p_beq x x' : bool :=
+  match x, x' with
+  | LS_const p, LS_const p' => p == p'
   | LS_stk, LS_stk => true
-  | LS_Add l l', LS_Add l1 l1' => andb (eq_leak_tr_p l l1) (eq_leak_tr_p l' l1')
-  | LS_Mul l l', LS_Mul l1 l1' => andb (eq_leak_tr_p l l1) (eq_leak_tr_p l' l1')
+  | LS_Add y z, LS_Add y' z'
+  | LS_Mul y z, LS_Mul y' z' => (leak_tr_p_beq y y') && (leak_tr_p_beq z z')
   | _, _ => false
   end.
+
+Lemma leak_tr_p_beq_axiom : Equality.axiom leak_tr_p_beq.
+Proof.
+  elim => [ p | | y hy z hz | y hy z hz ] [ p' | | y' z' | y' z' ] /=.
+  2-10, 12-15: by constructor.
+  - case: eqP => [ <- | k ]; constructor; congruence.
+  all: case: andP.
+  1, 3: by case => /hy -> /hz ->; constructor.
+  all: by move => k; constructor => - [] /hy ? /hz ?; apply: k.
+Qed.
+
+Definition leak_tr_p_eqMixin     := Equality.Mixin leak_tr_p_beq_axiom.
+Canonical  leak_tr_p_eqType      := Eval hnf in EqType leak_tr_p leak_tr_p_eqMixin.
 
 (* Leakage transformer for expressions *)
 Inductive leak_e_tr :=
@@ -255,6 +269,10 @@ Inductive leak_e_tr :=
   | LT_compose: leak_e_tr -> leak_e_tr -> leak_e_tr (* compositon of transformations *)
   (* lowering *)
   | LT_rev : leak_e_tr. (* reverse transformation *)
+
+(* Smart constructor for LT_compose *)
+Definition lt_compose (a b: leak_e_tr) : leak_e_tr :=
+  if a is LT_id then b else if b is LT_id then a else LT_compose a b.
 
 Inductive leak_e_es_tr :=
   | LT_leseq : leak_e_es_tr
@@ -811,7 +829,7 @@ Inductive leak_il : Type :=
   | Lopnl : leak_e -> leak_il
   | Lcondl : int -> leak_e -> bool -> leak_il. 
 
-Fixpoint eq_leak_il (li: leak_il) (li': leak_il) : bool :=
+Definition eq_leak_il (li: leak_il) (li': leak_il) : bool :=
 match li, li' with 
  | Lempty0, Lempty0 => true
  | Lempty i1, Lempty i2 => i1 == i2

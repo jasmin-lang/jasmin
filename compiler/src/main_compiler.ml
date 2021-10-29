@@ -250,13 +250,15 @@ let main () =
               Format.fprintf fmt "%a:%a" B.pp_print ptr B.pp_print sz in
             Format.printf "Evaluation of %s (@[<h>%a@]):@." f.fn_name
               (pp_list ",@ " pp_range) m;
-            let _m, vs =
+            let _m, vs, lk =
               (** TODO: allow to configure the initial stack pointer *)
               let live = List.map (fun (ptr, sz) -> Conv.int64_of_bi ptr, Conv.z_of_bi sz) m in
               (match Low_memory.Memory.coq_M.init live (Conv.int64_of_bi (Bigint.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
               Evaluator.exec cprog (Conv.cfun_of_fun tbl f) in
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
+            ; Format.printf "Leakage: { %a }@."
+                (pp_list "; " PrintLeak.pp_leak_i) lk
           with Evaluator.Eval_error (ii,err) ->
             hierror "%a" Evaluator.pp_error (tbl, ii, err)
         in

@@ -45,9 +45,10 @@ type state =
     s_cmd  : instr list;
     s_estate : estate;
     s_stk  : stack;
+    s_leak : Leakage.leak_i list;
   }
 
-exception Final of Memory.mem * values
+exception Final of Memory.mem * values * Leakage.leak_i list
 
 let return s = 
   assert (s.s_cmd = []);
@@ -58,7 +59,7 @@ let return s =
     let vres = 
       exn_exec ii (mapM (fun (x:Var.var_i) -> get_var vm2 x.v_var) f.f_res) in
     let vres' = exn_exec ii (mapM2 ErrType truncate_val f.f_tyout vres) in
-    raise (Final(m2, vres'))
+    raise (Final(m2, vres', List.rev s.s_leak))
     
   | Scall(ii,f,xs,vm1,c,stk) ->
     let gd = s.s_prog.p_globs in
@@ -82,6 +83,9 @@ let return s =
                s_estate = s1;
                s_stk = Sfor(ii, i, ws, body, c, stk) }
 
+let lopn rhs lhs =
+  Leakage.(Lopn (LSub [ rhs ; lhs ]))
+
 let small_step1 s = 
   match s.s_cmd with
   | [] -> return s
@@ -92,14 +96,14 @@ let small_step1 s =
     match ir with
 
     | Cassgn(x,_,ty,e) ->
-      let v, _lkv  = exn_exec ii (sem_pexpr !Glob_options.dfl_LeakOp gd s1 e) in
+      let v, lkv  = exn_exec ii (sem_pexpr !Glob_options.dfl_LeakOp gd s1 e) in
       let v' = exn_exec ii (truncate_val ty v) in
-      let s2, _lk = exn_exec ii (write_lval !Glob_options.dfl_LeakOp gd x v' s1) in
-      { s with s_cmd = c; s_estate = s2 }
+      let s2, lk = exn_exec ii (write_lval !Glob_options.dfl_LeakOp gd x v' s1) in
+      { s with s_cmd = c; s_estate = s2; s_leak = lopn lkv lk :: s.s_leak }
 
     | Copn(xs,_,op,es) ->
-      let s2, _lk = exn_exec ii (sem_sopn !Glob_options.dfl_LeakOp gd op s1 xs es) in
-      { s with s_cmd = c; s_estate = s2 }
+       let s2, lk = exn_exec ii (sem_sopn !Glob_options.dfl_LeakOp gd op s1 xs es) in
+      { s with s_cmd = c; s_estate = s2; s_leak = Leakage.Lopn lk :: s.s_leak }
 
     | Cif(e,c1,c2) ->
        let v, _lk = exn_exec ii (sem_pexpr !Glob_options.dfl_LeakOp gd s1 e) in
@@ -137,10 +141,7 @@ let small_step1 s =
               s_stk = stk }
 
 
-let rec small_stepn n s = 
-  if n = 0 then s else small_stepn (n-1) (small_step1 s)
-
-let rec small_step s = 
+let rec small_step s =
   small_step (small_step1 s)
 
 let init_state p fn m = 
@@ -152,17 +153,15 @@ let init_state p fn m =
   { s_prog = p;
     s_cmd = f.f_body;
     s_estate = {emem = m; evm = vmap0 };
-    s_stk = Sempty(Coq_xO Coq_xH, f) }
+    s_stk = Sempty(Coq_xO Coq_xH, f);
+    s_leak = [];
+  }
 
-
-let execn p fn m n = 
-  let s = init_state p fn m in
-  small_stepn n s
 
 let exec p fn m = 
   let s = init_state p fn m in
   try small_step s
-  with Final(m,vs) -> m, vs 
+  with Final(m, vs, lk) -> m, vs, lk
 
 (* ----------------------------------------------------------- *)
 let pp_undef fmt ty = 

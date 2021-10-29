@@ -1,6 +1,5 @@
 open Utils
 open Wsize
-open Type
 open Prog
 module E = Expr
 module B = Bigint
@@ -39,11 +38,6 @@ type env = {
     warrsz : Sint.t;
     auxv  : string list Mty.t;
   }
-
-let for_constTime env = 
-  match env.model with 
-  | Utils.ConstantTime -> true
-  | _ -> false
 
 let for_safety    env = env.model = Utils.Safety
 
@@ -402,9 +396,6 @@ let pp_oget option pp =
 let pp_var env fmt (x:var) = 
   pp_string fmt (fst (Mv.find x env.vars))
 
-let is_option env (x:var) = 
-  snd (Mv.find x env.vars)
-
 let pp_ovar env fmt (x:var) = 
   let (s,option) = Mv.find x env.vars in
   if option then
@@ -499,7 +490,7 @@ let out_ty_op2 op =
 let out_ty_opN op =
   Conv.ty_of_cty (snd (E.type_of_opN op))
 
-let rec ty_expr = function
+let ty_expr = function
   | Pconst _       -> tint 
   | Pbool _        -> tbool
   | Parr_init z    -> Arr (Wsize.U8, Bigint.to_int z)
@@ -512,10 +503,6 @@ let rec ty_expr = function
   | PappN (op, _)  -> out_ty_opN op
   | Pif (ty,_,_,_) -> ty
 
-let wsize = function
-  | Coq_sword sz -> sz
-  | _ -> assert false
-
 let pp_cast pp fmt (ty,ety,e) = 
   if ety = ty then pp fmt e 
   else 
@@ -525,10 +512,6 @@ let check_array env x =
   match (L.unloc x).v_ty with
   | Arr(ws, n) -> Sint.mem n env.arrsz && Sint.mem (arr_size ws n) env.warrsz
   | _ -> true
-  
-let oarray option = if option then "OArray" else "Array"
-
-let pp_oarray env = oarray (for_safety env)
 
 let pp_initi env fmt (x, n, ws) =
   Format.fprintf fmt 
@@ -608,9 +591,6 @@ let rec pp_expr env fmt (e:expr) =
 
 and pp_wcast env fmt (ty, e) = 
   pp_cast (pp_expr env) fmt (ty, ty_expr e, e)
-
-let pp_option option pp = 
-  pp_maybe option (pp_enclose ~pre:"" ~post:" option") pp
 
 let pp_vdecl env option fmt x = 
   Format.fprintf fmt "%a:%a" 

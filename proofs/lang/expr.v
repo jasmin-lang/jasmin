@@ -226,7 +226,8 @@ Definition Oset0_instr sz  :=
              [::] [::]
              (b5w_ty sz) (implicit_flags ++ [::E 0])
              (let vf := Some false in
-              ok (::vf, vf, vf, vf, Some true & (0%R: word sz)))
+              let vt := Some true in
+              ok (::vf, vf, vf, vt, vt & (0%R: word sz)))
              (op_leak_ty [::]) sz [::]
   else 
     mk_instr (pp_sz "setw0" sz)

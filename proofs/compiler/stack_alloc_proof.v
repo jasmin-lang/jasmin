@@ -195,15 +195,16 @@ Section PROOF.
 
   Lemma mk_ofsP sz s2 ofs e i le:
     sem_pexpr gd s2 e = ok ((Vint i), le) ->
-    sem_pexpr gd s2 (mk_ofs sz e ofs).1 = 
-    ok ((Vword (wrepr U64 (i * wsize_size sz + ofs)%Z)), 
-    (leak_E pstk (mk_ofs sz e ofs).2 (LSub [:: le; LEmpty]))).
+    sem_pexpr gd s2 (mk_ofs sz e ofs).1 =
+    ok ((Vword (wrepr U64 (i * wsize_size sz + ofs)%Z)),
+    (leak_E pstk (mk_ofs sz e ofs).2 (LSub [:: le ; LEmpty ]))).
   Proof.
-    rewrite /mk_ofs. case (is_constP e).
-    + by move=>  z [] <- <- /=.
-    move=> e' he' /=. rewrite /sem_sop2 /= /leak_sop2 /=.
-    have [sz' [w [-> /= -> /=]]] /=:= cast_wordP he'.
-    by rewrite !zero_extend_u wrepr_add wrepr_mul GRing.mulrC /=.
+    rewrite /mk_ofs. case: is_constP => /=.
+    + by move=>  z [] <-.
+    move=> e' /cast_wordP[] sz' [] w [].
+    case: cast_word => w' t /= -> /=.
+    rewrite /sem_sop2 /leak_sop2 /= => -> /=.
+    by rewrite !zero_extend_u wrepr_add wrepr_mul GRing.mulrC.
   Qed.
 
 (* Move this *)
@@ -256,6 +257,16 @@ Section PROOF.
     by rewrite Memory.addP !wrepr_add; ssrring.ssring.
   Qed.
 
+  Lemma ls_addE p x y :
+    eval_leak_tr_p p (ls_add x y) = eval_leak_tr_p p (LS_Add x y).
+  Proof.
+    rewrite /ls_add; case: eqP => [ -> | _ ].
+    - by rewrite /= GRing.add0r.
+    case: eqP => [ -> | _ ].
+    - by rewrite /= GRing.addr0.
+    by [].
+  Qed.
+
   Section CHECK_E_ESP.
     Context s s' (Hv: valid s s').
 
@@ -306,7 +317,7 @@ Section PROOF.
         rewrite hstk /get_var /= !zero_extend_u.
         case: hv => /Memory.readV [v0 hvp] hget. t_xrbindP=> vu; apply: on_vuP => //=.
         move=> [ws' w wp'] /hget /= [e] -> /= <-; subst ws'. move=> hv' hl'.
-        exists (Vword w). rewrite /=. split=> //. by rewrite -hl'. by rewrite -hv'.
+        exists (Vword w). rewrite /=. split=> //. by rewrite ls_addE -hl'. by rewrite -hv'.
       (* Pglobal *)
       - by move=> g e' v lte le [] <- <- /=; t_xrbindP => vg -> <- <- /=; exists vg.
       (* Pget *)
@@ -324,23 +335,24 @@ Section PROOF.
           move=>w hw <- <- /=.
           case: v' Hu=> //= n' a hincl; have := WArray.uincl_get hincl hw.
           move=> -> /=. by exists (Vword w); split=> //.
-        case: ifP=> //= halign [<- <-].
-        apply: on_arr_varP => n t hsubt hget. t_xrbindP.
-        move=> [v1 l1] /hrec [] v1' [] hve' sve' i  /(value_uincl_int sve') [] hi hi'.
-        move=> w hti <- <- /=; subst v1 v1'=> /=.
+        case: ifP => // halign h.
+        apply: on_arr_varP => n t hsubt hget.
+        t_xrbindP => - [ v1 l1 ] /hrec [] v1' [] hve' sve' i /(value_uincl_int sve') [] hi hi' w hti <- <-; subst.
         set v1 := {| vtype := tv1; vname := nv1 |}.
         case: (Hv) => _ _ _ _ hstk _ /(_ v1); rewrite heq.
         have [n' [/= heqt hnn']]:= subtypeEl hsubt; subst tv1.
-        have H := (mk_ofsP sz1 ofs hve'). rewrite H /= !zero_extend_u.
-        rewrite hstk /= zero_extend_u => hva.
+        have := (mk_ofsP sz1 ofs hve').
+        case: mk_ofs h => ofs' r [<- <-] /=.
+        rewrite hstk /= => -> /= hva.
+        rewrite !zero_extend_u.
         move: hget;rewrite /get_var; apply on_vuP => //= t1 ht1 /Varr_inj.
         move=> [e]; subst n' => /= ?;subst t.
         rewrite (get_arr_read_mem heq hva halign ht1 hti) /=.
-        exists (Vword w). split=> //. rewrite /=.
-        rewrite wrepr_add. by rewrite wrepr_mul.
+        exists (Vword w). split=> //.
+        by rewrite lt_composeE ls_addE wrepr_add wrepr_mul GRing.addrA.
       (* Pload *)
       - move=> sz x e he e' v lte le. case: ifP=> // hc.
-        t_xrbindP=> -[e1' le1'] /he hrec <- <- wv1 vv1 /= hget hto' [we1 le1''].
+        t_xrbindP=> -[e1' le1'] /he hrec [<- <-] wv1 vv1 /= hget hto' [we1 le1''].
         move=> /hrec [] ve1' [] -> hu /= wv2 hto wr hr <- <-.
         have [vv1' [] -> hu' /=]:= check_varP hc Hvm hget.
         rewrite (value_uincl_word hu hto) (value_uincl_word hu' hto') /=.
@@ -349,11 +361,11 @@ Section PROOF.
         by rewrite hr /=;eexists;(split;first by reflexivity) => /=.
       (* Pop1 *)
       - move=> o1 e1 Ih e2 v lte le. t_xrbindP.
-        move=> [ve le'] /Ih hrec <- <- [ve' le''] /= /hrec [] ve1' [] -> Hv'.
+        move=> [ve le'] /Ih hrec [<- <-] [ve' le''] /= /hrec [] ve1' [] -> Hv'.
         move=> vo /(vuincl_sem_sop1 Hv') /= -> lo hlo <- <- /=.
         have -> /= := leak_sop1_eq Hv' hlo. 
         rewrite /leak_sop1 /= /leak_sop1_typed /= in hlo.
-        move: hlo. t_xrbindP=> yt happ <- /=.
+        move: hlo. t_xrbindP=> yt happ [] <- /=.
         by eexists;split;first by reflexivity.
       (* Pop2 *)
       - move=> o1 e1 H1 e1' H1' e2 v lte le.
@@ -900,7 +912,7 @@ Section PROOF.
       have [m' Hm'] : exists m', write_mem (emem s2) (pstk + wrepr _ ofs) sz w' = ok m'.
       + by apply/Memory.writeV.
       exists {| emem := m'; evm := evm s2 |}; split.
-      + rewrite Hm' /=. by rewrite -h2 /=.
+      + rewrite Hm' /=. by rewrite -h2 /= ls_addE.
       have /= := valid_var_stk Hv Hm' Hget. rewrite h' h''.
       move=> hh. move: (hh ii). by move=> {hh} hh.
     (* Lmem *)
@@ -913,8 +925,8 @@ Section PROOF.
       rewrite /is_in_stk Hget. move=> /= H. move: (H hnis).
       move=> [] s2' [] {H} H Hvalid.
       exists s2'. split=> //=.
-    case: ifP => // hal [<- <-].
-    case: vi Hget => [[vty vn] vi] /= Hget.
+    case: ifP => // hal.
+    case: vi Hget => [[vty vn] vi] /= Hget h.
     case: (Hv) => H1 H2 H3 H4 H5 Hpstk H6 s1' le'.
     apply on_arr_varP => n' t' /subtypeEl [n1] /= [??];subst vty => hget.
     have ? : n1 = n'; last subst n1.
@@ -922,14 +934,14 @@ Section PROOF.
     t_xrbindP => -[i lti'] he ve hi vw hvw t'' haset vm hset ? <-;subst s1'.
     have [ve' [hve' vu]]:= alloc_eP Hv ha he.
     have [h1 h2] := value_uincl_int vu hi;subst i ve'.
-    have -> /= := mk_ofsP sz ofs hve'.
+    case: mk_ofs h (mk_ofsP sz ofs hve') => ofs' t [<- <-] /= -> /=.
     rewrite H5 (value_uincl_word Hu hvw) /= !zero_extend_u.
     apply: set_varP hset => //= t1 []??; subst t1 vm.
     cut (exists m',
       write_mem (emem s2) (pstk + wrepr Uptr (ve * wsize_size sz + ofs)) sz vw = ok m').
     - case => m' Hm'; rewrite Hm' /=. 
       exists {| emem := m'; evm := evm s2 |}. split.
-      + by rewrite -wrepr_mul -wrepr_add.
+      + by rewrite lt_composeE ls_addE wrepr_add wrepr_mul GRing.addrA.
       rewrite /WArray.inject Z.ltb_irrefl.
       by have := valid_arr_stk Hget hget Hm' haset Hv; case: (t'').
     apply/Memory.writeV.

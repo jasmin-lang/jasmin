@@ -126,12 +126,12 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd * leak_i
 
   | Cwhile a c e c' =>
     let dobody s_o :=
-    let s_o' := read_e_rec s_o e in
-    Let sci := dead_code_c dead_code_i c s_o' in
-    let: (s_i, c, Fc) := sci in
-    Let sci' := dead_code_c dead_code_i c' s_i in
-    let: (s_i', c', Fc') := sci' in
-    ok (s_i', (s_i, (c,c'), (Fc,Fc'))) in
+      let s_o' := read_e_rec s_o e in
+      Let sci := dead_code_c dead_code_i c s_o' in
+      let: (s_i, c, Fc) := sci in
+      Let sci' := dead_code_c dead_code_i c' s_i in
+      let: (s_i', c', Fc') := sci' in
+      ok (s_i', (s_i, (c,c'), (Fc,Fc'))) in
     Let sc := wloop dobody ii Loop.nb s in
     let: (s, (c,c'), (Fc,Fc')) := sc in
     ciok (s, [:: MkI ii (Cwhile a c e c') ], LT_iwhile Fc LT_id Fc')

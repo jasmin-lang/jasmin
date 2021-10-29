@@ -1,0 +1,19 @@
+export
+fn test_pmovmskb(reg u64 tmp) {
+  reg u32 a;
+  reg u64 b;
+  reg u128 x;
+  reg u256 y;
+
+  x = #set0_128();
+  y = #set0_256();
+  a = #VPMOVMSKB_u128u32(x);
+  (u32) [tmp] = a;
+  b = #VPMOVMSKB_u128u64(x);
+  [tmp] = b;
+  a = #VPMOVMSKB_u256u32(y);
+  (u32) [tmp] = a;
+  b = #VPMOVMSKB_u256u64(y);
+  [tmp] = b;
+}
+

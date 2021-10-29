@@ -40,7 +40,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Import GRing.Theory Num.Theory.
+Import GRing.Theory Num.Theory Order.POrderTheory Order.TotalTheory.
+Import ssrnat.
 
 Local Open Scope Z_scope.
 
@@ -425,13 +426,13 @@ Proof. by rewrite /wsar /asr Z.shiftr_0_r sreprK. Qed.
 Lemma wltuE' sz (α β: word sz) :
   wlt Unsigned α β = (wunsigned (β - α) == (wunsigned β - wunsigned α)%Z) && (β != α).
 Proof.
-by rewrite -[X in X && _]negbK -wltuE /= -lerNgt andbC eq_sym -ltr_neqAle.
+by rewrite -[X in X && _]negbK -wltuE /= -leNgt andbC eq_sym -lt_neqAle.
 Qed.
 
 Lemma wleuE sz (w1 w2: word sz) :
   wle Unsigned w1 w2 = (wunsigned (w2 - w1) == (wunsigned w2 - wunsigned w1))%Z.
 Proof.
-rewrite /= ler_eqVlt -/(wlt Unsigned _ _) wltuE'.
+rewrite /= le_eqVlt -/(wlt Unsigned _ _) wltuE'.
 rewrite orb_andr /= [w2 == w1]eq_sym orbN andbT.
 by rewrite orb_idl // => /eqP /val_inj ->; rewrite subZE !subrr.
 Qed.
@@ -447,42 +448,42 @@ rewrite !CoqWord.word.msbE /= !subZE; set w := (_ sz);
 + rewrite ltr_add2r eq_sym eqb_id negbK opprB !addrA subrK.
   rewrite [val (α - β)%R]subw_modE /urepr /= -/w.
   case: ltrP; first by rewrite addrK eqxx.
-  by rewrite addr0 ltr_eqF // ltr_subl_addr ltr_addl modulus_gt0.
+  by rewrite addr0 lt_eqF // ltr_subl_addr ltr_addl modulus_gt0.
 + rewrite ltr_add2r opprB !addrA subrK eq_sym eqbF_neg negbK.
   rewrite [val (α - β)%R]subw_modE /urepr -/w /=; case: ltrP.
-  + by rewrite mulr1n gtr_eqF // ltr_addl modulus_gt0.
+  + by rewrite mulr1n gt_eqF // ltr_addl modulus_gt0.
   + by rewrite addr0 eqxx.
-+ rewrite ltr_subl_addr (ltr_le_trans (urepr_ltmod _)); last first.
++ rewrite ltr_subl_addr (lt_le_trans (urepr_ltmod _)); last first.
     by rewrite ler_addr urepr_ge0.
   rewrite eq_sym eqb_id negbK; apply/esym.
-  rewrite [val _]subw_modE /urepr -/w /= ltrNge ltrW /=.
+  rewrite [val _]subw_modE /urepr -/w /= ltNge ltW /=.
   * by rewrite addr0 addrAC eqxx.
-  * by rewrite (ltr_le_trans hb).
-+ rewrite ltr_subl_addr (ltr_le_trans (urepr_ltmod _)); last first.
+  * by rewrite (lt_le_trans hb).
++ rewrite ltr_subl_addr (lt_le_trans (urepr_ltmod _)); last first.
     by rewrite ler_addr urepr_ge0.
   rewrite eq_sym eqbF_neg negbK [val _]subw_modE /urepr -/w /=.
-  rewrite ltrNge ltrW ?addr0; last first.
-    by rewrite (ltr_le_trans hb).
-  by rewrite addrAC gtr_eqF // ltr_subl_addr ltr_addl modulus_gt0.
-+ rewrite ltr_subr_addl ltrNge ltrW /=; last first.
-    by rewrite (ltr_le_trans (urepr_ltmod _)) // ler_addl urepr_ge0.
+  rewrite ltNge ltW ?addr0; last first.
+    by rewrite (lt_le_trans hb).
+  by rewrite addrAC gt_eqF // ltr_subl_addr ltr_addl modulus_gt0.
++ rewrite ltr_subr_addl ltNge ltW /=; last first.
+    by rewrite (lt_le_trans (urepr_ltmod _)) // ler_addl urepr_ge0.
   apply/esym/negbTE; rewrite negbK; apply/eqP/esym.
   rewrite [val _]subw_modE /urepr /= -/w; have ->/=: (val α < val β)%R.
     by have := ltr_le_add ha hb; rewrite addrC ltr_add2l.
-  rewrite mulr1n addrK opprD addrA ltr_eqF //= opprK.
+  rewrite mulr1n addrK opprD addrA lt_eqF //= opprK.
   by rewrite ltr_addl modulus_gt0.
-+ rewrite ltr_subr_addl ltrNge ltrW /=; last first.
-    by rewrite (ltr_le_trans (urepr_ltmod _)) // ler_addl urepr_ge0.
++ rewrite ltr_subr_addl ltNge ltW /=; last first.
+    by rewrite (lt_le_trans (urepr_ltmod _)) // ler_addl urepr_ge0.
   apply/esym/negbTE; rewrite negbK eq_sym eqbF_neg negbK.
   rewrite [val _]subw_modE /urepr -/w /= opprD addrA opprK.
-  by have ->//: (val α < val β)%R; apply/(ltr_le_trans ha).
+  by have ->//: (val α < val β)%R; apply/(lt_le_trans ha).
 + rewrite [val (α - β)%R](subw_modE α β) -/w /urepr /=.
   rewrite eq_sym eqb_id negbK; case: ltrP.
   * by rewrite mulr1n addrK eqxx.
-  * by rewrite addr0 ltr_eqF // ltr_subl_addr ltr_addl modulus_gt0.
+  * by rewrite addr0 lt_eqF // ltr_subl_addr ltr_addl modulus_gt0.
 + rewrite [val (α - β)%R](subw_modE α β) -/w /urepr /=.
   rewrite eq_sym eqbF_neg negbK; case: ltrP.
-  * by rewrite mulr1n gtr_eqF // ltr_addl modulus_gt0.
+  * by rewrite mulr1n gt_eqF // ltr_addl modulus_gt0.
   * by rewrite addr0 eqxx.
 Qed.
 
@@ -490,13 +491,13 @@ Lemma wlesE' sz (α β: word sz) : α ≠ β →
   wle Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
 Proof.
 move=> ne_ab; suff ->: wle Signed α β = wlt Signed α β by rewrite wltsE.
-by move=> /=; rewrite ler_eqVlt orb_idl // => /eqP /srepr_inj.
+by move=> /=; rewrite le_eqVlt orb_idl // => /eqP /srepr_inj.
 Qed.
 
 Lemma wltsE' sz (α β: word sz) : α ≠ β →
   wlt Signed β α = (msb (α - β) == (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
 Proof.
-have ->: wlt Signed β α = ~~ (wle Signed α β) by rewrite /= ltrNge.
+have ->: wlt Signed β α = ~~ (wle Signed α β) by rewrite /= ltNge.
 by move=> ne_ab; rewrite wlesE' // negbK.
 Qed.
 
@@ -504,7 +505,7 @@ Lemma wlesE sz (α β: word sz) : α ≠ β →
   wle Signed β α = (msb (α - β) == (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
 Proof.
 move=> ne_ab; suff ->: wle Signed β α = wlt Signed β α by rewrite wltsE'.
-by move=> /=; rewrite ler_eqVlt orb_idl // => /eqP /srepr_inj /esym.
+by move=> /=; rewrite le_eqVlt orb_idl // => /eqP /srepr_inj /esym.
 Qed.
 
 (* -------------------------------------------------------------------*)
@@ -880,6 +881,14 @@ Definition wbswap sz (w: word sz) : word sz :=
   make_vec sz (rev (split_vec U8 w)).
 
 (* -------------------------------------------------------------------*)
+Definition popcnt sz (w: word sz) :=
+ wrepr sz (count id (w2t w)).
+
+(* -------------------------------------------------------------------*)
+Definition pextr sz (w1 w2: word sz) :=
+ wrepr sz (t2w (in_tuple (mask (w2t w2) (w2t w1)))).
+
+(* -------------------------------------------------------------------*)
 Definition halve_list A : seq A → seq A :=
   fix loop m := if m is a :: _ :: m' then a :: loop m' else m.
 
@@ -1086,6 +1095,16 @@ Definition wperm2i128 (w1 w2: u256) (i: u8) : u256 :=
   make_vec U256 [:: lo ; hi ].
 
 (* -------------------------------------------------------------------*)
+Definition wpermd1 (v: seq u32) (idx: u32) :=
+  let off := wunsigned idx mod 8 in
+  (v`_(Z.to_nat off))%R.
+
+Definition wpermd sz (w1 idx: word sz) : word sz :=
+  let v := split_vec U32 w1 in
+  let i := split_vec U32 idx in
+  make_vec sz (map (wpermd1 v) i).
+
+(* -------------------------------------------------------------------*)
 Definition wpermq (w: u256) (i: u8) : u256 :=
   let v := split_vec U64 w in
   let j := split_vec 2 i in
@@ -1100,6 +1119,53 @@ Definition wpslldq := wpsxldq (@wshl _).
 Definition wpsrldq := wpsxldq (@wshr _).
 
 (* -------------------------------------------------------------------*)
+Definition wpcmpu1 (cmp: Z → Z → bool) ve (x y: word ve) : word ve :=
+  if cmp (wunsigned x) (wunsigned y) then (-1)%R else 0%R.
+Arguments wpcmpu1 cmp {ve} _ _.
+
+Definition wpcmpeq ve sz (w1 w2: word sz) : word sz :=
+  lift2_vec ve (wpcmpu1 Z.eqb) sz w1 w2.
+
+Definition wpcmpgt ve sz (w1 w2: word sz) : word sz :=
+  lift2_vec ve (wpcmpu1 Z.gtb) sz w1 w2.
+
+(* -------------------------------------------------------------------*)
+Definition saturated_signed (sz: wsize) (x: Z): Z :=
+ Z.max (wmin_signed sz) (Z.min (wmax_signed sz) x).
+
+Definition wrepr_saturated_signed (sz: wsize) (x: Z) : word sz :=
+ wrepr sz (saturated_signed sz x).
+
+Fixpoint add_pairs (m: seq Z) : seq Z :=
+  if m is x :: y :: z then x + y :: add_pairs z
+  else [::].
+
+Definition wpmaddubsw sz (v1 v2: word sz) : word sz :=
+  let w1 := map wunsigned (split_vec VE8 v1) in
+  let w2 := map wsigned (split_vec VE8 v2) in
+  let result := [seq wrepr_saturated_signed sz z | z <- add_pairs (map2 *%R w1 w2) ] in
+  make_vec sz result.
+
+Definition wpmaddwd sz (v1 v2: word sz) : word sz :=
+  let w1 := map wsigned (split_vec VE16 v1) in
+  let w2 := map wsigned (split_vec VE16 v2) in
+  let result := [seq wrepr sz z | z <- add_pairs (map2 *%R w1 w2) ] in
+  make_vec sz result.
+
+(* Test case from the documentation: VPMADDWD wraps when all inputs are min-signed *)
+Local Lemma test_wpmaddwd_wraps :
+  let: s16 := wrepr U16 (wmin_signed U16) in
+  let: s32 := make_vec U32 [:: s16 ; s16 ] in
+  let: res := wpmaddwd s32 s32 in
+  let: expected := wrepr U32 (wmin_signed U32) in
+  res = expected.
+Proof. vm_compute. by apply/eqP. Qed.
+
+(* -------------------------------------------------------------------*)
 Definition wpack sz pe (arg: seq Z) : word sz :=
   let w := map (CoqWord.word.mkword pe) arg in
   wrepr sz (word.wcat_r w).
+
+(* -------------------------------------------------------------------*)
+Definition wpmovmskb (dsz ssz: wsize) (w : word ssz) : word dsz :=
+  wrepr dsz (t2w_def [tuple of map msb (split_vec U8 w)]).

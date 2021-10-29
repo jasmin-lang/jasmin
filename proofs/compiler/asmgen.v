@@ -735,7 +735,7 @@ Proof.
       rewrite /SF_of_word msb0 /=. move : compile_lvals. move=> Hc.
       move: (Hc ii id.(id_max_imm) gd m lvs m1 l1 s [:: Reg r; Reg r]
              id.(id_out) id.(id_tout)
-             (let vf := Some false in (::vf, vf, vf, vf, Some true & (0%R: word sz)))
+             (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word sz)))
              MSB_CLEAR (refl_equal _) hw hlo hcd id.(id_check_dest)).
      move=> [] m2 [] hm hlo'. exists m2. split=> //. rewrite /= in hm. rewrite hm /= cats0.
      move: hlo1. rewrite /leak_sopn /= /sopn_leak /= /Oset0_instr /=. t_xrbindP=> yt /= //= happ <- /=.
@@ -821,7 +821,7 @@ Transparent eval_arg_in_v.
     t_xrbindP => vs1 [v1 l1] hva vs2 h <- vs3 v /=.
     case: args h => /=; t_xrbindP;last by move=> *; subst.
     move => <- u /= htwa [<-]. rewrite htwa /=. move=> lo1 lo2 u' [] hu [] <- <- <- /=. 
-    t_xrbindP => [m1 lm] m2 hwx <- <- lo3 lo4 u'' hu'' <- hlo3 <- <- /=. 
+    t_xrbindP => [m1 lm] m2 hwx <- <- lo3 lo4 u'' hu'' [] <- hlo3 <- <- /=.
     rewrite /assemble_x86_opn /is_lea /=.
     t_xrbindP => asm_args' _ ? /assertP hidc ? /assertP /andP[hca hcd] ?? hlo;subst op' asm_args'.  
     case: asm_args hidc hcd hca => // a0 [] // a1 []// hidc hcd;

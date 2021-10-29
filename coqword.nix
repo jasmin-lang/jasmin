@@ -4,12 +4,12 @@ let inherit (coqPackages) coq; in
 
 let mathcomp =
  (if coqPackages ? mathcomp_
-  then coqPackages.mathcomp_ "1.10.0"
-  else coqPackages.mathcomp.override { version = "1.10.0"; }
+  then coqPackages.mathcomp_ "1.11.0"
+  else coqPackages.mathcomp.override { version = "1.11.0"; }
  ).algebra
 ; in
 
-let rev = "1744285ceda592d7d12573627200b7f82fab8b84"; in
+let rev = "131bee8a1c14a67a4925534e455ea0b870ee0615"; in
 
 stdenv.mkDerivation rec {
   version = "0.0-git-${builtins.substring 0 8 rev}";
@@ -19,7 +19,7 @@ stdenv.mkDerivation rec {
     owner = "jasmin-lang";
     repo = "coqword";
     inherit rev;
-    sha256 = "1nmy9jzrznq7bl0zc3hw1ismi494b0ja3cv51l7qq2rd6rjxsk4x";
+    sha256 = "196w51biq9wagbr0dkjd2v2z16nf6sz0yy5r4q1mgnpdld0rs9m1";
   };
 
   buildInputs = [ coq ];

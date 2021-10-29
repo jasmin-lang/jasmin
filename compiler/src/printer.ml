@@ -87,7 +87,7 @@ let string_of_op2 = function
 
 
 let string_of_op1 = function
-  | E.Oint_of_word _ -> F.sprintf "(int)"
+  | E.Oint_of_word sz -> F.sprintf "(int of u%d)" (int_of_ws sz)
   | E.Osignext (szo, _) -> F.sprintf "(%ds)" (int_of_ws szo)
   | E.Oword_of_int szo
   | E.Ozeroext (szo, _) -> F.sprintf "(%du)" (int_of_ws szo)
@@ -331,12 +331,7 @@ let pp_func ~debug fmt fd =
   let pp_var = pp_var ~debug in
   pp_fun pp_var fmt fd
 
-let pp_prog ~debug fmt p =
-  let pp_var = pp_var ~debug in
-  Format.fprintf fmt "@[<v>%a@]"
-     (pp_list "@ @ " (pp_fun pp_var)) (List.rev p)
-
-let pp_glob fmt (ws, n, z) = 
+let pp_glob fmt (ws, n, z) =
   Format.fprintf fmt "%a %s %a"
     pp_ty (Bty (U ws)) n B.pp_print z
 

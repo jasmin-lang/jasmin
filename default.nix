@@ -11,7 +11,7 @@ with pkgs;
 
 let inherit (lib) optionals; in
 
-let coqPackages = coqPackages_8_9; in
+let coqPackages = coqPackages_8_12; in
 
 let coqword = callPackage ./coqword.nix { inherit coqPackages; }; in
 
@@ -40,7 +40,7 @@ stdenv.mkDerivation {
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib ocamlbuild
          (batteries.overrideAttrs (o: { doCheck = false; }))
-         menhir menhirLib zarith camlidl apron yojson ]))
+         menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ])
     ;
 }

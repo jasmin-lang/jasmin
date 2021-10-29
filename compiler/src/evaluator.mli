@@ -4,7 +4,7 @@ val exec :
   Expr.prog ->
   Utils0.funname ->
   Low_memory.Memory.mem ->
-  Low_memory.Memory.mem * Sem.values
+  Low_memory.Memory.mem * Sem.values * Leakage.leak_i list
 
 val pp_val : Format.formatter -> Sem.value -> unit
 
