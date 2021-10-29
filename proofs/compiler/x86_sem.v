@@ -54,10 +54,6 @@ Record x86_mem : Type := X86Mem {
 }.
 
 (* -------------------------------------------------------------------- *)
-(** Compatibility with ssreflect 1.7. *)
-Definition comparableMixin :=
-  ltac:( exact: comparableMixin || exact: comparableClass ).
-
 Record x86_state := X86State {
   xm   :> x86_mem;
   xc   : seq asm;

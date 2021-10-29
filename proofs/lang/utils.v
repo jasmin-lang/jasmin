@@ -141,7 +141,7 @@ Lemma bind_eq eT aT rT (f1 f2 : aT -> result eT rT) m1 m2 :
    m1 = m2 -> f1 =1 f2 -> m1 >>= f1 = m2 >>= f2.
 Proof. move=> <- Hf; case m1 => //=. Qed.
 
-Definition ok_inj {E A} (a a': A) (H: Ok E a = ok a') : a = a' :=
+Definition ok_inj {E A} {a a': A} (H: Ok E a = ok a') : a = a' :=
   let 'Logic.eq_refl := H in Logic.eq_refl.
 
 Definition Error_inj {E A} (a a': E) (H: @Error E A a = Error a') : a = a' :=
@@ -892,15 +892,15 @@ Proof. apply: (@equivP (Pos.lt x y)) => //;rewrite -Pos.ltb_lt;apply idP. Qed.
 
 Lemma Pos_leb_trans y x z:
   (x <=? y)%positive -> (y <=? z)%positive -> (x <=? z)%positive.
-Proof. move=> /P_leP ? /P_leP ?;apply /P_leP;omega. Qed.
+Proof. move=> /P_leP ? /P_leP ?;apply /P_leP; Lia.lia. Qed.
 
 Lemma Pos_lt_leb_trans y x z:
   (x <? y)%positive -> (y <=? z)%positive -> (x <? z)%positive.
-Proof. move=> /P_ltP ? /P_leP ?;apply /P_ltP;omega. Qed.
+Proof. move=> /P_ltP ? /P_leP ?;apply /P_ltP; Lia.lia. Qed.
 
 Lemma Pos_le_ltb_trans y x z:
   (x <=? y)%positive -> (y <? z)%positive -> (x <? z)%positive.
-Proof. move=> /P_leP ? /P_ltP ?;apply /P_ltP;omega. Qed.
+Proof. move=> /P_leP ? /P_ltP ?;apply /P_ltP; Lia.lia. Qed.
 
 Lemma pos_eqP : Equality.axiom Pos.eqb.
 Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Pos.eqb_eq. Qed.
