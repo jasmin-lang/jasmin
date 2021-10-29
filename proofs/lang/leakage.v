@@ -207,24 +207,8 @@ Definition get_seq_leak_e (l : leak_e) : seq leak_e :=
   | _ => [::]
   end.
 
-(* FIXME : use this definition: nth LEmpty l n *)
-Fixpoint get_nth_leak (l : seq leak_e) n : leak_e := 
-  match l with 
-  | [::] => LEmpty
-  | x :: l => if n == 0 then x else get_nth_leak l (n-1)
-  end.
-
-Definition get_leak_e (l : leak_e) : leak_e := 
-  match l with 
-  | LSub le => if (size le) == 1 then (get_nth_leak le 0) else LEmpty
-  | _ => LEmpty
-  end.
-
-Fixpoint make_leak_e_sub (l : leak_e) : leak_e :=
-  match l with 
-  | LSub le => LSub (map make_leak_e_sub le)
-  | _ => LSub [:: l]
-  end.
+Definition get_nth_leak (m: leak_es) n : leak_e :=
+  nth LEmpty m n.
 
 (* ------------------------------------------------------------------------ *)
 (* Leakage trees and leakage transformations. *)
@@ -274,15 +258,6 @@ Inductive leak_e_tr :=
 Definition lt_compose (a b: leak_e_tr) : leak_e_tr :=
   if a is LT_id then b else if b is LT_id then a else LT_compose a b.
 
-Inductive leak_e_es_tr :=
-  | LT_leseq : leak_e_es_tr
-  | LT_emseq : leak_e_es_tr
-  | LT_subseq : leak_e_tr -> leak_e_es_tr
-  | LT_idseq : leak_e_tr -> leak_e_es_tr
-  | LT_idseq' : leak_e_tr -> leak_e_es_tr
-  | LT_dfst : leak_e_es_tr
-  | LT_dsnd : leak_e_es_tr.
-
 Definition get_seq_leak_e_tr (l : leak_e_tr) : seq leak_e_tr := 
   match l with 
   | LT_seq le => le
@@ -319,18 +294,19 @@ Definition leak_E_S (stk: pointer) (lts: seq leak_e_tr) (ls : seq leak_e) : seq 
   map2 (leak_E stk) lts ls.
 
 (* Transformation from leakage to sequence of leakage *)
-Definition leak_ES (stk : pointer) (lte : leak_e_es_tr) (le : leak_e) : seq leak_e :=
-  match lte with
-  | LT_leseq      => [:: leak_E stk (LT_subi 0) le]
-  | LT_emseq      => [::]
-  | LT_subseq lte => [:: leak_E stk (LT_compose (LT_subi 0) lte) le]
-  | LT_idseq lte  => get_seq_leak_e (leak_E stk (LT_compose (LT_subi 0) lte) le)
-  | LT_idseq' lte  => get_seq_leak_e (leak_E stk (LT_seq [:: LT_compose (LT_subi 0) (LT_compose (LT_subi 0) (LT_subi 0));
-                                                 LT_compose (LT_subi 0) (LT_subi 1)])
-                      (LSub [:: (leak_E stk (LT_subi 0) (LSub (get_seq_leak_e (leak_E stk lte le))))]))
-  | LT_dfst       => [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; le; LEmpty]
-  | LT_dsnd       => [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; le]
-  end.  
+Definition leak_ES (stk: pointer) (lte: leak_e_tr) (le: leak_e) : leak_es :=
+  get_seq_leak_e (leak_E stk lte le).
+
+Local Notation π₀ := (LT_subi 0).
+Local Notation π₁ := (LT_subi 1).
+
+Definition LT_leseq : leak_e_tr := LT_seq [:: LT_subi 0 ].
+Definition LT_emseq : leak_e_tr := LT_remove.
+Definition LT_subseq (lte: leak_e_tr) : leak_e_tr := LT_seq [:: LT_compose (LT_subi 0) lte ].
+Definition LT_idseq (lte: leak_e_tr) : leak_e_tr := LT_compose (LT_subi 0) lte.
+Definition LT_idseq' (lte: leak_e_tr) : leak_e_tr := LT_seq [:: LT_compose lte (LT_compose π₀ (LT_compose π₀ π₀)); LT_compose lte (LT_compose π₀ π₁) ].
+Definition LT_dfst : leak_e_tr := LT_seq [:: LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_id ; LT_remove ].
+Definition LT_dsnd : leak_e_tr := LT_seq [:: LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_id ].
 
 End Section.
 
@@ -361,10 +337,10 @@ Variant leak_i_tr_single :=
  | LT_ilds_
  | LT_ildus_
  | LT_ilasgn_
- | LT_ilinc_ of leak_e_es_tr
- | LT_ilcopn_ of leak_e_es_tr
- | LT_ileq_ of leak_e_es_tr
- | LT_illt_ of leak_e_es_tr.
+ | LT_ilinc_ of leak_e_tr
+ | LT_ilcopn_ of leak_e_tr
+ | LT_ileq_ of leak_e_tr
+ | LT_illt_ of leak_e_tr.
 
 
 Variant leak_i_tr_double :=
@@ -397,8 +373,8 @@ Inductive leak_i_tr :=
 | LT_ildcn : leak_i_tr*)
 | LT_ilmul : leak_es_i_tr -> leak_e_tr -> option var_i -> leak_i_tr
 | LT_ilif : leak_e_i_tr -> leak_e_tr -> leak_i_tr
-| LT_ilfopn : leak_es_i_tr -> leak_e_es_tr -> leak_i_tr
-| LT_ildiv : leak_i_tr -> leak_e_es_tr -> leak_i_tr.
+| LT_ilfopn : leak_es_i_tr -> leak_e_tr -> leak_i_tr
+| LT_ildiv : leak_i_tr -> leak_e_tr -> leak_i_tr.
 
 Notation LT_ilmov2 := (LT_isingle LT_ilmov2_).
 Notation LT_ilmov3 := (LT_isingle LT_ilmov3_).
@@ -444,20 +420,6 @@ match lt with
  | LT_iemptyl => 0
 end.
 
-Fixpoint remove_last_leak (ls: seq leak_e) : seq leak_e := 
-  match ls with
-  | [::] => [::]
-  | [:: a] => [::]
-  | a :: l => a :: remove_last_leak l
-  end.
-
-Fixpoint last_leak (ls : seq leak_e) : leak_e :=
-  match ls with 
-  | [::] => LEmpty
-  | [:: a] => a
-  | a :: l => last_leak l
-  end.
-
 (* Transformation from expressions (seq of expression) leakage to instruction leakage *)
 Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (lo: leak_e) (les': seq leak_e) : seq leak_i :=
   match lti with 
@@ -469,7 +431,7 @@ Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (lo: le
     [:: Lopn (LSub [:: LSub les ; lo; LSub les'])]
 
   | LT_iaddcarryf ltes => 
-    leak_ESI stk ltes (remove_last_leak les) LEmpty
+    leak_ESI stk ltes (List.removelast les) LEmpty
       [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
 
   | LT_iaddcarry ltes =>  
@@ -533,9 +495,6 @@ Definition dummy_lit := Lopn LEmpty.
 
 Definition leak_assgn := 
   Lopn (LSub [:: LEmpty ; LEmpty]).
-
-Definition get_empty_leak_seq (l : seq leak_e_tr) :=
-  (map (fun x => LEmpty) l).
 
 Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq leak_i :=
   match lt, l with
@@ -823,20 +782,13 @@ Fixpoint leak_compile (stk : pointer) (lts: seq leak_f_tr) (lf: leak_fun) :=
 
 (** Leakage for intermediate-level **)
 
-Inductive leak_il : Type :=
+Variant leak_il : Type :=
   | Lempty0 : leak_il
   | Lempty : int -> leak_il 
   | Lopnl : leak_e -> leak_il
   | Lcondl : int -> leak_e -> bool -> leak_il. 
 
-Definition eq_leak_il (li: leak_il) (li': leak_il) : bool :=
-match li, li' with 
- | Lempty0, Lempty0 => true
- | Lempty i1, Lempty i2 => i1 == i2
- | Lopnl le, Lopnl le' => if (eq_leak_e le le') then true else false
- | Lcondl i1 le b, Lcondl i2 le' b' => if (i1 == i2) && (eq_leak_e le le') && (b == b') then true else false
- | _, _ => false
-end.
+Notation leak_funl := (funname * seq leak_il).
 
 Definition leak_cl := seq leak_il.
 
