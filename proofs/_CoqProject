@@ -1,5 +1,5 @@
 -arg -w
--arg -parsing
+-arg -notation-overridden
 -arg -w
 -arg -extraction-reserved-identifier
 -arg -w
@@ -8,8 +8,6 @@
 -arg -ambiguous-paths
 -arg -w
 -arg -duplicate-clear
--arg -w
--arg -omega-is-deprecated
 
 -R 3rdparty Jasmin
 -R compiler Jasmin

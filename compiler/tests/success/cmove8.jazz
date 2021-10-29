@@ -1,0 +1,10 @@
+export
+fn f(reg u8 b, reg u64 x y) -> reg u64 {
+  reg u64 r;
+  reg bool c;
+
+  r = x;
+  c = b == 1;
+  r = y if c;
+  return r;
+}
