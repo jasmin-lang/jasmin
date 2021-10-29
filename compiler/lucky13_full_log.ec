@@ -404,6 +404,7 @@ equiv l4 : M.rotate_offset_div ~ M.rotate_offset_div:
 (16 <= to_uint md_size <= 64){1}
 ==> ={M.leakages}.
 proof.
+  proc; wp; skip => />.
 admitted.
 (*
   proc.
@@ -435,7 +436,6 @@ qed.
 
 op wf_rec mem (rec:W64.t) (orig_len md_size : W32.t) = 
  let mac_end = loadW32 mem (to_uint (rec + W64.of_int 4)) in
- to_uint orig_len + 255 < W32.modulus /\
  to_uint md_size <= to_uint mac_end /\ 
  1 <= to_uint orig_len - to_uint mac_end <= 256.
 
@@ -450,12 +450,11 @@ proof.
   rewrite /wf_rec /=.
   pose mac_end := loadW32 _ _; move: mac_end => mac_end hmd [h1 [h2 h3]].
   have -> : mac_end - md_size - (orig_len - (md_size + W32.of_int 256)) = 
-            mac_end - orig_len +  W32.of_int 256 by ring.
-  case: (md_size + (of_int 256)%W32 \ult orig_len); rewrite W32.ultE; last first.
-  rewrite W32.WRingA.subr0 W32.to_uintB 1:W32.uleE 1:// W32.to_uintD_small /= /#. 
-  have -> h : mac_end - orig_len + W32.of_int 256 = mac_end + W32.of_int 256 - orig_len by ring.
-  rewrite W32.to_uintB 1:W32.uleE; 1: by rewrite W32.to_uintD_small /= /#.
-  rewrite W32.to_uintD_small /= /#.
+            mac_end - (orig_len - W32.of_int 256) by ring.
+  rewrite W32.ultE W32.to_uintD_small /= 1:/#.
+  case: (to_uint md_size + 256 < to_uint orig_len) => h; last first.
+  + rewrite W32.WRingA.subr0 W32.to_uintB 1:W32.uleE 1:// /#.
+  rewrite W32.to_uintB ?W32.uleE W32.to_uintB ?W32.uleE /=; smt(W32.to_uint_cmp). 
 qed.
 
 equiv l_final : M.ssl3_cbc_copy_mac_jasmin ~ M.ssl3_cbc_copy_mac_jasmin :
