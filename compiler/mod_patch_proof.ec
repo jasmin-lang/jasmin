@@ -98,17 +98,25 @@ proof.
   move=> h; rewrite W64.to_uintD_small; 1: by rewrite -add_lt. 
   rewrite W64.to_uint_shl; 1: smt(W64.to_uint_cmp).
   rewrite modz_small. 
-admit.
+  + split.
+    + apply StdOrder.IntOrder.mulr_ge0; 1: smt(W64.to_uint_cmp).
+      by apply StdOrder.IntOrder.expr_ge0.
+    move=> _; rewrite W64.to_uintE /LZCNT_64 /= W64.to_uint_small; 1: smt (leak_div_bound).
+    have := lzcnt_bound (w2bits b).
+    rewrite /leak_div size_w2bits (eq_sym 64) leak_div64 //= => -[] _. 
+    rewrite -(StdOrder.IntOrder.ltr_pmul2r (2 ^ lzcnt (rev (w2bits b)))).
+    + by apply StdOrder.IntOrder.expr_gt0.
+    rewrite -Ring.IntID.exprD_nneg //; 1,2: smt(leak_div_bound).
+    by rewrite Ring.IntID.subrK.
   rewrite /LZCNT_64 /= /leak_div.
   have := lzcnt_bound (w2bits b).
   rewrite size_w2bits (eq_sym 64) leak_div64 1:// /= -W64.to_uintE => -[h1 _].
   move: h1.
   rewrite -(StdOrder.IntOrder.ler_pmul2r (2 ^ to_uint (W64.of_int (lzcnt (rev (w2bits b)))))).
   + by rewrite StdOrder.IntOrder.expr_gt0.
-  rewrite -StdOrder.IntOrder.Domain.exprD_nneg. 
-  + admit.
+  rewrite -StdOrder.IntOrder.Domain.exprD_nneg; 1: smt(leak_div_bound leak_div64).
   + smt (W64.to_uint_cmp).
-  rewrite W64.to_uint_small /=. smt ( leak_div_bound ).
+  rewrite W64.to_uint_small /=. smt (leak_div_bound ).
   have -> /= : (63 - lzcnt (rev (w2bits b)) + lzcnt (rev (w2bits b))) = 63 by ring.
   smt (W64.to_uint_cmp).
 qed.
