@@ -301,13 +301,6 @@ match lt with
  | LT_iemptyl => 0
 end.
 
-Fixpoint remove_last_leak (ls: seq leak_e) : seq leak_e := 
-  match ls with
-  | [::] => [::]
-  | [:: a] => [::]
-  | a :: l => a :: remove_last_leak l
-  end.
-
 (* Transformation from expressions (seq of expression) leakage to instruction leakage *)
 Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': seq leak_e) : seq leak_i :=
   match lti with 
@@ -319,7 +312,7 @@ Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': 
     [:: Lopn (LSub [:: LSub les ; LSub les'])]
 
   | LT_iaddcarryf ltes => 
-    leak_ESI stk ltes (remove_last_leak les) 
+    leak_ESI stk ltes (List.removelast les)
       [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
 
   | LT_iaddcarry ltes =>  
@@ -664,20 +657,11 @@ Fixpoint leak_compile (stk : pointer) (lts: seq leak_f_tr) (lf: leak_fun) :=
 
 (** Leakage for intermediate-level **)
 
-Inductive leak_il : Type :=
+Variant leak_il : Type :=
   | Lempty0 : leak_il
   | Lempty : int -> leak_il 
   | Lopnl : leak_e -> leak_il
   | Lcondl : int -> leak_e -> bool -> leak_il. 
-
-Definition eq_leak_il (li: leak_il) (li': leak_il) : bool :=
-match li, li' with 
- | Lempty0, Lempty0 => true
- | Lempty i1, Lempty i2 => i1 == i2
- | Lopnl le, Lopnl le' => if (eq_leak_e le le') then true else false
- | Lcondl i1 le b, Lcondl i2 le' b' => if (i1 == i2) && (eq_leak_e le le') && (b == b') then true else false
- | _, _ => false
-end.
 
 Notation leak_funl := (funname * seq leak_il).
 
