@@ -937,7 +937,7 @@ Section PROOF.
          @lsem LO gd
           (setpc (of_estate s1 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond true lbl)]) 0)
           (lpc (of_estate s1 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond true lbl)]) 0)).+1)
-          (@ilwhile_c'0 (@leak_i_iL LO) LO stk ltc' li)
+          (ilwhile_c'0 (@leak_i_iL LO) stk ltc' li)
           (of_estate s2 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond true lbl)])
           (size (ι (Lilabel lbl) :: lc ++ [:: ι (Licond true lbl)]))).
       + move=> [??]; split; first by constructor.
@@ -959,7 +959,7 @@ Section PROOF.
           lpc := 1 + size lc |}.
         + have /(_ LO) Hhd := lsem_cat_hd. 
           have /= {Hhd} Hhd := (Hhd L gd (of_estate s1 lc 0) (of_estate s2 lc (size lc))
-                                    (@leak_i_iLs (@leak_i_iL LO) LO stk ltc' lc0) Hd Hc).
+                                    (leak_i_iLs leak_i_iL stk ltc' lc0) Hd Hc).
           rewrite /lsem /add_hd_c /= addn0 in Hhd.
           have Htl := (@lsem_cat_tl LO). 
           rewrite /lsem in Htl.
@@ -973,7 +973,7 @@ Section PROOF.
           lmem := emem s2;
           lvm := evm s2;
           lc := ι (Lilabel lbl) :: lc;
-          lpc := 1 + size lc |} (@leak_i_iLs (@leak_i_iL LO) LO stk ltc' lc0) Hhd).
+          lpc := 1 + size lc |} (leak_i_iLs leak_i_iL stk ltc' lc0) Hhd).
           by apply Htl. 
         apply: lsem_step.
         + rewrite /lsem1 /step /find_instr /= onth_cat ltnn subnn /= /eval_instr /= /to_estate /=.
@@ -1011,7 +1011,7 @@ Section PROOF.
     set C := (C in of_estate _ C _);rewrite -/C.
     pose C1 := (ι (Lilabel (next_lbl lbl)) :: lc' ++ ι (Lilabel lbl) :: lc ++ [:: ι (Licond true (next_lbl lbl))]).
     suff : leak_w_WF ltc ltc' li /\
-       @lsem LO gd (of_estate s1 C1 (size lc').+2) (@ilwhile (@leak_i_iL LO) LO stk ltc ltc' li) (of_estate s2 C1 (size C1)).
+       @lsem LO gd (of_estate s1 C1 (size lc').+2) (ilwhile (@leak_i_iL LO) stk ltc ltc' li) (of_estate s2 C1 (size C1)).
     + move=> [? h]; split; first by constructor. 
       apply lsem_step with (of_estate s1 C ((a == Align) + (size lc').+2).+1).
       + rewrite /lsem1 /step /= /eval_instr /=.
@@ -1113,7 +1113,7 @@ Section PROOF.
         @lsem LO gd
          (setpc (of_estate s1 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)]) 0)
          (lpc (of_estate s1 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)]) 0)).+1)
-         (@ilwhile_c'0 (@leak_i_iL LO) LO stk ltc' li)
+         (ilwhile_c'0 (@leak_i_iL LO) stk ltc' li)
          (of_estate s2 (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)])
            (size (ι (Lilabel lbl) :: lc ++ [:: ι (Licond e lbl)]))).
       + move=> [??]; split; first by constructor.
@@ -1186,7 +1186,7 @@ Section PROOF.
     set C := (C in of_estate _ C _);rewrite -/C.
     pose C1 := (ι (Lilabel (next_lbl lbl)) :: lc' ++ ι (Lilabel lbl) :: lc ++ [:: ι (Licond e (next_lbl lbl))]).
     suff : leak_w_WF ltc ltc' li /\ 
-      @lsem LO gd (of_estate s1 C1 ((size lc').+2)) (@ilwhile (@leak_i_iL LO) LO stk ltc ltc' li)
+      @lsem LO gd (of_estate s1 C1 ((size lc').+2)) (ilwhile (@leak_i_iL LO) stk ltc ltc' li)
                 (of_estate s2 C1 (size C1)).
     + move=> [? h]; split; first by constructor.
       apply lsem_step with (of_estate s1 C ((a == Align) + (size lc').+2).+1).
