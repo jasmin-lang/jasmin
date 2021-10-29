@@ -106,24 +106,8 @@ Definition get_seq_leak_e (l : leak_e) : seq leak_e :=
   | _ => [::]
   end.
 
-(* FIXME : use this definition: nth LEmpty l n *)
-Fixpoint get_nth_leak (l : seq leak_e) n : leak_e := 
-  match l with 
-  | [::] => LEmpty
-  | x :: l => if n == 0 then x else get_nth_leak l (n-1)
-  end.
-
-Definition get_leak_e (l : leak_e) : leak_e := 
-  match l with 
-  | LSub le => if (size le) == 1 then (get_nth_leak le 0) else LEmpty
-  | _ => LEmpty
-  end.
-
-Fixpoint make_leak_e_sub (l : leak_e) : leak_e :=
-  match l with 
-  | LSub le => LSub (map make_leak_e_sub le)
-  | _ => LSub [:: l]
-  end.
+Definition get_nth_leak (m: leak_es) n : leak_e :=
+  nth LEmpty m n.
 
 (* ------------------------------------------------------------------------ *)
 (* Leakage trees and leakage transformations. *)
@@ -324,13 +308,6 @@ Fixpoint remove_last_leak (ls: seq leak_e) : seq leak_e :=
   | a :: l => a :: remove_last_leak l
   end.
 
-Fixpoint last_leak (ls : seq leak_e) : leak_e :=
-  match ls with 
-  | [::] => LEmpty
-  | [:: a] => a
-  | a :: l => last_leak l
-  end.
-
 (* Transformation from expressions (seq of expression) leakage to instruction leakage *)
 Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': seq leak_e) : seq leak_i :=
   match lti with 
@@ -406,9 +383,6 @@ Definition dummy_lit := Lopn LEmpty.
 
 Definition leak_assgn := 
   Lopn (LSub [:: LEmpty ; LEmpty]).
-
-Definition get_empty_leak_seq (l : seq leak_e_tr) :=
-  (map (fun x => LEmpty) l).
 
 Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq leak_i :=
   match lt, l with
