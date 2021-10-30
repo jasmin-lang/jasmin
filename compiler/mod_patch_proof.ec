@@ -8,9 +8,6 @@ proof. elim l => //= /#. qed.
 
 import BitEncoding.BS2Int.
 
-print (^).
-search Ring.IntID.(^).
-
 lemma lzcnt_bound l : 
   (if size l = lzcnt (rev l) then 0 else 2^(size l - lzcnt (rev l) - 1))
    <= bs2int l < 2^(size l - lzcnt (rev l)).

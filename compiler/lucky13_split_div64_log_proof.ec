@@ -1,11 +1,7 @@
 require import AllCore IntDiv CoreMap List.
 from Jasmin require import JModel.
 
-require import Array128 WArray128 Lucky13_split_div64_log.
-
-equiv l_constant_time_lt_jasmin : M.constant_time_lt_jasmin ~ M.constant_time_lt_jasmin :
-  ={M.leakages} ==> ={M.leakages}.
-proof. by proc; inline *; sim. qed.
+require import Array128 WArray128 Lucky13_split_full_log_proof Lucky13_split_div64_log.
 
 equiv l_rotate_offset_div md_size_ : M.rotate_offset_div ~ M.rotate_offset_div:
 ={M.leakages, md_size, scan_start} /\ md_size{1} = md_size_ /\
@@ -14,8 +10,9 @@ equiv l_rotate_offset_div md_size_ : M.rotate_offset_div ~ M.rotate_offset_div:
 (16 <= to_uint md_size <= 64){1}
 ==> ={M.leakages} /\ 0 <= to_uint res{1} < to_uint md_size_ /\ 0 <= to_uint res{2} < to_uint md_size_.
 proof.
-  proc; wp; skip => />.
-admitted.
+  proc; wp; skip => /> *.
+  rewrite !l_rotate_offset_div_core //= W32.umodE /ulift2 /=; smt (W32.to_uint_small W32.to_uint_cmp).
+qed.
 
 (* md_size : mac tag size --> public *)
 (* orig_len : length of record : header + data + mac tag + padding --> public *)
