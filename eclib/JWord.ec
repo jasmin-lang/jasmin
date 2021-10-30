@@ -523,11 +523,11 @@ op ([-]) = ulift1 Int.([-]) axiomatized by oppE.
 op ( * ) = ulift2 Int.( * ) axiomatized by mulE.
 
 op (\udiv) = ulift2 IntDiv.( %/) axiomatized by udivE.
-op (\umod) = ulift2 IntDiv.( %/) axiomatized by umodE.
+op (\umod) = ulift2 IntDiv.( %%) axiomatized by umodE.
 
 (* TODO check this *)
 op (\sdiv) = slift2 IntDiv.( %/) axiomatized by sdivE.
-op (\smod) = slift2 IntDiv.( %/) axiomatized by smodE.
+op (\smod) = slift2 IntDiv.( %%) axiomatized by smodE.
 
 (* --------------------------------------------------------------------- *)
 (* Comparisons                                                           *)
