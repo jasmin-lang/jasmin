@@ -44,8 +44,9 @@ export fn verify_mod_const(reg u64 a, reg u64 b) -> reg u64 {
   
 
   temp = a if flag == 1;
-  temp = 0xFFFFFFFFFFFFFFFF if flag == 0;   // lzb = 0 and lza ≠ 0,
-                                            // to leak big number if overflow happens
+  temp2 = 0xFFFFFFFFFFFFFFFF;
+  temp = temp2 if flag == 0;  // lzb = 0 and lza ≠ 0,
+                              // to leak big number if overflow happens
   res_temp = temp % b;
   result = res_temp;
   result = a if flag == 0;    // lzb = 0 and lza ≠ 0
