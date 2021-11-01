@@ -105,6 +105,12 @@ module M = {
     leakages <- LeakAddr([]) :: leakages;
     aux <- ((flag = (W64.of_int 1)) ? a : temp);
     temp <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- (W64.of_int 18446744073709551615);
+    temp2 <- aux;
+    leakages <- LeakAddr([]) :: leakages;
+    aux <- ((flag = (W64.of_int 0)) ? temp2 : temp);
+    temp <- aux;
     leakages <- LeakAddr([(W64.ALU.leak_div (temp))]) :: leakages;
     aux <- (temp \umod b);
     res_temp <- aux;
