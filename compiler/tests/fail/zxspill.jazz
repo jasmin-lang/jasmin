@@ -1,0 +1,8 @@
+export
+fn zxspill(reg u8 x) -> reg u64 {
+  stack u64 s;
+  reg u64 r;
+  s = (64u) x;
+  r = s;
+  return r;
+}

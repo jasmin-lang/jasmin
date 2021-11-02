@@ -88,13 +88,6 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
     by apply/hasP; rewrite /is_labeled; eexists; eauto.
   Qed.
 
-  Lemma well_formed_uniq uf :
-    well_formed uf ->
-    uniq (map fst uf).
-  Proof.
-    by move => [].
-  Qed.
-
   Lemma has_makeset uf lh lm :
     has (is_labeled lh) (makeset uf lm) = (lh == lm) || (has (is_labeled lh) uf).
   Proof.
@@ -358,20 +351,6 @@ Section UnionFindProps.
 End UnionFindProps.
 
 
-Section FoldLeftComp.
-
-  Variables (T1 T2 : Type) (h : T1 → T2).
-  Variables (R : Type) (f : R -> T2 → R) (z0 : R).
-
-  Lemma foldl_map s : foldl f z0 (map h s) = foldl (fun z x => f z (h x)) z0 s.
-  Proof.
-    move: z0.
-    by induction s as [|hs ts IHs] => /=.
-  Qed.
-
-End FoldLeftComp.
-
-
 Section PairFoldLeft.
 
   Variables (T R : Type) (f : R -> T → T → R).
@@ -384,27 +363,6 @@ Section PairFoldLeft.
   Qed.
 
 End PairFoldLeft.
-
-
-Section PairFoldLeftComp.
-
-  Variables (T1 T2 : Type) (h : T1 -> T2) (ph : T1 -> T1 -> T2).
-  Variables (T R : Type) (f : R -> T2 → T2 → R) (z0 : R) (y0 : T2) (t t' : T1).
-
-  Lemma pairfoldl_map s : pairfoldl f z0 (h t) (map h s) = pairfoldl (fun z x y => f z (h x) (h y)) z0 t s.
-  Proof.
-    move: z0 t.
-    by induction s as [|hs ts IHs] => /=.
-  Qed.
-
-  Lemma pairfoldl_cat s1 s2 :
-    pairfoldl f z0 y0 (s1 ++ s2) = pairfoldl f (pairfoldl f z0 y0 s1) (last y0 s1) s2.
-  Proof.
-    by elim: s1 z0 y0 => /=.
-  Qed.
-
-End PairFoldLeftComp.
-
 
 Section Prefix.
 
@@ -559,17 +517,6 @@ Section oPrefix.
   Qed.
 
 End oPrefix.
-
-
-Section PairAll.
-  
-  Variable T : Type.
-  Variable a : T -> T -> bool.
-
-  Fixpoint pairall x s := if s is hs :: ts then a x hs && pairall hs ts else true.
-
-End PairAll.
-
 
 Section PairOnth.
 

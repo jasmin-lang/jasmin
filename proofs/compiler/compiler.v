@@ -148,7 +148,7 @@ Record compiler_params := {
   extra_free_registers : instr_info → option var;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
-  print_linear     : lprog -> lprog;
+  print_linear     : compiler_step -> lprog -> lprog;
   warning          : instr_info -> warning_msg -> instr_info;
   lowering_opt     : lowering_options;
   is_glob          : var -> bool;
@@ -171,13 +171,26 @@ Definition check_removeturn (entries: seq funname) (remove_return: funname → o
 Definition allNone {A: Type} (m: seq (option A)) : bool :=
   all (fun a => if a is None then true else false) m.
 
+(* TODO: move *)
+Section ALLM.
+  Context (A: eqType) (E: Type) (check: A → result E unit) (m: seq A).
+  Definition allM := foldM (λ a _, check a) tt m.
+
+  Lemma allMP a : a \in m → allM = ok tt → check a = ok tt.
+  Proof.
+    rewrite /allM.
+    elim: m => // a' m' ih; rewrite inE; case: eqP.
+    - by move => <- _ /=; t_xrbindP => - [].
+    by move => _ {}/ih /=; t_xrbindP => ih [] _ /ih.
+  Qed.
+
+End ALLM.
+
 Definition check_no_ptr entries (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
-  foldM
-    (fun fn _ =>
+  allM (λ fn,
        let: sao := ao fn in
        assert (allNone sao.(sao_params)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” arguments")) >>
        assert (allNone sao.(sao_return)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” return values")))
-    tt
     entries.
 
 Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
@@ -269,10 +282,10 @@ Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
   (* linearisation                     *)
   Let _ := merge_varmaps.check pd cparams.(extra_free_registers) in
   Let pl := linear_prog pd cparams.(extra_free_registers) in
-  let pl := cparams.(print_linear) pl in
+  let pl := cparams.(print_linear) Linearisation pl in
   (* tunneling                         *)
   Let pl := tunnel_program pl in
-  let pl := cparams.(print_linear) pl in
+  let pl := cparams.(print_linear) Tunneling pl in
   (* asm                               *)
   ok pl.
 
