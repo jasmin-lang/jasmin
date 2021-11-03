@@ -2191,8 +2191,8 @@ abstract theory W_WS.
       map (fun w0 => WS.rol w0 i) w.
    proof.
      move=> hr;rewrite /VPSRL_'Ru'S /VPSLL_'Ru'S.
-     rewrite /map;apply wordP => j hj.
-     rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft. 
+     apply wordP => j hj.
+     by rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft.
    qed.
 
    (** TODO CHECKME : still x86 **)
