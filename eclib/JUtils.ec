@@ -439,3 +439,26 @@ move=> ?.
 rewrite -bs2int_xor_sub //.
 by apply bs2int_ge0.
 qed.
+
+(* --------------------------------------------------- *)
+(* Count leading zeros *)
+op lzcnt (x: bool list) : int =
+  with x = [] => 0
+  with x = b :: l => if b then 0 else 1 + lzcnt l.
+
+lemma lzcnt_size l : 0 <= lzcnt l <= size l.
+proof. elim l => //= /#. qed.
+
+lemma lzcnt_bound l :
+    (if size l = lzcnt (rev l) then 0 else 2^(size l - lzcnt (rev l) - 1))
+      <= bs2int l < 2^(size l - lzcnt (rev l)).
+proof.
+elim /last_ind: l => /=.
++ by rewrite rev_nil /= bs2int_nil.
+move=> l b hrec; rewrite rev_rcons /= size_rcons.
+rewrite bs2int_rcons; case: b => _ /=; last by smt().
+rewrite /b2i /=.
+have -> /= : !(size l + 1 = 0) by smt(size_ge0).
+rewrite Ring.IntID.exprD_nneg 1:size_ge0 //=.
+smt (bs2int_ge0 bs2int_le2Xs).
+qed.
