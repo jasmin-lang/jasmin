@@ -1612,7 +1612,7 @@ op NOT_XX (v: t) =
 
 op leak_div (w:t) = lzcnt (rev (w2bits w)).
 
-op LZCNT_XX (w:t) = 
+op LZCNT_XX (w:t) =
   let v = of_int (leak_div w) in
   (undefined_flag, ZF_of w, undefined_flag, undefined_flag, ZF_of v, v).
 
@@ -2198,7 +2198,7 @@ abstract theory W_WS.
    proof.
      move=> hr;rewrite /VPSRL_'Ru'S /VPSLL_'Ru'S.
      rewrite /map;apply wordP => j hj.
-     (*rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft. 
+     (*rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft.
    qed.*) admitted.
 
    (** TODO CHECKME : still x86 **)
@@ -2255,9 +2255,9 @@ abstract theory BitWordSH.
     move=> hi; rewrite /(`<<`) /(`>>`) !W8.of_uintK.
     have h : 0 <= i < `|W8.modulus|.
     + by rewrite /=; smt (size_le_256).
-    (*rewrite !(modz_small _ W8.modulus) 1:// 1:[smt (size_le_256)] !modz_small 1,2:/#.
+    rewrite !(modz_small _ W8.modulus) 1:// 1: #smt: (size_le_256) !modz_small 1,2:/#.
     by rewrite rol_xor 1:/#.
-  qed.*) admitted.
+  qed.
 
   lemma shl_shlw k w:
    0 <= k < size =>
