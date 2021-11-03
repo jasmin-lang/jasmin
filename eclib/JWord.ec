@@ -1606,10 +1606,6 @@ op XOR_XX (v1 v2: t) =
 op NOT_XX (v: t) =
   invw v.
 
-op lzcnt (x:bool list ) =
-  with x = [] => 0
-  with x = b :: l => if b then 0 else 1 + lzcnt l.
-
 op LZCNT_XX (w:t) =
   let v = of_int (lzcnt (rev (w2bits w))) in
   (undefined_flag, ZF_of w, undefined_flag, undefined_flag, ZF_of v, v).
