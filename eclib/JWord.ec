@@ -263,7 +263,7 @@ proof.
 qed.
 
 lemma to_uint_bits w : to_uint w = bs2int (bits w 0 size).
-proof. by rewrite to_uintE /w2bits /bits /= w2bitsE. qed.
+proof. by rewrite to_uintE /w2bits /bits /=. qed.
 
 (* -------------------------------------------------------------------- *)
 op zerow = zero.
@@ -519,11 +519,11 @@ op ([-]) = ulift1 Int.([-]) axiomatized by oppE.
 op ( * ) = ulift2 Int.( * ) axiomatized by mulE.
 
 op (\udiv) = ulift2 IntDiv.( %/) axiomatized by udivE.
-op (\umod) = ulift2 IntDiv.( %/) axiomatized by umodE.
+op (\umod) = ulift2 IntDiv.( %%) axiomatized by umodE.
 
 (* TODO check this *)
 op (\sdiv) = slift2 IntDiv.( %/) axiomatized by sdivE.
-op (\smod) = slift2 IntDiv.( %/) axiomatized by smodE.
+op (\smod) = slift2 IntDiv.( %%) axiomatized by smodE.
 
 (* --------------------------------------------------------------------- *)
 (* Comparisons                                                           *)
@@ -1606,6 +1606,10 @@ op XOR_XX (v1 v2: t) =
 op NOT_XX (v: t) =
   invw v.
 
+op LZCNT_XX (w:t) =
+  let v = of_int (lzcnt (rev (w2bits w))) in
+  (undefined_flag, ZF_of w, undefined_flag, undefined_flag, ZF_of v, v).
+
 lemma DEC_XX_counter n (c:t) :
   c <> zero =>
   (n - to_uint c + 1 = n - to_uint (DEC_XX c).`5 /\
@@ -2187,8 +2191,8 @@ abstract theory W_WS.
       map (fun w0 => WS.rol w0 i) w.
    proof.
      move=> hr;rewrite /VPSRL_'Ru'S /VPSLL_'Ru'S.
-     rewrite /map;apply wordP => j hj.
-     by rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft. 
+     apply wordP => j hj.
+     by rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft.
    qed.
 
    (** TODO CHECKME : still x86 **)
@@ -2245,7 +2249,7 @@ abstract theory BitWordSH.
     move=> hi; rewrite /(`<<`) /(`>>`) !W8.of_uintK.
     have h : 0 <= i < `|W8.modulus|.
     + by rewrite /=; smt (size_le_256).
-    rewrite !(modz_small _ W8.modulus) 1:// 1:[smt (size_le_256)] !modz_small 1,2:/#.
+    rewrite !(modz_small _ W8.modulus) 1:// 1: #smt: (size_le_256) !modz_small 1,2:/#.
     by rewrite rol_xor 1:/#.
   qed.
 
