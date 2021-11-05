@@ -15,4 +15,4 @@ copy_mac_ct.ec: ../compiler/examples/lucky13_split.jazz
 	$(EASYCRYPT) $^
 
 clean:
-	$(RM) modulo_ct.ec *.eco
+	$(RM) modulo_ct.ec copy_mac_ct.ec *.eco *Array128.ec
