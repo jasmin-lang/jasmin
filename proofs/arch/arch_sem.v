@@ -221,7 +221,7 @@ Definition eval_args_in (s:asmmem) (args:asm_args) (ain : seq arg_desc) (tin : s
   mapM2 ErrType (eval_arg_in_v s args) ain tin.
 
 Definition eval_instr_op idesc args (s:asmmem) :=
-  Let _   := assert (idesc.(id_check) args) ErrType in
+  Let _   := assert (check_i_args_kinds idesc.(id_args_kinds) args) ErrType in
   Let vs  := eval_args_in s args idesc.(id_in) idesc.(id_tin) in
   Let t   := app_sopn _ idesc.(id_semi) vs in
   ok (list_ltuple t).

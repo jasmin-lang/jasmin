@@ -963,59 +963,28 @@ Definition iCF := F CF.
 
 (* -------------------------------------------------------------------- *)
 
-Variant arg_kind :=
-  | CAcond
-  | CAreg
-  | CAxmm
-  | CAmem of bool (* true if Global is allowed *)
-  | CAimm of wsize
-  .
-
-Definition arg_kinds := seq arg_kind.
-Definition args_kinds := seq arg_kinds.
-Definition i_args_kinds := seq args_kinds.
-
-Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
-  match a, cond with
-  | Condt _, CAcond => true
-  | Imm sz _, CAimm sz' => sz == sz'
-  | Reg _, CAreg => true
-  | Addr _, CAmem _ => true
-  | XReg _, CAxmm   => true
-  | _, _ => false
-  end.
-
-Definition check_arg_kinds (a:asm_arg) (cond:arg_kinds) :=
-  has (check_arg_kind a) cond.
-
-Definition check_args_kinds (a:asm_args) (cond:args_kinds) :=
- all2 check_arg_kinds a cond.
-
-Definition check_i_args_kinds (cond:i_args_kinds) (a:asm_args) :=
-  has (check_args_kinds a) cond.
-
 Definition reg_msb_flag (sz : wsize) :=
   if (sz <= U16)%CMP then MSB_MERGE
   else MSB_CLEAR.
 
-Notation mk_instr str_jas tin tout ain aout msb semi check nargs wsizei max_imm safe_cond pp_asm:=
+Notation mk_instr str_jas tin tout ain aout msb semi args_kinds nargs wsizei max_imm safe_cond pp_asm:=
  {|
-  id_msb_flag := msb;
-  id_tin      := tin;
-  id_in       := ain;
-  id_tout     := tout;
-  id_out      := aout;
-  id_semi     := semi;
-  id_nargs    := nargs;
-  id_check    := (fun a => check_i_args_kinds check a);
-  id_eq_size  := refl_equal;
-  id_tin_narr := refl_equal;
+  id_msb_flag   := msb;
+  id_tin        := tin;
+  id_in         := ain;
+  id_tout       := tout;
+  id_out        := aout;
+  id_semi       := semi;
+  id_nargs      := nargs;
+  id_args_kinds := args_kinds;
+  id_eq_size    := refl_equal;
+  id_tin_narr   := refl_equal;
   id_check_dest := refl_equal;
-  id_str_jas  := str_jas;
-  id_wsize    := wsizei;
-  id_max_imm  := max_imm;
-  id_safe     := safe_cond;
-  id_pp_asm   := pp_asm;
+  id_str_jas    := str_jas;
+  id_wsize      := wsizei;
+  id_max_imm    := max_imm;
+  id_safe       := safe_cond;
+  id_pp_asm     := pp_asm;
 |}.
 
 Notation mk_instr_pp  name tin tout ain aout msb semi check nargs wsizei max_imm prc pp_asm :=
@@ -1190,7 +1159,7 @@ Definition ri  sz := [:: CAreg; CAimm sz].
 Definition r_rm := [:: r; rm true].
 Definition r_rmi sz := [:: r; rmi sz].
 
-Definition m_ri sz := [:: m false; ri (max_32 sz)].
+Definition m_ri sz := [:: m false; ri sz].
 Definition m_r := [:: m false; r].
 
 Definition xmm := [:: CAxmm ].
@@ -1201,7 +1170,7 @@ Definition xmmm_xmm := [::xmmm false; xmm].
 Definition xmm_xmm_xmmm := [::xmm; xmm; xmmm true].
 
 
-Definition check_mov sz := [:: r_rmi sz; m_ri sz].
+Definition check_mov sz := [:: r_rmi sz; m_ri (max_32 sz)].
 Definition Ox86_MOV_instr               :=
   mk_instr_w_w "MOV" x86_MOV [:: E 1] [:: E 0] 2
                check_mov (fun sz => Some sz) (primP MOV) (pp_iname "mov").

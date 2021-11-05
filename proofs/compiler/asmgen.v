@@ -126,7 +126,7 @@ Definition assemble_x86_opn rip ii op (outx : lvals) (inx : pexprs) :=
   let max_imm := id.(id_max_imm) in
   Let asm_args := assemble_x86_opn_aux rip ii op outx inx in
   let s := id.(id_str_jas) tt in
-  Let _ := assert (id_check id asm_args)
+  Let _ := assert (check_i_args_kinds id.(id_args_kinds) asm_args)
                   (E.error ii (pp_box [:: pp_s "invalid instruction, check do not pass :"; pp_s s])) in
   Let _ := assert (check_sopn_args rip ii max_imm asm_args inx (zip id.(id_in) id.(id_tin)) &&
                      check_sopn_dests rip ii max_imm asm_args outx (zip id.(id_out) id.(id_tout)))

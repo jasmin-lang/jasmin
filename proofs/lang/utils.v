@@ -844,19 +844,34 @@ Lemma List_Forall3_inv A B C (R : A -> B -> C -> Prop) l1 l2 l3 :
   end.
 Proof. by case. Qed.
 
+Section Subseq.
+
+  Context (T : eqType).
+  Context (p : T -> bool).
+
+  Lemma subseq_has s1 s2 : subseq s1 s2 -> has p s1 -> has p s2.
+  Proof.
+    move=> /mem_subseq hsub /hasP [x /hsub hin hp].
+    apply /hasP.
+    by exists x.
+  Qed.
+
+  Lemma subseq_all s1 s2 : subseq s1 s2 -> all p s2 -> all p s1.
+  Proof.
+    move=> /mem_subseq hsub /allP hall.
+    by apply /allP => x /hsub /hall.
+  Qed.
+
+End Subseq.
+
 Section All2.
 
-  Variable A B:Type.
-  Variable f : A -> B -> bool.
+Section DifferentTypes.
 
-  Fixpoint all2 (l1:seq A) (l2: seq B) :=
-    match l1, l2 with
-    | [::]  , [::]   => true
-    | a1::l1, a2::l2 => f a1 a2 && all2 l1 l2
-    | _     , _      => false
-    end.
+  Context (S T : Type).
+  Context (p : S -> T -> bool).
 
-  Lemma all2P l1 l2 : reflect (List.Forall2 f l1 l2) (all2 l1 l2).
+  Lemma all2P l1 l2 : reflect (List.Forall2 p l1 l2) (all2 p l1 l2).
   Proof.
     elim: l1 l2 => [ | a l1 hrec] [ | b l2] /=;try constructor.
     + by constructor.
@@ -866,6 +881,44 @@ Section All2.
     split => [[]h1 /hrec h2 |];first by constructor.
     by case/List_Forall2_inv_l => b' [n] [] [-> ->] [->] /hrec.
   Qed.
+
+  Section Ind.
+
+    Context (P : list S -> list T -> Prop).
+
+    Lemma list_all2_ind :
+      P [::] [::] ->
+      (forall x1 l1 x2 l2, p x1 x2 -> all2 p l1 l2 -> P l1 l2 -> P (x1::l1) (x2::l2)) ->
+      forall l1 l2, all2 p l1 l2 -> P l1 l2.
+    Proof.
+      move=> hnil hcons; elim => /=; first by case.
+      move=> x1 l1 ih [//|x2 l2] /andP [hf hall2].
+      by apply hcons => //; apply ih.
+    Qed.
+
+  End Ind.
+
+End DifferentTypes.
+
+Section SameType.
+
+  Context (T : Type).
+  Context (p : rel T).
+
+  Lemma all2_refl : ssrbool.reflexive p -> ssrbool.reflexive (all2 p).
+  Proof.
+    move=> hrefl.
+    by elim=> //= a l ih; apply /andP.
+  Qed.
+
+  Lemma all2_trans : ssrbool.transitive p -> ssrbool.transitive (all2 p).
+  Proof.
+    move=> htrans s1 s2 s3 hall2; move: hall2 s3.
+    elim/list_all2_ind {s1 s2} => //= x1 s1 x2 s2 hp12 _ ih [//|x3 s3] /andP [hp23 hall2].
+    by apply /andP; eauto.
+  Qed.
+
+End SameType.
 
 End All2.
 
@@ -906,6 +959,42 @@ Section Map3.
   Qed.
 
 End Map3.
+
+Section MAPI.
+
+  Context (A : Type) (a : A) (B:Type) (b : B) (f : nat -> A -> B).
+
+  Fixpoint mapi_aux k l :=
+    match l with
+    | [::] => [::]
+    | a::l=> f k a :: mapi_aux k.+1 l
+    end.
+
+  Definition mapi := mapi_aux 0.
+
+  Lemma size_mapi_aux k l : size (mapi_aux k l) = size l.
+  Proof.
+    elim: l k => //= a' l ih k.
+    by rewrite ih.
+  Qed.
+
+  Lemma size_mapi l : size (mapi l) = size l.
+  Proof. exact: size_mapi_aux. Qed.
+
+  Lemma nth_mapi_aux n k l :
+    (n < size l)%nat -> nth b (mapi_aux k l) n = f (k+n) (nth a l n).
+  Proof.
+    elim: l n k => //= a' l ih n k hlt.
+    case: n hlt => /=.
+    + by move=> _; rewrite addn0.
+    by move=> n hlt; rewrite ih // addSnnS.
+  Qed.
+
+  Lemma nth_mapi n l :
+    (n < size l)%nat -> nth b (mapi l) n = f n (nth a l n).
+  Proof. exact: nth_mapi_aux. Qed.
+
+End MAPI.
 
 (* ** Misc functions
  * -------------------------------------------------------------------- *)

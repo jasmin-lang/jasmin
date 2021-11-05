@@ -210,6 +210,49 @@ Definition check_oreg or ai :=
   | None, _         => true
   end.
 
+Variant arg_kind :=
+  | CAcond
+  | CAreg
+  | CAxmm
+  | CAmem of bool (* true if Global is allowed *)
+  | CAimm of wsize
+  .
+
+Scheme Equality for arg_kind.
+
+Lemma arg_kind_eq_axiom : Equality.axiom arg_kind_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_arg_kind_dec_bl.
+  by apply: internal_arg_kind_dec_lb.
+Qed.
+
+Definition arg_kind_eqMixin := Equality.Mixin arg_kind_eq_axiom.
+Canonical  arg_kind_eqType  := EqType _ arg_kind_eqMixin.
+
+Definition arg_kinds := seq arg_kind.
+Definition args_kinds := seq arg_kinds.
+Definition i_args_kinds := seq args_kinds. (* disjunction of conjuction of disjunction *)
+
+Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
+  match a, cond with
+  | Condt _, CAcond => true
+  | Imm sz _, CAimm sz' => sz == sz'
+  | Reg _, CAreg => true
+  | Addr _, CAmem _ => true
+  | XReg _, CAxmm   => true
+  | _, _ => false
+  end.
+
+Definition check_arg_kinds (a:asm_arg) (cond:arg_kinds) :=
+  has (check_arg_kind a) cond.
+
+Definition check_args_kinds (a:asm_args) (cond:args_kinds) :=
+ all2 check_arg_kinds a cond.
+
+Definition check_i_args_kinds (cond:i_args_kinds) (a:asm_args) :=
+  has (check_args_kinds a) cond.
+
 Definition check_arg_dest (ad:arg_desc) (ty:stype) :=
   match ad with
   | ADImplicit _ => true
@@ -233,23 +276,23 @@ Record pp_asm_op := mk_pp_asm_op {
 
 Record instr_desc_t := mk_instr_desc {
   (* Info for x86 sem *)
-  id_msb_flag : msb_flag;
-  id_tin      : seq stype;
-  id_in       : seq arg_desc;
-  id_tout     : seq stype;
-  id_out      : seq arg_desc;
-  id_semi     : sem_prod id_tin (exec (sem_tuple id_tout));
-  id_check    : list asm_arg -> bool;
-  id_nargs    : nat;
+  id_msb_flag   : msb_flag;
+  id_tin        : seq stype;
+  id_in         : seq arg_desc;
+  id_tout       : seq stype;
+  id_out        : seq arg_desc;
+  id_semi       : sem_prod id_tin (exec (sem_tuple id_tout));
+  id_args_kinds : i_args_kinds;
+  id_nargs      : nat;
   (* Info for jasmin *)
-  id_eq_size  : (size id_in == size id_tin) && (size id_out == size id_tout);
-  id_max_imm  : option wsize;
-  id_tin_narr : all is_not_sarr id_tin;
-  id_str_jas  : unit -> string;
+  id_eq_size    : (size id_in == size id_tin) && (size id_out == size id_tout);
+  id_max_imm    : option wsize;
+  id_tin_narr   : all is_not_sarr id_tin;
+  id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
-  id_safe     : seq safe_cond;
-  id_wsize    : wsize;  (* ..... *)
-  id_pp_asm   : asm_args -> pp_asm_op;
+  id_safe       : seq safe_cond;
+  id_wsize      : wsize;  (* ..... *)
+  id_pp_asm     : asm_args -> pp_asm_op;
 }.
 
 Variant prim_constructor (asm_op:Type) :=
@@ -314,8 +357,8 @@ Lemma instr_desc_aux1 ws (id_in id_out : list arg_desc) (id_tin id_tout : list s
 Proof. by rewrite size_map. Qed.
 
 Lemma instr_desc_aux2 ws (id_out : list arg_desc) (id_tout : list stype) :
-  is_true (utils.all2 check_arg_dest id_out id_tout) ->
-  is_true (utils.all2 check_arg_dest id_out (map (extend_size ws) id_tout)).
+  is_true (all2 check_arg_dest id_out id_tout) ->
+  is_true (all2 check_arg_dest id_out (map (extend_size ws) id_tout)).
 Proof.
   rewrite /is_true => <-.
   elim: id_out id_tout => [ | a id_out hrec] [ | t id_tout] //=.
@@ -323,22 +366,28 @@ Proof.
   by rewrite /extend_size /check_arg_dest; case: a => //; case: ifP.
 Qed.
 
-Definition clear_check1 (args : asm_args) (d:arg_desc) :=
-  match d with
-  | ADExplicit _ i _ =>
-    match onth args i with
-    | Some (Addr _) => false
-    | _ => true
-    end
+Definition is_not_CAmem (cond : arg_kind) :=
+  match cond with
+  | CAmem _ => false
   | _ => true
   end.
+
+Definition exclude_mem_args_kinds (d : arg_desc) (cond : args_kinds) :=
+  match d with
+  | ADExplicit _ i _ =>
+    mapi (fun k c => if k == i then filter is_not_CAmem c else c) cond
+  | _ => cond
+  end.
+
+Definition exclude_mem_i_args_kinds (d : arg_desc) (cond : i_args_kinds) : i_args_kinds :=
+  map (exclude_mem_args_kinds d) cond.
 
 (* Remark: if the cast is explicit and do nothing then this code will reject store in memory
    while assembly accepts it.
    It is our choice... *)
 
-Definition clear_check (id_out : seq arg_desc) (args : asm_args) :=
-  all (clear_check1 args) id_out.
+Definition exclude_mem (cond : i_args_kinds) (d : seq arg_desc) :=
+  foldl (fun cond d => exclude_mem_i_args_kinds d cond) cond d.
 
 (* An extension of [instr_desc] that deals with msb flags *)
 Definition instr_desc (o:asm_op_t) : instr_desc_t :=
@@ -346,23 +395,23 @@ Definition instr_desc (o:asm_op_t) : instr_desc_t :=
   let d := instr_desc_op o in
   if ws is Some ws then
     if d.(id_msb_flag) == MSB_CLEAR then
-    {| id_msb_flag := d.(id_msb_flag);
-       id_tin      := d.(id_tin);
-       id_in       := d.(id_in);
-       id_tout     := map (extend_size ws) d.(id_tout);
-       id_out      := d.(id_out);
-       id_semi     :=
+    {| id_msb_flag   := d.(id_msb_flag);
+       id_tin        := d.(id_tin);
+       id_in         := d.(id_in);
+       id_tout       := map (extend_size ws) d.(id_tout);
+       id_out        := d.(id_out);
+       id_semi       :=
          apply_lprod (Result.map (@extend_tuple ws d.(id_tout))) d.(id_semi);
-      id_check     := (fun args => d.(id_check) args && clear_check d.(id_out) args);
-      id_nargs     := d.(id_nargs);
-      id_eq_size   := instr_desc_aux1 ws d.(id_eq_size);
-      id_max_imm   := d.(id_max_imm);
-      id_tin_narr  := d.(id_tin_narr);
-      id_str_jas   := d.(id_str_jas);
-      id_check_dest:= instr_desc_aux2 ws d.(id_check_dest);
-      id_safe      := d.(id_safe);
-      id_wsize     := d.(id_wsize);
-      id_pp_asm    := d.(id_pp_asm); |}
+       id_args_kinds := exclude_mem d.(id_args_kinds) d.(id_out) ;
+       id_nargs      := d.(id_nargs);
+       id_eq_size    := instr_desc_aux1 ws d.(id_eq_size);
+       id_max_imm    := d.(id_max_imm);
+       id_tin_narr   := d.(id_tin_narr);
+       id_str_jas    := d.(id_str_jas);
+       id_check_dest := instr_desc_aux2 ws d.(id_check_dest);
+       id_safe       := d.(id_safe);
+       id_wsize      := d.(id_wsize);
+       id_pp_asm     := d.(id_pp_asm); |}
     else d (* FIXME do the case for MSB_KEEP *)
   else
     d.
