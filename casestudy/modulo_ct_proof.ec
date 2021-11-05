@@ -1,26 +1,22 @@
 require import AllCore IntDiv CoreMap List.
 from Jasmin require import JModel.
 
-require import Mod_patch.
+require Modulo_ct.
 
-lemma lzcnt_size l : 0 <= lzcnt l <= size l.
-proof. elim l => //= /#. qed.
+op leak_div (a: W64.t) : int =
+  lzcnt (rev (w2bits a)).
 
-import BitEncoding.BS2Int.
+theory LeakageModelDiv.
 
-lemma lzcnt_bound l : 
-  (if size l = lzcnt (rev l) then 0 else 2^(size l - lzcnt (rev l) - 1))
-   <= bs2int l < 2^(size l - lzcnt (rev l)).
-proof.
-elim /last_ind: l => /=.
-+ by rewrite rev_nil /= bs2int_nil.
-move=> l b hrec; rewrite rev_rcons /= size_rcons.
-rewrite bs2int_rcons; case: b => _ /=; last by smt().
-rewrite /b2i /=. 
-have -> /= : !(size l + 1 = 0) by smt(size_ge0).
-rewrite Ring.IntID.exprD_nneg 1:size_ge0 //=.
-smt (bs2int_ge0 bs2int_le2Xs).
-qed.
+op leak_div_64 (a b: W64.t) : address list =
+  [ leak_div a ; to_uint b ].
+
+op leak_mem (a: W64.t) : address = witness.
+
+end LeakageModelDiv.
+
+clone import Modulo_ct.T with
+  theory LeakageModel <- LeakageModelDiv.
 
 lemma leak_div_bound (w:W64.t) : 0 <= leak_div w <= 64.
 proof. smt (lzcnt_size size_mkseq size_rev). qed.
@@ -31,6 +27,8 @@ proof.
   have := lzcnt_bound (w2bits b).
   rewrite h W64.size_w2bits /= -W64.to_uintE W64.to_uint_eq /= /#.
 qed.
+
+import BitEncoding.BS2Int.
 
 lemma leak_div0 (x:W64.t) :  2^63 <= to_uint x <=> leak_div x = 0.
 proof.
@@ -103,6 +101,7 @@ equiv l2 : M.verify_mod_const ~ M.verify_mod_const : ={M.leakages, b} /\ b{1} <>
 proof.
   proc; inline *; wp; skip => /> &1 &2.
   move: (b{2}) (a{1}) (a{2}) => b a1 a2 {&1 &2} hb.
+  rewrite /leak_div_64; congr.
   suff : forall a1,
    leak_div (if 
      (if (LZCNT_64 a1).`5 then W64.one else if (LZCNT_64 b).`5 then W64.zero else W64.of_int 4660) = W64.zero 
@@ -150,7 +149,7 @@ proof.
     smt(W64.to_uint_cmp).
   move=> h; apply leak_div0.
   move: h; rewrite W64.shl_shlw. 
-  + rewrite /LZCNT_64 /= W64.to_uint_small /= 1:[smt(leak_div_bound)].
+  + rewrite /LZCNT_64 /= W64.to_uint_small /= 1: #smt:(leak_div_bound).
     smt (leak_div_bound leak_div64).
   move=> h; rewrite W64.to_uintD_small; 1: by rewrite -add_lt. 
   have := shift_zlcnt b hb.

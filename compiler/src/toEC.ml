@@ -878,41 +878,21 @@ module Leak = struct
   let pp_safe_es env fmt es = pp_list "/\\@ " (pp_safe_e env) fmt es
 
   let pp_leakE env fmt = function
-    | LeakDiv2(s, ws, e2, _e3)     -> 
-      
-      begin match leak_div () with
-      | Leakage.DLK_none -> Format.fprintf fmt "0"
-      | Leakage.DLK_num_log ->
-         assert (s <> Signed); (* Not implemented *)
-         Format.fprintf fmt "(W%a.ALU.leak_div (%a))" 
-           pp_size ws
-           (pp_expr env) e2
-      end
-    | LeakDiv3(s, _, e1, e2, _e3) ->
-      assert false (* Not implemented *) 
-(* 
-      begin match leak_div () with
-      | Leakage.DLK_none -> Format.fprintf fmt "0"
-      | Leakage.DLK_num_log -> 
-        Format.fprintf fmt "(LZCNT_XX (wdword%s (%a) (%a)))" 
-          (if s = Signed then "s" else "u")
-          (pp_expr env) e1
-          (pp_expr env) e2
-      end
-*)
-
-    | LeakExpr e           -> Format.fprintf fmt "%a" (pp_expr env) e
+    | LeakDiv2(Unsigned, ws, e2, e3)     ->
+       Format.fprintf fmt "LeakageModel.leak_div_%a (%a) (%a)"
+         pp_size ws
+         (pp_expr env) e2
+         (pp_expr env) e3
+    | (LeakDiv2(Signed, _, _, _) | LeakDiv3 _)
+      -> assert false (* Not implemented *)
+    | LeakExpr e           -> Format.fprintf fmt "[%a]" (pp_expr env) e
     | LeakMem e            ->
-      begin match leak_mem () with
-      | Leakage.MLK_full -> 
-        Format.fprintf fmt "%a" (pp_expr env) e 
-      | Leakage.MLK_div64 -> 
-        Format.fprintf fmt "((%a) %%/ 64)" (pp_expr env) e 
-      end
- 
-  let pp_leaks env fmt es = 
-    Format.fprintf fmt "leakages <- LeakAddr(@[[%a]@]) :: leakages;@ "
-      (pp_list ";@ " (pp_leakE env)) es
+       Format.fprintf fmt "[LeakageModel.leak_mem (%a)]" (pp_expr env) e
+
+  let pp_leaks env fmt es =
+    if es <> [] then
+      Format.fprintf fmt "leakages <- LeakAddr(@[%a@]) :: leakages;@ "
+        (pp_list "@ ++@ " (pp_leakE env)) es
 
   let pp_safe_cond env fmt conds = 
     if conds <> [] then 
@@ -1200,15 +1180,22 @@ let pp_prog fmt model globs funcs =
     | Normal -> () in
 
   Format.fprintf fmt 
-     "@[<v>%s.@ %s.@ @ %a%a@ %a@ @ module M = {@   @[<v>%a%a@]@ }.@ @]@." 
+     "@[<v>%s.@ %s.@ @ %a%a@ %a@ %s@ %s@ module M = {@   @[<v>%a%a@]@ }.@ %s@ @]@."
     "require import AllCore IntDiv CoreMap List"
     "from Jasmin require import JModel"
     (pp_arrays "Array") env.arrsz
     (pp_arrays "WArray") env.warrsz
-    (pp_list "@ @ " (pp_glob_decl env)) globs 
-    pp_leakages env 
-    (pp_list "@ @ " (pp_fun env)) funcs 
-    
+    (pp_list "@ @ " (pp_glob_decl env)) globs
+    (* TODO: provide division leakage for all word sizes *)
+    "abstract theory ALeakageModel.
+    op leak_div_64 : W64.t -> W64.t -> address list.
+    op leak_mem : W64.t -> address.
+end ALeakageModel.\n"
+    "theory T.\nclone import ALeakageModel as LeakageModel.\n"
+    pp_leakages env
+    (pp_list "@ @ " (pp_fun env)) funcs
+    "end T."
+
 let rec used_func f = 
   used_func_c Ss.empty f.f_body 
 
