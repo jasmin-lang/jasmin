@@ -1610,10 +1610,8 @@ op XOR_XX (v1 v2: t) =
 op NOT_XX (v: t) =
   invw v.
 
-op leak_div (w:t) = lzcnt (rev (w2bits w)).
-
 op LZCNT_XX (w:t) =
-  let v = of_int (leak_div w) in
+  let v = of_int (lzcnt (rev (w2bits w))) in
   (undefined_flag, ZF_of w, undefined_flag, undefined_flag, ZF_of v, v).
 
 lemma DEC_XX_counter n (c:t) :
@@ -2197,9 +2195,9 @@ abstract theory W_WS.
       map (fun w0 => WS.rol w0 i) w.
    proof.
      move=> hr;rewrite /VPSRL_'Ru'S /VPSLL_'Ru'S.
-     rewrite /map;apply wordP => j hj.
-     (*rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft.
-   qed.*) admitted.
+     apply wordP => j hj.
+     by rewrite xorb'SE !mapbE 1..3:// /= rol_xor_shft.
+   qed.
 
    (** TODO CHECKME : still x86 **)
    lemma x86_'Ru'S_rol_xor_red w1 w2 i si:
