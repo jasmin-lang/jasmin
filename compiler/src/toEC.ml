@@ -1188,8 +1188,9 @@ let pp_prog fmt model globs funcs =
     (pp_list "@ @ " (pp_glob_decl env)) globs
     (* TODO: provide division leakage for all word sizes *)
     "abstract theory ALeakageModel.
+    op leak_div_32 : W32.t -> W32.t -> address list.
     op leak_div_64 : W64.t -> W64.t -> address list.
-    op leak_mem : W64.t -> address.
+    op leak_mem : address -> address.
 end ALeakageModel.\n"
     "theory T.\nclone import ALeakageModel as LeakageModel.\n"
     pp_leakages env

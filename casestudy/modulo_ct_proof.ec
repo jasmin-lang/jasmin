@@ -8,10 +8,13 @@ op leak_div (a: W64.t) : int =
 
 theory LeakageModelDiv.
 
+op leak_div_32 (a b: W32.t) : address list =
+  [ to_uint a ; to_uint b ].
+
 op leak_div_64 (a b: W64.t) : address list =
   [ leak_div a ; to_uint b ].
 
-op leak_mem (a: W64.t) : address = witness.
+op leak_mem (a: address) : address = a.
 
 end LeakageModelDiv.
 

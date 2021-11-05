@@ -1,7 +1,27 @@
 require import AllCore IntDiv CoreMap List.
 from Jasmin require import JModel.
 
-require import Array128 WArray128 Lucky13_split_full_log.
+require import Array128 WArray128.
+
+require Copy_mac_ct.
+
+op leak_div (a: W32.t) : int =
+  lzcnt (rev (w2bits a)).
+
+theory LeakageModelDiv.
+
+op leak_div_32 (a b: W32.t) : address list =
+[ leak_div a ; to_uint b ].
+
+op leak_div_64 (a b: W64.t) : address list =
+[ to_uint a ; to_uint b ].
+
+op leak_mem (a: address) : address = a.
+
+end LeakageModelDiv.
+
+clone import Copy_mac_ct.T with
+theory LeakageModel <- LeakageModelDiv.
 
 equiv l_constant_time_lt_jasmin : M.constant_time_lt_jasmin ~ M.constant_time_lt_jasmin :
 ={M.leakages}
@@ -9,9 +29,6 @@ equiv l_constant_time_lt_jasmin : M.constant_time_lt_jasmin ~ M.constant_time_lt
 proof.
 proc; inline *; sim.
 qed.
-
-lemma lzcnt_size l : 0 <= lzcnt l <= size l.
-proof. elim l => //= /#. qed.
 
 lemma leak_div_or (x y : W32.t) : leak_div (x `|` y) = min (leak_div x) (leak_div y).
 proof.
@@ -112,7 +129,7 @@ equiv l_rotate_offset_div : M.rotate_offset_div ~ M.rotate_offset_div:
 (0 <= (to_uint (mac_start - scan_start)) < 2^8){2} /\
  (16 <= to_uint md_size <= 64){1} 
 ==> ={M.leakages}.
-proof. by proc; wp; skip => /> &1 &2 *; rewrite !l_rotate_offset_div_core. qed.
+proof. by proc; wp; skip => /> &1 &2 *; rewrite /leak_div_32 !l_rotate_offset_div_core. qed.
 
 op wf_rec mem (rec:W64.t) (orig_len md_size : W32.t) = 
  let mac_end = loadW32 mem (to_uint (rec + W64.of_int 4)) in

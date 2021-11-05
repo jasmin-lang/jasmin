@@ -42,7 +42,8 @@ inline fn constant_time_eq_8_jasmin(reg u32 a b) -> reg u8 {
   return result;
 }
 
-fn rotate_offset_div(reg u32 md_size div_spoiler mac_start scan_start) -> reg u32 {
+fn rotate_offset_div(reg u32 md_size mac_start scan_start) -> reg u32 {
+  reg u32 div_spoiler;
   reg u32 rotate_offset;
   div_spoiler = md_size;
   div_spoiler <<= 23;
@@ -98,7 +99,6 @@ ssl3_cbc_copy_mac_jasmin(
   reg u32 mac_end;
   reg u32 scan_start;
   reg u32 i, j;
-  reg u32 div_spoiler;
   reg u32 rotate_offset;
   reg u64 temp;
   reg u64 temp2;
@@ -171,7 +171,7 @@ ssl3_cbc_copy_mac_jasmin(
 
     i += 1;
   }
-  rotate_offset = rotate_offset_div(md_size, div_spoiler, mac_start, scan_start);
+  rotate_offset = rotate_offset_div(md_size, mac_start, scan_start);
 
   // NOW rotate the mac
   // memset(out, 0, md_size);
@@ -193,12 +193,11 @@ ssl3_cbc_copy_mac_jasmin(
 
 inline fn rotate_mac_cache(reg u32 md_size, reg u32 rotate_offset, reg u64 out, reg u64 rotated_mac) {
 
-  reg u32 i, j;
+  reg u32 i;
   reg u8 temp_8, temp2_8;
   reg u32 temp_32;
   reg u64 temp;
     // NOW rotate the mac
-  j = 0;
   i = 0;
   while (i < md_size) {
     // ((volatile unsigned char *)rotated_mac)[rotate_offset^32];
@@ -216,9 +215,8 @@ inline fn rotate_mac_cache(reg u32 md_size, reg u32 rotate_offset, reg u64 out, 
     temp = (64u) rotate_offset;
     temp_8 = (u8)[rotated_mac + temp];
     rotate_offset += 1;
-    temp = (64u) j;
+    temp = (64u) i;
     (u8)[out + temp] = temp_8;
-    j += 1;
 
     // rotate_offset &= constant_time_lt(rotate_offset,md_size);
     rotate_offset = 0 if md_size <= rotate_offset;
@@ -245,7 +243,6 @@ ssl3_cbc_copy_mac_jasmin_cache(
   reg u32 mac_end;
   reg u32 scan_start;
   reg u32 i, j;
-  reg u32 div_spoiler;
   reg u32 rotate_offset;
   reg u64 temp;
   reg u64 temp2;
@@ -318,7 +315,7 @@ ssl3_cbc_copy_mac_jasmin_cache(
 
     i += 1;
   }
-  rotate_offset = rotate_offset_div(md_size, div_spoiler, mac_start, scan_start);
+  rotate_offset = rotate_offset_div(md_size, mac_start, scan_start);
 
   rotate_mac_cache(md_size, rotate_offset, out, rotated_mac);
 }
