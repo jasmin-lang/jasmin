@@ -202,7 +202,7 @@ Definition eval_instr_op idesc args (s:x86_mem) :=
   Let _   := assert (idesc.(id_check) args) ErrType in
   Let vs  := eval_args_in s args idesc.(id_in) idesc.(id_tin) in
   Let t   := app_sopn idesc.(id_tin) idesc.(id_semi) vs.1 in
-  Let l   := app_sopn idesc.(id_tin) idesc.(id_seml) vs.1 in
+  Let l   := app_sopn idesc.(id_tin) (idesc.(id_seml) LO) vs.1 in
   ok (list_ltuple t, vs.2 ++ leak_e_asm l).
 
 (* -------------------------------------------------------------------- *)

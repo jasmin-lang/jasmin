@@ -155,7 +155,7 @@ let pp_glvs pp_var fmt lvs =
 
 (* -------------------------------------------------------------------- *)
 let pp_opn o =
-  Conv.string_of_string0 ((Expr.get_instr !Glob_options.dfl_LeakOp o).str ())
+  Conv.string_of_string0 ((Expr.get_instr o).str ())
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function

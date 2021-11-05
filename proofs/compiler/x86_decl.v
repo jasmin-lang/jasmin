@@ -429,7 +429,7 @@ Record instr_desc_t := mk_instr_desc {
   id_tout     : seq stype;
   id_out      : seq arg_desc;
   id_semi     : sem_prod id_tin (exec (sem_tuple id_tout));
-  id_seml     : sem_prod id_tin (exec leak_e);
+  id_seml     : LeakOp → sem_prod id_tin (exec leak_e);
   id_check    : list asm_arg -> bool;
   id_nargs    : nat;
   (* Info for jasmin *)

@@ -44,7 +44,6 @@ Section PROOF.
 
   Variable p : prog.
   Notation gd := (p_globs p).
-  Context {LO: LeakOp}.
   Context (options: lowering_options).
   Context (warning: instr_info -> warning_msg -> instr_info).
   Variable fv : fresh_vars.
@@ -155,6 +154,8 @@ Section PROOF.
     + move=> Hf.
       exact: (Hl _ _ Hq Hf).
   Qed.
+
+  Context {LO: LeakOp}.
 
   Let Pi (s:estate) (i:instr) (li: leak_i) (s':estate) :=
     disj_fvars (vars_I i) ->

@@ -695,7 +695,7 @@ module Normal = struct
     | Copn (lvs, _, op, _) -> 
       if List.length lvs = 1 then env 
       else
-        let tys  = List.map Conv.ty_of_cty (E.sopn_tout !Glob_options.dfl_LeakOp op) in
+        let tys  = List.map Conv.ty_of_cty (E.sopn_tout op) in
         let ltys = List.map ty_lval lvs in
         if all_vars lvs && ltys = tys then env
         else add_aux env tys
@@ -732,7 +732,7 @@ module Normal = struct
       pp_lval1 env pp_e fmt (lv , (ty_expr e, e))
 
     | Copn(lvs, _, op, es) ->
-      let otys,itys = List.map Conv.ty_of_cty (E.sopn_tout !Glob_options.dfl_LeakOp op), List.map Conv.ty_of_cty (E.sopn_tin !Glob_options.dfl_LeakOp op) in
+      let otys,itys = List.map Conv.ty_of_cty (E.sopn_tout op), List.map Conv.ty_of_cty (E.sopn_tin op) in
       let pp_e fmt (op,es) = 
         Format.fprintf fmt "%a %a" pp_opn op 
           (pp_list "@ " (pp_wcast env)) (List.combine itys es) in
@@ -853,7 +853,7 @@ module Leak = struct
   let safe_es env = List.fold_left (safe_e_rec env) []
 
   let safe_opn safe opn es = 
-    let id = Expr.get_instr  !Glob_options.dfl_LeakOp opn in
+    let id = Expr.get_instr opn in
     List.map (fun c ->
         match c with
         | X86_decl.NotZero(sz, i) ->
@@ -1037,7 +1037,7 @@ module Leak = struct
       pp_call env fmt [lv] [ty_expr e] pp e 
 
     | Copn(lvs, _, op, es) ->
-      let otys,itys = List.map Conv.ty_of_cty (E.sopn_tout !Glob_options.dfl_LeakOp op), List.map Conv.ty_of_cty (E.sopn_tin !Glob_options.dfl_LeakOp op) in
+      let otys,itys = List.map Conv.ty_of_cty (E.sopn_tout op), List.map Conv.ty_of_cty (E.sopn_tin op) in
       let pp fmt (op, es) = 
         Format.fprintf fmt "<- %a %a" pp_opn op 
           (pp_list "@ " (pp_wcast env)) (List.combine itys es) in

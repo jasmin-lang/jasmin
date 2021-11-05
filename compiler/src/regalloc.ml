@@ -81,7 +81,7 @@ let x86_equality_constraints (tbl: int Hv.t) (k: int -> int -> unit)
   | Ox86 (MOV _), [ Lvar x ], [ Pvar y ] when kind_i x = kind_i y ->
     merge k' x y
   | _, _, _ ->
-    let id = get_instr !Glob_options.dfl_LeakOp op in
+    let id = get_instr op in
       find_equality_constraints id |>
       List.iter (fun constr ->
           constr |>
@@ -405,7 +405,7 @@ struct
     let mallocate_one x y a =
       match x with Pvar x -> allocate_one x y a | _ -> a
     in
-    let id = get_instr !Glob_options.dfl_LeakOp op in 
+    let id = get_instr op in
     let a =
       List.fold_left2 (fun acc ad lv ->
           match ad with

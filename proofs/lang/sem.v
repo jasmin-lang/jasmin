@@ -454,10 +454,12 @@ Definition is_defined (v: value) : bool :=
 
 Definition leak_sop1_typed (o: sop1) := let t := type_of_op1 o in op_leak_ty [:: t.1].
 
-Definition leak_sop1 (o: sop1) (v: value) : exec leak_e :=
+Arguments leak_sop1_typed _ : clear implicits.
+
+Definition leak_sop1 (o: sop1) {op: LeakOp} (v: value) : exec leak_e :=
   let t := type_of_op1 o in
   Let x := of_val _ v in
-  @leak_sop1_typed o x.
+  leak_sop1_typed o op x.
 
 Definition leak_opN_typed (o : opN) := let t := type_of_opN o in op_leak_cst (Ok error LEmpty) t.1.
 
@@ -478,7 +480,7 @@ Definition leak_sop2_typed (o: sop2) :=
           if u is Unsigned then 0%R 
           else (if (*(wsigned lo < 0%Z)%CMP*) (msb lo) then (-1)%R else 0%R) in 
       div_leak u hi lo div
-  | o => op_leak_ty [::(type_of_op2 o).1.1; (type_of_op2 o).1.2]
+  | o => op_leak_ty [::(type_of_op2 o).1.1; (type_of_op2 o).1.2] LO
   end.
 
 Definition leak_sop2 (o: sop2) (v1 v2: value) : exec leak_e :=
@@ -490,7 +492,7 @@ Definition leak_sop2 (o: sop2) (v1 v2: value) : exec leak_e :=
 Definition sopn_leak  o := seml (get_instr o).
 
 Definition leak_sopn (o:sopn) (vs:values) : exec leak_e :=
-  let seml := sopn_leak o in
+  let seml := sopn_leak o LO in
   Let t := app_sopn _ seml vs in
   ok t.
 

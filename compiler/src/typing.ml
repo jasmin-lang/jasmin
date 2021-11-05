@@ -897,8 +897,8 @@ let f_sig f =
 
 let prim_sig (type a) p : a P.gty list * a P.gty list =
   let f = conv_ty in
-  List.map f (E.sopn_tout !Glob_options.dfl_LeakOp p),
-  List.map f (E.sopn_tin !Glob_options.dfl_LeakOp p)
+  List.map f (E.sopn_tout p),
+  List.map f (E.sopn_tin p)
 
 type prim_constructor =
   | PrimP of W.wsize * (W.wsize -> Expr.sopn)
@@ -923,7 +923,7 @@ let prim_string =
           | X86_instr_decl.PrimV(x)     -> PrimV(fun sz sz' -> Ox86 (x sz sz'))
           | X86_instr_decl.PrimX(x)     -> PrimX(fun sz sz' -> Ox86 (x sz sz'))
           | X86_instr_decl.PrimVV(x)    -> PrimVV(fun ve sz ve' sz' -> Ox86 (x ve sz ve' sz'))
-        in (s, prc)) (X86_instr_decl.prim_string !Glob_options.dfl_LeakOp)
+        in (s, prc)) X86_instr_decl.prim_string
             
 type size_annotation =
   | SAw of W.wsize

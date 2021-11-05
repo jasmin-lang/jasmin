@@ -39,11 +39,6 @@ Unset Printing Implicit Defensive.
 Require Import x86_decl leakage.
 
 (* -------------------------------------------------------------------- *)
-
-Section Section.
-
-Context {LO:LeakOp}.
-
 Variant asm_op : Type :=
   (* Data transfert *)
 | MOV    of wsize              (* copy *)
@@ -293,7 +288,7 @@ Fixpoint op_leak_cst (A: Type) (a: A) (l: seq stype) : sem_prod l A:=
     | t :: l => fun _ => op_leak_cst a l
   end.
 
-Definition op_leak_ty (l : seq stype) : sem_prod l (exec leak_e) := op_leak_cst (Ok error LEmpty) l.
+Definition op_leak_ty (l : seq stype) & LeakOp : sem_prod l (exec leak_e) := op_leak_cst (Ok error LEmpty) l.
 
 Definition x86_MOV sz (x: word sz) : exec (word sz) :=
   Let _ := check_size_8_64 sz in
@@ -1000,7 +995,7 @@ Notation mk_instr_w2_b5w2 name semi msb ain aout nargs check max_imm prc pp_asm 
   mk_instr (pp_sz name sz) (w2_ty sz sz) (b5w2_ty sz) ain (implicit_flags ++ aout) msb (semi sz) (op_leak_ty (w2_ty sz sz)) (check sz) nargs sz (max_imm sz) [::] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w3_b5w2_da0ad name s semi check max_imm prc pp_asm := ((fun sz =>
-  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; E 0]  (implicit_flags ++ [:: R RAX; R RDX]) MSB_CLEAR (semi sz) (@div_leak LO s sz)
+  mk_instr (pp_sz name sz) (w3_ty sz) (b5w2_ty sz) [:: R RDX; R RAX; E 0]  (implicit_flags ++ [:: R RAX; R RDX]) MSB_CLEAR (semi sz) (λ LO, @div_leak LO s sz)
   (check sz) 1 sz (max_imm sz) [::NotZero sz 2] (pp_asm sz)), (name%string,prc))  (only parsing).
 
 Notation mk_instr_w2_w_120 name semi check max_imm prc pp_asm := ((fun sz =>
@@ -1616,7 +1611,7 @@ Definition Ox86_RDTSC_instr :=
               [:: R RDX; R RAX] (* results *)
               MSB_CLEAR (* clear MostSignificantBits *)
               (Error ErrType) (* No semantics *)
-              (Error ErrType)
+              (λ _, Error ErrType)
               [:: [::]]
               0 (* nargs *)
               sz (* size *)
@@ -1635,7 +1630,7 @@ Definition Ox86_RDTSCP_instr :=
               [:: R RDX; R RAX; R RCX] (* results *)
               MSB_CLEAR (* clear MostSignificantBits *)
               (Error ErrType) (* No semantics *)
-              (Error ErrType)
+              (λ _, Error ErrType)
               [:: [::]] (* arg checks *)
               0 (* nargs *)
               sz (* size *)
@@ -1929,13 +1924,3 @@ Definition prim_string :=
    Ox86_AESKEYGENASSIST_instr.2; 
    Ox86_VAESKEYGENASSIST_instr.2
  ].
-
-End Section.
-  
-  
-  
-  
-  
-  
-  
-  

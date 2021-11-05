@@ -387,7 +387,7 @@ let main () =
       List.map (fun fd -> Conv.cfun_of_fun tbl fd.f_name) ep in
 
     begin match
-      Compiler.compile_prog_to_x86 !Glob_options.dfl_LeakOp cparams entries cprog with
+      Compiler.compile_prog_to_x86 cparams entries cprog with
     | Utils0.Error e ->
       Utils.hierror "compilation error %a@.PLEASE REPORT"
          (pp_comp_ferr tbl) e

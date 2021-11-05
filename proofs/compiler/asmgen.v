@@ -617,7 +617,7 @@ elim: id_in id_tin hsin id_semi id_leak args vs Hargs happ Hvs Hlo; rewrite /sem
 move=> a id_in hrec [] //= ty id_tin [] heqs id_semi id_leak [ | arg args] //=
   [ // | v vs]; rewrite /check_sopn_args /= => /andP[] hcheck1 hcheckn.
 t_xrbindP=> vt1 hvt happ [v' l'] hv vs' hvs h1 h2 vt' hvt' hlo; subst. 
-have [s'' []] := hrec _ heqs (id_semi vt1) (id_leak vt') _ _ hcheckn happ hvs hlo.
+have [s'' []] := hrec _ heqs (id_semi vt1) (λ LO, id_leak LO vt') _ _ hcheckn happ hvs hlo.
 have := check_sopn_arg_sem_eval Hlomeqv hcheck1 hv hvt.
 move=> [] v'' [] Hev' hv'.
 t_xrbindP=> -[v1 p1] -[v2 p2] Hev'' vt'' /= happ1 leo hleo [] <- <- /=.
