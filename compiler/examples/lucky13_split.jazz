@@ -55,9 +55,9 @@ fn rotate_offset_div(reg u32 md_size mac_start scan_start) -> reg u32 {
 }
 
 inline fn rotate_mac(reg u32 md_size, reg u32 rotate_offset, reg u64 out, stack u8[128] rotated_mac) {
-  reg u32 i, j;
+  reg u64 i, j;
   reg u8 temp_8, temp2_8;
-  reg u32 temp_32;
+  reg u32 temp_32, temp2_32;
   reg u64 temp;
 
 
@@ -65,19 +65,25 @@ inline fn rotate_mac(reg u32 md_size, reg u32 rotate_offset, reg u64 out, stack 
   j = 0;
   while(i < md_size) {
     while(j < md_size) {
-      temp_8 = constant_time_eq_8_jasmin(j, rotate_offset);
-      temp = (64u) i;
-      temp_8 &= rotated_mac[(int) temp];
-      temp = (64u) j;
-      temp2_8 = (u8)[out + temp];
+      // out[j] |= rotated_mac[i] & constant_time_eq_8(j, rotate_offset);
+      //temp_8 = constant_time_eq_8_jasmin(j, rotate_offset);
+      temp_8 = 0;
+      //temp = (64u) i;
+      temp_32 = 0;
+      temp2_32 = (32u)rotated_mac[(int) i];
+      temp_32 = temp2_32 if j == rotate_offset;
+      temp_8 = (8u)temp_32;
+      //temp = (64u) j;
+      temp2_8 = (u8)[out + j];
       temp2_8 |= temp_8;
       (u8)[out + temp] = temp2_8;
 
       j += 1;
     }
     rotate_offset += 1;
-    temp_32 = constant_time_lt_jasmin(rotate_offset, md_size);
-    rotate_offset &= temp_32;
+    // temp_32 = constant_time_lt_jasmin(rotate_offset, md_size);
+    temp_32 = 0;
+    rotate_offset = temp_32 if md_size <= rotate_offset;
 
     i += 1;
     j = 0;
@@ -219,7 +225,8 @@ inline fn rotate_mac_cache(reg u32 md_size, reg u32 rotate_offset, reg u64 out, 
     (u8)[out + temp] = temp_8;
 
     // rotate_offset &= constant_time_lt(rotate_offset,md_size);
-    rotate_offset = 0 if md_size <= rotate_offset;
+    temp_32 = 0;
+    rotate_offset = temp_32 if md_size <= rotate_offset;
     //temp_32 = constant_time_lt_jasmin(rotate_offset, md_size);
     //temp = (64u) temp_32;
     //rotate_offset &= temp_32;
