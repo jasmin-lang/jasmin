@@ -12,13 +12,11 @@ export fn verify_mod_const(reg u64 a, reg u64 b) -> reg u64 {
   reg bool lzaz lzbz;
   reg u64 b_lzb;
   reg u64 b_lzb_1;
-  reg u64 temp;
+  reg u64 dividend modulo;
   reg u64 temp2;
   reg u64 temp3;
-  reg u64 res_temp;
   reg u64 flag;
-  reg u64 one;
-  reg u64 zero;
+  reg u64 one zero;
   
 
   flag = 0x1234;
@@ -33,22 +31,20 @@ export fn verify_mod_const(reg u64 a, reg u64 b) -> reg u64 {
   b_lzb = b;
   b_lzb <<= lzb;
   temp2 = #LEA(b_lzb + a);
-
-  temp = temp2;
+  dividend = temp2;
 
   lzb -= 1;                   // lzb is reduced by 1
   b_lzb_1 = b;
   b_lzb_1 = b_lzb_1 << lzb;
   temp3 = #LEA(b_lzb_1 + a);
-  temp = temp3 if (temp2 < b_lzb);
-  
+  dividend = temp3 if temp2 < b_lzb;
 
-  temp = a if flag == 1;
+  dividend = a if flag == 1;
   temp2 = 0xFFFFFFFFFFFFFFFF;
-  temp = temp2 if flag == 0;  // lzb = 0 and lza ≠ 0,
+  dividend = temp2 if flag == 0;  // lzb = 0 and lza ≠ 0,
                               // to leak big number if overflow happens
-  res_temp = temp % b;
-  result = res_temp;
+  modulo = dividend % b;
+  result = modulo;
   result = a if flag == 0;    // lzb = 0 and lza ≠ 0
   return result;
 }
