@@ -23,7 +23,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-Require Import var compiler.
+Require Import var compiler leakage_models.
 
 Require ExtrOcamlBasic.
 Require ExtrOcamlString.
@@ -35,6 +35,6 @@ Cd  "lang/ocaml".
 
 Extraction Blacklist String List Nat Utils Var Array.
 
-Separate Extraction utils expr leakage sem x86_instr_decl compiler.
+Separate Extraction utils expr leakage sem x86_instr_decl compiler leakage_models.
 
 Cd  "../..".

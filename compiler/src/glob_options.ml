@@ -1,4 +1,5 @@
 open Utils
+open Leakage_models
 (*--------------------------------------------------------------------- *)
 let infile = ref ""
 let outfile = ref ""
@@ -23,8 +24,8 @@ let lea = ref false
 let set0 = ref false
 let model = ref Normal
 
-let mem_leak_kind = ref Leakage.MLK_full
-let div_leak_kind = ref Leakage.DLK_none
+let mem_leak_kind = ref MLK_full
+let div_leak_kind = ref DLK_none
 
 let set_printing p () =
   print_list := p :: !print_list
@@ -45,21 +46,22 @@ let set_safety_makeconfigdoc s = safety_makeconfigdoc := Some s
       
 let set_dlk s = 
   match s with
-  | "none" -> div_leak_kind := Leakage.DLK_none 
-  | "log"  -> div_leak_kind := Leakage.DLK_num_log
+  | "none" -> div_leak_kind := DLK_none
+  | "log"  -> div_leak_kind := DLK_num_log
   | _      -> hierror "unknown model %s for division" s
 
 let set_mlk s = 
   match s with
-  | "full" -> mem_leak_kind := Leakage.MLK_full
-  | "div64" -> mem_leak_kind := Leakage.MLK_div64
+  | "full" -> mem_leak_kind := MLK_full
+  | "div32" -> mem_leak_kind := MLK_div32
+  | "div64" -> mem_leak_kind := MLK_div64
   | _ -> hierror "unknown model %s for memory" s
 
-let dfl_LeakOp = 
-  ref (Leakage.build_model !div_leak_kind !mem_leak_kind)
+let dfl_LeakOp =
+  ref (build_model !div_leak_kind !mem_leak_kind)
 
-let set_dfl_LeakOp () = 
-  dfl_LeakOp := (Leakage.build_model !div_leak_kind !mem_leak_kind)
+let set_dfl_LeakOp () =
+  dfl_LeakOp := (build_model !div_leak_kind !mem_leak_kind)
 
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"

@@ -56,6 +56,7 @@ lang/gen_map.v
 lang/global.v
 lang/ident.v
 lang/leakage.v
+lang/leakage_models.v
 lang/low_memory.v
 lang/memory_example.v
 lang/memory_model.v

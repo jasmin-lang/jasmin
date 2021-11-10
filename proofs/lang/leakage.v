@@ -53,32 +53,6 @@ Class LeakOp := {
    mem_leak_ : word Uptr -> word Uptr;
 }.
 
-Inductive div_leak_kind := 
-| DLK_none 
-| DLK_num_log.
-
-Definition build_div_leak dlk (s:signedness) (sz:wsize) (h l d:word sz) := 
-  match dlk with
-  | DLK_none => LEmpty
-  | DLK_num_log =>  
-    let i := if s == Signed then wdwordu h l else wdwords h l in 
-    LIdx (Z.log2 (Z.abs i))
-  end.
-
-Inductive mem_leak_kind := 
-| MLK_full 
-| MLK_div64.
-
-Definition build_mem_leak mlk (p:pointer) := 
-  match mlk with
-  | MLK_full => p
-  | MLK_div64 => wdiv p (wrepr Uptr 64)
-  end.
-
-Definition build_model (dlk:div_leak_kind) (mlk:mem_leak_kind) := 
-  {| div_leak_ := build_div_leak dlk
-   ; mem_leak_ := build_mem_leak mlk|}.
-
 Section Section.
  
 Context {LO:LeakOp}.
