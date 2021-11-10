@@ -14,11 +14,11 @@ Constant-time security under the assumption that 32-bit division/modulo instruct
 It assumes that the size of the MAC (`md_size`), the length of the data (`orig_len`), and the `out` and `rec` pointers are public.
 It also assumes that the records (pointed to by the `rec` arguments) are well-formed and contain at offset 16 a public pointer (to the data).
 
-# Secure MEE-TLS-CBC MAC extraction (CL model)
+# Secure MEE-TLS-CBC MAC extraction (TV+CL model)
 
 Implementation is in `../compiler/examples/lucky13_split.jazz`, function `ssl3_cbc_copy_mac_jasmin_cache`.
 
 Security proof in `copy_mac_cache_ct_proof.ec`, lemma `l_final`.
-Constant-time security under the assumption that memory accesses leak the 64-octet cache line (see the `LeakageModelCL` theory at the beginning of the file).
+Constant-time security under the assumption of the TV model (see above) and the assumption that memory accesses leak the 64-octet cache line (see the `LeakageModelCL` theory at the beginning of the file).
 In addition to the hypothesis that are also needed in the TV model (see above),
 this lemma requires that the `rotated_mac` argument is public and properly aligned with a cache-line boundary.

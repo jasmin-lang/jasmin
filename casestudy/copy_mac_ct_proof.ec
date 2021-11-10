@@ -8,90 +8,52 @@ require Copy_mac_ct.
 op leak_div (a: W32.t) : int =
   lzcnt (rev (w2bits a)).
 
-theory LeakageModelTV.
-
-op leak_div_32 (a b: W32.t) : address list =
-[ leak_div a ; to_uint b ].
-
-op leak_div_64 (a b: W64.t) : address list =
-[ to_uint a ; to_uint b ].
-
-op leak_mem (a: address) : address = a.
-
-end LeakageModelTV.
-
-clone import Copy_mac_ct.T with
-theory LeakageModel <- LeakageModelTV.
-
-equiv l_constant_time_lt_jasmin : M.constant_time_lt_jasmin ~ M.constant_time_lt_jasmin :
-={M.leakages}
-==> ={M.leakages}.
-proof.
-proc; inline *; sim.
-qed.
-
 lemma leak_div_or (x y : W32.t) : leak_div (x `|` y) = min (leak_div x) (leak_div y).
-proof.
-  rewrite /leak_div /w2bits.
-  elim/natind: 32.
-  + by move=> n hn; rewrite !mkseq0_le 1..3:// /= rev_nil.
-  move=> n hn hrec; rewrite !mkseqS 1..3:// !rev_rcons /= hrec; smt(lzcnt_size).
-qed.
-
-import BitEncoding.BS2Int.
-
-lemma lzcnt_bound l : 
-  (if size l = lzcnt (rev l) then 0 else 2^(size l - lzcnt (rev l) - 1))
-   <= bs2int l < 2^(size l - lzcnt (rev l)).
-proof.
-elim /last_ind: l => /=.
-+ by rewrite rev_nil /= bs2int_nil.
-move=> l b hrec; rewrite rev_rcons /= size_rcons.
-rewrite bs2int_rcons; case: b => _ /=; last by smt().
-rewrite /b2i /=. 
-have -> /= : !(size l + 1 = 0) by smt(size_ge0).
-rewrite Ring.IntID.exprD_nneg 1:size_ge0 //=.
-smt (bs2int_ge0 bs2int_le2Xs).
-qed.
+    proof.
+      rewrite /leak_div /w2bits.
+      elim/natind: 32.
+      + by move=> n hn; rewrite !mkseq0_le 1..3:// /= rev_nil.
+    move=> n hn hrec; rewrite !mkseqS 1..3:// !rev_rcons /= hrec; smt(lzcnt_size).
+  qed.
 
 lemma leak_div_bound (w:W32.t) : 0 <= leak_div w <= 32.
-proof. smt (lzcnt_size size_mkseq size_rev). qed.
+    proof. smt (lzcnt_size size_mkseq size_rev). qed.
 
 lemma nosmt ltr_weexpn2l x m n:
-   2 <= x => 0 <= m => 0 <= n => 
-   m < n <=> x ^ m < x ^ n.
-proof.
-  move=> h1 h2 h3; case: (m < n) => /= h4. 
-  + have -> : n = (n - m) + m by ring.
-    rewrite Ring.IntID.exprD_nneg 1:/# 1://.
-    rewrite -{1}(Ring.IntID.div1r (x^m)).
-    rewrite StdOrder.IntOrder.ltr_pmul2r.
-    + smt (StdOrder.IntOrder.expr_gt0).
-    smt (StdOrder.IntOrder.exprn_egt1).
-  have -> : m = (m - n) + n by ring.
-  rewrite Ring.IntID.exprD_nneg 1:/# 1:// -lezNgt.  
-  rewrite -{1}(Ring.IntID.div1r (x^n)).
-  rewrite StdOrder.IntOrder.ler_pmul2r.
-  + smt (StdOrder.IntOrder.expr_gt0).
-  smt (StdOrder.IntOrder.exprn_ege1).
-qed.
+    2 <= x => 0 <= m => 0 <= n =>
+    m < n <=> x ^ m < x ^ n.
+    proof.
+    move=> h1 h2 h3; case: (m < n) => /= h4.
+      + have -> : n = (n - m) + m by ring.
+      rewrite Ring.IntID.exprD_nneg 1:/# 1://.
+      rewrite -{1}(Ring.IntID.div1r (x^m)).
+      rewrite StdOrder.IntOrder.ltr_pmul2r.
+      + smt (StdOrder.IntOrder.expr_gt0).
+      smt (StdOrder.IntOrder.exprn_egt1).
+      have -> : m = (m - n) + n by ring.
+      rewrite Ring.IntID.exprD_nneg 1:/# 1:// -lezNgt.
+      rewrite -{1}(Ring.IntID.div1r (x^n)).
+      rewrite StdOrder.IntOrder.ler_pmul2r.
+      + smt (StdOrder.IntOrder.expr_gt0).
+      smt (StdOrder.IntOrder.exprn_ege1).
+  qed.
 
 lemma leak_div_le (w1 w2: W32.t) : to_uint w1 <= to_uint w2 => leak_div w2 <= leak_div w1.
-proof.
-  rewrite W32.to_uintE /leak_div.
-  have := lzcnt_bound (w2bits w1).
-  have := lzcnt_bound (w2bits w2).
-  rewrite !size_w2bits => h1 h2 h3.
-  have : (if 32 = lzcnt (rev (w2bits w1)) then 0 else 2 ^ (32 - lzcnt (rev (w2bits w1)) - 1)) <
-         2 ^ (32 - lzcnt (rev (w2bits w2))) by smt().
-  case (32 = lzcnt (rev (w2bits w1))) => /= [ <- | ] h; 1: smt (leak_div_bound).
-  rewrite -ltr_weexpn2l 1://; smt(leak_div_bound).
-qed.
+    proof.
+      rewrite W32.to_uintE /leak_div.
+      have := lzcnt_bound (w2bits w1).
+      have := lzcnt_bound (w2bits w2).
+      rewrite !size_w2bits => h1 h2 h3.
+      have : (if 32 = lzcnt (rev (w2bits w1)) then 0 else 2 ^ (32 - lzcnt (rev (w2bits w1)) - 1)) <
+      2 ^ (32 - lzcnt (rev (w2bits w2))) by smt().
+    case (32 = lzcnt (rev (w2bits w1))) => /= [ <- | ] h; 1: smt (leak_div_bound).
+      rewrite -ltr_weexpn2l 1://; smt(leak_div_bound).
+  qed.
 
 (* Remark: the shift by 23 look arbitrary. I think a shift by 8 is suffisant *)
-lemma l_rotate_offset_div_core (x md_size : W32.t) :    
-  0 <= to_uint x < 2^8 => 
-  16 <= to_uint md_size <= 64 => 
+lemma l_rotate_offset_div_core (x md_size : W32.t) :
+  0 <= to_uint x < 2^8 =>
+  16 <= to_uint md_size <= 64 =>
   leak_div (x + (md_size `<<` W8.of_int 23)) = leak_div (md_size `<<` W8.of_int 23).
 proof.
   move=> /= h1 h2.
@@ -120,6 +82,44 @@ proof.
   + by apply leak_div_le; rewrite /md23 /(`<<`) /= !W32.to_uint_shl //= modz_small /#.
   have -> /# : leak_div (W32.of_int (2^23)) = 8.
   by rewrite /leak_div /w2bits /mkseq -iotaredE /= !W32.of_intwE; cbv delta.
+qed.
+
+theory LeakageModelTV.
+
+op leak_div_32 (a b: W32.t) : address list =
+[ leak_div a ; to_uint b ].
+
+op leak_div_64 (a b: W64.t) : address list =
+[ to_uint a ; to_uint b ].
+
+op leak_mem (a: address) : address = a.
+
+end LeakageModelTV.
+
+clone import Copy_mac_ct.T with
+theory LeakageModel <- LeakageModelTV.
+
+equiv l_constant_time_lt_jasmin : M.constant_time_lt_jasmin ~ M.constant_time_lt_jasmin :
+={M.leakages}
+==> ={M.leakages}.
+proof.
+proc; inline *; sim.
+qed.
+
+import BitEncoding.BS2Int.
+
+lemma lzcnt_bound l :
+  (if size l = lzcnt (rev l) then 0 else 2^(size l - lzcnt (rev l) - 1))
+   <= bs2int l < 2^(size l - lzcnt (rev l)).
+proof.
+elim /last_ind: l => /=.
++ by rewrite rev_nil /= bs2int_nil.
+move=> l b hrec; rewrite rev_rcons /= size_rcons.
+rewrite bs2int_rcons; case: b => _ /=; last by smt().
+rewrite /b2i /=.
+have -> /= : !(size l + 1 = 0) by smt(size_ge0).
+rewrite Ring.IntID.exprD_nneg 1:size_ge0 //=.
+smt (bs2int_ge0 bs2int_le2Xs).
 qed.
 
 (* Remark: the shift by 23 look arbitrary. I think a shift by 8 is suffisant *)

@@ -3,7 +3,7 @@ from Jasmin require import JModel.
 
 require import Array128 WArray128.
 
-require Copy_mac_ct.
+require Copy_mac_ct_proof.
 
 theory LeakageModelCL.
 
@@ -16,8 +16,14 @@ op leak_mem (a: address) : address =
 
 end LeakageModelCL.
 
+theory LeakageModelTVCL.
+  op leak_div_32 = Copy_mac_ct_proof.LeakageModelTV.leak_div_32.
+  op leak_div_64 = Copy_mac_ct_proof.LeakageModelTV.leak_div_64.
+  op leak_mem = LeakageModelCL.leak_mem.
+end LeakageModelTVCL.
+
 clone import Copy_mac_ct.T with
-theory LeakageModel <- LeakageModelCL.
+theory LeakageModel <- LeakageModelTVCL.
 
 equiv l_rotate_offset_div md_size_ : M.rotate_offset_div ~ M.rotate_offset_div:
 ={M.leakages, md_size, scan_start} /\ md_size{1} = md_size_ /\
@@ -27,6 +33,7 @@ equiv l_rotate_offset_div md_size_ : M.rotate_offset_div ~ M.rotate_offset_div:
 ==> ={M.leakages} /\ 0 <= to_uint res{1} < to_uint md_size_ /\ 0 <= to_uint res{2} < to_uint md_size_.
 proof.
   proc; wp; skip => /> *.
+  rewrite /leak_div_32 !Copy_mac_ct_proof.l_rotate_offset_div_core //.
   smt (W32.to_uint_small W32.to_uint_cmp).
 qed.
 
