@@ -60,8 +60,8 @@ inline fn rotate_mac(reg u32 md_size, reg u32 rotate_offset, reg u64 out, stack 
   reg u32 temp_32, temp2_32;
 
   i = 0;
-  j = 0;
-  while(i < md_size) {
+  while (i < md_size) {
+    j = 0;
     while(j < md_size) {
       temp_32 = 0;
       temp2_32 = (32u)rotated_mac[(int) i];
@@ -78,7 +78,6 @@ inline fn rotate_mac(reg u32 md_size, reg u32 rotate_offset, reg u64 out, stack 
     rotate_offset = temp_32 if md_size <= rotate_offset;
 
     i += 1;
-    j = 0;
   }
 }
 
