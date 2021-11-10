@@ -9,7 +9,7 @@ let rec pp_leak_e fmt =
   function
   | LEmpty -> p "ε"
   | LIdx i -> fprintf fmt "[%a]" Bigint.pp_print (Conv.bi_of_z i)
-  | LAdr _a -> p "α"
+  | LAdr a -> fprintf fmt "*(0x%a)" Bigint.pp_print_X (Conv.bi_of_int64 a)
   | LSub s -> fprintf fmt "(%a)" (pp_list ", " pp_leak_e) s
 
 let pp_leak_i fmt =
