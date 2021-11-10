@@ -28,7 +28,7 @@ lemma leak_div64 b: b <> W64.zero => leak_div b <> 64.
 proof.
   apply contra; rewrite /leak_div => h.
   have := lzcnt_bound (w2bits b).
-  rewrite h W64.size_w2bits /= -W64.to_uintE W64.to_uint_eq /= /#.
+  rewrite W64.size_w2bits /= -W64.to_uintE W64.to_uint_eq /= h /#.
 qed.
 
 import BitEncoding.BS2Int.
