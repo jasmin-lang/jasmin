@@ -1,7 +1,13 @@
 require import AllCore IntDiv CoreMap List.
 from Jasmin require import JModel.
 
-(* Leakage models TV, CL, and TV+CL and common lemmas for the verification of the copy-mac implementations. *)
+(* Leakage models BL, TV, CL, and TV+CL and common lemmas for the verification of the copy-mac implementations. *)
+
+theory LeakageModelBL.
+op leak_mem (a: address) : address = a.
+op leak_div_32 (a b: W32.t) : address list = [].
+op leak_div_64 (a b: W64.t) : address list = [].
+end LeakageModelBL.
 
 op leak_div (a: W32.t) : int =
   lzcnt (rev (w2bits a)).
@@ -14,15 +20,14 @@ op leak_div_32 (a b: W32.t) : address list =
 op leak_div_64 (a b: W64.t) : address list =
 [ to_uint a ; to_uint b ].
 
-op leak_mem (a: address) : address = a.
+op leak_mem = LeakageModelBL.leak_mem.
 
 end LeakageModelTV.
 
 theory LeakageModelCL.
 
-op leak_div_32 (a b: W32.t) : address list = [].
-
-op leak_div_64 (a b: W64.t) : address list = [].
+op leak_div_32 = LeakageModelBL.leak_div_32.
+op leak_div_64 = LeakageModelBL.leak_div_64.
 
 op leak_mem (a: address) : address =
   a %/ 64.
