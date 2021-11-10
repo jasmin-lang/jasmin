@@ -8,7 +8,7 @@ require Copy_mac_ct.
 op leak_div (a: W32.t) : int =
   lzcnt (rev (w2bits a)).
 
-theory LeakageModelDiv.
+theory LeakageModelTV.
 
 op leak_div_32 (a b: W32.t) : address list =
 [ leak_div a ; to_uint b ].
@@ -18,10 +18,10 @@ op leak_div_64 (a b: W64.t) : address list =
 
 op leak_mem (a: address) : address = a.
 
-end LeakageModelDiv.
+end LeakageModelTV.
 
 clone import Copy_mac_ct.T with
-theory LeakageModel <- LeakageModelDiv.
+theory LeakageModel <- LeakageModelTV.
 
 equiv l_constant_time_lt_jasmin : M.constant_time_lt_jasmin ~ M.constant_time_lt_jasmin :
 ={M.leakages}
