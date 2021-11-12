@@ -9,7 +9,7 @@ modulo_ct.ec: ../compiler/examples/mod_patch.jazz
 	$(JASMINC) -CT -ec verify_mod_const -oec $@ $^
 
 copy_mac_ct.ec: ../compiler/examples/lucky13_split.jazz
-	$(JASMINC) -CT -ec ssl3_cbc_copy_mac_jasmin -ec ssl3_cbc_copy_mac_jasmin_cache -oec $@ $^
+	$(JASMINC) -CT -ec ssl3_cbc_copy_mac_BL -ec ssl3_cbc_copy_mac_TV -ec ssl3_cbc_copy_mac_TV_CL -oec $@ $^
 
 %.eco: %.ec
 	$(EASYCRYPT) $^
@@ -20,5 +20,3 @@ clean:
 check:
 	$(JASMINC) --mlk=div32 --dlk=none rotate-mac-cache.jazz
 	$(JASMINC) --mlk=div32 --dlk=log  rotate-mac-cache.jazz
-
-
