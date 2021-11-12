@@ -9,7 +9,7 @@ require import Leakage_models.
 clone import Copy_mac_ct.T with
 theory LeakageModel <- LeakageModelTVCL.
 
-equiv l_rotate_offset_div md_size_ : M.rotate_offset_div ~ M.rotate_offset_div:
+equiv l_rotate_offset_TVCL md_size_ : M.rotate_offset_TV ~ M.rotate_offset_TV:
 ={M.leakages, md_size, scan_start} /\ md_size{1} = md_size_ /\
 (0 <= (to_uint (mac_start - scan_start)) < 2^8){1} /\
 (0 <= (to_uint (mac_start - scan_start)) < 2^8){2} /\
@@ -58,7 +58,7 @@ proof.
   move=> /= h1 h2 h3; rewrite W64.to_uintD_small to_uint_zeroextu64 /= 1:/# divzDl 1:// /#.
 qed.
 
-equiv l_rotate_mac_ct : M.rotate_mac_cache ~ M.rotate_mac_cache :
+equiv l_rotate_mac_CL : M.rotate_mac_CL ~ M.rotate_mac_CL :
   ={M.leakages, out, md_size, rotated_mac} /\ 64 %| W64.to_uint rotated_mac{1} /\
   to_uint rotated_mac{1} + 64 <= W64.modulus /\ (* This hypothesis is implied by  64 %| W64.to_uint rotated_mac{1} we should remove it *)
   16 <= to_uint md_size{1} <= 64 /\
