@@ -111,7 +111,7 @@ ssl3_cbc_copy_mac_BL(
 
 export
 fn
-ssl3_cbc_copy_mac_jasmin_TV(
+ssl3_cbc_copy_mac_TV(
     reg u64 out,
     reg u64 rec,
     reg u32 orig_len,
@@ -153,7 +153,7 @@ ssl3_cbc_copy_mac_jasmin_TV(
 
 export
 fn
-ssl3_cbc_copy_mac_jasmin_TV_CL(
+ssl3_cbc_copy_mac_TV_CL(
     reg u64 out,
     reg u64 rec,
     reg u32 orig_len,
