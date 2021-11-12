@@ -7,17 +7,9 @@ fn lzcnt(reg u64 x) -> reg bool, reg u64 {
 }
 
 export fn verify_mod_const(reg u64 a, reg u64 b) -> reg u64 {
-  reg u64 result;
-  reg u64 lzb;
-  reg bool lzaz lzbz;
-  reg u64 b_lzb;
-  reg u64 b_lzb_1;
-  reg u64 dividend modulo;
-  reg u64 temp2;
-  reg u64 temp3;
-  reg u64 flag;
-  reg u64 one zero;
-  
+  reg u64 flag one zero dividend modulo result;
+  reg u64 lzb lzb_m1 b_lzb b_lzb_m1 temp2;
+  reg bool lzaz lzbz cf;
 
   flag = 0x1234;
   one = 1;
@@ -28,16 +20,14 @@ export fn verify_mod_const(reg u64 a, reg u64 b) -> reg u64 {
   lzaz, _ = lzcnt(a);
   flag = one if lzaz;
 
-  b_lzb = b;
-  b_lzb <<= lzb;
-  temp2 = #LEA(b_lzb + a);
-  dividend = temp2;
+  lzb_m1 = #LEA(lzb - 1);
+  b_lzb_m1 = b;
+  b_lzb_m1 = b_lzb_m1 << lzb_m1;
+  dividend = #LEA(b_lzb_m1 + a);
 
-  lzb -= 1;                   // lzb is reduced by 1
-  b_lzb_1 = b;
-  b_lzb_1 = b_lzb_1 << lzb;
-  temp3 = #LEA(b_lzb_1 + a);
-  dividend = temp3 if temp2 < b_lzb;
+  b_lzb = b_lzb_m1 << 1;
+  cf, temp2 = b_lzb + a;
+  dividend = temp2 if !cf;
 
   dividend = a if flag == 1;
   temp2 = 0xFFFFFFFFFFFFFFFF;
