@@ -253,12 +253,18 @@ type pexec = {
   pex_mem: (Bigint.zint * Bigint.zint) list;
 }
 
+type pexec_ct = {
+  pexc_name1: pident;
+  pexc_name2: pident;
+  pexc_mem: (Bigint.zint * Bigint.zint) list;
+}
+
 (* -------------------------------------------------------------------- *)
 type pitem =
   | PFundef of pfundef
   | PParam of pparam
   | PGlobal of pglobal
   | Pexec of pexec
-
+  | Pexec_ct of pexec_ct
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list

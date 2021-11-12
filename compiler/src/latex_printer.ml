@@ -322,7 +322,7 @@ let pp_pitem fmt pi =
   | PFundef f -> pp_fundef fmt f
   | PParam p  -> pp_param fmt p
   | PGlobal g -> pp_global fmt g
-  | Pexec _   -> ()
+  | Pexec _ | Pexec_ct _  -> ()
 
 let pp_prog fmt prog =
   F.fprintf fmt "%a" (pp_list "\n" pp_pitem) prog

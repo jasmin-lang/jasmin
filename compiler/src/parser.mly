@@ -355,15 +355,20 @@ pglobal:
 pexec:
 | EXEC pex_name=ident pex_mem=parens_tuple(range) { { pex_name ; pex_mem } }
 
+pexec_ct:
+| EXEC pexc_name1=ident pexc_name2=ident pexc_mem=parens_tuple(range) 
+   { { pexc_name1; pexc_name2; pexc_mem } }
+
 range:
 | ptr=INT COLON size=INT { ptr, size }
 
 (* -------------------------------------------------------------------- *)
 top:
-| x=pfundef { S.PFundef x }
-| x=pparam  { S.PParam  x }
-| x=pglobal { S.PGlobal x }
-| x=pexec   { S.Pexec   x }
+| x=pfundef  { S.PFundef x }
+| x=pparam   { S.PParam  x }
+| x=pglobal  { S.PGlobal x }
+| x=pexec    { S.Pexec   x }
+| x=pexec_ct { S.Pexec_ct x }
 (* -------------------------------------------------------------------- *)
 module_:
 | pfs=loc(top)* EOF

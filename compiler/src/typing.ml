@@ -185,6 +185,10 @@ let pp_tyerror fmt (code : tyerror) =
 
 (* -------------------------------------------------------------------- *)
 module Env : sig
+  type exec = 
+    | Exec1 of P.funname * (Bigint.zint * Bigint.zint) list
+    | Exec2 of P.funname * P.funname * (Bigint.zint * Bigint.zint) list
+
   type env
 
   val empty : env
@@ -205,16 +209,22 @@ module Env : sig
   end
 
   module Exec : sig
+  
     val push : P.funname -> (Bigint.zint * Bigint.zint) list -> env -> env
-    val get  : env -> (P.funname * (Bigint.zint * Bigint.zint) list) list
+    val push_ct : P.funname -> P.funname -> (Bigint.zint * Bigint.zint) list -> env -> env
+    val get  : env -> exec list
   end
 
 end = struct
+  type exec = 
+    | Exec1 of P.funname * (Bigint.zint * Bigint.zint) list
+    | Exec2 of P.funname * P.funname * (Bigint.zint * Bigint.zint) list
+
   type env = {
     e_vars    : (S.symbol, P.pvar) Map.t;
     e_globals : (S.symbol, P.Name.t * P.pty) Map.t;
     e_funs    : (S.symbol, unit P.pfunc) Map.t;
-    e_exec    : (P.funname * (Bigint.zint * Bigint.zint) list) list
+    e_exec    : exec list
   }
 
   let empty : env =
@@ -249,7 +259,13 @@ end = struct
   end
 
   module Exec = struct
-    let push f m env = { env with e_exec = (f, m) :: env.e_exec }
+
+    type exec = 
+      | Exec1 of P.funname * (Bigint.zint * Bigint.zint) list
+      | Exec2 of P.funname * P.funname * (Bigint.zint * Bigint.zint) list
+
+    let push f m env = { env with e_exec = Exec1(f, m) :: env.e_exec }
+    let push_ct f1 f2 m env = { env with e_exec = Exec2(f1, f2, m) :: env.e_exec }
     let get env = List.rev env.e_exec
   end
 
@@ -1368,6 +1384,9 @@ let tt_item (env : Env.env) pt : Env.env * (unit P.pmod_item list) =
   | S.PFundef pf -> snd_map (fun x -> [P.MIfun   x]) (tt_fundef env (L.loc pt) pf)
   | S.PGlobal pg -> snd_map (fun (x, y) -> [P.MIglobal (x, y)]) (tt_global env (L.loc pt) pg)
   | S.Pexec   pf -> Env.Exec.push (tt_fun env pf.pex_name).P.f_name pf.pex_mem env, []
+  | S.Pexec_ct pf -> 
+      Env.Exec.push_ct (tt_fun env pf.pexc_name1).P.f_name 
+                       (tt_fun env pf.pexc_name2).P.f_name pf.pexc_mem env, []
 
 (* -------------------------------------------------------------------- *)
 let tt_program (env : Env.env) (pm : S.pprogram) : Env.env * unit P.pprog =
