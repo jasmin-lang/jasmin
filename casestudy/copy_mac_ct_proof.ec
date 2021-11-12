@@ -33,7 +33,7 @@ smt (bs2int_ge0 bs2int_le2Xs).
 qed.
 
 (* Remark: the shift by 23 look arbitrary. I think a shift by 8 is suffisant *)
-equiv l_rotate_offset_div : M.rotate_offset_div ~ M.rotate_offset_div:
+equiv l_rotate_offset_TV : M.rotate_offset_TV ~ M.rotate_offset_TV:
 ={M.leakages, md_size, scan_start} /\
 (0 <= (to_uint (mac_start - scan_start)) < 2^8){1} /\ 
 (0 <= (to_uint (mac_start - scan_start)) < 2^8){2} /\
@@ -64,7 +64,7 @@ proof.
   rewrite W32.to_uintB ?W32.uleE W32.to_uintB ?W32.uleE /=; smt(W32.to_uint_cmp). 
 qed.
 
-equiv l_rotate_mac_ct : M.rotate_mac ~ M.rotate_mac : ={M.leakages, out, md_size} ==> ={M.leakages}.
+equiv l_rotate_mac_BL : M.rotate_mac_BL ~ M.rotate_mac_BL : ={M.leakages, out, md_size} ==> ={M.leakages}.
 proof. by proc; inline *; sim. qed.
 
 equiv l_final : M.ssl3_cbc_copy_mac_jasmin ~ M.ssl3_cbc_copy_mac_jasmin :
@@ -77,11 +77,8 @@ equiv l_final : M.ssl3_cbc_copy_mac_jasmin ~ M.ssl3_cbc_copy_mac_jasmin :
 ==> ={M.leakages}.
 proof.
   proc.
-  call l_rotate_mac_ct; wp.
-  call l_constant_time_lt_jasmin; wp.
-  while (={M.leakages, temp, out, md_size}); 1: by sim.
-  wp => /=; conseq />.
-  call l_rotate_offset_div; wp.
+  call l_rotate_mac_BL; wp.
+  call l_rotate_offset_TV; wp.
   while (={i, j, orig_len, data, md_size, M.leakages}); 1: by inline*;sim.
   wp => /=; while (={i, md_size, M.leakages}); 1: by sim.
   wp; skip => |> &1 &2; smt (wf_rec_cond_md_size_mac_end).
