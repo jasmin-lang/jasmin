@@ -9,13 +9,6 @@ require import Leakage_models.
 clone import Copy_mac_ct.T with
 theory LeakageModel <- LeakageModelTV.
 
-equiv l_constant_time_lt_jasmin : M.constant_time_lt_jasmin ~ M.constant_time_lt_jasmin :
-={M.leakages}
-==> ={M.leakages}.
-proof.
-proc; inline *; sim.
-qed.
-
 import BitEncoding.BS2Int.
 
 lemma lzcnt_bound l :
@@ -67,7 +60,7 @@ qed.
 equiv l_rotate_mac_BL : M.rotate_mac_BL ~ M.rotate_mac_BL : ={M.leakages, out, md_size} ==> ={M.leakages}.
 proof. by proc; inline *; sim. qed.
 
-equiv l_final : M.ssl3_cbc_copy_mac_jasmin ~ M.ssl3_cbc_copy_mac_jasmin :
+equiv l_final : M.ssl3_cbc_copy_mac_TV ~ M.ssl3_cbc_copy_mac_TV :
 ={M.leakages, md_size, orig_len, out, rec} /\
 (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){1} = 
 (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){2} /\
@@ -79,7 +72,6 @@ proof.
   proc.
   call l_rotate_mac_BL; wp.
   call l_rotate_offset_TV; wp.
-  while (={i, j, orig_len, data, md_size, M.leakages}); 1: by inline*;sim.
-  wp => /=; while (={i, md_size, M.leakages}); 1: by sim.
+  while (={i, j, orig_len, data, zero, md_size, M.leakages}); 1: by inline*;sim.
   wp; skip => |> &1 &2; smt (wf_rec_cond_md_size_mac_end).
 qed.

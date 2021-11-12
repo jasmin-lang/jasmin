@@ -166,6 +166,7 @@ ssl3_cbc_copy_mac_TV_CL(
   reg u64 i, j, zero, data;
   reg u32 rotate_offset, old, new, temp;
 
+  zero = 0;
   data = (u64)[rec + 16];
   mac_end = (u32)[rec + 4];
   mac_start = mac_end;
