@@ -29,7 +29,7 @@ inline fn opp_mod(reg u32 rotate_offset md_size) -> reg u32 {
   return rotate_offset;
 }
 
-inline fn rotate_mac_BL(reg u32 md_size, reg u32 rotate_offset, reg u64 out, stack u8[128] rotated_mac) {
+inline fn rotate_mac_BL(reg u32 md_size rotate_offset, reg u64 out, stack u8[128] rotated_mac) {
   reg u64 i, j;
   reg u32 old, new, zero, temp;
 
@@ -47,6 +47,22 @@ inline fn rotate_mac_BL(reg u32 md_size, reg u32 rotate_offset, reg u64 out, sta
     }
     rotate_offset += 1;
     rotate_offset = zero if md_size <= rotate_offset;
+    i += 1;
+  }
+}
+
+inline fn rotate_mac_CL(reg u32 md_size rotate_offset, reg u64 out rotated_mac) {
+  reg u8 new;
+  reg u64 i, zero, ro;
+
+  zero = 0;
+  ro = (64u) rotate_offset;
+  i = 0;
+  while (i < md_size) {
+    new = (u8)[rotated_mac + ro];
+    (u8)[out + i] = new;
+    ro += 1;
+    ro = zero if md_size <= ro;
     i += 1;
   }
 }
@@ -95,7 +111,7 @@ ssl3_cbc_copy_mac_BL(
 
 export
 fn
-ssl3_cbc_copy_mac_jasmin(
+ssl3_cbc_copy_mac_jasmin_TV(
     reg u64 out,
     reg u64 rec,
     reg u32 orig_len,
@@ -135,25 +151,9 @@ ssl3_cbc_copy_mac_jasmin(
   rotate_mac_BL(md_size, rotate_offset, out, rotated_mac);
 }
 
-inline fn rotate_mac_CL(reg u32 md_size, reg u32 rotate_offset, reg u64 out, reg u64 rotated_mac) {
-  reg u8 new;
-  reg u64 i, zero, ro;
-
-  zero = 0;
-  ro = (64u) rotate_offset;
-  i = 0;
-  while (i < md_size) {
-    new = (u8)[rotated_mac + ro];
-    (u8)[out + i] = new;
-    ro += 1;
-    ro = zero if md_size <= ro;
-    i += 1;
-  }
-}
-
 export
 fn
-ssl3_cbc_copy_mac_jasmin_cache(
+ssl3_cbc_copy_mac_jasmin_TV_CL(
     reg u64 out,
     reg u64 rec,
     reg u32 orig_len,
