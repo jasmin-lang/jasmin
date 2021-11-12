@@ -42,7 +42,7 @@ inline fn constant_time_eq_8_jasmin(reg u32 a b) -> reg u8 {
   return result;
 }
 
-fn rotate_offset_div(reg u32 md_size mac_start scan_start) -> reg u32 {
+fn rotate_offset_TV(reg u32 md_size mac_start scan_start) -> reg u32 {
   reg u32 div_spoiler;
   reg u32 rotate_offset;
   div_spoiler = md_size;
@@ -54,29 +54,36 @@ fn rotate_offset_div(reg u32 md_size mac_start scan_start) -> reg u32 {
   return rotate_offset;
 }
 
-inline fn rotate_mac(reg u32 md_size, reg u32 rotate_offset, reg u64 out, stack u8[128] rotated_mac) {
+inline fn opp_mod(reg u32 rotate_offset md_size) -> reg u32 {
+  reg u32 temp, zero;
+
+  zero = 0;
+  temp = md_size;
+  temp -= rotate_offset;
+  rotate_offset = temp;
+  rotate_offset = zero if rotate_offset == md_size;
+  return rotate_offset;
+}
+
+inline fn rotate_mac_BL(reg u32 md_size, reg u32 rotate_offset, reg u64 out, stack u8[128] rotated_mac) {
   reg u64 i, j;
-  reg u8 temp_8, temp2_8;
-  reg u32 temp_32, temp2_32;
+  reg u32 old, new, zero, temp;
 
+  zero = 0;
+  rotate_offset = opp_mod(rotate_offset, md_size);
   i = 0;
-  while (i < md_size) {
-    j = 0;
+  while(i < md_size) {
+     j = 0;
     while(j < md_size) {
-      temp_32 = 0;
-      temp2_32 = (32u)rotated_mac[(int) i];
-      temp_32 = temp2_32 if j == rotate_offset;
-      temp_8 = temp_32;
-      temp2_8 = (u8)[out + j];
-      temp2_8 |= temp_8;
-      (u8)[out + j] = temp2_8;
-
+      // out[j] |= rotated_mac[i] & constant_time_eq_8(j, rotate_offset);
+      old = (32u)(u8)[out + j];
+      new = (32u)rotated_mac[(int) i];
+      new = old if j != rotate_offset;
+      (u8)[out + j] = new;
       j += 1;
     }
     rotate_offset += 1;
-    temp_32 = 0;
-    rotate_offset = temp_32 if md_size <= rotate_offset;
-
+    rotate_offset = zero if md_size <= rotate_offset;
     i += 1;
   }
 }
@@ -168,59 +175,25 @@ ssl3_cbc_copy_mac_jasmin(
 
     i += 1;
   }
-  rotate_offset = rotate_offset_div(md_size, mac_start, scan_start);
+  rotate_offset = rotate_offset_TV(md_size, mac_start, scan_start);
 
   // NOW rotate the mac
-  // memset(out, 0, md_size);
-  temp = 0;
-  while (temp < md_size) {
-    (u8)[out + temp] = (8u)0;
-    temp += 1;
-  }
-
-  temp_32 = md_size;
-  temp_32 -= rotate_offset;
-  rotate_offset = temp_32;
-
-  temp_32 = constant_time_lt_jasmin(rotate_offset, md_size);
-  temp = (64u) temp_32;
-  rotate_offset &= temp;
-  rotate_mac(md_size, rotate_offset, out, rotated_mac);
+  rotate_mac_BL(md_size, rotate_offset, out, rotated_mac);
 }
 
-inline fn rotate_mac_cache(reg u32 md_size, reg u32 rotate_offset, reg u64 out, reg u64 rotated_mac) {
+inline fn rotate_mac_CL(reg u32 md_size, reg u32 rotate_offset, reg u64 out, reg u64 rotated_mac) {
+  reg u8 new;
+  reg u64 i, zero, ro;
 
-  reg u32 i;
-  reg u8 temp_8, temp2_8;
-  reg u32 temp_32;
-  reg u64 temp;
-    // NOW rotate the mac
+
+  zero = 0;
+  ro = (64u) rotate_offset;
   i = 0;
   while (i < md_size) {
-    // ((volatile unsigned char *)rotated_mac)[rotate_offset^32];
-   /* This is necessary only if the cache line is 32.
-      We do not use it in the current model. 
-      Furthermore I suppect this is not correct if the cache line is 32 */
-
-/*    temp_32 = rotate_offset;
-    temp_32 ^= 32;
-    temp = (64u) temp_32;
-    temp_8 = (u8)[rotated_mac + temp];
-    temp_8 ^= temp_8; */
-
-    // out[j++] = rotated_mac[rotate_offset++];
-    temp = (64u) rotate_offset;
-    temp_8 = (u8)[rotated_mac + temp];
-    rotate_offset += 1;
-    temp = (64u) i;
-    (u8)[out + temp] = temp_8;
-
-    // rotate_offset &= constant_time_lt(rotate_offset,md_size);
-    temp_32 = 0;
-    rotate_offset = temp_32 if md_size <= rotate_offset;
-    //temp_32 = constant_time_lt_jasmin(rotate_offset, md_size);
-    //temp = (64u) temp_32;
-    //rotate_offset &= temp_32;
+    new = (u8)[rotated_mac + ro];
+    (u8)[out + i] = new;
+    ro += 1;
+    ro = zero if md_size <= ro;
     i += 1;
   } 
 }
@@ -313,7 +286,7 @@ ssl3_cbc_copy_mac_jasmin_cache(
 
     i += 1;
   }
-  rotate_offset = rotate_offset_div(md_size, mac_start, scan_start);
+  rotate_offset = rotate_offset_TV(md_size, mac_start, scan_start);
 
-  rotate_mac_cache(md_size, rotate_offset, out, rotated_mac);
+  rotate_mac_CL(md_size, rotate_offset, out, rotated_mac);
 }
