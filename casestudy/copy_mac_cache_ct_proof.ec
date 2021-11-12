@@ -60,7 +60,7 @@ qed.
 
 equiv l_rotate_mac_ct : M.rotate_mac_cache ~ M.rotate_mac_cache :
   ={M.leakages, out, md_size, rotated_mac} /\ 64 %| W64.to_uint rotated_mac{1} /\
-  to_uint rotated_mac{1} + 64 <= W64.modulus /\
+  to_uint rotated_mac{1} + 64 <= W64.modulus /\ (* This hypothesis is implied by  64 %| W64.to_uint rotated_mac{1} we should remove it *)
   16 <= to_uint md_size{1} <= 64 /\
   0 <= to_uint rotate_offset{1} < to_uint md_size{1}  /\ 0 <= to_uint rotate_offset{2} < to_uint md_size{1}
   ==>
