@@ -56,5 +56,5 @@ rotate_mac_cache(
 inline fn test_31() { test_with_secret(31); }
 inline fn test_63() { test_with_secret(63); }
 
-exec test_31(0x1000 : 64, 0x2000 : 64)
-exec test_63(0x1000 : 64, 0x2000 : 64)
+exec test_31 test_63 (0x1000 : 64, 0x2000 : 64)
+

@@ -16,3 +16,9 @@ copy_mac_ct.ec: ../compiler/examples/lucky13_split.jazz
 
 clean:
 	$(RM) modulo_ct.ec copy_mac_ct.ec *.eco *Array128.ec
+
+check:
+	$(JASMINC) --mlk=div32 --dlk=none rotate-mac-cache.jazz
+	$(JASMINC) --mlk=div32 --dlk=log  rotate-mac-cache.jazz
+
+
