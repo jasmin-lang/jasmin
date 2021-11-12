@@ -1,48 +1,12 @@
-inline fn duplicate_msb_to_all_jasmin(reg u32 x) -> reg u32 {
-  reg u32 result;
-  result = x;
-  result = result >>s 31;
-  return result;
+inline fn rotate_offset_BL(reg u32 md_size mac_start scan_start) -> reg u32 {
+  reg u32 rotate_offset;
+  rotate_offset = mac_start;
+  rotate_offset -= scan_start;
+  rotate_offset = rotate_offset % md_size;
+  return rotate_offset;
 }
 
-inline fn duplicate_msb_to_all_8_jasmin(reg u32 x) -> reg u8 {
-  reg u8 result;
-  reg u32 temp;
-  temp = x;
-  temp = duplicate_msb_to_all_jasmin(temp);
-  result = (8u) temp;
-  return result;
-}
-
-inline fn constant_time_lt_jasmin(reg u32 a b) -> reg u32 {
-  reg u32 result;
-  result = a;
-  result -= b;
-  result = duplicate_msb_to_all_jasmin(result);
-  return result;
-
-}
-
-inline fn constant_time_ge_jasmin(reg u32 a b) -> reg u32 {
-  reg u32 result;
-  result = a;
-  result -= b;
-  result = !result;
-  result = duplicate_msb_to_all_jasmin(result);
-  return result;
-}
-
-inline fn constant_time_eq_8_jasmin(reg u32 a b) -> reg u8 {
-  reg u8 result;
-  reg u32 temp;
-  temp = a;
-  temp ^= b;
-  temp -= 1;
-  result = duplicate_msb_to_all_8_jasmin(temp);
-  return result;
-}
-
-fn rotate_offset_TV(reg u32 md_size mac_start scan_start) -> reg u32 {
+inline fn rotate_offset_TV(reg u32 md_size mac_start scan_start) -> reg u32 {
   reg u32 div_spoiler;
   reg u32 rotate_offset;
   div_spoiler = md_size;
@@ -75,7 +39,6 @@ inline fn rotate_mac_BL(reg u32 md_size, reg u32 rotate_offset, reg u64 out, sta
   while(i < md_size) {
      j = 0;
     while(j < md_size) {
-      // out[j] |= rotated_mac[i] & constant_time_eq_8(j, rotate_offset);
       old = (32u)(u8)[out + j];
       new = (32u)rotated_mac[(int) i];
       new = old if j != rotate_offset;
@@ -88,103 +51,93 @@ inline fn rotate_mac_BL(reg u32 md_size, reg u32 rotate_offset, reg u64 out, sta
   }
 }
 
-export 
-fn 
-ssl3_cbc_copy_mac_jasmin(
+export
+fn
+ssl3_cbc_copy_mac_BL(
     reg u64 out,
     reg u64 rec,
-    reg u32 orig_len,        
-    reg u32 md_size       
-  ) 
+    reg u32 orig_len,
+    reg u32 md_size
+  )
 {
-  // assuming CBC_MAC_ROTATE_IN_PLACE is not defined 
   stack u8[128] rotated_mac;    // char array
-  reg u32 mac_start;
-  reg u32 mac_end;
-  reg u32 scan_start;
-  reg u32 i, j;
-  reg u32 rotate_offset;
-  reg u64 temp;
-  reg u64 temp2;
-  reg u32 temp_32;
-  reg u32 temp2_32;
-  reg u8  temp_8;
-  reg u8  temp2_8;
-  reg u8 mac_started;
-  reg u8 mac_ended;
-  reg u8 b;
-  reg u64 data;
-  reg u32 data_len;
+  reg u32 mac_start, mac_end, scan_start;
+  reg u64 i, j, zero, data;
+  reg u32 rotate_offset, old, new, temp;
 
+  zero = 0;
   data = (u64)[rec + 16];
   mac_end = (u32)[rec + 4];
   mac_start = mac_end;
   mac_start -= md_size;
-
   scan_start = 0;
-
-  temp_32 = md_size;
-  temp_32 += 256;
-  if (orig_len > temp_32) {
+  temp = md_size;
+  temp += 256;
+  if (orig_len > temp) {
     scan_start = orig_len;
-    scan_start -= temp_32;
+    scan_start -= temp;
   }
-
-  // memset(rotated_mac, 0, md_size);
-  i = 0;
-  while(i < md_size) {
-    temp = (64u) i;
-    rotated_mac[(int)temp] = 0;
-
-    i += 1;
-  }
-
-  i = scan_start;
+  i = (64u)scan_start;
   j = 0;
   while(i < orig_len) {
-    // mac_started = constant_time_ge(i, mac_start);
-    temp2_32 = mac_end;
-    temp2_32 -= md_size;
-    temp_32 = constant_time_ge_jasmin(i, temp2_32);
-    mac_started = (8u) temp_32;
-
-    // mac_ended = constant_time_ge(i, mac_end);
-    temp2_32 = mac_end;
-    temp_32 = constant_time_ge_jasmin(i, temp2_32);
-    mac_ended = (8u) temp_32;
-
-    // b = rec->data[i];
-    temp = (64u) i;
-    b = (u8)[data + temp];
-
-    // rotated_mac[j++] |= b & mac_started & ~mac_ended;
-    temp_8 = mac_started;
-    mac_ended = !mac_ended;
-    temp_8 &= mac_ended;
-    temp_8 &= b;
-    temp = (64u) j;
-    temp2_8 = rotated_mac[(int)temp];
-    temp2_8 |= temp_8;
-    rotated_mac[(int)temp] = temp2_8;
+    new = (32u)(u8)[data + (int)i];
+    old = (32u)rotated_mac[(int)j];
+    new = old if i < mac_start;
+    new = old if i >= mac_end;
+    rotated_mac[(int)j] = new;
     j += 1;
+    j = zero if md_size <= j;
+    i += 1;
+  }
+  rotate_offset = rotate_offset_BL(md_size, mac_start, scan_start);
+  rotate_mac_BL(md_size, rotate_offset, out, rotated_mac);
+}
 
-    // j &= constant_time_lt(j,md_size);
-    temp_32 = constant_time_lt_jasmin(j, md_size);
-    temp = (64u) temp_32;
-    j &= temp;
+export
+fn
+ssl3_cbc_copy_mac_jasmin(
+    reg u64 out,
+    reg u64 rec,
+    reg u32 orig_len,
+    reg u32 md_size
+  )
+{
+  stack u8[128] rotated_mac;    // char array
+  reg u32 mac_start, mac_end, scan_start;
+  reg u64 i, j, zero, data;
+  reg u32 rotate_offset, old, new, temp;
 
+  zero = 0;
+  data = (u64)[rec + 16];
+  mac_end = (u32)[rec + 4];
+  mac_start = mac_end;
+  mac_start -= md_size;
+  scan_start = 0;
+  temp = md_size;
+  temp += 256;
+  if (orig_len > temp) {
+    scan_start = orig_len;
+    scan_start -= temp;
+  }
+  i = (64u)scan_start;
+  j = 0;
+  while(i < orig_len) {
+    new = (32u)(u8)[data + (int)i];
+    old = (32u)rotated_mac[(int)j];
+    new = old if i < mac_start;
+    new = old if i >= mac_end;
+    rotated_mac[(int)j] = new;
+    j += 1;
+    j = zero if md_size <= j;
     i += 1;
   }
   rotate_offset = rotate_offset_TV(md_size, mac_start, scan_start);
-
-  // NOW rotate the mac
   rotate_mac_BL(md_size, rotate_offset, out, rotated_mac);
 }
 
 inline fn rotate_mac_CL(reg u32 md_size, reg u32 rotate_offset, reg u64 out, reg u64 rotated_mac) {
   reg u8 new;
   reg u64 i, zero, ro;
-
 
   zero = 0;
   ro = (64u) rotate_offset;
@@ -195,98 +148,47 @@ inline fn rotate_mac_CL(reg u32 md_size, reg u32 rotate_offset, reg u64 out, reg
     ro += 1;
     ro = zero if md_size <= ro;
     i += 1;
-  } 
+  }
 }
 
-export 
-fn 
+export
+fn
 ssl3_cbc_copy_mac_jasmin_cache(
-    reg u64 out,            
-    reg u64 rec,           
-    reg u32 orig_len,        
-    reg u32 md_size,   
+    reg u64 out,
+    reg u64 rec,
+    reg u32 orig_len,
+    reg u32 md_size,
     reg u64 rotated_mac
-  ) 
+  )
 {
-  // assuming CBC_MAC_ROTATE_IN_PLACE is not defined 
-  // stack u8[128] rotated_mac;    // char array
-  reg u32 mac_start;
-  reg u32 mac_end;
-  reg u32 scan_start;
-  reg u32 i, j;
-  reg u32 rotate_offset;
-  reg u64 temp;
-  reg u64 temp2;
-  reg u32 temp_32;
-  reg u32 temp2_32;
-  reg u8  temp_8;
-  reg u8  temp2_8;
-  reg u8 mac_started;
-  reg u8 mac_ended;
-  reg u8 b;
-  reg u64 data;
-  reg u32 data_len;
+  // assuming CBC_MAC_ROTATE_IN_PLACE is not defined
+  reg u32 mac_start, mac_end, scan_start;
+  reg u64 i, j, zero, data;
+  reg u32 rotate_offset, old, new, temp;
 
   data = (u64)[rec + 16];
   mac_end = (u32)[rec + 4];
   mac_start = mac_end;
   mac_start -= md_size;
-
   scan_start = 0;
-
-  temp_32 = md_size;
-  temp_32 += 256;
-  if (orig_len > temp_32) {
+  temp = md_size;
+  temp += 256;
+  if (orig_len > temp) {
     scan_start = orig_len;
-    scan_start -= temp_32;
+    scan_start -= temp;
   }
-
-  // memset(rotated_mac, 0, md_size);
-  i = 0;
-  while(i < md_size) {
-    temp = (64u) i;
-    (u64)[rotated_mac + temp] = 0;
-
-    i += 1;
-  }
-
-  i = scan_start;
+  i = (64u) scan_start;
   j = 0;
   while(i < orig_len) {
-    // mac_started = constant_time_ge(i, mac_start);
-    temp2_32 = mac_end;
-    temp2_32 -= md_size;
-    temp_32 = constant_time_ge_jasmin(i, temp2_32);
-    mac_started = (8u) temp_32;
-
-    // mac_ended = constant_time_ge(i, mac_end);
-    temp2_32 = mac_end;
-    temp_32 = constant_time_ge_jasmin(i, temp2_32);
-    mac_ended = (8u) temp_32;
-
-    // b = rec->data[i];
-    temp = (64u) i;
-    b = (u8)[data + temp];
-
-    // rotated_mac[j++] |= b & mac_started & ~mac_ended;
-    temp_8 = mac_started;
-    mac_ended = !mac_ended;
-    temp_8 &= mac_ended;
-    temp_8 &= b;
-    temp = (64u) j;
-    temp2_8 = (u8)[rotated_mac + temp];
-    temp2_8 |= temp_8;
-    (u8)[rotated_mac + temp] = temp2_8;
+    new = (32u)(u8)[data + (int)i];
+    old = (32u)(u8)[rotated_mac + j];
+    new = old if i < mac_start;
+    new = old if i >= mac_end;
+    (u8)[rotated_mac + j] = new;
     j += 1;
-
-    // j &= constant_time_lt(j,md_size);
-    temp_32 = constant_time_lt_jasmin(j, md_size);
-    temp = (64u) temp_32;
-    j &= temp;
-
+    j = zero if md_size <= j;
     i += 1;
   }
   rotate_offset = rotate_offset_TV(md_size, mac_start, scan_start);
-
   rotate_mac_CL(md_size, rotate_offset, out, rotated_mac);
 }
