@@ -275,8 +275,8 @@ let main () =
                try
                  let _vs, lk1 = eval f1 m in
                  let _vs, lk2 = eval f2 m in
-                 if lk1 = lk2 then Format.printf "The two leakages are equals@."  
-                 else Format.printf "The two leakages are differents@."
+                 if lk1 = lk2 then Format.printf "The two leakages are equal@."
+                 else Format.printf "The two leakages are different@."
               with Evaluator.Eval_error (ii,err) ->
                 hierror "%a" Evaluator.pp_error (tbl, ii, err)
              end
