@@ -49,13 +49,21 @@ proof.
   rewrite W32.to_uintB ?W32.uleE W32.to_uintB ?W32.uleE /=; smt(W32.to_uint_cmp).
 qed.
 
-lemma offset_div (p:W64.t) (offset: W32.t):
+lemma offset_div (p offset : W64.t) :
   to_uint p + 64 <= W64.modulus =>
   64 %| to_uint p =>
   0 <= to_uint offset < 64 =>
-  to_uint (p + zeroextu64 offset) %/ 64  = to_uint p %/ 64.
+  to_uint (p + offset) %/ 64  = to_uint p %/ 64.
 proof.
-  move=> /= h1 h2 h3; rewrite W64.to_uintD_small to_uint_zeroextu64 /= 1:/# divzDl 1:// /#.
+  move=> /= h1 h2 h3; rewrite W64.to_uintD_small /= 1:/# divzDl 1:// /#.
+qed.
+
+lemma to_uint_truncateu32_small (x: W64.t) :
+    to_uint x < W32.modulus =>
+    to_uint (truncateu32 x) = to_uint x.
+proof.
+  move => h; rewrite to_uint_truncateu32 modz_small => />.
+  smt (W64.to_uint_cmp).
 qed.
 
 equiv l_rotate_mac_CL : M.rotate_mac_CL ~ M.rotate_mac_CL :
@@ -67,19 +75,21 @@ equiv l_rotate_mac_CL : M.rotate_mac_CL ~ M.rotate_mac_CL :
   ={M.leakages}.
 proof.
   proc.
-  while (={out, rotated_mac, md_size, i, M.leakages} /\ 64 %| W64.to_uint rotated_mac{1} /\
+  while (={out, rotated_mac, md_size, i, M.leakages, zero} /\ 64 %| W64.to_uint rotated_mac{1} /\
          to_uint rotated_mac{1} + 64 <= W64.modulus /\
          16 <= to_uint md_size{1} <= 64 /\
-         0 <= to_uint rotate_offset{1} < to_uint md_size{1}  /\ 0 <= to_uint rotate_offset{2} < to_uint md_size{1}).
-  + inline *; wp; skip => /> &1 &2 hmod nover h1 h2 h3 h4 h5 h6 hi.
-    rewrite /leak_mem !offset_div //= 1,2:/#.
-    split; rewrite uleE.
-    + case: (to_uint md_size{2} <= to_uint (rotate_offset{1} + W32.one)) => /=; smt(W32.to_uint_cmp).
-    case: (to_uint md_size{2} <= to_uint (rotate_offset{2} + W32.one)) => /=; smt(W32.to_uint_cmp).
-  by wp; skip => />.
+         zero{1} = W64.zero /\
+         0 <= to_uint ro{1} < to_uint md_size{1}  /\ 0 <= to_uint ro{2} < to_uint md_size{1});
+  wp; skip => />; last by rewrite !to_uint_zeroextu64.
+  move => &1 &2 hmod nover h1 h2 h3 h4 h5 h6 hi.
+  rewrite /leak_mem !offset_div //= 1, 2: /#.
+  split; rewrite uleE.
+  + rewrite to_uint_truncateu32_small => />; first smt.
+  + case: (to_uint md_size{2} <= to_uint (ro{1} + W64.one)) => /=; smt.
+  case: (to_uint md_size{2} <= to_uint (ro{2} + W64.one)) => /=; smt.
 qed.
 
-equiv l_final : M.ssl3_cbc_copy_mac_jasmin_cache ~ M.ssl3_cbc_copy_mac_jasmin_cache :
+equiv l_final : M.ssl3_cbc_copy_mac_TV_CL ~ M.ssl3_cbc_copy_mac_TV_CL :
 ={M.leakages, md_size, orig_len, out, rec, rotated_mac} /\
 (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){1} = (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){2} /\
 to_uint rotated_mac{2} + 64 <= W64.modulus /\ 64 %| to_uint rotated_mac{2} /\
@@ -88,9 +98,8 @@ to_uint rotated_mac{2} + 64 <= W64.modulus /\ 64 %| to_uint rotated_mac{2} /\
 ==> ={M.leakages}.
 proof.
   proc.
-  call l_rotate_mac_ct; wp.
-  ecall (l_rotate_offset_div md_size{1}); wp.
-  while (={i, j, orig_len, data, rotated_mac, md_size, M.leakages}); 1: by inline*;sim.
-  wp => /=; while (={i, rotated_mac, md_size, M.leakages}); 1: by sim.
+  call l_rotate_mac_CL; wp.
+  ecall (l_rotate_offset_TVCL md_size{1}); wp.
+  while (={i, j, orig_len, data, rotated_mac, md_size, zero, M.leakages}); 1: by sim.
   wp; skip => |> &1 &2; smt (wf_rec_cond_md_size_mac_end).
 qed.
