@@ -60,7 +60,7 @@ qed.
 equiv l_rotate_mac_BL : M.rotate_mac_BL ~ M.rotate_mac_BL : ={M.leakages, out, md_size} ==> ={M.leakages}.
 proof. by proc; inline *; sim. qed.
 
-equiv l_final : M.ssl3_cbc_copy_mac_TV ~ M.ssl3_cbc_copy_mac_TV :
+equiv l_final : M.ssl3_cbc_copy_mac_TV_BL ~ M.ssl3_cbc_copy_mac_TV_BL :
 ={M.leakages, md_size, orig_len, out, rec} /\
 (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){1} = 
 (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){2} /\
