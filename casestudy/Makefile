@@ -6,7 +6,7 @@ EASYCRYPT?=easycrypt
 all: modulo_ct.eco modulo_ct_proof.eco copy_mac_ct.eco leakage_models.eco copy_mac_ct_proof_BL_BL.eco copy_mac_ct_proof_BL_CL.eco copy_mac_ct_proof_TV_BL.eco copy_mac_ct_proof_TV_CL.eco
 
 modulo_ct.ec: ../compiler/examples/mod_patch.jazz
-	$(JASMINC) -CT -ec verify_mod_const -oec $@ $^
+	$(JASMINC) -CT -ec mod_TV -oec $@ $^
 
 copy_mac_ct.ec: ../compiler/examples/lucky13_split.jazz
 	$(JASMINC) -CT -ec ssl3_cbc_copy_mac_BL_BL -ec ssl3_cbc_copy_mac_BL_CL -ec ssl3_cbc_copy_mac_TV_BL -ec ssl3_cbc_copy_mac_TV_CL -oec $@ $^
