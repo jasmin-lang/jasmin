@@ -100,7 +100,7 @@ proof.
   have -> // : (63 - lzcnt (rev (w2bits b)) + lzcnt (rev (w2bits b))) = 63 by ring.
 qed.
 
-equiv l2 : M.verify_mod_const ~ M.verify_mod_const : ={M.leakages, b} /\ b{1} <> W64.zero ==> ={M.leakages}.
+equiv l2 : M.mod_TV ~ M.mod_TV : ={M.leakages, b} /\ b{1} <> W64.zero ==> ={M.leakages}.
 proof.
   proc; inline *; wp; skip => /> &1 &2.
   move: (b{2}) (a{1}) (a{2}) => b a1 a2 {&1 &2} hb.
