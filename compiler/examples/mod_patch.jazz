@@ -6,7 +6,7 @@ fn lzcnt(reg u64 x) -> reg bool, reg u64 {
   return zf, result;
 }
 
-export fn verify_mod_const(reg u64 a, reg u64 b) -> reg u64 {
+export fn mod_TV(reg u64 a, reg u64 b) -> reg u64 {
   reg u64 flag one zero dividend modulo result;
   reg u64 lzb lzb_m1 b_lzb b_lzb_m1 temp2;
   reg bool lzaz lzbz cf;
