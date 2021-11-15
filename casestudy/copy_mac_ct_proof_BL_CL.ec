@@ -7,7 +7,7 @@ require Copy_mac_ct.
 require import Leakage_models.
 
 clone import Copy_mac_ct.T with
-theory LeakageModel <- LeakageModelBLCL.
+theory LeakageModel <- LeakageModelCL.
 
 equiv l_rotate_offset_BLCL md_size_ : M.rotate_offset_BL ~ M.rotate_offset_BL:
 ={M.leakages, md_size, scan_start} /\ md_size{1} = md_size_ /\

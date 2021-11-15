@@ -40,12 +40,6 @@ op leak_div_64 = LeakageModelTV.leak_div_64.
 op leak_mem = LeakageModelCL.leak_mem.
 end LeakageModelTVCL.
 
-theory LeakageModelBLCL.
-op leak_div_32 = LeakageModelBL.leak_div_32.
-op leak_div_64 = LeakageModelBL.leak_div_64.
-op leak_mem = LeakageModelCL.leak_mem.
-end LeakageModelBLCL.
-
 lemma leak_div_or (x y : W32.t) : leak_div (x `|` y) = min (leak_div x) (leak_div y).
     proof.
       rewrite /leak_div /w2bits.
