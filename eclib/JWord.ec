@@ -33,10 +33,6 @@ op flags_w2 (fs:bool * bool * bool * bool * bool) (w1 w2: 't) =
 
 (* -------------------------------------------------------------------- *)
 
-op lzcnt (x:bool list ) = 
-  with x = [] => 0
-  with x = b :: l => if b then 0 else 1 + lzcnt l.
-
 abstract theory BitWord.
 
 op size : {int | 0 < size} as gt0_size.
