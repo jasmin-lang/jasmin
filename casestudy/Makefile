@@ -18,6 +18,9 @@ clean:
 	$(RM) modulo_ct.ec copy_mac_ct.ec *.eco *Array128.ec
 
 check:
-	$(JASMINC) --dlk=none --mlk=div32 rotate-mac-cache.jazz
-	$(JASMINC) --dlk=log  --mlk=div32 rotate-mac-cache.jazz
-	$(JASMINC) --dlk=log  --mlk=full  BLBL_TVBL.jazz
+	$(JASMINC) 	--dlk=none	--mlk=div32	rotate-mac-cache.jazz
+	$(JASMINC) 	--dlk=log  	--mlk=div32	rotate-mac-cache.jazz
+	$(JASMINC) 	--dlk=none 	--mlk=full 	BLBL_TVBL.jazz
+	$(JASMINC) 	--dlk=log  	--mlk=full 	BLBL_TVBL.jazz
+	$(JASMINC) 	--dlk=log  	--mlk=full	BLBL_BLCL.jazz
+	$(JASMINC) 	--dlk=log	--mlk=div64	BLBL_BLCL.jazz

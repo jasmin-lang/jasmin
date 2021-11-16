@@ -6,15 +6,34 @@ inline fn rotate_offset_BL(reg u32 md_size mac_start scan_start) -> reg u32 {
   return rotate_offset;
 }
 
+inline fn rotate_offset_TV(reg u32 md_size mac_start scan_start) -> reg u32 {
+  reg u32 div_spoiler;
+  reg u32 rotate_offset;
+  div_spoiler = md_size;
+  div_spoiler <<= 23;
+  rotate_offset = mac_start;
+  rotate_offset -= scan_start;
+  rotate_offset += div_spoiler;
+  rotate_offset = rotate_offset % md_size;
+  return rotate_offset;
+}
+
 
 inline
-fn test_with_secret(reg u32 mac_start) {
+fn test_with_secret_BL(reg u32 mac_start) {
   rotate_offset_BL( 64, mac_start, 0x1000);
 }
 
-inline fn test_1() { test_with_secret(0x1000); }
-inline fn test_2() { test_with_secret(0x1010); }
+inline
+fn test_with_secret_TV(reg u32 mac_start) {
+  rotate_offset_TV( 64, mac_start, 0x1000);
+}
+
+inline fn test_1() { test_with_secret_BL(0x1000); }
+inline fn test_2() { test_with_secret_BL(0x1010); }
+
+inline fn test_3() { test_with_secret_TV(0x1000); }
+inline fn test_4() { test_with_secret_TV(0x1010); }
 
 exec test_1 test_2 ()
-
-
+exec test_3 test_4 ()
