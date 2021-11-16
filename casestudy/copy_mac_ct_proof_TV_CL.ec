@@ -17,7 +17,7 @@ equiv l_rotate_offset_TVCL md_size_ : M.rotate_offset_TV ~ M.rotate_offset_TV:
 ==> ={M.leakages} /\ 0 <= to_uint res{1} < to_uint md_size_ /\ 0 <= to_uint res{2} < to_uint md_size_.
 proof.
   proc; wp; skip => /> *.
-  rewrite /leak_div_32 !l_rotate_offset_div_core //.
+  rewrite /leak_div_32 /leak_div_32_TV !l_rotate_offset_div_core //.
   smt (W32.to_uint_small W32.to_uint_cmp).
 qed.
 
@@ -82,11 +82,15 @@ proof.
          0 <= to_uint ro{1} < to_uint md_size{1}  /\ 0 <= to_uint ro{2} < to_uint md_size{1});
   wp; skip => />; last by rewrite !to_uint_zeroextu64.
   move => &1 &2 hmod nover h1 h2 h3 h4 h5 h6 hi.
-  rewrite /leak_mem !offset_div //= 1, 2: /#.
-  split; rewrite uleE.
-  + rewrite to_uint_truncateu32_small => />; first smt.
-  + case: (to_uint md_size{2} <= to_uint (ro{1} + W64.one)) => /=; smt.
-  case: (to_uint md_size{2} <= to_uint (ro{2} + W64.one)) => /=; smt.
+  rewrite /leak_mem /leak_mem_CL !offset_div //= 1, 2: /#.
+  have heq1 : to_uint (ro{1} + W64.one) = to_uint ro{1} + 1 by rewrite W64.to_uintD_small //= /#.
+  have hlt1 : to_uint (ro{1} + W64.one) < W32.modulus by rewrite heq1 /= /#.
+  have heq2 : to_uint (ro{2} + W64.one) = to_uint ro{2} + 1 by rewrite W64.to_uintD_small //= /#.
+  have hlt2 : to_uint (ro{2} + W64.one) < W32.modulus by rewrite heq2 /= /#.
+  case: (md_size{2} \ule truncateu32 (ro{1} + W64.one)); 
+  rewrite uleE to_uint_truncateu32_small // heq1 /=;
+  case: (md_size{2} \ule truncateu32 (ro{2} + W64.one)); 
+  rewrite uleE to_uint_truncateu32_small // heq2 /= /#.
 qed.
 
 equiv l_final : M.ssl3_cbc_copy_mac_TV_CL ~ M.ssl3_cbc_copy_mac_TV_CL :

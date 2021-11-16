@@ -32,7 +32,9 @@ equiv l_rotate_offset_TV : M.rotate_offset_TV ~ M.rotate_offset_TV:
 (0 <= (to_uint (mac_start - scan_start)) < 2^8){2} /\
  (16 <= to_uint md_size <= 64){1} 
 ==> ={M.leakages}.
-proof. by proc; wp; skip => /> &1 &2 *; rewrite /leak_div_32 !l_rotate_offset_div_core. qed.
+proof. 
+  by proc; wp; skip => /> &1 &2 *; rewrite /leak_div_32 /leak_div_32_TV !l_rotate_offset_div_core.
+qed.
 
 op wf_rec mem (rec:W64.t) (orig_len md_size : W32.t) = 
  let mac_end = loadW32 mem (to_uint (rec + W64.of_int 4)) in
