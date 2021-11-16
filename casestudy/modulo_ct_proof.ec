@@ -143,3 +143,58 @@ proof.
   smt (W64.to_uint_cmp).
 qed.
 
+lemma to_uint_lzcnt n : to_uint (of_int (lzcnt (rev (w2bits n))))%W64 = lzcnt (rev (w2bits n)).
+proof.
+  rewrite to_uint_small //.
+  have := lzcnt_size (rev (w2bits n)).
+  smt.
+qed.
+
+lemma lzcnt0E w :
+    (LZCNT_64 w).`5 => 2^63 <= to_uint w < 2 ^ 64.
+proof.
+  rewrite /LZCNT_64 /ZF_of /= W64.to_uint_eq /= to_uint_lzcnt => w_big.
+  have := lzcnt_bound (w2bits w).
+  by rewrite w_big size_w2bits /= -to_uintE.
+qed.
+
+lemma lzcntn0E w :
+    !(LZCNT_64 w).`5 => to_uint w < 2 ^ 63 /\ 1 <= lzcnt (rev (w2bits w)) <= 64.
+proof.
+  rewrite /LZCNT_64 /ZF_of /= W64.to_uint_eq /= to_uint_lzcnt => w_not_big.
+  have := lzcnt_bound (w2bits w).
+  rewrite size_w2bits -to_uintE.
+  smt.
+qed.
+
+hoare mod_TV_correct x y : M.mod_TV : arg = (x, y) /\ y <> W64.zero ==> res = x \umod y.
+proof.
+  proc.
+  inline *; wp; skip => /> y_nz.
+  case: (LZCNT_64 x).`5.
+  + by move => /> _; rewrite W64.WRingA.oner_neq0.
+  move => /lzcntn0E[] x_not_big _.
+  case: (LZCNT_64 y).`5.
+  + move => /> /lzcnt0E y_big.
+    rewrite umodE /ulift2 /= modz_small //.
+    smt.
+  move => /lzcntn0E[] y_not_big y_lzcnt_range.
+  rewrite !W64.to_uint_eq /= /LEA_64 /addc /carry_add /b2i /=.
+  rewrite !/W64.(`<<`) W64.shlw_add 1, 2: #smt.
+  rewrite /LZCNT_64 /truncateu8 /=.
+  rewrite to_uint_small. smt.
+  rewrite (modz_small _ 64). smt.
+  rewrite (modz_small _ 256). smt.
+  rewrite /=.
+  case: (18446744073709551616 <= to_uint (y `<<<` lzcnt (rev (w2bits y))) + to_uint x) => /= c;
+    rewrite umodE /ulift2 to_uintD_small.
+  + rewrite to_uint_shl 1: #smt.
+    admit.
+  + rewrite to_uint_shl 1: #smt.
+    rewrite (modz_small _ W64.modulus). admit.
+    by rewrite mulrC modzMDl.
+  + smt.
+  rewrite !/W64.(`<<`) to_uint_shl 1: #smt.
+  rewrite (modz_small _ W64.modulus). admit.
+  by rewrite mulrC modzMDl.
+admitted.
