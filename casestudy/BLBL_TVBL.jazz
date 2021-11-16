@@ -29,11 +29,11 @@ fn test_with_secret_TV(reg u32 mac_start) {
   rotate_offset_TV( 64, mac_start, 0x1000);
 }
 
-inline fn test_1() { test_with_secret_BL(0x1000); }
-inline fn test_2() { test_with_secret_BL(0x1010); }
+inline fn test_BL_1() { test_with_secret_BL(0x1000); }
+inline fn test_BL_2() { test_with_secret_BL(0x1010); }
 
-inline fn test_3() { test_with_secret_TV(0x1000); }
-inline fn test_4() { test_with_secret_TV(0x1010); }
+inline fn test_TV_1() { test_with_secret_TV(0x1000); }
+inline fn test_TV_2() { test_with_secret_TV(0x1010); }
 
-exec test_1 test_2 ()
-exec test_3 test_4 ()
+exec test_BL_1 test_BL_2 ()
+exec test_TV_1 test_TV_2 ()
