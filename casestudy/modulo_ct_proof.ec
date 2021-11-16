@@ -45,18 +45,6 @@ move=> h0 h1; have /= /#: 2 ^ (64 - n) <= 2^63.
 apply StdOrder.IntOrder.ler_weexpn2l => //. smt (lzcnt_size size_mkseq size_rev).
 qed.
 
-lemma add_lt (x y: W64.t) : !(x + y \ult x) <=> (to_uint x + to_uint y < W64.modulus).
-proof.
-  rewrite ultE W64.to_uintD.
-  move: (W64.to_uint_cmp x) (W64.to_uint_cmp y) => /= hx hy /#.
-qed.
-
-lemma add_le (x y: W64.t) : (x + y \ult x) <=> (to_uint (x + y) = to_uint x + to_uint y - W64.modulus).
-proof.
-  rewrite ultE W64.to_uintD.
-  move: (W64.to_uint_cmp x) (W64.to_uint_cmp y) => /= hx hy /#.
-qed.
-
 lemma shift_leak_div (b:W64.t) : 
   b <> W64.zero => 
   to_uint (b `<<<` leak_div b) = to_uint b * 2 ^ leak_div b.
