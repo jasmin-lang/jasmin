@@ -1,0 +1,38 @@
+inline fn rotate_mac_CL(reg u32 md_size rotate_offset, reg u64 out rotated_mac) {
+  reg u8 new;
+  reg u64 i, zero, ro;
+
+  zero = 0;
+  ro = (64u) rotate_offset;
+  i = 0;
+  while (i < md_size) {
+    new = (u8)[rotated_mac + ro];
+    (u8)[out + i] = new;
+    ro += 1;
+    ro = zero if md_size <= ro;
+    i += 1;
+  }
+}
+
+inline
+fn test_with_secret_CL(reg u32 secret_offset) {
+reg u64 out rotated_mac;
+inline int i;
+  out = 0x1000;
+  rotated_mac = 0x2000;
+  for i = 0 to 64 {
+  // (u8)[out + i] = 0;
+  (u8)[rotated_mac + i] = 0;
+  }
+rotate_mac_CL(
+  64,
+  secret_offset,
+  out,
+  rotated_mac
+  );
+}
+
+inline fn test_CL_31() { test_with_secret_CL(31); }
+inline fn test_CL_63() { test_with_secret_CL(63); }
+
+exec test_CL_31 test_CL_63 (0x1000 : 64, 0x2000 : 64)

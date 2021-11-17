@@ -1,0 +1,17 @@
+inline fn rotate_offset_BL(reg u32 md_size mac_start scan_start) -> reg u32 {
+  reg u32 rotate_offset;
+  rotate_offset = mac_start;
+  rotate_offset -= scan_start;
+  rotate_offset = rotate_offset % md_size;
+  return rotate_offset;
+}
+
+inline
+fn test_with_secret_BL(reg u32 mac_start) {
+  rotate_offset_BL( 64, mac_start, 0x1000);
+}
+
+inline fn test_BL_1() { test_with_secret_BL(0x1000); }
+inline fn test_BL_2() { test_with_secret_BL(0x1010); }
+
+exec test_BL_1 test_BL_2 ()
