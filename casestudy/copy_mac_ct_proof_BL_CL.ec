@@ -73,6 +73,7 @@ proof.
   proc.
   call l_rotate_mac_CL; wp.
   ecall (l_rotate_offset_BLCL md_size{1}); wp.
-  while (={i, j, orig_len, data, rotated_mac, md_size, zero, M.leakages}); 1: by sim.
+  inline *; wp.
+  while (={i, j, orig_len1, data1, rotated_mac0, md_size1, zero0, M.leakages}); 1: by sim.
   wp; skip => |> &1 &2.
 qed.
