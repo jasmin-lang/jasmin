@@ -63,6 +63,17 @@ proof.
   rewrite uleE to_uint_truncateu32_small // heq2 /= /#.
 qed.
 
+equiv l_init_rotated_mac_mem : 
+  M.init_rotated_mac_mem ~ M.init_rotated_mac_mem : 
+  ={md_size, rotated_mac, data, orig_len, scan_start, M.leakages} ==> ={M.leakages}.
+proof. by proc; sim. qed.
+
+equiv l_init_scan_start : M.init_scan_start ~ M.init_scan_start :
+  ={ M.leakages, rec, orig_len, md_size }
+  /\ (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){1} = (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){2}
+  ==> ={ M.leakages } /\ res.`1{1} = res.`1{2} /\ res.`2{1} = res.`2{2}.
+proof. by proc; wp; skip. qed.
+
 equiv l_final : M.ssl3_cbc_copy_mac_BL_CL ~ M.ssl3_cbc_copy_mac_BL_CL :
 ={M.leakages, md_size, orig_len, out, rec, rotated_mac} /\
 (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){1} = (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){2} /\
@@ -73,7 +84,6 @@ proof.
   proc.
   call l_rotate_mac_CL; wp.
   ecall (l_rotate_offset_BLCL md_size{1}); wp.
-  inline *; wp.
-  while (={i, j, orig_len1, data1, rotated_mac0, md_size1, zero0, M.leakages}); 1: by sim.
-  wp; skip => |> &1 &2.
+  call l_init_rotated_mac_mem; wp.
+  by call l_init_scan_start; auto.
 qed.

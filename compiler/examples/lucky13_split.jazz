@@ -74,9 +74,9 @@ inline fn rotate_mac_CL32(reg u32 md_size rotate_offset, reg u64 out rotated_mac
   ro = (64u) rotate_offset;
   i = 0;
   while (i < md_size) {
-    ro_and = ro; ro_and &= !32;
+    ro_and = ro; ro_and &= !(64u)32;
     new = (64u)(u8)[rotated_mac + ro_and];
-    ro_or = ro; ro_or |= 32;
+    ro_or = ro; ro_or |= (64u)32;
     new_or = (64u)(u8)[rotated_mac + ro_or];
     new = new_or if ro == ro_or;
     (u8)[out + i] = new;
@@ -109,9 +109,9 @@ inline fn init_rotated_mac_stk(reg u64 data, reg u32 scan_start, reg u32 mac_sta
   reg u32 old, new;
   reg u64 i, j, zero;
 
+  zero = 0;
   i = (64u)scan_start;
   j = 0;
-  zero = 0;
   while(i < orig_len) {
     new = (32u)(u8)[data + (int)i];
     old = (32u)rotated_mac[(int)j];
@@ -129,6 +129,7 @@ inline fn init_rotated_mac_mem(reg u64 rotated_mac, reg u64 data, reg u32 scan_s
   reg u32 old, new;
   reg u64 i, j, zero;
 
+  zero = 0;
   i = (64u) scan_start; 
   j = 0;
   zero = 0;
