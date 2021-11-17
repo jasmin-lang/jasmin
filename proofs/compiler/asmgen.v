@@ -146,6 +146,7 @@ Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
   | Imm sz w, CAimm sz' =>
     let w1 := zero_extend sz' w in
     let w2 := sign_extend sz w1 in
+    (* this check is not used (yet?) in the correctness proof *)
     if w == w2 then Some (Imm w1) else None
   | Reg _, CAreg => Some a
   | Addr _, CAmem _ => Some a

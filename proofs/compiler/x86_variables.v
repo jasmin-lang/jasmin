@@ -462,7 +462,7 @@ Definition assemble_word_mem rip ii (sz:wsize) (e:pexpr) :=
     let w := wrepr sz' z in
     let w1 := sign_extend sz w in
     let w2 := wrepr sz z in
-    (* for correctness purposes, this check does not seem needed *)
+    (* this check is not used (yet?) in the correctness proof *)
     Let _ := assert (w1 == w2)
                     (E.werror ii e "out of bound constant") in
     ok (Imm w)
