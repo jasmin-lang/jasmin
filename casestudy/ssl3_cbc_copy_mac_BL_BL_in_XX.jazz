@@ -1,0 +1,126 @@
+
+inline fn init_scan_start(reg u64 rec, reg u32 orig_len, reg u32 md_size) -> reg u64, reg u32, reg u32, reg u32 {
+  reg u32 mac_start, mac_end, scan_start, temp;
+  reg u64 zero, data;
+  zero = 0;
+  data = (u64)[rec + 16];
+  mac_end = (u32)[rec + 4];
+  mac_start = mac_end;
+  mac_start -= md_size;
+  scan_start = 0;
+  temp = md_size;
+  temp += 256;
+  if (orig_len > temp) {
+    scan_start = orig_len;
+    scan_start -= temp;
+  }
+  return data, scan_start, mac_start, mac_end;
+}
+
+inline fn init_rotated_mac_stk(reg u64 data, reg u32 scan_start, reg u32 mac_start, reg u32 mac_end, reg u32 orig_len, reg u32 md_size) -> stack u8[128] {
+  stack u8[128] rotated_mac;
+  reg u32 old, new;
+  reg u64 i, j, zero;
+
+  zero = 0;
+  i = (64u)scan_start;
+  j = 0;
+  while(i < orig_len) {
+    new = (32u)(u8)[data + (int)i];
+    old = (32u)rotated_mac[(int)j];
+    new = old if i < mac_start;
+    new = old if i >= mac_end;
+    rotated_mac[(int)j] = new;
+    j += 1;
+    j = zero if md_size <= j;
+    i += 1;
+  }
+  return rotated_mac;
+}
+
+inline fn rotate_offset_BL(reg u32 md_size mac_start scan_start) -> reg u32 {
+  reg u32 rotate_offset;
+  rotate_offset = mac_start;
+  rotate_offset -= scan_start;
+  rotate_offset = rotate_offset % md_size;
+  return rotate_offset;
+}
+
+inline fn opp_mod(reg u32 rotate_offset md_size) -> reg u32 {
+  reg u32 temp, zero;
+
+  zero = 0;
+  temp = md_size;
+  temp -= rotate_offset;
+  rotate_offset = temp;
+  rotate_offset = zero if rotate_offset == md_size;
+  return rotate_offset;
+}
+
+inline fn rotate_mac_BL(reg u32 md_size rotate_offset, reg u64 out, stack u8[128] rotated_mac) {
+  reg u64 i, j;
+  reg u32 old, new, zero, temp;
+
+  zero = 0;
+  rotate_offset = opp_mod(rotate_offset, md_size);
+  i = 0;
+  while(i < md_size) {
+     j = 0;
+    while(j < md_size) {
+      old = (32u)(u8)[out + j];
+      new = (32u)rotated_mac[(int) i];
+      new = old if j != rotate_offset;
+      (u8)[out + j] = new;
+      j += 1;
+    }
+    rotate_offset += 1;
+    rotate_offset = zero if md_size <= rotate_offset;
+    i += 1;
+  }
+}
+
+inline
+fn
+ssl3_cbc_copy_mac_BL_BL(
+    reg u64 out,
+    reg u64 rec,
+    reg u32 orig_len,
+    reg u32 md_size
+  )
+{
+  stack u8[128] rotated_mac;    // char array
+  reg u32 mac_start, mac_end, scan_start, rotate_offset;
+  reg u64 data;
+
+  data, scan_start, mac_start, mac_end = init_scan_start(rec, orig_len, md_size);
+  rotated_mac = init_rotated_mac_stk(data, scan_start, mac_start, mac_end, orig_len, md_size);
+  rotate_offset = rotate_offset_BL(md_size, mac_start, scan_start);
+  rotate_mac_BL(md_size, rotate_offset, out, rotated_mac);
+}
+
+inline
+fn test_with_secret_BL_BL(reg u32 secret_mac_end) {
+  reg u64 rec, out, data;
+  inline int i;
+  rec = 0x100;
+  out = 0x2000;
+  data = 0x1000;
+  (u64)[rec + 16] = data;
+  (u32)[rec + 4] = secret_mac_end;
+
+  for i = 0 to 0x200 {
+    (u8)[data + i] = 0;
+  }
+
+  ssl3_cbc_copy_mac_BL_BL(
+    out,
+    rec,
+    0x200,
+    64
+  );
+}
+
+inline fn test_BL_BL_467() { test_with_secret_BL_BL(467); }
+inline fn test_BL_BL_390() { test_with_secret_BL_BL(390); }
+
+exec test_BL_BL_467 test_BL_BL_390 (0x1000 : 0x200, 0x2000 : 64, 0x100 : 100)

@@ -22,3 +22,4 @@ check:
 	$(JASMINC) 	--dlk=log  	--mlk=div32	rotate_mac_CL_in_32CL.jazz
 	$(JASMINC) 	--dlk=log 	--mlk=full 	rotate_offset_BL_in_TV_model.jazz
 	$(JASMINC) 	--dlk=log 	--mlk=full 	rotate_mac_CL_in_BL_model.jazz
+	#$(JASMINC) 	--dlk=log 	--mlk=full 	ssl3_cbc_copy_mac_BL_BL_in_XX.jazz
