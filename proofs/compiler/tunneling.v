@@ -140,7 +140,7 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
     move => _.
     have ->: (nth (l, l) [seq (x.1, f x.2) | x <- uf] (seq.find (is_labeled l) [seq (x.1, f x.2) | x <- uf]) = (l,l)) => //=.
     apply nth_default.
-    rewrite size_map find_map.
+    rewrite size_map seq.find_map.
     rewrite /preim //=.
     rewrite seqhasNfind /negb //=.
     by rewrite Hhas.
@@ -684,7 +684,7 @@ Section TunnelingSem.
 
   Lemma find_label_tunnel_partial l uf lc : find_label l (tunnel_partial fn uf lc) = find_label l lc.
   Proof.
-    rewrite /find_label /tunnel_partial find_map /preim //=.
+    rewrite /find_label /tunnel_partial seq.find_map /preim //=.
     have Hpred: [pred x | is_label l (tunnel_bore fn uf x)] =1 [pred x | is_label l x].
     + by move => [li_ii li_i] /=; case: li_i => // [] [fn' l']; case: ifP.
     rewrite (eq_find Hpred); elim: lc => [|hlc tlc] //=.

@@ -27,7 +27,7 @@ Definition assemble_i rip (i: linstr) : cexec asm_i :=
   | Lgoto lbl => ok (JMP lbl)
 
   | Ligoto e =>
-    Let arg := assemble_word AK_mem rip ii Uptr None e in
+    Let arg := assemble_word AK_mem rip ii Uptr e in
     ok (JMPI arg)
 
   | LstoreLabel x lbl =>
@@ -85,4 +85,3 @@ Definition get_arg_value (st: x86_mem) (a: asm_arg) : value :=
 
 Definition get_arg_values st rs : values :=
   map (get_arg_value st) rs.
-

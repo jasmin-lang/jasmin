@@ -504,9 +504,6 @@ Section FOLDM.
     | [:: a & la ] => foldrM acc la >>= f a
     end.
 
-  Definition isOk e a (r : result e a) :=
-    if r is Ok _ then true else false.
-
 End FOLDM.
 
 Section FOLD2.
@@ -995,6 +992,39 @@ Section MAPI.
   Proof. exact: nth_mapi_aux. Qed.
 
 End MAPI.
+
+Section FIND_MAP.
+
+Context {A : eqType} {B : Type}.
+
+Section DEF.
+
+Context (f: A -> option B).
+
+(* The name comes from OCaml. *)
+Fixpoint find_map l :=
+  match l with
+  | [::] => None
+  | a::l =>
+    match f a with
+    | Some b => Some b
+    | None => find_map l
+    end
+  end.
+
+End DEF.
+
+Lemma find_map_correct {f l b} :
+  find_map f l = Some b -> exists2 a, a \in l & f a = Some b.
+Proof.
+  elim: l => //= a l ih.
+  case heq: (f a) => [b'|].
+  + by move=> [<-]; exists a => //; rewrite mem_head.
+  move=> /ih [a' h1 h2]; exists a'=> //.
+  by rewrite in_cons; apply /orP; right.
+Qed.
+
+End FIND_MAP.
 
 (* ** Misc functions
  * -------------------------------------------------------------------- *)

@@ -456,20 +456,16 @@ Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   else if register_of_var x is Some r then ok (Reg r)
   else Error (E.verror false "Not a (x)register" ii x).
 
-
-Definition assemble_word_mem rip ii (sz:wsize) max_imm (e:pexpr) :=
+Definition assemble_word_mem rip ii (sz:wsize) (e:pexpr) :=
   match e with
   | Papp1 (Oword_of_int sz') (Pconst z) =>
-    match max_imm with
-    | None =>  Error (E.werror ii e "constant not allowed")
-    | Some sz1 =>
-      let w := wrepr sz1 z in
-      let w1 := sign_extend sz w in
-      let w2 := zero_extend sz (wrepr sz' z) in
-      Let _ := assert (w1 == w2)
-                      (E.werror ii e "out of bound constant") in
-      ok (Imm w)
-    end
+    let w := wrepr sz' z in
+    let w1 := sign_extend sz w in
+    let w2 := wrepr sz z in
+    (* for correctness purposes, this check does not seem needed *)
+    Let _ := assert (w1 == w2)
+                    (E.werror ii e "out of bound constant") in
+    ok (Imm w)
   | Pvar x =>
     Let _ := assert (is_lvar x)
                     (E.internal_error ii "Global variables remain") in
@@ -483,18 +479,18 @@ Definition assemble_word_mem rip ii (sz:wsize) max_imm (e:pexpr) :=
   | _ => Error (E.werror ii e "invalid pexpr for word")
   end.
 
-Definition assemble_word (k:addr_kind) rip ii (sz:wsize) max_imm (e:pexpr) :=
+Definition assemble_word (k:addr_kind) rip ii (sz:wsize) (e:pexpr) :=
   match k with
-  | AK_mem => assemble_word_mem rip ii (sz:wsize) max_imm (e:pexpr)
+  | AK_mem => assemble_word_mem rip ii (sz:wsize) (e:pexpr)
   | AK_compute =>
     Let w := addr_of_pexpr rip ii sz e in
     ok (Addr w)
   end.
 
-Definition arg_of_pexpr k rip ii (ty:stype) max_imm (e:pexpr) :=
+Definition arg_of_pexpr k rip ii (ty:stype) (e:pexpr) :=
   match ty with
   | sbool => Let c := assemble_cond ii e in ok (Condt c)
-  | sword sz => assemble_word k rip ii sz max_imm e
+  | sword sz => assemble_word k rip ii sz e
   | sint  => Error (E.werror ii e "not able to assemble an expression of type int")
   | sarr _ => Error (E.werror ii e "not able to assemble an expression of type array _")
   end.

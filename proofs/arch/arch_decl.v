@@ -173,8 +173,23 @@ Canonical msb_flag_eqType := EqType msb_flag msb_flag_eqMixin.
 (* -------------------------------------------------------------------- *)
 
 Variant implicit_arg : Type :=
-  | IArflag of rflag_t     
-  | IAreg   of reg_t.      
+  | IArflag of rflag_t
+  | IAreg   of reg_t.
+
+Definition implicit_arg_beq (i1 i2 : implicit_arg) :=
+  match i1, i2 with
+  | IArflag f1, IArflag f2 => f1 == f2 ::>
+  | IAreg r1, IAreg r2 => r1 == r2 ::>
+  | _, _ => false
+  end.
+
+Lemma implicit_arg_eq_axiom : Equality.axiom implicit_arg_beq.
+Proof.
+  by case=> []? []? /=; (constructor || apply: reflect_inj eqP => ?? []).
+Qed.
+
+Definition implicit_arg_eqMixin := Equality.Mixin implicit_arg_eq_axiom.
+Canonical implicit_arg_eqType := EqType _ implicit_arg_eqMixin.
 
 Variant addr_kind : Type :=
   | AK_compute (* Compute the address *)
@@ -194,7 +209,25 @@ Canonical addr_kind_eqType := EqType _ addr_kind_eqMixin.
 
 Variant arg_desc :=
 | ADImplicit  of implicit_arg
-| ADExplicit  of addr_kind & nat & option reg_t. 
+| ADExplicit  of addr_kind & nat & option reg_t.
+
+Definition arg_desc_beq (d1 d2 : arg_desc) :=
+  match d1, d2 with
+  | ADImplicit i1, ADImplicit i2 => i1 == i2
+  | ADExplicit k1 n1 or1, ADExplicit k2 n2 or2 =>
+    (k1 == k2) && (n1 == n2) && (or1 == or2 :> option_eqType ceqT_eqType)
+  | _, _ => false
+  end.
+
+Lemma arg_desc_eq_axiom : Equality.axiom arg_desc_beq.
+Proof.
+  case=> [i1|k1 n1 or1] [i2|k2 n2 or2] /=;
+    try by (constructor || apply: reflect_inj eqP => ?? []).
+  do! (case: eqP; try by constructor; congruence).
+Qed.
+
+Definition arg_desc_eqMixin := Equality.Mixin arg_desc_eq_axiom.
+Canonical  arg_desc_eqType  := EqType arg_desc arg_desc_eqMixin.
 
 Definition F  f   := ADImplicit (IArflag f).
 Definition R  r   := ADImplicit (IAreg   r).
@@ -286,7 +319,6 @@ Record instr_desc_t := mk_instr_desc {
   id_nargs      : nat;
   (* Info for jasmin *)
   id_eq_size    : (size id_in == size id_tin) && (size id_out == size id_tout);
-  id_max_imm    : option wsize;
   id_tin_narr   : all is_not_sarr id_tin;
   id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
@@ -386,8 +418,11 @@ Definition exclude_mem_i_args_kinds (d : arg_desc) (cond : i_args_kinds) : i_arg
    while assembly accepts it.
    It is our choice... *)
 
-Definition exclude_mem (cond : i_args_kinds) (d : seq arg_desc) :=
+Definition exclude_mem_aux (cond : i_args_kinds) (d : seq arg_desc) :=
   foldl (fun cond d => exclude_mem_i_args_kinds d cond) cond d.
+
+Definition exclude_mem (cond : i_args_kinds) (d : seq arg_desc) : i_args_kinds :=
+  filter (fun c => [::] \notin c) (exclude_mem_aux cond d).
 
 (* An extension of [instr_desc] that deals with msb flags *)
 Definition instr_desc (o:asm_op_t) : instr_desc_t :=
@@ -405,7 +440,6 @@ Definition instr_desc (o:asm_op_t) : instr_desc_t :=
        id_args_kinds := exclude_mem d.(id_args_kinds) d.(id_out) ;
        id_nargs      := d.(id_nargs);
        id_eq_size    := instr_desc_aux1 ws d.(id_eq_size);
-       id_max_imm    := d.(id_max_imm);
        id_tin_narr   := d.(id_tin_narr);
        id_str_jas    := d.(id_str_jas);
        id_check_dest := instr_desc_aux2 ws d.(id_check_dest);
