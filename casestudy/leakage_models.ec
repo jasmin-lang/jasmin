@@ -35,6 +35,7 @@ op leak_div_64_TV (a b: W64.t) : address list =
 
 op leak_mem_id (a:address) : address = a.
 op leak_mem_CL (a:address) : address = a %/ 64.
+op leak_mem_CL32 (a:address) : address = a %/ 32.
 
 clone ALeakageModel as LeakageModelTV with 
   op leak_div_32 = leak_div_32_TV,
@@ -50,6 +51,11 @@ clone ALeakageModel as LeakageModelTVCL with
   op leak_div_32 = leak_div_32_TV,
   op leak_div_64 = leak_div_64_TV,
   op leak_mem    = leak_mem_CL.
+
+clone ALeakageModel as LeakageModelTVCL32 with 
+  op leak_div_32 = leak_div_32_TV,
+  op leak_div_64 = leak_div_64_TV,
+  op leak_mem    = leak_mem_CL32.
 
 clone ALeakageModel as LeakageModelCL with
   op leak_div_32 = leak_div_none,

@@ -28,12 +28,13 @@ qed.
 (* Remark: the shift by 23 look arbitrary. I think a shift by 8 is suffisant *)
 equiv l_rotate_offset_TV : M.rotate_offset_TV ~ M.rotate_offset_TV:
 ={M.leakages, md_size, scan_start} /\
-(0 <= (to_uint (mac_start - scan_start)) < 2^8){1} /\ 
-(0 <= (to_uint (mac_start - scan_start)) < 2^8){2} /\
+(to_uint (mac_start - scan_start) < 2^8){1} /\
+(to_uint (mac_start - scan_start) < 2^8){2} /\
  (16 <= to_uint md_size <= 64){1} 
 ==> ={M.leakages}.
 proof. 
-  by proc; wp; skip => /> &1 &2 *; rewrite /leak_div_32 /leak_div_32_TV !l_rotate_offset_div_core.
+  proc; wp; skip => /> &1 &2 *; rewrite /leak_div_32 /leak_div_32_TV !l_rotate_offset_div_core // => />;
+  smt (W32.to_uint_cmp).
 qed.
 
 op wf_rec mem (rec:W64.t) (orig_len md_size : W32.t) = 
@@ -46,8 +47,8 @@ lemma wf_rec_cond_md_size_mac_end mem rec orig_len md_size :
   wf_rec mem rec orig_len md_size =>
   let mac_end = loadW32 mem (to_uint (rec + W64.of_int 4)) in
   if (md_size + W32.of_int 256 \ult orig_len) then 
-     0 <= to_uint (mac_end - md_size - (orig_len - (md_size + W32.of_int 256))) < 256
-  else 0 <= to_uint (mac_end - md_size - W32.zero) < 256.
+     to_uint (mac_end - md_size - (orig_len - (md_size + W32.of_int 256))) < 256
+  else to_uint (mac_end - md_size - W32.zero) < 256.
 proof.
   rewrite /wf_rec /=.
   pose mac_end := loadW32 _ _; move: mac_end => mac_end hmd [h1 [h2 h3]].
@@ -62,6 +63,11 @@ qed.
 equiv l_rotate_mac_BL : M.rotate_mac_BL ~ M.rotate_mac_BL : ={M.leakages, out, md_size} ==> ={M.leakages}.
 proof. by proc; inline *; sim. qed.
 
+equiv l_init_rotated_mac_stk : 
+  M.init_rotated_mac_stk ~ M.init_rotated_mac_stk : 
+  ={md_size, data, orig_len, scan_start, M.leakages} ==> ={M.leakages}.
+proof. by proc; sim. qed.
+
 equiv l_final : M.ssl3_cbc_copy_mac_TV_BL ~ M.ssl3_cbc_copy_mac_TV_BL :
 ={M.leakages, md_size, orig_len, out, rec} /\
 (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){1} = 
@@ -74,7 +80,6 @@ proof.
   proc.
   call l_rotate_mac_BL; wp.
   call l_rotate_offset_TV; wp.
-  inline *; wp.
-  while (={i, j, orig_len1, data1, zero0, md_size1, M.leakages}); 1: by sim.
-  wp; skip => |> &1 &2; smt (wf_rec_cond_md_size_mac_end).
+  call l_init_rotated_mac_stk.
+  inline *; auto => |> &1 &2; smt (wf_rec_cond_md_size_mac_end).
 qed.

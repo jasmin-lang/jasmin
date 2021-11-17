@@ -43,6 +43,5 @@ proof.
   call l_rotate_mac_BL; wp.
   call l_rotate_offset_BL; wp.
   call l_init_rotated_mac_stk; wp.
-  call l_init_scan_start; wp.
-  by skip.
+  by call l_init_scan_start; auto.
 qed.
