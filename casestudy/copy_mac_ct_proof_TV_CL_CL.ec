@@ -1,7 +1,7 @@
 require import AllCore IntDiv CoreMap List.
 from Jasmin require import JModel.
 
-require import Array128 WArray128.
+require import Array64 WArray64.
 
 require Copy_mac_ct.
 require import Leakage_models.

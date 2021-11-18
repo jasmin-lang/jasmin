@@ -1,7 +1,7 @@
 require import AllCore IntDiv CoreMap List.
 from Jasmin require import JModel.
 
-require import Array128 WArray128.
+require import Array64 WArray64.
 
 require Copy_mac_ct.
 require import Leakage_models.
@@ -24,6 +24,7 @@ equiv l_init_rotated_mac_stk : M.init_rotated_mac_stk ~ M.init_rotated_mac_stk :
 proof.
   proc; wp.
   while (={ M.leakages, data, orig_len, md_size, zero, i, j }); first by sim.
+  wp; while ( ={ M.leakages, i }); first by sim.
   by wp; skip.
 qed.
 
