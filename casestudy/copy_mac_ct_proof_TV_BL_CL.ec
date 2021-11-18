@@ -7,7 +7,7 @@ require Copy_mac_ct.
 require import Leakage_models.
 
 clone import Copy_mac_ct.T with
-theory LeakageModel <- LeakageModelBL.
+theory LeakageModel <- LeakageModelCL.
 
 import BitEncoding.BS2Int.
 
