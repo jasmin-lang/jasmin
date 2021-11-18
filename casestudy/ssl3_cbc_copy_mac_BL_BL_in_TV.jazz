@@ -1,4 +1,3 @@
-
 inline fn init_scan_start(reg u64 rec, reg u32 orig_len, reg u32 md_size) -> reg u64, reg u32, reg u32, reg u32 {
   reg u32 mac_start, mac_end, scan_start, temp;
   reg u64 zero, data;
@@ -17,10 +16,16 @@ inline fn init_scan_start(reg u64 rec, reg u32 orig_len, reg u32 md_size) -> reg
   return data, scan_start, mac_start, mac_end;
 }
 
-inline fn init_rotated_mac_stk(reg u64 data, reg u32 scan_start, reg u32 mac_start, reg u32 mac_end, reg u32 orig_len, reg u32 md_size) -> stack u8[128] {
-  stack u8[128] rotated_mac;
+inline fn init_rotated_mac_stk(reg u64 data, reg u32 scan_start, reg u32 mac_start, reg u32 mac_end, reg u32 orig_len, reg u32 md_size) -> stack u8[64] {
+  stack u8[64] rotated_mac;
   reg u32 old, new;
   reg u64 i, j, zero;
+
+  i = 0;
+  while (i < 64) {
+    rotated_mac[(int) i] = 0;
+    i += 1;
+  }
 
   zero = 0;
   i = (64u)scan_start;
@@ -57,7 +62,7 @@ inline fn opp_mod(reg u32 rotate_offset md_size) -> reg u32 {
   return rotate_offset;
 }
 
-inline fn rotate_mac_BL(reg u32 md_size rotate_offset, reg u64 out, stack u8[128] rotated_mac) {
+inline fn rotate_mac_BL(reg u32 md_size rotate_offset, reg u64 out, stack u8[64] rotated_mac) {
   reg u64 i, j;
   reg u32 old, new, zero, temp;
 
@@ -88,8 +93,8 @@ ssl3_cbc_copy_mac_BL_BL(
     reg u32 md_size
   )
 {
-  stack u8[128] rotated_mac;    // char array
-  reg u32 mac_start, mac_end, scan_start, rotate_offset;
+  stack u8[64] rotated_mac;    // char array
+  reg u32 mac_start, mac_end, scan_start, rotate_offset, delta;
   reg u64 data;
 
   data, scan_start, mac_start, mac_end = init_scan_start(rec, orig_len, md_size);
@@ -101,10 +106,11 @@ ssl3_cbc_copy_mac_BL_BL(
 inline
 fn test_with_secret_BL_BL(reg u32 secret_mac_end) {
   reg u64 rec, out, data;
+  reg u32 result;
   inline int i;
-  rec = 0x100;
-  out = 0x2000;
-  data = 0x1000;
+  rec = 0x2000;
+  out = 0x3000;
+  data = 0x4000;
   (u64)[rec + 16] = data;
   (u32)[rec + 4] = secret_mac_end;
 
@@ -120,7 +126,7 @@ fn test_with_secret_BL_BL(reg u32 secret_mac_end) {
   );
 }
 
-inline fn test_BL_BL_467() { test_with_secret_BL_BL(467); }
-inline fn test_BL_BL_390() { test_with_secret_BL_BL(390); }
+inline fn test_BL_BL_XX() {test_with_secret_BL_BL(326);}
+inline fn test_BL_BL_YY() {test_with_secret_BL_BL(448);}
 
-exec test_BL_BL_467 test_BL_BL_390 (0x1000 : 0x200, 0x2000 : 64, 0x100 : 100)
+exec test_BL_BL_XX test_BL_BL_YY (0x4000 : 0x200, 0x3000 : 64, 0x2000 : 100)
