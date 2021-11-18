@@ -46,8 +46,8 @@ inline fn init_rotated_mac_mem(reg u64 rotated_mac, reg u64 data, reg u32 scan_s
 
   i = 0;
   while (i < 64) {
-      (u8)[rotated_mac + i] = 0;
-      i += 1;
+    (u8)[rotated_mac + i] = 0;
+    i += 1;
   }
 
   zero = 0;

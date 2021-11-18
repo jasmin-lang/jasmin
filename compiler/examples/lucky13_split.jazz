@@ -29,7 +29,7 @@ inline fn opp_mod(reg u32 rotate_offset md_size) -> reg u32 {
   return rotate_offset;
 }
 
-inline fn rotate_mac_BL(reg u32 md_size rotate_offset, reg u64 out, stack u8[128] rotated_mac) {
+inline fn rotate_mac_BL(reg u32 md_size rotate_offset, reg u64 out, stack u8[64] rotated_mac) {
   reg u64 i, j;
   reg u32 old, new, zero, temp;
 
@@ -104,10 +104,16 @@ inline fn init_scan_start(reg u64 rec, reg u32 orig_len, reg u32 md_size) -> reg
   return data, scan_start, mac_start, mac_end;
 }
 
-inline fn init_rotated_mac_stk(reg u64 data, reg u32 scan_start, reg u32 mac_start, reg u32 mac_end, reg u32 orig_len, reg u32 md_size) -> stack u8[128] {
-  stack u8[128] rotated_mac;
+inline fn init_rotated_mac_stk(reg u64 data, reg u32 scan_start, reg u32 mac_start, reg u32 mac_end, reg u32 orig_len, reg u32 md_size) -> stack u8[64] {
+  stack u8[64] rotated_mac;
   reg u32 old, new;
   reg u64 i, j, zero;
+
+  i = 0;
+  while (i < 64) {
+    rotated_mac[(int)i] = 0;
+    i += 1;
+  }
 
   zero = 0;
   i = (64u)scan_start;
@@ -129,10 +135,14 @@ inline fn init_rotated_mac_mem(reg u64 rotated_mac, reg u64 data, reg u32 scan_s
   reg u32 old, new;
   reg u64 i, j, zero;
 
+  i = 0;
+  while (i < 64) {
+    (u8)[rotated_mac + i] = 0;
+    i += 1;
+  }
   zero = 0;
-  i = (64u) scan_start; 
+  i = (64u) scan_start;
   j = 0;
-  zero = 0;
   while(i < orig_len) {
     new = (32u)(u8)[data + (int)i];
     old = (32u)(u8)[rotated_mac + j];
@@ -154,7 +164,7 @@ ssl3_cbc_copy_mac_BL_BL(
     reg u32 md_size
   )
 {
-  stack u8[128] rotated_mac;    // char array
+  stack u8[64] rotated_mac;    // char array
   reg u32 mac_start, mac_end, scan_start, rotate_offset;
   reg u64 data;
 
@@ -183,7 +193,6 @@ ssl3_cbc_copy_mac_BL_CL(
   init_rotated_mac_mem(rotated_mac, data, scan_start, mac_start, mac_end, orig_len, md_size);
   rotate_offset = rotate_offset_BL(md_size, mac_start, scan_start);
   rotate_mac_CL(md_size, rotate_offset, out, rotated_mac);
-
 }
 
 export
@@ -195,7 +204,7 @@ ssl3_cbc_copy_mac_TV_BL(
     reg u32 md_size
   )
 {
-  stack u8[128] rotated_mac;    // char array
+  stack u8[64] rotated_mac;    // char array
   reg u32 mac_start, mac_end, scan_start, rotate_offset;
   reg u64 data;
 
@@ -245,6 +254,4 @@ ssl3_cbc_copy_mac_TV_CL32(
   init_rotated_mac_mem(rotated_mac, data, scan_start, mac_start, mac_end, orig_len, md_size);
   rotate_offset = rotate_offset_TV(md_size, mac_start, scan_start);
   rotate_mac_CL32(md_size, rotate_offset, out, rotated_mac);
-
 }
-
