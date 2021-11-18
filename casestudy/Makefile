@@ -3,7 +3,7 @@ EASYCRYPT?=easycrypt
 
 .SUFFIXES: .jazz .ec .eco
 
-all: modulo_ct.eco modulo_ct_proof.eco copy_mac_ct.eco leakage_models.eco copy_mac_ct_proof_BL_BL.eco copy_mac_ct_proof_BL_CL.eco copy_mac_ct_proof_TV_BL.eco copy_mac_ct_proof_TV_CL.eco copy_mac_ct_proof_TV_CL32.eco check
+all: modulo_ct.eco modulo_ct_proof.eco copy_mac_ct.eco leakage_models.eco copy_mac_ct_proof_BL_BL_CL.eco copy_mac_ct_proof_BL_BL_BL.eco copy_mac_ct_proof_BL_CL_CL.eco copy_mac_ct_proof_TV_CL_TV_CL.eco copy_mac_ct_proof_TV_BL_CL.eco copy_mac_ct_proof_TV_BL_BL.eco copy_mac_ct_proof_TV_BL_TV_CL.eco copy_mac_ct_proof_TV_BL_TV.eco copy_mac_ct_proof_TV_CL32.eco check
 
 modulo_ct.ec: ../compiler/examples/mod_patch.jazz
 	$(JASMINC) -CT -ec mod_TV -oec $@ $^
