@@ -60,11 +60,12 @@ inline fn mod_TV(reg u64 a, reg u64 b) -> reg u64 {
 }
 
 inline fn rotate_offset_TVG(reg u32 md_size mac_start scan_start) -> reg u32 {
-  reg u32 rotate_offset;
-  reg u32 numerator;
+  reg u32 numerator, rotate_offset;
+  reg u64  ro;
   numerator = mac_start;
   numerator -= scan_start;
-  rotate_offset = mod_TV(numerator, md_size);
+  ro = mod_TV((64u)numerator, (64u)md_size);
+  rotate_offset = (32u) ro;
   return rotate_offset;
 }
 

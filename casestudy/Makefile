@@ -9,13 +9,13 @@ modulo_ct.ec: ../compiler/examples/mod_patch.jazz
 	$(JASMINC) -CT -ec mod_TV -oec $@ $^
 
 copy_mac_ct.ec: ../compiler/examples/lucky13_split.jazz
-	$(JASMINC) -CT -ec ssl3_cbc_copy_mac_BL_BL -ec ssl3_cbc_copy_mac_BL_CL -ec ssl3_cbc_copy_mac_TV_BL -ec ssl3_cbc_copy_mac_TV_CL -ec ssl3_cbc_copy_mac_TV_CL32 -oec $@ $^
+	$(JASMINC) -CT -ec ssl3_cbc_copy_mac_BL_BL -ec ssl3_cbc_copy_mac_BL_CL -ec ssl3_cbc_copy_mac_TV_BL -ec ssl3_cbc_copy_mac_TV_CL -ec ssl3_cbc_copy_mac_TV_CL32 -ec ssl3_cbc_copy_mac_TVG_BL -ec ssl3_cbc_copy_mac_TVG_CL -oec $@ $^
 
 %.eco: %.ec
 	$(EASYCRYPT) $^
 
 clean:
-	$(RM) modulo_ct.ec copy_mac_ct.ec *.eco *Array128.ec
+	$(RM) modulo_ct.ec copy_mac_ct.ec *.eco *Array64.ec
 
 check:
 	$(JASMINC) 	--dlk=none	--mlk=div32	rotate_mac_CL_in_32CL.jazz
@@ -29,3 +29,5 @@ check:
 	$(JASMINC) 	--dlk=log 	--mlk=div64	ssl3_cbc_copy_mac_BL_BL_in_TV_CL.jazz
 	$(JASMINC) 	--dlk=none 	--mlk=full	ssl3_cbc_copy_mac_TV_CL_in_BL.jazz
 	$(JASMINC) 	--dlk=log 	--mlk=full	ssl3_cbc_copy_mac_TV_CL_in_TV.jazz
+	$(JASMINC) 	--dlk=none 	--mlk=full	ssl3_cbc_copy_mac_TVG_CL_in_BL.jazz
+	$(JASMINC) 	--dlk=log 	--mlk=full	ssl3_cbc_copy_mac_TVG_CL_in_TV.jazz
