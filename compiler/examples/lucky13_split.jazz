@@ -18,6 +18,56 @@ inline fn rotate_offset_TV(reg u32 md_size mac_start scan_start) -> reg u32 {
   return rotate_offset;
 }
 
+inline
+fn lzcnt(reg u64 x) -> reg bool, reg u64 {
+  reg u64 result;
+  reg bool zf;
+  _, _, _, _, zf, result = #LZCNT(x);
+  return zf, result;
+}
+
+inline fn mod_TV(reg u64 a, reg u64 b) -> reg u64 {
+  reg u64 flag one zero dividend modulo result;
+  reg u64 lzb lzb_m1 b_lzb b_lzb_m1 temp2;
+  reg bool lzaz lzbz cf;
+
+  flag = 0x1234;
+  one = 1;
+  zero = 0;
+
+  lzbz, lzb = lzcnt(b);
+  flag = zero if lzbz;
+  lzaz, _ = lzcnt(a);
+  flag = one if lzaz;
+
+  lzb_m1 = #LEA(lzb - 1);
+  b_lzb_m1 = b;
+  b_lzb_m1 = b_lzb_m1 << lzb_m1;
+  dividend = #LEA(b_lzb_m1 + a);
+
+  b_lzb = b_lzb_m1 << 1;
+  cf, temp2 = b_lzb + a;
+  dividend = temp2 if !cf;
+
+  dividend = a if flag == 1;
+  temp2 = 0xFFFFFFFFFFFFFFFF;
+  dividend = temp2 if flag == 0;  // lzb = 0 and lza ≠ 0,
+                              // to leak big number if overflow happens
+  modulo = dividend % b;
+  result = modulo;
+  result = a if flag == 0;    // lzb = 0 and lza ≠ 0
+  return result;
+}
+
+inline fn rotate_offset_TVG(reg u32 md_size mac_start scan_start) -> reg u32 {
+  reg u32 rotate_offset;
+  reg u32 numerator;
+  numerator = mac_start;
+  numerator -= scan_start;
+  rotate_offset = mod_TV(numerator, md_size);
+  return rotate_offset;
+}
+
 inline fn opp_mod(reg u32 rotate_offset md_size) -> reg u32 {
   reg u32 temp, zero;
 
@@ -254,4 +304,44 @@ ssl3_cbc_copy_mac_TV_CL32(
   init_rotated_mac_mem(rotated_mac, data, scan_start, mac_start, mac_end, orig_len, md_size);
   rotate_offset = rotate_offset_TV(md_size, mac_start, scan_start);
   rotate_mac_CL32(md_size, rotate_offset, out, rotated_mac);
+}
+
+export
+fn
+ssl3_cbc_copy_mac_TVG_BL(
+    reg u64 out,
+    reg u64 rec,
+    reg u32 orig_len,
+    reg u32 md_size
+  )
+{
+  stack u8[64] rotated_mac;    // char array
+  reg u32 mac_start, mac_end, scan_start, rotate_offset;
+  reg u64 data;
+
+  data, scan_start, mac_start, mac_end = init_scan_start(rec, orig_len, md_size);
+  rotated_mac = init_rotated_mac_stk(data, scan_start, mac_start, mac_end, orig_len, md_size);
+  rotate_offset = rotate_offset_TVG(md_size, mac_start, scan_start);
+  rotate_mac_BL(md_size, rotate_offset, out, rotated_mac);
+}
+
+export
+fn
+ssl3_cbc_copy_mac_TVG_CL(
+    reg u64 out,
+    reg u64 rec,
+    reg u32 orig_len,
+    reg u32 md_size,
+    reg u64 rotated_mac
+  )
+{
+  // assuming CBC_MAC_ROTATE_IN_PLACE is not defined
+  reg u32 mac_start, mac_end, scan_start;
+  reg u64 i, j, zero, data;
+  reg u32 rotate_offset, old, new, temp;
+
+  data, scan_start, mac_start, mac_end = init_scan_start(rec, orig_len, md_size);
+  init_rotated_mac_mem(rotated_mac, data, scan_start, mac_start, mac_end, orig_len, md_size);
+  rotate_offset = rotate_offset_TVG(md_size, mac_start, scan_start);
+  rotate_mac_CL(md_size, rotate_offset, out, rotated_mac);
 }
