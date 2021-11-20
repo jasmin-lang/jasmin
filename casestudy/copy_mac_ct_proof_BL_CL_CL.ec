@@ -14,26 +14,7 @@ equiv l_rotate_offset_BLCL md_size_ : M.rotate_offset_BL ~ M.rotate_offset_BL:
 (16 <= to_uint md_size <= 64){1}
 ==> ={M.leakages} /\ 0 <= to_uint res{1} < to_uint md_size_ /\ 0 <= to_uint res{2} < to_uint md_size_.
 proof.
-  proc; wp; skip => /> *.
-  rewrite /leak_div_32;
-  smt (W32.to_uint_small W32.to_uint_cmp).
-qed.
-
-lemma offset_div (p offset : W64.t) :
-  to_uint p + 64 <= W64.modulus =>
-  64 %| to_uint p =>
-  0 <= to_uint offset < 64 =>
-  to_uint (p + offset) %/ 64  = to_uint p %/ 64.
-proof.
-  move=> /= h1 h2 h3; rewrite W64.to_uintD_small /= 1:/# divzDl 1:// /#.
-qed.
-
-lemma to_uint_truncateu32_small (x: W64.t) :
-    to_uint x < W32.modulus =>
-    to_uint (truncateu32 x) = to_uint x.
-proof.
-  move => h; rewrite to_uint_truncateu32 modz_small => />.
-  smt (W64.to_uint_cmp).
+  proc; wp; skip => /> *; smt (W32.to_uint_small W32.to_uint_cmp).
 qed.
 
 equiv l_rotate_mac_CL : M.rotate_mac_CL ~ M.rotate_mac_CL :
@@ -68,12 +49,6 @@ equiv l_init_rotated_mac_mem :
   ={md_size, rotated_mac, data, orig_len, scan_start, M.leakages} ==> ={M.leakages}.
 proof. by proc; sim. qed.
 
-equiv l_init_scan_start : M.init_scan_start ~ M.init_scan_start :
-  ={ M.leakages, rec, orig_len, md_size }
-  /\ (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){1} = (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){2}
-  ==> ={ M.leakages } /\ res.`1{1} = res.`1{2} /\ res.`2{1} = res.`2{2}.
-proof. by proc; wp; skip. qed.
-
 equiv l_final : M.ssl3_cbc_copy_mac_BL_CL ~ M.ssl3_cbc_copy_mac_BL_CL :
 ={M.leakages, md_size, orig_len, out, rec, rotated_mac} /\
 (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){1} = (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){2} /\
@@ -85,5 +60,5 @@ proof.
   call l_rotate_mac_CL; wp.
   ecall (l_rotate_offset_BLCL md_size{1}); wp.
   call l_init_rotated_mac_mem; wp.
-  by call l_init_scan_start; auto.
+  by inline *; auto.
 qed.

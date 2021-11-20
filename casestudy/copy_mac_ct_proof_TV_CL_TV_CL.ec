@@ -8,7 +8,7 @@ require import Leakage_models.
 
 clone import Copy_mac_ct.T with
 theory LeakageModel <- LeakageModelTVCL.
-
+(* For the number of line we count the size of the proof of l_rotate_offset_div_core *)
 equiv l_rotate_offset_TVCL md_size_ : M.rotate_offset_TV ~ M.rotate_offset_TV:
 ={M.leakages, md_size, scan_start} /\ md_size{1} = md_size_ /\
 (to_uint (mac_start - scan_start) < 2^8){1} /\
@@ -27,9 +27,9 @@ qed.
 (* rec : whole message including header, message, tag, padding --> public *)
 
 op wf_rec mem (rec:W64.t) (orig_len md_size : W32.t) =
- let mac_end = loadW32 mem (to_uint (rec + W64.of_int 4)) in
- to_uint md_size <= to_uint mac_end /\
- 1 <= to_uint orig_len - to_uint mac_end <= 256.
+  let mac_end = loadW32 mem (to_uint (rec + W64.of_int 4)) in
+  to_uint md_size <= to_uint mac_end /\
+  1 <= to_uint orig_len - to_uint mac_end <= 256.
 
 lemma wf_rec_cond_md_size_mac_end mem rec orig_len md_size :
   16 <= W32.to_uint md_size <= 64 =>
@@ -47,24 +47,6 @@ proof.
   case: (to_uint md_size + 256 < to_uint orig_len) => h; last first.
   + rewrite W32.WRingA.subr0 W32.to_uintB 1:W32.uleE 1:// /#.
   rewrite W32.to_uintB ?W32.uleE W32.to_uintB ?W32.uleE /=; smt(W32.to_uint_cmp).
-qed.
-
-lemma offset_div (p offset : W64.t) :
-  to_uint p + 64 <= W64.modulus =>
-  64 %| to_uint p =>
-  to_uint offset < 64 =>
-  to_uint (p + offset) %/ 64  = to_uint p %/ 64.
-proof.
-  move=> /= h1 h2 h3; rewrite W64.to_uintD_small /= 1:/# divzDl 1://.
-  smt (W64.to_uint_cmp).
-qed.
-
-lemma to_uint_truncateu32_small (x: W64.t) :
-    to_uint x < W32.modulus =>
-    to_uint (truncateu32 x) = to_uint x.
-proof.
-  move => h; rewrite to_uint_truncateu32 modz_small => />.
-  smt (W64.to_uint_cmp).
 qed.
 
 equiv l_rotate_mac_CL : M.rotate_mac_CL ~ M.rotate_mac_CL :
@@ -100,12 +82,12 @@ equiv l_init_rotated_mac_mem :
 proof. by proc; sim. qed.
 
 equiv l_final : M.ssl3_cbc_copy_mac_TV_CL ~ M.ssl3_cbc_copy_mac_TV_CL :
-={M.leakages, md_size, orig_len, out, rec, rotated_mac} /\
-(loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){1} = (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){2} /\
-to_uint rotated_mac{2} + 64 <= W64.modulus /\ 64 %| to_uint rotated_mac{2} /\
-16 <= to_uint md_size{2} <= 64 /\
-(wf_rec Glob.mem rec orig_len md_size){1} /\ (wf_rec Glob.mem rec orig_len md_size){2}
-==> ={M.leakages}.
+  ={M.leakages, md_size, orig_len, out, rec, rotated_mac} /\
+  (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){1} = (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){2} /\
+  to_uint rotated_mac{2} + 64 <= W64.modulus /\ 64 %| to_uint rotated_mac{2} /\
+  16 <= to_uint md_size{2} <= 64 /\
+  (wf_rec Glob.mem rec orig_len md_size){1} /\ (wf_rec Glob.mem rec orig_len md_size){2}
+  ==> ={M.leakages}.
 proof.
   proc.
   call l_rotate_mac_CL; wp.

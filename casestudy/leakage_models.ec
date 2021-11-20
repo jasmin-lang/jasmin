@@ -99,6 +99,22 @@ proof.
   rewrite -ltr_weexpn2l 1://; smt(leak_div_bound).
 qed.
 
+lemma offset_div (p offset : W64.t) :
+  to_uint p + 64 <= W64.modulus =>
+  64 %| to_uint p =>
+  to_uint offset < 64 =>
+  to_uint (p + offset) %/ 64  = to_uint p %/ 64.
+proof.
+  move=> /= h1 h2 h3; rewrite W64.to_uintD_small /= 1:/# divzDl 1://; smt (W64.to_uint_cmp).
+qed.
+
+lemma to_uint_truncateu32_small (x: W64.t) :
+  to_uint x < W32.modulus =>
+  to_uint (truncateu32 x) = to_uint x.
+proof.
+  move => h; rewrite to_uint_truncateu32 modz_small => />; smt (W64.to_uint_cmp).
+qed.
+
 (* Remark: the shift by 23 look arbitrary, a shift by 8 is suffisant *)
 lemma l_rotate_offset_div_core (x md_size : W32.t) :
   0 <= to_uint x < 2^8 =>
@@ -132,3 +148,4 @@ proof.
   have -> /# : leak_div (W32.of_int (2^23)) = 8.
   by rewrite /leak_div /w2bits /mkseq -iotaredE /= !W32.of_intwE; cbv delta.
 qed.
+
