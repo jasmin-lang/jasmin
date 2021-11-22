@@ -260,10 +260,16 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
 
   ok pd.
 
-Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
+Definition check_export entries (p: sprog) : cexec unit :=
+  allM (λ fn,
+          if get_fundef (p_funcs p) fn is Some fd then
+            assert (fd.(f_extra).(sf_return_address) == RAnone)
+                   (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "export function expects a return address")))
+          else Error (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "unknown export function")))
+       ) entries.
 
-  Let pd := compiler_front_end entries subroutines p in
-
+Definition compiler_back_end entries (pd: sprog) :=
+  Let _ := check_export entries pd in
   (* linearisation                     *)
   Let _ := merge_varmaps.check pd cparams.(extra_free_registers) in
   Let pl := linear_prog pd cparams.(extra_free_registers) in
@@ -271,7 +277,12 @@ Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
   (* tunneling                         *)
   Let pl := tunnel_program pl in
   let pl := cparams.(print_linear) Tunneling pl in
-  (* asm                               *)
+
+  ok pl.
+
+Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
+  Let pd := compiler_front_end entries subroutines p in
+  Let pl := compiler_back_end entries pd in
   ok pl.
 
 Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
