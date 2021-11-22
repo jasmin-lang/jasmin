@@ -72,7 +72,7 @@ Lemma assemble_i_is_label rip a b lbl :
   linear.is_label lbl a = arch_sem.is_label lbl b.
 Proof.
 by (rewrite /assemble_i /linear.is_label ; case a =>  ii []; t_xrbindP) => /=
-  [????? <- | <- | ? <- | ? <- | _ ? _ <- | _ ?? _ <- | ???? <-].
+  [????? <- | <- | ? <- | ? <- | _ _ _ ? _ <- | _ ?? _ <- | ???? <-].
 Qed.
 
 Lemma assemble_c_find_is_label rip c i lbl:
@@ -98,23 +98,23 @@ Qed.
 
 Lemma eval_assemble_word rip ii sz e a s xs v :
   lom_eqv rip s xs →
-  assemble_word_mem rip ii sz None e = ok a →
+  (if e is Papp1 _ _ then false else true) →
+  assemble_word_mem rip ii sz e = ok a →
   sem_pexpr [::] s e = ok v →
   exists2 v', eval_asm_arg AK_mem xs a (sword sz) = ok v' & value_uincl v v'.
 Proof.
   rewrite /assemble_word /eval_asm_arg => eqm.
   case: e => //=; t_xrbindP.
-  - move => x _ /assertP ok_x /xreg_of_varI h.
+  - move => x _ _ /assertP ok_x /xreg_of_varI h.
     rewrite /get_gvar ok_x => ok_v.
     case: a h => // r ok_r; (eexists; first reflexivity).
     + exact: (xgetreg_ex eqm ok_r ok_v).
     exact: (xxgetreg_ex eqm ok_r ok_v).
-  - move => sz' ??; case: eqP => // <-{sz'}; t_xrbindP => _ _ d ok_d <- ptr w ok_w ok_ptr uptr u ok_u ok_uptr ? ok_rd ?; subst v => /=.
-    case: (eqm) => eqmem _ _ _ _ _.
-    rewrite (addr_of_xpexprP eqm ok_d ok_w ok_ptr ok_u ok_uptr) -eqmem ok_rd.
-    eexists; first reflexivity.
-    exact: word_uincl_refl.
-  by case => // ? [].
+  move => sz' ?? _; case: eqP => // <-{sz'}; t_xrbindP => _ _ d ok_d <- ptr w ok_w ok_ptr uptr u ok_u ok_uptr ? ok_rd ?; subst v => /=.
+  case: (eqm) => eqmem _ _ _ _ _.
+  rewrite (addr_of_xpexprP eqm ok_d ok_w ok_ptr ok_u ok_uptr) -eqmem ok_rd.
+  eexists; first reflexivity.
+  exact: word_uincl_refl.
 Qed.
 
 Section PROG.
@@ -192,8 +192,8 @@ case: i => ii [] /=.
   rewrite ok_fd /=.
   do 2 (eexists; first reflexivity).
   by constructor.
-- t_xrbindP => e d ok_d <- ptr v ok_v ok_ptr.
-  have [v' ok_v' hvv'] := eval_assemble_word eqm ok_d ok_v.
+- t_xrbindP => e _ /assertP ok_e d ok_d <- ptr v ok_v ok_ptr.
+  have [v' ok_v' hvv'] := eval_assemble_word eqm ok_e ok_d ok_v.
   rewrite ok_v' /= (value_uincl_word hvv' ok_ptr) /=.
   case ptr_eq: decode_label => [ [] fn lbl | // ] /=.
   replace (decode_label _ ptr) with (Some (fn, lbl));

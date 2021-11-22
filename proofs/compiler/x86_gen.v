@@ -27,6 +27,7 @@ Definition assemble_i rip (i: linstr) : cexec asm_i :=
   | Lgoto lbl => ok (JMP lbl)
 
   | Ligoto e =>
+    Let _ := assert (if e is Papp1 _ _ then false else true) (E.werror ii e "Ligoto/JMPI") in
     Let arg := assemble_word AK_mem rip ii Uptr e in
     ok (JMPI arg)
 
