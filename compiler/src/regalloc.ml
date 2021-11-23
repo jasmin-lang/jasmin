@@ -647,7 +647,7 @@ let greedy_allocation
         | Unknown ty -> hierror_reg ~loc:Lnone "no register bank for type %a" Printer.pp_ty ty
       in
       match List.filter has_no_conflict bank with
-      | [] -> hierror_reg ~loc:Lnone "no more register to allocate %a" Printer.(pp_list "; " (pp_var ~debug:true)) vi
+      | [] -> hierror_reg ~loc:Lnone "no more register to allocate “%a”" Printer.(pp_list "; " (pp_var ~debug:true)) vi
       | x :: regs ->
          let y = get_friend_registers x fr a i regs in
          A.set i y a
@@ -758,6 +758,9 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
              | (None | Some OnReg) -> true
         then
           let r = V.mk " ra" (Reg Direct) (Bty (U U64)) L._dummy [] in
+          if !Glob_options.debug then
+            Format.eprintf "Fresh variable “%a” for the return address of function “%s”.@."
+              (Printer.pp_var ~debug:true) r f.f_name.fn_name;
           Hf.add return_addresses f.f_name r;
           Sv.add r written
         else written
