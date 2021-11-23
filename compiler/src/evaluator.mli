@@ -4,9 +4,9 @@ val exec :
   Expr.prog ->
   Utils0.funname ->
   Low_memory.Memory.mem ->
-  Low_memory.Memory.mem * Sem.values
+  Low_memory.Memory.mem * Values.values
 
-val pp_val : Format.formatter -> Sem.value -> unit
+val pp_val : Format.formatter -> Values.value -> unit
 
 val pp_error :
   Format.formatter -> Utils0.error -> unit

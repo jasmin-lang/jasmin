@@ -29,111 +29,12 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Psatz xseq.
-Require Export array type expr gen_map low_memory warray_ sem_type.
+Require Export array type expr gen_map low_memory warray_ sem_type values.
 Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-
-(* ** Values
-  * -------------------------------------------------------------------- *)
-
-Variant value : Type :=
-  | Vbool  :> bool -> value
-  | Vint   :> Z    -> value
-  | Varr   : forall len, WArray.array len -> value
-  | Vword  : forall s, word s -> value
-  | Vundef : forall (t:stype), is_sarr t = false -> value.
-Arguments Vundef _ _ : clear implicits.
-
-Definition undef_b := Vundef sbool refl_equal.
-Definition undef_w ws := Vundef (sword ws) refl_equal.
-
-Definition values := seq value.
-
-Definition to_bool v :=
-  match v with
-  | Vbool b        => ok b
-  | Vundef sbool _ => undef_error
-  | _              => type_error
-  end.
-
-Definition to_int v :=
-  match v with
-  | Vint z        => ok z
-  | Vundef sint _ => undef_error
-  | _             => type_error
-  end.
-
-Definition truncate_word (s s':wsize) (w:word s') : exec (word s) :=
-   if (s <= s')%CMP then ok (zero_extend s w) else type_error.
-
-Definition to_word (s: wsize) (v: value) : exec (word s) :=
-  match v with
-  | Vword s' w          => truncate_word s w
-  | Vundef (sword s') _ => Error (if (s <= s')%CMP then ErrAddrUndef else ErrType)
-  | _                   => type_error
-  end.
-
-Notation to_pointer := (to_word Uptr).
-
-Definition to_arr len v : exec (sem_t (sarr len)) :=
-  match v with
-  | Varr len' t => WArray.cast len t
-  | _ => type_error
-  end.
-
-Definition vundef_type (t:stype) :=
-  match t with
-  | sword _ => sword8
-  | sarr _  => sarr 1
-  | _       => t
-  end.
-
-Definition type_of_val (v:value) : stype :=
-  match v with
-  | Vbool _     => sbool
-  | Vint  _     => sint
-  | Varr n _    => sarr n
-  | Vword s _   => sword s
-  | Vundef t _  => vundef_type t
-  end.
-
-Definition of_val t : value -> exec (sem_t t) :=
-  match t return value -> exec (sem_t t) with
-  | sbool   => to_bool
-  | sint    => to_int
-  | sarr n  => to_arr n
-  | sword s => to_word s
-  end.
-
-Definition to_val t : sem_t t -> value :=
-  match t return sem_t t -> value with
-  | sbool   => Vbool
-  | sint    => Vint
-  | sarr n  => @Varr n
-  | sword s => @Vword s
-  end.
-
-Definition truncate_val (ty: stype) (v: value) : exec value :=
-  of_val ty v >>= λ x, ok (to_val x).
-
-Lemma type_of_to_val t (s: sem_t t) : type_of_val (to_val s) = t.
-Proof. by case: t s. Qed.
-
-Definition oto_val t : sem_ot t -> value :=
-  match t return sem_ot t -> value with
-  | sbool => fun ob => if ob is Some b then Vbool b else undef_b
-  | x     => @to_val x
-  end.
-
-Lemma type_of_oto_val t (s: sem_ot t) : type_of_val (oto_val s) = t.
-Proof. by case: t s => //= -[]. Qed.
-
-Definition check_ty_val (ty:stype) (v:value) :=
-  subtype ty (type_of_val v).
 
 (* ** Variable map
  * -------------------------------------------------------------------- *)
@@ -185,6 +86,13 @@ Qed.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
+
+Definition zlsl (x i : Z) : Z :=
+  if (0 <=? i)%Z then (x * 2^i)%Z
+  else (x / 2^(-i))%Z.
+
+Definition zasr (x i : Z) : Z := 
+  zlsl x (-i).
 
 Definition sem_shift (shift:forall {s}, word s -> Z -> word s) s (v:word s) (i:u8) :=
   let i :=  wunsigned (wand i (x86_shift_mask s)) in
@@ -247,32 +155,35 @@ Definition mk_sem_divmod sz o (w1 w2: word sz) : exec (word sz) :=
 
 Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 :=
   ok (o v1 v2).
-
+ 
 Definition sem_sop2_typed (o: sop2) :
   let t := type_of_op2 o in
   sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2) :=
   match o with
+  | Obeq => mk_sem_sop2 (@eq_op [eqType of bool])
   | Oand => mk_sem_sop2 andb
   | Oor  => mk_sem_sop2 orb
 
-  | Oadd Op_int   => mk_sem_sop2 Z.add
-  | Oadd (Op_w s) => mk_sem_sop2 +%R
-  | Omul Op_int   => mk_sem_sop2 Z.mul
-  | Omul (Op_w s) => mk_sem_sop2 *%R
-  | Osub Op_int   => mk_sem_sop2 Z.sub
-  | Osub (Op_w s) => mk_sem_sop2 (fun x y =>  x - y)%R
-  | Odiv Cmp_int  => mk_sem_sop2 Z.div
+  | Oadd Op_int      => mk_sem_sop2 Z.add
+  | Oadd (Op_w s)    => mk_sem_sop2 +%R
+  | Omul Op_int      => mk_sem_sop2 Z.mul
+  | Omul (Op_w s)    => mk_sem_sop2 *%R
+  | Osub Op_int      => mk_sem_sop2 Z.sub
+  | Osub (Op_w s)    => mk_sem_sop2 (fun x y =>  x - y)%R
+  | Odiv Cmp_int     => mk_sem_sop2 Z.div
   | Odiv (Cmp_w u s) => @mk_sem_divmod s (signed wdiv wdivi u)
-  | Omod Cmp_int  => mk_sem_sop2 Z.modulo
+  | Omod Cmp_int     => mk_sem_sop2 Z.modulo
   | Omod (Cmp_w u s) => @mk_sem_divmod s (signed wmod wmodi u)
 
-  | Oland s => mk_sem_sop2 wand
-  | Olor  s => mk_sem_sop2 wor
-  | Olxor s => mk_sem_sop2 wxor
-  | Olsr  s => mk_sem_sop2 sem_shr
-  | Olsl  s => mk_sem_sop2 sem_shl
-  | Oasr  s => mk_sem_sop2 sem_sar
-
+  | Oland s       => mk_sem_sop2 wand
+  | Olor  s       => mk_sem_sop2 wor
+  | Olxor s       => mk_sem_sop2 wxor
+  | Olsr s        => mk_sem_sop2 sem_shr
+  | Olsl Op_int   => mk_sem_sop2 zlsl 
+  | Olsl (Op_w s) => mk_sem_sop2 sem_shl
+  | Oasr Op_int   => mk_sem_sop2 zasr 
+  | Oasr (Op_w s) => mk_sem_sop2 sem_sar
+ 
   | Oeq Op_int    => mk_sem_sop2 Z.eqb
   | Oeq (Op_w s)  => mk_sem_sop2 eq_op
   | Oneq Op_int   => mk_sem_sop2 (fun x y => negb (Z.eqb x y))
@@ -317,29 +228,33 @@ Proof.
   by rewrite /sem_sop2; t_xrbindP => w1 ok_w1 w2 ok_w2 w3 ok_w3 <- {v}; exists w1, w2, w3.
 Qed.
 
-Fixpoint app_sopn T ts : sem_prod ts (exec T) → values → exec T :=
-  match ts return sem_prod ts (exec T) → values → exec T with
-  | [::] => λ (o : exec T) (vs: values), if vs is [::] then o else type_error
-  | t :: ts => λ (o: sem_t t → sem_prod ts (exec T)) (vs: values),
-    if vs is v :: vs
-    then Let v := of_val t v in app_sopn (o v) vs
-    else type_error
-  end.
+Definition neg_f (n:bool) (f:bool) := 
+  if n then ~~f else f.
 
-Arguments app_sopn {T} ts _ _.
+Definition sem_cfc (n:bool) (o:combine_flags_core) (OF CF SF ZF : bool) : exec bool := 
+  let r :=
+    match o with
+    | CFC_O => OF
+    | CFC_B => CF
+    | CFC_E => ZF
+    | CFC_S => SF
+    | CFC_L => OF!=SF
+    | CFC_BE => CF || ZF
+    | CFC_LE => (OF!=SF) || ZF
+    end in
+  ok (neg_f n r).
 
-Definition curry A B (n: nat) (f: seq (sem_t A) → B) : sem_prod (nseq n A) B :=
-  (fix loop n :=
-   match n return seq (sem_t A) → sem_prod (nseq n A) B with
-   | 0 => f
-   | n'.+1 => λ acc a, loop n' (a :: acc)
-   end) n [::].
+Definition sem_combine_flags (o:combine_flags) : 
+  sem_prod tin_combine_flags (exec bool) := 
+    let c := cf_tbl o in
+    sem_cfc c.1 c.2.
 
 Definition sem_opN_typed (o: opN) :
   let t := type_of_opN o in
   sem_prod t.1 (exec (sem_t t.2)) :=
   match o with
   | Opack sz pe => curry (A := sint) (sz %/ pe) (λ vs, ok (wpack sz pe vs))
+  | Ocombine_flags o => sem_combine_flags o  
   end.
 
 Definition sem_opN (op: opN) (vs: values) : exec value :=
@@ -521,15 +436,13 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec estate :=
     Let i := sem_pexpr s i >>= to_int in
     Let v := to_word ws v in
     Let t := WArray.set t aa i v in
-    Let vm := set_var s.(evm) x (@to_val (sarr n) t) in
-    ok ({| emem := s.(emem); evm := vm |})
+    write_var x (@to_val (sarr n) t) s
   | Lasub aa ws len x i =>
     Let (n,t) := s.[x] in
     Let i := sem_pexpr s i >>= to_int in
     Let t' := to_arr (Z.to_pos (arr_size ws len)) v in 
     Let t := @WArray.set_sub n aa ws len t i t' in
-    Let vm := set_var s.(evm) x (@to_val (sarr n) t) in
-    ok ({| emem := s.(emem); evm := vm |})
+    write_var x (@to_val (sarr n) t) s 
   end.
 
 Definition write_lvals (s:estate) xs vs :=
@@ -551,31 +464,10 @@ Proof. case: v => // [ sz' w | [] // ] _; exact: wsize_le_U8. Qed.
 
 (* ---------------------------------------------------------------- *)
 
-Fixpoint list_ltuple (ts:list stype) : sem_tuple ts -> values :=
-  match ts return sem_tuple ts -> values with
-  | [::] => fun (u:unit) => [::]
-  | t :: ts =>
-    let rec := @list_ltuple ts in
-    match ts return (sem_tuple ts -> values) -> sem_tuple (t::ts) -> values with
-    | [::] => fun _ x => [:: oto_val x]
-    | t1 :: ts' =>
-      fun rec (p : sem_ot t * sem_tuple (t1 :: ts')) =>
-       oto_val p.1 :: rec p.2
-    end rec
-  end.
-
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
   let semi := sopn_sem o in
   Let t := app_sopn _ semi vs in
   ok (list_ltuple t).
-
-Lemma type_of_val_ltuple tout (p : sem_tuple tout) :
-  List.map type_of_val (list_ltuple p) = tout.
-Proof.
-  elim: tout p => //= t1 [|t2 tout] /=.
-  + by rewrite /sem_tuple /= => _ x;rewrite type_of_oto_val.
-  by move=> hrec [] x xs /=; rewrite type_of_oto_val hrec.
-Qed.
 
 Lemma sopn_toutP o vs vs' : exec_sopn o vs = ok vs' ->
   List.map type_of_val vs' = sopn_tout o.

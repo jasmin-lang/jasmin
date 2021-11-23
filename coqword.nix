@@ -9,7 +9,7 @@ let mathcomp =
  ).algebra
 ; in
 
-let rev = "131bee8a1c14a67a4925534e455ea0b870ee0615"; in
+let rev = "bf1ff6c1695d42d1ccbf9d7f1cc62297a1f472bb"; in
 
 stdenv.mkDerivation rec {
   version = "0.0-git-${builtins.substring 0 8 rev}";
@@ -19,7 +19,7 @@ stdenv.mkDerivation rec {
     owner = "jasmin-lang";
     repo = "coqword";
     inherit rev;
-    sha256 = "196w51biq9wagbr0dkjd2v2z16nf6sz0yy5r4q1mgnpdld0rs9m1";
+    sha256 = "sha256:105ybr7fzaf9p6ll6xm86k6741q2y94kyqj4jh3rli4lyiw4cn87";
   };
 
   buildInputs = [ coq ];

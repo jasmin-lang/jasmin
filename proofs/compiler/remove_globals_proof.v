@@ -87,9 +87,9 @@ Module INCL. Section INCL.
     move=> hincl;case: x => //=.
     + by move=> ws x e;t_xrbindP => ?? -> /= -> ?? /(gd_incl_e hincl) -> /= -> ? -> /= ? -> <-.
     + move=> aa sz x e; apply: on_arr_varP;rewrite /on_arr_var => ?? h1 ->.
-      by t_xrbindP => ?? /(gd_incl_e hincl) -> /= -> ? -> /= ? -> /= ? -> <-.
+     by rewrite /write_var; t_xrbindP => ?? /(gd_incl_e hincl) -> /= -> ? -> /= ? -> /= ? -> <-.
     move=> aa sz len x e; apply: on_arr_varP;rewrite /on_arr_var => ?? h1 ->.
-    by t_xrbindP => ?? /(gd_incl_e hincl) -> /= -> ? -> /= ? -> /= ? -> <-.
+    by rewrite /write_var; t_xrbindP => ?? /(gd_incl_e hincl) -> /= -> ? -> /= ? -> /= ? -> <-.
   Qed.
 
   Lemma gd_incl_wls gd1 gd2 xs vs s1 s2 :
@@ -444,13 +444,13 @@ Module RGP. Section PROOFS.
     + case: ifPn => hg //.
       t_xrbindP => ? /(remove_glob_eP hval) h <-.
       apply: on_arr_varP => ?? hty; rewrite (hm1 _ hg) => hget.
-      t_xrbindP => ?? /h /= -> /= -> ?.
+      rewrite /write_var; t_xrbindP => ?? /h /= -> /= -> ?.
       rewrite /on_arr_var /= hget /= => -> ? /= -> ? /= hset <-.
       by apply (write_var_remove hg hval hset).
     case: ifPn => hg //.
     t_xrbindP => ? /(remove_glob_eP hval) h <-.
     apply: on_arr_varP => ?? hty; rewrite (hm1 _ hg) => hget.
-    t_xrbindP => ?? /h /= -> /= -> ?.
+    rewrite /write_var; t_xrbindP => ?? /h /= -> /= -> ?.
     rewrite /on_arr_var /= hget /= => -> ? /= -> ? /= hset <-.
     by apply (write_var_remove hg hval hset).
   Qed.

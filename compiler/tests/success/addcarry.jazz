@@ -1,7 +1,8 @@
 export
 fn add1(reg u64 arg) -> reg u64 {
 reg u64 z;
-reg bool cf;
+reg bool cf, zf;
+reg bool CF, ZF;
 z  = arg;
 _, z += z;
 cf, z = z + z;
@@ -14,6 +15,12 @@ cf, z = z + z + cf;
 cf, z = #adc(z,z,false);
 // of cf xf pf zf
 _,cf,_,_,_,z = #ADC(z,z,cf);
-z = #ADC(z,z,cf);
+?{CF=cf}, z = #ADC(z,z,cf);
+?{cf}, z = #ADC(z,z,cf);
+?{CF=cf, ZF=zf}, z = #ADC(z,z,cf);
+?{CF, ZF}, z = #ADC(z,z,cf);
+
+z = #ADC(z,z,CF);
+
 return z;
 }

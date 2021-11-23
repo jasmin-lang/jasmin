@@ -1,5 +1,5 @@
 -arg -w
--arg -parsing
+-arg -notation-overridden
 -arg -w
 -arg -extraction-reserved-identifier
 -arg -w
@@ -8,10 +8,9 @@
 -arg -ambiguous-paths
 -arg -w
 -arg -duplicate-clear
--arg -w
--arg -omega-is-deprecated
 
 -R 3rdparty Jasmin
+-R arch Jasmin
 -R compiler Jasmin
 -R lang Jasmin
 -R ssrmisc Jasmin
@@ -19,6 +18,9 @@
 ssrmisc/oseq.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
+arch/arch_decl.v
+arch/arch_sem.v
+arch/label.v
 compiler/allocation.v
 compiler/array_expansion.v
 compiler/array_expansion_proof.v
@@ -39,6 +41,7 @@ compiler/dead_code_proof.v
 compiler/inline.v
 compiler/inline_proof.v
 compiler/linear.v
+compiler/linearization.v
 compiler/linear_sem.v
 compiler/linear_proof.v
 compiler/lowering.v
@@ -47,6 +50,8 @@ compiler/makeReferenceArguments.v
 compiler/makeReferenceArguments_proof.v
 compiler/merge_varmaps.v
 compiler/merge_varmaps_proof.v
+compiler/propagate_inline.v
+compiler/propagate_inline_proof.v
 compiler/remove_globals.v
 compiler/remove_globals_proof.v
 compiler/stack_alloc.v
@@ -81,6 +86,7 @@ lang/sem_type.v
 lang/strings.v
 lang/type.v
 lang/utils.v
+lang/values.v
 lang/var.v
 lang/warray_.v
 lang/word.v

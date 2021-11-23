@@ -22,8 +22,7 @@
 
     "bool"  , T_BOOL ;
     "int"   , T_INT  ;
-
-    "align" , ALIGN  ;
+    
     "const" , CONSTANT; 
     "downto", DOWNTO ;
     "else"  , ELSE   ;
@@ -139,7 +138,6 @@ rule main = parse
 
   | (size as sw) (signletter as s)                { SWSIZE(mksizesign sw s)  }
   | (vsize as r) (signletter as s) (gensize as g) { SVSIZE(mkvsizesign r s g)}
-  | "#[" { SHARPLBRACKET }
   | "#"     { SHARP      }
   | "["     { LBRACKET   }
   | "]"     { RBRACKET   }

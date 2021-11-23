@@ -1,7 +1,7 @@
 open Utils
 open Expr
 open Prog
-open X86_decl
+open Arch_decl
 
 module IntSet = Sint
 module IntMap = Mint
@@ -22,7 +22,7 @@ let fill_in_missing_names (f: 'info func) : 'info func =
     let fresh, _ = make_counter () in
     fun loc ty ->
       let n = Printf.sprintf " _%d" (fresh ()) in
-      L.mk_loc loc (V.mk n (Reg Direct) ty L._dummy)
+      L.mk_loc loc (V.mk n (Reg Direct) ty L._dummy [])
   in
   let fill_lv =
     function
@@ -422,39 +422,39 @@ struct
 
   let reg_k = Prog.Reg Prog.Direct
 
-  let rax = V.mk "RAX" reg_k (Bty (U U64)) L._dummy
-  let rbx = V.mk "RBX" reg_k (Bty (U U64)) L._dummy
-  let rcx = V.mk "RCX" reg_k (Bty (U U64)) L._dummy
-  let rdx = V.mk "RDX" reg_k (Bty (U U64)) L._dummy
+  let rax = V.mk "RAX" reg_k (Bty (U U64)) L._dummy []
+  let rbx = V.mk "RBX" reg_k (Bty (U U64)) L._dummy []
+  let rcx = V.mk "RCX" reg_k (Bty (U U64)) L._dummy []
+  let rdx = V.mk "RDX" reg_k (Bty (U U64)) L._dummy []
   let rsp = Prog.rsp
-  let rbp = V.mk "RBP" reg_k (Bty (U U64)) L._dummy
-  let rsi = V.mk "RSI" reg_k (Bty (U U64)) L._dummy
-  let rdi = V.mk "RDI" reg_k (Bty (U U64)) L._dummy
-  let r8 = V.mk "R8" reg_k (Bty (U U64)) L._dummy
-  let r9 = V.mk "R9" reg_k (Bty (U U64)) L._dummy
-  let r10 = V.mk "R10" reg_k (Bty (U U64)) L._dummy
-  let r11 = V.mk "R11" reg_k (Bty (U U64)) L._dummy
-  let r12 = V.mk "R12" reg_k (Bty (U U64)) L._dummy
-  let r13 = V.mk "R13" reg_k (Bty (U U64)) L._dummy
-  let r14 = V.mk "R14" reg_k (Bty (U U64)) L._dummy
-  let r15 = V.mk "R15" reg_k (Bty (U U64)) L._dummy
+  let rbp = V.mk "RBP" reg_k (Bty (U U64)) L._dummy []
+  let rsi = V.mk "RSI" reg_k (Bty (U U64)) L._dummy []
+  let rdi = V.mk "RDI" reg_k (Bty (U U64)) L._dummy []
+  let r8 = V.mk "R8" reg_k (Bty (U U64)) L._dummy []
+  let r9 = V.mk "R9" reg_k (Bty (U U64)) L._dummy []
+  let r10 = V.mk "R10" reg_k (Bty (U U64)) L._dummy []
+  let r11 = V.mk "R11" reg_k (Bty (U U64)) L._dummy []
+  let r12 = V.mk "R12" reg_k (Bty (U U64)) L._dummy []
+  let r13 = V.mk "R13" reg_k (Bty (U U64)) L._dummy []
+  let r14 = V.mk "R14" reg_k (Bty (U U64)) L._dummy []
+  let r15 = V.mk "R15" reg_k (Bty (U U64)) L._dummy []
 
-  let xmm0 = V.mk "XMM0" reg_k (Bty (U U256)) L._dummy
-  let xmm1 = V.mk "XMM1" reg_k (Bty (U U256)) L._dummy
-  let xmm2 = V.mk "XMM2" reg_k (Bty (U U256)) L._dummy
-  let xmm3 = V.mk "XMM3" reg_k (Bty (U U256)) L._dummy
-  let xmm4 = V.mk "XMM4" reg_k (Bty (U U256)) L._dummy
-  let xmm5 = V.mk "XMM5" reg_k (Bty (U U256)) L._dummy
-  let xmm6 = V.mk "XMM6" reg_k (Bty (U U256)) L._dummy
-  let xmm7 = V.mk "XMM7" reg_k (Bty (U U256)) L._dummy
-  let xmm8 = V.mk "XMM8" reg_k (Bty (U U256)) L._dummy
-  let xmm9 = V.mk "XMM9" reg_k (Bty (U U256)) L._dummy
-  let xmm10 = V.mk "XMM10" reg_k (Bty (U U256)) L._dummy
-  let xmm11 = V.mk "XMM11" reg_k (Bty (U U256)) L._dummy
-  let xmm12 = V.mk "XMM12" reg_k (Bty (U U256)) L._dummy
-  let xmm13 = V.mk "XMM13" reg_k (Bty (U U256)) L._dummy
-  let xmm14 = V.mk "XMM14" reg_k (Bty (U U256)) L._dummy
-  let xmm15 = V.mk "XMM15" reg_k (Bty (U U256)) L._dummy
+  let xmm0 = V.mk "XMM0" reg_k (Bty (U U256)) L._dummy []
+  let xmm1 = V.mk "XMM1" reg_k (Bty (U U256)) L._dummy []
+  let xmm2 = V.mk "XMM2" reg_k (Bty (U U256)) L._dummy []
+  let xmm3 = V.mk "XMM3" reg_k (Bty (U U256)) L._dummy []
+  let xmm4 = V.mk "XMM4" reg_k (Bty (U U256)) L._dummy []
+  let xmm5 = V.mk "XMM5" reg_k (Bty (U U256)) L._dummy []
+  let xmm6 = V.mk "XMM6" reg_k (Bty (U U256)) L._dummy []
+  let xmm7 = V.mk "XMM7" reg_k (Bty (U U256)) L._dummy []
+  let xmm8 = V.mk "XMM8" reg_k (Bty (U U256)) L._dummy []
+  let xmm9 = V.mk "XMM9" reg_k (Bty (U U256)) L._dummy []
+  let xmm10 = V.mk "XMM10" reg_k (Bty (U U256)) L._dummy []
+  let xmm11 = V.mk "XMM11" reg_k (Bty (U U256)) L._dummy []
+  let xmm12 = V.mk "XMM12" reg_k (Bty (U U256)) L._dummy []
+  let xmm13 = V.mk "XMM13" reg_k (Bty (U U256)) L._dummy []
+  let xmm14 = V.mk "XMM14" reg_k (Bty (U U256)) L._dummy []
+  let xmm15 = V.mk "XMM15" reg_k (Bty (U U256)) L._dummy []
 
   let allocatable = [
       rax; rcx; rdx;
@@ -497,12 +497,12 @@ struct
      of jasmin program *)
   let callee_save = Sv.of_list [ rbp; rbx; r12; r13; r14; r15 ]
 
-  let f_c = V.mk "CF" reg_k (Bty Bool) L._dummy
-  let f_d = V.mk "DF" reg_k (Bty Bool) L._dummy
-  let f_o = V.mk "OF" reg_k (Bty Bool) L._dummy
-  let f_p = V.mk "PF" reg_k (Bty Bool) L._dummy
-  let f_s = V.mk "SF" reg_k (Bty Bool) L._dummy
-  let f_z = V.mk "ZF" reg_k (Bty Bool) L._dummy
+  let f_c = V.mk "CF" reg_k (Bty Bool) L._dummy []
+  let f_d = V.mk "DF" reg_k (Bty Bool) L._dummy []
+  let f_o = V.mk "OF" reg_k (Bty Bool) L._dummy []
+  let f_p = V.mk "PF" reg_k (Bty Bool) L._dummy []
+  let f_s = V.mk "SF" reg_k (Bty Bool) L._dummy []
+  let f_z = V.mk "ZF" reg_k (Bty Bool) L._dummy []
 
   let flags = [f_d ;f_o; f_c; f_s; f_p; f_z]
 
@@ -647,7 +647,7 @@ let greedy_allocation
         | Unknown ty -> hierror_reg ~loc:Lnone "no register bank for type %a" Printer.pp_ty ty
       in
       match List.filter has_no_conflict bank with
-      | [] -> hierror_reg ~loc:Lnone "no more register to allocate %a" Printer.(pp_list "; " (pp_var ~debug:true)) vi
+      | [] -> hierror_reg ~loc:Lnone "no more register to allocate “%a”" Printer.(pp_list "; " (pp_var ~debug:true)) vi
       | x :: regs ->
          let y = get_friend_registers x fr a i regs in
          A.set i y a
@@ -757,7 +757,10 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
              | Some OnStack -> false
              | (None | Some OnReg) -> true
         then
-          let r = V.mk " ra" (Reg Direct) (Bty (U U64)) L._dummy in
+          let r = V.mk " ra" (Reg Direct) (Bty (U U64)) L._dummy [] in
+          if !Glob_options.debug then
+            Format.eprintf "Fresh variable “%a” for the return address of function “%s”.@."
+              (Printer.pp_var ~debug:true) r f.f_name.fn_name;
           Hf.add return_addresses f.f_name r;
           Sv.add r written
         else written
@@ -767,7 +770,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
             let acc = Sv.union (killed fn) acc in
             if (get_annot fn).retaddr_kind = Some OnStack then
               List.fold_left (fun acc loc ->
-                  let r = V.mk (Format.sprintf " ra%d" (count())) (Reg Direct) (Bty (U U64)) (fst loc) in
+                  let r = V.mk (Format.sprintf " ra%d" (count())) (Reg Direct) (Bty (U U64)) (fst loc) [] in
                   Hashtbl.add extra_free_registers loc r;
                   Sv.add r acc
                 ) acc locs

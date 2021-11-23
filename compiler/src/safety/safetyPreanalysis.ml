@@ -48,7 +48,7 @@ end = struct
       if Hashtbl.mem htv (short_name v, fn) then
         Hashtbl.find htv (short_name v, fn)
       else if Hashtbl.mem ht_uniq v.v_name then
-        let nv = V.mk (long_name v) v.v_kind v.v_ty v.v_dloc in
+        let nv = V.mk (long_name v) v.v_kind v.v_ty v.v_dloc v.v_annot in
         let () = Hashtbl.add htv (short_name v, fn) nv in
         nv
       else
@@ -73,7 +73,9 @@ end = struct
 
   and mk_instr fn st = { i_desc = mk_instr_r fn st.i_desc;
                          i_loc = st.i_loc;
-                         i_info = { i_instr_number = uniq_i_nb ();}; }
+                         i_info = { i_instr_number = uniq_i_nb ();};
+                         i_annot = [];
+                       }
 
   and mk_instr_r fn st = match st with
     | Cassgn (lv, tag, ty, e) ->

@@ -74,6 +74,20 @@ let string_of_svsize (sv,sg,ve) =
     (int_of_vsize sv) (suffix_of_sign sg) (bits_of_vesize ve)
 
 (* -------------------------------------------------------------------- *)
+type simple_attribute = 
+  | Aint    of Bigint.zint 
+  | Aid     of symbol
+  | Astring of string
+  | Aws     of wsize 
+  | Astruct of annotations
+
+and attribute = simple_attribute L.located
+
+and annotation = pident * attribute option
+
+and annotations = annotation list
+  
+(* -------------------------------------------------------------------- *)
 type cast = [ `ToWord  of swsize | `ToInt ]
 
 type peop1 = [ 
@@ -161,6 +175,7 @@ type pexpr_r =
   | PEBool   of bool
   | PEInt    of Bigint.zint
   | PECall   of pident * pexpr list
+  | PECombF  of pident * pexpr list
   | PEPrim   of pident * pexpr list
   | PEOp1    of peop1 * pexpr
   | PEOp2    of peop2 * (pexpr * pexpr)
@@ -181,7 +196,7 @@ type pstorage = [ `Reg of ptr | `Stack of ptr | `Inline | `Global]
 
 (* -------------------------------------------------------------------- *)
 type pstotype = pstorage * ptype
-
+type annot_pstotype = annotations * pstotype
 (* -------------------------------------------------------------------- *)
 type plvalue_r =
   | PLIgnore
@@ -207,17 +222,22 @@ type peqop = [
 (* -------------------------------------------------------------------- *)
 type align = [`Align | `NoAlign]
 
+type plvals = annotations L.located option * plvalue list
+
+type vardecls = pstotype * pident list
+
 type pinstr_r =
   | PIArrayInit of pident
-  | PIAssign    of plvalue list * peqop * pexpr * pexpr option
+  | PIAssign    of plvals * peqop * pexpr * pexpr option
   | PIIf        of pexpr * pblock * pblock option
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock
-  | PIWhile     of align * pblock option * pexpr * pblock option
+  | PIWhile     of pblock option * pexpr * pblock option
+  | PIdecl      of vardecls 
 
 and pblock_r = pinstr list
 and fordir   = [ `Down | `Up ]
 
-and pinstr = pinstr_r L.located
+and pinstr = annotations * pinstr_r L.located
 and pblock = pblock_r L.located
 
 (* -------------------------------------------------------------------- *)
@@ -229,7 +249,6 @@ type pparam = {
 
 (* -------------------------------------------------------------------- *)
 type pfunbody = {
-  pdb_vars  : (pstotype * pident list) list;
   pdb_instr : pinstr list;
   pdb_ret   : pident list option;
 }
@@ -241,11 +260,11 @@ type pcall_conv = [
 ]
 
 type pfundef = {
-  pdf_annot : (string * string) list;
+  pdf_annot : annotations;
   pdf_cc   : pcall_conv option;
   pdf_name : pident;
-  pdf_args : (pstotype * pident) list;
-  pdf_rty  : pstotype list option;
+  pdf_args : (annotations * vardecls) list;
+  pdf_rty  : (annotations * pstotype) list option;
   pdf_body : pfunbody;
 }
 

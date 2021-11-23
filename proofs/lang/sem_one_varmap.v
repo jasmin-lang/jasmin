@@ -99,7 +99,7 @@ Definition extra_free_registers_at ii : Sv.t :=
   if extra_free_registers ii is Some r then Sv.singleton r else Sv.empty.
 
 Definition sv_of_flags : seq rflag → Sv.t :=
-  foldl (λ s r, Sv.add (var_of_flag r) s) Sv.empty.
+  sv_of_list var_of_flag.
 
 Definition set_RSP m vm : vmap :=
   vm.[vrsp <- ok (pword_of_word (top_stack m))].
@@ -274,6 +274,13 @@ Proof.
   case => { ii k s fn s' } ii k s s' fn f m1 s2' => ok_f ok_ra ok_ss ok_sp ok_RSP ok_alloc exec_body ok_RSP' /= ->.
   by exists f m1 s2' k.
 Qed.
+
+(*---------------------------------------------------*)
+Lemma sv_of_flagsE x l : Sv.mem x (sv_of_flags l) = (x \in map (fun r => var_of_flag r) l).
+Proof. exact: sv_of_listE. Qed.
+
+Lemma sv_of_flagsP x l : reflect (Sv.In x (sv_of_flags l)) (x \in map (fun r => var_of_flag r) l).
+Proof. exact: sv_of_listP. Qed.
 
 (*---------------------------------------------------*)
 (* Induction principle *)

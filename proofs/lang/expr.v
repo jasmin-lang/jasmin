@@ -28,7 +28,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
 From CoqWord Require Import ssrZ.
-Require Export strings word utils type ident var global sem_type x86_decl x86_instr_decl.
+Require Export strings word utils type ident var global sem_type arch_decl x86_decl x86_instr_decl.
 Require Import xseq.
 Import Utf8 ZArith.
 
@@ -67,6 +67,7 @@ Variant sop1 :=
 .
 
 Variant sop2 :=
+| Obeq                        (* const : sbool -> sbool -> sbool *)
 | Oand                        (* const : sbool -> sbool -> sbool *)
 | Oor                         (* const : sbool -> sbool -> sbool *)
 
@@ -79,9 +80,9 @@ Variant sop2 :=
 | Oland of wsize
 | Olor  of wsize
 | Olxor of wsize
-| Olsr  of wsize
-| Olsl  of wsize
-| Oasr  of wsize
+| Olsr  of wsize 
+| Olsl  of op_kind
+| Oasr  of op_kind
 
 | Oeq   of op_kind
 | Oneq  of op_kind
@@ -100,11 +101,31 @@ Variant sop2 :=
 .
 
 (* N-ary operators *)
-Variant opN :=
-| Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
+Variant combine_flags_core := 
+| CFC_O       (* overflow:                                OF = 1 *)
+| CFC_B       (* below, not above or equal:               CF = 1 *)
+| CFC_E       (* equal, zero:                             ZF = 1 *)
+| CFC_S       (* sign:                                    SF = 1 *)
+| CFC_L       (* less than, not greater than or equal to: !(OF = SF) *)
+| CFC_BE      (* below or equal, not above:               CF = 1 \/ ZF = 1 *)
+| CFC_LE      (* less than or equal to, not greater than: (!(SF = OF) \/ ZF = 1 *)
 .
 
-Variant sopn : Set :=
+Variant combine_flags :=
+| CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *) 
+| CF_LE    of signedness   (* Alias : signed => LE ; unsigned => BE  *)
+| CF_EQ                    (* Alias : E                              *)
+| CF_NEQ                   (* Alias : !E                             *)
+| CF_GE    of signedness   (* Alias : signed => !L ; unsigned => !B  *)
+| CF_GT    of signedness   (* Alias : signed => !LE; unsigned => !BE *)
+.
+
+Variant opN :=
+| Opack of wsize & pelem (* Pack words of size pelem into one word of wsize *)
+| Ocombine_flags of combine_flags
+.
+
+Variant sopn :=
 (* Generic operation *)
 | Onop
 | Omulu     of wsize   (* cpu   : [sword; sword]        -> [sword;sword] *)
@@ -115,7 +136,7 @@ Variant sopn : Set :=
 | Oset0     of wsize  (* set register + flags to 0 (implemented using XOR x x or VPXOR x x) *)
 | Oconcat128          (* concatenate 2 128 bits word into 1 256 word register *)   
 | Ox86MOVZX32
-| Ox86'      of asm_op  (* x86 instruction *)
+| Ox86'      of asm_op_t  (* x86 instruction *)
 .
 
 Definition Ox86 o := Ox86'(None, o).
@@ -146,6 +167,30 @@ Qed.
 Definition sop2_eqMixin     := Equality.Mixin sop2_eq_axiom.
 Canonical  sop2_eqType      := Eval hnf in EqType sop2 sop2_eqMixin.
 
+Scheme Equality for combine_flags_core.
+
+Lemma combine_flags_core_eq_axiom : Equality.axiom combine_flags_core_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_combine_flags_core_dec_bl.
+  by apply: internal_combine_flags_core_dec_lb.
+Qed.
+
+Definition combine_flags_core_eqMixin     := Equality.Mixin combine_flags_core_eq_axiom.
+Canonical  combine_flags_core_eqType      := Eval hnf in EqType combine_flags_core combine_flags_core_eqMixin.
+
+Scheme Equality for combine_flags.
+
+Lemma combine_flags_eq_axiom : Equality.axiom combine_flags_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_combine_flags_dec_bl.
+  by apply: internal_combine_flags_dec_lb.
+Qed.
+
+Definition combine_flags_eqMixin     := Equality.Mixin combine_flags_eq_axiom.
+Canonical  combine_flags_eqType      := Eval hnf in EqType combine_flags combine_flags_eqMixin.
+
 Scheme Equality for opN.
 
 Lemma opN_eq_axiom : Equality.axiom opN_beq.
@@ -157,18 +202,6 @@ Qed.
 
 Definition opN_eqMixin     := Equality.Mixin opN_eq_axiom.
 Canonical  opN_eqType      := Eval hnf in EqType opN opN_eqMixin.
-
-Scheme Equality for asm_op'.
-(* Definition asm_op'_beq : asm_op' -> asm_op' -> bool *)
-Lemma asm_op'_eq_axiom : Equality.axiom asm_op'_beq.
-Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_asm_op'_dec_bl.
-  by apply: internal_asm_op'_dec_lb.
-Qed.
-
-Definition asm_op'_eqMixin     := Equality.Mixin asm_op'_eq_axiom.
-Canonical  asm_op'_eqType      := Eval hnf in EqType asm_op' asm_op'_eqMixin.
 
 Definition sopn_beq (o1 o2:sopn) :=
   match o1, o2 with
@@ -326,11 +359,12 @@ Definition type_of_op1 (o: sop1) : stype * stype :=
 (* Type of binany operators: inputs, output *)
 Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   match o with
-  | Oand | Oor => (sbool, sbool, sbool)
+  | Obeq | Oand | Oor => (sbool, sbool, sbool)
   | Oadd Op_int
   | Omul Op_int
   | Osub Op_int
   | Odiv Cmp_int | Omod Cmp_int
+  | Olsl Op_int | Oasr Op_int
     => (sint, sint, sint)
   | Oadd (Op_w s)
   | Omul (Op_w s)
@@ -338,7 +372,7 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   | Odiv (Cmp_w _ s) | Omod (Cmp_w _ s)
   | Oland s | Olor s | Olxor s | Ovadd _ s | Ovsub _ s | Ovmul _ s
     => let t := sword s in (t, t, t)
-  | Olsr s | Olsl s | Oasr s
+  | Olsr s | Olsl (Op_w s) | Oasr (Op_w s)
   | Ovlsr _ s | Ovlsl _ s | Ovasr _ s
     => let t := sword s in (t, sword8, t)
   | Oeq Op_int | Oneq Op_int
@@ -352,11 +386,29 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
   end.
 
 (* Type of n-ary operators: inputs, output *)
+
+Definition cf_tbl (c:combine_flags) := 
+  match c with
+  | CF_LT Signed   => (false, CFC_L)
+  | CF_LT Unsigned => (false, CFC_B)
+  | CF_LE Signed   => (false, CFC_LE)
+  | CF_LE Unsigned => (false, CFC_BE)
+  | CF_EQ          => (false, CFC_E)
+  | CF_NEQ         => (true , CFC_E)
+  | CF_GE Signed   => (true , CFC_L)
+  | CF_GE Unsigned => (true , CFC_B)
+  | CF_GT Signed   => (true , CFC_LE)
+  | CF_GT Unsigned => (true , CFC_BE)
+  end.
+  
+Definition tin_combine_flags := [:: sbool; sbool; sbool; sbool].
+
 Definition type_of_opN (op: opN) : seq stype * stype :=
   match op with
   | Opack ws p =>
     let n := nat_of_wsize ws %/ nat_of_pelem p in
     (nseq n sint, sword ws)
+  | Ocombine_flags c => (tin_combine_flags, sbool) 
   end.
 
 (* ** Expressions
@@ -1647,6 +1699,42 @@ elim: e => //= [ ? | ???? -> | ????? -> |??? -> | ?? -> | ?? -> ? -> | ? es ih |
 elim: es ih => // e es ih h /=; rewrite h.
 + by apply: ih => e' he'; apply: h; rewrite in_cons he' orbT.
 by rewrite in_cons eqxx.
+Qed.
+
+Lemma eq_gvar_trans x2 x1 x3 : eq_gvar x1 x2 → eq_gvar x2 x3 → eq_gvar x1 x3.
+Proof. by rewrite /eq_gvar => /andP[] /eqP -> /eqP -> /andP[] /eqP -> /eqP ->; rewrite !eqxx. Qed.
+
+Lemma eq_expr_trans e2 e1 e3 : 
+  eq_expr e1 e2 -> eq_expr e2 e3 -> eq_expr e1 e3.
+Proof.
+  elim: e1 e2 e3.
+  1-3: by move=> ? [] // ? [] //= ? /eqP -> /eqP ->.
+  + by move=> x1 [] // x2 [] //= x3; apply eq_gvar_trans.
+  + move=> ???? hrec [] //= ???? [] //= ????.
+    move=> /andP[]/andP[]/andP[]/eqP -> /eqP -> hx1 /hrec h1.
+    move=> /andP[]/andP[]/andP[]/eqP -> /eqP -> hx2 /h1 ->.
+    by rewrite !eqxx (eq_gvar_trans hx1 hx2).
+  + move=> ????? hrec [] //= ????? [] //= ?????.
+    move=> /andP[]/andP[]/andP[]/andP[]/eqP -> /eqP -> /eqP -> hx1 /hrec h1.
+    move=> /andP[]/andP[]/andP[]/andP[]/eqP -> /eqP -> /eqP -> hx2 /h1 ->.
+    by rewrite !eqxx (eq_gvar_trans hx1 hx2).
+  + move=> ??? hrec [] //= ??? [] //= ???.
+    move=> /andP[]/andP[]/eqP-> /eqP-> /hrec h1.
+    by move=> /andP[]/andP[]/eqP-> /eqP-> /h1 ->; rewrite !eqxx.
+  + move=> ?? hrec [] //= ?? [] //= ??.
+    move=> /andP[] /eqP-> /hrec h1.
+    by move=> /andP[] /eqP-> /h1 ->; rewrite eqxx.
+  + move=> ?? hrec1 ? hrec2 [] //= ??? [] //= ???.
+    move=> /andP[]/andP[]/eqP-> /hrec1 h1 /hrec2 h2.
+    by move=> /andP[]/andP[]/eqP-> /h1 -> /h2 ->; rewrite !eqxx.
+  + move=> o es1 hrec [] //= ? es2 [] ? es3 //=.
+    move=> /andP[]/eqP-> h1 /andP[]/eqP-> h2;rewrite eqxx /=.
+    elim: es1 hrec es2 es3 h1 h2 => [ | e1 es1 hrecs] hrec [] // e2 es2 [] //= e3 es3.
+    move=> /andP[]/hrec h1 /hrecs hs /andP[] /h1 ->; last by rewrite inE eqxx.
+    by move=> /hs -> // e hin; apply hrec; rewrite inE hin orbT.
+  move=> ?? hrec ? hrec1 ? hrec2 []//= ???? []//= ????.
+  move=> /andP[]/andP[]/andP[] /eqP-> /hrec h /hrec1 h1 /hrec2 h2.
+  by move=> /andP[]/andP[]/andP[] /eqP-> /h -> /h1 -> /h2 ->; rewrite eqxx.
 Qed.
 
 Definition eq_lval (x x': lval) : bool :=

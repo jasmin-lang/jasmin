@@ -1,0 +1,21 @@
+fn f1 (reg u64 x) -> reg u64 {
+   x += 1;
+   return x;
+}
+
+inline fn f2 (reg u64 x) -> reg u64 {
+   x += 2;
+   return x;
+}
+
+export fn foo (reg u64 x) -> reg u64 {
+  reg u64 r;
+
+                  x = f1(x);
+                  x = f2(x);
+  #inline         x = f1(x);
+  r = x;
+  return r;
+}
+
+

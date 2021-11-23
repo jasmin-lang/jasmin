@@ -1,0 +1,44 @@
+fn add(reg u64 x, reg u64 ya) -> reg u64 {
+
+ reg u64 t;
+
+ t = x + ya;
+
+ return t;
+}
+
+fn add_L(reg u64 x, #public reg u64 ya) -> reg u64 {
+
+ reg u64 t;
+
+ t = x + ya;
+
+ return t;
+}
+
+fn add_H(reg u64 x, #secret reg u64 ya) -> reg u64 {
+
+ reg u64 t;
+
+ t = x + ya;
+
+ return t;
+}
+
+fn add_P(#poly=l1 reg u64 x, #poly=l2 reg u64 ya) -> #poly={l1,l2} reg u64 {
+
+ reg u64 t;
+
+ t = x + ya;
+
+ return t;
+}
+
+fn add_S(#poly=l1 reg u64 x, #poly=l1 reg u64 ya) -> #poly=l1 reg u64 {
+
+ reg u64 t;
+
+ t = x + ya;
+
+ return t;
+}

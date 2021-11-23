@@ -12,7 +12,7 @@ Lemma xreg_of_varI ii x y :
   xreg_of_var ii x = ok y →
   match y with
   | Reg r => register_of_var x = Some r
-  | XMM r => xmm_register_of_var x = Some r
+  | XReg r => xmm_register_of_var x = Some r
   | _ => False
   end.
 Proof.
@@ -36,7 +36,7 @@ by f_equal; apply: (inj_rflag_of_string Ex Ey).
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Definition of_rbool (v : RflagMap.rflagv) :=
+Definition of_rbool (v : rflagv) :=
   if v is Def b then Vbool b else undef_b.
 
 (* -------------------------------------------------------------------- *)
@@ -51,12 +51,12 @@ Variant disj_rip rip :=
 
 Variant lom_eqv rip (m : estate) (lom : x86_mem) :=
   | MEqv of
-         emem m = xmem lom
-    & get_var (evm m) rip = ok (Vword lom.(xrip)) 
+         emem m = asm_mem lom
+    & get_var (evm m) rip = ok (Vword lom.(asm_rip)) 
     & disj_rip rip 
-    & (∀ r v, get_var (evm m) (var_of_register r) = ok v → value_uincl v (Vword (xreg lom r)))
-    & (∀ r v, get_var (evm m) (var_of_xmm_register r) = ok v → value_uincl v (Vword (xxreg lom r)))
-    & eqflags m (xrf lom).
+    & (∀ r v, get_var (evm m) (var_of_register r) = ok v → value_uincl v (Vword (asm_reg lom r)))
+    & (∀ r v, get_var (evm m) (var_of_xmm_register r) = ok v → value_uincl v (Vword (asm_xreg lom r)))
+    & eqflags m (asm_flag lom).
 
 (* -------------------------------------------------------------------- *)
 Definition value_of_bool (b: exec bool) : exec value :=
@@ -71,7 +71,7 @@ Lemma xgetreg_ex rip x r v s xs :
   lom_eqv rip s xs →
   register_of_var x = Some r →
   get_var s.(evm) x = ok v →
-  value_uincl v (Vword (xs.(xreg) r)).
+  value_uincl v (Vword (xs.(asm_reg) r)).
 Proof. case => _ _ _ eqv _ _ /var_of_register_of_var <-{x}; exact: eqv. Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -79,7 +79,7 @@ Lemma xxgetreg_ex rip x r v s xs :
   lom_eqv rip s xs →
   xmm_register_of_var x = Some r →
   get_var (evm s) x = ok v →
-  value_uincl v (Vword (xxreg xs r)).
+  value_uincl v (Vword (asm_xreg xs r)).
 Proof. by case => _ _ _ _ eqr _ /xmm_register_of_varI ?; subst x; auto. Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -137,98 +137,121 @@ Proof.
   by rewrite /get_gvar; case:ifP => //; case: ifP => // ?? -> -> [->].
 Qed.
 
+Lemma not_condtP (c:condt) rf b : 
+  eval_cond rf c = ok b -> eval_cond rf (not_condt c) = ok (negb b).
+Proof.
+  case: c => /=.
+  1,3,5,9,11: by case: (rf _) => //= ? [->].
+  1,2,3,6,7: by case: (rf _) => //= ? [<-]; rewrite negbK.
+  + by case: (rf CF) => //= ?; case: (rf _) => //= ? [<-]; rewrite negb_or.
+  + by case: (rf CF) => //= ?; case: (rf _) => //= ? [<-]; rewrite -negb_or negbK.
+  + by case: (rf SF) => //= ?; case: (rf _) => //= ? [<-]; rewrite negbK.
+  + by case: (rf SF) => //= ?; case: (rf _) => //= ? [<-].
+  + by case: (rf ZF) => //= ?; case: (rf SF) => //= ?; case: (rf _) => //= ? [<-]; rewrite negb_or negbK.
+  by case: (rf ZF) => //= ?; case: (rf SF) => //= ?; case: (rf _) => //= ? [<-]; rewrite negb_and negbK.
+Qed.
+
+Lemma or_condtP ii e c1 c2 c rf b1 b2: 
+  or_condt ii e c1 c2 = ok c ->  
+  eval_cond rf c1 = ok b1 ->
+  eval_cond rf c2 = ok b2 ->
+  eval_cond rf c  = ok (b1 || b2).
+Proof.
+  case: c1 => //; case: c2 => //= -[<-] /=.
+  + by case: (rf _) => // ? [->]; case: (rf _) => // ? [->].
+  + by case: (rf _) => // ? [->]; case: (rf _) => // ? [->] /=; rewrite orbC.
+  + by case: (rf ZF) => // ? [->]; case: (rf SF) => //= ?; case: (rf _) => //= ? [<-].
+  by case: (rf SF) => //= ?; case: (rf _) => //= ? [<-]; case: (rf _) => //= ? [->]; rewrite orbC.
+Qed.
+
+Lemma and_condtP ii e c1 c2 c rf b1 b2: 
+  and_condt ii e c1 c2 = ok c ->  
+  eval_cond rf c1 = ok b1 ->
+  eval_cond rf c2 = ok b2 ->
+  eval_cond rf c  = ok (b1 && b2).
+Proof.
+  case: c1 => //; case: c2 => //= -[<-] /=.
+  + by case: (rf _) => // ? [<-]; case: (rf _) => // ? [<-].
+  + by case: (rf _) => // ? [<-]; case: (rf _) => // ? [<-] /=; rewrite andbC.
+  + by case: (rf ZF) => // ? [<-]; case: (rf SF) => //= ?; case: (rf _) => //= ? [<-].
+  by case: (rf SF) => //= ?; case: (rf _) => //= ? [<-]; case: (rf _) => //= ? [->]; rewrite andbC.
+Qed.
+
+Lemma value_of_bool_uincl vb ve (b:bool) : 
+  to_bool vb = ok b ->
+  (∃ v' : value, value_of_bool ve = ok v' ∧ value_uincl vb v') ->
+  ve = ok b.
+Proof.
+  move=> h [v' [] hvb /(value_uincl_bool) -/(_ _ h) [??]]; subst vb v'.
+  by case: ve hvb => /= [ ? [->] | []].
+Qed.
+
+Lemma eval_assemble_cond_r ii m rf e c v:
+  eqflags m rf →
+  assemble_cond_r ii e = ok c →
+  sem_pexpr [::] m e = ok v →
+  let get x :=
+    if rf x is Def b then ok b else undef_error in
+  ∃ v', value_of_bool (eval_cond get c) = ok v' ∧ value_uincl v v'.
+Proof.
+move=> eqv; elim: e c v => //.
++ move => x c v /=; t_xrbindP => r ok_r ok_ct ok_v.
+  have := gxgetflag_ex eqv ok_r ok_v.
+  by case: {ok_r ok_v} r ok_ct => // -[<-] {c} /= h; eexists; split; eauto; case: (rf _).
++ case => //= e hrec; t_xrbindP => c v ce hce <- ve hve.
+  rewrite /sem_sop1 /=; t_xrbindP => b hb <-.
+  have /(value_of_bool_uincl hb) -/not_condtP -> := hrec _ _ hce hve.
+  by exists (~~b).
++ case => //=.
+  + move=> e1 _ e2 _ c v.
+    case: e1 => //= x1; case: e2 => //= x2; t_xrbindP => f1 ok_f1 f2 ok_f2.
+    case: ifP => // /orP hor [<-] v1 /(gxgetflag eqv ok_f1) hv1 v2 /(gxgetflag eqv ok_f2) hv2.
+    move=> /sem_sop2I /= [b1 [b2 [b3 [hb1 hb2 [<-] ->]]]].
+    move: (hv1 _ hb1) (hv2 _ hb2) => hfb1 hfb2.
+    exists (b1 == b2); split => //.
+    by case: hor => /andP [] /eqP ? /eqP ?; subst f1 f2; rewrite hfb1 hfb2 //= eq_sym.
+  + move=> e1 hrec1 e2 hrec2 c v; t_xrbindP => c1 hc1 c2 hc2 hand v1 hv1 v2 hv2.
+    move=> /sem_sop2I /= [b1 [b2 [b3 [hb1 hb2 [<-] ->]]]].
+    have /(value_of_bool_uincl hb1) hec1 := hrec1 _ _ hc1 hv1.
+    have /(value_of_bool_uincl hb2) hec2 := hrec2 _ _ hc2 hv2.
+    have -> := and_condtP hand hec1 hec2.
+    by exists (b1 && b2).
+  move=> e1 hrec1 e2 hrec2 c v; t_xrbindP => c1 hc1 c2 hc2 hor v1 hv1 v2 hv2.
+  move=> /sem_sop2I /= [b1 [b2 [b3 [hb1 hb2 [<-] ->]]]].
+  have /(value_of_bool_uincl hb1) hec1 := hrec1 _ _ hc1 hv1.
+  have /(value_of_bool_uincl hb2) hec2 := hrec2 _ _ hc2 hv2.
+  have -> := or_condtP hor hec1 hec2.
+  by exists (b1 || b2).
+move=> t e _ e1 _ e2 _ c v /=.
+case: e => //= v1; case: e1 => //= [v2 | [] //= e2'].
++ case: e2 => //= -[] // [] //= vn2; t_xrbindP => f1 hf1 f2 hf2 fn2 hfn2.
+  case: ifP => // /orP hor [<-] b1 vv1 /(gxgetflag eqv hf1) hvb1/hvb1{hvb1}hvb1.
+  move=> vv2 vv2' /(gxgetflag eqv hf2) hvb2 ht2.
+  move=> ?? vvn2 /(gxgetflag eqv hfn2) hvnb2 /sem_sop1I /= [nb2 /hvnb2{hvnb2}hvnb2 ->].
+  move=> /truncate_val_bool [??] ?; subst.
+  move: ht2; rewrite /truncate_val /=; t_xrbindP => b2 /hvb2{hvb2}hvb2 ?; subst.
+  exists (if b1 then Vbool b2 else ~~ nb2); split => //.
+  by case: hor => /and3P [/eqP ? /eqP ? /eqP ?]; subst; move: hvnb2; rewrite hvb1 hvb2 => -[<-] /=;
+    case: (b1); case: (b2).
+case: e2' => //= v2; case: e2 => // vn2; t_xrbindP => f1 hf1 f2 hf2 fn2 hfn2.
+case: ifP => // /orP hor [<-] b1 vv1 /(gxgetflag eqv hf1) hvb1/hvb1{hvb1}hvb1.
+move=> ? vv2 vv2' /(gxgetflag eqv hf2) hvb2 /sem_sop1I /= [b2 /hvb2{hvb2}hvb2 ->].
+move=> /truncate_val_bool [??] ?; subst.
+move=> vvn2 /(gxgetflag eqv hfn2) hvnb2.
+rewrite /truncate_val /=; t_xrbindP => nb2 /hvnb2{hvnb2}hvnb2 ??; subst.
+exists (if b1 then Vbool (~~b2) else nb2); split => //.
+by case: hor => /and3P [/eqP ? /eqP ? /eqP ?]; subst; move: hvnb2; rewrite hvb1 hvb2 => -[<-] /=;
+    case: (b1); case: (b2).
+Qed.
+   
 Lemma eval_assemble_cond ii m rf e c v:
   eqflags m rf →
   assemble_cond ii e = ok c →
   sem_pexpr [::] m e = ok v →
-  ∃ v', value_of_bool (eval_cond c rf) = ok v' ∧ value_uincl v v'.
-Proof.
-move=> eqv; case: e => //.
-+ move => x /=; t_xrbindP => r ok_r ok_ct ok_v.
-  have := gxgetflag_ex eqv ok_r ok_v.
-  by case: {ok_r ok_v} r ok_ct => // -[<-] {c} /= h; eexists; split; eauto; case: (rf _).
-+ do 2! case=> //; move=> x /=; t_xrbindP => r.
-  move => ok_r ok_ct vx ok_vx /sem_sop1I [/= vb ok_vb -> {v}].
-  have := gxgetflag eqv ok_r ok_vx ok_vb.
-  by case: {ok_r ok_vx ok_vb} r ok_ct => // -[<-] {c} /= -> /=; eexists.
-+ case=> //; first do 3! case=> //;move=> x.
-  * case=> //; first do 2! case=> //.
-    - move=> y /=; t_xrbindP => r1 ok_r1 r2 ok_r2 _ /assertP /andP [/eqP ? /eqP ? ?]; subst r1 r2 c.
-      move=> resx vx ok_vx ok_resx resy vy ok_vy ok_resy ok_v.
-      have /sem_sop1I [/=rxb ok_rxb resxE] := ok_resx.
-      have /sem_sop1I [/=ryb ok_ryb resyE] := ok_resy.
-      have := gxgetflag eqv ok_r1 ok_vx ok_rxb => CFE.
-      have := gxgetflag eqv ok_r2 ok_vy ok_ryb => ZFE.
-      rewrite /eval_cond; rewrite CFE ZFE /=; subst resx resy.
-      by move: ok_v; rewrite /sem_sop2 /= => -[<-]; eauto.
-    - move=> st [] // y; case=> // z; do 2! case=> //; case=> // t.
-      move=> /=; t_xrbindP => rx ok_rx ry ok_ry rz ok_rz rt ok_rt _ /assertP /and4P [].
-      do 4 move=> /eqP ?; move=> ?; subst rx ry rz rt c.
-      have heq := inj_rflag_of_var ok_rz ok_rt.
-      move=> vNx vx ok_vx ok_vNx res vby vy ok_vy ok_vby.
-      move=> vtz vz ok_vz trz vtt vNt vt.
-      move=> /(eq_get_gvar heq ok_vz) ?;subst vz.
-      move=> ok_vNt trNt <-.
-      have [/=vbx ok_vbx ?] := sem_sop1I ok_vNx; subst vNx.
-      have [/=vbt ok_vbt ?] := sem_sop1I ok_vNt; subst vNt.
-      have := gxgetflag eqv ok_rx ok_vx ok_vbx => ZFE.
-      have := gxgetflag eqv ok_ry ok_vy ok_vby => SFE.
-      have := gxgetflag eqv ok_rz ok_vz ok_vbt => OFE.
-      rewrite /= ZFE SFE OFE /= /sem_sop2 /=.
-      have [??]:= truncate_val_bool trNt; subst.
-      move: trz;rewrite /truncate_val /= ok_vbt => -[?];subst.
-      by rewrite eq_sym; t_xrbindP=> vres; case: (boolP vby) => hvby //= -[<-] <-;
-       rewrite ?eqb_id ?eqbF_neg;eexists.
-  * case: x => // x; case => // [y /=|].
-    - t_xrbindP=> rx ok_rx ry ok_ry  _ /assertP /andP [] /eqP ? /eqP ? ?; subst rx ry c.
-      move=> vx ok_vx vy ok_vy.
-      rewrite /sem_sop2 /=; t_xrbindP => /= xb ok_bx yb ok_by <-.
-      have -> /= := gxgetflag eqv ok_rx ok_vx ok_bx.
-      have ->/= := gxgetflag eqv ok_ry ok_vy ok_by.
-      eexists; split; reflexivity.
-    - move=> st []// y []// []// []// z []//= t.
-      t_xrbindP=> rx ok_rx ry ok_ry rz ok_rz rt ok_rt _ /assertP /and4P [].
-      do 4 move=> /eqP ?; move=> ?; subst rx ry rz rt c.
-      have heq := inj_rflag_of_var ok_rz ok_rt.
-      move=> vx ok_vx ww vby vy ok_vy ok_vby trNz vNz vz ok_vz ok_vNz ok_trNz trz vt.
-      move=> /(eq_get_gvar heq ok_vz) ? ok_trz ?;subst vz ww.
-      rewrite /sem_sop2 /=; t_xrbindP => /= vbx ok_vbx vbres ok_vbres <- {v}.
-      have [/=vbz ok_vbz ?] := sem_sop1I ok_vNz; subst vNz.
-      have := gxgetflag eqv ok_rx ok_vx ok_vbx => ZFE.
-      have := gxgetflag eqv ok_ry ok_vy ok_vby => SFE.
-      have := gxgetflag eqv ok_rz ok_vz ok_vbz => OFE.
-      rewrite /= ZFE SFE OFE /=.
-      have [??]:= truncate_val_bool ok_trNz; subst.
-      move: ok_trz;rewrite /truncate_val /= ok_vbz => -[?];subst.
-      by rewrite eq_sym; case: (boolP vby) ok_vbres => hvby /= [<-];
-       rewrite ?eqb_id ?eqbF_neg ?negbK; eexists.
-+ move=> st []// x [] // => [|[] // [] //] y.
-  * case=> // -[] // -[] // z /=; t_xrbindP => rx ok_rx ry ok_ry rz ok_rz _ /assertP /and3P [].
-    do 3! move/eqP=> ?; move=> ?; subst rx ry rz c.
-    have heq := inj_rflag_of_var ok_ry ok_rz.
-    move=> vbx vx ok_vx ok_vbx ytr vy ok_vy ok_ytr.
-    move=> ytr' vNy vy' /(eq_get_gvar heq ok_vy) ? ok_vNy ok_yNtr <- /=; subst vy'.
-    have /sem_sop1I[/=vbz ok_vbz ?] := ok_vNy; subst vNy.
-    have := gxgetflag eqv ok_rx ok_vx ok_vbx => SFE.
-    have := gxgetflag eqv ok_ry ok_vy ok_vbz => OFE.
-    rewrite /= SFE OFE /=.
-    have [??]:= truncate_val_bool ok_yNtr; subst.
-    move: ok_ytr;rewrite /truncate_val /= ok_vbz => -[?];subst.
-    eexists; split; first by eauto.
-    by rewrite eq_sym;case vbx => /=; rewrite ?eqb_id ?eqbF_neg.
-  * case=> // z /=; t_xrbindP => vx ok_x vy ok_y vz ok_z _ /assertP /and3P [].
-    do 3! move/eqP=> ?; subst vx vy vz => <-.
-    have heq := inj_rflag_of_var ok_y ok_z.
-    move=> vbx vx ok_vx ok_vbx ytr vNy vy ok_vy ok_vNy ok_ytr.
-    move=> yNtr vy' /(eq_get_gvar heq ok_vy) ? ok_yNtr ?;subst vy' v.
-    have /sem_sop1I[/=vby ok_vby ?] := ok_vNy; subst vNy.
-    have := gxgetflag eqv ok_x ok_vx ok_vbx => SFE.
-    have := gxgetflag eqv ok_y ok_vy ok_vby => OFE.
-    rewrite /= SFE {SFE} /= OFE {OFE} /=; eexists; split; first by eauto.
-    have [??]:= truncate_val_bool ok_ytr; subst.
-    move: ok_yNtr;rewrite /truncate_val /= ok_vby => -[?];subst.
-    by rewrite eq_sym;case vbx => /=; rewrite ?eqb_id ?eqbF_neg ?negbK.
-Qed.
+  let get x :=
+    if rf x is Def b then ok b else undef_error in
+  ∃ v', value_of_bool (eval_cond get c) = ok v' ∧ value_uincl v v'.
+Proof. apply eval_assemble_cond_r. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xscale_ok ii z sc :
@@ -236,6 +259,6 @@ Lemma xscale_ok ii z sc :
   z = word_of_scale sc.
 Proof.
   rewrite /scale_of_z' -[X in _ -> X = _]wrepr_unsigned.
-  by case: sc (wunsigned z); do! case=> //.
+  case: (wunsigned z) => //.
+  do! (case=> //; try by move=> <-).
 Qed.
-

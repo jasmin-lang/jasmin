@@ -1,0 +1,19 @@
+fn foo (#public reg u64 x y) -> #secret reg u64, #secret reg u64 {
+   reg u64 r1, r2;
+   r1 = x;
+   r2 = y;
+   return r1, r2;
+}
+
+fn foo2 (#poly={l1,l2} reg u64 x y) -> #poly=l1 reg u64, #poly=l2 reg u64 {
+   #public reg u64 r1, r2;
+   r1 = x;
+   r2 = y;
+   return r1, r2;
+}
+
+export fn foo1 (#public reg u64 x, #public reg u64 y) -> #secret reg u64 {
+   reg u64 r1;
+   r1 = x;
+   return r1;
+}

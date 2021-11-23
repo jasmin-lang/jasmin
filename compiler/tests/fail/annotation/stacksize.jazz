@@ -1,7 +1,7 @@
 param int n = 4;
 
 /* Stack size is 32 bytes. */
-#[stacksize="17"]
+#stacksize=17
 export
 fn main(reg u64 x) -> reg u64 {
 reg u64 result;

@@ -28,7 +28,7 @@ Require Import x86_gen expr.
 Import ZArith.
 Require merge_varmaps.
 Require Import compiler_util allocation array_init inline dead_calls unrolling remove_globals
-   constant_prop dead_code array_expansion lowering makeReferenceArguments stack_alloc linear tunneling x86_sem.
+   constant_prop propagate_inline dead_code array_expansion lowering makeReferenceArguments stack_alloc linearization tunneling x86_sem.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -74,6 +74,7 @@ Variant compiler_step :=
   | RemoveArrInit               : compiler_step
   | RemoveGlobal                : compiler_step
   | LowerInstruction            : compiler_step
+  | PropagateInline             : compiler_step
   | MakeRefArguments            : compiler_step
   | StackAllocation             : compiler_step
   | RemoveReturn                : compiler_step
@@ -100,6 +101,7 @@ Definition compiler_step_list := [::
   ; RemoveArrInit
   ; RemoveGlobal
   ; LowerInstruction
+  ; PropagateInline 
   ; MakeRefArguments
   ; StackAllocation
   ; RemoveReturn
@@ -146,7 +148,7 @@ Record compiler_params := {
   extra_free_registers : instr_info → option var;
   print_uprog      : compiler_step -> _uprog -> _uprog;
   print_sprog      : compiler_step -> _sprog -> _sprog;
-  print_linear     : lprog -> lprog;
+  print_linear     : compiler_step -> lprog -> lprog;
   warning          : instr_info -> warning_msg -> instr_info;
   lowering_opt     : lowering_options;
   is_glob          : var -> bool;
@@ -170,12 +172,10 @@ Definition allNone {A: Type} (m: seq (option A)) : bool :=
   all (fun a => if a is None then true else false) m.
 
 Definition check_no_ptr entries (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
-  foldM
-    (fun fn _ =>
+  allM (λ fn,
        let: sao := ao fn in
        assert (allNone sao.(sao_params)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” arguments")) >>
        assert (allNone sao.(sao_return)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” return values")))
-    tt
     entries.
 
 Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
@@ -219,7 +219,10 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let pl := lower_prog cparams.(lowering_opt) cparams.(warning) cparams.(lowering_vars) cparams.(is_var_in_memory) pa in
   let pl := cparams.(print_uprog) LowerInstruction pl in
 
-  ok pl.
+  Let pp := propagate_inline.pi_prog pl in
+  let pp := cparams.(print_uprog) PropagateInline pp in 
+  
+  ok pp.
 
 Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog :=
 
@@ -264,10 +267,10 @@ Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
   (* linearisation                     *)
   Let _ := merge_varmaps.check pd cparams.(extra_free_registers) in
   Let pl := linear_prog pd cparams.(extra_free_registers) in
-  let pl := cparams.(print_linear) pl in
+  let pl := cparams.(print_linear) Linearisation pl in
   (* tunneling                         *)
   Let pl := tunnel_program pl in
-  let pl := cparams.(print_linear) pl in
+  let pl := cparams.(print_linear) Tunneling pl in
   (* asm                               *)
   ok pl.
 
@@ -278,7 +281,7 @@ Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
     else true
   else true.
 
-Definition compile_prog_to_x86 entries subroutines (p: prog): cexec xprog :=
+Definition compile_prog_to_x86 entries subroutines (p: prog): cexec x86_prog :=
   Let lp := compile_prog entries subroutines p in
 (*  Let _ := assert (all (check_signature p lp) entries) Ferr_lowering in *)
   assemble_prog lp.

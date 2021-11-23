@@ -1,7 +1,7 @@
 param int N = 7;
 
 /* Does not use the stack. */
-#[stacksize="0",stackallocsize="0"]
+#[stacksize=0, stackallocsize= 0]
 export
 fn zero() -> reg u64 {
   reg u64 x;
@@ -14,7 +14,7 @@ fn zero() -> reg u64 {
 }
 
 /* Uses two callee-saved registers: saves them on the stack. */
-#[stacksize="0",stackallocsize="16"]
+#[stacksize=0, stackallocsize=16]
 export
 fn one() -> reg u64 {
   reg u64 x y;

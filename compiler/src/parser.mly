@@ -15,7 +15,6 @@
 
 %token LBRACKET
 %token RBRACKET
-%token SHARPLBRACKET
 %token LBRACE
 %token RBRACE
 %token LPAREN
@@ -25,7 +24,6 @@
 %token T_U8 T_U16 T_U32 T_U64 T_U128 T_U256 T_INT 
 
 %token SHARP
-%token ALIGN
 %token AMP
 %token AMPAMP
 %token BANG
@@ -80,7 +78,6 @@
 %token <string> NID
 %token <Bigint.zint> INT
 %token <string> STRING
-
 %nonassoc COLON QUESTIONMARK
 %left PIPEPIPE
 %left AMPAMP
@@ -108,14 +105,46 @@ var:
 
 (* ** Annotations
 * -------------------------------------------------------------------- *)
+
+keyword:
+  | INLINE { "inline" }
+  | EXPORT { "export" }
+  | REG    { "reg" }
+  | STACK  { "stack" }
+
+annotationlabel:
+  | id=ident {id}
+  | id=loc(keyword) { id }
+  | s=loc(STRING) { s }
+
+int: 
+  | i=INT       { i }
+  | MINUS i=INT { Bigint.neg i } 
+
+simple_attribute:
+  | i=int          { Aint i    }
+  | id=NID         { Aid id    }
+  | s=STRING       { Astring s }
+  | s=keyword      { Astring s }
+  | ws=utype       { Aws ws    }
+
 attribute:
-  | k=NID EQ v=STRING { (k, v) }
+  | EQ ap=loc(simple_attribute) { ap }
+  | EQ s=loc(braces(struct_annot)) { L.mk_loc (L.loc s) (Astruct (L.unloc s)) }
 
 annotation:
-  | SHARPLBRACKET a=separated_list(COMMA, attribute) RBRACKET { a }
+  | k=annotationlabel v=attribute? { k, v }
+
+struct_annot:
+  | a=separated_list(COMMA, annotation) { a }
+  
+top_annotation:
+  | SHARP a=annotation    { [a] }
+  | SHARP LBRACKET a=struct_annot RBRACKET { a }
 
 annotations:
-  | a = list(annotation) { List.concat a }
+  | l=list(top_annotation) { List.concat l }
+  
 
 (* ** Type expressions
  * -------------------------------------------------------------------- *)
@@ -287,18 +316,25 @@ plvalue:
 
 (* ** Control instructions
  * -------------------------------------------------------------------- *)
+implicites:
+| QUESTIONMARK s=loc(braces(struct_annot)) { s }
+
+plvalues:
+| lv=tuple1(plvalue) { None, lv }
+| s=implicites { Some s, [] }
+| s=implicites COMMA lv=rtuple1(plvalue) { Some s, lv }
 
 pinstr_r:
 | ARRAYINIT x=parens(var) SEMICOLON
     { PIArrayInit x }
 
-| x=tuple1(plvalue) o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON
+| x=plvalues o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON
     { PIAssign (x, o, e, c) }
 
 | fc=loc(f=var args=parens_tuple(pexpr) { (f, args) })
     c=prefix(IF, pexpr)? SEMICOLON
     { let { L.pl_loc = loc; L.pl_desc = (f, args) } = fc in
-      PIAssign ([], `Raw, L.mk_loc loc (PECall (f, args)), c) }
+      PIAssign ((None, []), `Raw, L.mk_loc loc (PECall (f, args)), c) }
 
 | IF c=pexpr i1s=pblock
     { PIIf (c, i1s, None) }
@@ -312,14 +348,17 @@ pinstr_r:
 | FOR v=var EQ ce1=pexpr DOWNTO ce2=pexpr is=pblock
     { PIFor (v, (`Down, ce2, ce1), is) }
 
-| a=align WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock?
-    { PIWhile (a,is1, b, is2) }
+| WHILE is1=pblock? LPAREN b=pexpr RPAREN 
+    { PIWhile (is1, b, None) }
 
-%inline align:
-| a=ALIGN? { if a = None then `NoAlign else `Align }
+| WHILE is1=pblock? LPAREN b=pexpr RPAREN is2=pblock
+    { PIWhile (is1, b, Some is2) }
+| vd=postfix(pvardecl(COMMA?), SEMICOLON) 
+    { PIdecl vd }
+
 
 pinstr:
-| i=loc(pinstr_r) { i }
+| a=annotations i=loc(pinstr_r)  { (a,i) }
 
 pblock_r:
 | s=braces(pinstr*) { s }
@@ -332,6 +371,9 @@ pblock:
 
 stor_type:
 | sto=storage ty=ptype { (sto, ty) }
+
+annot_stor_type:
+| a=annotations stoty=stor_type { (a,stoty) }
 
 writable:
 | CONSTANT    {`Constant }
@@ -356,14 +398,15 @@ storage:
 %inline pvardecl(S):
 | ty=stor_type vs=separated_nonempty_list(S, var) { (ty, vs) }
 
+annot_pvardecl: 
+| a=annotations vd=pvardecl(empty) { (a,vd) }
+
 pfunbody :
 | LBRACE
-    vs = postfix(pvardecl(COMMA?), SEMICOLON)*
     is = pinstr*
     rt = option(RETURN vs=tuple(var) SEMICOLON { vs })
   RBRACE
-    { { pdb_vars  = vs;
-        pdb_instr = is;
+    { { pdb_instr = is;
         pdb_ret   = rt; } }
 
 call_conv :
@@ -375,15 +418,14 @@ pfundef:
     cc=call_conv?
     FN
     name = ident
-    args = parens_tuple(pvardecl(empty))
-    rty  = prefix(RARROW, tuple(stor_type))?
+    args = parens_tuple(annot_pvardecl)
+    rty  = prefix(RARROW, tuple(annot_stor_type))?
     body = pfunbody
 
   { { pdf_annot;
       pdf_cc   = cc;
       pdf_name = name;
-      pdf_args = 
-        List.flatten (List.map (fun (str, ids) -> List.map (fun id -> (str, id)) ids) args);
+      pdf_args = args;
       pdf_rty  = rty ;
       pdf_body = body; } }
 

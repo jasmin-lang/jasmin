@@ -2,7 +2,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith.
 Require Import Utf8.
 
-Require Import expr compiler_util x86_variables linear.
+Require Import expr compiler_util label x86_variables linear.
 Import ssrZ.
 
 Set Implicit Arguments.
@@ -88,13 +88,6 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
     by apply/hasP; rewrite /is_labeled; eexists; eauto.
   Qed.
 
-  Lemma well_formed_uniq uf :
-    well_formed uf ->
-    uniq (map fst uf).
-  Proof.
-    by move => [].
-  Qed.
-
   Lemma has_makeset uf lh lm :
     has (is_labeled lh) (makeset uf lm) = (lh == lm) || (has (is_labeled lh) uf).
   Proof.
@@ -147,7 +140,7 @@ Module UnionFind(E : EqType) : IUnionFind with Definition S := E.T.
     move => _.
     have ->: (nth (l, l) [seq (x.1, f x.2) | x <- uf] (seq.find (is_labeled l) [seq (x.1, f x.2) | x <- uf]) = (l,l)) => //=.
     apply nth_default.
-    rewrite size_map find_map.
+    rewrite size_map seq.find_map.
     rewrite /preim //=.
     rewrite seqhasNfind /negb //=.
     by rewrite Hhas.
@@ -358,20 +351,6 @@ Section UnionFindProps.
 End UnionFindProps.
 
 
-Section FoldLeftComp.
-
-  Variables (T1 T2 : Type) (h : T1 → T2).
-  Variables (R : Type) (f : R -> T2 → R) (z0 : R).
-
-  Lemma foldl_map s : foldl f z0 (map h s) = foldl (fun z x => f z (h x)) z0 s.
-  Proof.
-    move: z0.
-    by induction s as [|hs ts IHs] => /=.
-  Qed.
-
-End FoldLeftComp.
-
-
 Section PairFoldLeft.
 
   Variables (T R : Type) (f : R -> T → T → R).
@@ -384,27 +363,6 @@ Section PairFoldLeft.
   Qed.
 
 End PairFoldLeft.
-
-
-Section PairFoldLeftComp.
-
-  Variables (T1 T2 : Type) (h : T1 -> T2) (ph : T1 -> T1 -> T2).
-  Variables (T R : Type) (f : R -> T2 → T2 → R) (z0 : R) (y0 : T2) (t t' : T1).
-
-  Lemma pairfoldl_map s : pairfoldl f z0 (h t) (map h s) = pairfoldl (fun z x y => f z (h x) (h y)) z0 t s.
-  Proof.
-    move: z0 t.
-    by induction s as [|hs ts IHs] => /=.
-  Qed.
-
-  Lemma pairfoldl_cat s1 s2 :
-    pairfoldl f z0 y0 (s1 ++ s2) = pairfoldl f (pairfoldl f z0 y0 s1) (last y0 s1) s2.
-  Proof.
-    by elim: s1 z0 y0 => /=.
-  Qed.
-
-End PairFoldLeftComp.
-
 
 Section Prefix.
 
@@ -559,17 +517,6 @@ Section oPrefix.
   Qed.
 
 End oPrefix.
-
-
-Section PairAll.
-  
-  Variable T : Type.
-  Variable a : T -> T -> bool.
-
-  Fixpoint pairall x s := if s is hs :: ts then a x hs && pairall hs ts else true.
-
-End PairAll.
-
 
 Section PairOnth.
 
@@ -737,7 +684,7 @@ Section TunnelingSem.
 
   Lemma find_label_tunnel_partial l uf lc : find_label l (tunnel_partial fn uf lc) = find_label l lc.
   Proof.
-    rewrite /find_label /tunnel_partial find_map /preim //=.
+    rewrite /find_label /tunnel_partial seq.find_map /preim //=.
     have Hpred: [pred x | is_label l (tunnel_bore fn uf x)] =1 [pred x | is_label l x].
     + by move => [li_ii li_i] /=; case: li_i => // [] [fn' l']; case: ifP.
     rewrite (eq_find Hpred); elim: lc => [|hlc tlc] //=.

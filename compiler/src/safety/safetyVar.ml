@@ -79,7 +79,7 @@ let pp_mvar fmt v = Format.fprintf fmt "%s" (string_of_mvar v)
 
 (*---------------------------------------------------------------*)
 let dummy_mvar = Mlocal (Avar (V.mk "__absint_empty_env"
-                                 (Reg Direct) (Bty (U U8)) (L._dummy)))
+                                 (Reg Direct) (Bty (U U8)) (L._dummy) []))
 
 (*---------------------------------------------------------------*)
 let svariables_ignore vs =

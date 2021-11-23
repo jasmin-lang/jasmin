@@ -79,7 +79,7 @@ let check_safety_p s p source_p =
 
           AbsInt.analyze ())
       (List.rev (snd p)) in
-  exit 0 
+  ()
 
 (* -------------------------------------------------------------------- *)
 let main () =
@@ -136,11 +136,15 @@ let main () =
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
     
+    let do_compile = ref true in
+    let donotcompile () = do_compile := false in
     if SafetyConfig.sc_comp_pass () = Compiler.ParamsExpansion &&
        !check_safety
-    then check_safety_p Compiler.ParamsExpansion prog source_prog
-    else
-            
+    then begin
+      check_safety_p Compiler.ParamsExpansion prog source_prog;
+      donotcompile()
+    end;
+     
     if !ec_list <> [] then begin
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
@@ -157,9 +161,16 @@ let main () =
         BatPervasives.ignore_exceptions
           (fun () -> if !ecfile <> "" then Unix.unlink !ecfile) ();
         raise e end;
-      exit 0
+      donotcompile()
     end;
 
+    if !ct_list <> None then begin
+        begin try Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list)
+        with Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"constant type checker" "%a" Pretyping.pp_tyerror code end;
+        donotcompile()
+    end;
+
+    if !do_compile then begin
     (* FIXME: why this is not certified *)
     let prog = Inline_array_copy.doit prog in
 
@@ -185,7 +196,7 @@ let main () =
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
           with Evaluator.Eval_error (ii,err) ->
-            let (i_loc, _) = Conv.get_iinfo tbl ii in
+            let (i_loc, _, _) = Conv.get_iinfo tbl ii in
             hierror ~loc:(Lmore i_loc) ~kind:"evaluation error" "%a" Evaluator.pp_error err
         in
         List.iter exec to_exec
@@ -194,7 +205,7 @@ let main () =
 
     let lowering_vars = Lowering.(
         let f ty n = 
-          let v = V.mk n (Reg Direct) ty L._dummy in
+          let v = V.mk n (Reg Direct) ty L._dummy [] in
           Conv.cvar_of_var tbl v in
         let b = f tbool in
         { fresh_OF = (b "OF").vname
@@ -298,7 +309,7 @@ let main () =
       PrintLinear.pp_prog tbl fmt lp in
 
     let rename_fd ii fn cfd =
-      let ii,_ = Conv.get_iinfo tbl ii in
+      let ii, _, _ = Conv.get_iinfo tbl ii in
       let doit fd =
         let fd = Subst.clone_func fd in
         Subst.extend_iinfo ii fd in
@@ -321,7 +332,7 @@ let main () =
 
     let warning ii msg =
       if not !Glob_options.lea then begin
-          let loc,_ = Conv.get_iinfo tbl ii in
+          let loc, _, _ = Conv.get_iinfo tbl ii in
           warning UseLea loc "%a" Printer.pp_warning_msg msg
         end;
       ii in
@@ -377,7 +388,7 @@ let main () =
       Compiler.removereturn  = removereturn;
       Compiler.regalloc      = global_regalloc;
       Compiler.extra_free_registers = (fun ii ->
-        let loc, _ = Conv.get_iinfo tbl ii in
+        let loc, _, _ = Conv.get_iinfo tbl ii in
         !saved_extra_free_registers loc |> omap (Conv.cvar_of_var tbl)
       );
       Compiler.lowering_vars = lowering_vars;
@@ -385,7 +396,7 @@ let main () =
       Compiler.print_uprog  = (fun s p -> eprint s pp_cuprog p; p);
       Compiler.print_sprog  = (fun s p -> warn_extra s p;
                                           eprint s pp_csprog p; p);
-      Compiler.print_linear = (fun p -> eprint Compiler.Linearisation pp_linear p; p);
+      Compiler.print_linear = (fun s p -> eprint s pp_linear p; p);
       Compiler.warning      = warning;
       Compiler.inline_var   = inline_var;
       Compiler.lowering_opt = Lowering.{ use_lea = !Glob_options.lea;
@@ -422,6 +433,7 @@ let main () =
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
           Format.printf "%a%!" (Ppasm.pp_prog tbl) asm
+    end
     end
   with
   | Utils.HiError e ->

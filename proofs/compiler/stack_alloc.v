@@ -26,9 +26,8 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Import Coq.Logic.Eqdep_dec.
 Require Import strings word utils gen_map type var expr low_memory sem.
-Require Import constant_prop compiler_util allocation byteset.
+Require Import compiler_util byteset.
 Require Import ZArith.
 
 Set Implicit Arguments.

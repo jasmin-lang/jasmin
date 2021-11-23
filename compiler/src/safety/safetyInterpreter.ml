@@ -226,12 +226,12 @@ let arr_aligned access ws e = match access with
   | Warray_.AAdirect ->
      begin match e with
      | Papp1 (Oint_of_word U64, e) -> [AlignedExpr (ws, e)]
-     | _ -> [AlignedExpr (ws, e)]
+     | _ -> [AlignedExpr (ws, Papp1 (Oword_of_int U64, e))]
      end
 
 (*------------------------------------------------------------*)
 let safe_op2 e2 = function
-  | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
+  | E.Obeq | E.Oand | E.Oor | E.Oadd _ | E.Omul _ | E.Osub _
   | E.Oland _ | E.Olor _ | E.Olxor _
   | E.Olsr _ | E.Olsl _ | E.Oasr _
   | E.Oeq _ | E.Oneq _ | E.Olt _ | E.Ole _ | E.Ogt _ | E.Oge _ -> []
@@ -277,7 +277,7 @@ let rec safe_e_rec safe = function
     
   | Papp1 (_, e) -> safe_e_rec safe e
   | Papp2 (op, e1, e2) -> safe_op2 e2 op @ safe_e_rec (safe_e_rec safe e1) e2
-  | PappN (E.Opack _,_) -> safe
+  | PappN (_,es) -> List.fold_left safe_e_rec safe es
 
   | Pif  (_,e1, e2, e3) ->
     (* We do not check "is_defined e1 && is_defined e2" since
@@ -312,7 +312,7 @@ let safe_opn safe opn es =
   let id = Expr.get_instr opn in
   List.map (fun c ->
       match c with
-      | X86_decl.NotZero(sz, i) ->
+      | Wsize.NotZero(sz, i) ->
         NotZero(sz, List.nth es (Conv.int_of_nat i))) id.i_safe @ safe
 
 let safe_instr ginstr = match ginstr.i_desc with
@@ -1201,7 +1201,7 @@ end = struct
     | E.Ox86' (x, X86_instr_decl.SHL ws) ->
       assert (x = None);
       let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Olsl ws, e1, e2) in
+      let e = Papp2 (E.Olsl (E.Op_w ws), e1, e2) in
       rflags_unknwon @ [Some e]
 
     (* shift, unsigned / right  *)
@@ -1215,7 +1215,7 @@ end = struct
     | E.Ox86' (x, X86_instr_decl.SAR ws) ->
       assert (x = None);
       let e1, e2 = as_seq2 es in
-      let e = Papp2 (E.Oasr ws, e1, e2) in
+      let e = Papp2 (E.Oasr (E.Op_w ws), e1, e2) in
       rflags_unknwon @ [Some e]
 
     (* FIXME: adding bit shift with flags *)

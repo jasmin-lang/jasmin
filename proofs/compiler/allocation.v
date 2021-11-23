@@ -1627,7 +1627,8 @@ Module CBAreg.
       apply: rbindP => vm2 Hvm2 [<-] /=.
       have [t2' [-> Ht2' /=]]:= WArray.uincl_set Ht Ht1'.
       have Hu: value_uincl (Varr t1') (Varr t2') := Ht2'.
-      have [vm2' [-> ?] /=]:= check_varcP Hr1' Hcva Hvm2 Hu.
+      rewrite /write_var /=.
+      have [vm2' [-> ?] /=] := check_varcP Hr1' Hcva Hvm2 Hu.
       by exists vm2'.
     case: andP => // -[] /andP[] /eqP -> /eqP -> /eqP -> /=.
     apply: rbindP => r2;apply:rbindP=> r3 Hcv Hce Hcva Hvm1 Hv Happ.
@@ -1643,6 +1644,7 @@ Module CBAreg.
     apply: rbindP => vm2 Hvm2 [<-] /=.    
     have [t2' -> Ht2' /=]:= WArray.uincl_set_sub Ht huw Ht1'.
     have Hu: value_uincl (Varr t1') (Varr t2') := Ht2'.
+    rewrite /write_var /=.
     have [vm2' [-> ?] /=]:= check_varcP Hr1' Hcva Hvm2 Hu.
     by exists vm2'.
   Qed.

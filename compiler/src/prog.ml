@@ -42,7 +42,8 @@ type 'len gvar = {
   v_id   : uid;
   v_kind : v_kind;
   v_ty   : 'len gty;
-  v_dloc : L.t   (* location where declared *)
+  v_dloc : L.t;   (* location where declared *)
+  v_annot : Syntax.annotations;
 }
 
 type 'len gvar_i = 'len gvar L.located
@@ -150,6 +151,7 @@ and ('len,'info) ginstr = {
     i_desc : ('len,'info) ginstr_r;
     i_loc  : L.i_loc;
     i_info : 'info;
+    i_annot : Syntax.annotations;
   }
 
 and ('len,'info) gstmt = ('len,'info) ginstr list
@@ -191,6 +193,7 @@ type ('len,'info) gfunc = {
     f_args : 'len gvar list;
     f_body : ('len,'info) gstmt;
     f_tyout : 'len gty list;
+    f_outannot : Syntax.annotations list; (* annotation attach to return type *)
     f_ret  : 'len gvar_i list
   }
 
@@ -208,11 +211,11 @@ type ('len,'info) gprog = ('len,'info) gmod_item list
 
 (* ------------------------------------------------------------------------ *)
 module GV = struct
-  let mk v_name v_kind v_ty v_dloc =
+  let mk v_name v_kind v_ty v_dloc v_annot =
     let v_id = Uniq.gen () in
-    { v_name; v_id; v_kind; v_ty; v_dloc }
+    { v_name; v_id; v_kind; v_ty; v_dloc; v_annot }
 
-  let clone v = mk v.v_name v.v_kind v.v_ty v.v_dloc
+  let clone v = mk v.v_name v.v_kind v.v_ty v.v_dloc v.v_annot
 
   let compare v1 v2 = v1.v_id - v2.v_id
 
@@ -309,8 +312,8 @@ module Sv = Set.Make  (V)
 module Mv = Map.Make  (V)
 module Hv = Hash.Make (V)
 
-let rip = V.mk "RIP" (Reg Direct) u64 L._dummy 
-let rsp = V.mk "RSP" (Reg Direct) u64 L._dummy 
+let rip = V.mk "RIP" (Reg Direct) u64 L._dummy []
+let rsp = V.mk "RSP" (Reg Direct) u64 L._dummy []
 (* ------------------------------------------------------------------------ *)
 (* Function name                                                            *)
 

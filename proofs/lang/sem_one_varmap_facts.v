@@ -341,8 +341,7 @@ Proof.
   1: by rewrite disjoint_singletonE /magic_variables.
   2: case: sf_save_stack ok_ss => //.
   all: move => /= r /andP[] /andP[] /eqP r_neq_gd /eqP r_neq_rsp _.
-  all: rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec.
-  all: change (v_var (vid (x86_variables.string_of_register RSP))) with (x86_variables.var_of_register RSP) => /=.
+  all: rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec /=.
   all: SvD.fsetdec.
 Qed.
 

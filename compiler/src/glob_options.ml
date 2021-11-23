@@ -16,6 +16,9 @@ let help_intrinsics = ref false
 type color = | Auto | Always | Never
 let color = ref Auto
 
+let ct_list = ref None
+let infer   = ref false 
+
 let lea = ref false
 let set0 = ref false
 let model = ref Normal
@@ -50,6 +53,15 @@ let set_color c =
   in
   color := assoc c
 
+let set_ct () =  
+  if !ct_list = None then ct_list := Some []
+
+let set_ct_on s = 
+  ct_list := 
+    Some (match !ct_list with
+          | None -> [s]
+          | Some l -> s::l)
+
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
@@ -60,11 +72,12 @@ let print_strings = function
   | Compiler.Splitting                   -> "splitting", "liverange splitting"
   | Compiler.AllocInlineAssgn            -> "valloc"   , "inlined variables allocation"
   | Compiler.DeadCode_AllocInlineAssgn   -> "vallocd"  , "dead code after inlined variables allocation"
-  | Compiler.RemoveArrInit               -> "rmarrinit" , "remove array initialisation"
-  | Compiler.RemoveGlobal                -> "rmglobals" , "remove globals variables"
+  | Compiler.RemoveArrInit               -> "rmarrinit", "remove array initialisation"
+  | Compiler.RemoveGlobal                -> "rmglobals", "remove globals variables"
   | Compiler.RegArrayExpansion           -> "arrexp"   , "expansion of register arrays"
   | Compiler.LowerInstruction            -> "lowering" , "lowering of instructions"
-  | Compiler.MakeRefArguments             -> "makeref"   , "add assignments before and after call to ensure that arguments and results are ref ptr"
+  | Compiler.PropagateInline            -> "propagate", "propagate inline variables"
+  | Compiler.MakeRefArguments             -> "makeref" , "add assignments before and after call to ensure that arguments and results are ref ptr"
   | Compiler.StackAllocation             -> "stkalloc" , "stack allocation"
   | Compiler.RemoveReturn                -> "rmreturn" , "remove unused returned values"
   | Compiler.RegAllocation               -> "ralloc"   , "register allocation"
@@ -93,6 +106,9 @@ let options = [
     "-ec"       , Arg.String  set_ec    , "[f]: extract function [f] and its dependencies to an easycrypt file";
     "-oec"     ,  Arg.Set_string ecfile , "[filename]: use filename as output destination for easycrypt extraction";
     "-CT" , Arg.Unit set_constTime      , ": generates model for constant time verification";
+    "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system)";
+    "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system)";
+    "-infer"    , Arg.Set infer         , "infers security level annotations of the constant time type system";          
     "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
     "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,

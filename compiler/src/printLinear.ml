@@ -52,7 +52,11 @@ let rec pp_expr tbl fmt =
   | E.Pload (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x pp_expr e
   | E.Papp1 (op, e) -> F.fprintf fmt "(%s %a)" (Pr.string_of_op1 op) pp_expr e
   | E.Papp2 (op, e1, e2) -> F.fprintf fmt "(%a %s %a)" pp_expr e1 (Pr.string_of_op2 op) pp_expr e2
-  | E.PappN (op, es) -> F.fprintf fmt "@[(%s [%a])@]" (Pr.string_of_opN op) (pp_list ",@ " pp_expr) es
+  | PappN (Opack(sz,pe) , es) ->
+    F.fprintf fmt "@[(%s [%a])@]" (Pr.string_of_Opack sz pe) (pp_list ",@ " pp_expr) es
+  | PappN (Ocombine_flags c, es) ->
+    F.fprintf fmt "@[%s(%a)@]" (Pr.string_of_combine_flags c) (pp_list ",@ " pp_expr) es 
+
   | E.Pif (_, c, e1, e2) -> F.fprintf fmt "(%a ? %a : %a)" pp_expr c pp_expr e1 pp_expr e2
 
 let pp_lval tbl fmt =

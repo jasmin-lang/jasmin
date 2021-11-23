@@ -20,7 +20,7 @@ extraction: Makefile.coq
 this-clean::
 	rm -f lang/*.glob lang/*.d lang/*.vo lang/.*.vo
 	rm -f compiler/*.glob compiler/*.d compiler/*.vo compiler/.*.vo
-
+	rm -f arch/*.glob arch/*.d arch/*.vo arch/.*.vo
 
 this-distclean::
 	rm -f $(shell find . -name '*~')

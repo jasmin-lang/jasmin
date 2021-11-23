@@ -22,7 +22,7 @@ Module E.
 
 Definition pass_name := "one-varmap checker"%string.
 
-Definition gen_error (internal:bool) (ii:option instr_info) (msg:pp_error) := 
+Definition gen_error (internal:bool) (ii:option instr_info) (msg:pp_error) :=
   {| pel_msg      := msg
    ; pel_fn       := None
    ; pel_fi       := None
@@ -32,13 +32,13 @@ Definition gen_error (internal:bool) (ii:option instr_info) (msg:pp_error) :=
    ; pel_internal := internal
   |}.
 
-Definition internal_error ii msg := 
+Definition internal_error ii msg :=
   gen_error true (Some ii) (pp_s msg).
 
-Definition error ii msg := 
+Definition error ii msg :=
   gen_error false (Some ii) (pp_s msg).
 
-Definition ii_loop_iterator := 
+Definition ii_loop_iterator :=
   ii_loop_iterator pass_name.
 
 End E.
@@ -50,13 +50,13 @@ Context (p: sprog) (extra_free_registers: instr_info → option var).
 (** Set of variables written by a function (including RA and extra registers),
       assuming this information is known for the called functions. *)
 
-Definition add_extra_free_registers ii (D:Sv.t) := 
+Definition add_extra_free_registers ii (D:Sv.t) :=
   if extra_free_registers ii is Some r then Sv.add r D
   else D.
 
 Local Notation extra_free_registers_at := (extra_free_registers_at extra_free_registers).
 
-Lemma add_extra_free_registersE ii D : 
+Lemma add_extra_free_registersE ii D :
   Sv.Equal (add_extra_free_registers ii D) (Sv.union (extra_free_registers_at ii) D).
 Proof.
   rewrite /add_extra_free_registers /extra_free_registers_at; case: extra_free_registers; SvD.fsetdec.
@@ -148,7 +148,7 @@ Definition check_fv (ii:instr_info) (D R : Sv.t) :=
 Definition check_e (ii:instr_info) (D : Sv.t) (e : pexpr) :=
   check_fv ii D (read_e e).
 
-Definition check_es ii D es := 
+Definition check_es ii D es :=
   foldM (fun e _ => check_e ii D e) tt es.
 
 Section CHECK.
@@ -161,7 +161,7 @@ Section CHECK.
 
     Fixpoint check_c (D: Sv.t) (c: cmd) :=
       if c is i :: c' then
-        Let D := check_i D i in 
+        Let D := check_i D i in
         check_c D c'
       else ok D.
 
@@ -174,23 +174,23 @@ Section CHECK.
         Let _ := check_fv ii  D1 efv in
         Let D2 := check_c D1 c2 in
         if Sv.subset D2 D then ok D1
-        else wloop n' (Sv.union D2 D)      
+        else wloop n' (Sv.union D2 D)
       else Error (E.ii_loop_iterator ii).
 
   End CHECK_c.
 
   Section CHECK_i.
 
-  Definition check_lv ii (D:Sv.t) (x:lval) := 
+  Definition check_lv ii (D:Sv.t) (x:lval) :=
     Let _ := check_fv ii D (read_rv x) in
     ok (Sv.diff D (vrv x)).
 
-  Definition check_lvs ii (D:Sv.t) (xs:lvals) := 
+  Definition check_lvs ii (D:Sv.t) (xs:lvals) :=
     foldM (fun x D => check_lv ii D x) D xs.
-  
+
   Fixpoint check_i (sz: wsize) (D:Sv.t) (i: instr) : cexec Sv.t :=
     let: MkI ii ir := i in
-    Let _ := 
+    Let _ :=
       assert (if extra_free_registers ii is Some r then vtype r == sword Uptr else true)
          (E.internal_error ii "bad type for extra free register") in
     check_ir sz ii (add_extra_free_registers ii D) ir
@@ -199,7 +199,7 @@ Section CHECK.
     match ir with
     | Cassgn x tag ty e =>
       Let _ := check_e ii D e in
-      check_lv ii D x 
+      check_lv ii D x
     | Copn xs tag o es =>
       Let _ := check_es ii D es in
       check_lvs ii D xs
@@ -209,9 +209,8 @@ Section CHECK.
       Let D2 := check_c (check_i sz) D c2 in
       ok (Sv.union D1 D2)
     | Cfor _ _ _ =>
-      Error (E.error ii "for loop should be unrolled")
+      Error (E.internal_error ii "for loop should be unrolled")
     | Cwhile _ c e c' =>
-      
       if e == Pbool false then check_c (check_i sz) D c
       else wloop (check_i sz) ii c (read_e e) c' Loop.nb D
 
@@ -219,18 +218,18 @@ Section CHECK.
       if get_fundef (p_funcs p) fn is Some fd then
         Let _ := check_es ii D es in
         Let _ := assert (sf_align (f_extra fd) ≤ sz)%CMP
-          (E.error ii "alignment constraints error") in
+          (E.internal_error ii "alignment constraints error") in
         Let _ := assert (if sf_return_address (f_extra fd) is RAstack _ then extra_free_registers ii != None else true)
-          (E.error ii "no extra free register to compute the return address") in
-        Let _ := assert 
+          (E.internal_error ii "no extra free register to compute the return address") in
+        Let _ := assert
           (all2 (λ e a, if e is Pvar (Gvar v Slocal) then v_var v == v_var a else false) es (f_params fd))
-          (E.error ii "bad call args") in
+          (E.internal_error ii "bad call args") in
         Let _ := assert
           (all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd))
-          (E.error ii "bad call dests") in
+          (E.internal_error ii "bad call dests") in
         let W := writefun_ra writefun fn in
         ok (Sv.diff (Sv.union D W) (set_of_var_i_seq Sv.empty (f_res fd)))
-      else Error (E.error ii "call to unknown function")
+      else Error (E.internal_error ii "call to unknown function")
     end.
 
   Lemma check_ir_CwhileP sz ii aa c e c' D D' :
@@ -263,14 +262,14 @@ Section CHECK.
     magic_variables p.
 
   Let check_preserved_register W J name r :=
-    Let _ := 
+    Let _ :=
       assert (vtype r == sword Uptr) (E.gen_error true None (pp_box [::pp_s "bad register type for"; pp_s name; pp_var r])) in
-    Let _ := 
+    Let _ :=
       assert (~~ Sv.mem r W) (E.gen_error true None (pp_box [::pp_s "the function writes its"; pp_s name; pp_var r])) in
     assert (~~Sv.mem r J) (E.gen_error true None (pp_box [::pp_s "the function depends on its"; pp_s name; pp_var r])).
 
   Definition check_fd (fn:funname) (fd: sfundef) :=
-    let DI := 
+    let DI :=
       match sf_return_address (f_extra fd) with
       | RAnone =>
         Sv.add (var_of_register RAX)
@@ -279,13 +278,13 @@ Section CHECK.
         | _ => sv_of_flags rflags
         end
     | RAreg ra => Sv.singleton ra
-    | RAstack _ => Sv.empty 
+    | RAstack _ => Sv.empty
     end in
 
     Let D := check_cmd fd.(f_extra).(sf_align) DI fd.(f_body) in
     let params := set_of_var_i_seq Sv.empty fd.(f_params) in
     let res := set_of_var_i_seq Sv.empty fd.(f_res) in
-    Let _ := assert (disjoint D res) 
+    Let _ := assert (disjoint D res)
                     (E.gen_error true None (pp_s "not able to ensure equality of the result")) in
     Let _ := assert (var.disjoint params magic_variables)
                     (E.gen_error true None (pp_s "the function has RSP or global-data as parameter")) in
@@ -296,9 +295,9 @@ Section CHECK.
     let W := writefun fn in
     let J := Sv.union magic_variables params in
     let e := fd.(f_extra) in
-    Let _  := 
-      if sf_save_stack e is SavedStackReg r then 
-         check_preserved_register W J "saved stack pointer" r 
+    Let _  :=
+      if sf_save_stack e is SavedStackReg r then
+         check_preserved_register W J "saved stack pointer" r
       else ok tt in
     match sf_return_address e with
     | RAreg ra => check_preserved_register W J "return address" ra

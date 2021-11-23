@@ -1,0 +1,28 @@
+export
+fn array_direct() -> reg u256 {
+
+  stack u8[32] a;
+  reg u8 b;
+  reg u64 q;
+  reg u256 y;
+  inline int i;
+  i = 0;
+  b = 0;
+  q = 0;
+  y = #set0_256();
+  a.[u256 0] = y;
+  a.[u8 0] = b;
+  a.[u8 i] = b;
+  a.[u64 0] = q;
+  a.[u64 i] = q;
+  a.[u8 (int)q] = b;
+  a.[u64 i + 8] = q;
+  a.[u64 8 * (i + 1)] = q;
+  a.[u64 (i + 1) * 8] = q;
+  a.[u64 i * 8 + 8] = q;
+  a.[u8 (int)(q + 1)] = b;
+  a.[u8 (int)q + 1] = b;
+
+  y = a.[u256 0];
+  return y;
+}

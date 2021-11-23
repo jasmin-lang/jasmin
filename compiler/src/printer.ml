@@ -36,15 +36,23 @@ let string_of_cmp_ty = function
   | E.Cmp_w (W.Unsigned, _) -> "u"
   | _        -> ""
 
+let string_of_op_kind = function
+  | E.Op_w ws -> Format.sprintf "%du" (int_of_ws ws)
+  | E.Op_int -> ""
+
 (* -------------------------------------------------------------------- *)
 
+let string_of_signess s = 
+  if s = W.Unsigned then "u" else "s"
+  
 let string_of_velem s ws ve = 
   let nws = int_of_ws ws in
   let nve = int_of_velem ve in
-  let s   = if s = W.Unsigned then "u" else "s" in
+  let s   = string_of_signess s in 
   Format.sprintf "%d%s%d" (nws/nve) s nve
 
 let string_of_op2 = function
+  | E.Obeq   -> "=" 
   | E.Oand   -> "&&"
   | E.Oor    -> "||"
   | E.Oadd _ -> "+"
@@ -60,8 +68,8 @@ let string_of_op2 = function
   | E.Olsl _ -> "<<"
   | E.Oasr _ -> ">>s"
 
-  | E.Oeq  _ -> "=="
-  | E.Oneq _ -> "!="
+  | E.Oeq  k -> "==" ^ string_of_op_kind k
+  | E.Oneq k -> "!=" ^ string_of_op_kind k
   | E.Olt  k -> "<"  ^ string_of_cmp_ty k
   | E.Ole  k -> "<=" ^ string_of_cmp_ty k
   | E.Ogt  k -> ">"  ^ string_of_cmp_ty k
@@ -84,13 +92,19 @@ let string_of_op1 = function
   | E.Onot    -> "~"
   | E.Oneg _ -> "-"
 
-let string_of_opN =
-  function
-  | E.Opack (sz, pe) ->
-    F.sprintf "Opack<%d, %d>"
-      (int_of_ws sz)
-      (int_of_pe pe)
+let string_of_combine_flags = function
+  | E.CF_LT s -> Format.sprintf "_%sLT" (string_of_signess s)
+  | E.CF_LE s -> Format.sprintf "_%sLE" (string_of_signess s)
+  | E.CF_EQ   -> Format.sprintf "_EQ" 
+  | E.CF_NEQ  -> Format.sprintf "_NEQ" 
+  | E.CF_GE s -> Format.sprintf "_%sGE" (string_of_signess s)
+  | E.CF_GT s -> Format.sprintf "_%sGT" (string_of_signess s)
 
+let string_of_Opack sz pe =
+  F.sprintf "Opack<%d, %d>"
+    (int_of_ws sz)
+    (int_of_pe pe)
+    
 (* -------------------------------------------------------------------- *)
 
 let pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e olen =
@@ -126,8 +140,10 @@ let pp_ge pp_len pp_var =
   | Papp2(op,e1,e2) ->
     F.fprintf fmt "@[(%a %s@ %a)@]"
       pp_expr e1 (string_of_op2 op) pp_expr e2
-  | PappN (op, es) ->
-    F.fprintf fmt "@[(%s [%a])@]" (string_of_opN op) (pp_list ",@ " pp_expr) es
+  | PappN (Opack(sz,pe) , es) ->
+    F.fprintf fmt "@[(%s [%a])@]" (string_of_Opack sz pe) (pp_list ",@ " pp_expr) es
+  | PappN (Ocombine_flags c, es) ->
+    F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es  
   | Pif(_, e,e1,e2) ->
     F.fprintf fmt "@[(%a ?@ %a :@ %a)@]"
       pp_expr e pp_expr e1  pp_expr e2
@@ -444,10 +460,10 @@ let pp_err ~debug tbl fmt (pp_e : Compiler_util.pp_error) =
       Format.fprintf fmt "%a" L.pp_loc loc
     | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" (Conv.fun_of_cfun tbl fn).fn_name
     | Compiler_util.PPEiinfo ii ->
-      let (i_loc, _) = Conv.get_iinfo tbl ii in
+      let (i_loc, _, _) = Conv.get_iinfo tbl ii in
       Format.fprintf fmt "%a" L.pp_iloc i_loc
     | Compiler_util.PPEfuninfo fi ->
-      let (f_loc, _, _) = Conv.get_finfo tbl fi in
+      let (f_loc, _, _, _) = Conv.get_finfo tbl fi in
       Format.fprintf fmt "%a" L.pp_sloc f_loc
     | Compiler_util.PPEexpr e ->
       let e = Conv.expr_of_cexpr tbl e in

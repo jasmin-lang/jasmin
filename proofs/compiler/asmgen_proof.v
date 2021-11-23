@@ -4,7 +4,7 @@ Require Import low_memory psem x86_sem compiler_util lowering lowering_proof x86
 
 Import Utf8.
 Import GRing.
-Import x86_variables psem.
+Import x86_variables psem x86_sem.
 Import oseq.
 
 Set Implicit Arguments.
@@ -74,20 +74,20 @@ Proof.
   by rewrite !zero_extend_u => h;apply h.
 Qed.
 
-Variant check_sopn_argI rip ii max_imm args e : arg_desc -> stype -> Prop :=
+Variant check_sopn_argI rip ii args e : arg_desc -> stype -> Prop :=
 | CSA_Implicit i ty :
        (eq_expr e (Plvar {| v_var := var_of_implicit i; v_info := 1%positive |}))
-    -> check_sopn_argI rip ii max_imm args e (ADImplicit i) ty
+    -> check_sopn_argI rip ii args e (ADImplicit i) ty
 
 | CSA_Explicit k n o a a' ty :
        onth args n = Some a
-    -> arg_of_pexpr k rip ii ty max_imm e = ok a'
+    -> arg_of_pexpr k rip ii ty e = ok a'
     -> compat_imm ty a a'
     -> check_oreg o a
-    -> check_sopn_argI rip ii max_imm args e (ADExplicit k n o) ty.
+    -> check_sopn_argI rip ii args e (ADExplicit k n o) ty.
 
-Lemma check_sopn_argP rip ii max_imm args e sp :
-  check_sopn_arg rip ii max_imm args e sp -> check_sopn_argI rip ii max_imm args e sp.1 sp.2.
+Lemma check_sopn_argP rip ii args e sp :
+  check_sopn_arg rip ii args e sp -> check_sopn_argI rip ii args e sp.1 sp.2.
 Proof.
 case: sp => -[i|k n o] ty; first by apply: CSA_Implicit.
 rewrite /check_sopn_arg /=; case Enth: onth => [a|] //.
@@ -99,11 +99,11 @@ Lemma var_of_flagP rip m s f v ty vt:
   lom_eqv rip m s → 
   get_var (evm m) (var_of_flag f) = ok v →
   of_val ty v = ok vt → 
-  ∃ v' : value, Let b := st_get_rflag f s in ok (Vbool b) = ok v' ∧ of_val ty v' = ok vt.
+  ∃ v' : value, Let b := st_get_rflag s f in ok (Vbool b) = ok v' ∧ of_val ty v' = ok vt.
 Proof.
-  move=> [????? h] /h hu hv. 
-  exists (of_rbool ((xrf s) f)); rewrite /st_get_rflag.
-  case: (xrf s f) hu => //=.
+  move=> [????? h] /h hu hv.
+  exists (of_rbool ((asm_flag s) f)); rewrite /st_get_rflag.
+  case: (asm_flag s f) hu => //=.
   + move=> b; case: v hv => //= [?? <- //| ? ?].
     by rewrite of_val_undef.
   by case: v hv => // ??; rewrite of_val_undef.
@@ -113,12 +113,12 @@ Lemma var_of_registerP rip E m s r v ty vt:
   lom_eqv rip m s → 
   get_var (evm m) (var_of_register r) = ok v → 
   of_val ty v = ok vt → 
-  ∃ v' : value, Ok E (Vword ((xreg s) r)) = ok v' ∧ of_val ty v' = ok vt.
+  ∃ v' : value, Ok E (Vword ((asm_reg s) r)) = ok v' ∧ of_val ty v' = ok vt.
 Proof. move=> [??? h ??] /h -/value_uincl_word_of_val h1 /h1;eauto. Qed.
 
-Lemma check_sopn_arg_sem_eval rip m s ii max_imm args e ad ty v vt:
+Lemma check_sopn_arg_sem_eval rip m s ii args e ad ty v vt:
      lom_eqv rip m s
-  -> check_sopn_arg rip ii max_imm args e (ad,ty)
+  -> check_sopn_arg rip ii args e (ad,ty)
   -> sem_pexpr [::] m e = ok v
   -> of_val ty v = ok vt 
   -> exists v', eval_arg_in_v s args ad ty = ok v' /\ 
@@ -156,14 +156,15 @@ Proof.
     move=> w1 wp vp hget htop wp' vp' hp hp' wr hwr <- /= htr.
     have -> := addr_of_xpexprP eqm hr hget htop hp hp'.
     by case: eqm => <- ?????; rewrite hwr /=; eauto.
-  case => //= w' [] //= z; case: max_imm => //= w1.
-  t_xrbindP => ? /assertP /eqP heq h; move: hcomp; rewrite -h /compat_imm /eval_asm_arg => -/orP [/eqP <- | ].
+  case => //= w' [] //= z.
+  t_xrbindP => _ /assertP /eqP _ h; move: hcomp; rewrite -h /compat_imm /eval_asm_arg => -/orP [/eqP <- | ].
   + move=> w [] <- /truncate_wordP [hsz ->].
-    rewrite heq; eexists; split; first reflexivity.
-    by rewrite /to_word truncate_word_u.
+    eexists; split; first reflexivity.
+    by rewrite /to_word truncate_word_u sign_extend_truncate.
   case: a => // sz' w2 /eqP heq2 w [] <- /truncate_wordP [hsz ->].
-  rewrite -heq2 heq; eexists; split; first reflexivity.
-  by rewrite /to_word truncate_word_u.
+  eexists; split; first reflexivity.
+  rewrite -heq2.
+  by rewrite /to_word truncate_word_u sign_extend_truncate.
 Qed.
 
 
@@ -199,7 +200,7 @@ Definition word_extend
 (* word_uincl_update_u256 *)
 Lemma word_extend_CLEAR sz szo (w : word sz) (old : word szo) :
   word_extend MSB_CLEAR old w = zero_extend szo w.
-Proof. by rewrite /word_extend /= /x86_sem.mask_word wandC wand0 wxor0. Qed.
+Proof. by rewrite /word_extend /= /arch_sem.mask_word wandC wand0 wxor0. Qed.
 
 Lemma word_uincl_word_extend sz sz' szo (w: word sz) (w': word sz') fl (old:word szo) :
   (sz' <= szo)%CMP ->
@@ -213,7 +214,7 @@ Proof.
     by apply: word_uincl_zero_extR.
   (* MSB_MERGE *)
   have hsz := cmp_le_trans hsz_sz' hsz'.
-  apply/andP; split => //; rewrite /word_extend /x86_sem.mask_word.
+  apply/andP; split => //; rewrite /word_extend /arch_sem.mask_word.
   rewrite -wxor_zero_extend // -wand_zero_extend //.
   rewrite zero_extend_wshl // zero_extend_idem // wshl_ovf; last first.
   + by apply/leP; case: (sz) (sz') hsz_sz'=> -[].
@@ -225,17 +226,17 @@ Lemma word_extend_big sz szo f (w : word sz) (old : word szo) :
   (word_extend f old w) = zero_extend szo w.
 Proof.
   move=> h; case: f; first by rewrite word_extend_CLEAR.
-  rewrite /word_extend /x86_sem.mask_word wshl_ovf; last first.
+  rewrite /word_extend /arch_sem.mask_word wshl_ovf; last first.
   + by apply/leP; case: (sz) (szo) h => -[].
   by rewrite wandC wand0 wxor0.
 Qed.
 
-Lemma compile_lval rip ii msb_flag max_imm loargs ad ty (vt:sem_ot ty) m m' s lv1 e1:
+Lemma compile_lval rip ii msb_flag loargs ad ty (vt:sem_ot ty) m m' s lv1 e1:
   lom_eqv rip m s ->
   check_arg_dest ad ty ->
   write_lval [::] lv1 (oto_val vt) m = ok m' ->
   pexpr_of_lval ii lv1 = ok e1 ->
-  check_sopn_dest rip ii max_imm loargs e1 (ad, ty) ->
+  check_sopn_dest rip ii loargs e1 (ad, ty) ->
   exists s', mem_write_val msb_flag loargs (ad, ty) (oto_val vt) s = ok s' /\ lom_eqv rip m' s'.
 Proof.
   move=> hlom; case:(hlom) => [h1 hrip hnrip h2 h3 h4]; case: ad => [ai _ | k n o]; rewrite /check_sopn_dest /=.
@@ -264,7 +265,7 @@ Proof.
       rewrite Fv.setP_neq // => hg hv.
       by apply (h3 r); rewrite /get_var /on_vu hg -hv.         
     rewrite /eqflags => f' v; rewrite /get_var /on_vu /=.
-    rewrite /RflagMap.oset /= ffunE.
+    rewrite /RflagMap.set /= ffunE.
     case: eqP => [-> | hne] {h}.
     + by rewrite Fv.setP_eq; case: vt => // b [<-].
     rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply var_of_flag_inj.
@@ -334,13 +335,13 @@ Proof.
   by constructor.
 Qed.
 
-Lemma compile_lvals rip ii id_max_imm m lvs m' s loargs 
+Lemma compile_lvals rip ii m lvs m' s loargs 
   id_out id_tout (vt:sem_tuple id_tout) msb_flag: 
   size id_out = size id_tout -> 
   write_lvals [::] m lvs (list_ltuple vt) = ok m' ->
   lom_eqv rip m s ->
-  check_sopn_dests rip ii id_max_imm loargs lvs (zip id_out id_tout) ->
-  utils.all2 check_arg_dest id_out id_tout ->
+  check_sopn_dests rip ii loargs lvs (zip id_out id_tout) ->
+  all2 check_arg_dest id_out id_tout ->
   exists s', 
     mem_write_vals msb_flag s loargs id_out id_tout (list_ltuple vt) = ok s' ∧ lom_eqv rip m' s'.
 Proof.
@@ -357,8 +358,8 @@ Proof.
   rewrite /check_sopn_dests /= => h /andP [] hca hcall.
   have [e1 [es [he1 hes hce1 hces {h} /=]]]:
     exists e1 es, [/\ pexpr_of_lval ii lv1 = ok e1, mapM (pexpr_of_lval ii) lvs = ok es,
-                           check_sopn_dest rip ii id_max_imm loargs e1 (ad, ty) &
-                           all2 (check_sopn_dest rip ii id_max_imm loargs) es (zip ads tys)].
+                           check_sopn_dest rip ii loargs e1 (ad, ty) &
+                           all2 (check_sopn_dest rip ii loargs) es (zip ads tys)].
   + by case: pexpr_of_lval h => //= e1; case: mapM => //= es /andP [] ??; exists e1, es. 
   rewrite /mem_write_vals /=.
   have [s1 [-> /= h2]]:= compile_lval msb_flag hlo hca hw1 he1 hce1.
@@ -369,9 +370,9 @@ Qed.
 Lemma compile_x86_opn rip ii (loargs : seq asm_arg) op m s args lvs m' :
 let id := instr_desc op in
 sem_sopn [::] (Ox86' op) m lvs args = ok m' ->
-check_sopn_args rip ii id.(id_max_imm) loargs args (zip id.(id_in) id.(id_tin)) ->
-check_sopn_dests rip ii id.(id_max_imm) loargs lvs (zip id.(id_out) id.(id_tout)) ->
-id.(id_check) loargs ->
+check_sopn_args rip ii loargs args (zip id.(id_in) id.(id_tin)) ->
+check_sopn_dests rip ii loargs lvs (zip id.(id_out) id.(id_tout)) ->
+check_i_args_kinds id.(id_args_kinds) loargs ->
 lom_eqv rip m s ->
 exists s', exec_instr_op id loargs s = ok s' /\ lom_eqv rip m' s'.
 Proof.
@@ -380,7 +381,7 @@ t_xrbindP => x vs Hvs vt Hvt Htuplet Hm' Hargs Hdest Hid Hlomeqv.
 rewrite /exec_instr_op /eval_instr_op Hid /=.
 move: vt Hvt Htuplet; rewrite /sopn_sem /get_instr -/id => {Hid}.
 case: id Hargs Hdest => /= msb_flag id_tin 
- id_in id_tout id_out id_semi id_check id_nargs /andP[] /eqP hsin /eqP hsout id_max_imm
+ id_in id_tout id_out id_semi id_args_kinds id_nargs /andP[] /eqP hsin /eqP hsout
  _ id_str_jas id_check_dest id_safe id_wsize id_pp Hargs Hdest vt happ ?;subst x.
 elim: id_in id_tin hsin id_semi args vs Hargs happ Hvs; rewrite /sem_prod.
 + move=> [] //= _ id_semi [|a1 args] [|v1 vs] //= _ -> _ /=.
@@ -405,13 +406,252 @@ Lemma zero_extend_comp sz sz' szo (v : word sz') :
   zero_extend szo v.
 Proof.
   move=> h; rewrite /zero_extend wunsigned_repr_small //.
-  (* TODO: add the lemma *)
-  have ? : (wbase sz' <= wbase sz)%Z by case: sz (sz') h => -[].
+  have := wbase_m h.
   have := wunsigned_range v; Psatz.lia.
 Qed.
 
-Lemma check_check1_write asm_args ad ws ty (v: sem_ot ty) s :
-  clear_check1 asm_args ad ->
+Definition check_not_mem_args_kinds (d : arg_desc) (cond : args_kinds) :=
+  match d with
+  | ADExplicit _ i _ =>
+    match onth cond i with
+    | Some c => all is_not_CAmem c
+    | _ => true
+    end
+  | _ => true
+  end.
+
+Definition check_not_mem_i_args_kinds (cond : i_args_kinds) (d : arg_desc) :=
+  all (check_not_mem_args_kinds d) cond.
+
+Definition check_not_mem (cond : i_args_kinds) (d : seq arg_desc) :=
+  all (check_not_mem_i_args_kinds cond) d.
+
+Lemma exclude_mem_args_kinds_subseq d cond :
+  all2 subseq (exclude_mem_args_kinds d cond) cond.
+Proof.
+  rewrite /exclude_mem_args_kinds.
+  case: d => [_|_ i _].
+  + by apply all2_refl.
+  rewrite all2E size_mapi eq_refl /=.
+  apply /(all_nthP ([::],[::])) => k /=.
+  rewrite size_zip size_mapi minnn => hk.
+  rewrite nth_zip ?size_mapi // (nth_mapi [::]) //=.
+  case: eq_op => //.
+  by apply filter_subseq.
+Qed.
+
+Lemma exclude_mem_args_kinds_check d cond :
+  check_not_mem_args_kinds d (exclude_mem_args_kinds d cond).
+Proof.
+  rewrite /check_not_mem_args_kinds /exclude_mem_args_kinds.
+  case: d => // _ i _.
+  case heq: onth => [c|//].
+  move /(onthP [::]) : heq => /andP [].
+  rewrite size_mapi => hsize.
+  rewrite (nth_mapi [::]) // eq_refl.
+  move=> /eqP <-.
+  by apply filter_all.
+Qed.
+
+Lemma exclude_mem_i_args_kinds_subseq d cond :
+  all2 (all2 subseq) (exclude_mem_i_args_kinds d cond) cond.
+Proof.
+  elim: cond => //= c cond ih.
+  apply /andP; split=> //.
+  by apply exclude_mem_args_kinds_subseq.
+Qed.
+
+Lemma exclude_mem_i_args_kinds_check d cond :
+  check_not_mem_i_args_kinds (exclude_mem_i_args_kinds d cond) d.
+Proof.
+  elim: cond => //= c cond ih.
+  apply /andP; split=> //.
+  by apply exclude_mem_args_kinds_check.
+Qed.
+
+Lemma check_not_mem_args_kinds_subseq cond1 cond2 d :
+  all2 subseq cond1 cond2 ->
+  check_not_mem_args_kinds d cond2 ->
+  check_not_mem_args_kinds d cond1.
+Proof.
+  case: d => // _ i _ /=.
+  rewrite all2E => /andP [/eqP hsize hsubseq].
+  move: hsubseq => /all_nthP -/(_ ([::], [::])) /= hsubseq.
+  case heq2: onth => [c2|].
+  + move=> hnmem2.
+    move: heq2 => /onthP -/(_ [::]) /andP [hi /eqP hnth2].
+    rewrite (onth_nth_size [::]) ?hsize //.
+    apply: subseq_all hnmem2.
+    rewrite -hnth2.
+    move: (hsubseq i).
+    rewrite size_zip hsize minnn => /(_ hi) /=.
+    by rewrite nth_zip.
+  case heq1: onth => //.
+  move: heq1 => /(onthP [::]) /andP [hi _].
+  rewrite hsize in hi.
+  by rewrite (onth_nth_size [::] hi) in heq2.
+Qed.
+
+Lemma check_not_mem_i_args_kinds_subseq cond1 cond2 d :
+  all2 (all2 subseq) cond1 cond2 ->
+  check_not_mem_i_args_kinds cond2 d ->
+  check_not_mem_i_args_kinds cond1 d.
+Proof.
+  elim/list_all2_ind {cond1 cond2} => // c1 cond1 c2 cond2 hall2 _ ih /=.
+  move=> /andP [hcheck /ih{ih}ih].
+  apply /andP; split=> //.
+  by apply: check_not_mem_args_kinds_subseq hcheck.
+Qed.
+
+Lemma exclude_mem_aux_subseq cond ds :
+  all2 (all2 subseq) (exclude_mem_aux cond ds) cond.
+Proof.
+  elim: ds cond => /=.
+  + by apply /all2_refl /all2_refl.
+  move=> d ds ih cond.
+  apply: (all2_trans (all2_trans (@subseq_trans _)) (ih _)).
+  by apply exclude_mem_i_args_kinds_subseq.
+Qed.
+
+Lemma exclude_mem_aux_check cond ds :
+  check_not_mem (exclude_mem_aux cond ds) ds.
+Proof.
+  elim: ds cond => //= d ds ih cond.
+  apply /andP; split=> //.
+  apply (check_not_mem_i_args_kinds_subseq (exclude_mem_aux_subseq _ _)).
+  by apply exclude_mem_i_args_kinds_check.
+Qed.
+
+Lemma exclude_mem_check cond ds :
+  check_not_mem (exclude_mem cond ds) ds.
+Proof.
+  apply: sub_all (exclude_mem_aux_check cond ds).
+  move=> d.
+  by apply: (subseq_all (filter_subseq _ _)).
+Qed.
+
+Definition is_not_Addr (a : asm_arg) :=
+  match a with
+  | Addr _ => false
+  | _ => true
+  end.
+
+Definition check_not_addr1 (args : asm_args) (d:arg_desc) :=
+  match d with
+  | ADExplicit _ i _ =>
+    match onth args i with
+    | Some a => is_not_Addr a
+    | _ => true
+    end
+  | _ => true
+  end.
+
+Definition check_not_addr (id_out : seq arg_desc) (args : asm_args) :=
+  all (check_not_addr1 args) id_out.
+
+Lemma check_arg_kind_not_Addr a c :
+  check_arg_kind a c ->
+  is_not_CAmem c ->
+  is_not_Addr a.
+Proof. by case: a; case: c. Qed.
+
+Lemma check_arg_kinds_subseq cond1 cond2 a :
+  subseq cond1 cond2 ->
+  check_arg_kinds a cond1 ->
+  check_arg_kinds a cond2.
+Proof. by apply subseq_has. Qed.
+
+Lemma check_arg_kinds_not_Addr a cond :
+  check_arg_kinds a cond ->
+  all is_not_CAmem cond ->
+  is_not_Addr a.
+Proof.
+  elim: cond => //= c cond ih /orP [].
+  + by move=> /check_arg_kind_not_Addr h /andP [/h ? _].
+  by move=> /ih{ih}ih /andP [_ /ih].
+Qed.
+
+Lemma check_args_kinds_subseq cond1 cond2 args :
+  all2 subseq cond1 cond2 ->
+  check_args_kinds args cond1 ->
+  check_args_kinds args cond2.
+Proof.
+  elim: cond1 cond2 args; first by case.
+  move=> c1 cond1 ih [//|c2 cond2] [//|a args] /= /andP [hsub /ih{ih}ih] /andP [hcheck /ih{ih}ih].
+  apply /andP; split =>//.
+  by apply (check_arg_kinds_subseq hsub).
+Qed.
+
+(* [Imm (wrepr U8 0)] is just used as a default [asm_arg] value. *)
+Lemma check_args_kinds_not_addr1 args cond d :
+  check_args_kinds args cond ->
+  check_not_mem_args_kinds d cond ->
+  check_not_addr1 args d.
+Proof.
+  case: d => //= _ i _.
+  rewrite /check_args_kinds all2E => /andP [/eqP hsize hnth].
+  case heqc: onth => [c|]; last first.
+  + move=> _.
+    case heqa: onth => [a|//].
+    move /(onthP (Imm (wrepr U8 0))) : heqa => /andP [hi _].
+    by move: heqc; rewrite (onth_nth_size [::]) // -hsize.
+  move /(onthP [::]) : heqc => /andP [hi /eqP hnthc].
+  move /all_nthP : hnth => /(_ (Imm (wrepr U8 0), [::]) i) /=.
+  rewrite size_zip hsize minnn nth_zip //= hnthc => /(_ hi).
+  rewrite (onth_nth_size (Imm (wrepr U8 0))) ?hsize //.
+  by apply check_arg_kinds_not_Addr.
+Qed.
+
+Lemma check_i_args_kinds_subseq cond1 cond2 args :
+  all2 (all2 subseq) cond1 cond2 ->
+  check_i_args_kinds cond1 args ->
+  check_i_args_kinds cond2 args.
+Proof.
+  rewrite all2E => /andP [/eqP hsize hnth].
+  move=> /(has_nthP [::]) [i hi hcheck].
+  apply /(has_nthP [::]).
+  exists i; first by rewrite -hsize.
+  move /(all_nthP ([::],[::])) : hnth => /(_ i) /=.
+  rewrite size_zip -hsize minnn nth_zip //= => /(_ hi) hall2.
+  by apply (check_args_kinds_subseq hall2 hcheck).
+Qed.
+
+Lemma check_i_args_kinds_not_addr1 cond args d :
+  check_i_args_kinds cond args ->
+  check_not_mem_i_args_kinds cond d ->
+  check_not_addr1 args d.
+Proof.
+  rewrite /check_i_args_kinds /check_not_mem_i_args_kinds.
+  move=> /hasP /= [c hin hcheck].
+  move=> /allP -/(_ c hin).
+  by apply check_args_kinds_not_addr1.
+Qed.
+
+Lemma check_i_args_kinds_not_addr cond args ds :
+  check_i_args_kinds cond args ->
+  check_not_mem cond ds ->
+  check_not_addr ds args.
+Proof.
+  move=> hcheck.
+  elim: ds => //= d ds ih /andP [hnmem /ih{ih}ih].
+  apply /andP; split=> //.
+  by apply (check_i_args_kinds_not_addr1 hcheck hnmem).
+Qed.
+
+Lemma exclude_mem_correct args_kinds out asm_args:
+  check_i_args_kinds (exclude_mem args_kinds out) asm_args ->
+  check_i_args_kinds args_kinds asm_args /\ check_not_addr out asm_args.
+Proof.
+  move=> hcheck.
+  split.
+  + apply: (check_i_args_kinds_subseq (exclude_mem_aux_subseq args_kinds out)).
+    by apply (subseq_has (filter_subseq _ _) hcheck).
+  apply (check_i_args_kinds_not_addr hcheck).
+  by apply exclude_mem_check.
+Qed.
+
+Lemma check_not_addr1_write asm_args ad ws ty (v: sem_ot ty) s :
+  check_not_addr1 asm_args ad ->
   mem_write_val MSB_CLEAR asm_args (ad, extend_size ws ty)
        (oto_val (wextend_size ws v)) s =
   mem_write_val MSB_CLEAR asm_args (ad, ty) (oto_val v) s.
@@ -426,9 +666,9 @@ Proof.
   by rewrite /mem_write_xreg !word_extend_CLEAR zero_extend_comp.
 Qed.
 
-Lemma clear_check_write s ws asm_args id_out id_tout (t : sem_tuple id_tout) :
+Lemma check_not_addr_write s ws asm_args id_out id_tout (t : sem_tuple id_tout) :
   size id_out = size id_tout →
-  clear_check id_out asm_args →
+  check_not_addr id_out asm_args →
   mem_write_vals MSB_CLEAR s asm_args id_out [seq extend_size ws i | i <- id_tout]
         (list_ltuple (extend_tuple ws t)) =
   mem_write_vals MSB_CLEAR s asm_args id_out id_tout (list_ltuple t).
@@ -437,25 +677,100 @@ Proof.
   elim: id_out id_tout t s => [ | ad id_out hrec] [ | ty id_tout] //= t s []
      hsize /andP [] hc1 hcs.
   case: id_tout t hsize hcs.
-  + by move=> {hrec}; case: id_out => //= v _ _; rewrite check_check1_write.
+  + by move=> {hrec}; case: id_out => //= v _ _; rewrite check_not_addr1_write.
   move=> a l [] v t hsz hc.
   have := hrec (a::l) t _ hsz hc.
-  rewrite /= check_check1_write //.
+  rewrite /= check_not_addr1_write //.
   case: mem_write_val => //=.
 Qed.
 
-Lemma exec_desc_desc' op asm_args s :
-  id_check (instr_desc op) asm_args ->
-  exec_instr_op (instr_desc op) asm_args s = exec_instr_op (instr_desc' op.2) asm_args s.
+Lemma exec_desc_desc_op op asm_args s :
+  check_i_args_kinds (instr_desc op).(id_args_kinds) asm_args ->
+  exec_instr_op (instr_desc op) asm_args s = exec_instr_op (instr_desc_op op.2) asm_args s.
 Proof.
   case: op => -[ws |] //= op.
-  case: eqP => //= hclear /andP [hc hcc].
-  rewrite /exec_instr_op /= /eval_instr_op /= hc hcc hclear /=.
+  case: eqP => //= hclear /dup[] hcheck /exclude_mem_correct [hc hnaddr].
+  rewrite /exec_instr_op /= /eval_instr_op /= hcheck hc hclear /=.
   case heq : eval_args_in => [vargs | ] //=.
   rewrite app_sopn_apply_lprod.
   case: app_sopn => //= t.
-  apply clear_check_write => //.
-  by have /andP [_ /eqP]:= id_eq_size (instr_desc' op).
+  apply check_not_addr_write => //.
+  assert (hsize:= id_eq_size (instr_desc_op op)).
+  by move: hsize => /andP [_ /eqP].
+Qed.
+
+Lemma enforce_imm_arg_kind_correct a c a' :
+  enforce_imm_arg_kind a c = Some a' ->
+  check_arg_kind a' c.
+Proof.
+  case: a; case: c => [||| b |] //=; try by move=> ? [<-].
+  move=> ws1 ws2 w.
+  by case: eqP => // -> [<-] /=.
+Qed.
+
+Lemma enforce_imm_arg_kinds_correct a cond a' :
+  enforce_imm_arg_kinds a cond = Some a' ->
+  check_arg_kinds a' cond.
+Proof.
+  move=> /find_map_correct [c hin /enforce_imm_arg_kind_correct hc].
+  by apply /hasP; exists c.
+Qed.
+
+Lemma enforce_imm_args_kinds_correct args cond args' :
+  enforce_imm_args_kinds args cond = Some args' ->
+  check_args_kinds args' cond.
+Proof.
+  rewrite /enforce_imm_args_kinds.
+  case heq: mapM2 => {args'} [args'|//] [<-].
+  elim: args cond args' heq => /=.
+  + by move=> [|//] _ [<-].
+  move=> a args ih [//|c cond].
+  t_xrbindP=> _ arg' hok args' hmap <- /=.
+  apply /andP; split; last by apply ih.
+  case henforce: enforce_imm_arg_kinds hok => {arg'} [arg'|//] /= [<-].
+  by apply: enforce_imm_arg_kinds_correct henforce.
+Qed.
+
+Lemma enforce_imm_i_args_kinds_correct args cond args' :
+  enforce_imm_i_args_kinds cond args = Some args' ->
+  check_i_args_kinds cond args'.
+Proof.
+  move=> /find_map_correct [c hin /enforce_imm_args_kinds_correct hc].
+  by apply /hasP; exists c.
+Qed.
+
+Lemma filter_arg_kinds_no_imm_subseq args cond cond' :
+  filter_arg_kinds_no_imm args cond = ok cond' ->
+  subseq cond' cond.
+Proof.
+  rewrite /filter_arg_kinds_no_imm.
+  case: {1}filter => [//|_ _] [<-].
+  by apply filter_subseq.
+Qed.
+
+Lemma filter_args_kinds_no_imm_subseq args cond cond' :
+  filter_args_kinds_no_imm args cond = Some cond' ->
+  all2 subseq cond' cond.
+Proof.
+  rewrite /filter_args_kinds_no_imm.
+  case heq: mapM2 => {cond'} [cond'|//] [<-].
+  elim: args cond cond' heq => /=.
+  + by move=> [|//] _ [<-].
+  move=> a args ih [//|c cond].
+  t_xrbindP=> ? c' hfilter cond' hmap <- /=.
+  apply /andP; split; last by apply ih.
+  by apply (filter_arg_kinds_no_imm_subseq hfilter).
+Qed.
+
+Lemma filter_i_args_kinds_no_imm_correct args cond args' :
+  check_i_args_kinds (filter_i_args_kinds_no_imm cond args) args' ->
+  check_i_args_kinds cond args'.
+Proof.
+  move=> /hasP /= [c hin hcheck].
+  move: hin; rewrite mem_pmap => /mapP /= [c' hin' /esym hfilter].
+  apply /hasP; exists c' => //.
+  apply: check_args_kinds_subseq hcheck.
+  by apply (filter_args_kinds_no_imm_subseq hfilter).
 Qed.
 
 Lemma assemble_x86_opnP rip ii op lvs args op' asm_args s m m' : 
@@ -465,9 +780,12 @@ Lemma assemble_x86_opnP rip ii op lvs args op' asm_args s m m' :
   exists s', eval_op op' asm_args s = ok s' /\ lom_eqv rip m' s'.
 Proof.
   rewrite /assemble_x86_opn /eval_op => hsem.
-  t_xrbindP => asm_args' ?? /assertP hidc ? /assertP /andP [hca hcd] <- ? hlo; subst asm_args'.
+  t_xrbindP => asm_args' ? _ /assertP hc.
+  case hci: enforce_imm_i_args_kinds =>
+    {asm_args} [asm_args|//] _ [<-] _ /assertP /andP [hca hcd] <- <- hlo.
+  have hidc := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
   have [s' [he' hlo']]:= compile_x86_opn hsem hca hcd hidc hlo.
-  by exists s'; split => //; rewrite -exec_desc_desc'.
+  by exists s'; split => //; rewrite -exec_desc_desc_op.
 Qed.
 
 Lemma assemble_sopnP rip ii op lvs args op' asm_args m m' s: 
@@ -480,8 +798,11 @@ Proof.
   + move=> sz; rewrite /sem_sopn /exec_sopn /sopn_sem /=.
     rewrite /Oset0_instr; case: ifP => /= hsz64.
     + t_xrbindP => ? []// ?? [<-] /= <-.
-      move=> hw x hx; rewrite /assemble_x86_opn /is_lea /=.
-      t_xrbindP => asm_args' _ ? /assertP hidc ? /assertP /andP[hca hcd] ??;subst op' asm_args'.  
+      move=> hw x hx; rewrite /assemble_x86_opn /is_lea.
+      t_xrbindP => asm_args' _ _ /assertP hc.
+      case hci: enforce_imm_i_args_kinds =>
+        {asm_args} [asm_args|//] _ [<-] _ /assertP /andP [hca hcd] <- <-.
+      have {hci} hidc := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
       move: hca; rewrite /check_sopn_args /= => /and3P [].
       rewrite /check_sopn_arg /=.
       case: asm_args hidc hcd => //= a0 [ // | ] a1 [] //= hidc hcd;
@@ -491,15 +812,18 @@ Proof.
       case: y ok_y => // r xr; rewrite !orbF => /eqP ? /eqP ? _; subst a0 a1; last by [].
       rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
       rewrite /truncate_word /x86_XOR /check_size_8_64 hsz64 /= wxor_xx.
-      set id := instr_desc' (XOR sz) => hlo.
+      set id := instr_desc_op (XOR sz) => hlo.
       rewrite /SF_of_word msb0.
-      by apply: (@compile_lvals rip ii id.(id_max_imm) m lvs m' s [:: Reg r; Reg r]
+      by apply: (@compile_lvals rip ii m lvs m' s [:: Reg r; Reg r]
              id.(id_out) id.(id_tout)
              (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word sz)))
              (reg_msb_flag sz) (refl_equal _) hw hlo hcd id.(id_check_dest)).
     t_xrbindP => ? []// ?? [<-] /= <-.
-    move=> hw x hx; rewrite /assemble_x86_opn /is_lea /=.
-    t_xrbindP => asm_args' _ ? /assertP hidc ? /assertP /andP[hca hcd] ??;subst op' asm_args'.  
+    move=> hw x hx; rewrite /assemble_x86_opn /is_lea.
+    t_xrbindP => asm_args' _ _ /assertP hc.
+    case hci: enforce_imm_i_args_kinds =>
+      {asm_args} [asm_args|//] _ [<-] _ /assertP /andP [hca hcd] <- <-.
+    have {hci} hidc := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
     move: hca; rewrite /check_sopn_args /= => /and3P [].
     rewrite /check_sopn_arg /=.
     case: asm_args hidc hcd => //= a0 [// | ] a1 [] //= a2 [] //=;
@@ -512,8 +836,8 @@ Proof.
     rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
     rewrite /truncate_word /x86_VPXOR hidc /= /x86_u128_binop /check_size_128_256 wsize_ge_U256. 
     have -> /= : (U128 ≤ sz)%CMP by case: (sz) hsz64. 
-    rewrite wxor_xx; set id := instr_desc' (VPXOR sz) => hlo.
-    by apply: (@compile_lvals rip ii id.(id_max_imm) m lvs m' s [:: a0; XMM r; XMM r]
+    rewrite wxor_xx; set id := instr_desc_op (VPXOR sz) => hlo.
+    by apply: (@compile_lvals rip ii m lvs m' s [:: a0; XReg r; XReg r]
                id.(id_out) id.(id_tout)
                (0%R: word sz)
                (reg_msb_flag sz) (refl_equal _) hw hlo hcd id.(id_check_dest)).
@@ -522,16 +846,18 @@ Proof.
     rewrite /sem_sopn /exec_sopn /sopn_sem /=.
     t_xrbindP => ?? vh hvh ? vl hvl <- <- /= vd.
     t_xrbindP => wh hwh wl hwl <- <- /= hwr ? <-.
-    rewrite /assemble_x86_opn /=.
-    t_xrbindP => asm_args' haux _ /assertP hch _ /assertP /andP[hca hcd] <- ? hlow.
-    subst asm_args'.
+    rewrite /assemble_x86_opn.
+    t_xrbindP => asm_args' haux _ /assertP hc'.
+    case hci: enforce_imm_i_args_kinds =>
+      {asm_args} [asm_args|//] _ [<-] _ /assertP /andP [hca hcd] <- <- hlow.
+    have {hci} hch := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
     have [s' [hwm hlow']]:= 
       compile_lvals 
        (id_out := [:: E 0]) (id_tout := [:: sword256]) MSB_CLEAR refl_equal hwr hlow hcd refl_equal.
     exists s'; split => //.
     move: hca; rewrite /check_sopn_args /= => /and4P [] hE1 hE2 hE3 _.
 Opaque eval_arg_in_v.
-    rewrite /eval_op /exec_instr_op /= /eval_instr_op /= hch.
+    rewrite /eval_op /exec_instr_op /= /eval_instr_op hch /=.
     have [vh' [-> /= hvh']]:= check_sopn_arg_sem_eval hlow hE2 hvh hwh.
     have [v1 [/= -> hv1 /=]] := 
        check_sopn_arg_sem_eval hlow hE3 refl_equal (truncate_word_u _).
@@ -571,8 +897,11 @@ Transparent eval_arg_in_v.
     t_xrbindP => vs1 vs2 va hva vs3 h <- /=.
     case: args h => /=; t_xrbindP; last by move=> *; subst.
     move => <- ? wa htwa [<-] <-; t_xrbindP => m1 hwx ?;subst m1.
-    rewrite /assemble_x86_opn /is_lea /=.
-    t_xrbindP => asm_args' _ ? /assertP hidc ? /assertP /andP[hca hcd] ?? hlo;subst op' asm_args'.  
+    rewrite /assemble_x86_opn /is_lea.
+    t_xrbindP => asm_args' _ _ /assertP hc.
+    case hci: enforce_imm_i_args_kinds =>
+      {asm_args} [asm_args|//] _ [<-] _ /assertP /andP [hca hcd] <- <- hlo.
+    have {hci} hidc := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
     case: asm_args hidc hcd hca => // a0 [] // a1 []// hidc hcd;
       last by rewrite /check_args_kinds /= !andbF.                               
     rewrite /check_sopn_args /= andbT => hca1.

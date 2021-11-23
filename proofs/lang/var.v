@@ -33,17 +33,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition ident := string.
-
 (* ** Variables map, to be used when computation is needed
  * -------------------------------------------------------------------- *)
-Module Type IDENT.
-
-  Parameter ident : eqType.
-
-  Declare Module Mid : MAP with Definition K.t := ident.
-
-End IDENT.
 
 Module MvMake (I:IDENT).
 
@@ -330,11 +321,6 @@ Notation vtype := Var.vtype.
 Notation vname := Var.vname.
 Notation Var   := Var.Var.
 
-Definition var2pair (v:var) := (v.(vtype), v.(vname)).
-Definition pair2var (p:stype * ident) := Var (fst p) (snd p).
-
-Lemma codeK_var : cancel var2pair pair2var. Proof. by rewrite /cancel; case => //. Qed.
-
 Declare Scope mvar_scope.
 Delimit Scope mvar_scope with mv.
 Notation "vm .[ x ]" := (@Mv.get _ vm x) : mvar_scope.
@@ -542,6 +528,33 @@ Lemma in_disjoint_diff x a b c :
   disjoint a (Sv.diff b c) →
   Sv.In x c.
 Proof. rewrite /disjoint /is_true Sv.is_empty_spec; SvD.fsetdec. Qed.
+
+(* ---------------------------------------------------------------- *)
+Lemma Sv_mem_add (s: Sv.t) (x y: var) :
+  Sv.mem x (Sv.add y s) = (x == y) || Sv.mem x s.
+Proof.
+  case: eqP.
+  - move => <-; exact: SvP.add_mem_1.
+  move => ne; exact: (SvD.F.add_neq_b _ (not_eq_sym ne)).
+Qed.
+
+(* ---------------------------------------------------------------- *)
+Definition sv_of_list T (f: T → var) : seq T → Sv.t :=
+  foldl (λ s r, Sv.add (f r) s) Sv.empty.
+
+Lemma sv_of_listE T (f: T → var) x m :
+  Sv.mem x (sv_of_list f m) = (x \in map f m).
+Proof.
+  suff h : forall s, Sv.mem x (foldl (λ (s : Sv.t) (r : T), Sv.add (f r) s) s m) = (x \in map f m) || Sv.mem x s by rewrite h orbF.
+  elim: m => //= z m hrec s.
+  rewrite hrec in_cons SvD.F.add_b /SvD.F.eqb.
+  case: SvD.F.eq_dec => [-> | /eqP]; first by rewrite eqxx /= orbT.
+  by rewrite eq_sym => /negbTE ->.
+Qed.
+
+Lemma sv_of_listP T (f: T → var) x m :
+  reflect (Sv.In x (sv_of_list f m)) (x \in map f m).
+Proof. rewrite -sv_of_listE; apply Sv_memP. Qed.
 
 (* Non dependant map *)
 Module Mvar :=  Mmake CmpVar.

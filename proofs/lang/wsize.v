@@ -202,6 +202,6 @@ Definition pp_ve_sz (s: string) (ve: velem) (sz: wsize) (_: unit) : string :=
 Definition pp_sz_sz (s: string) (sign:bool) (sz sz': wsize) (_: unit) : string := 
   s ++ "_u" ++ string_of_wsize sz ++ (if sign then "_s" else "_u")%string ++ string_of_wsize sz'.
 
-
-
-
+(* -------------------------------------------------------------------- *)
+Variant safe_cond :=
+  | NotZero of wsize & nat. (* the nth argument of size sz is not zero *)

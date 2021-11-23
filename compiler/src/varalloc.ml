@@ -59,7 +59,7 @@ let stack_pointers = Hv.create 117 in
 let get_stack_pointer x =
   try Hv.find stack_pointers x
   with Not_found ->
-    let r = V.mk x.v_name (Stack Direct) u64 x.v_dloc in
+    let r = V.mk x.v_name (Stack Direct) u64 x.v_dloc x.v_annot in
     Hv.add stack_pointers x r;
     r
 in
@@ -196,7 +196,7 @@ let classes_alignment (onfun : funname -> param_info option list) gtbl alias c =
 let get_slot coloring x = 
   let sz = size_of x.v_ty in
   try Mv.find x (Mint.find sz coloring)
-  with Not_found -> assert false 
+  with Not_found -> Format.eprintf "get_slot %a@." (Printer.pp_var ~debug:true) x; assert false 
 
 let get_stack_pointer stack_pointers x =
   try Hv.find stack_pointers x
@@ -238,7 +238,7 @@ let init_slots stack_pointers alias coloring fv =
       add_slot slot;
       add_local v (StackPtr slot)
     | Reg (Pointer _) ->
-      let p = V.mk v.v_name (Reg Direct) u64 v.v_dloc in
+      let p = V.mk v.v_name (Reg Direct) u64 v.v_dloc v.v_annot in
       add_local v (RegPtr p) 
     | _ -> () in
 

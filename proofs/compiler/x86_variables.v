@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import low_memory x86_sem x86_decl compiler_util lowering.
+Require Import low_memory x86_sem x86_decl compiler_util.
 Import Utf8 String.
 Import all_ssreflect.
 Import xseq expr.
@@ -8,108 +8,57 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition string_of_register r :=
-  match r with
-  | RAX => "RAX"
-  | RCX => "RCX"
-  | RDX => "RDX"
-  | RBX => "RBX"
-  | RSP => "RSP"
-  | RBP => "RBP"
-  | RSI => "RSI"
-  | RDI => "RDI"
-  | R8  => "R8"
-  | R9  => "R9"
-  | R10 => "R10"
-  | R11 => "R11"
-  | R12 => "R12"
-  | R13 => "R13"
-  | R14 => "R14"
-  | R15 => "R15"
-  end%string.
-
-Definition string_of_xmm_register r : string :=
-  match r with
-  | XMM0 => "XMM0"
-  | XMM1 => "XMM1"
-  | XMM2 => "XMM2"
-  | XMM3 => "XMM3"
-  | XMM4 => "XMM4"
-  | XMM5 => "XMM5"
-  | XMM6 => "XMM6"
-  | XMM7 => "XMM7"
-  | XMM8 => "XMM8"
-  | XMM9 => "XMM9"
-  | XMM10 => "XMM10"
-  | XMM11 => "XMM11"
-  | XMM12 => "XMM12"
-  | XMM13 => "XMM13"
-  | XMM14 => "XMM14"
-  | XMM15 => "XMM15"
-  end.
-
-Definition string_of_rflag (rf : rflag) : string :=
-  match rf with
- | CF => "CF"
- | PF => "PF"
- | ZF => "ZF"
- | SF => "SF"
- | OF => "OF"
- | DF => "DF"
- end%string.
-
-Definition regs_strings :=
-  Eval compute in [seq (string_of_register x, x) | x <- registers].
-
-Lemma regs_stringsE : regs_strings =
-  [seq (string_of_register x, x) | x <- registers].
-Proof. by []. Qed.
+(* -------------------------------------------------------------------- *)
+Definition reg_of_string (s : string) : option register :=
+  assoc strings s.
 
 (* -------------------------------------------------------------------- *)
-Definition xmm_regs_strings :=
-  Eval compute in [seq (string_of_xmm_register x, x) | x <- xmm_registers].
-
-Lemma xmm_regs_stringsE : xmm_regs_strings =
-  [seq (string_of_xmm_register x, x) | x <- xmm_registers].
-Proof. by []. Qed.
+Definition xmm_reg_of_string (s : string) : option xmm_register :=
+  assoc strings s.
 
 (* -------------------------------------------------------------------- *)
-Definition rflags_strings :=
-  Eval compute in [seq (string_of_rflag x, x) | x <- rflags].
-
-Lemma rflags_stringsE : rflags_strings =
-  [seq (string_of_rflag x, x) | x <- rflags].
-Proof. by []. Qed.
+Definition rflag_of_string (s : string) : option rflag :=
+  assoc strings s.
 
 (* -------------------------------------------------------------------- *)
-Definition reg_of_string (s : string) :=
-  assoc regs_strings s.
+Lemma rflag_of_stringK : pcancel to_string rflag_of_string.
+Proof.
+  move=> r /=; rewrite /rflag_of_string /=.
+  apply /assocP.
+  + rewrite -map_comp map_inj_uniq; first by apply enum_uniq.
+    by apply (@inj_to_string _ _ x86_rflag_toS).
+  apply /mapP; exists r => //.
+  by rewrite mem_enum.
+Qed.
 
-(* -------------------------------------------------------------------- *)
-Definition xmm_reg_of_string (s : string) :=
-  assoc xmm_regs_strings s.
+Lemma reg_of_stringK : pcancel to_string reg_of_string.
+Proof.
+  move=> r /=; rewrite /rflag_of_string /=.
+  apply /assocP.
+  + rewrite -map_comp map_inj_uniq; first by apply enum_uniq.
+    by apply (@inj_to_string _ _ x86_reg_toS).
+  apply /mapP; exists r => //.
+  by rewrite mem_enum.
+Qed.
 
-(* -------------------------------------------------------------------- *)
-Definition rflag_of_string (s : string) :=
-  assoc rflags_strings s.
+Lemma xmm_reg_of_stringK : pcancel to_string xmm_reg_of_string.
+Proof.
+  move=> r /=; rewrite /rflag_of_string /=.
+  apply /assocP.
+  + rewrite -map_comp map_inj_uniq; first by apply enum_uniq.
+    by apply (@inj_to_string _ _ x86_xreg_toS).
+  apply /mapP; exists r => //.
+  by rewrite mem_enum.
+Qed.
 
-(* -------------------------------------------------------------------- *)
-Lemma rflag_of_stringK : pcancel string_of_rflag rflag_of_string.
-Proof. by case. Qed.
-
-Lemma reg_of_stringK : pcancel string_of_register reg_of_string.
-Proof. by case. Qed.
-
-Lemma xmm_reg_of_stringK : pcancel string_of_xmm_register xmm_reg_of_string.
-Proof. by case. Qed.
-
-Lemma inj_string_of_rflag : injective string_of_rflag.
+(* other proof: to_string_inj ! *)
+Lemma inj_string_of_rflag : injective (@to_string _ _ x86_rflag_toS).
 Proof. by apply: (pcan_inj rflag_of_stringK). Qed.
 
-Lemma inj_string_of_register : injective string_of_register.
+Lemma inj_string_of_register : injective (@to_string _ _ x86_reg_toS).
 Proof. by apply: (pcan_inj reg_of_stringK). Qed.
 
-Lemma inj_string_of_xmm_register : injective string_of_xmm_register.
+Lemma inj_string_of_xmm_register : injective (@to_string _ _ x86_xreg_toS).
 Proof. by apply: (pcan_inj xmm_reg_of_stringK). Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -117,15 +66,17 @@ Lemma inj_reg_of_string s1 s2 r :
      reg_of_string s1 = Some r
   -> reg_of_string s2 = Some r
   -> s1 = s2.
-Proof. by rewrite /reg_of_string !regs_stringsE; apply: inj_assoc. Qed.
+Proof. by rewrite /reg_of_string; apply: inj_assoc; apply enum_uniq. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma xmm_reg_of_stringI s r :
   xmm_reg_of_string s = Some r →
-  string_of_xmm_register r = s.
+  to_string r = s.
 Proof.
   have := xmm_reg_of_stringK r.
-  move => /assoc_inj. apply. done.
+  move => /assoc_inj. apply.
+  rewrite /= -map_comp map_inj_uniq //.
+  by apply enum_uniq.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -133,25 +84,25 @@ Lemma inj_xmm_reg_of_string s1 s2 r :
      xmm_reg_of_string s1 = Some r
   -> xmm_reg_of_string s2 = Some r
   -> s1 = s2.
-Proof. by rewrite /xmm_reg_of_string !xmm_regs_stringsE; apply: inj_assoc. Qed.
+Proof. by rewrite /xmm_reg_of_string; apply: inj_assoc; apply enum_uniq. Qed.
 
 (* -------------------------------------------------------------------- *)
 Lemma inj_rflag_of_string s1 s2 rf :
      rflag_of_string s1 = Some rf
   -> rflag_of_string s2 = Some rf
   -> s1 = s2.
-Proof. by rewrite /rflag_of_string !rflags_stringsE; apply: inj_assoc. Qed.
+Proof. by rewrite /rflag_of_string; apply: inj_assoc; apply enum_uniq. Qed.
 
 (* -------------------------------------------------------------------- *)
 
-Definition var_of_register r :=
-  {| vtype := sword64 ; vname := string_of_register r |}.
+Definition var_of_register (r:register) :=
+  {| vtype := sword64 ; vname := to_string r |}.
 
-Definition var_of_xmm_register r :=
-  {| vtype := sword256 ; vname := string_of_xmm_register r |}.
+Definition var_of_xmm_register (r:xmm_register) :=
+  {| vtype := sword256 ; vname := to_string r |}.
 
-Definition var_of_flag f :=
-  {| vtype := sbool; vname := string_of_rflag f |}.
+Definition var_of_flag (f:rflag) :=
+  {| vtype := sbool; vname := to_string f |}.
 
 Lemma var_of_register_inj x y :
   var_of_register x = var_of_register y →
@@ -212,7 +163,7 @@ Lemma xmm_register_of_varI v r :
   xmm_register_of_var v = Some r →
   var_of_xmm_register r = v.
 Proof.
-  by rewrite /xmm_register_of_var /var_of_xmm_register; case: eqP => // <- /xmm_reg_of_stringI ->; case: v.
+  by rewrite /xmm_register_of_var /var_of_xmm_register; case: eqP => // /= <- /xmm_reg_of_stringI /= ->; case: v.
 Qed.
 
 Lemma xmm_register_of_var_of_xmm_register xr :
@@ -335,7 +286,42 @@ Definition rflag_of_var ii (vi: var_i) :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition assemble_cond ii (e: pexpr) : cexec condt :=
+
+Definition not_condt (c:condt) := 
+  match c with
+  | O_ct  => NO_ct
+  | NO_ct => O_ct
+  | B_ct  => NB_ct 
+  | NB_ct => B_ct
+  | E_ct  => NE_ct 
+  | NE_ct => E_ct 
+  | BE_ct => NBE_ct 
+  | NBE_ct => BE_ct 
+  | S_ct   => NS_ct 
+  | NS_ct  => S_ct 
+  | P_ct   => NP_ct 
+  | NP_ct  => P_ct 
+  | L_ct   => NL_ct 
+  | NL_ct  => L_ct 
+  | LE_ct  => NLE_ct 
+  | NLE_ct => LE_ct
+  end.
+
+Definition or_condt ii e c1 c2 : cexec condt := 
+  match c1, c2 with
+  | L_ct, E_ct | E_ct, L_ct => ok LE_ct
+  | B_ct, E_ct | E_ct, B_ct => ok BE_ct 
+  | _, _ => Error (E.berror ii e "Invalid condition (OR)")
+  end.
+
+Definition and_condt ii e c1 c2 := 
+  match c1, c2 with
+  | NB_ct, NE_ct | NE_ct, NB_ct => ok NBE_ct
+  | NE_ct, NL_ct | NL_ct, NE_ct => ok NLE_ct 
+  | _, _ => Error (E.berror ii e "Invalid condition (AND)")
+  end.
+
+Fixpoint assemble_cond_r ii (e: pexpr) : cexec condt := 
   match e with
   | Pvar v =>
     Let r := rflag_of_var ii v.(gv) in
@@ -347,70 +333,51 @@ Definition assemble_cond ii (e: pexpr) : cexec condt :=
     | PF => ok P_ct
     | DF => Error (E.berror ii e "Cannot branch on DF")
     end
+  | Papp1 Onot e => 
+    Let c := assemble_cond_r ii e in
+    ok (not_condt c)
 
-  | Papp1 Onot (Pvar v) =>
-    Let r := rflag_of_var ii v.(gv) in
-    match r with
-    | OF => ok NO_ct
-    | CF => ok NB_ct
-    | ZF => ok NE_ct
-    | SF => ok NS_ct
-    | PF => ok NP_ct
-    | DF => Error (E.berror ii e "Cannot branch on DF")
-    end
+  | Papp2 Oor e1 e2 =>
+    Let c1 := assemble_cond_r ii e1 in
+    Let c2 := assemble_cond_r ii e2 in
+    or_condt ii e c1 c2
+  
+  | Papp2 Oand e1 e2 =>
+    Let c1 := assemble_cond_r ii e1 in
+    Let c2 := assemble_cond_r ii e2 in
+    and_condt ii e c1 c2
+    
+  | Papp2 Obeq (Pvar x1) (Pvar x2) =>
+    Let r1 := rflag_of_var ii x1.(gv) in
+    Let r2 := rflag_of_var ii x2.(gv) in
+    if (r1 == SF) && (r2 == OF) || (r1 == OF) && (r2 == SF) then ok NL_ct
+    else Error (E.berror ii e "Invalid condition (NL)")
+  
+  (* We keep this by compatibility but it will be nice to remove it *)
+  | Pif _ (Pvar v1) (Papp1 Onot (Pvar vn2)) (Pvar v2) =>
+    Let r1 := rflag_of_var ii v1.(gv) in
+    Let rn2 := rflag_of_var ii vn2.(gv) in
+    Let r2 := rflag_of_var ii v2.(gv) in
+    if [&& r1 == SF, rn2 == OF & r2 == OF] ||
+       [&& r1 == OF, rn2 == SF & r2 == SF] then
+      ok L_ct
+    else Error (E.berror ii e "Invalid condition (L)")
 
-  | Papp2 Oor (Pvar vcf) (Pvar vzf) =>
-    Let rcf := rflag_of_var ii vcf.(gv) in
-    Let rzf := rflag_of_var ii vzf.(gv) in
-    Let _   := assert ((rcf == CF) && (rzf == ZF)) 
-                      (E.berror ii e "Invalid condition (BE)") in
-    ok BE_ct
-  | Papp2 Oand (Papp1 Onot (Pvar vcf)) (Papp1 Onot (Pvar vzf)) =>
-    Let rcf := rflag_of_var ii vcf.(gv) in
-    Let rzf := rflag_of_var ii vzf.(gv) in
-    Let _   := assert ((rcf == CF) && (rzf == ZF)) 
-                      (E.berror ii e "Invalid condition (NBE)") in
-    ok NBE_ct
-
-  | Pif _ (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2) =>
-    Let rsf := rflag_of_var ii vsf.(gv) in
-    Let rof1 := rflag_of_var ii vof1.(gv) in
-    Let rof2 := rflag_of_var ii vof2.(gv) in
-    Let _ := assert [&& rsf == SF, rof1 == OF & rof2 == OF] 
-                    (E.berror ii e "Invalid condition (L)") in
-    ok L_ct
-
-  | Pif _ (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2)) =>
-    Let rsf := rflag_of_var ii vsf.(gv) in
-    Let rof1 := rflag_of_var ii vof1.(gv) in
-    Let rof2 := rflag_of_var ii vof2.(gv) in
-    Let _ := assert [&& rsf == SF, rof1 == OF& rof2 == OF]
-                    (E.berror ii e "Invalid condition (NL)") in
-    ok NL_ct
-
-  | Papp2 Oor (Pvar vzf)
-          (Pif _ (Pvar vsf) (Papp1 Onot (Pvar vof1)) (Pvar vof2)) =>
-    Let rzf := rflag_of_var ii vzf.(gv) in
-    Let rsf := rflag_of_var ii vsf.(gv) in
-    Let rof1 := rflag_of_var ii vof1.(gv) in
-    Let rof2 := rflag_of_var ii vof2.(gv) in
-    Let _ := assert [&& rzf == ZF, rsf == SF, rof1 == OF & rof2 == OF]
-                    (E.berror ii e "Invalid condition (LE)") in
-    ok LE_ct
-
-  | Papp2 Oand
-             (Papp1 Onot (Pvar vzf))
-             (Pif _ (Pvar vsf) (Pvar vof1) (Papp1 Onot (Pvar vof2))) =>
-    Let rzf := rflag_of_var ii vzf.(gv) in
-    Let rsf := rflag_of_var ii vsf.(gv) in
-    Let rof1 := rflag_of_var ii vof1.(gv) in
-    Let rof2 := rflag_of_var ii vof2.(gv) in
-    Let _ := assert [&& rzf == ZF, rsf == SF, rof1 == OF & rof2 == OF]
-                    (E.berror ii e "Invalid condition (NLE)") in
-    ok NLE_ct
-
+  | Pif _ (Pvar v1) (Pvar v2) (Papp1 Onot (Pvar vn2)) =>
+    Let r1 := rflag_of_var ii v1.(gv) in
+    Let r2 := rflag_of_var ii v2.(gv) in
+    Let rn2 := rflag_of_var ii vn2.(gv) in
+    if [&& r1 == SF, rn2 == OF & r2 == OF] ||
+       [&& r1 == OF, rn2 == SF & r2 == SF] then
+      ok NL_ct
+    else  Error (E.berror ii e "Invalid condition (NL)")
+  
   | _ => Error (E.berror ii e "don't known how to compile the condition")
+
   end.
+
+Definition assemble_cond ii (e: pexpr) : cexec condt :=
+  assemble_cond_r ii e.
 
 (* -------------------------------------------------------------------- *)
 
@@ -436,10 +403,10 @@ Qed.
 (* -------------------------------------------------------------------- *)
 Definition scale_of_z' ii (z:pointer) :=
   match wunsigned z with
-  | 1 => ok Scale1
-  | 2 => ok Scale2
-  | 4 => ok Scale4
-  | 8 => ok Scale8
+  | 1 => ok 0%nat
+  | 2 => ok 1%nat
+  | 4 => ok 2%nat
+  | 8 => ok 3%nat
   | _ => Error (E.error ii (pp_s "invalid scale"))
   end%Z.
 
@@ -452,85 +419,10 @@ Definition reg_of_ovar ii (x:option var_i) :=
     ok None
   end.
 
-Definition assemble_lea ii lea := 
-  Let base := reg_of_ovar ii lea.(lea_base) in
-  Let offset := reg_of_ovar ii lea.(lea_offset) in
-  Let scale := scale_of_z' ii lea.(lea_scale) in
-  ok (Areg {|
-      ad_disp := lea.(lea_disp);
-      ad_base := base;
-      ad_scale := scale;
-      ad_offset := offset 
-    |}).
-
-Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) := 
-  Let _ := assert (sz <= Uptr)%CMP
-                  (E.error ii (pp_s "Bad type for address")) in
-  match lowering.mk_lea sz e with
-  | Some lea => 
-     match lea.(lea_base) with
-     | Some r =>
-        if r.(v_var) == rip then
-          Let _ := assert (lea.(lea_offset) == None) 
-                          (E.error ii (pp_box [::pp_s "Invalid global address :"; pp_e e])) in
-           ok (Arip lea.(lea_disp))
-        else assemble_lea ii lea
-      | None => 
-        assemble_lea ii lea
-      end 
-  | None => Error (E.error ii (pp_box [::pp_s "not able to assemble address :"; pp_e e]))
-  end.
-
-Definition addr_of_xpexpr rip ii sz v e :=
-  addr_of_pexpr rip ii sz (Papp2 (Oadd (Op_w sz)) (Plvar v) e).
-
 Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
-  if xmm_register_of_var x is Some r then ok (XMM r)
+  if xmm_register_of_var x is Some r then ok (XReg r)
   else if register_of_var x is Some r then ok (Reg r)
   else Error (E.verror false "Not a (x)register" ii x).
-
-
-Definition assemble_word_mem rip ii (sz:wsize) max_imm (e:pexpr) :=
-  match e with
-  | Papp1 (Oword_of_int sz') (Pconst z) =>
-    match max_imm with
-    | None =>  Error (E.werror ii e "constant not allowed")
-    | Some sz1 =>
-      let w := wrepr sz1 z in
-      let w1 := sign_extend sz w in
-      let w2 := zero_extend sz (wrepr sz' z) in
-      Let _ := assert (w1 == w2)
-                      (E.werror ii e "out of bound constant") in
-      ok (Imm w)
-    end
-  | Pvar x =>
-    Let _ := assert (is_lvar x)
-                    (E.internal_error ii "Global variables remain") in
-    let x := x.(gv) in
-    xreg_of_var ii x
-  | Pload sz' v e' =>
-    Let _ := assert (sz == sz') 
-                    (E.werror ii e "invalid Load size") in
-    Let w := addr_of_xpexpr rip ii Uptr v e' in
-    ok (Adr w)
-  | _ => Error (E.werror ii e "invalid pexpr for word")
-  end.
-
-Definition assemble_word (k:adr_kind) rip ii (sz:wsize) max_imm (e:pexpr) :=
-  match k with
-  | AK_mem => assemble_word_mem rip ii (sz:wsize) max_imm (e:pexpr)
-  | AK_compute =>
-    Let w := addr_of_pexpr rip ii sz e in
-    ok (Adr w)
-  end.
-
-Definition arg_of_pexpr k rip ii (ty:stype) max_imm (e:pexpr) :=
-  match ty with
-  | sbool => Let c := assemble_cond ii e in ok (Condt c)
-  | sword sz => assemble_word k rip ii sz max_imm e
-  | sint  => Error (E.werror ii e "not able to assemble an expression of type int")
-  | sarr _ => Error (E.werror ii e "not able to assemble an expression of type array _")
-  end.
 
 Lemma var_of_xmm_register_inj x y :
   var_of_xmm_register x = var_of_xmm_register y →

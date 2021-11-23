@@ -1,0 +1,81 @@
+fn otp_intern(reg ptr u8[32] r, reg ptr u8[32] msg, reg ptr u8[32] key) -> reg ptr u8[32]
+{
+inline int i;
+reg u8 t;
+
+for i = 0 to 32
+{
+t = msg[i];
+t ^= key[i];
+r[i] = t;
+}
+#declassify r = r;
+return r;
+}
+
+export fn otp(#public reg u64 ctp, #public reg u64 msgp, #public reg u64 keyp)
+{
+inline int i;
+stack u8[32] ct msg key;
+reg u8 t;
+
+for i = 0 to 32
+{
+t = (u8)[msgp + i];
+msg[i] = t;
+t = (u8)[keyp + i];
+key[i] = t;
+}
+
+ct = otp_intern(ct, msg, key);
+
+if(ct[0] != 0)
+{
+for i = 0 to 32
+{
+t = ct[i];
+(u8)[ctp + i] = t;
+}
+}
+}
+
+fn otp_intern_v2(reg ptr u8[32] r, reg ptr u8[32] msg, reg ptr u8[32] key) -> reg ptr u8[32]
+{
+inline int i;
+reg u8 t;
+
+for i = 0 to 32
+{
+t = msg[i];
+#declassify t ^= key[i];
+r[i] = t;
+}
+r = r;
+return r;
+}
+
+export fn otp_v2(#public reg u64 ctp, #public reg u64 msgp, #public reg u64 keyp)
+{
+inline int i;
+stack u8[32] ct msg key;
+reg u8 t;
+
+for i = 0 to 32
+{
+t = (u8)[msgp + i];
+msg[i] = t;
+t = (u8)[keyp + i];
+key[i] = t;
+}
+
+ct = otp_intern_v2(ct, msg, key);
+
+if(ct[0] != 0)
+{
+for i = 0 to 32
+{
+t = ct[i];
+(u8)[ctp + i] = t;
+}
+}
+}

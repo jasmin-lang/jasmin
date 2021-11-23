@@ -92,12 +92,13 @@ Definition fvars :=
 Definition disj_fvars v := disjoint v fvars.
 
 Definition fvars_correct p :=
-  disj_fvars (vars_p p) &&
-  (fv.(fresh_SF) != fv.(fresh_OF)) &&
-  (fv.(fresh_CF) != fv.(fresh_ZF)) &&
-  (fv.(fresh_SF) != fv.(fresh_ZF)) &&
-  (fv.(fresh_OF) != fv.(fresh_ZF)) &&
-  (fv.(fresh_OF) != fv.(fresh_SF)).
+  [&& disj_fvars (vars_p p),
+      fv.(fresh_OF) != fv.(fresh_CF),
+      fv.(fresh_OF) != fv.(fresh_SF),
+      fv.(fresh_OF) != fv.(fresh_ZF),
+      fv.(fresh_CF) != fv.(fresh_SF),
+      fv.(fresh_CF) != fv.(fresh_ZF) &
+      fv.(fresh_SF) != fv.(fresh_ZF)].
 
 Definition var_info_of_lval (x: lval) : var_info :=
   match x with
@@ -125,24 +126,11 @@ Definition wsize_of_lval (lv: lval) : wsize :=
   | Lasub _ _ _ _ _ => U64
   end.
 
-Variant lower_cond1 :=
-  | CondVar
-  | CondNotVar.
-
-Variant lower_cond2 :=
-  | CondEq
-  | CondNeq
-  | CondOr
-  | CondAndNot.
-
-Variant lower_cond3 :=
-  | CondOrNeq
-  | CondAndNotEq.
-
-Variant lower_cond_t : Type :=
-  | Cond1 of lower_cond1 & var_i
-  | Cond2 of lower_cond2 & var_i & var_i
-  | Cond3 of lower_cond3 & var_i & var_i & var_i.
+Definition enot e := Papp1 Onot e.
+Definition eq_f  e1 e2 := Papp2 Obeq e1 e2. 
+Definition neq_f e1 e2 := enot (eq_f e1 e2).
+Definition eor e1 e2   := Papp2 Oor e1 e2.
+Definition eand e1 e2  := Papp2 Oand e1 e2.
 
 Definition lower_cond_classify vi (e: pexpr) :=
   let nil := Lnone vi sbool in
@@ -150,65 +138,57 @@ Definition lower_cond_classify vi (e: pexpr) :=
   let vof := fr fresh_OF in
   let vcf := fr fresh_CF in
   let vsf := fr fresh_SF in
-  let vpf := fr fresh_PF in
   let vzf := fr fresh_ZF in
+
   let lof := Lvar vof in
   let lcf := Lvar vcf in
   let lsf := Lvar vsf in
-  let lpf := Lvar vpf in
   let lzf := Lvar vzf in
+
+  let eof := Plvar vof in
+  let ecf := Plvar vcf in
+  let esf := Plvar vsf in
+  let ezf := Plvar vzf in
+  
+  let l := [:: lof ; lcf ; lsf ; nil ; lzf ] in
   match e with
   | Papp2 op x y =>
     match op with
     | Oeq (Op_w sz) =>
-      Some ([:: nil ; nil ; nil ; nil ; lzf ], sz, Cond1 CondVar vzf, x, y)
+      Some (l, sz, ezf, x, y)
     | Oneq (Op_w sz) =>
-      Some ([:: nil ; nil ; nil ; nil ; lzf ], sz, Cond1 CondNotVar vzf, x, y)
+      Some (l, sz, enot ezf, x, y)
     | Olt (Cmp_w Signed sz) =>
-      Some ([:: lof ; nil ; lsf ; nil ; nil ], sz, Cond2 CondNeq vof vsf, x, y)
+      Some (l, sz, neq_f eof esf, x, y)
     | Olt (Cmp_w Unsigned sz) =>
-      Some ([:: nil ; lcf ; nil ; nil ; nil ], sz, Cond1 CondVar vcf, x, y)
+      Some (l, sz, ecf, x, y)
     | Ole (Cmp_w Signed sz) =>
-      Some ([:: lof ; nil ; lsf ; nil ; lzf ], sz, Cond3 CondOrNeq vof vsf vzf, x, y)
+      Some (l, sz, eor (neq_f eof esf) ezf, x, y)
     | Ole (Cmp_w Unsigned sz) =>
-      Some ([:: nil ; lcf ; nil ; nil ; lzf ], sz, Cond2 CondOr vcf vzf, x, y)
+      Some (l, sz, eor ecf ezf, x, y)
     | Ogt (Cmp_w Signed sz) =>
-      Some ([:: lof ; nil ; lsf ; nil ; lzf ], sz, Cond3 CondAndNotEq vof vsf vzf, x, y)
+      Some (l, sz, eand (eq_f eof esf) (enot ezf), x, y)
     | Ogt (Cmp_w Unsigned sz) =>
-      Some ([:: nil ; lcf ; nil ; nil ; lzf ], sz, Cond2 CondAndNot vcf vzf, x, y)
+      Some (l, sz, eand (enot ecf) (enot ezf), x, y)
     | Oge (Cmp_w Signed sz) =>
-      Some ([:: lof ; nil ; lsf ; nil ; nil ], sz, Cond2 CondEq vof vsf, x, y)
+      Some (l, sz, eq_f eof esf, x, y)
     | Oge (Cmp_w Unsigned sz) =>
-      Some ([:: nil ; lcf ; nil ; nil ; nil ], sz, Cond1 CondNotVar vcf, x, y)
+      Some (l, sz, enot ecf, x, y)
     | _ => None
-    end
+    end   
   | _ => None
   end.
-
-Definition eq_f  v1 v2 := Pif sbool (Plvar v1) (Plvar v2) (Papp1 Onot (Plvar v2)).
-Definition neq_f v1 v2 := Pif sbool (Plvar v1) (Papp1 Onot (Plvar v2)) (Plvar v2).
 
 Definition lower_condition vi (pe: pexpr) : seq instr_r * pexpr :=
   match lower_cond_classify vi pe with
   | Some (l, sz, r, x, y) =>
     if (sz ≤ U64)%CMP then
-    ([:: Copn l AT_none (Ox86 (CMP sz)) [:: x; y] ],
-    match r with
-    | Cond1 CondVar v => Plvar v
-    | Cond1 CondNotVar v => Papp1 Onot (Plvar v)
-    | Cond2 CondEq v1 v2 => eq_f v2 v1
-    | Cond2 CondNeq v1 v2 => neq_f v2 v1
-    | Cond2 CondOr v1 v2 => Papp2 Oor (Plvar v1) (Plvar v2)
-    | Cond2 CondAndNot v1 v2 => Papp2 Oand (Papp1 Onot (Plvar v1)) (Papp1 Onot (Plvar v2))
-    | Cond3 CondOrNeq v1 v2 v3 => Papp2 Oor (Plvar v3) (neq_f v2 v1)
-    | Cond3 CondAndNotEq v1 v2 v3 => Papp2 Oand (Papp1 Onot (Plvar v3)) (eq_f v2 v1)
-    end)
+    ([:: Copn l AT_none (Ox86 (CMP sz)) [:: x; y] ], r)
     else ([::], pe)
   | None => ([::], pe)
   end.
 
-(* Lowering of Cassgn
-*)
+(* Lowering of Cassgn *)
 
 Variant add_inc_dec : Type :=
   | AddInc of pexpr
@@ -257,8 +237,7 @@ Variant lower_cassgn_t : Type :=
   | LowerInc  of sopn & pexpr
   | LowerLea of wsize & lea
   | LowerFopn of sopn & list pexpr & option wsize
-  | LowerEq   of wsize & pexpr & pexpr
-  | LowerLt   of wsize & pexpr & pexpr
+  | LowerCond 
   | LowerIf   of stype & pexpr & pexpr & pexpr
   | LowerDivMod of divmod_pos & signedness & wsize & sopn & pexpr & pexpr
   | LowerConcat of pexpr & pexpr
@@ -417,9 +396,10 @@ Definition mulr sz a b :=
     end
  end.
 
-Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
+(* x =(ty) e *)
+Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
   let chk (b: bool) r := if b then r else LowerAssgn in
-  let kb b sz := chk (b && (sz == sz')) in
+  let kb b sz := chk (b && (sword sz == ty)) in
   let k8 sz := kb (sz ≤ U64)%CMP sz in
   let k16 sz := kb ((U16 ≤ sz) && (sz ≤ U64))%CMP sz in
   let k32 sz := kb ((U32 ≤ sz) && (sz ≤ U64))%CMP sz in
@@ -428,7 +408,7 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
     chk (sz ≤ U64)%CMP (LowerMov (if is_var_in_memory v then is_lval_in_memory x else false))
   | Pload sz _ _ => chk (sz ≤ U64)%CMP (LowerMov (is_lval_in_memory x))
 
-  | Papp1 (Oword_of_int sz) (Pconst _) => chk (sz' ≤ U64)%CMP (LowerMov false)
+  | Papp1 (Oword_of_int sz) (Pconst _) => chk (if ty is sword sz' then sz' ≤ U64 else false)%CMP (LowerMov false)
   | Papp1 (Olnot sz) a => k8 sz (LowerCopn (Ox86 (NOT sz)) [:: a ])
   | Papp1 (Oneg (Op_w sz)) a => k8 sz (LowerFopn (Ox86 (NEG sz)) [:: a] None)
   | Papp1 (Osignext szo szi) a =>
@@ -516,10 +496,10 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
       then k8 sz (LowerFopn (Ox86 (XOR sz)) [:: a ; b ] (Some U32))
       else kb true sz (LowerCopn (Ox86 (VPXOR sz)) [:: a ; b ])
     | Olsr sz => k8 sz (LowerFopn (Ox86 (SHR sz)) [:: a ; b ] (Some U8))
-    | Olsl sz => k8 sz (LowerFopn (Ox86 (SHL sz)) [:: a ; b ] (Some U8))
-    | Oasr sz => k8 sz (LowerFopn (Ox86 (SAR sz)) [:: a ; b ] (Some U8))
-    | Oeq (Op_w sz) => k8 sz (LowerEq sz a b)
-    | Olt (Cmp_w Unsigned sz) => k8 sz (LowerLt sz a b)
+    | Olsl (Op_w sz) => k8 sz (LowerFopn (Ox86 (SHL sz)) [:: a ; b ] (Some U8))
+    | Oasr (Op_w sz) => k8 sz (LowerFopn (Ox86 (SAR sz)) [:: a ; b ] (Some U8))
+
+    | Olt _ | Ole _ | Oeq _ | Oge _ | Ogt _ => LowerCond
 
     | Ovadd ve sz =>
       kb (U128 <= sz)%CMP sz (LowerCopn (Ox86 (VPADD ve sz)) [::a; b])
@@ -544,7 +524,7 @@ Definition lower_cassgn_classify sz' e x : lower_cassgn_t :=
       LowerAssgn
 
   | PappN (Opack U256 PE128) [:: Papp1 (Oint_of_word U128) h ; Papp1 (Oint_of_word U128) (Pvar _ as l) ] =>
-    if sz' == U256 then LowerConcat h l else LowerAssgn
+    if ty == sword U256 then LowerConcat h l else LowerAssgn
 
   | _ => LowerAssgn
   end.
@@ -607,9 +587,9 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
   let f := Lnone_b vi in
   let copn o a := [:: MkI ii (Copn [:: x ] tg o a) ] in
   let inc o a := [:: MkI ii (Copn [:: f ; f ; f ; f ; x ] tg o [:: a ]) ] in
-  let szty := wsize_of_stype ty in
-  match lower_cassgn_classify szty e x with
+  match lower_cassgn_classify ty e x with
   | LowerMov b =>
+    let szty := wsize_of_stype ty in
     let e := reduce_wconst szty e in
     if b
     then
@@ -665,13 +645,16 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
               [:: MkI ii (Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: de]);
                  MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; Plvar c ])]
       else lea tt
+  
+  | LowerCond =>
+    let (i,e') := lower_condition vi e in
+    map (MkI ii) (i ++ [::Cassgn x AT_inline ty e'])
 
-  | LowerEq sz a b => [:: MkI ii (Copn [:: f ; f ; f ; f ; x ] tg (Ox86 (CMP sz)) [:: a ; b ]) ]
-  | LowerLt sz a b => [:: MkI ii (Copn [:: f ; x ; f ; f ; f ] tg (Ox86 (CMP sz)) [:: a ; b ]) ]
   | LowerIf t e e1 e2 =>
      let (l, e) := lower_condition vi e in
      let sz := wsize_of_lval x in
      map (MkI ii) (l ++ [:: Copn [:: x] tg (Ox86 (CMOVcc sz)) [:: e; e1; e2]])
+
   | LowerDivMod p s sz op a b =>
     let c := {| v_var := {| vtype := sword sz; vname := fresh_multiplicand fv sz |} ; v_info := vi |} in
     let lv :=

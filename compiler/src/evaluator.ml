@@ -7,6 +7,7 @@ open Var0
 open Low_memory
 open Expr
 open Sem
+open Values
          
 exception Eval_error of instr_info * Utils0.error 
 

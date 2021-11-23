@@ -136,6 +136,30 @@ let pp_svsize fmt (vs,s,ve) =
 let pp_space fmt _ =
   F.fprintf fmt " "
 
+let rec pp_simple_attribute fmt a = 
+  match L.unloc a with 
+  | Aint i -> Bigint.pp_print fmt i
+  | Aid s | Astring s -> Format.fprintf fmt "%s" s
+  | Aws ws -> Format.fprintf fmt "u%i" (bits_of_wsize ws)
+  | Astruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
+
+and pp_struct_attribute fmt struct_ =   
+  Format.fprintf fmt "@[<hov 1 2>%a@]" (pp_list ",@ " pp_annotation) struct_
+
+and pp_attribute fmt = function
+  | Some a -> Format.fprintf fmt "=@ %a" pp_simple_attribute a
+  | None -> ()
+
+and pp_annotation fmt (id,atr) = 
+  Format.fprintf fmt "@[%s = %a@]" (L.unloc id) pp_attribute atr
+
+let pp_top_annotations fmt annot = 
+  match annot with
+  | []  -> ()
+  | [a] -> Format.fprintf fmt "#%a" pp_annotation a
+  | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
+
+  
 let rec pp_expr_rec prio fmt pe =
   match L.unloc pe with
   | PEParens e -> pp_expr_rec prio fmt e
@@ -148,6 +172,8 @@ let rec pp_expr_rec prio fmt pe =
   | PEBool b -> F.fprintf fmt "%s" (if b then "true" else "false")
   | PEInt i -> F.fprintf fmt "%a" Bigint.pp_print i
   | PECall (f, args) -> F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
+  | PECombF (f, args) -> 
+    F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
   | PEPrim (f, args) -> F.fprintf fmt "%a%a(%a)" sharp () pp_var f (pp_list ", " pp_expr) args
   | PEOp1 (op, e) ->
     let p = prio_of_op1 op in
@@ -233,7 +259,7 @@ let pp_rty =
     (fun fmt tys ->
        F.fprintf fmt " %a %a"
          arrow ()
-         (pp_list ", " pp_sto_ty) tys)
+         (pp_list ", " (fun fmt (_annot, ty) -> pp_sto_ty fmt ty)) tys)
 
 let pp_inbraces depth p fmt x =
   openbrace fmt ();
@@ -256,14 +282,25 @@ let pp_eqop fmt op =
 let pp_sidecond fmt =
   F.fprintf fmt " %a %a" kw "if" pp_expr
 
-let rec pp_instr depth fmt p =
+let pp_vardecls fmt d =
+  F.fprintf fmt "%a%a;" indent 1 pp_args d; F.fprintf fmt eol
+
+let rec pp_instr depth fmt (_annot, p) =
   indent fmt depth;
   match L.unloc p with
+  | PIdecl d -> pp_vardecls fmt d 
   | PIArrayInit x -> F.fprintf fmt "%a (%a);" kw "arrayinit" pp_var x
-  | PIAssign (lvs, op, e, cnd) ->
-    begin match lvs with
-    | [] -> ()
-    | _ -> F.fprintf fmt "%a %a " (pp_list ", " pp_lv) lvs pp_eqop op end;
+  | PIAssign ((pimp,lvs), op, e, cnd) ->
+    begin match pimp, lvs with
+    | None, [] -> ()
+    | None, _ -> F.fprintf fmt "%a %a " (pp_list ", " pp_lv) lvs pp_eqop op 
+    | Some pimp, _ -> 
+      F.fprintf fmt "?{%a}, %a %a " 
+        pp_struct_attribute (L.unloc pimp)
+        (pp_list ", " pp_lv) lvs 
+        pp_eqop op
+      
+    end;
     F.fprintf fmt "%a%a;"
       pp_expr e
       (pp_opt pp_sidecond) cnd
@@ -289,7 +326,8 @@ let rec pp_instr depth fmt p =
       kw direction
       pp_expr limit
       (pp_inbraces depth (pp_list eol (pp_instr (depth + 1)))) (L.unloc body)
-  | PIWhile (_, pre, b, body) ->
+
+  | PIWhile (pre, b, body) ->
     F.fprintf fmt "%a %a (%a) %a"
       kw "while"
       (pp_opt (pp_block depth)) pre
@@ -299,8 +337,7 @@ let rec pp_instr depth fmt p =
 and pp_block depth fmt blk =
   pp_inbraces depth (pp_list eol (pp_instr (depth + 1))) fmt (L.unloc blk)
 
-let pp_funbody fmt { pdb_vars ; pdb_instr ; pdb_ret } =
-  List.iter (fun d -> F.fprintf fmt "%a%a;" indent 1 pp_args d; F.fprintf fmt eol) pdb_vars;
+let pp_funbody fmt { pdb_instr ; pdb_ret } =
   pp_list eol (pp_instr 1) fmt pdb_instr;
   pp_opt (
     fun fmt ret ->
@@ -318,7 +355,7 @@ let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body } =
     pp_cc pdf_cc
     kw "fn"
     dname (L.unloc pdf_name)
-    (pp_list ", " pp_arg) pdf_args
+    (pp_list ", " (fun fmt (_annot, d) -> pp_vardecls fmt d)) pdf_args
     pp_rty pdf_rty
     (pp_inbraces 0 pp_funbody) pdf_body;
   F.fprintf fmt eol
