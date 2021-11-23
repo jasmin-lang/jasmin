@@ -38,7 +38,7 @@ type mlvar =
 val pp_mlvar : Format.formatter -> mlvar -> unit
 
 (*---------------------------------------------------------------*)
-type it_loc = ItFunIn of funname * L.t
+type it_loc = ItFunIn of funname * L.i_loc
 
 module ItMap : Map.S with type key = it_loc
 
