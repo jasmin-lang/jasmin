@@ -1816,20 +1816,6 @@ Section TunnelingCompiler.
     by apply: (partial_tunnel_program_lsem wfp Hplsem34).
   Qed.
 
-  (* TODO: missing in Coq, where to move? *)
-  Lemma nth_error_map_omap (A B : Type) (f : A -> B) l n :
-    List.nth_error (map f l) n = omap f (List.nth_error l n).
-  Proof.
-    case Heql: (List.nth_error l n) => [x|] /=.
-    (* TODO: why this workaround needed? *)
-    + have H := (List.map_nth_error f n l).
-      by rewrite -(H x Heql); f_equal.
-    have := (List.nth_error_None l n) => -[Himple _].
-    move: (Himple Heql) => Hle.
-    have := (List.nth_error_None (map f l) n).
-    by rewrite List.map_length => -[_ ->].
-  Qed.
-
   Lemma tunnel_partial_size fn uf l :
     size l = size (tunnel_partial fn uf l).
   Proof. by rewrite /tunnel_partial size_map. Qed.
@@ -1839,26 +1825,39 @@ Section TunnelingCompiler.
     lprog_tunnel fn p = tp ->
     size (lp_funcs p) = size (lp_funcs tp) /\
     forall n ,
-      omap (fun p => size (lfd_body p.2)) (List.nth_error (lp_funcs p) n) =
-      omap (fun p => size (lfd_body p.2)) (List.nth_error (lp_funcs tp) n).
+      omap (fun p => size (lfd_body p.2)) (oseq.onth (lp_funcs p) n) =
+      omap (fun p => size (lfd_body p.2)) (oseq.onth (lp_funcs tp) n).
   Proof.
     rewrite /lprog_tunnel /well_formed_lprog => /andP [Huniq _].
     case Hgfd: (get_fundef _ _) => [l|] <- //.
     split => [/=|n /=]; first by rewrite size_map.
-    rewrite nth_error_map_omap.
-    case Heq: (List.nth_error (lp_funcs p) n) => [[fn' l']|] //=.
+    rewrite onth_map.
+    case Heqn: (oseq.onth (lp_funcs p) n) => [[fn' l']|] //=.
     f_equal; case: ifP => [/eqP ?|//]; subst fn'.
     rewrite /lfundef_tunnel_partial lfd_body_setfb -tunnel_partial_size.
-    move: (mem_uniq_assoc (List.nth_error_In _ _ Heq) Huniq).
-    by move: Hgfd; rewrite /get_fundef => -> [->].
+    case: (assoc_onth Hgfd) => m Heqm.
+    rewrite oseq.onth_nth in Heqm.
+    case: (le_lt_dec (size (lp_funcs p)) m) => [/leP Hlem|/ltP Hltm].
+    + by rewrite nth_default in Heqm => //; rewrite size_map.
+    rewrite (@nth_map _ (fn, l) _ None (fun x => Some x) m (lp_funcs p) Hltm) in Heqm.
+    rewrite oseq.onth_nth in Heqn.
+    case: (le_lt_dec (size (lp_funcs p)) n) => [/leP Hlen|/ltP Hltn].
+    + by rewrite nth_default in Heqn => //; rewrite size_map.
+    rewrite (@nth_map _ (fn, l) _ None (fun x => Some x) n (lp_funcs p) Hltn) in Heqn.
+    move: Heqm Heqn => [Heqm] [Heqn].
+    have:= (@nth_map _ (fn, l) _ fn fst m (lp_funcs p) Hltm); rewrite Heqm /= => Heqm1.
+    have:= (@nth_map _ (fn, l) _ fn fst n (lp_funcs p) Hltn); rewrite Heqn /= => Heqn1.
+    have := (@nth_uniq _ fn _ m n _ _ Huniq); rewrite !size_map Hltm Hltn Heqm1 Heqn1 => Heq.
+    have Heq': (m = n) by apply/eqP; rewrite -Heq //.
+    by rewrite Heq' Heqn in Heqm; move: Heqm => [->].
   Qed.
 
   Theorem tunnel_program_size p tp :
     tunnel_program p = ok tp ->
     size (lp_funcs p) = size (lp_funcs tp) /\
     forall n ,
-      omap (fun p => size (lfd_body p.2)) (List.nth_error (lp_funcs p) n) =
-      omap (fun p => size (lfd_body p.2)) (List.nth_error (lp_funcs tp) n).
+      omap (fun p => size (lfd_body p.2)) (oseq.onth (lp_funcs p) n) =
+      omap (fun p => size (lfd_body p.2)) (oseq.onth (lp_funcs tp) n).
   Proof.
     rewrite /tunnel_program; case: ifP => // Hwfp [].
     elim: (funnames p) tp => [tp <- //|] fn fns Hfns tp /= Heq.
@@ -1866,6 +1865,48 @@ Section TunnelingCompiler.
     have Hrefl: foldr lprog_tunnel p fns = foldr lprog_tunnel p fns by trivial.
     have [<- Ho2]:= (Hfns (foldr lprog_tunnel p fns) Hrefl).
     by split => // n; rewrite Ho2 Ho1.
+  Qed.
+
+  Lemma lprog_tunnel_invariants fn p tp :
+    lprog_tunnel fn p = tp ->
+    lp_rip   p = lp_rip   tp /\
+    lp_rsp   p = lp_rsp   tp /\
+    lp_globs p = lp_globs tp /\
+    map fst (lp_funcs p) = map fst (lp_funcs tp) /\
+    map lfd_info   (map snd (lp_funcs p)) = map lfd_info   (map snd (lp_funcs tp)) /\
+    map lfd_align  (map snd (lp_funcs p)) = map lfd_align  (map snd (lp_funcs tp)) /\
+    map lfd_tyin   (map snd (lp_funcs p)) = map lfd_tyin   (map snd (lp_funcs tp)) /\
+    map lfd_arg    (map snd (lp_funcs p)) = map lfd_arg    (map snd (lp_funcs tp)) /\
+    map lfd_tyout  (map snd (lp_funcs p)) = map lfd_tyout  (map snd (lp_funcs tp)) /\
+    map lfd_res    (map snd (lp_funcs p)) = map lfd_res    (map snd (lp_funcs tp)) /\
+    map lfd_export (map snd (lp_funcs p)) = map lfd_export (map snd (lp_funcs tp)).
+  Proof.
+    rewrite /lprog_tunnel => <-; case: (get_fundef _ _) => [x|//].
+    rewrite /setfuncs /=; split => //; split => //; split => //.
+    rewrite -!map_comp.
+    (* TODO: eq_in_map unusable because of eqType shenanigans *)
+  Admitted.
+
+  Theorem tunnel_program_invariants p tp :
+    tunnel_program p = ok tp ->
+    lp_rip   p = lp_rip   tp /\
+    lp_rsp   p = lp_rsp   tp /\
+    lp_globs p = lp_globs tp /\
+    map fst (lp_funcs p) = map fst (lp_funcs tp) /\
+    map lfd_info   (map snd (lp_funcs p)) = map lfd_info   (map snd (lp_funcs tp)) /\
+    map lfd_align  (map snd (lp_funcs p)) = map lfd_align  (map snd (lp_funcs tp)) /\
+    map lfd_tyin   (map snd (lp_funcs p)) = map lfd_tyin   (map snd (lp_funcs tp)) /\
+    map lfd_arg    (map snd (lp_funcs p)) = map lfd_arg    (map snd (lp_funcs tp)) /\
+    map lfd_tyout  (map snd (lp_funcs p)) = map lfd_tyout  (map snd (lp_funcs tp)) /\
+    map lfd_res    (map snd (lp_funcs p)) = map lfd_res    (map snd (lp_funcs tp)) /\
+    map lfd_export (map snd (lp_funcs p)) = map lfd_export (map snd (lp_funcs tp)).
+  Proof.
+    rewrite /tunnel_program; case: ifP => // _ [].
+    elim: (funnames p) tp => [tp <-|] //= fn fns Hfns tp.
+    pose fp:= (foldr lprog_tunnel p fns); rewrite -/fp.
+    move => Heq; have:= (lprog_tunnel_invariants Heq).
+    move => [<-] [<-] [<-] [<-] [<-] [<-] [<-] [<-] [<-] [<-] <-.
+    by apply Hfns.
   Qed.
 
 End TunnelingCompiler.
