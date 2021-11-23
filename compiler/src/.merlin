@@ -1,4 +1,6 @@
 S .
+S safety
+S safety/domains
 B ../_build/src
 B ../_build/CIL
 B ../_build/src/safety
