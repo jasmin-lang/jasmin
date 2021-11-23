@@ -1831,8 +1831,15 @@ Section TunnelingCompiler.
     rewrite /lprog_tunnel => <-; case: (get_fundef _ _) => [x|//].
     rewrite /setfuncs /=; split => //; split => //; split => //.
     rewrite -!map_comp.
-    (* TODO: eq_in_map unusable because of eqType shenanigans *)
-  Admitted.
+    split; first by apply: eq_map => -[fn' l'].
+    split; first by apply: eq_map => -[fn' l'] /=; case: ifP.
+    split; first by apply: eq_map => -[fn' l'] /=; case: ifP.
+    split; first by apply: eq_map => -[fn' l'] /=; case: ifP.
+    split; first by apply: eq_map => -[fn' l'] /=; case: ifP.
+    split; first by apply: eq_map => -[fn' l'] /=; case: ifP.
+    split; first by apply: eq_map => -[fn' l'] /=; case: ifP.
+    by apply: eq_map => -[fn' l'] /=; case: ifP.
+  Qed.
 
   Theorem tunnel_program_invariants p tp :
     tunnel_program p = ok tp ->
