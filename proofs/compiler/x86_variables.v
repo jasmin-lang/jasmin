@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import low_memory x86_sem x86_decl compiler_util lowering.
+Require Import low_memory x86_sem x86_decl compiler_util.
 Import Utf8 String.
 Import all_ssreflect.
 Import xseq expr.
@@ -419,81 +419,10 @@ Definition reg_of_ovar ii (x:option var_i) :=
     ok None
   end.
 
-Definition assemble_lea ii lea := 
-  Let base := reg_of_ovar ii lea.(lea_base) in
-  Let offset := reg_of_ovar ii lea.(lea_offset) in
-  Let scale := scale_of_z' ii lea.(lea_scale) in
-  ok (Areg {|
-      ad_disp := lea.(lea_disp);
-      ad_base := base;
-      ad_scale := scale;
-      ad_offset := offset 
-    |}).
-
-Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) := 
-  Let _ := assert (sz <= Uptr)%CMP
-                  (E.error ii (pp_s "Bad type for address")) in
-  match lowering.mk_lea sz e with
-  | Some lea => 
-     match lea.(lea_base) with
-     | Some r =>
-        if r.(v_var) == rip then
-          Let _ := assert (lea.(lea_offset) == None) 
-                          (E.error ii (pp_box [::pp_s "Invalid global address :"; pp_e e])) in
-           ok (Arip lea.(lea_disp))
-        else assemble_lea ii lea
-      | None => 
-        assemble_lea ii lea
-      end 
-  | None => Error (E.error ii (pp_box [::pp_s "not able to assemble address :"; pp_e e]))
-  end.
-
-Definition addr_of_xpexpr rip ii sz v e :=
-  addr_of_pexpr rip ii sz (Papp2 (Oadd (Op_w sz)) (Plvar v) e).
-
 Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   if xmm_register_of_var x is Some r then ok (XReg r)
   else if register_of_var x is Some r then ok (Reg r)
   else Error (E.verror false "Not a (x)register" ii x).
-
-Definition assemble_word_mem rip ii (sz:wsize) (e:pexpr) :=
-  match e with
-  | Papp1 (Oword_of_int sz') (Pconst z) =>
-    let w := wrepr sz' z in
-    let w1 := sign_extend sz w in
-    let w2 := wrepr sz z in
-    (* this check is not used (yet?) in the correctness proof *)
-    Let _ := assert (w1 == w2)
-                    (E.werror ii e "out of bound constant") in
-    ok (Imm w)
-  | Pvar x =>
-    Let _ := assert (is_lvar x)
-                    (E.internal_error ii "Global variables remain") in
-    let x := x.(gv) in
-    xreg_of_var ii x
-  | Pload sz' v e' =>
-    Let _ := assert (sz == sz') 
-                    (E.werror ii e "invalid Load size") in
-    Let w := addr_of_xpexpr rip ii Uptr v e' in
-    ok (Addr w)
-  | _ => Error (E.werror ii e "invalid pexpr for word")
-  end.
-
-Definition assemble_word (k:addr_kind) rip ii (sz:wsize) (e:pexpr) :=
-  match k with
-  | AK_mem => assemble_word_mem rip ii (sz:wsize) (e:pexpr)
-  | AK_compute =>
-    Let w := addr_of_pexpr rip ii sz e in
-    ok (Addr w)
-  end.
-
-Definition arg_of_pexpr k rip ii (ty:stype) (e:pexpr) :=
-  match ty with
-  | sbool => Let c := assemble_cond ii e in ok (Condt c)
-  | sword sz => assemble_word k rip ii sz e
-  | sint  => Error (E.werror ii e "not able to assemble an expression of type int")
-  | sarr _ => Error (E.werror ii e "not able to assemble an expression of type array _")
-  end.
 
 Lemma var_of_xmm_register_inj x y :
   var_of_xmm_register x = var_of_xmm_register y →

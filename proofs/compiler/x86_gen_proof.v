@@ -5,7 +5,7 @@ Require Import x86_gen x86_variables_proofs asmgen_proof.
 
 Import Utf8.
 Import Relation_Operators.
-Import linear linear_sem label x86_sem x86_decl x86_variables.
+Import linear linear_sem label x86_sem x86_decl x86_variables asmgen.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
