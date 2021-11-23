@@ -1,11 +1,11 @@
 From mathcomp
 Require Import all_ssreflect all_algebra.
-Require Import psem compiler_util.
+Require Import psem compiler_util linear_sem.
 Require Import x86_gen x86_variables_proofs asmgen_proof.
 
 Import Utf8.
 Import Relation_Operators.
-Import linear linear_sem label x86_sem x86_decl x86_variables asmgen.
+Import linear label x86_sem x86_decl x86_variables asmgen.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
