@@ -171,21 +171,6 @@ Definition check_removeturn (entries: seq funname) (remove_return: funname → o
 Definition allNone {A: Type} (m: seq (option A)) : bool :=
   all (fun a => if a is None then true else false) m.
 
-(* TODO: move *)
-Section ALLM.
-  Context (A: eqType) (E: Type) (check: A → result E unit) (m: seq A).
-  Definition allM := foldM (λ a _, check a) tt m.
-
-  Lemma allMP a : a \in m → allM = ok tt → check a = ok tt.
-  Proof.
-    rewrite /allM.
-    elim: m => // a' m' ih; rewrite inE; case: eqP.
-    - by move => <- _ /=; t_xrbindP => - [].
-    by move => _ {}/ih /=; t_xrbindP => ih [] _ /ih.
-  Qed.
-
-End ALLM.
-
 Definition check_no_ptr entries (ao: funname -> stk_alloc_oracle_t) : cexec unit :=
   allM (λ fn,
        let: sao := ao fn in

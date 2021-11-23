@@ -522,6 +522,22 @@ Section FOLD2.
 
 End FOLD2.
 
+(* ---------------------------------------------------------------- *)
+(* ALLM *)
+Section ALLM.
+  Context (A: eqType) (E: Type) (check: A → result E unit) (m: seq A).
+  Definition allM := foldM (λ a _, check a) tt m.
+
+  Lemma allMP a : a \in m → allM = ok tt → check a = ok tt.
+  Proof.
+    rewrite /allM.
+    elim: m => // a' m' ih; rewrite inE; case: eqP.
+    - by move => <- _ /=; t_xrbindP => - [].
+    by move => _ {}/ih /=; t_xrbindP => ih [] _ /ih.
+  Qed.
+
+End ALLM.
+
 (* Forall3 *)
 (* -------------------------------------------------------------- *)
 
