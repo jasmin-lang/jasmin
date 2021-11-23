@@ -41,6 +41,7 @@ compiler/dead_code_proof.v
 compiler/inline.v
 compiler/inline_proof.v
 compiler/linear.v
+compiler/linearization.v
 compiler/linear_sem.v
 compiler/linear_proof.v
 compiler/lowering.v

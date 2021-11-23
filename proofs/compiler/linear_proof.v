@@ -37,7 +37,7 @@ Require sem_one_varmap_facts.
 Import ssrZ.
 Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts.
 Require Import constant_prop constant_prop_proof.
-Require Export linear linear_sem.
+Require Export linearization linear_sem.
 Import x86_variables.
 Import Memory.
 

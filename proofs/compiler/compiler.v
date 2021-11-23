@@ -28,7 +28,7 @@ Require Import x86_gen expr.
 Import ZArith.
 Require merge_varmaps.
 Require Import compiler_util allocation array_init inline dead_calls unrolling remove_globals
-   constant_prop propagate_inline dead_code array_expansion lowering makeReferenceArguments stack_alloc linear tunneling x86_sem.
+   constant_prop propagate_inline dead_code array_expansion lowering makeReferenceArguments stack_alloc linearization tunneling x86_sem.
 Import Utf8.
 
 Set Implicit Arguments.
