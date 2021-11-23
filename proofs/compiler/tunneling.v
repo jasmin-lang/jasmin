@@ -1816,4 +1816,56 @@ Section TunnelingCompiler.
     by apply: (partial_tunnel_program_lsem wfp Hplsem34).
   Qed.
 
+  (* TODO: missing in Coq, where to move? *)
+  Lemma nth_error_map_omap (A B : Type) (f : A -> B) l n :
+    List.nth_error (map f l) n = omap f (List.nth_error l n).
+  Proof.
+    case Heql: (List.nth_error l n) => [x|] /=.
+    (* TODO: why this workaround needed? *)
+    + have H := (List.map_nth_error f n l).
+      by rewrite -(H x Heql); f_equal.
+    have := (List.nth_error_None l n) => -[Himple _].
+    move: (Himple Heql) => Hle.
+    have := (List.nth_error_None (map f l) n).
+    by rewrite List.map_length => -[_ ->].
+  Qed.
+
+  Lemma tunnel_partial_size fn uf l :
+    size l = size (tunnel_partial fn uf l).
+  Proof. by rewrite /tunnel_partial size_map. Qed.
+
+  Lemma lprog_tunnel_size fn p tp :
+    well_formed_lprog p ->
+    lprog_tunnel fn p = tp ->
+    size (lp_funcs p) = size (lp_funcs tp) /\
+    forall n ,
+      omap (fun p => size (lfd_body p.2)) (List.nth_error (lp_funcs p) n) =
+      omap (fun p => size (lfd_body p.2)) (List.nth_error (lp_funcs tp) n).
+  Proof.
+    rewrite /lprog_tunnel /well_formed_lprog => /andP [Huniq _].
+    case Hgfd: (get_fundef _ _) => [l|] <- //.
+    split => [/=|n /=]; first by rewrite size_map.
+    rewrite nth_error_map_omap.
+    case Heq: (List.nth_error (lp_funcs p) n) => [[fn' l']|] //=.
+    f_equal; case: ifP => [/eqP ?|//]; subst fn'.
+    rewrite /lfundef_tunnel_partial lfd_body_setfb -tunnel_partial_size.
+    move: (mem_uniq_assoc (List.nth_error_In _ _ Heq) Huniq).
+    by move: Hgfd; rewrite /get_fundef => -> [->].
+  Qed.
+
+  Theorem tunnel_program_size p tp :
+    tunnel_program p = ok tp ->
+    size (lp_funcs p) = size (lp_funcs tp) /\
+    forall n ,
+      omap (fun p => size (lfd_body p.2)) (List.nth_error (lp_funcs p) n) =
+      omap (fun p => size (lfd_body p.2)) (List.nth_error (lp_funcs tp) n).
+  Proof.
+    rewrite /tunnel_program; case: ifP => // Hwfp [].
+    elim: (funnames p) tp => [tp <- //|] fn fns Hfns tp /= Heq.
+    have [<- Ho1]:= (lprog_tunnel_size (well_formed_partial_tunnel_program fns Hwfp) Heq).
+    have Hrefl: foldr lprog_tunnel p fns = foldr lprog_tunnel p fns by trivial.
+    have [<- Ho2]:= (Hfns (foldr lprog_tunnel p fns) Hrefl).
+    by split => // n; rewrite Ho2 Ho1.
+  Qed.
+
 End TunnelingCompiler.
