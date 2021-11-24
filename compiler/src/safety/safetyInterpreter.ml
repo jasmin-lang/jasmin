@@ -1494,7 +1494,7 @@ end = struct
       (AbsDom.print ~full:true) abs_vals
       (let a = !num_instr_evaluated in incr num_instr_evaluated; a)
       ginstr.i_info.i_instr_number
-      L.pp_sloc (fst ginstr.i_loc)
+      L.pp_sloc ginstr.i_loc.L.base_loc
       (Printer.pp_instr ~debug:false) ginstr
 
   let print_binop fmt (cpt_instr,abs1,abs2,abs3) =
@@ -1509,7 +1509,7 @@ end = struct
 
   let print_if_join cpt_instr ginstr labs rabs abs_r =
     Format.eprintf "@;@[<v 2>If join %a for Instr:@;%a @;@;%a@]@."
-      L.pp_sloc (fst ginstr.i_loc)
+      L.pp_sloc ginstr.i_loc.L.base_loc
       (Printer.pp_instr ~debug:false) ginstr
       (print_binop) (cpt_instr,
                      labs,
@@ -1534,7 +1534,7 @@ end = struct
     Format.eprintf "@[<v>@[<v>%a@]@;Returning %s (called line %a):@;@]%!"
       (AbsDom.print ~full:true) fabs
       fname
-      L.pp_sloc (fst ginstr.i_loc)
+      L.pp_sloc ginstr.i_loc.L.base_loc
 
   let rec aeval_ginstr : ('ty,minfo) ginstr -> astate -> astate =
     fun ginstr state ->
@@ -1547,7 +1547,7 @@ end = struct
       else
         (* We check the safety conditions *)
         let conds = safe_instr ginstr in
-        let state = check_safety state (InProg (fst ginstr.i_loc)) conds in
+        let state = check_safety state (InProg ginstr.i_loc.L.base_loc) conds in
         aeval_ginstr_aux ginstr state
 
   and aeval_ginstr_aux : ('ty,minfo) ginstr -> astate -> astate =
@@ -1588,7 +1588,7 @@ end = struct
         aeval_if ginstr e c1 c2 state
 
       | Cwhile(_,c1, e, c2) ->
-        let prog_pt = fst ginstr.i_loc in
+        let prog_pt = ginstr.i_loc.L.base_loc in
 
         (* We add a disjunctive constraint block. *)
         let abs = AbsDom.new_cnstr_blck state.abs prog_pt in
@@ -1789,7 +1789,7 @@ end = struct
         let fn = f_decl.f_name in
 
         debug (fun () -> Format.eprintf "@[<v>Call %s:@;@]%!" fn.fn_name);
-        let callsite,_ = ginstr.i_loc in
+        let callsite = ginstr.i_loc.L.base_loc in
 
         let state_i = prepare_call state callsite f es in
 
@@ -1805,7 +1805,7 @@ end = struct
         return_call state callsite fstate lvs
 
       | Cfor(i, (d,e1,e2), c) ->
-        let prog_pt = fst ginstr.i_loc in
+        let prog_pt = ginstr.i_loc.L.base_loc in
         (match AbsExpr.aeval_cst_int state.abs e1, 
               AbsExpr.aeval_cst_int state.abs e2 with
         | Some z1, Some z2 ->
@@ -1916,7 +1916,7 @@ end = struct
     let labs, rabs =
       if Config.sc_if_disj () && is_some (simpl_obtcons oec) then
         let ec = simpl_obtcons oec |> oget in
-        AbsDom.add_cnstr state.abs ~meet:true ec (fst ginstr.i_loc)
+        AbsDom.add_cnstr state.abs ~meet:true ec ginstr.i_loc.L.base_loc
       else
         (* FIXME: check that the fact that we do not introduce a 
            disjunction node does not create issues. *)

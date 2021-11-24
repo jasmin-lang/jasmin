@@ -99,7 +99,7 @@ type 'info coq_tbl = {
      var           : (Var.var, var) Hashtbl.t;
      cvar          : Var.var Hv.t;
      vari          : (int, L.t) Hashtbl.t;
-     iinfo         : (int, (L.t * L.t list) * 'info * Syntax.annotations) Hashtbl.t;
+     iinfo         : (int, L.i_loc * 'info * Syntax.annotations) Hashtbl.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
      finfo         : (int, L.t * f_annot * call_conv * Syntax.annotations list) Hashtbl.t;
@@ -296,7 +296,7 @@ let get_iinfo tbl n =
   try Hashtbl.find tbl.iinfo n
   with Not_found ->
     Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." n;
-    (L._dummy, []), tbl.dft_info, []
+    (L.i_dummy), tbl.dft_info, []
 
 let rec cinstr_of_instr tbl i c =
   let n = set_iinfo tbl i.i_loc i.i_info i.i_annot in
@@ -426,7 +426,7 @@ let gd_of_cgd tbl (x, gd) =
 let cuprog_of_prog (all_registers: var list) info p =
   let tbl = empty_tbl info in
   (* init dummy iinfo *)
-  let _ = set_iinfo tbl (L._dummy, []) info [] in
+  let _ = set_iinfo tbl (L.i_dummy) info [] in
   (* First add registers *)
   List.iter
     (fun x -> ignore (cvar_of_reg tbl x))
@@ -486,8 +486,8 @@ let iloc_of_loc tbl e =
     | None -> Lone loc
     | Some ii ->
       (* if there are some locations coming from inlining, we print them *)
-      let ((_, locs), _, _) = get_iinfo tbl ii in
-      Lmore (loc, locs)
+      let ({L.stack_loc = locs}, _, _) = get_iinfo tbl ii in
+      Lmore (L.i_loc loc locs)
     end
   | None ->
     match e.pel_ii with

@@ -416,6 +416,32 @@ let written_vars_fc fc =
   written_vars_stmt (Sv.empty, Mf.empty) fc.f_body
 
 (* -------------------------------------------------------------------- *)
+(* Refresh i_loc, ensure that locations are uniq                        *)
+
+let rec refresh_i_loc_i (i:'info instr) : 'info instr = 
+  let i_desc = 
+    match i.i_desc with
+    | Cassgn _ | Copn _ | Ccall _ -> i.i_desc 
+    | Cif(e, c1, c2) ->
+        Cif(e, refresh_i_loc_c c1, refresh_i_loc_c c2)
+    | Cfor(x, r, c) ->
+        Cfor(x, r, refresh_i_loc_c c)
+    | Cwhile(a, c1, e, c2) ->
+        Cwhile(a, refresh_i_loc_c c1, e, refresh_i_loc_c c2)
+  in
+  { i with i_desc; i_loc = L.refresh_i_loc i.i_loc }
+
+and refresh_i_loc_c (c:'info stmt) : 'info stmt = 
+  List.map refresh_i_loc_i c
+
+let refresh_i_loc_f (f:'info func) : 'info func = 
+  { f with f_body = refresh_i_loc_c f.f_body }
+
+let refresh_i_loc_p (p:'info prog) : 'info prog = 
+  fst p, List.map refresh_i_loc_f (snd p)
+
+
+(* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)
 
 let int_of_ws = function

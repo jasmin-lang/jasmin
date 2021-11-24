@@ -377,13 +377,13 @@ let rec extend_iinfo_i pre i =
       Cfor(x,r, extend_iinfo_c pre c)
     | Cwhile (a, c1, e, c2) -> 
       Cwhile(a, extend_iinfo_c pre c1, e, extend_iinfo_c pre c2) in
-  let ii, l = i.i_loc in
-  let i_loc = ii, (l @ pre) in
+  let {L.base_loc = ii; L.stack_loc = l} = i.i_loc in
+  let i_loc = L.i_loc ii (l @ pre) in
   { i with i_desc; i_loc }
 
 and extend_iinfo_c pre c = List.map (extend_iinfo_i pre) c
 
-let extend_iinfo (i,l) fd = 
+let extend_iinfo {L.base_loc = i; L.stack_loc = l} fd = 
   { fd with f_body = extend_iinfo_c (i::l) fd.f_body }
 
 (* ---------------------------------------------------------------- *)

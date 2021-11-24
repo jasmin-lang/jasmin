@@ -602,7 +602,7 @@ let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
   and alloc_instr { i_loc; i_desc } = alloc_instr_r i_loc i_desc
   and alloc_stmt s = List.iter alloc_instr s
   in
-  let loc = (f.f_loc, []) in
+  let loc = L.i_loc0 f.f_loc in
   if f.f_cc = Export then alloc_args loc f.f_args;
   if f.f_cc = Export then alloc_ret loc f.f_ret;
   alloc_stmt f.f_body
@@ -770,7 +770,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
             let acc = Sv.union (killed fn) acc in
             if (get_annot fn).retaddr_kind = Some OnStack then
               List.fold_left (fun acc loc ->
-                  let r = V.mk (Format.sprintf " ra%d" (count())) (Reg Direct) (Bty (U U64)) (fst loc) [] in
+                  let r = V.mk (Format.sprintf " ra%d" (count())) (Reg Direct) (Bty (U U64)) loc.L.base_loc [] in
                   Hashtbl.add extra_free_registers loc r;
                   Sv.add r acc
                 ) acc locs
@@ -827,12 +827,12 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
     List.fold_left (fun a f ->
         match Hf.find return_addresses f.f_name with
         | ra ->
-           List.fold_left (fun cnf x -> conflicts_add_one vars tr (L._dummy, []) ra x cnf) a f.f_args
+           List.fold_left (fun cnf x -> conflicts_add_one vars tr L.i_dummy ra x cnf) a f.f_args
         | exception Not_found -> a )
       conflicts funcs in
   (* Inter-procedural conflicts *)
   let conflicts =
-    let add_conflicts s x = Sv.fold (conflicts_add_one vars tr (Location._dummy, []) x) s in
+    let add_conflicts s x = Sv.fold (conflicts_add_one vars tr L.i_dummy x) s in
     List.fold_right (fun f cnf ->
         let live = get_liveness f.f_name in
         let vars = killed f.f_name in
@@ -863,6 +863,8 @@ type reg_oracle_t = {
 
 let alloc_prog translate_var (has_stack: 'info func -> 'a -> bool) (dfuncs: ('a * 'info func) list)
     : ('a * reg_oracle_t * unit func) list * (L.i_loc -> var option) =
+  let dfuncs = 
+    List.map (fun (a,f) -> a, Prog.refresh_i_loc_f f) dfuncs in
   let extra : 'a Hf.t = Hf.create 17 in
   let funcs, get_liveness, subst, killed, extra_free_registers, return_addresses =
     dfuncs

@@ -49,7 +49,7 @@ let ir (m: names) (x: var) (y: var) : unit instr =
   let x = Mv.find_default x x m in
   let v u = L.mk_loc L._dummy u in
   let i_desc = Cassgn (Lvar (v y), AT_phinode, y.v_ty, Pvar (gkvar (v x))) in
-  { i_desc ; i_info = () ; i_loc = L._dummy,[] ; i_annot = [] }
+  { i_desc ; i_info = () ; i_loc = L.i_dummy ; i_annot = [] }
 
 let is_stack_array x = 
   let x = L.unloc x in

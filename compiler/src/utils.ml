@@ -692,7 +692,7 @@ let add_iloc e i_loc =
   let err_loc =
     match e.err_loc with
     | Lnone -> Lmore i_loc
-    | Lone loc -> Lmore (loc, snd i_loc)
+    | Lone loc -> Lmore (Location.i_loc loc i_loc.stack_loc)
     | Lmore _ as err_loc -> err_loc (* we already have a more precise location *)
   in
   { e with err_loc }
