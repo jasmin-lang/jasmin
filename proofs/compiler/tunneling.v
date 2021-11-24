@@ -2,7 +2,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith.
 Require Import Utf8.
 
-Require Import expr compiler_util label x86_variables linear.
+Require Import expr compiler_util label x86_variables linear linear_sem.
 Import ssrZ.
 
 Set Implicit Arguments.
@@ -1750,19 +1750,6 @@ Section TunnelingCompiler.
     by apply: Hpplsem12.
   Qed.
 
-  Theorem lsem_tunnel_program p tp s1 s2 :
-    tunnel_program p = ok tp ->
-    lsem p s1 s2 ->
-    exists s3, lsem p s2 s3 /\ lsem tp s1 s3.
-  Proof.
-    rewrite /tunnel_program; case: ifP => // wfp [<-].
-    elim: funnames => [|hfns tfns IHfns /=]; first by exists s2; split => //; apply: Relation_Operators.rt_refl.
-    move => Hlsem12; case: (IHfns Hlsem12) => s3 [Hlsem23 Hplsem13].
-    case: (lsem_tunneling hfns (well_formed_partial_tunnel_program _ wfp) Hplsem13) => s4 [Hplsem34 Hpplsem14].
-    exists s4; split => //; apply: (lsem_trans Hlsem23).
-    by apply: (partial_tunnel_program_lsem wfp Hplsem34).
-  Qed.
-
   Lemma tunnel_partial_size fn uf l :
     size l = size (tunnel_partial fn uf l).
   Proof. by rewrite /tunnel_partial size_map. Qed.
@@ -1799,7 +1786,7 @@ Section TunnelingCompiler.
     by rewrite Heq' Heqn in Heqm; move: Heqm => [->].
   Qed.
 
-  Theorem tunnel_program_size p tp :
+  Lemma tunnel_program_size p tp :
     tunnel_program p = ok tp ->
     size (lp_funcs p) = size (lp_funcs tp) /\
     forall n ,
@@ -1841,7 +1828,7 @@ Section TunnelingCompiler.
     by apply: eq_map => -[fn' l'] /=; case: ifP.
   Qed.
 
-  Theorem tunnel_program_invariants p tp :
+  Lemma tunnel_program_invariants p tp :
     tunnel_program p = ok tp ->
     lp_rip   p = lp_rip   tp /\
     lp_rsp   p = lp_rsp   tp /\
@@ -1863,8 +1850,6 @@ Section TunnelingCompiler.
     by apply Hfns.
   Qed.
 
-  Print tunnel_program.
-
   Lemma get_fundef_foldr_lprog_tunnel p fn fns fd :
     uniq fns ->
     get_fundef (lp_funcs p) fn = Some fd →
@@ -1883,7 +1868,7 @@ Section TunnelingCompiler.
     by rewrite eq_sym => ->.
   Qed.
 
-  Theorem get_fundef_tunnel_program p tp fn fd :
+  Lemma get_fundef_tunnel_program p tp fn fd :
     tunnel_program p = ok tp →
     get_fundef (lp_funcs p) fn = Some fd →
     get_fundef (lp_funcs tp) fn = Some (lfundef_tunnel_partial fn fd fd.(lfd_body) fd.(lfd_body)).
@@ -1894,25 +1879,32 @@ Section TunnelingCompiler.
     by move: Hwfp; rewrite /well_formed_lprog /funnames => /andP [].
   Qed.
 
-  (* TODO: lsem_final is missing *)
-  (*
+  Theorem lsem_tunnel_program p tp s1 s2 :
+    tunnel_program p = ok tp ->
+    lsem p s1 s2 ->
+    exists s3, lsem p s2 s3 /\ lsem tp s1 s3.
+  Proof.
+    rewrite /tunnel_program; case: ifP => // wfp [<-].
+    elim: funnames => [|hfns tfns IHfns /=]; first by exists s2; split => //; apply: Relation_Operators.rt_refl.
+    move => Hlsem12; case: (IHfns Hlsem12) => s3 [Hlsem23 Hplsem13].
+    case: (lsem_tunneling hfns (well_formed_partial_tunnel_program _ wfp) Hplsem13) => s4 [Hplsem34 Hpplsem14].
+    exists s4; split => //; apply: (lsem_trans Hlsem23).
+    by apply: (partial_tunnel_program_lsem wfp Hplsem34).
+  Qed.
+
   Corollary lsem_run_tunnel_program p tp s1 s2 :
     tunnel_program p = ok tp →
     lsem p s1 s2 →
     lsem_final p s2 →
     lsem tp s1 s2 ∧ lsem_final tp s2.
   Proof.
-    move => ok_tp exec final.
-    have [s3 last_step texec] := lsem_tunnel_program ok_tp exec.
-    have ? := lsem_final_stutter last_step final.
-    subst s3.
-    split; first exact: texec.
-    move: ok_tp {texec}.
-    rewrite /tunnel_program.
-    case: ifP => // ok_p /ok_inj <-{tp}.
-    rewrite /lsem_final. (lp_funcs_lprog_tunnel).
-    case: 
+    move => Htp Hlsem12 Hfinal.
+    case: (lsem_tunnel_program Htp Hlsem12) => s3 [Hlsem23 Hlsem13].
+    have ?:= (lsem_final_stutter Hlsem23 Hfinal); subst s3.
+    split => //; case: Hfinal => fd Hgfd Heq.
+    exists (lfundef_tunnel_partial (lfn s2) fd (lfd_body fd) (lfd_body fd)) => //.
+    + by rewrite (get_fundef_tunnel_program Htp Hgfd).
+    by rewrite /lfundef_tunnel_partial lfd_body_setfb -tunnel_partial_size.
   Qed.
-  *)
 
 End TunnelingCompiler.
