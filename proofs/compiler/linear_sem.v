@@ -226,4 +226,25 @@ Variant lsem_fd (wrip: pointer) m1 fn va' m2 vr' : Prop :=
     lsem_fd wrip m1 fn va' m2 vr'.
 *)
 
+(* Linear execution state is final when it reaches the point after the last instruction. *)
+Definition lsem_final (s: lstate) : Prop :=
+  exists2 fd, get_fundef (lp_funcs P) (lfn s) = Some fd & lpc s = size fd.(lfd_body).
+
+Lemma lsem_final_nostep (s s': lstate) :
+  lsem_final s →
+  ¬ lsem1 s s'.
+Proof.
+  rewrite /lsem1 /step /find_instr => - [] fd -> h.
+  by rewrite oseq.onth_default // -h.
+Qed.
+
+Lemma lsem_final_stutter (s s': lstate) :
+  lsem s s' →
+  lsem_final s →
+  s' = s.
+Proof.
+  elim/lsem_ind; first by [].
+  by clear => s s' ? k _ _ /lsem_final_nostep /(_ k).
+Qed.
+
 End SEM.
