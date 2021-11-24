@@ -123,8 +123,8 @@ let compare_gvar params x gx y gy =
 (* Precondition: s1 and s2 are normal forms (aka roots) in a *)
 (* x1[e1:n1] = x2[e2:n2] *)
 let merge_slices params a s1 s2 =
-  (* Format.eprintf "Alias: merging slices at %a: %a and %a@." pp_iloc loc pp_slice s1 pp_slice s2; *)
-  assert (size_of_range s1.range = size_of_range s2.range);
+  if size_of_range s1.range <> size_of_range s2.range
+     then hierror_no_loc "slices %a and %a do not have the same size: the cannot be merged@." pp_slice s1 pp_slice s2;
   let c = compare_gvar params s1.in_var s1.scope s2.in_var s2.scope in
   if c = 0 then
     if s1 = s2 then a

@@ -1,0 +1,17 @@
+/* The argument to h does not have the same size as the declared parameter. */
+/* This is an error but the type-checker only emits a warning. */
+fn h(reg ptr u64[1] a) -> reg u64 {
+   reg u64 x;
+   x = a[0];
+   return x;
+}
+
+export
+fn test(reg u64 input) -> reg u64 {
+  stack u64[2] tab;
+  inline int i;
+  reg u64 out;
+  for i = 0 to 2 { tab[i] = i; }
+  out = h(tab);
+  return out;
+}

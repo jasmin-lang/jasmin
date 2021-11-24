@@ -723,7 +723,7 @@ let post_process ~stack_needed (subst: var -> var) (live: Sv.t) ~(killed: funnam
        else to_save, None
      end
 
-let global_allocation translate_var (funcs: 'info func list) : unit func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * (L.i_loc -> var option) * var Hf.t =
+let global_allocation translate_var (funcs: 'info func list) : unit func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * (L.i_loc, var) Hashtbl.t * var Hf.t =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
     - generate a fresh variable to hold the return address (if needed)
@@ -852,7 +852,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   get_liveness,
   subst
   , killed
-  , Hashtbl.find_opt extra_free_registers
+  , extra_free_registers
   , return_addresses
 
 type reg_oracle_t = {
@@ -869,6 +869,12 @@ let alloc_prog translate_var (has_stack: 'info func -> 'a -> bool) (dfuncs: ('a 
     |> List.map (fun (a, f) -> Hf.add extra f.f_name a; f)
     |> global_allocation translate_var
   in
+  if !Glob_options.debug then
+    begin
+      Format.eprintf "Extra free regs: ";
+      Hashtbl.iter (fun loc r -> Format.eprintf "(%a → %a: %a)" L.pp_iloc loc (Printer.pp_var ~debug:true) r (Printer.pp_var ~debug:false) (subst r)) extra_free_registers;
+      Format.eprintf "@."
+    end;
   funcs |>
   List.map (fun f ->
       let e = Hf.find extra f.f_name in
@@ -882,4 +888,4 @@ let alloc_prog translate_var (has_stack: 'info func -> 'a -> bool) (dfuncs: ('a 
       let to_save = match ro_return_address with Some ra -> Sv.add ra to_save | None -> to_save in
       e, { ro_to_save = Sv.elements to_save ; ro_rsp ; ro_return_address }, f
     )
-  , (fun loc -> extra_free_registers loc |> Option.map subst)
+  , (fun loc -> Hashtbl.find_opt extra_free_registers loc |> Option.map subst)
