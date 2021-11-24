@@ -872,7 +872,7 @@ let alloc_prog translate_var (has_stack: 'info func -> 'a -> bool) (dfuncs: ('a 
   if !Glob_options.debug then
     begin
       Format.eprintf "Extra free regs: ";
-      Hashtbl.iter (fun loc r -> Format.eprintf "(%a → %a: %a)" L.pp_iloc loc (Printer.pp_var ~debug:true) r (Printer.pp_var ~debug:true) (subst r)) extra_free_registers;
+      Hashtbl.iter (fun loc r -> Format.eprintf "(%a → %a: %a)" L.pp_iloc loc (Printer.pp_var ~debug:true) r (Printer.pp_var ~debug:false) (subst r)) extra_free_registers;
       Format.eprintf "@."
     end;
   funcs |>
