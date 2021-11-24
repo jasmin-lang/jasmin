@@ -1863,4 +1863,56 @@ Section TunnelingCompiler.
     by apply Hfns.
   Qed.
 
+  Print tunnel_program.
+
+  Lemma get_fundef_foldr_lprog_tunnel p fn fns fd :
+    uniq fns ->
+    get_fundef (lp_funcs p) fn = Some fd →
+    get_fundef (lp_funcs (foldr lprog_tunnel p fns)) fn =
+    if fn \in fns
+    then Some (lfundef_tunnel_partial fn fd fd.(lfd_body) fd.(lfd_body))
+    else Some fd.
+  Proof.
+    elim: fns => //= fn' fns Hfns /andP [Hnotin Huniq] Hgfd.
+    move: (Hfns Huniq Hgfd) => {Hfns} {Hgfd} Hfns.
+    rewrite get_fundef_lprog_tunnel Hfns {Hfns} in_cons.
+    case: ifP; case: ifP => //=.
+    + by move => /eqP ?; subst fn' => Hin; rewrite Hin /= in Hnotin.
+    + by rewrite eq_sym => -> .
+    + by move => /eqP ?; subst fn'; rewrite eq_refl.
+    by rewrite eq_sym => ->.
+  Qed.
+
+  Theorem get_fundef_tunnel_program p tp fn fd :
+    tunnel_program p = ok tp →
+    get_fundef (lp_funcs p) fn = Some fd →
+    get_fundef (lp_funcs tp) fn = Some (lfundef_tunnel_partial fn fd fd.(lfd_body) fd.(lfd_body)).
+  Proof.
+    rewrite /tunnel_program; case: ifP => // Hwfp /ok_inj <-{tp} Hgfd.
+    rewrite (get_fundef_foldr_lprog_tunnel _ Hgfd).
+    + by rewrite ifT //; apply/in_map; exists (fn, fd) => //=; apply get_fundef_in'.
+    by move: Hwfp; rewrite /well_formed_lprog /funnames => /andP [].
+  Qed.
+
+  (* TODO: lsem_final is missing *)
+  (*
+  Corollary lsem_run_tunnel_program p tp s1 s2 :
+    tunnel_program p = ok tp →
+    lsem p s1 s2 →
+    lsem_final p s2 →
+    lsem tp s1 s2 ∧ lsem_final tp s2.
+  Proof.
+    move => ok_tp exec final.
+    have [s3 last_step texec] := lsem_tunnel_program ok_tp exec.
+    have ? := lsem_final_stutter last_step final.
+    subst s3.
+    split; first exact: texec.
+    move: ok_tp {texec}.
+    rewrite /tunnel_program.
+    case: ifP => // ok_p /ok_inj <-{tp}.
+    rewrite /lsem_final. (lp_funcs_lprog_tunnel).
+    case: 
+  Qed.
+  *)
+
 End TunnelingCompiler.
