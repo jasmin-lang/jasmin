@@ -44,10 +44,10 @@ Section PROOF.
 
   Hypothesis wf_init: wf_init sCP.
 
-  Variables (onfun : funname -> option (seq bool)) (p p' : prog) (ev:extra_val_t).
+  Variables (do_nop : bool) (onfun : funname -> option (seq bool)) (p p' : prog) (ev:extra_val_t).
   Notation gd := (p_globs p).
 
-  Hypothesis dead_code_ok : dead_code_prog_tokeep onfun p = ok p'.
+  Hypothesis dead_code_ok : dead_code_prog_tokeep do_nop onfun p = ok p'.
 
   Lemma eq_globs : gd = p_globs p'.
   Proof. by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? _ <-. Qed.
@@ -57,7 +57,7 @@ Section PROOF.
 
   Let Pi_r s (i:instr_r) s' :=
     forall ii s2,
-      match dead_code_i onfun (MkI ii i) s2 with
+      match dead_code_i do_nop onfun (MkI ii i) s2 with
       | Ok (s1, c') =>
         wf_vm s.(evm) ->
         forall vm1', s.(evm) <=[s1] vm1' ->
@@ -68,7 +68,7 @@ Section PROOF.
 
   Let Pi s (i:instr) s' :=
     forall s2,
-      match dead_code_i onfun i s2 with
+      match dead_code_i do_nop onfun i s2 with
       | Ok (s1, c') =>
         wf_vm s.(evm) ->
         forall vm1', s.(evm) <=[s1] vm1' ->
@@ -79,7 +79,7 @@ Section PROOF.
 
   Let Pc s (c:cmd) s' :=
     forall s2,
-      match dead_code_c (dead_code_i onfun) c s2 with
+      match dead_code_c (dead_code_i do_nop onfun) c s2 with
       | Ok (s1, c') =>
         wf_vm s.(evm) ->
         forall vm1', s.(evm) <=[s1] vm1' ->
@@ -90,7 +90,7 @@ Section PROOF.
 
   Let Pfor (i:var_i) vs s c s' :=
     forall s2,
-      match dead_code_c (dead_code_i onfun) c s2 with
+      match dead_code_c (dead_code_i do_nop onfun) c s2 with
       | Ok (s1, c') =>
         Sv.Subset (Sv.union (read_rv (Lvar i)) (Sv.diff s1 (vrv (Lvar i)))) s2 ->
         wf_vm s.(evm) ->
@@ -113,9 +113,9 @@ Section PROOF.
   Proof.
     move=> s1 s2 s3 i c H Hi H' Hc sv3 /=.
     have := Hc sv3.
-    case: (dead_code_c (dead_code_i onfun) c sv3)=> [[sv2 c']|//] Hc' /=.
+    case: (dead_code_c (dead_code_i do_nop onfun) c sv3)=> [[sv2 c']|//] Hc' /=.
     have := Hi sv2.
-    case: (dead_code_i onfun i sv2)=> [[sv1 i']|] //= Hi' Hwf vm1' /(Hi' Hwf).
+    case: (dead_code_i do_nop onfun i sv2)=> [[sv1 i']|] //= Hi' Hwf vm1' /(Hi' Hwf).
     have Hwf2 := wf_sem_I H Hwf.
     move=> [vm2' [Heq2 Hsi']];case: (Hc' Hwf2 _ Heq2) => [vm3' [Heq3 Hsc']].
     exists vm3';split=> //.
@@ -189,36 +189,34 @@ Section PROOF.
   Proof.
     move => [m1 vm1] [m2 vm2] x tag ty e v v' Hv htr Hw ii s /=.
     case: ifPn=> _ /=; last by apply: Hassgn_aux Hv htr Hw.
-    case: ifPn=> /= [ | _].
+    case: ifPn=> /= [ | _]; last by  apply: Hassgn_aux Hv htr Hw.
+    move=> /orP [].
     + rewrite write_i_assgn => /andP [Hdisj Hwmem] Hwf vm1' Hvm.
-      have /= := Hwrite_disj Hw Hdisj Hwmem. move=> [] Hvm1 <-.
+      have /= [ Hvm1 <-]:= Hwrite_disj Hw Hdisj Hwmem. 
       rewrite /with_vm /=; exists vm1' => /=;split; last by constructor.
-      apply: vmap_uincl_onT Hvm. move=> z Hin. by rewrite (Hvm1 z).
-    case: ifPn=> Hnop /=;last by apply: Hassgn_aux Hv htr Hw.
-    move=> Hwf vm1' Hvm.
+      by apply: vmap_uincl_onT Hvm => z Hin; rewrite (Hvm1 z).
+    move=> /andP [_ Hnop] /= Hwf vm1' Hvm.
     have [-> Hs] : m1 = m2 /\ vm2 <=[s] vm1.
     + move: (check_nop_spec Hnop)=> {Hnop} [x0 [i1 [i2 [Hx He Hty]]]];subst x e.
       case: x0 Hty Hv Hw => ty'' xn0 /= Hty'' Hv Hw. 
       have Hv': value_uincl v' v.
-      + apply: on_vuP Hv=> //= pty'' /= Ht pty; subst. have htr':= truncate_value_uincl htr.
-        apply htr'.
-     move: Hw; rewrite /= /write_var /set_var /=. t_xrbindP=> vm2'. 
-     apply: on_vuP=> //=.
-     + move=>v'' hv'' <- <- <- /=; split=> //=. move=> z Hin. 
-       case: ({| vtype := ty''; vname := xn0 |} =P z)=> //=.
-       + move=> Hz. subst z. rewrite Fv.setP_eq. move: Hv. rewrite /get_gvar /= /get_var /=. 
-         apply: on_vuP=> //= v1 -> /= hv1; subst. have [v1' [/= h1 h2]]:= pof_val_uincl Hv' hv''.
-         rewrite pof_val_pto_val in h1. by case: h1=> ->.
-         move=> Hz. rewrite Fv.setP_neq //. by apply /eqP.
-     move=> Hz. case: ifP=> //= Hb [] <- <- <- /=; split=> //=.
-     move=> z Hin. case: ({| vtype := ty''; vname := xn0 |} =P z)=> //=.
-     + move=> Hz'. subst z. rewrite Fv.setP_eq. move: Hv. rewrite /get_gvar /= /get_var /=. 
-       apply: on_vuP=> //= v1 -> /= hv1; subst. move: Hb. move=> /is_sboolP Hb; subst. 
-       by have /= h1 := pof_val_undef Hv' Hz.
-       move=> Hz'. rewrite Fv.setP_neq //. by apply /eqP.
-   eexists; split; last by exact: Eskip.
-   + apply: vmap_uincl_onT=> //.    
-     have Hvm' : vm2 <=[s]  vm1'. apply: vmap_uincl_onT. apply Hs. by apply Hvm. done.
+      + by apply: on_vuP Hv=> //= pty'' /= Ht pty; subst; apply (truncate_value_uincl htr).
+      move: Hw; rewrite /= /write_var /set_var /=; t_xrbindP=> vm2'. 
+      apply: on_vuP=> //=.
+      + move=>v'' hv'' <- <- <- /=; split=> //= => z Hin. 
+        case: ({| vtype := ty''; vname := xn0 |} =P z)=> //=.
+        + move=> Hz; subst z; rewrite Fv.setP_eq; move: Hv; rewrite /get_gvar /= /get_var /=. 
+          apply: on_vuP=> //= v1 -> /= hv1; subst; have [v1' [/= h1 h2]]:= pof_val_uincl Hv' hv''.
+          by rewrite pof_val_pto_val in h1; case: h1=> ->.
+        by move=> Hz; rewrite Fv.setP_neq //; apply /eqP.
+      move=> Hz; case: ifP=> //= Hb [] <- <- <- /=; split=> //= z Hin.
+      case: ({| vtype := ty''; vname := xn0 |} =P z)=> //=.
+      + move=> Hz'; subst z; rewrite Fv.setP_eq; move: Hv; rewrite /get_gvar /= /get_var /=. 
+        apply: on_vuP=> //= v1 -> /= hv1; subst; move/is_sboolP : Hb => Hb; subst. 
+        by have /= h1 := pof_val_undef Hv' Hz.
+      by move=> Hz'; rewrite Fv.setP_neq //; apply /eqP.
+    eexists; split; last by exact: Eskip.
+    by apply: vmap_uincl_onT=> //; apply: vmap_uincl_onT Hs Hvm. 
   Qed.
 
   Lemma check_nop_opn_spec (xs:lvals) (o:sopn) (es:pexprs): check_nop_opn xs o es ->
@@ -336,8 +334,8 @@ Section PROOF.
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 Hval Hp Hc ii sv0 /=.
-    case Heq: (dead_code_c (dead_code_i onfun) c1 sv0)=> [[sv1 sc1] /=|//].
-    case: (dead_code_c (dead_code_i onfun) c2 sv0)=> [[sv2 sc2] /=|//] Hwf vm1' Hvm.
+    case Heq: (dead_code_c (dead_code_i do_nop onfun) c1 sv0)=> [[sv1 sc1] /=|//].
+    case: (dead_code_c (dead_code_i do_nop onfun) c2 sv0)=> [[sv2 sc2] /=|//] Hwf vm1' Hvm.
     move: (Hc sv0); rewrite Heq => /(_ Hwf vm1') [|vm2' [Hvm2' Hvm2'1]].
     move: Hvm; rewrite read_eE=> Hvm.
     apply: vmap_uincl_onI Hvm;SvD.fsetdec.
@@ -355,8 +353,8 @@ Section PROOF.
   Local Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 Hval Hp Hc ii sv0 /=.
-    case: (dead_code_c (dead_code_i onfun) c1 sv0)=> [[sv1 sc1] /=|//].
-    case Heq: (dead_code_c (dead_code_i onfun) c2 sv0)=> [[sv2 sc2] /=|//] Hwf vm1' Hvm.
+    case: (dead_code_c (dead_code_i do_nop onfun) c1 sv0)=> [[sv1 sc1] /=|//].
+    case Heq: (dead_code_c (dead_code_i do_nop onfun) c2 sv0)=> [[sv2 sc2] /=|//] Hwf vm1' Hvm.
     move: (Hc sv0).
     rewrite Heq.
     move=> /(_ Hwf vm1') [|vm2' [Hvm2' Hvm2'1]].
@@ -459,7 +457,7 @@ Section PROOF.
   Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
   Proof.
     move=> s1 s2 i d lo hi c vlo vhi Hlo Hhi Hc Hfor ii /= sv0.
-    case Hloop: (loop (dead_code_c (dead_code_i onfun) c) ii Loop.nb Sv.empty (Sv.add i Sv.empty) sv0)=> [[sv1 sc1] /=|//].
+    case Hloop: (loop (dead_code_c (dead_code_i do_nop onfun) c) ii Loop.nb Sv.empty (Sv.add i Sv.empty) sv0)=> [[sv1 sc1] /=|//].
     move: (loopP Hloop)=> [H1 [sv2 [H2 H2']]] Hwf vm1' Hvm.
     move: Hfor=> /(_ sv1); rewrite H2.
     move=> /(_ H2' Hwf vm1') [|vm2' [Hvm2'1 Hvm2'2]].
@@ -486,7 +484,7 @@ Section PROOF.
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
   Proof.
    move=> s i c sv0.
-   case Heq: (dead_code_c (dead_code_i onfun) c sv0) => [[sv1 sc1]|] //= Hsub Hwf vm1' Hvm.
+   case Heq: (dead_code_c (dead_code_i do_nop onfun) c sv0) => [[sv1 sc1]|] //= Hsub Hwf vm1' Hvm.
    exists vm1'; split=> //.
    apply: EForDone.
   Qed.
@@ -494,7 +492,7 @@ Section PROOF.
   Local Lemma Hfor_cons : sem_Ind_for_cons p ev Pc Pfor.
   Proof.
     move=> s1 s1' s2 s3 i w ws c Hw Hsc Hc Hsfor Hfor sv0.
-    case Heq: (dead_code_c (dead_code_i onfun) c sv0) => [[sv1 sc1]|] //= Hsub Hwf vm1' Hvm.
+    case Heq: (dead_code_c (dead_code_i do_nop onfun) c sv0) => [[sv1 sc1]|] //= Hsub Hwf vm1' Hvm.
     have Hv : value_uincl w w. done.
     have [vm1''] := write_var_uincl_on' Hv Hw Hvm. move=> Hvm1''1 Hvm1''2 .
     move: Hc=> /(_ sv0).
@@ -585,8 +583,8 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
-  move=> m1 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hfun htra Hi Hw Hsem Hc Hres Hfull Hfi.
-    have dcok : map_cfprog_name (dead_code_fd onfun) (p_funcs p) = ok (p_funcs p').
+    move=> m1 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hfun htra Hi Hw Hsem Hc Hres Hfull Hfi.
+    have dcok : map_cfprog_name (dead_code_fd do_nop onfun) (p_funcs p) = ok (p_funcs p').
     + by move: dead_code_ok; rewrite /dead_code_prog_tokeep; t_xrbindP => ? ? <-.
     have [f' Hf'1 Hf'2] := get_map_cfprog_name_gen dcok Hfun.
     case: f Hf'1 Hfun htra Hi Hw Hsem Hc Hres Hfull Hfi => fi ft fp /= c f_tyout res fb
@@ -653,56 +651,56 @@ End PROOF.
 
 End Section.
 
-Lemma dead_code_tokeep_callPu (p p': uprog) onfun fn ev mem mem' va va' vr:
-  dead_code_prog_tokeep onfun p = ok p' ->
+Lemma dead_code_tokeep_callPu (p p': uprog) do_nop onfun fn ev mem mem' va va' vr:
+  dead_code_prog_tokeep do_nop onfun p = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p ev mem fn va mem' vr ->
   exists vr',
     sem_call p' ev mem fn va mem' vr' /\ List.Forall2 value_uincl (fn_keep_only onfun fn vr) vr'.
-Proof. move=> hd hall;apply: dead_code_callP => //. apply wf_initu. apply List_Forall2_refl. done. Qed.
+Proof. by move=> hd hall;apply: (dead_code_callP wf_initu hd); apply List_Forall2_refl. Qed.
 
-Lemma dead_code_tokeep_callPs (p p': sprog) onfun fn wrip mem mem' va va' vr:
-  dead_code_prog_tokeep onfun p = ok p' ->
+Lemma dead_code_tokeep_callPs (p p': sprog) do_nop onfun fn wrip mem mem' va va' vr:
+  dead_code_prog_tokeep do_nop onfun p = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p wrip mem fn va mem' vr ->
   exists vr', 
    sem_call p' wrip mem fn va mem' vr' /\ List.Forall2 value_uincl (fn_keep_only onfun fn vr) vr'.
-Proof. move=> hd hall;apply: dead_code_callP => //. apply wf_inits. apply List_Forall2_refl. done. Qed.
+Proof. by move=> hd hall;apply: (dead_code_callP wf_inits hd); apply List_Forall2_refl. Qed.
 
-Lemma dead_code_callPu (p p': uprog) fn ev mem mem' va va' vr:
-  dead_code_prog p = ok p' ->
+Lemma dead_code_callPu (p p': uprog) do_nop fn ev mem mem' va va' vr:
+  dead_code_prog p do_nop = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p ev mem fn va mem' vr ->
   exists vr', 
    sem_call p' ev mem fn va mem' vr' /\ List.Forall2 value_uincl vr vr'.
 Proof. apply dead_code_tokeep_callPu. Qed.
 
-Lemma dead_code_callPs (p p': sprog) fn wrip mem mem' va va' vr:
-  dead_code_prog p = ok p' ->
+Lemma dead_code_callPs (p p': sprog) do_nop fn wrip mem mem' va va' vr:
+  dead_code_prog p do_nop = ok p' ->
   List.Forall2 value_uincl va va' ->
   sem_call p wrip mem fn va mem' vr ->
   exists vr',
     sem_call p' wrip mem fn va mem' vr' /\ List.Forall2 value_uincl vr vr'.
 Proof. apply dead_code_tokeep_callPs. Qed.
 
-Lemma dead_code_prog_tokeep_meta (p p': sprog) onfun :
-  dead_code_prog_tokeep onfun p = ok p' →
+Lemma dead_code_prog_tokeep_meta (p p': sprog) do_nop onfun :
+  dead_code_prog_tokeep do_nop onfun p = ok p' →
   p_globs p' = p_globs p ∧ p_extra p' = p_extra p.
 Proof.
   by rewrite /dead_code_prog_tokeep; t_xrbindP => _ _ <- /=.
 Qed.
 
-Lemma dead_code_prog_tokeep_get_fundef (p p': sprog) onfun fn f :
-  dead_code_prog_tokeep onfun p = ok p' →
+Lemma dead_code_prog_tokeep_get_fundef (p p': sprog) do_nop onfun fn f :
+  dead_code_prog_tokeep do_nop onfun p = ok p' →
   get_fundef (p_funcs p) fn = Some f →
-  exists2 f', dead_code_fd onfun fn f = ok f' & get_fundef (p_funcs p') fn = Some f'.
+  exists2 f', dead_code_fd do_nop onfun fn f = ok f' & get_fundef (p_funcs p') fn = Some f'.
 Proof.
   apply: rbindP => fds ok_fds [<-{p'}].
   exact: get_map_cfprog_name_gen ok_fds.
 Qed.
 
-Lemma dead_code_fd_meta onfun fn (fd fd': sfundef) :
-  dead_code_fd onfun fn fd = ok fd' →
+Lemma dead_code_fd_meta do_nop onfun fn (fd fd': sfundef) :
+  dead_code_fd do_nop onfun fn fd = ok fd' →
   [/\
    fd'.(f_tyin) = fd.(f_tyin),
    fd'.(f_params) = fd.(f_params) &

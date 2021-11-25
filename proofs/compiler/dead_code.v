@@ -105,7 +105,7 @@ Fixpoint keep_only {T:Type} (l:seq T) (tokeep : seq bool) {struct tokeep}:=
 
 Section ONFUN.
 
-Context (onfun: funname -> option (seq bool)).
+Context (do_nop: bool) (onfun: funname -> option (seq bool)).
 
 Definition fn_keep_only {T:Type} (fn:funname) (l:seq T) := 
   match onfun fn with
@@ -136,8 +136,8 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
   | Cassgn x tag ty e =>
     let w := write_i ir in
     if tag != AT_keep then
-      if disjoint s w && negb (lv_write_mem x) then ok (s, [::])
-      else if check_nop x ty e then ok (s, [::])
+      if (disjoint s w && negb (lv_write_mem x)) || 
+         ((do_nop || (tag == AT_rename)) && check_nop x ty e) then ok (s, [::])
       else ok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
     else   ok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
 
@@ -204,6 +204,6 @@ End Section.
 
 End ONFUN.
 
-Definition dead_code_prog {T} {pT:progT T} (p:prog) :=
-  @dead_code_prog_tokeep (fun _ => None) T pT p.
+Definition dead_code_prog {T} {pT:progT T} (p:prog) do_nop :=
+  @dead_code_prog_tokeep do_nop (fun _ => None) T pT p.
   
