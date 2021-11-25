@@ -1,0 +1,21 @@
+/* To prove the safety of the array access in the while loop,
+   we need the variable “i” in the relational domain. */
+
+param int N = 4;
+
+export
+fn sum() -> reg u64 {
+  stack u64[N] a;
+  reg u64 i j result;
+  inline int k;
+  result = 0;
+  i = 0;
+  j = N;
+  for k = 0 to N { a[k] = k; }
+  while (j >u 0) {
+    result += a.[u64 (int)i];
+    i += 8;
+    j -= 1;
+  }
+  return result;
+}

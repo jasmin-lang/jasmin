@@ -1,0 +1,13 @@
+/* To prove safety of the array access,
+  we need a reduction between the interval and the congruence domains */
+export
+fn even() -> reg u64 {
+  stack u16[1] a;
+  reg u64 i;
+  i = 0;
+  while (i <u 4) {
+    a.[u8 (int)i] = i;
+    i += 4;
+  }
+  return i;
+}
