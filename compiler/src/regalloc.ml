@@ -863,7 +863,9 @@ type reg_oracle_t = {
 
 let alloc_prog translate_var (has_stack: 'info func -> 'a -> bool) (dfuncs: ('a * 'info func) list)
     : ('a * reg_oracle_t * unit func) list * (L.i_loc -> var option) =
-  let dfuncs = 
+  (* Ensure that instruction locations are really unique,
+     so that there is no confusion on the position of the “extra free register”. *)
+  let dfuncs =
     List.map (fun (a,f) -> a, Prog.refresh_i_loc_f f) dfuncs in
   let extra : 'a Hf.t = Hf.create 17 in
   let funcs, get_liveness, subst, killed, extra_free_registers, return_addresses =
