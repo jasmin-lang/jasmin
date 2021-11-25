@@ -203,7 +203,7 @@ and check_cmd env c =
 let check_fun env fd = 
   let args = List.map (fun x -> Pvar (gkvar (L.mk_loc x.v_dloc x))) fd.f_args in
   let res = List.map (fun x -> Pvar (gkvar x)) fd.f_ret in
-  let i_loc = fd.f_loc, [] in
+  let i_loc = L.i_loc0 fd.f_loc in
   check_exprs i_loc args fd.f_tyin;
   check_exprs i_loc res fd.f_tyout;
   check_cmd env fd.f_body;

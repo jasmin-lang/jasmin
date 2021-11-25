@@ -15,12 +15,12 @@ open SafetyNum
 
 type cnstr = { mtcons : Mtcons.t; 
                cpt_uniq : int;
-               loc : L.t }
+               loc : L.i_loc }
 
 let pp_cnstr fmt c =
   Format.fprintf fmt "(%d) %a: %a"
     (c.cpt_uniq)
-    L.pp_sloc c.loc
+    L.pp_iloc c.loc
     Mtcons.print c.mtcons
 
 let pp_cnstrs fmt =
@@ -175,15 +175,15 @@ end
 
 
 (*---------------------------------------------------------------*)
-type cnstr_blk = { cblk_loc : L.t;
+type cnstr_blk = { cblk_loc : L.i_loc;
                    cblk_cnstrs : cnstr list; }
 
 (* hashconsing *)
-module OrdL = struct 
-  type t = L.t
-  let compare l l' = Stdlib.compare l.L.loc_start l'.L.loc_start
+module OrdL = struct
+  type t = L.i_loc
+  let compare l l' = Stdlib.Int.compare l.L.uid_loc l'.L.uid_loc
 
-  let equal l l' =  l.L.loc_start = l'.L.loc_start 
+  let equal l l' =  Stdlib.Int.equal l.L.uid_loc l'.L.uid_loc
 end
 module ML = Map.Make (OrdL)
     
@@ -199,7 +199,7 @@ let make_cnstr c i =
       debug (fun () ->
           Format.eprintf "make_cnstr for (%d, line %a):@.\
                           changed constraint from %a to %a@."
-            constr.cpt_uniq L.pp_sloc i
+            constr.cpt_uniq L.pp_iloc i
             Mtcons.print constr.mtcons
             Mtcons.print c);
           { constr with mtcons = c } end
@@ -219,7 +219,7 @@ module AbsDisj (A : AbsNumProdT) : AbsDisjType = struct
 
 
   (*---------------------------------------------------------------*)
-  let init_blk = { cblk_loc = L._dummy; cblk_cnstrs = [] }
+  let init_blk = { cblk_loc = L.i_dummy ; cblk_cnstrs = [] }
 
   let make_abs a = { tree = Leaf a;
                      cnstrs = [ init_blk ]; }
@@ -227,7 +227,7 @@ module AbsDisj (A : AbsNumProdT) : AbsDisjType = struct
   (*---------------------------------------------------------------*)
   let pp_cblk fmt cb =
     Format.fprintf fmt "[{%a} %a]"
-      L.pp_sloc cb.cblk_loc
+      L.pp_iloc cb.cblk_loc
       pp_cnstrs cb.cblk_cnstrs 
 
   let pp_cblks fmt =
@@ -324,7 +324,7 @@ module AbsDisj (A : AbsNumProdT) : AbsDisjType = struct
     end;
     if not (cs.cblk_loc = cs'.cblk_loc) then begin
       Format.eprintf "%a and %a"
-        L.pp_sloc cs.cblk_loc L.pp_sloc cs'.cblk_loc;
+        L.pp_iloc cs.cblk_loc L.pp_iloc cs'.cblk_loc;
       assert false
     end
 

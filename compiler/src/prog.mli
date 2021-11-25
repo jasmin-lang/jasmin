@@ -303,6 +303,14 @@ val locals  : 'info func -> Sv.t
 val written_vars_fc : 'info func -> Sv.t * L.i_loc list Mf.t
 
 (* -------------------------------------------------------------------- *)
+(* Refresh i_loc, ensure that locations are uniq                        *)
+
+val refresh_i_loc_i : 'info instr -> 'info instr 
+val refresh_i_loc_c : 'info stmt  -> 'info stmt 
+val refresh_i_loc_f : 'info func  -> 'info func 
+val refresh_i_loc_p : 'info prog  -> 'info prog 
+
+(* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)
 
 val int_of_ws  : wsize -> int

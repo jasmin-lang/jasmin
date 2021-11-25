@@ -565,7 +565,7 @@ let check_ty (ety : typattern) (loc, ty) =
 
 (* -------------------------------------------------------------------- *)
 let warn_arr loc from to_ = 
-  warning Always (loc,[]) "cannot ensure that the type %a is compatible with %a"
+  warning Always (L.i_loc0 loc) "cannot ensure that the type %a is compatible with %a"
     Printer.pp_ptype from Printer.pp_ptype to_
 
 let check_ty_eq ~loc ~(from : P.pty) ~(to_ : P.pty) =
@@ -1418,7 +1418,7 @@ let tt_lvalues env (pimp, pls) implicit tys =
      let nargs = List.length pls in
      if nargs < n then
        let nextra = n - nargs in
-       warning IntroduceNone (loc, []) "introduce %d _ lvalues" nextra;
+       warning IntroduceNone (L.i_loc0 loc) "introduce %d _ lvalues" nextra;
        List.make nextra ignore_ @ pls
      else pls in
 
@@ -1518,7 +1518,7 @@ let tt_lvalues env (pimp, pls) implicit tys =
         let x = flv ety in
         let tg = P.AT_inline in
         P.{ i_desc = Cassgn (x, tg, P.tbool, e);
-            i_loc = L.loc c, [];
+            i_loc = L.of_loc c;
             i_info = ();
             i_annot = [] } in
       List.map doc pimp_c in
@@ -1587,7 +1587,7 @@ let tt_annot_vardecls dfl_writable env (annot, (ty,vs)) =
   
 let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pinstr list  =
   let mk_i instr = 
-    { P.i_desc = instr; P.i_loc = L.loc pi, []; P.i_info = (); P.i_annot = annot} in
+    { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
   match L.unloc pi with
   | S.PIdecl tvs -> 
     let env, _ = tt_annot_vardecls (fun _ -> true) env (annot, tvs) in 
@@ -1770,7 +1770,7 @@ let tt_call_conv loc params returns cc =
         | P.Reg Direct -> None
         | P.Reg (Pointer writable) -> 
           if writable = Constant then
-            warning Always (loc,[]) "no need to return a [reg const ptr] %a"
+            warning Always (L.i_loc0 loc) "no need to return a [reg const ptr] %a"
               Printer.pp_pvar x;
           let i = List.index_of x args in
           if i = None then 

@@ -27,7 +27,7 @@ let array_copy z ws n y =
       let i_desc =
         Cassgn (Laset (Warray_.AAscale, ws, z, Pvar i), AT_none, Bty (U ws), 
                  Pget (Warray_.AAscale, ws, y, Pvar i)) in
-      { i_desc ; i_loc = L.loc z, [] ; i_info = (); i_annot = [] }
+      { i_desc ; i_loc = L.of_loc z; i_info = (); i_annot = [] }
     ])
 
 let rec iac_stmt is = List.map iac_instr is

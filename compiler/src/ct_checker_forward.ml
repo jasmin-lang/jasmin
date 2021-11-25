@@ -427,7 +427,7 @@ let get_annot ensure_annot f =
     let (k, lvl) = Lvl.parse ~single:true ~kind_allowed:true x.v_annot in
     if k = Some Flexible then 
       begin 
-        warning Always (x.v_dloc, [])
+        warning Always (L.i_loc0 x.v_dloc)
           "%s annotation will be ignored for local variable %a"
           Lvl.sflexible (Printer.pp_var ~debug:false) x;
         decls
@@ -524,7 +524,7 @@ let rec ty_instr fenv env i =
     ty_lvals env xs (declassify_lvls i.i_annot olvls)
   in
   if !Glob_options.debug then
-    Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (fst i.i_loc) Env.pp env Env.pp env1;
+    Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (i.i_loc.base_loc) Env.pp env Env.pp env1;
   env1
 
 and ty_cmd fenv env c = 

@@ -18,7 +18,11 @@ let _dummy = {
   loc_echar = -1;
 }
 
-type i_loc = t * t list
+type i_loc = { 
+    uid_loc  : int;
+    base_loc : t;
+    stack_loc: t list;
+  }
 
 (* -------------------------------------------------------------------- *)
 let make (p1 : position) (p2 : position) =
@@ -57,7 +61,7 @@ let pp_loc fmt (p:t) =
 let pp_sloc fmt (p:t) = 
   Format.fprintf fmt "line %d" (fst p.loc_start)
 
-let pp_iloc fmt (l,ls) =
+let pp_iloc fmt ({base_loc = l; stack_loc = ls}:i_loc) = 
   let pp_sep fmt () = Format.fprintf fmt "@ from " in
   Format.fprintf fmt "@[<v 2>%a@]" (Format.pp_print_list ~pp_sep pp_loc) (l::ls)
 
@@ -113,5 +117,21 @@ let set_oloc oloc f x =
   | None     -> f x
   | Some loc -> set_loc loc f x
 
+(* -------------------------------------------------------------------- *)
+let i_loc_uid = ref 0
 
+let i_loc l ls = 
+  incr i_loc_uid;
+  {
+    uid_loc = !i_loc_uid;
+    base_loc = l;
+    stack_loc = ls
+  }
 
+let i_loc0 l = i_loc l []
+
+let of_loc a = i_loc0 (loc a)
+
+let i_dummy = i_loc0 _dummy
+
+let refresh_i_loc il = i_loc il.base_loc il.stack_loc

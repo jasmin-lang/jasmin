@@ -41,7 +41,7 @@ Instance pT : progT [eqType of unit] := progUnit.
 Definition unroll1 (p:uprog) : cexec uprog:=
   let p := unroll_prog p in
   let p := const_prop_prog p in
-  dead_code_prog p.
+  dead_code_prog p false.
 
 (* FIXME: error really not clear for the user *)
 (* TODO: command line option to specify the unrolling depth,
@@ -198,7 +198,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let pv := var_alloc_prog cparams p in
   let pv := cparams.(print_uprog) AllocInlineAssgn pv in
   Let _ := CheckAllocRegU.check_prog p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
-  Let pv := dead_code_prog pv in
+  Let pv := dead_code_prog pv false in
   let pv := cparams.(print_uprog) DeadCode_AllocInlineAssgn pv in
 
   let pr := remove_init_prog cparams.(is_reg_array) pv in
@@ -228,14 +228,14 @@ Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog 
 
   let rminfo := cparams.(removereturn) ps in
   Let _ := check_removeturn entries rminfo in
-  Let pr := dead_code_prog_tokeep rminfo ps in
+  Let pr := dead_code_prog_tokeep false rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
   let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
   Let _ := CheckAllocRegS.check_prog pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 
-  Let pd := dead_code_prog pa in
+  Let pd := dead_code_prog pa true in
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
 
   ok pd.

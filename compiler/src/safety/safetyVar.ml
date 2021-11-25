@@ -26,7 +26,7 @@ type mvar =
   | Mlocal of atype             (* Local variable value *)
   | MinLocal of var             (* Local variable initial value *)
   | MvarOffset of var           (* Local variable offset *)
-  | MNumInv of L.t              (* Numerical Invariants *)
+  | MNumInv of L.i_loc          (* Numerical Invariants *)
   | MmemRange of mem_loc        (* Memory location range *)
 
 (*---------------------------------------------------------------*)
@@ -72,7 +72,7 @@ let string_of_mvar = function
   | MinLocal s -> "inv_" ^ s.v_name
   | Mlocal at -> string_of_atype at
   | MvarOffset s -> "o_" ^ s.v_name
-  | MNumInv lt -> "ni_" ^ string_of_int (fst lt.loc_start)
+  | MNumInv lt -> "ni_" ^ string_of_int (fst lt.base_loc.loc_start)
   | MmemRange loc -> "mem_" ^ string_of_mloc loc
 
 let pp_mvar fmt v = Format.fprintf fmt "%s" (string_of_mvar v)

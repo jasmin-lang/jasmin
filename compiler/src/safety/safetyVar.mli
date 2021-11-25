@@ -20,7 +20,7 @@ type mvar =
   | Mlocal of atype
   | MinLocal of var
   | MvarOffset of var
-  | MNumInv of L.t
+  | MNumInv of L.i_loc
   | MmemRange of mem_loc
 
 (*---------------------------------------------------------------*)

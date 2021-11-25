@@ -226,7 +226,7 @@ let pp_mlvar fmt = function
 
 (* Locations of the abstract iterator *)
 type it_loc =
-  | ItFunIn of funname * L.t   (* call-site sensitive function call *)
+  | ItFunIn of funname * L.i_loc   (* call-site sensitive function call *)
 
 module ItKey = struct
   type t = it_loc

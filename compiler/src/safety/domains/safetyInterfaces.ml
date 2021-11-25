@@ -108,15 +108,15 @@ module type AbsDisjType = sig
   val remove_disj : t -> t
 
   (* Adds a block of constraints for the disjunctive domain *)
-  val new_cnstr_blck : t -> L.t -> t
+  val new_cnstr_blck : t -> L.i_loc -> t
 
   (* Add a constraint to the top-most block.
      If [meet] is true, meet the resulting branch with, respectively,
      the constraint and its negation. *)
-  val add_cnstr : t -> meet:bool -> Mtcons.t -> L.t -> t * t
+  val add_cnstr : t -> meet:bool -> Mtcons.t -> L.i_loc -> t * t
 
   (* Pop the top-most block of constraints in the disjunctive domain *)
-  val pop_cnstr_blck : t -> L.t -> t
+  val pop_cnstr_blck : t -> L.i_loc -> t
 
   (* Pop all constraints in the disjunctive domain *)
   val pop_all_blcks : t -> t
@@ -282,9 +282,9 @@ module type AbsNumBoolType = sig
 
   val print : ?full:bool -> Format.formatter -> t -> unit
 
-  val new_cnstr_blck : t -> L.t -> t
-  val add_cnstr      : t -> meet:bool -> Mtcons.t -> L.t -> t * t
-  val pop_cnstr_blck : t -> L.t -> t
+  val new_cnstr_blck : t -> L.i_loc -> t
+  val add_cnstr      : t -> meet:bool -> Mtcons.t -> L.i_loc -> t * t
+  val pop_cnstr_blck : t -> L.i_loc -> t
   val pop_all_blcks  : t -> t
 end
 

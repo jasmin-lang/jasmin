@@ -1,0 +1,33 @@
+param int slice = 1;
+param int full = 2;
+
+#returnaddress=stack
+fn id(reg ptr u8[slice] x) -> reg ptr u8[slice] {
+  reg u8 v;
+  v = x[0];
+  v += 1;
+  x[0] = v;
+  return x;
+}
+
+fn copy(reg ptr u8[full] y) -> reg ptr u8[full] {
+  y[0 * slice:slice] = id(y[0 * slice:slice]);
+  y[1 * slice:slice] = id(y[1*slice:slice]);
+  return y;
+}
+
+export
+fn test(reg u64 p) {
+  stack u8[full] tab;
+  inline int i;
+  reg u8 z;
+  z = #set0_8();
+  for i = 0 to full {
+    tab[i] = z;
+  }
+  tab = copy(tab);
+  for i = 0 to full {
+    z = tab[0];
+    (u8)[p + i] = z;
+  }
+}

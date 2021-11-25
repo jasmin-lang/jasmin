@@ -310,7 +310,7 @@ end = struct
     | Copn (lvs, _, E.Ox86' (_, X86_instr_decl.CMP _), es) ->
       if flag_mem_lvs v lvs then
         let rs = List.fold_left expr_vars_smpl [] es in
-        print_flag_set_from v rs (fst i.i_loc);
+        print_flag_set_from v rs i.i_loc.L.base_loc;
         Some rs
       else None
 
@@ -320,7 +320,7 @@ end = struct
         | Lnone _ -> raise Flag_set_from_failure
         | Lvar r ->
           let ru = L.unloc r in
-          print_flag_set_from v [ru] (fst i.i_loc); 
+          print_flag_set_from v [ru] i.i_loc.L.base_loc;
           Some [ru]
         | _ -> assert false
       else None

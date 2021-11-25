@@ -178,7 +178,7 @@ let memory_analysis pp_err ~debug tbl up =
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef tbl fd in
     let fd = 
-      match Dead_code.dead_code_fd tokeep fn cfd with
+      match Dead_code.dead_code_fd false tokeep fn cfd with
       | Utils0.Ok cfd -> Conv.fdef_of_cufdef tbl (fn, cfd) 
       | Utils0.Error _ -> assert false in 
     (extra,fd) in

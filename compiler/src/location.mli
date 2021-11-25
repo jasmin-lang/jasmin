@@ -9,7 +9,12 @@ type t = {
   loc_bchar : int;
   loc_echar : int;
 }
-type i_loc = t * t list
+
+type i_loc = private { 
+    uid_loc  : int; 
+    base_loc : t;
+    stack_loc: t list;
+  }
 
 (* -------------------------------------------------------------------- *)
 val _dummy    : t
@@ -42,3 +47,12 @@ val locate_error : t -> exn -> 'a
 
 val set_loc  : t -> ('a -> 'b) -> 'a -> 'b
 val set_oloc : t option -> ('a -> 'b) -> 'a -> 'b
+
+(* -------------------------------------------------------------------- *)
+val i_loc : t -> t list -> i_loc
+val i_loc0 : t -> i_loc
+val of_loc : 'a located -> i_loc
+
+val i_dummy : i_loc
+
+val refresh_i_loc : i_loc -> i_loc
