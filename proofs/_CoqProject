@@ -16,6 +16,7 @@
 -R ssrmisc Jasmin
 
 ssrmisc/oseq.v
+ssrmisc/tunneling_misc.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
 arch/arch_decl.v
@@ -58,6 +59,8 @@ compiler/stack_alloc.v
 compiler/stack_alloc_proof.v
 compiler/stack_alloc_proof_2.v
 compiler/tunneling.v
+compiler/tunneling_proof.v
+compiler/tunneling_union_find.v
 compiler/unrolling.v
 compiler/unrolling_proof.v
 compiler/x86_decl.v
