@@ -164,7 +164,7 @@ Definition var_alloc_prog cp (p: _uprog) : _uprog :=
 Variable cparams : compiler_params.
 
 (* Ensure that export functions are preserved *)
-Definition check_removeturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
+Definition check_removereturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
   assert (pmap remove_return entries == [::]) (pp_internal_error_s "remove return" "Signature of some export functions are modified").
 
 (** Export functions (entry points) shall not have ptr arguments or return values. *)
@@ -227,7 +227,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
 Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog :=
 
   let rminfo := cparams.(removereturn) ps in
-  Let _ := check_removeturn entries rminfo in
+  Let _ := check_removereturn entries rminfo in
   Let pr := dead_code_prog_tokeep false rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
