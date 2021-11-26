@@ -203,6 +203,14 @@ let collect_equality_constraints_in_func
   and collect_stmt s = List.iter collect_instr s in
   collect_stmt f.f_body
 
+let normalize_friend (eqc: Puf.t) (fr: friend) : friend =
+  IntMap.filter_map (
+      fun k f ->
+      if Stdlib.Int.equal k (Puf.find eqc k)
+      then Some (IntSet.map (Puf.find eqc) f)
+      else None
+    ) fr
+
 let collect_equality_constraints
     (msg: string)
     copn_constraints
@@ -213,7 +221,7 @@ let collect_equality_constraints
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
   collect_equality_constraints_in_func ~with_call_sites:None msg int_of_var copn_constraints s f;
   let eqc = s.cac_eqc in
-  eqc, normalize_trace eqc s.cac_trace, s.cac_friends
+  eqc, normalize_trace eqc s.cac_trace, normalize_friend eqc s.cac_friends
 
 let collect_equality_constraints_in_prog
       (msg: string)
@@ -231,7 +239,7 @@ let collect_equality_constraints_in_prog
              f ()
   in
   let eqc = s.cac_eqc in
-  eqc, normalize_trace eqc s.cac_trace, s.cac_friends
+  eqc, normalize_trace eqc s.cac_trace, normalize_friend eqc s.cac_friends
 
 (* Conflicting variables: variables that may be live simultaneously
    and thus must be allocated to distinct registers.
