@@ -285,7 +285,7 @@ let conflicts_add_one tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
   try
     let i = Hv.find tbl v in
     let j = Hv.find tbl w in
-    if i = j then hierror_reg ~loc:(Lmore loc) "conflicting variables “%a” and “%a” must be merged due to:@;<1 2>%a"
+    if i = j then hierror_reg ~loc:loc "conflicting variables “%a” and “%a” must be merged due to:@;<1 2>%a"
                     (Printer.pp_var ~debug:true) v
                     (Printer.pp_var ~debug:true) w
                     (pp_trace i) tr;
@@ -312,7 +312,7 @@ let collect_conflicts
     | Cif (_, s1, s2)
       -> collect_stmt (collect_stmt c s1) s2
   and collect_instr c { i_desc ; i_loc ; i_info } =
-    collect_instr_r (add c i_loc i_info) i_desc
+    collect_instr_r (add c (Lmore i_loc) i_info) i_desc
   and collect_stmt c s = List.fold_left collect_instr c s in
   collect_stmt c f.f_body
 
@@ -817,7 +817,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
         Liveness.iter_call_sites (fun loc _fn' _xs (s, _) ->
             match Hashtbl.find extra_free_registers loc with
             | exception Not_found -> ()
-            | r -> cnf := Sv.fold (conflicts_add_one vars tr loc r) s !cnf
+            | r -> cnf := Sv.fold (conflicts_add_one vars tr (Lmore loc) r) s !cnf
           ) f
       ) liveness_table;
     !cnf
@@ -827,12 +827,12 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
     List.fold_left (fun a f ->
         match Hf.find return_addresses f.f_name with
         | ra ->
-           List.fold_left (fun cnf x -> conflicts_add_one vars tr L.i_dummy ra x cnf) a f.f_args
+           List.fold_left (fun cnf x -> conflicts_add_one vars tr Lnone ra x cnf) a f.f_args
         | exception Not_found -> a )
       conflicts funcs in
   (* Inter-procedural conflicts *)
   let conflicts =
-    let add_conflicts s x = Sv.fold (conflicts_add_one vars tr L.i_dummy x) s in
+    let add_conflicts s x = Sv.fold (conflicts_add_one vars tr Lnone x) s in
     List.fold_right (fun f cnf ->
         let live = get_liveness f.f_name in
         let vars = killed f.f_name in
