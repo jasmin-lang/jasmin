@@ -137,8 +137,8 @@ Proof.
   exact: (List_Forall2_refl _ value_uincl_refl).
 Qed.
 
-Lemma check_removeturnP entries remove_return b :
-  check_removeturn entries remove_return = ok b →
+Lemma check_removereturnP entries remove_return b :
+  check_removereturn entries remove_return = ok b →
   ∀ fn, fn \in entries → remove_return fn = None.
 Proof.
   move => /assertP /eqP h fn /(in_pmap remove_return).
@@ -160,7 +160,7 @@ Lemma compiler_third_partP entries (p: sprog) (p': sprog) :
   ].
 Proof.
   rewrite /compiler_third_part; t_xrbindP.
-  move => _ /check_removeturnP ok_rr pa ok_pa [].
+  move => _ /check_removereturnP ok_rr pa ok_pa [].
   rewrite !print_sprogP => ok_pb pc ok_pc.
   rewrite print_sprogP => <- {p'}.
   split.
