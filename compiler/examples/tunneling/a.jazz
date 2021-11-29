@@ -1,0 +1,36 @@
+export
+fn nested_ifs (reg u64 x y z) -> reg u64 {
+  reg u64 i r;
+  i = 0;
+  if x < y {
+    if y < z {
+     // x y z
+      r = 0;
+    } else {
+      if x < z {
+       // x z y
+        r = 1;
+      } else {
+       // z x y
+        r = 2;
+      }
+    }
+  } else {
+    if x < z {
+      // y x z
+      r = 3;
+    } else {
+      if y < z {
+        // y z x
+        r = 4;
+      } else {
+        // z y x
+        r = 5;
+      }
+    }
+  }
+  while (i < 0) {
+  i += 1;
+  }
+  return r;
+}
