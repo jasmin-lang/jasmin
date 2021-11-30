@@ -57,6 +57,10 @@ Lemma orbX (P Q: bool):
   P || Q = (P && ~~ Q) || Q.
 Proof. by case: Q; rewrite !(orbT, orbF, andbT). Qed.
 
+(* TODO: move *)
+Definition is_export (p: sprog) (fn: funname) : Prop :=
+  exists2 fd, get_fundef p.(p_funcs) fn = Some fd & fd.(f_extra).(sf_return_address) = RAnone.
+
 Section PROG.
 
 Context (p: sprog) (extra_free_registers: instr_info → option var) (global_data: pointer).
@@ -827,5 +831,44 @@ Section LEMMA.
       @sem_call_Ind _ _ _ p global_data Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc.
 
 End LEMMA.
+
+Lemma merge_varmaps_export_callP m fn args m' res :
+  is_export p fn →
+  psem.sem_call p global_data m fn args m' res →
+  sem_one_varmap.sem_export_call p extra_free_registers global_data m fn args m' res.
+Proof.
+  case => fd ok_fd Export.
+  move => /merge_varmaps_callP /(_ 1%positive fd _ _ ok_fd).
+
+  case: (checkP ok_p ok_fd) => _ok_wrf.
+  rewrite /check_fd; t_xrbindP => D.
+  rewrite {1  2}Export.
+  set ID := (ID in check_c _ ID _).
+  set results := set_of_var_i_seq Sv.empty (f_res fd).
+  set params := set_of_var_i_seq Sv.empty (f_params fd).
+  move => checked_body _ /assertP hdisj
+      _ /assertP checked_params _ /assertP RSP_not_result _ /assertP preserved_magic
+     [] checked_save_stack.
+  t_xrbindP => _ /assertP rax_not_magic /assertP ok_params.
+
+  rewrite Export => /(_ _ _ erefl erefl) H.
+  exists fd; first exact: ok_fd.
+  - exact/eqP.
+  move => vm args' ok_vm ok_args' args_args' vm_rsp vm_gd.
+  have := H vm args' vm_rsp vm_gd ok_vm ok_args' args_args'.
+  case => k [] vm2 [] res' [] texec ok_vm2 ok_k ok_res' res_res'.
+  case/sem_one_varmap.sem_callE: texec.
+  rewrite ok_fd => _ m0 [m1 vm1] k' xa xr /Some_inj <-.
+  rewrite Export => rax_not_magic' ok_save_stack _ _ ok_m0 ok_xa wt_xa texec ok_xr wt_xr s1_rsp [] ???; subst.
+  have /ok_inj ? : ok xr = ok res' :> exec values.
+  { rewrite -ok_xr -ok_res'.
+    apply: eq_mapM => /= r hr.
+    rewrite {2}/get_var Fv.setP_neq //; apply/eqP => K.
+    move: RSP_not_result.
+    rewrite /results mem_set_of_var_i_seq SvP.empty_mem => /mapP; apply.
+    by exists r.
+  } subst xr.
+  by exists m0 k' m1 vm1 res'.
+Qed.
 
 End PROG.
