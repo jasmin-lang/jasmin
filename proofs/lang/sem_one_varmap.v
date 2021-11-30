@@ -193,13 +193,15 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
                                end
                                (if f.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty))) s1 fn s2.
 
-Variant sem_export_call_conclusion (m: mem) (fd: sfundef) (vm: vmap) (m': mem) (res: values) : Prop :=
+Variant sem_export_call_conclusion (m: mem) (fd: sfundef) (args: values) (vm: vmap) (m': mem) (res: values) : Prop :=
   | SemExportCallConclusion (m1: mem) (k: Sv.t) (m2: mem) (vm2: vmap) (res': values) of
     if fd.(f_extra).(sf_save_stack) is SavedStackReg r then (r != vgd) && (r != vrsp) && (~~ Sv.mem r k) else true &
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
+    all2 check_ty_val fd.(f_tyin) args &
     sem k {| emem := m1 ; evm := set_RSP m1 (kill_flags (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then vm.[r <- undef_error] else vm) rflags).[var_of_register RAX <- undef_error] |} fd.(f_body) {| emem := m2 ; evm := vm2 |} &
     mapM (λ x : var_i, get_var vm2 x) fd.(f_res) = ok res' &
     List.Forall2 value_uincl res res' &
+    all2 check_ty_val fd.(f_tyout) res' &
     valid_RSP m2 vm2 &
     m' = free_stack m2.
 
@@ -213,7 +215,7 @@ Variant sem_export_call (gd: extra_val_t) (m: mem) (fn: funname) (args: values) 
       List.Forall2 value_uincl args args' →
       valid_RSP m vm →
       vm.[vgd] = ok (pword_of_word gd) →
-      sem_export_call_conclusion m fd vm m' res.
+      sem_export_call_conclusion m fd args' vm m' res.
 
 (*---------------------------------------------------*)
 Variant ex3_3 (A B C : Type) (P1 P2 P3: A → B → C → Prop) : Prop :=

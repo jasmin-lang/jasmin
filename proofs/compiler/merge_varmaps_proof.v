@@ -860,6 +860,7 @@ Proof.
   case/sem_one_varmap.sem_callE: texec.
   rewrite ok_fd => _ m0 [m1 vm1] k' xa xr /Some_inj <-.
   rewrite Export => rax_not_magic' ok_save_stack _ _ ok_m0 ok_xa wt_xa texec ok_xr wt_xr s1_rsp [] ???; subst.
+  move: ok_xa; rewrite ok_args' => /ok_inj ?; subst xa.
   have /ok_inj ? : ok xr = ok res' :> exec values.
   { rewrite -ok_xr -ok_res'.
     apply: eq_mapM => /= r hr.
