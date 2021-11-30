@@ -3,7 +3,7 @@ Require Import ZArith.
 
 Require Import Utf8.
 Require Import expr compiler_util linear.
-Require Import tunneling_misc tunneling_union_find.
+Require Import tunneling_misc unionfind.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -29,8 +29,10 @@ Definition tunnel_chart (uf : LUF.unionfind) (c c' : linstr) :=
   match c, c' with
   | {| li_i := Llabel l |}, {| li_i := Lgoto (fn',l') |} =>
       if fn == fn' then LUF.union uf l l' else uf
+  (*
   | {| li_i := Llabel l |}, {| li_i := Llabel l' |} =>
       LUF.union uf l l'
+  *)
   | _, _ => uf
   end.
 

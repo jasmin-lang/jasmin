@@ -11,7 +11,7 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
 
-Require Import tunneling_misc tunneling_union_find tunneling.
+Require Import tunneling_misc unionfind tunneling unionfind_proof.
 Require Import linear_sem.
 
 
