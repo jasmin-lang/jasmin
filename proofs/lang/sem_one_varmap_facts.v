@@ -60,8 +60,8 @@ Proof. by []. Qed.
 
 Lemma Hproc : sem_Ind_proc p extra_free_registers Pc Pfun.
 Proof.
-  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_rsp /Memory.alloc_stackP A _.
-  rewrite /Pc /= => B _ ->.
+  red => ii k s1 s2 fn fd args m1 s2' res ok_fd ok_ra ok_ss ok_sp ok_rsp /Memory.alloc_stackP A ok_args wt_args _.
+  rewrite /Pc /= => B ok_res wt_res _ ->.
   red => /=.
   have C := Memory.free_stackP (emem s2').
   split.
@@ -109,7 +109,7 @@ Lemma sem_call_valid_RSP ii k s1 fn s2 :
   sem_call p extra_free_registers ii k s1 fn s2 →
   valid_RSP p (emem s1) (evm s2).
 Proof.
-  case/sem_callE => fd m s k' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m exec_body ok_RSP' -> /= _.
+  case/sem_callE => fd m s k' args res ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m ok_args wt_args exec_body ok_res wt_res ok_RSP' -> /= _.
   rewrite /valid_RSP /set_RSP Fv.setP_eq /top_stack.
   have ok_alloc := Memory.alloc_stackP ok_m.
   have /= ok_exec := sem_stack_stable exec_body.
@@ -184,7 +184,7 @@ Proof. by []. Qed.
 
 Lemma Hproc_nw : sem_Ind_proc p extra_free_registers Pc Pfun.
 Proof.
-  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' -> r hr /=.
+  red => ii k s1 s2 fn fd args m1 s2' res ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 ok_args wt_args /sem_stack_stable s ih ok_res wt_res ok_RSP' -> r hr /=.
   rewrite /set_RSP Fv.setP.
   case: eqP.
   - move => ?; subst.
@@ -332,7 +332,7 @@ Qed.
 
 Lemma Hproc_pm : sem_Ind_proc p extra_free_registers Pc Pfun.
 Proof.
-  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 /sem_stack_stable s ih ok_RSP' ->.
+  red => ii k s1 s2 fn fd args m1 s2' res ok_fd ok_ra ok_ss ok_sp ok_RSP ok_m1 ok_args wt_args /sem_stack_stable s ih ok_res wt_res ok_RSP' ->.
   rewrite /Pfun !disjoint_unionE ih /=.
   apply/andP; split.
   1: case: sf_return_address ok_ra => //.
@@ -430,9 +430,9 @@ Proof. by []. Qed.
 
 Lemma validw_stable_proc : sem_Ind_proc p extra_free_registers Pc Pfun.
 Proof.
-  red => ii k s1 s2 fn fd m1 s2' ok_fd ok_ra ok_ss ok_sp ok_rsp ok_m1 /sem_stack_stable /= ss.
+  red => ii k s1 s2 fn fd args m1 s2' res ok_fd ok_ra ok_ss ok_sp ok_rsp ok_m1 ok_args wt_args /sem_stack_stable /= ss.
   have A := Memory.alloc_stackP ok_m1.
-  rewrite /Pc /= => B _ -> ptr sz /=.
+  rewrite /Pc /= => B ok_res wt_res _ -> ptr sz /=.
   have C := Memory.free_stackP (emem s2').
   by apply (alloc_free_validw_stable A ss B C).
 Qed.

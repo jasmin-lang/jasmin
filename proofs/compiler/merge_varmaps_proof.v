@@ -784,7 +784,23 @@ Section LEMMA.
       + exact: sp_align.
       + exact: vrsp_tv.
       + exact: ok_m'.
+      + exact: ok_args'.
+      + apply: all2_check_ty_val ok_args''.
+        elim: (mapM2_Forall3 ok_vargs); first by [].
+        move => ty v v' tys vs vs' /truncate_val_subtype rec _ /= ->.
+        by rewrite andbT.
       + exact: texec.
+      + etransitivity; last exact: ok_tres.
+        apply: eq_mapM => x hx.
+        rewrite {2}/get_var Fv.setP_neq //.
+        apply/eqP => K.
+        move: RSP_not_result.
+        rewrite /res mem_set_of_var_i_seq SvP.empty_mem => /mapP; apply.
+        by exists x.
+      + apply: all2_check_ty_val res_uincl.
+        elim: (mapM2_Forall3 ok_vres'); first by [].
+        move => _ v v' tys vs vs' /truncate_val_has_type <- _ /= ->.
+        by rewrite /check_ty_val subtype_refl.
       + rewrite /valid_RSP -(sem_not_written texec).
         + rewrite /t1' /= Fv.setP_eq.
           congr (ok (pword_of_word _)).
