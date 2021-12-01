@@ -42,6 +42,7 @@ Import ssrZ.
 Import type word utils gen_map.
 Import memory_model.
 Import GRing.Theory.
+Import ssrring.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -126,13 +127,13 @@ Definition add (p:pointer) (o:Z) := (p + wrepr U64  o)%R.
 Definition sub (p1 p2:pointer)  := wunsigned p1 - wunsigned p2.
 
 Lemma add_0 p: add p 0 = p.
-Proof. by rewrite /add wrepr0; ssrring.ssring. Qed.
+Proof. by rewrite /add wrepr0; ssring. Qed.
 
 Lemma addC p i j : add (add p i) j = add p (i + j).
-Proof. rewrite /add wrepr_add; ssrring.ssring. Qed.
+Proof. rewrite /add wrepr_add; ssring. Qed.
 
 Lemma add_sub p k: add p (sub k p) = k.
-Proof. rewrite /add /sub wrepr_sub !wrepr_unsigned; ssrring.ssring. Qed.
+Proof. rewrite /add /sub wrepr_sub !wrepr_unsigned; ssring. Qed.
 
 (** An example instance of the memory *)
 Module MemoryI : MemoryT.

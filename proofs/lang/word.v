@@ -29,7 +29,7 @@
 
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ word.
-Require ssrring.
+Require Import ssrring.
 Require Zquot.
 Require Import Psatz ZArith utils.
 Require Export wsize.
@@ -761,7 +761,7 @@ Qed.
 
 (* -------------------------------------------------------------------*)
 Ltac wring :=
-  rewrite ?zero_extend_u; ssrring.ssring.
+  rewrite ?zero_extend_u; ssring.
 
 (* -------------------------------------------------------------------*)
 Lemma wdwordu0 sz (w:word sz) : wdwordu 0 w = wunsigned w.
