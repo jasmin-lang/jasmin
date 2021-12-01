@@ -29,6 +29,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import strings word utils.
 Import Utf8 ZArith.
+Import ssrring.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -484,14 +485,14 @@ refine
    ; sub p1 p2 := wunsigned (p1 - p2)%R
    ; p_to_z p  := wunsigned p
   |}.
-- abstract (move=> p k; rewrite wrepr_unsigned; ssrring.ssring).
+- abstract (move=> p k; rewrite wrepr_unsigned; ssring).
 - abstract (move=> p k => hk;
   rewrite -{2}(@wunsigned_repr_small Uptr k);
-    [ f_equal; ssrring.ssring
+    [ f_equal; ssring
     | have := wsize_size_wbase U256;
       have := wbase_m (wsize_le_U8 Uptr);
       Lia.lia ]).
-- abstract (move => p; rewrite wrepr0; ssrring.ssring).
+- abstract (move => p; rewrite wrepr0; ssring).
 Defined.
 
 Lemma addE p k : add p k = (p + wrepr Uptr k)%R.
@@ -501,7 +502,7 @@ Lemma subE p1 p2 : sub p1 p2 = wunsigned (p1 - p2).
 Proof. by []. Qed.
 
 Lemma addC p i j : add (add p i) j = add p (i + j).
-Proof. rewrite /= wrepr_add; ssrring.ssring. Qed.
+Proof. rewrite /= wrepr_add; ssring. Qed.
 
 Lemma p_to_zE p : p_to_z p = wunsigned p.
 Proof. done. Qed.

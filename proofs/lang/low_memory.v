@@ -31,6 +31,7 @@ Require memory_example.
 Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Import Utf8 ZArith.
+Import ssrring.
 Import type word utils.
 Import memory_example.
 Export memory_model.
@@ -111,7 +112,7 @@ Proof.
   move=> k; rewrite wsize8 => hk; have ->: k = 0%Z by Lia.lia.
   rewrite add_0.
   have ->: p2 = (p1 + wrepr _ (wunsigned p2 - wunsigned p1))%R.
-  + by rewrite wrepr_sub !wrepr_unsigned; ssrring.ssring.
+  + by rewrite wrepr_sub !wrepr_unsigned; ssring.
   by apply hval1; Lia.lia.
 Qed.
 

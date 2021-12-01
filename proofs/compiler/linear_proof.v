@@ -35,6 +35,7 @@ Require Import ZArith Utf8.
 
 Require sem_one_varmap_facts.
 Import ssrZ.
+Import ssrring.
 Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts.
 Require Import constant_prop constant_prop_proof.
 Require Export linearization linear_sem.
@@ -1666,7 +1667,7 @@ Section PROOF.
       rewrite (top_stack_after_aligned_alloc _ sp_aligned) -/(stack_frame_allocation_size (f_extra fd')).
       rewrite addE -!GRing.addrA.
       replace (wrepr _ _ + _)%R with (- wrepr Uptr (stack_frame_allocation_size (f_extra fd') - z - i))%R; last first.
-      + by rewrite !wrepr_add !wrepr_opp; ssrring.ssring.
+      + by rewrite !wrepr_add !wrepr_opp; ssring.
       rewrite wunsigned_sub; first by lia.
       assert (X := wunsigned_range (top_stack (emem s1))).
       split; last by lia.

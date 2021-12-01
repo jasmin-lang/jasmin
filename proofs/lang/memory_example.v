@@ -55,6 +55,7 @@ Import ssrZ.
 Import type word utils gen_map.
 Import memory_model.
 Import GRing.Theory.
+Import ssrring.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -91,7 +92,7 @@ Lemma add_p_opp_sub_add_p (p q: pointer) (n: Z) :
   add p (- sub (add p n) q + n) = q.
 Proof.
   rewrite !addE !subE !(wrepr_add, wrepr_opp, wrepr_unsigned).
-  ssrring.ssring.
+  ssring.
 Qed.
 
 Corollary add_p_opp_sub_p (p q: pointer):
@@ -726,7 +727,7 @@ Module MemoryI : MemoryT.
     rewrite !addE !subE !(wrepr_opp, wrepr_add, wrepr_unsigned, align_wordE).
     set x := (X in is_align X).
     have -> : x = align_word ws_stk (stk_root m - wrepr _ fs - (wrepr _ sz + wrepr _ sz')).
-    + by rewrite /x;ssrring.ssring.
+    + by rewrite /x; ssring.
     rewrite /is_align p_to_zE; apply align_word_aligned.
   Qed.
 
