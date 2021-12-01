@@ -28,6 +28,7 @@ Require Import Psatz xseq.
 Require Export leakage linear_sem linear cost.
 Import Utf8.
 Import GRing.Theory.
+Import ssrring.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -1075,7 +1076,7 @@ Proof.
   rewrite !eq_pc_cat // incr_merge_lcost.
   rewrite !PoszD -!addrA.
   have -> : (Posz pc + (Posz (get_linear_size_C lti) - (Posz (get_linear_size_C lti) + (Posz (get_linear_size_C lti') + 1))))%R = 
-            (Posz pc - (Posz (get_linear_size_C lti') + 1))%R by ssrring.ssring.
+            (Posz pc - (Posz (get_linear_size_C lti') + 1))%R by ssring.
   apply merge_lcost_eqfun.
   + by rewrite hrec2 (hrec2 `| _ |) incr_incr_lcost subzn //= addnC.
   rewrite /= subzn //= -addnA (addnC _ (get_linear_size_C lti')) addnBA // subnDl.
