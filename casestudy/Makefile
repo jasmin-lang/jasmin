@@ -15,7 +15,7 @@ copy_mac_ct.ec: ../compiler/examples/lucky13_split.jazz
 	$(EASYCRYPT) $^
 
 clean:
-	$(RM) modulo_ct.ec copy_mac_ct.ec *.eco *Array128.ec
+	$(RM) modulo_ct.ec copy_mac_ct.ec *.eco *Array*.ec
 
 check:
 	$(JASMINC) 	--dlk=none	--mlk=div32	rotate_mac_CL_in_32CL.jazz
