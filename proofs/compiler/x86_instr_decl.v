@@ -165,6 +165,7 @@ Variant x86_op : Type :=
 | VPMINS of velem & wsize
 | VPMAXU of velem & wsize
 | VPMAXS of velem & wsize
+| VPTEST `(wsize)
 
 (* Monitoring *)
 | RDTSC   of wsize
@@ -932,6 +933,10 @@ Definition x86_VPMAXS (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in
   ok (wmax Signed ve x y).
 
+Definition x86_VPTEST sz (x y: word sz) : ex_tpl b5_ty :=
+  Let _ := check_size_128_256 sz in
+  ok (:: Some false, Some (wandn x y == 0%R), Some false, Some false & Some (ZF_of_word (wand x y))).
+
 (* ---------------------------------------------------------------- *)
 
 (* TODO: move this in word *)
@@ -1634,6 +1639,13 @@ Definition Ox86_VPMAXS_instr  :=
 Definition Ox86_VPMAXU_instr  := 
   mk_ve_instr_w2_w_120 "VPMAXU" x86_VPMAXU check_xmm_xmm_xmmm (PrimV VPMAXU) (pp_viname "vpmaxu").
 
+Definition check_vptest (_:wsize) := [:: xmm_xmmm].
+Definition Ox86_VPTEST_instr :=
+  (fun sz => mk_instr
+               (pp_sz "VPTEST" sz) (w2_ty sz sz) (b5_ty) [:: E 0; E 1] implicit_flags MSB_MERGE
+               (@x86_VPTEST sz) (check_vptest sz) 2 sz [::]
+               (pp_name "vptest" sz), ("VPTEST"%string, PrimP U128 VPTEST)).
+
 (* Monitoring instructions.
    These instructions are declared for the convenience of the programmer.
    Nothing can be proved about programs that use these instructions;
@@ -1832,6 +1844,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPMINS ve sz       => Ox86_VPMINS_instr.1 ve sz
   | VPMAXU ve sz       => Ox86_VPMAXU_instr.1 ve sz
   | VPMAXS ve sz       => Ox86_VPMAXS_instr.1 ve sz
+  | VPTEST sz          => Ox86_VPTEST_instr.1 sz
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | AESDEC             => Ox86_AESDEC_instr.1          
@@ -1956,6 +1969,7 @@ Definition x86_prim_string :=
    Ox86_VPMINS_instr.2;
    Ox86_VPMAXU_instr.2;
    Ox86_VPMAXS_instr.2;
+   Ox86_VPTEST_instr.2;
    Ox86_RDTSC_instr.2;
    Ox86_RDTSCP_instr.2;
    Ox86_AESDEC_instr.2;            
