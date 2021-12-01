@@ -280,7 +280,10 @@ let main () =
 
     let is_var_in_memory cv : bool =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
-      is_stack_kind v.v_kind in
+      match v.v_kind with
+      | Stack _ | Reg (Pointer _) | Global -> true
+      | Const | Inline | Reg Direct -> false
+     in
 
 
      (* TODO: update *)

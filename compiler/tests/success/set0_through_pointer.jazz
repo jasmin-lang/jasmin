@@ -1,0 +1,11 @@
+/* This should not use XOR to compute 0, even if the command-line flag -set0 is given */
+export
+fn zero() -> reg u64 {
+  stack u64[1] s;
+  reg u64 r;
+  reg ptr u64[1] p;
+  p = s;
+  p[0] = 0;
+  r = p[0];
+  return r;
+}
