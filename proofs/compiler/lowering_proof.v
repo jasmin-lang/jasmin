@@ -32,6 +32,7 @@ Require Import ZArith psem compiler_util.
 Require Export lowering.
 Import Utf8.
 Import Psatz.
+Import Order.POrderTheory Order.TotalTheory.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -372,7 +373,7 @@ Section PROOF.
     wle Unsigned β α = (wunsigned (β - α) != (wunsigned β - wunsigned α)%Z) || (β == α).
   Proof.
   case: (β =P α).
-  + by move => <-; rewrite orbT /= Order.POrderTheory.lexx.
+  + by move => <-; rewrite orbT /= lexx.
   rewrite orbF /wunsigned /=.
   case: α β => α hα [] β hβ ne'.
   Transparent word.
@@ -404,7 +405,7 @@ Section PROOF.
       (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
   Proof.
     case: (α =P β); last by apply wltsE.
-    by move=> <-; rewrite /= Order.POrderTheory.ltxx GRing.subrr Z.sub_diag wsigned0 msb0.
+    by move=> <-; rewrite /= ltxx GRing.subrr Z.sub_diag wsigned0 msb0.
   Qed.
 
   Lemma lower_condition_corr ii ii' i e e' s1 cond:
@@ -490,12 +491,12 @@ Section PROOF.
       exists s2'; split => //; split => //; case: hs => <-.
       + move: hof hsf => /= -> -> /=; rewrite /sem_sop1 /= /SF_of_word.      
         by rewrite eq_sym -wltsE.
-      by move: hcf => /= -> /=; rewrite -wleuE /= -mc_1_10.Num.Theory.ltrNge.
+      by move: hcf => /= -> /=; rewrite -wleuE /= ltNge.
     + case => // -[] ws' /sem_sop2I /= [wx [wy [b [hw2 hw1]]]] hs ? [] ?????; subst cond e1 e2 ws' c lv;
       have [s2' [hsem heqe [hof hcf hsf hzf]]]:= hw _ _ hw1 hw2;
       exists s2'; split => //; split => //; case: hs => <-.
       + move: hof hsf hzf => /= -> -> -> /=; rewrite /sem_sop2 /= /SF_of_word /ZF_of_word.      
-        rewrite eq_sym -wltsE GRing.subr_eq0 mc_1_10.Num.Theory.ler_eqVlt orbC eqtype.inj_eq //.
+        rewrite eq_sym -wltsE GRing.subr_eq0 le_eqVlt orbC eqtype.inj_eq //.
         by apply word.srepr_inj.
       move: hcf hzf => /= -> -> /=; rewrite /sem_sop2 /= /ZF_of_word.  
       by rewrite GRing.subr_eq0 -wleuE'.
@@ -503,16 +504,16 @@ Section PROOF.
       have [s2' [hsem heqe [hof hcf hsf hzf]]]:= hw _ _ hw1 hw2;
       exists s2'; split => //; split => //; case: hs => <-.
       + move: hof hsf hzf => /= -> -> -> /=; rewrite /sem_sop2 /= /SF_of_word /ZF_of_word. 
-        rewrite  mc_1_10.Num.Theory.ltrNge -(negbK (_ == msb _)).
-        rewrite -negb_or (eq_sym _ (msb _)) -wltsE GRing.subr_eq0 orbC /= mc_1_10.Num.Theory.ler_eqVlt.
+        rewrite ltNge -(negbK (_ == msb _)).
+        rewrite -negb_or (eq_sym _ (msb _)) -wltsE GRing.subr_eq0 orbC /= le_eqVlt.
         by rewrite eqtype.inj_eq //; apply word.srepr_inj.
       move: hcf hzf => /= -> -> /=; rewrite /sem_sop2 /= /ZF_of_word.
-      by rewrite -negb_or GRing.subr_eq0 mc_1_10.Num.Theory.ltrNge -wleuE'.
+      by rewrite -negb_or GRing.subr_eq0 ltNge -wleuE'.
     case => // -[] ws' /sem_sop2I /= [wx [wy [b [hw2 hw1]]]] hs ? [] ?????; subst cond e1 e2 ws' c lv;
     have [s2' [hsem heqe [hof hcf hsf hzf]]]:= hw _ _ hw1 hw2;
     exists s2'; split => //; split => //; case: hs => <-.
     + move: hof hsf => /= -> -> /=; rewrite /sem_sop2 /= /SF_of_word. 
-      by rewrite eq_sym -(negbK (_ == _)) -wltsE /= mc_1_10.Num.Theory.lerNgt.
+      by rewrite eq_sym -(negbK (_ == _)) -wltsE /= leNgt.
     by move: hcf => /= -> /=; rewrite /sem_sop1 /= -wleuE negbK.
   Qed.
 
