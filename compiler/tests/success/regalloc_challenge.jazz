@@ -1,0 +1,27 @@
+/* This example is challenging for register allocation.
+
+Each z[i] conflicts with x, r, and any z[j] (j ≠ i).
+
+Allocating x and a to the same register (i.e., removing the initial copy)
+leads to allocation failure.
+*/
+param int N = 14;
+
+export
+fn main(reg u64 a b) -> reg u64 {
+reg u64 x r;
+reg u64[N] z;
+inline int i;
+
+// x & y friend
+//x = #LEA(a);
+x = a;
+for i = 0 to N { z[i] = N + i; }
+// z & x conflict
+for i = 0 to N { z[i] |= x; }
+r = 42;
+// r & z conflict
+for i = 0 to N { r |= z[i]; }
+
+return r; // force r to RAX
+}

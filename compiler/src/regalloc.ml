@@ -643,7 +643,10 @@ let greedy_allocation
     (a: A.allocation) : unit =
   let classes : var list array = Array.make nv [] in
   Hv.iter (fun v i -> classes.(i) <- v :: classes.(i)) vars;
-  for i = 0 to nv - 1 do
+  let all = Array.init nv (fun i -> i) in
+  let all = all |> Array.map (fun i -> i, get_conflicts i cnf |> IntSet.cardinal) in
+  Array.stable_sort (fun (_, x) (_, y) -> Stdlib.Int.compare y x) all;
+  all |> Array.iter (fun (i, _sz) ->
     if not (A.mem i a) then (
       let vi = classes.(i) in
       if vi <> [] then (
@@ -661,7 +664,7 @@ let greedy_allocation
          A.set i y a
       )
     )
-  done
+  )
 
 let var_subst_of_allocation (vars: int Hv.t)
     (a: A.allocation) (v: var) : var =
