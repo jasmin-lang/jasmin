@@ -30,6 +30,7 @@ Require Import psem compiler_util constant_prop_proof.
 Require Export stack_alloc stack_sem.
 Require Import Psatz.
 Import Utf8.
+Import ssrring.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -254,7 +255,7 @@ Section PROOF.
     move=> hva /(_ _ hvget) h /dup [] /h h1 /WArray.get_uget ->.
     move: h1; rewrite Memory.readP /CoreMem.read.
     t_xrbindP=> ??; rewrite CoreMem.uread8_get => <-; f_equal.
-    by rewrite Memory.addP !wrepr_add; ssrring.ssring.
+    by rewrite Memory.addP !wrepr_add; ssring.
   Qed.
 
   Lemma ls_addE p x y :
@@ -951,7 +952,7 @@ Section PROOF.
     apply/Memory.valid_pointerP; split.
     * have ->: (pstk + wrepr U64 (ve * wsize_size sz + ofs))%R =
            (wrepr U64 (wsize_size sz * ve) + (pstk + wrepr U64 ofs))%R.
-      + by rewrite !wrepr_add Z.mul_comm; ssrring.ssring.
+      + by rewrite !wrepr_add Z.mul_comm; ssring.
       by apply: is_align_array; rewrite hpstk.
     move => k k_range; rewrite H3; apply/orP; right.
     apply: (between_byte _ _ k_range);
