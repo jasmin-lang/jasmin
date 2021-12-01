@@ -104,8 +104,7 @@ Section TunnelingProof.
   Lemma tunnel_bore_empty c : tunnel_bore fn LUF.empty c = c.
   Proof.
     case: c => li_ii li_i; case: li_i => //=.
-    + by case; intros; case: ifP => //; rewrite LUF.find_empty.
-    by intros; rewrite LUF.find_empty.
+    by case; intros; case: ifP => //; rewrite LUF.find_empty.
   Qed.
 
   Lemma pairmap_tunnel_bore_empty fd : map (tunnel_bore fn LUF.empty) (lfd_body fd) = (lfd_body fd).
@@ -216,6 +215,9 @@ Section TunnelingProof.
     if c.(li_i) is Lgoto _ then true else false.
 
   Variant tunnel_chart_spec (uf : LUF.unionfind) : linstr -> linstr -> LUF.unionfind -> Type :=
+  | TC_LabelLabel ii ii' l l' :
+      tunnel_chart_spec uf (MkLI ii (Llabel l)) (MkLI ii' (Llabel l')) (LUF.union uf l l')
+
   | TC_LabelGotoEq ii ii' l l' :
       tunnel_chart_spec uf (MkLI ii (Llabel l)) (MkLI ii' (Lgoto (fn, l'))) (LUF.union uf l l')
 
@@ -227,6 +229,10 @@ Section TunnelingProof.
 
   Variant tunnel_chart_weak_spec
     (uf : LUF.unionfind) : linstr -> linstr -> LUF.unionfind -> Type :=
+  | TCW_LabelLabel ii ii' l l' :
+      tunnel_chart_weak_spec
+        uf (MkLI ii (Llabel l)) (MkLI ii' (Llabel l')) (LUF.union uf l l')
+
   | TCW_LabelGotoEq ii ii' l l' :
       tunnel_chart_weak_spec
         uf (MkLI ii (Llabel l)) (MkLI ii' (Lgoto (fn, l'))) (LUF.union uf l l')
@@ -236,18 +242,21 @@ Section TunnelingProof.
 
   Lemma tunnel_chartP uf c c' : tunnel_chart_spec uf c c' (tunnel_chart fn uf c c').
   Proof.
-  case: c c' => [ii i] [ii' i'];
-    case: i'; case: i; try by move=> *; apply: TC_NLabelGoto.
+  case: c c' => [ii i] [ii' i']; case: i'; case: i; try by move=> *; apply: TC_NLabelGoto.
+  + by move => l l'; apply TC_LabelLabel.
   move=> l [fn' l'] /=; case: ifPn => [/eqP<-|].
-  - by apply: TC_LabelGotoEq. - by apply: TC_LabelGotoNEq.
+  + by apply: TC_LabelGotoEq.
+  by apply: TC_LabelGotoNEq.
   Qed.
 
   Lemma tunnel_chartWP uf c c' : tunnel_chart_weak_spec uf c c' (tunnel_chart fn uf c c').
   Proof.
   case: c c' => [ii i] [ii' i'];
     case: i'; case: i; try by move=> *; apply: TCW_Otherwise.
+  + by move => l l'; apply TCW_LabelLabel.
   move=> l [fn' l'] /=; case: ifPn => [/eqP<-|].
-  - by apply: TCW_LabelGotoEq. - by move=> _; apply: TCW_Otherwise.
+  + by apply: TCW_LabelGotoEq.
+  by move=> _; apply: TCW_Otherwise.
   Qed.
 
   Lemma find_plan_partial fb s ii l :
@@ -257,15 +266,23 @@ Section TunnelingProof.
   Proof.
     rewrite /well_formed_body => /andP [Huniqfb _] Hprefix.
     have:= (uniq_nhas Huniqfb Hprefix).
-    move => /negP; move: s l (MkLI _ _) Hprefix; apply: last_ind => [|s c1 IHs] //.
-    + by move => ? [] /=; rewrite LUF.find_empty.
+    move => /negP; move: s l (MkLI _ _) Hprefix. apply: last_ind => [|s c1 IHs] //.
     move => l c2 Hprefix.
     rewrite pairfoldl_rcons has_rcons last_rcons.
     move: {1 5}c1 (erefl c1) Hprefix => c1'.
     case: tunnel_chartWP; last first.
     + move=> c c' -> Hprefix Hor; apply: IHs.
       - by apply: prefix_trans (prefix_rcons _ _) Hprefix.
-      - by case/negP/norP: Hor => _ /negP.
+      by case/negP/norP: Hor => _ /negP.
+    + move=> {ii} ii ii' l1 l2 -> Hprefix.
+      move=> Hor; rewrite LUF.find_union; case: ifP; last first.
+      - by rewrite (IHs l _ (prefix_trans (prefix_rcons _ _) Hprefix)) //;
+        move => Hhas; apply: Hor; apply/orP; right.
+      rewrite (IHs l _ (prefix_trans (prefix_rcons _ _) Hprefix)) //; last first.
+      - by move => Hhas; apply: Hor; apply/orP; right.
+      rewrite (IHs l1 _ (prefix_trans (prefix_rcons _ _) Hprefix)) //; last first.
+      - by apply: (negP (uniq_nhas Huniqfb (prefix_trans (prefix_rcons _ _) Hprefix))).
+      by move => /eqP ?; subst l1; exfalso; apply: Hor; apply/orP; left; rewrite /is_label /= eq_refl.
     move=> {ii} ii ii' l1 l2 -> Hprefix.
     move=> Hor; rewrite LUF.find_union; case: ifP; last first.
     + by rewrite (IHs l _ (prefix_trans (prefix_rcons _ _) Hprefix)) //;
@@ -313,8 +330,25 @@ Section TunnelingProof.
     1-2,4-7:
       by intros; eexists; eauto.
     case: li_i2 Hc.
-    1-3,5-7:
+    1-2,5-7:
       by intros; eexists; eauto.
+    + move => l'' ?; subst c => l' Hlastpfb Hfindpl; rewrite LUF.find_union.
+      case: ifP; last by intros; eexists; eauto.
+      move => /eqP Hfindll'; move: Hfindpl; rewrite -Hfindll' => Hpcf.
+      rewrite /tunnel_plan -/uf in IHpfb.
+      have: exists pc'', find_label l'' fb = ok pc''; last first.
+      - move => [pc''] Hfindl''.
+        by apply: (IHpfb _ _ Hwfb (prefix_trans (prefix_rcons _ _) Hprefix) Hfindl'').
+      
+      move: (@mem_prefix _ _ _ Hprefix {| li_ii := li_ii2; li_i := Llabel l'' |}).
+      rewrite -cats1 mem_cat mem_seq1 eq_refl orbT => /(_ isT) Hl''.
+      elim: fb Hl'' {Hwfb Hprefix Hfindl Hpcf IHpfb} => // hfb tfb IHfb.
+      rewrite in_cons; case Hhfbl'': (is_label l'' hfb) => //=.
+      - by move => _; exists 0; rewrite /find_label /= Hhfbl''.
+      rewrite /find_label /= Hhfbl'' ltnS.
+      move => /orP [/eqP ?|]; first by subst hfb; rewrite /is_label /= eq_refl in Hhfbl''.
+      move => Htfb; case: (IHfb Htfb) => pc''; rewrite /find_label => Hflbl.
+      by exists pc''.+1; move: Hflbl; case: ifP => //; move => _ [<-].
     move => [fn'' l''] ?; subst c => l' Hlastpfb Hfindpl.
     case: eqP; last by intros; eexists; eauto.
     move => ?; subst fn''; rewrite LUF.find_union.

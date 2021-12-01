@@ -73,6 +73,9 @@ Section Prefix.
 
   Hint Resolve prefix_refl : core.
 
+  Lemma mem_prefix s1 s2 : prefix s1 s2 -> forall x , x \in s1 -> x \in s2.
+  Proof. by move => /prefixP [s] ?; subst s2 => x; rewrite mem_cat => ->. Qed.
+
   Lemma subseq_prefix s1 s2 : prefix s1 s2 -> subseq s1 s2.
   Proof.
     move=> pl; apply/subseqP.
@@ -95,7 +98,7 @@ Section Prefix.
     by case/prefixP => m ->; apply/prefixP; exists (m ++ s3); rewrite catA.
   Qed.
 
-  Lemma mem_prefix s1 s2 : prefix s1 s2 -> {subset s1 <= s2}.
+  Lemma subset_prefix s1 s2 : prefix s1 s2 -> {subset s1 <= s2}.
   Proof.
     by case/prefixP => m -> x; rewrite mem_cat => ->.
   Qed.

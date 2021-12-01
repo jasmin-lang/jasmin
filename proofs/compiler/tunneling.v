@@ -27,12 +27,10 @@ Definition Linstr_align := (MkLI xH Lalign).
 
 Definition tunnel_chart (uf : LUF.unionfind) (c c' : linstr) :=
   match c, c' with
-  | {| li_i := Llabel l |}, {| li_i := Lgoto (fn',l') |} =>
-      if fn == fn' then LUF.union uf l l' else uf
-  (*
   | {| li_i := Llabel l |}, {| li_i := Llabel l' |} =>
       LUF.union uf l l'
-  *)
+  | {| li_i := Llabel l |}, {| li_i := Lgoto (fn',l') |} =>
+      if fn == fn' then LUF.union uf l l' else uf
   | _, _ => uf
   end.
 
