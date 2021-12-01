@@ -496,6 +496,7 @@ Section TunnelingProof.
     case: (lastP tli); first by case: (lfd_body fd) => //.
     move => ttli [li_ii2 li_i2]; rewrite last_rcons /=.
     case: li_i2; case: li_i3 => //.
+    + admit.
     move => [fn3 l3] l2; case Heqfn3: (fn == fn3) => //; move: Heqfn3 => /eqP ?; subst fn3.
     set uf := pairfoldl _ _ _ _ => Hlabel_in_lprog_tunnel Hlabel_in_lprog_tunnel_union.
     move => Hprefix Hplsem1 s1 s2; move: Hplsem1.
@@ -595,7 +596,7 @@ Section TunnelingProof.
   rewrite /= find_label_tunnel_partial Hfindl /=.
   move: Hsetcpc; rewrite /s1' /setcpc /= -/s1' => ->.
   by move => Hlsem11' Hlsem12'; apply: (@lsem_trans _ s1'); first apply: Hlsem11'; last apply Hlsem12'.
-  Qed.
+  Admitted.
 
   Lemma tunneling_lsem s1 s2 : lsem (lprog_tunnel fn p) s1 s2 -> lsem p s1 s2.
   Proof.
@@ -626,6 +627,7 @@ Section TunnelingProof.
     case: (lastP tli); first by case: (lfd_body fd) => //.
     move => ttli [li_ii3 li_i3]; rewrite last_rcons /=.
     case: li_i3; case: li_i4 => //.
+    + admit.
     move => [fn4 l4] l3; case Heqfn4: (fn == fn4) => //; move: Heqfn4 => /eqP ?; subst fn4.
     set uf := pairfoldl _ _ _ _ => Hlabel_in_lprog_tunnel Hlabel_in_lprog_tunnel_union Hprefix Hplsem1 s1 s2.
     move: Hplsem1; rewrite /lsem1 /step /find_instr !lp_funcs_setfuncs get_fundef_union //.
@@ -863,7 +865,7 @@ Section TunnelingProof.
     rewrite -(find_plan_partial (get_fundef_wf Hgfd) (prefix_trans (prefix_rcons _ _) Hprefix)) -/uf in Hpcf1'.
     move: Hpcf1' Hpcf5; rewrite /find_label; case: ifP; case: ifP => //.
     by rewrite -has_find => Hhas _ [<-] [Hfind]; rewrite (find_is_label_eq Hhas Hfind).
-  Qed.
+  Admitted.
 
   Lemma lsem1_tunneling s1 s2 : lsem1 p s1 s2 -> exists s3, lsem (lprog_tunnel fn p) s2 s3 /\ lsem1 (lprog_tunnel fn p) s1 s3.
   Proof.
@@ -979,6 +981,8 @@ Section TunnelingCompilerProof.
   Proof.
     rewrite /tunnel_plan => Hwfb; move: l.
     pattern fb, fb at 1 3.
+    admit.
+    (*
     apply: prefixW => //=; first by move => l; rewrite LUF.find_empty.
     move => c pfb Hprefix IHfb l Hlabelin.
     have:= (IHfb _ Hlabelin) => {Hlabelin}.
@@ -996,6 +1000,8 @@ Section TunnelingCompilerProof.
     move: (prefix_map li_i Hprefix).
     by rewrite !map_rcons.
   Qed.
+    *)
+  Admitted.
 
   Lemma goto_targets_tunnel_partial fn fb:
     well_formed_body fn fb ->
@@ -1009,6 +1015,7 @@ Section TunnelingCompilerProof.
     rewrite pairfoldl_rcons; move: IHfb.
     set uf:= pairfoldl _ _ _ _ => IHfb.
     case Hlast: last => [ii [ | |l| | | | ]]; case: c Hprefix => ii' [] //=; auto.
+    + admit.
     move => [fn' l'] Hprefix; case: ifP; last by auto.
     move => /eqP ?; subst fn'; rewrite mem_filter => /andP [].
     case: i => // -[fn'' l''] _.
@@ -1028,7 +1035,7 @@ Section TunnelingCompilerProof.
     apply/mapP; exists {| li_ii := ii'; li_i := Lgoto (fn, l') |} => //=; last by rewrite eqxx.
     move: Hprefix => /prefixP [sfb] ->; rewrite mem_cat mem_rcons in_cons.
     by apply/orP; left; apply/orP; left.
-  Qed.
+  Admitted.
 
   Lemma onthP {T : eqType} (s : seq T) (x : T) :
     reflect (exists2 i , i < size s & oseq.onth s i = Some x) (x \in s).
