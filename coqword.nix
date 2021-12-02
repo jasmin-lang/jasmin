@@ -4,8 +4,8 @@ let inherit (coqPackages) coq; in
 
 let mathcomp =
  (if coqPackages ? mathcomp_
-  then coqPackages.mathcomp_ "1.11.0"
-  else coqPackages.mathcomp.override { version = "1.11.0"; }
+  then coqPackages.mathcomp_ "1.12.0"
+  else coqPackages.mathcomp.override { version = "1.12.0"; }
  ).algebra
 ; in
 
