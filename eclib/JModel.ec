@@ -385,6 +385,23 @@ op VPBLENDVB_256 (v1 v2 m: W256.t) : W256.t =
          VPBLENDVB_128 (v1 \bits128 1) (v2 \bits128 1) (m \bits128 1)].
 
 (* ------------------------------------------------------------------- *)
+op VPTEST_128 (v1 v2: W128.t) =
+  let OF = false in
+  let CF = ZF_of ((invw v1) `&` v2) in
+  let SF = false in
+  let PF = false in
+  let ZF = ZF_of (v1 `&` v2) in
+  (OF, CF, SF, PF, ZF).
+
+op VPTEST_256 (v1 v2: W256.t) =
+  let OF = false in
+  let CF = ZF_of ((invw v1) `&` v2) in
+  let SF = false in
+  let PF = false in
+  let ZF = ZF_of (v1 `&` v2) in
+  (OF, CF, SF, PF, ZF).
+
+(* ------------------------------------------------------------------- *)
 op VPMOVMSKB_u128_u32 (v: W128.t) =
    let vb = W16u8.to_list v in
    W32.bits2w (map W8.msb vb).
