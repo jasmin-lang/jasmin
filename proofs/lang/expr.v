@@ -28,7 +28,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
 From CoqWord Require Import ssrZ.
-Require Export strings word utils type ident var global sem_type arch_decl x86_decl x86_instr_decl.
+Require Export strings word utils type ident var global sem_type values arch_decl x86_decl x86_instr_decl.
 Require Import xseq.
 Import Utf8 ZArith.
 
@@ -127,6 +127,7 @@ Variant opN :=
 
 Variant sopn :=
 (* Generic operation *)
+| Ocopy    of wsize & positive  
 | Onop
 | Omulu     of wsize   (* cpu   : [sword; sword]        -> [sword;sword] *)
 | Oaddcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
@@ -205,6 +206,7 @@ Canonical  opN_eqType      := Eval hnf in EqType opN opN_eqMixin.
 
 Definition sopn_beq (o1 o2:sopn) :=
   match o1, o2 with
+  | Ocopy ws1 p1, Ocopy ws2 p2 => (ws1 == ws2) && (p1 == p2)
   | Onop, Onop => true
   | Omulu w1, Omulu w2 => w1 == w2
   | Oaddcarry w1, Oaddcarry w2 => w1 == w2
@@ -219,6 +221,8 @@ Definition sopn_beq (o1 o2:sopn) :=
 Lemma sopn_eq_axiom : Equality.axiom sopn_beq.
 Proof.
   move=> x y; case: x; case: y => //=; try by constructor.
+  + move=> w2 p2 w1 p1; case: (w1 =P w2) => [-> | ]; last by constructor; congruence.
+    case: eqP => [ -> | ]; constructor; congruence.
   all: move=> y x; case (x =P y) => h; constructor; congruence.
 Qed.
 
@@ -234,7 +238,10 @@ Record instruction := mkInstruction {
   tout     : list stype;
   i_out    : seq arg_desc;
   semi     : sem_prod tin (exec (sem_tuple tout));
-  tin_narr : all is_not_sarr tin;
+  semu     : forall vs vs' v,
+                List.Forall2 value_uincl vs vs' -> 
+                app_sopn_v semi vs = ok v -> 
+                app_sopn_v semi vs' = ok v;
   wsizei   : wsize;
   i_safe   : seq safe_cond;
 }.
@@ -246,7 +253,7 @@ Notation mk_instr str tin i_in tout i_out semi wsizei safe:=
      tout     := tout;
      i_out    := i_out;
      semi     := semi;
-     tin_narr := refl_equal;
+     semu     := @vuincl_app_sopn_v_eq tin tout semi refl_equal;
      wsizei   := wsizei;
      i_safe   := safe;
   |}.
@@ -310,8 +317,22 @@ Definition Oconcat128_instr :=
            (λ h l : u128, ok (make_vec U256 [::l;h]))
            U128 [::].
 
+Definition Ocopy_instr ws p := 
+  let sz := Z.to_pos (arr_size ws p) in
+  {| str      := pp_sz "copy" ws;
+     tin      := [:: sarr sz];
+     i_in     := [:: E 1];
+     tout     := [:: sarr sz];
+     i_out    := [:: E 0];
+     semi     := @WArray.copy ws p;
+     semu     := @vuincl_copy_eq ws p;
+     wsizei   := U8; (* ??? *)
+     i_safe   := [:: AllInit ws p 0];
+  |}.
+
 Definition get_instr o :=
   match o with
+  | Ocopy ws p   => Ocopy_instr ws p
   | Onop         => Onop_instr
   | Omulu     sz => Omulu_instr sz
   | Oaddcarry sz => Oaddcarry_instr sz
@@ -328,7 +349,7 @@ Definition get_instr o :=
         i_out    := id.(id_out);
         tout     := id.(id_tout);
         semi     := id.(id_semi);
-        tin_narr := id.(id_tin_narr);
+        semu     := @vuincl_app_sopn_v_eq _ _ id.(id_semi) id.(id_tin_narr);
         wsizei   := id.(id_wsize);
         i_safe   := id.(id_safe)
       |}
@@ -934,8 +955,8 @@ Lemma instr_r_eq_axiom : Equality.axiom instr_r_beq.
 Proof.
   rewrite /Equality.axiom.
   fix Hrec 1; case =>
-    [x1 t1 ty1 e1|x1 t1 o1 e1|e1 c11 c12|x1 [[dir1 lo1] hi1] c1|a1 c1 e1 c1'|ii1 x1 f1 arg1]
-    [x2 t2 ty2 e2|x2 t2 o2 e2|e2 c21 c22|x2 [[dir2 lo2] hi2] c2|a2 c2 e2 c2'|ii2 x2 f2 arg2] /=;
+    [x1 t1 ty1 e1|x1 t1 o1 e1|e1 c11 c12|x1 [[dir1 lo1] hi1] c1|a1 c1 e1 c1'|ii1 x1 f1 arg1 ]
+    [x2 t2 ty2 e2|x2 t2 o2 e2|e2 c21 c22|x2 [[dir2 lo2] hi2] c2|a2 c2 e2 c2'|ii2 x2 f2 arg2 ] /=;
   try by constructor.
   + apply (@equivP ((t1 == t2) && (ty1 == ty2) && (x1 == x2) && (e1 == e2)));first by apply idP.
     split=> [/andP [] /andP [] /andP [] /eqP -> /eqP-> /eqP-> /eqP-> | [] <- <- <- <- ] //.
@@ -954,8 +975,8 @@ Proof.
   + apply (@equivP  ((a1 == a2) && all2 instr_beq c1 c2 && (e1 == e2) && all2 instr_beq c1' c2')); first by apply idP.
     have H := reflect_all2 (instr_eq_axiom_ Hrec).
     split=> [/andP[]/andP[]/andP[]/eqP->/H->/eqP->/H-> | []/eqP->/H->/eqP->/H->] //.
-  + apply (@equivP ((ii1 == ii2) && (x1 == x2) && (f1 == f2) && (arg1 == arg2)));first by apply idP.
-    by split=> [/andP[]/andP[]/andP[]| []]/eqP->/eqP->/eqP->/eqP->.
+  apply (@equivP ((ii1 == ii2) && (x1 == x2) && (f1 == f2) && (arg1 == arg2)));first by apply idP.
+  by split=> [/andP[]/andP[]/andP[]| []]/eqP->/eqP->/eqP->/eqP->.
 Qed.
 
 Definition instr_r_eqMixin     := Equality.Mixin instr_r_eq_axiom.
@@ -1306,11 +1327,11 @@ Definition lv_write_mem (r:lval) : bool :=
 
 Fixpoint write_i_rec s i :=
   match i with
-  | Cassgn x _ _ _    => vrv_rec s x
+  | Cassgn x _ _ _  => vrv_rec s x
   | Copn xs _ _ _   => vrvs_rec s xs
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
-  | Cwhile _ c _ c'   => foldl write_I_rec (foldl write_I_rec s c') c
+  | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
   | Ccall _ x _ _   => vrvs_rec s x
   end
 with write_I_rec s i :=
@@ -1555,7 +1576,7 @@ Proof.
    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
     rewrite /read_I /read_i /read_c /=
-     ?read_rvE ?read_eE ?read_esE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
+     ?read_rvE ?read_eE ?read_esE ?read_rvE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
     by SvD.fsetdec.
 Qed.
 
@@ -1605,6 +1626,72 @@ Proof. rewrite /read_i /= read_esE read_rvsE;SvD.fsetdec. Qed.
 
 Lemma read_Ii ii i: read_I (MkI ii i) = read_i i.
 Proof. by done. Qed.
+
+Definition vars_I (i: instr) := Sv.union (read_I i) (write_I i).
+
+Definition vars_c c := Sv.union (read_c c) (write_c c).
+
+Definition vars_lval l := Sv.union (read_rv l) (vrv l).
+
+Definition vars_lvals ls := Sv.union (read_rvs ls) (vrvs ls).
+
+Fixpoint vars_l (l: seq var_i) :=
+  match l with
+  | [::] => Sv.empty
+  | h :: q => Sv.add h (vars_l q)
+  end.
+
+Lemma vars_l_read_es (l:seq var_i) : Sv.Equal (read_es [seq (Pvar (mk_lvar i)) | i <- l]) (vars_l l).
+Proof.
+  elim: l => //= x xs hrec; rewrite read_es_cons /= read_e_var /read_gvar /= hrec; SvD.fsetdec.
+Qed.
+
+Lemma vars_c_cons i c:
+  Sv.Equal (vars_c (i :: c)) (Sv.union (vars_I i) (vars_c c)).
+Proof.
+  rewrite /vars_c read_c_cons write_c_cons /vars_I; SvD.fsetdec.
+Qed.
+
+Lemma vars_I_assgn ii l tag ty e:
+  Sv.Equal (vars_I (MkI ii (Cassgn l tag ty e))) (Sv.union (vars_lval l) (read_e e)).
+Proof. rewrite /vars_I read_Ii /read_i /write_I /= /vars_lval read_rvE; SvD.fsetdec. Qed.
+
+Lemma vars_I_opn ii xs t o es:
+  Sv.Equal (vars_I (MkI ii (Copn xs t o es))) (Sv.union (vars_lvals xs) (read_es es)).
+Proof. rewrite /vars_I /read_I /= read_esE /write_I /= /vars_lvals; SvD.fsetdec. Qed.
+
+Lemma vars_I_if ii e c1 c2:
+  Sv.Equal (vars_I (MkI ii (Cif e c1 c2))) (Sv.union (read_e e) (Sv.union (vars_c c1) (vars_c c2))).
+Proof. rewrite /vars_I read_Ii read_i_if write_Ii write_i_if /vars_c; SvD.fsetdec. Qed.
+
+Lemma vars_I_while ii a c e c':
+  Sv.Equal (vars_I (MkI ii (Cwhile a c e c'))) (Sv.union (read_e e) (Sv.union (vars_c c) (vars_c c'))).
+Proof. rewrite /vars_I read_Ii write_Ii read_i_while write_i_while /vars_c;SvD.fsetdec. Qed.
+
+Lemma vars_I_for ii i d lo hi c:
+    Sv.Equal (vars_I (MkI ii (Cfor i (d, lo, hi) c))) (Sv.union (Sv.union (vars_c c) (Sv.singleton i)) (Sv.union (read_e lo) (read_e hi))).
+Proof. rewrite /vars_I read_Ii write_Ii read_i_for write_i_for /vars_c; SvD.fsetdec. Qed.
+
+Lemma vars_I_call ii ii' xs fn args:
+  Sv.Equal (vars_I (MkI ii (Ccall ii' xs fn args))) (Sv.union (vars_lvals xs) (read_es args)).
+Proof. rewrite /vars_I read_Ii write_Ii read_i_call write_i_call /vars_lvals; SvD.fsetdec. Qed.
+
+Section Section.
+Context {T} {pT:progT T}.
+
+Definition vars_fd (fd:fundef) :=
+  Sv.union (vars_l fd.(f_params)) (Sv.union (vars_l fd.(f_res)) (vars_c fd.(f_body))).
+
+Definition vars_p (p: fun_decls) :=
+  foldr (fun f x => let '(fn, fd) := f in Sv.union x (vars_fd fd)) Sv.empty p.
+
+Lemma vars_pP p fn fd : get_fundef p fn = Some fd -> Sv.Subset (vars_fd fd) (vars_p p).
+Proof.
+  elim: p => //= -[fn' fd'] p hrec; case: eqP => [ _ [<-] | ]; first by SvD.fsetdec.
+  move=> _ /hrec; SvD.fsetdec.
+Qed.
+
+End Section.
 
 (* ** Some smart constructors
  * -------------------------------------------------------------------------- *)

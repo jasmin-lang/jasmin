@@ -27,7 +27,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import x86_gen expr.
 Import ZArith.
 Require merge_varmaps.
-Require Import compiler_util allocation array_init inline dead_calls unrolling remove_globals
+Require Import compiler_util allocation array_copy array_init inline dead_calls unrolling remove_globals
    constant_prop propagate_inline dead_code array_expansion lowering makeReferenceArguments stack_alloc linearization tunneling x86_sem.
 Import Utf8.
 
@@ -63,6 +63,7 @@ Section COMPILER.
 Variant compiler_step :=
   | Typing                      : compiler_step
   | ParamsExpansion             : compiler_step
+  | ArrayCopy                   : compiler_step
   | AddArrInit                  : compiler_step
   | Inlining                    : compiler_step
   | RemoveUnusedFunction        : compiler_step
@@ -90,6 +91,7 @@ Variant compiler_step :=
 Definition compiler_step_list := [::
     Typing
   ; ParamsExpansion
+  ; ArrayCopy
   ; AddArrInit
   ; Inlining
   ; RemoveUnusedFunction
@@ -153,6 +155,7 @@ Record compiler_params := {
   lowering_opt     : lowering_options;
   is_glob          : var -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
+  fresh_counter    : Ident.ident;
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
@@ -179,6 +182,9 @@ Definition check_no_ptr entries (ao: funname -> stk_alloc_oracle_t) : cexec unit
     entries.
 
 Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
+
+  Let p := array_copy_prog cparams.(fresh_counter) p in
+  let p := cparams.(print_uprog) ArrayCopy p in
 
   let p := add_init_prog cparams.(is_ptr) p in
   let p := cparams.(print_uprog) AddArrInit p in

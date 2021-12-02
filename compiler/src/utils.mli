@@ -348,7 +348,8 @@ val hierror :
 type warning = 
   | ExtraAssignment 
   | UseLea
-  | IntroduceNone 
+  | IntroduceNone
+  | IntroduceArrayCopy 
   | Always
 
 val nowarning : unit -> unit

@@ -862,6 +862,7 @@ module Normal = struct
         pp_i1 () pp_i2 ()
         (pp_cmd env) c
         pp_i () pp_i () (if d = UpTo then "+" else "-")
+
 end
 
 module Leak = struct 
@@ -930,12 +931,18 @@ module Leak = struct
 
   let safe_es env = List.fold_left (safe_e_rec env) []
 
-  let safe_opn safe opn es = 
+  let safe_opn env safe opn es = 
     let id = Expr.get_instr opn in
-    List.map (fun c ->
+    List.pmap (fun c ->
         match c with
         | Wsize.NotZero(sz, i) ->
-          NotZero(sz, List.nth es (Conv.int_of_nat i))) id.i_safe @ safe
+          Some (NotZero(sz, List.nth es (Conv.int_of_nat i)))
+        | Wsize.AllInit (ws, p, i) ->
+          let e = List.nth es (Conv.int_of_nat i) in
+          let y = match e with Pvar y -> y | _ -> assert false in
+          let (_s,option) = Mv.find (L.unloc y.gv) env.vars in 
+          if option then Some (Inita (L.unloc y.gv, arr_size ws (Conv.int_of_pos p)))
+          else None) id.i_safe @ safe
  
   let safe_lval env = function
     | Lnone _ | Lvar _ -> []
@@ -982,7 +989,7 @@ module Leak = struct
     match env.model with
     | ConstantTime -> pp_leaks env fmt (leaks_es es)
     | Safety -> 
-      let conds = safe_opn (safe_es env es) op es in
+      let conds = safe_opn env (safe_es env es) op es in
       pp_safe_cond env fmt conds 
     | Normal -> ()
 

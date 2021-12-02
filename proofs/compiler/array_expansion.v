@@ -263,7 +263,7 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
     Let c  := mapM (expand_i m) c in 
     Let c' := mapM (expand_i m) c' in 
     ok (MkI ii (Cwhile a c e c'))
-  
+
   | Ccall ini xs fn es =>
     Let xs := add_iinfo ii (expand_lvs m xs) in
     Let es := add_iinfo ii (expand_es m es) in

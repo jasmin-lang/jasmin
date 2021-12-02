@@ -29,6 +29,7 @@ Require Import psem.
 Require Export constant_prop.
 
 Import Utf8 ZArith Morphisms Classes.RelationClasses.
+Import RelationPairs.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -884,6 +885,7 @@ Section PROPER.
     split => //=; rewrite /RelationPairs.RelCompFun /=.
     by do 3 f_equal;apply eq_in_map=> z _;rewrite Heq.
   Qed.
+
 End PROPER.
 
 Lemma const_prop_i_m :

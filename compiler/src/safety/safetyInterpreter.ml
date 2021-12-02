@@ -310,10 +310,16 @@ let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
 
 let safe_opn safe opn es = 
   let id = Expr.get_instr opn in
-  List.map (fun c ->
+  List.flatten (List.map (fun c ->
       match c with
       | Wsize.NotZero(sz, i) ->
-        NotZero(sz, List.nth es (Conv.int_of_nat i))) id.i_safe @ safe
+        [ NotZero(sz, List.nth es (Conv.int_of_nat i))]
+      | Wsize.AllInit(ws, p, i) -> 
+        let e = List.nth es (Conv.int_of_nat i) in
+        let y = match e with Pvar y -> y | _ -> assert false in
+        List.flatten 
+          (List.init (Conv.int_of_pos p) (fun i -> init_get y Warray_.AAscale ws (Pconst (B.of_int i)) 1)))
+     id.i_safe) @ safe
 
 let safe_instr ginstr = match ginstr.i_desc with
   | Cassgn (lv, _, _, e) -> safe_e_rec (safe_lval lv) e

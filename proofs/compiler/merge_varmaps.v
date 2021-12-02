@@ -86,7 +86,8 @@ Section WRITE1.
 
   Fixpoint write_i_rec s i :=
     match i with
-    | Cassgn x _ _ _  => vrv_rec s x
+    | Cassgn x _ _ _
+      => vrv_rec s x
     | Copn xs _ _ _   => vrvs_rec s xs
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
@@ -120,7 +121,7 @@ Section WRITE1.
     - by move => e c1 c2 h1 h2 s; rewrite /write_i /= -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
     - by move => v d lo hi body h s; rewrite /write_i /= -!/write_c_rec !h; SvD.fsetdec.
     - by move => a c1 e c2  h1 h2 s; rewrite /write_i /= -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
-    - by move => i xs fn es s; rewrite /write_i /=; SvD.fsetdec.
+    by move => i xs fn es s; rewrite /write_i /=; SvD.fsetdec.
   Qed.
 
   Lemma write_I_recE ii i s :
@@ -230,6 +231,7 @@ Section CHECK.
         let W := writefun_ra writefun fn in
         ok (Sv.diff (Sv.union D W) (set_of_var_i_seq Sv.empty (f_res fd)))
       else Error (E.internal_error ii "call to unknown function")
+
     end.
 
   Lemma check_ir_CwhileP sz ii aa c e c' D D' :

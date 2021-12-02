@@ -505,10 +505,12 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
       | _          => [:: MkI ii (Cwhile a c e c')]
       end in
     (m', cw)
+
   | Ccall fi xs f es =>
     let es := map (const_prop_e m) es in
     let (m,xs) := const_prop_rvs m xs in
     (m, [:: MkI ii (Ccall fi xs f es) ])
+
   end
 
 with const_prop_i (m:cpm) (i:instr) : cpm * cmd :=

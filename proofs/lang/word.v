@@ -1556,3 +1556,34 @@ Proof.
   rewrite /align_word wsize_size_is_pow2 wand_align.
   lia.
 Qed.
+
+(* ------------------------------------------------------------------------- *)
+
+Definition word_uincl sz1 sz2 (w1:word sz1) (w2:word sz2) :=
+  (sz1 <= sz2)%CMP && (w1 == zero_extend sz1 w2).
+
+Lemma word_uincl_refl s (w : word s): word_uincl w w.
+Proof. by rewrite /word_uincl zero_extend_u cmp_le_refl eqxx. Qed.
+Hint Resolve word_uincl_refl : core.
+
+Lemma word_uincl_eq s (w w': word s):
+  word_uincl w w' → w = w'.
+Proof. by move=> /andP [] _ /eqP; rewrite zero_extend_u. Qed.
+
+Lemma word_uincl_trans s2 w2 s1 s3 w1 w3 :
+   @word_uincl s1 s2 w1 w2 -> @word_uincl s2 s3 w2 w3 -> word_uincl w1 w3.
+Proof.
+  rewrite /word_uincl => /andP [hle1 /eqP ->] /andP [hle2 /eqP ->].
+  by rewrite (cmp_le_trans hle1 hle2) zero_extend_idem // eqxx.
+Qed.
+
+Lemma word_uincl_zero_ext sz sz' (w':word sz') : (sz ≤ sz')%CMP -> word_uincl (zero_extend sz w') w'.
+Proof. by move=> ?;apply /andP. Qed.
+
+Lemma word_uincl_zero_extR sz sz' (w: word sz) :
+  (sz ≤ sz')%CMP →
+  word_uincl w (zero_extend sz' w).
+Proof.
+  move => hle; apply /andP; split; first exact: hle.
+  by rewrite zero_extend_idem // zero_extend_u.
+Qed.

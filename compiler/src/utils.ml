@@ -764,6 +764,7 @@ type warning =
   | ExtraAssignment 
   | UseLea
   | IntroduceNone 
+  | IntroduceArrayCopy
   | Always
 
 let warns = ref None

@@ -127,6 +127,7 @@ Section REMOVE.
       Let gd := foldM extend_glob_i gd c1 in
       foldM extend_glob_i gd c2
     | Cfor _ _ c =>
+        (* FIXME: there are no for loops at this point *)
       foldM extend_glob_i gd c
     end.
 

@@ -1,0 +1,20 @@
+param int N = 4;
+
+export
+fn test(reg u64 x) -> reg u64 {
+
+reg u64[N] r;
+stack u64[N] s;
+reg u64 q;
+inline int i;
+
+for i = 0 to N { s[i] = x; }
+
+r = #copy(s);
+q = x;
+
+for i = 0 to N { q += r[i]; }
+
+return q;
+
+}

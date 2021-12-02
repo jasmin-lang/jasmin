@@ -624,9 +624,9 @@ let tt_as_bool = check_ty TPBool
 let tt_as_int  = check_ty TPInt
 
 (* -------------------------------------------------------------------- *)
-let tt_as_array ((loc, ty) : L.t * P.pty) : P.pty =
+let tt_as_array ((loc, ty) : L.t * P.pty) : P.pty * P.pexpr =
   match ty with
-  | P.Arr (ws, _) -> P.Bty (P.U ws)
+  | P.Arr (ws, n) -> P.Bty (P.U ws), n
   | _ -> rs_tyerror ~loc (InvalidType (ty, TPArray))
 
 (* -------------------------------------------------------------------- *)
@@ -1004,7 +1004,7 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
 
   | S.PEGet (aa, ws, ({ L.pl_loc = xlc } as x), pi, olen) ->
     let x, ty = tt_var_global mode env x in
-    let ty = tt_as_array (xlc, ty) in
+    let ty, _ = tt_as_array (xlc, ty) in
     let ws = omap_dfl tt_ws (P.ws_of_ty ty) ws in
     let ty = P.tu ws in
     let i,ity  = tt_expr ~mode env pi in
@@ -1171,7 +1171,7 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 
   | S.PLArray (aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
     let x  = tt_var `NoParam env x in
-    let ty = tt_as_array (xlc, x.P.v_ty) in
+    let ty,_ = tt_as_array (xlc, x.P.v_ty) in
     let ws = omap_dfl tt_ws (P.ws_of_ty ty) ws in 
     let ty = P.tu ws in
     let i,ity  = tt_expr env ~mode:`AllVar pi in
@@ -1620,14 +1620,60 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
           | P.Export | P.Subroutine _ -> P.NoInline in
       env, [mk_i (mk_call (L.loc pi) is_inline lvs f es)]
 
-    | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
+  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, es) }, None) when 
+     fst (extract_size (L.unloc f)) = "copy" ->
+    if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "copy expects no implicit arguments");
+    let es = tt_exprs env es in
+    let y, yty = 
+      match es with
+      | [Pvar y, ty] -> y, ty
+      | _ -> 
+          rs_tyerror ~loc:(L.loc pi) 
+            (string_error "only a single variable is allowed as argument of copy")
+    in
+    let x = 
+      match xs with
+      | [x] -> 
+        let loc, fx, _ = tt_lvalue env x in
+        begin match fx yty with
+        | Lvar x -> x
+        | _ -> 
+          rs_tyerror ~loc 
+            (string_error "only a single variable is allowed as destination of copy")
+        end
+      | _ -> 
+        rs_tyerror ~loc:(L.loc pi) 
+          (string_error "only a single variable is allowed as destination of copy")
+    in
+    let ws =   
+      (* Do not check size of array here, it is done in typing *)
+      match snd (extract_size (L.unloc f)) with
+      | SAw ws -> ws
+      | SAv _ | SAx _ | SAvv _ -> assert false 
+      | SA ->
+        match (L.unloc x).v_ty with
+        | Arr (xws, _) ->
+          begin match yty with
+          | Arr(yws, _) ->
+            if (L.unloc x).v_kind = Reg Direct then xws
+            else if (L.unloc y.gv).v_kind = Reg Direct then yws
+            else  
+              rs_tyerror ~loc:(L.loc pi) 
+                (string_error "#copy: the source or the destination should be a reg array")
+          | _ -> rs_tyerror ~loc:(L.loc y.gv) (string_error "an array is expected")
+          end
+        | _ -> rs_tyerror ~loc:(L.loc y.gv) (string_error "an array is expected")
+    in
+    env, [ mk_i (Copn([Lvar x], AT_none, E.Ocopy(ws, Conv.pos_of_int 1), [Pvar y]))] 
+
+  | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim None f in
       let tlvs, tes, arguments = prim_sig p in
       let lvs, einstr = tt_lvalues env ls (Some arguments) tlvs in
       let es  = tt_exprs_cast env args tes in
       env, mk_i (P.Copn(lvs, AT_none, p, es)) :: einstr
 
-    | S.PIAssign (ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None)
+  | S.PIAssign (ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None)
       ->
       let ws, s = ct in
       let ws = tt_ws ws in
@@ -1638,7 +1684,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let es  = tt_exprs_cast env args tes in
       env, mk_i (P.Copn(lvs, AT_none, p, es)) :: einstr
 
-    | PIAssign((None,[lv]), `Raw, pe, None) ->
+  | PIAssign((None,[lv]), `Raw, pe, None) ->
       let _, flv, vty = tt_lvalue env lv in
       let e, ety = tt_expr ~mode:`AllVar env pe in
       let e = vty |> omap_dfl (cast (L.loc pe) e ety) e in
@@ -1654,14 +1700,14 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
             | _ -> AT_none) in
       env, [mk_i (cassgn_for v tg ety e)]
         
-    | PIAssign(ls, `Raw, pe, None) ->
+  | PIAssign(ls, `Raw, pe, None) ->
       (* Try to match addc, subc, mulu *)
       let pe = prim_of_pe pe in
       let loc = L.loc pi in
       let i = annot, L.mk_loc loc (S.PIAssign(ls, `Raw, pe, None)) in
       tt_instr env i 
 
-    | S.PIAssign((pimp,ls), eqop, pe, None) ->
+  | S.PIAssign((pimp,ls), eqop, pe, None) ->
       let op = oget (peop2_of_eqop eqop) in
       let loc = L.loc pi in
       let exn = tyerror ~loc EqOpWithNoLValue in
@@ -1671,7 +1717,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let i   = annot, L.mk_loc loc (S.PIAssign((pimp, ls), `Raw, pe, None)) in
       tt_instr env i 
 
-    | PIAssign (ls, eqop, e, Some cp) ->
+  | PIAssign (ls, eqop, e, Some cp) ->
       let loc = L.loc pi in
       let exn = Unsupported "if not allowed here" in
       if peop2_of_eqop eqop <> None then rs_tyerror ~loc exn;
@@ -1686,13 +1732,13 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let c = tt_expr_bool env cp in
       env, mk_i (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))) :: is
 
-    | PIIf (cp, st, sf) ->
+  | PIIf (cp, st, sf) ->
       let c  = tt_expr_bool env cp in
       let st = tt_block env st in
       let sf = odfl [] (omap (tt_block env) sf) in
       env, [mk_i (P.Cif (c, st, sf))]
 
-    | PIFor ({ pl_loc = lx } as x, (d, i1, i2), s) ->
+  | PIFor ({ pl_loc = lx } as x, (d, i1, i2), s) ->
       let i1   = tt_expr_int env i1 in
       let i2   = tt_expr_int env i2 in
       let vx   = tt_var `AllVar env x in
@@ -1701,7 +1747,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let d    = match d with `Down -> P.DownTo | `Up -> P.UpTo in
       env, [mk_i (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))]
 
-    | PIWhile (s1, c, s2) ->
+  | PIWhile (s1, c, s2) ->
       let c  = tt_expr_bool env c in
       let s1 = omap_dfl (tt_block env) [] s1 in
       let s2 = omap_dfl (tt_block env) [] s2 in

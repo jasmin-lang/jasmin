@@ -258,3 +258,5 @@ Definition loop_iterator pass_name :=
 
 Definition ii_loop_iterator pass_name ii := 
   gen_loop_iterator pass_name (Some ii).
+
+Definition error_copy_remain := "array copy remain"%string.

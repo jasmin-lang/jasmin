@@ -182,6 +182,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
       end in
     let '(si,xs) := sxs in
     ok (read_es_rec si es, [:: MkI ii (Ccall ini xs fn es)])
+
   end.
 
 Section Section.

@@ -111,12 +111,6 @@ Section PROOF.
     eq_exc_fresh s1 s2 -> eq_exc_fresh s2 s1.
   Proof. by rewrite /eq_exc_fresh => -[-> ->]. Qed.
 
-  Lemma vars_c_cons i c:
-    Sv.Equal (vars_c (i :: c)) (Sv.union (vars_I i) (vars_c c)).
-  Proof.
-    rewrite /vars_c read_c_cons write_c_cons /vars_I; SvD.fsetdec.
-  Qed.
-
   Lemma disj_fvars_subset s1 s2 :
     Sv.Subset s1 s2 →
     disj_fvars s2 →
@@ -1410,12 +1404,6 @@ Section PROOF.
      by case: stype_of_lval => // w hv; case: andP => // - [] /andP[] -> -> /eqP <-; eauto.
   Qed.
 
-  Lemma vars_I_assgn ii l tag ty e:
-    Sv.Equal (vars_I (MkI ii (Cassgn l tag ty e))) (Sv.union (vars_lval l) (read_e e)).
-  Proof.
-    rewrite /vars_I read_Ii /read_i /write_I /= /vars_lval read_rvE.
-    SvD.fsetdec.
-  Qed.
 
   Lemma vmap_eq_except_set q s x v:
     Sv.In x q → s.[ x <- v] = s [\q].
@@ -1720,13 +1708,6 @@ Section PROOF.
     exact: Hw'.
   Qed.
 
-  Lemma vars_I_opn ii xs t o es:
-    Sv.Equal (vars_I (MkI ii (Copn xs t o es))) (Sv.union (vars_lvals xs) (read_es es)).
-  Proof.
-    rewrite /vars_I /read_I /= read_esE /write_I /= /vars_lvals.
-    SvD.fsetdec.
-  Qed.
-
   Lemma app_wwb_dec T' sz (f:sem_prod [::sword sz; sword sz; sbool] (exec T')) x v :
     app_sopn _ f x = ok v ->
     ∃ sz1 (w1: word sz1) sz2 (w2: word sz2) b,
@@ -2023,13 +2004,6 @@ Section PROOF.
       by intuition eauto using eq_exc_freshT.
   Qed.
 
-  Lemma vars_I_if ii e c1 c2:
-    Sv.Equal (vars_I (MkI ii (Cif e c1 c2))) (Sv.union (read_e e) (Sv.union (vars_c c1) (vars_c c2))).
-  Proof.
-    rewrite /vars_I read_Ii read_i_if write_Ii write_i_if /vars_c.
-    SvD.fsetdec.
-  Qed.
-
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 Hz _ Hc ii /= Hdisj s1' Hs1' /=.
@@ -2064,13 +2038,6 @@ Section PROOF.
     apply: sem_seq1; apply: EmkI; apply: Eif_false.
     + by rewrite Hs2'3.
     exact: Hs3'1.
-  Qed.
-
-  Lemma vars_I_while ii a c e c':
-    Sv.Equal (vars_I (MkI ii (Cwhile a c e c'))) (Sv.union (read_e e) (Sv.union (vars_c c) (vars_c c'))).
-  Proof.
-    rewrite /vars_I read_Ii write_Ii read_i_while write_i_while /vars_c.
-    SvD.fsetdec.
   Qed.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
@@ -2109,17 +2076,10 @@ Section PROOF.
     by rewrite Hs3'3.
   Qed.
 
-  Lemma sem_I_for ii i d lo hi c:
-    Sv.Equal (vars_I (MkI ii (Cfor i (d, lo, hi) c))) (Sv.union (Sv.union (vars_c c) (Sv.singleton i)) (Sv.union (read_e lo) (read_e hi))).
-  Proof.
-    rewrite /vars_I read_Ii write_Ii read_i_for write_i_for /vars_c.
-    SvD.fsetdec.
-  Qed.
-
   Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
   Proof.
     move=> s1 s2 i d lo hi c vlo vhi Hlo Hhi _ Hfor ii Hdisj s1' Hs1' /=.
-    move: Hdisj; rewrite /disj_fvars /lowering.disj_fvars sem_I_for=> /disj_fvars_union [Hdisjc /disj_fvars_union [Hdisjlo Hdisjhi]].
+    move: Hdisj; rewrite /disj_fvars /lowering.disj_fvars vars_I_for=> /disj_fvars_union [Hdisjc /disj_fvars_union [Hdisjlo Hdisjhi]].
     have [s2' [Hs2'1 Hs2'2]] := Hfor Hdisjc _ Hs1'.
     exists s2'; split=> //.
     apply: sem_seq1; apply: EmkI; apply: Efor; eauto.
@@ -2144,13 +2104,6 @@ Section PROOF.
     have [s4'' [Hs4''1 Hs4''2]] := Hfor Hdisj _ Hs3''2.
     exists s4''; split=> //.
     by apply: EForOne; eauto.
-  Qed.
-
-  Lemma vars_I_call ii ii' xs fn args:
-    Sv.Equal (vars_I (MkI ii (Ccall ii' xs fn args))) (Sv.union (vars_lvals xs) (read_es args)).
-  Proof.
-    rewrite /vars_I read_Ii write_Ii read_i_call write_i_call /vars_lvals.
-    SvD.fsetdec.
   Qed.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.

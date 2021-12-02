@@ -186,6 +186,14 @@ Module WArray.
   Definition set {len ws} (a:array len) aa p (v:word ws) : exec (array len) :=   
     CoreMem.write a (p * mk_scale aa ws)%Z v.
 
+  Definition fcopy ws len (a t: WArray.array len) i j := 
+    foldM (fun i t => 
+             Let w := WArray.get AAscale ws a i in WArray.set t AAscale i w) t
+          (ziota i j).
+
+  Definition copy ws p (a:array (Z.to_pos (arr_size ws p))) := 
+    fcopy ws a (WArray.empty _) 0 p.
+
   Definition get_sub_data (aa:arr_access) ws len (a:Mz.t u8) p := 
      let size := arr_size ws len in 
      let start := (p * mk_scale aa ws)%Z in
@@ -235,34 +243,6 @@ Module WArray.
   Proof.
     move=> [l1 h1] [l2 h2]; split; first by lia.
     by move=> ?? /h1 /h2.
-  Qed.
-
-  Lemma uincl_validw {len1 len2} (a1 : array len1) (a2 : array len2) ws i :
-    uincl a1 a2 -> validw a1 i ws -> validw a2 i ws.
-  Proof.
-    move=> [h1 _]; rewrite !validw_in_range => /andP [] -> /= /in_rangeP ?; apply /in_rangeP; lia.
-  Qed.
-
-  Lemma uincl_get {len1 len2} (a1 : array len1) (a2 : array len2) aa ws i w :
-    uincl a1 a2 ->
-    get aa ws a1 i = ok w ->
-    get aa ws a2 i = ok w.
-  Proof.
-    rewrite /get => -[_ hu] hr; have {hr}[ha hr] := read_read8 hr.
-    by rewrite (read8_read (v:=w)) ?ha // => k /hr /hu.
-  Qed.
- 
-  Lemma uincl_set {ws len1 len2} (a1 a1': array len1) (a2: array len2) aa i (w:word ws) :
-    uincl a1 a2 ->
-    set a1 aa i w = ok a1' ->
-    exists a2', set a2 aa i w = ok a2' /\ uincl a1' a2'.
-  Proof.
-    rewrite /set; set k := _ * _ => hu hw1. 
-    have /(writeV w) [a2' hw2]: validw a2 k ws by apply /(uincl_validw hu) /(writeV w); exists a1'.
-    exists a2'; split => //.
-    case: hu => hle hu; split => //.
-    move=> j wj; rewrite (write_read8 hw1) (write_read8 hw2) /=.
-    by case:ifP => // _; apply: hu.
   Qed.
  
   Lemma castK len (a:array len) : WArray.cast len a = ok a.
@@ -378,6 +358,62 @@ Module WArray.
   Lemma get0 (n:positive) off : (0 <= off ∧ off < n)%Z -> 
     read (empty n) off U8 = Error ErrAddrUndef.
   Proof. by rewrite get_empty => -[/ZleP -> /ZltP ->]. Qed.
+
+  Lemma uincl_empty len len' (t:array len') : 
+    Zpos len <= len' -> uincl (empty len) t.
+  Proof.  
+    split; first Psatz.lia.
+    by move=> i w; rewrite get_empty; case: ifP.
+  Qed.
+
+  Lemma uincl_validw {len1 len2} (a1 : array len1) (a2 : array len2) ws i :
+    uincl a1 a2 -> validw a1 i ws -> validw a2 i ws.
+  Proof.
+    move=> [h1 _]; rewrite !validw_in_range => /andP [] -> /= /in_rangeP ?; apply /in_rangeP; lia.
+  Qed.
+
+  Lemma uincl_get {len1 len2} (a1 : array len1) (a2 : array len2) aa ws i w :
+    uincl a1 a2 ->
+    get aa ws a1 i = ok w ->
+    get aa ws a2 i = ok w.
+  Proof.
+    rewrite /get => -[_ hu] hr; have {hr}[ha hr] := read_read8 hr.
+    by rewrite (read8_read (v:=w)) ?ha // => k /hr /hu.
+  Qed.
+  
+  Lemma uincl_set {ws len1 len2} (a1 a1': array len1) (a2: array len2) aa i (w:word ws) :
+    uincl a1 a2 ->
+    set a1 aa i w = ok a1' ->
+    exists a2', set a2 aa i w = ok a2' /\ uincl a1' a2'.
+  Proof.
+    rewrite /set; set k := _ * _ => hu hw1. 
+    have /(writeV w) [a2' hw2]: validw a2 k ws by apply /(uincl_validw hu) /(writeV w); exists a1'.
+    exists a2'; split => //.
+    case: hu => hle hu; split => //.
+    move=> j wj; rewrite (write_read8 hw1) (write_read8 hw2) /=.
+    by case:ifP => // _; apply: hu.
+  Qed.
+
+  Lemma fcopy_uincl ws len (a t1 t2 a1 : array len) i j: 
+    uincl t1 t2 -> 
+    fcopy ws a t1 i j = ok a1 -> 
+    exists2 a2, fcopy ws a t2 i j = ok a2 & uincl a1 a2.
+  Proof.
+    rewrite /fcopy; elim: (ziota i j) t1 t2 => {i j} [ | i il hrec] t1 t2 hu /=.
+    + by move=> [<-]; exists t2.
+    t_xrbindP => t1' w -> hset hfold /=.    
+    by have [t2' [-> /hrec ]] /= := uincl_set hu hset; apply.
+  Qed.
+
+  Lemma uincl_copy ws p a1 a2 a1' :
+     uincl a1 a2 -> 
+     @copy ws p a1 = ok a1' ->
+     @copy ws p a2 = ok a1'.
+  Proof.
+    move=> hu; rewrite /copy /fcopy.
+    elim: ziota (empty _) => [ | i il hrec] a //=.
+    t_xrbindP => a' w /(uincl_get hu) -> /= ->; apply: hrec.
+  Qed.
 
   Lemma set_sub_data_get8 aa ws a len p t k: 
     Mz.get (@set_sub_data aa ws len a p t) k = 

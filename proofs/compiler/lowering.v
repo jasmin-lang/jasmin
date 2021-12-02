@@ -51,28 +51,6 @@ Context (options : lowering_options).
 
 Context (warning: instr_info -> warning_msg -> instr_info).
 
-Definition vars_I (i: instr) := Sv.union (read_I i) (write_I i).
-
-Definition vars_c c := Sv.union (read_c c) (write_c c).
-
-Definition vars_lval l := Sv.union (read_rv l) (vrv l).
-
-Definition vars_lvals ls := Sv.union (read_rvs ls) (vrvs ls).
-
-Fixpoint vars_l (l: seq var_i) :=
-  match l with
-  | [::] => Sv.empty
-  | h :: q => Sv.add h (vars_l q)
-  end.
-
-Context {T} {pT:progT T}.
-
-Definition vars_fd (fd:fundef) :=
-  Sv.union (vars_l fd.(f_params)) (Sv.union (vars_l fd.(f_res)) (vars_c fd.(f_body))).
-
-Definition vars_p (p: fun_decls) :=
-  foldr (fun f x => let '(fn, fd) := f in Sv.union x (vars_fd fd)) Sv.empty p.
-
 Definition vbool vn := {| vtype := sbool ; vname := vn |}.
 Definition vword vt vn := {| vtype := sword vt ; vname := vn |}.
 
@@ -90,6 +68,8 @@ Definition fvars :=
     wsizes.
 
 Definition disj_fvars v := disjoint v fvars.
+
+Context {T} {pT:progT T}.
 
 Definition fvars_correct p :=
   [&& disj_fvars (vars_p p),

@@ -27,7 +27,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import psem compiler_util compiler.
 Require Import allocation inline_proof dead_calls_proof
                makeReferenceArguments_proof
-               array_init_proof
+               array_copy array_copy_proof array_init_proof
                unrolling_proof constant_prop_proof propagate_inline_proof dead_code_proof 
                array_expansion array_expansion_proof remove_globals_proof stack_alloc_proof_2
                lowering_proof
@@ -63,7 +63,6 @@ Proof.
   exists vr'' => //. apply: Forall2_trans hall' hv.
   move=> v1 v2 v3 h1 h2. by apply: value_uincl_trans h1 h2.
 Qed.
-
 
 Lemma unrollP (fn: funname) (p p': prog) ev mem va va' mem' vr:
   unroll Loop.nb p = ok p' ->
@@ -107,7 +106,8 @@ Lemma compiler_first_partP entries (p: prog) (p': uprog) m fn va m' vr :
     List.Forall2 value_uincl vr vr' &
     psem.sem_call p' tt m fn va m' vr'.
 Proof.
-  rewrite /compiler_first_part; t_xrbindP => pa.
+  rewrite /compiler_first_part; t_xrbindP => pa0.
+  rewrite print_uprogP => ok_pa0 pa.
   rewrite print_uprogP => ok_pa pb.
   rewrite print_uprogP => ok_pb pc.
   rewrite print_uprogP => ok_pc [].
@@ -132,6 +132,7 @@ Proof.
   apply: Ki; first by move => vr'; exact: (dead_calls_err_seqP (sCP:= sCP_unit) ok_pb).
   apply: K; first by move => vr' Hvr'; apply: (inline_call_errP ok_pa va_refl); exact: Hvr'.
   apply: Ki; first by move => vr'; apply: (add_init_fdP).
+  apply: K; first by move=> vr' Hvr'; apply: (array_copy_fdP (sCP := sCP_unit) ok_pa0 va_refl); exact Hvr'.
   apply: Ki; first by move => vr'; exact: psem_call.
   exists vr => //.
   exact: (List_Forall2_refl _ value_uincl_refl).

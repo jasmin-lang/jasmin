@@ -125,6 +125,7 @@ let main () =
     eprint Compiler.Typing Printer.pp_pprog pprog;
 
     let prog = Subst.remove_params pprog in
+    let prog = Inline_array_copy.doit prog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
     begin try
@@ -171,9 +172,7 @@ let main () =
     end;
 
     if !do_compile then begin
-    (* FIXME: why this is not certified *)
-    let prog = Inline_array_copy.doit prog in
-
+  
     (* Now call the coq compiler *)
     let all_vars = Prog.rip :: Regalloc.X64.all_registers in
     let tbl, cprog = Conv.cuprog_of_prog all_vars () prog in
@@ -355,6 +354,11 @@ let main () =
       let cx = Conv.cvar_of_var tbl x' in
       cx.Var0.Var.vname in
 
+    let fresh_counter =
+      let i = Prog.V.mk ("i__copy") Inline tint L._dummy [] in
+      let ci = Conv.cvar_of_var tbl i in
+      ci.Var0.Var.vname in
+
     let var_alloc_fd fd = Regalloc.split_live_ranges fd in
 
     let removereturn sp = 
@@ -406,6 +410,7 @@ let main () =
                                          use_set0 = !Glob_options.set0; };
       Compiler.is_glob     = is_glob;
       Compiler.fresh_id    = fresh_id;
+      Compiler.fresh_counter = fresh_counter;
       Compiler.is_reg_ptr  = is_reg_ptr;
       Compiler.is_ptr      = is_ptr;
       Compiler.is_reg_array = is_reg_array;

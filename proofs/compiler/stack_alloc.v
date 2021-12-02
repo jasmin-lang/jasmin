@@ -1132,6 +1132,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * instr) :
       add_iinfo ii (alloc_call sao rmap ini rs fn es) 
 
     | Cfor _ _ _  => Error (pp_at_ii ii (stk_ierror_no_var "don't deal with for loop"))
+
     end in
   ok (ir.1, MkI ii ir.2).
 

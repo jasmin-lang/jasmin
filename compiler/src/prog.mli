@@ -53,7 +53,6 @@ type 'len ggvar = {
   gs : E.v_scope;
 }
 
-
 type 'len gexpr =
   | Pconst of B.zint
   | Pbool  of bool
@@ -116,6 +115,10 @@ type funname = private {
 type range_dir = UpTo | DownTo
 type 'len grange = range_dir * 'len gexpr * 'len gexpr
 
+(* Warning E.sopn (E.Ocopy) contain a 'len without being polymorphic.
+   Before instr this information is dummy ...
+   This is durty ...
+*)   
 type ('len,'info) ginstr_r =
   | Cassgn of 'len glval * assgn_tag * 'len gty * 'len gexpr
   | Copn   of 'len glvals * assgn_tag * E.sopn * 'len gexprs

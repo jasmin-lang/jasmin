@@ -258,7 +258,7 @@ Module EXTEND. Section PROOFS.
     case ha : assoc => [|// ].
     by have hin := assoc_memP ha; elim hhas2;eauto.
   Qed.
-
+  
   Local Lemma Hopn : forall xs t o es, Pr (Copn xs t o es).
   Proof. by move=> xs t o es ii gd1 gd2 /= [<-]. Qed.
 
@@ -284,7 +284,7 @@ Module EXTEND. Section PROOFS.
     foldM (extend_glob_i is_glob fresh_id) gd1 c = ok gd2 ->
     gd_incl gd1 gd2.
   Proof.
-    apply (@cmd_rect Pr Pi Pc Hmk Hnil Hcons Hasgn Hopn Hif Hfor Hwhile Hcall c).
+    exact: (@cmd_rect Pr Pi Pc Hmk Hnil Hcons Hasgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
 End PROOFS.
