@@ -78,8 +78,8 @@ Section TunnelingSem.
     uniq (labels_of_body fb) &&
     all
       (fun li => 
-         if li is Lgoto (fn',l) then 
-            Llabel l \in (labels_of_body fb)
+         if li is Lgoto (fn'',l) then 
+            (fn' == fn'') && (Llabel l \in (labels_of_body fb))
          else false)
       (goto_targets fb).
   
