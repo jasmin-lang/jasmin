@@ -373,6 +373,18 @@ abbrev [-printing] VPBLEND_16u16 = VPBLENDW_256.
 abbrev [-printing] VPBLEND_8u32 = VPBLENDD_256.
 
 (* ------------------------------------------------------------------- *)
+op VPBLENDVB_128 (v1 v2 m: W128.t) : W128.t =
+  let choose = fun n =>
+    let w = if msb (m \bits8 n) then v2 else v1 in
+    w \bits8 n in
+  pack16 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7;
+          choose 8; choose 9; choose 10; choose 11; choose 12; choose 13; choose 14; choose 15].
+
+op VPBLENDVB_256 (v1 v2 m: W256.t) : W256.t =
+  pack2 [VPBLENDVB_128 (v1 \bits128 0) (v2 \bits128 0) (m \bits128 0);
+         VPBLENDVB_128 (v1 \bits128 1) (v2 \bits128 1) (m \bits128 1)].
+
+(* ------------------------------------------------------------------- *)
 op VPMOVMSKB_u128_u32 (v: W128.t) =
    let vb = W16u8.to_list v in
    W32.bits2w (map W8.msb vb).
