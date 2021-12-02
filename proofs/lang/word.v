@@ -1358,6 +1358,14 @@ Definition wpmovmskb (dsz ssz: wsize) (w : word ssz) : word dsz :=
   wrepr dsz (t2w_def [tuple of map msb (split_vec U8 w)]).
 
 (* -------------------------------------------------------------------*)
+Definition wpblendvb sz (w1 w2 m: word sz): word sz :=
+  let v1 := split_vec U8 w1 in
+  let v2 := split_vec U8 w2 in
+  let b  := map msb (split_vec U8 m)  in
+  let r := map3 (fun bi v1i v2i => if bi then v2i else v1i) b v1 v2 in
+  make_vec sz r.
+
+(* -------------------------------------------------------------------*)
 Lemma pow2pos q : 0 < 2 ^ Z.of_nat q.
 Proof. by rewrite -two_power_nat_equiv. Qed.
 
