@@ -8,6 +8,12 @@
 -arg -ambiguous-paths
 -arg -w
 -arg -duplicate-clear
+-arg -w
+-arg -deprecated-hint-without-locality
+-arg -w
+-arg -deprecated-hint-rewrite-without-locality
+-arg -w
+-arg -deprecated-instance-without-locality
 
 -R 3rdparty Jasmin
 -R arch Jasmin
