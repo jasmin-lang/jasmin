@@ -1097,21 +1097,22 @@ Section TunnelingCompilerProof.
     by case: (IHfb i Hoseq) => j Hj; exists j.+1.
   Qed.
 
-  Lemma labels_of_body_tunnel_plan l fn fb :
+  Lemma labels_of_body_tunnel_plan_partial l fn pfb fb :
     well_formed_body fn fb ->
+    prefix pfb fb ->
     Llabel l \in labels_of_body fb ->
-    Llabel (LUF.find (tunnel_plan fn LUF.empty fb) l) \in labels_of_body fb.
+    Llabel (LUF.find (tunnel_plan fn LUF.empty pfb) l) \in labels_of_body fb.
   Proof.
-    rewrite /tunnel_plan => Hwfb; move: l.
-    pattern fb, fb at 1 3.
-    apply: prefixW => //=.
-    move => c pfb Hprefix IHfb l Hlabelin.
-    have:= (IHfb _ Hlabelin) => {Hlabelin}.
+    rewrite /tunnel_plan => Hwfb.
+    elim/last_ind: pfb l => //=.
+    move => pfb c IHfb l Hprefix Hlabelin.
+    have Hprefix':= (prefix_trans (@prefix_rcons _ pfb c) Hprefix).
+    have:= (IHfb _ Hprefix' Hlabelin) => {Hlabelin}.
     rewrite pairfoldl_rcons; move: IHfb.
     set uf:= pairfoldl _ _ _ _ => IHfb.
     case: last => ii []; case: c Hprefix => li_ii [] //=.
     + move => l' Hprefix l''; rewrite LUF.find_union.
-      case: ifP => // _ _; apply: IHfb.
+      case: ifP => // _ _; apply: IHfb => //.
       apply: (@mem_prefix _ (labels_of_body (rcons pfb {| li_ii := li_ii; li_i := Llabel l' |}))).
       - by apply/prefix_filter/prefix_map.
       by rewrite /labels_of_body map_rcons filter_rcons /= mem_rcons mem_head.
@@ -1122,51 +1123,78 @@ Section TunnelingCompilerProof.
     have:= (@prefix_all _ (goto_targets (rcons pfb {| li_ii := ii; li_i := Lgoto (fn, l') |})) _ _ _ Hall) => {Hall}.
     rewrite /goto_targets {2}map_rcons filter_rcons /= all_rcons => Hall.
     have:= andP (Hall _) => {Hall} -[] //.
-    apply: prefix_filter.
-    move: (prefix_map li_i Hprefix).
-    by rewrite !map_rcons.
+    + apply: prefix_filter.
+      move: (prefix_map li_i Hprefix).
+      by rewrite !map_rcons.
+    move: Hwfb => /andP [_] /allP /(_ (Lgoto (fn, l'))).
+    rewrite eq_refl /= => Himp; apply Himp.
+    have:= (@mem_prefix _ _ _ Hprefix {| li_ii := li_ii; li_i := Lgoto (fn, l') |} _).
+    rewrite -cats1 mem_cat mem_seq1 eq_refl orbT => /(_ isT) => Hin.
+    rewrite /goto_targets mem_filter /=.
+    by apply/mapP; exists {| li_ii := li_ii; li_i := Lgoto (fn, l') |}.
   Qed.
+
+  Lemma labels_of_body_tunnel_plan l fn fb :
+    well_formed_body fn fb ->
+    Llabel l \in labels_of_body fb ->
+    Llabel (LUF.find (tunnel_plan fn LUF.empty fb) l) \in labels_of_body fb.
+  Proof. by move => Hwfb; move: (prefix_refl fb); apply labels_of_body_tunnel_plan_partial. Qed.
 
   Lemma goto_targets_tunnel_partial fn fb l:
     well_formed_body fn fb ->
     Lgoto (fn, l) \in goto_targets (tunnel_partial fn (tunnel_plan fn LUF.empty fb) fb) ->
     Llabel l \in labels_of_body fb.
   Proof.
-    (*
     rewrite /tunnel_plan => Hwfb.
     pattern fb, fb at 2 3.
     apply: prefixW => //=.
-    + by move => i; rewrite /tunnel_partial (@eq_map _ _ _ idfun) ?map_id // => ?; rewrite tunnel_bore_empty.
-    move => c pfb Hprefix IHfb i.
-    rewrite pairfoldl_rcons; move: IHfb.
+    + rewrite /tunnel_partial (@eq_map _ _ _ idfun); last first.
+      - by move => ?; rewrite tunnel_bore_empty.
+      rewrite map_id.
+      move: Hwfb; rewrite /well_formed_body => /andP [_ /allP] Hall Hin.
+      by move: (Hall _ Hin); rewrite eq_refl.
+    move => c pfb Hprefix; rewrite pairfoldl_rcons.
     set uf:= pairfoldl _ _ _ _ => IHfb.
-    case Hlast: last => [ii [ | |l| | | | ]]; case: c Hprefix => ii' [] //=; auto.
-    + move => l' Hprefix.
-      rewrite mem_filter => /andP [].
-      Print goto_targets.
-      case: i => // -[fn'' l''] _.
-      admit.
-    move => [fn' l'] Hprefix; case: ifP; last by auto.
-    move => /eqP ?; subst fn'; rewrite mem_filter => /andP [].
-    case: i => // -[fn'' l''] _.
+    case Hlast: last => [ii [ | |l'| | | | ]]; case: c Hprefix => ii' [] //=; auto.
+    + move => l'' Hprefix; rewrite mem_filter => /andP [_].
+      case/mapP => -[ii'' []] // [fn''' l'''] /= Hin'' [? ?]; subst fn''' l'''; move: Hin''.
+      case/mapP => -[ii''' []] // [fn''' l'''] /= Hin''' [?]; subst ii'''.
+      case: ifP => [/eqP ? [_]|Hneq -[?]]; last first.
+      - by subst; move: Hneq; rewrite eq_refl.
+      subst fn'''; rewrite LUF.find_union.
+      move: IHfb Hprefix Hlast; rewrite /uf; clear uf; case: (lastP pfb) => // {pfb} pfb [iii ll].
+      set uf:= pairfoldl _ _ _ _ => IHfb Hprefix; rewrite last_rcons => -[? ?]; subst iii ll.
+      rewrite (find_plan_partial Hwfb (prefix_trans (prefix_rcons _ _) Hprefix)).
+      case: ifP => [/eqP Heqfind|/negP Hneqfind] ?; subst l; last first.
+      - apply/IHfb; rewrite mem_filter /=; apply/mapP.
+        exists {| li_ii := ii''; li_i := Lgoto (fn, LUF.find uf l''') |} => //=.
+        by apply/mapP; exists {| li_ii := ii''; li_i := Lgoto (fn, l''') |} => //=; rewrite eqxx.
+      have Hprefix':= (prefix_rcons (rcons pfb {| li_ii := ii; li_i := Llabel l' |}) {| li_ii := ii'; li_i := Llabel l'' |}).
+      have Hprefix'':= (prefix_trans Hprefix' Hprefix).
+      move: (@labels_of_body_tunnel_plan_partial l'' _ _ _ Hwfb Hprefix'').
+      rewrite /tunnel_plan -/uf => Himp; apply Himp; rewrite mem_filter /=.
+      apply/mapP; exists {| li_ii := ii'; li_i := Llabel (l'') |} => //=.
+      by apply/(mem_prefix Hprefix); rewrite -cats1 mem_cat mem_seq1 eq_refl orbT.
+    move => [fn'' l''] Hprefix; case: ifP; last by auto.
+    move => /eqP ?; subst fn''; rewrite mem_filter => /andP [_].
     case/mapP => -[ii'' []] // [fn''' l'''] /= Hin'' [? ?]; subst fn''' l'''; move: Hin''.
     case/mapP => -[ii''' []] // [fn''' l'''] /= Hin''' [?]; subst ii'''.
-    case: ifP => [/eqP ? [? ?]|_ ->]; last by rewrite mem_filter /=; apply/mapP; eexists; eauto.
-    subst fn''' fn'' l''; rewrite LUF.find_union.
+    case: ifP => [/eqP ? [_]|Hneq -[?]]; last first.
+    + by subst; move: Hneq; rewrite eq_refl.
+    subst fn'''; rewrite LUF.find_union.
     move: IHfb Hprefix Hlast; rewrite /uf; clear uf; case: (lastP pfb) => // {pfb} pfb [iii ll].
     set uf:= pairfoldl _ _ _ _ => IHfb Hprefix; rewrite last_rcons => -[? ?]; subst iii ll.
     rewrite (find_plan_partial Hwfb (prefix_trans (prefix_rcons _ _) Hprefix)).
-    case: ifP => [/eqP Heqfind|/negP Hneqfind]; last first.
+    case: ifP => [/eqP Heqfind|/negP Hneqfind] ?; subst l; last first.
     + apply/IHfb; rewrite mem_filter /=; apply/mapP.
       exists {| li_ii := ii''; li_i := Lgoto (fn, LUF.find uf l''') |} => //=.
       by apply/mapP; exists {| li_ii := ii''; li_i := Lgoto (fn, l''') |} => //=; rewrite eqxx.
     apply/IHfb; rewrite mem_filter /=; apply/mapP.
-    exists {| li_ii := ii'; li_i := Lgoto (fn, LUF.find uf l') |} => //=.
-    apply/mapP; exists {| li_ii := ii'; li_i := Lgoto (fn, l') |} => //=; last by rewrite eqxx.
+    exists {| li_ii := ii'; li_i := Lgoto (fn, LUF.find uf l'') |} => //=.
+    apply/mapP; exists {| li_ii := ii'; li_i := Lgoto (fn, l'') |} => //=; last by rewrite eqxx.
     move: Hprefix => /prefixP [sfb] ->; rewrite mem_cat mem_rcons in_cons.
-    by apply/orP; left; apply/orP; left.
-    *)
-  Admitted.
+    by apply/orP; left; apply/orP; left; apply/eqP.
+  Qed.
 
   Lemma onthP {T : eqType} (s : seq T) (x : T) :
     reflect (exists2 i , i < size s & oseq.onth s i = Some x) (x \in s).
@@ -1190,7 +1218,7 @@ Section TunnelingCompilerProof.
     case: ifP => [/eqP ? ?|_ ?]; last by subst fd''; apply: (Hwfb _ _ Honth).
     subst fn' fd'; rewrite /lfundef_tunnel_partial /= => {i fd'' Honth}.
     case: (assoc_onth Hgfd) => i Honth; have:= (Hwfb _ _ Honth) => /= {Hwfb Hgfd Honth} Hwf.
-    move: (Hwf); move => /andP [Huniql /all_onthP Hlocalgotos].
+    move: (Hwf); move => /andP [Huniql Hall]; move: (Hall) => /all_onthP Hlocalgotos.
     apply/andP; split; rewrite -labels_of_body_tunnel_partial //.
     apply/all_onthP => {i} i x /onth_goto_targets [j] [ii_x] [[fn' l']] [Honth ?]; subst x.
     move: Honth => /oseq.onthP /andP Hnth; have:= (Hnth Linstr_align) => {Hnth} -[Hsize /eqP Hnth].
@@ -1198,18 +1226,16 @@ Section TunnelingCompilerProof.
     have:= (map_f li_i Hin) => {Hin} /= Hin.
     have: Lgoto (fn', l') \in goto_targets (tunnel_partial fn (tunnel_plan fn LUF.empty (lfd_body fd)) (lfd_body fd)).
     + by rewrite /goto_targets mem_filter.
-    move => {Hin} Hin.
-    (*
-    Print well_formed_lprog.
-    Print well_formed_body.
-
-    Locate well_formed_lprog.
-
-    move/(goto_targets_tunnel_partial Hwf): Hin.
-    move/onthP => [k] Hsize Honth.
-    by apply: Hlocalgotos Honth.
-    *)
-  Admitted.
+    move => {Hin} Hin; move: (Hin); rewrite /goto_targets mem_filter => /andP [_].
+    case/mapP => -[ii'' []] // [fn''' l'''] /= Hin'' [? ?]; subst fn''' l'''; move: Hin''.
+    case/mapP => -[ii''' []] // [fn''' l'''] /= Hin''' [?]; subst ii'''.
+    case: ifP => [/eqP ? [? ?]|Hneq [? ?]].
+    + subst fn''' fn'; apply/andP; split; first by apply/eqP.
+      by move/(goto_targets_tunnel_partial Hwf): Hin.
+    subst fn''' l'''; rewrite Hneq /=;  move: Hall => /allP /(_ (Lgoto (fn', l'))).
+    rewrite /goto_targets mem_filter Hneq /= => -> //.
+    by apply/mapP; exists {| li_ii := ii''; li_i := Lgoto (fn', l') |}.
+  Qed.
 
   Lemma well_formed_partial_tunnel_program fns p :
     well_formed_lprog p ->
