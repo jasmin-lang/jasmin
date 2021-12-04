@@ -289,7 +289,22 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   in
   fun a -> loop a e
 
+type kind = Word | Vector | Unknown of ty
+
+let kind_of_type =
+  function
+  | Bty (U (U8 | U16 | U32 | U64)) -> Word
+  | Bty (U (U128 | U256)) -> Vector
+  | ty -> Unknown ty
+
+(* Only variables that will be allocated to the same “bank” may conflict. *)
+let types_cannot_conflict x y : bool =
+  match kind_of_type x, kind_of_type y with
+  | Word, Word | Vector, Vector -> false
+  | _, _ -> true
+
 let conflicts_add_one tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
+  if types_cannot_conflict v.v_ty w.v_ty then c else
   try
     let i = Hv.find tbl v in
     let j = Hv.find tbl w in
@@ -545,14 +560,6 @@ struct
         | ADExplicit (_, _, None) -> ()) id.i_in es
 
 end
-
-type kind = Word | Vector | Unknown of ty
-
-let kind_of_type =
-  function
-  | Bty (U (U8 | U16 | U32 | U64)) -> Word
-  | Bty (U (U128 | U256)) -> Vector
-  | ty -> Unknown ty
 
 let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
     (f: 'info func) (a: A.allocation) : unit =
