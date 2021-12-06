@@ -1363,7 +1363,7 @@ Section PROOF.
   Lemma find_entry_label fn fd :
     sf_return_address (f_extra fd) ≠ RAnone →
     find_label xH (lfd_body (linear_fd p extra_free_registers fn fd)) = ok 0.
-  Proof. by rewrite /linear_fd; case: sf_return_address. Qed.
+  Proof. by rewrite /linear_fd /linear_body; case: sf_return_address. Qed.
 
   Local Lemma Hcall : sem_Ind_call p extra_free_registers Pi_r Pfun.
   Proof.
@@ -1899,7 +1899,7 @@ Section PROOF.
     - have := get_fundef_p' ok_fd.
       by rewrite ok_fd' => /Some_inj.
     subst fd'.
-    move: ok_fd'; rewrite /linear_fd.
+    move: ok_fd'; rewrite /linear_fd /linear_body /=.
     rewrite /check_to_save in ok_to_save.
     case: sf_return_address free_ra ok_to_save ok_callee_saved ok_save_stack ok_ret_addr X ok_lret exec_body ih ok_sp =>
       /= [ rax_not_magic ok_to_save ok_callee_saved ok_save_stack _ | ra free_ra _ _ _ ok_ret_addr | rastack free_ra _ _ _ ok_ret_addr ] X ok_lret exec_body ih.
@@ -1915,7 +1915,7 @@ Section PROOF.
         rewrite /checked_c ok_fd chk_body => /(_ erefl).
         case: (linear_c fn) ok_fd' => lbl lbody /= ok_fd' E.
         have ok_body : is_linear_of fn (lbody ++ [::]).
-        + by rewrite /is_linear_of cats0 ok_fd' /=; eauto.
+        + by rewrite /is_linear_of cats0 ok_fd' /=; eexists; reflexivity.
         have M' := mm_alloc M ok_m1'.
         case/and3P: ok_save_stack => /eqP sf_align_1 /eqP stk_sz_0 /eqP stk_extra_sz_0.
         have top_stack_preserved : top_stack m1' = top_stack (s1: mem).

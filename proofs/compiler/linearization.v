@@ -310,18 +310,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   | Cfor _ _ _ => (lbl, lc)
   end.
 
-Definition linear_fd (fd: sfundef) :=
-  let e := fd.(f_extra) in
-  let is_export := sf_return_address e == RAnone in
-  let res := if is_export then f_res fd else [::] in
-  {| lfd_info := f_info fd
-  ; lfd_align := sf_align e
-  ; lfd_tyin := f_tyin fd
-  ; lfd_arg := f_params fd
-  ; lfd_tyout := f_tyout fd
-  ; lfd_res := res
-  ; lfd_export := is_export
-  ; lfd_body :=
+Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
   let: (tail, head, lbl) :=
      match sf_return_address e with
      | RAreg r => ([:: MkLI xH (Ligoto (Pvar {| gv := VarI r xH ; gs := Slocal |})) ], [:: MkLI xH (Llabel 1) ], 2%positive)
@@ -348,8 +337,21 @@ Definition linear_fd (fd: sfundef) :=
        end
      end
   in
-  let fd' := linear_c linear_i (f_body fd) lbl tail in
-  head ++ fd'.2
+  let fd' := linear_c linear_i body lbl tail in
+  head ++ fd'.2.
+
+Definition linear_fd (fd: sfundef) :=
+  let e := fd.(f_extra) in
+  let is_export := sf_return_address e == RAnone in
+  let res := if is_export then f_res fd else [::] in
+  {| lfd_info := f_info fd
+  ; lfd_align := sf_align e
+  ; lfd_tyin := f_tyin fd
+  ; lfd_arg := f_params fd
+  ; lfd_tyout := f_tyout fd
+  ; lfd_res := res
+  ; lfd_export := is_export
+  ; lfd_body := linear_body e fd.(f_body)
   |}.
 
 End FUN.
