@@ -594,6 +594,9 @@ Section PROOF.
     by rewrite /get_fundef assoc_map2 => ->.
   Qed.
 
+  Lemma lp_ripE : lp_rip p' = sp_rip p.(p_extra).
+  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ _ <-. Qed.
+
   Local Coercion emem : estate >-> mem.
   Local Coercion evm : estate >-> vmap.
 
@@ -1893,9 +1896,8 @@ Section PROOF.
     move: (checked_prog ok_fd); rewrite /check_fd /=.
     t_xrbindP => - [] chk_body [] ok_to_save _ /assertP ok_stk_sz _ /assertP ok_ret_addr _ /assertP ok_save_stack _.
     have ? : fd' = linear_fd p extra_free_registers fn fd.
-    - move: linear_ok ok_fd ok_fd'; clear.
-      rewrite /linear_prog; t_xrbindP => _ _ _ _ <- /=.
-      by rewrite /get_fundef assoc_map2 => -> [].
+    - have := get_fundef_p' ok_fd.
+      by rewrite ok_fd' => /Some_inj.
     subst fd'.
     move: ok_fd'; rewrite /linear_fd.
     rewrite /check_to_save in ok_to_save.
