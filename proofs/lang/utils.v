@@ -241,7 +241,7 @@ elim: m => //= a m ih ext.
 rewrite ext; [ f_equal | ]; eauto.
 Qed.
 
-Instance mapM_ext eT aT bT :
+Lemma mapM_ext eT aT bT :
   Proper (@eqfun (result eT bT) aT ==> eq ==> eq) (@mapM eT aT bT).
 Proof.
 move => f g ext xs xs' <-{xs'}.
@@ -766,7 +766,7 @@ Section LEX.
     by rewrite /lex;case:cmp1 => //;case:cmp2.
   Qed.
 
-  Instance LexO (C1:Cmp cmp1) (C2:Cmp cmp2) : Cmp lex.
+  Lemma LexO (C1:Cmp cmp1) (C2:Cmp cmp2) : Cmp lex.
   Proof.
     constructor=> [x y | y x z | x y].
     + by apply /lex_sym;apply /cmp_sym.
