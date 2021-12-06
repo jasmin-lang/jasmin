@@ -982,13 +982,13 @@ Proof. by case: z. Qed.
 Lemma ziotaS_cons p z: 0 <= z -> ziota p (Z.succ z) = p :: ziota (p+1) z.
 Proof.
   move=> hz;rewrite /ziota Z2Nat.inj_succ //= Z.add_0_r; f_equal.
-  rewrite -addn1 addnC iota_addl -map_comp.
+  rewrite -addn1 addnC iotaDl -map_comp.
   by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat;Psatz.lia.
 Qed.
 
 Lemma ziotaS_cat p z: 0 <= z -> ziota p (Z.succ z) = ziota p z ++ [:: p + z].
 Proof.
-  by move=> hz;rewrite /ziota Z2Nat.inj_succ // -addn1 iota_add map_cat /= add0n Z2Nat.id.
+  by move=> hz;rewrite /ziota Z2Nat.inj_succ // -addn1 iotaD map_cat /= add0n Z2Nat.id.
 Qed.
 
 Lemma in_ziota (p z i:Z) : (i \in ziota p z) = ((p <=? i) && (i <? p + z)).
