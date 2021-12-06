@@ -633,45 +633,85 @@ let get_friend_registers (dflt: var) (fr: friend) (a: A.allocation) (i: int) (re
     List.find (fun r -> List.mem (Some r) fregs) regs
   with Not_found -> dflt
 
-(* Gets the type of all variables in the list.
-   Fails if the list has variables of different types. *)
-let type_of_vars (vars: var list) : ty =
-  match List.sort_unique Stdlib.compare (List.map (fun x -> x.v_ty) vars) with
-  | [ty] -> ty
-  | _ :: _ ->
-    hierror_reg ~loc:Lnone ~internal:true "heterogeneous class %a"
-      Printer.(pp_list "; " (pp_var ~debug: true)) vars
-  | [] -> assert false
+let schedule_coloring (size: int) (variables: (int, var list) Hashtbl.t) (cnf: conflicts) (a: A.allocation) : int list =
+  let module G = struct type t = (int, IntSet.t) Hashtbl.t end in
+  (* Sets of uncolored nodes of degree below than size, and whether there are uncolored nodes. *)
+  let nodes_of_low_degree (g: G.t) : IntSet.t * bool =
+    Hashtbl.fold (fun i c ((m, _) as acc) ->
+        if A.mem i a then acc
+        else (if IntSet.cardinal c < size then IntSet.add i m else m), true)
+      g (IntSet.empty, false)
+  in
+  (* Remove from g all nodes in v *)
+  let prune (g: G.t) (v: IntSet.t) : unit =
+    Hashtbl.filter_map_inplace
+      (fun i c -> if IntSet.mem i v then None else Some (IntSet.diff c v)) g
+  in
+  (* Heuristic to pick an uncolored node in g *)
+  (* Any uncolored node is valid: the choice made here is arbitrary. *)
+  let pick (g: G.t) : int =
+    let (r, _), _ =
+      Hashtbl.fold (fun i c m -> if A.mem i a then m else (i, c) :: m) g []
+      |> List.map (fun (i, c) -> i, c |> IntSet.filter (fun j -> not (A.mem j a)) |> IntSet.cardinal)
+      |> List.min_max ~cmp:(fun (_, x) (_, y) -> Stdlib.Int.compare y x)
+    in
+    r
+  in
+  let pick_if_empty (g: G.t) (v: IntSet.t) : IntSet.t =
+    if IntSet.is_empty v then pick g |> IntSet.singleton else v
+  in
+  let g = Hashtbl.create 97 in
+  Hashtbl.iter (fun i _ -> Hashtbl.add g i (get_conflicts i cnf)) variables;
+  let rec loop (g: G.t) (order: int list) : int list =
+    let v, continue = nodes_of_low_degree g in
+    if not continue
+    then (assert (IntSet.is_empty v); order)
+    else
+      let v = pick_if_empty g v in
+      prune g v;
+      loop g (IntSet.elements v @ order)
+  in
+  loop g []
+
+let two_phase_coloring
+    (registers: var list)
+    (variables: (int, var list) Hashtbl.t)
+    (cnf: conflicts)
+    (fr: friend)
+    (a: A.allocation) : unit =
+  let size = List.length registers in
+  let schedule = schedule_coloring size variables cnf a in
+  List.iter (fun i ->
+      let has_no_conflict v = does_not_conflict i cnf a v in
+      match List.filter has_no_conflict registers with
+      | [] -> hierror_reg ~loc:Lnone "no more register to allocate “%a”" Printer.(pp_list "; " (pp_var ~debug:true)) (Hashtbl.find variables i)
+      | x :: regs ->
+        (* Any register in [x; regs] is valid: the choice made here is arbitrary. *)
+        let y = get_friend_registers x fr a i regs in
+        A.set i y a
+    ) schedule
 
 let greedy_allocation
     (vars: int Hv.t)
     (nv: int) (cnf: conflicts)
     (fr: friend)
     (a: A.allocation) : unit =
-  let classes : var list array = Array.make nv [] in
-  Hv.iter (fun v i -> classes.(i) <- v :: classes.(i)) vars;
-  let all = Array.init nv (fun i -> i) in
-  let all = all |> Array.map (fun i -> i, get_conflicts i cnf |> IntSet.cardinal) in
-  Array.stable_sort (fun (_, x) (_, y) -> Stdlib.Int.compare y x) all;
-  all |> Array.iter (fun (i, _sz) ->
-    if not (A.mem i a) then (
-      let vi = classes.(i) in
-      if vi <> [] then (
-      let has_no_conflict v = does_not_conflict i cnf a v in
-      let bank =
-        match kind_of_type (type_of_vars vi) with
-        | Word -> X64.allocatable
-        | Vector -> X64.xmm_allocatable
-        | Unknown ty -> hierror_reg ~loc:Lnone "no register bank for type %a" Printer.pp_ty ty
-      in
-      match List.filter has_no_conflict bank with
-      | [] -> hierror_reg ~loc:Lnone "no more register to allocate “%a”" Printer.(pp_list "; " (pp_var ~debug:true)) vi
-      | x :: regs ->
-         let y = get_friend_registers x fr a i regs in
-         A.set i y a
-      )
-    )
-  )
+  let scalars : (int, var list) Hashtbl.t = Hashtbl.create nv in
+  let vectors : (int, var list) Hashtbl.t = Hashtbl.create nv in
+  let push_var tbl i v =
+    match Hashtbl.find tbl i with
+    | old -> Hashtbl.replace tbl i (v :: old)
+    | exception Not_found -> Hashtbl.add tbl i [ v ]
+  in
+  Hv.iter (fun v i ->
+      match kind_of_type v.v_ty with
+      | Word -> push_var scalars i v
+      | Vector -> push_var vectors i v
+      | Unknown _ -> ()
+      ) vars;
+  two_phase_coloring X64.allocatable scalars cnf fr a;
+  two_phase_coloring X64.xmm_allocatable vectors cnf fr a;
+  ()
 
 let var_subst_of_allocation (vars: int Hv.t)
     (a: A.allocation) (v: var) : var =
