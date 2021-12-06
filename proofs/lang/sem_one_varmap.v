@@ -107,6 +107,10 @@ Definition set_RSP m vm : vmap :=
 Definition valid_RSP m (vm: vmap) : Prop :=
   vm.[vrsp] = ok (pword_of_word (top_stack m)).
 
+Remark valid_set_RSP m vm :
+  valid_RSP m (set_RSP m vm).
+Proof. by rewrite /valid_RSP Fv.setP_eq. Qed.
+
 Inductive sem : Sv.t → estate → cmd → estate → Prop :=
 | Eskip s :
     sem Sv.empty s [::] s
