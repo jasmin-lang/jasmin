@@ -1358,7 +1358,28 @@ Section PROOF.
   Proof. Admitted.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p extra_free_registers Pc Pi_r.
-  Proof. Admitted.
+  Proof.
+    move => ii k s1 s2 a c e c' Ec Hc; rewrite p_globs_nil => ok_e fn lbl /checked_iE[] fd ok_fd /=.
+    case: eqP.
+    { (* expression is the “false” literal *)
+      move => ?; subst e.
+      move => ok_c /=.
+      move: {Hc} (Hc fn lbl).
+      rewrite /checked_c ok_fd ok_c => /(_ erefl).
+      case: (linear_c fn c lbl [::]) => lblc lc.
+      move => Hc ok_ii.
+      move => m vm P Q W M X D C.
+      have {Hc} [ m' vm' E K W' X' H' M' ] := Hc m vm P Q W M X D C.
+      exists m' vm'.
+      - exact: E.
+      - apply: vmap_eq_exceptI K; SvD.fsetdec.
+      - exact: W'.
+      - exact: X'.
+      - exact: H'.
+      exact: M'.
+    }
+    (* arbitrary expression *)
+  Admitted.
 
   Lemma find_entry_label fn fd :
     sf_return_address (f_extra fd) ≠ RAnone →
