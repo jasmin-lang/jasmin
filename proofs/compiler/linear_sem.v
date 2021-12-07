@@ -51,7 +51,8 @@ Definition label_in_lcmd (body: lcmd) : seq label :=
 Definition label_in_lprog : seq remote_label :=
   [seq (f.1, lbl) | f <- lp_funcs P, lbl <- label_in_lcmd (lfd_body f.2) ].
 
-Let labels := label_in_lprog.
+#[local]
+Notation labels := label_in_lprog.
 
 (* --------------------------------------------------------------------------- *)
 (* Semantic                                                                    *)

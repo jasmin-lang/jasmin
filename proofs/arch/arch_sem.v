@@ -362,7 +362,8 @@ Definition label_in_asm (body: asm_code) : seq label :=
 Definition label_in_asm_prog : seq remote_label :=
   [seq (f.1, lbl) | f <- asm_funcs p, lbl <- label_in_asm (asm_fd_body f.2) ].
 
-Let labels := label_in_asm_prog.
+#[local]
+Notation labels := label_in_asm_prog.
 
 Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
   match i with
