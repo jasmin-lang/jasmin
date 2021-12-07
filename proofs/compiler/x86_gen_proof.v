@@ -11,6 +11,16 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Lemma assemble_fdI sp rip fd fd' :
+  assemble_fd sp rip fd = ok fd' →
+  var_of_register sp \notin [seq v_var x | x <- lfd_arg fd] ∧
+  exists2 c, assemble_c rip fd.(lfd_body) = ok c & fd' = {| asm_fd_align := lfd_align fd ; asm_fd_arg := [::] ; asm_fd_body := c ; asm_fd_res := [::] ; asm_fd_export := lfd_export fd |}.
+Proof.
+  rewrite /assemble_fd; t_xrbindP => c ok_c _ /assertP ok_sp <-; split.
+  - exact: ok_sp.
+  by exists c.
+Qed.
+
 Lemma assemble_progP p p' :
   assemble_prog p = ok p' →
   let rip := mk_rip p.(lp_rip) in
