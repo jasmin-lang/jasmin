@@ -1367,19 +1367,105 @@ Section PROOF.
       move: {Hc} (Hc fn lbl).
       rewrite /checked_c ok_fd ok_c => /(_ erefl).
       case: (linear_c fn c lbl [::]) => lblc lc.
-      move => Hc ok_ii.
+      move => Hc _.
       move => m vm P Q W M X D C.
       have {Hc} [ m' vm' E K W' X' H' M' ] := Hc m vm P Q W M X D C.
-      exists m' vm'.
-      - exact: E.
-      - apply: vmap_eq_exceptI K; SvD.fsetdec.
-      - exact: W'.
-      - exact: X'.
-      - exact: H'.
-      exact: M'.
+      exists m' vm'; [ exact: E | | exact: W' | exact: X' | exact: H' | exact: M' ].
+      apply: vmap_eq_exceptI K; SvD.fsetdec.
     }
     (* arbitrary expression *)
-  Admitted.
+    t_xrbindP => e_not_trivial [] ok_c ok_c'.
+    replace (is_bool e) with (@None bool);
+      last by case: is_boolP ok_e e_not_trivial => // - [].
+    case: c' ok_c' => [ | i c' ] ok_c'.
+    { (* second body is empty *)
+      rewrite linear_c_nil.
+      move: {Hc} (Hc fn (next_lbl lbl)).
+      rewrite /checked_c ok_fd ok_c => /(_ erefl).
+      case: (linear_c fn c (next_lbl lbl) [::]) => lblc lc.
+      move => Hc _.
+      rewrite /= add_align_nil.
+      move => m vm P Q W M X D.
+      rewrite -cat1s !catA.
+      set prefix := (X in X ++ lc).
+      do 2 rewrite -catA.
+      set suffix := (X in lc ++ X).
+      move => C.
+      have {Hc} [ | m' vm' E  K W' X' H' M' ] := Hc m vm prefix suffix W M X _ C.
+      - apply: disjoint_labels_cat; first apply: disjoint_labels_cat.
+        + apply: disjoint_labels_wL _ D; rewrite /next_lbl; lia.
+        + by case: (a).
+        clear.
+        rewrite /next_lbl => lbl' range.
+        rewrite /is_label /= orbF; apply/eqP; lia.
+      have [ ] := sem_pexpr_uincl X' ok_e.
+      case => // - [] // /(match_mem_sem_pexpr M') {} ok_e _.
+      exists m' vm'; [ | | exact: W' | exact: X' | exact: H' | exact: M' ]; last first.
+      - apply: vmap_eq_exceptI K; SvD.fsetdec.
+      apply: lsem_trans; last apply: (lsem_trans E).
+      - apply: (@lsem_trans _ {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) |}).
+        + subst prefix; case: a C {E} => C; last by rewrite cats0; exact: rt_refl.
+          apply: LSem_step.
+          move: C.
+          rewrite /lsem1 /step -!catA -(addn0 (size _)) => /find_instr_skip ->.
+          by rewrite /eval_instr /= size_cat addn0 addn1.
+        apply: LSem_step.
+        move: C.
+        rewrite /lsem1 /step -catA -(addn0 (size _)) => /find_instr_skip ->.
+        by rewrite /eval_instr /= (size_cat _ [:: _]) addn0 addn1.
+      apply: LSem_step.
+      move: C.
+      rewrite /lsem1 /step catA -(addn0 (size _)) => /find_instr_skip ->.
+      by rewrite /eval_instr /= /to_estate /= ok_e /= (size_cat _ [:: _]) addn0 addn1.
+    }
+    (* general case *)
+    rewrite linear_c_nil.
+    move: {Hc} (Hc fn (next_lbl (next_lbl lbl))).
+    rewrite /checked_c ok_fd ok_c => /(_ erefl).
+    case: (linear_c fn c (next_lbl (next_lbl lbl)) [::]) (valid_c fn c (next_lbl (next_lbl lbl))) => lblc lc.
+    rewrite /next_lbl => -[L V] Hc _.
+    rewrite linear_c_nil.
+    case: (linear_c fn (i :: c') lblc [::]) (valid_c fn (i :: c') lblc) => lblc' lc' [L' V'].
+    rewrite /= add_align_nil.
+    move => m vm P Q W M X D.
+    rewrite -cat1s -(cat1s _ (lc' ++ _)) -(cat1s _ (lc ++ _)) !catA.
+    set prefix := (X in X ++ lc).
+    do 2 rewrite -catA.
+    set suffix := (X in lc ++ X).
+    move => C.
+    have {Hc} [ | m' vm' E  K W' X' H' M' ] := Hc m vm prefix suffix W M X _ C.
+    - subst prefix; move: L' V' D; clear.
+      rewrite /next_lbl => L' V' D.
+      repeat apply: disjoint_labels_cat; try by [].
+      + apply: disjoint_labels_w _ D; lia.
+      + by case: (a).
+      + move => lbl' range; rewrite /is_label /= orbF; apply/eqP; lia.
+      + apply: (valid_disjoint_labels V'); left; lia.
+      move => lbl' range; rewrite /is_label /= orbF; apply/eqP; lia.
+    have [ ] := sem_pexpr_uincl X' ok_e.
+    case => // - [] // /(match_mem_sem_pexpr M') {} ok_e _.
+    exists m' vm'; [ | | exact: W' | exact: X' | exact: H' | exact: M' ]; last first.
+    - apply: vmap_eq_exceptI K; SvD.fsetdec.
+    apply: lsem_trans; last apply: (lsem_trans E).
+    - (* goto *)
+      apply: LSem_step.
+      move: (C).
+      rewrite /lsem1 /step -!catA -{1}(addn0 (size _)) => /find_instr_skip ->.
+      rewrite /eval_instr /= (get_fundef_p' ok_fd) /=.
+      case: C; rewrite (get_fundef_p' ok_fd) => _ /Some_inj <- /= ->.
+      rewrite -!catA find_label_cat_hd; last by apply: D; lia.
+      rewrite find_labelE /= find_label_cat_hd; last by case: (a).
+      rewrite find_labelE /is_label /= eq_sym next_lbl_neq.
+      rewrite find_label_cat_hd; last by apply: (valid_has_not_label V'); lia.
+      rewrite find_labelE /is_label /= eqxx /= /setcpc /=.
+      by rewrite !size_cat /= !addnS !addn0 !addnA !addSn.
+    (* cond false *)
+    apply: LSem_step.
+    move: (C).
+    rewrite /lsem1 /step -(addn0 (size _)) catA => /find_instr_skip ->.
+    rewrite /eval_instr /= ok_e /=.
+    by rewrite !size_cat /= !size_cat /= !addnS !addnA !addn0 !addSn.
+  Qed.
 
   Lemma find_entry_label fn fd :
     sf_return_address (f_extra fd) ≠ RAnone →
