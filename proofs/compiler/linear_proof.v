@@ -1114,7 +1114,7 @@ Section PROOF.
       | None => True
       end.
     + rewrite /kill_extra_register /kill_extra_register_vmap.
-      case: extra_free_registers ok_fr => // fr /and3P [] /eqP hrip /eqP hrsp /eqP hty; split => //=.
+      case: extra_free_registers ok_fr => // fr /and3P [] /eqP hrip /eqP hrsp /andP[] /eqP hty not_while; split => //=.
       rewrite /=; case heq: s1.[fr]%vmap (W fr) (X fr) => [vfr | efr /=].
       + by move=> _ _;rewrite Fv.setP_eq hty.
       rewrite heq; case: vm1.[fr]%vmap.
@@ -1354,7 +1354,7 @@ Section PROOF.
     by rewrite find_labelE /is_label /= eqxx /= /setcpc /Q' !size_cat /= size_cat /= size_cat /= !addnS !addnA.
   Qed.
 
-  Local Lemma Hwhile_true : sem_Ind_while_true p extra_free_registers Pc Pi_r.
+  Local Lemma Hwhile_true : sem_Ind_while_true p extra_free_registers Pc Pi Pi_r.
   Proof. Admitted.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p extra_free_registers Pc Pi_r.

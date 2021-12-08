@@ -122,7 +122,7 @@ Inductive sem : Sv.t → estate → cmd → estate → Prop :=
 
 with sem_I : Sv.t → estate → instr → estate → Prop :=
 | EmkI ii k i s1 s2:
-    (if extra_free_registers ii is Some r then [&& r != vgd, r != vrsp & vtype r == sword Uptr] else true) →
+    (if extra_free_registers ii is Some r then [&& r != vgd, r != vrsp, vtype r == sword Uptr & if i is Cwhile _ _ _ _ then false else true] else true) →
     sem_i ii k (kill_extra_register ii s1) i s2 →
     disjoint k magic_variables →
     sem_I (Sv.union (extra_free_registers_at ii) k) s1 (MkI ii i) s2
@@ -152,7 +152,7 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
     sem k s1 c s2 →
     sem_pexpr gd s2 e = ok (Vbool true) →
     sem k' s2 c' s3 →
-    sem_i ii krec s3 (Cwhile a c e c') s4 →
+    sem_I krec s3 (MkI ii (Cwhile a c e c')) s4 →
     sem_i ii (Sv.union (Sv.union k k') krec) s1 (Cwhile a c e c') s4
 
 | Ewhile_false ii k s1 s2 a c e c' :
@@ -246,7 +246,7 @@ Lemma sem_IE k s i s' :
   let: MkI ii r := i in
   ∃ k',
   [/\
-  ((if extra_free_registers ii is Some r then [&& r != vgd, r != vrsp & vtype r == sword Uptr] else true) : bool),
+  ((if extra_free_registers ii is Some fr then [&& fr != vgd, fr != vrsp, vtype fr == sword Uptr & if r is Cwhile _ _ _ _ then false else true] else true) : bool),
   sem_i ii k' (kill_extra_register ii s) r s',
   disjoint k' magic_variables &
   k = Sv.union (extra_free_registers_at ii) k' ].
@@ -264,7 +264,7 @@ Lemma sem_iE ii k s i s' :
   | Cwhile a c e c' =>
     ∃ kc si b,
        [/\ sem kc s c si, sem_pexpr gd si e = ok (Vbool b) &
-                       if b then ex3_3 (λ k' krec _, k = Sv.union (Sv.union kc k') krec) (λ k' _ sj, sem k' si c' sj) (λ _ krec sj, sem_i ii krec sj (Cwhile a c e c') s') else si = s' ∧ kc = k ]
+                       if b then ex3_3 (λ k' krec _, k = Sv.union (Sv.union kc k') krec) (λ k' _ sj, sem k' si c' sj) (λ _ krec sj, sem_I krec sj (MkI ii (Cwhile a c e c')) s') else si = s' ∧ kc = k ]
   | Ccall ini res f args =>
     exists2 xargs,
     mapM get_pvar args = ok xargs &
@@ -343,7 +343,7 @@ Section SEM_IND.
 
   Definition sem_Ind_mkI : Prop :=
     ∀ (ii : instr_info) (k: Sv.t) (i : instr_r) (s1 s2 : estate),
-      (if extra_free_registers ii is Some r then [&& r != vgd, r != vrsp & vtype r == sword Uptr] else true) →
+      (if extra_free_registers ii is Some r then [&& r != vgd, r != vrsp, vtype r == sword Uptr & if i is Cwhile _ _ _ _ then false else true] else true) →
       sem_i ii k (kill_extra_register ii s1) i s2 →
       Pi_r ii k (kill_extra_register ii s1) i s2 →
       disjoint k magic_variables →
@@ -378,7 +378,7 @@ Section SEM_IND.
     sem k s1 c s2 → Pc k s1 c s2 →
     sem_pexpr gd s2 e = ok (Vbool true) →
     sem k' s2 c' s3 → Pc k' s2 c' s3 →
-    sem_i ii krec s3 (Cwhile a c e c') s4 → Pi_r ii krec s3 (Cwhile a c e c') s4 → Pi_r ii (Sv.union (Sv.union k k') krec) s1 (Cwhile a c e c') s4.
+    sem_I krec s3 (MkI ii (Cwhile a c e c')) s4 → Pi krec s3 (MkI ii (Cwhile a c e c')) s4 → Pi_r ii (Sv.union (Sv.union k k') krec) s1 (Cwhile a c e c') s4.
 
   Definition sem_Ind_while_false : Prop :=
     ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate) a (c : cmd) (e : pexpr) (c' : cmd),
@@ -453,7 +453,7 @@ Section SEM_IND.
       @Hif_false ii k s1 s2 e1 c1 c2 e2 s0 (@sem_Ind k s1 c2 s2 s0)
     | @Ewhile_true ii k k' krec s1 s2 s3 s4 a c e1 c' s0 e2 s5 s6 =>
       @Hwhile_true ii k k' krec s1 s2 s3 s4 a c e1 c' s0 (@sem_Ind k s1 c s2 s0) e2 s5 (@sem_Ind k' s2 c' s3 s5) s6
-          (@sem_i_Ind ii krec s3 (Cwhile a c e1 c') s4 s6)
+          (@sem_I_Ind krec s3 (MkI ii (Cwhile a c e1 c')) s4 s6)
     | @Ewhile_false ii k s1 s2 a c e1 c' s0 e2 =>
       @Hwhile_false ii k s1 s2 a c e1 c' s0 (@sem_Ind k s1 c s2 s0) e2
     | @Ecall ii k s1 s2 ini res fn args xargs xres hargs hres exec =>

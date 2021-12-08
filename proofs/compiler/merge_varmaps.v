@@ -192,8 +192,11 @@ Section CHECK.
   Fixpoint check_i (sz: wsize) (D:Sv.t) (i: instr) : cexec Sv.t :=
     let: MkI ii ir := i in
     Let _ :=
-      assert (if extra_free_registers ii is Some r then vtype r == sword Uptr else true)
-         (E.internal_error ii "bad type for extra free register") in
+      if extra_free_registers ii is Some r
+      then
+        assert (vtype r == sword Uptr) (E.internal_error ii "bad type for extra free register") >>
+        assert (if ir is Cwhile _ _ _ _ then false else true) (E.internal_error ii "loops need no extra register")
+      else ok tt in
     check_ir sz ii (add_extra_free_registers ii D) ir
 
   with check_ir sz ii D ir :=

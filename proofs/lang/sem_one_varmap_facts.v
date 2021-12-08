@@ -44,7 +44,7 @@ Proof. by []. Qed.
 Lemma Hif_false : sem_Ind_if_false p extra_free_registers Pc Pi_r.
 Proof. by []. Qed.
 
-Lemma Hwhile_true : sem_Ind_while_true p extra_free_registers Pc Pi_r.
+Lemma Hwhile_true : sem_Ind_while_true p extra_free_registers Pc Pi Pi_r.
 Proof.
   move => ii k k' krec s1 s2 s3 s4 aa c e c' _ A _ _ B _ C; red.
   etransitivity; first exact: A.
@@ -166,7 +166,7 @@ Proof. by []. Qed.
 Lemma Hif_false_nw : sem_Ind_if_false p extra_free_registers Pc Pi_r.
 Proof. by []. Qed.
 
-Lemma Hwhile_true_nw : sem_Ind_while_true p extra_free_registers Pc Pi_r.
+Lemma Hwhile_true_nw : sem_Ind_while_true p extra_free_registers Pc Pi Pi_r.
 Proof.
   move => ii k k' krec s1 s2 s3 s4 a c e c' _ ih _ _ ih' _ ihrec.
   apply: vmap_eq_exceptTI.
@@ -306,7 +306,7 @@ Proof. by []. Qed.
 Lemma Hif_false_pm : sem_Ind_if_false p extra_free_registers Pc Pi_r.
 Proof. by []. Qed.
 
-Lemma Hwhile_true_pm : sem_Ind_while_true p extra_free_registers Pc Pi_r.
+Lemma Hwhile_true_pm : sem_Ind_while_true p extra_free_registers Pc Pi Pi_r.
 Proof. by []. Qed.
 
 Lemma Hwhile_false_pm : sem_Ind_while_false p extra_free_registers Pc Pi_r.
@@ -414,7 +414,7 @@ Proof. by []. Qed.
 Lemma validw_stable_if_false : sem_Ind_if_false p extra_free_registers Pc Pi_r.
 Proof. by []. Qed.
 
-Lemma validw_stable_while_true : sem_Ind_while_true p extra_free_registers Pc Pi_r.
+Lemma validw_stable_while_true : sem_Ind_while_true p extra_free_registers Pc Pi Pi_r.
 Proof.
   move => ii k k' krec s1 s2 s3 s4 aa c e c' _ A _ _ B _ C; red.
   etransitivity; first exact: A.
