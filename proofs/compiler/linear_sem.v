@@ -207,6 +207,15 @@ Proof.
   by move => <-; right; apply: (lsem_trans _ Hp22'); apply: rt_step.
 Qed.
 
+Lemma lsem_split_start a z :
+  lsem a z →
+  a = z ∨ exists2 b, lsem1 a b & lsem b z.
+Proof.
+  case/clos_rt_rt1n_iff; first by left.
+  by move => b{}z ab /clos_rt_rt1n_iff bz; right; exists b.
+Qed.
+
+
 End LSEM.
 
 (*

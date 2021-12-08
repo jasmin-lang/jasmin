@@ -1354,8 +1354,130 @@ Section PROOF.
     by rewrite find_labelE /is_label /= eqxx /= /setcpc /Q' !size_cat /= size_cat /= size_cat /= !addnS !addnA.
   Qed.
 
+  (* Inversion lemmas about lsem: can skip align and label instructions *)
+  Lemma lsem_skip_align m vm fn P m' vm' n ii a Q :
+    is_linear_of fn (P ++ add_align ii a [::] ++ Q) →
+    lsem p' {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size P |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) + n |} →
+    lsem p' {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) + n |}.
+  Proof.
+    case: a; last by rewrite cats0.
+    move => C /lsem_split_start[].
+    - rewrite size_cat => - [] _ _ K; exfalso; move: K; clear.
+      rewrite /addn /addn_rec; lia.
+    case => s h E; apply: lsem_trans E.
+    move: C h; rewrite /lsem1 /step -{1}(addn0 (size _)) => /find_instr_skip ->.
+    rewrite /eval_instr /= /setpc => /ok_inj <-{s} /=.
+    rewrite size_cat /= addn1.
+    exact: rt_refl.
+  Qed.
+
+  Lemma lsem_skip_label m vm fn P m' vm' n ii lbl Q :
+    is_linear_of fn (P ++ [:: {| li_ii := ii ; li_i := Llabel lbl |} ] ++ Q) →
+    lsem p' {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size P |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size P + n.+1 |} →
+    lsem p' {| lmem := m ; lvm := vm ; lfn := fn ; lpc := (size P).+1 |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size P + n.+1 |}.
+  Proof.
+    move => C /lsem_split_start[].
+    - case => _ _ K; exfalso; move: K; clear.
+      rewrite /addn /addn_rec; lia.
+    case => s h E; apply: lsem_trans E.
+    move: C h; rewrite /lsem1 /step -{1}(addn0 (size _)) => /find_instr_skip ->.
+    rewrite /eval_instr /= /setpc => /ok_inj <-{s} /=.
+    exact: rt_refl.
+  Qed.
+
   Local Lemma Hwhile_true : sem_Ind_while_true p extra_free_registers Pc Pi Pi_r.
-  Proof. Admitted.
+  Proof.
+    red. clear Pfun.
+    move => ii k k' krec s1 s2 s3 s4 a c e c' Ec Hc ok_e Ec' Hc' Ew Hw.
+    move => fn lbl /checked_iE[] fd ok_fd /=.
+    set ι := λ i, {| li_ii := ii ; li_i := i |}.
+    have {Hw} := Hw fn lbl.
+    rewrite /checked_i ok_fd /=.
+    case: eqP.
+    - by move => ?; subst e.
+    t_xrbindP => e_neq_false Hw [] ok_c ok_c'.
+    move: Hw.
+    rewrite ok_c ok_c' => /(_ erefl).
+    move: ok_e Ew e_neq_false.
+    case: is_boolP.
+    { (* expression is the “true” literal *)
+      (* The context is inconsistent, but well, do the proof nonetheless *)
+      case => // _ Ew _.
+      rewrite linear_c_nil.
+      move: {Hc'} (Hc' fn (next_lbl lbl)).
+      rewrite /checked_c ok_fd ok_c' => /(_ erefl).
+      case: (linear_c fn c' (next_lbl lbl) [::]) (valid_c fn c' (next_lbl lbl)) => lblc' lc'.
+      rewrite /next_lbl => - [L' V'] Hc'.
+      rewrite linear_c_nil.
+      move: {Hc} (Hc fn lblc').
+      rewrite /checked_c ok_fd ok_c => /(_ erefl).
+      case: (linear_c fn c lblc' [::]) (valid_c fn c lblc') => lblc lc [L V] Hc /= Hw _.
+      rewrite add_align_nil.
+      move => m vm P Q W M X D C.
+      have {Hc} := Hc m vm (P ++ add_align ii a [::] ++ [:: ι (Llabel lbl) ]) (lc' ++ [:: ι (Lgoto (fn, lbl)) ] ++ Q) W M X.
+      case.
+      - apply: disjoint_labels_cat; last apply: disjoint_labels_cat.
+        + apply: disjoint_labels_wL D; lia.
+        + by case: (a).
+        move => lbl' range; rewrite /is_label /= orbF; apply/eqP; lia.
+      - by move: C; rewrite -!/(ι _) /= -!catA /= -!catA cat1s.
+      move => m1 vm1 E1 K1 W1 X1 H1 M1.
+      have {Hc'} := Hc' m1 vm1 ((P ++ add_align ii a [::] ++ [:: ι (Llabel lbl) ]) ++ lc) ([:: ι (Lgoto (fn, lbl)) ] ++ Q) W1 M1 X1.
+      case.
+      - repeat apply: disjoint_labels_cat.
+        + apply: disjoint_labels_w D; lia.
+        + by case: (a).
+        + move => lbl' range; rewrite /is_label /= orbF; apply/eqP; lia.
+        apply: (valid_disjoint_labels V); left; lia.
+      - by move: C; rewrite /= -!catA /= -!catA.
+      move => m2 vm2 E2 K2 W2 X2 H2 M2.
+      have {Hw} := Hw m2 vm2 P Q W2 M2 X2 D.
+      case.
+      - by rewrite add_align_nil.
+      move => m3 vm3 E3 K3 W3 X3 H3 M3.
+      exists m3 vm3; [ | | exact: W3 | exact: X3 | | exact: M3 ]; cycle 1.
+      - transitivity vm2; last (apply: vmap_eq_exceptI K3; SvD.fsetdec).
+        transitivity vm1; last (apply: vmap_eq_exceptI K2; SvD.fsetdec).
+        apply: vmap_eq_exceptI K1; SvD.fsetdec.
+      - etransitivity; first exact: H1.
+        apply: preserved_metadataE; last (etransitivity; first exact: H2); last first.
+        + apply: preserved_metadataE; last exact: H3.
+          * exact: sem_stack_stable Ec'.
+          exact: sem_validw_stable Ec'.
+        + exact: sem_validw_stable Ec.
+        exact: sem_stack_stable Ec.
+      apply: lsem_trans; last apply: (lsem_trans E1); last apply: (lsem_trans E2).
+      - (* align; label *)
+        apply: (@lsem_step_end p' {| lfn := fn; lpc := size (P ++ add_align ii a [::]) |}); last first.
+        + move: C.
+          rewrite -!catA catA -{1}(addn0 (size _)) /lsem1 /step => /find_instr_skip ->.
+          rewrite /eval_instr /= /setpc /= addn0 !size_cat addnA addn1.
+          reflexivity.
+        case: a C {Ew E1 E2 E3} => C; last first.
+        + rewrite cats0; exact: rt_refl.
+        apply: LSem_step.
+        move: C.
+        rewrite -catA /lsem1 /step -{1}(addn0 (size _)) => /find_instr_skip ->.
+        by rewrite /eval_instr /= /setpc /= size_cat /= addn1.
+      apply: lsem_step.
+      - move: (C).
+        rewrite -cat1s !catA -catA.
+        rewrite /lsem1 /step -{1}(addn0 (size _)) => /find_instr_skip ->.
+        rewrite /eval_instr /= (get_fundef_p' ok_fd) /= /setcpc /=.
+        case: C; rewrite (get_fundef_p' ok_fd) => _ /Some_inj <- /= ->.
+        rewrite find_label_cat_hd; last by apply: D; lia.
+        rewrite -!catA find_label_cat_hd; last by case: (a).
+        rewrite find_labelE /= /is_label /= eqxx /= addn0.
+        reflexivity.
+      rewrite add_align_nil catA size_cat in E3.
+      rewrite -!catA in C.
+      have {} E3 := lsem_skip_align C E3.
+      rewrite !catA -cat1s -!catA catA in C.
+      have := lsem_skip_label C E3.
+      rewrite -/(size _) !size_cat /= !size_cat /= !addnA.
+      exact.
+    }
+  Admitted.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p extra_free_registers Pc Pi_r.
   Proof.
