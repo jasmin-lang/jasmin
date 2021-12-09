@@ -305,6 +305,23 @@ Proof.
   exact: m'_mi'.
 Qed.
 
+Lemma compiler_back_end_meta entries (p: sprog) (tp: lprog) :
+  compiler_back_end cparams entries p = ok tp →
+  [/\
+     lp_rip tp = p.(p_extra).(sp_rip),
+     lp_rsp tp = p.(p_extra).(sp_rsp) &
+     lp_globs tp = p.(p_extra).(sp_globs)
+  ].
+Proof.
+  rewrite /compiler_back_end; t_xrbindP => _ _ _ _ lp ok_lp p2.
+  rewrite !print_linearP => ok_tp ?; subst p2.
+  have [ <- [] <- [] <- _ ] := tunnel_program_invariants ok_tp.
+  split.
+  - exact: lp_ripE ok_lp.
+  - exact: lp_rspE ok_lp.
+  exact: lp_globsE ok_lp.
+Qed.
+
 Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) m fn args m' res :
   compiler_back_end cparams entries p = ok tp →
   fn \in entries →

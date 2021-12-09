@@ -597,6 +597,12 @@ Section PROOF.
   Lemma lp_ripE : lp_rip p' = sp_rip p.(p_extra).
   Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ _ <-. Qed.
 
+  Lemma lp_rspE : lp_rsp p' = sp_rsp p.(p_extra).
+  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ _ <-. Qed.
+
+  Lemma lp_globsE : lp_globs p' = sp_globs p.(p_extra).
+  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ _ <-. Qed.
+
   Local Coercion emem : estate >-> mem.
   Local Coercion evm : estate >-> vmap.
 
