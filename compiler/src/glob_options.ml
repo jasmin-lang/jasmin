@@ -85,7 +85,7 @@ let print_strings = function
   | Compiler.RegAllocation               -> "ralloc"   , "register allocation"
   | Compiler.DeadCode_RegAllocation      -> "rallocd"  , "dead code after register allocation"
  
-  | Compiler.Linearisation               -> "linear"   , "linearisation"
+  | Compiler.Linearization               -> "linear"   , "linearization"
   | Compiler.Tunneling                   -> "tunnel"   , "tunneling"
   | Compiler.Assembly                    -> "asm"      , "generation of assembly"
 

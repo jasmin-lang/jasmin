@@ -67,6 +67,7 @@ End E.
 
 Section REMOVE.
 
+  Context `{asmop:asmOp}.
   Context (is_glob : var -> bool).
   Context (fresh_id : glob_decls -> var -> Ident.ident).
 

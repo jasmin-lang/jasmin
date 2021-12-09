@@ -103,6 +103,9 @@ Module WArray.
 
   Global Opaque PointerZ.
 
+  Section WITH_POINTER_DATA.
+  Context {pd: PointerData}.
+
   Lemma is_align_scale (p:pointer) ws : is_align (p * mk_scale AAscale ws)%Z ws.
   Proof. by rewrite /is_align /mk_scale /= Z_mod_mult. Qed.
 
@@ -188,7 +191,7 @@ Module WArray.
 
   Definition fcopy ws len (a t: WArray.array len) i j := 
     foldM (fun i t => 
-             Let w := WArray.get AAscale ws a i in WArray.set t AAscale i w) t
+             Let w := get AAscale ws a i in set t AAscale i w) t
           (ziota i j).
 
   Definition copy ws p (a:array (Z.to_pos (arr_size ws p))) := 
@@ -244,7 +247,9 @@ Module WArray.
     move=> [l1 h1] [l2 h2]; split; first by lia.
     by move=> ?? /h1 /h2.
   Qed.
- 
+
+  End WITH_POINTER_DATA.
+
   Lemma castK len (a:array len) : WArray.cast len a = ok a.
   Proof. by rewrite /cast Z.leb_refl; case: a. Qed.
 

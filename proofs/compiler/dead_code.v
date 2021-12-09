@@ -44,6 +44,10 @@ Module Import E.
 
 End E.
 
+Section ASM_OP.
+
+Context `{asmop : asmOp}.
+
 Definition dead_code_c (dead_code_i: instr -> Sv.t -> cexec (Sv.t * cmd))
                        c s :  cexec (Sv.t * cmd):=
   foldr (fun i r =>
@@ -80,17 +84,20 @@ Section LOOP.
 
 End LOOP.
 
+(* Architecture-dependent check that an op is a move *)
+Context (is_move_op : asm_op_t -> option wsize).
+
 Definition check_nop (rv:lval) ty (e:pexpr) :=
   match rv, e with
   | Lvar x1, Pvar x2 => is_lvar x2 && (x1.(v_var) == x2.(gv).(v_var)) && (subtype ty (vtype x1.(v_var)))
   | _, _ => false
   end.
 
-(* TODO: this should be factorized out to be independant of x86 *)
 Definition check_nop_opn (xs:lvals) (o: sopn) (es:pexprs) :=
   match xs, o, es with
-  | [:: x], Ox86' (None, MOV sz), [:: e] => check_nop x (sword sz) e
-  | [:: x], Ox86' (None, VMOVDQU sz), [:: e] => check_nop x (sword sz) e
+  | [:: x], Oasm op, [:: e] =>
+    if is_move_op op is Some sz then check_nop x (sword sz) e
+    else false
   | _, _, _ => false
   end.
 
@@ -207,4 +214,5 @@ End ONFUN.
 
 Definition dead_code_prog {T} {pT:progT T} (p:prog) do_nop :=
   @dead_code_prog_tokeep do_nop (fun _ => None) T pT p.
-  
+
+End ASM_OP.

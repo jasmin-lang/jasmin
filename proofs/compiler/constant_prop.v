@@ -446,6 +446,10 @@ Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
     else m
   else m.
 
+Section ASM_OP.
+
+Context `{asmop:asmOp}.
+
 Section CMD.
 
   Variable const_prop_i : cpm -> instr -> cpm * cmd.
@@ -529,3 +533,5 @@ Definition const_prop_fun (f:fundef) :=
 Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p.
 
 End Section.
+
+End ASM_OP.

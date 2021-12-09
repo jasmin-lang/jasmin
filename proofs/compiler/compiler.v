@@ -28,20 +28,28 @@ Require Import x86_gen expr.
 Import ZArith.
 Require merge_varmaps.
 Require Import compiler_util allocation array_copy array_init inline dead_calls unrolling remove_globals
-   constant_prop propagate_inline dead_code array_expansion lowering makeReferenceArguments stack_alloc linearization tunneling x86_sem.
+   constant_prop propagate_inline dead_code array_expansion lowering makeReferenceArguments stack_alloc linearization tunneling.
+Require Import x86_decl x86_sem x86_extra.
+Require x86_stack_alloc x86_linearization.
 Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(* Parameters specific to the architecture. *)
+Definition mov_ofs := x86_stack_alloc.x86_mov_ofs.
+Definition var_tmp := to_var RAX.
+Definition lparams := x86_linearization.x86_linearization_params.
 
-Instance pT : progT [eqType of unit] := progUnit.
+Section IS_MOVE_OP.
+
+Context (is_move_op : asm_op_t -> option wsize).
 
 Definition unroll1 (p:uprog) : cexec uprog:=
   let p := unroll_prog p in
   let p := const_prop_prog p in
-  dead_code_prog p false.
+  dead_code_prog is_move_op p false.
 
 (* FIXME: error really not clear for the user *)
 (* TODO: command line option to specify the unrolling depth,
@@ -57,6 +65,8 @@ Fixpoint unroll (n:nat) (p:uprog) :=
   end.
 
 Definition unroll_loop (p:prog) := unroll Loop.nb p.
+
+End IS_MOVE_OP.
 
 Section COMPILER.
 
@@ -81,7 +91,7 @@ Variant compiler_step :=
   | RemoveReturn                : compiler_step
   | RegAllocation               : compiler_step
   | DeadCode_RegAllocation      : compiler_step
-  | Linearisation               : compiler_step
+  | Linearization               : compiler_step
   | Tunneling                   : compiler_step
   | Assembly                    : compiler_step.
 
@@ -109,7 +119,7 @@ Definition compiler_step_list := [::
   ; RemoveReturn
   ; RegAllocation
   ; DeadCode_RegAllocation
-  ; Linearisation
+  ; Linearization
   ; Tunneling
   ; Assembly
 ].
@@ -161,10 +171,19 @@ Record compiler_params := {
   is_reg_array     : var -> bool;
 }.
 
+(* Architecture-dependent functions *)
+Record architecture_params := mk_aparams {
+  is_move_op       : asm_op_t -> option wsize
+}.
+
+#[local]
+Existing Instance progUnit.
+
 Definition var_alloc_prog cp (p: _uprog) : _uprog :=
   map_prog_name cp.(var_alloc_fd) p.
 
 Variable cparams : compiler_params.
+Variable aparams : architecture_params.
 
 (* Ensure that export functions are preserved *)
 Definition check_removereturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
@@ -195,7 +214,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let p := dead_calls_err_seq to_keep p in
   let p := cparams.(print_uprog) RemoveUnusedFunction p in
 
-  Let p := unroll Loop.nb p in
+  Let p := unroll aparams.(is_move_op) Loop.nb p in
   let p := cparams.(print_uprog) Unrolling p in
 
   let p := const_prop_prog p in
@@ -204,7 +223,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let pv := var_alloc_prog cparams p in
   let pv := cparams.(print_uprog) AllocInlineAssgn pv in
   Let _ := CheckAllocRegU.check_prog p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
-  Let pv := dead_code_prog pv false in
+  Let pv := dead_code_prog aparams.(is_move_op) pv false in
   let pv := cparams.(print_uprog) DeadCode_AllocInlineAssgn pv in
 
   let pr := remove_init_prog cparams.(is_reg_array) pv in
@@ -234,14 +253,14 @@ Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog 
 
   let rminfo := cparams.(removereturn) ps in
   Let _ := check_removereturn entries rminfo in
-  Let pr := dead_code_prog_tokeep false rminfo ps in
+  Let pr := dead_code_prog_tokeep aparams.(is_move_op) false rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
   let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
   Let _ := CheckAllocRegS.check_prog pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 
-  Let pd := dead_code_prog pa true in
+  Let pd := dead_code_prog aparams.(is_move_op) pa true in
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
 
   ok pd.
@@ -254,8 +273,9 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
 
   let ao := cparams.(stackalloc) pl in
   Let _ := check_no_ptr entries ao.(ao_stack_alloc) in
-  Let ps :=
-     stack_alloc.alloc_prog true
+  Let ps := stack_alloc.alloc_prog
+       true
+       mov_ofs
        cparams.(global_static_data_symbol)
        cparams.(stack_register_symbol)
        ao.(ao_globals) ao.(ao_global_alloc)
@@ -277,9 +297,9 @@ Definition check_export entries (p: sprog) : cexec unit :=
 Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
-  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) in
-  Let pl := linear_prog pd cparams.(extra_free_registers) in
-  let pl := cparams.(print_linear) Linearisation pl in
+  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp in
+  Let pl := linear_prog pd cparams.(extra_free_registers) lparams in
+  let pl := cparams.(print_linear) Linearization pl in
   (* tunneling                         *)
   Let pl := tunnel_program pl in
   let pl := cparams.(print_linear) Tunneling pl in

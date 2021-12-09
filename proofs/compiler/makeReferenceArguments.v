@@ -44,6 +44,7 @@ End E.
 
 Section Section.
 
+Context `{asmop:asmOp}.
 Context (is_reg_ptr : var -> bool) (fresh_id : glob_decls -> var -> Ident.ident).
 Context {T} {pT:progT T}.
 Context (p : prog).

@@ -28,7 +28,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Import ZArith psem compiler_util.
+Require Import ZArith psem compiler_util lea_proof arch_extra x86_instr_decl x86_extra.
 Require Export lowering.
 Import Utf8.
 Import Psatz.
@@ -517,332 +517,6 @@ Section PROOF.
 
   (* ---------------------------------------------------------- *)
 
-  Definition sem_lea sz vm l : exec (word sz) :=
-    Let base :=
-      oapp (fun (x:var_i) => get_var vm x >>= to_word sz) (ok 0%R) l.(lea_base) in
-    Let offset :=
-      oapp (fun (x:var_i) => get_var vm x >>= to_word sz) (ok 0%R) l.(lea_offset) in
-    ok (zero_extend sz l.(lea_disp) + (base + (zero_extend sz l.(lea_scale) * offset)))%R.
-
-  Lemma lea_constP sz w vm : sem_lea sz vm (lea_const w) = ok (zero_extend sz w).
-  Proof. by rewrite /sem_lea /lea_const /=; f_equal; ssring. Qed.
-
-  Lemma lea_varP x sz vm : sem_lea sz vm (lea_var x) = get_var vm x >>= to_word sz.
-  Proof.
-    rewrite /sem_lea /lea_var /=.
-    case: (Let _ := get_var _ _ in _) => //= w.
-    rewrite zero_extend0 zero_extend1; f_equal; ssring.
-  Qed.
-
-  Lemma mkLeaP sz d b sc o vm w :
-    sem_lea sz vm (MkLea d b sc o) = ok w ->
-    sem_lea sz vm (mkLea d b sc o) = ok w.
-  Proof.
-  rewrite /mkLea; case: eqP => // ->; rewrite /sem_lea /=; t_xrbindP => w1 -> /= w2 _ <-.
-  f_equal; rewrite zero_extend0 zero_extend1; ssring.
-  Qed.
-
-  Lemma lea_mulP sz l1 l2 w1 w2 l vm :
-    (sz <= U64)%CMP ->  
-    sem_lea sz vm l1 = ok w1 -> sem_lea sz vm l2 = ok w2 ->
-    lea_mul l1 l2 = Some l ->
-    sem_lea sz vm l = ok (w1 * w2)%R.
-  Proof.
-    move=> hsz. 
-    case: l1 l2 => d1 [b1|] sc1 [o1|] [d2 [b2|] sc2 [o2|]] //=; rewrite {1 2}/sem_lea /=.
-    + apply: rbindP => wb1 Hb1 [<-] [<-] [<-];apply mkLeaP;rewrite /sem_lea /= Hb1 /=.
-      by f_equal; rewrite wmul_zero_extend //; ssring.
-    + apply: rbindP => wo1 Ho1 [<-] [<-] [<-];apply mkLeaP;rewrite /sem_lea /= Ho1 /=.
-      by f_equal; rewrite !wmul_zero_extend //; ssring.
-    + move=> [<-];apply: rbindP => wb2 Hb2 [<-] [<-];apply mkLeaP;rewrite /sem_lea /= Hb2 /=.
-      by f_equal; rewrite wmul_zero_extend //; ssring.
-    + move=> [<-];apply: rbindP => wo2 Ho2 [<-] [<-];apply mkLeaP;rewrite /sem_lea /= Ho2 /=.
-      by f_equal; rewrite !wmul_zero_extend //; ssring.
-    move=> [<-] [<-] [<-].
-    by rewrite lea_constP; f_equal; rewrite wmul_zero_extend //; ssring.
-  Qed.
-
-  Lemma lea_addP sz l1 l2 w1 w2 l vm :
-    (sz <= U64)%CMP ->
-    sem_lea sz vm l1 = ok w1 -> sem_lea sz vm l2 = ok w2 ->
-    lea_add l1 l2 = Some l ->
-    sem_lea sz vm l = ok (w1 + w2)%R.
-  Proof.
-    move=> hsz.
-    case: l1 l2 => d1 [b1|] sc1 [o1|] [d2 [b2|] sc2 [o2|]] //=; rewrite {1 2}/sem_lea /=.
-    + by apply: rbindP => wb1 Hb1; apply: rbindP => wo1 Ho1 [<-] [<-] [<-];
-       apply mkLeaP;rewrite /sem_lea /= Hb1 /= Ho1 /=; f_equal; rewrite !wadd_zero_extend //; ssring.
-    + by apply: rbindP => wb1 Hb1 [<-]; apply: rbindP => wb2 Hb2 [<-] [<-];
-        apply mkLeaP;rewrite /sem_lea /= Hb1 /= Hb2 /=; f_equal; rewrite !wadd_zero_extend // zero_extend1; ssring.
-    + by apply: rbindP => wb1 Hb1 [<-]; apply: rbindP => wo2 Ho2 [<-] [<-];
-        apply mkLeaP;rewrite /sem_lea /= Hb1 /= Ho2 /=; f_equal; rewrite !wadd_zero_extend //; ssring.
-    + by apply: rbindP => zb Hb [<-] [<-] [<-];apply mkLeaP;
-       rewrite /sem_lea /= Hb /=; f_equal; rewrite !wadd_zero_extend //; ssring.
-    + apply: rbindP => zoff1 Hoff1 [<-]; apply: rbindP => zb2 Hb2 [<-] [<-];apply mkLeaP.
-      by rewrite /sem_lea /= Hoff1 /= Hb2 /=; f_equal; rewrite !wadd_zero_extend //; ssring.
-    + apply: rbindP => zo1 Ho1 [<-];apply: rbindP => zo2 Ho2 [<-].
-      case:eqP => [-> | _].
-      + by move=> [<-];apply mkLeaP;rewrite /sem_lea /= Ho1 /= Ho2 /=; f_equal; rewrite !wadd_zero_extend // zero_extend1; ssring.
-      case:eqP => //= -> [<-];apply mkLeaP;rewrite /sem_lea /= Ho1 /= Ho2 /=.
-      by f_equal; rewrite !wadd_zero_extend // zero_extend1; ssring.
-    + apply: rbindP => zo1 Ho1 [<-] [<-] [<-];apply mkLeaP;rewrite /sem_lea /= Ho1 /=.
-      by f_equal; rewrite !wadd_zero_extend //; ssring.
-    + move=> [<-];apply: rbindP => zb2 Hb2;apply: rbindP => zo2 Ho2 [<-] [<-].
-      by apply mkLeaP; rewrite /sem_lea /= Hb2 /= Ho2 /=; f_equal; rewrite !wadd_zero_extend //; ssring.
-    + move=> [<-];apply: rbindP => zb2 Hb2 [<-] [<-];apply mkLeaP.
-      by rewrite /sem_lea /= Hb2 /=; f_equal; rewrite !wadd_zero_extend //; ssring.
-    + move=> [<-];apply:rbindP=> zo2 Ho2 [<-] [<-];apply mkLeaP.
-      by rewrite /sem_lea /= Ho2 /=; f_equal; rewrite !wadd_zero_extend //; ssring.
-    by move=> [<-] [<-] [<-];apply mkLeaP;rewrite /sem_lea /=; f_equal; rewrite !wadd_zero_extend //; ssring.
-  Qed.
-
-  Lemma lea_subP sz l1 l2 w1 w2 l vm :
-    (sz <= U64)%CMP ->
-    sem_lea sz vm l1 = ok w1 -> sem_lea sz vm l2 = ok w2 ->
-    lea_sub l1 l2 = Some l ->
-    sem_lea sz vm l = ok (w1 - w2)%R.
-  Proof.
-    move=> hsz.
-    case: l1 l2 => d1 b1 sc1 o1 [d2 [b2|] sc2 [o2|]] //=; rewrite {1 2}/sem_lea /=.
-    t_xrbindP => vb1 hb1 vo1 ho1 <- <- [<-] /=;apply mkLeaP.
-    by rewrite /sem_lea /= hb1 ho1 /=; f_equal; rewrite wsub_zero_extend //; ssring.
-  Qed.
-
-  Lemma Vword_inj sz (w: word sz) sz' (w': word sz') :
-    Vword w = Vword w' ->
-    exists e : sz = sz', eq_rect sz word w sz' e = w'.
-  Proof.
-    refine (fun e => let 'erefl := e in ex_intro _ erefl erefl).
-  Qed.
-
-  Lemma mk_lea_recP s e l sz sz' (w: word sz') :
-    (sz <= U64)%CMP -> 
-    (sz ≤ sz')%CMP →
-    mk_lea_rec sz e = Some l ->
-    sem_pexpr gd s e = ok (Vword w) ->
-    sem_lea sz (evm s) l = ok (zero_extend sz w).
-  Proof.
-    move=> hsz.
-    elim: e l sz' w => //=.
-    + move=> x l sz' w hsz'; rewrite /get_gvar; case: ifP => // hlv [<-].
-      by rewrite lea_varP => -> /=; f_equal; rewrite /truncate_word hsz'.
-    + move=> [] //= sz1 [] //= e1 he1 l sz' w hsz' [<-]; rewrite /sem_sop1 /= => h.
-      have /Vword_inj[? ? /=] := ok_inj h; subst; rewrite lea_constP /=.
-      by rewrite zero_extend_sign_extend // sign_extend_truncate.
-    move=> [] //= [] //= sz1 e1 He1 e2 He2 l sz' w hsz'.
-    + case Heq1: mk_lea_rec => [l1|]//;case Heq2: mk_lea_rec => [l2|]// Hadd; rewrite /sem_sop2 /=.
-      apply: rbindP => v1 h1; apply: rbindP => v2 h2.
-      apply: rbindP=> w1' /of_val_word [sz1'] [w1] [hsz1 ??]; subst v1 w1'. 
-      apply: rbindP=> w2' /of_val_word [sz2'] [w2] [hsz2 ??] h; subst v2 w2'. 
-      have {h} /Vword_inj [? ?] := ok_inj h; subst w sz1 => /=.
-      rewrite wadd_zero_extend // !zero_extend_idem //.
-      exact (lea_addP hsz (He1 _ _ _ (cmp_le_trans hsz' hsz1) Heq1 h1)
-                           (He2 _ _ _ (cmp_le_trans hsz' hsz2) Heq2 h2) Hadd).
-    + case Heq1: mk_lea_rec => [l1|]//;case Heq2: mk_lea_rec => [l2|]// Hmul.
-      apply: rbindP => v1 h1; apply: rbindP => v2 h2.
-      apply: rbindP=> w1' /of_val_word [sz1'] [w1] [hsz1 ??]; subst v1 w1'. 
-      apply: rbindP=> w2' /of_val_word [sz2'] [w2] [hsz2 ??] h; subst v2 w2'. 
-      have {h} /Vword_inj [? ?] := ok_inj h; subst w sz1 => /=.
-      rewrite wmul_zero_extend // !zero_extend_idem //.
-      exact (lea_mulP hsz (He1 _ _ _ (cmp_le_trans hsz' hsz1) Heq1 h1)
-                           (He2 _ _ _ (cmp_le_trans hsz' hsz2) Heq2 h2) Hmul).
-    case Heq1: mk_lea_rec => [l1|]//;case Heq2: mk_lea_rec => [l2|]// Hsub.
-    apply: rbindP => v1 h1; apply: rbindP => v2 h2.
-    apply: rbindP=> w1' /of_val_word [sz1'] [w1] [hsz1 ??]; subst v1 w1'. 
-    apply: rbindP=> w2' /of_val_word [sz2'] [w2] [hsz2 ??] h; subst v2 w2'. 
-    have {h} /Vword_inj [? ?] := ok_inj h; subst w sz1 => /=.
-    rewrite wsub_zero_extend // !zero_extend_idem //.
-    exact (lea_subP hsz (He1 _ _ _ (cmp_le_trans hsz' hsz1) Heq1 h1)
-                           (He2 _ _ _ (cmp_le_trans hsz' hsz2) Heq2 h2) Hsub).
-  Qed.
-
-  Lemma push_cast_szP sz e s v :  
-    sem_pexpr gd s (Papp1 (Oword_of_int sz) e) = ok v ->
-    exists v', sem_pexpr gd s (push_cast_sz sz e) = ok v' /\ value_uincl v v'.
-  Proof.
-    elim: e v; eauto.
-    + move=> o e1 he1 v.
-      case: o; eauto.
-      move=> sz' /=.
-      case: (@idP (sz <= sz')%CMP); last by eauto.
-      rewrite /sem_sop1 /=; t_xrbindP => hsz v1 v2 -> w2 /to_wordI [sz1 [w1 [???]]].
-      subst v2 w2 => <- _ [<-] <-.
-      exists (Vword w1); split => //=.
-      have -> : wrepr sz (wunsigned (zero_extend sz' w1)) = 
-                zero_extend sz (zero_extend sz' w1) by done.
-      rewrite zero_extend_idem //; apply word_uincl_zero_ext.
-      by apply: (cmp_le_trans hsz).
-    move=> o e1 he1 e2 he2 v.
-    case: o; eauto; case; eauto; rewrite /= /sem_sop2 /sem_sop1 /=; t_xrbindP.
-    + move=> _ v1 se1 v2 se2 i1 hi1 i2 hi2 <- _ [<-] <-.
-      case: (he1 (Vword (wrepr sz i1))) => [ | v1' [-> hv1']].
-      + by rewrite /= /sem_sop1 /= se1 /= hi1.
-      case: (he2 (Vword (wrepr sz i2))) => [ | v2' [-> hv2' /=]].
-      + by rewrite /= /sem_sop1 /= se2 /= hi2.
-      have /= := value_uincl_word (sz:= sz) hv1'.
-      rewrite truncate_word_u => /(_ _ refl_equal) ->.
-      have /= := value_uincl_word (sz:= sz) hv2'.
-      rewrite truncate_word_u => /(_ _ refl_equal) -> /=; rewrite wrepr_add.
-      eexists;split; first by eauto.
-      by apply word_uincl_refl.
-    + move=> _ v1 se1 v2 se2 i1 hi1 i2 hi2 <- _ [<-] <-.
-      case: (he1 (Vword (wrepr sz i1))) => [ | v1' [-> hv1']].
-      + by rewrite /= /sem_sop1 /= se1 /= hi1.
-      case: (he2 (Vword (wrepr sz i2))) => [ | v2' [-> hv2' /=]].
-      + by rewrite /= /sem_sop1 /= se2 /= hi2.
-      have /= := value_uincl_word (sz:= sz) hv1'.
-      rewrite truncate_word_u => /(_ _ refl_equal) ->.
-      have /= := value_uincl_word (sz:= sz) hv2'.
-      rewrite truncate_word_u => /(_ _ refl_equal) -> /=; rewrite wrepr_mul.
-      eexists;split; first by eauto.
-      by apply word_uincl_refl.
-    move=> _ v1 se1 v2 se2 i1 hi1 i2 hi2 <- _ [<-] <-.
-    case: (he1 (Vword (wrepr sz i1))) => [ | v1' [-> hv1']].
-    + by rewrite /= /sem_sop1 /= se1 /= hi1.
-    case: (he2 (Vword (wrepr sz i2))) => [ | v2' [-> hv2' /=]].
-    + by rewrite /= /sem_sop1 /= se2 /= hi2.
-    have /= := value_uincl_word (sz:= sz) hv1'.
-    rewrite truncate_word_u => /(_ _ refl_equal) ->.
-    have /= := value_uincl_word (sz:= sz) hv2'.
-    rewrite truncate_word_u => /(_ _ refl_equal) -> /=; rewrite wrepr_sub.
-    eexists;split; first by eauto.
-    by apply word_uincl_refl.
-  Qed.
-
-  Lemma push_castP e s v :  
-    sem_pexpr gd s e = ok v ->
-    exists v', sem_pexpr gd s (push_cast e) = ok v' /\ value_uincl v v'.
-  Proof.
-    elim: e v; eauto.  
-    + move=> o e1 he1 v /=.
-      t_xrbindP => v1 /he1{he1} [v1' [he1 hu]].
-      move=> /(vuincl_sem_sop1 hu).
-      case o => [sz | ? | ?? | ?? | | ? | ?] he1'; try by exists v; rewrite /= he1 /= he1'.
-      by apply push_cast_szP; rewrite /= he1 /= he1'.
-    move=> o e1 he1 e2 he2 /=.
-    t_xrbindP => ? v1 /he1 [v1' [-> hu1]] v2 /he2 [v2' [-> hu2]]. 
-    by move=> /(vuincl_sem_sop2 hu1 hu2) /= ->; eauto.
-  Qed.
-
-  Lemma mk_leaP s e l sz sz' (w: word sz') :
-    (sz <= U64)%CMP -> 
-    (sz ≤ sz')%CMP →
-    mk_lea sz e = Some l ->
-    sem_pexpr gd s e = ok (Vword w) ->
-    sem_lea sz (evm s) l = ok (zero_extend sz w).
-  Proof.
-    rewrite /mk_lea => h1 h2 hrec.
-    move=> /push_castP [v' [he hu]].
-    have [sz1 [w1 [? /andP [] hle /eqP ->]]]:= value_uinclE hu; subst v'.
-    rewrite zero_extend_idem //.
-    apply: mk_lea_recP hrec he => //.
-    by apply: cmp_le_trans h2 hle.
-  Qed.
-
-  Definition read_ovar (o: option var_i) : Sv.t :=
-    if o is Some v then read_e (mk_lvar v) else Sv.empty.
-
-  Definition read_lea (m: lea) : Sv.t :=
-    Sv.union (read_ovar m.(lea_base)) (read_ovar m.(lea_offset)).
-
-  Lemma read_lea_mkLea d b sc o :
-    Sv.Subset (read_lea (mkLea d b sc o)) (Sv.union (read_ovar b) (read_ovar o)).
-  Proof. rewrite /mkLea; case: ifP => _; rewrite /read_lea /=; SvD.fsetdec. Qed.
-
-  Ltac read_lea_mkLea :=
-    match goal with
-    | |- context[ read_lea (mkLea ?d ?b ?sc ?o) ] => have := @read_lea_mkLea d b sc o
-    end.
-
-  Lemma lea_add_read m1 m2 m :
-    lea_add m1 m2 = Some m →
-    Sv.Subset (read_lea m) (Sv.union (read_lea m1) (read_lea m2)).
-  Proof.
-  Local Ltac lar :=
-    rewrite {-1}/read_lea /=; read_lea_mkLea; SvD.fsetdec.
-  case: m1 m2 => [d1 b1 sc1 o1] [d2 b2 sc2 o2].
-  case: b1 o1 => [ b1 | ] [ o1 | ] /=; last first.
-  - case => <-; rewrite SvP.MP.empty_union_1; last exact: Sv.empty_spec.
-    lar.
-  - case: b2 => [ b2 | ].
-    + case: o2 => // - [<-]; lar.
-    case: o2 => [ o2 | ].
-    + case: ifP => _.
-      * case => <-; lar.
-      case: ifP => // _ [<-]; lar.
-    case => <-; lar.
-  - case: b2 => [ b2 | ].
-    + case: o2 => // - [<-]; lar.
-    case: o2 => [ o2 | ] [<-]; lar.
-  case: b2 => //; case: o2 => // - [<-]; lar.
-  Qed.
-
-  Lemma lea_mul_read m1 m2 m :
-    lea_mul m1 m2 = Some m →
-    Sv.Subset (read_lea m) (Sv.union (read_lea m1) (read_lea m2)).
-  Proof.
-  case: m1 m2 => [d1 b1 sc1 o1] [d2 b2 sc2 o2].
-  case: b1 o1 b2 o2 => [ b1 | ] [ o1 | ] // [ b2 | ] // [ o2 | ] // [<-];
-  last exact: SvP.MP.subset_empty;
-  lar.
-  Qed.
-
-  Lemma lea_sub_read m1 m2 m :
-    lea_sub m1 m2 = Some m →
-    Sv.Subset (read_lea m) (Sv.union (read_lea m1) (read_lea m2)).
-  Proof.
-  case: m1 m2 => [d1 b1 sc1 o1] [d2 b2 sc2 o2].
-  case: b2 o2 => // - [] // [<-]; lar.
-  Qed.
-
-  Lemma mk_lea_rec_read sz e m :
-    mk_lea_rec sz e = Some m →
-    Sv.Subset (read_lea m) (read_e e).
-  Proof.
-  elim: e m => //=.
-  + by move => [x []] //= _ [<-]; rewrite read_e_var; apply: SvD.F.Subset_refl.
-  + by case => // sz' [] // z _ _ [<-].
-  case => //.
-  + case => // sz' e1.
-    case: (mk_lea_rec sz e1) => // m1 /(_ _ erefl) ih1 e2.
-    case: (mk_lea_rec sz e2) => // m2 /(_ _ erefl) ih2 m /lea_add_read.
-    rewrite /read_e /= !read_eE.
-    by SvD.fsetdec.
-  + case => // sz' e1.
-    case: (mk_lea_rec sz e1) => // m1 /(_ _ erefl) ih1 e2.
-    case: (mk_lea_rec sz e2) => // m2 /(_ _ erefl) ih2 m /lea_mul_read.
-    rewrite /read_e /= !read_eE.
-    by SvD.fsetdec.
-  case => // sz' e1.
-  case: (mk_lea_rec sz e1) => // m1 /(_ _ erefl) ih1 e2.
-  case: (mk_lea_rec sz e2) => // m2 /(_ _ erefl) ih2 m /lea_sub_read.
-  rewrite /read_e /= !read_eE.
-  by SvD.fsetdec.
-  Qed.
-  
-  Lemma push_cast_sz_read sz e :
-    Sv.Equal (read_e (push_cast_sz sz e)) (read_e e).
-  Proof.
-  elim: e => //=.
-  + by move=> o e1 he1; case: o => //= sz'; case: ifP.
-  by move=> o e1 he1 e2 he2; case: o => //= -[] //=; 
-   rewrite /read_e /= !read_eE; SvD.fsetdec.
-  Qed.
- 
-  Lemma push_cast_read e :
-    Sv.Equal (read_e (push_cast e)) (read_e e).
-  Proof.
-  elim: e => //=.
-  + move=> o e1 he1; case: o => //= sz'.
-    by rewrite push_cast_sz_read he1.
-  by move=> o e1 he1 e2 he2; rewrite /read_e /= !read_eE; SvD.fsetdec.
-  Qed.
-
-  Lemma mk_lea_read sz e m :
-    mk_lea sz e = Some m →
-    Sv.Subset (read_lea m) (read_e e).
-  Proof. by move=> /mk_lea_rec_read; rewrite push_cast_read. Qed.
-  
   Lemma is_leaP f sz x e l :
     is_lea f sz x e = Some l ->
     [/\ (U16 ≤ sz)%CMP && (sz ≤ U64)%CMP, 
@@ -850,7 +524,8 @@ Section PROOF.
          mk_lea sz e = Some l & check_scale (wunsigned l.(lea_scale))].
   Proof.
     rewrite /is_lea; case: ifP => // /andP [-> _].
-    case: (mk_lea sz e) (@mk_lea_read sz e) => [[d b sc o]|] // /(_ _ erefl) h.
+    case h: mk_lea => [[d b sc o]|] //.
+    move /mk_lea_read in h.
     by case: ifP => // /andP [] /andP [] heq _ _ [<-].
   Qed.
 
@@ -984,7 +659,7 @@ Section PROOF.
        exists w: word sz,
         v' = Vword w /\ sem_lea sz (evm s) l = ok w)
     | LowerConcat hi lo =>
-      sem_pexprs gd s [:: hi ; lo ] >>= exec_sopn Oconcat128 = ok [:: v' ]
+      sem_pexprs gd s [:: hi ; lo ] >>= exec_sopn (Oasm (ExtOp Oconcat128)) = ok [:: v' ]
     | LowerAssgn => True
     end.
   Proof.
@@ -1065,7 +740,7 @@ Section PROOF.
           split => //; split => //=.
           eexists; split; first reflexivity.
           rewrite -(zero_extend_u (_ + _)).
-          apply (mk_leaP hsz2 (cmp_le_refl _) hlea).
+          apply: (mk_leaP (p:=p) _ (cmp_le_refl _) hlea) => //.
           by rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word hle1 hle2.
         move => {Heq}.
         have /= := @add_inc_dec_classifyP s sz e1 e2.
@@ -1100,7 +775,7 @@ Section PROOF.
           split => //; split => //=.
           eexists; split; first reflexivity.
           rewrite -(zero_extend_u (_ * _)).
-          apply (mk_leaP hsz2 (cmp_le_refl _) hlea).
+          apply: (mk_leaP (p:=p) _ (cmp_le_refl _) hlea) => //.
           by rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word hle1 hle2.
         move => {Heq}. 
         case Heq : mulr => [o e'].
@@ -1121,7 +796,7 @@ Section PROOF.
           split => //; split => //=.
           eexists; split; first reflexivity.
           rewrite -(zero_extend_u (_ - _)).
-          apply (mk_leaP hsz2 (cmp_le_refl _) hlea).
+          apply: (mk_leaP (p:=p) _ (cmp_le_refl _) hlea) => //.
           by rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word hle1 hle2.
         have := sub_inc_dec_classifyP sz e2.
         case: (sub_inc_dec_classify _ _)=> [He2|He2|//]; try subst e2.
@@ -1404,7 +1079,6 @@ Section PROOF.
      by case: stype_of_lval => // w hv; case: andP => // - [] /andP[] -> -> /eqP <-; eauto.
   Qed.
 
-
   Lemma vmap_eq_except_set q s x v:
     Sv.In x q → s.[ x <- v] = s [\q].
   Proof.
@@ -1448,7 +1122,7 @@ Section PROOF.
       fold (sem_pexprs gd s) in hz1.
       rewrite /get_gvar /get_var /on_vu Fv.setP_eq /= -/(sem_pexprs gd ℓ).
       rewrite (sem_pexprs_same dz e hz1) /= /exec_sopn /sopn_sem /=.
-      case: o hr => //=; rewrite /exec_sopn //=;
+      case: o hr => //= -[]; rewrite /exec_sopn //=;
         try (move => ?? -> || move => ? -> || move => -> ) => //.
       case. case => [ws | ];
       case => //=;
@@ -1944,7 +1618,7 @@ Section PROOF.
         by rewrite /sem_sopn /= /exec_sopn /sopn_sem /= He1 He2 /= /truncate_word hsz1 hsz2.
       rewrite /lower_mulu; case hsz: check_size_16_64 => //.
       have /andP [hsz16 hsz64] := assertP hsz.
-      have := @is_wconstP gd s1' sz e1; case: is_wconst => [ n1 | _ ].
+      have := @is_wconstP _ gd s1' sz e1; case: is_wconst => [ n1 | _ ].
       + move => /(_ _ erefl) /=; rewrite He1 /= /truncate_word hsz1 => - [?]; subst n1.
         set s2'' := with_vm s1'
            (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w1)) ].
@@ -1970,7 +1644,7 @@ Section PROOF.
             rewrite /get_gvar /get_var /on_vu /= Fv.setP_eq /= /exec_sopn /sopn_sem /= /truncate_word hsz2 cmp_le_refl /x86_MUL hsz /= zero_extend_u wmulhuE Z.mul_comm GRing.mulrC wmulE.
             exact Hw''.
         + exact: (eq_exc_freshT Hs3'' Hs2').
-      have := @is_wconstP gd s1' sz e2; case: is_wconst => [ n2 | _ ].
+      have := @is_wconstP _ gd s1' sz e2; case: is_wconst => [ n2 | _ ].
       + move => /(_ _ erefl) /=; rewrite He2 /= /truncate_word hsz2 => - [?]; subst n2.
         set s2'' := with_vm s1' (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w2)) ].
         have Heq: eq_exc_fresh s2'' s1'.
@@ -2151,7 +1825,7 @@ Section PROOF.
     sem_call p  ev mem f va mem' vr ->
     sem_call p' ev mem f va mem' vr.
   Proof.
-    apply (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 

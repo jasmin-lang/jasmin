@@ -326,8 +326,14 @@ End CoreMem.
 (* ** Memory
  * -------------------------------------------------------------------- *)
 
-Notation Uptr := U64 (only parsing).
+Class PointerData := {
+  Uptr : wsize;
+}.
+
 Notation pointer := (word Uptr) (only parsing).
+
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
 
 Definition no_overflow (p: pointer) (sz: Z) : bool :=
   (wunsigned p + sz <=? wbase Uptr)%Z.
@@ -478,6 +484,7 @@ Qed.
 (* -------------------------------------------------- *)
 (** Pointer arithmetic *)
 
+#[ global ]
 Instance Pointer : pointer_op pointer.
 Proof.
 refine
@@ -490,7 +497,7 @@ refine
   rewrite -{2}(@wunsigned_repr_small Uptr k);
     [ f_equal; ssring
     | have := wsize_size_wbase U256;
-      have := wbase_m (wsize_le_U8 Uptr);
+      have := wbase_m (wsize_le_U8 (@Uptr pd));
       Lia.lia ]).
 - abstract (move => p; rewrite wrepr0; ssring).
 Defined.
@@ -626,8 +633,8 @@ Class memory (mem: Type) (CM: coreMem pointer mem) : Type :=
     ; top_stack_below_root: ∀ (m: mem), wunsigned (head (stack_root m) (frames m)) <= wunsigned (stack_root m)
     }.
 
-Arguments Memory {mem CM} _ _ _ _ _ _ _.
-Arguments top_stack_below_root {mem CM} _.
+#[ global ] Arguments Memory {mem CM} _ _ _ _ _ _ _.
+#[ global ] Arguments top_stack_below_root {mem CM} _.
 
 Definition top_stack {mem: Type} {CM: coreMem pointer mem} {M: memory CM} (m: mem) : pointer :=
   head (stack_root m) (frames m).
@@ -712,9 +719,9 @@ Section SPEC.
 
 End SPEC.
 
-Arguments alloc_stack_spec {_ _ _} _ _ _ _ _.
-Arguments stack_stable {_ _ _} _ _.
-Arguments free_stack_spec {_ _ _} _ _.
+#[ global ] Arguments alloc_stack_spec {_ _ _} _ _ _ _ _.
+#[ global ] Arguments stack_stable {_ _ _} _ _.
+#[ global ] Arguments free_stack_spec {_ _ _} _ _.
 
 Lemma top_stack_after_aligned_alloc p ws sz :
   is_align p ws ->
@@ -753,12 +760,18 @@ Proof.
   by have := wunsigned_range p; Psatz.lia.
 Qed.
 
+End WITH_POINTER_DATA.
+
 Module Type MemoryT.
 
-Parameter mem : Type.
+Parameter mem : PointerData -> Type.
+#[ global ] Arguments mem {_}.
 
-Declare Instance CM : coreMem pointer mem.
-Declare Instance M : memory CM.
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
+
+#[ global ] Declare Instance CM : coreMem pointer mem.
+#[ global ] Declare Instance M : memory CM.
 
 (*Parameter readV : forall m p s v,
   read m p s = ok v -> validw m p s. *)
@@ -784,4 +797,5 @@ Parameter write_mem_stable : forall m m' p s (v:word s),
 Parameter free_stackP : forall m,
   free_stack_spec m (free_stack m).
 
+End WITH_POINTER_DATA.
 End MemoryT.

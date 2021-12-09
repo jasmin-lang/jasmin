@@ -23,31 +23,31 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-(* -------------------------------------------------------------------- *)
-From mathcomp Require Import all_ssreflect all_algebra. 
-Require Import global Utf8.
+From mathcomp Require Import all_ssreflect all_algebra.
+Require Import sopn psem compiler_proof.
+Require Import x86_decl x86_instr_decl x86_extra.
+Require Import x86_params.
 
-Set   Implicit Arguments.
+Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* ==================================================================== *)
-Definition label := positive.
-Bind Scope positive_scope with label.
+Lemma is_move_opP : forall op sz vx v,
+  is_move_op op = Some sz ->
+  exec_sopn (Oasm op) [:: vx] = ok v ->
+  List.Forall2 value_uincl v [:: vx].
+Proof.
+  by case=> // -[] []// []//= ws _ vx v _;
+    rewrite /exec_sopn /=;
+    t_xrbindP=> w ? /to_wordI [ws' [wx [hle -> ->]]];
+    rewrite /sopn_sem /=;
+    match goal with
+    | |- ?f (zero_extend _ _) = _ -> _ => rewrite /f
+    end;
+    t_xrbindP=> _ _ <- <-;
+    (constructor; last by constructor);
+    apply value_uincl_zero_ext.
+Qed.
 
-Definition remote_label := (funname * label)%type.
-
-(* Indirect jumps use labels encoded as pointers: we assume such an encoding exists.
-  The encoding and decoding functions are parameterized by a domain:
-  they are assumed to succeed on this domain only.
-*)
-
-Section WITH_POINTER_DATA.
-Context {pd: PointerData}.
-
-Parameter encode_label : seq remote_label → remote_label → option pointer.
-Parameter decode_label : seq remote_label → pointer → option remote_label.
-Axiom decode_encode_label : ∀ dom lbl, obind (decode_label dom) (encode_label dom lbl) = Some lbl.
-Axiom encode_label_dom : ∀ dom lbl, lbl \in dom → encode_label dom lbl ≠ None.
-
-End WITH_POINTER_DATA.
+Definition ahyps :=
+  @mk_ahyps aparams is_move_opP.

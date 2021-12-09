@@ -23,6 +23,7 @@ End E.
 
 Section Section.
 
+Context `{asmop:asmOp}.
 Context (fresh_counter: Ident.ident).
 
 (*

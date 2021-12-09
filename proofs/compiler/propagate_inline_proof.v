@@ -42,7 +42,10 @@ Local Open Scope vmap_scope.
 
 Section Section.
 
-Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
+Context
+  {pd:PointerData}
+  `{asmop:asmOp}
+  {T:eqType} {pT:progT T} {sCP: semCallParams}.
 
 Definition dfl_cel := 
   {| pi_def := Pconst 0; pi_fv := Sv.empty; pi_m := false; pi_fv_ok := erefl _; pi_m_ok := erefl _|}.
@@ -707,7 +710,7 @@ Section PROOF.
     exists vr', sem_call p2 ev mem f va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
     by move=>
-      /(@sem_call_Ind _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+      /(@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) 
       h /h [vr' h1 h2]; exists vr'.
   Qed.

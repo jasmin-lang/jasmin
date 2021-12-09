@@ -38,6 +38,8 @@ Local Open Scope seq_scope.
 
 Section INLINE.
 
+Context {pd: PointerData}.
+Context `{asmop:asmOp}.
 Context (inline_var: var -> bool).
 Variable rename_fd : instr_info -> funname -> ufundef -> ufundef.
 
@@ -69,7 +71,7 @@ Section INCL.
 
   Lemma inline_c_incl c : Pc c.
   Proof.
-    apply (@cmd_rect Pr Pi Pc) => // {c}.
+    apply (@cmd_rect _ _ Pr Pi Pc) => // {c}.
     + move=> i c Hi Hc X1 c' X2 /=. 
       by t_xrbindP => -[Xc cc] /Hc -> /= -[Xi ci] /Hi -> /= -> <-.
     + by move=> * ?.
@@ -198,17 +200,17 @@ Section SUBSET.
 
   Lemma inline_c_subset c : Pc c.
   Proof.
-    by apply (@cmd_rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
+    by apply (@cmd_rect _ _ Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
   Qed.
 
   Lemma inline_i_subset i : Pr i.
   Proof.
-    by apply (@instr_r_Rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
+    by apply (@instr_r_Rect _ _ Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
   Qed.
 
   Lemma inline_i'_subset i : Pi i.
   Proof.
-    by apply (@instr_Rect Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
+    by apply (@instr_Rect _ _ Pr Pi Pc Smk Snil Scons Sasgn Sopn Sif Sfor Swhile Scall).
   Qed.
 
 End SUBSET.
@@ -223,7 +225,7 @@ Lemma assgn_tuple_Lvar (p:uprog) (ev:unit) ii (xs:seq var_i) flag tys es vs vs' 
 Proof.
   rewrite /disjoint /assgn_tuple /is_true Sv.is_empty_spec.
   elim: xs es tys vs vs' s s' => [ | x xs Hrec] [ | e es] [ | ty tys] [ | v vs] vs' s s' //=;
-    try by move => _ _ /(@ok_inj _ _ _ _) <-.
+    try by move => _ _ /ok_inj <-.
   + by move=> _ _ [<-] [<-];constructor.
   + by move=> _; apply: rbindP => ??;apply:rbindP.
   + by move=> _ _;t_xrbindP => ? _ ? _ <-.
@@ -497,7 +499,7 @@ Section PROOF.
     move: Hdisj Hvm1;rewrite read_i_call.
     move: Htin Htout Hvs Hwv Hbody;set rfd := rename_fd _ _ => Htin Htout Hvs Hwv Hbody Hdisjoint Hvm1.
     rewrite (write_vars_lvals gd) in Hwv.
-    have [||/= vm1' Wvm1' Uvm1']:= @writes_uincl gd _ _ vm1 _ vargs0 vargs0 _ _ Hwv.
+    have [||/= vm1' Wvm1' Uvm1']:= @writes_uincl _ gd _ _ vm1 _ vargs0 vargs0 _ _ Hwv.
     + by apply wf_vm_uincl. + by apply List_Forall2_refl.
     have Uvmi : vm_uincl (evm (with_vm s1 vm1_)) vm1' by done.
     have [/=vm3 [Hsem' Uvm3]]:= sem_uincl Uvmi Hbody.
@@ -549,13 +551,13 @@ Section PROOF.
     + by apply: wf_write_lvals Hvm1; move: Hi => [<-];apply: wf_vmap0.
     + by apply: vmap_uincl_onI hsub;SvD.fsetdec.
     move=> vm2' [hwf hsvm2 hsem].
-    move: Hres; have /= <-:= @sem_pexprs_get_var gd svm2 => Hres.
+    move: Hres; have /= <-:= @sem_pexprs_get_var _ gd svm2 => Hres.
     case: svm2 Hsem Hfi Hc hsvm2 hsem Hres => emem2 evm2 Hsem Hfi Hc hsvm2 hsem Hres.
     have [vres1 hvres1 Hall1]:= sem_pexprs_uincl_on hsvm2 Hres.
     have [vres1' hvres1' Hall1'] := mapM2_truncate_val Htout Hall1.
     exists vres1';split=> //;econstructor;eauto => /=.
     + by move: Hvm1; rewrite (write_vars_lvals gd) with_vm_same.
-    by rewrite -(@sem_pexprs_get_var gd {| emem := emem2; evm := vm2' |}).
+    by rewrite -(@sem_pexprs_get_var _ gd {| emem := emem2; evm := vm2' |}).
   Qed.
 
   Lemma inline_callP f mem mem' va va' vr:
@@ -565,7 +567,7 @@ Section PROOF.
       sem_call p' ev mem f va' mem' vr' /\  List.Forall2 value_uincl vr vr'.
   Proof.
     move=> Hall Hsem.
-    apply (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
                Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc
                mem f va mem' vr Hsem _ Hall).
   Qed.

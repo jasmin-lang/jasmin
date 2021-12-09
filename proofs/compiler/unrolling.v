@@ -37,6 +37,10 @@ Local Open Scope seq_scope.
 (* ** unrolling
  * -------------------------------------------------------------------- *)
 
+Section ASM_OP.
+
+Context `{asmop:asmOp}.
+
 Definition unroll_cmd (unroll_i: instr -> cmd) (c:cmd) : cmd :=
   List.fold_right (fun i c' => unroll_i i ++ c') [::] c.
 
@@ -74,4 +78,4 @@ Definition unroll_prog (p:prog) := map_prog unroll_fun p.
 
 End Section.
 
-
+End ASM_OP.

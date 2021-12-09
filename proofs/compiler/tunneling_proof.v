@@ -2,7 +2,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith.
 Require Import Utf8.
 
-Require Import expr compiler_util label x86_variables linear linear_sem.
+Require Import expr compiler_util label linear linear_sem.
 Import ssrZ.
 
 Set Implicit Arguments.
@@ -14,6 +14,10 @@ Local Open Scope seq_scope.
 Require Import tunneling_misc tunneling_union_find tunneling.
 Require Import linear_sem.
 
+Section ASM_OP.
+
+Context {pd:PointerData}.
+Context `{asmop:asmOp}.
 
 Section TunnelingSemProps.
 
@@ -67,10 +71,15 @@ Section TunnelingSemProps.
     by elim: fs => [|[fn'' fd''] fs Ihfs] //=; case: ifP => // /eqP ->.
   Qed.
 
+  Section MOV_OP.
+
+  Context (mov_op : asm_op).
+
   Lemma get_fundef_eval_instr p' i s1 s2 :
     label_in_lprog p = label_in_lprog p' ->
     get_fundef (lp_funcs p) =1 get_fundef (lp_funcs p') ->
-    eval_instr p i s1 = ok s2 -> eval_instr p' i s1 = ok s2.
+    eval_instr p mov_op i s1 = ok s2 ->
+    eval_instr p' mov_op i s1 = ok s2.
   Proof.
     move => Hlabelinlprog Hgetfundef.
     rewrite /eval_instr /eval_jump; case: (li_i _) => [lv s e| |l|[fn' l]|e|lv l|e l] //.
@@ -83,13 +92,15 @@ Section TunnelingSemProps.
   Lemma get_fundef_lsem1 p' s1 s2 :
     label_in_lprog p = label_in_lprog p' ->
     get_fundef (lp_funcs p) =1 get_fundef (lp_funcs p') ->
-    lsem1 p s1 s2 -> lsem1 p' s1 s2.
+    lsem1 p mov_op s1 s2 ->
+    lsem1 p' mov_op s1 s2.
   Proof.
     move => Hlabelinlprog Hgetfundef; rewrite /lsem1 /step /find_instr Hgetfundef.
     case: (get_fundef _ _) => [fd|] //; case: (oseq.onth _ _) => [i|] //.
     by apply: get_fundef_eval_instr.
   Qed.
 
+  End MOV_OP.
 End TunnelingSemProps.
 
 
@@ -443,14 +454,17 @@ Section TunnelingProof.
     by move => l lc IHlc uf; rewrite IHlc.
   Qed.
 
-  Lemma tunneling_lsem1 s1 s2 : lsem1 (lprog_tunnel fn p) s1 s2 -> lsem p s1 s2.
+  Context (mov_op : asm_op).
+
+  Lemma tunneling_lsem1 s1 s2 :
+    lsem1 (lprog_tunnel fn p) mov_op s1 s2 -> lsem p mov_op s1 s2.
   Proof.
     rewrite /lprog_tunnel; case Hgfd: (get_fundef _ _) => [fd|];
       last by apply: Relation_Operators.rt_step.
     move: s1 s2; pattern (lfd_body fd), (lfd_body fd) at 2; apply: prefixW.
     + move => s1 s2 Hlsem1; apply: Relation_Operators.rt_step.
-      have:= (@get_fundef_lsem1 _ _ _ _ (label_in_lprog_tunnel _)).
-      rewrite Hgfd => Hgfd'; apply: (Hgfd' _ _ _ _ Hlsem1); clear Hgfd' Hlsem1 => fn'.
+      have:= (@get_fundef_lsem1 _ _ _ _ _ (label_in_lprog_tunnel _)).
+      rewrite Hgfd => Hgfd'; apply: (Hgfd' _ _ _ _ _ Hlsem1); clear Hgfd' Hlsem1 => fn'.
       rewrite lp_funcs_setfuncs /lfundef_tunnel_partial /tunnel_plan /= /tunnel_partial pairmap_tunnel_bore_empty.
       rewrite (get_fundef_map2 fn' (fun f1 f2 => if fn == f1 then setfb f2 (lfd_body fd) else f2) (lp_funcs p)).
       case Hgfd': (get_fundef _ _) => [fd'|] //; case: ifP => // /eqP ?; subst fn'.
@@ -533,7 +547,7 @@ Section TunnelingProof.
       rewrite !onth_rcons !size_rcons eq_refl /= eq_refl get_fundef_partial Hgfd eq_refl.
       rewrite /= find_label_tunnel_partial Hfindl /=.
       move: Hsetcpc; rewrite /s1' /setcpc /= -/s1' => ->.
-      by move => Hlsem11' Hlsem12'; apply: (@lsem_trans _ s1'); first apply: Hlsem11'; last apply Hlsem12'.
+      by move => Hlsem11' Hlsem12'; apply: (@lsem_trans _ _ _ _ _ s1'); first apply: Hlsem11'; last apply Hlsem12'.
   move => Honth.
   t_xrbindP => b v Hv; case: b => Hb; last first.
   + have:= (Hplsem1 s1 s2); clear Hplsem1;
@@ -560,26 +574,27 @@ Section TunnelingProof.
   rewrite !onth_rcons !size_rcons eq_refl /= eq_refl get_fundef_partial Hgfd eq_refl.
   rewrite /= find_label_tunnel_partial Hfindl /=.
   move: Hsetcpc; rewrite /s1' /setcpc /= -/s1' => ->.
-  by move => Hlsem11' Hlsem12'; apply: (@lsem_trans _ s1'); first apply: Hlsem11'; last apply Hlsem12'.
+  by move => Hlsem11' Hlsem12'; apply: (@lsem_trans _ _ _ _ _ s1'); first apply: Hlsem11'; last apply Hlsem12'.
   Qed.
 
-  Lemma tunneling_lsem s1 s2 : lsem (lprog_tunnel fn p) s1 s2 -> lsem p s1 s2.
+  Lemma tunneling_lsem s1 s2 :
+    lsem (lprog_tunnel fn p) mov_op s1 s2 -> lsem p mov_op s1 s2.
   Proof.
     move: s1 s2; apply: lsem_ind; first by move => s; apply Relation_Operators.rt_refl.
     by move => s1 s2 s3 H1tp12 _ Hp23; apply: (lsem_trans (tunneling_lsem1 H1tp12)).
   Qed.
 
   Lemma lsem11_tunneling s1 s2 :
-    lsem1 p s1 s2 ->
-    lsem1 (lprog_tunnel fn p) s1 s2 \/
-    exists s3, [/\ lsem1 (lprog_tunnel fn p) s2 s3 ,
-               lsem1 (lprog_tunnel fn p) s1 s3 &
+    lsem1 p mov_op s1 s2 ->
+    lsem1 (lprog_tunnel fn p) mov_op s1 s2 \/
+    exists s3, [/\ lsem1 (lprog_tunnel fn p) mov_op s2 s3 ,
+               lsem1 (lprog_tunnel fn p) mov_op s1 s3 &
                exists ii l, find_instr p s2 = Some (MkLI ii (Lgoto (fn,l)))].
   Proof.
     rewrite /lprog_tunnel; case Hgfd: (get_fundef _ _) => [fd|]; last by left.
     move: s1 s2; pattern (lfd_body fd), (lfd_body fd) at 2 4 6; apply: prefixW.
     + move => s1 s2 Hlsem1; left.
-      apply: (@get_fundef_lsem1 p _ s1 s2 _ _ Hlsem1); first by rewrite -(label_in_lprog_tunnel [::]) Hgfd.
+      apply: (@get_fundef_lsem1 p _ _ s1 s2 _ _ Hlsem1); first by rewrite -(label_in_lprog_tunnel [::]) Hgfd.
       clear Hlsem1 => fn'.
       rewrite lp_funcs_setfuncs /lfundef_tunnel_partial /tunnel_plan /= /tunnel_partial pairmap_tunnel_bore_empty.
       rewrite (get_fundef_map2 fn' (fun f1 f2 => if fn == f1 then setfb f2 (lfd_body fd) else f2) (lp_funcs p)).
@@ -831,16 +846,25 @@ Section TunnelingProof.
     by rewrite -has_find => Hhas _ [<-] [Hfind]; rewrite (find_is_label_eq Hhas Hfind).
   Qed.
 
-  Lemma lsem1_tunneling s1 s2 : lsem1 p s1 s2 -> exists s3, lsem (lprog_tunnel fn p) s2 s3 /\ lsem1 (lprog_tunnel fn p) s1 s3.
+  Lemma lsem1_tunneling s1 s2 :
+    lsem1 p mov_op s1 s2 ->
+    exists s3, lsem (lprog_tunnel fn p) mov_op s2 s3
+               /\ lsem1 (lprog_tunnel fn p) mov_op s1 s3.
   Proof.
     move => H1p12; case: (lsem11_tunneling H1p12) => [H1tp12|[s3] [H1tp23 H1tp13 _]].
     + by exists s2; split => //; apply: Relation_Operators.rt_refl.
     by exists s3; split => //; apply: Relation_Operators.rt_step.
   Qed.
 
-  Theorem lsem_tunneling s1 s2 : lsem p s1 s2 -> exists s3, lsem p s2 s3 /\ lsem (lprog_tunnel fn p) s1 s3.
+  Theorem lsem_tunneling s1 s2 :
+    lsem p mov_op s1 s2 ->
+    exists s3, lsem p mov_op s2 s3
+               /\ lsem (lprog_tunnel fn p) mov_op s1 s3.
   Proof.
-    have Ht: (lsem p s1 s2 → ∃ s3 : lstate, lsem (lprog_tunnel fn p) s2 s3 ∧ lsem (lprog_tunnel fn p) s1 s3); last first.
+    have Ht: (lsem p mov_op s1 s2 →
+              ∃ s3 : lstate, lsem (lprog_tunnel fn p) mov_op s2 s3
+                             ∧ lsem (lprog_tunnel fn p) mov_op s1 s3);
+      last first.
     + by move => Hp12; case: (Ht Hp12) => s3 [Hp23 Htp13]; exists s3; split => //; apply: tunneling_lsem.
     move: s1 s2; apply lsem_ind_r; first by move => s; exists s; split; apply Relation_Operators.rt_refl.
     move => s1 s2 s3 Hp12 H1p23 [s4 [Htp24 Htp14]].
@@ -1039,10 +1063,14 @@ Section TunnelingCompilerProof.
     by elim: fns => //= hfns tfns IHfns wfp; apply: well_formed_lprog_tunnel; apply: IHfns.
   Qed.
 
+  Section MOV_OP.
+  Context
+    (mov_op: asm_op).
+
   Lemma partial_tunnel_program_lsem fns p s1 s2 :
     well_formed_lprog p ->
-    lsem (foldr lprog_tunnel p fns) s1 s2 ->
-    lsem p s1 s2.
+    lsem (foldr lprog_tunnel p fns) mov_op s1 s2 ->
+    lsem p mov_op s1 s2.
   Proof.
     elim: fns => //= hfns tfns IHfns wfp Hpplsem12; apply: (IHfns wfp).
     apply: (tunneling_lsem (well_formed_partial_tunnel_program _ wfp)).
@@ -1183,8 +1211,8 @@ Section TunnelingCompilerProof.
 
   Theorem lsem_tunnel_program p tp s1 s2 :
     tunnel_program p = ok tp ->
-    lsem p s1 s2 ->
-    exists s3, lsem p s2 s3 /\ lsem tp s1 s3.
+    lsem p mov_op s1 s2 ->
+    exists s3, lsem p mov_op s2 s3 /\ lsem tp mov_op s1 s3.
   Proof.
     rewrite /tunnel_program; case: ifP => // wfp [<-].
     elim: funnames => [|hfns tfns IHfns /=]; first by exists s2; split => //; apply: Relation_Operators.rt_refl.
@@ -1196,9 +1224,9 @@ Section TunnelingCompilerProof.
 
   Corollary lsem_run_tunnel_program p tp s1 s2 :
     tunnel_program p = ok tp →
-    lsem p s1 s2 →
+    lsem p mov_op s1 s2 →
     lsem_final p s2 →
-    lsem tp s1 s2 ∧ lsem_final tp s2.
+    lsem tp mov_op s1 s2 ∧ lsem_final tp s2.
   Proof.
     move => Htp Hlsem12 Hfinal.
     case: (lsem_tunnel_program Htp Hlsem12) => s3 [Hlsem23 Hlsem13].
@@ -1209,4 +1237,8 @@ Section TunnelingCompilerProof.
     by rewrite /lfundef_tunnel_partial lfd_body_setfb -tunnel_partial_size.
   Qed.
 
+End MOV_OP.
+
 End TunnelingCompilerProof.
+
+End ASM_OP.

@@ -1,15 +1,46 @@
+(* ** License
+ * -----------------------------------------------------------------------
+ * Copyright 2016--2017 IMDEA Software Institute
+ * Copyright 2016--2017 Inria
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * ----------------------------------------------------------------------- *)
+
 (** Transformation into the linear language *)
 
+(* ** Imports and settings *)
+
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import expr compiler_util.
+Require Import ZArith.
+Require Import Utf8.
+Import Relations.
+
+Require Import expr compiler_util label constant_prop.
 Require Export linear.
-Require Import x86_variables constant_prop.
-Import Utf8 ssrZ.
-Import label.
+Import ssrZ.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+Local Open Scope seq_scope.
 
 Module E.
 
@@ -39,6 +70,8 @@ End E.
 
 (* --------------------------------------------------------------------------- *)
 Section PROG.
+Context {pd: PointerData}.
+Context `{asmop:asmOp}.
 Context (p:sprog) (extra_free_registers: instr_info -> option var).
 
 (** Total size of a stack frame: local variables, extra and padding. *)
@@ -117,7 +150,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
     then
       all_disjoint_aligned_between
         (if sf_save_stack e is SavedStackStk ofs then ofs + wsize_size Uptr else sf_stk_sz e)
-        (sf_stk_sz e + sf_stk_extra_sz e) U64 (sf_to_save e)
+        (sf_stk_sz e + sf_stk_extra_sz e) Uptr (sf_to_save e)
         (λ '(x, ofs), if is_word_type x.(vtype) is Some ws then ok (ofs, ws) else (Error (E.error "to-save: not a word")))
     else ok tt.
 
@@ -183,51 +216,167 @@ Definition align ii a (p:label * lcmd) : label * lcmd :=
 
 Section FUN.
 
-Context (fn: funname) (fn_align: wsize).
+(* -------------------------------------------------------------------------- *)
+(* The following are architecture-specific. *)
+
+Record linearization_params := {
+  (* Scratch register to compute addresses. *)
+  lp_tmp : Ident.ident;
+
+  (* Return a linear instruction that allocates a stack frame.
+   * The linear instruction `lp_allocate_stack_frame rspi sz` increases the
+   * stack pointer sz bytes.
+   * In symbols, it corresponds to:
+   *         R[rsp] := R[rsp] + sz
+   *)
+  lp_allocate_stack_frame
+    : var_i      (* Variable with stack pointer register. *)
+    -> Z         (* Amount of space to allocate. *)
+    -> lvals * sopn * pexprs;
+
+  (* Return a linear instruction that frees a stack frame.
+   * The linear instruction `lp_free_stack_frame rspi sz` decreases the
+   * stack pointer sz bytes.
+   * In symbols, it corresponds to:
+   *         R[rsp] := R[rsp] - sz
+   *)
+  lp_free_stack_frame
+    : var_i      (* Variable with stack pointer register. *)
+    -> Z         (* Amount of space to free. *)
+    -> lvals * sopn * pexprs;
+
+  (* Return a linear instruction that ensures the stack pointer is aligned.
+   * The linear instruction `lp_ensure_rsp_alignment rspi ws` ensures that
+   * the k least significant bits of the stack pointer are 0, where k is the
+   * size of ws in bytes.
+   * In symbols, it corresponds to:
+   *         R[rsp] := R[rsp] & - wsize_size ws
+   * where rsp is the stack pointer register.
+   *)
+  lp_ensure_rsp_alignment
+    : var_i      (* Variable with stack pointer register. *)
+    -> wsize     (* Size of the unit to align to. *)
+    -> lvals * sopn * pexprs;
+
+  (* Return a linear instruction that corresponds to assignment.
+   * In symbols, the linear instruction `lp_lassign x ws e` corresponds to
+   *         x := (ws)e
+   *)
+  lp_lassign
+    : lval       (* Value to overwrite. *)
+    -> wsize     (* Size of the value to assign. *)
+    -> pexpr     (* Value to assign. *)
+    -> lvals * sopn * pexprs;
+}.
+
+(* -------------------------------------------------------------------------- *)
+
+Context (lp: linearization_params) (fn: funname) (fn_align: wsize).
 
 Let rsp : var := Var (sword Uptr) p.(p_extra).(sp_rsp).
 Let rspi : var_i := VarI rsp xH.
 Let rspg : gvar := Gvar rspi Slocal.
+Let var_tmp : var := Var (sword Uptr) lp.(lp_tmp).
+
+(* We use projections instead of destructuring let to avoid blocking reductions. *)
+Definition lassign ii x ws e : linstr :=
+  let args := lp.(lp_lassign) x ws e in
+  MkLI ii (Lopn args.1.1 args.1.2 args.2).
+
+(* Return a linear instruction that corresponds to copying a register.
+ * The linear instruction `lmove ii rd ws r0` corresponds to
+ *         R[rd] := (ws)R[r0]
+ *)
+Definition lmove
+  (ii: instr_info) (* Instruction information. *)
+  (rd: var_i)      (* Destination register. *)
+  (ws: wsize)      (* Size of the value to copy. *)
+  (r0: gvar)       (* Source register. *)
+  : linstr :=
+  lassign ii (Lvar rd) ws (Pvar r0).
+
+(* Return a linear instruction that corresponds to loading from memory.
+ * The linear instruction `lload ii rd ws r0 ofs` corresponds to
+ *         R[rd] := (ws)M[R[r0] + ofs]
+ *)
+Definition lload
+  (ii: instr_info) (* Instruction information. *)
+  (rd: var_i)      (* Destination register. *)
+  (ws: wsize)      (* Size of the value to copy. *)
+  (r0: var_i)      (* Base register. *)
+  (ofs: Z)         (* Offset. *)
+  : linstr :=
+  lassign ii (Lvar rd) ws (Pload ws r0 (cast_const ofs)).
+
+(* Return a linear instruction that corresponds to storing to memory.
+ * The linear instruction `lstore ii rd ofs ws r0` corresponds to
+ *         M[R[rd] + ofs] := (ws)R[r0]
+ *)
+Definition lstore
+  (ii: instr_info) (* Instruction information. *)
+  (rd: var_i)      (* Base register. *)
+  (ofs: Z)         (* Offset. *)
+  (ws: wsize)      (* Size of the value to copy. *)
+  (r0: gvar)       (* Source register. *)
+  : linstr :=
+  lassign ii (Lmem ws rd (cast_const ofs)) ws (Pvar r0).
 
 Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : lcmd :=
-  if sz == 0%Z then [::]
-  else
-    [:: let m i := {| li_ii := ii ; li_i := i |} in
-        m (Lopn [:: Lvar rspi] (Ox86 (LEA Uptr))
-                [:: Papp2 ((if free then Oadd else Osub) (Op_w Uptr))
-                    (Pvar rspg)
-                    (cast_const sz)
-          ])
-    ].
-
-Definition eflags := Eval vm_compute in List.map (λ x, Lvar (VarI (var_of_flag x) xH)) [:: OF ; CF ; SF ; PF ; ZF ].
+  if sz == 0%Z
+  then [::]
+  else let args := if free
+                   then lp.(lp_allocate_stack_frame) rspi sz
+                   else lp.(lp_free_stack_frame) rspi sz
+       in [:: MkLI ii (Lopn args.1.1 args.1.2 args.2) ].
 
 Definition ensure_rsp_alignment ii (al: wsize) : linstr :=
-  MkLI ii (Lopn (eflags ++ [:: Lvar rspi ]) (Ox86 (AND Uptr)) [:: Pvar rspg ; Papp1 (Oword_of_int Uptr) (Pconst (- wsize_size al)) ]).
+  let args := lp.(lp_ensure_rsp_alignment) rspi al in
+  MkLI ii (Lopn args.1.1 args.1.2 args.2).
 
-Definition push_to_save ii (to_save: seq (var * Z)) : lcmd :=
-  List.map (λ '(x, ofs),
-            if is_word_type x.(vtype) is Some ws
-            then MkLI ii (Lopn [:: Lmem ws rspi (cast_const ofs) ] (Ox86 (MOV ws)) [:: Pvar {| gv := VarI x xH ; gs := Slocal |} ])
-            else MkLI ii Lalign (* absurd case *))
-           to_save.
+(* Return a linear command that pushes variables to the stack.
+ * The linear command `lp_push_to_save ii to_save` pushes each
+ * variable x to the stack with an offset o for each (x, o) in to_save.
+ * The variables in to_save are all words.
+ * In symbols, it corresponds to:
+ *         M[R[rsp] + o] := x
+ * for each (x, o) in to_save.
+ *)
+Definition push_to_save
+  (ii: instr_info)         (* Instruction information for the command. *)
+  (to_save: seq (var * Z)) (* Variables to save and offsets in the stack. *)
+  : lcmd :=
+  let mkli '(x, ofs) :=
+    if is_word_type x.(vtype) is Some ws
+    then lstore ii rspi ofs ws {| gv := VarI x xH; gs := Slocal; |}
+    else MkLI ii Lalign (* Absurd case. *)
+  in List.map mkli to_save.
 
-Definition pop_to_save ii (to_save: seq (var * Z)) : lcmd :=
-  List.map (λ '(x, ofs),
-            if is_word_type x.(vtype) is Some ws
-            then MkLI ii (Lopn [:: Lvar (VarI x xH) ] (Ox86 (MOV ws)) [:: Pload ws rspi (cast_const ofs) ])
-            else MkLI ii Lalign (* absurd case *))
-           to_save.
+(* Return a linear command that loads variables from the stack.
+ * The linear command `lp_pop_to_save ii to_save` loads each
+ * variable x from the stack with an offset o for each (x, o) in to_save.
+ * The variables in to_save are all words.
+ * In symbols, it corresponds to:
+ *         x := M[R[rsp] + o]
+ * for each (x, o) in to_save.
+ *)
+Definition pop_to_save
+  (ii: instr_info)         (* Instruction information for the command. *)
+  (to_save: seq (var * Z)) (* Variables to load and offsets in the stack. *)
+  : lcmd :=
+  let mkli '(x, ofs) :=
+    if is_word_type x.(vtype) is Some ws
+    then lload ii (VarI x xH) ws rspi ofs
+    else MkLI ii Lalign (* Absurd case. *)
+  in List.map mkli to_save.
 
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
   | Cassgn x _ ty e =>
-    if ty is sword sz
-    then
-      let op := if (sz ≤ U64)%CMP then (MOV sz) else (VMOVDQU sz) in
-      (lbl, MkLI ii (Lopn [:: x ] (Ox86 op) [:: e]) :: lc)
-    else (lbl, lc)
+    let lc' := if ty is sword sz
+               then lassign ii x sz e :: lc
+               else lc
+    in (lbl, lc')
   | Copn xs _ o es => (lbl, MkLI ii (Lopn xs o es) :: lc)
 
   | Cif e [::] c2 =>
@@ -292,17 +441,48 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
         let after := allocate_stack_frame true ii sz in
         let lret := lbl in
         let lbl := next_lbl lbl in
-        let lcall := (fn', if fn' == fn then (* absurd case *) lret else xH (* entry point *)) in
+        let lcall := (fn', if fn' == fn
+                           then lret    (* Absurd case. *)
+                           else xH      (* Entry point. *)
+                     ) in
         match sf_return_address e with
         | RAreg ra =>
-          (lbl, before ++ MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) :: MkLI ii (Lgoto lcall) :: MkLI ii (Llabel lret) :: after ++ lc)
+          (* Save return address to register ra.
+           * 1. Allocate stack frame.
+           * 2. Store return label in ra.
+           * 3. Insert jump to callee.
+           * 4. Insert return label (callee will jump back here).
+           * 5. Free stack frame.
+           * 6. Continue.
+           *)
+          (lbl, before
+                  ++ MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret)
+                  :: MkLI ii (Lgoto lcall)
+                  :: MkLI ii (Llabel lret)
+                  :: after
+                  ++ lc
+          )
+
         | RAstack z =>
+          (* Save return address to the stack with an offset.
+           * 1. Allocate stack frame.
+           * 2. Store return label in ra.
+           * 3. Push ra to stack.
+           * 4. Insert jump to callee.
+           * 5. Insert return label (callee will jump back here).
+           * 6. Free stack frame.
+           * 7. Continue.
+           *)
           if extra_free_registers ii is Some ra
-          then (lbl,
-                before ++
-                       MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret) ::
-                       MkLI ii (Lopn [::Lmem Uptr rspi (cast_const z)] (Ox86 (MOV Uptr)) [:: Pvar {| gv := VarI ra xH ; gs := Slocal |} ]) ::
-                       MkLI ii (Lgoto lcall) :: MkLI ii (Llabel lret) :: after ++ lc)
+          then let glob_ra := Gvar (VarI ra xH) Slocal in
+               (lbl, before
+                       ++ MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret)
+                       :: lstore ii rspi z Uptr glob_ra
+                       :: MkLI ii (Lgoto lcall)
+                       :: MkLI ii (Llabel lret)
+                       :: after
+                       ++ lc
+               )
           else (lbl, lc)
         | RAnone => (lbl, lc)
         end
@@ -313,27 +493,49 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
 Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
   let: (tail, head, lbl) :=
      match sf_return_address e with
-     | RAreg r => ([:: MkLI xH (Ligoto (Pvar {| gv := VarI r xH ; gs := Slocal |})) ], [:: MkLI xH (Llabel 1) ], 2%positive)
-     | RAstack z => ([:: MkLI xH (Ligoto (Pload Uptr rspi (cast_const z))) ], [:: MkLI xH (Llabel 1) ], 2%positive)
+     | RAreg r =>
+       ( [:: MkLI xH (Ligoto (Pvar (Gvar (VarI r xH) Slocal))) ]
+       , [:: MkLI xH (Llabel 1) ]
+       , 2%positive
+       )
+     | RAstack z =>
+       ( [:: MkLI xH (Ligoto (Pload Uptr rspi (cast_const z))) ]
+       , [:: MkLI xH (Llabel 1) ]
+       , 2%positive
+       )
      | RAnone =>
        match sf_save_stack e with
-       | SavedStackNone => ([::], [::], 1%positive)
+       | SavedStackNone =>
+         ([::], [::], 1%positive)
        | SavedStackReg x =>
+         (* Tail: R[rsp] := R[x]
+          * Head: R[x] := R[rsp]
+          *       Setup stack.
+          *)
          let r := VarI x xH in
-         ([:: MkLI xH (Lopn [:: Lvar rspi ] (Ox86 (MOV Uptr)) [:: Pvar {| gv := r ; gs := Slocal |} ]) ],
-          [:: MkLI xH (Lopn [:: Lvar r ] (Ox86 (MOV Uptr)) [:: Pvar rspg ] ) ]
-          ++ allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
-          ++ [:: ensure_rsp_alignment xH e.(sf_align) ],
-          1%positive)
+         ( [:: lmove xH rspi Uptr (Gvar r Slocal) ]
+         , lmove xH r Uptr rspg
+             :: allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
+             ++ [:: ensure_rsp_alignment xH e.(sf_align) ]
+         , 1%positive
+         )
        | SavedStackStk ofs =>
-         let rax := VarI (var_of_register RAX) xH in
-         (pop_to_save xH e.(sf_to_save) ++ [:: MkLI xH (Lopn [:: Lvar rspi ] (Ox86 (MOV Uptr)) [:: Pload Uptr rspi (cast_const ofs) ]) ],
-          [:: MkLI xH (Lopn [:: Lvar rax ] (Ox86 (MOV Uptr)) [:: Pvar rspg ] ) ]
-          ++ allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
-          ++ ensure_rsp_alignment xH e.(sf_align)
-          :: MkLI xH (Lopn [:: Lmem Uptr rspi (cast_const ofs) ] (Ox86 (MOV Uptr)) [:: Pvar {| gv := rax ; gs := Slocal |} ])
-          :: push_to_save xH e.(sf_to_save),
-          1%positive)
+         (* Tail: Load saved registers.
+          *       R[rsp] := M[R[rsp] + ofs]
+          * Head: R[r] := R[rsp]
+          *       Setup stack.
+          *       M[R[rsp] + ofs] := R[r]
+          *       Push registers to save to the stack.
+          *)
+         let tmp := VarI var_tmp xH in
+         ( pop_to_save xH e.(sf_to_save)
+             ++ [:: lload xH rspi Uptr rspi ofs ]
+         , lmove xH tmp Uptr rspg
+             :: allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
+             ++ ensure_rsp_alignment xH e.(sf_align)
+             :: lstore xH rspi ofs Uptr (Gvar tmp Slocal)
+             :: push_to_save xH e.(sf_to_save)
+         , 1%positive)
        end
      end
   in
@@ -356,11 +558,11 @@ Definition linear_fd (fd: sfundef) :=
 
 End FUN.
 
-Definition linear_prog : cexec lprog :=
+Definition linear_prog (lparams: linearization_params) : cexec lprog :=
   Let _ := check_prog in
   Let _ := assert (size p.(p_globs) == 0)
              (E.internal_error "invalid p_globs") in
-  let funcs := map (fun '(f,fd) => (f, linear_fd f fd)) p.(p_funcs) in
+  let funcs := map (fun '(f,fd) => (f, linear_fd lparams f fd)) p.(p_funcs) in
   ok {| lp_rip   := p.(p_extra).(sp_rip);
         lp_rsp   := p.(p_extra).(sp_rsp);
         lp_globs := p.(p_extra).(sp_globs);

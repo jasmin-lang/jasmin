@@ -39,6 +39,16 @@ Local Open Scope Z_scope.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+Notation vid ident :=
+  {|
+    v_var :=
+      {|
+        vtype := sword Uptr;
+        vname := ident;
+      |};
+    v_info := xH;
+  |}.
+
 (* ** Interpretation of types
  * -------------------------------------------------------------------- *)
 
@@ -154,7 +164,7 @@ Definition vmap0 : vmap :=
 Definition get_var (m:vmap) x :=
   on_vu (@pto_val (vtype x)) undef_error (m.[x]%vmap).
 
-Arguments get_var _%vmap_scope _.
+#[ global ] Arguments get_var _%vmap_scope _.
 
 Definition get_gvar (gd: glob_decls) (vm: vmap) (x:gvar) :=
   if is_lvar x then get_var vm x.(gv)
@@ -252,6 +262,9 @@ Qed.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
+
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
 
 Record estate := Estate {
   emem : mem;
@@ -381,6 +394,7 @@ Proof. by case: s. Qed.
 
 Section SEM.
 
+Context `{asmop:asmOp}.
 Context {T} {pT:progT T}.
 
 Class semCallParams := SemCallParams {
@@ -784,7 +798,7 @@ Qed.
 Lemma to_boolI x b :
   to_bool x = ok b →
   x = b.
-Proof. case: x => //=; last by case. by move => ? /(@ok_inj _ _ _ _) ->. Qed.
+Proof. case: x => //=; last by case. by move => ? /ok_inj ->. Qed.
 
 Lemma of_val_int v z: of_val sint v = ok z -> v = Vint z.
 Proof. by case v=> //= [? [->] | []]. Qed.
@@ -819,15 +833,21 @@ Proof.
   by move=> /to_wordI [ws' [w [? -> ?]]] /=.
 Qed.
 
+Section ASM_OP.
+
+Context `{asmop:asmOp}.
+
 Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
   all2 subtype (sopn_tin o) (List.map type_of_val vs).
 Proof.
   rewrite /exec_sopn /sopn_tin /sopn_sem.
-  case (get_instr o) => /= _ tin _ tout _ semi _ _ _.
+  case (get_instr_desc o) => /= _ tin _ tout _ semi _ _ _.
   t_xrbindP => p hp _.
   elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
   by t_xrbindP => sv /= /of_val_subtype -> /hrec.
 Qed.
+
+End ASM_OP.
 
 Lemma on_arr_varP A (f : forall n, WArray.array n -> exec A) v vm x P:
   (forall n t, vtype x = sarr n -> 
@@ -1133,12 +1153,13 @@ Proof.
   case: x=> //= [v0 t|v0|aa ws v0 p|aa ws len v0 p] _.
   + by move => /write_noneP [-> _]. 
   + by apply: write_var_memP.
-  + by apply: on_arr_varP=> n t Ht Hval; t_xrbindP; move=> ????????; apply: write_var_memP.
+  + by apply: on_arr_varP=> n t Ht Hval; t_xrbindP=> ????????; apply: write_var_memP.
   by apply on_arr_varP => n t Ht Hval; t_xrbindP => ????????; apply: write_var_memP.
 Qed.
 
 Section Write.
 
+Context `{asmop:asmOp}.
 Context {T} {pT:progT T} {sCP : semCallParams}.
 
 Variable P : prog.
@@ -1147,7 +1168,7 @@ Variable ev : extra_val_t.
 Lemma writeP c s1 s2 :
    sem P ev s1 c s2 -> s1.(evm) = s2.(evm) [\ write_c c].
 Proof.
-  apply (@sem_Ind _ _ sCP P ev (fun s1 c s2 => s1.(evm) = s2.(evm) [\ write_c c])
+  apply (@sem_Ind _ _ _ _ sCP P ev (fun s1 c s2 => s1.(evm) = s2.(evm) [\ write_c c])
                   (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_i i])
                   (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_I i])
                   (fun x ws s1 c s2 =>
@@ -1562,7 +1583,7 @@ Definition eval_uincl (t1 t2:stype) (v1: exec (psem_t t1)) (v2: exec (psem_t t2)
 Definition vm_uincl (vm1 vm2:vmap) :=
   forall x, eval_uincl (vm1.[x])%vmap (vm2.[x])%vmap.
 
-Arguments vm_uincl _%vmap_scope _%vmap_scope.
+#[ global ] Arguments vm_uincl _%vmap_scope _%vmap_scope.
 
 Lemma val_uincl_refl t v: @val_uincl t t v v.
 Proof. by rewrite /val_uincl. Qed.
@@ -1769,7 +1790,7 @@ Lemma vm_uincl_vmap_uincl_on dom vm1 vm2 :
   vmap_uincl_on dom vm1 vm2.
 Proof. by move => h x _; exact: h. Qed.
 
-Instance vmap_uincl_on_trans dom : Transitive (vmap_uincl_on dom).
+#[ global ] Instance vmap_uincl_on_trans dom : Transitive (vmap_uincl_on dom).
 Proof. move => x y z xy yz r hr; apply: (eval_uincl_trans (xy _ hr)); exact: yz. Qed.
 
 Lemma vmap_uincl_on_empty vm1 vm2 :
@@ -1909,7 +1930,7 @@ Corollary sem_pexprs_uincl gd s1 vm2 es vs1 :
 Proof. move => /(@vm_uincl_vmap_uincl_on (read_es es)); exact: sem_pexprs_uincl_on. Qed.
 
 (* move to psem *)
-Lemma disjoint_unicl_on gd s r s1 s2 v:
+Lemma disjoint_uincl_on gd s r s1 s2 v:
   disjoint s (vrv r) ->
   write_lval gd r v s1 = ok s2 ->
   s1.(evm) <=[s] s2.(evm).
@@ -1937,15 +1958,21 @@ move => /value_uinclE; case: v => //.
 by move=> [] // ?? [?] /=; case: v' => //= -[].
 Qed.
 
+Section ASM_OP.
+
+Context `{asmop:asmOp}.
+
 Lemma vuincl_exec_opn_eq o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
   exec_sopn o vs' = ok v.
-Proof. by rewrite /exec_sopn /sopn_sem; apply: (@semu (get_instr o)). Qed.
+Proof. by rewrite /exec_sopn /sopn_sem; apply: (@semu (get_instr_desc o)). Qed.
 
 Lemma vuincl_exec_opn o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
   exists v', exec_sopn o vs' = ok v' /\ List.Forall2  value_uincl v v'.
 Proof. move => /vuincl_exec_opn_eq h /h {h}; eauto using List_Forall2_refl. Qed.
+
+End ASM_OP.
 
 Lemma set_vm_uincl vm vm' x z z' :
   vm_uincl vm vm' ->
@@ -2441,7 +2468,7 @@ Definition vmap_uincl_ex (dom: Sv.t) : relation vmap :=
   λ vm1 vm2,
   ∀ x : var, ~Sv.In x dom → (eval_uincl vm1.[x] vm2.[x])%vmap.
 
-Arguments vmap_uincl_ex _ _%vmap _%vmap.
+#[ global ] Arguments vmap_uincl_ex _ _%vmap _%vmap.
 
 Notation "vm1 '<=[\' s ']' vm2" := (vmap_uincl_ex s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  <=[\ s ]  '/'  vm2 ']'").
@@ -2487,6 +2514,7 @@ Qed.
 (* ---------------------------------------------------------------- *)
 Section UNDEFINCL.
 
+Context `{asmop:asmOp}.
 Context {T} {pT:progT T} {sCP : semCallParams}.
 Variable p : prog.
 Variable ev : extra_val_t.
@@ -2654,7 +2682,7 @@ Lemma sem_call_uincl vargs m1 f m2 vres vargs':
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_call_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2667,7 +2695,7 @@ Lemma sem_i_uincl s1 i s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_i_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_i_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2680,7 +2708,7 @@ Lemma sem_I_uincl s1 i s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_I_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_I_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2693,7 +2721,7 @@ Lemma sem_uincl s1 c s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2847,14 +2875,13 @@ Qed.
 (* ** Semantic without stack 
  * -------------------------------------------------------------------- *)
 
-Instance sCP_unit : @semCallParams _ progUnit := 
-  {| init_state := fun _ _ _ s => ok s;
-     finalize   := fun _ m => m; |}.
+#[ global ]
+Instance sCP_unit : @semCallParams _ progUnit :=
+  { init_state := fun _ _ _ s => ok s;
+    finalize   := fun _ m => m; }.
 
 (* ** Semantic with stack 
  * -------------------------------------------------------------------- *)
-
-Notation vid ident := {|v_var := {|vtype := sword Uptr; vname := ident|}; v_info := xH|}.
 
 Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (s:estate) :=
   let m1   := s.(emem) in
@@ -2866,9 +2893,10 @@ Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (
 Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
   free_stack m.
 
+#[ global ]
 Instance sCP_stack : @semCallParams _ progStack :=
-  {| init_state := init_stk_state;
-     finalize   := finalize_stk_mem; |}.
+  { init_state := init_stk_state;
+    finalize   := finalize_stk_mem; }.
 
 (* -------------------------------------------------------------------- *)
 
@@ -2938,10 +2966,14 @@ Section WF.
     apply: rbindP => s1' /(wf_write_lval Hwf);apply Hrec.
   Qed.
 
+  Section ASM_OP.
+
+  Context `{asmop:asmOp}.
+
   Lemma wf_sem p ev s1 c s2 :
     sem p ev s1 c s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
   Proof.
-    apply (@cmd_rect
+    apply (@cmd_rect _ _
              (fun i => forall s1 s2, sem_i p ev s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2))
              (fun i => forall s1 s2, sem_I p ev s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2))
              (fun c => forall s1 s2, sem   p ev s1 c s2 -> wf_vm (evm s1) -> wf_vm (evm s2)))=>
@@ -2986,9 +3018,11 @@ Section WF.
     sem_I p0 ev0 s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
   Proof. by move=> H;have := sem_seq1 H; apply: wf_sem. Qed.
 
+  End ASM_OP.
+
 End WF.
 
-Arguments wf_init { T pT }.
+#[ global ] Arguments wf_init { T pT }.
 
 Lemma wf_initu : wf_init sCP_unit.
 Proof. by move=> ????? [->]. Qed.
@@ -2998,3 +3032,35 @@ Proof.
   move=> ????? => /=; rewrite /init_stk_state; t_xrbindP => ?? h1 h2.
   apply: wf_write_vars h1; apply wf_vmap0.
 Qed.
+
+End WITH_POINTER_DATA.
+
+(* We redefine the notations outside the section so that we can use them in other files *)
+Notation "'Let' ( n , t ) ':=' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (get_var s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
+
+Notation "'Let' ( n , t ) ':=' gd ',' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (get_gvar gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
+
+Notation "vm1 '=[' s ']' vm2" := (eq_on s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  =[ s ]  '/'  vm2 ']'").
+
+Notation "vm1 = vm2 [\ s ]" := (vmap_eq_except s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  '/' =  vm2  '/' [\ s ] ']'").
+
+Notation "vm1 '<=[' s ']' vm2" := (vmap_uincl_on s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  <=[ s ]  '/'  vm2 ']'").
+
+Notation "vm1 '<=[\' s ']' vm2" := (vmap_uincl_ex s vm1 vm2) (at level 70, vm2 at next level,
+  format "'[hv ' vm1  <=[\ s ]  '/'  vm2 ']'").
+
+(* Same thing for the hints *)
+#[ export ] Hint Resolve
+  word_uincl_refl
+  value_uincl_refl
+  val_uincl_refl
+  pval_uincl_refl
+  eval_uincl_refl
+  vm_uincl_refl
+  vmap_uincl_on_empty
+  : core.

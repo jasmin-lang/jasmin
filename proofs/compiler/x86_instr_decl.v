@@ -35,7 +35,8 @@ Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import arch_decl x86_decl.
+Require Export arch_decl.
+Require Import x86_decl.
 
 (* -------------------------------------------------------------------- *)
 

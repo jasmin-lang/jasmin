@@ -1,7 +1,6 @@
 open Utils
-open Expr
+open Sopn
 open Prog
-open Arch_decl
 
 module IntSet = Sint
 module IntMap = Mint
@@ -51,7 +50,7 @@ let int_of_nat n =
     | Datatypes.S n -> loop (1 + acc) n
   in loop 0 n
 
-let find_equality_constraints (id: instruction) : arg_position list list =
+let find_equality_constraints (id: instruction_desc) : arg_position list list =
   let tbl : (int, arg_position list) Hashtbl.t = Hashtbl.create 17 in
   let set n p =
     let old = try Hashtbl.find tbl n with Not_found -> [] in
@@ -60,11 +59,11 @@ let find_equality_constraints (id: instruction) : arg_position list list =
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (_, p, _) -> set (int_of_nat p) (APout n)) id.i_out;
+      | ADExplicit (p, _) -> set (int_of_nat p) (APout n)) id.i_out;
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (_, p, _) -> set (int_of_nat p) (APin n)) id.i_in;
+      | ADExplicit (p, _) -> set (int_of_nat p) (APin n)) id.i_in;
   Hashtbl.fold
     (fun _ apl res ->
        match apl with
@@ -83,7 +82,7 @@ let find_var outs ins ap : _ option =
 
 let x86_equality_constraints (int_of_var: var_i -> int option) (k: int -> int -> unit)
     (k': int -> int -> unit)
-    (lvs: 'ty glvals) (op: sopn) (es: 'ty gexprs) : unit =
+    (lvs: 'ty glvals) (op: X86_extra.x86_extended_op sopn) (es: 'ty gexprs) : unit =
   let merge k v w =
     match int_of_var v with
     | None -> ()
@@ -93,11 +92,11 @@ let x86_equality_constraints (int_of_var: var_i -> int option) (k: int -> int ->
        | Some j -> k i j
   in
   begin match op, lvs, es with
-  | Ox86' (None, MOV _), [ Lvar x ], [ Pvar y ] when is_gkvar y &&
+  | Oasm (BaseOp (None, MOV _)), [ Lvar x ], [ Pvar y ] when is_gkvar y &&
                                               kind_i x = kind_i y.gv ->
     merge k' x y.gv
   | _, _, _ ->
-    let id = get_instr op in
+    let id = get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) op in
       find_equality_constraints id |>
       List.iter (fun constr ->
           constr |>
@@ -532,7 +531,7 @@ struct
   let all_registers = reserved @ allocatable @ xmm_allocatable @ flags
 
   let forced_registers translate_var loc nv (vars: int Hv.t) (cnf: conflicts)
-      (lvs: 'ty glvals) (op: sopn) (es: 'ty gexprs)
+      (lvs: 'ty glvals) (op: X86_extra.x86_extended_op sopn) (es: 'ty gexprs)
       (a: A.allocation) : unit =
     let f x = Hv.find vars (L.unloc x) in
     let allocate_one x y a =
@@ -542,22 +541,28 @@ struct
     let mallocate_one x y a =
       match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
     in
-    let id = get_instr op in
+    let id = get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) op in
+    (* TODO: move !! *)
+    let var_of_implicit v =
+      match v with
+      | IArflag v -> v
+      | IAreg v -> v
+    in
     List.iter2 (fun ad lv ->
         match ad with
         | ADImplicit v ->
            begin match lv with
-           | Lvar w -> allocate_one w (translate_var (Asmgen.var_of_implicit v)) a
+           | Lvar w -> allocate_one w (translate_var (var_of_implicit v)) a
            | _ -> assert false
            end
         | ADExplicit _ -> ()) id.i_out lvs;
     List.iter2 (fun ad e ->
         match ad with
         | ADImplicit v ->
-           mallocate_one e (translate_var (Asmgen.var_of_implicit v)) a
-        | ADExplicit (_, _, Some r) ->
-           mallocate_one e (translate_var (X86_variables.var_of_register r)) a
-        | ADExplicit (_, _, None) -> ()) id.i_in es
+           mallocate_one e (translate_var (var_of_implicit v)) a
+        | ADExplicit (_, Some v) ->
+           mallocate_one e (translate_var v) a
+        | ADExplicit (_, None) -> ()) id.i_in es
 
 end
 

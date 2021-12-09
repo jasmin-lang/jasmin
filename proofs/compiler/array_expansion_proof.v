@@ -67,12 +67,14 @@ Definition eq_alloc_vm (m : t) (vm1 vm2 : vmap) :=
     eval_uincl (set_undef_e (t := sword ai.(ai_ty)) (eval_array vm1 ai.(ai_ty) x i)) 
                (set_undef_e vm2.[xi]).
 
-Definition eq_alloc (m : t) (s1 s2 : estate) := 
+Definition eq_alloc {_: PointerData} (m : t) (s1 s2 : estate) :=
   eq_alloc_vm m s1.(evm) s2.(evm) /\
   s1.(emem) = s2.(emem).
     
 Section Section.
 
+Context {pd: PointerData}.
+Context `{asmop:asmOp}.
 Variable (fi : funname -> ufundef -> expand_info).
 Variable p1 p2:uprog.
 
@@ -247,10 +249,10 @@ Proof.
     split => //; split.
     + apply: (eq_onT (vm2:= evm s1)).
       + apply eq_onS.
-        apply (@disjoint_eq_on gd _ x _ _ (Varr t')).
+        apply (@disjoint_eq_on _ gd _ x _ _ (Varr t')).
         + by rewrite vrv_var; move/Sv_memP : hnin => hnin; apply/Sv.is_empty_spec; SvD.fsetdec.
         by rewrite /= /write_var hs.
-      apply: (eq_onT heq); apply (@disjoint_eq_on gd _ (VarI xi x.(v_info)) _ _ (Vword w)).
+      apply: (eq_onT heq); apply (@disjoint_eq_on _ gd _ (VarI xi x.(v_info)) _ _ (Vword w)).
       + by rewrite vrv_var; move/negP/Sv_memP:hnxi => hnxi /=; apply/Sv.is_empty_spec; SvD.fsetdec.
       by rewrite /= /write_var /set_var /= /on_vu (sumbool_of_boolET (cmp_le_refl _)).
     move=> x' ai' i' xi'.
@@ -545,7 +547,7 @@ Qed.
 Lemma expand_callP f mem mem' va vr:
   sem_call p1 ev mem f va mem' vr -> sem_call p2 ev mem f va mem' vr.
 Proof.
-  apply (@sem_call_Ind _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+  apply (@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
           Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
 Qed.
 

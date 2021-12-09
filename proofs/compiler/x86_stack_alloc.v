@@ -23,31 +23,36 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-(* -------------------------------------------------------------------- *)
-From mathcomp Require Import all_ssreflect all_algebra. 
-Require Import global Utf8.
+From mathcomp Require Import all_ssreflect all_algebra.
+From CoqWord Require Import ssrZ.
+Require Import expr memory_model stack_alloc.
+Require Import arch_decl.
+Require Import x86_decl x86_instr_decl x86_extra.
 
-Set   Implicit Arguments.
+Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* ==================================================================== *)
-Definition label := positive.
-Bind Scope positive_scope with label.
+Definition lea_ptr x y ofs : instr_r :=
+  Copn [:: x] AT_none (Ox86 (LEA Uptr)) [:: add y (cast_const ofs)].
 
-Definition remote_label := (funname * label)%type.
+Definition mov_ptr x y :=
+  Copn [:: x] AT_none (Ox86 (MOV Uptr)) [:: y].
 
-(* Indirect jumps use labels encoded as pointers: we assume such an encoding exists.
-  The encoding and decoding functions are parameterized by a domain:
-  they are assumed to succeed on this domain only.
-*)
+Inductive mov_kind :=
+  | MK_LEA
+  | MK_MOV.
 
-Section WITH_POINTER_DATA.
-Context {pd: PointerData}.
+Definition mk_mov vpk :=
+  match vpk with
+  | VKglob _ | VKptr (Pdirect _ _ _ _ Slocal) => MK_LEA
+  | _ => MK_MOV
+  end.
 
-Parameter encode_label : seq remote_label → remote_label → option pointer.
-Parameter decode_label : seq remote_label → pointer → option remote_label.
-Axiom decode_encode_label : ∀ dom lbl, obind (decode_label dom) (encode_label dom lbl) = Some lbl.
-Axiom encode_label_dom : ∀ dom lbl, lbl \in dom → encode_label dom lbl ≠ None.
-
-End WITH_POINTER_DATA.
+Definition x86_mov_ofs x vpk y ofs :=
+  let addr := if mk_mov vpk is MK_LEA
+              then lea_ptr x y ofs
+              else if ofs == 0%Z
+                   then mov_ptr x y
+                   else lea_ptr x y ofs in
+  Some addr.

@@ -23,31 +23,18 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-(* -------------------------------------------------------------------- *)
-From mathcomp Require Import all_ssreflect all_algebra. 
-Require Import global Utf8.
+From mathcomp Require Import all_ssreflect all_algebra.
+Require Import sopn psem compiler.
+Require Import x86_decl x86_instr_decl x86_extra.
 
-Set   Implicit Arguments.
+Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* ==================================================================== *)
-Definition label := positive.
-Bind Scope positive_scope with label.
+Definition is_move_op (o : sopn.asm_op_t) :=
+  match o with
+  | BaseOp (None, MOV ws) | BaseOp (None, VMOVDQU ws) => Some ws
+  | _ => None
+  end.
 
-Definition remote_label := (funname * label)%type.
-
-(* Indirect jumps use labels encoded as pointers: we assume such an encoding exists.
-  The encoding and decoding functions are parameterized by a domain:
-  they are assumed to succeed on this domain only.
-*)
-
-Section WITH_POINTER_DATA.
-Context {pd: PointerData}.
-
-Parameter encode_label : seq remote_label → remote_label → option pointer.
-Parameter decode_label : seq remote_label → pointer → option remote_label.
-Axiom decode_encode_label : ∀ dom lbl, obind (decode_label dom) (encode_label dom lbl) = Some lbl.
-Axiom encode_label_dom : ∀ dom lbl, lbl \in dom → encode_label dom lbl ≠ None.
-
-End WITH_POINTER_DATA.
+Definition aparams := mk_aparams is_move_op.

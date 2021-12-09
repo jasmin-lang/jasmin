@@ -1,33 +1,171 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import low_memory expr x86_sem compiler_util lowering x86_variables.
-Import Utf8.
-Import oseq.
-Import GRing.
-Require Import ssrring.
+Require Import oseq compiler_util expr low_memory lea arch_decl arch_extra.
+Import Utf8 String.
+Import all_ssreflect.
+Import compiler_util.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition pexpr_of_lval ii (lv:lval) : cexec pexpr :=
-  match lv with
-  | Lvar x          => ok (Plvar x)
-  | Lmem s x e      => ok (Pload s x e)
-  | Lnone _ _       => Error (E.internal_error ii "_ lval remains")
-  | Laset _ _ _ _   => Error (E.internal_error ii "Laset lval remains")
-  | Lasub _ _ _ _ _ => Error (E.internal_error ii "Lasub lval remains")
+Module E.
+
+Definition pass_name := "asmgen"%string.
+
+Definition gen_error (internal:bool) (ii:option instr_info) (vi: option var_info) (msg:pp_error) := 
+  {| pel_msg      := msg
+   ; pel_fn       := None
+   ; pel_fi       := None
+   ; pel_ii       := ii
+   ; pel_vi       := vi
+   ; pel_pass     := Some pass_name
+   ; pel_internal := internal
+  |}.
+
+Definition internal_error ii msg := 
+  gen_error true (Some ii) None (pp_s msg).
+
+Definition error ii msg := 
+  gen_error false (Some ii) None msg.
+
+Definition verror internal msg ii (v:var_i) := 
+  gen_error internal (Some ii) (Some v.(v_info)) (pp_box [:: pp_s msg; pp_s ":"; pp_var v]).
+
+Definition invalid_name category ii (v:var_i) :=
+   verror true ("Invalid " ++ category ++ " name") ii v.
+
+Definition invalid_ty category ii (v:var_i) :=
+  verror true ("Invalid " ++ category ++ " type") ii v.
+
+Definition invalid_register ii (v:var_i) :=
+   verror true "Invalid register name" ii v.
+
+Definition invalid_register_ty ii (v:var_i) :=
+  verror true "Invalid register type" ii v.
+
+Definition berror ii e msg := 
+  gen_error false (Some ii) None (pp_vbox [::pp_box [:: pp_s "not able to compile the condition"; pp_e e];
+                                             pp_s msg]).
+
+Definition werror ii e msg := 
+  gen_error false (Some ii) None (pp_vbox [::pp_box [:: pp_s "invalid pexpr for oprd"; pp_e e];
+                                             pp_s msg]).
+
+End E.
+
+Section TOSTRING.
+
+Context `{tS : ToString}.
+
+(* move ? *)
+Definition of_var_e ii (v: var_i) :=
+  match of_var v with
+  | Some r => ok r
+  | None =>
+    if vtype v == rtype then Error (E.invalid_ty category ii v)
+    else Error (E.invalid_name category ii v)
   end.
 
-Definition nmap (T:Type) := nat -> option T.
-Definition nget (T:Type) (m:nmap T) (n:nat) := m n.
-Definition nset (T:Type) (m:nmap T) (n:nat) (t:T) :=
-  fun x => if x == n then Some t else nget m x.
-Definition nempty (T:Type) := fun n:nat => @None T.
+Lemma of_var_eP {ii v r} :
+  of_var_e ii v = ok r -> of_var v = Some r.
+Proof.
+  rewrite /of_var_e; case: of_var; last by case: eqP.
+  by move=> _ [->].
+Qed.
 
-Definition var_of_implicit (i:implicit_arg) :=
-  match i with
-  | IArflag f => var_of_flag f
-  | IAreg r   => var_of_register r
+Lemma of_var_eI {ii v r} : of_var_e ii v = ok r -> to_var r = v.
+Proof. by move => /of_var_eP; apply/of_varI. Qed.
+
+Lemma inj_of_var_e {ii v1 v2 r}:
+  of_var_e ii v1 = ok r -> of_var_e ii v2 = ok r -> v1 = v2 :> var.
+Proof. by move => /of_var_eP h1 /of_var_eP; apply: inj_of_var. Qed.
+
+End TOSTRING.
+
+Section ASM_EXTRA.
+
+Context `{asm_e : asm_extra}.
+
+Definition to_reg   : var -> option reg_t   := of_var.
+Definition to_xreg  : var -> option xreg_t  := of_var.
+Definition to_rflag : var -> option rflag_t := of_var.
+
+(* -------------------------------------------------------------------- *)
+Variant compiled_variable :=
+| LReg   of reg_t
+| LXReg  of xreg_t
+| LRFlag of rflag_t
+.
+
+Definition compiled_variable_beq cv1 cv2 :=
+  match cv1, cv2 with
+  | LReg   r1, LReg   r2 => r1 == r2 ::>
+  | LXReg  r1, LXReg  r2 => r1 == r2 ::>
+  | LRFlag f1, LRFlag f2 => f1 == f2 ::>
+  | _, _ => false
+  end.
+
+Lemma compiled_variable_eq_axiom : Equality.axiom compiled_variable_beq.
+Proof.
+  move=> [r1 | x1 | f1] [r2 | x2 | f2] /=;
+    (by constructor || by apply:(iffP idP) => [ /eqP -> | [->] ]).
+Qed.
+
+Definition compiled_variable_eqMixin := Equality.Mixin compiled_variable_eq_axiom.
+Canonical  compiled_variable_eqType  := Eval hnf in EqType compiled_variable compiled_variable_eqMixin.
+
+Definition compile_var (v: var) : option compiled_variable :=
+  match to_reg v with
+  | Some r => Some (LReg r)
+  | None =>
+  match to_xreg v with
+  | Some r => Some (LXReg r)
+  | None =>
+  match to_rflag v with
+  | Some f => Some (LRFlag f)
+  | None => None
+  end end end.
+
+Lemma compile_varI x cv :
+  compile_var x = Some cv →
+  match cv with
+  | LReg r   => to_var r = x
+  | LXReg r  => to_var r = x
+  | LRFlag f => to_var f = x
+  end.
+Proof.
+  rewrite /compile_var.
+  case heqr: (to_reg x) => [ r | ].
+  + by move=> [<-]; apply: of_varI.
+  case heqx: (to_xreg x) => [ r | ].
+  + by move=> [<-]; apply: of_varI.
+  case heqf: (to_rflag x) => [ r | //].
+  by move=> [<-]; apply: of_varI.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+(* Compilation of pexprs *)
+(* -------------------------------------------------------------------- *)
+
+Context (assemble_cond : instr_info -> pexpr -> cexec cond_t).
+
+(* -------------------------------------------------------------------- *)
+Definition scale_of_z' ii (z:pointer) : cexec nat :=
+  match wunsigned z with
+  | 1%Z => ok 0
+  | 2%Z => ok 1
+  | 4%Z => ok 2
+  | 8%Z => ok 3
+  | _ => Error (E.error ii (pp_s "invalid scale"))
+  end.
+
+Definition reg_of_ovar ii (x:option var_i) : cexec (option reg_t) :=
+  match x with
+  | Some x =>
+    Let r := of_var_e ii x in
+    ok (Some r)
+  | None =>
+    ok None
   end.
 
 Definition assemble_lea ii lea :=
@@ -44,14 +182,14 @@ Definition assemble_lea ii lea :=
 Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) :=
   Let _ := assert (sz <= Uptr)%CMP
                   (E.error ii (pp_s "Bad type for address")) in
-  match lowering.mk_lea sz e with
+  match mk_lea sz e with
   | Some lea =>
      match lea.(lea_base) with
      | Some r =>
         if r.(v_var) == rip then
           Let _ := assert (lea.(lea_offset) == None)
                           (E.error ii (pp_box [::pp_s "Invalid global address :"; pp_e e])) in
-           ok (Arip lea.(lea_disp))
+          ok (Arip lea.(lea_disp))
         else assemble_lea ii lea
       | None =>
         assemble_lea ii lea
@@ -62,7 +200,12 @@ Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) :=
 Definition addr_of_xpexpr rip ii sz v e :=
   addr_of_pexpr rip ii sz (Papp2 (Oadd (Op_w sz)) (Plvar v) e).
 
-Definition assemble_word_mem rip ii (sz:wsize) (e:pexpr) :=
+Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
+  if to_xreg x is Some r then ok (XReg r)
+  else if to_reg x is Some r then ok (Reg r)
+  else Error (E.verror false "Not a (x)register" ii x).
+
+Definition assemble_word_load rip ii (sz:wsize) (e:pexpr) :=
   match e with
   | Papp1 (Oword_of_int sz') (Pconst z) =>
     let w := wrepr sz' z in
@@ -87,7 +230,7 @@ Definition assemble_word_mem rip ii (sz:wsize) (e:pexpr) :=
 
 Definition assemble_word (k:addr_kind) rip ii (sz:wsize) (e:pexpr) :=
   match k with
-  | AK_mem => assemble_word_mem rip ii (sz:wsize) (e:pexpr)
+  | AK_mem => assemble_word_load rip ii (sz:wsize) (e:pexpr)
   | AK_compute =>
     Let w := addr_of_pexpr rip ii sz e in
     ok (Addr w)
@@ -99,6 +242,27 @@ Definition arg_of_pexpr k rip ii (ty:stype) (e:pexpr) :=
   | sword sz => assemble_word k rip ii sz e
   | sint  => Error (E.werror ii e "not able to assemble an expression of type int")
   | sarr _ => Error (E.werror ii e "not able to assemble an expression of type array _")
+  end.
+
+Definition pexpr_of_lval ii (lv:lval) : cexec pexpr :=
+  match lv with
+  | Lvar x          => ok (Plvar x)
+  | Lmem s x e      => ok (Pload s x e)
+  | Lnone _ _       => Error (E.internal_error ii "_ lval remains")
+  | Laset _ _ _ _   => Error (E.internal_error ii "Laset lval remains")
+  | Lasub _ _ _ _ _ => Error (E.internal_error ii "Lasub lval remains")
+  end.
+
+Definition nmap (T:Type) := nat -> option T.
+Definition nget (T:Type) (m:nmap T) (n:nat) := m n.
+Definition nset (T:Type) (m:nmap T) (n:nat) (t:T) :=
+  fun x => if x == n then Some t else nget m x.
+Definition nempty (T:Type) := fun n:nat => @None T.
+
+Definition var_of_implicit (i:implicit_arg) :=
+  match i with
+  | IArflag f => to_var f
+  | IAreg r   => to_var r
   end.
 
 Definition compile_arg rip ii (ade: (arg_desc * stype) * pexpr) (m: nmap asm_arg) : cexec (nmap asm_arg) :=
@@ -159,7 +323,7 @@ Definition check_sopn_dest rip ii (loargs : seq asm_arg) (x : pexpr) (adt : arg_
 Definition error_imm ii :=
  E.error ii (pp_s "Invalid asm: cannot truncate the immediate to a 32 bits immediate, move it to a register first").
 
-Definition assemble_x86_opn_aux rip ii op (outx : lvals) (inx : pexprs) :=
+Definition assemble_asm_op_aux rip ii op (outx : lvals) (inx : pexprs) :=
   let id := instr_desc op in
   Let m := compile_args rip ii (zip id.(id_in) id.(id_tin)) inx (nempty _) in
   Let eoutx := mapM (pexpr_of_lval ii) outx in
@@ -226,7 +390,7 @@ Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
   end.
 
 Definition enforce_imm_arg_kinds (a:asm_arg) (cond:arg_kinds) :=
-  find_map (enforce_imm_arg_kind a) cond.
+  utils.find_map (enforce_imm_arg_kind a) cond.
 
 (* We use [mapM2] so that we check that the two lists have equal lengths.
    But we don't need a real error message, thus we use [tt] as the error. *)
@@ -237,7 +401,7 @@ Definition enforce_imm_args_kinds (args:asm_args) (cond:args_kinds) : option asm
   end.
 
 Definition enforce_imm_i_args_kinds (cond:i_args_kinds) (a:asm_args) :=
-  find_map (enforce_imm_args_kinds a) cond.
+  utils.find_map (enforce_imm_args_kinds a) cond.
 
 Definition pp_arg_kind c :=
   match c with
@@ -264,9 +428,9 @@ Definition pp_args_kinds cond :=
 Definition pp_i_args_kinds cond :=
   pp_vbox [:: pp_nobox (pp_list PPEbreak pp_args_kinds cond)].
 
-Definition assemble_x86_opn rip ii op (outx : lvals) (inx : pexprs) := 
+Definition assemble_asm_op rip ii op (outx : lvals) (inx : pexprs) := 
   let id := instr_desc op in
-  Let asm_args := assemble_x86_opn_aux rip ii op outx inx in
+  Let asm_args := assemble_asm_op_aux rip ii op outx inx in
   let s := id.(id_str_jas) tt in
   let args_kinds := filter_i_args_kinds_no_imm id.(id_args_kinds) asm_args in
   Let _ := assert (args_kinds != [::])
@@ -291,47 +455,23 @@ Definition assemble_x86_opn rip ii op (outx : lvals) (inx : pexprs) :=
   in
   Let _ := assert (check_sopn_args rip ii asm_args inx (zip id.(id_in) id.(id_tin)) &&
                      check_sopn_dests rip ii asm_args outx (zip id.(id_out) id.(id_tout)))
-                  (E.internal_error ii "assemble_x86_opn: cannot check") in
+                  (E.internal_error ii "assemble_asm_opn: cannot check") in
   ok (op.2, asm_args).
 
-Definition assemble_sopn rip ii op (outx : lvals) (inx : pexprs) :=
+Definition assemble_sopn rip ii (op:sopn) (outx : lvals) (inx : pexprs) :=
   match op with
-  | Ocopy _ _ 
+  | Ocopy _ _
   | Onop
   | Omulu     _ 
   | Oaddcarry _ 
   | Osubcarry _ =>
     Error (E.internal_error ii "assemble_sopn : invalid op")
   (* Low level x86 operations *)
-  | Oset0 sz => 
-    let op := if (sz <= U64)%CMP then (XOR sz) else (VPXOR sz) in
-    Let x := 
-      match rev outx with 
-      | Lvar x :: _ =>  ok x
-      | _ => Error (E.internal_error ii "set0 : destination is not a register")
-      end in
-    assemble_x86_opn rip ii (None, op) outx [::Plvar x; Plvar x]
-  | Ox86MOVZX32 =>
-    Let x := 
-      match outx with 
-      | [::Lvar x] =>  ok x
-      | _ => Error (E.internal_error ii "Ox86MOVZX32: destination is not a register")
-      end in
-    assemble_x86_opn rip ii (None, MOV U32) outx inx
-
-  | Oconcat128 =>
-    Let inx := 
-        match inx with
-        | [:: h; Pvar _ as l] => ok [:: l; h; @wconst U8 1%R]
-        |  _ => Error (E.internal_error ii "Oconcat: assert false")
-        end in
-    assemble_x86_opn rip ii (None, VINSERTI128) outx inx
-    
-  | Ox86' op =>
-    assemble_x86_opn rip ii op outx inx 
+  | Oasm (BaseOp op) =>
+    assemble_asm_op rip ii op outx inx
+  | Oasm (ExtOp op) =>
+    Let: (op, outx, inx) := to_asm ii op outx inx in
+    assemble_asm_op rip ii op outx inx
   end.
 
-Lemma id_semi_sopn_sem op :
-  let id := instr_desc op in
-  id_semi id = sopn_sem (Ox86' op).
-Proof. by []. Qed.
+End ASM_EXTRA.

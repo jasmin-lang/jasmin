@@ -218,7 +218,7 @@ let pp_tyerror fmt (code : tyerror) =
   
   | StringError s ->
     F.fprintf fmt "%s" s
-  
+
 (* -------------------------------------------------------------------- *)
 module Env : sig
   type env
@@ -1070,7 +1070,7 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
 
   | S.PECall _ ->
     rs_tyerror ~loc:(L.loc pe) CallNotAllowed
-    
+
   | S.PEPrim _ ->
     rs_tyerror ~loc:(L.loc pe) PrimNotAllowed
 
@@ -1195,37 +1195,36 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 let f_sig f =
   List.map P.ty_i f.P.f_ret, List.map (fun v -> v.P.v_ty) f.P.f_args
 
-let prim_sig (type a) p : a P.gty list * a P.gty list * (_, _, _, _) Arch_decl.arg_desc list =
+let prim_sig (type a) p : a P.gty list * a P.gty list * Sopn.arg_desc list =
   let f = conv_ty in
-  let o = E.get_instr p in
-  List.map f o.E.tout,
-  List.map f o.E.tin,
-  o.E.i_out
+  let o = Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) p in
+  List.map f o.tout,
+  List.map f o.tin,
+  o.i_out
 
 type prim_constructor =
-  | PrimP of W.wsize * (W.wsize option -> W.wsize -> Expr.sopn)
-  | PrimM of (W.wsize option -> Expr.sopn)
-  | PrimV of (W.wsize option -> W.signedness -> W.velem -> W.wsize -> Expr.sopn)
-  | PrimX of (W.wsize option -> W.wsize -> W.wsize -> Expr.sopn)
-  | PrimVV of (W.wsize option -> W.velem -> W.wsize -> W.velem -> W.wsize -> Expr.sopn)
+  | PrimP of W.wsize * (W.wsize option -> W.wsize -> X86_extra.x86_extended_op Sopn.sopn)
+  | PrimM of (W.wsize option -> X86_extra.x86_extended_op Sopn.sopn)
+  | PrimV of (W.wsize option -> W.signedness -> W.velem -> W.wsize -> X86_extra.x86_extended_op Sopn.sopn)
+  | PrimX of (W.wsize option -> W.wsize -> W.wsize -> X86_extra.x86_extended_op Sopn.sopn)
+  | PrimVV of (W.wsize option -> W.velem -> W.wsize -> W.velem -> W.wsize -> X86_extra.x86_extended_op Sopn.sopn)
 
 let prim_string =
-  let open Expr in
   [ "mulu", PrimP (W.U64, fun _ws sz -> Omulu sz);
     "adc", PrimP (W.U64, fun _ws sz -> Oaddcarry sz);
     "sbb", PrimP (W.U64, fun _ws sz -> Osubcarry sz);
-    "set0", PrimP (W.U64, fun _ws sz -> Oset0 sz);
-    "concat_2u128", PrimM (fun _ws -> Oconcat128) ] @
+    "set0", PrimP (W.U64, fun _ws sz -> Oasm (ExtOp (Oset0 sz)));
+    "concat_2u128", PrimM (fun _ws -> Oasm (ExtOp Oconcat128)) ] @
   List.map (fun (s, prc) ->
       let s = Conv.string_of_string0 s in
       let prc = 
         match prc with
-        | Arch_decl.PrimP(x1,x2) -> PrimP(x1, fun ws sz -> Ox86' (ws, x2 sz))
-        | Arch_decl.PrimM(x)     -> PrimM(fun ws -> Ox86' (ws, x))
-        | Arch_decl.PrimV(x)     -> PrimV(fun ws _ sz sz' -> Ox86' (ws, x sz sz'))
-        | Arch_decl.PrimSV(x)    -> PrimV(fun ws s sz sz' -> Ox86' (ws, x s sz sz'))
-        | Arch_decl.PrimX(x)     -> PrimX(fun ws sz sz' -> Ox86' (ws, x sz sz'))
-        | Arch_decl.PrimVV(x)    -> PrimVV(fun ws ve sz ve' sz' -> Ox86' (ws, x ve sz ve' sz')) in
+        | Arch_decl.PrimP(x1,x2) -> PrimP(x1, fun ws sz -> Oasm (BaseOp (ws, x2 sz)))
+        | Arch_decl.PrimM(x)     -> PrimM(fun ws -> Oasm (BaseOp (ws, x)))
+        | Arch_decl.PrimV(x)     -> PrimV(fun ws _ sz sz' -> Oasm (BaseOp (ws, x sz sz')))
+        | Arch_decl.PrimSV(x)    -> PrimV(fun ws s sz sz' -> Oasm (BaseOp (ws, x s sz sz')))
+        | Arch_decl.PrimX(x)     -> PrimX(fun ws sz sz' -> Oasm (BaseOp (ws, x sz sz')))
+        | Arch_decl.PrimVV(x)    -> PrimVV(fun ws ve sz ve' sz' -> Oasm (BaseOp (ws, x ve sz ve' sz'))) in
       (s, prc)) X86_instr_decl.x86_prim_string
             
 type size_annotation =
@@ -1409,7 +1408,6 @@ let pexpr_of_plvalue exn l =
 
 
 let tt_lvalues env (pimp, pls) implicit tys =
-  let open Arch_decl in
   let loc = loc_of_tuples (List.map P.L.loc pls) in
   let ignore_ = L.mk_loc loc S.PLIgnore in
 
@@ -1440,15 +1438,16 @@ let tt_lvalues env (pimp, pls) implicit tys =
     | Some pimp, Some implicit ->
       let pimp = L.unloc pimp in
       let nb_explicit = 
+        let open Sopn in
         List.count_matching (function ADExplicit _ -> true | _ -> false) implicit in
       let pls = extend_pls nb_explicit in
       let arguments = 
         (* FIXME this is not generic *)
-        let open X86_decl in
+        let open Sopn in
         List.map 
           (function ADExplicit _           -> None 
-                  | ADImplicit (IArflag f) -> Some (Conv.string_of_string0 (x86_string_of_rflag f))
-                  | ADImplicit (IAreg r)   -> Some (Conv.string_of_string0 (x86_string_of_register r)))
+                  | ADImplicit (IArflag f) -> Some (Conv.string_of_string0 (Var0.Var.vname f))
+                  | ADImplicit (IAreg r)   -> Some (Conv.string_of_string0 (Var0.Var.vname r)))
           implicit in
 
       let iargs = List.pmap (omap String.uppercase_ascii) arguments in
@@ -1664,7 +1663,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
           end
         | _ -> rs_tyerror ~loc:(L.loc y.gv) (string_error "an array is expected")
     in
-    env, [ mk_i (Copn([Lvar x], AT_none, E.Ocopy(ws, Conv.pos_of_int 1), [Pvar y]))] 
+    env, [ mk_i (Copn([Lvar x], AT_none, Sopn.Ocopy(ws, Conv.pos_of_int 1), [Pvar y]))] 
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim None f in

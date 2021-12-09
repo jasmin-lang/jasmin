@@ -43,6 +43,8 @@ Local Open Scope seq_scope.
 
 Section SEM.
 
+Context {pd: PointerData}.
+Context `{asmop:asmOp}.
 Variable P: lprog.
 
 Definition label_in_lcmd (body: lcmd) : seq label :=
@@ -64,7 +66,7 @@ Record lstate := Lstate
     lpc  : nat; }.
 
 Definition to_estate (s:lstate) : estate := Estate s.(lmem) s.(lvm).
-Definition of_estate (s:estate) pc := Lstate s.(emem) s.(evm) pc.
+Definition of_estate (s:estate) fn pc := Lstate s.(emem) s.(evm) fn pc.
 Definition setpc (s:lstate) pc :=  Lstate s.(lmem) s.(lvm) s.(lfn) pc.
 Definition setc (s:lstate) fn := Lstate s.(lmem) s.(lvm) fn s.(lpc).
 Definition setcpc (s:lstate) fn pc := Lstate s.(lmem) s.(lvm) fn pc.
@@ -82,6 +84,9 @@ A maximal execution (i.e., terminated without error) is caracterized by the fact
 the reached state has no instruction left to execute.
 *)
 Section LSEM.
+
+(* Architecture-dependent way of storing a pointer. *)
+Context (mov_op : asm_op).
 
 Definition eval_jump d s :=
   let: (fn, lbl) := d in
@@ -107,8 +112,9 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
       eval_jump d s1
     else type_error
   | LstoreLabel x lbl =>
-    if encode_label labels (lfn s1, lbl) is Some p then
-      Let s2 := sem_sopn [::]  (Ox86 (LEA Uptr)) (to_estate s1) [:: x ] [:: wconst p ] in
+    if encode_label labels (lfn s1, lbl) is Some p
+    then
+      Let s2 := sem_sopn [::] (Oasm mov_op) (to_estate s1) [:: x ] [:: wconst p ] in
       ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
     else type_error
   | Lcond e lbl =>
@@ -215,9 +221,6 @@ Proof.
   by move => b{}z ab /clos_rt_rt1n_iff bz; right; exists b.
 Qed.
 
-
-End LSEM.
-
 (*
 Variant lsem_fd (wrip: pointer) m1 fn va' m2 vr' : Prop :=
 | LSem_fd : forall m1' fd va vm2 m2' s1 s2 vr,
@@ -265,4 +268,8 @@ Variant lsem_exportcall (m: mem) (fn: funname) (vm: vmap) (m': mem) (vm': vmap) 
          {| lmem := m ; lvm := vm ; lfn := fn ; lpc := 0 |}
          {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (lfd_body fd) |}.
 
+End LSEM.
+
 End SEM.
+
+Arguments lsem_split_start {_ _ _ _ _ _ _}.

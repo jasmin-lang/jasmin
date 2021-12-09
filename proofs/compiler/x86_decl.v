@@ -37,8 +37,8 @@ global
 oseq
 Utf8
 Relation_Operators
-sem_type
-arch_decl.
+sem_type.
+Require Export arch_decl.
 
 (* Import Memory. *)
 

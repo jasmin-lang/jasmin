@@ -19,6 +19,11 @@ Module Import E.
 
 End E.
 
+Section ASM_OP.
+
+Context {pd : PointerData}.
+Context `{asmop : asmOp}.
+
 Section Tunneling.
 
 Context (fn : funname).
@@ -132,3 +137,5 @@ Section TunnelingCompiler.
     else Error (tunneling_error "not well-formed").
 
 End TunnelingCompiler.
+
+End ASM_OP.

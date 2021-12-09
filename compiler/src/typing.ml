@@ -74,8 +74,8 @@ let type_of_opN op =
   List.map Conv.ty_of_cty tins, Conv.ty_of_cty tout
 
 let type_of_sopn op = 
-  List.map Conv.ty_of_cty (E.sopn_tin op),
-  List.map Conv.ty_of_cty (E.sopn_tout op)
+  List.map Conv.ty_of_cty (Sopn.sopn_tin (Arch_extra.asm_opI X86_extra.x86_extra) op),
+  List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op)
 
 (* -------------------------------------------------------------------- *)
 

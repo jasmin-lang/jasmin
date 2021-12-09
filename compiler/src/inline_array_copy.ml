@@ -44,14 +44,14 @@ and iac_instr_r loc ir =
       | Some (ws, n) -> 
           warning IntroduceArrayCopy 
             loc "an array copy is introduced";
-          Copn([x], t, E.Ocopy(ws, Conv.pos_of_int n), [e])
+          Copn([x], t, Sopn.Ocopy(ws, Conv.pos_of_int n), [e])
     else ir
   | Cif (b, th, el) -> Cif (b, iac_stmt th, iac_stmt el)
   | Cfor (i, r, s) -> Cfor (i, r, iac_stmt s)
   | Cwhile (a, c1, t, c2) -> Cwhile (a, iac_stmt c1, t, iac_stmt c2)
   | Copn (xs,t,o,es) ->
     begin match o, xs with
-    | E.Ocopy(ws, _), [Lvar x] ->
+    | Sopn.Ocopy(ws, _), [Lvar x] ->
       (* Fix the size it is dummy for the moment *)
       let xn = size_of (L.unloc x).v_ty in
       let wsn = size_of_ws ws in
@@ -61,8 +61,8 @@ and iac_instr_r loc ir =
           (Printer.pp_var ~debug:false) (L.unloc x)
           Printer.pp_ty (L.unloc x).v_ty 
           xn wsn
-      else Copn(xs,t,E.Ocopy(ws, Conv.pos_of_int (xn / wsn)), es)
-    | E.Ocopy _, _ -> assert false
+      else Copn(xs,t,Sopn.Ocopy(ws, Conv.pos_of_int (xn / wsn)), es)
+    | Sopn.Ocopy _, _ -> assert false
     | _ -> ir
     end
   | Ccall _ -> ir

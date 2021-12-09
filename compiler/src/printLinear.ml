@@ -82,7 +82,7 @@ let pp_instr tbl fmt i =
   | Lopn (lvs, op, es) ->
     F.fprintf fmt "@[%a@] = %a@[(%a)@]"
       (pp_list ",@ " (pp_lval tbl)) lvs
-      Pr.pp_string0 (E.string_of_sopn op)
+      Pr.pp_string0 (Sopn.string_of_sopn (Arch_extra.asm_opI X86_extra.x86_extra) op)
       (pp_list ",@ " (pp_expr tbl)) es
   | Lalign     -> F.fprintf fmt "Align"
   | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl

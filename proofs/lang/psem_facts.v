@@ -9,12 +9,12 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Lemma write_var_emem x v s s' :
+Lemma write_var_emem {pd: PointerData} x v s s' :
   write_var x v s = ok s' →
   emem s = emem s'.
 Proof. by rewrite /write_var; t_xrbindP => vm _ <-; rewrite emem_with_vm. Qed.
 
-Lemma write_vars_emem xs vs a z :
+Lemma write_vars_emem {pd: PointerData} xs vs a z :
   write_vars xs vs a = ok z →
   emem a = emem z.
 Proof.
@@ -25,6 +25,8 @@ Qed.
 
 (* sem_stack_stable and sem_validw_stable both for uprog and sprog *)
 Section STACK_VALIDW_STABLE. (* inspired by sem_one_varmap_facts *)
+
+Context {pd: PointerData}.
 
 Lemma write_lval_stack_stable gd x v s s' :
   write_lval gd x v s = ok s' →
@@ -119,6 +121,10 @@ Proof.
   by Lia.lia.
 Qed.
 
+Section ASM_OP.
+
+Context `{asmop:asmOp}.
+
 Section MEM_EQUIV.
 
 Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
@@ -205,7 +211,7 @@ Lemma sem_mem_equiv s1 c s2 :
   sem P ev s1 c s2 → emem s1 ≡ emem s2.
 Proof.
   by apply
-    (@sem_Ind _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
+    (@sem_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
               mem_equiv_nil
               mem_equiv_cons
               mem_equiv_mkI
@@ -226,7 +232,7 @@ Lemma sem_I_mem_equiv s1 i s2 :
   sem_I P ev s1 i s2 → emem s1 ≡ emem s2.
 Proof.
   by apply
-    (@sem_I_Ind _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
+    (@sem_I_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
                 mem_equiv_nil
                 mem_equiv_cons
                 mem_equiv_mkI
@@ -247,7 +253,7 @@ Lemma sem_i_mem_equiv s1 i s2 :
   sem_i P ev s1 i s2 → emem s1 ≡ emem s2.
 Proof.
   by apply
-    (@sem_i_Ind _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
+    (@sem_i_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
                 mem_equiv_nil
                 mem_equiv_cons
                 mem_equiv_mkI
@@ -268,7 +274,7 @@ Lemma sem_call_mem_equiv m1 fn vargs m2 vres :
   sem_call P ev m1 fn vargs m2 vres → m1 ≡ m2.
 Proof.
   by apply
-    (@sem_call_Ind _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
+    (@sem_call_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
                    mem_equiv_nil
                    mem_equiv_cons
                    mem_equiv_mkI
@@ -440,6 +446,8 @@ Proof.
   by apply (alloc_free_validw_stable hass hss hvalid).
 Qed.
 
+End ASM_OP.
+
 End STACK_VALIDW_STABLE.
 
 (* TODO: move? *)
@@ -452,7 +460,12 @@ Qed.
 (** The semantics is deterministic. *)
 Section DETERMINISM.
 
-Context {T} {pT:progT T} {sCP : semCallParams}.
+Context
+  {pd: PointerData}
+  `{asmop:asmOp}
+  {T}
+  {pT:progT T}
+  {sCP : semCallParams}.
 Variable p : prog.
 Variable ev : extra_val_t.
 
@@ -565,7 +578,7 @@ Lemma sem_deterministic s1 c s2 s2' :
   s2 = s2'.
 Proof.
   move => h.
-  exact: (@sem_Ind T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
+  exact: (@sem_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
 Qed.
 
 Lemma sem_i_deterministic s1 i s2 s2' :
@@ -574,7 +587,7 @@ Lemma sem_i_deterministic s1 i s2 s2' :
   s2 = s2'.
 Proof.
   move => h.
-  exact: (@sem_i_Ind T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
+  exact: (@sem_i_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ h _).
 Qed.
 
 Lemma sem_call_deterministic m1 fn va m2 vr m2' vr' :
@@ -583,7 +596,7 @@ Lemma sem_call_deterministic m1 fn va m2 vr m2' vr' :
   m2 = m2' ∧ vr = vr'.
 Proof.
   move => h.
-  exact: (@sem_call_Ind T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ _ _ h).
+  exact: (@sem_call_Ind _ _ _ T pT sCP p ev Pc Pi_r Pi Pfor Pfun sem_deter_nil sem_deter_cons sem_deter_mkI sem_deter_asgn sem_deter_opn sem_deter_if_true sem_deter_if_false sem_deter_while_true sem_deter_while_false sem_deter_for sem_deter_for_nil sem_deter_for_cons sem_deter_call sem_deter_proc _ _ _ _ _ h).
 Qed.
 
 End DETERMINISM.

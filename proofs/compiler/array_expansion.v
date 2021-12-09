@@ -232,6 +232,10 @@ Definition expand_es m := mapM (expand_e m).
 
 Definition expand_lvs m := mapM (expand_lv m).
 
+Section ASM_OP.
+
+Context `{asmop:asmOp}.
+
 Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
   let (ii,ir) := i in
   match ir with
@@ -289,3 +293,4 @@ Definition expand_prog (fi : funname -> ufundef -> expand_info) (p: uprog) : cex
   Let funcs := map_cfprog_name (expand_fd fi) (p_funcs p) in
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
 
+End ASM_OP.

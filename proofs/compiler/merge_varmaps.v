@@ -4,7 +4,7 @@ Require Import psem sem_one_varmap.
 Import Utf8.
 Import all_ssreflect.
 Import var compiler_util.
-Import x86_variables.
+Require Import arch_decl arch_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -45,7 +45,9 @@ End E.
 
 Section PROG.
 
+Context `{asm_e : asm_extra}.
 Context (p: sprog) (extra_free_registers: instr_info → option var).
+Context (var_tmp : var).
 
 (** Set of variables written by a function (including RA and extra registers),
       assuming this information is known for the called functions. *)
@@ -70,24 +72,13 @@ Section WRITE1.
     let ra :=
       match get_fundef (p_funcs p) fn with
       | None => Sv.empty
-      | Some fd =>
-        Sv.union
-          match fd.(f_extra).(sf_return_address) with
-          | RAnone => Sv.add (var_of_register RAX) (sv_of_flags rflags)
-          | RAreg ra => Sv.singleton ra
-          | RAstack _ => Sv.empty
-          end
-          match fd.(f_extra).(sf_save_stack) with
-          | SavedStackNone | SavedStackStk _ => Sv.empty
-          | SavedStackReg r => Sv.singleton r
-          end
+      | Some fd => Sv.union (ra_vm fd var_tmp) (saved_stack_vm fd)
       end in
     Sv.union (writefun fn) ra.
 
-  Fixpoint write_i_rec s i :=
+  Fixpoint write_i_rec s (i:instr_r) :=
     match i with
-    | Cassgn x _ _ _
-      => vrv_rec s x
+    | Cassgn x _ _ _  => vrv_rec s x
     | Copn xs _ _ _   => vrvs_rec s xs
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
@@ -109,7 +100,7 @@ Section WRITE1.
 
   Lemma write_c_recE c : ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
   Proof.
-    apply: (@cmd_rect
+    apply: (@cmd_rect _ _
               (λ i, ∀ s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
               (λ i, ∀ s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
               (λ c, ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)))).
@@ -273,11 +264,12 @@ Section CHECK.
       assert (~~ Sv.mem r W) (E.gen_error true None (pp_box [::pp_s "the function writes its"; pp_s name; pp_var r])) in
     assert (~~Sv.mem r J) (E.gen_error true None (pp_box [::pp_s "the function depends on its"; pp_s name; pp_var r])).
 
+  (* TODO: can we factor out some lines? seems really similar to functions in sem_one_varmap *)
   Definition check_fd (fn:funname) (fd: sfundef) :=
     let DI :=
       match sf_return_address (f_extra fd) with
       | RAnone =>
-        Sv.add (var_of_register RAX)
+        Sv.add var_tmp
         match sf_save_stack (f_extra fd) with
         | SavedStackReg r => Sv.add r (sv_of_flags rflags)
         | _ => sv_of_flags rflags
@@ -308,7 +300,7 @@ Section CHECK.
     | RAreg ra => check_preserved_register W J "return address" ra
     | RAstack _ => ok tt
     | RAnone =>
-        Let _ := assert (~~ Sv.mem (var_of_register RAX) magic_variables) (E.gen_error true None (pp_s "RAX clashes with RSP or RIP")) in
+        Let _ := assert (~~ Sv.mem var_tmp magic_variables) (E.gen_error true None (pp_s "RAX clashes with RSP or RIP")) in
         assert (all (λ x : var_i, if vtype x is sword _ then true else false ) (f_params fd))
             (E.gen_error true None (pp_s "the export function has non-word arguments"))
     end.

@@ -42,6 +42,9 @@ Proof. by move=> h1 h2 g v /h1 /h2. Qed.
 
 Module INCL. Section INCL.
 
+  Context {pd: PointerData}.
+  Context `{asmop:asmOp}.
+
   Section INCL_E.
     Context (gd1 gd2: glob_decls) (s: estate) (hincl: gd_incl gd1 gd2).
     Let P e : Prop :=
@@ -196,14 +199,18 @@ Module INCL. Section INCL.
   Lemma gd_incl_fun m (fn : funname) (l : seq value) m0 vs:
       sem_call P1 ev m fn l m0 vs -> Pfun m fn l m0 vs.
   Proof.
-    apply: (@sem_call_Ind _ _ _ P1 ev Pc Pi_r Pi Pfor Pfun
+    apply: (@sem_call_Ind _ _ _ _ _ _ P1 ev Pc Pi_r Pi Pfor Pfun
              Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false
              Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
 End INCL. End INCL. Import INCL.
 
-Module EXTEND. Section PROOFS.
+Module EXTEND. Section ASM_OP.
+
+Context `{asmop:asmOp}.
+
+Section PROOFS.
 
   Context (is_glob : var -> bool).
   Context (fresh_id : glob_decls -> var -> Ident.ident).
@@ -258,7 +265,7 @@ Module EXTEND. Section PROOFS.
     case ha : assoc => [|// ].
     by have hin := assoc_memP ha; elim hhas2;eauto.
   Qed.
-  
+
   Local Lemma Hopn : forall xs t o es, Pr (Copn xs t o es).
   Proof. by move=> xs t o es ii gd1 gd2 /= [<-]. Qed.
 
@@ -284,7 +291,7 @@ Module EXTEND. Section PROOFS.
     foldM (extend_glob_i is_glob fresh_id) gd1 c = ok gd2 ->
     gd_incl gd1 gd2.
   Proof.
-    exact: (@cmd_rect Pr Pi Pc Hmk Hnil Hcons Hasgn Hopn Hif Hfor Hwhile Hcall).
+    exact: (@cmd_rect _ _ Pr Pi Pc Hmk Hnil Hcons Hasgn Hopn Hif Hfor Hwhile Hcall).
   Qed.
 
 End PROOFS.
@@ -298,10 +305,14 @@ Proof.
   by t_xrbindP => gd1 /extend_glob_cP h1 /hrec; apply: gd_inclT.
 Qed.
 
+End ASM_OP.
+
 End EXTEND. Import EXTEND.
 
 Module RGP. Section PROOFS.
 
+  Context {pd: PointerData}.
+  Context `{asmop:asmOp}.
   Context (is_glob : var -> bool).
   Context (fresh_id : glob_decls -> var -> Ident.ident).
 
@@ -762,7 +773,7 @@ Module RGP. Section PROOFS.
      sem_call P ev m1 f vargs m2 vres ->
      Pfun m1 f vargs m2 vres.
   Proof.
-    apply (@sem_call_Ind _ _ _ P ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
+    apply (@sem_call_Ind _ _ _ _ _ _ P ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false
               Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 

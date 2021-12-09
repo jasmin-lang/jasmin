@@ -190,8 +190,8 @@ let main () =
             let _m, vs =
               (** TODO: allow to configure the initial stack pointer *)
               let live = List.map (fun (ptr, sz) -> Conv.int64_of_bi ptr, Conv.z_of_bi sz) m in
-              (match Low_memory.Memory.coq_M.init live (Conv.int64_of_bi (Bigint.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
-              Evaluator.exec (Expr.to_uprog cprog) (Conv.cfun_of_fun tbl f) in
+              (match (Low_memory.Memory.coq_M U64).init live (Conv.int64_of_bi (Bigint.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
+              Evaluator.exec (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) (Conv.cfun_of_fun tbl f) in
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
           with Evaluator.Eval_error (ii,err) ->
@@ -228,7 +228,7 @@ let main () =
     let translate_var = Conv.var_of_cvar tbl in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl up
+      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl X86_params.aparams up
      in
 
     let global_regalloc fds =
@@ -429,7 +429,7 @@ let main () =
         ([], []) in
 
     begin match
-      Compiler.compile_prog_to_x86 cparams export_functions subroutines (Expr.to_uprog cprog) with
+      Compiler.compile_prog_to_x86 cparams X86_params.aparams export_functions subroutines (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) with
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
       raise (HiError e)

@@ -36,6 +36,11 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+Section ASM_OP.
+
+Context {pd:PointerData}.
+Context `{asmop:asmOp}.
+
 Section Section.
 
 Context {T:eqType} {pT:progT T} {sCP: semCallParams} (wf_init: wf_init sCP).
@@ -254,7 +259,7 @@ Section REMOVE_INIT.
     sem_call p ev mem f va mem' vr ->
     exists vr', sem_call p' ev mem f va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
-    move=> /(@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Rnil Rcons RmkI Rasgn Ropn
+    move=> /(@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Rnil Rcons RmkI Rasgn Ropn
              Rif_true Rif_false Rwhile_true Rwhile_false Rfor Rfor_nil Rfor_cons Rcall Rproc) H.
     by move=> /H.
   Qed.
@@ -389,12 +394,12 @@ Section ADD_INIT.
   Lemma sem_pexpr_ext_eq s e vm : 
     evm s =v vm ->
     sem_pexpr gd s e = sem_pexpr gd (with_vm s vm) e.
-  Proof. by move=> heq; apply read_e_eq_on with (s:=Sv.empty). Qed.
+  Proof. by move=> heq; apply (@read_e_eq_on _ _ Sv.empty). Qed.
 
   Lemma sem_pexprs_ext_eq s es vm : 
     evm s =v vm ->
     sem_pexprs gd s es = sem_pexprs gd (with_vm s vm) es.
-  Proof. by move=> heq; apply read_es_eq_on with (s:=Sv.empty). Qed.
+  Proof. by move=> heq; apply (@read_es_eq_on _ _ _ Sv.empty). Qed.
 
   Lemma write_lvar_ext_eq x v s1 s2 vm1 :
     evm s1 =v vm1 ->
@@ -559,8 +564,10 @@ Section ADD_INIT.
     sem_call p ev mem f va mem' vr ->
     sem_call p' ev mem f va mem' vr.
   Proof.
-    by apply (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun RAnil RAcons RAmkI RAasgn RAopn
+    by apply (@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun RAnil RAcons RAmkI RAasgn RAopn
                RAif_true RAif_false RAwhile_true RAwhile_false RAfor RAfor_nil RAfor_cons RAcall RAproc).
   Qed.
 
 End ADD_INIT.
+
+End ASM_OP.

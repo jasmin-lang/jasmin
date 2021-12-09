@@ -1146,7 +1146,7 @@ Canonical comparison_eqType := Eval hnf in EqType comparison comparison_eqMixin.
 Class Cmp {T:Type} (cmp:T -> T -> comparison) := {
     cmp_sym    : forall x y, cmp x y = CompOpp (cmp y x);
     cmp_ctrans : forall y x z c, ctrans (cmp x y) (cmp y z) = Some c -> cmp x z = c;
-    cmp_eq     : forall x y, cmp x y = Eq -> x = y;
+    cmp_eq     : forall {x y}, cmp x y = Eq -> x = y;
   }.
 
 Definition gcmp {T:Type} {cmp:T -> T -> comparison} {C:Cmp cmp} := cmp.

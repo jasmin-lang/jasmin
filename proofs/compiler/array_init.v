@@ -37,6 +37,10 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
+Section ASM_OP.
+
+Context `{asmop:asmOp}.
+
 (* ----------------------------------------------------------------------- *)
 (* Remove array initialisation                                             *)
 
@@ -171,3 +175,4 @@ Definition add_init_prog (p:prog) := map_prog add_init_fd p.
 
 End Section.
 
+End ASM_OP.
