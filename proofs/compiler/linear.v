@@ -48,6 +48,7 @@ Variant linstr_r :=
 .
 
 Arguments Llabel _%positive_scope.
+Arguments Lcond _ _%positive_scope.
 
 Record linstr : Type := MkLI { li_ii : instr_info; li_i : linstr_r }.
 
