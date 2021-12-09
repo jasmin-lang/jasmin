@@ -354,6 +354,28 @@ case: r ok_r => // r => [ /var_of_register_of_var | /xmm_register_of_varI ] rx.
 by apply: hxr; rewrite rx.
 Qed.
 
+Lemma x86gen_exportcall fn m vm m' vm' :
+  lsem_exportcall p m fn vm m' vm' →
+  ∀ xm,
+    lom_eqv rip {| emem := m ; evm := vm |} xm →
+    exists2 xm',
+      x86sem_exportcall p' fn xm xm'
+    & lom_eqv rip {| emem := m' ; evm := vm' |} xm'.
+Proof.
+  case => fd ok_fd Export lexec xm M.
+  have [ fd' ok_fd' ] := ok_get_fundef ok_fd.
+  case/assemble_fdI => ok_sp [] c ok_c ?; subst fd'.
+  set s := {| asm_m := xm ; asm_f := fn ; asm_c := c ; asm_ip := 0 |}.
+  have /= := match_state_sem _ lexec.
+  rewrite ok_fd => /(_ _ s erefl) []; first by constructor.
+  move => [] xm' fn' c' pc' [] _ [] xexec /Some_inj <- [] /= M'.
+  rewrite ok_c => ? /ok_inj ??; subst fn' c' pc'.
+  exists xm'; last exact: M'.
+  eexists; first exact: ok_fd'.
+  - exact: Export.
+  rewrite /= -(mapM_size ok_c); exact: xexec.
+Qed.
+
 (*
 Lemma assemble_fdP wrip m1 fn va m2 vr :
   lsem_fd p wrip m1 fn va m2 vr →

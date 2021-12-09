@@ -28,14 +28,16 @@ Require Import psem compiler_util compiler.
 Require Import allocation inline_proof dead_calls_proof
                makeReferenceArguments_proof
                array_copy array_copy_proof array_init_proof
-               unrolling_proof constant_prop_proof propagate_inline_proof dead_code_proof 
+               unrolling_proof constant_prop_proof propagate_inline_proof dead_code_proof
                array_expansion array_expansion_proof remove_globals_proof stack_alloc_proof_2
                lowering_proof
+               tunneling_proof
                linear_proof
+               x86_gen_proof
                merge_varmaps_proof
                psem_of_sem_proof.
 Import Utf8.
-Import x86_sem x86_gen.
+Import psem_facts x86_sem x86_gen.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -302,6 +304,113 @@ Proof.
   - exact: exec_p3.
   exact: m'_mi'.
 Qed.
+
+Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) m fn args m' res :
+  compiler_back_end cparams entries p = ok tp →
+  fn \in entries →
+  psem.sem_call p rip m fn args m' res →
+  ∃ fd : lfundef,
+    [/\
+      get_fundef tp.(lp_funcs) fn = Some fd,
+      fd.(lfd_export) &
+      ∀ lm vm args',
+        wf_vm vm →
+        vm.[vid tp.(lp_rsp)]%vmap = ok (pword_of_word (top_stack m)) →
+        match_mem m lm →
+        mapM (λ x : var_i, get_var vm x) fd.(lfd_arg) = ok args' →
+        List.Forall2 value_uincl args args' →
+        vm.[vid tp.(lp_rip)]%vmap = ok (pword_of_word rip) →
+        safe_to_save vm (map x86_variables.var_of_register (RAX :: x86_sem.x86_callee_saved)) →
+        all2 check_ty_val fd.(lfd_tyin) args' ∧
+        ∃ vm' lm' res',
+          [/\
+            lsem_exportcall tp lm fn vm lm' vm',
+            match_mem m' lm',
+            mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
+            List.Forall2 value_uincl res res' &
+            all2 check_ty_val fd.(lfd_tyout) res'
+          ]
+      ].
+Proof.
+  rewrite /compiler_back_end; t_xrbindP => - [] ok_export [] checked_p lp ok_lp tp'.
+  rewrite !print_linearP => ok_tp ? ok_fn exec_p; subst tp'.
+  move/allMP: ok_export => /(_ _ ok_fn).
+  have [fd [] ok_fd [] vargs [] s0 [] s1 [] s2 [] vres [] ok_vargs [] ok_s0 ok_s1 exec_fd [] ok_vres ok_res ? ] := sem_callE exec_p.
+  subst m'.
+  rewrite ok_fd => /assertP /eqP no_ra.
+  have ok_lfd := get_fundef_p' ok_lp ok_fd.
+  have ok_body : is_linear_of lp fn (linear_fd p (extra_free_registers cparams) fn fd).(lfd_body).
+  - by eexists; first exact: ok_lfd.
+  have ok_ra : is_ra_of p fn RAnone by exists fd.
+  have ok_sp : is_sp_for_call p fn m (top_stack m).
+  - exists fd; first exact ok_fd.
+    by rewrite /= no_ra.
+  have ok_callee_saved : is_callee_saved_of p fn (map fst (f_extra fd).(sf_to_save)).
+  - exists fd; first exact ok_fd.
+    by rewrite /= no_ra.
+  have := merge_varmaps_callP checked_p exec_p ok_fd.
+  move: checked_p; rewrite /merge_varmaps.check; t_xrbindP => _ /assertP ok_wmap _ /assertP rip_neq_rsp units ok_fds _.
+  case: (get_map_cfprog_name_gen ok_fds ok_fd) => - [] checked_fd _.
+  move: checked_fd; rewrite /merge_varmaps.check_fd no_ra eqxx /=.
+  t_xrbindP => D ok_D _ /assertP dis_D _ /assertP params_not_magic _ /assertP /Sv_memP rsp_not_result _ /assertP magic_not_written [] ok_save_stack _ /assertP /Sv_memP rax_not_magic /assertP ok_args.
+  set v_rsp := {| vname := sp_rsp _ |}.
+  set v_rip := {| vname := sp_rip _ |}.
+  set tvm1 := (evm s1).[ v_rsp <- ok (pword_of_word (top_stack m))]%vmap.
+  move => /(_ xH tvm1 vargs erefl erefl).
+  move: ok_s0; rewrite /= /init_stk_state; t_xrbindP => m0 ok_m0 /ok_inj.
+  rewrite /with_vm /= => ?; subst s0.
+  case.
+  - by rewrite Fv.setP_eq.
+  - rewrite Fv.setP_neq; last by rewrite neq_sym.
+    rewrite -(write_vars_eq_except ok_s1).
+    + by rewrite Fv.setP_eq pword_of_wordE.
+    move => h.
+    move/disjointP: params_not_magic => /(_ _ h); apply.
+    by rewrite Sv.add_spec; left; reflexivity.
+  - apply: wf_vm_set.
+    apply: wf_write_vars ok_s1.
+    do 2 apply: wf_vm_set.
+    exact: wf_vmap0.
+  - admit.
+  - admit.
+  move => k [] vm1 [] vres' [] exec_p' wf_vm1 ok_k ok_vres' res_vres'.
+  have := linear_fdP ok_lp exec_p' _ _ _ ok_body ok_ra _ ok_sp ok_callee_saved.
+  move => /(_ _ _ None _ _ _ I).
+  rewrite /emem /evm => H.
+  exists (tunnel_fd fn (linear_fd p (extra_free_registers cparams) fn fd)); split.
+  - apply: (get_fundef_tunnel_program ok_tp).
+    exact: get_fundef_p'.
+  - by rewrite /linear_fd no_ra.
+  move => lm vm args' ok_vm vm_rsp  M ok_args' args_args' vm_rip safe_registers.
+  have {H} := H lm vm ok_vm M.
+  case.
+  - admit.
+  - admit.
+  move => lm' vm' E vmE ok_vm' vmU MD M'; split.
+  - rewrite /=.
+    apply: all2_check_ty_val args_args'.
+    have := mapM2_Forall3 ok_vargs.
+    elim; first by [].
+    move => ty v vt tys vs ts /truncate_val_subtype /= h _ ->.
+    by rewrite andbT.
+  have [ | {} E Ef ] := lsem_run_tunnel_program ok_tp E.
+  - eexists; last reflexivity.
+    exact: (get_fundef_p' ok_lp ok_fd).
+  have Export : sf_return_address (f_extra fd) = RAnone.
+  - case: ok_ra => fd' /=.
+    by rewrite ok_fd => /Some_inj <-.
+  eexists vm', lm', _; split.
+  - eexists.
+    + apply: (get_fundef_tunnel_program ok_tp).
+      exact: (get_fundef_p' ok_lp ok_fd).
+    + exact/eqP.
+    rewrite -tunnel_partial_size.
+    exact: E.
+  - exact: M'.
+  - rewrite /= Export eqxx. admit.
+  - admit.
+  rewrite /=. admit.
+Admitted.
 
 (*
 Let Kj : ∀ rip glob m vr (P Q: _ → _ → Prop),
