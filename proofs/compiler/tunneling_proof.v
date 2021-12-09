@@ -1167,10 +1167,13 @@ Section TunnelingCompilerProof.
     by rewrite eq_sym => ->.
   Qed.
 
+  Definition tunnel_fd fn fd :=
+    lfundef_tunnel_partial fn fd (lfd_body fd) (lfd_body fd).
+
   Lemma get_fundef_tunnel_program p tp fn fd :
     tunnel_program p = ok tp →
     get_fundef (lp_funcs p) fn = Some fd →
-    get_fundef (lp_funcs tp) fn = Some (lfundef_tunnel_partial fn fd fd.(lfd_body) fd.(lfd_body)).
+    get_fundef (lp_funcs tp) fn = Some (tunnel_fd fn fd).
   Proof.
     rewrite /tunnel_program; case: ifP => // Hwfp /ok_inj <-{tp} Hgfd.
     rewrite (get_fundef_foldr_lprog_tunnel _ Hgfd).
