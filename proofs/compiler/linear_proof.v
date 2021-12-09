@@ -1399,6 +1399,7 @@ Section PROOF.
     move: Hw.
     rewrite ok_c ok_c' => /(_ erefl).
     move: ok_e Ew e_neq_false.
+    rewrite p_globs_nil.
     case: is_boolP.
     { (* expression is the “true” literal *)
       (* The context is inconsistent, but well, do the proof nonetheless *)
@@ -1468,6 +1469,68 @@ Section PROOF.
         rewrite find_label_cat_hd; last by apply: D; lia.
         rewrite -!catA find_label_cat_hd; last by case: (a).
         rewrite find_labelE /= /is_label /= eqxx /= addn0.
+        reflexivity.
+      rewrite add_align_nil catA size_cat in E3.
+      rewrite -!catA in C.
+      have {} E3 := lsem_skip_align C E3.
+      rewrite !catA -cat1s -!catA catA in C.
+      have := lsem_skip_label C E3.
+      rewrite -/(size _) !size_cat /= !size_cat /= !addnA.
+      exact.
+    }
+    (* arbitrary expression *)
+    move => {} e ok_e Ew e_neq_false.
+    case: c' Ec' Hc' ok_c' Ew => [ | i c' ].
+    { (* second body is empty *)
+      move => /semE[] ??; subst k' s2 => _ _ Ew.
+      rewrite linear_c_nil.
+      move: {Hc} (Hc fn (next_lbl lbl)).
+      rewrite /checked_c ok_fd ok_c => /(_ erefl).
+      case: (linear_c fn c (next_lbl lbl) [::]) (valid_c fn c (next_lbl lbl)) => lblc lc.
+      rewrite /next_lbl => - [L V] Hc /= Hw _.
+      rewrite add_align_nil.
+      move => m vm P Q W M X D C.
+      have {Hc} := Hc m vm (P ++ add_align ii a [::] ++ [:: ι (Llabel lbl) ]) ([:: ι (Lcond e lbl) ] ++ Q) W M X.
+      case.
+      - apply: disjoint_labels_cat; last apply: disjoint_labels_cat.
+        + apply: disjoint_labels_wL D; rewrite /next_lbl; lia.
+        + by case: (a).
+        rewrite /next_lbl => lbl' range; rewrite /is_label /= orbF; apply/eqP; lia.
+      - by move: C; rewrite -!/(ι _) /= -!catA /= -!catA.
+      move => m1 vm1 E1 K1 W1 X1 H1 M1.
+      have [ b /(match_mem_sem_pexpr M1) {} ok_e /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
+      have {Hw} := Hw m1 vm1 P Q W1 M1 X1 D.
+      case.
+      - by rewrite add_align_nil.
+      move => m3 vm3 E3 K3 W3 X3 H3 M3.
+      exists m3 vm3; [ | | exact: W3 | exact: X3 | | exact: M3 ]; cycle 1.
+      - transitivity vm1; last (apply: vmap_eq_exceptI K3; SvD.fsetdec).
+        apply: vmap_eq_exceptI K1; SvD.fsetdec.
+      - etransitivity; first exact: H1.
+        apply: preserved_metadataE; last exact: H3.
+        + exact: sem_stack_stable Ec.
+        exact: sem_validw_stable Ec.
+      apply: lsem_trans; last apply: (lsem_trans E1).
+      - (* align; label *)
+        apply: (@lsem_step_end p' {| lfn := fn; lpc := size (P ++ add_align ii a [::]) |}); last first.
+        + move: C.
+          rewrite -!catA catA -{1}(addn0 (size _)) /lsem1 /step => /find_instr_skip ->.
+          rewrite /eval_instr /= /setpc /= addn0 !size_cat addnA addn1.
+          reflexivity.
+        case: a C {Ew E1 E3} => C; last first.
+        + rewrite cats0; exact: rt_refl.
+        apply: LSem_step.
+        move: C.
+        rewrite -catA /lsem1 /step -{1}(addn0 (size _)) => /find_instr_skip ->.
+        by rewrite /eval_instr /= /setpc /= size_cat /= addn1.
+      apply: lsem_step.
+      - move: (C).
+        rewrite /lsem1 /step -{1}(addn0 (size _)) -cat1s !catA -catA => /find_instr_skip ->.
+        rewrite /eval_instr /= /to_estate ok_e /= (get_fundef_p' ok_fd) /=.
+        case: C; rewrite (get_fundef_p' ok_fd) => _ /Some_inj <- /= ->.
+        rewrite -!catA  find_label_cat_hd; last by apply: D; lia.
+        rewrite find_label_cat_hd; last by case: (a).
+        rewrite find_labelE /= /is_label /= eqxx /= addn0 /setcpc /=.
         reflexivity.
       rewrite add_align_nil catA size_cat in E3.
       rewrite -!catA in C.
