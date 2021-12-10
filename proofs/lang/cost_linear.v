@@ -699,23 +699,23 @@ leak_is_WF lt lc ->
             (lcost (pc+get_linear_size_C lt) l2).1.
 Proof.
 move=> stk pc lt lc l2 Hwf. move: Hwf pc l2. 
-apply (leak_il_WFs_ind 
-      (P:=fun lt li _ => forall pc l2, 
+apply: (@leak_il_WFs_ind
+      (fun lt li _ => forall pc l2,
        (lcost pc (leak_i_iL stk li lt ++ l2)).2 = (lcost (pc+get_linear_size lt) l2).2 /\ 
        (lcost pc (leak_i_iL stk li lt ++ l2)).1 =1
         merge_lcost (lcost pc (leak_i_iL stk li lt)).1
                     (lcost (pc+get_linear_size lt) l2).1)
-      (P0:=fun lt lc _ => forall pc l2, 
+      (fun lt lc _ => forall pc l2,
        (lcost pc (leak_i_iLs (leak_i_iL) stk lt lc ++ l2)).2 = (lcost (pc+get_linear_size_C lt) l2).2 /\ 
        (lcost pc (leak_i_iLs (leak_i_iL) stk lt lc ++ l2)).1 =1
         merge_lcost (lcost pc (leak_i_iLs (leak_i_iL) stk lt lc)).1
                     (lcost (pc+get_linear_size_C lt) l2).1)
-      (P1 := fun lts li _ => forall pc l2, 
+      (fun lts li _ => forall pc l2,
          (lcost pc (ilwhile_c'0 (leak_i_iL) stk lts li ++ l2)).2 = (lcost (pc+get_linear_size_C lts + 1) l2).2 /\ 
          (lcost pc (ilwhile_c'0 (leak_i_iL) stk lts li ++ l2)).1 =1
            merge_lcost (lcost pc (ilwhile_c'0 (leak_i_iL) stk lts li)).1
                         (lcost (pc+get_linear_size_C lts+1) l2).1)
-      (P2 := fun lts lts' li _ => forall pc l2, 
+      (fun lts lts' li _ => forall pc l2,
          get_linear_size_C lts' + 1 <= pc ->
          (lcost pc (ilwhile (leak_i_iL) stk lts lts' li ++ l2)).2 = 
          (lcost (pc+get_linear_size_C lts+ 1) l2).2 /\ 
@@ -1091,7 +1091,7 @@ Lemma lcost_incr lti lis k :
   incr_lcost k (lcost 0 (leak_i_iLs leak_i_iL stk lti lis)).1.
 Proof.
 move=> h; move: h k.
-apply (leak_il_WFs_ind (P:=P) (P0:=P0) (P1:=P1) (P2:=P2) 
+exact: (leak_il_WFs_ind
         hkeepa hkeep hcond0t hcond0f hicond0t hicond0f
         ilcondt ilcondf ilwhilef ilwhilec0 hilwhile hempty hseq
         hw0false hw0true hwfalse hwtrue).
@@ -1103,7 +1103,7 @@ Lemma lcost_i_incr lti lis k :
   incr_lcost k (lcost 0 (leak_i_iL stk lis lti)).1.
 Proof.
 move=> h; move: h k.
-apply (leak_il_WF_ind' (P:=P) (P0:=P0) (P1:=P1) (P2:=P2) 
+exact: (leak_il_WF_ind'
         hkeepa hkeep hcond0t hcond0f hicond0t hicond0f
         ilcondt ilcondf ilwhilef ilwhilec0 hilwhile hempty hseq
         hw0false hw0true hwfalse hwtrue).
@@ -1115,7 +1115,7 @@ Lemma lcost_w0_incr lts li k:
   incr_lcost k (lcost 0 (ilwhile_c'0 (leak_i_iL) stk lts li)).1.
 Proof.
 move=> h; move: h k.
-apply (leak_w0_WF_ind (P:=P) (P0:=P0) (P1:=P1) (P2:=P2) 
+exact: (leak_w0_WF_ind
         hkeepa hkeep hcond0t hcond0f hicond0t hicond0f
         ilcondt ilcondf ilwhilef ilwhilec0 hilwhile hempty hseq
         hw0false hw0true hwfalse hwtrue).
@@ -1128,7 +1128,7 @@ Lemma lcost_w_incr lts lts' li k pc :
     incr_lcost k (lcost pc (ilwhile (leak_i_iL) stk lts lts' li)).1.
 Proof.
 move=> h; move: h k pc.
-apply (leak_w_WF_ind (P:=P) (P0:=P0) (P1:=P1) (P2:=P2) 
+exact: (leak_w_WF_ind
         hkeepa hkeep hcond0t hcond0f hicond0t hicond0f
         ilcondt ilcondf ilwhilef ilwhilec0 hilwhile hempty hseq
         hw0false hw0true hwfalse hwtrue).
@@ -1379,19 +1379,19 @@ Sm.linterp (enter_cost_c cost_i [::] lc)
            (transform_cost_i_cL transform_cost_i_iL lt).
 Proof.
 move=> h; move: h.
-apply (leak_il_WFs_ind 
-     (P:=fun lt li _ => 
+apply: (@leak_il_WFs_ind
+     (fun lt li _ =>
        (lcost 0 (leak_i_iL stk li lt)).1 =1 Sm.linterp (merge_cost (single_cost [::]) (cost_i ([::],0) li)) 
                                                          (transform_cost_i_iL lt))
-     (P0:=fun lt lc _ => 
+     (fun lt lc _ =>
        (lcost 0 (leak_i_iLs (leak_i_iL) stk lt lc)).1 =1 
           Sm.linterp (enter_cost_c cost_i [::] lc)
                      (transform_cost_i_cL transform_cost_i_iL lt))
-     (P1:=fun lts lc _ => 
+     (fun lts lc _ =>
        (lcost 0 (ilwhile_c'0 (leak_i_iL) stk lts lc)).1 =1 
           Sm.linterp (merge_cost (single_cost [::]) (cost_i ([::],0) lc)) 
                      (Sm.sprefix pre_f0 (transform_cost_i_cL_extra transform_cost_i_iL 0 lts)))
-     (P2:=fun lti lti' li _ => 
+     (fun lti lti' li _ =>
       (lcost (get_linear_size_C lti' + 1) (ilwhile leak_i_iL stk lti lti' li)).1 =1
        merge_lcost
         (Sm.linterp (merge_cost (single_cost [::]) (cost_i ([::], 0) li))

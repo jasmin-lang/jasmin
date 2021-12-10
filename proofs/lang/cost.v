@@ -1329,12 +1329,12 @@ Proof.
       [:: head dummy_lit (leak_I ftr w lw (LT_iwhile ltis lte ltis'))].
   + by move=> h/h;apply.
   move=> {lw} lw lt.   
-  by apply (leak_WF_ind 
-     (P:=fun lt lw _ => 
+  exact: (@leak_WF_ind _
+     (fun lt lw _ =>
         lt = LT_iwhile ltis lte ltis' → 
         leak_I ftr w lw (LT_iwhile ltis lte ltis') =
            [:: head dummy_lit (leak_I ftr w lw (LT_iwhile ltis lte ltis'))])
-     (P0 := fun lt lc _ => True) (P1 := fun lt lcs _ => True)).
+     (fun lt lc _ => True) (fun lt lcs _ => True)).
 Qed.
 
 Lemma WF_leak_whilel ftr w ltei ltis lte ltis' lw : 
@@ -1351,12 +1351,12 @@ Proof.
       [:: head dummy_lit (leak_I ftr w lw (LT_iwhilel ltei ltis lte ltis'))].
   + by move=> h/h;apply.
   move=> {lw} lw lt.   
-  by apply (leak_WF_ind 
-     (P:=fun lt lw _ => 
+  exact: (@leak_WF_ind _
+     (fun lt lw _ =>
         lt = LT_iwhilel ltei ltis lte ltis' → 
         leak_I ftr w lw (LT_iwhilel ltei ltis lte ltis') =
            [:: head dummy_lit (leak_I ftr w lw (LT_iwhilel ltei ltis lte ltis'))])
-     (P0 := fun lt lc _ => True) (P1 := fun lt lcs _ => True)).
+     (fun lt lc _ => True) (fun lt lcs _ => True)).
 Qed.
 
 Definition is_lopn (l: leak_i) := 
@@ -1596,12 +1596,12 @@ Lemma transform_cost_size w lt lc:
   leak_WFs ftr lt lc ->
   size (leak_Is (leak_I ftr) w lt lc) = (transform_cost_C lt).2.
 Proof.
-  apply (leak_WFs_ind 
-     (P:=fun lt li _ => 
+  apply: (@leak_WFs_ind _
+     (fun lt li _ =>
        size (leak_I ftr w li lt) = (transform_cost_I lt).2)
-     (P0:=fun lt lc _ => 
+     (fun lt lc _ =>
        size (leak_Is (leak_I ftr) w lt lc) = (transform_cost_C lt).2)
-     (P1:=fun lt lcs _ => 
+     (fun lt lcs _ =>
           size (flatten [seq leak_assgn :: l0 | l0 <- leak_Iss (leak_I ftr) w lt lcs]) =
             (transform_cost_C_unroll transform_cost_I lt (size lcs)).2)) => {lt lc} //=.
   + by case.
@@ -1661,13 +1661,13 @@ Lemma transform_cost_ok w lt lc:
   cost_C ([::],0) (leak_Is (leak_I ftr) w lt lc) <=1 
     Sm.interp (cost_C ([::],0) lc) (transform_cost_C lt).1.
 Proof.
-  apply (leak_WFs_ind 
-     (P:=fun lt li _ => 
+  apply: (@leak_WFs_ind _
+     (fun lt li _ =>
        cost_C path0 (leak_I ftr w li lt) <=1 Sm.interp (cost_i path0 li) (transform_cost_I lt).1)
-     (P0:=fun lt lc _ => 
+     (fun lt lc _ =>
        cost_C path0 (leak_Is (leak_I ftr) w lt lc) <=1 
           Sm.interp (cost_C path0 lc) (transform_cost_C lt).1)
-     (P1:=fun lt lcs _ => 
+     (fun lt lcs _ =>
        forall lc, List.In lc lcs -> 
           enter_cost_c cost_i [::] (leak_Is (leak_I ftr) w lt lc) <=1
           Sm.interp (enter_cost_c cost_i [::] lc) (enter_transform_cost_C transform_cost_I lt).1))
