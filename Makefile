@@ -32,6 +32,7 @@ install:
 	$(INSTALL) -m 0755 -T compiler/jasminc.native $(DESTDIR)$(BINDIR)/jasminc
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(LIBDIR)/jasmin/easycrypt
 	$(INSTALL) -m 0644 -t $(DESTDIR)$(LIBDIR)/jasmin/easycrypt eclib/*.ec
+	$(MAKE) -C proofs install
 
 uninstall:
 	rm -f  $(DESTDIR)$(BINDIR)/jasminc
