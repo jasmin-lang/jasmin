@@ -92,6 +92,7 @@ apply (@cmd_rect
 + SpD.fsetdec.
 Qed.
 
+#[local]
 Instance live_calls_m : Proper (Sp.Equal ==> eq ==> Sp.Equal) live_calls.
 Proof.
   move=> x y le p p' <- {p'}.
@@ -102,6 +103,7 @@ Proof.
   rewrite ! c_callsE. SpD.fsetdec.
 Qed.
 
+#[local]
 Instance live_calls_mono : Proper (Sp.Subset ==> eq ==> Sp.Subset) live_calls.
 Proof.
   move=> x y le p p' <- {p'}.
