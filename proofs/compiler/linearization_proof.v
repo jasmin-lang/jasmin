@@ -663,6 +663,8 @@ Section PROOF.
   Let vrsp : var := vid p.(p_extra).(sp_rsp).
   Let var_tmp : var_i := vid lparams.(lp_tmp).
 
+  Hypothesis var_tmp_not_magic : ~~ Sv.mem var_tmp (magic_variables p).
+
   Hypothesis linear_ok : linear_prog p extra_free_registers lparams = ok p'.
 
   Notation linear_i := (linear_i p extra_free_registers lparams).
@@ -2546,7 +2548,7 @@ Section PROOF.
     rewrite /ra_vm.
     rewrite /saved_stack_vm.
     case: sf_return_address free_ra ok_to_save ok_callee_saved ok_save_stack ok_ret_addr X ok_lret exec_body ih ok_sp =>
-      /= [ rax_not_magic ok_to_save ok_callee_saved ok_save_stack _ | ra free_ra _ _ _ ok_ret_addr | rastack free_ra _ _ _ ok_ret_addr ] X ok_lret exec_body ih.
+      /= [ _ ok_to_save ok_callee_saved ok_save_stack _ | ra free_ra _ _ _ ok_ret_addr | rastack free_ra _ _ _ ok_ret_addr ] X ok_lret exec_body ih.
     2-3: case => sp_aligned.
     all: move => ?; subst sp.
     - (* Export function *)
@@ -3063,7 +3065,7 @@ Section PROOF.
         + rewrite /get_var /= -K4.
           + rewrite hvmrsp; last by move=> /sv_of_flagsP /(mapP (T1:=ceqT_eqType)) [].
             by rewrite Fv.setP_eq /= truncate_word_u.
-          have /disjointP K := sem_RSP_GD_not_written exec_body.
+          have /disjointP K := sem_RSP_GD_not_written var_tmp_not_magic exec_body.
           move => /K; apply; exact: RSP_in_magic.
         have top_no_overflow : (wunsigned top + (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)) < wbase Uptr)%Z.
         + apply: Z.le_lt_trans; last exact: proj2 (wunsigned_range (top_stack (emem s1))).
@@ -3197,7 +3199,7 @@ Section PROOF.
           case: ifP => _; last rewrite -K4.
           1-2: by (rewrite (hvmrsp vrsp); last by move=> /sv_of_flagsP /(mapP (T1:=ceqT_eqType)) []);
             rewrite Fv.setP_eq /= truncate_word_u.
-          have /disjointP K := sem_RSP_GD_not_written exec_body.
+          have /disjointP K := sem_RSP_GD_not_written var_tmp_not_magic exec_body.
           move => /K; apply; exact: RSP_in_magic.
         eexists.
         + apply: lsem_step.
@@ -3210,7 +3212,7 @@ Section PROOF.
             move: ok_body.
             rewrite /P -cat1s -catA -(addn0 1) => /find_instr_skip -> /=.
             apply: (@spec_lp_free_stack_frame _ _ hlparams p').
-            rewrite Fv.setP_neq; last by move /negbT: (not_magic_neq_rsp rax_not_magic).
+            rewrite Fv.setP_neq; last by move /negbT: (not_magic_neq_rsp var_tmp_not_magic).
             move: ok_rsp; rewrite /get_var.
             apply: on_vuP => //= -[???] ->.
             move=> /Vword_inj /= [?]; subst => /= ->.
@@ -3242,7 +3244,7 @@ Section PROOF.
             apply: (@spec_lassign _ _ hlparams p').
             + rewrite /= /get_gvar /= /get_var.
               rewrite (hvmrsp var_tmp); last by move=> /sv_of_flagsP /(mapP (T1:=ceqT_eqType)) [].
-              do 2 (rewrite Fv.setP_neq; last by rewrite eq_sym; apply/negbT; exact: not_magic_neq_rsp rax_not_magic).
+              do 2 (rewrite Fv.setP_neq; last by rewrite eq_sym; apply/negbT; exact: not_magic_neq_rsp var_tmp_not_magic).
               by rewrite Fv.setP_eq /=.
             + by rewrite truncate_word_u.
             rewrite /= /write_var /= /get_var.
@@ -3397,7 +3399,7 @@ Section PROOF.
         rewrite catA in ok_body.
         rewrite /lsem1 /step -(addn0 (size ([:: P] ++ lbody))) (find_instr_skip ok_body) /= /eval_instr /= /get_gvar /= /get_var /=.
         move: (ok_vm2 vrsp).
-        rewrite -(sem_preserved_RSP_GD exec_body); last exact: RSP_in_magic.
+        rewrite -(sem_preserved_RSP_GD var_tmp_not_magic exec_body); last exact: RSP_in_magic.
         rewrite /= /set_RSP Fv.setP_eq /=.
         case: vm2.[_]%vmap => // - [] ??? /pword_of_word_uincl /= [] ??; subst.
         rewrite !truncate_word_u /=.

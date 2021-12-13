@@ -64,6 +64,8 @@ Proof.
   rewrite /add_extra_free_registers /extra_free_registers_at; case: extra_free_registers; SvD.fsetdec.
 Qed.
 
+Let magic_variables : Sv.t := magic_variables p.
+
 Section WRITE1.
 
   Context (writefun: funname → Sv.t).
@@ -254,9 +256,6 @@ Section CHECK.
 
   Notation check_cmd sz := (check_c (check_i sz)).
 
-  Let magic_variables : Sv.t :=
-    magic_variables p.
-
   Let check_preserved_register W J name r :=
     Let _ :=
       assert (vtype r == sword Uptr) (E.gen_error true None (pp_box [::pp_s "bad register type for"; pp_s name; pp_var r])) in
@@ -300,7 +299,6 @@ Section CHECK.
     | RAreg ra => check_preserved_register W J "return address" ra
     | RAstack _ => ok tt
     | RAnone =>
-        Let _ := assert (~~ Sv.mem var_tmp magic_variables) (E.gen_error true None (pp_s "RAX clashes with RSP or RIP")) in
         assert (all (λ x : var_i, if vtype x is sword _ then true else false ) (f_params fd))
             (E.gen_error true None (pp_s "the export function has non-word arguments"))
     end.
@@ -313,6 +311,7 @@ Definition check :=
   let wmap := mk_wmap in
   Let _ := assert (check_wmap wmap) (E.gen_error true None (pp_s "invalid wmap")) in
   Let _ := assert (p.(p_extra).(sp_rip) != p.(p_extra).(sp_rsp)) (E.gen_error true None (pp_s "rip and rsp clash")) in
+  Let _ := assert (~~ Sv.mem var_tmp magic_variables) (E.gen_error true None (pp_s "RAX clashes with RSP or RIP")) in
   Let _ := check_prog (get_wmap wmap) in
   ok tt.
 

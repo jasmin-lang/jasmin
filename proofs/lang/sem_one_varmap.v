@@ -118,8 +118,7 @@ Definition ra_valid fd ii (k: Sv.t) (x: var) : bool :=
     extra_free_registers ii != None
   | RAreg ra =>
     [&& (ra != vgd), (ra != vrsp) & (~~ Sv.mem ra k) ]
-  | RAnone =>
-    ~~ Sv.mem x magic_variables
+  | RAnone => true
   end.
 
 Definition sv_of_flags : seq rflag → Sv.t :=

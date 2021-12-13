@@ -280,6 +280,8 @@ Qed.
 (* The contents of RSP and GD registers are preserved. *)
 Section PRESERVED_RSP_GD.
 
+Hypothesis var_tmp_not_magic : ~~ Sv.mem var_tmp (magic_variables p).
+
 Let Pc (k: Sv.t) (_: estate) (_: cmd) (_: estate) : Prop := disjoint k (magic_variables p).
 Let Pi (k: Sv.t) (_: estate) (_: instr) (_: estate) : Prop := disjoint k (magic_variables p).
 Let Pi_r (_: instr_info) (_: Sv.t) (_: estate) (_: instr_r) (_: estate) : Prop := True.
@@ -353,7 +355,7 @@ Proof.
   1: case: sf_return_address ok_ra => //.
   1: rewrite SvP.MP.add_union_singleton disjoint_unionE => rax_not_magic.
   1: apply/andP; split; last exact: flags_not_magic.
-  1: by rewrite disjoint_singletonE /magic_variables.
+  1: by rewrite disjoint_singletonE.
   2: case: sf_save_stack ok_ss => //.
   all: move => /= r /and3P[] /eqP r_neq_gd /eqP r_neq_rsp _.
   all: rewrite /magic_variables /disjoint /is_true Sv.is_empty_spec /=.

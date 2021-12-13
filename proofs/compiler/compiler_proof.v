@@ -390,10 +390,10 @@ Proof.
   - exists fd; first exact ok_fd.
     by rewrite /= no_ra.
   have := merge_varmaps_callP checked_p exec_p ok_fd.
-  move: checked_p; rewrite /merge_varmaps.check; t_xrbindP => _ /assertP ok_wmap _ /assertP rip_neq_rsp units ok_fds _.
+  move: checked_p; rewrite /merge_varmaps.check; t_xrbindP => _ /assertP ok_wmap _ /assertP rip_neq_rsp _ /assertP var_tmp_not_magic units ok_fds _.
   case: (get_map_cfprog_name_gen ok_fds ok_fd) => - [] checked_fd _.
   move: checked_fd; rewrite /merge_varmaps.check_fd no_ra eqxx /=.
-  t_xrbindP => D ok_D _ /assertP dis_D _ /assertP params_not_magic _ /assertP /Sv_memP rsp_not_result _ /assertP magic_not_written [] ok_save_stack _ /assertP /Sv_memP rax_not_magic /assertP ok_args.
+  t_xrbindP => D ok_D _ /assertP dis_D _ /assertP params_not_magic _ /assertP /Sv_memP rsp_not_result _ /assertP magic_not_written [] ok_save_stack /assertP ok_args.
   set v_rsp := {| vname := sp_rsp _ |}.
   set v_rip := {| vname := sp_rip _ |}.
   set top := top_stack m.
@@ -416,7 +416,7 @@ Proof.
   - admit.
   - admit.
   move => k [] vm1 [] vres' [] exec_p' wf_vm1 ok_k ok_vres' res_vres'.
-  have := linear_fdP hlparams ok_lp exec_p' _ _ _ ok_body ok_ra _ ok_sp ok_callee_saved.
+  have := linear_fdP hlparams var_tmp_not_magic ok_lp exec_p' _ _ _ ok_body ok_ra _ ok_sp ok_callee_saved.
   move => /(_ _ _ None _ _ _ I).
   rewrite /emem /evm => H.
   exists (tunnel_fd fn (linear_fd p (extra_free_registers cparams) lparams fn fd)); split.
