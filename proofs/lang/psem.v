@@ -44,7 +44,7 @@ Notation vid ident :=
     v_var :=
       {|
         vtype := sword Uptr;
-        vname := ident;
+        vname := ident%string;
       |};
     v_info := xH;
   |}.
