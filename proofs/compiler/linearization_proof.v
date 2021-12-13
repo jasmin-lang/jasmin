@@ -2112,7 +2112,8 @@ Section PROOF.
         rewrite Fv.setP; case: eqP => x_neq_rsp.
         * by subst; rewrite vm2_rsp pword_of_wordE.
         rewrite -K' // /vm !Fv.setP_neq //; apply/eqP => //.
-        SvD.fsetdec.
+        move: x_notin_k; clear.
+        rewrite !Sv.union_spec Sv.singleton_spec; intuition.
       + move => x; rewrite Fv.setP; case: eqP => ?; last exact: W'.
         by subst.
       + have := sem_one_varmap_facts.sem_call_valid_RSP exec_call.
@@ -2590,7 +2591,8 @@ Section PROOF.
           change (wsize_size U8) with 1%Z.
           lia.
         + apply: vmap_eq_exceptI; last exact: K2.
-          SvD.fsetdec.
+          apply: Sv_Subset_union_left.
+          exact: SvP.MP.union_subset_1.
         have S : stack_stable m1' s2'.
         + exact: sem_one_varmap_facts.sem_stack_stable exec_body.
         move => x; move: (X2 x); rewrite /set_RSP !Fv.setP; case: eqP => // ?; subst.
@@ -2693,7 +2695,8 @@ Section PROOF.
             exact: W.
           - clear => x hx.
             rewrite Fv.setP_neq //; apply/eqP.
-            SvD.fsetdec.
+            move: hx; clear.
+            rewrite Sv.singleton_spec; exact/not_eq_sym.
           by rewrite get_var_set eqxx.
         }
         case => vm [] lexec_alloc ok_vm vm_old vm_rsp.
@@ -2860,7 +2863,7 @@ Section PROOF.
             by exists f => //.
           rewrite hvm''; last by apply /sv_of_flagsP/negPf.
           rewrite Fv.setP_neq; last by apply /eqP.
-          rewrite vm_old; last SvD.fsetdec.
+          rewrite vm_old; last by rewrite Sv.singleton_spec; exact/not_eq_sym.
           rewrite Fv.setP_neq // eq_sym.
           by apply/eqP.
         + exact: wf_vm_set.
@@ -3346,7 +3349,8 @@ Section PROOF.
         rewrite ok_retptr /= => -> /=.
         case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
       + apply: vmap_eq_exceptI K2.
-        SvD.fsetdec.
+        apply: Sv_Subset_union_left.
+        exact: SvP.MP.union_subset_1.
       move => ?; rewrite /set_RSP !Fv.setP; case: eqP => // ?; subst.
       move: (ok_vm2 vrsp).
       have S : stack_stable m1' s2'.
@@ -3450,7 +3454,8 @@ Section PROOF.
         rewrite ok_retptr /= => -> /=.
         case: ok_cbody => fd' -> -> /=; rewrite ok_pc /setcpc /=; reflexivity.
       + apply: vmap_eq_exceptI K2.
-        SvD.fsetdec.
+        apply: Sv_Subset_union_left.
+        exact: SvP.MP.union_subset_1.
       move => ?; rewrite /set_RSP !Fv.setP; case: eqP => // ?; subst.
       move: (ok_vm2 vrsp).
       have S : stack_stable m1' s2'.

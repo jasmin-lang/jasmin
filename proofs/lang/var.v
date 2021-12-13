@@ -538,6 +538,14 @@ Proof.
   move => ne; exact: (SvD.F.add_neq_b _ (not_eq_sym ne)).
 Qed.
 
+Lemma Sv_Subset_union_left (a b c: Sv.t) :
+  Sv.Subset a b → Sv.Subset a (Sv.union b c).
+Proof. SvD.fsetdec. Qed.
+
+Lemma Sv_Subset_union_right (a b c: Sv.t) :
+  Sv.Subset a c → Sv.Subset a (Sv.union b c).
+Proof. SvD.fsetdec. Qed.
+
 (* ---------------------------------------------------------------- *)
 Definition sv_of_list T (f: T → var) : seq T → Sv.t :=
   foldl (λ s r, Sv.add (f r) s) Sv.empty.
