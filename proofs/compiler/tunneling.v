@@ -19,47 +19,10 @@ Module Import E.
 
 End E.
 
-Section Tunneling.
 
-Context (fn : funname).
+Section LprogSem.
 
-Definition Linstr_align := (MkLI xH Lalign).
-
-Definition tunnel_chart (uf : LUF.unionfind) (c c' : linstr) :=
-  match c, c' with
-  | {| li_i := Llabel l |}, {| li_i := Llabel l' |} =>
-      LUF.union uf l l'
-  | {| li_i := Llabel l |}, {| li_i := Lgoto (fn',l') |} =>
-      if fn == fn' then LUF.union uf l l' else uf
-  | _, _ => uf
-  end.
-
-Definition tunnel_plan (uf : LUF.unionfind) := pairfoldl tunnel_chart uf Linstr_align.
-
-Definition tunnel_bore (uf : LUF.unionfind) (c : linstr) :=
-  match c with
-    | MkLI ii li =>
-      match li with
-        | Lgoto (fn',l') => MkLI ii (if fn == fn' then Lgoto (fn', LUF.find uf l') else Lgoto (fn',l'))
-        | Lcond pe l' => MkLI ii (Lcond pe (LUF.find uf l'))
-        | _ => MkLI ii li
-      end
-  end.
-
-Definition tunnel_partial (uf : LUF.unionfind) (lc : lcmd) :=
-  map (tunnel_bore uf) lc.
-
-Definition tunnel (lc : lcmd) :=
-  let uf := tunnel_plan LUF.empty lc in
-  tunnel_partial uf lc.
-
-End Tunneling.
-
-Section TunnelingSem.
-
-  Context (fn : funname).
-
-  Context (p : lprog).
+  Definition funnames p := map fst (lp_funcs p).
 
   Definition labels_of_body fb :=
     filter 
@@ -70,22 +33,7 @@ Section TunnelingSem.
       (map li_i fb).
 
   Definition goto_targets fb :=
-    filter 
-      (fun li => if li is Lgoto _ then true else false)
-      (map li_i fb).
-
-  Definition well_formed_body (fn' : funname) fb :=
-    uniq (labels_of_body fb) &&
-    all
-      (fun li => 
-         if li is Lgoto (fn'',l) then 
-            (fn' == fn'') && (Llabel l \in (labels_of_body fb))
-         else false)
-      (goto_targets fb).
-  
-  Definition well_formed_lprog :=
-    uniq (map fst (lp_funcs p))
-    && all (fun func => well_formed_body func.1 func.2.(lfd_body)) p.(lp_funcs).
+    filter (fun li => if li is Lgoto _ then true else false) (map li_i fb).
 
   Definition setfb fd fb:=
     LFundef
@@ -98,32 +46,86 @@ Section TunnelingSem.
       fd.(lfd_res)
       fd.(lfd_export).
 
-  Definition lfundef_tunnel_partial fd lc lc' :=
-    setfb fd (tunnel_partial fn (tunnel_plan fn LUF.empty lc) lc').
+  Definition setfunc lf (fn : funname) (fd : lfundef) :=
+    map (fun f => (f.1, if fn == f.1 then fd else f.2)) lf.
 
-  Definition setfuncs lf :=
+  Definition setfuncs p lf :=
     {| lp_rip := lp_rip p
      ; lp_rsp := lp_rsp p
      ; lp_globs := lp_globs p
      ; lp_funcs := lf |}.
 
-  Definition lprog_tunnel :=
+End LprogSem.
+
+
+Section Tunneling.
+
+  Context (fn : funname).
+
+  Definition Linstr_align := (MkLI xH Lalign).
+
+  Definition tunnel_chart uf c c' :=
+    match c, c' with
+    | {| li_i := Llabel l |}, {| li_i := Llabel l' |} =>
+        LUF.union uf l l'
+    | {| li_i := Llabel l |}, {| li_i := Lgoto (fn',l') |} =>
+        if fn == fn' then LUF.union uf l l' else uf
+    | _, _ => uf
+    end.
+
+  Definition tunnel_plan uf (lc : lcmd) :=
+    pairfoldl tunnel_chart uf Linstr_align lc.
+
+  Definition tunnel_bore uf c :=
+    match c with
+      | MkLI ii li =>
+        match li with
+          | Lgoto (fn',l') => MkLI ii (if fn == fn' then Lgoto (fn', LUF.find uf l') else Lgoto (fn',l'))
+          | Lcond pe l' => MkLI ii (Lcond pe (LUF.find uf l'))
+          | _ => MkLI ii li
+        end
+    end.
+
+  Definition tunnel_uf uf (lc : lcmd) : lcmd :=
+    map (tunnel_bore uf) lc.
+
+  Definition tunnel_partial lc lc' :=
+    tunnel_uf (tunnel_plan LUF.empty lc) lc'.
+
+  Definition lfundef_tunnel_partial fd lc lc' :=
+    setfb fd (tunnel_partial lc lc').
+
+  Definition funcs_tunnel_partial lf fd lc lc' :=
+    setfunc lf fn (lfundef_tunnel_partial fd lc lc').
+
+  Definition lprog_tunnel_partial p lf fd lc lc' :=
+    setfuncs p (funcs_tunnel_partial lf fd lc lc').
+
+  Definition lprog_tunnel p :=
     match get_fundef (lp_funcs p) fn with
-    | Some fd => setfuncs
-                  (map
-                    (fun f =>
-                      (f.1,
-                       if fn == f.1
-                       then lfundef_tunnel_partial f.2 fd.(lfd_body) fd.(lfd_body)
-                       else f.2))
-                    p.(lp_funcs))
+    | Some fd => lprog_tunnel_partial p (lp_funcs p) fd (lfd_body fd) (lfd_body fd)
     | None => p
     end.
 
-  Definition funnames := map (fun x => x.1) (lp_funcs p).
+End Tunneling.
+
+
+Section TunnelingSem.
+
+  Definition well_formed_body (fn : funname) fb :=
+    uniq (labels_of_body fb) &&
+    all
+      (fun li => 
+         if li is Lgoto (fn',l) then 
+            (fn == fn') && (Llabel l \in (labels_of_body fb))
+         else false)
+      (goto_targets fb).
+  
+  Definition well_formed_lprog p :=
+    uniq (map fst (lp_funcs p))
+    && all (fun func => well_formed_body func.1 func.2.(lfd_body)) p.(lp_funcs).
 
 End TunnelingSem.
-
 
 
 Section TunnelingCompiler.
