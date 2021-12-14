@@ -121,9 +121,7 @@ Section TunnelingProof.
     | Some fd => Some (if fn == fn' then g fd else fd)
     | None => None
     end.
-  Proof.
-    by rewrite (get_fundef_map2 fn' (fun f1 f2 => if fn == f1 then g f2 else f2) (lp_funcs p)).
-  Qed.
+  Proof. by rewrite (get_fundef_map2 fn' (fun f1 f2 => if fn == f1 then g f2 else f2) (lp_funcs p)). Qed.
 
   Lemma get_fundef_partial fn' uf fd:
     get_fundef (map (fun f =>
@@ -138,9 +136,7 @@ Section TunnelingProof.
     | Some fd' => Some (if fn == fn' then setfb fd' (tunnel_partial fn uf (lfd_body fd)) else fd')
     | None => None
     end.
-  Proof.
-    by rewrite (get_fundef_map2_only_fn fn' (fun f2 => setfb f2 (tunnel_partial fn uf (lfd_body fd)))).
-  Qed.
+  Proof. by rewrite (get_fundef_map2_only_fn fn' (fun f2 => setfb f2 (tunnel_partial fn uf (lfd_body fd)))). Qed.
 
   Lemma get_fundef_lprog_tunnel fn':
     get_fundef (lp_funcs (lprog_tunnel fn p)) fn' =
@@ -167,7 +163,10 @@ Section TunnelingProof.
     with
     | Some fd' =>
         Some (if fn == fn'
-              then setfb fd' (tunnel_partial fn (LUF.union LUF.empty (LUF.find uf l1) (LUF.find uf l2)) (tunnel_partial fn uf (lfd_body fd))) 
+              then
+                setfb
+                  fd'
+                  (tunnel_partial fn (LUF.union LUF.empty (LUF.find uf l1) (LUF.find uf l2)) (tunnel_partial fn uf (lfd_body fd))) 
               else fd')
     | None => None
     end.
@@ -823,6 +822,20 @@ Section TunnelingProof.
     by apply Forall_rcons.
   Qed.
 
+  Lemma lsem_path_prop_ind (P Q : lstate -> Prop) p' s1 s2 :
+    lsem_path_prop P p' s1 s2 ->
+    (forall s s', lsem1 p' s s' -> P s -> Q s -> Q s') →
+    P s1 -> Q s1 -> Q s2.
+  Proof.
+    move => [ss] [HForall2 HForall] IHlsem1 HPs1 HQs1.
+    elim: ss s1 HPs1 HQs1 HForall2 HForall => //= [s1 HPs1 HQs1 HForall2 _|s ss IHss s1 HPs1 HQs1 HForall2_cons HForall_cons].
+    + inversion HForall2 as [|s' s'' ss' ss'' Hlsem1 _]; subst s' s'' ss' ss''.
+      by apply: (IHlsem1 _ _ Hlsem1).
+    inversion HForall2_cons as [|s' s'' ss' ss'' Hlsem1 HForall2]; subst s' s'' ss' ss''.
+    inversion HForall_cons as [|s' ss' HPs HForall]; subst s' ss'.
+    by apply (IHss s) => //; apply: (IHlsem1 _ _ Hlsem1).
+  Qed.
+
   Lemma lsem_path_prop_label_impl s1 s2 fd uf uf' :
     get_fundef (lp_funcs p) fn = Some fd ->
     (exists ii l, find_instr p s1 = Some (MkLI ii (Llabel l))) ->
@@ -864,15 +877,20 @@ Section TunnelingProof.
   Lemma lsem11_tunneling s1 s2 :
     lsem1 p s1 s2 ->
     lsem1 (lprog_tunnel fn p) s1 s2 \/
-    (exists s3, [ /\ lsem_path_prop (fun s => exists ii l, find_instr p s = Some (MkLI ii (Llabel l))) (lprog_tunnel fn p) s2 s3 ,
-                lsem1 (lprog_tunnel fn p) s1 s3 &
+    (exists s3, [ /\ lsem_path_prop
+                  (fun s => exists ii l, find_instr p s = Some (MkLI ii (Llabel l)))
+                  (lprog_tunnel fn p) s2 s3 ,
+                (   lsem1 (lprog_tunnel fn p) s1 s3
+                 \/ exists s4, [/\ lsem1 (lprog_tunnel fn p) s3 s4 ,
+                              lsem1 (lprog_tunnel fn p) s1 s4 &
+                              exists ii l, find_instr p s3 = Some (MkLI ii (Lgoto (fn, l)))]) &
                 exists ii l, find_instr p s2 = Some (MkLI ii (Llabel l))]) \/
     (exists s3, [/\ lsem1 (lprog_tunnel fn p) s2 s3 ,
                lsem1 (lprog_tunnel fn p) s1 s3 &
                exists ii l, find_instr p s2 = Some (MkLI ii (Lgoto (fn, l)))]).
   Proof.
     rewrite /lprog_tunnel; case Hgfd: (get_fundef _ _) => [fd|]; last by left.
-    move: s1 s2; pattern (lfd_body fd), (lfd_body fd) at 2 4 6 8 10; apply: prefixW.
+    move: s1 s2; pattern (lfd_body fd), (lfd_body fd) at 2 4 6 8 10 12 14; apply: prefixW.
     + move => s1 s2 Hlsem1; left.
       apply: (@get_fundef_lsem1 p _ s1 s2 _ _ Hlsem1); first by rewrite -(label_in_lprog_tunnel [::]) Hgfd.
       clear Hlsem1 => fn'.
@@ -959,7 +977,7 @@ Section TunnelingProof.
         rewrite /s1 /= -/s1 Hgfd Honth1 /=;
         move => _ Htunnel; left;
         rewrite Hlabel_in_lprog_tunnel_union.
-      - rewrite {5 6}/eval_instr /eval_jump /=.
+      - rewrite {7 8}/eval_instr /eval_jump /=.
         rewrite !get_fundef_union eq_refl Hgfd => Honth1 Hplsem1.
         case Heqfn1: (fn == fn1) => //; last first.
         * have:= (Hplsem1 s1 s2); clear Hplsem1.
@@ -995,17 +1013,72 @@ Section TunnelingProof.
             rewrite {1}/tunnel_partial onth_map.
             rewrite -(prefix_onth Hprefix); last by rewrite !size_rcons.
             by rewrite onth_rcons size_rcons eq_refl /eval_instr /= /setpc.
-          + rewrite get_fundef_partial Hgfd eq_refl /= find_label_tunnel_partial.
+          + rewrite get_fundef_partial Hgfd eq_refl /= find_label_tunnel_partial; left.
             by rewrite (prefix_rcons_find_label Hwfb Hprefix) size_rcons.
           rewrite -(prefix_onth Hprefix); last by rewrite !size_rcons.
           by rewrite onth_rcons size_rcons eq_refl; exists li_ii4; exists l4.
-        * clear Hplsem1 => -[Hlsem_path_prop]; t_xrbindP => pcf1' Hpcf1'.
+        * move => -[Hlsem_path_prop] [|]; last first.
+          + move => [s4]; case: s3 Hlsem_path_prop => mem3 vm3 fn3 pc3 /=.
+            set s3 := Lstate _ _ _ _ => Hlsem_path_prop.
+            rewrite !get_fundef_partial Hgfd eq_refl !lfd_body_setfb /=.
+            move => [Hmatch]; t_xrbindP => pcff1 Hpcff1.
+            rewrite /s1 /s3 {1}/setcpc /= -/s1 -/s3 => ?.
+            subst s4; set s4:= Lstate _ _ _ _ in Hmatch.
+            move => [li_ii3'] [l3']; case Hgfd3: (get_fundef _ _) => [fd3|//] Honth3.
+            move => [li_ii1'] [l1'] Honth1'; move: Hmatch; rewrite Hgfd3.
+            case: ifP => // [/eqP ?|Hneqfn]; last first.
+            - exfalso; move: Hneqfn; apply/Bool.eq_true_false_abs.
+              have:= (@lsem_path_prop_ind _ (fun s => fn = lfn s) _ _ _ Hlsem_path_prop).
+              rewrite /s2 /s3 /= => -> //; first by rewrite eq_refl.
+              * move => s s' Hlsem1 [li_ii] [li_i] Honth Heqfn.
+                rewrite -Heqfn Hgfd in Honth; move: Hlsem1.
+                rewrite /lsem1 /step /find_instr lp_funcs_setfuncs.
+                rewrite get_fundef_partial -Heqfn Hgfd eq_refl.
+                rewrite lfd_body_setfb {1}/tunnel_partial onth_map.
+                rewrite Honth {1}/tunnel_bore /= /eval_instr /= Heqfn.
+                case: s {Heqfn Honth} => ? ? ? ?; case: s' => ? ? ? ?.
+                by rewrite /setpc /= => [[]].
+              by rewrite Hgfd Honth1'; exists li_ii1'; exists l1'.
+            subst fn3; rewrite lfd_body_setfb {1}/tunnel_partial onth_map.
+            move: Hgfd3; rewrite Hgfd => -[?]; subst fd3.
+            rewrite Honth3 {1}/tunnel_bore eq_refl /=.
+            rewrite get_fundef_partial Hgfd eq_refl lfd_body_setfb /=.
+            rewrite !find_label_tunnel_partial; t_xrbindP => pcff3' Hpcff3' ? ? ?.
+            subst mem3 vm3 pcff3'; rewrite Honth1'.
+            clear Hplsem1.
+            right; left; case: ifP => [Heqfind|Hneqfind]; last first.
+            - rewrite Hpcff1 /=; exists s3; split; last by exists li_ii1'; exists l1'.
+              * move: Hlsem_path_prop; apply lsem_path_prop_label_impl => //.
+                by rewrite /find_instr /s2 Hgfd /= Honth1' /=; exists li_ii1'; exists l1'.
+              right; exists s4; split; first last.
+              * by rewrite /s3 /= Hgfd Honth3; exists li_ii3'; exists l3'.
+              * by rewrite /s1 /s4 /setcpc.
+              rewrite {1}/s3 /= get_fundef_union Hgfd eq_refl lfd_body_setfb.
+              rewrite {1 2}/tunnel_partial !onth_map Honth3 {1 2}/tunnel_bore /= !eq_refl /=.
+              rewrite get_fundef_partial Hgfd eq_refl lfd_body_setfb /= find_label_tunnel_partial.
+              rewrite LUF.find_union !LUF.find_empty -(find_label_inj Hwfb Hpcff1 Hpcff3').
+              by rewrite Hneqfind Hpcff1 /= /s3 /s4 /setcpc.
+            
+            exists (setcpc s1 fn (size ttli).+2); split; last by exists li_ii1'; exists l1'.
+            - apply (@lsem_path_prop_rcons _ _ _ s3).
+              rewrite /s3 /lsem1 /step /find_instr lp_funcs_setfuncs get_fundef_partial /=.
+              rewrite Hgfd eq_refl lfd_body_setfb {1}/tunnel_partial onth_map.
+              rewrite Honth3.
+              rewrite -(prefix_onth Hprefix); last by rewrite !size_rcons.
+              rewrite onth_rcons size_rcons eq_refl /eval_instr /=.
+              by rewrite /s1 /setpc.
+            - rewrite /s3 /= Hgfd -(prefix_onth Hprefix); last by rewrite !size_rcons.
+              by rewrite onth_rcons size_rcons eq_refl; exists li_ii4; exists l4.
+            move: Hlsem_path_prop; apply lsem_path_prop_label_impl => //.
+            by exists li_ii1'; exists l1'; rewrite /find_instr /s2 /= Hgfd.
+            fail.
+          clear Hplsem1; t_xrbindP => pcf1' Hpcf1'.
           rewrite {1}/s1 /setcpc /= => ?; subst s3; set s3:= Lstate _ _ _ _ in Hlsem_path_prop.
           move => [li_ii1'] [l1'] Honth1'; case : ifP => // Heqfind; last first.
           + right; left; exists s3; split => //.
             - move: Hlsem_path_prop; apply lsem_path_prop_label_impl => //.
               by exists li_ii1'; exists l1'; rewrite /find_instr /s2 /= Hgfd.
-            - rewrite get_fundef_partial Hgfd eq_refl lfd_body_setfb /=.
+            - rewrite get_fundef_partial Hgfd eq_refl lfd_body_setfb /=; left.
               by rewrite find_label_tunnel_partial Hpcf1' /= /s3.
             by rewrite Honth1'; exists li_ii1'; exists l1'.
           move: Heqfind Hpcf1' Honth1'; rewrite (find_plan_partial Hwfb Hprefix') => /eqP Hf3; rewrite -Hf3.
@@ -1025,7 +1098,7 @@ Section TunnelingProof.
             rewrite (find_plan_partial_nhas Hwfb Hprefix'); last first.
             - move: Hwfb => /andP [Huniq _]; have:= (uniq_nhas Huniq Hprefix).
               by rewrite has_rcons negb_or => /andP [].
-            rewrite find_label_tunnel_partial (prefix_rcons_find_label Hwfb Hprefix).
+            rewrite find_label_tunnel_partial (prefix_rcons_find_label Hwfb Hprefix); left.
             by rewrite size_rcons /= /s1 /s3 /setpc.
           by rewrite Honth1'; exists li_ii1'; exists l1'.
         clear Hplsem1; move => -[].
@@ -1097,13 +1170,17 @@ Section TunnelingProof.
           by rewrite has_rcons negb_or => /andP [].
         rewrite (prefix_rcons_find_label Hwfb Hprefix) size_rcons /=.
         right; left; exists (setcpc s1 fn (size ttli).+2).
-        rewrite /s1 /s2 /setcpc /=; split => //; last by exists li_ii4; exists l4.
+        rewrite /s1 /s2 /setcpc /=; split => //; first last.
+        * by exists li_ii4; exists l4.
+        * by left.
         apply lsem_path_prop_nil; rewrite /lsem1 /step /find_instr lp_funcs_setfuncs.
         rewrite get_fundef_partial Hgfd eq_refl lfd_body_setfb /=.
         rewrite {1}/tunnel_partial onth_map -(prefix_onth Hprefix); last by rewrite !size_rcons.
         by rewrite onth_rcons !size_rcons eq_refl /eval_instr /= /setpc.
       - rewrite {1}/eval_instr /= get_fundef_partial Hgfd eq_refl lfd_body_setfb /=.
         rewrite Hv /= Hb /= find_label_tunnel_partial => -[Hlsem_path_prop].
+        move => [|]; last first.
+        * admit.
         t_xrbindP => pcff1 Hpcff1; rewrite {1}/s1 {1}/setcpc /= => ?; subst s3.
         move: Hlsem_path_prop; set s3 := Lstate _ _ _ _ => Hlsem_path_prop.
         move => [li_ii5] [l5] Honth5; rewrite Honth5 /eval_instr /=.
@@ -1112,6 +1189,8 @@ Section TunnelingProof.
         * rewrite Hpcff1 /=; right; left; exists s3; split => //; last by exists li_ii5; exists l5.
           move: Hlsem_path_prop; apply lsem_path_prop_label_impl => //.
           by rewrite /s2 /find_instr Hgfd /= Honth5; exists li_ii5; exists l5.
+        by left; rewrite /s1 /s3 /setcpc.
+        (*
         rewrite (find_plan_partial_nhas Hwfb Hprefix'); last first.
         * move: Hwfb => /andP [Huniq _]; have:= (uniq_nhas Huniq Hprefix).
           by rewrite has_rcons negb_or => /andP [].
@@ -1131,6 +1210,8 @@ Section TunnelingProof.
           by rewrite onth_rcons size_rcons eq_refl; exists li_ii4; exists l4.
         move: Hlsem_path_prop; apply lsem_path_prop_label_impl => //.
         by rewrite /find_instr /s2 /= Hgfd Honth5; exists li_ii5; exists l5.
+        *)
+      - admit.
       move => [Hmatch]; rewrite {1}/eval_instr /= Hv /= Hb /=.
       rewrite get_fundef_partial Hgfd eq_refl /= find_label_tunnel_partial.
       t_xrbindP => pcff1 Hpcff1; rewrite {1}/s1 {1}/setcpc /= => ?.
