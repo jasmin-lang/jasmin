@@ -678,6 +678,11 @@ let schedule_coloring (size: int) (variables: (int, var list) Hashtbl.t) (cnf: c
   in
   loop g []
 
+let lazy_scheduling (variables: (int, var list) Hashtbl.t) (a: A.allocation) : int list =
+  []
+  |> Hashtbl.fold (fun i _c m -> if A.mem i a then m else i :: m) variables
+  |> List.sort Stdlib.Int.compare
+
 let two_phase_coloring
     (registers: var list)
     (variables: (int, var list) Hashtbl.t)
@@ -685,7 +690,9 @@ let two_phase_coloring
     (fr: friend)
     (a: A.allocation) : unit =
   let size = List.length registers in
-  let schedule = schedule_coloring size variables cnf a in
+  let schedule =
+    if !Glob_options.lazy_regalloc then lazy_scheduling variables a
+    else schedule_coloring size variables cnf a in
   List.iter (fun i ->
       let has_no_conflict v = does_not_conflict i cnf a v in
       match List.filter has_no_conflict registers with
