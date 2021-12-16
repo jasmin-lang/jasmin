@@ -321,9 +321,9 @@ Proof.
   + by rewrite vars_l_read_es; SvD.fsetdec.
   have [vres1' hcr' uvres1'] := mapM2_truncate_val hcr ures1.
   move: hi hget' hca' hw' hc' hres' hcr' hfi.
-  rewrite (sem_pexprs_get_var gd).
+  rewrite (sem_pexprs_get_var gd) => hi hget' hca' hw' hc' hres' hcr' hfi.
   exists vres1' => //; econstructor; eauto => /=.
-  by rewrite -hpex; case: (s0) hi. 
+  by rewrite -hpex; case: (s0) hi.
 Qed.
 
 Lemma array_copy_fdP f mem mem' va va' vr:

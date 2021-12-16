@@ -402,6 +402,23 @@ Section Section.
      sem_pis ii s2 pis vs s3 ->
      sem_pis ii s1 (PI_i lv ty y :: pis) vs s3.
 
+  Lemma sem_pisE ii s1 pis vs s3 :
+    sem_pis ii s1 pis vs s3 →
+    match pis with
+    | [::] => vs = [::] ∧ s3 = s1
+    | PI_lv lv :: pis' =>
+        ∃ v vs' s2,
+        [/\ vs = v ::vs', write_lval (p_globs p') lv v s1 = ok s2 & sem_pis ii s2 pis' vs' s3 ]
+    | PI_i lv ty y :: pis' =>
+        exists2 s2, sem_I p' ev s1 (mk_ep_i ii lv ty y) s2 & sem_pis ii s2 pis' vs s3
+  end.
+  Proof.
+    case => {s1 pis vs s3}.
+    - by [].
+    - by move => s1 s2 s3 lv pis v vs ok_s2 rec; exists v, vs, s2.
+    by move => s1 s2 s3 lv ty y pis vs h h'; exists s2.
+  Qed.
+
   Lemma eq_globs : p_globs p = p_globs p'.
   Proof.
    case : p Hp => /= p_funcs p_globs extra.
@@ -707,20 +724,19 @@ Section Section.
           sem p' ev s1' c (with_vm s2 vm2) & Fv.ext_eq (evm s2) vm2].
   Proof.
     elim: pis lvs c vs s1 => /= [ | pi pis ih] lvs' c' vs s1.
-    + move => [??] h; subst lvs' c'.
-      inversion_clear h; exists s2, (evm s2); split => //.
+    + case/ok_inj => <- <-{lvs' c'} /sem_pisE[] -> <- {vs s1}.
+      exists s2, (evm s2); split => //.
       by rewrite with_vm_same; constructor.
     case: pi => [lv | lv ty y] /=; t_xrbindP => -[] lvs c /ih{ih}ih.
     + move=> [??] h; subst lvs' c'.
-      inversion_clear h.
+      case/sem_pisE: h => v [] vs' [] s2' [] ? H H0; subst.
       have [s1' [vm2 [hws hsem]]] := ih _ _ H0.
       by exists s1', vm2 ; split => //=; rewrite H.
     t_xrbindP => _ /assertP /Sv.is_empty_spec.
     rewrite /mk_ep_i /= /write_I /read_I /= -/vrv -/read_rv -Sv.is_empty_spec.
     move=> hrw _ /assertP hwr _ /assertP wflv ?? h; subst c' lvs'.
-    inversion_clear h.
+    case/sem_pisE: h => s3 /sem_IE/sem_iE[] v [] v' [] H ok_v' H3 H0.
     have [s1' [vm2 [hws hsem heqvm]]]:= ih _ _ H0.
-    inversion_clear H; inversion_clear H1.
     have heqr := eq_onS (disjoint_eq_on hrw H3).
     have nwm_pi : ~~ lv_write_mem lv by case: (lv) wflv.
     have heqm  := lv_write_memP nwm_pi H3.
@@ -1149,8 +1165,7 @@ Section Section.
     econstructor.
     + by apply eval_vargs'.
     2 : by apply Hwr_lvals.
-    rewrite /Pfun in h2.
-    inversion_clear h2.
+    case/sem_callE: h2 => f [] H [] ? [] ? [] ? [] ? [] ? [] H0 [] ? ? ? [] ? ? ?.
     econstructor ; eauto.
     move : vsE trunc_vargs'.
     have : f_tyin fnd = f_tyin f.

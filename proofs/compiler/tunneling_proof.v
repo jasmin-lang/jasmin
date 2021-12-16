@@ -17,7 +17,7 @@ Require Import linear_sem.
 Section ASM_OP.
 
 Context {pd:PointerData}.
-Context `{asmop:asmOp}.
+Context {asm_op} {asmop : asmOp asm_op}.
 
 Section TunnelingSemProps.
 

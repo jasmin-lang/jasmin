@@ -48,7 +48,7 @@ Unset Printing Implicit Defensive.
 
 Section ASM_EXTRA.
 
-Context `{asm_e : asm_extra}.
+Context {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}.
 
 Notation spointer := (sword Uptr) (only parsing).
 

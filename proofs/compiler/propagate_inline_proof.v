@@ -617,8 +617,8 @@ Section PROOF.
     have [vm2 [/= hu2 hv2 hs1]]:= hc1 _ _ _ hc1_ hu hv1.
     have [vm3 [/= hu3 hv3 hs2]]:= hc2 _ _ _ hc2_ hu2 hv2.
     have {hv3}hv3 := valid_pi_incl hi1 hv3.
-    have [vm4 [/= hu4 hv4 hsw]]:= hw _ _ _ _ hw_ hu3 hv3.
-    inversion_clear hsw; exists vm4; split => //.   
+    have [vm4 [/= hu4 hv4 /sem_IE hsw]]:= hw _ _ _ _ hw_ hu3 hv3.
+    exists vm4; split => //.
     constructor; apply: Ewhile_true; eauto; rewrite -eq_globs.
     by have [v' -> /value_uincl_bool1 ->]:= pi_eP_uincl hv2 hu2 he.
   Qed.

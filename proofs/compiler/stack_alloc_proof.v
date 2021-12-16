@@ -273,7 +273,7 @@ Definition eq_sub_region_val ty m2 sr bytes v :=
   *)
   type_of_val v = ty.
 
-Variable (P: uprog) (ev: extra_val_t (progT := progUnit)).
+Variable (P: uprog) (ev: @extra_val_t _ progUnit).
 Notation gd := (p_globs P).
 
 (* TODO: could we have this in stack_alloc.v ?
@@ -2564,6 +2564,7 @@ Proof.
       + apply (validw_sub_region_addr hvs hwfs).
         by apply (is_align_sub_region_stkptr hlocal).
       have /writeV -/(_ (w + wrepr Uptr (ofs2 + ofs))%R) [mem2 hmem2] := hvp.
+      move => _ hi2.
       exists mem2; split.
       + apply (mov_ofsP _ P'_globs he1 hi2).
         rewrite /= vs_rsp /= !truncate_word_u /=.

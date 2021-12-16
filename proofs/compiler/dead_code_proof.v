@@ -326,10 +326,10 @@ Section PROOF.
       move: Hw; rewrite /= /write_var /set_var /=. case: v hs Hvs=> //= v vs hs Hvs.
       t_xrbindP=> s2' vm3.
       apply: on_vuP=> //=.
-      move=> ps //= hp <- //= <- //=. case: vs hs Hvs=> //= hs Hvs [] <- //=; split=> //.
+      move=> ps //= hp <- //= <- //=. case: vs hs Hvs=> //= hs /List_Forall2_inv[] Hv _ /ok_inj <- /=; split; first by [].
       move=> z Hin. case: ({| vtype := sword sz'; vname := x|} =P z)=> //=.
       + move=> Hz. subst z. rewrite Fv.setP_eq. move: hgetx. rewrite /get_gvar /= /get_var /=. 
-        apply: on_vuP=> //= v1 -> /= hv1; subst. inversion Hvs; subst.
+        apply: on_vuP=> //= v1 -> /= hv1; subst.
         rewrite /pval_uincl. apply: value_uincl_pof_val. by rewrite -hp /=.
         by rewrite /pto_val.
       move=> Hz. rewrite Fv.setP_neq //. by apply /eqP.
@@ -528,13 +528,13 @@ Section PROOF.
   Proof.
     elim: tokeep xs xs' I s1 vs vm1 vs'=> [ | b tokeep ih] [ | x xs] //= xs' I s1 [ | v vs] // vm1 vs'.
     + move=> [] <- <- /= Hv /= [] <- Hvm; exists vm1; split=> //=. case: vs' Hv=> //=.
-      by move=> a l // Hv; inversion Hv.
+      by move=> a l // /List_Forall2_inv_l.
     t_xrbindP => -[I1 xs1] hc; case: b.
-    + move=> [??] Hv s1' hw hws heq; subst I xs'. 
+    + case/ok_inj => ?? /List_Forall2_inv_l[] v' [] l' [] ->{vs'} [] H1 H3 s1' hw hws heq; subst I xs'.
       have hv : value_uincl v v. auto.
       have [] := write_lval_uincl_on _ hv hw heq.
       + by rewrite read_rvE; SvD.fsetdec.
-      move=> vm1' heq' hw' /=. inversion Hv; subst.
+      move=> vm1' heq' hw' /=.
       have [|vm2 [heqO hws']] := ih xs xs1 I1 s1' vs vm1' l' hc H3 hws.
       + by apply: vmap_uincl_onI heq'; rewrite read_rvE; SvD.fsetdec.
       have Hvm : vm_uincl (evm (with_vm s1 vm1)) vm1. done. 
@@ -623,7 +623,7 @@ Section PROOF.
     + rewrite /= /fn_keep_only; case: onfun => [tokeep | //].
       move:Hfull; clear.
       elim: tokeep f_tyout vres vres' => // b tokeep ih [| ty f_tyout] /= [ | v vres] //= vres' => [[<-]//|].
-      t_xrbindP => v' hv' vres1 /ih{ih}ih <-; case:b => //=. by rewrite hv' /= ih.
+      t_xrbindP => v' hv'; t_xrbindP => vres1 /ih{} ih <-; case:b => //=. by rewrite hv' /= ih.
     have [vres2 {Hfull'} Hfull' Hvl'] := mapM2_truncate_val Hfull' Hvl.
     eexists vres2; split=> //=. 
     apply EcallRun with  {|

@@ -125,7 +125,7 @@ Class asm_extra (reg xreg rflag cond asm_op extra_op : Type) :=
       (* how to compile extra ops into asm op *)
   }.
 
-Definition extra_op_t `{asm_e : asm_extra } := extra_op.
+Definition extra_op_t {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op} := extra_op.
 
 Section AsmOpI.
 

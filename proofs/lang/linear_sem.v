@@ -44,7 +44,7 @@ Local Open Scope seq_scope.
 Section SEM.
 
 Context {pd: PointerData}.
-Context `{asmop:asmOp}.
+Context {asm_op} {asmop : asmOp asm_op}.
 Variable P: lprog.
 
 Definition label_in_lcmd (body: lcmd) : seq label :=

@@ -250,7 +250,7 @@ Section REMOVE_INIT.
     have [vres1 Hvres Hsub] := get_vars_uincl Uvm2 Hmap.
     have [vres1' Htout1 Ures1]:= mapM2_truncate_val Htout Hsub.
     exists vres1';split => //.
-    eapply EcallRun with (f := remove_init_fd is_reg_array fd);eauto.
+    apply: (@EcallRun _ _ _ _ _ _ _ _ _ _ _ (remove_init_fd is_reg_array fd)); eauto.
     by rewrite /p' /remove_init_prog get_map_prog Hget.
   Qed.
 
@@ -495,10 +495,9 @@ Section ADD_INIT.
     have [{Hi}Hi _]:= Hi ii.
     apply aux.
     + by constructor;apply: Ewhile_true;eauto.
-    move=> vm1 /Hc [vm2] /dup[] heq /Hc' [vm3] /Hi [vm4] ? h *; exists vm4 => //.
+    move=> vm1 /Hc [vm2] /dup[] heq /Hc' [vm3] /Hi [vm4] ? /sem_IE h *; exists vm4 => //.
     constructor;apply: Ewhile_true;eauto.
-    + by rewrite -(sem_pexpr_ext_eq e heq).
-    by inversion h. 
+    by rewrite -(sem_pexpr_ext_eq e heq).
   Qed.
 
   Local Lemma RAwhile_false : sem_Ind_while_false p ev Pc Pi_r.

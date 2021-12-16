@@ -35,7 +35,7 @@ The semantic predicates are indexed by a set of variables which is *precisely* t
 
 Section ASM_EXTRA.
 
-Context `{asm_e : asm_extra}.
+Context {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}.
 
 Definition get_pvar (e: pexpr) : exec var :=
   if e is Pvar {| gv := x ; gs := Slocal |} then ok (v_var x) else type_error.
@@ -53,7 +53,7 @@ Notation kill_flags := (foldl kill_flag).
 
 Section ASM_EXTRA.
 
-Context `{asm_e : asm_extra}.
+Context {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}.
 
 Lemma kill_flagsE vm fs x :
   ((kill_flags vm fs).[x] = if x \in map to_var fs then if vm.[x] is Ok _ then undef_error else vm.[x] else vm.[x])%vmap.
@@ -270,7 +270,7 @@ Variant sem_export_call_conclusion (m: mem) (fd: sfundef) (args: values) (vm: vm
     valid_RSP m2 vm2 &
     m' = free_stack m2.
 
-Variant sem_export_call (gd: extra_val_t (progT:=progStack)) (m: mem) (fn: funname) (args: values) (m': mem) (res: values) : Prop :=
+Variant sem_export_call (gd: @extra_val_t _ progStack) (m: mem) (fn: funname) (args: values) (m': mem) (res: values) : Prop :=
   | SemExportCall (fd: sfundef) of
                   get_fundef p.(p_funcs) fn = Some fd &
       fd.(f_extra).(sf_return_address) == RAnone &

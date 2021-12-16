@@ -143,7 +143,7 @@ Lemma init_map_disjoint x1 ofs1 ws1 :
 Proof. by move=> /init_mapP [_ _ ?]. Qed.
 
 
-Variable (P : uprog) (ev: extra_val_t (progT := progUnit)).
+Variable (P : uprog) (ev: @extra_val_t _ progUnit).
 Notation gd := (p_globs P).
 
 Hypothesis hglobs : check_globs gd mglob global_data.
@@ -1716,7 +1716,7 @@ Proof.
   move=> hwf hvs hext rmap' s1' s2' hvs' hvalideq1 hvalideq2.
   case:(hext) => hover halign hold hfresh hvalid hnew.
   split=> //=.
-  + by apply (vs_eq_mem (valid_state := hvs')).
+  + exact: vs_eq_mem hvs'.
   + by move=> p hvalidp; apply hfresh; rewrite hvalideq1.
   + by move=> p; rewrite -hvalideq1 -hvalideq2; apply hvalid.
   move=> i hi.
@@ -1724,7 +1724,7 @@ Proof.
   + apply: between_byte hi => //.
     by apply zbetween_refl.
   have hvalid0: validw m0 (rip + wrepr _ i)%R U8.
-  + by apply (vs_glob_valid (valid_state := hvs)).
+  + exact: vs_glob_valid.
   have hnvalid1: ~ validw (emem s1) (rip + wrepr _ i)%R U8.
   + move=> /hfresh.
     by apply zbetween_not_disjoint_zrange.
@@ -1735,9 +1735,8 @@ Proof.
     apply (disjoint_zrange_incl_l hb).
     apply hwf.(wfsl_not_glob) => //.
     by lia.
-  rewrite -(vs_unchanged (valid_state:=hvs')) //; last by rewrite -hvalideq1.
-  rewrite (vs_unchanged (valid_state:=hvs)) //.
-  by apply hnew.
+  rewrite -hnew // -vs_unchanged //; last by rewrite -hvalideq1.
+  exact: vs_unchanged.
 Qed.
 
 Section PROC.

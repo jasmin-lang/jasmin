@@ -76,7 +76,7 @@ Class asmOp (asm_op : Type) := {
   ; asm_op_instr : asm_op -> instruction_desc
 }.
 
-Definition asm_op_t `{asmop:asmOp} := asm_op.
+Definition asm_op_t {asm_op} {asmop : asmOp asm_op} := asm_op.
 
 Section ASM_OP.
 

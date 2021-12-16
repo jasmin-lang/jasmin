@@ -79,7 +79,8 @@ End ASM_OP.
 Section PROG.
 
 Context
-  `{asm_e : asm_extra}
+  {reg xreg rflag cond asm_op extra_op}
+  {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}
   (p: sprog)
   (extra_free_registers: instr_info -> option var)
   (reg_tmp : reg)
@@ -796,7 +797,7 @@ Section LEMMA.
             by t_xrbindP => ? /truncate_value_uincl ?? /hrec ? <-; constructor.
           move/Sv_memP: hinp; rewrite mem_set_of_var_i_seq /=.
           elim: (f_params fd) (vargs) (args') (s0) ok_s1 ok_args' => [ | x xs hrec] [ | v vs] vs_ s //=.
-          t_xrbindP => s' hx hxs v' hget vs' hmap <-; rewrite inE => hin h; inversion_clear h.
+          t_xrbindP => s' hx hxs v' hget vs' hmap <-; rewrite inE => hin /List_Forall2_inv[] ? H0.
           case: (@idP (z \in [seq v_var i | i <- xs])) hin => [hin _ | hnin'].
           + by apply: hrec hxs hmap hin H0.
           rewrite orbF => /eqP heq; rewrite -(write_vars_eq_except hxs); last first.
