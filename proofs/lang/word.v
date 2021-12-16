@@ -50,9 +50,9 @@ Ltac elim_div :=
    unfold Z.div, Zmod;
      match goal with
        |  H : context[ Z.div_eucl ?X ?Y ] |-  _ =>
-          generalize (Z_div_mod_full X Y) ; destruct (Z.div_eucl X Y)
+          generalize (Z_div_mod_full X Y) ; case: (Z.div_eucl X Y)
        |  |-  context[ Z.div_eucl ?X ?Y ] =>
-          generalize (Z_div_mod_full X Y) ; destruct (Z.div_eucl X Y)
+          generalize (Z_div_mod_full X Y) ; case: (Z.div_eucl X Y)
      end; unfold Remainder.
 
 Lemma mod_pq_mod_q x p q :
@@ -62,8 +62,8 @@ Proof.
 move => hzp hzq.
 have hq : q ≠ 0 by nia.
 have hpq : p * q ≠ 0 by nia.
-elim_div => /(_ hq); elim_div => /(_ hpq) => [] [?] hr1 [?] hr2; subst.
-elim_div => /(_ hq) [heq hr3].
+elim_div => z z0 /(_ hq); elim_div => z1 z2 /(_ hpq) => [] [?] hr1 [?] hr2; subst.
+elim_div => z2 z3 /(_ hq) [heq hr3].
 intuition (try nia).
 suff : p * z1 + z = z2; nia.
 Qed.
@@ -456,7 +456,7 @@ Proof.
     + apply: Z.div_pos; first lia.
       apply: Z.pow_pos_nonneg; lia.
      change (modulus sz) with (wbase sz).
-     elim_div => -[]; last nia.
+     elim_div => ? ? []; last nia.
      apply: Z.pow_nonzero; lia.
   rewrite -(Z.mod_small (wunsigned x / 2 ^ Z.of_nat c) (modulus sz)) //.
   rewrite -wunsigned_repr.

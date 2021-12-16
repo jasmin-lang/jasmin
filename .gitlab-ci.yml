@@ -5,7 +5,7 @@ stages:
 - test
 - deploy
 
-image: nixos/nix
+image: nixos/nix:2.3.12
 
 variables:
   NIX_PATH: nixpkgs=channel:nixpkgs-unstable
@@ -16,6 +16,7 @@ variables:
 
 .common:
   before_script:
+  - nix-shell -p nix-info --run 'nix-info -m'
   - >-
     nix-shell
     --extra-substituters "$EXTRA_SUBSTITUTERS"
@@ -58,6 +59,8 @@ ocaml:
   variables:
     EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
   extends: .common
+  needs:
+  - coq
   dependencies:
   - coq
   script:

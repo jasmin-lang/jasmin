@@ -596,7 +596,7 @@ Lemma round_ws_aligned ws sz :
 Proof.
   have ws_pos : wsize_size ws ≠ 0 by case: ws.
   apply/eqP; rewrite Z.mod_divide // /round_ws.
-  elim_div => /(_ ws_pos) [] ->{sz} D.
+  elim_div => z z' /(_ ws_pos) [] ->{sz} D.
   case: eqP => ?.
   - exists z; Psatz.lia.
   exists (z + 1); Psatz.lia.
@@ -606,7 +606,7 @@ Lemma round_ws_range ws sz :
   sz <= round_ws ws sz < sz + wsize_size ws.
 Proof.
   have ws_pos := wsize_size_pos ws.
-  rewrite /round_ws; elim_div => - [] // -> []; last by Psatz.lia.
+  rewrite /round_ws; elim_div => ? ? [] // -> []; last by Psatz.lia.
   case: eqP; Psatz.lia.
 Qed.
 
@@ -615,7 +615,7 @@ Lemma round_wsE ws sz : round_ws ws sz =
 Proof.
   have ws_pos: wsize_size ws ≠ 0 by case: ws.
   rewrite /round_ws.
-  elim_div => /(_ ws_pos) [] ->{sz} D.
+  elim_div => ? ? /(_ ws_pos) [] ->{sz} D.
   case: eqP => ? //.
   by Psatz.lia.
 Qed.

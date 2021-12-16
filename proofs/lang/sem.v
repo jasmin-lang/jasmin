@@ -777,7 +777,7 @@ Qed.
 Lemma of_vword t s (w: word s) z :
   of_val t (Vword w) = ok z -> exists s', (s' <= s)%CMP /\ t = sword s'.
 Proof.
-  case: t z => //= s' w'.
+  case: t z => //= s' w' H.
   exists s';split => //=.
   by move: H; rewrite /truncate_word;  case: (s' <= s)%CMP => //=.
 Qed.

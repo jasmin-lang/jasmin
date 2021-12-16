@@ -671,9 +671,9 @@ Module RGP. Section PROOFS.
              ok (m', [::MkI ii (Cwhile a c1' e' c2')]).
     + by rewrite /= Loop.nbP /= h1 /= he1 /= h2 /= hm.
     move=> /hw{hw}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
-    move=> [s4' [hs4 hw']]; exists s4';split => //.
+    move=> [s4' [hs4 /semE hw']]; exists s4';split => //.
     apply sem_seq1; constructor; apply: Ewhile_true;eauto.
-    by inversion hw';subst => {hw'};inversion H2;subst; inversion H4;subst.
+    by case: hw' => s [] /sem_IE hw' /semE ->.
   Qed.
 
   Local Lemma Hwhile_false : sem_Ind_while_false P ev Pc Pi_r.
