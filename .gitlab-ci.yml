@@ -59,6 +59,8 @@ ocaml:
   variables:
     EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
   extends: .common
+  needs:
+  - coq
   dependencies:
   - coq
   script:
