@@ -1033,7 +1033,7 @@ Section REMOVE_INIT.
     have [vres1 Hvres Hsub] := get_vars_uincl Uvm2 Hmap.
     have [vres1' Htout1 Ures1]:= mapM2_truncate_val Htout Hsub.
     exists vres1';split => //.
-    eapply EcallRun with (f := remove_init_fd fd);eauto.
+    apply: (@EcallRun _ _ _ _ (remove_init_fd fd));eauto.
     by rewrite /p' /remove_init_prog get_map_prog Hget.
   Qed.
 

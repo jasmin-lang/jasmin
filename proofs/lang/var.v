@@ -462,7 +462,7 @@ Qed.
 Lemma Sv_elemsP x s : reflect (Sv.In x s) (x \in Sv.elements s).
 Proof.
   apply: (equivP idP);rewrite SvD.F.elements_iff.
-  elim: (Sv.elements s) => /= [|v vs];split => //=.
+  elim: (Sv.elements s) => /= [|v vs H]; split => //=.
   + by move /SetoidList.InA_nil.
   + by rewrite inE => /orP [ /eqP -> | /H];auto.
   case/SetoidList.InA_cons => [ -> |]; rewrite inE ?eq_refl //.
