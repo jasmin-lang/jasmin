@@ -408,8 +408,8 @@ Section PROOF.
   - move => ?; subst; apply: ne'.
     by rewrite (Eqdep_dec.UIP_dec Bool.bool_dec hα).
   case/between_ZR: hα hβ {ne'} => hα hα' /between_ZR [hβ hβ'].
-  elim_div => - [] //.
-  elim_div => - [] //.
+  elim_div => z a [] //.
+  elim_div => z1 b [] //.
   set m := (wsize_size_minus_1 sz).+1.
   have /ssrZ.ltzP := CoqWord.word.modulus_gt0 m.
   match goal with |- (?x < _)%Z → _ => have hz : x = 0%Z by [] end.
@@ -1029,7 +1029,7 @@ Section PROOF.
   Proof.
     move => hnz hn1 hx hy.
     move: (x ÷ y)%Z (Z.quot_div x y hnz) => z.
-    elim_div => - []; first lia.
+    elim_div => ? ? []; first lia.
     move => h []; last lia.
     nia.
   Qed.
