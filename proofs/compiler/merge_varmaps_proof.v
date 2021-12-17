@@ -363,7 +363,7 @@ Section LEMMA.
       + move: vrsp_not_extra vgd_not_extra;
           rewrite /extra_free_registers_at /efr_valid.
         case: extra_free_registers hextra => // r /andP[] -> ->; rewrite !andbT.
-        by clear => ??; apply/andP; split; apply/eqP; SvD.fsetdec.
+        by clear; rewrite !Sv.singleton_spec => ??; apply/andP; split; apply/eqP => ?; subst.
       by apply: disjoint_w dis; move: (write_i i) hk; clear (* SvD.fsetdec faster *); SvD.fsetdec.
     by rewrite /write_I merge_varmaps.write_I_recE -/write_i;
       move: (write_i i) hk; clear (* SvD.fsetdec faster *); SvD.fsetdec.
@@ -673,7 +673,7 @@ Section LEMMA.
     have hget_pvar := all2_get_pvar hargs.
     have hget_lvar := all2_get_lvar hres.
     exists {| emem := m2 ; evm := tvm2 |}.
-    + exists k; last by SvD.fsetdec.
+    + exists k; last exact: hk.
       econstructor; eauto.
       by move: texec; rewrite (mvm_mem sim); case: (t1).
     split => //.
@@ -743,14 +743,15 @@ Section LEMMA.
       then [&& ra != vgd, ra != vrsp & vtype ra == sword Uptr]
       else True.
     - case: sf_return_address checked_ra => // ra []; clear.
-      rewrite /magic_variables /vgd /vrsp /==> *; apply/and3P;split => //;
-        apply/eqP => heq; subst ra; SvD.fsetdec.
+      rewrite /magic_variables /vgd /vrsp /= Sv.add_spec Sv.singleton_spec => -> ra_not_written.
+      by case/Decidable.not_or => /eqP -> /eqP -> _.
     set t1' := with_vm s0 (set_RSP p (emem s0) (ra_undef_vm fd tvm1 var_tmp)).
     have pre1 : merged_vmap_precondition (write_c (f_body fd)) (sf_align (f_extra fd)) (emem s1) (evm t1').
     - split.
       + apply: disjoint_w; last exact: preserved_magic.
         etransitivity; first by rewrite -Sv.subset_spec; exact: ok_wrf.
-        rewrite /writefun_ra ok_fd; SvD.fsetdec.
+        rewrite /writefun_ra ok_fd.
+        exact: Sv_Subset_union_left.
       + by rewrite /t1' /set_RSP /= Fv.setP_eq (write_vars_emem ok_s1).
       + subst t1'; rewrite /set_RSP Fv.setP_neq; last by rewrite eq_sym vgd_neq_vrsp.
         rewrite /ra_undef_vm.
