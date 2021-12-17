@@ -73,6 +73,7 @@ Record lfundef := LFundef {
  lfd_tyout : seq stype;
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
  lfd_export: bool;
+ lfd_callee_saved: seq var; (* A list of variables that must be initialized before calling this function *)
 }.
 
 Definition signature_of_lfundef (lfd: lfundef) : function_signature :=

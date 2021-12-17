@@ -553,6 +553,7 @@ Definition linear_fd (fd: sfundef) :=
   ; lfd_tyout := f_tyout fd
   ; lfd_res := res
   ; lfd_export := is_export
+  ; lfd_callee_saved := if is_export then map fst e.(sf_to_save) else [::]
   ; lfd_body := linear_body e fd.(f_body)
   |}.
 

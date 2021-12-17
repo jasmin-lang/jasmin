@@ -90,7 +90,7 @@ Section TunnelingSem.
     uniq (map fst (lp_funcs p))
     && all (fun func => well_formed_body func.1 func.2.(lfd_body)) p.(lp_funcs).
 
-  Definition setfb fd fb:=
+  Definition setfb fd fb : lfundef :=
     LFundef
       fd.(lfd_info)
       fd.(lfd_align)
@@ -99,7 +99,9 @@ Section TunnelingSem.
       fb
       fd.(lfd_tyout)
       fd.(lfd_res)
-      fd.(lfd_export).
+      fd.(lfd_export)
+      fd.(lfd_callee_saved)
+  .
 
   Definition lfundef_tunnel_partial fd lc lc' :=
     setfb fd (tunnel_partial fn (tunnel_plan fn LUF.empty lc) lc').

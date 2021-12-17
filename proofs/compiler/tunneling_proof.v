@@ -448,7 +448,7 @@ Section TunnelingProof.
     move => /eqP ?; subst fn'; case => [[?]|] //; subst fd'; f_equal; last first.
     + apply: IHfuncs => //; right; elim: tfuncs Hnotin {Huniq} => // -[fn' fd'] ttfuncs IHtfuncs /=.
       by rewrite in_cons Bool.negb_orb => /andP []; case: ifP.
-    case: fd {tfuncs IHfuncs Hnotin Huniq} => /= _ _ _ _ lc _ _ _.
+    case: fd {tfuncs IHfuncs Hnotin Huniq} => /= _ _ _ _ lc _ _ _ _.
     set uf:= tunnel_plan _ _ _; move: uf.
     elim: lc => // -[ii []] //=; last by move => [fn'] /=; case: (fn == fn') => /=.
     by move => l lc IHlc uf; rewrite IHlc.
