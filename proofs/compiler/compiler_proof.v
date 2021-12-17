@@ -33,6 +33,7 @@ Require Import allocation inline_proof dead_calls_proof
                lowering_proof
                tunneling_proof
                linearization_proof
+               x86_linearization_proof
                x86_gen_proof
                merge_varmaps_proof
                psem_of_sem_proof.
@@ -346,6 +347,9 @@ Proof.
   exact: lp_globsE ok_lp.
 Qed.
 
+Import sem_one_varmap.
+Import x86_linearization.
+
 Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) (m:mem) fn args m' res :
   compiler_back_end cparams entries p = ok tp →
   fn \in entries →
@@ -361,7 +365,7 @@ Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) (m:mem)
         mapM (λ x : var_i, get_var vm x) fd.(lfd_arg) = ok args' →
         List.Forall2 value_uincl args args' →
         vm.[vid tp.(lp_rip)]%vmap = ok (pword_of_word rip) →
-        safe_to_save vm (map arch_extra.to_var (x86_decl.RAX :: x86_sem.x86_callee_saved)) →
+        safe_to_save vm ((vid (lp_tmp lparams) : var) :: lfd_callee_saved fd) →
         all2 check_ty_val fd.(lfd_tyin) args' ∧
         ∃ vm' lm' res',
           [/\
@@ -375,84 +379,40 @@ Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) (m:mem)
 Proof.
   rewrite /compiler_back_end; t_xrbindP => - [] ok_export [] checked_p lp ok_lp tp'.
   rewrite !print_linearP => ok_tp ? ok_fn exec_p; subst tp'.
-  move/allMP: ok_export => /(_ _ ok_fn).
-  have [fd [] ok_fd [] vargs [] s0 [] s1 [] s2 [] vres [] ok_vargs [] ok_s0 ok_s1 exec_fd [] ok_vres ok_res ? ] := sem_callE exec_p.
-  subst m'.
-  rewrite ok_fd => /assertP /eqP no_ra.
-  have ok_lfd := get_fundef_p' ok_lp ok_fd.
-  have ok_body : is_linear_of lp fn (linear_fd p (extra_free_registers cparams) lparams fn fd).(lfd_body).
-  - by eexists; first exact: ok_lfd.
-  have ok_ra : is_ra_of p fn RAnone by exists fd.
-  have ok_sp : is_sp_for_call p fn m (top_stack m).
-  - exists fd; first exact ok_fd.
-    by rewrite /= no_ra.
-  have ok_callee_saved : is_callee_saved_of p fn (map fst (f_extra fd).(sf_to_save)).
-  - exists fd; first exact ok_fd.
-    by rewrite /= no_ra.
-  have := merge_varmaps_callP checked_p exec_p ok_fd.
-  move: checked_p; rewrite /merge_varmaps.check; t_xrbindP => _ /assertP ok_wmap _ /assertP rip_neq_rsp _ /assertP var_tmp_not_magic units ok_fds _.
-  case: (get_map_cfprog_name_gen ok_fds ok_fd) => - [] checked_fd _.
-  move: checked_fd; rewrite /merge_varmaps.check_fd no_ra eqxx /=.
-  t_xrbindP => D ok_D _ /assertP dis_D _ /assertP params_not_magic _ /assertP /Sv_memP rsp_not_result _ /assertP magic_not_written [] ok_save_stack _ /assertP to_save_not_result /assertP ok_args.
-  set v_rsp := {| vname := sp_rsp _ |}.
-  set v_rip := {| vname := sp_rip _ |}.
-  set top := top_stack m.
-  set tvm1 := (evm s1).[ v_rsp <- ok (pword_of_word top)]%vmap.
-  move => /(_ xH tvm1 vargs erefl erefl).
-  move: ok_s0; rewrite /= /init_stk_state; t_xrbindP => m0 ok_m0 /ok_inj.
-  rewrite /with_vm /= => ?; subst s0.
-  case.
-  - by rewrite Fv.setP_eq.
-  - rewrite Fv.setP_neq; last by rewrite neq_sym.
-    rewrite -(write_vars_eq_except ok_s1).
-    + by rewrite Fv.setP_eq pword_of_wordE.
-    move => h.
-    move/disjointP: params_not_magic => /(_ _ h); apply.
-    by rewrite Sv.add_spec; left; reflexivity.
-  - apply: wf_vm_set.
-    apply: wf_write_vars ok_s1.
-    do 2 apply: wf_vm_set.
-    exact: wf_vmap0.
-  - admit.
-  - admit.
-  move => k [] vm1 [] vres' [] exec_p' wf_vm1 ok_k ok_vres' res_vres'.
-  have := linear_fdP hlparams var_tmp_not_magic ok_lp exec_p' _ _ _ ok_body ok_ra _ ok_sp ok_callee_saved.
-  move => /(_ _ _ None _ _ _ I).
-  rewrite /emem /evm => H.
-  exists (tunnel_fd fn (linear_fd p (extra_free_registers cparams) lparams fn fd)); split.
-  - apply: (get_fundef_tunnel_program ok_tp).
-    exact: get_fundef_p'.
-  - by rewrite /linear_fd no_ra.
-  move => lm vm args' ok_vm vm_rsp  M ok_args' args_args' vm_rip safe_registers.
-  have {H} := H lm vm ok_vm M.
-  case.
-  - admit.
-  - admit.
-  move => lm' vm' E vmE ok_vm' vmU MD M'; split.
-  - rewrite /=.
-    apply: all2_check_ty_val args_args'.
-    have := mapM2_Forall3 ok_vargs.
-    elim; first by [].
-    move => ty v vt tys vs ts /truncate_val_subtype /= h _ ->.
-    by rewrite andbT.
-  have [ | {} E Ef ] := lsem_run_tunnel_program ok_tp E.
-  - eexists; last reflexivity.
-    exact: (get_fundef_p' ok_lp ok_fd).
-  have Export : sf_return_address (f_extra fd) = RAnone.
-  - case: ok_ra => fd' /=.
-    by rewrite ok_fd => /Some_inj <-.
-  eexists vm', lm', _; split.
-  - eexists.
-    + apply: (get_fundef_tunnel_program ok_tp).
-      exact: (get_fundef_p' ok_lp ok_fd).
-    + exact/eqP.
-    rewrite -tunnel_partial_size.
-    exact: E.
+  have lp_tmp_not_magic : ~~ Sv.mem (vid (lp_tmp x86_linearization_params)) (magic_variables p).
+  - apply/Sv_memP; exact: var_tmp_not_magic checked_p.
+  have p_call : sem_export_call p (extra_free_registers cparams) (vid (lp_tmp x86_linearization_params)) rip m fn args m' res.
+  - apply: (merge_varmaps_export_callP checked_p _ exec_p).
+    move/allMP: ok_export => /(_ _ ok_fn).
+    rewrite /is_export.
+    case: get_fundef => // fd /assertP /eqP Export.
+    by exists fd.
+  have := linear_exportcallP h_x86_linearization_params lp_tmp_not_magic ok_lp p_call.
+  case => fd [] ok_fd Export lp_call.
+  exists (tunnel_fd fn fd); split.
+  - exact: get_fundef_tunnel_program ok_tp ok_fd.
+  - exact: Export.
+  move=> lm vm args' H H0 H1 H2 H3 H4 H5.
+  have {lp_call} := lp_call lm vm args' H _ H1 H2 H3 _ H5.
+  have [ -> [] -> _ ] := tunnel_program_invariants ok_tp.
+  move => /(_ H0 H4)[] wt_args' [] vm' [] lm' [] res' [] lp_call M' ok_res' res_res' wt_res'.
+  split; first exact: wt_args'.
+  exists vm', lm', res'; split; cycle 1.
   - exact: M'.
-  - rewrite /= Export eqxx. admit.
-  - admit.
-  rewrite /=. admit.
-Admitted.
+  - exact: ok_res'.
+  - exact: res_res'.
+  - exact: wt_res'.
+  clear -lp_call ok_tp.
+  case: lp_call => fd ok_fd Export lp_exec.
+  exists (tunnel_fd fn fd).
+  - exact: get_fundef_tunnel_program ok_tp ok_fd.
+  - exact: Export.
+  case: (lsem_run_tunnel_program ok_tp lp_exec).
+  - by exists fd.
+  move => tp_exec _.
+  rewrite /= -tunnel_partial_size.
+  exact: tp_exec.
+Qed.
 
 (*
 Let Kj : ∀ rip glob m vr (P Q: _ → _ → Prop),
