@@ -681,7 +681,7 @@ Section LEMMA.
     rewrite -hxs => y hy.
     case: (Sv_memP y (set_of_var_i_seq Sv.empty (f_res fd))); last first.  
     + move=> hx; rewrite -(vrvsP ok_s2) /=; last by rewrite (vrvs_vars hget_lvar).
-      by have /= <- := sem_call_not_written texec; first apply: (mvm_vmap sim); SvD.fsetdec.
+      by have /= <- := sem_call_not_written texec; first apply: (mvm_vmap sim); clear -hx hy hk; SvD.fsetdec.
     rewrite -Sv.mem_spec mem_set_of_var_i_seq => /= x_result.
     move: res_uincl (f_res fd) x_result hget_lvar get_res hres (with_mem s1 m2) ok_s2; clear.
     elim: xs vs res' => [ | d ds ih ] [] //.
@@ -766,7 +766,7 @@ Section LEMMA.
         1: t_xrbindP => r _ _ _ _ /assertP /negP hr; rewrite Fv.setP_neq; cycle 1.
         2-6: exact: vgd_tv.
         apply/eqP => ?; subst; apply: hr; clear.
-        by apply/Sv_memP; rewrite /magic_variables; SvD.fsetdec.
+        by apply/Sv_memP; apply: SvD.F.union_2; rewrite Sv.add_spec; left.
       rewrite -(write_vars_emem ok_s1) (alloc_stack_top_stack ok_m').
       exact: do_align_is_align.
     have sim1 : match_estate ID s1 t1'.
@@ -824,9 +824,9 @@ Section LEMMA.
       case: sf_save_stack => // r hr.
       rewrite kill_flagsE.
       have -> : z \in [seq to_var i | i <- rflags] = false.
-      + apply/negbTE/sv_of_flagsP; SvD.fsetdec.
+      + by apply/negbTE/sv_of_flagsP => h; apply: hr; rewrite Sv.add_spec; right.
       case: (r =P z) => [? | /eqP ?]; last by rewrite Fv.setP_neq.
-      by subst r; elim hr; SvD.fsetdec.
+      by subst r; elim hr; rewrite Sv.add_spec; left.
     have top_stack2 : top_stack (free_stack (emem s2)) = top_stack m.
     + have ok_alloc := Memory.alloc_stackP ok_m'.
       have ok_free := Memory.free_stackP (emem s2).
