@@ -3482,7 +3482,7 @@ Section PROOF.
         fd.(lfd_export) &
       ∀ lm vm args',
         wf_vm vm →
-        valid_RSP p m vm →
+        vm.[vid (lp_rsp p')]%vmap = ok (pword_of_word (top_stack m)) →
         match_mem m lm →
         mapM (λ x : var_i, get_var vm x) fd.(lfd_arg) = ok args' →
         List.Forall2 value_uincl args args' →
@@ -3504,7 +3504,7 @@ Section PROOF.
     exists (linear_fd p extra_free_registers lparams fn fd); split.
     - exact: get_fundef_p' ok_fd.
     - exact: Export.
-    move => lm vm args' ok_vm vm_rsp M ok_args' args_args' vm_rip safe_registers.
+    rewrite lp_rspE => lm vm args' ok_vm vm_rsp M ok_args' args_args' vm_rip safe_registers.
     have {H}[] := H vm args' ok_vm ok_args' args_args' vm_rsp.
     - by move: vm_rip; rewrite lp_ripE.
     move => m1 k m2 vm2 res' ok_save_stack ok_m1 wt_args' sexec ok_res' res_res' wt_res' vm2_rsp ?; subst m'.
