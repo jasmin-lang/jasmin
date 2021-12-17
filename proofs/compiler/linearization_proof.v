@@ -3474,35 +3474,133 @@ Section PROOF.
     exact: (@sem_call_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc).
   Qed.
 
-  (*
-  Lemma linear_fdP:
-    forall fn m1 va m2 vr,
-    sem_call p wrip m1 fn va m2 vr -> lsem_fd p' wrip m1 fn va m2 vr.
+  Lemma linear_exportcallP gd m fn args m' res :
+    sem_export_call p extra_free_registers var_tmp gd m fn args m' res →
+    ∃ fd,
+      [/\
+         get_fundef p'.(lp_funcs) fn = Some fd,
+        fd.(lfd_export) &
+      ∀ lm vm args',
+        wf_vm vm →
+        valid_RSP p m vm →
+        match_mem m lm →
+        mapM (λ x : var_i, get_var vm x) fd.(lfd_arg) = ok args' →
+        List.Forall2 value_uincl args args' →
+        vm.[vid p'.(lp_rip)]%vmap = ok (pword_of_word gd) →
+        safe_to_save vm ((var_tmp : var) :: lfd_callee_saved fd) →
+        all2 check_ty_val fd.(lfd_tyin) args' ∧
+        ∃ vm' lm' res',
+          (* TODO: vm = vm' [\ k ] ; stack_stable m m' ; etc. *)
+          [/\
+            lsem_exportcall p' mov_eop lm fn vm lm' vm',
+            match_mem m' lm',
+            mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
+            List.Forall2 value_uincl res res' &
+            all2 check_ty_val fd.(lfd_tyout) res'
+          ]
+      ].
   Proof.
-    move=> fn m1 va m2 vr [] {fn m1 va m2 vr}.
-    move=> m1 m2 fn sf vargs vargs' s0 s1 s2 vres vres' Hsf Hargs Hi Hw Hbody Hres Htyo Hfi.
-    move: linear_ok; rewrite /linear_prog; t_xrbindP => _ /assertP _ funcs H0' hp'. 
-    rewrite -hp'. 
-    have [f' Hf'1 Hf'2] := (get_map_cfprog_gen H0' Hsf).
-    have Hf'3 := Hf'1.
-    apply: rbindP Hf'3=> [l Hc] [] Hf'3.
-    rewrite /add_finfo in Hc.
-    case Heq: linear_c Hc=> [[lblc lc]|] //= [] Hl.
-    rewrite linear_c_nil in Heq.
-    apply: rbindP Heq=> [[lblc' lc']] Heq [] Hz1 Hz2.
-    have [_ _ H] := linear_cP Heq.
-    move: Hbody=> /H /(@lsem_cat_tl [::]) Hs.
-    rewrite -Hf'3 in Hf'2.
-    move: Hi; rewrite /init_state /= /init_stk_state; t_xrbindP => /= m1' Halloc [].
-    rewrite /with_vm /= => ?;subst s0.
-    move: Hfi; rewrite /finalize /= /finalize_stk_mem => ?; subst m2.
-    apply: LSem_fd; eauto => //=.
-    rewrite -Hl /=.
-    move: Hs; rewrite /= Hz2 !setc_of_estate.
-    have -> // : size lc' = size lc.
-    by rewrite -Hz2 size_cat addn0.
+    case => fd ok_fd Export to_save_not_result RSP_not_result H.
+    exists (linear_fd p extra_free_registers lparams fn fd); split.
+    - exact: get_fundef_p' ok_fd.
+    - exact: Export.
+    move => lm vm args' ok_vm vm_rsp M ok_args' args_args' vm_rip safe_registers.
+    have {H}[] := H vm args' ok_vm ok_args' args_args' vm_rsp.
+    - by move: vm_rip; rewrite lp_ripE.
+    move => m1 k m2 vm2 res' ok_save_stack ok_m1 wt_args' sexec ok_res' res_res' wt_res' vm2_rsp ?; subst m'.
+    split; first by [].
+    set k' := Sv.union k (Sv.union match fd.(f_extra).(sf_return_address) with RAreg ra => Sv.singleton ra | RAstack _ => Sv.empty | RAnone => Sv.add var_tmp (sv_of_flags rflags) end (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty)).
+    set s1 := {| emem := m ; evm := vm |}.
+    set s2 := {| emem := free_stack m2 ; evm := set_RSP p (free_stack m2) vm2 |}.
+    have {sexec} /linear_fdP : sem_call p extra_free_registers var_tmp 1%positive k' s1 fn s2.
+    - econstructor.
+      + exact: ok_fd.
+      + by rewrite /ra_valid; move/eqP: Export => ->.
+      + exact: ok_save_stack.
+      + by rewrite /top_stack_aligned; move/eqP: Export => ->.
+      + exact: vm_rsp.
+      + exact: ok_m1.
+      + exact: ok_args'.
+      + exact: wt_args'.
+      + move: sexec.
+        rewrite /ra_undef_vm.
+        move/eqP: Export => ->.
+        exact.
+      + exact: ok_res'.
+      + exact: wt_res'.
+      + exact: vm2_rsp.
+      reflexivity.
+    case/(_ lm vm (linear_body p extra_free_registers lparams fn fd.(f_extra) fd.(f_body)) RAnone None (top_stack m) (map fst fd.(f_extra).(sf_to_save)) ok_vm M).
+    - move => x; rewrite !Fv.setP.
+      case: eqP => ?; first by subst; rewrite vm_rsp.
+      case: eqP => ?; first subst.
+      + move/allP: safe_registers => /(_ var_tmp).
+        rewrite inE eqxx => /(_ erefl).
+        rewrite /get_var.
+        by case: _.[_]%vmap => // - [].
+      by [].
+    - by eexists; first exact: get_fundef_p' ok_fd.
+    - eexists; first exact: ok_fd.
+      by apply/eqP: Export.
+    - by [].
+    - eexists; first exact: ok_fd.
+      by move/eqP: Export => /= ->.
+    - eexists; first exact: ok_fd.
+      by move/eqP: Export => /= ->.
+    - by move: safe_registers; rewrite /= Export {1}/safe_to_save /= => /andP[] _.
+    move => lmo vmo texec ?? s2_vmo ? M'.
+    have vm2_vmo : ∀ r, r \in f_res fd → (eval_uincl vm2.[r] vmo.[r])%vmap.
+    - move => r r_in_result.
+      have r_not_saved : ¬ Sv.In r (sv_of_list id (map fst fd.(f_extra).(sf_to_save))).
+      + apply/Sv_memP.
+        rewrite sv_of_listE map_id -sv_of_listE; apply/Sv_memP => K.
+        move/disjointP: to_save_not_result => /(_ _ K).
+        apply; apply/Sv_memP.
+        rewrite mem_set_of_var_i_seq; apply/in_map.
+        exists r; last by case: (r) K.
+        exact/InP.
+      apply: eval_uincl_trans (s2_vmo r r_not_saved).
+      have r_not_rsp : vrsp != r.
+      + apply/eqP => K.
+        move: RSP_not_result.
+        rewrite mem_set_of_var_i_seq => /in_map[].
+        exists r; last by case: (r) K.
+        exact/InP.
+      by rewrite !Fv.setP_neq.
+    have : ∃ lres : values,
+        [/\ mapM (λ x : var_i, get_var vmo x) (f_res fd) = ok lres, List.Forall2 value_uincl res lres & all2 check_ty_val (f_tyout fd) lres ].
+    {
+      move/mapM_Forall2: ok_res' res_res' (f_tyout fd) wt_res' vm2_vmo.
+      move: res' res (f_res fd).
+      elim => [ | r' res' ih ].
+      + move => _ _ /List_Forall2_inv_r-> /List_Forall2_inv_r -> [] // _ _.
+        by exists [::].
+      move => _ _ /List_Forall2_inv_r[] d [] ds [] -> [] ok_r' ok_res' /List_Forall2_inv_r[] r [] res [] -> [] r_r' res_res'.
+      case => // ty tys /= /andP[] wt_r' wt_res' vm2_vmo.
+      have := vm2_vmo d; rewrite inE eqxx => /(_ erefl).
+      move: ok_r'; rewrite {1 3}/get_var.
+      case: vm2.[d]%vmap => [ | [] // ] /= v /ok_inj ?; subst r'.
+      case: vmo.[d]%vmap => // v' v_v' /=.
+      move: ih => /(_ _ _ ok_res' res_res' _ wt_res')[].
+      + by move => x hx; apply: vm2_vmo; rewrite inE hx orbT.
+      move => lres [] -> /= res_lres wt_lres.
+      eexists; split; first reflexivity.
+      + constructor; last by [].
+        exact: value_uincl_trans v_v'.
+      rewrite /= wt_lres andbT.
+      exact: check_ty_val_uincl v_v'.
+    }
+    case => lres [] ok_lres res_lres wt_lres.
+    exists vmo, lmo, lres; split.
+    - econstructor; first exact: get_fundef_p' ok_fd.
+      + exact: Export.
+      exact: texec.
+    - exact: M'.
+    - move/eqP: Export => /= -> /=.
+      exact: ok_lres.
+    - exact: res_lres.
+    exact: wt_lres.
   Qed.
-   *)
 
 End PROOF.
 End ASM_EXTRA.
