@@ -282,11 +282,11 @@ Section CHECK.
     let res := set_of_var_i_seq Sv.empty fd.(f_res) in
     Let _ := assert (disjoint D res)
                     (E.gen_error true None (pp_s "not able to ensure equality of the result")) in
-    Let _ := assert (var.disjoint params magic_variables)
+    Let _ := assert (disjoint params magic_variables)
                     (E.gen_error true None (pp_s "the function has RSP or global-data as parameter")) in
     Let _ := assert (~~ Sv.mem (vid p.(p_extra).(sp_rsp)) res)
                     (E.gen_error true None (pp_s "the function returns RSP")) in
-    Let _ := assert (var.disjoint (writefun_ra writefun fn) magic_variables)
+    Let _ := assert (disjoint (writefun_ra writefun fn) magic_variables)
                     (E.gen_error true None (pp_s "the function writes to RSP or global-data")) in
     let W := writefun fn in
     let J := Sv.union magic_variables params in
@@ -299,6 +299,8 @@ Section CHECK.
     | RAreg ra => check_preserved_register W J "return address" ra
     | RAstack _ => ok tt
     | RAnone =>
+        Let _ := assert (disjoint (sv_of_list fst fd.(f_extra).(sf_to_save)) res)
+                    (E.gen_error true None (pp_s "the function returns a callee-saved register")) in
         assert (all (λ x : var_i, if vtype x is sword _ then true else false ) (f_params fd))
             (E.gen_error true None (pp_s "the export function has non-word arguments"))
     end.

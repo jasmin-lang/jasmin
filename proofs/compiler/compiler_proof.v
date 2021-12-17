@@ -393,7 +393,7 @@ Proof.
   move: checked_p; rewrite /merge_varmaps.check; t_xrbindP => _ /assertP ok_wmap _ /assertP rip_neq_rsp _ /assertP var_tmp_not_magic units ok_fds _.
   case: (get_map_cfprog_name_gen ok_fds ok_fd) => - [] checked_fd _.
   move: checked_fd; rewrite /merge_varmaps.check_fd no_ra eqxx /=.
-  t_xrbindP => D ok_D _ /assertP dis_D _ /assertP params_not_magic _ /assertP /Sv_memP rsp_not_result _ /assertP magic_not_written [] ok_save_stack /assertP ok_args.
+  t_xrbindP => D ok_D _ /assertP dis_D _ /assertP params_not_magic _ /assertP /Sv_memP rsp_not_result _ /assertP magic_not_written [] ok_save_stack _ /assertP to_save_not_result /assertP ok_args.
   set v_rsp := {| vname := sp_rsp _ |}.
   set v_rip := {| vname := sp_rip _ |}.
   set top := top_stack m.

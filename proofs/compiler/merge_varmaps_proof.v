@@ -718,7 +718,7 @@ Section LEMMA.
       _ /assertP checked_params _ /assertP RSP_not_result _ /assertP preserved_magic
      [] checked_save_stack checked_ra.
 
-    have {checked_ra} checked_ra : 
+    have {checked_ra} checked_ra :
       match sf_return_address (f_extra fd) with
       | RAreg ra =>
         [/\ vtype ra == sword Uptr,
@@ -729,12 +729,14 @@ Section LEMMA.
       | RAstack _ =>
         True
       | RAnone =>
+        [/\ disjoint (sv_of_list fst (sf_to_save (f_extra fd))) res &
          all
            (λ x : var_i, if vtype x is sword _ then true else false)
            (f_params fd)
+          ]
       end.
     - case: sf_return_address checked_ra; last by [].
-      + exact/assertP.
+      + by t_xrbindP => _ /assertP ? /assertP.
       move => ra; t_xrbindP => _ /assertP -> _ /assertP /Sv_memP ra_not_written /assertP.
       rewrite SvP.union_mem negb_or => /andP[] /Sv_memP ra_not_magic /Sv_memP ra_not_param.
       by split.
@@ -934,7 +936,7 @@ Proof.
   move => checked_body _ /assertP hdisj
       _ /assertP checked_params _ /assertP RSP_not_result _ /assertP preserved_magic
      [] checked_save_stack.
-  move/assertP => ok_params.
+  t_xrbindP => _ /assertP to_save_not_result /assertP ok_params.
 
   rewrite Export => /(_ _ _ erefl erefl) H.
   exists fd; first exact: ok_fd.
