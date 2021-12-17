@@ -939,8 +939,11 @@ Proof.
   t_xrbindP => _ /assertP to_save_not_result /assertP ok_params.
 
   rewrite Export => /(_ _ _ erefl erefl) H.
-  exists fd; first exact: ok_fd.
+  exists fd.
+  - exact: ok_fd.
   - exact/eqP.
+  - exact: to_save_not_result.
+  - exact: RSP_not_result.
   move => vm args' ok_vm ok_args' args_args' vm_rsp vm_gd.
   have := H vm args' vm_rsp vm_gd ok_vm ok_args' args_args'.
   case => k [] vm2 [] res' [] texec ok_vm2 ok_k ok_res' res_res'.
