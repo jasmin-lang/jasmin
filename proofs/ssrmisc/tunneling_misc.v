@@ -126,6 +126,10 @@ Section Prefix.
   Lemma prefix_rcons s x : prefix s (rcons s x).
   Proof. by elim: s => //= y s ih; rewrite eqxx. Qed.
 
+  Lemma prefix_rcons_prefix s s' (x : T) :
+    prefix (rcons s x) s' -> prefix s s'.
+  Proof. by move => Hprefix; apply/(prefix_trans _ Hprefix)/prefix_rcons. Qed.
+
   Lemma prefix_uniq s1 s2 : prefix s1 s2 → uniq s2 → uniq s1.
   Proof.
     move => Hp.
@@ -266,6 +270,17 @@ Section OnthProps.
   Lemma onth_rcons (T : Type) s (x : T) i : oseq.onth (rcons s x) i = if i == size s then Some x else oseq.onth s i.
   Proof.
     by elim: s i => [|hs ts IHs] i //=; case: i => //.
+  Qed.
+
+  Lemma eq_from_onth (T : Type) (s1 s2 : seq T) :
+    (forall i, onth s1 i = onth s2 i) -> s1 = s2.
+  Proof.
+    elim: s1 s2 => [|x1 s1 IHs1] [|x2 s2] //.
+    + by move => /(_ 0).
+    + by move => /(_ 0).
+    move => Heqonth; f_equal.
+    + by move: (Heqonth 0) => /= [].
+    by apply IHs1 => i; move: (Heqonth i.+1) => /=.
   Qed.
 
 End OnthProps.

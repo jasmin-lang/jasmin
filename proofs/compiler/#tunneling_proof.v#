@@ -537,6 +537,7 @@ Section TunnelingProps.
     rewrite onth_setfunc IHplf; case Honth: (onth _ _) => [[fn' fd']| //].
     move: tunnel_funcs_fnum_partial_fnum_spec; rewrite /tunnel_funcs_fnum_partial_fnum => ->.
     rewrite /tunnel_lfundef_fnum.
+    Search _ foldr.
   Qed.
 
   (*
