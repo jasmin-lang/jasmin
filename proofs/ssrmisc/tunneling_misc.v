@@ -284,3 +284,64 @@ Section OnthProps.
   Qed.
 
 End OnthProps.
+
+
+Section ToMoveProps.
+
+  Inductive nat_ge m : nat -> Prop :=
+  | ge_n : nat_ge m 0
+  | ge_S n of (n < m) : nat_ge m n -> nat_ge m n.+1.
+
+  Lemma nat_geP m n : reflect (nat_ge m n) (n <= m).
+  Proof.
+    apply: (iffP idP); last by elim: n /.
+    elim: n => [_|n IHn ltnm]; first by apply/ge_n.
+    by apply/ge_S => //; apply/IHn/ltnW.
+  Qed.
+
+  Lemma nat_le_ind_eq (P : nat -> Prop) m :
+    P 0 ->
+    (forall n, n < m -> P n -> P n.+1) ->
+    P m.
+  Proof.
+    move => HP0 IHP; have: nat_ge m m by apply/nat_geP.
+    by apply/(@nat_ge_ind m P) => // n ltnm _; apply/IHP.
+  Qed.
+
+  Lemma take_onth (T : Type) n (s : seq T) :
+    take n.+1 s =
+    match onth s n with
+    | Some x => rcons (take n s) x
+    | None   => take n s
+    end.
+  Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?take0 ?IHs //; case: (onth _ _). Qed.
+
+  Lemma drop_onth (T : Type) n (s : seq T) :
+    drop n s =
+    match onth s n with
+    | Some x => x :: (drop n.+1 s)
+    | None   => drop n.+1 s
+    end.
+  Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?drop0. Qed.
+
+  Lemma take_ind (T : Type) (P : seq T -> seq T -> Prop) (s : seq T) :
+    P [::] s -> (forall n, n < size s -> P (take n s) s -> P (take n.+1 s) s) -> P s s.
+  Proof.
+    move => HP0 IHP; rewrite -{1}(take_size s).
+    pattern (size s); set Q:= (fun _ => _).
+    apply/(@nat_le_ind_eq Q (size s)); rewrite /Q //.
+    by rewrite take0.
+  Qed.
+
+  Lemma take_drop_ind (T : Type) (P : seq T -> seq T -> seq T -> Prop) (s : seq T) :
+    P [::] s s ->
+    (forall n, n < size s -> P (take n s) (drop n s) s -> P (take n.+1 s) (drop n.+1 s) s) ->
+    P s [::] s.
+  Proof.
+    move => HP0 IHP; rewrite -{1}(take_size s) -(drop_size s).
+    pattern (size s); set Q:= (fun _ => _).
+    apply/(@nat_le_ind_eq Q (size s)); rewrite /Q //.
+    by rewrite take0 drop0.
+  Qed.
+
+End ToMoveProps.

@@ -83,7 +83,7 @@ Section Tunneling.
     map (tunnel_bore fn uf) lc.
 
   Definition tunnel_engine fn (lc lc' : lcmd) : lcmd :=
-    tunnel_head fn (tunnel_plan fn LUF.empty lc) lc.
+    tunnel_head fn (tunnel_plan fn LUF.empty lc) lc'.
 
   Definition tunnel_lcmd fn lc :=
     tunnel_engine fn lc lc.
