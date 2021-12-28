@@ -286,6 +286,13 @@ Section TunnelingProps.
     size (tunnel_lcmd fn lc) = size lc.
   Proof. by rewrite /tunnel_lcmd size_tunnel_engine. Qed.
 
+  Lemma labels_of_body_rcons lc c :
+    labels_of_body (rcons lc c) =
+    if li_is_label c
+    then rcons (labels_of_body lc) (li_i c)
+    else labels_of_body lc.
+  Proof. by rewrite /labels_of_body map_rcons filter_rcons; case c => ii []. Qed.
+
   Lemma labels_of_body_tunnel_head fn fb uf :
     labels_of_body (tunnel_head fn uf fb) = labels_of_body fb.
   Proof.
@@ -492,6 +499,45 @@ Section TunnelingProps.
     by apply:  TP_Otherwise.
   Qed.
 
+  Lemma tunnel_plan_notin_labels_of_body fn lc c l :
+    Llabel l \notin labels_of_body lc ->
+    uniq (labels_of_body (rcons lc c)) ->
+    LUF.find (tunnel_plan fn LUF.empty (rcons lc c)) l = l.
+  Proof.
+    elim/last_ind: lc c l => //= lc c'.
+    move => IHlc c l; rewrite tunnel_plan_rcons_rcons labels_of_body_rcons; move: IHlc.
+    have Htunnel_chart:= (tunnel_chartP fn (tunnel_plan fn LUF.empty (rcons lc c')) c' c).
+    inversion Htunnel_chart
+    as [ii ii' l' l''
+       |ii ii' l' l'' Heqc' Heqc Heq
+       |ii ii' l' l'' fn' Hneqfn Heqc' Heqc Heq
+       |c'' c''' Hnor Heqc' Heqc Heq];
+    subst c c' => {Htunnel_chart} IHlc /=.
+    + rewrite mem_rcons in_cons negb_or => /andP /= [Hneql Hnotin].
+      rewrite !labels_of_body_rcons /= !rcons_uniq => /andP [_ /andP [Hnotin' Huniq]].
+      rewrite LUF.find_union (IHlc _ l) //; last first.
+      - by rewrite labels_of_body_rcons /= rcons_uniq Hnotin'.
+      rewrite (IHlc _ l') //; last first.
+      - by rewrite labels_of_body_rcons /= rcons_uniq Hnotin'.
+      by case: ifP => // /eqP ?; subst l'; rewrite eq_refl in Hneql.
+    + rewrite mem_rcons in_cons negb_or => /andP /= [Hneql Hnotin] {Heq}.
+      rewrite !labels_of_body_rcons /= rcons_uniq => /andP [Hnotin' Huniq].
+      rewrite eq_refl LUF.find_union (IHlc _ l) //; last first.
+      - by rewrite labels_of_body_rcons /= rcons_uniq Hnotin'.
+      rewrite (IHlc _ l') //; last first.
+      - by rewrite labels_of_body_rcons /= rcons_uniq Hnotin'.
+      by case: ifP => // /eqP ?; subst l'; rewrite eq_refl in Hneql.
+    + rewrite mem_rcons in_cons negb_or => /andP /= [Hneql Hnotin] {Heq}.
+      rewrite !labels_of_body_rcons /= rcons_uniq => /andP [Hnotin' Huniq].
+      case: ifP; last by rewrite IHlc // labels_of_body_rcons /= rcons_uniq Hnotin'.
+      by move => /eqP ?; subst fn'; rewrite eq_refl in Hneqfn.
+    move: Hnor (IHlc c'' l) => {Heq IHlc}; case: c''' c'' => [ii' i'] [ii i].
+    by case: i => [? ? ?| |?|[? ?]|?|? ?|? ?]; (case: i' => [? ? ?| |?|[? ?]|?|? ?|? ?] //= _ IHlc);
+    rewrite labels_of_body_rcons //= => Hnotin; (try by rewrite rcons_uniq => /andP [_]; apply IHl);
+    (try by move: Hnotin; rewrite mem_rcons in_cons negb_or => /andP /= [_ Hnotin]; apply IHlc);
+    rewrite rcons_uniq => /andP [_]; apply IHlc.
+  Qed.
+
   Variant tunnel_bore_weak_spec fn uf : linstr -> linstr -> Type :=
   | TBW_GotoEq ii l :
       tunnel_bore_weak_spec fn uf (MkLI ii (Lgoto (fn, l))) (MkLI ii (Lgoto (fn, LUF.find uf l)))
@@ -536,13 +582,19 @@ Section TunnelingProps.
     tunnel_bore fn LUF.empty =1 idfun.
   Proof. by case/tunnel_boreWP. Qed.
 
-  Lemma tunnel_bore_union fn uf l l' c :
-    tunnel_bore fn (LUF.union uf l l') c =
-    tunnel_bore fn (LUF.union uf l l') (tunnel_bore fn uf c).
+  Lemma tunnel_bore_union fn uf l l' :
+    LUF.find uf l = l ->
+    LUF.find uf l' = l' ->
+    forall c,
+      tunnel_bore fn (LUF.union uf l l') c =
+      tunnel_bore fn (LUF.union LUF.empty l l') (tunnel_bore fn uf c).
   Proof.
+    move => Heqfindl Heqfindl' c.
     case: (tunnel_boreP fn uf c) => [ii l''|ii l'' fn'|ii pe l''|c'] //=.
-    + by rewrite eq_refl !LUF.find_union LUF.find_find.
-    by rewrite !LUF.find_union LUF.find_find.
+    + by rewrite eq_refl !LUF.find_union !LUF.find_empty Heqfindl Heqfindl'.
+    + by case: ifP.
+    + by rewrite !LUF.find_union !LUF.find_empty Heqfindl Heqfindl'.
+    by case: c' => ii [].
   Qed.
 
   (*
@@ -562,9 +614,14 @@ Section TunnelingProps.
   Proof. by move => ? /=; rewrite /tunnel_head (eq_map (tunnel_bore_empty fn)) map_id. Qed.
 
   Lemma tunnel_head_union fn uf l l' lc :
+    LUF.find uf l = l ->
+    LUF.find uf l' = l' ->
     tunnel_head fn (LUF.union uf l l') lc =
-    tunnel_head fn (LUF.union uf l l') (tunnel_head fn uf lc).
-  Proof. by rewrite /tunnel_head (eq_map (tunnel_bore_union fn uf l l')) map_comp. Qed.
+    tunnel_head fn (LUF.union LUF.empty l l') (tunnel_head fn uf lc).
+  Proof.
+    move => Heqfindl Heqfindl'; rewrite /tunnel_head.
+    by rewrite (eq_map (@tunnel_bore_union fn uf l l' _ _)) // map_comp.
+  Qed.
 
   Lemma nth_align_tunnel_head fn uf lc pc :
     nth Linstr_align (tunnel_head fn uf lc) pc = tunnel_bore fn uf (nth Linstr_align lc pc).
@@ -577,9 +634,17 @@ Section TunnelingProps.
   Qed.
 
   Lemma tunnel_lcmd_fn_partial_pc fn lc pc :
+    uniq (labels_of_body lc) ->
     tunnel_lcmd_fn_partial fn lc pc.+1 = tunnel_lcmd_pc fn (tunnel_lcmd_fn_partial fn lc pc) pc.
   Proof.
-    rewrite /tunnel_lcmd_fn_partial /tunnel_lcmd_pc /tunnel_engine.
+    rewrite /tunnel_lcmd_fn_partial /tunnel_lcmd_pc /tunnel_engine => Huniq.
+    have Hsubseq: subseq (labels_of_body (take pc.+1 lc)) (labels_of_body lc).
+    + rewrite /labels_of_body subseq_filter; apply/andP; split.
+      - by rewrite all_filter (@eq_all _ _ predT) ?all_predT //; case.
+      set a := (fun _ => _); set st:= map _ _; set s:= map _ _.
+      apply: (@subseq_trans _ st (filter a st) s); first by apply filter_subseq.
+      by rewrite /st /s => {st s}; apply/map_subseq/take_subseq.
+    move: (subseq_uniq Hsubseq Huniq) => {Hsubseq Huniq}.
     case Hsize: (pc < size lc); last first.
     + move: (negbT Hsize); rewrite -leqNgt => {Hsize} Hsize.
       rewrite !take_oversize //; last by apply/leqW.
@@ -599,16 +664,18 @@ Section TunnelingProps.
     rewrite -2!nth_behead /behead !nth_align_tunnel_head -/c -/c'.
     set uf:= tunnel_plan _ _ _ => {tc tc'}.
     move: c c' uf => c c' uf.
+    (*TODO: must use inversion as and keep in mind uniqueness hypothesis, and use this.*)
+    Check tunnel_plan_notin_labels_of_body.
     case: tunnel_chartP => [ii ii' l l'|ii ii' l l'|ii ii' l l' fn'|c'' c'''] //=.
-    + rewrite tunnel_head_union.
-      (*TODO: need to modify this lemma to solve.*)
-      admit.
-    + rewrite !eq_refl.
-      (*TODO: can't get rid of c, c' and uf before keeping in mind that LUF.find uf l' = l'.*)
-      admit.
+    + rewrite tunnel_head_union //.
+      admit. admit.
+    + rewrite !eq_refl tunnel_head_union.
+      admit. admit. admit.
     + case: ifP => // => -> _.
       by rewrite tunnel_head_empty.
-    admit.
+    case c'' => {c c'} [ii i]; case c''' => [ii' i'].
+    by case i => [? ? ?| |?|[? ?]|?|? ?|? ?]; (case i' => [? ? ?| |?|[? ?]|?|? ?|? ?] //=);
+    rewrite ?tunnel_head_empty //; case: ifP; rewrite tunnel_head_empty.
   Qed.
 
   Lemma tunnel_lcmd_fn_partial_eq fn lc :
