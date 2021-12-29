@@ -18,6 +18,12 @@ Require Import linear_sem.
 
 Section LprogSemProps.
 
+  Definition is_goto fn l c :=
+    match li_i c with
+    | Lgoto (fn', l') => (fn == fn') && (l == l')
+    | _ => false
+    end.
+
   Definition li_is_label (c : linstr) :=
     if c.(li_i) is Llabel _ then true else false.
 
@@ -402,7 +408,7 @@ Section TunnelingProps.
   | TC_LabelGotoNEq ii ii' l l' fn' of (fn != fn') :
       tunnel_chart_spec fn uf (MkLI ii (Llabel l)) (MkLI ii' (Lgoto (fn', l'))) uf
 
-  | TC_NLabelGoto c c' of (~~ ((li_is_label c && li_is_label c') || (li_is_label c && li_is_goto c'))) :
+  | TC_Otherwise c c' of (~~ ((li_is_label c && li_is_label c') || (li_is_label c && li_is_goto c'))) :
       tunnel_chart_spec fn uf c c' uf.
 
   Lemma tunnel_chartWP fn uf c c' : tunnel_chart_weak_spec fn uf c c' (tunnel_chart fn uf c c').
@@ -417,7 +423,7 @@ Section TunnelingProps.
 
   Lemma tunnel_chartP fn uf c c' : tunnel_chart_spec fn uf c c' (tunnel_chart fn uf c c').
   Proof.
-  case: c c' => [ii i] [ii' i']; case: i'; case: i; try by move=> *; apply: TC_NLabelGoto.
+  case: c c' => [ii i] [ii' i']; case: i'; case: i; try by move=> *; apply: TC_Otherwise.
   + by move => l l'; apply TC_LabelLabel.
   move=> l [fn' l'] /=; case: ifPn => [/eqP<-|].
   + by apply: TC_LabelGotoEq.
@@ -641,6 +647,55 @@ Section TunnelingProps.
     by rewrite (@nth_map _ Linstr_align).
   Qed.
 
+  Variant tunnel_lcmd_pc_spec fn (lc : lcmd) pc : lcmd -> Type :=
+  | TL_LabelLabel l l' :
+      is_label l (nth Linstr_align (Linstr_align :: lc) pc) ->
+      is_label l' (nth Linstr_align (Linstr_align :: lc) pc.+1) ->
+      tunnel_lcmd_pc_spec fn lc pc (tunnel_head fn (LUF.union LUF.empty l l') lc)
+
+  | TL_LabelGotoEq l l' :
+      is_label l (nth Linstr_align (Linstr_align :: lc) pc) ->
+      is_goto fn l' (nth Linstr_align (Linstr_align :: lc) pc.+1) ->
+      tunnel_lcmd_pc_spec fn lc pc (tunnel_head fn (LUF.union LUF.empty l l') lc)
+
+  | TL_LabelGotoNEq l l' fn' :
+      fn != fn' ->
+      is_label l (nth Linstr_align (Linstr_align :: lc) pc) ->
+      is_goto fn' l' (nth Linstr_align (Linstr_align :: lc) pc.+1) ->
+      tunnel_lcmd_pc_spec fn lc pc lc
+
+  | TL_Otherwise :
+      ~~ ((li_is_label (nth Linstr_align (Linstr_align :: lc) pc) &&
+           li_is_label (nth Linstr_align (Linstr_align :: lc) pc.+1)) || 
+          (li_is_label (nth Linstr_align (Linstr_align :: lc) pc) &&
+           li_is_goto (nth Linstr_align (Linstr_align :: lc) pc.+1))) ->
+      tunnel_lcmd_pc_spec fn lc pc lc.
+
+  Lemma tunnel_lcmd_pcP fn lc pc :
+    tunnel_lcmd_pc_spec fn lc pc (tunnel_lcmd_pc fn lc pc).
+  Proof.
+    rewrite /tunnel_lcmd_pc /tunnel_engine /pair_pc /tunnel_plan /=.
+    set c:= nth _ _ _; set c':= nth _ _ _.
+    have Htunnel_chart:= (tunnel_chartP fn LUF.empty c c').
+    inversion Htunnel_chart as
+      [ii ii' l l' Heqc Heqc' Heq
+      |ii ii' l l' Heqc Heqc' Heq
+      |ii ii' l l' fn' Hneqfn Heqc Heqc' Heq
+      |c'' c''' Hneg Heqc Heqc' Heq];
+    rewrite /c in Heqc; rewrite /c' in Heqc' => /= {Htunnel_chart Heq}.
+    + apply TL_LabelLabel.
+      - by rewrite -Heqc /is_label /= eq_refl.
+      by rewrite /= -Heqc' /is_label /= eq_refl.
+    + rewrite eq_refl; apply TL_LabelGotoEq.
+      - by rewrite -Heqc /is_label /= eq_refl.
+      by rewrite /= -Heqc' /is_goto /= !eq_refl.
+    + case: ifP => [/eqP ?|_]; first by subst fn'; rewrite eq_refl in Hneqfn.
+      rewrite tunnel_head_empty /=; apply (@TL_LabelGotoNEq _ _ _ l l' fn') => //.
+      - by rewrite -Heqc /is_label /= eq_refl.
+      by rewrite /= -Heqc' /is_goto /= !eq_refl.
+    by subst c'' c'''; rewrite tunnel_head_empty /=; apply TL_Otherwise.
+  Qed.
+
   Lemma tunnel_lcmd_fn_partial0 fn lc :
     tunnel_lcmd_fn_partial fn lc 0 = lc.
   Proof. by rewrite /tunnel_lcmd_fn_partial take0 /tunnel_engine /tunnel_plan /= tunnel_head_empty. Qed.
@@ -859,9 +914,55 @@ Section TunnelingWFProps.
   Proof.
     rewrite /well_formed_body labels_of_body_tunnel_lcmd_pc.
     move => /andP [->] /=.
-    (*TODO: nice variant for onth (tunnel_lcmd_pc fn fb pc).*)
-    rewrite /tunnel_lcmd_pc /pair_pc.
-    rewrite /tunnel_engine.
+    have Htunnel_lcmd:= tunnel_lcmd_pcP fn fb pc.
+    inversion Htunnel_lcmd as
+      [l l' Hpc HSpc Heq
+      |l l' Hpc HSpc Heq
+      |l l' fn' Hneq Hpc HSpc Heq
+      |Hneg Heq].
+    3-4:
+      by rewrite -!Heq.
+    + clear Heq Htunnel_lcmd; rewrite /goto_targets !all_filter.
+      move => /allP Hall; apply/allP => i; move: (Hall i).
+      case: i => //= -[fn' l''] Himp Hin.
+      move: Hin => /mapP [[ii []]] //= [fn''' l'''] Hin [? ?]; subst fn''' l'''.
+      move: Hin => /mapP [[ii' []]] //= [fn''' l'''] Hin [?]; subst ii'.
+      have {Hin} Hin: Lgoto (fn''', l''') \in map li_i fb.
+      - by apply/mapP; eexists; eauto.
+      case: ifP => [/eqP ?|_] [? ?]; subst fn''' l''; last by apply/Himp.
+      subst fn'; move: Himp; rewrite LUF.find_union !LUF.find_empty.
+      case: ifP => [/eqP ?|_]; last by move=> Himp; apply/Himp.
+      subst l'''; rewrite eq_refl /= => _ {Hpc Hall Hin ii l}.
+      move: HSpc; rewrite /is_label -nth_behead /behead /=.
+      case Hnth: (nth _ _ _) => [ii i] /=; case: i Hnth => //=.
+      move => l Hnth /eqP ?; subst l'; move: (@mem_nth _ Linstr_align fb pc).
+      case Hsize: (pc < size fb) => //; rewrite Hnth; last first.
+      - move: (negbT Hsize); rewrite -leqNgt => {Hsize} Hsize.
+        by rewrite nth_default in Hnth.
+      move => /(_ isT) => Hin {Hnth Hsize fn pc}.
+      rewrite /labels_of_body mem_filter /=.
+      by apply/mapP; eexists; eauto.
+    clear Heq Htunnel_lcmd; rewrite /goto_targets !all_filter.
+    move => /allP Hall; apply/allP => i; move: (Hall i).
+    case: i => //= -[fn' l''] Himp Hin.
+    move: Hin => /mapP [[ii []]] //= [fn''' l'''] Hin [? ?]; subst fn''' l'''.
+    move: Hin => /mapP [[ii' []]] //= [fn''' l'''] Hin [?]; subst ii'.
+    have {Hin} Hin: Lgoto (fn''', l''') \in map li_i fb.
+    + by apply/mapP; eexists; eauto.
+    case: ifP => [/eqP ?|_] [? ?]; subst fn''' l''; last by apply/Himp.
+    subst fn'; move: Himp; rewrite LUF.find_union !LUF.find_empty.
+    case: ifP => [/eqP ?|_]; last by move=> Himp; apply/Himp.
+    subst l'''; rewrite eq_refl /= => _; move: (Hall (Lgoto (fn, l'))) => /=.
+    rewrite eq_refl /=; move => Himp; apply: Himp => {Hpc Hall Hin l ii}.
+    move: HSpc; rewrite /is_goto -nth_behead /behead /=.
+    case Hnth: (nth _ _ _) => [ii i] /=; case: i Hnth => //=.
+    move => [fn' l] Hnth /andP [/eqP ? /eqP ?]; subst fn' l'.
+    move: (@mem_nth _ Linstr_align fb pc).
+    case Hsize: (pc < size fb) => //; rewrite Hnth; last first.
+    + move: (negbT Hsize); rewrite -leqNgt => {Hsize} Hsize.
+      by rewrite nth_default in Hnth.
+    move => /(_ isT) => Hin {Hnth Hsize pc}.
+    by apply/mapP; eexists; eauto.
   Qed.
 
   Lemma well_formed_tunnel_lcmd fn fb :
