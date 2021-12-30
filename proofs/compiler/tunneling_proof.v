@@ -24,14 +24,35 @@ Section LprogSemProps.
     | _ => false
     end.
 
-  Definition li_is_label (c : linstr) :=
-    if c.(li_i) is Llabel _ then true else false.
+  Definition is_cond pe l c :=
+    match li_i c with
+    | Lcond pe' l' => (pe == pe') && (l == l')
+    | _ => false
+    end.
 
-  Definition li_is_goto (c : linstr) :=
-    if c.(li_i) is Lgoto _ then true else false.
+  Definition li_is_label c :=
+    if li_i c is Llabel _ then true else false.
 
-  Definition li_is_cond (c : linstr) :=
-    if c.(li_i) is Lcond _ _ then true else false.
+  Definition li_is_goto c :=
+    if li_i c is Lgoto _ then true else false.
+
+  Definition li_is_cond c :=
+    if li_i c is Lcond _ _ then true else false.
+
+  Definition li_is_local_goto fn c :=
+    if li_i c is Lgoto (fn', _) then fn == fn' else false.
+
+  Definition is_local_goto_to_label fn c c' :=
+    match li_i c, li_i c' with
+    | Lgoto (fn', l), Llabel l' => (fn == fn') && (l == l')
+    | _, _ => false
+    end.
+
+  Definition is_cond_to_label c c' :=
+    match li_i c, li_i c' with
+    | Lcond _ l, Llabel l' => l == l'
+    | _, _ => false
+    end.
 
   Lemma lfd_body_setfb fd fb : lfd_body (setfb fd fb) = fb.
   Proof. by case: fd. Qed.
@@ -1122,16 +1143,226 @@ End TunnelingWFProps.
 
 Section TunnelingSem.
 
+  Variant find_instr_tunnel_lprog_pc_spec p s fn pc oc : option linstr -> Type :=
+  | FT_GotoLabelLabel fd c l l':
+      get_fundef (lp_funcs p) fn = Some fd ->
+      fn == lfn s ->
+      oc = Some c ->
+      is_goto fn l c ->
+      is_label l (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc) ->
+      is_label l' (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1) ->
+      find_instr_tunnel_lprog_pc_spec p s fn pc oc (Some (MkLI (li_ii c) (Lgoto (fn, l'))))
+
+  | FT_CondLabelLabel fd c pe l l':
+      get_fundef (lp_funcs p) fn = Some fd ->
+      fn == lfn s ->
+      oc = Some c ->
+      is_cond pe l c ->
+      is_label l (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc) ->
+      is_label l' (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1) ->
+      find_instr_tunnel_lprog_pc_spec p s fn pc oc (Some (MkLI (li_ii c) (Lcond pe l')))
+
+  | FT_GotoLabelGoto fd c l l':
+      get_fundef (lp_funcs p) fn = Some fd ->
+      fn == lfn s ->
+      oc = Some c ->
+      is_goto fn l c ->
+      is_label l (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc) ->
+      is_goto fn l' (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1) ->
+      find_instr_tunnel_lprog_pc_spec p s fn pc oc (Some (MkLI (li_ii c) (Lgoto (fn, l'))))
+
+  | FT_CondLabelGoto fd c pe l l':
+      get_fundef (lp_funcs p) fn = Some fd ->
+      fn == lfn s ->
+      oc = Some c ->
+      is_cond pe l c ->
+      is_label l (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc) ->
+      is_goto fn l' (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1) ->
+      find_instr_tunnel_lprog_pc_spec p s fn pc oc (Some (MkLI (li_ii c) (Lcond pe l')))
+
+  | FT_Otherwise :
+      match get_fundef (lp_funcs p) fn with
+      | Some fd =>
+          (fn != lfn s) ||
+          ( ~~ ((((ssrfun.omap
+                     (fun c => is_local_goto_to_label fn c (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc))
+                     oc) == Some true) &&
+                   li_is_label (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1)) || 
+                ((ssrfun.omap
+                    (fun c => is_cond_to_label c (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc))
+                    oc == Some true) &&
+                  li_is_label (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1)) || 
+                ((ssrfun.omap
+                    (fun c => is_local_goto_to_label fn c (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc))
+                    oc == Some true) &&
+                  li_is_local_goto fn (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1)) || 
+                ((ssrfun.omap
+                    (fun c => is_cond_to_label c (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc))
+                    oc == Some true) &&
+                  li_is_local_goto fn (nth Linstr_align (Linstr_align :: (lfd_body fd)) pc.+1))))
+      | None => true
+      end ->
+      find_instr_tunnel_lprog_pc_spec p s fn pc oc oc.
+
+  Lemma find_instr_tunnel_lprog_pcP p s fn pc :
+    find_instr_tunnel_lprog_pc_spec p s fn pc (find_instr p s) (find_instr (tunnel_lprog_pc p fn pc) s).
+  Proof.
+    rewrite /find_instr /tunnel_lprog_pc lp_funcs_setfuncs /tunnel_funcs_pc.
+    case Hgfd: (get_fundef (lp_funcs p) fn) => [fd|]; last first.
+    + by apply FT_Otherwise; rewrite Hgfd.
+    rewrite get_fundef_setfunc; case: ifP => [/eqP ?|Hneq]; last first.
+    + by apply FT_Otherwise; rewrite Hgfd Hneq.
+    subst fn; rewrite -get_fundef_in Hgfd /=.
+    case: tunnel_lcmd_pcP => [l l'|l l'|l l' fn' Hneq Hpc HSpc|Hneg].
+    + rewrite /tunnel_head onth_map; case Honth: (onth _ _) => [[ii i]|]; last first.
+      - by move => Hpc HSpc; apply FT_Otherwise; rewrite Hgfd eq_refl.
+      case: i Honth => [? ? ?| |?|[fn l'']|?|? ?|pe l''] /= Honth Hpc HSpc /=.
+      1-3,5-6:
+        by apply FT_Otherwise; rewrite Hgfd eq_refl.
+      - case: ifP => [/eqP ?|Hneq]; last first.
+        * apply FT_Otherwise; rewrite Hgfd eq_refl //=.
+          rewrite /is_local_goto_to_label /= Hneq /=; move: Hpc HSpc.
+          set c:= nth _ _ _; set c':= nth _ _ _; move: c c' => [? i] [? i'].
+          by case: i; case: i'.
+        subst fn; rewrite LUF.find_union !LUF.find_empty.
+        case: ifP => [/eqP ?|Hneq]; last first.
+        * apply FT_Otherwise; rewrite Hgfd eq_refl //=.
+          rewrite /is_local_goto_to_label /=; move: Hpc HSpc.
+          set c:= nth _ _ _; set c':= nth _ _ _; move: c c' => [? i] [? i'].
+          case: i; case: i' => //= l''' l'''' /eqP ? /eqP ?; subst l''' l''''.
+          by rewrite eq_sym in Hneq; rewrite Hneq Bool.andb_false_r.
+        subst l''; set c:= MkLI _ _.
+        move: (@FT_GotoLabelLabel p s (lfn s) pc (Some c) fd c l l' Hgfd).
+        by rewrite eq_refl /= => HFT; apply HFT => //; rewrite /c /is_goto /= !eq_refl.
+      rewrite LUF.find_union !LUF.find_empty.
+      case: ifP => [/eqP ?|Hneq]; last first.
+      * apply FT_Otherwise; rewrite Hgfd eq_refl //=.
+        rewrite /is_cond_to_label /=; move: Hpc HSpc.
+        set c:= nth _ _ _; set c':= nth _ _ _; move: c c' => [? i] [? i'].
+        case: i; case: i' => //= l''' l'''' /eqP ? /eqP ?; subst l''' l''''.
+        by rewrite eq_sym in Hneq; rewrite Hneq Bool.andb_false_r.
+      subst l''; set c:= MkLI _ _.
+      move: (@FT_CondLabelLabel p s (lfn s) pc (Some c) fd c pe l l').
+      by rewrite eq_refl /= => HFT; apply HFT => //; rewrite /c /is_cond /= !eq_refl.
+    + rewrite /tunnel_head onth_map; case Honth: (onth _ _) => [[ii i]|]; last first.
+      - by move => Hpc HSpc; apply FT_Otherwise; rewrite Hgfd eq_refl.
+      case: i Honth => [? ? ?| |?|[fn l'']|?|? ?|pe l''] /= Honth Hpc HSpc /=.
+      1-3,5-6:
+        by apply FT_Otherwise; rewrite Hgfd eq_refl.
+      - case: ifP => [/eqP ?|Hneq]; last first.
+        * apply FT_Otherwise; rewrite Hgfd eq_refl //=.
+          rewrite /is_local_goto_to_label /= Hneq /=; move: Hpc HSpc.
+          set c:= nth _ _ _; set c':= nth _ _ _; move: c c' => [? i] [? i'].
+          by case: i; case: i'.
+        subst fn; rewrite LUF.find_union !LUF.find_empty.
+        case: ifP => [/eqP ?|Hneq]; last first.
+        * apply FT_Otherwise; rewrite Hgfd eq_refl //=.
+          rewrite /is_local_goto_to_label /=; move: Hpc HSpc.
+          set c:= nth _ _ _; set c':= nth _ _ _; move: c c' => [? i] [? i'].
+          case: i; case: i' => //= -[fn l'''] l'''' /eqP ? /andP [/eqP ? /eqP ?]; subst fn l''' l''''.
+          by rewrite eq_sym in Hneq; rewrite Hneq Bool.andb_false_r.
+        subst l''; set c:= MkLI _ _.
+        move: (@FT_GotoLabelGoto p s (lfn s) pc (Some c) fd c l l' Hgfd).
+        by rewrite eq_refl /= => HFT; apply HFT => //; rewrite /c /is_goto /= !eq_refl.
+      rewrite LUF.find_union !LUF.find_empty.
+      case: ifP => [/eqP ?|Hneq]; last first.
+      * apply FT_Otherwise; rewrite Hgfd eq_refl //=.
+        rewrite /is_cond_to_label /=; move: Hpc HSpc.
+        set c:= nth _ _ _; set c':= nth _ _ _; move: c c' => [? i] [? i'].
+        case: i; case: i' => //= -[fn l'''] l'''' /eqP ? /andP [/eqP ? /eqP ?]; subst fn l''' l''''.
+        by rewrite eq_sym in Hneq; rewrite Hneq Bool.andb_false_r.
+      subst l''; set c:= MkLI _ _.
+      move: (@FT_CondLabelGoto p s (lfn s) pc (Some c) fd c pe l l').
+      by rewrite eq_refl /= => HFT; apply HFT => //; rewrite /c /is_cond /= !eq_refl.
+    + apply FT_Otherwise; rewrite Hgfd eq_refl /=; move: Hpc HSpc => /=.
+      set c:= nth _ _ _; set c':= nth _ _ _; move: c c' => [ii i] [ii' i'].
+      case: i => //= l'' /eqP ?; subst l''.
+      case: i' => //= -[fn'' l''] /andP [/eqP ? /eqP ?]; subst fn'' l''.
+      set oc:= onth _ _; case: oc => [c''|//=]; case: c'' => [ii'' i''].
+      case: i'' => //= [[fn'' l'']|pe l'']; rewrite !Bool.orb_false_r negb_or.
+      - rewrite /is_local_goto_to_label /li_is_label /li_is_local_goto //=.
+        by rewrite Bool.andb_false_r /= negb_and; apply/orP; right.
+      rewrite /is_cond_to_label /li_is_label /li_is_local_goto //=.
+      by rewrite Bool.andb_false_r /= negb_and; apply/orP; right.
+    apply FT_Otherwise; rewrite Hgfd eq_refl /=; move: Hneg => /=.
+    set oc:= onth _ _; case: oc => [[ii'' i'']|//=].
+    set c:= nth _ _ _; set c':= nth _ _ _; move: c c' => [ii i] [ii' i'].
+    rewrite /is_local_goto_to_label /is_cond_to_label /li_is_label /li_is_local_goto.
+    by case: i => [| | |[]| | | ]; (case: i' => [| | |[]| | | ]);
+    (case: i'' => [| | |[]| | | ] => //=); intros; rewrite Bool.orb_false_r Bool.andb_false_r.
+  Qed.
+
+  Lemma find_label_tunnel_lcmd_pc l fn lc pc :
+    find_label l (tunnel_lcmd_pc fn lc pc) = find_label l lc.
+  Proof.
+    rewrite /find_label /tunnel_lcmd_pc /tunnel_engine /tunnel_head.
+    rewrite size_map seq.find_map; set p:= preim _ _.
+    rewrite (@eq_in_find _ p (is_label l) lc) //.
+    move => [ii i] _; rewrite /p => {p} /=.
+    by case: i => //= -[fn' l']; case: ifP.
+  Qed.
+
+  Lemma label_in_lcmd_tunnel_lcmd_pc fn lc pc :
+    label_in_lcmd (tunnel_lcmd_pc fn lc pc) = label_in_lcmd lc.
+  Proof.
+    rewrite /label_in_lcmd; case: tunnel_lcmd_pcP => //.
+    + move => l l' _ _; elim: lc => //= -[ii i] lc <-.
+      by case: i => //= -[fn' l'']; case: ifP.
+    move => l l' _ _; elim: lc => //= -[ii i] lc <-.
+    by case: i => //= -[fn' l'']; case: ifP.
+  Qed.
+
+  Lemma label_in_lprog_tunnel_lprog_pc p fn pc :
+    uniq (map fst (lp_funcs p)) ->
+    label_in_lprog (tunnel_lprog_pc p fn pc) = label_in_lprog p.
+  Proof.
+    rewrite /label_in_lprog /tunnel_lprog_pc /tunnel_funcs_pc.
+    case Hgfd: (get_fundef _ _) => [fd|//=].
+    rewrite lp_funcs_setfuncs /setfunc.
+    elim: {p} (lp_funcs p) Hgfd => //= -[fn' fd'] lf IHlf.
+    case: ifP => [/eqP ? [?]|Hneq Hgfd /andP [Hnotin Huniq]]; last by rewrite IHlf.
+    subst fn' fd' => /andP [Hnotin _] {IHlf}; rewrite {1}/fst /= in Hnotin.
+    f_equal; first by rewrite /tunnel_lfundef_pc lfd_body_setfb /snd /= label_in_lcmd_tunnel_lcmd_pc.
+    elim: lf Hnotin => //= -[fn' fd'] lf IHlf.
+    rewrite in_cons negb_or => /andP [Hneq Hnotin].
+    by rewrite IHlf //; f_equal; move: Hneq; case: ifP.
+  Qed.
+
+  Lemma eval_jump_tunnel_lprog_pc p fn pc :
+    eval_jump (tunnel_lprog_pc p fn pc) =2 eval_jump p.
+  Proof.
+    rewrite /eval_jump /tunnel_lprog_pc /tunnel_funcs_pc lp_funcs_setfuncs.
+    case Hgfd: (get_fundef _ fn) => [fd|] //= -[fn' l] s.
+    rewrite get_fundef_setfunc -get_fundef_in Hgfd /=.
+    case: ifP => // /eqP ?; subst fn'; rewrite Hgfd /=.
+    by rewrite find_label_tunnel_lcmd_pc.
+  Qed.
+
+  Lemma eval_instr_tunnel_lprog_pc p fn pc :
+    uniq (map fst (lp_funcs p)) ->
+    eval_instr (tunnel_lprog_pc p fn pc) =2 eval_instr p.
+  Proof.
+    move => Huniq [ii i] s; case: i => [ | | |[fn' l]|pe|lv l|pe l] //=.
+    + rewrite /eval_instr /= /tunnel_funcs_pc; case Hgfd: (get_fundef (lp_funcs p) fn) => [fd|//].
+      rewrite get_fundef_setfunc -get_fundef_in Hgfd /=; case: ifP => // /eqP ?; subst fn'.
+      by rewrite Hgfd /tunnel_lfundef_pc lfd_body_setfb /= find_label_tunnel_lcmd_pc.
+    + rewrite /eval_instr /= label_in_lprog_tunnel_lprog_pc //.
+      apply bind_eq => // u. case: (decode_label _ _) => // r.
+      by rewrite eval_jump_tunnel_lprog_pc.
+    + by rewrite /eval_instr /= label_in_lprog_tunnel_lprog_pc.
+    rewrite /eval_instr /= /tunnel_funcs_pc; case Hgfd: (get_fundef (lp_funcs p) fn) => [fd|//].
+    rewrite get_fundef_setfunc -get_fundef_in Hgfd /=; case: ifP => // /eqP ?; subst fn.
+    by rewrite Hgfd /= find_label_tunnel_lcmd_pc.
+  Qed.
+
+
   Print lsem.
   Print lsem1.
   Print step.
-  Print find_instr.
-  Print eval_instr.
-  fail.
 
 End TunnelingSem.
 
-
+fail.
 Section TunnelingSemProps.
 
   Context (fn : funname).
