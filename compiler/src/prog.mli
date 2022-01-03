@@ -106,22 +106,22 @@ type 'len grange = E.dir * 'len gexpr * 'len gexpr
    Before instr this information is dummy ...
    This is durty ...
 *)   
-type ('len,'info) ginstr_r =
+type ('len,'info,'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
-  | Copn   of 'len glvals * E.assgn_tag * X86_extra.x86_extended_op Sopn.sopn * 'len gexprs
-  | Cif    of 'len gexpr * ('len,'info) gstmt * ('len,'info) gstmt
-  | Cfor   of 'len gvar_i * 'len grange * ('len,'info) gstmt
-  | Cwhile of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
+  | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
+  | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
+  | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
+  | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
   | Ccall  of E.inline_info * 'len glvals * funname * 'len gexprs
 
-and ('len,'info) ginstr = {
-  i_desc : ('len,'info) ginstr_r;
+and ('len,'info,'asm) ginstr = {
+  i_desc : ('len,'info,'asm) ginstr_r;
   i_loc  : L.i_loc;
   i_info : 'info;
   i_annot : Syntax.annotations;
 }
 
-and ('len,'info) gstmt = ('len,'info) ginstr list
+and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 
 (* ------------------------------------------------------------------------ *)
 type subroutine_info = {
@@ -146,14 +146,14 @@ type f_annot = {
 
 val f_annot_empty : f_annot
 
-type ('len,'info) gfunc = {
+type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
     f_annot : f_annot;
     f_cc   : call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
-    f_body : ('len,'info) gstmt;
+    f_body : ('len,'info,'asm) gstmt;
     f_tyout : 'len gty list;
     f_outannot : Syntax.annotations list; (* annotation attach to return type *)
     f_ret  : 'len gvar_i list
@@ -163,12 +163,12 @@ type 'len ggexpr =
   | GEword of 'len gexpr
   | GEarray of 'len gexprs
 
-type ('len,'info) gmod_item =
-  | MIfun   of ('len,'info) gfunc
+type ('len,'info,'asm) gmod_item =
+  | MIfun   of ('len,'info,'asm) gfunc
   | MIparam of ('len gvar * 'len gexpr)
   | MIglobal of ('len gvar * 'len ggexpr)
 
-type ('len,'info) gprog = ('len,'info) gmod_item list
+type ('len,'info,'asm) gprog = ('len,'info,'asm) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)
 
 (* ------------------------------------------------------------------------ *)
@@ -181,12 +181,12 @@ and  plval  = pexpr glval
 and  plvals = pexpr glvals
 and  pexpr  = pexpr gexpr
 
-type 'info pinstr = (pexpr,'info) ginstr
-type 'info pstmt  = (pexpr,'info) gstmt
+type ('info,'asm) pinstr = (pexpr,'info,'asm) ginstr
+type ('info,'asm) pstmt  = (pexpr,'info,'asm) gstmt
 
-type 'info pfunc     = (pexpr,'info) gfunc
-type 'info pmod_item = (pexpr,'info) gmod_item
-type 'info pprog     = (pexpr,'info) gprog
+type ('info,'asm) pfunc     = (pexpr,'info,'asm) gfunc
+type ('info,'asm) pmod_item = (pexpr,'info,'asm) gmod_item
+type ('info,'asm) pprog     = (pexpr,'info,'asm) gprog
 
 (* -------------------------------------------------------------------- *)
 module PV : sig
@@ -224,13 +224,13 @@ type lvals = int glval list
 type expr  = int gexpr
 type exprs = int gexpr list
 
-type 'info instr = (int,'info) ginstr
-type 'info stmt  = (int,'info) gstmt
+type ('info,'asm) instr = (int,'info,'asm) ginstr
+type ('info,'asm) stmt  = (int,'info,'asm) gstmt
 
-type 'info func     = (int,'info) gfunc
-type 'info mod_item = (int,'info) gmod_item
-type global_decl    = var * Global.glob_value
-type 'info prog     = global_decl list * 'info func list
+type ('info,'asm) func     = (int,'info,'asm) gfunc
+type ('info,'asm) mod_item = (int,'info,'asm) gmod_item
+type global_decl           = var * Global.glob_value
+type ('info,'asm) prog     = global_decl list *('info,'asm) func list
 
 
 (* -------------------------------------------------------------------- *)
@@ -255,7 +255,6 @@ module Mv : Map.S  with type key = var
 module Hv : Hash.S with type key = var
 
 val rip : var
-val rsp : var 
 
 (* -------------------------------------------------------------------- *)
 val kind_i : 'len gvar_i -> v_kind
@@ -279,27 +278,27 @@ module Hf : Hash.S with type key = funname
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *)
 
-val fold_vars_fc : ('ty gvar -> 'acc -> 'acc) -> 'acc -> ('ty, 'info) gfunc -> 'acc
+val fold_vars_fc : ('ty gvar -> 'acc -> 'acc) -> 'acc -> ('ty, 'info, 'asm) gfunc -> 'acc
 val vars_lv : Sv.t -> lval -> Sv.t
 val vars_e  : expr -> Sv.t
 val vars_es : expr list -> Sv.t
-val vars_i  : 'info instr -> Sv.t
-val vars_c  : 'info stmt  -> Sv.t
-val vars_fc : 'info func  -> Sv.t
+val vars_i  : ('info,'asm) instr -> Sv.t
+val vars_c  : ('info,'asm) stmt  -> Sv.t
+val vars_fc : ('info,'asm) func  -> Sv.t
 
-val locals  : 'info func -> Sv.t
+val locals  : ('info,'asm) func -> Sv.t
 
 (* -------------------------------------------------------------------- *)
 (* Written variables & called functions *)
-val written_vars_fc : 'info func -> Sv.t * L.i_loc list Mf.t
+val written_vars_fc : ('info,'asm) func -> Sv.t * L.i_loc list Mf.t
 
 (* -------------------------------------------------------------------- *)
 (* Refresh i_loc, ensure that locations are uniq                        *)
 
-val refresh_i_loc_i : 'info instr -> 'info instr 
-val refresh_i_loc_c : 'info stmt  -> 'info stmt 
-val refresh_i_loc_f : 'info func  -> 'info func 
-val refresh_i_loc_p : 'info prog  -> 'info prog 
+val refresh_i_loc_i : ('info,'asm) instr -> ('info,'asm) instr 
+val refresh_i_loc_c : ('info,'asm) stmt  -> ('info,'asm) stmt 
+val refresh_i_loc_f : ('info,'asm) func  -> ('info,'asm) func 
+val refresh_i_loc_p : ('info,'asm) prog  -> ('info,'asm) prog 
 
 (* -------------------------------------------------------------------- *)
 (* Functions on types                                                   *)
@@ -347,15 +346,15 @@ val expr_of_lval : 'len glval -> 'len gexpr option
 (* -------------------------------------------------------------------- *)
 (* Functions over instruction                                           *)
 
-val destruct_move : ('len, 'info) ginstr -> 'len glval * E.assgn_tag * 'len gty * 'len gexpr
+val destruct_move : ('len, 'info, 'asm) ginstr -> 'len glval * E.assgn_tag * 'len gty * 'len gexpr
 
 (* -------------------------------------------------------------------- *)
 val clamp : wsize -> Z.t -> Z.t
 val clamp_pe : pelem -> Z.t -> Z.t
 
 (* -------------------------------------------------------------------- *)
-type 'info sfundef = Expr.stk_fun_extra * 'info func 
-type 'info sprog   = 'info sfundef list * Expr.sprog_extra
+type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info,'asm) func 
+type ('info,'asm) sprog   = ('info,'asm) sfundef list * Expr.sprog_extra
 
 
 

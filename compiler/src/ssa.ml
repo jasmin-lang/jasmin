@@ -45,7 +45,7 @@ and written_vars_instr allvars w { i_desc } = written_vars_instr_r allvars w i_d
 and written_vars_stmt allvars w s = List.fold_left (written_vars_instr allvars) w s
 
 (* Adds rename intruction y = m[x] *)
-let ir (m: names) (x: var) (y: var) : unit instr =
+let ir (m: names) (x: var) (y: var) : (unit, 'asm) instr =
   let x = Mv.find_default x x m in
   let v u = L.mk_loc L._dummy u in
   let i_desc = Cassgn (Lvar (v y), AT_phinode, y.v_ty, Pvar (gkvar (v x))) in
@@ -55,8 +55,8 @@ let is_stack_array x =
   let x = L.unloc x in
   is_ty_arr x.v_ty && x.v_kind = Stack Direct
 
-let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
-  let f = Liveness.live_fd false f in
+let split_live_ranges is_move_op (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) func =
+  let f = Liveness.live_fd is_move_op false f in
   let rec instr_r (li: Sv.t) (lo: Sv.t) (m: names) =
     function
     | Cassgn (x, tg, ty, e) ->
@@ -112,7 +112,7 @@ let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
   let f_ret = List.map (Subst.vsubst_vi m) f.f_ret in
   { f with f_body ; f_ret }
 
-let remove_phi_nodes (f: 'info func) : 'info func =
+let remove_phi_nodes (f: ('info, 'asm) func) : ('info, 'asm) func =
   let rec instr_r =
     function
     | Cassgn (x, tg, _, e) as i ->

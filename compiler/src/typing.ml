@@ -73,9 +73,9 @@ let type_of_opN op =
   let tins, tout = E.type_of_opN op in
   List.map Conv.ty_of_cty tins, Conv.ty_of_cty tout
 
-let type_of_sopn op = 
-  List.map Conv.ty_of_cty (Sopn.sopn_tin (Arch_extra.asm_opI X86_extra.x86_extra) op),
-  List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op)
+let type_of_sopn asmOp op = 
+  List.map Conv.ty_of_cty (Sopn.sopn_tin asmOp op),
+  List.map Conv.ty_of_cty (Sopn.sopn_tout asmOp op)
 
 (* -------------------------------------------------------------------- *)
 
@@ -171,7 +171,7 @@ let getfun env fn =
 
 (* -------------------------------------------------------------------- *)
 
-let rec check_instr env i = 
+let rec check_instr asmOp env i = 
   let loc = i.i_loc in
   match i.i_desc with
   | Cassgn(x,_,ty,e) ->
@@ -179,50 +179,50 @@ let rec check_instr env i =
     check_lval loc x ty
 
   | Copn(xs,_,op,es) ->
-    let tins, tout = type_of_sopn op in
+    let tins, tout = type_of_sopn asmOp op in
     check_exprs loc es tins;
     check_lvals loc xs tout
 
   | Cif(e,c1,c2) -> 
     check_expr loc e tbool;
-    check_cmd env c1;
-    check_cmd env c2
+    check_cmd asmOp env c1;
+    check_cmd asmOp env c2
     
   | Cfor(i,(_,e1,e2),c) ->
     check_expr loc (Pvar (gkvar i)) tint;
     check_expr loc e1 tint;
     check_expr loc e2 tint;
-    check_cmd env c
+    check_cmd asmOp env c
 
   | Cwhile(_,c1,e,c2) ->
     check_expr loc e tbool;
-    check_cmd env c1;
-    check_cmd env c2
+    check_cmd asmOp env c1;
+    check_cmd asmOp env c2
 
   | Ccall(_,xs,fn,es) -> 
     let fd = getfun env fn in
     check_exprs loc es fd.f_tyin;
     check_lvals loc xs fd.f_tyout
 
-and check_cmd env c = 
-  List.iter (check_instr env) c
+and check_cmd asmOp env c = 
+  List.iter (check_instr asmOp env) c
 
 (* -------------------------------------------------------------------- *)
 
-let check_fun env fd = 
+let check_fun asmOp env fd = 
   let args = List.map (fun x -> Pvar (gkvar (L.mk_loc x.v_dloc x))) fd.f_args in
   let res = List.map (fun x -> Pvar (gkvar x)) fd.f_ret in
   let i_loc = L.i_loc0 fd.f_loc in
   check_exprs i_loc args fd.f_tyin;
   check_exprs i_loc res fd.f_tyout;
-  check_cmd env fd.f_body;
+  check_cmd asmOp env fd.f_body;
   Hf.add env fd.f_name fd
 
 (* -------------------------------------------------------------------- *)
 
-let check_prog (_,funcs) = 
+let check_prog asmOp (_,funcs) = 
   let env = Hf.create 107 in
-  List.iter (check_fun env) (List.rev funcs)
+  List.iter (check_fun asmOp env) (List.rev funcs)
 
 
 

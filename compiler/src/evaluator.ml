@@ -33,17 +33,17 @@ let of_val_b ii v : bool =
   Obj.magic (exn_exec ii (of_val Coq_sbool v))
 
 (* ----------------------------------------------------------------- *)
-type stack = 
-  | Sempty of instr_info * X86_extra.x86_extended_op fundef
+type 'asm stack = 
+  | Sempty of instr_info * 'asm fundef
   | Scall of 
-      instr_info * X86_extra.x86_extended_op fundef * lval list * sem_t exec Fv.t * X86_extra.x86_extended_op instr list * stack
-  | Sfor of instr_info * var_i * coq_Z list * X86_extra.x86_extended_op instr list * X86_extra.x86_extended_op instr list * stack
+      instr_info * 'asm fundef * lval list * sem_t exec Fv.t * 'asm instr list * 'asm stack
+  | Sfor of instr_info * var_i * coq_Z list * 'asm instr list * 'asm instr list * 'asm stack
 
-type state = 
-  { s_prog : X86_extra.x86_extended_op prog;
-    s_cmd  : X86_extra.x86_extended_op instr list;
+type 'asm state = 
+  { s_prog : 'asm prog;
+    s_cmd  : 'asm instr list;
     s_estate : estate;
-    s_stk  : stack;
+    s_stk  : 'asm stack;
   }
 
 exception Final of Memory.mem * values
@@ -81,7 +81,7 @@ let return s =
                s_estate = s1;
                s_stk = Sfor(ii, i, ws, body, c, stk) }
 
-let small_step1 s = 
+let small_step1 asmOp s = 
   match s.s_cmd with
   | [] -> return s
   | i :: c ->
@@ -97,7 +97,7 @@ let small_step1 s =
       { s with s_cmd = c; s_estate = s2 }
 
     | Copn(xs,_,op,es) ->
-      let s2 = exn_exec ii (sem_sopn (Arch_extra.asm_opI X86_extra.x86_extra) U64 gd op s1 xs es) in
+      let s2 = exn_exec ii (sem_sopn asmOp U64 gd op s1 xs es) in
       { s with s_cmd = c; s_estate = s2 }
 
     | Cif(e,c1,c2) ->
@@ -132,8 +132,8 @@ let small_step1 s =
               s_stk = stk }
 
 
-let rec small_step s =
-  small_step (small_step1 s)
+let rec small_step asmOp s =
+  small_step asmOp (small_step1 asmOp s)
 
 let init_state p fn m = 
   let f = 
@@ -147,9 +147,9 @@ let init_state p fn m =
     s_stk = Sempty(Coq_xO Coq_xH, f) }
 
 
-let exec p fn m = 
+let exec asmOp p fn m = 
   let s = init_state p fn m in
-  try small_step s
+  try small_step asmOp s
   with Final(m,vs) -> m, vs 
 
 (* ----------------------------------------------------------- *)

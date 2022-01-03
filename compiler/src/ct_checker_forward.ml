@@ -162,10 +162,10 @@ type ty_fun = {
     tyout: Lvl.t list; 
   }
 
-type 'info fenv = {
+type ('info, 'asm) fenv = {
     ensure_annot : bool;
     env_ty       : ty_fun Hf.t;
-    env_def      : 'info func list;
+    env_def      : ('info, 'asm) func list;
   }
 
 (* -----------------------------------------------------------*)
@@ -600,7 +600,7 @@ and ty_fun fenv fn =
   fty
 
 
-let ty_prog ~infer (prog:'info prog) fl =
+let ty_prog ~infer (prog:('info, 'asm) prog) fl =
   let prog = snd prog in
   let fenv = 
     { ensure_annot = not infer

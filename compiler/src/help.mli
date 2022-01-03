@@ -1,1 +1,1 @@
-val show_intrinsics : unit -> unit
+val show_intrinsics : 'asm Sopn.asmOp -> unit -> unit

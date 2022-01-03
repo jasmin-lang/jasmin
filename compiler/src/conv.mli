@@ -55,16 +55,16 @@ val get_iinfo   : 'info coq_tbl -> BinNums.positive -> L.i_loc * 'info * Syntax.
 
 val get_finfo   : 'info coq_tbl -> BinNums.positive -> L.t * f_annot * call_conv * Syntax.annotations list
 
-val cufdef_of_fdef : 'info coq_tbl -> 'info func -> BinNums.positive * X86_extra.x86_extended_op Expr._ufundef
-val fdef_of_cufdef : 'info coq_tbl -> BinNums.positive * X86_extra.x86_extended_op Expr._ufundef -> 'info func
+val cufdef_of_fdef : 'info coq_tbl -> ('info, 'asm) func -> BinNums.positive * 'asm Expr._ufundef
+val fdef_of_cufdef : 'info coq_tbl -> BinNums.positive * 'asm Expr._ufundef -> ('info, 'asm) func
 
-val cuprog_of_prog : var list -> 'info -> 'info prog -> 'info coq_tbl * X86_extra.x86_extended_op Expr._uprog
-val prog_of_cuprog : 'info coq_tbl -> X86_extra.x86_extended_op Expr._uprog -> 'info prog
+val cuprog_of_prog : var list -> 'info -> ('info, 'asm) prog -> 'info coq_tbl * 'asm Expr._uprog
+val prog_of_cuprog : 'info coq_tbl -> 'asm Expr._uprog -> ('info, 'asm) prog
 
-val csfdef_of_fdef : 'info coq_tbl -> 'info sfundef -> BinNums.positive * X86_extra.x86_extended_op Expr._sfundef
-val fdef_of_csfdef : 'info coq_tbl -> BinNums.positive * X86_extra.x86_extended_op Expr._sfundef -> 'info sfundef
+val csfdef_of_fdef : 'info coq_tbl -> ('info, 'asm) sfundef -> BinNums.positive * 'asm Expr._sfundef
+val fdef_of_csfdef : 'info coq_tbl -> BinNums.positive * 'asm Expr._sfundef -> ('info, 'asm) sfundef
 
-val prog_of_csprog : 'info coq_tbl -> X86_extra.x86_extended_op Expr._sprog -> 'info sprog
+val prog_of_csprog : 'info coq_tbl -> 'asm Expr._sprog -> ('info, 'asm) sprog
 
 val to_array : 
   Prog.ty -> BinNums.positive -> Warray_.WArray.array -> wsize * Z.t array

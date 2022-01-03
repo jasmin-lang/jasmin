@@ -575,7 +575,13 @@ module PIDynMake (PW : ProgWrap) : VDomWrap = struct
   (* We compute the dependency heuristic graph on the SSA transform of main.
      Precondition: [PW.main] must not contain function calls, and variables 
      must be uniquely characterized by their names. *)
-  let ssa_main, pa_res = FSPa.fs_pa_make PW.main 
+  let ssa_main, pa_res =
+    (* FIXME: code duplication! dirty hack *)
+    let is_move_op =
+      X86_params.x86_params.ap_is_move_op
+    in
+    let asmOp = Arch_extra.asm_opI X86_extra.x86_extra in
+    FSPa.fs_pa_make asmOp is_move_op PW.main
 
   (* We compute the reflexive and transitive clojure of dp *)
   let dp = trans_closure pa_res.pa_dp

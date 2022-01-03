@@ -1,5 +1,7 @@
 open Prog
 
-val split_live_ranges : bool -> 'info func -> unit func
+val split_live_ranges :
+  ('asm -> bool) ->
+  bool -> ('info, 'asm) func -> (unit, 'asm) func
 
-val remove_phi_nodes : 'info func -> 'info func
+val remove_phi_nodes : ('info, 'asm) func -> ('info, 'asm) func

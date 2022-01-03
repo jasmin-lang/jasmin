@@ -1,7 +1,6 @@
 open Utils
 open Prog
 open Regalloc
-open X86_params
 
 let pp_var = Printer.pp_var ~debug:true
 
@@ -86,14 +85,18 @@ let pp_oracle tbl up fmt saos =
     (pp_list "@;" (pp_slot tbl)) ao_global_alloc
     (pp_list "@;" pp_stack_alloc) fs
 
-let memory_analysis pp_err ~debug tbl is_move_op up =
+module StackAlloc (Arch: Arch_full.Arch) = struct
+
+module Regalloc = Regalloc (Arch)
+
+let memory_analysis pp_err ~debug tbl up =
   if debug then Format.eprintf "START memory analysis@.";
   let p = Conv.prog_of_cuprog tbl up in
-  let gao, sao = Varalloc.alloc_stack_prog p in
+  let gao, sao = Varalloc.alloc_stack_prog Arch.aparams.ap_is_move_op p in
   
   (* build coq info *)
   let crip = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip) in
-  let crsp = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp) in
+  let crsp = Var0.Var.vname (Conv.cvar_of_var tbl Arch.rsp_var) in
   let do_slots slots = 
     List.map (fun (x,ws,ofs) -> ((Conv.cvar_of_var tbl x, ws), Conv.cz_of_int ofs)) slots in                            
   let cglobs = do_slots gao.gao_slots in
@@ -160,21 +163,8 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
     Format.eprintf "%a@.@.@." (pp_oracle tbl up) saos
   end;
 
-  let mov_ofs = x86_params.ap_sap in
   let sp' = 
-    match
-      Stack_alloc.alloc_prog
-        U64
-        (Arch_extra.asm_opI X86_extra.x86_extra)
-        false
-        mov_ofs
-        crip
-        crsp
-        gao.gao_data
-        cglobs
-        cget_sao
-        up
-    with
+    match Stack_alloc.alloc_prog U64 Arch.asmOp false Arch.aparams.ap_sap crip crsp gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (pp_err tbl) tbl e in
@@ -184,22 +174,22 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
   
   if debug then
     Format.eprintf "After memory analysis@.%a@."
-      (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
+      (Printer.pp_prog ~debug:true Arch.asmOp) ([], (List.map snd fds));
   
   (* remove unused result *)
-  let tokeep = RemoveUnusedResults.analyse fds in
+  let tokeep = RemoveUnusedResults.analyse Arch.aparams.ap_is_move_op fds in
   let tokeep fn = tokeep (Conv.fun_of_cfun tbl fn) in
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef tbl fd in
     let fd = 
-      match Dead_code.dead_code_fd (Arch_extra.asm_opI X86_extra.x86_extra) is_move_op false tokeep fn cfd with
+      match Dead_code.dead_code_fd Arch.asmOp Arch.aparams.ap_is_move_op false tokeep fn cfd with
       | Utils0.Ok cfd -> Conv.fdef_of_cufdef tbl (fn, cfd) 
       | Utils0.Error _ -> assert false in 
     (extra,fd) in
   let fds = List.map deadcode fds in
   if debug then
     Format.eprintf "After remove unused return @.%a@."
-      (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
+      (Printer.pp_prog ~debug:true Arch.asmOp) ([], (List.map snd fds));
   
   (* register allocation *)
   let translate_var = Conv.var_of_cvar tbl in
@@ -214,7 +204,7 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
     let to_save = if fd.f_cc = Export then ro.ro_to_save else [] in
     let has_stack = has_stack fd || to_save <> [] in
     let rastack = odfl OnReg fd.f_annot.retaddr_kind = OnStack in
-    let rsp = V.clone rsp in
+    let rsp = V.clone Arch.rsp_var in
     let ra = V.mk "RA" (Stack Direct) u64 L._dummy [] in
     let extra =
       let extra = to_save in
@@ -297,3 +287,5 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
   end;
 
   saos
+
+end

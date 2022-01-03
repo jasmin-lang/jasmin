@@ -34,7 +34,7 @@ type analyzer_param = {
 }
 
 (*------------------------------------------------------------*)
-val get_fun_def : 'a * ('b, 'c) gfunc list -> funname -> ('b, 'c) gfunc option
+val get_fun_def : 'a * ('b, 'c, 'asm) gfunc list -> funname -> ('b, 'c, 'asm) gfunc option
 
 (*------------------------------------------------------------*)
 val wsize_of_int : int -> Wsize.wsize

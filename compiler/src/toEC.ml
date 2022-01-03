@@ -659,10 +659,6 @@ let pp_ret env fmt xs =
   Format.fprintf fmt "@[return (%a);@]"
     (pp_list ",@ " (fun fmt x -> pp_ovar env fmt (L.unloc x))) xs
 
-let pp_opn fmt op =
-  let s = Printer.pp_opn op in
-  Format.fprintf fmt "%s" s
-
 let pp_lval1 env pp_e fmt (lv, (ety, e)) = 
   let lty = ty_lval lv in
   let pp_e fmt e = pp_e fmt (lty, ety, e) in
@@ -758,15 +754,15 @@ let base_op = function
   | Sopn.Oasm (Arch_extra.BaseOp (_, o)) -> Sopn.Oasm (Arch_extra.BaseOp(None,o))
   | o -> o
 
-let ty_sopn op = 
+let ty_sopn asmOp op = 
   match op with
   (* Do a special case for copy since the Coq type loose information  *)
   | Sopn.Ocopy(ws, p) ->  
     let l = [Arr(ws, Conv.int_of_pos p)] in
     l, l
   | _ ->
-    List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op), 
-    List.map Conv.ty_of_cty (Sopn.sopn_tin (Arch_extra.asm_opI X86_extra.x86_extra) op)
+    List.map Conv.ty_of_cty (Sopn.sopn_tout asmOp op),
+    List.map Conv.ty_of_cty (Sopn.sopn_tin asmOp op)
 
 module Normal = struct  
 
@@ -780,15 +776,15 @@ module Normal = struct
     | [lv] -> begin match lv with Lvar _ -> true | _ -> false end
     | _ -> all_vars lvs 
 
-  let rec init_aux_i env i = 
+  let rec init_aux_i asmOp env i = 
     match i.i_desc with
     | Cassgn _ -> env
-    | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux (init_aux env c1) c2
-    | Cfor(_,_,c) -> init_aux (add_aux env [tint]) c
+    | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux asmOp (init_aux asmOp env c1) c2
+    | Cfor(_,_,c) -> init_aux asmOp (add_aux env [tint]) c
     | Copn (lvs, _, op, _) -> 
       if List.length lvs = 1 then env 
       else
-        let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op) in
+        let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout asmOp op) in
         let ltys = List.map ty_lval lvs in
         if all_vars lvs && ltys = tys then env
         else add_aux env tys
@@ -800,7 +796,7 @@ module Normal = struct
         if (check_lvals lvs && ltys = tys) then env
         else add_aux env tys
    
-  and init_aux env c = List.fold_left init_aux_i env c
+  and init_aux asmOp env c = List.fold_left (init_aux_i asmOp) env c
 
   let pp_assgn_i env fmt lv ((etyo, etyi), aux) =
     let pp_e fmt aux =
@@ -817,11 +813,11 @@ module Normal = struct
       Format.fprintf fmt "@[%a %a;@]" pp_aux_lvs auxs pp a;
       let tyauxs = List.combine (List.combine etyso etysi) auxs in
       List.iter2 (pp_assgn_i env fmt) lvs tyauxs
-  
-   let rec pp_cmd env fmt c =
-    Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr env)) c
 
-  and pp_instr env fmt i = 
+  let rec pp_cmd asmOp env fmt c =
+    Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr asmOp env)) c
+
+  and pp_instr asmOp env fmt i =
     match i.i_desc with 
     | Cassgn (lv, _, _ty, e) ->
       let pp_e = pp_cast env (pp_expr env) in
@@ -829,11 +825,11 @@ module Normal = struct
 
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
-         (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = ty_sopn op in
-      let otys', _ = ty_sopn op' in  
+      (* Since we do not have merge for the moment only the output type can change *)
+      let otys,itys = ty_sopn asmOp op in
+      let otys', _ = ty_sopn asmOp op' in  
       let pp_e fmt (op,es) = 
-        Format.fprintf fmt "%a %a" pp_opn op 
+        Format.fprintf fmt "%a %a" (Printer.pp_opn asmOp) op
           (pp_list "@ " (pp_wcast env)) (List.combine itys es) in
       if List.length lvs = 1 then
         let pp_e fmt (op, es) =
@@ -858,11 +854,11 @@ module Normal = struct
 
     | Cif(e,c1,c2) ->
       Format.fprintf fmt "@[<v>if (%a) {@   %a@ } else {@   %a@ }@]"
-        (pp_expr env) e (pp_cmd env) c1 (pp_cmd env) c2
+        (pp_expr env) e (pp_cmd asmOp env) c1 (pp_cmd asmOp env) c2
       
     | Cwhile(_, c1, e,c2) ->
       Format.fprintf fmt "@[<v>%a@ while (%a) {@   %a@ }@]"
-        (pp_cmd env) c1 (pp_expr env) e (pp_cmd env) (c2@c1)
+        (pp_cmd asmOp env) c1 (pp_expr env) e (pp_cmd asmOp env) (c2@c1)
       
     | Cfor(i, (d,e1,e2), c) ->
       (* decreasing for loops have bounds swaped *)
@@ -886,7 +882,7 @@ module Normal = struct
         pp_init () 
         pp_i () (pp_expr env) e1 
         pp_i1 () pp_i2 ()
-        (pp_cmd env) c
+        (pp_cmd asmOp env) c
         pp_i () pp_i () (if d = UpTo then "+" else "-")
 
 end
@@ -957,8 +953,8 @@ module Leak = struct
 
   let safe_es env = List.fold_left (safe_e_rec env) []
 
-  let safe_opn env safe opn es = 
-    let id = Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) opn in
+  let safe_opn asmOp env safe opn es = 
+    let id = Sopn.get_instr_desc asmOp opn in
     List.pmap (fun c ->
         match c with
         | Wsize.NotZero(sz, i) ->
@@ -1011,11 +1007,11 @@ module Leak = struct
     | Safety -> pp_safe_cond env fmt (safe_es env es)
     | _ -> ()
     
-  let pp_leaks_opn env fmt op es = 
+  let pp_leaks_opn asmOp env fmt op es = 
     match env.model with
     | ConstantTime -> pp_leaks env fmt (leaks_es es)
     | Safety -> 
-      let conds = safe_opn env (safe_es env es) op es in
+      let conds = safe_opn asmOp env (safe_es env es) op es in
       pp_safe_cond env fmt conds 
     | Normal -> ()
 
@@ -1096,10 +1092,10 @@ module Leak = struct
     let tyauxs = List.combine (List.combine etyso etysi) auxs in
     List.iter2 (pp_assgn_i env fmt) lvs tyauxs
         
-  let rec pp_cmd env fmt c = 
-    Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr env)) c
+  let rec pp_cmd asmOp env fmt c =
+    Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr asmOp env)) c
 
-  and pp_instr env fmt i = 
+  and pp_instr asmOp env fmt i =
     match i.i_desc with 
     | Cassgn (lv, _, _, e) ->
       pp_leaks_e env fmt e;
@@ -1110,12 +1106,12 @@ module Leak = struct
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = ty_sopn op in 
-      let otys', _ = ty_sopn op' in 
+      let otys,itys = ty_sopn asmOp op in 
+      let otys', _ = ty_sopn asmOp op' in 
       let pp fmt (op, es) = 
-        Format.fprintf fmt "<- %a %a" pp_opn op 
+        Format.fprintf fmt "<- %a %a" (Printer.pp_opn asmOp) op
           (pp_list "@ " (pp_wcast env)) (List.combine itys es) in
-      pp_leaks_opn env fmt op' es;
+      pp_leaks_opn asmOp env fmt op' es;
       pp_call env fmt lvs otys otys' pp (op, es)
       
     | Ccall(_, lvs, f, es) ->
@@ -1133,14 +1129,14 @@ module Leak = struct
     | Cif(e,c1,c2) ->
       pp_leaks_if env fmt e;
       Format.fprintf fmt "@[<v>if (%a) {@   %a@ } else {@   %a@ }@]"
-        (pp_expr env) e (pp_cmd env) c1 (pp_cmd env) c2
+        (pp_expr env) e (pp_cmd asmOp env) c1 (pp_cmd asmOp env) c2
       
     | Cwhile(_, c1, e,c2) ->
       let pp_leak fmt e = 
         Format.fprintf fmt "@ %a" (pp_leaks_if env) e in
       Format.fprintf fmt "@[<v>%a%a@ while (%a) {@   %a%a@ }@]"
-        (pp_cmd env) c1 pp_leak e (pp_expr env) e 
-        (pp_cmd env) (c2@c1) pp_leak e
+        (pp_cmd asmOp env) c1 pp_leak e (pp_expr env) e
+        (pp_cmd asmOp env) (c2@c1) pp_leak e
 
     | Cfor(i, (d,e1,e2), c) ->
       pp_leaks_for env fmt e1 e2;
@@ -1171,7 +1167,7 @@ module Leak = struct
         pp_init () 
         pp_i () (pp_expr env) e1 
         pp_i1 () pp_i2 ()
-        (pp_cmd env1) c
+        (pp_cmd asmOp env1) c
         pp_i () pp_i () (if d = UpTo then "+" else "-")
         pp_restore ()
 
@@ -1187,14 +1183,14 @@ let pp_safe_ret env fmt xs =
     let es = List.map (fun x -> Pvar (gkvar x)) xs in
     Leak.pp_safe_cond env fmt (Leak.safe_es env es)
 
-let pp_fun env fmt f = 
+let pp_fun asmOp env fmt f =
   let locals = Sv.elements (locals f) in
   (* initialize the env *)
   let env = List.fold_left (add_var false) env f.f_args in
   let env = List.fold_left (add_var (for_safety env)) env locals in  
   (* init auxiliary variables *) 
   let env = 
-    if env.model = Normal then Normal.init_aux env f.f_body
+    if env.model = Normal then Normal.init_aux asmOp env f.f_body
     else Leak.init_aux env f.f_body in
 
   (* Print the function *)
@@ -1210,7 +1206,7 @@ let pp_fun env fmt f =
     (pp_rty env) f.f_tyout
     pp_aux env
     (pp_locals env) locals
-    (pp_cmd env) f.f_body
+    (pp_cmd asmOp env) f.f_body
     (pp_safe_ret env) f.f_ret 
     (pp_ret env) f.f_ret
 
@@ -1270,7 +1266,7 @@ let add_glob_arrsz env (x,d) =
     env.warrsz := Sint.add (arr_size ws n) !(env.warrsz); 
     env
 
-let pp_prog fmt model globs funcs arrsz warrsz = 
+let pp_prog asmOp fmt model globs funcs arrsz warrsz =
 
   let env = empty_env model funcs arrsz warrsz in
   
@@ -1304,7 +1300,7 @@ let pp_prog fmt model globs funcs arrsz warrsz =
     (pp_arrays "WArray") !(env.warrsz)
     (pp_list "@ @ " (pp_glob_decl env)) globs 
     pp_leakages env 
-    (pp_list "@ @ " (pp_fun env)) funcs 
+    (pp_list "@ @ " (pp_fun asmOp env)) funcs
     
 let rec used_func f = 
   used_func_c Ss.empty f.f_body 
@@ -1320,7 +1316,7 @@ and used_func_i used i =
   | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2
   | Ccall (_,_,f,_)   -> Ss.add f.fn_name used
 
-let extract fmt model ((globs,funcs):'a prog) tokeep = 
+let extract asmOp fmt model ((globs,funcs):('info, 'asm) prog) tokeep =
   let funcs = List.map Regalloc.fill_in_missing_names funcs in
   let tokeep = ref (Ss.of_list tokeep) in
   let dofun f = 
@@ -1332,7 +1328,6 @@ let extract fmt model ((globs,funcs):'a prog) tokeep =
   let warrsz = ref Sint.empty in
   (* Do first a dummy printing to collect the Arrayi WArrayi *)
   let dummy_fmt = Format.make_formatter (fun _ _ _ -> ()) (fun _ -> ()) in 
-  pp_prog dummy_fmt model globs funcs arrsz warrsz;
-  pp_prog       fmt model globs funcs arrsz warrsz
-
+  pp_prog asmOp dummy_fmt model globs funcs arrsz warrsz;
+  pp_prog asmOp       fmt model globs funcs arrsz warrsz
 

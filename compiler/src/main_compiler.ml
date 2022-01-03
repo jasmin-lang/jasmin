@@ -5,8 +5,6 @@ open Glob_options
 (* -------------------------------------------------------------------- *)
 exception UsageError
 
-let aparams = X86_params.x86_params
-
 let parse () =
   let error () = raise UsageError in
   let set_in s =
@@ -29,39 +27,39 @@ let parse () =
 let saved_extra_free_registers : (L.i_loc -> var option) ref = ref (fun _ -> None)
 
 (* -------------------------------------------------------------------- *)
-let rec warn_extra_i i = 
+let rec warn_extra_i asmOp i =
   match i.i_desc with
   | Cassgn (_, tag, _, _) | Copn (_, tag, _, _) ->
     begin match tag with
     | AT_rename ->
       warning ExtraAssignment i.i_loc
         "@[<v>extra assignment introduced:@;<0 2>%a@]"
-        (Printer.pp_instr ~debug:false) i
+        (Printer.pp_instr ~debug:false asmOp) i
     | AT_inline ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
         "@[<v>AT_inline flag remains in instruction:@;<0 2>@[%a@]@]"
-        (Printer.pp_instr ~debug:false) i
+        (Printer.pp_instr ~debug:false asmOp) i
     | _ -> ()
     end
   | Cif(_, c1, c2) | Cwhile(_,c1,_,c2) ->
-    List.iter warn_extra_i c1;
-    List.iter warn_extra_i c2;
+    List.iter (warn_extra_i asmOp) c1;
+    List.iter (warn_extra_i asmOp) c2;
   | Cfor _ ->
     hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
       "for loop remains"
   | Ccall _ -> ()
 
-let warn_extra_fd (_, fd) =
-  List.iter warn_extra_i fd.f_body
- 
+let warn_extra_fd asmOp (_, fd) =
+  List.iter (warn_extra_i asmOp) fd.f_body
+
 (* -------------------------------------------------------------------- *)
-let check_safety_p s p source_p =
+let check_safety_p asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
       Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
                       %a@;@]@."
         s1 s2
-        (Printer.pp_prog ~debug:true) p
+        (Printer.pp_prog ~debug:true asmOp) p
   in
 
   let () = SafetyConfig.pp_current_config_diff () in
@@ -75,18 +73,33 @@ let check_safety_p s p source_p =
           let source_f_decl = List.find (fun source_f_decl ->
               f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
             ) (snd source_p) in
-          let module AbsInt = SafetyInterpreter.AbsAnalyzer(struct
-              let main_source = source_f_decl
-              let main = f_decl
-              let prog = p
-            end) in
-
-          AbsInt.analyze ())
+          analyze source_f_decl f_decl p)
       (List.rev (snd p)) in
   ()
 
 (* -------------------------------------------------------------------- *)
 let main () =
+
+  let lowering_vars tbl = X86_lowering.(
+    let f ty n = 
+      let v = V.mk n (Reg Direct) ty L._dummy [] in
+      Conv.cvar_of_var tbl v in
+    let b = f tbool in
+    { fresh_OF = (b "OF").vname
+    ; fresh_CF = (b "CF").vname
+    ; fresh_SF = (b "SF").vname
+    ; fresh_PF = (b "PF").vname
+    ; fresh_ZF = (b "ZF").vname
+    ; fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname)
+    }) in
+  let lowering_opt =
+    X86_lowering.{ use_lea = !Glob_options.lea;
+                   use_set0 = !Glob_options.set0; } in
+  let (module Ocaml_params : Arch_full.Core_arch) = if true then (module X86_arch_full.X86 (struct let lowering_vars = lowering_vars let lowering_opt = lowering_opt end)) else assert false in
+  let module Arch = Arch_full.Arch_from_Core_arch (Ocaml_params) in
+  let module Regalloc = Regalloc.Regalloc (Arch) in
+  let module StackAlloc = StackAlloc.StackAlloc (Arch) in
+
   try
     parse();
 
@@ -97,7 +110,7 @@ let main () =
       exit 0);
 
     if !help_intrinsics
-    then (Help.show_intrinsics (); exit 0);
+    then (Help.show_intrinsics Arch.asmOp_sopn (); exit 0);
 
     if !help_version
     then (Format.printf "%s@." version_string; exit 0);
@@ -112,7 +125,7 @@ let main () =
       try 
         let env = Pretyping.Env.empty in
         let env = List.fold_left Pretyping.Env.add_from env !Glob_options.idirs in
-        Pretyping.tt_program env fname
+        Pretyping.tt_program Arch.asmOp_sopn env fname
       with
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
       | Syntax.ParseError (loc, msg) ->
@@ -139,14 +152,14 @@ let main () =
       if !debug then Format.eprintf "Pretty printed to LATEX@."
     end;
   
-    eprint Compiler.Typing Printer.pp_pprog pprog;
+    eprint Compiler.Typing (Printer.pp_pprog Arch.asmOp) pprog;
 
     let prog = Subst.remove_params pprog in
 
     let prog =
       begin try
         let prog = Insert_copy_and_fix_length.doit prog in
-        Typing.check_prog prog;
+        Typing.check_prog Arch.asmOp prog;
         prog
       with Typing.TyError(loc, code) ->
         hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
@@ -166,10 +179,10 @@ let main () =
     *)
     let visit_prog_after_pass ~debug s p =
       if s = SafetyConfig.sc_comp_pass () && !check_safety then
-        check_safety_p s p source_prog
+        check_safety_p Arch.asmOp Arch.analyze s p source_prog
         |> donotcompile
       else
-        eprint s (Printer.pp_prog ~debug) p in
+        eprint s (Printer.pp_prog ~debug Arch.asmOp) p in
 
     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 
@@ -183,7 +196,7 @@ let main () =
       begin try
         BatPervasives.finally
           (fun () -> close ())
-          (fun () -> ToEC.extract fmt !model prog !ec_list)
+          (fun () -> ToEC.extract Arch.asmOp fmt !model prog !ec_list)
           ()
       with e ->
         BatPervasives.ignore_exceptions
@@ -201,7 +214,7 @@ let main () =
     if !do_compile then begin
   
     (* Now call the coq compiler *)
-    let all_vars = Prog.rip :: Regalloc.X64.all_registers in
+    let all_vars = Prog.rip :: Arch.all_registers in
     let tbl, cprog = Conv.cuprog_of_prog all_vars () prog in
 
     if !debug then Printf.eprintf "translated to coq \n%!";
@@ -216,9 +229,27 @@ let main () =
               (pp_list ",@ " pp_range) m;
             let _m, vs =
               (** TODO: allow to configure the initial stack pointer *)
-              let live = List.map (fun (ptr, sz) -> Conv.int64_of_z ptr, Conv.cz_of_z sz) m in
-              (match (Low_memory.Memory.coq_M U64).init live (Conv.int64_of_z (Z.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
-              Evaluator.exec (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) (Conv.cfun_of_fun tbl f) in
+
+              let live =
+                List.map
+                  (fun (ptr, sz) -> Conv.int64_of_z ptr, Conv.cz_of_z sz)
+                  m
+              in
+              let m_init =
+                (Low_memory.Memory.coq_M U64).init
+                  live
+                  (Conv.int64_of_z (Z.of_string "1024"))
+              in
+              (match m_init with
+                 | Utils0.Ok m -> m
+                 | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err)))
+              |>
+              Evaluator.exec
+                Arch.asmOp
+                (Expr.to_uprog Arch.asmOp cprog)
+                (Conv.cfun_of_fun tbl f)
+            in
+
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs;
             Format.printf "*/@."
@@ -228,20 +259,6 @@ let main () =
         in
         List.iter exec to_exec
       end;
-
-
-    let lowering_vars = X86_lowering.(
-        let f ty n = 
-          let v = V.mk n (Reg Direct) ty L._dummy [] in
-          Conv.cvar_of_var tbl v in
-        let b = f tbool in
-        { fresh_OF = (b "OF").vname
-        ; fresh_CF = (b "CF").vname
-        ; fresh_SF = (b "SF").vname
-        ; fresh_PF = (b "PF").vname
-        ; fresh_ZF = (b "ZF").vname
-        ; fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname)
-        }) in
 
     let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef tbl (fn,cfd) in
     let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef tbl fd) in
@@ -256,9 +273,8 @@ let main () =
     let translate_var = Conv.var_of_cvar tbl in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      let is_move_op = aparams.ap_is_move_op in
-      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl is_move_op up
-     in
+      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl up
+    in
 
     let global_regalloc fds =
       if !debug then Format.eprintf "START regalloc@.";
@@ -319,10 +335,10 @@ let main () =
 
     let pp_csprog fmt cp =
       let p = Conv.prog_of_csprog tbl cp in
-      Printer.pp_sprog ~debug:true tbl fmt p in
+      Printer.pp_sprog ~debug:true tbl Arch.asmOp fmt p in
 
     let pp_linear fmt lp =
-      PrintLinear.pp_prog tbl fmt lp in
+      PrintLinear.pp_prog Arch.asmOp tbl fmt lp in
 
     let rename_fd ii fn cfd =
       let ii, _, _ = Conv.get_iinfo tbl ii in
@@ -379,7 +395,7 @@ let main () =
 
     let removereturn sp = 
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
-      let tokeep = RemoveUnusedResults.analyse  fds in 
+      let tokeep = RemoveUnusedResults.analyse Arch.aparams.ap_is_move_op fds in
       let tokeep fn = tokeep (Conv.fun_of_cfun tbl fn) in
       tokeep in
 
@@ -398,7 +414,7 @@ let main () =
     let warn_extra s p =
       if s = Compiler.DeadCode_RegAllocation then
         let (fds, _) = Conv.prog_of_csprog tbl p in
-        List.iter warn_extra_fd fds in
+        List.iter (warn_extra_fd Arch.asmOp) fds in
 
     let cparams = {
       Compiler.rename_fd    = rename_fd;
@@ -406,7 +422,7 @@ let main () =
       Compiler.split_live_ranges_fd = apply "split live ranges" split_live_ranges_fd;
       Compiler.renaming_fd = apply "alloc inline assgn" renaming_fd;
       Compiler.remove_phi_nodes_fd = apply "remove phi nodes" remove_phi_nodes_fd;
-      Compiler.stack_register_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp);
+      Compiler.stack_register_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Arch.rsp_var);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
       Compiler.stackalloc    = memory_analysis;
       Compiler.removereturn  = removereturn;
@@ -415,7 +431,7 @@ let main () =
         let loc, _, _ = Conv.get_iinfo tbl ii in
         !saved_extra_free_registers loc |> omap (Conv.cvar_of_var tbl)
       );
-      Compiler.lowering_vars = lowering_vars;
+      Compiler.lowering_vars = Arch.lowering_vars tbl;
       Compiler.is_var_in_memory = is_var_in_memory;
       Compiler.print_uprog  = (fun s p -> pp_cuprog s p; p);
       Compiler.print_sprog  = (fun s p -> warn_extra s p;
@@ -423,8 +439,7 @@ let main () =
       Compiler.print_linear = (fun s p -> eprint s pp_linear p; p);
       Compiler.warning      = warning;
       Compiler.inline_var   = inline_var;
-      Compiler.lowering_opt = X86_lowering.{ use_lea = !Glob_options.lea;
-                                             use_set0 = !Glob_options.set0; };
+      Compiler.lowering_opt = Arch.lowering_opt;
       Compiler.is_glob     = is_glob;
       Compiler.fresh_id    = fresh_id;
       Compiler.fresh_counter = fresh_counter;
@@ -447,12 +462,12 @@ let main () =
 
     begin match
       Compiler.compile_prog_to_asm
-        X86_extra.x86_extra
-        X86_params.x86_params
+        Arch.asm_e
+        Arch.aparams
         cparams
         export_functions
         subroutines
-        (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog)
+        (Expr.to_uprog Arch.asmOp cprog)
       with
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
@@ -461,10 +476,10 @@ let main () =
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->
           let fmt = BatFormat.formatter_of_out_channel out in
-          Format.fprintf fmt "%a%!" (Ppasm.pp_prog tbl) asm);
+          Format.fprintf fmt "%a%!" (Arch.pp_asm tbl) asm);
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
-          Format.printf "%a%!" (Ppasm.pp_prog tbl) asm
+          Format.printf "%a%!" (Arch.pp_asm tbl) asm
     end
     end
   with

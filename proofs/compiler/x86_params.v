@@ -443,15 +443,8 @@ Defined.
 (* ------------------------------------------------------------------------ *)
 (* Assembly generation hypotheses. *)
 
-Section ASM_GEN.
-
 (* FIXME: Is there a way of avoiding this import? *)
 Import arch_sem.
-
-Context
-  (lp : lprog)
-  (xp : asm_prog)
-  (ok_xp : assemble_prog x86_agparams lp = ok xp).
 
 Lemma not_condtP (c : cond_t) rf b :
   eval_cond rf c = ok b -> eval_cond rf (not_condt c) = ok (negb b).
@@ -710,8 +703,6 @@ Transparent eval_arg_in_v check_i_args_kinds.
   move=> f v''; rewrite /get_var /on_vu /=.
   by rewrite Fv.setP_neq //; apply h4.
 Qed.
-
-End ASM_GEN.
 
 Definition x86_hagparams : h_asm_gen_params (ap_agp x86_params) :=
   {|

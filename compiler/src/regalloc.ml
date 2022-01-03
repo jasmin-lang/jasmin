@@ -16,7 +16,7 @@ let make_counter () =
     n),
   (fun () -> !count)
 
-let fill_in_missing_names (f: 'info func) : 'info func =
+let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
   let fresh_name : L.t -> ty -> var_i =
     let fresh, _ = make_counter () in
     fun loc ty ->
@@ -94,9 +94,9 @@ let find_var outs ins ap : _ option =
         | Pvar v -> if is_gkvar v then Some v.gv else None
         | _ -> None)
 
-let x86_equality_constraints ~loc (int_of_var: var_i -> int option) (k: int -> int -> unit)
+let asm_equality_constraints ~loc asmop is_move_op (int_of_var: var_i -> int option) (k: int -> int -> unit)
     (k': int -> int -> unit)
-    (lvs: 'ty glvals) (op: X86_extra.x86_extended_op sopn) (es: 'ty gexprs) : unit =
+    (lvs: 'ty glvals) (op: 'asm sopn) (es: 'ty gexprs) : unit =
   let assert_compatible_types x y =
     if types_cannot_conflict (L.unloc x).v_ty (L.unloc y).v_ty then
       hierror_reg ~loc "Variables %a and %a must be merged due to architectural constraints but have incompatible types"
@@ -113,11 +113,11 @@ let x86_equality_constraints ~loc (int_of_var: var_i -> int option) (k: int -> i
        | Some j -> k i j
   in
   begin match op, lvs, es with
-  | Oasm (BaseOp (None, MOV _)), [ Lvar x ], [ Pvar y ] when is_gkvar y &&
+  | Oasm op, [ Lvar x ], [ Pvar y ] when is_move_op op && is_gkvar y &&
                                               kind_i x = kind_i y.gv ->
     merge k' x y.gv
   | _, _, _ ->
-    let id = get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) op in
+    let id = get_instr_desc asmop op in
       find_equality_constraints id |>
       List.iter (fun constr ->
           constr |>
@@ -129,18 +129,18 @@ let x86_equality_constraints ~loc (int_of_var: var_i -> int option) (k: int -> i
   end
 
 (* Set of instruction information for each variable equivalence class. *)
-type 'info trace = (int, 'info instr list) Hashtbl.t
+type ('info, 'asm) trace = (int, ('info, 'asm) instr list) Hashtbl.t
 
-let pp_trace (i: int) fmt (tr: 'info trace) =
+let pp_trace asmOp (i: int) fmt (tr: ('info, 'asm) trace) =
   let j = try Hashtbl.find tr i with Not_found -> [] in
   let pp_i fmt i =
     Format.fprintf fmt "@[<v>at %a:@;<1 2>%a@]"
       L.pp_iloc i.i_loc
-      (Printer.pp_instr ~debug:true) i
+      (Printer.pp_instr ~debug:true asmOp) i
   in
   Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_i) j
 
-let normalize_trace (eqc: Puf.t) (tr: 'info instr list array) : 'info trace =
+let normalize_trace (eqc: Puf.t) (tr: ('info, 'asm) instr list array) : ('info, 'asm) trace =
   let tbl = Hashtbl.create 97 in
   let old i = try Hashtbl.find tbl i with Not_found -> [] in
   let union x y = List.sort_uniq compare (List.rev_append x y) in
@@ -160,16 +160,18 @@ let set_friend i j (f: friend) : friend =
   |> IntMap.modify_def IntSet.empty i (IntSet.add j)
   |> IntMap.modify_def IntSet.empty j (IntSet.add i)
 
-type 'info collect_equality_constraints_state =
-  { mutable cac_friends : friend; mutable cac_eqc: Puf.t ; cac_trace: 'info instr list array }
+type ('info, 'asm) collect_equality_constraints_state =
+  { mutable cac_friends : friend; mutable cac_eqc: Puf.t ; cac_trace: ('info, 'asm) instr list array }
 
 let collect_equality_constraints_in_func
-      ~(with_call_sites: (funname -> 'info func) option)
+      (asmop:'asm Sopn.asmOp)
+      is_move_op
+      ~(with_call_sites: (funname -> ('info, 'asm) func) option)
       (msg: string)
       (int_of_var: var_i -> int option)
       copn_constraints
-      (s: 'info collect_equality_constraints_state)
-      (f: 'info func)
+      (s: ('info, 'asm) collect_equality_constraints_state)
+      (f: ('info, 'asm) func)
     : unit
   =
   let add ii x y =
@@ -185,7 +187,7 @@ let collect_equality_constraints_in_func
   let rec collect_instr_r ii =
     function
     | Cfor (_, _, s) -> collect_stmt s
-    | Copn (lvs, _, op, es) -> copn_constraints ~loc:(Lmore ii.i_loc) int_of_var (add ii) addf lvs op es
+    | Copn (lvs, _, op, es) -> copn_constraints ~loc:(Lmore ii.i_loc) asmop is_move_op int_of_var (add ii) addf lvs op es
     | Cassgn (Lvar x, AT_phinode, _, Pvar y) when
           is_gkvar y && kind_i x = kind_i y.gv ->
        addv ii x y.gv
@@ -232,30 +234,34 @@ let normalize_friend (eqc: Puf.t) (fr: friend) : friend =
     ) fr
 
 let collect_equality_constraints
+    asmop
+    is_move_op
     (msg: string)
     copn_constraints
     (tbl: int Hv.t)
     (nv: int)
-    (f: 'info func) : Puf.t * 'info trace * friend =
+    (f: ('info, 'asm) func) : Puf.t * ('info, 'asm) trace * friend =
   let int_of_var x = Hv.find_option tbl (L.unloc x) in
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
-  collect_equality_constraints_in_func ~with_call_sites:None msg int_of_var copn_constraints s f;
+  collect_equality_constraints_in_func asmop is_move_op ~with_call_sites:None msg int_of_var copn_constraints s f;
   let eqc = s.cac_eqc in
   eqc, normalize_trace eqc s.cac_trace, normalize_friend eqc s.cac_friends
 
 let collect_equality_constraints_in_prog
+      asmop
+      is_move_op
       (msg: string)
       copn_constraints
       (tbl: int Hv.t)
       (nv: int)
-      (f: 'info func list) : Puf.t * 'info trace * friend =
+      (f: ('info, 'asm) func list) : Puf.t * ('info, 'asm) trace * friend =
   let int_of_var x = Hv.find_option tbl (L.unloc x) in
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
   let tbl = Hf.create 17 in
   let get_var n = Hf.find tbl n in
   let () = List.fold_right (fun f () ->
                Hf.add tbl f.f_name f;
-               collect_equality_constraints_in_func ~with_call_sites:(Some get_var) msg int_of_var copn_constraints s f)
+               collect_equality_constraints_in_func asmop is_move_op ~with_call_sites:(Some get_var) msg int_of_var copn_constraints s f)
              f ()
   in
   let eqc = s.cac_eqc in
@@ -309,7 +315,7 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   in
   fun a -> loop a e
 
-let conflicts_add_one tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
+let conflicts_add_one asmOp tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
   if types_cannot_conflict v.v_ty w.v_ty then c else
   try
     let i = Hv.find tbl v in
@@ -317,13 +323,13 @@ let conflicts_add_one tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
     if i = j then hierror_reg ~loc:loc "conflicting variables “%a” and “%a” must be merged due to:@;<1 2>%a"
                     (Printer.pp_var ~debug:true) v
                     (Printer.pp_var ~debug:true) w
-                    (pp_trace i) tr;
+                    (pp_trace asmOp i) tr;
     c |> add_conflicts i j |> add_conflicts j i
   with Not_found -> c
 
-let collect_conflicts
-      (tbl: int Hv.t) (tr: 'info trace) (f: (Sv.t * Sv.t) func) (c: conflicts) : conflicts =
-  let add_one = conflicts_add_one tbl tr in
+let collect_conflicts asmOp
+      (tbl: int Hv.t) (tr: ('info, 'asm) trace) (f: (Sv.t * Sv.t, 'asm) func) (c: conflicts) : conflicts =
+  let add_one = conflicts_add_one asmOp tbl tr in
   let add (c: conflicts) loc ((i, j): (Sv.t * Sv.t)) : conflicts =
     c
     |> conflicts_in i (add_one loc)
@@ -345,7 +351,7 @@ let collect_conflicts
   and collect_stmt c s = List.fold_left collect_instr c s in
   collect_stmt c f.f_body
 
-let iter_variables (cb: var -> unit) (f: 'info func) : unit =
+let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
   let iter_sv = Sv.iter cb in
   let iter_lv lv = vars_lv Sv.empty lv |> iter_sv in
   let iter_lvs lvs = List.fold_left vars_lv Sv.empty lvs |> iter_sv in
@@ -371,18 +377,18 @@ let collect_variables_cb ~(allvars: bool) (excluded: Sv.t) (fresh: unit -> int) 
       let n = fresh () in
       Hv.add tbl v n
 
-let collect_variables_aux ~(allvars: bool) (excluded: Sv.t) (fresh: unit -> int) (tbl: int Hv.t) (extra: var option) (f: 'info func) : unit =
+let collect_variables_aux ~(allvars: bool) (excluded: Sv.t) (fresh: unit -> int) (tbl: int Hv.t) (extra: var option) (f: ('info, 'asm) func) : unit =
   let get v = collect_variables_cb ~allvars excluded fresh tbl v in
   iter_variables get f;
   match extra with Some x -> get x | None -> ()
 
-let collect_variables ~(allvars: bool) (excluded:Sv.t) (f: 'info func) : int Hv.t * int =
+let collect_variables ~(allvars: bool) (excluded:Sv.t) (f: ('info, 'asm) func) : int Hv.t * int =
   let fresh, total = make_counter () in
   let tbl : int Hv.t = Hv.create 97 in
   collect_variables_aux ~allvars excluded fresh tbl None f;
   tbl, total ()
 
-let collect_variables_in_prog ~(allvars: bool) (excluded:Sv.t) (extra: var Hf.t) (extras: ('k, var) Hashtbl.t) (f: 'info func list) : int Hv.t * int =
+let collect_variables_in_prog ~(allvars: bool) (excluded:Sv.t) (extra: var Hf.t) (extras: ('k, var) Hashtbl.t) (f: ('info, 'asm) func list) : int Hv.t * int =
   let fresh, total = make_counter () in
   let tbl : int Hv.t = Hv.create 97 in
   List.iter (fun f -> collect_variables_aux ~allvars excluded fresh tbl (Hf.Exceptionless.find extra f.f_name) f) f;
@@ -445,7 +451,65 @@ let allocate_one nv vars loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.a
          (Printer.pp_var ~debug:false) r
          (pp_list "; " pv)
          (IntSet.fold (fun i -> Sv.union regs.(i)) c Sv.empty |> Sv.elements)
+(*
+module type Arch = sig
+  val allocatable : Prog.var list
+  val xmm_allocatable : Prog.var list
+  val arguments : Prog.var list (* ou Sv.t ? *)
+  val xmm_arguments : Prog.var list
+  val ret : Prog.var list
+  val xmm_ret : Prog.var list
+  val reserved : Prog.var list
+  val callee_save : Prog.var list (* ou Sv.t ? *)
+  val flags : Prog.var list
 
+  let f_c = V.mk "CF" reg_k (Bty Bool) L._dummy []
+  let f_d = V.mk "DF" reg_k (Bty Bool) L._dummy []
+  let f_o = V.mk "OF" reg_k (Bty Bool) L._dummy []
+  let f_p = V.mk "PF" reg_k (Bty Bool) L._dummy []
+  let f_s = V.mk "SF" reg_k (Bty Bool) L._dummy []
+  let f_z = V.mk "ZF" reg_k (Bty Bool) L._dummy []
+
+  let flags = [f_d ;f_o; f_c; f_s; f_p; f_z]
+
+  let all_registers = reserved @ allocatable @ xmm_allocatable @ flags
+
+  let forced_registers translate_var loc nv (vars: int Hv.t) (cnf: conflicts)
+      (lvs: 'ty glvals) (op: X86_extra.x86_extended_op sopn) (es: 'ty gexprs)
+      (a: A.allocation) : unit =
+    let f x = Hv.find vars (L.unloc x) in
+    let allocate_one x y a =
+      let i = f x in
+      allocate_one nv vars loc cnf (L.unloc x) i y a
+    in
+    let mallocate_one x y a =
+      match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
+    in
+    let id = get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) op in
+    (* TODO: move !! *)
+    let var_of_implicit v =
+      match v with
+      | IArflag v -> v
+      | IAreg v -> v
+    in
+    List.iter2 (fun ad lv ->
+        match ad with
+        | ADImplicit v ->
+           begin match lv with
+           | Lvar w -> allocate_one w (translate_var (var_of_implicit v)) a
+           | _ -> assert false
+           end
+        | ADExplicit _ -> ()) id.i_out lvs;
+    List.iter2 (fun ad e ->
+        match ad with
+        | ADImplicit v ->
+           mallocate_one e (translate_var (var_of_implicit v)) a
+        | ADExplicit (_, Some v) ->
+           mallocate_one e (translate_var v) a
+        | ADExplicit (_, None) -> ()) id.i_in es
+
+end *)
+(*
 module X64 =
 struct
 
@@ -581,9 +645,76 @@ struct
         | ADExplicit (_, None) -> ()) id.i_in es
 
 end
+*)
+
+type reg_oracle_t = {
+    ro_to_save: var list;
+    ro_rsp: var option;
+    ro_return_address: var option;
+  }
+
+module type Regalloc = sig
+  type extended_op
+
+  val split_live_ranges : (unit, extended_op) func -> (unit, extended_op) func
+  val renaming : (unit, extended_op) func -> (unit, extended_op) func
+  val remove_phi_nodes : (unit, extended_op) func -> (unit, extended_op) func
+
+  val alloc_prog :
+    (Var0.Var.var -> var) -> ((unit, extended_op) func -> 'a -> bool) ->
+    ('a * (unit, extended_op) func) list ->
+    ('a * reg_oracle_t * (unit, extended_op) func) list
+    * (L.i_loc -> var option)
+end
+
+module Regalloc (Arch : Arch_full.Arch)
+  : Regalloc with type extended_op := (Arch.reg, Arch.xreg, Arch.rflag, Arch.cond, Arch.asm_op, Arch.extra_op) Arch_extra.extended_op = struct
+
+  let forced_registers translate_var loc nv (vars: int Hv.t) (cnf: conflicts)
+      (lvs: 'ty glvals) (op: 'asm sopn) (es: 'ty gexprs)
+      (a: A.allocation) : unit =
+    let allocate_one x y a =
+      let x = L.unloc x in
+      let i =
+        try Hv.find vars x
+        with Not_found ->
+          hierror_reg ~loc:(Lmore loc) "variable %a (declared at %a as “%a”) must be allocated to register %a but is unknown to the register allocator%s"
+            (Printer.pp_var ~debug:true) x
+            L.pp_sloc x.v_dloc
+            Printer.pp_kind x.v_kind
+            (Printer.pp_var ~debug:false) y
+            (if is_reg_kind x.v_kind then "" else " (consider declaring this variable as “reg”)")
+      in
+      allocate_one nv vars loc cnf x i y a
+    in
+    let mallocate_one x y a =
+      match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
+    in
+    let id = get_instr_desc Arch.asmOp op in
+    (* TODO: move !! *)
+    let var_of_implicit v =
+      match v with
+      | IArflag v -> v
+      | IAreg v -> v
+    in
+    List.iter2 (fun ad lv ->
+        match ad with
+        | ADImplicit v ->
+           begin match lv with
+           | Lvar w -> allocate_one w (translate_var (var_of_implicit v)) a
+           | _ -> assert false
+           end
+        | ADExplicit _ -> ()) id.i_out lvs;
+    List.iter2 (fun ad e ->
+        match ad with
+        | ADImplicit v ->
+           mallocate_one e (translate_var (var_of_implicit v)) a
+        | ADExplicit (_, Some v) ->
+           mallocate_one e (translate_var v) a
+        | ADExplicit (_, None) -> ()) id.i_in es
 
 let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
-    (f: 'info func) (a: A.allocation) : unit =
+    (f: ('info, 'asm) func) (a: A.allocation) : unit =
   let split ~ctxt =
     function
     | hd :: tl -> hd, tl
@@ -612,13 +743,13 @@ let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
       vs
     |> (ignore : var list * var list -> unit)
   in
-  let alloc_args loc = alloc_from_list loc ~ctxt:"parameters" X64.arguments X64.xmm_arguments identity in
-  let alloc_ret loc = alloc_from_list loc ~ctxt:"return values" X64.ret X64.xmm_ret L.unloc in
+  let alloc_args loc = alloc_from_list loc ~ctxt:"parameters" Arch.argument_vars Arch.xmm_argument_vars identity in
+  let alloc_ret loc = alloc_from_list loc ~ctxt:"return values" Arch.ret_vars Arch.xmm_ret_vars L.unloc in
   let rec alloc_instr_r loc =
     function
     | Cfor (_, _, s)
       -> alloc_stmt s
-    | Copn (lvs, _, op, es) -> X64.forced_registers translate_var loc nv vars cnf lvs op es a
+    | Copn (lvs, _, op, es) -> forced_registers translate_var loc nv vars cnf lvs op es a
     | Cwhile (_, s1, _, s2)
     | Cif (_, s1, s2)
         -> alloc_stmt s1; alloc_stmt s2
@@ -737,8 +868,8 @@ let greedy_allocation
       | Vector -> push_var vectors i v
       | Unknown _ -> ()
       ) vars;
-  two_phase_coloring X64.allocatable scalars cnf fr a;
-  two_phase_coloring X64.xmm_allocatable vectors cnf fr a;
+  two_phase_coloring Arch.allocatable_vars scalars cnf fr a;
+  two_phase_coloring Arch.xmm_allocatable_vars vectors cnf fr a;
   ()
 
 let var_subst_of_allocation (vars: int Hv.t)
@@ -761,19 +892,26 @@ let reverse_varmap nv (vars: int Hv.t) : A.allocation =
   Hv.iter (fun v i -> A.set i v a) vars;
   a
 
-let split_live_ranges (f: 'info func) : unit func =
-  Ssa.split_live_ranges true f
+let split_live_ranges (f: ('info, 'asm) func) : (unit, 'asm) func =
+  Ssa.split_live_ranges Arch.aparams.ap_is_move_op true f
 
-let renaming (f: 'info func) : unit func =
+let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
   let eqc, _tr, _fr =
     collect_equality_constraints
-      "Split live range" (fun ~loc:_ _ _ _ _ _ _ -> ()) vars nv f in
+      Arch.asmOp
+      Arch.aparams
+      "Split live range"
+      (fun ~loc:_ _ _ _ _ _ _ _ _ -> ())
+      vars
+      nv
+      f
+  in
   let vars = normalize_variables vars eqc in
   let a = reverse_varmap nv vars |> subst_of_allocation vars in
   Subst.subst_func a f
 
-let remove_phi_nodes (f: 'info func) : unit func =
+let remove_phi_nodes (f: ('info, 'asm) func) : (unit, 'asm) func =
   Ssa.remove_phi_nodes f
 
 let is_subroutine = function
@@ -803,16 +941,18 @@ let post_process ~stack_needed (subst: var -> var) (live: Sv.t) ~(killed: funnam
   | Export ->
      begin
        assert (Sv.is_empty live);
-       let allocatable = X64.allocatables in
+       (* TODO: should we call Sv.of_list once and for all, or is it ok to call each time we enter this function? *)
+       let allocatable = Sv.of_list Arch.allocatable_vars in
        let used_in_f = List.fold_left (fun s x -> Sv.add (subst x) s) killed_in_f f.f_args in
        let free_regs = Sv.diff allocatable used_in_f in
-       let to_save = Sv.inter X64.callee_save killed_in_f in
+       (* TODO: should we call Sv.of_list once and for all, or is it ok to call each time we enter this function? *)
+       let to_save = Sv.inter (Sv.of_list Arch.callee_save_vars) killed_in_f in
        if stack_needed && Sv.is_empty to_save then
-         to_save, Sv.Exceptionless.any (Sv.diff free_regs X64.callee_save)
+         to_save, Sv.Exceptionless.any (Sv.diff free_regs (Sv.of_list Arch.callee_save_vars))
        else to_save, None
      end
 
-let global_allocation translate_var (funcs: 'info func list) : unit func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * (L.i_loc, var) Hashtbl.t * var Hf.t =
+let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'asm) func list * (funname -> Sv.t) * (var -> var) * (funname -> Sv.t) * (L.i_loc, var) Hashtbl.t * var Hf.t =
   (* Preprocessing of functions:
     - ensure all variables are named (no anonymous assign)
     - generate a fresh variable to hold the return address (if needed)
@@ -826,15 +966,15 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   let count, _ = make_counter () in
   let annot_table : f_annot Hf.t = Hf.create 17 in
   let get_annot fn = Hf.find_default annot_table fn f_annot_empty in
-  let liveness_table : (Sv.t * Sv.t) func Hf.t = Hf.create 17 in
+  let liveness_table : (Sv.t * Sv.t, 'asm) func Hf.t = Hf.create 17 in
   let return_addresses : var Hf.t = Hf.create 17 in
   let extra_free_registers : (L.i_loc, var) Hashtbl.t = Hashtbl.create 137 in
   let killed_map : Sv.t Hf.t = Hf.create 17 in
   let killed fn = Hf.find killed_map fn in
   let preprocess f =
     Hf.add annot_table f.f_name f.f_annot;
-    let f = f |> fill_in_missing_names |> Ssa.split_live_ranges false in
-    Hf.add liveness_table f.f_name (Liveness.live_fd true f);
+    let f = f |> fill_in_missing_names |> Ssa.split_live_ranges Arch.aparams.ap_is_move_op false in
+    Hf.add liveness_table f.f_name (Liveness.live_fd Arch.aparams.ap_is_move_op true f);
     let written =
       let written, cg = written_vars_fc f in
       let written =
@@ -870,10 +1010,10 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
     Hf.add killed_map f.f_name written;
     f
   in
-  let funcs : unit func list = funcs |> List.rev |> List.rev_map preprocess in
+  let funcs : (unit, 'asm) func list = funcs |> List.rev |> List.rev_map preprocess in
   if !Glob_options.debug then
     Format.printf "Before REGALLOC:@.%a@."
-      Printer.(pp_list "@ @ " (pp_func ~debug:true)) (List.rev funcs);
+      Printer.(pp_list "@ @ " (pp_func ~debug:true Arch.asmOp)) (List.rev funcs);
   (* Live variables at the end of each function, in addition to returned local variables *)
   let get_liveness =
     let live : Sv.t Hf.t = Hf.create 17 in
@@ -887,14 +1027,14 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
       ) funcs;
     fun fn -> Hf.find_default live fn Sv.empty
   in
-  let excluded = Sv.of_list [Prog.rip; X64.rsp] in
+  let excluded = Sv.of_list [Prog.rip; Arch.rsp_var] in
   let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses extra_free_registers funcs in
-  let eqc, tr, fr = collect_equality_constraints_in_prog "Regalloc" x86_equality_constraints vars nv funcs in
+  let eqc, tr, fr = collect_equality_constraints_in_prog Arch.asmOp Arch.aparams.ap_is_move_op "Regalloc" asm_equality_constraints vars nv funcs in
   let vars = normalize_variables vars eqc in
   (* Intra-procedural conflicts *)
   let conflicts =
     Hf.fold (fun _fn lf conflicts ->
-        collect_conflicts vars tr lf conflicts
+        collect_conflicts Arch.asmOp vars tr lf conflicts
       )
       liveness_table
       empty_conflicts
@@ -906,7 +1046,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
         Liveness.iter_call_sites (fun loc _fn' _xs (s, _) ->
             match Hashtbl.find extra_free_registers loc with
             | exception Not_found -> ()
-            | r -> cnf := Sv.fold (conflicts_add_one vars tr (Lmore loc) r) s !cnf
+            | r -> cnf := Sv.fold (conflicts_add_one Arch.asmOp vars tr (Lmore loc) r) s !cnf
           ) f
       ) liveness_table;
     !cnf
@@ -916,12 +1056,12 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
     List.fold_left (fun a f ->
         match Hf.find return_addresses f.f_name with
         | ra ->
-           List.fold_left (fun cnf x -> conflicts_add_one vars tr Lnone ra x cnf) a f.f_args
+           List.fold_left (fun cnf x -> conflicts_add_one Arch.asmOp vars tr Lnone ra x cnf) a f.f_args
         | exception Not_found -> a )
       conflicts funcs in
   (* Inter-procedural conflicts *)
   let conflicts =
-    let add_conflicts s x = Sv.fold (conflicts_add_one vars tr Lnone x) s in
+    let add_conflicts s x = Sv.fold (conflicts_add_one Arch.asmOp vars tr Lnone x) s in
     List.fold_right (fun f cnf ->
         let live = get_liveness f.f_name in
         let vars = killed f.f_name in
@@ -944,14 +1084,8 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   , extra_free_registers
   , return_addresses
 
-type reg_oracle_t = {
-    ro_to_save: var list;
-    ro_rsp: var option;
-    ro_return_address: var option;
-  }
-
-let alloc_prog translate_var (has_stack: 'info func -> 'a -> bool) (dfuncs: ('a * 'info func) list)
-    : ('a * reg_oracle_t * unit func) list * (L.i_loc -> var option) =
+let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfuncs: ('a * ('info, 'asm) func) list)
+    : ('a * reg_oracle_t * (unit, 'asm) func) list * (L.i_loc -> var option) =
   (* Ensure that instruction locations are really unique,
      so that there is no confusion on the position of the “extra free register”. *)
   let dfuncs =
@@ -982,3 +1116,5 @@ let alloc_prog translate_var (has_stack: 'info func -> 'a -> bool) (dfuncs: ('a 
       e, { ro_to_save = Sv.elements to_save ; ro_rsp ; ro_return_address }, f
     )
   , (fun loc -> Hashtbl.find_opt extra_free_registers loc |> Option.map subst)
+
+end

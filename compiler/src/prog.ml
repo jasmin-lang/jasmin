@@ -126,22 +126,23 @@ type funname = {
 
 type 'len grange = E.dir * 'len gexpr * 'len gexpr
 
-type ('len,'info) ginstr_r =
+type ('len,'info,'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
-  | Copn   of 'len glvals * E.assgn_tag * X86_extra.x86_extended_op Sopn.sopn * 'len gexprs
-  | Cif    of 'len gexpr * ('len,'info) gstmt * ('len,'info) gstmt
-  | Cfor   of 'len gvar_i * 'len grange * ('len,'info) gstmt
-  | Cwhile of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
+  (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
+  | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
+  | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
+  | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
+  | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
   | Ccall  of E.inline_info * 'len glvals * funname * 'len gexprs
 
-and ('len,'info) ginstr = {
-    i_desc : ('len,'info) ginstr_r;
+and ('len,'info,'asm) ginstr = {
+    i_desc : ('len,'info,'asm) ginstr_r;
     i_loc  : L.i_loc;
     i_info : 'info;
     i_annot : Syntax.annotations;
   }
 
-and ('len,'info) gstmt = ('len,'info) ginstr list
+and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 
 (* ------------------------------------------------------------------------ *)
 type subroutine_info = {
@@ -171,14 +172,14 @@ let f_annot_empty = {
     stack_align   = None;
   } 
     
-type ('len,'info) gfunc = {
+type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
     f_annot : f_annot; 
     f_cc   : call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
-    f_body : ('len,'info) gstmt;
+    f_body : ('len,'info,'asm) gstmt;
     f_tyout : 'len gty list;
     f_outannot : Syntax.annotations list; (* annotation attach to return type *)
     f_ret  : 'len gvar_i list
@@ -188,12 +189,12 @@ type 'len ggexpr =
   | GEword of 'len gexpr
   | GEarray of 'len gexprs
 
-type ('len,'info) gmod_item =
-  | MIfun   of ('len,'info) gfunc
+type ('len,'info,'asm) gmod_item =
+  | MIfun   of ('len,'info,'asm) gfunc
   | MIparam of ('len gvar * 'len gexpr)
   | MIglobal of ('len gvar * 'len ggexpr)
 
-type ('len,'info) gprog = ('len,'info) gmod_item list
+type ('len,'info,'asm) gprog = ('len,'info,'asm) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)
 
 (* ------------------------------------------------------------------------ *)
@@ -230,12 +231,12 @@ and  plval  = pexpr glval
 and  plvals = pexpr glvals
 and  pexpr  = pexpr gexpr
 
-type 'info pinstr = (pexpr,'info) ginstr
-type 'info pstmt  = (pexpr,'info) gstmt
+type ('info,'asm) pinstr = (pexpr,'info,'asm) ginstr
+type ('info,'asm) pstmt  = (pexpr,'info,'asm) gstmt
 
-type 'info pfunc     = (pexpr,'info) gfunc
-type 'info pmod_item = (pexpr,'info) gmod_item
-type 'info pprog     = (pexpr,'info) gprog
+type ('info,'asm) pfunc     = (pexpr,'info,'asm) gfunc
+type ('info,'asm) pmod_item = (pexpr,'info,'asm) gmod_item
+type ('info,'asm) pprog     = (pexpr,'info,'asm) gprog
 
 (* ------------------------------------------------------------------------ *)
 module PV = struct
@@ -282,13 +283,13 @@ type lvals = int glval list
 type expr  = int gexpr
 type exprs = int gexpr list
 
-type 'info instr = (int,'info) ginstr
-type 'info stmt  = (int,'info) gstmt
+type ('info,'asm) instr = (int,'info,'asm) ginstr
+type ('info,'asm) stmt  = (int,'info,'asm) gstmt
 
-type 'info func     = (int,'info) gfunc
-type 'info mod_item = (int,'info) gmod_item
-type global_decl    = var * Global.glob_value
-type 'info prog     = global_decl list * 'info func list
+type ('info,'asm) func     = (int,'info,'asm) gfunc
+type ('info,'asm) mod_item = (int,'info,'asm) gmod_item
+type global_decl           = var * Global.glob_value
+type ('info,'asm) prog     = global_decl list * ('info,'asm) func list
 
 module V = struct
   type t = var
@@ -300,7 +301,6 @@ module Mv = Map.Make  (V)
 module Hv = Hash.Make (V)
 
 let rip = V.mk "RIP" (Reg Direct) u64 L._dummy []
-let rsp = V.mk "RSP" (Reg Direct) u64 L._dummy []
 (* ------------------------------------------------------------------------ *)
 (* Function name                                                            *)
 
@@ -409,7 +409,7 @@ let written_vars_fc fc =
 (* -------------------------------------------------------------------- *)
 (* Refresh i_loc, ensure that locations are uniq                        *)
 
-let rec refresh_i_loc_i (i:'info instr) : 'info instr = 
+let rec refresh_i_loc_i (i:('info,'asm) instr) : ('info,'asm) instr = 
   let i_desc = 
     match i.i_desc with
     | Cassgn _ | Copn _ | Ccall _ -> i.i_desc
@@ -422,13 +422,13 @@ let rec refresh_i_loc_i (i:'info instr) : 'info instr =
   in
   { i with i_desc; i_loc = L.refresh_i_loc i.i_loc }
 
-and refresh_i_loc_c (c:'info stmt) : 'info stmt = 
+and refresh_i_loc_c (c:('info,'asm) stmt) : ('info,'asm) stmt = 
   List.map refresh_i_loc_i c
 
-let refresh_i_loc_f (f:'info func) : 'info func = 
+let refresh_i_loc_f (f:('info,'asm) func) : ('info,'asm) func = 
   { f with f_body = refresh_i_loc_c f.f_body }
 
-let refresh_i_loc_p (p:'info prog) : 'info prog = 
+let refresh_i_loc_p (p:('info,'asm) prog) : ('info,'asm) prog = 
   fst p, List.map refresh_i_loc_f (snd p)
 
 
@@ -564,5 +564,5 @@ let clamp_pe (sz : pelem) (z : Z.t) =
 
 
 (* --------------------------------------------------------------------- *)
-type 'info sfundef = Expr.stk_fun_extra * 'info func 
-type 'info sprog   = 'info sfundef list * Expr.sprog_extra
+type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info,'asm) func 
+type ('info,'asm) sprog   = ('info,'asm) sfundef list * Expr.sprog_extra
