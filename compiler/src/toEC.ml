@@ -739,7 +739,7 @@ let pp_wzeroext pp_e fmt tyo tyi e =
     Format.fprintf fmt "%a(%a)" pp_zeroext (szi, szo) pp_e e
 
 let base_op = function
-  | Expr.Ox86' (_, o) -> Expr.Ox86'(None,o)
+  | Sopn.Oasm (Arch_extra.BaseOp (_, o)) -> Sopn.Oasm (Arch_extra.BaseOp(None,o))
   | o -> o
 
 module Normal = struct  
@@ -762,7 +762,7 @@ module Normal = struct
     | Copn (lvs, _, op, _) -> 
       if List.length lvs = 1 then env 
       else
-        let tys  = List.map Conv.ty_of_cty (E.sopn_tout op) in
+        let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op) in
         let ltys = List.map ty_lval lvs in
         if all_vars lvs && ltys = tys then env
         else add_aux env tys
@@ -804,8 +804,8 @@ module Normal = struct
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = List.map Conv.ty_of_cty (E.sopn_tout op), List.map Conv.ty_of_cty (E.sopn_tin op) in
-      let otys' = List.map Conv.ty_of_cty (E.sopn_tout op') in
+      let otys,itys = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op), List.map Conv.ty_of_cty (Sopn.sopn_tin (Arch_extra.asm_opI X86_extra.x86_extra) op) in
+      let otys' = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op') in
       let pp_e fmt (op,es) = 
         Format.fprintf fmt "%a %a" pp_opn op 
           (pp_list "@ " (pp_wcast env)) (List.combine itys es) in
@@ -862,6 +862,7 @@ module Normal = struct
         pp_i1 () pp_i2 ()
         (pp_cmd env) c
         pp_i () pp_i () (if d = UpTo then "+" else "-")
+
 end
 
 module Leak = struct 
@@ -930,12 +931,18 @@ module Leak = struct
 
   let safe_es env = List.fold_left (safe_e_rec env) []
 
-  let safe_opn safe opn es = 
-    let id = Expr.get_instr opn in
-    List.map (fun c ->
+  let safe_opn env safe opn es = 
+    let id = Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) opn in
+    List.pmap (fun c ->
         match c with
         | Wsize.NotZero(sz, i) ->
-          NotZero(sz, List.nth es (Conv.int_of_nat i))) id.i_safe @ safe
+          Some (NotZero(sz, List.nth es (Conv.int_of_nat i)))
+        | Wsize.AllInit (ws, p, i) ->
+          let e = List.nth es (Conv.int_of_nat i) in
+          let y = match e with Pvar y -> y | _ -> assert false in
+          let (_s,option) = Mv.find (L.unloc y.gv) env.vars in 
+          if option then Some (Inita (L.unloc y.gv, arr_size ws (Conv.int_of_pos p)))
+          else None) id.i_safe @ safe
  
   let safe_lval env = function
     | Lnone _ | Lvar _ -> []
@@ -982,7 +989,7 @@ module Leak = struct
     match env.model with
     | ConstantTime -> pp_leaks env fmt (leaks_es es)
     | Safety -> 
-      let conds = safe_opn (safe_es env es) op es in
+      let conds = safe_opn env (safe_es env es) op es in
       pp_safe_cond env fmt conds 
     | Normal -> ()
 
@@ -1077,8 +1084,8 @@ module Leak = struct
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = List.map Conv.ty_of_cty (E.sopn_tout op), List.map Conv.ty_of_cty (E.sopn_tin op) in
-      let otys' = List.map Conv.ty_of_cty (E.sopn_tout op') in
+      let otys,itys = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op), List.map Conv.ty_of_cty (Sopn.sopn_tin (Arch_extra.asm_opI X86_extra.x86_extra) op) in
+      let otys' = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op') in
       let pp fmt (op, es) = 
         Format.fprintf fmt "<- %a %a" pp_opn op 
           (pp_list "@ " (pp_wcast env)) (List.combine itys es) in

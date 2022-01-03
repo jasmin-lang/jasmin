@@ -19,6 +19,53 @@ Module Import E.
 
 End E.
 
+(*
+<<<<<<< HEAD
+=======
+Section ASM_OP.
+
+Context {pd : PointerData}.
+Context `{asmop : asmOp}.
+
+Section Tunneling.
+
+Context (fn : funname).
+
+Definition Linstr_align := (MkLI xH Lalign).
+
+Definition tunnel_chart (uf : LUF.unionfind) (c c' : linstr) :=
+  match c, c' with
+  | {| li_i := Llabel l |}, {| li_i := Lgoto (fn',l') |} =>
+      if fn == fn' then LUF.union uf l l' else uf
+  | _, _ => uf
+  end.
+
+Definition tunnel_plan (uf : LUF.unionfind) := pairfoldl tunnel_chart uf Linstr_align.
+
+Definition tunnel_bore (uf : LUF.unionfind) (c : linstr) :=
+  match c with
+    | MkLI ii li =>
+      match li with
+        | Lgoto (fn',l') => MkLI ii (if fn == fn' then Lgoto (fn', LUF.find uf l') else Lgoto (fn',l'))
+        | Lcond pe l' => MkLI ii (Lcond pe (LUF.find uf l'))
+        | _ => MkLI ii li
+      end
+  end.
+
+Definition tunnel_partial (uf : LUF.unionfind) (lc : lcmd) :=
+  map (tunnel_bore uf) lc.
+
+Definition tunnel (lc : lcmd) :=
+  let uf := tunnel_plan LUF.empty lc in
+  tunnel_partial uf lc.
+
+End Tunneling.
+
+Section TunnelingSem.
+
+  Context (fn : funname).
+>>>>>>> glob_array3
+*)
 
 Section LprogSem.
 
@@ -33,7 +80,7 @@ Section LprogSem.
   Definition goto_targets fb :=
     filter (fun li => if li is Lgoto _ then true else false) (map li_i fb).
 
-  Definition setfb fd fb:=
+  Definition setfb fd fb : lfundef :=
     LFundef
       fd.(lfd_info)
       fd.(lfd_align)
@@ -42,7 +89,9 @@ Section LprogSem.
       fb
       fd.(lfd_tyout)
       fd.(lfd_res)
-      fd.(lfd_export).
+      fd.(lfd_export)
+      fd.(lfd_callee_saved)
+  .
 
   Definition setfuncs p lf :=
     {| lp_rip := lp_rip p
@@ -129,3 +178,5 @@ Section TunnelingCompiler.
     else Error (tunneling_error "not well-formed").
 
 End TunnelingCompiler.
+
+End ASM_OP.

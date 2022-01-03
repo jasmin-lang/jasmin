@@ -246,6 +246,12 @@ Lemma is_word_typeP ty ws :
   is_word_type ty = Some ws -> ty = sword ws.
 Proof. by case: ty => //= w [->]. Qed.
 
+Definition vundef_type (t:stype) :=
+  match t with
+  | sword _ => sword8
+  | sarr _  => sarr 1
+  | _       => t
+  end.
 
 (* -------------------------------------------------------------------- *)
 Definition compat_type t1 t2 :=
@@ -271,6 +277,9 @@ Proof.
   + by case: t2.
   by case: t2.
 Qed.
+
+Lemma compat_type_undef t : compat_type t (vundef_type t).
+Proof. by case t. Qed.
 
 (* -------------------------------------------------------------------- *)
 Definition subtype (t t': stype) :=
@@ -317,6 +326,19 @@ Proof.
   + case: y => //= n2 /ZleP h1;case: z => //= n3 /ZleP h2.
     by apply /ZleP;apply: Z.le_trans h1 h2.
   case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
+Qed.
+
+Lemma subtype_compat t1 t2 : subtype t1 t2 -> compat_type t1 t2.
+Proof.
+  by case: t1 => [/eqP ->| /eqP -> | p | w] // ; case: t2.
+Qed.
+
+
+Lemma compat_subtype_undef t1 t2 : compat_type t1 t2 → subtype (vundef_type t1) t2.
+Proof.
+  case: t1 => [/eqP ->|/eqP ->|?|?] //=; case: t2 => // *.
+  + by apply /ZleP; Psatz.lia.
+  by apply wsize_le_U8.
 Qed.
 
 

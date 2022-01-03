@@ -4,7 +4,7 @@ Require Import psem sem_one_varmap.
 Import Utf8.
 Import all_ssreflect.
 Import var compiler_util.
-Import x86_variables.
+Require Import arch_decl arch_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -45,7 +45,9 @@ End E.
 
 Section PROG.
 
+Context `{asm_e : asm_extra}.
 Context (p: sprog) (extra_free_registers: instr_info → option var).
+Context (var_tmp : var).
 
 (** Set of variables written by a function (including RA and extra registers),
       assuming this information is known for the called functions. *)
@@ -62,6 +64,8 @@ Proof.
   rewrite /add_extra_free_registers /extra_free_registers_at; case: extra_free_registers; SvD.fsetdec.
 Qed.
 
+Let magic_variables : Sv.t := magic_variables p.
+
 Section WRITE1.
 
   Context (writefun: funname → Sv.t).
@@ -70,21 +74,11 @@ Section WRITE1.
     let ra :=
       match get_fundef (p_funcs p) fn with
       | None => Sv.empty
-      | Some fd =>
-        Sv.union
-          match fd.(f_extra).(sf_return_address) with
-          | RAnone => Sv.add (var_of_register RAX) (sv_of_flags rflags)
-          | RAreg ra => Sv.singleton ra
-          | RAstack _ => Sv.empty
-          end
-          match fd.(f_extra).(sf_save_stack) with
-          | SavedStackNone | SavedStackStk _ => Sv.empty
-          | SavedStackReg r => Sv.singleton r
-          end
+      | Some fd => Sv.union (ra_vm fd var_tmp) (saved_stack_vm fd)
       end in
     Sv.union (writefun fn) ra.
 
-  Fixpoint write_i_rec s i :=
+  Fixpoint write_i_rec s (i:instr_r) :=
     match i with
     | Cassgn x _ _ _  => vrv_rec s x
     | Copn xs _ _ _   => vrvs_rec s xs
@@ -108,7 +102,7 @@ Section WRITE1.
 
   Lemma write_c_recE c : ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
   Proof.
-    apply: (@cmd_rect
+    apply: (@cmd_rect _ _
               (λ i, ∀ s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
               (λ i, ∀ s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
               (λ c, ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)))).
@@ -120,7 +114,7 @@ Section WRITE1.
     - by move => e c1 c2 h1 h2 s; rewrite /write_i /= -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
     - by move => v d lo hi body h s; rewrite /write_i /= -!/write_c_rec !h; SvD.fsetdec.
     - by move => a c1 e c2  h1 h2 s; rewrite /write_i /= -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
-    - by move => i xs fn es s; rewrite /write_i /=; SvD.fsetdec.
+    by move => i xs fn es s; rewrite /write_i /=; SvD.fsetdec.
   Qed.
 
   Lemma write_I_recE ii i s :
@@ -191,8 +185,11 @@ Section CHECK.
   Fixpoint check_i (sz: wsize) (D:Sv.t) (i: instr) : cexec Sv.t :=
     let: MkI ii ir := i in
     Let _ :=
-      assert (if extra_free_registers ii is Some r then vtype r == sword Uptr else true)
-         (E.internal_error ii "bad type for extra free register") in
+      if extra_free_registers ii is Some r
+      then
+        assert (vtype r == sword Uptr) (E.internal_error ii "bad type for extra free register") >>
+        assert (if ir is Cwhile _ _ _ _ then false else true) (E.internal_error ii "loops need no extra register")
+      else ok tt in
     check_ir sz ii (add_extra_free_registers ii D) ir
 
   with check_ir sz ii D ir :=
@@ -230,6 +227,7 @@ Section CHECK.
         let W := writefun_ra writefun fn in
         ok (Sv.diff (Sv.union D W) (set_of_var_i_seq Sv.empty (f_res fd)))
       else Error (E.internal_error ii "call to unknown function")
+
     end.
 
   Lemma check_ir_CwhileP sz ii aa c e c' D D' :
@@ -258,9 +256,6 @@ Section CHECK.
 
   Notation check_cmd sz := (check_c (check_i sz)).
 
-  Let magic_variables : Sv.t :=
-    magic_variables p.
-
   Let check_preserved_register W J name r :=
     Let _ :=
       assert (vtype r == sword Uptr) (E.gen_error true None (pp_box [::pp_s "bad register type for"; pp_s name; pp_var r])) in
@@ -268,11 +263,12 @@ Section CHECK.
       assert (~~ Sv.mem r W) (E.gen_error true None (pp_box [::pp_s "the function writes its"; pp_s name; pp_var r])) in
     assert (~~Sv.mem r J) (E.gen_error true None (pp_box [::pp_s "the function depends on its"; pp_s name; pp_var r])).
 
+  (* TODO: can we factor out some lines? seems really similar to functions in sem_one_varmap *)
   Definition check_fd (fn:funname) (fd: sfundef) :=
     let DI :=
       match sf_return_address (f_extra fd) with
       | RAnone =>
-        Sv.add (var_of_register RAX)
+        Sv.add var_tmp
         match sf_save_stack (f_extra fd) with
         | SavedStackReg r => Sv.add r (sv_of_flags rflags)
         | _ => sv_of_flags rflags
@@ -286,11 +282,11 @@ Section CHECK.
     let res := set_of_var_i_seq Sv.empty fd.(f_res) in
     Let _ := assert (disjoint D res)
                     (E.gen_error true None (pp_s "not able to ensure equality of the result")) in
-    Let _ := assert (var.disjoint params magic_variables)
+    Let _ := assert (disjoint params magic_variables)
                     (E.gen_error true None (pp_s "the function has RSP or global-data as parameter")) in
     Let _ := assert (~~ Sv.mem (vid p.(p_extra).(sp_rsp)) res)
                     (E.gen_error true None (pp_s "the function returns RSP")) in
-    Let _ := assert (var.disjoint (writefun_ra writefun fn) magic_variables)
+    Let _ := assert (disjoint (writefun_ra writefun fn) magic_variables)
                     (E.gen_error true None (pp_s "the function writes to RSP or global-data")) in
     let W := writefun fn in
     let J := Sv.union magic_variables params in
@@ -303,7 +299,8 @@ Section CHECK.
     | RAreg ra => check_preserved_register W J "return address" ra
     | RAstack _ => ok tt
     | RAnone =>
-        Let _ := assert (~~ Sv.mem (var_of_register RAX) magic_variables) (E.gen_error true None (pp_s "RAX clashes with RSP or RIP")) in
+        Let _ := assert (disjoint (sv_of_list fst fd.(f_extra).(sf_to_save)) res)
+                    (E.gen_error true None (pp_s "the function returns a callee-saved register")) in
         assert (all (λ x : var_i, if vtype x is sword _ then true else false ) (f_params fd))
             (E.gen_error true None (pp_s "the export function has non-word arguments"))
     end.
@@ -316,6 +313,7 @@ Definition check :=
   let wmap := mk_wmap in
   Let _ := assert (check_wmap wmap) (E.gen_error true None (pp_s "invalid wmap")) in
   Let _ := assert (p.(p_extra).(sp_rip) != p.(p_extra).(sp_rsp)) (E.gen_error true None (pp_s "rip and rsp clash")) in
+  Let _ := assert (~~ Sv.mem var_tmp magic_variables) (E.gen_error true None (pp_s "RAX clashes with RSP or RIP")) in
   Let _ := check_prog (get_wmap wmap) in
   ok tt.
 

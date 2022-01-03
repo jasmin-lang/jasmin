@@ -32,7 +32,12 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section PROOF.
-Context (p: uprog).
+
+Context
+  {pd: PointerData}
+  `{asmop:asmOp}
+  (p: uprog).
+
 Notation gd := (p_globs p).
 
 Definition word_sim (s: wsize) (w: word s) (w': pword s) : Prop :=
@@ -281,7 +286,7 @@ Lemma psem_call m fn va m' vr :
   sem.sem_call p m fn va m' vr →
   psem.sem_call p tt m fn va m' vr.
 Proof.
-apply: (@sem.sem_call_Ind p Pc Pi_r Pi Pfor Pfun) => {m fn va m' vr}.
+apply: (@sem.sem_call_Ind _ _ _ p Pc Pi_r Pi Pfor Pfun) => {m fn va m' vr}.
 - by move => s s' hss'; exists s'; split; first exact: hss'; constructor.
 - move => s1 s2 s3 [ii i] c [] {ii i s1 s2} ii i s1 s2 _ ihi _ ihc s1' hss'1.
   case: (ihi s1' hss'1) => s2' [hss'2 hi].

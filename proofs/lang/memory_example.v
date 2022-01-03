@@ -55,6 +55,7 @@ Import ssrZ.
 Import type word utils gen_map.
 Import memory_model.
 Import GRing.Theory.
+Import ssrring.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -83,6 +84,9 @@ Proof. by case: a => // _ /(_ erefl); case: b. Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
+
 Lemma subxx p :
   sub p p = 0.
 Proof. by rewrite -{1}(add_0 p) sub_add. Qed.
@@ -91,7 +95,7 @@ Lemma add_p_opp_sub_add_p (p q: pointer) (n: Z) :
   add p (- sub (add p n) q + n) = q.
 Proof.
   rewrite !addE !subE !(wrepr_add, wrepr_opp, wrepr_unsigned).
-  ssrring.ssring.
+  ssring.
 Qed.
 
 Corollary add_p_opp_sub_p (p q: pointer):
@@ -101,8 +105,13 @@ Proof.
   by rewrite add_0 Z.add_0_r.
 Qed.
 
+End WITH_POINTER_DATA.
+
 (** An example instance of the memory *)
 Module MemoryI : MemoryT.
+
+  Section WITH_POINTER_DATA.
+  Context {pd: PointerData}.
 
   Lemma addP p k: add p k = (p + wrepr Uptr k)%R.
   Proof. done. Qed.
@@ -152,8 +161,8 @@ Module MemoryI : MemoryT.
     stk_freeP x : 0 <= x < wunsigned stk_root - footprint_of_stack frames → is_zalloc alloc x = false;
   }.
 
-  Arguments stk_allocP : clear implicits.
-  Arguments stk_freeP : clear implicits.
+  #[ global ] Arguments stk_allocP : clear implicits.
+  #[ global ] Arguments stk_freeP : clear implicits.
 
   Definition mem := mem_.
 
@@ -234,6 +243,7 @@ Module MemoryI : MemoryT.
   Lemma get_valid8 m p w : get m p = ok w -> is_alloc m p.
   Proof. by rewrite /get; t_xrbindP => _ /assertP /andP []. Qed.
 
+  #[ global ]
   Instance CM : coreMem pointer mem :=
     CoreMem setP is_allocP get_valid8 is_alloc_set.
 
@@ -432,7 +442,7 @@ Module MemoryI : MemoryT.
     case: andP => //; rewrite !zify {range}.
     Psatz.lia.
   Qed.
-  Arguments free_stack_stk_allocP : clear implicits.
+  #[ global ] Arguments free_stack_stk_allocP : clear implicits.
 
   Lemma free_stack_stk_freeP (m: mem) x :
     0 <= x < wunsigned (stk_root m) - footprint_of_stack (behead (frames m)) →
@@ -448,7 +458,7 @@ Module MemoryI : MemoryT.
     have := footprint_of_valid_frames valid_frames.
     rewrite !zify; Psatz.lia.
   Qed.
-  Arguments free_stack_stk_freeP : clear implicits.
+  #[ global ] Arguments free_stack_stk_freeP : clear implicits.
 
   Definition free_stack (m: mem) : mem :=
     let sz := odflt 0 (omap footprint_of_frame (ohead m.(frames))) in
@@ -502,7 +512,7 @@ Module MemoryI : MemoryT.
     move => all_above x_range.
     rewrite /init_mem_alloc (init_mem_stk_freeP_aux (Mz.empty _) all_above) //; Psatz.lia.
   Qed.
-  Arguments init_mem_stk_freeP : clear implicits.
+  #[ global ] Arguments init_mem_stk_freeP : clear implicits.
 
   Definition init_mem (s: seq (pointer * Z)) (stk: pointer) : exec mem :=
     match Sumbool.sumbool_of_bool (is_align stk U256) with
@@ -560,6 +570,7 @@ Module MemoryI : MemoryT.
       all: Lia.lia.
     Qed.
 
+  #[ global ]
   Instance M : memory CM  :=
     Memory stk_root stk_limit stack_frames alloc_stack free_stack init_mem stack_region_is_free top_stack_below_root.
 
@@ -603,7 +614,7 @@ Module MemoryI : MemoryT.
     have /andP[h _] := m.(framesP).
     exact: footprint_of_valid_frames.
   Qed.
-  Arguments footprint_of_stack_pos : clear implicits.
+  #[ global ] Arguments footprint_of_stack_pos : clear implicits.
 
   Lemma Zleb_succ (x y: Z) :
     (x + 1 <=? y) = (x <? y).
@@ -726,7 +737,7 @@ Module MemoryI : MemoryT.
     rewrite !addE !subE !(wrepr_opp, wrepr_add, wrepr_unsigned, align_wordE).
     set x := (X in is_align X).
     have -> : x = align_word ws_stk (stk_root m - wrepr _ fs - (wrepr _ sz + wrepr _ sz')).
-    + by rewrite /x;ssrring.ssring.
+    + by rewrite /x; ssring.
     rewrite /is_align p_to_zE; apply align_word_aligned.
   Qed.
 
@@ -906,4 +917,5 @@ Module MemoryI : MemoryT.
     rewrite wunsigned_repr_small; Psatz.lia.
   Qed.
 
+  End WITH_POINTER_DATA.
 End MemoryI.

@@ -232,7 +232,7 @@ type pinstr_r =
   | PIIf        of pexpr * pblock * pblock option
   | PIFor       of pident * (fordir * pexpr * pexpr) * pblock
   | PIWhile     of pblock option * pexpr * pblock option
-  | PIdecl      of vardecls 
+  | PIdecl      of vardecls
 
 and pblock_r = pinstr list
 and fordir   = [ `Down | `Up ]

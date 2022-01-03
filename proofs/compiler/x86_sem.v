@@ -85,5 +85,35 @@ Definition x86_mem := @asmmem _ _ _ _ _ x86.
 Definition x86_prog := @asm_prog register _ _ _ _ _ x86_op_decl.
 Definition x86_state := @asm_state _ _ _ _ _ x86.
 Definition x86sem := @asmsem _ _ _ _ _ x86.
+Definition x86_fundef := @asm_fundef _ _ _ _ _ _ x86_op_decl.
+
+(* Semantics of an export function
+FIXME: this is mostly independent of the architecture and may be partially moved to arch_sem
+
+  - The function exists and is “export”
+  - Execution runs from the initial state to the final state
+  - Callee-saved registers are preserved
+
+TODO: arguments / results are well-typed
+ *)
+
+Definition x86_callee_saved : seq register :=
+  [:: RBX; RBP; RDI; RSI; RSP; R12; R13; R14; R15 ].
+
+Definition preserved_register (r: register) : relation x86_mem :=
+  λ s1 s2,
+    s1.(asm_reg) r = s2.(asm_reg) r.
+
+Variant x86sem_exportcall (p: asm_prog) (fn: funname) (m m': asmmem) : Prop :=
+  | X86sem_exportcall (fd: x86_fundef) of
+      get_fundef p.(asm_funcs) fn = Some fd
+    & fd.(asm_fd_export)
+    & x86sem p
+             {| asm_m := m ; asm_f := fn ; asm_c := asm_fd_body fd ; asm_ip := 0 |}
+             {| asm_m := m' ; asm_f := fn ; asm_c := asm_fd_body fd ; asm_ip := size fd.(asm_fd_body) |}
+    (* TODO: & {in x86_callee_saved, ∀ r, preserved_register r m m'}
+    question: how to state this at the linear level?
+     *)
+.
 
 (* TODO: not sure there needs to be a file [x86_sem], [arch_sem] seems enough. *)

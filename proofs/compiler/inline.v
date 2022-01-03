@@ -58,6 +58,8 @@ End E.
 
 Section INLINE.
 
+Context {pd: PointerData}.
+Context `{asmop:asmOp}.
 Context (inline_var: var -> bool).
 
 Definition get_flag (x:lval) flag :=
@@ -106,8 +108,9 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
   match i with
   | MkI iinfo ir =>
     match ir with
-    | Cassgn x _ _ e => ok (Sv.union (read_i ir) X, [::i])
-    | Copn xs _ o es => ok (Sv.union (read_i ir) X, [::i])
+    | Cassgn _ _ _ _
+    | Copn _ _ _ _
+      => ok (Sv.union (read_i ir) X, [::i])
     | Cif e c1 c2  =>
       Let c1 := inline_c (inline_i p) c1 X in
       Let c2 := inline_c (inline_i p) c2 X in

@@ -30,7 +30,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Import psem psem_facts compiler_util constant_prop_proof.
+Require Import psem psem_facts compiler_util.
 Require Export stack_alloc stack_alloc_proof.
 Require Import byteset.
 Require Import Psatz.
@@ -60,7 +60,9 @@ Variable global_alloc : seq (var * wsize * Z).
 
 Let glob_size := Z.of_nat (size global_data).
 
-Variable rip : u64.
+Context {pd: PointerData}.
+Context `{asmop:asmOp}.
+Variable rip : pointer.
 Hypothesis no_overflow_glob_size : no_overflow rip glob_size.
 
 Variable mglob : Mvar.t (Z * wsize).
@@ -141,7 +143,7 @@ Lemma init_map_disjoint x1 ofs1 ws1 :
 Proof. by move=> /init_mapP [_ _ ?]. Qed.
 
 
-Variable (P : uprog) (ev: extra_val_t (progT := progUnit)).
+Variable (P : uprog) (ev: @extra_val_t _ progUnit).
 Notation gd := (p_globs P).
 
 Hypothesis hglobs : check_globs gd mglob global_data.
@@ -314,7 +316,7 @@ Record wf_Slots (Slots : Sv.t) Addr (Writable:slot-> bool) Align := {
     0 < glob_size -> disjoint_zrange rip glob_size (Addr s) (size_slot s)
 }.
 
-Variable rsp : u64.
+Variable rsp : pointer.
 Hypothesis no_overflow_size : no_overflow rsp sao.(sao_size).
 Hypothesis disjoint_zrange_globals_locals :
   0 < glob_size -> 0 < sao.(sao_size) ->
@@ -409,8 +411,10 @@ Definition get_pi s := assoc param_tuples s.
 
 Definition Addr_params s :=
   match get_pi s with
-  | Some (_, (_, Vword Uptr w)) => w
-  | _                           => 0%R
+  | Some (_, (_, Vword sz w)) => if (sz == Uptr)%CMP
+                                 then zero_extend Uptr w
+                                 else 0%R
+  | _                         => 0%R
   end.
 
 Definition Writable_params s :=
@@ -708,6 +712,7 @@ Proof.
   move: hw; rewrite /Writable_params hpi => hw.
   have := hargp.(wap_writable_not_glob) hw hgsize.
   apply disjoint_zrange_incl_r.
+  rewrite eq_refl zero_extend_u.
   by apply: zbetween_le (get_pi_size_le hpi).
 Qed.
 
@@ -732,6 +737,7 @@ Proof.
   apply (disjoint_zrange_incl_r (zbetween_le _ hle)).
   have [k [hnth1 hnth2 hnth3 hnth4]] := get_pi_nth hpi.
   rewrite -hnth3.
+  rewrite eq_refl zero_extend_u.
   by apply (Forall3_nth Hdisjoint_zrange_locals None (Vbool true) (Vbool true)
     (nth_not_default hnth2 ltac:(discriminate)) _ hnth2 _ hnth4 hlt).
 Qed.
@@ -746,6 +752,7 @@ Proof.
     have hle := get_pi_size_le hpi.
     rewrite /Addr_params hpi.
     apply: no_overflow_incl hargp.(wap_no_overflow).
+    rewrite eq_refl zero_extend_u.
     by apply zbetween_le.
   + move=> sl1 sl2 /in_Slots_params hsl1 /in_Slots_params hsl2 hneq.
     case hpi1: get_pi hsl1 => [[pi1 [v11 v12]]|//] _.
@@ -759,11 +766,13 @@ Proof.
     have [k2 [hnth21 hnth22 hnth23 hnth24]] := get_pi_nth hpi2.
     have := Hdisj hnth12 hnth14 hnth22 hnth24 ltac:(congruence) hw1.
     rewrite hnth13 hnth23.
+    rewrite eq_refl 2!zero_extend_u.
     by apply: disjoint_zrange_incl; apply zbetween_le.
   + move=> s /in_Slots_params.
     case hpi: get_pi => [[pi [v1 v2]]|//] _.
     have [p [? hargp]] := get_pi_wf_arg hpi; subst v2.
     rewrite /Addr_params /Align_params hpi.
+    rewrite eq_refl zero_extend_u.
     by apply hargp.(wap_align).
   by apply disjoint_zrange_globals_params.
 Qed.
@@ -926,7 +935,7 @@ Qed.
 
 Lemma init_map_wf_rmap vnew' s1 s2 :
   (forall i, 0 <= i < glob_size ->
-    read (emem s2) (rip + wrepr U64 i)%R U8 = ok (nth 0%R global_data (Z.to_nat i))) ->
+    read (emem s2) (rip + wrepr Uptr i)%R U8 = ok (nth 0%R global_data (Z.to_nat i))) ->
   wf_rmap (lmap (Mvar.empty _) vnew') Slots Addr Writable Align P empty s1 s2.
 Proof.
   clear disjoint_zrange_globals_locals.
@@ -1065,7 +1074,7 @@ Proof.
   case: ifP => [/and5P []|//].
   move=> h1.
   rewrite !zify.
-  move=> h2 /eqP; rewrite (Zland_mod _ U64) => h3 h4 h5 [<- <- _].
+  move=> h2 /eqP; rewrite (Zland_mod _ Uptr) => h3 h4 h5 [<- <- _].
   split=> //=.
   + by apply SvD.F.add_2.
   + by apply SvD.F.add_2.
@@ -1193,7 +1202,7 @@ Proof.
   case: ifP => [/and5P []|//].
   move=> h1.
   rewrite !zify.
-  move=> h2 /eqP; rewrite (Zland_mod _ U64) => h3 h4 h5 [<- <- <-].
+  move=> h2 /eqP; rewrite (Zland_mod _ Uptr) => h3 h4 h5 [<- <- <-].
   split=> //.
   move=> y sry /hptr.
   rewrite /get_local /= => -[pky [hly hpky]].
@@ -1227,7 +1236,7 @@ Qed.
 Lemma init_local_map_wf_rmap s2 :
   let: s1 := {| emem := m1; evm := vmap0 |} in
   (forall i, 0 <= i < glob_size ->
-    read (emem s2) (rip + wrepr U64 i)%R U8 = ok (nth 0%R global_data (Z.to_nat i))) ->
+    read (emem s2) (rip + wrepr Uptr i)%R U8 = ok (nth 0%R global_data (Z.to_nat i))) ->
   wf_rmap (lmap locals1 vnew1) Slots Addr Writable Align P rmap1 s1 s2.
 Proof.
   move=> heqvalg.
@@ -1372,7 +1381,8 @@ Proof.
     by lia.
   have haddr: w = sub_region_addr Addr sr.
   + rewrite /sub_region_addr /= wrepr0 GRing.addr0.
-    by rewrite /Addr (pick_slot_params hin) /= /Addr_params hpi.
+    rewrite /Addr (pick_slot_params hin) /= /Addr_params hpi.
+    by rewrite eq_refl zero_extend_u.
   rewrite haddr -(WArray.castK a1).
   apply (valid_state_set_move_regptr hpmap2 (x := param) (v:=Varr a1) (p:=p)) => //; last first.
   + split=> //.
@@ -1473,7 +1483,8 @@ Proof.
     have hin: Sv.In param Slots_params.
     + by apply in_Slots_params; congruence.
     rewrite /Addr (pick_slot_params hin) /Addr_params hpi.
-    by have [p [-> _]] := get_pi_wf_arg hpi.
+    have [p [-> _]] := get_pi_wf_arg hpi.
+    by rewrite eq_refl zero_extend_u.
   by move=> [_ _ _ <-].
 Qed.
 
@@ -1585,6 +1596,7 @@ Proof.
     apply hargp.(wap_valid).
     apply: zbetween_trans hb.
     rewrite /Addr (pick_slot_params hin) /Addr_params hpi.
+    rewrite eq_refl zero_extend_u.
     by apply (zbetween_le _ (get_pi_size_le hpi)).
   + move=> s w hin hvalid.
     case /in_Slots : hin => [hin|[hin|hin]].
@@ -1606,6 +1618,7 @@ Proof.
     have [p [? hargp]] := get_pi_wf_arg hpi; subst v2.
     apply: disjoint_zrange_incl_l (hargp.(wap_fresh) hvalid).
     rewrite /Addr (pick_slot_params hin) /Addr_params hpi.
+    rewrite eq_refl zero_extend_u.
     by apply (zbetween_le _ (get_pi_size_le hpi)).
   + move=> p hvalid.
     rewrite hass.(ass_valid); apply /orP; left.
@@ -1663,6 +1676,7 @@ Proof.
   move: hi; have [-> _] := size_fmapM2 hparams => hi.
   rewrite hnth2 hnth4 => /(_ _ _ refl_equal refl_equal hw).
   apply disjoint_zrange_incl_l.
+  rewrite eq_refl zero_extend_u.
   apply: zbetween_le.
   rewrite hnth3.
   by apply: get_pi_size_le hpi.
@@ -1702,7 +1716,7 @@ Proof.
   move=> hwf hvs hext rmap' s1' s2' hvs' hvalideq1 hvalideq2.
   case:(hext) => hover halign hold hfresh hvalid hnew.
   split=> //=.
-  + by apply (vs_eq_mem (valid_state := hvs')).
+  + exact: vs_eq_mem hvs'.
   + by move=> p hvalidp; apply hfresh; rewrite hvalideq1.
   + by move=> p; rewrite -hvalideq1 -hvalideq2; apply hvalid.
   move=> i hi.
@@ -1710,20 +1724,19 @@ Proof.
   + apply: between_byte hi => //.
     by apply zbetween_refl.
   have hvalid0: validw m0 (rip + wrepr _ i)%R U8.
-  + by apply (vs_glob_valid (valid_state := hvs)).
+  + exact: vs_glob_valid.
   have hnvalid1: ~ validw (emem s1) (rip + wrepr _ i)%R U8.
   + move=> /hfresh.
     by apply zbetween_not_disjoint_zrange.
   have hdisjoint: forall s, Sv.In s Slots -> Writable s ->
-    disjoint_zrange (Addr s) (size_slot s) (rip + wrepr U64 i) (wsize_size U8).
+    disjoint_zrange (Addr s) (size_slot s) (rip + wrepr Uptr i) (wsize_size U8).
   + move=> s hin hw.
     apply disjoint_zrange_sym.
     apply (disjoint_zrange_incl_l hb).
     apply hwf.(wfsl_not_glob) => //.
     by lia.
-  rewrite -(vs_unchanged (valid_state:=hvs')) //; last by rewrite -hvalideq1.
-  rewrite (vs_unchanged (valid_state:=hvs)) //.
-  by apply hnew.
+  rewrite -hnew // -vs_unchanged //; last by rewrite -hvalideq1.
+  exact: vs_unchanged.
 Qed.
 
 Section PROC.
@@ -1731,11 +1744,18 @@ Section PROC.
 Variable (P' : sprog).
 Hypothesis P'_globs : P'.(p_globs) = [::].
 
-Variable (local_alloc : funname -> stk_alloc_oracle_t).
+Context (mov_ofs : lval -> vptr_kind -> pexpr -> Z -> option instr_r).
+Hypothesis mov_ofsP : forall (P': sprog) s1 e i x ofs w vpk s2 ins,
+  P'.(p_globs) = [::] ->
+  sem_pexpr [::] s1 e >>= to_pointer = ok i ->
+  mov_ofs x vpk e ofs = Some ins ->
+  write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
+  sem_i P' w s1 ins s2.
 
+Variable (local_alloc : funname -> stk_alloc_oracle_t).
 Hypothesis Halloc_fd : forall fn fd,
   get_fundef P.(p_funcs) fn = Some fd ->
-  exists2 fd', alloc_fd P'.(p_extra) mglob local_alloc fn fd = ok fd' &
+  exists2 fd', alloc_fd mov_ofs P'.(p_extra) mglob local_alloc fn fd = ok fd' &
                get_fundef P'.(p_funcs) fn = Some fd'.
 
 (* RAnone -> export function (TODO: rename RAexport?) *)
@@ -1768,7 +1788,7 @@ Let Pi_r s1 (i1:instr_r) s2 :=
   wf_pmap pmap rsp rip Slots Addr Writable Align ->
   wf_Slots Slots Addr Writable Align ->
   forall sao,
-  alloc_i pmap local_alloc sao rmap1 (MkI ii1 i1) = ok (rmap2, MkI ii2 i2) ->
+  alloc_i mov_ofs pmap local_alloc sao rmap1 (MkI ii1 i1) = ok (rmap2, MkI ii2 i2) ->
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
@@ -1780,7 +1800,7 @@ Let Pi s1 (i1:instr) s2 :=
   wf_pmap pmap rsp rip Slots Addr Writable Align ->
   wf_Slots Slots Addr Writable Align ->
   forall sao,
-  alloc_i pmap local_alloc sao rmap1 i1 = ok (rmap2, i2) ->
+  alloc_i mov_ofs pmap local_alloc sao rmap1 i1 = ok (rmap2, i2) ->
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
@@ -1792,7 +1812,7 @@ Let Pc s1 (c1:cmd) s2 :=
   wf_pmap pmap rsp rip Slots Addr Writable Align ->
   wf_Slots Slots Addr Writable Align ->
   forall sao,
-  fmapM (alloc_i pmap local_alloc sao) rmap1 c1 = ok (rmap2, c2) ->
+  fmapM (alloc_i mov_ofs pmap local_alloc sao) rmap1 c1 = ok (rmap2, c2) ->
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
@@ -1863,7 +1883,7 @@ Proof.
   case: ifPn h => [/is_sarrP [n ?]| _ ].
   + subst ty.
     t_xrbindP=> halloc.
-    have [s2' [hs2' hvs']] := alloc_array_move_initP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap P'_globs hvs hv htr hw halloc.
+    have [s2' [hs2' hvs']] := alloc_array_move_initP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap P'_globs mov_ofsP hvs hv htr hw halloc.
     by exists s2'.
   t_xrbindP => e' /(alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hvs) he [rmap2' x'] hax /= ??; subst rmap2' i2.
   have htyv':= truncate_val_has_type htr.
@@ -1970,7 +1990,7 @@ Proof.
 Qed.
 
 Lemma alloc_fd_max_size_ge0 pex fn fd fd' :
-  alloc_fd pex mglob local_alloc fn fd = ok fd' ->
+  alloc_fd mov_ofs pex mglob local_alloc fn fd = ok fd' ->
   0 <= (local_alloc fn).(sao_max_size).
 Proof.
   rewrite /alloc_fd /alloc_fd_aux /=.
@@ -2208,7 +2228,7 @@ Lemma mapM2_truncate_val_wf_args m1 m2 fn vargs1 vargs2 :
     mapM2 ErrType truncate_val
       (map2 (fun o ty =>
         match o with
-        | Some _ => sword64
+        | Some _ => spointer
         | None => ty
         end) (sao_params (local_alloc fn)) tyin) vargs2 = ok vargs2' /\
     wf_args m1 m2 fn vargs1' vargs2'.
@@ -2223,7 +2243,7 @@ Proof.
   rewrite htr /=.
   case: opi harg => [pi|].
   + move=> [p [-> hargp]].
-    rewrite /= zero_extend_u.
+    rewrite /truncate_val /= truncate_word_u /=.
     eexists; split; first by reflexivity.
     constructor=> //.
     exists p; split=> //.
@@ -2242,7 +2262,7 @@ Lemma mapM2_truncate_val_ptr_eq m1 m2 fn vargs1 vargs2 :
   mapM2 ErrType truncate_val
     (map2 (fun o ty =>
           match o with
-          | Some _ => sword64
+          | Some _ => spointer
           | None => ty
           end) (sao_params (local_alloc fn)) tyin) vargs2 = ok vargs2' ->
   Forall3 (fun opi varg varg' => opi <> None -> varg = varg') (local_alloc fn).(sao_params) vargs2 vargs2'.
@@ -2253,7 +2273,7 @@ Proof.
   t_xrbindP=> _ varg2' hvarg2' vargs2' /ih{ih}ih <-.
   constructor=> //.
   case: opi harg hvarg2' => [pi|//] [p [-> ?]].
-  rewrite /truncate_val /= zero_extend_u.
+  rewrite /truncate_val /= truncate_word_u.
   by move=> [<-].
 Qed.
 
@@ -2301,7 +2321,7 @@ Lemma mapM2_truncate_val_wf_results m vargs1 vargs2 fn vres1 vres2 :
     mapM2 ErrType truncate_val
       (map2 (fun o ty =>
         match o with
-        | Some _ => sword64
+        | Some _ => spointer
         | None => ty
         end) (sao_return (local_alloc fn)) tyout) vres2 = ok vres2' /\
     wf_results m vargs1 vargs2 fn vres1' vres2'.
@@ -2316,7 +2336,7 @@ Proof.
   rewrite htr /=.
   case: i hresult => [i|].
   + move=> [p [-> hresultp]].
-    rewrite /= zero_extend_u.
+    rewrite /truncate_val /= truncate_word_u /=.
     eexists; split; first by reflexivity.
     constructor=> //.
     eexists; split; first by reflexivity.
@@ -2533,11 +2553,26 @@ Proof.
   have hass := Memory.alloc_stackP halloc_stk.
   set fex := {| sf_align := _ |} in hfd2.
   set rsp := top_stack m2'.
-  have hinit: init_stk_state fex (p_extra P') rip {| emem := m2; evm := vmap0 |} =
-    ok {| emem := m2';
-          evm  := vmap0.[{| vtype := sword Uptr; vname := P'.(p_extra).(sp_rsp) |} <- ok (pword_of_word rsp)]
-                       .[{|vtype := sword64; vname := P'.(p_extra).(sp_rip)|} <- ok (pword_of_word rip)] |}.
-  + by rewrite /init_stk_state halloc_stk /= !pword_of_wordE.
+  have hinit:
+    init_stk_state fex (p_extra P') rip {| emem := m2; evm := vmap0 |} =
+    ok
+      {|
+        emem := m2';
+        evm := vmap0
+          .[
+            {|
+              vtype := spointer;
+              vname := P'.(p_extra).(sp_rsp);
+            |} <- ok (pword_of_word rsp)
+          ]
+          .[
+            {|
+              vtype := spointer;
+              vname := P'.(p_extra).(sp_rip);
+            |} <- ok (pword_of_word rip)
+          ];
+      |}.
+  + by rewrite /init_stk_state halloc_stk /=  sumbool_of_boolET !pword_of_wordE.
   have hover := ass_no_overflow hass.
   have hargs'' := alloc_stack_spec_wf_args hargs' hass.
   have hext' := alloc_stack_spec_extend_mem hext hass.
@@ -2606,7 +2641,7 @@ Proof.
         have hbound: 0 <= sao_size (local_alloc fn) + sao_extra_size (local_alloc fn)
                   /\ sao_size (local_alloc fn) + sao_extra_size (local_alloc fn) <= wunsigned (top_stack m2).
         + by lia.
-        have := @top_stack_after_alloc_bounded _ (local_alloc fn).(sao_align) _ hbound.
+        have := @top_stack_after_alloc_bounded _ _ (local_alloc fn).(sao_align) _ hbound.
         by lia.
       move=> hmax hok1 hok2.
       rewrite (top_stack_after_aligned_alloc _ (hok2 _)) //.
@@ -2678,7 +2713,7 @@ Qed.
 
 Lemma check_cP m1 fn vargs m2 vres : sem_call P ev m1 fn vargs m2 vres -> Pfun m1 fn vargs m2 vres.
 Proof.
-  apply (@sem_call_Ind _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
+  apply (@sem_call_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
                        Hskip
                        Hcons
                        HmkI
@@ -2699,11 +2734,23 @@ End PROC.
 
 End INIT.
 
+Section WITH_MOV_OFS.
+
+Context {pd: PointerData}.
+Context `{asmop:asmOp}.
+Context (mov_ofs : lval -> vptr_kind -> pexpr -> Z -> option instr_r).
+Hypothesis mov_ofsP : forall (P': sprog) s1 e i x ofs w vpk s2 ins,
+  P'.(p_globs) = [::] ->
+  sem_pexpr [::] s1 e >>= to_pointer = ok i ->
+  mov_ofs x vpk e ofs = Some ins ->
+  write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
+  sem_i P' w s1 ins s2.
+
 Lemma get_alloc_fd p_extra mglob oracle fds1 fds2 :
-  map_cfprog_name (alloc_fd p_extra mglob oracle) fds1 = ok fds2 ->
+  map_cfprog_name (alloc_fd mov_ofs p_extra mglob oracle) fds1 = ok fds2 ->
   forall fn fd1,
   get_fundef fds1 fn = Some fd1 ->
-  exists2 fd2, alloc_fd p_extra mglob oracle fn fd1 = ok fd2 &
+  exists2 fd2, alloc_fd mov_ofs p_extra mglob oracle fn fd1 = ok fd2 &
                get_fundef fds2 fn = Some fd2.
 Proof.
   move=> hmap fn fd1.
@@ -2732,7 +2779,7 @@ Qed.
       except for the regions pointed to by the writable [reg ptr]s given as arguments.
 *)
 Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
-  alloc_prog nrip nrsp data oracle_g oracle P = ok SP ->
+  alloc_prog mov_ofs nrip nrsp data oracle_g oracle P = ok SP ->
   forall ev m1 vargs1 m1' vres1,
     sem_call (sCP := sCP_unit) P ev m1 fn vargs1 m1' vres1 ->
     forall rip m2 vargs2,
@@ -2757,19 +2804,30 @@ Proof.
   have [fd1 hfd1]: exists fd, get_fundef (p_funcs P) fn = Some fd.
   + have /sem_callE [fd1 [hfd1 _]]  := hsem1.
     by exists fd1.
-
-  by apply (check_cP hext.(em_no_overflow) hmap hcheck (P':=P') refl_equal (get_alloc_fd hfds)
-              hneq hsem1 hext hargs hdisj halloc).
+  by apply (check_cP
+              hext.(em_no_overflow)
+              hmap
+              hcheck
+              (P':=P')
+              refl_equal
+              mov_ofsP
+              (get_alloc_fd hfds)
+              hneq
+              hsem1
+              hext
+              hargs
+              hdisj
+              halloc).
 Qed.
 
 Lemma alloc_prog_get_fundef nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) :
-  alloc_prog nrip nrsp data oracle_g oracle P = ok SP →
+  alloc_prog mov_ofs nrip nrsp data oracle_g oracle P = ok SP →
   exists2 mglob,
     init_map (Z.of_nat (size data)) oracle_g = ok mglob &
     ∀ fn fd,
     get_fundef (p_funcs P) fn = Some fd →
     exists2 fd',
-      alloc_fd {| sp_rsp := nrsp ; sp_rip := nrip ; sp_globs := data |} mglob oracle fn fd = ok fd' &
+      alloc_fd mov_ofs {| sp_rsp := nrsp ; sp_rip := nrip ; sp_globs := data |} mglob oracle fn fd = ok fd' &
       get_fundef (p_funcs SP) fn = Some fd'.
 Proof.
   rewrite /alloc_prog; t_xrbindP => mglob ->.
@@ -2781,7 +2839,7 @@ Proof.
 Qed.
 
 Lemma alloc_fd_checked_sao p_extra mglob oracle fn fd fd' :
-  alloc_fd p_extra mglob oracle fn fd = ok fd' →
+  alloc_fd mov_ofs p_extra mglob oracle fn fd = ok fd' →
   [/\ size (sao_params (oracle fn)) = size (f_params fd) & size (sao_return (oracle fn)) = size (f_res fd) ].
 Proof.
   rewrite /alloc_fd/alloc_fd_aux/check_results; t_xrbindP => ?? _ [] [] ??? _.
@@ -2792,3 +2850,5 @@ Proof.
   - by case: (size_fmapM2 ok_params).
   by case: (mapM2_size ok_results).
 Qed.
+
+End WITH_MOV_OFS.

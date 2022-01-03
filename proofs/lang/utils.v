@@ -311,7 +311,7 @@ elim: m => //= a m ih ext.
 rewrite ext; [ f_equal | ]; eauto.
 Qed.
 
-Instance mapM_ext eT aT bT :
+Lemma mapM_ext eT aT bT :
   Proper (@eqfun (result eT bT) aT ==> eq ==> eq) (@mapM eT aT bT).
 Proof.
 move => f g ext xs xs' <-{xs'}.
@@ -1146,7 +1146,7 @@ Canonical comparison_eqType := Eval hnf in EqType comparison comparison_eqMixin.
 Class Cmp {T:Type} (cmp:T -> T -> comparison) := {
     cmp_sym    : forall x y, cmp x y = CompOpp (cmp y x);
     cmp_ctrans : forall y x z c, ctrans (cmp x y) (cmp y z) = Some c -> cmp x z = c;
-    cmp_eq     : forall x y, cmp x y = Eq -> x = y;
+    cmp_eq     : forall {x y}, cmp x y = Eq -> x = y;
   }.
 
 Definition gcmp {T:Type} {cmp:T -> T -> comparison} {C:Cmp cmp} := cmp.
@@ -1288,7 +1288,7 @@ Section LEX.
     by rewrite /lex;case:cmp1 => //;case:cmp2.
   Qed.
 
-  Instance LexO (C1:Cmp cmp1) (C2:Cmp cmp2) : Cmp lex.
+  Lemma LexO (C1:Cmp cmp1) (C2:Cmp cmp2) : Cmp lex.
   Proof.
     constructor=> [x y | y x z | x y].
     + by apply /lex_sym;apply /cmp_sym.
@@ -1516,13 +1516,13 @@ Proof. by case: z. Qed.
 Lemma ziotaS_cons p z: 0 <= z -> ziota p (Z.succ z) = p :: ziota (p+1) z.
 Proof.
   move=> hz;rewrite /ziota Z2Nat.inj_succ //= Z.add_0_r; f_equal.
-  rewrite -addn1 addnC iota_addl -map_comp.
+  rewrite -addn1 addnC iotaDl -map_comp.
   by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat;Psatz.lia.
 Qed.
 
 Lemma ziotaS_cat p z: 0 <= z -> ziota p (Z.succ z) = ziota p z ++ [:: p + z].
 Proof.
-  by move=> hz;rewrite /ziota Z2Nat.inj_succ // -addn1 iota_add map_cat /= add0n Z2Nat.id.
+  by move=> hz;rewrite /ziota Z2Nat.inj_succ // -addn1 iotaD map_cat /= add0n Z2Nat.id.
 Qed.
 
 Lemma in_ziota (p z i:Z) : (i \in ziota p z) = ((p <=? i) && (i <? p + z)).

@@ -23,6 +23,9 @@ let lea = ref false
 let set0 = ref false
 let model = ref Normal
 let print_stack_alloc = ref false
+let introduce_array_copy = ref true
+
+let lazy_regalloc = ref false
 
 let set_printing p () =
   print_list := p :: !print_list
@@ -65,6 +68,7 @@ let set_ct_on s =
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
+  | Compiler.ArrayCopy                   -> "arraycopy", "array copy"
   | Compiler.AddArrInit                  -> "addarrinit", "add array initialisation"
   | Compiler.Inlining                    -> "inline"   , "inlining"
   | Compiler.RemoveUnusedFunction        -> "rmfunc"   , "remove unused function"
@@ -83,7 +87,7 @@ let print_strings = function
   | Compiler.RegAllocation               -> "ralloc"   , "register allocation"
   | Compiler.DeadCode_RegAllocation      -> "rallocd"  , "dead code after register allocation"
  
-  | Compiler.Linearisation               -> "linear"   , "linearisation"
+  | Compiler.Linearization               -> "linear"   , "linearization"
   | Compiler.Tunneling                   -> "tunnel"   , "tunneling"
   | Compiler.Assembly                    -> "asm"      , "generation of assembly"
 
@@ -122,11 +126,14 @@ let options = [
     "-safetymakeconfigdoc", Arg.String set_safety_makeconfigdoc, "[dir]: make the safety checker configuration docs in [dir]";
     "-wlea", Arg.Unit (add_warning UseLea), ": print warning when lea is used";
     "-w_"  , Arg.Unit (add_warning IntroduceNone), ": print warning when extra _ is introduced";
-    "-wea", Arg.Unit (add_warning ExtraAssignment), ": print warning when assignment is introduced";
+    "-wea", Arg.Unit (add_warning ExtraAssignment), ": print warning when extra assignment is introduced";
+    "-winsertarraycopy", Arg.Unit (add_warning IntroduceArrayCopy), ": print warning when array copy is introduced";
+    "-noinsertarraycopy", Arg.Clear introduce_array_copy, ": do not automatically insert array copy";
     "-nowarning", Arg.Unit (nowarning), ": do no print warning";
     "-color", Arg.Symbol (["auto"; "always"; "never"], set_color), ": print messages with color";
     "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
     "-print-stack-alloc", Arg.Set print_stack_alloc, ": print the results of the stack allocation OCaml oracle";
+    "--lazy-regalloc", Arg.Set lazy_regalloc, "\tAllocate variables to registers in program order";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 

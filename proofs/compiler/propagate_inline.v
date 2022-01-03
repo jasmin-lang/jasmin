@@ -33,7 +33,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Fixpoint use_mem (e : pexpr) := 
+Fixpoint use_mem (e : pexpr) :=
   match e with 
   | Pconst _ | Pbool _ | Parr_init _ | Pvar _ => false 
   | Pload _ _ _ => true
@@ -183,6 +183,10 @@ Module Import E.
 
 End E.
 
+Section ASM_OP.
+
+Context `{asmop:asmOp}.
+
 Section LOOP.
 
   Context (pi_i : pimap -> instr -> cexec (pimap * instr)). 
@@ -278,3 +282,5 @@ Definition pi_prog (p:prog) :=
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
 
 End Section.
+
+End ASM_OP.

@@ -43,12 +43,12 @@ Class ToString (t:stype) (T:Type) :=
   ; stringsE      : strings = [seq (to_string x, x) | x <- enum cfinT_finType]
   }.
 
-Definition rtype `{ToString} := t.
+Definition rtype {t T} `{ToString t T} := t.
 
 (* ==================================================================== *)
 
 Class arch_decl (reg xreg rflag cond : Type) := 
-  { reg_size  : wsize
+  { reg_size  : wsize (* [reg_size] is also used as the size of pointers *)
   ; xreg_size : wsize
   ; cond_eqC  :> eqTypeC cond
   ; toS_r     :> ToString (sword reg_size) reg
@@ -56,15 +56,17 @@ Class arch_decl (reg xreg rflag cond : Type) :=
   ; toS_f     :> ToString sbool rflag
 }.
 
+Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
+
 (* FIXME ARM : Try to not use this projection *)
-Definition reg_t   `{arch : arch_decl} := reg.
-Definition xreg_t  `{arch : arch_decl} := xreg.
-Definition rflag_t `{arch : arch_decl} := rflag.
-Definition cond_t  `{arch : arch_decl} := cond.
+Definition reg_t   {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := reg.
+Definition xreg_t  {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := xreg.
+Definition rflag_t {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := rflag.
+Definition cond_t  {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := cond.
 
 Section DECL.
-  
-Context `{arch : arch_decl}.
+
+Context {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond}.
 
 (* -------------------------------------------------------------------- *)
 (* disp + base + scale × offset *)
@@ -115,8 +117,10 @@ Qed.
 Definition address_eqMixin := Equality.Mixin address_eq_axiom.
 Canonical address_eqType := EqType address address_eqMixin.
 
-Definition wreg  := sem_t (sword Uptr). 
+Definition wreg  := sem_t (sword reg_size).
 Definition wxreg := sem_t (sword xreg_size).
+
+Definition rflags : list rflag := enum cfinT_finType.
 
 Variant asm_arg : Type :=
   | Condt  of cond_t
@@ -341,9 +345,9 @@ Class asm_op_decl (asm_op : Type) :=
   ; instr_desc_op : asm_op -> instr_desc_t
   ; prim_string   : list (string * prim_constructor asm_op) }.
 
-Definition asm_op_t' `{asm_op_d : asm_op_decl} := asm_op.
+Definition asm_op_t' {asm_op} {asm_op_d : asm_op_decl asm_op} := asm_op.
 (* We extend [asm_op] in order to deal with msb flags *)
-Definition asm_op_t `{asm_op_d : asm_op_decl} := (option wsize * asm_op)%type.
+Definition asm_op_msb_t {asm_op} {asm_op_d : asm_op_decl asm_op} := (option wsize * asm_op)%type.
 
 Context `{asm_op_d : asm_op_decl}.
 
@@ -425,7 +429,7 @@ Definition exclude_mem (cond : i_args_kinds) (d : seq arg_desc) : i_args_kinds :
   filter (fun c => [::] \notin c) (exclude_mem_aux cond d).
 
 (* An extension of [instr_desc] that deals with msb flags *)
-Definition instr_desc (o:asm_op_t) : instr_desc_t :=
+Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
   let (ws, o) := o in
   let d := instr_desc_op o in
   if ws is Some ws then

@@ -16,6 +16,10 @@ Module Import E.
 
 End E.
 
+Section ASM_OP.
+
+Context `{asmop:asmOp}.
+
 (* -------------------------------------------------------------------- *)
 Fixpoint i_calls (c : Sp.t) (i : instr) {struct i} : Sp.t :=
   let: MkI _ i := i in i_calls_r c i
@@ -62,3 +66,4 @@ Definition dead_calls_err_seq (c : seq funname) (p : prog) : cexec prog  :=
 
 End Section.
 
+End ASM_OP.

@@ -147,8 +147,8 @@ Definition map_cfprog_gen {T1 T2} (info : T1 -> fun_info) (F: T1 -> cexec T2) :=
   map_cfprog_name_gen info (fun _ t1 => F t1).
 
 (* Some notations to use in the common case where we manipulate [_fundef ?eft]. *)
-Notation map_cfprog_name := (map_cfprog_name_gen (@f_info _)).
-Notation map_cfprog := (map_cfprog_gen (@f_info _)).
+Notation map_cfprog_name := (map_cfprog_name_gen (@f_info _ _ _)).
+Notation map_cfprog := (map_cfprog_gen (@f_info _ _ _)).
 
 Lemma get_map_cfprog_name_gen {T1 T2} (info : T1 -> fun_info) (F: funname -> T1 -> cexec T2) p p' fn f:
   map_cfprog_name_gen info F p = ok p' ->
@@ -258,3 +258,5 @@ Definition loop_iterator pass_name :=
 
 Definition ii_loop_iterator pass_name ii := 
   gen_loop_iterator pass_name (Some ii).
+
+Definition error_copy_remain := "array copy remain"%string.

@@ -1,0 +1,20 @@
+export
+fn test_ptest(reg u64 rp) {
+  reg u256 g;
+  reg u128 h;
+  reg bool zf;
+  reg u64 r f;
+
+  r = 1;
+  f = 0;
+  
+  g = #set0_256();
+  _, _, _, _, zf = #VPTEST_256(g, g);
+  r = f if !zf;
+  (u64)[rp] = r;
+
+  h = #set0_128();
+  _, _, _, _, zf = #VPTEST_128(h, h);
+  r = f if !zf;
+  (u64)[rp] = r;
+}

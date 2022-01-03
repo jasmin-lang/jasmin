@@ -324,11 +324,11 @@ Module Mmake (K':CmpType) <: MAP.
     Map.Raw.bst (raw_map2 f (Map.this m1) (Map.this m2)).
   Proof.
     rewrite /raw_map2.
-    apply Map.Raw.Proofs.map2_opt_bst with (f0 := f).
-    + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
-    + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
-    + by move=> x m H;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
-    + by move=> x m H;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
+    apply: (@Map.Raw.Proofs.map2_opt_bst _ _ _ f).
+    + by apply Map.Raw.Proofs.map_option_bst=> ??? /cmp_eq ->.
+    + by apply Map.Raw.Proofs.map_option_bst=> ??? /cmp_eq ->.
+    + by move=> x m H;apply Map.Raw.Proofs.map_option_find=>// ??? /cmp_eq ->.
+    + by move=> x m H;apply Map.Raw.Proofs.map_option_find=>// ??? /cmp_eq ->.
     + by apply Map.is_bst.
     by apply Map.is_bst.
   Qed.
@@ -388,7 +388,7 @@ Module Mmake (K':CmpType) <: MAP.
   Proof.
     rewrite /remove/get Facts.remove_o.
     case: Ordered.eq_dec.
-    + by move=> /(@cmp_eq _ _ _ _ _) <-;rewrite eq_refl. (* Enrico : Bug *)
+    + by move=> /cmp_eq <-;rewrite eq_refl.
     move=> Hneq;have -> // : (x == y) = false.
     by case : (x =P y) => // ?;subst;elim Hneq; exact: Ordered.eq_refl.
   Qed.
@@ -406,7 +406,7 @@ Module Mmake (K':CmpType) <: MAP.
   Lemma mapiP {T1 T2} (f:K.t -> T1 -> T2) (m:t T1) (x:K.t):
     (mapi f m).[x] = omap (f x) m.[x].
   Proof.
-    by rewrite /mapi /get Facts.mapi_o // => ??? /(@cmp_eq _ _ _ _ _) ->.
+    by rewrite /mapi /get Facts.mapi_o // => ??? /cmp_eq ->.
   Qed.
 
   Lemma filter_mapP {T1 T2} (f:K.t -> T1 -> option T2) (m:t T1) (x:K.t):
@@ -427,11 +427,11 @@ Module Mmake (K':CmpType) <: MAP.
     case: (boolP (Map.mem x m1 || Map.mem x m2)).
     + move=> /orP;rewrite /is_true -!Facts.mem_in_iff /Map.In !Map.Raw.Proofs.In_alt.
       apply Map.Raw.Proofs.map2_opt_1 => //=.
-      + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
-      + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
-      + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
-      + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
-      + by move=> ???? /(@cmp_eq _ _ _ _ _) ->.
+      + by apply Map.Raw.Proofs.map_option_bst=> ??? /cmp_eq ->.
+      + by apply Map.Raw.Proofs.map_option_bst=> ??? /cmp_eq ->.
+      + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /cmp_eq ->.
+      + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /cmp_eq ->.
+      + by move=> ???? /cmp_eq ->.
       + by apply Map.is_bst.
       by apply Map.is_bst.
     rewrite !Facts.mem_find_b /get;case H1: Map.find;case H2: Map.find=>//= _.
@@ -440,10 +440,10 @@ Module Mmake (K':CmpType) <: MAP.
     rewrite /map2 /Map.In /= Map.Raw.Proofs.In_alt=> /(@Map.Raw.Proofs.map2_opt_2 _ _ _ f).
     rewrite -!Map.Raw.Proofs.In_alt -/(Map.In x m1) -/(Map.In x m2) !Facts.in_find_iff.
     rewrite H1 H2 => -[] //.
-    + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
-    + by apply Map.Raw.Proofs.map_option_bst=> ??? /(@cmp_eq _ _ _ _ _) ->.
-    + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
-    + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /(@cmp_eq _ _ _ _ _) ->.
+    + by apply Map.Raw.Proofs.map_option_bst=> ??? /cmp_eq ->.
+    + by apply Map.Raw.Proofs.map_option_bst=> ??? /cmp_eq ->.
+    + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /cmp_eq ->.
+    + by move=> ???;apply Map.Raw.Proofs.map_option_find=>// ??? /cmp_eq ->.
     + by apply Map.is_bst.
     by apply Map.is_bst.
   Qed.
@@ -501,11 +501,21 @@ Module Mmake (K':CmpType) <: MAP.
     by elim: Map.elements a=> //=.
   Qed.
 
+  Lemma bstE {T} (m: Map.Raw.tree T) :
+    Map.Raw.bst m ->
+    match m with
+    | Map.Raw.Leaf => True
+    | Map.Raw.Node L k _ R _ =>
+        [/\ Map.Raw.bst L, Map.Raw.bst R, Map.Raw.lt_tree k L & Map.Raw.gt_tree k R ]
+    end.
+  Proof. by case. Qed.
+
+
   Lemma allP {T} (f: K.t -> T -> bool) (m: t T) :
     all f m <-> (forall k t, get m k = Some t -> f k t).
   Proof.
     rewrite /all/get/Map.find; case: m => /=.
-    elim => //= L hL k v R hR s ok; inversion ok; clear ok; subst; split.
+    elim => //= L hL k v R hR s /bstE[] ?? H6 H7; split.
     - case/andP => /andP[] fkv {}/hL hL {}/hR hR k' v'.
       case: Ordered.compare => k'k; cycle 2.
       + exact: hR.
@@ -530,7 +540,7 @@ Module Mmake (K':CmpType) <: MAP.
     rewrite /has/get/Map.find; case: m => /=.
     elim => /=.
     + by move=> _; split => // -[] ? [] ? [].
-    move=> L hL k v R hR s ok; inversion ok; clear ok; subst; split.
+    move=> L hL k v R hR s /bstE[] ?? H6 H7; split.
     + move=> /orP [/orP [] | ].
       + move=> ?; exists k, v.
         by have [? ->] := Map.Raw.Proofs.MX.elim_compare_eq (Map.E.eq_refl k).
@@ -557,7 +567,7 @@ Module Mmake (K':CmpType) <: MAP.
        end).
   Proof.
     rewrite /incl_def/get/Map.find; case: m2 => /=; case: m1 => /=.
-    elim => //= L hL k v R hR s ok t2 hbst2; inversion ok; clear ok; subst.
+    elim => //= L hL k v R hR s /bstE[] ?? H6 H7  t2 hbst2.
     have := Map.Raw.Proofs.split_bst k hbst2.
     case hsplit: Map.Raw.split => [t2l oe2 t2r] /= [] hbst2l hbst2r.
     split.

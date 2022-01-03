@@ -176,7 +176,7 @@ let pp_glvs pp_len pp_var fmt lvs =
 
 (* -------------------------------------------------------------------- *)
 let pp_opn o =
-  Conv.string_of_string0 ((Expr.get_instr o).str ())
+  Conv.string_of_string0 ((Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) o).str ())
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = function
@@ -201,7 +201,7 @@ let rec pp_gi pp_info pp_len pp_var fmt i =
 
   | Copn(x, t, o, e) ->
     let pp_cast fmt = function
-      | E.Ox86'(Some ws, _) -> Format.fprintf fmt "(%a)" pp_btype (U ws)
+      | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%a)" pp_btype (U ws)
       | _ -> () in
 
     F.fprintf fmt "@[<hov 2>%a %s=@ %a%s(%a);@]"

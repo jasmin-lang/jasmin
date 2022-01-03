@@ -319,6 +319,9 @@ Definition sub_region_stkptr s ws z :=
   let r := {| r_slot := s; r_align := ws; r_writable := true |} in
   {| sr_region := r; sr_zone := z |}.
 
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
+
 Definition set_stack_ptr (rmap:region_map) s ws z (x':var) :=
   let sr := sub_region_stkptr s ws z in
   let rv := set_pure_bytes rmap x' sr (Some 0)%Z (wsize_size Uptr) in
@@ -332,6 +335,8 @@ Definition check_stack_ptr rmap s ws z x' :=
   let i := interval_of_zone z in
   let bytes := get_var_bytes rmap sr.(sr_region) x' in
   ByteSet.mem bytes i.
+
+End WITH_POINTER_DATA.
 
 (* Precondition size_of x = ws && length sr.sr_zone = wsize_size ws *)
 Definition set_word rmap (x:var_i) sr ws :=
@@ -423,12 +428,18 @@ End Region.
 
 Import Region.
 
+Section ASM_OP.
+Context {pd: PointerData}.
+Context `{asmop:asmOp}.
+
 Definition mul := Papp2 (Omul (Op_w Uptr)).
 Definition add := Papp2 (Oadd (Op_w Uptr)).
 
 Definition cast_word e := 
   match e with
-  | Papp1 (Oint_of_word U64) e1 => e1
+  | Papp1 (Oint_of_word sz) e1 => if (sz == Uptr)%CMP
+                                  then e1
+                                  else cast_ptr e
   | _  => cast_ptr e
   end.
 
@@ -466,6 +477,21 @@ Definition assert_check E b (e:E) :=
   if check then assert b e
   else ok tt.
 
+Inductive vptr_kind :=
+  | VKglob of Z * wsize
+  | VKptr  of ptr_kind.
+
+Definition var_kind := option vptr_kind.
+
+(* Return an instruction that computes an address from an base address and an
+   offset.
+   This is architecture-specific. *)
+Context (mov_ofs
+  :  lval       (* The variable to save the address to. *)
+  -> vptr_kind  (* The kind of address to compute. *)
+  -> pexpr      (* Variable with base address. *)
+  -> Z          (* Offset. *)
+  -> option instr_r).
 
 Section Section.
 
@@ -495,12 +521,6 @@ Definition check_var (x:var_i) :=
     Error (stk_error x (pp_box [::
       pp_var x; pp_s "is a stack variable, but a reg variable is expected"]))
   end.
-
-Inductive vptr_kind := 
-  | VKglob of Z * wsize
-  | VKptr  of ptr_kind.
-
-Definition var_kind := option vptr_kind.
 
 Definition with_var xi x := 
   {| v_var := x; v_info := xi.(v_info) |}.
@@ -695,21 +715,6 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
 
 Definition nop := Copn [::] AT_none Onop [::]. 
 
-Definition lea_ptr x y ofs := 
-  Copn [::x] AT_none (Ox86 (LEA Uptr)) [:: add y (cast_const ofs)].
-
-Definition mov_ptr x y :=
-  Copn [:: x] AT_none (Ox86 (MOV Uptr)) [::y].
-
-Inductive mov_kind := 
-  | MK_LEA 
-  | MK_MOV.
-
-Definition mov_ofs x mk y ofs := 
-  if mk is MK_LEA then lea_ptr x y ofs 
-  else
-    if ofs == 0%Z then mov_ptr x y else lea_ptr x y ofs.
-
 (* [is_spilling] is used for stack pointers. *)
 Definition is_nop is_spilling rmap (x:var) (sry:sub_region) : bool :=
   if is_spilling is Some (s, ws, z, f) then
@@ -719,11 +724,10 @@ Definition is_nop is_spilling rmap (x:var) (sry:sub_region) : bool :=
   else false.
 
 (* TODO: better error message *)
-Definition get_addr is_spilling rmap x dx sry mk y ofs := 
-  let ir :=
-    if is_nop is_spilling rmap x sry then nop
-    else
-      mov_ofs dx mk y ofs in
+Definition get_addr is_spilling rmap x dx sry vpk y ofs :=
+  let ir := if is_nop is_spilling rmap x sry
+            then Some nop
+            else mov_ofs dx vpk y ofs in
   let rmap := Region.set_move rmap x sry in
   (rmap, ir).
 
@@ -770,12 +774,6 @@ Definition mk_addr_pexpr rmap x vpk :=
     Let xofs := addr_from_vpk x vpk in
     ok (Plvar xofs.1, xofs.2).
 
-Definition mk_mov vpk :=
-  match vpk with
-  | VKglob _ | VKptr (Pdirect _ _ _ _ Slocal) => MK_LEA
-  | _ => MK_MOV
-  end.
-
 (* TODO: the check [is_lvar] was removed, was it really on purpose? *)
 (* TODO : currently, we check that the source array is valid and set the target
    array as valid too. We could, instead, give the same validity to the target
@@ -805,11 +803,10 @@ Definition alloc_array_move rmap r e :=
       Let srs := check_vpk rmap vy vpk (Some ofs) len in
       let sry := srs.2 in
       Let eofs := mk_addr_pexpr rmap vy vpk in
-      let mk := mk_mov vpk in
-      ok (sry, mk, eofs.1, (eofs.2 + ofs)%Z)
+      ok (sry, vpk, eofs.1, (eofs.2 + ofs)%Z)
     end
   in
-  let '(sry, mk, ey, ofs) := sryl in
+  let '(sry, vpk, ey, ofs) := sryl in
   match subx with
   | None =>
     match get_local (v_var x) with
@@ -828,11 +825,27 @@ Definition alloc_array_move rmap r e :=
         let rmap := Region.set_move rmap x sry in
         ok (rmap, nop)
       | Pregptr p =>
-        ok (get_addr None rmap x (Lvar (with_var x p)) sry mk ey ofs)
+        let (rmap, oir) :=
+            get_addr None rmap x (Lvar (with_var x p)) sry vpk ey ofs in
+        match oir with
+        | None =>
+          let err_pp := pp_box [:: pp_s "cannot compute address"; pp_var x] in
+          Error (stk_error x err_pp)
+        | Some ir =>
+          ok (rmap, ir)
+        end
       | Pstkptr slot ofsx ws z x' =>
-        let (rmap, ir) :=
-          get_addr (Some (slot, ws, z, x')) rmap x (Lmem Uptr (with_var x pmap.(vrsp)) (cast_const (ofsx + z.(z_ofs)))) sry mk ey ofs in
-        ok (Region.set_stack_ptr rmap slot ws z x', ir)
+        let is_spilling := Some (slot, ws, z, x') in
+        let dx_ofs := cast_const (ofsx + z.(z_ofs)) in
+        let dx := Lmem Uptr (with_var x pmap.(vrsp)) dx_ofs in
+        let (rmap, oir) := get_addr is_spilling rmap x dx sry vpk ey ofs in
+        match oir with
+        | None =>
+          let err_pp := pp_box [:: pp_s "cannot compute address"; pp_var x] in
+          Error (stk_error x err_pp)
+        | Some ir =>
+          ok (Region.set_stack_ptr rmap slot ws z x', ir)
+        end
       end
     end
   | Some (ofs, len) =>
@@ -1132,6 +1145,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * instr) :
       add_iinfo ii (alloc_call sao rmap ini rs fn es) 
 
     | Cfor _ _ _  => Error (pp_at_ii ii (stk_ierror_no_var "don't deal with for loop"))
+
     end in
   ok (ir.1, MkI ii ir.2).
 
@@ -1200,7 +1214,7 @@ Definition add_alloc globals stack (xpk:var * ptr_kind_init) (lrx: Mvar.t ptr_ki
           else
             if [&& (Uptr <= ws')%CMP,
                 (0%Z <= z.(z_ofs))%CMP,
-                (Z.land z.(z_ofs) (wsize_size U64 - 1) == 0)%Z,
+                (Z.land z.(z_ofs) (wsize_size Uptr - 1) == 0)%Z,
                 (wsize_size Uptr <= z.(z_len))%CMP &
                 ((z.(z_ofs) + z.(z_len))%Z <= size_slot x')%CMP] then
               ok (Sv.add xp sv, Pstkptr x' ofs' ws' z xp, rmap)
@@ -1425,3 +1439,5 @@ Definition alloc_prog rip rsp global_data global_alloc local_alloc (P:_uprog) : 
      Error (stk_ierror_no_var "invalid data").
 
 End CHECK.
+
+End ASM_OP.

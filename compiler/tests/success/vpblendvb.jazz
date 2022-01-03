@@ -1,0 +1,17 @@
+export
+fn test_vpblendvb(reg u64 rp) {
+  reg u256 f0 f1 m;
+  reg u128 h0 h1 n;
+
+  f0 = #set0_256();
+  f1 = #set0_256();
+  m = #set0_256();
+  f0 = #VPBLENDVB_256(f0, f1, m);
+  (u256)[rp] = f0;
+
+  h0 = #set0_128();
+  h1 = #set0_128();
+  n = #set0_128();
+  h0 = #VPBLENDVB_128(h0, h1, n);
+  (u128)[rp + 32] = h0;
+}

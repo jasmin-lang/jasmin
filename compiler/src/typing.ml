@@ -17,7 +17,18 @@ let error loc fmt =
     bfmt fmt
 
 (* -------------------------------------------------------------------- *)
-let ty_var (x:var_i) = (L.unloc x).v_ty
+let ty_var (x:var_i) = 
+  let ty = (L.unloc x).v_ty in
+  begin match ty with
+  | Arr(_, n) -> 
+      if (n < 1) then 
+        error (L.i_loc0 (L.unloc x).v_dloc)
+          "the variable %a has type %a, its array size should be positive"
+          (Printer.pp_var ~debug:false) (L.unloc x) Printer.pp_ty ty
+  | _ -> ()
+  end;
+  ty
+
 
 let ty_gvar (x:int ggvar) = ty_var x.gv
 
@@ -63,8 +74,8 @@ let type_of_opN op =
   List.map Conv.ty_of_cty tins, Conv.ty_of_cty tout
 
 let type_of_sopn op = 
-  List.map Conv.ty_of_cty (E.sopn_tin op),
-  List.map Conv.ty_of_cty (E.sopn_tout op)
+  List.map Conv.ty_of_cty (Sopn.sopn_tin (Arch_extra.asm_opI X86_extra.x86_extra) op),
+  List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op)
 
 (* -------------------------------------------------------------------- *)
 
@@ -153,12 +164,10 @@ let check_lvals loc xs tys =
     error loc "invalid number of left values %i excepted" len;
   List.iter2 (check_lval loc) xs tys
 
-
 (* -------------------------------------------------------------------- *)
 
 let getfun env fn = 
   try Hf.find env fn with Not_found -> assert false 
-
 
 (* -------------------------------------------------------------------- *)
 
@@ -173,7 +182,7 @@ let rec check_instr env i =
     let tins, tout = type_of_sopn op in
     check_exprs loc es tins;
     check_lvals loc xs tout
-    
+
   | Cif(e,c1,c2) -> 
     check_expr loc e tbool;
     check_cmd env c1;
@@ -193,7 +202,7 @@ let rec check_instr env i =
   | Ccall(_,xs,fn,es) -> 
     let fd = getfun env fn in
     check_exprs loc es fd.f_tyin;
-    check_lvals loc xs fd.f_tyout;
+    check_lvals loc xs fd.f_tyout
 
 and check_cmd env c = 
   List.iter (check_instr env) c

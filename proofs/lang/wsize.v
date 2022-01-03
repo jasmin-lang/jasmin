@@ -133,6 +133,7 @@ Definition wsize_cmp s s' :=
   | U256, U256 => Eq
   end.
 
+#[export]
 Instance wsizeO : Cmp wsize_cmp.
 Proof.
   constructor.
@@ -204,4 +205,7 @@ Definition pp_sz_sz (s: string) (sign:bool) (sz sz': wsize) (_: unit) : string :
 
 (* -------------------------------------------------------------------- *)
 Variant safe_cond :=
-  | NotZero of wsize & nat. (* the nth argument of size sz is not zero *)
+  | NotZero of wsize & nat  (* the nth argument of size sz is not zero *)
+  | AllInit of wsize & positive & nat.         (* the nth argument of is an array ws[p] where all ceil are initialized *)
+
+

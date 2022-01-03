@@ -11,7 +11,7 @@ with pkgs;
 
 let inherit (lib) optionals; in
 
-let coqPackages = coqPackages_8_12; in
+let coqPackages = coqPackages_8_14; in
 
 let coqword = callPackage ./coqword.nix { inherit coqPackages; }; in
 

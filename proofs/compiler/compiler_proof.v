@@ -27,30 +27,55 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import psem compiler_util compiler.
 Require Import allocation inline_proof dead_calls_proof
                makeReferenceArguments_proof
-               array_init_proof
-               unrolling_proof constant_prop_proof propagate_inline_proof dead_code_proof 
+               array_copy array_copy_proof array_init_proof
+               unrolling_proof constant_prop_proof propagate_inline_proof dead_code_proof
                array_expansion array_expansion_proof remove_globals_proof stack_alloc_proof_2
                lowering_proof
-               linear_proof
+               tunneling_proof
+               linearization_proof
+               x86_linearization_proof
+               x86_gen_proof
                merge_varmaps_proof
                psem_of_sem_proof.
 Import Utf8.
-Import x86_sem x86_gen.
+Import psem_facts x86_sem x86_gen.
+Require x86_stack_alloc_proof x86_linearization_proof.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Record architecture_hyps (aparams : architecture_params) := mk_ahyps {
+  is_move_opP : forall op sz vx v,
+    aparams.(is_move_op) op = Some sz ->
+    exec_sopn (Oasm op) [:: vx] = ok v ->
+    List.Forall2 value_uincl v [:: vx]
+}.
+
+(* Parameters specific to the architecture. *)
+Definition mov_ofsP := x86_stack_alloc_proof.x86_mov_ofsP.
+Definition hlparams := x86_linearization_proof.h_x86_linearization_params.
+
 Section PROOF.
 
 Variable cparams : compiler_params.
+Variable aparams : architecture_params.
+Variable ahyps   : architecture_hyps aparams.
 
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
 Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
 
+Section IS_MOVE_OP.
+
+Context (is_move_op : asm_op_t -> option wsize).
+Hypothesis is_move_opP : forall op sz vx v,
+  is_move_op op = Some sz ->
+  exec_sopn (Oasm op) [:: vx] = ok v ->
+  List.Forall2 value_uincl v [:: vx].
+
 Lemma unroll1P (fn: funname) (p p':uprog) ev mem va va' mem' vr:
-  unroll1 p = ok p' ->
+  unroll1 is_move_op p = ok p' ->
   sem_call p ev mem fn va mem' vr ->
   List.Forall2 value_uincl va va' ->
   exists2 vr', sem_call p' ev mem fn va' mem' vr' & List.Forall2 value_uincl vr vr'.
@@ -59,14 +84,13 @@ Proof.
   have hsemu := unroll_callP Hsem.
   have [vr' [hsemc hall']]:= const_prop_callP hsemu Hall.
   have Hall'' : List.Forall2 value_uincl va' va'. by apply List_Forall2_refl.
-  have [vr'' [hsemc' hv]] := dead_code_callPu Heq Hall'' hsemc.
+  have [vr'' [hsemc' hv]] := dead_code_callPu is_move_opP Heq Hall'' hsemc.
   exists vr'' => //. apply: Forall2_trans hall' hv.
   move=> v1 v2 v3 h1 h2. by apply: value_uincl_trans h1 h2.
 Qed.
 
-
 Lemma unrollP (fn: funname) (p p': prog) ev mem va va' mem' vr:
-  unroll Loop.nb p = ok p' ->
+  unroll is_move_op Loop.nb p = ok p' ->
   sem_call p ev mem  fn va mem' vr ->
   List.Forall2 value_uincl va va' ->
   exists vr', sem_call p' ev mem fn va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
@@ -80,6 +104,8 @@ Proof.
   exists vr'';split => //.
   by apply: Forall2_trans value_uincl_trans hall1 hall2.
 Qed.
+
+End IS_MOVE_OP.
 
 Opaque Loop.nb.
 
@@ -100,14 +126,15 @@ Let K : ∀ vr (P Q: _ → Prop),
       ex_intro2 _ _ vr2 (Forall2_trans value_uincl_trans u v) q.
 
 Lemma compiler_first_partP entries (p: prog) (p': uprog) m fn va m' vr :
-  compiler_first_part cparams entries p = ok p' →
+  compiler_first_part cparams aparams entries p = ok p' →
   fn \in entries →
   sem.sem_call p m fn va m' vr →
   exists2 vr',
     List.Forall2 value_uincl vr vr' &
     psem.sem_call p' tt m fn va m' vr'.
 Proof.
-  rewrite /compiler_first_part; t_xrbindP => pa.
+  rewrite /compiler_first_part; t_xrbindP => pa0.
+  rewrite print_uprogP => ok_pa0 pa.
   rewrite print_uprogP => ok_pa pb.
   rewrite print_uprogP => ok_pb pc.
   rewrite print_uprogP => ok_pc [].
@@ -124,21 +151,22 @@ Proof.
   apply: Ki; first by move => vr'; apply: (RGP.remove_globP ok_pg).
   apply: Ki; first by move=> vr'; apply:(expand_callP ok_pf).
   apply: K; first by move =>vr'; apply: (remove_init_fdPu _ va_refl).
-  apply: K; first by move => vr' Hvr'; apply: (dead_code_callPu ok_pe va_refl); exact: Hvr'.
+  apply: K; first by move => vr' Hvr'; apply: (dead_code_callPu ahyps.(is_move_opP) ok_pe va_refl); exact: Hvr'.
   apply: K; first by move => vr'; apply: (CheckAllocRegU.alloc_callP ok_pd).
   rewrite surj_prog.
   apply: K; first by move => vr' Hvr'; apply: (const_prop_callP _ va_refl); exact: Hvr'.
-  apply: K; first by move => vr' Hvr'; apply: (unrollP ok_pc _ va_refl); exact: Hvr'.
+  apply: K; first by move => vr' Hvr'; apply: (unrollP ahyps.(is_move_opP) ok_pc _ va_refl); exact: Hvr'.
   apply: Ki; first by move => vr'; exact: (dead_calls_err_seqP (sCP:= sCP_unit) ok_pb).
   apply: K; first by move => vr' Hvr'; apply: (inline_call_errP ok_pa va_refl); exact: Hvr'.
   apply: Ki; first by move => vr'; apply: (add_init_fdP).
+  apply: K; first by move=> vr' Hvr'; apply: (array_copy_fdP (sCP := sCP_unit) ok_pa0 va_refl); exact Hvr'.
   apply: Ki; first by move => vr'; exact: psem_call.
   exists vr => //.
   exact: (List_Forall2_refl _ value_uincl_refl).
 Qed.
 
-Lemma check_removeturnP entries remove_return b :
-  check_removeturn entries remove_return = ok b →
+Lemma check_removereturnP entries remove_return b :
+  check_removereturn entries remove_return = ok b →
   ∀ fn, fn \in entries → remove_return fn = None.
 Proof.
   move => /assertP /eqP h fn /(in_pmap remove_return).
@@ -147,7 +175,7 @@ Proof.
 Qed.
 
 Lemma compiler_third_partP entries (p: sprog) (p': sprog) :
-  compiler_third_part cparams entries p = ok p' →
+  compiler_third_part cparams aparams entries p = ok p' →
   [/\
     ∀ fn (gd: pointer) m va m' vr,
       fn \in entries →
@@ -160,17 +188,17 @@ Lemma compiler_third_partP entries (p: sprog) (p': sprog) :
   ].
 Proof.
   rewrite /compiler_third_part; t_xrbindP.
-  move => _ /check_removeturnP ok_rr pa ok_pa [].
+  move => _ /check_removereturnP ok_rr pa ok_pa [].
   rewrite !print_sprogP => ok_pb pc ok_pc.
   rewrite print_sprogP => <- {p'}.
   split.
   + move => fn gd m va m' vr ok_fn exec_p.
     have va_refl : List.Forall2 value_uincl va va.
     - exact: List_Forall2_refl.
-    apply: K; first by move => vr' Hvr'; apply: (dead_code_callPs ok_pc va_refl); exact: Hvr'.
+    apply: K; first by move => vr' Hvr'; apply: (dead_code_callPs ahyps.(is_move_opP) ok_pc va_refl); exact: Hvr'.
     apply: K; first by move => vr'; apply: (CheckAllocRegS.alloc_callP ok_pb).
     rewrite surj_prog.
-    have [vr' [exec_pa]]:= dead_code_tokeep_callPs ok_pa va_refl exec_p.
+    have [vr' [exec_pa]]:= dead_code_tokeep_callPs ahyps.(is_move_opP) ok_pa va_refl exec_p.
     rewrite /fn_keep_only (ok_rr _ ok_fn) => vr_vr'.
     by exists vr'.
   rewrite /alloc_ok => fn m alloc_pc fd get_fd.
@@ -185,7 +213,7 @@ Proof.
 Qed.
 
 Lemma compiler_third_part_meta entries (p p' : sprog) :
-  compiler_third_part cparams entries p = ok p' →
+  compiler_third_part cparams aparams entries p = ok p' →
   p_extra p' = p_extra p.
 Proof.
   rewrite /compiler_third_part; t_xrbindP => _ _ pa /dead_code_prog_tokeep_meta[] _ ok_pa _ _ pb /dead_code_prog_tokeep_meta[].
@@ -195,7 +223,7 @@ Qed.
 
 (* TODO: move *)
 Remark sp_globs_stack_alloc rip rsp data ga la (p: uprog) (p': sprog) :
-  alloc_prog rip rsp data ga la p = ok p' →
+  alloc_prog mov_ofs rip rsp data ga la p = ok p' →
   sp_globs (p_extra p') = data.
 Proof.
   rewrite /alloc_prog; t_xrbindP => ??.
@@ -204,7 +232,7 @@ Proof.
 Qed.
 
 Lemma compiler_third_part_alloc_ok entries (p p' : sprog) (fn: funname) (m: mem) :
-  compiler_third_part cparams entries p = ok p' →
+  compiler_third_part cparams aparams entries p = ok p' →
   alloc_ok p' fn m →
   alloc_ok p fn m.
 Proof. case/compiler_third_partP => _; exact. Qed.
@@ -246,7 +274,7 @@ Proof.
 Qed.
 
 Lemma compiler_front_endP entries subroutines (p: prog) (p': sprog) (gd: pointer) m mi fn va m' vr :
-  compiler_front_end cparams entries subroutines p = ok p' →
+  compiler_front_end cparams aparams entries subroutines p = ok p' →
   fn \in entries →
   sem.sem_call p m fn va m' vr →
   extend_mem m mi gd (sp_globs (p_extra p')) →
@@ -282,7 +310,7 @@ Proof.
   have disjoint_va : disjoint_values (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)) va va.
   - rewrite /disjoint_values => i1 pi1 w1 i2 pi2 w2.
     by rewrite (allNone_nth _ params_noptr).
-  have := alloc_progP ok_p2 exec_p1 m_mi.
+  have := alloc_progP mov_ofsP ok_p2 exec_p1 m_mi.
   move => /(_ va ok_va disjoint_va ok_mi).
   case => mi' [] vr2 [] exec_p2 [] m'_mi' [] ok_vr2 ?.
   have [] := compiler_third_partP ok_p3.
@@ -300,6 +328,90 @@ Proof.
     by case: vr2 => // r2 vr2 [] /= -> /ih{}ih /ih ->.
   - exact: exec_p3.
   exact: m'_mi'.
+Qed.
+
+Lemma compiler_back_end_meta entries (p: sprog) (tp: lprog) :
+  compiler_back_end cparams entries p = ok tp →
+  [/\
+     lp_rip tp = p.(p_extra).(sp_rip),
+     lp_rsp tp = p.(p_extra).(sp_rsp) &
+     lp_globs tp = p.(p_extra).(sp_globs)
+  ].
+Proof.
+  rewrite /compiler_back_end; t_xrbindP => _ _ _ _ lp ok_lp p2.
+  rewrite !print_linearP => ok_tp ?; subst p2.
+  have [ <- [] <- [] <- _ ] := tunnel_program_invariants ok_tp.
+  split.
+  - exact: lp_ripE ok_lp.
+  - exact: lp_rspE ok_lp.
+  exact: lp_globsE ok_lp.
+Qed.
+
+Import sem_one_varmap.
+Import x86_linearization.
+
+Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) (m:mem) fn args m' res :
+  compiler_back_end cparams entries p = ok tp →
+  fn \in entries →
+  psem.sem_call p rip m fn args m' res →
+  ∃ fd : lfundef,
+    [/\
+      get_fundef tp.(lp_funcs) fn = Some fd,
+      fd.(lfd_export) &
+      ∀ lm vm args',
+        wf_vm vm →
+        vm.[vid tp.(lp_rsp)]%vmap = ok (pword_of_word (top_stack m)) →
+        match_mem m lm →
+        mapM (λ x : var_i, get_var vm x) fd.(lfd_arg) = ok args' →
+        List.Forall2 value_uincl args args' →
+        vm.[vid tp.(lp_rip)]%vmap = ok (pword_of_word rip) →
+        safe_to_save vm ((vid (lp_tmp lparams) : var) :: lfd_callee_saved fd) →
+        all2 check_ty_val fd.(lfd_tyin) args' ∧
+        ∃ vm' lm' res',
+          [/\
+            lsem_exportcall tp x86_linear_sem.x86_mov_eop lm fn vm lm' vm',
+            match_mem m' lm',
+            mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
+            List.Forall2 value_uincl res res' &
+            all2 check_ty_val fd.(lfd_tyout) res'
+          ]
+      ].
+Proof.
+  rewrite /compiler_back_end; t_xrbindP => - [] ok_export [] checked_p lp ok_lp tp'.
+  rewrite !print_linearP => ok_tp ? ok_fn exec_p; subst tp'.
+  have lp_tmp_not_magic : ~~ Sv.mem (vid (lp_tmp x86_linearization_params)) (magic_variables p).
+  - apply/Sv_memP; exact: var_tmp_not_magic checked_p.
+  have p_call : sem_export_call p (extra_free_registers cparams) (vid (lp_tmp x86_linearization_params)) rip m fn args m' res.
+  - apply: (merge_varmaps_export_callP checked_p _ exec_p).
+    move/allMP: ok_export => /(_ _ ok_fn).
+    rewrite /is_export.
+    case: get_fundef => // fd /assertP /eqP Export.
+    by exists fd.
+  have := linear_exportcallP h_x86_linearization_params lp_tmp_not_magic ok_lp p_call.
+  case => fd [] ok_fd Export lp_call.
+  exists (tunnel_fd fn fd); split.
+  - exact: get_fundef_tunnel_program ok_tp ok_fd.
+  - exact: Export.
+  move=> lm vm args' H H0 H1 H2 H3 H4 H5.
+  have {lp_call} := lp_call lm vm args' H _ H1 H2 H3 _ H5.
+  have [ -> [] -> _ ] := tunnel_program_invariants ok_tp.
+  move => /(_ H0 H4)[] wt_args' [] vm' [] lm' [] res' [] lp_call M' ok_res' res_res' wt_res'.
+  split; first exact: wt_args'.
+  exists vm', lm', res'; split; cycle 1.
+  - exact: M'.
+  - exact: ok_res'.
+  - exact: res_res'.
+  - exact: wt_res'.
+  clear -lp_call ok_tp.
+  case: lp_call => fd ok_fd Export lp_exec.
+  exists (tunnel_fd fn fd).
+  - exact: get_fundef_tunnel_program ok_tp ok_fd.
+  - exact: Export.
+  case: (lsem_run_tunnel_program ok_tp lp_exec).
+  - by exists fd.
+  move => tp_exec _.
+  rewrite /= -tunnel_partial_size.
+  exact: tp_exec.
 Qed.
 
 (*

@@ -1,6 +1,7 @@
 open Utils
 open Prog
 open Regalloc
+open X86_stack_alloc
 
 let pp_var = Printer.pp_var ~debug:true
 
@@ -85,7 +86,7 @@ let pp_oracle tbl up fmt saos =
     (pp_list "@;" (pp_slot tbl)) ao_global_alloc
     (pp_list "@;" pp_stack_alloc) fs
 
-let memory_analysis pp_err ~debug tbl up =
+let memory_analysis pp_err ~debug tbl is_move_op up =
   if debug then Format.eprintf "START memory analysis@.";
   let p = Conv.prog_of_cuprog tbl up in
   let gao, sao = Varalloc.alloc_stack_prog p in
@@ -160,7 +161,7 @@ let memory_analysis pp_err ~debug tbl up =
   end;
 
   let sp' = 
-    match Stack_alloc.alloc_prog false crip crsp gao.gao_data cglobs cget_sao up with
+    match Stack_alloc.alloc_prog U64 (Arch_extra.asm_opI X86_extra.x86_extra) false x86_mov_ofs crip crsp gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (pp_err tbl) tbl e in
@@ -178,7 +179,7 @@ let memory_analysis pp_err ~debug tbl up =
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef tbl fd in
     let fd = 
-      match Dead_code.dead_code_fd false tokeep fn cfd with
+      match Dead_code.dead_code_fd (Arch_extra.asm_opI X86_extra.x86_extra) is_move_op false tokeep fn cfd with
       | Utils0.Ok cfd -> Conv.fdef_of_cufdef tbl (fn, cfd) 
       | Utils0.Error _ -> assert false in 
     (extra,fd) in

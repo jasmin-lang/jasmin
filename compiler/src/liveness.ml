@@ -25,7 +25,7 @@ let is_trivial_move x e =
   | _              -> false
 
 let is_move_op = function
-  | Expr.Ox86'(None, MOV _) -> true
+  | Sopn.Oasm (Arch_extra.BaseOp(None, X86_instr_decl.MOV _)) -> true
   | _        -> false
 
 (* When [weak] is true, the out live-set contains also the written variables. *)

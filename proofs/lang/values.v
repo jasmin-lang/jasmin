@@ -70,6 +70,21 @@ Definition to_int v :=
 Definition truncate_word (s s':wsize) (w:word s') : exec (word s) :=
    if (s <= s')%CMP then ok (zero_extend s w) else type_error.
 
+Lemma truncate_word_u s (a : word s): truncate_word s a = ok a.
+Proof. by rewrite /truncate_word cmp_le_refl zero_extend_u. Qed.
+
+Lemma truncate_wordP s1 s2 (w1:word s1) (w2:word s2) :
+  truncate_word s1 w2 = ok w1 →
+  (s1 <= s2)%CMP /\ w1 = zero_extend s1 w2.
+Proof. by rewrite /truncate_word;case:ifP => // Hle []. Qed.
+
+Lemma truncate_word_errP s1 s2 (w: word s2) e :
+  truncate_word s1 w = Error e →
+  e = ErrType ∧ (s2 < s1)%CMP.
+Proof.
+by rewrite /truncate_word; case: ifP => // /negbT; rewrite cmp_nle_lt => ? [].
+Qed.
+
 Definition to_word (s: wsize) (v: value) : exec (word s) :=
   match v with
   | Vword s' w          => truncate_word s w
@@ -83,13 +98,6 @@ Definition to_arr len v : exec (sem_t (sarr len)) :=
   match v with
   | Varr len' t => WArray.cast len t
   | _ => type_error
-  end.
-
-Definition vundef_type (t:stype) :=
-  match t with
-  | sword _ => sword8
-  | sarr _  => sarr 1
-  | _       => t
   end.
 
 Definition type_of_val (v:value) : stype :=
@@ -218,10 +226,130 @@ Fixpoint app_sopn T ts : sem_prod ts (exec T) → values → exec T :=
 
 Arguments app_sopn {T} ts _ _.
 
-(* FIXME : move this in types.v *)
-Definition curry A B (n: nat) (f: seq (sem_t A) → B) : sem_prod (nseq n A) B :=
-  (fix loop n :=
-   match n return seq (sem_t A) → sem_prod (nseq n A) B with
-   | 0 => f
-   | n'.+1 => λ acc a, loop n' (a :: acc)
-   end) n [::].
+Definition app_sopn_v tin tout (semi: sem_prod tin (exec (sem_tuple tout))) vs :=
+  Let t := app_sopn _ semi vs in
+  ok (list_ltuple t).
+
+(* ----------------------------------------------------------------------- *)
+
+Definition value_uincl (v1 v2:value) :=
+  match v1, v2 with
+  | Vbool b1, Vbool b2 => b1 = b2
+  | Vint n1, Vint n2   => n1 = n2
+  | Varr n1 t1, Varr n2 t2 => WArray.uincl t1 t2
+  | Vword sz1 w1, Vword sz2 w2 => word_uincl w1 w2
+  | Vundef t _, _     => compat_type t (type_of_val v2)
+  | _, _ => False
+  end.
+
+Lemma value_uinclE v1 v2 :
+  value_uincl v1 v2 →
+  match v1 with
+  | Vbool _ | Vint _ => v2 = v1
+  | Varr n1 t1 =>
+    exists n2,
+      exists2 t2, v2 = @Varr n2 t2 & WArray.uincl t1 t2
+  | Vword sz1 w1 => ∃ sz2 w2, v2 = @Vword sz2 w2 ∧ word_uincl w1 w2
+  | Vundef t _ => ~is_sarr t /\ compat_type t (type_of_val v2)
+  end.
+Proof.
+  by case: v1 v2 => [ b1 | n1 | n1 t1 | sz1 w1 | t1 /= /negP h]; eauto; case => //; eauto => ? <-.
+Qed.
+
+Lemma value_uincl_refl v: @value_uincl v v.
+Proof. by case: v => //= *; apply compat_type_undef. Qed.
+
+Hint Resolve value_uincl_refl : core.
+
+Lemma value_uincl_trans v2 v1 v3 :
+  value_uincl v1 v2 ->
+  value_uincl v2 v3 ->
+  value_uincl v1 v3.
+Proof.
+  case: v1; case: v2 => //=; last (by
+   move=> ???? h; apply:compat_type_trans;
+   apply : (compat_type_trans h); rewrite compat_typeC compat_type_undef);
+  case:v3=> //=.
+  + by move=> ??? ->.
+  + by move=> ??? ->.
+  + by move=> ?? ?? ??; apply: WArray.uincl_trans.
+  by move=> //= ??????;apply word_uincl_trans.
+Qed.
+
+Lemma value_uincl_int1 z v : value_uincl (Vint z) v -> v = Vint z.
+Proof. by case: v => //= ? ->. Qed.
+
+Lemma value_uincl_int ve ve' z :
+  value_uincl ve ve' -> to_int ve = ok z -> ve = z /\ ve' = z.
+Proof. by case: ve => // [ b' /value_uincl_int1 -> [->]| []//]. Qed.
+
+Lemma value_uincl_bool1 b v : value_uincl (Vbool b) v -> v = Vbool b.
+Proof. by case: v => //= ? ->. Qed.
+
+Lemma value_uincl_bool ve ve' b :
+  value_uincl ve ve' -> to_bool ve = ok b -> ve = b /\ ve' = b.
+Proof. by case: ve => // [ b' /value_uincl_bool1 -> [->]| []//]. Qed.
+
+Lemma value_uincl_word ve ve' sz (w: word sz) :
+  value_uincl ve ve' →
+  to_word sz ve  = ok w →
+  to_word sz ve' = ok w.
+Proof.
+case: ve ve' => //=;last by case.
+move => sz' w' [] // sz1 w1 /andP [] hle /eqP -> /truncate_wordP [] hle'.
+by rewrite zero_extend_idem // => -> /=; rewrite /truncate_word (cmp_le_trans hle' hle).
+Qed.
+
+Lemma value_uincl_arr ve ve' len (t: WArray.array len) :
+  value_uincl ve ve' →
+  to_arr len ve  = ok t →
+  exists2 t', to_arr len ve' = ok t' & WArray.uincl t t'.
+Proof.
+case: ve ve' => //=. 
+by move=> len' a [] // len1 a1 hle /(WArray.uincl_cast hle) [] a2' [] ??; exists a2'.
+Qed.
+
+Lemma value_uincl_undef v ty h : value_uincl v (Vundef ty h) -> exists ty' h', v = Vundef ty' h'.
+Proof. case: v => //; eauto. Qed.
+
+Lemma value_uincl_zero_ext sz sz' (w':word sz') : (sz ≤ sz')%CMP ->
+  value_uincl (Vword (zero_extend sz w')) (Vword w').
+Proof. apply word_uincl_zero_ext. Qed.
+
+(* ------------------------------------------------------------------------------- *) 
+Lemma vuincl_sopn T ts o vs vs' (v: T) :
+  all is_not_sarr ts ->
+  List.Forall2 value_uincl vs vs' ->
+  app_sopn ts o vs = ok v ->
+  app_sopn ts o vs' = ok v.
+Proof.
+  elim: ts o vs vs' => /= [ | t ts Hrec] o [] //.
+  + by move => vs' _ /List_Forall2_inv_l -> ->; eauto using List_Forall2_refl.
+  move => n vs vs'' /andP [] ht hts /List_Forall2_inv_l [v'] [vs'] [->] {vs''} [hv hvs].
+  case: t o ht => //= [ | | sz ] o _; apply: rbindP.
+  + by move=> b /(value_uincl_bool hv) [] _ -> /= /(Hrec _ _ _ hts hvs).
+  + by move=> z /(value_uincl_int hv) [] _ -> /= /(Hrec _ _ _ hts hvs).
+  by move=> w /(value_uincl_word hv) -> /= /(Hrec _ _ _ hts hvs).
+Qed.
+
+Lemma vuincl_app_sopn_v_eq tin tout (semi: sem_prod tin (exec (sem_tuple tout))) : 
+  all is_not_sarr tin -> 
+  forall vs vs' v,
+  List.Forall2 value_uincl vs vs' -> 
+  app_sopn_v semi vs = ok v -> 
+  app_sopn_v semi vs' = ok v.
+Proof.
+  rewrite /app_sopn_v => hall vs vs' v hu; t_xrbindP => v' h1 h2.
+  by rewrite (vuincl_sopn hall hu h1) /= h2.
+Qed.
+
+Lemma vuincl_copy_eq ws p : 
+  let sz := Z.to_pos (arr_size ws p) in
+  forall vs vs' v,
+  List.Forall2 value_uincl vs vs' -> 
+  @app_sopn_v [::sarr sz] [::sarr sz] (@WArray.copy ws p) vs = ok v -> 
+  @app_sopn_v [::sarr sz] [::sarr sz] (@WArray.copy ws p) vs' = ok v.
+Proof.
+  move=> /= vs vs' v; rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 ?? hu []; t_xrbindP => //=.
+  by move=> t a /(value_uincl_arr hu) /= [a'] -> hut /= /(WArray.uincl_copy hut) -> <-.
+Qed.

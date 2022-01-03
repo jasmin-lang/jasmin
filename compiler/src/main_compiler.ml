@@ -125,6 +125,7 @@ let main () =
     eprint Compiler.Typing Printer.pp_pprog pprog;
 
     let prog = Subst.remove_params pprog in
+    let prog = Inline_array_copy.doit prog in
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
     begin try
@@ -171,9 +172,7 @@ let main () =
     end;
 
     if !do_compile then begin
-    (* FIXME: why this is not certified *)
-    let prog = Inline_array_copy.doit prog in
-
+  
     (* Now call the coq compiler *)
     let all_vars = Prog.rip :: Regalloc.X64.all_registers in
     let tbl, cprog = Conv.cuprog_of_prog all_vars () prog in
@@ -191,8 +190,8 @@ let main () =
             let _m, vs =
               (** TODO: allow to configure the initial stack pointer *)
               let live = List.map (fun (ptr, sz) -> Conv.int64_of_bi ptr, Conv.z_of_bi sz) m in
-              (match Low_memory.Memory.coq_M.init live (Conv.int64_of_bi (Bigint.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
-              Evaluator.exec (Expr.to_uprog cprog) (Conv.cfun_of_fun tbl f) in
+              (match (Low_memory.Memory.coq_M U64).init live (Conv.int64_of_bi (Bigint.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
+              Evaluator.exec (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) (Conv.cfun_of_fun tbl f) in
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
           with Evaluator.Eval_error (ii,err) ->
@@ -229,7 +228,7 @@ let main () =
     let translate_var = Conv.var_of_cvar tbl in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl up
+      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl X86_params.aparams up
      in
 
     let global_regalloc fds =
@@ -280,7 +279,10 @@ let main () =
 
     let is_var_in_memory cv : bool =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
-      is_stack_kind v.v_kind in
+      match v.v_kind with
+      | Stack _ | Reg (Pointer _) | Global -> true
+      | Const | Inline | Reg Direct -> false
+     in
 
 
      (* TODO: update *)
@@ -352,6 +354,11 @@ let main () =
       let cx = Conv.cvar_of_var tbl x' in
       cx.Var0.Var.vname in
 
+    let fresh_counter =
+      let i = Prog.V.mk ("i__copy") Inline tint L._dummy [] in
+      let ci = Conv.cvar_of_var tbl i in
+      ci.Var0.Var.vname in
+
     let var_alloc_fd fd = Regalloc.split_live_ranges fd in
 
     let removereturn sp = 
@@ -403,6 +410,7 @@ let main () =
                                          use_set0 = !Glob_options.set0; };
       Compiler.is_glob     = is_glob;
       Compiler.fresh_id    = fresh_id;
+      Compiler.fresh_counter = fresh_counter;
       Compiler.is_reg_ptr  = is_reg_ptr;
       Compiler.is_ptr      = is_ptr;
       Compiler.is_reg_array = is_reg_array;
@@ -421,7 +429,7 @@ let main () =
         ([], []) in
 
     begin match
-      Compiler.compile_prog_to_x86 cparams export_functions subroutines (Expr.to_uprog cprog) with
+      Compiler.compile_prog_to_x86 cparams X86_params.aparams export_functions subroutines (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) with
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
       raise (HiError e)

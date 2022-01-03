@@ -39,7 +39,12 @@ Local Open Scope seq_scope.
 
 Section PROOF.
 
-  Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
+  Context
+    {pd: PointerData}
+    `{asmop:asmOp}
+    {T:eqType}
+    {pT:progT T}
+    {sCP: semCallParams}.
 
   Variable (p : prog) (ev:extra_val_t).
   Notation gd := (p_globs p).
@@ -174,7 +179,7 @@ Section PROOF.
     sem_call p  ev mem f va mem' vr ->
     sem_call p' ev mem f va mem' vr.
   Proof.
-    apply (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 

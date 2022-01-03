@@ -29,7 +29,7 @@
 
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ word.
-Require ssrring.
+Require Import ssrring.
 Require Zquot.
 Require Import Psatz ZArith utils.
 Require Export wsize.
@@ -50,9 +50,9 @@ Ltac elim_div :=
    unfold Z.div, Zmod;
      match goal with
        |  H : context[ Z.div_eucl ?X ?Y ] |-  _ =>
-          generalize (Z_div_mod_full X Y) ; destruct (Z.div_eucl X Y)
+          generalize (Z_div_mod_full X Y) ; case: (Z.div_eucl X Y)
        |  |-  context[ Z.div_eucl ?X ?Y ] =>
-          generalize (Z_div_mod_full X Y) ; destruct (Z.div_eucl X Y)
+          generalize (Z_div_mod_full X Y) ; case: (Z.div_eucl X Y)
      end; unfold Remainder.
 
 Lemma mod_pq_mod_q x p q :
@@ -62,8 +62,8 @@ Proof.
 move => hzp hzq.
 have hq : q ≠ 0 by nia.
 have hpq : p * q ≠ 0 by nia.
-elim_div => /(_ hq); elim_div => /(_ hpq) => [] [?] hr1 [?] hr2; subst.
-elim_div => /(_ hq) [heq hr3].
+elim_div => z z0 /(_ hq); elim_div => z1 z2 /(_ hpq) => [] [?] hr1 [?] hr2; subst.
+elim_div => z2 z3 /(_ hq) [heq hr3].
 intuition (try nia).
 suff : p * z1 + z = z2; nia.
 Qed.
@@ -456,7 +456,7 @@ Proof.
     + apply: Z.div_pos; first lia.
       apply: Z.pow_pos_nonneg; lia.
      change (modulus sz) with (wbase sz).
-     elim_div => -[]; last nia.
+     elim_div => ? ? []; last nia.
      apply: Z.pow_nonzero; lia.
   rewrite -(Z.mod_small (wunsigned x / 2 ^ Z.of_nat c) (modulus sz)) //.
   rewrite -wunsigned_repr.
@@ -938,7 +938,7 @@ Qed.
 
 (* -------------------------------------------------------------------*)
 Ltac wring :=
-  rewrite ?zero_extend_u; ssrring.ssring.
+  rewrite ?zero_extend_u; ssring.
 
 (* -------------------------------------------------------------------*)
 Lemma wdwordu0 sz (w:word sz) : wdwordu 0 w = wunsigned w.
@@ -1358,6 +1358,14 @@ Definition wpmovmskb (dsz ssz: wsize) (w : word ssz) : word dsz :=
   wrepr dsz (t2w_def [tuple of map msb (split_vec U8 w)]).
 
 (* -------------------------------------------------------------------*)
+Definition wpblendvb sz (w1 w2 m: word sz): word sz :=
+  let v1 := split_vec U8 w1 in
+  let v2 := split_vec U8 w2 in
+  let b  := map msb (split_vec U8 m)  in
+  let r := map3 (fun bi v1i v2i => if bi then v2i else v1i) b v1 v2 in
+  make_vec sz r.
+
+(* -------------------------------------------------------------------*)
 Lemma pow2pos q : 0 < 2 ^ Z.of_nat q.
 Proof. by rewrite -two_power_nat_equiv. Qed.
 
@@ -1555,4 +1563,35 @@ Proof.
   rewrite {1}(Z.div_mod (wunsigned p) (wsize_size sz')); last lia.
   rewrite /align_word wsize_size_is_pow2 wand_align.
   lia.
+Qed.
+
+(* ------------------------------------------------------------------------- *)
+
+Definition word_uincl sz1 sz2 (w1:word sz1) (w2:word sz2) :=
+  (sz1 <= sz2)%CMP && (w1 == zero_extend sz1 w2).
+
+Lemma word_uincl_refl s (w : word s): word_uincl w w.
+Proof. by rewrite /word_uincl zero_extend_u cmp_le_refl eqxx. Qed.
+Hint Resolve word_uincl_refl : core.
+
+Lemma word_uincl_eq s (w w': word s):
+  word_uincl w w' → w = w'.
+Proof. by move=> /andP [] _ /eqP; rewrite zero_extend_u. Qed.
+
+Lemma word_uincl_trans s2 w2 s1 s3 w1 w3 :
+   @word_uincl s1 s2 w1 w2 -> @word_uincl s2 s3 w2 w3 -> word_uincl w1 w3.
+Proof.
+  rewrite /word_uincl => /andP [hle1 /eqP ->] /andP [hle2 /eqP ->].
+  by rewrite (cmp_le_trans hle1 hle2) zero_extend_idem // eqxx.
+Qed.
+
+Lemma word_uincl_zero_ext sz sz' (w':word sz') : (sz ≤ sz')%CMP -> word_uincl (zero_extend sz w') w'.
+Proof. by move=> ?;apply /andP. Qed.
+
+Lemma word_uincl_zero_extR sz sz' (w: word sz) :
+  (sz ≤ sz')%CMP →
+  word_uincl w (zero_extend sz' w).
+Proof.
+  move => hle; apply /andP; split; first exact: hle.
+  by rewrite zero_extend_idem // zero_extend_u.
 Qed.

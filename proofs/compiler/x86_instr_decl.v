@@ -35,7 +35,8 @@ Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Require Import arch_decl x86_decl.
+Require Export arch_decl.
+Require Import x86_decl.
 
 (* -------------------------------------------------------------------- *)
 
@@ -138,6 +139,7 @@ Variant x86_op : Type :=
 | VPSHUFHW `(wsize)
 | VPSHUFLW `(wsize)
 | VPBLEND  `(velem) `(wsize)
+| VPBLENDVB `(wsize)
 | VPACKUS  `(velem) `(wsize)
 | VPACKSS  `(velem) `(wsize)
 | VSHUFPS  `(wsize)
@@ -164,6 +166,7 @@ Variant x86_op : Type :=
 | VPMINS of velem & wsize
 | VPMAXU of velem & wsize
 | VPMAXS of velem & wsize
+| VPTEST `(wsize)
 
 (* Monitoring *)
 | RDTSC   of wsize
@@ -794,6 +797,10 @@ Definition x86_VPBLEND ve sz (v1 v2: word sz) (m: u8) : ex_tpl (w_ty sz) :=
   if ve == U32 then ok (wpblendd v1 v2 m)
   else ok (lift2_vec U128 (wpblendw m) sz v1 v2).
 
+Definition x86_VPBLENDVB sz (x y m: word sz) : ex_tpl (w_ty sz) :=
+  Let _ := check_size_128_256 sz in
+  ok (wpblendvb x y m).
+
 (* ---------------------------------------------------------------- *)
 
 Definition SaturatedSignedToUnsigned (sz1 sz2:wsize) (w:word sz1) : word sz2 := 
@@ -926,6 +933,10 @@ Definition x86_VPMAXS (ve: velem) sz (x y : word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_8_32 ve in
   Let _ := check_size_128_256 sz in
   ok (wmax Signed ve x y).
+
+Definition x86_VPTEST sz (x y: word sz) : ex_tpl b5_ty :=
+  Let _ := check_size_128_256 sz in
+  ok (:: Some false, Some (wandn x y == 0%R), Some false, Some false & Some (ZF_of_word (wand x y))).
 
 (* ---------------------------------------------------------------- *)
 
@@ -1455,6 +1466,13 @@ Definition check_xmm_xmm_xmmm_imm8 (_:wsize) := [:: [:: xmm; xmm; xmmm true; i U
 Definition Ox86_VPBLEND_instr :=
   mk_ve_instr_w2w8_w_1230 "VPBLEND" (@x86_VPBLEND) check_xmm_xmm_xmmm_imm8 (PrimV VPBLEND) (pp_viname "vpblend").
 
+Definition check_xmm_xmm_xmmm_xmm (_:wsize) := [:: [:: xmm; xmm; xmmm true; xmm]].
+Definition Ox86_VPBLENDVB_instr :=
+  (fun sz => mk_instr
+               (pp_sz "VPBLENDVB" sz) (w3_ty sz) (w_ty sz) [:: E 1; E 2; E 3] [:: E 0] MSB_CLEAR
+               (@x86_VPBLENDVB sz) (check_xmm_xmm_xmmm_xmm sz) 4 sz [::]
+               (pp_name "vpblendvb" sz), ("VPBLENDVB"%string, PrimP U128 VPBLENDVB)).
+
 Definition Ox86_VPACKUS_instr :=
  mk_ve_instr_w2_w_120 "VPACKUS" x86_VPACKUS check_xmm_xmm_xmmm (PrimV VPACKUS)
    (fun (ve:velem) => pp_name (if U16 == ve then "vpackuswb"%string else "vpackusdw"%string)).
@@ -1622,6 +1640,12 @@ Definition Ox86_VPMAXS_instr  :=
 Definition Ox86_VPMAXU_instr  := 
   mk_ve_instr_w2_w_120 "VPMAXU" x86_VPMAXU check_xmm_xmm_xmmm (PrimV VPMAXU) (pp_viname "vpmaxu").
 
+Definition check_vptest (_:wsize) := [:: xmm_xmmm].
+Definition Ox86_VPTEST_instr :=
+  (fun sz => mk_instr
+               (pp_sz "VPTEST" sz) (w2_ty sz sz) (b5_ty) [:: E 0; E 1] implicit_flags MSB_MERGE
+               (@x86_VPTEST sz) (check_vptest sz) 2 sz [::]
+               (pp_name "vptest" sz), ("VPTEST"%string, PrimP U128 VPTEST)).
 
 (* Monitoring instructions.
    These instructions are declared for the convenience of the programmer.
@@ -1797,6 +1821,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPUNPCKH sz sz'    => Ox86_VPUNPCKH_instr.1 sz sz'
   | VPUNPCKL sz sz'    => Ox86_VPUNPCKL_instr.1 sz sz'
   | VPBLEND ve sz      => Ox86_VPBLEND_instr.1 ve sz
+  | VPBLENDVB sz       => Ox86_VPBLENDVB_instr.1 sz
   | VPACKUS ve sz      => Ox86_VPACKUS_instr.1 ve sz
   | VPACKSS ve sz      => Ox86_VPACKSS_instr.1 ve sz
   | VPBROADCAST sz sz' => Ox86_VPBROADCAST_instr.1 sz sz'
@@ -1820,6 +1845,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VPMINS ve sz       => Ox86_VPMINS_instr.1 ve sz
   | VPMAXU ve sz       => Ox86_VPMAXU_instr.1 ve sz
   | VPMAXS ve sz       => Ox86_VPMAXS_instr.1 ve sz
+  | VPTEST sz          => Ox86_VPTEST_instr.1 sz
   | RDTSC sz           => Ox86_RDTSC_instr.1 sz
   | RDTSCP sz          => Ox86_RDTSCP_instr.1 sz
   | AESDEC             => Ox86_AESDEC_instr.1          
@@ -1920,6 +1946,7 @@ Definition x86_prim_string :=
    Ox86_VPUNPCKH_instr.2;
    Ox86_VPUNPCKL_instr.2;
    Ox86_VPBLEND_instr.2;
+   Ox86_VPBLENDVB_instr.2;
    Ox86_VPACKUS_instr.2;
    Ox86_VPACKSS_instr.2;
    Ox86_VPBROADCAST_instr.2;
@@ -1943,6 +1970,7 @@ Definition x86_prim_string :=
    Ox86_VPMINS_instr.2;
    Ox86_VPMAXU_instr.2;
    Ox86_VPMAXS_instr.2;
+   Ox86_VPTEST_instr.2;
    Ox86_RDTSC_instr.2;
    Ox86_RDTSCP_instr.2;
    Ox86_AESDEC_instr.2;            

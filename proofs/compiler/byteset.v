@@ -782,9 +782,15 @@ Qed.
 Inductive subterm : bytes -> bytes -> Prop := 
 | subtermI : forall n t, subterm t (n::t).
 
+Lemma subtermE t t' :
+  subterm t t' →
+  ∃ n, t' = n :: t.
+Proof. by case; eauto. Qed.
+
 Lemma wf_subterm : well_founded subterm.
 Proof.
-  by elim => [ | n t ih]; constructor => t' h; inversion_clear h.
+  elim => [ | n t ih]; constructor => t' /subtermE[] ?; first by [].
+  by case => ? <-.
 Qed.
 
 Definition union_o := lexprod bytes (fun _ => bytes) subterm (fun _ => subterm).

@@ -46,8 +46,6 @@ Definition sem_t (t : stype) : Type :=
 
 Definition sem_prod ts tr := lprod (map sem_t ts) tr.
 
-(* Definition example : ltuple [:: (nat:Type); (nat:Type); (nat:Type); (nat:Type); (nat:Type); (nat:Type); (nat:Type); (nat:Type)]:= merge_tuple toto toto.
- *)
 Definition sem_ot (t:stype) : Type :=
   if t is sbool then option bool
   else sem_t t.
@@ -58,3 +56,11 @@ Definition sem_tuple ts := ltuple (map sem_ot ts).
 Definition is_not_sarr t := ~~ is_sarr t.
 
 
+(* -------------------------------------------------------------------- *)
+
+Definition curry A B (n: nat) (f: seq (sem_t A) → B) : sem_prod (nseq n A) B :=
+  (fix loop n :=
+   match n return seq (sem_t A) → sem_prod (nseq n A) B with
+   | 0 => f
+   | n'.+1 => λ acc a, loop n' (a :: acc)
+   end) n [::].

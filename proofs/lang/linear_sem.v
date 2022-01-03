@@ -43,6 +43,8 @@ Local Open Scope seq_scope.
 
 Section SEM.
 
+Context {pd: PointerData}.
+Context {asm_op} {asmop : asmOp asm_op}.
 Variable P: lprog.
 
 Definition label_in_lcmd (body: lcmd) : seq label :=
@@ -51,7 +53,8 @@ Definition label_in_lcmd (body: lcmd) : seq label :=
 Definition label_in_lprog : seq remote_label :=
   [seq (f.1, lbl) | f <- lp_funcs P, lbl <- label_in_lcmd (lfd_body f.2) ].
 
-Let labels := label_in_lprog.
+#[local]
+Notation labels := label_in_lprog.
 
 (* --------------------------------------------------------------------------- *)
 (* Semantic                                                                    *)
@@ -63,7 +66,7 @@ Record lstate := Lstate
     lpc  : nat; }.
 
 Definition to_estate (s:lstate) : estate := Estate s.(lmem) s.(lvm).
-Definition of_estate (s:estate) pc := Lstate s.(emem) s.(evm) pc.
+Definition of_estate (s:estate) fn pc := Lstate s.(emem) s.(evm) fn pc.
 Definition setpc (s:lstate) pc :=  Lstate s.(lmem) s.(lvm) s.(lfn) pc.
 Definition setc (s:lstate) fn := Lstate s.(lmem) s.(lvm) fn s.(lpc).
 Definition setcpc (s:lstate) fn pc := Lstate s.(lmem) s.(lvm) fn pc.
@@ -81,6 +84,9 @@ A maximal execution (i.e., terminated without error) is caracterized by the fact
 the reached state has no instruction left to execute.
 *)
 Section LSEM.
+
+(* Architecture-dependent way of storing a pointer. *)
+Context (mov_op : asm_op).
 
 Definition eval_jump d s :=
   let: (fn, lbl) := d in
@@ -106,8 +112,9 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
       eval_jump d s1
     else type_error
   | LstoreLabel x lbl =>
-    if encode_label labels (lfn s1, lbl) is Some p then
-      Let s2 := sem_sopn [::]  (Ox86 (LEA Uptr)) (to_estate s1) [:: x ] [:: wconst p ] in
+    if encode_label labels (lfn s1, lbl) is Some p
+    then
+      Let s2 := sem_sopn [::] (Oasm mov_op) (to_estate s1) [:: x ] [:: wconst p ] in
       ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
     else type_error
   | Lcond e lbl =>
@@ -206,7 +213,13 @@ Proof.
   by move => <-; right; apply: (lsem_trans _ Hp22'); apply: rt_step.
 Qed.
 
-End LSEM.
+Lemma lsem_split_start a z :
+  lsem a z →
+  a = z ∨ exists2 b, lsem1 a b & lsem b z.
+Proof.
+  case/clos_rt_rt1n_iff; first by left.
+  by move => b{}z ab /clos_rt_rt1n_iff bz; right; exists b.
+Qed.
 
 (*
 Variant lsem_fd (wrip: pointer) m1 fn va' m2 vr' : Prop :=
@@ -247,4 +260,16 @@ Proof.
   by clear => s s' ? k _ _ /lsem_final_nostep /(_ k).
 Qed.
 
+Variant lsem_exportcall (m: mem) (fn: funname) (vm: vmap) (m': mem) (vm': vmap) : Prop :=
+| Lsem_exportcall (fd: lfundef) of
+    get_fundef P.(lp_funcs) fn = Some fd
+  & lfd_export fd
+  & lsem
+         {| lmem := m ; lvm := vm ; lfn := fn ; lpc := 0 |}
+         {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (lfd_body fd) |}.
+
+End LSEM.
+
 End SEM.
+
+Arguments lsem_split_start {_ _ _ _ _ _ _}.

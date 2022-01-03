@@ -8,6 +8,12 @@
 -arg -ambiguous-paths
 -arg -w
 -arg -duplicate-clear
+-arg -w
+-arg -deprecated-hint-without-locality
+-arg -w
+-arg -deprecated-hint-rewrite-without-locality
+-arg -w
+-arg -deprecated-instance-without-locality
 
 -R 3rdparty Jasmin
 -R arch Jasmin
@@ -22,15 +28,18 @@ ssrmisc/xseq_extra.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
 arch/arch_decl.v
+arch/arch_extra.v
 arch/arch_sem.v
+arch/asm_gen.v
+arch/asm_gen_proof.v
 arch/label.v
 compiler/allocation.v
 compiler/array_expansion.v
 compiler/array_expansion_proof.v
+compiler/array_copy.v
+compiler/array_copy_proof.v
 compiler/array_init.v
 compiler/array_init_proof.v
-compiler/asmgen.v
-compiler/asmgen_proof.v
 compiler/byteset.v
 compiler/compiler_util.v
 compiler/compiler.v
@@ -43,10 +52,10 @@ compiler/dead_code.v
 compiler/dead_code_proof.v
 compiler/inline.v
 compiler/inline_proof.v
-compiler/linear.v
+compiler/lea.v
+compiler/lea_proof.v
 compiler/linearization.v
-compiler/linear_sem.v
-compiler/linear_proof.v
+compiler/linearization_proof.v
 compiler/lowering.v
 compiler/lowering_proof.v
 compiler/makeReferenceArguments.v
@@ -67,18 +76,26 @@ compiler/unionfind_proof.v
 compiler/unrolling.v
 compiler/unrolling_proof.v
 compiler/x86_decl.v
+compiler/x86_extra.v
 compiler/x86_gen.v
 compiler/x86_gen_proof.v
 compiler/x86_instr_decl.v
+compiler/x86_linear_sem.v
+compiler/x86_linearization.v
+compiler/x86_linearization_proof.v
+compiler/x86_params.v
+compiler/x86_params_proof.v
 compiler/x86_sem.v
-compiler/x86_variables.v
-compiler/x86_variables_proofs.v
+compiler/x86_stack_alloc.v
+compiler/x86_stack_alloc_proof.v
 lang/array.v
 lang/expr.v
 lang/extraction.v
 lang/gen_map.v
 lang/global.v
 lang/ident.v
+lang/linear.v
+lang/linear_sem.v
 lang/low_memory.v
 lang/memory_example.v
 lang/memory_model.v
@@ -89,6 +106,7 @@ lang/sem.v
 lang/sem_one_varmap.v
 lang/sem_one_varmap_facts.v
 lang/sem_type.v
+lang/sopn.v
 lang/strings.v
 lang/type.v
 lang/utils.v

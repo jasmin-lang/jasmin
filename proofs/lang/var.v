@@ -467,7 +467,7 @@ Qed.
 Lemma Sv_elemsP x s : reflect (Sv.In x s) (x \in Sv.elements s).
 Proof.
   apply: (equivP idP);rewrite SvD.F.elements_iff.
-  elim: (Sv.elements s) => /= [|v vs];split => //=.
+  elim: (Sv.elements s) => /= [|v vs H]; split => //=.
   + by move /SetoidList.InA_nil.
   + by rewrite inE => /orP [ /eqP -> | /H];auto.
   case/SetoidList.InA_cons => [ -> |]; rewrite inE ?eq_refl //.
@@ -537,6 +537,14 @@ Proof.
   - move => <-; exact: SvP.add_mem_1.
   move => ne; exact: (SvD.F.add_neq_b _ (not_eq_sym ne)).
 Qed.
+
+Lemma Sv_Subset_union_left (a b c: Sv.t) :
+  Sv.Subset a b → Sv.Subset a (Sv.union b c).
+Proof. SvD.fsetdec. Qed.
+
+Lemma Sv_Subset_union_right (a b c: Sv.t) :
+  Sv.Subset a c → Sv.Subset a (Sv.union b c).
+Proof. SvD.fsetdec. Qed.
 
 (* ---------------------------------------------------------------- *)
 Definition sv_of_list T (f: T → var) : seq T → Sv.t :=

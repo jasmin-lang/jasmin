@@ -91,6 +91,9 @@ Module Type CheckB.
     eq_alloc r1 vm vm' ->
     eq_alloc r2 vm vm'.
 
+  Section WITH_POINTER_DATA.
+  Context {pd: PointerData}.
+
   Parameter check_eP : forall gd e1 e2 r re vm1 vm2,
     check_e e1 e2 r = ok re ->
     eq_alloc r vm1 vm2 ->
@@ -109,14 +112,20 @@ Module Type CheckB.
       write_lval gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') /\
       eq_alloc r1' s1'.(evm) vm1'.
 
+  End WITH_POINTER_DATA.
 End CheckB.
 
 Module Type CheckBE.
   Include CheckB.
 
-  Parameter eft : eqType.
-  Declare Instance pT  : progT eft.
-  Declare Instance sCP : semCallParams.
+  Section WITH_POINTER_DATA.
+  Context {pd: PointerData}.
+
+  Parameter eft : PointerData -> eqType.
+  #[ global ] Arguments eft {_}.
+
+  #[ global ] Declare Instance pT  : progT eft.
+  #[ global ] Declare Instance sCP : semCallParams.
 
   Parameter init_alloc : 
     extra_fun_t -> extra_prog_t -> extra_fun_t -> extra_prog_t -> cexec M.t.
@@ -129,15 +138,19 @@ Module Type CheckBE.
        init_state ef2 ep2 ev (Estate m vmap0) = ok (with_vm s1 vm2) /\
        eq_alloc r s1.(evm) vm2.
 
+  End WITH_POINTER_DATA.
 End CheckBE.
 
 Module CheckBU (C:CheckB) <: CheckBE.
 
   Include C.
 
-  Definition eft  := [eqType of unit].
-  Instance pT : progT eft := progUnit.
-  Instance sCP : semCallParams := sCP_unit.
+  Section WITH_POINTER_DATA.
+  Context {pd: PointerData}.
+
+  Definition eft := fun {_: PointerData} => [eqType of unit].
+  #[ global ] Instance pT : progT eft := progUnit.
+  #[ global ] Instance sCP : semCallParams := sCP_unit.
 
   Definition init_alloc (ef1:extra_fun_t) (ep1:extra_prog_t)
                         (ef2:extra_fun_t) (ep2:extra_prog_t) : cexec M.t :=
@@ -153,6 +166,7 @@ Module CheckBU (C:CheckB) <: CheckBE.
     by move=> [<-] [<-]; exists vmap0; split => //=; apply eq_alloc_empty.
   Qed.
 
+  End WITH_POINTER_DATA.
 End CheckBU.
 
 Definition alloc_error := pp_internal_error_s "allocation".
@@ -160,6 +174,10 @@ Definition alloc_error := pp_internal_error_s "allocation".
 Module CheckBS (C:CheckB) <: CheckBE.
 
   Include C.
+
+  Section WITH_POINTER_DATA.
+  Context {pd: PointerData}.
+
   Definition eft := extra_fun_t (pT:= progStack).
   Instance pT : progT eft := progStack.
   Instance sCP : semCallParams := sCP_stack.
@@ -214,14 +232,15 @@ Module CheckBS (C:CheckB) <: CheckBE.
       eq_alloc r s1.(evm) vm2.
   Proof.
     rewrite /init_alloc /init_state /= /init_stk_state /check_vars.
-    t_xrbindP => _ /assertP -/eqP heq _ /assertP -/eqP heeq _ /assertP -/eqP hal hc m' ha; rewrite (@write_vars_lvals [::]) => hw.
+    t_xrbindP => _ /assertP -/eqP heq _ /assertP -/eqP heeq _ /assertP -/eqP hal hc m' ha; rewrite (@write_vars_lvals _ [::]) => hw.
     have [vm2 [hvm2 heq2]]:= check_lvalsP (s1 := (Estate m' vmap0)) hc eq_alloc_empty 
                            (List_Forall2_refl _ (@value_uincl_refl)) hw.
     Opaque write_vars.
-    by exists vm2; rewrite -heq -heeq -hal ha /= (@write_vars_lvals [::]).
+    by exists vm2; rewrite -heq -heeq -hal ha /= (@write_vars_lvals _ [::]).
     Transparent write_vars.
   Qed.
 
+  End WITH_POINTER_DATA.
 End CheckBS.
 
 Module MakeCheckAlloc (C:CheckBE).
@@ -263,7 +282,12 @@ Definition check_var x1 x2 r := check_lval None (Lvar x1) (Lvar x2) r.
 
 Definition check_vars xs1 xs2 r := check_lvals (map Lvar xs1) (map Lvar xs2) r.
 
-Fixpoint check_i i1 i2 r :=
+Section ASM_OP.
+
+Context {pd:PointerData}.
+Context `{asmop:asmOp}.
+
+Fixpoint check_i (i1 i2:instr_r) r :=
   match i1, i2 with
   | Cassgn x1 _ ty1 e1, Cassgn x2 _ ty2 e2 =>
     if ty1 == ty2 then
@@ -697,7 +721,7 @@ Section PROOF.
     exists vr', sem_call p2 ev mem f va mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
     move=>
-      /(@sem_call_Ind _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+      /(@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
     move=> H;apply H.
     by apply List_Forall2_refl.
@@ -733,6 +757,8 @@ Lemma alloc_funP_eq p ev fn f f' m1 m2 vargs vargs' vres vres' s0 s1 s2:
                 mapM2 ErrType truncate_val f'.(f_tyout) vres1 = ok vres1'] &
             m2 = finalize f'.(f_extra) s2.(emem) ].
   Proof. by apply alloc_funP_eq_aux. Qed.
+
+End ASM_OP.
 
 End MakeCheckAlloc.
 
@@ -1322,6 +1348,9 @@ Module CBAreg.
     case:eqP => [-> [<-] ?| //]; split;eauto.
   Qed.
 
+  Section WITH_POINTER_DATA.
+  Context {pd: PointerData}.
+
   Section CHECK_EP.
     Context (gd: glob_decls) (vm2: vmap).
 
@@ -1649,6 +1678,7 @@ Module CBAreg.
     by exists vm2'.
   Qed.
 
+  End WITH_POINTER_DATA.
 End CBAreg.
 
 Module CBAregU := CheckBU CBAreg.

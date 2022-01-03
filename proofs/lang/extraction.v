@@ -23,7 +23,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  * ----------------------------------------------------------------------- *)
 
-Require Import var compiler.
+Require Import var compiler x86_params.
 
 Require ExtrOcamlBasic.
 Require ExtrOcamlString.
@@ -42,6 +42,6 @@ Cd  "lang/ocaml".
 
 Extraction Blacklist String List Nat Utils Var Array.
 
-Separate Extraction utils expr sem x86_instr_decl compiler.
+Separate Extraction utils sopn expr sem x86_instr_decl x86_params compiler.
 
 Cd  "../..".

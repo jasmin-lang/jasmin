@@ -155,7 +155,7 @@ Definition mk_sem_divmod sz o (w1 w2: word sz) : exec (word sz) :=
 
 Definition mk_sem_sop2 (t1 t2 t3: Type) (o:t1 -> t2 -> t3) v1 v2 : exec t3 :=
   ok (o v1 v2).
- 
+
 Definition sem_sop2_typed (o: sop2) :
   let t := type_of_op2 o in
   sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2) :=
@@ -261,7 +261,7 @@ Definition sem_opN (op: opN) (vs: values) : exec value :=
   Let w := app_sopn _ (sem_opN_typed op) vs in
   ok (to_val w).
 
-Record estate := Estate {
+Record estate {pd: PointerData} := Estate {
   emem : mem;
   evm  : vmap
 }.
@@ -327,7 +327,8 @@ Lemma type_of_get_var x vm v :
   type_of_val v = x.(vtype).
 Proof. by rewrite /get_var; apply : on_vuP => // t _ <-; apply type_of_to_val. Qed.
 
-Lemma on_arr_varP A (f : forall n, WArray.array n -> exec A) v s x P:
+Lemma on_arr_varP
+  {pd: PointerData} A (f : forall n, WArray.array n -> exec A) v s x P :
   (forall n t, vtype x = sarr n ->
                get_var (evm s) x = ok (@Varr n t) ->
                f n t = ok v -> P) ->
@@ -367,6 +368,7 @@ Definition is_defined (v: value) : bool :=
 
 Section SEM_PEXPR.
 
+Context {pd: PointerData}.
 Context (gd: glob_decls).
 
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
@@ -442,7 +444,7 @@ Definition write_lval (l:lval) (v:value) (s:estate) : exec estate :=
     Let i := sem_pexpr s i >>= to_int in
     Let t' := to_arr (Z.to_pos (arr_size ws len)) v in 
     Let t := @WArray.set_sub n aa ws len t i t' in
-    write_var x (@to_val (sarr n) t) s 
+    write_var x (@to_val (sarr n) t) s
   end.
 
 Definition write_lvals (s:estate) xs vs :=
@@ -464,6 +466,10 @@ Proof. case: v => // [ sz' w | [] // ] _; exact: wsize_le_U8. Qed.
 
 (* ---------------------------------------------------------------- *)
 
+Section ASM_OP.
+
+Context `{asmop:asmOp}.
+
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
   let semi := sopn_sem o in
   Let t := app_sopn _ semi vs in
@@ -477,6 +483,8 @@ Proof.
 Qed.
 
 Section SEM.
+
+Context {pd: PointerData}.
 
 Variable P:uprog.
 
@@ -769,7 +777,7 @@ Qed.
 Lemma of_vword t s (w: word s) z :
   of_val t (Vword w) = ok z -> exists s', (s' <= s)%CMP /\ t = sword s'.
 Proof.
-  case: t z => //= s' w'.
+  case: t z => //= s' w' H.
   exists s';split => //=.
   by move: H; rewrite /truncate_word;  case: (s' <= s)%CMP => //=.
 Qed.
@@ -781,3 +789,5 @@ Proof.
 Qed.
 
 End SEM.
+
+End ASM_OP.

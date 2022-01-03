@@ -307,7 +307,7 @@ end = struct
   and pa_flag_setfrom_i v i = match i.i_desc with
     | Cassgn _ -> None
 
-    | Copn (lvs, _, E.Ox86' (_, X86_instr_decl.CMP _), es) ->
+    | Copn (lvs, _, Sopn.Oasm (Arch_extra.BaseOp (_, X86_instr_decl.CMP _)), es) ->
       if flag_mem_lvs v lvs then
         let rs = List.fold_left expr_vars_smpl [] es in
         print_flag_set_from v rs i.i_loc.L.base_loc;
@@ -344,6 +344,7 @@ end = struct
   let rec pa_instr fn (prog : 'info prog option) st instr =
     match instr.i_desc with
     | Cassgn (lv, _, _, e) -> pa_lv st lv e
+
     | Copn (lvs, _, _, es) -> List.fold_left (fun st lv ->
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
 

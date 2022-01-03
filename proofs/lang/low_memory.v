@@ -31,6 +31,7 @@ Require memory_example.
 Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Import Utf8 ZArith.
+Import ssrring.
 Import type word utils.
 Import memory_example.
 Export memory_model.
@@ -42,6 +43,9 @@ Unset Printing Implicit Defensive.
 Module Memory := MemoryI.
 
 Notation mem := Memory.mem.
+
+Section WITH_POINTER_DATA.
+Context {pd: PointerData}.
 
 (* -------------------------------------------------------------- *)
 Definition eq_mem m m' : Prop :=
@@ -60,6 +64,7 @@ Lemma eq_mem_trans m2 m1 m3 :
 Proof. move => p q x y; rewrite (p x y); exact: (q x y). Qed.
 
 (* -------------------------------------------------------------- *)
+#[ global ]
 Instance stack_stable_equiv : Equivalence stack_stable.
 Proof.
   split.
@@ -111,7 +116,7 @@ Proof.
   move=> k; rewrite wsize8 => hk; have ->: k = 0%Z by Lia.lia.
   rewrite add_0.
   have ->: p2 = (p1 + wrepr _ (wunsigned p2 - wunsigned p1))%R.
-  + by rewrite wrepr_sub !wrepr_unsigned; ssrring.ssring.
+  + by rewrite wrepr_sub !wrepr_unsigned; ssring.
   by apply hval1; Lia.lia.
 Qed.
 
@@ -153,3 +158,5 @@ Qed.
 (* -------------------------------------------------------------- *)
 Definition allocatable_stack (m : mem) (z : Z) :=
   (0 <= z <= wunsigned (top_stack m) - wunsigned (stack_limit m))%Z.
+
+End WITH_POINTER_DATA.

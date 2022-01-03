@@ -1,7 +1,6 @@
 open Utils
-open Expr
+open Sopn
 open Prog
-open Arch_decl
 
 module IntSet = Sint
 module IntMap = Mint
@@ -51,7 +50,7 @@ let int_of_nat n =
     | Datatypes.S n -> loop (1 + acc) n
   in loop 0 n
 
-let find_equality_constraints (id: instruction) : arg_position list list =
+let find_equality_constraints (id: instruction_desc) : arg_position list list =
   let tbl : (int, arg_position list) Hashtbl.t = Hashtbl.create 17 in
   let set n p =
     let old = try Hashtbl.find tbl n with Not_found -> [] in
@@ -60,11 +59,11 @@ let find_equality_constraints (id: instruction) : arg_position list list =
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (_, p, _) -> set (int_of_nat p) (APout n)) id.i_out;
+      | ADExplicit (p, _) -> set (int_of_nat p) (APout n)) id.i_out;
   List.iteri (fun n ->
       function
       | ADImplicit _ -> ()
-      | ADExplicit (_, p, _) -> set (int_of_nat p) (APin n)) id.i_in;
+      | ADExplicit (p, _) -> set (int_of_nat p) (APin n)) id.i_in;
   Hashtbl.fold
     (fun _ apl res ->
        match apl with
@@ -83,7 +82,7 @@ let find_var outs ins ap : _ option =
 
 let x86_equality_constraints (int_of_var: var_i -> int option) (k: int -> int -> unit)
     (k': int -> int -> unit)
-    (lvs: 'ty glvals) (op: sopn) (es: 'ty gexprs) : unit =
+    (lvs: 'ty glvals) (op: X86_extra.x86_extended_op sopn) (es: 'ty gexprs) : unit =
   let merge k v w =
     match int_of_var v with
     | None -> ()
@@ -93,11 +92,11 @@ let x86_equality_constraints (int_of_var: var_i -> int option) (k: int -> int ->
        | Some j -> k i j
   in
   begin match op, lvs, es with
-  | Ox86' (None, MOV _), [ Lvar x ], [ Pvar y ] when is_gkvar y &&
+  | Oasm (BaseOp (None, MOV _)), [ Lvar x ], [ Pvar y ] when is_gkvar y &&
                                               kind_i x = kind_i y.gv ->
     merge k' x y.gv
   | _, _, _ ->
-    let id = get_instr op in
+    let id = get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) op in
       find_equality_constraints id |>
       List.iter (fun constr ->
           constr |>
@@ -289,7 +288,22 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
   in
   fun a -> loop a e
 
+type kind = Word | Vector | Unknown of ty
+
+let kind_of_type =
+  function
+  | Bty (U (U8 | U16 | U32 | U64)) -> Word
+  | Bty (U (U128 | U256)) -> Vector
+  | ty -> Unknown ty
+
+(* Only variables that will be allocated to the same “bank” may conflict. *)
+let types_cannot_conflict x y : bool =
+  match kind_of_type x, kind_of_type y with
+  | Word, Word | Vector, Vector -> false
+  | _, _ -> true
+
 let conflicts_add_one tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
+  if types_cannot_conflict v.v_ty w.v_ty then c else
   try
     let i = Hv.find tbl v in
     let j = Hv.find tbl w in
@@ -517,7 +531,7 @@ struct
   let all_registers = reserved @ allocatable @ xmm_allocatable @ flags
 
   let forced_registers translate_var loc nv (vars: int Hv.t) (cnf: conflicts)
-      (lvs: 'ty glvals) (op: sopn) (es: 'ty gexprs)
+      (lvs: 'ty glvals) (op: X86_extra.x86_extended_op sopn) (es: 'ty gexprs)
       (a: A.allocation) : unit =
     let f x = Hv.find vars (L.unloc x) in
     let allocate_one x y a =
@@ -527,32 +541,30 @@ struct
     let mallocate_one x y a =
       match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
     in
-    let id = get_instr op in
+    let id = get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) op in
+    (* TODO: move !! *)
+    let var_of_implicit v =
+      match v with
+      | IArflag v -> v
+      | IAreg v -> v
+    in
     List.iter2 (fun ad lv ->
         match ad with
         | ADImplicit v ->
            begin match lv with
-           | Lvar w -> allocate_one w (translate_var (Asmgen.var_of_implicit v)) a
+           | Lvar w -> allocate_one w (translate_var (var_of_implicit v)) a
            | _ -> assert false
            end
         | ADExplicit _ -> ()) id.i_out lvs;
     List.iter2 (fun ad e ->
         match ad with
         | ADImplicit v ->
-           mallocate_one e (translate_var (Asmgen.var_of_implicit v)) a
-        | ADExplicit (_, _, Some r) ->
-           mallocate_one e (translate_var (X86_variables.var_of_register r)) a
-        | ADExplicit (_, _, None) -> ()) id.i_in es
+           mallocate_one e (translate_var (var_of_implicit v)) a
+        | ADExplicit (_, Some v) ->
+           mallocate_one e (translate_var v) a
+        | ADExplicit (_, None) -> ()) id.i_in es
 
 end
-
-type kind = Word | Vector | Unknown of ty
-
-let kind_of_type =
-  function
-  | Bty (U (U8 | U16 | U32 | U64)) -> Word
-  | Bty (U (U128 | U256)) -> Vector
-  | ty -> Unknown ty
 
 let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
     (f: 'info func) (a: A.allocation) : unit =
@@ -626,42 +638,92 @@ let get_friend_registers (dflt: var) (fr: friend) (a: A.allocation) (i: int) (re
     List.find (fun r -> List.mem (Some r) fregs) regs
   with Not_found -> dflt
 
-(* Gets the type of all variables in the list.
-   Fails if the list has variables of different types. *)
-let type_of_vars (vars: var list) : ty =
-  match List.sort_unique Stdlib.compare (List.map (fun x -> x.v_ty) vars) with
-  | [ty] -> ty
-  | _ :: _ ->
-    hierror_reg ~loc:Lnone ~internal:true "heterogeneous class %a"
-      Printer.(pp_list "; " (pp_var ~debug: true)) vars
-  | [] -> assert false
+let schedule_coloring (size: int) (variables: (int, var list) Hashtbl.t) (cnf: conflicts) (a: A.allocation) : int list =
+  let module G = struct type t = (int, IntSet.t) Hashtbl.t end in
+  (* Sets of uncolored nodes of degree below than size, and whether there are uncolored nodes. *)
+  let nodes_of_low_degree (g: G.t) : IntSet.t * bool =
+    Hashtbl.fold (fun i c ((m, _) as acc) ->
+        if A.mem i a then acc
+        else (if IntSet.cardinal c < size then IntSet.add i m else m), true)
+      g (IntSet.empty, false)
+  in
+  (* Remove from g all nodes in v *)
+  let prune (g: G.t) (v: IntSet.t) : unit =
+    Hashtbl.filter_map_inplace
+      (fun i c -> if IntSet.mem i v then None else Some (IntSet.diff c v)) g
+  in
+  (* Heuristic to pick an uncolored node in g *)
+  (* Any uncolored node is valid: the choice made here is arbitrary. *)
+  let pick (g: G.t) : int =
+    let (r, _), _ =
+      Hashtbl.fold (fun i c m -> if A.mem i a then m else (i, c) :: m) g []
+      |> List.map (fun (i, c) -> i, c |> IntSet.filter (fun j -> not (A.mem j a)) |> IntSet.cardinal)
+      |> List.min_max ~cmp:(fun (_, x) (_, y) -> Stdlib.Int.compare y x)
+    in
+    r
+  in
+  let pick_if_empty (g: G.t) (v: IntSet.t) : IntSet.t =
+    if IntSet.is_empty v then pick g |> IntSet.singleton else v
+  in
+  let g = Hashtbl.create 97 in
+  Hashtbl.iter (fun i _ -> Hashtbl.add g i (get_conflicts i cnf)) variables;
+  let rec loop (g: G.t) (order: int list) : int list =
+    let v, continue = nodes_of_low_degree g in
+    if not continue
+    then (assert (IntSet.is_empty v); order)
+    else
+      let v = pick_if_empty g v in
+      prune g v;
+      loop g (IntSet.elements v @ order)
+  in
+  loop g []
+
+let lazy_scheduling (variables: (int, var list) Hashtbl.t) (a: A.allocation) : int list =
+  []
+  |> Hashtbl.fold (fun i _c m -> if A.mem i a then m else i :: m) variables
+  |> List.sort Stdlib.Int.compare
+
+let two_phase_coloring
+    (registers: var list)
+    (variables: (int, var list) Hashtbl.t)
+    (cnf: conflicts)
+    (fr: friend)
+    (a: A.allocation) : unit =
+  let size = List.length registers in
+  let schedule =
+    if !Glob_options.lazy_regalloc then lazy_scheduling variables a
+    else schedule_coloring size variables cnf a in
+  List.iter (fun i ->
+      let has_no_conflict v = does_not_conflict i cnf a v in
+      match List.filter has_no_conflict registers with
+      | [] -> hierror_reg ~loc:Lnone "no more register to allocate “%a”" Printer.(pp_list "; " (pp_var ~debug:true)) (Hashtbl.find variables i)
+      | x :: regs ->
+        (* Any register in [x; regs] is valid: the choice made here is arbitrary. *)
+        let y = get_friend_registers x fr a i regs in
+        A.set i y a
+    ) schedule
 
 let greedy_allocation
     (vars: int Hv.t)
     (nv: int) (cnf: conflicts)
     (fr: friend)
     (a: A.allocation) : unit =
-  let classes : var list array = Array.make nv [] in
-  Hv.iter (fun v i -> classes.(i) <- v :: classes.(i)) vars;
-  for i = 0 to nv - 1 do
-    if not (A.mem i a) then (
-      let vi = classes.(i) in
-      if vi <> [] then (
-      let has_no_conflict v = does_not_conflict i cnf a v in
-      let bank =
-        match kind_of_type (type_of_vars vi) with
-        | Word -> X64.allocatable
-        | Vector -> X64.xmm_allocatable
-        | Unknown ty -> hierror_reg ~loc:Lnone "no register bank for type %a" Printer.pp_ty ty
-      in
-      match List.filter has_no_conflict bank with
-      | [] -> hierror_reg ~loc:Lnone "no more register to allocate “%a”" Printer.(pp_list "; " (pp_var ~debug:true)) vi
-      | x :: regs ->
-         let y = get_friend_registers x fr a i regs in
-         A.set i y a
-      )
-    )
-  done
+  let scalars : (int, var list) Hashtbl.t = Hashtbl.create nv in
+  let vectors : (int, var list) Hashtbl.t = Hashtbl.create nv in
+  let push_var tbl i v =
+    match Hashtbl.find tbl i with
+    | old -> Hashtbl.replace tbl i (v :: old)
+    | exception Not_found -> Hashtbl.add tbl i [ v ]
+  in
+  Hv.iter (fun v i ->
+      match kind_of_type v.v_ty with
+      | Word -> push_var scalars i v
+      | Vector -> push_var vectors i v
+      | Unknown _ -> ()
+      ) vars;
+  two_phase_coloring X64.allocatable scalars cnf fr a;
+  two_phase_coloring X64.xmm_allocatable vectors cnf fr a;
+  ()
 
 let var_subst_of_allocation (vars: int Hv.t)
     (a: A.allocation) (v: var) : var =

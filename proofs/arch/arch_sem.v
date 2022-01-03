@@ -118,7 +118,7 @@ Definition st_get_rflag (s : asmmem) (rf : rflag_t) :=
 
 (* -------------------------------------------------------------------- *)
 
-Definition eval_cond (s : asmmem) (c : cond_t) :=
+Definition eval_cond_mem (s : asmmem) (c : cond_t) :=
   eval_cond (st_get_rflag s) c.
 
 (* -------------------------------------------------------------------- *)
@@ -158,14 +158,14 @@ Definition eval_JMP p dst (s: asm_state) : asm_result_state :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_Jcc lbl ct (s : asm_state) : asm_result_state :=
-  Let b := eval_cond s ct in
+  Let b := eval_cond_mem s ct in
   if b then
     Let ip := find_label lbl s.(asm_c) in ok (st_write_ip ip.+1 s)
   else ok (st_write_ip s.(asm_ip).+1 s).
 
 (* -------------------------------------------------------------------- *)
 Definition word_of_scale (n:nat) : pointer := wrepr Uptr (2%Z^n)%R.
-  
+
 (* -------------------------------------------------------------------- *)
 Definition decode_reg_addr (s : asmmem) (a : reg_address) : pointer := nosimpl (
   let: disp   := a.(ad_disp) in
@@ -184,7 +184,7 @@ Definition decode_addr (s:asmmem) (a:address) : pointer :=
 
 Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
   match a with
-  | Condt c   => Let b := eval_cond s c in ok (Vbool b)
+  | Condt c   => Let b := eval_cond_mem s c in ok (Vbool b)
   | Imm sz' w =>
     match ty with
     | sword sz => ok (Vword (sign_extend sz w))  (* FIXME should we use sign of zero *)
@@ -362,7 +362,8 @@ Definition label_in_asm (body: asm_code) : seq label :=
 Definition label_in_asm_prog : seq remote_label :=
   [seq (f.1, lbl) | f <- asm_funcs p, lbl <- label_in_asm (asm_fd_body f.2) ].
 
-Let labels := label_in_asm_prog.
+#[local]
+Notation labels := label_in_asm_prog.
 
 Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
   match i with

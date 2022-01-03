@@ -42,7 +42,10 @@ Local Open Scope vmap_scope.
 
 Section Section.
 
-Context {T:eqType} {pT:progT T} {sCP: semCallParams}.
+Context
+  {pd:PointerData}
+  `{asmop:asmOp}
+  {T:eqType} {pT:progT T} {sCP: semCallParams}.
 
 Definition dfl_cel := 
   {| pi_def := Pconst 0; pi_fv := Sv.empty; pi_m := false; pi_fv_ok := erefl _; pi_m_ok := erefl _|}.
@@ -614,8 +617,8 @@ Section PROOF.
     have [vm2 [/= hu2 hv2 hs1]]:= hc1 _ _ _ hc1_ hu hv1.
     have [vm3 [/= hu3 hv3 hs2]]:= hc2 _ _ _ hc2_ hu2 hv2.
     have {hv3}hv3 := valid_pi_incl hi1 hv3.
-    have [vm4 [/= hu4 hv4 hsw]]:= hw _ _ _ _ hw_ hu3 hv3.
-    inversion_clear hsw; exists vm4; split => //.   
+    have [vm4 [/= hu4 hv4 /sem_IE hsw]]:= hw _ _ _ _ hw_ hu3 hv3.
+    exists vm4; split => //.
     constructor; apply: Ewhile_true; eauto; rewrite -eq_globs.
     by have [v' -> /value_uincl_bool1 ->]:= pi_eP_uincl hv2 hu2 he.
   Qed.
@@ -707,7 +710,7 @@ Section PROOF.
     exists vr', sem_call p2 ev mem f va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
     by move=>
-      /(@sem_call_Ind _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+      /(@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) 
       h /h [vr' h1 h2]; exists vr'.
   Qed.
