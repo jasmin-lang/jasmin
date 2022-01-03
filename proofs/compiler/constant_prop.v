@@ -25,7 +25,7 @@
 
 (* ** Imports and settings *)
 From CoqWord Require Import ssrZ.
-Require Import expr ZArith sem.
+Require Import expr ZArith sem compiler_util.
 Import all_ssreflect all_algebra.
 Import Utf8.
 Import oseq.

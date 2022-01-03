@@ -2,7 +2,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith.
 Require Import Utf8.
 
-Require Import oseq expr compiler_util label linear linear_sem.
+Require Import oseq expr_facts compiler_util label linear linear_sem.
 Import ssrZ.
 
 Set Implicit Arguments.

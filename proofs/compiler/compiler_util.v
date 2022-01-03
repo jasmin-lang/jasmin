@@ -134,6 +134,43 @@ Lemma add_funnameP {A a} fn (e:cexec A):
   e = ok a.
 Proof. by case: e. Qed.
 
+(* -------------------------------------------------------- *)
+(* map functions on prog that preserve function names       *)
+
+(* Used in most of the passes since they deal with each function separately *)
+
+(* If function [F] cannot fail, we simply call it on each program function *)
+
+Section ASM_OP.
+
+Context `{asmop:asmOp}.
+Context {eft} {pT:progT eft}.
+
+Definition map_prog_name (F: funname -> fundef -> fundef) (p:prog) :prog :=
+  {| p_funcs := map (fun f => (f.1, F f.1 f.2)) (p_funcs p);
+     p_globs := p_globs p;
+     p_extra := p_extra p|}.
+
+Definition map_prog (F: fundef -> fundef) (p:prog) :=
+  map_prog_name (fun _ => F) p.
+
+Lemma get_map_prog_name F p fn :
+  get_fundef (p_funcs (map_prog_name F p)) fn =
+  ssrfun.omap (F fn) (get_fundef (p_funcs p) fn).
+Proof.
+  rewrite /get_fundef /map_prog_name /=.
+  by elim: p_funcs => // -[fn' fd] pfuns /= ->;case:eqP => [-> | ].
+Qed.
+
+Lemma get_map_prog F p fn :
+  get_fundef (p_funcs (map_prog F p)) fn = ssrfun.omap F (get_fundef (p_funcs p) fn).
+Proof. apply: get_map_prog_name. Qed.
+
+End ASM_OP.
+
+(* If function [F] can fail, we add the function name and the function info to
+   the error message potentially produced. *)
+
 (* In general, [T1] is instantiated as [_fundef ?eft], so we can use [f_info].
    But we also instantiate [T1] as [lfundef] (in x86_gen.v), and in this case we
    need to use [lfd_info].

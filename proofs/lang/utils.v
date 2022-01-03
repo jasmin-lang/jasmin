@@ -916,20 +916,38 @@ End DifferentTypes.
 Section SameType.
 
   Context (T : Type).
-  Context (p : rel T).
 
-  Lemma all2_refl : ssrbool.reflexive p -> ssrbool.reflexive (all2 p).
-  Proof.
-    move=> hrefl.
-    by elim=> //= a l ih; apply /andP.
-  Qed.
+  Section AnyRelation.
 
-  Lemma all2_trans : ssrbool.transitive p -> ssrbool.transitive (all2 p).
-  Proof.
-    move=> htrans s1 s2 s3 hall2; move: hall2 s3.
-    elim/list_all2_ind {s1 s2} => //= x1 s1 x2 s2 hp12 _ ih [//|x3 s3] /andP [hp23 hall2].
-    by apply /andP; eauto.
-  Qed.
+    Context (p : rel T).
+
+    Lemma all2_refl : ssrbool.reflexive p -> ssrbool.reflexive (all2 p).
+    Proof.
+      move=> hrefl.
+      by elim=> //= a l ih; apply /andP.
+    Qed.
+
+    Lemma all2_trans : ssrbool.transitive p -> ssrbool.transitive (all2 p).
+    Proof.
+      move=> htrans s1 s2 s3 hall2; move: hall2 s3.
+      elim/list_all2_ind {s1 s2} => //= x1 s1 x2 s2 hp12 _ ih [//|x3 s3] /andP [hp23 hall2].
+      by apply /andP; eauto.
+    Qed.
+
+  End AnyRelation.
+
+  Section Eqb.
+
+    Variable eqb: T -> T -> bool.
+    Variable Heq : forall (x y:T), reflect (x = y) (eqb x y).
+
+    Lemma reflect_all2_eqb l1 l2 : reflect (l1 = l2) (all2 eqb l1 l2).
+    Proof.
+      elim: l1 l2 => [|e1 l1 Hrec1] [|e2 l2] /=; try by constructor.
+      by apply (iffP andP) => -[] /Heq -> /Hrec1 ->.
+    Defined.
+
+  End Eqb.
 
 End SameType.
 

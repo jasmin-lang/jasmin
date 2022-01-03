@@ -25,7 +25,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import psem.
+Require Import psem compiler_util.
 Require Export constant_prop.
 
 Import Utf8 ZArith Morphisms Classes.RelationClasses.

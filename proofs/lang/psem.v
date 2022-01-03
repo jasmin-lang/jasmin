@@ -28,7 +28,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import Psatz xseq.
-Require Export expr low_memory sem.
+Require Export expr expr_facts low_memory sem.
 Import Utf8.
 
 Set Implicit Arguments.

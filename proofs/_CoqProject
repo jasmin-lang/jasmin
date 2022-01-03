@@ -90,6 +90,7 @@ compiler/x86_stack_alloc.v
 compiler/x86_stack_alloc_proof.v
 lang/array.v
 lang/expr.v
+lang/expr_facts.v
 lang/extraction.v
 lang/gen_map.v
 lang/global.v
