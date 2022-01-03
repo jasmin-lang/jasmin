@@ -15,8 +15,10 @@
 -R lang Jasmin
 -R ssrmisc Jasmin
 
+ssrmisc/nat_extra.v
 ssrmisc/oseq.v
-ssrmisc/tunneling_misc.v
+ssrmisc/seq_extra.v
+ssrmisc/xseq_extra.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
 arch/arch_decl.v

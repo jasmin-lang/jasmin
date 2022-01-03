@@ -3,7 +3,7 @@ Require Import ZArith.
 
 Require Import Utf8.
 Require Import expr compiler_util linear.
-Require Import tunneling_misc unionfind.
+Require Import seq_extra unionfind.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect.
-Require Import Utf8 oseq.
+Require Import Utf8 oseq nat_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -11,14 +11,20 @@ Section PairFoldLeft.
 
   Variables (T R : Type) (f : R -> T → T → R).
 
-  Fixpoint pairfoldl z t s := if s is x :: s' then pairfoldl (f z t x) x s' else z.
+  Fixpoint pairfoldl z t s :=
+    if s is x :: s'
+    then pairfoldl (f z t x) x s'
+    else z.
 
-  Lemma pairfoldl_rcons z t s x : pairfoldl z t (rcons s x) = f (pairfoldl z t s) (last t s) x.
+  Lemma pairfoldl_rcons z t s x :
+    pairfoldl z t (rcons s x) =
+    f (pairfoldl z t s) (last t s) x.
   Proof.
     by elim: s z t => [|hs ts IHs] /=.
   Qed.
 
 End PairFoldLeft.
+
 
 Section Prefix.
 
@@ -138,7 +144,9 @@ Section Prefix.
   Qed.
 
   Lemma prefixW P s :
-    P [::] s -> (forall h t , prefix (rcons t h) s -> P t s -> P (rcons t h) s) -> P s s.
+    P [::] s ->
+    (forall h t , prefix (rcons t h) s -> P t s -> P (rcons t h) s) ->
+    P s s.
   Proof.
     move=> Pnil Pcons; have := prefix_refl s.
     elim/last_ind: {1 3}s => // s' x ih pr_s'x_s.
@@ -146,12 +154,14 @@ Section Prefix.
     by apply/(prefix_trans _ pr_s'x_s)/prefix_rcons.
   Qed.
 
-  Lemma prefix_all s1 s2 p : prefix s1 s2 -> all p s2 -> all p s1.
+  Lemma prefix_all s1 s2 p :
+    prefix s1 s2 -> all p s2 -> all p s1.
   Proof.
     by move => /prefixP [s] ->; rewrite all_cat => /andP [].
   Qed.
 
-  Lemma prefix_filter s1 s2 p : prefix s1 s2 -> prefix (filter p s1) (filter p s2).
+  Lemma prefix_filter s1 s2 p :
+    prefix s1 s2 -> prefix (filter p s1) (filter p s2).
   Proof.
     by move => /prefixP [s] ->; rewrite filter_cat; apply/prefixP; eexists.
   Qed.
@@ -161,7 +171,8 @@ End Prefix.
 
 Section PrefixProps.
 
-  Lemma prefix_map {T U : eqType} s1 s2 (f : T -> U) : prefix s1 s2 -> prefix (map f s1) (map f s2).
+  Lemma prefix_map {T U : eqType} s1 s2 (f : T -> U) :
+    prefix s1 s2 -> prefix (map f s1) (map f s2).
   Proof.
     by move => /prefixP [s] ->; rewrite map_cat; apply/prefixP; eexists.
   Qed.
@@ -174,12 +185,14 @@ Section oPrefix.
   Variable T : eqType.
   Implicit Type s : seq T.
 
-  Lemma prefix_onth s1 s2 i : prefix s1 s2 -> i < size s1 -> oseq.onth s1 i = oseq.onth s2 i.
+  Lemma prefix_onth s1 s2 i :
+    prefix s1 s2 -> i < size s1 -> oseq.onth s1 i = oseq.onth s2 i.
   Proof.
     by move/prefixP => [s] ->; rewrite oseq.onth_cat => ->.
   Qed.
 
 End oPrefix.
+
 
 Section PairOnth.
 
@@ -217,7 +230,8 @@ Section PairOnth.
     (paironth x s i = Some (p1,p2)) ->
     (oseq.onth s i = Some p2).
   Proof.
-    by move => Hpaironth; apply paironth_onth in Hpaironth; move: Hpaironth; case: i => [[]|i []].
+    by move => Hpaironth; apply paironth_onth in Hpaironth;
+    move: Hpaironth; case: i => [[]|i []].
   Qed.
 
   Lemma paironth_pairmap x s i :
@@ -262,12 +276,22 @@ Section MapProps.
     by elim: s i => [|hs ts IHs] i //; case: i => [|i] /=.
   Qed.
 
+  Lemma map_filter (T1 T2 : Type) (a : pred T2) (b : T1 -> T2) (s : seq T1) :
+    filter a (map b s) = map b (filter (fun x => a (b x)) s).
+  Proof.
+    by elim: s => //= hs ts ->; case: ifP.
+  Qed.
+
 End MapProps.
 
 
 Section OnthProps.
 
-  Lemma onth_rcons (T : Type) s (x : T) i : oseq.onth (rcons s x) i = if i == size s then Some x else oseq.onth s i.
+  Lemma onth_rcons (T : Type) s (x : T) i :
+    oseq.onth (rcons s x) i =
+    if i == size s
+    then Some x
+    else oseq.onth s i.
   Proof.
     by elim: s i => [|hs ts IHs] i //=; case: i => //.
   Qed.
@@ -283,30 +307,24 @@ Section OnthProps.
     by apply IHs1 => i; move: (Heqonth i.+1) => /=.
   Qed.
 
+  Lemma onth_mem (T : eqType) (x : T) (s : seq T) :
+    reflect (exists i, onth s i = Some x) (x \in s).
+  Proof.
+    elim: s => [//=|y s IHs].
+    + by rewrite in_nil; apply ReflectF => -[].
+    rewrite in_cons /=; case Heq: (x == y) => /=.
+    + by apply ReflectT; exists 0; move: Heq => /eqP ->.
+    elim: IHs => [Hexists|Hnexists].
+    + by apply ReflectT; case: Hexists => i Honth; exists (i.+1).
+    apply ReflectF => -[i] Hmatch; apply Hnexists.
+    case: i Hmatch => [[?]|i Honth]; last by exists i.
+    by subst y; rewrite eq_refl in Heq.
+  Qed.
+
 End OnthProps.
 
 
-Section ToMoveProps.
-
-  Inductive nat_ge m : nat -> Prop :=
-  | ge_n : nat_ge m 0
-  | ge_S n of (n < m) : nat_ge m n -> nat_ge m n.+1.
-
-  Lemma nat_geP m n : reflect (nat_ge m n) (n <= m).
-  Proof.
-    apply: (iffP idP); last by elim: n /.
-    elim: n => [_|n IHn ltnm]; first by apply/ge_n.
-    by apply/ge_S => //; apply/IHn/ltnW.
-  Qed.
-
-  Lemma nat_le_ind_eq (P : nat -> Prop) m :
-    P 0 ->
-    (forall n, n < m -> P n -> P n.+1) ->
-    P m.
-  Proof.
-    move => HP0 IHP; have: nat_ge m m by apply/nat_geP.
-    by apply/(@nat_ge_ind m P) => // n ltnm _; apply/IHP.
-  Qed.
+Section TakeDropInd.
 
   Lemma take_onth (T : Type) n (s : seq T) :
     take n.+1 s =
@@ -344,4 +362,35 @@ Section ToMoveProps.
     by rewrite take0 drop0.
   Qed.
 
-End ToMoveProps.
+End TakeDropInd.
+
+
+Section AllProps.
+
+  Lemma all_if (T : Type) (a b c : pred T) (s : seq T) :
+    all a (filter c s) ->
+    all b (filter (negb \o c) s) ->
+    all (fun x => if c x then a x else b x) s.
+  Proof.
+    elim: s => //= hs ts IHs.
+    by case: ifP => [Hchs /= /andP [Hahs Hats] Hbts|Hchs /= Hats /andP [Hbhs Hbts]];
+    apply/andP; split => //; apply: IHs.
+  Qed.
+
+  Lemma all_filtered (T : Type) (a b : pred T) (s : seq T) :
+    all a s -> all a (filter b s).
+  Proof.
+    by elim: s => //= hs ts IHs; case: ifP => /= _ /andP;
+    case => Hahs Hths; first (apply/andP; split => //); apply: IHs.
+  Qed.
+
+  Lemma all_eq_filter (T : Type) (a b c : pred T) (s : seq T) :
+    (forall x, c x -> a x = b x) ->
+    all a (filter c s) ->
+    all b (filter c s).
+  Proof.
+    move => Hcab; elim: s => //= hs ts IHs; case: ifP => //= Hchs /andP [Hahs Hats].
+    by apply/andP; split; first rewrite -Hcab; last apply IHs.
+  Qed.
+
+End AllProps.

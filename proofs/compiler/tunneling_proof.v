@@ -11,7 +11,7 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope seq_scope.
 
-Require Import tunneling_misc unionfind tunneling unionfind_proof.
+Require Import seq_extra xseq_extra unionfind tunneling unionfind_proof.
 Require Import linear_sem.
 
 
@@ -91,11 +91,56 @@ Section LprogSemProps.
   Definition setfunc lf (fn : funname) (fd : lfundef) :=
     map (fun f => (f.1, if fn == f.1 then fd else f.2)) lf.
 
+  Lemma setfunc_get_fundef lf fn fd :
+    uniq (map fst lf) ->
+    get_fundef lf fn = Some fd ->
+    setfunc lf fn fd = lf.
+  Proof.
+    elim: lf => //= -[fn' fd'] lf IHlf; rewrite /fst /= -/fst => /andP.
+    move => [Hnotin Huniq]; case: ifP => [/eqP ? [?]|_ Hgfd]; last by rewrite IHlf.
+    subst fn' fd'; f_equal; rewrite /setfunc.
+    elim: lf Hnotin {IHlf Huniq} => //= -[fn' fd'] lf IHlf.
+    rewrite /fst /= -/fst in_cons negb_or; case: ifP => //= Hneq Hnotin.
+    by rewrite IHlf.
+  Qed.
+
+  Lemma get_fundef_rcons lf (fn fn' : funname) (fd : lfundef) :
+    get_fundef (rcons lf (fn, fd)) fn' =
+    match get_fundef lf fn' with
+    | Some fd' => Some fd'
+    | None => (if fn == fn'
+              then Some fd
+              else None)
+    end.
+  Proof.
+    elim: lf => //= [|[fn'' fd''] lf ->].
+    + by rewrite eq_sym.
+    by case: ifP.
+  Qed.
+
+  Lemma get_fundef_cat (lf1 lf2 : seq (funname * lfundef)) fn :
+    get_fundef (lf1 ++ lf2) fn =
+    match get_fundef lf1 fn with
+    | Some fd => Some fd
+    | None => get_fundef lf2 fn
+    end.
+  Proof. by rewrite /get_fundef assoc_cat; case: (assoc _ _). Qed.
+
   Lemma get_fundef_in (lf : seq (funname * lfundef)) fn :
     (isSome (get_fundef lf fn)) = (fn \in map fst lf).
   Proof.
     elim: lf => //= -[fn' fd] lf IHlf; rewrite /fst /= -/fst in_cons.
     by case: ifP => [/eqP ? //=|_]; rewrite Bool.orb_false_l.
+  Qed.
+
+  Lemma get_fundef_all (T : Type) (funcs : seq (funname * T)) fn fd a :
+    get_fundef funcs fn = Some fd ->
+    all (fun f => a f.1 f.2) funcs ->
+    a fn fd.
+  Proof.
+    elim: funcs => //= -[fn' fd'] tfuncs IHfuncs.
+    case: ifP; first by move => /eqP ? [?] /= /andP [Ha _]; subst fn' fd'.
+    by move => _ /= Hgfd /andP [_ Hall]; apply: IHfuncs.
   Qed.
 
   Lemma get_fundef_map2 (g : funname -> lfundef -> lfundef) lf fn :
@@ -127,96 +172,6 @@ Section LprogSemProps.
     case: ifP => [/eqP ?|Hneqfn]; last by case: (get_fundef _ _).
     by subst fn'; rewrite /isSome; case: (get_fundef _ _).
   Qed.
-
-  Lemma setfunc_get_fundef lf fn fd :
-    uniq (map fst lf) ->
-    get_fundef lf fn = Some fd ->
-    setfunc lf fn fd = lf.
-  Proof.
-    elim: lf => //= -[fn' fd'] lf IHlf; rewrite /fst /= -/fst => /andP.
-    move => [Hnotin Huniq]; case: ifP => [/eqP ? [?]|_ Hgfd]; last by rewrite IHlf.
-    subst fn' fd'; f_equal; rewrite /setfunc.
-    elim: lf Hnotin {IHlf Huniq} => //= -[fn' fd'] lf IHlf.
-    rewrite /fst /= -/fst in_cons negb_or; case: ifP => //= Hneq Hnotin.
-    by rewrite IHlf.
-  Qed.
-
-  Lemma onth_setfunc lf fn fd i :
-    onth (setfunc lf fn fd) i =
-    match onth lf i with
-    | Some (fn', fd') => if fn == fn' then Some (fn, fd) else Some (fn', fd')
-    | None => None
-    end.
-  Proof.
-    rewrite /setfunc onth_map; case Honth: (onth _ _) => [[fn' fd']|//].
-    by rewrite /fst /snd /=; case: ifP => // /eqP ?; subst fn'.
-  Qed.
-
-  Lemma onth_mem (T : eqType) (x : T) (s : seq T) :
-    reflect (exists i, onth s i = Some x) (x \in s).
-  Proof.
-    elim: s => [//=|y s IHs].
-    + by rewrite in_nil; apply ReflectF => -[].
-    rewrite in_cons /=; case Heq: (x == y) => /=.
-    + by apply ReflectT; exists 0; move: Heq => /eqP ->.
-    elim: IHs => [Hexists|Hnexists].
-    + by apply ReflectT; case: Hexists => i Honth; exists (i.+1).
-    apply ReflectF => -[i] Hmatch; apply Hnexists.
-    case: i Hmatch => [[?]|i Honth]; last by exists i.
-    by subst y; rewrite eq_refl in Heq.
-  Qed.
-
-  Lemma map_foldr (T R : Type) (s1 : seq R) (s2 : seq T) f :
-    map (fun x => foldr f x s2) s1 = foldr (fun s => map (f s)) s1 s2.
-  Proof.
-    elim: s2 => //= [|x2 s2 <-]; first by rewrite map_id.
-    rewrite -map_comp; set f1:= (fun _ => _); set f2:= (_ \o _).
-    by rewrite (@eq_map _ _ f1 f2).
-  Qed.
-
-  Lemma map_fst_map_pair1 (g : funname -> lfundef -> lfundef) lf :
-    map fst (map (fun f => (f.1, g f.1 f.2)) lf) = map fst lf.
-  Proof. by rewrite -map_comp; set h:= (_ \o _); rewrite (@eq_map _ _ h fst). Qed.
-
-  Lemma map_foldr_setfunc g lf :
-    uniq (map fst lf) ->
-    map (fun f => (f.1, g f.1 f.2)) lf = foldr (fun f l => setfunc l f.1 (g f.1 f.2)) lf lf.
-  Proof.
-    move => Huniq; apply eq_from_onth => i; rewrite onth_map /setfunc -map_foldr onth_map.
-    case Honth: (onth _ _) => [[fn fd]|//]; rewrite {1 2}/fst {1}/snd /=; f_equal.
-    set f:= (fun _ => _); have Hfoldr1: forall lf' fn' fd', (foldr f (fn', fd') lf').1 = fn'.
-    + by move => lf' fn' fd'; elim: lf'.
-    elim: lf Huniq i Honth => //= -[fn' fd'] lf IHlf /andP [Hnotin Huniq].
-    rewrite {1}/fst /= in Hnotin; case => [[? ?]|i Honth].
-    + subst fn' fd'; rewrite {1}/f {2}/fst /=; f_equal; first by rewrite Hfoldr1.
-      by rewrite Hfoldr1 eq_refl.
-    rewrite {1}/f Hfoldr1; f_equal; rewrite -(IHlf Huniq _ Honth) /fst /snd /=.
-    case: ifP => // /eqP ?; subst fn'; move: (onth_map fst lf i).
-    rewrite Honth {2}/fst /= => {Honth} Honth; exfalso.
-    by move: Hnotin => /negP Hnotin; apply/Hnotin/onth_mem; exists i.
-  Qed.
-
-  Lemma get_fundef_rcons lf (fn fn' : funname) (fd : lfundef) :
-    get_fundef (rcons lf (fn, fd)) fn' =
-    match get_fundef lf fn' with
-    | Some fd' => Some fd'
-    | None => (if fn == fn'
-              then Some fd
-              else None)
-    end.
-  Proof.
-    elim: lf => //= [|[fn'' fd''] lf ->].
-    + by rewrite eq_sym.
-    by case: ifP.
-  Qed.
-
-  Lemma get_fundef_cat (lf1 lf2 : seq (funname * lfundef)) fn :
-    get_fundef (lf1 ++ lf2) fn =
-    match get_fundef lf1 fn with
-    | Some fd => Some fd
-    | None => get_fundef lf2 fn
-    end.
-  Proof. by rewrite /get_fundef assoc_cat; case: (assoc _ _). Qed.
 
   Lemma get_fundef_foldrW (A : Type) (P : A -> A -> Prop) (f : funname -> lfundef -> A -> A) lf :
     (forall x, P x x) ->
@@ -260,6 +215,59 @@ Section LprogSemProps.
     apply IHlf => // fn'; move: (Heqfd fn'); case: ifP => //.
     move => /eqP ?; subst fn' => _; move: (Hnotin); rewrite Heqfns.
     by move: Hnotin; rewrite -!get_fundef_in; do 2!(case: (get_fundef _ _)).
+  Qed.
+
+  Lemma onth_setfunc lf fn fd i :
+    onth (setfunc lf fn fd) i =
+    match onth lf i with
+    | Some (fn', fd') => if fn == fn' then Some (fn, fd) else Some (fn', fd')
+    | None => None
+    end.
+  Proof.
+    rewrite /setfunc onth_map; case Honth: (onth _ _) => [[fn' fd']|//].
+    by rewrite /fst /snd /=; case: ifP => // /eqP ?; subst fn'.
+  Qed.
+
+  Lemma onth_goto_targets fb i x :
+    oseq.onth (goto_targets fb) i = Some x ->
+    exists j ii_x r, oseq.onth fb j = Some (MkLI ii_x x) /\ Lgoto r = x.
+  Proof.
+    elim: fb i => // -[ii_x i_x] tfb IHfb i.
+    rewrite /goto_targets /=.
+    case: ifP => [|_ Hoseq].
+    + case: i_x => // r _; case: i => [/= [?]|i Hoseq]; first by exists 0; exists ii_x; exists r; subst x; split.
+      by case: (IHfb i Hoseq) => j Hj; exists j.+1.
+    by case: (IHfb i Hoseq) => j Hj; exists j.+1.
+  Qed.
+
+  Lemma map_foldr (T R : Type) (s1 : seq R) (s2 : seq T) f :
+    map (fun x => foldr f x s2) s1 = foldr (fun s => map (f s)) s1 s2.
+  Proof.
+    elim: s2 => //= [|x2 s2 <-]; first by rewrite map_id.
+    rewrite -map_comp; set f1:= (fun _ => _); set f2:= (_ \o _).
+    by rewrite (@eq_map _ _ f1 f2).
+  Qed.
+
+  Lemma map_fst_map_pair1 (g : funname -> lfundef -> lfundef) lf :
+    map fst (map (fun f => (f.1, g f.1 f.2)) lf) = map fst lf.
+  Proof. by rewrite -map_comp; set h:= (_ \o _); rewrite (@eq_map _ _ h fst). Qed.
+
+  Lemma map_foldr_setfunc g lf :
+    uniq (map fst lf) ->
+    map (fun f => (f.1, g f.1 f.2)) lf = foldr (fun f l => setfunc l f.1 (g f.1 f.2)) lf lf.
+  Proof.
+    move => Huniq; apply eq_from_onth => i; rewrite onth_map /setfunc -map_foldr onth_map.
+    case Honth: (onth _ _) => [[fn fd]|//]; rewrite {1 2}/fst {1}/snd /=; f_equal.
+    set f:= (fun _ => _); have Hfoldr1: forall lf' fn' fd', (foldr f (fn', fd') lf').1 = fn'.
+    + by move => lf' fn' fd'; elim: lf'.
+    elim: lf Huniq i Honth => //= -[fn' fd'] lf IHlf /andP [Hnotin Huniq].
+    rewrite {1}/fst /= in Hnotin; case => [[? ?]|i Honth].
+    + subst fn' fd'; rewrite {1}/f {2}/fst /=; f_equal; first by rewrite Hfoldr1.
+      by rewrite Hfoldr1 eq_refl.
+    rewrite {1}/f Hfoldr1; f_equal; rewrite -(IHlf Huniq _ Honth) /fst /snd /=.
+    case: ifP => // /eqP ?; subst fn'; move: (onth_map fst lf i).
+    rewrite Honth {2}/fst /= => {Honth} Honth; exfalso.
+    by move: Hnotin => /negP Hnotin; apply/Hnotin/onth_mem; exists i.
   Qed.
 
 End LprogSemProps.
@@ -429,18 +437,6 @@ Section TunnelingProps.
     end.
   Proof. by rewrite /tunnel_funcs get_fundef_map2. Qed.
 
-  Variant tunnel_chart_weak_spec fn (uf : LUF.unionfind) : linstr -> linstr -> LUF.unionfind -> Type :=
-  | TCW_LabelLabel ii ii' l l' :
-      tunnel_chart_weak_spec
-        fn uf (MkLI ii (Llabel l)) (MkLI ii' (Llabel l')) (LUF.union uf l l')
-
-  | TCW_LabelGotoEq ii ii' l l' :
-      tunnel_chart_weak_spec
-        fn uf (MkLI ii (Llabel l)) (MkLI ii' (Lgoto (fn, l'))) (LUF.union uf l l')
-
-  | TCW_Otherwise c c' :
-      tunnel_chart_weak_spec fn uf c c' uf.
-
   Variant tunnel_chart_spec fn (uf : LUF.unionfind) : linstr -> linstr -> LUF.unionfind -> Type :=
   | TC_LabelLabel ii ii' l l' :
       tunnel_chart_spec fn uf (MkLI ii (Llabel l)) (MkLI ii' (Llabel l')) (LUF.union uf l l')
@@ -453,16 +449,6 @@ Section TunnelingProps.
 
   | TC_Otherwise c c' of (~~ ((li_is_label c && li_is_label c') || (li_is_label c && li_is_goto c'))) :
       tunnel_chart_spec fn uf c c' uf.
-
-  Lemma tunnel_chartWP fn uf c c' : tunnel_chart_weak_spec fn uf c c' (tunnel_chart fn uf c c').
-  Proof.
-  case: c c' => [ii i] [ii' i'];
-    case: i'; case: i; try by move=> *; apply: TCW_Otherwise.
-  + by move => l l'; apply TCW_LabelLabel.
-  move=> l [fn' l'] /=; case: ifPn => [/eqP<-|].
-  + by apply: TCW_LabelGotoEq.
-  by move=> _; apply: TCW_Otherwise.
-  Qed.
 
   Lemma tunnel_chartP fn uf c c' : tunnel_chart_spec fn uf c c' (tunnel_chart fn uf c c').
   Proof.
@@ -488,65 +474,6 @@ Section TunnelingProps.
   Lemma tunnel_plan_rcons_rcons fn uf fb c c' :
     tunnel_plan fn uf (rcons (rcons fb c) c') = tunnel_chart fn (tunnel_plan fn uf (rcons fb c)) c c'.
   Proof. by rewrite /tunnel_plan pairfoldl_rcons last_rcons. Qed.
-
-  Inductive tunnel_plan_weak_spec fn uf : lcmd -> LUF.unionfind -> Type :=
-  | TPW_Nil:
-      tunnel_plan_weak_spec fn uf [::] uf
-  | TPW_One c :
-      tunnel_plan_weak_spec fn uf [:: c] uf
-  | TPW_LabelLabel uf' fb ii ii' l l' :
-      tunnel_plan_weak_spec fn uf (rcons fb (MkLI ii (Llabel l))) uf' ->
-      tunnel_plan_weak_spec fn uf (rcons (rcons fb (MkLI ii (Llabel l))) (MkLI ii' (Llabel l'))) (LUF.union uf' l l')
-  | TPW_LabelGotoEq uf' fb ii ii' l l' :
-      tunnel_plan_weak_spec fn uf (rcons fb (MkLI ii (Llabel l))) uf' ->
-      tunnel_plan_weak_spec fn uf (rcons (rcons fb (MkLI ii (Llabel l))) (MkLI ii' (Lgoto (fn, l')))) (LUF.union uf' l l')
-  | TPW_Otherwise uf' fb c c' :
-      tunnel_plan_weak_spec fn uf (rcons fb c) uf' ->
-      tunnel_plan_weak_spec fn uf (rcons (rcons fb c) c') uf'.
-
-  Inductive tunnel_plan_spec fn uf : lcmd -> LUF.unionfind -> Type :=
-  | TP_Nil:
-      tunnel_plan_spec fn uf [::] uf
-  | TP_One c :
-      tunnel_plan_spec fn uf [:: c] uf
-  | TP_LabelLabel uf' fb ii ii' l l' :
-      tunnel_plan_spec fn uf (rcons fb (MkLI ii (Llabel l))) uf' ->
-      tunnel_plan_spec fn uf (rcons (rcons fb (MkLI ii (Llabel l))) (MkLI ii' (Llabel l'))) (LUF.union uf' l l')
-  | TP_LabelGotoEq uf' fb ii ii' l l' :
-      tunnel_plan_spec fn uf (rcons fb (MkLI ii (Llabel l))) uf' ->
-      tunnel_plan_spec fn uf (rcons (rcons fb (MkLI ii (Llabel l))) (MkLI ii' (Lgoto (fn, l')))) (LUF.union uf' l l')
-  | TP_LabelGotoNEq uf' fb ii ii' l l' fn' of (fn != fn') :
-      tunnel_plan_spec fn uf (rcons fb (MkLI ii (Llabel l))) uf' ->
-      tunnel_plan_spec fn uf (rcons (rcons fb (MkLI ii (Llabel l))) (MkLI ii' (Lgoto (fn', l')))) uf'
-  | TP_Otherwise uf' fb c c' of (~~ ((li_is_label c && li_is_label c') || (li_is_label c && li_is_goto c'))):
-      tunnel_plan_spec fn uf (rcons fb c) uf' ->
-      tunnel_plan_spec fn uf (rcons (rcons fb c) c') uf'.
-
-  Lemma tunnel_planWP fn uf fb : tunnel_plan_weak_spec fn uf fb (tunnel_plan fn uf fb).
-  Proof.
-    elim/last_ind: fb => [|fb c']; first by apply: TPW_Nil.
-    case/lastP: fb => [/= HTP|fb c HTP].
-    + by rewrite tunnel_plan1; apply: TPW_One.
-    rewrite tunnel_plan_rcons_rcons; move: HTP; set uf':= (tunnel_plan _ _ _).
-    (*TODO: any  way to do this with the case: in ssreflect?*)
-    ecase tunnel_chartWP.
-    + by apply: TPW_LabelLabel.
-    + by apply: TPW_LabelGotoEq.
-    by apply:  TPW_Otherwise.
-  Qed.
-
-  Lemma tunnel_planP fn uf fb : tunnel_plan_spec fn uf fb (tunnel_plan fn uf fb).
-  Proof.
-    elim/last_ind: fb => [|fb c']; first by apply: TP_Nil.
-    case/lastP: fb => [/= HTP|fb c HTP].
-    + by rewrite tunnel_plan1; apply: TP_One.
-    rewrite tunnel_plan_rcons_rcons; move: HTP; set uf':= (tunnel_plan _ _ _).
-    ecase tunnel_chartP.
-    + by apply: TP_LabelLabel.
-    + by apply: TP_LabelGotoEq.
-    + by apply: TP_LabelGotoNEq.
-    by apply:  TP_Otherwise.
-  Qed.
 
   Lemma find_tunnel_plan_rcons_id fn lc c l :
     Llabel l \notin labels_of_body lc ->
@@ -654,18 +581,6 @@ Section TunnelingProps.
     + by rewrite !LUF.find_union !LUF.find_empty Heqfindl.
     by case: c' => ii [].
   Qed.
-
-  (*
-  Lemma tunnel_bore_proj fn uf c :
-    tunnel_bore fn uf (tunnel_bore fn uf c) = (tunnel_bore fn uf c).
-  Proof.
-    case: (tunnel_boreP _ _ c) => [ii l|ii pe l|ii pe l|c'] //=.
-    + by rewrite eq_refl LUF.find_find.
-    + by case: ifP => //; rewrite LUF.find_find.
-    + by rewrite LUF.find_find.
-    by case: tunnel_boreP.
-  Qed.
-  *)
 
   Lemma tunnel_head_empty fn :
     tunnel_head fn LUF.empty =1 idfun.
@@ -1702,121 +1617,3 @@ Section TunnelingProof.
   Qed.
 
 End TunnelingProof.
-
-
-Section ToMoveAndUse.
-
-  Lemma all_if (T : Type) (a b c : pred T) (s : seq T) :
-    all a (filter c s) ->
-    all b (filter (negb \o c) s) ->
-    all (fun x => if c x then a x else b x) s.
-  Proof.
-    elim: s => //= hs ts IHs.
-    by case: ifP => [Hchs /= /andP [Hahs Hats] Hbts|Hchs /= Hats /andP [Hbhs Hbts]];
-    apply/andP; split => //; apply: IHs.
-  Qed.
-
-  Lemma all_filtered (T : Type) (a b : pred T) (s : seq T) :
-    all a s -> all a (filter b s).
-  Proof.
-    by elim: s => //= hs ts IHs; case: ifP => /= _ /andP; case => Hahs Hths; first (apply/andP; split => //); apply: IHs.
-  Qed.
-
-  Lemma all_eq_filter (T : Type) (a b c : pred T) (s : seq T) :
-    (forall x, c x -> a x = b x) ->
-    all a (filter c s) ->
-    all b (filter c s).
-  Proof.
-    move => Hcab; elim: s => //= hs ts IHs; case: ifP => //= Hchs /andP [Hahs Hats].
-    by apply/andP; split; first rewrite -Hcab; last apply IHs.
-  Qed.
-
-  Lemma get_fundef_all (T : Type) (funcs : seq (funname * T)) fn fd a :
-    get_fundef funcs fn = Some fd ->
-    all (fun f => a f.1 f.2) funcs ->
-    a fn fd.
-  Proof.
-    elim: funcs => //= -[fn' fd'] tfuncs IHfuncs.
-    case: ifP; first by move => /eqP ? [?] /= /andP [Ha _]; subst fn' fd'.
-    by move => _ /= Hgfd /andP [_ Hall]; apply: IHfuncs.
-  Qed.
-
-  Lemma map_filter (T1 T2 : Type) (a : pred T2) (b : T1 -> T2) (s : seq T1) :
-    filter a (map b s) = map b (filter (fun x => a (b x)) s).
-  Proof.
-    by elim: s => //= hs ts ->; case: ifP.
-  Qed.
-
-  Lemma assoc_onth (T : eqType) (U : Type) (s : seq (T * U)) (x : T) (y : U) :
-    assoc s x = Some y ->
-    exists i, oseq.onth s i = Some (x,y).
-  Proof.
-    elim: s => //= -[hsx hsy] ts IHs.
-    case: ifP => [/eqP ? [?]|_ Hassoc]; first by subst hsx hsy; exists 0.
-    by case: (IHs Hassoc) => i Honth; exists i.+1.
-  Qed.
-
-  Lemma onth_goto_targets fb i x :
-    oseq.onth (goto_targets fb) i = Some x ->
-    exists j ii_x r, oseq.onth fb j = Some (MkLI ii_x x) /\ Lgoto r = x.
-  Proof.
-    elim: fb i => // -[ii_x i_x] tfb IHfb i.
-    rewrite /goto_targets /=.
-    case: ifP => [|_ Hoseq].
-    + case: i_x => // r _; case: i => [/= [?]|i Hoseq]; first by exists 0; exists ii_x; exists r; subst x; split.
-      by case: (IHfb i Hoseq) => j Hj; exists j.+1.
-    by case: (IHfb i Hoseq) => j Hj; exists j.+1.
-  Qed.
-
-  Lemma labels_of_body_tunnel_plan_partial l fn pfb fb :
-    well_formed_body fn fb ->
-    prefix pfb fb ->
-    Llabel l \in labels_of_body fb ->
-    Llabel (LUF.find (tunnel_plan fn LUF.empty pfb) l) \in labels_of_body fb.
-  Proof.
-    rewrite /tunnel_plan => Hwfb.
-    elim/last_ind: pfb l => //=.
-    move => pfb c IHfb l Hprefix Hlabelin.
-    have Hprefix':= (prefix_trans (@prefix_rcons _ pfb c) Hprefix).
-    have:= (IHfb _ Hprefix' Hlabelin) => {Hlabelin}.
-    rewrite pairfoldl_rcons; move: IHfb.
-    set uf:= pairfoldl _ _ _ _ => IHfb.
-    case: last => ii []; case: c Hprefix => li_ii [] //=.
-    + move => l' Hprefix l''; rewrite LUF.find_union.
-      case: ifP => // _ _; apply: IHfb => //.
-      apply: (@mem_prefix _ (labels_of_body (rcons pfb {| li_ii := li_ii; li_i := Llabel l' |}))).
-      - by apply/prefix_filter/prefix_map.
-      by rewrite /labels_of_body map_rcons filter_rcons /= mem_rcons mem_head.
-    move => [fn' l'] Hprefix l''.
-    case: ifP => // /eqP ?; subst fn'; rewrite LUF.find_union.
-    case: ifP => // _ _; apply: IHfb.
-    move: Hwfb => /andP [_ Hall].
-    have:= (@prefix_all _ (goto_targets (rcons pfb {| li_ii := ii; li_i := Lgoto (fn, l') |})) _ _ _ Hall) => {Hall}.
-    rewrite /goto_targets {2}map_rcons filter_rcons /= all_rcons => Hall.
-    have:= andP (Hall _) => {Hall} -[] //.
-    + apply: prefix_filter.
-      move: (prefix_map li_i Hprefix).
-      by rewrite !map_rcons.
-    move: Hwfb => /andP [_] /allP /(_ (Lgoto (fn, l'))).
-    rewrite eq_refl /= => Himp; apply Himp.
-    have:= (@mem_prefix _ _ _ Hprefix {| li_ii := li_ii; li_i := Lgoto (fn, l') |} _).
-    rewrite -cats1 mem_cat mem_seq1 eq_refl orbT => /(_ isT) => Hin.
-    rewrite /goto_targets mem_filter /=.
-    by apply/mapP; exists {| li_ii := li_ii; li_i := Lgoto (fn, l') |}.
-  Qed.
-
-  Lemma labels_of_body_tunnel_plan l fn fb :
-    well_formed_body fn fb ->
-    Llabel l \in labels_of_body fb ->
-    Llabel (LUF.find (tunnel_plan fn LUF.empty fb) l) \in labels_of_body fb.
-  Proof. by move => Hwfb; move: (prefix_refl fb); apply labels_of_body_tunnel_plan_partial. Qed.
-
-  Lemma onthP {T : eqType} (s : seq T) (x : T) :
-    reflect (exists2 i , i < size s & oseq.onth s i = Some x) (x \in s).
-  Proof.
-    apply: (iffP (nthP x)); case => i Hsize Hnth; exists i => //.
-    + by rewrite -Hnth; apply: oseq.onth_nth_size.
-    by apply/eqP; rewrite -oseq.onth_sizeP // Hnth.
-  Qed.
-
-End ToMoveAndUse.
