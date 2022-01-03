@@ -1,1 +1,1 @@
-val pp_prog : 'info Conv.coq_tbl -> Format.formatter -> X86_extra.x86_extended_op Linear.lprog -> unit
+val pp_prog : 'asm Sopn.asmOp -> 'info Conv.coq_tbl -> Format.formatter -> 'asm Linear.lprog -> unit

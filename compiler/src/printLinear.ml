@@ -66,12 +66,12 @@ let pp_label fmt lbl =
 let pp_remote_label tbl fmt (fn, lbl) =
   F.fprintf fmt "%s.%a" (Conv.string_of_funname tbl fn) pp_label lbl
 
-let pp_instr tbl fmt i =
+let pp_instr asmOp tbl fmt i =
   match i.li_i with
   | Lopn (lvs, op, es) ->
     F.fprintf fmt "@[%a@] = %a@[(%a)@]"
       (pp_list ",@ " (pp_lval tbl)) lvs
-      Pr.pp_string0 (Sopn.string_of_sopn (Arch_extra.asm_opI X86_extra.x86_extra) op)
+      (Pr.pp_opn asmOp) op
       (pp_list ",@ " (pp_expr tbl)) es
   | Lalign     -> F.fprintf fmt "Align"
   | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl
@@ -93,17 +93,17 @@ let pp_return tbl is_export fmt =
   | [] -> if is_export then F.fprintf fmt "@ return"
   | res -> F.fprintf fmt "@ return %a" (pp_list ",@ " (pp_var_i tbl)) res
 
-let pp_lfun tbl fmt (fn, fd) =
+let pp_lfun asmOp tbl fmt (fn, fd) =
   let name = Conv.fun_of_cfun tbl fn in
   F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a%a@]@ }@]"
     name.P.fn_name
     (pp_list ",@ " (pp_param tbl)) fd.lfd_arg
     (pp_list ",@ " pp_stype) fd.lfd_tyout
-    (pp_list ";@ " (pp_instr tbl)) fd.lfd_body
+    (pp_list ";@ " (pp_instr asmOp tbl)) fd.lfd_body
     (pp_return tbl fd.lfd_export) fd.lfd_res
 
-let pp_prog tbl fmt lp =
+let pp_prog asmOp tbl fmt lp =
   F.fprintf fmt "@[<v>%a@ @ %a@]"
     Pr.pp_datas lp.lp_globs 
-    (pp_list "@ @ " (pp_lfun tbl)) (List.rev lp.lp_funcs)
+    (pp_list "@ @ " (pp_lfun asmOp tbl)) (List.rev lp.lp_funcs)
 

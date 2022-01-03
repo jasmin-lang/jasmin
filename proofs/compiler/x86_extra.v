@@ -68,6 +68,12 @@ Definition get_instr_desc o :=
   | Ox86MOVZX32 => Ox86MOVZX32_instr
   end.
 
+Definition prim_string :=
+  [::
+    ("set0"%string, PrimP U64 (fun _ sz => Oset0 sz));
+    ("concat_2u128"%string, PrimM (fun _ => Oconcat128))
+    (* Ox86MOVZX32 is ignored on purpose *)
+  ].
 
 (* TODO: to be removed? can we have one module for all asmgen errors? *)
 Module E.
@@ -120,7 +126,8 @@ Instance eqC_x86_extra_op : eqTypeC x86_extra_op :=
    [arch_extra.asm_opI] is selected first and we have both base and extra ops.
 *)
 Instance x86_extra_op_decl : asmOp x86_extra_op | 1 :=
-  { asm_op_instr := get_instr_desc }.
+  { asm_op_instr := get_instr_desc;
+    prim_string := prim_string }.
 
 Instance x86_extra : asm_extra register xmm_register rflag condt x86_op x86_extra_op :=
   { to_asm := assemble_extra }.

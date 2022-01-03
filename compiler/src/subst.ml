@@ -121,7 +121,7 @@ let psubst_ge f = function
   | GEword e -> GEword (psubst_e f e)
   | GEarray es -> GEarray (List.map (psubst_e f) es)
 
-let psubst_prog (prog:'info pprog) =
+let psubst_prog (prog:('info, 'asm) pprog) =
   let subst = ref (Mpv.empty : pexpr Mpv.t) in
   let rec aux = function
     | [] -> [], []
@@ -312,7 +312,7 @@ let rec constant_of_expr (e: Prog.expr) : Z.t =
   | _ -> raise NotAConstantExpr
 
 
-let remove_params (prog : 'info pprog) =
+let remove_params (prog : ('info, 'asm) pprog) =
   let globals, prog = psubst_prog prog in
   let globals, prog = isubst_prog globals prog in
   let mk_word ws e =

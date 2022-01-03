@@ -1,18 +1,18 @@
 open Prog
 
 (* apply a substitution within a function *)
-val gsubst_func : ('ty1 -> 'ty2) -> ('ty1 ggvar -> 'ty2 gexpr) -> ('ty1, 'info) gfunc -> ('ty2, 'info) gfunc
+val gsubst_func : ('ty1 -> 'ty2) -> ('ty1 ggvar -> 'ty2 gexpr) -> ('ty1, 'info, 'asm) gfunc -> ('ty2, 'info, 'asm) gfunc
 
 (* apply a substitution within a function *)
-val subst_func : ('ty gvar_i -> 'ty gexpr) -> ('ty, 'info) gfunc -> ('ty, 'info) gfunc
+val subst_func : ('ty gvar_i -> 'ty gexpr) -> ('ty, 'info, 'asm) gfunc -> ('ty, 'info, 'asm) gfunc
 
 (* replace parameter by their definition everywhere in the program *)
-val remove_params : 'info pprog -> 'info prog
+val remove_params : ('info, 'asm) pprog -> ('info, 'asm) prog
 
 (* rename all variable using fresh variables *)
-val clone_func : 'info func -> 'info func
+val clone_func : ('info, 'asm) func -> ('info, 'asm) func
 
-val extend_iinfo : L.i_loc -> 'info func -> 'info func
+val extend_iinfo : L.i_loc -> ('info, 'asm) func -> ('info, 'asm) func
 (* ---------------------------------------------------------------- *)
 (* Perform a substitution of variable by variable                   *)
 
@@ -28,7 +28,7 @@ val vsubst_es : vsubst -> exprs -> exprs
 val vsubst_lval  : vsubst -> lval  -> lval
 val vsubst_lvals : vsubst -> lvals -> lvals
 
-val vsubst_i : vsubst -> 'info instr -> 'info instr
-val vsubst_c : vsubst -> 'info stmt  -> 'info stmt
+val vsubst_i : vsubst -> ('info, 'asm) instr -> ('info, 'asm) instr
+val vsubst_c : vsubst -> ('info, 'asm) stmt  -> ('info, 'asm) stmt
 
-val vsubst_func : vsubst -> 'info func -> 'info func
+val vsubst_func : vsubst -> ('info, 'asm) func -> ('info, 'asm) func
