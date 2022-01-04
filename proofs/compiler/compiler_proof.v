@@ -389,7 +389,7 @@ Proof.
     by exists fd.
   have := linear_exportcallP h_x86_linearization_params lp_tmp_not_magic ok_lp p_call.
   case => fd [] ok_fd Export lp_call.
-  exists (tunnel_fd fn fd); split.
+  exists (tunneling.tunnel_lfundef fn fd); split.
   - exact: get_fundef_tunnel_program ok_tp ok_fd.
   - exact: Export.
   move=> lm vm args' H H0 H1 H2 H3 H4 H5.
@@ -404,13 +404,13 @@ Proof.
   - exact: wt_res'.
   clear -lp_call ok_tp.
   case: lp_call => fd ok_fd Export lp_exec.
-  exists (tunnel_fd fn fd).
+  exists (tunneling.tunnel_lfundef fn fd).
   - exact: get_fundef_tunnel_program ok_tp ok_fd.
   - exact: Export.
   case: (lsem_run_tunnel_program ok_tp lp_exec).
   - by exists fd.
   move => tp_exec _.
-  rewrite /= -tunnel_partial_size.
+  rewrite /= size_tunnel_lcmd.
   exact: tp_exec.
 Qed.
 
