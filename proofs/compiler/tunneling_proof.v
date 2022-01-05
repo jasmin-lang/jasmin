@@ -1341,7 +1341,7 @@ Section TunnelingSem.
     + by apply/onth_mem; exists (lpc s).
     rewrite /c; rewrite /c in Honth => {c} Hin.
     move: (map_f li_i Hin) => /= {Hin} Hin /(_ Hin).
-    move => /andP [_ {Hin Honth Hgfd}].
+    rewrite eq_refl /= => {Hin Honth Hgfd}.
     rewrite /find_label; case: ifP; first by intros; eexists; eauto.
     move => /negP Hnfind Hin; exfalso; apply: Hnfind; move: Hin.
     rewrite /labels_of_body mem_filter /=.
