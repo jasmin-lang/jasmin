@@ -24,7 +24,7 @@ let set0 = ref false
 let model = ref Normal
 let print_stack_alloc = ref false
 let introduce_array_copy = ref true
-
+let print_dependencies = ref false 
 let lazy_regalloc = ref false
 
 let set_printing p () =
@@ -135,6 +135,7 @@ let options = [
     "-print-stack-alloc", Arg.Set print_stack_alloc, ": print the results of the stack allocation OCaml oracle";
     "--lazy-regalloc", Arg.Set lazy_regalloc, "\tAllocate variables to registers in program order";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
+    "--print-dependencies", Arg.Set print_dependencies, ": print dependencies and exit";
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"

@@ -230,6 +230,8 @@ module Env : sig
   val enter_file : env -> string -> (env * string) option
   val exit_file  : env -> env
 
+  val dependencies : env -> Path.t list
+
   module Vars : sig
     val push       : env -> P.pvar -> env
     val push_param : env -> (P.pvar * P.pexpr) -> env
@@ -303,6 +305,8 @@ end = struct
       e_loader = { env.e_loader with dirs = List.tl env.e_loader.dirs }}
     
   let decls env = env.e_decls 
+
+  let dependencies env = env.e_loader.loaded
 
   module Vars = struct
     let push (env : env) (v : P.pvar) =

@@ -113,6 +113,13 @@ let main () =
           in
           hierror ~loc:(Lone loc) ~kind:"parse error" "%s" msg
     in
+
+    if !print_dependencies then begin
+      Format.printf "%a" 
+        (pp_list " " (fun fmt p -> Format.fprintf fmt "%s" (BatPathGen.OfString.to_string p)))
+        (List.tl (List.rev (Pretyping.Env.dependencies env)));
+      exit 0
+    end;
  
     if !latexfile <> "" then begin
       let out = open_out !latexfile in
