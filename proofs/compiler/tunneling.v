@@ -114,7 +114,7 @@ Section TunnelingWF.
     all
       (fun li => 
          if li is Lgoto (fn',l) then 
-            (fn == fn') && (Llabel l \in (labels_of_body fb))
+            (fn != fn') || (Llabel l \in (labels_of_body fb))
          else false)
       (goto_targets fb).
   
