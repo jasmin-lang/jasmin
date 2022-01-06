@@ -110,11 +110,12 @@ End Tunneling.
 Section TunnelingWF.
 
   Definition well_formed_body (fn : funname) fb :=
-    uniq (labels_of_body fb) &&
+    let lbls := labels_of_body fb in
+    uniq lbls &&
     all
       (fun li => 
          if li is Lgoto (fn',l) then 
-            (fn != fn') || (Llabel l \in (labels_of_body fb))
+            (fn != fn') || (Llabel l \in lbls)
          else false)
       (goto_targets fb).
   
