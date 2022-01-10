@@ -82,11 +82,11 @@ Context
   {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}
   (p: sprog)
   (extra_free_registers: instr_info -> option var)
-  (reg_tmp : reg)
+  (id_tmp : Ident.ident)
   (callee_saved: Sv.t)
   (global_data: pointer).
 
-Let var_tmp := to_var reg_tmp.
+Let var_tmp : var := vid id_tmp.
 
 Definition valid_writefun (w: funname → Sv.t) (f: sfun_decl) : bool :=
   Sv.subset (write_fd p extra_free_registers var_tmp w f.2) (w f.1).

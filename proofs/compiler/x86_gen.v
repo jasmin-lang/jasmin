@@ -116,9 +116,9 @@ Definition assemble_prog (p : lprog) : cexec asm_prog :=
       (E.gen_error true None None (pp_s "Invalid RIP"))
   in
   Let _ :=
-      assert
-        (of_string (lp_rsp p) == Some RSP)
-        (E.gen_error true None None (pp_s "Invalid RSP"))
+    assert
+      (of_string (lp_rsp p) == Some RSP)
+      (E.gen_error true None None (pp_s "Invalid RSP"))
   in
   Let fds :=
     map_cfprog_linear (assemble_fd assemble_cond rip rsp) (lp_funcs p)

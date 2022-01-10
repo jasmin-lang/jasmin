@@ -1,15 +1,27 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import sopn psem compiler.
-Require Import x86_decl x86_instr_decl x86_extra.
+Require Import x86_decl x86_extra x86_instr_decl x86_stack_alloc x86_linearization.
+Require lowering x86_gen.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition is_move_op (o : sopn.asm_op_t) :=
+Definition x86_is_move_op (o : sopn.asm_op_t) :=
   match o with
   | BaseOp (None, MOV _) | BaseOp (None, VMOVDQU _) => true
   | _ => false
   end.
 
-Definition aparams := mk_aparams is_move_op.
+Definition x86_params :
+  architecture_params
+    (asm_e := x86_extra)
+    lowering.fresh_vars
+    lowering.lowering_options :=
+  {| is_move_op := x86_is_move_op
+   ; mov_ofs := x86_mov_ofs
+   ; lparams := x86_linearization_params
+   ; lower_prog := lowering.lower_prog
+   ; fvars_correct := lowering.fvars_correct
+   ; assemble_prog := x86_gen.assemble_prog
+  |}.

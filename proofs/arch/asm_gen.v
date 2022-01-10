@@ -586,7 +586,16 @@ Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
       ; asm_fd_total_stack := lfd_total_stack fd
      |}.
 
-End ASM_EXTRA.
+(* -------------------------------------------------------------------- *)
 
 (* [map_cfprog_gen] specialized to functions of type [lfundef] *)
+Notation map_cfprog_linear := (map_cfprog_gen lfd_info).
+
+Definition check_assemble_prog (p : lprog) : cexec unit :=
+  assert
+    (isSome (of_string (T := reg_t) (lp_rsp p)))
+    (E.gen_error true None None (pp_s "Chosen RSP is not a register.")).
+
+End ASM_EXTRA.
+
 Notation map_cfprog_linear := (map_cfprog_gen lfd_info).
