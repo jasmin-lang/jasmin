@@ -81,12 +81,12 @@ Variant compiler_step :=
   | Splitting                   : compiler_step
   | AllocInlineAssgn            : compiler_step
   | DeadCode_AllocInlineAssgn   : compiler_step
-  | RegArrayExpansion           : compiler_step
   | RemoveArrInit               : compiler_step
+  | RegArrayExpansion           : compiler_step
   | RemoveGlobal                : compiler_step
+  | MakeRefArguments            : compiler_step
   | LowerInstruction            : compiler_step
   | PropagateInline             : compiler_step
-  | MakeRefArguments            : compiler_step
   | StackAllocation             : compiler_step
   | RemoveReturn                : compiler_step
   | RegAllocation               : compiler_step
@@ -109,12 +109,12 @@ Definition compiler_step_list := [::
   ; Splitting
   ; AllocInlineAssgn
   ; DeadCode_AllocInlineAssgn
-  ; RegArrayExpansion
   ; RemoveArrInit
+  ; RegArrayExpansion
   ; RemoveGlobal
+  ; MakeRefArguments
   ; LowerInstruction
   ; PropagateInline 
-  ; MakeRefArguments
   ; StackAllocation
   ; RemoveReturn
   ; RegAllocation
