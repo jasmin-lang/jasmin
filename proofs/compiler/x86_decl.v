@@ -302,6 +302,11 @@ Instance x86_rflag_toS : ToString sbool rflag :=
 Instance eqC_condt : eqTypeC condt :=
   { ceqP := condt_eq_axiom }.
 
+(* -------------------------------------------------------------------- *)
+
+Definition x86_callee_saved : seq register :=
+  [:: RBX; RBP; RSP; R12; R13; R14; R15 ].
+
 Instance x86_decl : arch_decl register xmm_register rflag condt :=
   { reg_size := U64
   ; xreg_size := U256
@@ -309,4 +314,5 @@ Instance x86_decl : arch_decl register xmm_register rflag condt :=
   ; toS_x := x86_xreg_toS
   ; toS_f := x86_rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
+  ; callee_saved := x86_callee_saved
   }.

@@ -1096,11 +1096,6 @@ End WITH_RIP_RSP.
 Section PROG.
 
 Context
-  (mov_op : asm_op)
-  (exec_sopn_mov_op :
-    forall (w : word Uptr),
-      let op := Oasm (BaseOp (None, mov_op)) in
-       exec_sopn op [:: Vword w ] = ok [:: Vword w ])
   (assemble_prog : lprog -> cexec asm_prog)
   (assemble_progP :
     forall p p',
@@ -1111,15 +1106,13 @@ Context
            , asm_globs p' = lp_globs p
            & map_cfprog_linear (assemble_fd assemble_cond rip rsp) (lp_funcs p)
              = ok (asm_funcs p')
-           ])
+         ])
   (p : lprog)
   (p' : asm_prog)
   (ok_p' : assemble_prog p = ok p').
 
 Notation rip := (mk_ptr (lp_rip p)).
 Notation rsp := (mk_ptr (lp_rsp p)).
-
-Let mov_eop : extended_op := BaseOp (None, mov_op).
 
 Lemma assemble_prog_labels :
   assemble_prog p = ok p'
@@ -1153,7 +1146,7 @@ Lemma lom_eqv_write_var f rip s xs (x : var_i) sz (w : word sz) s' r :
   -> to_var r = x
   -> lom_eqv rip s' (mem_write_reg f r w xs).
 Proof.
-  case => eqm ok_rip [ dr dx df ] eqr eqx eqf.
+  case => eqm ok_rip [dr dx df] eqr eqx eqf.
   rewrite /mem_write_reg /write_var; t_xrbindP.
   case: s' => m _ vm ok_vm [] <- <- hx.
   constructor => //=.
