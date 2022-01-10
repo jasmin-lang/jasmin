@@ -217,9 +217,6 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let p := unroll aparams.(is_move_op) Loop.nb p in
   let p := cparams.(print_uprog) Unrolling p in
 
-  let p := const_prop_prog p in
-  let p := cparams.(print_uprog) Unrolling p in
-
   let pv := var_alloc_prog cparams p in
   let pv := cparams.(print_uprog) AllocInlineAssgn pv in
   Let _ := CheckAllocRegU.check_prog p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
