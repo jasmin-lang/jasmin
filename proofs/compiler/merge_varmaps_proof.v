@@ -862,15 +862,16 @@ Section LEMMA.
       + move: ok_wrf.
         rewrite /valid_writefun /write_fd /ra_valid /=.
         case: sf_return_address ok_rastack ra_neq_magic checked_ra => //.
-        move => ra _ /and3P [] -> -> -> /= [] _ hra ?? /Sv.subset_spec ?.
-        by apply/Sv_memP; SvD.fsetdec.
+        move => ra _ /and3P [] -> -> -> /= [] _ hra ?? /Sv.subset_spec ok_wrf.
+        by apply/Sv_memP => ?; apply: hra; apply: ok_wrf; exact: hk.
       + move: ok_wrf.
         rewrite /valid_writefun /write_fd /saved_stack_valid /=.
         case: sf_save_stack checked_save_stack => // r; t_xrbindP => _ _ _ /assertP /Sv_memP r_not_written /assertP.
-        rewrite /magic_variables /= /to_var /= => /Sv_memP ? /Sv.subset_spec ?.
+        rewrite /magic_variables /= /to_var /= => /Sv_memP.
+        rewrite Sv.union_spec Sv.add_spec Sv.singleton_spec => ? /Sv.subset_spec ?.
         by apply/and3P; split;
           [apply/eqP | apply/eqP | apply/Sv_memP ];
-          SvD.fsetdec.
+        intuition.
       + exact: sp_align.
       + exact: vrsp_tv.
       + exact: ok_m'.
@@ -899,7 +900,7 @@ Section LEMMA.
           by move/sem_stack_stable_sprog: sexec => /ss_top_stack.
         move/Sv.subset_spec: ok_wrf; rewrite /write_fd /= => ok_wrf.
         have [_]:= not_written_magic preserved_magic.
-        by rewrite /vrsp /= /writefun_ra; SvD.fsetdec.
+        by rewrite /vrsp /= /writefun_ra Sv.union_spec; intuition.
       rewrite (mvm_mem sim2); reflexivity.
     - by apply wf_vm_set; case: sim2.
     - move: ok_wrf hk; rewrite /valid_writefun /write_fd /= /writefun_ra ok_fd /is_true Sv.subset_spec.
