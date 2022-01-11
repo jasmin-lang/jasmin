@@ -94,6 +94,7 @@ lang/extraction.v
 lang/gen_map.v
 lang/global.v
 lang/ident.v
+lang/leakage.v
 lang/linear.v
 lang/linear_sem.v
 lang/low_memory.v
