@@ -855,7 +855,7 @@ Section LEMMA.
       exists (tv :: tres); first reflexivity. 
       by constructor => //; apply: value_uincl_trans (truncate_value_uincl ok_w) v_uincl.
     exists
-       (Sv.union k (Sv.union (ra_vm fd var_tmp) (saved_stack_vm fd))),
+       (Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd))),
        (set_RSP p (free_stack (emem t2)) (evm t2)), tres; split.
     - econstructor.
       + exact: ok_fd.

@@ -124,8 +124,8 @@ Definition ra_valid fd ii (k: Sv.t) (x: var) : bool :=
 Definition sv_of_flags : seq rflag → Sv.t :=
   sv_of_list to_var.
 
-Definition ra_vm fd (x: var) : Sv.t :=
-  match fd.(f_extra).(sf_return_address) with
+Definition ra_vm (e: stk_fun_extra) (x: var) : Sv.t :=
+  match e.(sf_return_address) with
   | RAreg ra =>
     Sv.singleton ra
   | RAstack _ =>
@@ -255,7 +255,7 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     valid_RSP s2'.(emem) s2'.(evm) →
     let m2 := free_stack s2'.(emem) in
     s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |} →
-    let vm := Sv.union (ra_vm f var_tmp) (saved_stack_vm f) in
+    let vm := Sv.union (ra_vm f.(f_extra) var_tmp) (saved_stack_vm f) in
     sem_call ii (Sv.union k vm) s1 fn s2.
 
 Variant sem_export_call_conclusion (m: mem) (fd: sfundef) (args: values) (vm: vmap) (m': mem) (res: values) : Prop :=
@@ -364,7 +364,7 @@ Lemma sem_callE ii k s fn s' :
       let m2 := free_stack s2'.(emem) in
       s' = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |})
     (λ f _ _ k' _ _,
-     k = Sv.union k' (Sv.union (ra_vm f var_tmp) (saved_stack_vm f))).
+     k = Sv.union k' (Sv.union (ra_vm f.(f_extra) var_tmp) (saved_stack_vm f))).
 Proof.
   case => { ii k s fn s' } /= ii k s s' fn f args m1 s2' res => ok_f ok_ra ok_ss ok_sp ok_RSP ok_alloc ok_args wt_args exec_body ok_RSP' ok_res wt_res /= ->.
   by exists f m1 s2' k args res.
@@ -483,7 +483,7 @@ Section SEM_IND.
       valid_RSP s2'.(emem) s2'.(evm) →
       let m2 := free_stack s2'.(emem) in
       s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |} →
-      let vm := Sv.union k (Sv.union (ra_vm fd var_tmp) (saved_stack_vm fd)) in
+      let vm := Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)) in
       Pfun ii vm s1 fn s2.
 
   Hypotheses

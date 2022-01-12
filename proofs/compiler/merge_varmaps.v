@@ -74,7 +74,7 @@ Section WRITE1.
     let ra :=
       match get_fundef (p_funcs p) fn with
       | None => Sv.empty
-      | Some fd => Sv.union (ra_vm fd var_tmp) (saved_stack_vm fd)
+      | Some fd => Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)
       end in
     Sv.union (writefun fn) ra.
 
