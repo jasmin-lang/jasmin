@@ -37,6 +37,8 @@ Declare Scope leakage_scope.
 Delimit Scope leakage_scope with leakage.
 Open Scope leakage_scope.
 
+Section Leak_E.
+
 Context {pd: PointerData}.
 
 Inductive leak_e :=
@@ -44,8 +46,6 @@ Inductive leak_e :=
 | LIdx : Z -> leak_e (* array access at given index *)
 | LAdr : pointer -> leak_e (* memory access at given address *)
 | LSub: (seq leak_e) -> leak_e. (* forest of leaks *)
-
-Notation leak_es := (seq leak_e).
 
 Inductive leak_i : Type :=
   | Lopn  : leak_e -> leak_i   (* leak_es -> leak_es -> leak_i *)
@@ -55,13 +55,19 @@ Inductive leak_i : Type :=
   | Lfor : leak_e -> seq (seq leak_i) -> leak_i                              
   | Lcall : leak_e -> (funname * seq leak_i) -> leak_e -> leak_i.            
 
+End Leak_E.
+
+Notation leak_es := (seq leak_e).
+
 Notation leak_c := (seq leak_i).
 
 Notation leak_for := (seq leak_c) (only parsing).
 
 Notation leak_fun := (funname * leak_c)%type.
 
-Section Eq_leak_e.
+Section Eq_leak_es.
+
+Context {pd: PointerData}.
 
 Variable eq_leak_e : leak_e -> leak_e -> bool.
 
@@ -72,7 +78,11 @@ match les, les' with
 | _,_=> false
 end.
 
-End Eq_leak_e.
+End Eq_leak_es.
+
+Section Eq_leak_e.
+
+Context {pd: PointerData}.
 
 Fixpoint eq_leak_e (le: leak_e) (le' : leak_e) : bool :=
 match le, le' with 
@@ -112,8 +122,14 @@ Definition get_seq_leak_e (l : leak_e) : seq leak_e :=
 Definition get_nth_leak (m: leak_es) n : leak_e :=
   nth LEmpty m n.
 
+End Eq_leak_e.
+
 (* ------------------------------------------------------------------------ *)
 (* Leakage trees and leakage transformations. *)
+
+Section Leak_tr.
+
+Context {pd: PointerData}.
 
 Inductive leak_tr_p :=
   | LS_const of pointer
@@ -268,6 +284,8 @@ Inductive leak_i_tr :=
 | LT_ilfopn : leak_es_i_tr -> leak_e_tr -> leak_i_tr
 | LT_ildiv : leak_i_tr -> leak_e_tr -> leak_i_tr.
 
+End Leak_tr. 
+
 Notation LT_ilmov2 := (LT_isingle LT_ilmov2_).
 Notation LT_ilmov3 := (LT_isingle LT_ilmov3_).
 Notation LT_ilmov4 := (LT_isingle LT_ilmov4_).
@@ -286,6 +304,10 @@ Notation LT_illt ltes := (LT_isingle (LT_illt_ ltes)).
 Notation LT_ilmov1 := (LT_idouble LT_ilmov1_).
 Notation LT_ildcn := (LT_idouble LT_ildcn_).
 
+
+Section Leak_i_tr.
+
+Context {pd: PointerData}.
 
 Definition is_LT_ilds li := if li is LT_ilds then true else false.
 
@@ -638,17 +660,31 @@ with leak_WFss : seq leak_i_tr -> seq leak_c -> Prop :=
 
 End Leak_Call.
 
+End Leak_i_tr.
+
 Notation leak_c_tr := (seq leak_i_tr).
+
+Section Leak_f_tr.
+
+Context {pd: PointerData}.
 
 Definition leak_f_tr := seq (funname * leak_c_tr).
 
+End Leak_f_tr.
+
 Section Leak_Call_Imp.
+
+Context {pd: PointerData}.
 
 Variable Fs: leak_f_tr.
 
 Definition leak_Fun (f: funname) : leak_c_tr := odflt [::] (assoc Fs f).
 
 End Leak_Call_Imp.
+
+Section Leak_il.
+
+Context {pd: PointerData}.
 
 Fixpoint leak_compile (stk : pointer) (lts: seq leak_f_tr) (lf: leak_fun) := 
   match lts with 
@@ -666,9 +702,21 @@ Variant leak_il : Type :=
   | Lopnl : leak_e -> leak_il
   | Lcondl : int -> leak_e -> bool -> leak_il. 
 
+End Leak_il.
+
 Notation leak_funl := (funname * seq leak_il).
 
+Section Leak_cl.
+
+Context {pd: PointerData}.
+
 Definition leak_cl := seq leak_il.
+
+End Leak_cl.
+
+Section Leak_il_tr.
+
+Context {pd: PointerData}.
 
 Inductive leak_i_il_tr : Type :=
   (*| LT_ilremove : leak_i_il_tr*)
@@ -714,7 +762,11 @@ Fixpoint get_linear_size (lti : leak_i_il_tr) : nat :=
 
 Definition get_linear_size_C := get_linear_size_c get_linear_size.
 
+End Leak_il_tr.
+
 Section Leak_IL.
+
+  Context {pd: PointerData}.
 
   Variable leak_i_iL : pointer -> leak_i ->  leak_i_il_tr -> seq leak_il.
 
@@ -744,6 +796,10 @@ Section Leak_IL.
     end.
 
 End Leak_IL.
+
+Section Leak_i_iL.
+
+Context {pd: PointerData}.
 
 Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : seq leak_il :=
   match l, li with 
@@ -818,9 +874,21 @@ Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : 
   | _, _ => [::]
   end.
 
+End Leak_i_iL.
+
 Notation leak_c_il_tr := (seq leak_i_il_tr).
 
+Section Leak_lf_tr.
+
+Context {pd: PointerData}.
+
 Definition leak_f_lf_tr := seq (funname * seq leak_i_il_tr).
+
+End Leak_lf_tr.
+
+Section Leak_i_wf.
+
+Context {pd: PointerData}.
 
 Inductive leak_i_WF : leak_i_il_tr -> leak_i -> Prop :=
 | LT_ilkeepaWF : forall le, leak_i_WF LT_ilkeepa (Lopn le)
@@ -873,9 +941,11 @@ with leak_w_WF  : seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i -> Prop :=
       leak_w_WF lti lti' li' -> 
       leak_w_WF lti lti' (Lwhile_true lis le lis' li').
 
-
+End Leak_i_wf. 
 
 Section Leak_Call_Imp_L.
+
+Context {pd: PointerData}.
 
 Variable Fs: leak_f_lf_tr.
 
@@ -884,6 +954,10 @@ Definition leak_Fun_L (f: funname) : seq leak_i_il_tr := odflt [::] (assoc Fs f)
 End Leak_Call_Imp_L.
 
 (** Leakage for assembly-level **)
+
+Section Leak_asm.
+
+Context {pd: PointerData}.
 
 Inductive leak_asm : Type :=
   | Laempty0 : leak_asm
@@ -920,4 +994,6 @@ Definition leak_compile_prog (stk: pointer) (lts: seq leak_f_tr * leak_f_lf_tr) 
 Definition leak_compile_x86 (stk: pointer) (lts: seq leak_f_tr * leak_f_lf_tr) (lf: leak_fun) : seq leak_asm :=
   let r := leak_compile_prog stk lts lf in
   map (fun x=> leak_i_asm x) r.
+
+End Leak_asm.
 
