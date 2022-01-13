@@ -91,9 +91,9 @@ Definition sopn_arg_desc (ad:arg_desc) :=
 End ARCH.
 
 (* Extra ops are non-existing architecture-specific asm instructions that we
-   replace by real asm instructions during the asmgen pass.
-*)
-Class asm_extra (reg xreg rflag cond asm_op extra_op : Type) := 
+ * replace by real asm instructions during the asmgen pass.
+ *)
+Class asm_extra (reg xreg rflag cond asm_op extra_op : Type) :=
   { _asm   :> asm reg xreg rflag cond asm_op
   ; _extra :> asmOp extra_op (* description of extra ops *)
   ; to_asm : instr_info -> extra_op -> lvals -> pexprs -> cexec (asm_op_msb_t * lvals * pexprs)

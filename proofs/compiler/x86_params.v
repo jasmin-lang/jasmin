@@ -53,11 +53,15 @@ Definition mk_mov vpk :=
   end.
 
 Definition x86_mov_ofs x tag vpk y ofs :=
-  let addr := if mk_mov vpk is MK_LEA
-              then lea_ptr x y tag ofs
-              else if ofs == 0%Z
-                   then mov_ptr x y tag
-                   else lea_ptr x y tag ofs in
+  let addr :=
+    if mk_mov vpk is MK_LEA
+    then
+      lea_ptr x y tag ofs
+    else
+      if ofs == 0%Z
+      then mov_ptr x y tag
+      else lea_ptr x y tag ofs
+  in
   Some addr.
 
 Definition x86_saparams : stack_alloc_params :=
@@ -491,10 +495,10 @@ Lemma eval_assemble_cond ii m rf e c v:
   eqflags m rf
   -> agp_assemble_cond x86_agparams ii e = ok c
   -> sem_pexpr [::] m e = ok v
-  -> let
-       get x := if rf x is Def b
-                then ok b
-                else undef_error
+  -> let get x :=
+       if rf x is Def b
+       then ok b
+       else undef_error
      in
      exists2 v', value_of_bool (eval_cond get c) = ok v' & value_uincl v v'.
 Proof.
@@ -713,7 +717,7 @@ Definition x86_hagparams : h_asm_gen_params (ap_agp x86_params) :=
 
 
 (* ------------------------------------------------------------------------ *)
-(* Common hypotheses. *)
+(* Shared hypotheses. *)
 
 Definition x86_is_move_opP op vx v :
   ap_is_move_op x86_params op

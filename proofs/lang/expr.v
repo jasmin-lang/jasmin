@@ -325,6 +325,12 @@ Notation pexprs := (seq pexpr).
 
 Definition Plvar x := Pvar (mk_lvar x).
 
+Definition enot e := Papp1 Onot e.
+Definition eor e1 e2 := Papp2 Oor e1 e2.
+Definition eand e1 e2 := Papp2 Oand e1 e2.
+Definition eeq e1 e2 := Papp2 Obeq e1 e2.
+Definition eneq e1 e2 := enot (eeq e1 e2).
+
 Fixpoint pexpr_beq (e1 e2:pexpr) : bool :=
   match e1, e2 with
   | Pconst n1   , Pconst n2    => n1 == n2

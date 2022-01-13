@@ -165,10 +165,10 @@ let main () =
         hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
       end
     in
-    
+
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
-    
+
     let do_compile = ref true in
     let donotcompile () = do_compile := false in
 

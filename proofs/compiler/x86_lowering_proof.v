@@ -165,7 +165,7 @@ Section PROOF.
   Qed.
 
   Local Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
-  Proof. move=> ii i s1 s2 _ Hi; exact: Hi. Qed. 
+  Proof. move=> ii i s1 s2 _ Hi; exact: Hi. Qed.
 
   Lemma type_of_get_var vm sz vn v:
     get_var vm {| vtype := sword sz; vname := vn |} = ok v ->
@@ -396,8 +396,8 @@ Section PROOF.
     set Sf := {| v_var := {| vname := fresh_SF _ |} |}.
     set Zf := {| v_var := {| vname := fresh_ZF _ |} |}.
     have hw : forall (bof bcf bsf bpf bzf: bool),
-      exists s2', 
-       [/\ 
+      exists s2',
+       [/\
          write_lvals gd s1' [:: Lvar Of; Lvar Cf; Lvar Sf; Lnone ii' sbool; Lvar Zf]
            [:: Vbool bof; Vbool bcf; Vbool bsf; Vbool bpf; Vbool bzf] = ok s2',
          eq_exc_fresh s1' s2' &
@@ -421,7 +421,7 @@ Section PROOF.
       + rewrite get_gvar_neq; last by move=> _ [] h; have := sf_neq_zf; rewrite h eqxx.
         by rewrite (@get_gvar_eq gd (mk_lvar Sf)).
       by rewrite (@get_gvar_eq gd (mk_lvar Zf)).
-    have {hw}hw : forall wx wy, 
+    have {hw}hw : forall wx wy,
      to_word ws v2 = ok wy ->
      to_word ws v1 = ok wx ->
      ∃ s2' : estate,
@@ -456,21 +456,21 @@ Section PROOF.
     + case => // -[] ws' /sem_sop2I /= [wx [wy [b [hw2 hw1]]]] hs ? [] ?????; subst cond e1 e2 ws' c lv;
       have [s2' [hsem heqe [hof hcf hsf hzf]]]:= hw _ _ hw1 hw2;
       exists s2'; split => //; split => //; case: hs => <-.
-      + move: hof hsf => /= -> -> /=; rewrite /sem_sop1 /= /SF_of_word.      
+      + move: hof hsf => /= -> -> /=; rewrite /sem_sop1 /= /SF_of_word.
         by rewrite eq_sym -wltsE.
       by move: hcf => /= -> /=; rewrite -wleuE /= ltNge.
     + case => // -[] ws' /sem_sop2I /= [wx [wy [b [hw2 hw1]]]] hs ? [] ?????; subst cond e1 e2 ws' c lv;
       have [s2' [hsem heqe [hof hcf hsf hzf]]]:= hw _ _ hw1 hw2;
       exists s2'; split => //; split => //; case: hs => <-.
-      + move: hof hsf hzf => /= -> -> -> /=; rewrite /sem_sop2 /= /SF_of_word /ZF_of_word.      
+      + move: hof hsf hzf => /= -> -> -> /=; rewrite /sem_sop2 /= /SF_of_word /ZF_of_word.
         rewrite eq_sym -wltsE GRing.subr_eq0 le_eqVlt orbC eqtype.inj_eq //.
         by apply word.srepr_inj.
-      move: hcf hzf => /= -> -> /=; rewrite /sem_sop2 /= /ZF_of_word.  
+      move: hcf hzf => /= -> -> /=; rewrite /sem_sop2 /= /ZF_of_word.
       by rewrite GRing.subr_eq0 -wleuE'.
     + case => // -[] ws' /sem_sop2I /= [wx [wy [b [hw2 hw1]]]] hs ? [] ?????; subst cond e1 e2 ws' c lv;
       have [s2' [hsem heqe [hof hcf hsf hzf]]]:= hw _ _ hw1 hw2;
       exists s2'; split => //; split => //; case: hs => <-.
-      + move: hof hsf hzf => /= -> -> -> /=; rewrite /sem_sop2 /= /SF_of_word /ZF_of_word. 
+      + move: hof hsf hzf => /= -> -> -> /=; rewrite /sem_sop2 /= /SF_of_word /ZF_of_word.
         rewrite ltNge -(negbK (_ == msb _)).
         rewrite -negb_or (eq_sym _ (msb _)) -wltsE GRing.subr_eq0 orbC /= le_eqVlt.
         by rewrite eqtype.inj_eq //; apply word.srepr_inj.
@@ -479,7 +479,7 @@ Section PROOF.
     case => // -[] ws' /sem_sop2I /= [wx [wy [b [hw2 hw1]]]] hs ? [] ?????; subst cond e1 e2 ws' c lv;
     have [s2' [hsem heqe [hof hcf hsf hzf]]]:= hw _ _ hw1 hw2;
     exists s2'; split => //; split => //; case: hs => <-.
-    + move: hof hsf => /= -> -> /=; rewrite /sem_sop2 /= /SF_of_word. 
+    + move: hof hsf => /= -> -> /=; rewrite /sem_sop2 /= /SF_of_word.
       by rewrite eq_sym -(negbK (_ == _)) -wltsE /= leNgt.
     by move: hcf => /= -> /=; rewrite /sem_sop1 /= -wleuE negbK.
   Qed.
@@ -491,7 +491,7 @@ Section PROOF.
 
   Lemma is_leaP f sz x e l :
     is_lea f sz x e = Some l ->
-    [/\ (U16 ≤ sz)%CMP && (sz ≤ U64)%CMP, 
+    [/\ (U16 ≤ sz)%CMP && (sz ≤ U64)%CMP,
          Sv.Subset (read_lea l) (read_e e),
          mk_lea sz e = Some l & check_scale (wunsigned l.(lea_scale))].
   Proof.
@@ -549,20 +549,20 @@ Section PROOF.
   Lemma check_size_128_256_ge sz : (U128 <= sz)%CMP -> check_size_128_256 sz = ok tt.
   Proof. by move=> h; rewrite /check_size_128_256 h wsize_ge_U256. Qed.
 
-  Lemma mulr_ok l sz w1 w2 (z1 : word w1) (z2:word w2) e1 e2 o e' s s': 
+  Lemma mulr_ok l sz w1 w2 (z1 : word w1) (z2:word w2) e1 e2 o e' s s':
     sem_pexpr gd s e1 = ok (Vword z1) ->
     sem_pexpr gd s e2 = ok (Vword z2) ->
     (sz ≤ w1)%CMP ->
-    (sz ≤ w2)%CMP -> 
+    (sz ≤ w2)%CMP ->
     (U16 ≤ sz)%CMP && (sz ≤ U64)%CMP ->
     write_lval gd l (Vword (zero_extend sz z1 * zero_extend sz z2)) s = ok s'->
-    mulr sz e1 e2 = (o, e') -> 
+    mulr sz e1 e2 = (o, e') ->
     Sv.Subset (read_es e') (read_e (Papp2 (Omul (Op_w sz )) e1 e2))
       ∧ Let x := Let x := sem_pexprs gd s e' in exec_sopn (Ox86 o) x
         in write_lvals gd s
              [:: Lnone (var_info_of_lval l) sbool; Lnone (var_info_of_lval l) sbool;
                  Lnone (var_info_of_lval l) sbool; Lnone (var_info_of_lval l) sbool;
-                 Lnone (var_info_of_lval l) sbool; l] x = ok s'. 
+                 Lnone (var_info_of_lval l) sbool; l] x = ok s'.
   Proof.
     rewrite /mulr => ok_v1 ok_v2 hle1 hle2 hsz64 Hw.
     case Heq: (is_wconst _ _) => [z | ].
@@ -622,7 +622,7 @@ Section PROOF.
                  write_lvals gd s1 lv) = ok s1' /\
                eq_exc_fresh s1' s'])]),
           ty = sword sz , (U16 ≤ sz)%CMP & (sz ≤ U64)%CMP]
-    | LowerCond => True 
+    | LowerCond => True
     | LowerIf t a e1 e2 =>
       check_size_16_64 (wsize_of_lval l) = ok tt ∧ e = Pif t a e1 e2 ∧ wsize_of_lval l = wsize_of_stype ty ∧ ∃ sz', stype_of_lval l = sword sz'
     | LowerLea sz l =>
@@ -749,7 +749,7 @@ Section PROOF.
           rewrite -(zero_extend_u (_ * _)).
           apply: (mk_leaP (p:=p) _ (cmp_le_refl _) hlea) => //.
           by rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word hle1 hle2.
-        move => {Heq}. 
+        move => {Heq}.
         case Heq : mulr => [o e'].
         by apply: mulr_ok ok_v1 ok_v2 hle1 hle2 hsz64 Hw Heq.
 
@@ -1074,7 +1074,7 @@ Section PROOF.
     move=> da dr hx hr hs; rewrite/opn_5flags.
     case: opn_5flags_cases.
     + move=> x y n z ? ? /=; subst a y.
-      set ℓ := 
+      set ℓ :=
         with_vm s
         (evm s).[{| vtype := sword64; vname := fresh_multiplicand fv U64 |} <- ok (pwrepr64 n)].
       assert (eq_exc_fresh ℓ s) as e.
@@ -1137,8 +1137,8 @@ Section PROOF.
       have [sz [vw [h [hsz hw]]]] := reduce_wconstP tw Hv'.
       rewrite (cmp_le_min hle) in hsz.
       case: b.
-      * set ℓ := 
-          with_vm s1' 
+      * set ℓ :=
+          with_vm s1'
           (evm s1').[{| vtype := sword tw; vname := fresh_multiplicand fv tw |} <- ok (pword_of_word (zero_extend tw vw)) ].
         assert (eq_exc_fresh ℓ s1') as dℓ.
         + subst ℓ; case:(s1') => ?? /=; split => //.
@@ -1183,11 +1183,11 @@ Section PROOF.
         - subst oo; case: o Hwo {hrl} => [ o | ] /=; t_xrbindP.
           * by rewrite /get_gvar => vb -> /of_val_word [sz'] [w'] [h -> ->]; rewrite /= /truncate_word h.
           by move => <-; rewrite truncate_word_u; f_equal; apply: word_ext.
-        by subst. 
+        by subst.
       move: Hwb; apply: rbindP => vb Hvb Hwb.
       move: Hwo; apply: rbindP => vo Hvo Hwo.
       set elea := Papp2 (Oadd (Op_w sz)) (wconst d) (Papp2 (Oadd (Op_w sz)) ob (Papp2 (Omul (Op_w sz)) (wconst sc) oo)).
-      case /andP: hsz => hsz1 hsz2. 
+      case /andP: hsz => hsz1 hsz2.
       have Hlea :
         sem_pexprs gd s1' [:: elea] >>= exec_sopn (Ox86 (LEA sz)) = ok [::Vword w].
       + rewrite /sem_pexprs /= Hvb Hvo /= /exec_sopn /sopn_sem /sem_sop2 /= /truncate_word hsz2 /=.
@@ -1207,8 +1207,8 @@ Section PROOF.
         case Heq : mulr => [o1 e'].
         move: Hvb; rewrite Eob /= /sem_sop1 /= => -[?]; subst vb.
         have [sz1 [w1 [hle1 ??]]]:= to_wordI Hwo;subst vo wo.
-        have Hsc1 : sem_pexpr gd s1' (wconst sc) = ok (Vword sc). 
-        + by rewrite /wconst /= /sem_sop1 /= wrepr_unsigned. 
+        have Hsc1 : sem_pexpr gd s1' (wconst sc) = ok (Vword sc).
+        + by rewrite /wconst /= /sem_sop1 /= wrepr_unsigned.
         move: Hwb; rewrite /= truncate_word_u wrepr_unsigned => -[?];subst wb.
         rewrite zero_extend0 !GRing.add0r GRing.mulrC in Hw'.
         have [] := mulr_ok Hvo Hsc1 hle1 hsz2 _ Hw' Heq; first by rewrite hsz1.
@@ -1238,7 +1238,7 @@ Section PROOF.
         rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /= Hvb /= Hwb /=.
         rewrite truncate_word_u /x86_SUB /check_size_8_64 hsz2 /=.
         by rewrite wrepr_unsigned wrepr_opp GRing.opprK Hw'.
-      set si := 
+      set si :=
         with_vm s1'
             (evm s1').[{| vtype := sword64; vname := fresh_multiplicand fv U64 |} <- ok {| pw_size := U64 ; pw_word := d ; pw_proof := erefl (U64 ≤ U64)%CMP |}].
       have hsi : eq_exc_fresh si s1'.
