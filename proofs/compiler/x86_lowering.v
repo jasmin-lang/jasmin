@@ -82,12 +82,6 @@ Definition wsize_of_lval (lv: lval) : wsize :=
   | Lasub _ _ _ _ _ => U64
   end.
 
-Definition enot e := Papp1 Onot e.
-Definition eq_f  e1 e2 := Papp2 Obeq e1 e2. 
-Definition neq_f e1 e2 := enot (eq_f e1 e2).
-Definition eor e1 e2   := Papp2 Oor e1 e2.
-Definition eand e1 e2  := Papp2 Oand e1 e2.
-
 Definition lower_cond_classify vi (e: pexpr) :=
   let nil := Lnone vi sbool in
   let fr n := {| v_var := {| vtype := sbool; vname := n fv |} ; v_info := vi |} in
@@ -105,7 +99,7 @@ Definition lower_cond_classify vi (e: pexpr) :=
   let ecf := Plvar vcf in
   let esf := Plvar vsf in
   let ezf := Plvar vzf in
-  
+
   let l := [:: lof ; lcf ; lsf ; nil ; lzf ] in
   match e with
   | Papp2 op x y =>
@@ -115,19 +109,19 @@ Definition lower_cond_classify vi (e: pexpr) :=
     | Oneq (Op_w sz) =>
       Some (l, sz, enot ezf, x, y)
     | Olt (Cmp_w Signed sz) =>
-      Some (l, sz, neq_f eof esf, x, y)
+      Some (l, sz, eneq eof esf, x, y)
     | Olt (Cmp_w Unsigned sz) =>
       Some (l, sz, ecf, x, y)
     | Ole (Cmp_w Signed sz) =>
-      Some (l, sz, eor (neq_f eof esf) ezf, x, y)
+      Some (l, sz, eor (eneq eof esf) ezf, x, y)
     | Ole (Cmp_w Unsigned sz) =>
       Some (l, sz, eor ecf ezf, x, y)
     | Ogt (Cmp_w Signed sz) =>
-      Some (l, sz, eand (eq_f eof esf) (enot ezf), x, y)
+      Some (l, sz, eand (eeq eof esf) (enot ezf), x, y)
     | Ogt (Cmp_w Unsigned sz) =>
       Some (l, sz, eand (enot ecf) (enot ezf), x, y)
     | Oge (Cmp_w Signed sz) =>
-      Some (l, sz, eq_f eof esf, x, y)
+      Some (l, sz, eeq eof esf, x, y)
     | Oge (Cmp_w Unsigned sz) =>
       Some (l, sz, enot ecf, x, y)
     | _ => None
@@ -183,7 +177,7 @@ Variant lower_cassgn_t : Type :=
   | LowerInc  of sopn & pexpr
   | LowerLea of wsize & lea
   | LowerFopn of sopn & list pexpr & option wsize
-  | LowerCond 
+  | LowerCond
   | LowerIf   of stype & pexpr & pexpr & pexpr
   | LowerDivMod of divmod_pos & signedness & wsize & sopn & pexpr & pexpr
   | LowerConcat of pexpr & pexpr
@@ -436,7 +430,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
       if (e == @wconst szty 0) && ~~ is_lval_in_memory x && options.(use_set0) then
         if (szty <= U64)%CMP then
           [:: MkI ii (Copn [:: f ; f ; f ; f ; f ; x] tg (Oasm (ExtOp (Oset0 szty))) [::]) ]
-        else 
+        else
           [:: MkI ii (Copn [:: x] tg (Oasm (ExtOp (Oset0 szty))) [::]) ]
       else copn (Ox86 (MOV szty)) [:: e ]
   | LowerCopn o e => copn o e
@@ -480,7 +474,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
               [:: MkI ii (Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: de]);
                  MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; Plvar c ])]
       else lea tt
-  
+
   | LowerCond =>
     let (i,e') := lower_condition vi e in
     map (MkI ii) (i ++ [::Cassgn x AT_inline ty e'])
