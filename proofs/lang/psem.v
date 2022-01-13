@@ -260,6 +260,9 @@ Proof.
   by move: v; rewrite heq => v; rewrite !get_gvar_eq.
 Qed.
 
+Definition vm_initialized_on (vm: vmap) : seq var → Prop :=
+  all (λ x, is_ok (get_var vm x >>= of_val (vtype x))).
+
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 

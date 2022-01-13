@@ -1006,10 +1006,6 @@ Section PROOF.
       s = map fst (sf_to_save e)
     else s = [::].
 
-  (* Said registers are assumed to hold safe values. *)
-  Definition safe_to_save (vm: vmap) : seq var → Prop :=
-    all (λ x, is_ok (get_var vm x >>= of_val (vtype x))).
-
   (* Execution of linear programs preserve meta-data stored in the stack memory *)
   Definition preserved_metadata (m m1 m2: mem) : Prop :=
     ∀ p : pointer,
@@ -1213,7 +1209,7 @@ Section PROOF.
       is_sp_for_call fn s1 sp →
       (* To-save variables are initialized in the initial linear state *)
       is_callee_saved_of fn callee_saved →
-      safe_to_save vm1 callee_saved →
+      vm_initialized_on vm1 callee_saved →
       ex2_6
       (λ m2 vm2,
       if lret is Some ((caller, lbl), _cbody, pc)
@@ -3117,7 +3113,7 @@ Section PROOF.
           case: ok_to_save => x_ofs [] x_ws [].
           case: is_word_type (@is_word_typeP (vtype x)) => // ws /(_ _ erefl) wt_x /ok_inj[] ??; subst x_ofs x_ws.
           move => lo_ofs ok_ws aligned_ofs ok_to_save.
-          move: wf_to_save; rewrite /safe_to_save /=.
+          move: wf_to_save; rewrite /vm_initialized_on /=.
           case/andP => /is_ok_vm1_vm_rsp_aligned.
           rewrite wt_x => get_x wf_to_save.
           case ok_x: get_var get_x => [ v | // ] /=.
@@ -3487,7 +3483,7 @@ Section PROOF.
         mapM (λ x : var_i, get_var vm x) fd.(lfd_arg) = ok args' →
         List.Forall2 value_uincl args args' →
         vm.[vid p'.(lp_rip)]%vmap = ok (pword_of_word gd) →
-        safe_to_save vm ((var_tmp : var) :: lfd_callee_saved fd) →
+        vm_initialized_on vm ((var_tmp : var) :: lfd_callee_saved fd) →
         all2 check_ty_val fd.(lfd_tyin) args' ∧
         ∃ vm' lm' res',
           (* TODO: vm = vm' [\ k ] ; stack_stable m m' ; etc. *)
@@ -3547,8 +3543,8 @@ Section PROOF.
       by move/eqP: Export => /= ->.
     - eexists; first exact: ok_fd.
       by move/eqP: Export => /= ->.
-    - by move: safe_registers; rewrite /= Export {1}/safe_to_save /= => /andP[] _.
-    move => lmo vmo texec ?? s2_vmo ? M'.
+    - by move: safe_registers; rewrite /= Export {1}/vm_initialized_on /= => /andP[] _.
+    move => lmo vmo texec vm_eq_vmo ? s2_vmo ? M'.
     have vm2_vmo : ∀ r, r \in f_res fd → (eval_uincl vm2.[r] vmo.[r])%vmap.
     - move => r r_in_result.
       have r_not_saved : ¬ Sv.In r (sv_of_list id (map fst fd.(f_extra).(sf_to_save))).

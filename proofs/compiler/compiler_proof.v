@@ -364,7 +364,7 @@ Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) (m:mem)
         mapM (λ x : var_i, get_var vm x) fd.(lfd_arg) = ok args' →
         List.Forall2 value_uincl args args' →
         vm.[vid tp.(lp_rip)]%vmap = ok (pword_of_word rip) →
-        safe_to_save vm ((vid (lp_tmp lparams) : var) :: lfd_callee_saved fd) →
+        vm_initialized_on vm ((vid (lp_tmp lparams) : var) :: lfd_callee_saved fd) →
         all2 check_ty_val fd.(lfd_tyin) args' ∧
         ∃ vm' lm' res',
           [/\
