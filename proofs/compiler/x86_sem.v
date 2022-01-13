@@ -111,9 +111,7 @@ Variant x86sem_exportcall (p: asm_prog) (fn: funname) (m m': asmmem) : Prop :=
     & x86sem p
              {| asm_m := m ; asm_f := fn ; asm_c := asm_fd_body fd ; asm_ip := 0 |}
              {| asm_m := m' ; asm_f := fn ; asm_c := asm_fd_body fd ; asm_ip := size fd.(asm_fd_body) |}
-    (* TODO: & {in x86_callee_saved, ∀ r, preserved_register r m m'}
-    question: how to state this at the linear level?
-     *)
+    & {in x86_callee_saved, ∀ r, preserved_register r m m'}
 .
 
 (* TODO: not sure there needs to be a file [x86_sem], [arch_sem] seems enough. *)

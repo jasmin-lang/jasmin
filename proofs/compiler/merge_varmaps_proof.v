@@ -84,6 +84,7 @@ Context
   (p: sprog)
   (extra_free_registers: instr_info -> option var)
   (reg_tmp : reg)
+  (callee_saved: Sv.t)
   (global_data: pointer).
 
 Let var_tmp := to_var reg_tmp.
@@ -101,16 +102,16 @@ Let wmap := mk_wmap p extra_free_registers var_tmp.
 Notation wrf := (get_wmap wmap).
 
 Lemma checkP u (fn: funname) (fd: sfundef) :
-  check p extra_free_registers var_tmp = ok u →
+  check p extra_free_registers var_tmp callee_saved = ok u →
   get_fundef (p_funcs p) fn = Some fd →
-  valid_writefun wrf (fn, fd) ∧ check_fd p extra_free_registers var_tmp wrf fn fd = ok tt.
+  valid_writefun wrf (fn, fd) ∧ check_fd p extra_free_registers var_tmp callee_saved wrf fn fd = ok tt.
 Proof.
   rewrite /check; t_xrbindP => _ /assertP ok_wmap _ _ _ _ ? ok_prog _ ok_fd; split.
   - exact: check_wmapP ok_fd ok_wmap.
   by have [ [] ] := get_map_cfprog_name_gen ok_prog ok_fd.
 Qed.
 
-Hypothesis ok_p : check p extra_free_registers var_tmp = ok tt.
+Hypothesis ok_p : check p extra_free_registers var_tmp callee_saved = ok tt.
 
 Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid p.(p_extra).(sp_rsp).
@@ -729,14 +730,16 @@ Section LEMMA.
       | RAstack _ =>
         True
       | RAnone =>
-        [/\ disjoint (sv_of_list fst (sf_to_save (f_extra fd))) res &
+          let to_save := sv_of_list fst (sf_to_save (f_extra fd)) in
+        [/\ disjoint to_save res,
+         Sv.subset (Sv.inter callee_saved (writefun_ra p var_tmp wrf fn)) to_save &
          all
            (λ x : var_i, if vtype x is sword _ then true else false)
            (f_params fd)
           ]
       end.
     - case: sf_return_address checked_ra; last by [].
-      + by t_xrbindP => _ /assertP ? /assertP.
+      + by t_xrbindP => _ /assertP ? _ /assertP ? /assertP.
       move => ra; t_xrbindP => _ /assertP -> _ /assertP /Sv_memP ra_not_written /assertP.
       rewrite SvP.union_mem negb_or => /andP[] /Sv_memP ra_not_magic /Sv_memP ra_not_param.
       by split.
@@ -923,7 +926,7 @@ End LEMMA.
 Lemma merge_varmaps_export_callP m fn args m' res :
   is_export p fn →
   psem.sem_call p global_data m fn args m' res →
-  sem_one_varmap.sem_export_call p extra_free_registers var_tmp global_data m fn args m' res.
+  sem_one_varmap.sem_export_call p extra_free_registers var_tmp callee_saved global_data m fn args m' res.
 Proof.
   case => fd ok_fd Export.
   move => /merge_varmaps_callP /(_ 1%positive fd _ _ ok_fd).
@@ -937,7 +940,7 @@ Proof.
   move => checked_body _ /assertP hdisj
       _ /assertP checked_params _ /assertP RSP_not_result _ /assertP preserved_magic
      [] checked_save_stack.
-  t_xrbindP => _ /assertP to_save_not_result /assertP ok_params.
+  t_xrbindP => _ /assertP to_save_not_result _ /assertP ok_callee_saved /assertP ok_params.
 
   rewrite Export => /(_ _ _ erefl erefl) H.
   exists fd.
@@ -960,7 +963,13 @@ Proof.
     rewrite /results mem_set_of_var_i_seq SvP.empty_mem => /mapP; apply.
     by exists r.
   } subst xr.
-  by exists m0 k' m1 vm1 res'.
+  exists m0 k' m1 vm1 res' => //.
+  move/Sv.subset_spec: ok_callee_saved ok_k.
+  move: (writefun_ra _ _ _ _) => W.
+  move: (sv_of_list _ _) => C.
+  move: (Sv.union _ (saved_stack_vm _)) => X.
+  clear.
+  SvD.fsetdec.
 Qed.
 
 End PROG.

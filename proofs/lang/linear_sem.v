@@ -260,13 +260,15 @@ Proof.
   by clear => s s' ? k _ _ /lsem_final_nostep /(_ k).
 Qed.
 
-Variant lsem_exportcall (m: mem) (fn: funname) (vm: vmap) (m': mem) (vm': vmap) : Prop :=
+Variant lsem_exportcall (callee_saved: Sv.t) (m: mem) (fn: funname) (vm: vmap) (m': mem) (vm': vmap) : Prop :=
 | Lsem_exportcall (fd: lfundef) of
     get_fundef P.(lp_funcs) fn = Some fd
   & lfd_export fd
   & lsem
          {| lmem := m ; lvm := vm ; lfn := fn ; lpc := 0 |}
-         {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (lfd_body fd) |}.
+         {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (lfd_body fd) |}
+  & vm =[ callee_saved ] vm'
+.
 
 End LSEM.
 

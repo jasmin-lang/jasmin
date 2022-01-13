@@ -71,7 +71,7 @@ End E.
 (* --------------------------------------------------------------------------- *)
 Section PROG.
 Context {pd: PointerData}.
-Context `{asmop:asmOp}.
+Context `{asmop: asmOp}.
 Context (p:sprog) (extra_free_registers: instr_info -> option var).
 
 (** Total size of a stack frame: local variables, extra and padding. *)
@@ -153,33 +153,6 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
         (sf_stk_sz e + sf_stk_extra_sz e) Uptr (sf_to_save e)
         (λ '(x, ofs), if is_word_type x.(vtype) is Some ws then ok (ofs, ws) else (Error (E.error "to-save: not a word")))
     else ok tt.
-
-  Definition check_fd (fn: funname) (fd:sfundef) :=
-    let e := fd.(f_extra) in
-    let stack_align := e.(sf_align) in
-    Let _ := check_c (check_i fn stack_align) fd.(f_body) in
-    Let _ := check_to_save e in
-    Let _ := assert [&& 0 <=? sf_stk_sz e, 0 <=? sf_stk_extra_sz e & stack_frame_allocation_size e <? wbase Uptr]%Z
-                    (E.error "bad stack size") in
-    Let _ := assert match sf_return_address e with
-                    | RAnone => true
-                    | RAreg ra => vtype ra == sword Uptr
-                    | RAstack ofs => check_stack_ofs e ofs Uptr
-                    end
-                    (E.error "bad return-address") in
-    Let _ := assert ((sf_return_address e != RAnone)
-                     || match sf_save_stack e with
-                        | SavedStackNone => [&& stack_align == U8, sf_stk_sz e == 0 & sf_stk_extra_sz e == 0]
-                        | SavedStackReg r => (vtype r == sword Uptr) && (sf_to_save e == [::])
-                        | SavedStackStk ofs => check_stack_ofs e ofs Uptr
-                        end)
-                    (E.error "bad save-stack") in
-    ok tt.
-
-  Definition check_prog :=
-    Let _ := map_cfprog_name check_fd (p_funcs p) in
-    ok tt.
-
 
 (* --------------------------------------------------------------------------- *)
 (* Translation                                                                 *)
@@ -277,6 +250,32 @@ Let rsp : var := Var (sword Uptr) p.(p_extra).(sp_rsp).
 Let rspi : var_i := VarI rsp xH.
 Let rspg : gvar := Gvar rspi Slocal.
 Let var_tmp : var := Var (sword Uptr) lp.(lp_tmp).
+
+Definition check_fd (fn: funname) (fd:sfundef) :=
+  let e := fd.(f_extra) in
+  let stack_align := e.(sf_align) in
+  Let _ := check_c (check_i fn stack_align) fd.(f_body) in
+  Let _ := check_to_save e in
+  Let _ := assert [&& 0 <=? sf_stk_sz e, 0 <=? sf_stk_extra_sz e & stack_frame_allocation_size e <? wbase Uptr]%Z
+                  (E.error "bad stack size") in
+  Let _ := assert match sf_return_address e with
+                  | RAnone => true
+                  | RAreg ra => vtype ra == sword Uptr
+                  | RAstack ofs => check_stack_ofs e ofs Uptr
+                  end
+                  (E.error "bad return-address") in
+  Let _ := assert ((sf_return_address e != RAnone)
+                   || match sf_save_stack e with
+                      | SavedStackNone => [&& sf_to_save e == [::], stack_align == U8, sf_stk_sz e == 0 & sf_stk_extra_sz e == 0]
+                      | SavedStackReg r => [&& vtype r == sword Uptr & sf_to_save e == [::] ]
+                      | SavedStackStk ofs => [&& check_stack_ofs e ofs Uptr & ~~ Sv.mem var_tmp (sv_of_list fst (sf_to_save e)) ]
+                      end)
+                  (E.error "bad save-stack") in
+  ok tt.
+
+Definition check_prog :=
+  Let _ := map_cfprog_name check_fd (p_funcs p) in
+  ok tt.
 
 (* We use projections instead of destructuring let to avoid blocking reductions. *)
 Definition lassign ii x ws e : linstr :=
@@ -560,7 +559,7 @@ Definition linear_fd (fd: sfundef) :=
 End FUN.
 
 Definition linear_prog (lparams: linearization_params) : cexec lprog :=
-  Let _ := check_prog in
+  Let _ := check_prog lparams in
   Let _ := assert (size p.(p_globs) == 0)
              (E.internal_error "invalid p_globs") in
   let funcs := map (fun '(f,fd) => (f, linear_fd lparams f fd)) p.(p_funcs) in

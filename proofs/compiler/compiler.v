@@ -291,10 +291,10 @@ Definition check_export entries (p: sprog) : cexec unit :=
           else Error (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "unknown export function")))
        ) entries.
 
-Definition compiler_back_end entries (pd: sprog) :=
+Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
-  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp in
+  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp callee_saved in
   Let pl := linear_prog pd cparams.(extra_free_registers) lparams in
   let pl := cparams.(print_linear) Linearization pl in
   (* tunneling                         *)
@@ -303,9 +303,9 @@ Definition compiler_back_end entries (pd: sprog) :=
 
   ok pl.
 
-Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
+Definition compile_prog (callee_saved: Sv.t) (entries subroutines : seq funname) (p: prog) :=
   Let pd := compiler_front_end entries subroutines p in
-  Let pl := compiler_back_end entries pd in
+  Let pl := compiler_back_end callee_saved entries pd in
   ok pl.
 
 Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
@@ -316,7 +316,8 @@ Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
   else true.
 
 Definition compile_prog_to_x86 entries subroutines (p: prog): cexec x86_prog :=
-  Let lp := compile_prog entries subroutines p in
+  let callee_saved := sv_of_list to_var x86_callee_saved in
+  Let lp := compile_prog callee_saved entries subroutines p in
 (*  Let _ := assert (all (check_signature p lp) entries) Ferr_lowering in *)
   assemble_prog lp.
 

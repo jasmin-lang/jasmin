@@ -81,7 +81,8 @@ Section SEM.
 Context
   (p: sprog)
   (extra_free_registers: instr_info -> option var)
-  (var_tmp: var).
+  (var_tmp: var)
+  (callee_saved: Sv.t).
 
 Local Notation gd := (p_globs p).
 
@@ -261,6 +262,7 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
 Variant sem_export_call_conclusion (m: mem) (fd: sfundef) (args: values) (vm: vmap) (m': mem) (res: values) : Prop :=
   | SemExportCallConclusion (m1: mem) (k: Sv.t) (m2: mem) (vm2: vmap) (res': values) of
     saved_stack_valid fd k &
+    Sv.Subset (Sv.inter callee_saved (Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
     all2 check_ty_val fd.(f_tyin) args &
     sem k {| emem := m1 ; evm := set_RSP m1 (kill_flags (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then vm.[r <- undef_error] else vm) rflags).[var_tmp <- undef_error] |} fd.(f_body) {| emem := m2 ; evm := vm2 |} &

@@ -47,7 +47,7 @@ Section PROG.
 
 Context `{asm_e : asm_extra}.
 Context (p: sprog) (extra_free_registers: instr_info → option var).
-Context (var_tmp : var).
+Context (var_tmp : var) (callee_saved: Sv.t).
 
 (** Set of variables written by a function (including RA and extra registers),
       assuming this information is known for the called functions. *)
@@ -280,13 +280,14 @@ Section CHECK.
     Let D := check_cmd fd.(f_extra).(sf_align) DI fd.(f_body) in
     let params := set_of_var_i_seq Sv.empty fd.(f_params) in
     let res := set_of_var_i_seq Sv.empty fd.(f_res) in
+    let W' := writefun_ra writefun fn in
     Let _ := assert (disjoint D res)
                     (E.gen_error true None (pp_s "not able to ensure equality of the result")) in
     Let _ := assert (disjoint params magic_variables)
                     (E.gen_error true None (pp_s "the function has RSP or global-data as parameter")) in
     Let _ := assert (~~ Sv.mem (vid p.(p_extra).(sp_rsp)) res)
                     (E.gen_error true None (pp_s "the function returns RSP")) in
-    Let _ := assert (disjoint (writefun_ra writefun fn) magic_variables)
+    Let _ := assert (disjoint W' magic_variables)
                     (E.gen_error true None (pp_s "the function writes to RSP or global-data")) in
     let W := writefun fn in
     let J := Sv.union magic_variables params in
@@ -299,8 +300,11 @@ Section CHECK.
     | RAreg ra => check_preserved_register W J "return address" ra
     | RAstack _ => ok tt
     | RAnone =>
-        Let _ := assert (disjoint (sv_of_list fst fd.(f_extra).(sf_to_save)) res)
+        let to_save := sv_of_list fst fd.(f_extra).(sf_to_save) in
+        Let _ := assert (disjoint to_save res)
                     (E.gen_error true None (pp_s "the function returns a callee-saved register")) in
+        Let _ := assert (Sv.subset (Sv.inter callee_saved W') to_save)
+                    (E.gen_error true None (pp_s "the function kills some callee-saved registers")) in
         assert (all (λ x : var_i, if vtype x is sword _ then true else false ) (f_params fd))
             (E.gen_error true None (pp_s "the export function has non-word arguments"))
     end.

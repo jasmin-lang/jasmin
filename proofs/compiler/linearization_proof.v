@@ -725,7 +725,7 @@ Section PROOF.
 
   Local Lemma checked_prog fn fd :
     get_fundef (p_funcs p) fn = Some fd →
-    check_fd p extra_free_registers fn fd = ok tt.
+    check_fd p extra_free_registers lparams fn fd = ok tt.
   Proof.
     move: linear_ok; rewrite /linear_prog; t_xrbindP => ? ok_p _ /assertP /eqP _ hp'.
     move: ok_p; rewrite /check_prog; t_xrbindP => r C _ M.
@@ -1215,7 +1215,7 @@ Section PROOF.
       if lret is Some ((caller, lbl), _cbody, pc)
       then lsem p' mov_eop (Lstate m1 vm1 fn 1) (Lstate m2 vm2 caller pc.+1)
       else lsem p' mov_eop (Lstate m1 vm1 fn 0) (Lstate m2 vm2 fn (size body)))
-      (λ _ vm2, vm1 = vm2 [\ Sv.union k (extra_free_registers_at extra_free_registers ii)])
+      (λ _ vm2, vm1 = vm2 [\ if ra is RAnone then Sv.diff k (sv_of_list id callee_saved) else Sv.union k (extra_free_registers_at extra_free_registers ii)])
       (λ _ vm2, wf_vm vm2)
       (λ _ vm2, s2.[vrsp <- ok (pword_of_word sp)] <=[\ sv_of_list id callee_saved ] vm2)
       (λ m2 _, preserved_metadata s1 m1 m2)
@@ -2523,6 +2523,10 @@ Section PROOF.
     by move => _ /ih2.
   Qed.
 
+  Lemma Sv_diff_empty (s: Sv.t) :
+    Sv.Equal (Sv.diff s Sv.empty) s.
+  Proof. SvD.fsetdec. Qed.
+
   Local Lemma Hproc : sem_Ind_proc p extra_free_registers var_tmp Pc Pfun.
   Proof.
     red => ii k s1 _ fn fd args m1' s2' res ok_fd free_ra ok_ss rsp_aligned valid_rsp ok_m1' ok_args wt_args exec_body ih ok_res wt_res valid_rsp' -> m1 vm1 _ ra lret sp callee_saved W M X [] fd' ok_fd' <- [].
@@ -2560,7 +2564,7 @@ Section PROOF.
         have ok_body : is_linear_of fn (lbody ++ [::]).
         + by rewrite /is_linear_of cats0 ok_fd' /=; eexists; reflexivity.
         have M' := mm_alloc M ok_m1'.
-        case/and3P: ok_save_stack => /eqP sf_align_1 /eqP stk_sz_0 /eqP stk_extra_sz_0.
+        case/and4P: ok_save_stack => /eqP to_save_nil /eqP sf_align_1 /eqP stk_sz_0 /eqP stk_extra_sz_0.
         have top_stack_preserved : top_stack m1' = top_stack (s1: mem).
         + rewrite (alloc_stack_top_stack ok_m1') sf_align_1.
           rewrite top_stack_after_aligned_alloc.
@@ -2587,8 +2591,8 @@ Section PROOF.
           change (wsize_size U8) with 1%Z.
           lia.
         + apply: vmap_eq_exceptI; last exact: K2.
-          apply: Sv_Subset_union_left.
-          exact: SvP.MP.union_subset_1.
+          rewrite to_save_nil Sv_diff_empty.
+          exact: Sv_Subset_union_left.
         have S : stack_stable m1' s2'.
         + exact: sem_one_varmap_facts.sem_stack_stable exec_body.
         move => x; move: (X2 x); rewrite /set_RSP !Fv.setP; case: eqP => // ?; subst.
@@ -2840,10 +2844,11 @@ Section PROOF.
 
           rewrite addn0 !size_cat !addn1 !addSn addnS /=.
           reflexivity.
-        + clear - ok_rsp K2 vm_old hvm''.
+        + rewrite to_save_empty Sv_diff_empty.
+          clear - ok_rsp K2 vm_old hvm''.
           move => x.
           rewrite !Sv.union_spec !Sv.add_spec Sv.singleton_spec Fv.setP =>
-            /Decidable.not_or[] /Decidable.not_or[] x_not_k /Decidable.not_or[] x_not_flags x_not_saved_stack x_not_extra.
+            /Decidable.not_or[] x_not_k /Decidable.not_or[] /Decidable.not_or[] x_not_tmp x_not_flags x_not_saved_stack.
           case: eqP => x_rsp.
           * subst; move: ok_rsp; rewrite /get_var.
             case: _.[_]%vmap; last by case.
@@ -2854,7 +2859,7 @@ Section PROOF.
           have ?: x \in [seq to_var i | i <- rflags]=false.
           + apply /(mapP (T1:=ceqT_eqType)).
             move=> [f ? ?]; subst x.
-            apply x_not_flags; right.
+            apply: x_not_flags.
             apply /sv_of_flagsP /(mapP(T1:=ceqT_eqType)).
             by exists f => //.
           rewrite hvm''; last by apply /sv_of_flagsP/negPf.
@@ -2885,6 +2890,7 @@ Section PROOF.
       }
       (* RSP is saved in stack at offset “stack_saved_rsp” *)
       { have {ih} := ih fn xH.
+        case/andP: ok_save_stack => ok_save_stack tmp_not_saved.
         rewrite /checked_c ok_fd chk_body => /(_ erefl).
         move: ok_fd'.
         rewrite (linear_c_nil).
@@ -3266,11 +3272,28 @@ Section PROOF.
             by rewrite read_saved_rsp /=.
           + by rewrite truncate_word_u.
           by rewrite /= /write_var /= sumbool_of_boolET.
-        + move => x /Sv_memP; rewrite !SvP.union_mem Sv_mem_add sv_of_flagsE SvP.empty_mem !orbA !orbF -!orbA.
-          case/norP => x_ni_k /norP[] x_neq_rax /norP[] x_not_flag x_not_extra.
+        + move => x /Sv_memP H.
           rewrite Fv.setP; case: eqP => x_rsp.
           * move: (X x); subst; rewrite Fv.setP_eq.
             by case: _.[_]%vmap => //= ? /pword_uincl ->.
+          move: H.
+          rewrite SvP.diff_mem negb_and => /orP[]; last first.
+          * move/negbNE/Sv_memP/sv_of_listP; rewrite map_id /= => hx.
+            have /eqP {} x_rsp := x_rsp.
+            rewrite ok_vm5 hx hvmrsp; last first.
+            - case/sv_of_flagsP/in_map => f hf ?; subst x.
+              case/in_map: hx => - [] y ofs K ?; subst y.
+              elim: (sf_to_save _) K (m2) (m3) ok_m3 => //; clear.
+              case => x j m ih /= [].
+              * by case => ??; subst.
+              move => /ih{}ih m1 m3; t_xrbindP => m2 ws.
+              case: vtype => // ws' /ok_inj ?; subst ws' => ?????; exact: ih.
+            rewrite !Fv.setP_neq //.
+            apply/eqP => ?; subst x.
+            move/negP: tmp_not_saved; apply.
+            rewrite sv_of_listE; exact: hx.
+          rewrite !SvP.union_mem Sv_mem_add sv_of_flagsE SvP.empty_mem !orbA !orbF -!orbA.
+          case/norP => x_ni_k /norP[] x_neq_tmp x_not_flag.
           transitivity vm_save.[x]%vmap; first by rewrite /vm_save Fv.setP_neq // neq_sym.
           transitivity vm_rsp.[x]%vmap; first by rewrite /vm_rsp Fv.setP_neq //; apply/eqP.
           transitivity vm_rsp_aligned.[x]%vmap.
@@ -3470,8 +3493,8 @@ Section PROOF.
     exact: (@sem_call_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun Hnil Hcons HmkI Hasgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc).
   Qed.
 
-  Lemma linear_exportcallP gd m fn args m' res :
-    sem_export_call p extra_free_registers var_tmp gd m fn args m' res →
+  Lemma linear_exportcallP callee_saved gd m fn args m' res :
+    sem_export_call p extra_free_registers var_tmp callee_saved gd m fn args m' res →
     ∃ fd,
       [/\
          get_fundef p'.(lp_funcs) fn = Some fd,
@@ -3488,7 +3511,7 @@ Section PROOF.
         ∃ vm' lm' res',
           (* TODO: vm = vm' [\ k ] ; stack_stable m m' ; etc. *)
           [/\
-            lsem_exportcall p' mov_eop lm fn vm lm' vm',
+            lsem_exportcall p' mov_eop callee_saved lm fn vm lm' vm',
             match_mem m' lm',
             mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
             List.Forall2 value_uincl res res' &
@@ -3503,7 +3526,7 @@ Section PROOF.
     rewrite lp_rspE => lm vm args' ok_vm vm_rsp M ok_args' args_args' vm_rip safe_registers.
     have {H}[] := H vm args' ok_vm ok_args' args_args' vm_rsp.
     - by move: vm_rip; rewrite lp_ripE.
-    move => m1 k m2 vm2 res' ok_save_stack ok_m1 wt_args' sexec ok_res' res_res' wt_res' vm2_rsp ?; subst m'.
+    move => m1 k m2 vm2 res' ok_save_stack ok_callee_saved ok_m1 wt_args' sexec ok_res' res_res' wt_res' vm2_rsp ?; subst m'.
     split; first by [].
     set k' := Sv.union k (Sv.union match fd.(f_extra).(sf_return_address) with RAreg ra => Sv.singleton ra | RAstack _ => Sv.empty | RAnone => Sv.add var_tmp (sv_of_flags rflags) end (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty)).
     set s1 := {| emem := m ; evm := vm |}.
@@ -3590,7 +3613,16 @@ Section PROOF.
     exists vmo, lmo, lres; split.
     - econstructor; first exact: get_fundef_p' ok_fd.
       + exact: Export.
-      exact: texec.
+      + exact: texec.
+      move => r hr; apply: vm_eq_vmo.
+      subst k'.
+      move: ok_callee_saved hr; clear.
+      rewrite -/(ra_vm _ _) -/(saved_stack_vm _).
+      move: (Sv.union k _) => X.
+      clear.
+      rewrite sv_of_list_map Sv.diff_spec => S hrC [] hrX; apply.
+      apply: S.
+      by rewrite Sv.inter_spec.
     - exact: M'.
     - move/eqP: Export => /= -> /=.
       exact: ok_lres.

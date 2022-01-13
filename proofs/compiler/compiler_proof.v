@@ -329,8 +329,8 @@ Proof.
   exact: m'_mi'.
 Qed.
 
-Lemma compiler_back_end_meta entries (p: sprog) (tp: lprog) :
-  compiler_back_end cparams entries p = ok tp →
+Lemma compiler_back_end_meta callee_saved entries (p: sprog) (tp: lprog) :
+  compiler_back_end cparams callee_saved entries p = ok tp →
   [/\
      lp_rip tp = p.(p_extra).(sp_rip),
      lp_rsp tp = p.(p_extra).(sp_rsp) &
@@ -349,8 +349,8 @@ Qed.
 Import sem_one_varmap.
 Import x86_linearization.
 
-Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) (m:mem) fn args m' res :
-  compiler_back_end cparams entries p = ok tp →
+Lemma compiler_back_endP callee_saved entries (p: sprog) (tp: lprog) (rip: word Uptr) (m m':mem) (fn: funname) args res :
+  compiler_back_end cparams callee_saved entries p = ok tp →
   fn \in entries →
   psem.sem_call p rip m fn args m' res →
   ∃ fd : lfundef,
@@ -368,7 +368,7 @@ Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) (m:mem)
         all2 check_ty_val fd.(lfd_tyin) args' ∧
         ∃ vm' lm' res',
           [/\
-            lsem_exportcall tp x86_linear_sem.x86_mov_eop lm fn vm lm' vm',
+            lsem_exportcall tp x86_linear_sem.x86_mov_eop callee_saved lm fn vm lm' vm',
             match_mem m' lm',
             mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
             List.Forall2 value_uincl res res' &
@@ -380,7 +380,7 @@ Proof.
   rewrite !print_linearP => ok_tp ? ok_fn exec_p; subst tp'.
   have lp_tmp_not_magic : ~~ Sv.mem (vid (lp_tmp x86_linearization_params)) (magic_variables p).
   - apply/Sv_memP; exact: var_tmp_not_magic checked_p.
-  have p_call : sem_export_call p (extra_free_registers cparams) (vid (lp_tmp x86_linearization_params)) rip m fn args m' res.
+  have p_call : sem_export_call p (extra_free_registers cparams) (vid (lp_tmp x86_linearization_params)) callee_saved rip m fn args m' res.
   - apply: (merge_varmaps_export_callP checked_p _ exec_p).
     move/allMP: ok_export => /(_ _ ok_fn).
     rewrite /is_export.
@@ -402,15 +402,16 @@ Proof.
   - exact: res_res'.
   - exact: wt_res'.
   clear -lp_call ok_tp.
-  case: lp_call => fd ok_fd Export lp_exec.
+  case: lp_call => fd ok_fd Export lp_exec ok_callee_saved.
   exists (tunneling.tunnel_lfundef fn fd).
   - exact: get_fundef_tunnel_program ok_tp ok_fd.
   - exact: Export.
   case: (lsem_run_tunnel_program ok_tp lp_exec).
   - by exists fd.
-  move => tp_exec _.
-  rewrite /= size_tunnel_lcmd.
-  exact: tp_exec.
+  - move => tp_exec _.
+    rewrite /= size_tunnel_lcmd.
+    exact: tp_exec.
+  exact: ok_callee_saved.
 Qed.
 
 (*

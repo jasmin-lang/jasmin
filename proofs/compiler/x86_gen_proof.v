@@ -620,14 +620,15 @@ by apply: hxr; rewrite rx.
 Qed.
 
 Lemma x86gen_exportcall fn m vm m' vm' :
-  lsem_exportcall p x86_mov_eop m fn vm m' vm' →
+  lsem_exportcall p x86_mov_eop (sv_of_list to_var x86_callee_saved) m fn vm m' vm' →
+  vm_initialized_on vm (map to_var x86_callee_saved) →
   ∀ xm,
     lom_eqv rip {| emem := m ; evm := vm |} xm →
     exists2 xm',
       x86sem_exportcall p' fn xm xm'
     & lom_eqv rip {| emem := m' ; evm := vm' |} xm'.
 Proof.
-  case => fd ok_fd Export lexec xm M.
+  case => fd ok_fd Export lexec saved_registers /allP ok_vm xm M.
   have [ fd' ok_fd' ] := ok_get_fundef ok_fd.
   case/assemble_fdI => ok_sp [] c ok_c ?; subst fd'.
   set s := {| asm_m := xm ; asm_f := fn ; asm_c := c ; asm_ip := 0 |}.
@@ -638,7 +639,23 @@ Proof.
   exists xm'; last exact: M'.
   eexists; first exact: ok_fd'.
   - exact: Export.
-  rewrite /= -(mapM_size ok_c); exact: xexec.
+  - rewrite /= -(mapM_size ok_c); exact: xexec.
+  move => r hr.
+  have {} hr : to_var r \in map to_var x86_callee_saved.
+  - by apply/in_map; exists r => //; apply/InP.
+  have /saved_registers E : Sv.In (to_var r) (sv_of_list to_var x86_callee_saved).
+  - by apply/sv_of_listP.
+  move/ok_vm: hr.
+  case: M => /= _ _ _ M _ _.
+  case: M' => /= _ _ _ M' _ _.
+  move: M => /(_ r); move: M' => /(_ r).
+  rewrite /get_var E.
+  case: _.[_]%vmap => [ | [] // ] /= [] sz w sz_le /(_ _ erefl) /= X' /(_ _ erefl) /= X.
+  rewrite /truncate_word; case: ifP => // /(cmp_le_antisym sz_le) ? _; subst sz.
+  rewrite /preserved_register.
+  move/word_uincl_eq: X => <-.
+  move/word_uincl_eq: X' => <-.
+  by [].
 Qed.
 
 (*
