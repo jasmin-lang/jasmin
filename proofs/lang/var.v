@@ -564,6 +564,14 @@ Lemma sv_of_listP T (f: T → var) x m :
   reflect (Sv.In x (sv_of_list f m)) (x \in map f m).
 Proof. rewrite -sv_of_listE; apply Sv_memP. Qed.
 
+Lemma sv_of_list_map A B (f: A → B) (g: B → var) m :
+  sv_of_list g (map f m) = sv_of_list (g \o f) m.
+Proof.
+  rewrite /sv_of_list.
+  elim: m Sv.empty => // a m ih z.
+  by rewrite /= ih.
+Qed.
+
 (* Non dependant map *)
 Module Mvar :=  Mmake CmpVar.
 
