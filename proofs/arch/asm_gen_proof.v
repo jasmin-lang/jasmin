@@ -974,7 +974,7 @@ Lemma enforce_imm_arg_kind_correct a c a' :
   enforce_imm_arg_kind a c = Some a' ->
   check_arg_kind a' c.
 Proof.
-  case: a; case: c => [|||| b |] //=; try by move=> ? [<-].
+  case: a; case: c => [|||| b ||] //=; try by move=> ? [<-].
   move=> ws1 ws2 w.
   by case: eqP => // -> [<-] /=.
 Qed.

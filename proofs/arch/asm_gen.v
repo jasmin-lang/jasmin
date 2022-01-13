@@ -373,6 +373,7 @@ Definition pp_arg_kind c :=
   match c with
   | CAmem b => pp_nobox [:: pp_s "mem (glob "; pp_s (if b then "" else "not ")%string; pp_s "allowed)"]
   | CAimm ws => pp_nobox [:: pp_s "imm "; pp_s (string_of_wsize ws)]
+  | CAimmZ => pp_nobox [:: pp_s "immZ " ]
   | CAcond => pp_s "cond"
   | CAreg => pp_s "reg"
   | CAregx => pp_s "regx"

@@ -382,6 +382,7 @@ module Printer (BP:BPrinter) = struct
     match op with
     | Condt  _   -> assert false
     | Imm(ws, w) -> pp_imm (Conv.z_of_word ws w)
+    | ImmZ _     -> assert false
     | Reg r      -> pp_register ~reg_pre (rsize_of_wsize ws) r
     | Regx r     -> pp_register_ext ~reg_pre ws r
     | Addr addr  -> BP.pp_address ws addr

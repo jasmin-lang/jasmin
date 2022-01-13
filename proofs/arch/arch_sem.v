@@ -187,6 +187,7 @@ Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
     | sword sz => ok (Vword (sign_extend sz w))  (* FIXME should we use sign of zero *)
     | _        => type_error
     end
+  | ImmZ z => ok (Vword (wrepr reg_size z))
   | Reg r     => ok (Vword (s.(asm_reg) r))
   | Regx r    => ok (Vword (s.(asm_regx) r))
   | Addr addr =>

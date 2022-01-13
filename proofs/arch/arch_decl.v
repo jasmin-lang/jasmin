@@ -134,6 +134,7 @@ Canonical address_eqType := EqType address address_eqMixin.
 Variant asm_arg : Type :=
 | Condt  of cond_t
 | Imm ws of word ws
+| ImmZ   of Z        (* FIXME: unify with Imm. *)
 | Reg    of reg_t
 | Regx   of regx_t
 | Addr   of address
@@ -145,6 +146,7 @@ Definition asm_arg_beq (a1 a2:asm_arg) :=
   match a1, a2 with
   | Condt t1, Condt t2 => t1 == t2 ::>
   | Imm sz1 w1, Imm sz2 w2 => (sz1 == sz2) && (wunsigned w1 == wunsigned w2)
+  | ImmZ z1, ImmZ z2 => z1 == z2
   | Reg r1, Reg r2     => r1 == r2 ::>
   | Regx r1, Regx r2   => r1 == r2 ::>
   | Addr a1, Addr a2   => a1 == a2
@@ -158,7 +160,7 @@ Definition Imm_inj sz sz' w w' (e: @Imm sz w = @Imm sz' w') :
 
 Lemma asm_arg_eq_axiom : Equality.axiom asm_arg_beq.
 Proof.
-  case => [t1 | sz1 w1 | r1 | r1 | a1 | xr1] [t2 | sz2 w2 | r2 | r2 | a2 | xr2] /=;
+  case => [?| sz1 w1 |?|?|?|?|?] [?| sz2 w2 |?|?|?|?|?] /=;
     try by (constructor || apply: reflect_inj eqP => ?? []).
   apply: (iffP idP) => //=.
   + by move=> /andP [] /eqP ? /eqP; subst => /wunsigned_inj ->.
@@ -288,7 +290,8 @@ Variant arg_kind :=
 | CAregx
 | CAxmm
 | CAmem of bool (* true if Global is allowed *)
-| CAimm of wsize.
+| CAimm of wsize
+| CAimmZ.
 
 Scheme Equality for arg_kind.
 
@@ -330,7 +333,8 @@ Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
   match a, cond with
   | Condt _, CAcond => true
   | Imm sz _, CAimm sz' => sz == sz'
-  | Reg _ , CAreg => true
+  | ImmZ _, CAimmZ => true
+  | Reg _, CAreg => true
   | Regx _, CAregx => true
   | Addr _, CAmem _ => true
   | XReg _, CAxmm   => true
@@ -394,7 +398,7 @@ Record instr_desc_t := {
   id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
   id_safe       : seq safe_cond;
-  id_wsize      : wsize;  (* ..... *)
+  id_wsize      : wsize;
   id_pp_asm     : asm_args -> pp_asm_op;
 }.
 
