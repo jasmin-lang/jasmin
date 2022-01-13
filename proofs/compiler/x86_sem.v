@@ -98,7 +98,7 @@ TODO: arguments / results are well-typed
  *)
 
 Definition x86_callee_saved : seq register :=
-  [:: RBX; RBP; RDI; RSI; RSP; R12; R13; R14; R15 ].
+  [:: RBX; RBP; RSP; R12; R13; R14; R15 ].
 
 Definition preserved_register (r: register) : relation x86_mem :=
   λ s1 s2,
