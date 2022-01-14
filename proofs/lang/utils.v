@@ -1569,3 +1569,42 @@ Proof.
   rewrite ltnNge; apply /negP => hle.
   by rewrite nth_default in hnth.
 Qed.
+
+Lemma all_map'
+  {A B} {p : A -> bool} {q : B -> bool} {f : A -> B} {xs : seq A} :
+  (forall x, p x -> q (f x)) -> all p xs -> all q (map f xs).
+Proof.
+  move=> Hpq.
+  induction xs as [| x xs IH ]; first done.
+  rewrite /all /=.
+  move=> /andP [Hx Hxs].
+  apply/andP.
+  split.
+  - exact: Hpq Hx.
+  - exact: IH Hxs.
+Qed.
+
+Lemma all_catP A (p: A -> bool) (xs ys: seq A) :
+  all p xs
+  -> all p ys
+  -> all p (xs ++ ys).
+Proof.
+  move=> Hxs Hys.
+  rewrite all_cat.
+  by apply/andP.
+Qed.
+
+Lemma all_behead {A} {p : A -> bool} {xs : seq A} :
+  all p xs -> all p (behead xs).
+Proof.
+  case: xs => // x xs.
+  by move=> /andP [] _.
+Qed.
+
+Lemma all2_behead {A B} {p: A -> B -> bool} {xs: seq A} {ys: seq B} :
+  all2 p xs ys
+  -> all2 p (behead xs) (behead ys).
+Proof.
+  case: xs; case: ys => //= y ys x xs.
+  by move=> /andP [] _.
+Qed.

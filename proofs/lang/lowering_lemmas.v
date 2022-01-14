@@ -29,6 +29,7 @@ Section ESTATE_EQ_EXCEPT.
 Context
   {pd : PointerData}.
 
+(* State equality up to a set of variables. *)
 Definition estate_eq_except ys s0 s1 :=
   emem s0 = emem s1 /\ evm s0 = evm s1 [\ ys ].
 
@@ -73,6 +74,9 @@ Proof.
   SvD.fsetdec.
 Qed.
 
+(* The semantics of an expression in two states is the same if they only differ
+ * in variables that don't appear in the expression.
+ *)
 Lemma eeq_exc_sem_pexprs gd xs es v s0 s1 :
   disjoint (read_es es) xs
   -> estate_eq_except xs s1 s0
@@ -106,6 +110,19 @@ Proof.
   by t_xrbindP => ? ? <-.
 Qed.
 
+(* If two states s0 and s0' are equal up to a set xs of variables,
+ * and writing to different variables ls in s0 succeeds in s1,
+ * then doing so in s0' succeeds in s1' and
+ * s1' is equal to s1 up to xs.
+ *
+ *           s0 ------- write_lvals ls -------> s1
+ *           |                                  |
+ *           |                                  |
+ *  estate_eq_except xs                estate_eq_except xs
+ *           |                                  |
+ *           |                                  |
+ *           s0' ------ write_lvals ls -------> s1'
+ *)
 Lemma eeq_exc_write_lvals gd xs s0 s1 s0' ls vs :
   disjoint (vars_lvals ls) xs
   -> estate_eq_except xs s0' s0

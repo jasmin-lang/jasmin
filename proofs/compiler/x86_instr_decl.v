@@ -967,6 +967,7 @@ Notation mk_instr str_jas tin tout ain aout msb semi args_kinds nargs wsizei saf
   id_args_kinds := args_kinds;
   id_eq_size    := refl_equal;
   id_tin_narr   := refl_equal;
+  id_tout_narr  := refl_equal;
   id_check_dest := refl_equal;
   id_str_jas    := str_jas;
   id_wsize      := wsizei;

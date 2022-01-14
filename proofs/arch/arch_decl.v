@@ -395,6 +395,7 @@ Record instr_desc_t := {
   (* Info for jasmin *)
   id_eq_size    : (size id_in == size id_tin) && (size id_out == size id_tout);
   id_tin_narr   : all is_not_sarr id_tin;
+  id_tout_narr  : all is_not_sarr id_tout;
   id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
   id_safe       : seq safe_cond;
@@ -503,6 +504,14 @@ Definition exclude_mem_aux (cond : i_args_kinds) (d : seq arg_desc) :=
 Definition exclude_mem (cond : i_args_kinds) (d : seq arg_desc) : i_args_kinds :=
   filter (fun c => [::] \notin c) (exclude_mem_aux cond d).
 
+Lemma instr_desc_tout_narr ws xs :
+  all is_not_sarr xs -> all is_not_sarr (map (extend_size ws) xs).
+Proof.
+  apply all_map'.
+  move=> [] //= ws'.
+  by case: (ws' <= ws)%CMP.
+Qed.
+
 (* An extension of [instr_desc] that deals with msb flags *)
 Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
   let (ws, o) := o in
@@ -520,6 +529,7 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_nargs      := d.(id_nargs);
        id_eq_size    := instr_desc_aux1 ws d.(id_eq_size);
        id_tin_narr   := d.(id_tin_narr);
+       id_tout_narr  := instr_desc_tout_narr _ d.(id_tout_narr);
        id_str_jas    := d.(id_str_jas);
        id_check_dest := instr_desc_aux2 ws d.(id_check_dest);
        id_safe       := d.(id_safe);
