@@ -117,6 +117,7 @@ Section CMD_RECT.
   Hypothesis Hcons: forall i c, Pi i -> Pc c -> Pc (i::c).
   Hypothesis Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
   Hypothesis Hopn : forall xs t o es, Pr (Copn xs t o es).
+  Hypothesis Hrnd : forall p x e, Pr (Cgetrandom p x e).
   Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Hypothesis Hwhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
@@ -140,6 +141,7 @@ Section CMD_RECT.
     match i return Pr i with
     | Cassgn x tg ty e => Hasgn x tg ty e
     | Copn xs t o es => Hopn xs t o es
+    | Cgetrandom p x e => Hrnd p x e
     | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
     | Cwhile a c e c'   => @Hwhile a c e c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
@@ -263,7 +265,7 @@ Proof.
            (fun i => forall s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
            (fun c => forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)))) =>
      /= {c s}
-    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | e c1 c2 Hc1 Hc2
+    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
     rewrite /write_I /write_I_rec /write_i /write_i_rec -/write_i_rec -/write_I_rec /write_c /=
     ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //;
