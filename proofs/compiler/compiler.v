@@ -44,7 +44,7 @@ Definition lparams := x86_linearization.x86_linearization_params.
 
 Section IS_MOVE_OP.
 
-Context (is_move_op : asm_op_t -> option wsize).
+Context (is_move_op : asm_op_t -> bool).
 
 Definition unroll1 (p:uprog) : cexec uprog:=
   let p := unroll_prog p in
@@ -173,7 +173,7 @@ Record compiler_params := {
 
 (* Architecture-dependent functions *)
 Record architecture_params := mk_aparams {
-  is_move_op       : asm_op_t -> option wsize
+  is_move_op       : asm_op_t -> bool
 }.
 
 #[local]

@@ -40,10 +40,10 @@ Section ASM_OP.
 
 Context {pd: PointerData}.
 Context `{asmop : asmOp}.
-Context (is_move_op : asm_op_t -> option wsize).
+Context (is_move_op : asm_op_t -> bool).
 
-Hypothesis is_move_opP : forall op sz vx v,
-  is_move_op op = Some sz ->
+Hypothesis is_move_opP : forall op vx v,
+  is_move_op op ->
   exec_sopn (Oasm op) [:: vx] = ok v ->
   List.Forall2 value_uincl v [:: vx].
 
@@ -139,10 +139,10 @@ Section PROOF.
   Local Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
   Proof. move=> ii i s1 s2 _ Hi; exact: Hi. Qed.
 
-  Lemma check_nop_spec (r:lval) ty (e:pexpr): check_nop r ty e ->
-    exists x i1 i2, [/\ r = (Lvar (VarI x i1)), e = (Plvar(VarI x i2)) & (subtype ty (vtype x))] .
+  Lemma check_nop_spec (r:lval) (e:pexpr): check_nop r e ->
+    exists x i1 i2, r = (Lvar (VarI x i1)) /\ e = (Plvar(VarI x i2)).
   Proof.
-    case: r e => //= -[x1 i1] [] //= [[x2 i2] k2] /andP [] /andP [] /eqP /= -> /eqP <- H.
+    case: r e => //= -[x1 i1] [] //= [[x2 i2] k2] /andP [] /eqP /= -> /eqP <-.
     by exists x1, i1, i2.
   Qed.
 
@@ -211,12 +211,12 @@ Section PROOF.
       by apply: vmap_uincl_onT Hvm => z Hin; rewrite (Hvm1 z).
     move=> /andP [_ Hnop] /= Hwf vm1' Hvm.
     have [-> Hs] : m1 = m2 /\ vm2 <=[s] vm1.
-    + move: (check_nop_spec Hnop)=> {Hnop} [x0 [i1 [i2 [Hx He Hty]]]];subst x e.
-      case: x0 Hty Hv Hw => ty'' xn0 /= Hty'' Hv Hw. 
+    + move: (check_nop_spec Hnop)=> {Hnop} [x0 [i1 [i2 [Hx He]]]];subst x e.
+      case: x0 Hv Hw => ty'' xn0 /= Hv Hw.
       have Hv': value_uincl v' v.
       + by apply: on_vuP Hv=> //= pty'' /= Ht pty; subst; apply (truncate_value_uincl htr).
       move: Hw; rewrite /= /write_var /set_var /=; t_xrbindP=> vm2'. 
-      apply: on_vuP=> //=.
+      apply: on_vuP=> /=.
       + move=>v'' hv'' <- <- <- /=; split=> //= => z Hin. 
         case: ({| vtype := ty''; vname := xn0 |} =P z)=> //=.
         + move=> Hz; subst z; rewrite Fv.setP_eq; move: Hv; rewrite /get_gvar /= /get_var /=. 
@@ -230,22 +230,20 @@ Section PROOF.
         by have /= h1 := pof_val_undef Hv' Hz.
       by move=> Hz'; rewrite Fv.setP_neq //; apply /eqP.
     eexists; split; last by exact: Eskip.
-    by apply: vmap_uincl_onT=> //; apply: vmap_uincl_onT Hs Hvm. 
+    by apply: vmap_uincl_onT=> //; apply: vmap_uincl_onT Hs Hvm.
   Qed.
 
   Lemma check_nop_opn_spec (xs:lvals) (o:sopn) (es:pexprs): check_nop_opn is_move_op xs o es ->
-    exists x i1 op sz sz' i2,
+    exists x i1 op i2,
 
-      [/\ xs = [:: Lvar (VarI (Var (sword sz') x) i1)], 
-          o = Oasm op, is_move_op op = Some sz,
-          es = [:: Plvar (VarI (Var (sword sz') x) i2)] & subtype (sword sz) (sword sz')].
+      [/\ xs = [:: Lvar (VarI x i1)],
+          o = Oasm op, is_move_op op &
+          es = [:: Plvar (VarI x i2)]].
   Proof.
     case: xs o es=> // rv [] // [] // op [] // e [] //=.
-    case hmov: is_move_op => [sz|//].
-    move=> /check_nop_spec [x [i1 [i2 []]]] -> -> hty /=;
-    have [sz' [{hty} hty hsz]] := subtypeEl hty;
-    case: x hty=> //= ty xn /= hty; subst ty;
-    exists xn, i1, op, sz, sz', i2; split=> //.
+    case hmov: is_move_op => //.
+    by move=> /check_nop_spec [x [i1 [i2 []]]] -> -> /=;
+      exists x, i1, op, i2.
   Qed.
 
   Lemma set_get_word vm1 vm2 sz xn v:
@@ -273,7 +271,7 @@ Section PROOF.
     case: vt v H => //= sz' v /Vword_inj [e ];subst => /= ?.
     by exists sz';split=> //;apply pw_proof.
   Qed.
- 
+
   Local Lemma Hopn_aux s0 ii xs t o es v vs s1 s2 :
     sem_pexprs gd s1 es = ok vs ->
     exec_sopn o vs = ok v ->
@@ -316,7 +314,7 @@ Section PROOF.
       have [/= H ->]:= Hwrites_disj Hw Hdisj Hnh; split; last by constructor.
       apply: vmap_uincl_onT Heq. move=> z Hin. rewrite (H z). done. done.
     case:ifPn => [ | _ /=]; last by apply: Hopn_aux Hexpr Hopn Hw.
-    move=> /check_nop_opn_spec [x [i1 [op [sz [sz' [i2 [? ? ho ? hty]]]]]]];
+    move=> /check_nop_opn_spec [x [i1 [op [i2 [? ? ho ?]]]]];
     subst xs o es=> /= Hwf vm1' Hvm.
     rewrite (surj_estate s1) (surj_estate s2) /with_vm /=.
     have [ -> Hs ]: emem s1 = emem s2 ∧ evm s2 <=[s0] evm s1.
@@ -325,14 +323,21 @@ Section PROOF.
       have Hvs := is_move_opP ho hs.
       move: Hw; rewrite /= /write_var /set_var /=. case: v hs Hvs=> //= v vs hs Hvs.
       t_xrbindP=> s2' vm3.
-      apply: on_vuP=> //=.
-      move=> ps //= hp <- //= <- //=. case: vs hs Hvs=> //= hs /List_Forall2_inv[] Hv _ /ok_inj <- /=; split; first by [].
-      move=> z Hin. case: ({| vtype := sword sz'; vname := x|} =P z)=> //=.
-      + move=> Hz. subst z. rewrite Fv.setP_eq. move: hgetx. rewrite /get_gvar /= /get_var /=. 
-        apply: on_vuP=> //= v1 -> /= hv1; subst.
-        rewrite /pval_uincl. apply: value_uincl_pof_val. by rewrite -hp /=.
-        by rewrite /pto_val.
-      move=> Hz. rewrite Fv.setP_neq //. by apply /eqP.
+      case: vs hs Hvs=> //= hs /List_Forall2_inv[] Hv _.
+      apply: on_vuP=> /=.
+      + move=> ps //= hp <- //= <- //= /ok_inj <- /=; split; first by [].
+        move=> z Hin. case: (x =P z)=> //=.
+        + move=> Hz. subst z. rewrite Fv.setP_eq. move: hgetx. rewrite /get_gvar /= /get_var /=. 
+          apply: on_vuP=> //= v1 -> /= hv1; subst.
+          rewrite /pval_uincl. apply: value_uincl_pof_val. by rewrite -hp /=.
+          by rewrite /pto_val.
+        move=> Hz. rewrite Fv.setP_neq //. by apply /eqP.
+      move=> _; case: ifP=> //= Hb [] <- <- [<-]; split=> //= z Hin.
+      case: (x =P z)=> //=.
+      + move=> Hz'; subst z; rewrite Fv.setP_eq; move: hgetx; rewrite /get_gvar /= /get_var /=. 
+        apply: on_vuP=> //= v1 -> _.
+        by case: (x) Hb v1 => ty xn /= /is_sboolP -> v1.
+      by move=> Hz'; rewrite Fv.setP_neq //; apply /eqP.
     eexists; split; last exact: Eskip. by apply: vmap_uincl_onT Hvm.
   Qed.
 

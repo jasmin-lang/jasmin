@@ -46,8 +46,8 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Record architecture_hyps (aparams : architecture_params) := mk_ahyps {
-  is_move_opP : forall op sz vx v,
-    aparams.(is_move_op) op = Some sz ->
+  is_move_opP : forall op vx v,
+    aparams.(is_move_op) op->
     exec_sopn (Oasm op) [:: vx] = ok v ->
     List.Forall2 value_uincl v [:: vx]
 }.
@@ -68,9 +68,9 @@ Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
 
 Section IS_MOVE_OP.
 
-Context (is_move_op : asm_op_t -> option wsize).
-Hypothesis is_move_opP : forall op sz vx v,
-  is_move_op op = Some sz ->
+Context (is_move_op : asm_op_t -> bool).
+Hypothesis is_move_opP : forall op vx v,
+  is_move_op op->
   exec_sopn (Oasm op) [:: vx] = ok v ->
   List.Forall2 value_uincl v [:: vx].
 

@@ -85,19 +85,17 @@ Section LOOP.
 End LOOP.
 
 (* Architecture-dependent check that an op is a move *)
-Context (is_move_op : asm_op_t -> option wsize).
+Context (is_move_op : asm_op_t -> bool).
 
-Definition check_nop (rv:lval) ty (e:pexpr) :=
+Definition check_nop (rv:lval) (e:pexpr) :=
   match rv, e with
-  | Lvar x1, Pvar x2 => is_lvar x2 && (x1.(v_var) == x2.(gv).(v_var)) && (subtype ty (vtype x1.(v_var)))
+  | Lvar x1, Pvar x2 => is_lvar x2 && (x1.(v_var) == x2.(gv).(v_var))
   | _, _ => false
   end.
 
 Definition check_nop_opn (xs:lvals) (o: sopn) (es:pexprs) :=
   match xs, o, es with
-  | [:: x], Oasm op, [:: e] =>
-    if is_move_op op is Some sz then check_nop x (sword sz) e
-    else false
+  | [:: x], Oasm op, [:: e] => is_move_op op && check_nop x e
   | _, _, _ => false
   end.
 
@@ -144,7 +142,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
     let w := write_i ir in
     if tag != AT_keep then
       if (disjoint s w && negb (lv_write_mem x)) || 
-         ((do_nop || (tag == AT_rename)) && check_nop x ty e) then ok (s, [::])
+         ((do_nop || (tag == AT_rename)) && check_nop x e) then ok (s, [::])
       else ok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
     else   ok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
 
