@@ -135,11 +135,11 @@ let options = [
     "-noinsertarraycopy", Arg.Clear introduce_array_copy, ": do not automatically insert array copy";
     "-nowarning", Arg.Unit (nowarning), ": do no print warning";
     "-color", Arg.Symbol (["auto"; "always"; "never"], set_color), ": print messages with color";
-    "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
+    "-help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
     "-print-stack-alloc", Arg.Set print_stack_alloc, ": print the results of the stack allocation OCaml oracle";
-    "--lazy-regalloc", Arg.Set lazy_regalloc, "\tAllocate variables to registers in program order";
+    "-lazy-regalloc", Arg.Set lazy_regalloc, "\tAllocate variables to registers in program order";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
-    "--print-dependencies", Arg.Set print_dependencies, ": print dependencies and exit";
+    "-print-dependencies", Arg.Set print_dependencies, ": print dependencies and exit";
     "-intel", Arg.Unit (set_syntax `Intel), "use intel syntax (default is AT&T)"; 
     "-ATT", Arg.Unit (set_syntax `ATT), "use AT&T syntax (default is AT&T)"; 
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
