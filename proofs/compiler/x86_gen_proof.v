@@ -658,6 +658,84 @@ Proof.
   by [].
 Qed.
 
+Section VMAP_SET_VARS.
+
+  Context {t : stype} {T: eqType} `{ToString t T}.
+  Context (from: T → exec (psem_t t)).
+
+  Definition vmap_set_vars : vmap → seq T → vmap :=
+    foldl (λ vm x, vm.[to_var x <- from x])%vmap.
+
+  Lemma get_var_vmap_set_vars_other vm xs y :
+    all (λ x, to_var x != y) xs →
+    get_var (vmap_set_vars vm xs) y = get_var vm y.
+  Proof.
+    elim: xs vm => // x xs ih vm /= /andP[] x_neq_y /ih ->.
+    apply: get_var_neq.
+    exact/eqP.
+  Qed.
+
+  Lemma get_var_vmap_set_vars_other_type vm xs y :
+    vtype y != t →
+    get_var (vmap_set_vars vm xs) y = get_var vm y.
+  Proof.
+    move => /eqP neqt; apply: get_var_vmap_set_vars_other.
+    by apply/allP => x _; apply/eqP => ?; subst y.
+  Qed.
+
+  Lemma get_var_vmap_set_vars_finite vm xs y :
+    Finite.axiom xs →
+    get_var (vmap_set_vars vm xs) (to_var y) = on_vu (@pto_val t) undef_error (from y).
+  Proof.
+    move => finT.
+    move: vm.
+    have {finT} : y \in xs.
+    - by rewrite -has_pred1 has_count finT.
+    elim: xs => // x xs; rewrite inE.
+    case y_xs: (y \in xs).
+    + move => /(_ erefl) ih _ vm; exact: ih.
+    rewrite orbF => _ /eqP <-{x} vm /=.
+    rewrite get_var_vmap_set_vars_other; first exact: get_var_eq.
+    by apply/allP => x x_xs; apply/eqP => /inj_to_var ?; subst x; rewrite x_xs in y_xs.
+  Qed.
+
+End VMAP_SET_VARS.
+
+Definition vmap_of_x86_mem (sp: word Uptr) (rip: Ident.ident) (s: x86_mem) : vmap :=
+  let vm := vmap0.[to_var RSP <- ok (pword_of_word sp)].[ vid rip <- ok (pword_of_word (asm_rip s))]%vmap in
+  let vm := vmap_set_vars (λ r : register, ok (pword_of_word (asm_reg s r))) vm registers in
+  let vm := vmap_set_vars (λ r : xmm_register, ok (pword_of_word (asm_xreg s r))) vm xmm_registers in
+  let vm := vmap_set_vars (λ r : rflag, if asm_flag s r is Def b then ok b else pundef_addr sbool) vm rflags in
+  vm.
+
+Definition estate_of_x86_mem (sp: word Uptr) (rip: Ident.ident) (s: x86_mem) : estate :=
+  {| emem := asm_mem s ; evm := vmap_of_x86_mem sp rip s |}.
+
+Lemma lom_eqv_estate_of_x86_mem sp rip s :
+  disj_rip (vid rip) →
+  lom_eqv (vid rip) (estate_of_x86_mem sp rip s) s.
+Proof using.
+  case => rip_not_reg rip_not_xreg rip_not_flag.
+  split => //=.
+  - rewrite /vmap_of_x86_mem.
+    repeat (rewrite get_var_vmap_set_vars_other_type; last by []).
+    rewrite get_var_vmap_set_vars_other; last first.
+    + apply/allP => r _; apply/eqP; exact: rip_not_reg.
+    by rewrite get_var_eq.
+  - rewrite /vmap_of_x86_mem => r v.
+    repeat (rewrite get_var_vmap_set_vars_other_type; last by []).
+    rewrite get_var_vmap_set_vars_finite; last exact: registers_fin_axiom.
+    by move => /ok_inj <-.
+  - rewrite /vmap_of_x86_mem => r v.
+    repeat (rewrite get_var_vmap_set_vars_other_type; last by []).
+    rewrite get_var_vmap_set_vars_finite; last exact: xmm_registers_fin_axiom.
+    by move => /ok_inj <-.
+  rewrite /vmap_of_x86_mem => r v.
+  rewrite get_var_vmap_set_vars_finite; last exact: rflags_fin_axiom.
+  by case: (asm_flag s r) => // ? /ok_inj <-.
+Qed.
+Global Opaque vmap_of_x86_mem.
+
 (*
 Lemma assemble_fdP wrip m1 fn va m2 vr :
   lsem_fd p wrip m1 fn va m2 vr →
