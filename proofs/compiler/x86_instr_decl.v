@@ -311,8 +311,8 @@ Definition x86_MOVSX szi szo (x: word szi) : ex_tpl (w_ty szo) :=
   Let _ :=
     match szi with
     | U8 => check_size_16_64 szo
-    | U16 => check_size_32_64 szo
-    | U32 => assert (szo == U64) ErrType
+    | U16 => check_size_16_64 szo 
+    | U32 => check_size_32_64 szo
     | _ => type_error
     end in
   ok (sign_extend szo x).
@@ -1120,16 +1120,6 @@ Definition pp_iname_ww_8 name sz args :=
      pp_aop_ext  := PP_iname sz;
      pp_aop_args := zip [::sz;sz; U8] args; |}.
 
-Definition pp_movx name szd szs args :=
-  {| pp_aop_name := name;
-     pp_aop_ext  := PP_iname2 szs szd;
-     pp_aop_args := zip [::szs; szd] args; |}.
-
-Definition pp_vpmovx name ve sz ve' sz' args :=
-  {| pp_aop_name := name;
-     pp_aop_ext  := PP_viname2 ve ve';
-     pp_aop_args := zip [:: sz' ; sz ] args; |}.
-
 Definition get_ct args :=
   match args with
   | a :: args => (PP_ct a, args)
@@ -1181,11 +1171,24 @@ Definition Ox86_MOV_instr               :=
   mk_instr_w_w "MOV" x86_MOV [:: E 1] [:: E 0] 2
                check_mov (primP MOV) (pp_iname "mov").
 
-Definition check_movsx (_ _:wsize) := [:: r_rm ].
+Definition check_movx (_ _:wsize) := [:: r_rm ].
+
+Definition pp_movsx szs szd args :=
+  let ext := if (szd == szs) || (szd == U64) && (szs == U32) then "xd"%string else "x"%string in
+  {| pp_aop_name := "movs";
+     pp_aop_ext  := PP_iname2 ext szs szd;
+     pp_aop_args := zip [::szd; szs] args; |}.
+
 Definition Ox86_MOVSX_instr             :=
-  mk_instr_w_w'_10 "MOVSX" true x86_MOVSX check_movsx (PrimX MOVSX) (pp_movx "movs").
+  mk_instr_w_w'_10 "MOVSX" true x86_MOVSX check_movx (PrimX MOVSX) pp_movsx.
+
+Definition pp_movzx szs szd args :=
+  {| pp_aop_name := "movz";
+     pp_aop_ext  := PP_iname2 "x" szs szd;
+     pp_aop_args := zip [::szd; szs] args; |}.
+
 Definition Ox86_MOVZX_instr             :=
-  mk_instr_w_w'_10 "MOVZX" false x86_MOVZX check_movsx (PrimX MOVZX) (pp_movx "movz").
+  mk_instr_w_w'_10 "MOVZX" false x86_MOVZX check_movx (PrimX MOVZX) pp_movzx.
 
 Definition c_r_rm := [:: c; r; rm true].
 Definition Ox86_CMOVcc_instr            :=
@@ -1361,6 +1364,11 @@ Definition check_vmovdqu (_:wsize) := [:: xmm_xmmm; xmmm_xmm].
 Definition Ox86_VMOVDQU_instr :=
   mk_instr_w_w "VMOVDQU" x86_VMOVDQU [:: E 1] [:: E 0] 2 check_vmovdqu (PrimP U128 VMOVDQU) (pp_name "vmovdqu").
 
+Definition pp_vpmovx name ve sz ve' sz' args :=
+  {| pp_aop_name := name;
+     pp_aop_ext  := PP_viname2 ve ve';
+     pp_aop_args := zip [:: sz' ; sz ] args; |}.
+
 Definition Ox86_VPMOVSX_instr :=
   let name := "VPMOVSX"%string in
   (λ ve sz ve' sz',
@@ -1488,7 +1496,7 @@ Definition Ox86_VSHUFPS_instr :=
 Definition pp_vpbroadcast ve sz args :=
   {| pp_aop_name := "vpbroadcast";
      pp_aop_ext  := PP_viname ve false;
-     pp_aop_args := zip [::sz; U128] args; |}.
+     pp_aop_args := zip [::sz; wsize_of_velem ve] args; |}.
 
 Definition check_xmm_xmmm (_:wsize) := [:: [:: xmm; xmmm true]].
 

@@ -696,10 +696,10 @@ Section PROOF.
            /sopn_sem /= /x86_MOVSX /check_size_16_64 hs.
         - case: andP => // - [] hs /eqP[] ?; subst sz.
           by rewrite /= ok_x /= zero_extend_sign_extend /exec_sopn //= /truncate_word hle /=
-            /sopn_sem /= /x86_MOVSX /check_size_32_64 hs.
-        case: andP => // - [] /eqP ? /eqP[] /= ?; subst sz sz'.
+            /sopn_sem /= /x86_MOVSX /check_size_16_64 hs. 
+        case: andP => // - [] hs /eqP[] /= ?; subst sz'.
         by rewrite ok_x /= zero_extend_sign_extend // /exec_sopn /= /truncate_word hle
-           /sopn_sem /= /x86_MOVSX.
+           /sopn_sem /= /x86_MOVSX /check_size_32_64 hs.
       (* Ozeroext *)
       + rewrite /= /sem_sop1 /=; t_xrbindP => sz sz' x ok_x x' /to_wordI [szx] [wx] [hle ??] ?.
         subst x x' v.

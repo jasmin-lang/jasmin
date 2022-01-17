@@ -283,8 +283,8 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
   | Papp1 (Osignext szo szi) a =>
     match szi with
     | U8 => k16 szo
-    | U16 => k32 szo
-    | U32 => kb (szo == U64) szo
+    | U16 => k16 szo
+    | U32 => k32 szo
     | _ => chk false
     end (LowerCopn (Ox86 (MOVSX szo szi)) [:: a])
   | Papp1 (Ozeroext szo szi) a =>
