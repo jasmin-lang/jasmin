@@ -84,7 +84,7 @@ let options = [
      len_1,...,len_k: input lengths of f_i";
      "-safetyconfig", Arg.String set_safetyconfig, "[filename]: use filename (JSON) as configuration file for the safety checker";
     "-safetymakeconfigdoc", Arg.String set_safety_makeconfigdoc, "[dir]: make the safety checker configuration docs in [dir]";
-    "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
+    "-help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
   ] @  List.map print_option Compiler.compiler_step_list
 
