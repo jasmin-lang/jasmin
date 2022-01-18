@@ -223,8 +223,6 @@ Record region_map := {
 
 Definition empty_bytes_map := Mvar.empty ByteSet.t.
 
-Definition empty_zone_map := Mz.empty bytes_map.
-
 Definition empty := {|
   var_region := Mvar.empty _;
   region_var := Mr.empty bytes_map;

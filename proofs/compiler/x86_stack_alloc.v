@@ -39,7 +39,7 @@ Definition lea_ptr x y ofs : instr_r :=
 Definition mov_ptr x y :=
   Copn [:: x] AT_none (Ox86 (MOV Uptr)) [:: y].
 
-Inductive mov_kind :=
+Variant mov_kind :=
   | MK_LEA
   | MK_MOV.
 

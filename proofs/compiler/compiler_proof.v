@@ -264,10 +264,10 @@ Lemma sem_call_length (p: uprog) m fn va m' vr :
      size (f_tyout fd) = size vr &
      size (f_res fd) = size vr].
 Proof.
-  case/sem_callE => fd [] -> [] va' [] ? [] ? [] ? [] vr' [] ok_args [] _ ok_va' _ [] /mapM_size ok_vr' ok_res _.
+  case/sem_callE => fd [] -> [] va' [] ? [] ? [] ? [] vr' [] ok_args [] _ ok_va' _ [] /size_mapM ok_vr' ok_res _.
   have := size_fold2 ok_va'.
-  have [<- <-] := mapM2_size ok_args.
-  have [size_vr' <-] := mapM2_size ok_res.
+  have [<- <-] := size_mapM2 ok_args.
+  have [size_vr' <-] := size_mapM2 ok_res.
   rewrite {2}size_vr' -ok_vr' => {1}<-.
   by exists fd.
 Qed.

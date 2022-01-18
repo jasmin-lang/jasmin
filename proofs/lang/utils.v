@@ -327,7 +327,7 @@ Proof.
   by apply mem_head.
 Qed.
 
-Lemma mapM_size eT aT bT f xs ys :
+Lemma size_mapM eT aT bT f xs ys :
   @mapM eT aT bT f xs = ok ys ->
   size xs = size ys.
 Proof.
@@ -520,6 +520,12 @@ Section FOLD2.
     | _     , _      => Error e
     end.
 
+  Lemma size_fold2 xs ys x0 v:
+    fold2 xs ys x0 = ok v -> size xs = size ys.
+  Proof.
+    by elim : xs ys x0 => [|x xs ih] [|y ys] x0 //= ; t_xrbindP => // t _ /ih ->.
+  Qed.
+
 End FOLD2.
 
 (* ---------------------------------------------------------------- *)
@@ -562,7 +568,7 @@ Section MAP2.
     | _     , _      => Error e
     end.
 
-  Lemma mapM2_size ma mb mr :
+  Lemma size_mapM2 ma mb mr :
     mapM2 ma mb = ok mr ->
     size ma = size mb /\ size ma = size mr.
   Proof.

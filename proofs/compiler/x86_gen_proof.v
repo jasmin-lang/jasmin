@@ -102,7 +102,7 @@ Lemma assemble_c_find_label rip c i lbl:
   linear.find_label lbl c = arch_sem.find_label lbl i.
 Proof.
 rewrite /assemble_c /linear.find_label /arch_sem.find_label => ok_i.
-by rewrite (mapM_size ok_i) (assemble_c_find_is_label lbl ok_i).
+by rewrite (size_mapM ok_i) (assemble_c_find_is_label lbl ok_i).
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -639,7 +639,7 @@ Proof.
   exists xm'; last exact: M'.
   eexists; first exact: ok_fd'.
   - exact: Export.
-  - rewrite /= -(mapM_size ok_c); exact: xexec.
+  - rewrite /= -(size_mapM ok_c); exact: xexec.
   move => r hr.
   have {} hr : to_var r \in map to_var x86_callee_saved.
   - by apply/in_map; exists r => //; apply/InP.
@@ -818,7 +818,7 @@ have eqm2 : lom_eqv rip s2 xr1.
 have ms : match_state rip (of_estate s2 fn fd.(lfd_body) 0) {| xm := xr1 ; xfn := fn ; xc := body ; xip := 0 |}.
 + by constructor => //=; rewrite to_estate_of_estate.
 have [[[om or orip oxr orf] ofn oc opc] [xexec]] := match_state_sem hexec ms.
-rewrite (mapM_size ok_body).
+rewrite (size_mapM ok_body).
 case => eqm' /= ?.
 rewrite ok_body => -[?] ?; subst ofn oc opc.
 eexists; split; first by econstructor; eauto.

@@ -1156,7 +1156,6 @@ Definition r_rm := [:: r; rm true].
 Definition r_rmi sz := [:: r; rmi sz].
 
 Definition m_ri sz := [:: m false; ri sz].
-Definition m_r := [:: m false; r].
 
 Definition xmm := [:: CAxmm ].
 Definition xmmm b := [:: CAxmm; CAmem b].
