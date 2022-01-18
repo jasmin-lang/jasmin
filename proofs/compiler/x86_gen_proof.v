@@ -26,13 +26,13 @@ Lemma assemble_progP p p' :
   assemble_prog p = ok p' →
   let rip := mk_rip p.(lp_rip) in
   [/\ disj_rip rip,
-   of_string p.(lp_rsp) = Some RSP,
+   to_var RSP = Var (sword Uptr) p.(lp_rsp),
    asm_globs p' = lp_globs p &
    map_cfprog_linear (assemble_fd RSP rip) p.(lp_funcs) = ok (asm_funcs p') ].
 Proof.
   rewrite /assemble_prog.
   t_xrbindP => _ /assertP /eqP ok_rip _ /assertP /eqP ok_rsp fds ok_fds <-{p'}.
-  split => //.
+  split => //; last by rewrite -(of_stringI ok_rsp).
   split => r heq //.
   by move: ok_rip; rewrite -heq /to_reg to_varK.
 Qed.
