@@ -666,6 +666,20 @@ Section VMAP_SET_VARS.
   Definition vmap_set_vars : vmap → seq T → vmap :=
     foldl (λ vm x, vm.[to_var x <- from x])%vmap.
 
+  Lemma wf_vmap_set_vars vm xs :
+    wf_vm vm →
+    all (λ x, match from x with Ok _ => true | Error ErrAddrUndef => if vtype (to_var x) is sarr _ then false else true | Error _ => false end) xs →
+    wf_vm (vmap_set_vars vm xs).
+  Proof.
+    elim: xs vm => // x xs ih vm h /= /andP[] ok_x ok_xs; apply: ih ok_xs.
+    move => y; rewrite Fv.setP.
+    case: eqP => ?; last exact: h.
+    subst.
+    case: (from x) ok_x => // - [] //.
+    change (vtype (to_var x)) with rtype.
+    by case: rtype.
+  Qed.
+
   Lemma get_var_vmap_set_vars_other vm xs y :
     all (λ x, to_var x != y) xs →
     get_var (vmap_set_vars vm xs) y = get_var vm y.
@@ -707,6 +721,17 @@ Definition vmap_of_x86_mem (sp: word Uptr) (rip: Ident.ident) (s: x86_mem) : vma
   let vm := vmap_set_vars (λ r : xmm_register, ok (pword_of_word (asm_xreg s r))) vm xmm_registers in
   let vm := vmap_set_vars (λ r : rflag, if asm_flag s r is Def b then ok b else pundef_addr sbool) vm rflags in
   vm.
+
+Lemma wf_vmap_of_x86_mem sp rip s :
+  wf_vm (vmap_of_x86_mem sp rip s).
+Proof.
+  repeat apply: wf_vmap_set_vars => //.
+  - repeat apply: wf_vm_set.
+    exact: wf_vmap0.
+  elim: rflags => // r rflags ih.
+  apply/andP; split; last exact: ih.
+  by case: (asm_flag _ _).
+Qed.
 
 Definition estate_of_x86_mem (sp: word Uptr) (rip: Ident.ident) (s: x86_mem) : estate :=
   {| emem := asm_mem s ; evm := vmap_of_x86_mem sp rip s |}.
