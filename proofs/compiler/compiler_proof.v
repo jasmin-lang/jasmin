@@ -109,13 +109,13 @@ End IS_MOVE_OP.
 
 Opaque Loop.nb.
 
-Let Ki : ∀ vr (P Q: _ → Prop),
+Definition compose_pass : ∀ vr (P Q: _ → Prop),
         (∀ vr', P vr' → Q vr') →
         (exists2 vr', List.Forall2 value_uincl vr vr' & P vr') →
         (exists2 vr', List.Forall2 value_uincl vr vr' & Q vr')
     := λ vr P Q h x, let 'ex_intro2 vr' u p := x in ex_intro2 _ _ vr' u (h vr' p).
 
-Let K : ∀ vr (P Q: _ → Prop),
+Definition compose_pass_uincl : ∀ vr (P Q: _ → Prop),
         (∀ vr, P vr → ∃ vr', Q vr' ∧ List.Forall2 value_uincl vr vr') →
         (exists2 vr', List.Forall2 value_uincl vr vr' & P vr') →
         (exists2 vr', List.Forall2 value_uincl vr vr' & Q vr')
@@ -145,21 +145,21 @@ Proof.
   rewrite print_uprogP => pp ok_pp.
   rewrite print_uprogP => <- {p'} ok_fn exec_p.
   have va_refl := List_Forall2_refl va value_uincl_refl.
-  apply: K; first by move=> vr' Hvr'; apply: (pi_callP (sCP := sCP_unit) ok_pp va_refl); exact Hvr'.
-  apply: Ki; first by move => vr'; apply: (lower_callP (lowering_opt cparams) (warning cparams) (is_var_in_memory cparams) ok_fvars).
-  apply: Ki; first by move => vr'; apply: (makeReferenceArguments_callP ok_ph).
-  apply: Ki; first by move => vr'; apply: (RGP.remove_globP ok_pg).
-  apply: Ki; first by move=> vr'; apply:(expand_callP ok_pf).
-  apply: K; first by move =>vr'; apply: (remove_init_fdPu _ va_refl).
-  apply: K; first by move => vr' Hvr'; apply: (dead_code_callPu ahyps.(is_move_opP) ok_pe va_refl); exact: Hvr'.
-  apply: K; first by move => vr'; apply: (CheckAllocRegU.alloc_callP ok_pd).
+  apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (pi_callP (sCP := sCP_unit) ok_pp va_refl); exact Hvr'.
+  apply: compose_pass; first by move => vr'; apply: (lower_callP (lowering_opt cparams) (warning cparams) (is_var_in_memory cparams) ok_fvars).
+  apply: compose_pass; first by move => vr'; apply: (makeReferenceArguments_callP ok_ph).
+  apply: compose_pass; first by move => vr'; apply: (RGP.remove_globP ok_pg).
+  apply: compose_pass; first by move=> vr'; apply:(expand_callP ok_pf).
+  apply: compose_pass_uincl; first by move =>vr'; apply: (remove_init_fdPu _ va_refl).
+  apply: compose_pass_uincl; first by move => vr' Hvr'; apply: (dead_code_callPu ahyps.(is_move_opP) ok_pe va_refl); exact: Hvr'.
+  apply: compose_pass_uincl; first by move => vr'; apply: (CheckAllocRegU.alloc_callP ok_pd).
   rewrite surj_prog.
-  apply: K; first by move => vr' Hvr'; apply: (unrollP ahyps.(is_move_opP) ok_pc _ va_refl); exact: Hvr'.
-  apply: Ki; first by move => vr'; exact: (dead_calls_err_seqP (sCP:= sCP_unit) ok_pb).
-  apply: K; first by move => vr' Hvr'; apply: (inline_call_errP ok_pa va_refl); exact: Hvr'.
-  apply: Ki; first by move => vr'; apply: (add_init_fdP).
-  apply: K; first by move=> vr' Hvr'; apply: (array_copy_fdP (sCP := sCP_unit) ok_pa0 va_refl); exact Hvr'.
-  apply: Ki; first by move => vr'; exact: psem_call.
+  apply: compose_pass_uincl; first by move => vr' Hvr'; apply: (unrollP ahyps.(is_move_opP) ok_pc _ va_refl); exact: Hvr'.
+  apply: compose_pass; first by move => vr'; exact: (dead_calls_err_seqP (sCP:= sCP_unit) ok_pb).
+  apply: compose_pass_uincl; first by move => vr' Hvr'; apply: (inline_call_errP ok_pa va_refl); exact: Hvr'.
+  apply: compose_pass; first by move => vr'; apply: (add_init_fdP).
+  apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (array_copy_fdP (sCP := sCP_unit) ok_pa0 va_refl); exact Hvr'.
+  apply: compose_pass; first by move => vr'; exact: psem_call.
   exists vr => //.
   exact: (List_Forall2_refl _ value_uincl_refl).
 Qed.
@@ -194,8 +194,8 @@ Proof.
   + move => fn gd m va m' vr ok_fn exec_p.
     have va_refl : List.Forall2 value_uincl va va.
     - exact: List_Forall2_refl.
-    apply: K; first by move => vr' Hvr'; apply: (dead_code_callPs ahyps.(is_move_opP) ok_pc va_refl); exact: Hvr'.
-    apply: K; first by move => vr'; apply: (CheckAllocRegS.alloc_callP ok_pb).
+    apply: compose_pass_uincl; first by move => vr' Hvr'; apply: (dead_code_callPs ahyps.(is_move_opP) ok_pc va_refl); exact: Hvr'.
+    apply: compose_pass_uincl; first by move => vr'; apply: (CheckAllocRegS.alloc_callP ok_pb).
     rewrite surj_prog.
     have [vr' [exec_pa]]:= dead_code_tokeep_callPs ahyps.(is_move_opP) ok_pa va_refl exec_p.
     rewrite /fn_keep_only (ok_rr _ ok_fn) => vr_vr'.
