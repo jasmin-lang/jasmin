@@ -1124,17 +1124,11 @@ Section REMOVE_INIT.
     have [vres1 Hvres Hsub] := get_vars_uincl Uvm2 Hres.
     have [vres1' Htout1 Ures1]:= mapM2_truncate_val Hfull Hsub.
     rewrite /remove_init_fd in Hf'1. rewrite /= in Hf'1.
-    case: Hf'1 => x1 x2 x3 x4 x5 x6 x7 hl.
-    exists vres1';split => //.
+    case: Hf'1 => ? ? ? ? ? ? ?; subst.
+    rewrite /get_leak => hl.
+    exists vres1'; split; last by [].
     econstructor; eauto.
-    + rewrite /=. rewrite -x2 /=. apply Htin1.
-    + rewrite /=. rewrite -x3 /=. apply Hargs'.
-    + rewrite /=. rewrite -x4 /=. rewrite x7 in Hsem'. 
-      have -> : (leak_Fun Fs fn) = lt'.
-      + rewrite /get_leak in hl. rewrite /leak_Fun /=. by rewrite hl /=.
-      apply Hsem'.
-    + rewrite /=. rewrite -x6. apply Hvres.
-    rewrite /=. rewrite -x5 /=. apply Htout1.
+    by rewrite /= /leak_Fun hl /=.
   Qed.
   
   Lemma remove_init_fdP f mem mem' va va' vr lf:

@@ -5,7 +5,7 @@ stages:
 - test
 - deploy
 
-image: nixos/nix
+image: nixos/nix:2.3.12
 
 variables:
   NIX_PATH: nixpkgs=channel:nixpkgs-unstable
@@ -16,6 +16,7 @@ variables:
 
 .common:
   before_script:
+  - nix-shell -p nix-info --run 'nix-info -m'
   - >-
     nix-shell
     --extra-substituters "$EXTRA_SUBSTITUTERS"
@@ -58,6 +59,8 @@ ocaml:
   variables:
     EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
   extends: .common
+  needs:
+  - coq
   dependencies:
   - coq
   script:
@@ -66,6 +69,32 @@ ocaml:
     paths:
     - compiler/_build/
     - compiler/jasminc.native
+
+opam:
+  stage: prove
+  variables:
+    OPAMROOTISOK: 'true'
+    OPAMROOT: mapo
+    PREFIX: jasmin-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA
+  cache:
+    paths:
+      - $OPAMROOT
+  before_script:
+  - nix-shell -p opam git pkg-config perl ppl mpfr --run 'echo Let’s go!'
+  - nix-shell -p opam --run 'opam init --no-setup --compiler=4.12.1'
+  - nix-shell -p opam --run 'opam repo add coq-released https://coq.inria.fr/opam/released'
+  - nix-shell -p opam git --run 'opam pin --yes --no-action add coq-mathcomp-word https://github.com/jasmin-lang/coqword.git'
+  - nix-shell -p opam git --run 'opam pin --yes --no-depexts --no-action add .'
+  - nix-shell -p opam git pkg-config perl ppl mpfr --run 'opam install --yes --no-depexts --deps-only jasmin'
+  script:
+  - >-
+    nix-shell -p opam ppl mpfr --run
+    'eval $(opam env) &&
+     make -j$NIX_BUILD_CORES &&
+     make install'
+  artifacts:
+    paths:
+    - $PREFIX
 
 tarball:
   stage: build

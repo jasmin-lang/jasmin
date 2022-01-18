@@ -146,6 +146,7 @@ Definition wsize_cmp s s' :=
   | U256, U256 => Eq
   end.
 
+#[export]
 Instance wsizeO : Cmp wsize_cmp.
 Proof.
   constructor.

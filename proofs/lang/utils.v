@@ -241,7 +241,7 @@ elim: m => //= a m ih ext.
 rewrite ext; [ f_equal | ]; eauto.
 Qed.
 
-Instance mapM_ext eT aT bT :
+Lemma mapM_ext eT aT bT :
   Proper (@eqfun (result eT bT) aT ==> eq ==> eq) (@mapM eT aT bT).
 Proof.
 move => f g ext xs xs' <-{xs'}.
@@ -766,7 +766,7 @@ Section LEX.
     by rewrite /lex;case:cmp1 => //;case:cmp2.
   Qed.
 
-  Instance LexO (C1:Cmp cmp1) (C2:Cmp cmp2) : Cmp lex.
+  Lemma LexO (C1:Cmp cmp1) (C2:Cmp cmp2) : Cmp lex.
   Proof.
     constructor=> [x y | y x z | x y].
     + by apply /lex_sym;apply /cmp_sym.
@@ -970,8 +970,6 @@ Proof. by rewrite /Z.to_nat; case: z => //=; rewrite /Z.le. Qed.
 (* ** Some Extra tactics
  * -------------------------------------------------------------------- *)
 
-Ltac sinversion H := inversion H=>{H};subst.
-
 (* -------------------------------------------------------------------- *)
 Variant dup_spec (P : Prop) :=
 | Dup of P & P.
@@ -1036,13 +1034,13 @@ Proof. by case: z. Qed.
 Lemma ziotaS_cons p z: 0 <= z -> ziota p (Z.succ z) = p :: ziota (p+1) z.
 Proof.
   move=> hz;rewrite /ziota Z2Nat.inj_succ //= Z.add_0_r; f_equal.
-  rewrite -addn1 addnC iota_addl -map_comp.
+  rewrite -addn1 addnC iotaDl -map_comp.
   by apply eq_map => i /=; rewrite Zpos_P_of_succ_nat;Psatz.lia.
 Qed.
 
 Lemma ziotaS_cat p z: 0 <= z -> ziota p (Z.succ z) = ziota p z ++ [:: p + z].
 Proof.
-  by move=> hz;rewrite /ziota Z2Nat.inj_succ // -addn1 iota_add map_cat /= add0n Z2Nat.id.
+  by move=> hz;rewrite /ziota Z2Nat.inj_succ // -addn1 iotaD map_cat /= add0n Z2Nat.id.
 Qed.
 
 Lemma in_ziota (p z i:Z) : (i \in ziota p z) = ((p <=? i) && (i <? p + z)).

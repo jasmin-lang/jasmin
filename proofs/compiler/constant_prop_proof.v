@@ -1681,6 +1681,7 @@ Section Section.
 
 Context {LO: LeakOp}.
 
+#[local]
 Instance const_prop_e_m :
   Proper (@Mvar_eq const_v ==> eq ==> eq) const_prop_e.
 Proof.
@@ -1699,6 +1700,7 @@ Proof.
     by rewrite He He1 He2.
 Qed.
 
+#[local]
 Instance const_prop_rv_m :
   Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd
                    (RelationPairs.RelProd (@Mvar_eq const_v) eq) eq) const_prop_rv.
@@ -1707,6 +1709,7 @@ Proof.
   by case: rv => [ v | v | sz v p | sz v p] //=;rewrite Hm.
 Qed.
 
+#[local]
 Instance const_prop_rvs_m :
   Proper (@Mvar_eq const_v ==> eq ==> RelationPairs.RelProd
           (RelationPairs.RelProd (@Mvar_eq const_v) eq) eq) const_prop_rvs.
@@ -1724,6 +1727,7 @@ Proof.
   by rewrite -Hc -Hc' /=. by rewrite -Hl -Hl' /=.
 Qed.
 
+#[local]
 Instance add_cpm_m :
   Proper (@Mvar_eq const_v ==> eq ==> eq ==> eq ==> eq ==> @Mvar_eq const_v) add_cpm.
 Proof.
@@ -1732,6 +1736,7 @@ Proof.
   by case: e => //= [n | b | [] // sz [] // n ]; rewrite Hm.
 Qed.
 
+#[local]
 Instance merge_cpm_m :
   Proper (@Mvar_eq const_v ==> @Mvar_eq const_v ==> @Mvar_eq const_v) merge_cpm.
 Proof.
@@ -1743,6 +1748,7 @@ Proof.
   by rewrite Hm Hm'.
 Qed.
 
+#[local]
 Instance remove_cpm_m :
   Proper (@Mvar_eq const_v ==> Sv.Equal ==> @Mvar_eq const_v) remove_cpm.
 Proof.

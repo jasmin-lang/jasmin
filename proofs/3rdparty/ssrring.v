@@ -65,10 +65,12 @@ Local Coercion Z.pos         : positive >-> Z.
 (* -------------------------------------------------------------------- *)
 Class find (T : Type) (x : T) (xs : seq T) (i:nat).
 
+#[export]
 Instance find0 (T : Type) (x : T) (xs : seq T)
  : find x (x :: xs) 0
  := { }.
 
+#[export]
 Instance findS (T : Type) (x : T) (y : T) (ys :  seq T) i
  {_: find x ys i}
  : find x (y :: ys) i.+1 | 1
@@ -77,10 +79,12 @@ Instance findS (T : Type) (x : T) (y : T) (ys :  seq T) i
 (* -------------------------------------------------------------------- *)
 Class closed (T : Type) (xs : seq T).
 
+#[export]
 Instance closed_nil T
  : closed (T:=T) nil
  := { }.
 
+#[export]
 Instance closed_cons T (x : T) (xs : seq T)
  {_: closed xs}
  : closed (x :: xs)
@@ -89,40 +93,49 @@ Instance closed_cons T (x : T) (xs : seq T)
 (* -------------------------------------------------------------------- *)
 Class reify (R : ringType) (a : R) (t : PExpr Z) (e : seq R).
 
+#[export]
 Instance reify_zero (R : ringType) e : @reify R 0 0%S e := { }.
+#[export]
 Instance reify_one  (R : ringType) e : @reify R 1 1%S e := { }.
 
+#[export]
 Instance reify_natconst (R : ringType) n e
   : @reify R n%:R ((n : Z)%:S)%S e
   := { }.
 
+#[export]
 Instance reify_add (R : ringType) a1 a2 t1 t2 e
   {_: @reify R a1 t1 e}
   {_: @reify R a2 t2 e}
   : reify (a1 + a2) (t1 + t2)%S e
   := { }.
 
+#[export]
 Instance reify_opp (R : ringType) a t e
   {_: @reify R a t e}
   : reify (-a) (-t)%S e
   := { }.
 
+#[export]
 Instance reify_natmul (R : ringType) a n t e
   {_: @reify R a t e}
   : reify (a *+ n) (t * (n : Z)%:S)%S e
   := { }.
 
+#[export]
 Instance reify_mul (R : ringType) a1 a2 t1 t2 e
   {_: @reify R a1 t1 e}
   {_: @reify R a2 t2 e}
   : reify (a1 * a2) (t1 * t2)%S e
   := { }.
 
+#[export]
 Instance reify_exp (R : ringType) a n t e
   {_: @reify R a t e}
   : reify (a ^+ n) (t ^+ n)%S e | 1
   := { }.
 
+#[export]
 Instance reify_var (R : ringType) a i e
   `{find R a e i}
   : reify a ('X_i)%S e
@@ -146,45 +159,55 @@ Ltac reify xt xe :=
 (* -------------------------------------------------------------------- *)
 Class freify (F : fieldType) (a : F) (t : FExpr Z) (e : seq F).
 
+#[export]
 Instance freify_zero (F : fieldType) e : @freify F 0 0%F e := { }.
+#[export]
 Instance freify_one  (F : fieldType) e : @freify F 1 1%F e := { }.
 
+#[export]
 Instance freify_natconst (F : fieldType) n e
   : @freify F n%:R ((n : Z)%:S)%F e
   := { }.
 
+#[export]
 Instance freify_add (F : fieldType) a1 a2 t1 t2 e
   {_: @freify F a1 t1 e}
   {_: @freify F a2 t2 e}
   : freify (a1 + a2) (t1 + t2)%F e
   := { }.
 
+#[export]
 Instance freify_opp (F : fieldType) a t e
   {_: @freify F a t e}
   : freify (-a) (-t)%F e
   := { }.
 
+#[export]
 Instance freify_natmul (F : fieldType) a n t e
   {_: @freify F a t e}
   : freify (a *+ n) (t * (n : Z)%:S)%F e
   := { }.
 
+#[export]
 Instance freify_mul (F : fieldType) a1 a2 t1 t2 e
   {_: @freify F a1 t1 e}
   {_: @freify F a2 t2 e}
   : freify (a1 * a2) (t1 * t2)%F e
   := { }.
 
+#[export]
 Instance freify_inv (F : fieldType) a t e
   {_: @freify F a t e}
   : freify (a^-1) (t^-1)%F e
   := { }.
 
+#[export]
 Instance freify_exp (F : fieldType) a n t e
   {_: @freify F a t e}
   : freify (a ^+ n) (t ^+ n)%F e | 1
   := { }.
 
+#[export]
 Instance freify_var (F : fieldType) a i e
   `{find F a e i}
   : freify a ('X_i)%F e
