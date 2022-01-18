@@ -78,9 +78,9 @@ let options = [
     "-oec"     ,  Arg.Set_string ecfile , "[filename]: use filename as output destination for easycrypt extraction";
     "-CT" , Arg.Unit set_constTime      , ": generates model for constant time verification";
     "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
-    "--dot", Arg.Set dot_cfg, ": print CFG of assembly in DOT format";
-    "--cost", Arg.Set cost_analysis, ": execution cost (WIP)";
-    "--cost-after", Arg.Set_string cost_after_pass, ": pass after which to run the cost analysis (see printing options to know the names of the passes)";
+    "-dot", Arg.Set dot_cfg, ": print CFG of assembly in DOT format";
+    "-cost", Arg.Set cost_analysis, ": execution cost (WIP)";
+    "-cost-after", Arg.Set_string cost_after_pass, ": pass after which to run the cost analysis (see printing options to know the names of the passes)";
     "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,
     "parameter for automatic safety verification:\n    \
@@ -91,9 +91,9 @@ let options = [
      len_1,...,len_k: input lengths of f_i";
      "-safetyconfig", Arg.String set_safetyconfig, "[filename]: use filename (JSON) as configuration file for the safety checker";
     "-safetymakeconfigdoc", Arg.String set_safety_makeconfigdoc, "[dir]: make the safety checker configuration docs in [dir]";
-    "--lt", Arg.Set print_transformers, "Print the leak transformers to stdout";
-    "--ct", Arg.Set print_cost_transformers, "Print the cost transformers to stdout";
-    "--help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
+    "-lt", Arg.Set print_transformers, "Print the leak transformers to stdout";
+    "-ct", Arg.Set print_cost_transformers, "Print the cost transformers to stdout";
+    "-help-intrinsics", Arg.Set help_intrinsics, "List the set of intrinsic operators";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
   ] @  List.map print_option Compiler.compiler_step_list
 

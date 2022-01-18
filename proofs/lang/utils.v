@@ -970,8 +970,6 @@ Proof. by rewrite /Z.to_nat; case: z => //=; rewrite /Z.le. Qed.
 (* ** Some Extra tactics
  * -------------------------------------------------------------------- *)
 
-Ltac sinversion H := inversion H=>{H};subst.
-
 (* -------------------------------------------------------------------- *)
 Variant dup_spec (P : Prop) :=
 | Dup of P & P.

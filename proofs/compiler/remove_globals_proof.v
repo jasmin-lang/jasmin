@@ -764,12 +764,11 @@ Qed.
            ok (m4, [::MkI ii (Cwhile a c4 e1 c5)], (LT_iwhile ltc4 lte1 ltc5)).
     + by rewrite /= Loop.nbP /= h1 /= he1 /= h2 /= hm /=.
     move=> /hw{hw}hw; have /hw : valid m3 s3 s3' by apply: (valid_Mincl hm).
-    move=> [Hwf''' [s4' [hs4 hw']]]. move=> h. split. 
+    move=> [Hwf''' [s4' [hs4 hw']]]. move=> h. split.
     constructor. apply Hwf. apply Hwf'. apply Hwf'''.
     exists s4';split => //.
     apply sem_seq1; constructor; apply: Ewhile_true;eauto.
-    inversion hw';subst => {hw'}; inversion H3; subst.
-    inversion H3; subst. rewrite /=. by inversion H5; subst.
+    by case/semE: hw' => s [] lk [] _ [] /sem_IE hw' /semE[] -> -> -> /=.
   Qed.
 
   Local Lemma Hwhile_false : sem_Ind_while_false P Pc Pi_r.

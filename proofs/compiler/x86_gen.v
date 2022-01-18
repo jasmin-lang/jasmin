@@ -214,7 +214,7 @@ apply: ih.
 2: exact: rec.
 case: h => h1 h2 h3 h4 {ok_s3 ok_rs rec}.
 case: r ok_r hv => // r => [ /var_of_register_of_var | /xmm_register_of_varI ] rx /=.
-all: move: ok_s2; rewrite /write_var/set_var -rx /=; t_xrbindP => vm; apply: on_vuP => // w hw <-{vm} <-{s2}.
+all: move: ok_s2; rewrite /write_var/set_var -rx /=; t_xrbindP => vm; apply: on_vuP => // w hw <-{vm} <-{s2} h5.
 all: constructor => //= r' v'; rewrite /get_var.
 2-4, 6: rewrite Fv.setP_neq //.
 2: exact: h3.
