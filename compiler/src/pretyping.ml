@@ -1519,7 +1519,7 @@ let tt_lvalues env (pimp, pls) implicit tys =
           | Some vty -> vty
         in
         let x = flv ety in
-        let tg = P.AT_inline in
+        let tg = E.AT_inline in
         P.{ i_desc = Cassgn (x, tg, P.tbool, e);
             i_loc = L.of_loc c;
             i_info = ();
@@ -1544,11 +1544,11 @@ let arr_init xi =
   match x.P.v_ty with
   | P.Arr(ws, e) as ty ->
     let size =  let open P in (icnst (size_of_ws ws) ** e) in
-    P.Cassgn (Lvar xi, P.AT_inline, ty, P.Parr_init size)
+    P.Cassgn (Lvar xi, E.AT_inline, ty, P.Parr_init size)
   | _           -> 
     rs_tyerror ~loc:(L.loc xi) (InvalidType( x.P.v_ty, TPArray))
 
-let cassgn_for (x: P.plval) (tg: P.assgn_tag) (ty: P.pty) (e: P.pexpr) :
+let cassgn_for (x: P.plval) (tg: E.assgn_tag) (ty: P.pty) (e: P.pexpr) :
   (P.pexpr, unit) P.ginstr_r =
   Cassgn (x, tg, ty, e)
 
@@ -1616,11 +1616,11 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let es  = tt_exprs_cast env args tes in
       let is_inline = 
         match Annot.ensure_uniq1 "inline" Annot.none annot with
-        | Some () -> P.DoInline 
+        | Some () -> E.InlineFun
         | None -> 
           match f.P.f_cc with 
-          | P.Internal -> P.DoInline 
-          | P.Export | P.Subroutine _ -> P.NoInline in
+          | P.Internal -> E.InlineFun
+          | P.Export | P.Subroutine _ -> E.DoNotInline in
       env, [mk_i (mk_call (L.loc pi) is_inline lvs f es)]
 
   | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, es) }, None) when 
@@ -1699,7 +1699,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let v = flv ety in
       let tg =
         P.(match v with
-            | Lvar v -> (match kind_i v with Inline -> AT_inline | _ -> AT_none)
+            | Lvar v -> (match kind_i v with Inline -> E.AT_inline | _ -> E.AT_none)
             | _ -> AT_none) in
       env, [mk_i (cassgn_for v tg ety e)]
         
@@ -1747,7 +1747,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       let vx   = tt_var `AllVar env x in
       check_ty_eq ~loc:lx ~from:vx.P.v_ty ~to_:P.tint;
       let s    = tt_block env s in
-      let d    = match d with `Down -> P.DownTo | `Up -> P.UpTo in
+      let d    = match d with `Down -> E.DownTo | `Up -> E.UpTo in
       env, [mk_i (P.Cfor (L.mk_loc lx vx, (d, i1, i2), s))]
 
   | PIWhile (s1, c, s2) ->

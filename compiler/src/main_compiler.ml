@@ -366,7 +366,9 @@ let main () =
       let ci = Conv.cvar_of_var tbl i in
       ci.Var0.Var.vname in
 
-    let var_alloc_fd fd = Regalloc.split_live_ranges fd in
+    let split_live_ranges_fd fd = Regalloc.split_live_ranges fd in
+    let renaming_fd fd = Regalloc.renaming fd in
+    let remove_phi_nodes_fd fd = Regalloc.remove_phi_nodes fd in
 
     let removereturn sp = 
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
@@ -395,7 +397,9 @@ let main () =
     let cparams = {
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = expand_fd;
-      Compiler.var_alloc_fd = apply "var alloc" var_alloc_fd;
+      Compiler.split_live_ranges_fd = apply "split live ranges" split_live_ranges_fd;
+      Compiler.renaming_fd = apply "alloc inline assgn" renaming_fd;
+      Compiler.remove_phi_nodes_fd = apply "remove phi nodes" remove_phi_nodes_fd;
       Compiler.stack_register_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp);
       Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
       Compiler.stackalloc    = memory_analysis;

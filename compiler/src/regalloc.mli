@@ -10,6 +10,8 @@ module X64 : sig
 end
 
 val split_live_ranges : unit func -> unit func
+val renaming : unit func -> unit func
+val remove_phi_nodes : unit func -> unit func
 
 type reg_oracle_t = {
     ro_to_save: var list;  (* TODO: allocate them in the stack rather than push/pop *)

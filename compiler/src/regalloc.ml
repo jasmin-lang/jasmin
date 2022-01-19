@@ -746,8 +746,9 @@ let reverse_varmap nv (vars: int Hv.t) : A.allocation =
   a
 
 let split_live_ranges (f: 'info func) : unit func =
-  let f = Ssa.split_live_ranges true f in
-  Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
+  Ssa.split_live_ranges true f
+
+let renaming (f: 'info func) : unit func =
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
   let eqc, _tr, _fr =
     collect_equality_constraints
@@ -755,7 +756,9 @@ let split_live_ranges (f: 'info func) : unit func =
   let vars = normalize_variables vars eqc in
   let a = reverse_varmap nv vars |> subst_of_allocation vars in
   Subst.subst_func a f
-  |> Ssa.remove_phi_nodes
+
+let remove_phi_nodes (f: 'info func) : unit func =
+  Ssa.remove_phi_nodes f
 
 let is_subroutine = function
   | Subroutine _ -> true

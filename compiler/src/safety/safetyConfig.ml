@@ -37,8 +37,8 @@ let compiler_steps = [
   Compiler.Inlining ;
   Compiler.RemoveUnusedFunction ;
   Compiler.Unrolling ;
-  Compiler.AllocInlineAssgn ;
-  Compiler.DeadCode_AllocInlineAssgn ;
+  Compiler.Renaming ;
+  Compiler.DeadCode_Renaming ;
   Compiler.RemoveArrInit ;
   Compiler.RegArrayExpansion ;
   Compiler.RemoveGlobal ;

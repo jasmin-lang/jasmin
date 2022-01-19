@@ -87,13 +87,6 @@ val is_stk_ptr_kind : v_kind -> bool
 
 (* ------------------------------------------------------------------------ *)
 
-type assgn_tag =
-  | AT_none   (* The compiler can do what it want *)
-  | AT_keep   (* Assignment should be kept by the compiler *)
-  | AT_rename (* use as equality constraint in reg-alloc and compile to no-op *)
-  | AT_inline (* the assignement should be inline, and propagate *)
-  | AT_phinode (* renaming during SSA transformation *)
-
 type 'len glval =
  | Lnone of L.t * 'len gty
  | Lvar  of 'len gvar_i
@@ -103,29 +96,24 @@ type 'len glval =
 
 type 'len glvals = 'len glval list
 
-type inline_info =
-  | DoInline
-  | NoInline
-
 type funname = private {
   fn_name : Name.t;
   fn_id   : uid;
 }
 
-type range_dir = UpTo | DownTo
-type 'len grange = range_dir * 'len gexpr * 'len gexpr
+type 'len grange = E.dir * 'len gexpr * 'len gexpr
 
 (* Warning E.sopn (E.Ocopy) contain a 'len without being polymorphic.
    Before instr this information is dummy ...
    This is durty ...
 *)   
 type ('len,'info) ginstr_r =
-  | Cassgn of 'len glval * assgn_tag * 'len gty * 'len gexpr
-  | Copn   of 'len glvals * assgn_tag * X86_extra.x86_extended_op Sopn.sopn * 'len gexprs
+  | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
+  | Copn   of 'len glvals * E.assgn_tag * X86_extra.x86_extended_op Sopn.sopn * 'len gexprs
   | Cif    of 'len gexpr * ('len,'info) gstmt * ('len,'info) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info) gstmt
   | Cwhile of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
-  | Ccall  of inline_info * 'len glvals * funname * 'len gexprs
+  | Ccall  of E.inline_info * 'len glvals * funname * 'len gexprs
 
 and ('len,'info) ginstr = {
   i_desc : ('len,'info) ginstr_r;
@@ -359,7 +347,7 @@ val expr_of_lval : 'len glval -> 'len gexpr option
 (* -------------------------------------------------------------------- *)
 (* Functions over instruction                                           *)
 
-val destruct_move : ('len, 'info) ginstr -> 'len glval * assgn_tag * 'len gty * 'len gexpr
+val destruct_move : ('len, 'info) ginstr -> 'len glval * E.assgn_tag * 'len gty * 'len gexpr
 
 (* -------------------------------------------------------------------- *)
 val clamp : wsize -> Bigint.zint -> Bigint.zint

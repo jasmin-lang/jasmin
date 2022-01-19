@@ -179,12 +179,12 @@ let pp_opn o =
   Conv.string_of_string0 ((Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) o).str ())
 
 (* -------------------------------------------------------------------- *)
-let pp_tag = function
+let pp_tag = E.(function
   | AT_none    -> "="
   | AT_keep    -> ":k="
   | AT_rename  -> ":r="
   | AT_inline  -> ":i="
-  | AT_phinode -> ":φ="
+  | AT_phinode -> ":φ=")
 
 let pp_align fmt = function 
   | E.Align -> Format.fprintf fmt "align "
