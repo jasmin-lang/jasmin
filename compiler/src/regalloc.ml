@@ -914,7 +914,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
           | ra -> cnf |> add_conflicts (Sv.remove ra vars) ra
           | exception Not_found -> cnf
         in
-        cnf |> Sv.fold (add_conflicts vars) live |> Sv.fold (add_conflicts live) vars
+        cnf |> Sv.fold (add_conflicts vars) live
       ) funcs conflicts in
   let a = A.empty nv in
   List.iter (fun f -> allocate_forced_registers translate_var nv vars conflicts f a) funcs;
