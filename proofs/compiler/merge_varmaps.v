@@ -253,7 +253,7 @@ Section CHECK.
           (all2 (λ x r, if x is Lvar v then v_var v == r else false) xs o_res)
           (E.internal_error ii "bad syscall dests") in
         let W := write_syscall in
-        ok (Sv.diff (Sv.union D W) (set_of_var_seq Sv.empty o_res))
+        ok (Sv.diff (Sv.union D W) (sv_of_list id o_res))
     end.
 
   Lemma check_ir_CwhileP sz ii aa c e c' D D' :

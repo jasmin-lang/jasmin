@@ -100,7 +100,6 @@ let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit)
                     (f: (Sv.t * Sv.t) func) : unit =
   let rec iter_instr_r loc ii =
     function
-    (* FIXME syscall *)
     | (Cassgn _ | Copn _ ) -> ()
     | (Cif (_, s1, s2) | Cwhile (_, s1, _, s2)) -> iter_stmt s1; iter_stmt s2
     | Cfor (_, _, s) -> iter_stmt s
@@ -128,7 +127,6 @@ let rec conflicts_i cf i =
   let cf = merge_class cf s1 in
 
   match i.i_desc with
-  (* FIXME syscall *)
   | Cassgn _ | Copn _ | Csyscall _ | Ccall _ ->
     merge_class cf s2
   | Cfor( _, _, c) ->

@@ -2379,10 +2379,6 @@ Proof.
   by constructor.
 Qed.
 
-(* FIXME syscall : remove this, use sv_of_list ? *)
-Definition set_of_var_seq : Sv.t → seq var → Sv.t :=
-  foldl (λ acc x, Sv.add x acc).
-
 Definition set_of_var_i_seq : Sv.t → seq var_i → Sv.t :=
   foldl (λ acc x, Sv.add (v_var x) acc).
 

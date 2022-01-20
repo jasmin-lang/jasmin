@@ -175,7 +175,6 @@ let classes_alignment (onfun : funname -> param_info option list) gtbl alias c =
     match i_desc with
     | Cassgn(x,_,_,e) -> add_lv x; add_e e
     | Copn(xs,_,_,es) -> add_lvs xs; add_es es
-    (* FIXME syscall *)
     | Csyscall(xs,_,es) -> add_lvs xs; add_es es
     | Cif(e,c1,c2) | Cwhile (_,c1,e,c2) -> 
       add_e e; add_c c1; add_c c2

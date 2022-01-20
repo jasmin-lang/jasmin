@@ -176,7 +176,6 @@ let collect_equality_constraints_in_func
     function
     | Cfor (_, _, s) -> collect_stmt s
     | Copn (lvs, _, op, es) -> copn_constraints int_of_var (add ii) addf lvs op es
-    (* FIXME syscall *)
     | Csyscall (_lvs, _op, _es) -> () 
     | Cassgn (Lvar x, AT_phinode, _, Pvar y) when
           is_gkvar y && kind_i x = kind_i y.gv ->
