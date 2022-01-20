@@ -20,9 +20,9 @@ Section ASM_OP.
 Context {pd: PointerData}.
 Context `{asmop:asmOp}.
 
-Lemma vrvs_rec_set_of_var_i_seq acc xs :
-  vrvs_rec acc [seq Lvar x | x <- xs] = set_of_var_i_seq acc xs.
-Proof. by elim: xs acc => // x xs ih acc; rewrite /= ih. Qed.
+Lemma vrvs_Lvar xs :
+  vrvs [seq Lvar x | x <- xs] = sv_of_list v_var xs.
+Proof. rewrite /vrvs /sv_of_list; elim: xs Sv.empty => //=. Qed.
 
 Lemma init_stk_stateI fex pex gd s s' :
   pex.(sp_rip) != pex.(sp_rsp) →
@@ -50,10 +50,9 @@ Qed.
 (* TODO: move *)
 Lemma write_vars_eq_except xs vs s s' :
   write_vars xs vs s = ok s' →
-  evm s = evm s' [\ set_of_var_i_seq Sv.empty xs].
+  evm s = evm s' [\ sv_of_list v_var xs].
 Proof.
-  rewrite (write_vars_lvals [::]) => /vrvsP.
-  by rewrite /vrvs vrvs_rec_set_of_var_i_seq.
+  by rewrite (write_vars_lvals [::]) => /vrvsP; rewrite vrvs_Lvar.
 Qed.
 
 Lemma write_lvars_emem gd xs ys s vs s' :
@@ -204,19 +203,15 @@ Section LEMMA.
     read_rvs_rec X vs = X.
   Proof. elim: vs xs X => // - [] // [] v /= _ vs ih [ | x xs ] X; t_xrbindP => // ? ok_vs ? ?; subst; exact: ih ok_vs. Qed.
 
-  Remark vrvs_rec_vars vs xs acc :
+  Remark vrvs_vars vs xs :
     mapM get_lvar vs = ok (map v_var xs) →
-    vrvs_rec acc vs = set_of_var_i_seq acc xs.
+    vrvs vs = sv_of_list v_var xs.
   Proof.
-    elim: vs xs acc => [ | v vs ih ] [ | x xs ] //= acc; t_xrbindP => // ? ok_x ? ok_xs ??; subst.
+    rewrite /vrvs /sv_of_list.
+    elim: vs xs Sv.empty => [ | v vs ih ] [ | x xs ] //= acc; t_xrbindP => // ? ok_x ? ok_xs ??; subst.
     case: v ok_x => //= _ [->].
     exact: ih ok_xs.
   Qed.
-
-  Corollary vrvs_vars vs xs :
-    mapM get_lvar vs = ok (map v_var xs) →
-    vrvs vs = set_of_var_i_seq Sv.empty xs.
-  Proof. exact: vrvs_rec_vars. Qed.
 
   Notation sem_I := (sem_one_varmap.sem_I p extra_free_registers var_tmp).
   Notation sem_i := (sem_one_varmap.sem_i p extra_free_registers var_tmp).
@@ -680,10 +675,10 @@ Section LEMMA.
     split => //.
     - by rewrite (write_lvars_emem hget_lvar ok_s2).
     rewrite -hxs => y hy.
-    case: (Sv_memP y (set_of_var_i_seq Sv.empty (f_res fd))); last first.  
+    case: (Sv_memP y (sv_of_list v_var (f_res fd))); last first.  
     + move=> hx; rewrite -(vrvsP ok_s2) /=; last by rewrite (vrvs_vars hget_lvar).
       by have /= <- := sem_call_not_written texec; first apply: (mvm_vmap sim); clear -hx hy hk; SvD.fsetdec.
-    rewrite -Sv.mem_spec mem_set_of_var_i_seq => /= x_result.
+    rewrite -Sv.mem_spec sv_of_listE => /= x_result.
     move: res_uincl (f_res fd) x_result hget_lvar get_res hres (with_mem s1 m2) ok_s2; clear.
     elim: xs vs res' => [ | d ds ih ] [] //.
     + by move => _ /List_Forall2_inv_l -> [] // d ds _ /=; t_xrbindP.
@@ -693,7 +688,7 @@ Section LEMMA.
     move: hx; rewrite /= inE orbX; case/orP; last first.
     + by move => hx; exact: ih _ _ vs_vs' _ hx hxds hqs hall2 _ ws.
     case/andP => /eqP hyq /negbTE x_not_in_ys. 
-    have <- := vrvsP ws; last by rewrite (vrvs_vars hxds) -Sv.mem_spec mem_set_of_var_i_seq /= x_not_in_ys.
+    have <- := vrvsP ws; last by rewrite (vrvs_vars hxds) -Sv.mem_spec sv_of_listE /= x_not_in_ys.
     move: hq; apply: on_vuP => // z ok_z ?; subst.
     by rewrite ok_z; apply: write_lval_uincl w.
   Qed.
@@ -713,8 +708,8 @@ Section LEMMA.
     case: (checkP ok_p ok_fd) => ok_wrf.
     rewrite /check_fd; t_xrbindP => D. 
     set ID := (ID in check_cmd _ ID _).
-    set res := set_of_var_i_seq Sv.empty (f_res fd).
-    set params := set_of_var_i_seq Sv.empty (f_params fd).
+    set res := sv_of_list v_var (f_res fd).
+    set params := sv_of_list v_var(f_params fd).
     move => checked_body _ /assertP hdisj
       _ /assertP checked_params _ /assertP RSP_not_result _ /assertP preserved_magic
      [] checked_save_stack checked_ra.
@@ -795,19 +790,19 @@ Section LEMMA.
         by case: (not_written_magic checked_params).
       rewrite Fv.setP_neq; last by rewrite eq_sym.
       have hz : eval_uincl (evm s1).[z] tvm1.[z].
-      + case: (Sv_memP z (set_of_var_i_seq Sv.empty (f_params fd))) => hinp.
+      + case: (Sv_memP z (sv_of_list v_var (f_params fd))) => hinp.
         + have : List.Forall2 value_uincl vargs args'.
           + apply: Forall2_trans ok_args''; first by apply: value_uincl_trans.
             elim: (f_tyin fd) (vargs') (vargs) ok_vargs => [ | t ts hrec] [ | v' vs'] //= vs.
             + by move=> [<-].
             by t_xrbindP => ? /truncate_value_uincl ?? /hrec ? <-; constructor.
-          move/Sv_memP: hinp; rewrite mem_set_of_var_i_seq /=.
+          move/Sv_memP: hinp; rewrite sv_of_listE /=.
           elim: (f_params fd) (vargs) (args') (s0) ok_s1 ok_args' => [ | x xs hrec] [ | v vs] vs_ s //=.
           t_xrbindP => s' hx hxs v' hget vs' hmap <-; rewrite inE => hin /List_Forall2_inv[] ? H0.
           case: (@idP (z \in [seq v_var i | i <- xs])) hin => [hin _ | hnin'].
           + by apply: hrec hxs hmap hin H0.
           rewrite orbF => /eqP heq; rewrite -(write_vars_eq_except hxs); last first.
-          + by apply/Sv_memP; rewrite mem_set_of_var_i_seq /=;apply/negP.
+          + by apply/Sv_memP; rewrite sv_of_listE /=;apply/negP.
           move: hget; rewrite /get_var heq; apply: on_vuP => // ? -> ?; subst v'.
           apply: (write_lval_uincl _ _ hx) => //.
         rewrite -(write_vars_eq_except ok_s1) //.
@@ -841,10 +836,10 @@ Section LEMMA.
        mapM (λ x : var_i, get_var (set_RSP p (free_stack (emem t2)) (evm t2)) x) (f_res fd) = ok tres
        & List.Forall2 value_uincl vres' tres.
     - have : forall x, (x \in [seq (v_var i) | i <- f_res fd]) -> ~Sv.In x D.
-      + move=> x hx; have /Sv_memP: Sv.mem x res by rewrite /res mem_set_of_var_i_seq.
+      + move=> x hx; have /Sv_memP: Sv.mem x res by rewrite /res sv_of_listE.
         by move /Sv.is_empty_spec: hdisj; SvD.fsetdec.        
       move: (mvm_vmap sim2) ok_vres RSP_not_result (f_tyout fd) vres' ok_vres'.
-      rewrite /res mem_set_of_var_i_seq /=; clear.
+      rewrite /res sv_of_listE /=; clear.
       move: (evm s2) (evm t2) (free_stack _) => vm vm' m {s2 t2} hvm.
       elim: vres (f_res fd) => [ | v vres ih ] [] //=; t_xrbindP => //.
       + by move => _ _ [] // _ [<-]; exists [::].
@@ -889,7 +884,7 @@ Section LEMMA.
         rewrite {2}/get_var Fv.setP_neq //.
         apply/eqP => K.
         move: RSP_not_result.
-        rewrite /res mem_set_of_var_i_seq SvP.empty_mem => /mapP; apply.
+        rewrite /res sv_of_listE => /mapP; apply.
         by exists x.
       + apply: all2_check_ty_val res_uincl.
         elim: (mapM2_Forall3 ok_vres'); first by [].
@@ -935,8 +930,8 @@ Proof.
   rewrite /check_fd; t_xrbindP => D.
   rewrite {1  2}Export.
   set ID := (ID in check_c _ ID _).
-  set results := set_of_var_i_seq Sv.empty (f_res fd).
-  set params := set_of_var_i_seq Sv.empty (f_params fd).
+  set results := sv_of_list v_var (f_res fd).
+  set params := sv_of_list v_var (f_params fd).
   move => checked_body _ /assertP hdisj
       _ /assertP checked_params _ /assertP RSP_not_result _ /assertP preserved_magic
      [] checked_save_stack.
@@ -960,7 +955,7 @@ Proof.
     apply: eq_mapM => /= r hr.
     rewrite {2}/get_var Fv.setP_neq //; apply/eqP => K.
     move: RSP_not_result.
-    rewrite /results mem_set_of_var_i_seq SvP.empty_mem => /mapP; apply.
+    rewrite /results sv_of_listE => /mapP; apply.
     by exists r.
   } subst xr.
   exists m0 k' m1 vm1 res' => //.

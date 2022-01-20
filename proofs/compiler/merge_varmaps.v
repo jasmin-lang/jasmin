@@ -1,5 +1,6 @@
 (*
 *)
+(* FIXME: we should not depend on psem sem_one_varmap *)
 Require Import psem sem_one_varmap.
 Import Utf8.
 Import all_ssreflect.
@@ -225,7 +226,7 @@ Section CHECK.
           (all2 (λ x r, if x is Lvar v then v_var v == v_var r else false) xs (f_res fd))
           (E.internal_error ii "bad call dests") in
         let W := writefun_ra writefun fn in
-        ok (Sv.diff (Sv.union D W) (set_of_var_i_seq Sv.empty (f_res fd)))
+        ok (Sv.diff (Sv.union D W) (sv_of_list v_var (f_res fd)))
       else Error (E.internal_error ii "call to unknown function")
 
     end.
@@ -278,8 +279,8 @@ Section CHECK.
     end in
 
     Let D := check_cmd fd.(f_extra).(sf_align) DI fd.(f_body) in
-    let params := set_of_var_i_seq Sv.empty fd.(f_params) in
-    let res := set_of_var_i_seq Sv.empty fd.(f_res) in
+    let params := sv_of_list v_var fd.(f_params) in
+    let res := sv_of_list v_var fd.(f_res) in
     let W' := writefun_ra writefun fn in
     Let _ := assert (disjoint D res)
                     (E.gen_error true None (pp_s "not able to ensure equality of the result")) in

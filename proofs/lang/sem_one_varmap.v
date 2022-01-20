@@ -276,8 +276,8 @@ Variant sem_export_call (gd: @extra_val_t _ progStack) (m: mem) (fn: funname) (a
   | SemExportCall (fd: sfundef) of
                   get_fundef p.(p_funcs) fn = Some fd &
       fd.(f_extra).(sf_return_address) == RAnone &
-      disjoint (sv_of_list fst fd.(f_extra).(sf_to_save)) (set_of_var_i_seq Sv.empty fd.(f_res)) &
-      ~~ Sv.mem vrsp (set_of_var_i_seq Sv.empty fd.(f_res)) &
+      disjoint (sv_of_list fst fd.(f_extra).(sf_to_save)) (sv_of_list v_var fd.(f_res)) &
+      ~~ Sv.mem vrsp (sv_of_list v_var fd.(f_res)) &
     ∀ vm args',
       wf_vm vm →
       mapM (λ x : var_i, get_var vm x) fd.(f_params) = ok args' →
