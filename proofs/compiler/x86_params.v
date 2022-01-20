@@ -61,7 +61,7 @@ Definition x86_ret := [:: RAX; RDX].
 
 Definition syscall_vsig (o : syscall_t) := 
   match o with
-  | GetRandom _ => (List.map to_var [:: RDI; RSI], List.map to_var [::RAX])
+  | RandomBytes _ => (List.map to_var [:: RDI; RSI], List.map to_var [::RAX])
   end.
 
 Definition sparams := mk_sparams write_syscall syscall_vsig callee_saved.

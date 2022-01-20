@@ -6,7 +6,8 @@ DIR=$(mktemp -d jasminXXXXXX)
 ASM=${DIR}/jasmin.s
 OBJ=${DIR}/jasmin.o
 DLL=${DIR}/jasmin.so
-
+# FIXME syscall : how the remove the relative path 
+JASMINLIB=../syscall/jasmin_syscall.o
 trap "rm -r ${DIR}" EXIT
 
 set -x
@@ -17,4 +18,4 @@ $(dirname $0)/../jasminc.native -o ${ASM} "$@"
 (echo $@ | grep -q fail) && exit 0
 
 cc -c -o ${OBJ} ${ASM}
-cc -shared -o ${DLL} ${OBJ}
+cc -shared -o ${DLL} ${JASMINLIB} ${OBJ}

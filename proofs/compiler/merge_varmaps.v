@@ -55,7 +55,7 @@ Let caller_saved := Sv.diff all_vars callee_saved.
 
 Definition write_syscall (o:syscall_t) : Sv.t := 
   match o with
-  | GetRandom _ => caller_saved
+  | RandomBytes _ => caller_saved
   end.
 
 *)

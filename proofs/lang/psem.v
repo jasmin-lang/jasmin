@@ -2991,7 +2991,7 @@ Definition exec_getrandom_s (scs : syscall_state) (m : mem) vs : exec (syscall_s
 Definition exec_syscall_s 
   (scs : syscall_state) (m:mem) (o:syscall_t) (vs:values) : exec (syscall_state * mem * values) := 
   match o with
-  | GetRandom _len => exec_getrandom_s scs m vs 
+  | RandomBytes _len => exec_getrandom_s scs m vs 
   end.
 
 Lemma exec_syscallPs scs m o vargs vargs' rscs rm vres :

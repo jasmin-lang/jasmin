@@ -67,6 +67,7 @@ CIL:
 	cp ../proofs/lang/ocaml/*.mli CIL/
 
 check: build
+	$(MAKE) -C ../syscall all
 	$(CHECK) --report=report.log $(CHECKCATS)
 
 check-ci:

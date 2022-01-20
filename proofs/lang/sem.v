@@ -513,7 +513,7 @@ Definition exec_getrandom (scs : syscall_state) len vs :=
 
 Definition exec_syscall (scs : syscall_state) (m:mem) (o:syscall_t) (vs:values) : exec (syscall_state * mem * values) := 
   match o with
-  | GetRandom len => 
+  | RandomBytes len => 
     Let sv := exec_getrandom scs len vs in
     ok (sv.1, m, sv.2)
   end.

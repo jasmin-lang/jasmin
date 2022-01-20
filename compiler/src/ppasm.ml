@@ -250,8 +250,9 @@ let pp_indirect_label lbl =
   Format.sprintf "*%s" (pp_asm_arg (W.U64, lbl))
 
 (* -------------------------------------------------------------------- *)
+
 let pp_syscall (_o : Syscall.syscall_t) = 
-   "__jasmin_syscall_getrandom__"
+   "__jasmin_syscall_randombytes__"
 
 (* -------------------------------------------------------------------- *)
 let pp_instr tbl name (i : (_, _, _, _, _) Arch_decl.asm_i) =

@@ -1125,7 +1125,7 @@ Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap ini rs fn es :=
 Definition alloc_syscall ii rmap rs o es := 
   add_iinfo ii 
   match o with 
-  | GetRandom len => 
+  | RandomBytes len => 
     match rs, es with
     | [::Lvar x], [::Pvar xe] =>
       let xe := xe.(gv) in

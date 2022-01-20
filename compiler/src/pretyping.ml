@@ -1669,7 +1669,7 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
     in
     env, [ mk_i (Copn([Lvar x], AT_none, Sopn.Ocopy(ws, Conv.pos_of_int 1), [Pvar y]))] 
 
-  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "getrandom" ->
+  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "randombytes" ->
       (* FIXME syscall *)  
       (* It will be good to make this uniform with copy *)
       (* This is durty but ... *)

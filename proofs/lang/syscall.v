@@ -9,7 +9,7 @@ Unset Printing Implicit Defensive.
 Local Unset Elimination Schemes.
 
 Variant syscall_t : Type := 
-  | GetRandom of positive.
+  | RandomBytes of positive.
 
 Scheme Equality for syscall_t.
 
@@ -29,7 +29,7 @@ Canonical  syscall_t_eqType      := Eval hnf in EqType syscall_t syscall_t_eqMix
 (* Before stack alloc ie uprog *)
 Definition syscall_sig_u (o : syscall_t) := 
   match o with
-  | GetRandom len => ([:: sarr len], [:: sarr len])
+  | RandomBytes len => ([:: sarr len], [:: sarr len])
   end.
 
 (* -------------------------------------------------------------------- *)

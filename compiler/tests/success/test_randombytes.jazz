@@ -3,7 +3,7 @@ export fn foo1() -> reg u64 {
    stack u64[1] r;
    reg ptr u64[1] p;
    p = r;
-   p = #getrandom(p);
+   p = #randombytes(p);
    r = p;
    res = r[0];  
    return res;
@@ -14,7 +14,7 @@ export fn foo2() -> reg u64 {
    stack u64[1] r;
    reg ptr u64[1] p;
    p = r;
-   p = #getrandom(p);
+   p = #randombytes(p);
    res = p[u64 0];  
    return res;
 } 
@@ -22,7 +22,7 @@ export fn foo2() -> reg u64 {
 export fn foo3() -> reg u64 {
    reg u64 res;    
    stack u64[1] r;
-   r = #getrandom(r);
+   r = #randombytes(r);
    res = r[0];  
    return res;
 }
