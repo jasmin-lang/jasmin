@@ -151,11 +151,6 @@ Section CoreMem.
     by move=> [? h]; split => //;apply/allP => k; rewrite in_ziota !zify valid8_validw; apply h.
   Qed.
 
-  Lemma validw_is_align m p ws :
-    validw m p ws ->
-    is_align p ws.
-  Proof. by case/validwP. Qed.
-
   Lemma get_read8 m p: get m p = read m p U8.
   Proof.
     rewrite /read /= is_align8 /= add_0.
@@ -262,7 +257,7 @@ Section CoreMem.
   Proof.
     rewrite readE; t_xrbindP => _ /assertP ha l hl.
     rewrite -{1}(LE.decodeK v) => /LE.decode_inj.
-    rewrite -(mapM_size hl) size_ziota LE.size_encode => /(_ refl_equal refl_equal) ?; subst l.
+    rewrite -(size_mapM hl) size_ziota LE.size_encode => /(_ refl_equal refl_equal) ?; subst l.
     rewrite LE.encodeE in hl.
     split => // i hi.
     have : i \in ziota 0 (wsize_size s) by rewrite in_ziota !zify.

@@ -37,12 +37,6 @@ Definition invalid_name category ii (v:var_i) :=
 Definition invalid_ty category ii (v:var_i) :=
   verror true ("Invalid " ++ category ++ " type") ii v.
 
-Definition invalid_register ii (v:var_i) :=
-   verror true "Invalid register name" ii v.
-
-Definition invalid_register_ty ii (v:var_i) :=
-  verror true "Invalid register type" ii v.
-
 Definition berror ii e msg := 
   gen_error false (Some ii) None (pp_vbox [::pp_box [:: pp_s "not able to compile the condition"; pp_e e];
                                              pp_s msg]).

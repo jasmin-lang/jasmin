@@ -142,13 +142,6 @@ Section PROOF.
     by rewrite /sem_lea /= hb1 ho1 /=; f_equal; rewrite wsub_zero_extend //; ssring.
   Qed.
 
-  Lemma Vword_inj sz (w: word sz) sz' (w': word sz') :
-    Vword w = Vword w' ->
-    exists e : sz = sz', eq_rect sz word w sz' e = w'.
-  Proof.
-    refine (fun e => let 'erefl := e in ex_intro _ erefl erefl).
-  Qed.
-
   Lemma mk_lea_recP s e l sz sz' (w: word sz') :
     (sz <= Uptr)%CMP -> 
     (sz ≤ sz')%CMP →

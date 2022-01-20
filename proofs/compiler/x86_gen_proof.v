@@ -26,13 +26,13 @@ Lemma assemble_progP p p' :
   assemble_prog p = ok p' →
   let rip := mk_rip p.(lp_rip) in
   [/\ disj_rip rip,
-   of_string p.(lp_rsp) = Some RSP,
+   to_var RSP = Var (sword Uptr) p.(lp_rsp),
    asm_globs p' = lp_globs p &
    map_cfprog_linear (assemble_fd RSP rip) p.(lp_funcs) = ok (asm_funcs p') ].
 Proof.
   rewrite /assemble_prog.
   t_xrbindP => _ /assertP /eqP ok_rip _ /assertP /eqP ok_rsp fds ok_fds <-{p'}.
-  split => //.
+  split => //; last by rewrite -(of_stringI ok_rsp).
   split => r heq //.
   by move: ok_rip; rewrite -heq /to_reg to_varK.
 Qed.
@@ -102,7 +102,7 @@ Lemma assemble_c_find_label rip c i lbl:
   linear.find_label lbl c = arch_sem.find_label lbl i.
 Proof.
 rewrite /assemble_c /linear.find_label /arch_sem.find_label => ok_i.
-by rewrite (mapM_size ok_i) (assemble_c_find_is_label lbl ok_i).
+by rewrite (size_mapM ok_i) (assemble_c_find_is_label lbl ok_i).
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -639,7 +639,7 @@ Proof.
   exists xm'; last exact: M'.
   eexists; first exact: ok_fd'.
   - exact: Export.
-  - rewrite /= -(mapM_size ok_c); exact: xexec.
+  - rewrite /= -(size_mapM ok_c); exact: xexec.
   move => r hr.
   have {} hr : to_var r \in map to_var x86_callee_saved.
   - by apply/in_map; exists r => //; apply/InP.
@@ -665,6 +665,20 @@ Section VMAP_SET_VARS.
 
   Definition vmap_set_vars : vmap → seq T → vmap :=
     foldl (λ vm x, vm.[to_var x <- from x])%vmap.
+
+  Lemma wf_vmap_set_vars vm xs :
+    wf_vm vm →
+    all (λ x, match from x with Ok _ => true | Error ErrAddrUndef => if vtype (to_var x) is sarr _ then false else true | Error _ => false end) xs →
+    wf_vm (vmap_set_vars vm xs).
+  Proof.
+    elim: xs vm => // x xs ih vm h /= /andP[] ok_x ok_xs; apply: ih ok_xs.
+    move => y; rewrite Fv.setP.
+    case: eqP => ?; last exact: h.
+    subst.
+    case: (from x) ok_x => // - [] //.
+    change (vtype (to_var x)) with rtype.
+    by case: rtype.
+  Qed.
 
   Lemma get_var_vmap_set_vars_other vm xs y :
     all (λ x, to_var x != y) xs →
@@ -707,6 +721,17 @@ Definition vmap_of_x86_mem (sp: word Uptr) (rip: Ident.ident) (s: x86_mem) : vma
   let vm := vmap_set_vars (λ r : xmm_register, ok (pword_of_word (asm_xreg s r))) vm xmm_registers in
   let vm := vmap_set_vars (λ r : rflag, if asm_flag s r is Def b then ok b else pundef_addr sbool) vm rflags in
   vm.
+
+Lemma wf_vmap_of_x86_mem sp rip s :
+  wf_vm (vmap_of_x86_mem sp rip s).
+Proof.
+  repeat apply: wf_vmap_set_vars => //.
+  - repeat apply: wf_vm_set.
+    exact: wf_vmap0.
+  elim: rflags => // r rflags ih.
+  apply/andP; split; last exact: ih.
+  by case: (asm_flag _ _).
+Qed.
 
 Definition estate_of_x86_mem (sp: word Uptr) (rip: Ident.ident) (s: x86_mem) : estate :=
   {| emem := asm_mem s ; evm := vmap_of_x86_mem sp rip s |}.
@@ -793,7 +818,7 @@ have eqm2 : lom_eqv rip s2 xr1.
 have ms : match_state rip (of_estate s2 fn fd.(lfd_body) 0) {| xm := xr1 ; xfn := fn ; xc := body ; xip := 0 |}.
 + by constructor => //=; rewrite to_estate_of_estate.
 have [[[om or orip oxr orf] ofn oc opc] [xexec]] := match_state_sem hexec ms.
-rewrite (mapM_size ok_body).
+rewrite (size_mapM ok_body).
 case => eqm' /= ?.
 rewrite ok_body => -[?] ?; subst ofn oc opc.
 eexists; split; first by econstructor; eauto.

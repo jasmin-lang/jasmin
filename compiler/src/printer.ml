@@ -181,12 +181,12 @@ let pp_opn o =
 let pp_syscall (_o:Syscall.syscall_t) = 
   "GetRandom"
 (* -------------------------------------------------------------------- *)
-let pp_tag = function
+let pp_tag = E.(function
   | AT_none    -> "="
   | AT_keep    -> ":k="
   | AT_rename  -> ":r="
   | AT_inline  -> ":i="
-  | AT_phinode -> ":φ="
+  | AT_phinode -> ":φ=")
 
 let pp_align fmt = function 
   | E.Align -> Format.fprintf fmt "align "

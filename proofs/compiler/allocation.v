@@ -52,8 +52,6 @@ Definition gen_error (internal:bool) (ii:option instr_info) (msg:string) :=
    ; pel_internal := internal
   |}.
 
-Definition ii_error ii msg := gen_error true (Some ii) msg.
-
 Definition error msg := gen_error true None msg.
 
 Definition loop_iterator := loop_iterator pass_name.
@@ -184,8 +182,6 @@ Module CheckBS (C:CheckB) <: CheckBE.
  
   Definition check_lvals :=
     fold2 E.fold2 (check_lval None).
-
-  Definition check_var x1 x2 r := check_lval None (Lvar x1) (Lvar x2) r.
 
   Definition check_vars xs1 xs2 r := check_lvals (map Lvar xs1) (map Lvar xs2) r.
 

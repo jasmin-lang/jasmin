@@ -1005,20 +1005,6 @@ Section Section.
     then Some (MkI ii (Cassgn y AT_rename fty e))
     else None.
 
-  Lemma size_mapM2 (A B E R : Type) (e : E) (f : (A → B → result E R)) v1 v2 v3:
-    mapM2 e f v1 v2 = ok v3 ->
-    size v1 = size v3 /\ size v2 = size v3.
-  Proof.
-   elim: v1 v2 v3 => [ | x xs ih ] [|y ys] [|z zs] //= ; t_xrbindP => // t eqt ts /ih.
-   by case => -> -> _ ->.
-  Qed.
-
-  Lemma size_fold2 (A B E R : Type) (e: E) (f : (A → B → R → result E R)) xs ys x0 v:
-    fold2 e f xs ys x0 = ok v -> size xs = size ys.
-  Proof.
-    by elim : xs ys x0 => [|x xs ih] [|y ys] x0 //= ; t_xrbindP => // t _ /ih ->.
-  Qed.
-
   Lemma get_set_var vm vm' x v v':
     ~is_sbool (vtype x) ->
     truncate_val (vtype x) v = ok v' ->
@@ -1169,7 +1155,7 @@ Section Section.
     econstructor ; eauto.
     move : vsE trunc_vargs'.
     have : f_tyin fnd = f_tyin f.
-    + move : (p_funcs p) (p_funcs p') (mapM_size eq_funcs) eq_funcs fnE H.
+    + move : (p_funcs p) (p_funcs p') (size_mapM eq_funcs) eq_funcs fnE H.
       apply : diagonal_induction_2_eq => //= [[hfp1 hfp2] [hfp'1 hfp'2]] tfp tfp' eq_size_tfp ih.
       t_xrbindP => y h.
       case Hupdate_fd : (update_fd _ _ _ _ _) => //= - [] hh.

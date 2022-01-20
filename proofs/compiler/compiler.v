@@ -79,8 +79,9 @@ Variant compiler_step :=
   | RemoveUnusedFunction        : compiler_step
   | Unrolling                   : compiler_step
   | Splitting                   : compiler_step
-  | AllocInlineAssgn            : compiler_step
-  | DeadCode_AllocInlineAssgn   : compiler_step
+  | Renaming                    : compiler_step
+  | RemovePhiNodes              : compiler_step
+  | DeadCode_Renaming           : compiler_step
   | RemoveArrInit               : compiler_step
   | RegArrayExpansion           : compiler_step
   | RemoveGlobal                : compiler_step
@@ -107,8 +108,9 @@ Definition compiler_step_list := [::
   ; RemoveUnusedFunction
   ; Unrolling
   ; Splitting
-  ; AllocInlineAssgn
-  ; DeadCode_AllocInlineAssgn
+  ; Renaming
+  ; RemovePhiNodes
+  ; DeadCode_Renaming
   ; RemoveArrInit
   ; RegArrayExpansion
   ; RemoveGlobal
@@ -148,7 +150,9 @@ Record stack_alloc_oracles : Type :=
 Record compiler_params := {
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
   expand_fd        : funname -> _ufundef -> expand_info;
-  var_alloc_fd     : funname -> _ufundef -> _ufundef;
+  split_live_ranges_fd : funname -> _ufundef -> _ufundef;
+  renaming_fd      : funname -> _ufundef -> _ufundef;
+  remove_phi_nodes_fd : funname -> _ufundef -> _ufundef;
   lowering_vars    : fresh_vars;
   inline_var       : var -> bool;
   is_var_in_memory : var_i → bool;
@@ -188,8 +192,12 @@ Record system_params := mk_sparams {
 #[local]
 Existing Instance progUnit.
 
-Definition var_alloc_prog cp (p: _uprog) : _uprog :=
-  map_prog_name cp.(var_alloc_fd) p.
+Definition split_live_ranges_prog cp (p: _uprog) : _uprog :=
+  map_prog_name cp.(split_live_ranges_fd) p.
+Definition renaming_prog cp (p: _uprog) : _uprog :=
+  map_prog_name cp.(renaming_fd) p.
+Definition remove_phi_nodes_prog cp (p: _uprog) : _uprog :=
+  map_prog_name cp.(remove_phi_nodes_fd) p.
 
 Variable cparams : compiler_params.
 Variable aparams : architecture_params.
@@ -227,11 +235,15 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let p := unroll aparams.(is_move_op) Loop.nb p in
   let p := cparams.(print_uprog) Unrolling p in
 
-  let pv := var_alloc_prog cparams p in
-  let pv := cparams.(print_uprog) AllocInlineAssgn pv in
+  let pv := split_live_ranges_prog cparams p in
+  let pv := cparams.(print_uprog) Splitting pv in
+  let pv := renaming_prog cparams pv in
+  let pv := cparams.(print_uprog) Renaming pv in
+  let pv := remove_phi_nodes_prog cparams pv in
+  let pv := cparams.(print_uprog) RemovePhiNodes pv in
   Let _ := CheckAllocRegU.check_prog p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
   Let pv := dead_code_prog aparams.(is_move_op) pv false in
-  let pv := cparams.(print_uprog) DeadCode_AllocInlineAssgn pv in
+  let pv := cparams.(print_uprog) DeadCode_Renaming pv in
 
   let pr := remove_init_prog cparams.(is_reg_array) pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in

@@ -1,0 +1,25 @@
+
+export fn foo(reg u64 plain, reg u64 output) {
+  reg u64 j;
+  reg u8 pi;
+  reg u128 x0;
+  stack u128[1] s_0;
+  stack u64[10] s_k;
+  inline int i;       
+  for i = 0 to 10 { s_k[i] = 0; }
+
+  
+  x0 = #set0_128();
+  s_0[0] = x0;
+
+  j = 0;     
+  while(j < 80)
+  {
+    pi = (u8)[plain + j];
+    pi ^= s_k[u8 (int)j];
+    pi ^= s_0[u8 0];
+    (u8)[output + j] = pi;
+    j += 1;
+  }
+
+}

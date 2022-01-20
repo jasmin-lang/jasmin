@@ -2848,7 +2848,7 @@ Proof.
   t_xrbindP => ? _ _ ok_results ??; subst.
   split.
   - by case: (size_fmapM2 ok_params).
-  by case: (mapM2_size ok_results).
+  by case: (size_mapM2 ok_results).
 Qed.
 
 End WITH_MOV_OFS.

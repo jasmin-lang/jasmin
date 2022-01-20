@@ -206,22 +206,6 @@ Canonical rflag_finType :=
   Eval hnf in FinType rflag rflag_finMixin.
 
 (* -------------------------------------------------------------------- *)
-Module RegMap.
-  Definition map := {ffun register -> u64}.
-
-  Definition set (m : map) (x : register) (y : u64) : map :=
-    [ffun z => if (z == x) then y else m z].
-End RegMap.
-
-(* -------------------------------------------------------------------- *)
-Module XRegMap.
-  Definition map := {ffun xmm_register -> u256 }.
-
-  Definition set (m : map) (x : xmm_register) (y : u256) : map :=
-    [ffun z => if (z == x) then y else m z].
-End XRegMap.
-
-(* -------------------------------------------------------------------- *)
 
 Definition x86_string_of_register r :=
   match r with

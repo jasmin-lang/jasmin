@@ -2379,28 +2379,15 @@ Proof.
   by constructor.
 Qed.
 
-Definition set_of_var_i_seq : Sv.t → seq var_i → Sv.t :=
-  foldl (λ acc x, Sv.add (v_var x) acc).
-
-Lemma mem_set_of_var_i_seq x acc xs :
-  Sv.mem x (set_of_var_i_seq acc xs) = Sv.mem x acc || (x \in map v_var xs).
-Proof.
-  elim: xs acc.
-  - by move => acc; rewrite orbF.
-  move => y xs ih acc; rewrite /= ih{ih} inE eq_sym; case: eqP.
-  - by move => ->; rewrite SvP.add_mem_1 orbT.
-  by move => ?; rewrite SvP.add_mem_2.
-Qed.
-
-Corollary  get_vars_uincl (xs:seq var_i) vm1 vm2 vs1:
+Lemma get_vars_uincl (xs:seq var_i) vm1 vm2 vs1:
   vm_uincl vm1 vm2 ->
   mapM (fun x => get_var vm1 (v_var x)) xs = ok vs1 ->
   exists2 vs2,
     mapM (fun x => get_var vm2 (v_var x)) xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
 Proof.
-  move => hvm; apply: (@get_vars_uincl_on (set_of_var_i_seq Sv.empty xs)).
+  move => hvm; apply: (@get_vars_uincl_on (sv_of_list v_var xs)).
   + exact: vm_uincl_vmap_uincl_on hvm.
-  by move => /= y hy; rewrite mem_set_of_var_i_seq map_f.
+  by move => /= y hy; rewrite sv_of_listE; apply map_f.
 Qed.
 
 (* can be merged with sem_pexpr_uincl_on *)

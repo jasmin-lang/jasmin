@@ -179,8 +179,6 @@ Module Import E.
 
   Definition ii_loop_iterator := ii_loop_iterator pass.
 
-  Definition error := pp_internal_error_s pass.
-
 End E.
 
 Section ASM_OP.

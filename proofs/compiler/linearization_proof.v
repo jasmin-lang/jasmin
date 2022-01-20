@@ -3574,17 +3574,11 @@ Section PROOF.
       + apply/Sv_memP.
         rewrite sv_of_listE map_id -sv_of_listE; apply/Sv_memP => K.
         move/disjointP: to_save_not_result => /(_ _ K).
-        apply; apply/Sv_memP.
-        rewrite mem_set_of_var_i_seq; apply/in_map.
-        exists r; last by case: (r) K.
-        exact/InP.
+        by apply; apply/Sv_memP; rewrite sv_of_listE; apply/map_f.
       apply: eval_uincl_trans (s2_vmo r r_not_saved).
       have r_not_rsp : vrsp != r.
       + apply/eqP => K.
-        move: RSP_not_result.
-        rewrite mem_set_of_var_i_seq => /in_map[].
-        exists r; last by case: (r) K.
-        exact/InP.
+        by move: RSP_not_result; rewrite sv_of_listE; apply/negP/negPn/mapP; exists r.
       by rewrite !Fv.setP_neq.
     have : ∃ lres : values,
         [/\ mapM (λ x : var_i, get_var vmo x) (f_res fd) = ok lres, List.Forall2 value_uincl res lres & all2 check_ty_val (f_tyout fd) lres ].

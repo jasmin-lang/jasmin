@@ -200,41 +200,6 @@ let expr_of_cexprs tbl es = List.map (expr_of_cexpr tbl) es
 
 (* ------------------------------------------------------------------------ *)
 
-let cat_of_at = function
-  | AT_none    -> C.AT_none
-  | AT_keep    -> C.AT_keep
-  | AT_rename  -> C.AT_rename
-  | AT_inline  -> C.AT_inline
-  | AT_phinode -> assert false
-
-let at_of_cat = function
-  | C.AT_none   -> AT_none
-  | C.AT_keep   -> AT_keep
-  | C.AT_rename -> AT_rename
-  | C.AT_inline -> AT_inline
-
-(* ------------------------------------------------------------------------ *)
-
-let crdir_of_rdir = function
-  | UpTo   -> C.UpTo
-  | DownTo -> C.DownTo
-
-let rdir_of_crdir = function
-  | C.UpTo   -> UpTo
-  | C.DownTo -> DownTo
-
-(* ------------------------------------------------------------------------ *)
-
-let cii_of_ii = function
-  | DoInline -> C.InlineFun
-  | NoInline -> C.DoNotInline
-
-let ii_of_cii = function
-  | C.InlineFun   -> DoInline
-  | C.DoNotInline -> NoInline
-
-(* ------------------------------------------------------------------------ *)
-
 let cfun_of_fun tbl fn =
   try Hashtbl.find tbl.funname fn
   with Not_found ->
@@ -269,11 +234,11 @@ and cinstr_r_of_instr_r tbl p i tl =
   match i with
   | Cassgn(x,t, ty,e) ->
     let ir  =
-      C.Cassgn(clval_of_lval tbl x, cat_of_at t, cty_of_ty ty, cexpr_of_expr tbl e) in
+      C.Cassgn(clval_of_lval tbl x, t, cty_of_ty ty, cexpr_of_expr tbl e) in
     C.MkI(p, ir) :: tl
   | Copn(x,t,o,e) ->
     let ir =
-      C.Copn(clval_of_lvals tbl x, cat_of_at t, o, cexpr_of_exprs tbl e) in
+      C.Copn(clval_of_lvals tbl x, t, o, cexpr_of_exprs tbl e) in
     C.MkI(p, ir) :: tl
 
   | Csyscall(x,o,e) ->
@@ -289,7 +254,7 @@ and cinstr_r_of_instr_r tbl p i tl =
     C.MkI(p, ir) :: tl
 
   | Cfor(x, (d,e1,e2), c) ->
-    let d = ((crdir_of_rdir d, cexpr_of_expr tbl e1), cexpr_of_expr tbl e2) in
+    let d = ((d, cexpr_of_expr tbl e1), cexpr_of_expr tbl e2) in
     let x = cvari_of_vari tbl x in
     let c = cstmt_of_stmt tbl c [] in
     let ir = C.Cfor(x,d,c) in
@@ -299,7 +264,6 @@ and cinstr_r_of_instr_r tbl p i tl =
                       cstmt_of_stmt tbl c' []) in
     C.MkI(p,ir) :: tl
   | Ccall(ii, x, f, e) ->
-    let ii = cii_of_ii ii in
     let ir =
       C.Ccall(ii, clval_of_lvals tbl x, cfun_of_fun tbl f, cexpr_of_exprs tbl e)
     in
@@ -317,10 +281,10 @@ let rec instr_of_cinstr tbl i =
 
 and instr_r_of_cinstr_r tbl = function
   | C.Cassgn(x,t, ty,e) ->
-    Cassgn(lval_of_clval tbl x, at_of_cat t, ty_of_cty ty, expr_of_cexpr tbl e)
+    Cassgn(lval_of_clval tbl x, t, ty_of_cty ty, expr_of_cexpr tbl e)
 
   | C.Copn(x,t,o,e) ->
-    Copn(lval_of_clvals tbl x, at_of_cat t, o, expr_of_cexprs tbl e)
+    Copn(lval_of_clvals tbl x, t, o, expr_of_cexprs tbl e)
 
   | C.Csyscall(x,o,e) ->
     Csyscall(lval_of_clvals tbl x, o, expr_of_cexprs tbl e)
@@ -331,7 +295,7 @@ and instr_r_of_cinstr_r tbl = function
     Cif(expr_of_cexpr tbl e, c1, c2)
 
   | Cfor(x, ((d,e1),e2), c) ->
-    let d = (rdir_of_crdir d, expr_of_cexpr tbl e1, expr_of_cexpr tbl e2) in
+    let d = (d, expr_of_cexpr tbl e1, expr_of_cexpr tbl e2) in
     let x = vari_of_cvari tbl x in
     let c = stmt_of_cstmt tbl c in
     Cfor(x,d,c)
@@ -340,7 +304,6 @@ and instr_r_of_cinstr_r tbl = function
     Cwhile(a, stmt_of_cstmt tbl c, expr_of_cexpr tbl e, stmt_of_cstmt tbl c')
 
   | Ccall(ii, x, f, e) ->
-    let ii = ii_of_cii ii in
     Ccall(ii, lval_of_clvals tbl x, fun_of_cfun tbl f, expr_of_cexprs tbl e)
 
 and stmt_of_cstmt tbl c =

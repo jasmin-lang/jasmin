@@ -108,13 +108,6 @@ let is_ptr k =
 
 (* ------------------------------------------------------------------------ *)
 
-type assgn_tag =
-  | AT_none   (* The compiler can do what it want *)
-  | AT_keep   (* Assignment should be keep by the compiler *)
-  | AT_rename (* use as equality constraint in reg-alloc and compile to no-op *)
-  | AT_inline (* the assignement should be inline, and propagate *)
-  | AT_phinode (* renaming during SSA transformation *)
-
 type 'len glval =
  | Lnone of L.t * 'len gty
  | Lvar  of 'len gvar_i
@@ -127,26 +120,21 @@ type 'len glval =
 
 type 'len glvals = 'len glval list
 
-type inline_info =
-  | DoInline
-  | NoInline
-
 type funname = {
     fn_name : Name.t;
     fn_id   : uid;
   }
 
-type range_dir = UpTo | DownTo
-type 'len grange = range_dir * 'len gexpr * 'len gexpr
+type 'len grange = E.dir * 'len gexpr * 'len gexpr
 
 type ('len,'info) ginstr_r =
-  | Cassgn   of 'len glval * assgn_tag * 'len gty * 'len gexpr
-  | Copn     of 'len glvals * assgn_tag * X86_extra.x86_extended_op Sopn.sopn * 'len gexprs
+  | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
+  | Copn   of 'len glvals * E.assgn_tag * X86_extra.x86_extended_op Sopn.sopn * 'len gexprs
   | Csyscall of 'len glvals * Syscall.syscall_t * 'len gexprs
-  | Cif      of 'len gexpr * ('len,'info) gstmt * ('len,'info) gstmt
-  | Cfor     of 'len gvar_i * 'len grange * ('len,'info) gstmt
-  | Cwhile   of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
-  | Ccall    of inline_info * 'len glvals * funname * 'len gexprs
+  | Cif    of 'len gexpr * ('len,'info) gstmt * ('len,'info) gstmt
+  | Cfor   of 'len gvar_i * 'len grange * ('len,'info) gstmt
+  | Cwhile of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
+  | Ccall  of E.inline_info * 'len glvals * funname * 'len gexprs
 
 and ('len,'info) ginstr = {
     i_desc : ('len,'info) ginstr_r;
