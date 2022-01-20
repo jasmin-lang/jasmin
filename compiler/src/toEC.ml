@@ -70,6 +70,7 @@ let rec read_mem_i s i =
   match i.i_desc with
   | Cassgn (x, _, _, e) -> read_mem_lval x || read_mem_e e
   | Copn (xs, _, _, es) -> read_mem_lvals xs || read_mem_es es
+  | Csyscall _ -> assert false (* FIXME syscall *)
   | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
   | Cwhile (_, c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
   | Ccall (_, xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
@@ -83,6 +84,7 @@ let rec write_mem_i s i =
   match i.i_desc with
   | Cassgn (x, _, _, _)  -> write_mem_lval x 
   | Copn (xs, _, _, _)   -> write_mem_lvals xs 
+  | Csyscall _ -> assert false (* FIXME syscall *)
   | Cif (_, c1, c2)      -> write_mem_c s c1 ||write_mem_c s c2
   | Cwhile (_, c1, _, c2)   -> write_mem_c s c1 ||write_mem_c s c2
   | Ccall (_, xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s 
@@ -766,6 +768,7 @@ module Normal = struct
         let ltys = List.map ty_lval lvs in
         if all_vars lvs && ltys = tys then env
         else add_aux env tys
+    | Csyscall _ -> assert false (* FIXME syscall *)
     | Ccall(_, lvs, f, _) ->      
       if lvs = [] then env 
       else 
@@ -818,7 +821,9 @@ module Normal = struct
         let pp fmt (op, es) = 
           Format.fprintf fmt "<- %a" pp_e (op,es) in
         pp_call env fmt lvs otys otys' pp (op,es)
-        
+
+    | Csyscall _ -> assert false (* FIXME syscall *)    
+
     | Ccall(_, lvs, f, es) ->
       let otys, itys = get_funtype env f in
       let pp_args fmt es = 
@@ -1026,6 +1031,7 @@ module Leak = struct
     match i.i_desc with
     | Cassgn (lv, _, _, _) -> add_aux env [ty_lval lv]
     | Copn (lvs, _, _, _) -> add_aux env (List.map ty_lval lvs)
+    | Csyscall _ -> assert false (* FIXME syscall *)
     | Ccall(_, lvs, _, _) -> 
       if lvs = [] then env 
       else add_aux env (List.map ty_lval lvs)
@@ -1091,7 +1097,9 @@ module Leak = struct
           (pp_list "@ " (pp_wcast env)) (List.combine itys es) in
       pp_leaks_opn env fmt op' es;
       pp_call env fmt lvs otys otys' pp (op, es)
-      
+    
+    | Csyscall _ -> assert false (* FIXME syscall *)  
+
     | Ccall(_, lvs, f, es) ->
       let otys, itys = get_funtype env f in
       let pp_args fmt es = 
@@ -1287,6 +1295,7 @@ and used_func_c used c =
 and used_func_i used i = 
   match i.i_desc with
   | Cassgn _ | Copn _ -> used
+  | Csyscall _ -> assert false (* FIXME syscall *)
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2

@@ -250,6 +250,10 @@ let pp_indirect_label lbl =
   Format.sprintf "*%s" (pp_asm_arg (W.U64, lbl))
 
 (* -------------------------------------------------------------------- *)
+let pp_syscall (_o : Syscall.syscall_t) = 
+   "__jasmin_syscall_getrandom__"
+
+(* -------------------------------------------------------------------- *)
 let pp_instr tbl name (i : (_, _, _, _, _) Arch_decl.asm_i) =
   match i with
   | ALIGN ->
@@ -274,6 +278,10 @@ let pp_instr tbl name (i : (_, _, _, _, _) Arch_decl.asm_i) =
     let pp = id.id_pp_asm args in
     let name = pp_name_ext pp in
     let args = pp_asm_args pp.pp_aop_args in
+    `Instr(name, args)
+  | SysCall(op) ->
+    let name = "call" in
+    let args = [pp_syscall op] in  
     `Instr(name, args)
 
 

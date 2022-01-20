@@ -102,6 +102,8 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
       else Error (E.ii_error ii "assign not a word")
     | Copn xs tag o es =>
       ok tt
+    | Csyscall xs o es => 
+      ok tt
     | Cif b c1 c2 =>
       check_c check_i c1 >> check_c check_i c2
     | Cfor _ _ _ =>
@@ -376,7 +378,10 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
                then lassign ii x sz e :: lc
                else lc
     in (lbl, lc')
+
   | Copn xs _ o es => (lbl, MkLI ii (Lopn xs o es) :: lc)
+
+  | Csyscall xs o es => (lbl, MkLI ii (Lsyscall o) :: lc)
 
   | Cif e [::] c2 =>
     let L1 := lbl in

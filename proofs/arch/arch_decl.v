@@ -27,7 +27,7 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Import utils oseq strings wsize memory_model global Utf8 Relation_Operators sem_type label.
+Require Import utils oseq strings wsize memory_model global Utf8 Relation_Operators sem_type syscall label.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -462,7 +462,8 @@ Variant asm_i : Type :=
   | JMP    of remote_label (* Direct jump *)
   | JMPI   of asm_arg (* Indirect jump *)
   | Jcc    of label & cond_t  (* Conditional jump *)
-  | AsmOp  of asm_op_t' & asm_args.
+  | AsmOp  of asm_op_t' & asm_args
+  | SysCall of syscall_t.
 
 Definition asm_code := seq asm_i.
 

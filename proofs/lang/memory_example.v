@@ -209,14 +209,14 @@ Module MemoryI : MemoryT.
 
   Definition set (m:mem) (p:pointer) (w:u8) :=
     Let _ := assert (is_alloc m p) ErrAddrInvalid in
-    ok {| data      := Mz.set m.(data) (wunsigned p) w ;
-          alloc     := m.(alloc);
-          stk_root  := m.(stk_root);
-          stk_limit := m.(stk_limit);
-          frames    := m.(frames);
-          framesP   := m.(framesP);
-          stk_allocP   := m.(stk_allocP);
-          stk_freeP   := m.(stk_freeP);
+    ok {| data       := Mz.set m.(data) (wunsigned p) w;
+          alloc      := m.(alloc);
+          stk_root   := m.(stk_root);
+          stk_limit  := m.(stk_limit);
+          frames     := m.(frames);
+          framesP    := m.(framesP);
+          stk_allocP := m.(stk_allocP);
+          stk_freeP  := m.(stk_freeP);
        |}.
 
   Lemma is_allocP m p w : reflect (exists m', set m p w = ok m') (is_alloc m p).
@@ -569,7 +569,7 @@ Module MemoryI : MemoryT.
       2: have := wunsigned_range (stk_root m).
       all: Lia.lia.
     Qed.
-
+                  
   #[ global ]
   Instance M : memory CM  :=
     Memory stk_root stk_limit stack_frames alloc_stack free_stack init_mem stack_region_is_free top_stack_below_root.

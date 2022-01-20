@@ -324,6 +324,7 @@ let safe_opn safe opn es =
 let safe_instr ginstr = match ginstr.i_desc with
   | Cassgn (lv, _, _, e) -> safe_e_rec (safe_lval lv) e
   | Copn (lvs,_,opn,es) -> safe_opn (safe_lvals lvs @ safe_es es) opn es
+  | Csyscall _ -> assert false (* FIXME syscall *)
   | Cif(e, _, _) -> safe_e e
   | Cwhile(_,_, _, _) -> []       (* We check the while condition later. *)
   | Ccall(_, lvs, _, es) -> safe_lvals lvs @ safe_es es
@@ -1411,6 +1412,7 @@ end = struct
     let rec nm_i vs_for i = match i.i_desc with
       | Cassgn (lv, _, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
       | Copn (lvs, _, _, es)    -> nm_lvs vs_for lvs && nm_es vs_for es
+      | Csyscall _ -> assert false (* FIXME syscall *)
       | Cif (e, st, st')        -> 
         nm_e vs_for e && nm_stmt vs_for st && nm_stmt vs_for st'
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
@@ -1574,6 +1576,8 @@ end = struct
         let cl = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), el) } in
         let cr = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), er) } in
         aeval_if ginstr c [cl] [cr] state
+
+      | Csyscall _ -> assert false (* FIXME syscall *)
 
       | Cassgn (lv, _, _, e) ->
         let abs = AbsExpr.abs_assign

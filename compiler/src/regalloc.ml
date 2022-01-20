@@ -32,6 +32,7 @@ let fill_in_missing_names (f: 'info func) : 'info func =
     function
     | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
     | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
+    | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
     | Cwhile (a, s, e, s') -> Cwhile (a, fill_stmt s, e, fill_stmt s')
@@ -142,6 +143,16 @@ let set_friend i j (f: friend) : friend =
 type 'info collect_equality_constraints_state =
   { mutable cac_friends : friend; mutable cac_eqc: Puf.t ; cac_trace: 'info instr list array }
 
+let get_Pvar loc ~sub_kind a =
+  match a with
+  | Pvar { gs = Expr.Slocal ; gv } -> gv
+  | _ -> hierror ~loc:(Lmore loc) ~sub_kind ~internal:true "argument is not a local variable" 
+      
+let get_Lvar loc ~sub_kind x =
+  match x with
+  | Lvar v -> v
+  | _ -> hierror ~loc:(Lmore loc) ~sub_kind ~internal:true "return destination is not a variable" 
+
 let collect_equality_constraints_in_func
       ~(with_call_sites: (funname -> 'info func) option)
       (msg: string)
@@ -165,6 +176,8 @@ let collect_equality_constraints_in_func
     function
     | Cfor (_, _, s) -> collect_stmt s
     | Copn (lvs, _, op, es) -> copn_constraints int_of_var (add ii) addf lvs op es
+    (* FIXME syscall *)
+    | Csyscall (_lvs, _op, _es) -> () 
     | Cassgn (Lvar x, AT_phinode, _, Pvar y) when
           is_gkvar y && kind_i x = kind_i y.gv ->
        addv ii x y.gv
@@ -180,21 +193,13 @@ let collect_equality_constraints_in_func
        end
     | Cassgn _ -> ()
     | Ccall (_, xs, fn, es) ->
-      let get_Pvar a =
-        match a with
-        | Pvar { gs = Expr.Slocal ; gv } -> gv
-        | _ -> hierror ~loc:(Lmore ii.i_loc) ~sub_kind:msg ~internal:true "argument is not a local variable" in
-      let get_Lvar x =
-        match x with
-        | Lvar v -> v
-        | _ -> hierror ~loc:(Lmore ii.i_loc) ~sub_kind:msg ~internal:true "return destination is not a variable" in
       begin match with_call_sites with
       | None -> ()
       | Some get_func ->
         let g = get_func fn in
-        List.iter2 (fun a p -> addv ii (get_Pvar a) Location.(mk_loc _dummy p))
+        List.iter2 (fun a p -> addv ii (get_Pvar ii.i_loc ~sub_kind:msg a) Location.(mk_loc _dummy p))
           es g.f_args;
-        List.iter2 (fun r x -> addv ii r (get_Lvar x))
+        List.iter2 (fun r x -> addv ii r (get_Lvar ii.i_loc ~sub_kind:msg x))
           g.f_ret xs
       end
     | (Cwhile (_, s1, _, s2) | Cif (_, s1, s2)) -> collect_stmt s1; collect_stmt s2
@@ -329,6 +334,7 @@ let collect_conflicts
     | Cassgn _
     | Copn _
     | Ccall _
+    | Csyscall _
       -> c
     | Cwhile (_, s1, _, s2)
     | Cif (_, s1, s2)
@@ -347,7 +353,7 @@ let iter_variables (cb: var -> unit) (f: 'info func) : unit =
   let rec iter_instr_r =
     function
     | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
-    | (Ccall (_, lvs, _, es) | Copn (lvs, _, _, es)) -> iter_lvs lvs; iter_exprs es
+    | (Ccall (_, lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _, es) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
     | Cfor _ -> assert false
   and iter_instr { i_desc } = iter_instr_r i_desc
@@ -603,6 +609,11 @@ let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
     | Cfor (_, _, s)
       -> alloc_stmt s
     | Copn (lvs, _, op, es) -> X64.forced_registers translate_var loc nv vars cnf lvs op es a
+    | Csyscall(xs, _o, es) -> 
+      alloc_from_list loc ~ctxt:"parameters" X64.arguments X64.xmm_arguments 
+        (fun e -> L.unloc (get_Pvar loc ~sub_kind:"" e)) es; 
+      alloc_from_list loc ~ctxt:"parameters" X64.ret X64.xmm_ret 
+        (fun e -> L.unloc (get_Lvar loc ~sub_kind:"" e)) xs
     | Cwhile (_, s1, _, s2)
     | Cif (_, s1, s2)
         -> alloc_stmt s1; alloc_stmt s2
@@ -750,8 +761,7 @@ let split_live_ranges (f: 'info func) : unit func =
   Glob_options.eprint Compiler.Splitting  (Printer.pp_func ~debug:true) f;
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
   let eqc, _tr, _fr =
-    collect_equality_constraints
-      "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
+    collect_equality_constraints "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
   let vars = normalize_variables vars eqc in
   let a = reverse_varmap nv vars |> subst_of_allocation vars in
   Subst.subst_func a f

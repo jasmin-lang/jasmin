@@ -40,6 +40,7 @@ let rec warn_extra_i i =
         (Printer.pp_instr ~debug:false) i
     | _ -> ()
     end
+  | Csyscall _ -> ()
   | Cif(_, c1, c2) | Cwhile(_,c1,_,c2) ->
     List.iter warn_extra_i c1;
     List.iter warn_extra_i c2;
@@ -233,9 +234,34 @@ let main () =
       cufdef_of_fdef fd in
 
     let translate_var = Conv.var_of_cvar tbl in
+
+ let fresh_id _gd x =
+      let x = Conv.var_of_cvar tbl x in
+      let x' = Prog.V.clone x in
+      let cx = Conv.cvar_of_var tbl x' in
+      cx.Var0.Var.vname in
+
+    let fresh_reg name ty = 
+      let name = Conv.string_of_string0 name in
+      let ty = Conv.ty_of_cty ty in
+      let p = Prog.V.mk name (Reg Direct) ty L._dummy [] in
+      let cp = Conv.cvar_of_var tbl p in
+      cp.Var0.Var.vname in
+    
+    let fresh_reg_ptr name ty = 
+      let name = Conv.string_of_string0 name in
+      let ty = Conv.ty_of_cty ty in
+      let p = Prog.V.mk name (Reg (Pointer Writable)) ty L._dummy [] in
+      let cp = Conv.cvar_of_var tbl p in
+      cp.Var0.Var.vname in
+
+    let fresh_counter =
+      let i = Prog.V.mk "i__copy" Inline tint L._dummy [] in
+      let ci = Conv.cvar_of_var tbl i in
+      ci.Var0.Var.vname in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl X86_params.aparams up
+      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl fresh_reg_ptr X86_params.aparams up
      in
 
     let global_regalloc fds =
@@ -355,17 +381,6 @@ let main () =
       let x = Conv.var_of_cvar tbl x in
       x.v_kind = Global in
 
-    let fresh_id _gd x =
-      let x = Conv.var_of_cvar tbl x in
-      let x' = Prog.V.clone x in
-      let cx = Conv.cvar_of_var tbl x' in
-      cx.Var0.Var.vname in
-
-    let fresh_counter =
-      let i = Prog.V.mk ("i__copy") Inline tint L._dummy [] in
-      let ci = Conv.cvar_of_var tbl i in
-      ci.Var0.Var.vname in
-
     let var_alloc_fd fd = Regalloc.split_live_ranges fd in
 
     let removereturn sp = 
@@ -417,6 +432,8 @@ let main () =
                                          use_set0 = !Glob_options.set0; };
       Compiler.is_glob     = is_glob;
       Compiler.fresh_id    = fresh_id;
+      Compiler.fresh_reg   = fresh_reg;
+      Compiler.fresh_reg_ptr = fresh_reg_ptr;
       Compiler.fresh_counter = fresh_counter;
       Compiler.is_reg_ptr  = is_reg_ptr;
       Compiler.is_ptr      = is_ptr;
@@ -436,7 +453,7 @@ let main () =
         ([], []) in
 
     begin match
-      Compiler.compile_prog_to_x86 cparams X86_params.aparams export_functions subroutines (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) with
+      Compiler.compile_prog_to_x86 cparams X86_params.aparams X86_params.sparams export_functions subroutines (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) with
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
       raise (HiError e)

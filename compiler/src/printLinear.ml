@@ -77,6 +77,9 @@ let pp_label fmt lbl =
 let pp_remote_label tbl fmt (fn, lbl) =
   F.fprintf fmt "%s.%a" (string_of_funname tbl fn) pp_label lbl
 
+let pp_syscall fmt (_o : Syscall.syscall_t) = 
+  F.fprintf fmt "GetRandom"
+
 let pp_instr tbl fmt i =
   match i.li_i with
   | Lopn (lvs, op, es) ->
@@ -84,6 +87,7 @@ let pp_instr tbl fmt i =
       (pp_list ",@ " (pp_lval tbl)) lvs
       Pr.pp_string0 (Sopn.string_of_sopn (Arch_extra.asm_opI X86_extra.x86_extra) op)
       (pp_list ",@ " (pp_expr tbl)) es
+  | Lsyscall o  -> F.fprintf fmt "SysCall %s" (Printer.pp_syscall o)
   | Lalign     -> F.fprintf fmt "Align"
   | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl
   | Lgoto lbl -> F.fprintf fmt "Goto %a" (pp_remote_label tbl) lbl

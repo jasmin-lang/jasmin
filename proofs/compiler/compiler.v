@@ -165,6 +165,8 @@ Record compiler_params := {
   lowering_opt     : lowering_options;
   is_glob          : var -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
+  fresh_reg        : string -> stype -> Ident.ident;
+  fresh_reg_ptr    : string -> stype -> Ident.ident;
   fresh_counter    : Ident.ident;
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
@@ -176,6 +178,13 @@ Record architecture_params := mk_aparams {
   is_move_op       : asm_op_t -> bool
 }.
 
+(* System dependant *)
+Record system_params := mk_sparams {
+  write_syscall : syscall_t -> Sv.t; 
+  syscall_vsig  : syscall_t -> seq var * seq var;
+  callee_saved  : Sv.t;
+}.
+
 #[local]
 Existing Instance progUnit.
 
@@ -184,6 +193,7 @@ Definition var_alloc_prog cp (p: _uprog) : _uprog :=
 
 Variable cparams : compiler_params.
 Variable aparams : architecture_params.
+Variable sparams : system_params.
 
 (* Ensure that export functions are preserved *)
 Definition check_removereturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
@@ -232,7 +242,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_id) pg in
+  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_reg_ptr) syscall.syscall_sig_u pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
   Let _ := assert (fvars_correct cparams.(lowering_vars) (p_funcs pa)) 
@@ -273,6 +283,7 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
   Let ps := stack_alloc.alloc_prog
        true
        mov_ofs
+       cparams.(fresh_reg)
        cparams.(global_static_data_symbol)
        cparams.(stack_register_symbol)
        ao.(ao_globals) ao.(ao_global_alloc)
@@ -291,10 +302,11 @@ Definition check_export entries (p: sprog) : cexec unit :=
           else Error (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "unknown export function")))
        ) entries.
 
-Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
+Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
-  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp callee_saved in
+  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp sparams.(callee_saved)
+                sparams.(write_syscall) sparams.(syscall_vsig) in
   Let pl := linear_prog pd cparams.(extra_free_registers) lparams in
   let pl := cparams.(print_linear) Linearization pl in
   (* tunneling                         *)
@@ -303,9 +315,9 @@ Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
 
   ok pl.
 
-Definition compile_prog (callee_saved: Sv.t) (entries subroutines : seq funname) (p: prog) :=
+Definition compile_prog (entries subroutines : seq funname) (p: prog) :=
   Let pd := compiler_front_end entries subroutines p in
-  Let pl := compiler_back_end callee_saved entries pd in
+  Let pl := compiler_back_end entries pd in
   ok pl.
 
 Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
@@ -316,8 +328,7 @@ Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
   else true.
 
 Definition compile_prog_to_x86 entries subroutines (p: prog): cexec x86_prog :=
-  let callee_saved := sv_of_list to_var x86_callee_saved in
-  Let lp := compile_prog callee_saved entries subroutines p in
+  Let lp := compile_prog entries subroutines p in
 (*  Let _ := assert (all (check_signature p lp) entries) Ferr_lowering in *)
   assemble_prog lp.
 

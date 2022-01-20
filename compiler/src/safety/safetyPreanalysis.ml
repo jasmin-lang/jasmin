@@ -82,6 +82,7 @@ end = struct
       Cassgn (mk_lval fn lv, tag, ty, mk_expr fn e)
     | Copn (lvls, tag, opn, exprs) ->
       Copn (mk_lvals fn lvls, tag, opn, mk_exprs fn exprs)
+    | Csyscall _ -> assert false (* FIXME syscall *)
     | Cif (e, st, st') ->
       Cif (mk_expr fn e, mk_stmt fn st, mk_stmt fn st')
     | Cfor (v, r, st) ->
@@ -324,6 +325,8 @@ end = struct
           Some [ru]
         | _ -> assert false
       else None
+    
+    | Csyscall _ -> assert false (* FIXME syscall *)
 
     | Cif (_, c1, c2) ->
       begin match pa_flag_setfrom v c1, pa_flag_setfrom v c2 with
@@ -347,6 +350,8 @@ end = struct
 
     | Copn (lvs, _, _, es) -> List.fold_left (fun st lv ->
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
+
+    | Csyscall _ -> assert false (* FIXME syscall *)
 
     | Cif (b, c1, c2) ->
       let vs,st = expr_vars st b in 
@@ -504,9 +509,14 @@ end = struct
     | Copn (lvs, _, _, es) ->
       let sv = collect_vars_lvs sv lvs in
       collect_vars_es sv es
+    | Csyscall (lvs, _, es) ->
+      let sv = collect_vars_lvs sv lvs in
+      collect_vars_es sv es
+ 
     | Cassgn (lv, _, _, e) ->
       let sv = collect_vars_lv sv lv in
       collect_vars_e sv e
+
     | Ccall _ -> raise Fcall
 
   and collect_vars_is sv is = List.fold_left collect_vars_i sv is

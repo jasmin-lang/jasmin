@@ -197,6 +197,14 @@ Module WArray.
   Definition copy ws p (a:array (Z.to_pos (arr_size ws p))) := 
     fcopy ws a (WArray.empty _) 0 p.
 
+  Definition fill len (l:list u8) : exec (array len) := 
+    Let _ := assert (Pos.to_nat len == size l) ErrType in 
+    Let pt := 
+      foldM (fun w pt => 
+             Let t := set pt.2 AAdirect pt.1 w in
+             ok (pt.1 + 1, t)) (0%Z, empty len) l in
+    ok pt.2.
+
   Definition get_sub_data (aa:arr_access) ws len (a:Mz.t u8) p := 
      let size := arr_size ws len in 
      let start := (p * mk_scale aa ws)%Z in

@@ -28,7 +28,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
 From CoqWord Require Import ssrZ.
-Require Export strings word utils type ident var global sem_type sopn.
+Require Export strings word utils type ident var global sem_type sopn syscall.
 Require Import xseq.
 Import Utf8 ZArith.
 
@@ -512,16 +512,15 @@ Canonical  align_eqType      := Eval hnf in EqType align align_eqMixin.
 Section ASM_OP.
 
 Context `{asmop:asmOp}.
-
+ 
 Inductive instr_r :=
-| Cassgn : lval -> assgn_tag -> stype -> pexpr -> instr_r
-| Copn   : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
-| Cgetrandom: positive -> lval -> pexpr -> instr_r 
-
-| Cif    : pexpr -> seq instr -> seq instr  -> instr_r
-| Cfor   : var_i -> range -> seq instr -> instr_r
-| Cwhile : align -> seq instr -> pexpr -> seq instr -> instr_r
-| Ccall  : inline_info -> lvals -> funname -> pexprs -> instr_r
+| Cassgn   : lval -> assgn_tag -> stype -> pexpr -> instr_r
+| Copn     : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
+| Csyscall : lvals -> syscall_t -> pexprs -> instr_r 
+| Cif      : pexpr -> seq instr -> seq instr  -> instr_r
+| Cfor     : var_i -> range -> seq instr -> instr_r
+| Cwhile   : align -> seq instr -> pexpr -> seq instr -> instr_r
+| Ccall    : inline_info -> lvals -> funname -> pexprs -> instr_r
 
 with instr := MkI : instr_info -> instr_r ->  instr.
 
@@ -539,8 +538,8 @@ Fixpoint instr_r_beq (i1 i2:instr_r) :=
      (tag1 == tag2) && (ty1 == ty2) && (x1 == x2) && (e1 == e2)
   | Copn x1 tag1 o1 e1, Copn x2 tag2 o2 e2 =>
      (x1 == x2) && (tag1 == tag2) && (o1 == o2) && (e1 == e2)
-  | Cgetrandom p1 x1 e1, Cgetrandom p2 x2 e2 => 
-      (p1 == p2) && (x1 == x2) && (e1 == e2)
+  | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 => 
+      (xs1 == xs2) && (o1 == o2) && (es1 == es2)
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
     (e1 == e2) && all2 instr_beq c11 c21 && all2 instr_beq c12 c22
   | Cfor i1 (dir1,lo1,hi1) c1, Cfor i2 (dir2,lo2,hi2) c2 =>
@@ -885,12 +884,12 @@ Definition lv_write_mem (r:lval) : bool :=
 
 Fixpoint write_i_rec s (i:instr_r) :=
   match i with
-  | Cassgn x _ _ _    => vrv_rec s x
+  | Cassgn x _ _ _  => vrv_rec s x
   | Copn xs _ _ _   => vrvs_rec s xs
-  | Cgetrandom _ x _ => vrv_rec s x 
+  | Csyscall xs _ _ => vrvs_rec s xs 
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
-  | Cwhile _ c _ c'   => foldl write_I_rec (foldl write_I_rec s c') c
+  | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
   | Ccall _ x _ _   => vrvs_rec s x
   end
 with write_I_rec s i :=
@@ -947,9 +946,9 @@ Definition read_rvs := read_rvs_rec Sv.empty.
 
 Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   match i with
-  | Cassgn x _ _ e => read_rv_rec (read_e_rec s e) x
-  | Copn xs _ _ es => read_es_rec (read_rvs_rec s xs) es
-  | Cgetrandom _ x e => read_rv_rec (read_e_rec s e) x
+  | Cassgn x _ _ e   => read_rv_rec (read_e_rec s e) x
+  | Copn xs _ _ es   => read_es_rec (read_rvs_rec s xs) es
+  | Csyscall xs _ es => read_es_rec (read_rvs_rec s xs) es
   | Cif b c1 c2 =>
     let s := foldl read_I_rec s c1 in
     let s := foldl read_I_rec s c2 in
@@ -1036,3 +1035,4 @@ Definition eq_lval (x x': lval) : bool :=
 
   | _, _ => false
   end.
+

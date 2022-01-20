@@ -1,47 +1,10 @@
 open Var0
 open Prog
+include CoreConv
+
 module W = Wsize
 module T = Type
 module C = Expr
-
-let rec pos_of_bi bi =
-  let open B.Notations in
-  if bi <=^ B.one then BinNums.Coq_xH
-  else
-    let p = pos_of_bi (B.rshift bi 1) in
-    if (B.erem bi (B.of_int 2)) =^ B.one
-    then BinNums.Coq_xI p
-    else BinNums.Coq_xO p
-
-let rec bi_of_pos pos =
-  let open B.Notations in
-  match pos with
-  | BinNums.Coq_xH   -> B.one
-  | BinNums.Coq_xO p -> B.lshift (bi_of_pos p) 1
-  | BinNums.Coq_xI p -> B.lshift (bi_of_pos p) 1 +^ B.one
-
-let z_of_bi bi =
-  let open B.Notations in
-  if bi =^ B.zero then BinNums.Z0
-  else if bi <^ B.zero then BinNums.Zneg (pos_of_bi (B.abs bi))
-  else BinNums.Zpos (pos_of_bi bi)
-
-let bi_of_z z =
-  match z with
-  | BinNums.Zneg p -> B.neg (bi_of_pos p)
-  | BinNums.Z0     -> B.zero
-  | BinNums.Zpos p -> bi_of_pos p
-
-let z_of_int i = z_of_bi (B.of_int i)
-
-let bi_of_nat n =
-  bi_of_z (BinInt.Z.of_nat n)
-
-let int_of_nat n = B.to_int (bi_of_nat n)
-let nat_of_int i = BinInt.Z.to_nat (z_of_int i)
-
-let pos_of_int i = pos_of_bi (B.of_int i)
-let int_of_pos p = B.to_int (bi_of_pos p)
 
 let int64_of_bi bi = Word0.wrepr W.U64 (z_of_bi bi)
 let int32_of_bi bi = Word0.wrepr W.U32 (z_of_bi bi)
@@ -313,6 +276,12 @@ and cinstr_r_of_instr_r tbl p i tl =
       C.Copn(clval_of_lvals tbl x, cat_of_at t, o, cexpr_of_exprs tbl e) in
     C.MkI(p, ir) :: tl
 
+  | Csyscall(x,o,e) ->
+    let ir =
+      C.Csyscall(clval_of_lvals tbl x, o, cexpr_of_exprs tbl e) in
+    C.MkI(p, ir) :: tl
+
+
   | Cif(e,c1,c2) ->
     let c1 = cstmt_of_stmt tbl c1 [] in
     let c2 = cstmt_of_stmt tbl c2 [] in
@@ -353,6 +322,9 @@ and instr_r_of_cinstr_r tbl = function
   | C.Copn(x,t,o,e) ->
     Copn(lval_of_clvals tbl x, at_of_cat t, o, expr_of_cexprs tbl e)
 
+  | C.Csyscall(x,o,e) ->
+    Csyscall(lval_of_clvals tbl x, o, expr_of_cexprs tbl e)
+  
   | C.Cif(e,c1,c2) ->
     let c1 = stmt_of_cstmt tbl c1 in
     let c2 = stmt_of_cstmt tbl c2 in

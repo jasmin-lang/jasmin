@@ -30,7 +30,6 @@ From CoqWord Require Import ssrZ.
 Require Import strings word utils.
 Import Utf8 ZArith.
 Import ssrring.
-(* Require Import memory_utils. *)
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -324,6 +323,7 @@ Section CoreMem.
 End CoreMem.
 End CoreMem.
 
+
 (* ** Memory
  * -------------------------------------------------------------------- *)
 
@@ -332,6 +332,7 @@ Class PointerData := {
 }.
 
 Notation pointer := (word Uptr) (only parsing).
+
 
 Section WITH_POINTER_DATA.
 Context {pd: PointerData}.
@@ -586,6 +587,9 @@ Lemma is_align_array ptr sz j :
   is_align ptr sz → is_align (wrepr _ (wsize_size sz * j) + ptr)%R sz.
 Proof. by move=> hptr; apply is_align_add => //; apply is_align_mul. Qed.
 
+End WITH_POINTER_DATA.
+
+(*
 (** Rounds the given size to the next larger-or-equal multiple of [ws] *)
 Definition round_ws (ws:wsize) (sz: Z) : Z :=
   (let d := wsize_size ws in
@@ -800,3 +804,4 @@ Parameter free_stackP : forall m,
 
 End WITH_POINTER_DATA.
 End MemoryT.
+*)

@@ -115,6 +115,8 @@ Definition assemble_i (rip:var) (i: linstr) : cexec asm_i :=
     Let oa := assemble_sopn assemble_cond rip ii op ds es in
     ok (AsmOp oa.1 oa.2)
 
+  | Lsyscall o => ok (SysCall o)
+
   | Lalign  => ok ALIGN
 
   | Llabel lbl =>  ok (LABEL lbl)

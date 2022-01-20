@@ -122,6 +122,7 @@ type 'len grange = range_dir * 'len gexpr * 'len gexpr
 type ('len,'info) ginstr_r =
   | Cassgn of 'len glval * assgn_tag * 'len gty * 'len gexpr
   | Copn   of 'len glvals * assgn_tag * X86_extra.x86_extended_op Sopn.sopn * 'len gexprs
+  | Csyscall of 'len glvals * Syscall.syscall_t * 'len gexprs
   | Cif    of 'len gexpr * ('len,'info) gstmt * ('len,'info) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info) gstmt
   | Cwhile of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt

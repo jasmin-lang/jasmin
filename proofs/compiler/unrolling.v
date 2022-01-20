@@ -51,6 +51,7 @@ Fixpoint unroll_i (i:instr) : cmd :=
   match ir with
   | Cassgn _ _ _ _
   | Copn _ _ _ _
+  | Csyscall _ _ _
     => [:: i ]
   | Cif b c1 c2  => [:: MkI ii (Cif b (unroll_cmd unroll_i c1) (unroll_cmd unroll_i c2)) ]
   | Cfor i (dir, low, hi) c =>

@@ -140,12 +140,13 @@ type range_dir = UpTo | DownTo
 type 'len grange = range_dir * 'len gexpr * 'len gexpr
 
 type ('len,'info) ginstr_r =
-  | Cassgn of 'len glval * assgn_tag * 'len gty * 'len gexpr
-  | Copn   of 'len glvals * assgn_tag * X86_extra.x86_extended_op Sopn.sopn * 'len gexprs
-  | Cif    of 'len gexpr * ('len,'info) gstmt * ('len,'info) gstmt
-  | Cfor   of 'len gvar_i * 'len grange * ('len,'info) gstmt
-  | Cwhile of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
-  | Ccall  of inline_info * 'len glvals * funname * 'len gexprs
+  | Cassgn   of 'len glval * assgn_tag * 'len gty * 'len gexpr
+  | Copn     of 'len glvals * assgn_tag * X86_extra.x86_extended_op Sopn.sopn * 'len gexprs
+  | Csyscall of 'len glvals * Syscall.syscall_t * 'len gexprs
+  | Cif      of 'len gexpr * ('len,'info) gstmt * ('len,'info) gstmt
+  | Cfor     of 'len gvar_i * 'len grange * ('len,'info) gstmt
+  | Cwhile   of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
+  | Ccall    of inline_info * 'len glvals * funname * 'len gexprs
 
 and ('len,'info) ginstr = {
     i_desc : ('len,'info) ginstr_r;
@@ -365,7 +366,7 @@ let rvars_lvs s lvs = List.fold_left rvars_lv s lvs
 let rec rvars_i s i =
   match i.i_desc with
   | Cassgn(x, _, _, e) -> rvars_e (rvars_lv s x) e  
-  | Copn(x,_,_,e)    -> rvars_es (rvars_lvs s x) e
+  | Copn(x,_,_,e) | Csyscall(x,_,e) -> rvars_es (rvars_lvs s x) e
   | Cif(e,c1,c2)   -> rvars_c (rvars_c (rvars_e s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c (rvars_e (rvars_e (Sv.add (L.unloc x) s) e1) e2) c
@@ -401,7 +402,7 @@ let written_lv s =
 let rec written_vars_i ((v, f) as acc) i =
   match i.i_desc with
   | Cassgn(x, _, _, _) -> written_lv v x, f
-  | Copn(xs, _, _, _)
+  | Copn(xs, _, _, _) | Csyscall(xs, _, _) 
     -> List.fold_left written_lv v xs, f
   | Ccall(_, xs, fn, _) ->
      List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
@@ -421,7 +422,7 @@ let written_vars_fc fc =
 let rec refresh_i_loc_i (i:'info instr) : 'info instr = 
   let i_desc = 
     match i.i_desc with
-    | Cassgn _ | Copn _ | Ccall _ -> i.i_desc
+    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
     | Cif(e, c1, c2) ->
         Cif(e, refresh_i_loc_c c1, refresh_i_loc_c c2)
     | Cfor(x, r, c) ->

@@ -65,6 +65,15 @@ and iac_instr_r loc ir =
     | Sopn.Ocopy _, _ -> assert false
     | _ -> ir
     end
+  | Csyscall (xs, (* Syscall.GetRandom *) _, es) -> 
+    (* FIXME syscall: should be ok *)
+    (* Fix the size it is dummy for the moment *)
+    let ty =
+       match xs with
+       | [x] -> Typing.ty_lval loc x 
+       | _ -> assert false in
+      let p = Conv.pos_of_int (Prog.size_of ty) in
+      Csyscall(xs, p, es)   
   | Ccall _ -> ir
 
 let iac_func f =

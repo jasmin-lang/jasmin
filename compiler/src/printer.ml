@@ -178,6 +178,8 @@ let pp_glvs pp_len pp_var fmt lvs =
 let pp_opn o =
   Conv.string_of_string0 ((Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) o).str ())
 
+let pp_syscall (_o:Syscall.syscall_t) = 
+  "GetRandom"
 (* -------------------------------------------------------------------- *)
 let pp_tag = function
   | AT_none    -> "="
@@ -204,10 +206,14 @@ let rec pp_gi pp_info pp_len pp_var fmt i =
       | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%a)" pp_btype (U ws)
       | _ -> () in
 
-    F.fprintf fmt "@[<hov 2>%a %s=@ %a%s(%a);@]"
+    F.fprintf fmt "@[<hov 2>%a %s@ %a%s(%a);@]"
        (pp_glvs pp_len pp_var) x (pp_tag t) pp_cast o (pp_opn o)
        (pp_ges pp_len pp_var) e
 
+  | Csyscall(x, o, e) ->
+      F.fprintf fmt "@[<hov 2>%a =@ %s(%a);@]"
+       (pp_glvs pp_len pp_var) x (pp_syscall o) (pp_ges pp_len pp_var) e
+      
   | Cif(e, c, []) ->
     F.fprintf fmt "@[<v>if %a %a@]"
       (pp_ge pp_len pp_var) e (pp_cblock pp_info pp_len pp_var) c

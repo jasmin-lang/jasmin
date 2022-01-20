@@ -145,7 +145,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
          ((do_nop || (tag == AT_rename)) && check_nop x e) then ok (s, [::])
       else ok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
     else   ok (read_rv_rec (read_e_rec (Sv.diff s w) e) x, [:: i ])
-
+  
   | Copn xs tag o es =>
     let w := vrvs xs in
     if tag != AT_keep then
@@ -153,6 +153,9 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
       else if check_nop_opn xs o es then ok (s, [::])
       else ok (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, [:: i])
     else   ok (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, [:: i])
+
+  | Csyscall xs o es =>
+    ok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
 
   | Cif b c1 c2 =>
     Let sc1 := dead_code_c dead_code_i c1 s in

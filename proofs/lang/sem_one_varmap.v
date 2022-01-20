@@ -206,6 +206,13 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
     sem_sopn gd o s1 xs es = ok s2 →
     sem_i ii (vrvs xs) s1 (Copn xs t o es) s2
 
+| Esyscall ii s1 scs m s2 o xs es ves vs:
+    (* FIXME syscall : the vmap is changed more than that, at least (vrvs xs) is to weak *)
+    sem_pexprs gd s1 es = ok ves →
+    exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
+    write_lvals gd (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
+    sem_i ii (vrvs xs) s1 (Csyscall xs o es) s2
+
 | Eif_true ii k s1 s2 e c1 c2 :
     sem_pexpr gd s1 e = ok (Vbool true) →
     sem k s1 c1 s2 →
@@ -250,29 +257,29 @@ with sem_call : instr_info → Sv.t → estate → funname → estate → Prop :
     mapM (λ x : var_i, get_var s1.(evm) x) f.(f_params) = ok args →
     all2 check_ty_val f.(f_tyin) args →
     let vm1 := ra_undef_vm f s1.(evm) var_tmp in
-    sem k {| emem := m1; evm := set_RSP m1 vm1; |} f.(f_body) s2' →
+    sem k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} f.(f_body) s2' →
     mapM (λ x : var_i, get_var s2'.(evm) x) f.(f_res) = ok res →
     all2 check_ty_val f.(f_tyout) res →
     valid_RSP s2'.(emem) s2'.(evm) →
     let m2 := free_stack s2'.(emem) in
-    s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |} →
+    s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 s2'.(evm) |} →
     let vm := Sv.union (ra_vm f.(f_extra) var_tmp) (saved_stack_vm f) in
     sem_call ii (Sv.union k vm) s1 fn s2.
 
-Variant sem_export_call_conclusion (m: mem) (fd: sfundef) (args: values) (vm: vmap) (m': mem) (res: values) : Prop :=
+Variant sem_export_call_conclusion (scs: syscall_state) (m: mem) (fd: sfundef) (args: values) (vm: vmap) (scs': syscall_state) (m': mem) (res: values) : Prop :=
   | SemExportCallConclusion (m1: mem) (k: Sv.t) (m2: mem) (vm2: vmap) (res': values) of
     saved_stack_valid fd k &
     Sv.Subset (Sv.inter callee_saved (Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
     all2 check_ty_val fd.(f_tyin) args &
-    sem k {| emem := m1 ; evm := set_RSP m1 (kill_flags (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then vm.[r <- undef_error] else vm) rflags).[var_tmp <- undef_error] |} fd.(f_body) {| emem := m2 ; evm := vm2 |} &
+    sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 (kill_flags (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then vm.[r <- undef_error] else vm) rflags).[var_tmp <- undef_error] |} fd.(f_body) {| escs := scs'; emem := m2 ; evm := vm2 |} &
     mapM (λ x : var_i, get_var vm2 x) fd.(f_res) = ok res' &
     List.Forall2 value_uincl res res' &
     all2 check_ty_val fd.(f_tyout) res' &
     valid_RSP m2 vm2 &
     m' = free_stack m2.
 
-Variant sem_export_call (gd: @extra_val_t _ progStack) (m: mem) (fn: funname) (args: values) (m': mem) (res: values) : Prop :=
+Variant sem_export_call (gd: @extra_val_t _ progStack) (scs: syscall_state) (m: mem) (fn: funname) (args: values) (scs': syscall_state) (m': mem) (res: values) : Prop :=
   | SemExportCall (fd: sfundef) of
                   get_fundef p.(p_funcs) fn = Some fd &
       fd.(f_extra).(sf_return_address) == RAnone &
@@ -284,7 +291,7 @@ Variant sem_export_call (gd: @extra_val_t _ progStack) (m: mem) (fn: funname) (a
       List.Forall2 value_uincl args args' →
       valid_RSP m vm →
       vm.[vgd] = ok (pword_of_word gd) →
-      sem_export_call_conclusion m fd args' vm m' res.
+      sem_export_call_conclusion scs m fd args' vm scs' m' res.
 
 (*---------------------------------------------------*)
 Variant ex3_3 (A B C : Type) (P1 P2 P3: A → B → C → Prop) : Prop :=
@@ -324,6 +331,14 @@ Lemma sem_iE ii k s i s' :
     k = vrv x ∧
     exists2 v', sem_pexpr gd s e >>= truncate_val ty = ok v' & write_lval gd x v' s = ok s'
   | Copn xs t o es => k = vrvs xs ∧ sem_sopn gd o s xs es = ok s'
+
+  | Csyscall xs o es => 
+    k = vrvs xs /\  
+    ∃ scs m ves vs,
+    [/\ sem_pexprs gd s es = ok ves, 
+        exec_syscall (semCallParams:= sCP_stack) s.(escs) s.(emem) o ves = ok (scs, m, vs) & 
+        write_lvals gd (with_scs (with_mem s m) scs) xs vs = ok s']
+  
   | Cif e c1 c2 =>
     exists2 b, sem_pexpr gd s e = ok (Vbool b) & sem k s (if b then c1 else c2) s'
   | Cwhile a c e c' =>
@@ -341,6 +356,7 @@ Lemma sem_iE ii k s i s' :
 Proof.
   case => { ii k s i s' }; eauto.
   - move => _ s s' x _ ty e v v' -> /= ->; eauto.
+  - by move=> _ s1 scs m s2 o xs es ves vs h1 h2 h3; split => //; exists scs, m, ves, vs.
   - move => ii k k' krec s1 s2 s3 s4 a c e c' exec_c eval_e exec_c' rec; exists k, s2, true; split; try eexists; eauto.
   by move => ii k s1 s2 a c e c' exec_c eval_e; exists k, s2, false.
 Qed.
@@ -358,13 +374,13 @@ Lemma sem_callE ii k s fn s' :
     (λ f _ _ _ args _, all2 check_ty_val f.(f_tyin) args)
     (λ f m1 s2' k' _ _,
      let vm := ra_undef_vm f s.(evm) var_tmp in
-     sem k' {| emem := m1 ; evm := set_RSP m1 vm; |} f.(f_body) s2')
+     sem k' {| escs := s.(escs); emem := m1 ; evm := set_RSP m1 vm; |} f.(f_body) s2')
     (λ f _ s2' _ _ res, mapM (λ x : var_i, get_var s2'.(evm) x) f.(f_res) = ok res)
     (λ f _ _ _ _ res, all2 check_ty_val f.(f_tyout) res)
     (λ _ _ s2' _ _ _, valid_RSP s2'.(emem) s2'.(evm))
     (λ f _ s2' _ _ _,
       let m2 := free_stack s2'.(emem) in
-      s' = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |})
+      s' = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 s2'.(evm) |})
     (λ f _ _ k' _ _,
      k = Sv.union k' (Sv.union (ra_vm f.(f_extra) var_tmp) (saved_stack_vm f))).
 Proof.
@@ -424,6 +440,13 @@ Section SEM_IND.
       sem_sopn gd o s1 xs es = ok s2 →
       Pi_r ii (vrvs xs) s1 (Copn xs t o es) s2.
 
+  Definition sem_Ind_syscall : Prop :=
+    ∀ (ii: instr_info) (s1 s2 : estate) (o : syscall_t) (xs : lvals) (es : pexprs) scs m ves vs,
+      sem_pexprs gd s1 es = ok ves →
+      exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
+      write_lvals gd (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
+      Pi_r ii (vrvs xs) s1 (Csyscall xs o es) s2.
+
   Definition sem_Ind_if_true : Prop :=
     ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
     sem_pexpr gd s1 e = ok (Vbool true) →
@@ -453,6 +476,7 @@ Section SEM_IND.
   Hypotheses
     (Hasgn: sem_Ind_assgn)
     (Hopn: sem_Ind_opn)
+    (Hsyscall: sem_Ind_syscall)
     (Hif_true: sem_Ind_if_true)
     (Hif_false: sem_Ind_if_false)
     (Hwhile_true: sem_Ind_while_true)
@@ -478,13 +502,13 @@ Section SEM_IND.
       mapM (λ x : var_i, get_var s1.(evm) x) fd.(f_params) = ok args →
       all2 check_ty_val fd.(f_tyin) args →
       let vm1 := ra_undef_vm fd s1.(evm) var_tmp in
-      sem k {| emem := m1; evm := set_RSP m1 vm1; |} fd.(f_body) s2' →
-      Pc  k {| emem := m1; evm := set_RSP m1 vm1; |} fd.(f_body) s2' →
+      sem k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} fd.(f_body) s2' →
+      Pc  k {| escs := s1.(escs); emem := m1; evm := set_RSP m1 vm1; |} fd.(f_body) s2' →
       mapM (λ x : var_i, get_var s2'.(evm) x) fd.(f_res) = ok res →
       all2 check_ty_val fd.(f_tyout) res →
       valid_RSP s2'.(emem) s2'.(evm) →
       let m2 := free_stack s2'.(emem) in
-      s2 = {| emem := m2 ; evm := set_RSP m2 s2'.(evm) |} →
+      s2 = {| escs := s2'.(escs); emem := m2 ; evm := set_RSP m2 s2'.(evm) |} →
       let vm := Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)) in
       Pfun ii vm s1 fn s2.
 
@@ -506,6 +530,7 @@ Section SEM_IND.
     match s in sem_i ii k s1 i s2 return Pi_r ii k s1 i s2 with
     | @Eassgn ii s1 s2 x tag ty e1 v v' h1 h2 h3 => @Hasgn ii s1 s2 x tag ty e1 v v' h1 h2 h3
     | @Eopn ii s1 s2 t o xs es e1 => @Hopn ii s1 s2 t o xs es e1
+    | @Esyscall ii s1 scs m s2 o xs es ves vs h1 h2 h3 => @Hsyscall ii s1 s2 o xs es scs m ves vs h1 h2 h3
     | @Eif_true ii k s1 s2 e1 c1 c2 e2 s0 =>
       @Hif_true ii k s1 s2 e1 c1 c2 e2 s0 (@sem_Ind k s1 c1 s2 s0)
     | @Eif_false ii k s1 s2 e1 c1 c2 e2 s0 =>

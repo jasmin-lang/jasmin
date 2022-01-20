@@ -384,6 +384,9 @@ Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
   | AsmOp o args =>
     Let m := eval_op o args s.(asm_m) in
     ok (st_update_next m s)
+  | SysCall o => 
+    (* FIXME syscall *)
+    type_error  
   end.
 
 (* -------------------------------------------------------------------- *)

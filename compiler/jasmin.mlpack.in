@@ -3,6 +3,7 @@ src/Arch
 src/Array_expand
 src/Bigint
 src/BigintCore
+src/CoreConv
 src/Conv
 src/Ct_checker_forward
 src/Evaluator
@@ -30,6 +31,7 @@ src/Ssa
 src/StackAlloc
 src/Subst
 src/Syntax
+src/Syscall_ocaml
 src/ToEC
 src/safety/safetyAbsExpr
 src/safety/safetyConfig

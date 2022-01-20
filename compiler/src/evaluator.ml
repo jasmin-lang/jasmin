@@ -62,11 +62,11 @@ let return s =
   | Scall(ii,f,xs,vm1,c,stk) ->
     let gd = s.s_prog.p_globs in
     let s2 = s.s_estate in
-    let m2 = s2.emem and vm2 = s2.evm in
+    let {escs = scs2; emem = m2; evm = vm2} = s2 in 
     let vres = 
       exn_exec ii (mapM (fun (x:var_i) -> get_var vm2 x.v_var) f.f_res) in
     let vres' = exn_exec ii (mapM2 ErrType truncate_val f.f_tyout vres) in
-    let s1 = exn_exec ii (write_lvals U64 gd {emem = m2; evm = vm1 } xs vres') in
+    let s1 = exn_exec ii (write_lvals U64 gd {escs = scs2; emem = m2; evm = vm1 } xs vres') in
     { s with 
       s_cmd = c;
       s_estate = s1;
@@ -100,6 +100,12 @@ let small_step1 s =
       let s2 = exn_exec ii (sem_sopn (Arch_extra.asm_opI X86_extra.x86_extra) U64 gd op s1 xs es) in
       { s with s_cmd = c; s_estate = s2 }
 
+    | Csyscall(xs,o, es) -> 
+      let ves = exn_exec ii (sem_pexprs U64 gd s1 es) in
+      let ((scs, m), vs) = exn_exec ii (exec_syscall U64 s1.escs s1.emem o ves) in
+      let s2 = exn_exec ii (write_lvals U64 gd {escs = scs; emem = m; evm = s1.evm} xs vs) in
+      { s with s_cmd = c; s_estate = s2 }
+        
     | Cif(e,c1,c2) ->
       let b = of_val_b ii (exn_exec ii (sem_pexpr U64 gd s1 e)) in
       let c = (if b then c1 else c2) @ c in
@@ -123,10 +129,10 @@ let small_step1 s =
         | Some f -> f
         | None -> assert false in
       let vargs = exn_exec ii (mapM2 ErrType truncate_val f.f_tyin vargs') in
-      let m1 = s1.emem and vm1 = s1.evm in
+      let {escs = scs1; emem = m1; evm = vm1} = s1 in
       let stk = Scall(ii,f, xs, vm1, c, s.s_stk) in
       let sf = 
-        exn_exec ii (write_vars U64 f.f_params vargs {emem = m1; evm = vmap0}) in
+        exn_exec ii (write_vars U64 f.f_params vargs {escs = scs1; emem = m1; evm = vmap0}) in
       {s with s_cmd = f.f_body;
               s_estate = sf;
               s_stk = stk }
@@ -143,7 +149,7 @@ let init_state p fn m =
   assert (f.f_tyin = []);
   { s_prog = p;
     s_cmd = f.f_body;
-    s_estate = {emem = m; evm = vmap0 };
+    s_estate = {escs = Syscall_ocaml.initial_state (); emem = m; evm = vmap0 };
     s_stk = Sempty(Coq_xO Coq_xH, f) }
 
 

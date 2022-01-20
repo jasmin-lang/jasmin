@@ -270,6 +270,7 @@ Section WITH_POINTER_DATA.
 Context {pd: PointerData}.
 
 Record estate := Estate {
+  escs : syscall_state;
   emem : mem;
   evm  : vmap
 }.
@@ -325,10 +326,13 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
 Definition sem_pexprs s := mapM (sem_pexpr s).
 
 Definition with_vm (s:estate) vm := 
-  {| emem := s.(emem); evm := vm |}.
+  {| escs := s.(escs); emem := s.(emem); evm := vm |}.
 
 Definition with_mem (s:estate) m := 
-  {| emem := m; evm := s.(evm) |}.
+  {| escs := s.(escs); emem := m; evm := s.(evm) |}.
+
+Definition with_scs (s:estate) scs := 
+  {| escs := scs; emem := s.(emem); evm := s.(evm) |}.
 
 Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
   Let vm := set_var s.(evm) x v in
@@ -371,7 +375,7 @@ Definition write_lvals (s:estate) xs vs :=
 
 End SEM_PEXPR.
 
-Lemma surj_estate s : s = {| emem := emem s; evm := evm s |}.
+Lemma surj_estate s : s = {| escs := escs s; emem := emem s; evm := evm s |}.
 Proof. by case:s. Qed.
 
 Lemma with_vm_same s : with_vm s (evm s) = s.
@@ -386,10 +390,19 @@ Proof. by case: s. Qed.
 Lemma with_mem_idem s m1 m2 : with_mem (with_mem s m1) m2 = with_mem s m2.
 Proof. by case: s. Qed.
 
+Lemma with_scs_same s : with_scs s (escs s) = s.
+Proof. by case: s. Qed.
+
+Lemma with_scs_idem s scs1 scs2 : with_scs (with_scs s scs1) scs2 = with_scs s scs2.
+Proof. by case: s. Qed.
+
 Lemma evm_with_vm s vm : evm (with_vm s vm) = vm.
 Proof. by case: s. Qed.
 
 Lemma emem_with_vm s vm : emem (with_vm s vm) = emem s.
+Proof. by case: s. Qed.
+
+Lemma escs_with_vm s vm : escs (with_vm s vm) = escs s.
 Proof. by case: s. Qed.
 
 (* ** Instructions
@@ -403,6 +416,11 @@ Context {T} {pT:progT T}.
 Class semCallParams := SemCallParams {
   init_state : extra_fun_t -> extra_prog_t -> extra_val_t -> estate -> exec estate;
   finalize   : extra_fun_t -> mem -> mem;
+  exec_syscall : syscall_state -> mem -> syscall_t -> values -> exec (syscall_state * mem * values);
+  exec_syscallP: forall scs m o vargs vargs' rscs rm vres, 
+     exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
+     List.Forall2 value_uincl vargs vargs' -> 
+     exists2 vres', exec_syscall scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'
 }.
 
 Context {sCP : semCallParams}.
@@ -444,6 +462,12 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem_sopn gd o s1 xs es = ok s2 ->
     sem_i s1 (Copn xs t o es) s2
 
+| Esyscall s1 scs m s2 o xs es ves vs:
+    sem_pexprs gd s1 es = ok ves →
+    exec_syscall s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
+    write_lvals gd (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
+    sem_i s1 (Csyscall xs o es) s2
+
 | Eif_true s1 s2 e c1 c2 :
     sem_pexpr gd s1 e = ok (Vbool true) ->
     sem s1 c1 s2 ->
@@ -472,10 +496,10 @@ with sem_i : estate -> instr_r -> estate -> Prop :=
     sem_for i (wrange d vlo vhi) s1 c s2 ->
     sem_i s1 (Cfor i (d, lo, hi) c) s2
 
-| Ecall s1 m2 s2 ii xs f args vargs vs :
+| Ecall s1 scs2 m2 s2 ii xs f args vargs vs :
     sem_pexprs gd s1 args = ok vargs ->
-    sem_call s1.(emem) f vargs m2 vs ->
-    write_lvals gd (with_mem s1 m2) xs vs = ok s2 ->
+    sem_call s1.(escs) s1.(emem) f vargs scs2 m2 vs ->
+    write_lvals gd (with_scs (with_mem s1 m2) scs2) xs vs = ok s2 ->
     sem_i s1 (Ccall ii xs f args) s2
 
 with sem_for : var_i -> seq Z -> estate -> cmd -> estate -> Prop :=
@@ -488,17 +512,18 @@ with sem_for : var_i -> seq Z -> estate -> cmd -> estate -> Prop :=
     sem_for i ws s2 c s3 ->
     sem_for i (w :: ws) s1 c s3
 
-with sem_call : mem -> funname -> seq value -> mem -> seq value -> Prop :=
-| EcallRun m1 m2 fn f vargs vargs' s0 s1 s2 vres vres' :
+with sem_call : syscall_state -> mem -> funname -> seq value -> syscall_state -> mem -> seq value -> Prop :=
+| EcallRun scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' :
     get_fundef (p_funcs P) fn = Some f ->
     mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
-    init_state f.(f_extra) (p_extra P) ev (Estate m1 vmap0) = ok s0 ->
+    init_state f.(f_extra) (p_extra P) ev (Estate scs1 m1 vmap0) = ok s0 ->
     write_vars f.(f_params) vargs s0 = ok s1 ->
     sem s1 f.(f_body) s2 ->
     mapM (fun (x:var_i) => get_var s2.(evm) x) f.(f_res) = ok vres ->
     mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
+    scs2 = s2.(escs) -> 
     m2 = finalize f.(f_extra) s2.(emem)  ->
-    sem_call m1 fn vargs' m2 vres'.
+    sem_call scs1 m1 fn vargs' scs2 m2 vres'.
 
 Lemma semE s c s' :
   sem s c s' ->
@@ -521,6 +546,11 @@ Lemma sem_iE s i s' :
     ∃ v v',
     [/\ sem_pexpr gd s e = ok v, truncate_val ty v = ok v' & write_lval gd lv v' s = ok s' ]
   | Copn lvs _ op es => sem_sopn gd op s lvs es = ok s'
+  | Csyscall xs o es =>
+    ∃ scs m ves vs,
+    [/\ sem_pexprs gd s es = ok ves, 
+        exec_syscall s.(escs) s.(emem) o ves = ok (scs, m, vs) & 
+        write_lvals gd (with_scs (with_mem s m) scs) xs vs = ok s']
   | Cif e th el =>
     ∃ b, sem_pexpr gd s e = ok (Vbool b) ∧ sem s (if b then th else el) s'
   | Cfor i (d, lo, hi) c =>
@@ -529,22 +559,24 @@ Lemma sem_iE s i s' :
         sem_for i (wrange d vlo vhi) s c s' ]
   | Cwhile a c e c' =>
     ∃ si b,
-       [/\ sem s c si, sem_pexpr gd si e = ok (Vbool b) &
-                       if b then ∃ sj, sem si c' sj ∧ sem_i sj (Cwhile a c e c') s' else si = s' ]
+    [/\ sem s c si, sem_pexpr gd si e = ok (Vbool b) &
+        if b then ∃ sj, sem si c' sj ∧ sem_i sj (Cwhile a c e c') s' else si = s' ]
   | Ccall _ xs f es =>
-    ∃ vs m2 rs,
-    [/\ sem_pexprs gd s es = ok vs, sem_call s.(emem) f vs m2 rs &
-       write_lvals gd (with_mem s m2) xs rs = ok s' ]
+    ∃ vs scs2 m2 rs,
+    [/\ sem_pexprs gd s es = ok vs, 
+        sem_call s.(escs) s.(emem) f vs scs2 m2 rs &
+        write_lvals gd (with_scs (with_mem s m2) scs2) xs rs = ok s']
   end.
 Proof.
   case => {s i s'} //.
   - by move => s s' x _ ty e v v' hv hv' hw; exists v, v'.
+  - by move => s scs m s' xs o es ves vs h1 h2 h3; exists scs, m, ves, vs.
   - by move => s s' e th el he hth; exists true.
   - by move => s s' e th el he hel; exists false.
   - by move => s si sj s' c e c' hc he hc' hrec; exists si, true; constructor => //; exists sj.
   - by move => s s' c e c' hc he; exists s', false.
   - by move => s s' i d lo hi c vlo vhi hlo hhi hc; exists vlo, vhi.
-  by move => s m s' _ xs f es vs rs hvs h hrs; exists vs, m, rs.
+  by move => s scs m s' _ xs f es vs rs hvs h hrs; exists vs, scs, m, rs.
 Qed.
 
 Lemma sem_forE i ws s c s' :
@@ -561,22 +593,22 @@ Proof.
   by exists s1, s2.
 Qed.
 
-Lemma sem_callE m1 fn vargs' m2 vres' :
-  sem_call m1 fn vargs' m2 vres' ->
+Lemma sem_callE scs1 m1 fn vargs' scs2 m2 vres' :
+  sem_call scs1 m1 fn vargs' scs2 m2 vres' ->
   ∃ f,
     get_fundef (p_funcs P) fn = Some f ∧
   ∃ vargs s0 s1 s2 vres,
   [/\    
     mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs,
-    init_state f.(f_extra) (p_extra P) ev (Estate m1 vmap0) = ok s0 /\
+    init_state f.(f_extra) (p_extra P) ev (Estate scs1 m1 vmap0) = ok s0 /\
     write_vars f.(f_params) vargs s0 = ok s1,
     sem s1 f.(f_body) s2,
     mapM (fun (x:var_i) => get_var s2.(evm) x) f.(f_res) = ok vres /\
     mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' &
-    m2 = finalize f.(f_extra) s2.(emem) ].
+    scs2 = s2.(escs) /\ m2 = finalize f.(f_extra) s2.(emem) ].
 Proof.
-  case => { m1 fn vargs' m2 vres' } m1 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
-  move => hf ha hi hw hc hr ht hfi.
+  case => { scs1 m1 fn vargs' scs2 m2 vres' } scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
+  move => hf ha hi hw hc hr ht hscs hfi.
   exists f; split => //.
   by exists vargs, s0, s1, s2, vres.
 Qed.
@@ -587,9 +619,9 @@ Section SEM_IND.
   Variables
     (Pc   : estate -> cmd -> estate -> Prop)
     (Pi_r : estate -> instr_r -> estate -> Prop)
-    (Pi : estate -> instr -> estate -> Prop)
+    (Pi   : estate -> instr -> estate -> Prop)
     (Pfor : var_i -> seq Z -> estate -> cmd -> estate -> Prop)
-    (Pfun : mem -> funname -> seq value -> mem -> seq value -> Prop).
+    (Pfun : syscall_state -> mem -> funname -> seq value -> syscall_state -> mem -> seq value -> Prop).
 
   Definition sem_Ind_nil : Prop :=
     forall s : estate, Pc s [::] s.
@@ -621,6 +653,13 @@ Section SEM_IND.
       sem_sopn gd o s1 xs es = ok s2 →
       Pi_r s1 (Copn xs t o es) s2.
 
+  Definition sem_Ind_syscall : Prop := 
+    forall  s1 scs m s2 o xs es ves vs,
+      sem_pexprs gd s1 es = ok ves →
+      exec_syscall s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
+      write_lvals gd (with_scs (with_mem s1 m) scs) xs vs = ok s2 →
+      Pi_r s1 (Csyscall xs o es) s2.
+
   Definition sem_Ind_if_true : Prop :=
     forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),
     sem_pexpr gd s1 e = ok (Vbool true) ->
@@ -647,6 +686,7 @@ Section SEM_IND.
   Hypotheses
     (Hasgn: sem_Ind_assgn)
     (Hopn: sem_Ind_opn)
+    (Hsyscall: sem_Ind_syscall)
     (Hif_true: sem_Ind_if_true)
     (Hif_false: sem_Ind_if_false)
     (Hwhile_true: sem_Ind_while_true)
@@ -678,27 +718,30 @@ Section SEM_IND.
   .
 
   Definition sem_Ind_call : Prop :=
-    forall (s1 : estate) (m2 : mem) (s2 : estate)
+    forall (s1 : estate) (scs2 : syscall_state) (m2 : mem) (s2 : estate)
            (ii : inline_info) (xs : lvals)
            (fn : funname) (args : pexprs) (vargs vs : seq value),
       sem_pexprs gd s1 args = ok vargs →
-      sem_call (emem s1) fn vargs m2 vs -> Pfun (emem s1) fn vargs m2 vs →
-      write_lvals gd (with_mem s1 m2) xs vs = ok s2 →
+      sem_call (escs s1) (emem s1) fn vargs scs2 m2 vs -> 
+      Pfun (escs s1) (emem s1) fn vargs scs2 m2 vs →
+      write_lvals gd (with_scs (with_mem s1 m2) scs2) xs vs = ok s2 →
       Pi_r s1 (Ccall ii xs fn args) s2.
 
   Definition sem_Ind_proc : Prop :=
-    forall (m1 m2 : mem) (fn:funname) (f : fundef) (vargs vargs': seq value)
+    forall (scs1 : syscall_state) (m1 : mem) (scs2 : syscall_state) (m2 : mem)
+           (fn:funname) (f : fundef) (vargs vargs': seq value)
            (s0 s1 s2: estate) (vres vres': seq value),
       get_fundef (p_funcs P) fn = Some f ->
       mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
-      init_state f.(f_extra) (p_extra P) ev (Estate m1 vmap0) = ok s0 ->
+      init_state f.(f_extra) (p_extra P) ev (Estate scs1 m1 vmap0) = ok s0 ->
       write_vars (f_params f) vargs s0 = ok s1 ->
       sem s1 (f_body f) s2 ->
       Pc s1 (f_body f) s2 ->
       mapM (fun x : var_i => get_var s2.(evm) x) (f_res f) = ok vres ->
       mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
+      scs2 = s2.(escs) -> 
       m2 = finalize f.(f_extra) s2.(emem) ->
-      Pfun m1 fn vargs' m2 vres'.
+      Pfun scs1 m1 fn vargs' scs2 m2 vres'.
 
   Hypotheses
     (Hcall: sem_Ind_call)
@@ -718,6 +761,7 @@ Section SEM_IND.
     match s in (sem_i e1 i0 e2) return (Pi_r e1 i0 e2) with
     | @Eassgn s1 s2 x tag ty e1 v v' h1 h2 h3 => @Hasgn s1 s2 x tag ty e1 v v' h1 h2 h3
     | @Eopn s1 s2 t o xs es e1 => @Hopn s1 s2 t o xs es e1
+    | @Esyscall s1 scs m s2 o xs es ves vs h1 h2 h3 => @Hsyscall s1 scs m s2 o xs es ves vs h1 h2 h3
     | @Eif_true s1 s2 e1 c1 c2 e2 s0 =>
       @Hif_true s1 s2 e1 c1 c2 e2 s0 (@sem_Ind s1 c1 s2 s0)
     | @Eif_false s1 s2 e1 c1 c2 e2 s0 =>
@@ -730,9 +774,9 @@ Section SEM_IND.
     | @Efor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0 =>
       @Hfor s1 s2 i0 d lo hi c vlo vhi e1 e2 s0
         (@sem_for_Ind i0 (wrange d vlo vhi) s1 c s2 s0)
-    | @Ecall s1 m2 s2 ii xs f13 args vargs vs e2 s0 e3 =>
-      @Hcall s1 m2 s2 ii xs f13 args vargs vs e2 s0
-        (@sem_call_Ind (emem s1) f13 vargs m2 vs s0) e3
+    | @Ecall s1 scs2 m2 s2 ii xs f13 args vargs vs e2 s0 e3 =>
+      @Hcall s1 scs2 m2 s2 ii xs f13 args vargs vs e2 s0
+        (@sem_call_Ind (escs s1) (emem s1) f13 vargs scs2 m2 vs s0) e3
     end
 
   with sem_I_Ind (e : estate) (i : instr) (e0 : estate) (s : sem_I e i e0) {struct s} :
@@ -750,11 +794,11 @@ Section SEM_IND.
          s4 (@sem_for_Ind i ws s2 c s3 s4)
     end
 
-  with sem_call_Ind (m : mem) (f13 : funname) (l : seq value) (m0 : mem)
-         (l0 : seq value) (s : sem_call m f13 l m0 l0) {struct s} : Pfun m f13 l m0 l0 :=
+  with sem_call_Ind (scs : syscall_state) (m : mem) (f13 : funname) (l : seq value) (scs0 : syscall_state) (m0 : mem) 
+         (l0 : seq value) (s : sem_call scs m f13 l scs0 m0 l0) {struct s} : Pfun scs m f13 l scs0 m0 l0 :=
     match s with
-    | @EcallRun m1 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hget Hca Hi Hw Hsem Hvres Hcr Hfi=>
-       @Hproc m1 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hget Hca Hi Hw Hsem (sem_Ind Hsem) Hvres Hcr Hfi
+    | @EcallRun scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hget Hca Hi Hw Hsem Hvres Hcr hscs Hfi=>
+       @Hproc scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hget Hca Hi Hw Hsem (sem_Ind Hsem) Hvres Hcr hscs Hfi
     end.
 
 End SEM_IND.
@@ -1176,7 +1220,7 @@ Proof.
                   (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_I i])
                   (fun x ws s1 c s2 =>
                      s1.(evm) = s2.(evm) [\ (Sv.union (Sv.singleton x) (write_c c))])
-                  (fun _ _ _ _ _ => True)) => {c s1 s2} //.
+                  (fun _ _ _ _ _ _ _ => True)) => {c s1 s2} //.
   + move=> s1 s2 s3 i c _ Hi _ Hc z;rewrite write_c_cons => Hnin.
     by rewrite Hi ?Hc //;SvD.fsetdec.
   + move=> s1 s2 x tag ty e v v' ? hty Hw z.
@@ -1184,6 +1228,8 @@ Proof.
   + move=> s1 s2 t o xs es; rewrite /sem_sopn.
     case: (Let _ := sem_pexprs _ _ _ in _) => //= vs Hw z.
     by rewrite write_i_opn;apply (vrvsP Hw).
+  + move=> s1 scs m s2 x o es ves vs hes hscs hw.
+    by rewrite write_i_syscall; apply (vrvsP hw).
   + by move=> s1 s2 e c1 c2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
   + by move=> s1 s2 e c1 c2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
   + by move=> s1 s2 s3 s4 a c e c' _ Hc _ _ Hc' _ Hw z Hnin; rewrite Hc ?Hc' ?Hw //;
@@ -1193,7 +1239,7 @@ Proof.
   + by move=> s1 s2 i d lo hi c vlo vhi _ _ _ Hrec z;rewrite write_i_for;apply Hrec.
   + move=> s1 s1' s2 s3 i w ws c Hw _ Hc _ Hf z Hnin.
     by rewrite (vrvP_var Hw) ?Hc ?Hf //;SvD.fsetdec.
-  move=> s1 m2 s2 ii xs fn args vargs vs _ _ _ Hw z.
+  move=> s1 scs2 m2 s2 ii xs fn args vargs vs _ _ _ Hw z.
   by rewrite write_i_call;apply (vrvsP Hw).
 Qed.
 
@@ -1301,16 +1347,18 @@ Definition read_es_eq_on gd es s s1 vm' :=
   (read_e_es_eq_on gd s1 vm').2 es s.
 
 Corollary eq_on_sem_pexpr s' gd s e :
+  escs s = escs s' →
   emem s = emem s' →
   evm s =[read_e e] evm s' →
   sem_pexpr gd s e = sem_pexpr gd s' e.
-Proof. by move => eq_mem /read_e_eq_on -/(_ gd) ->; case: s' eq_mem => m vm /= <-. Qed.
+Proof. by move => eq_scs eq_mem /read_e_eq_on -/(_ gd) ->; case: s' eq_scs eq_mem => scs m vm /= <- <-. Qed.
 
 Corollary eq_on_sem_pexprs s' gd s es :
+  escs s = escs s' →
   emem s = emem s' →
   evm s =[read_es es] evm s' →
   sem_pexprs gd s es = sem_pexprs gd s' es.
-Proof. by move => eq_mem /read_es_eq_on -/(_ gd) ->; case: s' eq_mem => m vm /= <-. Qed.
+Proof. by move => eq_scs eq_mem /read_es_eq_on -/(_ gd) ->; case: s' eq_scs eq_mem => scs m vm /= <- <-. Qed.
 
 Lemma set_var_eq_on s x v vm1 vm2 vm1':
   set_var vm1 x v = ok vm2 ->
@@ -2331,6 +2379,10 @@ Proof.
   by constructor.
 Qed.
 
+(* FIXME syscall : remove this, use sv_of_list ? *)
+Definition set_of_var_seq : Sv.t → seq var → Sv.t :=
+  foldl (λ acc x, Sv.add x acc).
+
 Definition set_of_var_i_seq : Sv.t → seq var_i → Sv.t :=
   foldl (λ acc x, Sv.add (v_var x) acc).
 
@@ -2356,38 +2408,38 @@ Proof.
 Qed.
 
 (* can be merged with sem_pexpr_uincl_on *)
-Lemma sem_pexpr_uincl_on' gd s vm' vm m e v1 :
+Lemma sem_pexpr_uincl_on' gd s vm' vm scs m e v1 :
   vm <=[read_e_rec s e] vm' ->
-  sem_pexpr gd {| emem := m; evm := vm |} e = ok v1 ->
+  sem_pexpr gd {| escs := scs; emem := m; evm := vm |} e = ok v1 ->
   exists2 v2 : value,
-               sem_pexpr gd {| emem := m; evm := vm' |} e = ok v2 & value_uincl v1 v2.
-  Proof.
-    move=> hsub.
-    pose vm1 : vmap :=
-      Fv.empty (fun (x:var) => if Sv.mem x (read_e_rec s e) then vm.[x] else vm'.[x]).
-    rewrite (@read_e_eq_on _ s vm1) /with_vm /=; last first.
-    + by move=> ? /Sv_memP; rewrite /vm1 Fv.get0 => ->.
-    have hle: vm_uincl vm1 vm'.
-    + by move=> ?;rewrite /vm1 Fv.get0;case:ifP => // /Sv_memP -/hsub.
-    by apply: sem_pexpr_uincl. 
-  Qed.
+               sem_pexpr gd {| escs := scs; emem := m; evm := vm' |} e = ok v2 & value_uincl v1 v2.
+Proof.
+  move=> hsub.
+  pose vm1 : vmap :=
+    Fv.empty (fun (x:var) => if Sv.mem x (read_e_rec s e) then vm.[x] else vm'.[x]).
+  rewrite (@read_e_eq_on _ s vm1) /with_vm /=; last first.
+  + by move=> ? /Sv_memP; rewrite /vm1 Fv.get0 => ->.
+  have hle: vm_uincl vm1 vm'.
+  + by move=> ?;rewrite /vm1 Fv.get0;case:ifP => // /Sv_memP -/hsub.
+  by apply: sem_pexpr_uincl. 
+Qed.
 
 (* can be merged with sem_pexprs_uincl_on *)
-Lemma sem_pexprs_uincl_on' gd es s m vm vm' vs1 :
+Lemma sem_pexprs_uincl_on' gd es s scs m vm vm' vs1 :
   vm <=[read_es_rec s es] vm'->
-  sem_pexprs gd (Estate m vm) es = ok vs1 ->
-  exists2 vs2,sem_pexprs gd (Estate m vm') es = ok vs2 &
+  sem_pexprs gd (Estate scs m vm) es = ok vs1 ->
+  exists2 vs2,sem_pexprs gd (Estate scs m vm') es = ok vs2 &
               List.Forall2 value_uincl vs1 vs2.
-  Proof.
-    move=> hsub.
-    pose vm1 : vmap :=
-      Fv.empty (fun (x:var) => if Sv.mem x (read_es_rec s es) then vm.[x] else vm'.[x]).
-    rewrite (@read_es_eq_on _ _ s _ vm1) /with_vm /=; last first.
-    + by move=> ? /Sv_memP; rewrite /vm1 Fv.get0 => ->.
-    have hle: vm_uincl vm1 vm'.
-    + by move=> ?;rewrite /vm1 Fv.get0;case:ifP => // /Sv_memP -/hsub.
-    by apply: sem_pexprs_uincl. 
-  Qed.
+Proof.
+  move=> hsub.
+  pose vm1 : vmap :=
+    Fv.empty (fun (x:var) => if Sv.mem x (read_es_rec s es) then vm.[x] else vm'.[x]).
+  rewrite (@read_es_eq_on _ _ s _ vm1) /with_vm /=; last first.
+  + by move=> ? /Sv_memP; rewrite /vm1 Fv.get0 => ->.
+  have hle: vm_uincl vm1 vm'.
+  + by move=> ?;rewrite /vm1 Fv.get0;case:ifP => // /Sv_memP -/hsub.
+  by apply: sem_pexprs_uincl. 
+Qed.
 
 (* can be merged with write_var_uincl_on *)
 Lemma write_var_uincl_on' X x v1 v2 s1 s2 vm1 :
@@ -2396,17 +2448,17 @@ Lemma write_var_uincl_on' X x v1 v2 s1 s2 vm1 :
   evm s1 <=[X]  vm1 ->
   exists2 vm2 : vmap,evm s2 <=[Sv.add x X]  vm2 &
                      write_var x v2 (with_vm s1 vm1) = ok (with_vm s2 vm2).
-  Proof.
-    move=> hu hw hsub;pose vm1' : vmap :=
-      Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
-    have heq_on :  evm s1 =[X] vm1'.
-    + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
-    have [vm2' [heq_on' ]]:= write_var_eq_on hw heq_on.
-    have: vm_uincl vm1' vm1.
-    + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
-    move=> H /(write_var_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu]; eexists; last reflexivity.
-    by move=> ? hin;rewrite heq_on'.
-  Qed.
+Proof.
+  move=> hu hw hsub;pose vm1' : vmap :=
+    Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
+  have heq_on :  evm s1 =[X] vm1'.
+  + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
+  have [vm2' [heq_on' ]]:= write_var_eq_on hw heq_on.
+  have: vm_uincl vm1' vm1.
+  + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
+  move=> H /(write_var_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu]; eexists; last reflexivity.
+  by move=> ? hin;rewrite heq_on'.
+Qed.
 
 Lemma write_lval_uincl_on gd X x v1 v2 s1 s2 vm1 :
   Sv.Subset (read_rv x) X ->
@@ -2415,17 +2467,17 @@ Lemma write_lval_uincl_on gd X x v1 v2 s1 s2 vm1 :
   evm s1 <=[X]  vm1 ->
   exists2 vm2 : vmap,evm s2 <=[Sv.union (vrv x) X]  vm2 &
                      write_lval gd x v2 (with_vm s1 vm1) = ok (with_vm s2 vm2).
-  Proof.
-    move=> hsubset hu hw hsub;pose vm1' : vmap :=
-      Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
-    have heq_on :  evm s1 =[X] vm1'.
-    + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
-    have [vm2' [heq_on' ]]:= write_lval_eq_on hsubset hw heq_on.
-    have: vm_uincl vm1' vm1.
-    + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
-    move=> H /(write_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu];eexists; last reflexivity.
-    by move=> ? hin;rewrite heq_on'.
-  Qed.
+Proof.
+  move=> hsubset hu hw hsub;pose vm1' : vmap :=
+    Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
+  have heq_on :  evm s1 =[X] vm1'.
+  + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
+  have [vm2' [heq_on' ]]:= write_lval_eq_on hsubset hw heq_on.
+  have: vm_uincl vm1' vm1.
+  + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
+  move=> H /(write_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu];eexists; last reflexivity.
+  by move=> ? hin;rewrite heq_on'.
+Qed.
 
 Lemma write_lvals_uincl_on gd X x v1 v2 s1 s2 vm1 :
   Sv.Subset (read_rvs x) X ->
@@ -2434,35 +2486,35 @@ Lemma write_lvals_uincl_on gd X x v1 v2 s1 s2 vm1 :
   evm s1 <=[X]  vm1 ->
   exists2 vm2 : vmap,evm s2 <=[Sv.union (vrvs x) X]  vm2 &
                      write_lvals gd (with_vm s1 vm1) x v2 = ok (with_vm s2 vm2).
-  Proof.
-    move=> hsubset hu hw hsub;pose vm1' : vmap :=
-      Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
-    have heq_on :  evm s1 =[X] vm1'.
-    + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
-    have [vm2' [heq_on' ]]:= write_lvals_eq_on hsubset hw heq_on.
-    have: vm_uincl vm1' vm1.
-    + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
-    move=> H /(writes_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu]; eexists; last reflexivity.
-    by move=> ? hin;rewrite heq_on'.
-  Qed.
+Proof.
+  move=> hsubset hu hw hsub;pose vm1' : vmap :=
+    Fv.empty (fun (x:var) => if Sv.mem x X then (evm s1).[x] else vm1.[x]).
+  have heq_on :  evm s1 =[X] vm1'.
+  + by move=> ? /Sv_memP;rewrite /vm1' Fv.get0 /= => ->.
+  have [vm2' [heq_on' ]]:= write_lvals_eq_on hsubset hw heq_on.
+  have: vm_uincl vm1' vm1.
+  + by move=> ?;rewrite /vm1' Fv.get0 /=;case:ifP => // /Sv_memP -/hsub.
+  move=> H /(writes_uincl _ hu) -/(_ _ H) /= [vm2 -> hvmu]; eexists; last reflexivity.
+  by move=> ? hin;rewrite heq_on'.
+Qed.
 
-  Lemma write_lval_undef gd l v s1 s2 sz :
-    write_lval gd l v s1 = ok s2 ->
-    type_of_val v = sword sz ->
-    exists w: word sz, v = Vword w.
-  Proof.
-    move=> Hw Ht.
-    rewrite /type_of_val in Ht.
-    case: v Ht Hw=> //=.
-    + move=> sz' w [<-] _; by exists w.
-    case => //= ?? [<-] /=.
-    case: l => /=.
-    + by move => _ [] //; rewrite /write_none /= => sz'; case: eqP.
-    + by case => - [] [] // sz' vn vi; rewrite /write_var /set_var /=; case: eqP.
-    + by move => sz' v e; t_xrbindP; case: ifP.
-    + by move => aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
-    by move => aa ws len [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
-  Qed.
+Lemma write_lval_undef gd l v s1 s2 sz :
+  write_lval gd l v s1 = ok s2 ->
+  type_of_val v = sword sz ->
+  exists w: word sz, v = Vword w.
+Proof.
+  move=> Hw Ht.
+  rewrite /type_of_val in Ht.
+  case: v Ht Hw=> //=.
+  + move=> sz' w [<-] _; by exists w.
+  case => //= ?? [<-] /=.
+  case: l => /=.
+  + by move => _ [] //; rewrite /write_none /= => sz'; case: eqP.
+  + by case => - [] [] // sz' vn vi; rewrite /write_var /set_var /=; case: eqP.
+  + by move => sz' v e; t_xrbindP; case: ifP.
+  + by move => aa ws [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
+  by move => aa ws len [] [vt vn] /= _ e; apply: on_arr_varP => n t hty /= ?; t_xrbindP.
+Qed.
 
 (* ---------------------------------------------------------------- *)
 (* value inclusion on vmap except on X   *)
@@ -2552,11 +2604,11 @@ Let Pfor (i:var_i) zs s1 c s2 :=
       sem_for p ev i zs (with_vm s1 vm1) c (with_vm s2 vm2) /\
       vm_uincl (evm s2) vm2.
 
-Let Pfun m1 fd vargs m2 vres :=
+Let Pfun scs1 m1 fd vargs scs2 m2 vres :=
   forall vargs',
     List.Forall2 value_uincl vargs vargs' ->
     exists vres',
-      sem_call p ev m1 fd vargs' m2 vres' /\
+      sem_call p ev scs1 m1 fd vargs' scs2 m2 vres' /\
       List.Forall2 value_uincl vres vres'.
 
 Local Lemma Hnil : sem_Ind_nil Pc.
@@ -2588,6 +2640,15 @@ Proof.
   move=> /(writes_uincl Hvm1 H4) [] vm2 ??.
   exists vm2;split => //;constructor.
   by rewrite /sem_sopn H1 /= H3.
+Qed.
+
+Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
+Proof.
+  move=> s1 scs m s2 xs o es ves vs hes hex hw vm1 hvm1. 
+  have [ves' hes' hle] := sem_pexprs_uincl hvm1 hes.
+  have [vs' hex' hle']:= exec_syscallP hex hle.
+  have  [vm2 Hw ?]:= writes_uincl (s1 := with_scs (with_mem s1 m) scs) hvm1 hle' hw.
+  exists vm2;split=> //; econstructor; eauto.
 Qed.
 
 Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
@@ -2645,12 +2706,11 @@ Qed.
 
 Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
 Proof.
-  move=> s1 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfd Hxs vm1 Hvm1.
+  move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfd Hxs vm1 Hvm1.
   have [vargs' Hsa /Hfd [vs' [Hc Hvres]]]:= sem_pexprs_uincl Hvm1 Hargs.
-  have Hvm1' : vm_uincl (evm (with_mem s1 m2)) vm1 by done.
+  have Hvm1' : vm_uincl (evm (with_scs (with_mem s1 m2) scs2)) vm1 by done.
   have [vm2' ??] := writes_uincl Hvm1' Hvres Hxs.
-  exists vm2';split=>//.
-  econstructor;eauto.
+  exists vm2'; split=>//; econstructor; eauto.
 Qed.
 
 Lemma check_ty_val_uincl v1 x v2 :
@@ -2668,7 +2728,7 @@ Qed.
 
 Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
 Proof.
-  move=> m1 m2 fn fd vargs vargs' s0 s1 s2 vres vres' Hget Hca hi Hargs Hsem Hrec Hmap Hcr Hfi vargs1' Uargs.
+  move=> scs1 m1 scs2 m2 fn fd vargs vargs' s0 s1 s2 vres vres' Hget Hca hi Hargs Hsem Hrec Hmap Hcr hscs Hfi vargs1' Uargs.
   have [vargs2' hm2 Uargs']:= mapM2_truncate_val Hca Uargs.
   have := write_vars_uincl (vm_uincl_refl _) Uargs' Hargs.
   rewrite with_vm_same => -[vm1 Hargs' Hvm1].
@@ -2678,14 +2738,14 @@ Proof.
   by exists vres2';split=>//;econstructor;eauto.
 Qed.
 
-Lemma sem_call_uincl vargs m1 f m2 vres vargs':
+Lemma sem_call_uincl vargs scs1 m1 f scs2 m2 vres vargs':
   List.Forall2 value_uincl vargs vargs' ->
-  sem_call p ev m1 f vargs m2 vres ->
-  exists vres', sem_call p ev m1 f vargs' m2 vres' /\ List.Forall2 value_uincl vres vres'.
+  sem_call p ev scs1 m1 f vargs scs2 m2 vres ->
+  exists vres', sem_call p ev scs1 m1 f vargs' scs2 m2 vres' /\ List.Forall2 value_uincl vres vres'.
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_call_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_call_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2698,7 +2758,7 @@ Lemma sem_i_uincl s1 i s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_i_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_i_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2711,7 +2771,7 @@ Lemma sem_I_uincl s1 i s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_I_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_I_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2724,7 +2784,7 @@ Lemma sem_uincl s1 c s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn
+    (@sem_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2873,33 +2933,93 @@ Proof.
   by move=> _; apply eval_uincl_undef.
 Qed.
 
-(* ------------------------------------------------------------------------------ *)
 
 (* ** Semantic without stack 
  * -------------------------------------------------------------------- *)
 
+Lemma exec_syscallPu scs m o vargs vargs' rscs rm vres :
+  sem.exec_syscall scs m o vargs = ok (rscs, rm, vres) → 
+  List.Forall2 value_uincl vargs vargs' → 
+  exists2 vres' : values,
+    sem.exec_syscall scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
+Proof.
+  rewrite /sem.exec_syscall; case: o => [ p ].
+  t_xrbindP => -[scs' v'] /= h ??? hu; subst scs' m v'. 
+  move: h; rewrite /exec_getrandom.
+  case: hu => // va va' ?? huva [] //; t_xrbindP => a ha ra hra ??; subst rscs vres.
+  have [a' -> ?] /= := value_uincl_arr huva ha; rewrite hra /=; eexists; eauto.
+Qed.
+  
 #[ global ]
 Instance sCP_unit : @semCallParams _ progUnit :=
-  { init_state := fun _ _ _ s => ok s;
-    finalize   := fun _ m => m; }.
+  { init_state    := fun _ _ _ s => ok s;
+    finalize      := fun _ m => m;
+    exec_syscall  := sem.exec_syscall;
+    exec_syscallP := exec_syscallPu;
+  }.
 
 (* ** Semantic with stack 
  * -------------------------------------------------------------------- *)
 
 Definition init_stk_state (sf : stk_fun_extra) (pe:sprog_extra) (wrip:pointer) (s:estate) :=
+  let scs1 := s.(escs) in
   let m1   := s.(emem) in
   let vm1  := s.(evm) in
   Let m1' := alloc_stack m1 sf.(sf_align) sf.(sf_stk_sz) sf.(sf_stk_extra_sz) in
   write_vars [:: vid pe.(sp_rsp) ; vid pe.(sp_rip)]
-             [:: Vword (top_stack m1'); Vword wrip] (Estate m1' vmap0).
+             [:: Vword (top_stack m1'); Vword wrip] (Estate scs1 m1' vmap0).
 
 Definition finalize_stk_mem (sf : stk_fun_extra) (m:mem) :=
   free_stack m.
 
+Definition fill_mem (m : mem) (p : pointer) (l : list u8) : exec mem := 
+  Let pm := 
+   foldM (fun w pm => 
+             Let m := write pm.2 (add p pm.1) w in 
+             ok (pm.1 + 1, m)) (0%Z, m) l in
+    ok pm.2.
+
+Definition exec_getrandom_s (scs : syscall_state) (m : mem) vs : exec (syscall_state * mem * values) := 
+  Let plen := 
+    match vs with
+    | [:: vp; vlen] => 
+        Let p := to_pointer vp in 
+        Let len := to_word U32 vlen in
+        ok (p, wunsigned len) 
+    | _ => type_error 
+    end in
+  let sd := syscall.get_random scs plen.2 in
+  Let m := fill_mem m plen.1 sd.2 in
+  ok (sd.1, m, [:: Vword plen.1]).
+
+Definition exec_syscall_s 
+  (scs : syscall_state) (m:mem) (o:syscall_t) (vs:values) : exec (syscall_state * mem * values) := 
+  match o with
+  | GetRandom _len => exec_getrandom_s scs m vs 
+  end.
+
+Lemma exec_syscallPs scs m o vargs vargs' rscs rm vres :
+  exec_syscall_s scs m o vargs = ok (rscs, rm, vres) → 
+  List.Forall2 value_uincl vargs vargs' → 
+  exists2 vres' : values,
+    exec_syscall_s scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'.
+Proof.
+  rewrite /exec_syscall_s; case: o => [ p ] h hu.
+  move: h; rewrite /exec_getrandom_s.
+  case: hu => // vp vp' ?? uvp [] // vlen vlen' ?? uvlen [] //.
+  t_xrbindP => -[wp len] p' hp' wlen hlen [] ?? m' /= hfill hget ??; subst p' len m' rscs vres.
+  exists [::Vword wp] => //. 
+  + by rewrite (value_uincl_word uvp hp') (value_uincl_word uvlen hlen) /= hfill.
+  by apply List_Forall2_refl.
+Qed.
+
 #[ global ]
 Instance sCP_stack : @semCallParams _ progStack :=
-  { init_state := init_stk_state;
-    finalize   := finalize_stk_mem; }.
+  { init_state    := init_stk_state;
+    finalize      := finalize_stk_mem;
+    exec_syscall  := exec_syscall_s;
+    exec_syscallP := exec_syscallPs;   
+  }.
 
 (* -------------------------------------------------------------------- *)
 
@@ -2988,6 +3108,7 @@ Section WF.
       by apply: wf_write_lval ok_s2.
     + move=> xs t o es s1 s2 /sem_iE.
       by apply:rbindP => ?? Hw ?;apply: wf_write_lvals Hw.
+    + by move=> xs o es s1 s2 /sem_iE [scs [m [ves [vs [_ _ hw]]]]] hu; apply: wf_write_lvals hw.
     + move=> e c1 c2 Hc1 Hc2 s1 s2 /sem_iE [b] [_]; case: b; [apply Hc1 | apply Hc2].
     + move=> i dir lo hi c Hc s1 s2 /sem_iE [vlo] [vhi] [hlo hhi hfor].
       elim: hfor Hc => // ???? ???? Hw Hsc Hsf Hrec Hc.
@@ -2999,7 +3120,7 @@ Section WF.
       by move=> /(Hc' _ _ Hsc'); apply Hrec.
     + move=> ?????? Hsc ? [????];subst.
       exact: (Hc _ _ Hsc).
-    move=> i xs f es s1 s2 /sem_iE [vs] [m2] [rs] [_ _ ok_s2] hw.
+    move=> i xs f es s1 s2 /sem_iE [vs] [scs2] [m2] [rs] [_ _ ok_s2] hw.
     by apply: wf_write_lvals ok_s2.
   Qed.
 
