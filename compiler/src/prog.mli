@@ -353,14 +353,16 @@ val is_var : 'len gexpr -> bool
 val get_ofs : Warray_.arr_access -> Wsize.wsize -> 'len gexpr -> int option
 
 (* -------------------------------------------------------------------- *)
-(* Functions over lvalue                                                *)
+(* Functions over lvalues                                               *)
 
 val expr_of_lval : 'len glval -> 'len gexpr option
 
 (* -------------------------------------------------------------------- *)
-(* Functions over instruction                                           *)
+(* Functions over instructions                                          *)
 
 val destruct_move : ('len, 'info) ginstr -> 'len glval * assgn_tag * 'len gty * 'len gexpr
+
+val has_syscall : ('len, 'info) gstmt -> bool  
 
 (* -------------------------------------------------------------------- *)
 val clamp : wsize -> Bigint.zint -> Bigint.zint

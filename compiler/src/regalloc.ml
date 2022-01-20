@@ -381,11 +381,17 @@ let collect_variables ~(allvars: bool) (excluded:Sv.t) (f: 'info func) : int Hv.
   collect_variables_aux ~allvars excluded fresh tbl None f;
   tbl, total ()
 
-let collect_variables_in_prog ~(allvars: bool) (excluded:Sv.t) (extra: var Hf.t) (extras: ('k, var) Hashtbl.t) (f: 'info func list) : int Hv.t * int =
+let collect_variables_in_prog ~(allvars: bool) (excluded:Sv.t) 
+      (extra: var Hf.t) 
+      (extras: ('k, var) Hashtbl.t) 
+      (all_regs : var list)
+      (f: 'info func list) : int Hv.t * int =
+  
   let fresh, total = make_counter () in
   let tbl : int Hv.t = Hv.create 97 in
   List.iter (fun f -> collect_variables_aux ~allvars excluded fresh tbl (Hf.Exceptionless.find extra f.f_name) f) f;
   Hashtbl.iter (fun _ v -> collect_variables_cb ~allvars excluded fresh tbl v) extras;
+  List.iter (fun v -> collect_variables_cb ~allvars excluded fresh tbl v) all_regs;
   tbl, total ()
 
 let normalize_variables (tbl: int Hv.t) (eqc: Puf.t) : int Hv.t =
@@ -544,6 +550,7 @@ struct
       let i = f x in
       allocate_one nv vars loc cnf (L.unloc x) i y a
     in
+    
     let mallocate_one x y a =
       match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
     in
@@ -822,6 +829,10 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   let extra_free_registers : (L.i_loc, var) Hashtbl.t = Hashtbl.create 137 in
   let killed_map : Sv.t Hf.t = Hf.create 17 in
   let killed fn = Hf.find killed_map fn in
+
+  let write_syscall = 
+    Var0.Sv.fold_var (fun y s -> Sv.add (translate_var y) s) X86_params.write_syscall Sv.empty in 
+
   let preprocess f =
     Hf.add annot_table f.f_name f.f_annot;
     let f = f |> fill_in_missing_names |> Ssa.split_live_ranges false in
@@ -856,7 +867,8 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
                 ) acc locs
             else acc
           ) cg Sv.empty in
-      Sv.union written killed_by_calls
+      let killed_by_syscalls = if has_syscall f.f_body then write_syscall else Sv.empty in
+      Sv.union (Sv.union written killed_by_calls) killed_by_syscalls 
     in
     Hf.add killed_map f.f_name written;
     f
@@ -866,20 +878,32 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
     Format.printf "Before REGALLOC:@.%a@."
       Printer.(pp_list "@ @ " (pp_func ~debug:true)) (List.rev funcs);
   (* Live variables at the end of each function, in addition to returned local variables *)
-  let get_liveness =
+  let get_liveness, slive =
     let live : Sv.t Hf.t = Hf.create 17 in
+    let slive : (Syscall.syscall_t, Sv.t) Hashtbl.t = Hashtbl.create 17 in 
     List.iter (fun f ->
         let f_with_liveness = Hf.find liveness_table f.f_name in
         let live_when_calling_f = Hf.find_default live f.f_name Sv.empty in
-        Liveness.iter_call_sites (fun _loc fn xs (_, s) ->
+        let cbf _loc fn xs (_, s) =
             let s = Sv.union live_when_calling_f s in
             let s = Liveness.dep_lvs s xs in
-            Hf.modify_def Sv.empty fn (Sv.union s) live) f_with_liveness
+            Hf.modify_def Sv.empty fn (Sv.union s) live in
+        let cbs _loc o xs (_, s) =
+            let s = Liveness.dep_lvs s xs in
+            match Hashtbl.find slive o with 
+            | s0 -> Hashtbl.replace slive o (Sv.union s s0)
+            | exception Not_found -> Hashtbl.add slive o s in
+        Liveness.iter_call_sites cbf cbs f_with_liveness
       ) funcs;
-    fun fn -> Hf.find_default live fn Sv.empty
+    (fun fn -> Hf.find_default live fn Sv.empty),
+    slive 
+
   in
   let excluded = Sv.of_list [Prog.rip; X64.rsp] in
-  let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses extra_free_registers funcs in
+  let vars, nv = 
+    let all_regs = Var0.Sv.fold_var (fun x all -> translate_var x :: all) X86_params.all_vars [] in
+    collect_variables_in_prog ~allvars:false excluded return_addresses 
+      extra_free_registers all_regs funcs in
   let eqc, tr, fr = collect_equality_constraints_in_prog "Regalloc" x86_equality_constraints vars nv funcs in
   let vars = normalize_variables vars eqc in
   (* Intra-procedural conflicts *)
@@ -898,7 +922,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
             match Hashtbl.find extra_free_registers loc with
             | exception Not_found -> ()
             | r -> cnf := Sv.fold (conflicts_add_one vars tr (Lmore loc) r) s !cnf
-          ) f
+          ) (fun _ _ _ _ -> ()) f
       ) liveness_table;
     !cnf
   in
@@ -923,7 +947,24 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
         in
         cnf |> Sv.fold (add_conflicts vars) live |> Sv.fold (add_conflicts live) vars
       ) funcs conflicts in
+ 
+  (* syscall conflicts *)
+  let conflicts =
+    let add_conflicts x cnf = 
+      Sv.fold (fun y cnf -> conflicts_add_one vars tr Lnone x y cnf) write_syscall cnf in
+    Hashtbl.fold (fun _o live cnf -> cnf |> Sv.fold add_conflicts live) slive conflicts in
+  
   let a = A.empty nv in
+
+  (* Allocate all_vars *)
+  let allocate_one x a =
+    match Hv.find vars x with 
+    | i -> allocate_one nv vars L.i_dummy conflicts x i x a
+    | exception Not_found -> () 
+  in
+  Var0.Sv.fold_var (fun x () -> allocate_one (translate_var x) a)
+      X86_params.all_vars ();
+
   List.iter (fun f -> allocate_forced_registers translate_var nv vars conflicts f a) funcs;
   greedy_allocation vars nv conflicts fr a;
   let subst = var_subst_of_allocation vars a in

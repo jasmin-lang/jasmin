@@ -59,7 +59,7 @@ Definition write_syscall (o:syscall_t) : Sv.t :=
   end.
 
 *)
-Context (write_syscall : syscall_t -> Sv.t). 
+Context (write_syscall : Sv.t). 
 (* Where the argument are taken and where they are stored *) 
 Context (syscall_vsig : syscall_t -> seq var * seq var).
 
@@ -96,7 +96,7 @@ Section WRITE1.
     match i with
     | Cassgn x _ _ _  => vrv_rec s x
     | Copn xs _ _ _   => vrvs_rec s xs
-    | Csyscall _ o _  => Sv.union s (write_syscall o)
+    | Csyscall _ o _  => Sv.union s write_syscall
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
@@ -252,7 +252,7 @@ Section CHECK.
         Let _ := assert
           (all2 (λ x r, if x is Lvar v then v_var v == r else false) xs o_res)
           (E.internal_error ii "bad syscall dests") in
-        let W := write_syscall o in
+        let W := write_syscall in
         ok (Sv.diff (Sv.union D W) (set_of_var_seq Sv.empty o_res))
     end.
 

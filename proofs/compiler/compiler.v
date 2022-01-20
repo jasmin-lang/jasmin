@@ -180,7 +180,7 @@ Record architecture_params := mk_aparams {
 
 (* System dependant *)
 Record system_params := mk_sparams {
-  write_syscall : syscall_t -> Sv.t; 
+  write_syscall : Sv.t; 
   syscall_vsig  : syscall_t -> seq var * seq var;
   callee_saved  : Sv.t;
 }.

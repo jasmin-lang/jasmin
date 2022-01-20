@@ -53,10 +53,7 @@ Definition callee_saved := set_of_var_seq Sv.empty (List.map to_var x86_callee_s
 
 Definition caller_saved := Sv.diff all_vars callee_saved.
 
-Definition write_syscall (o:syscall_t) : Sv.t := 
-  match o with
-  | GetRandom _ => caller_saved
-  end.
+Definition write_syscall : Sv.t := caller_saved.
 
 Definition x86_arguments := [:: RDI; RSI; RDX; RCX; R8; R9].
 

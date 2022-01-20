@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From Coq Require Import PArith.
+From Coq Require Import PArith ZArith.
 Require Import word type.
 
 Set Implicit Arguments.

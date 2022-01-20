@@ -66,7 +66,6 @@ and iac_instr_r loc ir =
     | _ -> ir
     end
   | Csyscall (xs, (* Syscall.GetRandom *) _, es) -> 
-    (* FIXME syscall: should be ok *)
     (* Fix the size it is dummy for the moment *)
     let ty =
        match xs with

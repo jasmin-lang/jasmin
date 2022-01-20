@@ -548,7 +548,7 @@ let get_ofs aa ws e =
   | _ -> None
 
 (* -------------------------------------------------------------------- *)
-(* Functions over lvalue                                                *)
+(* Functions over lvalues                                               *)
 
 let expr_of_lval = function
   | Lnone _         -> None
@@ -558,12 +558,21 @@ let expr_of_lval = function
   | Lasub(a, ws, l, x, e) -> Some (Psub(a,ws,l,gkvar x, e))
 
 (* -------------------------------------------------------------------- *)
-(* Functions over instruction                                           *)
+(* Functions over instructions                                          *)
 
 let destruct_move i =
   match i.i_desc with
   | Cassgn(x, tag, ty, e) -> x, tag, ty, e
   | _                 -> assert false
+
+let rec has_syscall_i i = 
+  match i.i_desc with
+  | Csyscall _ -> true
+  | Cassgn _ | Copn _ | Ccall _ -> false 
+  | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_syscall c1 || has_syscall c2 
+  | Cfor (_, _, c) -> has_syscall c
+
+and has_syscall c = List.exists has_syscall_i c
 
 (* -------------------------------------------------------------------- *)
 let clamp (sz : wsize) (z : Bigint.zint) =

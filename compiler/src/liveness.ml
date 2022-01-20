@@ -51,14 +51,6 @@ and live_d weak d (s_o: Sv.t) =
      else s_o in
     s_i, s_o, Copn(xs,t,o,es)
 
-  (* FIXME syscall *)
-  | Csyscall(xs,o,es) ->
-    let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
-    let s_o =
-     if weak then writev_lvals s_o xs
-     else s_o in
-    s_i, s_o, Csyscall(xs,o,es)
-
   | Cif(e,c1,c2) ->
     let s1, c1 = live_c weak c1 s_o in
     let s2, c2 = live_c weak c2 s_o in
@@ -82,6 +74,10 @@ and live_d weak d (s_o: Sv.t) =
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
     s_i, (if weak then writev_lvals s_o xs else s_o), Ccall(ii,xs,f,es)
 
+  | Csyscall(xs,o,es) ->
+    let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
+    s_i, (if weak then writev_lvals s_o xs else s_o), Csyscall(xs,o,es) 
+
 and live_c weak c s_o =
   List.fold_right
     (fun i (s_o, c) ->
@@ -99,15 +95,19 @@ let liveness weak prog =
   let fds = List.map (live_fd weak) (snd prog) in
   fst prog, fds
 
-let iter_call_sites (cb: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) (f: (Sv.t * Sv.t) func) : unit =
+let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) 
+                    (cbs: L.i_loc -> Syscall.syscall_t -> lvals -> Sv.t * Sv.t -> unit)
+                    (f: (Sv.t * Sv.t) func) : unit =
   let rec iter_instr_r loc ii =
     function
     (* FIXME syscall *)
-    | (Cassgn _ | Copn _ | Csyscall _) -> ()
+    | (Cassgn _ | Copn _ ) -> ()
     | (Cif (_, s1, s2) | Cwhile (_, s1, _, s2)) -> iter_stmt s1; iter_stmt s2
     | Cfor (_, _, s) -> iter_stmt s
     | Ccall (_, xs, fn, _) ->
-       cb loc fn xs ii
+       cbf loc fn xs ii
+    | Csyscall (xs, op, _) ->
+       cbs loc op xs ii
   and iter_instr { i_loc ; i_info ; i_desc } = iter_instr_r i_loc i_info i_desc
   and iter_stmt s = List.iter iter_instr s in
   iter_stmt f.f_body

@@ -45,6 +45,6 @@ Cd  "lang/ocaml".
 
 Extraction Blacklist String List Nat Utils Var Array.
 
-Separate Extraction utils sopn expr sem x86_instr_decl x86_params compiler.
+Separate Extraction var.Sv.fold_var utils sopn expr sem x86_instr_decl x86_params compiler.
 
 Cd  "../..".
