@@ -381,17 +381,6 @@ let main () =
       let x = Conv.var_of_cvar tbl x in
       x.v_kind = Global in
 
-    let fresh_id _gd x =
-      let x = Conv.var_of_cvar tbl x in
-      let x' = Prog.V.clone x in
-      let cx = Conv.cvar_of_var tbl x' in
-      cx.Var0.Var.vname in
-
-    let fresh_counter =
-      let i = Prog.V.mk ("i__copy") Inline tint L._dummy [] in
-      let ci = Conv.cvar_of_var tbl i in
-      ci.Var0.Var.vname in
-
     let split_live_ranges_fd fd = Regalloc.split_live_ranges fd in
     let renaming_fd fd = Regalloc.renaming fd in
     let remove_phi_nodes_fd fd = Regalloc.remove_phi_nodes fd in
