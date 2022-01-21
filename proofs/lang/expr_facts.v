@@ -467,6 +467,10 @@ Lemma vars_I_opn ii xs t o es:
   Sv.Equal (vars_I (MkI ii (Copn xs t o es))) (Sv.union (vars_lvals xs) (read_es es)).
 Proof. by rewrite /vars_I read_Ii write_Ii read_i_opn write_i_opn /vars_lvals; clear; SvD.fsetdec. Qed.
 
+Lemma vars_I_syscall ii xs o es:
+  Sv.Equal (vars_I (MkI ii (Csyscall xs o es))) (Sv.union (vars_lvals xs) (read_es es)).
+Proof. by rewrite /vars_I read_Ii write_Ii read_i_syscall write_i_syscall /vars_lvals; clear; SvD.fsetdec. Qed.
+
 Lemma vars_I_if ii e c1 c2:
   Sv.Equal (vars_I (MkI ii (Cif e c1 c2))) (Sv.union (read_e e) (Sv.union (vars_c c1) (vars_c c2))).
 Proof.
