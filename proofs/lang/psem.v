@@ -413,6 +413,8 @@ Section SEM.
 Context `{asmop:asmOp}.
 Context {T} {pT:progT T}.
 
+Definition mem_equiv m1 m2 := stack_stable m1 m2 /\ validw m1 =2 validw m2.
+
 Class semCallParams := SemCallParams {
   init_state : extra_fun_t -> extra_prog_t -> extra_val_t -> estate -> exec estate;
   finalize   : extra_fun_t -> mem -> mem;
@@ -420,7 +422,10 @@ Class semCallParams := SemCallParams {
   exec_syscallP: forall scs m o vargs vargs' rscs rm vres, 
      exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
      List.Forall2 value_uincl vargs vargs' -> 
-     exists2 vres', exec_syscall scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres'
+     exists2 vres', exec_syscall scs m o vargs' = ok (rscs, rm, vres') & List.Forall2 value_uincl vres vres';
+  exec_syscallS: forall scs m o vargs rscs rm vres, 
+     exec_syscall scs m o vargs = ok (rscs, rm, vres) ->
+     mem_equiv m rm;
 }.
 
 Context {sCP : semCallParams}.
@@ -2949,6 +2954,14 @@ Proof.
   case: hu => // va va' ?? huva [] //; t_xrbindP => a ha ra hra ??; subst rscs vres.
   have [a' -> ?] /= := value_uincl_arr huva ha; rewrite hra /=; eexists; eauto.
 Qed.
+
+Lemma exec_syscallSu scs m o vargs rscs rm vres :
+  sem.exec_syscall scs m o vargs = ok (rscs, rm, vres) → 
+  mem_equiv m rm.
+Proof.
+  rewrite /sem.exec_syscall; case: o => [ p ].
+  by t_xrbindP => -[scs' v'] /= _ _ <- _.
+Qed.
   
 #[ global ]
 Instance sCP_unit : @semCallParams _ progUnit :=
@@ -2956,6 +2969,7 @@ Instance sCP_unit : @semCallParams _ progUnit :=
     finalize      := fun _ m => m;
     exec_syscall  := sem.exec_syscall;
     exec_syscallP := exec_syscallPu;
+    exec_syscallS := exec_syscallSu;
   }.
 
 (* ** Semantic with stack 
@@ -3013,12 +3027,27 @@ Proof.
   by apply List_Forall2_refl.
 Qed.
 
+Lemma exec_syscallSs scs m o vargs rscs rm vres :
+  exec_syscall_s scs m o vargs = ok (rscs, rm, vres) → 
+  mem_equiv m rm.
+Proof.
+  rewrite /exec_syscall_s; case: o => [ p ].
+  rewrite /exec_getrandom_s; case: vargs => // v [] // vl [] //.
+  t_xrbindP => -[ptr z] ptr' hv len hlen [? <-] /= rm' hf _ ? _; subst rm'.
+  move: hf; rewrite /fill_mem; t_xrbindP => zm hf <-.
+  elim: (get_random _ _).2 m 0 hf => [ | b bs hrec] m z0 /=; first by move => [<-].
+  t_xrbindP => zm2 m0 hw <- /hrec [hst hvw]; split.
+  + by rewrite -hst; apply: Memory.write_mem_stable hw.
+  by move=> ??; rewrite -hvw (write_validw_eq hw).
+Qed.
+
 #[ global ]
 Instance sCP_stack : @semCallParams _ progStack :=
   { init_state    := init_stk_state;
     finalize      := finalize_stk_mem;
     exec_syscall  := exec_syscall_s;
-    exec_syscallP := exec_syscallPs;   
+    exec_syscallP := exec_syscallPs;
+    exec_syscallS := exec_syscallSs;
   }.
 
 (* -------------------------------------------------------------------- *)
