@@ -1204,6 +1204,23 @@ Proof.
   by apply on_arr_varP => n t Ht Hval; t_xrbindP => ????????; apply: write_var_memP.
 Qed.
 
+Lemma write_var_scsP x v s1 s2 : 
+  write_var x v s1 = ok s2 → escs s1 = escs s2.
+Proof. by apply: rbindP=> ?? [] <-. Qed.
+
+Lemma lv_write_scsP gd (x:lval) v s1 s2:
+  write_lval gd x v s1 = ok s2 ->
+  escs s1 = escs s2.
+Proof.
+  case: x=> /= [v0 t|v0|ws x e|aa ws v0 p|aa ws len v0 p].
+  + by move => /write_noneP [-> _]. 
+  + by apply: write_var_scsP.
+  + by t_xrbindP => *; subst s2.
+  + by apply: on_arr_varP=> n t Ht Hval; t_xrbindP=> ????????; apply: write_var_scsP.
+  by apply on_arr_varP => n t Ht Hval; t_xrbindP => ????????; apply: write_var_scsP.
+Qed.
+
+
 Section Write.
 
 Context `{asmop:asmOp}.

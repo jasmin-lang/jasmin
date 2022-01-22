@@ -65,8 +65,8 @@ Section PROOF.
     /\ forall ii, sem p' ev s
       (flatten (map (fun n => assgn ii i (Pconst n) :: (unroll_cmd unroll_i c)) vs)) s'.
 
-  Let Pfun m1 fn vargs m2 vres :=
-    sem_call p' ev m1 fn vargs m2 vres.
+  Let Pfun scs1 m1 fn vargs scs2 m2 vres :=
+    sem_call p' ev scs1 m1 fn vargs scs2 m2 vres.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof. exact: Eskip. Qed.
@@ -90,6 +90,12 @@ Section PROOF.
   Proof.
     move=> s1 s2 t o xs es Hw ii.
     by apply: sem_seq1; apply: EmkI; apply: Eopn.
+  Qed.
+
+  Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
+  Proof.
+    move=> s1 scs m s2 xs o es ves vs hes ho hw ii /=.
+    apply: sem_seq1; apply: EmkI; apply: Esyscall; eauto.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
@@ -156,30 +162,22 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 m2 s2 ii xs fn args vargs vs Hexpr Hcall Hfun Hw ii'.
+    move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hexpr Hcall Hfun Hw ii'.
     apply: sem_seq1; apply: EmkI; apply: Ecall; [exact: Hexpr|exact: Hfun|exact: Hw].
   Qed.
 
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
-    move => m1 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
-    case: f=> fi ftyi fparams fc ftyo fres fe /= Hget Htyi Hi Hw _ Hc Hres Htyo Hfi.
-    apply: EcallRun.
-    + by rewrite get_map_prog Hget.
-    + exact: Htyi.
-    + exact: Hi.
-    + exact: Hw.
-    + exact: Hc.
-    + exact: Hres.
-    + exact: Htyo.
-    exact: Hfi.
+    move => scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
+    case: f=> fi ftyi fparams fc ftyo fres fe /= Hget Htyi Hi Hw _ Hc Hres Htyo Hsys Hfi.
+    apply: EcallRun; first (by rewrite get_map_prog Hget); eauto.
   Qed.
 
-  Lemma unroll_callP f mem mem' va vr:
-    sem_call p  ev mem f va mem' vr ->
-    sem_call p' ev mem f va mem' vr.
+  Lemma unroll_callP f scs mem scs' mem' va vr:
+    sem_call p  ev scs mem f va scs' mem' vr ->
+    sem_call p' ev scs mem f va scs' mem' vr.
   Proof.
-    apply (@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    apply (@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
