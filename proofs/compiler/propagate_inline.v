@@ -243,6 +243,8 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
 
   | Csyscall xs o es => 
     let es := pi_es pi es in
+    (* Remark: for uprog it is not necessary *)
+    let pi := remove_m pi in
     let (pi, xs) := pi_lvs pi xs in
     ok (pi, MkI ii (Csyscall xs o es))
 
