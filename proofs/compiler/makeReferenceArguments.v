@@ -46,9 +46,7 @@ Section Section.
 Context `{asmop:asmOp}.
 Context (is_reg_ptr : var -> bool) 
         (fresh_reg_ptr : Ident.ident -> stype -> Ident.ident).
-Context {T} {pT:progT T}.
-Context (syscall_sig : syscall_t -> seq stype * seq stype).
-Context (p : prog).
+Context (p : uprog).
 
 Definition with_id vi id ty := 
   {| v_var := {| vtype := ty; vname := fresh_reg_ptr id ty |};
@@ -78,8 +76,7 @@ Fixpoint make_prologue ii (X:Sv.t) xtys es :=
   | (doit, id, ty)::xtys, e::es =>
     match is_reg_ptr_expr doit id ty e with
     | Some y => 
-      Let _ := assert ([&& ~~is_sbool ty & ~~Sv.mem y X ])
-                      (make_ref_error ii "bad fresh id (prologue)") in
+      Let _ := assert (~~Sv.mem y X) (make_ref_error ii "bad fresh id (prologue)") in
       Let pes := make_prologue ii (Sv.add y X) xtys es in
       let: (p,es') := pes in 
       ok (MkI ii (Cassgn (Lvar y) AT_rename ty e) :: p, Plvar y :: es')
@@ -101,7 +98,7 @@ Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) xtys rs :=
   | (doit, id, ty)::xtys, r::rs =>
      match is_reg_ptr_lval doit id ty r with
      | Some y => 
-       Let _ := assert ([&& ~~is_sbool ty & ~~Sv.mem y X ])
+       Let _ := assert (~~Sv.mem y X)
                        (make_ref_error ii "bad fresh id (epilogue)") in
        Let pis := make_pseudo_epilogue ii X xtys rs in
        ok (PI_lv (Lvar y) :: (PI_i r ty y) :: pis)
@@ -168,7 +165,7 @@ Definition get_sig fn :=
   else ([::], [::]).
 
 Definition get_syscall_sig o := 
-  let: (tyin, tyout) := syscall_sig o in
+  let: (tyin, tyout) := syscall.syscall_sig_u o in
   (map (fun ty => (is_sarr ty, "__p__"%string, ty)) tyin,
    map (fun ty => (is_sarr ty, "__p__"%string, ty)) tyout).
 
@@ -203,7 +200,7 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     ok (prologue ++ MkI ii (Csyscall xs o es) :: epilogue)
   end.
 
-Definition update_fd (fd: fundef) :=
+Definition update_fd (fd: ufundef) :=
   let body    := fd.(f_body) in
   let write   := write_c body in
   let read    := read_c  body in
@@ -212,7 +209,7 @@ Definition update_fd (fd: fundef) :=
   Let body := update_c (update_i X) body in
   ok (with_body fd body).
 
-Definition makereference_prog : cexec prog :=
+Definition makereference_prog : cexec uprog :=
   Let funcs := map_cfprog update_fd p.(p_funcs) in
   ok {| p_extra := p_extra p; p_globs := p_globs p; p_funcs := funcs |}.
 

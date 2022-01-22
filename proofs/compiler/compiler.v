@@ -254,7 +254,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_reg_ptr) syscall.syscall_sig_u pg in
+  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_reg_ptr) pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
   Let _ := assert (fvars_correct cparams.(lowering_vars) (p_funcs pa)) 
