@@ -369,7 +369,7 @@ Definition Align_locals := Align_slots stack.
 
 Variable params : seq var_i.
 Variables vargs1 vargs2 : seq value.
-Variable scs1 scs2 : syscall_state.
+Variable scs1 : syscall_state.
 Variable m1 m2 : mem.
 
 Hypothesis Hargs : Forall3 (wf_arg glob_size rip m1 m2) sao.(sao_params) vargs1 vargs2.
@@ -1431,7 +1431,7 @@ Qed.
 
 Lemma valid_state_init_params m0 vm1 vm2 :
   let: s1 := {| escs := scs1; emem := m1; evm := vm1 |} in
-  let: s2 := {| escs := scs2; emem := m2; evm := vm2 |} in
+  let: s2 := {| escs := scs1; emem := m2; evm := vm2 |} in
   valid_state (lmap locals1 vnew1) glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s2 ->
   forall s1',
   write_vars params vargs1 s1 = ok s1' ->
@@ -1443,7 +1443,7 @@ Proof.
   have {hvs}:
      wf_pmap (lmap locals1 vnew1) rsp rip Slots Addr Writable Align /\
      valid_state (lmap locals1 vnew1) glob_size rsp rip Slots Addr Writable Align P rmap1 m0 
-        {| escs := scs1; emem := m1; evm := vm1 |} {| escs := scs2; emem := m2; evm := vm2 |}.
+        {| escs := scs1; emem := m1; evm := vm1 |} {| escs := scs1; emem := m2; evm := vm2 |}.
   + split=> //.
     by apply init_local_map_wf_pmap.
   elim: Hargs params get_pi_Forall vnew1 locals1 rmap1 vnew2 locals2 rmap2 alloc_params hparams vm1 vm2.
@@ -2539,8 +2539,7 @@ Qed.
 *)
 Local Lemma Hproc : sem_Ind_proc P ev Pc Pfun.
 Proof.
-(*
-  move=> m1 _ fn fd vargs1' vargs1 _ s1 s1' vres1 vres1' hfd hvargs1' /= [<-] hs1 hsem1 Hc hvres1 hvres1' ->.
+  move=> scs1 m1 _ _ fn fd vargs1' vargs1 _ s1 s1' vres1 vres1' hfd hvargs1' /= [<-] hs1 hsem1 Hc hvres1 hvres1' -> ->.
   move=> m2 vargs2 hext hargs hdisjv hok.
   have [fd2 halloc hfd2] := Halloc_fd hfd.
   move: halloc; rewrite /alloc_fd /alloc_fd_aux /=.
@@ -2574,9 +2573,10 @@ Proof.
   set fex := {| sf_align := _ |} in hfd2.
   set rsp := top_stack m2'.
   have hinit:
-    init_stk_state fex (p_extra P') rip {| emem := m2; evm := vmap0 |} =
+    init_stk_state fex (p_extra P') rip {| escs := scs1; emem := m2; evm := vmap0 |} =
     ok
       {|
+        escs := scs1;
         emem := m2';
         evm := vmap0
           .[
@@ -2635,8 +2635,8 @@ Proof.
 
   have hsub := write_vars_subtype (init_params_sarr hparams) hs1. (* 'backported' from write_vars of args *)
   have /= hvs := init_stk_state_valid_state hlayout hover
-    hargs' hsub hlocal_map hparams hext hass refl_equal rip_rsp_neq.
-  have hpmap := init_params_wf_pmap hlayout rsp vargs1' vargs2' hlocal_map hparams.
+    scs1 hargs' hsub fresh_reg_ hlocal_map hparams hext hass refl_equal rip_rsp_neq.
+  have hpmap := init_params_wf_pmap hlayout rsp vargs1' vargs2' fresh_reg_ hlocal_map hparams.
   have hslots := Hwf_Slots hlayout hover hdisj_glob_locals hext.(em_align)
     hass.(ass_align_stk) hargs' hdisjv' hsub hparams hdisj_locals_params.
 
@@ -2709,7 +2709,7 @@ Proof.
 
   exists (free_stack (emem s2')), vres2'.
   split.
-  + by econstructor; try eassumption.
+  + by econstructor; eauto; case: hvs'''.
   split.
   + apply (free_stack_spec_extend_mem hext''' hfss).
     move=> p.
@@ -2730,8 +2730,6 @@ Proof.
     by apply is_align8.
   by apply or_comm.
 Qed.
-*)
-Admitted.
 
 Lemma check_cP scs1 m1 fn vargs scs2 m2 vres : sem_call P ev scs1 m1 fn vargs scs2 m2 vres -> 
    Pfun scs1 m1 fn vargs scs2 m2 vres.
