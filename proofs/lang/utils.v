@@ -129,6 +129,33 @@ Lemma reflect_inj (T:eqType) (U:Type) (f:T -> U) a b :
   injective f -> reflect (a = b) (a == b) -> reflect (f a = f b) (a == b).
 Proof. by move=> hinj heq; apply: (iffP heq) => [| /hinj ] ->. Qed.
 
+(* -------------------------------------------------------------------- *)
+(* Missing Instance in ssreflect for setoid rewrite                     *)
+
+Instance and3_impl_morphism :
+  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and3 | 1.
+Proof. by move=> ?? h1 ?? h2 ?? h3 [/h1 ? /h2 ? /h3 ?]. Qed.
+
+Instance and3_iff_morphism :
+  Proper (iff ==> iff ==> iff ==> iff) and3.
+Proof. by move=> ?? h1 ?? h2 ?? h3; split => -[] /h1 ? /h2 ? /h3. Qed.
+
+Instance and4_impl_morphism :
+  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and4 | 1.
+Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 [/h1 ? /h2 ? /h3 ? /h4 ?]. Qed.
+
+Instance and4_iff_morphism :
+  Proper (iff ==> iff ==> iff ==> iff ==> iff) and4.
+Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4; split => -[] /h1 ? /h2 ? /h3 ? /h4. Qed.
+
+Instance and5_impl_morphism :
+  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and5 | 1.
+Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 ?? h5 [/h1 ? /h2 ? /h3 ? /h4 ? /h5]. Qed.
+
+Instance and5_iff_morphism :
+  Proper (iff ==> iff ==> iff ==> iff ==> iff ==> iff) and5.
+Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 ?? h5; split => -[] /h1 ? /h2 ? /h3 ? /h4 ? /h5 ?. Qed.
+
 (* ** Result monad
  * -------------------------------------------------------------------- *)
 
