@@ -347,6 +347,7 @@ Hypothesis wf_pmap0 : wf_pmap.
    [s2]: current target estate
 *)
 Class valid_state (rmap : region_map) (m0 : mem) (s1 s2 : estate) := {
+  vs_scs         : s1.(escs) = s2.(escs);
   vs_slot_valid  : slot_valid s2.(emem);
     (* slots are valid in the target *)
   vs_disjoint    : disjoint_source s1.(emem);
@@ -1220,7 +1221,7 @@ Lemma valid_state_set_var rmap m0 s1 s2 x v:
   ¬ Sv.In x (vnew pmap) ->
   valid_state rmap m0 (with_vm s1 (evm s1).[x <- v]) (with_vm s2 (evm s2).[x <- v]).
 Proof.
-  case: s1 s2 => mem1 vm1 [mem2 vm2] [/=] hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop hget hnin.
+  case: s1 s2 => scs1 mem1 vm1 [scs2 mem2 vm2] [/=] hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop hget hnin.
   constructor => //=.
   + by rewrite get_var_neq //; assert (h:=rip_in_new); SvD.fsetdec.
   + by rewrite get_var_neq //; assert (h:=rsp_in_new); SvD.fsetdec.
@@ -1629,7 +1630,7 @@ Lemma valid_state_set_sub_region rmap m0 s1 s2 sr (x:var_i) pk ofs ty mem2 v (rm
 Proof.
   move=> hvs hwf hlx hpk hofs hss hvalideq hreadeq hset heqval.
   have hwf' := sub_region_at_ofs_wf hwf hofs.
-  case:(hvs) => hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
   constructor => //=.
   + by move=> ??; rewrite hvalideq; apply hvalid.
   + by move=> ??; rewrite hvalideq; apply hincl.
@@ -1783,7 +1784,7 @@ Proof.
     have /writeV -/(_ w) [mem2 hmem2] := hvp2.
     rewrite hmem2 /=; eexists;split;first reflexivity.
     (* valid_state update mem *)
-    case:(hvs) => hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
+    case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
     constructor => //=.
     + move=> ??; rewrite (write_validw_eq hmem2); apply hvalid.
     + by move=> ???; rewrite (write_validw_eq hmem1); apply hdisj.
@@ -2155,7 +2156,7 @@ Lemma valid_state_set_move rmap m0 s1 s2 x sr pk v :
   valid_state (set_move rmap x sr) m0 (with_vm s1 (evm s1).[x <- pof_val x.(vtype) v]) s2.
 Proof.
   move=> hvs hwf hlx hpk heqval.
-  case:(hvs) => hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
   constructor=> //=.
   + move=> y hget; rewrite get_var_neq; first by apply heqvm.
     by rewrite /get_local in hlx; congruence.
@@ -2175,7 +2176,7 @@ Lemma valid_state_set_move_regptr rmap m0 s1 s2 x sr v p :
 Proof.
   move=> hvs hwf hlx heqval.
   have /wf_locals /= hlocal := hlx.
-  case:(hvs) => hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
   constructor=> //=.
   + rewrite get_var_neq //.
     by apply hlocal.(wfr_not_vrip).
@@ -2305,7 +2306,7 @@ Proof.
   have /wf_locals hlocal := hlx.
   have hwfs := sub_region_stkptr_wf hlocal.
   have hwfs' := sub_region_at_ofs_0_wf hwfs.
-  case:(hvs) => hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
   constructor=> //=.
   + by move=> ??; rewrite hvalideq; apply hvalid.
   + by move=> ??; rewrite hvalideq; apply hincl.
@@ -2343,7 +2344,7 @@ Lemma valid_state_set_move_sub rmap m0 s1 s2 x pk v sr :
   valid_state (set_move_sub rmap x sr) m0 (with_vm s1 (evm s1).[x <- pof_val x.(vtype) v]) s2.
 Proof.
   move=> hvs hlx heqval.
-  case:(hvs) => hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
   constructor => //=.
   + move=> y hgety; rewrite get_var_neq; first by apply heqvm.
     by rewrite /get_local in hlx; congruence.
@@ -2919,7 +2920,7 @@ Lemma valid_state_incl rmap1 rmap2 m0 s s' :
   valid_state rmap1 m0 s s'.
 Proof.
   move=> hincl hvs.
-  case:(hvs) => hvalid hdisj hvincl hvincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hvalid hdisj hvincl hvincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
   constructor=> //.
   by apply (wf_rmap_incl hincl hwfr).
 Qed.
@@ -3452,7 +3453,7 @@ Lemma eq_read_holed_rmap rmap m0 s1 s2 mem2 l sr ty off :
   read mem2 (sub_region_addr sr + wrepr _ off)%R U8 = read (emem s2) (sub_region_addr sr + wrepr _ off)%R U8.
 Proof.
   move=> hvs hlwf hlunch hldisj hwf hoff hmem.
-  case:(hvs) => hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
   apply hlunch.
   + apply (hvalid _ _ hwf.(wfr_slot)).
     apply: between_byte hoff.
@@ -3544,7 +3545,7 @@ Lemma valid_state_holed_rmap rmap m0 s1 s2 mem1 mem2 l :
   valid_state rmap m0 (with_mem s1 mem1) (with_mem s2 mem2).
 Proof.
   move=> hvs hvalideq1 hss2 hvalideq2 heqmem_ hlwf hlunch hldisj.
-  case:(hvs) => hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
   constructor=> //=.
   + by move=> ??; rewrite -hvalideq2; apply hvalid.
   + by move=> ??; rewrite -hvalideq1; apply hdisj.
@@ -3589,7 +3590,7 @@ Proof.
   move=> hvs hwf hofs hlx hset heqval.
   have hwf' := sub_region_at_ofs_wf hwf hofs.
   have /wf_locals /= hlocal := hlx.
-  case:(hvs) => hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
+  case:(hvs) => hscs hvalid hdisj hincl hincl2 hunch hrip hrsp heqvm hwfr heqmem hglobv htop.
   constructor=> //=.
   + rewrite get_var_neq //.
     by apply hlocal.(wfr_not_vrip).
