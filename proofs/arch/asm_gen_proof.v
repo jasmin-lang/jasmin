@@ -31,7 +31,7 @@ Definition of_rbool (v : rflagv) :=
 
 (* -------------------------------------------------------------------- *)
 Definition eqflags (m: estate) (rf: rflagmap) : Prop :=
-  ∀ f v, get_var (evm m) (to_var f) = ok v → value_uincl v (of_rbool (rf f)).
+  ∀ (f: rflag) v, on_vu Vbool (ok undef_b) (evm m).[to_var f]%vmap = ok v → v = of_rbool (rf f).
 
 Variant disj_rip rip :=
   | Drip of
@@ -78,7 +78,12 @@ Lemma xgetflag_ex ii m rf x f v :
   of_var_e ii x = ok f →
   get_var (evm m) x = ok v →
   value_uincl v (of_rbool (rf f)).
-Proof. by move=> eqm /of_var_eP /of_varI <-; apply eqm. Qed.
+Proof.
+  move => eqm /of_var_eP /of_varI <-.
+  rewrite get_varE; t_xrbindP => /= b ok_b <-.
+  move: (eqm f b).
+  by rewrite ok_b => /(_ erefl) ->.
+Qed.
 
 Lemma gxgetflag_ex ii m rf (x:gvar) f v :
   eqflags m rf →
@@ -230,12 +235,11 @@ Lemma var_of_flagP rip m s f v ty vt:
   of_val ty v = ok vt → 
   ∃ v' : value, Let b := st_get_rflag s f in ok (Vbool b) = ok v' ∧ of_val ty v' = ok vt.
 Proof.
-  move=> [????? h] /h hu hv.
-  exists (of_rbool ((asm_flag s) f)); rewrite /st_get_rflag.
-  case: (asm_flag s f) hu => //=.
-  + move=> b; case: v hv => //= [?? <- //| ? ?].
-    by rewrite of_val_undef.
-  by case: v hv => // ??; rewrite of_val_undef.
+  move=> [_ _ _ _ _ h].
+  rewrite get_varE; t_xrbindP => /= b ok_b <-{v} /of_vbool[] ??; subst.
+  move: (h f b); rewrite ok_b => /(_ erefl).
+  rewrite /st_get_rflag.
+  by case: (asm_flag s f) => // _ [<-]; exists b.
 Qed.
 
 Lemma var_of_regP rip E m s r v ty vt:
@@ -406,7 +410,7 @@ Proof.
     rewrite /eqflags => f' v; rewrite /get_var /on_vu /=.
     rewrite /RflagMap.set /= ffunE.
     case: eqP => [-> | hne] {h}.
-    + by rewrite Fv.setP_eq; case: vt => // b [<-].
+    + by rewrite Fv.setP_eq; case: vt => [ b | ] /ok_inj <-.
     rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply inj_to_var.
     by apply h4.
   + case: lv1 => //=; last by move=> ???? [<-].

@@ -152,9 +152,9 @@ Proof.
   case: s' => m _ vm ok_vm [] <- <- hx.
   constructor => //=.
   2-4: move => r' v'.
-  all: rewrite (get_var_set_var _ ok_vm) -hx.
+  1-3: rewrite (get_var_set_var _ ok_vm) -hx.
   3: exact: eqx.
-  3: exact: eqf.
+  3: by rewrite /= (get_set_var _ ok_vm) -hx /= => /eqf.
   - by move: dr => /(_ r) /eqP /negbTE ->.
   rewrite /RegMap.set ffunE.
   case: eqP => h; last first.
@@ -755,9 +755,14 @@ Proof using.
     repeat (rewrite get_var_vmap_set_vars_other_type; last by []).
     rewrite get_var_vmap_set_vars_finite; last exact: xmm_registers_fin_axiom.
     by move => /ok_inj <-.
-  rewrite /vmap_of_x86_mem => r v.
-  rewrite get_var_vmap_set_vars_finite; last exact: rflags_fin_axiom.
-  by case: (asm_flag s r) => // ? /ok_inj <-.
+  move => r v.
+  rewrite /= /vmap_of_x86_mem.
+  set q := (X in vmap_set_vars _ X).
+  generalize (get_var_vmap_set_vars_finite (λ r : rflag, match asm_flag s r with Def b => ok b | Undef => pundef_addr sbool end) q r rflags_fin_axiom).
+  rewrite get_varE.
+  case: _.[_]%vmap => /=; case: (asm_flag s r) => //=.
+  - by move => ? ? /ok_inj -> /ok_inj ->.
+  by move => _ [] -> /ok_inj ->.
 Qed.
 Global Opaque vmap_of_x86_mem.
 
