@@ -788,6 +788,10 @@ Proof.
   case: t z => //= s' w'.
 Qed.
 
+Lemma of_vbool ty b v :
+  of_val ty (Vbool b) = ok v → ∃ e : ty = sbool, ecast ty (sem_t ty) e v = b.
+Proof. by case: ty v => // _ /ok_inj <-; exists erefl. Qed.
+
 End SEM.
 
 End ASM_OP.
