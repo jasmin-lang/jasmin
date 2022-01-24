@@ -12,14 +12,12 @@ Unset Printing Implicit Defensive.
 Local Open Scope seq_scope.
 
 Require Import seq_extra xseq_extra unionfind tunneling unionfind_proof.
-Require Import linear_sem.
-
-
+Require Import arch_decl linear_sem.
 
 Section ASM_OP.
 
 Context {pd:PointerData}.
-Context {asm_op} {asmop : asmOp asm_op}.
+Context {asm_op} {asmop : asmOp asm_op} {syscall_i : syscall_info}.
 
 
 Section LprogSemProps.
@@ -514,7 +512,8 @@ Section TunnelingProps.
       case: ifP; last by rewrite IHlc // labels_of_body_rcons /= rcons_uniq Hnotin'.
       by move => /eqP ?; subst fn'; rewrite eq_refl in Hneqfn.
     move: Hnor (IHlc c'' l) => {Heq IHlc}; case: c''' c'' => [ii' i'] [ii i].
-    by case: i => [? ? ?| |?|[? ?]|?|? ?|? ?]; (case: i' => [? ? ?| |?|[? ?]|?|? ?|? ?] //= _ IHlc);
+
+    by case: i => [? ? ?|?| |?|[? ?]|?|? ?|? ?]; (case: i' => [? ? ?|?| |?|[? ?]|?|? ?|? ?] //= _ IHlc);
     rewrite labels_of_body_rcons //= => Hnotin; (try by rewrite rcons_uniq => /andP [_]; apply IHl);
     (try by move: Hnotin; rewrite mem_rcons in_cons negb_or => /andP /= [_ Hnotin]; apply IHlc);
     rewrite rcons_uniq => /andP [_]; apply IHlc.
@@ -551,7 +550,7 @@ Section TunnelingProps.
   Lemma tunnel_boreWP fn uf c : tunnel_bore_weak_spec fn uf c (tunnel_bore fn uf c).
   Proof.
     case: c => [ii i]; case: i.
-    1-3,5-6:
+    1-4,6-7:
       by intros; apply: TBW_Otherwise.
     + move => [? ?] /=; case: ifPn => [/eqP <-|].
       - by apply: TBW_GotoEq.
@@ -562,7 +561,7 @@ Section TunnelingProps.
   Lemma tunnel_boreP fn uf c : tunnel_bore_spec fn uf c (tunnel_bore fn uf c).
   Proof.
     case: c => [ii i]; case: i.
-    1-3,5-6:
+    1-4,6-7:
       by intros; apply: TB_Otherwise.
     + move => [fn' ?] /=; case: ifPn => [/eqP <-|].
       - by apply: TB_GotoEq.
@@ -682,7 +681,7 @@ Section TunnelingProps.
       rewrite /pair_pc (@nth_default _ _ _ (pc.+1)) /=; last first.
       - by rewrite size_tunnel_head //; apply/leqW.
       rewrite tunnel_plan_cons_cons tunnel_plan1 /= /tunnel_chart /=.
-      by case: (nth _ _ _) => _ [ | |l| | | | ]; rewrite /= tunnel_head_empty.
+      by case: (nth _ _ _) => _ [ | | |l| | | | ]; rewrite /= tunnel_head_empty.
     rewrite (take_nth Linstr_align) //; case: pc Hsize => [|pc] Hsize.
     + rewrite take0 /= tunnel_plan1 tunnel_plan_nil.
       rewrite tunnel_head_empty /= /pair_pc /=.
@@ -717,7 +716,7 @@ Section TunnelingProps.
     + case: ifP; first by move => /eqP ?; subst fn'; rewrite eq_refl in Hneqfn. 
       by move => -> /= {Heq}; rewrite tunnel_head_empty.
     move: Hnor {Heq}; case c'' => [ii i]; case c''' => [ii' i'].
-    by case i => [? ? ?| |?|[? ?]|?|? ?|? ?]; (case i' => [? ? ?| |?|[? ?]|?|? ?|? ?] //=);
+    by case i => [? ? ?|?| |?|[? ?]|?|? ?|? ?]; (case i' => [? ? ?|?| |?|[? ?]|?|? ?|? ?] //=);
     rewrite ?tunnel_head_empty //; case: ifP; rewrite tunnel_head_empty.
   Qed.
 
@@ -1159,8 +1158,8 @@ Section TunnelingSem.
     case: tunnel_lcmd_pcP => [l l'|l l'|l l' fn' Hneq Hpc HSpc|Hneg].
     + rewrite /tunnel_head onth_map; case Honth: (onth _ _) => [[ii i]|]; last first.
       - by move => Hpc HSpc; apply FT_Otherwise; rewrite Hgfd eq_refl.
-      case: i Honth => [? ? ?| |?|[fn l'']|?|? ?|pe l''] /= Honth Hpc HSpc /=.
-      1-3,5-6:
+      case: i Honth => [? ? ?|?| |?|[fn l'']|?|? ?|pe l''] /= Honth Hpc HSpc /=.
+      1-4,6-7:
         by apply FT_Otherwise; rewrite Hgfd eq_refl.
       - case: ifP => [/eqP ?|Hneq]; last first.
         * apply FT_Otherwise; rewrite Hgfd eq_refl //=.
@@ -1189,8 +1188,8 @@ Section TunnelingSem.
       by rewrite eq_refl /= => HFT; apply HFT => //; rewrite /c /is_cond /= !eq_refl.
     + rewrite /tunnel_head onth_map; case Honth: (onth _ _) => [[ii i]|]; last first.
       - by move => Hpc HSpc; apply FT_Otherwise; rewrite Hgfd eq_refl.
-      case: i Honth => [? ? ?| |?|[fn l'']|?|? ?|pe l''] /= Honth Hpc HSpc /=.
-      1-3,5-6:
+      case: i Honth => [? ? ?|?| |?|[fn l'']|?|? ?|pe l''] /= Honth Hpc HSpc /=.
+      1-4,6-7:
         by apply FT_Otherwise; rewrite Hgfd eq_refl.
       - case: ifP => [/eqP ?|Hneq]; last first.
         * apply FT_Otherwise; rewrite Hgfd eq_refl //=.
@@ -1231,8 +1230,8 @@ Section TunnelingSem.
     set oc:= onth _ _; case: oc => [[ii'' i'']|//=].
     set c:= nth _ _ _; set c':= nth _ _ _; move: c c' => [ii i] [ii' i'].
     rewrite /is_local_goto_to_label /is_cond_to_label /li_is_label /li_is_local_goto.
-    by case: i => [| | |[]| | | ]; (case: i' => [| | |[]| | | ]);
-    (case: i'' => [| | |[]| | | ] => //=); intros; rewrite Bool.orb_false_r Bool.andb_false_r.
+    by case: i => [| | | |[]| | | ]; (case: i' => [| | | |[]| | | ]);
+    (case: i'' => [| | | |[]| | | ] => //=); intros; rewrite Bool.orb_false_r Bool.andb_false_r.
   Qed.
 
   Lemma find_label_tunnel_lcmd_pc l fn lc pc :
@@ -1285,7 +1284,7 @@ Section TunnelingSem.
     uniq (map fst (lp_funcs p)) ->
     eval_instr (tunnel_lprog_pc p fn pc) mov_op =2 eval_instr p mov_op.
   Proof.
-    move => Huniq [ii i] s; case: i => [ | | |[fn' l]|pe|lv l|pe l] //=.
+    move => Huniq [ii i] s; case: i => [ | | | |[fn' l]|pe|lv l|pe l] //=.
     + rewrite /eval_instr /= /tunnel_funcs_pc; case Hgfd: (get_fundef (lp_funcs p) fn) => [fd|//].
       rewrite get_fundef_setfunc -get_fundef_in Hgfd /=; case: ifP => // /eqP ?; subst fn'.
       by rewrite Hgfd /tunnel_lfundef_pc lfd_body_setfb /= find_label_tunnel_lcmd_pc.
@@ -1320,7 +1319,7 @@ Section TunnelingSem.
     move: (IHlc pc) => {IHlc}; rewrite Hislabel => {Hislabel}.
     case: ifP; last first.
     + move => _; have ->: uniq (labels_of_body lc); last by move => /(_ isT isT).
-      by move: Huniq; case: i => [? ? ?| |l'|[? ?]|?|? ?|? ?] //= /andP [].
+      by move: Huniq; case: i => [? ? ?|?| |l'|[? ?]|?|? ?|? ?] //= /andP [].
     move => Hfind /(_ _ isT) IHlc; f_equal; rewrite addn1; f_equal.
     have {Huniq} Huniq: uniq (labels_of_body lc); last by case: (IHlc Huniq).
     by move: Huniq {Hfind IHlc}; case: i => //= l' /andP [].
@@ -1381,9 +1380,9 @@ Section TunnelingProof.
       rewrite (@nth_label_find_label l (lfd_body fd) pc) //=.
       t_xrbindP => pc' Hfindlabel'; move => ?; subst s2.
       case: s1 Hgfd Hwfb Hallg Hfindinstr Hv HSpc.
-      move => mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
-      set s1:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
-      set s2:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
+      move => scs mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
+      set s1:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
+      set s2:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
       move => Hgfd Hwfb Hallg Hfindinstr Hv HSpc; right; exists s2; split => //.
       rewrite /find_instr Hgfd /s2 /= -/s2; case: (is_goto_nth_onth HSpc) => ii' ->.
       by rewrite /eval_instr /= Hgfd /= Hfindlabel' /=.
@@ -1397,9 +1396,9 @@ Section TunnelingProof.
       rewrite (@nth_label_find_label l (lfd_body fd) pc) //=.
       t_xrbindP => pc' Hfindlabel'; move => ?; subst s2.
       case: s1 Hgfd Hwfb Hallg Hfindinstr HSpc.
-      move => mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
-      set s1:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
-      set s2:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
+      move => scs mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
+      set s1:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
+      set s2:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
       move => Hgfd Hwfb Hallg Hfindinstr HSpc; right; exists s2; split => //.
       rewrite /find_instr Hgfd /s2 /= -/s2; case: (is_goto_nth_onth HSpc) => ii' ->.
       by rewrite /eval_instr /= Hgfd /= Hfindlabel' /=.
@@ -1414,9 +1413,9 @@ Section TunnelingProof.
       rewrite (@nth_label_find_label l (lfd_body fd) pc) //=.
       rewrite (@nth_label_find_label l' (lfd_body fd) pc.+1) //=.
       move => [?]; subst s2; case: s1 Hgfd Hwfb Hallg Hfindinstr Hv HSpc.
-      move => mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
-      set s1:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
-      set s2:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
+      move => scs mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
+      set s1:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
+      set s2:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
       move => Hgfd Hwfb Hallg Hfindinstr Hv HSpc; right; exists s2; split => //.
       rewrite /find_instr Hgfd /s2 /= -/s2; case: (is_label_nth_onth HSpc) => ii' ->.
       by rewrite /eval_instr.
@@ -1430,9 +1429,9 @@ Section TunnelingProof.
     rewrite (@nth_label_find_label l (lfd_body fd) pc) //=.
     rewrite (@nth_label_find_label l' (lfd_body fd) pc.+1) //=.
     move => [?]; subst s2; case: s1 Hgfd Hwfb Hallg Hfindinstr HSpc.
-    move => mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
-    set s1:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
-    set s2:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
+    move => scs mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
+    set s1:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
+    set s2:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
     move => Hgfd Hwfb Hallg Hfindinstr HSpc; right; exists s2; split => //.
     rewrite /find_instr Hgfd /s2 /= -/s2; case: (is_label_nth_onth HSpc) => ii' ->.
     by rewrite /eval_instr.
@@ -1448,7 +1447,7 @@ Section TunnelingProof.
     rewrite /Q => {Q} s3 s4 s5 Htlsem34 Htlsem145 Hlsem34.
     apply (lsem_trans Hlsem34); case: (tunnel_lprog_pc_lsem1 Hwf Htlsem145).
     + by move => Hlsem145; apply Relation_Operators.rt_step.
-    by case => s6 [Hlsem146 Hlsem165]; apply (@lsem_trans _ _ _ p _ s6);
+    by case => s6 [Hlsem146 Hlsem165]; apply (@lsem_trans _ _ _ _ p _ s6);
     apply Relation_Operators.rt_step.
   Qed.
 
@@ -1474,9 +1473,9 @@ Section TunnelingProof.
       rewrite Hgfd /=; case: pc Hpc HSpc => [//=|pc] Hpc HSpc; rewrite /= in Hpc.
       rewrite (@nth_label_find_label l (lfd_body fd) pc) //=.
       move => [?]; subst s2; case : s1 Hgfd Hwfb Hallg Hfindinstr Hv HSpc.
-      move => mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
-      set s1:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
-      set s2:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
+      move => scs mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
+      set s1:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
+      set s2:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
       move => Hgfd Hwfb Hallg Hfindinstr Hv HSpc.
       move: (@local_goto_find_label p s2 c fd l').
       rewrite /s2 /= -/s2 => /(_ _ Hgfd Hwfb HSpc); case.
@@ -1499,9 +1498,9 @@ Section TunnelingProof.
       rewrite Hgfd /=; case: pc Hpc HSpc => [//=|pc] Hpc HSpc; rewrite /= in Hpc.
       rewrite (@nth_label_find_label l (lfd_body fd) pc) //=.
       move => [?]; subst s2; case : s1 Hgfd Hwfb Hallg Hfindinstr HSpc.
-      move => mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
-      set s1:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
-      set s2:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
+      move => scs mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
+      set s1:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
+      set s2:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
       move => Hgfd Hwfb Hallg Hfindinstr HSpc.
       move: (@local_goto_find_label p s2 c fd l').
       rewrite /s2 /= -/s2 => /(_ _ Hgfd Hwfb HSpc); case.
@@ -1525,9 +1524,9 @@ Section TunnelingProof.
       rewrite Hgfd /=; case: pc Hpc HSpc => [//=|pc] Hpc HSpc; rewrite /= in Hpc.
       rewrite (@nth_label_find_label l (lfd_body fd) pc) //=.
       move => [?]; subst s2; case : s1 Hgfd Hwfb Hallg Hfindinstr Hv HSpc.
-      move => mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
-      set s1:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
-      set s2:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
+      move => scs mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
+      set s1:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
+      set s2:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
       move => Hgfd Hwfb Hallg Hfindinstr Hv HSpc.
       rewrite (@nth_label_find_label l' (lfd_body fd) pc.+1) //=.
       rewrite /find_instr /s2 /= Hgfd; case: (is_label_nth_onth HSpc) => ii' ->.
@@ -1541,9 +1540,9 @@ Section TunnelingProof.
     rewrite Hgfd /=; case: pc Hpc HSpc => [//=|pc] Hpc HSpc; rewrite /= in Hpc.
     rewrite (@nth_label_find_label l (lfd_body fd) pc) //=.
     move => [?]; subst s2; case : s1 Hgfd Hwfb Hallg Hfindinstr HSpc.
-    move => mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
-    set s1:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
-    set s2:= {| lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
+    move => scs mem vm fn pc1; rewrite /setcpc; set c:= nth _ _ _ => //=.
+    set s1:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc1 |}.
+    set s2:= {| lscs := scs; lmem := mem; lvm := vm; lfn := fn; lpc := pc.+1 |}.
     move => Hgfd Hwfb Hallg Hfindinstr HSpc.
     rewrite (@nth_label_find_label l' (lfd_body fd) pc.+1) //=.
     rewrite /find_instr /s2 /= Hgfd; case: (is_label_nth_onth HSpc) => ii' ->.
