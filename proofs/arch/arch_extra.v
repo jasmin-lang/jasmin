@@ -113,6 +113,13 @@ Definition sopn_arg_desc (ad:arg_desc) :=
   | ADExplicit _ n ox => sopn.ADExplicit n (omap to_var ox)
   end.
 
+Definition vflags      := sv_of_list to_var rflags.
+Definition vregisters  := sv_of_list to_var registers.
+Definition vxregisters := sv_of_list to_var xregisters.
+
+Definition all_vars := 
+  Sv.union (Sv.union vregisters vxregisters) vflags.
+
 End ARCH.
 
 (* Extra ops are non-existing architecture-specific asm instructions that we

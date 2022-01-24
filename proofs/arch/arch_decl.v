@@ -121,6 +121,8 @@ Definition wreg  := sem_t (sword reg_size).
 Definition wxreg := sem_t (sword xreg_size).
 
 Definition rflags : list rflag := enum cfinT_finType.
+Definition registers : list reg := enum cfinT_finType.
+Definition xregisters : list xreg := enum cfinT_finType.
 
 Variant asm_arg : Type :=
   | Condt  of cond_t

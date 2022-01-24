@@ -49,18 +49,7 @@ Section PROG.
 Context `{asm_e : asm_extra}.
 Context (p: sprog) (extra_free_registers: instr_info → option var).
 Context (var_tmp : var) (callee_saved: Sv.t).
-(* Set of variables modified by the syscall:
-   A good over approximation is: Sv.diff all_vars callee_saved.
 
-Let caller_saved := Sv.diff all_vars callee_saved.
-
-Definition write_syscall (o:syscall_t) : Sv.t := 
-  match o with
-  | RandomBytes _ => caller_saved
-  end.
-
-*)
-Context (write_syscall : Sv.t). 
 (* Where the argument are taken and where they are stored *) 
 Context (syscall_vsig : syscall_t -> seq var * seq var).
 
@@ -81,6 +70,8 @@ Qed.
 
 Let magic_variables : Sv.t := magic_variables p.
 
+Notation syscall_kill := (syscall_kill callee_saved).
+
 Section WRITE1.
 
   Context (writefun: funname → Sv.t).
@@ -97,7 +88,7 @@ Section WRITE1.
     match i with
     | Cassgn x _ _ _  => vrv_rec s x
     | Copn xs _ _ _   => vrvs_rec s xs
-    | Csyscall _ o _  => Sv.union s write_syscall
+    | Csyscall xs o _  => vrvs_rec (Sv.union s syscall_kill) xs
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
@@ -127,7 +118,7 @@ Section WRITE1.
     - by move => i c' hi hc' s; rewrite /write_c /= !hc' -/write_I hi; SvD.fsetdec.
     - by move => x tg ty e s; rewrite /write_i /= -vrv_recE.
     - by move => xs tg op es s; rewrite /write_i /= -vrvs_recE.
-    - by move => xs op es s; rewrite /write_i /=; SvD.fsetdec.
+    - by move => xs op es s; rewrite /write_i /= !vrvs_recE; SvD.fsetdec.
     - by move => e c1 c2 h1 h2 s; rewrite /write_i /= -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
     - by move => v d lo hi body h s; rewrite /write_i /= -!/write_c_rec !h; SvD.fsetdec.
     - by move => a c1 e c2  h1 h2 s; rewrite /write_i /= -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
@@ -246,14 +237,16 @@ Section CHECK.
       else Error (E.internal_error ii "call to unknown function")
 
     | Csyscall xs o es =>
-        let: (o_params,o_res) := syscall_vsig o in
+        let osig := syscall_vsig o in
+        let o_params := osig.1 in
+        let o_res := osig.2 in
         Let _ := assert
           (all2 (λ e a, if e is Pvar (Gvar v Slocal) then v_var v == a else false) es o_params)
           (E.internal_error ii "bad syscall args") in
         Let _ := assert
           (all2 (λ x r, if x is Lvar v then v_var v == r else false) xs o_res)
           (E.internal_error ii "bad syscall dests") in
-        let W := write_syscall in
+        let W := vrvs_rec syscall_kill xs in
         ok (Sv.diff (Sv.union D W) (sv_of_list id o_res))
     end.
 
