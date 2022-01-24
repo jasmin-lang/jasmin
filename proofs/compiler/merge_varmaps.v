@@ -290,8 +290,8 @@ Section CHECK.
       | RAnone =>
         Sv.add var_tmp
         match sf_save_stack (f_extra fd) with
-        | SavedStackReg r => Sv.add r (sv_of_flags rflags)
-        | _ => sv_of_flags rflags
+        | SavedStackReg r => Sv.add r vflags
+        | _ => vflags
         end
     | RAreg ra => Sv.singleton ra
     | RAstack _ => Sv.empty
