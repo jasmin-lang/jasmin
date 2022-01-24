@@ -2993,14 +2993,14 @@ Definition fill_mem (m : mem) (p : pointer) (l : list u8) : exec mem :=
              ok (pm.1 + 1, m)) (0%Z, m) l in
     ok pm.2.
 
-Definition exec_getrandom_s (scs : syscall_state) (m : mem) vs : exec (syscall_state * mem * values) := 
-  Let plen := 
+Definition exec_getrandom_s (scs : syscall_state) (m : mem) vs : exec (syscall_state * mem * values) :=
+  Let plen :=
     match vs with
     | [:: vp; vlen] => 
-        Let p := to_pointer vp in 
-        Let len := to_word U32 vlen in
-        ok (p, wunsigned len) 
-    | _ => type_error 
+        Let p := to_pointer vp in
+        Let len := to_pointer vlen in (* it's not exactly a pointer, but a word of size Uptr *)
+        ok (p, wunsigned len)
+    | _ => type_error
     end in
   let sd := syscall.get_random scs plen.2 in
   Let m := fill_mem m plen.1 sd.2 in

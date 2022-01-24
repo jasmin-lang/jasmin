@@ -157,6 +157,13 @@ Section CoreMem.
     by case: get => //= w; rewrite -LE.encode8E LE.decodeK.
   Qed.
 
+  Lemma set_write8 m p w: set m p w = write m p w.
+  Proof.
+    rewrite /write /= is_align8 /= add_0.
+    have := LE.encode8E w; rewrite LE.encodeE /= => -[->].
+    by case: set.
+  Qed.
+
   Lemma readE m p sz : 
     read m p sz = 
       Let _ := assert (is_align p sz) ErrAddrInvalid in

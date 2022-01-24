@@ -194,7 +194,7 @@ Record param_info := {
 Record pos_map := {
   vrip    : var;
   vrsp    : var;
-  fresh_reg : Ident.ident -> stype -> Ident.ident;
+  vxlen   : var;
   globals : Mvar.t (Z * wsize);
   locals  : Mvar.t ptr_kind;
   vnew    : Sv.t;
@@ -320,9 +320,6 @@ Definition sub_region_stkptr s ws z :=
 
 Section WITH_POINTER_DATA.
 Context {pd: PointerData}.
-
-Definition vxlen (pmap:pos_map) := 
-  {| vtype := sword Uptr; vname := pmap.(fresh_reg) "__len__"%string (sword Uptr) |}.
 
 Definition set_stack_ptr (rmap:region_map) s ws z (x':var) :=
   let sr := sub_region_stkptr s ws z in
@@ -1121,9 +1118,13 @@ Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap ini rs fn es :=
 *)
 
 Definition alloc_syscall ii rmap rs o es := 
-  add_iinfo ii 
-  match o with 
-  | RandomBytes len => 
+  add_iinfo ii
+  match o with
+  | RandomBytes len =>
+    (* per the semantics, we have [len <= wbase Uptr], but we need [<] *)
+    Let _ := assert (len <? wbase Uptr)%Z
+                    (stk_error_no_var "randombytes: the requested size is too large")
+    in
     match rs, es with
     | [::Lvar x], [::Pvar xe] =>
       let xe := xe.(gv) in
@@ -1132,11 +1133,11 @@ Definition alloc_syscall ii rmap rs o es :=
       Let xp := get_regptr x in
       Let sr := get_sub_region rmap xe in
       Let rmap := set_sub_region rmap x sr (Some 0%Z) (Zpos len) in
-      ok (rmap,     
-          [:: MkI ii (Cassgn (Lvar xlen) AT_none (sword Uptr) (cast_w Uptr (Pconst (Zpos len))));
+      ok (rmap,
+          [:: MkI ii (Cassgn (Lvar xlen) AT_none (sword Uptr) (cast_const (Zpos len)));
               MkI ii (Csyscall [::Lvar xp] o [:: Plvar p; Plvar xlen])])
-    | _, _ => 
-      Error (stk_ierror_no_var "alloc_syscall: getrandom invalid args or result")
+    | _, _ =>
+      Error (stk_ierror_no_var "randombytes: invalid args or result")
     end
   end.
 
@@ -1270,8 +1271,10 @@ Definition add_alloc globals stack (xpk:var * ptr_kind_init) (lrx: Mvar.t ptr_ki
     let locals := Mvar.set locals x pk in
     ok (locals, rmap, sv).
 
-Definition init_local_map vrip vrsp globals stack sao :=
-  let sv := Sv.add vrip (Sv.add vrsp Sv.empty) in
+Definition init_local_map vrip vrsp vxlen globals stack sao :=
+  Let _ := assert (vxlen != vrip) (stk_ierror_no_var "two fresh variables are equal") in
+  Let _ := assert (vxlen != vrsp) (stk_ierror_no_var "two fresh variables are equal") in
+  let sv := Sv.add vxlen (Sv.add vrip (Sv.add vrsp Sv.empty)) in
   Let aux := foldM (add_alloc globals stack) (Mvar.empty _, Region.empty, sv) sao.(sao_alloc) in
   let '(locals, rmap, sv) := aux in
   ok (locals, rmap, sv).
@@ -1365,7 +1368,7 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> string) (l
   let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_rsp) |} in
   let vxlen := {| vtype := sword Uptr; vname := fresh_reg "__len__"%string (sword Uptr) |} in
   Let stack := init_stack_layout mglob sao in
-  Let mstk := init_local_map vrip vrsp mglob stack sao in
+  Let mstk := init_local_map vrip vrsp vxlen mglob stack sao in
   let '(locals, rmap, disj) := mstk in
   (* adding params to the map *)
   Let rparams :=
@@ -1376,7 +1379,7 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> string) (l
   let pmap := {|
         vrip    := vrip;
         vrsp    := vrsp;
-        fresh_reg := fresh_reg;
+        vxlen   := vxlen;
         globals := mglob;
         locals  := lmap;
         vnew    := sv;
