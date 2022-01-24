@@ -457,7 +457,7 @@ let main () =
         ([], []) in
 
     begin match
-      Compiler.compile_prog_to_x86 cparams X86_params.aparams X86_params.sparams export_functions subroutines (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) with
+      Compiler.compile_prog_to_x86 cparams X86_params.aparams export_functions subroutines (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) with
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
       raise (HiError e)

@@ -48,11 +48,18 @@ Definition kill_var (x:var) (vm: vmap) : vmap :=
  
 End ASM_EXTRA.
 
+Definition syscall_kill {syscall_i : syscall_info} := 
+  Sv.diff all_vars callee_saved.
+
 Notation kill_vars := (Sv.fold kill_var).
+
+Definition vm_after_syscall {syscall_i : syscall_info} (vm:vmap) := 
+  kill_vars syscall_kill vm.
 
 Section ASM_EXTRA.
 
-Context {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}.
+Context {reg xreg rflag cond asm_op extra_op} 
+        {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}.
 
 Lemma kill_varsE vm xs x :
   ((kill_vars xs vm).[x] = if Sv.mem x xs then if vm.[x] is Ok _ then undef_error else vm.[x] else vm.[x])%vmap.
@@ -81,8 +88,7 @@ Section SEM.
 Context
   (p: sprog)
   (extra_free_registers: instr_info -> option var)
-  (var_tmp: var)
-  (callee_saved: Sv.t).
+  (var_tmp: var).
 
 Local Notation gd := (p_globs p).
 
@@ -175,13 +181,7 @@ Definition valid_RSP m (vm: vmap) : Prop :=
 Remark valid_set_RSP m vm :
   valid_RSP m (set_RSP m vm).
 Proof. by rewrite /valid_RSP Fv.setP_eq. Qed.
-
-Definition syscall_kill := 
-  Sv.diff all_vars callee_saved.
-
-Definition vm_after_syscall (vm:vmap) := 
-  kill_vars syscall_kill vm.
-
+  
 Inductive sem : Sv.t → estate → cmd → estate → Prop :=
 | Eskip s :
     sem Sv.empty s [::] s
@@ -210,10 +210,11 @@ with sem_i : instr_info → Sv.t → estate → instr_r → estate → Prop :=
     sem_i ii (vrvs xs) s1 (Copn xs t o es) s2
 
 | Esyscall ii s1 scs m s2 o xs es ves vs:
-    sem_pexprs gd s1 es = ok ves →
+    mapM (get_var s1.(evm)) (syscall_sig o).1 = ok ves ->
     exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
-    write_lvals gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |} xs vs = ok s2 →
-    sem_i ii (Sv.union syscall_kill (vrvs xs)) s1 (Csyscall xs o es) s2
+    write_lvals gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |} 
+       (to_lvals (syscall_sig o).2) vs = ok s2 →
+    sem_i ii (Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).2))) s1 (Csyscall xs o es) s2
 
 | Eif_true ii k s1 s2 e c1 c2 :
     sem_pexpr gd s1 e = ok (Vbool true) →
@@ -335,12 +336,13 @@ Lemma sem_iE ii k s i s' :
   | Copn xs t o es => k = vrvs xs ∧ sem_sopn gd o s xs es = ok s'
 
   | Csyscall xs o es => 
-    k = Sv.union syscall_kill (vrvs xs) /\  
+    k = Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).2)) /\  
     ∃ scs m ves vs,
-    [/\ sem_pexprs gd s es = ok ves, 
-        exec_syscall (semCallParams:= sCP_stack) s.(escs) s.(emem) o ves = ok (scs, m, vs) & 
-        write_lvals gd {| escs := scs; emem := m; evm := vm_after_syscall s.(evm) |} xs vs = ok s']
-  
+     [/\ mapM (get_var s.(evm)) (syscall_sig o).1 = ok ves,
+         exec_syscall (semCallParams:= sCP_stack) s.(escs) s.(emem) o ves = ok (scs, m, vs) &
+         write_lvals gd {| escs := scs; emem := m; evm := vm_after_syscall s.(evm) |}
+           (to_lvals (syscall_sig o).2) vs = ok s']
+ 
   | Cif e c1 c2 =>
     exists2 b, sem_pexpr gd s e = ok (Vbool b) & sem k s (if b then c1 else c2) s'
   | Cwhile a c e c' =>
@@ -437,10 +439,11 @@ Section SEM_IND.
 
   Definition sem_Ind_syscall : Prop :=
     ∀ (ii: instr_info) (s1 s2 : estate) (o : syscall_t) (xs : lvals) (es : pexprs) scs m ves vs,
-      sem_pexprs gd s1 es = ok ves →
+      mapM (get_var s1.(evm)) (syscall_sig o).1 = ok ves ->
       exec_syscall (semCallParams:= sCP_stack) s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
-      write_lvals gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |} xs vs = ok s2 →
-      Pi_r ii (Sv.union syscall_kill (vrvs xs)) s1 (Csyscall xs o es) s2.
+      write_lvals gd {| escs := scs; emem := m; evm := vm_after_syscall s1.(evm) |} 
+        (to_lvals (syscall_sig o).2) vs = ok s2 →
+      Pi_r ii (Sv.union syscall_kill (vrvs (to_lvals (syscall_sig o).2))) s1 (Csyscall xs o es) s2.
 
   Definition sem_Ind_if_true : Prop :=
     ∀ (ii: instr_info) (k: Sv.t) (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd),

@@ -31,7 +31,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.
-Require Import psem compiler_util label linear.
+Require Import arch_decl psem sem_one_varmap compiler_util label linear.
 
 Import Memory.
 
@@ -44,7 +44,7 @@ Local Open Scope seq_scope.
 Section SEM.
 
 Context {pd: PointerData}.
-Context {asm_op} {asmop : asmOp asm_op}.
+Context {asm_op} {asmop : asmOp asm_op} {syscall_i : syscall_info}.
 Variable P: lprog.
 
 Definition label_in_lcmd (body: lcmd) : seq label :=
@@ -60,16 +60,17 @@ Notation labels := label_in_lprog.
 (* Semantic                                                                    *)
 
 Record lstate := Lstate
-  { lmem : mem;
+  { lscs : syscall_state;
+    lmem : mem;
     lvm  : vmap;
     lfn : funname;
     lpc  : nat; }.
 
-Definition to_estate (s:lstate) : estate := Estate s.(lmem) s.(lvm).
-Definition of_estate (s:estate) fn pc := Lstate s.(emem) s.(evm) fn pc.
-Definition setpc (s:lstate) pc :=  Lstate s.(lmem) s.(lvm) s.(lfn) pc.
-Definition setc (s:lstate) fn := Lstate s.(lmem) s.(lvm) fn s.(lpc).
-Definition setcpc (s:lstate) fn pc := Lstate s.(lmem) s.(lvm) fn pc.
+Definition to_estate (s:lstate) : estate := Estate s.(lscs) s.(lmem) s.(lvm).
+Definition of_estate (s:estate) fn pc := Lstate s.(escs) s.(emem) s.(evm) fn pc.
+Definition setpc (s:lstate) pc :=  Lstate s.(lscs) s.(lmem) s.(lvm) s.(lfn) pc.
+Definition setc (s:lstate) fn := Lstate s.(lscs) s.(lmem) s.(lvm) fn s.(lpc).
+Definition setcpc (s:lstate) fn pc := Lstate s.(lscs) s.(lmem) s.(lvm) fn pc.
 
 Lemma to_estate_of_estate es fn pc:
   to_estate (of_estate es fn pc) = es.
@@ -102,6 +103,12 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   match li_i i with
   | Lopn xs o es =>
     Let s2 := sem_sopn [::] o (to_estate s1) xs es in
+    ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
+  | Lsyscall o =>
+    Let ves := mapM (get_var s1.(lvm)) (syscall_sig o).1 in 
+    Let: (scs, m, vs) := exec_syscall (semCallParams:= sCP_stack) s1.(lscs) s1.(lmem) o ves in 
+    Let s2 := write_lvals [::] {| escs := scs; emem := m; evm := vm_after_syscall s1.(lvm) |}
+                (to_lvals (syscall_sig o).2) vs in
     ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
   | Lalign   => ok (setpc s1 s1.(lpc).+1)
   | Llabel _ => ok (setpc s1 s1.(lpc).+1)
@@ -260,13 +267,13 @@ Proof.
   by clear => s s' ? k _ _ /lsem_final_nostep /(_ k).
 Qed.
 
-Variant lsem_exportcall (callee_saved: Sv.t) (m: mem) (fn: funname) (vm: vmap) (m': mem) (vm': vmap) : Prop :=
+Variant lsem_exportcall (callee_saved: Sv.t) (scs:syscall_state) (m: mem) (fn: funname) (vm: vmap) (scs':syscall_state) (m': mem) (vm': vmap) : Prop :=
 | Lsem_exportcall (fd: lfundef) of
     get_fundef P.(lp_funcs) fn = Some fd
   & lfd_export fd
   & lsem
-         {| lmem := m ; lvm := vm ; lfn := fn ; lpc := 0 |}
-         {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (lfd_body fd) |}
+         {| lscs := scs; lmem := m ; lvm := vm ; lfn := fn ; lpc := 0 |}
+         {| lscs := scs'; lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (lfd_body fd) |}
   & vm =[ callee_saved ] vm'
 .
 

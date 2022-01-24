@@ -117,7 +117,7 @@ Definition vflags      := sv_of_list to_var rflags.
 Definition vregisters  := sv_of_list to_var registers.
 Definition vxregisters := sv_of_list to_var xregisters.
 
-Definition all_vars := 
+Definition all_vars_def := 
   Sv.union (Sv.union vregisters vxregisters) vflags.
 
 End ARCH.

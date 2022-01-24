@@ -31,7 +31,7 @@ From CoqWord Require Import ssrZ.
 Require Import ZArith utils strings low_memory word global oseq.
 Import Utf8 Relation_Operators.
 Import Memory.
-Require Import sem_type arch_decl x86_decl x86_instr_decl.
+Require Import sem_type syscall arch_decl arch_extra x86_decl x86_instr_decl.
 Require Export arch_sem.
 
 Set   Implicit Arguments.
@@ -78,6 +78,20 @@ Definition eval_cond (get : rflag -> result error bool) (c : condt) :=
       Let of_ := get OF in ok (~~ zf && (sf == of_))
   end.
 
+Definition x86_callee_saved : seq register :=
+  [:: RBX; RBP; RSP; R12; R13; R14; R15 ].
+
+Definition x86_syscall_sig (o : syscall_t) := 
+  match o with
+  | RandomBytes _ => (List.map to_var [:: RDI; RSI], List.map to_var [::RAX])
+  end.
+
+#[global] Instance x86_syscall_info : syscall_info := {|
+   syscall_sig  := x86_syscall_sig; 
+   all_vars     := all_vars_def;
+   callee_saved := sv_of_list to_var x86_callee_saved;
+|}.
+
 Instance x86 : asm register xmm_register rflag condt x86_op :=
   { eval_cond := eval_cond }.
 
@@ -96,9 +110,6 @@ FIXME: this is mostly independent of the architecture and may be partially moved
 
 TODO: arguments / results are well-typed
  *)
-
-Definition x86_callee_saved : seq register :=
-  [:: RBX; RBP; RSP; R12; R13; R14; R15 ].
 
 Definition preserved_register (r: register) : relation x86_mem :=
   λ s1 s2,

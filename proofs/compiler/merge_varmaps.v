@@ -48,10 +48,9 @@ Section PROG.
 
 Context `{asm_e : asm_extra}.
 Context (p: sprog) (extra_free_registers: instr_info → option var).
-Context (var_tmp : var) (callee_saved: Sv.t).
+Context (var_tmp : var).
 
 (* Where the argument are taken and where they are stored *) 
-Context (syscall_vsig : syscall_t -> seq var * seq var).
 
 (** Set of variables written by a function (including RA and extra registers),
       assuming this information is known for the called functions. *)
@@ -70,8 +69,6 @@ Qed.
 
 Let magic_variables : Sv.t := magic_variables p.
 
-Notation syscall_kill := (syscall_kill callee_saved).
-
 Section WRITE1.
 
   Context (writefun: funname → Sv.t).
@@ -88,7 +85,7 @@ Section WRITE1.
     match i with
     | Cassgn x _ _ _  => vrv_rec s x
     | Copn xs _ _ _   => vrvs_rec s xs
-    | Csyscall xs o _  => vrvs_rec (Sv.union s syscall_kill) xs
+    | Csyscall xs o _  => vrvs_rec (Sv.union s syscall_kill) (to_lvals (syscall_sig o).2)
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
@@ -237,7 +234,7 @@ Section CHECK.
       else Error (E.internal_error ii "call to unknown function")
 
     | Csyscall xs o es =>
-        let osig := syscall_vsig o in
+        let osig := syscall_sig o in
         let o_params := osig.1 in
         let o_res := osig.2 in
         Let _ := assert
@@ -246,7 +243,7 @@ Section CHECK.
         Let _ := assert
           (all2 (λ x r, if x is Lvar v then v_var v == r else false) xs o_res)
           (E.internal_error ii "bad syscall dests") in
-        let W := vrvs_rec syscall_kill xs in
+        let W := syscall_kill in
         ok (Sv.diff (Sv.union D W) (sv_of_list id o_res))
     end.
 

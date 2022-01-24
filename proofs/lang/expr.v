@@ -1039,3 +1039,8 @@ Definition eq_lval (x x': lval) : bool :=
   | _, _ => false
   end.
 
+(* ------------------------------------------------------------------- *)
+
+(* FIXME syscall : where this should be set ? *)
+Definition to_lvals (l:seq var) : seq lval := 
+  map (fun x => Lvar {|v_var := x; v_info := xH|}) l.

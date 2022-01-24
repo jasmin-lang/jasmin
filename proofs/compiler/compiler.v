@@ -182,13 +182,6 @@ Record architecture_params := mk_aparams {
   is_move_op       : asm_op_t -> bool
 }.
 
-(* System dependant *)
-Record system_params := mk_sparams {
-  write_syscall : Sv.t; 
-  syscall_vsig  : syscall_t -> seq var * seq var;
-  callee_saved  : Sv.t;
-}.
-
 #[local]
 Existing Instance progUnit.
 
@@ -201,7 +194,6 @@ Definition remove_phi_nodes_prog cp (p: _uprog) : _uprog :=
 
 Variable cparams : compiler_params.
 Variable aparams : architecture_params.
-Variable sparams : system_params.
 
 (* Ensure that export functions are preserved *)
 Definition check_removereturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
@@ -317,8 +309,7 @@ Definition check_export entries (p: sprog) : cexec unit :=
 Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
-  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp sparams.(callee_saved)
-                sparams.(write_syscall) sparams.(syscall_vsig) in
+  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp in
   Let pl := linear_prog pd cparams.(extra_free_registers) lparams in
   let pl := cparams.(print_linear) Linearization pl in
   (* tunneling                         *)

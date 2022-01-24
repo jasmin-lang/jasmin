@@ -495,8 +495,16 @@ Qed.
 Definition rflagv_eqMixin := Equality.Mixin rflagv_eq_axiom.
 Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
 
+Class syscall_info := {
+   syscall_sig  : syscall_t -> seq var  * seq var;
+  (* I am not sure that this should be set here *)
+   all_vars     : Sv.t;
+   callee_saved : Sv.t;
+}.
+
 Class asm (reg xreg rflag cond asm_op: Type) := 
   { _arch_decl   :> arch_decl reg xreg rflag cond
   ; _asm_op_decl :> asm_op_decl asm_op
-  ; eval_cond   : (rflag_t -> result error bool) -> cond_t -> result error bool
+  ; _syscall     :> syscall_info
+  ; eval_cond    : (rflag_t -> result error bool) -> cond_t -> result error bool
   }.
