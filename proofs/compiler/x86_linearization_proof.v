@@ -113,8 +113,8 @@ Definition spec_x86_ensure_rsp_alignment :
          i
          (of_estate s1 fn pc)
        = ok (of_estate (with_vm s1 vm') fn pc.+1),
-     vm' = (evm s1).[vrsp <- ok (pword_of_word rsp')]%vmap [\sv_of_flags rflags],
-     forall x, Sv.In x (sv_of_flags rflags) -> ~ is_ok (vm'.[x]%vmap) -> (evm s1).[x]%vmap = vm'.[x]%vmap
+     vm' = (evm s1).[vrsp <- ok (pword_of_word rsp')]%vmap [\ vflags],
+     forall x, Sv.In x vflags -> ~ is_ok (vm'.[x]%vmap) -> (evm s1).[x]%vmap = vm'.[x]%vmap
    & wf_vm vm'].
 Proof.
   move=> lp s1 rsp_id ws ts' sp_rsp ii fn.
@@ -131,11 +131,11 @@ Proof.
     have hneq: forall (f:rflag), to_var f != x.
     + move=> f.
       apply /eqP => heq.
-      apply /hin /sv_of_flagsP /mapP.
+      apply /hin /sv_of_listP /mapP.
       exists f => //.
       by apply /mapP; eexists; last by reflexivity.
     by rewrite !Fv.setP_neq.
-  + move=> x /sv_of_flagsP /mapP [f _ ->].
+  + move=> x /sv_of_listP /mapP [f _ ->].
     by case f;
       repeat (rewrite Fv.setP_eq || rewrite Fv.setP_neq //).
   by do! apply wf_vm_set.
