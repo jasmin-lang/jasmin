@@ -315,23 +315,12 @@ Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
 
   ok pl.
 
-Definition compile_prog (callee_saved: Sv.t) (entries subroutines : seq funname) (p: prog) :=
-  Let pd := compiler_front_end entries subroutines p in
-  Let pl := compiler_back_end callee_saved entries pd in
-  ok pl.
-
-Definition check_signature (p: prog) (lp: lprog) (fn: funname) : bool :=
-  if get_fundef lp.(lp_funcs) fn is Some fd' then
-    if get_fundef (p_funcs p) fn is Some fd then
-      signature_of_fundef fd == signature_of_lfundef fd'
-    else true
-  else true.
+Definition compiler_back_end_to_x86 (entries: seq funname) (p: sprog) :=
+  let callee_saved := sv_of_list to_var x86_callee_saved in
+  compiler_back_end callee_saved entries p >>= assemble_prog.
 
 Definition compile_prog_to_x86 entries subroutines (p: prog): cexec x86_prog :=
-  let callee_saved := sv_of_list to_var x86_callee_saved in
-  Let lp := compile_prog callee_saved entries subroutines p in
-(*  Let _ := assert (all (check_signature p lp) entries) Ferr_lowering in *)
-  assemble_prog lp.
+  compiler_front_end entries subroutines p >>= compiler_back_end_to_x86 entries.
 
 End COMPILER.
 

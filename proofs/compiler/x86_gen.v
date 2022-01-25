@@ -147,14 +147,56 @@ Definition assemble_c rip (lc: lcmd) : cexec (seq asm_i) :=
   mapM (assemble_i rip) lc.
 
 (* -------------------------------------------------------------------- *)
+Definition asm_typed_reg_of_var (x: var) : cexec asm_typed_reg :=
+  let: {| vtype := ty ; vname := n |} := x in
+  match ty with
+  | sbool => if of_string n is Some r then ok (ABReg r) else Error (E.gen_error true None None (pp_s "6qJYxxWakSyc%"))
+  | sint => Error (E.gen_error true None None (pp_s "vBuu8Nv7AFRC"))
+  | sarr _ => Error (E.gen_error true None None (pp_s "4WLdO8K4viE3"))
+  | sword sz =>
+      match sz with
+      | U64 => if of_string n is Some r then ok (ARReg r) else Error (E.gen_error true None None (pp_s "R+zT50uyf3fF"))
+      | U256=> if of_string n is Some r then ok (AXReg r) else Error (E.gen_error true None None (pp_s "Dh9l31MJeafV"))
+      | _ => Error (E.gen_error true None None (pp_s "+y2SvS1t6pzB"))
+      end
+  end.
 
+Definition var_of_asm_typed_reg (x : asm_typed_reg) : var :=
+  match x with
+  | ARReg r => to_var r
+  | AXReg r => to_var r
+  | ABReg r => to_var r
+  end.
+
+Lemma asm_typed_reg_of_varI x r :
+  asm_typed_reg_of_var x = ok r →
+  x = var_of_asm_typed_reg r :> var.
+Proof.
+  rewrite /asm_typed_reg_of_var.
+  case: x => xt x /=.
+  case: xt => [ | // | // | [] // ].
+  all: case e: of_string => [ y | // ] /ok_inj <-.
+  all: by rewrite -(of_stringI e).
+Qed.
+
+(* -------------------------------------------------------------------- *)
 Definition assemble_fd (sp:register) rip (fd: lfundef) :=
   Let fd' := assemble_c rip (lfd_body fd) in
   Let _ := assert
              (~~ (to_var sp \in map v_var fd.(lfd_arg)))
              ( E.gen_error true None None (pp_s "Stack pointer is an argument")) in
-  ok (XFundef (lfd_align fd) [::] fd' [::] (lfd_export fd)).
-  (* FIXME: I put [::] so that it compiles but this must be changed with real values *)
+  Let _ := assert
+             (all (λ x, if asm_typed_reg_of_var x is Ok (ARReg _) then true else false) (lfd_callee_saved fd))
+             (E.gen_error true None None (pp_s "Saved variable is not a register")) in
+  Let arg := mapM (λ x : var_i, asm_typed_reg_of_var x) fd.(lfd_arg) in
+  Let res := mapM (λ x : var_i, asm_typed_reg_of_var x) fd.(lfd_res) in
+  ok {|
+      asm_fd_align := lfd_align fd
+    ; asm_fd_arg := arg
+    ; asm_fd_body := fd'
+    ; asm_fd_res := res
+    ; asm_fd_export := lfd_export fd
+    |}.
 
 (* -------------------------------------------------------------------- *)
 
@@ -172,12 +214,12 @@ Definition assemble_prog (p: lprog) : cexec asm_prog :=
   Let fds := map_cfprog_linear (assemble_fd RSP rip) p.(lp_funcs) in
   ok {| asm_globs := p.(lp_globs); asm_funcs := fds |}.
 
-Definition get_arg_value (st: x86_mem) (a: asm_arg) : value :=
-  match a with
-  | Reg r => Vword (asm_reg st r)
-  | XReg r => Vword (asm_xreg st r)
-  | Condt _ | Imm _ _ | Addr _ => Vundef sword64 (refl_equal _)
+Definition get_typed_reg_value (st: x86_mem) (r: asm_typed_reg) : exec value :=
+  match r with
+  | ARReg r => ok (Vword (asm_reg st r))
+  | AXReg r => ok (Vword (asm_xreg st r))
+  | ABReg r => if asm_flag st r is Def b then ok (Vbool b) else undef_error
   end.
 
-Definition get_arg_values st rs : values :=
-  map (get_arg_value st) rs.
+Definition get_typed_reg_values st rs : exec values :=
+  mapM (get_typed_reg_value st) rs.

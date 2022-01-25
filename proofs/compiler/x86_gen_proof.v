@@ -14,12 +14,21 @@ Unset Printing Implicit Defensive.
 
 Lemma assemble_fdI sp rip fd fd' :
   assemble_fd sp rip fd = ok fd' →
-  to_var sp \notin [seq v_var x | x <- lfd_arg fd] ∧
-  exists2 c, assemble_c rip fd.(lfd_body) = ok c & fd' = {| asm_fd_align := lfd_align fd ; asm_fd_arg := [::] ; asm_fd_body := c ; asm_fd_res := [::] ; asm_fd_export := lfd_export fd |}.
+  [/\
+    to_var sp \notin [seq v_var x | x <- lfd_arg fd]
+  ,  all (λ x, if asm_typed_reg_of_var x is Ok (ARReg _) then true else false) (lfd_callee_saved fd)
+  & ∃ c arg res,
+    [/\ assemble_c rip fd.(lfd_body) = ok c
+    , mapM (λ x : var_i, asm_typed_reg_of_var x) (lfd_arg fd) = ok arg
+    , mapM (λ x : var_i, asm_typed_reg_of_var x) (lfd_res fd) = ok res
+    & fd' = {| asm_fd_align := lfd_align fd ; asm_fd_arg := arg ; asm_fd_body := c ; asm_fd_res := res ; asm_fd_export := lfd_export fd |}
+    ]
+  ].
 Proof.
-  rewrite /assemble_fd; t_xrbindP => c ok_c _ /assertP ok_sp <-; split.
+  rewrite /assemble_fd; t_xrbindP => c ok_c _ /assertP ok_sp _ /assertP ok_callee_saved arg ok_arg res ok_res <-; split.
   - exact: ok_sp.
-  by exists c.
+  - exact: ok_callee_saved.
+  by exists c, arg, res.
 Qed.
 
 Lemma assemble_progP p p' :
@@ -55,7 +64,7 @@ Lemma assemble_fd_labels rsp rip (fn: funname) fd fd' :
   assemble_fd rsp rip fd = ok fd' →
   [seq (fn, lbl) | lbl <- label_in_lcmd (lfd_body fd)] = [seq (fn, lbl) | lbl <- label_in_asm (asm_fd_body fd')].
 Proof.
-  rewrite /assemble_fd; t_xrbindP => c ok_c ?? <- {fd'} /=.
+  case/assemble_fdI => _ _ [] c [] _ [] _ [] ok_c _ _ -> /=.
   by rewrite (assemble_c_labels ok_c).
 Qed.
 
@@ -461,7 +470,7 @@ case: i => ii [] /=.
 - case => fn lbl [<-] /=; t_xrbindP => body.
   case ok_fd: get_fundef => [ fd | // ] [ ] <-{body} pc ok_pc <-{ls'}.
   case/ok_get_fundef: (ok_fd) => fd' ->.
-  rewrite /assemble_fd; t_xrbindP => xc ok_xc _ /assertP rsp_not_in_args <-{fd'} /=.
+  case/assemble_fdI => rsp_not_in_args ok_callee_saved [] xc [] _ [] _ [] ok_xc _ _ ->{fd'} /=.
   rewrite -(assemble_c_find_label lbl ok_xc) ok_pc /=.
   rewrite ok_fd /=.
   do 2 (eexists; first reflexivity).
@@ -475,8 +484,8 @@ case: i => ii [] /=.
   rewrite /=.
   case get_fd: (get_fundef _) => [ fd | // ].
   have [fd' -> ] := ok_get_fundef get_fd.
-  rewrite /assemble_fd /=; t_xrbindP => xc ok_xc _ /assertP rsp_not_in_args <-{fd'} /=.
-  move => pc ok_pc <-{ls'}.
+  case/assemble_fdI => rsp_not_in_args ok_callee_saved [] xc [] _ [] _ [] ok_xc _ _ ->{fd'} /=.
+  t_xrbindP => pc ok_pc <-{ls'}.
   rewrite -(assemble_c_find_label lbl ok_xc) ok_pc.
   rewrite get_fd /=.
   do 2 (eexists; first reflexivity).
@@ -560,48 +569,6 @@ Qed.
 
 Local Notation rip := (mk_rip p.(lp_rip)).
 
-Lemma write_vars_uincl ii xs vs s1 s2 rs xm1 :
-  write_vars xs vs s1 = ok s2 →
-  mapM (xreg_of_var ii) xs = ok rs →
-  lom_eqv rip s1 xm1 →
-  List.Forall2 value_uincl vs (get_arg_values xm1 rs) →
-  lom_eqv rip s2 xm1.
-Proof.
-elim: xs vs s1 s2 rs.
-+ by case => // s1 _ _ [<-] [<-].
-move => x xs ih /= [] // v vs s1 s3 rs';
-  t_xrbindP => s2 ok_s2 ok_s3 r /(xreg_of_varI (asm_e := x86_extra)) ok_r rs ok_rs <- {rs'} h /List_Forall2_inv_l [v'] [vs'] [/=] /seq_eq_injL [<- {v'} <- {vs'}] [hv rec].
-apply: ih.
-+ exact: ok_s3.
-+ exact: ok_rs.
-2: exact: rec.
-case: h => h1 hrip hd h2 h3 h4 {ok_s3 ok_rs rec}.
-case: r ok_r hv => // r => /of_varI rx /= h5.
-all: move: ok_s2; rewrite /write_var/set_var -rx /=; t_xrbindP => vm; apply: on_vuP => // w hw <-{vm} <-{s2}.
-all: constructor => //=; (only 2-4, 6-8: move => r' v'); rewrite /get_var /on_vu.
-1, 8: by rewrite Fv.setP_neq; first exact: hrip; apply/eqP; case: hd.
-2-4, 6: rewrite Fv.setP_neq //.
-2: exact: h3.
-2, 4: exact: h4.
-2: exact: h2.
-+ case: (r =P r').
-  * move => <-{r'}; rewrite Fv.setP_eq => -[<-]{v'}.
-    apply: value_uincl_trans; last exact: h5.
-    have [sz [w' [-> -> /=]]]:= to_pwordI hw.
-    case: Sumbool.sumbool_of_bool => hle //=.
-    by apply word_uincl_zero_ext; apply cmp_nle_le; rewrite hle.
-  move => hne; rewrite Fv.setP_neq; first exact: h2.
-  apply/eqP => /inj_to_var ?; exact: hne.
-case: (r =P r').
-* move => <-{r'}; rewrite Fv.setP_eq => -[<-]{v'}.
-  apply: value_uincl_trans; last exact: h5.
-  have [sz [w' [-> -> /=]]]:= to_pwordI hw.
-  case: Sumbool.sumbool_of_bool => hle //=.
-  by apply word_uincl_zero_ext; apply cmp_nle_le; rewrite hle.
-move => hne; rewrite Fv.setP_neq; first exact: h3.
-apply/eqP => /inj_to_var ?; exact: hne.
-Qed.
-
 Lemma get_xreg_of_vars_uincl ii xs rs vm vs (rm: regmap) (xrm: xregmap) :
   (∀ r v, get_var vm (to_var r) = ok v → value_uincl v (Vword (rm r))) →
   (∀ r v, get_var vm (to_var r) = ok v → value_uincl v (Vword (xrm r))) →
@@ -630,7 +597,7 @@ Lemma x86gen_exportcall fn m vm m' vm' :
 Proof.
   case => fd ok_fd Export lexec saved_registers /allP ok_vm xm M.
   have [ fd' ok_fd' ] := ok_get_fundef ok_fd.
-  case/assemble_fdI => ok_sp [] c ok_c ?; subst fd'.
+  case/assemble_fdI => ok_sp ok_callee_saved [] c [] ? [] ? [] ok_c ? ? ?; subst fd'.
   set s := {| asm_m := xm ; asm_f := fn ; asm_c := c ; asm_ip := 0 |}.
   have /= := match_state_sem _ lexec.
   rewrite ok_fd => /(_ _ s erefl) []; first by constructor.
@@ -733,6 +700,19 @@ Proof.
   by case: (asm_flag _ _).
 Qed.
 
+ Lemma get_var_vmap_of_x86_mem sp rip s r :
+   get_var (vmap_of_x86_mem sp rip s) (var_of_asm_typed_reg r) = get_typed_reg_value s r.
+Proof.
+  rewrite /vmap_of_x86_mem.
+  case: r => r.
+  all: repeat (rewrite get_var_vmap_set_vars_other_type; last by []).
+  all: rewrite get_var_vmap_set_vars_finite //=.
+  - exact: registers_fin_axiom.
+  - exact: xmm_registers_fin_axiom.
+  - by case: (asm_flag s r).
+  exact: rflags_fin_axiom.
+Qed.
+
 Definition estate_of_x86_mem (sp: word Uptr) (rip: Ident.ident) (s: x86_mem) : estate :=
   {| emem := asm_mem s ; evm := vmap_of_x86_mem sp rip s |}.
 
@@ -747,14 +727,10 @@ Proof using.
     rewrite get_var_vmap_set_vars_other; last first.
     + apply/allP => r _; apply/eqP; exact: rip_not_reg.
     by rewrite get_var_eq.
-  - rewrite /vmap_of_x86_mem => r v.
-    repeat (rewrite get_var_vmap_set_vars_other_type; last by []).
-    rewrite get_var_vmap_set_vars_finite; last exact: registers_fin_axiom.
-    by move => /ok_inj <-.
-  - rewrite /vmap_of_x86_mem => r v.
-    repeat (rewrite get_var_vmap_set_vars_other_type; last by []).
-    rewrite get_var_vmap_set_vars_finite; last exact: xmm_registers_fin_axiom.
-    by move => /ok_inj <-.
+  - move => r v.
+    by rewrite (get_var_vmap_of_x86_mem _ _ _ (ARReg r)) => /= /ok_inj <-.
+  - move => r v.
+    by rewrite (get_var_vmap_of_x86_mem _ _ _ (AXReg r)) => /= /ok_inj <-.
   move => r v.
   rewrite /= /vmap_of_x86_mem.
   set q := (X in vmap_set_vars _ X).
