@@ -267,7 +267,7 @@ Proof.
   by clear => s s' ? k _ _ /lsem_final_nostep /(_ k).
 Qed.
 
-Variant lsem_exportcall (callee_saved: Sv.t) (scs:syscall_state) (m: mem) (fn: funname) (vm: vmap) (scs':syscall_state) (m': mem) (vm': vmap) : Prop :=
+Variant lsem_exportcall (scs:syscall_state) (m: mem) (fn: funname) (vm: vmap) (scs':syscall_state) (m': mem) (vm': vmap) : Prop :=
 | Lsem_exportcall (fd: lfundef) of
     get_fundef P.(lp_funcs) fn = Some fd
   & lfd_export fd

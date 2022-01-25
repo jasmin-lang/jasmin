@@ -44,7 +44,7 @@ Definition get_lvar (x: lval) : exec var :=
   if x is Lvar x then ok (v_var x) else type_error.
 
 Definition kill_var (x:var) (vm: vmap) : vmap := 
-  if vm.[x] is Ok _ then vm.[x <- undef_error] else vm.
+  if vm.[x] is Ok _ then vm.[x <- pundef_addr (vtype x)] else vm.
  
 End ASM_EXTRA.
 
@@ -62,17 +62,17 @@ Context {reg xreg rflag cond asm_op extra_op}
         {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}.
 
 Lemma kill_varsE vm xs x :
-  ((kill_vars xs vm).[x] = if Sv.mem x xs then if vm.[x] is Ok _ then undef_error else vm.[x] else vm.[x])%vmap.
+  ((kill_vars xs vm).[x] = if Sv.mem x xs then if vm.[x] is Ok _ then pundef_addr (vtype x) else vm.[x] else vm.[x])%vmap.
 Proof.
   rewrite Sv_elems_eq Sv.fold_spec.
   elim: (Sv.elements xs) vm => // {xs} f xs ih vm /=.
   rewrite ih {ih} inE /kill_var; case: eqP.
-  - move => -> /=; case: ifP => _; case h: vm.[_].
-    1, 3: by rewrite Fv.setP_eq.
-    1, 2: by rewrite h.
-  move => /= x_neq_f; case: ifP => // _; case h: vm.[_] => //.
-  all: rewrite Fv.setP_neq //; apply/eqP.
-  all: exact: not_eq_sym.
+  - move => -> /=; case: ifP => _; case h: vm.[_] => //.
+    + by rewrite Fv.setP_eq; case: pundef_addr.
+    + by rewrite h.
+    + by rewrite Fv.setP_eq.
+  move => /= x_neq_f; case: ifP => // _; case h: vm.[_] => //;
+   rewrite Fv.setP_neq //; apply/eqP; exact: not_eq_sym.
 Qed.
 
 Lemma kill_vars_uincl vm xs :
@@ -80,7 +80,7 @@ Lemma kill_vars_uincl vm xs :
 Proof.
   move => x; rewrite kill_varsE.
   case: ifP => // _.
-  by case: vm.[x].
+  by case: vm.[x] => // ?; apply eval_uincl_undef.
 Qed.
 
 Section SEM.
