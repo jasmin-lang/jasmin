@@ -1422,12 +1422,6 @@ Section PROOF.
   Lemma syscall_killP vm : vm = vm_after_syscall vm [\syscall_kill].
   Proof. by move=> x /Sv_memP /negPf; rewrite /vm_after_syscall kill_varsE => ->. Qed.
 
-  Lemma wf_kill_vars X vm: wf_vm vm -> wf_vm (kill_vars X vm).
-  Proof.
-    move=> hwf x; rewrite kill_varsE.
-    by case: ifP (hwf x) => // _; case: (vm.[x])%vmap => //=; case: (vtype x).
-  Qed.
-
   Lemma preserved_metadata_fill_mem m0 m1 m2 m m' ptr bytes : 
     fill_mem m0 ptr bytes = ok m -> 
     fill_mem m1 ptr bytes = ok m' -> 

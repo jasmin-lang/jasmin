@@ -237,6 +237,7 @@ Section CHECK.
         let osig := syscall_sig o in
         let o_params := osig.1 in
         let o_res := osig.2 in
+        Let _ := check_es ii D es in
         Let _ := assert
           (all2 (λ e a, if e is Pvar (Gvar v Slocal) then v_var v == a else false) es o_params)
           (E.internal_error ii "bad syscall args") in
@@ -244,7 +245,7 @@ Section CHECK.
           (all2 (λ x r, if x is Lvar v then v_var v == r else false) xs o_res)
           (E.internal_error ii "bad syscall dests") in
         let W := syscall_kill in
-        ok (Sv.diff (Sv.union D W) (sv_of_list id o_res))
+        ok (Sv.diff (Sv.union D W) (vrvs (to_lvals (syscall_sig o).2)))
     end.
 
   Lemma check_ir_CwhileP sz ii aa c e c' D D' :

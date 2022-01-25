@@ -19,6 +19,12 @@ Context
   (extra_free_registers: instr_info -> option var)
   (var_tmp: var).
 
+Lemma wf_kill_vars X vm: wf_vm vm -> wf_vm (kill_vars X vm).
+Proof.
+  move=> hwf x; rewrite kill_varsE.
+  by case: ifP (hwf x) => // _; case: (vm.[x])%vmap => //=; case: (vtype x).
+Qed.
+
 Section STACK_STABLE.
 
 Infix "≡" := stack_stable (at level 40).
