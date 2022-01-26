@@ -196,6 +196,7 @@ Definition assemble_fd (sp:register) rip (fd: lfundef) :=
     ; asm_fd_body := fd'
     ; asm_fd_res := res
     ; asm_fd_export := lfd_export fd
+    ; asm_fd_total_stack := lfd_total_stack fd
     |}.
 
 (* -------------------------------------------------------------------- *)

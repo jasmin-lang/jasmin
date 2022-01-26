@@ -21,7 +21,7 @@ Lemma assemble_fdI sp rip fd fd' :
     [/\ assemble_c rip fd.(lfd_body) = ok c
     , mapM (λ x : var_i, asm_typed_reg_of_var x) (lfd_arg fd) = ok arg
     , mapM (λ x : var_i, asm_typed_reg_of_var x) (lfd_res fd) = ok res
-    & fd' = {| asm_fd_align := lfd_align fd ; asm_fd_arg := arg ; asm_fd_body := c ; asm_fd_res := res ; asm_fd_export := lfd_export fd |}
+    & fd' = {| asm_fd_align := lfd_align fd ; asm_fd_arg := arg ; asm_fd_body := c ; asm_fd_res := res ; asm_fd_export := lfd_export fd ; asm_fd_total_stack := lfd_total_stack fd |}
     ]
   ].
 Proof.
