@@ -397,6 +397,90 @@ Definition asmsem1 (s1 s2: asm_state) : Prop :=
 
 Definition asmsem : relation asm_state := clos_refl_trans asm_state asmsem1.
 
+(* ---------------------------------------------------------------- *)
+Record asmsem_invariant (x y: asmmem) : Prop :=
+  { asmsem_invariant_rip: asm_rip x = asm_rip y
+  ; asmsem_invariant_stack_stable: stack_stable x.(asm_mem) y.(asm_mem)
+  }.
+
+Local Notation "(≡)" := asmsem_invariant.
+Local Infix "≡" := asmsem_invariant (at level 40).
+
+#[ local ]
+Instance asmsem_invariant_Equiv : Equivalence (≡).
+Proof.
+  split => //.
+  - move => x y [] ? ?; split; by symmetry.
+  move => x y z [] ? ? [] ? ?; split.
+  - by transitivity (asm_rip y).
+  by transitivity (asm_mem y).
+Qed.
+
+Lemma eval_JMP_invariant (r: remote_label)  (s s': asm_state) :
+  eval_JMP p r s = ok s' →
+  s ≡ s'.
+Proof.
+  case: r => fn l.
+  rewrite /eval_JMP.
+  by case: get_fundef => // fd; t_xrbindP => _ _ <- /=.
+Qed.
+
+Lemma mem_write_val_invariant f xs d v (s s': asmmem) :
+  mem_write_val f xs d v s = ok s' →
+  s ≡ s'.
+Proof.
+  rewrite /mem_write_val /mem_write_ty.
+  case: d.2 => //; t_xrbindP => /=.
+  - by move => ? _; case: d.1 => // - [] // ? /ok_inj <-.
+  move => ? ? _; case: d.1 => [ [] | ] //=.
+  - by move => ? /ok_inj <-.
+  move => _ ? ?; case: onth => //; t_xrbindP => - [] //.
+  - by move => ? _ _ /ok_inj <-.
+  - by rewrite /mem_write_mem; t_xrbindP => ? _ _ ? /Memory.write_mem_stable ? <- /=.
+  by move => ? _ _ /ok_inj <-.
+Qed.
+
+Lemma mem_write_vals_invariant f xs ys tys zs (s s': asmmem) :
+  mem_write_vals f s xs ys tys zs = ok s' →
+  s ≡ s'.
+Proof.
+  rewrite /mem_write_vals.
+  elim: {ys tys} (zip ys tys) zs s.
+  - by case => // s /ok_inj <-.
+  case => d ty m ih [] // z zs s /=; t_xrbindP => s1 /mem_write_val_invariant ? /ih ?.
+  by transitivity s1.
+Qed.
+
+Lemma eval_instr_invariant (i: asm_i) (s s': asm_state) :
+  eval_instr i s = ok s' →
+  s ≡ s'.
+Proof.
+  case: i => [ | ? | ? ? | ? | ? | ? ? | ? ? ] /=.
+  1, 2: by move => /ok_inj <-.
+  - by case: encode_label => // ? /ok_inj <-.
+  - exact: eval_JMP_invariant.
+  - t_xrbindP => ????; case: decode_label => // ?; exact: eval_JMP_invariant.
+  - rewrite /eval_Jcc; t_xrbindP => - []; t_xrbindP => _.
+    + by move => _ _ <- /=.
+    by move => <-.
+  by rewrite /eval_op /exec_instr_op; t_xrbindP => ? ? ? /mem_write_vals_invariant -> <-.
+Qed.
+
+Lemma asmsem1_invariant (s s': asm_state) :
+  asmsem1 s s' →
+  s ≡ s'.
+Proof.
+  rewrite /asmsem1 /fetch_and_eval.
+  by case: onth => // i /eval_instr_invariant.
+Qed.
+
+Lemma asmsem_invariantP (s s': asm_state) :
+  asmsem s s' →
+  s ≡ s'.
+Proof.
+  by elim/Operators_Properties.clos_refl_trans_ind_left => {s'} // ? ? _ -> /asmsem1_invariant.
+Qed.
+
 End PROG.
 
 (* -------------------------------------------------------------------- *)
