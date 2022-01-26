@@ -347,6 +347,41 @@ Proof.
   exact: lp_globsE ok_lp.
 Qed.
 
+Lemma compiler_back_end_to_x86_meta entries (p: sprog) (xp: x86_prog) :
+  compiler_back_end_to_x86 cparams entries p = ok xp →
+  [/\
+    arch_extra.to_var x86_decl.RSP = {| vtype := sword64; vname := p.(p_extra).(sp_rsp) |}
+    & asm_globs xp = p.(p_extra).(sp_globs)
+  ].
+Proof.
+  rewrite /compiler_back_end_to_x86; t_xrbindP => tp /compiler_back_end_meta[] A B C /assemble_progP/=[] D E F G.
+  by rewrite -B -C.
+Qed.
+
+Definition enough_stack_space (xp: x86_prog) (fn: funname) (m: mem) : Prop :=
+  ∀ fd : x86_fundef,
+    get_fundef xp.(asm_funcs) fn = Some fd →
+    (0 <= asm_fd_total_stack fd <= wunsigned (top_stack m) - wunsigned (stack_limit m))%Z.
+
+Lemma enough_stack_space_alloc_ok entries (sp: sprog) (xp: x86_prog) (fn: funname) (m m': mem) :
+  compiler_back_end_to_x86 cparams entries sp = ok xp →
+  fn \in entries →
+  stack_stable m m' →
+  enough_stack_space xp fn m' →
+  alloc_ok sp fn m.
+Proof.
+  rewrite /compiler_back_end_to_x86 /compiler_back_end.
+  t_xrbindP => ? [] /allMP ok_export _ _ lp ok_lp tp.
+  rewrite !print_linearP => ok_tp <- ok_xp ok_fn M S.
+  move => fd ok_fd.
+  move: ok_export => /(_ _ ok_fn); rewrite ok_fd => /assertP /eqP Export.
+  split; last by rewrite Export.
+  move: ok_fd => /(get_fundef_p' ok_lp) /(get_fundef_tunnel_program ok_tp) /(ok_get_fundef ok_xp)[] fd' ok_fd'.
+  case/assemble_fdI => _ _ [] ? [] ? [] ? [] _ _ _ ?; subst fd'.
+  move: ok_fd' => /S.
+  by rewrite /= -(ss_limit M) -(ss_top_stack M).
+Qed.
+
 Import sem_one_varmap.
 Import x86_linearization.
 
@@ -499,6 +534,67 @@ Proof.
   - exact: ok_res''.
   apply: Forall2_trans res_res' res'_res''.
   exact: value_uincl_trans.
+Qed.
+
+(* Agreement relation between source and target memories.
+   Expressed in a way that streamlines the composition of compiler-correctness theorems (front-end and back-end).
+  TODO: There might be an equivalent definition that is clearer.
+*)
+Record mem_agreement (m m': mem) (gd: pointer) (data: seq u8) : Prop :=
+  { ma_ghost : mem
+  ; ma_extend_mem : extend_mem m ma_ghost gd data
+  ; ma_match_mem : match_mem ma_ghost m'
+  ; ma_stack_stable_hi : stack_stable m ma_ghost
+  ; ma_stack_stable_lo : stack_stable ma_ghost m'
+  }.
+
+Lemma compile_prog_to_x86P entries subroutine (p: prog) (xp: x86_prog) (m m':mem) (fn: funname) va vr xm :
+  compile_prog_to_x86 cparams aparams entries subroutine p = ok xp →
+  fn \in entries →
+  sem.sem_call p m fn va m' vr →
+  mem_agreement m xm.(asm_mem) xm.(asm_rip) xp.(asm_globs) →
+  enough_stack_space xp fn xm.(asm_mem) →
+  ∃ xd : x86_fundef,
+    [/\
+      get_fundef xp.(asm_funcs) fn = Some xd,
+      xd.(asm_fd_export) &
+      ∀ args',
+        asm_reg xm x86_decl.RSP = top_stack m →
+        get_typed_reg_values xm xd.(asm_fd_arg) = ok args' →
+        List.Forall2 value_uincl va args' →
+        (* FIXME: see comment in compiler_back_end_to_x86P *)
+        ∃ xm' res',
+          [/\ x86sem_exportcall xp fn xm xm'
+          , mem_agreement m' xm'.(asm_mem) xm'.(asm_rip) xp.(asm_globs)
+          , get_typed_reg_values xm' xd.(asm_fd_res) = ok res'
+          & List.Forall2 value_uincl vr res'
+          ]
+        ].
+Proof.
+  rewrite /compile_prog_to_x86; t_xrbindP => sp ok_sp ok_xp ok_fn p_call [] mi.
+  have [ rsp_eq -> ] := compiler_back_end_to_x86_meta ok_xp.
+  move => mi1 mi2 mi3 mi4.
+  move => /(enough_stack_space_alloc_ok ok_xp ok_fn mi4) ok_mi.
+  have := compiler_front_endP ok_sp ok_fn p_call mi1 ok_mi.
+  case => vr' [] mi' [] vr_vr' sp_call m1.
+  have := compiler_back_end_to_x86P ok_xp ok_fn sp_call.
+  case => xd [] ok_xd Export /(_ _ _ erefl _ mi2) xp_call.
+  exists xd; split => //.
+  rewrite (ss_top_stack mi3) => args' ok_RSP ok_args' va_args'.
+  have := xp_call _ ok_RSP ok_args' va_args'.
+  case => xm' [] res' [] {} xp_call m2 ok_res' vr'_res'.
+  exists xm', res'; split => //; last exact: Forall2_trans value_uincl_trans vr_vr' vr'_res'.
+  case: xp_call => _ _ _ /asmsem_invariantP/= xm_xm' _.
+  exists mi'.
+  - rewrite -(asmsem_invariant_rip xm_xm').
+    exact: m1.
+  - exact: m2.
+  - transitivity mi; last exact: sem_call_stack_stable_sprog sp_call.
+    transitivity m; last exact: mi3.
+    symmetry; exact: sem_call_stack_stable p_call.
+  transitivity mi; first by symmetry; exact: sem_call_stack_stable_sprog sp_call.
+  transitivity (asm_mem xm); first exact: mi4.
+  exact: asmsem_invariant_stack_stable xm_xm'.
 Qed.
 
 (*
