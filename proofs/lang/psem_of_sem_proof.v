@@ -346,4 +346,9 @@ rewrite (mapM_ext (λ x : var_i, get_var_sim hvm x) erefl) => hres htyout.
 by econstructor; eauto.
 Qed.
 
+Lemma sem_call_stack_stable (fn: funname) (m m': _) (vs vs': values) :
+  sem.sem_call p m fn vs m' vs' →
+  stack_stable m m'.
+Proof. by move => /psem_call /sem_call_stack_stable_uprog. Qed.
+
 End PROOF.
