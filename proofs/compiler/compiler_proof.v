@@ -358,16 +358,19 @@ Proof.
   by rewrite -B -C.
 Qed.
 
-Definition enough_stack_space (xp: x86_prog) (fn: funname) (m: mem) : Prop :=
+(* The memory has an allocated stack region that is large enough to hold the local variables of the function and all functions it may call.
+  The stack region is described by two pointers: [top-stack m] at the bottom and [root] (held in RSP) at the top
+ *)
+Definition enough_stack_space (xp: x86_prog) (fn: funname) (root: pointer) (m: mem) : Prop :=
   ∀ fd : x86_fundef,
     get_fundef xp.(asm_funcs) fn = Some fd →
-    (0 <= asm_fd_total_stack fd <= wunsigned (top_stack m) - wunsigned (stack_limit m))%Z.
+    (0 <= asm_fd_total_stack fd <= wunsigned root - wunsigned (top_stack m))%Z.
 
 Lemma enough_stack_space_alloc_ok entries (sp: sprog) (xp: x86_prog) (fn: funname) (m m': mem) :
   compiler_back_end_to_x86 cparams entries sp = ok xp →
   fn \in entries →
-  stack_stable m m' →
-  enough_stack_space xp fn m' →
+  (wunsigned (stack_limit m) <= wunsigned (top_stack m'))%Z →
+  enough_stack_space xp fn (top_stack m) m' →
   alloc_ok sp fn m.
 Proof.
   rewrite /compiler_back_end_to_x86 /compiler_back_end.
@@ -378,8 +381,10 @@ Proof.
   split; last by rewrite Export.
   move: ok_fd => /(get_fundef_p' ok_lp) /(get_fundef_tunnel_program ok_tp) /(ok_get_fundef ok_xp)[] fd' ok_fd'.
   case/assemble_fdI => _ _ [] ? [] ? [] ? [] _ _ _ ?; subst fd'.
-  move: ok_fd' => /S.
-  by rewrite /= -(ss_limit M) -(ss_top_stack M).
+  move: ok_fd' => /S /=.
+  rewrite /allocatable_stack.
+  move: (wunsigned (stack_limit m)) (wunsigned (top_stack m)) (wunsigned (top_stack m')) M => L T T'.
+  Lia.lia.
 Qed.
 
 Import sem_one_varmap.
@@ -544,8 +549,8 @@ Record mem_agreement (m m': mem) (gd: pointer) (data: seq u8) : Prop :=
   { ma_ghost : mem
   ; ma_extend_mem : extend_mem m ma_ghost gd data
   ; ma_match_mem : match_mem ma_ghost m'
-  ; ma_stack_stable_hi : stack_stable m ma_ghost
-  ; ma_stack_stable_lo : stack_stable ma_ghost m'
+  ; ma_stack_stable : stack_stable m ma_ghost
+  ; ma_stack_range : (wunsigned (stack_limit ma_ghost) <= wunsigned (top_stack m'))%Z
   }.
 
 Lemma compile_prog_to_x86P entries subroutine (p: prog) (xp: x86_prog) (m m':mem) (fn: funname) va vr xm :
@@ -553,7 +558,7 @@ Lemma compile_prog_to_x86P entries subroutine (p: prog) (xp: x86_prog) (m m':mem
   fn \in entries →
   sem.sem_call p m fn va m' vr →
   mem_agreement m xm.(asm_mem) xm.(asm_rip) xp.(asm_globs) →
-  enough_stack_space xp fn xm.(asm_mem) →
+  enough_stack_space xp fn (top_stack m) xm.(asm_mem) →
   ∃ xd : x86_fundef,
     [/\
       get_fundef xp.(asm_funcs) fn = Some xd,
@@ -574,13 +579,14 @@ Proof.
   rewrite /compile_prog_to_x86; t_xrbindP => sp ok_sp ok_xp ok_fn p_call [] mi.
   have [ rsp_eq -> ] := compiler_back_end_to_x86_meta ok_xp.
   move => mi1 mi2 mi3 mi4.
+  rewrite (ss_top_stack mi3).
   move => /(enough_stack_space_alloc_ok ok_xp ok_fn mi4) ok_mi.
   have := compiler_front_endP ok_sp ok_fn p_call mi1 ok_mi.
   case => vr' [] mi' [] vr_vr' sp_call m1.
   have := compiler_back_end_to_x86P ok_xp ok_fn sp_call.
   case => xd [] ok_xd Export /(_ _ _ erefl _ mi2) xp_call.
   exists xd; split => //.
-  rewrite (ss_top_stack mi3) => args' ok_RSP ok_args' va_args'.
+  move => args' ok_RSP ok_args' va_args'.
   have := xp_call _ ok_RSP ok_args' va_args'.
   case => xm' [] res' [] {} xp_call m2 ok_res' vr'_res'.
   exists xm', res'; split => //; last exact: Forall2_trans value_uincl_trans vr_vr' vr'_res'.
@@ -592,9 +598,8 @@ Proof.
   - transitivity mi; last exact: sem_call_stack_stable_sprog sp_call.
     transitivity m; last exact: mi3.
     symmetry; exact: sem_call_stack_stable p_call.
-  transitivity mi; first by symmetry; exact: sem_call_stack_stable_sprog sp_call.
-  transitivity (asm_mem xm); first exact: mi4.
-  exact: asmsem_invariant_stack_stable xm_xm'.
+  rewrite -(ss_limit (sem_call_stack_stable_sprog sp_call)) -(ss_top_stack (asmsem_invariant_stack_stable xm_xm')).
+  exact: mi4.
 Qed.
 
 (*
