@@ -22,8 +22,7 @@ End E.
 
 Section ASM_OP.
 
-Context {pd : PointerData}.
-Context `{asmop : asmOp}.
+Context {pd: PointerData} {asm_op} {asmop : asmOp asm_op}.
 
 Section LprogSem.
 

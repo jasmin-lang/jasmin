@@ -1,11 +1,10 @@
 (*
 *)
 (* FIXME: we should not depend on psem sem_one_varmap *)
-Require Import psem sem_one_varmap.
+Require Import compiler_util psem sem_one_varmap.
 Import Utf8.
 Import all_ssreflect.
 Import var compiler_util.
-Require Import arch_decl arch_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -46,7 +45,8 @@ End E.
 
 Section PROG.
 
-Context `{asm_e : asm_extra}.
+Context {pd: PointerData} {asm_op} {asmop : asmOp asm_op} {syscall_i : syscall_info}.
+
 Context (p: sprog) (extra_free_registers: instr_info → option var).
 Context (var_tmp : var).
 
@@ -283,18 +283,7 @@ Section CHECK.
 
   (* TODO: can we factor out some lines? seems really similar to functions in sem_one_varmap *)
   Definition check_fd (fn:funname) (fd: sfundef) :=
-    let DI :=
-      match sf_return_address (f_extra fd) with
-      | RAnone =>
-        Sv.add var_tmp
-        match sf_save_stack (f_extra fd) with
-        | SavedStackReg r => Sv.add r vflags
-        | _ => vflags
-        end
-    | RAreg ra => Sv.singleton ra
-    | RAstack _ => Sv.empty
-    end in
-
+    let DI := ra_undef fd var_tmp in
     Let D := check_cmd fd.(f_extra).(sf_align) DI fd.(f_body) in
     let params := sv_of_list v_var fd.(f_params) in
     let res := sv_of_list v_var fd.(f_res) in

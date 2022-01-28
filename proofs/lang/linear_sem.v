@@ -31,7 +31,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.
-Require Import arch_decl psem sem_one_varmap compiler_util label linear.
+Require Import psem sem_one_varmap compiler_util label linear.
 
 Import Memory.
 
@@ -43,8 +43,7 @@ Local Open Scope seq_scope.
 
 Section SEM.
 
-Context {pd: PointerData}.
-Context {asm_op} {asmop : asmOp asm_op} {syscall_i : syscall_info}.
+Context {pd: PointerData} {asm_op} {asmop : asmOp asm_op} {syscall_i : syscall_info}.
 Variable P: lprog.
 
 Definition label_in_lcmd (body: lcmd) : seq label :=

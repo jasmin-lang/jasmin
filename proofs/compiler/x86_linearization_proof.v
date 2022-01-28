@@ -32,7 +32,8 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Lemma spec_x86_mov_op :
-  forall (lp : lprog) (s : estate) fn pc x lbl ptr ii,
+  forall (lp : lprog) (s : estate) (fn : funname) (pc : nat) (x : var) (lbl : label.label) 
+    (ptr : word Uptr) (ii : instr_info),
   vtype x == sword Uptr ->
   label.encode_label (label_in_lprog lp) (fn, lbl) = Some ptr ->
   let i := LstoreLabel {| v_var := x; v_info := 1%positive |} lbl in
@@ -45,7 +46,7 @@ Proof.
   rewrite /= /eval_instr /= /sem_sopn /= /exec_sopn /= hlabel.
   rewrite /write_var /= /set_var /=.
   case: x hty => _ xn /= -> /=.
-  by rewrite zero_extend_u wrepr_unsigned.
+  by rewrite !zero_extend_u wrepr_unsigned.
 Qed.
 
 Lemma spec_x86_allocate_stack_frame :
@@ -171,7 +172,7 @@ Proof.
     done.
 Qed.
 
-Definition h_x86_linearization_params : h_linearization_params x86_mov_op x86_linearization_params.
+Definition h_x86_linearization_params : h_linearization_params x86_linear_sem.x86_mov_eop x86_linearization_params.
 Proof.
   split.
   - exact: spec_x86_mov_op.

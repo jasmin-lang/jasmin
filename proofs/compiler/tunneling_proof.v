@@ -12,13 +12,12 @@ Unset Printing Implicit Defensive.
 Local Open Scope seq_scope.
 
 Require Import seq_extra xseq_extra unionfind tunneling unionfind_proof.
-Require Import arch_decl linear_sem.
+Require Import sem_one_varmap linear_sem.
 
 Section ASM_OP.
 
 Context {pd:PointerData}.
 Context {asm_op} {asmop : asmOp asm_op} {syscall_i : syscall_info}.
-
 
 Section LprogSemProps.
 

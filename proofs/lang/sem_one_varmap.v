@@ -5,7 +5,7 @@ Import Utf8.
 Import all_ssreflect.
 Import var.
 Import low_memory.
-Require Import arch_decl arch_extra.
+(* Require Import arch_decl arch_extra. *)
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -33,10 +33,6 @@ The semantics also ensures some properties:
 The semantic predicates are indexed by a set of variables which is *precisely* the set of variables that are written during the execution.
  *)
 
-Section ASM_EXTRA.
-
-Context {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}.
-
 Definition get_pvar (e: pexpr) : exec var :=
   if e is Pvar {| gv := x ; gs := Slocal |} then ok (v_var x) else type_error.
 
@@ -44,9 +40,16 @@ Definition get_lvar (x: lval) : exec var :=
   if x is Lvar x then ok (v_var x) else type_error.
 
 Definition kill_var (x:var) (vm: vmap) : vmap := 
-  if vm.[x] is Ok _ then vm.[x <- pundef_addr (vtype x)] else vm.
+  vm.[x <- pundef_addr (vtype x)].
  
-End ASM_EXTRA.
+Class syscall_info := {
+   (* This is used for one_varmap and linear semantic and compilation passes *)
+   syscall_sig  : syscall_t -> seq var  * seq var;
+   all_vars     : Sv.t;
+   callee_saved : Sv.t;
+   vflags       : Sv.t;
+   vflagsP      : forall x, Sv.In x vflags -> vtype x = sbool
+}.
 
 Definition syscall_kill {syscall_i : syscall_info} := 
   Sv.diff all_vars callee_saved.
@@ -56,34 +59,35 @@ Notation kill_vars := (Sv.fold kill_var).
 Definition vm_after_syscall {syscall_i : syscall_info} (vm:vmap) := 
   kill_vars syscall_kill vm.
 
-Section ASM_EXTRA.
-
-Context {reg xreg rflag cond asm_op extra_op} 
-        {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}.
+Lemma kill_varE vm y x :
+  ((kill_var x vm).[y] = if x == y then pundef_addr (vtype y) else vm.[y])%vmap.
+Proof.
+  by rewrite /kill_var Fv.setP; case: eqP => // ?; subst y.
+Qed.
 
 Lemma kill_varsE vm xs x :
-  ((kill_vars xs vm).[x] = if Sv.mem x xs then if vm.[x] is Ok _ then pundef_addr (vtype x) else vm.[x] else vm.[x])%vmap.
+  ((kill_vars xs vm).[x] = if Sv.mem x xs then pundef_addr (vtype x) else vm.[x])%vmap.
 Proof.
   rewrite Sv_elems_eq Sv.fold_spec.
   elim: (Sv.elements xs) vm => // {xs} f xs ih vm /=.
-  rewrite ih {ih} inE /kill_var; case: eqP.
-  - move => -> /=; case: ifP => _; case h: vm.[_] => //.
-    + by rewrite Fv.setP_eq; case: pundef_addr.
-    + by rewrite h.
-    + by rewrite Fv.setP_eq.
-  move => /= x_neq_f; case: ifP => // _; case h: vm.[_] => //;
-   rewrite Fv.setP_neq //; apply/eqP; exact: not_eq_sym.
+  rewrite ih {ih} inE kill_varE eq_sym.
+  by case: eqP => //= ->; case: ifP => // _; case: vm.[_] => // _; case: pundef_addr.
 Qed.
 
 Lemma kill_vars_uincl vm xs :
+  wf_vm vm -> 
   vm_uincl (kill_vars xs vm) vm.
 Proof.
-  move => x; rewrite kill_varsE.
+  move => hwf x; rewrite kill_varsE.
   case: ifP => // _.
-  by case: vm.[x] => // ?; apply eval_uincl_undef.
+  case: vm.[x] (hwf x)=> // [v | e].
+  + by move=> _; apply eval_uincl_undef.
+  case: e => //; case: (vtype x) => //.
 Qed.
 
 Section SEM.
+
+Context {pd: PointerData} {asm_op} {asmop : asmOp asm_op} {syscall_i : syscall_info}.
 
 Context
   (p: sprog)
@@ -138,18 +142,30 @@ Definition ra_vm (e: stk_fun_extra) (x: var) : Sv.t :=
     Sv.add x vflags
   end.
 
-Definition ra_undef_vm fd vm (x: var) : vmap :=
+Definition savedstackreg (ss:saved_stack) := 
+  if ss is SavedStackReg r then Sv.singleton r else Sv.empty.
+
+Definition saved_stack_vm fd : Sv.t :=
+  savedstackreg fd.(f_extra).(sf_save_stack).
+
+Definition ra_undef_none (ss:saved_stack) (x: var) :=
+  Sv.union (Sv.add x vflags) (savedstackreg ss).
+
+Definition ra_undef fd (x: var) :=
+  Sv.union (ra_vm fd.(f_extra) x) (saved_stack_vm fd).
+(*
   match fd.(f_extra).(sf_return_address) with
-  | RAreg ra =>
-    vm.[ra <- undef_error]
-  | RAstack _ =>
-    vm
-  | RAnone =>
-    let vm' := if fd.(f_extra).(sf_save_stack) is SavedStackReg r
-               then vm.[r <- undef_error]
-               else vm
-    in (kill_vars vflags vm').[x <- undef_error]
+  | RAreg ra  => Sv.singleton ra 
+  | RAstack _ => Sv.empty
+  | RAnone => ra_undef_none fd.(f_extra).(sf_save_stack) x 
   end.
+*)
+
+Definition ra_undef_vm_none (ss:saved_stack) (x: var) vm : vmap :=
+  kill_vars (ra_undef_none ss x) vm.
+
+Definition ra_undef_vm fd vm (x: var) : vmap :=
+  kill_vars (ra_undef fd x) vm.
 
 Definition saved_stack_valid fd (k: Sv.t) : bool :=
   if fd.(f_extra).(sf_save_stack) is SavedStackReg r
@@ -162,10 +178,6 @@ Definition efr_valid ii i : bool :=
            if i is Cwhile _ _ _ _ then false else true]
   else true.
 
-Definition saved_stack_vm fd : Sv.t :=
-  if fd.(f_extra).(sf_save_stack) is SavedStackReg r
-  then Sv.singleton r
-  else Sv.empty.
 
 Definition top_stack_aligned fd st : bool :=
   (fd.(f_extra).(sf_return_address) == RAnone)
@@ -275,7 +287,9 @@ Variant sem_export_call_conclusion (scs: syscall_state) (m: mem) (fd: sfundef) (
     Sv.Subset (Sv.inter callee_saved (Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
     all2 check_ty_val fd.(f_tyin) args & 
-    sem k {| escs := scs; emem := m1 ; evm := set_RSP m1 (kill_vars vflags (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then vm.[r <- undef_error] else vm)).[var_tmp <- undef_error] |} fd.(f_body) {| escs := scs'; emem := m2 ; evm := vm2 |} & 
+    sem k {| escs := scs; emem := m1 ; 
+             evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) |}
+             fd.(f_body) {| escs := scs'; emem := m2 ; evm := vm2 |} & 
     mapM (λ x : var_i, get_var vm2 x) fd.(f_res) = ok res' &
     List.Forall2 value_uincl res res' &
     all2 check_ty_val fd.(f_tyout) res' &
@@ -556,5 +570,3 @@ Section SEM_IND.
 End SEM_IND.
 
 End SEM.
-
-End ASM_EXTRA.

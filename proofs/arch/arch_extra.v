@@ -34,69 +34,6 @@ Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* should this Section be moved elsewhere? *)
-Section Section.
-
-Context `{tS : ToString}.
-
-Definition of_string (s : string) :=
-  assoc strings s.
-
-(* -------------------------------------------------------------------- *)
-Lemma to_stringK : pcancel to_string of_string.
-Proof.
-move=> r; rewrite /of_string stringsE; apply /(@assocP _ ceqT_eqType).
-+ rewrite -map_comp (map_inj_uniq (T1:=ceqT_eqType)) //.
-  + by apply: (enum_uniq (T:=cfinT_finType)).
-  by apply inj_to_string.
-apply: (map_f (T1:=ceqT_eqType) (T2:=prod_eqType _ ceqT_eqType)).
-by rewrite (mem_enum (T:=cfinT_finType)).
-Qed.
-
-(* -------------------------------------------------------------------- *)
-
-Lemma of_stringI s r : of_string s = Some r -> to_string r = s.
-Proof.
-  have h := to_stringK r.
-  apply : (assoc_inj (U:= ceqT_eqType) _ h).
-  by rewrite stringsE -map_comp (map_inj_uniq (T1:=ceqT_eqType)) ?(enum_uniq (T:=cfinT_finType)).
-Qed.
-
-Lemma inj_of_string s1 s2 r :
-     of_string s1 = Some r
-  -> of_string s2 = Some r
-  -> s1 = s2.
-Proof. by move=> /of_stringI <- /of_stringI <-. Qed.
-
-(* -------------------------------------------------------------------- *)
-Definition to_var r :=
-  {| vtype := rtype; vname := to_string r |}.
-
-Definition of_var (v:var) :=
-  if v.(vtype) == rtype then of_string v.(vname)
-  else None.
-
-Lemma of_varP v r : of_var v = Some r <-> v.(vtype) = rtype /\ of_string v.(vname) = Some r.
-Proof. by rewrite /of_var; split=> [ | []/eqP -> ?]; first case: eqP. Qed.
-
-Lemma to_varK : pcancel to_var of_var.
-Proof. by move=> ?; rewrite /to_var /of_var /= eq_refl to_stringK. Qed.
-
-Lemma inj_to_var : injective to_var.
-Proof. apply: pcan_inj to_varK. Qed.
-Global Arguments inj_to_var {_ _}.
-
-Lemma of_varI {v r} : of_var v = Some r -> to_var r = v.
-Proof.
-  rewrite /of_var /= /to_var; case: eqP => // heq /of_stringI.
-  by case: v heq => /= ?? -> <-.
-Qed.
-
-Lemma inj_of_var {v1 v2 r} : of_var v1 = Some r -> of_var v2 = Some r -> v1 = v2.
-Proof. by move=> /of_varI <- /of_varI <-. Qed.
-
-End Section.
-
 Section ARCH.
 
 Context `{arch : arch_decl}.

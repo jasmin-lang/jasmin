@@ -33,7 +33,6 @@ Import Utf8 Relation_Operators.
 Import Memory.
 Require Import sem_type syscall arch_decl arch_extra x86_decl x86_instr_decl.
 Require Export arch_sem.
-
 Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -78,24 +77,29 @@ Definition eval_cond (get : rflag -> result error bool) (c : condt) :=
       Let of_ := get OF in ok (~~ zf && (sf == of_))
   end.
 
-Definition x86_callee_saved : seq register :=
+Definition x86_callee_saved : seq reg_t :=
   [:: RBX; RBP; RSP; R12; R13; R14; R15 ].
+
+Definition x86_randombytes_sig := ([:: RDI; RSI], [:: RAX]).
 
 Definition x86_syscall_sig (o : syscall_t) := 
   match o with
-  | RandomBytes _ => (List.map to_var [:: RDI; RSI], List.map to_var [::RAX])
+  | RandomBytes _ => x86_randombytes_sig
   end.
 
-#[global] Instance x86_syscall_info : syscall_info := {|
-   syscall_sig  := x86_syscall_sig; 
-   all_vars     := all_vars_def;
-   callee_saved := sv_of_list to_var x86_callee_saved;
+#[global] Instance x86_arch_syscall_info : arch_syscall_info := {|
+   syscall_sig_r  := x86_syscall_sig;
+   callee_saved_r := x86_callee_saved;
 |}.
 
+Parameter x86_syscall_sem : asm_syscall_sem.
+ 
 Instance x86 : asm register xmm_register rflag condt x86_op :=
-  { eval_cond := eval_cond }.
+  { eval_cond := eval_cond;
+    _asm_syscall := x86_syscall_sem;
+  }.
 
-Definition x86_mem := @asmmem _ _ _ _ _ x86.
+Definition x86_mem := @asmmem _ _ _ _ x86_decl.
 Definition x86_prog := @asm_prog register _ _ _ _ _ x86_op_decl.
 Definition x86_state := @asm_state _ _ _ _ _ x86.
 Definition x86sem := @asmsem _ _ _ _ _ x86.
@@ -125,4 +129,39 @@ Variant x86sem_exportcall (p: asm_prog) (fn: funname) (m m': asmmem) : Prop :=
     & {in x86_callee_saved, ∀ r, preserved_register r m m'}
 .
 
+
+(* ----------------------------------------------------------- *)
+(* Needed to define the sem_onevar_map and linear_sem          *)
+
+Definition x86_callee_saved_v := sv_of_list to_var x86_callee_saved.
+Definition x86_randombytes_sig_v := (map to_var [:: RDI; RSI], map to_var [:: RAX]).
+
+Definition x86_syscall_sig_v (o : syscall_t) := 
+  match o with
+  | RandomBytes _ => x86_randombytes_sig_v
+  end.
+
+Definition x86_vflags     := sv_of_list to_var rflags.
+Definition x86_vregisters := sv_of_list to_var registers.
+Definition x86_vxregistes := sv_of_list to_var xregisters.
+Definition x86_all_vars := Sv.union (Sv.union x86_vflags x86_vregisters) x86_vxregistes.
+
+Lemma x86_vflagsP x : Sv.In x x86_vflags -> vtype x = sbool.
+Proof. by move => /sv_of_listP/mapP [??->]. Qed.
+
+
+
+(* This is used for one_varmap and linear semantic and compilation passes *)
+Require Import sem_one_varmap.
+
+Instance x86_syscall_info : sem_one_varmap.syscall_info := {|
+  syscall_sig  := x86_syscall_sig_v; 
+  all_vars     := x86_all_vars; 
+  callee_saved := x86_callee_saved_v;
+  vflags       := x86_vflags;
+  vflagsP      := x86_vflagsP;
+|}.
+
 (* TODO: not sure there needs to be a file [x86_sem], [arch_sem] seems enough. *)
+
+

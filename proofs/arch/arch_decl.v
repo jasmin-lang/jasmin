@@ -45,6 +45,72 @@ Class ToString (t:stype) (T:Type) :=
 
 Definition rtype {t T} `{ToString t T} := t.
 
+Section Section.
+
+Context `{tS : ToString}.
+
+Definition of_string (s : string) :=
+  assoc strings s.
+
+(* -------------------------------------------------------------------- *)
+Lemma in_enum (r:T) : r \in enum cfinT_finType.
+Proof. apply (mem_enum (T:=cfinT_finType)). Qed.
+Hint Resolve in_enum : core.
+
+Lemma to_stringK : pcancel to_string of_string.
+Proof.
+move=> r; rewrite /of_string stringsE; apply /(@assocP _ ceqT_eqType).
++ rewrite -map_comp (map_inj_uniq (T1:=ceqT_eqType)) //.
+  + by apply: (enum_uniq (T:=cfinT_finType)).
+  by apply inj_to_string.
+by apply: (map_f (T1:=ceqT_eqType) (T2:=prod_eqType _ ceqT_eqType)).
+Qed.
+
+(* -------------------------------------------------------------------- *)
+
+Lemma of_stringI s r : of_string s = Some r -> to_string r = s.
+Proof.
+  have h := to_stringK r.
+  apply : (assoc_inj (U:= ceqT_eqType) _ h).
+  by rewrite stringsE -map_comp (map_inj_uniq (T1:=ceqT_eqType)) ?(enum_uniq (T:=cfinT_finType)).
+Qed.
+
+Lemma inj_of_string s1 s2 r :
+     of_string s1 = Some r
+  -> of_string s2 = Some r
+  -> s1 = s2.
+Proof. by move=> /of_stringI <- /of_stringI <-. Qed.
+
+(* -------------------------------------------------------------------- *)
+Definition to_var r :=
+  {| vtype := rtype; vname := to_string r |}.
+
+Definition of_var (v:var) :=
+  if v.(vtype) == rtype then of_string v.(vname)
+  else None.
+
+Lemma of_varP v r : of_var v = Some r <-> v.(vtype) = rtype /\ of_string v.(vname) = Some r.
+Proof. by rewrite /of_var; split=> [ | []/eqP -> ?]; first case: eqP. Qed.
+
+Lemma to_varK : pcancel to_var of_var.
+Proof. by move=> ?; rewrite /to_var /of_var /= eq_refl to_stringK. Qed.
+
+Lemma inj_to_var : injective to_var.
+Proof. apply: pcan_inj to_varK. Qed.
+Global Arguments inj_to_var {_ _}.
+
+Lemma of_varI {v r} : of_var v = Some r -> to_var r = v.
+Proof.
+  rewrite /of_var /= /to_var; case: eqP => // heq /of_stringI.
+  by case: v heq => /= ?? -> <-.
+Qed.
+
+Lemma inj_of_var {v1 v2 r} : of_var v1 = Some r -> of_var v2 = Some r -> v1 = v2.
+Proof. by move=> /of_varI <- /of_varI <-. Qed.
+
+End Section.
+
+Hint Resolve in_enum : core.
 (* ==================================================================== *)
 
 Class arch_decl (reg xreg rflag cond : Type) := 
@@ -56,17 +122,92 @@ Class arch_decl (reg xreg rflag cond : Type) :=
   ; toS_f     :> ToString sbool rflag
 }.
 
-Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
+Instance arch_pd {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} : PointerData := 
+  { Uptr := reg_size }.
 
 (* FIXME ARM : Try to not use this projection *)
-Definition reg_t   {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := reg.
-Definition xreg_t  {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := xreg.
-Definition rflag_t {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := rflag.
-Definition cond_t  {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := cond.
+Definition reg_t    {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} := reg.
+Definition xreg_t   {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} := xreg.
+Definition rflag_t  {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} := rflag.
+Definition cond_t   {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} := cond.
+
+Definition wreg  {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} := sem_t (sword reg_size).
+Definition wxreg {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} := sem_t (sword xreg_size).
+
+(* -------------------------------------------------------------------- *)
+
+Module RegMap. Section Section.
+
+  Context {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond}.
+
+  Definition map := (* {ffun reg_t -> wreg}. *)
+    FinMap.map (T:= reg_t) wreg.
+
+  Definition set (m : map) (x : reg_t) (y : wreg) : map :=
+    FinMap.set m x y.
+
+End Section. End RegMap.
+
+(* -------------------------------------------------------------------- *)
+
+Module XRegMap. Section Section.
+
+  Context {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond}.
+
+  Definition map := (* {ffun xreg_t -> wxreg }. *)
+    FinMap.map (T:= xreg_t) wxreg.
+
+  Definition set (m : map) (x : xreg_t) (y : wxreg) : map :=
+    FinMap.set m x y.
+
+End Section. End XRegMap.
+
+(* -------------------------------------------------------------------- *)
+
+Variant rflagv := Def of bool | Undef.
+Scheme Equality for rflagv.
+
+Lemma rflagv_eq_axiom : Equality.axiom rflagv_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_rflagv_dec_bl.
+  by apply: internal_rflagv_dec_lb.
+Qed.
+
+Definition rflagv_eqMixin := Equality.Mixin rflagv_eq_axiom.
+Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
+
+Module RflagMap. Section Section.
+
+  Context {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond}.
+
+  Definition map := (* {ffun rflag_t -> rflagv}. *)
+    FinMap.map (T:= rflag_t) rflagv.
+
+  Definition set (m : map) (x : rflag_t) (y : rflagv) : map :=
+    FinMap.set m x y.
+
+End Section. End RflagMap.
+
+(* -------------------------------------------------------------------- *)
+Notation regmap   := RegMap.map.
+Notation xregmap  := XRegMap.map.
+Notation rflagmap := RflagMap.map.
 
 Section DECL.
 
-Context {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond}.
+Context {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond}.
+
+Record asmmem : Type := AsmMem {
+  asm_rip  : pointer; 
+  asm_scs : syscall_state;                          
+  asm_mem  : mem;
+  asm_reg  : regmap;
+  asm_xreg : xregmap;
+  asm_flag : rflagmap;
+}.
+
+Class asm_syscall_sem := { eval_syscall : syscall_t -> asmmem -> exec asmmem }.
 
 (* -------------------------------------------------------------------- *)
 (* disp + base + scale × offset *)
@@ -117,9 +258,6 @@ Qed.
 Definition address_eqMixin := Equality.Mixin address_eq_axiom.
 Canonical address_eqType := EqType address address_eqMixin.
 
-Definition wreg  := sem_t (sword reg_size).
-Definition wxreg := sem_t (sword xreg_size).
-
 Definition rflags : list rflag := enum cfinT_finType.
 Definition registers : list reg := enum cfinT_finType.
 Definition xregisters : list xreg := enum cfinT_finType.
@@ -128,7 +266,7 @@ Variant asm_arg : Type :=
   | Condt  of cond_t
   | Imm ws of word ws
   | Reg    of reg_t
-  | Addr    of address
+  | Addr   of address
   | XReg   of xreg_t.
 
 Definition asm_args := (seq asm_arg).
@@ -480,31 +618,38 @@ Record asm_prog : Type :=
   { asm_globs : seq u8
   ; asm_funcs : seq (funname * asm_fundef) }.
 
-End DECL.
 
-Variant rflagv := Def of bool | Undef.
-Scheme Equality for rflagv.
+(*
+Inductive syscall_arg := 
+  | SAreg  of reg_t
+  | SAxreg of xreg_t.
 
-Lemma rflagv_eq_axiom : Equality.axiom rflagv_beq.
-Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_rflagv_dec_bl.
-  by apply: internal_rflagv_dec_lb.
-Qed.
+Definition sca2var (a:syscall_arg) : var := 
+  match a with
+  | SAreg x => to_var x
+  | SAxreg x => to_var x
+  end.
+*)
 
-Definition rflagv_eqMixin := Equality.Mixin rflagv_eq_axiom.
-Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
-
-Class syscall_info := {
-   syscall_sig  : syscall_t -> seq var  * seq var;
-  (* I am not sure that this should be set here *)
+Class arch_syscall_info := {
+   (* To define the Semantic *)
+   syscall_sig_r : syscall_t -> seq reg_t * seq reg_t; (* FIXME : seq syscall_arg * seq syscall_arg; *)
+   callee_saved_r : seq reg_t;                         (* FIXME it should be : seq syscall_arg;      *)
+(*
    all_vars     : Sv.t;
    callee_saved : Sv.t;
+   syscall_sigP : 
+     forall o, (syscall_sig o).1 = map sca2var (syscall_sig_r o).1 /\
+               (syscall_sig o).2 = map sca2var (syscall_sig_r o).2;
+   callee_saveP : callee_saved = sv_of_list id (map sca2var callee_saved_r); 
+*)
 }.
+
+End DECL.
 
 Class asm (reg xreg rflag cond asm_op: Type) := 
   { _arch_decl   :> arch_decl reg xreg rflag cond
   ; _asm_op_decl :> asm_op_decl asm_op
-  ; _syscall     :> syscall_info
+  ; _asm_syscall :> asm_syscall_sem
   ; eval_cond    : (rflag_t -> result error bool) -> cond_t -> result error bool
   }.

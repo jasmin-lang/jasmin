@@ -1,6 +1,7 @@
 From Coq Require Import Utf8 Relation_Operators.
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import compiler_util expr values linear asm_gen arch_extra.
+Require Import sem_one_varmap. (* needed to have syscall_kill *)
 Require Import x86_decl x86_instr_decl x86_extra x86_sem.
 
 Set Implicit Arguments.
