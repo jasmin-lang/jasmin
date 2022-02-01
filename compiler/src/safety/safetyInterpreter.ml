@@ -1417,7 +1417,7 @@ end = struct
     let rec nm_i vs_for i = match i.i_desc with
       | Cassgn (lv, _, _, e)    -> nm_lv vs_for lv && nm_e vs_for e
       | Copn (lvs, _, _, es)    -> nm_lvs vs_for lvs && nm_es vs_for es
-      | Csyscall _ -> assert false (* FIXME syscall *)
+      | Csyscall _ -> false
       | Cif (e, st, st')        -> 
         nm_e vs_for e && nm_stmt vs_for st && nm_stmt vs_for st'
       | Cfor (i, _, st)         -> nm_stmt (i :: vs_for) st
