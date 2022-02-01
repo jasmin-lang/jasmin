@@ -321,10 +321,15 @@ let safe_opn safe opn es =
           (List.init (Conv.int_of_pos p) (fun i -> init_get y Warray_.AAscale ws (Pconst (B.of_int i)) 1)))
      id.i_safe) @ safe
 
+let safe_syscall safe (opn: Syscall.syscall_t) _es =
+  begin match opn with
+  | (* RandomBytes *) _len -> []
+  end @ safe
+
 let safe_instr ginstr = match ginstr.i_desc with
   | Cassgn (lv, _, _, e) -> safe_e_rec (safe_lval lv) e
   | Copn (lvs,_,opn,es) -> safe_opn (safe_lvals lvs @ safe_es es) opn es
-  | Csyscall _ -> assert false (* FIXME syscall *)
+  | Csyscall (lvs, opn, es) -> safe_syscall (safe_lvals lvs @ safe_es es) opn es
   | Cif(e, _, _) -> safe_e e
   | Cwhile(_,_, _, _) -> []       (* We check the while condition later. *)
   | Ccall(_, lvs, _, es) -> safe_lvals lvs @ safe_es es
@@ -1495,6 +1500,28 @@ end = struct
 
 
   (* -------------------------------------------------------------------- *)
+  let aeval_syscall mi abs lvs opn es =
+    match opn with
+    | (* RandomBytes *) _len ->
+      (* Assert all destination cells are initialized *)
+      begin match lvs, es with
+      | [ lv ], [ _e ] ->
+        let mi, ats =
+          match AbsExpr.mvar_of_lvar abs mi lv with
+          | MLvar (mi, Mlocal at) -> mi, u8_blast_at ~blast_arrays:true Slocal at
+          | MLasub (mi, { ms_v ; ms_sc ; ms_ws ; ms_len ; ms_offset = Some ofs }) ->
+            let vi i = AarraySlice (ms_v, U8, ofs + i) |> of_scope ms_sc in
+            mi, List.init (size_of_ws ms_ws * ms_len) vi
+          | mv ->
+            debug (fun () ->
+              Format.eprintf "Warning: ignored “%a ← randombytes(?)” (this is sound)@." pp_mlvar mv);
+            mi, []
+        in
+        List.fold_left (fun abs at -> AbsExpr.a_init_mlv_no_array (MLvar (mi, at)) abs) abs ats
+      | _, _ -> assert false (* ill-typed call to “randombytes” *)
+      end
+
+  (* -------------------------------------------------------------------- *)
   let num_instr_evaluated = ref 0
 
   let print_ginstr ginstr abs_vals =
@@ -1577,7 +1604,9 @@ end = struct
         let cr = { ginstr with i_desc = Cassgn (lv, tag, Bty (U sz), er) } in
         aeval_if ginstr c [cl] [cr] state
 
-      | Csyscall _ -> assert false (* FIXME syscall *)
+      | Csyscall (lvs, opn, es) ->
+        let abs = aeval_syscall ginstr.i_info state.abs lvs opn es in
+        { state with abs }
 
       | Cassgn (lv, _, _, e) ->
         let abs = AbsExpr.abs_assign
