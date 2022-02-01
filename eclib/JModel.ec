@@ -560,12 +560,12 @@ abbrev [-printing] (\vmul64u256) (w1 w2:W256.t) = VPMUL_4u64 w1 w2.
 
 (* ------------------------------------------------------------------- *)
 (* Notation used for array copy                                        *)
-abbrev [-printing] ['a] copy_8   (x:'a) = x.
-abbrev [-printing] ['a] copy_16  (x:'a) = x.
-abbrev [-printing] ['a] copy_32  (x:'a) = x.
-abbrev [-printing] ['a] copy_64  (x:'a) = x.
-abbrev [-printing] ['a] copy_128 (x:'a) = x.
-abbrev [-printing] ['a] copy_256 (x:'a) = x.
+op copy_8   ['a] (x:'a) = x.
+op copy_16  ['a] (x:'a) = x.
+op copy_32  ['a] (x:'a) = x.
+op copy_64  ['a] (x:'a) = x.
+op copy_128 ['a] (x:'a) = x.
+op copy_256 ['a] (x:'a) = x.
 
 
 (* ------------------------------------------------------------------- *)
