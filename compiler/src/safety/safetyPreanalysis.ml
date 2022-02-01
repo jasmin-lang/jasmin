@@ -82,7 +82,8 @@ end = struct
       Cassgn (mk_lval fn lv, tag, ty, mk_expr fn e)
     | Copn (lvls, tag, opn, exprs) ->
       Copn (mk_lvals fn lvls, tag, opn, mk_exprs fn exprs)
-    | Csyscall _ -> assert false (* FIXME syscall *)
+    | Csyscall (lvls, opn, exprs) ->
+      Csyscall (mk_lvals fn lvls, opn, mk_exprs fn exprs)
     | Cif (e, st, st') ->
       Cif (mk_expr fn e, mk_stmt fn st, mk_stmt fn st')
     | Cfor (v, r, st) ->
@@ -348,10 +349,10 @@ end = struct
     match instr.i_desc with
     | Cassgn (lv, _, _, e) -> pa_lv st lv e
 
+    | Csyscall (lvs, _, es)
     | Copn (lvs, _, _, es) -> List.fold_left (fun st lv ->
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
 
-    | Csyscall _ -> assert false (* FIXME syscall *)
 
     | Cif (b, c1, c2) ->
       let vs,st = expr_vars st b in 
