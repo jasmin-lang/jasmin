@@ -200,10 +200,11 @@ lemma zerowE i: zero.[i] = false.
 proof. by rewrite of_intwE /int_bit. qed.
 hint simplify zerowE.
 
-lemma of_int_powm1 p i : 0 <= p =>
+lemma of_int_powm1 p i :
+  0 <= p =>
   (of_int (2^p - 1)).[i] = (0 <= i < size /\ i < p).
 proof.
-  move=> hp; case: (0 <= i < size) => [[h0i his] | hi]; last by rewrite get_out.
+  case: (0 <= i < size) => [[h0i his] /= hp | hi]; last by rewrite get_out.
   have aux : forall p, 0 <= p <= size => (of_int (2 ^ p - 1)).[i] = (true /\ i < p).
   + move=> {p hp} p hp.
     rewrite of_intwE 1:// /int_bit /= (modz_small (2 ^ p - 1)).
@@ -1259,7 +1260,7 @@ case: (0 <= k) => H; last first.
 + by rewrite ler_maxl 1:/# /=; smt(ge0_size). 
 rewrite ler_maxr 1://. 
 case: (0 <= i < size) => Hi; last by rewrite get_out /#.
-rewrite /masklsb of_intE.
+rewrite of_intE.
 case: (size <= k) => H0.
 + rewrite powm1_mod // get_bits2w //.
   have /=:= (bs2int_nseq true size); rewrite ge0_size /= => <-.
@@ -2129,9 +2130,7 @@ abstract theory W_WS.
      move=> [h0i hir];rewrite bits'S_div //.
      rewrite WB.of_uintK modz_pow2_div.
      + by rewrite sizeBrS mulzC; apply cmpW; apply mulz_cmp_r.
-     rewrite -WS.of_int_mod modz_mod_pow2 /min.
-     + rewrite sizeBrS mulrC -mulrBr; smt (WS.gt0_size).
-     + smt (WS.gt0_size).
+     rewrite -WS.of_int_mod modz_mod_pow2 !ger0_norm /min; 1,2: smt (sizeBrS WS.gt0_size).
      have -> /= : !sizeB - sizeS * i < sizeS.
      + rewrite sizeBrS.
        have -> : r * sizeS - sizeS * i = sizeS * (r - i) by ring.
