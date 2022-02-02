@@ -39,7 +39,7 @@ module Mvl : Map.S with type key = Vl.t = Map.Make(Vl)
 
 type level = 
   | Secret
-  | Poly of Svl.t (* The min of the polymorphic variable *)
+  | Poly of Svl.t (* The max of the polymorphic variable *)
   | Public
 
 (* [lvl_kind] indicate if the level of a program variable is allowed to varie 
@@ -249,7 +249,7 @@ end = struct
     let lvl = norm_lvl env lvl in
     let k, lvlx = get_var env x in
     if k = Strict then 
-      if not (Lvl.equal lvl lvlx) then
+      if not (Lvl.le lvl lvlx) then
         Pt.rs_tyerror ~loc:(L.loc x) 
           (Pt.string_error 
              "%a has type #%s %a it cannot receive a value of type %a" 
@@ -597,6 +597,29 @@ let ty_prog ~infer (prog:'info prog) fl =
         with Not_found -> hierror ~loc:Lnone ~kind:"constant type checker" "unknown function %s" fn in
       List.map get fl in
   List.iter (fun fn -> ignore (get_fun fenv fn)) fl
+
+
+(** Remark on the general transformation *)
+(*
+
+case i:
++ x = mov [p] -> 
+   if x is public then 
+     extra_res, x = safemov_extra_arg [p]    /* I think we need to know the name of carry flag */
+   else i
+
++ xs = #op es if #op es need to be public ensure that there is no memory load in es.
+
++ if e then c1 else c2
+  if e then tmp = 1; ms = tmp if !e; {c1} else tmp = 1; ms = 1 if e; {c2}   
+  or more high level 
+  if e then tmp, ms = setms !e; {c1} else tmp, ms = setms e; {c2}
+
+*) 
+  
+
+
+  
 
 
   
