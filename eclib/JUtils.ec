@@ -1,4 +1,5 @@
 require import AllCore IntDiv List Bool StdOrder.
+        import IntOrder.
 
 (* -------------------------------------------------------------------- *)
 
@@ -32,7 +33,7 @@ lemma bound_abs (i j:int) : 0 <= i < j => 0 <= i < `|j| by smt().
 hint solve 0 : bound_abs.
 
 lemma gt0_pow2 (p:int) : 0 < 2^p.
-proof. by rewrite IntOrder.expr_gt0. qed.
+proof. by apply expr_gt0. qed.
 
 lemma dvdmodz d m p : d %| m => d %| p => d %| (p%%m).
 proof. move=> h1 h2; rewrite /(%|);rewrite modz_dvd //. qed.
@@ -103,6 +104,7 @@ proof. smt (exprS). qed.
 hint simplify expr0@1.
 hint simplify powS_minus@1.
 
+lemma pow2_0 : 2^0 = 1   by [].
 lemma pow2_1 : 2^1 = 2   by [].
 lemma pow2_2 : 2^2 = 4   by [].
 lemma pow2_3 : 2^3 = 8   by [].
@@ -322,12 +324,12 @@ lemma bs2int0P i bs:
 proof.
 elim/last_ind : bs => // bs b /= IH.
 rewrite bs2int_rcons.
-move: (bs2int_ge0 bs) => H.
-have T2: 0 <= 2 ^ size bs * b2i b by smt(IntOrder.expr_ge0).
+move: (bs2int_ge0 bs) => ?.
+have T2: 0 <= 2 ^ size bs * b2i b by smt(expr_ge0).
 move=> H1.
 have E1: bs2int bs = 0 by smt().
 have: 2 ^ size bs * b2i b = 0 by smt().
-rewrite Ring.IntID.mulf_eq0; move=> [?|]; first by smt(IntOrder.expr_gt0).
+rewrite Ring.IntID.mulf_eq0; move=> [?|]; first by smt(expr_gt0).
 rewrite b2i_eq0 => H0.
 rewrite nth_rcons (IH E1) H0 /#.
 qed.
@@ -354,29 +356,25 @@ lemma bs2int_cons x xs:
   bs2int (x::xs) = b2i x + 2 * bs2int xs.
 proof.
 have ->: x::xs = [x]++xs by done.
-rewrite bs2int_cat /bs2int /=; congr.
-by rewrite rangeS /= big_seq1.
+rewrite bs2int_cat /=; congr.
+by rewrite /bs2int /= big_int1.
 qed.
 
-lemma bs2int_nseq b k:
-  0 <= k =>
-  bs2int (nseq k b) = if b then 2^k - 1 else 0.
+lemma bs2int_nseq b k: 
+  bs2int (nseq k b) = if b /\ 0 <= k then 2^k - 1 else 0.
 proof.
-move=> hk; elim/intind: k hk b => /=. 
-+ by move=> *; rewrite nseq0 bs2int_nil.
-move=> n Hn IH b.
+case: (0 <= k) => /= hk; last by rewrite nseq0_le 1:/# /bs2int /= big_geq //.
+elim: k hk b => [| n Hn IH] b /=.
++ by rewrite nseq0 bs2int_nil.
 rewrite nseqS // bs2int_cons ; case: b => ?.
-+ by rewrite b2i1 exprD_nneg // pow2_1 /= (IH true) /=; ring.
++ rewrite b2i1 exprD_nneg // pow2_1 /= (IH true) /=.
+  by ring.
 by rewrite (IH false) b2i0; ring.
 qed.
 
 lemma bs2int_pad sz bs:
- bs2int bs = bs2int (bs ++ nseq (sz - size bs) false).
-proof. 
-  case: (sz -  size bs <= 0) => hle.
-  + by rewrite nseq0_le 1:// cats0.
-  by rewrite bs2int_cat (bs2int_nseq false) /#. 
-qed.
+ bs2int bs = bs2int (bs ++ nseq sz false).
+proof. by rewrite bs2int_cat (bs2int_nseq false). qed.
 
 lemma bs2int_and0 i bs1 bs2:
  bs2int (map2 (/\) bs1 bs2) = 0 =>
@@ -394,7 +392,7 @@ move=> H.
 rewrite /bs2int !Esz !size_map2 !Esz2 sumrN !sumrD.
 apply eq_big_int => i /=.
 move=> H0; rewrite !map2_zip.
-rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz2. 
+rewrite (nth_map (false,false)) /=; first by rewrite size_zip Esz2.
 rewrite nth_zip //=.
 case: (nth false bs1 i); case: (nth false bs2 i) => //=.
 move=> H1 H2.
