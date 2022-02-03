@@ -350,7 +350,7 @@ export fn chacha_ref( #public reg u64 output, #public reg u64 plain, #public reg
 
   st = __init_ref(key, nonce, counter);
 
-  while(s_len >= 64)
+  while {len = s_len;} (len >= 64)
   {
     k, k15 = __copy_state_ref(st);
     k, k15 = __rounds_ref(k, k15);
@@ -360,7 +360,7 @@ export fn chacha_ref( #public reg u64 output, #public reg u64 plain, #public reg
     st = __increment_counter_ref(st);
   }
 
-  if(s_len > 0)
+  if(len > 0)
   {
     k, k15 = __copy_state_ref(st);
     k, k15 = __rounds_ref(k, k15);
