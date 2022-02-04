@@ -30,6 +30,7 @@
     "false" , FALSE  ;
     "fn"    , FN     ;
     "for"   , FOR    ;
+    "from"  , FROM   ;
     "global", GLOBAL ;
     "if"    , IF     ;
     "inline", INLINE ;

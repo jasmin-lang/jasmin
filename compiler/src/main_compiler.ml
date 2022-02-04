@@ -102,7 +102,10 @@ let main () =
 
     let fname = !infile in
     let env, pprog, ast =
-      try Pretyping.tt_program Pretyping.Env.empty fname
+      try 
+        let env = Pretyping.Env.empty in
+        let env = List.fold_left Pretyping.Env.add_from env !Glob_options.idirs in
+        Pretyping.tt_program env fname
       with
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
       | Syntax.ParseError (loc, msg) ->
