@@ -71,7 +71,11 @@ let set_ct_on s =
           | None -> [s]
           | Some l -> s::l)
 
-let idirs = ref [] 
+let parse_jasmin_path s =
+  s |> String.split_on_char ':' |> List.map (String.split ~by:"=")
+
+let idirs =
+  ref (try "JASMINPATH" |> Sys.getenv |> parse_jasmin_path with _ -> [])
 
 let set_idirs s = 
   match String.split_on_char ':' s with
