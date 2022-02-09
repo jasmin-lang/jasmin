@@ -818,6 +818,11 @@ Definition is_bool (e:pexpr) :=
   | _ => None
   end.
 
+Definition is_app1 (e : pexpr) :=
+  if e is Papp1 op e
+  then Some (op, e)
+  else None.
+
 Definition cast_w ws := Papp1 (Oword_of_int ws).
 
 Section WITH_POINTER_DATA.

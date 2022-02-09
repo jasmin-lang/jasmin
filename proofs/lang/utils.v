@@ -76,6 +76,11 @@ Definition cfinT_finType :=
   Eval hnf in 
     (@Finite.pack T ceqT_eqMixin cfinT_finMixin cfinT_choiceType _ (fun x => x) _ (fun x => x)).
 
+Lemma mem_cenum : cenum =i ceqT_eqType.
+Proof.
+  move=> x. rewrite -has_pred1 has_count. by rewrite cenumP.
+Qed.
+
 End FinType.
 
 Module FinMap.

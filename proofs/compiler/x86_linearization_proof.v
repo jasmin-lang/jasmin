@@ -85,12 +85,13 @@ Proof.
     case: (vrsp =P x).
     + by move=> ?; subst x.
     move=> _.
-    have hneq: forall (f:rflag), to_var f != x.
+    have hneq: forall (f : rflag), to_var f != x.
     + move=> f.
-      apply /eqP => heq.
+      apply/eqP => heq.
       apply /hin /sv_of_flagsP /mapP.
       exists f => //.
-      by apply /mapP; eexists; last by reflexivity.
+      rewrite /rflags /x86_decl.rflags.
+      by rewrite (mem_cenum (cfinT := finC_rflag)).
     by rewrite !Fv.setP_neq.
   + move=> x /sv_of_flagsP /mapP [f _ ->].
     by case f;
