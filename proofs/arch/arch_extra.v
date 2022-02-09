@@ -69,6 +69,13 @@ Section ARCH.
 
 Context `{arch : arch_decl}.
 
+Lemma to_var_reg_neq_xreg (r : reg_t) (x : xreg_t) :
+  to_var r <> to_var x.
+Proof.
+  move=> [] hsize _. move: hsize. apply/eqP. exact: reg_size_neq_xreg_size.
+Qed.
+
+
 Definition sopn_implicit_arg (i: implicit_arg) :=
   match i with
   | IArflag r => sopn.IArflag (to_var r)

@@ -21,16 +21,20 @@ Definition rtype {t T} `{ToString t T} := t.
 
 (* ==================================================================== *)
 
-Class arch_decl (reg xreg rflag cond : Type) := 
-  { reg_size  : wsize (* [reg_size] is also used as the size of pointers *)
+Class arch_decl (reg xreg rflag cond : Type) :=
+  { reg_size : wsize (* [reg_size] is also used as the size of pointers *)
   ; xreg_size : wsize
-  ; cond_eqC  :> eqTypeC cond
-  ; toS_r     :> ToString (sword reg_size) reg
-  ; toS_x     :> ToString (sword xreg_size) xreg
-  ; toS_f     :> ToString sbool rflag
-}.
+  ; cond_eqC :> eqTypeC cond
+  ; toS_r :> ToString (sword reg_size) reg
+  ; toS_x :> ToString (sword xreg_size) xreg
+  ; toS_f :> ToString sbool rflag
+  ; reg_size_neq_xreg_size : reg_size != xreg_size
+  }.
 
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
+
+Definition mk_ptr `{arch_decl} name :=
+  {| vtype := sword Uptr; vname := name; |}.
 
 (* FIXME ARM : Try to not use this projection *)
 Definition reg_t   {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := reg.
@@ -38,9 +42,22 @@ Definition xreg_t  {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond}
 Definition rflag_t {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := rflag.
 Definition cond_t  {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} := cond.
 
+Definition wreg {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} :=
+  sem_t (sword reg_size).
+
+Definition wxreg {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} :=
+  sem_t (sword xreg_size).
+
 Section DECL.
 
 Context {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond}.
+
+Lemma sword_reg_neq_xreg :
+  sword reg_size != sword xreg_size.
+Proof.
+  apply/eqP. move=> []. apply/eqP. exact: reg_size_neq_xreg_size.
+Qed.
+
 
 (* -------------------------------------------------------------------- *)
 (* disp + base + scale × offset *)
@@ -52,12 +69,12 @@ Record reg_address : Type := mkAddress {
 }.
 
 Variant address :=
-  | Areg of reg_address
-  | Arip of pointer.  
-   
+| Areg of reg_address
+| Arip of pointer.
+
 (* -------------------------------------------------------------------- *)
 
-Definition oeq_reg (x y:option reg_t) := 
+Definition oeq_reg (x y:option reg_t) :=
   @eq_op (option_eqType ceqT_eqType) x y.
 
 Definition reg_address_beq (addr1: reg_address) addr2 :=
@@ -76,6 +93,8 @@ Qed.
 Definition reg_address_eqMixin := Equality.Mixin reg_address_eq_axiom.
 Canonical reg_address_eqType := EqType reg_address reg_address_eqMixin.
 
+(* -------------------------------------------------------------------- *)
+
 Definition address_beq (addr1: address) addr2 :=
   match addr1, addr2 with
   | Areg ra1, Areg ra2 => ra1 == ra2
@@ -91,10 +110,8 @@ Qed.
 Definition address_eqMixin := Equality.Mixin address_eq_axiom.
 Canonical address_eqType := EqType address address_eqMixin.
 
-Definition wreg  := sem_t (sword reg_size).
-Definition wxreg := sem_t (sword xreg_size).
 
-Definition rflags : list rflag := enum cfinT_finType.
+(* -------------------------------------------------------------------- *)
 
 Variant asm_arg : Type :=
   | Condt  of cond_t
@@ -467,6 +484,18 @@ Record asm_prog : Type :=
   ; asm_funcs : seq (funname * asm_fundef) }.
 
 End DECL.
+
+Section ENUM.
+  Context `{arch : arch_decl}.
+
+  Definition registers : seq reg_t := cenum.
+
+  Definition xregisters : seq xreg_t := cenum.
+
+  Definition rflags : seq rflag_t := cenum.
+End ENUM.
+
+(* -------------------------------------------------------------------- *)
 
 Variant rflagv := Def of bool | Undef.
 Scheme Equality for rflagv.

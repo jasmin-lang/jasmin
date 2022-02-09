@@ -24,5 +24,16 @@ Proof.
     apply value_uincl_zero_ext.
 Qed.
 
+Lemma exec_sopn_mov_op (w : word Uptr) :
+  let op :=
+    Oasm
+      (asm_op := x86_extra.x86_extended_op)
+      (BaseOp (None, x86_instr_decl.MOV Uptr))
+  in
+  exec_sopn op [:: Vword w ] = ok [:: Vword w ].
+Proof.
+  by rewrite /exec_sopn /= zero_extend_u.
+Qed.
+
 Definition ahyps :=
   @mk_ahyps aparams is_move_opP.

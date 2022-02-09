@@ -531,4 +531,33 @@ Definition asmsem_trans P s2 s1 s3 :
   asmsem P s1 s2 -> asmsem P s2 s3 -> asmsem P s1 s3 :=
   rt_trans _ _ s1 s2 s3.
 
+Definition preserved_register (r : reg_t) (m0 m1 : asmmem) :=
+  (asm_reg m0) r = (asm_reg m1) r.
+
+Variant asmsem_exportcall
+  (callee_saved : seq reg_t)
+  (p : asm_prog)
+  (fn : funname)
+  (m m' : asmmem)
+  : Prop :=
+  | Asmsem_exportcall :
+    forall (fd : asm_fundef),
+      get_fundef (asm_funcs p) fn = Some fd
+      -> asm_fd_export fd
+      -> let s := {| asm_m := m
+                   ; asm_f := fn
+                   ; asm_c := asm_fd_body fd
+                   ; asm_ip := 0
+                  |} in
+         let s' := {| asm_m := m'
+                    ; asm_f := fn
+                    ; asm_c := asm_fd_body fd
+                    ; asm_ip := size (asm_fd_body fd)
+                   |} in
+         asmsem p s s'
+      -> (forall r,
+           r \in (callee_saved : seq ceqT_eqType)
+           -> preserved_register r m m')
+      -> asmsem_exportcall callee_saved p fn m m'.
+
 End SEM.
