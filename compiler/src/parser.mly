@@ -459,7 +459,7 @@ from:
 | FROM id=ident { id }
 
 prequire:
-| f=from? REQUIRE x=plist1(prequire1, empty) { f, x }
+| f=from? REQUIRE x=nonempty_list(prequire1) { f, x }
 
 (* -------------------------------------------------------------------- *)
 top:
