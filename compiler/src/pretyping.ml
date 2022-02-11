@@ -10,8 +10,8 @@ module W = Wsize
 module T = Type
 
 (* -------------------------------------------------------------------- *)
-let loc_of_tuples locs =
-  List.fold_left L.merge L._dummy locs
+let loc_of_tuples default locs =
+  List.fold_left L.merge default locs
 
 (* -------------------------------------------------------------------- *)
 type typattern = TPBool | TPInt | TPWord | TPArray
@@ -628,14 +628,14 @@ let check_return_statement ~loc name (declared : P.pty list) (given : (L.t * P.p
      then rs_tyerror ~loc (NoReturnStatement (name, declared_size)))
   else
     if not (Stdlib.Int.equal given_size declared_size)
-    then rs_tyerror ~loc:(loc_of_tuples (List.rev_map fst given)) (InvalidReturnStatement (name, given_size, declared_size));
+    then rs_tyerror ~loc:(loc_of_tuples loc (List.rev_map fst given)) (InvalidReturnStatement (name, given_size, declared_size));
   List.iter2
     (fun ty1 (loc, ty2) -> check_ty_eq ~loc ~from:ty2 ~to_:ty1)
     declared given
 
 (* -------------------------------------------------------------------- *)
-let check_sig_lvs sig_ lvs =
-  let loc () = loc_of_tuples (List.map (fun (l,_,_) -> l) lvs) in
+let check_sig_lvs loc sig_ lvs =
+  let loc () = loc_of_tuples loc (List.map (fun (l,_,_) -> l) lvs) in
 
   let nsig_ = List.length sig_ in
   let nlvs  = List.length lvs  in
@@ -1444,8 +1444,8 @@ let pexpr_of_plvalue exn l =
   | S.PLMem(ty,x,e) -> L.mk_loc (L.loc l) (S.PEFetch(ty,x,e))
 
 
-let tt_lvalues env (pimp, pls) implicit tys =
-  let loc = loc_of_tuples (List.map P.L.loc pls) in
+let tt_lvalues env loc (pimp, pls) implicit tys =
+  let loc = loc_of_tuples loc (List.map P.L.loc pls) in
   let ignore_ = L.mk_loc loc S.PLIgnore in
 
 
@@ -1525,7 +1525,7 @@ let tt_lvalues env (pimp, pls) implicit tys =
   in
 
   let ls = List.map (tt_lvalue env) pls in
-  let ls = check_sig_lvs tys ls in  
+  let ls = check_sig_lvs loc tys ls in
   let li = 
     match pimp_c with
     | [] -> []
@@ -1562,8 +1562,8 @@ let tt_lvalues env (pimp, pls) implicit tys =
 
     
 
-let tt_exprs_cast env les tys =
-  let loc () = loc_of_tuples (List.map L.loc les) in
+let tt_exprs_cast env loc les tys =
+  let loc () = loc_of_tuples loc (List.map L.loc les) in
   let n1 = List.length les in
   let n2 = List.length tys in
   if n1 <> n2 then 
@@ -1644,9 +1644,9 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
     else
       let (f,tlvs) = tt_fun env f in
       let _tlvs, tes = f_sig f in
-      let lvs, is = tt_lvalues env ls None tlvs in
+      let lvs, is = tt_lvalues env (L.loc pi) ls None tlvs in
       assert (is = []);
-      let es  = tt_exprs_cast env args tes in
+      let es  = tt_exprs_cast env (L.loc pi) args tes in
       let is_inline = 
         match Annot.ensure_uniq1 "inline" Annot.none annot with
         | Some () -> E.InlineFun
@@ -1705,8 +1705,8 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim None f in
       let tlvs, tes, arguments = prim_sig p in
-      let lvs, einstr = tt_lvalues env ls (Some arguments) tlvs in
-      let es  = tt_exprs_cast env args tes in
+      let lvs, einstr = tt_lvalues env (L.loc pi) ls (Some arguments) tlvs in
+      let es  = tt_exprs_cast env (L.loc pi) args tes in
       env, mk_i (P.Copn(lvs, AT_none, p, es)) :: einstr
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None)
@@ -1716,8 +1716,8 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       assert (s = `Unsigned); (* FIXME *)
       let p = tt_prim (Some ws) f in
       let tlvs, tes, arguments = prim_sig p in
-      let lvs, einstr = tt_lvalues env ls (Some arguments) tlvs in
-      let es  = tt_exprs_cast env args tes in
+      let lvs, einstr = tt_lvalues env (L.loc pi) ls (Some arguments) tlvs in
+      let es  = tt_exprs_cast env (L.loc pi) args tes in
       env, mk_i (P.Copn(lvs, AT_none, p, es)) :: einstr
 
   | PIAssign((None,[lv]), `Raw, pe, None) ->
