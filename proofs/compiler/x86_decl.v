@@ -315,4 +315,5 @@ Instance x86_decl : arch_decl register xmm_register rflag condt :=
   ; toS_f := x86_rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
   ; callee_saved := x86_callee_saved
+  ; ad_rsp := RSP
   }.

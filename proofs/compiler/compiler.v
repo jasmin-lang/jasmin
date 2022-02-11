@@ -152,13 +152,12 @@ Record architecture_params
   ; fvars_correct :
       fresh_vars
       -> forall (T : eqType) (pT : progT T), fun_decls -> bool
-  ; assemble_prog : lprog -> cexec asm_prog
+  ; assemble_cond : instr_info -> pexpr -> cexec cond_t
   }.
 
 Record compiler_params
   `{asm_e : asm_extra}
-  (fresh_vars lowering_options : Type)
-  (aparams : architecture_params fresh_vars lowering_options) := {
+  (fresh_vars lowering_options : Type) := {
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
   expand_fd        : funname -> _ufundef -> expand_info;
   split_live_ranges_fd : funname -> _ufundef -> _ufundef;
@@ -190,7 +189,7 @@ Context
   `{asm_e : asm_extra}
   {fresh_vars lowering_options : Type}
   (aparams : architecture_params fresh_vars lowering_options)
-  (cparams : compiler_params aparams).
+  (cparams : compiler_params fresh_vars lowering_options).
 
 #[local]
 Existing Instance progUnit.
@@ -338,11 +337,9 @@ Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
 Definition compiler_back_end_to_asm (entries: seq funname) (p: sprog) :=
   let callee_saved := sv_of_list to_var callee_saved in
   Let lp := compiler_back_end callee_saved entries p in
-  Let _ := check_assemble_prog lp in
-  assemble_prog aparams lp.
+  assemble_prog (assemble_cond aparams) lp.
 
 Definition compile_prog_to_asm entries subroutines (p: prog): cexec asm_prog :=
   compiler_front_end entries subroutines p >>= compiler_back_end_to_asm entries.
 
 End COMPILER.
-

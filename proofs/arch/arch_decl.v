@@ -30,6 +30,7 @@ Class arch_decl (reg xreg rflag cond : Type) :=
   ; toS_f :> ToString sbool rflag
   ; reg_size_neq_xreg_size : reg_size != xreg_size
   ; callee_saved : seq reg
+  ; ad_rsp : reg
   }.
 
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
