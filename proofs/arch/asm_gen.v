@@ -591,10 +591,23 @@ Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
 (* [map_cfprog_gen] specialized to functions of type [lfundef] *)
 Notation map_cfprog_linear := (map_cfprog_gen lfd_info).
 
-Definition check_assemble_prog (p : lprog) : cexec unit :=
-  assert
-    (isSome (of_string (T := reg_t) (lp_rsp p)))
-    (E.gen_error true None None (pp_s "Chosen RSP is not a register.")).
+Definition assemble_prog (p : lprog) : cexec asm_prog :=
+  let rip := mk_ptr (lp_rip p) in
+  let rsp := mk_ptr (lp_rsp p) in
+  Let _ :=
+    assert
+      (to_reg rip == None :> option_eqType ceqT_eqType)
+      (E.gen_error true None None (pp_s "Invalid RIP"))
+  in
+  Let _ :=
+    assert
+      (of_string (lp_rsp p) == Some ad_rsp :> option_eqType ceqT_eqType)
+      (E.gen_error true None None (pp_s "Invalid RSP"))
+  in
+  Let fds :=
+    map_cfprog_linear (assemble_fd rip rsp) (lp_funcs p)
+  in
+  ok {| asm_globs := lp_globs p; asm_funcs := fds; |}.
 
 End ASM_EXTRA.
 

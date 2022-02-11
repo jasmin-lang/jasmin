@@ -46,9 +46,7 @@ Definition x86_hyps : architecture_hyps x86_params :=
    ; lower_callP := lowering_proof.lower_callP
    ; mov_ofsP := x86_mov_ofsP
    ; hlparams := h_x86_linearization_params
-   ; assemble_cond := x86_gen.assemble_cond
    ; eval_assemble_cond := x86_gen_proof.eval_assemble_cond
    ; assemble_extra_op := x86_gen_proof.assemble_extra_op
-   ; assemble_progP := x86_gen_proof.assemble_progP
    ; ok_lp_tmp := ok_x86_lp_tmp
   |}.

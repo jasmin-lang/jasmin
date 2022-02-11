@@ -1096,29 +1096,45 @@ End WITH_RIP_RSP.
 Section PROG.
 
 Context
-  (assemble_prog : lprog -> cexec asm_prog)
-  (assemble_progP :
-    forall p p',
-      assemble_prog p = ok p'
-      -> let rip := mk_ptr (lp_rip p) in
-         let rsp := mk_ptr (lp_rsp p) in
-         [/\ disj_rip rip
-           , asm_globs p' = lp_globs p
-           & map_cfprog_linear (assemble_fd assemble_cond rip rsp) (lp_funcs p)
-             = ok (asm_funcs p')
-         ])
   (p : lprog)
   (p' : asm_prog)
-  (ok_p' : assemble_prog p = ok p').
+  (ok_p' : assemble_prog assemble_cond p = ok p').
 
 Notation rip := (mk_ptr (lp_rip p)).
 Notation rsp := (mk_ptr (lp_rsp p)).
 
-Lemma assemble_prog_labels :
-  assemble_prog p = ok p'
-  -> label_in_lprog p = label_in_asm_prog p'.
+Lemma assemble_progP :
+  let rip := mk_ptr (lp_rip p) in
+  let rsp := mk_ptr (lp_rsp p) in
+  let assemble_fd := assemble_fd assemble_cond rip rsp in
+  [/\ disj_rip rip
+    , to_string ad_rsp = lp_rsp p
+    , asm_globs p' = lp_globs p
+    & map_cfprog_linear assemble_fd (lp_funcs p)
+      = ok (asm_funcs p')
+  ].
 Proof.
-  case/assemble_progP => _ _ /mapM_Forall2.
+  move: ok_p'.
+  rewrite /assemble_prog.
+  t_xrbindP => _ /assertP /eqP ok_rip _ /assertP /eqP ok_rsp fds ok_fds <-.
+  split => //.
+  split => r heq //.
+  - move: ok_rip.
+    by rewrite -heq /to_reg to_varK.
+  - move: heq.
+    rewrite /to_var /rtype.
+    move=> [] hsz _.
+    assert (H := reg_size_neq_xreg_size).
+    rewrite hsz in H.
+    by rewrite eqxx in H.
+  exact: of_stringI ok_rsp.
+Qed.
+
+
+Lemma assemble_prog_labels :
+  label_in_lprog p = label_in_asm_prog p'.
+Proof.
+  case: assemble_progP => _ _ _ /mapM_Forall2.
   rewrite /label_in_lprog /label_in_asm_prog.
   elim => //.
   t_xrbindP => - [] fn lfd fn' lfds xfds xfd /= ok_xfd <- {fn'} _ ih.
@@ -1135,7 +1151,7 @@ Lemma ok_get_fundef fn fd :
        & assemble_fd assemble_cond rip rsp fd = ok fd'.
 Proof.
   move=> hfd.
-  have [_ _ x] := assemble_progP ok_p'.
+  have [_ _ _ x] := assemble_progP.
   have [fd' ??] := get_map_cfprog_gen x hfd.
   by exists fd'.
 Qed.
@@ -1234,7 +1250,7 @@ Proof.
     rewrite ok_v' /= (value_uincl_word hvv' ok_ptr) /=.
     case ptr_eq: decode_label => [ [] fn lbl | // ] /=.
     replace (decode_label _ ptr) with (Some (fn, lbl));
-      last by rewrite -(assemble_prog_labels ok_p').
+      last by rewrite -assemble_prog_labels.
     rewrite /=.
     case get_fd: (get_fundef _) => [ fd | // ].
     have [fd' -> ] := ok_get_fundef get_fd.
@@ -1250,7 +1266,7 @@ Proof.
     rewrite eqfn.
     case ptr_eq: encode_label => [ ptr | ] //.
     replace (encode_label _ _) with (Some ptr);
-      last by rewrite -(assemble_prog_labels ok_p').
+      last by rewrite -assemble_prog_labels.
 
     t_xrbindP => vm ok_vm <-{ls'}.
     eexists; first reflexivity.

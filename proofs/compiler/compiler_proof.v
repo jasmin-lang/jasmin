@@ -69,12 +69,10 @@ Record architecture_hyps
 
     hlparams : h_linearization_params (lparams aparams);
 
-    assemble_cond : instr_info -> pexpr -> cexec cond_t;
-
     eval_assemble_cond :
       forall ii m rf e c v,
         eqflags m rf
-        -> assemble_cond ii e = ok c
+        -> assemble_cond aparams ii e = ok c
         -> sem_pexpr [::] m e = ok v
         -> let get x := if rf x is Def b then ok b else undef_error in
         exists2 v', value_of_bool (eval_cond get c) = ok v' & value_uincl v v';
@@ -83,22 +81,10 @@ Record architecture_hyps
       forall rip ii op lvs args op' lvs' args' op'' asm_args m m' s,
         sem_sopn [::] (Oasm (ExtOp op)) m lvs args = ok m'
         -> to_asm ii op lvs args = ok (op', lvs', args')
-        -> assemble_asm_op assemble_cond rip ii op' lvs' args'
+        -> assemble_asm_op (assemble_cond aparams) rip ii op' lvs' args'
            = ok (op'', asm_args)
         -> lom_eqv rip m s
         -> exists2 s', eval_op op'' asm_args s = ok s' & lom_eqv rip m' s';
-
-    assemble_progP :
-      forall p xp,
-        assemble_prog aparams p = ok xp
-        -> let rip := mk_ptr (lp_rip p) in
-           let rsp := mk_ptr (lp_rsp p) in
-           let assemble_fd := assemble_fd assemble_cond rip rsp in
-           [/\ disj_rip rip
-             , asm_globs xp = lp_globs p
-             & map_cfprog_linear assemble_fd (lp_funcs p)
-               = ok (asm_funcs xp)
-           ];
 
     ok_lp_tmp :
       exists r : reg_t, of_string (lp_tmp (lparams aparams)) = Some r;
@@ -111,7 +97,7 @@ Context
   {fresh_vars lowering_options : Type}
   (aparams : architecture_params fresh_vars lowering_options)
   (ahyps : architecture_hyps aparams)
-  (cparams : compiler_params aparams).
+  (cparams : compiler_params fresh_vars lowering_options).
 
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
@@ -177,7 +163,7 @@ Definition compose_pass_uincl : ∀ vr (P Q: _ → Prop),
       ex_intro2 _ _ vr2 (Forall2_trans value_uincl_trans u v) q.
 
 Lemma compiler_first_partP entries (p: prog) (p': uprog) m fn va m' vr :
-  compiler_first_part cparams entries p = ok p' →
+  compiler_first_part aparams cparams entries p = ok p' →
   fn \in entries →
   sem.sem_call p m fn va m' vr →
   exists2 vr',
@@ -225,7 +211,7 @@ Proof.
 Qed.
 
 Lemma compiler_third_partP entries (p: sprog) (p': sprog) :
-  compiler_third_part cparams entries p = ok p' →
+  compiler_third_part aparams cparams entries p = ok p' →
   [/\
     ∀ fn (gd: pointer) m va m' vr,
       fn \in entries →
@@ -263,7 +249,7 @@ Proof.
 Qed.
 
 Lemma compiler_third_part_meta entries (p p' : sprog) :
-  compiler_third_part cparams entries p = ok p' →
+  compiler_third_part aparams cparams entries p = ok p' →
   p_extra p' = p_extra p.
 Proof.
   rewrite /compiler_third_part; t_xrbindP => _ _ pa /dead_code_prog_tokeep_meta[] _ ok_pa _ _ pb /dead_code_prog_tokeep_meta[].
@@ -282,7 +268,7 @@ Proof.
 Qed.
 
 Lemma compiler_third_part_alloc_ok entries (p p' : sprog) (fn: funname) (m: mem) :
-  compiler_third_part cparams entries p = ok p' →
+  compiler_third_part aparams cparams entries p = ok p' →
   alloc_ok p' fn m →
   alloc_ok p fn m.
 Proof. case/compiler_third_partP => _; exact. Qed.
@@ -324,7 +310,7 @@ Proof.
 Qed.
 
 Lemma compiler_front_endP entries subroutines (p: prog) (p': sprog) (gd: pointer) m mi fn va m' vr :
-  compiler_front_end cparams entries subroutines p = ok p' →
+  compiler_front_end aparams cparams entries subroutines p = ok p' →
   fn \in entries →
   sem.sem_call p m fn va m' vr →
   extend_mem m mi gd (sp_globs (p_extra p')) →
@@ -381,7 +367,7 @@ Proof.
 Qed.
 
 Lemma compiler_back_end_meta callee_saved entries (p: sprog) (tp: lprog) :
-  compiler_back_end cparams callee_saved entries p = ok tp →
+  compiler_back_end aparams cparams callee_saved entries p = ok tp →
   [/\
      lp_rip tp = p.(p_extra).(sp_rip),
      lp_rsp tp = p.(p_extra).(sp_rsp) &
@@ -398,12 +384,12 @@ Proof.
 Qed.
 
 Lemma compiler_back_end_to_asm_meta entries (p : sprog) (xp : asm_prog) :
-  compiler_back_end_to_asm cparams entries p = ok xp
+  compiler_back_end_to_asm aparams cparams entries p = ok xp
   -> asm_globs xp = (sp_globs (p_extra p)).
 Proof.
   rewrite /compiler_back_end_to_asm.
-  t_xrbindP=> tp /compiler_back_end_meta[] _ _ <- _ _.
-  by move=> /(assemble_progP ahyps) [_ <-].
+  t_xrbindP=> tp /compiler_back_end_meta[] _ _ <-.
+  by move=> /assemble_progP [_ <-].
 Qed.
 
 (* The memory has an allocated stack region that is large enough to hold the local variables of the function and all functions it may call.
@@ -418,7 +404,7 @@ Definition enough_stack_space
 
 Lemma enough_stack_space_alloc_ok
   entries (sp : sprog) (xp : asm_prog) (fn : funname) (m m' : mem) :
-  compiler_back_end_to_asm cparams entries sp = ok xp
+  compiler_back_end_to_asm aparams cparams entries sp = ok xp
   -> fn \in entries
   -> (wunsigned (stack_limit m) <= wunsigned (top_stack m'))%Z
   -> enough_stack_space xp fn (top_stack m) m'
@@ -426,14 +412,14 @@ Lemma enough_stack_space_alloc_ok
 Proof.
   rewrite /compiler_back_end_to_asm /compiler_back_end.
   t_xrbindP => ? [] /allMP ok_export _ _ lp ok_lp tp.
-  rewrite !print_linearP => ok_tp <- _ _ ok_xp ok_fn M S.
+  rewrite !print_linearP => ok_tp <- ok_xp ok_fn M S.
   move => fd ok_fd.
   move: ok_export => /(_ _ ok_fn); rewrite ok_fd => /assertP /eqP export.
   split; last by rewrite export.
   move: ok_fd =>
     /(get_fundef_p' ok_lp)
     /(get_fundef_tunnel_program ok_tp)
-    /(ok_get_fundef (assemble_progP ahyps) ok_xp)
+    /(ok_get_fundef ok_xp)
     [fd' ok_fd'].
   case/assemble_fdI => _ _ [] ? [] ? [] ? [] _ _ _ ?; subst fd'.
   move: ok_fd' => /S /=.
@@ -445,7 +431,7 @@ Qed.
 Import sem_one_varmap.
 
 Lemma compiler_back_endP callee_saved entries (p: sprog) (tp: lprog) (rip: word Uptr) (m m':mem) (fn: funname) args res :
-  compiler_back_end cparams callee_saved entries p = ok tp →
+  compiler_back_end aparams cparams callee_saved entries p = ok tp →
   fn \in entries →
   psem.sem_call p rip m fn args m' res →
   ∃ fd : lfundef,
@@ -516,13 +502,11 @@ Lemma compiler_back_end_to_asmP
   (p : sprog)
   (xp : asm_prog)
   (rip : word Uptr)
-  (rsp : reg)
   (m m' : mem)
   (fn: funname)
   args
   res :
-  compiler_back_end_to_asm cparams entries p = ok xp
-  -> to_string rsp = sp_rsp (p_extra p)
+  compiler_back_end_to_asm aparams cparams entries p = ok xp
   -> fn \in entries
   -> psem.sem_call p rip m fn args m' res
   -> exists xd : asm_fundef,
@@ -530,7 +514,7 @@ Lemma compiler_back_end_to_asmP
         , asm_fd_export xd
         & forall xm args',
             xm.(asm_rip) = rip
-            -> asm_reg xm rsp = top_stack m
+            -> asm_reg xm ad_rsp = top_stack m
             -> match_mem m xm.(asm_mem)
             -> get_typed_reg_values xm xd.(asm_fd_arg) = ok args'
             -> List.Forall2 value_uincl args args'
@@ -544,11 +528,11 @@ Lemma compiler_back_end_to_asmP
       ].
 Proof.
   rewrite /compiler_back_end_to_asm.
-  t_xrbindP=> lp ok_lp _ _ ok_xp.
-  move=> ts_rsp ok_fn p_call.
+  t_xrbindP=> lp ok_lp ok_xp.
+  move=> ok_fn p_call.
   have [fd [] ok_fd fd_export lp_call] := compiler_back_endP ok_lp ok_fn p_call.
-  have [xd ->] := ok_get_fundef (assemble_progP ahyps) ok_xp ok_fd.
-  have [disj_rip ok_globs get_xfun] := assemble_progP ahyps ok_xp.
+  have [xd ->] := ok_get_fundef ok_xp ok_fd.
+  have [disj_rip ok_lp_rsp ok_globs get_xfun] := assemble_progP ok_xp.
   case/assemble_fdI =>
     rsp_not_arg
     /allP ok_callee_saved
@@ -587,10 +571,10 @@ Proof.
   have := lp_call _ _ _ wf_s _ M _ ok_args.
 
   case.
-  - have := XM (ARReg rsp).
+  - assert (Hrsp := XM (ARReg ad_rsp)).
+    move: Hrsp.
     rewrite /= /get_var /to_var /=.
-    have [_ -> _] := compiler_back_end_meta ok_lp.
-    rewrite ts_rsp /rtype /=.
+    rewrite ok_lp_rsp /rtype /=.
     case: _.[_]%vmap =>
       [ | [] // ] [] /= sz w sz_le_Uptr /ok_inj /Vword_inj[] ?;
       subst => /=.
@@ -628,9 +612,8 @@ Proof.
 
   have :=
     asm_gen_exportcall
-      (eval_assemble_cond (a := ahyps))
-      (assemble_extra_op (a := ahyps))
-      (assemble_progP ahyps)
+      (eval_assemble_cond ahyps)
+      (assemble_extra_op ahyps)
       ok_xp
       lp_call
       _
@@ -673,20 +656,6 @@ Proof.
   exact: value_uincl_trans.
 Qed.
 
-(* FIXME: How to combine this with compiler_back_end_to_asmP? *)
-Lemma compiler_back_end_to_asm_RSP entries p xp :
-  compiler_back_end_to_asm cparams entries p = ok xp
-  -> exists (rsp : reg), to_string rsp = sp_rsp (p_extra p).
-Proof.
-  rewrite /compiler_back_end_to_asm.
-  t_xrbindP=> lp ok_lp _ /assertP ok_lp_rsp _.
-  have [_ <- _] := compiler_back_end_meta ok_lp.
-  move: ok_lp_rsp.
-  case E : (of_string _) => [r|] // _.
-  exists r.
-  exact: of_stringI E.
-Qed.
-
 (* Agreement relation between source and target memories.
    Expressed in a way that streamlines the composition of compiler-correctness theorems (front-end and back-end).
   TODO: There might be an equivalent definition that is clearer.
@@ -706,11 +675,10 @@ Lemma compile_prog_to_asmP
   (xp : asm_prog)
   (m m' : mem)
   (fn: funname)
-  (rsp : reg)
   va
   vr
   xm :
-  compile_prog_to_asm cparams entries subroutine p = ok xp
+  compile_prog_to_asm aparams cparams entries subroutine p = ok xp
   -> fn \in entries
   -> sem.sem_call p m fn va m' vr
   -> mem_agreement m (asm_mem xm) (asm_rip xm) (asm_globs xp)
@@ -720,7 +688,7 @@ Lemma compile_prog_to_asmP
          get_fundef (asm_funcs xp) fn = Some xd
         , asm_fd_export xd
         & forall args',
-            asm_reg xm rsp = top_stack m
+            asm_reg xm ad_rsp = top_stack m
             -> get_typed_reg_values xm (asm_fd_arg xd) = ok args'
             -> List.Forall2 value_uincl va args'
   (* FIXME: see comment in compiler_back_end_to_x86P *)
@@ -739,17 +707,11 @@ Proof.
   move=> /(enough_stack_space_alloc_ok ok_xp ok_fn mi4) ok_mi.
   have := compiler_front_endP ok_sp ok_fn p_call mi1 ok_mi.
   case => vr' [] mi' [] vr_vr' sp_call m1.
-  have [rsp' ok_sp_rsp] := compiler_back_end_to_asm_RSP ok_xp.
-  have := compiler_back_end_to_asmP ok_xp ok_sp_rsp ok_fn sp_call.
+  have := compiler_back_end_to_asmP ok_xp ok_fn sp_call.
   case => xd [] ok_xd export /(_ _ _ erefl _ mi2) xp_call.
   exists xd; split => //.
-  move=> args' ok_RSP ok_args' va_args'.
-
-  (* FIXME: Same as before *)
-  have cheat : rsp = rsp' by admit.
-  subst rsp.
-
-  have := xp_call _ ok_RSP ok_args' va_args'.
+  move=> args' ok_rsp ok_args' va_args'.
+  have := xp_call _ ok_rsp ok_args' va_args'.
   case => xm' [] res' [] {} xp_call m2 ok_res' vr'_res'.
   exists xm', res';
     split => //;
@@ -766,7 +728,7 @@ Proof.
     -(ss_limit (sem_call_stack_stable_sprog sp_call))
     -(ss_top_stack (asmsem_invariant_stack_stable xm_xm')).
   exact: mi4.
-Admitted.
+Qed.
 
 (*
 Let Kj : ∀ rip glob m vr (P Q: _ → _ → Prop),

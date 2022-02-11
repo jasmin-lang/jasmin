@@ -1,7 +1,17 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import sopn psem compiler.
-Require Import x86_decl x86_extra x86_instr_decl x86_stack_alloc x86_linearization.
-Require lowering x86_gen.
+Require Import
+  arch_decl
+  arch_extra.
+Require Import
+  x86_decl
+  x86_extra
+  x86_instr_decl
+  x86_linearization
+  x86_stack_alloc.
+Require
+  x86_gen
+  lowering.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -23,5 +33,5 @@ Definition x86_params :
    ; lparams := x86_linearization_params
    ; lower_prog := lowering.lower_prog
    ; fvars_correct := lowering.fvars_correct
-   ; assemble_prog := x86_gen.assemble_prog
+   ; assemble_cond := x86_gen.assemble_cond
   |}.

@@ -1,49 +1,32 @@
-From mathcomp
-Require Import all_ssreflect all_algebra.
-Require Import psem compiler_util asm_gen_proof.
-Require Import arch_extra linear_sem.
-Require Import x86_instr_decl x86_extra x86_gen.
+From mathcomp Require Import all_ssreflect all_algebra.
+Require Import Relation_Operators.
+
+Require Import compiler_util label linear linear_sem psem.
+Require Import
+  arch_decl
+  arch_extra
+  asm_gen_proof.
+Require Import
+  x86_decl
+  x86_extra
+  x86_gen
+  x86_instr_decl
+  x86_sem.
 
 Import Utf8.
-Import Relation_Operators.
-Import linear linear_sem label x86_decl x86_sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Lemma assemble_progP p p' :
-  assemble_prog p = ok p' →
-  let rip := mk_ptr (lp_rip p) in
-  let rsp := mk_ptr (lp_rsp p) in
-  [/\ disj_rip rip
-    , asm_globs p' = lp_globs p
-    & map_cfprog_linear (assemble_fd assemble_cond rip rsp) p.(lp_funcs)
-      = ok (asm_funcs p')
-  ].
-Proof.
-  rewrite /assemble_prog.
-  t_xrbindP => _ /assertP /eqP ok_rip _ /assertP /eqP _ fds ok_fds <-{p'}.
-  split => //.
-  split => r heq //.
-  move: ok_rip.
-  by rewrite -heq /to_reg to_varK.
-Qed.
-
-Lemma assemble_prog_RSP p p' :
-  assemble_prog p = ok p' -> to_string RSP = lp_rsp p.
-Proof.
-  rewrite /assemble_prog.
-  t_xrbindP => _ _ _ /assertP /eqP ok_rsp.
-  move=> _ _ _.
-  exact: of_stringI ok_rsp.
-Qed.
-
 Section PROG.
 
-Context (p: lprog) (p': asm_prog) (ok_p': assemble_prog p = ok p').
+Context
+  (p: lprog)
+  (p': asm_prog)
+  (ok_p': assemble_prog assemble_cond p = ok p').
 
-Lemma not_condtP (c:condt) rf b :
+Lemma not_condtP (c : cond_t) rf b :
   eval_cond rf c = ok b -> eval_cond rf (not_condt c) = ok (negb b).
 Proof.
   case: c => /=.

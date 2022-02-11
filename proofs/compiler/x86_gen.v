@@ -104,23 +104,3 @@ Fixpoint assemble_cond_r ii (e: pexpr) : cexec condt :=
 
 Definition assemble_cond ii (e: pexpr) : cexec condt :=
   assemble_cond_r ii e.
-
-(* -------------------------------------------------------------------- *)
-
-Definition assemble_prog (p : lprog) : cexec asm_prog :=
-  let rip := mk_ptr (lp_rip p) in
-  let rsp := mk_ptr (lp_rsp p) in
-  Let _ :=
-    assert
-      (to_reg rip == None)
-      (E.gen_error true None None (pp_s "Invalid RIP"))
-  in
-  Let _ :=
-    assert
-      (of_string (lp_rsp p) == Some RSP)
-      (E.gen_error true None None (pp_s "Invalid RSP"))
-  in
-  Let fds :=
-    map_cfprog_linear (assemble_fd assemble_cond rip rsp) (lp_funcs p)
-  in
-  ok {| asm_globs := lp_globs p; asm_funcs := fds; |}.
