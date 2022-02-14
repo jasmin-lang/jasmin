@@ -46,7 +46,7 @@ let subtype t1 t2 =
   match t1, t2 with
   | Bty (U ws1), Bty (U ws2) -> wsize_le ws1 ws2
   | Bty bty1, Bty bty2 -> bty1 = bty2
-  | Arr(ws1,len1), Arr(ws2,len2) -> arr_size ws1 len1 <= arr_size ws2 len2
+  | Arr(ws1,len1), Arr(ws2,len2) -> arr_size ws1 len1 == arr_size ws2 len2
   | _, _ -> false 
 
 let check_type loc e te ty = 

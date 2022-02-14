@@ -607,12 +607,22 @@ Variant asm_i : Type :=
 
 Definition asm_code := seq asm_i.
 
-Record asm_fundef := XFundef 
+(* Any register, used for function arguments and returned values. *)
+Variant asm_typed_reg :=
+  | ARReg of reg_t
+  | AXReg of xreg_t
+  | ABReg of rflag_t.
+
+Notation asm_typed_regs := (seq asm_typed_reg).
+
+Record asm_fundef := XFundef
   { asm_fd_align : wsize
-  ; asm_fd_arg   : asm_args   (* FIXME did we really want this *)
+  ; asm_fd_arg   : asm_typed_regs
   ; asm_fd_body  : asm_code
-  ; asm_fd_res   : asm_args   (* FIXME did we really want this *)
-  ; asm_fd_export: bool  }.
+  ; asm_fd_res   : asm_typed_regs
+  ; asm_fd_export: bool
+  ; asm_fd_total_stack: Z
+  }.
 
 Record asm_prog : Type :=
   { asm_globs : seq u8

@@ -483,6 +483,16 @@ Proof.
   by constructor.
 Qed.
 
+Lemma mapM_factorization {aT bT cT eT fT} (f: aT → result fT bT) (g: aT → result eT cT) (h: bT → result eT cT) xs ys:
+  (∀ a b, f a = ok b → g a = h b) →
+  mapM f xs = ok ys →
+  mapM g xs = mapM h ys.
+Proof.
+  move => E.
+  elim: xs ys; first by case.
+  by move => x xs ih ys' /=; t_xrbindP => y /E -> ys /ih -> <-.
+Qed.
+
 Lemma mapM_assoc {eT} {aT:eqType} {bT cT} (f : aT * bT -> result eT (aT * cT)) l1 l2 a b :
   (forall x y, f x = ok y -> x.1 = y.1) ->
   mapM f l1 = ok l2 ->
@@ -1488,8 +1498,6 @@ Proof. by rewrite /Z.to_nat; case: z => //=; rewrite /Z.le. Qed.
 
 (* ** Some Extra tactics
  * -------------------------------------------------------------------- *)
-
-Ltac sinversion H := inversion H=>{H};subst.
 
 (* -------------------------------------------------------------------- *)
 Variant dup_spec (P : Prop) :=

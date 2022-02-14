@@ -290,7 +290,7 @@ type pitem =
   | PParam of pparam
   | PGlobal of pglobal
   | Pexec of pexec
-  | Prequire of prequire list
+  | Prequire of (pident option * prequire list)
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list

@@ -40,6 +40,7 @@
 %token FALSE
 %token FN
 %token FOR
+%token FROM
 %token <Syntax.sign>GE
 %token GLOBAL
 %token <Syntax.sign>GT
@@ -454,8 +455,11 @@ range:
 prequire1:
 | s=loc(STRING) { s }
 
+from:
+| FROM id=ident { id }
+
 prequire:
-| REQUIRE x=plist1(prequire1, empty) { x }
+| f=from? REQUIRE x=nonempty_list(prequire1) { f, x }
 
 (* -------------------------------------------------------------------- *)
 top:
