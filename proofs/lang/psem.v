@@ -146,6 +146,12 @@ Definition wextend_type t1 t2 :=
     | _, _ => false
     end.
 
+Lemma to_bool_undef v :
+  to_bool v = undef_error -> v = undef_b.
+Proof.
+  by case: v => //= -[] // e _; rewrite (Eqdep_dec.UIP_refl_bool _ e).
+Qed.
+
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 
@@ -165,6 +171,10 @@ Definition get_var (m:vmap) x :=
   on_vu (@pto_val (vtype x)) undef_error (m.[x]%vmap).
 
 #[ global ] Arguments get_var _%vmap_scope _.
+
+Lemma get_varE (m: vmap) x :
+  get_var m x = Let y := m.[x]%vmap in ok (pto_val y).
+Proof. by rewrite /get_var; case: _.[_]%vmap => // - []. Qed.
 
 Definition get_gvar (gd: glob_decls) (vm: vmap) (x:gvar) :=
   if is_lvar x then get_var vm x.(gv)
@@ -214,15 +224,23 @@ Lemma get_var_set vm x v y :
   get_var vm.[x <- ok v] y = if x == y then ok (pto_val v) else get_var vm y.
 Proof. by rewrite {1}/get_var Fv.setP; case: eqP => // ?; subst. Qed.
 
+Lemma get_set_var vm x v vm' y :
+  set_var vm x v = ok vm' →
+  vm'.[y]%vmap = if x == y then pof_val (vtype y) v else vm.[y]%vmap.
+Proof.
+  apply: set_varP.
+  1: move => w ok_w.
+  2: case: x => - [] //= x _ /to_bool_undef ->{v}.
+  all: by move => <-{vm'}; rewrite Fv.setP; case: eqP => // ?; subst.
+Qed.
+
 Lemma get_var_set_var vm x v vm' y :
   set_var vm x v = ok vm' →
   get_var vm' y = if x == y then Let v' := pof_val (vtype y) v in ok (pto_val v') else get_var vm y.
 Proof.
-  apply: set_varP.
-  2: case: x => - [] //= x.
-  all: move => v' ok_v' <-{vm'}.
-  all: rewrite {1}/get_var /= Fv.setP; case: eqP => // ?; subst.
-  all: by rewrite /= ok_v'.
+  rewrite /get_var => /get_set_var ->.
+  case: eqP => // <-{y}.
+  by case: pof_val => // - [].
 Qed.
 
 Lemma get_var_eq x vm v : get_var vm.[x <- v] x = on_vu (pto_val (t:=x.(vtype))) undef_error v.
@@ -2121,12 +2139,6 @@ Lemma subtype_eval_uincl_pundef t1 t2 :
 Proof.
   case: t1 => /= [/eqP?|/eqP?|n| s];subst => //=; case: t2 => //=.
   by move=> ? /ZleP ? /=; split => // ??; rewrite WArray.get_empty; case: ifP.
-Qed.
-
-Lemma to_bool_undef v :
-  to_bool v = undef_error -> v = undef_b.
-Proof. 
-  by case: v => //= -[] // e _; rewrite (Eqdep_dec.UIP_refl_bool _ e).
 Qed.
 
 Lemma type_of_val_bool v : type_of_val v = sbool ->
