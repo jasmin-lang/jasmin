@@ -502,8 +502,8 @@ Qed.
 Definition rflagv_eqMixin := Equality.Mixin rflagv_eq_axiom.
 Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
 
-Class asm (reg xreg rflag cond asm_op: Type) := 
+Class asm (reg xreg rflag cond asm_op: Type) :=
   { _arch_decl   :> arch_decl reg xreg rflag cond
   ; _asm_op_decl :> asm_op_decl asm_op
-  ; eval_cond   : (rflag_t -> result error bool) -> cond_t -> result error bool
+  ; eval_cond   : (rflag_t -> exec bool) -> cond_t -> exec bool
   }.
