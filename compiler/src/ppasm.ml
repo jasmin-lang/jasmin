@@ -414,6 +414,10 @@ module Printer (BP:BPrinter) = struct
     | Jcc(lbl,ct) ->
       let iname = Printf.sprintf "j%s" (pp_ct ct) in
       `Instr (iname, [pp_label name lbl])
+
+    | POPPC ->
+       `Instr ("ret", [])
+
     | AsmOp(op, args) ->
       let id = instr_desc X86_decl.x86_decl X86_instr_decl.x86_op_decl (None, op) in
       let pp = id.id_pp_asm args in

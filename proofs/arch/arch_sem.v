@@ -352,6 +352,13 @@ Definition eval_op o args m :=
   exec_instr_op (instr_desc_op o) args m.
 
 (* -------------------------------------------------------------------- *)
+Definition eval_POP (s: asm_state) : exec (asm_state * wreg) :=
+  Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) stack_pointer_register) in
+  Let v := read s.(asm_m).(asm_mem) sp reg_size in
+  let m := mem_write_reg MSB_CLEAR stack_pointer_register (sp + wrepr Uptr (wsize_size Uptr))%R s.(asm_m) in
+  ok ({| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}, v).
+
+(* -------------------------------------------------------------------- *)
 Section PROG.
 
 Context  (p: asm_prog).
@@ -381,6 +388,11 @@ Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
       eval_JMP p lbl s
     else type_error
   | Jcc   lbl ct => eval_Jcc lbl ct s
+  | POPPC =>
+    Let: (s', dst) := eval_POP s in
+    if decode_label labels dst is Some lbl then
+      eval_JMP p lbl s'
+    else type_error
   | AsmOp o args =>
     Let m := eval_op o args s.(asm_m) in
     ok (st_update_next m s)
@@ -455,7 +467,7 @@ Lemma eval_instr_invariant (i: asm_i) (s s': asm_state) :
   eval_instr i s = ok s' →
   s ≡ s'.
 Proof.
-  case: i => [ | ? | ? ? | ? | ? | ? ? | ? ? ] /=.
+  case: i => [ | ? | ? ? | ? | ? | ? ? | | ? ? ] /=.
   1, 2: by move => /ok_inj <-.
   - by case: encode_label => // ? /ok_inj <-.
   - exact: eval_JMP_invariant.
@@ -463,6 +475,8 @@ Proof.
   - rewrite /eval_Jcc; t_xrbindP => - []; t_xrbindP => _.
     + by move => _ _ <- /=.
     by move => <-.
+  - rewrite /eval_POP; t_xrbindP => _ ? _ ? _ <-.
+    by case: decode_label => // ? /eval_JMP_invariant <-.
   by rewrite /eval_op /exec_instr_op; t_xrbindP => ? ? ? /mem_write_vals_invariant -> <-.
 Qed.
 

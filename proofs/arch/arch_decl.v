@@ -462,6 +462,9 @@ Variant asm_i : Type :=
   | JMP    of remote_label (* Direct jump *)
   | JMPI   of asm_arg (* Indirect jump *)
   | Jcc    of label & cond_t  (* Conditional jump *)
+  (* Functions *)
+  | POPPC (* Pop a destination from the stack and jump there *)
+  (* Instructions exposed at source-level *)
   | AsmOp  of asm_op_t' & asm_args.
 
 Definition asm_code := seq asm_i.
@@ -506,4 +509,5 @@ Class asm (reg xreg rflag cond asm_op: Type) :=
   { _arch_decl   :> arch_decl reg xreg rflag cond
   ; _asm_op_decl :> asm_op_decl asm_op
   ; eval_cond   : (rflag_t -> exec bool) -> cond_t -> exec bool
+  ; stack_pointer_register : reg_t
   }.
