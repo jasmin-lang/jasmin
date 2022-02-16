@@ -38,7 +38,7 @@ Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Definition eval_cond (get : rflag -> result error bool) (c : condt) :=
+Definition x86_eval_cond (get : rflag -> result error bool) (c : condt) :=
   match c with
   | O_ct   => get OF
   | NO_ct  => Let b := get OF in ok (~~ b)
@@ -79,7 +79,7 @@ Definition eval_cond (get : rflag -> result error bool) (c : condt) :=
   end.
 
 Instance x86 : asm register xmm_register rflag condt x86_op :=
-  { eval_cond := eval_cond }.
+  {| eval_cond := x86_eval_cond |}.
 
 Definition x86_mem := @asmmem _ _ _ _ _ x86.
 Definition x86_prog := @asm_prog register _ _ _ _ _ x86_op_decl.
