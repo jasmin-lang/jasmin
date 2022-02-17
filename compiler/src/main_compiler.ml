@@ -204,16 +204,23 @@ let main () =
     if !typeonly then exit 0;
 
     let prog = Subst.remove_params pprog in
-    eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
-    
-    if SafetyConfig.sc_comp_pass () = Compiler.ParamsExpansion &&
-       !check_safety
-    then check_safety_p Compiler.ParamsExpansion prog source_prog
-    else
-            
+
+    (* This function is called after each compilation pass.
+        - Check program safety (and exit) if the time has come
+        - Pretty-print the program
+        - Add your own checker here!
+    *)
+    let visit_prog_after_pass ~debug s p =
+      if s = SafetyConfig.sc_comp_pass () && !check_safety then
+        check_safety_p s p source_prog
+      else
+        eprint s (Printer.pp_prog ~debug) p in
+
+    visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
+
     if !ec_list <> [] then begin
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
@@ -344,19 +351,9 @@ let main () =
         else x in
       Conv.string0_of_string x in
 
-    (* Check safety and calls exit(_). *)
-    let check_safety_cp s cp =
-      let p = Conv.prog_of_cprog tbl cp in
-      check_safety_p s p source_prog in
-    
     let pp_cprog s cp =
-      if s = SafetyConfig.sc_comp_pass () && !check_safety then
-        check_safety_cp s cp
-      else
-        eprint s (fun fmt cp ->
-            let p = Conv.prog_of_cprog tbl cp in
-            Printer.pp_prog ~debug:true fmt p) cp in
-
+      Conv.prog_of_cprog tbl cp |>
+      visit_prog_after_pass ~debug:true s in
 
     let cparams = {
       Compiler.rename_fd    = rename_fd;
