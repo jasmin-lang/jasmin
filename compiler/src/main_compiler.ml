@@ -252,7 +252,7 @@ let main () =
           try
             let pp_range fmt (ptr, sz) =
               Format.fprintf fmt "%a:%a" Z.pp_print ptr Z.pp_print sz in
-            Format.printf "Evaluation of %s (@[<h>%a@]):@." f.fn_name
+            Format.printf "/* Evaluation of %s (@[<h>%a@]):@." f.fn_name
               (pp_list ",@ " pp_range) m;
             let _m, vs =
               (** TODO: allow to configure the initial stack pointer *)
@@ -260,7 +260,8 @@ let main () =
               (match Low_memory.Memory.coq_M.init live (Conv.int64_of_z (Z.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
               Evaluator.exec cprog (Conv.cfun_of_fun tbl f) in
             Format.printf "@[<v>%a@]@."
-              (pp_list "@ " Evaluator.pp_val) vs
+              (pp_list "@ " Evaluator.pp_val) vs;
+            Format.printf "*/@."
           with Evaluator.Eval_error (ii,err) ->
             hierror "%a" Evaluator.pp_error (tbl, ii, err)
         in
