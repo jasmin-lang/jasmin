@@ -94,7 +94,7 @@ let string_of_op2 = function
 
 
 let string_of_op1 = function
-  | E.Oint_of_word sz -> F.sprintf "(int of u%d)" (int_of_ws sz)
+  | E.Oint_of_word sz -> F.sprintf "(int /* of u%d */)" (int_of_ws sz)
   | E.Osignext (szo, _) -> F.sprintf "(%ds)" (int_of_ws szo)
   | E.Oword_of_int szo
   | E.Ozeroext (szo, _) -> F.sprintf "(%du)" (int_of_ws szo)
@@ -130,7 +130,7 @@ let pp_ge pp_var =
 
 (* -------------------------------------------------------------------- *)
 let pp_glv pp_var fmt = function
-  | Lnone (_, ty) -> F.fprintf fmt "_{%a}" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
+  | Lnone (_, ty) -> F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
   | Lmem (ws, x, e) ->
     F.fprintf fmt "@[(%a)[%a@ +@ %a]@]"
@@ -169,10 +169,11 @@ let rec pp_gi pp_info pp_ty pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;
   match i.i_desc with
   | Cassgn(x , tg, ty, e) ->
-    F.fprintf fmt "@[<hov 2>%a %s=(%a)@ %a;@]"
-      (pp_glv pp_var) x (pp_tag tg)
-      pp_ty ty
+    F.fprintf fmt "@[<hov 2>%a =@ %a; /* %a%s */@]"
+      (pp_glv pp_var) x
       (pp_ge pp_var) e
+      pp_ty ty
+      (pp_tag tg)
 
   | Copn(x, t, o, e) -> (* FIXME *)
     F.fprintf fmt "@[<hov 2>%a %s=@ #%s(%a);@]"
