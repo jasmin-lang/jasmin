@@ -137,7 +137,6 @@ and pp_comp_ferr tbl fmt = function
 
 
 (* -------------------------------------------------------------------- *)
-    
 let check_safety_p s p source_p =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
@@ -148,7 +147,7 @@ let check_safety_p s p source_p =
   in
 
   let () = SafetyConfig.pp_current_config_diff () in
-  
+
   let () =
     List.iter (fun f_decl ->
         if f_decl.f_cc = Export then
@@ -166,7 +165,7 @@ let check_safety_p s p source_p =
 
           AbsInt.analyze ())
       (List.rev (snd p)) in
-  exit 0 
+  exit 0
 
 
 (* -------------------------------------------------------------------- *)
