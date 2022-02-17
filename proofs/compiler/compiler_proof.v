@@ -457,17 +457,17 @@ Proof.
   exact: ok_callee_saved.
 Qed.
 
-(* FIXME
-Lemma compiler_back_end_to_x86P entries (p: sprog) (xp: x86_prog) (rip: word Uptr) (m m':mem) (fn: funname) args res :
+Lemma compiler_back_end_to_x86P entries (p: sprog) (xp: x86_prog) (rip: word Uptr) (scs scs': syscall_state) (m m':mem) (fn: funname) args res :
   compiler_back_end_to_x86 cparams entries p = ok xp →
   fn \in entries →
-  psem.sem_call p rip m fn args m' res →
+  psem.sem_call p rip scs m fn args scs' m' res →
   ∃ xd : x86_fundef,
     [/\
       get_fundef xp.(asm_funcs) fn = Some xd,
       xd.(asm_fd_export) &
       ∀ xm args',
         xm.(asm_rip) = rip →
+        xm.(asm_scs) = scs →
         asm_reg xm x86_decl.RSP = top_stack m →
         match_mem m xm.(asm_mem)  →
         get_typed_reg_values xm xd.(asm_fd_arg) = ok args' →
@@ -476,6 +476,7 @@ Lemma compiler_back_end_to_x86P entries (p: sprog) (xp: x86_prog) (rip: word Upt
         ∃ xm' res',
           [/\ x86sem_exportcall xp fn xm xm'
           , match_mem m' xm'.(asm_mem)
+          , xm'.(asm_scs) = scs'
           , get_typed_reg_values xm' xd.(asm_fd_res) = ok res'
           & List.Forall2 value_uincl res res'
           ]
@@ -488,7 +489,7 @@ Proof.
   case/assemble_fdI => rsp_not_arg /allP ok_callee_saved [] xbody [] xargs [] xres [] ok_xbody ok_xargs ok_xres -> {xd}.
   eexists; split; first reflexivity.
   - by rewrite fd_export.
-  move => xm args' ok_rip ok_rsp M /= ok_args' ok_args.
+  move => xm args' ok_rip ok_scs ok_rsp M /= ok_args' ok_args.
   set s := estate_of_x86_mem (top_stack m) (lp_rip lp) xm.
   assert (LM := lom_eqv_estate_of_x86_mem (top_stack m) xm disj_rip).
   assert (XM := get_var_vmap_of_x86_mem (top_stack m) (lp_rip lp) xm).
@@ -502,7 +503,7 @@ Proof.
   - rewrite -ok_args'.
     apply: mapM_factorization ok_xargs.
     by move => x r /asm_typed_reg_of_varI ->.
-  - case: LM => _ Y _ _ _ _.
+  - case: LM => _ _ Y _ _ _ _.
     move: Y; rewrite /get_var /=.
     case: _.[_]%vmap => [ | [] // ] [] /= sz w sz_le_Uptr /ok_inj /Vword_inj[] ?; subst => /=.
     by rewrite pword_of_wordE => ->.
@@ -512,7 +513,7 @@ Proof.
     apply/allP => x /ok_callee_saved.
     case hx: asm_typed_reg_of_var => [ [ r | | ] | ] // _.
     by rewrite (asm_typed_reg_of_varI hx) XM.
-  move => _wt_largs [] vm' [] lm' [] res' [] {} lp_call M' ok_res' res_res' _wt_res'.
+  subst => _wt_largs [] vm' [] lm' [] res' [] {} lp_call M' ok_res' res_res' _wt_res'.
   have := x86gen_exportcall ok_xp lp_call _ LM.
   case.
   - apply/allP => _ /in_map[] r _ ->.
@@ -521,7 +522,7 @@ Proof.
   have : exists2 res'', get_typed_reg_values xm' xres = ok res'' & List.Forall2 value_uincl res' res''.
   - move/mapM_Forall2: ok_res'.
     move/mapM_Forall2: ok_xres {res_res' _wt_res'} res'.
-    case: LM' => /=_ _ _; clear => R X F.
+    case: LM' => /=_ _ _ _; clear => R X F.
     elim; first by move => _ /List_Forall2_inv_l ->; exists [::].
     case => _ /= xi r xs rs /asm_typed_reg_of_varI /= -> xs_rs ih.
     move => ? /List_Forall2_inv_l[] v [] vs [] ?; subst.
@@ -538,6 +539,7 @@ Proof.
     by case: (asm_flag xm' r) => // _ <-; exists b.
   case => res'' ok_res'' res'_res''.
   exists xm', res''; split; first exact: xp_call.
+  - by case: LM' => /= _ <-.
   - by case: LM' => /= <-.
   - exact: ok_res''.
   apply: Forall2_trans res_res' res'_res''.
@@ -556,11 +558,12 @@ Record mem_agreement (m m': mem) (gd: pointer) (data: seq u8) : Prop :=
   ; ma_stack_range : (wunsigned (stack_limit ma_ghost) <= wunsigned (top_stack m'))%Z
   }.
 
-Lemma compile_prog_to_x86P entries subroutine (p: prog) (xp: x86_prog) (m m':mem) (fn: funname) va vr xm :
+Lemma compile_prog_to_x86P entries subroutine (p: prog) (xp: x86_prog) (scs scs': syscall_state) (m m':mem) (fn: funname) va vr xm :
   compile_prog_to_x86 cparams aparams entries subroutine p = ok xp →
   fn \in entries →
-  sem.sem_call p m fn va m' vr →
+  sem.sem_call p scs m fn va scs' m' vr →
   mem_agreement m xm.(asm_mem) xm.(asm_rip) xp.(asm_globs) →
+  xm.(asm_scs) = scs →
   enough_stack_space xp fn (top_stack m) xm.(asm_mem) →
   ∃ xd : x86_fundef,
     [/\
@@ -574,6 +577,7 @@ Lemma compile_prog_to_x86P entries subroutine (p: prog) (xp: x86_prog) (m m':mem
         ∃ xm' res',
           [/\ x86sem_exportcall xp fn xm xm'
           , mem_agreement m' xm'.(asm_mem) xm'.(asm_rip) xp.(asm_globs)
+          , xm'.(asm_scs) = scs'
           , get_typed_reg_values xm' xd.(asm_fd_res) = ok res'
           & List.Forall2 value_uincl vr res'
           ]
@@ -581,17 +585,17 @@ Lemma compile_prog_to_x86P entries subroutine (p: prog) (xp: x86_prog) (m m':mem
 Proof.
   rewrite /compile_prog_to_x86; t_xrbindP => sp ok_sp ok_xp ok_fn p_call [] mi.
   have [ rsp_eq -> ] := compiler_back_end_to_x86_meta ok_xp.
-  move => mi1 mi2 mi3 mi4.
+  move => mi1 mi2 mi3 mi4 ?; subst scs.
   rewrite (ss_top_stack mi3).
   move => /(enough_stack_space_alloc_ok ok_xp ok_fn mi4) ok_mi.
   have := compiler_front_endP ok_sp ok_fn p_call mi1 ok_mi.
   case => vr' [] mi' [] vr_vr' sp_call m1.
   have := compiler_back_end_to_x86P ok_xp ok_fn sp_call.
-  case => xd [] ok_xd Export /(_ _ _ erefl _ mi2) xp_call.
+  case => xd [] ok_xd Export /(_ _ _ erefl erefl _ mi2) xp_call.
   exists xd; split => //.
   move => args' ok_RSP ok_args' va_args'.
   have := xp_call _ ok_RSP ok_args' va_args'.
-  case => xm' [] res' [] {} xp_call m2 ok_res' vr'_res'.
+  case => xm' [] res' [] {} xp_call m2 ? ok_res' vr'_res'; subst scs'.
   exists xm', res'; split => //; last exact: Forall2_trans value_uincl_trans vr_vr' vr'_res'.
   case: xp_call => _ _ _ /asmsem_invariantP/= xm_xm' _.
   exists mi'.
@@ -604,7 +608,6 @@ Proof.
   rewrite -(ss_limit (sem_call_stack_stable_sprog sp_call)) -(ss_top_stack (asmsem_invariant_stack_stable xm_xm')).
   exact: mi4.
 Qed.
-*)
 
 (*
 Let Kj : ∀ rip glob m vr (P Q: _ → _ → Prop),
