@@ -102,13 +102,6 @@ let string_of_op1 = function
   | E.Onot    -> "!"
   | E.Oneg _ -> "-"
 
-let string_of_opN =
-  function
-  | E.Opack (sz, pe) ->
-    F.sprintf "Opack<%d, %d>"
-      (int_of_ws sz)
-      (int_of_pe pe)
-
 (* -------------------------------------------------------------------- *)
 let pp_ge pp_var =
   let pp_var_i = pp_gvar_i pp_var in
