@@ -36,10 +36,6 @@ let string_of_label name (p : label) =
   Format.sprintf "L%s$%d" name (Conv.int_of_pos p)
 
 (* -------------------------------------------------------------------- *)
-let string_of_funname tbl (p : Utils0.funname) : string =
-  (Conv.fun_of_cfun tbl p).fn_name
-
-(* -------------------------------------------------------------------- *)
 type lreg =
   | RNumeric of int
   | RAlpha   of char
@@ -143,7 +139,7 @@ let global_datas = "glob_data"
 let pp_label = string_of_label
 
 let pp_remote_label tbl (fn, lbl) =
-  string_of_label (string_of_funname tbl fn) lbl
+  string_of_label (Conv.string_of_funname tbl fn) lbl
 
 (* -------------------------------------------------------------------- *)
 let pp_ct (ct : X86_decl.condt) =
@@ -443,16 +439,16 @@ module Printer (BP:BPrinter) = struct
   
     List.iter (fun (n, d) ->
         if d.asm_fd_export then pp_gens fmt
-      [`Instr (".globl", [mangle (string_of_funname tbl n)]);
-       `Instr (".globl", [string_of_funname tbl n])])
+      [`Instr (".globl", [mangle (Conv.string_of_funname tbl n)]);
+       `Instr (".globl", [Conv.string_of_funname tbl n])])
       asm.asm_funcs;
   
     List.iter (fun (n, d) ->
-        let name = string_of_funname tbl n in
+        let name = Conv.string_of_funname tbl n in
         let export = d.asm_fd_export in
         if export then
         pp_gens fmt [
-          `Label (mangle (string_of_funname tbl n));
+          `Label (mangle (Conv.string_of_funname tbl n));
           `Label name
         ];
   

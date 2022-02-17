@@ -249,6 +249,10 @@ let fun_of_cfun tbl p =
   try Hashtbl.find tbl.cfunname p
   with Not_found -> assert false
 
+(* -------------------------------------------------------------------- *)
+let string_of_funname tbl p =
+  (fun_of_cfun tbl p).fn_name
+
 (* ------------------------------------------------------------------------ *)
 
 let set_iinfo tbl loc ii ia =

@@ -50,6 +50,8 @@ val expr_of_cexpr : 'info coq_tbl -> Expr.pexpr -> expr
 val cfun_of_fun : 'info coq_tbl -> funname -> BinNums.positive
 val fun_of_cfun : 'info coq_tbl -> BinNums.positive -> funname
 
+val string_of_funname : 'info coq_tbl -> BinNums.positive -> string
+
 val get_iinfo   : 'info coq_tbl -> BinNums.positive -> L.i_loc * 'info * Syntax.annotations
 
 val get_finfo   : 'info coq_tbl -> BinNums.positive -> L.t * f_annot * call_conv * Syntax.annotations list
