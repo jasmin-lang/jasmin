@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+
+DIR=$(mktemp -d jasminXXXXXX)
+OUT=${DIR}/jasmin.jazz
+
+trap "rm -r ${DIR}" EXIT
+
+set -x
+
+# Check that no printer crashes
+$(dirname $0)/../jasminc.native -pall "$@" >/dev/null
+# Pretty-print the program before compilation
+$(dirname $0)/../jasminc.native -ptyping "$@" > ${OUT}
+# Try to parse it and type-check it again
+$(dirname $0)/../jasminc.native -typeonly ${OUT}
