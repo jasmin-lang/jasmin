@@ -250,16 +250,6 @@ Proof.
   all: by case/andP => -> /h.
 Qed.
 
-Lemma le_next lbl : (lbl <=? next_lbl lbl)%positive.
-Proof.
-  by apply Pos.leb_le; have: (Zpos lbl <= Zpos lbl + 1)%Z by lia.
-Qed.
-
-Lemma lt_next lbl : (lbl <? next_lbl lbl)%positive.
-Proof.
-  by apply Pos.ltb_lt; have: (Zpos lbl < Zpos lbl + 1)%Z by lia.
-Qed.
-
 Lemma find_label_cat_tl c2 c1 lbl p:
   find_label lbl c1 = ok p -> find_label lbl (c1++c2) = ok p.
 Proof.
