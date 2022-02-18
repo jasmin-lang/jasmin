@@ -71,8 +71,8 @@ module ZImpl : BigintCore.TheInterface = struct
     with Failure _ -> raise InvalidString
 
   let pp_print  = (Z.pp_print : Format.formatter -> zint -> unit)
-  let pp_print_X fmt z = 
-    Format.fprintf fmt "%s" (Z.format "X" z) 
+  let pp_print_X fmt z =
+    Format.fprintf fmt "%s" (Z.format "#X" z)
 end
 
 (* -------------------------------------------------------------------- *)
