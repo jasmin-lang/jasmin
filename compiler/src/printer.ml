@@ -347,13 +347,13 @@ let pp_glob fmt (ws, n, z) =
 let pp_iprog ~debug pp_info fmt (gd, funcs) =
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
-     (pp_list "@ @ " pp_glob) gd
+     (pp_list "@ @ " pp_glob) (List.rev gd)
      (pp_list "@ @ " (pp_fun ~pp_info pp_var)) (List.rev funcs)
 
 let pp_prog ~debug fmt (gd, funcs) =
   let pp_var = pp_var ~debug in
   Format.fprintf fmt "@[<v>%a@ %a@]"
-     (pp_list "@ @ " pp_glob) gd
+     (pp_list "@ @ " pp_glob) (List.rev gd)
      (pp_list "@ @ " (pp_fun pp_var)) (List.rev funcs)
 
 
