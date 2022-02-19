@@ -137,17 +137,13 @@ Proof.
   by rewrite /get_gvar; case:ifP => //; case: ifP => // ?? -> -> [->].
 Qed.
 
-Context
-  (assemble_cond : instr_info -> pexpr -> cexec cond_t)
-  (eval_assemble_cond :
-    forall ii m rf e c v,
-      eqflags m rf
-      -> assemble_cond ii e = ok c
-      -> sem_pexpr [::] m e = ok v
-      -> let get x := if rf x is Def b then ok b else undef_error in
-      exists2 v', value_of_bool (eval_cond get c) = ok v' & value_uincl v v').
-
 (* -------------------------------------------------------------------- *)
+
+Context
+  (agparams : asm_gen_params).
+
+Notation assemble_cond := (agp_assemble_cond agparams).
+
 Lemma xscale_ok ii z sc :
   scale_of_z' ii z = ok sc ->
   z = word_of_scale sc.
@@ -227,13 +223,13 @@ Variant check_sopn_argI rip ii args e : arg_desc -> stype -> Prop :=
 
 | CSA_Explicit k n o a a' ty :
        onth args n = Some a
-    -> arg_of_pexpr assemble_cond k rip ii ty e = ok a'
+    -> arg_of_pexpr agparams k rip ii ty e = ok a'
     -> compat_imm ty a a'
     -> check_oreg o a
     -> check_sopn_argI rip ii args e (ADExplicit k n o) ty.
 
 Lemma check_sopn_argP rip ii args e sp :
-  check_sopn_arg assemble_cond rip ii args e sp ->
+  check_sopn_arg agparams rip ii args e sp ->
   check_sopn_argI rip ii args e sp.1 sp.2.
 Proof.
 case: sp => -[i|k n o] ty; first by apply: CSA_Implicit.
@@ -266,9 +262,26 @@ Lemma var_of_regP rip E m s r v ty vt:
       & of_val ty v' = ok vt.
 Proof. move=> [??? h ??] /h -/value_uincl_word_of_val h1 /h1; eauto. Qed.
 
-Lemma check_sopn_arg_sem_eval rip m s ii args e ad ty v vt:
-     lom_eqv rip m s
-  -> check_sopn_arg assemble_cond rip ii args e (ad,ty)
+Section EVAL_ASSEMBLE_COND.
+
+Context
+  (eval_assemble_cond :
+     forall ii m rf e c v,
+       eqflags m rf
+       -> agp_assemble_cond agparams ii e = ok c
+       -> sem_pexpr [::] m e = ok v
+       -> let get x :=
+            if rf x is Def b
+            then ok b
+            else undef_error
+          in
+          exists2 v',
+            value_of_bool (eval_cond get c) = ok v'
+            & value_uincl v v').
+
+Lemma check_sopn_arg_sem_eval rip m s ii args e ad ty v vt :
+  lom_eqv rip m s
+  -> check_sopn_arg agparams rip ii args e (ad,ty)
   -> sem_pexpr [::] m e = ok v
   -> of_val ty v = ok vt
   -> exists2 v', eval_arg_in_v s args ad ty = ok v'
@@ -283,7 +296,7 @@ Proof.
   + t_xrbindP => c hac <-.
     rewrite /compat_imm orbF => /eqP <- -> /= b hb.
     case: eqm => ????? eqf.
-    have [v']:= eval_assemble_cond eqf hac hb.
+    have [v'] := eval_assemble_cond eqf hac hb.
     rewrite /eval_cond_mem.
     case: eval_cond => /= [ | [] // [] <- /value_uincl_undef [ty1 [he ->]] ]; last by case: ty1 he.
     move=> b' [<-] {hb}; case: v => // [b1 | [] //] -> ?.
@@ -318,6 +331,7 @@ Proof.
   by rewrite /to_word truncate_word_u sign_extend_truncate.
 Qed.
 
+End EVAL_ASSEMBLE_COND.
 
 (*
 Lemma zero_extend_mask_word sz sz' :
@@ -387,7 +401,7 @@ Lemma compile_lval rip ii msb_flag loargs ad ty (vt:sem_ot ty) m m' s lv1 e1:
   check_arg_dest ad ty ->
   write_lval [::] lv1 (oto_val vt) m = ok m' ->
   pexpr_of_lval ii lv1 = ok e1 ->
-  check_sopn_dest assemble_cond rip ii loargs e1 (ad, ty) ->
+  check_sopn_dest agparams rip ii loargs e1 (ad, ty) ->
   exists s', mem_write_val msb_flag loargs (ad, ty) (oto_val vt) s = ok s' /\ lom_eqv rip m' s'.
 Proof.
   move=> hlom; case:(hlom) => [h1 hrip hnrip h2 h3 h4]; case: ad => [ai _ | k n o]; rewrite /check_sopn_dest /=.
@@ -494,7 +508,7 @@ Lemma compile_lvals rip ii m lvs m' s loargs
   size id_out = size id_tout ->
   write_lvals [::] m lvs (list_ltuple vt) = ok m' ->
   lom_eqv rip m s ->
-  check_sopn_dests assemble_cond rip ii loargs lvs (zip id_out id_tout) ->
+  check_sopn_dests agparams rip ii loargs lvs (zip id_out id_tout) ->
   all2 check_arg_dest id_out id_tout ->
   exists2 s',
     mem_write_vals msb_flag s loargs id_out id_tout (list_ltuple vt) = ok s' & lom_eqv rip m' s'.
@@ -511,9 +525,12 @@ Proof.
   case: lvs => //= lv1 lvs; t_xrbindP => m1 hw1 hwn hlo /=.
   rewrite /check_sopn_dests /= => h /andP [] hca hcall.
   have [e1 [es [he1 hes hce1 hces {h} /=]]]:
-    exists e1 es, [/\ pexpr_of_lval ii lv1 = ok e1, mapM (pexpr_of_lval ii) lvs = ok es,
-                           check_sopn_dest assemble_cond rip ii loargs e1 (ad, ty) &
-                           all2 (check_sopn_dest assemble_cond rip ii loargs) es (zip ads tys)].
+    exists e1 es,
+      [/\ pexpr_of_lval ii lv1 = ok e1
+        , mapM (pexpr_of_lval ii) lvs = ok es
+        , check_sopn_dest agparams rip ii loargs e1 (ad, ty)
+        & all2 (check_sopn_dest agparams rip ii loargs) es (zip ads tys)
+      ].
   + by case: pexpr_of_lval h => //= e1; case: mapM => //= es /andP [] ??; exists e1, es.
   rewrite /mem_write_vals /=.
   have [s1 [-> /= h2]]:= compile_lval msb_flag hlo hca hw1 he1 hce1.
@@ -521,10 +538,47 @@ Proof.
   by rewrite /check_sopn_dests hes.
 Qed.
 
+(* ------------------------------------------------------------------------ *)
+
+Record h_asm_gen_params (agparams : asm_gen_params) :=
+  {
+    (* Calling [assemble_cond] and [eval_cond] must respect the semantics
+       of the expression.
+       That is, if [m] is a state, and [rf] a flag map with matching values,
+       assembling and evaluating with [rf] is equivalent to computing the
+       semantics with a [m]. *)
+    hagp_eval_assemble_cond :
+      forall ii m rf e c v,
+        eqflags m rf
+        -> agp_assemble_cond agparams ii e = ok c
+        -> sem_pexpr [::] m e = ok v
+        -> let
+             get x := if rf x is Def b
+                      then ok b
+                      else undef_error
+           in
+           exists2 v',
+             value_of_bool (eval_cond get c) = ok v' & value_uincl v v';
+
+    (* Converting [extra_op]s into [asm_op]s, assembling them and evaluating
+       must be equivalent to computing their semantics. *)
+    hagp_assemble_extra_op :
+      forall rip ii op lvs args op' lvs' args' op'' asm_args m m' s,
+        sem_sopn [::] (Oasm (ExtOp op)) m lvs args = ok m'
+        -> to_asm ii op lvs args = ok (op', lvs', args')
+        -> assemble_asm_op agparams rip ii op' lvs' args'
+           = ok (op'', asm_args)
+        -> lom_eqv rip m s
+        -> exists2 s', eval_op op'' asm_args s = ok s' & lom_eqv rip m' s';
+  }.
+
+Context
+  (hagparams : h_asm_gen_params agparams).
+
 Lemma compile_asm_opn rip ii (loargs : seq asm_arg) op m s args lvs m' :
   let id := instr_desc op in
-  let csa := check_sopn_args assemble_cond rip ii loargs args in
-  let csd := check_sopn_dests assemble_cond rip ii loargs lvs in
+  let csa := check_sopn_args agparams rip ii loargs args in
+  let csd := check_sopn_dests agparams rip ii loargs lvs in
   sem_sopn [::] (Oasm (BaseOp op)) m lvs args = ok m'
   -> csa (zip (id_in id) (id_tin id))
   -> csd (zip (id_out id) (id_tout id))
@@ -550,7 +604,13 @@ Proof.
     rewrite /check_sopn_args /= => /andP[] hcheck1 hcheckn.
   t_xrbindP => vt1 hvt happ v' hv vs' hvs ??; subst v' vs'.
   have [s'] := hrec _ heqs (id_semi vt1) _ _ hcheckn happ hvs.
-  have [v' hev' hv'] := check_sopn_arg_sem_eval Hlomeqv hcheck1 hv hvt.
+  have [v' hev' hv'] :=
+    check_sopn_arg_sem_eval
+      (hagp_eval_assemble_cond hagparams)
+      Hlomeqv
+      hcheck1
+      hv
+      hvt.
   t_xrbindP => v1 v2 -> vt' /= happ1 ? hmw hlom; subst v1.
   by rewrite hev' /= hv' /= happ1 /=; eauto.
 Qed.
@@ -935,7 +995,7 @@ Qed.
 
 Lemma assemble_asm_opP rip ii op lvs args op' asm_args s m m' :
   sem_sopn [::] (Oasm (BaseOp op)) m lvs args = ok m' ->
-  assemble_asm_op assemble_cond rip ii op lvs args = ok (op', asm_args) ->
+  assemble_asm_op agparams rip ii op lvs args = ok (op', asm_args) ->
   lom_eqv rip m s ->
   exists2 s', eval_op op' asm_args s = ok s' & lom_eqv rip m' s'.
 Proof.
@@ -949,17 +1009,9 @@ Proof.
   by rewrite -exec_desc_desc_op.
 Qed.
 
-Context (assemble_extra_op :
-  forall rip ii op lvs args op' lvs' args' op'' asm_args m m' s,
-    sem_sopn [::] (Oasm (ExtOp op)) m lvs args = ok m'
-    -> to_asm ii op lvs args = ok (op', lvs', args')
-    -> assemble_asm_op assemble_cond rip ii op' lvs' args' = ok (op'', asm_args)
-    -> lom_eqv rip m s
-    -> exists2 s', eval_op op'' asm_args s = ok s' & lom_eqv rip m' s').
-
 Lemma assemble_sopnP rip ii op lvs args op' asm_args m m' s:
   sem_sopn [::] op m lvs args = ok m' ->
-  assemble_sopn assemble_cond rip ii op lvs args = ok (op', asm_args) ->
+  assemble_sopn agparams rip ii op lvs args = ok (op', asm_args) ->
   lom_eqv rip m s ->
   exists2 s', eval_op op' asm_args s = ok s' & lom_eqv rip m' s'.
 Proof.
@@ -967,7 +1019,7 @@ Proof.
   case=> //=.
   + by move=> a; apply: assemble_asm_opP.
   t_xrbindP=> op hsem [[op'' lvs'] args'].
-  by apply assemble_extra_op.
+  by apply (hagp_assemble_extra_op hagparams).
 Qed.
 
 Section WITH_RIP_RSP.
@@ -976,11 +1028,11 @@ Section WITH_RIP_RSP.
 Context (rip rsp : var).
 
 Lemma assemble_fdI fd fd' :
-  assemble_fd assemble_cond rip rsp fd = ok fd'
+  assemble_fd agparams rip rsp fd = ok fd'
   -> [/\ rsp \notin [seq v_var x | x <- lfd_arg fd ]
        , all is_arreg (lfd_callee_saved fd)
        & exists c arg res,
-           [/\ assemble_c assemble_cond rip (lfd_body fd) = ok c
+           [/\ assemble_c agparams rip (lfd_body fd) = ok c
              , mapM typed_reg_of_vari (lfd_arg fd) = ok arg
              , mapM typed_reg_of_vari (lfd_res fd) = ok res
              & fd' = {| asm_fd_align := lfd_align fd
@@ -1011,7 +1063,7 @@ Qed.
 (* Labels are preserved. *)
 
 Lemma assemble_c_labels (lc : lcmd) (ac : asm_code) :
-  assemble_c assemble_cond rip lc = ok ac
+  assemble_c agparams rip lc = ok ac
   -> label_in_lcmd lc = label_in_asm ac.
 Proof.
   move=> /mapM_Forall2. elim => // { lc ac }.
@@ -1023,7 +1075,7 @@ Proof.
 Qed.
 
 Lemma assemble_fd_labels (fn : funname) (fd : lfundef) (fd' : asm_fundef) :
-  assemble_fd assemble_cond rip rsp fd = ok fd'
+  assemble_fd agparams rip rsp fd = ok fd'
   -> [seq (fn, lbl) | lbl <- label_in_lcmd (lfd_body fd)]
      = [seq (fn, lbl) | lbl <- label_in_asm (asm_fd_body fd')].
 Proof.
@@ -1032,7 +1084,7 @@ Proof.
 Qed.
 
 Lemma assemble_i_is_label (li : linstr) (ai : asm_i) lbl :
-  assemble_i assemble_cond rip li = ok ai
+  assemble_i agparams rip li = ok ai
   -> linear.is_label lbl li = arch_sem.is_label lbl ai.
 Proof.
   by (rewrite /assemble_i /linear.is_label ; case li =>  ii []; t_xrbindP)
@@ -1040,7 +1092,7 @@ Proof.
 Qed.
 
 Lemma assemble_c_find_is_label (lc : lcmd) (ac : asm_code) lbl :
-  assemble_c assemble_cond rip lc = ok ac
+  assemble_c agparams rip lc = ok ac
   -> find (linear.is_label lbl) lc = find (arch_sem.is_label lbl) ac.
 Proof.
   rewrite /assemble_c.
@@ -1051,7 +1103,7 @@ Proof.
 Qed.
 
 Lemma assemble_c_find_label (lc : lcmd) (ac : asm_code) lbl :
-  assemble_c assemble_cond rip lc = ok ac
+  assemble_c agparams rip lc = ok ac
   -> linear.find_label lbl lc = arch_sem.find_label lbl ac.
 Proof.
   rewrite /assemble_c /linear.find_label /arch_sem.find_label => ok_ac.
@@ -1098,7 +1150,7 @@ Section PROG.
 Context
   (p : lprog)
   (p' : asm_prog)
-  (ok_p' : assemble_prog assemble_cond p = ok p').
+  (ok_p' : assemble_prog agparams p = ok p').
 
 Notation rip := (mk_ptr (lp_rip p)).
 Notation rsp := (mk_ptr (lp_rsp p)).
@@ -1106,7 +1158,7 @@ Notation rsp := (mk_ptr (lp_rsp p)).
 Lemma assemble_progP :
   let rip := mk_ptr (lp_rip p) in
   let rsp := mk_ptr (lp_rsp p) in
-  let assemble_fd := assemble_fd assemble_cond rip rsp in
+  let assemble_fd := assemble_fd agparams rip rsp in
   [/\ disj_rip rip
     , to_string ad_rsp = lp_rsp p
     , asm_globs p' = lp_globs p
@@ -1148,7 +1200,7 @@ Lemma ok_get_fundef fn fd :
   get_fundef (lp_funcs p) fn = Some fd
   -> exists2 fd',
        get_fundef (asm_funcs p') fn = Some fd'
-       & assemble_fd assemble_cond rip rsp fd = ok fd'.
+       & assemble_fd agparams rip rsp fd = ok fd'.
 Proof.
   move=> hfd.
   have [_ _ _ x] := assemble_progP.
@@ -1202,13 +1254,13 @@ Variant match_state
 | MS
   `(lom_eqv rip (to_estate ls) (asm_m xs))
   `(lfn ls = asm_f xs)
-  `(assemble_c assemble_cond rip lc = ok (asm_c xs))
+  `(assemble_c agparams rip lc = ok (asm_c xs))
   `(lpc ls = asm_ip xs).
 
 Lemma assemble_iP i j ls ls' lc xs :
   ssrfun.omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc
   -> match_state rip ls lc xs
-  -> assemble_i assemble_cond rip i = ok j
+  -> assemble_i agparams rip i = ok j
   -> linear_sem.eval_instr p i ls = ok ls'
   -> exists2 xs',
        arch_sem.eval_instr p' j xs = ok xs'
@@ -1279,7 +1331,7 @@ Proof.
     by rewrite /write_var ok_vm.
   - t_xrbindP => cnd lbl cndt ok_c <- b v ok_v ok_b.
     case: eqm => eqm hrip hd eqr eqx eqf.
-    have [v' ok_v' hvv'] := eval_assemble_cond eqf ok_c ok_v.
+    have [v' ok_v' hvv'] := hagp_eval_assemble_cond hagparams eqf ok_c ok_v.
     case: v ok_v ok_b hvv' => // [ b' | [] // ] ok_b [?]; subst b'.
     rewrite /eval_Jcc.
     case: b ok_b => ok_b;

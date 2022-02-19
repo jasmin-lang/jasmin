@@ -230,7 +230,7 @@ let main () =
       end;
 
 
-    let lowering_vars = Lowering.(
+    let lowering_vars = X86_lowering.(
         let f ty n = 
           let v = V.mk n (Reg Direct) ty L._dummy [] in
           Conv.cvar_of_var tbl v in
@@ -256,7 +256,7 @@ let main () =
     let translate_var = Conv.var_of_cvar tbl in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      let is_move_op = aparams.is_move_op in
+      let is_move_op = aparams.ap_is_move_op in
       StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl is_move_op up
      in
 
@@ -423,8 +423,8 @@ let main () =
       Compiler.print_linear = (fun s p -> eprint s pp_linear p; p);
       Compiler.warning      = warning;
       Compiler.inline_var   = inline_var;
-      Compiler.lowering_opt = Lowering.{ use_lea = !Glob_options.lea;
-                                         use_set0 = !Glob_options.set0; };
+      Compiler.lowering_opt = X86_lowering.{ use_lea = !Glob_options.lea;
+                                             use_set0 = !Glob_options.set0; };
       Compiler.is_glob     = is_glob;
       Compiler.fresh_id    = fresh_id;
       Compiler.fresh_counter = fresh_counter;

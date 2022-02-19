@@ -1,33 +1,39 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import expr.
-Import ZArith.
-Require merge_varmaps.
+Require Import ZArith.
+Require Import Utf8.
+
 Require Import
+  arch_params
   compiler_util
-  allocation
-  array_copy
-  array_init
-  inline
-  dead_calls
-  unrolling
-  remove_globals
-  constant_prop
-  propagate_inline
-  dead_code
-  array_expansion
-  makeReferenceArguments
-  stack_alloc
-  linearization
-  tunneling.
+  expr.
+Require merge_varmaps.
 Require Import
   arch_decl
   arch_extra
   asm_gen.
-Import Utf8.
+Require Import
+  allocation
+  array_copy
+  array_expansion
+  array_init
+  constant_prop
+  dead_calls
+  dead_code
+  inline
+  linearization
+  makeReferenceArguments
+  propagate_inline
+  remove_globals
+  stack_alloc
+  tunneling
+  unrolling.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+(* FIXME: expr exports wsize, which overrides this. *)
+Definition pp_s := compiler_util.pp_s.
 
 Section IS_MOVE_OP.
 
@@ -136,25 +142,6 @@ Record stack_alloc_oracles : Type :=
     ao_stack_alloc: funname → stk_alloc_oracle_t;
   }.
 
-(* Architecture-dependent functions *)
-Record architecture_params
-  `{asm_e : asm_extra}
-  (fresh_vars lowering_options : Type) :=
-  { is_move_op : asm_op_t -> bool
-  ; mov_ofs : lval -> assgn_tag -> vptr_kind -> pexpr -> Z -> option instr_r
-  ; lparams : linearization_params
-  ; lower_prog :
-      lowering_options
-      -> (instr_info -> warning_msg -> instr_info)
-      -> fresh_vars
-      -> forall (T : eqType) (pT : progT T),
-          (var_i -> bool) -> prog -> _prog extra_fun_t extra_prog_t
-  ; fvars_correct :
-      fresh_vars
-      -> forall (T : eqType) (pT : progT T), fun_decls -> bool
-  ; assemble_cond : instr_info -> pexpr -> cexec cond_t
-  }.
-
 Record compiler_params
   `{asm_e : asm_extra}
   (fresh_vars lowering_options : Type) := {
@@ -191,6 +178,11 @@ Context
   (aparams : architecture_params fresh_vars lowering_options)
   (cparams : compiler_params fresh_vars lowering_options).
 
+Notation saparams := (ap_sap aparams).
+Notation liparams := (ap_lip aparams).
+Notation loparams := (ap_lop aparams).
+Notation agparams := (ap_agp aparams).
+
 #[local]
 Existing Instance progUnit.
 
@@ -202,7 +194,7 @@ Definition remove_phi_nodes_prog (p: _uprog) : _uprog :=
   map_prog_name cparams.(remove_phi_nodes_fd) p.
 
 Definition var_tmp : var :=
-  {| vname := lp_tmp (lparams aparams); vtype := sword Uptr; |}.
+  {| vname := lip_tmp liparams; vtype := sword Uptr; |}.
 
 (* Ensure that export functions are preserved *)
 Definition check_removereturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
@@ -233,7 +225,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let p := dead_calls_err_seq to_keep p in
   let p := cparams.(print_uprog) RemoveUnusedFunction p in
 
-  Let p := unroll aparams.(is_move_op) Loop.nb p in
+  Let p := unroll (ap_is_move_op aparams) Loop.nb p in
   let p := cparams.(print_uprog) Unrolling p in
 
   let pv := split_live_ranges_prog p in
@@ -243,7 +235,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let pv := remove_phi_nodes_prog pv in
   let pv := cparams.(print_uprog) RemovePhiNodes pv in
   Let _ := CheckAllocRegU.check_prog p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
-  Let pv := dead_code_prog aparams.(is_move_op) pv false in
+  Let pv := dead_code_prog (ap_is_move_op aparams) pv false in
   let pv := cparams.(print_uprog) DeadCode_Renaming pv in
 
   let pr := remove_init_prog cparams.(is_reg_array) pv in
@@ -258,17 +250,20 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_id) pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
-  Let _ := assert (fvars_correct aparams cparams.(lowering_vars) (p_funcs pa))
-                  (pp_internal_error_s "lowering" "lowering check fails") in
+  Let _ :=
+    assert
+      (lop_fvars_correct loparams cparams.(lowering_vars) (p_funcs pa))
+      (pp_internal_error_s "lowering" "lowering check fails")
+  in
 
-  let
-    pl := lower_prog
-            aparams
-            cparams.(lowering_opt)
-            cparams.(warning)
-            cparams.(lowering_vars)
-            cparams.(is_var_in_memory)
-            pa
+  let pl :=
+    lop_lower_prog
+      loparams
+      (lowering_opt cparams)
+      (warning cparams)
+      (lowering_vars cparams)
+      (is_var_in_memory cparams)
+      pa
   in
   let pl := cparams.(print_uprog) LowerInstruction pl in
 
@@ -281,14 +276,14 @@ Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog 
 
   let rminfo := cparams.(removereturn) ps in
   Let _ := check_removereturn entries rminfo in
-  Let pr := dead_code_prog_tokeep aparams.(is_move_op) false rminfo ps in
+  Let pr := dead_code_prog_tokeep (ap_is_move_op aparams) false rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
   let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
   Let _ := CheckAllocRegS.check_prog pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 
-  Let pd := dead_code_prog aparams.(is_move_op) pa true in
+  Let pd := dead_code_prog (ap_is_move_op aparams) pa true in
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
 
   ok pd.
@@ -301,13 +296,17 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
 
   let ao := cparams.(stackalloc) pl in
   Let _ := check_no_ptr entries ao.(ao_stack_alloc) in
-  Let ps := stack_alloc.alloc_prog
-       true
-       (mov_ofs aparams)
-       cparams.(global_static_data_symbol)
-       cparams.(stack_register_symbol)
-       ao.(ao_globals) ao.(ao_global_alloc)
-       ao.(ao_stack_alloc) pl in
+  Let ps :=
+    stack_alloc.alloc_prog
+      true
+      saparams
+      (global_static_data_symbol cparams)
+      (stack_register_symbol cparams)
+      (ao_globals ao)
+      (ao_global_alloc ao)
+      (ao_stack_alloc ao)
+      pl
+  in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
 
   Let pd := compiler_third_part entries ps in
@@ -317,8 +316,9 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
 Definition check_export entries (p: sprog) : cexec unit :=
   allM (λ fn,
           if get_fundef (p_funcs p) fn is Some fd then
-            assert (fd.(f_extra).(sf_return_address) == RAnone)
-                   (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "export function expects a return address")))
+            assert
+              (fd.(f_extra).(sf_return_address) == RAnone)
+              (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "export function expects a return address")))
           else Error (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "unknown export function")))
        ) entries.
 
@@ -326,7 +326,7 @@ Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
   Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp callee_saved in
-  Let pl := linear_prog pd cparams.(extra_free_registers) (lparams aparams) in
+  Let pl := linear_prog pd cparams.(extra_free_registers) liparams in
   let pl := cparams.(print_linear) Linearization pl in
   (* tunneling                         *)
   Let pl := tunnel_program pl in
@@ -337,7 +337,7 @@ Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
 Definition compiler_back_end_to_asm (entries: seq funname) (p: sprog) :=
   let callee_saved := sv_of_list to_var callee_saved in
   Let lp := compiler_back_end callee_saved entries p in
-  assemble_prog (assemble_cond aparams) lp.
+  assemble_prog agparams lp.
 
 Definition compile_prog_to_asm entries subroutines (p: prog): cexec asm_prog :=
   compiler_front_end entries subroutines p >>= compiler_back_end_to_asm entries.
