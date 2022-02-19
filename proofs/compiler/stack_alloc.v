@@ -456,16 +456,21 @@ Inductive vptr_kind :=
 
 Definition var_kind := option vptr_kind.
 
-(* Return an instruction that computes an address from an base address and an
-   offset.
-   This is architecture-specific. *)
-Context (mov_ofs
-  :  lval       (* The variable to save the address to. *)
-  -> assgn_tag  (* The tag present in the source. *)
-  -> vptr_kind  (* The kind of address to compute. *)
-  -> pexpr      (* Variable with base address. *)
-  -> Z          (* Offset. *)
-  -> option instr_r).
+Record stack_alloc_params :=
+  {
+    (* Return an instruction that computes an address from an base address and
+     an offset. *)
+    sap_mov_ofs :
+      lval            (* The variable to save the address to. *)
+      -> assgn_tag    (* The tag present in the source. *)
+      -> vptr_kind    (* The kind of address to compute. *)
+      -> pexpr        (* Variable with base address. *)
+      -> Z            (* Offset. *)
+      -> option instr_r;
+  }.
+
+Context
+  (saparams : stack_alloc_params).
 
 Section Section.
 
@@ -701,7 +706,7 @@ Definition is_nop is_spilling rmap (x:var) (sry:sub_region) : bool :=
 Definition get_addr is_spilling rmap x dx tag sry vpk y ofs :=
   let ir := if is_nop is_spilling rmap x sry
             then Some nop
-            else mov_ofs dx tag vpk y ofs in
+            else sap_mov_ofs saparams dx tag vpk y ofs in
   let rmap := Region.set_move rmap x sry in
   (rmap, ir).
 

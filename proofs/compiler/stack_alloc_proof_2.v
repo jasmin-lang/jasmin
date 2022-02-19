@@ -1719,18 +1719,14 @@ Section PROC.
 Variable (P' : sprog).
 Hypothesis P'_globs : P'.(p_globs) = [::].
 
-Context (mov_ofs : lval -> assgn_tag -> vptr_kind -> pexpr -> Z -> option instr_r).
-Hypothesis mov_ofsP : forall (P': sprog) s1 e i x tag ofs w vpk s2 ins,
-  P'.(p_globs) = [::] ->
-  sem_pexpr [::] s1 e >>= to_pointer = ok i ->
-  mov_ofs x tag vpk e ofs = Some ins ->
-  write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
-  sem_i P' w s1 ins s2.
+Context
+  (saparams : stack_alloc_params)
+  (hsaparams : h_stack_alloc_params saparams).
 
 Variable (local_alloc : funname -> stk_alloc_oracle_t).
 Hypothesis Halloc_fd : forall fn fd,
   get_fundef P.(p_funcs) fn = Some fd ->
-  exists2 fd', alloc_fd mov_ofs P'.(p_extra) mglob local_alloc fn fd = ok fd' &
+  exists2 fd', alloc_fd saparams P'.(p_extra) mglob local_alloc fn fd = ok fd' &
                get_fundef P'.(p_funcs) fn = Some fd'.
 
 (* RAnone -> export function (TODO: rename RAexport?) *)
@@ -1763,7 +1759,7 @@ Let Pi_r s1 (i1:instr_r) s2 :=
   wf_pmap pmap rsp rip Slots Addr Writable Align ->
   wf_Slots Slots Addr Writable Align ->
   forall sao,
-  alloc_i mov_ofs pmap local_alloc sao rmap1 (MkI ii1 i1) = ok (rmap2, MkI ii2 i2) ->
+  alloc_i saparams pmap local_alloc sao rmap1 (MkI ii1 i1) = ok (rmap2, MkI ii2 i2) ->
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
@@ -1775,7 +1771,7 @@ Let Pi s1 (i1:instr) s2 :=
   wf_pmap pmap rsp rip Slots Addr Writable Align ->
   wf_Slots Slots Addr Writable Align ->
   forall sao,
-  alloc_i mov_ofs pmap local_alloc sao rmap1 i1 = ok (rmap2, i2) ->
+  alloc_i saparams pmap local_alloc sao rmap1 i1 = ok (rmap2, i2) ->
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
@@ -1787,7 +1783,7 @@ Let Pc s1 (c1:cmd) s2 :=
   wf_pmap pmap rsp rip Slots Addr Writable Align ->
   wf_Slots Slots Addr Writable Align ->
   forall sao,
-  fmapM (alloc_i mov_ofs pmap local_alloc sao) rmap1 c1 = ok (rmap2, c2) ->
+  fmapM (alloc_i saparams pmap local_alloc sao) rmap1 c1 = ok (rmap2, c2) ->
   forall m0 s1', valid_state pmap glob_size rsp rip Slots Addr Writable Align P rmap1 m0 s1 s1' ->
   extend_mem (emem s1) (emem s1') rip global_data ->
   wf_sao rsp (emem s1') sao ->
@@ -1858,7 +1854,19 @@ Proof.
   case: ifPn h => [/is_sarrP [n ?]| _ ].
   + subst ty.
     t_xrbindP=> halloc.
-    have [s2' [hs2' hvs']] := alloc_array_move_initP hwf.(wfsl_no_overflow) hwf.(wfsl_disjoint) hwf.(wfsl_align) hpmap P'_globs mov_ofsP hvs hv htr hw halloc.
+    have [s2' [hs2' hvs']] :=
+      alloc_array_move_initP
+        (wfsl_no_overflow hwf)
+        (wfsl_disjoint hwf)
+        (wfsl_align hwf)
+        hpmap
+        P'_globs
+        hsaparams
+        hvs
+        hv
+        htr
+        hw
+        halloc.
     by exists s2'.
   t_xrbindP => e' /(alloc_eP hwf.(wfsl_no_overflow) hwf.(wfsl_align) hpmap hvs) he [rmap2' x'] hax /= ??; subst rmap2' i2.
   have htyv':= truncate_val_has_type htr.
@@ -1965,7 +1973,7 @@ Proof.
 Qed.
 
 Lemma alloc_fd_max_size_ge0 pex fn fd fd' :
-  alloc_fd mov_ofs pex mglob local_alloc fn fd = ok fd' ->
+  alloc_fd saparams pex mglob local_alloc fn fd = ok fd' ->
   0 <= (local_alloc fn).(sao_max_size).
 Proof.
   rewrite /alloc_fd /alloc_fd_aux /=.
@@ -2709,23 +2717,21 @@ End PROC.
 
 End INIT.
 
-Section WITH_MOV_OFS.
+Section HSAPARAMS.
 
-Context {pd: PointerData}.
-Context `{asmop:asmOp}.
-Context (mov_ofs : lval -> assgn_tag -> vptr_kind -> pexpr -> Z -> option instr_r).
-Hypothesis mov_ofsP : forall (P': sprog) s1 e i x tag ofs w vpk s2 ins,
-  P'.(p_globs) = [::] ->
-  sem_pexpr [::] s1 e >>= to_pointer = ok i ->
-  mov_ofs x tag vpk e ofs = Some ins ->
-  write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
-  sem_i P' w s1 ins s2.
+Context
+  {pd : PointerData}
+  `{asmop : asmOp}.
+
+Context
+  (saparams : stack_alloc_params)
+  (hsaparams : h_stack_alloc_params saparams).
 
 Lemma get_alloc_fd p_extra mglob oracle fds1 fds2 :
-  map_cfprog_name (alloc_fd mov_ofs p_extra mglob oracle) fds1 = ok fds2 ->
+  map_cfprog_name (alloc_fd saparams p_extra mglob oracle) fds1 = ok fds2 ->
   forall fn fd1,
   get_fundef fds1 fn = Some fd1 ->
-  exists2 fd2, alloc_fd mov_ofs p_extra mglob oracle fn fd1 = ok fd2 &
+  exists2 fd2, alloc_fd saparams p_extra mglob oracle fn fd1 = ok fd2 &
                get_fundef fds2 fn = Some fd2.
 Proof.
   move=> hmap fn fd1.
@@ -2754,7 +2760,7 @@ Qed.
       except for the regions pointed to by the writable [reg ptr]s given as arguments.
 *)
 Theorem alloc_progP nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) fn:
-  alloc_prog mov_ofs nrip nrsp data oracle_g oracle P = ok SP ->
+  alloc_prog saparams nrip nrsp data oracle_g oracle P = ok SP ->
   forall ev m1 vargs1 m1' vres1,
     sem_call (sCP := sCP_unit) P ev m1 fn vargs1 m1' vres1 ->
     forall rip m2 vargs2,
@@ -2785,7 +2791,7 @@ Proof.
               hcheck
               (P':=P')
               refl_equal
-              mov_ofsP
+              hsaparams
               (get_alloc_fd hfds)
               hneq
               hsem1
@@ -2796,13 +2802,13 @@ Proof.
 Qed.
 
 Lemma alloc_prog_get_fundef nrip nrsp data oracle_g oracle (P: uprog) (SP: sprog) :
-  alloc_prog mov_ofs nrip nrsp data oracle_g oracle P = ok SP →
+  alloc_prog saparams nrip nrsp data oracle_g oracle P = ok SP →
   exists2 mglob,
     init_map (Z.of_nat (size data)) oracle_g = ok mglob &
     ∀ fn fd,
     get_fundef (p_funcs P) fn = Some fd →
     exists2 fd',
-      alloc_fd mov_ofs {| sp_rsp := nrsp ; sp_rip := nrip ; sp_globs := data |} mglob oracle fn fd = ok fd' &
+      alloc_fd saparams {| sp_rsp := nrsp ; sp_rip := nrip ; sp_globs := data |} mglob oracle fn fd = ok fd' &
       get_fundef (p_funcs SP) fn = Some fd'.
 Proof.
   rewrite /alloc_prog; t_xrbindP => mglob ->.
@@ -2814,7 +2820,7 @@ Proof.
 Qed.
 
 Lemma alloc_fd_checked_sao p_extra mglob oracle fn fd fd' :
-  alloc_fd mov_ofs p_extra mglob oracle fn fd = ok fd' →
+  alloc_fd saparams p_extra mglob oracle fn fd = ok fd' →
   [/\ size (sao_params (oracle fn)) = size (f_params fd) & size (sao_return (oracle fn)) = size (f_res fd) ].
 Proof.
   rewrite /alloc_fd/alloc_fd_aux/check_results; t_xrbindP => ?? _ [] [] ??? _.
@@ -2826,4 +2832,4 @@ Proof.
   by case: (size_mapM2 ok_results).
 Qed.
 
-End WITH_MOV_OFS.
+End HSAPARAMS.

@@ -2413,24 +2413,32 @@ Proof.
   by rewrite /I.memi /= !zify; lia.
 Qed.
 
-(* Return an instruction that computes an address from an base address and an
-   offset. See `stack_alloc.v`. *)
-Context (mov_ofs : lval -> assgn_tag -> vptr_kind -> pexpr -> Z -> option instr_r).
+(* ------------------------------------------------------------------ *)
 
-(* The semantics of `mov_ofs` are as described in `stack_alloc.v`. *)
-Hypothesis mov_ofsP : forall (P': sprog) s1 e i x tag ofs w vpk s2 ins,
-  P'.(p_globs) = [::] ->
-  sem_pexpr [::] s1 e >>= to_pointer = ok i ->
-  mov_ofs x tag vpk e ofs = Some ins ->
-  write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
-  sem_i P' w s1 ins s2.
+Record h_stack_alloc_params (saparams : stack_alloc_params) :=
+  {
+    (* [mov_ofs] must behave as described in stack_alloc.v. *)
+    mov_ofsP :
+      forall (P' : sprog) s1 e i x tag ofs w vpk s2 ins,
+        p_globs P' = [::]
+        -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
+        -> sap_mov_ofs saparams x tag vpk e ofs = Some ins
+        -> write_lval [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
+        -> sem_i P' w s1 ins s2;
+  }.
+
+Context
+  (saparams : stack_alloc_params)
+  (hsaparams : h_stack_alloc_params saparams).
+
+(* ------------------------------------------------------------------ *)
 
 Lemma alloc_array_moveP m0 s1 s2 s1' rmap1 rmap2 r tag e v v' n i2 :
   valid_state rmap1 m0 s1 s2 ->
   sem_pexpr gd s1 e = ok v ->
   truncate_val (sarr n) v = ok v' ->
   write_lval gd r v' s1 = ok s1' ->
-  alloc_array_move mov_ofs pmap rmap1 r tag e = ok (rmap2, i2) →
+  alloc_array_move saparams pmap rmap1 r tag e = ok (rmap2, i2) →
   ∃ s2' : estate, sem_i P' rip s2 i2 s2' ∧ valid_state rmap2 m0 s1' s2'.
 Proof.
   move=> hvs he; rewrite /truncate_val /=.
@@ -2503,13 +2511,13 @@ Proof.
       (* valid_state update *)
       by apply: (valid_state_set_move hvs hwf hlx _ (heqval _)).
     + move=> p hlx hlocal.
-      case Hmov_ofs: mov_ofs => [ins|];
+      case Hmov_ofs: (sap_mov_ofs saparams) => [ins|];
         last done.
       move=> [<- <-].
       set vp := pof_val p.(vtype) (Vword (sub_region_addr (sub_region_at_ofs sry (Some ofs) len))).
       exists (with_vm s2 (evm s2).[p <- vp]); split.
       + rewrite /vp -sub_region_addr_offset haddr -GRing.addrA -wrepr_add.
-        apply (mov_ofsP _ P'_globs he1 Hmov_ofs).
+        apply (mov_ofsP hsaparams _ P'_globs he1 Hmov_ofs).
         by case: (p) hlocal.(wfr_rtype) => ? pn /= ->.
       (* valid_state update *)
       by apply (valid_state_set_move_regptr hvs hwf hlx (heqval _)).
@@ -2541,7 +2549,7 @@ Proof.
       have /writeV -/(_ (w + wrepr Uptr (ofs2 + ofs))%R) [mem2 hmem2] := hvp.
       move => _ hi2.
       exists mem2; split.
-      + apply (mov_ofsP _ P'_globs he1 hi2).
+      + apply (mov_ofsP hsaparams _ P'_globs he1 hi2).
         rewrite /= vs_rsp /= !truncate_word_u /=.
         by rewrite -(sub_region_addr_stkptr hlocal) hmem2.
       + by apply (Memory.write_mem_stable hmem2).
@@ -2600,7 +2608,7 @@ Lemma alloc_array_move_initP m0 s1 s2 s1' rmap1 rmap2 r tag e v v' n i2 :
   sem_pexpr gd s1 e = ok v ->
   truncate_val (sarr n) v = ok v' ->
   write_lval gd r v' s1 = ok s1' ->
-  alloc_array_move_init mov_ofs pmap rmap1 r tag e = ok (rmap2, i2) →
+  alloc_array_move_init saparams pmap rmap1 r tag e = ok (rmap2, i2) →
   ∃ s2' : estate, sem_i P' rip s2 i2 s2' ∧ valid_state rmap2 m0 s1' s2'.
 Proof.
   move=> hvs.

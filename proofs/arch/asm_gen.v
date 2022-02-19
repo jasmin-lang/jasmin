@@ -153,7 +153,16 @@ Qed.
 (* Compilation of pexprs *)
 (* -------------------------------------------------------------------- *)
 
-Context (assemble_cond : instr_info -> pexpr -> cexec cond_t).
+Record asm_gen_params :=
+  {
+    (* Assemble an expression into an architecture-specific condition. *)
+    agp_assemble_cond : instr_info -> pexpr -> cexec cond_t;
+  }.
+
+Context
+  (agparams : asm_gen_params).
+
+Notation assemble_cond := (agp_assemble_cond agparams).
 
 (* -------------------------------------------------------------------- *)
 Definition scale_of_z' ii (z:pointer) : cexec nat :=

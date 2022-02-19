@@ -1,7 +1,7 @@
 open Utils
 open Prog
 open Regalloc
-open X86_stack_alloc
+open X86_params
 
 let pp_var = Printer.pp_var ~debug:true
 
@@ -160,8 +160,21 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
     Format.eprintf "%a@.@.@." (pp_oracle tbl up) saos
   end;
 
+  let mov_ofs = x86_params.ap_sap in
   let sp' = 
-    match Stack_alloc.alloc_prog U64 (Arch_extra.asm_opI X86_extra.x86_extra) false x86_mov_ofs crip crsp gao.gao_data cglobs cget_sao up with
+    match
+      Stack_alloc.alloc_prog
+        U64
+        (Arch_extra.asm_opI X86_extra.x86_extra)
+        false
+        mov_ofs
+        crip
+        crsp
+        gao.gao_data
+        cglobs
+        cget_sao
+        up
+    with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (pp_err tbl) tbl e in

@@ -512,6 +512,8 @@ Qed.
 Definition rflagv_eqMixin := Equality.Mixin rflagv_eq_axiom.
 Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
 
+(* FIXME: Is eval_cond really part of the architecture specification? Or
+   should it be in arch_params.v? *)
 Class asm (reg xreg rflag cond asm_op: Type) :=
   { _arch_decl   :> arch_decl reg xreg rflag cond
   ; _asm_op_decl :> asm_op_decl asm_op

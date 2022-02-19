@@ -23,6 +23,7 @@
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
+ssrmisc/sv_lemmas.v
 ssrmisc/xseq_extra.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
@@ -33,6 +34,7 @@ arch/asm_gen.v
 arch/asm_gen_proof.v
 arch/label.v
 compiler/allocation.v
+compiler/arch_params.v
 compiler/array_expansion.v
 compiler/array_expansion_proof.v
 compiler/array_copy.v
@@ -55,8 +57,6 @@ compiler/lea.v
 compiler/lea_proof.v
 compiler/linearization.v
 compiler/linearization_proof.v
-compiler/lowering.v
-compiler/lowering_proof.v
 compiler/makeReferenceArguments.v
 compiler/makeReferenceArguments_proof.v
 compiler/merge_varmaps.v
@@ -76,16 +76,11 @@ compiler/unrolling.v
 compiler/unrolling_proof.v
 compiler/x86_decl.v
 compiler/x86_extra.v
-compiler/x86_gen.v
-compiler/x86_gen_proof.v
 compiler/x86_instr_decl.v
-compiler/x86_linearization.v
-compiler/x86_linearization_proof.v
+compiler/x86_lowering.v
+compiler/x86_lowering_proof.v
 compiler/x86_params.v
-compiler/x86_params_proof.v
 compiler/x86_sem.v
-compiler/x86_stack_alloc.v
-compiler/x86_stack_alloc_proof.v
 lang/array.v
 lang/expr.v
 lang/expr_facts.v
