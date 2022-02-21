@@ -176,7 +176,7 @@ Definition Omulu_instr sz :=
            (w2_ty sz sz) [:: R RDX; R RAX] (fun x y => ok (@wumul sz x y)) sz [::].
  
 Definition Oaddcarry_instr sz := 
-  mk_instr (pp_sz "addc" sz) 
+  mk_instr (pp_sz "adc" sz)
            [::sword sz; sword sz; sbool] 
            [::E 0; E 1; F CF]
            (sbool :: (w_ty sz))  
@@ -185,7 +185,7 @@ Definition Oaddcarry_instr sz :=
            sz [::].
 
 Definition Osubcarry_instr sz:= 
-  mk_instr (pp_sz "subc" sz) 
+  mk_instr (pp_sz "sbb" sz)
            [::sword sz; sword sz; sbool] [::E 0; E 1; F CF]
            (sbool :: (w_ty sz)) [:: F CF; E 0] 
            (fun x y c => let p := @wsubcarry sz x y c in ok (Some p.1, p.2))
@@ -201,7 +201,7 @@ Definition Oset0_instr sz  :=
               ok (::vf, vf, vf, vt, vt & (0%R: word sz)))
              sz [::]
   else 
-    mk_instr (pp_sz "setw0" sz)
+    mk_instr (pp_sz "set0" sz)
              [::] [::]  
              (w_ty sz) [::E 0] 
              (ok (0%R: word sz)) sz [::].
