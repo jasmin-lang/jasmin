@@ -321,6 +321,12 @@ let pp_pprog fmt p =
 
 let pp_len fmt len = Format.fprintf fmt "%i" len 
 
+let pp_call_conv fmt =
+  function
+  | Export -> Format.fprintf fmt "export@ "
+  | Internal -> Format.fprintf fmt "inline@ "
+  | Subroutine _ -> ()
+
 let pp_fun ?(pp_info=pp_noinfo) pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
   let locals = locals fd in
@@ -329,7 +335,8 @@ let pp_fun ?(pp_info=pp_noinfo) pp_var fmt fd =
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
 
-  F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
+   pp_call_conv fd.f_cc
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_len)) ret
@@ -389,7 +396,7 @@ let pp_glob pp_var fmt (x, gd) =
 
 let pp_globs pp_var fmt gds = 
   Format.fprintf fmt "@[<v>%a@]"
-    (pp_list "@ @ " (pp_glob pp_var)) gds
+    (pp_list "@ @ " (pp_glob pp_var)) (List.rev gds)
 
 let pp_iprog ~debug pp_info fmt (gd, funcs) =
   let pp_var = pp_var ~debug in

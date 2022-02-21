@@ -68,7 +68,7 @@ Definition Oset0_instr sz  :=
               ok (::vf, vf, vf, vt, vt & (0%R: word sz)))
              sz [::]
   else 
-    mk_instr_desc (pp_sz "setw0" sz)
+    mk_instr_desc (pp_sz "set0" sz)
              [::] [::]  
              (w_ty sz) [::E 0] 
              (ok (0%R: word sz)) sz [::].
