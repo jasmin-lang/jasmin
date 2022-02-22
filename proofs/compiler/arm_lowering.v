@@ -13,15 +13,12 @@ Context
   {eft : eqType}
   {pT : progT eft}.
 
-Definition fresh_vars := True.
-Definition lowering_options := True.
+Definition fresh_vars := unit.
+Definition lowering_options := unit.
 
 Definition arm_fvars_correct
-  (_ : fresh_vars)
-  {eft : eqType}
-  {pT : progT eft}
-  (_ : fun_decls)
-  := true.
+  (_ : fresh_vars) {eft : eqType} {_ : progT eft} (_ : fun_decls) : bool :=
+  true.
 
 Definition lower_condition
   (ii : instr_info)

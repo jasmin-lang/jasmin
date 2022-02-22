@@ -602,10 +602,10 @@ Record h_asm_gen_params (agparams : asm_gen_params) :=
         eqflags m rf
         -> agp_assemble_cond agparams ii e = ok c
         -> sem_pexpr [::] m e = ok v
-        -> let
-             get x := if rf x is Def b
-                      then ok b
-                      else undef_error
+        -> let get x :=
+             if rf x is Def b
+             then ok b
+             else undef_error
            in
            exists2 v',
              value_of_bool (eval_cond get c) = ok v' & value_uincl v v';

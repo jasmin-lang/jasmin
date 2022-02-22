@@ -39,15 +39,11 @@ compiler/arch_params_proof.v
 compiler/arm_decl.v
 compiler/arm_extra.v
 compiler/arm_instr_decl.v
-compiler/arm_linearization.v
-compiler/arm_linearization_proof.v
 compiler/arm_lowering.v
 compiler/arm_lowering_proof.v
 compiler/arm_params.v
 compiler/arm_params_proof.v
 compiler/arm_sem.v
-compiler/arm_stack_alloc.v
-compiler/arm_stack_alloc_proof.v
 compiler/array_expansion.v
 compiler/array_expansion_proof.v
 compiler/array_copy.v
