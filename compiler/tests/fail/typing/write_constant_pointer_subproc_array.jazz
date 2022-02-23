@@ -1,0 +1,17 @@
+fn foo (reg ptr u64[3] px) -> reg u64 {
+  px[0] = 1;
+  px[1] = 0;
+  px[2] = 8;
+  reg u64 res_x;
+  res_x = px[0];
+  return res_x;
+}
+
+export fn main () -> reg u64 {
+  stack u64[3] x;
+  reg u64 res;
+  x[0] = 41;
+  _ = foo(x);
+  res = x[0];
+  return res;
+}
