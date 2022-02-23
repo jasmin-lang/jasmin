@@ -1,0 +1,8 @@
+export
+fn main() -> reg u64{
+  reg u64 a;
+  reg const ptr u64[1] p;
+  p[0] = 1;
+  a = p[0];
+  return a;
+}
