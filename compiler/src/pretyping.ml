@@ -51,6 +51,7 @@ type tyerror =
   | PtrOnlyForArray
   | ArgumentNotVar      
   | BadVariableKind     of P.v_kind
+  | WriteToConstantPointer of S.symbol
   | PackSigned
   | PackWrongWS of int
   | PackWrongPE of int
@@ -203,6 +204,9 @@ let pp_tyerror fmt (code : tyerror) =
   | BadVariableKind kind ->
     F.fprintf fmt "the variable should have kind %a"
        Printer.pp_kind kind
+
+  | WriteToConstantPointer v ->
+    F.fprintf fmt "Cannot write to the constant pointer %s" v
 
   | PackSigned ->
     F.fprintf fmt "packs should be unsigned"
@@ -1198,16 +1202,26 @@ let tt_param (env : Env.env) _loc (pp : S.pparam) : Env.env =
 
 (* -------------------------------------------------------------------- *)
 let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
+
+  let reject_constant_pointers loc x =
+    match x.P.v_kind with
+    | Stack (Pointer Constant) | Reg (Pointer Constant) ->
+       rs_tyerror ~loc (WriteToConstantPointer x.P.v_name)
+    | _ -> ()
+  in
+
   match pl with
   | S.PLIgnore ->
     loc, (fun ty -> P.Lnone(loc,ty)) , None
 
   | S.PLVar x ->
     let x = tt_var `NoParam env x in
+    reject_constant_pointers loc x ;
     loc, (fun _ -> P.Lvar (L.mk_loc loc x)), Some x.P.v_ty
 
   | S.PLArray (aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
     let x  = tt_var `NoParam env x in
+    reject_constant_pointers xlc x ;
     let ty,_ = tt_as_array (xlc, x.P.v_ty) in
     let ws = omap_dfl tt_ws (P.ws_of_ty ty) ws in 
     let ty = P.tu ws in
