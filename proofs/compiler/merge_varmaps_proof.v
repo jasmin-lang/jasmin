@@ -814,17 +814,46 @@ Section LEMMA.
 
       have hf:  ¬ Sv.In z (sv_of_flags rflags) → eval_uincl (evm s1).[z] (kill_flags tvm1 rflags).[z].
       + by rewrite kill_flagsE=> /sv_of_flagsP -/negbTE ->.
-      move: hnin; rewrite /ID /ra_undef_vm.
-      case: sf_return_address => // [ | v ]; last first.
-      + by move=> hnin; rewrite Fv.setP_neq //; apply/eqP; SvD.fsetdec.
-      move => /Sv.add_spec /Decidable.not_or[] /(@not_eq_sym _ _ _) z_not_var_tmp.
-      rewrite Fv.setP_neq; last by apply/eqP.
-      case: sf_save_stack => // r hr.
-      rewrite kill_flagsE.
-      have -> : z \in [seq to_var i | i <- rflags] = false.
-      + by apply/negbTE/sv_of_flagsP => h; apply: hr; rewrite Sv.add_spec; right.
-      case: (r =P z) => [? | /eqP ?]; last by rewrite Fv.setP_neq.
-      by subst r; elim hr; rewrite Sv.add_spec; left.
+
+      have huninit : ¬ Sv.In z params → ~~ is_sarr (vtype z) → z ≠ vgd → (evm s1).[z] = undef_error.
+      + move => h wty zgd; rewrite -(write_vars_eq_except ok_s1) // hvmap0 //; last by apply/eqP.
+        by rewrite Fv.get0; case: (z) wty => - [].
+      move: hnin preserved_magic; rewrite /ID /ra_undef_vm /writefun_ra ok_fd /ra_vm.
+      case: sf_return_address checked_ra => // [ | ra ]; last first.
+      + case => /eqP ra_ptr _.
+        rewrite -/params /magic_variables Sv.add_spec Sv.singleton_spec => /Decidable.not_or[] ra_not_gd ra_not_rsp ra_not_param.
+        rewrite Sv.inter_spec Sv.singleton_spec -/params => hnin _.
+        rewrite Fv.setP; case: eqP => // ?; subst.
+        by rewrite huninit // ra_ptr.
+      case => _ _ param_are_words K /not_written_magic[] NoGD NoRSP.
+      rewrite Fv.setP; case: eqP => var_tmp_z; [ subst | ].
+      + case: (SvP.MP.In_dec var_tmp params) => var_tmp_param; last first.
+        * rewrite huninit //.
+          by move => hgd; apply: NoGD; rewrite hgd !Sv.union_spec Sv.add_spec; right; left; left.
+        elim: K.
+        rewrite Sv.inter_spec; split; first by [].
+        exact: SvD.F.add_1.
+      move: K; rewrite Sv.inter_spec SvD.F.add_neq_iff // => K.
+      case: (SvP.MP.In_dec z params) => z_param.
+      + case: sf_save_stack K => [ | r | ofs ]; only 1, 3: by intuition.
+        rewrite kill_flagsE Sv.add_spec => hr.
+        case: ifP => /sv_of_flagsP z_flag; first by intuition.
+        rewrite Fv.setP_neq //; clear -hr z_param z_flag; apply/eqP => ?; apply: hr; intuition.
+      clear K.
+      move: huninit => /(_ z_param) huninit.
+      rewrite kill_flagsE; case: ifP; last first.
+      * move: NoGD; rewrite /saved_stack_vm.
+        case: sf_save_stack checked_save_stack => // r.
+        t_xrbindP => _ /assertP /eqP r_wty _ _ /assertP /negP r_ok hr z_not_flag.
+        rewrite Fv.setP; case: eqP => // ?; subst.
+        rewrite huninit //; first by rewrite r_wty.
+        move => ?; subst z; apply: r_ok.
+        apply/Sv_memP; apply: SvD.F.union_2; exact: SvD.F.add_1.
+      case/in_map => f _ ?; subst.
+      case: sf_save_stack checked_save_stack => [ | r | ofs ]; cycle 1.
+      1: t_xrbindP => _ /assertP /eqP r_ptr _ _ _.
+      1: rewrite Fv.setP_neq; last by case: r r_ptr => - [].
+      1-3: by case: tvm1.[_] hz => // _ _; rewrite huninit.
     have top_stack2 : top_stack (free_stack (emem s2)) = top_stack m.
     + have ok_alloc := Memory.alloc_stackP ok_m'.
       have ok_free := Memory.free_stackP (emem s2).
