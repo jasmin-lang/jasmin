@@ -462,10 +462,11 @@ Definition assemble_sopn rip ii (op:sopn) (outx : lvals) (inx : pexprs) :=
     Error (E.internal_error ii "assemble_sopn : invalid op")
   (* Low level x86 operations *)
   | Oasm (BaseOp op) =>
-    assemble_asm_op rip ii op outx inx
+    Let i := assemble_asm_op rip ii op outx inx in
+    ok [::i]
   | Oasm (ExtOp op) =>
-    Let: (op, outx, inx) := to_asm ii op outx inx in
-    assemble_asm_op rip ii op outx inx
+    Let i_s := to_asm ii op outx inx in
+    mapM (fun '(op, outx, inx) => assemble_asm_op rip ii op outx inx) i_s
   end.
 
 End ASM_EXTRA.

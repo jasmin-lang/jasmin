@@ -1,0 +1,24 @@
+export fn foo (reg u64 i) -> reg u64 {
+  stack u64[1] p;
+  stack u64 si;
+  reg u64 ms;
+  reg u64 r;
+  reg bool b;
+
+  /* init miss-speculation flag / mask to 0 (ie no miss-speculation)
+     Note, this should be enforced using first LFENCE */
+  ms = 0;
+  p[0] = 1;
+  si = i; // spill si ...
+  b = i == 0;
+  if (b) {
+     ms = #set_msf(b, ms);
+     i = si;
+     i = #protect(i, ms);
+     r = p[(int)i];
+  } else {
+     ms = #set_msf(!b, ms);
+     r = p[0];
+  }
+  return r;
+}

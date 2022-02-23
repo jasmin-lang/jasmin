@@ -121,7 +121,7 @@ End ARCH.
 Class asm_extra (reg xreg rflag cond asm_op extra_op : Type) := 
   { _asm   :> asm reg xreg rflag cond asm_op
   ; _extra :> asmOp extra_op (* description of extra ops *)
-  ; to_asm : instr_info -> extra_op -> lvals -> pexprs -> cexec (asm_op_msb_t * lvals * pexprs)
+  ; to_asm : instr_info -> extra_op -> lvals -> pexprs -> cexec (seq (asm_op_msb_t * lvals * pexprs))
       (* how to compile extra ops into asm op *)
   }.
 

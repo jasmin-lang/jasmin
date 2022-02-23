@@ -42,7 +42,10 @@ Unset Printing Implicit Defensive.
 Variant x86_extra_op : Type :=
 | Oset0     of wsize  (* set register + flags to 0 (implemented using XOR x x or VPXOR x x) *)
 | Oconcat128          (* concatenate 2 128 bits word into 1 256 word register *)   
-| Ox86MOVZX32.
+| Ox86MOVZX32
+| Oprotect  of wsize 
+| Oset_msf    
+ .
 
 Scheme Equality for x86_extra_op.
 
@@ -87,13 +90,58 @@ Definition Ox86MOVZX32_instr :=
            (λ x : u32, ok (zero_extend U64 x)) 
            U32 [::].
 
+
+Definition set_msf (b:bool) (w: pointer) : exec (pointer * pointer) := 
+  let aux :=  wrepr Uptr (-1) in
+  let w := if ~~b then aux else w in 
+  ok (aux, w).
+
+Definition Oset_msf_instr := 
+    mk_instr_desc (pp_s "set_msf")
+                  [:: sbool; sword Uptr]
+                  [:: E 0; E 1]
+                  [:: sword Uptr; sword Uptr]
+                  [:: E 2; E 1]
+                  set_msf
+                  U8 (* ? *)
+                  [::].
+
+Definition protect_small (ws:wsize) (w:word ws) (msf:pointer) : exec (sem_tuple (b5w_ty ws)) := 
+   x86_OR w (zero_extend ws msf).
+
+Definition protect_large (ws:wsize) (w:word ws) (msf:pointer) : exec (word ws * word ws) := 
+   Let _ := assert (Uptr < ws )%CMP ErrType in
+   let aux := wpbroadcast ws msf in
+   ok (aux, wor w aux).
+
+Definition Oprotect_instr (ws:wsize) := 
+  if (ws <= Uptr)%CMP then
+     mk_instr_desc (pp_sz "protect" ws)
+                  [:: sword ws; sword Uptr]
+                  [:: E 0; E 1]
+                  [:: sbool; sbool; sbool; sbool; sbool; sword ws]
+                  (map sopn_arg_desc implicit_flags ++ [:: E 0])
+                  (@protect_small ws)
+                  U8 (* ? *)
+                  [::]
+   else
+     mk_instr_desc (pp_sz "protect" ws)
+                  [:: sword ws; sword Uptr]
+                  [:: E 0; E 1]
+                  [:: sword ws; sword ws]
+                  [:: E 2; E 0]
+                  (@protect_large ws)
+                  U8 (* ? *)
+                  [::].
+
 Definition get_instr_desc o :=
   match o with
   | Oset0 ws => Oset0_instr ws
   | Oconcat128 => Oconcat128_instr
   | Ox86MOVZX32 => Ox86MOVZX32_instr
+  | Oprotect  sz => Oprotect_instr sz
+  | Oset_msf     => Oset_msf_instr
   end.
-
 
 (* TODO: to be removed? can we have one module for all asmgen errors? *)
 Module E.
@@ -112,7 +160,7 @@ Definition error (ii:instr_info) (msg:string) :=
 
 End E.
 
-Definition assemble_extra ii o outx inx : cexec (asm_op_msb_t * lvals * pexprs) :=
+Definition assemble_extra ii o outx inx : cexec (seq (asm_op_msb_t * lvals * pexprs)) :=
   match o with
   | Oset0 sz =>
     let op := if (sz <= U64)%CMP then (XOR sz) else (VPXOR sz) in
@@ -121,21 +169,41 @@ Definition assemble_extra ii o outx inx : cexec (asm_op_msb_t * lvals * pexprs) 
       | Lvar x :: _ =>  ok x
       | _ => Error (E.error ii "set0 : destination is not a register")
       end in
-    ok ((None, op), outx, [::Plvar x; Plvar x])
+    ok [::((None, op), outx, [::Plvar x; Plvar x])]
   | Ox86MOVZX32 =>
     Let x := 
       match outx with 
       | [::Lvar x] =>  ok x
       | _ => Error (E.error ii "Ox86MOVZX32: destination is not a register")
       end in
-    ok ((None, MOV U32), outx, inx)
+    ok [::((None, MOV U32), outx, inx)]
   | Oconcat128 =>
     Let inx := 
         match inx with
         | [:: h; Pvar _ as l] => ok [:: l; h; @wconst U8 1%R]
         |  _ => Error (E.error ii "Oconcat: assert false")
         end in
-    ok ((None, VINSERTI128), outx, inx)
+    ok [:: ((None, VINSERTI128), outx, inx)]
+  | Oprotect sz => 
+      if (sz <= U64) then 
+        ok [::((None, OR sz), outx, inx)]
+      else 
+        (* aux, x = protect y ms *)
+        match outx, inx with 
+        | [::Lvar aux; x], [:: y; ms] =>
+          ok ([::
+                 ((None, VPBROADCAST VE64 sz), [:: Lvar aux], [::ms]);
+                 ((None, VPOR sz), [:: x], [::y; Plvar aux])])
+        | _, _ => Error (E.error ii "Oprotect: aux destination not a register")
+        end
+  | Oset_msf => 
+      match outx, inx with 
+      | [::Lvar aux; ms1], [:: b; ms2] =>
+          ok ([::
+                 ((None, MOV U64), [:: Lvar aux], [::cast_const (-1)]);
+                 ((None, CMOVcc U64), [:: ms1], [::Papp1 Onot b; Plvar aux; ms2])])
+      | _, _ => Error (E.error ii "Oset_msf: aux destination not a register")
+      end
   end.
 
 Instance eqC_x86_extra_op : eqTypeC x86_extra_op :=

@@ -108,23 +108,23 @@ Fixpoint assemble_cond_r ii (e: pexpr) : cexec condt :=
 Definition assemble_cond ii (e: pexpr) : cexec condt :=
   assemble_cond_r ii e.
 
-Definition assemble_i (rip:var) (i: linstr) : cexec asm_i :=
+Definition assemble_i (rip:var) (i: linstr) : cexec (seq asm_i) :=
   let '{| li_ii := ii ; li_i := ir |} := i in
   match ir with
   | Lopn ds op es => 
     Let oa := assemble_sopn assemble_cond rip ii op ds es in
-    ok (AsmOp oa.1 oa.2)
+    ok (map (fun oa => AsmOp oa.1 oa.2) oa)
 
-  | Lalign  => ok ALIGN
+  | Lalign  => ok [:: ALIGN]
 
-  | Llabel lbl =>  ok (LABEL lbl)
+  | Llabel lbl =>  ok [:: LABEL lbl]
 
-  | Lgoto lbl => ok (JMP lbl)
+  | Lgoto lbl => ok [:: JMP lbl]
 
   | Ligoto e =>
     Let _ := assert (if e is Papp1 _ _ then false else true) (E.werror ii e "Ligoto/JMPI") in
     Let arg := assemble_word AK_mem rip ii Uptr e in
-    ok (JMPI arg)
+    ok [:: JMPI arg]
 
   | LstoreLabel x lbl =>
    
@@ -135,16 +135,17 @@ Definition assemble_i (rip:var) (i: linstr) : cexec asm_i :=
     | Lasub _ _ _ _ _ => Error (fail ii "sub array")
     | Lnone _ _ => Error (fail ii "none")
     end%string in
-    ok (STORELABEL dst lbl)
+    ok [:: STORELABEL dst lbl]
   | Lcond e l =>
       Let cond := assemble_cond ii e in
-      ok (Jcc l cond)
+      ok [:: Jcc l cond]
   end.
 
 (* -------------------------------------------------------------------- *)
 (*TODO: use in whatever characterization using an lprog there is.*)
 Definition assemble_c rip (lc: lcmd) : cexec (seq asm_i) :=
-  mapM (assemble_i rip) lc.
+  Let c := mapM (assemble_i rip) lc in
+  ok (flatten c).
 
 (* -------------------------------------------------------------------- *)
 Definition asm_typed_reg_of_var (x: var) : cexec asm_typed_reg :=

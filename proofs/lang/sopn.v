@@ -81,6 +81,7 @@ Definition asm_op_t {asm_op} {asmop : asmOp asm_op} := asm_op.
 Section ASM_OP.
 
 Context `{asmop : asmOp}.
+Context {pd: PointerData}.
 
 (* Instructions that must be present in all the architectures. *)
 Variant sopn :=
@@ -88,7 +89,7 @@ Variant sopn :=
 | Onop
 | Omulu     of wsize   (* cpu   : [sword; sword]        -> [sword;sword] *)
 | Oaddcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
-| Osubcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
+| Osubcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *) 
 | Oasm      of asm_op_t.
 
 Definition sopn_beq (o1 o2:sopn) :=
