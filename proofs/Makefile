@@ -14,7 +14,7 @@ install: Makefile.coq
 extraction: Makefile.coq
 	rm -f lang/ocaml/*.ml lang/ocaml/*.mli
 	rm -f lang/extraction.vo
-	$(COQMAKE) lang/extraction.vo
+	+$(COQMAKE) lang/extraction.vo
 
 # --------------------------------------------------------------------
 this-clean::
