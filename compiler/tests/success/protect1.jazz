@@ -6,10 +6,14 @@ export fn foo (reg u64 i) -> reg u64 {
   reg bool b;
 
   /* init miss-speculation flag / mask to 0 (ie no miss-speculation)
-     Note, this should be enforced using first LFENCE */
-  ms = 0;
+     This correspond to the sequence 
+     LFENCE;
+     ms = 0;  
+  */
+  ms = #init_msf();
+
   p[0] = 1;
-  si = i; // spill si ...
+  si = i; // spill i into si
   b = i == 0;
   if (b) {
      ms = #set_msf(b, ms);
@@ -20,5 +24,6 @@ export fn foo (reg u64 i) -> reg u64 {
      ms = #set_msf(!b, ms);
      r = p[0];
   }
+  ? #LFENCE;
   return r;
 }

@@ -43,9 +43,11 @@ Variant x86_extra_op : Type :=
 | Oset0     of wsize  (* set register + flags to 0 (implemented using XOR x x or VPXOR x x) *)
 | Oconcat128          (* concatenate 2 128 bits word into 1 256 word register *)   
 | Ox86MOVZX32
+(* Special instruction for SLH *)
 | Oprotect  of wsize 
 | Oset_msf    
- .
+| Oinit_msf
+.
 
 Scheme Equality for x86_extra_op.
 
@@ -90,19 +92,31 @@ Definition Ox86MOVZX32_instr :=
            (λ x : u32, ok (zero_extend U64 x)) 
            U32 [::].
 
-
 Definition set_msf (b:bool) (w: pointer) : exec (pointer * pointer) := 
   let aux :=  wrepr Uptr (-1) in
   let w := if ~~b then aux else w in 
   ok (aux, w).
 
 Definition Oset_msf_instr := 
-    mk_instr_desc (pp_s "set_msf")
-                  [:: sbool; sword Uptr]
-                  [:: E 0; E 1]
-                  [:: sword Uptr; sword Uptr]
-                  [:: E 2; E 1]
-                  set_msf
+  mk_instr_desc (pp_s "set_msf")
+                [:: sbool; sword Uptr]
+                [:: E 0; E 1]
+                [:: sword Uptr; sword Uptr]
+                [:: E 2; E 1]
+                set_msf
+                U8 (* ? *)
+                [::].
+
+Definition init_msf : exec (pointer) := 
+  ok (wrepr Uptr 0).
+
+Definition Oinit_msf_instr := 
+    mk_instr_desc (pp_s "init_msf")
+                  [:: ]
+                  [:: ]
+                  [:: sword Uptr]
+                  [:: E 0]
+                  init_msf
                   U8 (* ? *)
                   [::].
 
@@ -141,6 +155,7 @@ Definition get_instr_desc o :=
   | Ox86MOVZX32 => Ox86MOVZX32_instr
   | Oprotect  sz => Oprotect_instr sz
   | Oset_msf     => Oset_msf_instr
+  | Oinit_msf    => Oinit_msf_instr
   end.
 
 (* TODO: to be removed? can we have one module for all asmgen errors? *)
@@ -204,6 +219,9 @@ Definition assemble_extra ii o outx inx : cexec (seq (asm_op_msb_t * lvals * pex
                  ((None, CMOVcc U64), [:: ms1], [::Papp1 Onot b; Plvar aux; ms2])])
       | _, _ => Error (E.error ii "Oset_msf: aux destination not a register")
       end
+  | Oinit_msf =>
+      ok([::((None, LFENCE),[::], [::]);
+            ((None, MOV U64), outx, [::cast_const 0])])
   end.
 
 Instance eqC_x86_extra_op : eqTypeC x86_extra_op :=

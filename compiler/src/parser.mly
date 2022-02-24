@@ -331,10 +331,15 @@ pinstr_r:
 | x=plvalues o=peqop e=pexpr c=prefix(IF, pexpr)? SEMICOLON
     { PIAssign (x, o, e, c) }
 
-| fc=loc(f=var args=parens_tuple(pexpr) { (f, args) })
+| fc=loc(f=var args=parens_tuple(pexpr)? { (f, args) })
     c=prefix(IF, pexpr)? SEMICOLON
     { let { L.pl_loc = loc; L.pl_desc = (f, args) } = fc in
-      PIAssign ((None, []), `Raw, L.mk_loc loc (PECall (f, args)), c) }
+      PIAssign ((None, []), `Raw, L.mk_loc loc (PECall (f, Utils.odfl [] args)), c) }
+
+
+| QUESTIONMARK fc=loc(f=prim args=parens_tuple(pexpr)? { (f, args) }) SEMICOLON
+    { let { L.pl_loc = loc; L.pl_desc = (f, args) } = fc in
+      PIAssign ((None, []), `Raw, L.mk_loc loc (PEPrim (f, Utils.odfl [] args)), None) }
 
 | IF c=pexpr i1s=pblock
     { PIIf (c, i1s, None) }

@@ -1221,6 +1221,7 @@ let prim_string =
     "concat_2u128", PrimM (fun _ws -> Oasm (ExtOp Oconcat128));
     "protect", PrimP (W.U64, fun _ws sz -> Oasm (ExtOp (Oprotect sz)));
     "set_msf", PrimM (fun _ws -> Oasm (ExtOp Oset_msf));
+    "init_msf", PrimM (fun _ws -> Oasm (ExtOp Oinit_msf));
  ] @
   List.map (fun (s, prc) ->
       let s = Conv.string_of_string0 s in

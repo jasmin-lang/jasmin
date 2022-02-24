@@ -185,6 +185,9 @@ Variant x86_op : Type :=
 | VAESIMC
 | AESKEYGENASSIST
 | VAESKEYGENASSIST 
+
+(* *)
+| LFENCE
 .
 
 Scheme Equality for x86_op.
@@ -964,6 +967,9 @@ Definition x86_AESENC          (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wrepr 
 Definition x86_AESENCLAST      (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
 Definition x86_AESIMC          (v1    : u128) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
 Definition x86_AESKEYGENASSIST (v1 : u128) (v2 : u8) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
+
+(* ---------------------------------------------------------------- *)
+Definition x86_LFENCE : exec (sem_tuple [::]) := ok tt.
 
 (* ----------------------------------------------------------------------------- *)
 
@@ -1746,6 +1752,10 @@ Definition Ox86_VAESKEYGENASSIST_instr :=
    (check_xmm_xmmm_imm8 U128) 3 U128 (PrimM VAESKEYGENASSIST) 
    (pp_name_ty "vaeskeygenassist" [::U128;U128;U8]).
 
+Definition Ox86_LFENCE_instr := 
+  mk_instr_pp "LFENCE" [::] [::] [::] [::] MSB_CLEAR x86_LFENCE 
+          [:: [::]] 0 U8 (PrimM LFENCE) (pp_name "lfence" U8).
+
 Definition x86_instr_desc o : instr_desc_t :=
   match o with
   | MOV sz             => Ox86_MOV_instr.1 sz
@@ -1867,6 +1877,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VAESIMC            => Ox86_VAESIMC_instr.1         
   | AESKEYGENASSIST    => Ox86_AESKEYGENASSIST_instr.1 
   | VAESKEYGENASSIST   => Ox86_VAESKEYGENASSIST_instr.1 
+  | LFENCE             => Ox86_LFENCE_instr.1 
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -1997,7 +2008,8 @@ Definition x86_prim_string :=
               if signedness is Signed then VPMAXS ve sz else VPMAXU ve sz));
    ("VPMIN"%string, 
      PrimSV (fun signedness ve sz => 
-              if signedness is Signed then VPMINS ve sz else VPMINU ve sz))
+              if signedness is Signed then VPMINS ve sz else VPMINU ve sz));
+   Ox86_LFENCE_instr.2
  ].
 
 Instance eqC_x86_op : eqTypeC x86_op :=
