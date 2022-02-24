@@ -470,10 +470,8 @@ qed.
 
 (* --------------------------------------------------- *)
 (* shift over integer *)
-(*
-op (`<<`) (x i : int) : int = 
+op (`<<`) (x i : int) : int =
   if (0 <= i) then x * 2^i
   else (x %/ 2^(-i)).
 
 op (`|>>`) (x i : int) : int = x `<<` (-i).
-*)
