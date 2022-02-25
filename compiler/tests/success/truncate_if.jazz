@@ -1,0 +1,15 @@
+export
+fn a(reg u64 x y) -> reg u32 {
+  reg u32 z;
+  z = x;
+  z = y <u 0 ? x : z;
+  return z;
+}
+
+export
+fn b(reg u64 x y) -> reg u32 {
+  reg u32 z;
+  z = x;
+  z = x if y <u 0;
+  return z;
+}

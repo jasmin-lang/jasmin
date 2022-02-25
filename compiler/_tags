@@ -1,7 +1,7 @@
 # --------------------------------------------------------------------
 true : use_menhir, menhir_explain, menhir_table
 true : debug
-true : warn_Z, warn_Y, warn_+28, warn_-23, warn_+33, warn_-58, warn_-3, warn_-40
+true : warn_Z, warn_Y, warn_+28, warn_-23, warn_+33, warn_-58
 true : -traverse
 true : bin_annot
 
@@ -22,7 +22,6 @@ true : bin_annot
 <src/cost/*.cmx>          : for-pack(Jasmin)
 <src/safety/*.cmx>        : for-pack(Jasmin)
 <src/safety/domains/*.cmx>: for-pack(Jasmin)
-<src/ppasm.ml>: warn_-27
 
 <CIL/*.cmx>: for-pack(Jasmin)
 <CIL/*.{ml,mli}>: warn_-20, warn_-33

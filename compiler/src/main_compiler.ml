@@ -137,7 +137,6 @@ and pp_comp_ferr tbl fmt = function
 
 
 (* -------------------------------------------------------------------- *)
-    
 let check_safety_p s p source_p =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
@@ -148,7 +147,7 @@ let check_safety_p s p source_p =
   in
 
   let () = SafetyConfig.pp_current_config_diff () in
-  
+
   let () =
     List.iter (fun f_decl ->
         if f_decl.f_cc = Export then
@@ -167,7 +166,7 @@ let check_safety_p s p source_p =
 
           AbsInt.analyze ())
       (List.rev (snd p)) in
-  exit 0 
+  exit 0
 
 
 (* -------------------------------------------------------------------- *)
@@ -206,15 +205,25 @@ let main () =
     if !typeonly then exit 0;
 
     let prog = Subst.remove_params pprog in
-    eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
 
-    if SafetyConfig.sc_comp_pass () = Compiler.ParamsExpansion &&
-       !check_safety
-    then check_safety_p Compiler.ParamsExpansion prog source_prog
-    else
+    (* This function is called after each compilation pass.
+        - Check program safety (and exit) if the time has come
+        - Pretty-print the program
+        - Add your own checker here!
+    *)
+    let visit_prog_after_pass ~debug s p =
+      if !cost_analysis && s |> print_strings |> fst = !cost_after_pass
+      then CostAnalysis.analyze p
+      else
+      if s = SafetyConfig.sc_comp_pass () && !check_safety then
+        check_safety_p s p source_prog
+      else
+        eprint s (Printer.pp_prog ~debug) p in
+
+    visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 
     if !ec_list <> [] then begin
       let fmt, close =
@@ -348,22 +357,9 @@ let main () =
         else x in
       Conv.string0_of_string x in
 
-    (* Check safety and calls exit(_). *)
-    let check_safety_cp s cp =
-      let p = Conv.prog_of_cprog tbl cp in
-      check_safety_p s p source_prog in
-
     let pp_cprog s cp =
-      if !cost_analysis && s |> print_strings |> fst = !cost_after_pass
-      then cp |> Conv.prog_of_cprog tbl |> CostAnalysis.analyze
-      else
-      if s = SafetyConfig.sc_comp_pass () && !check_safety then
-        check_safety_cp s cp
-      else
-        eprint s (fun fmt cp ->
-            let p = Conv.prog_of_cprog tbl cp in
-            Printer.pp_prog ~debug:true fmt p) cp in
-
+      Conv.prog_of_cprog tbl cp |>
+      visit_prog_after_pass ~debug:true s in
 
     let cparams = {
       Compiler.rename_fd    = rename_fd;
