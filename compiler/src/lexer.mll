@@ -125,7 +125,7 @@ rule main = parse
   | ((*'-'?*) digit+) as s   
       { INT (Bigint.of_string s) } 
 
-  | ("0x" hexdigit+) as s
+  | ('0' ['x' 'X'] hexdigit+) as s
       { INT (Bigint.of_string s) }
 
   | ident+ as s

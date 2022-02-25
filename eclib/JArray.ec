@@ -368,6 +368,17 @@ abstract theory PolyArray.
     by apply ext_eq => j hj; rewrite get_set_if; case: (0 <= i < size /\ j = i).
   qed.
 
+  lemma init_set (t:'a t) (f : int -> 'a) :
+    foldl (fun (a : 'a t) i => a.[i <- f i]) t (iota_ 0 size) =
+    init f.
+  proof.
+    apply ext_eq=> x hx; rewrite initiE 1://.
+    have h : forall sz, sz <= size => 0 <= x < sz => 
+      (foldl (fun (a : 'a t) (i : int) => a.[i <- f i]) t (iota_ 0 sz)).[x] = f x; last by apply (h size).
+    elim /natind; 1: smt().
+    by move=> {hx} sz hsz0 ih hsize hx; rewrite iotaSr 1:// -cats1 foldl_cat /=; smt (get_setE).
+  qed.
+
   (* -------------------------------------------------------------------- *)
   op create (a:'a) = init (fun (i:int) => a)
   axiomatized by createE.

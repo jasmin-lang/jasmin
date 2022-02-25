@@ -1,14 +1,22 @@
-S src
 S CIL
+S cost
 S entry
+S src
+S src/safety
+S src/safety/domains
 
-B _build
+B _build/CIL
+B _build/cost
 B _build/entry
+B _build/src
+B _build/src/safety
+B _build/src/safety/domains
 
+PKG apron
 PKG batteries
 PKG menhirLib
 PKG zarith
 PKG yojson
 
 FLG -rectypes
-FLG -w Y -w Z -w -23 -w +28 -w +33 -w -40 -w 58
+FLG -w Y -w Z -w -23 -w +28 -w +33 -w -58
