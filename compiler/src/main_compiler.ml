@@ -255,13 +255,13 @@ let main () =
         let exec (f, m) =
           try
             let pp_range fmt (ptr, sz) =
-              Format.fprintf fmt "%a:%a" B.pp_print ptr B.pp_print sz in
+              Format.fprintf fmt "%a:%a" Z.pp_print ptr Z.pp_print sz in
             Format.printf "Evaluation of %s (@[<h>%a@]):@." f.fn_name
               (pp_list ",@ " pp_range) m;
             let _m, vs, lk =
               (** TODO: allow to configure the initial stack pointer *)
-              let live = List.map (fun (ptr, sz) -> Conv.int64_of_bi ptr, Conv.z_of_bi sz) m in
-              (match Low_memory.Memory.coq_M.init live (Conv.int64_of_bi (Bigint.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
+              let live = List.map (fun (ptr, sz) -> Conv.int64_of_z ptr, Conv.cz_of_z sz) m in
+              (match Low_memory.Memory.coq_M.init live (Conv.int64_of_z (Z.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
               Evaluator.exec cprog (Conv.cfun_of_fun tbl f) in
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
@@ -301,14 +301,14 @@ let main () =
         Var0.Var.vname (Conv.cvar_of_var tbl Array_expand.vstack) in
       let alloc, sz, to_save, p_stack = Array_expand.stk_alloc_func fd in
       let alloc =
-        let trans (v,i) = Conv.cvar_of_var tbl v, Conv.z_of_int i in
+        let trans (v,i) = Conv.cvar_of_var tbl v, Conv.cz_of_int i in
         List.map trans alloc in
-      let sz = Conv.z_of_int sz in
+      let sz = Conv.cz_of_int sz in
       let p_stack = 
         match p_stack with
         | None -> Stack_alloc.SavedStackNone
         | Some (`InReg x) -> Stack_alloc.SavedStackReg (Conv.cvar_of_var tbl x)
-        | Some (`InStack p) -> Stack_alloc.SavedStackStk (Conv.z_of_int p) in
+        | Some (`InStack p) -> Stack_alloc.SavedStackStk (Conv.cz_of_int p) in
       
       let to_save = List.map (Conv.cvar_of_var tbl) (Sv.elements to_save) in
       ((sz, stk_i), alloc), (to_save, p_stack) 

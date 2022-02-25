@@ -3,7 +3,6 @@ open Utils
 open Wsize
 module E = Expr
 module L = Location
-module B = Bigint
 
 module Name = struct
   type t = string
@@ -46,9 +45,9 @@ type 'expr gty =
            (* the type of the expression is [Int] *)
 
 type 'ty gexpr =
-  | Pconst of B.zint
+  | Pconst of Z.t
   | Pbool  of bool
-  | Parr_init of B.zint
+  | Parr_init of Z.t
   | Pvar   of 'ty gvar_i
   | Pglobal of wsize * Name.t
   | Pget   of wsize * 'ty gvar_i * 'ty gexpr
@@ -198,7 +197,7 @@ let rec pty_equal t1 t2 =
 
 and pexpr_equal e1 e2 = 
  match e1, e2 with
- | Pconst n1, Pconst n2 -> B.equal n1 n2
+ | Pconst n1, Pconst n2 -> Z.equal n1 n2
  | Pbool b1, Pbool b2 -> b1 = b2
  | Pvar v1, Pvar v2 -> PV.equal (L.unloc v1) (L.unloc v2)
  | Pglobal (s1, n1), Pglobal (s2, n2) -> s1 = s2 && Name.equal n1 n2
@@ -225,7 +224,7 @@ type 'info stmt  = (ty,'info) gstmt
 
 type 'info func     = (ty,'info) gfunc
 type 'info mod_item = (ty,'info) gmod_item
-type global_decl    = wsize * Name.t * B.zint
+type global_decl    = wsize * Name.t * Z.t
 type 'info prog     = global_decl list * 'info func list
 
 module V = struct
@@ -371,16 +370,16 @@ let is_reg_arr v =
 
 let ( ++ ) e1 e2 =
   match e1, e2 with
-  | Pconst n1, Pconst n2 -> Pconst (B.add n1 n2)
+  | Pconst n1, Pconst n2 -> Pconst (Z.add n1 n2)
   | _, _                 -> Papp2(Oadd Op_int, e1, e2)
   
 let ( ** ) e1 e2 =
   match e1, e2 with
-  | Pconst n1, Pconst n2 -> Pconst (B.mul n1 n2)
+  | Pconst n1, Pconst n2 -> Pconst (Z.mul n1 n2)
   | _, _                 -> Papp2(Omul Op_int, e1, e2)
 
 let cnst i = Pconst i
-let icnst i = cnst (B.of_int i)
+let icnst i = cnst (Z.of_int i)
 
 let cast64 e = Papp1 (Oword_of_int U64, e)
 
@@ -402,8 +401,8 @@ let destruct_move i =
   | _                 -> assert false
 
 (* -------------------------------------------------------------------- *)
-let clamp (sz : wsize) (z : Bigint.zint) =
-  Bigint.erem z (Bigint.lshift Bigint.one (int_of_ws sz))
+let clamp (sz : wsize) (z : Z.t) =
+  Z.erem z (Z.shift_left Z.one (int_of_ws sz))
 
-let clamp_pe (sz : pelem) (z : Bigint.zint) =
-  Bigint.erem z (Bigint.lshift Bigint.one (int_of_pe sz))
+let clamp_pe (sz : pelem) (z : Z.t) =
+  Z.erem z (Z.shift_left Z.one (int_of_pe sz))

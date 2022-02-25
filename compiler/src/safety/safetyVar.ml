@@ -187,7 +187,7 @@ let rec expand_arr_exprs = function
   | [] -> []
   | Pvar v :: t -> begin match (L.unloc v).v_ty with
       | Arr (ws, n) ->
-        List.init n (fun i -> Pget (ws, v, Pconst (B.of_int i)))
+        List.init n (fun i -> Pget (ws, v, Pconst (Z.of_int i)))
         @ expand_arr_exprs t
       | _ -> Pvar v :: expand_arr_exprs t end
   | h :: t -> h :: expand_arr_exprs t

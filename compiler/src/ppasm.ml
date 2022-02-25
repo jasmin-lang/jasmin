@@ -1,6 +1,5 @@
 (* -------------------------------------------------------------------- *)
 open Utils
-open Bigint.Notations
 open X86_decl
 (* -------------------------------------------------------------------- *)
 module W = Wsize
@@ -108,16 +107,16 @@ let pp_scale (scale : X86_decl.scale) =
 
 (* -------------------------------------------------------------------- *)
 let pp_address (addr : X86_decl.address) =
-  let disp = Conv.bi_of_int64 addr.ad_disp in
+  let disp = Conv.z_of_int64 addr.ad_disp in
   let base = addr.ad_base in
   let off  = addr.ad_offset in
   let scal = addr.ad_scale in
 
   if Option.is_none base && Option.is_none off then
-    Bigint.to_string disp
+    Z.to_string disp
   else begin
-    let disp = if disp =^ Bigint.zero then None else Some disp in
-    let disp = odfl "" (omap Bigint.to_string disp) in
+    let disp = if Z.equal disp Z.zero then None else Some disp in
+    let disp = odfl "" (omap Z.to_string disp) in
     let base = odfl "" (omap (pp_register `U64) base) in
     let off  = omap (pp_register `U64) off in
 
@@ -131,8 +130,8 @@ let pp_address (addr : X86_decl.address) =
   end
 
 (* -------------------------------------------------------------------- *)
-let pp_imm (imm : Bigint.zint) =
-  Format.sprintf "$%s" (Bigint.to_string imm)
+let pp_imm (imm : Z.t) =
+  Format.sprintf "$%s" (Z.to_string imm)
 
 (* -------------------------------------------------------------------- *)
 let pp_label = string_of_label
@@ -193,7 +192,7 @@ let pp_xmm_register (ws: W.wsize) (r: X86_decl.xmm_register) : string =
 let pp_asm_arg ((ws,op):(W.wsize * asm_arg)) = 
   match op with
   | Condt  _   -> assert false 
-  | Imm(ws, w) -> pp_imm (Conv.bi_of_word ws w)
+  | Imm(ws, w) -> pp_imm (Conv.z_of_word ws w)
   | Glob g     -> pp_global g
   | Reg r      -> pp_register (rsize_of_wsize ws) r
   | Adr addr   -> pp_address addr
@@ -288,12 +287,12 @@ let decl_of_ws =
   | W.U64 -> Some ".quad"
   | W.U128 | W.U256 -> None
 
-let bigint_to_bytes n z =
-  let base = Bigint.of_int 256 in
+let z_to_bytes n z =
+  let base = Z.of_int 256 in
   let res = ref [] in
   let z = ref z in
   for i = 1 to n do
-    let q, r = Bigint.ediv !z base in
+    let q, r = Z.ediv_rem !z base in
     z := q;
     res := r :: !res
   done;
@@ -301,10 +300,10 @@ let bigint_to_bytes n z =
 
 let pp_const ws z =
   match decl_of_ws ws with
-  | Some d -> [ `Instr (d, [Bigint.to_string z]) ]
+  | Some d -> [ `Instr (d, [Z.to_string z]) ]
   | None ->
-    List.rev_map (fun b -> `Instr (".byte", [ Bigint.to_string b] ))
-      (bigint_to_bytes (Prog.size_of_ws ws) z)
+    List.rev_map (fun b -> `Instr (".byte", [ Z.to_string b] ))
+      (z_to_bytes (Prog.size_of_ws ws) z)
 
 let pp_glob_def fmt (gd:Global.glob_decl) : unit =
   let (ws,n,z) = Conv.gd_of_cgd gd in
@@ -337,7 +336,7 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
   let open Prog in
   List.iter (fun (n, d) ->
       let name = string_of_funname tbl n in
-      let stsz  = Conv.bi_of_z d.xfd_stk_size in
+      let stsz  = Conv.z_of_cz d.xfd_stk_size in
       let tosave, saved_stack = d.xfd_extra in
       pp_gens fmt [
         `Label (mangle (string_of_funname tbl n));
@@ -348,14 +347,14 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
         tosave;
       begin match saved_stack with
       | SavedStackNone  -> 
-        assert (Bigint.equal stsz Bigint.zero);
+        assert (Z.equal stsz Z.zero);
         pp_instrs name fmt d.X86_sem.xfd_body;
       | SavedStackReg r ->
         pp_instrs name fmt
           [ AsmOp(MOV uptr, [Reg r; Reg RSP]);
-            AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)]);
+            AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_z stsz)]);
             AsmOp(AND uptr, [Reg RSP; Imm(U32, 
-                                          Conv.int32_of_bi (B.of_int (-32)))]);
+                                          Conv.int32_of_z (Z.of_int (-32)))]);
           ];
         pp_instrs name fmt d.X86_sem.xfd_body;
         pp_instrs name fmt 
@@ -363,15 +362,15 @@ let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
   
       | SavedStackStk p -> 
         let adr = 
-          Adr { ad_disp  = Conv.int64_of_bi (Conv.bi_of_z p);
+          Adr { ad_disp  = Conv.int64_of_z (Conv.z_of_cz p);
                 ad_base   = Some RSP;
                 ad_scale  = Scale1;
                 ad_offset = None } in
         pp_instrs name fmt 
           [ AsmOp(MOV uptr, [Reg RBP; Reg RSP]);
-            AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_bi stsz)]);
+            AsmOp(SUB uptr, [Reg RSP; Imm(U32, Conv.int32_of_z stsz)]);
             AsmOp(AND uptr, [Reg RSP; Imm(U32, 
-                                          Conv.int32_of_bi (B.of_int (-32)))]);
+                                          Conv.int32_of_z (Z.of_int (-32)))]);
             AsmOp(MOV uptr, [adr; Reg RBP])
           ];
         pp_instrs name fmt d.X86_sem.xfd_body;

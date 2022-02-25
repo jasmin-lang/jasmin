@@ -42,12 +42,12 @@ let assign x e =
   instr (Cassgn (Lvar (inloc x), AT_keep, Bty Int, e))
 
 let add_reset_instruction x s : unit stmt =
-  assign x (Pconst B.zero) :: s
+  assign x (Pconst Z.zero) :: s
 
 let add_count_instruction fn p f s =
   let x = fresh_var_from_path fn p in
   Sv.add x f,
-  assign x (Papp2 (E.Oadd E.Op_int, Pvar (inloc x), Pconst B.one)) :: s
+  assign x (Papp2 (E.Oadd E.Op_int, Pvar (inloc x), Pconst Z.one)) :: s
 
 (* ---------------------------------------------------------------- *)
 (* Adds increment instructions in (nearly) each basic block

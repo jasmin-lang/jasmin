@@ -51,7 +51,7 @@ module AbsExpr (AbsDom : SafetyInterfaces.AbsNumBoolType) : sig
     mvar list -> mvar list -> AbsDom.t ->
     AbsDom.t * (Format.formatter -> unit) list
                                             
-  val apply_glob : (wsize * Name.t * B.zint) list -> AbsDom.t -> AbsDom.t
+  val apply_glob : (wsize * Name.t * Z.t) list -> AbsDom.t -> AbsDom.t
 
   val mvar_of_lvar : AbsDom.t -> minfo -> ty glval -> mlvar
  

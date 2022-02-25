@@ -15,7 +15,7 @@ let get_reg_arr tbl v e =
   match e with
   | Pconst i ->
     begin
-      let i = B.to_int i in
+      let i = Z.to_int i in
       try (Hv.find tbl v_).(i)
       with Not_found -> assert false
     end
