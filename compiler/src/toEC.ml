@@ -2,7 +2,6 @@ open Utils
 open Wsize
 open Prog
 module E = Expr
-module B = Bigint
 
 let pp_size fmt sz =
   Format.fprintf fmt "%i" (int_of_ws sz)
@@ -500,8 +499,8 @@ let pp_initi env fmt (x, n, ws) =
     (arr_size ws n) (int_of_ws ws) (pp_var env) x
     
 let pp_print_i fmt z = 
-  if B.le B.zero z then B.pp_print fmt z 
-  else Format.fprintf fmt "(%a)" B.pp_print z 
+  if Z.leq Z.zero z then Z.pp_print fmt z 
+  else Format.fprintf fmt "(%a)" Z.pp_print z 
 
 let rec pp_expr env fmt (e:expr) = 
   match e with

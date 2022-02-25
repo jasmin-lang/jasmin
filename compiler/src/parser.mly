@@ -72,7 +72,7 @@
 %token EXPORT
 %token ARRAYINIT
 %token <string> NID
-%token <Bigint.zint> INT
+%token <Z.t> INT
 
 %nonassoc COLON QUESTIONMARK
 %left PIPEPIPE
