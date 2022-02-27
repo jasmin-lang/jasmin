@@ -55,6 +55,7 @@ Definition of_string (s : string) :=
 (* -------------------------------------------------------------------- *)
 Lemma in_enum (r:T) : r \in enum cfinT_finType.
 Proof. apply (mem_enum (T:=cfinT_finType)). Qed.
+
 Hint Resolve in_enum : core.
 
 Lemma to_stringK : pcancel to_string of_string.
@@ -110,7 +111,7 @@ Proof. by move=> /of_varI <- /of_varI <-. Qed.
 
 End Section.
 
-Hint Resolve in_enum : core.
+
 (* ==================================================================== *)
 
 Class arch_decl (reg xreg rflag cond : Type) := 
