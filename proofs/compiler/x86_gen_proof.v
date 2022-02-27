@@ -466,8 +466,9 @@ Qed.
 
 Lemma reg_in_all (r:reg_t): Sv.In (to_var r) all_vars.
 Proof.
+  move: r; rewrite /reg_t => /= => r.
   rewrite /all_vars /= /x86_all_vars !Sv.union_spec; left; right.
-  by apply/sv_of_listP/map_f/in_enum.
+  apply/sv_of_listP/map_f/in_enum.
 Qed.
 
 Lemma xreg_in_all (r:xreg_t): Sv.In (to_var r) all_vars.
