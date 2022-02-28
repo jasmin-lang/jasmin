@@ -2,7 +2,6 @@ open Utils
 open Wsize
 open Prog
 module E = Expr
-module B = Bigint
 
 let pp_size fmt sz =
   Format.fprintf fmt "%i" (int_of_ws sz)
@@ -493,7 +492,7 @@ let out_ty_opN op =
 let ty_expr = function
   | Pconst _       -> tint 
   | Pbool _        -> tbool
-  | Parr_init z    -> Arr (Wsize.U8, Bigint.to_int z)
+  | Parr_init z    -> Arr (Wsize.U8, Z.to_int z)
   | Pvar x         -> x.L.pl_desc.v_ty
   | Pglobal (sz,_) -> tu sz
   | Pload (sz,_,_) -> tu sz
@@ -519,8 +518,8 @@ let pp_initi env fmt (x, n, ws) =
     (arr_size ws n) (int_of_ws ws) (pp_var env) x
     
 let pp_print_i fmt z = 
-  if B.le B.zero z then B.pp_print fmt z 
-  else Format.fprintf fmt "(%a)" B.pp_print z 
+  if Z.leq Z.zero z then Z.pp_print fmt z 
+  else Format.fprintf fmt "(%a)" Z.pp_print z 
 
 let rec pp_expr env fmt (e:expr) = 
   match e with

@@ -6,7 +6,6 @@ module E = Expr
 
 module P = Prog
 
-module B = Bigint
 module F = Format
 module Pr = Printer
 
@@ -18,7 +17,7 @@ let pp_stype fmt =
   function
   | T.Coq_sbool  -> F.fprintf fmt "bool"
   | T.Coq_sint   -> F.fprintf fmt "int"
-  | T.Coq_sarr n -> F.fprintf fmt "u%a[%a]" pp_wsize U8 B.pp_print (Conv.bi_of_pos n)
+  | T.Coq_sarr n -> F.fprintf fmt "u%a[%a]" pp_wsize U8 Z.pp_print (Conv.z_of_pos n)
   | T.Coq_sword sz -> F.fprintf fmt "u%a" pp_wsize sz
 
 (* ---------------------------------------------------------------- *)
@@ -29,9 +28,9 @@ let pp_var_i tbl fmt x =
 let rec pp_expr tbl fmt =
   let pp_expr = pp_expr tbl in
   function
-  | E.Pconst z -> B.pp_print fmt (Conv.bi_of_z z)
+  | E.Pconst z -> Z.pp_print fmt (Conv.z_of_cz z)
   | E.Pbool b -> Pr.pp_bool fmt b
-  | E.Parr_init n -> F.fprintf fmt "arr_init(%a)" B.pp_print (Conv.bi_of_pos n)
+  | E.Parr_init n -> F.fprintf fmt "arr_init(%a)" Z.pp_print (Conv.z_of_pos n)
   | E.Pvar x -> pp_var_i tbl fmt x
   | E.Pglobal g -> F.fprintf fmt "%s" (Conv.global_of_cglobal g |> snd)
   | E.Pget (ws, x, e) -> F.fprintf fmt "%a[%a %a]" pp_wsize ws (pp_var_i tbl) x pp_expr e
@@ -49,7 +48,7 @@ let pp_lval tbl fmt =
   | E.Laset (ws, x, e) -> F.fprintf fmt "%a[%a %a]" pp_wsize ws (pp_var_i tbl) x (pp_expr tbl) e
 
 let pp_label fmt lbl =
-  F.fprintf fmt "%a" B.pp_print (Conv.bi_of_pos lbl)
+  F.fprintf fmt "%a" Z.pp_print (Conv.z_of_pos lbl)
 
 let pp_instr tbl fmt i =
   match i.li_i with
@@ -65,7 +64,7 @@ let pp_instr tbl fmt i =
 
 let pp_stackframe fmt (_id, sz) =
   F.fprintf fmt "stack: %a"
-    B.pp_print (Conv.bi_of_z sz)
+    Z.pp_print (Conv.z_of_cz sz)
 
 let pp_lfun tbl fmt (fn, fd) =
   let name = Conv.fun_of_cfun tbl fn in

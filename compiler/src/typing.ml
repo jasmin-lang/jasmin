@@ -186,8 +186,8 @@ let pp_tyerror fmt (code : tyerror) =
 (* -------------------------------------------------------------------- *)
 module Env : sig
   type exec = 
-    | Exec1 of P.funname * (Bigint.zint * Bigint.zint) list
-    | Exec2 of P.funname * P.funname * (Bigint.zint * Bigint.zint) list
+    | Exec1 of P.funname * (Z.t * Z.t) list
+    | Exec2 of P.funname * P.funname * (Z.t * Z.t) list
 
   type env
 
@@ -210,15 +210,15 @@ module Env : sig
 
   module Exec : sig
   
-    val push : P.funname -> (Bigint.zint * Bigint.zint) list -> env -> env
-    val push_ct : P.funname -> P.funname -> (Bigint.zint * Bigint.zint) list -> env -> env
+    val push : P.funname -> (Z.t * Z.t) list -> env -> env
+    val push_ct : P.funname -> P.funname -> (Z.t * Z.t) list -> env -> env
     val get  : env -> exec list
   end
 
 end = struct
   type exec = 
-    | Exec1 of P.funname * (Bigint.zint * Bigint.zint) list
-    | Exec2 of P.funname * P.funname * (Bigint.zint * Bigint.zint) list
+    | Exec1 of P.funname * (Z.t * Z.t) list
+    | Exec2 of P.funname * P.funname * (Z.t * Z.t) list
 
   type env = {
     e_vars    : (S.symbol, P.pvar) Map.t;
@@ -261,8 +261,8 @@ end = struct
   module Exec = struct
 
     type exec = 
-      | Exec1 of P.funname * (Bigint.zint * Bigint.zint) list
-      | Exec2 of P.funname * P.funname * (Bigint.zint * Bigint.zint) list
+      | Exec1 of P.funname * (Z.t * Z.t) list
+      | Exec2 of P.funname * P.funname * (Z.t * Z.t) list
 
     let push f m env = { env with e_exec = Exec1(f, m) :: env.e_exec }
     let push_ct f1 f2 m env = { env with e_exec = Exec2(f1, f2, m) :: env.e_exec }
@@ -825,7 +825,7 @@ and tt_mem_access ?(mode=`AllVar) (env : Env.env)
   check_ty_u64 ~loc:xlc x.P.v_ty;
   let e = 
     match e with
-    | None -> P.Papp1 (Oword_of_int U64, P.Pconst (P.B.zero)) 
+    | None -> P.Papp1 (Oword_of_int U64, P.Pconst (Z.zero))
     | Some(k, e) -> 
       let e = tt_expr_cast64 ~mode env e in
       match k with
@@ -1133,7 +1133,7 @@ let arr_init xi =
   match x.P.v_ty with
   | P.Arr(ws, P.Pconst n) as ty ->
     P.Cassgn (Lvar xi, P.AT_inline, ty, 
-              P.Parr_init (P.B.of_int (P.arr_size ws (P.B.to_int n))))
+              P.Parr_init (Z.of_int (P.arr_size ws (Z.to_int n))))
     (* FIXME: should not fail when the array size is a parameter *)
   | _           -> 
     rs_tyerror ~loc:(L.loc xi) (InvalidType( x.P.v_ty, TPArray))

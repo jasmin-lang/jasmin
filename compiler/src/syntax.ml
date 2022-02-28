@@ -157,7 +157,7 @@ type pexpr_r =
   | PEFetch  of mem_access
   | PEpack   of svsize * pexpr list
   | PEBool   of bool
-  | PEInt    of Bigint.zint
+  | PEInt    of Z.t
   | PECall   of pident * pexpr list
   | PEPrim   of pident * pexpr list
   | PEOp1    of peop1 * pexpr
@@ -250,13 +250,13 @@ type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: pexpr }
 (* -------------------------------------------------------------------- *)
 type pexec = {
   pex_name: pident;
-  pex_mem: (Bigint.zint * Bigint.zint) list;
+  pex_mem: (Z.t * Z.t) list;
 }
 
 type pexec_ct = {
   pexc_name1: pident;
   pexc_name2: pident;
-  pexc_mem: (Bigint.zint * Bigint.zint) list;
+  pexc_mem: (Z.t * Z.t) list;
 }
 
 (* -------------------------------------------------------------------- *)

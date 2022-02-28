@@ -4,7 +4,6 @@ module W = Wsize
 module T = Type
 module E = Expr
 module F = Format
-module B = Bigint
 
 (* -------------------------------------------------------------------- *)
 let rec pp_list sep pp fmt xs =
@@ -26,6 +25,10 @@ let pp_string0 fmt str =
 let pp_bool fmt b =
   if b then F.fprintf fmt "true"
   else F.fprintf fmt "false"
+
+(* -------------------------------------------------------------------- *)
+let pp_print_X fmt z =
+  Format.fprintf fmt "%s" (Z.format "#X" z)
 
 (* -------------------------------------------------------------------- *)
 let pp_btype fmt = function
@@ -110,9 +113,9 @@ let string_of_opN =
 let pp_ge pp_var =
   let pp_var_i = pp_gvar_i pp_var in
   let rec pp_expr fmt = function
-  | Pconst i    -> B.pp_print fmt i
+  | Pconst i    -> Z.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
-  | Parr_init n -> F.fprintf fmt "array_init(%a)" B.pp_print n
+  | Parr_init n -> F.fprintf fmt "array_init(%a)" Z.pp_print n
   | Pvar v      -> pp_var_i fmt v
   | Pglobal (_, g) -> F.fprintf fmt "%s" g
   | Pget(ws,x,e)   -> F.fprintf fmt "%a[%a %a]"  pp_btype (U ws) pp_var_i x pp_expr e
@@ -342,7 +345,7 @@ let pp_func ~debug fmt fd =
 
 let pp_glob fmt (ws, n, z) =
   Format.fprintf fmt "%a %s %a"
-    pp_ty (Bty (U ws)) n B.pp_print z
+    pp_ty (Bty (U ws)) n Z.pp_print z
 
 let pp_iprog ~debug pp_info fmt (gd, funcs) =
   let pp_var = pp_var ~debug in

@@ -8,8 +8,8 @@ let rec pp_leak_e fmt =
   let p s = fprintf fmt "%s" s in
   function
   | LEmpty -> p "ε"
-  | LIdx i -> fprintf fmt "[%a]" Bigint.pp_print (Conv.bi_of_z i)
-  | LAdr a -> fprintf fmt "*(0x%a)" Bigint.pp_print_X (Conv.bi_of_int64 a)
+  | LIdx i -> fprintf fmt "[%a]" Z.pp_print (Conv.z_of_cz i)
+  | LAdr a -> fprintf fmt "*(0x%a)" Printer.pp_print_X (Conv.z_of_int64 a)
   | LSub s -> fprintf fmt "(%a)" (pp_list ", " pp_leak_e) s
 
 let pp_leak_i fmt =
@@ -24,7 +24,7 @@ let pp_leak_i fmt =
 let rec pp_tr_p fmt =
   let p s = fprintf fmt "%s" s in
   function
-  | LS_const n -> fprintf fmt "cst %a" Bigint.pp_print (Conv.bi_of_int64 n)
+  | LS_const n -> fprintf fmt "cst %a" Z.pp_print (Conv.z_of_int64 n)
   | LS_stk -> p "sp"
   | LS_Add (x, y) -> fprintf fmt "%a + %a" pp_tr_p x pp_tr_p y
   | LS_Mul (x, y) -> fprintf fmt "%a × %a" pp_tr_p x pp_tr_p y
@@ -36,7 +36,7 @@ let rec pp_e_tr fmt =
   | LT_remove -> p "remove"
   | LT_const p -> pp_tr_p fmt p
   | LT_subi _n -> p "subi"
-  | LT_lidx n -> fprintf fmt "⟦ 37 ↦ %a ⟧" pp_tr_p (n (Conv.z_of_int 37)) (* dummy value easy to recognize *)
+  | LT_lidx n -> fprintf fmt "⟦ 37 ↦ %a ⟧" pp_tr_p (n (Conv.cz_of_int 37)) (* dummy value easy to recognize *)
   | LT_map m -> fprintf fmt "(%a)" (pp_list ", " pp_e_tr) m
   | LT_seq m -> fprintf fmt "[%a]" (pp_list "; " pp_e_tr) m
   | LT_compose (e, f) -> fprintf fmt "%a ∘ %a" pp_e_tr e pp_e_tr f

@@ -3,7 +3,6 @@ open Utils
 open Wsize
 module E = Expr
 module L = Location
-module B = Bigint
 
 module Name : sig
   type t = string
@@ -45,9 +44,9 @@ type 'expr gty =
            (* the type of the expression is [Int] *)
 
 type 'ty gexpr =
-  | Pconst of B.zint
+  | Pconst of Z.t
   | Pbool  of bool
-  | Parr_init of B.zint
+  | Parr_init of Z.t
   | Pvar   of 'ty gvar_i
   | Pglobal of wsize * Name.t
   | Pget   of wsize * 'ty gvar_i * 'ty gexpr
@@ -192,7 +191,7 @@ type 'info stmt  = (ty,'info) gstmt
 
 type 'info func     = (ty,'info) gfunc
 type 'info mod_item = (ty,'info) gmod_item
-type global_decl    = wsize * Name.t * B.zint
+type global_decl    = wsize * Name.t * Z.t
 type 'info prog     = global_decl list * 'info func list
 
 
@@ -274,7 +273,7 @@ val is_reg_arr   : var -> bool
 
 val ( ++ ) : expr -> expr -> expr
 val ( ** ) : expr -> expr -> expr
-val cnst   : B.zint -> expr
+val cnst   : Z.t -> expr
 val icnst  : int -> expr
 val cast64 : expr -> expr
 
@@ -289,5 +288,5 @@ val expr_of_lval : 'ty glval -> 'ty gexpr option
 val destruct_move : ('ty, 'info) ginstr -> 'ty glval * assgn_tag * 'ty * 'ty gexpr
 
 (* -------------------------------------------------------------------- *)
-val clamp : wsize -> Bigint.zint -> Bigint.zint
-val clamp_pe : pelem -> Bigint.zint -> Bigint.zint
+val clamp : wsize -> Z.t -> Z.t
+val clamp_pe : pelem -> Z.t -> Z.t

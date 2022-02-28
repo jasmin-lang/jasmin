@@ -118,9 +118,9 @@ let psubst_prog (prog:'info pprog) : ((Name.t * pty) * pexpr) list * 'info pprog
 
 let int_of_op2 o i1 i2 =
   match o with
-  | Expr.Oadd Op_int -> B.add i1 i2
-  | Expr.Omul Op_int -> B.mul i1 i2
-  | Expr.Osub Op_int -> B.sub i1 i2
+  | Expr.Oadd Op_int -> Z.add i1 i2
+  | Expr.Omul Op_int -> Z.mul i1 i2
+  | Expr.Osub Op_int -> Z.sub i1 i2
   | _     -> assert false
 
 let rec int_of_expr e =
@@ -134,7 +134,7 @@ let rec int_of_expr e =
 
 let isubst_ty = function
   | Bty ty -> Bty ty
-  | Arr(ty, e) -> Arr(ty, B.to_int (int_of_expr e))
+  | Arr(ty, e) -> Arr(ty, Z.to_int (int_of_expr e))
 
 
 let isubst_prog (glob: ((Name.t * pty) * _) list) (prog:'info pprog) =
@@ -192,7 +192,7 @@ let clamp_k k e =
   | E.Op_w ws -> clamp ws e
   | E.Op_int  -> e
 
-let rec constant_of_expr (e: Prog.expr) : Bigint.zint =
+let rec constant_of_expr (e: Prog.expr) : Z.t =
   let open Prog in
 
   match e with
@@ -206,29 +206,29 @@ let rec constant_of_expr (e: Prog.expr) : Bigint.zint =
       z
 
   | Papp1 (Oneg k, e) ->
-      clamp_k k (Bigint.neg (clamp_k k (constant_of_expr e)))
+      clamp_k k (Z.neg (clamp_k k (constant_of_expr e)))
 
   | Papp2 (Oadd k, e1, e2) ->
       let e1 = clamp_k k (constant_of_expr e1) in
       let e2 = clamp_k k (constant_of_expr e2) in
-      clamp_k k (Bigint.add e1 e2)
+      clamp_k k (Z.add e1 e2)
 
   | Papp2 (Osub k, e1, e2) ->
       let e1 = clamp_k k (constant_of_expr e1) in
       let e2 = clamp_k k (constant_of_expr e2) in
-      clamp_k k (Bigint.sub e1 e2)
+      clamp_k k (Z.sub e1 e2)
 
   | Papp2 (Omul k, e1, e2) ->
       let e1 = clamp_k k (constant_of_expr e1) in
       let e2 = clamp_k k (constant_of_expr e2) in
-      clamp_k k (Bigint.mul e1 e2)
+      clamp_k k (Z.mul e1 e2)
 
   | PappN(Opack(ws,pe), es) ->
       let es = List.map constant_of_expr es in
       let k = int_of_pe pe in
       let e = 
         List.fold_left (fun n e -> 
-            Bigint.add (Bigint.lshift n k) (clamp_pe pe e)) Bigint.zero es in
+            Z.add (Z.shift_left n k) (clamp_pe pe e)) Z.zero es in
       clamp ws e
 
   | _ -> raise NotAConstantExpr

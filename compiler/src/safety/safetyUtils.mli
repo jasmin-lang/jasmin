@@ -43,8 +43,8 @@ val env_of_list : Var.t list -> Apron.Environment.t
 
 val mpq_pow : int -> Mpqf.t
 val mpq_pow_minus : int -> int -> Mpqf.t
-val mpq_of_bigint : B.zint -> 'a Mpq.tt
-val mpqf_of_bigint : B.zint -> Mpqf.t
+val mpq_of_z : Z.t -> 'a Mpq.tt
+val mpqf_of_z : Z.t -> Mpqf.t
 
 
 (*------------------------------------------------------------*)
