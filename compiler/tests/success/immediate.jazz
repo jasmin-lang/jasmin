@@ -1,0 +1,5 @@
+u8 a = 123;
+u8 b = -17;
+u8 c = 0xab;
+u8 d = 0Xcd;
+u8 e = -0XAA;

@@ -1127,8 +1127,8 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     let e3, ty3 = tt_expr ~mode env pe3 in
 
     check_ty_bool ~loc:(L.loc pe1) ty1;
-    check_ty_eq ~loc:(L.loc pe) ~from:ty2 ~to_:ty3;
-    P.Pif(ty2, e1, e2, e3), ty2
+    let ty = max_ty ty2 ty3 |> oget ~exn:(tyerror ~loc:(L.loc pe) (TypeMismatch (ty2, ty3))) in
+    P.Pif(ty, e1, e2, e3), ty
 
 and tt_expr_cast ?(mode=`AllVar) (env : Env.env) pe ty = 
   let e, ety = tt_expr ~mode env pe in

@@ -32,6 +32,9 @@ SHRDIR := $(PREFIX)/share/jasmin
 DISTDIR ?= jasmin-compiler
 
 # --------------------------------------------------------------------
+OBELISK ?= obelisk
+
+# --------------------------------------------------------------------
 .PHONY: all build byte native CIL check __force__
 .PHONY: %.ml %.mli %.inferred.mli
 
@@ -111,3 +114,10 @@ _c_build/%.s: examples/%.jazz _c_build jasminc.native
 # --------------------------------------------------------------------
 %.mli:
 	$(call do-core-build,src/$*.cmi)
+
+# --------------------------------------------------------------------
+jasmin.bnf: src/parser.mly
+	$(OBELISK) -i -o $@ $<
+
+jasmin.ebnf: scripts/expand-bnf jasmin.bnf
+	@sed -f $^ > $@

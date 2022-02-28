@@ -52,6 +52,7 @@ let rec warn_extra_i i =
 let warn_extra_fd (_, fd) =
   List.iter warn_extra_i fd.f_body
  
+(* -------------------------------------------------------------------- *)
 let check_safety_p s p source_p =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
@@ -62,7 +63,7 @@ let check_safety_p s p source_p =
   in
 
   let () = SafetyConfig.pp_current_config_diff () in
-  
+
   let () =
     List.iter (fun f_decl ->
         if f_decl.f_cc = Export then
@@ -137,7 +138,6 @@ let main () =
 
     let prog = Subst.remove_params pprog in
     let prog = Inline_array_copy.doit prog in
-    eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
     begin try
       Typing.check_prog prog
@@ -150,13 +150,21 @@ let main () =
     
     let do_compile = ref true in
     let donotcompile () = do_compile := false in
-    if SafetyConfig.sc_comp_pass () = Compiler.ParamsExpansion &&
-       !check_safety
-    then begin
-      check_safety_p Compiler.ParamsExpansion prog source_prog;
-      donotcompile()
-    end;
-     
+
+    (* This function is called after each compilation pass.
+        - Check program safety (and exit) if the time has come
+        - Pretty-print the program
+        - Add your own checker here!
+    *)
+    let visit_prog_after_pass ~debug s p =
+      if s = SafetyConfig.sc_comp_pass () && !check_safety then
+        check_safety_p s p source_prog
+        |> donotcompile
+      else
+        eprint s (Printer.pp_prog ~debug) p in
+
+    visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
+
     if !ec_list <> [] then begin
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
@@ -320,24 +328,9 @@ let main () =
       | Const | Inline | Reg Direct -> false
      in
 
-
-     (* TODO: update *)
-    (* (\* Check safety and calls exit(_). *\)
-     * let check_safety_cp s cp =
-     *   let p = Conv.prog_of_cprog tbl cp in
-     *   check_safety_p s p source_prog in
-     * 
-     * let pp_cprog s cp =
-     *   if s = SafetyConfig.sc_comp_pass () && !check_safety then
-     *     check_safety_cp s cp
-     *   else
-     *     eprint s (fun fmt cp ->
-     *         let p = Conv.prog_of_cprog tbl cp in
-     *         Printer.pp_prog ~debug:true fmt p) cp in *)
-
-    let pp_cuprog fmt cp =
-      let p = Conv.prog_of_cuprog tbl cp in
-      Printer.pp_prog ~debug:true fmt p in
+    let pp_cuprog s cp =
+      Conv.prog_of_cuprog tbl cp |>
+      visit_prog_after_pass ~debug:true s in
 
     let pp_csprog fmt cp =
       let p = Conv.prog_of_csprog tbl cp in
@@ -411,7 +404,6 @@ let main () =
         let (fds, _) = Conv.prog_of_csprog tbl p in
         List.iter warn_extra_fd fds in
 
-
     let cparams = {
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = expand_fd;
@@ -429,7 +421,7 @@ let main () =
       );
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;
-      Compiler.print_uprog  = (fun s p -> eprint s pp_cuprog p; p);
+      Compiler.print_uprog  = (fun s p -> pp_cuprog s p; p);
       Compiler.print_sprog  = (fun s p -> warn_extra s p;
                                           eprint s pp_csprog p; p);
       Compiler.print_linear = (fun s p -> eprint s pp_linear p; p);
