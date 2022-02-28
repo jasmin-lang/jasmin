@@ -22,12 +22,6 @@ let pp_stype fmt =
   | T.Coq_sarr n -> F.fprintf fmt "u%a[%a]" pp_wsize U8 B.pp_print (Conv.bi_of_pos n)
   | T.Coq_sword sz -> F.fprintf fmt "u%a" pp_wsize sz
 
-(* -------------------------------------------------------------------- *)
-(* TODO: share with ppasm *)
-let string_of_funname tbl (p : Utils0.funname) : string =
-  (Conv.fun_of_cfun tbl p).fn_name
-(* -------------------------------------------------------------------- *)
-
 (* ---------------------------------------------------------------- *)
 let pp_var tbl fmt x =
   let y = Conv.var_of_cvar tbl x in
@@ -75,7 +69,7 @@ let pp_label fmt lbl =
   F.fprintf fmt "%a" B.pp_print (Conv.bi_of_pos lbl)
 
 let pp_remote_label tbl fmt (fn, lbl) =
-  F.fprintf fmt "%s.%a" (string_of_funname tbl fn) pp_label lbl
+  F.fprintf fmt "%s.%a" (Conv.string_of_funname tbl fn) pp_label lbl
 
 let pp_syscall fmt (_o : Syscall.syscall_t) = 
   F.fprintf fmt "GetRandom"
