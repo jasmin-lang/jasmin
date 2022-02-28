@@ -77,7 +77,7 @@
 %token EXPORT
 %token ARRAYINIT
 %token <string> NID
-%token <Bigint.zint> INT
+%token <Z.t> INT
 %token <string> STRING
 %nonassoc COLON QUESTIONMARK
 %left PIPEPIPE
@@ -120,7 +120,7 @@ annotationlabel:
 
 int: 
   | i=INT       { i }
-  | MINUS i=INT { Bigint.neg i } 
+  | MINUS i=INT { Z.neg i } 
 
 simple_attribute:
   | i=int          { Aint i    }

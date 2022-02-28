@@ -1,7 +1,6 @@
 src/Alias
 src/Arch
 src/Array_expand
-src/Bigint
 src/Conv
 src/Ct_checker_forward
 src/Evaluator

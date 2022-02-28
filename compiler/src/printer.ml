@@ -5,7 +5,6 @@ module W = Wsize
 module T = Type
 module E = Expr
 module F = Format
-module B = Bigint
 
 (* -------------------------------------------------------------------- *)
 let pp_string0 fmt str =
@@ -15,6 +14,10 @@ let pp_string0 fmt str =
 let pp_bool fmt b =
   if b then F.fprintf fmt "true"
   else F.fprintf fmt "false"
+
+(* -------------------------------------------------------------------- *)
+let pp_print_X fmt z =
+  Format.fprintf fmt "%s" (Z.format "#X" z)
 
 (* -------------------------------------------------------------------- *)
 let pp_btype fmt = function
@@ -123,7 +126,7 @@ let pp_ge pp_len pp_var =
     Format.fprintf fmt "%s%a" s pp_var_i x.gv in
 
   let rec pp_expr fmt = function
-  | Pconst i    -> B.pp_print fmt i
+  | Pconst i    -> Z.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
   | Parr_init n -> F.fprintf fmt "array_init(%a)" pp_len n
   | Pvar v      -> pp_gvar fmt v
@@ -377,7 +380,7 @@ let pp_func ~debug fmt fd =
 
 let pp_glob fmt (ws, n, z) =
   Format.fprintf fmt "%a %s %a"
-    pp_ty (Bty (U ws)) n B.pp_print z
+    pp_ty (Bty (U ws)) n Z.pp_print z
 
 let pp_glob pp_var fmt (x, gd) = 
   let pp_size fmt i = F.fprintf fmt "%i" i in
@@ -385,11 +388,11 @@ let pp_glob pp_var fmt (x, gd) =
   let pp_gd fmt gd = 
     match gd with
     | Global.Gword(ws,w) -> 
-      Format.fprintf fmt "%a" Bigint.pp_print_X (Conv.bi_of_word ws w) 
+      Format.fprintf fmt "%a" pp_print_X (Conv.z_of_word ws w) 
     | Global.Garr(p, t) ->
       let _, t = Conv.to_array x.v_ty p t in
       Format.fprintf fmt "@[{%a}@]"
-        (pp_list ",@ " Bigint.pp_print_X) 
+        (pp_list ",@ " pp_print_X) 
         (Array.to_list t)  in
   Format.fprintf fmt "@[%a =@ %a;@]"
     pp_vd x pp_gd gd
@@ -412,29 +415,29 @@ let pp_prog ~debug fmt ((gd, funcs):'info Prog.prog) =
 
 let pp_datas fmt data = 
   let pp_w fmt w = 
-    let w = Conv.bi_of_int8 w in
-    Format.fprintf fmt ".byte %s" (Bigint.to_string w) in
+    let w = Conv.z_of_int8 w in
+    Format.fprintf fmt ".byte %s" (Z.to_string w) in
   Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_w) data
 
 let pp_to_save ~debug tbl fmt (x, ofs) =
-  Format.fprintf fmt "%a/%a" (pp_var ~debug) (Conv.var_of_cvar tbl x) B.pp_print (Conv.bi_of_z ofs)
+  Format.fprintf fmt "%a/%a" (pp_var ~debug) (Conv.var_of_cvar tbl x) Z.pp_print (Conv.z_of_cz ofs)
 
 let pp_saved_stack ~debug tbl fmt = function
   | Expr.SavedStackNone  -> Format.fprintf fmt "none"
   | Expr.SavedStackReg x -> Format.fprintf fmt "in reg %a" (pp_var ~debug) (Conv.var_of_cvar tbl x) 
-  | Expr.SavedStackStk z -> Format.fprintf fmt "in stack %a" B.pp_print (Conv.bi_of_z z)
+  | Expr.SavedStackStk z -> Format.fprintf fmt "in stack %a" Z.pp_print (Conv.z_of_cz z)
 
 let pp_return_address ~debug tbl fmt = function
   | Expr.RAreg x -> Format.fprintf fmt "%a" (pp_var ~debug) (Conv.var_of_cvar tbl x)
-  | Expr.RAstack z -> Format.fprintf fmt "RSP + %a" B.pp_print (Conv.bi_of_z z)
+  | Expr.RAstack z -> Format.fprintf fmt "RSP + %a" Z.pp_print (Conv.z_of_cz z)
   | Expr.RAnone   -> Format.fprintf fmt "_"
 
 let pp_sprog ~debug tbl fmt ((funcs, p_extra):'info Prog.sprog) =
   let pp_var = pp_var ~debug in
   let pp_f_extra fmt f_extra = 
     Format.fprintf fmt "(* @[<v>stack size = %a + %a; alignment = %s;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"
-      B.pp_print (Conv.bi_of_z f_extra.Expr.sf_stk_sz)
-      B.pp_print (Conv.bi_of_z f_extra.Expr.sf_stk_extra_sz)
+      Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_sz)
+      Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_extra_sz)
       (string_of_ws f_extra.Expr.sf_align)
       (pp_list ",@ " (pp_to_save ~debug tbl)) (f_extra.Expr.sf_to_save)
       (pp_saved_stack ~debug tbl) (f_extra.Expr.sf_save_stack)

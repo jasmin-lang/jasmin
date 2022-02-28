@@ -113,7 +113,7 @@ let pp_space fmt _ =
 
 let rec pp_simple_attribute fmt a = 
   match L.unloc a with 
-  | Aint i -> Bigint.pp_print fmt i
+  | Aint i -> Z.pp_print fmt i
   | Aid s | Astring s -> Format.fprintf fmt "%s" s
   | Aws ws -> Format.fprintf fmt "u%i" (bits_of_wsize ws)
   | Astruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
@@ -145,7 +145,7 @@ let rec pp_expr_rec prio fmt pe =
   | PEpack (vs,es) ->
     F.fprintf fmt "(%a)[@[%a@]]" pp_svsize vs (pp_list ",@ " pp_expr) es
   | PEBool b -> F.fprintf fmt "%s" (if b then "true" else "false")
-  | PEInt i -> F.fprintf fmt "%a" Bigint.pp_print i
+  | PEInt i -> F.fprintf fmt "%a" Z.pp_print i
   | PECall (f, args) -> F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
   | PECombF (f, args) -> 
     F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args

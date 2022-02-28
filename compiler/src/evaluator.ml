@@ -158,13 +158,13 @@ let pp_undef fmt ty =
  
 let pp_word fmt ws w = 
   let z = Word0.wunsigned ws w in
-  let z = Conv.bi_of_z z in
-  Bigint.pp_print_X fmt z
+  let z = Conv.z_of_cz z in
+  Printer.pp_print_X fmt z
   
 let pp_val fmt v = 
   match v with
   | Vbool b -> Format.fprintf fmt "%b" b
-  | Vint z  -> Format.fprintf fmt "%a" Bigint.pp_print (Conv.bi_of_z z)
+  | Vint z  -> Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_cz z)
   | Varr(p,t) ->
     let ip = Conv.int_of_pos p in
     let pp_res fmt = function 
@@ -173,11 +173,11 @@ let pp_val fmt v =
       | Error _            -> assert false in
     Format.fprintf fmt "@[[";
     for i = 0 to ip-2 do
-      let i = Conv.z_of_int i in
+      let i = Conv.cz_of_int i in
       Format.fprintf fmt "%a;@ " pp_res (WArray.get p AAscale U8 t i);
     done;
     if 0 < ip then 
-      pp_res fmt (WArray.get p AAscale U8 t (Conv.z_of_int (ip-1)));
+      pp_res fmt (WArray.get p AAscale U8 t (Conv.cz_of_int (ip-1)));
     Format.fprintf fmt "]@]";
   | Vword(ws, w) -> pp_word fmt ws w
   | Vundef ty -> pp_undef fmt ty
