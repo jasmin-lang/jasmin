@@ -253,8 +253,8 @@ let collect_variables (allvars: bool) (f: 'info func) : int Hv.t * int =
       Hv.add tbl v n
   in
   let collect_sv = Sv.iter get in
-  let collect_lv lv = rvars_lv Sv.empty lv |> collect_sv in
-  let collect_lvs lvs = List.fold_left rvars_lv Sv.empty lvs |> collect_sv in
+  let collect_lv lv = vars_lv Sv.empty lv |> collect_sv in
+  let collect_lvs lvs = List.fold_left vars_lv Sv.empty lvs |> collect_sv in
   let collect_expr e = vars_e e |> collect_sv in
   let collect_exprs es = vars_es es |> collect_sv in
   let rec collect_instr_r =
