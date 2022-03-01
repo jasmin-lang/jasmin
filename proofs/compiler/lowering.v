@@ -426,8 +426,8 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t * leak_e_tr :=
       | Some l => (k8 sz (LowerLea sz l), LT_emseq)
       | None   =>
         match add_inc_dec_classify sz a b with
-        | (AddInc y, lte) => (k8 sz (LowerInc (Ox86 (INC sz)) y), LT_subseq lte)
-        | (AddDec y, lte) => (k8 sz (LowerInc (Ox86 (DEC sz)) y), LT_subseq lte)
+        | (AddInc y, lte) => (k8 sz (LowerInc (Ox86 (INC sz)) y), lte)
+        | (AddDec y, lte) => (k8 sz (LowerInc (Ox86 (DEC sz)) y), lte)
         | (AddNone, lte)  => (k8 sz (LowerFopn (Ox86 (ADD sz)) [:: a ; b ] (Some U32)), LT_idseq lte)
         end
       end
@@ -437,8 +437,8 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t * leak_e_tr :=
       | Some l => (k8 sz (LowerLea sz l), LT_emseq)
       | None   =>
         match sub_inc_dec_classify sz b with
-        | SubInc => (k8 sz (LowerInc (Ox86 (INC sz)) a), LT_subseq (LT_subi 0))
-        | SubDec => (k8 sz (LowerInc (Ox86 (DEC sz)) a), LT_subseq (LT_subi 0))
+        | SubInc => (k8 sz (LowerInc (Ox86 (INC sz)) a), LT_subi 0)
+        | SubDec => (k8 sz (LowerInc (Ox86 (DEC sz)) a), LT_subi 0)
         | SubNone => (k8 sz (LowerFopn (Ox86 (SUB sz)) [:: a ; b ] (Some U32)), LT_idseq LT_id)
         end
       end
@@ -577,6 +577,30 @@ Definition reduce_wconst sz (e: pexpr) : pexpr :=
 Notation LT_ilmov1 := (LT_idouble (LT_seq [:: LT_seq [:: LT_subi 0 ] ; LT_seq [:: LT_remove ] ]) (LT_seq [:: LT_seq [:: LT_remove]; LT_seq [:: LT_subi 1]])).
 #[local]
 Notation LT_ildcn := (LT_idouble (LT_seq [:: LT_seq [:: LT_remove ] ; LT_seq [:: LT_remove ] ]) (LT_seq [:: LT_seq [:: LT_remove; LT_remove ]; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1]])).
+#[local]
+Notation LT_ilmov2 := (LT_isingle (LT_seq [:: LT_seq [::] ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+#[local]
+Notation LT_ilmov3 := (LT_isingle (LT_seq [:: LT_seq [::] ; LT_seq [::  LT_subi 1 ] ])).
+#[local]
+Notation LT_ilmov4 := (LT_isingle (LT_seq [:: LT_seq [:: LT_subi 0 ] ; LT_seq [::  LT_subi 1 ] ])).
+#[local]
+Notation LT_ild := (LT_isingle (LT_seq [:: LT_seq [:: LT_remove ] ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+#[local]
+Notation LT_ildc := (LT_isingle (LT_seq [:: LT_seq [:: LT_remove; LT_remove ] ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+#[local]
+Notation LT_ilea := (LT_isingle (LT_seq [:: LT_seq [:: LT_seq [:: LT_remove ; LT_seq [:: LT_remove; LT_seq [:: LT_remove ; LT_remove ] ] ] ] ; LT_seq [:: LT_subi 1 ] ])).
+#[local]
+Notation LT_ilsc := (LT_isingle (LT_seq [:: LT_seq [:: LT_remove ; LT_remove ] ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+#[local]
+Notation LT_ilasgn := (LT_isingle (LT_seq [:: LT_subi 0; LT_subi 1 ])).
+#[local]
+Notation LT_ilinc ltes := (LT_isingle (LT_seq [:: LT_seq [:: lt_compose (LT_subi 0) ltes ]; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+#[local]
+Notation LT_ilcopn ltes := (LT_isingle (LT_seq [:: lt_compose (LT_subi 0) ltes ; LT_seq [:: LT_subi 1 ] ])).
+#[local]
+Notation LT_ileq ltes := (LT_isingle (LT_seq [:: lt_compose (LT_subi 0) ltes ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1] ])).
+#[local]
+Notation LT_illt ltes := (LT_isingle (LT_seq [:: lt_compose (LT_subi 0) ltes; LT_seq [:: LT_remove; LT_subi 1; LT_remove; LT_remove; LT_remove ] ])).
 
 (** Need to fix this later: for now commenting it out **) 
 Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd * leak_i_tr :=
