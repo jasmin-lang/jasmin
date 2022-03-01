@@ -65,7 +65,7 @@ module Lvl : sig
 
   val pp : Format.formatter -> level -> unit
 
-  val parse : single:bool -> S.annotations -> level
+  val parse : ?dfl:level -> single:bool -> S.annotations -> level
 
   val is_public : level -> bool
 
@@ -130,7 +130,7 @@ end = struct
     | Public false -> Format.fprintf fmt "#%s" spublic
     | Public true -> Format.fprintf fmt "#%s" smsf
 
-  let parse ~(single:bool) (annot: S.annotations) =
+  let parse ?(dfl=secret) ~(single:bool) (annot: S.annotations) =
     let module A = Pt.Annot in
     let on_struct loc _nid (s:S.annotations) =
       List.iter A.none s;
@@ -151,7 +151,7 @@ end = struct
        smsf, (fun a -> A.none a; msf);
        spoly  , poly] in
     let lvl = A.ensure_uniq filters annot in
-    odfl secret lvl
+    odfl dfl lvl
 
 end
 
@@ -380,12 +380,13 @@ let ty_lvals1 env msf xs lvl =
 (* -----------------------------------------------------------*)
 
 let get_annot f =
-  let ain  = List.map (fun x -> Lvl.parse ~single:true x.v_annot) f.f_args in
+  let mk_dfl x = if is_inline x then Lvl.public else Lvl.secret in
+  let ain  = List.map (fun x -> Lvl.parse ~dfl:(mk_dfl x) ~single:true x.v_annot) f.f_args in
   (* Compute the set of polymorphic variables allowed in declarations *)
   let vpoly = List.fold_left (fun vp l -> Svl.union (Lvl.fv l) vp) Svl.empty ain in
 
-  let do_annot loc ty =
-    let lvl = Lvl.parse ~single:false ty in
+  let do_annot ?dfl loc ty =
+    let lvl = Lvl.parse ?dfl ~single:false ty in
     let fv = Lvl.fv lvl in
     if not (Svl.subset fv vpoly) then
       Pt.rs_tyerror ~loc
@@ -396,7 +397,7 @@ let get_annot f =
   let aout = List.map (do_annot f.f_loc) f.f_outannot in
 
   (* Compute the local variables info *)
-  let do_local x = x, do_annot x.v_dloc x.v_annot in
+  let do_local x = x, do_annot ~dfl:(mk_dfl x) x.v_dloc x.v_annot in
   let ldecls = List.map do_local (Sv.elements (Prog.locals f)) in
 
   ain, aout, ldecls
