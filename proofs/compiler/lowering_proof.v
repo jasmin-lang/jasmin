@@ -2180,11 +2180,11 @@ Qed.
       set vf := {| v_var := _ |}.
       set i1 := match u with Signed => _ | _ => _ end.
       move: hdiv; set va0 := Vword (match u with Signed => _ | _ => _ end) => hdiv.
-      set lt := (match u with Signed => LT_ilds | Unsigned => LT_ildus end).
+      set lt := [:: match u with Signed => if le is LSub (a :: _) then LSub [:: a ] else le | Unsigned => LSub [:: LEmpty ] end ; LSub [:: LEmpty ] ].
       have Hs1'' := eq_exc_freshS Hs1'.
       move: (hdiv s1 Hs1'' Hdisjl Hdisje). move=> [Hp0] Hp1 [s1''] [v''] [lv'] [Hex] /= Hws [Hs1'''] Hevm [Hlv] Hle. 
       have [s1'1 [hsem1 hget heq1]]: exists s1'1,
-        [/\ sem p'.1 s1' [:: (MkI ii i1.1)] (leak_I (leak_Fun p'.2) stk (Lopn (LSub [:: le; LEmpty])) lt) s1'1,
+        [/\ sem p'.1 s1' [:: (MkI ii i1)] [:: Lopn (LSub lt) ] s1'1,
             get_var (evm s1'1) (v_var vf) = ok va0 &
             eq_exc_fresh s1'1 s1'].
       + rewrite /i1 /va0 /lt; case: (u); eexists; split.
@@ -2200,7 +2200,7 @@ Qed.
       have := hdiv _ heq1 Hdisjl Hdisje. move=> [Hp0'] Hp1' [s1'''] [v'''] [lv''] [Hex'] /= Hws' Hs2'' [Hlv'] Hle'.
       split. constructor.
       exists s1''';split.
-      + rewrite /=. rewrite Hle' /i1 /lt /=. rewrite Hle' /lt /= /i1 in hsem1. case: (u) hsem1=> /= hsem1. econstructor. 
+      + rewrite /=. rewrite Hle' /i1 /lt /=. rewrite /lt Hle' /i1 /= in hsem1. case: (u) hsem1=> /= hsem1. econstructor.
         apply sem_seq1_iff in hsem1. apply hsem1. 
         case: (d) hsem1 Hws' => hsem Hws'. apply sem_seq1;apply: EmkI; apply: Eopn.
         rewrite /sem_sopn /= hget /= Hp0' /= Hp1' /= Hex' /=. rewrite /write_lvals /= in Hws'. by rewrite Hws' Hlv' /=.

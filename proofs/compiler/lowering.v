@@ -690,12 +690,11 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
       end in
     let i1 :=
       match s with
-      | Signed => (Copn [:: Lvar c ] tg (Ox86 (CQO sz)) [:: a], LT_ilds) (* Lopn (LSub [:: LSub [:: la]; LSub [:: LEmpty]]) *) 
-      | Unsigned => (Copn [:: Lvar c ] tg (Ox86 (MOV sz)) [:: Papp1 (Oword_of_int sz) (Pconst 0)], LT_ildus)
-        (* Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: LEmpty]]) *) 
+      | Signed => Copn [:: Lvar c ] tg (Ox86 (CQO sz)) [:: a]
+      | Unsigned => Copn [:: Lvar c ] tg (Ox86 (MOV sz)) [:: Papp1 (Oword_of_int sz) (Pconst 0)]
       end in
     (* [:: leak for i1; Lopn (LSub [:: LSub [:: LEmpty; la ; lb] ; LSub lv.2]) *)
-    ([::MkI ii i1.1; MkI ii (Copn lv tg op [::Pvar c; a; b]) ], LT_ildiv i1.2 lte)
+    ([::MkI ii i1; MkI ii (Copn lv tg op [::Pvar c; a; b]) ], LT_ildiv s lte)
 
   | (LowerConcat h l, lte) =>
     ([:: MkI ii (Copn [:: x ] tg Oconcat128 [:: h ; l ]) ], LT_ilcopn lte)

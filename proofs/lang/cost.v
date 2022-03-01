@@ -1082,7 +1082,7 @@ Context (P: leak_i_tr → Prop)
         (Hilmul        : ∀ lei le, P (LT_ilmul lei le))
         (Hilif         : ∀ lei le, P (LT_ilif lei le))
         (Hilfopn       : ∀ lei les, P (LT_ilfopn lei les))
-        (Hildiv        : ∀ lti le, P lti -> P (LT_ildiv lti le)).
+        (Hildiv        : ∀ s le, P (LT_ildiv s le)).
 
   Section C.
     Context (leak_i_tr_ind : forall lti, P lti).
@@ -1124,7 +1124,7 @@ Context (P: leak_i_tr → Prop)
     | LT_ilmul lei le   => Hilmul lei le
     | LT_ilif lei le    => Hilif  lei le
     | LT_ilfopn lei les => Hilfopn lei les       
-    | LT_ildiv lti le   => Hildiv le (leak_i_tr_ind lti)
+    | LT_ildiv s le     => Hildiv s le
     end.
 
   Definition leak_c_tr_ind := leak_c_tr_ind_aux leak_i_tr_ind.
@@ -1612,7 +1612,7 @@ Proof.
   + by case.
   + by move=> ???; apply size_leak_ESI.
   + by move=> ???; apply size_leak_ESI.
-  + by move=> ???; case: ifP.
+  + by case.
   + by move=> li lc lti ltc _ hreci _ hrec; rewrite /leak_Is /= size_cat hreci hrec.
   by move=> lc lcs lt _ hrec _ hrecn; rewrite size_cat hrec hrecn.
 Qed.
@@ -1754,7 +1754,7 @@ Proof.
   + by move=> lti lte le; rewrite cost_C_Lopn //; case: lti.
   + by move=> lest ltes le; rewrite cost_C_Lopn //= is_lopns_leak_ESI.
   + by move=> lest lte le; rewrite cost_C_Lopn //= is_lopns_leak_ESI.
-  + by move=> lti ltes le;  rewrite cost_C_Lopn //=; case: ifP.
+  + by move=> s ltes le;  rewrite cost_C_Lopn //=; case: s.
   + move=> li lc lt1 lt2 hWF hrec1 _ hrec2 /=.
     rewrite /leak_Is /= cost_C_cat /= add0n transform_cost_size_i //.
     setoid_rewrite hrec1; rewrite cost_prefix_incr /= prefix0_cost Sm.interp_merge;

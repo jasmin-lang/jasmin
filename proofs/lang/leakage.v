@@ -217,8 +217,6 @@ Variant leak_i_tr_single :=
  | LT_ildc_
  | LT_ilea_
  | LT_ilsc_
- | LT_ilds_
- | LT_ildus_
  | LT_ilasgn_
  | LT_ilinc_ of leak_e_tr
  | LT_ilcopn_ of leak_e_tr
@@ -251,7 +249,7 @@ Inductive leak_i_tr :=
 | LT_ilmul : leak_es_i_tr -> leak_e_tr -> leak_i_tr
 | LT_ilif : leak_e_i_tr -> leak_e_tr -> leak_i_tr
 | LT_ilfopn : leak_es_i_tr -> leak_e_tr -> leak_i_tr
-| LT_ildiv : leak_i_tr -> leak_e_tr -> leak_i_tr.
+| LT_ildiv : signedness -> leak_e_tr -> leak_i_tr.
 
 Notation LT_ilmov2 := (LT_isingle LT_ilmov2_).
 Notation LT_ilmov3 := (LT_isingle LT_ilmov3_).
@@ -260,15 +258,11 @@ Notation LT_ild := (LT_isingle LT_ild_).
 Notation LT_ildc := (LT_isingle LT_ildc_).
 Notation LT_ilea := (LT_isingle LT_ilea_).
 Notation LT_ilsc := (LT_isingle LT_ilsc_).
-Notation LT_ilds := (LT_isingle LT_ilds_).
-Notation LT_ildus := (LT_isingle LT_ildus_).
 Notation LT_ilasgn := (LT_isingle LT_ilasgn_).
 Notation LT_ilinc ltes := (LT_isingle (LT_ilinc_ ltes)).
 Notation LT_ilcopn ltes := (LT_isingle (LT_ilcopn_ ltes)).
 Notation LT_ileq ltes := (LT_isingle (LT_ileq_ ltes)).
 Notation LT_illt ltes := (LT_isingle (LT_illt_ ltes)).
-
-Definition is_LT_ilds li := if li is LT_ilds then true else false.
 
 (* Transformation from expression leakage to instruction leakage *)
 Definition leak_EI (stk : pointer) (lti : leak_e_i_tr) (le : leak_e) : seq leak_i :=
@@ -471,12 +465,6 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
       | LT_ilsc_ => 
         LSub [:: leak_E stk (LT_subi 1) (leak_E stk (LT_subi 1) leak_lea_exp); 
                        LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]]
-      | LT_ilds_ =>
-        LSub [:: LSub [:: nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0]; 
-                       LSub [:: LEmpty]]
-      | LT_ildus_ =>
-        LSub [:: LSub [:: LEmpty]; LSub[:: LEmpty]]
-      
       | LT_ilasgn_ => 
         LSub [:: leak_E stk (LT_subi 0) le;
                        leak_E stk (LT_subi 1) le]
@@ -515,8 +503,8 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
     leak_ESI stk lest (leak_ES stk lte (leak_E stk (LT_subi 0) le)) 
               [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]
 
-  | LT_ildiv lti ltes, Lopn le =>  
-    if is_LT_ilds lti then 
+  | LT_ildiv s ltes, Lopn le =>
+    if s is Signed then
       [:: Lopn (LSub [:: LSub [:: nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0]; 
                         LSub[:: LEmpty]])] ++ 
       [:: Lopn (LSub [:: LSub [:: LEmpty; nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0; 
