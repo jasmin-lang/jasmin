@@ -4,32 +4,33 @@ open Prog
 module S = Syntax
 module Pt = Pretyping
 
+let ssecret = "secret" 
+let spoly   = "poly" 
+let spublic = "public" 
+let stransient = "transient"
+let smsf = "msf"
+
 (* ----------------------------------------------------------- *)
 (* Variable level                                              *)
 module Vl : sig 
   type t
   val compare : t -> t -> int
-  val is_flex : t -> bool
-  val is_poly : t -> bool
-  val mk_uni  : string -> t
+  (* Transient is a special variable that cannot be instantiate.
+     It represent Transient type *)
+  val transient : t
+  val is_transient : t -> bool
   val mk_poly : string -> t
-  val pp      : Format.formatter -> t -> unit
+  val pp : Format.formatter -> t -> unit
 end = struct
 
-  (* vl_flex = true means that the variable can be instanciate with public
-     vl_flex = false means that the variable cannot be instanciate *) 
-  type t = 
-    { vl_name : string
-    ; vl_flex : bool }
+  type t = { vl_name : string }
 
   let compare = compare 
 
-  let is_flex vl = vl.vl_flex
-  let is_poly vl = not vl.vl_flex
+  let mk_poly name = { vl_name = name }
+  let transient = mk_poly stransient
 
-
-  let mk_uni  name = { vl_name = name; vl_flex = true }
-  let mk_poly name = { vl_name = name; vl_flex = false }
+  let is_transient vl = vl = transient 
        
   let pp fmt vl = Format.fprintf fmt "%s" vl.vl_name 
 end 
@@ -37,50 +38,22 @@ end
 module Svl : Set.S with type elt = Vl.t = Set.Make(Vl)
 module Mvl : Map.S with type key = Vl.t = Map.Make(Vl)
 
+   
 type level = 
-  [ `Secret
-  | `Poly of Svl.t (* The max of the polymorphic variable *)
-  | `Transient
-  | `Public ]
-
- type level_fun =  
-  [ `Secret
-  | `Poly of Svl.t (* The max of the polymorphic variable *)
-  | `Transient
-  | `Public
-  | `Msf ]
-
-let lvlf2lvl = function
-  | `Secret -> `Secret
-  | `Poly l -> `Poly l 
-  | `Transient -> `Transient
-  | `Public -> `Public
-  | `Msf -> `Public
-
-let lvl2lvlf = function
-  | `Secret -> `Secret
-  | `Poly l -> `Poly l 
-  | `Transient -> `Transient
-  | `Public -> `Public
-
-(* [lvl_kind] indicate if the level of a program variable is allowed to varie 
-   at different point of the program *)
-type lvl_kind = 
-  | Strict    
-  | Flexible  
-
-let string_of_lvl_kind = function
-  | Strict -> "strict"
-  | Flexible -> "flexible"
-
+  | Secret
+  | Poly of Svl.t (* The max of the polymorphic variables,
+                     Remark that the set can contains Transient *)  
+  | Public of bool (* true means allowed to store msf variables *)
+  
 module Lvl : sig
 
   type t = level
 
-  val sstrict   : string
-  val sflexible : string
-
-  val poly1 : Vl.t -> level_fun 
+  val poly1 : Vl.t -> level 
+  val transient : level
+  val secret : level
+  val public : level
+  val msf : level 
  
   val max : t -> t -> t
 
@@ -90,65 +63,74 @@ module Lvl : sig
 
   val le : t -> t -> bool
 
+  val pp : Format.formatter -> level -> unit
 
-  val pp : Format.formatter -> level_fun -> unit
+  val parse : single:bool -> S.annotations -> level
 
-  val parse : single:bool -> kind_allowed:bool -> S.annotations ->
-              lvl_kind option * level_fun option
+  val is_public : level -> bool
+
+  val fv : level -> Svl.t 
 
 end = struct
 
   type t = level 
 
-  let poly1 vl = `Poly (Svl.singleton vl)
+  let poly1 vl = Poly (Svl.singleton vl)
+
+  let msf = Public true
+  let public = Public false 
+  let secret = Secret
+  let transient = poly1 Vl.transient
+
+  let is_public = function
+    | Public _ -> true
+    | _ -> false
+
+  let fv = function Poly s -> Svl.remove Vl.transient s | _ -> Svl.empty 
 
   let max l1 l2 = 
     match l1, l2 with
-    | `Secret, _ | _, `Secret -> `Secret
-    | `Public, l | l, `Public -> l
-    | l, `Transient | `Transient, l -> l 
-    | `Poly l1, `Poly l2 -> `Poly (Svl.union l1 l2)
+    | Secret, _ | _, Secret -> Secret
+    | Public b1, Public b2 -> Public (b1 && b2)
+    | Public _, l | l, Public _ -> l
+    | Poly l1, Poly l2 -> Poly (Svl.union l1 l2)
 
-  let maxs ls = List.fold_left max `Public ls 
+  let maxs ls = List.fold_left max public ls 
 
   let equal l1 l2 = 
     match l1, l2 with
-    | `Public, `Public -> true
-    | `Transient, `Transient -> true
-    | `Secret, `Secret -> true
-    | `Poly l1, `Poly l2 -> Svl.equal l1 l2
+    | Public b1, Public b2 -> b1 = b2
+    | Secret, Secret -> true
+    | Poly l1, Poly l2 -> Svl.equal l1 l2
     | _, _ -> false 
 
+  (* WARNING
+     [le l1 l2] = true ensures that for all substitution of the polymorphic variables
+     the inequality will stay true.
+     [le l1 l2] = false, say that we cannot ensure this property
+   *)
+     
   let le l1 l2 = 
     match l1, l2 with
-    | `Public, _ -> true
-    | `Transient, _ -> true   (* FIXME: what is the meaning of Transient <= Poly ? *)
-    | _, `Secret -> true
-    | `Poly l1, `Poly l2 -> Svl.subset l1 l2
-    | _, _      -> false 
-
-  let ssecret = "secret" 
-  let spoly   = "poly" 
-  let spublic = "public" 
-  let stransient = "transient"
-  let smsf = "msf"
-
-  let sflexible = "flex"
-  let sstrict   = "strict"
+    | Public _, _ -> true
+    | _, Secret -> true
+    | Poly l1, Poly l2 -> Svl.subset l1 l2
+    | _, _ -> false 
 
   let pp fmt = function 
-    | `Secret -> Format.fprintf fmt "#%s" ssecret 
-    | `Poly s -> 
-      let l = Svl.elements s in
-      begin match l with
-      | [vl] -> Format.fprintf fmt "#%s=%a" spoly Vl.pp vl
-      | _ -> Format.fprintf fmt "#%s=(@[%a@])" spoly (pp_list ",@ " Vl.pp) l 
-      end
-    | `Transient -> Format.fprintf fmt "#%s" stransient
-    | `Public -> Format.fprintf fmt "#%s" spublic
-    | `Msf -> Format.fprintf fmt "#%s"smsf   
+    | Secret -> Format.fprintf fmt "#%s" ssecret 
+    | Poly s as lvl ->
+      if equal lvl transient then Format.fprintf fmt "#%s" stransient
+      else
+        let l = Svl.elements s in
+        begin match l with
+        | [vl] -> Format.fprintf fmt "#%s=%a" spoly Vl.pp vl
+        | _ -> Format.fprintf fmt "#%s=(@[%a@])" spoly (pp_list ",@ " Vl.pp) l 
+        end
+    | Public false -> Format.fprintf fmt "#%s" spublic
+    | Public true -> Format.fprintf fmt "#%s" smsf
 
-  let parse ~(single:bool) ~(kind_allowed:bool) (annot: S.annotations) = 
+  let parse ~(single:bool) (annot: S.annotations) = 
     let module A = Pt.Annot in
     let on_struct loc _nid (s:S.annotations) = 
       List.iter A.none s;
@@ -156,44 +138,31 @@ end = struct
       if single && Svl.cardinal s <> 1 then 
         Pt.rs_tyerror ~loc 
           (Pt.string_error "= ident or = { ident } is expected after “%s”" spoly);
-      `Poly s in
+      Poly s in
     let on_id _loc _nid id = poly1 (Vl.mk_poly id) in
     let error loc _nid =
       Pt.rs_tyerror ~loc 
         (Pt.string_error "= ident or = { ident, ..., ident } is expected after “%s”" spoly) in
     let poly arg = A.on_attribute ~on_id ~on_struct error arg in
     let filters = 
-      [spublic, (fun a -> A.none a; `Public);
-       ssecret, (fun a -> A.none a; `Secret);
-       smsf, (fun a -> A.none a; `Msf);
+      [spublic, (fun a -> A.none a; public);
+       ssecret, (fun a -> A.none a; secret);
+       stransient, (fun a -> A.none a; transient);
+       smsf, (fun a -> A.none a; msf);
        spoly  , poly] in
     let lvl = A.ensure_uniq filters annot in
-    let kind = 
-      let check_allowed (id,_) = 
-        if not kind_allowed then
-          Pt.rs_tyerror ~loc:(L.loc id) 
-            (Pt.string_error "%s not allowed here" (L.unloc id));
-        if lvl = None then
-          Pt.rs_tyerror ~loc:(L.loc id) 
-            (Pt.string_error "type level should be provided")
-      in
-      let filters = 
-        [ sflexible, (fun a -> check_allowed a; A.none a; Flexible);
-          sstrict,   (fun a -> check_allowed a; A.none a; Strict)] in
-      A.ensure_uniq filters annot in
-    kind, lvl
+    odfl secret lvl
 
 end
 
 (* -----------------------------------------------------------*)
 
 type ty_fun = {
-    tyin : (lvl_kind * level_fun) list; (* Poly are ensured to be singleton *)
-    tyout: level_fun list; 
+    tyin : level list; (* Poly are ensured to be singleton *)
+    tyout: level list; 
   }
 
 type 'info fenv = {
-    ensure_annot : bool;
     env_ty       : ty_fun Hf.t;
     env_def      : 'info func list;
   }
@@ -207,16 +176,45 @@ module MSF = struct
   let exact xs = (xs, None)
   let trans xs e = (xs, Some e)
 
+  let le (xs1, oe1) (xs2, oe2) = 
+    match oe1, oe2 with
+    | Some e1, Some e2 when Prog.expr_equal e1 e2 -> Sv.subset xs2 xs1
+    | None, None -> Sv.subset xs2 xs1
+    | _, _ -> false
+
+    
   let max (xs1, oe1) (xs2, oe2) =
     match oe1, oe2 with
     | Some e1, Some e2 when Prog.expr_equal e1 e2 -> (Sv.inter xs1 xs2, oe1)
     | _, _ -> toinit
 
+  let enter_if msf e = 
+    match msf  with
+    | (_, Some _) -> toinit 
+    | (xs, None) -> (xs, Some e)
+
+  let exact1 x = exact (Sv.singleton (L.unloc x))
+
+  let update (xs, oe) x =
+    match oe with
+    | Some e when Sv.mem x (vars_e e) -> toinit
+    | _ -> (Sv.remove x xs, oe)
+
+  let pp fmt (xs, oe) = 
+    match oe with
+    | Some e -> 
+        Format.fprintf fmt "Trans {%a} %a"
+          (pp_list "@, " (Printer.pp_var ~debug:false)) (Sv.elements xs)
+          (Printer.pp_expr ~debug:false) e
+    | None ->
+        Format.fprintf fmt "Exact {%a}"
+          (pp_list "@, " (Printer.pp_var ~debug:false)) (Sv.elements xs)
+
 end
 
-let is_register x = (L.unloc x).v_kind = Reg Direct
+let is_register x = x.v_kind = Reg Direct
 
-module Env : sig 
+module Env (* : sig 
 
   type env
   val empty : env
@@ -236,149 +234,29 @@ module Env : sig
   val gget : public:bool -> env -> int ggvar -> env * Lvl.t 
 
   val pp : Format.formatter -> env -> unit 
-end = struct
+end *) = struct
 
-  type env = 
-    { env_v   : (lvl_kind * Lvl.t) Mv.t
-    ; env_vl  : Svl.t (* vlevel that need to be public *)
-    ; env_msf : MSF.t }
+  type env = Lvl.t Mv.t
 
-  let empty = 
-    { env_v   = Mv.empty
-    ; env_vl  = Svl.empty
-    ; env_msf = MSF.toinit }
+  let empty = Mv.empty 
 
-  let msf env = env.env_msf 
-
-  let enter_if env e = 
-    let env_msf = 
-      match env.env_msf with
-      | (_, Some _) -> MSF.toinit 
-      | (xs, None) -> (xs, Some e) in
-    { env with env_msf }
-
-  let is_public_vl env vl = 
-    Svl.mem vl env.env_vl
-
-  let norm_lvl_aux env_vl = function
-    | `Secret -> `Secret
-    | `Public -> `Public
-    | `Transient -> `Transient
-    | `Poly s -> 
-        let s = Svl.diff s env_vl in
-        if Svl.is_empty s then `Public else `Poly s
-
-  let norm_lvl env lvl = norm_lvl_aux env.env_vl lvl
-
-  let get_var env x = 
-    let flex, lvl = 
-      try 
-        let k, lvl = Mv.find (L.unloc x) env.env_v in
-        k, norm_lvl env lvl
-      with Not_found -> Flexible, `Public in
+  let add env x lvl = 
+    if Lvl.is_public lvl && not (is_register x) then
+      Pt.rs_tyerror ~loc:x.v_dloc  
+        (Pt.string_error "only register can be declared with type %a" Lvl.pp lvl);
     let lvl = 
-      if is_register x && lvl = `Public then `Transient
-      else lvl in
-    flex, lvl
-            
-  let lvl_le env lvl1 lvl2 = 
-    Lvl.le (norm_lvl env lvl1) (norm_lvl env lvl2)
+      if is_register x then lvl
+      else Lvl.max lvl Lvl.transient in
+    Mv.add x lvl env
 
-  let max env1 env2 = 
-    let env_vl = Svl.union env1.env_vl env2.env_vl in
-    let merge_lvl _ klvl1 klvl2 =
-      match klvl1, klvl2 with
-      | None, _ -> klvl2
-      | _, None -> klvl1
-      | Some (k1, lvl1), Some (k2, lvl2) -> 
-        assert (k1 = k2 && (k1 = Flexible || Lvl.equal lvl1 lvl2)); 
-        Some (k1, Lvl.max (norm_lvl_aux env_vl lvl1) (norm_lvl_aux env_vl lvl2))
-    in
-    { env_v  = Mv.merge merge_lvl env1.env_v env2.env_v;
-      env_vl;
-      env_msf = MSF.max env1.env_msf env2.env_msf;
-    }
+  let get env x = 
+    try Mv.find env x with Not_found -> assert false
 
-  let le env1 env2 = 
-    try 
-      let _ = 
-        Mv.merge (fun _ (klvl1) (klvl2) ->
-            let k1, lvl1 = odfl (Flexible, `Public) klvl1 in
-            let k2, lvl2 = odfl (Flexible, `Public) klvl2 in
-            let lvl1 = norm_lvl env1 lvl1 in 
-            let lvl2 = norm_lvl env2 lvl2 in
-            assert (k1 = k2 && (k1 = Flexible || Lvl.equal lvl1 lvl2));
-            if Lvl.le lvl1 lvl2 then None
-            else raise Not_found) env1.env_v env2.env_v in 
-      Svl.subset env1.env_vl env2.env_vl 
-    with Not_found -> false 
+  let get_i env (x:var_i) = get (L.unloc x) env
 
-  let set env x lvl =
-    let lvl = norm_lvl env lvl in
-    let k, lvlx = get_var env x in
-    let env_msf = 
-      match env.env_msf with
-      | _, Some e when Sv.mem (L.unloc x) (vars_e e) -> MSF.toinit
-      | xs, oe   -> (Sv.remove (L.unloc x) xs, oe) in
-    let env = { env with env_msf } in
-
-    if k = Strict then 
-      if not (Lvl.le lvl lvlx) then
-        Pt.rs_tyerror ~loc:(L.loc x) 
-          (Pt.string_error 
-             "%a has type #%s %a it cannot receive a value of type %a" 
-             (Printer.pp_var ~debug:false) (L.unloc x)
-             Lvl.sstrict Lvl.pp lvlx 
-             Lvl.pp lvl)
-      else env
-    else { env with env_v = Mv.add (L.unloc x) (Flexible, lvl) env.env_v }
-  
-  let set_exact env x = 
-    { env with env_msf = (Sv.singleton (L.unloc x), None) }
-      
-
-  let add env x (k, lvl) = 
-    assert (not (Mv.mem x env.env_v));
-    { env with env_v = Mv.add x (k, lvl) env.env_v }
-
-  (* public = true means the loaded value need to be public *)
-  let get ~(public:bool) env x = 
-    let loc = L.loc x in
-    let _, lvl = get_var env x in
-    if public then
-      match lvl with
-      | `Secret -> 
-        Pt.rs_tyerror ~loc 
-          (Pt.string_error "%a has type secret it needs to be public" 
-             (Printer.pp_var ~debug:false) (L.unloc x))
-      | `Public -> env, `Public
-      | `Transient -> 
-         Pt.rs_tyerror ~loc 
-          (Pt.string_error "%a has type transient it needs to be public" 
-             (Printer.pp_var ~debug:false) (L.unloc x))
-      | `Poly s ->
-        let poly = Svl.filter Vl.is_poly s in
-        if Svl.is_empty poly then { env with env_vl = Svl.union s env.env_vl }, `Public
-        else
-          Pt.rs_tyerror ~loc 
-            (Pt.string_error 
-               "variable %a has type %a, it should be public. Replace the polymorphic variable(s) %a by public"
-               (Printer.pp_var ~debug:false) (L.unloc x)
-               Lvl.pp lvl
-               (pp_list ",@ " Vl.pp) (Svl.elements poly))
-    else env, lvl
-
-  let gget ~(public:bool) env x = 
-    if is_gkvar x then get ~public env x.gv
-    else env, `Transient  
-
-  let pp fmt env = 
-    let pp_ty fmt (x, (k, lvl)) = 
-      Format.fprintf fmt "@[%a : %s %a@]" (Printer.pp_var ~debug:false) x 
-        (string_of_lvl_kind k) (fun fmt l -> Lvl.pp fmt (lvl2lvlf l)) lvl in
-    Format.fprintf fmt "@[<v>type = @[%a@]@ vlevel= @[%a@]@]"
-       (pp_list ";@ " pp_ty) (Mv.bindings env.env_v)
-       (pp_list "@ " Vl.pp) (Svl.elements env.env_vl)
+  let gget env x = 
+    if is_gkvar x then get_i env x.gv
+    else Lvl.transient
 
 end
     
@@ -391,7 +269,7 @@ module UE = struct
   let create n = Hashtbl.create n
 
   let get (ue:unienv) vl = 
-    try Hashtbl.find ue vl with Not_found -> `Public 
+    try Hashtbl.find ue vl with Not_found -> Lvl.public 
 
   let set (ue:unienv) s lvl = 
     assert (Svl.cardinal s = 1);
@@ -400,149 +278,118 @@ module UE = struct
 
 end (* UE *)
 
-let unify uty ety : UE.unienv = 
-  let ue = UE.create 31 in
-  let doit (_, uty) ety =
-    match uty, ety with
-    | `Public, `Public -> ()
-    | `Poly s, _      -> UE.set ue s ety
-    | `Secret, _      -> ()
-    (* FIXME *)
-    | _, _           -> assert false in
-  List.iter2 doit uty ety;
-  ue
-
 let instanciate ue ty = 
   match ty with
-  | `Secret | `Public -> ty
-  | `Poly s -> Svl.fold (fun vl lvl -> Lvl.max (UE.get ue vl) lvl) s `Public
-  (* FIXME *)
-  | _ -> assert false
-let instanciates ue tyin = 
-  List.map (instanciate ue) tyin
- 
-let instanciate_fty fty lvls  = 
-  assert false
-  (*
-  let ue = unify fty.tyin lvls in
-  let tyout = instanciates ue fty.tyout in
-  tyout
-  *)
+  | Secret | Public _ -> ty
+  | Poly s -> Svl.fold (fun vl lvl -> Lvl.max (UE.get ue vl) lvl) s Lvl.public
+
+let instanciates ue tys = 
+  List.map (instanciate ue) tys
+
+
+
 (* -----------------------------------------------------------*)
 
-(* [ty_expr ~public env e] return [env', lvl] such that [env' |- e : lvl] 
-   and [env' <= env] i.e for all x, [env'(x) <= env(x)].
-   Furthermore [public => lvl = Public.
-   Remark we need the property: [env' <= env => env |- e : lvl => env' |- e : lvl]
+(* [ty_expr ~lvl env e] return [lvl'] such that [env |- e : lvl'] and [lvl' <= lvl]
+   Remark lvl is assumed to be >= Lvl.public 
  *)
 
-let rec ty_expr ~(public:bool) env (e:expr) = 
-  match e with
-  | Pconst _ | Pbool _ | Parr_init _ -> env, `Public
+let check_var x lvl lvl' = 
+  if not (Lvl.le lvl' lvl) then
+    Pt.rs_tyerror ~loc:(L.loc x)
+      (Pt.string_error 
+         "The variable %a has type %a it should be a most %a" 
+         (Printer.pp_var ~debug:false) (L.unloc x)
+           Lvl.pp lvl' Lvl.pp lvl)
 
-  | Pvar x -> Env.gget ~public env x
+let ty_get_gvar ~(lvl:level) env x = 
+  let lvl' = Env.gget env x in
+  check_var x.gv lvl lvl';
+  lvl'
+ 
+let ty_get_var ~(lvl:level) env x = 
+  let lvl' = Env.get_i env x in
+  check_var x lvl lvl';
+  lvl' 
+             
+let rec ty_expr ~(lvl:level) env (e:expr) = 
+  match e with
+  | Pconst _ | Pbool _ | Parr_init _ -> Lvl.public
+
+  | Pvar x -> ty_get_gvar ~lvl env x 
 
   | Pget (_, _, x, i) | Psub (_, _, _, x, i) ->
-    let env, ty = Env.gget ~public env x in
-    let env, _  = ty_expr ~public:true env i in
-    env, ty
+    let ty = ty_get_gvar ~lvl env x in
+    let _  = ty_expr ~lvl:Lvl.public env i in
+    ty
 
   | Pload (_, x, i) -> 
-    let env, _ = Env.get ~public:true env x in
-    let env, _ = ty_expr ~public:true env i in
-    env, `Secret 
+    let _ = ty_get_var ~lvl:Lvl.public env x in
+    let _ = ty_expr ~lvl:Lvl.public env i in
+    if not (Lvl.le Lvl.secret lvl) then
+      Pt.rs_tyerror ~loc:(L.loc x) (Pt.string_error "loads are secret, %a data required here" Lvl.pp lvl);
+    Lvl.secret
 
-  | Papp1(_, e)        -> ty_expr ~public env e 
-  | Papp2(_, e1, e2)   -> ty_exprs_max ~public env [e1; e2]  
-  | PappN(_, es)       -> ty_exprs_max ~public env es 
-  | Pif(_, e1, e2, e3) -> ty_exprs_max ~public env [e1; e2; e3] 
+  | Papp1(_, e)        -> ty_expr ~lvl env e 
+  | Papp2(_, e1, e2)   -> ty_exprs_max ~lvl env [e1; e2]  
+  | PappN(_, es)       -> ty_exprs_max ~lvl env es 
+  | Pif(_, e1, e2, e3) -> ty_exprs_max ~lvl env [e1; e2; e3] 
 
-and ty_exprs ~public env es = 
-  List.map_fold (ty_expr ~public) env es 
+and ty_exprs ~lvl env es = 
+  List.map (ty_expr ~lvl env) es 
 
-and ty_exprs_max ~public env es =
-  let env, lvls = ty_exprs ~public env es in
-  env, Lvl.maxs lvls
+and ty_exprs_max ~lvl env es =
+  let lvls = ty_exprs ~lvl env es in
+  Lvl.maxs lvls
 
 (* -----------------------------------------------------------*)
-let ty_lval env x lvl = 
+let ty_lval env msf x lvl =
+  let check x lvl xlvl = 
+    if not (Lvl.le lvl xlvl) then 
+      Pt.rs_tyerror ~loc:(L.loc x) (Pt.string_error "cannot assign a value of type %a into a variable of type %a"
+                                      Lvl.pp lvl Lvl.pp xlvl);
+  MSF.update msf (L.unloc x) 
+  in
   match x with
-  | Lnone _ -> env
-  | Lvar x -> Env.set env x lvl 
+  | Lnone _ -> msf
+  | Lvar x -> check x lvl (Env.get_i env x)
   | Lmem(_, x, i) ->
-    let env, _ = Env.get ~public:true env x in
-    let env, _ = ty_expr ~public:true env i in
-    env
+    let _ = ty_get_var ~lvl:Lvl.public env x in
+    let _ = ty_expr ~lvl:Lvl.public env i in
+    msf
   | Laset(_, _, x, i) | Lasub(_, _, _, x, i) ->
     (* x[i] = e is x = x[i <- e] *)
-    let env, xlvl = Env.get ~public:false env x in
-    let env, _    = ty_expr ~public:true env i in
-    Env.set env x (Lvl.max xlvl lvl)
+    let _  = ty_expr ~lvl:Lvl.public env i in
+    check x lvl (Env.get_i env x)  
  
-let ty_lvals env xs lvls =
-  List.fold_left2 ty_lval env xs lvls
+let ty_lvals env msf xs lvls =
+  List.fold_left2 (ty_lval env) msf xs lvls
 
-let ty_lvals1 env xs lvl = 
-  List.fold_left (fun env x -> ty_lval env x lvl) env xs 
+let ty_lvals1 env msf xs lvl = 
+  List.fold_left (fun msf x -> ty_lval env msf x lvl) msf xs 
 
 (* -----------------------------------------------------------*)
     
-let get_annot ensure_annot f = 
-  let ain  = List.map (fun x -> Lvl.parse ~single:true ~kind_allowed:true x.v_annot) f.f_args in
-  let aout = List.map (Lvl.parse ~single:false ~kind_allowed:false) f.f_outannot in
-  let aout = List.map snd aout in
+let get_annot f = 
+  let ain  = List.map (fun x -> Lvl.parse ~single:true x.v_annot) f.f_args in
+  (* Compute the set of polymorphic variables allowed in declarations *)
+  let vpoly = List.fold_left (fun vp l -> Svl.union (Lvl.fv l) vp) Svl.empty ain in
 
-  let check_defined msg l = 
-    if List.exists (fun a -> a = None) l then
-      Pt.rs_tyerror ~loc:f.f_loc 
-        (Pt.string_error 
-           "export functions should be fully annotated, missing some security annotations on %s.@ User option “-infer” to infer them." 
-           msg) in
-  if ensure_annot && f.f_cc = Export then 
-    (check_defined "result types" aout; 
-     check_defined "function parameters" (List.map snd ain));
-  (* fill the missing input type *)
-  let ain = 
-    let doit i (k, o) = 
-      match o with 
-      | None -> Flexible, Lvl.poly1 (Vl.mk_uni (string_of_int i))
-      | Some lvl -> odfl Strict k, lvl in
-    List.mapi doit ain 
-  in
+  let do_annot loc ty =
+    let lvl = Lvl.parse ~single:false ty in
+    let fv = Lvl.fv lvl in
+    if not (Svl.subset fv vpoly) then
+      Pt.rs_tyerror ~loc
+        (Pt.string_error "%a levels need to be declared in paramater annotations"
+           (pp_list ",@ " Vl.pp) (Svl.elements (Svl.diff fv vpoly)));
+    lvl in
+      
+  let aout = List.map (do_annot f.f_loc) f.f_outannot in
+
   (* Compute the local variables info *)
-  let do_local x decls = 
-    let (k, lvl) = Lvl.parse ~single:true ~kind_allowed:true x.v_annot in
-    if k = Some Flexible then 
-      begin 
-        warning Always (L.i_loc0 x.v_dloc)
-          "%s annotation will be ignored for local variable %a"
-          Lvl.sflexible (Printer.pp_var ~debug:false) x;
-        decls
-      end
-    else 
-      match lvl with
-      | Some lvl -> (x,lvl) :: decls
-      | None -> decls  
-  in
-  let ldecls = Sv.fold do_local (Prog.locals f) [] in
-          
-  (* check that the output type only depend on variable level declared in the input type *)
-  let known = 
-    List.fold_left 
-      (fun s (_, lvl) -> match lvl with `Poly s' -> Svl.union s s' | _ -> s) Svl.empty ain in
-
-  let check_lvl lvl =
-    match lvl with
-    | `Poly s ->
-      let diff = Svl.diff known s in
-      if not (Svl.is_empty diff) then
-        Pt.rs_tyerror ~loc:f.f_loc 
-          (Pt.string_error "variable(s) level %a should be used in the input security annotations"
-             (pp_list ",@ " Vl.pp) (Svl.elements diff))
-    | _ -> () in 
-    
-  List.iter (oiter check_lvl) aout;
-  List.iter (fun (_, lvl) -> check_lvl lvl) ldecls;
+  let do_local x = x, do_annot x.v_dloc x.v_annot in
+  let ldecls = List.map do_local (Sv.elements (Prog.locals f)) in
+            
   ain, aout, ldecls
   
 (* -----------------------------------------------------------*)
@@ -561,27 +408,47 @@ let is_special o =
   | _ -> Other 
 
 (* -----------------------------------------------------------*)
-let sdeclassify = "declassify"
 
-let is_declasify annot = 
-  Pt.Annot.ensure_uniq1 sdeclassify Pt.Annot.none annot <> None
-  
-let declassify_lvl annot lvl = 
-  if is_declasify annot then `Transient 
-  else lvl
+let ensure_msf env x = 
+  let lvl = Env.get_i env x in
+  if not (lvl = Lvl.msf) then
+    Pt.rs_tyerror ~loc:(L.loc x) 
+      (Pt.string_error "the variable %a needs to be declared with type %a" 
+         (Printer.pp_var ~debug:false) (L.unloc x) Lvl.pp Lvl.msf)
 
-let declassify_lvls annot lvls = 
-  if is_declasify annot then List.map (fun _ -> `Transient) lvls
-  else lvls
 
-(* [ty_instr env i] return env' such that env |- i : env' *)
+let ensure_exact_x env msf x = 
+  match msf with 
+  | (xS, Some e) -> 
+    Pt.rs_tyerror ~loc:(L.loc x) (Pt.string_error "Current state is Trans ({%a}, %a), use #set_msf before"
+                          (pp_list ",@ " (Printer.pp_var ~debug:false)) (Sv.elements xS)
+                          (Printer.pp_expr ~debug:false) e)
+  | (xS, None) -> 
+      if not (Sv.mem (L.unloc x) xS) then 
+        Pt.rs_tyerror ~loc:(L.loc x) 
+          (Pt.string_error "the variable %a is not a msf only {@[%a@]} are"
+             (Printer.pp_var ~debug:false) (L.unloc x)
+             (pp_list ",@ " (Printer.pp_var ~debug:false)) (Sv.elements xS));
+      ensure_msf env x
 
-let rec ty_instr fenv env i = 
-  let env1 = 
+let ensure_exact ~loc env msf xe = 
+  match xe with 
+  | Pvar x -> ensure_exact_x env msf x.gv
+  | _ ->
+      Pt.rs_tyerror ~loc  (Pt.string_error "the expression %a need to be a variable"
+                               (Printer.pp_expr ~debug:false) xe) 
+
+
+
+
+(* [ty_instr env msf i] return msf' such that env, msf |- i : msf' *)
+
+let rec ty_instr fenv env msf i = 
+  let msf1 = 
   match i.i_desc with
   | Cassgn(x, _, _, e) ->
-    let env, lvl = ty_expr ~public:false env e in
-    ty_lval env x (declassify_lvl i.i_annot lvl)
+    let lvl = ty_expr ~lvl:Lvl.secret env e in
+    ty_lval env msf x lvl
 
   | Copn(xs, _, o, es) ->
     let loc = i.i_loc.base_loc in
@@ -589,17 +456,14 @@ let rec ty_instr fenv env i =
     | Init_msf -> 
       begin match xs with
       | [Lvar x] -> 
-        if not (is_register x) then 
-          Pt.rs_tyerror ~loc:(L.loc x) 
-            (Pt.string_error "the variable %a needs to be a register" (Printer.pp_var ~debug:false) (L.unloc x));
-        let env = Env.set env x `Public in
-        Env.set_exact env x 
+        ensure_msf env x;
+        MSF.exact1 x 
 
-      | _ -> Pt.rs_tyerror ~loc (Pt.string_error "the result of #init_msf needs to be a register") 
+      | _ -> Pt.rs_tyerror ~loc (Pt.string_error "the result of #init_msf needs to be assigned in a register") 
       end
 
     | Set_msf -> 
-      begin match Env.msf env with 
+      begin match msf with 
       | (_, None) -> Pt.rs_tyerror ~loc (Pt.string_error "MSF is not Trans")
       | (xS, Some b') ->
         match es with
@@ -616,12 +480,8 @@ let rec ty_instr fenv env i =
                                 (Printer.pp_expr ~debug:false) b');
           begin match xs with
           | [_; Lvar ms'] -> 
-            if not (is_register ms') then 
-              Pt.rs_tyerror ~loc:(L.loc ms') 
-                (Pt.string_error "the variable %a needs to be a register" 
-                   (Printer.pp_var ~debug:false) (L.unloc ms'));
-            let env = ty_lvals1 env xs `Public in
-            Env.set_exact env ms'
+            ensure_msf env ms';
+            MSF.exact1 ms'
           | [_; e] -> 
              Pt.rs_tyerror ~loc  (Pt.string_error "the expression %a need to be a variable"
                                   (Printer.pp_lval ~debug:false) e)
@@ -635,83 +495,88 @@ let rec ty_instr fenv env i =
       end
 
     | Protect ->
-      begin match Env.msf env with 
-      | (xS, Some e) -> 
-          Pt.rs_tyerror ~loc (Pt.string_error "Current state is Trans ({%a}, %a), use #set_msf before"
-                                (pp_list ",@ " (Printer.pp_var ~debug:false)) (Sv.elements xS)
-                                (Printer.pp_expr ~debug:false) e)
-      | (xS, None) -> 
-        match es with 
-        | [e1; Pvar ms] ->
-            if not (Sv.mem (L.unloc ms.gv) xS) then 
-               Pt.rs_tyerror ~loc:(L.loc ms.gv) 
-              (Pt.string_error "the variable %a is not a msf only {@[%a@]} are"
-                  (Printer.pp_var ~debug:false) (L.unloc ms.gv)
-                  (pp_list ",@ " (Printer.pp_var ~debug:false)) (Sv.elements xS));
-            let env, ety = ty_expr ~public:false env e1 in
-            if not (Env.lvl_le env ety `Transient) then 
-              Pt.rs_tyerror ~loc
-                (Pt.string_error "%a has type %a it should be transient"
-                  (Printer.pp_expr ~debug:false) e1 
-                  (fun fmt l -> Lvl.pp fmt (lvl2lvlf l)) ety);
-            ty_lvals1 env xs `Public
-
-        | [_; e] -> 
-            Pt.rs_tyerror ~loc  (Pt.string_error "the expression %a need to be a variable"
-                                   (Printer.pp_expr ~debug:false) e)
-        | _ -> assert false
+      let loc = i.i_loc.base_loc in
+      begin match es with 
+      | [e1; ms] ->
+        ensure_exact ~loc env msf ms;
+        let _ = ty_expr ~lvl:Lvl.transient env e1 in
+        ty_lvals1 env msf xs Lvl.public
+      | _ -> assert false
       end
 
     | Other  -> 
-        let env, lvl = ty_exprs_max ~public:false env es in
-        ty_lvals1 env xs (declassify_lvl i.i_annot lvl)
+        let lvl = ty_exprs_max ~lvl:Lvl.secret env es in
+        ty_lvals1 env msf xs lvl 
     end
 
   | Cif(e, c1, c2) ->
-    let env, _ = ty_expr ~public:true env e in
-    let env1 = ty_cmd fenv (Env.enter_if env e) c1 in
-    let env2 = ty_cmd fenv (Env.enter_if env (Papp1(Onot, e))) c2 in
-    Env.max env1 env2
+    let _ = ty_expr ~lvl:Lvl.public env e in
+    let msf1 = ty_cmd fenv env (MSF.enter_if msf e) c1 in
+    let msf2 = ty_cmd fenv env (MSF.enter_if msf (Papp1(Onot, e))) c2 in
+    MSF.max msf1 msf2
 
   | Cfor(x, (_, e1, e2), c) -> 
-    let env, _ = ty_exprs ~public:true env [e1; e2] in
-    let rec loop env = 
-      let env1 = Env.set env x `Public in
-      let env1 = ty_cmd fenv env1 c in (*  env |- x = p; c : env1 <= env  *)
-      if Env.le env1 env then env      (* G <= G'  G' |- c : G''   G |- c : G'' *)
-      else loop (Env.max env1 env) in  (* le env/env1 (max env1 env) Check *)
-    loop env 
+    let _ = ty_exprs ~lvl:Lvl.public env [e1; e2] in
+    let rec loop msf = 
+      let msf1 = ty_lval env msf (Lvar x) Lvl.public in
+      let msf2 = ty_cmd fenv env msf1 c in (*  env, msf |- x = p; c : msf2 *)
+      if MSF.le msf2 msf then msf         
+      else loop (MSF.max msf2 msf) in     
+    loop msf
 
   | Cwhile(_, c1, e, c2) -> 
     (* c1; while e do c2; c1 *)
-    (* G |- c1 : G'   G' |- e : public   G' |- c2 : G
-       -----------------------------------------------
-       G |- while c1 e c2 : G'
+    (* env, msf |- c1 : msf1   env, msf1 |- e : public   env, enter_if e msf1 |- c2 : msf
+       --------------------------------------------------------------------------------
+       env, msf |- while c1 e c2 : enter_if e msf1
      *)
 
-    let rec loop env = 
-      let env1 = ty_cmd fenv env c1 in   (* env |- c1 : env1 *)
-      let env1,_ = ty_expr ~public:true env1 e in
-      let env2 = ty_cmd fenv (Env.enter_if env1 e) c2 in  (* env1 |- c2 : env2 *)   
-      if Env.le env2 env then env1 
-      else loop (Env.max env2 env) in
-    let env = loop env in
-    Env.enter_if env (Papp1(Onot, e))
+    let rec loop msf = 
+      let msf1 = ty_cmd fenv env msf c1 in   (* msf |- c1 : msf1 *)
+      let _ = ty_expr ~lvl:Lvl.public env e in
+      let msf2 = ty_cmd fenv env (MSF.enter_if msf1 e) c2 in  (* env, msf1 |- c2 : msf2 *)   
+      if MSF.le msf2 msf then msf1 
+      else loop (MSF.max msf2 msf) in
+    let msf = loop msf in
+    MSF.enter_if msf (Papp1(Onot, e))
 
   | Ccall (_, xs, f, es) -> 
+    let loc = i.i_loc.base_loc in
     let fty = get_fun fenv f in
     (* Check the arguments *)
-    let do_e env e (_,lvl) = ty_expr ~public:(lvl=`Public) env e in
-    let env, elvls = List.map_fold2 do_e env es fty.tyin in
-    let olvls = instanciate_fty fty elvls in
-    ty_lvals env xs (declassify_lvls i.i_annot olvls)
+    let ue = UE.create 31 in
+    let do_e e lvl =
+      match lvl with 
+      | Public b -> 
+        if b (* lvl = Lvl.msf *) then
+          ensure_exact ~loc env msf e
+        else ignore (ty_expr ~lvl env e)
+      | Secret -> ignore (ty_expr ~lvl env e)
+      | Poly l -> (* ensured to be a single element*) 
+        let l' = Svl.choose l in
+        if l' = Vl.transient then ignore (ty_expr ~lvl env e)
+        else 
+          let elvl = ty_expr ~lvl:Lvl.secret env e in
+          UE.set ue l elvl in
+   List.iter2 do_e es fty.tyin;
+   let tout = instanciates ue fty.tyout in
+   ignore (ty_lvals env msf xs tout);
+   let do_out xs x lvl = 
+     if Lvl.equal lvl Lvl.msf then 
+       let x = match x with Lvar x -> L.unloc x 
+               | _ -> Pt.rs_tyerror ~loc  (Pt.string_error "the left value %a need to be a variable"
+                                  (Printer.pp_lval ~debug:false) x) in
+       Sv.add x xs 
+     else xs in
+   MSF.exact (List.fold_left2 do_out Sv.empty xs tout)
+
   in
   if !Glob_options.debug then
-    Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (i.i_loc.base_loc) Env.pp env Env.pp env1;
-  env1
+    Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (i.i_loc.base_loc) MSF.pp msf MSF.pp msf1; 
+  msf1
 
-and ty_cmd fenv env c = 
-  List.fold_left (fun env i -> ty_instr fenv env i) env c 
+and ty_cmd fenv env msf c = 
+  List.fold_left (ty_instr fenv env) msf c 
 
 and get_fun fenv f = 
   try Hf.find fenv.env_ty f 
@@ -723,54 +588,25 @@ and get_fun fenv f =
 and ty_fun fenv fn = 
   (* TODO: we should have this defined *)
   let f = List.find (fun f -> F.equal f.f_name fn) fenv.env_def in
-  let tyin, aout, ldecls = get_annot fenv.ensure_annot f in
+  let tyin, tyout, ldecls = get_annot f in
   let env = List.fold_left2 Env.add Env.empty f.f_args tyin in
-  let env = List.fold_left (fun env (x,lvl) -> Env.add env x (Strict, lvl)) env ldecls in
-  let env = ty_cmd fenv env f.f_body in
-  (* First ensure that all return that are required to be public are publics *)
-  let set_pub env x aout =
-    if aout = Some Public then 
-      let env, _ = Env.get ~public:true env x in
-      env
-    else env in
-  let env = List.fold_left2 set_pub env f.f_ret aout in
-  if !Glob_options.debug then Format.eprintf "env return %a@." Env.pp env; 
-  (* Compute the return type *)
-  let do_r env x aout =
-    let _, lvl = Env.get ~public:false env x in
-    let lvl = 
-      match aout with
-      | None -> lvl
-      | Some alvl ->
-        if Lvl.le lvl alvl then alvl 
-        else 
-          Pt.rs_tyerror ~loc:(L.loc x) 
-            (Pt.string_error "the variable %a has type %a instead of %a"
-              (Printer.pp_var ~debug:false) (L.unloc x)
-              Lvl.pp lvl Lvl.pp alvl) in
-    lvl in
-  let tyout = List.map2 (do_r env) f.f_ret aout in
-  (* Normalize the input type *)
-  let tyin = List.map (fun (k, lvl) -> k, Env.norm_lvl env lvl) tyin in
-  let fty = {tyin; tyout} in
-  let pp_k fmt k = 
-    if k = Flexible then Format.fprintf fmt "#%s " (string_of_lvl_kind k) else () in
-  let pp_arg fmt (x, (k, lvl)) = 
-    Format.fprintf fmt "%a%a %a"
-      pp_k k  Lvl.pp lvl (Printer.pp_var ~debug:false) x in
-  Format.eprintf "security type for @[<h>@[%s(@[%a@]) ->@ @[%a@]@]@]@."
-    f.f_name.fn_name
-    (pp_list ",@ " pp_arg) (List.combine f.f_args tyin)
-    (pp_list ",@ " Lvl.pp) tyout;
-  fty
+  let env = List.fold_left (fun env (x,lvl) -> Env.add env x lvl) env ldecls in
+  let do_x xs x lvl = 
+    if Lvl.equal lvl Lvl.msf then Sv.add x xs 
+    else xs in 
+  let msf = MSF.exact (List.fold_left2 do_x Sv.empty f.f_args tyin) in
+  let msf = ty_cmd fenv env msf f.f_body in
+  (* Check the return *)
+  let check_ret x lvl = 
+    if Lvl.equal lvl Lvl.msf then ensure_exact_x env msf x
+    else ignore (ty_expr lvl env (Pvar (gkvar x))) in
+  List.iter2 check_ret f.f_ret tyout;
+  Format.eprintf "SCT type checking of %s done@." f.f_name.fn_name;
+  {tyin; tyout} 
 
-
-let ty_prog ~infer (prog:'info prog) fl =
+let ty_prog (prog:'info prog) fl =
   let prog = snd prog in
-  let fenv = 
-    { ensure_annot = not infer
-    ; env_ty       = Hf.create 101
-    ; env_def      = prog } in
+  let fenv = { env_ty       = Hf.create 101 ; env_def      = prog } in
   let fl = 
     if fl = [] then 
       List.rev_map (fun f -> f.f_name) prog 
@@ -781,28 +617,6 @@ let ty_prog ~infer (prog:'info prog) fl =
       List.map get fl in
   List.iter (fun fn -> ignore (get_fun fenv fn)) fl
 
-
-(** Remark on the general transformation *)
-(*
-
-case i:
-+ x = mov [p] -> 
-   if x is public then 
-     extra_res, x = safemov_extra_arg [p]    /* I think we need to know the name of carry flag */
-   else i
-
-+ xs = #op es if #op es need to be public ensure that there is no memory load in es.
-
-+ if e then c1 else c2
-  if e then tmp = 1; ms = tmp if !e; {c1} else tmp = 1; ms = 1 if e; {c2}   
-  or more high level 
-  if e then tmp, ms = setms !e; {c1} else tmp, ms = setms e; {c2}
-
-*) 
-  
-
-
-  
 
 
   

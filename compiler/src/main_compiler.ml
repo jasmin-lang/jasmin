@@ -172,13 +172,20 @@ let main () =
       donotcompile()
     end;
 
-  (*  if !ct_list <> None then begin
+    if !ct_list <> None then begin
         begin try Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list)
         with Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"constant type checker" "%a" Pretyping.pp_tyerror code end;
         donotcompile()
-    end; *)
+    end; 
 
-    
+    if !sct_list <> None then begin
+      begin try Sct_checker_forward.ty_prog source_prog (oget !sct_list)
+      with Pretyping.TyError (loc, code) -> 
+        hierror ~loc:(Lone loc) ~kind:"speculative constant type checker" "%a" 
+          Pretyping.pp_tyerror code 
+      end;
+      donotcompile()
+    end; 
 
     if !do_compile then begin
   
@@ -413,15 +420,7 @@ let main () =
       );
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;
-      Compiler.print_uprog  = (fun s p -> 
-        if s = PropagateInline then begin
-            let p = Conv.prog_of_cuprog tbl p in
-            if !ct_list <> None then
-              try Ct_checker_forward.ty_prog ~infer:!infer p (oget !ct_list)
-              with Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"constant type checker" "%a" Pretyping.pp_tyerror code
-        end;
-        eprint s pp_cuprog p; p);
-
+      Compiler.print_uprog  = (fun s p -> eprint s pp_cuprog p; p);
       Compiler.print_sprog  = (fun s p -> warn_extra s p;
                                           eprint s pp_csprog p; p);
       Compiler.print_linear = (fun s p -> eprint s pp_linear p; p);

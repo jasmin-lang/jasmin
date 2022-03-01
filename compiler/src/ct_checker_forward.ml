@@ -361,6 +361,8 @@ let rec ty_expr ~(public:bool) env (e:expr) =
     env, ty
 
   | Pload (_, x, i) -> 
+    if public then
+      Pt.rs_tyerror ~loc:(L.loc x) (Pt.string_error "loads are secret, public data required here");
     let env, _ = Env.get ~public:true env x in
     let env, _ = ty_expr ~public:true env i in
     env, Secret 

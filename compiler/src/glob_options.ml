@@ -19,6 +19,8 @@ let color = ref Auto
 let ct_list = ref None
 let infer   = ref false 
 
+let sct_list = ref None
+
 let lea = ref false
 let set0 = ref false
 let model = ref Normal
@@ -70,6 +72,15 @@ let set_ct_on s =
           | None -> [s]
           | Some l -> s::l)
 
+let set_sct () =  
+  if !sct_list = None then sct_list := Some []
+
+let set_sct_on s = 
+  sct_list := 
+    Some (match !sct_list with
+          | None -> [s]
+          | Some l -> s::l)
+
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
@@ -118,6 +129,9 @@ let options = [
     "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system)";
     "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system)";
     "-infer"    , Arg.Set infer         , "infers security level annotations of the constant time type system";          
+    "-checkSCT", Arg.Unit set_sct       , ": checks that the full program is speculative constant time (using a type system)";
+    "-checkSCTon", Arg.String set_sct_on, "[f]: checks that the function [f] is speculative constant time (using a type system)";
+
     "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
     "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";
     "-safetyparam", Arg.String set_safetyparam,
