@@ -176,11 +176,14 @@ module MSF = struct
   let exact xs = (xs, None)
   let trans xs e = (xs, Some e)
 
-  let le (xs1, oe1) (xs2, oe2) = 
-    match oe1, oe2 with
-    | Some e1, Some e2 when Prog.expr_equal e1 e2 -> Sv.subset xs2 xs1
-    | None, None -> Sv.subset xs2 xs1
-    | _, _ -> false
+  let is_toinit (xs, _) = Sv.is_empty xs 
+
+  let le (xs1, oe1) (xs2, oe2 as msf2) = 
+    is_toinit msf2 ||  
+      match oe1, oe2 with
+      | Some e1, Some e2 when Prog.expr_equal e1 e2 -> Sv.subset xs2 xs1
+      | None, None -> Sv.subset xs2 xs1
+      | _, _ -> false
 
     
   let max (xs1, oe1) (xs2, oe2) =

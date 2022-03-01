@@ -75,7 +75,7 @@ fn aux(#msf reg u64 ms, #public reg u64 p, #public reg u64 i) -> #msf reg u64, #
 }
 
 /* This loop, need to fix the case of while */
-/*
+
 fn aux1(#msf reg u64 ms, #public reg u64 p, #public reg u64 i) -> #msf reg u64, #public reg u64 {
  
    #public reg bool b;
@@ -88,9 +88,9 @@ fn aux1(#msf reg u64 ms, #public reg u64 p, #public reg u64 i) -> #msf reg u64, 
    return (ms, p);
    
 }
-*/
 
-fn aux1(#msf reg u64 ms, #transient reg ptr u64[1000]p) -> #msf reg u64, #public reg u64 {
+
+fn sum_regptr(#msf reg u64 ms, #transient reg ptr u64[1000]p) -> #msf reg u64, #public reg u64 {
  
    #public reg bool b;
    #transient reg u64 sum;
