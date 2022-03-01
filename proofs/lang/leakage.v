@@ -157,12 +157,6 @@ Inductive leak_e_tr :=
 Definition lt_compose (a b: leak_e_tr) : leak_e_tr :=
   if a is LT_id then b else if b is LT_id then a else LT_compose a b.
 
-Definition get_seq_leak_e_tr (l : leak_e_tr) : seq leak_e_tr := 
-  match l with 
-  | LT_seq le => le
-  | _ => [::]
-  end.
-
 Fixpoint eval_leak_tr_p stk lp : pointer :=
   match lp with
   | LS_const p => p 
