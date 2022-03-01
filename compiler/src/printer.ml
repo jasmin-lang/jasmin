@@ -236,7 +236,7 @@ and pp_cblock pp_info pp_ty pp_var fmt c =
 (* -------------------------------------------------------------------- *)
 
 let pp_kind fmt = function
-  | Const  ->  F.fprintf fmt "const"
+  | Const  ->  F.fprintf fmt "param"
   | Stack  ->  F.fprintf fmt "stack"
   | Reg    ->  F.fprintf fmt "reg"
   | Inline ->  F.fprintf fmt "inline"
@@ -250,17 +250,27 @@ let pp_var_decl pp_var pp_size fmt v =
 
 let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_size in
-(*  let locals = locals fd in *)
+  let pp_locals fmt fd =
+    let seen = ref Spv.empty in
+    let mark x = seen := Spv.add x !seen in
+    let is_seen x = Spv.mem x !seen in
+    List.iter mark fd.f_args;
+    fold_vars_fc (fun x () ->
+        if x.v_kind <> Const && not (is_seen x) then (
+          mark x;
+          F.fprintf fmt "%a;@ " pp_vd x)
+    ) () fd
+  in
   let ret = List.map L.unloc fd.f_ret in
   let pp_ret fmt () =
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
 
-  F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_size)) ret
-(*   (pp_list ";@ " pp_vd) (Sv.elements locals) *)
+   pp_locals fd
    (pp_gc pp_info (pp_gtype pp_size) pp_var) fd.f_body
    pp_ret ()
 
@@ -271,11 +281,11 @@ let pp_pitem pp_var =
   let aux fmt = function
     | MIfun fd -> pp_gfun pp_noinfo pp_size pp_var fmt fd
     | MIparam (x,e) ->
-      F.fprintf fmt "%a = %a"
+      F.fprintf fmt "%a = %a;"
         (pp_var_decl pp_var pp_size) x
         (pp_ge pp_var) e
     | MIglobal ((x,ty), e) ->
-      F.fprintf fmt "Global %a %s = %a" (pp_gtype pp_size) ty x (pp_ge pp_var) e
+      F.fprintf fmt "%a %s = %a;" (pp_gtype pp_size) ty x (pp_ge pp_var) e
  in
   aux
 
