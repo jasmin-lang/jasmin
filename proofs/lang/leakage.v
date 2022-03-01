@@ -182,6 +182,15 @@ Fixpoint leak_E (stk:pointer) (lt : leak_e_tr) (l : leak_e) : leak_e :=
 Definition leak_E_S (stk: pointer) (lts: seq leak_e_tr) (ls : seq leak_e) : seq leak_e :=
   map2 (leak_E stk) lts ls.
 
+Lemma lt_composeE p x y :
+  leak_E p (lt_compose x y) =1 leak_E p (LT_compose x y).
+Proof.
+  rewrite /lt_compose.
+  case: x; first by [].
+  all: by case: y.
+Qed.
+Global Opaque lt_compose.
+
 (* Transformation from leakage to sequence of leakage *)
 Definition leak_ES (stk: pointer) (lte: leak_e_tr) (le: leak_e) : leak_es :=
   get_seq_leak_e (leak_E stk lte le).

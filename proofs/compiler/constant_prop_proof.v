@@ -1316,15 +1316,6 @@ Definition vconst c :=
 Definition valid_cpm (vm: vmap)  (m:cpm) :=
   forall x n, Mvar.get m x = Some n -> get_var vm x = ok (vconst n).
 
-Lemma lt_composeE p x y :
-  leak_E p (lt_compose x y) =1 leak_E p (LT_compose x y).
-Proof.
-  rewrite /lt_compose.
-  case: x; first by [].
-  all: by case: y.
-Qed.
-Global Opaque lt_compose.
-
 Section CONST_PROP_EP.
   Context s m (Hvalid: valid_cpm (evm s) m).
 
