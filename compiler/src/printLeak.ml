@@ -105,7 +105,7 @@ let pp_i tbl fmt =
   | LT_ilif (a, b) -> fprintf fmt "ilif(%a, %a)" pp_e_i_tr a pp_e_tr b
   | LT_ildiv (a, b) -> fprintf fmt "ildiv(%a, TODO)" pp_i a
   | LT_isingle a -> fprintf fmt "isingle(%a)" pp_i_tr_single a
-  | LT_idouble a -> p "idouble(TODO)"
+  | LT_idouble (a, b) -> p "idouble(TODO)"
   in pp_i fmt
 
 let pp_funs pp_one tbl fmt =

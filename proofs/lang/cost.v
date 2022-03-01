@@ -1077,9 +1077,8 @@ Context (P: leak_i_tr → Prop)
         (Hicondl       : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_icondl lei le lt1 lt2))
         (Hiwhilel      : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_iwhilel lei le lt1 lt2))
         (Hicopn        : ∀ lei, P (LT_icopn lei))
-        (Hilmov1       : P LT_ilmov1)
         (Hilsingle : ∀ lti, P (LT_isingle lti))
-        (Hildouble : ∀ lti, P (LT_idouble lti))
+        (Hildouble : ∀ lte1 lte2, P (LT_idouble lte1 lte2))
         (Hilmul        : ∀ lei le, P (LT_ilmul lei le))
         (Hilif         : ∀ lei le, P (LT_ilif lei le))
         (Hilfopn       : ∀ lei les, P (LT_ilfopn lei les))
@@ -1121,7 +1120,7 @@ Context (P: leak_i_tr → Prop)
 
     | LT_icopn lei      => Hicopn lei
     | LT_isingle lti   => Hilsingle lti
-    | LT_idouble lti   => Hildouble lti        
+    | LT_idouble lte1 lte2 => Hildouble lte1 lte2
     | LT_ilmul lei le   => Hilmul lei le
     | LT_ilif lei le    => Hilif  lei le
     | LT_ilfopn lei les => Hilfopn lei les       
@@ -1247,7 +1246,7 @@ Fixpoint transform_cost_I (lt:leak_i_tr) : Sm.t * nat :=
     (Sm.empty, n)
  
     (* sl:i --->    tl:i1; tl': i2; next_lbl tl' *)
-  | LT_idouble _ => (Sm.empty, 2)
+  | LT_idouble _ _ => (Sm.empty, 2)
 
   | LT_isingle _ =>
     (Sm.empty, 1)
@@ -1611,7 +1610,6 @@ Proof.
   + by move=> ltei lte _ lt le lc _ hrec; rewrite size_cat /= leak_EI_sizeE.
   + by move=> ??; apply size_leak_ESI.
   + by case.
-  + by move=> lti lte le; rewrite size_cat /= addnC; case: lti.
   + by move=> ???; apply size_leak_ESI.
   + by move=> ???; apply size_leak_ESI.
   + by move=> ???; case: ifP.
@@ -1753,7 +1751,6 @@ Proof.
     rewrite mergec0 -/(enter_cost_c cost_i (bpath_f path0) (leak_Is (leak_I ftr) w lt1 lc)).
     by apply (leqc_trans (enter_ok _ hrec)); rewrite  interp_prefix2_sprefix mergec0.
   + by move=> ltes le; rewrite cost_C_Lopn //= is_lopns_leak_ESI.
-  + by move=> lti le; rewrite cost_C_Lopn //=; case: lti.
   + by move=> lti lte le; rewrite cost_C_Lopn //; case: lti.
   + by move=> lest ltes le; rewrite cost_C_Lopn //= is_lopns_leak_ESI.
   + by move=> lest lte le; rewrite cost_C_Lopn //= is_lopns_leak_ESI.

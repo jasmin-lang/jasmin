@@ -573,6 +573,10 @@ Definition reduce_wconst sz (e: pexpr) : pexpr :=
   then Papp1 (Oword_of_int (cmp_min sz sz')) (Pconst z)
   else e.
 
+#[local]
+Notation LT_ilmov1 := (LT_idouble (LT_seq [:: LT_seq [:: LT_subi 0 ] ; LT_seq [:: LT_remove ] ]) (LT_seq [:: LT_seq [:: LT_remove]; LT_seq [:: LT_subi 1]])).
+#[local]
+Notation LT_ildcn := (LT_idouble (LT_seq [:: LT_seq [:: LT_remove ] ; LT_seq [:: LT_remove ] ]) (LT_seq [:: LT_seq [:: LT_remove; LT_remove ]; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1]])).
 
 (** Need to fix this later: for now commenting it out **) 
 Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd * leak_i_tr :=
