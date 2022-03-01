@@ -26,6 +26,7 @@ src/Prog
 src/Puf
 src/Regalloc
 src/RemoveUnusedResults
+src/Sct_checker_forward
 src/Ssa
 src/StackAlloc
 src/Subst

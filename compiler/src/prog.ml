@@ -294,6 +294,8 @@ type 'info prog     = global_decl list * 'info func list
 module V = struct
   type t = var
   include GV
+
+  let gequal x1 x2 = equal (L.unloc x1.gv) (L.unloc x2.gv) && (x1.gs = x2.gs)
 end
 
 module Sv = Set.Make  (V)
@@ -302,6 +304,21 @@ module Hv = Hash.Make (V)
 
 let rip = V.mk "RIP" (Reg Direct) u64 L._dummy []
 let rsp = V.mk "RSP" (Reg Direct) u64 L._dummy []
+
+let rec expr_equal (e1 :expr) (e2 : expr) : bool = 
+ match e1, e2 with
+ | Pconst n1, Pconst n2 -> B.equal n1 n2
+ | Pbool b1, Pbool b2 -> b1 = b2
+ | Pvar v1, Pvar v2 -> V.gequal v1 v2
+ | Pget(a1,b1,v1,e1), Pget(a2, b2,v2,e2) -> a1 = a2 && b1 = b2 && V.gequal v1 v2 && expr_equal e1 e2
+ | Psub(a1,b1,l1,v1,e1), Psub(a2,b2,l2,v2,e2) ->
+   a1 = a2 && b1 = b2 && l1 = l2 && V.gequal v1 v2 && expr_equal e1 e2
+ | Pload(b1,v1,e1), Pload(b2,v2,e2) -> b1 = b2 && V.equal (L.unloc v1) (L.unloc v2) && expr_equal e1 e2
+ | Papp1(o1,e1), Papp1(o2,e2) -> o1 = o2 && expr_equal e1 e2
+ | Papp2(o1,e11,e12), Papp2(o2,e21,e22) -> o1 = o2 && expr_equal e11 e21 && expr_equal e12 e22
+ | Pif(_,e11,e12,e13), Pif(_,e21,e22,e23) -> expr_equal e11 e21 && expr_equal e12 e22 && expr_equal e13 e23 
+ | _, _ -> false
+
 (* ------------------------------------------------------------------------ *)
 (* Function name                                                            *)
 

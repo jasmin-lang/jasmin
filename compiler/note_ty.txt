@@ -1,0 +1,190 @@
+Here we do the typing rules without polymorphism.
+ 
+type:
+   ty = Public | Transient | Secret 
+   we have Public < Transient < Secret
+
+typing environment: 
+  G : var -> ty
+  
+Typing status of the MSF:
+  MSF = 
+  | Exact of var* // the set of register variables containing the current value of the miss-speculation flag
+  | Trans of var* * expr // var* the set of register variables containing the previous 
+                            value of the miss-speculation flag, expr : the missing expression. 
+                            i.e forall x in var*, msf = x OR !expr
+  | ToInit   // no variable contain the miss-speculation flag.
+
+
+The typing rule are of the form:
+   for expressions G |- e : ty
+
+   for instructions G, MSF |- i : G', MSF'
+
+
+Typing rules for expressions:
+  expression: e = c | x | x[e] | e o e
+     
+  G |- c : Public
+
+  ty = if reg x then G(x) else publicload G(x)
+  --------------------------------------------           publicload ty = if ty = Public then Transient else ty
+  G |- x : ty
+
+
+  G |- e : Public        G |- x : ty
+  ------------------------------------
+  G |- x[e] : ty 
+
+
+  G |- e1 : ty1   G |- e2 : ty2
+  ------------------------------
+  G |- e1 o e2 : ty1 U ty2
+
+Typing rules for instructions.
+  
+  left value   : lv = x | x[e]
+  instructions : 
+  i = lv = e | if e then c1 else c2 | while (e) c | 
+    | ms1 = set_msf(e, ms2) | ms = init_msf() | ms1 = copy_msf(ms2) | x1 = protect(x2, ms) 
+
+
+  G |- e : ty      G' = G{x -> ty}    MSF' = update x MSF
+  -------------------------------------------------------     
+  G, MSF |- x = e : G', MSF' 
+         
+update x MSF :
+  if MSF = Exact xs then Exact xs\x
+  if MSF = Trans xs e and x in e then ToInit             
+  if MSF = ToInit then ToInit
+
+// Remark that to init can be view as Exact empty  
+   This means that the type MSF can be encoded as a pair var* * expr?
+   In this case 
+   update x (XS, None) = (XS\{x}, None)
+   update x (XS, Some e) = if x in e then (empty, None) else (XS\{x}, Some e)
+
+
+  G |- e : ety   G |- x : xty    ety <= xty   G |- i : Public
+          G' = G{x -> xty}    MSF' = update x MSF 
+  --------------------------------------------------------------
+  G, MSF |- x[i] = e : G', MSF'
+
+  The weakening rule will allows to use this rule
+  G |- e : ety   G |- x : xty     G |- i : Public
+    G' = G{x -> ety U xty}   MSF' = update x MSF 
+  -----------------------------------------------
+  G, MSF |- x[i] = e : G', MSF'
+
+
+conditional:
+
+  G, enter_if  e MSF |- c1 : G1, MSF1
+  G, enter_if !e MSF |- c2 : G2, MSF2
+  -------------------------------------------------------------
+  G, MSF |- if e then c1 else c2 : G1 U G2, MSF1 U MSF2 
+
+enter_if e MSF = 
+  if MSF = Exact xs then Trans xs e else ToInit
+
+G1 U G2 is the usual definition
+
+MSF1 U MSF2 = 
+  MSF1=(XS1, oe1) MSF2 = (XS2, oe2) 
+  if oe1 = oe2 then (XS1 inter XS2, oe1) else ToInit 
+
+
+while:
+
+  G, enter_if e MSF |- c : G, MSF
+  -------------------------------------------
+  G, MSF |- while e do c : G, enter_if !e MSF
+
+To be able to find the fixpoint we need weakining rules:
+One is obvious, weakening the post env:
+  G, MSF |- c : G1, MSF1    G1, MSF1 <= G2, MSF2
+  ----------------------------------------------
+  G, MSF |- c : G2, MSF2
+
+Weakening the pre-env 
+  G1, MSF1 <= G2, MSF2    G2, MSF2 |- c : G, MSF
+  ----------------------------------------------
+  G1, MSF1 |- c : G, MSF
+
+
+So we should have the following while rule 
+
+  G1, MSF1 <= G, MSF     G, enter_if e MSF |- c : G2, MSF2   G2, MSF2 <= G, MSF
+  -----------------------------------------------------------------------------
+  G1, MSF1 |- while e do c : G, enter_if !e MSF
+
+  
+/*
+  G, MSF |- while c1 e c2 : G', MSF
+
+  the while c1 e c2 is equivalent to c1; while e do c2; c1
+  We need to discuss of this more.
+*/
+
+  
+
+
+Special operators:
+ 
+    reg ms
+   ---------------------------------------------------
+   G, MSF |- ms = init_msf() : G{ms->Public}, Exact {ms}
+
+
+                      ms2 in xs
+   -------------------------------------------------------------------
+   G, Trans xs b |- ms1 = set_msf(b, ms2) : G{ms1 -> Public}, Exact{ms1} 
+
+
+
+         reg x and reg y   ms in XS
+       G |- y : ty    ty <= Transient   
+       G' = G { x -> Public }
+   ------------------------------------------------
+   G, Exact XS |- x = protect(y, ms) : G', Exact XS
+
+ 
+             reg ms1   ms2 in XS
+   -------------------------------------------------------
+   G, Exact XS |- ms1 = copy(ms2) : G', Exact XS U {ms1}
+
+(*     ms in MSF = 
+      if MSF = Exact xs then ms in xs
+      if MSF = Trans xs e then ms in xs  // we also need to check that e is not touch...
+
+     add ms MSF = 
+      if MSF = Exact xs then Exact xs U {ms}
+      if MSF = Trans xs e then Trans ms in xs *)
+
+
+implementation of the special operators
+
+x = init_msf()     --------> LFENCE; x = 0;
+x = set_msf(b, y)  --------> x = y; x = -1 if !b
+x = protect(y, ms) --------> x = y OR ms 
+
+x = copy_msf(y)    --------> can be implemented using MOV BROADCAST VPEXTRACT ....
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+    
