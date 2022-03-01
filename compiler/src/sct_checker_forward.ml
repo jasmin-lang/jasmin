@@ -169,7 +169,24 @@ type 'info fenv = {
 
 (* -----------------------------------------------------------*)
 
-module MSF = struct 
+module MSF : sig
+
+  type t = Sv.t * expr option
+  val toinit : t
+  val exact  : Sv.t -> t
+  val exact1 : var_i -> t
+  val trans  : Sv.t -> expr -> t
+
+  val le  : t -> t -> bool
+  val max : t -> t -> t
+
+  val enter_if : t -> expr -> t
+  val update   : t -> var  -> t
+
+  val pp : Format.formatter -> t -> unit 
+
+  end = struct 
+
   type t = Sv.t * expr option 
 
   let toinit = (Sv.empty, None)
@@ -217,27 +234,16 @@ end
 
 let is_register x = x.v_kind = Reg Direct
 
-module Env (* : sig 
+module Env : sig 
 
   type env
   val empty : env
-  val norm_lvl : env -> Lvl.t -> Lvl.t 
-  val lvl_le   : env -> Lvl.t -> Lvl.t -> bool
+  val add : env -> var -> level -> env
+  val get : env -> var -> level
+  val get_i : env -> var_i -> level
+  val gget  : env -> int ggvar -> level
 
-  val msf : env -> MSF.t
-  val enter_if : env -> expr -> env 
-  val set_exact : env -> var_i -> env 
-  val set  : env -> var_i -> Lvl.t -> env
-  val add : env -> var -> (lvl_kind * Lvl.t) -> env
-
-  val max : env -> env -> env
-  val le  : env -> env -> bool
-
-  val get : public:bool -> env -> var_i -> env * Lvl.t 
-  val gget : public:bool -> env -> int ggvar -> env * Lvl.t 
-
-  val pp : Format.formatter -> env -> unit 
-end *) = struct
+end = struct
 
   type env = Lvl.t Mv.t
 
@@ -253,9 +259,9 @@ end *) = struct
     Mv.add x lvl env
 
   let get env x = 
-    try Mv.find env x with Not_found -> assert false
+    try Mv.find x env with Not_found -> assert false
 
-  let get_i env (x:var_i) = get (L.unloc x) env
+  let get_i env (x:var_i) = get env (L.unloc x) 
 
   let gget env x = 
     if is_gkvar x then get_i env x.gv
@@ -288,8 +294,6 @@ let instanciate ue ty =
 
 let instanciates ue tys = 
   List.map (instanciate ue) tys
-
-
 
 (* -----------------------------------------------------------*)
 
