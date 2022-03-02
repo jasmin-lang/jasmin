@@ -1209,7 +1209,7 @@ Qed.
                  else if msb wa then (-1)%R else 0%R in
                exec_sopn o [::Vword v0; va; vb] = ok v''),
                  write_lvals gd s1 ls v'' = ok (s1', lv'), eq_exc_fresh s1' s' &
-                 (lv' = leak_ES stk lte lv /\ le = LSub[:: la; lb])]])]),
+                 (LSub lv' = leak_E stk lte lv /\ le = LSub[:: la; lb])]])]),
           ty = sword sz , (U16 ≤ sz)%CMP & (sz ≤ U64)%CMP] (* leakage vb.2 and leakage from write_lvals are not used *) 
     | (LowerEq sz a b, lte) =>
       exists b1 b2 b3 b4 vs, 
@@ -1566,7 +1566,7 @@ Qed.
           move: Hv' hwa2; rewrite -hwa1 /truncate_val /= /truncate_word cmp_le_refl /=.
           rewrite !zero_extend_u => /ok_inj ? /ok_inj ?; subst wa2' v'.
           by [].
-          by rewrite /leak_ES -hl2 /= -hl1.
+          by rewrite -hl2 /= -hl1.
         (* None *)
         rewrite /is_andn /=. case: eqP; last by rewrite andbF => _ _ /=; case: ifP.
         case: (is_lnot)=>//.  case: (is_lnot) => //. move=> hsz [] hlte. move: hsz.
@@ -2170,6 +2170,7 @@ Qed.
     (* LowerDivMod *)
     + move=> d u w s p0 p1 /= [] [va] [vb] [wa] [la] [lb] [hva] hwa hdiv hty' hle1 hle2; subst ty.
       set vf := {| v_var := _ |}.
+      set ilt := if u is Unsigned then LT_remove else _.
       set i1 := match u with Signed => _ | _ => _ end.
       move: hdiv; set va0 := Vword (match u with Signed => _ | _ => _ end) => hdiv.
       set lt := [:: match u with Signed => if le is LSub (a :: _) then LSub [:: a ] else le | Unsigned => LSub [:: LEmpty ] end ; LSub [:: LEmpty ] ].
@@ -2192,16 +2193,17 @@ Qed.
       have := hdiv _ heq1 Hdisjl Hdisje. move=> [Hp0'] Hp1' [s1'''] [v'''] [lv''] [Hex'] /= Hws' Hs2'' [Hlv'] Hle'.
       split. constructor.
       exists s1''';split.
-      + rewrite /=. rewrite Hle' /i1 /lt /=. rewrite /lt Hle' /i1 /= in hsem1. case: (u) hsem1=> /= hsem1. econstructor.
+      + rewrite /=. rewrite Hle' /i1 /lt /ilt /=. rewrite /lt Hle' /i1 /= in hsem1. case: (u) hsem1=> /= hsem1. econstructor.
         apply sem_seq1_iff in hsem1. apply hsem1. 
         case: (d) hsem1 Hws' => hsem Hws'. apply sem_seq1;apply: EmkI; apply: Eopn.
-        rewrite /sem_sopn /= hget /= Hp0' /= Hp1' /= Hex' /=. rewrite /write_lvals /= in Hws'. by rewrite Hws' Hlv' /=.
-        apply sem_seq1. apply EmkI. apply Eopn. rewrite /sem_sopn /= hget /= Hp0' /= Hp1' /= Hex' /=. rewrite /write_lvals /= in Hws'. by rewrite Hws' Hlv' /=.
+        rewrite /sem_sopn /= hget /= Hp0' /= Hp1' /= Hex' /=. rewrite /write_lvals /= in Hws'.
+        by rewrite Hws' lt_composeE /= Hlv'.
+        apply sem_seq1. apply EmkI. apply Eopn. rewrite /sem_sopn /= hget /= Hp0' /= Hp1' /= Hex' /=. rewrite /write_lvals /= in Hws'. by rewrite Hws' lt_composeE /= Hlv'.
         econstructor. 
         apply sem_seq1_iff in hsem1. apply hsem1. 
         case: (d) hsem1 Hws' => hsem Hws'. apply sem_seq1;apply: EmkI; apply: Eopn.
-        rewrite /sem_sopn /= hget /= Hp0' /= Hp1' /= Hex' /=. rewrite /write_lvals /= in Hws'. by rewrite Hws' Hlv' /=.
-        apply sem_seq1. apply EmkI. apply Eopn. rewrite /sem_sopn /= hget /= Hp0' /= Hp1' /= Hex' /=. rewrite /write_lvals /= in Hws'. by rewrite Hws' Hlv' /=.
+        rewrite /sem_sopn /= hget /= Hp0' /= Hp1' /= Hex' /=. rewrite /write_lvals /= in Hws'. by rewrite Hws' lt_composeE /= Hlv'.
+        apply sem_seq1. apply EmkI. apply Eopn. rewrite /sem_sopn /= hget /= Hp0' /= Hp1' /= Hex' /=. rewrite /write_lvals /= in Hws'. by rewrite Hws' lt_composeE /= Hlv'.
       apply: eq_exc_freshT Hs2'' Hs2'.
     (* LowerConcat *)
     + move => hi lo [] vs [] ok_vs ok_v' ok_lte.

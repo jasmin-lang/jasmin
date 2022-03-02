@@ -601,6 +601,8 @@ Notation LT_ilcopn ltes := (LT_isingle (LT_seq [:: lt_compose (LT_subi 0) ltes ;
 Notation LT_ileq ltes := (LT_isingle (LT_seq [:: lt_compose (LT_subi 0) ltes ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1] ])).
 #[local]
 Notation LT_illt ltes := (LT_isingle (LT_seq [:: lt_compose (LT_subi 0) ltes; LT_seq [:: LT_remove; LT_subi 1; LT_remove; LT_remove; LT_remove ] ])).
+#[local]
+Notation LT_ildiv s ltes := (LT_idouble (LT_seq [:: LT_seq [:: if s is Signed then LT_compose (LT_subi 0) (LT_subi 0) else LT_remove ]; LT_seq [:: LT_remove ] ]) (LT_seq [:: LT_seq [:: LT_remove; LT_compose (LT_subi 0) (LT_subi 0) ; LT_compose (LT_subi 0) (LT_subi 1) ]; lt_compose (LT_subi 1) ltes])).
 
 (** Need to fix this later: for now commenting it out **) 
 Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd * leak_i_tr :=

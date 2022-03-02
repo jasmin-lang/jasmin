@@ -84,7 +84,6 @@ let pp_i tbl fmt =
   | LT_ilfopn (e, f) -> p "ilfopn(TODO, TODO)"
   | LT_icondl (a, b, c, d) -> fprintf fmt "icondl(TODO, %a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_ilif (a, b) -> fprintf fmt "ilif(%a, %a)" pp_e_i_tr a pp_e_tr b
-  | LT_ildiv (a, b) -> fprintf fmt "ildiv(TODO)"
   | LT_isingle a -> fprintf fmt "isingle(%a)" pp_e_tr a
   | LT_idouble (a, b) -> p "idouble(TODO)"
   in pp_i fmt

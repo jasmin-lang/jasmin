@@ -239,7 +239,7 @@ Inductive leak_i_tr :=
 | LT_ilmul : leak_es_i_tr -> leak_e_tr -> leak_i_tr
 | LT_ilif : leak_e_i_tr -> leak_e_tr -> leak_i_tr
 | LT_ilfopn : leak_es_i_tr -> leak_e_tr -> leak_i_tr
-| LT_ildiv : signedness -> leak_e_tr -> leak_i_tr.
+.
 
 (* Transformation from expression leakage to instruction leakage *)
 Definition leak_EI (stk : pointer) (lti : leak_e_i_tr) (le : leak_e) : seq leak_i :=
@@ -436,18 +436,6 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
     leak_ESI stk lest (leak_ES stk lte (leak_E stk (LT_subi 0) le)) 
               [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]
 
-  | LT_ildiv s ltes, Lopn le =>
-    if s is Signed then
-      [:: Lopn (LSub [:: LSub [:: nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0]; 
-                        LSub[:: LEmpty]])] ++ 
-      [:: Lopn (LSub [:: LSub [:: LEmpty; nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0; 
-                                 nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 1]; 
-                        LSub (leak_ES stk ltes (leak_E stk (LT_subi 1) le))])]
-    else [:: Lopn (LSub [:: LSub [:: LEmpty]; LSub[:: LEmpty]])]  ++ 
-         [:: Lopn (LSub [:: LSub [:: LEmpty; nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0; 
-                                    nth LEmpty (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 1]; 
-                           LSub (leak_ES stk ltes (leak_E stk (LT_subi 1) le))])]
-                                
   | _, _ => [:: l]
   end.
 
@@ -515,8 +503,6 @@ Inductive leak_WF : leak_i_tr -> leak_i -> Prop :=
                leak_WF (LT_ilmul lest ltes) (Lopn le)
  | LT_ilfopnWF : forall lest lte le,
                  leak_WF (LT_ilfopn lest lte) (Lopn le)
- | LT_ildivWF : forall lti ltes le,
-                leak_WF (LT_ildiv lti ltes) (Lopn le)
 
 with leak_WFs : seq leak_i_tr -> leak_c -> Prop :=
  | WF_empty : leak_WFs [::] [::]
