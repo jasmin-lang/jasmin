@@ -211,7 +211,6 @@ Inductive leak_es_i_tr :=
   | LT_imul1 : leak_es_i_tr
   | LT_imul2 : leak_es_i_tr
   | LT_imul3 : leak_es_i_tr
-  | LT_imul4 : leak_es_i_tr
   | LT_iemptysl : leak_es_i_tr.
 
 Inductive leak_i_tr :=
@@ -290,9 +289,6 @@ Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': 
     [:: Lopn (LSub [:: LSub les; 
                 LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])]
 
-  | LT_imul4 => 
-    [:: Lopn (LSub [:: LSub les ; LSub les'])]
-
   | LT_iemptysl => [::]
   end.
 
@@ -307,7 +303,6 @@ Fixpoint no_i_esi_tr (lt: leak_es_i_tr) : nat :=
   | LT_imul1 => 2
   | LT_imul2 => 2
   | LT_imul3 => 1
-  | LT_imul4 => 1
   | LT_iemptysl => 0
  end.
 

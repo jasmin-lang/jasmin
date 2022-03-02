@@ -779,16 +779,16 @@ Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r * leak_es_i_t
     | None => ([:: Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] tg (Ox86 (MUL sz)) es ], LT_imul3)
               (* [:: Lopn (LSub [:: LSub [:: le1; le2]; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; yl; yl'']])] *)
     end end
-  | _, _ => ([:: Copn xs tg (Omulu sz) es ], LT_imul4)
+  | _, _ => ([:: Copn xs tg (Omulu sz) es ], LT_ianone)
   end
-  else ([:: Copn xs tg (Omulu sz) es ], LT_imul4).  (* [:: Lopn (LSub [:: LSub (unzip2 vs); LSub l1''])] *)
+  else ([:: Copn xs tg (Omulu sz) es ], LT_ianone).  (* [:: Lopn (LSub [:: LSub (unzip2 vs); LSub l1''])] *)
 
 Definition lower_copn (xs: lvals) tg (op: sopn) (es: pexprs) : seq instr_r * leak_es_i_tr :=
   match op with
   | Oaddcarry sz => lower_addcarry sz false xs tg es
   | Osubcarry sz => lower_addcarry sz true xs tg es
   | Omulu sz     => lower_mulu sz xs tg es
-  | _            => ([:: Copn xs tg op es], LT_imul4)
+  | _            => ([:: Copn xs tg op es], LT_ianone)
   end.
 
 
