@@ -165,7 +165,7 @@ Definition lower_condition vi (pe: pexpr) : (seq instr_r * leak_e_i_tr) * (pexpr
   match lower_cond_classify vi pe with
   | Some (l, sz, r, x, y) =>
     if (sz ≤ U64)%CMP then
-    (([:: Copn l AT_none (Ox86 (CMP sz)) [:: x; y] ], LT_iconditionl (LT_id)), 
+    (([:: Copn l AT_none (Ox86 (CMP sz)) [:: x; y] ], LT_iconditionl),
     match r with
     | Cond1 CondVar v => (Pvar v, LT_remove)
     | Cond1 CondNotVar v => (Papp1 Onot (Pvar v), LT_remove)

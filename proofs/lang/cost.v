@@ -1168,7 +1168,7 @@ Variable transform_cost_f : funname -> Sm.t * nat.
 
 Definition leak_EI_size lti : nat := 
   match lti with
-  | LT_iconditionl lte => 1
+  | LT_iconditionl => 1
   | LT_iemptyl => 0
   end.
 
@@ -1248,7 +1248,7 @@ Fixpoint transform_cost_I (lt:leak_i_tr) : Sm.t * nat :=
     (* Pif e e1 e2 => x := [Pif e e1 e2] *)
     (* sl: i --> tl: flags = [e]; x = CMOVcc [ cond flags; e1; e2]*)
   | LT_ilif ltei lte => 
-    let n := (no_i_leak_EI ltei).+1 in
+    let n := (leak_EI_size ltei).+1 in
     (Sm.empty, n)
 
   | LT_ilfopn ltesi ltes =>

@@ -42,9 +42,9 @@ let rec pp_e_tr fmt =
   | LT_compose (e, f) -> fprintf fmt "%a ∘ %a" pp_e_tr e pp_e_tr f
   | LT_rev -> p "rev"
 
-let pp_e_i_tr fmt =
+let pp_e_i_tr _fmt =
   function
-  | LT_iconditionl e -> pp_e_tr fmt e
+  | LT_iconditionl -> ()
   | LT_iemptyl -> ()
 
 let rec pp_il fmt =

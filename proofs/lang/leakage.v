@@ -184,7 +184,7 @@ Definition LT_dfst : leak_e_tr := LT_seq [:: LT_remove ; LT_remove ; LT_remove ;
 Definition LT_dsnd : leak_e_tr := LT_seq [:: LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_id ].
 
 Variant leak_e_i_tr :=
-  | LT_iconditionl : leak_e_tr -> leak_e_i_tr (* lower condition transformer *)
+  | LT_iconditionl : leak_e_i_tr (* lower condition transformer *)
   | LT_iemptyl : leak_e_i_tr.
 
 Inductive leak_es_i_tr :=
@@ -228,17 +228,11 @@ Notation LT_ile lt := (LT_iopn [:: lt ]).
 (* Transformation from expression leakage to instruction leakage *)
 Definition leak_EI (stk : pointer) (lti : leak_e_i_tr) (le : leak_e) : seq leak_i :=
   match lti with 
-  | LT_iconditionl lte => 
-    [:: Lopn (LSub [:: leak_E stk lte le; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])]
+  | LT_iconditionl =>
+    [:: Lopn (LSub [:: leak_E stk LT_id le; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])]
   | LT_iemptyl => 
     [::]
   end.
-
-Definition no_i_leak_EI (lt : leak_e_i_tr) : nat :=
-match lt with 
- | LT_iconditionl lte => 1
- | LT_iemptyl => 0
-end.
 
 (* Transformation from expressions (seq of expression) leakage to instruction leakage *)
 Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': seq leak_e) : seq leak_i :=
