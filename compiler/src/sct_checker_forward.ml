@@ -206,6 +206,7 @@ module MSF : sig
   let max (xs1, oe1) (xs2, oe2) =
     match oe1, oe2 with
     | Some e1, Some e2 when Prog.expr_equal e1 e2 -> (Sv.inter xs1 xs2, oe1)
+    | None, None -> (Sv.inter xs1 xs2, None)
     | _, _ -> toinit
 
   let enter_if msf e =
