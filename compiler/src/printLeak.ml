@@ -42,11 +42,6 @@ let rec pp_e_tr fmt =
   | LT_compose (e, f) -> fprintf fmt "%a ∘ %a" pp_e_tr e pp_e_tr f
   | LT_rev -> p "rev"
 
-let pp_e_i_tr _fmt =
-  function
-  | LT_iconditionl -> ()
-  | LT_iemptyl -> ()
-
 let rec pp_il fmt =
   let p s = fprintf fmt "%s" s in
   let aux fmt ils = pp_list ";@." pp_il fmt ils in
@@ -77,13 +72,13 @@ let pp_i tbl fmt =
   | LT_ifor_unroll (n, a) -> fprintf fmt "ifor_unroll(%a, %a)" pp_nat n (pp_list ";" pp_i) a
   | LT_icall (n, a, b) -> fprintf fmt "icall(%s, %a, %a)" (Conv.fun_of_cfun tbl n).Prog.fn_name pp_e_tr a pp_e_tr b
   | LT_icall_inline (a, n, i, r) -> fprintf fmt "icall_inline(%a, %s, %a, %a)" pp_nat a (Conv.fun_of_cfun tbl n).Prog.fn_name pp_nat i pp_nat r
-  | LT_iwhilel(a, b, c, d) -> fprintf fmt "iwhilel(TODO, %a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
+  | LT_iwhilel(a, b, c, d) -> fprintf fmt "iwhilel(%a, %a, %a, %a)" (pp_list ";" pp_e_tr) a pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_iremove -> p "iremove"
   | LT_icopn e -> p "icopn(TODO)"
   | LT_ilmul (a, b) -> fprintf fmt "ilmul(TODO, %a)" pp_e_tr b
   | LT_ilfopn (e, f) -> p "ilfopn(TODO, TODO)"
-  | LT_icondl (a, b, c, d) -> fprintf fmt "icondl(TODO, %a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
-  | LT_ilif (a, b) -> fprintf fmt "ilif(%a, %a)" pp_e_i_tr a pp_e_tr b
+  | LT_icondl (a, b, c, d) -> fprintf fmt "icondl(%a, %a, %a, %a)" (pp_list ";" pp_e_tr) a pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
+  | LT_ilif (a, b) -> fprintf fmt "ilif(%a, %a)" (pp_list ";" pp_e_tr) a pp_e_tr b
   in pp_i fmt
 
 let pp_funs pp_one tbl fmt =

@@ -1166,12 +1166,6 @@ Section Transform_Cost_I.
 
 Variable transform_cost_f : funname -> Sm.t * nat. 
 
-Definition leak_EI_size lti : nat := 
-  match lti with
-  | LT_iconditionl => 1
-  | LT_iemptyl => 0
-  end.
-
 Fixpoint transform_cost_I (lt:leak_i_tr) : Sm.t * nat :=
   match lt with 
   | LT_ikeep => 
@@ -1224,9 +1218,9 @@ Fixpoint transform_cost_I (lt:leak_i_tr) : Sm.t * nat :=
   | LT_icondl lei lte lt1 lt2 => 
     let mn1 := enter_transform_cost_C transform_cost_I lt1 in
     let mn2 := enter_transform_cost_C transform_cost_I lt2 in
-    (Sm.incr (leak_EI_size lei) 
+    (Sm.incr (size lei)
        (Sm.merge (Sm.prefix pre_t0 (Sm.sprefix pre_t0 mn1.1))
-                 (Sm.prefix pre_f0 (Sm.sprefix pre_f0 mn2.1))), leak_EI_size lei + 1)
+                 (Sm.prefix pre_f0 (Sm.sprefix pre_f0 mn2.1))), size lei + 1)
    
     (*sl : while c1 {e} c2 ---> tl: while c1'; b = e' {b} c2' *)
   | LT_iwhilel lei lte lt1 lt2 =>
@@ -1248,7 +1242,7 @@ Fixpoint transform_cost_I (lt:leak_i_tr) : Sm.t * nat :=
     (* Pif e e1 e2 => x := [Pif e e1 e2] *)
     (* sl: i --> tl: flags = [e]; x = CMOVcc [ cond flags; e1; e2]*)
   | LT_ilif ltei lte => 
-    let n := (leak_EI_size ltei).+1 in
+    let n := (size ltei).+1 in
     (Sm.empty, n)
 
   | LT_ilfopn ltesi ltes =>
@@ -1370,6 +1364,10 @@ Proof.
   elim: lc p => [ | li lc hrec] //= p /andP [] /cost_i_Lopn -> /hrec ->.
   by rewrite merge0c.
 Qed.
+
+Lemma is_lopns_leak_EI w ltei le :
+  is_lopns (leak_EI w ltei le).
+Proof. by elim: ltei. Qed.
 
 Lemma is_lopns_leak_ESI w l l1 l2 : is_lopns (leak_ESI w l l1 l2).
 Proof. by elim: l l1 l2 => /=. Qed.
@@ -1576,8 +1574,8 @@ Lemma interp_prefix2_sprefix b p m lc:
             (Sm.prefix p (Sm.sprefix (bpath_b (~~b) path0) m)) =1 empty_cost.
 Proof. by rewrite enter_cost_c_pre Sm.interp_prefix interp_prefix_sprefix prefix_cost0. Qed.
 
-Lemma leak_EI_sizeE w ltei le : size (leak_EI w ltei le) = leak_EI_size ltei.
-Proof. by case: ltei. Qed.
+Lemma leak_EI_sizeE w ltei le : size (leak_EI w ltei le) = size ltei.
+Proof. exact: size_map. Qed.
 
 Lemma transform_cost_size w lt lc: 
   leak_WFs ftr lt lc ->
@@ -1598,7 +1596,7 @@ Proof.
   + by move=> lei lte lt _ le lc _ hrec; rewrite size_cat /= leak_EI_sizeE.
   + by move=> ltei lte _ lt le lc _ hrec; rewrite size_cat /= leak_EI_sizeE.
   + by move=> ??; apply size_leak_ESI.
-  + by case.
+  + by move => lti le' le; rewrite size_cat leak_EI_sizeE addn1.
   + by move=> ???; apply size_leak_ESI.
   + by move=> ???; apply size_leak_ESI.
   + by move=> li lc lti ltc _ hreci _ hrec; rewrite /leak_Is /= size_cat hreci hrec.
@@ -1640,7 +1638,7 @@ Lemma disjoint_incr lt k:
 Proof. by apply/bounded_incr_disjoint/bounded_sprefix; case: bounded_transform => _;apply. Qed.
 
 Lemma cost_C_leak_EI w p ltei le : cost_C p (leak_EI w ltei le) =1 empty_cost.
-Proof. by case: ltei. Qed.
+Proof. elim: ltei p => // lt lts ih p; rewrite /= merge0c; exact: ih. Qed.
 
 Lemma transform_cost_ok w lt lc: 
   leak_WFs ftr lt lc ->
@@ -1711,14 +1709,14 @@ Proof.
     rewrite merge0c Sm.interp_incr cost_prefix_incr /= prefix0_cost.
     by setoid_rewrite hrec_fun; rewrite enter_skip_ok; setoid_rewrite hrec.
   + move=> ltei lte ltt ltf le lc _ hrec /=.
-    rewrite cost_C_cat cost_C_Lopn /=; last by case: ltei.
+    rewrite cost_C_cat cost_C_Lopn /=; last exact: is_lopns_leak_EI.
     rewrite add0n merge0c mergec0 Sm.interp_incr Sm.interp_merge; auto with disjoint.
     apply (leqc_trans (enter_ok _ hrec)); rewrite interp_prefix2_sprefix mergec0 leak_EI_sizeE.
     rewrite enter_cost_c_pre (enter_cost_c_pre (bpath_b true path0)).
     rewrite !Sm.interp_prefix !interp_prefix_cost.
     by rewrite (incr_prefix_cost _ [::] (LblB true,0)) /= addn0.
   + move=> ltei lte ltt ltf le lc _ hrec /=.
-    rewrite cost_C_cat cost_C_Lopn /=; last by case: ltei.
+    rewrite cost_C_cat cost_C_Lopn /=; last exact: is_lopns_leak_EI.
     rewrite add0n merge0c mergec0 Sm.interp_incr Sm.interp_merge; auto with disjoint.
     apply (leqc_trans (enter_ok _ hrec)); rewrite interp_prefix2_sprefix merge0c leak_EI_sizeE.
     rewrite enter_cost_c_pre (enter_cost_c_pre (bpath_b false path0)).
@@ -1737,11 +1735,11 @@ Proof.
     by rewrite interp_prefix2_sprefix merge0c; apply enter_ok.
   + move=> ltei lte lt1 lt2 lc le _ hrec /=.
     rewrite mergec0 Sm.interp_merge; auto with disjoint.
-    rewrite /enter_cost_c cost_C_cat (@cost_C_Lopn _ (leak_EI _ _ _)); last by case: ltei.
+    rewrite /enter_cost_c cost_C_cat (@cost_C_Lopn _ (leak_EI _ _ _)); last exact: is_lopns_leak_EI.
     rewrite mergec0 -/(enter_cost_c cost_i (bpath_f path0) (leak_Is (leak_I ftr) w lt1 lc)).
     by apply (leqc_trans (enter_ok _ hrec)); rewrite  interp_prefix2_sprefix mergec0.
   + by move=> ltes le; rewrite cost_C_Lopn //= is_lopns_leak_ESI.
-  + by move=> lti lte le; rewrite cost_C_Lopn //; case: lti.
+  + by move=> lti lte le; rewrite cost_C_Lopn // /is_lopns all_cat -/(is_lopns _) is_lopns_leak_EI.
   + by move=> lest ltes le; rewrite cost_C_Lopn //= is_lopns_leak_ESI.
   + by move=> lest lte le; rewrite cost_C_Lopn //= is_lopns_leak_ESI.
   + move=> li lc lt1 lt2 hWF hrec1 _ hrec2 /=.

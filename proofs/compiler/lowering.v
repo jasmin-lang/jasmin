@@ -161,7 +161,7 @@ Definition lower_cond_classify vi (e: pexpr) :=
 Definition eq_f  v1 v2 := Pif sbool (Pvar v1) (Pvar v2) (Papp1 Onot (Pvar v2)).
 Definition neq_f v1 v2 := Pif sbool (Pvar v1) (Papp1 Onot (Pvar v2)) (Pvar v2). 
 
-Definition lower_condition vi (pe: pexpr) : (seq instr_r * leak_e_i_tr) * (pexpr * leak_e_tr) :=
+Definition lower_condition vi (pe: pexpr) : (seq instr_r * seq leak_e_tr) * (pexpr * leak_e_tr) :=
   match lower_cond_classify vi pe with
   | Some (l, sz, r, x, y) =>
     if (sz ≤ U64)%CMP then

@@ -183,9 +183,8 @@ Definition LT_idseq (lte: leak_e_tr) : leak_e_tr := lte.
 Definition LT_dfst : leak_e_tr := LT_seq [:: LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_id ; LT_remove ].
 Definition LT_dsnd : leak_e_tr := LT_seq [:: LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_id ].
 
-Variant leak_e_i_tr :=
-  | LT_iconditionl : leak_e_i_tr (* lower condition transformer *)
-  | LT_iemptyl : leak_e_i_tr.
+Definition LT_iconditionl : seq leak_e_tr := [:: LT_seq [:: LT_id; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove] ] ].
+Definition LT_iemptyl : seq leak_e_tr := [::].
 
 Inductive leak_es_i_tr :=
   | LT_iopn5f_large : leak_es_i_tr
@@ -214,25 +213,20 @@ Inductive leak_i_tr :=
 | LT_icall_inline: nat -> funname -> nat -> nat -> leak_i_tr
 
 (* lowering leak transformers *)
-| LT_icondl : leak_e_i_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
-| LT_iwhilel :  leak_e_i_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
+| LT_icondl : seq leak_e_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
+| LT_iwhilel :  seq leak_e_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
 | LT_icopn : leak_es_i_tr -> leak_i_tr
 (* lowering assgn *)
 | LT_ilmul : leak_es_i_tr -> leak_e_tr -> leak_i_tr
-| LT_ilif : leak_e_i_tr -> leak_e_tr -> leak_i_tr
+| LT_ilif : seq leak_e_tr -> leak_e_tr -> leak_i_tr
 | LT_ilfopn : leak_es_i_tr -> leak_e_tr -> leak_i_tr
 .
 
 Notation LT_ile lt := (LT_iopn [:: lt ]).
 
 (* Transformation from expression leakage to instruction leakage *)
-Definition leak_EI (stk : pointer) (lti : leak_e_i_tr) (le : leak_e) : seq leak_i :=
-  match lti with 
-  | LT_iconditionl =>
-    [:: Lopn (LSub [:: leak_E stk LT_id le; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty]])]
-  | LT_iemptyl => 
-    [::]
-  end.
+Definition leak_EI (stk: pointer) (lti: seq leak_e_tr) (le: leak_e) : seq leak_i :=
+  [seq Lopn (leak_E stk lte le) | lte <- lti ].
 
 (* Transformation from expressions (seq of expression) leakage to instruction leakage *)
 Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': seq leak_e) : seq leak_i :=
