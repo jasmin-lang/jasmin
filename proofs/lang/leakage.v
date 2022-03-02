@@ -80,21 +80,6 @@ match le, le' with
  | _, _=> false
 end.
 
-Definition Lopn_ les les' := Lopn (LSub [::LSub les; LSub les']).
-
-Definition destr_Lopn (l: leak_e) := 
-  match l with
-  | LSub [::LSub l1; LSub l2] => (l1, l2)
-  | _ => ([::], [::])
-  end.
-
-(*
-match l with 
-| Lopn_ le => 
-  let (les1, les2) := destr_Lopn le in
-  ... les1 les2 but not le 
-*)
-
 (* ------------------------------------------------------------------------ *)
 Definition get_seq_leak_e (l : leak_e) : seq leak_e := 
   match l with 
