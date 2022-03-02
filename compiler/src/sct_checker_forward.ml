@@ -256,7 +256,7 @@ end = struct
       Pt.rs_tyerror ~loc:x.v_dloc
         (Pt.string_error "only register or inline can be declared with type %a" Lvl.pp lvl);
     let lvl =
-      if is_register x then lvl
+      if (is_register x || is_inline x) then lvl
       else Lvl.max lvl Lvl.transient in
     Mv.add x lvl env
 
