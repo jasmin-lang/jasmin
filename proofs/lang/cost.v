@@ -1065,7 +1065,7 @@ Context (P: leak_i_tr → Prop)
         (Hnil          : Q [::])
         (Hcons         : ∀ lti lt, P lti -> Q lt -> Q (lti::lt))
         (Hikeep        : P LT_ikeep)
-        (Hile          : ∀ lte, P (LT_ile lte))
+        (Hiopn         : ∀ ltes, P (LT_iopn ltes))
         (Hicond        : ∀ lte lt1 lt2, Q lt1 -> Q lt2 -> P (LT_icond lte lt1 lt2))
         (Hiwhile       : ∀ lt1 lte lt2, Q lt1 -> Q lt2 -> P (LT_iwhile lt1 lte lt2))
         (Hifor         : ∀ lte lt, Q lt -> P (LT_ifor lte lt))
@@ -1077,8 +1077,6 @@ Context (P: leak_i_tr → Prop)
         (Hicondl       : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_icondl lei le lt1 lt2))
         (Hiwhilel      : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_iwhilel lei le lt1 lt2))
         (Hicopn        : ∀ lei, P (LT_icopn lei))
-        (Hilsingle : ∀ lti, P (LT_isingle lti))
-        (Hildouble : ∀ lte1 lte2, P (LT_idouble lte1 lte2))
         (Hilmul        : ∀ lei le, P (LT_ilmul lei le))
         (Hilif         : ∀ lei le, P (LT_ilif lei le))
         (Hilfopn       : ∀ lei les, P (LT_ilfopn lei les))
@@ -1096,7 +1094,7 @@ Context (P: leak_i_tr → Prop)
   Fixpoint leak_i_tr_ind (lti:leak_i_tr) := 
     match lti with
     | LT_ikeep   => Hikeep             
-    | LT_ile lte => Hile lte
+    | LT_iopn lte => Hiopn lte
 
     | LT_icond lte lt1 lt2 => 
       Hicond lte (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)        
@@ -1119,8 +1117,6 @@ Context (P: leak_i_tr → Prop)
       Hiwhilel lei le (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)
 
     | LT_icopn lei      => Hicopn lei
-    | LT_isingle lti   => Hilsingle lti
-    | LT_idouble lte1 lte2 => Hildouble lte1 lte2
     | LT_ilmul lei le   => Hilmul lei le
     | LT_ilif lei le    => Hilif  lei le
     | LT_ilfopn lei les => Hilfopn lei les       
@@ -1183,8 +1179,8 @@ Fixpoint transform_cost_I (lt:leak_i_tr) : Sm.t * nat :=
        It is not true for inlining so fix it *)
     (Sm.empty, 1)
 
-  | LT_ile _ => 
-    (Sm.empty, 1)
+  | LT_iopn ltes =>
+    (Sm.empty, size ltes)
 
   | LT_icond _ lt1 lt2 =>
     (* sl: if e then c1 else c2  ---> tl: (if e' then c1' else c2'); *)
@@ -1245,11 +1241,6 @@ Fixpoint transform_cost_I (lt:leak_i_tr) : Sm.t * nat :=
     (Sm.empty, n)
  
     (* sl:i --->    tl:i1; tl': i2; next_lbl tl' *)
-  | LT_idouble _ _ => (Sm.empty, 2)
-
-  | LT_isingle _ =>
-    (Sm.empty, 1)
-
   | LT_ilmul ltes lte => 
     let n := no_i_esi_tr ltes in 
     (Sm.empty, n)
@@ -1600,6 +1591,7 @@ Proof.
      (fun lt lcs _ =>
           size (flatten [seq leak_assgn :: l0 | l0 <- leak_Iss (leak_I ftr) w lt lcs]) =
             (transform_cost_C_unroll transform_cost_I lt (size lcs)).2)) => {lt lc} //=.
+  + move => ??; exact: size_map.
   + by case.
   + move => ninit les f lts les' _ hrec /=.
     by rewrite !size_cat !size_map size_nseq hrec !addnA hrec_fun.
@@ -1666,6 +1658,8 @@ Proof.
           enter_cost_c cost_i [::] (leak_Is (leak_I ftr) w lt lc) <=1
           Sm.interp (enter_cost_c cost_i [::] lc) (enter_transform_cost_C transform_cost_I lt).1))
       => {lt lc} //.
+  + move => le ltes; elim: ltes path0 => //= lt ltes ih path /=; rewrite merge0c.
+    exact: ih.
   + move=> lte ltt ltf le lci _ hrec /=.
     rewrite mergec0 Sm.interp_merge; auto with disjoint.
     by apply (leqc_trans (enter_ok _ hrec)); rewrite interp_prefix2_sprefix mergec0.

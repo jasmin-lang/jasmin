@@ -68,8 +68,8 @@ let pp_i tbl fmt =
   let p s = fprintf fmt "%s" s in
   function
   | LT_ikeep -> p "ikeep"
-  | LT_ile (LT_map [ lhs ; rhs ]) -> fprintf fmt "%a := %a" pp_e_tr rhs pp_e_tr lhs
-  | LT_ile _ -> assert false
+  | LT_iopn [ LT_map [ lhs ; rhs ] ] -> fprintf fmt "%a := %a" pp_e_tr rhs pp_e_tr lhs
+  | LT_iopn es -> fprintf fmt "iopn(%a)" (pp_list ";" pp_e_tr) es
   | LT_icond (b, t, e) -> fprintf fmt "icond(%a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) t (pp_list ";" pp_i) e
   | LT_icond_eval (b, a) -> fprintf fmt "icond_eval(%a, %a)" pp_bool b (pp_list ";" pp_i) a
   | LT_iwhile (a, b, c) -> fprintf fmt "iwhile(%a, %a, %a)" (pp_list ";" pp_i) a pp_e_tr b  (pp_list ";" pp_i) c
@@ -84,8 +84,6 @@ let pp_i tbl fmt =
   | LT_ilfopn (e, f) -> p "ilfopn(TODO, TODO)"
   | LT_icondl (a, b, c, d) -> fprintf fmt "icondl(TODO, %a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_ilif (a, b) -> fprintf fmt "ilif(%a, %a)" pp_e_i_tr a pp_e_tr b
-  | LT_isingle a -> fprintf fmt "isingle(%a)" pp_e_tr a
-  | LT_idouble (a, b) -> p "idouble(TODO)"
   in pp_i fmt
 
 let pp_funs pp_one tbl fmt =

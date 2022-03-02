@@ -574,35 +574,35 @@ Definition reduce_wconst sz (e: pexpr) : pexpr :=
   else e.
 
 #[local]
-Notation LT_ilmov1 := (LT_idouble (LT_seq [:: LT_seq [:: LT_subi 0 ] ; LT_seq [:: LT_remove ] ]) (LT_seq [:: LT_seq [:: LT_remove]; LT_seq [:: LT_subi 1]])).
+Notation LT_ilmov1 := (LT_iopn [:: LT_seq [:: LT_seq [:: LT_subi 0 ] ; LT_seq [:: LT_remove ] ]; LT_seq [:: LT_seq [:: LT_remove]; LT_seq [:: LT_subi 1]]]).
 #[local]
-Notation LT_ildcn := (LT_idouble (LT_seq [:: LT_seq [:: LT_remove ] ; LT_seq [:: LT_remove ] ]) (LT_seq [:: LT_seq [:: LT_remove; LT_remove ]; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1]])).
+Notation LT_ildcn := (LT_iopn [:: LT_seq [:: LT_seq [:: LT_remove ] ; LT_seq [:: LT_remove ] ]; LT_seq [:: LT_seq [:: LT_remove; LT_remove ]; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1]]]).
 #[local]
-Notation LT_ilmov2 := (LT_isingle (LT_seq [:: LT_seq [::] ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+Notation LT_ilmov2 := (LT_iopn [:: LT_seq [:: LT_seq [::] ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ]]).
 #[local]
-Notation LT_ilmov3 := (LT_isingle (LT_seq [:: LT_seq [::] ; LT_seq [::  LT_subi 1 ] ])).
+Notation LT_ilmov3 := (LT_iopn [:: LT_seq [:: LT_seq [::] ; LT_seq [::  LT_subi 1 ] ]]).
 #[local]
-Notation LT_ilmov4 := (LT_isingle (LT_seq [:: LT_seq [:: LT_subi 0 ] ; LT_seq [::  LT_subi 1 ] ])).
+Notation LT_ilmov4 := (LT_iopn [:: LT_seq [:: LT_seq [:: LT_subi 0 ] ; LT_seq [::  LT_subi 1 ] ]]).
 #[local]
-Notation LT_ild := (LT_isingle (LT_seq [:: LT_seq [:: LT_remove ] ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+Notation LT_ild := (LT_iopn [:: LT_seq [:: LT_seq [:: LT_remove ] ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ]]).
 #[local]
-Notation LT_ildc := (LT_isingle (LT_seq [:: LT_seq [:: LT_remove; LT_remove ] ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+Notation LT_ildc := (LT_iopn [:: LT_seq [:: LT_seq [:: LT_remove; LT_remove ] ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ]]).
 #[local]
-Notation LT_ilea := (LT_isingle (LT_seq [:: LT_seq [:: LT_seq [:: LT_remove ; LT_seq [:: LT_remove; LT_seq [:: LT_remove ; LT_remove ] ] ] ] ; LT_seq [:: LT_subi 1 ] ])).
+Notation LT_ilea := (LT_iopn [:: LT_seq [:: LT_seq [:: LT_seq [:: LT_remove ; LT_seq [:: LT_remove; LT_seq [:: LT_remove ; LT_remove ] ] ] ] ; LT_seq [:: LT_subi 1 ] ]]).
 #[local]
-Notation LT_ilsc := (LT_isingle (LT_seq [:: LT_seq [:: LT_remove ; LT_remove ] ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+Notation LT_ilsc := (LT_iopn [:: LT_seq [:: LT_seq [:: LT_remove ; LT_remove ] ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ]]).
 #[local]
-Notation LT_ilasgn := (LT_isingle (LT_seq [:: LT_subi 0; LT_subi 1 ])).
+Notation LT_ilasgn := (LT_iopn [:: LT_seq [:: LT_subi 0; LT_subi 1 ]]).
 #[local]
-Notation LT_ilinc ltes := (LT_isingle (LT_seq [:: LT_seq [:: lt_compose (LT_subi 0) ltes ]; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+Notation LT_ilinc ltes := (LT_iopn [:: LT_seq [:: LT_seq [:: lt_compose (LT_subi 0) ltes ]; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ]]).
 #[local]
-Notation LT_ilcopn ltes := (LT_isingle (LT_seq [:: lt_compose (LT_subi 0) ltes ; LT_seq [:: LT_subi 1 ] ])).
+Notation LT_ilcopn ltes := (LT_iopn [:: LT_seq [:: lt_compose (LT_subi 0) ltes ; LT_seq [:: LT_subi 1 ] ]]).
 #[local]
-Notation LT_ileq ltes := (LT_isingle (LT_seq [:: lt_compose (LT_subi 0) ltes ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1] ])).
+Notation LT_ileq ltes := (LT_iopn [:: LT_seq [:: lt_compose (LT_subi 0) ltes ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1] ]]).
 #[local]
-Notation LT_illt ltes := (LT_isingle (LT_seq [:: lt_compose (LT_subi 0) ltes; LT_seq [:: LT_remove; LT_subi 1; LT_remove; LT_remove; LT_remove ] ])).
+Notation LT_illt ltes := (LT_iopn [:: LT_seq [:: lt_compose (LT_subi 0) ltes; LT_seq [:: LT_remove; LT_subi 1; LT_remove; LT_remove; LT_remove ] ]]).
 #[local]
-Notation LT_ildiv s ltes := (LT_idouble (LT_seq [:: LT_seq [:: if s is Signed then LT_compose (LT_subi 0) (LT_subi 0) else LT_remove ]; LT_seq [:: LT_remove ] ]) (LT_seq [:: LT_seq [:: LT_remove; LT_compose (LT_subi 0) (LT_subi 0) ; LT_compose (LT_subi 0) (LT_subi 1) ]; lt_compose (LT_subi 1) ltes])).
+Notation LT_ildiv s ltes := (LT_iopn [:: LT_seq [:: LT_seq [:: if s is Signed then LT_compose (LT_subi 0) (LT_subi 0) else LT_remove ]; LT_seq [:: LT_remove ] ]; LT_seq [:: LT_seq [:: LT_remove; LT_compose (LT_subi 0) (LT_subi 0) ; LT_compose (LT_subi 0) (LT_subi 1) ]; lt_compose (LT_subi 1) ltes]]).
 
 (** Need to fix this later: for now commenting it out **) 
 Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd * leak_i_tr :=
