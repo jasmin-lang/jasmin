@@ -2,14 +2,10 @@
 
 let inherit (coqPackages) coq; in
 
-let mathcomp =
- (if coqPackages ? mathcomp_
-  then coqPackages.mathcomp_ "1.12.0"
-  else coqPackages.mathcomp.override { version = "1.12.0"; }
- ).algebra
+let mathcomp = coqPackages.mathcomp.override { version = "1.12.0"; }
 ; in
 
-let rev = "e39e96d51aa96f386222fd1b38776f2117f325c5"; in
+let rev = "a97b482de0c00e305f5bdd5250e327965efb2118"; in
 
 stdenv.mkDerivation rec {
   version = "1.0-git-${builtins.substring 0 8 rev}";
@@ -19,12 +15,12 @@ stdenv.mkDerivation rec {
     owner = "jasmin-lang";
     repo = "coqword";
     inherit rev;
-    sha256 = "sha256:0703m97rnivcbc7vvbd9rl2dxs6l8n52cbykynw61c6w9rhxspcg";
+    sha256 = "sha256:108sbslvj4rgzq2fr79li9bxiv08d05v5y9n223wqzwws0dqvag9";
   };
 
   buildInputs = [ coq ocaml dune_2 ];
 
-  propagatedBuildInputs = [ mathcomp ];
+  propagatedBuildInputs = [ mathcomp.algebra mathcomp.fingroup mathcomp.ssreflect ];
 
   buildPhase = ''
     runHook preBuild
