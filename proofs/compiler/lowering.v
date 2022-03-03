@@ -565,7 +565,7 @@ Definition opn_5flags (immed_bound: option wsize) (vi: var_info)
   | Opn5f_large_immed x y n z _ _ =>
     let c := {| v_var := {| vtype := sword U64; vname := fresh_multiplicand fv U64 |} ; v_info := vi |} in
     ((Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: y] :: fopn (opn_no_imm o) (x :: Pvar c :: z)), LT_iopn5f_large)
-  | Opn5f_other => (fopn o a, LT_iopn5f_other)
+  | Opn5f_other => (fopn o a, LT_ianone)
   end.
 
 Definition reduce_wconst sz (e: pexpr) : pexpr :=

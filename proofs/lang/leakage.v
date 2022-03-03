@@ -188,7 +188,6 @@ Definition LT_iemptyl : seq leak_e_tr := [::].
 
 Inductive leak_es_i_tr :=
   | LT_iopn5f_large : leak_es_i_tr
-  | LT_iopn5f_other : leak_es_i_tr
   | LT_iaddcarryf : leak_es_i_tr -> leak_es_i_tr
   | LT_iaddcarry : leak_es_i_tr -> leak_es_i_tr
   | LT_ianone : leak_es_i_tr
@@ -233,9 +232,6 @@ Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': 
   match lti with 
   | LT_iopn5f_large => 
     [:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LSub [:: LEmpty]])] ++
-    [:: Lopn (LSub [:: LSub [::nth LEmpty les 0, LEmpty & drop 2 les]; LSub les'])]
-
-  | LT_iopn5f_other =>
     [:: Lopn (LSub [:: LSub les ; LSub les'])]
 
   | LT_iaddcarryf ltes => 
@@ -269,7 +265,6 @@ Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': 
 Fixpoint no_i_esi_tr (lt: leak_es_i_tr) : nat :=
   match lt with 
   | LT_iopn5f_large => 2
-  | LT_iopn5f_other => 1
   | LT_iaddcarryf ltes => no_i_esi_tr ltes 
   | LT_iaddcarry ltes => no_i_esi_tr ltes
   | LT_ianone => 1

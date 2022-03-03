@@ -1864,8 +1864,8 @@ Qed.
       subst.
       case: (opn_no_imm_spec o) => [[sz [ho ->]] | ->].
       + move: hr; rewrite ho /exec_sopn /= /sopn_sem /= => -> /=.
-        by rewrite /= h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= drop0.
-      by rewrite hr /= h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= drop0.
+        by rewrite /= h1 /= h2 /= h3' /= h4 /= h5 /= h6.
+      by rewrite hr /= h1 /= h2 /= h3' /= h4 /= h5 /= h6.
 
     + case: ys hr hs=> // a' l hr /=. t_xrbindP.
       move=> -[s1 l1] s1' /= h1 [] <- <- h1'. case: l hr=> // a0 l hr. t_xrbindP=> -[s2 l2] /= h2 h2'.
