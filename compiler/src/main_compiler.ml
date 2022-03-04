@@ -136,13 +136,16 @@ let main () =
     eprint Compiler.Typing Printer.pp_pprog pprog;
 
     let prog = Subst.remove_params pprog in
-    let prog = Inline_array_copy.doit prog in
 
-    begin try
-      Typing.check_prog prog
-    with Typing.TyError(loc, code) ->
-      hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
-    end;
+    let prog =
+      begin try
+        let prog = Insert_copy_and_fix_length.doit prog in
+        Typing.check_prog prog;
+        prog
+      with Typing.TyError(loc, code) ->
+        hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
+      end
+    in
     
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
