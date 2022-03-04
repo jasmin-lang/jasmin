@@ -1,0 +1,13 @@
+u64[2] g = {1, 2};
+
+export fn main () -> reg u64 {
+  reg u64 res;
+  stack u64[2] s;
+  reg ptr u64[2] r;
+
+  s = g;
+  r = s;
+  res = r[0];
+
+  return res;
+}
