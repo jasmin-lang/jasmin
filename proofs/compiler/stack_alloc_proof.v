@@ -2415,22 +2415,22 @@ Qed.
 
 (* Return an instruction that computes an address from an base address and an
    offset. See `stack_alloc.v`. *)
-Context (mov_ofs : lval -> vptr_kind -> pexpr -> Z -> option instr_r).
+Context (mov_ofs : lval -> assgn_tag -> vptr_kind -> pexpr -> Z -> option instr_r).
 
 (* The semantics of `mov_ofs` are as described in `stack_alloc.v`. *)
-Hypothesis mov_ofsP : forall (P': sprog) s1 e i x ofs w vpk s2 ins,
+Hypothesis mov_ofsP : forall (P': sprog) s1 e i x tag ofs w vpk s2 ins,
   P'.(p_globs) = [::] ->
   sem_pexpr [::] s1 e >>= to_pointer = ok i ->
-  mov_ofs x vpk e ofs = Some ins ->
+  mov_ofs x tag vpk e ofs = Some ins ->
   write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
   sem_i P' w s1 ins s2.
 
-Lemma alloc_array_moveP m0 s1 s2 s1' rmap1 rmap2 r e v v' n i2 : 
+Lemma alloc_array_moveP m0 s1 s2 s1' rmap1 rmap2 r tag e v v' n i2 :
   valid_state rmap1 m0 s1 s2 ->
   sem_pexpr gd s1 e = ok v ->
   truncate_val (sarr n) v = ok v' ->
   write_lval gd r v' s1 = ok s1' ->
-  alloc_array_move mov_ofs pmap rmap1 r e = ok (rmap2, i2) →
+  alloc_array_move mov_ofs pmap rmap1 r tag e = ok (rmap2, i2) →
   ∃ s2' : estate, sem_i P' rip s2 i2 s2' ∧ valid_state rmap2 m0 s1' s2'.
 Proof.
   move=> hvs he; rewrite /truncate_val /=.
@@ -2595,12 +2595,12 @@ Proof.
   by move: hofs' => /(get_ofs_subP he) ->.
 Qed.
 
-Lemma alloc_array_move_initP m0 s1 s2 s1' rmap1 rmap2 r e v v' n i2 : 
+Lemma alloc_array_move_initP m0 s1 s2 s1' rmap1 rmap2 r tag e v v' n i2 :
   valid_state rmap1 m0 s1 s2 ->
   sem_pexpr gd s1 e = ok v ->
   truncate_val (sarr n) v = ok v' ->
   write_lval gd r v' s1 = ok s1' ->
-  alloc_array_move_init mov_ofs pmap rmap1 r e = ok (rmap2, i2) →
+  alloc_array_move_init mov_ofs pmap rmap1 r tag e = ok (rmap2, i2) →
   ∃ s2' : estate, sem_i P' rip s2 i2 s2' ∧ valid_state rmap2 m0 s1' s2'.
 Proof.
   move=> hvs.
