@@ -1,0 +1,11 @@
+/*  It is hard to prove that the result variable is safely initialized.
+    Yet, this should not prevent the compiler to correctly process this program. */
+export
+fn f(reg u64 input) -> reg u64 {
+  reg u64 result;
+  reg bool b;
+  b = input == 0;
+  if b { result = 0; }
+  if !b { result = 1; }
+  return result;
+}

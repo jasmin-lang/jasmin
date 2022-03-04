@@ -318,7 +318,7 @@ let safe_opn safe opn es =
         let e = List.nth es (Conv.int_of_nat i) in
         let y = match e with Pvar y -> y | _ -> assert false in
         List.flatten 
-          (List.init (Conv.int_of_pos p) (fun i -> init_get y Warray_.AAscale ws (Pconst (B.of_int i)) 1)))
+          (List.init (Conv.int_of_pos p) (fun i -> init_get y Warray_.AAscale ws (Pconst (Z.of_int i)) 1)))
      id.i_safe) @ safe
 
 let safe_instr ginstr = match ginstr.i_desc with
@@ -585,12 +585,12 @@ end = struct
         | Warray_.AAscale ->
           Papp2 (E.Omul E.Op_int,
                  slice.as_offset,
-                 Pconst (B.of_int (size_of_ws slice.as_wsize)))
+                 Pconst (Z.of_int (size_of_ws slice.as_wsize)))
         | Warray_.AAdirect -> slice.as_offset in
 
       let bnd = Papp2 (E.Oadd E.Op_int,
                        scaled_offset,
-                       Pconst (B.of_int (size_of_ws slice.as_wsize *
+                       Pconst (Z.of_int (size_of_ws slice.as_wsize *
                                          slice.as_len))) in
             
       let simple_check = match AbsExpr.linearize_smpl_iexpr state.abs bnd with
@@ -601,7 +601,7 @@ end = struct
 
       if simple_check then true
       else
-        let be = Papp2 (E.Ogt E.Cmp_int, bnd, Pconst (B.of_int n)) in
+        let be = Papp2 (E.Ogt E.Cmp_int, bnd, Pconst (Z.of_int n)) in
 
         begin match AbsExpr.bexpr_to_btcons be state.abs with
           | None -> false
@@ -610,7 +610,7 @@ end = struct
 
     | NotZero (ws,e) ->
       (* We check that e is never 0 *)
-      let be = Papp2 (E.Oeq (E.Op_w ws), e, pcast ws (Pconst (B.of_int 0))) in
+      let be = Papp2 (E.Oeq (E.Op_w ws), e, pcast ws (Pconst (Z.of_int 0))) in
       begin match AbsExpr.bexpr_to_btcons be state.abs with
         | None -> false
         | Some c -> 
@@ -915,7 +915,7 @@ end = struct
   let zf_of_word sz w =
     Some (Papp2 (E.Oeq (E.Op_w sz),
                  w,
-                 pcast sz (Pconst (B.of_int 0))))
+                 pcast sz (Pconst (Z.of_int 0))))
 
   let rflags_of_aluop sz w vu _vs = 
     let of_f = None               (* FIXME *)
@@ -1006,13 +1006,13 @@ end = struct
     let w_no_carry = Papp2 (E.Oadd (E.Op_w ws), el, er) in
     let w_carry = Papp2 (E.Oadd (E.Op_w ws),
                          w_no_carry,
-                         pcast ws (Pconst (B.of_int 1))) in
+                         pcast ws (Pconst (Z.of_int 1))) in
 
     let eli = Papp1 (E.Oint_of_word ws, el)    (* (int)el *)
     and eri = Papp1 (E.Oint_of_word ws, er) in (* (int)er *)
     let w_i =
       Papp2 (E.Oadd E.Op_int, eli, eri) in (* (int)el + (int)er *)
-    let pow_ws = Pconst (B.pow (B.of_int 2) (int_of_ws ws)) in (* 2^ws *)
+    let pow_ws = Pconst (Z.pow (Z.of_int 2) (int_of_ws ws)) in (* 2^ws *)
 
     (* cf_no_carry is true <=> 2^ws <= el + er      (addition without modulo) *)
     let cf_no_carry = Papp2 (E.Ole E.Cmp_int, pow_ws, w_i ) in
@@ -1021,7 +1021,7 @@ end = struct
                           pow_ws,
                           Papp2 (E.Oadd E.Op_int,
                                  w_i,
-                                 Pconst (B.of_int 1))) in
+                                 Pconst (Z.of_int 1))) in
 
     match eb with
     | Pbool false ->         (* No carry *)
@@ -1044,7 +1044,7 @@ end = struct
     let w_no_carry = Papp2 (E.Osub (E.Op_w ws), el, er) in
     let w_carry = Papp2 (E.Osub (E.Op_w ws),
                          w_no_carry,
-                         pcast ws (Pconst (B.of_int 1))) in
+                         pcast ws (Pconst (Z.of_int 1))) in
 
     let eli = Papp1 (E.Oint_of_word ws, el)    (* (int)el *)
     and eri = Papp1 (E.Oint_of_word ws, er) in (* (int)er *)
@@ -1054,7 +1054,7 @@ end = struct
     (* cf_carry    is true <=> el < er + 1  (sub without modulo) *)
     let cf_carry = Papp2 (E.Ole E.Cmp_int,
                           eli,
-                          Papp2 (E.Oadd E.Op_int, eri, Pconst (B.of_int 1))) in
+                          Papp2 (E.Oadd E.Op_int, eri, Pconst (Z.of_int 1))) in
 
     match eb with
     | Pbool false ->         (* No carry *)
@@ -1078,7 +1078,7 @@ end = struct
      See x86_instr_decl.v for a desciption of the operators. *)
   let split_opn n opn es = match opn with
     | Sopn.Oasm (Arch_extra.ExtOp X86_extra.Oset0 ws) ->
-       let zero = Some (pcast ws (Pconst (B.of_int 0))) in
+       let zero = Some (pcast ws (Pconst (Z.of_int 0))) in
        begin match wsize_cmp U64 ws with
        | Lt -> [ zero ]
        | _ -> [ None; None; None; None; None; zero ]
@@ -1167,10 +1167,10 @@ end = struct
       assert (x = None);
       let e = as_seq1 es in
       let w = Papp2 (E.Oadd (E.Op_w ws), e,
-                     Papp1(E.Oword_of_int ws, Pconst (B.of_int 1))) in
+                     Papp1(E.Oword_of_int ws, Pconst (Z.of_int 1))) in
       let vu = Papp2 (E.Oadd E.Op_int,
                       Papp1(E.Oint_of_word ws,e),
-                      Pconst (B.of_int 1)) in
+                      Pconst (Z.of_int 1)) in
       let vs = () in
       let rflags = nocf (rflags_of_aluop ws w vu vs) in
       rflags @ [Some w]
@@ -1180,10 +1180,10 @@ end = struct
       assert (x = None);
       let e = as_seq1 es in
       let w = Papp2 (E.Osub (E.Op_w ws), e,
-                     Papp1(E.Oword_of_int ws,Pconst (B.of_int 1))) in
+                     Papp1(E.Oword_of_int ws,Pconst (Z.of_int 1))) in
       let vu = Papp2 (E.Osub E.Op_int,
                       Papp1(E.Oint_of_word ws,e),
-                      Pconst (B.of_int 1)) in
+                      Pconst (Z.of_int 1)) in
       let vs = () in
       let rflags = nocf (rflags_of_aluop ws w vu vs) in
       rflags @ [Some w]

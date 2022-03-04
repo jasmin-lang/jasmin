@@ -4,64 +4,64 @@ module W = Wsize
 module T = Type
 module C = Expr
 
-let rec pos_of_bi bi =
-  let open B.Notations in
-  if bi <=^ B.one then BinNums.Coq_xH
+let rec pos_of_z z =
+  let open Z.Compare in
+  if z <= Z.one then BinNums.Coq_xH
   else
-    let p = pos_of_bi (B.rshift bi 1) in
-    if (B.erem bi (B.of_int 2)) =^ B.one
+    let p = pos_of_z (Z.shift_right z 1) in
+    if (Z.erem z (Z.of_int 2)) = Z.one
     then BinNums.Coq_xI p
     else BinNums.Coq_xO p
 
-let rec bi_of_pos pos =
-  let open B.Notations in
+let rec z_of_pos pos =
+  let open Z in
   match pos with
-  | BinNums.Coq_xH   -> B.one
-  | BinNums.Coq_xO p -> B.lshift (bi_of_pos p) 1
-  | BinNums.Coq_xI p -> B.lshift (bi_of_pos p) 1 +^ B.one
+  | BinNums.Coq_xH   -> Z.one
+  | BinNums.Coq_xO p -> Z.shift_left (z_of_pos p) 1
+  | BinNums.Coq_xI p -> Z.shift_left (z_of_pos p) 1 + Z.one
 
-let z_of_bi bi =
-  let open B.Notations in
-  if bi =^ B.zero then BinNums.Z0
-  else if bi <^ B.zero then BinNums.Zneg (pos_of_bi (B.abs bi))
-  else BinNums.Zpos (pos_of_bi bi)
+let cz_of_z z =
+  let open Z.Compare in
+  if z = Z.zero then BinNums.Z0
+  else if z < Z.zero then BinNums.Zneg (pos_of_z (Z.abs z))
+  else BinNums.Zpos (pos_of_z z)
 
-let bi_of_z z =
+let z_of_cz z =
   match z with
-  | BinNums.Zneg p -> B.neg (bi_of_pos p)
-  | BinNums.Z0     -> B.zero
-  | BinNums.Zpos p -> bi_of_pos p
+  | BinNums.Zneg p -> Z.neg (z_of_pos p)
+  | BinNums.Z0     -> Z.zero
+  | BinNums.Zpos p -> z_of_pos p
 
-let z_of_int i = z_of_bi (B.of_int i)
+let cz_of_int i = cz_of_z (Z.of_int i)
 
-let bi_of_nat n =
-  bi_of_z (BinInt.Z.of_nat n)
+let z_of_nat n =
+  z_of_cz (BinInt.Z.of_nat n)
 
-let int_of_nat n = B.to_int (bi_of_nat n)
-let nat_of_int i = BinInt.Z.to_nat (z_of_int i)
+let int_of_nat n = Z.to_int (z_of_nat n)
+let nat_of_int i = BinInt.Z.to_nat (cz_of_int i)
 
-let pos_of_int i = pos_of_bi (B.of_int i)
-let int_of_pos p = B.to_int (bi_of_pos p)
+let pos_of_int i = pos_of_z (Z.of_int i)
+let int_of_pos p = Z.to_int (z_of_pos p)
 
-let int64_of_bi bi = Word0.wrepr W.U64 (z_of_bi bi)
-let int32_of_bi bi = Word0.wrepr W.U32 (z_of_bi bi)
+let int64_of_z z = Word0.wrepr W.U64 (cz_of_z z)
+let int32_of_z z = Word0.wrepr W.U32 (cz_of_z z)
 
 
-let bi_of_int256 z  = bi_of_z (Word0.wsigned W.U256 z)
-let bi_of_int128 z  = bi_of_z (Word0.wsigned W.U128 z)
-let bi_of_int64 z  = bi_of_z (Word0.wsigned W.U64 z)
-let bi_of_int32 z  = bi_of_z (Word0.wsigned W.U32 z)
-let bi_of_int16 z  = bi_of_z (Word0.wsigned W.U16 z)
-let bi_of_int8 z  = bi_of_z (Word0.wsigned W.U8 z)
+let z_of_int256 z  = z_of_cz (Word0.wsigned W.U256 z)
+let z_of_int128 z  = z_of_cz (Word0.wsigned W.U128 z)
+let z_of_int64 z  = z_of_cz (Word0.wsigned W.U64 z)
+let z_of_int32 z  = z_of_cz (Word0.wsigned W.U32 z)
+let z_of_int16 z  = z_of_cz (Word0.wsigned W.U16 z)
+let z_of_int8 z  = z_of_cz (Word0.wsigned W.U8 z)
 
-let bi_of_word sz z = 
+let z_of_word sz z = 
   match sz with
-  | W.U8 -> bi_of_int8 z 
-  | W.U16 -> bi_of_int16 z
-  | W.U32 -> bi_of_int32 z
-  | W.U64 -> bi_of_int64 z
-  | W.U128 -> bi_of_int128 z
-  | W.U256 -> bi_of_int256 z
+  | W.U8 -> z_of_int8 z 
+  | W.U16 -> z_of_int16 z
+  | W.U32 -> z_of_int32 z
+  | W.U64 -> z_of_int64 z
+  | W.U128 -> z_of_int128 z
+  | W.U256 -> z_of_int256 z
 (* ------------------------------------------------------------------------ *)
 
 let string0_of_string s =
@@ -177,7 +177,7 @@ let gvari_of_cgvari tbl v =
 
 (* ------------------------------------------------------------------------ *)
 let rec cexpr_of_expr tbl = function
-  | Pconst z          -> C.Pconst (z_of_bi z)
+  | Pconst z          -> C.Pconst (cz_of_z z)
   | Pbool  b          -> C.Pbool  b
   | Parr_init n       -> C.Parr_init (pos_of_int n)
   | Pvar x            -> C.Pvar (cgvari_of_gvari tbl x)
@@ -194,7 +194,7 @@ let rec cexpr_of_expr tbl = function
                                 cexpr_of_expr tbl e2)
 
 let rec expr_of_cexpr tbl = function
-  | C.Pconst z          -> Pconst (bi_of_z z)
+  | C.Pconst z          -> Pconst (z_of_cz z)
   | C.Pbool  b          -> Pbool  b
   | C.Parr_init n       -> Parr_init (int_of_pos n)
   | C.Pvar x            -> Pvar (gvari_of_cgvari tbl x)
@@ -248,6 +248,10 @@ let cfun_of_fun tbl fn =
 let fun_of_cfun tbl p =
   try Hashtbl.find tbl.cfunname p
   with Not_found -> assert false
+
+(* -------------------------------------------------------------------- *)
+let string_of_funname tbl p =
+  (fun_of_cfun tbl p).fn_name
 
 (* ------------------------------------------------------------------------ *)
 
@@ -419,8 +423,8 @@ let prog_of_csprog tbl p =
 let to_array ty p t = 
   let ws, n = array_kind ty in
   let get i = 
-    match Warray_.WArray.get p Warray_.AAscale ws t (z_of_int i) with
-    | Utils0.Ok w -> bi_of_word ws w
+    match Warray_.WArray.get p Warray_.AAscale ws t (cz_of_int i) with
+    | Utils0.Ok w -> z_of_word ws w
     | _    -> assert false in
   ws, Array.init n get
 

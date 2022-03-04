@@ -3,7 +3,6 @@ open Utils
 open Wsize
 module E = Expr
 module L = Location
-module B = Bigint
 
 module Name : sig
   type t = string
@@ -54,7 +53,7 @@ type 'len ggvar = {
 }
 
 type 'len gexpr =
-  | Pconst of B.zint
+  | Pconst of Z.t
   | Pbool  of bool
   | Parr_init of 'len
   | Pvar   of 'len ggvar
@@ -140,8 +139,8 @@ type returnaddress_kind =
 
 type f_annot = {
     retaddr_kind  : returnaddress_kind option;
-    stack_allocation_size : B.zint option;
-    stack_size    : B.zint option;
+    stack_allocation_size : Z.t option;
+    stack_size    : Z.t option;
     stack_align   : wsize option;
   }
 
@@ -335,7 +334,7 @@ val is_stack_array : var_i -> bool
 
 val ( ++ ) : 'len gexpr -> 'len gexpr -> 'len gexpr
 val ( ** ) : 'len gexpr -> 'len gexpr -> 'len gexpr
-val cnst   : B.zint -> 'len gexpr
+val cnst   : Z.t -> 'len gexpr
 val icnst  : int -> 'len gexpr
 val cast64 : 'len gexpr -> 'len gexpr
 val is_var : 'len gexpr -> bool
@@ -352,8 +351,8 @@ val expr_of_lval : 'len glval -> 'len gexpr option
 val destruct_move : ('len, 'info) ginstr -> 'len glval * E.assgn_tag * 'len gty * 'len gexpr
 
 (* -------------------------------------------------------------------- *)
-val clamp : wsize -> Bigint.zint -> Bigint.zint
-val clamp_pe : pelem -> Bigint.zint -> Bigint.zint
+val clamp : wsize -> Z.t -> Z.t
+val clamp_pe : pelem -> Z.t -> Z.t
 
 (* -------------------------------------------------------------------- *)
 type 'info sfundef = Expr.stk_fun_extra * 'info func 

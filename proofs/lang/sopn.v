@@ -150,7 +150,7 @@ Definition Omulu_instr sz :=
            (fun x y => ok (@wumul sz x y)) sz [::].
  
 Definition Oaddcarry_instr sz :=
-  mk_instr_desc (pp_sz "addc" sz)
+  mk_instr_desc (pp_sz "adc" sz)
            [:: sword sz; sword sz; sbool]
            [:: E 0; E 1; E 2] (* this info is irrelevant *)
            [:: sbool; sword sz]
@@ -159,7 +159,7 @@ Definition Oaddcarry_instr sz :=
            sz [::].
 
 Definition Osubcarry_instr sz:= 
-  mk_instr_desc (pp_sz "subc" sz)
+  mk_instr_desc (pp_sz "sbb" sz)
            [:: sword sz; sword sz; sbool]
            [:: E 0; E 1; E 2] (* this info is irrelevant *)
            [:: sbool; sword sz]

@@ -31,7 +31,7 @@ Definition of_rbool (v : rflagv) :=
 
 (* -------------------------------------------------------------------- *)
 Definition eqflags (m: estate) (rf: rflagmap) : Prop :=
-  ∀ (f: rflag) v, on_vu Vbool (ok undef_b) (evm m).[to_var f]%vmap = ok v → v = of_rbool (rf f).
+  ∀ (f: rflag) v, on_vu Vbool (ok undef_b) (evm m).[to_var f]%vmap = ok v → value_uincl v (of_rbool (rf f)).
 
 Variant disj_rip rip :=
   | Drip of
@@ -82,7 +82,7 @@ Proof.
   move => eqm /of_var_eP /of_varI <-.
   rewrite get_varE; t_xrbindP => /= b ok_b <-.
   move: (eqm f b).
-  by rewrite ok_b => /(_ erefl) ->.
+  by rewrite ok_b => /(_ erefl).
 Qed.
 
 Lemma gxgetflag_ex ii m rf (x:gvar) f v :
@@ -239,7 +239,7 @@ Proof.
   rewrite get_varE; t_xrbindP => /= b ok_b <-{v} /of_vbool[] ??; subst.
   move: (h f b); rewrite ok_b => /(_ erefl).
   rewrite /st_get_rflag.
-  by case: (asm_flag s f) => // _ [<-]; exists b.
+  by case: (asm_flag s f) => // _ <-; exists b.
 Qed.
 
 Lemma var_of_regP rip E m s r v ty vt:

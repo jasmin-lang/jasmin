@@ -1,28 +1,3 @@
-(* ** License
- * -----------------------------------------------------------------------
- * Copyright 2016--2017 IMDEA Software Institute
- * Copyright 2016--2017 Inria
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * ----------------------------------------------------------------------- *)
-
 (* ** Machine word *)
 
 (* ** Imports and settings *)
@@ -179,8 +154,14 @@ Definition string_of_wsize (sz: wsize) : string :=
   | U256 => "256"
   end.
 
-Definition string_of_ve_sz (ve:velem) (sz:wsize) : string := 
+Definition string_of_ve_sz (ve:velem) (sz:wsize) : string :=
   match ve, sz with
+  | VE8, U16 => "2u8"
+  | VE8, U32 => "4u8"
+  | VE16, U32 => "2u16"
+  | VE8, U64 => "8u8"
+  | VE16, U64 => "4u16"
+  | VE32, U64 => "2u32"
   | VE8 , U128 => "16u8"
   | VE16, U128 => "8u16"
   | VE32, U128 => "4u32"
@@ -200,8 +181,11 @@ Definition pp_sz (s: string) (sz: wsize) (_: unit) : string :=
 Definition pp_ve_sz (s: string) (ve: velem) (sz: wsize) (_: unit) : string := 
   s ++ "_" ++ string_of_ve_sz ve sz.
 
-Definition pp_sz_sz (s: string) (sign:bool) (sz sz': wsize) (_: unit) : string := 
-  s ++ "_u" ++ string_of_wsize sz ++ (if sign then "_s" else "_u")%string ++ string_of_wsize sz'.
+Definition pp_ve_sz_ve_sz (s: string) (ve: velem) (sz: wsize) (ve': velem) (sz': wsize) (_: unit) : string :=
+  s ++ "_" ++ string_of_ve_sz ve sz ++ "_" ++ string_of_ve_sz ve' sz'.
+
+Definition pp_sz_sz (s: string) (sign:bool) (sz sz': wsize) (_: unit) : string :=
+  s ++ "_u" ++ string_of_wsize sz ++ (if sign then "s" else "u")%string ++ string_of_wsize sz'.
 
 (* -------------------------------------------------------------------- *)
 Variant safe_cond :=

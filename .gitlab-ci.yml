@@ -102,6 +102,8 @@ tarball:
     EXTRA_NIX_ARGUMENTS: --arg testDeps true
     TARBALL: jasmin-compiler-$CI_COMMIT_SHORT_SHA
   extends: .common
+  needs:
+  - coq
   dependencies:
   - coq
   script:
@@ -115,6 +117,9 @@ check:
   variables:
     EXTRA_NIX_ARGUMENTS: --arg testDeps true
   extends: .common
+  needs:
+  - coq
+  - ocaml
   dependencies:
   - coq
   - ocaml

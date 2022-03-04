@@ -73,12 +73,16 @@ proof.
   by case: hp => [hp | <-//]; apply divz_ge0.
 qed.
 
-lemma modz_mod_pow2 i n k : 0 <= n => 0 <= k => i %% 2^n %% 2^k = i %% 2^(min n k).
-proof.
-  move=> hn hk;rewrite /min;case (n < k) => hnk.
-  + rewrite (modz_small (i %% 2^n)) 2://.
-    smt (modz_cmp gt0_pow2 ler_weexpn2l).
-  rewrite modz_dvd 2://;1: by apply dvdz_exp2l => /#.
+lemma exp_abs (x n:int) : x ^ `|n| = x ^ n.
+proof. by smt (exprV). qed.
+
+lemma modz_mod_pow2 i n k : i %% 2^n %% 2^k = i %% 2^(min `|n| `|k|).
+proof. 
+  rewrite -(exp_abs 2 n) -(exp_abs 2 k).
+  move: `|n| `|k| (IntOrder.normr_ge0 n) (IntOrder.normr_ge0 k) => {n k} n k hn hk.
+  rewrite /min;case (n < k) => hnk.
+  + by rewrite (modz_small (i %% 2^n)) 2://; smt (modz_cmp gt0_pow2 IntOrder.ler_weexpn2l).
+  by rewrite modz_dvd 2://;1: by apply dvdz_exp2l => /#.
 qed.
 
 (* FIXME: this is defined in IntDiv but with 0 <= i *)
@@ -97,9 +101,10 @@ qed.
 lemma powS_minus (x p:int) : 0 < p => x ^ p  = x * x ^ (p-1).
 proof. smt (exprS). qed.
 
+hint simplify expr0@1.
 hint simplify powS_minus@1.
 
-lemma pow2_0 : 2^0 = 1 by [].
+lemma pow2_0 : 2^0 = 1   by [].
 lemma pow2_1 : 2^1 = 2   by [].
 lemma pow2_2 : 2^2 = 4   by [].
 lemma pow2_3 : 2^3 = 8   by [].
@@ -115,7 +120,7 @@ lemma pow2_128 : 2 ^ 128 = 340282366920938463463374607431768211456 by [].
 lemma pow2_256 : 2 ^ 256 = 115792089237316195423570985008687907853269984665640564039457584007913129639936 by [].
 
 hint simplify
-  (pow2_0, pow2_1, pow2_2, pow2_3, pow2_4, pow2_5, pow2_6, pow2_7, pow2_8,
+  (pow2_1, pow2_2, pow2_3, pow2_4, pow2_5, pow2_6, pow2_7, pow2_8,
    pow2_16, pow2_32, pow2_64, pow2_128, pow2_256)@0.
 
 (* -------------------------------------------------------------------- *)
@@ -462,3 +467,11 @@ have -> /= : !(size l + 1 = 0) by smt(size_ge0).
 rewrite Ring.IntID.exprD_nneg 1:size_ge0 //=.
 smt (bs2int_ge0 bs2int_le2Xs).
 qed.
+
+(* --------------------------------------------------- *)
+(* shift over integer *)
+op (`<<`) (x i : int) : int =
+  if (0 <= i) then x * 2^i
+  else (x %/ 2^(-i)).
+
+op (`|>>`) (x i : int) : int = x `<<` (-i).

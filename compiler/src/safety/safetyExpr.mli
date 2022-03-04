@@ -35,4 +35,4 @@ end
 
 val cst_of_mpqf      : Mpqf.t      -> Mtexpr.t
 val cst_pow_minus    : int -> int  -> Mtexpr.t
-val mtexpr_of_bigint : Prog.B.zint -> Mtexpr.t
+val mtexpr_of_z      : Z.t -> Mtexpr.t

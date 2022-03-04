@@ -75,7 +75,7 @@ let string_of_svsize (sv,sg,ve) =
 
 (* -------------------------------------------------------------------- *)
 type simple_attribute = 
-  | Aint    of Bigint.zint 
+  | Aint    of Z.t
   | Aid     of symbol
   | Astring of string
   | Aws     of wsize 
@@ -173,7 +173,7 @@ type pexpr_r =
   | PEFetch  of mem_access
   | PEpack   of svsize * pexpr list
   | PEBool   of bool
-  | PEInt    of Bigint.zint
+  | PEInt    of Z.t
   | PECall   of pident * pexpr list
   | PECombF  of pident * pexpr list
   | PEPrim   of pident * pexpr list
@@ -278,7 +278,7 @@ type pglobal = { pgd_type: ptype; pgd_name: pident ; pgd_val: gpexpr }
 (* -------------------------------------------------------------------- *)
 type pexec = {
   pex_name: pident;
-  pex_mem: (Bigint.zint * Bigint.zint) list;
+  pex_mem: (Z.t * Z.t) list;
 }
 
 (* -------------------------------------------------------------------- *)
@@ -290,7 +290,7 @@ type pitem =
   | PParam of pparam
   | PGlobal of pglobal
   | Pexec of pexec
-  | Prequire of prequire list
+  | Prequire of (pident option * prequire list)
 
 (* -------------------------------------------------------------------- *)
 type pprogram = pitem L.located list

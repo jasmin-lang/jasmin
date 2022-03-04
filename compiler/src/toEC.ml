@@ -2,7 +2,6 @@ open Utils
 open Wsize
 open Prog
 module E = Expr
-module B = Bigint
 
 let pp_size fmt sz =
   Format.fprintf fmt "%i" (int_of_ws sz)
@@ -497,8 +496,8 @@ let pp_initi pp fmt (x, n, ws) =
     (arr_size ws n) (int_of_ws ws) pp x
     
 let pp_print_i fmt z = 
-  if B.le B.zero z then B.pp_print fmt z 
-  else Format.fprintf fmt "(%a)" B.pp_print z 
+  if Z.leq Z.zero z then Z.pp_print fmt z 
+  else Format.fprintf fmt "(%a)" Z.pp_print z 
 
 let pp_access aa = if aa = Warray_.AAdirect then "_direct" else ""
 
@@ -1192,7 +1191,7 @@ let pp_glob_decl env fmt (x,d) =
   match d with
   | Global.Gword(ws, w) -> 
     Format.fprintf fmt "@[abbrev %a = %a.of_int %a.@]@ "
-      (pp_var env) x pp_Tsz ws pp_print_i (Conv.bi_of_word ws w)
+      (pp_var env) x pp_Tsz ws pp_print_i (Conv.z_of_word ws w)
   | Global.Garr(p,t) ->
     let wz, t = Conv.to_array x.v_ty p t in
     let pp_elem fmt z = 

@@ -238,7 +238,7 @@ move=> eqv; elim: e c v => //.
   by case: {ok_r ok_v} r ok_ct => // -[<-] {c} /= h; eexists; split; eauto; case: (rf _).
 + case => //= e hrec; t_xrbindP => c v ce hce <- ve hve.
   rewrite /sem_sop1 /=; t_xrbindP => b hb <-.
-  have /(value_of_bool_uincl hb) -/not_condtP -> := hrec _ _ hce hve.
+  have /(value_of_bool_uincl hb) -/not_condtP /= -> := hrec _ _ hce hve.
   by exists (~~b).
 + case => //=.
   + move=> e1 _ e2 _ c v.
@@ -252,13 +252,13 @@ move=> eqv; elim: e c v => //.
     move=> /sem_sop2I /= [b1 [b2 [b3 [hb1 hb2 [<-] ->]]]].
     have /(value_of_bool_uincl hb1) hec1 := hrec1 _ _ hc1 hv1.
     have /(value_of_bool_uincl hb2) hec2 := hrec2 _ _ hc2 hv2.
-    have -> := and_condtP hand hec1 hec2.
+    have /= -> := and_condtP hand hec1 hec2.
     by exists (b1 && b2).
   move=> e1 hrec1 e2 hrec2 c v; t_xrbindP => c1 hc1 c2 hc2 hor v1 hv1 v2 hv2.
   move=> /sem_sop2I /= [b1 [b2 [b3 [hb1 hb2 [<-] ->]]]].
   have /(value_of_bool_uincl hb1) hec1 := hrec1 _ _ hc1 hv1.
   have /(value_of_bool_uincl hb2) hec2 := hrec2 _ _ hc2 hv2.
-  have -> := or_condtP hor hec1 hec2.
+  have /= -> := or_condtP hor hec1 hec2.
   by exists (b1 || b2).
 move=> t e _ e1 _ e2 _ c v /=.
 case: e => //= v1; case: e1 => //= [v2 | [] //= e2'].
@@ -512,8 +512,8 @@ case: i => ii [] /=.
   have [v' [ok_v' hvv']] := eval_assemble_cond eqf ok_c ok_v.
   case: v ok_v ok_b hvv' => // [ b' | [] // ] ok_b [?]; subst b'.
   rewrite /eval_Jcc.
-  case: b ok_b => ok_b; case: v' ok_v' => // b ok_v' /= ?; subst b;
-    (case: (eval_cond _ _) ok_v' => // [ b | [] // ] [->] {b}).
+  case: b ok_b => ok_b; case: v' ok_v' => // b /= ok_v' ?; subst b;
+    (case: (x86_eval_cond _ _) ok_v' => // [ b | [] // ] [->] {b}).
   + t_xrbindP => lc'' ok_lc'' pc ok_pc ?; subst ls' => /=.
     move: omap_lc ok_lc''; rewrite /omap /obind /oapp => /=.
     case: get_fundef => // lfu [->]  [?]; subst lc''; clear lfu.

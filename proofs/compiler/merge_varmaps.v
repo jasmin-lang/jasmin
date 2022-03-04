@@ -266,7 +266,7 @@ Section CHECK.
 
   (* TODO: can we factor out some lines? seems really similar to functions in sem_one_varmap *)
   Definition check_fd (fn:funname) (fd: sfundef) :=
-    let DI :=
+    let extra_free_vars :=
       match sf_return_address (f_extra fd) with
       | RAnone =>
         Sv.add var_tmp
@@ -278,8 +278,10 @@ Section CHECK.
     | RAstack _ => Sv.empty
     end in
 
-    Let D := check_cmd fd.(f_extra).(sf_align) DI fd.(f_body) in
+
     let params := sv_of_list v_var fd.(f_params) in
+    let DI := Sv.inter params extra_free_vars in
+    Let D := check_cmd fd.(f_extra).(sf_align) DI fd.(f_body) in
     let res := sv_of_list v_var fd.(f_res) in
     let W' := writefun_ra writefun fn in
     Let _ := assert (disjoint D res)

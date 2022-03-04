@@ -386,7 +386,7 @@ let alloc_stack_fd get_info gtbl fd =
 
 let alloc_mem gtbl globs =
   let gao_align, gao_slots, gao_size = alloc_local_stack 0 (List.map fst globs) gtbl in
-  let t = Array.make gao_size (Word0.wrepr U8 (Conv.z_of_int 0)) in
+  let t = Array.make gao_size (Word0.wrepr U8 (Conv.cz_of_int 0)) in
   let get x = 
     try List.assoc x globs with Not_found -> assert false in
 
@@ -400,7 +400,7 @@ let alloc_mem gtbl globs =
       let ip = Conv.int_of_pos p in
       for i = 0 to ip - 1 do
         let w = 
-          match Warray_.WArray.get p Warray_.AAdirect U8 gt (Conv.z_of_int i) with
+          match Warray_.WArray.get p Warray_.AAdirect U8 gt (Conv.cz_of_int i) with
           | Ok w -> w
           | _    -> assert false in
         t.(ofs + i) <- w

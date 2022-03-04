@@ -81,6 +81,17 @@ let set_sct_on s =
           | None -> [s]
           | Some l -> s::l)
 
+let parse_jasmin_path s =
+  s |> String.split_on_char ':' |> List.map (String.split ~by:"=")
+
+let idirs =
+  ref (try "JASMINPATH" |> Sys.getenv |> parse_jasmin_path with _ -> [])
+
+let set_idirs s = 
+  match String.split_on_char ':' s with
+  | [s1; s2] -> idirs := (s1,s2)::!idirs
+  | _ -> hierror ~loc:Lnone ~kind:"parsing arguments" "bad format for -I : ident:path expected"
+
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
@@ -118,6 +129,7 @@ let stop_after_option p =
 let options = [
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
     "-debug"   , Arg.Set debug         , ": print debug information";
+    "-I"       , Arg.String set_idirs  , "[ident:path]: bind ident to path for from ident require ...";
     "-latex"     , Arg.Set_string latexfile, "[filename]: generate the corresponding LATEX file";
     "-lea"     , Arg.Set lea           , ": use lea as much as possible (default is nolea)";
     "-nolea"   , Arg.Clear lea         , ": try to use add and mul instead of lea";

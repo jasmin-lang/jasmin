@@ -1,28 +1,3 @@
-(* * License
- * -----------------------------------------------------------------------
- * Copyright 2016--2017 IMDEA Software Institute
- * Copyright 2016--2017 Inria
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * ----------------------------------------------------------------------- *)
-
 (* * Pretty-print Jasmin program (concrete syntax) as LATEX fragments *)
 
 open Utils
@@ -138,7 +113,7 @@ let pp_space fmt _ =
 
 let rec pp_simple_attribute fmt a = 
   match L.unloc a with 
-  | Aint i -> Bigint.pp_print fmt i
+  | Aint i -> Z.pp_print fmt i
   | Aid s | Astring s -> Format.fprintf fmt "%s" s
   | Aws ws -> Format.fprintf fmt "u%i" (bits_of_wsize ws)
   | Astruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
@@ -170,7 +145,7 @@ let rec pp_expr_rec prio fmt pe =
   | PEpack (vs,es) ->
     F.fprintf fmt "(%a)[@[%a@]]" pp_svsize vs (pp_list ",@ " pp_expr) es
   | PEBool b -> F.fprintf fmt "%s" (if b then "true" else "false")
-  | PEInt i -> F.fprintf fmt "%a" Bigint.pp_print i
+  | PEInt i -> F.fprintf fmt "%a" Z.pp_print i
   | PECall (f, args) -> F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
   | PECombF (f, args) -> 
     F.fprintf fmt "%a(%a)" pp_var f (pp_list ", " pp_expr) args
@@ -386,8 +361,13 @@ let pp_pitem fmt pi =
   | PParam p  -> pp_param fmt p
   | PGlobal g -> pp_global fmt g
   | Pexec _   -> ()
-  | Prequire s -> 
-    Format.fprintf fmt "require @[<hov>%a@]"
+  | Prequire (from, s) -> 
+    let pp_from fmt from = 
+      match from with
+      | None -> ()
+      | Some name -> Format.fprintf fmt "from %s " (L.unloc name) in
+    Format.fprintf fmt "%arequire @[<hov>%a@]"
+      pp_from from 
       (pp_list "@ " (fun fmt s -> Format.fprintf fmt "\"%s\"" (L.unloc s)))
       s
 
