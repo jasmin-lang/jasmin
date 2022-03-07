@@ -937,22 +937,26 @@ Qed.
 Hypothesis assemble_extra_op :
   forall rip ii op lvs args op' lvs' args' op'' asm_args m m' s,
     sem_sopn [::] (Oasm (ExtOp op)) m lvs args = ok m' ->
-    to_asm ii op lvs args = ok (op', lvs', args') ->
+    to_asm ii op lvs args = ok [:: (op', lvs', args')] ->
     assemble_asm_op assemble_cond rip ii op' lvs' args' = ok (op'', asm_args) ->
     lom_eqv rip m s ->
     exists s', eval_op op'' asm_args s = ok s' /\ lom_eqv rip m' s'.
 
 Lemma assemble_sopnP rip ii op lvs args op' asm_args m m' s: 
   sem_sopn [::] op m lvs args = ok m' ->
-  assemble_sopn assemble_cond rip ii op lvs args = ok (op', asm_args) ->
+  assemble_sopn assemble_cond rip ii op lvs args = ok [:: (op', asm_args)] ->
   lom_eqv rip m s ->
   exists s', eval_op op' asm_args s = ok s' /\ lom_eqv rip m' s'.
 Proof.
   case: op => //=.
   case=> //=.
-  + by move=> a; apply: assemble_asm_opP.
-  t_xrbindP=> op hsem [[op'' lvs'] args'].
-  by apply assemble_extra_op.
+  + move=> a hsem. t_xrbindP=> -[] a' b' hasm [] <- <- hlow. 
+    by move: (assemble_asm_opP hsem hasm hlow).
+  t_xrbindP=> op hsem [] //= -[[o lvals] args'] l hasm /= hm hlow.
+  move: hm. t_xrbindP=> -[o'' args''] hasm' y hm [] <- <- hy; subst.
+  apply size_mapM in hm. rewrite /= in hm. apply size0nil in hm. 
+  rewrite hm /= in hasm. 
+  by apply: (assemble_extra_op hsem hasm hasm' hlow). 
 Qed.
 
 End ASM_EXTRA.

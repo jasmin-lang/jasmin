@@ -27,9 +27,12 @@ ssrmisc/seq_extra.v
 ssrmisc/xseq_extra.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
+arch/trelation.v
 arch/arch_decl.v
 arch/arch_extra.v
 arch/arch_sem.v
+arch/leakage.v
+arch/arch_sem_spec.v
 arch/asm_gen.v
 arch/asm_gen_proof.v
 arch/label.v
