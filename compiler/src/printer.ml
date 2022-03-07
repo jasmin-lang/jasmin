@@ -107,11 +107,6 @@ let string_of_combine_flags = function
   | E.CF_GE s -> Format.sprintf "_%sGE" (string_of_signess s)
   | E.CF_GT s -> Format.sprintf "_%sGT" (string_of_signess s)
 
-let string_of_Opack sz pe =
-  F.sprintf "Opack<%d, %d>"
-    (int_of_ws sz)
-    (int_of_pe pe)
-
 (* -------------------------------------------------------------------- *)
 
 let pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e olen =
