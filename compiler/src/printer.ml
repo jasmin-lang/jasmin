@@ -108,7 +108,7 @@ let pp_ge pp_var =
   let rec pp_expr fmt = function
   | Pconst i    -> Z.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
-  | Parr_init n -> F.fprintf fmt "array_init(%a)" Z.pp_print n
+  | Parr_init _ -> assert false (* This case is handled in pp_gi *)
   | Pvar v      -> pp_var_i fmt v
   | Pglobal (_, g) -> F.fprintf fmt "%s" g
   | Pget(ws,x,e)   -> F.fprintf fmt "%a[%a %a]" pp_var_i x pp_btype (U ws) pp_expr e
@@ -168,6 +168,13 @@ let pp_align fmt = function
 let rec pp_gi pp_info pp_ty pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;
   match i.i_desc with
+  | Cassgn(x, tg, ty, Parr_init n) ->
+    F.fprintf fmt "@[<hov 2>ArrayInit(%a); /* length=%a %a%s */@]"
+      (pp_glv pp_var) x
+      Z.pp_print n
+      pp_ty ty
+      (pp_tag tg)
+
   | Cassgn(x , tg, ty, e) ->
     F.fprintf fmt "@[<hov 2>%a =@ %a; /* %a%s */@]"
       (pp_glv pp_var) x
