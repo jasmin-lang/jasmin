@@ -133,7 +133,6 @@ let pp_ge pp_len pp_var =
     pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e None
   | Psub(aa,ws,len,x,e) ->
     pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e (Some len)
-
   | Pload(ws,x,e) ->
     F.fprintf fmt "@[(%a)[%a@ +@ %a]@]"
       pp_btype (U ws) pp_var_i x pp_expr e
@@ -353,7 +352,7 @@ let pp_pprog fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem pp_pexpr pp_pvar)) (List.rev p)
 
-let pp_len fmt len = Format.fprintf fmt "%i" len 
+let pp_len fmt len = Format.fprintf fmt "%i" len
 
 let pp_fun ?(pp_info=pp_noinfo) pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
