@@ -45,12 +45,12 @@ fn f(reg u8 b, reg u64 x y) -> reg u64 {
   r = y if c;
   r = x if c;
 
-  reg bool cf zf sf of b b1;
-  inline bool b2;
+  reg bool cf zf sf of;
+  inline bool b0 b1 b2;
 
-  ?{cf,zf,sf,of, "==" = b, "<s" = c, "<u" = b1} = #CMP_64(x,y);
+  ?{cf,zf,sf,of, "==" = b0, "<s" = c, "<u" = b1} = #CMP_64(x,y);
   b2 = _uGT(of, cf, sf, zf);
-  r = y if b;
+  r = y if b0;
   r = y if b1;
   z = #SETcc(b1);
   x = (64u)z;

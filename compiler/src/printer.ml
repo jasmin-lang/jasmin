@@ -39,6 +39,10 @@ let string_of_cmp_ty = function
   | E.Cmp_w (W.Unsigned, _) -> "u"
   | _        -> ""
 
+let string_of_cmp_kind = function
+  | E.Cmp_w (sg, sz) -> F.sprintf " %d%s" (int_of_ws sz) (match sg with W.Unsigned -> "u" | W.Signed -> "s")
+  | E.Cmp_int -> ""
+
 let string_of_op_kind = function
   | E.Op_w ws -> Format.sprintf "%du" (int_of_ws ws)
   | E.Op_int -> ""
@@ -61,8 +65,8 @@ let string_of_op2 = function
   | E.Oadd _ -> "+"
   | E.Omul _ -> "*"
   | E.Osub _ -> "-"
-  | E.Odiv k -> "/"  ^ string_of_cmp_ty k
-  | E.Omod k -> "%"  ^ string_of_cmp_ty k
+  | E.Odiv k -> "/"  ^ string_of_cmp_kind k
+  | E.Omod k -> "%"  ^ string_of_cmp_kind k
 
   | E.Oland _ -> "&"
   | E.Olor _ -> "|"
@@ -87,12 +91,12 @@ let string_of_op2 = function
 
 
 let string_of_op1 = function
-  | E.Oint_of_word sz -> F.sprintf "(int of u%d)" (int_of_ws sz)
+  | E.Oint_of_word sz -> F.sprintf "(int /* of u%d */)" (int_of_ws sz)
   | E.Osignext (szo, _) -> F.sprintf "(%ds)" (int_of_ws szo)
   | E.Oword_of_int szo
   | E.Ozeroext (szo, _) -> F.sprintf "(%du)" (int_of_ws szo)
   | E.Olnot _ -> "!"
-  | E.Onot    -> "~"
+  | E.Onot    -> "!"
   | E.Oneg _ -> "-"
 
 let string_of_combine_flags = function
@@ -107,7 +111,7 @@ let string_of_Opack sz pe =
   F.sprintf "Opack<%d, %d>"
     (int_of_ws sz)
     (int_of_pe pe)
-    
+
 (* -------------------------------------------------------------------- *)
 
 let pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e olen =
@@ -121,30 +125,30 @@ let pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e olen =
 
 let pp_ge pp_len pp_var =
   let pp_var_i = pp_gvar_i pp_var in
-  let pp_gvar fmt x = 
-    let s = if is_gkvar x then "" else "##G" in
+  let pp_gvar fmt x =
+    let s = if is_gkvar x then "" else "/* global: */ " in
     Format.fprintf fmt "%s%a" s pp_var_i x.gv in
 
   let rec pp_expr fmt = function
   | Pconst i    -> Z.pp_print fmt i
   | Pbool  b    -> F.fprintf fmt "%b" b
-  | Parr_init n -> F.fprintf fmt "array_init(%a)" pp_len n
+  | Parr_init _ -> assert false (* This case is handled in pp_gi *)
   | Pvar v      -> pp_gvar fmt v
-  | Pget(aa,ws,x,e) -> 
+  | Pget(aa,ws,x,e) ->
     pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e None
-  | Psub(aa,ws,len,x,e) -> 
+  | Psub(aa,ws,len,x,e) ->
     pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e (Some len)
 
   | Pload(ws,x,e) ->
-    F.fprintf fmt "@[(%a)[%a@ %a]@]"
+    F.fprintf fmt "@[(%a)[%a@ +@ %a]@]"
       pp_btype (U ws) pp_var_i x pp_expr e
   | Papp1(o, e) ->
     F.fprintf fmt "@[(%s@ %a)@]" (string_of_op1 o) pp_expr e
   | Papp2(op,e1,e2) ->
     F.fprintf fmt "@[(%a %s@ %a)@]"
       pp_expr e1 (string_of_op2 op) pp_expr e2
-  | PappN (Opack(sz,pe) , es) ->
-    F.fprintf fmt "@[(%s [%a])@]" (string_of_Opack sz pe) (pp_list ",@ " pp_expr) es
+  | PappN (E.Opack(_sz, pe), es) ->
+    F.fprintf fmt "@[(%du%n)[%a]@]" (List.length es) (int_of_pe pe) (pp_list ",@ " pp_expr) es
   | PappN (Ocombine_flags c, es) ->
     F.fprintf fmt "@[%s(%a)@]" (string_of_combine_flags c) (pp_list ",@ " pp_expr) es  
   | Pif(_, e,e1,e2) ->
@@ -155,10 +159,10 @@ let pp_ge pp_len pp_var =
 
 (* -------------------------------------------------------------------- *)
 let pp_glv pp_len pp_var fmt = function
-  | Lnone (_, ty) -> F.fprintf fmt "_{%a}" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
+  | Lnone (_, ty) -> F.fprintf fmt "_ /* %a */" (pp_gtype (fun fmt _ -> F.fprintf fmt "?")) ty
   | Lvar x  -> pp_gvar_i pp_var fmt x
   | Lmem (ws, x, e) ->
-    F.fprintf fmt "@[(%a)[%a@ %a]@]"
+    F.fprintf fmt "@[(%a)[%a@ +@ %a]@]"
      pp_btype (U ws) (pp_gvar_i pp_var) x (pp_ge pp_len pp_var) e
   | Laset(aa, ws, x, e) ->
     pp_arr_access (pp_gvar_i pp_var) (pp_ge pp_len pp_var) pp_len fmt aa ws x e None
@@ -183,31 +187,39 @@ let pp_opn o =
 
 (* -------------------------------------------------------------------- *)
 let pp_tag = E.(function
-  | AT_none    -> "="
-  | AT_keep    -> ":k="
-  | AT_rename  -> ":r="
-  | AT_inline  -> ":i="
-  | AT_phinode -> ":φ=")
+  | AT_none    -> ""
+  | AT_keep    -> ":k"
+  | AT_rename  -> ":r"
+  | AT_inline  -> ":i"
+  | AT_phinode -> ":φ")
 
 let pp_align fmt = function 
-  | E.Align -> Format.fprintf fmt "align "
+  | E.Align -> Format.fprintf fmt "#[align]@ "
   | E.NoAlign -> ()
 
 let rec pp_gi pp_info pp_len pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;
   match i.i_desc with
-  | Cassgn(x , tg, ty, e) ->
-    F.fprintf fmt "@[<hov 2>%a %s(%a)@ %a;@]"
-      (pp_glv pp_len pp_var) x (pp_tag tg)
+  | Cassgn(x, tg, ty, Parr_init n) ->
+    F.fprintf fmt "@[<hov 2>ArrayInit(%a); /* length=%a %a%s */@]"
+      (pp_glv pp_len pp_var) x
+      pp_len n
       (pp_gtype pp_len) ty
+      (pp_tag tg)
+
+  | Cassgn(x , tg, ty, e) ->
+    F.fprintf fmt "@[<hov 2>%a =@ %a; /* %a%s */@]"
+      (pp_glv pp_len pp_var) x
       (pp_ge pp_len pp_var) e
+      (pp_gtype pp_len) ty
+      (pp_tag tg)
 
   | Copn(x, t, o, e) ->
     let pp_cast fmt = function
-      | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%a)" pp_btype (U ws)
+      | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (int_of_ws ws)
       | _ -> () in
 
-    F.fprintf fmt "@[<hov 2>%a %s=@ %a%s(%a);@]"
+    F.fprintf fmt "@[<hov 2>%a %s=@ %a#%s(%a);@]"
        (pp_glvs pp_len pp_var) x (pp_tag t) pp_cast o (pp_opn o)
        (pp_ges pp_len pp_var) e
 
@@ -225,7 +237,7 @@ let rec pp_gi pp_info pp_len pp_var fmt i =
       if dir = UpTo then "to", lo, hi else "downto", hi, lo in
     F.fprintf fmt "@[<v>for %a = @[%a %s@ %a@] %a@]"
       (pp_gvar_i pp_var) i (pp_ge pp_len pp_var) e1 dir (pp_ge pp_len pp_var) e2
-      (pp_gc pp_info pp_len pp_var) c
+      (pp_cblock pp_info pp_len pp_var) c
 
   | Cwhile(a, [], e, c) ->
     F.fprintf fmt "@[<v>%awhile (%a) %a@]"
@@ -244,8 +256,11 @@ let rec pp_gi pp_info pp_len pp_var fmt i =
       (pp_cblock pp_info pp_len pp_var) c'
 
   | Ccall(_ii, x, f, e) -> (* FIXME ii *)
-    F.fprintf fmt "@[<hov 2> %a =@ %s(%a);@]"
-      (pp_glvs pp_len pp_var) x f.fn_name (pp_ges pp_len pp_var) e
+    let pp_x fmt = function
+      | [] -> ()
+      | x -> F.fprintf fmt "%a =@ " (pp_glvs pp_len pp_var) x in
+    F.fprintf fmt "@[<hov 2>%a%s(%a);@]"
+      pp_x x f.fn_name (pp_ges pp_len pp_var) e
 
 (* -------------------------------------------------------------------- *)
 and pp_gc pp_info pp_len pp_var fmt c =
@@ -265,11 +280,11 @@ let pp_pointer fmt = function
   | Pointer w -> Format.fprintf fmt "%a ptr" pp_writable w
 
 let pp_kind fmt = function
-  | Const     ->  F.fprintf fmt "Const"
-  | Stack ptr ->  F.fprintf fmt "Stack%a" pp_pointer ptr
-  | Reg   ptr ->  F.fprintf fmt "Reg%a" pp_pointer ptr
-  | Inline    ->  F.fprintf fmt "Inline"
-  | Global    ->  F.fprintf fmt "Global" 
+  | Const  ->  F.fprintf fmt "param"
+  | Stack ptr ->  F.fprintf fmt "stack%a" pp_pointer ptr
+  | Reg ptr ->  F.fprintf fmt "reg%a" pp_pointer ptr
+  | Inline ->  F.fprintf fmt "inline"
+  | Global ->  F.fprintf fmt "global"
 
 let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
   F.fprintf fmt "%a %a" pp_kind v.v_kind (pp_gtype pp_size) v.v_ty
@@ -277,18 +292,37 @@ let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
 let pp_var_decl pp_var pp_size fmt v =
   F.fprintf fmt "%a %a" (pp_ty_decl pp_size) v pp_var v
 
+let pp_call_conv fmt =
+  function
+  | Export -> Format.fprintf fmt "export@ "
+  | Internal -> Format.fprintf fmt "inline@ "
+  | Subroutine _ -> ()
+
 let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_size in
+  let pp_locals fmt fd =
+    let seen = ref Spv.empty in
+    let mark x = seen := Spv.add x !seen in
+    let is_seen x = Spv.mem x !seen in
+    List.iter mark fd.f_args;
+    fold_vars_fc (fun x () ->
+        if x.v_kind <> Const && not (is_seen x) then (
+          mark x;
+          F.fprintf fmt "%a;@ " pp_vd x)
+    ) () fd
+  in
   let ret = List.map L.unloc fd.f_ret in
   let pp_ret fmt () =
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
 
-  F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
+   pp_call_conv fd.f_cc
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_size)) ret
-   (pp_gc pp_info pp_size pp_var) fd.f_body
+   pp_locals fd
+  (pp_gc pp_info pp_size pp_var) fd.f_body
    pp_ret ()
 
 let pp_noinfo _ _ = ()
@@ -299,14 +333,16 @@ let pp_gexpr pp_len pp_var fmt = function
 
 let pp_pitem pp_len pp_var =
   let aux fmt = function
-   | MIfun fd -> pp_gfun pp_noinfo pp_len pp_var fmt fd 
+   | MIfun fd -> pp_gfun pp_noinfo pp_len pp_var fmt fd
    | MIparam (x,e) ->
-      F.fprintf fmt "%a = %a"
+      F.fprintf fmt "%a = %a;"
         (pp_var_decl pp_var pp_len) x
         (pp_ge pp_len pp_var) e
     | MIglobal (x, e) ->
-      F.fprintf fmt "%a = %a" 
-        (pp_var_decl pp_var pp_len) x (pp_gexpr pp_len pp_var) e
+      F.fprintf fmt "%a %a = %a;"
+        (pp_gtype pp_len) x.v_ty
+        pp_var x
+        (pp_gexpr pp_len pp_var) e
  in
   aux
 
@@ -324,14 +360,9 @@ let pp_pprog fmt p =
 
 let pp_len fmt len = Format.fprintf fmt "%i" len 
 
-let pp_call_conv fmt =
-  function
-  | Export -> Format.fprintf fmt "export@ "
-  | Internal -> Format.fprintf fmt "inline@ "
-  | Subroutine _ -> ()
-
 let pp_fun ?(pp_info=pp_noinfo) pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
+  let pp_locals fmt = Sv.iter (F.fprintf fmt "%a;@ " pp_vd) in
   let locals = locals fd in
   let ret = List.map L.unloc fd.f_ret in
   let pp_ret fmt () =
@@ -343,7 +374,7 @@ let pp_fun ?(pp_info=pp_noinfo) pp_var fmt fd =
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_len)) ret
-   (pp_list ";@ " pp_vd) (Sv.elements locals)
+   pp_locals locals
    (pp_gc pp_info pp_len pp_var) fd.f_body
    pp_ret ()
 
@@ -379,7 +410,7 @@ let pp_func ~debug fmt fd =
   pp_fun pp_var fmt fd
 
 let pp_glob fmt (ws, n, z) =
-  Format.fprintf fmt "%a %s %a"
+  Format.fprintf fmt "%a %s = %a;"
     pp_ty (Bty (U ws)) n Z.pp_print z
 
 let pp_glob pp_var fmt (x, gd) = 
