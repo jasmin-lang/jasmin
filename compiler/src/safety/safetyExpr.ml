@@ -203,6 +203,6 @@ let cst_of_mpqf n = Mtexpr.cst (Coeff.s_of_mpqf n)
 let cst_pow_minus n y = cst_of_mpqf (mpq_pow_minus n y)
 
 
-let mtexpr_of_bigint z =
-  let mpq_z = mpq_of_bigint z in
+let mtexpr_of_z z =
+  let mpq_z = mpq_of_z z in
   Mtexpr.cst (Coeff.s_of_mpq mpq_z)

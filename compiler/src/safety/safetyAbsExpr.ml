@@ -293,7 +293,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
   let rec aeval_cst_zint abs e = match e with
     | Pvar x -> aeval_cst_var abs x
 
-    | Pconst c -> Some (Z.of_string (B.to_string c))
+    | Pconst c -> Some (Z.of_string (Z.to_string c))
 
     | Papp1 (E.Oneg Op_int, e) ->
       obind (fun x -> Some (Z.neg x)) (aeval_cst_zint abs e)
@@ -420,7 +420,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
 
   let rec linearize_iexpr abs (e : expr) =
     match e with
-    | Pconst z -> mtexpr_of_bigint z
+    | Pconst z -> mtexpr_of_z z
 
     | Pvar x ->
       check_is_int x; 
@@ -498,7 +498,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
           if linexpr_overflow abs lin Unsigned ws_out then
             let alt_lin = match e2 with
               | Papp1(E.Oword_of_int sz, Pconst z) ->
-                let z = mpqf_of_bigint z in
+                let z = mpqf_of_z z in
                 let mz = Mpqf.add (Mpqf.neg z) (mpq_pow (int_of_ws sz)) in
                 (* We check that [mz] is in [0; 2^{ws_out - 1}] *)
                 if (Mpqf.cmp (mpq_pow ws_out) mz > 0) &&
@@ -940,13 +940,13 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     let ves = List.concat (List.map (fun (v,glob_val) ->
         match glob_val with
         | Global.Gword (ws,i) ->
-          let sexpr = mtexpr_of_bigint (Conv.bi_of_word ws i)
+          let sexpr = mtexpr_of_z (Conv.z_of_word ws i)
                       |> sexpr_from_simple_expr in
           [mvar_of_scoped_var Expr.Sglob v, sexpr]
         | Global.Garr (p, t) ->
           let ws, arr = Conv.to_array v.v_ty p t in
           List.mapi (fun j w ->
-              let sexpr = sexpr_from_simple_expr (mtexpr_of_bigint w) in
+              let sexpr = sexpr_from_simple_expr (mtexpr_of_z w) in
               let offset = access_offset Warray_.AAscale ws j in
               let mv = Mglobal (AarraySlice (v, ws, offset)) in
               (mv,sexpr)
@@ -1021,7 +1021,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
     | None, _ -> abs
     | Some outv, Pvar y ->
       if valid_offset_var abs ws_o y then
-        let o = pcast U64 (Pconst(B.of_int 0)) in
+        let o = pcast U64 (Pconst(Z.of_int 0)) in
         apply_offset_expr abs outv info y o
       else aeval_top_offset abs outv
 

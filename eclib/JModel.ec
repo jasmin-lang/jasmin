@@ -527,7 +527,6 @@ abbrev [-printing] (\vmul16u128) (w1 w2:W128.t) = VPMUL_8u16 w1 w2.
 abbrev [-printing] (\vmul32u128) (w1 w2:W128.t) = VPMUL_4u32 w1 w2.
 abbrev [-printing] (\vmul64u128) (w1 w2:W128.t) = VPMUL_2u64 w1 w2.
 
-
 abbrev [-printing] (\vshr8u256)  (w1:W256.t) (w2:W8.t) = VPSRL_32u8 w1 w2.
 abbrev [-printing] (\vshr16u256) (w1:W256.t) (w2:W8.t) = VPSRL_16u16 w1 w2.
 abbrev [-printing] (\vshr32u256) (w1:W256.t) (w2:W8.t) = VPSRL_8u32 w1 w2.

@@ -51,6 +51,7 @@ let rec warn_extra_i i =
 let warn_extra_fd (_, fd) =
   List.iter warn_extra_i fd.f_body
  
+(* -------------------------------------------------------------------- *)
 let check_safety_p s p source_p =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
@@ -61,7 +62,7 @@ let check_safety_p s p source_p =
   in
 
   let () = SafetyConfig.pp_current_config_diff () in
-  
+
   let () =
     List.iter (fun f_decl ->
         if f_decl.f_cc = Export then
@@ -102,7 +103,10 @@ let main () =
 
     let fname = !infile in
     let env, pprog, ast =
-      try Pretyping.tt_program Pretyping.Env.empty fname
+      try 
+        let env = Pretyping.Env.empty in
+        let env = List.fold_left Pretyping.Env.add_from env !Glob_options.idirs in
+        Pretyping.tt_program env fname
       with
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
       | Syntax.ParseError (loc, msg) ->
@@ -133,7 +137,6 @@ let main () =
 
     let prog = Subst.remove_params pprog in
     let prog = Inline_array_copy.doit prog in
-    eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
 
     begin try
       Typing.check_prog prog
@@ -146,13 +149,21 @@ let main () =
     
     let do_compile = ref true in
     let donotcompile () = do_compile := false in
-    if SafetyConfig.sc_comp_pass () = Compiler.ParamsExpansion &&
-       !check_safety
-    then begin
-      check_safety_p Compiler.ParamsExpansion prog source_prog;
-      donotcompile()
-    end;
-     
+
+    (* This function is called after each compilation pass.
+        - Check program safety (and exit) if the time has come
+        - Pretty-print the program
+        - Add your own checker here!
+    *)
+    let visit_prog_after_pass ~debug s p =
+      if s = SafetyConfig.sc_comp_pass () && !check_safety then
+        check_safety_p s p source_prog
+        |> donotcompile
+      else
+        eprint s (Printer.pp_prog ~debug) p in
+
+    visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
+
     if !ec_list <> [] then begin
       let fmt, close =
         if !ecfile = "" then Format.std_formatter, fun () -> ()
@@ -172,13 +183,20 @@ let main () =
       donotcompile()
     end;
 
-  (*  if !ct_list <> None then begin
+    if !ct_list <> None then begin
         begin try Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list)
         with Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"constant type checker" "%a" Pretyping.pp_tyerror code end;
         donotcompile()
-    end; *)
+    end; 
 
-    
+    if !sct_list <> None then begin
+      begin try Sct_checker_forward.ty_prog source_prog (oget !sct_list)
+      with Pretyping.TyError (loc, code) -> 
+        hierror ~loc:(Lone loc) ~kind:"speculative constant type checker" "%a" 
+          Pretyping.pp_tyerror code 
+      end;
+      donotcompile()
+    end; 
 
     if !do_compile then begin
   
@@ -193,13 +211,13 @@ let main () =
         let exec (f, m) =
           try
             let pp_range fmt (ptr, sz) =
-              Format.fprintf fmt "%a:%a" B.pp_print ptr B.pp_print sz in
+              Format.fprintf fmt "%a:%a" Z.pp_print ptr Z.pp_print sz in
             Format.printf "Evaluation of %s (@[<h>%a@]):@." f.fn_name
               (pp_list ",@ " pp_range) m;
             let _m, vs =
               (** TODO: allow to configure the initial stack pointer *)
-              let live = List.map (fun (ptr, sz) -> Conv.int64_of_bi ptr, Conv.z_of_bi sz) m in
-              (match (Low_memory.Memory.coq_M U64).init live (Conv.int64_of_bi (Bigint.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
+              let live = List.map (fun (ptr, sz) -> Conv.int64_of_z ptr, Conv.cz_of_z sz) m in
+              (match (Low_memory.Memory.coq_M U64).init live (Conv.int64_of_z (Z.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
               Evaluator.exec (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) (Conv.cfun_of_fun tbl f) in
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
@@ -253,18 +271,18 @@ let main () =
           begin match f_annot.stack_size with
           | None -> ()
           | Some expected ->
-             let actual = Conv.bi_of_z sf_stk_sz in
-             if B.equal actual expected
-             then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%a)@." f_name.fn_name B.pp_print expected)
-             else hierror "the stack has size %a (expected: %a)" B.pp_print actual B.pp_print expected
+             let actual = Conv.z_of_cz sf_stk_sz in
+             if Z.equal actual expected
+             then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%a)@." f_name.fn_name Z.pp_print expected)
+             else hierror "the stack has size %a (expected: %a)" Z.pp_print actual Z.pp_print expected
           end;
           begin match f_annot.stack_allocation_size with
           | None -> ()
           | Some expected ->
-             let actual = Conv.bi_of_z (Memory_model.round_ws sf_align (BinInt.Z.add sf_stk_sz sf_stk_extra_sz)) in
-             if B.equal actual expected
-             then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%a)@." f_name.fn_name B.pp_print expected)
-             else hierror "the stack has size %a (expected: %a)" B.pp_print actual B.pp_print expected
+             let actual = Conv.z_of_cz (Memory_model.round_ws sf_align (BinInt.Z.add sf_stk_sz sf_stk_extra_sz)) in
+             if Z.equal actual expected
+             then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%a)@." f_name.fn_name Z.pp_print expected)
+             else hierror "the stack has size %a (expected: %a)" Z.pp_print actual Z.pp_print expected
           end;
           begin match f_annot.stack_align with
           | None -> ()
@@ -293,24 +311,9 @@ let main () =
       | Const | Inline | Reg Direct -> false
      in
 
-
-     (* TODO: update *)
-    (* (\* Check safety and calls exit(_). *\)
-     * let check_safety_cp s cp =
-     *   let p = Conv.prog_of_cprog tbl cp in
-     *   check_safety_p s p source_prog in
-     * 
-     * let pp_cprog s cp =
-     *   if s = SafetyConfig.sc_comp_pass () && !check_safety then
-     *     check_safety_cp s cp
-     *   else
-     *     eprint s (fun fmt cp ->
-     *         let p = Conv.prog_of_cprog tbl cp in
-     *         Printer.pp_prog ~debug:true fmt p) cp in *)
-
-    let pp_cuprog fmt cp =
-      let p = Conv.prog_of_cuprog tbl cp in
-      Printer.pp_prog ~debug:true fmt p in
+    let pp_cuprog s cp =
+      Conv.prog_of_cuprog tbl cp |>
+      visit_prog_after_pass ~debug:true s in
 
     let pp_csprog fmt cp =
       let p = Conv.prog_of_csprog tbl cp in
@@ -395,7 +398,6 @@ let main () =
         let (fds, _) = Conv.prog_of_csprog tbl p in
         List.iter warn_extra_fd fds in
 
-
     let cparams = {
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = expand_fd;
@@ -413,15 +415,7 @@ let main () =
       );
       Compiler.lowering_vars = lowering_vars;
       Compiler.is_var_in_memory = is_var_in_memory;
-      Compiler.print_uprog  = (fun s p -> 
-        if s = PropagateInline then begin
-            let p = Conv.prog_of_cuprog tbl p in
-            if !ct_list <> None then
-              try Ct_checker_forward.ty_prog ~infer:!infer p (oget !ct_list)
-              with Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"constant type checker" "%a" Pretyping.pp_tyerror code
-        end;
-        eprint s pp_cuprog p; p);
-
+      Compiler.print_uprog  = (fun s p -> pp_cuprog s p; p);
       Compiler.print_sprog  = (fun s p -> warn_extra s p;
                                           eprint s pp_csprog p; p);
       Compiler.print_linear = (fun s p -> eprint s pp_linear p; p);

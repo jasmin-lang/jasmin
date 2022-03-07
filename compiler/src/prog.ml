@@ -3,7 +3,6 @@ open Utils
 open Wsize
 module E = Expr
 module L = Location
-module B = Bigint
 
 module Name = struct
   type t = string
@@ -54,7 +53,7 @@ type 'len ggvar = {
 }
 
 type 'len gexpr =
-  | Pconst of B.zint
+  | Pconst of Z.t
   | Pbool  of bool
   | Parr_init of 'len
   | Pvar   of 'len ggvar
@@ -160,8 +159,8 @@ type returnaddress_kind =
 
 type f_annot = { 
     retaddr_kind  : returnaddress_kind option;
-    stack_allocation_size : B.zint option;
-    stack_size    : B.zint option;
+    stack_allocation_size : Z.t option;
+    stack_size    : Z.t option;
     stack_align   : wsize option;
   }
 
@@ -260,7 +259,7 @@ let rec pty_equal t1 t2 =
 
 and pexpr_equal e1 e2 = 
  match e1, e2 with
- | Pconst n1, Pconst n2 -> B.equal n1 n2
+ | Pconst n1, Pconst n2 -> Z.equal n1 n2
  | Pbool b1, Pbool b2 -> b1 = b2
  | Pvar v1, Pvar v2 -> PV.gequal v1 v2
  | Pget(a1,b1,v1,e1), Pget(a2, b2,v2,e2) -> a1 = a2 && b1 = b2 && PV.gequal v1 v2 && pexpr_equal e1 e2
@@ -294,6 +293,8 @@ type 'info prog     = global_decl list * 'info func list
 module V = struct
   type t = var
   include GV
+
+  let gequal x1 x2 = equal (L.unloc x1.gv) (L.unloc x2.gv) && (x1.gs = x2.gs)
 end
 
 module Sv = Set.Make  (V)
@@ -302,6 +303,21 @@ module Hv = Hash.Make (V)
 
 let rip = V.mk "RIP" (Reg Direct) u64 L._dummy []
 let rsp = V.mk "RSP" (Reg Direct) u64 L._dummy []
+
+let rec expr_equal (e1 :expr) (e2 : expr) : bool = 
+ match e1, e2 with
+ | Pconst n1, Pconst n2 -> B.equal n1 n2
+ | Pbool b1, Pbool b2 -> b1 = b2
+ | Pvar v1, Pvar v2 -> V.gequal v1 v2
+ | Pget(a1,b1,v1,e1), Pget(a2, b2,v2,e2) -> a1 = a2 && b1 = b2 && V.gequal v1 v2 && expr_equal e1 e2
+ | Psub(a1,b1,l1,v1,e1), Psub(a2,b2,l2,v2,e2) ->
+   a1 = a2 && b1 = b2 && l1 = l2 && V.gequal v1 v2 && expr_equal e1 e2
+ | Pload(b1,v1,e1), Pload(b2,v2,e2) -> b1 = b2 && V.equal (L.unloc v1) (L.unloc v2) && expr_equal e1 e2
+ | Papp1(o1,e1), Papp1(o2,e2) -> o1 = o2 && expr_equal e1 e2
+ | Papp2(o1,e11,e12), Papp2(o2,e21,e22) -> o1 = o2 && expr_equal e11 e21 && expr_equal e12 e22
+ | Pif(_,e11,e12,e13), Pif(_,e21,e22,e23) -> expr_equal e11 e21 && expr_equal e12 e22 && expr_equal e13 e23 
+ | _, _ -> false
+
 (* ------------------------------------------------------------------------ *)
 (* Function name                                                            *)
 
@@ -507,16 +523,16 @@ let is_stack_array x =
 
 let ( ++ ) e1 e2 =
   match e1, e2 with
-  | Pconst n1, Pconst n2 -> Pconst (B.add n1 n2)
+  | Pconst n1, Pconst n2 -> Pconst (Z.add n1 n2)
   | _, _                 -> Papp2(Oadd Op_int, e1, e2)
   
 let ( ** ) e1 e2 =
   match e1, e2 with
-  | Pconst n1, Pconst n2 -> Pconst (B.mul n1 n2)
+  | Pconst n1, Pconst n2 -> Pconst (Z.mul n1 n2)
   | _, _                 -> Papp2(Omul Op_int, e1, e2)
 
 let cnst i = Pconst i
-let icnst i = cnst (B.of_int i)
+let icnst i = cnst (Z.of_int i)
 
 let cast64 e = Papp1 (Oword_of_int U64, e)
 
@@ -529,8 +545,8 @@ let get_ofs aa ws e =
   | Pconst i ->
      Some
        (match aa with
-        | Warray_.AAdirect -> B.to_int i
-        | Warray_.AAscale -> size_of_ws ws * B.to_int i
+        | Warray_.AAdirect -> Z.to_int i
+        | Warray_.AAscale -> size_of_ws ws * Z.to_int i
        )
   | _ -> None
 
@@ -553,11 +569,11 @@ let destruct_move i =
   | _                 -> assert false
 
 (* -------------------------------------------------------------------- *)
-let clamp (sz : wsize) (z : Bigint.zint) =
-  Bigint.erem z (Bigint.lshift Bigint.one (int_of_ws sz))
+let clamp (sz : wsize) (z : Z.t) =
+  Z.erem z (Z.shift_left Z.one (int_of_ws sz))
 
-let clamp_pe (sz : pelem) (z : Bigint.zint) =
-  Bigint.erem z (Bigint.lshift Bigint.one (int_of_pe sz))
+let clamp_pe (sz : pelem) (z : Z.t) =
+  Z.erem z (Z.shift_left Z.one (int_of_pe sz))
 
 
 (* --------------------------------------------------------------------- *)

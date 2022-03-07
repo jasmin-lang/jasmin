@@ -8,6 +8,8 @@ val pp_bool : Format.formatter -> bool -> unit
 
 val pp_string0 : Format.formatter -> char list -> unit
 
+val pp_print_X : Format.formatter -> Z.t -> unit
+
 val pp_kind  : Format.formatter -> v_kind -> unit
 
 val pp_pvar  : Format.formatter -> pvar -> unit

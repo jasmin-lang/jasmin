@@ -40,6 +40,7 @@
 %token FALSE
 %token FN
 %token FOR
+%token FROM
 %token <Syntax.sign>GE
 %token GLOBAL
 %token <Syntax.sign>GT
@@ -76,7 +77,7 @@
 %token EXPORT
 %token ARRAYINIT
 %token <string> NID
-%token <Bigint.zint> INT
+%token <Z.t> INT
 %token <string> STRING
 %nonassoc COLON QUESTIONMARK
 %left PIPEPIPE
@@ -119,7 +120,7 @@ annotationlabel:
 
 int: 
   | i=INT       { i }
-  | MINUS i=INT { Bigint.neg i } 
+  | MINUS i=INT { Z.neg i } 
 
 simple_attribute:
   | i=int          { Aint i    }
@@ -459,8 +460,11 @@ range:
 prequire1:
 | s=loc(STRING) { s }
 
+from:
+| FROM id=ident { id }
+
 prequire:
-| REQUIRE x=plist1(prequire1, empty) { x }
+| f=from? REQUIRE x=nonempty_list(prequire1) { f, x }
 
 (* -------------------------------------------------------------------- *)
 top:

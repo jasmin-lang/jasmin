@@ -10,8 +10,8 @@ module W = Wsize
 module T = Type
 
 (* -------------------------------------------------------------------- *)
-let loc_of_tuples locs =
-  List.fold_left L.merge L._dummy locs
+let loc_of_tuples default locs =
+  List.fold_left L.merge default locs
 
 (* -------------------------------------------------------------------- *)
 type typattern = TPBool | TPInt | TPWord | TPArray
@@ -51,6 +51,7 @@ type tyerror =
   | PtrOnlyForArray
   | ArgumentNotVar      
   | BadVariableKind     of P.v_kind
+  | WriteToConstantPointer of S.symbol
   | PackSigned
   | PackWrongWS of int
   | PackWrongPE of int
@@ -204,6 +205,9 @@ let pp_tyerror fmt (code : tyerror) =
     F.fprintf fmt "the variable should have kind %a"
        Printer.pp_kind kind
 
+  | WriteToConstantPointer v ->
+    F.fprintf fmt "Cannot write to the constant pointer %s" v
+
   | PackSigned ->
     F.fprintf fmt "packs should be unsigned"
 
@@ -227,7 +231,9 @@ module Env : sig
 
   val decls : env -> unit P.pmod_item list
     
-  val enter_file : env -> string -> (env * string) option
+  val add_from : env -> string * string -> env
+
+  val enter_file : env -> S.pident option -> L.t option -> string -> (env * string) option
   val exit_file  : env -> env
 
   val dependencies : env -> Path.t list
@@ -249,22 +255,24 @@ module Env : sig
   end
 
   module Exec : sig
-    val push : P.funname -> (Bigint.zint * Bigint.zint) list -> env -> env
-    val get  : env -> (P.funname * (Bigint.zint * Bigint.zint) list) list
+    val push : P.funname -> (Z.t * Z.t) list -> env -> env
+    val get  : env -> (P.funname * (Z.t * Z.t) list) list
   end
 
 end = struct
   type loader = 
     { loaded : Path.t list (* absolute path *)
     ; idir   : Path.t      (* absolute initial path *)
-    ; dirs   : Path.t list } 
+    ; dirs   : Path.t list 
+    ; from   : (S.symbol, Path.t) Map.t
+    } 
 
   type env = {
     e_vars    : (S.symbol, P.pvar) Map.t;
     e_globals : (S.symbol, P.pvar) Map.t;
     e_funs    : (S.symbol, unit P.pfunc * P.pty list) Map.t;
     e_decls   : unit P.pmod_item list;
-    e_exec    : (P.funname * (Bigint.zint * Bigint.zint) list) list;
+    e_exec    : (P.funname * (Z.t * Z.t) list) list;
     e_loader  : loader;
   }
 
@@ -276,14 +284,43 @@ end = struct
     ; e_exec    = []
     ; e_loader  = 
         { loaded = []
-        ; idir = Path.of_string (Sys.getcwd ())
-        ; dirs = [[]] }
+        ; idir   = Path.of_string (Sys.getcwd ())
+        ; dirs   = [[]]
+        ; from   = Map.empty
+        }
     }
 
-  let enter_file env filename = 
+
+  let add_from env (name, filename) = 
+    let p = Path.of_string filename in 
+    let ap = 
+      if Path.is_absolute p then p
+      else Path.concat env.e_loader.idir p in  
+    begin match Map.find name env.e_loader.from with
+    | ap' -> 
+      if ap <> ap' then 
+        hierror ~loc:Lnone ~kind:"compilation" "cannot bind %s with %s it is already bound to %s"
+          name (Path.to_string ap) (Path.to_string ap')
+    | exception Not_found -> ()
+    end;
+    {env with e_loader = 
+       { env.e_loader with from = Map.add name ap env.e_loader.from }}
+                            
+  let enter_file env from ploc filename = 
+    let ploc = match ploc with None -> Lnone | Some l -> Lone l in
     let p = Path.of_string filename in
     let loader = env.e_loader in
-    let current_dir = List.hd loader.dirs in
+    let current_dir =
+      match from with
+      | None -> List.hd loader.dirs
+      | Some name -> 
+          if Path.is_absolute p then 
+            hierror ~loc:ploc ~kind:"typing" 
+              "cannot use absolute path in from %s require \"%s\"" 
+                 (L.unloc name) filename;
+          try Map.find (L.unloc name) env.e_loader.from 
+          with Not_found -> 
+            rs_tyerror ~loc:(L.loc name) (string_error "unkown name %s" (L.unloc name)) in 
     let p = 
       if Path.is_absolute p then p
       else Path.concat current_dir p in
@@ -426,15 +463,15 @@ module Annot = struct
   let int dfl arg = 
     let error loc nid =
        error_attribute loc nid Format.pp_print_string "an integer"
-                              Bigint.pp_print dfl in
+                              Z.pp_print dfl in
     let on_empty loc nid () = 
       match dfl with
       | Some i -> i
       | None -> error loc nid in
 
     let on_string loc nid s = 
-      try Bigint.of_string s 
-      with Bigint.InvalidString -> error loc nid in
+      try Z.of_string s 
+      with Invalid_argument _ -> error loc nid in
 
     on_attribute 
       ~on_empty
@@ -444,10 +481,10 @@ module Annot = struct
 
   let pos_int dfl (id, _ as arg) = 
     let i = int dfl arg in
-    if Bigint.lt i Bigint.zero then 
+    if Z.lt i Z.zero then 
       error_attribute (L.loc id) (L.unloc id) 
         Format.pp_print_string "a positive integer"
-        Bigint.pp_print dfl;
+        Z.pp_print dfl;
     i
         
   let ws_of_string = 
@@ -595,14 +632,14 @@ let check_return_statement ~loc name (declared : P.pty list) (given : (L.t * P.p
      then rs_tyerror ~loc (NoReturnStatement (name, declared_size)))
   else
     if not (Stdlib.Int.equal given_size declared_size)
-    then rs_tyerror ~loc:(loc_of_tuples (List.rev_map fst given)) (InvalidReturnStatement (name, given_size, declared_size));
+    then rs_tyerror ~loc:(loc_of_tuples loc (List.rev_map fst given)) (InvalidReturnStatement (name, given_size, declared_size));
   List.iter2
     (fun ty1 (loc, ty2) -> check_ty_eq ~loc ~from:ty2 ~to_:ty1)
     declared given
 
 (* -------------------------------------------------------------------- *)
-let check_sig_lvs sig_ lvs =
-  let loc () = loc_of_tuples (List.map (fun (l,_,_) -> l) lvs) in
+let check_sig_lvs loc sig_ lvs =
+  let loc () = loc_of_tuples loc (List.map (fun (l,_,_) -> l) lvs) in
 
   let nsig_ = List.length sig_ in
   let nlvs  = List.length lvs  in
@@ -1094,8 +1131,8 @@ let rec tt_expr ?(mode=`AllVar) (env : Env.env) pe =
     let e3, ty3 = tt_expr ~mode env pe3 in
 
     check_ty_bool ~loc:(L.loc pe1) ty1;
-    check_ty_eq ~loc:(L.loc pe) ~from:ty2 ~to_:ty3;
-    P.Pif(ty2, e1, e2, e3), ty2
+    let ty = max_ty ty2 ty3 |> oget ~exn:(tyerror ~loc:(L.loc pe) (TypeMismatch (ty2, ty3))) in
+    P.Pif(ty, e1, e2, e3), ty
 
 and tt_expr_cast ?(mode=`AllVar) (env : Env.env) pe ty = 
   let e, ety = tt_expr ~mode env pe in
@@ -1107,7 +1144,7 @@ and tt_mem_access ?(mode=`AllVar) (env : Env.env)
   check_ty_u64 ~loc:xlc x.P.v_ty;
   let e = 
     match e with
-    | None -> P.Papp1 (Oword_of_int U64, P.Pconst (P.B.zero)) 
+    | None -> P.Papp1 (Oword_of_int U64, P.Pconst (Z.zero)) 
     | Some(k, e) -> 
       let e = tt_expr_cast ~mode env e P.u64 in
       match k with
@@ -1165,16 +1202,26 @@ let tt_param (env : Env.env) _loc (pp : S.pparam) : Env.env =
 
 (* -------------------------------------------------------------------- *)
 let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
+
+  let reject_constant_pointers loc x =
+    match x.P.v_kind with
+    | Stack (Pointer Constant) | Reg (Pointer Constant) ->
+       rs_tyerror ~loc (WriteToConstantPointer x.P.v_name)
+    | _ -> ()
+  in
+
   match pl with
   | S.PLIgnore ->
     loc, (fun ty -> P.Lnone(loc,ty)) , None
 
   | S.PLVar x ->
     let x = tt_var `NoParam env x in
+    reject_constant_pointers loc x ;
     loc, (fun _ -> P.Lvar (L.mk_loc loc x)), Some x.P.v_ty
 
   | S.PLArray (aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
     let x  = tt_var `NoParam env x in
+    reject_constant_pointers xlc x ;
     let ty,_ = tt_as_array (xlc, x.P.v_ty) in
     let ws = omap_dfl tt_ws (P.ws_of_ty ty) ws in 
     let ty = P.tu ws in
@@ -1415,8 +1462,8 @@ let pexpr_of_plvalue exn l =
   | S.PLMem(ty,x,e) -> L.mk_loc (L.loc l) (S.PEFetch(ty,x,e))
 
 
-let tt_lvalues env (pimp, pls) implicit tys =
-  let loc = loc_of_tuples (List.map P.L.loc pls) in
+let tt_lvalues env loc (pimp, pls) implicit tys =
+  let loc = loc_of_tuples loc (List.map P.L.loc pls) in
   let ignore_ = L.mk_loc loc S.PLIgnore in
 
 
@@ -1496,7 +1543,7 @@ let tt_lvalues env (pimp, pls) implicit tys =
   in
 
   let ls = List.map (tt_lvalue env) pls in
-  let ls = check_sig_lvs tys ls in  
+  let ls = check_sig_lvs loc tys ls in
   let li = 
     match pimp_c with
     | [] -> []
@@ -1533,8 +1580,8 @@ let tt_lvalues env (pimp, pls) implicit tys =
 
     
 
-let tt_exprs_cast env les tys =
-  let loc () = loc_of_tuples (List.map L.loc les) in
+let tt_exprs_cast env loc les tys =
+  let loc () = loc_of_tuples loc (List.map L.loc les) in
   let n1 = List.length les in
   let n2 = List.length tys in
   if n1 <> n2 then 
@@ -1615,9 +1662,9 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
     else
       let (f,tlvs) = tt_fun env f in
       let _tlvs, tes = f_sig f in
-      let lvs, is = tt_lvalues env ls None tlvs in
+      let lvs, is = tt_lvalues env (L.loc pi) ls None tlvs in
       assert (is = []);
-      let es  = tt_exprs_cast env args tes in
+      let es  = tt_exprs_cast env (L.loc pi) args tes in
       let is_inline = 
         match Annot.ensure_uniq1 "inline" Annot.none annot with
         | Some () -> E.InlineFun
@@ -1676,8 +1723,8 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim None f in
       let tlvs, tes, arguments = prim_sig p in
-      let lvs, einstr = tt_lvalues env ls (Some arguments) tlvs in
-      let es  = tt_exprs_cast env args tes in
+      let lvs, einstr = tt_lvalues env (L.loc pi) ls (Some arguments) tlvs in
+      let es  = tt_exprs_cast env (L.loc pi) args tes in
       env, mk_i (P.Copn(lvs, AT_none, p, es)) :: einstr
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None)
@@ -1687,8 +1734,8 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
       assert (s = `Unsigned); (* FIXME *)
       let p = tt_prim (Some ws) f in
       let tlvs, tes, arguments = prim_sig p in
-      let lvs, einstr = tt_lvalues env ls (Some arguments) tlvs in
-      let es  = tt_exprs_cast env args tes in
+      let lvs, einstr = tt_lvalues env (L.loc pi) ls (Some arguments) tlvs in
+      let es  = tt_exprs_cast env (L.loc pi) args tes in
       env, mk_i (P.Copn(lvs, AT_none, p, es)) :: einstr
 
   | PIAssign((None,[lv]), `Raw, pe, None) ->
@@ -1932,14 +1979,14 @@ let rec tt_item (env : Env.env) pt : Env.env =
   | S.PGlobal pg -> tt_global env (L.loc pt) pg
   | S.Pexec   pf -> 
     Env.Exec.push (fst (tt_fun env pf.pex_name)).P.f_name pf.pex_mem env
-  | S.Prequire fs -> 
-    List.fold_left tt_file_loc env fs 
+  | S.Prequire (from, fs) -> 
+    List.fold_left (tt_file_loc from) env fs 
 
-and tt_file_loc env fname = 
-  fst (tt_file env (L.unloc fname))
+and tt_file_loc from env fname = 
+  fst (tt_file env from (Some (L.loc fname)) (L.unloc fname))
 
-and tt_file env fname = 
-  match Env.enter_file env fname with
+and tt_file env from loc fname = 
+  match Env.enter_file env from loc fname with
   | None -> env, []
   | Some(env, fname) -> 
     let ast   = Parseio.parse_program ~name:fname in
@@ -1949,7 +1996,7 @@ and tt_file env fname =
 
 (* -------------------------------------------------------------------- *)
 let tt_program (env : Env.env) (fname : string) =
-  let env, ast = tt_file env fname in
+  let env, ast = tt_file env None None fname in
   env, Env.decls env, ast
 
 (* FIXME :

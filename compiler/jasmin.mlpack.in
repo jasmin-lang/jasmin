@@ -1,8 +1,6 @@
 src/Alias
 src/Arch
 src/Array_expand
-src/Bigint
-src/BigintCore
 src/Conv
 src/Ct_checker_forward
 src/Evaluator
@@ -26,6 +24,7 @@ src/Prog
 src/Puf
 src/Regalloc
 src/RemoveUnusedResults
+src/Sct_checker_forward
 src/Ssa
 src/StackAlloc
 src/Subst
