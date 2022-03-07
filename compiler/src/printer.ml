@@ -242,6 +242,11 @@ let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
 let pp_var_decl pp_var pp_size fmt v =
   F.fprintf fmt "%a %a" (pp_ty_decl pp_size) v pp_var v
 
+let pp_call_conv fmt =
+  function
+  | Export -> Format.fprintf fmt "export@ "
+  | Internal -> Format.fprintf fmt "inline@ "
+
 let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_size in
   let pp_locals fmt fd =
@@ -260,7 +265,8 @@ let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_var fmt fd =
     F.fprintf fmt "return @[(%a)@];"
       (pp_list ",@ " pp_var) ret in
 
-  F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
+  F.fprintf fmt "@[<v>%afn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a@ %a@ %a@]@ }@]"
+   pp_call_conv fd.f_cc
    fd.f_name.fn_name
    (pp_list ",@ " pp_vd) fd.f_args
    (pp_list ",@ " (pp_ty_decl pp_size)) ret
@@ -298,11 +304,6 @@ let pp_pexpr =
 let pp_pprog fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem pp_pvar)) (List.rev p)
-
-let pp_call_conv fmt =
-  function
-  | Export -> Format.fprintf fmt "export@ "
-  | Internal -> Format.fprintf fmt "inline@ "
 
 let pp_fun ?(pp_info=pp_noinfo) pp_var fmt fd =
   let pp_size fmt i = F.fprintf fmt "%i" i in
