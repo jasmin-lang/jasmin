@@ -256,7 +256,7 @@ let main () =
           try
             let pp_range fmt (ptr, sz) =
               Format.fprintf fmt "%a:%a" Z.pp_print ptr Z.pp_print sz in
-            Format.printf "Evaluation of %s (@[<h>%a@]):@." f.fn_name
+            Format.printf "/* Evaluation of %s (@[<h>%a@]):@." f.fn_name
               (pp_list ",@ " pp_range) m;
             let _m, vs, lk =
               (** TODO: allow to configure the initial stack pointer *)
@@ -267,6 +267,7 @@ let main () =
               (pp_list "@ " Evaluator.pp_val) vs
             ; Format.printf "Leakage: { %a }@."
                 (pp_list "; " PrintLeak.pp_leak_i) lk
+            ; Format.printf "*/@."
           with Evaluator.Eval_error (ii,err) ->
             hierror "%a" Evaluator.pp_error (tbl, ii, err)
         in
