@@ -605,15 +605,10 @@ let check_ty (ety : typattern) (loc, ty) =
   | _ -> rs_tyerror ~loc (InvalidType (ty, ety))
 
 (* -------------------------------------------------------------------- *)
-let warn_arr loc from to_ = 
-  warning Always (L.i_loc0 loc) "cannot ensure that the type %a is compatible with %a"
-    Printer.pp_ptype from Printer.pp_ptype to_
-
 let check_ty_eq ~loc ~(from : P.pty) ~(to_ : P.pty) =
   if not (P.pty_equal from to_) then
     match from, to_ with
-    | P.Arr _, P.Arr _ ->
-      warn_arr loc from to_
+    | P.Arr _, P.Arr _ -> () (* we delay typechecking until we know the lengths *)
     | _, _ -> rs_tyerror ~loc (TypeMismatch (from, to_))
 
 let check_ty_u64 ~loc ty =
@@ -921,8 +916,7 @@ let cast loc e ety ty =
   | P.Bty (P.U w), P.Bty P.Int -> P.Papp1 (E.Oint_of_word w, e)
   | P.Bty (P.U w1), P.Bty (P.U w2) when W.wsize_cmp w1 w2 <> Datatypes.Lt -> e
   | _, _ when P.pty_equal ety ty -> e
-  | P.Arr _, P.Arr _ ->
-    warn_arr loc ety ty; e
+  | P.Arr _, P.Arr _ -> e (* we delay typechecking until we know the lengths *)
   | _  ->  rs_tyerror ~loc (InvalidCast(ety,ty))
 
 let cast_word loc ws e ety =
