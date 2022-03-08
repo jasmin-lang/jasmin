@@ -282,9 +282,9 @@ Section CHECK.
     assert (~~Sv.mem r J) (E.gen_error true None (pp_box [::pp_s "the function depends on its"; pp_s name; pp_var r])).
 
   Definition check_fd (fn:funname) (fd: sfundef) :=
-    let DI := ra_undef fd var_tmp in
-    Let D := check_cmd fd.(f_extra).(sf_align) DI fd.(f_body) in
     let params := sv_of_list v_var fd.(f_params) in
+    let DI := Sv.inter params (ra_undef fd var_tmp) in
+    Let D := check_cmd fd.(f_extra).(sf_align) DI fd.(f_body) in
     let res := sv_of_list v_var fd.(f_res) in
     let W' := writefun_ra writefun fn in
     Let _ := assert (disjoint D res)

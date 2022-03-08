@@ -51,6 +51,7 @@ type tyerror =
   | PtrOnlyForArray
   | ArgumentNotVar      
   | BadVariableKind     of P.v_kind
+  | WriteToConstantPointer of S.symbol
   | PackSigned
   | PackWrongWS of int
   | PackWrongPE of int
@@ -204,6 +205,9 @@ let pp_tyerror fmt (code : tyerror) =
     F.fprintf fmt "the variable should have kind %a"
        Printer.pp_kind kind
 
+  | WriteToConstantPointer v ->
+    F.fprintf fmt "Cannot write to the constant pointer %s" v
+
   | PackSigned ->
     F.fprintf fmt "packs should be unsigned"
 
@@ -251,8 +255,8 @@ module Env : sig
   end
 
   module Exec : sig
-    val push : P.funname -> (Bigint.zint * Bigint.zint) list -> env -> env
-    val get  : env -> (P.funname * (Bigint.zint * Bigint.zint) list) list
+    val push : P.funname -> (Z.t * Z.t) list -> env -> env
+    val get  : env -> (P.funname * (Z.t * Z.t) list) list
   end
 
 end = struct
@@ -268,7 +272,7 @@ end = struct
     e_globals : (S.symbol, P.pvar) Map.t;
     e_funs    : (S.symbol, unit P.pfunc * P.pty list) Map.t;
     e_decls   : unit P.pmod_item list;
-    e_exec    : (P.funname * (Bigint.zint * Bigint.zint) list) list;
+    e_exec    : (P.funname * (Z.t * Z.t) list) list;
     e_loader  : loader;
   }
 
@@ -459,15 +463,15 @@ module Annot = struct
   let int dfl arg = 
     let error loc nid =
        error_attribute loc nid Format.pp_print_string "an integer"
-                              Bigint.pp_print dfl in
+                              Z.pp_print dfl in
     let on_empty loc nid () = 
       match dfl with
       | Some i -> i
       | None -> error loc nid in
 
     let on_string loc nid s = 
-      try Bigint.of_string s 
-      with Bigint.InvalidString -> error loc nid in
+      try Z.of_string s 
+      with Invalid_argument _ -> error loc nid in
 
     on_attribute 
       ~on_empty
@@ -477,10 +481,10 @@ module Annot = struct
 
   let pos_int dfl (id, _ as arg) = 
     let i = int dfl arg in
-    if Bigint.lt i Bigint.zero then 
+    if Z.lt i Z.zero then 
       error_attribute (L.loc id) (L.unloc id) 
         Format.pp_print_string "a positive integer"
-        Bigint.pp_print dfl;
+        Z.pp_print dfl;
     i
         
   let ws_of_string = 
@@ -1140,7 +1144,7 @@ and tt_mem_access ?(mode=`AllVar) (env : Env.env)
   check_ty_u64 ~loc:xlc x.P.v_ty;
   let e = 
     match e with
-    | None -> P.Papp1 (Oword_of_int U64, P.Pconst (P.B.zero)) 
+    | None -> P.Papp1 (Oword_of_int U64, P.Pconst (Z.zero)) 
     | Some(k, e) -> 
       let e = tt_expr_cast ~mode env e P.u64 in
       match k with
@@ -1198,16 +1202,26 @@ let tt_param (env : Env.env) _loc (pp : S.pparam) : Env.env =
 
 (* -------------------------------------------------------------------- *)
 let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
+
+  let reject_constant_pointers loc x =
+    match x.P.v_kind with
+    | Stack (Pointer Constant) | Reg (Pointer Constant) ->
+       rs_tyerror ~loc (WriteToConstantPointer x.P.v_name)
+    | _ -> ()
+  in
+
   match pl with
   | S.PLIgnore ->
     loc, (fun ty -> P.Lnone(loc,ty)) , None
 
   | S.PLVar x ->
     let x = tt_var `NoParam env x in
+    reject_constant_pointers loc x ;
     loc, (fun _ -> P.Lvar (L.mk_loc loc x)), Some x.P.v_ty
 
   | S.PLArray (aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
     let x  = tt_var `NoParam env x in
+    reject_constant_pointers xlc x ;
     let ty,_ = tt_as_array (xlc, x.P.v_ty) in
     let ws = omap_dfl tt_ws (P.ws_of_ty ty) ws in 
     let ty = P.tu ws in

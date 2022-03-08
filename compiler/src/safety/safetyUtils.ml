@@ -114,8 +114,8 @@ let mpq_pow n =
 let mpq_pow_minus n y =
   Mpqf.sub (mpq_pow n |> Mpqf.of_mpq) (Mpqf.of_int y)
 
-let mpq_of_bigint z  = Mpq.init_set_str (B.to_string z) ~base:10
-let mpqf_of_bigint z = Mpqf.of_mpq (mpq_of_bigint z)
+let mpq_of_z z  = Mpq.init_set_str (Z.to_string z) ~base:10
+let mpqf_of_z z = Mpqf.of_mpq (mpq_of_z z)
 
 (*------------------------------------------------------------*)
 (* Coeff and Interval Utils *)

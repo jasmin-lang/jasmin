@@ -5,7 +5,7 @@ open Prog
 let dep_lv s_o x =
   match x with
   | Lvar x -> Sv.remove (L.unloc x) s_o
-  | _      -> rvars_lv s_o x
+  | _      -> vars_lv s_o x
 
 let dep_lvs s_o xs =
   List.fold_left dep_lv s_o xs

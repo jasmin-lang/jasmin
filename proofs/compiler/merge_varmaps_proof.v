@@ -92,7 +92,7 @@ Context
   (var_tmp : var)
   (global_data: pointer).
 
-(* Let var_tmp := to_var reg_tmp. *)
+Hypothesis var_tmp_pointer : vtype var_tmp = sword Uptr.
 
 Definition valid_writefun (w: funname → Sv.t) (f: sfun_decl) : bool :=
   Sv.subset (write_fd p extra_free_registers var_tmp w f.2) (w f.1).
@@ -704,7 +704,6 @@ Section LEMMA.
     by rewrite ok_z; apply: write_lval_uincl w.
   Qed.
 
-
   Lemma Hsyscall : sem_Ind_syscall p Pi_r.
   Proof.
     move=> s1 scs m s2 o xs es ves vs hes ho hw sz ii I O t1.
@@ -821,6 +820,9 @@ Section LEMMA.
       + rewrite Fv.setP_eq -(write_vars_eq_except ok_s1) ?vrsp_v //.
         by case: (not_written_magic checked_params).
       rewrite Fv.setP_neq; last by rewrite eq_sym.
+      have huninit : ¬ Sv.In z params → ~~ is_sarr (vtype z) → z ≠ vgd → (evm s1).[z] = undef_error.
+      + move => h wty zgd; rewrite -(write_vars_eq_except ok_s1) // hvmap0 //; last by apply/eqP.
+        by rewrite Fv.get0; case: (z) wty => - [].
       have hz : eval_uincl (evm s1).[z] tvm1.[z].
       + case: (Sv_memP z (sv_of_list v_var (f_params fd))) => hinp.
         + have : List.Forall2 value_uincl vargs args'.
@@ -843,7 +845,24 @@ Section LEMMA.
         rewrite Fv.get0.
         case: (tvm1.[z]) (hwftvm1 z) => // [*|[]]//; first by apply eval_uincl_undef.
         by case: vtype => //.
-      by rewrite /ra_undef_vm kill_varsE; case:Sv_memP.
+      rewrite /ra_undef_vm kill_varsE; case:Sv_memP; last by [].
+      move: hnin preserved_magic; rewrite /ID /writefun_ra ok_fd -/(ra_undef _ _) -/params Sv.inter_spec => hnin no_magic hin.
+      have {} hnin : ¬ Sv.In z params by intuition.
+      have { no_magic } [ not_GD _ ] := not_written_magic no_magic.
+      have {not_GD} z_not_GD : z ≠ vgd.
+      + move: vgd (ra_undef _ _) (wrf _) hin not_GD; clear; SvD.fsetdec.
+      have z_not_arr : ~~ is_sarr (vtype z).
+      + move: hin ra_neq_magic checked_save_stack; clear - var_tmp_pointer => /SvD.F.union_1[].
+        * rewrite /ra_vm; case: sf_return_address => [ | ra | rastack ]; last by SvD.fsetdec.
+          - case/SvD.F.add_iff; first by move => <-; rewrite var_tmp_pointer.
+            by move => /vflagsP ->.
+          by move => /Sv.singleton_spec -> /and3P[] _ _ /eqP ->.
+        rewrite /saved_stack_vm.
+        case: sf_save_stack => [ | ra | ofs ] /=; only 1, 3: SvD.fsetdec.
+        by move/Sv.singleton_spec => -> _; t_xrbindP => _ /assertP /eqP ->.
+      rewrite huninit //.
+      by move: z_not_arr; clear; case: (vtype z).
+
     have top_stack2 : top_stack (free_stack (emem s2)) = top_stack m.
     + have ok_alloc := Memory.alloc_stackP ok_m'.
       have ok_free := Memory.free_stackP (emem s2).

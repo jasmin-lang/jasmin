@@ -163,11 +163,11 @@ let psubst_prog (prog:'info pprog) =
 
 let int_of_op2 ?loc o =
   match o with
-  | Expr.Oadd Op_int -> B.add
-  | Expr.Omul Op_int -> B.mul
-  | Expr.Osub Op_int -> B.sub
-  | Expr.Odiv Cmp_int -> B.div
-  | Expr.Omod Cmp_int -> B.erem
+  | Expr.Oadd Op_int -> Z.add
+  | Expr.Omul Op_int -> Z.mul
+  | Expr.Osub Op_int -> Z.sub
+  | Expr.Odiv Cmp_int -> Z.div
+  | Expr.Omod Cmp_int -> Z.erem
   | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (Printer.string_of_op2 o)
 
 let rec int_of_expr ?loc e =
@@ -181,7 +181,7 @@ let rec int_of_expr ?loc e =
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e
 
 
-let isubst_len ?loc e = B.to_int (int_of_expr ?loc e)
+let isubst_len ?loc e = Z.to_int (int_of_expr ?loc e)
 
 let isubst_ty ?loc = function
   | Bty ty -> Bty ty
@@ -271,7 +271,7 @@ let clamp_k k e =
   | E.Op_w ws -> clamp ws e
   | E.Op_int  -> e
 
-let rec constant_of_expr (e: Prog.expr) : Bigint.zint =
+let rec constant_of_expr (e: Prog.expr) : Z.t =
   let open Prog in
 
   match e with
@@ -285,29 +285,29 @@ let rec constant_of_expr (e: Prog.expr) : Bigint.zint =
       z
 
   | Papp1 (Oneg k, e) ->
-      clamp_k k (Bigint.neg (clamp_k k (constant_of_expr e)))
+      clamp_k k (Z.neg (clamp_k k (constant_of_expr e)))
 
   | Papp2 (Oadd k, e1, e2) ->
       let e1 = clamp_k k (constant_of_expr e1) in
       let e2 = clamp_k k (constant_of_expr e2) in
-      clamp_k k (Bigint.add e1 e2)
+      clamp_k k (Z.add e1 e2)
 
   | Papp2 (Osub k, e1, e2) ->
       let e1 = clamp_k k (constant_of_expr e1) in
       let e2 = clamp_k k (constant_of_expr e2) in
-      clamp_k k (Bigint.sub e1 e2)
+      clamp_k k (Z.sub e1 e2)
 
   | Papp2 (Omul k, e1, e2) ->
       let e1 = clamp_k k (constant_of_expr e1) in
       let e2 = clamp_k k (constant_of_expr e2) in
-      clamp_k k (Bigint.mul e1 e2)
+      clamp_k k (Z.mul e1 e2)
 
   | PappN(Opack(ws,pe), es) ->
       let es = List.map constant_of_expr es in
       let k = int_of_pe pe in
       let e = 
         List.fold_left (fun n e -> 
-            Bigint.add (Bigint.lshift n k) (clamp_pe pe e)) Bigint.zero es in
+            Z.add (Z.shift_left n k) (clamp_pe pe e)) Z.zero es in
       clamp ws e
 
   | _ -> raise NotAConstantExpr
@@ -317,7 +317,7 @@ let remove_params (prog : 'info pprog) =
   let globals, prog = psubst_prog prog in
   let globals, prog = isubst_prog globals prog in
   let mk_word ws e =
-    Word0.wrepr ws (Conv.z_of_bi (clamp ws (constant_of_expr e))) in
+    Word0.wrepr ws (Conv.cz_of_z (clamp ws (constant_of_expr e))) in
   let doglob (x, e) =
     match x.v_ty, e with
     | Bty (U ws), GEword e ->
@@ -333,7 +333,7 @@ let remove_params (prog : 'info pprog) =
       let p = Conv.pos_of_int (n * size_of_ws ws) in
       let t = ref (Warray_.WArray.empty p) in
       let doit i e =
-        match Warray_.WArray.set p ws !t Warray_.AAscale (Conv.z_of_int i) (mk_word ws e) with
+        match Warray_.WArray.set p ws !t Warray_.AAscale (Conv.cz_of_int i) (mk_word ws e) with
         | Ok t1 -> t := t1
         | _ -> assert false in
       List.iteri doit es;

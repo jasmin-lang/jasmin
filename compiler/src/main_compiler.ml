@@ -137,13 +137,16 @@ let main () =
     eprint Compiler.Typing Printer.pp_pprog pprog;
 
     let prog = Subst.remove_params pprog in
-    let prog = Inline_array_copy.doit prog in
 
-    begin try
-      Typing.check_prog prog
-    with Typing.TyError(loc, code) ->
-      hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
-    end;
+    let prog =
+      begin try
+        let prog = Insert_copy_and_fix_length.doit prog in
+        Typing.check_prog prog;
+        prog
+      with Typing.TyError(loc, code) ->
+        hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
+      end
+    in
     
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
@@ -203,16 +206,17 @@ let main () =
         let exec (f, m) =
           try
             let pp_range fmt (ptr, sz) =
-              Format.fprintf fmt "%a:%a" B.pp_print ptr B.pp_print sz in
-            Format.printf "Evaluation of %s (@[<h>%a@]):@." f.fn_name
+              Format.fprintf fmt "%a:%a" Z.pp_print ptr Z.pp_print sz in
+            Format.printf "/* Evaluation of %s (@[<h>%a@]):@." f.fn_name
               (pp_list ",@ " pp_range) m;
             let _m, vs =
               (** TODO: allow to configure the initial stack pointer *)
-              let live = List.map (fun (ptr, sz) -> Conv.int64_of_bi ptr, Conv.z_of_bi sz) m in
-              (match (Low_memory.Memory.coq_M U64).init live (Conv.int64_of_bi (Bigint.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
+              let live = List.map (fun (ptr, sz) -> Conv.int64_of_z ptr, Conv.cz_of_z sz) m in
+              (match (Low_memory.Memory.coq_M U64).init live (Conv.int64_of_z (Z.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
               Evaluator.exec (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) (Conv.cfun_of_fun tbl f) in
             Format.printf "@[<v>%a@]@."
-              (pp_list "@ " Evaluator.pp_val) vs
+              (pp_list "@ " Evaluator.pp_val) vs;
+            Format.printf "*/@."
           with Evaluator.Eval_error (ii,err) ->
             let (i_loc, _, _) = Conv.get_iinfo tbl ii in
             hierror ~loc:(Lmore i_loc) ~kind:"evaluation error" "%a" Evaluator.pp_error err
@@ -288,18 +292,18 @@ let main () =
           begin match f_annot.stack_size with
           | None -> ()
           | Some expected ->
-             let actual = Conv.bi_of_z sf_stk_sz in
-             if B.equal actual expected
-             then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%a)@." f_name.fn_name B.pp_print expected)
-             else hierror "the stack has size %a (expected: %a)" B.pp_print actual B.pp_print expected
+             let actual = Conv.z_of_cz sf_stk_sz in
+             if Z.equal actual expected
+             then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%a)@." f_name.fn_name Z.pp_print expected)
+             else hierror "the stack has size %a (expected: %a)" Z.pp_print actual Z.pp_print expected
           end;
           begin match f_annot.stack_allocation_size with
           | None -> ()
           | Some expected ->
-             let actual = Conv.bi_of_z (Memory_model.round_ws sf_align (BinInt.Z.add sf_stk_sz sf_stk_extra_sz)) in
-             if B.equal actual expected
-             then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%a)@." f_name.fn_name B.pp_print expected)
-             else hierror "the stack has size %a (expected: %a)" B.pp_print actual B.pp_print expected
+             let actual = Conv.z_of_cz (Memory_model.round_ws sf_align (BinInt.Z.add sf_stk_sz sf_stk_extra_sz)) in
+             if Z.equal actual expected
+             then (if !debug then Format.eprintf "INFO: %s has the expected stack size (%a)@." f_name.fn_name Z.pp_print expected)
+             else hierror "the stack has size %a (expected: %a)" Z.pp_print actual Z.pp_print expected
           end;
           begin match f_annot.stack_align with
           | None -> ()

@@ -467,3 +467,11 @@ have -> /= : !(size l + 1 = 0) by smt(size_ge0).
 rewrite Ring.IntID.exprD_nneg 1:size_ge0 //=.
 smt (bs2int_ge0 bs2int_le2Xs).
 qed.
+
+(* --------------------------------------------------- *)
+(* shift over integer *)
+op (`<<`) (x i : int) : int =
+  if (0 <= i) then x * 2^i
+  else (x %/ 2^(-i)).
+
+op (`|>>`) (x i : int) : int = x `<<` (-i).

@@ -20,15 +20,15 @@ let pp_param_info tbl fmt pi =
 
 let pp_slot tbl fmt ((x, ws), ofs) =
   Format.fprintf fmt "%a: %a aligned on %s"
-    Bigint.pp_print (Conv.bi_of_z ofs)
+    Z.pp_print (Conv.z_of_cz ofs)
     pp_var_ty (Conv.var_of_cvar tbl x)
     (string_of_ws ws)
 
 let pp_zone fmt z =
   let open Stack_alloc in
   Format.fprintf fmt "[%a:%a]"
-    Bigint.pp_print (Conv.bi_of_z z.z_ofs)
-    Bigint.pp_print (Conv.bi_of_z z.z_len)
+    Z.pp_print (Conv.z_of_cz z.z_ofs)
+    Z.pp_print (Conv.z_of_cz z.z_len)
 
 let pp_ptr_kind_init tbl fmt pki =
   let open Stack_alloc in
@@ -59,9 +59,9 @@ let pp_sao tbl fmt sao =
   let open Stack_alloc in
     Format.fprintf fmt "alignment = %s; size = %a; extra size = %a; max size = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a@]"
    (string_of_ws sao.sao_align)
-    Bigint.pp_print (Conv.bi_of_z sao.sao_size)
-    Bigint.pp_print (Conv.bi_of_z sao.sao_extra_size)
-    Bigint.pp_print (Conv.bi_of_z sao.sao_max_size)
+    Z.pp_print (Conv.z_of_cz sao.sao_size)
+    Z.pp_print (Conv.z_of_cz sao.sao_extra_size)
+    Z.pp_print (Conv.z_of_cz sao.sao_max_size)
     (pp_list "@;" (pp_param_info tbl)) sao.sao_params
     (pp_list "@;" pp_return) sao.sao_return
     (pp_list "@;" (pp_slot tbl)) sao.sao_slots
@@ -74,7 +74,7 @@ let pp_oracle tbl up fmt saos =
   let open Compiler in
   let { ao_globals; ao_global_alloc; ao_stack_alloc } = saos in
   let pp_global fmt global =
-    Format.fprintf fmt "%a" Bigint.pp_print (Conv.bi_of_word U8 global)
+    Format.fprintf fmt "%a" Z.pp_print (Conv.z_of_word U8 global)
   in
   let pp_stack_alloc fmt f =
     let sao = ao_stack_alloc (Conv.cfun_of_fun tbl f.f_name) in
@@ -95,7 +95,7 @@ let memory_analysis pp_err ~debug tbl fresh_reg_ptr is_move_op up =
   let crip = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip) in
   let crsp = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rsp) in
   let do_slots slots = 
-    List.map (fun (x,ws,ofs) -> ((Conv.cvar_of_var tbl x, ws), Conv.z_of_int ofs)) slots in                            
+    List.map (fun (x,ws,ofs) -> ((Conv.cvar_of_var tbl x, ws), Conv.cz_of_int ofs)) slots in                            
   let cglobs = do_slots gao.gao_slots in
   
   let mk_csao fn = 
@@ -109,8 +109,8 @@ let memory_analysis pp_err ~debug tbl fresh_reg_ptr is_move_op up =
         pp_align    = pi.pi_align;
       }) in
     let conv_sub (i:Interval.t) = 
-      Stack_alloc.{ z_ofs = Conv.z_of_int i.min; 
-                    z_len = Conv.z_of_int (Interval.size i) } in
+      Stack_alloc.{ z_ofs = Conv.cz_of_int i.min; 
+                    z_len = Conv.cz_of_int (Interval.size i) } in
     let conv_ptr_kind x = function
       | Varalloc.Direct (s, i, sc) -> Stack_alloc.PIdirect (Conv.cvar_of_var tbl s, conv_sub i, sc)
       | RegPtr s                   -> Stack_alloc.PIregptr(Conv.cvar_of_var tbl s)
@@ -123,7 +123,7 @@ let memory_analysis pp_err ~debug tbl fresh_reg_ptr is_move_op up =
   
     let sao = Stack_alloc.{
         sao_align  = align;
-        sao_size   = Conv.z_of_int size;
+        sao_size   = Conv.cz_of_int size;
         sao_extra_size = Z0;
         sao_max_size = Z0;
         sao_params = List.map (omap conv_pi) sao.sao_params;
@@ -214,26 +214,26 @@ let memory_analysis pp_err ~debug tbl fresh_reg_ptr is_move_op up =
           let sao = get_sao fn in
           let fn_algin = sao.Stack_alloc.sao_align in
           let align = if wsize_lt align fn_algin then fn_algin else align in
-          let fn_max = Conv.bi_of_z (sao.Stack_alloc.sao_max_size) in
-          let max_stk = if Bigint.lt max_stk fn_max then fn_max else max_stk in
+          let fn_max = Conv.z_of_cz (sao.Stack_alloc.sao_max_size) in
+          let max_stk = if Z.lt max_stk fn_max then fn_max else max_stk in
           align, max_stk
-        ) sao.sao_calls (align, Bigint.zero) in
+        ) sao.sao_calls (align, Z.zero) in
     let max_size = 
       let stk_size = 
-        Bigint.add (Conv.bi_of_z csao.Stack_alloc.sao_size)
-                   (Bigint.of_int extra_size) in
+        Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
+                   (Z.of_int extra_size) in
       let stk_size = 
         match fd.f_cc with
-        | Export       -> Bigint.add stk_size (Bigint.of_int (size_of_ws align - 1))
+        | Export       -> Z.add stk_size (Z.of_int (size_of_ws align - 1))
         | Subroutine _ -> 
-          Conv.bi_of_z (Memory_model.round_ws align (Conv.z_of_bi stk_size))
+          Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
         | Internal -> assert false in
-      Bigint.add max_stk stk_size in
+      Z.add max_stk stk_size in
     let saved_stack = 
       if has_stack then
         match ro.ro_rsp with
         | Some x -> Expr.SavedStackReg (Conv.cvar_of_var tbl x)
-        | None   -> Expr.SavedStackStk (Conv.z_of_int (List.assoc rsp extrapos))
+        | None   -> Expr.SavedStackStk (Conv.cz_of_int (List.assoc rsp extrapos))
       else Expr.SavedStackNone in
 
     let conv_to_save x =
@@ -245,19 +245,19 @@ let memory_analysis pp_err ~debug tbl fresh_reg_ptr is_move_op up =
 
     (* Stack slots for saving callee-saved registers are sorted in increasing order to simplify the check that they are all disjoint. *)
     let convert_to_save m =
-      m |> List.rev_map conv_to_save |> List.sort compare_to_save |> List.rev_map (fun (x, n) -> x, Conv.z_of_int n)
+      m |> List.rev_map conv_to_save |> List.sort compare_to_save |> List.rev_map (fun (x, n) -> x, Conv.cz_of_int n)
     in
 
     let csao =
       Stack_alloc.{ csao with
         sao_align = align;
-        sao_extra_size = Conv.z_of_int extra_size;
-        sao_max_size = Conv.z_of_bi max_size;
+        sao_extra_size = Conv.cz_of_int extra_size;
+        sao_max_size = Conv.cz_of_z max_size;
         sao_to_save = convert_to_save ro.ro_to_save;
         sao_rsp  = saved_stack;
         sao_return_address =
           if rastack
-          then RAstack (Conv.z_of_int (List.assoc ra extrapos))
+          then RAstack (Conv.cz_of_int (List.assoc ra extrapos))
           else match ro.ro_return_address with
                | None -> RAnone
                | Some ra -> RAreg (Conv.cvar_of_var tbl ra)

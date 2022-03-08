@@ -12,9 +12,9 @@ let initial_state () = ()
 
 let random_char _ = 
   let n = Random.int 256 in
-  Word0.wrepr Wsize.U8 (CoreConv.z_of_int n)
+  Word0.wrepr Wsize.U8 (CoreConv.cz_of_int n)
 
 let get_random (s : state) (z:BinNums.coq_Z) = 
-  let n = CoreConv.int_of_z z in
+  let n = CoreConv.int_of_cz z in
   assert (0 <= n);  
   s, List.init n random_char 

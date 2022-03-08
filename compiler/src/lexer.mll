@@ -129,10 +129,10 @@ rule main = parse
 
   (* Why this is needed *)
   | ((*'-'?*) digit+) as s   
-      { INT (Bigint.of_string s) } 
+      { INT (Z.of_string s) } 
 
   | ('0' ['x' 'X'] hexdigit+) as s
-      { INT (Bigint.of_string s) }
+      { INT (Z.of_string s) }
 
   | ident+ as s
       { odfl (NID s) (Hash.find_option keywords s) }

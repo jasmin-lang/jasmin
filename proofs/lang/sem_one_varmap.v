@@ -51,7 +51,7 @@ Class syscall_info := {
    vflagsP      : forall x, Sv.In x vflags -> vtype x = sbool
 }.
 
-Definition syscall_kill {syscall_i : syscall_info} := 
+Definition syscall_kill {syscall_i : syscall_info} :=
   Sv.diff all_vars callee_saved.
 
 Notation kill_vars := (Sv.fold kill_var).
@@ -170,7 +170,6 @@ Definition efr_valid ii i : bool :=
   then [&& r != vgd, r != vrsp, vtype r == sword Uptr &
            if i is Cwhile _ _ _ _ then false else true]
   else true.
-
 
 Definition top_stack_aligned fd st : bool :=
   (fd.(f_extra).(sf_return_address) == RAnone)

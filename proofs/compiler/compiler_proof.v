@@ -399,7 +399,7 @@ Proof.
   have lp_tmp_not_magic : ~~ Sv.mem (vid (lp_tmp x86_linearization_params)) (magic_variables p).
   - apply/Sv_memP; exact: var_tmp_not_magic checked_p.
   have p_call : sem_export_call p (extra_free_registers cparams) (vid (lp_tmp x86_linearization_params)) rip scs m fn args scs' m' res.
-  - apply: (merge_varmaps_export_callP checked_p _ exec_p).
+  - apply: (merge_varmaps_export_callP _ checked_p _ exec_p); first by [].
     move/allMP: ok_export => /(_ _ ok_fn).
     rewrite /is_export.
     case: get_fundef => // fd /assertP /eqP Export.

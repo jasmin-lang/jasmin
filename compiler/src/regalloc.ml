@@ -345,8 +345,8 @@ let collect_conflicts
 
 let iter_variables (cb: var -> unit) (f: 'info func) : unit =
   let iter_sv = Sv.iter cb in
-  let iter_lv lv = rvars_lv Sv.empty lv |> iter_sv in
-  let iter_lvs lvs = List.fold_left rvars_lv Sv.empty lvs |> iter_sv in
+  let iter_lv lv = vars_lv Sv.empty lv |> iter_sv in
+  let iter_lvs lvs = List.fold_left vars_lv Sv.empty lvs |> iter_sv in
   let iter_expr e = vars_e e |> iter_sv in
   let iter_exprs es = vars_es es |> iter_sv in
   let rec iter_instr_r =

@@ -7,7 +7,6 @@ module E = Expr
 
 module P = Prog
 
-module B = Bigint
 module F = Format
 module Pr = Printer
 
@@ -19,7 +18,7 @@ let pp_stype fmt =
   function
   | T.Coq_sbool  -> F.fprintf fmt "bool"
   | T.Coq_sint   -> F.fprintf fmt "int"
-  | T.Coq_sarr n -> F.fprintf fmt "u%a[%a]" pp_wsize U8 B.pp_print (Conv.bi_of_pos n)
+  | T.Coq_sarr n -> F.fprintf fmt "u%a[%a]" pp_wsize U8 Z.pp_print (Conv.z_of_pos n)
   | T.Coq_sword sz -> F.fprintf fmt "u%a" pp_wsize sz
 
 (* ---------------------------------------------------------------- *)
@@ -33,9 +32,9 @@ let pp_var_i tbl fmt x =
 let rec pp_expr tbl fmt =
   let pp_expr = pp_expr tbl in
   function
-  | E.Pconst z -> B.pp_print fmt (Conv.bi_of_z z)
+  | E.Pconst z -> Z.pp_print fmt (Conv.z_of_cz z)
   | E.Pbool b -> Pr.pp_bool fmt b
-  | E.Parr_init n -> F.fprintf fmt "arr_init(%a)" B.pp_print (Conv.bi_of_pos n)
+  | E.Parr_init n -> F.fprintf fmt "arr_init(%a)" Z.pp_print (Conv.z_of_pos n)
   | E.Pvar x -> pp_var_i tbl fmt x.gv
   | E.Pget (aa, ws, x, e) -> 
     Pr.pp_arr_access (pp_var_i tbl) pp_expr Pr.pp_len fmt aa ws x.gv e None
@@ -46,11 +45,7 @@ let rec pp_expr tbl fmt =
   | E.Pload (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x pp_expr e
   | E.Papp1 (op, e) -> F.fprintf fmt "(%s %a)" (Pr.string_of_op1 op) pp_expr e
   | E.Papp2 (op, e1, e2) -> F.fprintf fmt "(%a %s %a)" pp_expr e1 (Pr.string_of_op2 op) pp_expr e2
-  | PappN (Opack(sz,pe) , es) ->
-    F.fprintf fmt "@[(%s [%a])@]" (Pr.string_of_Opack sz pe) (pp_list ",@ " pp_expr) es
-  | PappN (Ocombine_flags c, es) ->
-    F.fprintf fmt "@[%s(%a)@]" (Pr.string_of_combine_flags c) (pp_list ",@ " pp_expr) es 
-
+  | E.PappN (_op, _es) -> assert false
   | E.Pif (_, c, e1, e2) -> F.fprintf fmt "(%a ? %a : %a)" pp_expr c pp_expr e1 pp_expr e2
 
 let pp_lval tbl fmt =
@@ -66,7 +61,7 @@ let pp_lval tbl fmt =
 
 
 let pp_label fmt lbl =
-  F.fprintf fmt "%a" B.pp_print (Conv.bi_of_pos lbl)
+  F.fprintf fmt "%a" Z.pp_print (Conv.z_of_pos lbl)
 
 let pp_remote_label tbl fmt (fn, lbl) =
   F.fprintf fmt "%s.%a" (Conv.string_of_funname tbl fn) pp_label lbl
@@ -95,7 +90,7 @@ let pp_param tbl fmt x =
 
 let pp_stackframe fmt (sz, ws) =
   F.fprintf fmt "stack: %a, alignment = %s"
-    B.pp_print (Conv.bi_of_z sz) (P.string_of_ws ws)
+    Z.pp_print (Conv.z_of_cz sz) (P.string_of_ws ws)
 
 let pp_return tbl is_export fmt =
   function

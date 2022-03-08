@@ -1,6 +1,5 @@
 (* -------------------------------------------------------------------- *)
 open Utils
-open Bigint.Notations
 open Arch_decl
 open Label
 open X86_decl
@@ -244,16 +243,16 @@ module ATT : BPrinter = struct
 
   (* -------------------------------------------------------------------- *)
   let pp_reg_address (addr : (_, _, _, _) Arch_decl.reg_address) =
-    let disp = Conv.bi_of_int64 addr.ad_disp in
+    let disp = Conv.z_of_int64 addr.ad_disp in
     let base = addr.ad_base in
     let off  = addr.ad_offset in
     let scal = addr.ad_scale in
   
     if Option.is_none base && Option.is_none off then
-      Bigint.to_string disp
+      Z.to_string disp
     else begin
-      let disp = if disp =^ Bigint.zero then None else Some disp in
-      let disp = odfl "" (omap Bigint.to_string disp) in
+      let disp = if Z.equal disp Z.zero then None else Some disp in
+      let disp = odfl "" (omap Z.to_string disp) in
       let base = odfl "" (omap (pp_register ~reg_pre`U64) base) in
       let off  = omap (pp_register ~reg_pre `U64) off in
   
@@ -270,7 +269,7 @@ module ATT : BPrinter = struct
     match addr with
     | Areg ra -> pp_reg_address ra
     | Arip d ->
-      let disp = Bigint.to_string (Conv.bi_of_int64 d) in
+      let disp = Z.to_string (Conv.z_of_int64 d) in
       Printf.sprintf "%s + %s(%%rip)" global_datas disp
   
   let rev_args = List.rev 
@@ -306,16 +305,16 @@ module Intel : BPrinter = struct
 
   (* -------------------------------------------------------------------- *)
   let pp_reg_address (addr : (_, _, _, _) Arch_decl.reg_address) =
-    let disp = Conv.bi_of_int64 addr.ad_disp in
+    let disp = Conv.z_of_int64 addr.ad_disp in
     let base = addr.ad_base in
     let off  = addr.ad_offset in
     let scal = addr.ad_scale in
   
     if Option.is_none base && Option.is_none off then
-      Bigint.to_string disp
+      Z.to_string disp
     else 
-      let disp = if disp =^ Bigint.zero then None else Some disp in
-      let disp = omap Bigint.to_string disp in
+      let disp = if Z.equal disp Z.zero then None else Some disp in
+      let disp = omap Z.to_string disp in
       let base = omap (pp_register ~reg_pre `U64) base in
       let off  = omap (pp_register ~reg_pre `U64) off in
       let off = 
@@ -337,7 +336,7 @@ module Intel : BPrinter = struct
     match addr with
     | Areg ra -> Printf.sprintf "%s ptr[%s]" (pp_address_size ws) (pp_reg_address ra)
     | Arip d ->
-      let disp = Bigint.to_string (Conv.bi_of_int64 d) in
+      let disp = Z.to_string (Conv.z_of_int64 d) in
       Printf.sprintf "%s ptr [rip + %s + %s]" (pp_address_size ws) global_datas disp
   
   let rev_args args = args
@@ -358,14 +357,14 @@ module Printer (BP:BPrinter) = struct
 
   open BP
   (* -------------------------------------------------------------------- *)
-  let pp_imm (imm : Bigint.zint) =
-    Format.sprintf "%s%s" imm_pre (Bigint.to_string imm)
+  let pp_imm (imm : Z.t) =
+    Format.sprintf "%s%s" imm_pre (Z.to_string imm)
 
   (* -------------------------------------------------------------------- *)
   let pp_asm_arg ((ws,op):(W.wsize * (_, _, _, _) Arch_decl.asm_arg)) =
     match op with
     | Condt  _   -> assert false
-    | Imm(ws, w) -> pp_imm (Conv.bi_of_word ws w)
+    | Imm(ws, w) -> pp_imm (Conv.z_of_word ws w)
     | Reg r      -> pp_register ~reg_pre (rsize_of_wsize ws) r
     | Addr addr  -> BP.pp_address ws addr
     | XReg r     -> pp_xmm_register ~reg_pre ws r

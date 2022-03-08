@@ -8,6 +8,8 @@ val pp_bool : Format.formatter -> bool -> unit
 
 val pp_string0 : Format.formatter -> char list -> unit
 
+val pp_print_X : Format.formatter -> Z.t -> unit
+
 val pp_kind  : Format.formatter -> v_kind -> unit
 
 val pp_pvar  : Format.formatter -> pvar -> unit
@@ -20,7 +22,6 @@ val pp_var   : debug:bool -> Format.formatter -> var -> unit
 
 val string_of_op1 : Expr.sop1 -> string
 val string_of_op2 : Expr.sop2 -> string
-val string_of_Opack : Wsize.wsize -> Wsize.pelem -> string
 val string_of_combine_flags : Expr.combine_flags -> string
 val pp_opn : X86_extra.x86_extended_op Sopn.sopn -> string
 val pp_syscall : Syscall.syscall_t -> string 
