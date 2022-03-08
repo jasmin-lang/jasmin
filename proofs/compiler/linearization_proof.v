@@ -2629,7 +2629,7 @@ Section PROOF.
     Sv.Equal (Sv.diff s Sv.empty) s.
   Proof. SvD.fsetdec. Qed.
 
-  Lemma wf_vm_eval_uincl_pundef vm z: 
+  Lemma wf_vm_eval_uincl_pundef vm z:
     wf_vm vm -> eval_uincl (pundef_addr (vtype z)) (vm.[z])%vmap.
   Proof.
     move=> /(_ z); case: (vm.[z])%vmap => //.
@@ -2637,10 +2637,10 @@ Section PROOF.
     by case => //; case: vtype.
   Qed.
 
-  Lemma eval_uincl_kill_vars_incl X1 X2 vm1 vm2 z: 
-    wf_vm vm2 -> 
-    Sv.Subset X1 X2 -> 
-    (eval_uincl (kill_vars X1 vm1).[z] vm2.[z] -> 
+  Lemma eval_uincl_kill_vars_incl X1 X2 vm1 vm2 z:
+    wf_vm vm2 ->
+    Sv.Subset X1 X2 ->
+    (eval_uincl (kill_vars X1 vm1).[z] vm2.[z] ->
      eval_uincl (kill_vars X2 vm1).[z] vm2.[z])%vmap.
   Proof.
     move=> hwf S;
@@ -2648,11 +2648,11 @@ Section PROOF.
     by apply wf_vm_eval_uincl_pundef.
   Qed.
 
-  Lemma vm_uincl_kill_vars_set_incl X1 X2 vm1 vm2 x v1 v2: 
-    wf_vm vm2 -> 
-    Sv.Subset X1 X2 -> 
+  Lemma vm_uincl_kill_vars_set_incl X1 X2 vm1 vm2 x v1 v2:
+    wf_vm vm2 ->
+    Sv.Subset X1 X2 ->
     eval_uincl v2 v1 ->
-    vm_uincl ((kill_vars X1 vm1).[x <- v1])%vmap vm2 -> 
+    vm_uincl ((kill_vars X1 vm1).[x <- v1])%vmap vm2 ->
     vm_uincl ((kill_vars X2 vm1).[x <- v2])%vmap vm2.
   Proof.
     move=> hwf S huv huvm z.
@@ -3055,6 +3055,7 @@ Section PROOF.
           case: Sv_memP => ?; first by SvD.fsetdec.
           rewrite hvmrsp /=; last by SvD.fsetdec.
           by rewrite /vm_rsp /vm_save !Fv.setP_neq //; apply /eqP; SvD.fsetdec.
+
         have D : disjoint_labels 1 lbl P.
         + move => lbl' _.
           exact: push_to_save_has_no_label.

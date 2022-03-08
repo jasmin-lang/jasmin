@@ -39,9 +39,9 @@ Definition get_pvar (e: pexpr) : exec var :=
 Definition get_lvar (x: lval) : exec var :=
   if x is Lvar x then ok (v_var x) else type_error.
 
-Definition kill_var (x:var) (vm: vmap) : vmap := 
+Definition kill_var (x: var) (vm: vmap) : vmap :=
   vm.[x <- pundef_addr (vtype x)].
- 
+
 Class syscall_info := {
    (* This is used for one_varmap and linear semantic and compilation passes *)
    syscall_sig  : syscall_t -> seq var  * seq var;
@@ -75,7 +75,7 @@ Proof.
 Qed.
 
 Lemma kill_vars_uincl vm xs :
-  wf_vm vm -> 
+  wf_vm vm ->
   vm_uincl (kill_vars xs vm) vm.
 Proof.
   move => hwf x; rewrite kill_varsE.
@@ -142,26 +142,19 @@ Definition ra_vm (e: stk_fun_extra) (x: var) : Sv.t :=
     Sv.add x vflags
   end.
 
-Definition savedstackreg (ss:saved_stack) := 
+Definition savedstackreg (ss: saved_stack) :=
   if ss is SavedStackReg r then Sv.singleton r else Sv.empty.
 
 Definition saved_stack_vm fd : Sv.t :=
   savedstackreg fd.(f_extra).(sf_save_stack).
 
-Definition ra_undef_none (ss:saved_stack) (x: var) :=
+Definition ra_undef_none (ss: saved_stack) (x: var) :=
   Sv.union (Sv.add x vflags) (savedstackreg ss).
 
 Definition ra_undef fd (x: var) :=
   Sv.union (ra_vm fd.(f_extra) x) (saved_stack_vm fd).
-(*
-  match fd.(f_extra).(sf_return_address) with
-  | RAreg ra  => Sv.singleton ra 
-  | RAstack _ => Sv.empty
-  | RAnone => ra_undef_none fd.(f_extra).(sf_save_stack) x 
-  end.
-*)
 
-Definition ra_undef_vm_none (ss:saved_stack) (x: var) vm : vmap :=
+Definition ra_undef_vm_none (ss: saved_stack) (x: var) vm : vmap :=
   kill_vars (ra_undef_none ss x) vm.
 
 Definition ra_undef_vm fd vm (x: var) : vmap :=
@@ -286,14 +279,14 @@ Variant sem_export_call_conclusion (scs: syscall_state) (m: mem) (fd: sfundef) (
     saved_stack_valid fd k &
     Sv.Subset (Sv.inter callee_saved (Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
-    all2 check_ty_val fd.(f_tyin) args & 
-    sem k {| escs := scs; emem := m1 ; 
+    all2 check_ty_val fd.(f_tyin) args &
+    sem k {| escs := scs; emem := m1 ;
              evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) |}
-             fd.(f_body) {| escs := scs'; emem := m2 ; evm := vm2 |} & 
+             fd.(f_body) {| escs := scs'; emem := m2 ; evm := vm2 |} &
     mapM (λ x : var_i, get_var vm2 x) fd.(f_res) = ok res' &
     List.Forall2 value_uincl res res' &
     all2 check_ty_val fd.(f_tyout) res' &
-    valid_RSP m2 vm2 & 
+    valid_RSP m2 vm2 &
     m' = free_stack m2.
 
 Variant sem_export_call (gd: @extra_val_t _ progStack) (scs: syscall_state) (m: mem) (fn: funname) (args: values) (scs': syscall_state) (m': mem) (res: values) : Prop :=
