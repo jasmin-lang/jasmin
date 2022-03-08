@@ -19,6 +19,18 @@ Context
   (extra_free_registers: instr_info -> option var)
   (var_tmp: var).
 
+Lemma wf_kill_var x vm: wf_vm vm -> wf_vm (kill_var x vm).
+Proof.
+  move=> hwf y; rewrite kill_varE.
+  by case: eqP (hwf y) => // <- _; case: (vtype x).
+Qed.
+
+Lemma wf_kill_vars X vm: wf_vm vm -> wf_vm (kill_vars X vm).
+Proof.
+  move=> hwf x; rewrite kill_varsE.
+  by case: ifP (hwf x) => // _ _; case: (vtype x).
+Qed.
+
 Section STACK_STABLE.
 
 Infix "≡" := stack_stable (at level 40).
@@ -200,31 +212,8 @@ Proof.
     exact: ok_RSP.
   move => /eqP r_neq_rsp.
   rewrite -(ih r). 2: SvD.fsetdec.
-  rewrite /set_RSP Fv.setP_neq // /ra_undef_vm.
-  move: hr; case E: sf_return_address;
-    rewrite /saved_stack_vm /ra_vm;
-    last by [].
-  - move=>
-      /Sv.union_spec
-      /Decidable.not_or[]
-      _
-      /Sv.union_spec
-      /Decidable.not_or[].
-    rewrite /ra_vm E.
-    move=> /Sv.add_spec /Decidable.not_or[].
-    clear.
-    rewrite /sv_of_flags => r_not_rax r_not_flag r_not_save_stack.
-    rewrite Fv.setP_neq; last by apply/eqP => ?; apply: r_not_rax.
-    rewrite kill_flagsE; case: ifP => rx.
-    + elim: r_not_flag; move: rx.
-      by apply /sv_of_flagsP.
-    case: sf_save_stack r_not_save_stack => // x {rx} rx; rewrite Fv.setP_neq //.
-    apply/eqP; SvD.fsetdec.
-  move=> tmp_not_in_k.
-  rewrite Fv.setP_neq //.
-  apply/eqP.
-  rewrite E in tmp_not_in_k.
-  SvD.fsetdec.
+  rewrite /set_RSP Fv.setP_neq // /ra_undef_vm kill_varsE.
+  case: Sv_memP => //; rewrite /ra_undef; SvD.fsetdec.
 Qed.
 
 Lemma sem_not_written k s1 c s2 :
