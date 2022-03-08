@@ -372,6 +372,14 @@ Definition eval_op o args m :=
   exec_instr_op (instr_desc_op o) args m.
 
 (* -------------------------------------------------------------------- *)
+Definition eval_POP (s: asm_state) : exec (asm_state * wreg * seq pointer) :=
+  Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) stack_pointer_register) in
+  Let v := read s.(asm_m).(asm_mem) sp reg_size in
+  let m := mem_write_reg MSB_CLEAR stack_pointer_register (sp + wrepr Uptr (wsize_size Uptr))%R s.(asm_m) in
+  ok ({| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1; asm_msf := s.(asm_msf) |}, v, 
+       [:: (sp + wrepr Uptr (wsize_size Uptr))%R]).
+
+(* -------------------------------------------------------------------- *)
 Section PROG.
 
 Context  (p: asm_prog).
@@ -402,6 +410,11 @@ Definition eval_instr (i : asm_i) (s: asm_state) (d: directive_asm) : asm_result
       eval_JMP p v.2 lbl s
     else type_error
   | Jcc lbl ct => eval_Jcc lbl ct s d
+  | POPPC =>
+    Let: (s', dst, sp) := eval_POP s in
+    if decode_label labels dst is Some lbl then
+      eval_JMP p sp lbl s'
+    else type_error
   | AsmOp o args =>
     Let m := eval_op o args s.(asm_m) in
     ok (st_update_next m.1 s, m.2) 
