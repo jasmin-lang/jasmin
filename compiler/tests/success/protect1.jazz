@@ -7,9 +7,9 @@ export fn foo (#public reg u64 i) -> reg u64 {
   #transient reg u64 it;
 
   /* init miss-speculation flag / mask to 0 (ie no miss-speculation)
-     This correspond to the sequence 
+     This correspond to the sequence
      LFENCE;
-     ms = 0;  
+     ms = 0;
   */
   ms = #init_msf();
 
@@ -17,12 +17,12 @@ export fn foo (#public reg u64 i) -> reg u64 {
   si = i; // spill i into si
   b = i == 0;
   if (b) {
-     ms = #set_msf(b, ms);
+     _, ms = #set_msf(b, ms);
      it = si;
-     i = #protect(it, ms);
+     _, _, _, _, _, i = #protect(it, ms);
      r = p[(int)i];
   } else {
-     ms = #set_msf(!b, ms);
+     _, ms = #set_msf(!b, ms);
      r = p[0];
   }
   ? #LFENCE;
@@ -48,10 +48,10 @@ export fn test1_app_public(#public reg u64 x) {
    s[0] = x;
    r = test1(s);
    ms = #init_msf();
-   x = #protect(r, ms);
+   _, _, _, _, _, x = #protect(r, ms);
 }
 
-/* This should fail 
+/* This should fail
 export fn test1_app_fail(#public reg u64 x) {
    #transient stack u64[1] s;
    s[0] = x;
@@ -62,49 +62,48 @@ export fn test1_app_fail(#public reg u64 x) {
 
 
 fn aux(#msf reg u64 ms, #public reg u64 p, #public reg u64 i) -> #msf reg u64, #public reg u64 {
- 
+
    #public reg bool b;
-  
-   while 
-    {b = i < 0;} 
-    (b) 
-    { [p] = 0; p += 1; ms = #set_msf(b, ms); i -= 1; }
-   ms = #set_msf(!b, ms);
+
+   while
+    {b = i < 0;}
+    (b)
+    { [p] = 0; p += 1; _, ms = #set_msf(b, ms); i -= 1; }
+   _, ms = #set_msf(!b, ms);
    return (ms, p);
-   
+
 }
 
 /* This loop, need to fix the case of while */
 
 fn aux1(#msf reg u64 ms, #public reg u64 p, #public reg u64 i) -> #msf reg u64, #public reg u64 {
- 
+
    #public reg bool b;
-  
-   while 
-    {b = i < 0;} 
-    (b) 
+
+   while
+    {b = i < 0;}
+    (b)
     { [p] = 0; p += 1; i -= 1; }
    ms = #init_msf();
    return (ms, p);
-   
+
 }
 
 
 fn sum_regptr(#msf reg u64 ms, #transient reg ptr u64[1000]p) -> #msf reg u64, #public reg u64 {
- 
+
    #public reg bool b;
    #transient reg u64 sum;
    #public reg u64 psum, i;
    sum = 0;
-   i = 0; 
-   while 
-    {b = i < 1000;} 
-    (b) 
-    { sum += p[(int)i] ; ms=#set_msf(b, ms); i += 1; }
-   ms = #set_msf(!b, ms);
-   psum = #protect(sum, ms);
+   i = 0;
+   while
+    {b = i < 1000;}
+    (b)
+    { sum += p[(int)i] ; _, ms=#set_msf(b, ms); i += 1; }
+   _, ms = #set_msf(!b, ms);
+   _, _, _, _, _, psum = #protect(sum, ms);
 
    return (ms, psum);
-   
-}
 
+}

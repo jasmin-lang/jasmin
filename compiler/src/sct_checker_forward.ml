@@ -449,7 +449,13 @@ let ensure_exact ~loc env msf xe =
       Pt.rs_tyerror ~loc  (Pt.string_error "the expression %a need to be a variable"
                                (Printer.pp_expr ~debug:false) xe)
 
-
+let ensure_regvar ~loc expr =
+  match expr with
+  | Pvar x -> if not (kind_i x.gv = Reg Direct) then
+                Pt.rs_tyerror ~loc  (Pt.string_error "the variable %a needs to be a register"
+                                        (Printer.pp_expr ~debug:false) expr)
+  | _ -> Pt.rs_tyerror ~loc  (Pt.string_error "the expression %a needs to be a variable of kind register"
+                                  (Printer.pp_expr ~debug:false) expr)
 
 
 (* [ty_instr env msf i] return msf' such that env, msf |- i : msf' *)
@@ -510,6 +516,7 @@ let rec ty_instr fenv env msf i =
       begin match es with
       | [e1; ms] ->
         ensure_exact ~loc env msf ms;
+        ensure_regvar ~loc e1;
         let _ = ty_expr ~lvl:Lvl.transient env e1 in
         ty_lvals1 env msf xs Lvl.public
       | _ -> assert false
