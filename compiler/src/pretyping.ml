@@ -933,7 +933,7 @@ let conv_ty = function
     | T.Coq_sbool    -> P.tbool
     | T.Coq_sint     -> P.tint
     | T.Coq_sword ws -> P.Bty (P.U ws)
-    | T.Coq_sarr _   -> assert false 
+    | T.Coq_sarr p   -> P.Arr (U8, P.icnst (Conv.int_of_pos p))
 
 let type_of_op2 op = 
   let (ty1, ty2), tyo = E.type_of_op2 op in
@@ -1240,7 +1240,7 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 let f_sig f =
   List.map P.ty_i f.P.f_ret, List.map (fun v -> v.P.v_ty) f.P.f_args
 
-let prim_sig (type a) p : a P.gty list * a P.gty list * Sopn.arg_desc list =
+let prim_sig p : 'a P.gty list * 'a P.gty list * Sopn.arg_desc list =
   let f = conv_ty in
   let o = Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) p in
   List.map f o.tout,
@@ -1260,6 +1260,7 @@ let prim_string =
     "sbb", PrimP (W.U64, fun _ws sz -> Osubcarry sz);
     "set0", PrimP (W.U64, fun _ws sz -> Oasm (ExtOp (Oset0 sz)));
     "concat_2u128", PrimM (fun _ws -> Oasm (ExtOp Oconcat128));
+    "copy", PrimP (W.U64, fun _ws sz -> Ocopy (sz, Conv.pos_of_int 1));
     "protect", PrimP (W.U64, fun _ws sz -> Oasm (ExtOp (Oprotect sz)));
     "set_msf", PrimM (fun _ws -> Oasm (ExtOp Oset_msf));
     "init_msf", PrimM (fun _ws -> Oasm (ExtOp Oinit_msf));
@@ -1667,73 +1668,6 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
           | P.Internal -> E.InlineFun
           | P.Export | P.Subroutine _ -> E.DoNotInline in
       env, [mk_i (mk_call (L.loc pi) is_inline lvs f es)]
-
-  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, es) }, None) when 
-     fst (extract_size (L.unloc f)) = "copy" ->
-    if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "copy expects no implicit arguments");
-    let es = tt_exprs env es in
-    let y, yty = 
-      match es with
-      | [Pvar y, ty] -> y, ty
-      | _ -> 
-          rs_tyerror ~loc:(L.loc pi) 
-            (string_error "only a single variable is allowed as argument of copy")
-    in
-    let x = 
-      match xs with
-      | [x] -> 
-        let loc, fx, _ = tt_lvalue env x in
-        begin match fx yty with
-        | Lvar x -> x
-        | _ -> 
-          rs_tyerror ~loc 
-            (string_error "only a single variable is allowed as destination of copy")
-        end
-      | _ -> 
-        rs_tyerror ~loc:(L.loc pi) 
-          (string_error "only a single variable is allowed as destination of copy")
-    in
-    let ws =   
-      (* Do not check size of array here, it is done in typing *)
-      match snd (extract_size (L.unloc f)) with
-      | SAw ws -> ws
-      | SAv _ | SAx _ | SAvv _ -> assert false 
-      | SA ->
-        match (L.unloc x).v_ty with
-        | Arr (xws, _) ->
-          begin match yty with
-          | Arr(yws, _) ->
-            if (L.unloc x).v_kind = Reg Direct then xws
-            else if (L.unloc y.gv).v_kind = Reg Direct then yws
-            else  
-              rs_tyerror ~loc:(L.loc pi) 
-                (string_error "#copy: the source or the destination should be a reg array")
-          | _ -> rs_tyerror ~loc:(L.loc y.gv) (string_error "an array is expected")
-          end
-        | _ -> rs_tyerror ~loc:(L.loc y.gv) (string_error "an array is expected")
-    in
-    env, [ mk_i (Copn([Lvar x], AT_none, Sopn.Ocopy(ws, Conv.pos_of_int 1), [Pvar y]))] 
-
-  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "randombytes" ->
-      (* FIXME syscall *)  
-      (* It will be good to make this uniform with copy *)
-      (* This is durty but ... *)
-      if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "getrandom expects no implicit arguments");
-      let loc, x, ty = 
-        match xs with
-        | [x] -> 
-          let loc, x, oty = tt_lvalue env x in
-          let ty = 
-            match oty with 
-            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
-            | Some ty -> ty in
-          loc, x ty, ty  
-        | _ ->  
-          rs_tyerror ~loc:(L.loc pi) 
-            (string_error "only a single variable is allowed as destination of getrandom") in
-      let _ = tt_as_array (loc, ty) in
-      let es = tt_exprs_cast env (L.loc pi) args [ty] in
-      env, [mk_i (P.Csyscall([x], (* Syscall.GetRandom *) (Conv.pos_of_int 1), es))]
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim None f in
