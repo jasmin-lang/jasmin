@@ -34,10 +34,10 @@ param int i_14 = 14;
 param int i_15 = 15;
 param int i_32 = 32;
 
-inline fn __load_shufb_cmd_avx() -> #public stack u128, #public stack u128
+inline fn __load_shufb_cmd_avx() -> #transient stack u128, #transient stack u128
 {
-  reg   u128   r16,   r8;
-  stack u128 s_r16, s_r8;
+  #transient reg   u128   r16,   r8;
+  #transient stack u128 s_r16, s_r8;
 
   r16 = g_r16;
   r8 = g_r8;
@@ -527,7 +527,7 @@ inline fn __diagonal_round_x1_avx(#secret reg u128[4] k, #secret reg u128 r16 r8
 
 inline fn __rounds_x1_avx(#secret reg u128[4] k) -> #secret reg u128[4]
 {
-  reg u64 c;
+  #public reg u64 c;
   reg u128 r16 r8;
 
   r16 = g_r16;
@@ -623,7 +623,7 @@ inline fn __diagonal_round_x2_avx(#secret reg u128[4] k1 k2, #secret reg u128 r1
 
 inline fn __rounds_x2_avx(#secret reg u128[4] k1 k2) -> #secret reg u128[4], #secret reg u128[4]
 {
-  reg u64 c;
+  #public reg u64 c;
   reg u128 r16 r8;
 
   r16 = g_r16;
@@ -722,7 +722,7 @@ inline fn __diagonal_round_x4_avx(#secret reg u128[16] k, #secret stack u128 k14
 
 inline fn __rounds_x4_avx(#secret reg u128[16] k, #secret stack u128 s_r16 s_r8) -> #secret reg u128[16]
 {
-  reg u64 c;
+  #public reg u64 c;
   //reg bool zf;
   stack u128 k14, k15;
 
@@ -794,8 +794,12 @@ inline fn __chacha_less_than_129_avx(#public reg u64 output plain, #public reg u
 
 export fn chacha_avx(#public reg u64 output plain, #public reg u32 len, #public reg u64 key nonce, #secret reg u32 counter)
 {
-  if(len < 129)
-  { __chacha_less_than_129_avx(output, plain, len, key, nonce, counter); }
-  else
-  { __chacha_more_than_128_avx(output, plain, len, key, nonce, counter); }
+  #msf reg u64 ms;
+  ms = #init_msf();
+  if(len < 129) {
+    __chacha_less_than_129_avx(output, plain, len, key, nonce, counter);
+  } else {
+    __chacha_more_than_128_avx(output, plain, len, key, nonce, counter);
+  }
+  ms = #init_msf();
 }
