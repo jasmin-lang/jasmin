@@ -463,7 +463,11 @@ let ensure_regvar ~loc expr =
 let rec ty_instr fenv env msf i =
   let msf1 =
   match i.i_desc with
-  | Csyscall _ -> assert false (* FIXME : Not Implemented *)
+  | Csyscall (xs, _, es) -> 
+      let _lvl = ty_exprs_max ~lvl:Lvl.secret env es in
+      ignore (ty_lvals1 env msf xs Lvl.secret);
+      (* We don't known what happen to MSF after external function call *)
+      MSF.toinit
   | Cassgn(x, _, _, e) ->
     let lvl = ty_expr ~lvl:Lvl.secret env e in
     ty_lval env msf x lvl
