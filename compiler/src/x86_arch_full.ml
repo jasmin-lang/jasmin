@@ -2,6 +2,7 @@ open X86_decl
 
 module X86 (Lowering_params : sig val lowering_vars : 'a Conv.coq_tbl -> X86_lowering.fresh_vars val lowering_opt : X86_lowering.lowering_options end) : Arch_full.Core_arch = struct
   type reg = register
+  type regx = register_ext
   type xreg = xmm_register
   type nonrec rflag = rflag
   type cond = condt
@@ -23,6 +24,10 @@ module X86 (Lowering_params : sig val lowering_vars : 'a Conv.coq_tbl -> X86_low
       RBP;
       RBX;
       R12; R13; R14; R15
+    ]
+
+  let extra_allocatable = [
+      MM0; MM1; MM2; MM3; MM4; MM5; MM6; MM7
     ]
 
   let xmm_allocatable = [

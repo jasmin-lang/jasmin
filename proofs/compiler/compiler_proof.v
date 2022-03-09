@@ -567,23 +567,21 @@ Proof.
 
     apply/allP => x /ok_callee_saved.
     rewrite /is_arreg /=.
-    case hx: asm_typed_reg_of_var => [ [ r | | ] | ] // _.
+    case hx: asm_typed_reg_of_var => [ [ r | | | ] | ] // _.
     by rewrite (asm_typed_reg_of_varI hx) XM /= truncate_word_u.
-    move=>
+  move=>
       _wt_largs
       [] vm'
       [] lm'
       [] res'
       [] {} lp_call M' ok_res' res_res' _wt_res'.
-
   have :=
     asm_gen_exportcall
       (hap_hagp haparams)
       ok_xp
-    lp_call
+      lp_call
       _
       LM.
-
   case.
   - apply/allP => _ /in_map[] r _ ->.
     by rewrite (XM (ARReg r)) /= truncate_word_u.
@@ -595,7 +593,7 @@ Proof.
                    & List.Forall2 value_uincl res' res''.
   - move/mapM_Forall2: ok_res'.
     move/mapM_Forall2: ok_xres {res_res' _wt_res'} res'.
-    case: LM' => /=_ _ _; clear => R X F.
+    case: LM' => /=_ _ _; clear => R RX X F.
     elim.
     + move=> _ /List_Forall2_inv_l ->. by exists [::].
     case => ? /= xi r xs rs.
@@ -607,8 +605,9 @@ Proof.
     + case => v' /= -> v_v'; exists (v' :: vs'); first by [].
       by constructor.
     case: r ok_v => r.
-    + by move=> /R /= h; eexists; first reflexivity.
-    + by move=> /X /= h; eexists; first reflexivity.
+    + by move => /R /= h; eexists; first reflexivity.
+    + by move => /RX /= h; eexists; first reflexivity.
+    + by move => /X /= h; eexists; first reflexivity.
     rewrite get_varE; t_xrbindP => /= b ok_b ?; subst v.
     have := F r b.
     rewrite /= ok_b => /(_ erefl).

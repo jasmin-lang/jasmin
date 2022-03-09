@@ -7,7 +7,7 @@ let init_tbl fc =
     let ws, sz = array_kind v.v_ty in
     let ty = Bty (U ws) in
     let vi i =
-      V.mk (v.v_name ^ "#" ^ string_of_int i) (Reg Direct) ty v.v_dloc v.v_annot in
+      V.mk (v.v_name ^ "#" ^ string_of_int i) (Reg(reg_kind v.v_kind, Direct)) ty v.v_dloc v.v_annot in
     let t = Array.init sz vi in
     Hv.add tbl v (ws, t) in
   let fv = vars_fc fc in

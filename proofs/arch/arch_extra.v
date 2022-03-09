@@ -69,12 +69,17 @@ Section ARCH.
 
 Context `{arch : arch_decl}.
 
+Lemma to_var_reg_neq_regx (r : reg_t) (x : regx_t) :
+  to_var r <> to_var x.
+Proof. rewrite /to_var => -[]; apply: inj_toS_reg_regx. Qed.
+
 Lemma to_var_reg_neq_xreg (r : reg_t) (x : xreg_t) :
   to_var r <> to_var x.
-Proof.
-  move=> [] hsize _. move: hsize. apply/eqP. exact: reg_size_neq_xreg_size.
-Qed.
+Proof. move=> [] hsize _; apply/eqP/reg_size_neq_xreg_size:hsize. Qed.
 
+Lemma to_var_regx_neq_xreg (r : regx_t) (x : xreg_t) :
+  to_var r <> to_var x.
+Proof. move=> [] hsize _; apply/eqP/reg_size_neq_xreg_size:hsize. Qed.
 
 Definition sopn_implicit_arg (i: implicit_arg) :=
   match i with
@@ -93,14 +98,14 @@ End ARCH.
 (* Extra ops are non-existing architecture-specific asm instructions that we
  * replace by real asm instructions during the asmgen pass.
  *)
-Class asm_extra (reg xreg rflag cond asm_op extra_op : Type) :=
-  { _asm   :> asm reg xreg rflag cond asm_op
+Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) :=
+  { _asm   :> asm reg regx xreg rflag cond asm_op
   ; _extra :> asmOp extra_op (* description of extra ops *)
   ; to_asm : instr_info -> extra_op -> lvals -> pexprs -> cexec (asm_op_msb_t * lvals * pexprs)
       (* how to compile extra ops into asm op *)
   }.
 
-Definition extra_op_t {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op} := extra_op.
+Definition extra_op_t {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op} := extra_op.
 
 Section AsmOpI.
 
