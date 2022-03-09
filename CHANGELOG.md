@@ -5,6 +5,16 @@
 
 - Fix printing of `while` loops [PR #131](https://github.com/jasmin-lang/jasmin/pull/131).
 
+## New features
+
+- provide access to mmx registers:
+	declaration:
+	  normal register:  #mmx reg u64 x
+	  mmx    register:       reg u64 m
+	move from/to normal register: x = m; m = x;
+	             using intrasic : x = MOVX(m); m = MOVX(x);
+	add the instruction MOVX_32 and MOVX_64
+
 # Jasmin 22.0
 
 This release is the result of more than two years of active development. It thus

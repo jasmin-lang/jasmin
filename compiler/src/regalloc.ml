@@ -21,7 +21,7 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
     let fresh, _ = make_counter () in
     fun loc ty ->
       let n = Printf.sprintf " _%d" (fresh ()) in
-      L.mk_loc loc (V.mk n (Reg Direct) ty L._dummy [])
+      L.mk_loc loc (V.mk n (Reg(Normal, Direct)) ty L._dummy [])
   in
   let fill_lv =
     function
@@ -483,7 +483,7 @@ module type Regalloc = sig
 end
 
 module Regalloc (Arch : Arch_full.Arch)
-  : Regalloc with type extended_op := (Arch.reg, Arch.xreg, Arch.rflag, Arch.cond, Arch.asm_op, Arch.extra_op) Arch_extra.extended_op = struct
+  : Regalloc with type extended_op := (Arch.reg, Arch.regx, Arch.xreg, Arch.rflag, Arch.cond, Arch.asm_op, Arch.extra_op) Arch_extra.extended_op = struct
 
   let forced_registers translate_var loc nv (vars: int Hv.t) (cnf: conflicts)
       (lvs: 'ty glvals) (op: 'asm sopn) (es: 'ty gexprs)
@@ -671,6 +671,7 @@ let greedy_allocation
     (fr: friend)
     (a: A.allocation) : unit =
   let scalars : (int, var list) Hashtbl.t = Hashtbl.create nv in
+  let extra_scalars : (int, var list) Hashtbl.t = Hashtbl.create nv in
   let vectors : (int, var list) Hashtbl.t = Hashtbl.create nv in
   let push_var tbl i v =
     match Hashtbl.find tbl i with
@@ -679,11 +680,14 @@ let greedy_allocation
   in
   Hv.iter (fun v i ->
       match kind_of_type v.v_ty with
-      | Word -> push_var scalars i v
+      | Word -> 
+          if reg_kind v.v_kind = Normal then push_var scalars i v
+          else push_var extra_scalars i v
       | Vector -> push_var vectors i v
       | Unknown _ -> ()
       ) vars;
   two_phase_coloring Arch.allocatable_vars scalars cnf fr a;
+  two_phase_coloring Arch.extra_allocatable_vars extra_scalars cnf fr a;
   two_phase_coloring Arch.xmm_allocatable_vars vectors cnf fr a;
   ()
 
@@ -801,7 +805,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
              | Some OnStack -> false
              | (None | Some OnReg) -> true
         then
-          let r = V.mk " ra" (Reg Direct) (Bty (U U64)) L._dummy [] in
+          let r = V.mk " ra" (Reg(Normal, Direct)) (Bty (U U64)) L._dummy [] in
           if !Glob_options.debug then
             Format.eprintf "Fresh variable “%a” for the return address of function “%s”.@."
               (Printer.pp_var ~debug:true) r f.f_name.fn_name;
@@ -814,7 +818,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
             let acc = Sv.union (killed fn) acc in
             if (get_annot fn).retaddr_kind = Some OnStack then
               List.fold_left (fun acc loc ->
-                  let r = V.mk (Format.sprintf " ra%d" (count())) (Reg Direct) (Bty (U U64)) loc.L.base_loc [] in
+                  let r = V.mk (Format.sprintf " ra%d" (count())) (Reg(Normal, Direct)) (Bty (U U64)) loc.L.base_loc [] in
                   Hashtbl.add extra_free_registers loc r;
                   Sv.add r acc
                 ) acc locs

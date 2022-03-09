@@ -207,7 +207,7 @@ let pp_pointer = function
 let pp_storage fmt s =
   latex "storageclass" fmt
     (match s with
-     | `Reg ptr -> "reg" ^ (pp_pointer ptr)
+     | `Reg(ptr) -> "reg" ^ (pp_pointer ptr)
      | `Stack ptr -> "stack" ^ (pp_pointer ptr)
      | `Inline -> "inline"
      | `Global -> "global")
@@ -260,6 +260,7 @@ let pp_sidecond fmt =
 let pp_vardecls fmt d =
   F.fprintf fmt "%a%a;" indent 1 pp_args d; F.fprintf fmt eol
 
+(* TODO: print annot *)
 let rec pp_instr depth fmt (_annot, p) =
   indent fmt depth;
   match L.unloc p with

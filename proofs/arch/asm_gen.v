@@ -93,61 +93,9 @@ Section ASM_EXTRA.
 Context `{asm_e : asm_extra}.
 
 Definition to_reg   : var -> option reg_t   := of_var.
+Definition to_regx  : var -> option regx_t  := of_var.
 Definition to_xreg  : var -> option xreg_t  := of_var.
 Definition to_rflag : var -> option rflag_t := of_var.
-
-(* -------------------------------------------------------------------- *)
-Variant compiled_variable :=
-| LReg   of reg_t
-| LXReg  of xreg_t
-| LRFlag of rflag_t
-.
-
-Definition compiled_variable_beq cv1 cv2 :=
-  match cv1, cv2 with
-  | LReg   r1, LReg   r2 => r1 == r2 ::>
-  | LXReg  r1, LXReg  r2 => r1 == r2 ::>
-  | LRFlag f1, LRFlag f2 => f1 == f2 ::>
-  | _, _ => false
-  end.
-
-Lemma compiled_variable_eq_axiom : Equality.axiom compiled_variable_beq.
-Proof.
-  move=> [r1 | x1 | f1] [r2 | x2 | f2] /=;
-    (by constructor || by apply:(iffP idP) => [ /eqP -> | [->] ]).
-Qed.
-
-Definition compiled_variable_eqMixin := Equality.Mixin compiled_variable_eq_axiom.
-Canonical  compiled_variable_eqType  := Eval hnf in EqType compiled_variable compiled_variable_eqMixin.
-
-Definition compile_var (v: var) : option compiled_variable :=
-  match to_reg v with
-  | Some r => Some (LReg r)
-  | None =>
-  match to_xreg v with
-  | Some r => Some (LXReg r)
-  | None =>
-  match to_rflag v with
-  | Some f => Some (LRFlag f)
-  | None => None
-  end end end.
-
-Lemma compile_varI x cv :
-  compile_var x = Some cv →
-  match cv with
-  | LReg r   => to_var r = x
-  | LXReg r  => to_var r = x
-  | LRFlag f => to_var f = x
-  end.
-Proof.
-  rewrite /compile_var.
-  case heqr: (to_reg x) => [ r | ].
-  + by move=> [<-]; apply: of_varI.
-  case heqx: (to_xreg x) => [ r | ].
-  + by move=> [<-]; apply: of_varI.
-  case heqf: (to_rflag x) => [ r | //].
-  by move=> [<-]; apply: of_varI.
-Qed.
 
 (* -------------------------------------------------------------------- *)
 (* Compilation of pexprs *)
@@ -218,6 +166,7 @@ Definition addr_of_xpexpr rip ii sz v e :=
 Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   if to_xreg x is Some r then ok (XReg r)
   else if to_reg x is Some r then ok (Reg r)
+  else if to_regx x is Some r then ok (Regx r)
   else Error (E.verror false "Not a (x)register" ii x).
 
 Definition assemble_word_load rip ii (sz:wsize) (e:pexpr) :=
@@ -362,7 +311,8 @@ Definition check_arg_kind_no_imm (a:asm_arg) (cond: arg_kind) :=
   match a, cond with
   | Condt _, CAcond => true
   | Imm _ _, CAimm _ => true
-  | Reg _, CAreg => true
+  | Reg _ , CAreg => true
+  | Regx _, CAregx => true
   | Addr _, CAmem _ => true
   | XReg _, CAxmm   => true
   | _, _ => false
@@ -399,6 +349,7 @@ Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
     (* this check is not used (yet?) in the correctness proof *)
     if w == w2 then Some (Imm w1) else None
   | Reg _, CAreg => Some a
+  | Regx _, CAregx => Some a
   | Addr _, CAmem _ => Some a
   | XReg _, CAxmm   => Some a
   | _, _ => None
@@ -424,6 +375,7 @@ Definition pp_arg_kind c :=
   | CAimm ws => pp_nobox [:: pp_s "imm "; pp_s (string_of_wsize ws)]
   | CAcond => pp_s "cond"
   | CAreg => pp_s "reg"
+  | CAregx => pp_s "regx"
   | CAxmm => pp_s "xreg"
   end.
 
@@ -527,44 +479,43 @@ Definition assemble_c rip (lc: lcmd) : cexec (seq asm_i) :=
   mapM (assemble_i rip) lc.
 
 (* -------------------------------------------------------------------- *)
+
 Definition asm_typed_reg_of_var (x: var) : cexec asm_typed_reg :=
-  let: {| vtype := ty; vname := n; |} := x in
-  match ty with
-  | sbool => if of_string n is Some r
-             then ok (ABReg r)
-             else Error (E.gen_error true None None (pp_s "6qJYxxWakSyc%"))
-  | sint => Error (E.gen_error true None None (pp_s "vBuu8Nv7AFRC"))
-  | sarr _ => Error (E.gen_error true None None (pp_s "4WLdO8K4viE3"))
-  | sword sz =>
-      if sz == reg_size
-      then if of_string n is Some r
-           then ok (ARReg r)
-           else Error (E.gen_error true None None (pp_s "R+zT50uyf3fF"))
-      else if sz == xreg_size
-           then if of_string n is Some r
-                then ok (AXReg r)
-                else Error (E.gen_error true None None (pp_s "Dh9l31MJeafV"))
-           else Error (E.gen_error true None None (pp_s "+y2SvS1t6pzB"))
-  end.
+  match to_reg x with
+  | Some r => ok (ARReg r)
+  | None =>
+  match to_regx x with
+  | Some r => ok (ARegX r)
+  | None => 
+  match to_xreg x with
+  | Some r => ok (AXReg r)
+  | None =>
+  match to_rflag x with
+  | Some f => ok (ABReg f)
+  | None =>  Error (E.gen_error true None None (pp_s "can not map variable to a register"))
+  end end end end.
 
 Definition var_of_asm_typed_reg (x : asm_typed_reg) : var :=
   match x with
   | ARReg r => to_var r
+  | ARegX r => to_var r
   | AXReg r => to_var r
   | ABReg r => to_var r
   end.
 
 Lemma asm_typed_reg_of_varI x r :
   asm_typed_reg_of_var x = ok r
-  -> x = var_of_asm_typed_reg r :> var.
+  -> x = var_of_asm_typed_reg r:> var.
 Proof.
-  rewrite /asm_typed_reg_of_var.
-  case: x => xtype xname /=.
-  case: xtype => [ | // | // | sz ]; first last.
-  case: (sz == reg_size) /eqP => [-> | _]; first last.
-  case: (sz == xreg_size) /eqP => [-> | _]; last done.
-  all: case e: of_string => [ y | // ] /ok_inj <-.
-  all: by rewrite -(of_stringI e).
+  move=> h;apply/sym_eq; move:h;rewrite /asm_typed_reg_of_var.
+  case heqr: (to_reg x) => [ ? | ].
+  + by move=> [<-]; apply:of_varI.
+  case heqrx: (to_regx x) => [ ? | ].
+  + by move=> [<-]; apply: of_varI.
+  case heqx: (to_xreg x) => [ ? | ].
+  + by move=> [<-]; apply: of_varI.
+  case heqf: (to_rflag x) => [ ? | //].
+  by move=> [<-]; apply: of_varI.
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -605,7 +556,8 @@ Definition assemble_prog (p : lprog) : cexec asm_prog :=
   let rsp := mk_ptr (lp_rsp p) in
   Let _ :=
     assert
-      (to_reg rip == None :> option_eqType ceqT_eqType)
+      ((to_reg  rip == None :> option_eqType ceqT_eqType) && 
+       (to_regx rip == None :> option_eqType ceqT_eqType))  
       (E.gen_error true None None (pp_s "Invalid RIP"))
   in
   Let _ :=

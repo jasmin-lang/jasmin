@@ -27,11 +27,12 @@ type 'len gty =
 
 type writable = Constant | Writable
 type pointer = Direct | Pointer of writable
+type reg_kind = Normal | Extra
 
 type v_kind =
   | Const             (* global parameter  *)
   | Stack of pointer  (* stack variable    *)
-  | Reg   of pointer  (* register variable *)
+  | Reg   of reg_kind * pointer  (* register variable *)
   | Inline            (* inline variable   *)
   | Global            (* global (in memory) constant *) 
   [@@deriving compare,sexp]
@@ -79,6 +80,7 @@ val tbool : 'e gty
 
 val is_stack_kind   : v_kind -> bool
 val is_reg_kind     : v_kind -> bool
+val reg_kind        : v_kind -> reg_kind
 val is_ptr          : v_kind -> bool
 val is_reg_ptr_kind : v_kind -> bool
 val is_stk_ptr_kind : v_kind -> bool

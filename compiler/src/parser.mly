@@ -391,7 +391,7 @@ ptr:
    } 
 
 storage:
-| REG    ptr=ptr { `Reg ptr}
+| REG    ptr=ptr { `Reg ptr }
 | STACK  ptr=ptr { `Stack ptr }
 | INLINE         { `Inline }
 | GLOBAL         { `Global }

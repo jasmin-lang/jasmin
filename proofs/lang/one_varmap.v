@@ -12,7 +12,7 @@ Unset Printing Implicit Defensive.
 Section Section.
 
 Context
-  {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}
+  {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   (p: sprog)
   (extra_free_registers: instr_info → option var)
 .

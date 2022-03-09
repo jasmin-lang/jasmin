@@ -24,6 +24,9 @@ Variant register : Type :=
   | RAX | RCX | RDX | RBX | RSP | RBP | RSI | RDI
   | R8  | R9  | R10 | R11 | R12 | R13 | R14 | R15.
 
+(* -------------------------------------------------------------------- *)
+Variant register_ext : Type :=
+  | MM0 | MM1 | MM2 | MM3 | MM4 | MM5 | MM6 | MM7.
 
 (* -------------------------------------------------------------------- *)
 Variant xmm_register : Type :=
@@ -69,6 +72,21 @@ Qed.
 
 Definition reg_eqMixin := Equality.Mixin reg_eq_axiom.
 Canonical reg_eqType := EqType register reg_eqMixin.
+
+
+(* -------------------------------------------------------------------- *)
+
+Scheme Equality for register_ext.
+
+Lemma regx_eq_axiom : Equality.axiom register_ext_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_register_ext_dec_bl.
+  by apply: internal_register_ext_dec_lb.
+Qed.
+
+Definition regx_eqMixin := Equality.Mixin regx_eq_axiom.
+Canonical regx_eqType := EqType register_ext regx_eqMixin.
 
 (* -------------------------------------------------------------------- *)
 
@@ -136,10 +154,35 @@ Canonical reg_finType :=
   Eval hnf in FinType register reg_finMixin.
 
 (* -------------------------------------------------------------------- *)
+Definition regxs :=
+  [:: MM0; MM1 ; MM2 ; MM3 ; MM4 ; MM5 ; MM6 ; MM7].
+
+Lemma regxs_fin_axiom : Finite.axiom regxs.
+Proof. by case. Qed.
+
+Definition regx_choiceMixin :=
+  PcanChoiceMixin (FinIsCount.pickleK regxs_fin_axiom).
+Canonical regx_choiceType :=
+  Eval hnf in ChoiceType register_ext regx_choiceMixin.
+
+Definition regx_countMixin :=
+  PcanCountMixin (FinIsCount.pickleK regxs_fin_axiom).
+Canonical regx_countType :=
+  Eval hnf in CountType register_ext regx_countMixin.
+
+Definition regx_finMixin :=
+  FinMixin regxs_fin_axiom.
+Canonical regx_finType :=
+  Eval hnf in FinType register_ext regx_finMixin.
+
+(* -------------------------------------------------------------------- *)
 Definition xmm_registers :=
   [:: XMM0; XMM1; XMM2; XMM3; XMM4; XMM5; XMM6; XMM7; XMM8; XMM9; XMM10; XMM11; XMM12; XMM13; XMM14; XMM15 ].
 
 Lemma xmm_registers_fin_axiom : Finite.axiom xmm_registers.
+Proof. by case. Qed.
+
+Lemma mmx_registers_fin_axiom : Finite.axiom regxs.
 Proof. by case. Qed.
 
 Definition xreg_choiceMixin :=
@@ -228,6 +271,39 @@ Instance x86_reg_toS : ToString sword64 register :=
   }.
 
 (* -------------------------------------------------------------------- *)
+
+Definition x86_string_of_regx r :=
+  match r with
+  | MM0 => "MM0"
+  | MM1 => "MM1"
+  | MM2 => "MM2"
+  | MM3 => "MM3"
+  | MM4 => "MM4"
+  | MM5 => "MM5"
+  | MM6 => "MM6"
+  | MM7 => "MM7"
+  end%string.
+
+Lemma x86_string_of_regx_inj : injective x86_string_of_regx.
+Proof.
+  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
+Qed.
+
+Instance eqTC_regx : eqTypeC register_ext :=
+  { ceqP := regx_eq_axiom }.
+
+Instance finC_regx : finTypeC register_ext := 
+  { cenumP := regxs_fin_axiom }.
+
+Instance x86_regx_toS : ToString sword64 register_ext :=
+  { category      := "register"
+  ; to_string     := x86_string_of_regx
+  ; strings       := [seq (x86_string_of_regx x, x) | x <- enum [finType of register_ext]]
+  ; inj_to_string := x86_string_of_regx_inj
+  ; stringsE      := refl_equal
+  }.
+
+(* -------------------------------------------------------------------- *)
 Definition x86_string_of_xmm_register r : string :=
   match r with
   | XMM0 => "XMM0"
@@ -298,22 +374,33 @@ Instance x86_rflag_toS : ToString sbool rflag :=
   }.
 
 (* -------------------------------------------------------------------- *)
+Lemma x86_inj_toS_reg_regx (r:register) (rx: register_ext) : to_string r <> to_string rx.
+Proof.
+  by case:r; case: rx.
+Qed.
+
+(* -------------------------------------------------------------------- *)
 
 Instance eqC_condt : eqTypeC condt :=
   { ceqP := condt_eq_axiom }.
+
 
 (* -------------------------------------------------------------------- *)
 
 Definition x86_callee_saved : seq register :=
   [:: RBX; RBP; RSP; R12; R13; R14; R15 ].
 
-Instance x86_decl : arch_decl register xmm_register rflag condt :=
+Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
   { reg_size := U64
   ; xreg_size := U256
   ; toS_r := x86_reg_toS
+  ; toS_rx:= x86_regx_toS
   ; toS_x := x86_xreg_toS
   ; toS_f := x86_rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
   ; callee_saved := x86_callee_saved
   ; ad_rsp := RSP
+  ; inj_toS_reg_regx := x86_inj_toS_reg_regx
   }.
+
+

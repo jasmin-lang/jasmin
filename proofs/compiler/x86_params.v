@@ -583,12 +583,12 @@ Proof.
        last by rewrite /check_args_kinds /= !andbF.
       case ok_y: xreg_of_var => [y|//]; move /xreg_of_varI in ok_y.
       rewrite !andbT /compat_imm.
-      case: y ok_y => // r xr; rewrite !orbF => /eqP ? /eqP ? _; subst a0 a1; last by [].
+      case: y ok_y => // r xr; rewrite !orbF => /eqP ? /eqP ? _; subst a0 a1 => //.
       rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
       rewrite /truncate_word /x86_XOR /check_size_8_64 hsz64 /= wxor_xx.
       set id := instr_desc_op (XOR sz) => hlo.
       rewrite /SF_of_word msb0.
-      by apply: (@compile_lvals _ _ _ _ _ _ _ _
+      by apply: (@compile_lvals _ _ _ _ _ _ _ _ _
              rip ii m lvs m' s [:: Reg r; Reg r]
              id.(id_out) id.(id_tout)
              (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word sz)))
@@ -608,11 +608,12 @@ Proof.
     rewrite !andbT /compat_imm.
     case: y ok_y => // r xr; rewrite !orbF => /eqP ? /eqP ? _; subst a1 a2.
     + by move: hidc; rewrite /check_args_kinds /= andbF.
+    + by move: hidc; rewrite /check_args_kinds /= andbF.
     rewrite /eval_op /exec_instr_op /= /eval_instr_op /=.
     rewrite /truncate_word /x86_VPXOR hidc /= /x86_u128_binop /check_size_128_256 wsize_ge_U256.
     have -> /= : (U128 ≤ sz)%CMP by case: (sz) hsz64.
     rewrite wxor_xx; set id := instr_desc_op (VPXOR sz) => hlo.
-    by apply: (@compile_lvals _ _ _ _ _ _ _ _
+    by apply: (@compile_lvals _ _ _ _ _ _ _ _ _
                rip ii m lvs m' s [:: a0; XReg r; XReg r]
                id.(id_out) id.(id_tout)
                (0%R: word sz)
@@ -645,18 +646,27 @@ Transparent eval_arg_in_v check_i_args_kinds.
     case: x hvl haux => x [] // hvl haux.
     case heq: xreg_of_var => [ a' | //] /andP[] hc _.
     have := xreg_of_varI heq => {heq}.
-    case: a' hc => //= [ r | xmm].
+    case: a' hc => //= [ r | rx | xmm].
     + rewrite /compat_imm; case:a => //= r' /orP [/eqP [?]|//] hr; subst r'.
       have heq := of_varI hr.
       move: hvl.
       rewrite /get_gvar /= -heq => hvl.
-      case: hlow => _ _ _ /(_ _ _ hvl) hu _ _.
+      case: hlow => _ _ _ /(_ _ _ hvl) hu _ _ _.
       move: hwl hu; rewrite /to_word.
       case: (vl) => // [ ws w /=| []//].
       rewrite /truncate_word /word_uincl.
       case: ifP => // h1 _ /andP [] h2.
       by have := cmp_le_trans h1 h2.
-
+    + rewrite /compat_imm; case:a => //= r' /orP [/eqP [?]|//] hr; subst r'.
+      have heq := of_varI hr.
+      move: hvl.
+      rewrite /get_gvar /= -heq => hvl.
+      case: hlow => _ _ _ _ /(_ _ _ hvl) hu _ _.
+      move: hwl hu; rewrite /to_word.
+      case: (vl) => // [ ws w /=| []//].
+      rewrite /truncate_word /word_uincl.
+      case: ifP => // h1 _ /andP [] h2.
+      by have := cmp_le_trans h1 h2.
     rewrite /compat_imm; case:a => //= xmm' /orP [ /eqP[?]| //] hxmm;subst xmm'.
     rewrite hvh' hv1 /= -hwm /=; do 3! f_equal.
     have := xxgetreg_ex hlow hxmm hvl.
@@ -693,7 +703,7 @@ Transparent eval_arg_in_v check_i_args_kinds.
   case: y hidc hca1 ok_y => // r hidc hca1 /of_varI xr.
   rewrite /mem_write_vals.
   eexists; first reflexivity.
-  case: hlo => h1 hrip hd h2 h3 h4.
+  case: hlo => h1 hrip hd h2 h2x h3 h4.
   move: hwx; rewrite /write_var /set_var.
   rewrite -xr => -[<-]{m'}.
   constructor => //=.
@@ -703,6 +713,8 @@ Transparent eval_arg_in_v check_i_args_kinds.
     + by rewrite Fv.setP_eq /reg_msb_flag /= word_extend_CLEAR zero_extend_u => -[<-].
     rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply inj_to_var.
     by apply h2.
+  + move=> r' v''; rewrite /get_var /on_vu /= Fv.setP_neq; first by apply h2x.
+    by apply/eqP/to_var_reg_neq_regx.
   + move=> r' v''; rewrite /get_var /on_vu /=.
     by rewrite Fv.setP_neq //; apply h3.
   move=> f v''; rewrite /get_var /on_vu /=.
@@ -714,7 +726,6 @@ Definition x86_hagparams : h_asm_gen_params (ap_agp x86_params) :=
     hagp_eval_assemble_cond := eval_assemble_cond;
     hagp_assemble_extra_op := assemble_extra_op;
   |}.
-
 
 (* ------------------------------------------------------------------------ *)
 (* Shared hypotheses. *)
