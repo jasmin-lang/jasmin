@@ -795,11 +795,11 @@ inline fn __chacha_less_than_129_avx(#public reg u64 output plain, #public reg u
 export fn chacha_avx(#public reg u64 output plain, #public reg u32 len, #public reg u64 key nonce, #secret reg u32 counter)
 {
   #msf reg u64 ms;
-  ms = #init_msf();
+  ms = #init_msf();   // LFENCE
   if(len < 129) {
     __chacha_less_than_129_avx(output, plain, len, key, nonce, counter);
   } else {
     __chacha_more_than_128_avx(output, plain, len, key, nonce, counter);
   }
-  ms = #init_msf();
+  ms = #init_msf();   // LFENCE
 }

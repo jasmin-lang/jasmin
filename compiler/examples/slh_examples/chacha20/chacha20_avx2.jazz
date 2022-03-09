@@ -228,7 +228,8 @@ inline fn __store_last_avx2(#public reg u64 output plain, #public reg u32 len, #
 {
   reg u256     r0;
   reg u128     r1;
-  reg u64      r2 j;
+  reg u64      r2;
+  #public reg u64 j;
   reg u8       r3;
   stack u8[16] s0;
 
@@ -663,7 +664,7 @@ inline fn __diagonal_round_x2_avx2(#secret reg u256[4] k, #secret reg u256 r16 r
 // and the rounds_x2 function as:
 inline fn __rounds_x2_avx2(#secret reg u256[4] k) -> #secret reg u256[4]
 {
-  reg u64 c;
+  #public reg u64 c;
   reg u256 r16 r8;
 
   r16 = g_r16;
@@ -723,7 +724,7 @@ inline fn __diagonal_round_x4_avx2(#secret reg u256[4] k1 k2, #secret reg u256 r
 
 inline fn __rounds_x4_avx2(#secret reg u256[4] k1 k2) -> #secret reg u256[4], #secret reg u256[4]
 {
-  reg u64 c;
+  #public reg u64 c;
   reg u256 r16 r8;
 
   r16 = g_r16;
@@ -898,7 +899,7 @@ inline fn __diagonal_round_x8_avx2(#secret reg u256[16] k, #secret stack u256 k1
 
 inline fn __rounds_x8_avx2(#secret reg u256[16] k, #secret stack u256 s_r16 s_r8) -> #secret reg u256[16]
 {
-  reg u64 c;
+  #public reg u64 c;
   //reg bool zf;
   stack u256 k15 k14;
 
@@ -971,8 +972,11 @@ inline fn __chacha_less_than_257_avx2(#public reg u64 output plain, #public reg 
 
 export fn chacha_avx2(#public reg u64 output plain, #public reg u32 len, #public reg u64 key nonce, #secret reg u32 counter)
 {
+  #msf reg u64 ms;
+  ms = #init_msf();     // LFENCE
   if(len < 257)
   { __chacha_less_than_257_avx2(output, plain, len, key, nonce, counter); }
   else
   { __chacha_more_than_256_avx2(output, plain, len, key, nonce, counter); }
+  ms = #init_msf();     // LFENCE
 }
