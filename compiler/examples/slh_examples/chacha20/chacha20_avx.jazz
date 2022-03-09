@@ -34,10 +34,10 @@ param int i_14 = 14;
 param int i_15 = 15;
 param int i_32 = 32;
 
-inline fn __load_shufb_cmd_avx() -> #transient stack u128, #transient stack u128
+inline fn __load_shufb_cmd_avx() -> #secret stack u128, #secret stack u128
 {
-  #transient reg   u128   r16,   r8;
-  #transient stack u128 s_r16, s_r8;
+  #secret reg   u128   r16,   r8;
+  #secret stack u128 s_r16, s_r8;
 
   r16 = g_r16;
   r8 = g_r8;
