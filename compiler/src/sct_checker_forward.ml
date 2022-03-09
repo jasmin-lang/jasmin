@@ -463,6 +463,7 @@ let ensure_regvar ~loc expr =
 let rec ty_instr fenv env msf i =
   let msf1 =
   match i.i_desc with
+  | Csyscall _ -> assert false (* FIXME : Not Implemented *)
   | Cassgn(x, _, _, e) ->
     let lvl = ty_expr ~lvl:Lvl.secret env e in
     ty_lval env msf x lvl

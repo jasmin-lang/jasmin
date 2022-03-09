@@ -144,6 +144,8 @@ Record compiler_params := {
   lowering_opt     : lowering_options;
   is_glob          : var -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
+  fresh_reg        : string -> stype -> Ident.ident;
+  fresh_reg_ptr    : string -> stype -> Ident.ident;
   fresh_counter    : Ident.ident;
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
@@ -219,7 +221,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_id) pg in
+  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_reg_ptr) pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
   Let _ := assert (fvars_correct cparams.(lowering_vars) (p_funcs pa)) 
@@ -260,6 +262,7 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
   Let ps := stack_alloc.alloc_prog
        true
        mov_ofs
+       cparams.(fresh_reg)
        cparams.(global_static_data_symbol)
        cparams.(stack_register_symbol)
        ao.(ao_globals) ao.(ao_global_alloc)
@@ -278,10 +281,10 @@ Definition check_export entries (p: sprog) : cexec unit :=
           else Error (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "unknown export function")))
        ) entries.
 
-Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
+Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
-  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp callee_saved in
+  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp in
   Let pl := linear_prog pd cparams.(extra_free_registers) lparams in
   let pl := cparams.(print_linear) Linearization pl in
   (* tunneling                         *)
@@ -291,8 +294,7 @@ Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
   ok pl.
 
 Definition compiler_back_end_to_x86 (entries: seq funname) (p: sprog) :=
-  let callee_saved := sv_of_list to_var x86_callee_saved in
-  compiler_back_end callee_saved entries p >>= assemble_prog.
+  compiler_back_end entries p >>= assemble_prog.
 
 Definition compile_prog_to_x86 entries subroutines (p: prog): cexec x86_prog :=
   compiler_front_end entries subroutines p >>= compiler_back_end_to_x86 entries.

@@ -429,7 +429,13 @@ Module CmpVar.
 
 End CmpVar.
 
-Module Sv := Smake CmpVar.
+Module Sv. 
+  Include Smake CmpVar.
+
+  (* This is for extraction, and Obj.magic *)
+  Definition fold_var : forall (A:Type), (var → A → A) → t → A → A := @fold.
+End Sv.
+
 Module SvP := MSetEqProperties.EqProperties Sv.
 Module SvD := MSetDecide.WDecide Sv.
 

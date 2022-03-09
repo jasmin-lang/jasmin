@@ -71,9 +71,9 @@ Let Pfor (i:var_i) vs s1 c1 s2 :=
   exists2 vm2, evm s2 <=[X] vm2 & 
     sem_for p2 ev i vs (with_vm s1 vm1) c2 (with_vm s2 vm2).
 
-Let Pfun m1 fn vargs m2 vres :=
+Let Pfun sc1 m1 fn vargs sc2 m2 vres :=
   forall vargs', List.Forall2 value_uincl vargs vargs' ->   
-  exists2 vres', sem_call p2 ev m1 fn vargs' m2 vres' & List.Forall2 value_uincl vres vres'.
+  exists2 vres', sem_call p2 ev sc1 m1 fn vargs' sc2 m2 vres' & List.Forall2 value_uincl vres vres'.
 
 Local Lemma Hskip : sem_Ind_nil Pc.
 Proof. move=> s hsub c2 [] <- vm1 hvm1; exists vm1 => //; constructor. Qed.
@@ -223,7 +223,17 @@ Proof.
   apply: (Eseq hipre); apply sem_seq1; constructor.
   apply: Efor => //.
   have -> : wrange UpTo 0 n = ziota 0 n by rewrite /wrange Z.sub_0_r.
-  by case: (s1) hw hfor; rewrite /write_var /= => ??; t_xrbindP => ?? <-.
+  by case: (s1) hw hfor; rewrite /write_var /= => ???; t_xrbindP => ?? <-.
+Qed.
+
+Local Lemma Hsyscall : sem_Ind_syscall p1 Pi_r.
+Proof.
+   move=> s1 scs m s2 o xs es ves vs he hsys hw ii; rewrite /Pi vars_I_syscall /vars_lvals => hsub /= _ [<-] vm1 hvm1. 
+  have [|v1 hv1 uv1]:= sem_pexprs_uincl_on (vm2:= vm1) _ he; first by apply: vmap_uincl_onI hvm1;SvD.fsetdec.
+  have [vs' hsys' uv1'] := exec_syscallP hsys uv1.
+  have [|vm2 hvm2 hw']:= write_lvals_uincl_on _ uv1' hw hvm1; first by SvD.fsetdec.
+  exists vm2 => //=; first by apply: vmap_uincl_onI hvm2; SvD.fsetdec.
+  by apply sem_seq1; constructor; econstructor; eauto; rewrite -eq_globs.
 Qed.
 
 Local Lemma Hif_true : sem_Ind_if_true p1 ev Pc Pi_r.
@@ -293,7 +303,7 @@ Qed.
 
 Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
 Proof.
-  move=> s1 m2 s2 ii xs fn args vargs vs he _ hfun hw ii'.
+  move=> s1 scs2 m2 s2 ii xs fn args vargs vs he _ hfun hw ii'.
   rewrite /Pi vars_I_call /vars_lvals => hsub _ [<-] vm1 hvm1.
   have [|vargs' he' uvars]:= sem_pexprs_uincl_on (vmap_uincl_onI _ hvm1) he; first by SvD.fsetdec.
   have [vs' hfun' uvs']:= hfun _ uvars.
@@ -304,8 +314,8 @@ Qed.
 
 Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
 Proof.
-  move=> m1 m2 fn [fi tin params body tout res extra] /=.
-  move=> vargs vargs' s0 s1 s2 vres vres' hget hca hi hw _ hc hres hcr hfi vargs1 hva.
+  move=> scs1 m1 scs2 m2 fn [fi tin params body tout res extra] /=.
+  move=> vargs vargs' s0 s1 s2 vres vres' hget hca hi hw _ hc hres hcr hscs hfi vargs1 hva.
   have [fd2 hfd hget']:= all_checked hget.
   have hpex : p_extra p1 = p_extra p2.
   + by move: Hp; rewrite /array_copy_prog; t_xrbindP => ???? <-.
@@ -320,21 +330,21 @@ Proof.
   have [| vres1 hres' ures1]:= sem_pexprs_uincl_on (vmap_uincl_onI _ hvm3) hres.
   + by rewrite vars_l_read_es; SvD.fsetdec.
   have [vres1' hcr' uvres1'] := mapM2_truncate_val hcr ures1.
-  move: hi hget' hca' hw' hc' hres' hcr' hfi.
-  rewrite (sem_pexprs_get_var gd) => hi hget' hca' hw' hc' hres' hcr' hfi.
+  move: hi hget' hca' hw' hc' hres' hcr' hscs hfi.
+  rewrite (sem_pexprs_get_var gd) => hi hget' hca' hw' hc' hres' hcr' hscs hfi.
   exists vres1' => //; econstructor; eauto => /=.
   by rewrite -hpex; case: (s0) hi.
 Qed.
 
-Lemma array_copy_fdP f mem mem' va va' vr:
+Lemma array_copy_fdP f scs mem scs' mem' va va' vr:
     List.Forall2 value_uincl va va' ->
-    sem_call p1 ev mem f va mem' vr ->
-    exists vr', sem_call p2 ev mem f va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+    sem_call p1 ev scs mem f va scs' mem' vr ->
+    exists vr', sem_call p2 ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
 Proof.
   move=> Hall Hsem.
-  have [vres' h1 h2] := @sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+  have [vres' h1 h2] := @sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
                Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc
-               mem f va mem' vr Hsem _ Hall.
+               scs mem f va scs' mem' vr Hsem _ Hall.
   by exists vres'.
 Qed.
 

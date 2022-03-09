@@ -1,11 +1,11 @@
 (* This step has two purposes: 
    1/ Fix the size information (n) in Ocopy(ws, n). 
       For the moment pretyping add a dummy value for n, it is fixed here.
-   2/ Replace x = y when x and y are arrays and at least one of then 
-      is a reg array with #copy, that will be transformed with loop.
+   2/ Replace x = y with #copy, when x and y are arrays and at least one of them
+      is a reg array. This #copy will be transformed into a loop later.
       This is optional: !Glob_options.introduce_array_copy 
 *)
-        
+
 open Utils
 open Prog
 module L = Location
@@ -65,6 +65,14 @@ and iac_instr_r loc ir =
     | Sopn.Ocopy _, _ -> assert false
     | _ -> ir
     end
+  | Csyscall (xs, (* Syscall.GetRandom *) _, es) -> 
+    (* Fix the size it is dummy for the moment *)
+    let ty =
+       match xs with
+       | [x] -> Typing.ty_lval loc x 
+       | _ -> assert false in
+      let p = Conv.pos_of_int (Prog.size_of ty) in
+      Csyscall(xs, p, es)   
   | Ccall _ -> ir
 
 let iac_func f =

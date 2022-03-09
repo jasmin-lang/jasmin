@@ -32,7 +32,8 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Lemma spec_x86_mov_op :
-  forall (lp : lprog) (s : estate) fn pc x lbl ptr ii,
+  forall (lp : lprog) (s : estate) (fn : funname) (pc : nat) (x : var) (lbl : label.label) 
+    (ptr : word Uptr) (ii : instr_info),
   vtype x == sword Uptr ->
   label.encode_label (label_in_lprog lp) (fn, lbl) = Some ptr ->
   let i := LstoreLabel {| v_var := x; v_info := 1%positive |} lbl in
@@ -45,7 +46,7 @@ Proof.
   rewrite /= /eval_instr /= /sem_sopn /= /exec_sopn /= hlabel.
   rewrite /write_var /= /set_var /=.
   case: x hty => _ xn /= -> /=.
-  by rewrite zero_extend_u wrepr_unsigned.
+  by rewrite !zero_extend_u wrepr_unsigned.
 Qed.
 
 Lemma spec_x86_allocate_stack_frame :
@@ -113,8 +114,8 @@ Definition spec_x86_ensure_rsp_alignment :
          i
          (of_estate s1 fn pc)
        = ok (of_estate (with_vm s1 vm') fn pc.+1),
-     vm' = (evm s1).[vrsp <- ok (pword_of_word rsp')]%vmap [\sv_of_flags rflags],
-     forall x, Sv.In x (sv_of_flags rflags) -> ~ is_ok (vm'.[x]%vmap) -> (evm s1).[x]%vmap = vm'.[x]%vmap
+     vm' = (evm s1).[vrsp <- ok (pword_of_word rsp')]%vmap [\ vflags],
+     forall x, Sv.In x vflags -> ~ is_ok (vm'.[x]%vmap) -> (evm s1).[x]%vmap = vm'.[x]%vmap
    & wf_vm vm'].
 Proof.
   move=> lp s1 rsp_id ws ts' sp_rsp ii fn.
@@ -131,11 +132,11 @@ Proof.
     have hneq: forall (f:rflag), to_var f != x.
     + move=> f.
       apply /eqP => heq.
-      apply /hin /sv_of_flagsP /mapP.
+      apply /hin /sv_of_listP /mapP.
       exists f => //.
       by apply /mapP; eexists; last by reflexivity.
     by rewrite !Fv.setP_neq.
-  + move=> x /sv_of_flagsP /mapP [f _ ->].
+  + move=> x /sv_of_listP /mapP [f _ ->].
     by case f;
       repeat (rewrite Fv.setP_eq || rewrite Fv.setP_neq //).
   by do! apply wf_vm_set.
@@ -171,7 +172,7 @@ Proof.
     done.
 Qed.
 
-Definition h_x86_linearization_params : h_linearization_params x86_mov_op x86_linearization_params.
+Definition h_x86_linearization_params : h_linearization_params x86_linear_sem.x86_mov_eop x86_linearization_params.
 Proof.
   split.
   - exact: spec_x86_mov_op.

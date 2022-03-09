@@ -216,8 +216,6 @@ let pp_instr_velem_long =
 type 'a tbl = 'a Conv.coq_tbl
 type  gd_t  = Global.glob_decl list
 
-(* -------------------------------------------------------------------- *)
-
 module type BPrinter = sig 
   val style           : Glob_options.x86_assembly_style
   val imm_pre         : string
@@ -390,6 +388,9 @@ module Printer (BP:BPrinter) = struct
   let pp_name_ext pp_op =
     Printf.sprintf "%s%s" (Conv.string_of_string0 pp_op.pp_aop_name) (pp_ext pp_op.pp_aop_ext)
 
+  let pp_syscall (_o : Syscall.syscall_t) = 
+    "__jasmin_syscall_randombytes__"
+
   (* -------------------------------------------------------------------- *)
   let pp_instr tbl name (i : (_, _, _, _, _) Arch_decl.asm_i) =
     match i with
@@ -419,7 +420,11 @@ module Printer (BP:BPrinter) = struct
       let name = pp_name_ext pp in
       let args = pp_asm_args pp.pp_aop_args in
       `Instr(name, args)
-  
+    | SysCall(op) ->
+      let name = "call" in
+      let args = [pp_syscall op] in  
+      `Instr(name, args)
+
   (* -------------------------------------------------------------------- *)
   let pp_instr tbl name (fmt : Format.formatter) (i : (_, _, _, _, _) Arch_decl.asm_i) =
     pp_gen fmt (pp_instr tbl name i)

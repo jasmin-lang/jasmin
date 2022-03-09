@@ -12,13 +12,16 @@ val live_fd : bool -> 'info func -> (Sv.t * Sv.t) func
 
 val liveness : bool -> 'info prog -> (Sv.t * Sv.t) prog
 
-(** [iter_call_sites cb f] runs the [cb] function for all call site in [f] with
+(** [iter_call_sites cbf cbs f] runs the [cbf] function for all call site in [f] with
       the location of the call instruction, the name of the called function, the
       ℓ-values, and the sets of live variables before and after the call.
+      And similarly run [cbs] for each system calls. 
 
     Requires the function [f] to be annotated with liveness information
 *)
-val iter_call_sites : (L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) -> (Sv.t * Sv.t) func -> unit
+val iter_call_sites : (L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) -> 
+                      (L.i_loc -> Syscall.syscall_t -> lvals -> Sv.t * Sv.t -> unit) ->
+                      (Sv.t * Sv.t) func -> unit
 
 val pp_info : Format.formatter -> Sv.t * Sv.t -> unit
 

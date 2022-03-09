@@ -1026,6 +1026,34 @@ Proof.
   by rewrite /I.memi !zify; lia.
 Qed.
 
+Lemma subset_remove bytes i :
+  subset (remove bytes i) bytes.
+Proof.
+  apply /subsetP => i'.
+  by rewrite removeE => /andP [? _].
+Qed.
+
+Lemma subset_remove_compat_l bytes1 bytes2 i :
+  subset bytes1 bytes2 ->
+  subset (remove bytes1 i) (remove bytes2 i).
+Proof.
+  move=> /subsetP hsubset.
+  apply /subsetP => i'.
+  rewrite !removeE => /andP [/hsubset hmem hnmem].
+  by apply /andP.
+Qed.
+
+Lemma subset_remove_compat_r bytes i1 i2 :
+  I.subset i1 i2 ->
+  subset (remove bytes i2) (remove bytes i1).
+Proof.
+  move=> /I.memi_incl hsub.
+  apply /subsetP => i.
+  rewrite !removeE => /andP [hmem /negP hnmem].
+  apply /andP; split=> //.
+  apply /negP; auto.
+Qed.
+
 Lemma disjoint_incl_l b1 b2 b :
   subset b1 b2 ->
   disjoint b2 b ->

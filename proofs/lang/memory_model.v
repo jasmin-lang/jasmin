@@ -5,6 +5,7 @@ From CoqWord Require Import ssrZ.
 Require Import strings word utils.
 Import Utf8 ZArith.
 Import ssrring.
+(* Require Import memory_utils. *)
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -129,6 +130,13 @@ Section CoreMem.
   Proof.
     rewrite /read /= is_align8 /= add_0.
     by case: get => //= w; rewrite -LE.encode8E LE.decodeK.
+  Qed.
+
+  Lemma set_write8 m p w: set m p w = write m p w.
+  Proof.
+    rewrite /write /= is_align8 /= add_0.
+    have := LE.encode8E w; rewrite LE.encodeE /= => -[->].
+    by case: set.
   Qed.
 
   Lemma readE m p sz : 

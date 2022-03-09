@@ -1,38 +1,10 @@
 open Var0
 open Prog
+include CoreConv
+
 module W = Wsize
 module T = Type
 module C = Expr
-
-let rec pos_of_z z =
-  let open Z.Compare in
-  if z <= Z.one then BinNums.Coq_xH
-  else
-    let p = pos_of_z (Z.shift_right z 1) in
-    if (Z.erem z (Z.of_int 2)) = Z.one
-    then BinNums.Coq_xI p
-    else BinNums.Coq_xO p
-
-let rec z_of_pos pos =
-  let open Z in
-  match pos with
-  | BinNums.Coq_xH   -> Z.one
-  | BinNums.Coq_xO p -> Z.shift_left (z_of_pos p) 1
-  | BinNums.Coq_xI p -> Z.shift_left (z_of_pos p) 1 + Z.one
-
-let cz_of_z z =
-  let open Z.Compare in
-  if z = Z.zero then BinNums.Z0
-  else if z < Z.zero then BinNums.Zneg (pos_of_z (Z.abs z))
-  else BinNums.Zpos (pos_of_z z)
-
-let z_of_cz z =
-  match z with
-  | BinNums.Zneg p -> Z.neg (z_of_pos p)
-  | BinNums.Z0     -> Z.zero
-  | BinNums.Zpos p -> z_of_pos p
-
-let cz_of_int i = cz_of_z (Z.of_int i)
 
 let z_of_nat n =
   z_of_cz (BinInt.Z.of_nat n)
@@ -282,6 +254,12 @@ and cinstr_r_of_instr_r tbl p i tl =
       C.Copn(clval_of_lvals tbl x, t, o, cexpr_of_exprs tbl e) in
     C.MkI(p, ir) :: tl
 
+  | Csyscall(x,o,e) ->
+    let ir =
+      C.Csyscall(clval_of_lvals tbl x, o, cexpr_of_exprs tbl e) in
+    C.MkI(p, ir) :: tl
+
+
   | Cif(e,c1,c2) ->
     let c1 = cstmt_of_stmt tbl c1 [] in
     let c2 = cstmt_of_stmt tbl c2 [] in
@@ -321,6 +299,9 @@ and instr_r_of_cinstr_r tbl = function
   | C.Copn(x,t,o,e) ->
     Copn(lval_of_clvals tbl x, t, o, expr_of_cexprs tbl e)
 
+  | C.Csyscall(x,o,e) ->
+    Csyscall(lval_of_clvals tbl x, o, expr_of_cexprs tbl e)
+  
   | C.Cif(e,c1,c2) ->
     let c1 = stmt_of_cstmt tbl c1 in
     let c2 = stmt_of_cstmt tbl c2 in

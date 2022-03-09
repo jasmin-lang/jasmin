@@ -45,11 +45,7 @@ let rec pp_expr tbl fmt =
   | E.Pload (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x pp_expr e
   | E.Papp1 (op, e) -> F.fprintf fmt "(%s %a)" (Pr.string_of_op1 op) pp_expr e
   | E.Papp2 (op, e1, e2) -> F.fprintf fmt "(%a %s %a)" pp_expr e1 (Pr.string_of_op2 op) pp_expr e2
-  | PappN (Opack(sz,pe) , es) ->
-    F.fprintf fmt "@[(%s [%a])@]" (Pr.string_of_Opack sz pe) (pp_list ",@ " pp_expr) es
-  | PappN (Ocombine_flags c, es) ->
-    F.fprintf fmt "@[%s(%a)@]" (Pr.string_of_combine_flags c) (pp_list ",@ " pp_expr) es 
-
+  | E.PappN (_op, _es) -> assert false
   | E.Pif (_, c, e1, e2) -> F.fprintf fmt "(%a ? %a : %a)" pp_expr c pp_expr e1 pp_expr e2
 
 let pp_lval tbl fmt =
@@ -70,6 +66,9 @@ let pp_label fmt lbl =
 let pp_remote_label tbl fmt (fn, lbl) =
   F.fprintf fmt "%s.%a" (Conv.string_of_funname tbl fn) pp_label lbl
 
+let pp_syscall fmt (_o : Syscall.syscall_t) = 
+  F.fprintf fmt "GetRandom"
+
 let pp_instr tbl fmt i =
   match i.li_i with
   | Lopn (lvs, op, es) ->
@@ -77,6 +76,7 @@ let pp_instr tbl fmt i =
       (pp_list ",@ " (pp_lval tbl)) lvs
       Pr.pp_string0 (Sopn.string_of_sopn (Arch_extra.asm_opI X86_extra.x86_extra) op)
       (pp_list ",@ " (pp_expr tbl)) es
+  | Lsyscall o  -> F.fprintf fmt "SysCall %s" (Printer.pp_syscall o)
   | Lalign     -> F.fprintf fmt "Align"
   | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl
   | Lgoto lbl -> F.fprintf fmt "Goto %a" (pp_remote_label tbl) lbl
