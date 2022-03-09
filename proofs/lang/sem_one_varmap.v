@@ -35,7 +35,7 @@ The semantic predicates are indexed by a set of variables which is *precisely* t
 
 Section ASM_EXTRA.
 
-Context {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}.
+Context {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}.
 
 Definition get_pvar (e: pexpr) : exec var :=
   if e is Pvar {| gv := x ; gs := Slocal |} then ok (v_var x) else type_error.
@@ -52,7 +52,7 @@ Notation kill_vars := (Sv.fold kill_var).
 
 Section ASM_EXTRA.
 
-Context {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}.
+Context {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}.
 
 Lemma kill_varE vm y x :
   ((kill_var x vm).[y] = if x == y then pundef_addr (vtype y) else vm.[y])%vmap.

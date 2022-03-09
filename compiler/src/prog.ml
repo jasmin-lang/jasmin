@@ -23,10 +23,12 @@ type base_ty =
 type writable = Constant | Writable
 type pointer = Direct | Pointer of writable
 
+type reg_kind = Normal | Extra
+
 type v_kind =
   | Const            (* global parameter  *)
   | Stack of pointer (* stack variable    *)
-  | Reg   of pointer (* register variable *)
+  | Reg   of reg_kind * pointer (* register variable *)
   | Inline           (* inline variable   *)
   | Global           (* global (in memory) constant *) 
 
@@ -90,9 +92,19 @@ let is_reg_kind k =
   | Reg _ -> true
   | _     -> false
 
+let reg_kind k = 
+  match k with
+  | Reg (k, _) -> k
+  | _     -> assert false
+
+let is_reg_direct_kind k = 
+  match k with
+  | Reg (_, Direct) -> true
+  | _ -> false
+
 let is_reg_ptr_kind k = 
   match k with
-  | Reg (Pointer _) -> true
+  | Reg (_, Pointer _) -> true
   | _ -> false
 
 let is_stk_ptr_kind k = 
@@ -102,7 +114,7 @@ let is_stk_ptr_kind k =
 
 let is_ptr k = 
   match k with
-  | Stack k | Reg k -> k <> Direct 
+  | Stack k | Reg(_, k) -> k <> Direct 
   | _ -> false
 
 (* ------------------------------------------------------------------------ *)
@@ -299,8 +311,8 @@ module Sv = Set.Make  (V)
 module Mv = Map.Make  (V)
 module Hv = Hash.Make (V)
 
-let rip = V.mk "RIP" (Reg Direct) u64 L._dummy []
-let rsp = V.mk "RSP" (Reg Direct) u64 L._dummy []
+let rip = V.mk "RIP" (Reg(Normal, Direct)) u64 L._dummy []
+let rsp = V.mk "RSP" (Reg(Normal, Direct)) u64 L._dummy []
 (* ------------------------------------------------------------------------ *)
 (* Function name                                                            *)
 
@@ -499,7 +511,7 @@ let is_stack_var v =
   is_stack_kind v.v_kind 
 
 let is_reg_arr v =
-  v.v_kind = Reg Direct && is_ty_arr v.v_ty
+  is_reg_direct_kind v.v_kind && is_ty_arr v.v_ty
 
 let is_stack_array x =
   let x = L.unloc x in

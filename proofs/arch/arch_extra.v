@@ -118,14 +118,14 @@ End ARCH.
 (* Extra ops are non-existing architecture-specific asm instructions that we
    replace by real asm instructions during the asmgen pass.
 *)
-Class asm_extra (reg xreg rflag cond asm_op extra_op : Type) := 
-  { _asm   :> asm reg xreg rflag cond asm_op
+Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) := 
+  { _asm   :> asm reg regx xreg rflag cond asm_op
   ; _extra :> asmOp extra_op (* description of extra ops *)
   ; to_asm : instr_info -> extra_op -> lvals -> pexprs -> cexec (asm_op_msb_t * lvals * pexprs)
       (* how to compile extra ops into asm op *)
   }.
 
-Definition extra_op_t {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op} := extra_op.
+Definition extra_op_t {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op} := extra_op.
 
 Section AsmOpI.
 

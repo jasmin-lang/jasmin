@@ -548,10 +548,14 @@ let tt_pointer dfl_writable (p:S.ptr) : P.pointer =
     P.Pointer (if dfl_writable then P.Writable else P.Constant)
   | `Direct  -> P.Direct
 
+let tt_reg_kind = function
+  | `Normal -> P.Normal
+  | `Extra -> P.Extra
+
 let tt_sto dfl_writable (sto : S.pstorage) : P.v_kind =
   match sto with
   | `Inline  -> P.Inline
-  | `Reg   p -> P.Reg (tt_pointer dfl_writable p)
+  | `Reg   (k, p) -> P.Reg (tt_reg_kind k, tt_pointer dfl_writable p)
   | `Stack p -> P.Stack (tt_pointer dfl_writable p)
   | `Global  -> P.Global
 
@@ -1199,7 +1203,7 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 
   let reject_constant_pointers loc x =
     match x.P.v_kind with
-    | Stack (Pointer Constant) | Reg (Pointer Constant) ->
+    | Stack (Pointer Constant) | Reg (_, Pointer Constant) ->
        rs_tyerror ~loc (WriteToConstantPointer x.P.v_name)
     | _ -> ()
   in
@@ -1786,7 +1790,7 @@ let tt_call_conv loc params returns cc =
 
   | Some `Export ->
     let check s x = 
-      if (L.unloc x).P.v_kind <> Reg Direct then 
+      if (L.unloc x).P.v_kind <> Reg(Normal, Direct) then 
         rs_tyerror ~loc:(L.loc x) 
           (string_error "%a has kind %a, only reg are allowed in %s of export function"
             Printer.pp_pvar (L.unloc x)
@@ -1812,8 +1816,8 @@ let tt_call_conv loc params returns cc =
         let loc = L.loc x in
         let x = L.unloc x in
         match x.P.v_kind with
-        | P.Reg Direct -> None
-        | P.Reg (Pointer writable) -> 
+        | P.Reg(_, Direct) -> None
+        | P.Reg(_, Pointer writable) -> 
           if writable = Constant then
             warning Always (L.i_loc0 loc) "no need to return a [reg const ptr] %a"
               Printer.pp_pvar x;
@@ -1823,10 +1827,14 @@ let tt_call_conv loc params returns cc =
                                Printer.pp_pvar x);
           i
         | _ -> assert false) returns in
+    let is_writable_ptr k = 
+      match k with
+      | P.Reg(_, Pointer Writable) -> true
+      | _ -> false in
     let check_writable_param i x = 
       let loc = L.loc x in
       let x = L.unloc x in
-      if x.P.v_kind = Reg (Pointer Writable) then
+      if is_writable_ptr x.P.v_kind then
         if not (List.exists ((=) (Some i)) returned_params) then
           rs_tyerror ~loc (string_error "%a is mutable, it should be returned"
                              Printer.pp_pvar x) in

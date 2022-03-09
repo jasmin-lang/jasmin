@@ -207,7 +207,7 @@ let pp_pointer = function
 let pp_storage fmt s =
   latex "storageclass" fmt
     (match s with
-     | `Reg ptr -> "reg" ^ (pp_pointer ptr)
+     | `Reg(k,ptr) -> "reg" ^ (if k = `Normal then "" else "x")^(pp_pointer ptr)
      | `Stack ptr -> "stack" ^ (pp_pointer ptr)
      | `Inline -> "inline"
      | `Global -> "global")

@@ -22,8 +22,8 @@ let is_array_copy (x:lval) (e:expr) =
         begin match y.v_ty with
         | Arr(yws, yn) ->
            assert (arr_size xws xn <= arr_size yws yn);
-           if x.v_kind = Reg Direct then Some (xws, xn)
-           else if y.v_kind = Reg Direct then Some (yws, arr_size xws xn / size_of_ws yws)
+           if x.v_kind = Reg(Normal, Direct) then Some (xws, xn)
+           else if y.v_kind = Reg(Normal, Direct) then Some (yws, arr_size xws xn / size_of_ws yws)
            else None
         | _ -> None
         end
