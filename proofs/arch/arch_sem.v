@@ -46,54 +46,9 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* -------------------------------------------------------------------- *)
-
-Module RegMap. Section Section.
-
-  Context `{arch : arch_decl }.
-
-  Definition map := (* {ffun reg_t -> wreg}. *)
-    FinMap.map (T:= reg_t) wreg.
-
-  Definition set (m : map) (x : reg_t) (y : wreg) : map :=
-    FinMap.set m x y.
-
-End Section. End RegMap.
-
-(* -------------------------------------------------------------------- *)
-
-Module XRegMap. Section Section.
-  Context `{arch : arch_decl}.
-
-  Definition map := (* {ffun xreg_t -> wxreg }. *)
-    FinMap.map (T:= xreg_t) wxreg.
-
-  Definition set (m : map) (x : xreg_t) (y : wxreg) : map :=
-    FinMap.set m x y.
-
-End Section. End XRegMap.
-
-(* -------------------------------------------------------------------- *)
-
-Module RflagMap. Section Section.
-  Context `{arch : arch_decl}.
-
-  Definition map := (* {ffun rflag_t -> rflagv}. *)
-    FinMap.map (T:= rflag_t) rflagv.
-
-  Definition set (m : map) (x : rflag_t) (y : rflagv) : map :=
-    FinMap.set m x y.
-
-End Section. End RflagMap.
-
-(* -------------------------------------------------------------------- *)
-Notation regmap   := RegMap.map.
-Notation xregmap  := XRegMap.map.
-Notation rflagmap := RflagMap.map.
-
-(* -------------------------------------------------------------------- *)
 Section SEM.
 
-Context {reg xreg rflag cond asm_op} {asm_d : asm reg xreg rflag cond asm_op}. 
+Context {reg regx xreg rflag cond asm_op} {asm_d : asm reg regx xreg rflag cond asm_op}. 
 
 Record asm_state := AsmState {
   asm_m  :> asmmem;
@@ -184,6 +139,7 @@ Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
     | _        => type_error
     end
   | Reg r     => ok (Vword (s.(asm_reg) r))
+  | Regx r    => ok (Vword (s.(asm_regx) r))
   | Addr addr =>
     let a := decode_addr s addr in
     match ty with
@@ -229,6 +185,7 @@ Definition mem_write_rflag (s : asmmem) (f:rflag_t) (b:option bool) :=
      asm_scs  := s.(asm_scs);
      asm_mem  := s.(asm_mem);
      asm_reg  := s.(asm_reg);
+     asm_regx := s.(asm_regx);
      asm_xreg := s.(asm_xreg);
      asm_flag := RflagMap.set s.(asm_flag) f (o2rflagv b);
    |}.
@@ -240,6 +197,8 @@ Definition mem_write_mem (l : pointer) sz (w : word sz) (s : asmmem) :=
      asm_scs  := s.(asm_scs);
      asm_mem  := m;
      asm_reg  := s.(asm_reg);
+     asm_regx := s.(asm_regx);
+     asm_rip  := s.(asm_rip); 
      asm_xreg := s.(asm_xreg);
      asm_flag := s.(asm_flag);
   |}.
@@ -266,11 +225,22 @@ Definition mem_write_reg (f: msb_flag) (r: reg_t) sz (w: word sz) (m: asmmem) :=
   |}.
 
 (* -------------------------------------------------------------------- *)
+Definition mem_write_regx (f: msb_flag) (r: regx_t) sz (w: word sz) (m: asmmem) :=
+  {|
+    asm_rip  := m.(asm_rip); 
+    asm_mem  := m.(asm_mem);
+    asm_reg := m.(asm_reg);
+    asm_regx  := RegXMap.set m.(asm_regx) r (word_extend f (m.(asm_regx) r) w);
+    asm_xreg := m.(asm_xreg);
+    asm_flag := m.(asm_flag);
+  |}.
+
+(* -------------------------------------------------------------------- *)
 Definition mem_write_xreg (f: msb_flag) (r: xreg_t) sz (w: word sz) (m: asmmem) :=
   {| asm_rip  := m.(asm_rip);
-     asm_scs  := m.(asm_scs);   
      asm_mem  := m.(asm_mem);
      asm_reg  := m.(asm_reg);
+     asm_regx := m.(asm_regx);
      asm_xreg := XRegMap.set m.(asm_xreg) r (word_extend f (m.(asm_xreg) r) w);
      asm_flag := m.(asm_flag);
   |}.
@@ -287,6 +257,7 @@ Definition mem_write_word (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) 
       Let _ := assert (check_oreg or a) ErrType in
       match a with
       | Reg r   => ok (mem_write_reg  f r w s)
+      | Regx r  => ok (mem_write_regx  f r w s)
       | XReg x  => ok (mem_write_xreg f x w s)
       | Addr addr => mem_write_mem (decode_addr s addr) w s
       | _       => type_error
@@ -434,6 +405,7 @@ Proof.
   move => ? ? _; case: d.1 => [ [] | ] //=.
   - by move => ? /ok_inj <-.
   move => _ ? ?; case: onth => //; t_xrbindP => - [] //.
+  - by move => ? _ _ /ok_inj <-.
   - by move => ? _ _ /ok_inj <-.
   - by rewrite /mem_write_mem; t_xrbindP => ? _ _ ? /Memory.write_mem_stable ? <- /=.
   by move => ? _ _ /ok_inj <-.

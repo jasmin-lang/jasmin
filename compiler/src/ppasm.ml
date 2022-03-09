@@ -93,6 +93,21 @@ let pp_register ~(reg_pre:string) (ws : rsize) (reg : X86_decl.register) =
   Printf.sprintf "%s%s" reg_pre s   
 
 (* -------------------------------------------------------------------- *)
+
+let pp_register_ext ~(reg_pre:string) (_ws: W.wsize) (r: X86_decl.register_ext) : string =
+  Format.sprintf "%smm%d" 
+    reg_pre
+    (match r with
+     | MM0 -> 0
+     | MM1 -> 1
+     | MM2 -> 2
+     | MM3 -> 3
+     | MM4 -> 4
+     | MM5 -> 5
+     | MM6 -> 6
+     | MM7 -> 7)
+
+(* -------------------------------------------------------------------- *)
 let pp_xmm_register ~(reg_pre:string) (ws: W.wsize) (r: X86_decl.xmm_register) : string =
   Format.sprintf "%s%smm%d" 
     reg_pre
@@ -221,7 +236,7 @@ module type BPrinter = sig
   val imm_pre         : string
   val reg_pre         : string
   val indirect_pre    : string
-  val pp_address      : W.wsize -> (X86_decl.register, 'a, 'b, 'c) Arch_decl.address -> string
+  val pp_address      : W.wsize -> (X86_decl.register, 'a, 'b, 'c, 'd) Arch_decl.address -> string
   val rev_args        : 'a list -> 'a list
   val pp_iname_ext    : W.wsize -> string
   val pp_iname2_ext   : char list -> W.wsize -> W.wsize -> string
@@ -242,7 +257,7 @@ module ATT : BPrinter = struct
   let indirect_pre = "*"
 
   (* -------------------------------------------------------------------- *)
-  let pp_reg_address (addr : (_, _, _, _) Arch_decl.reg_address) =
+  let pp_reg_address (addr : (_, _, _, _, _) Arch_decl.reg_address) =
     let disp = Conv.z_of_int64 addr.ad_disp in
     let base = addr.ad_base in
     let off  = addr.ad_offset in
@@ -265,7 +280,7 @@ module ATT : BPrinter = struct
           Printf.sprintf "%s(%s,%s,%s)" disp base off (pp_scale scal)
     end
   
-  let pp_address _ws (addr : (_, _, _, _) Arch_decl.address) =
+  let pp_address _ws (addr : (_, _, _, _, _) Arch_decl.address) =
     match addr with
     | Areg ra -> pp_reg_address ra
     | Arip d ->
@@ -304,7 +319,7 @@ module Intel : BPrinter = struct
   let pp_xmm_register = pp_xmm_register
 
   (* -------------------------------------------------------------------- *)
-  let pp_reg_address (addr : (_, _, _, _) Arch_decl.reg_address) =
+  let pp_reg_address (addr : (_, _, _, _, _) Arch_decl.reg_address) =
     let disp = Conv.z_of_int64 addr.ad_disp in
     let base = addr.ad_base in
     let off  = addr.ad_offset in
@@ -332,7 +347,7 @@ module Intel : BPrinter = struct
     | U128 -> "xmmword"
     | U256 -> "ymmword"
 
-  let pp_address ws (addr : (_, _, _, _) Arch_decl.address) =
+  let pp_address ws (addr : (_, _, _, _, _) Arch_decl.address) =
     match addr with
     | Areg ra -> Printf.sprintf "%s ptr[%s]" (pp_address_size ws) (pp_reg_address ra)
     | Arip d ->
@@ -361,11 +376,12 @@ module Printer (BP:BPrinter) = struct
     Format.sprintf "%s%s" imm_pre (Z.to_string imm)
 
   (* -------------------------------------------------------------------- *)
-  let pp_asm_arg ((ws,op):(W.wsize * (_, _, _, _) Arch_decl.asm_arg)) =
+  let pp_asm_arg ((ws,op):(W.wsize * (_, _, _, _, _) Arch_decl.asm_arg)) =
     match op with
     | Condt  _   -> assert false
     | Imm(ws, w) -> pp_imm (Conv.z_of_word ws w)
     | Reg r      -> pp_register ~reg_pre (rsize_of_wsize ws) r
+    | Regx r     -> pp_register_ext ~reg_pre ws r
     | Addr addr  -> BP.pp_address ws addr
     | XReg r     -> pp_xmm_register ~reg_pre ws r
   
@@ -392,7 +408,7 @@ module Printer (BP:BPrinter) = struct
     "__jasmin_syscall_randombytes__"
 
   (* -------------------------------------------------------------------- *)
-  let pp_instr tbl name (i : (_, _, _, _, _) Arch_decl.asm_i) =
+  let pp_instr tbl name (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
     match i with
     | ALIGN ->
       `Instr (".p2align", ["5"])
@@ -426,11 +442,11 @@ module Printer (BP:BPrinter) = struct
       `Instr(name, args)
 
   (* -------------------------------------------------------------------- *)
-  let pp_instr tbl name (fmt : Format.formatter) (i : (_, _, _, _, _) Arch_decl.asm_i) =
+  let pp_instr tbl name (fmt : Format.formatter) (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
     pp_gen fmt (pp_instr tbl name i)
   
   (* -------------------------------------------------------------------- *)
-  let pp_instrs tbl name (fmt : Format.formatter) (is : (_, _, _, _, _) Arch_decl.asm_i list) =
+  let pp_instrs tbl name (fmt : Format.formatter) (is : (_, _, _, _, _, _) Arch_decl.asm_i list) =
     List.iter (Format.fprintf fmt "%a\n%!" (pp_instr tbl name)) is
     
   (* -------------------------------------------------------------------- *)  

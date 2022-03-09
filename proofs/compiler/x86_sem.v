@@ -67,16 +67,16 @@ Definition x86_syscall_sig (o : syscall_t) :=
 
 Parameter x86_syscall_sem : asm_syscall_sem.
  
-Instance x86 : asm register xmm_register rflag condt x86_op :=
+Instance x86 : asm register register_ext xmm_register rflag condt x86_op :=
   {| eval_cond := x86_eval_cond
    ; _asm_syscall := x86_syscall_sem
    ; stack_pointer_register := RSP |}.
 
-Definition x86_mem := @asmmem _ _ _ _ x86_decl.
-Definition x86_prog := @asm_prog register _ _ _ _ _ x86_op_decl.
-Definition x86_state := @asm_state _ _ _ _ _ x86.
-Definition x86sem := @asmsem _ _ _ _ _ x86.
-Definition x86_fundef := @asm_fundef _ _ _ _ _ _ x86_op_decl.
+Definition x86_mem := @asmmem _ _ _ _ _ _ x86_decl.
+Definition x86_prog := @asm_prog register _ _ _ _ _ _ x86_op_decl.
+Definition x86_state := @asm_state _ _ _ _ _ _ x86.
+Definition x86sem := @asmsem _ _ _ _ _ _ x86.
+Definition x86_fundef := @asm_fundef _ _ _ _ _ _ _ x86_op_decl.
 
 (* Semantics of an export function
 FIXME: this is mostly independent of the architecture and may be partially moved to arch_sem

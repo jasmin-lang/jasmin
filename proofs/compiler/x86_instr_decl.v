@@ -81,6 +81,8 @@ Variant x86_op : Type :=
 
 | PEXT   of wsize    (* parallel bits extract *)
 
+  (* MMX instructions *)
+| MOVX  of wsize 
   (* SSE instructions *)
 | MOVD     of wsize
 | VMOV     of wsize 
@@ -620,6 +622,10 @@ Definition x86_PEXT sz (v1 v2: word sz): ex_tpl (w_ty sz) :=
   let _ := check_size_32_64 sz in
   ok (@pextr sz v1 v2).
 
+Definition x86_MOVX sz (x: word sz) : exec (word sz) :=
+  Let _ := check_size_32_64 sz in
+  ok x.
+
 (* ---------------------------------------------------------------- *)
 Definition x86_MOVD sz (v: word sz) : ex_tpl (w_ty U128) :=
   Let _ := check_size_32_64 sz in
@@ -1125,6 +1131,7 @@ Definition pp_cqo sz (args: asm_args) :=
 
 Definition c := [::CAcond].
 Definition r := [:: CAreg].
+Definition rx := [:: CAregx].
 Definition m b := [:: CAmem b].
 Definition i sz := [:: CAimm sz].
 Definition rm b := [:: CAreg; CAmem b].
@@ -1149,7 +1156,13 @@ Definition Ox86_MOV_instr               :=
   mk_instr_w_w "MOV" x86_MOV [:: E 1] [:: E 0] 2
                check_mov (primP MOV) (pp_iname "mov").
 
-Definition check_movx (_ _:wsize) := [:: r_rm ].
+Definition check_movx (sz:wsize) := [:: [:: rx; rm true]; [:: rm true; rx]].
+
+Definition Ox86_MOVX_instr               :=
+  mk_instr_w_w "MOVX" x86_MOVX [:: E 1] [:: E 0] 2
+               check_movx (primP MOVX) (pp_iname "mov").
+
+Definition check_movsx (_ _:wsize) := [:: r_rm ].
 
 Definition pp_movsx szs szd args :=
   let ext := if (szd == szs) || (szd == U64) && (szs == U32) then "xd"%string else "x"%string in
@@ -1158,7 +1171,7 @@ Definition pp_movsx szs szd args :=
      pp_aop_args := zip [::szd; szs] args; |}.
 
 Definition Ox86_MOVSX_instr             :=
-  mk_instr_w_w'_10 "MOVSX" true x86_MOVSX check_movx (PrimX MOVSX) pp_movsx.
+  mk_instr_w_w'_10 "MOVSX" true x86_MOVSX check_movsx (PrimX MOVSX) pp_movsx.
 
 Definition pp_movzx szs szd args :=
   {| pp_aop_name := "movz";
@@ -1166,7 +1179,7 @@ Definition pp_movzx szs szd args :=
      pp_aop_args := zip [::szd; szs] args; |}.
 
 Definition Ox86_MOVZX_instr             :=
-  mk_instr_w_w'_10 "MOVZX" false x86_MOVZX check_movx (PrimX MOVZX) pp_movzx.
+  mk_instr_w_w'_10 "MOVZX" false x86_MOVZX check_movsx (PrimX MOVZX) pp_movzx.
 
 Definition c_r_rm := [:: c; r; rm true].
 Definition Ox86_CMOVcc_instr            :=
@@ -1778,6 +1791,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | SAL sz             => Ox86_SAL_instr.1 sz
   | SHLD sz            => Ox86_SHLD_instr.1 sz
   | SHRD sz            => Ox86_SHRD_instr.1 sz
+  | MOVX sz            => Ox86_MOVX_instr.1 sz
   | MOVD sz            => Ox86_MOVD_instr.1 sz
   | VMOV sz            => Ox86_VMOV_instr.1 sz
   | VPINSR sz          => Ox86_VPINSR_instr.1 sz
@@ -1904,6 +1918,7 @@ Definition x86_prim_string :=
    Ox86_SAL_instr.2;
    Ox86_SHLD_instr.2;
    Ox86_SHRD_instr.2;
+   Ox86_MOVX_instr.2;
    Ox86_MOVD_instr.2;
    Ox86_VMOV_instr.2;
    Ox86_VPMOVSX_instr.2;

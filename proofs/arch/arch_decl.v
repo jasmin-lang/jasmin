@@ -114,11 +114,12 @@ End Section.
 
 (* ==================================================================== *)
 
-Class arch_decl (reg xreg rflag cond : Type) := 
+Class arch_decl (reg regx xreg rflag cond : Type) := 
   { reg_size  : wsize (* [reg_size] is also used as the size of pointers *)
   ; xreg_size : wsize
   ; cond_eqC  :> eqTypeC cond
   ; toS_r     :> ToString (sword reg_size) reg
+  ; toS_rx    :> ToString (sword reg_size) regx
   ; toS_x     :> ToString (sword xreg_size) xreg
   ; toS_f     :> ToString sbool rflag
 }.
@@ -127,19 +128,20 @@ Instance arch_pd {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} : 
   { Uptr := reg_size }.
 
 (* FIXME ARM : Try to not use this projection *)
-Definition reg_t    {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} := reg.
-Definition xreg_t   {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} := xreg.
-Definition rflag_t  {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} := rflag.
-Definition cond_t   {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} := cond.
+Definition reg_t    {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond} := reg.
+Definition regx_t   {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond} := regx.
+Definition xreg_t   {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond} := xreg.
+Definition rflag_t  {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond} := rflag.
+Definition cond_t   {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond} := cond.
 
-Definition wreg  {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} := sem_t (sword reg_size).
-Definition wxreg {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} := sem_t (sword xreg_size).
+Definition wreg  {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond} := sem_t (sword reg_size).
+Definition wxreg {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond} := sem_t (sword xreg_size).
 
 (* -------------------------------------------------------------------- *)
 
 Module RegMap. Section Section.
 
-  Context {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond}.
+  Context {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond}.
 
   Definition map := (* {ffun reg_t -> wreg}. *)
     FinMap.map (T:= reg_t) wreg.
@@ -148,6 +150,20 @@ Module RegMap. Section Section.
     FinMap.set m x y.
 
 End Section. End RegMap.
+
+(* -------------------------------------------------------------------- *)
+
+Module RegXMap. Section Section.
+
+  Context {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond}.
+
+  Definition map := (* {ffun regx_t -> wreg}. *)
+    FinMap.map (T:= regx_t) wreg.
+
+  Definition set (m : map) (x : regx_t) (y : wreg) : map :=
+    FinMap.set m x y.
+
+End Section. End RegXMap.
 
 (* -------------------------------------------------------------------- *)
 
@@ -192,18 +208,20 @@ End Section. End RflagMap.
 
 (* -------------------------------------------------------------------- *)
 Notation regmap   := RegMap.map.
+Notation regxmap  := RegXMap.map.
 Notation xregmap  := XRegMap.map.
 Notation rflagmap := RflagMap.map.
 
 Section DECL.
 
-Context {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond}.
+Context {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond}.
 
 Record asmmem : Type := AsmMem {
   asm_rip  : pointer; 
-  asm_scs : syscall_state;                          
+  asm_scs  : syscall_state;                          
   asm_mem  : mem;
   asm_reg  : regmap;
+  asm_regx : regxmap;
   asm_xreg : xregmap;
   asm_flag : rflagmap;
 }.
@@ -267,6 +285,7 @@ Variant asm_arg : Type :=
   | Condt  of cond_t
   | Imm ws of word ws
   | Reg    of reg_t
+  | Regx   of regx_t
   | Addr   of address
   | XReg   of xreg_t.
 
@@ -277,7 +296,8 @@ Definition asm_arg_beq (a1 a2:asm_arg) :=
   | Condt t1, Condt t2 => t1 == t2 ::>
   | Imm sz1 w1, Imm sz2 w2 => (sz1 == sz2) && (wunsigned w1 == wunsigned w2)
   | Reg r1, Reg r2     => r1 == r2 ::>
-  | Addr a1, Addr a2     => a1 == a2
+  | Regx r1, Regx r2   => r1 == r2 ::>
+  | Addr a1, Addr a2   => a1 == a2
   | XReg r1, XReg r2   => r1 == r2 ::>
   | _, _ => false
   end.
@@ -288,7 +308,7 @@ Definition Imm_inj sz sz' w w' (e: @Imm sz w = @Imm sz' w') :
 
 Lemma asm_arg_eq_axiom : Equality.axiom asm_arg_beq.
 Proof.
-  case => [t1 | sz1 w1 | r1 | a1 | xr1] [t2 | sz2 w2 | r2 | a2 | xr2] /=;
+  case => [t1 | sz1 w1 | r1 | r1 | a1 | xr1] [t2 | sz2 w2 | r2 | r2 | a2 | xr2] /=;
     try by (constructor || apply: reflect_inj eqP => ?? []).
   apply: (iffP idP) => //=.
   + by move=> /andP [] /eqP ? /eqP; subst => /wunsigned_inj ->.
@@ -391,6 +411,7 @@ Definition check_oreg or ai :=
 Variant arg_kind :=
   | CAcond
   | CAreg
+  | CAregx
   | CAxmm
   | CAmem of bool (* true if Global is allowed *)
   | CAimm of wsize
@@ -416,7 +437,8 @@ Definition check_arg_kind (a:asm_arg) (cond: arg_kind) :=
   match a, cond with
   | Condt _, CAcond => true
   | Imm sz _, CAimm sz' => sz == sz'
-  | Reg _, CAreg => true
+  | Reg _ , CAreg => true
+  | Regx _, CAregx => true
   | Addr _, CAmem _ => true
   | XReg _, CAxmm   => true
   | _, _ => false
@@ -661,8 +683,8 @@ Class arch_syscall_info := {
 
 End DECL.
 
-Class asm (reg xreg rflag cond asm_op: Type) :=
-  { _arch_decl   :> arch_decl reg xreg rflag cond
+Class asm (reg regx xreg rflag cond asm_op: Type) :=
+  { _arch_decl   :> arch_decl reg regx xreg rflag cond
   ; _asm_op_decl :> asm_op_decl asm_op
   ; _asm_syscall :> asm_syscall_sem
   ; eval_cond   : (rflag_t -> exec bool) -> cond_t -> exec bool

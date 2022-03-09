@@ -283,7 +283,7 @@ let pp_pointer fmt = function
 let pp_kind fmt = function
   | Const  ->  F.fprintf fmt "param"
   | Stack ptr ->  F.fprintf fmt "stack%a" pp_pointer ptr
-  | Reg ptr ->  F.fprintf fmt "reg%a" pp_pointer ptr
+  | Reg(k, ptr) ->  F.fprintf fmt "reg%s%a" (if k = Normal then "" else "x") pp_pointer ptr
   | Inline ->  F.fprintf fmt "inline"
   | Global ->  F.fprintf fmt "global"
 

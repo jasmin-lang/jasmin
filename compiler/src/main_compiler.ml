@@ -236,7 +236,7 @@ let main () =
 
     let lowering_vars = Lowering.(
         let f ty n = 
-          let v = V.mk n (Reg Direct) ty L._dummy [] in
+          let v = V.mk n (Reg(Normal, Direct)) ty L._dummy [] in
           Conv.cvar_of_var tbl v in
         let b = f tbool in
         { fresh_OF = (b "OF").vname
@@ -337,8 +337,8 @@ let main () =
     let is_var_in_memory cv : bool =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
       match v.v_kind with
-      | Stack _ | Reg (Pointer _) | Global -> true
-      | Const | Inline | Reg Direct -> false
+      | Stack _ | Reg (_, Pointer _) | Global -> true
+      | Const | Inline | Reg(_, Direct) -> false
      in
 
     let pp_cuprog s cp =

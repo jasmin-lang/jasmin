@@ -238,8 +238,8 @@ let init_slots stack_pointers alias coloring fv =
         with Not_found -> assert false in
       add_slot slot;
       add_local v (StackPtr slot)
-    | Reg (Pointer _) ->
-      let p = V.mk v.v_name (Reg Direct) u64 v.v_dloc v.v_annot in
+    | Reg (k, Pointer _) ->
+      let p = V.mk v.v_name (Reg(k, Direct)) u64 v.v_dloc v.v_annot in
       add_local v (RegPtr p) 
     | _ -> () in
 
@@ -252,8 +252,8 @@ let all_alignment ctbl alias params lalloc =
   let get_align c = try Hv.find ctbl c.Alias.in_var with Not_found -> U8 in
   let doparam x =
     match x.v_kind with
-    | Reg Direct -> None
-    | Reg (Pointer writable) ->
+    | Reg (_, Direct) -> None
+    | Reg (_, Pointer writable) ->
       let c = Alias.normalize_var alias x in
       assert (V.equal x c.in_var && c.scope = E.Slocal);
       let pi_ptr = 
