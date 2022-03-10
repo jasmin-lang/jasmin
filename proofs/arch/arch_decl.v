@@ -50,6 +50,7 @@ Definition rtype {t T} `{ToString t T} := t.
 Class arch_decl (reg regx xreg rflag cond : Type) := 
   { reg_size  : wsize (* [reg_size] is also used as the size of pointers *)
   ; xreg_size : wsize
+  ; regx_size : wsize
   ; cond_eqC  :> eqTypeC cond
   ; toS_r     :> ToString (sword reg_size) reg
   ; toS_rx    :> ToString (sword reg_size) regx
