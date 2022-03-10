@@ -1,0 +1,6 @@
+export fn f(reg u64 x) -> reg u64 {
+  regx u64 e;
+  e = #MOVX(x);
+  x = #MOVX(e);
+  return x;     
+}

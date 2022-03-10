@@ -1,0 +1,19 @@
+inline
+fn f(stack u64[1] x, reg u64 n) -> stack u64[1] {
+  stack u64[1] y;
+  inline int i;
+  while (n >u 0) {
+    y[0] = 0;
+    n -= 1;
+  }
+  return y;
+}
+
+export
+fn main(#[public] reg u64 p) -> #[public] reg u64 {
+  stack u64[1] x;
+  reg u64 r;
+  x = f(x, p);
+  r = x[0];
+  return r;
+}

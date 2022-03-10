@@ -94,7 +94,7 @@ in
 
 let rec live_ranges_instr_r d_acc =
   function
-  | (Cassgn _ | Copn _ | Ccall _) -> d_acc
+  | (Cassgn _ | Copn _ | Csyscall _ | Ccall _) -> d_acc
   | Cif (_, s1, s2)
   | Cwhile (_, s1, _, s2) ->
      let d_acc = live_ranges_stmt d_acc s1 in
@@ -175,6 +175,7 @@ let classes_alignment (onfun : funname -> param_info option list) gtbl alias c =
     match i_desc with
     | Cassgn(x,_,_,e) -> add_lv x; add_e e
     | Copn(xs,_,_,es) -> add_lvs xs; add_es es
+    | Csyscall(xs,_,es) -> add_lvs xs; add_es es
     | Cif(e,c1,c2) | Cwhile (_,c1,e,c2) -> 
       add_e e; add_c c1; add_c c2
     | Cfor _ -> assert false 
@@ -237,8 +238,8 @@ let init_slots stack_pointers alias coloring fv =
         with Not_found -> assert false in
       add_slot slot;
       add_local v (StackPtr slot)
-    | Reg (Pointer _) ->
-      let p = V.mk v.v_name (Reg Direct) u64 v.v_dloc v.v_annot in
+    | Reg (k, Pointer _) ->
+      let p = V.mk v.v_name (Reg(k, Direct)) u64 v.v_dloc v.v_annot in
       add_local v (RegPtr p) 
     | _ -> () in
 
@@ -251,8 +252,8 @@ let all_alignment ctbl alias params lalloc =
   let get_align c = try Hv.find ctbl c.Alias.in_var with Not_found -> U8 in
   let doparam x =
     match x.v_kind with
-    | Reg Direct -> None
-    | Reg (Pointer writable) ->
+    | Reg (_, Direct) -> None
+    | Reg (_, Pointer writable) ->
       let c = Alias.normalize_var alias x in
       assert (V.equal x c.in_var && c.scope = E.Slocal);
       let pi_ptr = 

@@ -169,6 +169,7 @@ Record param_info := {
 Record pos_map := {
   vrip    : var;
   vrsp    : var;
+  vxlen   : var;
   globals : Mvar.t (Z * wsize);
   locals  : Mvar.t ptr_kind;
   vnew    : Sv.t;
@@ -461,6 +462,7 @@ Definition var_kind := option vptr_kind.
    This is architecture-specific. *)
 Context (mov_ofs
   :  lval       (* The variable to save the address to. *)
+  -> assgn_tag  (* The tag present in the source. *)
   -> vptr_kind  (* The kind of address to compute. *)
   -> pexpr      (* Variable with base address. *)
   -> Z          (* Offset. *)
@@ -697,10 +699,10 @@ Definition is_nop is_spilling rmap (x:var) (sry:sub_region) : bool :=
   else false.
 
 (* TODO: better error message *)
-Definition get_addr is_spilling rmap x dx sry vpk y ofs :=
+Definition get_addr is_spilling rmap x dx tag sry vpk y ofs :=
   let ir := if is_nop is_spilling rmap x sry
             then Some nop
-            else mov_ofs dx vpk y ofs in
+            else mov_ofs dx tag vpk y ofs in
   let rmap := Region.set_move rmap x sry in
   (rmap, ir).
 
@@ -755,7 +757,7 @@ Definition mk_addr_pexpr rmap x vpk :=
    of y...
 *)
 (* Precondition is_sarr ty *)
-Definition alloc_array_move rmap r e :=
+Definition alloc_array_move rmap r tag e :=
   Let xsub := get_Lvar_sub r in
   Let ysub := get_Pvar_sub e in
   let '(x,subx) := xsub in
@@ -799,7 +801,7 @@ Definition alloc_array_move rmap r e :=
         ok (rmap, nop)
       | Pregptr p =>
         let (rmap, oir) :=
-            get_addr None rmap x (Lvar (with_var x p)) sry vpk ey ofs in
+            get_addr None rmap x (Lvar (with_var x p)) tag sry vpk ey ofs in
         match oir with
         | None =>
           let err_pp := pp_box [:: pp_s "cannot compute address"; pp_var x] in
@@ -811,7 +813,7 @@ Definition alloc_array_move rmap r e :=
         let is_spilling := Some (slot, ws, z, x') in
         let dx_ofs := cast_const (ofsx + z.(z_ofs)) in
         let dx := Lmem Uptr (with_var x pmap.(vrsp)) dx_ofs in
-        let (rmap, oir) := get_addr is_spilling rmap x dx sry vpk ey ofs in
+        let (rmap, oir) := get_addr is_spilling rmap x dx tag sry vpk ey ofs in
         match oir with
         | None =>
           let err_pp := pp_box [:: pp_s "cannot compute address"; pp_var x] in
@@ -841,7 +843,7 @@ Definition is_array_init e :=
 (* We do not update the [var_region] part *)
 (* there seems to be an invariant: all Pdirect are in the rmap *)
 (* long-term TODO: we can avoid putting PDirect in the rmap (look in pmap instead) *)
-Definition alloc_array_move_init rmap r e :=
+Definition alloc_array_move_init rmap r tag e :=
   if is_array_init e then
     Let xsub := get_Lvar_sub r in
     let '(x,subx) := xsub in
@@ -867,7 +869,7 @@ Definition alloc_array_move_init rmap r e :=
     let sr := sub_region_at_ofs sr (Some ofs) len in
     let rmap := Region.set_move_sub rmap x sr in
     ok (rmap, nop)
-  else alloc_array_move rmap r e.
+  else alloc_array_move rmap r tag e.
 
 Definition bad_lval_number := stk_ierror_no_var "invalid number of lval".
 
@@ -878,7 +880,7 @@ Section LOOP.
 
  Variable ii:instr_info.
 
- Variable check_c2 : region_map -> cexec ((region_map * region_map) * (pexpr * (seq instr * seq instr)) ).
+ Variable check_c2 : region_map -> cexec ((region_map * region_map) * (pexpr * (seq cmd * seq cmd)) ).
 
  Fixpoint loop2 (n:nat) (m:region_map) := 
     match n with
@@ -1081,46 +1083,84 @@ Definition alloc_call (sao_caller:stk_alloc_oracle_t) rmap ini rs fn es :=
   let es  := map snd es in
   ok (rs.1, Ccall ini rs.2 fn es).
 
-Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * instr) :=
+(* Before stack_alloc :
+   Csyscall [::x] (getrandom len) [::t] 
+   t : arr n & len <= n.
+   return arr len.
+   After: 
+   xlen: Uptr 
+   xlen := len;
+   Csyscall [::xp] (getrandom len) [::p, xlen] 
+*)
+Definition alloc_syscall ii rmap rs o es := 
+  add_iinfo ii
+  match o with
+  | RandomBytes len =>
+    (* per the semantics, we have [len <= wbase Uptr], but we need [<] *)
+    Let _ := assert (len <? wbase Uptr)%Z
+                    (stk_error_no_var "randombytes: the requested size is too large")
+    in
+    match rs, es with
+    | [::Lvar x], [::Pvar xe] =>
+      let xe := xe.(gv) in
+      let xlen := with_var xe (vxlen pmap) in
+      Let p  := get_regptr xe in
+      Let xp := get_regptr x in
+      Let sr := get_sub_region rmap xe in
+      Let rmap := set_sub_region rmap x sr (Some 0%Z) (Zpos len) in
+      ok (rmap,
+          [:: MkI ii (Cassgn (Lvar xlen) AT_none (sword Uptr) (cast_const (Zpos len)));
+              MkI ii (Csyscall [::Lvar xp] o [:: Plvar p; Plvar xlen])])
+    | _, _ =>
+      Error (stk_ierror_no_var "randombytes: invalid args or result")
+    end
+  end.
+
+Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
   let (ii, ir) := i in
-  Let ir :=
-    match ir with
-    | Cassgn r t ty e => 
-      if is_sarr ty then add_iinfo ii (alloc_array_move_init rmap r e) 
-      else
-        Let e := add_iinfo ii (alloc_e rmap e) in
-        Let r := add_iinfo ii (alloc_lval rmap r ty) in
-        ok (r.1, Cassgn r.2 t ty e)
-
-    | Copn rs t o e => 
-      Let e  := add_iinfo ii (alloc_es rmap e) in
-      Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
-      ok (rs.1, Copn rs.2 t o e)
-
-    | Cif e c1 c2 => 
+  match ir with
+  | Cassgn r t ty e => 
+    if is_sarr ty then 
+      Let ri := add_iinfo ii (alloc_array_move_init rmap r t e) in
+      ok (ri.1, [:: MkI ii ri.2]) 
+    else
       Let e := add_iinfo ii (alloc_e rmap e) in
+      Let r := add_iinfo ii (alloc_lval rmap r ty) in
+      ok (r.1, [:: MkI ii (Cassgn r.2 t ty e)])
+  
+  | Copn rs t o e => 
+    Let e  := add_iinfo ii (alloc_es rmap e) in
+    Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
+    ok (rs.1, [:: MkI ii (Copn rs.2 t o e)])
+  
+  | Csyscall rs o es =>
+    alloc_syscall ii rmap rs o es  
+  
+  | Cif e c1 c2 => 
+    Let e := add_iinfo ii (alloc_e rmap e) in
+    Let c1 := fmapM (alloc_i sao) rmap c1 in
+    Let c2 := fmapM (alloc_i sao) rmap c2 in
+    let rmap:= merge c1.1 c2.1 in
+    ok (rmap, [:: MkI ii (Cif e (flatten c1.2) (flatten c2.2))])
+  
+  | Cwhile a c1 e c2 => 
+    let check_c rmap := 
       Let c1 := fmapM (alloc_i sao) rmap c1 in
-      Let c2 := fmapM (alloc_i sao) rmap c2 in
-      let rmap:= merge c1.1 c2.1 in
-      ok (rmap, Cif e c1.2 c2.2)
-
-    | Cwhile a c1 e c2 => 
-      let check_c rmap := 
-        Let c1 := fmapM (alloc_i sao) rmap c1 in
-        let rmap1 := c1.1 in
-        Let e := add_iinfo ii (alloc_e rmap1 e) in
-        Let c2 := fmapM (alloc_i sao) rmap1 c2 in
-        ok ((rmap1, c2.1), (e, (c1.2, c2.2))) in
-      Let r := loop2 ii check_c Loop.nb rmap in
-      ok (r.1, Cwhile a r.2.2.1 r.2.1 r.2.2.2)
-
-    | Ccall ini rs fn es =>
-      add_iinfo ii (alloc_call sao rmap ini rs fn es) 
-
-    | Cfor _ _ _  => Error (pp_at_ii ii (stk_ierror_no_var "don't deal with for loop"))
-
-    end in
-  ok (ir.1, MkI ii ir.2).
+      let rmap1 := c1.1 in
+      Let e := add_iinfo ii (alloc_e rmap1 e) in
+      Let c2 := fmapM (alloc_i sao) rmap1 c2 in
+      ok ((rmap1, c2.1), (e, (c1.2, c2.2))) in
+    Let r := loop2 ii check_c Loop.nb rmap in
+    ok (r.1, [:: MkI ii (Cwhile a (flatten r.2.2.1) r.2.1 (flatten r.2.2.2))])
+  
+  | Ccall ini rs fn es =>
+    Let ri := add_iinfo ii (alloc_call sao rmap ini rs fn es) in
+    ok (ri.1, [:: MkI ii ri.2])
+  
+  
+  | Cfor _ _ _  => Error (pp_at_ii ii (stk_ierror_no_var "don't deal with for loop"))
+  
+  end. 
 
 End PROG.
 
@@ -1206,8 +1246,10 @@ Definition add_alloc globals stack (xpk:var * ptr_kind_init) (lrx: Mvar.t ptr_ki
     let locals := Mvar.set locals x pk in
     ok (locals, rmap, sv).
 
-Definition init_local_map vrip vrsp globals stack sao :=
-  let sv := Sv.add vrip (Sv.add vrsp Sv.empty) in
+Definition init_local_map vrip vrsp vxlen globals stack sao :=
+  Let _ := assert (vxlen != vrip) (stk_ierror_no_var "two fresh variables are equal") in
+  Let _ := assert (vxlen != vrsp) (stk_ierror_no_var "two fresh variables are equal") in
+  let sv := Sv.add vxlen (Sv.add vrip (Sv.add vrsp Sv.empty)) in
   Let aux := foldM (add_alloc globals stack) (Mvar.empty _, Region.empty, sv) sao.(sao_alloc) in
   let '(locals, rmap, sv) := aux in
   ok (locals, rmap, sv).
@@ -1296,11 +1338,12 @@ Definition init_params mglob stack disj lmap rmap sao_params params :=
   fmapM2 (stk_ierror_no_var "invalid function info")
     (init_param mglob stack) (disj, lmap, rmap) sao_params params.
 
-Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) sao fd : cexec _ufundef :=
+Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> string) (local_alloc: funname -> stk_alloc_oracle_t) sao fd : cexec _ufundef :=
   let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
   let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_rsp) |} in
+  let vxlen := {| vtype := sword Uptr; vname := fresh_reg "__len__"%string (sword Uptr) |} in
   Let stack := init_stack_layout mglob sao in
-  Let mstk := init_local_map vrip vrsp mglob stack sao in
+  Let mstk := init_local_map vrip vrsp vxlen mglob stack sao in
   let '(locals, rmap, disj) := mstk in
   (* adding params to the map *)
   Let rparams :=
@@ -1311,6 +1354,7 @@ Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_
   let pmap := {|
         vrip    := vrip;
         vrsp    := vrsp;
+        vxlen   := vxlen;
         globals := mglob;
         locals  := lmap;
         vnew    := sv;
@@ -1336,14 +1380,15 @@ Definition alloc_fd_aux p_extra mglob (local_alloc: funname -> stk_alloc_oracle_
     f_info := f_info fd;
     f_tyin := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_params) fd.(f_tyin); 
     f_params := params;
-    f_body := body;
+    f_body := flatten body;
     f_tyout := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_return) fd.(f_tyout);
     f_res := res;
     f_extra := f_extra fd |}.
 
-Definition alloc_fd p_extra mglob (local_alloc: funname -> stk_alloc_oracle_t) fn fd :=
+Definition alloc_fd p_extra mglob (fresh_reg : string -> stype -> string)
+                                  (local_alloc: funname -> stk_alloc_oracle_t) fn fd :=
   let: sao := local_alloc fn in
-  Let fd := alloc_fd_aux p_extra mglob local_alloc sao fd in
+  Let fd := alloc_fd_aux p_extra mglob fresh_reg local_alloc sao fd in
   let f_extra := {|
         sf_align  := sao.(sao_align);
         sf_stk_sz := sao.(sao_size);
@@ -1394,7 +1439,8 @@ Definition init_map (sz:Z) (l:list (var * wsize * Z)) : cexec (Mvar.t (Z*wsize))
   if (globals.2 <=? sz)%Z then ok globals.1
   else Error (stk_ierror_no_var "global size").
 
-Definition alloc_prog rip rsp global_data global_alloc local_alloc (P:_uprog) : cexec _sprog :=
+Definition alloc_prog (fresh_reg:string -> stype -> Ident.ident)
+   rip rsp global_data global_alloc local_alloc (P:_uprog) : cexec _sprog :=
   Let mglob := init_map (Z.of_nat (size global_data)) global_alloc in
   let p_extra :=  {|
     sp_rip   := rip;
@@ -1403,7 +1449,7 @@ Definition alloc_prog rip rsp global_data global_alloc local_alloc (P:_uprog) : 
   |} in
   if rip == rsp then Error (stk_ierror_no_var "rip and rsp clash")
   else if check_globs P.(p_globs) mglob global_data then
-    Let p_funs := map_cfprog_name (alloc_fd p_extra mglob local_alloc) P.(p_funcs) in
+    Let p_funs := map_cfprog_name (alloc_fd p_extra mglob fresh_reg local_alloc) P.(p_funcs) in
     ok  {| p_funcs  := p_funs;
            p_globs := [::];
            p_extra := p_extra;

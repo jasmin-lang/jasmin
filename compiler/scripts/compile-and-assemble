@@ -6,7 +6,6 @@ DIR=$(mktemp -d jasminXXXXXX)
 ASM=${DIR}/jasmin.s
 OBJ=${DIR}/jasmin.o
 DLL=${DIR}/jasmin.so
-
 trap "rm -r ${DIR}" EXIT
 
 set -x

@@ -20,7 +20,7 @@ JSJOBS    ?= 2
 CHECKPY   ?=
 CHECK     := $(CHECKPY) scripts/runtest --jobs="$(JSJOBS)"
 CHECK     += config/tests.config
-CHECKCATS ?= all safety CCT nolea
+CHECKCATS ?= all safety CCT nolea print
 
 # --------------------------------------------------------------------
 PREFIX ?= /usr/local
@@ -70,6 +70,7 @@ CIL:
 	cp ../proofs/lang/ocaml/*.mli CIL/
 
 check: build
+	$(MAKE) -C ../syscall all
 	$(CHECK) --report=report.log $(CHECKCATS)
 
 check-ci:

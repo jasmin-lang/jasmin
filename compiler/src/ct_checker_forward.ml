@@ -483,7 +483,8 @@ let rec ty_instr fenv env i =
     let env, lvl = ty_expr ~public:false env e in
     ty_lval env x (declassify_lvl i.i_annot lvl)
 
-  | Copn(xs, _, _, es) ->
+  | Copn(xs, _, _, es) | Csyscall(xs, _, es) ->
+    (* FIXME syscall: syscall are assumed constant time ... *)
     let env, lvl = ty_exprs_max ~public:false env es in
     ty_lvals1 env xs (declassify_lvl i.i_annot lvl)
 

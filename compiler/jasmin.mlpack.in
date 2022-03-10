@@ -1,11 +1,12 @@
 src/Alias
 src/Arch
 src/Array_expand
+src/CoreConv
 src/Conv
 src/Ct_checker_forward
 src/Evaluator
 src/Help
-src/Inline_array_copy
+src/Insert_copy_and_fix_length
 src/Interval
 src/IntervalGraphColoring
 src/Latex_printer
@@ -29,6 +30,7 @@ src/Ssa
 src/StackAlloc
 src/Subst
 src/Syntax
+src/Syscall_ocaml
 src/ToEC
 src/safety/safetyAbsExpr
 src/safety/safetyConfig

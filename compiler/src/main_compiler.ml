@@ -40,6 +40,7 @@ let rec warn_extra_i i =
         (Printer.pp_instr ~debug:false) i
     | _ -> ()
     end
+  | Csyscall _ -> ()
   | Cif(_, c1, c2) | Cwhile(_,c1,_,c2) ->
     List.iter warn_extra_i c1;
     List.iter warn_extra_i c2;
@@ -136,13 +137,16 @@ let main () =
     eprint Compiler.Typing Printer.pp_pprog pprog;
 
     let prog = Subst.remove_params pprog in
-    let prog = Inline_array_copy.doit prog in
 
-    begin try
-      Typing.check_prog prog
-    with Typing.TyError(loc, code) ->
-      hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
-    end;
+    let prog =
+      begin try
+        let prog = Insert_copy_and_fix_length.doit prog in
+        Typing.check_prog prog;
+        prog
+      with Typing.TyError(loc, code) ->
+        hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
+      end
+    in
     
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
@@ -212,7 +216,7 @@ let main () =
           try
             let pp_range fmt (ptr, sz) =
               Format.fprintf fmt "%a:%a" Z.pp_print ptr Z.pp_print sz in
-            Format.printf "Evaluation of %s (@[<h>%a@]):@." f.fn_name
+            Format.printf "/* Evaluation of %s (@[<h>%a@]):@." f.fn_name
               (pp_list ",@ " pp_range) m;
             let _m, vs =
               (** TODO: allow to configure the initial stack pointer *)
@@ -220,7 +224,8 @@ let main () =
               (match (Low_memory.Memory.coq_M U64).init live (Conv.int64_of_z (Z.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
               Evaluator.exec (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) (Conv.cfun_of_fun tbl f) in
             Format.printf "@[<v>%a@]@."
-              (pp_list "@ " Evaluator.pp_val) vs
+              (pp_list "@ " Evaluator.pp_val) vs;
+            Format.printf "*/@."
           with Evaluator.Eval_error (ii,err) ->
             let (i_loc, _, _) = Conv.get_iinfo tbl ii in
             hierror ~loc:(Lmore i_loc) ~kind:"evaluation error" "%a" Evaluator.pp_error err
@@ -231,7 +236,7 @@ let main () =
 
     let lowering_vars = Lowering.(
         let f ty n = 
-          let v = V.mk n (Reg Direct) ty L._dummy [] in
+          let v = V.mk n (Reg(Normal, Direct)) ty L._dummy [] in
           Conv.cvar_of_var tbl v in
         let b = f tbool in
         { fresh_OF = (b "OF").vname
@@ -253,9 +258,34 @@ let main () =
       cufdef_of_fdef fd in
 
     let translate_var = Conv.var_of_cvar tbl in
+
+ let fresh_id _gd x =
+      let x = Conv.var_of_cvar tbl x in
+      let x' = Prog.V.clone x in
+      let cx = Conv.cvar_of_var tbl x' in
+      cx.Var0.Var.vname in
+
+    let fresh_reg name ty = 
+      let name = Conv.string_of_string0 name in
+      let ty = Conv.ty_of_cty ty in
+      let p = Prog.V.mk name (Reg(Normal, Direct)) ty L._dummy [] in
+      let cp = Conv.cvar_of_var tbl p in
+      cp.Var0.Var.vname in
+    
+    let fresh_reg_ptr name ty = 
+      let name = Conv.string_of_string0 name in
+      let ty = Conv.ty_of_cty ty in
+      let p = Prog.V.mk name (Reg (Normal, Pointer Writable)) ty L._dummy [] in
+      let cp = Conv.cvar_of_var tbl p in
+      cp.Var0.Var.vname in
+
+    let fresh_counter =
+      let i = Prog.V.mk "i__copy" Inline tint L._dummy [] in
+      let ci = Conv.cvar_of_var tbl i in
+      ci.Var0.Var.vname in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl X86_params.aparams up
+      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl fresh_reg_ptr X86_params.aparams up
      in
 
     let global_regalloc fds =
@@ -307,8 +337,8 @@ let main () =
     let is_var_in_memory cv : bool =
       let v = Conv.vari_of_cvari tbl cv |> L.unloc in
       match v.v_kind with
-      | Stack _ | Reg (Pointer _) | Global -> true
-      | Const | Inline | Reg Direct -> false
+      | Stack _ | Reg (_, Pointer _) | Global -> true
+      | Const | Inline | Reg(_, Direct) -> false
      in
 
     let pp_cuprog s cp =
@@ -359,17 +389,6 @@ let main () =
     let is_glob x =
       let x = Conv.var_of_cvar tbl x in
       x.v_kind = Global in
-
-    let fresh_id _gd x =
-      let x = Conv.var_of_cvar tbl x in
-      let x' = Prog.V.clone x in
-      let cx = Conv.cvar_of_var tbl x' in
-      cx.Var0.Var.vname in
-
-    let fresh_counter =
-      let i = Prog.V.mk ("i__copy") Inline tint L._dummy [] in
-      let ci = Conv.cvar_of_var tbl i in
-      ci.Var0.Var.vname in
 
     let split_live_ranges_fd fd = Regalloc.split_live_ranges fd in
     let renaming_fd fd = Regalloc.renaming fd in
@@ -425,6 +444,8 @@ let main () =
                                          use_set0 = !Glob_options.set0; };
       Compiler.is_glob     = is_glob;
       Compiler.fresh_id    = fresh_id;
+      Compiler.fresh_reg   = fresh_reg;
+      Compiler.fresh_reg_ptr = fresh_reg_ptr;
       Compiler.fresh_counter = fresh_counter;
       Compiler.is_reg_ptr  = is_reg_ptr;
       Compiler.is_ptr      = is_ptr;

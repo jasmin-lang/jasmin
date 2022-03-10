@@ -183,6 +183,11 @@ let rec check_instr env i =
     check_exprs loc es tins;
     check_lvals loc xs tout
 
+  | Csyscall(xs,op,es) -> 
+    let tins, tout = Syscall.syscall_sig_u op in
+    check_exprs loc es (List.map Conv.ty_of_cty tins);
+    check_lvals loc xs (List.map Conv.ty_of_cty tout)
+      
   | Cif(e,c1,c2) -> 
     check_expr loc e tbool;
     check_cmd env c1;

@@ -28,8 +28,7 @@ From CoqWord Require Import ssrZ.
 Require Import
   expr
   memory_model
-  psem
-  stack_alloc_proof_2.
+  psem.
 Require Import x86_decl x86_stack_alloc.
 
 Set Implicit Arguments.
@@ -41,10 +40,10 @@ Section X86_PROOF.
   Variable (P' : sprog).
   Hypothesis P'_globs : P'.(p_globs) = [::].
 
-  Lemma lea_ptrP s1 e i x ofs w s2 :
+  Lemma lea_ptrP s1 e i x tag ofs w s2 :
     sem_pexpr [::] s1 e >>= to_pointer = ok i ->
     write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
-    sem_i P' w s1 (lea_ptr x e ofs) s2.
+    sem_i P' w s1 (lea_ptr x tag e ofs) s2.
   Proof.
     move=> he hx.
     constructor.
@@ -53,10 +52,10 @@ Section X86_PROOF.
     by rewrite !zero_extend_u hx.
   Qed.
 
-  Lemma mov_ptrP s1 e i x w s2 :
+  Lemma mov_ptrP s1 e i x tag w s2 :
     sem_pexpr [::] s1 e >>= to_pointer = ok i ->
     write_lval [::] x (Vword i) s1 = ok s2 ->
-    sem_i P' w s1 (mov_ptr x e) s2.
+    sem_i P' w s1 (mov_ptr x tag e) s2.
   Proof.
     move=> he hx.
     constructor.
@@ -67,10 +66,10 @@ Section X86_PROOF.
 
 End X86_PROOF.
 
-Lemma x86_mov_ofsP (P': sprog) s1 e i x ofs w vpk s2 ins :
+Lemma x86_mov_ofsP (P': sprog) s1 e i x tag ofs w vpk s2 ins :
   P'.(p_globs) = [::] ->
   sem_pexpr [::] s1 e >>= to_pointer = ok i ->
-  x86_mov_ofs x vpk e ofs = Some ins ->
+  x86_mov_ofs x tag vpk e ofs = Some ins ->
   write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
   sem_i P' w s1 ins s2.
 Proof.

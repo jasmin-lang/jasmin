@@ -85,6 +85,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
     match ir with
     | Cassgn _ _ _ _
     | Copn _ _ _ _
+    | Csyscall _ _ _
       => ok (Sv.union (read_i ir) X, [::i])
     | Cif e c1 c2  =>
       Let c1 := inline_c (inline_i p) c1 X in

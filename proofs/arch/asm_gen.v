@@ -81,6 +81,7 @@ Section ASM_EXTRA.
 Context `{asm_e : asm_extra}.
 
 Definition to_reg   : var -> option reg_t   := of_var.
+Definition to_regx  : var -> option regx_t  := of_var.
 Definition to_xreg  : var -> option xreg_t  := of_var.
 Definition to_rflag : var -> option rflag_t := of_var.
 
@@ -197,6 +198,7 @@ Definition addr_of_xpexpr rip ii sz v e :=
 Definition xreg_of_var ii (x: var_i) : cexec asm_arg :=
   if to_xreg x is Some r then ok (XReg r)
   else if to_reg x is Some r then ok (Reg r)
+  else if to_regx x is Some r then ok (Regx r)
   else Error (E.verror false "Not a (x)register" ii x).
 
 Definition assemble_word_load rip ii (sz:wsize) (e:pexpr) :=
@@ -341,7 +343,8 @@ Definition check_arg_kind_no_imm (a:asm_arg) (cond: arg_kind) :=
   match a, cond with
   | Condt _, CAcond => true
   | Imm _ _, CAimm _ => true
-  | Reg _, CAreg => true
+  | Reg _ , CAreg => true
+  | Regx _, CAregx => true
   | Addr _, CAmem _ => true
   | XReg _, CAxmm   => true
   | _, _ => false
@@ -378,6 +381,7 @@ Definition enforce_imm_arg_kind (a:asm_arg) (cond: arg_kind) : option asm_arg :=
     (* this check is not used (yet?) in the correctness proof *)
     if w == w2 then Some (Imm w1) else None
   | Reg _, CAreg => Some a
+  | Regx _, CAregx => Some a
   | Addr _, CAmem _ => Some a
   | XReg _, CAxmm   => Some a
   | _, _ => None
@@ -403,6 +407,7 @@ Definition pp_arg_kind c :=
   | CAimm ws => pp_nobox [:: pp_s "imm "; pp_s (string_of_wsize ws)]
   | CAcond => pp_s "cond"
   | CAreg => pp_s "reg"
+  | CAregx => pp_s "regx"
   | CAxmm => pp_s "xreg"
   end.
 

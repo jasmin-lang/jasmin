@@ -62,6 +62,7 @@
 %token QUESTIONMARK
 %token RARROW
 %token REG
+%token REGX
 %token REQUIRE
 %token RETURN
 %token SEMICOLON
@@ -111,6 +112,7 @@ keyword:
   | INLINE { "inline" }
   | EXPORT { "export" }
   | REG    { "reg" }
+  | REGX   { "regx" }
   | STACK  { "stack" }
 
 annotationlabel:
@@ -395,8 +397,12 @@ ptr:
    | None   -> `Direct 
    } 
 
+reg:
+| REG  { `Normal }
+| REGX { `Extra  }
+
 storage:
-| REG    ptr=ptr { `Reg ptr}
+| r=reg  ptr=ptr { `Reg(r, ptr) }
 | STACK  ptr=ptr { `Stack ptr }
 | INLINE         { `Inline }
 | GLOBAL         { `Global }

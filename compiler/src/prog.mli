@@ -27,11 +27,12 @@ type 'len gty =
 
 type writable = Constant | Writable
 type pointer = Direct | Pointer of writable
+type reg_kind = Normal | Extra
 
 type v_kind =
   | Const             (* global parameter  *)
   | Stack of pointer  (* stack variable    *)
-  | Reg   of pointer  (* register variable *)
+  | Reg   of reg_kind * pointer  (* register variable *)
   | Inline            (* inline variable   *)
   | Global            (* global (in memory) constant *) 
   [@@deriving compare,sexp]
@@ -78,7 +79,9 @@ val tint  : 'e gty
 val tbool : 'e gty
 
 val is_stack_kind   : v_kind -> bool
+val is_reg_direct_kind : v_kind -> bool
 val is_reg_kind     : v_kind -> bool
+val reg_kind        : v_kind -> reg_kind
 val is_ptr          : v_kind -> bool
 val is_reg_ptr_kind : v_kind -> bool
 val is_stk_ptr_kind : v_kind -> bool
@@ -109,6 +112,7 @@ type 'len grange = E.dir * 'len gexpr * 'len gexpr
 type ('len,'info) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   | Copn   of 'len glvals * E.assgn_tag * X86_extra.x86_extended_op Sopn.sopn * 'len gexprs
+  | Csyscall of 'len glvals * Syscall.syscall_t * 'len gexprs
   | Cif    of 'len gexpr * ('len,'info) gstmt * ('len,'info) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info) gstmt
   | Cwhile of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
@@ -281,7 +285,8 @@ module Hf : Hash.S with type key = funname
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *)
 
-val rvars_lv : Sv.t -> lval -> Sv.t
+val fold_vars_fc : ('ty gvar -> 'acc -> 'acc) -> 'acc -> ('ty, 'info) gfunc -> 'acc
+val vars_lv : Sv.t -> lval -> Sv.t
 val vars_e  : expr -> Sv.t
 val vars_es : expr list -> Sv.t
 val vars_i  : 'info instr -> Sv.t
@@ -341,14 +346,16 @@ val is_var : 'len gexpr -> bool
 val get_ofs : Warray_.arr_access -> Wsize.wsize -> 'len gexpr -> int option
 
 (* -------------------------------------------------------------------- *)
-(* Functions over lvalue                                                *)
+(* Functions over lvalues                                               *)
 
 val expr_of_lval : 'len glval -> 'len gexpr option
 
 (* -------------------------------------------------------------------- *)
-(* Functions over instruction                                           *)
+(* Functions over instructions                                          *)
 
 val destruct_move : ('len, 'info) ginstr -> 'len glval * E.assgn_tag * 'len gty * 'len gexpr
+
+val has_syscall : ('len, 'info) gstmt -> bool  
 
 (* -------------------------------------------------------------------- *)
 val clamp : wsize -> Z.t -> Z.t

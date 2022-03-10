@@ -36,6 +36,7 @@ let rec written_vars_instr_r allvars w =
     -> written_vars_stmt allvars w s
   | Cassgn (x, _, _, _) -> written_vars_lvar allvars w x
   | Copn (xs, _, _, _)
+  | Csyscall(xs,_,_) 
   | Ccall (_, xs, _, _)
     -> written_vars_lvars allvars w xs
   | Cif (_, s1, s2)
@@ -67,6 +68,10 @@ let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in
       m, Copn (ys, tg, op, es)
+    | Csyscall (xs, op, es) ->
+      let es = List.map (rename_expr m) es in
+      let m, ys = rename_lvals allvars m xs in
+      m, Csyscall(ys, op, es)
     | Ccall (ii, xs, n, es) ->
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in
@@ -129,7 +134,7 @@ let remove_phi_nodes (f: 'info func) : 'info func =
        | _ -> [i])
     | Cif (b, s1, s2) -> [Cif (b, stmt s1, stmt s2)]
     | Cwhile (a, s1, b, s2) -> [Cwhile (a, stmt s1, b, stmt s2)]
-    | (Copn _ | Cfor _ | Ccall _) as i -> [i]
+    | (Copn _ | Csyscall _ | Cfor _ | Ccall _) as i -> [i]
   and instr i =
     try List.map (fun i_desc -> { i with i_desc }) (instr_r i.i_desc)
     with HiError e -> raise (HiError (add_iloc e i.i_loc))

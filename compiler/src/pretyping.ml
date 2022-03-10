@@ -548,10 +548,14 @@ let tt_pointer dfl_writable (p:S.ptr) : P.pointer =
     P.Pointer (if dfl_writable then P.Writable else P.Constant)
   | `Direct  -> P.Direct
 
+let tt_reg_kind = function
+  | `Normal -> P.Normal
+  | `Extra -> P.Extra
+
 let tt_sto dfl_writable (sto : S.pstorage) : P.v_kind =
   match sto with
   | `Inline  -> P.Inline
-  | `Reg   p -> P.Reg (tt_pointer dfl_writable p)
+  | `Reg   (k, p) -> P.Reg (tt_reg_kind k, tt_pointer dfl_writable p)
   | `Stack p -> P.Stack (tt_pointer dfl_writable p)
   | `Global  -> P.Global
 
@@ -605,15 +609,10 @@ let check_ty (ety : typattern) (loc, ty) =
   | _ -> rs_tyerror ~loc (InvalidType (ty, ety))
 
 (* -------------------------------------------------------------------- *)
-let warn_arr loc from to_ = 
-  warning Always (L.i_loc0 loc) "cannot ensure that the type %a is compatible with %a"
-    Printer.pp_ptype from Printer.pp_ptype to_
-
 let check_ty_eq ~loc ~(from : P.pty) ~(to_ : P.pty) =
   if not (P.pty_equal from to_) then
     match from, to_ with
-    | P.Arr _, P.Arr _ ->
-      warn_arr loc from to_
+    | P.Arr _, P.Arr _ -> () (* we delay typechecking until we know the lengths *)
     | _, _ -> rs_tyerror ~loc (TypeMismatch (from, to_))
 
 let check_ty_u64 ~loc ty =
@@ -921,8 +920,7 @@ let cast loc e ety ty =
   | P.Bty (P.U w), P.Bty P.Int -> P.Papp1 (E.Oint_of_word w, e)
   | P.Bty (P.U w1), P.Bty (P.U w2) when W.wsize_cmp w1 w2 <> Datatypes.Lt -> e
   | _, _ when P.pty_equal ety ty -> e
-  | P.Arr _, P.Arr _ ->
-    warn_arr loc ety ty; e
+  | P.Arr _, P.Arr _ -> e (* we delay typechecking until we know the lengths *)
   | _  ->  rs_tyerror ~loc (InvalidCast(ety,ty))
 
 let cast_word loc ws e ety =
@@ -939,7 +937,7 @@ let conv_ty = function
     | T.Coq_sbool    -> P.tbool
     | T.Coq_sint     -> P.tint
     | T.Coq_sword ws -> P.Bty (P.U ws)
-    | T.Coq_sarr _   -> assert false 
+    | T.Coq_sarr p   -> P.Arr (U8, P.icnst (Conv.int_of_pos p))
 
 let type_of_op2 op = 
   let (ty1, ty2), tyo = E.type_of_op2 op in
@@ -1205,7 +1203,7 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 
   let reject_constant_pointers loc x =
     match x.P.v_kind with
-    | Stack (Pointer Constant) | Reg (Pointer Constant) ->
+    | Stack (Pointer Constant) | Reg (_, Pointer Constant) ->
        rs_tyerror ~loc (WriteToConstantPointer x.P.v_name)
     | _ -> ()
   in
@@ -1246,7 +1244,7 @@ let tt_lvalue (env : Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 let f_sig f =
   List.map P.ty_i f.P.f_ret, List.map (fun v -> v.P.v_ty) f.P.f_args
 
-let prim_sig (type a) p : a P.gty list * a P.gty list * Sopn.arg_desc list =
+let prim_sig p : 'a P.gty list * 'a P.gty list * Sopn.arg_desc list =
   let f = conv_ty in
   let o = Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) p in
   List.map f o.tout,
@@ -1266,8 +1264,10 @@ let prim_string =
     "sbb", PrimP (W.U64, fun _ws sz -> Osubcarry sz);
     "set0", PrimP (W.U64, fun _ws sz -> Oasm (ExtOp (Oset0 sz)));
     "concat_2u128", PrimM (fun _ws -> Oasm (ExtOp Oconcat128));
+    "copy", PrimP (W.U64, fun _ws sz -> Ocopy (sz, Conv.pos_of_int 1));
     "protect", PrimP (W.U64, fun _ws sz -> Oasm (ExtOp (Oprotect sz)));
     "set_msf", PrimM (fun _ws -> Oasm (ExtOp Oset_msf));
+    "mov_msf", PrimM (fun _ws -> Oasm (ExtOp Omov_msf));
     "init_msf", PrimM (fun _ws -> Oasm (ExtOp Oinit_msf));
  ] @
   List.map (fun (s, prc) ->
@@ -1674,52 +1674,6 @@ let rec tt_instr (env : Env.env) ((annot,pi) : S.pinstr) : Env.env * unit P.pins
           | P.Export | P.Subroutine _ -> E.DoNotInline in
       env, [mk_i (mk_call (L.loc pi) is_inline lvs f es)]
 
-  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, es) }, None) when 
-     fst (extract_size (L.unloc f)) = "copy" ->
-    if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "copy expects no implicit arguments");
-    let es = tt_exprs env es in
-    let y, yty = 
-      match es with
-      | [Pvar y, ty] -> y, ty
-      | _ -> 
-          rs_tyerror ~loc:(L.loc pi) 
-            (string_error "only a single variable is allowed as argument of copy")
-    in
-    let x = 
-      match xs with
-      | [x] -> 
-        let loc, fx, _ = tt_lvalue env x in
-        begin match fx yty with
-        | Lvar x -> x
-        | _ -> 
-          rs_tyerror ~loc 
-            (string_error "only a single variable is allowed as destination of copy")
-        end
-      | _ -> 
-        rs_tyerror ~loc:(L.loc pi) 
-          (string_error "only a single variable is allowed as destination of copy")
-    in
-    let ws =   
-      (* Do not check size of array here, it is done in typing *)
-      match snd (extract_size (L.unloc f)) with
-      | SAw ws -> ws
-      | SAv _ | SAx _ | SAvv _ -> assert false 
-      | SA ->
-        match (L.unloc x).v_ty with
-        | Arr (xws, _) ->
-          begin match yty with
-          | Arr(yws, _) ->
-            if (L.unloc x).v_kind = Reg Direct then xws
-            else if (L.unloc y.gv).v_kind = Reg Direct then yws
-            else  
-              rs_tyerror ~loc:(L.loc pi) 
-                (string_error "#copy: the source or the destination should be a reg array")
-          | _ -> rs_tyerror ~loc:(L.loc y.gv) (string_error "an array is expected")
-          end
-        | _ -> rs_tyerror ~loc:(L.loc y.gv) (string_error "an array is expected")
-    in
-    env, [ mk_i (Copn([Lvar x], AT_none, Sopn.Ocopy(ws, Conv.pos_of_int 1), [Pvar y]))] 
-
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim None f in
       let tlvs, tes, arguments = prim_sig p in
@@ -1841,7 +1795,7 @@ let tt_call_conv loc params returns cc =
 
   | Some `Export ->
     let check s x = 
-      if (L.unloc x).P.v_kind <> Reg Direct then 
+      if (L.unloc x).P.v_kind <> Reg(Normal, Direct) then 
         rs_tyerror ~loc:(L.loc x) 
           (string_error "%a has kind %a, only reg are allowed in %s of export function"
             Printer.pp_pvar (L.unloc x)
@@ -1867,8 +1821,8 @@ let tt_call_conv loc params returns cc =
         let loc = L.loc x in
         let x = L.unloc x in
         match x.P.v_kind with
-        | P.Reg Direct -> None
-        | P.Reg (Pointer writable) -> 
+        | P.Reg(_, Direct) -> None
+        | P.Reg(_, Pointer writable) -> 
           if writable = Constant then
             warning Always (L.i_loc0 loc) "no need to return a [reg const ptr] %a"
               Printer.pp_pvar x;
@@ -1878,10 +1832,14 @@ let tt_call_conv loc params returns cc =
                                Printer.pp_pvar x);
           i
         | _ -> assert false) returns in
+    let is_writable_ptr k = 
+      match k with
+      | P.Reg(_, Pointer Writable) -> true
+      | _ -> false in
     let check_writable_param i x = 
       let loc = L.loc x in
       let x = L.unloc x in
-      if x.P.v_kind = Reg (Pointer Writable) then
+      if is_writable_ptr x.P.v_kind then
         if not (List.exists ((=) (Some i)) returned_params) then
           rs_tyerror ~loc (string_error "%a is mutable, it should be returned"
                              Printer.pp_pvar x) in

@@ -21,7 +21,7 @@ let fill_in_missing_names (f: 'info func) : 'info func =
     let fresh, _ = make_counter () in
     fun loc ty ->
       let n = Printf.sprintf " _%d" (fresh ()) in
-      L.mk_loc loc (V.mk n (Reg Direct) ty L._dummy [])
+      L.mk_loc loc (V.mk n (Reg(Normal, Direct)) ty L._dummy [])
   in
   let fill_lv =
     function
@@ -32,6 +32,7 @@ let fill_in_missing_names (f: 'info func) : 'info func =
     function
     | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
     | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
+    | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
     | Cwhile (a, s, e, s') -> Cwhile (a, fill_stmt s, e, fill_stmt s')
@@ -142,6 +143,16 @@ let set_friend i j (f: friend) : friend =
 type 'info collect_equality_constraints_state =
   { mutable cac_friends : friend; mutable cac_eqc: Puf.t ; cac_trace: 'info instr list array }
 
+let get_Pvar loc ~sub_kind a =
+  match a with
+  | Pvar { gs = Expr.Slocal ; gv } -> gv
+  | _ -> hierror ~loc:(Lmore loc) ~sub_kind ~internal:true "argument is not a local variable" 
+      
+let get_Lvar loc ~sub_kind x =
+  match x with
+  | Lvar v -> v
+  | _ -> hierror ~loc:(Lmore loc) ~sub_kind ~internal:true "return destination is not a variable" 
+
 let collect_equality_constraints_in_func
       ~(with_call_sites: (funname -> 'info func) option)
       (msg: string)
@@ -165,6 +176,7 @@ let collect_equality_constraints_in_func
     function
     | Cfor (_, _, s) -> collect_stmt s
     | Copn (lvs, _, op, es) -> copn_constraints int_of_var (add ii) addf lvs op es
+    | Csyscall (_lvs, _op, _es) -> () 
     | Cassgn (Lvar x, AT_phinode, _, Pvar y) when
           is_gkvar y && kind_i x = kind_i y.gv ->
        addv ii x y.gv
@@ -180,21 +192,13 @@ let collect_equality_constraints_in_func
        end
     | Cassgn _ -> ()
     | Ccall (_, xs, fn, es) ->
-      let get_Pvar a =
-        match a with
-        | Pvar { gs = Expr.Slocal ; gv } -> gv
-        | _ -> hierror ~loc:(Lmore ii.i_loc) ~sub_kind:msg ~internal:true "argument is not a local variable" in
-      let get_Lvar x =
-        match x with
-        | Lvar v -> v
-        | _ -> hierror ~loc:(Lmore ii.i_loc) ~sub_kind:msg ~internal:true "return destination is not a variable" in
       begin match with_call_sites with
       | None -> ()
       | Some get_func ->
         let g = get_func fn in
-        List.iter2 (fun a p -> addv ii (get_Pvar a) Location.(mk_loc _dummy p))
+        List.iter2 (fun a p -> addv ii (get_Pvar ii.i_loc ~sub_kind:msg a) Location.(mk_loc _dummy p))
           es g.f_args;
-        List.iter2 (fun r x -> addv ii r (get_Lvar x))
+        List.iter2 (fun r x -> addv ii r (get_Lvar ii.i_loc ~sub_kind:msg x))
           g.f_ret xs
       end
     | (Cwhile (_, s1, _, s2) | Cif (_, s1, s2)) -> collect_stmt s1; collect_stmt s2
@@ -329,6 +333,7 @@ let collect_conflicts
     | Cassgn _
     | Copn _
     | Ccall _
+    | Csyscall _
       -> c
     | Cwhile (_, s1, _, s2)
     | Cif (_, s1, s2)
@@ -340,14 +345,14 @@ let collect_conflicts
 
 let iter_variables (cb: var -> unit) (f: 'info func) : unit =
   let iter_sv = Sv.iter cb in
-  let iter_lv lv = rvars_lv Sv.empty lv |> iter_sv in
-  let iter_lvs lvs = List.fold_left rvars_lv Sv.empty lvs |> iter_sv in
+  let iter_lv lv = vars_lv Sv.empty lv |> iter_sv in
+  let iter_lvs lvs = List.fold_left vars_lv Sv.empty lvs |> iter_sv in
   let iter_expr e = vars_e e |> iter_sv in
   let iter_exprs es = vars_es es |> iter_sv in
   let rec iter_instr_r =
     function
     | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
-    | (Ccall (_, lvs, _, es) | Copn (lvs, _, _, es)) -> iter_lvs lvs; iter_exprs es
+    | (Ccall (_, lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _, es) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
     | Cfor _ -> assert false
   and iter_instr { i_desc } = iter_instr_r i_desc
@@ -375,11 +380,17 @@ let collect_variables ~(allvars: bool) (excluded:Sv.t) (f: 'info func) : int Hv.
   collect_variables_aux ~allvars excluded fresh tbl None f;
   tbl, total ()
 
-let collect_variables_in_prog ~(allvars: bool) (excluded:Sv.t) (extra: var Hf.t) (extras: ('k, var) Hashtbl.t) (f: 'info func list) : int Hv.t * int =
+let collect_variables_in_prog ~(allvars: bool) (excluded:Sv.t) 
+      (extra: var Hf.t) 
+      (extras: ('k, var) Hashtbl.t) 
+      (all_regs : var list)
+      (f: 'info func list) : int Hv.t * int =
+  
   let fresh, total = make_counter () in
   let tbl : int Hv.t = Hv.create 97 in
   List.iter (fun f -> collect_variables_aux ~allvars excluded fresh tbl (Hf.Exceptionless.find extra f.f_name) f) f;
   Hashtbl.iter (fun _ v -> collect_variables_cb ~allvars excluded fresh tbl v) extras;
+  List.iter (fun v -> collect_variables_cb ~allvars excluded fresh tbl v) all_regs;
   tbl, total ()
 
 let normalize_variables (tbl: int Hv.t) (eqc: Puf.t) : int Hv.t =
@@ -442,7 +453,7 @@ let allocate_one nv vars loc (cnf: conflicts) (x_:var) (x: int) (r: var) (a: A.a
 module X64 =
 struct
 
-  let reg_k = Prog.Reg Prog.Direct
+  let reg_k = Prog.Reg(Normal, Prog.Direct)
 
   let rax = V.mk "RAX" reg_k (Bty (U U64)) L._dummy []
   let rbx = V.mk "RBX" reg_k (Bty (U U64)) L._dummy []
@@ -478,6 +489,17 @@ struct
   let xmm14 = V.mk "XMM14" reg_k (Bty (U U256)) L._dummy []
   let xmm15 = V.mk "XMM15" reg_k (Bty (U U256)) L._dummy []
 
+  let reg_e = Prog.Reg(Prog.Extra, Prog.Direct)
+  let mm0 = V.mk "MM0" reg_e (Bty (U U64)) L._dummy []
+  let mm1 = V.mk "MM1" reg_e (Bty (U U64)) L._dummy []
+  let mm2 = V.mk "MM2" reg_e (Bty (U U64)) L._dummy []
+  let mm3 = V.mk "MM3" reg_e (Bty (U U64)) L._dummy []
+  let mm4 = V.mk "MM4" reg_e (Bty (U U64)) L._dummy []
+  let mm5 = V.mk "MM5" reg_e (Bty (U U64)) L._dummy []
+  let mm6 = V.mk "MM6" reg_e (Bty (U U64)) L._dummy []
+  let mm7 = V.mk "MM7" reg_e (Bty (U U64)) L._dummy []
+
+
   let allocatable = [
       rax; rcx; rdx;
       rsi; rdi;
@@ -485,6 +507,10 @@ struct
       rbp;
       rbx;
       r12; r13; r14; r15
+    ]
+
+  let extra_allocatable = [
+      mm0; mm1; mm2; mm3; mm4; mm5; mm6; mm7
     ]
 
   let allocatables = Sv.of_list allocatable
@@ -528,7 +554,7 @@ struct
 
   let flags = [f_d ;f_o; f_c; f_s; f_p; f_z]
 
-  let all_registers = reserved @ allocatable @ xmm_allocatable @ flags
+  let all_registers = reserved @ allocatable @ extra_allocatable @ xmm_allocatable @ flags
 
   let forced_registers translate_var loc nv (vars: int Hv.t) (cnf: conflicts)
       (lvs: 'ty glvals) (op: X86_extra.x86_extended_op sopn) (es: 'ty gexprs)
@@ -538,6 +564,7 @@ struct
       let i = f x in
       allocate_one nv vars loc cnf (L.unloc x) i y a
     in
+    
     let mallocate_one x y a =
       match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
     in
@@ -603,6 +630,11 @@ let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
     | Cfor (_, _, s)
       -> alloc_stmt s
     | Copn (lvs, _, op, es) -> X64.forced_registers translate_var loc nv vars cnf lvs op es a
+    | Csyscall(xs, _o, es) -> 
+      alloc_from_list loc ~ctxt:"parameters" X64.arguments X64.xmm_arguments 
+        (fun e -> L.unloc (get_Pvar loc ~sub_kind:"" e)) es; 
+      alloc_from_list loc ~ctxt:"parameters" X64.ret X64.xmm_ret 
+        (fun e -> L.unloc (get_Lvar loc ~sub_kind:"" e)) xs
     | Cwhile (_, s1, _, s2)
     | Cif (_, s1, s2)
         -> alloc_stmt s1; alloc_stmt s2
@@ -709,6 +741,7 @@ let greedy_allocation
     (fr: friend)
     (a: A.allocation) : unit =
   let scalars : (int, var list) Hashtbl.t = Hashtbl.create nv in
+  let extra_scalars : (int, var list) Hashtbl.t = Hashtbl.create nv in
   let vectors : (int, var list) Hashtbl.t = Hashtbl.create nv in
   let push_var tbl i v =
     match Hashtbl.find tbl i with
@@ -717,11 +750,14 @@ let greedy_allocation
   in
   Hv.iter (fun v i ->
       match kind_of_type v.v_ty with
-      | Word -> push_var scalars i v
+      | Word -> 
+          if reg_kind v.v_kind = Normal then push_var scalars i v
+          else push_var extra_scalars i v
       | Vector -> push_var vectors i v
       | Unknown _ -> ()
       ) vars;
   two_phase_coloring X64.allocatable scalars cnf fr a;
+  two_phase_coloring X64.extra_allocatable extra_scalars cnf fr a;
   two_phase_coloring X64.xmm_allocatable vectors cnf fr a;
   ()
 
@@ -751,8 +787,7 @@ let split_live_ranges (f: 'info func) : unit func =
 let renaming (f: 'info func) : unit func =
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
   let eqc, _tr, _fr =
-    collect_equality_constraints
-      "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
+    collect_equality_constraints "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
   let vars = normalize_variables vars eqc in
   let a = reverse_varmap nv vars |> subst_of_allocation vars in
   Subst.subst_func a f
@@ -815,6 +850,10 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
   let extra_free_registers : (L.i_loc, var) Hashtbl.t = Hashtbl.create 137 in
   let killed_map : Sv.t Hf.t = Hf.create 17 in
   let killed fn = Hf.find killed_map fn in
+
+  let write_syscall = 
+    Var0.Sv.fold_var (fun y s -> Sv.add (translate_var y) s) X86_params.write_syscall Sv.empty in 
+
   let preprocess f =
     Hf.add annot_table f.f_name f.f_annot;
     let f = f |> fill_in_missing_names |> Ssa.split_live_ranges false in
@@ -830,7 +869,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
              | Some OnStack -> false
              | (None | Some OnReg) -> true
         then
-          let r = V.mk " ra" (Reg Direct) (Bty (U U64)) L._dummy [] in
+          let r = V.mk " ra" (Reg(Normal, Direct)) (Bty (U U64)) L._dummy [] in
           if !Glob_options.debug then
             Format.eprintf "Fresh variable “%a” for the return address of function “%s”.@."
               (Printer.pp_var ~debug:true) r f.f_name.fn_name;
@@ -843,13 +882,14 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
             let acc = Sv.union (killed fn) acc in
             if (get_annot fn).retaddr_kind = Some OnStack then
               List.fold_left (fun acc loc ->
-                  let r = V.mk (Format.sprintf " ra%d" (count())) (Reg Direct) (Bty (U U64)) loc.L.base_loc [] in
+                  let r = V.mk (Format.sprintf " ra%d" (count())) (Reg(Normal, Direct)) (Bty (U U64)) loc.L.base_loc [] in
                   Hashtbl.add extra_free_registers loc r;
                   Sv.add r acc
                 ) acc locs
             else acc
           ) cg Sv.empty in
-      Sv.union written killed_by_calls
+      let killed_by_syscalls = if has_syscall f.f_body then write_syscall else Sv.empty in
+      Sv.union (Sv.union written killed_by_calls) killed_by_syscalls 
     in
     Hf.add killed_map f.f_name written;
     f
@@ -859,20 +899,32 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
     Format.printf "Before REGALLOC:@.%a@."
       Printer.(pp_list "@ @ " (pp_func ~debug:true)) (List.rev funcs);
   (* Live variables at the end of each function, in addition to returned local variables *)
-  let get_liveness =
+  let get_liveness, slive =
     let live : Sv.t Hf.t = Hf.create 17 in
+    let slive : (Syscall.syscall_t, Sv.t) Hashtbl.t = Hashtbl.create 17 in 
     List.iter (fun f ->
         let f_with_liveness = Hf.find liveness_table f.f_name in
         let live_when_calling_f = Hf.find_default live f.f_name Sv.empty in
-        Liveness.iter_call_sites (fun _loc fn xs (_, s) ->
+        let cbf _loc fn xs (_, s) =
             let s = Sv.union live_when_calling_f s in
             let s = Liveness.dep_lvs s xs in
-            Hf.modify_def Sv.empty fn (Sv.union s) live) f_with_liveness
+            Hf.modify_def Sv.empty fn (Sv.union s) live in
+        let cbs _loc o xs (_, s) =
+            let s = Liveness.dep_lvs s xs in
+            match Hashtbl.find slive o with 
+            | s0 -> Hashtbl.replace slive o (Sv.union s s0)
+            | exception Not_found -> Hashtbl.add slive o s in
+        Liveness.iter_call_sites cbf cbs f_with_liveness
       ) funcs;
-    fun fn -> Hf.find_default live fn Sv.empty
+    (fun fn -> Hf.find_default live fn Sv.empty),
+    slive 
+
   in
   let excluded = Sv.of_list [Prog.rip; X64.rsp] in
-  let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses extra_free_registers funcs in
+  let vars, nv = 
+    let all_regs = Var0.Sv.fold_var (fun x all -> translate_var x :: all) X86_params.all_vars [] in
+    collect_variables_in_prog ~allvars:false excluded return_addresses 
+      extra_free_registers all_regs funcs in
   let eqc, tr, fr = collect_equality_constraints_in_prog "Regalloc" x86_equality_constraints vars nv funcs in
   let vars = normalize_variables vars eqc in
   (* Intra-procedural conflicts *)
@@ -891,7 +943,7 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
             match Hashtbl.find extra_free_registers loc with
             | exception Not_found -> ()
             | r -> cnf := Sv.fold (conflicts_add_one vars tr (Lmore loc) r) s !cnf
-          ) f
+          ) (fun _ _ _ _ -> ()) f
       ) liveness_table;
     !cnf
   in
@@ -916,7 +968,24 @@ let global_allocation translate_var (funcs: 'info func list) : unit func list * 
         in
         cnf |> Sv.fold (add_conflicts vars) live
       ) funcs conflicts in
+ 
+  (* syscall conflicts *)
+  let conflicts =
+    let add_conflicts x cnf = 
+      Sv.fold (fun y cnf -> conflicts_add_one vars tr Lnone x y cnf) write_syscall cnf in
+    Hashtbl.fold (fun _o live cnf -> cnf |> Sv.fold add_conflicts live) slive conflicts in
+  
   let a = A.empty nv in
+
+  (* Allocate all_vars *)
+  let allocate_one x a =
+    match Hv.find vars x with 
+    | i -> allocate_one nv vars L.i_dummy conflicts x i x a
+    | exception Not_found -> () 
+  in
+  Var0.Sv.fold_var (fun x () -> allocate_one (translate_var x) a)
+      X86_params.all_vars ();
+
   List.iter (fun f -> allocate_forced_registers translate_var nv vars conflicts f a) funcs;
   greedy_allocation vars nv conflicts fr a;
   let subst = var_subst_of_allocation vars a in

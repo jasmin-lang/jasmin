@@ -47,6 +47,7 @@ Variant x86_extra_op : Type :=
 | Oprotect  of wsize 
 | Oset_msf    
 | Oinit_msf
+| Omov_msf  
 .
 
 Scheme Equality for x86_extra_op.
@@ -120,6 +121,19 @@ Definition Oinit_msf_instr :=
                   U8 (* ? *)
                   [::].
 
+Definition mov_msf (w:pointer) : exec (pointer) :=
+  ok w.
+
+Definition Omov_msf_instr := 
+    mk_instr_desc (pp_s "mov_msf")
+                  [:: sword Uptr]
+                  [:: E 1]
+                  [:: sword Uptr]
+                  [:: E 0]
+                  mov_msf 
+                  U8 (* ? *)
+                  [::].
+
 Definition protect_small (ws:wsize) (w:word ws) (msf:pointer) : exec (sem_tuple (b5w_ty ws)) := 
    x86_OR w (zero_extend ws msf).
 
@@ -150,11 +164,12 @@ Definition Oprotect_instr (ws:wsize) :=
 
 Definition get_instr_desc o :=
   match o with
-  | Oset0 ws => Oset0_instr ws
-  | Oconcat128 => Oconcat128_instr
-  | Ox86MOVZX32 => Ox86MOVZX32_instr
+  | Oset0 ws     => Oset0_instr ws
+  | Oconcat128   => Oconcat128_instr
+  | Ox86MOVZX32  => Ox86MOVZX32_instr
   | Oprotect  sz => Oprotect_instr sz
   | Oset_msf     => Oset_msf_instr
+  | Omov_msf     => Omov_msf_instr
   | Oinit_msf    => Oinit_msf_instr
   end.
 
@@ -219,6 +234,8 @@ Definition assemble_extra ii o outx inx : cexec (seq (asm_op_msb_t * lvals * pex
                  ((None, CMOVcc U64), [:: ms1], [::Papp1 Onot b; Plvar aux; ms2])])
       | _, _ => Error (E.error ii "Oset_msf: aux destination not a register")
       end
+  | Omov_msf =>
+      ok ([::((None, MOVX Uptr), outx, inx)])
   | Oinit_msf =>
       ok([::((None, LFENCE),[::], [::]);
             ((None, MOV U64), outx, [::cast_const 0])])
@@ -234,11 +251,11 @@ Instance eqC_x86_extra_op : eqTypeC x86_extra_op :=
 Instance x86_extra_op_decl : asmOp x86_extra_op | 1 :=
   { asm_op_instr := get_instr_desc }.
 
-Instance x86_extra : asm_extra register xmm_register rflag condt x86_op x86_extra_op :=
+Instance x86_extra : asm_extra register register_ext xmm_register rflag condt x86_op x86_extra_op :=
   { to_asm := assemble_extra }.
 
 (* This concise name is convenient in OCaml code. *)
 Definition x86_extended_op :=
-  @extended_op _ _ _ _ _ _ x86_extra.
+  @extended_op _ _ _ _ _ _ _ x86_extra.
 
 Definition Ox86 o : @sopn x86_extended_op _ := Oasm (BaseOp (None, o)).
