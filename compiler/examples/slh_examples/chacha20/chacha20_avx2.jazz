@@ -973,10 +973,10 @@ inline fn __chacha_less_than_257_avx2(#public reg u64 output plain, #public reg 
 export fn chacha_avx2(#public reg u64 output plain, #public reg u32 len, #public reg u64 key nonce, #secret reg u32 counter)
 {
   #msf reg u64 ms;
-  ms = #init_msf();     // LFENCE
+  _ = #init_msf();     // LFENCE
   if(len < 257)
   { __chacha_less_than_257_avx2(output, plain, len, key, nonce, counter); }
   else
   { __chacha_more_than_256_avx2(output, plain, len, key, nonce, counter); }
-  ms = #init_msf();     // LFENCE
+  _ = #init_msf();     // LFENCE
 }

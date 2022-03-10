@@ -217,7 +217,7 @@ module MSF : sig
 
   let exact1 x = exact (Sv.singleton (L.unloc x))
 
-  let add x (xs, o) = 
+  let add x (xs, o) =
     assert (o = None);
     exact (Sv.add (L.unloc x) xs)
 
@@ -238,7 +238,7 @@ module MSF : sig
 
 end
 
-let is_register x = is_reg_direct_kind x.v_kind 
+let is_register x = is_reg_direct_kind x.v_kind
 
 let is_inline x = x.v_kind = Inline
 
@@ -470,7 +470,7 @@ let ensure_regvar ~loc expr =
 let rec ty_instr fenv env msf i =
   let msf1 =
   match i.i_desc with
-  | Csyscall (xs, _, es) -> 
+  | Csyscall (xs, _, es) ->
       let _lvl = ty_exprs_max ~lvl:Lvl.secret env es in
       ignore (ty_lvals1 env msf xs Lvl.secret);
       (* We don't known what happen to MSF after external function call *)
@@ -485,8 +485,10 @@ let rec ty_instr fenv env msf i =
     | Init_msf ->
       begin match xs with
       | [Lvar x] ->
+
         ensure_msf env x;
         MSF.exact1 x
+      | [Lnone _] -> MSF.toinit
 
       | _ -> Pt.rs_tyerror ~loc (Pt.string_error "the result of #init_msf needs to be assigned in a register")
       end
