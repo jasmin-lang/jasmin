@@ -19,7 +19,7 @@ Lemma xreg_of_varI {ii x y} :
   | Regx r => of_var x = Some r
   | XReg r => of_var x = Some r
   | _ => False
-  end. Print xreg_of_var.
+  end. 
 Proof.
   rewrite /xreg_of_var.
   case heqxr: (to_xreg x) => [ r | ]; first by move=> [<-].
@@ -285,12 +285,7 @@ Proof.
     move=> /xreg_of_varI; case: a' hcomp => // r; rewrite /compat_imm orbF => /eqP <- {a} xr w ok_v ok_w;
     (eexists; split; first reflexivity);
     apply: (value_uincl_word _ ok_w).
-    + by apply: eqr; rewrite (of_varI xr). Locate eqr.
-eqx
-     : ∀ (r : cfinT_finType) (v : value),
-         get_var (evm m) (to_var r) = ok v → value_uincl v (Vword (asm_xreg s r))
-
-    + by apply: eqx; rewrite (of_carI xr).
+    + by apply: eqr; rewrite (of_varI xr). 
     by apply: eqx; rewrite (of_varI xr).
   + move=> sz x p; t_xrbindP => _ /assertP /eqP <- r hr ?; subst a'.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
