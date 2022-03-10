@@ -1158,9 +1158,13 @@ Definition Ox86_MOV_instr               :=
 
 Definition check_movx (sz:wsize) := [:: [:: rx; rm true]; [:: rm true; rx]].
 
+Definition pp_movx sz args :=
+ pp_name_ty (if sz == U64 then ("movq")%string else ("movd")%string)
+            ([::sz; sz]) args.
+
 Definition Ox86_MOVX_instr               :=
   mk_instr_w_w "MOVX" x86_MOVX [:: E 1] [:: E 0] 2
-               check_movx (primP MOVX) (pp_iname "mov").
+               check_movx (primP MOVX) (pp_movx).
 
 Definition check_movsx (_ _:wsize) := [:: r_rm ].
 
