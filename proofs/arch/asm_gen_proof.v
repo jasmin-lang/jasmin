@@ -16,13 +16,15 @@ Lemma xreg_of_varI {ii x y} :
   xreg_of_var ii x = ok y →
   match y with
   | Reg r => of_var x = Some r
+  | Regx r => of_var x = Some r
   | XReg r => of_var x = Some r
   | _ => False
-  end.
+  end. Print xreg_of_var.
 Proof.
   rewrite /xreg_of_var.
   case heqxr: (to_xreg x) => [ r | ]; first by move=> [<-].
-  by case heqr: (to_reg x) => [ r | // ]; move=> [<-].
+  case heqrx: (to_reg x) => [ r | ]; first by move=> [<-].
+  by case heqr: (to_regx x) => [ r | // ]; move=> [<-].
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -279,11 +281,16 @@ Proof.
     by rewrite /= truncate_word_u.
   case: e => //=.
   + rewrite /get_gvar /eval_asm_arg => x; t_xrbindP => _ /assertP => ->.
-    case: eqm => _ _ _ eqr eqx _.
+    case: eqm => _ _ _ eqr eqx _. Print lom_eqv.
     move=> /xreg_of_varI; case: a' hcomp => // r; rewrite /compat_imm orbF => /eqP <- {a} xr w ok_v ok_w;
     (eexists; split; first reflexivity);
     apply: (value_uincl_word _ ok_w).
-    + by apply: eqr; rewrite (of_varI xr).
+    + by apply: eqr; rewrite (of_varI xr). Locate eqr.
+eqx
+     : ∀ (r : cfinT_finType) (v : value),
+         get_var (evm m) (to_var r) = ok v → value_uincl v (Vword (asm_xreg s r))
+
+    + by apply: eqx; rewrite (of_carI xr).
     by apply: eqx; rewrite (of_varI xr).
   + move=> sz x p; t_xrbindP => _ /assertP /eqP <- r hr ?; subst a'.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
