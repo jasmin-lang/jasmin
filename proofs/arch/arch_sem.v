@@ -143,6 +143,14 @@ Definition is_label (lbl: label) (i: asm_i) : bool :=
   end.
 
 (* -------------------------------------------------------------------- *)
+Fixpoint is_labels (lbl: label) (i: seq asm_i) : bool :=
+  match i with
+  | [::] => true
+  | LABEL lbl' :: lbls => (lbl == lbl') && is_labels lbl lbls
+  | _ => false
+  end.
+
+(* -------------------------------------------------------------------- *)
 Definition find_label (lbl : label) (c : asm_code) :=
   let idx := seq.find (is_label lbl) c in
   if idx < size c then ok idx else type_error.
