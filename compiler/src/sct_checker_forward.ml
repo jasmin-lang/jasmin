@@ -250,12 +250,17 @@ module Env : sig
   val get : env -> var -> level
   val get_i : env -> var_i -> level
   val gget  : env -> int ggvar -> level
+  val get_nomodmsf : env -> bool
 
 end = struct
 
-  type env = Lvl.t Mv.t
+  type env = {
+    vlvl : Lvl.t Mv.t;
+    nomodmsf : bool;
+  }
+  let empty = {vlvl = Mv.empty; nomodmsf = false}
 
-  let empty = Mv.empty
+  let get_nomodmsf env = env.nomodmsf
 
   let add env x lvl =
     if Lvl.is_public lvl && not (is_register x || is_inline x) then
@@ -264,10 +269,10 @@ end = struct
     let lvl =
       if (is_register x || is_inline x) then lvl
       else Lvl.max lvl Lvl.transient in
-    Mv.add x lvl env
+    {vlvl = Mv.add x lvl env.vlvl; nomodmsf = env.nomodmsf}
 
   let get env x =
-    try Mv.find x env with Not_found -> assert false
+    try Mv.find x env.vlvl with Not_found -> assert false
 
   let get_i env (x:var_i) = get env (L.unloc x)
 
@@ -464,6 +469,9 @@ let ensure_regvar ~loc expr =
   | _ -> Pt.rs_tyerror ~loc  (Pt.string_error "the expression %a needs to be a variable of kind register"
                                   (Printer.pp_expr ~debug:false) expr)
 
+let raise_msferror ~loc instr =
+  Pt.rs_tyerror ~loc  (Pt.string_error "the instruction %a modifies the MSF state but function is annotated with nomodmsf"
+                                  (Printer.pp_instr ~debug:false) instr)
 
 (* [ty_instr env msf i] return msf' such that env, msf |- i : msf' *)
 
@@ -471,10 +479,12 @@ let rec ty_instr fenv env msf i =
   let msf1 =
   match i.i_desc with
   | Csyscall (xs, _, es) ->
-      let _lvl = ty_exprs_max ~lvl:Lvl.secret env es in
-      ignore (ty_lvals1 env msf xs Lvl.secret);
-      (* We don't known what happen to MSF after external function call *)
-      MSF.toinit
+    let loc = i.i_loc.base_loc in
+    if (Env.get_nomodmsf env) then raise_msferror ~loc i;
+    let _lvl = ty_exprs_max ~lvl:Lvl.secret env es in
+    ignore (ty_lvals1 env msf xs Lvl.secret);
+    (* We don't known what happen to MSF after external function call *)
+    MSF.toinit
   | Cassgn(x, _, _, e) ->
     let lvl = ty_expr ~lvl:Lvl.secret env e in
     ty_lval env msf x lvl
@@ -483,17 +493,17 @@ let rec ty_instr fenv env msf i =
     let loc = i.i_loc.base_loc in
     begin match is_special o with
     | Init_msf ->
+      if (Env.get_nomodmsf env) then raise_msferror ~loc i;
       begin match xs with
       | [Lvar x] ->
-
         ensure_msf env x;
         MSF.exact1 x
       | [Lnone _] -> MSF.toinit
-
       | _ -> Pt.rs_tyerror ~loc (Pt.string_error "the result of #init_msf needs to be assigned in a register")
       end
 
     | Set_msf ->
+      if (Env.get_nomodmsf env) then raise_msferror ~loc i;
       begin match msf with
       | (_, None) -> Pt.rs_tyerror ~loc (Pt.string_error "MSF is not Trans")
       | (xS, Some b') ->
@@ -536,7 +546,6 @@ let rec ty_instr fenv env msf i =
       | _ -> assert false
       end
 
-
     | Protect ->
       let loc = i.i_loc.base_loc in
       begin match es with
@@ -554,6 +563,8 @@ let rec ty_instr fenv env msf i =
     end
 
   | Cif(e, c1, c2) ->
+    let loc = i.i_loc.base_loc in
+    if (Env.get_nomodmsf env) then raise_msferror ~loc i;
     let _ = ty_expr ~lvl:Lvl.public env e in
     let msf1 = ty_cmd fenv env (MSF.enter_if msf e) c1 in
     let msf2 = ty_cmd fenv env (MSF.enter_if msf (Papp1(Onot, e))) c2 in
@@ -574,7 +585,8 @@ let rec ty_instr fenv env msf i =
        --------------------------------------------------------------------------------
        env, msf |- while c1 e c2 : enter_if e msf1
      *)
-
+    let loc = i.i_loc.base_loc in
+    if (Env.get_nomodmsf env) then raise_msferror ~loc i;
     let rec loop msf =
       let msf1 = ty_cmd fenv env msf c1 in   (* msf |- c1 : msf1 *)
       let _ = ty_expr ~lvl:Lvl.public env e in
@@ -602,18 +614,17 @@ let rec ty_instr fenv env msf i =
         else
           let elvl = ty_expr ~lvl:Lvl.secret env e in
           UE.set ue l elvl in
-   List.iter2 do_e es fty.tyin;
-   let tout = instanciates ue fty.tyout in
-   ignore (ty_lvals env msf xs tout);
-   let do_out xs x lvl =
-     if Lvl.equal lvl Lvl.msf then
-       let x = match x with Lvar x -> L.unloc x
-               | _ -> Pt.rs_tyerror ~loc  (Pt.string_error "the left value %a need to be a variable"
+    List.iter2 do_e es fty.tyin;
+    let tout = instanciates ue fty.tyout in
+    ignore (ty_lvals env msf xs tout);
+    let do_out xs x lvl =
+      if Lvl.equal lvl Lvl.msf then
+        let x = match x with Lvar x -> L.unloc x
+                | _ -> Pt.rs_tyerror ~loc  (Pt.string_error "the left value %a need to be a variable"
                                   (Printer.pp_lval ~debug:false) x) in
-       Sv.add x xs
-     else xs in
-   MSF.exact (List.fold_left2 do_out Sv.empty xs tout)
-
+        Sv.add x xs
+      else xs in
+    if (Env.get_nomodmsf env) then msf else MSF.exact (List.fold_left2 do_out Sv.empty xs tout)
   in
   if !Glob_options.debug then
     Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (i.i_loc.base_loc) MSF.pp msf MSF.pp msf1;
