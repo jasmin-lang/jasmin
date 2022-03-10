@@ -175,6 +175,7 @@ module MSF : sig
   val toinit : t
   val exact  : Sv.t -> t
   val exact1 : var_i -> t
+  val add    : var_i -> t -> t
   val trans  : Sv.t -> expr -> t
 
   val le  : t -> t -> bool
@@ -216,6 +217,10 @@ module MSF : sig
 
   let exact1 x = exact (Sv.singleton (L.unloc x))
 
+  let add x (xs, o) = 
+    assert (o = None);
+    exact (Sv.add (L.unloc x) xs)
+
   let update (xs, oe) x =
     match oe with
     | Some e when Sv.mem x (vars_e e) -> toinit
@@ -233,7 +238,7 @@ module MSF : sig
 
 end
 
-let is_register x = x.v_kind = Reg Direct
+let is_register x = is_reg_direct_kind x.v_kind 
 
 let is_inline x = x.v_kind = Inline
 
@@ -408,14 +413,16 @@ let get_annot f =
 type special_op =
   | Init_msf
   | Set_msf
+  | Mov_msf
   | Protect
   | Other
 
 let is_special o =
   match o with
   | Sopn.Oasm (Arch_extra.ExtOp (X86_extra.Oprotect _)) -> Protect
-  | Oasm (ExtOp Oset_msf) -> Set_msf
+  | Oasm (ExtOp Oset_msf)  -> Set_msf
   | Oasm (ExtOp Oinit_msf) -> Init_msf
+  | Oasm (ExtOp Omov_msf)  -> Mov_msf
   | _ -> Other
 
 (* -----------------------------------------------------------*)
@@ -451,7 +458,7 @@ let ensure_exact ~loc env msf xe =
 
 let ensure_regvar ~loc expr =
   match expr with
-  | Pvar x -> if not (kind_i x.gv = Reg Direct) then
+  | Pvar x -> if not (is_register (L.unloc x.gv)) then
                 Pt.rs_tyerror ~loc  (Pt.string_error "the variable %a needs to be a register"
                                         (Printer.pp_expr ~debug:false) expr)
   | _ -> Pt.rs_tyerror ~loc  (Pt.string_error "the expression %a needs to be a variable of kind register"
@@ -515,6 +522,18 @@ let rec ty_instr fenv env msf i =
 
       | _ -> assert false
       end
+    | Mov_msf ->
+      let loc = i.i_loc.base_loc in
+      begin match es with
+      | [ms] ->
+        ensure_exact ~loc env msf ms;
+        begin match xs with
+        | [Lvar x] -> MSF.add x msf
+        | _ -> Pt.rs_tyerror ~loc (Pt.string_error "the result of #mov_msf needs to be assigned in a register")
+        end
+      | _ -> assert false
+      end
+
 
     | Protect ->
       let loc = i.i_loc.base_loc in

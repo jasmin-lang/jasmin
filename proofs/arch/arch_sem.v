@@ -198,7 +198,6 @@ Definition mem_write_mem (l : pointer) sz (w : word sz) (s : asmmem) :=
      asm_mem  := m;
      asm_reg  := s.(asm_reg);
      asm_regx := s.(asm_regx);
-     asm_rip  := s.(asm_rip); 
      asm_xreg := s.(asm_xreg);
      asm_flag := s.(asm_flag);
   |}.
@@ -220,6 +219,7 @@ Definition mem_write_reg (f: msb_flag) (r: reg_t) sz (w: word sz) (m: asmmem) :=
      asm_scs  := m.(asm_scs);   
      asm_mem  := m.(asm_mem);
      asm_reg  := RegMap.set m.(asm_reg) r (word_extend f (m.(asm_reg) r) w);
+     asm_regx := m.(asm_regx);
      asm_xreg := m.(asm_xreg);
      asm_flag := m.(asm_flag);
   |}.
@@ -228,6 +228,7 @@ Definition mem_write_reg (f: msb_flag) (r: reg_t) sz (w: word sz) (m: asmmem) :=
 Definition mem_write_regx (f: msb_flag) (r: regx_t) sz (w: word sz) (m: asmmem) :=
   {|
     asm_rip  := m.(asm_rip); 
+    asm_scs  := m.(asm_scs);
     asm_mem  := m.(asm_mem);
     asm_reg := m.(asm_reg);
     asm_regx  := RegXMap.set m.(asm_regx) r (word_extend f (m.(asm_regx) r) w);
@@ -238,6 +239,7 @@ Definition mem_write_regx (f: msb_flag) (r: regx_t) sz (w: word sz) (m: asmmem) 
 (* -------------------------------------------------------------------- *)
 Definition mem_write_xreg (f: msb_flag) (r: xreg_t) sz (w: word sz) (m: asmmem) :=
   {| asm_rip  := m.(asm_rip);
+     asm_scs  := m.(asm_scs);
      asm_mem  := m.(asm_mem);
      asm_reg  := m.(asm_reg);
      asm_regx := m.(asm_regx);

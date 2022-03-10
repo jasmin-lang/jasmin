@@ -72,7 +72,7 @@ Instance x86 : asm register register_ext xmm_register rflag condt x86_op :=
    ; _asm_syscall := x86_syscall_sem
    ; stack_pointer_register := RSP |}.
 
-Definition x86_mem := @asmmem _ _ _ _ _ _ x86_decl.
+Definition x86_mem := @asmmem _ _ _ _ _ x86_decl.
 Definition x86_prog := @asm_prog register _ _ _ _ _ _ x86_op_decl.
 Definition x86_state := @asm_state _ _ _ _ _ _ x86.
 Definition x86sem := @asmsem _ _ _ _ _ _ x86.

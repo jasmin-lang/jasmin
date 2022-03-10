@@ -79,6 +79,7 @@ val tint  : 'e gty
 val tbool : 'e gty
 
 val is_stack_kind   : v_kind -> bool
+val is_reg_direct_kind : v_kind -> bool
 val is_reg_kind     : v_kind -> bool
 val reg_kind        : v_kind -> reg_kind
 val is_ptr          : v_kind -> bool

@@ -124,7 +124,7 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; toS_f     :> ToString sbool rflag
 }.
 
-Instance arch_pd {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond} : PointerData := 
+Instance arch_pd {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond} : PointerData := 
   { Uptr := reg_size }.
 
 (* FIXME ARM : Try to not use this projection *)
@@ -169,7 +169,7 @@ End Section. End RegXMap.
 
 Module XRegMap. Section Section.
 
-  Context {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond}.
+  Context {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond}.
 
   Definition map := (* {ffun xreg_t -> wxreg }. *)
     FinMap.map (T:= xreg_t) wxreg.
@@ -196,7 +196,7 @@ Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
 
 Module RflagMap. Section Section.
 
-  Context {reg xreg rflag cond} {arch : arch_decl reg xreg rflag cond}.
+  Context {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond}.
 
   Definition map := (* {ffun rflag_t -> rflagv}. *)
     FinMap.map (T:= rflag_t) rflagv.

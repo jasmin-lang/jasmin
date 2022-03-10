@@ -268,14 +268,14 @@ let main () =
     let fresh_reg name ty = 
       let name = Conv.string_of_string0 name in
       let ty = Conv.ty_of_cty ty in
-      let p = Prog.V.mk name (Reg Direct) ty L._dummy [] in
+      let p = Prog.V.mk name (Reg(Normal, Direct)) ty L._dummy [] in
       let cp = Conv.cvar_of_var tbl p in
       cp.Var0.Var.vname in
     
     let fresh_reg_ptr name ty = 
       let name = Conv.string_of_string0 name in
       let ty = Conv.ty_of_cty ty in
-      let p = Prog.V.mk name (Reg (Pointer Writable)) ty L._dummy [] in
+      let p = Prog.V.mk name (Reg (Normal, Pointer Writable)) ty L._dummy [] in
       let cp = Conv.cvar_of_var tbl p in
       cp.Var0.Var.vname in
 

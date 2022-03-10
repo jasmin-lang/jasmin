@@ -1267,6 +1267,7 @@ let prim_string =
     "copy", PrimP (W.U64, fun _ws sz -> Ocopy (sz, Conv.pos_of_int 1));
     "protect", PrimP (W.U64, fun _ws sz -> Oasm (ExtOp (Oprotect sz)));
     "set_msf", PrimM (fun _ws -> Oasm (ExtOp Oset_msf));
+    "mov_msf", PrimM (fun _ws -> Oasm (ExtOp Omov_msf));
     "init_msf", PrimM (fun _ws -> Oasm (ExtOp Oinit_msf));
  ] @
   List.map (fun (s, prc) ->

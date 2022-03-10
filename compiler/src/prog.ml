@@ -314,8 +314,8 @@ module Sv = Set.Make  (V)
 module Mv = Map.Make  (V)
 module Hv = Hash.Make (V)
 
-let rip = V.mk "RIP" (Reg Direct) u64 L._dummy []
-let rsp = V.mk "RSP" (Reg Direct) u64 L._dummy []
+let rip = V.mk "RIP" (Reg(Normal, Direct)) u64 L._dummy []
+let rsp = V.mk "RSP" (Reg(Normal, Direct)) u64 L._dummy []
 
 let rec expr_equal (e1 :expr) (e2 : expr) : bool =
  match e1, e2 with
