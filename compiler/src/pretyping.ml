@@ -1875,6 +1875,7 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env =
   let fdef =
     { P.f_loc   = loc;
       P.f_annot = process_f_annot pf.pdf_annot;
+      P.f_user_annot = pf.pdf_annot;
       P.f_cc    = f_cc;
       P.f_name  = P.F.mk (L.unloc pf.pdf_name);
       P.f_tyin  = List.map (fun { P.v_ty } -> v_ty) args;

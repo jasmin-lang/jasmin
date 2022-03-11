@@ -74,7 +74,7 @@ type 'info coq_tbl = {
      iinfo         : (int, L.i_loc * 'info * Syntax.annotations) Hashtbl.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
-     finfo         : (int, L.t * f_annot * call_conv * Syntax.annotations list) Hashtbl.t;
+     finfo         : (int, L.t * f_annot * Syntax.annotations * call_conv * Syntax.annotations list) Hashtbl.t;
   }
 
 let new_count tbl =
@@ -325,9 +325,9 @@ and stmt_of_cstmt tbl c =
 
 (* ------------------------------------------------------------------------ *)
 
-let set_finfo tbl loc annot cc oannot =
+let set_finfo tbl loc annot user_annot cc oannot =
   let n = new_count tbl in
-  Hashtbl.add tbl.finfo n (loc, annot, cc, oannot);
+  Hashtbl.add tbl.finfo n (loc, annot, user_annot, cc, oannot);
   pos_of_int n
 
 let get_finfo tbl n =
@@ -336,7 +336,7 @@ let get_finfo tbl n =
 
 let cufdef_of_fdef tbl fd =
   let fn = cfun_of_fun tbl fd.f_name in
-  let f_info = set_finfo tbl fd.f_loc fd.f_annot fd.f_cc fd.f_outannot in
+  let f_info = set_finfo tbl fd.f_loc fd.f_annot fd.f_user_annot fd.f_cc fd.f_outannot in
   let f_params =
     List.map (fun x -> cvari_of_vari tbl (L.mk_loc L._dummy x)) fd.f_args in
   let f_body = cstmt_of_stmt tbl fd.f_body [] in
@@ -352,9 +352,10 @@ let cufdef_of_fdef tbl fd =
 
 
 let fdef_of_cufdef tbl (fn, fd) =
-  let f_loc, f_annot, f_cc, f_outannot = get_finfo tbl fd.C.f_info in
+  let f_loc, f_annot, f_user_annot, f_cc, f_outannot = get_finfo tbl fd.C.f_info in
   { f_loc;
     f_annot;
+    f_user_annot;
     f_cc;
     f_name = fun_of_cfun tbl fn;
     f_tyin = List.map ty_of_cty fd.C.f_tyin;
@@ -445,7 +446,7 @@ let iloc_of_loc tbl e =
     | None ->
       match e.pel_fi with
       | Some fi ->
-        let (f_loc, _, _, _) = get_finfo tbl fi in
+        let (f_loc, _, _, _, _) = get_finfo tbl fi in
         Lone f_loc
       | None -> Lnone
 

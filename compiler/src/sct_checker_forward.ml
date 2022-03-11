@@ -178,6 +178,7 @@ module MSF : sig
   val exact  : Sv.t -> t
   val exact1 : var_i -> t
   val add    : var_i -> t -> t
+  val adds   : Sv.t -> t -> t
   val trans  : Sv.t -> expr -> t
 
   val le  : t -> t -> bool
@@ -220,9 +221,11 @@ module MSF : sig
   let exact1 x = exact (Sv.singleton (L.unloc x))
 
   let add x (xs, o) =
-    assert (o = None);
-    exact (Sv.add (L.unloc x) xs)
+    (Sv.add (L.unloc x) xs, o)
 
+  let adds xs (xs', o) = 
+    (Sv.union xs xs', o)
+    
   let update (xs, oe) x =
     match oe with
     | Some e when Sv.mem x (vars_e e) -> toinit
@@ -247,7 +250,7 @@ let is_inline x = x.v_kind = Inline
 module Env : sig
 
   type env
-  val empty : env
+  val empty : nomodmsf:bool -> env
   val add : env -> var -> level -> env
   val get : env -> var -> level
   val get_i : env -> var_i -> level
@@ -261,7 +264,7 @@ end = struct
     nomodmsf : bool;
   }
 
-  let empty = {vlvl = Mv.empty; nomodmsf = false}
+  let empty ~nomodmsf = {vlvl = Mv.empty; nomodmsf}
 
   let get_nomodmsf env = env.nomodmsf
 
@@ -414,7 +417,10 @@ let get_annot f =
   let do_local x = x, do_annot ~dfl:(mk_dfl x) x.v_dloc x.v_annot in
   let ldecls = List.map do_local (Sv.elements (Prog.locals f)) in
 
-  ain, aout, ldecls
+  (* Compute the nomodmsf *)
+  let nomodmsf = Pretyping.Annot.ensure_uniq1 "nomodmsf" Pretyping.Annot.none f.f_user_annot in
+  let nomodmsf = nomodmsf <> None in
+  ain, aout, ldecls, nomodmsf
 
 (* -----------------------------------------------------------*)
 
@@ -443,13 +449,13 @@ let ensure_msf env x =
          (Printer.pp_var ~debug:false) (L.unloc x) Lvl.pp Lvl.msf)
 
 
-let ensure_exact_x env msf x =
+let ensure_in_x env ~(exact:bool) msf x =
   match msf with
-  | (xS, Some e) ->
+  | (xS, Some e) when exact ->
     Pt.rs_tyerror ~loc:(L.loc x) (Pt.string_error "Current state is Trans ({%a}, %a), use #set_msf before"
                           (pp_list ",@ " (Printer.pp_var ~debug:false)) (Sv.elements xS)
                           (Printer.pp_expr ~debug:false) e)
-  | (xS, None) ->
+  | (xS, _) ->
       if not (Sv.mem (L.unloc x) xS) then
         Pt.rs_tyerror ~loc:(L.loc x)
           (Pt.string_error "the variable %a is not a msf only {@[%a@]} are"
@@ -457,12 +463,18 @@ let ensure_exact_x env msf x =
              (pp_list ",@ " (Printer.pp_var ~debug:false)) (Sv.elements xS));
       ensure_msf env x
 
-let ensure_exact ~loc env msf xe =
+let ensure_in ~loc env ~exact msf xe =
   match xe with
-  | Pvar x -> ensure_exact_x env msf x.gv
+  | Pvar x -> ensure_in_x env ~exact msf x.gv
   | _ ->
       Pt.rs_tyerror ~loc  (Pt.string_error "the expression %a need to be a variable"
                                (Printer.pp_expr ~debug:false) xe)
+
+let ensure_exact_x env msf x = 
+  ensure_in_x env ~exact:true msf x
+
+let ensure_exact ~loc env msf xe = 
+  ensure_in ~loc env ~exact:true msf xe 
 
 let ensure_regvar ~loc expr =
   match expr with
@@ -540,7 +552,7 @@ let rec ty_instr fenv env msf i =
       let loc = i.i_loc.base_loc in
       begin match es with
       | [ms] ->
-        ensure_exact ~loc env msf ms;
+        ensure_in ~loc env ~exact:false msf ms; 
         begin match xs with
         | [Lvar x] -> MSF.add x msf
         | _ -> Pt.rs_tyerror ~loc (Pt.string_error "the result of #mov_msf needs to be assigned in a register")
@@ -619,7 +631,7 @@ let rec ty_instr fenv env msf i =
           UE.set ue l elvl in
     List.iter2 do_e es fty.tyin;
     let tout = instanciates ue fty.tyout in
-    ignore (ty_lvals env msf xs tout);
+    let msf = ty_lvals env msf xs tout in
     let do_out xs x lvl =
       if Lvl.equal lvl Lvl.msf then
         let x = match x with Lvar x -> L.unloc x
@@ -627,7 +639,9 @@ let rec ty_instr fenv env msf i =
                                   (Printer.pp_lval ~debug:false) x) in
         Sv.add x xs
       else xs in
-    if (Env.get_nomodmsf env) then msf else MSF.exact (List.fold_left2 do_out Sv.empty xs tout)
+    let out_ms = List.fold_left2 do_out Sv.empty xs tout in
+    if fty.nomodmsf then MSF.adds out_ms msf 
+    else MSF.exact out_ms
   in
   if !Glob_options.debug then
     Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (i.i_loc.base_loc) MSF.pp msf MSF.pp msf1;
@@ -646,21 +660,21 @@ and get_fun fenv f =
 and ty_fun fenv fn =
   (* TODO: we should have this defined *)
   let f = List.find (fun f -> F.equal f.f_name fn) fenv.env_def in
-  let tyin, tyout, ldecls = get_annot f in                                        (* TODO: Need to get the annotation about nomodmsf from function *)
-  let env = List.fold_left2 Env.add Env.empty f.f_args tyin in
+  let tyin, tyout, ldecls, nomodmsf = get_annot f in                                        (* TODO: Need to get the annotation about nomodmsf from function *)
+  let env = List.fold_left2 Env.add (Env.empty ~nomodmsf) f.f_args tyin in
   let env = List.fold_left (fun env (x,lvl) -> Env.add env x lvl) env ldecls in
   let do_x xs x lvl =
     if Lvl.equal lvl Lvl.msf then Sv.add x xs
     else xs in
   let msf = MSF.exact (List.fold_left2 do_x Sv.empty f.f_args tyin) in
-  let msf = ty_cmd fenv env msf f.f_body in                                       (* TODO: Pass nomodmsf information to static variable level environment *)
+  let msf = ty_cmd fenv env msf f.f_body in  
   (* Check the return *)
   let check_ret x lvl =
     if Lvl.equal lvl Lvl.msf then ensure_exact_x env msf x
     else ignore (ty_expr lvl env (Pvar (gkvar x))) in
   List.iter2 check_ret f.f_ret tyout;
   Format.eprintf "SCT type checking of %s done@." f.f_name.fn_name;
-  {tyin; tyout; nomodmsf = false}
+  {tyin; tyout; nomodmsf}
 
 let ty_prog (prog:'info prog) fl =
   let prog = snd prog in

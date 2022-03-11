@@ -107,3 +107,33 @@ fn sum_regptr(#msf reg u64 ms, #transient reg ptr u64[1000]p) -> #msf reg u64, #
    return (ms, psum);
 
 }
+
+#nomodmsf fn nomod() -> #public reg u64 { 
+   #public reg u64 r;
+   r = 0;
+   return r;
+}
+
+fn usenomod() -> #public reg u64 { 
+   #transient stack u64 s;
+   #public reg u64 rp r;
+   #transient reg u64 rt;
+   #msf reg u64 ms;
+   ms = #init_msf();
+   s = 0;
+   rt = s;
+   r = nomod();
+   rp = #protect(rt, ms);
+   r += rp;
+   [r] = 0;
+   return r;
+}
+
+/*
+#nomodmsf fn nomod_wrong(#public reg u64 r) -> reg u64 { 
+   reg u64 r;
+   if (r == 0) { r = 0; }
+   return r;
+}
+*/
+

@@ -53,7 +53,7 @@ val string_of_funname : 'info coq_tbl -> BinNums.positive -> string
 
 val get_iinfo   : 'info coq_tbl -> BinNums.positive -> L.i_loc * 'info * Syntax.annotations
 
-val get_finfo   : 'info coq_tbl -> BinNums.positive -> L.t * f_annot * call_conv * Syntax.annotations list
+val get_finfo   : 'info coq_tbl -> BinNums.positive -> L.t * f_annot * Syntax.annotations * call_conv * Syntax.annotations list
 
 val cufdef_of_fdef : 'info coq_tbl -> 'info func -> BinNums.positive * X86_extra.x86_extended_op Expr._ufundef
 val fdef_of_cufdef : 'info coq_tbl -> BinNums.positive * X86_extra.x86_extended_op Expr._ufundef -> 'info func

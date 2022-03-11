@@ -153,6 +153,7 @@ val f_annot_empty : f_annot
 type ('len,'info) gfunc = {
     f_loc  : L.t;
     f_annot : f_annot;
+    f_user_annot : Syntax.annotations;
     f_cc   : call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
