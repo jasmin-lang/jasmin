@@ -533,10 +533,19 @@ struct
   let forced_registers translate_var loc nv (vars: int Hv.t) (cnf: conflicts)
       (lvs: 'ty glvals) (op: X86_extra.x86_extended_op sopn) (es: 'ty gexprs)
       (a: A.allocation) : unit =
-    let f x = Hv.find vars (L.unloc x) in
     let allocate_one x y a =
-      let i = f x in
-      allocate_one nv vars loc cnf (L.unloc x) i y a
+      let x = L.unloc x in
+      let i =
+        try Hv.find vars x
+        with Not_found ->
+          hierror_reg ~loc:(Lmore loc) "variable %a (declared at %a as “%a”) must be allocated to register %a but is unknown to the register allocator%s"
+            (Printer.pp_var ~debug:true) x
+            L.pp_sloc x.v_dloc
+            Printer.pp_kind x.v_kind
+            (Printer.pp_var ~debug:false) y
+            (if is_reg_kind x.v_kind then "" else " (consider declaring this variable as “reg”)")
+      in
+      allocate_one nv vars loc cnf x i y a
     in
     let mallocate_one x y a =
       match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
