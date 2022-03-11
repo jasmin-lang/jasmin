@@ -244,6 +244,16 @@ Record var_i := VarI {
   v_info : var_info
 }.
 
+Notation vid ident :=
+  {|
+    v_var :=
+      {|
+        vtype := sword Uptr;
+        vname := ident%string;
+      |};
+    v_info := xH;
+  |}.
+
 Definition var_i_beq x1 x2 :=
   match x1, x2 with
   | VarI x1 i1, VarI x2 i2 => (x1 == x2) && (i1 == i2)

@@ -14,16 +14,6 @@ Local Open Scope Z_scope.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
-Notation vid ident :=
-  {|
-    v_var :=
-      {|
-        vtype := sword Uptr;
-        vname := ident%string;
-      |};
-    v_info := xH;
-  |}.
-
 (* ** Interpretation of types
  * -------------------------------------------------------------------- *)
 
