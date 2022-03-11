@@ -156,8 +156,8 @@ cryptolib:
       - crypto_hash/sha3-384/amd64/ref
       - crypto_hash/sha3-512/amd64/avx2
       - crypto_hash/sha3-512/amd64/ref
-      #- crypto_kem/kyber/kyber512/amd64/avx2 # Need randombytes
-      #- crypto_kem/kyber/kyber768/amd64/avx2
+      - crypto_kem/kyber/kyber512/amd64/avx2
+      - crypto_kem/kyber/kyber768/amd64/avx2
       - crypto_onetimeauth/poly1305/amd64/ref
       - crypto_stream/chacha/chacha12/amd64/avx2
       - crypto_stream/chacha/chacha12/amd64/avx
