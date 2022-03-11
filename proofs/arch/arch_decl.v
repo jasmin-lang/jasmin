@@ -479,6 +479,7 @@ Definition asm_code := seq asm_i.
 (* Any register, used for function arguments and returned values. *)
 Variant asm_typed_reg :=
   | ARReg of reg_t
+  | ARegX of regx_t
   | AXReg of xreg_t
   | ABReg of rflag_t.
 

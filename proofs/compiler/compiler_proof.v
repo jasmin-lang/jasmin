@@ -462,8 +462,8 @@ Proof.
   - by rewrite fd_export.
   move => xm args' ok_rip ok_rsp M /= ok_args' ok_args.
   set s := estate_of_x86_mem (top_stack m) (lp_rip lp) xm.
-  assert (LM := lom_eqv_estate_of_x86_mem (top_stack m) xm disj_rip).
-  assert (XM := get_var_vmap_of_x86_mem (top_stack m) (lp_rip lp) xm).
+  assert (LM := lom_eqv_estate_of_x86_mem (top_stack m) xm disj_rip). 
+  assert (XM := get_var_vmap_of_x86_mem ok_xp (top_stack m) (lp_rip lp) xm).
   have wf_s : wf_vm s.(evm) by exact: wf_vmap_of_x86_mem.
   have := lp_call _ _ _ wf_s _ M _ ok_args.
   case.
@@ -482,7 +482,7 @@ Proof.
     apply/andP; split.
     + by rewrite (XM (ARReg x86_decl.RAX)).
     apply/allP => x /ok_callee_saved.
-    case hx: asm_typed_reg_of_var => [ [ r | | ] | ] // _.
+    case hx: asm_typed_reg_of_var => [ [ r | | | ] | ] // _.
     by rewrite (asm_typed_reg_of_varI hx) XM.
   move => _wt_largs [] vm' [] lm' [] res' [] {} lp_call M' ok_res' res_res' _wt_res'.
   have := x86gen_exportcall ok_xp lp_call _ LM.
@@ -493,7 +493,7 @@ Proof.
   have : exists2 res'', get_typed_reg_values xm' xres = ok res'' & List.Forall2 value_uincl res' res''.
   - move/mapM_Forall2: ok_res'.
     move/mapM_Forall2: ok_xres {res_res' _wt_res'} res'.
-    case: LM' => /=_ _ _; clear => R X F.
+    case: LM' => /=_ _ _; clear => R R' X F.
     elim; first by move => _ /List_Forall2_inv_l ->; exists [::].
     case => _ /= xi r xs rs /asm_typed_reg_of_varI /= -> xs_rs ih.
     move => ? /List_Forall2_inv_l[] v [] vs [] ?; subst.
@@ -503,6 +503,7 @@ Proof.
       by constructor.
     case: r ok_v => r.
     + by move => /R /= h; eexists; first reflexivity.
+    + by move => /R' /= h; eexists; first reflexivity.
     + by move => /X /= h; eexists; first reflexivity.
     rewrite get_varE; t_xrbindP => /= b ok_b ?; subst v.
     have := F r b.

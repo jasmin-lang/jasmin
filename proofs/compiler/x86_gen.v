@@ -164,6 +164,7 @@ Definition asm_typed_reg_of_var (x: var) : cexec asm_typed_reg :=
 Definition var_of_asm_typed_reg (x : asm_typed_reg) : var :=
   match x with
   | ARReg r => to_var r
+  | ARegX r => to_var r
   | AXReg r => to_var r
   | ABReg r => to_var r
   end.
@@ -218,6 +219,7 @@ Definition assemble_prog (p: lprog) : cexec asm_prog :=
 Definition get_typed_reg_value (st: x86_mem) (r: asm_typed_reg) : exec value :=
   match r with
   | ARReg r => ok (Vword (asm_reg st r))
+  | ARegX r => ok (Vword (asm_regx st r))
   | AXReg r => ok (Vword (asm_xreg st r))
   | ABReg r => if asm_flag st r is Def b then ok (Vbool b) else undef_error
   end.

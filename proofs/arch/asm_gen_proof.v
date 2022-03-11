@@ -291,7 +291,7 @@ Proof.
     by rewrite /= truncate_word_u.
   case: e => //=.
   + rewrite /get_gvar /eval_asm_arg => x; t_xrbindP => _ /assertP => ->.
-    case: eqm => _ _ _ eqr eqrx eqx _. Print lom_eqv.
+    case: eqm => _ _ _ eqr eqrx eqx _.
     move=> /xreg_of_varI; case: a' hcomp => // r; rewrite /compat_imm orbF => /eqP <- {a} xr w ok_v ok_w;
     (eexists; split; first reflexivity);
     apply: (value_uincl_word _ ok_w).
