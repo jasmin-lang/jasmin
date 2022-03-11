@@ -13,6 +13,12 @@ Unset Printing Implicit Defensive.
 
 Local Unset Elimination Schemes.
 
+Notation spointer := (sword Uptr).
+
+Notation mk_ptr name :=
+  ({| vtype := spointer; vname := name; |}).
+
+
 (* ** Operators
  * -------------------------------------------------------------------- *)
 (* *** Summary
@@ -695,6 +701,19 @@ Variant return_address_location :=
 | RAnone
 | RAreg of var
 | RAstack of Z.
+
+Definition is_RAnone ral :=
+  if ral is RAnone then true else false.
+
+Definition is_RAreg ral :=
+  if ral is RAreg v
+  then Some v
+  else None.
+
+Definition is_RAstack ral :=
+  if ral is RAstack z
+  then Some z
+  else None.
 
 Definition return_address_location_beq (r1 r2: return_address_location) : bool :=
   match r1 with

@@ -176,8 +176,6 @@ Section LINEAR_C.
 
 End LINEAR_C.
 
-Definition next_lbl lbl := (lbl + 1)%positive.
-
 Definition add_align ii a (lc:lcmd) :=
   match a with
   | NoAlign => lc

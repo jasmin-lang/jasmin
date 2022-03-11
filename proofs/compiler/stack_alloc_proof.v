@@ -35,13 +35,6 @@ Proof.
   by apply Z.divide_pos_le.
 Qed.
 
-(* TODO : move elsewhere *)
-(* but not clear where
-   Uptr is defined in memory_model, no stype there
-   stype is defined in type, no Uptr there
-*)
-Notation spointer := (sword Uptr) (only parsing).
-
 Section Section.
 
 Context
@@ -2709,7 +2702,8 @@ Proof.
   t_xrbindP=> x _ _ _.
   case: get_local => [pk|//].
   case: pk => // p.
-  t_xrbindP=> -[sr ?] _ _ _ _ _ _ /= <- _.
+  t_xrbindP=> -[sr ?] _.
+  t_xrbindP=> _ _ _ _ _ /= <- _.
   by eexists.
 Qed.
 
@@ -2744,8 +2738,10 @@ Proof.
   case: opi => [pi|].
   + case: get_local => [pk|//].
     case: pk => // p.
-    t_xrbindP=> -[{sr}sr _] /= _ tt hclear _ _ _ hw <- _.
-    by move: hclear; rewrite hw => /set_clearP [? _].
+    t_xrbindP=> -[sr' _] /= _.
+    t_xrbindP=> tt hclear _ _ _ hw <- _.
+    move: hclear.
+    by rewrite hw => /set_clearP [? _].
   case: get_local => //.
   by t_xrbindP.
 Qed.
@@ -3082,7 +3078,8 @@ Proof.
   case: opi => [pi|].
   + case: get_local => [pk|//].
     case: pk => // p.
-    t_xrbindP=> -[sr _] /check_validP [bytes [hgvalid -> hmem]] /= {rmap2}rmap2 hclear _ _ <- _ _.
+    t_xrbindP=> -[sr _] /check_validP [bytes [hgvalid -> hmem]].
+    t_xrbindP=> /= {rmap2}rmap2 hclear _ _ <- _ _.
     case: pp_writable hclear; last first.
     + move=> [<-]; split=> //.
       by apply incl_refl.
@@ -3153,7 +3150,7 @@ Proof.
   case: pk hlx => // p hlx.
   t_xrbindP=> -[sr _] /check_validP [bytes [hgvalid -> hmem]] /=.
   have /(check_gvalid_wf wfr_wf) /= hwf := hgvalid.
-  move=> {rmap2}rmap2 hclear _ /(check_alignP hwf) halign <- <- <- hget /=.
+  t_xrbindP=> {rmap2}rmap2 hclear _ /(check_alignP hwf) halign <- <- <- hget /=.
   have /wfr_gptr := hgvalid.
   rewrite /get_var_kind /= hlx => -[_ [[<-] /=]].
   rewrite get_gvar_nglob // => ->.
@@ -3364,7 +3361,8 @@ Lemma alloc_call_argsE rmap sao_params args rmap2 l :
   check_all_disj [::] [::] l.
 Proof.
   rewrite /alloc_call_args.
-  by t_xrbindP=> -[{rmap2}rmap2 {l}l] halloc _ /assertP hdisj [<- <-].
+  t_xrbindP=> -[rmap2' l'] halloc.
+  by t_xrbindP=> _ /assertP hdisj <- <-.
 Qed.
 
 (* Full spec including [disjoint_values] *)
@@ -3544,7 +3542,7 @@ Proof.
     by left; exists ii, ty.
   move=> x.
   case heq: get_local => [//|].
-  t_xrbindP=> _ /check_diffP ? _.
+  t_xrbindP=> /check_diffP ?.
   by right; exists x.
 Qed.
 
@@ -3737,7 +3735,7 @@ Proof.
   case: sao_return => [i|].
   + case heq: nth => [sr|//].
     t_xrbindP=> _ /assertP /eqP heqty -[sr' _] /check_validP [bytes [hgvalid -> hmem]].
-    move=> /= _ /assertP /eqP ? p /get_regptrP hlres1 <-; subst sr'.
+    t_xrbindP=> _ /assertP /eqP ? /get_regptrP hlres1; subst sr'.
     have /wfr_gptr := hgvalid.
     rewrite /get_var_kind /= /get_local hlres1 => -[_ [[<-] /= ->]].
     eexists; split; first by reflexivity.

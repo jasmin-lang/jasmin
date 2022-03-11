@@ -1053,6 +1053,13 @@ End FIND_MAP.
 (* ** Misc functions
  * -------------------------------------------------------------------- *)
 
+Definition isNone aT (o : option aT) :=
+  if o is None then true else false.
+
+Lemma isNoneE aT (o : option aT) :
+  isNone o -> o = None.
+Proof. by case: o. Qed.
+
 Definition isSome aT (o : option aT) :=
   if o is Some _ then true else false.
 

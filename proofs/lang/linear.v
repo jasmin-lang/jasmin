@@ -80,11 +80,57 @@ Record lfundef := LFundef {
 Definition signature_of_lfundef (lfd: lfundef) : function_signature :=
   (lfd_tyin lfd, lfd_tyout lfd).
 
+Definition map_lfundef (f : lcmd -> lcmd) (lfd : lfundef) : lfundef :=
+  {|
+    lfd_info := lfd_info lfd;
+    lfd_align := lfd_align lfd;
+    lfd_tyin := lfd_tyin lfd;
+    lfd_arg := lfd_arg lfd;
+    lfd_body := f (lfd_body lfd);
+    lfd_tyout := lfd_tyout lfd;
+    lfd_res := lfd_res lfd;
+    lfd_export := lfd_export lfd;
+    lfd_callee_saved := lfd_callee_saved lfd;
+    lfd_total_stack := lfd_total_stack lfd;
+  |}.
+
+
+(* -------------------------------------------------------------------- *)
+
 Record lprog :=
- {  lp_rip   : Ident.ident;
+  {
+    lp_rip : Ident.ident;
     lp_rsp : Ident.ident;
     lp_globs : seq u8;
-    lp_funcs : seq (funname * lfundef) }.
+    lp_funcs : seq (funname * lfundef);
+  }.
+
+Definition map_lprog_name
+  (f : funname -> lfundef -> lfundef) (lp : lprog) : lprog :=
+  {|
+    lp_rip := lp_rip lp;
+    lp_rsp := lp_rsp lp;
+    lp_globs := lp_globs lp;
+    lp_funcs := map (fun '(fn, fd) => (fn, f fn fd)) (lp_funcs lp);
+  |}.
+
+Definition map_lprog (f : lfundef -> lfundef) (lp : lprog) : lprog :=
+  map_lprog_name (fun _ => f) lp.
+
+Lemma get_map_lprog_name f lp fn :
+  get_fundef (lp_funcs (map_lprog_name f lp)) fn
+  = ssrfun.omap (f fn) (get_fundef (lp_funcs lp) fn).
+Proof.
+  rewrite /get_fundef /map_lprog_name /=.
+  elim: lp_funcs => // -[fn' fd] pfuns /= ->;
+    by case: eqP => [-> |].
+Qed.
+
+Lemma get_map_lprog f lp fn :
+  get_fundef (lp_funcs (map_lprog f lp)) fn
+  = ssrfun.omap f (get_fundef (lp_funcs lp) fn).
+Proof. by apply: get_map_lprog_name. Qed.
+
 
 Definition eqb_r i1 i2 :=
   match i1, i2 with
@@ -130,4 +176,42 @@ Qed.
 Definition linstr_eqMixin := Equality.Mixin eqb_axiom.
 Canonical  linstr_eqType  := Eval hnf in EqType linstr linstr_eqMixin.
 
+
+(* -------------------------------------------------------------------- *)
+
+Fixpoint max_map
+  {A B : Type} `{Cmp B} (f : A -> option B) xs acc : option B :=
+  match xs with
+  | [::] => None
+  | x :: xs' =>
+      let acc' :=
+        if f x is Some y
+        then Some (if acc is Some z then max y z else y)
+        else acc
+      in
+      max_map f xs' acc'
+  end.
+
+Definition max_lcmd_lbl (c : lcmd) : option label :=
+  let f '(MkLI _ i) :=
+    if i is Llabel lbl
+    then Some lbl
+    else None
+  in
+  max_map f c None.
+
+Definition max_lfd_lbl (lfd : lfundef) : option label :=
+  max_lcmd_lbl (lfd_body lfd).
+
+Definition max_lprog_lbl (p : lprog) : option label :=
+  max_map (fun '(_, fd) => max_lfd_lbl fd) (lp_funcs p) None.
+
+Definition next_lbl lbl := (lbl + 1)%positive.
+
+Definition next_lprog_lbl (p : lprog) : label :=
+  if max_lprog_lbl p is Some lbl
+  then next_lbl lbl
+  else xH.
+
 End ASM_OP.
+

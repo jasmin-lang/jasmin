@@ -201,9 +201,8 @@ Remark sp_globs_stack_alloc rip rsp data ga la (p: uprog) (p': sprog) :
   alloc_prog mov_ofs rip rsp data ga la p = ok p' →
   sp_globs (p_extra p') = data.
 Proof.
-  rewrite /alloc_prog; t_xrbindP => ??.
-  do 2 case: ifP => // _.
-  by t_xrbindP => ? _ <-.
+  rewrite /alloc_prog; t_xrbindP => ?? _ _ _ _.
+  by move=> ? _ <-.
 Qed.
 
 Lemma compiler_third_part_alloc_ok entries (p p' : sprog) (fn: funname) (m: mem) :
