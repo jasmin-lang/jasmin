@@ -126,6 +126,64 @@ check:
   script:
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler check-ci'
 
+cryptolib:
+  stage: test
+  variables:
+    EXTRA_NIX_ARGUMENTS: --arg testDeps true
+  extends: .common
+  needs:
+  - coq
+  - ocaml
+  dependencies:
+  - coq
+  - ocaml
+  before_script:
+  - nix-env -iA nixpkgs.git
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'echo done'
+  - git clone --depth 1 --branch master https://github.com/jasmin-lang/cryptolib.git
+  - echo $CASE
+  script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -C cryptolib/src/$CASE JASMIN=$PWD/compiler/jasminc.native'
+  parallel:
+    matrix:
+    - CASE:
+      - crypto_hash/sha256/amd64/ref
+      - crypto_hash/sha3-224/amd64/avx2
+      - crypto_hash/sha3-224/amd64/ref
+      - crypto_hash/sha3-256/amd64/avx2
+      - crypto_hash/sha3-256/amd64/ref
+      - crypto_hash/sha3-384/amd64/avx2
+      - crypto_hash/sha3-384/amd64/ref
+      - crypto_hash/sha3-512/amd64/avx2
+      - crypto_hash/sha3-512/amd64/ref
+      - crypto_kem/kyber/kyber512/amd64/avx2
+      - crypto_kem/kyber/kyber768/amd64/avx2
+      - crypto_onetimeauth/poly1305/amd64/ref
+      - crypto_stream/chacha/chacha12/amd64/avx2
+      - crypto_stream/chacha/chacha12/amd64/avx
+      - crypto_stream/chacha/chacha12/amd64/ref
+      - crypto_stream/chacha/chacha20/amd64/avx2
+      - crypto_stream/chacha/chacha20/amd64/avx
+      - crypto_stream/chacha/chacha20/amd64/ref
+      - crypto_stream/chacha/chacha20-ietf/amd64/avx2
+      - crypto_stream/chacha/chacha20-ietf/amd64/avx
+      - crypto_stream/chacha/chacha20-ietf/amd64/ref
+      - crypto_stream/salsa20/salsa2012/amd64/avx2
+      - crypto_stream/salsa20/salsa2012/amd64/avx
+      - crypto_stream/salsa20/salsa2012/amd64/ref
+      - crypto_stream/salsa20/salsa20/amd64/avx2
+      - crypto_stream/salsa20/salsa20/amd64/avx
+      - crypto_stream/salsa20/salsa20/amd64/ref
+      - crypto_stream/xsalsa20/amd64/avx2
+      - crypto_stream/xsalsa20/amd64/avx
+      - crypto_stream/xsalsa20/amd64/ref
+      - crypto_xof/shake128/amd64/avx2
+      - crypto_xof/shake128/amd64/ref
+      - crypto_xof/shake256/amd64/avx2
+      - crypto_xof/shake256/amd64/ref1
+      - crypto_xof/shake256/amd64/ref
+      - crypto_xof/shake256/amd64/spec
+
 push-compiler-code:
   stage: deploy
   environment: deployment
