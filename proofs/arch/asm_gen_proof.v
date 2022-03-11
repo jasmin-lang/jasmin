@@ -467,32 +467,37 @@ Proof.
     apply: set_varP hset; last by move=> /eqP heq heq'; rewrite heq in heq'.
     move=> /= t ht <-; rewrite truncate_word_u /= heq1 hc /= => /xreg_of_varI.
     case: a heq1 hc => // r heq1 hc /of_varI /= h; subst x;
-      (eexists; split; first reflexivity); constructor => //=.
-    admit.
-    2-4, 6-8: move => r' v'.
-    1-8: rewrite /get_var/on_vu.
-    (*1, 8: rewrite Fv.setP_neq. first exact: hrip; by apply/eqP; case: hnrip.
-    + rewrite /RegMap.set ffunE; case: eqP.
-      * move => ->{r'}; rewrite Fv.setP_eq => -[<-]{v'}.
-        case: ht => <-{t}; case: Sumbool.sumbool_of_bool => hsz /=.
-        + by apply word_uincl_word_extend.
-        by rewrite word_extend_big // hsz.
-      * move => hne; rewrite Fv.setP_neq; first exact: h2.
-        by apply/eqP => /inj_to_var ?; apply: hne.
-    1-3, 5: rewrite Fv.setP_neq //.
-    5: rewrite eq_sym.
-    2, 5: by apply /eqP /of_reg_neq_of_xreg.
-    + exact: h3.
+      (eexists; split; first reflexivity); constructor=> //=. 
+    2-4, 7-9, 12-15: move => r' v'.
+    1-15: rewrite /get_var/on_vu.
+    1, 13, 15: rewrite Fv.setP_neq; first exact: hrip; by apply/eqP; case: hnrip.
+    (*1, 5, 9:*)
+    1: rewrite /RegMap.set ffunE; case: eqP.
+       * move => ->{r'}; rewrite Fv.setP_eq => -[<-]{v'}.
+         case: ht => <-{t}; case: Sumbool.sumbool_of_bool => hsz /=.
+         + by apply word_uincl_word_extend.
+         by rewrite word_extend_big // hsz.
+       * move => hne; rewrite Fv.setP_neq; first exact: h2.
+         by apply/eqP => /inj_to_var ?; apply: hne.
+    1-3, 5-8: rewrite Fv.setP_neq //.
+    2, 4, 6, 8, 10, 12, 14: rewrite eq_sym.
+    6: by apply /eqP /of_reg_neq_of_xreg.
+    2, 3, 4, 5, 6, 7: admit.
+    1, 6 : exact: h3.
     1, 3: exact: h4.
-    + exact: h2.
-    rewrite /XRegMap.set ffunE; case: eqP.
-    + move => ->{r'}; rewrite Fv.setP_eq => -[<-]{v'}.
-      case: ht => <-.
-      case : Sumbool.sumbool_of_bool => /= hsz; first by apply word_uincl_word_extend.
+    1, 2: exact: h2.
+    + admit.
+    + rewrite /XRegMap.set ffunE; case: eqP.
+      + move => ->{r'}; rewrite Fv.setP_eq => -[<-]{v'}.
+        case: ht => <-.
+        case : Sumbool.sumbool_of_bool => /= hsz; first by apply word_uincl_word_extend.
       by rewrite word_extend_big // hsz.
-    move => hne; rewrite Fv.setP_neq; first exact: h3.
-    apply/eqP => /inj_to_var ?; exact: hne.
-  move=> sz [x xii] /= e; t_xrbindP.
+    + move => hne; rewrite Fv.setP_neq; first exact: h3.
+      apply/eqP => /inj_to_var ?; exact: hne.
+    + rewrite Fv.setP_neq //. by exact: h5.
+    + move => r' v'. rewrite Fv.setP_neq //. by exact: h5.
+    move => r' v'. rewrite Fv.setP_neq //. by exact: h5. 
+   move=> sz [x xii] /= e; t_xrbindP.
   move=> wp vp hget hp wofs vofs he hofs w hw m1 hm1 ??; subst m' e1.
   case: ty hty vt hw => //= sz' _ vt hw.
   case: eqP => // ?; subst sz'.
@@ -502,7 +507,7 @@ Proof.
   have -> := addr_of_xpexprP hlom hadr hget hp he hofs.
   rewrite hm1 /=; eexists; split; first by reflexivity.
   by constructor.
-Qed.*) Admitted.
+Admitted.
 
 Lemma compile_lvals rip ii m lvs m' s loargs 
   id_out id_tout (vt:sem_tuple id_tout) msb_flag: 
