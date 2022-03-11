@@ -9,6 +9,7 @@ let spoly   = "poly"
 let spublic = "public"
 let stransient = "transient"
 let smsf = "msf"
+let snomodmsf = "nomodmsf"
 
 (* ----------------------------------------------------------- *)
 (* Variable level                                              *)
@@ -158,8 +159,9 @@ end
 (* -----------------------------------------------------------*)
 
 type ty_fun = {
-    tyin : level list; (* Poly are ensured to be singleton *)
-    tyout: level list;
+    tyin      : level list; (* Poly are ensured to be singleton *)
+    tyout     : level list;
+    nomodmsf  : bool;
   }
 
 type 'info fenv = {
@@ -258,6 +260,7 @@ end = struct
     vlvl : Lvl.t Mv.t;
     nomodmsf : bool;
   }
+
   let empty = {vlvl = Mv.empty; nomodmsf = false}
 
   let get_nomodmsf env = env.nomodmsf
@@ -509,7 +512,6 @@ let rec ty_instr fenv env msf i =
       | (xS, Some b') ->
         match es with
         | [b; Pvar ms] ->
-
           if not (Sv.mem (L.unloc ms.gv) xS) then
             Pt.rs_tyerror ~loc:(L.loc ms.gv)
               (Pt.string_error "the variable %a is not a msf only {@[%a@]} are"
@@ -531,9 +533,9 @@ let rec ty_instr fenv env msf i =
       | [_; e] ->
           Pt.rs_tyerror ~loc  (Pt.string_error "the expression %a need to be a variable"
                                   (Printer.pp_expr ~debug:false) e)
-
       | _ -> assert false
       end
+
     | Mov_msf ->
       let loc = i.i_loc.base_loc in
       begin match es with
@@ -599,6 +601,7 @@ let rec ty_instr fenv env msf i =
   | Ccall (_, xs, f, es) ->
     let loc = i.i_loc.base_loc in
     let fty = get_fun fenv f in
+    if (Env.get_nomodmsf env && not (fty.nomodmsf)) then raise_msferror ~loc i;
     (* Check the arguments *)
     let ue = UE.create 31 in
     let do_e e lvl =
@@ -643,25 +646,25 @@ and get_fun fenv f =
 and ty_fun fenv fn =
   (* TODO: we should have this defined *)
   let f = List.find (fun f -> F.equal f.f_name fn) fenv.env_def in
-  let tyin, tyout, ldecls = get_annot f in
+  let tyin, tyout, ldecls = get_annot f in                                        (* TODO: Need to get the annotation about nomodmsf from function *)
   let env = List.fold_left2 Env.add Env.empty f.f_args tyin in
   let env = List.fold_left (fun env (x,lvl) -> Env.add env x lvl) env ldecls in
   let do_x xs x lvl =
     if Lvl.equal lvl Lvl.msf then Sv.add x xs
     else xs in
   let msf = MSF.exact (List.fold_left2 do_x Sv.empty f.f_args tyin) in
-  let msf = ty_cmd fenv env msf f.f_body in
+  let msf = ty_cmd fenv env msf f.f_body in                                       (* TODO: Pass nomodmsf information to static variable level environment *)
   (* Check the return *)
   let check_ret x lvl =
     if Lvl.equal lvl Lvl.msf then ensure_exact_x env msf x
     else ignore (ty_expr lvl env (Pvar (gkvar x))) in
   List.iter2 check_ret f.f_ret tyout;
   Format.eprintf "SCT type checking of %s done@." f.f_name.fn_name;
-  {tyin; tyout}
+  {tyin; tyout; nomodmsf = false}
 
 let ty_prog (prog:'info prog) fl =
   let prog = snd prog in
-  let fenv = { env_ty       = Hf.create 101 ; env_def      = prog } in
+  let fenv = { env_ty = Hf.create 101; env_def = prog } in
   let fl =
     if fl = [] then
       List.rev_map (fun f -> f.f_name) prog
