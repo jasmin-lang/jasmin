@@ -57,10 +57,11 @@ let pp_return fmt n =
 
 let pp_sao tbl fmt sao =
   let open Stack_alloc in
-    Format.fprintf fmt "alignment = %s; size = %a; extra size = %a; max size = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a@]"
+  Format.fprintf fmt "alignment = %s; size = %a; extra size = %a; max_size_used = %a@;max size = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a@]"
    (string_of_ws sao.sao_align)
     Z.pp_print (Conv.z_of_cz sao.sao_size)
     Z.pp_print (Conv.z_of_cz sao.sao_extra_size)
+    Z.pp_print (Conv.z_of_cz sao.sao_max_size_used)
     Z.pp_print (Conv.z_of_cz sao.sao_max_size)
     (pp_list "@;" (pp_param_info tbl)) sao.sao_params
     (pp_list "@;" pp_return) sao.sao_return
@@ -125,6 +126,7 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
         sao_align  = align;
         sao_size   = Conv.cz_of_int size;
         sao_extra_size = Z0;
+        sao_max_size_used = Z0;
         sao_max_size = Z0;
         sao_params = List.map (omap conv_pi) sao.sao_params;
         sao_return = List.map (omap Conv.nat_of_int) sao.sao_return;
@@ -214,21 +216,45 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
           let sao = get_sao fn in
           let fn_algin = sao.Stack_alloc.sao_align in
           let align = if wsize_lt align fn_algin then fn_algin else align in
-          let fn_max = Conv.z_of_cz (sao.Stack_alloc.sao_max_size) in
+          let fn_max = Conv.z_of_cz (sao.Stack_alloc.sao_max_size_used) in
           let max_stk = if Z.lt max_stk fn_max then fn_max else max_stk in
           align, max_stk
         ) sao.sao_calls (align, Z.zero) in
-    let max_size = 
+      (* FIXME: U256 is for x86, we need to turn that into an arch-generic var *)
+    let max_ws = Wsize.U256 in
+    let align =
+      (* If we are asked to clear the stack at the end, we align everything so that this is easy *)
+      if fd.f_cc = Export && fd.f_annot.clear_stack then max_ws
+      else align
+    in
+    let stk_size =
+      if fd.f_annot.clear_stack then Memory_model.round_ws max_ws csao.Stack_alloc.sao_size else csao.Stack_alloc.sao_size
+    in
+    let max_size_used = 
       let stk_size = 
-        Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
-                   (Z.of_int extra_size) in
+        Z.add (Conv.z_of_cz stk_size) (Z.of_int extra_size)
+      in
       let stk_size = 
         match fd.f_cc with
-        | Export       -> Z.add stk_size (Z.of_int (size_of_ws align - 1))
+        | Export       ->
+          if fd.f_annot.clear_stack then Conv.z_of_cz (Memory_model.round_ws max_ws (Conv.cz_of_z stk_size))
+          else stk_size
         | Subroutine _ -> 
           Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
         | Internal -> assert false in
-      Z.add max_stk stk_size in
+      let max_stk = Z.add max_stk stk_size in
+      let max_stk =
+        if fd.f_cc = Export && fd.f_annot.clear_stack then Conv.z_of_cz (Memory_model.round_ws max_ws (Conv.cz_of_z max_stk))
+        else max_stk
+      in
+      max_stk
+    in
+    let max_size =
+      match fd.f_cc with
+      | Export -> Z.add max_size_used (Z.of_int (size_of_ws align - 1))
+      | _ -> max_size_used
+    in
+
     let saved_stack = 
       if has_stack then
         match ro.ro_rsp with
@@ -251,7 +277,9 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
     let csao =
       Stack_alloc.{ csao with
         sao_align = align;
+        sao_size = stk_size;
         sao_extra_size = Conv.cz_of_int extra_size;
+        sao_max_size_used = Conv.cz_of_z max_size_used;
         sao_max_size = Conv.cz_of_z max_size;
         sao_to_save = convert_to_save ro.ro_to_save;
         sao_rsp  = saved_stack;

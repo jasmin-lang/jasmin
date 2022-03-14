@@ -162,6 +162,7 @@ type f_annot = {
     stack_allocation_size : Z.t option;
     stack_size    : Z.t option;
     stack_align   : wsize option;
+    clear_stack   : bool;
   }
 
 let f_annot_empty = {
@@ -169,6 +170,7 @@ let f_annot_empty = {
     stack_allocation_size = None;
     stack_size    = None;
     stack_align   = None;
+    clear_stack   = false;
   } 
     
 type ('len,'info) gfunc = {

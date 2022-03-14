@@ -142,6 +142,7 @@ type f_annot = {
     stack_allocation_size : Z.t option;
     stack_size    : Z.t option;
     stack_align   : wsize option;
+    clear_stack   : bool;
   }
 
 val f_annot_empty : f_annot

@@ -1835,15 +1835,28 @@ let tt_call_conv loc params returns cc =
 
 (* -------------------------------------------------------------------- *)
 
-let process_f_annot annot = 
+let process_f_annot loc f_cc annot = 
   let open P in
 
   let mk_ra = Annot.filter_string_list None ["stack", OnStack; "reg", OnReg] in
+
+  let clear_stack =
+    let b =
+      match Annot.ensure_uniq1 "clearstack" Annot.none annot with
+      | None -> false
+      | Some () -> true
+    in
+    if (b && f_cc <> Export) then
+      warning Always (L.i_loc0 loc) "clearstack only applies to export functions";
+    b
+  in
  
   { retaddr_kind          = Annot.ensure_uniq1 "returnaddress"  mk_ra                annot;
     stack_allocation_size = Annot.ensure_uniq1 "stackallocsize" (Annot.pos_int None) annot; 
     stack_size            = Annot.ensure_uniq1 "stacksize"      (Annot.pos_int None) annot; 
-    stack_align           = Annot.ensure_uniq1 "stackalign"     (Annot.wsize None)   annot}
+    stack_align           = Annot.ensure_uniq1 "stackalign"     (Annot.wsize None)   annot;
+    clear_stack           = clear_stack;
+  }
 
 (* -------------------------------------------------------------------- *)
 let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env =
@@ -1861,7 +1874,7 @@ let tt_fundef (env : Env.env) loc (pf : S.pfundef) : Env.env =
   let args = List.map L.unloc args in
   let fdef =
     { P.f_loc   = loc;
-      P.f_annot = process_f_annot pf.pdf_annot;
+      P.f_annot = process_f_annot loc f_cc pf.pdf_annot;
       P.f_cc    = f_cc;
       P.f_name  = P.F.mk (L.unloc pf.pdf_name);
       P.f_tyin  = List.map (fun { P.v_ty } -> v_ty) args;

@@ -932,7 +932,8 @@ Record stk_alloc_oracle_t :=
   { sao_align : wsize
   ; sao_size: Z
   ; sao_extra_size: Z
-  ; sao_max_size : Z
+  ; sao_max_size_used : Z
+  ; sao_max_size : Z (* also takes into account the space needed by export functions to align the stack *)
   ; sao_params : seq (option param_info)  (* Allocation of pointer params *)
   ; sao_return : seq (option nat)         (* Where to find the param input region *)
   ; sao_slots : seq svar
