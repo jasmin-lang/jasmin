@@ -40,13 +40,12 @@ Lemma assemble_progP p p' :
    map_cfprog_linear (assemble_fd RSP rip) p.(lp_funcs) = ok (asm_funcs p') ].
 Proof.
   rewrite /assemble_prog.
-  t_xrbindP => u /assertP /eqP ok_rip u' /assertP /eqP ok_rsp fds ok_fds <-{p'}.
+  t_xrbindP => u /assertP /andP [] /eqP ok_rip ok_rip' u' /assertP /eqP ok_rsp fds ok_fds <-{p'}.
   split => //; last by rewrite -(of_stringI ok_rsp).
   split => r heq //.
   by move: ok_rip; rewrite -heq /to_reg to_varK.
-  move: ok_rip; rewrite /= /to_reg -heq. admit. 
-Admitted.
-
+  by move: ok_rip'; rewrite /= /to_regx -heq to_varK. 
+Qed.
 
 (* Assembling preserves labels *)
 
@@ -158,7 +157,7 @@ Lemma lom_eqv_write_var f rip s xs (x: var_i) sz (w: word sz) s' r :
   write_var x (Vword w) s = ok s' →
   to_var r = x →
   lom_eqv rip s' (mem_write_reg f r w xs).
-Proof.
+Proof. Print lom_eqv.
   case => eqm ok_rip [ dr drx dx df ] eqr eqrx eqx eqf.
   rewrite /mem_write_reg /write_var; t_xrbindP.
   case: s' => m vm' vm ok_vm [] <- <- hx.

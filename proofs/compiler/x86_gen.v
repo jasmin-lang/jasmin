@@ -209,7 +209,7 @@ Notation map_cfprog_linear := (map_cfprog_gen lfd_info).
 
 Definition assemble_prog (p: lprog) : cexec asm_prog :=
   let rip := mk_rip p.(lp_rip) in
-  Let _ := assert (to_reg rip == None)
+  Let _ := assert ((to_reg rip == None) && (to_regx rip == None))
                   ( E.gen_error true None None (pp_s "Invalid RIP")) in
   Let _ := assert (of_string p.(lp_rsp) == Some RSP)
                   ( E.gen_error true None None (pp_s "Invalid RSP")) in
@@ -226,3 +226,4 @@ Definition get_typed_reg_value (st: x86_mem) (r: asm_typed_reg) : exec value :=
 
 Definition get_typed_reg_values st rs : exec values :=
   mapM (get_typed_reg_value st) rs.
+
