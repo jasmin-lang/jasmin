@@ -152,6 +152,10 @@ Proof.
   by exists fd'.
 Qed.
 
+Lemma to_var_reg_regx (r: reg_t) (rx: regx_t) : 
+   to_var r <> to_var rx.
+Proof. case: r; case : rx => //. Qed.
+
 Lemma lom_eqv_write_var f rip s xs (x: var_i) sz (w: word sz) s' r :
   lom_eqv rip s xs →
   write_var x (Vword w) s = ok s' →
@@ -162,8 +166,8 @@ Proof. Print lom_eqv.
   rewrite /mem_write_reg /write_var; t_xrbindP.
   case: s' => m vm' vm ok_vm [] <- <- hx.
   constructor => //=.
-  2-4: move => r' v'.
-  1-4: rewrite (get_var_set_var _ ok_vm) -hx.
+  2-5: move => r' v'.
+  1-4: rewrite (get_var_set_var _ ok_vm) -hx. 
   4: exact: eqx.
   1: by move: dr => /(_ r) /eqP /negbTE ->.
   1: rewrite /RegMap.set ffunE.
@@ -173,11 +177,11 @@ Proof. Print lom_eqv.
   move /inj_to_var : h => ->; rewrite eqxx; t_xrbindP => /= w' ok_w' <- /=.
   case: Sumbool.sumbool_of_bool ok_w' => hsz [] <-{w'} /=.
   + by apply word_uincl_word_extend.
-  by rewrite word_extend_big // hsz.
-  - admit.
-  rewrite /=. move: get_set_var=> hg. move: (hg (evm s) x (Vword w) vm x ok_vm).
-  case: ifP=> /eqP hxeq //=. admit.
-Admitted.
+  by rewrite word_extend_big // hsz. 
+  - case: eqP=> h; last by auto.
+    by elim (to_var_reg_regx h).
+  by rewrite /= (get_set_var _ ok_vm) -hx /= => /eqf.
+Qed.
 
 Lemma not_condtP (c:condt) rf b : 
   eval_cond rf c = ok b -> eval_cond rf (not_condt c) = ok (negb b).
@@ -476,12 +480,14 @@ Transparent eval_arg_in_v check_i_args_kinds.
     rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply inj_to_var.
     by apply h2.
   + move=> r' v''; rewrite /get_var /on_vu /=.
-    rewrite Fv.setP_neq //. apply h3. admit.
+    rewrite Fv.setP_neq //. apply h3. move: (to_var_reg_regx)=> hr.
+    move: (hr r r')=> hr'. apply contraFneq with false. move=> hr''.
+    by elim: hr'. by auto.
   + move=> r' v''; rewrite /get_var /on_vu /=.
     rewrite Fv.setP_neq. apply h4. auto.
   move=> f v''; rewrite /get_var /on_vu /=.
   by rewrite Fv.setP_neq //; apply h5.
-Admitted.
+Qed.
 
 Lemma assemble_iP i j ls ls' lc xs :
   let: rip := mk_rip (lp_rip p) in

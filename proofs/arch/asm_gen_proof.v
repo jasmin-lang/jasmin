@@ -381,15 +381,18 @@ Qed.
 (* TODO: move in a class? *)
 Hypothesis reg_size_lt_xreg_size : (reg_size < xreg_size)%CMP. 
 
+
 Lemma of_reg_neq_of_xreg (r:reg_t) (x:xreg_t) : to_var r <> to_var x.
 Proof.
   move=> [] hsize _.
   by move: reg_size_lt_xreg_size; rewrite hsize -cmp_nle_lt cmp_le_refl.
 Qed.
 
-Lemma of_reg_neq_of_regx (r:reg_t) (x:regx_t) : to_var r <> to_var x.
+Lemma of_regx_neq_of_xreg (r:regx_t) (x:xreg_t) : to_var r <> to_var x.
 Proof.
-Admitted.
+  move=> [] hsize _.
+  by move: reg_size_lt_xreg_size; rewrite hsize -cmp_nle_lt cmp_le_refl.
+Qed.
 
 Lemma compile_lval rip ii msb_flag loargs ad ty (vt:sem_ot ty) m m' s lv1 e1:
   lom_eqv rip m s ->
@@ -451,7 +454,8 @@ Proof.
         by rewrite word_extend_big // hsz.
       rewrite Fv.setP_neq; last by apply /eqP => h; apply hne; apply inj_to_var.
       by apply h2.
-    + move=> r' v'; rewrite get_var_neq; last by apply of_reg_neq_of_regx.
+    + move=> r' v'; rewrite get_var_neq; last first. 
+      - rewrite /to_var /= /rtype /=. move=> []. exact: inj_toS_reg_regx.
       by apply h3.
     + move=> r' v'; rewrite get_var_neq; last by apply of_reg_neq_of_xreg.
       by apply h4.
@@ -480,10 +484,16 @@ Proof.
        * move => hne; rewrite Fv.setP_neq; first exact: h2.
          by apply/eqP => /inj_to_var ?; apply: hne.
     1-3, 5-8: rewrite Fv.setP_neq //.
-    2, 4, 6, 8, 10, 12, 14: rewrite eq_sym.
+    2, 4, 6, 8, 10, 12, 14: rewrite eq_sym. 
     6: by apply /eqP /of_reg_neq_of_xreg.
-    2, 3, 4, 5, 6, 7: admit.
-    1, 6 : exact: h3.
+    2: rewrite /to_var /= /rtype /= neq_sym /=; apply /eqP; move=> []; exact: inj_toS_reg_regx.
+    1: exact: h3.
+    1: rewrite eq_sym. by apply /eqP /of_reg_neq_of_xreg.
+    1: rewrite /to_var /= /rtype /=; apply /eqP; move=> []; exact: inj_toS_reg_regx.
+    1: rewrite eq_sym; by apply /eqP /of_regx_neq_of_xreg.
+    1: by apply /eqP /of_regx_neq_of_xreg.
+    1: rewrite /to_var /= /rtype /=. apply /eqP; move=> []. admit.
+    5 : exact: h3.
     1, 3: exact: h4.
     1, 2: exact: h2.
     + admit.

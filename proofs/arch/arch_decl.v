@@ -56,6 +56,7 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; toS_rx    :> ToString (sword reg_size) regx
   ; toS_x     :> ToString (sword xreg_size) xreg
   ; toS_f     :> ToString sbool rflag
+  ; inj_toS_reg_regx : forall (r:reg) (rx:regx), to_string r <> to_string rx
 }.
 
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.

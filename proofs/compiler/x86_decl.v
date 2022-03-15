@@ -363,6 +363,12 @@ Instance x86_rflag_toS : ToString sbool rflag :=
   }.
 
 (* -------------------------------------------------------------------- *)
+Lemma x86_inj_toS_reg_regx (r:register) (rx: register_ext) : to_string r <> to_string rx.
+Proof.
+  by case:r; case: rx.
+Qed.
+
+(* -------------------------------------------------------------------- *)
 
 Instance eqC_condt : eqTypeC condt :=
   { ceqP := condt_eq_axiom }.
@@ -375,4 +381,5 @@ Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
   ; toS_rx    := x86_regx_toS
   ; toS_x     := x86_xreg_toS
   ; toS_f     := x86_rflag_toS
+  ; inj_toS_reg_regx := x86_inj_toS_reg_regx
   }.
