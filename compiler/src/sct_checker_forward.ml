@@ -69,6 +69,8 @@ module Lvl : sig
 
   val is_public : level -> bool
 
+  val is_msf : level -> bool
+
   val fv : level -> Svl.t
 
 end = struct
@@ -86,6 +88,9 @@ end = struct
     | Public _ -> true
     | _ -> false
 
+  let is_msf = function
+    | Public true -> true
+    | _ -> false
   let fv = function Poly s -> Svl.remove Vl.transient s | _ -> Svl.empty
 
   let max l1 l2 =
@@ -268,9 +273,9 @@ end = struct
   let get_nomodmsf env = env.nomodmsf
 
   let add env x lvl =
-    if Lvl.is_public lvl && not (is_register x || is_inline x) then
+    if Lvl.is_msf lvl && not (is_register x) then
       Pt.rs_tyerror ~loc:x.v_dloc
-        (Pt.string_error "only register or inline can be declared with type %a" Lvl.pp lvl);
+        (Pt.string_error "only register can be declared with type %a" Lvl.pp lvl);
     let lvl =
       if (is_register x || is_inline x) then lvl
       else Lvl.max lvl Lvl.transient in
@@ -397,19 +402,19 @@ let ty_lvals1 env msf xs lvl =
 
 let sdeclassify = "declassify"
 
-let is_declasify annot = 
+let is_declasify annot =
   Pt.Annot.ensure_uniq1 sdeclassify Pt.Annot.none annot <> None
-  
+
 
 let declassify = function
-  | Secret | Poly _ -> Lvl.transient 
+  | Secret | Poly _ -> Lvl.transient
   | Public _ as lvl -> lvl
 
-let declassify_lvl annot lvl = 
+let declassify_lvl annot lvl =
   if is_declasify annot then declassify lvl
   else lvl
 
-let declassify_lvls annot lvls = 
+let declassify_lvls annot lvls =
   if is_declasify annot then List.map declassify lvls
   else lvls
 
