@@ -395,6 +395,26 @@ let ty_lvals1 env msf xs lvl =
 
 (* -----------------------------------------------------------*)
 
+let sdeclassify = "declassify"
+
+let is_declasify annot = 
+  Pt.Annot.ensure_uniq1 sdeclassify Pt.Annot.none annot <> None
+  
+
+let declassify = function
+  | Secret | Poly _ -> Lvl.transient 
+  | Public _ as lvl -> lvl
+
+let declassify_lvl annot lvl = 
+  if is_declasify annot then declassify lvl
+  else lvl
+
+let declassify_lvls annot lvls = 
+  if is_declasify annot then List.map declassify lvls
+  else lvls
+
+(* -----------------------------------------------------------*)
+
 let get_annot f =
   let mk_dfl x = if is_inline x then Lvl.public else Lvl.secret in
   let ain  = List.map (fun x -> Lvl.parse ~dfl:(mk_dfl x) ~single:true x.v_annot) f.f_args in
@@ -507,7 +527,7 @@ let rec ty_instr fenv env msf i =
     MSF.toinit
   | Cassgn(x, _, _, e) ->
     let lvl = ty_expr ~lvl:Lvl.secret env e in
-    ty_lval env msf x lvl
+    ty_lval env msf x (declassify_lvl i.i_annot lvl)
 
   | Copn(xs, _, o, es) ->
     let loc = i.i_loc.base_loc in
@@ -578,7 +598,7 @@ let rec ty_instr fenv env msf i =
 
     | Other  ->
         let lvl = ty_exprs_max ~lvl:Lvl.secret env es in
-        ty_lvals1 env msf xs lvl
+        ty_lvals1 env msf xs (declassify_lvl i.i_annot lvl)
     end
 
   | Cif(e, c1, c2) ->
@@ -633,7 +653,7 @@ let rec ty_instr fenv env msf i =
           let elvl = ty_expr ~lvl:Lvl.secret env e in
           UE.set ue l elvl in
     List.iter2 do_e es fty.tyin;
-    let tout = instanciates ue fty.tyout in
+    let tout = declassify_lvls i.i_annot (instanciates ue fty.tyout) in
     let msf = ty_lvals env msf xs tout in
     let do_out xs x lvl =
       if Lvl.equal lvl Lvl.msf then
