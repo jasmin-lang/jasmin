@@ -41,6 +41,20 @@ let fill_in_missing_names (f: 'info func) : 'info func =
   let f_body = fill_stmt f.f_body in
   { f with f_body }
 
+type kind = Word | Vector | Unknown of ty
+
+let kind_of_type =
+  function
+  | Bty (U (U8 | U16 | U32 | U64)) -> Word
+  | Bty (U (U128 | U256)) -> Vector
+  | ty -> Unknown ty
+
+(* Only variables that will be allocated to the same “bank” may conflict. *)
+let types_cannot_conflict x y : bool =
+  match kind_of_type x, kind_of_type y with
+  | Word, Word | Vector, Vector -> false
+  | _, _ -> true
+
 type arg_position = APout of int | APin of int
 
 let int_of_nat n =
@@ -80,10 +94,17 @@ let find_var outs ins ap : _ option =
         | Pvar v -> if is_gkvar v then Some v.gv else None
         | _ -> None)
 
-let x86_equality_constraints (int_of_var: var_i -> int option) (k: int -> int -> unit)
+let x86_equality_constraints ~loc (int_of_var: var_i -> int option) (k: int -> int -> unit)
     (k': int -> int -> unit)
     (lvs: 'ty glvals) (op: X86_extra.x86_extended_op sopn) (es: 'ty gexprs) : unit =
+  let assert_compatible_types x y =
+    if types_cannot_conflict (L.unloc x).v_ty (L.unloc y).v_ty then
+      hierror_reg ~loc "Variables %a and %a must be merged due to architectural constraints but have incompatible types"
+        (Printer.pp_var ~debug:true) (L.unloc x)
+        (Printer.pp_var ~debug:true) (L.unloc y)
+  in
   let merge k v w =
+    assert_compatible_types v w;
     match int_of_var v with
     | None -> ()
     | Some i ->
@@ -164,7 +185,7 @@ let collect_equality_constraints_in_func
   let rec collect_instr_r ii =
     function
     | Cfor (_, _, s) -> collect_stmt s
-    | Copn (lvs, _, op, es) -> copn_constraints int_of_var (add ii) addf lvs op es
+    | Copn (lvs, _, op, es) -> copn_constraints ~loc:(Lmore ii.i_loc) int_of_var (add ii) addf lvs op es
     | Cassgn (Lvar x, AT_phinode, _, Pvar y) when
           is_gkvar y && kind_i x = kind_i y.gv ->
        addv ii x y.gv
@@ -287,20 +308,6 @@ let conflicts_in (i: Sv.t) (k: var -> var -> 'a -> 'a) : 'a -> 'a =
       loop (inner a xs) xs
   in
   fun a -> loop a e
-
-type kind = Word | Vector | Unknown of ty
-
-let kind_of_type =
-  function
-  | Bty (U (U8 | U16 | U32 | U64)) -> Word
-  | Bty (U (U128 | U256)) -> Vector
-  | ty -> Unknown ty
-
-(* Only variables that will be allocated to the same “bank” may conflict. *)
-let types_cannot_conflict x y : bool =
-  match kind_of_type x, kind_of_type y with
-  | Word, Word | Vector, Vector -> false
-  | _, _ -> true
 
 let conflicts_add_one tbl tr loc (v: var) (w: var) (c: conflicts) : conflicts =
   if types_cannot_conflict v.v_ty w.v_ty then c else
@@ -761,7 +768,7 @@ let renaming (f: 'info func) : unit func =
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
   let eqc, _tr, _fr =
     collect_equality_constraints
-      "Split live range" (fun _ _ _ _ _ _ -> ()) vars nv f in
+      "Split live range" (fun ~loc:_ _ _ _ _ _ _ -> ()) vars nv f in
   let vars = normalize_variables vars eqc in
   let a = reverse_varmap nv vars |> subst_of_allocation vars in
   Subst.subst_func a f
