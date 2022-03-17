@@ -829,6 +829,8 @@ Definition is_bool (e:pexpr) :=
 
 Definition cast_w ws := Papp1 (Oword_of_int ws).
 
+Definition pword_of_int ws z := cast_w ws (Pconst z).
+
 Section WITH_POINTER_DATA.
 Context {pd: PointerData}.
 

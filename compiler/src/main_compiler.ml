@@ -245,8 +245,9 @@ let main () =
 
     let translate_var = Conv.var_of_cvar tbl in
     
+    let is_move_op = X86_params.aparams.is_move_op in
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl X86_params.aparams up
+      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl is_move_op up
      in
 
     let global_regalloc fds =

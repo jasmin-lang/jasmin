@@ -21,12 +21,6 @@ Definition mov_ofs := x86_stack_alloc.x86_mov_ofs.
 Definition var_tmp := to_var RAX.
 Definition lparams := x86_linearization.x86_linearization_params.
 
-Definition clear_stack :=
-  prog_clear_stack
-    U256
-    (Ox86 (x86_extra.Oset0 U256))
-    (fun zfi offi => ([::], Ox86 (x86_instr_decl.ADD U64))).
-
 Section IS_MOVE_OP.
 
 Context (is_move_op : asm_op_t -> bool).
@@ -161,9 +155,11 @@ Record compiler_params := {
 }.
 
 (* Architecture-dependent functions *)
-Record architecture_params := mk_aparams {
-  is_move_op       : asm_op_t -> bool
-}.
+Record architecture_params :=
+  {
+    is_move_op : asm_op_t -> bool;
+    ap_csp : clear_stack_params;
+  }.
 
 #[local]
 Existing Instance progUnit.
@@ -296,7 +292,8 @@ Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
   let pl := cparams.(print_linear) Linearization pl in
 
   (* clear stack *)
-  let pl := clear_stack pl in
+  let pl := prog_clear_stack (ap_csp aparams) pl in
+  let pl := cparams.(print_linear) Tunneling pl in
 
   (* tunneling                         *)
   Let pl := tunnel_program pl in
@@ -312,4 +309,3 @@ Definition compile_prog_to_x86 entries subroutines (p: prog): cexec x86_prog :=
   compiler_front_end entries subroutines p >>= compiler_back_end_to_x86 entries.
 
 End COMPILER.
-
