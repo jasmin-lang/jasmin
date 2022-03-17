@@ -91,6 +91,7 @@ end = struct
   let is_msf = function
     | Public true -> true
     | _ -> false
+
   let fv = function Poly s -> Svl.remove Vl.transient s | _ -> Svl.empty
 
   let max l1 l2 =
@@ -276,6 +277,9 @@ end = struct
     if Lvl.is_msf lvl && not (is_register x) then
       Pt.rs_tyerror ~loc:x.v_dloc
         (Pt.string_error "only register can be declared with type %a" Lvl.pp lvl);
+    if Lvl.is_public lvl && not (is_register x || is_inline x) then
+      Pt.rs_tyerror ~loc:x.v_dloc
+        (Pt.string_error "only register or inline can be declared with type %a" Lvl.pp lvl);
     let lvl =
       if (is_register x || is_inline x) then lvl
       else Lvl.max lvl Lvl.transient in
