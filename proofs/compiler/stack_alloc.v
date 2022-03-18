@@ -1632,6 +1632,7 @@ Definition alloc_fd
     {|
       sf_align := sao_align sao;
       sf_stk_sz := sao_size sao;
+      sf_stk_max_used := sao_max_size_used sao;
       sf_stk_max := sao_max_size sao;
       sf_stk_extra_sz := sao_extra_size sao;
       sf_to_save := sao_to_save sao;
