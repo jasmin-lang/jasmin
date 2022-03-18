@@ -33,5 +33,5 @@ type glob_alloc_oracle_t =
 
 val alloc_stack_prog : 'info prog -> glob_alloc_oracle_t * stk_alloc_oracle_t Hf.t 
 
-val extend_sao : stk_alloc_oracle_t -> var list -> int * wsize * (var * int) list
+val extend_sao : stk_alloc_oracle_t -> var list -> int * int * wsize * (var * int) list
  

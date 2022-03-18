@@ -55,14 +55,48 @@ let pp_return fmt n =
   | None -> Format.fprintf fmt "_"
   | Some n -> Format.fprintf fmt "%d" (Conv.int_of_nat n)
 
-let pp_sao tbl fmt sao =
+(* To explain the results of stack alloc to the user.
+   Not needed for the compilation. *)
+type stack_alloc_oracle_info = {
+    extra_padding : Z.t (* padding included in extra_size *)
+  ; frame_size : Z.t (* total frame size = local vars size + extra size + padding *)
+  ; max_frame_size : Z.t (* max frame size = frame size + max runtime export padding *)
+}
+
+let pp_sao tbl fmt (sao, sao_info) =
+  let { extra_padding; frame_size; max_frame_size } = sao_info in
   let open Stack_alloc in
-  Format.fprintf fmt "alignment = %s; size = %a; extra size = %a; max_size_used = %a@;max size = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a@]"
+  let sao_size = Conv.z_of_cz sao.sao_size in
+  let sao_extra_size = Conv.z_of_cz sao.sao_extra_size in
+  let sao_max_size = Conv.z_of_cz sao.sao_max_size in
+  let pp_extra fmt =
+    Format.fprintf fmt "%a (= %a (data) + %a (padding))"
+      Z.pp_print sao_extra_size
+      Z.pp_print (Z.sub sao_extra_size extra_padding) Z.pp_print extra_padding
+  in
+  let pp_frame fmt =
+    Format.fprintf fmt "%a (= %a (local stack vars) + %a (extra) + %a (padding))"
+      Z.pp_print frame_size Z.pp_print sao_size Z.pp_print sao_extra_size
+      Z.pp_print Z.(frame_size - sao_size - sao_extra_size)
+  in
+  let pp_max_frame fmt =
+    Format.fprintf fmt "%a (= %a (frame size) + %a (max runtime padding for export function))"
+      Z.pp_print max_frame_size Z.pp_print frame_size
+      Z.pp_print (Z.sub max_frame_size frame_size)
+  in
+  let pp_max fmt =
+    Format.fprintf fmt "%a (= %a (max frame size) + %a (max stack size of callees))"
+      Z.pp_print sao_max_size Z.pp_print max_frame_size
+      Z.pp_print (Z.sub sao_max_size max_frame_size)
+  in
+  Format.fprintf fmt "alignment = %s@;size = %a@;extra size = %t@;frame size = %t@;max frame size = %t@;max used size = %a@;max size = %t@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
    (string_of_ws sao.sao_align)
-    Z.pp_print (Conv.z_of_cz sao.sao_size)
-    Z.pp_print (Conv.z_of_cz sao.sao_extra_size)
+    Z.pp_print sao_size
+    pp_extra
+    pp_frame
+    pp_max_frame
     Z.pp_print (Conv.z_of_cz sao.sao_max_size_used)
-    Z.pp_print (Conv.z_of_cz sao.sao_max_size)
+    pp_max
     (pp_list "@;" (pp_param_info tbl)) sao.sao_params
     (pp_list "@;" pp_return) sao.sao_return
     (pp_list "@;" (pp_slot tbl)) sao.sao_slots
@@ -71,7 +105,7 @@ let pp_sao tbl fmt sao =
     (Printer.pp_saved_stack ~debug:true tbl) sao.sao_rsp
     (Printer.pp_return_address ~debug:true tbl) sao.sao_return_address
 
-let pp_oracle tbl up fmt saos =
+let pp_oracle tbl up fmt (saos, sao_infos) =
   let open Compiler in
   let { ao_globals; ao_global_alloc; ao_stack_alloc } = saos in
   let pp_global fmt global =
@@ -79,7 +113,8 @@ let pp_oracle tbl up fmt saos =
   in
   let pp_stack_alloc fmt f =
     let sao = ao_stack_alloc (Conv.cfun_of_fun tbl f.f_name) in
-    Format.fprintf fmt "@[<v 2>%s@;%a@]" f.f_name.fn_name (pp_sao tbl) sao
+    let sao_info = sao_infos (Conv.cfun_of_fun tbl f.f_name) in
+    Format.fprintf fmt "@[<v 2>%s@;%a@]" f.f_name.fn_name (pp_sao tbl) (sao, sao_info)
   in
   let _, fs = Conv.prog_of_cuprog tbl up in
   Format.fprintf fmt "@[<v>Global data:@;<2 2>@[<hov>%a@]@;Global slots:@;<2 2>@[<v>%a@]@;Stack alloc:@;<2 2>@[<v>%a@]@]"
@@ -156,10 +191,13 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
         ao_stack_alloc  = cget_sao
       })
     in
+    let sao_infos  _ =
+      { extra_padding = Z.zero; frame_size = Z.zero; max_frame_size = Z.zero }
+    in
     Format.eprintf
 "(* -------------------------------------------------------------------- *)@.";
     Format.eprintf "(* Intermediate results of the stack allocation oracle *)@.@.";
-    Format.eprintf "%a@.@.@." (pp_oracle tbl up) saos
+    Format.eprintf "%a@.@.@." (pp_oracle tbl up) (saos, sao_infos)
   end;
 
   let sp' = 
@@ -195,6 +233,8 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
   let has_stack f = f.f_cc = Export && (Hf.find sao f.f_name).sao_modify_rsp in
   let fds, _extra_free_registers =
     Regalloc.alloc_prog translate_var (fun fd _ -> has_stack fd) fds in
+
+  let infos_tbl = Hf.create 17 in
   
   let fix_csao (_, ro, fd) =
     let fn = fd.f_name in
@@ -210,51 +250,37 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
       let extra = if rastack then ra :: extra else extra in
       if has_stack && ro.ro_rsp = None then rsp :: extra
       else extra in
-    let extra_size, align, extrapos = Varalloc.extend_sao sao extra in
+    (* extra_size includes extra_padding *)
+    let extra_size, extra_padding, align, extrapos = Varalloc.extend_sao sao extra in
     let align, max_stk = 
       Sf.fold (fun fn (align, max_stk) ->
           let sao = get_sao fn in
           let fn_algin = sao.Stack_alloc.sao_align in
           let align = if wsize_lt align fn_algin then fn_algin else align in
-          let fn_max = Conv.z_of_cz (sao.Stack_alloc.sao_max_size_used) in
+          let fn_max = Conv.z_of_cz (sao.Stack_alloc.sao_max_size) in
           let max_stk = if Z.lt max_stk fn_max then fn_max else max_stk in
           align, max_stk
         ) sao.sao_calls (align, Z.zero) in
-      (* FIXME: U256 is for x86, we need to turn that into an arch-generic var *)
-    let max_ws = Wsize.U256 in
-    let align =
-      (* If we are asked to clear the stack at the end, we align everything so that this is easy *)
-      if fd.f_cc = Export && fd.f_annot.clear_stack then max_ws
-      else align
-    in
-    let stk_size =
-      if fd.f_annot.clear_stack then Memory_model.round_ws max_ws csao.Stack_alloc.sao_size else csao.Stack_alloc.sao_size
-    in
-    let max_size_used = 
+    (* stack size + extra_size + padding *)
+    let frame_size =
       let stk_size = 
-        Z.add (Conv.z_of_cz stk_size) (Z.of_int extra_size)
-      in
-      let stk_size = 
-        match fd.f_cc with
-        | Export       ->
-          if fd.f_annot.clear_stack then Conv.z_of_cz (Memory_model.round_ws max_ws (Conv.cz_of_z stk_size))
-          else stk_size
-        | Subroutine _ -> 
-          Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
-        | Internal -> assert false in
-      let max_stk = Z.add max_stk stk_size in
-      let max_stk =
-        if fd.f_cc = Export && fd.f_annot.clear_stack then Conv.z_of_cz (Memory_model.round_ws max_ws (Conv.cz_of_z max_stk))
-        else max_stk
-      in
-      max_stk
-    in
-    let max_size =
+        Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
+                   (Z.of_int extra_size) in
       match fd.f_cc with
-      | Export -> Z.add max_size_used (Z.of_int (size_of_ws align - 1))
-      | _ -> max_size_used
+      | Export       -> stk_size
+      | Subroutine _ -> 
+        Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
+      | Internal -> assert false
     in
-
+    let max_frame_size =
+      (* the max size includes the padding introduced by the alignment of export functions *)
+      match fd.f_cc with
+      | Export -> Z.add frame_size (Z.of_int (size_of_ws align - 1))
+      | Subroutine _ -> frame_size
+      | Internal -> assert false
+    in
+    let max_size_used = Z.add max_stk frame_size in
+    let max_size = Z.add max_stk max_frame_size in
     let saved_stack = 
       if has_stack then
         match ro.ro_rsp with
@@ -277,7 +303,6 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
     let csao =
       Stack_alloc.{ csao with
         sao_align = align;
-        sao_size = stk_size;
         sao_extra_size = Conv.cz_of_int extra_size;
         sao_max_size_used = Conv.cz_of_z max_size_used;
         sao_max_size = Conv.cz_of_z max_size;
@@ -290,7 +315,14 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
                | None -> RAnone
                | Some ra -> RAreg (Conv.cvar_of_var tbl ra)
       } in
-    Hf.replace atbl fn csao in
+    Hf.replace atbl fn csao;
+    let sao_info = {
+        extra_padding = Z.of_int extra_padding
+      ; frame_size
+      ; max_frame_size
+    } in
+    Hf.add infos_tbl fn sao_info
+  in
   List.iter fix_csao (List.rev fds);
   
   let saos =
@@ -305,10 +337,15 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
   in
 
   if !Glob_options.print_stack_alloc then begin
+    let sao_infos =
+      fun fn ->
+      try Hf.find infos_tbl (Conv.fun_of_cfun tbl fn)
+      with Not_found -> assert false
+    in
     Format.eprintf
 "(* -------------------------------------------------------------------- *)@.";
     Format.eprintf "(* Final results of the stack allocation oracle *)@.@.";
-    Format.eprintf "%a@.@.@." (pp_oracle tbl up) saos
+    Format.eprintf "%a@.@.@." (pp_oracle tbl up) (saos, sao_infos)
   end;
 
   saos

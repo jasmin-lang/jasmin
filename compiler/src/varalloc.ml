@@ -283,9 +283,13 @@ let all_alignment ctbl alias params lalloc =
   Hv.iter doalloc lalloc;
   params, atbl
 
-
 (* --------------------------------------------------- *)
-let alloc_local_stack size slots atbl = 
+let round_ws ws sz =
+  let d = size_of_ws ws in
+  if sz mod d = 0 then sz
+  else (sz/d + 1) * d
+
+let alloc_local_stack size slots atbl =
   let do1 x = 
     let ws = 
       try Hv.find atbl x 
@@ -313,19 +317,17 @@ let alloc_local_stack size slots atbl =
     | (_,ws) :: _ -> ws in
 
   let size = ref size in
+  let padding = ref 0 in
   
   let init_slot (x,ws) = 
-    let s = size_of_ws ws in
-    let pos = !size in
+    let pos = round_ws ws !size in
+    padding := !padding + pos - !size;
     let n = size_of x.v_ty in
-    let pos = 
-      if pos mod s = 0 then pos
-      else (pos/s + 1) * s in
     size := pos + n;
     (x,ws,pos) in
 
   let slots = List.map init_slot slots in
-  stk_align, slots, !size
+  stk_align, slots, !size, !padding
 
 (* --------------------------------------------------- *)
 let alloc_stack_fd get_info gtbl fd =
@@ -364,8 +366,8 @@ let alloc_stack_fd get_info gtbl fd =
     | Export -> List.map (fun _ -> None) fd.f_ret 
     | Subroutine {returned_params} -> returned_params
     | Internal -> assert false in
-
-  let sao_align, sao_slots, sao_size = alloc_local_stack 0 (Sv.elements slots) atbl in
+  let sao_align, sao_slots, sao_size, padding = alloc_local_stack 0 (Sv.elements slots) atbl in
+  assert (padding = 0); (* we should not need padding for local variables *)
     
   let sao_alloc = List.iter (Hv.remove lalloc) fd.f_args; lalloc in
 
@@ -385,7 +387,8 @@ let alloc_stack_fd get_info gtbl fd =
   sao
 
 let alloc_mem gtbl globs =
-  let gao_align, gao_slots, gao_size = alloc_local_stack 0 (List.map fst globs) gtbl in
+  let gao_align, gao_slots, gao_size, padding = alloc_local_stack 0 (List.map fst globs) gtbl in
+  assert (padding = 0); (* we should not need padding for global variables *)
   let t = Array.make gao_size (Word0.wrepr U8 (Conv.cz_of_int 0)) in
   let get x = 
     try List.assoc x globs with Not_found -> assert false in
@@ -429,10 +432,10 @@ let extend_sao sao extra =
     | _          -> assert false in
   List.iter doit extra;
     
-  let align, slots, size = alloc_local_stack sao.sao_size extra tbl in
+  let align, slots, size, padding = alloc_local_stack sao.sao_size extra tbl in
   let align = if wsize_lt align sao.sao_align then sao.sao_align else align in
   let slots = List.map (fun (x,_,pos) -> (x,pos)) slots in
-  size - sao.sao_size, align, slots
+  size - sao.sao_size, padding, align, slots
 
 
   
