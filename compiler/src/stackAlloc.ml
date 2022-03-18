@@ -263,10 +263,6 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
         ) sao.sao_calls (align, Z.zero) in
     (* FIXME: should be architecture-dependent *)
     let max_ws = Wsize.U256 in
-    let align =
-      if fd.f_cc = Export && fd.f_annot.clear_stack then max_ws
-      else align
-    in
     (* stack size + extra_size + padding *)
     let frame_size =
       let stk_size = 
@@ -275,7 +271,7 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
       match fd.f_cc with
       | Export ->
           if fd.f_annot.clear_stack then
-            Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
+            Conv.z_of_cz (Memory_model.round_ws max_ws (Conv.cz_of_z stk_size))
           else
             stk_size
       | Subroutine _ -> 

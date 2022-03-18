@@ -460,10 +460,12 @@ let pp_return_address ~debug tbl fmt = function
 let pp_sprog ~debug tbl fmt ((funcs, p_extra):'info Prog.sprog) =
   let pp_var = pp_var ~debug in
   let pp_f_extra fmt f_extra = 
-    Format.fprintf fmt "(* @[<v>stack size = %a + %a; alignment = %s;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] *)"
+    Format.fprintf fmt "/* @[<v>stack size = %a + %a; alignment = %s;@ max stack = %a;@ max stack used = %a;@ saved register = @[%a@];@ saved stack = %a;@ return_addr = %a@] */"
       Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_sz)
       Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_extra_sz)
       (string_of_ws f_extra.Expr.sf_align)
+      Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_max)
+      Z.pp_print (Conv.z_of_cz f_extra.Expr.sf_stk_max_used)
       (pp_list ",@ " (pp_to_save ~debug tbl)) (f_extra.Expr.sf_to_save)
       (pp_saved_stack ~debug tbl) (f_extra.Expr.sf_save_stack)
       (pp_return_address ~debug tbl)  (f_extra.Expr.sf_return_address)
