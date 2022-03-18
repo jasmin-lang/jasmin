@@ -5,7 +5,7 @@ src/Conv
 src/Ct_checker_forward
 src/Evaluator
 src/Help
-src/Inline_array_copy
+src/Insert_copy_and_fix_length
 src/Interval
 src/IntervalGraphColoring
 src/Latex_printer

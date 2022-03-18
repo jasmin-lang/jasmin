@@ -1,0 +1,15 @@
+inline
+fn one(reg ptr u64[1] a) -> reg u64, reg ptr u64[1] {
+  reg u64 result;
+  a[0] = 1;
+  result = a[0];
+  return result, a;
+}
+
+export
+fn main() -> reg u64 {
+  stack u64[1] s;
+  reg u64 n ;
+  n, s = one(s);
+  return n;
+}

@@ -493,6 +493,7 @@ Definition var_kind := option vptr_kind.
    This is architecture-specific. *)
 Context (mov_ofs
   :  lval       (* The variable to save the address to. *)
+  -> assgn_tag  (* The tag present in the source. *)
   -> vptr_kind  (* The kind of address to compute. *)
   -> pexpr      (* Variable with base address. *)
   -> Z          (* Offset. *)
@@ -733,10 +734,10 @@ Definition is_nop is_spilling rmap (x:var) (sry:sub_region) : bool :=
   else false.
 
 (* TODO: better error message *)
-Definition get_addr is_spilling rmap x dx sry vpk y ofs :=
+Definition get_addr is_spilling rmap x dx tag sry vpk y ofs :=
   let ir := if is_nop is_spilling rmap x sry
             then Some nop
-            else mov_ofs dx vpk y ofs in
+            else mov_ofs dx tag vpk y ofs in
   let rmap := Region.set_move rmap x sry in
   (rmap, ir).
 
@@ -791,7 +792,7 @@ Definition mk_addr_pexpr rmap x vpk :=
    of y...
 *)
 (* Precondition is_sarr ty *)
-Definition alloc_array_move rmap r e :=
+Definition alloc_array_move rmap r tag e :=
   Let xsub := get_Lvar_sub r in
   Let ysub := get_Pvar_sub e in
   let '(x,subx) := xsub in
@@ -835,7 +836,7 @@ Definition alloc_array_move rmap r e :=
         ok (rmap, nop)
       | Pregptr p =>
         let (rmap, oir) :=
-            get_addr None rmap x (Lvar (with_var x p)) sry vpk ey ofs in
+            get_addr None rmap x (Lvar (with_var x p)) tag sry vpk ey ofs in
         match oir with
         | None =>
           let err_pp := pp_box [:: pp_s "cannot compute address"; pp_var x] in
@@ -847,7 +848,7 @@ Definition alloc_array_move rmap r e :=
         let is_spilling := Some (slot, ws, z, x') in
         let dx_ofs := cast_const (ofsx + z.(z_ofs)) in
         let dx := Lmem Uptr (with_var x pmap.(vrsp)) dx_ofs in
-        let (rmap, oir) := get_addr is_spilling rmap x dx sry vpk ey ofs in
+        let (rmap, oir) := get_addr is_spilling rmap x dx tag sry vpk ey ofs in
         match oir with
         | None =>
           let err_pp := pp_box [:: pp_s "cannot compute address"; pp_var x] in
@@ -877,7 +878,7 @@ Definition is_array_init e :=
 (* We do not update the [var_region] part *)
 (* there seems to be an invariant: all Pdirect are in the rmap *)
 (* long-term TODO: we can avoid putting PDirect in the rmap (look in pmap instead) *)
-Definition alloc_array_move_init rmap r e :=
+Definition alloc_array_move_init rmap r tag e :=
   if is_array_init e then
     Let xsub := get_Lvar_sub r in
     let '(x,subx) := xsub in
@@ -903,7 +904,7 @@ Definition alloc_array_move_init rmap r e :=
     let sr := sub_region_at_ofs sr (Some ofs) len in
     let rmap := Region.set_move_sub rmap x sr in
     ok (rmap, nop)
-  else alloc_array_move rmap r e.
+  else alloc_array_move rmap r tag e.
 
 Definition bad_lval_number := stk_ierror_no_var "invalid number of lval".
 
@@ -1171,7 +1172,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * instr) :
     | Cassgn r t ty e =>
         if is_sarr ty
         then
-          add_iinfo ii (alloc_array_move_init rmap r e)
+          add_iinfo ii (alloc_array_move_init rmap r t e)
         else
           Let: e := add_iinfo ii (alloc_e rmap e) in
           Let: (rm, lv) := add_iinfo ii (alloc_lval rmap r ty) in

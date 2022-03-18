@@ -1881,11 +1881,11 @@ Section PROC.
 Variable (P' : sprog).
 Hypothesis P'_globs : P'.(p_globs) = [::].
 
-Context (mov_ofs : lval -> vptr_kind -> pexpr -> Z -> option instr_r).
-Hypothesis mov_ofsP : forall (P': sprog) s1 e i x ofs w vpk s2 ins,
+Context (mov_ofs : lval -> assgn_tag -> vptr_kind -> pexpr -> Z -> option instr_r).
+Hypothesis mov_ofsP : forall (P': sprog) s1 e i x tag ofs w vpk s2 ins,
   P'.(p_globs) = [::] ->
   sem_pexpr [::] s1 e >>= to_pointer = ok i ->
-  mov_ofs x vpk e ofs = Some ins ->
+  mov_ofs x tag vpk e ofs = Some ins ->
   write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
   sem_i P' w s1 ins s2.
 
@@ -2891,11 +2891,11 @@ Section WITH_MOV_OFS.
 
 Context {pd: PointerData}.
 Context `{asmop:asmOp}.
-Context (mov_ofs : lval -> vptr_kind -> pexpr -> Z -> option instr_r).
-Hypothesis mov_ofsP : forall (P': sprog) s1 e i x ofs w vpk s2 ins,
+Context (mov_ofs : lval -> assgn_tag -> vptr_kind -> pexpr -> Z -> option instr_r).
+Hypothesis mov_ofsP : forall (P': sprog) s1 e i x tag ofs w vpk s2 ins,
   P'.(p_globs) = [::] ->
   sem_pexpr [::] s1 e >>= to_pointer = ok i ->
-  mov_ofs x vpk e ofs = Some ins ->
+  mov_ofs x tag vpk e ofs = Some ins ->
   write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2 ->
   sem_i P' w s1 ins s2.
 

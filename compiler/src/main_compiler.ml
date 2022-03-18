@@ -136,13 +136,16 @@ let main () =
     eprint Compiler.Typing Printer.pp_pprog pprog;
 
     let prog = Subst.remove_params pprog in
-    let prog = Inline_array_copy.doit prog in
 
-    begin try
-      Typing.check_prog prog
-    with Typing.TyError(loc, code) ->
-      hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
-    end;
+    let prog =
+      begin try
+        let prog = Insert_copy_and_fix_length.doit prog in
+        Typing.check_prog prog;
+        prog
+      with Typing.TyError(loc, code) ->
+        hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
+      end
+    in
     
     (* The source program, before any compilation pass. *)
     let source_prog = prog in
@@ -203,7 +206,7 @@ let main () =
           try
             let pp_range fmt (ptr, sz) =
               Format.fprintf fmt "%a:%a" Z.pp_print ptr Z.pp_print sz in
-            Format.printf "Evaluation of %s (@[<h>%a@]):@." f.fn_name
+            Format.printf "/* Evaluation of %s (@[<h>%a@]):@." f.fn_name
               (pp_list ",@ " pp_range) m;
             let _m, vs =
               (** TODO: allow to configure the initial stack pointer *)
@@ -211,7 +214,8 @@ let main () =
               (match (Low_memory.Memory.coq_M U64).init live (Conv.int64_of_z (Z.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
               Evaluator.exec (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) (Conv.cfun_of_fun tbl f) in
             Format.printf "@[<v>%a@]@."
-              (pp_list "@ " Evaluator.pp_val) vs
+              (pp_list "@ " Evaluator.pp_val) vs;
+            Format.printf "*/@."
           with Evaluator.Eval_error (ii,err) ->
             let (i_loc, _, _) = Conv.get_iinfo tbl ii in
             hierror ~loc:(Lmore i_loc) ~kind:"evaluation error" "%a" Evaluator.pp_error err

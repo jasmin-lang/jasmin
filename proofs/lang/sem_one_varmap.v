@@ -1,9 +1,10 @@
-(*
+(** Semantics of the “one-varmap” intermediate language.
 *)
-Require Import psem.
+Require psem one_varmap.
 Import Utf8.
 Import all_ssreflect.
-Import var.
+Export one_varmap.
+Import psem var.
 Import low_memory.
 Require Import arch_decl arch_extra.
 
@@ -43,37 +44,41 @@ Definition get_pvar (e: pexpr) : exec var :=
 Definition get_lvar (x: lval) : exec var :=
   if x is Lvar x then ok (v_var x) else type_error.
 
-Definition kill_flag (vm: vmap) (r: rflag) : vmap :=
-  let: x := to_var r in
-  if vm.[x] is Ok _ then vm.[to_var r <- undef_error] else vm.
+Definition kill_var (x: var) (vm: vmap) : vmap :=
+  vm.[x <- pundef_addr (vtype x)].
 
 End ASM_EXTRA.
 
-Notation kill_flags := (foldl kill_flag).
+Notation kill_vars := (Sv.fold kill_var).
 
 Section ASM_EXTRA.
 
 Context {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}.
 
-Lemma kill_flagsE vm fs x :
-  ((kill_flags vm fs).[x] = if x \in map to_var fs then if vm.[x] is Ok _ then undef_error else vm.[x] else vm.[x])%vmap.
+Lemma kill_varE vm y x :
+  ((kill_var x vm).[y] = if x == y then pundef_addr (vtype y) else vm.[y])%vmap.
 Proof.
-  elim: fs vm => // f fs ih vm /=.
-  rewrite ih {ih} inE /kill_flag; case: eqP.
-  - move => -> /=; case: ifP => _; case h: vm.[_].
-    1, 3: by rewrite Fv.setP_eq.
-    1, 2: by rewrite h.
-  move => /= x_neq_f; case: ifP => // _; case h: vm.[_] => //.
-  all: rewrite Fv.setP_neq //; apply/eqP.
-  all: exact: not_eq_sym.
+  by rewrite /kill_var Fv.setP; case: eqP => // ?; subst y.
 Qed.
 
-Lemma kill_flags_uincl vm fs :
-  vm_uincl (kill_flags vm fs) vm.
+Lemma kill_varsE vm xs x :
+  ((kill_vars xs vm).[x] = if Sv.mem x xs then pundef_addr (vtype x) else vm.[x])%vmap.
 Proof.
-  move => x; rewrite kill_flagsE.
+  rewrite Sv_elems_eq Sv.fold_spec.
+  elim: (Sv.elements xs) vm => // {xs} f xs ih vm /=.
+  rewrite ih {ih} inE kill_varE eq_sym.
+  by case: eqP => //= ->; case: ifP => // _; case: vm.[_] => // _; case: pundef_addr.
+Qed.
+
+Lemma kill_vars_uincl vm xs :
+  wf_vm vm ->
+  vm_uincl (kill_vars xs vm) vm.
+Proof.
+  move => hwf x; rewrite kill_varsE.
   case: ifP => // _.
-  by case: vm.[x].
+  case: vm.[x] (hwf x)=> // [v | e].
+  + by move=> _; apply eval_uincl_undef.
+  case: e => //; case: (vtype x) => //.
 Qed.
 
 Section SEM.
@@ -107,11 +112,8 @@ Qed.
 Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid p.(p_extra).(sp_rsp).
 
-Definition magic_variables : Sv.t :=
-  Sv.add vgd (Sv.singleton vrsp).
-
-Definition extra_free_registers_at ii : Sv.t :=
-  if extra_free_registers ii is Some r then Sv.singleton r else Sv.empty.
+#[local] Notation magic_variables := (magic_variables p).
+#[local] Notation extra_free_registers_at := (extra_free_registers_at extra_free_registers).
 
 Definition ra_valid fd ii (k: Sv.t) (x: var) : bool :=
   match fd.(f_extra).(sf_return_address) with
@@ -122,31 +124,14 @@ Definition ra_valid fd ii (k: Sv.t) (x: var) : bool :=
   | RAnone => true
   end.
 
-Definition sv_of_flags : seq rflag → Sv.t :=
-  sv_of_list to_var.
+Definition ra_undef_none (ss: saved_stack) (x: var) :=
+  Sv.union (Sv.add x (sv_of_flags rflags)) (savedstackreg ss).
 
-Definition ra_vm (e: stk_fun_extra) (x: var) : Sv.t :=
-  match e.(sf_return_address) with
-  | RAreg ra =>
-    Sv.singleton ra
-  | RAstack _ =>
-    Sv.empty
-  | RAnone =>
-    Sv.add x (sv_of_flags rflags)
-  end.
+Definition ra_undef_vm_none (ss: saved_stack) (x: var) vm : vmap :=
+  kill_vars (ra_undef_none ss x) vm.
 
 Definition ra_undef_vm fd vm (x: var) : vmap :=
-  match fd.(f_extra).(sf_return_address) with
-  | RAreg ra =>
-    vm.[ra <- undef_error]
-  | RAstack _ =>
-    vm
-  | RAnone =>
-    let vm' := if fd.(f_extra).(sf_save_stack) is SavedStackReg r
-               then vm.[r <- undef_error]
-               else vm
-    in (kill_flags vm' rflags).[x <- undef_error]
-  end.
+  kill_vars (ra_undef fd x) vm.
 
 Definition saved_stack_valid fd (k: Sv.t) : bool :=
   if fd.(f_extra).(sf_save_stack) is SavedStackReg r
@@ -158,11 +143,6 @@ Definition efr_valid ii i : bool :=
   then [&& r != vgd, r != vrsp, vtype r == sword Uptr &
            if i is Cwhile _ _ _ _ then false else true]
   else true.
-
-Definition saved_stack_vm fd : Sv.t :=
-  if fd.(f_extra).(sf_save_stack) is SavedStackReg r
-  then Sv.singleton r
-  else Sv.empty.
 
 Definition top_stack_aligned fd st : bool :=
   (fd.(f_extra).(sf_return_address) == RAnone)
@@ -265,7 +245,7 @@ Variant sem_export_call_conclusion (m: mem) (fd: sfundef) (args: values) (vm: vm
     Sv.Subset (Sv.inter callee_saved (Sv.union k (Sv.union (ra_vm fd.(f_extra) var_tmp) (saved_stack_vm fd)))) (sv_of_list fst fd.(f_extra).(sf_to_save)) &
     alloc_stack m fd.(f_extra).(sf_align) fd.(f_extra).(sf_stk_sz) fd.(f_extra).(sf_stk_extra_sz) = ok m1 &
     all2 check_ty_val fd.(f_tyin) args &
-    sem k {| emem := m1 ; evm := set_RSP m1 (kill_flags (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then vm.[r <- undef_error] else vm) rflags).[var_tmp <- undef_error] |} fd.(f_body) {| emem := m2 ; evm := vm2 |} &
+    sem k {| emem := m1 ; evm := set_RSP m1 (ra_undef_vm_none fd.(f_extra).(sf_save_stack) var_tmp vm) |} fd.(f_body) {| emem := m2 ; evm := vm2 |} &
     mapM (λ x : var_i, get_var vm2 x) fd.(f_res) = ok res' &
     List.Forall2 value_uincl res res' &
     all2 check_ty_val fd.(f_tyout) res' &
