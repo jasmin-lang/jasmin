@@ -718,6 +718,24 @@ Section VMAP_SET_VARS.
     by apply/allP => x _; apply/eqP => ?; subst y.
   Qed.
 
+  Lemma to_string_neq (x: register_ext) y :
+    to_string x != vname y ->
+    to_var x != y. 
+  Proof.
+    move=> hx. rewrite /to_var. apply /eqP.
+    case: y hx=> ytype yname /= /eqP hx. 
+    by move=> [].
+  Qed.
+
+  Lemma to_strings_neq (y:register) (xs:seq register_ext):
+   all (λ x, to_var x != to_var y) xs.
+  Proof.
+   elim: xs=> //= x xs hxs. apply /andP.
+   split=> /=. apply to_string_neq.
+   + apply /eqP. rewrite -[(vname (to_var _))] /(to_string _). apply nesym. by apply: inj_toS_reg_regx.
+   exact: hxs.
+  Qed.
+   
   Lemma get_var_vmap_set_vars_finite vm xs y :
     Finite.axiom xs →
     get_var (vmap_set_vars vm xs) (to_var y) = on_vu (@pto_val t) undef_error (from y).
@@ -754,20 +772,26 @@ Proof.
   by case: (asm_flag _ _).
 Qed.
 
+Locate xmm_registers_fin_axiom.
+
  Lemma get_var_vmap_of_x86_mem sp rip s r :
    get_var (vmap_of_x86_mem sp rip s) (var_of_asm_typed_reg r) = get_typed_reg_value s r.
 Proof.
-  rewrite /vmap_of_x86_mem.
-  case: r => r.
-  all: repeat (rewrite get_var_vmap_set_vars_other_type; last by []).
-  - admit.
-  all: rewrite get_var_vmap_set_vars_finite //=. 
-  - exact: regxs_fin_axiom.
-  - exact: xmm_registers_fin_axiom.
+  rewrite /vmap_of_x86_mem. 
+  case: r => r. 
+  + rewrite get_var_vmap_set_vars_other_type; last done.
+    rewrite get_var_vmap_set_vars_other_type; last done.
+    rewrite get_var_vmap_set_vars_other; last exact:  to_strings_neq. 
+    by rewrite get_var_vmap_set_vars_finite //=; exact: registers_fin_axiom.
+  + rewrite get_var_vmap_set_vars_other_type; last done. 
+    rewrite get_var_vmap_set_vars_other_type; last done. 
+    by rewrite get_var_vmap_set_vars_finite //=; exact: mmx_registers_fin_axiom.
+  + rewrite get_var_vmap_set_vars_other_type; last done.
+    rewrite get_var_vmap_set_vars_finite //=; exact: xmm_registers_fin_axiom.
+  rewrite get_var_vmap_set_vars_finite //=. 
   - by case: (asm_flag s r).
   exact: rflags_fin_axiom.
-  (*- exact: registers_fin_axiom. *)
-Admitted.
+Qed.
 
 Definition estate_of_x86_mem (sp: word Uptr) (rip: Ident.ident) (s: x86_mem) : estate :=
   {| emem := asm_mem s ; evm := vmap_of_x86_mem sp rip s |}.
@@ -780,10 +804,13 @@ Proof using.
   split => //=.
   (* rip *)
   - rewrite /vmap_of_x86_mem.
-    repeat (rewrite get_var_vmap_set_vars_other_type; last by []).
+    rewrite get_var_vmap_set_vars_other_type; last done.
+    rewrite get_var_vmap_set_vars_other_type; last done.
     rewrite get_var_vmap_set_vars_other; last first.
     + apply/allP => r _; apply/eqP; exact: rip_not_regx.
-      admit. (*rewrite get_var_eq.*)
+    rewrite get_var_vmap_set_vars_other.
+    + by rewrite get_var_eq.
+    apply/allP => r _; apply/eqP; exact: rip_not_reg.
   (* reg *)
   - move => r v.
     by rewrite (get_var_vmap_of_x86_mem _ _ _ (ARReg r)) => /= /ok_inj <-.
@@ -801,7 +828,7 @@ Proof using.
   case: _.[_]%vmap => /=; case: (asm_flag s r) => //=.
   - by move => ? ? /ok_inj -> /ok_inj ->.
   by move => _ [] -> /ok_inj ->.
-Admitted.
+Qed.
 Global Opaque vmap_of_x86_mem.
 
 (*

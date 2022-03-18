@@ -182,6 +182,9 @@ Definition xmm_registers :=
 Lemma xmm_registers_fin_axiom : Finite.axiom xmm_registers.
 Proof. by case. Qed.
 
+Lemma mmx_registers_fin_axiom : Finite.axiom regxs.
+Proof. by case. Qed.
+
 Definition xreg_choiceMixin :=
   PcanChoiceMixin (FinIsCount.pickleK xmm_registers_fin_axiom).
 Canonical xreg_choiceType :=
