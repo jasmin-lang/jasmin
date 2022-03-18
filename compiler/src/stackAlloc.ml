@@ -261,13 +261,23 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
           let max_stk = if Z.lt max_stk fn_max then fn_max else max_stk in
           align, max_stk
         ) sao.sao_calls (align, Z.zero) in
+    (* FIXME: should be architecture-dependent *)
+    let max_ws = Wsize.U256 in
+    let align =
+      if fd.f_cc = Export && fd.f_annot.clear_stack then max_ws
+      else align
+    in
     (* stack size + extra_size + padding *)
     let frame_size =
       let stk_size = 
         Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
                    (Z.of_int extra_size) in
       match fd.f_cc with
-      | Export       -> stk_size
+      | Export ->
+          if fd.f_annot.clear_stack then
+            Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
+          else
+            stk_size
       | Subroutine _ -> 
         Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
       | Internal -> assert false
@@ -279,7 +289,13 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
       | Subroutine _ -> frame_size
       | Internal -> assert false
     in
-    let max_size_used = Z.add max_stk frame_size in
+    let max_size_used =
+      let max_size = Z.add max_stk frame_size in
+      if fd.f_cc = Export && fd.f_annot.clear_stack then
+        Conv.z_of_cz (Memory_model.round_ws max_ws (Conv.cz_of_z max_size))
+      else
+        max_size
+    in
     let max_size = Z.add max_stk max_frame_size in
     let saved_stack = 
       if has_stack then
