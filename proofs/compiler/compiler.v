@@ -152,6 +152,7 @@ Record compiler_params := {
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
+  is_clear_stack   : funname -> bool;
 }.
 
 (* Architecture-dependent functions *)
@@ -292,7 +293,7 @@ Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
   let pl := cparams.(print_linear) Linearization pl in
 
   (* clear stack *)
-  let pl := prog_clear_stack (ap_csp aparams) pl in
+  let pl := prog_clear_stack (is_clear_stack cparams) (ap_csp aparams) pl in
   let pl := cparams.(print_linear) Tunneling pl in
 
   (* tunneling                         *)

@@ -44,23 +44,24 @@ Section CLEAR_STACK.
 Context
   (asm_op : Type)
   (asmop : asmOp asm_op)
+  (is_clear_stack : funname -> bool)
   (csparams : clear_stack_params).
 
 Notation max_ws := (cs_max_ws csparams).
 Notation clear_stack_loop := (cs_clear_stack_loop csparams).
 
 Definition lfd_clear_stack (lbl : label) (lfd : lfundef) : lfundef * label :=
-  let (tail, lbl') :=
-    if lfd_export lfd && Z.eqb (lfd_used_stack lfd) 0%Z
-    then (clear_stack_loop lbl (lfd_used_stack lfd), next_lbl lbl)
-    else ([::], lbl)
-  in
-  let lfd' := map_lfundef (fun c => c ++ tail) in
-  (lfd', lbl').
+  let tail := clear_stack_loop lbl (lfd_used_stack lfd) in
+  let lfd' := map_lfundef (fun c => c ++ tail) lfd in
+  (lfd', next_lbl lbl).
 
 Definition prog_clear_stack (lp : lprog) : lprog :=
   let f '(lfds, lbl) '(fn, fd) :=
-    let '(lfd', lbl') := lfd_clear_stack lbl fd in
+    let '(lfd', lbl') :=
+      if [&& is_clear_stack fn, lfd_export fd & (0 <? lfd_used_stack fd)%Z ]
+      then lfd_clear_stack lbl fd
+      else (fd, lbl)
+    in
     (lfds ++ [:: (fn, lfd') ], lbl')
   in
   {|

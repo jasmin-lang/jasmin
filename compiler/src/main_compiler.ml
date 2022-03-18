@@ -394,6 +394,17 @@ let main () =
         let (fds, _) = Conv.prog_of_csprog tbl p in
         List.iter warn_extra_fd fds in
 
+    (* TODO_SA: Seems overly complicated *)
+    let is_clear_stack =
+      let h = Hf.create 17 in
+      List.iter
+        (fun f -> Hf.add h f.f_name f.f_annot.clear_stack)
+        (snd source_prog);
+      fun fn ->
+        let fn' = Conv.fun_of_cfun tbl fn in
+        try Hf.find h fn' with Not_found -> assert false
+    in
+
     let cparams = {
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = expand_fd;
@@ -425,6 +436,7 @@ let main () =
       Compiler.is_reg_ptr  = is_reg_ptr;
       Compiler.is_ptr      = is_ptr;
       Compiler.is_reg_array = is_reg_array;
+      Compiler.is_clear_stack = is_clear_stack;
     } in
 
     let export_functions, subroutines =
