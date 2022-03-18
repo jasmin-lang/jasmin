@@ -182,7 +182,7 @@ Canonical  linstr_eqType  := Eval hnf in EqType linstr linstr_eqMixin.
 Fixpoint max_map
   {A B : Type} `{Cmp B} (f : A -> option B) xs acc : option B :=
   match xs with
-  | [::] => None
+  | [::] => acc
   | x :: xs' =>
       let acc' :=
         if f x is Some y
