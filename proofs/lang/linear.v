@@ -75,6 +75,9 @@ Record lfundef := LFundef {
  lfd_export: bool;
  lfd_callee_saved: seq var; (* A list of variables that must be initialized before calling this function *)
  lfd_total_stack: Z; (* total amount of stack memory needed by this function (and all functions called by this one *)
+ (* This is [lfd_total_stack] without padding, rounded to the next alignment
+    multiple if the function is export and we need to clean the stack. *)
+  lfd_used_stack : Z;
 }.
 
 Definition signature_of_lfundef (lfd: lfundef) : function_signature :=
@@ -92,6 +95,7 @@ Definition map_lfundef (f : lcmd -> lcmd) (lfd : lfundef) : lfundef :=
     lfd_export := lfd_export lfd;
     lfd_callee_saved := lfd_callee_saved lfd;
     lfd_total_stack := lfd_total_stack lfd;
+    lfd_used_stack := lfd_used_stack lfd;
   |}.
 
 

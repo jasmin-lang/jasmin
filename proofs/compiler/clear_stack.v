@@ -51,24 +51,11 @@ Notation clear_stack_loop := (cs_clear_stack_loop csparams).
 
 Definition lfd_clear_stack (lbl : label) (lfd : lfundef) : lfundef * label :=
   let (tail, lbl') :=
-    if lfd_export lfd
-    then (clear_stack_loop lbl (lfd_total_stack lfd), next_lbl lbl)
+    if lfd_export lfd && Z.eqb (lfd_used_stack lfd) 0%Z
+    then (clear_stack_loop lbl (lfd_used_stack lfd), next_lbl lbl)
     else ([::], lbl)
   in
-  let lfd' :=
-    {|
-      lfd_info := lfd_info lfd;
-      lfd_align := lfd_align lfd;
-      lfd_tyin := lfd_tyin lfd;
-      lfd_arg := lfd_arg lfd;
-      lfd_tyout := lfd_tyout lfd;
-      lfd_total_stack := lfd_total_stack lfd;
-      lfd_res := lfd_res lfd;
-      lfd_export := lfd_export lfd;
-      lfd_callee_saved := lfd_callee_saved lfd;
-      lfd_body := lfd_body lfd ++ tail;
-    |}
-  in
+  let lfd' := map_lfundef (fun c => c ++ tail) in
   (lfd', lbl').
 
 Definition prog_clear_stack (lp : lprog) : lprog :=

@@ -50,6 +50,7 @@ Section LprogSem.
       fd.(lfd_export)
       fd.(lfd_callee_saved)
       fd.(lfd_total_stack)
+      fd.(lfd_used_stack)
   .
 
   Definition setfuncs p lf :=
