@@ -462,8 +462,8 @@ Proof.
   - by rewrite fd_export.
   move => xm args' ok_rip ok_rsp M /= ok_args' ok_args.
   set s := estate_of_x86_mem (top_stack m) (lp_rip lp) xm.
-  assert (LM := lom_eqv_estate_of_x86_mem (top_stack m) xm disj_rip). 
-  assert (XM := get_var_vmap_of_x86_mem ok_xp (top_stack m) (lp_rip lp) xm).
+  assert (LM := lom_eqv_estate_of_x86_mem (top_stack m) xm disj_rip).
+  assert (XM := get_var_vmap_of_x86_mem (top_stack m) (lp_rip lp) xm).
   have wf_s : wf_vm s.(evm) by exact: wf_vmap_of_x86_mem.
   have := lp_call _ _ _ wf_s _ M _ ok_args.
   case.

@@ -161,7 +161,7 @@ Lemma lom_eqv_write_var f rip s xs (x: var_i) sz (w: word sz) s' r :
   write_var x (Vword w) s = ok s' →
   to_var r = x →
   lom_eqv rip s' (mem_write_reg f r w xs).
-Proof. Print lom_eqv.
+Proof.
   case => eqm ok_rip [ dr drx dx df ] eqr eqrx eqx eqf.
   rewrite /mem_write_reg /write_var; t_xrbindP.
   case: s' => m vm' vm ok_vm [] <- <- hx.
@@ -326,16 +326,11 @@ Proof.
       rewrite /truncate_word /x86_XOR /check_size_8_64 hsz64 /= wxor_xx.
       set id := instr_desc_op (XOR sz) => hlo.
       rewrite /SF_of_word msb0.
-      apply: (@compile_lvals _ _ _ _ _ _ _ _ _ _ _
+      by apply: (@compile_lvals _ _ _ _ _ _ _ _ _ erefl
              rip ii m lvs m' s [:: Reg r; Reg r]
              id.(id_out) id.(id_tout)
              (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word sz)))
              (reg_msb_flag sz) (refl_equal _) hw hlo hcd id.(id_check_dest)).
-      + move=> ii0 m0 rf e c v hf hasm hes h; subst. apply: eval_assemble_cond.
-        + by apply hf.
-        + by apply hasm.
-        by apply hes.
-      by apply erefl.
     t_xrbindP => ? []// ?? [<-] /= <-.
     move=> hw x hx <- <- <-; rewrite /assemble_asm_op.
     t_xrbindP => asm_args' _ _ /assertP hc.
@@ -356,17 +351,12 @@ Proof.
     rewrite /truncate_word /x86_VPXOR hidc /= /x86_u128_binop /check_size_128_256 wsize_ge_U256. 
     have -> /= : (U128 ≤ sz)%CMP by case: (sz) hsz64. 
     rewrite wxor_xx; set id := instr_desc_op (VPXOR sz) => hlo.
-    apply: (@compile_lvals _ _ _ _ _ _ _ _ _ _ _
+    by apply: (@compile_lvals _ _ _ _ _ _ _ _ _ erefl
              rip ii m lvs m' s [:: a0; XReg r; XReg r]
              id.(id_out) id.(id_tout)
              (0%R: word sz)
              (reg_msb_flag sz) (refl_equal _) hw hlo hcd id.(id_check_dest)).
-      + move=> ii0 m0 rf e c v hf hasm hes h; subst. apply: eval_assemble_cond.
-        + by apply hf.
-        + by apply hasm.
-        by apply hes.
-      by apply erefl.
-  + t_xrbindP.
+  +  t_xrbindP.
     case: args => // h [] // [] // x [] //=.
     rewrite /sem_sopn /exec_sopn /sopn_sem /=.
     t_xrbindP => ?? vh hvh ? vl hvl <- <- /= vd.
@@ -377,28 +367,9 @@ Proof.
     case hci: enforce_imm_i_args_kinds =>
       {asm_args} [asm_args|//] _ [<-] _ /assertP /andP [hca hcd] <- <- hlow.
     have {hci} hch := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
-    have H :=
-      compile_lvals (asm_e:=x86_extra) _
-       (id_out := [:: E 0]) (id_tout := [:: sword256]) _ MSB_CLEAR refl_equal hwr hlow hcd refl_equal.
-    have hp : (∀ (ii : instr_info) (m : estate) (rf : rflagmap) 
-         (e : pexpr) (c : cond_t) (v : value),
-         eqflags m rf
-         → assemble_cond ii e = ok c
-           → sem_pexpr [::] m e = ok v
-             → let get :=
-                 λ x : cfinT_finType,
-                   match rf x with
-                   | Def b => ok b
-                   | Undef => undef_error
-                   end in
-               ∃ v' : value,
-                 value_of_bool (eval_cond get c) = ok v' ∧ value_uincl v v').
-    + move=> ii0 m0 rf e c v hf hasm hes h'; subst. apply: eval_assemble_cond.
-      + by apply hf.
-      + by apply hasm.
-      by apply hes.
-    have hp' : (reg_size < xreg_size)%CMP by apply erefl.
-    move: (H hp hp')=> [s' [hwm hlow']].
+    have [s' [hwm hlow']]:=
+      compile_lvals (asm_e:=x86_extra) erefl
+       (id_out := [:: E 0]) (id_tout := [:: sword256]) MSB_CLEAR refl_equal hwr hlow hcd refl_equal.
     exists s'; split => //.
     move: hca; rewrite /check_sopn_args /= => /and4P [] hE1 hE2 hE3 _.
 Opaque eval_arg_in_v check_i_args_kinds.
@@ -423,7 +394,7 @@ Transparent eval_arg_in_v check_i_args_kinds.
       rewrite /truncate_word /word_uincl.
       case: ifP => // h1 _ /andP [] h2.
       by have := cmp_le_trans h1 h2.
-    + rewrite /compat_imm; case:a => //= r' /orP [/eqP [?]|//] hr; subst r'.
+   + rewrite /compat_imm; case:a => //= r' /orP [/eqP [?]|//] hr; subst r'.
       have heq := of_varI hr.
       move: hvl.
       rewrite /get_gvar /= -heq => hvl.
@@ -771,8 +742,6 @@ Proof.
   apply/andP; split; last exact: ih.
   by case: (asm_flag _ _).
 Qed.
-
-Locate xmm_registers_fin_axiom.
 
  Lemma get_var_vmap_of_x86_mem sp rip s r :
    get_var (vmap_of_x86_mem sp rip s) (var_of_asm_typed_reg r) = get_typed_reg_value s r.
