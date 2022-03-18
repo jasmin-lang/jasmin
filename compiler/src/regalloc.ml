@@ -769,10 +769,6 @@ let renaming (f: 'info func) : unit func =
 let remove_phi_nodes (f: 'info func) : unit func =
   Ssa.remove_phi_nodes f
 
-let is_subroutine = function
-  | Subroutine _ -> true
-  | _            -> false
-
 (** Returns extra information (k, rsp) depending on the calling convention.
 
  - Subroutines:

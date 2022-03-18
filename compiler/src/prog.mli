@@ -133,6 +133,8 @@ type call_conv =
   | Subroutine of subroutine_info (* internal function that should not be inlined *)
   | Internal                   (* internal function that should be inlined *)
 
+val is_subroutine : call_conv -> bool
+
 type returnaddress_kind = 
   | OnStack
   | OnReg
