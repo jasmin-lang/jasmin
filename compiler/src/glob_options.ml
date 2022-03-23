@@ -1,5 +1,7 @@
 open Utils
 (*--------------------------------------------------------------------- *)
+let version_string = "Jasmin Compiler @VERSION@"
+(*--------------------------------------------------------------------- *)
 let infile = ref ""
 let outfile = ref ""
 let latexfile = ref ""
@@ -12,7 +14,8 @@ let check_safety = ref false
 let safety_param = ref None
 let safety_config = ref None
 let safety_makeconfigdoc = ref None
-    
+
+let help_version = ref false
 let help_intrinsics = ref false
 
 let lea = ref false
@@ -62,6 +65,7 @@ let print_option p =
   ("-p"^s, Arg.Unit (set_printing p), "print program after "^msg)
 
 let options = [
+    "-version" , Arg.Set help_version  , "display version information about this compiler (and exits)";
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
     "-typeonly", Arg.Set typeonly      , ": stop after typechecking";
     "-debug"   , Arg.Set debug         , ": print debug information";
