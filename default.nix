@@ -5,6 +5,7 @@
 , ocamlDeps ? !inCI
 , testDeps ? !inCI
 , devTools ? !inCI
+, ecDeps ? false
 , enableFramePointers ? false
 }:
 
@@ -15,6 +16,8 @@ let inherit (lib) optionals; in
 let coqPackages = coqPackages_8_14; in
 
 let coqword = callPackage scripts/coqword.nix { inherit coqPackages; }; in
+
+let easycrypt = callPackage scripts/easycrypt.nix { }; in
 
 let inherit (coqPackages.coq) ocamlPackages; in
 
@@ -43,5 +46,6 @@ stdenv.mkDerivation {
          (batteries.overrideAttrs (o: { doCheck = false; }))
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ])
+    ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
     ;
 }
