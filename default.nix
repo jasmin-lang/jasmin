@@ -1,4 +1,4 @@
-{ pkgs ? import (if pinned-nixpkgs then ./nixpkgs.nix else <nixpkgs>) {}
+{ pkgs ? import (if pinned-nixpkgs then scripts/nixpkgs.nix else <nixpkgs>) {}
 , inCI ? false
 , pinned-nixpkgs ? inCI
 , coqDeps ? !inCI
@@ -14,7 +14,7 @@ let inherit (lib) optionals; in
 
 let coqPackages = coqPackages_8_14; in
 
-let coqword = callPackage ./coqword.nix { inherit coqPackages; }; in
+let coqword = callPackage scripts/coqword.nix { inherit coqPackages; }; in
 
 let inherit (coqPackages.coq) ocamlPackages; in
 
