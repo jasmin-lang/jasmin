@@ -8,12 +8,15 @@ stages:
 image: nixos/nix:2.3.12
 
 variables:
+  NIX_PATH: nixpkgs=channel:nixpkgs-unstable
+
   EXTRA_SUBSTITUTERS: https://jasmin.cachix.org
   EXTRA_PUBLIC_KEYS: jasmin.cachix.org-1:aA5r1ovq4HYKUa+8QHVvIP7K6Fi9L75b0SaN/sooWSY=
   NIXOS_PUBLIC_KEY: cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
 
 .common:
   before_script:
+  - nix-shell -p nix-info --run 'nix-info -m'
   - >-
     nix-shell
     --extra-substituters "$EXTRA_SUBSTITUTERS"
