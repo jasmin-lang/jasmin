@@ -58,12 +58,14 @@ ocaml:
   stage: build
   variables:
     EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
+    VERSION: development version at commit $CI_COMMIT_SHA on branch $CI_COMMIT_REF_NAME
   extends: .common
   needs:
   - coq
   dependencies:
   - coq
   script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'sed -i -e "s|@VERSION@|$VERSION|" compiler/src/glob_options.ml'
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler'
   artifacts:
     paths:
@@ -124,6 +126,7 @@ check:
   - coq
   - ocaml
   script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './compiler/jasminc.native -version'
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler check-ci'
 
 push-compiler-code:
