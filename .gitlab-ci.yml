@@ -37,7 +37,7 @@ cache dependencies:
   script:
   - >-
     nix-shell -p cachix --run
-    'nix-store --query --references $(nix-instantiate --arg devTools false default.nix)
+    'nix-store --query --references $(nix-instantiate --arg pinned-nixpkgs true --arg devTools false default.nix)
     | xargs nix-store --realise
     | xargs nix-store --query --requisites
     | cachix push jasmin'
