@@ -1,0 +1,20 @@
+/* This example illustrates how we can take advantage of the ability to write
+     a = g;
+   in Jasmin, where "g" is a global array and "a" a stack array.
+   It is used here to call an inline function on a global array. The original
+   motivation of this feature seems to have been lost, maybe it was this one.
+*/
+
+u64[2] g = {1, 2};
+
+inline fn f (stack u64[2] a) -> reg u64 {
+  reg u64 res;
+  res = a[1];
+  return res;
+}
+
+export fn main () -> reg u64 {
+  reg u64 res;
+  res = f(g);
+  return res;
+}
