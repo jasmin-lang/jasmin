@@ -12,6 +12,7 @@ let parse () =
     infile := s  in
   Arg.parse options set_in usage_msg;
   if !infile = "" && (not !help_intrinsics) && (!safety_makeconfigdoc = None)
+     && (not !help_version)
   then error()
 
 (*--------------------------------------------------------------------- *)
@@ -182,6 +183,9 @@ let main () =
 
     if !help_intrinsics
     then (Help.show_intrinsics (); exit 0);
+
+    if !help_version
+    then (Format.printf "%s@." version_string; exit 0);
 
     let fname = !infile in
     let ast   = Parseio.parse_program ~name:fname in
