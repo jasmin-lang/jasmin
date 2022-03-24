@@ -15,6 +15,8 @@ variables:
   NIXOS_PUBLIC_KEY: cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
   NIXPKGS_ALLOW_UNFREE: 1
 
+  VERSION: development version at commit $CI_COMMIT_SHA on branch $CI_COMMIT_REF_NAME
+
 .common:
   before_script:
   - nix-shell -p nix-info --run 'nix-info -m'
@@ -25,6 +27,7 @@ variables:
     --arg inCI true
     $EXTRA_NIX_ARGUMENTS
     --run 'echo done'
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'sed -i -e "s|@VERSION@|$VERSION|" compiler/src/glob_options.ml'
 
 cache dependencies:
   stage: prepare
@@ -59,14 +62,12 @@ ocaml:
   stage: build
   variables:
     EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
-    VERSION: development version at commit $CI_COMMIT_SHA on branch $CI_COMMIT_REF_NAME
   extends: .common
   needs:
   - coq
   dependencies:
   - coq
   script:
-  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'sed -i -e "s|@VERSION@|$VERSION|" compiler/src/glob_options.ml'
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler'
   artifacts:
     paths:
