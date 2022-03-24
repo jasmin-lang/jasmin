@@ -471,6 +471,8 @@ Variant asm_i : Type :=
   | JMPI   of asm_arg (* Indirect jump *)
   | Jcc    of label & cond_t  (* Conditional jump *)
   (* Functions *)
+  | JAL of reg_t & remote_label (* Direct jump; return address is saved in a register *)
+  | CALL of remote_label (* Direct jump; return address is saved at the top of the stack *)
   | POPPC (* Pop a destination from the stack and jump there *)
   (* Instructions exposed at source-level *)
   | AsmOp  of asm_op_t' & asm_args.
