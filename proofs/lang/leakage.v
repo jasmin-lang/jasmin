@@ -208,30 +208,23 @@ Notation leak_lt_iopn5f stk ltf les les' := (leak_EI stk ltf (LSub [:: LSub les 
 Definition leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (les': seq leak_e) : seq leak_i :=
   match lti with
   | LT_iaddcarryf ltes =>
-    leak_lt_iopn5f stk ltes (List.removelast les)
-      [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
+      let ltes' := map (LT_compose (LT_map [:: LT_seq [:: LT_subi 0; LT_subi 1 ]; LT_seq [:: LT_remove ; LT_subi 0; LT_remove ; LT_remove ; LT_remove ; LT_subi 1] ])) ltes in
+    leak_lt_iopn5f stk ltes' les les'
 
   | LT_iaddcarry ltes =>
-    leak_lt_iopn5f stk ltes les
-      [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
+      let ltes' := map (LT_compose (LT_map [:: LT_id; LT_seq [:: LT_remove ; LT_subi 0; LT_remove ; LT_remove ; LT_remove ; LT_subi 1] ])) ltes in
+    leak_lt_iopn5f stk ltes' les les'
 
-  | LT_ianone => 
-    [:: Lopn (LSub [:: LSub les ; LSub les'])]
+  | LT_ianone => leak_lt_iopn5f stk [:: LT_id ] les les'
 
-  | LT_imul1 => 
-    [:: Lopn (LSub [:: LSub [:: nth LEmpty les 0]; LSub [:: LEmpty]])] ++
-    [:: Lopn (LSub [:: LSub [:: nth LEmpty les 1; LEmpty]; 
-                       LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])]
-  | LT_imul2 => 
-    [:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LSub [:: LEmpty]])] ++
-    [:: Lopn (LSub [:: LSub [:: nth LEmpty les 0; LEmpty]; 
-              LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])]
+  | LT_imul1 => leak_lt_iopn5f stk [:: LT_seq [:: LT_seq [:: LT_compose (LT_subi 0) (LT_subi 0) ] ; LT_seq [:: LT_remove ] ];
+   LT_seq [::LT_seq [:: LT_compose (LT_subi 0) (LT_subi 1); LT_remove ]; LT_seq [::LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove; LT_compose (LT_subi 1) (LT_subi 0) ; LT_compose (LT_subi 1) (LT_subi 1)] ]] les les'
 
-  | LT_imul3 => 
-    [:: Lopn (LSub [:: LSub les; 
-                LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])]
+  | LT_imul2 => leak_lt_iopn5f stk [:: LT_seq [:: LT_seq [:: LT_compose (LT_subi 0) (LT_subi 1) ] ; LT_seq [:: LT_remove ] ] ; LT_seq [::LT_seq [:: LT_compose (LT_subi 0) (LT_subi 0); LT_remove ]; LT_seq [::LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove; LT_compose (LT_subi 1) (LT_subi 0) ; LT_compose (LT_subi 1) (LT_subi 1)] ]] les les'
 
-  | LT_iemptysl => [::]
+  | LT_imul3 => leak_lt_iopn5f stk [:: LT_seq [:: LT_subi 0 ; LT_seq [:: LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove; LT_compose (LT_subi 1) (LT_subi 0) ; LT_compose (LT_subi 1) (LT_subi 1) ] ] ] les les'
+
+  | LT_iemptysl => leak_lt_iopn5f stk [::] les les'
   end.
 
 (* computes the number of instructions added in lowering high-level constructs *)

@@ -2477,17 +2477,21 @@ Qed.
       }
       case: D => des' [ xs' [ hxs' [ v' [hv' ho'] ] ] ].
       case: (opn_5flags_correct ii t (Some U32) des' dxs hxs' hv' ho') => {hv' ho'} so'.
-      intuition eauto using eq_exc_freshT. move: p0. move=> [lcf] [lr] [hws] Hop Hex.
+      move=> [lcf] [lr] [hws] Hop Hex.
+      exists so'; split=> //.
+      case: C => [ | [cfi] ]; case => ? [] ? [] ??; subst b vi op es'.
       (* b is false *)
-      + exists so'; split=> //. rewrite /=. rewrite H3 /= in hxs'. rewrite /= in hx. move: hxs'. t_xrbindP.
-        move=> [v1 l1] hx' vs' [v2 l2] hy' hvs' hxs'. move: hx; t_xrbindP. rewrite hx' /= hy' /=. move=> y [] <- /= vss vss' [] <- vss1 [vb bl] hb <-. 
-        move=> <- <- /=. rewrite H0 /= in hb. case: hb=> hb <- /=. rewrite -hvs' in hxs'. rewrite H3 /=. by rewrite -hxs' H3 /= in Hop. 
+      + move: hxs' hx; rewrite /=; t_xrbindP.
+        move=> [v1 l1] -> _ [v2 l2] -> <- ?; subst xs'.
+        t_xrbindP => _ <- _ _ <- <- ?; subst x.
+        move: (sem _ _ _) Hop => P.
+        by rewrite /leak_EI -map_comp.
       (* b is some var *)
-      move: H. move=> [cfi] [] hb [hvi] [hop] hes'.
-      move: p0. move=> [lcf] [lr] [hws] Hop Hex.
-      exists so'; split=> //. rewrite /=. rewrite hes' /= in hxs'. rewrite /= in hx. move: hxs'. t_xrbindP.
-        move=> [v1 l1] hx' vs' [v2 l2] hy' hvs' hxs'. move: hx; t_xrbindP. rewrite hx' /= hy' /=. move=> y [] <- /= vss vss' [] <- vss1 [vb bl] -> <-. 
-        move=> <- <- /= [] <- <- <- /= hxs''. rewrite hes' /=. by rewrite -hxs'' hes' /= in Hop. 
+      move: hx hxs' Hop; rewrite /=; t_xrbindP.
+      case => ?? -> _ ? -> _ _ ? -> <- <- <- ?; subst x.
+      t_xrbindP => _ <- _ _ <- _ _ _ <- <- <- <- ?; subst xs'.
+      move: (sem _ _ _) => P.
+      by rewrite /leak_EI -map_comp.
    Qed.
 
   Opaque lower_addcarry.
