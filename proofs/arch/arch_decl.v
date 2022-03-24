@@ -117,11 +117,13 @@ End Section.
 Class arch_decl (reg regx xreg rflag cond : Type) := 
   { reg_size  : wsize (* [reg_size] is also used as the size of pointers *)
   ; xreg_size : wsize
+  ; regx_size : wsize
   ; cond_eqC  :> eqTypeC cond
   ; toS_r     :> ToString (sword reg_size) reg
   ; toS_rx    :> ToString (sword reg_size) regx
   ; toS_x     :> ToString (sword xreg_size) xreg
   ; toS_f     :> ToString sbool rflag
+  ; inj_toS_reg_regx : forall (r:reg) (rx:regx), to_string r <> to_string rx
 }.
 
 Instance arch_pd {reg regx xreg rflag cond} {arch : arch_decl reg regx xreg rflag cond} : PointerData := 
@@ -638,6 +640,7 @@ Definition asm_code := seq asm_i.
 (* Any register, used for function arguments and returned values. *)
 Variant asm_typed_reg :=
   | ARReg of reg_t
+  | ARegX of regx_t
   | AXReg of xreg_t
   | ABReg of rflag_t.
 
