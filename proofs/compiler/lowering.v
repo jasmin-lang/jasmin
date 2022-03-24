@@ -557,8 +557,13 @@ Definition opn_no_imm op :=
   | _ => op
   end.
 
+#[local]
+Notation LT_iopn5f_large := ([:: LT_seq [:: LT_seq [:: LT_compose (LT_subi 0) (LT_subi 1) ]; LT_seq [:: LT_remove ] ]; LT_id ]).
+#[local]
+Notation LT_iopn5f_small := ([:: LT_id ]).
+
 Definition opn_5flags (immed_bound: option wsize) (vi: var_info)
-           (cf: lval) (x: lval) tg (o: sopn) (a: pexprs) : seq instr_r * lt_iopn5f :=
+           (cf: lval) (x: lval) tg (o: sopn) (a: pexprs) : seq instr_r * seq leak_e_tr :=
   let f := Lnone_b vi in
   let fopn o a := [:: Copn [:: f ; cf ; f ; f ; f ; x ] tg o a ] in
   match opn_5flags_cases a immed_bound (wsize_of_sopn o) with
