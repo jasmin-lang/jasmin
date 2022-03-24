@@ -146,7 +146,7 @@ let memory_analysis pp_err ~debug tbl fresh_reg_ptr is_move_op up =
   
   let cget_sao fn = get_sao (Conv.fun_of_cfun tbl fn) in
 
-  if !Glob_options.print_stack_alloc then begin
+  if debug && !Glob_options.print_stack_alloc then begin
     let saos =
       Compiler.({
         ao_globals      = gao.gao_data;

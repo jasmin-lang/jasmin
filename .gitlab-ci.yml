@@ -13,6 +13,7 @@ variables:
   EXTRA_SUBSTITUTERS: https://jasmin.cachix.org
   EXTRA_PUBLIC_KEYS: jasmin.cachix.org-1:aA5r1ovq4HYKUa+8QHVvIP7K6Fi9L75b0SaN/sooWSY=
   NIXOS_PUBLIC_KEY: cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+  NIXPKGS_ALLOW_UNFREE: 1
 
 .common:
   before_script:
@@ -29,7 +30,7 @@ cache dependencies:
   stage: prepare
   extends: .common
   variables:
-    EXTRA_NIX_ARGUMENTS: --arg coqDeps true --arg ocamlDeps true --arg testDeps true
+    EXTRA_NIX_ARGUMENTS: --arg coqDeps true --arg ocamlDeps true --arg testDeps true --arg ecDeps true
   environment: cachix
   only:
     variables:
@@ -37,7 +38,7 @@ cache dependencies:
   script:
   - >-
     nix-shell -p cachix --run
-    'nix-store --query --references $(nix-instantiate --arg devTools false default.nix)
+    'nix-store --query --references $(nix-instantiate --arg inCI true $EXTRA_NIX_ARGUMENTS default.nix)
     | xargs nix-store --realise
     | xargs nix-store --query --requisites
     | cachix push jasmin'
@@ -58,17 +59,29 @@ ocaml:
   stage: build
   variables:
     EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true
+    VERSION: development version at commit $CI_COMMIT_SHA on branch $CI_COMMIT_REF_NAME
   extends: .common
   needs:
   - coq
   dependencies:
   - coq
   script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'sed -i -e "s|@VERSION@|$VERSION|" compiler/src/glob_options.ml'
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler'
   artifacts:
     paths:
     - compiler/_build/
     - compiler/jasminc.native
+
+eclib:
+  stage: prove
+  variables:
+    EXTRA_NIX_ARGUMENTS: --arg ecDeps true
+  extends: .common
+  script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'easycrypt why3config -why3 eclib/why3.conf'
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'easycrypt     config -why3 eclib/why3.conf'
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make ECARGS="-why3 why3.conf" -C eclib'
 
 opam:
   stage: prove
@@ -124,7 +137,66 @@ check:
   - coq
   - ocaml
   script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './compiler/jasminc.native -version'
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler check-ci'
+
+cryptolib:
+  stage: test
+  variables:
+    EXTRA_NIX_ARGUMENTS: --arg testDeps true
+  extends: .common
+  needs:
+  - coq
+  - ocaml
+  dependencies:
+  - coq
+  - ocaml
+  before_script:
+  - nix-env -iA nixpkgs.git
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'echo done'
+  - git clone --depth 1 --branch master https://github.com/jasmin-lang/cryptolib.git
+  - echo $CASE
+  script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -C cryptolib/src/$CASE JASMIN=$PWD/compiler/jasminc.native'
+  parallel:
+    matrix:
+    - CASE:
+      - crypto_hash/sha256/amd64/ref
+      - crypto_hash/sha3-224/amd64/avx2
+      - crypto_hash/sha3-224/amd64/ref
+      - crypto_hash/sha3-256/amd64/avx2
+      - crypto_hash/sha3-256/amd64/ref
+      - crypto_hash/sha3-384/amd64/avx2
+      - crypto_hash/sha3-384/amd64/ref
+      - crypto_hash/sha3-512/amd64/avx2
+      - crypto_hash/sha3-512/amd64/ref
+      - crypto_kem/kyber/kyber512/amd64/avx2
+      - crypto_kem/kyber/kyber768/amd64/avx2
+      - crypto_onetimeauth/poly1305/amd64/ref
+      - crypto_stream/chacha/chacha12/amd64/avx2
+      - crypto_stream/chacha/chacha12/amd64/avx
+      - crypto_stream/chacha/chacha12/amd64/ref
+      - crypto_stream/chacha/chacha20/amd64/avx2
+      - crypto_stream/chacha/chacha20/amd64/avx
+      - crypto_stream/chacha/chacha20/amd64/ref
+      - crypto_stream/chacha/chacha20-ietf/amd64/avx2
+      - crypto_stream/chacha/chacha20-ietf/amd64/avx
+      - crypto_stream/chacha/chacha20-ietf/amd64/ref
+      - crypto_stream/salsa20/salsa2012/amd64/avx2
+      - crypto_stream/salsa20/salsa2012/amd64/avx
+      - crypto_stream/salsa20/salsa2012/amd64/ref
+      - crypto_stream/salsa20/salsa20/amd64/avx2
+      - crypto_stream/salsa20/salsa20/amd64/avx
+      - crypto_stream/salsa20/salsa20/amd64/ref
+      - crypto_stream/xsalsa20/amd64/avx2
+      - crypto_stream/xsalsa20/amd64/avx
+      - crypto_stream/xsalsa20/amd64/ref
+      - crypto_xof/shake128/amd64/avx2
+      - crypto_xof/shake128/amd64/ref
+      - crypto_xof/shake256/amd64/avx2
+      - crypto_xof/shake256/amd64/ref1
+      - crypto_xof/shake256/amd64/ref
+      - crypto_xof/shake256/amd64/spec
 
 push-compiler-code:
   stage: deploy

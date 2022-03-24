@@ -1,9 +1,10 @@
-(*
+(** Semantics of the “one-varmap” intermediate language.
 *)
-Require Import psem.
+Require psem one_varmap.
 Import Utf8.
 Import all_ssreflect.
-Import var.
+Export one_varmap.
+Import psem var.
 Import low_memory.
 (* Require Import arch_decl arch_extra. *)
 
@@ -41,18 +42,6 @@ Definition get_lvar (x: lval) : exec var :=
 
 Definition kill_var (x: var) (vm: vmap) : vmap :=
   vm.[x <- pundef_addr (vtype x)].
-
-Class syscall_info := {
-   (* This is used for one_varmap and linear semantic and compilation passes *)
-   syscall_sig  : syscall_t -> seq var  * seq var;
-   all_vars     : Sv.t;
-   callee_saved : Sv.t;
-   vflags       : Sv.t;
-   vflagsP      : forall x, Sv.In x vflags -> vtype x = sbool
-}.
-
-Definition syscall_kill {syscall_i : syscall_info} :=
-  Sv.diff all_vars callee_saved.
 
 Notation kill_vars := (Sv.fold kill_var).
 
@@ -117,11 +106,8 @@ Qed.
 Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid p.(p_extra).(sp_rsp).
 
-Definition magic_variables : Sv.t :=
-  Sv.add vgd (Sv.singleton vrsp).
-
-Definition extra_free_registers_at ii : Sv.t :=
-  if extra_free_registers ii is Some r then Sv.singleton r else Sv.empty.
+#[local] Notation magic_variables := (magic_variables p).
+#[local] Notation extra_free_registers_at := (extra_free_registers_at extra_free_registers).
 
 Definition ra_valid fd ii (k: Sv.t) (x: var) : bool :=
   match fd.(f_extra).(sf_return_address) with
@@ -132,27 +118,8 @@ Definition ra_valid fd ii (k: Sv.t) (x: var) : bool :=
   | RAnone => true
   end.
 
-Definition ra_vm (e: stk_fun_extra) (x: var) : Sv.t :=
-  match e.(sf_return_address) with
-  | RAreg ra =>
-    Sv.singleton ra
-  | RAstack _ =>
-    Sv.empty
-  | RAnone =>
-    Sv.add x vflags
-  end.
-
-Definition savedstackreg (ss: saved_stack) :=
-  if ss is SavedStackReg r then Sv.singleton r else Sv.empty.
-
-Definition saved_stack_vm fd : Sv.t :=
-  savedstackreg fd.(f_extra).(sf_save_stack).
-
 Definition ra_undef_none (ss: saved_stack) (x: var) :=
   Sv.union (Sv.add x vflags) (savedstackreg ss).
-
-Definition ra_undef fd (x: var) :=
-  Sv.union (ra_vm fd.(f_extra) x) (saved_stack_vm fd).
 
 Definition ra_undef_vm_none (ss: saved_stack) (x: var) vm : vmap :=
   kill_vars (ra_undef_none ss x) vm.

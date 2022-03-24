@@ -1,5 +1,7 @@
 open Utils
 (*--------------------------------------------------------------------- *)
+let version_string = "Jasmin Compiler @VERSION@"
+(*--------------------------------------------------------------------- *)
 let infile = ref ""
 let outfile = ref ""
 let latexfile = ref ""
@@ -12,6 +14,8 @@ let safety_param = ref None
 let safety_config = ref None
 let stop_after = ref None
 let safety_makeconfigdoc = ref None   
+
+let help_version = ref false
 let help_intrinsics = ref false
 type color = | Auto | Always | Never
 let color = ref Auto
@@ -127,6 +131,7 @@ let stop_after_option p =
   ("-until_"^s, Arg.Unit (set_stop_after p), "stop after "^msg)
 
 let options = [
+    "-version" , Arg.Set help_version  , "display version information about this compiler (and exits)";
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
     "-debug"   , Arg.Set debug         , ": print debug information";
     "-I"       , Arg.String set_idirs  , "[ident:path]: bind ident to path for from ident require ...";

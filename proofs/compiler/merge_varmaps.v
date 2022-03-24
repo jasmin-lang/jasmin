@@ -1,10 +1,10 @@
 (*
 *)
-(* FIXME: we should not depend on psem sem_one_varmap *)
-Require Import compiler_util psem sem_one_varmap.
+Require Import one_varmap expr_facts.
 Import Utf8.
 Import all_ssreflect.
-Import var compiler_util.
+Import expr compiler_util.
+Require Import arch_decl arch_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

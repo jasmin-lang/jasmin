@@ -323,6 +323,12 @@ Definition eval_POP (s: asm_state) : exec (asm_state * wreg) :=
   let m := mem_write_reg MSB_CLEAR stack_pointer_register (sp + wrepr Uptr (wsize_size Uptr))%R s.(asm_m) in
   ok ({| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}, v).
 
+Definition eval_PUSH (w: wreg) (s: asm_state) : exec asm_state :=
+  Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) stack_pointer_register) in
+  Let m := mem_write_mem sp w s.(asm_m) in
+  let m := mem_write_reg MSB_CLEAR stack_pointer_register (sp - wrepr Uptr (wsize_size Uptr))%R m in
+  ok {| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}.
+
 (* -------------------------------------------------------------------- *)
 Section PROG.
 
@@ -336,6 +342,11 @@ Definition label_in_asm_prog : seq remote_label :=
 
 #[local]
 Notation labels := label_in_asm_prog.
+
+Definition return_address_from (s: asm_state) : option (word Uptr) :=
+  if oseq.onth s.(asm_c) s.(asm_ip).+1 is Some (LABEL lbl) then
+    encode_label labels (asm_f s, lbl)
+  else None.
 
 Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
   match i with
@@ -353,6 +364,15 @@ Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
       eval_JMP p lbl s
     else type_error
   | Jcc   lbl ct => eval_Jcc lbl ct s
+  | JAL d lbl =>
+      if return_address_from s is Some ra then
+        let s' := st_update_next (mem_write_reg MSB_CLEAR d ra s) s in
+        eval_JMP p lbl s'
+      else type_error
+  | CALL lbl =>
+      if return_address_from s is Some ra then
+        eval_PUSH ra s >>= eval_JMP p lbl
+      else type_error
   | POPPC =>
     Let: (s', dst) := eval_POP s in
     if decode_label labels dst is Some lbl then
@@ -405,6 +425,14 @@ Proof.
   by case: get_fundef => // fd; t_xrbindP => _ _ <- /=.
 Qed.
 
+Lemma mem_write_reg_invariant f r sz (w: word sz) (s: asmmem) :
+  mem_write_reg f r w s ≡ s.
+Proof. by []. Qed.
+
+Lemma mem_write_mem_invariant a sz (w: word sz) (s s': asmmem) :
+  mem_write_mem a w s = ok s' → s ≡ s'.
+Proof. by rewrite /mem_write_mem; t_xrbindP => ? /Memory.write_mem_stable ? <-. Qed.
+
 Lemma mem_write_val_invariant f xs d v (s s': asmmem) :
   mem_write_val f xs d v s = ok s' →
   s ≡ s'.
@@ -417,7 +445,7 @@ Proof.
   move => _ ? ?; case: onth => //; t_xrbindP => - [] //.
   - by move => ? _ _ /ok_inj <-.
   - by move => ? _ _ /ok_inj <-.
-  - by rewrite /mem_write_mem; t_xrbindP => ? _ _ ? /Memory.write_mem_stable ? <- /=.
+  - move => ? ? _; exact: mem_write_mem_invariant.
   by move => ? _ _ /ok_inj <-.
 Qed.
 
@@ -436,7 +464,7 @@ Lemma eval_instr_invariant (i: asm_i) (s s': asm_state) :
   eval_instr i s = ok s' →
   s ≡ s'.
 Proof.
-  case: i => [ | ? | ? ? | ? | ? | ? ? | | ? ? | ? ] /=.
+  case: i => [ | ? | ? ? | ? | ? | ? ? | ? ? | ? | | ? ? | ? ] /=.
   1, 2: by move => /ok_inj <-.
   - by case: encode_label => // ? /ok_inj <-.
   - exact: eval_JMP_invariant.
@@ -444,6 +472,10 @@ Proof.
   - rewrite /eval_Jcc; t_xrbindP => - []; t_xrbindP => _.
     + by move => _ _ <- /=.
     by move => <-.
+  - case: return_address_from => // ra /eval_JMP_invariant /=.
+    by rewrite mem_write_reg_invariant.
+  - case: return_address_from => // ra; rewrite /eval_PUSH; t_xrbindP => ? ? _ ? /mem_write_mem_invariant -> <- /eval_JMP_invariant /=.
+    by rewrite mem_write_reg_invariant.
   - rewrite /eval_POP; t_xrbindP => _ ? _ ? _ <-.
     by case: decode_label => // ? /eval_JMP_invariant <-.
   - by rewrite /eval_op /exec_instr_op; t_xrbindP => ? ? ? /mem_write_vals_invariant -> <-.

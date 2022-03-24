@@ -427,6 +427,10 @@ module Printer (BP:BPrinter) = struct
       let iname = Printf.sprintf "j%s" (pp_ct ct) in
       `Instr (iname, [pp_label name lbl])
 
+    | JAL _ -> assert false
+    | CALL lbl ->
+       `Instr ("call", [pp_remote_label tbl lbl])
+
     | POPPC ->
        `Instr ("ret", [])
 

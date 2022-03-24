@@ -125,9 +125,9 @@ Proof. by move => /sv_of_listP/mapP [??->]. Qed.
 
 
 (* This is used for one_varmap and linear semantic and compilation passes *)
-Require Import sem_one_varmap.
+Require Import one_varmap.
 
-Instance x86_syscall_info : sem_one_varmap.syscall_info := {|
+Instance x86_syscall_info : one_varmap.syscall_info := {|
   syscall_sig  := x86_syscall_sig_v; 
   all_vars     := x86_all_vars; 
   callee_saved := x86_callee_saved_v;
