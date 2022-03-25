@@ -1053,7 +1053,6 @@ Context (P: leak_i_tr → Prop)
         (Hicondl       : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_icondl lei le lt1 lt2))
         (Hiwhilel      : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_iwhilel lei le lt1 lt2))
         (Hicopn        : ∀ lei, P (LT_icopn lei))
-        (Hilmul        : ∀ lei le, P (LT_ilmul lei le))
         (Hilif         : ∀ lei le, P (LT_ilif lei le))
         (Hilfopn       : ∀ lei les, P (LT_ilfopn lei les))
 .
@@ -1093,7 +1092,6 @@ Context (P: leak_i_tr → Prop)
       Hiwhilel lei le (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)
 
     | LT_icopn lei      => Hicopn lei
-    | LT_ilmul lei le   => Hilmul lei le
     | LT_ilif lei le    => Hilif  lei le
     | LT_ilfopn lei les => Hilfopn lei les       
     end.
@@ -1211,7 +1209,6 @@ Fixpoint transform_cost_I (lt:leak_i_tr) : Sm.t * nat :=
     (Sm.empty, n)
  
     (* sl:i --->    tl:i1; tl': i2; next_lbl tl' *)
-  | LT_ilmul ltesi _
   | LT_ilfopn ltesi _ =>
     let n := size ltesi in
     (Sm.empty, n)
@@ -1565,7 +1562,6 @@ Proof.
   + by move => ??; rewrite leak_EI_sizeE.
   + by move => lti le' le; rewrite size_cat leak_EI_sizeE addn1.
   + by move => ???; rewrite leak_EI_sizeE size_map.
-  + by move => ???; rewrite leak_EI_sizeE size_map.
   + by move=> li lc lti ltc _ hreci _ hrec; rewrite /leak_Is /= size_cat hreci hrec.
   by move=> lc lcs lt _ hrec _ hrecn; rewrite size_cat hrec hrecn.
 Qed.
@@ -1707,7 +1703,6 @@ Proof.
     by apply (leqc_trans (enter_ok _ hrec)); rewrite  interp_prefix2_sprefix mergec0.
   + by move=> ltes le; rewrite cost_C_Lopn //= is_lopns_leak_EI.
   + by move=> lti lte le; rewrite cost_C_Lopn // /is_lopns all_cat -/(is_lopns _) is_lopns_leak_EI.
-  + by move => ???; rewrite cost_C_Lopn // is_lopns_leak_EI.
   + by move => ???; rewrite cost_C_Lopn // is_lopns_leak_EI.
   + move=> li lc lt1 lt2 hWF hrec1 _ hrec2 /=.
     rewrite /leak_Is /= cost_C_cat /= add0n transform_cost_size_i //.
