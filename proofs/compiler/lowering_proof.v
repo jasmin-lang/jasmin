@@ -2113,6 +2113,7 @@ Qed.
       have [s3' [Hw' Hs3']] := write_lval_same Hdisjl Hs2'2 Hw. split. constructor.
       exists s3'; split=> //.
       rewrite map_cat -Hle /=.
+      rewrite /leak_EI map_cat -(map_comp _ _ lti) /comp /=.
       apply: sem_app.
       + exact: Hs2'1.
       apply: sem_seq1; apply: EmkI; apply: Eopn.
@@ -2140,7 +2141,7 @@ Qed.
         rewrite /= /truncate_word /= (cmp_le_trans hle hsz''') /=; eauto.
         exists (zero_extend sz w2'). split=> //. split=> //.
         by rewrite hw' /= zero_extend_idem.
-      move=> [w1 [w2 [ -> [->]]]] /= -> /=. by rewrite Hw' /=.
+      move=> [w1 [w2 [ -> [->]]]] /= -> /=. by rewrite Hw' /= lt_composeE.
       rewrite /=. move: to_boolI.
       move=> Hbool. move: (Hbool b false Hb). move=> -> /= He'.
       rewrite /sem_sopn /sem_pexprs /= He' /=.
@@ -2165,7 +2166,7 @@ Qed.
         rewrite /= /truncate_word /= (cmp_le_trans hle hsz''') /=; eauto.
         exists (zero_extend sz w2'). exists (zero_extend sz w1). split=> //. split=> //.
         by rewrite hw' /= zero_extend_idem.
-      move=> [w1 [w2 [ -> [->]]]] /= -> /=. by rewrite Hw' /=.
+      move=> [w1 [w2 [ -> [->]]]] /= -> /=. by rewrite Hw' /= lt_composeE.
 
     (* LowerDivMod *)
     + move=> d u w s p0 p1 /= [] [va] [vb] [wa] [la] [lb] [hva] hwa hdiv hty' hle1 hle2; subst ty.

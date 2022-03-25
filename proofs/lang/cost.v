@@ -1053,7 +1053,6 @@ Context (P: leak_i_tr → Prop)
         (Hicondl       : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_icondl lei le lt1 lt2))
         (Hiwhilel      : ∀ lei le lt1 lt2, Q lt1 -> Q lt2 -> P (LT_iwhilel lei le lt1 lt2))
         (Hicopn        : ∀ lei, P (LT_icopn lei))
-        (Hilif         : ∀ lei le, P (LT_ilif lei le))
 .
 
   Section C.
@@ -1091,7 +1090,6 @@ Context (P: leak_i_tr → Prop)
       Hiwhilel lei le (leak_c_tr_ind_aux leak_i_tr_ind lt1) (leak_c_tr_ind_aux leak_i_tr_ind lt2)
 
     | LT_icopn lei      => Hicopn lei
-    | LT_ilif lei le    => Hilif  lei le
     end.
 
   Definition leak_c_tr_ind := leak_c_tr_ind_aux leak_i_tr_ind.
@@ -1204,12 +1202,6 @@ Fixpoint transform_cost_I (lt:leak_i_tr) : Sm.t * nat :=
     (*sl : copn l t o e ---> copn (addc, add, mul) t o e *) 
   | LT_icopn lesi => 
     let n := size lesi in
-    (Sm.empty, n)
-
-    (* Pif e e1 e2 => x := [Pif e e1 e2] *)
-    (* sl: i --> tl: flags = [e]; x = CMOVcc [ cond flags; e1; e2]*)
-  | LT_ilif ltei lte => 
-    let n := (size ltei).+1 in
     (Sm.empty, n)
 
   end.
@@ -1553,7 +1545,6 @@ Proof.
   + by move=> lei lte lt _ le lc _ hrec; rewrite size_cat /= leak_EI_sizeE.
   + by move=> ltei lte _ lt le lc _ hrec; rewrite size_cat /= leak_EI_sizeE.
   + by move => ??; rewrite leak_EI_sizeE.
-  + by move => lti le' le; rewrite size_cat leak_EI_sizeE addn1.
   + by move=> li lc lti ltc _ hreci _ hrec; rewrite /leak_Is /= size_cat hreci hrec.
   by move=> lc lcs lt _ hrec _ hrecn; rewrite size_cat hrec hrecn.
 Qed.
@@ -1694,7 +1685,6 @@ Proof.
     rewrite mergec0 -/(enter_cost_c cost_i (bpath_f path0) (leak_Is (leak_I ftr) w lt1 lc)).
     by apply (leqc_trans (enter_ok _ hrec)); rewrite  interp_prefix2_sprefix mergec0.
   + by move=> ltes le; rewrite cost_C_Lopn //= is_lopns_leak_EI.
-  + by move=> lti lte le; rewrite cost_C_Lopn // /is_lopns all_cat -/(is_lopns _) is_lopns_leak_EI.
   + move=> li lc lt1 lt2 hWF hrec1 _ hrec2 /=.
     rewrite /leak_Is /= cost_C_cat /= add0n transform_cost_size_i //.
     setoid_rewrite hrec1; rewrite cost_prefix_incr /= prefix0_cost Sm.interp_merge;

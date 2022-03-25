@@ -178,8 +178,6 @@ Inductive leak_i_tr :=
 | LT_icondl : seq leak_e_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
 | LT_iwhilel :  seq leak_e_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
 | LT_icopn : seq leak_e_tr -> leak_i_tr
-(* lowering assgn *)
-| LT_ilif : seq leak_e_tr -> leak_e_tr -> leak_i_tr
 .
 
 Notation LT_ile lt := (LT_iopn [:: lt ]).
@@ -288,14 +286,6 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
 
   | LT_icopn ltes, Lopn le => leak_EI stk ltes le
 
-    (* lti converts cond expression to Copn leakage *)
-  | LT_ilif lti le', Lopn le => 
-    leak_EI stk lti (get_nth_leak (get_seq_leak_e (leak_E stk (LT_subi 0) le)) 0) ++ 
-    [:: Lopn (LSub [:: LSub [:: leak_E stk le' (leak_E stk (LT_subi 0) (leak_E stk (LT_subi 0) le));
-                                (leak_E stk (LT_subi 1) (leak_E stk (LT_subi 0) le));
-                                (leak_E stk (LT_subi 2) (leak_E stk (LT_subi 0) le))]; 
-                       LSub [:: leak_E stk (LT_subi 1) le]])]
-
   | _, _ => [:: l]
   end.
 
@@ -353,8 +343,6 @@ Inductive leak_WF : leak_i_tr -> leak_i -> Prop :=
                    leak_WF (LT_iwhilel lti lte ltis ltis') (Lwhile_false lts le)
  | LT_icopnWF : forall ltes le,
                 leak_WF (LT_icopn ltes) (Lopn le)
- | LT_ilifWF : forall lti le' le,
-               leak_WF (LT_ilif lti le') (Lopn le)
 
 with leak_WFs : seq leak_i_tr -> leak_c -> Prop :=
  | WF_empty : leak_WFs [::] [::]

@@ -76,7 +76,6 @@ let pp_i tbl fmt =
   | LT_iremove -> p "iremove"
   | LT_icopn e -> fprintf fmt "icopn(%a)" (pp_list ";" pp_e_tr) e
   | LT_icondl (a, b, c, d) -> fprintf fmt "icondl(%a, %a, %a, %a)" (pp_list ";" pp_e_tr) a pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
-  | LT_ilif (a, b) -> fprintf fmt "ilif(%a, %a)" (pp_list ";" pp_e_tr) a pp_e_tr b
   in pp_i fmt
 
 let pp_funs pp_one tbl fmt =
