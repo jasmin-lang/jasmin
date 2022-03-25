@@ -132,6 +132,25 @@ op mulu64 (w1 w2 : W64.t) =
   (W2u32.zeroextu64 (W2u32.truncateu32 w2)).
 
 (* -------------------------------------------------------------------- *)
+op BSWAP_32: W32.t -> W32.t =
+  W4u8.pack4 \o rev \o W4u8.Pack.to_list \o W4u8.unpack8.
+
+op BSWAP_64: W64.t -> W64.t =
+  W8u8.pack8 \o rev \o W8u8.Pack.to_list \o W8u8.unpack8.
+
+lemma bswap32K: involutive BSWAP_32.
+proof.
+move=> v; rewrite /BSWAP_32 /(\o) /=.
+by rewrite of_listK 2:revK 1:size_rev 1:size_to_list.
+qed.
+
+lemma bswap64K: involutive BSWAP_64.
+proof.
+move=> v; rewrite /BSWAP_64 /(\o) /=.
+by rewrite of_listK 2:revK 1:size_rev 1:size_to_list.
+qed.
+
+(* -------------------------------------------------------------------- *)
 op VMOV_32 (v:W32.t) =
   pack4 [v; W32.zero; W32.zero; W32.zero].
 
