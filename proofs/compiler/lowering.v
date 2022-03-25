@@ -626,6 +626,8 @@ Notation LT_iemptysl := ([::]).
 
 #[local]
 Notation LT_ilmul lest ltes := (LT_icopn (map (LT_compose (LT_map [:: lt_compose (LT_seq [:: LT_remove ; LT_remove ]) ltes ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_id ] ])) lest)).
+#[local]
+Notation LT_ilfopn lest lte := (LT_icopn (map (LT_compose (LT_map [:: lte ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_id ] ])) lest)).
 
 (** Need to fix this later: for now commenting it out **) 
 Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd * leak_i_tr :=
