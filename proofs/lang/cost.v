@@ -1570,8 +1570,8 @@ Proof.
   + by move=> ltei lte _ lt le lc _ hrec; rewrite size_cat /= leak_EI_sizeE.
   + by move=> ??; apply size_leak_ESI.
   + by move => lti le' le; rewrite size_cat leak_EI_sizeE addn1.
-  + by move => ???; rewrite leak_EI_sizeE.
-  + by move => ???; rewrite leak_EI_sizeE.
+  + by move => ???; rewrite leak_EI_sizeE size_map.
+  + by move => ???; rewrite leak_EI_sizeE size_map.
   + by move=> li lc lti ltc _ hreci _ hrec; rewrite /leak_Is /= size_cat hreci hrec.
   by move=> lc lcs lt _ hrec _ hrecn; rewrite size_cat hrec hrecn.
 Qed.

@@ -149,9 +149,6 @@ Qed.
 Global Opaque lt_compose.
 
 (* Transformation from leakage to sequence of leakage *)
-Definition leak_ES (stk: pointer) (lte: leak_e_tr) (le: leak_e) : leak_es :=
-  get_seq_leak_e (leak_E stk lte le).
-
 Definition LT_leseq : leak_e_tr := LT_seq [:: LT_id ].
 Definition LT_emseq : leak_e_tr := LT_remove.
 Definition LT_subseq (lte: leak_e_tr) : leak_e_tr := LT_seq [:: lte ].
@@ -258,7 +255,6 @@ Definition dummy_lit := Lopn LEmpty.
 Definition leak_assgn := 
   Lopn (LSub [:: LEmpty ; LEmpty]).
 
-Notation leak_lt_iopn5f stk ltf les les' := (leak_EI stk ltf (LSub [:: LSub les; LSub les'])).
 Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq leak_i :=
   match lt, l with
   | LT_ikeep, _ => 
@@ -347,12 +343,12 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
                        LSub [:: leak_E stk (LT_subi 1) le]])]
 
   | LT_ilmul lest ltes, Lopn le =>
-    leak_lt_iopn5f stk lest (get_seq_leak_e (leak_E stk ltes (LSub [:: LEmpty; LEmpty])))
-              [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]
+      let lest' := map (LT_compose (LT_map [:: lt_compose (LT_seq [:: LT_remove ; LT_remove ]) ltes ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_id ] ])) lest in
+      leak_EI stk lest' le
 
   | LT_ilfopn lest lte, Lopn le =>
-    leak_lt_iopn5f stk lest (leak_ES stk lte (leak_E stk (LT_subi 0) le))
-              [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]
+      let lest' := map (LT_compose (LT_map [:: lte ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_id ] ])) lest in
+      leak_EI stk lest' le
 
   | _, _ => [:: l]
   end.
