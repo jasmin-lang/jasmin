@@ -1,6 +1,6 @@
 open Utils
 (*--------------------------------------------------------------------- *)
-let version_string = "Jasmin Compiler 21.0"
+let version_string = "Jasmin Compiler @VERSION@"
 (*--------------------------------------------------------------------- *)
 let infile = ref ""
 let outfile = ref ""
