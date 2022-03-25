@@ -2417,7 +2417,7 @@ Qed.
     write_lvals gd si' xs v = ok (so, lws) →
     ∃ so',
       sem p'.1 si' (map (MkI ii) (lower_addcarry fv sz sub xs t es).1) 
-      (leak_ESI stk (lower_addcarry fv sz sub xs t es).2 (LSub [:: LSub (unzip2 x) ; LSub lws]))
+      (leak_EI stk (lower_addcarry fv sz sub xs t es).2 (LSub [:: LSub (unzip2 x) ; LSub lws]))
        so' ∧
       eq_exc_fresh so' so.
     Proof.

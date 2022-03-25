@@ -159,15 +159,6 @@ Definition LT_dsnd : leak_e_tr := LT_seq [:: LT_remove ; LT_remove ; LT_remove ;
 Definition LT_iconditionl : seq leak_e_tr := [:: LT_seq [:: LT_id; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove] ] ].
 Definition LT_iemptyl : seq leak_e_tr := [::].
 
-Variant leak_es_i_tr :=
-  | LT_iaddcarryf of seq leak_e_tr
-  | LT_iaddcarry of seq leak_e_tr
-  | LT_ianone
-  | LT_imul1
-  | LT_imul2
-  | LT_imul3
-  | LT_iemptysl.
-
 Inductive leak_i_tr :=
 (* structural transformation *)
 | LT_ikeep : leak_i_tr             (* same as source *)
@@ -186,7 +177,7 @@ Inductive leak_i_tr :=
 (* lowering leak transformers *)
 | LT_icondl : seq leak_e_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
 | LT_iwhilel :  seq leak_e_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
-| LT_icopn : leak_es_i_tr -> leak_i_tr
+| LT_icopn : seq leak_e_tr -> leak_i_tr
 (* lowering assgn *)
 | LT_ilmul : seq leak_e_tr -> leak_e_tr -> leak_i_tr
 | LT_ilif : seq leak_e_tr -> leak_e_tr -> leak_i_tr
@@ -198,41 +189,6 @@ Notation LT_ile lt := (LT_iopn [:: lt ]).
 (* Transformation from expression leakage to instruction leakage *)
 Definition leak_EI (stk: pointer) (lti: seq leak_e_tr) (le: leak_e) : seq leak_i :=
   [seq Lopn (leak_E stk lte le) | lte <- lti ].
-
-(* Transformation from expressions (seq of expression) leakage to instruction leakage *)
-Definition leak_ESI (stk : pointer) (lti : leak_es_i_tr) (le: leak_e) : seq leak_i :=
-  match lti with
-  | LT_iaddcarryf ltes =>
-      let ltes' := map (LT_compose (LT_map [:: LT_seq [:: LT_subi 0; LT_subi 1 ]; LT_seq [:: LT_remove ; LT_subi 0; LT_remove ; LT_remove ; LT_remove ; LT_subi 1] ])) ltes in
-    leak_EI stk ltes' le
-
-  | LT_iaddcarry ltes =>
-      let ltes' := map (LT_compose (LT_map [:: LT_id; LT_seq [:: LT_remove ; LT_subi 0; LT_remove ; LT_remove ; LT_remove ; LT_subi 1] ])) ltes in
-    leak_EI stk ltes' le
-
-  | LT_ianone => leak_EI stk [:: LT_id ] le
-
-  | LT_imul1 => leak_EI stk [:: LT_seq [:: LT_seq [:: LT_compose (LT_subi 0) (LT_subi 0) ] ; LT_seq [:: LT_remove ] ];
-   LT_seq [::LT_seq [:: LT_compose (LT_subi 0) (LT_subi 1); LT_remove ]; LT_seq [::LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove; LT_compose (LT_subi 1) (LT_subi 0) ; LT_compose (LT_subi 1) (LT_subi 1)] ]] le
-
-  | LT_imul2 => leak_EI stk [:: LT_seq [:: LT_seq [:: LT_compose (LT_subi 0) (LT_subi 1) ] ; LT_seq [:: LT_remove ] ] ; LT_seq [::LT_seq [:: LT_compose (LT_subi 0) (LT_subi 0); LT_remove ]; LT_seq [::LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove; LT_compose (LT_subi 1) (LT_subi 0) ; LT_compose (LT_subi 1) (LT_subi 1)] ]] le
-
-  | LT_imul3 => leak_EI stk [:: LT_seq [:: LT_subi 0 ; LT_seq [:: LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove; LT_compose (LT_subi 1) (LT_subi 0) ; LT_compose (LT_subi 1) (LT_subi 1) ] ] ] le
-
-  | LT_iemptysl => leak_EI stk [::] le
-  end.
-
-(* computes the number of instructions added in lowering high-level constructs *)
-Definition no_i_esi_tr (lt: leak_es_i_tr) : nat :=
-  match lt with
-  | LT_iaddcarryf ltf
-  | LT_iaddcarry ltf => size ltf
-  | LT_ianone => 1
-  | LT_imul1 => 2
-  | LT_imul2 => 2
-  | LT_imul3 => 1
-  | LT_iemptysl => 0
- end.
 
 Section Leak_I.
 
@@ -332,7 +288,7 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
     [::Lwhile_false ((leak_Is leak_I stk ltis lts) ++ (leak_EI stk lti le)) (leak_E stk lte le)]
 
 
-  | LT_icopn ltes, Lopn le => leak_ESI stk ltes le
+  | LT_icopn ltes, Lopn le => leak_EI stk ltes le
 
     (* lti converts cond expression to Copn leakage *)
   | LT_ilif lti le', Lopn le => 
