@@ -1342,11 +1342,11 @@ Lemma is_lopns_leak_EI w ltei le :
   is_lopns (leak_EI w ltei le).
 Proof. by elim: ltei. Qed.
 
-Lemma is_lopns_leak_ESI w l l1 l2 : is_lopns (leak_ESI w l l1 l2).
-Proof. by case: l => // l; exact: is_lopns_leak_EI. Qed.
+Lemma is_lopns_leak_ESI w tr le : is_lopns (leak_ESI w tr le).
+Proof. by case: tr => // tr; exact: is_lopns_leak_EI. Qed.
 
-Lemma size_leak_ESI w l l1 l2 : size (leak_ESI w l l1 l2) = no_i_esi_tr l.
-Proof. by case: l => // l; rewrite !size_map. Qed.
+Lemma size_leak_ESI w tr le : size (leak_ESI w tr le) = no_i_esi_tr tr.
+Proof. by case: tr => // tr; rewrite !size_map. Qed.
 
 Definition bounded_m (m: Sm.t) n := 
   forall l, Sm.get m l <> None -> bounded_bpath l n.

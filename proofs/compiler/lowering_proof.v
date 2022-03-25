@@ -1827,7 +1827,7 @@ Qed.
     ∃ s'' lcf lr,
     [ /\ lws = [:: LEmpty; lcf; LEmpty; LEmpty; LEmpty; lr], 
     sem p'.1 s [seq MkI ii i | i <- (opn_5flags fv m vi cf r t o a).1] 
-     (leak_lt_iopn5f stk (opn_5flags fv m vi cf r t o a).2 (unzip2 xs) lws) s'' &
+     (leak_EI stk (opn_5flags fv m vi cf r t o a).2 (LSub [:: LSub (unzip2 xs) ; LSub lws ])) s'' &
     eq_exc_fresh s'' s'].
   Proof.
     move=> da dr hx hr hs; rewrite/opn_5flags. 
@@ -2417,7 +2417,7 @@ Qed.
     write_lvals gd si' xs v = ok (so, lws) →
     ∃ so',
       sem p'.1 si' (map (MkI ii) (lower_addcarry fv sz sub xs t es).1) 
-      (leak_ESI stk (lower_addcarry fv sz sub xs t es).2 (unzip2 x) lws)
+      (leak_ESI stk (lower_addcarry fv sz sub xs t es).2 (LSub [:: LSub (unzip2 x) ; LSub lws]))
        so' ∧
       eq_exc_fresh so' so.
     Proof.
