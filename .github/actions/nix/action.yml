@@ -1,0 +1,15 @@
+name: 'Nix'
+description: 'Prepares nix shell'
+runs:
+  using: "composite"
+  steps:
+    - run: nix-shell -p nix-info --run 'nix-info -m'
+      shell: sh
+    - name: Compute version
+      id: version
+      run: echo "::set-output name=version::development version at commit $GITHUB_SHA on branch $GITHUB_REF_NAME"
+      shell: sh
+    - run: nix-shell --extra-substituters "$EXTRA_SUBSTITUTERS" --trusted-public-keys "$NIXOS_PUBLIC_KEY $EXTRA_PUBLIC_KEYS" --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'echo done'
+      shell: sh
+    - run: nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'sed -i -e "s|@VERSION@|${{ steps.version.outputs.version }}|" compiler/src/glob_options.ml'
+      shell: sh
