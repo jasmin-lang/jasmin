@@ -162,7 +162,7 @@ push-compiler-code:
   - chmod 700 ~/.ssh
   - ssh-keyscan gitlab.com >> ~/.ssh/known_hosts
   - git config --global user.name "Jasmin Contributors"
-  - git config --global user.email "10184778-jasmin-lang@users.noreply.gitlab.com"
+  - git config --global user.email "nobody@noreply.example.com"
   script:
   - echo "$DEPLOY_KEY" | tr -d '\r' | ssh-add - > /dev/null
   - git clone git@gitlab.com:jasmin-lang/jasmin-compiler.git _deploy
