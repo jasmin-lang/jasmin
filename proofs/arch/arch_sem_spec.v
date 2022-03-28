@@ -96,6 +96,14 @@ Definition is_label (lbl: label) (i: asm_i) : bool :=
   end.
 
 (* -------------------------------------------------------------------- *)
+Fixpoint is_labels (lbl: label) (i: seq asm_i) : bool :=
+  match i with
+  | [::] => true
+  | LABEL lbl' :: lbls => (lbl == lbl') && is_labels lbl lbls
+  | _ => false
+  end.
+
+(* -------------------------------------------------------------------- *)
 Definition find_label (lbl : label) (c : asm_code) :=
   let idx := seq.find (is_label lbl) c in
   if idx < size c then ok idx else type_error.
@@ -337,6 +345,13 @@ Definition eval_POP (s: asm_state) : exec (asm_state * wreg * seq pointer) :=
   ok ({| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1; asm_msf := s.(asm_msf) |}, v, 
        [:: (sp + wrepr Uptr (wsize_size Uptr))%R]).
 
+Definition eval_PUSH (w: wreg) (s: asm_state) : exec (asm_state * seq pointer) :=
+  Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) stack_pointer_register) in
+  Let m := mem_write_mem sp w s.(asm_m) in
+  let m := mem_write_reg MSB_CLEAR stack_pointer_register (sp - wrepr Uptr (wsize_size Uptr))%R m in
+  ok ({| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1; asm_msf := s.(asm_msf) |}, 
+      [:: (sp - wrepr Uptr (wsize_size Uptr))%R]).
+
 (* -------------------------------------------------------------------- *)
 Section PROG.
 
@@ -350,6 +365,11 @@ Definition label_in_asm_prog : seq remote_label :=
 
 #[local]
 Notation labels := label_in_asm_prog.
+
+Definition return_address_from (s: asm_state) : option (word Uptr) :=
+  if oseq.onth s.(asm_c) s.(asm_ip).+1 is Some (LABEL lbl) then
+    encode_label labels (asm_f s, lbl)
+  else None.
 
 Definition eval_instr (i : asm_i) (s: asm_state) (d: directive_asm) : asm_result_state  :=
   match i with
@@ -368,6 +388,16 @@ Definition eval_instr (i : asm_i) (s: asm_state) (d: directive_asm) : asm_result
       eval_JMP p v.2 lbl s
     else type_error
   | Jcc lbl ct => eval_Jcc lbl ct s d
+  | JAL d lbl =>
+      if return_address_from s is Some ra then
+        let s' := st_update_next (mem_write_reg MSB_CLEAR d ra s) s in
+        eval_JMP p [::] lbl s'
+      else type_error
+  | CALL lbl =>
+      if return_address_from s is Some ra then
+      Let vp := eval_PUSH ra s in
+      eval_JMP p vp.2 lbl vp.1 
+      else type_error
   | POPPC =>
     Let: (s', dst, sp) := eval_POP s in
     if decode_label labels dst is Some lbl then
