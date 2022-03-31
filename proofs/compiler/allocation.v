@@ -478,7 +478,7 @@ Section PROOF.
     rewrite /sem_sopn; t_xrbindP => v ves He Ho Hw r1 [] //= xs2 t' o2 es2 r2 vm1 Hvm1.
     case:ifPn => //= /eqP <-.
     t_xrbindP => r1' /check_esP -/(_ _ _ Hvm1) [Hr1'] /(_ _ He) [v2 [He2 Hu2]].
-    have [v' [Ho' Hv] Hcxs]:= vuincl_exec_opn Hu2 Ho.
+    have [v' Ho' Hv Hcxs]:= vuincl_exec_opn Hu2 Ho.
     have /(_ _ Hr1') [vm2 [Hwv Hvm2]]:= check_lvalsP Hcxs _ Hv Hw.
     by exists vm2;split=>//;constructor;rewrite /sem_sopn He2 /= Ho' -eq_globs.
   Qed.

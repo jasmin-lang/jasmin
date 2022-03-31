@@ -339,7 +339,7 @@ Section PROOF.
     have /sem_pexprs_uincl_on'  -/(_ _ _ _ _ Hse) : svm1 <=[read_es es] vm1.
     + by apply: vmap_uincl_onI Hvm;SvD.fsetdec.
     move=> [v2 Hv2 Huv2].
-    have [v2' [Hso' Huv2']]:= vuincl_exec_opn Huv2 Hso.
+    have [v2' Hso' Huv2' ]:= vuincl_exec_opn Huv2 Hso.
     have [ | vm2 /=Hvm2 Hw']:= write_lvals_uincl_on _ Huv2' Hw Hvm; first by SvD.fsetdec.
     exists vm2;split.
     + by apply: wf_write_lvals Hw'.

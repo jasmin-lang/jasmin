@@ -257,7 +257,7 @@ Section PROOF.
   Proof.
     case: s1 => scs1 m1 vm1 /= Hexpr Hopn Hw Hwf vm1' Hvm.
     have [ vs' Hexpr' vs_vs' ] := sem_pexprs_uincl_on' Hvm Hexpr.
-    have [ v' [] Hopn' v_v' ] := vuincl_exec_opn vs_vs' Hopn.
+    have [ v' Hopn' v_v' ] := vuincl_exec_opn vs_vs' Hopn.
     rewrite read_esE read_rvsE in Hvm.
     have [ | vm2 Hvm2 Hw' ] := write_lvals_uincl_on _ v_v' Hw Hvm;
       first by clear; SvD.fsetdec.

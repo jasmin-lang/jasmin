@@ -1015,7 +1015,7 @@ Section PROOF.
     case: const_prop_rvs => m' rvs' /= h1 h2;split=>//.
     move=> vm1 hvm1.
     have [vs2 hs u2]:= sem_pexprs_uincl hvm1 Hes'.
-    have [ vs3 [] ho' vs_vs3 ] := vuincl_exec_opn (Forall2_trans value_uincl_trans Us u2) Ho.
+    have [ vs3 ho' vs_vs3 ] := vuincl_exec_opn (Forall2_trans value_uincl_trans Us u2) Ho.
     have [vm2 hw U]:= writes_uincl hvm1 vs_vs3 h2.
     exists vm2;split => //.
     apply sem_seq1; do 2 constructor.

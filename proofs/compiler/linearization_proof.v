@@ -1326,7 +1326,7 @@ Section PROOF.
     move => fn lbl /checked_iE[] fd ok_fd chk.
     move => fr_undef m1 vm1 P Q W1 M1 X1 D1 C1.
     have [ vs' /(match_mem_sem_pexprs M1) ok_vs' vs_vs' ] := sem_pexprs_uincl X1 ok_vs.
-    have [ rs' [ ok_rs' rs_rs' ] ] := vuincl_exec_opn vs_vs' ok_rs.
+    have [ rs' ok_rs' rs_rs' ] := vuincl_exec_opn vs_vs' ok_rs.
     have [ vm2 /(match_mem_write_lvals M1) [ m2 ok_s2' M2 ] ok_vm2 ] := writes_uincl X1 rs_rs' ok_s2.
     exists m2 vm2; [ | | | exact: ok_vm2 | | exact: M2 ]; last first.
     + exact: write_lvals_preserves_metadata ok_s2 ok_s2' _ X1 M1.
