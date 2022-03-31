@@ -328,3 +328,24 @@ Proof.
   move=> /= vs vs' v; rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 ?? hu []; t_xrbindP => //=.
   by move=> t a /(value_uincl_arr hu) /= [a'] -> hut /= /(WArray.uincl_copy hut) -> <-.
 Qed.
+
+Lemma ok_values_uincl_refl (f: exec values) v :
+  f = ok v →
+  exists2 v', f = ok v' & List.Forall2 value_uincl v v'.
+Proof. move => ?; exists v => //; exact: List_Forall2_refl value_uincl_refl. Qed.
+
+Definition vuincl_app_sopn_v tin tout (semi: sem_prod tin (exec (sem_tuple tout))) :
+  all is_not_sarr tin ->
+  forall vs vs' v,
+  List.Forall2 value_uincl vs vs' ->
+  app_sopn_v semi vs = ok v ->
+  _ :=
+  λ A vs vs' v B C, ok_values_uincl_refl (vuincl_app_sopn_v_eq A B C).
+
+Definition vuincl_copy ws p :
+  let sz := Z.to_pos (arr_size ws p) in
+  forall vs vs' v,
+  List.Forall2 value_uincl vs vs' ->
+  @app_sopn_v [::sarr sz] [::sarr sz] (@WArray.copy ws p) vs = ok v ->
+  _ :=
+  λ vs vs' v A B, ok_values_uincl_refl (vuincl_copy_eq A B).
