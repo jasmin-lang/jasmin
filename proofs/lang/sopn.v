@@ -27,12 +27,14 @@ Record instruction_desc := mkInstruction {
   i_out    : seq arg_desc;
   semi     : sem_prod tin (exec (sem_tuple tout));
   semu     : forall vs vs' v,
-                List.Forall2 value_uincl vs vs' -> 
-                app_sopn_v semi vs = ok v -> 
-                app_sopn_v semi vs' = ok v;
+                List.Forall2 value_uincl vs vs' ->
+                app_sopn_v semi vs = ok v ->
+                exists2 v', app_sopn_v semi vs' = ok v' & List.Forall2 value_uincl v v';
   wsizei   : wsize;
   i_safe   : seq safe_cond;
 }.
+
+Arguments semu _ [vs vs' v] _ _.
 
 Notation mk_instr_desc str tin i_in tout i_out semi wsizei safe:=
   {| str      := str;
@@ -41,7 +43,7 @@ Notation mk_instr_desc str tin i_in tout i_out semi wsizei safe:=
      tout     := tout;
      i_out    := i_out;
      semi     := semi;
-     semu     := @vuincl_app_sopn_v_eq tin tout semi refl_equal;
+     semu     := @vuincl_app_sopn_v tin tout semi refl_equal;
      wsizei   := wsizei;
      i_safe   := safe;
   |}.
@@ -103,7 +105,7 @@ Definition Ocopy_instr ws p :=
      tout     := [:: sarr sz];
      i_out    := [:: E 0];
      semi     := @WArray.copy ws p;
-     semu     := @vuincl_copy_eq ws p;
+     semu     := @vuincl_copy ws p;
      wsizei   := U8; (* ??? *)
      i_safe   := [:: AllInit ws p 0];
   |}.

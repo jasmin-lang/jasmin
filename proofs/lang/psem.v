@@ -1948,15 +1948,14 @@ Section ASM_OP.
 
 Context `{asmop:asmOp}.
 
-Lemma vuincl_exec_opn_eq o vs vs' v :
-  List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
-  exec_sopn o vs' = ok v.
-Proof. by rewrite /exec_sopn /sopn_sem; apply: (@semu (get_instr_desc o)). Qed.
-
 Lemma vuincl_exec_opn o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
   exists v', exec_sopn o vs' = ok v' /\ List.Forall2  value_uincl v v'.
-Proof. move => /vuincl_exec_opn_eq h /h {h}; eauto using List_Forall2_refl. Qed.
+Proof.
+  rewrite /exec_sopn /sopn_sem => vs_vs' ho.
+  have [v' ho' hv'] := (get_instr_desc o).(semu) vs_vs' ho.
+  by exists v'.
+Qed.
 
 End ASM_OP.
 
