@@ -142,7 +142,7 @@ Section REMOVE_INIT.
   Proof.
     move=> s1 s2 t o xs es H ii vm1 Hvm1; move: H;rewrite /sem_sopn; t_xrbindP => rs vs.
     move=> /(sem_pexprs_uincl Hvm1) [] vs' H1 H2.
-    move=> /(vuincl_exec_opn H2) [] rs' [] H3 H4.
+    move=> /(vuincl_exec_opn H2) [] rs' H3 H4.
     move=> /(writes_uincl Hvm1 H4) [] vm2 Hw ?.
     exists vm2;split => //=;last by apply: wf_write_lvals Hw.
     by apply sem_seq1;constructor;constructor;rewrite /sem_sopn H1 /= H3.

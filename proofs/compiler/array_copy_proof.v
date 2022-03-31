@@ -118,7 +118,7 @@ Proof.
   case: is_copy (@is_copyP o); last first.
   + move=> _ _ [<-] vm1 hvm1.
     have [|ves' hves' uves]:= sem_pexprs_uincl_on (vmap_uincl_onI _ hvm1) hves; first by SvD.fsetdec.
-    have [ vs' [] ho' vs_vs' ] := vuincl_exec_opn uves ho.
+    have [ vs' ho' vs_vs' ] := vuincl_exec_opn uves ho.
     have [| vm2 hvm2 hw']:= write_lvals_uincl_on _ vs_vs' hw hvm1; first by SvD.fsetdec.
     exists vm2; first by apply: vmap_uincl_onI hvm2; SvD.fsetdec.
     apply sem_seq1; constructor; econstructor; eauto.

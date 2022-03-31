@@ -1950,11 +1950,10 @@ Context `{asmop:asmOp}.
 
 Lemma vuincl_exec_opn o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
-  exists v', exec_sopn o vs' = ok v' /\ List.Forall2  value_uincl v v'.
+  exists2 v', exec_sopn o vs' = ok v' & List.Forall2  value_uincl v v'.
 Proof.
   rewrite /exec_sopn /sopn_sem => vs_vs' ho.
-  have [v' ho' hv'] := (get_instr_desc o).(semu) vs_vs' ho.
-  by exists v'.
+  exact: (get_instr_desc o).(semu) vs_vs' ho.
 Qed.
 
 End ASM_OP.
@@ -2547,7 +2546,7 @@ Local Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof.
   move=> s1 s2 t o xs es H vm1 Hvm1; apply: rbindP H => rs;apply: rbindP => vs.
   move=> /(sem_pexprs_uincl Hvm1) [] vs' H1 H2.
-  move=> /(vuincl_exec_opn H2) [] rs' [] H3 H4.
+  move=> /(vuincl_exec_opn H2) [] rs' H3 H4.
   move=> /(writes_uincl Hvm1 H4) [] vm2 ??.
   exists vm2;split => //;constructor.
   by rewrite /sem_sopn H1 /= H3.
