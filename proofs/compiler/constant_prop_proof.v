@@ -1014,12 +1014,12 @@ Section PROOF.
     rewrite /const_prop_ir.
     case: const_prop_rvs => m' rvs' /= h1 h2;split=>//.
     move=> vm1 hvm1.
-    have [vm2 hw U]:= writes_uincl hvm1 (List_Forall2_refl _ value_uincl_refl) h2.
+    have [vs2 hs u2]:= sem_pexprs_uincl hvm1 Hes'.
+    have [ vs3 [] ho' vs_vs3 ] := vuincl_exec_opn (Forall2_trans value_uincl_trans Us u2) Ho.
+    have [vm2 hw U]:= writes_uincl hvm1 vs_vs3 h2.
     exists vm2;split => //.
     apply sem_seq1; do 2 constructor.
-    have [vs2 hs u2]:= sem_pexprs_uincl hvm1 Hes'.
-    rewrite /sem_sopn hs /=.
-    by have -> := vuincl_exec_opn_eq (Forall2_trans value_uincl_trans Us u2) Ho.
+    by rewrite /sem_sopn hs /= ho'.
   Qed.
 
   Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.

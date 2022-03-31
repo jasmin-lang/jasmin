@@ -255,25 +255,16 @@ Section PROOF.
     ∃ vm2' : vmap, evm s2 <=[s0]  vm2' ∧
        sem p' ev (with_vm s1 vm1') [:: MkI ii (Copn xs t o es)] (with_vm s2 vm2').
   Proof.
-    move=> /= Hexpr Hopn Hw Hwf vm1' Hvm.
-    move: Hvm; rewrite read_esE read_rvsE=> Hvm.
-    have Hv : List.Forall2 value_uincl v v. elim: (v). done. move=> a l Hv.
-    apply List.Forall2_cons. auto. done. 
-    have Hvm1 : Sv.Subset (read_rvs xs)
-     (Sv.union (read_es es) (Sv.union (Sv.diff s0 (vrvs xs)) (read_rvs xs))).
-    + by SvD.fsetdec.
-    have /= := write_lvals_uincl_on Hvm1 Hv Hw Hvm. move=> [vm2] Hvm2 Hw'.
-    exists vm2; split.
-    + by apply: vmap_uincl_onI Hvm2; SvD.fsetdec.
-    econstructor; last by constructor.
-    constructor; constructor; rewrite -?eq_globs.
-    rewrite /sem_sopn /=.
-    have Hmem : s1 = {|escs := escs s1; emem := emem s1; evm := evm s1|}. by case: (s1).
-    rewrite Hmem in Hexpr.
-    have /sem_pexprs_uincl_on' -/(_ _ _ _ _ Hexpr) : evm s1 <=[read_es es] vm1'.
-    + by apply: vmap_uincl_onI Hvm;SvD.fsetdec.
-    move=> [vs'] Hexpr' Hv'. rewrite Hexpr' /=. have := vuincl_exec_opn_eq Hv' Hopn.
-    by move=> -> /=.
+    case: s1 => scs1 m1 vm1 /= Hexpr Hopn Hw Hwf vm1' Hvm.
+    have [ vs' Hexpr' vs_vs' ] := sem_pexprs_uincl_on' Hvm Hexpr.
+    have [ v' [] Hopn' v_v' ] := vuincl_exec_opn vs_vs' Hopn.
+    rewrite read_esE read_rvsE in Hvm.
+    have [ | vm2 Hvm2 Hw' ] := write_lvals_uincl_on _ v_v' Hw Hvm;
+      first by clear; SvD.fsetdec.
+    exists vm2; split;
+      first by apply: vmap_uincl_onI Hvm2; clear; SvD.fsetdec.
+    apply: sem_seq1; do 2 constructor.
+    by rewrite /sem_sopn /with_vm /= -eq_globs Hexpr' /= Hopn'.
   Qed.
 
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
