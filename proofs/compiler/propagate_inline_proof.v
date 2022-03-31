@@ -513,7 +513,7 @@ Section PROOF.
     rewrite /sem_sopn; t_xrbindP => vs ves hes ho hws ii pi pi2 vm1 /=.
     case heq: pi_lvs => [pi0 xs0] [<-] hu hv /=.
     have [ves' hes' hues]:= pi_esP_uincl hv hu hes.
-    have [ vs' [] ho' vs_vs' ] := vuincl_exec_opn hues ho.
+    have [ vs' ho' vs_vs' ] := vuincl_exec_opn hues ho.
     have [vm' []]:= pi_lvsP_uincl hu vs_vs' hv hws.
     rewrite heq /= => hu' hv' hws'; exists vm'; split => //.
     by do 2! constructor; rewrite /sem_sopn /= -eq_globs hes' /= ho' /= hws'.
