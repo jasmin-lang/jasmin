@@ -309,7 +309,7 @@ let safe_lval = function
 let safe_lvals = List.fold_left (fun safe x -> safe_lval x @ safe) []
 
 let safe_opn safe opn es = 
-  let id = Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) opn in
+  let id = Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) (Arch_decl.arch_pd X86_decl.x86_decl) opn in
   List.flatten (List.map (fun c ->
       match c with
       | Wsize.NotZero(sz, i) ->

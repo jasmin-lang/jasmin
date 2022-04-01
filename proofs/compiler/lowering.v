@@ -568,11 +568,42 @@ Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r :=
   end
   else [:: Copn xs tg (Omulu sz) es ].
 
+Definition Lnone_w vi sz := Lnone vi (sword sz).
+
+Definition lower_protect sz (xs:lvals) tg (es:pexprs) : seq instr_r := 
+  match xs with
+  | [:: r] => 
+      let vi := var_info_of_lval r in
+      if check_size_8_64 sz is Ok _ then
+        let f := Lnone_b vi in
+        [:: Copn [:: f; f; f; f; f; r] tg (Oasm (ExtOp (x86_extra.Oprotect sz))) es]
+      else
+        let f := Lnone_w vi sz in
+        [:: Copn [:: f; r] tg (Oasm (ExtOp (x86_extra.Oprotect sz))) es]
+  | _ => [::Copn xs tg (sopn.Oprotect sz) es]
+  end.
+
+Definition lower_set_msf (xs:lvals) tg (es:pexprs) : seq instr_r := 
+  match xs with
+  | [:: r] => 
+      let vi := var_info_of_lval r in
+      let f := Lnone_w vi Uptr in
+      [:: Copn [:: f; r] tg (Oasm (ExtOp x86_extra.Oset_msf)) es]
+  | _ => [::Copn xs tg (sopn.Oset_msf) es]
+  end.
+
 Definition lower_copn (xs: lvals) tg (op: sopn) (es: pexprs) : seq instr_r :=
   match op with
   | Oaddcarry sz => lower_addcarry sz false xs tg es
   | Osubcarry sz => lower_addcarry sz true xs tg es
   | Omulu sz     => lower_mulu sz xs tg es
+  (* ----------------------------------- *)
+  | sopn.Oprotect  sz      => lower_protect sz xs tg es 
+  | sopn.Oset_msf          => lower_set_msf xs tg es 
+  | sopn.Omov_msf          => [:: Copn xs tg (Oasm (ExtOp x86_extra.Omov_msf)) es]
+  | sopn.Oinit_msf         => [:: Copn xs tg (Oasm (ExtOp x86_extra.Oinit_msf)) es]
+  (* | sopn.Oprotect_ptr p : do nothing this is done by stack_alloc *)
+  (* ------------------------------------*)
   | _            => [:: Copn xs tg op es]
   end.
 

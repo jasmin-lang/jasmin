@@ -14,6 +14,10 @@ Unset Printing Implicit Defensive.
 
 (* Parameters specific to the architecture. *)
 Definition mov_ofs := x86_stack_alloc.x86_mov_ofs.
+Definition protect_ptr vi x es := 
+  let f := Lnone_b vi in
+  Copn [:: f; f; f; f; f; x] AT_keep (Oasm (ExtOp (x86_extra.Oprotect Uptr))) es.
+
 Definition var_tmp := to_var RAX.
 Definition lparams := x86_linearization.x86_linearization_params.
 
@@ -262,6 +266,7 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
   Let ps := stack_alloc.alloc_prog
        true
        mov_ofs
+       protect_ptr 
        cparams.(fresh_reg)
        cparams.(global_static_data_symbol)
        cparams.(stack_register_symbol)

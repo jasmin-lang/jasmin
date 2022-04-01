@@ -1246,7 +1246,7 @@ let f_sig f =
 
 let prim_sig p : 'a P.gty list * 'a P.gty list * Sopn.arg_desc list =
   let f = conv_ty in
-  let o = Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) p in
+  let o = Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) (Arch_decl.arch_pd X86_decl.x86_decl) p in
   List.map f o.tout,
   List.map f o.tin,
   o.i_out
@@ -1265,10 +1265,11 @@ let prim_string =
     "set0", PrimP (W.U64, fun _ws sz -> Oasm (ExtOp (Oset0 sz)));
     "concat_2u128", PrimM (fun _ws -> Oasm (ExtOp Oconcat128));
     "copy", PrimP (W.U64, fun _ws sz -> Ocopy (sz, Conv.pos_of_int 1));
-    "protect", PrimP (W.U64, fun _ws sz -> Oasm (ExtOp (Oprotect sz)));
-    "set_msf", PrimM (fun _ws -> Oasm (ExtOp Oset_msf));
-    "mov_msf", PrimM (fun _ws -> Oasm (ExtOp Omov_msf));
-    "init_msf", PrimM (fun _ws -> Oasm (ExtOp Oinit_msf));
+    "protect", PrimP (W.U64, fun _ws sz -> Oprotect sz);
+    "protect_ptr", PrimM (fun _ws -> Sopn.Oprotect_ptr (Conv.pos_of_int 1)); 
+    "set_msf", PrimM (fun _ws -> Oset_msf);
+    "mov_msf", PrimM (fun _ws -> Omov_msf);
+    "init_msf", PrimM (fun _ws -> Oinit_msf);
  ] @
   List.map (fun (s, prc) ->
       let s = Conv.string_of_string0 s in

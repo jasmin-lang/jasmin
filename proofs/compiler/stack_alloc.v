@@ -468,6 +468,8 @@ Context (mov_ofs
   -> Z          (* Offset. *)
   -> option instr_r).
 
+Context (protect_ptr : var_info -> lval -> pexprs -> instr_r).
+
 Section Section.
 
 Variables (pmap:pos_map).
@@ -832,6 +834,64 @@ Definition alloc_array_move rmap r tag e :=
     end
   end.
 
+(* FIXME: move this *)
+Definition is_protect_ptr o :=
+  match o with
+  | Oprotect_ptr _ => true 
+  | _ => false
+  end.
+
+(* FIXME: this a duplication of alloc_array_move *)
+
+Definition alloc_protect_ptr rmap rs es :=
+  match rs, es with
+  | [::r], [:: e; ms] =>
+    Let xsub := get_Lvar_sub r in
+    Let ysub := get_Pvar_sub e in
+    let '(x,subx) := xsub in
+    let '(y,suby) := ysub in
+
+     Let sryl := 
+      let vy := y.(gv) in
+      Let vk := get_var_kind y in
+      let ofs := 0%Z in
+      Let len := 
+        match suby with
+        | None => ok (size_slot vy)
+        | Some _ => Error (stk_error_no_var "argument of protect_ptr cannot be a sub array" )
+        end in
+      match vk with
+      | None => Error (stk_error_no_var "argument of protect_ptr should be a reg ptr")
+      | Some vpk =>
+        match vpk with
+        | VKptr (Pregptr py) => 
+          Let srs := check_vpk rmap vy vpk (Some ofs) len in
+          let sry := srs.2 in
+          ok (sry, Plvar (with_var vy py))
+        | _ => Error (stk_error_no_var "argument of protect_ptr should be a reg ptr")
+        end
+      end
+    in
+    let '(sry, ey) := sryl in
+    match subx with
+    | None =>
+      match get_local (v_var x) with
+      | None    => Error (stk_error_no_var "only reg ptr can receive the result of protect_ptr")
+      | Some pk => 
+        match pk with
+        | Pregptr px =>
+          let dx := Lvar (with_var x px) in
+          let ir := protect_ptr x.(v_info) dx [:: ey; ms] in
+          let rmap := set_move rmap x sry in 
+          ok (rmap, ir)
+        | _ => Error (stk_error_no_var "only reg ptr can receive the result of protect_ptr")
+        end
+      end
+    | Some _ => Error (stk_error_no_var "cannot assign protect_ptr in a sub array" )
+    end 
+  | _, _ => Error (stk_ierror_no_var "bad dests/args for protect_ptr")
+  end.
+
 (* This function is also defined in array_init.v *)
 (* TODO: clean *)
 Definition is_array_init e := 
@@ -1129,9 +1189,13 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
       ok (r.1, [:: MkI ii (Cassgn r.2 t ty e)])
   
   | Copn rs t o e => 
-    Let e  := add_iinfo ii (alloc_es rmap e) in
-    Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
-    ok (rs.1, [:: MkI ii (Copn rs.2 t o e)])
+    if is_protect_ptr o then 
+      Let rs := alloc_protect_ptr rmap rs e in
+      ok (rs.1, [:: MkI ii rs.2])
+    else
+      Let e  := add_iinfo ii (alloc_es rmap e) in
+      Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
+      ok (rs.1, [:: MkI ii (Copn rs.2 t o e)])
   
   | Csyscall rs o es =>
     alloc_syscall ii rmap rs o es  

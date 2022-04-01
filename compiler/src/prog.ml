@@ -438,6 +438,9 @@ and written_vars_stmt acc s =
 let written_vars_fc fc =
   written_vars_stmt (Sv.empty, Mf.empty) fc.f_body
 
+let written_vars s = 
+  written_vars_stmt (Sv.empty, Mf.empty) s
+
 (* -------------------------------------------------------------------- *)
 (* Refresh i_loc, ensure that locations are uniq                        *)
 

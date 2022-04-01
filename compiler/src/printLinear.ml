@@ -74,7 +74,7 @@ let pp_instr tbl fmt i =
   | Lopn (lvs, op, es) ->
     F.fprintf fmt "@[%a@] = %a@[(%a)@]"
       (pp_list ",@ " (pp_lval tbl)) lvs
-      Pr.pp_string0 (Sopn.string_of_sopn (Arch_extra.asm_opI X86_extra.x86_extra) op)
+      Pr.pp_string0 (Sopn.string_of_sopn (Arch_extra.asm_opI X86_extra.x86_extra)  (Arch_decl.arch_pd X86_decl.x86_decl) op)
       (pp_list ",@ " (pp_expr tbl)) es
   | Lsyscall o  -> F.fprintf fmt "SysCall %s" (Printer.pp_syscall o)
   | Lalign     -> F.fprintf fmt "Align"

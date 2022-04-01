@@ -1,4 +1,48 @@
-export fn foo (#public reg u64 i) -> reg u64 {
+
+export fn f1(reg u64 i, #transient reg u64 p) -> () { 
+   reg u64 ms; 
+   ms =#init_msf(); 
+   [p] = i; 
+}
+
+/*
+fn f2(#strict #transient reg u64 i, reg u64 p) -> reg u64 { 
+  reg u64 j, ms;
+  
+  j = i;    
+  ms = #init_msf ();  // FIXME init_msf should not change the type of strict variable
+  [p] = i;  // 
+  i = [p];
+  return j;
+}
+*/
+
+fn init_pub () -> reg u64 { 
+  reg u64[2] p;   
+  reg u64 r;
+  p[0] = 0;    
+  p[1] = 1;    
+  r = p[1];   
+  return r;   
+}
+
+fn spill_ptr (reg u64 ms) -> reg u64 {
+   stack u64[1] s;           // ls0,  transient <= ls0
+   reg ptr u64[1] p;         // lp le
+   stack ptr u64[1] sp;      // lsp lse,   transient <= lsp
+   reg u64 r;
+   s[0] = 1;                 // ls , ls0 <= ls, pub <= ls
+   p = s;                    // pub, ls    
+   sp = p; // check sp = s   // lsp lse=ls, transient <= lsp pub <= lsp   
+   p = sp;                   // lsp ls,     
+   p = #protect_ptr(p, ms);  // pub ls, lsp <= transient
+   r = p[0];                 // ls, pub <= pub
+   r = #protect(r, ms);      // pub, ls <= transient 
+   return r;
+}
+
+
+export fn foo (#transient reg u64 i) -> reg u64 {
   #transient stack u64[1] p;
   #transient stack u64 si;
   #msf reg u64 ms;
@@ -12,25 +56,130 @@ export fn foo (#public reg u64 i) -> reg u64 {
      ms = 0;
   */
   ms = #init_msf();
-
+  // Not needed because i is known to be public at this point  
+  // i = #protect(i, ms);
   p[0] = 1;
   si = i; // spill i into si
   b = i == 0;
   if (b) {
-     _, ms = #set_msf(b, ms);
+     ms = #set_msf(b, ms);
      it = si;
-     _, _, _, _, _, i = #protect(it, ms);
+     i = #protect(it, ms);
      r = p[(int)i];
   } else {
-     _, ms = #set_msf(!b, ms);
+     ms = #set_msf(!b, ms);
      r = p[0];
   }
   ? #LFENCE;
   return r;
 }
 
-inline fn test1(#poly=l1 stack u64[1] x) -> #poly={transient, l1} reg u64 {
-   #poly={transient, l1} reg u64 r;
+
+/* This fail can we make it work ? 
+
+export fn foo_infer (reg u64 i) -> reg u64 {
+  stack u64[1] p;
+  stack u64 si;
+  reg u64 ms;
+  reg u64 r;
+  reg bool b;
+
+  /* init miss-speculation flag / mask to 0 (ie no miss-speculation)
+     This correspond to the sequence
+     LFENCE;
+     ms = 0;
+  */
+
+  // i : l
+  ms = #init_msf();
+  // i : l',  l=pub -> l <= transient
+  //i = #protect(i, ms); //  works but not needed 
+  p[0] = 1;
+  si = i; // spill i into si
+  b = i == 0;   // l'
+  if (b) {     // l' <= pub 
+     ms = #set_msf(b, ms);
+     i = si;
+     i = #protect(i, ms);
+     r = p[(int)i];
+  } else {
+     ms = #set_msf(!b, ms);
+     r = p[0];
+  }
+  ? #LFENCE;
+  return r;
+}
+*/
+
+export fn foo_infer_v1 (reg u64 i) -> reg u64 {
+  stack u64[1] p;
+  stack u64 si;
+  reg u64 ms;
+  reg u64 r;
+  reg bool b;
+
+  /* init miss-speculation flag / mask to 0 (ie no miss-speculation)
+     This correspond to the sequence
+     LFENCE;
+     ms = 0;
+  */
+  ms = #init_msf();
+  i = #protect(i, ms); //  works but not needed 
+  p[0] = 1;
+  si = i; // spill i into si
+  b = i == 0;
+  if (b) {
+     ms = #set_msf(b, ms);
+     i = si;
+     i = #protect(i, ms);
+     r = p[(int)i];
+  } else {
+     ms = #set_msf(!b, ms);
+     r = p[0];
+  }
+  ? #LFENCE;
+  return r;
+}
+
+export fn foo_infer_half (#transient reg u64 i) -> reg u64 {
+  stack u64[1] p;
+  stack u64 si;
+  reg u64 ms;
+  reg u64 r;
+  reg bool b;
+
+  /* init miss-speculation flag / mask to 0 (ie no miss-speculation)
+     This correspond to the sequence
+     LFENCE;
+     ms = 0;
+  */
+  ms = #init_msf();
+  // i = #protect(i, ms); //  works but not needed 
+  p[0] = 1;
+  si = i; // spill i into si
+  b = i == 0;
+  if (b) {
+     ms = #set_msf(b, ms);
+     i = si;
+     i = #protect(i, ms);
+     r = p[(int)i];
+  } else {
+     ms = #set_msf(!b, ms);
+     r = p[0];
+  }
+  ms = #init_msf(); 
+  return r;
+}
+
+#constraints = "transient <= l2, l1 <= l1"
+inline fn test1(#poly=l1 stack u64[1] x) -> #poly=l2 reg u64 {
+   #poly=l2 reg u64 r;
+   r = x[0];
+   return r;
+}
+
+inline fn test1_infer(stack u64[1] x) -> reg u64 {
+   reg u64 r;
    r = x[0];
    return r;
 }
@@ -41,14 +190,14 @@ export fn test1_app_secret(#secret reg u64 x) {
    x = test1(s);
 }
 
-export fn test1_app_public(#public reg u64 x) {
+export fn test1_app_public(#transient reg u64 x) {
    #transient stack u64[1] s;
    #transient reg u64 r;
-   #msf reg u64 ms;
+   reg u64 ms;
    s[0] = x;
    r = test1(s);
    ms = #init_msf();
-   _, _, _, _, _, x = #protect(r, ms);
+   x = #protect(r, ms);
 }
 
 /* This should fail
@@ -66,19 +215,36 @@ fn aux(#msf reg u64 ms, #public reg u64 p, #public reg u64 i) -> #msf reg u64, #
    #public reg bool b;
 
    while
-    {b = i < 0;}
-    (b)
-    { [p] = 0; p += 1; _, ms = #set_msf(b, ms); i -= 1; }
-   _, ms = #set_msf(!b, ms);
+     {b = i < 0;}
+     (b)
+     { [p] = 0; p += 1; ms = #set_msf(b, ms); i -= 1; }
+   ms = #set_msf(!b, ms);
    return (ms, p);
 
 }
 
 /* This loop, need to fix the case of while */
 
+/* This should fail 
 fn aux1(#msf reg u64 ms, #public reg u64 p, #public reg u64 i) -> #msf reg u64, #public reg u64 {
 
    #public reg bool b;
+//   reg u64 ms;
+
+   while
+    {b = i < 0;}
+    (b)
+    { [p] = 0; p += 1; i -= 1; }
+   ms = #init_msf();
+   return (ms, p);
+
+}
+*/
+
+fn aux1(#public reg u64 p, #public reg u64 i) -> #msf reg u64, #public reg u64 {
+
+   #public reg bool b;
+   reg u64 ms;
 
    while
     {b = i < 0;}
@@ -89,8 +255,21 @@ fn aux1(#msf reg u64 ms, #public reg u64 p, #public reg u64 i) -> #msf reg u64, 
 
 }
 
+fn aux1_infer(reg u64 p, reg u64 i) -> reg u64, reg u64 {
 
-fn sum_regptr(#msf reg u64 ms, #transient reg ptr u64[1000]p) -> #msf reg u64, #public reg u64 {
+   reg bool b;
+   reg u64 ms;
+
+   while
+    {b = i < 0;}
+    (b)
+    { [p] = 0; p += 1; i -= 1; }
+   ms = #init_msf();
+   return (ms, p);
+
+}
+
+fn sum_regptr(#msf reg u64 ms, #public #transient reg ptr u64[1000]p) -> #msf reg u64, #public reg u64 {
 
    #public reg bool b;
    #transient reg u64 sum;
@@ -100,11 +279,28 @@ fn sum_regptr(#msf reg u64 ms, #transient reg ptr u64[1000]p) -> #msf reg u64, #
    while
     {b = i < 1000;}
     (b)
-    { sum += p[(int)i] ; _, ms=#set_msf(b, ms); i += 1; }
-   _, ms = #set_msf(!b, ms);
-   _, _, _, _, _, psum = #protect(sum, ms);
+    { sum += p[(int)i] ; ms=#set_msf(b, ms); i += 1; }
+   ms = #set_msf(!b, ms);
+   psum = #protect(sum, ms);
 
    return (ms, psum);
+
+}
+
+fn sum_regptr_infer(reg u64 ms, reg ptr u64[1000]p) -> reg u64, reg u64 {
+
+   reg bool b;
+   reg u64 sum, i;
+   sum = 0;
+   i = 0;
+   while
+    {b = i < 1000;}
+    (b)
+    { sum += p[(int)i] ; ms=#set_msf(b, ms); i += 1; }
+   ms = #set_msf(!b, ms);
+   sum = #protect(sum, ms);
+
+   return (ms, sum);
 
 }
 
@@ -123,7 +319,7 @@ fn usenomod() -> #public reg u64 {
    s = 0;
    rt = s;
    r = nomod();
-   _, _, _, _, _, rp = #protect(rt, ms);
+   rp = #protect(rt, ms);
    r += rp;
    [r] = 0;
    return r;

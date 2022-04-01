@@ -42,9 +42,9 @@ stdenv.mkDerivation {
     ++ optionals coqDeps [ coqPackages.coq coqword coqPackages.coq.ocamlPackages.ocaml ]
     ++ optionals testDeps ([ ocamlPackages.apron.out ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
-         ocaml findlib ocamlbuild
+         ocaml findlib ocamlbuild 
          (batteries.overrideAttrs (o: { doCheck = false; }))
-         menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
+         menhir (oP.menhirLib or null) zarith camlidl apron yojson]))
     ++ optionals devTools (with oP; [ merlin ])
     ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
     ;

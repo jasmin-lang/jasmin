@@ -63,6 +63,10 @@ and iac_instr_r loc ir =
           xn wsn
       else Copn(xs,t,Sopn.Ocopy(ws, Conv.pos_of_int (xn / wsn)), es)
     | Sopn.Ocopy _, _ -> assert false
+    | Sopn.Oprotect_ptr _, [Lvar x] ->
+      (* Fix the size it is dummy for the moment *)
+      let xn = size_of (L.unloc x).v_ty in
+      Copn(xs,t,Sopn.Oprotect_ptr (Conv.pos_of_int xn), es)
     | _ -> ir
     end
   | Csyscall (xs, (* Syscall.GetRandom *) _, es) -> 

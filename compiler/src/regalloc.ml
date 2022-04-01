@@ -118,7 +118,7 @@ let x86_equality_constraints ~loc (int_of_var: var_i -> int option) (k: int -> i
                                               kind_i x = kind_i y.gv ->
     merge k' x y.gv
   | _, _, _ ->
-    let id = get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) op in
+    let id = get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra)  (Arch_decl.arch_pd X86_decl.x86_decl) op in
       find_equality_constraints id |>
       List.iter (fun constr ->
           constr |>
@@ -584,7 +584,7 @@ struct
     let mallocate_one x y a =
       match x with Pvar x when is_gkvar x -> allocate_one x.gv y a | _ -> ()
     in
-    let id = get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) op in
+    let id = get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra)  (Arch_decl.arch_pd X86_decl.x86_decl) op in
     (* TODO: move !! *)
     let var_of_implicit v =
       match v with

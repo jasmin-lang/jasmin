@@ -298,6 +298,7 @@ val locals  : 'info func -> Sv.t
 
 (* -------------------------------------------------------------------- *)
 (* Written variables & called functions *)
+val written_vars    : 'info stmt -> Sv.t * L.i_loc list Mf.t
 val written_vars_fc : 'info func -> Sv.t * L.i_loc list Mf.t
 
 (* -------------------------------------------------------------------- *)

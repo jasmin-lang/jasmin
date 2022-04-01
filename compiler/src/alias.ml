@@ -190,7 +190,12 @@ let rec analyze_instr_r params cc a =
   | Csyscall (xs, o, es) -> link_array_return params a xs es (syscall_cc o)
 
   | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr params a x e else a
-  | Copn _ -> a 
+  | Copn (xs, _, o, es) -> 
+    begin match o, xs, es with 
+    | Oprotect_ptr _, [x], [e; _ms] -> assign_arr params a x e
+    | Oprotect_ptr _, _, _ -> assert false
+    | _, _, _ -> a (* Maybe we should add a check for no array in xs and es *)
+    end 
 
   | Cif(_, s1, s2) ->
      let a1 = analyze_stmt params cc a s1 |> normalize_map in

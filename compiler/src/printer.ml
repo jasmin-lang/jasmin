@@ -177,7 +177,7 @@ let pp_glvs pp_len pp_var fmt lvs =
 
 (* -------------------------------------------------------------------- *)
 let pp_opn o =
-  Conv.string_of_string0 ((Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) o).str ())
+  Conv.string_of_string0 ((Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra)  (Arch_decl.arch_pd X86_decl.x86_decl) o).str ())
 
 let pp_syscall (_o:Syscall.syscall_t) =
   "#randombytes"

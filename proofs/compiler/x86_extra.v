@@ -108,6 +108,7 @@ Definition Omov_msf_instr :=
                   U8 (* ? *)
                   [::].
 
+(* FIXME: the semantic should not modify the value of w *)
 Definition protect_small (ws:wsize) (w:word ws) (msf:pointer) : exec (sem_tuple (b5w_ty ws)) := 
    x86_OR w (zero_extend ws msf).
 

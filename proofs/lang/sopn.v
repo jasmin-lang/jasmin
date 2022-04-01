@@ -67,6 +67,13 @@ Variant sopn :=
 | Omulu     of wsize   (* cpu   : [sword; sword]        -> [sword;sword] *)
 | Oaddcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *)
 | Osubcarry of wsize   (* cpu   : [sword; sword; sbool] -> [sbool;sword] *) 
+(* protection for shl *)
+| Oprotect  of wsize 
+| Oprotect_ptr of positive 
+| Oset_msf    
+| Oinit_msf
+| Omov_msf
+(* other operators *)
 | Oasm      of asm_op_t.
 
 Definition sopn_beq (o1 o2:sopn) :=
@@ -76,13 +83,18 @@ Definition sopn_beq (o1 o2:sopn) :=
   | Omulu ws1, Omulu ws2 => ws1 == ws2
   | Oaddcarry ws1, Oaddcarry ws2 => ws1 == ws2
   | Osubcarry ws1, Osubcarry ws2 => ws1 == ws2
+  | Oprotect ws1, Oprotect ws2 => ws1 == ws2 
+  | Oprotect_ptr p1, Oprotect_ptr p2 => p1 == p2
+  | Oset_msf, Oset_msf => true    
+  | Oinit_msf, Oinit_msf => true
+  | Omov_msf, Omov_msf => true 
   | Oasm o1, Oasm o2 => o1 == o2 ::>
   | _, _ => false
   end.
 
 Lemma sopn_eq_axiom : Equality.axiom sopn_beq.
 Proof.
-  move=> [ws1 p1||ws1|ws1|ws1|o1] [ws2 p2||ws2|ws2|ws2|o2] /=;
+  move=> [ws1 p1||ws1|ws1|ws1|ws1|p1||||o1] [ws2 p2||ws2|ws2|ws2|ws2|p2||||o2] /=;
    first (by apply (iffP andP) => [[/eqP -> /eqP ->] | [-> ->]]);
    try by (constructor || apply: reflect_inj eqP => ?? []).
 Qed.
@@ -144,14 +156,104 @@ Definition Osubcarry_instr sz:=
            (fun x y c => let p := @wsubcarry sz x y c in ok (Some p.1, p.2))
            sz [::].
 
+Definition init_msf : exec (pointer) := 
+  ok (wrepr Uptr 0).
+
+Definition Oinit_msf_instr := 
+  mk_instr_desc (pp_s "init_msf")
+                [:: ]
+                [:: ]
+                [:: sword Uptr]
+                [:: E 0]
+                init_msf
+                U8 (* ? *)
+                [::].
+
+Definition mov_msf (w:pointer) : exec (pointer) :=
+  ok w.
+
+Definition Omov_msf_instr := 
+  mk_instr_desc (pp_s "mov_msf")
+                [:: sword Uptr]
+                [:: E 1]
+                [:: sword Uptr]
+                [:: E 0]
+                mov_msf 
+                U8 (* ? *)
+                [::].
+
+Definition protect (ws:wsize) (w:word ws) (msf:pointer) : exec (word ws) := 
+   ok w.
+
+Definition Oprotect_instr (ws:wsize) := 
+  mk_instr_desc (pp_sz "protect" ws)
+                [:: sword ws; sword Uptr]
+                [:: E 1; E 2] (* irrelevant *)
+                [:: sword ws]
+                [:: E 0]      (* irrelevant *) 
+                (@protect ws)
+                U8 (* ? *)
+                [::].
+
+Definition protect_ptr (p:positive) (a:WArray.array p) (msf:pointer) : exec (WArray.array p) := 
+  ok a.
+
+Lemma vuincl_protect_ptr p vs vs' v:
+  List.Forall2 value_uincl vs vs' ->
+  @app_sopn_v [::sarr p; sword Uptr] [::sarr p] (@protect_ptr p) vs = ok v ->
+  exists2 v' : values,
+   @app_sopn_v [::sarr p; sword Uptr] [::sarr p] (@protect_ptr p) vs' = ok v' &
+   List.Forall2 value_uincl v v'.
+Proof.
+  rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 + + hu.
+  move=> [ | v1' [ | ]]; [ by t_xrbindP | | by t_xrbindP].
+  move=> _ /List_Forall2_inv_l -[v2' [_ [-> [hu' /List_Forall2_inv_l ->]]]].
+  t_xrbindP => /=.
+  move=> t a /(value_uincl_arr hu) /= [a'] -> hut.
+  move=> ? /(value_uincl_word hu') -> /= [<-] <-.
+  by exists [::Varr a'] => //; constructor.
+Qed.
+
+Definition Oprotect_ptr_instr p := 
+  {| str      := pp_s "protect_ptr";
+     tin      := [:: sarr p; sword Uptr];
+     i_in     := [:: E 1; E 2];
+     tout     := [:: sarr p];
+     i_out    := [:: E 0];
+     semi     := @protect_ptr p;
+     semu     := @vuincl_protect_ptr p;
+     wsizei   := U8; (* ??? *)
+     i_safe   := [:: ];
+  |}.
+
+Definition set_msf (b:bool) (w: pointer) : exec (pointer) := 
+  let aux :=  wrepr Uptr (-1) in
+  let w := if ~~b then aux else w in 
+  ok (w).
+
+Definition Oset_msf_instr := 
+  mk_instr_desc (pp_s "set_msf")
+                [:: sbool; sword Uptr]
+                [:: E 0; E 1]
+                [:: sword Uptr]
+                [:: E 2]
+                set_msf
+                U8 (* ? *)
+                [::].
+
 Definition get_instr_desc o :=
   match o with
-  | Ocopy ws p   => Ocopy_instr ws p
-  | Onop         => Onop_instr
-  | Omulu     sz => Omulu_instr sz
-  | Oaddcarry sz => Oaddcarry_instr sz
-  | Osubcarry sz => Osubcarry_instr sz
-  | Oasm o       => asm_op_instr o
+  | Ocopy ws p     => Ocopy_instr ws p
+  | Onop           => Onop_instr
+  | Omulu     sz   => Omulu_instr sz
+  | Oaddcarry sz   => Oaddcarry_instr sz
+  | Osubcarry sz   => Osubcarry_instr sz
+  | Oprotect  sz   => Oprotect_instr sz
+  | Oprotect_ptr p => Oprotect_ptr_instr p
+  | Oset_msf       => Oset_msf_instr
+  | Omov_msf       => Omov_msf_instr
+  | Oinit_msf      => Oinit_msf_instr
+  | Oasm o         => asm_op_instr o
   end.
 
 Definition string_of_sopn o : string := str (get_instr_desc o) tt.

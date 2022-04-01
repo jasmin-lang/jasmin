@@ -1,196 +1,633 @@
 open Utils
 open Prog
+open Constraints
 
 module S = Syntax
 module Pt = Pretyping
 
+(* ----------------------------------------------------------- *)
+
+
+let pp_var fmt x = Printer.pp_var ~debug:false fmt x 
+
+let pp_var_i fmt x = pp_var fmt (L.unloc x)
+
+let pp_expr fmt e = Printer.pp_expr ~debug:false fmt e 
+
+let pp_lval fmt x = Printer.pp_lval ~debug:false fmt x 
+
+let pp_vset fmt xs = 
+  Format.fprintf fmt "{@[ %a @]}"  (pp_list ",@ " pp_var) (Sv.elements xs) 
+
+(* ----------------------------------------------------------- *)
 let ssecret = "secret"
 let spoly   = "poly"
 let spublic = "public"
 let stransient = "transient"
 let smsf = "msf"
 
+let sflexible = "flex"
+let sstrict   = "strict"
+
+
 (* ----------------------------------------------------------- *)
-(* Variable level                                              *)
-module Vl : sig
-  type t
-  val compare : t -> t -> int
-  (* Transient is a special variable that cannot be instantiate.
-     It represent Transient type *)
-  val transient : t
-  val is_transient : t -> bool
-  val mk_poly : string -> t
-  val pp : Format.formatter -> t -> unit
-end = struct
-
-  type t = { vl_name : string }
-
-  let compare = compare
-
-  let mk_poly name = { vl_name = name }
-  let transient = mk_poly stransient
-
-  let is_transient vl = vl = transient
-
-  let pp fmt vl = Format.fprintf fmt "%s" vl.vl_name
-end
-
-module Svl : Set.S with type elt = Vl.t = Set.Make(Vl)
-module Mvl : Map.S with type key = Vl.t = Map.Make(Vl)
-
-
-type level =
+(* Info provided by the user                                   *)
+type ulevel = 
+  | Poly of string L.located
   | Secret
-  | Poly of Svl.t (* The max of the polymorphic variables,
-                     Remark that the set can contains Transient *)
-  | Public of bool (* true means allowed to store msf variables *)
+  | Transient
+  | Public 
+  | Msf
 
-module Lvl : sig
+type uconstraints = (ulevel * ulevel) list 
 
-  type t = level
+type unomodmsf = bool option
 
-  val poly1 : Vl.t -> level
-  val transient : level
-  val secret : level
-  val public : level
-  val msf : level
 
-  val max : t -> t -> t
+(* -------------------------------------------------------------- *)
+(* Special operators to deal with msf                             *) 
+type special_op =
+  | Init_msf
+  | Set_msf
+  | Mov_msf
+  | Protect
+  | Other
 
-  val maxs : t list -> t
-
-  val equal : t -> t -> bool
-
-  val le : t -> t -> bool
-
-  val pp : Format.formatter -> level -> unit
-
-  val parse : ?dfl:level -> single:bool -> S.annotations -> level
-
-  val is_public : level -> bool
-
-  val is_msf : level -> bool
-
-  val fv : level -> Svl.t
-
-end = struct
-
-  type t = level
-
-  let poly1 vl = Poly (Svl.singleton vl)
-
-  let msf = Public true
-  let public = Public false
-  let secret = Secret
-  let transient = poly1 Vl.transient
-
-  let is_public = function
-    | Public _ -> true
-    | _ -> false
-
-  let is_msf = function
-    | Public true -> true
-    | _ -> false
-
-  let fv = function Poly s -> Svl.remove Vl.transient s | _ -> Svl.empty
-
-  let max l1 l2 =
-    match l1, l2 with
-    | Secret, _ | _, Secret -> Secret
-    | Public b1, Public b2 -> Public (b1 && b2)
-    | Public _, l | l, Public _ -> l
-    | Poly l1, Poly l2 -> Poly (Svl.union l1 l2)
-
-  let maxs ls = List.fold_left max public ls
-
-  let equal l1 l2 =
-    match l1, l2 with
-    | Public b1, Public b2 -> b1 = b2
-    | Secret, Secret -> true
-    | Poly l1, Poly l2 -> Svl.equal l1 l2
-    | _, _ -> false
-
-  (* WARNING
-     [le l1 l2] = true ensures that for all substitution of the polymorphic variables
-     the inequality will stay true.
-     [le l1 l2] = false, say that we cannot ensure this property
-   *)
-
-  let le l1 l2 =
-    match l1, l2 with
-    | Public _, _ -> true
-    | _, Secret -> true
-    | Poly l1, Poly l2 -> Svl.subset l1 l2
-    | _, _ -> false
-
-  let pp fmt = function
-    | Secret -> Format.fprintf fmt "#%s" ssecret
-    | Poly s as lvl ->
-      if equal lvl transient then Format.fprintf fmt "#%s" stransient
-      else
-        let l = Svl.elements s in
-        begin match l with
-        | [vl] -> Format.fprintf fmt "#%s=%a" spoly Vl.pp vl
-        | _ -> Format.fprintf fmt "#%s=(@[%a@])" spoly (pp_list ",@ " Vl.pp) l
-        end
-    | Public false -> Format.fprintf fmt "#%s" spublic
-    | Public true -> Format.fprintf fmt "#%s" smsf
-
-  let parse ?(dfl=secret) ~(single:bool) (annot: S.annotations) =
-    let module A = Pt.Annot in
-    let on_struct loc _nid (s:S.annotations) =
-      List.iter A.none s;
-      let s = List.fold_left (fun s (id, _) -> Svl.add (Vl.mk_poly (L.unloc id)) s) Svl.empty s in
-      if single && Svl.cardinal s <> 1 then
-        Pt.rs_tyerror ~loc
-          (Pt.string_error "= ident or = { ident } is expected after “%s”" spoly);
-      Poly s in
-    let on_id _loc _nid id = poly1 (Vl.mk_poly id) in
-    let error loc _nid =
-      Pt.rs_tyerror ~loc
-        (Pt.string_error "= ident or = { ident, ..., ident } is expected after “%s”" spoly) in
-    let poly arg = A.on_attribute ~on_id ~on_struct error arg in
-    let filters =
-      [spublic, (fun a -> A.none a; public);
-       ssecret, (fun a -> A.none a; secret);
-       stransient, (fun a -> A.none a; transient);
-       smsf, (fun a -> A.none a; msf);
-       spoly  , poly] in
-    let lvl = A.ensure_uniq filters annot in
-    odfl dfl lvl
-
-end
+let is_special o =
+  match o with
+  | Sopn.Oprotect _ -> Protect
+  | Oprotect_ptr _  -> Protect 
+  | Oset_msf        -> Set_msf
+  | Oinit_msf       -> Init_msf
+  | Omov_msf        -> Mov_msf
+  | _ -> Other
 
 (* -----------------------------------------------------------*)
+(* Type generated by the system                               *)
+
+type vty = 
+  | Direct of Lvl.t
+  | Indirect of Lvl.t * Lvl.t 
+
+let pp_vty fmt = function
+  | Direct l -> Lvl.pp fmt l 
+  | Indirect(l1,l2) -> Format.fprintf fmt "%a %a" Lvl.pp l1 Lvl.pp l2
+
+type vfty = 
+  | IsMsf 
+  | IsNormal of vty
+
+let pp_vfty fmt = function
+  | IsMsf -> Format.fprintf fmt "%s" smsf
+  | IsNormal ty -> pp_vty fmt ty
 
 type ty_fun = {
-    tyin      : level list; (* Poly are ensured to be singleton *)
-    tyout     : level list;
-    nomodmsf  : bool;
+    modmsf      : bool;
+    tyin        : vfty list; 
+    tyout       : vfty list;
+    constraints : C.constraints;
   }
 
 type 'info fenv = {
-    env_ty       : ty_fun Hf.t;
-    env_def      : 'info func list;
+    env_ty     : ty_fun Hf.t;
+    env_def    : 'info func list;
   }
 
-(* -----------------------------------------------------------*)
+module FEnv = struct 
+  let get_fun_def fenv fn = List.find (fun f -> F.equal f.f_name fn) fenv.env_def
 
+  let get_fty fenv fn =
+    try Hf.find fenv.env_ty fn with Not_found -> assert false
+
+end 
+
+let pp_modmsf fmt modmsf = 
+  Format.fprintf fmt "%s" (if modmsf then "modmsf" else "nomodmsf")
+
+let pp_funty fmt (fname, tyfun) = 
+  Format.fprintf fmt "@[<v>%a %s : @[%a@] -> @[%a@]@   constraints: @[%a@]@]"
+    pp_modmsf tyfun.modmsf 
+    fname
+    (pp_list " *@ " pp_vfty) tyfun.tyin
+    (pp_list " *@ " pp_vfty) tyfun.tyout
+    C.pp tyfun.constraints 
+
+(* --------------------------------------------------------------- *)  
+(* check if the status of msf is modified by the instructions      *)
+
+let rec modmsf_i fenv i = 
+  match i.i_desc with
+  | Csyscall _ | Cif _ | Cwhile _ -> true
+  | Cassgn _ -> false 
+  | Copn (_,_,o,_) -> 
+    begin match is_special o with 
+    | Init_msf -> (* Lfence modify msf *) true
+    | Set_msf  -> true (* not sure it is needed *)
+    | Mov_msf | Protect | Other -> false
+    end
+  | Cfor(_, _, c) -> modmsf_c fenv c
+  | Ccall (_, _, f, _) -> (FEnv.get_fty fenv f).modmsf
+
+and modmsf_c fenv c =
+  List.exists (modmsf_i fenv) c
+
+(* --------------------------------------------------------- *)
+(* Inference of the variables that need to contain msf       *)
+(* This code does not need to be trusted it is simply        *)
+(* used as an oracle                                         *)
+
+(* [is_register ~direct x] return true if x is stored in a register and 
+   if direct then x is not a pointer *)
+
+let is_register ~direct x = 
+  is_reg_kind x.v_kind && (* direct => is_reg_direct_kind *)
+    (not direct || is_reg_direct_kind x.v_kind)
+
+let ensure_register ~direct x =
+  if not (is_register ~direct (L.unloc x)) then
+    Pt.rs_tyerror ~loc:(L.loc x)
+      (Pt.string_error "the variable %a need to be a reg%s" pp_var_i x
+         (if direct then "" else " (ptr)"))
+
+let reg_lval ~direct loc x = 
+  match x with
+  | Lvar x -> ensure_register ~direct x; x
+  | _ -> 
+    Pt.rs_tyerror ~loc (Pt.string_error "%a need to be a reg%s" pp_lval x
+                          (if direct then "" else " (ptr)"))
+
+let reg_expr ~direct loc e = 
+  match e with
+  | Pvar x when is_gkvar x -> ensure_register ~direct x.gv; x.gv
+  | _ -> Pt.rs_tyerror ~loc (Pt.string_error "%a need to be a reg%s" pp_expr e
+                               (if direct then "" else " (ptr)"))
+
+
+let rec infer_msf_i fenv (tbl:(L.i_loc, Sv.t)Hashtbl.t) i ms = 
+  let loc = i.i_loc.L.base_loc in
+
+  let check_x ms x = 
+    if Sv.mem (L.unloc x) ms then 
+      Pt.rs_tyerror ~loc:(L.loc x)
+        (Pt.string_error ("the instruction assign %a which is require to be a msf")
+           pp_var_i x) in
+  
+  let check ms x = 
+    match x with
+    | Lvar x -> check_x ms x
+    | _ -> () in
+
+  let checks ms xs = List.iter (check ms) xs in
+
+  match i.i_desc with
+  | Csyscall _ -> 
+      if not (Sv.is_empty ms) then
+       Pt.rs_tyerror ~loc
+         (Pt.string_error ("syscall destroy msf variables, %a are required") pp_vset ms);
+      Sv.empty
+
+  | Cif (_, c1, c2) -> 
+    let ms1 = infer_msf_c fenv tbl c1 ms in
+    let ms2 = infer_msf_c fenv tbl c2 ms in
+    Sv.union ms1 ms2  
+
+  | Cfor(x, _, c) ->
+    check_x ms x;
+    let rec loop ms = 
+      let ms' = infer_msf_c fenv tbl c ms in
+      if Sv.subset ms' ms then (Hashtbl.add tbl i.i_loc ms'; ms')
+      else loop (Sv.union ms' ms) in
+    loop ms
+
+  | Cwhile (_, c1, _, c2) -> 
+    (* c1; while e do c2; c1 *)
+    let rec loop ms = 
+      let ms1 = infer_msf_c fenv tbl c1 ms in
+      let ms2 = infer_msf_c fenv tbl c2 ms1 in
+      if Sv.subset ms2 ms then (Hashtbl.add tbl i.i_loc ms1; ms1)
+      else loop (Sv.union ms2 ms) in
+    loop ms  
+          
+  | Cassgn _ -> 
+    ms
+
+  | Ccall(_, xs, f, es) ->
+    let fty = FEnv.get_fty fenv f in
+    let mso = 
+      if fty.modmsf then 
+        begin 
+          let doout ms vfty x = 
+            match vfty with
+            | IsMsf -> let x = reg_lval ~direct:true loc x in Sv.add (L.unloc x) ms
+            | _ -> ms in
+          let mso = List.fold_left2 doout Sv.empty fty.tyout xs in
+          if not (Sv.subset ms mso) then 
+            Pt.rs_tyerror ~loc
+              (Pt.string_error ("call destroy msf variables, %a are required")
+                 pp_vset (Sv.diff ms mso));
+          Sv.empty
+        end
+      else ms in
+    let doin ms vfty e = 
+      match vfty with
+      | IsMsf -> let x = reg_expr ~direct:true loc e in Sv.add (L.unloc x) ms 
+      | _ -> ms in
+    List.fold_left2 doin mso fty.tyin es 
+
+  | Copn (xs, _, o, es) ->
+    match is_special o, xs, es with 
+    | Init_msf, [x], _ -> 
+      let x = reg_lval ~direct:true loc x in
+      if not (Sv.subset ms (Sv.singleton (L.unloc x))) then
+        Pt.rs_tyerror ~loc
+          (Pt.string_error ("only %a is ensured to be msf after init_msf, %a are required")
+             pp_var_i x pp_vset ms); 
+      Sv.empty
+
+    | Init_msf, _, _ -> assert false 
+
+    | Set_msf, [xms], [_e; ms'] -> 
+      let xms = reg_lval ~direct:true loc xms and ms' = reg_expr ~direct:true loc ms' in
+      if not (Sv.subset ms (Sv.singleton (L.unloc xms))) then 
+        Pt.rs_tyerror ~loc
+          (Pt.string_error ("only %a is ensured to be msf after set_msf, %a are required")
+             pp_var_i xms pp_vset ms); 
+      Sv.singleton (L.unloc ms')
+
+    | Set_msf, _, _ -> assert false 
+
+    | Mov_msf, [x], [x'] -> 
+      let x = reg_lval ~direct:true loc x and x' = reg_expr ~direct:true loc x' in
+      Sv.add (L.unloc x') (Sv.remove (L.unloc x) ms)
+
+    | Mov_msf, _, _ -> assert false 
+
+    | Protect, xs, [_; ms'] -> 
+      checks ms xs;
+      let ms' = reg_expr ~direct:true loc ms' in
+      Sv.add (L.unloc ms') ms
+
+    | Protect, _, _ -> assert false 
+
+    | Other, xs, _ -> checks ms xs; ms
+
+and infer_msf_c fenv tbl c ms = 
+  List.fold_right (infer_msf_i fenv tbl) c ms
+
+(* --------------------------------------------------------- *)
+(* Typing environment                                        *)
+
+type var_kind = 
+  | Strict    
+  | Flexible  
+
+let string_of_var_kind = function
+  | Strict   -> "strict"
+  | Flexible -> "flexible"
+
+module Env : sig 
+  type env 
+  type venv 
+
+  val init : unit -> env
+  val empty : venv
+  val constraints : env -> C.constraints
+  val add_var : env -> venv -> var -> var_kind -> vty -> venv
+
+  val public    : env -> Lvl.t 
+  val transient : env -> Lvl.t 
+  val secret    : env -> Lvl.t
+
+  val dpublic    : env -> vty
+  val dtransient : env -> vty
+  val dsecret    : env -> vty
+
+  val get_i : venv -> var_i -> vty
+  val gget  : env -> venv -> int ggvar -> vty
+
+  val fresh : ?name:string -> env -> Lvl.t
+
+  val init_ty : env -> venv -> var -> vty -> venv
+  val set_ty : env -> venv -> var_i -> vty -> venv
+  val set_init_msf : env -> venv -> var_i -> venv 
+
+  val max : env -> venv -> venv -> venv
+ 
+  val get_msf_oracle : env -> (L.i_loc, Sv.t) Hashtbl.t 
+  val msf_oracle : env -> L.i_loc -> Sv.t 
+
+  val freshen : env -> Sv.t -> venv -> venv
+  val ensure_le : L.t -> venv -> venv -> unit 
+
+  val clone : env -> ty_fun -> vfty list * vfty list (* output type, input type *)
+
+end = struct 
+
+  type env = { 
+      constraints : C.constraints;
+      strictness  : var_kind Hv.t;
+      msf_oracle  : (L.i_loc, Sv.t) Hashtbl.t;
+    }
+
+  
+  (* Invariant: venv x = vty => wf vty x.v_kind 
+     where wf vty k = 
+       match k, vty with
+       | Const, Direct le -> l = public
+       | Stack Direct, Direct le -> transient <= l
+       | Stack (Pointer _), Indirect(lp, le) -> lp = transient, transient <= le
+       | Reg (_, Direct), Direct le -> true 
+       | Reg (_, Pointer _), Indirect(lp, le) -> lp <= transient, transient <= le
+       | Inline, Direct le -> l = public
+       | Global, Direct le -> l = transient
+  *)
+
+  type venv = { 
+      vtype : vty Mv.t;
+    }   
+
+  let init () = 
+    { constraints = C.init();
+      strictness = Hv.create 97;
+      msf_oracle = Hashtbl.create 97; }
+
+  let empty = { vtype = Mv.empty }
+
+  let constraints env = env.constraints 
+    
+  let public    env = C.public    env.constraints
+  let transient env = C.transient env.constraints
+  let secret    env = C.secret    env.constraints
+
+  let dpublic    env = Direct (public    env)
+  let dtransient env = Direct (transient env)
+  let dsecret    env = Direct (secret    env)
+
+  let get venv x =
+    try Mv.find x venv.vtype with Not_found -> assert false
+
+  let get_i venv (x:var_i) = get venv (L.unloc x)
+
+  let gget env venv x =
+    if is_gkvar x then get_i venv x.gv
+    else Direct (transient env)
+
+  let fresh ?name env = C.fresh ?name env.constraints 
+
+  let kind env x = 
+    try Hv.find env.strictness (L.unloc x) with Not_found -> Flexible 
+
+  let init_ty env venv x xty =
+    let transient = transient env and public = public env in
+    let le_trans le = 
+      if Lvl.le transient le then le else 
+        let l = fresh env in
+        Lvl.add_le transient l; Lvl.add_le le l;
+        l in
+    let nxty = 
+      match x.v_kind, xty with
+      | Const, Direct le -> Lvl.add_le le public; xty
+  
+      | Stack Direct, Direct le -> Direct (le_trans le)
+  
+      | Stack (Pointer _), Indirect(lp, le) -> 
+        Lvl.add_le lp transient; Indirect(transient, le_trans le)
+  
+      | Reg (_, Direct), Direct _ -> xty 
+  
+      | Reg (_, Pointer _), Indirect(lp, le) -> 
+        Lvl.add_le lp transient; Indirect(lp, le_trans le)
+  
+      | Inline, Direct le -> Lvl.add_le le public; xty
+      | Global, Direct le -> 
+        Lvl.add_le le transient; Direct transient 
+      | _, _ -> assert false 
+    in 
+    {venv with vtype = Mv.add x nxty venv.vtype}
+
+  let add_var env venv x vk vty = 
+    assert (not (Hv.mem env.strictness x || Mv.mem x venv.vtype));
+    Hv.add env.strictness x vk;
+    try init_ty env venv x vty 
+    with Lvl.Unsat _unsat ->
+      Pt.rs_tyerror ~loc:(x.v_dloc)
+        (Pt.string_error 
+           "invalid security annotations for %a, this leads to invalid constraints" 
+           pp_var x) 
+
+  let set_ty env venv x nxty =
+    let xty = get_i venv x in
+    try 
+      if kind env x = Flexible then
+        init_ty env venv (L.unloc x) nxty 
+      else
+        (begin match xty, nxty with
+        | Direct lx, Direct nlx -> Lvl.add_le nlx lx 
+        | Indirect (lp, lx), Indirect(nlp, nlx) -> Lvl.add_le nlp lp; Lvl.add_le nlx lx 
+        | _, _ -> assert false
+        end;
+        venv)
+    with Lvl.Unsat _unsat -> 
+      Pt.rs_tyerror ~loc:(L.loc x)
+        (Pt.string_error
+           "%a has strict type %a it cannot receive a value of type %a, this leads to unsatisfiable constraints"
+           pp_var_i x pp_vty xty pp_vty nxty)
+
+  let set_init_msf env venv ms = 
+    let dpublic = dpublic env in
+    let transient = transient env in
+    let public = public env in
+    let venv = set_ty env venv ms dpublic in 
+    let do_v x ty =
+      if is_reg_kind x.v_kind then
+        match ty with
+        | Direct le when Lvl.le le transient -> dpublic
+        | Indirect(lp, le) when Lvl.le lp transient -> Indirect(public, le)
+        | _ -> ty
+      else ty in
+    { vtype = Mv.mapi do_v venv.vtype }
+
+
+  let max env venv1 venv2 = 
+    let merge l1 l2 = 
+      if Lvl.equal l1 l2 then l1
+      else 
+        let l = fresh env in
+        Lvl.add_le l1 l; Lvl.add_le l2 l;
+        l in
+    
+    let doit _ oty1 oty2 = 
+      match oget oty1, oget oty2 with
+      | Direct le1, Direct le2 -> Some (Direct (merge le1 le2))
+      | Indirect(lp1, le1), Indirect(lp2, le2) -> Some (Indirect (merge lp1 lp2, merge le1 le2))
+      | _, _ -> assert false 
+    in
+    { vtype = Mv.merge doit venv1.vtype venv2.vtype }
+
+  let get_msf_oracle env = env.msf_oracle 
+
+  let msf_oracle env loc = 
+    try Hashtbl.find env.msf_oracle loc with Not_found -> assert false 
+
+  let freshen env xs venv = 
+    let fresh le = 
+      let l = fresh env in
+      Lvl.add_le le l;
+      l in
+    { vtype =
+        Sv.fold (fun x vtype -> 
+            let ty =
+              match Mv.find x vtype with
+              | Direct le -> Direct (fresh le)
+              | Indirect(lp, le) -> Indirect(fresh lp, fresh le) in
+            Mv.add x ty vtype) xs venv.vtype }
+
+  let ensure_le loc venv1 venv2 = 
+    let doit _ oty1 oty2 = 
+      begin match oget oty1, oget oty2 with
+      | Direct le1, Direct le2 -> Lvl.add_le le1 le2 
+      | Indirect(lp1, le1), Indirect(lp2, le2) ->  Lvl.add_le lp1 lp2; Lvl.add_le le1 le2
+      | _, _ -> assert false
+      end; None in
+    try ignore (Mv.merge doit venv1.vtype venv2.vtype)
+    with Lvl.Unsat _unsat -> 
+      Pt.rs_tyerror ~loc 
+        (Pt.string_error "loop constraints unsatisfiable ...")
+      
+
+  let clone (env:env) (tyfun:ty_fun) = 
+    let subst = C.clone tyfun.constraints env.constraints in
+    let doty = function
+      | IsMsf -> IsMsf
+      | IsNormal ty ->
+        let ty = 
+          match ty with
+          | Direct le -> Direct (subst le)
+          | Indirect(lp, le) -> Indirect(subst lp, subst le) in
+        IsNormal ty in
+    List.map doty tyfun.tyout, List.map doty tyfun.tyin
+
+end
+
+(* --------------------------------------------------------- *)
+let error_unsat loc (_ : Svl.t * Lvl.t list * Lvl.t * Lvl.t) pp e ety ety' =
+  Pt.rs_tyerror ~loc
+    (Pt.string_error
+       "%a has type %a it should be a most %a, this leads to unsatisfiable constraints"
+       pp e pp_vty ety pp_vty ety') 
+
+let ty_get_gen env pp_e loc e ety = 
+  match ety with
+  | Direct _ -> ety 
+  | Indirect (lp, lx) -> 
+    try Lvl.add_le lp (Env.public env); Direct lx
+    with Lvl.Unsat unsat -> 
+      error_unsat loc unsat pp_e e ety (Indirect(Env.public env, lx))
+
+(* --------------------------------------------------------- *)
+(* Type checking of expressions                              *)
+
+let ty_get env x xty = ty_get_gen env pp_var_i (L.loc x) x xty 
+
+let check_pub_addr env x xty =
+  match xty with
+  | Indirect _ -> assert false (* x should have type u64 is can not be reg/stack ptr *)
+  | Direct l ->
+    try Lvl.add_le l (Env.public env)
+    with Lvl.Unsat unsat -> 
+      error_unsat (L.loc x) unsat  pp_var_i x xty (Direct(Env.public env))
+      
+let rec ty_expr env venv loc (e:expr) : vty =
+  match e with
+  | Pconst _ | Pbool _ | Parr_init _ -> Env.dpublic env
+
+  | Pvar x -> Env.gget env venv x 
+
+  | Pget (_, _, x, i) -> 
+    let xty = Env.gget env venv x in 
+    ignore (check_ty_expr ~indirect_allowed:false env venv loc i (Env.public env));
+    ty_get env x.gv xty 
+
+  | Psub (_, _, _, x, i) ->
+    let xty = Env.gget env venv x in 
+    ignore (check_ty_expr ~indirect_allowed:true env venv loc i (Env.public env));
+    xty 
+
+  | Pload (_, x, i) ->
+    let xty = Env.get_i venv x in
+    check_pub_addr env x xty; 
+    ignore (check_ty_expr ~indirect_allowed:false env venv loc i (Env.public env));
+    (Env.dsecret env)
+
+  | Papp1(_, e)        -> ty_expr env venv loc e 
+  | Papp2(_, e1, e2)   -> ty_exprs_max env venv loc [e1; e2]
+  | PappN(_, es)       -> ty_exprs_max env venv loc es
+  | Pif(_, e1, e2, e3) -> 
+      let ty1 = ty_expr env venv loc e1 in
+      let ty2 = ty_expr env venv loc e2 in
+      let ty3 = ty_expr env venv loc e3 in
+      match ty1 with
+      | Indirect _ -> assert false 
+      | Direct l1 ->
+        let do_indirect lp2 le2 lp3 le3 =
+          let lp = Env.fresh env in
+          let le = Env.fresh env in
+          Lvl.add_le l1 lp; Lvl.add_le lp2 lp; Lvl.add_le lp3 lp;
+          Lvl.add_le l1 le; Lvl.add_le le2 le; Lvl.add_le le3 le;
+          Indirect(lp, le) in
+        match ty2, ty3 with  
+        | Direct l2, Direct l3 ->
+          let le = Env.fresh env in
+          Lvl.add_le l1 le; Lvl.add_le l2 le; Lvl.add_le l3 le;
+          Direct le
+        | Indirect(lp2, le2), Indirect(lp3, le3) ->
+          do_indirect lp2 le2 lp3 le3 
+        | Indirect(lp2, le2), Direct le3 ->
+          do_indirect lp2 le2 (Env.public env) le3
+        | Direct le2, Indirect (lp3, le3) ->
+          do_indirect (Env.public env) le2 lp3 le3   
+
+and ty_exprs_max env venv loc es : vty =
+  let l = Env.fresh env in
+  List.iter (fun e -> ignore (check_ty_expr ~indirect_allowed:false env venv loc e l)) es;
+  Direct l  
+
+and check_ty_expr ~indirect_allowed env venv loc (e:expr) l =
+  let ety = ty_expr env venv loc e in
+  begin match ety with
+  | Direct le ->
+    (try Lvl.add_le le l
+     with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety (Direct l))
+  | Indirect(lp,le) -> 
+    if indirect_allowed then
+      (try Lvl.add_le lp l 
+       with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety (Indirect(l, le)))
+    else
+      Pt.rs_tyerror ~loc (Pt.string_error 
+       "the expression %a is a reg/stack ptr this is not allowed here" pp_expr e)
+  end;
+  ety 
+
+ 
+(* ------------------------------------------------------------- *)
+(* MSF status                                                    *)
+        
 module MSF : sig
 
-  type t = Sv.t * expr option
+  type t 
   val toinit : t
-  val exact  : Sv.t -> t
   val exact1 : var_i -> t
-  val add    : var_i -> t -> t
-  val adds   : Sv.t -> t -> t
-  val trans  : Sv.t -> expr -> t
-
-  val le  : t -> t -> bool
-  val max : t -> t -> t
+  val add : var_i -> t -> t
+  val update   : t -> var  -> t
 
   val enter_if : t -> expr -> t
-  val update   : t -> var  -> t
+  val max : t -> t -> t
+  
+  val check_msf_trans : t -> var_i -> expr -> unit
+  val is_msf_exact    : t -> var_i -> bool 
+  val check_msf_exact : t -> var_i -> unit 
+  val loop : Env.env -> L.i_loc -> t -> t 
+  val end_loop : L.t -> t -> t -> t
 
   val pp : Format.formatter -> t -> unit
 
@@ -202,511 +639,679 @@ module MSF : sig
   let exact xs = (xs, None)
   let trans xs e = (xs, Some e)
 
-  let is_toinit (xs, _) = Sv.is_empty xs
+  let exact1 x = 
+    ensure_register ~direct:true x;
+    exact (Sv.singleton (L.unloc x))
 
-  let le (xs1, oe1) (xs2, oe2 as msf2) =
-    is_toinit msf2 ||
-      match oe1, oe2 with
-      | Some e1, Some e2 when Prog.expr_equal e1 e2 -> Sv.subset xs2 xs1
-      | None, None -> Sv.subset xs2 xs1
-      | _, _ -> false
-
-
-  let max (xs1, oe1) (xs2, oe2) =
-    match oe1, oe2 with
-    | Some e1, Some e2 when Prog.expr_equal e1 e2 -> (Sv.inter xs1 xs2, oe1)
-    | None, None -> (Sv.inter xs1 xs2, None)
-    | _, _ -> toinit
-
-  let enter_if msf e =
-    match msf  with
-    | (_, Some _) -> toinit
-    | (xs, None) -> (xs, Some e)
-
-  let exact1 x = exact (Sv.singleton (L.unloc x))
-
-  let add x (xs, o) =
-    (Sv.add (L.unloc x) xs, o)
-
-  let adds xs (xs', o) =
-    (Sv.union xs xs', o)
+  let add x (xs, oe) = 
+    assert (oe = None);
+    ensure_register ~direct:true x;
+    exact (Sv.add (L.unloc x) xs)
 
   let update (xs, oe) x =
     match oe with
     | Some e when Sv.mem x (vars_e e) -> toinit
     | _ -> (Sv.remove x xs, oe)
 
+  let enter_if msf e =
+    match msf  with
+    | (_, Some _) -> toinit
+    | (xs, None) -> (xs, Some e)
+
+  let max (xs1, oe1) (xs2, oe2) = 
+    match oe1, oe2 with
+    | None, None -> Sv.inter xs1 xs2, None
+    | Some e1, Some e2 when expr_equal e1 e2 -> Sv.inter xs1 xs2, Some e1
+    | _, _ -> toinit
+
+  let check_msf_trans (xs, ob) ms b = 
+    match ob with
+    | None -> Pt.rs_tyerror ~loc:(L.loc ms) (Pt.string_error "MSF is not Trans")
+    | Some b' -> 
+      if not (Prog.expr_equal b b') then
+        Pt.rs_tyerror ~loc:(L.loc ms) 
+          (Pt.string_error "the expression %a need to be equal to %a"
+             pp_expr b pp_expr  b');
+      if not (Sv.mem (L.unloc ms) xs) then
+        Pt.rs_tyerror ~loc:(L.loc ms) 
+          (Pt.string_error "the variable %a is not known to be a msf, only %a are" 
+             pp_var_i ms pp_vset xs)
+
+  let is_msf_exact (xs, ob) ms = 
+    match ob with
+    | Some _ -> false
+    | None -> Sv.mem (L.unloc ms) xs
+
+  let check_msf_exact (xs, ob) ms = 
+    match ob with
+    | Some b -> 
+      Pt.rs_tyerror ~loc:(L.loc ms) (Pt.string_error "MSF is Trans %a"  pp_expr b)
+    | None -> 
+      if not (Sv.mem (L.unloc ms) xs) then
+        Pt.rs_tyerror ~loc:(L.loc ms) 
+          (Pt.string_error "the variable %a is not known to be a msf, only %a are" 
+             pp_var_i ms pp_vset xs)
+
   let pp fmt (xs, oe) =
     match oe with
-    | Some e ->
-        Format.fprintf fmt "Trans {%a} %a"
-          (pp_list "@, " (Printer.pp_var ~debug:false)) (Sv.elements xs)
-          (Printer.pp_expr ~debug:false) e
-    | None ->
-        Format.fprintf fmt "Exact {%a}"
-          (pp_list "@, " (Printer.pp_var ~debug:false)) (Sv.elements xs)
+    | Some e -> Format.fprintf fmt "Trans %a %a" pp_vset xs pp_expr e
+    | None   -> Format.fprintf fmt "Exact %a" pp_vset xs
 
+  let loop env loc ((xs, oe) as msf) = 
+    let xs' = Env.msf_oracle env loc in 
+    if Sv.subset xs' xs then (xs', oe)
+    else 
+      Pt.rs_tyerror ~loc:(loc.L.base_loc) 
+        (Pt.string_error "current msf = %a, it should contains %a"
+             pp msf pp_vset (Sv.diff xs' xs))
+
+  let end_loop loc ((xsi, oei) as msfi) ((xso, oeo) as msfo)=
+    if Sv.subset xsi xso then
+      begin match oei, oeo with
+      | None, None -> msfi
+      | Some ei, Some eo when expr_equal ei eo -> msfi
+      | _, _ -> 
+        if not (Sv.is_empty xsi) then
+          Pt.rs_tyerror ~loc
+            (Pt.string_error "msf is %a it should be be at least %a"
+             pp msfo pp msfi);
+        toinit
+      end
+    else 
+      Pt.rs_tyerror ~loc
+        (Pt.string_error "msf is %a it should be be at least %a"
+           pp msfo pp msfi)
+ 
+ 
 end
 
-let is_register x = is_reg_direct_kind x.v_kind
+(* --------------------------------------------------------- *)
+(* Type checking of lvalue                                   *)
+type msf_e = MSF.t * Env.venv 
 
-let is_inline x = x.v_kind = Inline
-
-module Env : sig
-
-  type env
-  val empty : nomodmsf:bool -> env
-  val add : env -> var -> level -> env
-  val get : env -> var -> level
-  val get_i : env -> var_i -> level
-  val gget  : env -> int ggvar -> level
-  val get_nomodmsf : env -> bool
-
-end = struct
-
-  type env = {
-    vlvl : Lvl.t Mv.t;
-    nomodmsf : bool;
-  }
-
-  let empty ~nomodmsf = {vlvl = Mv.empty; nomodmsf}
-
-  let get_nomodmsf env = env.nomodmsf
-
-  let add env x lvl =
-    if Lvl.is_msf lvl && not (is_register x) then
-      Pt.rs_tyerror ~loc:x.v_dloc
-        (Pt.string_error "only register can be declared with type %a" Lvl.pp lvl);
-    if Lvl.is_public lvl && not (is_register x || is_inline x) then
-      Pt.rs_tyerror ~loc:x.v_dloc
-        (Pt.string_error "only register or inline can be declared with type %a" Lvl.pp lvl);
-    let lvl =
-      if (is_register x || is_inline x) then lvl
-      else Lvl.max lvl Lvl.transient in
-    {vlvl = Mv.add x lvl env.vlvl; nomodmsf = env.nomodmsf}
-
-  let get env x =
-    try Mv.find x env.vlvl with Not_found -> assert false
-
-  let get_i env (x:var_i) = get env (L.unloc x)
-
-  let gget env x =
-    if is_gkvar x then get_i env x.gv
-    else Lvl.transient
-
-end
-
-(* -----------------------------------------------------------*)
-
-module UE = struct
-
-  type unienv = (Vl.t, level) Hashtbl.t
-
-  let create n = Hashtbl.create n
-
-  let get (ue:unienv) vl =
-    try Hashtbl.find ue vl with Not_found -> Lvl.public
-
-  let set (ue:unienv) s lvl =
-    assert (Svl.cardinal s = 1);
-    let vl = Svl.choose s in
-    Hashtbl.add ue vl (Lvl.max (get ue vl) lvl)
-
-end (* UE *)
-
-let instanciate ue ty =
-  match ty with
-  | Secret | Public _ -> ty
-  | Poly s -> Svl.fold (fun vl lvl -> Lvl.max (UE.get ue vl) lvl) s Lvl.public
-
-let instanciates ue tys =
-  List.map (instanciate ue) tys
-
-(* -----------------------------------------------------------*)
-
-(* [ty_expr ~lvl env e] return [lvl'] such that [env |- e : lvl'] and [lvl' <= lvl]
-   Remark lvl is assumed to be >= Lvl.public
- *)
-
-let check_var x lvl lvl' =
-  if not (Lvl.le lvl' lvl) then
-    Pt.rs_tyerror ~loc:(L.loc x)
-      (Pt.string_error
-         "The variable %a has type %a it should be a most %a"
-         (Printer.pp_var ~debug:false) (L.unloc x)
-           Lvl.pp lvl' Lvl.pp lvl)
-
-let ty_get_gvar ~(lvl:level) env x =
-  let lvl' = Env.gget env x in
-  check_var x.gv lvl lvl';
-  lvl'
-
-let ty_get_var ~(lvl:level) env x =
-  let lvl' = Env.get_i env x in
-  check_var x lvl lvl';
-  lvl'
-
-let rec ty_expr ~(lvl:level) env (e:expr) =
-  match e with
-  | Pconst _ | Pbool _ | Parr_init _ -> Lvl.public
-
-  | Pvar x -> ty_get_gvar ~lvl env x
-
-  | Pget (_, _, x, i) | Psub (_, _, _, x, i) ->
-    let ty = ty_get_gvar ~lvl env x in
-    let _  = ty_expr ~lvl:Lvl.public env i in
-    ty
-
-  | Pload (_, x, i) ->
-    let _ = ty_get_var ~lvl:Lvl.public env x in
-    let _ = ty_expr ~lvl:Lvl.public env i in
-    if not (Lvl.le Lvl.secret lvl) then
-      Pt.rs_tyerror ~loc:(L.loc x) (Pt.string_error "loads are secret, %a data required here" Lvl.pp lvl);
-    Lvl.secret
-
-  | Papp1(_, e)        -> ty_expr ~lvl env e
-  | Papp2(_, e1, e2)   -> ty_exprs_max ~lvl env [e1; e2]
-  | PappN(_, es)       -> ty_exprs_max ~lvl env es
-  | Pif(_, e1, e2, e3) -> ty_exprs_max ~lvl env [e1; e2; e3]
-
-and ty_exprs ~lvl env es =
-  List.map (ty_expr ~lvl env) es
-
-and ty_exprs_max ~lvl env es =
-  let lvls = ty_exprs ~lvl env es in
-  Lvl.maxs lvls
-
-(* -----------------------------------------------------------*)
-let ty_lval env msf x lvl =
-  let check x lvl xlvl =
-    if not (Lvl.le lvl xlvl) then
-      Pt.rs_tyerror ~loc:(L.loc x) (Pt.string_error "cannot assign a value of type %a into a variable of type %a"
-                                      Lvl.pp lvl Lvl.pp xlvl);
-  MSF.update msf (L.unloc x)
-  in
+let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
+  (* First path the type ety to make it consistant with the variable info *)
   match x with
-  | Lnone _ -> msf
-  | Lvar x -> check x lvl (Env.get_i env x)
+  | Lnone _ -> msf_e
+  | Lvar x -> 
+    let k = kind_i x in
+    let xty = 
+      let lp, le = 
+        match ety with
+        | Direct le -> Env.public env, le
+        | Indirect(lp, le) -> lp, le in
+      if is_ptr k then 
+        let lp = if is_reg_ptr_kind k then lp else Env.transient env in
+        Indirect(lp, le)  
+      else
+        if is_stack_kind k then 
+          let l = Env.fresh env in
+          Lvl.add_le (Env.transient env) l;
+          Lvl.add_le le l;
+          Direct l
+        else Direct le in
+    let msf = MSF.update msf (L.unloc x) in
+    let venv = Env.set_ty env venv x xty in
+    msf, venv  
+  
   | Lmem(_, x, i) ->
-    let _ = ty_get_var ~lvl:Lvl.public env x in
-    let _ = ty_expr ~lvl:Lvl.public env i in
-    msf
-  | Laset(_, _, x, i) | Lasub(_, _, _, x, i) ->
-    (* x[i] = e is x = x[i <- e] *)
-    let _  = ty_expr ~lvl:Lvl.public env i in
-    check x lvl (Env.get_i env x)
+    let xty = Env.get_i venv x in
+    check_pub_addr env x xty; 
+    ignore (check_ty_expr ~indirect_allowed:false env venv (L.loc x) i (Env.public env));
+    msf_e
 
-let ty_lvals env msf xs lvls =
-  List.fold_left2 (ty_lval env) msf xs lvls
+  | Laset(_, _, x, i) ->
+    let xty = Env.get_i venv x in 
+    ignore (check_ty_expr ~indirect_allowed:false env venv (L.loc x) i (Env.public env));
+    let le = match ety with Direct le | Indirect(_, le) -> le in
+    let xty = 
+      let l = Env.fresh env in
+      match xty with 
+      | Direct lx -> Lvl.add_le lx l; Lvl.add_le le l; Direct l
+      | Indirect (lp, lx) -> 
+          Lvl.add_le lx l; Lvl.add_le le l; 
+          let xty = Indirect (lp, l) in
+          ignore (ty_get env x xty);
+          xty in
 
-let ty_lvals1 env msf xs lvl =
-  List.fold_left (fun msf x -> ty_lval env msf x lvl) msf xs
+      let venv = Env.set_ty env venv x xty in
+      msf, venv
 
-(* -----------------------------------------------------------*)
+  | Lasub(_, _, _, x, i) ->
+    let xty = Env.get_i venv x in 
+    ignore (check_ty_expr ~indirect_allowed:false env venv (L.loc x) i (Env.public env));
+    let le = match ety with Direct le | Indirect(_, le) -> le in
+    let xty = 
+      let l = Env.fresh env in
+      match xty with 
+      | Direct lx -> Lvl.add_le lx l; Lvl.add_le le l; Direct l
+      | Indirect (lp, lx) -> Lvl.add_le lx l; Lvl.add_le le l; Indirect (lp, l) in
+    let venv = Env.set_ty env venv x xty in
+    msf, venv
 
+let ty_lvals1 env (msf_e : msf_e) xs ety : msf_e = 
+  List.fold_left (fun msf_e x -> ty_lval env msf_e x ety) msf_e xs 
+
+let ty_lvals env (msf_e : msf_e) xs tys : msf_e = 
+  List.fold_left2 (ty_lval env) msf_e xs tys
+
+(* -------------------------------------------------------------- *)
+(* declassify                                                     *)
 let sdeclassify = "declassify"
 
 let is_declasify annot =
   Pt.Annot.ensure_uniq1 sdeclassify Pt.Annot.none annot <> None
 
+let declassify_lvl env l = 
+  if Lvl.is_public l then l
+  else Env.transient env
 
-let declassify = function
-  | Secret | Poly _ -> Lvl.transient
-  | Public _ as lvl -> lvl
+let declassify env = function
+  | Direct le          -> Direct (declassify_lvl env le)
+  | Indirect (lp, le)  -> Indirect (lp, declassify_lvl env le)
 
-let declassify_lvl annot lvl =
-  if is_declasify annot then declassify lvl
-  else lvl
+let declassify_ty env annot ty =
+  if is_declasify annot then declassify env ty 
+  else ty
 
-let declassify_lvls annot lvls =
-  if is_declasify annot then List.map declassify lvls
-  else lvls
+let declassify_tys env annot tys =
+  if is_declasify annot then List.map (declassify env) tys 
+  else tys
 
-(* -----------------------------------------------------------*)
-
-let get_annot f =
-  let mk_dfl x = if is_inline x then Lvl.public else Lvl.secret in
-  let ain  = List.map (fun x -> Lvl.parse ~dfl:(mk_dfl x) ~single:true x.v_annot) f.f_args in
-  (* Compute the set of polymorphic variables allowed in declarations *)
-  let vpoly = List.fold_left (fun vp l -> Svl.union (Lvl.fv l) vp) Svl.empty ain in
-
-  let do_annot ?dfl loc ty =
-    let lvl = Lvl.parse ?dfl ~single:false ty in
-    let fv = Lvl.fv lvl in
-    if not (Svl.subset fv vpoly) then
-      Pt.rs_tyerror ~loc
-        (Pt.string_error "%a levels need to be declared in paramater annotations"
-           (pp_list ",@ " Vl.pp) (Svl.elements (Svl.diff fv vpoly)));
-    lvl in
-
-  let aout = List.map (do_annot f.f_loc) f.f_outannot in
-
-  (* Compute the local variables info *)
-  let do_local x = x, do_annot ~dfl:(mk_dfl x) x.v_dloc x.v_annot in
-  let ldecls = List.map do_local (Sv.elements (Prog.locals f)) in
-
-  (* Compute the nomodmsf *)
-  let nomodmsf = Pretyping.Annot.ensure_uniq1 "nomodmsf" Pretyping.Annot.none f.f_user_annot in
-  let nomodmsf = nomodmsf <> None in
-  ain, aout, ldecls, nomodmsf
-
-(* -----------------------------------------------------------*)
-
-type special_op =
-  | Init_msf
-  | Set_msf
-  | Mov_msf
-  | Protect
-  | Other
-
-let is_special o =
-  match o with
-  | Sopn.Oasm (Arch_extra.ExtOp (X86_extra.Oprotect _)) -> Protect
-  | Oasm (ExtOp Oset_msf)  -> Set_msf
-  | Oasm (ExtOp Oinit_msf) -> Init_msf
-  | Oasm (ExtOp Omov_msf)  -> Mov_msf
-  | _ -> Other
-
-(* -----------------------------------------------------------*)
-
-let ensure_msf env x =
-  let lvl = Env.get_i env x in
-  if not (lvl = Lvl.msf) then
-    Pt.rs_tyerror ~loc:(L.loc x)
-      (Pt.string_error "the variable %a needs to be declared with type %a"
-         (Printer.pp_var ~debug:false) (L.unloc x) Lvl.pp Lvl.msf)
-
-
-let ensure_in_x env ~(exact:bool) msf x =
-  match msf with
-  | (xS, Some e) when exact ->
-    Pt.rs_tyerror ~loc:(L.loc x) (Pt.string_error "Current state is Trans ({%a}, %a), use #set_msf before"
-                          (pp_list ",@ " (Printer.pp_var ~debug:false)) (Sv.elements xS)
-                          (Printer.pp_expr ~debug:false) e)
-  | (xS, _) ->
-      if not (Sv.mem (L.unloc x) xS) then
-        Pt.rs_tyerror ~loc:(L.loc x)
-          (Pt.string_error "the variable %a is not a msf only {@[%a@]} are"
-             (Printer.pp_var ~debug:false) (L.unloc x)
-             (pp_list ",@ " (Printer.pp_var ~debug:false)) (Sv.elements xS));
-      ensure_msf env x
-
-let ensure_in ~loc env ~exact msf xe =
-  match xe with
-  | Pvar x -> ensure_in_x env ~exact msf x.gv
-  | _ ->
-      Pt.rs_tyerror ~loc  (Pt.string_error "the expression %a need to be a variable"
-                               (Printer.pp_expr ~debug:false) xe)
-
-let ensure_exact_x env msf x =
-  ensure_in_x env ~exact:true msf x
-
-let ensure_exact ~loc env msf xe =
-  ensure_in ~loc env ~exact:true msf xe
-
-let ensure_regvar ~loc expr =
-  match expr with
-  | Pvar x -> if not (is_register (L.unloc x.gv)) then
-                Pt.rs_tyerror ~loc  (Pt.string_error "the variable %a needs to be a register"
-                                        (Printer.pp_expr ~debug:false) expr)
-  | _ -> Pt.rs_tyerror ~loc  (Pt.string_error "the expression %a needs to be a variable of kind register"
-                                  (Printer.pp_expr ~debug:false) expr)
-
-let check_nomodmsf env instr =
-  if (Env.get_nomodmsf env) then
-    Pt.rs_tyerror ~loc:(instr.i_loc.base_loc)
-      (Pt.string_error "#nomodmsf function has an instruction that modifies the MSF state")
-
-let check_nomodmsf_call env fty instr =
-  if (Env.get_nomodmsf env && not (fty.nomodmsf)) then
-    Pt.rs_tyerror ~loc:(instr.i_loc.base_loc)
-      (Pt.string_error "calling a non #nomodmsf function from #nomodmsf function")
-
-
+(* --------------------------------------------------------------- *)  
 (* [ty_instr env msf i] return msf' such that env, msf |- i : msf' *)
 
-let rec ty_instr fenv env msf i =
-  let msf1 =
+let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
+  let loc = i.i_loc.L.base_loc in
   match i.i_desc with
-  | Csyscall (xs, _, es) ->
-    check_nomodmsf env i;
-    let _lvl = ty_exprs_max ~lvl:Lvl.secret env es in
-    ignore (ty_lvals1 env msf xs Lvl.secret);
+  | Csyscall (xs, _o, es) ->
+    (* FIXME make the constraints on es dependant of the syscall _o *)
+    let check_pub_ptr e = 
+      let ety = ty_expr env venv loc e in
+      ignore (ty_get_gen env pp_expr loc e ety) in 
+    List.iter check_pub_ptr es;
     (* We don't known what happen to MSF after external function call *)
-    MSF.toinit
+    ty_lvals1 env (MSF.toinit, venv) xs (Env.dsecret env)
   | Cassgn(x, _, _, e) ->
-    let lvl = ty_expr ~lvl:Lvl.secret env e in
-    ty_lval env msf x (declassify_lvl i.i_annot lvl)
+    let ety = ty_expr env venv loc e in
+    ty_lval env msf_e x (declassify_ty env i.i_annot ety)
 
   | Copn(xs, _, o, es) ->
-    let loc = i.i_loc.base_loc in
-    begin match is_special o with
-    | Init_msf ->
-      check_nomodmsf env i;
-      begin match xs with
-      | [Lvar x] ->
-        ensure_msf env x;
-        MSF.exact1 x
-      | [Lnone _] -> MSF.toinit
-      | _ -> Pt.rs_tyerror ~loc (Pt.string_error "the result of #init_msf needs to be assigned in a register")
-      end
+    begin match is_special o, xs, es with
+    | Init_msf, [ms], _ ->
+      let ms = reg_lval ~direct:true loc ms in
+      let venv = Env.set_init_msf env venv ms in
+      MSF.exact1 ms, venv 
 
-    | Set_msf ->
-      check_nomodmsf env i;
-      begin match msf with
-      | (_, None) -> Pt.rs_tyerror ~loc (Pt.string_error "MSF is not Trans")
-      | (xS, Some b') ->
-        match es with
-        | [b; Pvar ms] ->
-          if not (Sv.mem (L.unloc ms.gv) xS) then
-            Pt.rs_tyerror ~loc:(L.loc ms.gv)
-              (Pt.string_error "the variable %a is not a msf only {@[%a@]} are"
-                  (Printer.pp_var ~debug:false) (L.unloc ms.gv)
-                  (pp_list ",@ " (Printer.pp_var ~debug:false)) (Sv.elements xS));
-          if not (expr_equal b b') then
-            Pt.rs_tyerror ~loc (Pt.string_error "the expression %a should be %a"
-                                (Printer.pp_expr ~debug:false) b
-                                (Printer.pp_expr ~debug:false) b');
-          begin match xs with
-          | [_; Lvar ms'] ->
-            ensure_msf env ms';
-            MSF.exact1 ms'
-          | [_; e] ->
-             Pt.rs_tyerror ~loc  (Pt.string_error "the expression %a need to be a variable"
-                                  (Printer.pp_lval ~debug:false) e)
-          | _ -> assert false
-          end
-      | [_; e] ->
-          Pt.rs_tyerror ~loc  (Pt.string_error "the expression %a need to be a variable"
-                                  (Printer.pp_expr ~debug:false) e)
-      | _ -> assert false
-      end
+    | Init_msf, _, _ -> assert false 
 
-    | Mov_msf ->
-      let loc = i.i_loc.base_loc in
-      begin match es with
-      | [ms] ->
-        ensure_in ~loc env ~exact:false msf ms;
-        begin match xs with
-        | [Lvar x] -> MSF.add x msf
-        | _ -> Pt.rs_tyerror ~loc (Pt.string_error "the result of #mov_msf needs to be assigned in a register")
-        end
-      | _ -> assert false
-      end
+    | Set_msf, [mso], [b; msi] ->
+      let mso = reg_lval ~direct:true loc mso and msi = reg_expr ~direct:true loc msi in
+      (* do not check b, if check_msf_trans succeed then b is public *)
+      MSF.check_msf_trans msf msi b;
+      let _, venv = ty_lvals1 env (msf, venv) xs (Env.dpublic env) in
+      MSF.exact1 mso, venv 
+  
+    | Set_msf, _, _ -> assert false 
 
-    | Protect ->
-      let loc = i.i_loc.base_loc in
-      begin match es with
-      | [e1; ms] ->
-        ensure_exact ~loc env msf ms;
-        ensure_regvar ~loc e1;
-        let _ = ty_expr ~lvl:Lvl.transient env e1 in
-        ty_lvals1 env msf xs Lvl.public
-      | _ -> assert false
-      end
+    | Mov_msf, [mso], [msi] ->
+      let mso = reg_lval ~direct:true loc mso and msi = reg_expr ~direct:true loc msi in
+      MSF.check_msf_exact msf msi;
+      MSF.add mso msf, Env.set_ty env venv mso (Env.dpublic env)
 
-    | Other  ->
-        let lvl = ty_exprs_max ~lvl:Lvl.secret env es in
-        ty_lvals1 env msf xs (declassify_lvl i.i_annot lvl)
+    | Mov_msf, _, _ -> assert false 
+
+    | Protect, [x], [e; ms] ->
+      let _ = reg_lval ~direct:false loc x and _ = reg_expr ~direct:false loc e and 
+          ms = reg_expr ~direct:true loc ms in
+      MSF.check_msf_exact msf ms;
+      let ety = check_ty_expr ~indirect_allowed:true env venv loc e (Env.transient env) in
+      let xty = 
+        match ety with
+        | Direct _ -> Env.dpublic env
+        | Indirect (_, le) -> Indirect (Env.public env, le) in
+      ty_lval env msf_e x xty 
+    
+    | Protect, _, _ -> assert false 
+
+    | Other, _, _  ->
+        (* FIXME allows to add more constraints on es depending on the operators, like for div *)
+        let ety = ty_exprs_max env venv loc es in
+        ty_lvals1 env msf_e xs (declassify_ty env i.i_annot ety)
     end
 
   | Cif(e, c1, c2) ->
-    check_nomodmsf env i;
-    let _ = ty_expr ~lvl:Lvl.public env e in
-    let msf1 = ty_cmd fenv env (MSF.enter_if msf e) c1 in
-    let msf2 = ty_cmd fenv env (MSF.enter_if msf (Papp1(Onot, e))) c2 in
-    MSF.max msf1 msf2
+    let _ = check_ty_expr ~indirect_allowed:false env venv loc e (Env.public env) in 
+    let msf1, venv1 = ty_cmd fenv env (MSF.enter_if msf e, venv) c1 in
+    let msf2, venv2 = ty_cmd fenv env (MSF.enter_if msf (Papp1(Onot, e)), venv) c2 in
+    MSF.max msf1 msf2, Env.max env venv1 venv2
 
   | Cfor(x, (_, e1, e2), c) ->
-    let _ = ty_exprs ~lvl:Lvl.public env [e1; e2] in
-    let rec loop msf =
-      let msf1 = ty_lval env msf (Lvar x) Lvl.public in
-      let msf2 = ty_cmd fenv env msf1 c in (*  env, msf |- x = p; c : msf2 *)
-      if MSF.le msf2 msf then msf
-      else loop (MSF.max msf2 msf) in
-    loop msf
+    let _ = ignore (check_ty_expr ~indirect_allowed:false env venv loc e1 (Env.public env)) in
+    let _ = ignore (check_ty_expr ~indirect_allowed:false env venv loc e2 (Env.public env)) in
+
+    let msf = MSF.loop env i.i_loc msf in 
+    let w, _ = written_vars [i] in
+    let venv1 = Env.freshen env w venv in (* venv <= venv1 *)
+    let msf_e = ty_lval env (msf, venv1) (Lvar x) (Env.dpublic env) in
+    let (msf', venv') = ty_cmd fenv env msf_e c in
+    let msf' = MSF.end_loop loc msf msf' in
+    Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
+    msf', venv1 
 
   | Cwhile(_, c1, e, c2) ->
     (* c1; while e do c2; c1 *)
-    (* env, msf |- c1 : msf1   env, msf1 |- e : public   env, enter_if e msf1 |- c2 : msf
+    (* env, msf <= env1, msf1
+       env1, msf1 |- c1 : msf2, env2   env2 |- e : public   
+       env2, enter_if e msf2 |- c2 : env1, msf1
        --------------------------------------------------------------------------------
        env, msf |- while c1 e c2 : enter_if e msf1
      *)
-    check_nomodmsf env i;
-    let rec loop msf =
-      let msf1 = ty_cmd fenv env msf c1 in   (* msf |- c1 : msf1 *)
-      let _ = ty_expr ~lvl:Lvl.public env e in
-      let msf2 = ty_cmd fenv env (MSF.enter_if msf1 e) c2 in  (* env, msf1 |- c2 : msf2 *)
-      if MSF.le msf2 msf then msf1
-      else loop (MSF.max msf2 msf) in
-    let msf = loop msf in
-    MSF.enter_if msf (Papp1(Onot, e))
+
+    let msf1 = MSF.loop env i.i_loc msf in 
+    let w, _ = written_vars [i] in
+    let venv1 = Env.freshen env w venv in (* venv <= venv1 *)
+    let (msf2, venv2) = ty_cmd fenv env (msf1, venv1) c1 in
+    let _ = ignore (check_ty_expr ~indirect_allowed:false env venv2 loc e (Env.public env)) in
+    let (msf', venv') = ty_cmd fenv env (MSF.enter_if msf2 e, venv2) c2 in
+    let msf' = MSF.end_loop loc msf1 msf' in
+    Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
+    MSF.enter_if msf' (Papp1(Onot, e)), venv1
 
   | Ccall (_, xs, f, es) ->
-    let loc = i.i_loc.base_loc in
-    let fty = get_fun fenv f in
-    check_nomodmsf_call env fty i;
-    (* Check the arguments *)
-    let ue = UE.create 31 in
-    let do_e e lvl =
-      match lvl with
-      | Public b ->
-        if b (* lvl = Lvl.msf *) then
-          ensure_exact ~loc env msf e
-        else ignore (ty_expr ~lvl env e)
-      | Secret -> ignore (ty_expr ~lvl env e)
-      | Poly l -> (* ensured to be a single element*)
-        let l' = Svl.choose l in
-        if l' = Vl.transient then ignore (ty_expr ~lvl env e)
-        else
-          let elvl = ty_expr ~lvl:Lvl.secret env e in
-          UE.set ue l elvl in
-    List.iter2 do_e es fty.tyin;
-    let tout = declassify_lvls i.i_annot (instanciates ue fty.tyout) in
-    let msf = ty_lvals env msf xs tout in
-    let do_out xs x lvl =
-      if Lvl.equal lvl Lvl.msf then
-        let x = match x with Lvar x -> L.unloc x
-                | _ -> Pt.rs_tyerror ~loc  (Pt.string_error "the left value %a need to be a variable"
-                                  (Printer.pp_lval ~debug:false) x) in
-        Sv.add x xs
-      else xs in
-    let out_ms = List.fold_left2 do_out Sv.empty xs tout in
-    if fty.nomodmsf then MSF.adds out_ms msf
-    else MSF.exact out_ms
-  in
-  if !Glob_options.debug then
-    Format.eprintf "%a: @[<v>before %a@ after %a@]@." L.pp_loc (i.i_loc.base_loc) MSF.pp msf MSF.pp msf1;
-  msf1
+    let fty = FEnv.get_fty fenv f in
+    let modmsf = fty.modmsf in
+    let tyout, tyin = Env.clone env fty in
+    (* check the input types *)
+    let doin e vfty = 
+      match vfty with
+      | IsMsf -> 
+        (* we don't check that e is public, it is ensured by being msf *)
+        let ms = reg_expr ~direct:true loc e in
+        MSF.check_msf_exact msf ms
+      | IsNormal ety' ->
+        let ety = ty_expr env venv loc e in
+        try match ety, ety' with
+        | Direct le, Direct le' -> Lvl.add_le le le'
+        | Direct le, Indirect (_, le') -> Lvl.add_le le le'
+        | Indirect(lp, le), Direct le' -> Lvl.add_le lp (Env.public env); Lvl.add_le le le'
+        | Indirect(lp, le), Indirect(lp', le') -> Lvl.add_le lp lp'; Lvl.add_le le le'
+        with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety ety' in
+    List.iter2 doin es tyin;
+    (* compute the resulting venv *)
+    let doout msf_e x vfty =
+      let ty = 
+        match vfty with
+        | IsMsf -> Env.dpublic env
+        | IsNormal ty -> declassify_ty env i.i_annot ty in 
+      let (msf, venv) = ty_lval env msf_e x ty in
+      let msf = if vfty = IsMsf then MSF.add (reg_lval ~direct:true loc x) msf else msf in
+      (msf, venv) in
+    List.fold_left2 doout ((if modmsf then MSF.toinit else msf), venv) xs tyout
+  
+and ty_cmd fenv env msf_e c =
+  List.fold_left (ty_instr fenv env) msf_e c
 
-and ty_cmd fenv env msf c =
-  List.fold_left (ty_instr fenv env) msf c
 
-and get_fun fenv f =
-  try Hf.find fenv.env_ty f
+
+(* ------------------------------------------------------------------- *)
+(* Do the inference + type checking of function                        *)
+(*
+#nomodmsf #constraints = "l1 <= transient, l2 <= l1"
+   fn f (#public #secret reg u64[1] x, #poly = l1 stack u8 c) ->
+        #poly=l1 #poly=l2 u64[1] 
+*)
+
+let parse_var_annot ~(kind_allowed:bool) ~(msf:bool) (annot: S.annotations) : ulevel list * var_kind = 
+  let module A = Pt.Annot in
+  let kind = 
+    let check_allowed (id,_) = 
+      if not kind_allowed then
+        Pt.rs_tyerror ~loc:(L.loc id) 
+          (Pt.string_error "%s not allowed here" (L.unloc id))
+      in
+    let filters = 
+      [ sflexible, (fun a -> check_allowed a; A.none a; Flexible);
+        sstrict,   (fun a -> check_allowed a; A.none a; Strict)] in
+    A.ensure_uniq filters annot in
+
+  let poly arg =  
+    let error loc = 
+      Pt.rs_tyerror ~loc 
+        (Pt.string_error "= ident or = { ident } is expected after “%s”" spoly) in
+
+    let mk_poly loc _nid id = 
+      if id = stransient || id = spublic || id = ssecret then 
+        Pt.rs_tyerror ~loc
+          (Pt.string_error "%s not allowed as argument of %s" id spoly);
+      Poly (L.mk_loc loc id) in
+
+    let on_struct loc _nid (s:S.annotations) = 
+      List.iter A.none s;
+      if List.length s <> 1 then error loc;
+      let (s, _) = List.hd s in
+      mk_poly (L.loc s) _nid (L.unloc s) in
+
+    let on_id loc _nid id = mk_poly loc _nid id in
+
+    A.on_attribute ~on_id ~on_struct error arg in
+
+  let filters = 
+    [spublic, (fun a -> A.none a; Public);
+     ssecret, (fun a -> A.none a; Secret);
+     stransient, (fun a -> A.none a; Transient);
+     spoly  , poly] in
+
+  let filters = 
+    if msf then (smsf, (fun a -> A.none a; Msf))::filters else filters in
+
+  let lvls = A.process_annot filters annot in
+
+  List.map snd lvls, odfl Flexible kind
+
+
+(*
+  var_kind = 
+  | Strict    
+  | Flexible  
+
+  ulevel =
+  | Poly of string
+  | Transient 
+  | Secret
+  | Public 
+  | Msf
+  
+*)
+
+exception Error_after of string * string
+
+let parse_constraints (s:string) : (string * string) list =
+  let error expected s n = 
+    raise (Error_after (expected, String.sub s 0 n)) in
+
+  let is_blank c = c = ' ' || c = '\n' || c = '\t' in
+  
+  let rec check_blank expected s first last =
+    if first >= last then ()
+    else if is_blank s.[first] then 
+      check_blank expected s (first + 1) last 
+    else error expected s first in
+
+  let search expected re s n =
+    let first = 
+      try Str.search_forward re s n 
+      with Not_found -> error expected s n in
+    let sub = Str.matched_string s in
+    let next = Str.match_end () in   
+    check_blank expected s n first;
+    sub, next in
+
+  let rec skip_blank s n = 
+    if n < String.length s && is_blank s.[n] then skip_blank s (n+1) else n in
+       
+  let ident s n = search "ident" (Str.regexp "[A-Za-z0-9]+") s n in
+
+  let is_le s n = snd (search "<=" (Str.regexp "<=") s n) in
+
+  let is_comma s n = snd (search "," (Str.regexp ",") s n) in
+  
+  let parse_c s n = 
+    let l1, n = ident s n in
+    let n = is_le s n in
+    let l2, n = ident s n in
+    (l1, l2), n in
+
+  let rec parse_rec acc s n =
+    let n = skip_blank s n in
+    if String.length s <= n then acc 
+    else 
+      let n = is_comma s n in
+      let c, n = parse_c s n in
+      parse_rec (c::acc) s n in
+
+  let n = skip_blank s 0 in
+  if String.length s <= n then [] 
+  else
+    let c, n = parse_c s n in
+    parse_rec [c] s n 
+
+let parse_user_constraints (a:Syntax.annotations) : (string * string) list =
+  let module A = Pretyping.Annot in
+  let sconstraints = "constraints" in
+  let on_string loc _ s = 
+    try parse_constraints s
+    with Error_after(kw, s) -> 
+      Pt.rs_tyerror ~loc
+          (Pt.string_error "%s expected after %s" kw s) in
+  let error loc = 
+    Pt.rs_tyerror ~loc
+          (Pt.string_error "attribute for %s should be a string" sconstraints) in
+    
+   List.flatten 
+     (List.map snd (A.process_annot [ sconstraints, A.on_attribute ~on_string error] a))
+ 
+let init_constraint fenv f =
+  let env = Env.init () in
+  let venv = Env.empty in
+  let tbl = Hashtbl.create 97 in
+  Hashtbl.add tbl spublic    (Env.public env);
+  Hashtbl.add tbl stransient (Env.transient env);
+  Hashtbl.add tbl ssecret    (Env.secret env);
+  (* export function: all input type should be at most transient and msf is not allowed *)
+  let export = f.f_cc = Export in
+
+  let add_lvl s = 
+    let s = L.unloc s in
+    try Hashtbl.find tbl s 
+    with Not_found ->
+      let l = Env.fresh ~name:s env in
+      Hashtbl.add tbl s l;
+      l in
+
+  let to_lvl = function 
+      | Poly s -> add_lvl s
+      | Secret -> Env.secret env
+      | Transient -> Env.transient env
+      | Public | Msf -> Env.public env in
+
+  let error_msf loc = 
+    Pt.rs_tyerror ~loc
+      (Pt.string_error "%s annotation not allowed here" smsf) in 
+
+  let mk_vty loc ~(msf:bool) x ls =
+    let msf, ovty = 
+      match ls with
+      | [] -> None, None
+      | [l] -> 
+        if not msf && l = Msf then error_msf loc; 
+        Some (l = Msf), Some(Direct (to_lvl l))
+      | [l1; l2] -> 
+        if (l1 = Msf || l2 = Msf) then error_msf loc;
+        Some false, Some(Indirect (to_lvl l1, to_lvl l2))
+      | _ ->
+        Pt.rs_tyerror ~loc:(x.v_dloc)
+          (Pt.string_error "invalid security annotations %a" pp_var x) in
+    let vty = 
+      match ovty with
+      | None -> 
+        begin match x.v_kind with 
+        | Const -> Env.dpublic env 
+        | Stack Direct -> Direct (Env.fresh env)
+        | Stack (Pointer _) -> Indirect(Env.transient env, Env.fresh env)
+        | Reg (_, Direct) -> Direct (Env.fresh env)
+        | Reg (_, Pointer _) ->
+          let lp = Env.fresh env in
+          Lvl.add_le lp (Env.transient env);
+          Indirect(lp, Env.fresh env)  
+        | Inline -> Env.dpublic env 
+        | Global -> Env.dtransient env 
+        end
+      | Some ty ->
+        begin match x.v_kind, ty with 
+        | Const, Direct _ -> ()
+        | Stack Direct, Direct _ -> ()
+        | Stack (Pointer _), Indirect _ -> ()
+        | Reg (_, Direct), Direct _ -> () 
+        | Reg (_, Pointer _), Indirect _ -> ()
+        | Inline, Direct _ -> () 
+        | Global, Direct _ -> () 
+        | _ -> 
+          Pt.rs_tyerror ~loc
+            (Pt.string_error "invalid security annotations for %a" pp_var x) 
+        end; ty in
+    msf, vty in
+
+  let process_return x annot =
+    let loc = L.loc x and x = L.unloc x in
+    let ls, _ = parse_var_annot ~kind_allowed:false ~msf:(not export) annot in
+    mk_vty loc ~msf:(not export) x ls in
+
+  let tyout = List.map2 process_return f.f_ret f.f_outannot in
+ 
+  (* infer msf_oracle info *)
+  let msfs =
+    infer_msf_c fenv (Env.get_msf_oracle env) f.f_body
+      (List.fold_left2 (fun s x (msf, _) -> 
+           if odfl false msf then Sv.add (L.unloc x) s else s)
+         Sv.empty f.f_ret tyout) in
+
+  if export && not (Sv.is_empty msfs) then
+    Pt.rs_tyerror ~loc:f.f_loc
+      (Pt.string_error 
+         "%a need to be a msf, this is not allowed in export function" pp_vset msfs);
+        
+  let process_param venv x = 
+    let ls, vk = parse_var_annot ~kind_allowed:true ~msf:(not export) x.v_annot in
+    let msf, vty = mk_vty x.v_dloc ~msf:(not export) x ls in
+    let msf = 
+      match msf with
+      | None -> Sv.mem x msfs
+      | Some b ->
+        if b <> Sv.mem x msfs then
+          Pt.rs_tyerror ~loc:x.v_dloc 
+            (Pt.string_error "%a %sneed to be a msf" pp_var x (if b then "do not " else ""));
+        b in
+    if export then 
+      begin match vty with
+      | Direct l ->
+        begin 
+          try Lvl.add_le (Env.transient env) l 
+          with Lvl.Unsat _unsat -> 
+            Pt.rs_tyerror ~loc:(x.v_dloc)
+              (Pt.string_error "security annotation for %a should be a leat %s" 
+                 pp_var x stransient) 
+        end
+          
+      | _ -> assert false
+      end;
+    let venv = Env.add_var env venv x vk vty in
+    let ty = if msf then IsMsf else IsNormal vty in
+    venv, ty in
+    
+  let venv, tyin = List.map_fold process_param venv f.f_args in
+
+  (* build the constraints *)
+  let do_constraint (s1, s2) = 
+    let get s = 
+      try Hashtbl.find tbl s 
+      with Not_found -> 
+        Pt.rs_tyerror ~loc:f.f_loc (Pt.string_error "unbound security level %s" s) in
+    try Lvl.add_le (get s1) (get s2)
+    with Lvl.Unsat _unsat ->
+      Pt.rs_tyerror ~loc:f.f_loc 
+        (Pt.string_error "cannot add constraint %s <= %s, it is inconsistant" s1 s2) in
+  List.iter do_constraint (parse_user_constraints f.f_user_annot);
+
+  (* init type for local *)
+  let do_local venv x = 
+    let ls, vk = parse_var_annot ~kind_allowed:true ~msf:false x.v_annot in
+    let _, vty = mk_vty x.v_dloc ~msf:false x ls in
+    Env.add_var env venv x vk vty in
+
+  let venv = List.fold_left do_local venv (Sv.elements (locals f)) in
+
+  (* infer modmsf and check consistancy with user info *)
+  let modmsf = modmsf_c fenv f.f_body in
+  let umodmsf = 
+    Pretyping.Annot.ensure_uniq 
+       ["modmsf", (fun a -> Pt.Annot.none a; true);
+        "nomodmsf", (fun a -> Pt.Annot.none a; false)] f.f_user_annot in
+  begin match umodmsf with
+  | None -> ()
+  | Some umodmsf ->
+    if umodmsf <> modmsf then
+      Pt.rs_tyerror ~loc:f.f_loc 
+        (Pt.string_error "annotation %a should be %a" pp_modmsf umodmsf pp_modmsf modmsf)
+  end;
+
+  env, venv, tyin, tyout, modmsf 
+
+
+let rec ty_fun fenv fn =
+  try Hf.find fenv.env_ty fn 
   with Not_found ->
-    let fty = ty_fun fenv f in
-    Hf.add fenv.env_ty f fty;
+    let fty = ty_fun_infer fenv fn in
+    Hf.add fenv.env_ty fn fty;
     fty
 
-and ty_fun fenv fn =
-  (* TODO: we should have this defined *)
-  let f = List.find (fun f -> F.equal f.f_name fn) fenv.env_def in
-  let tyin, tyout, ldecls, nomodmsf = get_annot f in                                        (* TODO: Need to get the annotation about nomodmsf from function *)
-  let env = List.fold_left2 Env.add (Env.empty ~nomodmsf) f.f_args tyin in
-  let env = List.fold_left (fun env (x,lvl) -> Env.add env x lvl) env ldecls in
-  let do_x xs x lvl =
-    if Lvl.equal lvl Lvl.msf then Sv.add x xs
-    else xs in
-  let msf = MSF.exact (List.fold_left2 do_x Sv.empty f.f_args tyin) in
-  let msf = ty_cmd fenv env msf f.f_body in
-  (* Check the return *)
-  let check_ret x lvl =
-    if Lvl.equal lvl Lvl.msf then ensure_exact_x env msf x
-    else ignore (ty_expr lvl env (Pvar (gkvar x))) in
-  List.iter2 check_ret f.f_ret tyout;
-  Format.eprintf "SCT type checking of %s done@." f.f_name.fn_name;
-  {tyin; tyout; nomodmsf}
+and ty_fun_infer fenv fn = 
+  let f = FEnv.get_fun_def fenv fn in
+  (* First compute all function call by f and recurse *)
+  let _, called = written_vars_fc f in
+  Mf.iter (fun fn _ -> ignore (ty_fun fenv fn)) called;
+  let env, venv, tyin, tyout, modmsf = init_constraint fenv f in
+  (* init msf status *)
+  let msf = 
+    List.fold_left2 (fun msf x ty -> 
+        if ty = IsMsf then MSF.add (L.mk_loc x.v_dloc x) msf else msf)
+      MSF.toinit f.f_args tyin in
+  (* start type checking of the body *)
+  let msf, venv = ty_cmd fenv env (msf, venv) f.f_body in
+  (* build the resulting type *)
+  let doout x (omsf, ty) =
+    let le_ty ty1 ty2 = 
+      try 
+        match ty1, ty2 with
+        | Direct le1, Direct le2 -> Lvl.add_le le1 le2
+        | Indirect(lp1, le1), Indirect(lp2, le2) ->
+          Lvl.add_le lp1 lp2; Lvl.add_le le1 le2 
+        | _, _ -> assert false 
+      with Lvl.Unsat _unsat ->
+        Pt.rs_tyerror ~loc:(L.loc x)
+          (Pt.string_error "return type for %a is %a it should be less that %a"
+             pp_var_i x pp_vty ty1 pp_vty ty2) in
+    match omsf with
+    | Some true  -> MSF.check_msf_exact msf x; IsMsf
+    | Some false -> 
+      if MSF.is_msf_exact msf x then
+        Pt.rs_tyerror ~loc:(L.loc x)
+          (Pt.string_error "return annotation for %a should be %s" pp_var_i x smsf);
+      le_ty (Env.get_i venv x) ty;
+      IsNormal ty
+    | None ->
+      if MSF.is_msf_exact msf x then IsMsf
+      else (le_ty (Env.get_i venv x) ty; IsNormal ty) in
+           
+  let tyout = List.map2 doout f.f_ret tyout in
+
+  let constraints = Env.constraints env in
+  let add ls vty = 
+    match vty with
+    | IsMsf -> ls
+    | IsNormal (Direct le) -> le::ls
+    | IsNormal (Indirect(lp,le)) -> lp::le::ls in
+  let to_keep = List.fold_left add (List.fold_left add [] tyin) tyout in
+  
+  C.prune constraints to_keep;
+  let fty = { modmsf; tyin; tyout; constraints } in
+  Format.eprintf "%a@." pp_funty (f.f_name.fn_name, fty);
+  let tomax = List.fold_left add [] tyin in
+  let tomin = List.fold_left add [] tyout in
+  C.optimize constraints ~tomin ~tomax;
+  Format.eprintf "after optimization:@.%a@." pp_funty (f.f_name.fn_name, fty); 
+  fty 
+
 
 let ty_prog (prog:'info prog) fl =
   let prog = snd prog in
@@ -717,6 +1322,8 @@ let ty_prog (prog:'info prog) fl =
     else
       let get fn =
         try (List.find (fun f -> f.f_name.fn_name = fn) prog).f_name
-        with Not_found -> hierror ~loc:Lnone ~kind:"constant type checker" "unknown function %s" fn in
+        with Not_found -> 
+          hierror ~loc:Lnone ~kind:"speculative constant type checker" "unknown function %s" fn in
       List.map get fl in
-  List.iter (fun fn -> ignore (get_fun fenv fn)) fl
+  List.iter (fun fn -> ignore (ty_fun fenv fn)) fl
+

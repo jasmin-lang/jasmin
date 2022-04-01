@@ -463,7 +463,13 @@ Definition assemble_sopn rip ii (op:sopn) (outx : lvals) (inx : pexprs) :=
   | Onop
   | Omulu     _ 
   | Oaddcarry _ 
-  | Osubcarry _ =>
+  | Osubcarry _ 
+  (* Those are source level instruction they have been removed *)
+  | Oprotect _ 
+  | Oprotect_ptr _ 
+  | Oset_msf 
+  | Oinit_msf 
+  | Omov_msf =>
     Error (E.internal_error ii "assemble_sopn : invalid op")
   (* Low level x86 operations *)
   | Oasm (BaseOp op) =>
