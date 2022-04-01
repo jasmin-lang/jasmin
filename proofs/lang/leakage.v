@@ -41,9 +41,6 @@ Definition get_seq_leak_e (l : leak_e) : seq leak_e :=
   | _ => [::]
   end.
 
-Definition get_nth_leak (m: leak_es) n : leak_e :=
-  nth LEmpty m n.
-
 (* ------------------------------------------------------------------------ *)
 (* Leakage trees and leakage transformations. *)
 
