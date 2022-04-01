@@ -92,21 +92,4 @@ Module Array.
     if ((0 <=? x) && (x <? Zpos s))%Z then ok (FArray.set a x (ok v))
     else Error ErrOob.
 
-  Lemma getP_inv T s (a:array s T) x t:
-    get a x = ok t -> ((0 <=? x) && (x <? Zpos s))%Z.
-  Proof. by rewrite /get;case: ifP. Qed.
-
-  Lemma getP_empty T s x w: get (@empty T s) x <> ok w.
-  Proof. by rewrite /get/empty FArray.get0;case:ifP. Qed.
-
-  Lemma setP_inv T s (a:array s T) x v t:
-    set a x v = ok t ->
-    0 <= x < Z.pos s.
-  Proof.
-    rewrite /set.
-    case Hind: ((0 <=? x) && (x <? Z.pos s))=> // _.
-    move: Hind=> /andP [H1 H2].
-    split; [by apply/Z.leb_le|by apply/Z.ltb_lt].
-  Qed.
-
 End Array.
