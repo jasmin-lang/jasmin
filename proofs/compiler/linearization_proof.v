@@ -225,13 +225,6 @@ Proof.
   all: by case/andP => -> /h.
 Qed.
 
-Lemma find_label_cat_tl c2 c1 lbl p:
-  find_label lbl c1 = ok p -> find_label lbl (c1++c2) = ok p.
-Proof.
-  rewrite /find_label;case:ifPn => // Hs [<-].
-  by rewrite find_cat size_cat has_find Hs (ltn_addr _ Hs).
-Qed.
-
 Lemma find_labelE lbl c :
   find_label lbl c =
   if c is i :: c'
@@ -336,14 +329,6 @@ Qed.
 
 Lemma add_align_nil ii a c : add_align ii a c = add_align ii a [::] ++ c.
 Proof. by case: a. Qed.
-
-Lemma find_label_add_align lbl ii a c :
-  find_label lbl (add_align ii a c) =
-  Let n := find_label lbl c in ok ((a == Align) + n).
-Proof.
-  case: a => /=;last by case: find_label.
-  by rewrite /add_align -cat1s find_label_cat_hd.
-Qed.
 
 Section LINEARIZE_PARAMS.
 
@@ -2286,11 +2271,6 @@ Section PROOF.
       exact: ok_m.
     exact: M'.
   Qed.
-
-  Lemma vm_uincl_set_RSP m vm vm' :
-    vm_uincl vm vm' →
-    vm_uincl (set_RSP p m vm) (set_RSP p m vm').
-  Proof. move => h; apply: (set_vm_uincl h); exact: pval_uincl_refl. Qed.
 
   Lemma RSP_in_magic :
     Sv.In vrsp (magic_variables p).
