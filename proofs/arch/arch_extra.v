@@ -36,12 +36,6 @@ Proof.
   by rewrite stringsE -map_comp (map_inj_uniq (T1:=ceqT_eqType)) ?(enum_uniq (T:=cfinT_finType)).
 Qed.
 
-Lemma inj_of_string s1 s2 r :
-     of_string s1 = Some r
-  -> of_string s2 = Some r
-  -> s1 = s2.
-Proof. by move=> /of_stringI <- /of_stringI <-. Qed.
-
 (* -------------------------------------------------------------------- *)
 Definition to_var r :=
   {| vtype := rtype; vname := to_string r |}.
