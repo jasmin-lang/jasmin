@@ -43,11 +43,9 @@ let rec pp_e_tr fmt =
   | LT_rev -> p "rev"
 
 let rec pp_il fmt =
-  let p s = fprintf fmt "%s" s in
   let aux fmt ils = pp_list ";@." pp_il fmt ils in
   function
-  | LT_ilkeep -> p "ilkeep"
-  | LT_ilkeepa -> p "ilkeepa"
+  | LT_ilopn tr -> fprintf fmt "opn(%a)" pp_e_tr tr
   | LT_ilcond_0 (e, f) -> fprintf fmt "cond0(%a, %a)" pp_e_tr e aux f
   | LT_ilcond_0' (e, f) -> fprintf fmt "cond0'(%a, %a)" pp_e_tr e aux f
   | LT_ilcond (e, f, g) -> fprintf fmt "cond(%a, %a, %a)" pp_e_tr e aux f aux g
