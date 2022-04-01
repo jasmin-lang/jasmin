@@ -221,32 +221,6 @@ Section PROOF.
       exists x, i1, op, i2.
   Qed.
 
-  Lemma set_get_word vm1 vm2 sz xn v:
-    let x := {| vtype := sword sz; vname := xn |} in
-    get_var vm1 x = ok v ->
-    set_var vm1 x v = ok vm2 ->
-    vm1 =v vm2.
-  Proof.
-    rewrite /get_var /set_var.
-    apply: on_vuP=> //= t Hr <- /= [<-].
-    have -> /= := sumbool_of_boolET (pw_proof t).
-    move => z.
-    set x0 := {| vtype := _; vname := xn |}.
-    case: (x0 =P z) => [<-|/eqP Hne];rewrite ?Fv.setP_eq ?Fv.setP_neq //.
-    by rewrite -/x0 Hr;case: (t).
-  Qed.
-
-  Lemma get_var_word sz w x vm:
-    get_var vm x = ok (@Vword sz w) ->
-    exists sz', vtype x = sword sz' /\ (sz <= sz')%CMP.
-  Proof.
-    move: x=> [vt vn]; rewrite /=.
-    rewrite /get_var /on_vu.
-    case Hv: vm.[_]=> /= [v|[] //] [] H {Hv}.
-    case: vt v H => //= sz' v /Vword_inj [e ];subst => /= ?.
-    by exists sz';split=> //;apply pw_proof.
-  Qed.
-
   Local Lemma Hopn_aux s0 ii xs t o es v vs s1 s2 :
     sem_pexprs gd s1 es = ok vs ->
     exec_sopn o vs = ok v ->
