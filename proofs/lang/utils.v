@@ -1064,26 +1064,6 @@ Fixpoint list_to_rev (ub : nat) :=
 
 Definition list_to ub := rev (list_to_rev ub).
 
-Definition list_from_to (lb : nat) (ub : nat) :=
-  map (fun x => x + lb)%nat (list_to (ub - lb)).
-
-Definition conc_map aT bT (f : aT -> seq bT) (l : seq aT) :=
-  flatten (map f l).
-
-Definition oeq aT (f : aT -> aT -> Prop) (o1 o2 : option aT) :=
-  match o1, o2 with
-  | Some x1, Some x2 => f x1 x2
-  | None,    None    => true
-  | _ ,      _       => false
-  end.
-
-Definition req eT aT (f : aT -> aT -> Prop) (o1 o2 : result eT aT) :=
-  match o1, o2 with
-  | Ok x1,   Ok x2 => f x1 x2
-  | Error _, Error _ => true
-  | _ ,       _      => false
-  end.
-
 Lemma Forall2_trans (A B C:Type) l2 (R1:A->B->Prop) (R2:B->C->Prop)
                     l1 l3 (R3:A->C->Prop)  :
    (forall b a c, R1 a b -> R2 b c -> R3 a c) ->
@@ -1353,17 +1333,6 @@ Proof.
   constructor=> [[] [] | [] [] [] c | [] []] //=; apply ctrans_Eq.
 Qed.
 
-Polymorphic Instance equiv_iffT: Equivalence iffT.
-Proof.
-  split.
-  + by move=> x;split;apply id.
-  + by move=> x1 x2 []??;split.
-  move=> x1 x2 x3 [??] [??];constructor;auto.
-Qed.
-
-Polymorphic Instance subrelation_iff_arrow : subrelation iffT arrow.
-Proof. by move=> ?? []. Qed.
-
 Polymorphic Instance subrelation_iff_flip_arrow : subrelation iffT (flip arrow).
 Proof. by move=> ?? []. Qed.
 
@@ -1386,10 +1355,6 @@ Lemma Pos_lt_leb_trans y x z:
   (x <? y)%positive -> (y <=? z)%positive -> (x <? z)%positive.
 Proof. move=> /P_ltP ? /P_leP ?;apply /P_ltP; Lia.lia. Qed.
 
-Lemma Pos_le_ltb_trans y x z:
-  (x <=? y)%positive -> (y <? z)%positive -> (x <? z)%positive.
-Proof. move=> /P_leP ? /P_ltP ?;apply /P_ltP; Lia.lia. Qed.
-
 Lemma pos_eqP : Equality.axiom Pos.eqb.
 Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Pos.eqb_eq. Qed.
 
@@ -1408,12 +1373,6 @@ Proof.
   apply Pos.compare_eq.
 Qed.
 
-Lemma Z_eqP : Equality.axiom Z.eqb.
-Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Z.eqb_eq. Qed.
-
-(*Definition Z_eqMixin := EqMixin Z_eqP.
-Canonical  Z_eqType  := EqType Z Z_eqMixin. *)
-
 Instance ZO : Cmp Z.compare.
 Proof.
   constructor.
@@ -1424,20 +1383,6 @@ Proof.
     + by apply: Z.lt_trans H1 H2.
     by apply: Z.lt_trans H2 H1.
   apply Z.compare_eq.
-Qed.
-
-Lemma Z_to_nat_subn z1 z2 : 0 <= z1 -> 0 <= z2 -> z2 <= z1 ->
-  Z.to_nat (z1 - z2) = (Z.to_nat z1 - Z.to_nat z2)%nat.
-Proof.
-case: z1 z2 => [|n1|n1] [|n2|n2] //=; try by rewrite /Z.le.
-+ by move=> _ _ _; rewrite subn0.
-move=> _ _; rewrite -[_ <= _]/(n2 <= n1)%positive => le.
-have := Z.pos_sub_discr n1 n2; case: Z.pos_sub => /=.
-+ by move=> ->; rewrite subnn.
-+ move=> p ->; rewrite Pos2Nat.inj_add.
-  by rewrite -[plus _ _]/(addn _ _) addnC addnK.
-+ move=> p ->; apply/esym/eqP; rewrite subn_eq0.
-  by rewrite Pos2Nat.inj_add leq_addr.
 Qed.
 
 Lemma Z_to_nat_le0 z : z <= 0 -> Z.to_nat z = 0%N.
@@ -1454,31 +1399,8 @@ Lemma dup (P : Prop) : P -> dup_spec P.
 Proof. by move=> ?; split. Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma drop_add {T : Type} (s : seq T) (n m : nat) :
-  drop n (drop m s) = drop (n+m) s.
-Proof.
-elim: s n m => // x s ih [|n] [|m] //;
-  by rewrite !(drop0, drop_cons, addn0, addnS).
-Qed.
-
-(* -------------------------------------------------------------------- *)
-Lemma inj_drop {T : Type} (s : seq T) (n m : nat) :
-  (n <= size s)%nat -> (m <= size s)%nat -> drop n s = drop m s -> n = m.
-Proof.
-move => /leP hn /leP hm he; have := size_drop n s.
-rewrite he size_drop /subn /subn_rec; Psatz.lia.
-Qed.
-
 Definition ZleP : ∀ x y, reflect (x <= y) (x <=? y) := Z.leb_spec0.
 Definition ZltP : ∀ x y, reflect (x < y) (x <? y) := Z.ltb_spec0.
-
-Lemma eq_dec_refl
-           (T: Type) (dec: ∀ x y : T, { x = y } + { x ≠ y })
-           (x: T) : dec x x = left erefl.
-Proof.
-case: (dec _ _) => // e; apply: f_equal.
-exact: Eqdep_dec.UIP_dec.
-Qed.
 
 (* ------------------------------------------------------------------------- *)
 
@@ -1572,11 +1494,6 @@ Proof.
   + by apply/allP => i; rewrite in_ziota !zify.
   by elim/list_all_ind => // i l; rewrite !zify => *;apply hcons.
 Qed.
-  
-Lemma eq_map_ziota (T:Type) p1 p2 (f1 f2: Z -> T) :
-  (forall i, (p1 <= i < p1 + p2)%Z -> f1 i = f2 i) ->
-  map f1 (ziota p1 p2) = map f2 (ziota p1 p2).
-Proof. by move=> h; apply ziota_ind => //= i l /h -> ->. Qed.
 
 Lemma all_ziota p1 p2 (f1 f2: Z -> bool) :
   (forall i, (p1 <= i < p1 + p2)%Z -> f1 i = f2 i) ->
