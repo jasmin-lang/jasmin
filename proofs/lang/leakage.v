@@ -34,28 +34,6 @@ Notation leak_for := (seq leak_c) (only parsing).
 
 Notation leak_fun := (funname * leak_c)%type.
 
-Section Eq_leak_e.
-
-Variable eq_leak_e : leak_e -> leak_e -> bool.
-
-Fixpoint eq_leak_es (les: seq leak_e) (les': seq leak_e) : bool :=
-match les, les' with 
-| [::], [::] => true
-| x::xs, y::ys=> eq_leak_e x y && eq_leak_es xs ys
-| _,_=> false
-end.
-
-End Eq_leak_e.
-
-Fixpoint eq_leak_e (le: leak_e) (le' : leak_e) : bool :=
-match le, le' with 
- | LEmpty, LEmpty=> true
- | LIdx z, LIdx z'=> z==z'
- | LAdr p, LAdr p'=> p==p'
- | LSub le, LSub le'=> eq_leak_es eq_leak_e le le'
- | _, _=> false
-end.
-
 (* ------------------------------------------------------------------------ *)
 Definition get_seq_leak_e (l : leak_e) : seq leak_e := 
   match l with 
