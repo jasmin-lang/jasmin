@@ -6,7 +6,7 @@ authors: [ "Jasmin Team <jasmin@example.com>" ]
 homepage: "http://jasmin-lang.github.io/"
 bug-reports: "https://github.com/jasmin-lang/jasmin/issues"
 synopsis: "High-Assurance and High-Speed Cryptography"
-license: "CeCILL-B"
+license: "MIT"
 
 build: [
   make "build"
