@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect.
-Require Import Utf8 oseq nat_extra.
+Require Import Utf8 oseq.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
