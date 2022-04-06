@@ -26,8 +26,8 @@ depends: [
   "yojson"
   "ocamlbuild"
   "ocamlfind"
-  "coq" {>= "8.14.0" & < "8.15"}
-  "coq-mathcomp-ssreflect" {>= "1.12" & < "1.14"}
+  "coq" {>= "8.14.0" & < "8.16"}
+  "coq-mathcomp-ssreflect" {>= "1.12" & < "1.15"}
   "coq-mathcomp-algebra"
   "coq-mathcomp-word"
 ]
