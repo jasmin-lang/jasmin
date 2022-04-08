@@ -21,6 +21,7 @@ Require Import
   dead_code
   inline
   linearization
+  lowering
   makeReferenceArguments
   propagate_inline
   remove_globals
@@ -257,8 +258,8 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   in
 
   let pl :=
-    lop_lower_prog
-      loparams
+    lower_prog
+      (lop_lower_i loparams)
       (lowering_opt cparams)
       (warning cparams)
       (lowering_vars cparams)

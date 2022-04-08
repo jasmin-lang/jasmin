@@ -12,6 +12,7 @@ Require Import
 Require
   linearization
   linearization_proof
+  lowering
   stack_alloc
   stack_alloc_proof.
 
@@ -23,15 +24,14 @@ Unset Printing Implicit Defensive.
 Record lowering_params
   `{asmop : asmOp} (fresh_vars lowering_options : Type) :=
   {
-    (* Lower a program to architecture-specific instructions. *)
-    lop_lower_prog :
-      lowering_options     (* Lowering options depend on the architecture. *)
+    (* Lower an instruction to architecture-specific instructions. *)
+    lop_lower_i :
+      lowering_options      (* Lowering options depend on the architecture. *)
       -> (instr_info -> warning_msg -> instr_info)
       -> fresh_vars
-      -> forall (eft : eqType) (pT : progT eft),
-           (var_i -> bool)    (* Whether the variable is in memory. *)
-           -> prog            (* Source program. *)
-           -> prog;
+      -> (var_i -> bool)    (* Whether the variable is in memory. *)
+      -> instr              (* Source instruction. *)
+      -> cmd;
 
     (* Whether all fresh vars are different from each other and
      from those in a list of function declarations. *)
@@ -88,8 +88,8 @@ Record h_lowering_params
         (va vr : seq value),
         sem_call p ev mem f va mem' vr
         -> let lprog :=
-             lop_lower_prog
-               loparams
+             lowering.lower_prog
+               (lop_lower_i loparams)
                options
                warning
                fv

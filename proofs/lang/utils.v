@@ -1081,6 +1081,9 @@ Proof.
    by case => ? [?] [->] [??]; constructor; eauto.
 Qed.
 
+Definition conc_map aT bT (f : aT -> seq bT) (l : seq aT) :=
+  flatten (map f l).
+
 (* -------------------------------------------------------------------------- *)
 (* Operators to build comparison                                              *)
 (* ---------------------------------------------------------------------------*)

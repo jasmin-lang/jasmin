@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Import ZArith psem compiler_util lea_proof arch_extra x86_instr_decl x86_extra.
+Require Import ZArith psem compiler_util lea_proof arch_extra x86_instr_decl x86_extra lowering.
 Require Export x86_lowering.
 Import Utf8.
 Import Psatz.
@@ -27,6 +27,11 @@ Section PROOF.
   Context (warning: instr_info -> warning_msg -> instr_info).
   Variable fv : fresh_vars.
   Context (is_var_in_memory: var_i → bool).
+
+  Notation lower_prog :=
+    (lower_prog lower_i options warning fv is_var_in_memory).
+  Notation lower_cmd :=
+    (lower_cmd lower_i options warning fv is_var_in_memory).
 
   Hypothesis fvars_correct: fvars_correct fv (p_funcs p).
 
@@ -72,7 +77,7 @@ Section PROOF.
   Local Hint Resolve of_in_fv cf_in_fv sf_in_fv pf_in_fv zf_in_fv multiplicand_in_fv : core.
 
   Local
-  Definition p' := lower_prog options warning fv is_var_in_memory p.
+  Definition p' := lower_prog p.
 
   Definition eq_exc_fresh s1 s2 :=
     s1.(emem) = s2.(emem) /\ s1.(evm) = s2.(evm) [\ fvars].
@@ -135,12 +140,12 @@ Section PROOF.
   Let Pc s (c:cmd) s' :=
     disj_fvars (vars_c c) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem p' ev s1 (lower_cmd (lower_i options warning fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem p' ev s1 (lower_cmd c) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pfor (i:var_i) vs s c s' :=
     disj_fvars (Sv.union (vars_c c) (Sv.singleton i)) ->
     forall s1, eq_exc_fresh s1 s ->
-      exists s1', sem_for p' ev i vs s1 (lower_cmd (lower_i options warning fv is_var_in_memory) c) s1' /\ eq_exc_fresh s1' s'.
+      exists s1', sem_for p' ev i vs s1 (lower_cmd c) s1' /\ eq_exc_fresh s1' s'.
 
   Let Pfun m1 fn vargs m2 vres :=
     sem_call p' ev m1 fn vargs m2 vres.
