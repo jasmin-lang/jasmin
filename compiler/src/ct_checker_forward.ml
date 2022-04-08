@@ -22,7 +22,7 @@ end = struct
     { vl_name : string
     ; vl_flex : bool }
 
-  let compare = compare 
+  let compare vl1 vl2 = String.compare vl1.vl_name vl2.vl_name
 
   let is_flex vl = vl.vl_flex
   let is_poly vl = not vl.vl_flex
@@ -115,7 +115,7 @@ end = struct
       let l = Svl.elements s in
       begin match l with
       | [vl] -> Format.fprintf fmt "#%s=%a" spoly Vl.pp vl
-      | _ -> Format.fprintf fmt "#%s=(@[%a@])" spoly (pp_list ",@ " Vl.pp) l 
+      | _ -> Format.fprintf fmt "#%s={@[%a@]}" spoly (pp_list ",@ " Vl.pp) l
       end
     | Public -> Format.fprintf fmt "#%s" spublic
 
@@ -415,12 +415,30 @@ let get_annot ensure_annot f =
     (check_defined "result types" aout; 
      check_defined "function parameters" (List.map snd ain));
   (* fill the missing input type *)
+  (* we collect the existing levels, to avoid a name clash *)
+  let used_lvls =
+    let f acc lvl =
+      match lvl with
+      | Some (Poly s) -> Svl.union s acc
+      | _ -> acc
+    in
+    let lvls = List.fold_left f Svl.empty (List.map snd ain) in
+    List.fold_left f lvls aout
+  in
+  let used_lvls = ref used_lvls in
+  let counter = ref 0 in
+  let rec fresh_lvl () =
+    let vl = Vl.mk_uni ("l" ^ (string_of_int !counter)) in
+    incr counter;
+    if Svl.mem vl !used_lvls then fresh_lvl ()
+    else (used_lvls := Svl.add vl !used_lvls; vl)
+  in
   let ain = 
-    let doit i (k, o) = 
+    let doit (k, o) =
       match o with 
-      | None -> Flexible, Lvl.poly1 (Vl.mk_uni (string_of_int i))
+      | None -> Flexible, Lvl.poly1 (fresh_lvl ())
       | Some lvl -> odfl Strict k, lvl in
-    List.mapi doit ain 
+    List.map doit ain
   in
   (* Compute the local variables info *)
   let do_local x decls = 
