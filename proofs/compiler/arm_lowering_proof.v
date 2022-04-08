@@ -1,6 +1,6 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Import compiler_util expr lowering_lemmas psem.
+Require Import compiler_util expr lowering lowering_lemmas psem.
 Require Import arm_decl arm_extra arm_sem arm_lowering.
 Require Import lowering.
 
@@ -22,11 +22,15 @@ Context
   (fv : fresh_vars)
   (is_var_in_memory : var_i -> bool).
 
+Notation lower_prog :=
+  (lower_prog (fun _ _ _ _ => lower_i) options warning fv is_var_in_memory).
+Notation lower_cmd :=
+  (lower_cmd (fun _ _ _ _ => lower_i) options warning fv is_var_in_memory).
+
 Context
   (fvars_correct : arm_fvars_correct fv (p_funcs p)).
 
-#[ local ]
-Definition p' := lower_prog (fun _ _ _ _ => lower_i) options warning fv is_var_in_memory p.
+Definition p' := lower_prog p.
 
 Definition fvars : Sv.t :=
   Sv.empty.
@@ -43,7 +47,7 @@ Definition Pc (s0 : estate) (c : cmd) (s1 : estate) :=
   forall s0',
     eq_fv s0' s0
     -> exists s1',
-      let cmd' := conc_map lower_i c in
+      let cmd' := lower_cmd c in
       sem p' ev s0' cmd' s1' /\ eq_fv s1' s1.
 
 #[ local ]
@@ -63,7 +67,7 @@ Definition Pfor (i : var_i) (rng : seq Z) (s0 : estate) (c : cmd) (s1 : estate) 
   forall s0',
     eq_fv s0' s0
     -> exists s1',
-      let c' := conc_map lower_i c in
+      let c' := lower_cmd c in
       sem_for p' ev i rng s0' c' s1' /\ eq_fv s1' s1.
 
 #[ local ]
@@ -285,11 +289,10 @@ Proof.
   - move: Hs2' => [-> _]. exact: Hfin.
 Qed.
 
-Theorem lower_callP
+Lemma lower_callP
   (f : funname) (mem mem' : low_memory.mem) (va vr : seq value) :
   sem_call p ev mem f va mem' vr
-  -> let lprog := lower_prog (fun _ _ _ _ => lower_i) options warning fv is_var_in_memory p in
-     sem_call lprog ev mem f va mem' vr.
+  -> sem_call (lower_prog p) ev mem f va mem' vr.
 Proof.
   exact (@sem_call_Ind
            _ _ _ _ _ _ p ev

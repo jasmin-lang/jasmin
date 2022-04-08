@@ -1,24 +1,32 @@
-From mathcomp Require Import all_ssreflect all_algebra.
+(* ARM Cortex-M4 instruction set
+
+   These are the THUMB instructions of ARMv7-M, the instruction set of the M4
+   processor. *)
+
+From mathcomp Require Import
+  all_ssreflect
+  all_algebra.
 From CoqWord Require Import ssrZ.
-Require Import sem_type strings utils word.
+
+Require Import
+  sem_type
+  strings
+  utils
+  word.
 Require Export arch_decl.
 Require Import arm_decl.
 
-Set   Implicit Arguments.
+Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* ARM Cortex-M4 instruction set
- *
- * These are the THUMB instructions of ARMv7-M, the instruction set of the M4
- * processor.
- *)
 
 Record arith_opts :=
-  { args_size      : wsize
-  ; set_flags      : bool
-  ; is_conditional : bool
-  ; has_shift      : option shift_kind
+  {
+    args_size : wsize;
+    set_flags : bool;
+    is_conditional : bool;
+    has_shift : option shift_kind;
   }.
 
 Definition arith_opts_beq (ao0 ao1: arith_opts) : bool :=
@@ -29,8 +37,8 @@ Definition arith_opts_beq (ao0 ao1: arith_opts) : bool :=
 Variant arm_op : Type :=
 (* Arithmetic *)
 | ADC                            (* Add with carry *)
-| ADD   of arith_opts            (* Add without carry (register) *)
-| ADDI  of arith_opts            (* Add without carry (immediate) *)
+| ADD of arith_opts              (* Add without carry (register) *)
+| ADDI of arith_opts             (* Add without carry (immediate) *)
 
 | SBC                            (* Subtract with carry *)
 | SUB                            (* Subtract without carry *)
@@ -75,7 +83,7 @@ Variant arm_op : Type :=
 | MOV of arith_opts              (* Copy operand to destination *)
 
 (* Loads *)
-| LDR   of bool                  (* Load a 32-bit word *)
+| LDR of bool                    (* Load a 32-bit word *)
 | LDRH                           (* Load a 16-bit unsigned halfword *)
 | LDRSH                          (* Load a 16-bit signed halfword *)
 | LDRB                           (* Load a 8-bit unsigned byte *)
@@ -166,8 +174,8 @@ Definition reg_addr_ak := [:: [:: [:: CAreg ]; [:: CAmem true ] ] ].
 (* -------------------------------------------------------------------- *)
 (* Common flag definitions. *)
 
-Definition NF_of_word (sz: wsize) (w: word sz) := msb w.
-Definition ZF_of_word (sz: wsize) (w: word sz) := w == 0%R.
+Definition NF_of_word (sz : wsize) (w : word sz) := msb w.
+Definition ZF_of_word (sz : wsize) (w : word sz) := w == 0%R.
 
 (* Compute the value of the flags for an arithmetic operation.
  * For instance, for <+> a binary operation, this function should be called
@@ -177,10 +185,10 @@ Definition ZF_of_word (sz: wsize) (w: word sz) := w == 0%R.
  *   res_signed = wsigned w Z.<+> wsigned w'
  *)
 Definition nzcv_of_aluop
-  {sz: wsize}
-  (res: word sz)     (* Actual result. *)
-  (res_unsigned: Z)  (* Result with unsigned interpretation. *)
-  (res_signed: Z)    (* Result with signed interpretation. *)
+  {sz : wsize}
+  (res : word sz)     (* Actual result. *)
+  (res_unsigned : Z)  (* Result with unsigned interpretation. *)
+  (res_signed : Z)    (* Result with signed interpretation. *)
   : nzcv_ty :=
   (:: Some (NF_of_word res)                 (* NF *)
     , Some (ZF_of_word res)                 (* ZF *)
@@ -188,8 +196,8 @@ Definition nzcv_of_aluop
     & Some (wsigned res != res_signed)      (* VF *)
   ).
 
-Definition nzcvw_of_aluop (sz: wsize) (w: word sz) (wu ws: Z) :=
-  (merge_tuple (nzcv_of_aluop w wu ws) (w: sem_tuple [:: sword sz ])).
+Definition nzcvw_of_aluop (sz : wsize) (w : word sz) (wu ws : Z) :=
+  (merge_tuple (nzcv_of_aluop w wu ws) (w : sem_tuple [:: sword sz ])).
 
 
 (* -------------------------------------------------------------------- *)
@@ -201,12 +209,12 @@ Definition nzcvw_of_aluop (sz: wsize) (w: word sz) (wu ws: Z) :=
 Notation behead4 xs := (behead (behead (behead (behead xs)))).
 
 Definition drop_semi_nzcv
-  {tin tout} (semi: sem_prod tin (exec (sem_tuple tout))) :
+  {tin tout} (semi : sem_prod tin (exec (sem_tuple tout))) :
   sem_prod tin (exec (sem_tuple (behead4 tout))) :=
   behead_tuple (behead_tuple (behead_tuple (behead_tuple semi))).
 
 #[ local ]
-Lemma drop_nzcv_eq_size {A B} {p} {xs: seq A} {ys: seq B} :
+Lemma drop_nzcv_eq_size {A B} {p} {xs : seq A} {ys : seq B} :
   p && (size xs == size ys)
   -> p && (size (behead4 xs) == size (behead4 ys)).
 Proof.
@@ -216,7 +224,8 @@ Proof.
 Qed.
 
 #[ local ]
-Lemma drop_nzcv_check_dest {A B} {p: A -> B -> bool} {xs: seq A} {ys: seq B} :
+Lemma drop_nzcv_check_dest
+  {A B} {p : A -> B -> bool} {xs : seq A} {ys : seq B} :
   all2 p xs ys -> all2 p (behead4 xs) (behead4 ys).
 Proof.
   move=> H.
@@ -231,7 +240,7 @@ Proof.
   by do 4 apply: all_behead.
 Qed.
 
-Definition drop_nzcv (idt: instr_desc_t) : instr_desc_t :=
+Definition drop_nzcv (idt : instr_desc_t) : instr_desc_t :=
   {| id_msb_flag   := id_msb_flag idt
   ;  id_tin        := id_tin idt
   ;  id_in         := id_in idt
@@ -547,10 +556,10 @@ Definition arm_ANDI_instr (opts: arith_opts) : instr_desc_t :=
   then mk_cond x
   else x.
 
-Definition arm_MOV_semi {sz} (wn : word sz) :
-  exec (sem_tuple (sflags ++ [:: sword sz ])) :=
-  check_size_8_32 sz
-  >> ok (nzcvw_of_aluop wn (wunsigned wn) (wsigned wn)).
+Definition arm_MOV_semi
+  {sz} (wn : word sz) : exec (sem_tuple (sflags ++ [:: sword sz ])) :=
+  Let: _ := check_size_8_32 sz in
+  ok (nzcvw_of_aluop wn (wunsigned wn) (wsigned wn)).
 
 Definition arm_MOV_instr (opts : arith_opts) : instr_desc_t :=
   let sz := args_size opts in
