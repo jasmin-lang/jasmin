@@ -11,6 +11,7 @@ Require Import
 Require Import
   linearization
   linearization_proof
+  lowering
   stack_alloc
   stack_alloc_proof.
 Require
@@ -106,7 +107,7 @@ Definition x86_liparams : linearization_params :=
 
 Definition x86_loparams : lowering_params fresh_vars lowering_options :=
   {|
-    lop_lower_prog := lower_prog;
+    lop_lower_i := lower_i;
     lop_fvars_correct := fvars_correct;
   |}.
 
