@@ -47,9 +47,11 @@ Here are the main changes of the release.
   and writing it afterwards in a larger register, one can write to the lower
   bits of a register and zero the higher bits in one go. Here is an example
   illustrating the feature.
-        reg u64 x; reg u256 y;
-        y = (256u)#VMOV(x); // writes x in the lower bits of y
-                            // and zeroes the other bits of y
+  ```
+  reg u64 x; reg u256 y;
+  y = (256u)#VMOV(x); // writes x in the lower bits of y
+                      // and zeroes the other bits of y
+  ```
 
 - **An include system.** Including a Jasmin file in another one is now a native
   feature of Jasmin. The concrete syntax is `require "file.jazz"`. If the path
