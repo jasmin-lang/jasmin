@@ -447,11 +447,11 @@ let get_annot ensure_annot f =
   let check_lvl lvl =
     match lvl with
     | Poly s ->
-      let diff = Svl.diff known s in
+      let diff = Svl.diff s known in
       if not (Svl.is_empty diff) then
         Pt.rs_tyerror ~loc:f.f_loc 
           (Pt.string_error "variable(s) level %a should be used in the input security annotations"
-             (pp_list ",@ " Vl.pp) (Svl.elements diff))
+             (pp_list ", " Vl.pp) (Svl.elements diff))
     | _ -> () in 
     
   List.iter (oiter check_lvl) aout;

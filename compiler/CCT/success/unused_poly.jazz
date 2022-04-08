@@ -1,0 +1,3 @@
+fn drop2 (#poly=l1 reg u64 x, #poly=l2 reg u64 y) -> #poly={l1} reg u64 {
+  return x;
+}
