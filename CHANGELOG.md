@@ -39,9 +39,10 @@ Here are the main changes of the release.
   `reg ptr` applies, if the compiler cannot prove that compilation does not
   change the semantics of the program, then it fails.
 
-- **A flexible annotation system**. It allows to attach annotations to most of
-  the constructs of the language (e.g. functions and instructions). The concrete
-  syntax is the following: `#[annotation]` or `#[annotation=value]`.
+- **A flexible annotation system**. In addition to function declarations that
+  were already supported, it allows to attach annotations to instructions,
+  variable declarations and return types.  The concrete syntax is the following:
+  `#[annotation]` or `#[annotation=value]`.
 
 - **Writing the lower bits of a register.** Instead of computing a small value
   and writing it afterwards in a larger register, one can write to the lower
@@ -59,6 +60,8 @@ Here are the main changes of the release.
   To deal with more complex cases, an option `-I ident:path` was added to the
   compiler. It adds `path` (interpreted relatively to the current directory if
   it is relative) with logic name `ident` to the search path of the compiler.
+  The same operation can be performed using the environment variable
+  `JASMINPATH`. The syntax is `JASMINPATH="ident1=path1:ident2=path2"`.
   Then one can use `from ident require "file.jazz"` to refer to file
   `path/file.jazz`. The error messages of the compiler contain the list of
   transitively included files if needed, so locating the problematic line should
@@ -78,8 +81,54 @@ Here are the main changes of the release.
   to variable `b` and the result of the signed comparison to variable `c`.
   Jasmin knows how to translate that into the right combination of flags.
 
+- **A type system for cryptographic constant time.** Function arguments and
+  return types, as well as local declarations, can be annotated (using the
+  aforementionned annotation system) with a security level. This can either be
+  `#public`, `#secret` or `#poly=l`, where `l` is a security level variable that
+  allows to express the security level of one variable depending on the security
+  levels of other variables. Then option `-checkCTon f` calls a type-checker on
+  function `f` that checks that `f` can be given a security type compatible with
+  the annotations given by the user. Option `-checkCT` checks the whole program.
+  If the annotations are partial, the type-checker tries to infer the missing
+  parts, except for the signature of export functions since we expect that part
+  to be specified by the user. The analysis is flow-sensitive, meaning that one
+  variable can have two different several security levels at two different
+  points in the program. This is the default when a variable is not annotated.
+  When a variable is annotated, it is expected to have the given level in all
+  points where it appears. If the user wants to change the default behaviour,
+  it can use `#flex` or `#strict` to choose whether the security level of a
+  variable can vary or not over its lifetime. Jasmin already supported some way
+  of reasoning about constant-time in the form of an alternative extraction to
+  EasyCrypt making leakages explicit. The type system should be easier to use.
+
+- **New tunneling pass.** At the end of the compilation, the compiler tries to
+  replace a jump pointing to another jump by a single jump pointing to the
+  target of the second jump.
+
+- **New heuristic for register allocation.** The old one can be called with
+  option `-lazy-regalloc`. If the compilation fails with the default one, it may
+  succeed with `-lazy-regalloc`. It appears to give in some cases more intuitive
+  results.
+
+- **Support of Intel syntax.** Jasmin used to print assembly programs only in
+  AT&T syntax. This remains the default, but there is a new option `-intel` to
+  print it in Intel syntax.
+
+- **Declarations anywhere in the function body.** Before, the declarations had
+  to be at the start of the function body. This was relaxed, they can now appear
+  anywhere in the body.
+
+- **Printing in Jasmin syntax.** The compiler used to print programs in a syntax
+  that was different from the Jasmin syntax, in general for no good reason. It
+  now tries to use Jasmin syntax. In particular, the output of option `-pcstexp`
+  should always be syntactically valid. Please report an issue if it is not the
+  case!
+
 - **Nicer errors.** The error system was rewritten. This should give more
   uniform and a bit nicer error messages.
+
+- **Uniformity of option names.** All options are now prefixed with a single
+  hyphen `-`.
 
 # Jasmin 21.0
 
