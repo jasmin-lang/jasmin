@@ -11,11 +11,11 @@ Here are the main changes of the release.
   declared with `inline fn` and export functions with `export fn`. This is a
   breaking change, since before `fn` was a synonym for `inline fn`. Unlike
   inline functions, they are proper functions. Unlike export functions, they are
-  internal. As such, they do not need to respect the calling conventions of C
+  internal. As such, they do not need to respect any standard calling conventions
   and are therefore a bit more flexible.
 
 - **New storage modifiers `reg ptr` and `stack ptr`** to declare arrays.
-  `reg ptr` is used to store the address of a stack array in a register. The
+  `reg ptr` is used to store the address of an array in a register. The
    main use of `reg ptr` arrays is to pass stack arrays as arguments to
    subroutines, since the latter do not accept stack arrays as arguments
   directly. `stack ptr` is used to spill a `reg ptr` on the stack. In the
