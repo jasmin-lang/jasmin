@@ -99,7 +99,8 @@ Here are the main changes of the release.
   it can use `#flex` or `#strict` to choose whether the security level of a
   variable can vary or not over its lifetime. Jasmin already supported some way
   of reasoning about constant-time in the form of an alternative extraction to
-  EasyCrypt making leakages explicit. The type system should be easier to use.
+  EasyCrypt making leakages explicit. This extraction is more flexible, but in
+  general the type system should be easier to use.
 
 - **New tunneling pass.** At the end of the compilation, the compiler tries to
   replace a jump pointing to another jump by a single jump pointing to the
