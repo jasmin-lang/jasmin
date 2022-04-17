@@ -2,11 +2,8 @@ require import AllCore IntDiv CoreMap List.
 from Jasmin require import JModel.
 require import Leakage_models.
 
-abstract theory ALeakageModel.
-    op leak_div_32 : W32.t -> W32.t -> address list.
-    op leak_div_64 : W64.t -> W64.t -> address list.
-    op leak_mem : address -> address.
-end ALeakageModel.
+require import Array64.
+require import WArray64.
 
 theory T.
 clone import ALeakageModel as LeakageModel.
