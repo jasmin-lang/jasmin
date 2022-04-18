@@ -1,0 +1,78 @@
+export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad maxpad ret) -> reg u32 {
+
+    // pmac is a 32-byte aligned buffer with len 20
+    reg u64 p, off;
+    reg u32 c, cmask, res, temp;
+    reg u64 i, j, temp_64;          // i is secret
+
+    // unsigned char *p = out + len - 1 - maxpad - SHA_DIGEST_LENGTH;
+    p = out;
+    p += len;
+    p -= 1;
+    temp_64 = (64u) maxpad;
+    p -= temp_64;
+    p -= 20;                // SHA_DIGEST_LENGTH = 20
+
+    // size_t off = out - p;
+    off = out;
+    off -= p;
+
+    i = 0;
+    j = 0;
+    maxpad += 20;           // j < maxpad + SHA_DIGEST_LENGTH; should deduct 20 later
+    while (j < maxpad) {
+
+        // c = p[j];
+        c = (u32)[p + j];
+
+        // cmask = ((int)(j - off - SHA_DIGEST_LENGTH)) >> (sizeof(int) *
+        //                                                         8 - 1);
+        cmask = j;
+        cmask -= off;
+        cmask -= 20;
+        cmask >>= 31;       // >> (sizeof(int) * 8 - 1);
+
+        // res |= (c ^ pad) & ~cmask;
+        temp = c;
+        temp ^= pad;
+        cmask = !cmask;     // need to revert later
+        temp &= cmask;
+        res |= temp;
+
+        // cmask &= ((int)(off - 1 - j)) >> (sizeof(int) * 8 - 1);
+        cmask = !cmask;     // reverted back to original value
+        temp = off;
+        temp -= 1;
+        temp -= j;
+        temp >>= 31;
+
+        // res |= (c ^ pmac->c[i]) & cmask;
+        temp = c;
+        temp ^= (u32)[pmac + i];            // i is secret
+        temp &= cmask;
+        res |= temp;
+
+        // i += 1 & cmask;
+        i += 1;
+        temp_64 = (64u)cmask;
+        i &= temp_64;
+
+        // j++
+        j += 1;
+    }
+
+    // res = 0 - ((0 - res) >> (sizeof(res) * 8 - 1));
+    temp = 0;
+    temp -= res;
+    temp >>= 31;
+    res = temp;
+    temp = 0;
+    temp -= res;
+    res = temp;
+
+    // ret &= (int)~res;
+    temp = !res;
+    ret &= !res;
+
+    return ret;
+}
