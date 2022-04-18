@@ -17,6 +17,21 @@ rewrite W64.to_uintD_small /=.
 + smt (W128.to_uint_cmp).
 smt.
 qed.
+
+lemma bitand_assoc a b c: a `&` (b `&` c)%W8 = a `&` b `&` c.
+proof. smt. qed.
+
+lemma bitand_assoc' a b c: ((a `&` b) `&` c)%W8 = a `&` b `&` c.
+proof. smt. qed.
+
+lemma bitand_reflex a b: (a `&` b)%W8 = (b `&` a)%W8.
+proof. smt. qed.
+
+lemma and_15_64_zero : (of_int 15)%W8 `&` (of_int 64)%W8 = W8.zero.
+proof.
+rewrite bitand_reflex. have heq : 2 ^ 4 - 1 = 15. + by auto. rewrite -heq. print and_mod.   
+rewrite and_mod /=;by auto. 
+qed.
   
 (* input base64decode is public and (base64decode % 64 == 0) 
    input c is secret *)
@@ -31,11 +46,54 @@ proof.
 proc; inline *; auto.
 move=> &1 &2 [] hleak [] hp [] h1 [] h2 [] h3 h4 /=. split=> //=.
 + rewrite hp. 
-  rewrite /leak_mem /= /leak_mem_CL /=. rewrite offset_div_plus1. 
-+ by rewrite -hp. 
-+ by rewrite -hp.
-+ admit.
-admit.
+  rewrite /leak_mem /= /leak_mem_CL /=. rewrite !offset_div_plus1. 
+  + by rewrite -hp. 
+  + by rewrite -hp.
+  + split=> //=.
+    + rewrite to_uint_zeroextu64 /= orw_disjoint /=.
+      + have hand := and_15_64_zero.
+        have assoc := bitand_assoc (c{1} - (of_int 43)%W8) (of_int 15)%W8 (of_int 64)%W8.
+        by rewrite -assoc hand /=.
+      rewrite bitand_reflex.
+      have /= heq := W8.to_uint_ule_andw (of_int 15)%W8 (c{1} - (of_int 43))%W8.
+      rewrite to_uintD_disjoint /=.
+      + have hand := and_15_64_zero. rewrite bitand_reflex in hand.
+        rewrite bitand_reflex bitand_assoc bitand_reflex hand. by smt.
+      by smt.
+    move=> h. rewrite to_uint_zeroextu64 /= in h. rewrite to_uint_zeroextu64 /= orw_disjoint /=.
+    + have hand := and_15_64_zero.
+      have assoc := bitand_assoc (c{1} - (of_int 43)%W8) (of_int 15)%W8 (of_int 64)%W8.
+      by rewrite -assoc hand /=.
+    rewrite bitand_reflex.
+    have /= heq := W8.to_uint_ule_andw (of_int 15)%W8 (c{1} - (of_int 43))%W8.
+    rewrite to_uintD_disjoint /=.
+    + have hand := and_15_64_zero. rewrite bitand_reflex in hand.
+      rewrite bitand_reflex bitand_assoc bitand_reflex hand. by smt.
+    by smt.
+  + by rewrite -hp.
+  + by rewrite -hp.
+  + split=> //=.
+    + rewrite to_uint_zeroextu64 /= orw_disjoint /=.
+      + have hand := and_15_64_zero.
+        have assoc := bitand_assoc (c{2} - (of_int 43)%W8) (of_int 15)%W8 (of_int 64)%W8.
+        by rewrite -assoc hand /=.
+      rewrite bitand_reflex.
+      have /= heq := W8.to_uint_ule_andw (of_int 15)%W8 (c{2} - (of_int 43))%W8.
+      rewrite to_uintD_disjoint /=.
+      + have hand := and_15_64_zero. rewrite bitand_reflex in hand.
+        rewrite bitand_reflex bitand_assoc bitand_reflex hand. by smt.
+      by smt.
+    move=> h. rewrite to_uint_zeroextu64 /= in h. rewrite to_uint_zeroextu64 /= orw_disjoint /=.
+    + have hand := and_15_64_zero.
+      have assoc := bitand_assoc (c{2} - (of_int 43)%W8) (of_int 15)%W8 (of_int 64)%W8.
+      by rewrite -assoc hand /=.
+    rewrite bitand_reflex.
+    have /= heq := W8.to_uint_ule_andw (of_int 15)%W8 (c{2} - (of_int 43))%W8.
+    rewrite to_uintD_disjoint /=.
+    + have hand := and_15_64_zero. rewrite bitand_reflex in hand.
+      rewrite bitand_reflex bitand_assoc bitand_reflex hand. by smt.
+    by smt.
+  + by auto.
 rewrite hp /=. rewrite /leak_mem /= /leak_mem_CL /=.
 split=> //=. rewrite !offset_div. 
 + by smt. 
@@ -51,4 +109,4 @@ split=> //=. rewrite !offset_div.
   have heq : 2 ^ 6 - 1 = 63. + by auto. rewrite -heq.
   rewrite to_uint_and_mod. + by auto. by smt.
 by auto.
-admitted.
+qed.
