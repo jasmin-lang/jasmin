@@ -62,6 +62,11 @@ clone ALeakageModel as LeakageModelCL with
   op leak_div_64 = leak_div_none,
   op leak_mem    = leak_mem_CL.
 
+clone ALeakageModel as LeakageModelCL32 with
+  op leak_div_32 = leak_div_none,
+  op leak_div_64 = leak_div_none,
+  op leak_mem    = leak_mem_CL32.
+
 (* and common lemmas for the verification of the copy-mac implementations. *)
 lemma leak_div_or (x y : W32.t) : leak_div (x `|` y) = min (leak_div x) (leak_div y).
 proof.
