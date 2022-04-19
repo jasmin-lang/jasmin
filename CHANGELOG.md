@@ -131,9 +131,6 @@ Here are the main changes of the release.
 - **Nicer errors.** The error system was rewritten. This should give more
   uniform and a bit nicer error messages.
 
-- **Uniformity of option names.** All options are now prefixed with a single
-  hyphen `-`.
-
 # Jasmin 21.0
 
 This is the initial release of Jasmin.
