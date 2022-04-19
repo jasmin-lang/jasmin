@@ -12,10 +12,8 @@ to_uint p + 128 <= W64.modulus =>
 64 %| to_uint p =>
 64 <= to_uint offset < 128 => to_uint (p + offset) %/ 64 = to_uint p %/ 64 + 1.
 proof.
-move=> /= p offset h1 h2 [] h3 h4. print  W64.to_uintD_small. 
-rewrite W64.to_uintD_small /=. 
-+ smt (W128.to_uint_cmp).
-smt.
+move=> /= p offset h1 h2 [] h3 h4. rewrite W64.to_uintD_small /=. 
++ smt (W128.to_uint_cmp). by smt.
 qed.
 
 lemma bitand_assoc a b c: a `&` (b `&` c)%W8 = a `&` b `&` c.
@@ -45,15 +43,12 @@ equiv l_final : M.base64_Char2Val_jazz ~ M.base64_Char2Val_jazz :
 proof.
 proc; inline *; auto.
 move=> &1 &2 [] hleak [] hp [] h1 [] h2 [] h3 h4 /=. split=> //=.
-+ rewrite hp. 
-  rewrite /leak_mem /= /leak_mem_CL /=. rewrite !offset_div_plus1. 
++ rewrite hp /leak_mem /= /leak_mem_CL /= !offset_div_plus1. 
   + by rewrite -hp. 
   + by rewrite -hp.
   + split=> //=.
     + rewrite to_uint_zeroextu64 /= orw_disjoint /=.
-      + have hand := and_15_64_zero.
-        have assoc := bitand_assoc (c{1} - (of_int 43)%W8) (of_int 15)%W8 (of_int 64)%W8.
-        by rewrite -assoc hand /=.
+      + by rewrite -bitand_assoc and_15_64_zero /=.
       rewrite bitand_reflex.
       have /= heq := W8.to_uint_ule_andw (of_int 15)%W8 (c{1} - (of_int 43))%W8.
       rewrite to_uintD_disjoint /=.
@@ -61,9 +56,7 @@ move=> &1 &2 [] hleak [] hp [] h1 [] h2 [] h3 h4 /=. split=> //=.
         rewrite bitand_reflex bitand_assoc bitand_reflex hand. by smt.
       by smt.
     move=> h. rewrite to_uint_zeroextu64 /= in h. rewrite to_uint_zeroextu64 /= orw_disjoint /=.
-    + have hand := and_15_64_zero.
-      have assoc := bitand_assoc (c{1} - (of_int 43)%W8) (of_int 15)%W8 (of_int 64)%W8.
-      by rewrite -assoc hand /=.
+    + by rewrite -bitand_assoc and_15_64_zero /=. 
     rewrite bitand_reflex.
     have /= heq := W8.to_uint_ule_andw (of_int 15)%W8 (c{1} - (of_int 43))%W8.
     rewrite to_uintD_disjoint /=.
@@ -74,9 +67,7 @@ move=> &1 &2 [] hleak [] hp [] h1 [] h2 [] h3 h4 /=. split=> //=.
   + by rewrite -hp.
   + split=> //=.
     + rewrite to_uint_zeroextu64 /= orw_disjoint /=.
-      + have hand := and_15_64_zero.
-        have assoc := bitand_assoc (c{2} - (of_int 43)%W8) (of_int 15)%W8 (of_int 64)%W8.
-        by rewrite -assoc hand /=.
+      + by rewrite -bitand_assoc and_15_64_zero /=.
       rewrite bitand_reflex.
       have /= heq := W8.to_uint_ule_andw (of_int 15)%W8 (c{2} - (of_int 43))%W8.
       rewrite to_uintD_disjoint /=.
@@ -84,9 +75,7 @@ move=> &1 &2 [] hleak [] hp [] h1 [] h2 [] h3 h4 /=. split=> //=.
         rewrite bitand_reflex bitand_assoc bitand_reflex hand. by smt.
       by smt.
     move=> h. rewrite to_uint_zeroextu64 /= in h. rewrite to_uint_zeroextu64 /= orw_disjoint /=.
-    + have hand := and_15_64_zero.
-      have assoc := bitand_assoc (c{2} - (of_int 43)%W8) (of_int 15)%W8 (of_int 64)%W8.
-      by rewrite -assoc hand /=.
+    + by rewrite -bitand_assoc and_15_64_zero /=.
     rewrite bitand_reflex.
     have /= heq := W8.to_uint_ule_andw (of_int 15)%W8 (c{2} - (of_int 43))%W8.
     rewrite to_uintD_disjoint /=.
@@ -94,19 +83,19 @@ move=> &1 &2 [] hleak [] hp [] h1 [] h2 [] h3 h4 /=. split=> //=.
       rewrite bitand_reflex bitand_assoc bitand_reflex hand. by smt.
     by smt.
   + by auto.
-rewrite hp /=. rewrite /leak_mem /= /leak_mem_CL /=.
+rewrite hp /= /leak_mem /= /leak_mem_CL /=.
 split=> //=. rewrite !offset_div. 
 + by smt. 
 + by smt.
-+ case: h3=> h3 h3'. rewrite to_uint_zeroextu64 /=.
++ rewrite to_uint_zeroextu64 /=.
   have h := W8.to_uint_ule_andw (c{1} - (of_int 43)%W8) (of_int 63)%W8.
-  have heq : 2 ^ 6 - 1 = 63. + by auto. rewrite -heq.
-  rewrite to_uint_and_mod. + by auto. by smt.
+  have heq : 2 ^ 6 - 1 = 63. + by auto.
+  rewrite -heq to_uint_and_mod. + by auto. by smt.
 + by smt. 
 + by smt.
-+ case: h3=> h3 h3'. rewrite to_uint_zeroextu64 /=.
++ rewrite to_uint_zeroextu64 /=.
   have h := W8.to_uint_ule_andw (c{1} - (of_int 43)%W8) (of_int 63)%W8.
-  have heq : 2 ^ 6 - 1 = 63. + by auto. rewrite -heq.
-  rewrite to_uint_and_mod. + by auto. by smt.
+  have heq : 2 ^ 6 - 1 = 63. + by auto. 
+  rewrite -heq to_uint_and_mod. + by auto. by smt.
 by auto.
 qed.
