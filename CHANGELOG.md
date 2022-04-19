@@ -17,7 +17,7 @@ Here are the main changes of the release.
 - **New storage modifiers `reg ptr` and `stack ptr`** to declare arrays.
   `reg ptr` is used to store the address of an array in a register. The
    main use of `reg ptr` arrays is to pass stack arrays as arguments to
-   subroutines, since the latter do not accept stack arrays as arguments
+   subroutines, since they do not accept stack arrays as arguments
   directly. `stack ptr` is used to spill a `reg ptr` on the stack. In the
   semantics, the storage modifiers are not taken into account, meaning that
   `stack`, `reg ptr` and `stack ptr` arrays are treated the same, which allows
@@ -76,8 +76,8 @@ Here are the main changes of the release.
 - **Easier flag manipulation.** Boolean flags can now be referred to by their
   names. For instance, `?{cf=b} = #CMP(x,y);` assigns the carry flag to variable
   `b`. The `cf=` part is not needed if the variable already has the name of a
-  flag (this is case-insensitive), e.g. `?{cF} = #CMP(x, y);` assigns the carry
-  flag to variable `cF`. One can even use names for boolean expressions that are
+  flag (this is case-insensitive), e.g. `?{CF} = #CMP(x, y);` assigns the carry
+  flag to variable `CF`. One can even use names for boolean expressions that are
   computed based on a combination of flags. For instance,
   `?{"==" = b, "<s" = c} = #CMP(x, y);` assigns the result of the equality test
   to variable `b` and the result of the signed comparison to variable `c`.
