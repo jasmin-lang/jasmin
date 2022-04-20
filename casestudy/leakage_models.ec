@@ -113,6 +113,13 @@ proof.
   move=> /= h1 h2 h3; rewrite W64.to_uintD_small /= 1:/# divzDl 1://; smt (W64.to_uint_cmp).
 qed.
 
+lemma offset_div_32 (p offset : W64.t) :
+  to_uint p + 32 <= W64.modulus =>
+  32 %| to_uint p =>
+  0 <= to_uint offset < 32 =>
+  to_uint (p + offset) %/ 32  = to_uint p %/ 32.
+proof. move=> /= h1 h2 h3; rewrite W64.to_uintD_small /= 1:/# divzDl 1:// /#. qed.
+
 lemma to_uint_truncateu32_small (x: W64.t) :
   to_uint x < W32.modulus =>
   to_uint (truncateu32 x) = to_uint x.

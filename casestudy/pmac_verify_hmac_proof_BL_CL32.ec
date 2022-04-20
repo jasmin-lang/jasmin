@@ -7,13 +7,6 @@ import StdOrder.IntOrder Ring.IntID.
 clone import Pmac_verify_hmac.T with
 theory LeakageModel <-  LeakageModelCL32.
 
-lemma offset_div_32 (p offset : W64.t) :
-  to_uint p + 32 <= W64.modulus =>
-  32 %| to_uint p =>
-  0 <= to_uint offset < 32 =>
-  to_uint (p + offset) %/ 32  = to_uint p %/ 32.
-proof. move=> /= h1 h2 h3; rewrite W64.to_uintD_small /= 1:/# divzDl 1:// /#. qed.
-
 equiv l_final : M.verify_hmac_jazz ~ M.verify_hmac_jazz :
 ={M.leakages, len, pmac, out, maxpad} /\
   to_uint pmac{2} + 32 <= W64.modulus /\
