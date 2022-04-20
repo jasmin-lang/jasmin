@@ -1063,4 +1063,3 @@ export fn poly1305_avx(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k)
   else
   { poly1305_avx_wrapper(out, in, inlen, k); }
 }
-
