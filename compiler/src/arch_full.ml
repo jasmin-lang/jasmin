@@ -41,6 +41,9 @@ end
 module type Arch = sig
   include Core_arch
 
+  val reg_size : Wsize.wsize
+  val rip : var
+
   val asmOp      : (reg, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op Sopn.asmOp
   val asmOp_sopn : (reg, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op Sopn.sopn Sopn.asmOp
 
@@ -61,8 +64,14 @@ end
 module Arch_from_Core_arch (A : Core_arch) : Arch = struct
   include A
 
+  let reg_size = A.asm_e._asm._arch_decl.reg_size
+  let xreg_size = A.asm_e._asm._arch_decl.xreg_size
+
+  (* not sure it is the best place to define [rip], but we need to know [reg_size] *)
+  let rip = V.mk "RIP" (Reg Direct) (tu reg_size) L._dummy []
+
   let asmOp = Arch_extra.asm_opI A.asm_e
-  let asmOp_sopn = Sopn.asmOp_sopn A.asm_e._asm._arch_decl.reg_size asmOp
+  let asmOp_sopn = Sopn.asmOp_sopn reg_size asmOp
 
   let string_of_reg r =
     Conv.string_of_string0 (A.asm_e._asm._arch_decl.toS_r.to_string r)
@@ -70,7 +79,7 @@ module Arch_from_Core_arch (A : Core_arch) : Arch = struct
   let reg_vars =
     let l = A.asm_e._asm._arch_decl.toS_r.strings in
     let reg_k = Prog.Reg Prog.Direct in
-    List.map (fun (s, _) -> V.mk (Conv.string_of_string0 s) reg_k (Bty (U U64)) L._dummy []) l
+    List.map (fun (s, _) -> V.mk (Conv.string_of_string0 s) reg_k (tu reg_size) L._dummy []) l
 
   let var_of_reg r =
     let s = string_of_reg r in
@@ -82,7 +91,7 @@ module Arch_from_Core_arch (A : Core_arch) : Arch = struct
   let xreg_vars =
     let l = A.asm_e._asm._arch_decl.toS_x.strings in
     let reg_k = Prog.Reg Prog.Direct in
-    List.map (fun (s, _) -> V.mk (Conv.string_of_string0 s) reg_k (Bty (U U256)) L._dummy []) l
+    List.map (fun (s, _) -> V.mk (Conv.string_of_string0 s) reg_k (tu xreg_size) L._dummy []) l
 
   let var_of_xreg r =
     let s = string_of_xreg r in

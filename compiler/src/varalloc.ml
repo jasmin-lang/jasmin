@@ -52,14 +52,14 @@ let incr_liverange r x d : liverange =
   let g = Mv.add x i g in
   Mint.add s g r
 
-let live_ranges_stmt (alias: Alias.alias) (ptr_classes: Sv.t) d c =
+let live_ranges_stmt pd (alias: Alias.alias) (ptr_classes: Sv.t) d c =
 
 let stack_pointers = Hv.create 117 in
 
-let get_stack_pointer x =
+let get_stack_pointer pd x =
   try Hv.find stack_pointers x
   with Not_found ->
-    let r = V.mk x.v_name (Stack Direct) u64 x.v_dloc x.v_annot in
+    let r = V.mk x.v_name (Stack Direct) (tu pd) x.v_dloc x.v_annot in
     Hv.add stack_pointers x r;
     r
 in
@@ -75,7 +75,7 @@ let preprocess_liveset (s: Sv.t) : Sv.t =
           else Sv.add r s
         in
         if is_stk_ptr_kind x.v_kind
-        then Sv.add (get_stack_pointer x) s
+        then Sv.add (get_stack_pointer pd x) s
         else s
       else
         if is_stack_kind x.v_kind
@@ -202,7 +202,7 @@ let get_stack_pointer stack_pointers x =
   try Hv.find stack_pointers x
   with Not_found -> assert false 
 
-let init_slots stack_pointers alias coloring fv =
+let init_slots pd stack_pointers alias coloring fv =
   let slots = ref Sv.empty in
   let lalloc = Hv.create 1017 in
   let add_slot slot = slots := Sv.add slot !slots in
@@ -238,7 +238,7 @@ let init_slots stack_pointers alias coloring fv =
       add_slot slot;
       add_local v (StackPtr slot)
     | Reg (Pointer _) ->
-      let p = V.mk v.v_name (Reg Direct) u64 v.v_dloc v.v_annot in
+      let p = V.mk v.v_name (Reg Direct) (tu pd) v.v_dloc v.v_annot in
       add_local v (RegPtr p) 
     | _ -> () in
 
@@ -246,7 +246,7 @@ let init_slots stack_pointers alias coloring fv =
   !slots, lalloc
 
 (* --------------------------------------------------- *)
-let all_alignment ctbl alias params lalloc =
+let all_alignment pd ctbl alias params lalloc =
 
   let get_align c = try Hv.find ctbl c.Alias.in_var with Not_found -> U8 in
   let doparam x =
@@ -279,7 +279,7 @@ let all_alignment ctbl alias params lalloc =
         | _ -> assert false in
       set slot ws
     | StackPtr(slot) ->
-      set slot U64 in
+      set slot pd in
   Hv.iter doalloc lalloc;
   params, atbl
 
@@ -328,7 +328,7 @@ let alloc_local_stack size slots atbl =
   stk_align, slots, !size
 
 (* --------------------------------------------------- *)
-let alloc_stack_fd is_move_op get_info gtbl fd =
+let alloc_stack_fd pd is_move_op get_info gtbl fd =
   if !Glob_options.debug then Format.eprintf "ALLOC STACK %s@." fd.f_name.fn_name;
   let alias =
     let get_cc fn = (get_info fn).sao_return in
@@ -347,18 +347,18 @@ let alloc_stack_fd is_move_op get_info gtbl fd =
 
   let fd = Live.live_fd is_move_op false fd in
   let (_, ranges), stack_pointers =
-    live_ranges_stmt alias ptr_classes (0, Mint.empty) fd.f_body in
+    live_ranges_stmt pd alias ptr_classes (0, Mint.empty) fd.f_body in
 
   let coloring = Mint.mapi G.solve ranges in
 
-  let slots, lalloc = init_slots stack_pointers alias coloring (vars_fc fd) in
+  let slots, lalloc = init_slots pd stack_pointers alias coloring (vars_fc fd) in
 
   let getfun fn = (get_info fn).sao_params in
   let ctbl, sao_calls =
     try classes_alignment getfun gtbl alias fd.f_body
     with HiError e -> raise (HiError { e with err_funname = Some fd.f_name.fn_name })
   in
-  let sao_params, atbl = all_alignment ctbl alias fd.f_args lalloc in
+  let sao_params, atbl = all_alignment pd ctbl alias fd.f_args lalloc in
   let sao_return = 
     match fd.f_cc with
     | Export -> List.map (fun _ -> None) fd.f_ret 
@@ -409,13 +409,13 @@ let alloc_mem gtbl globs =
   List.iter doslot gao_slots;
   { gao_data = Array.to_list t; gao_align; gao_slots; gao_size }
 
-let alloc_stack_prog is_move_op (globs, fds) =
+let alloc_stack_prog pd is_move_op (globs, fds) =
   let gtbl = Hv.create 107 in
   let ftbl = Hf.create 107 in
   let get_info fn = Hf.find ftbl fn in
   let set_info fn sao = Hf.add ftbl fn sao in
   let doit fd = 
-    let sao = alloc_stack_fd is_move_op get_info gtbl fd in
+    let sao = alloc_stack_fd pd is_move_op get_info gtbl fd in
     set_info fd.f_name sao in
   List.iter doit (List.rev fds);
   let gao =  alloc_mem gtbl globs in

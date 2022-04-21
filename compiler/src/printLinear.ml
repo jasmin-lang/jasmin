@@ -71,7 +71,7 @@ let pp_instr asmOp tbl fmt i =
   | Lopn (lvs, op, es) ->
     F.fprintf fmt "@[%a@] = %a@[(%a)@]"
       (pp_list ",@ " (pp_lval tbl)) lvs
-      (Pr.pp_opn asmOp) op
+      Pr.pp_string0 (Sopn.string_of_sopn asmOp op)
       (pp_list ",@ " (pp_expr tbl)) es
   | Lalign     -> F.fprintf fmt "Align"
   | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl

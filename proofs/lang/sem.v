@@ -443,6 +443,7 @@ Proof. case: v => // [ sz' w | [] // ] _; exact: wsize_le_U8. Qed.
 
 Section ASM_OP.
 
+Context {pd: PointerData}.
 Context `{asmop:asmOp}.
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
@@ -458,8 +459,6 @@ Proof.
 Qed.
 
 Section SEM.
-
-Context {pd: PointerData}.
 
 Variable P:uprog.
 
