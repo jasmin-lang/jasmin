@@ -300,7 +300,6 @@ module Sv = Set.Make  (V)
 module Mv = Map.Make  (V)
 module Hv = Hash.Make (V)
 
-let rip = V.mk "RIP" (Reg Direct) u64 L._dummy []
 (* ------------------------------------------------------------------------ *)
 (* Function name                                                            *)
 
@@ -456,8 +455,6 @@ let string_of_ws ws = Format.sprintf "u%i" (int_of_ws ws)
 let wsize_lt ws1 ws2 = Wsize.wsize_cmp ws1 ws2 = Datatypes.Lt
 let wsize_le ws1 ws2 = Wsize.wsize_cmp ws1 ws2 <> Datatypes.Gt
 
-let uptr = U64 (* Warning this should be arch dependent *)
-
 let int_of_pe =
   function
   | PE1   -> 1
@@ -520,8 +517,6 @@ let ( ** ) e1 e2 =
 
 let cnst i = Pconst i
 let icnst i = cnst (Z.of_int i)
-
-let cast64 e = Papp1 (Oword_of_int U64, e)
 
 let is_var = function
   | Pvar _ -> true

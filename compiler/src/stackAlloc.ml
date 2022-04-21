@@ -92,10 +92,10 @@ module Regalloc = Regalloc (Arch)
 let memory_analysis pp_err ~debug tbl up =
   if debug then Format.eprintf "START memory analysis@.";
   let p = Conv.prog_of_cuprog tbl up in
-  let gao, sao = Varalloc.alloc_stack_prog Arch.aparams.ap_is_move_op p in
+  let gao, sao = Varalloc.alloc_stack_prog Arch.reg_size Arch.aparams.ap_is_move_op p in
   
   (* build coq info *)
-  let crip = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip) in
+  let crip = Var0.Var.vname (Conv.cvar_of_var tbl Arch.rip) in
   let crsp = Var0.Var.vname (Conv.cvar_of_var tbl Arch.rsp_var) in
   let do_slots slots = 
     List.map (fun (x,ws,ofs) -> ((Conv.cvar_of_var tbl x, ws), Conv.cz_of_int ofs)) slots in                            
@@ -120,7 +120,7 @@ let memory_analysis pp_err ~debug tbl up =
       | StackPtr s                 ->
         let xp = V.clone x in
         Stack_alloc.PIstkptr(Conv.cvar_of_var tbl s, 
-                             conv_sub Interval.{min = 0; max = size_of_ws U64}, Conv.cvar_of_var tbl xp) in
+                             conv_sub Interval.{min = 0; max = size_of_ws Arch.reg_size}, Conv.cvar_of_var tbl xp) in
   
     let conv_alloc (x,k) = Conv.cvar_of_var tbl x, conv_ptr_kind x k in
   
@@ -164,7 +164,7 @@ let memory_analysis pp_err ~debug tbl up =
   end;
 
   let sp' = 
-    match Stack_alloc.alloc_prog U64 Arch.asmOp false Arch.aparams.ap_sap crip crsp gao.gao_data cglobs cget_sao up with
+    match Stack_alloc.alloc_prog Arch.reg_size Arch.asmOp false Arch.aparams.ap_sap crip crsp gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (pp_err tbl) tbl e in
@@ -205,7 +205,7 @@ let memory_analysis pp_err ~debug tbl up =
     let has_stack = has_stack fd || to_save <> [] in
     let rastack = odfl OnReg fd.f_annot.retaddr_kind = OnStack in
     let rsp = V.clone Arch.rsp_var in
-    let ra = V.mk "RA" (Stack Direct) u64 L._dummy [] in
+    let ra = V.mk "RA" (Stack Direct) (tu Arch.reg_size) L._dummy [] in
     let extra =
       let extra = to_save in
       let extra = if rastack then ra :: extra else extra in

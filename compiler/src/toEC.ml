@@ -98,30 +98,30 @@ let init_use fs =
     (Sf.empty, Sf.empty) fs
 
 (* ------------------------------------------------------------------- *)
-let add64 x e = 
-  (u64, Papp2 (E.Oadd ( E.Op_w U64), Pvar x, e))
+let add_ptr pd x e = 
+  (Prog.tu pd, Papp2 (E.Oadd ( E.Op_w pd), Pvar x, e))
 
 let int_of_word ws e = 
   Papp1 (E.Oint_of_word ws, e)
 
-let rec leaks_e_rec leaks e =
+let rec leaks_e_rec pd leaks e =
   match e with
   | Pconst _ | Pbool _ | Parr_init _ |Pvar _ -> leaks
-  | Pload (_,x,e) -> leaks_e_rec (int_of_word U64 (snd (add64 (gkvar x) e)) :: leaks) e
-  | Pget (_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec (e::leaks) e 
-  | Papp1 (_, e) -> leaks_e_rec leaks e
-  | Papp2 (_, e1, e2) -> leaks_e_rec (leaks_e_rec leaks e1) e2
-  | PappN (_, es) -> leaks_es_rec leaks es
-  | Pif  (_, e1, e2, e3) -> leaks_e_rec (leaks_e_rec (leaks_e_rec leaks e1) e2) e3
-and leaks_es_rec leaks es = List.fold_left leaks_e_rec leaks es
+  | Pload (_,x,e) -> leaks_e_rec pd (int_of_word pd (snd (add_ptr pd (gkvar x) e)) :: leaks) e
+  | Pget (_,_,_, e) | Psub (_,_,_,_,e) -> leaks_e_rec pd (e::leaks) e 
+  | Papp1 (_, e) -> leaks_e_rec pd leaks e
+  | Papp2 (_, e1, e2) -> leaks_e_rec pd (leaks_e_rec pd leaks e1) e2
+  | PappN (_, es) -> leaks_es_rec pd leaks es
+  | Pif  (_, e1, e2, e3) -> leaks_e_rec pd (leaks_e_rec pd (leaks_e_rec pd leaks e1) e2) e3
+and leaks_es_rec pd leaks es = List.fold_left (leaks_e_rec pd) leaks es
 
-let leaks_e e = leaks_e_rec [] e
-let leaks_es es = leaks_es_rec [] es
+let leaks_e pd e = leaks_e_rec pd [] e
+let leaks_es pd es = leaks_es_rec pd [] es
 
-let leaks_lval = function
+let leaks_lval pd = function
   | Lnone _ | Lvar _ -> []
-  | Laset (_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec [e] e
-  | Lmem (_, x,e) -> leaks_e_rec [int_of_word U64 (snd (add64 (gkvar x) e))] e
+  | Laset (_,_,_, e) | Lasub (_,_,_,_,e) -> leaks_e_rec pd [e] e
+  | Lmem (_, x,e) -> leaks_e_rec pd [int_of_word pd (snd (add_ptr pd (gkvar x) e))] e
 
 (* FIXME: generate this list automatically *)
 let ec_keyword = 
@@ -530,7 +530,7 @@ let pp_cast env pp fmt (ty,ety,e) =
         (pp_initi env pp) (e, ne, wse)
 
 
-let rec pp_expr env fmt (e:expr) = 
+let rec pp_expr pd env fmt (e:expr) = 
   match e with
   | Pconst z -> Format.fprintf fmt "%a" pp_print_i z
 
@@ -548,12 +548,12 @@ let rec pp_expr env fmt (e:expr) =
       let x = L.unloc x in
       let (xws,n) = array_kind x.v_ty in
       if ws = xws && aa = Warray_.AAscale then
-        Format.fprintf fmt "@[%a.[%a]@]" (pp_var env) x (pp_expr env) e
+        Format.fprintf fmt "@[%a.[%a]@]" (pp_var env) x (pp_expr pd env) e
       else
         Format.fprintf fmt "@[(get%i%s@ %a@ %a)@]" 
           (int_of_ws ws) 
           (pp_access aa)
-          (pp_initi env (pp_var env)) (x, n, xws) (pp_expr env) e in
+          (pp_initi env (pp_var env)) (x, n, xws) (pp_expr pd env) e in
     let option = 
       for_safety env && snd (Mv.find (L.unloc x.gv) env.vars) in
     pp_oget option pp fmt (x,e)
@@ -569,7 +569,7 @@ let rec pp_expr env fmt (e:expr) =
         (pp_Array env) len
         i
         (pp_var env) x
-        (pp_expr env) e
+        (pp_expr pd env) e
         i
     else 
       Format.fprintf fmt 
@@ -579,22 +579,22 @@ let rec pp_expr env fmt (e:expr) =
         (int_of_ws ws) 
         (pp_access aa)
         (pp_initi env (pp_var env)) (x, n, xws) 
-        (pp_expr env) e 
+        (pp_expr pd env) e 
         i 
 
     
   | Pload (sz, x, e) -> 
     Format.fprintf fmt "(loadW%a Glob.mem (W64.to_uint %a))" 
-      pp_size sz (pp_wcast env) (add64 (gkvar x) e)
+      pp_size sz (pp_wcast pd env) (add_ptr pd (gkvar x) e)
 
   | Papp1 (op1, e) -> 
-    Format.fprintf fmt "(%a %a)" pp_op1 op1 (pp_wcast env) (in_ty_op1 op1, e)
+    Format.fprintf fmt "(%a %a)" pp_op1 op1 (pp_wcast pd env) (in_ty_op1 op1, e)
 
   | Papp2 (op2, e1, e2) ->  
     let ty1,ty2 = in_ty_op2 op2 in
     let te1, te2 = swap_op2 op2 (ty1, e1) (ty2, e2) in
     Format.fprintf fmt "(%a %a %a)"
-      (pp_wcast env) te1 pp_op2 op2 (pp_wcast env) te2
+      (pp_wcast pd env) te1 pp_op2 op2 (pp_wcast pd env) te2
 
   | PappN (op, es) ->
     (* FIXME *)
@@ -604,24 +604,24 @@ let rec pp_expr env fmt (e:expr) =
       let rec aux fmt es = 
         match es with
         | [] -> assert false
-        | [e] -> Format.fprintf fmt "%a" (pp_expr env) e
+        | [e] -> Format.fprintf fmt "%a" (pp_expr pd env) e
         | e::es -> 
           Format.fprintf fmt "@[(%a %%%% 2^%i +@ 2^%i * %a)@]"
-            (pp_expr env) e i i aux es in
+            (pp_expr pd env) e i i aux es in
       Format.fprintf fmt "(W%a.of_int %a)" pp_size ws aux (List.rev es)
     | Ocombine_flags c -> 
       Format.fprintf fmt "@[<1,2>(%s %a)@]"
         (Printer.string_of_combine_flags c) 
-        (pp_list "@ " (pp_expr env)) es
+        (pp_list "@ " (pp_expr pd env)) es
     end
 
   | Pif(_,e1,et,ef) -> 
     let ty = ty_expr e in
     Format.fprintf fmt "(%a ? %a : %a)"
-      (pp_expr env) e1 (pp_wcast env) (ty,et) (pp_wcast env) (ty,ef)
+      (pp_expr pd env) e1 (pp_wcast pd env) (ty,et) (pp_wcast pd env) (ty,ef)
 
-and pp_wcast env fmt (ty, e) = 
-  pp_cast env (pp_expr env) fmt (ty, ty_expr e, e)
+and pp_wcast pd env fmt (ty, e) = 
+  pp_cast env (pp_expr pd env) fmt (ty, ty_expr e, e)
 
 let pp_vdecl env fmt x = 
   Format.fprintf fmt "%a:%a" 
@@ -659,14 +659,14 @@ let pp_ret env fmt xs =
   Format.fprintf fmt "@[return (%a);@]"
     (pp_list ",@ " (fun fmt x -> pp_ovar env fmt (L.unloc x))) xs
 
-let pp_lval1 env pp_e fmt (lv, (ety, e)) = 
+let pp_lval1 pd env pp_e fmt (lv, (ety, e)) = 
   let lty = ty_lval lv in
   let pp_e fmt e = pp_e fmt (lty, ety, e) in
   match lv with 
   | Lnone _ -> assert false
   | Lmem(ws, x, e1) -> 
     Format.fprintf fmt "@[Glob.mem <-@ storeW%a Glob.mem (W64.to_uint %a) %a;@]" pp_size ws
-      (pp_wcast env) (add64 (gkvar x) e1) pp_e e
+      (pp_wcast pd env) (add_ptr pd (gkvar x) e1) pp_e e
   | Lvar x  -> 
     Format.fprintf fmt "@[%a <-@ %a;@]" (pp_var env) (L.unloc x) pp_e e
   | Laset (aa, ws, x, e1) -> 
@@ -675,7 +675,7 @@ let pp_lval1 env pp_e fmt (lv, (ety, e)) =
     let (xws,n) = array_kind x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
       Format.fprintf fmt "@[%a.[%a] <-@ %a;@]"
-        (pp_var env) x (pp_expr env) e1 pp_e e
+        (pp_var env) x (pp_expr pd env) e1 pp_e e
     else
       let nws = n * int_of_ws xws in
       let nws8 = nws / 8 in
@@ -687,7 +687,7 @@ let pp_lval1 env pp_e fmt (lv, (ety, e)) =
         (int_of_ws xws) 
         (pp_WArray env) nws8 (int_of_ws ws)
         (pp_access aa)
-        (pp_initi env (pp_var env)) (x, n, xws) (pp_expr env) e1 pp_e e
+        (pp_initi env (pp_var env)) (x, n, xws) (pp_expr pd env) e1 pp_e e
   | Lasub (aa, ws, len, x, e1) -> 
     assert (check_array env x);
     let x = L.unloc x in
@@ -697,17 +697,17 @@ let pp_lval1 env pp_e fmt (lv, (ety, e)) =
       "@[%a <- @[%a.init@ @[(fun i => if %a <= i < %a + %i@ then %a.[i-%a]@ else %a.[i]);@]@]@]"
       (pp_var env) x 
       (pp_Array env) n 
-      (pp_expr env) e1 (pp_expr env) e1 len 
-      pp_e e (pp_expr env) e1
+      (pp_expr pd env) e1 (pp_expr pd env) e1 len 
+      pp_e e (pp_expr pd env) e1
       (pp_var env) x
     else 
       let nws = n * int_of_ws xws in
       let nws8 = nws / 8 in
       let pp_start fmt () = 
         if aa = Warray_.AAscale then
-          Format.fprintf fmt "(%i * %a)" (int_of_ws ws / 8) (pp_expr env) e1
+          Format.fprintf fmt "(%i * %a)" (int_of_ws ws / 8) (pp_expr pd env) e1
         else
-          Format.fprintf fmt "%a" (pp_expr env) e1 in
+          Format.fprintf fmt "%a" (pp_expr pd env) e1 in
       let len8 = len * int_of_ws ws / 8 in
       let pp_a fmt () =
         Format.fprintf fmt 
@@ -798,13 +798,13 @@ module Normal = struct
    
   and init_aux asmOp env c = List.fold_left (init_aux_i asmOp) env c
 
-  let pp_assgn_i env fmt lv ((etyo, etyi), aux) =
+  let pp_assgn_i pd env fmt lv ((etyo, etyi), aux) =
     let pp_e fmt aux =
       pp_wzeroext pp_string fmt etyo etyi aux in
-    Format.fprintf fmt "@ %a" (pp_lval1 env (pp_cast env pp_e)) (lv, (etyo,aux))
+    Format.fprintf fmt "@ %a" (pp_lval1 pd env (pp_cast env pp_e)) (lv, (etyo,aux))
 
 
-  let pp_call env fmt lvs etyso etysi pp a =
+  let pp_call pd env fmt lvs etyso etysi pp a =
     let ltys = List.map (fun lv -> ty_lval lv) lvs in
     if check_lvals lvs && ltys = etyso && etyso = etysi then
       Format.fprintf fmt "@[%a %a;@]" (pp_lvals env) lvs pp a
@@ -812,16 +812,16 @@ module Normal = struct
       let auxs = get_aux env etysi in
       Format.fprintf fmt "@[%a %a;@]" pp_aux_lvs auxs pp a;
       let tyauxs = List.combine (List.combine etyso etysi) auxs in
-      List.iter2 (pp_assgn_i env fmt) lvs tyauxs
+      List.iter2 (pp_assgn_i pd env fmt) lvs tyauxs
 
-  let rec pp_cmd asmOp env fmt c =
-    Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr asmOp env)) c
+  let rec pp_cmd pd asmOp env fmt c =
+    Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr pd asmOp env)) c
 
-  and pp_instr asmOp env fmt i =
+  and pp_instr pd asmOp env fmt i =
     match i.i_desc with 
     | Cassgn (lv, _, _ty, e) ->
-      let pp_e = pp_cast env (pp_expr env) in
-      pp_lval1 env pp_e fmt (lv , (ty_expr e, e))
+      let pp_e = pp_cast env (pp_expr pd env) in
+      pp_lval1 pd env pp_e fmt (lv , (ty_expr e, e))
 
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
@@ -830,35 +830,35 @@ module Normal = struct
       let otys', _ = ty_sopn asmOp op' in  
       let pp_e fmt (op,es) = 
         Format.fprintf fmt "%a %a" (Printer.pp_opn asmOp) op
-          (pp_list "@ " (pp_wcast env)) (List.combine itys es) in
+          (pp_list "@ " (pp_wcast pd env)) (List.combine itys es) in
       if List.length lvs = 1 then
         let pp_e fmt (op, es) =
           pp_wzeroext pp_e fmt (List.hd otys) (List.hd otys') (op, es) in
         let pp_e  = pp_cast env pp_e in
-        pp_lval1 env pp_e fmt (List.hd lvs , (List.hd otys,  (op',es)))
+        pp_lval1 pd env pp_e fmt (List.hd lvs , (List.hd otys,  (op',es)))
       else
         let pp fmt (op, es) = 
           Format.fprintf fmt "<- %a" pp_e (op,es) in
-        pp_call env fmt lvs otys otys' pp (op,es)
+        pp_call pd env fmt lvs otys otys' pp (op,es)
         
     | Ccall(_, lvs, f, es) ->
       let otys, itys = get_funtype env f in
       let pp_args fmt es = 
-        pp_list ",@ " (pp_wcast env) fmt (List.combine itys es) in
+        pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es) in
       if lvs = [] then 
         Format.fprintf fmt "@[%a (%a);@]" (pp_fname env) f pp_args es
       else
         let pp fmt es = 
           Format.fprintf fmt "<%@ %a (%a)" (pp_fname env) f pp_args es in
-        pp_call env fmt lvs otys otys pp es
+        pp_call pd env fmt lvs otys otys pp es
 
     | Cif(e,c1,c2) ->
       Format.fprintf fmt "@[<v>if (%a) {@   %a@ } else {@   %a@ }@]"
-        (pp_expr env) e (pp_cmd asmOp env) c1 (pp_cmd asmOp env) c2
+        (pp_expr pd env) e (pp_cmd pd asmOp env) c1 (pp_cmd pd asmOp env) c2
       
     | Cwhile(_, c1, e,c2) ->
       Format.fprintf fmt "@[<v>%a@ while (%a) {@   %a@ }@]"
-        (pp_cmd asmOp env) c1 (pp_expr env) e (pp_cmd asmOp env) (c2@c1)
+        (pp_cmd pd asmOp env) c1 (pp_expr pd env) e (pp_cmd pd asmOp env) (c2@c1)
       
     | Cfor(i, (d,e1,e2), c) ->
       (* decreasing for loops have bounds swaped *)
@@ -866,11 +866,11 @@ module Normal = struct
       let pp_init, pp_e2 = 
         match e2 with
         (* Can be generalized to the case where e2 is not modified by c and i *)
-        | Pconst _ -> (fun _fmt () -> ()), (fun fmt () -> pp_expr env fmt e2)
+        | Pconst _ -> (fun _fmt () -> ()), (fun fmt () -> pp_expr pd env fmt e2)
         | _ -> 
           let aux = List.hd (get_aux env [tint]) in
           let pp_init fmt () = 
-            Format.fprintf fmt "@[%s <-@ %a@];@ " aux (pp_expr env) e2 in
+            Format.fprintf fmt "@[%s <-@ %a@];@ " aux (pp_expr pd env) e2 in
           let pp_e2 fmt () = pp_string fmt aux in
           pp_init, pp_e2 in
       let pp_i fmt () = pp_var env fmt (L.unloc i) in
@@ -880,9 +880,9 @@ module Normal = struct
       Format.fprintf fmt 
         "@[<v>%a%a <- %a;@ while (%a < %a) {@   @[<v>%a@ %a <- %a %s 1;@]@ }@]"
         pp_init () 
-        pp_i () (pp_expr env) e1 
+        pp_i () (pp_expr pd env) e1 
         pp_i1 () pp_i2 ()
-        (pp_cmd asmOp env) c
+        (pp_cmd pd asmOp env) c
         pp_i () pp_i () (if d = UpTo then "+" else "-")
 
 end
@@ -921,7 +921,7 @@ module Leak = struct
     if option then Initv (L.unloc x) :: safe
     else safe
     
-  let rec safe_e_rec env safe = function
+  let rec safe_e_rec pd env safe = function
     | Pconst _ | Pbool _ | Parr_init _ -> safe
     | Pvar x -> 
       let x = x.gv in
@@ -932,8 +932,8 @@ module Leak = struct
         | _ -> Initv(L.unloc x) :: safe 
       else safe 
     | Pload (ws,x,e) -> 
-      is_init env x (Valid (ws, snd (add64 (gkvar x) e)) :: safe_e_rec env safe e)
-    | Papp1 (_, e) -> safe_e_rec env safe e
+      is_init env x (Valid (ws, snd (add_ptr pd (gkvar x) e)) :: safe_e_rec pd env safe e)
+    | Papp1 (_, e) -> safe_e_rec pd env safe e
     | Pget (aa, ws, x, e) -> 
       assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
       let x = x.gv in
@@ -944,14 +944,14 @@ module Leak = struct
       in_bound ws x e :: safe 
     | Psub _ -> assert false (* NOT IMPLEMENTED *) 
     | Papp2 (op, e1, e2) -> 
-      safe_op2 (safe_e_rec env (safe_e_rec env safe e1) e2) e1 e2 op
+      safe_op2 (safe_e_rec pd env (safe_e_rec pd env safe e1) e2) e1 e2 op
     | PappN (_op, _es) -> assert false (* TODO: nary *)
     | Pif  (_,e1, e2, e3) -> 
-      safe_e_rec env (safe_e_rec env (safe_e_rec env safe e1) e2) e3
+      safe_e_rec pd env (safe_e_rec pd env (safe_e_rec pd env safe e1) e2) e3
 
-  let safe_e env = safe_e_rec env [] 
+  let safe_e pd env = safe_e_rec pd env [] 
 
-  let safe_es env = List.fold_left (safe_e_rec env) []
+  let safe_es pd env = List.fold_left (safe_e_rec pd env) []
 
   let safe_opn asmOp env safe opn es = 
     let id = Sopn.get_instr_desc asmOp opn in
@@ -965,83 +965,83 @@ module Leak = struct
           let (_s,option) = Mv.find (L.unloc y.gv) env.vars in 
           if option then Some (Inita (L.unloc y.gv, arr_size ws (Conv.int_of_pos p)))
           else None) id.i_safe @ safe
- 
-  let safe_lval env = function
+
+  let safe_lval pd env = function
     | Lnone _ | Lvar _ -> []
     | Lmem(ws, x, e) -> 
-      is_init env x (Valid (ws, snd (add64 (gkvar x) e)) :: safe_e_rec env [] e)
+      is_init env x (Valid (ws, snd (add_ptr pd (gkvar x) e)) :: safe_e_rec pd env [] e)
     | Laset(aa, ws, x,e) -> 
       assert (aa = Warray_.AAscale); (* NOT IMPLEMENTED *)
-      in_bound ws x e :: safe_e_rec env [] e 
+      in_bound ws x e :: safe_e_rec pd env [] e 
     | Lasub _ -> assert false (* NOT IMPLEMENTED *) 
 
-  let pp_safe_e env fmt = function
+  let pp_safe_e pd env fmt = function
     | Initv x -> Format.fprintf fmt "is_init %a" (pp_var env) x
     | Initai(ws, x,e) -> Format.fprintf fmt "is_init%i %a %a" 
-                           (int_of_ws ws) (pp_var env) x (pp_expr env) e
+                           (int_of_ws ws) (pp_var env) x (pp_expr pd env) e
     | Inita(x,n) -> Format.fprintf fmt "%a.is_init %a" (pp_Array env) n (pp_var env) x 
-    | Valid (sz, e) -> Format.fprintf fmt "is_valid Glob.mem %a W%a" (pp_expr env) e pp_size sz 
-    | NotZero(sz,e) -> Format.fprintf fmt "%a <> W%a.zeros" (pp_expr env) e pp_size sz
+    | Valid (sz, e) -> Format.fprintf fmt "is_valid Glob.mem %a W%a" (pp_expr pd env) e pp_size sz 
+    | NotZero(sz,e) -> Format.fprintf fmt "%a <> W%a.zeros" (pp_expr pd env) e pp_size sz
     | InBound(ws, n,e)  -> Format.fprintf fmt "in_bound %a %i %i" 
-                             (pp_expr env) e (size_of_ws ws) n
+                             (pp_expr pd env) e (size_of_ws ws) n
 
-  let pp_safe_es env fmt es = pp_list "/\\@ " (pp_safe_e env) fmt es
+  let pp_safe_es pd env fmt es = pp_list "/\\@ " (pp_safe_e pd env) fmt es
 
-  let pp_leaks env fmt es = 
+  let pp_leaks pd env fmt es = 
     Format.fprintf fmt "leakages <- LeakAddr(@[[%a]@]) :: leakages;@ "
-      (pp_list ";@ " (pp_expr env)) es
+      (pp_list ";@ " (pp_expr pd env)) es
 
-  let pp_safe_cond env fmt conds = 
+  let pp_safe_cond pd env fmt conds = 
     if conds <> [] then 
-      Format.fprintf fmt "safe <- @[safe /\\ %a@];@ " (pp_safe_es env) conds 
+      Format.fprintf fmt "safe <- @[safe /\\ %a@];@ " (pp_safe_es pd env) conds 
     
-  let pp_leaks_e env fmt e =
+  let pp_leaks_e pd env fmt e =
     match env.model with
-    | ConstantTime -> pp_leaks env fmt (leaks_e e)
-    | Safety -> pp_safe_cond env fmt (safe_e env e)
+    | ConstantTime -> pp_leaks pd env fmt (leaks_e pd e)
+    | Safety -> pp_safe_cond pd env fmt (safe_e pd env e)
     | _ -> ()
 
-  let pp_leaks_es env fmt es = 
+  let pp_leaks_es pd env fmt es = 
     match env.model with
-    | ConstantTime -> pp_leaks env fmt (leaks_es es)
-    | Safety -> pp_safe_cond env fmt (safe_es env es)
+    | ConstantTime -> pp_leaks pd env fmt (leaks_es pd es)
+    | Safety -> pp_safe_cond pd env fmt (safe_es pd env es)
     | _ -> ()
     
-  let pp_leaks_opn asmOp env fmt op es = 
+  let pp_leaks_opn pd asmOp env fmt op es = 
     match env.model with
-    | ConstantTime -> pp_leaks env fmt (leaks_es es)
+    | ConstantTime -> pp_leaks pd env fmt (leaks_es pd es)
     | Safety -> 
-      let conds = safe_opn asmOp env (safe_es env es) op es in
-      pp_safe_cond env fmt conds 
+      let conds = safe_opn asmOp env (safe_es pd env es) op es in
+      pp_safe_cond pd env fmt conds 
     | Normal -> ()
 
-  let pp_leaks_if env fmt e = 
+  let pp_leaks_if pd env fmt e = 
     match env.model with
     | ConstantTime -> 
-      let leaks = leaks_e e in
+      let leaks = leaks_e pd e in
       Format.fprintf fmt 
         "leakages <- LeakCond(%a) :: LeakAddr(@[[%a]@]) :: leakages;@ "
-        (pp_expr env) e (pp_list ";@ " (pp_expr env)) leaks
-    | Safety -> pp_safe_cond env fmt (safe_e env e)
+        (pp_expr pd env) e (pp_list ";@ " (pp_expr pd env)) leaks
+    | Safety -> pp_safe_cond pd env fmt (safe_e pd env e)
     | Normal -> ()
 
-  let pp_leaks_for env fmt e1 e2 = 
+  let pp_leaks_for pd env fmt e1 e2 = 
     match env.model with
     | ConstantTime -> 
-      let leaks = leaks_es [e1;e2] in
+      let leaks = leaks_es pd [e1;e2] in
       Format.fprintf fmt 
         "leakages <- LeakFor(%a,%a) :: LeakAddr(@[[%a]@]) :: leakages;@ "
-        (pp_expr env) e1 (pp_expr env) e2 
-        (pp_list ";@ " (pp_expr env)) leaks
-    | Safety -> pp_safe_cond env fmt (safe_es env [e1;e2])
+        (pp_expr pd env) e1 (pp_expr pd env) e2 
+        (pp_list ";@ " (pp_expr pd env)) leaks
+    | Safety -> pp_safe_cond pd env fmt (safe_es pd env [e1;e2])
     | Normal -> ()
 
-  let pp_leaks_lv env fmt lv = 
+  let pp_leaks_lv pd env fmt lv = 
     match env.model with
     | ConstantTime -> 
-      let leaks = leaks_lval lv in
-      if leaks <> [] then pp_leaks env fmt leaks
-    | Safety -> pp_safe_cond env fmt (safe_lval env lv)
+      let leaks = leaks_lval pd lv in
+      if leaks <> [] then pp_leaks pd env fmt leaks
+    | Safety -> pp_safe_cond pd env fmt (safe_lval pd env lv)
     | _ -> ()
 
   let rec init_aux_i env i = 
@@ -1079,29 +1079,29 @@ module Leak = struct
       | Lasub _ -> assert false (* NOT IMPLEMENTED *) 
     else pp fmt e
 
-  let pp_assgn_i env fmt lv ((etyo, etyi), aux) =
-    Format.fprintf fmt "@ "; pp_leaks_lv env fmt lv;
+  let pp_assgn_i pd env fmt lv ((etyo, etyi), aux) =
+    Format.fprintf fmt "@ "; pp_leaks_lv pd env fmt lv;
     let pp_e fmt aux =
       pp_wzeroext pp_string fmt etyo etyi aux in
     let pp_e = pp_some env (pp_cast env pp_e) lv in
-    pp_lval1 env pp_e fmt (lv, (etyo,aux))
+    pp_lval1 pd env pp_e fmt (lv, (etyo,aux))
 
-  let pp_call env fmt lvs etyso etysi pp a =
+  let pp_call pd env fmt lvs etyso etysi pp a =
     let auxs = get_aux env etyso in
     Format.fprintf fmt "@[%a %a;@]" pp_aux_lvs auxs pp a;
     let tyauxs = List.combine (List.combine etyso etysi) auxs in
-    List.iter2 (pp_assgn_i env fmt) lvs tyauxs
+    List.iter2 (pp_assgn_i pd env fmt) lvs tyauxs
         
-  let rec pp_cmd asmOp env fmt c =
-    Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr asmOp env)) c
+  let rec pp_cmd pd asmOp env fmt c =
+    Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " (pp_instr pd asmOp env)) c
 
-  and pp_instr asmOp env fmt i =
+  and pp_instr pd asmOp env fmt i =
     match i.i_desc with 
     | Cassgn (lv, _, _, e) ->
-      pp_leaks_e env fmt e;
-      let pp fmt e = Format.fprintf fmt "<- %a" (pp_expr env) e in
+      pp_leaks_e pd env fmt e;
+      let pp fmt e = Format.fprintf fmt "<- %a" (pp_expr pd env) e in
       let tys = [ty_expr e] in
-      pp_call env fmt [lv] tys tys pp e
+      pp_call pd env fmt [lv] tys tys pp e
 
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
@@ -1110,36 +1110,36 @@ module Leak = struct
       let otys', _ = ty_sopn asmOp op' in 
       let pp fmt (op, es) = 
         Format.fprintf fmt "<- %a %a" (Printer.pp_opn asmOp) op
-          (pp_list "@ " (pp_wcast env)) (List.combine itys es) in
-      pp_leaks_opn asmOp env fmt op' es;
-      pp_call env fmt lvs otys otys' pp (op, es)
+          (pp_list "@ " (pp_wcast pd env)) (List.combine itys es) in
+      pp_leaks_opn pd asmOp env fmt op' es;
+      pp_call pd env fmt lvs otys otys' pp (op, es)
       
     | Ccall(_, lvs, f, es) ->
       let otys, itys = get_funtype env f in
       let pp_args fmt es = 
-        pp_list ",@ " (pp_wcast env) fmt (List.combine itys es) in
-      pp_leaks_es env fmt es;
+        pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es) in
+      pp_leaks_es pd env fmt es;
       if lvs = [] then 
         Format.fprintf fmt "@[%a (%a);@]" (pp_fname env) f pp_args es
       else
         let pp fmt es = 
           Format.fprintf fmt "<%@ %a (%a)" (pp_fname env) f pp_args es in
-        pp_call env fmt lvs otys otys pp es
+        pp_call pd env fmt lvs otys otys pp es
 
     | Cif(e,c1,c2) ->
-      pp_leaks_if env fmt e;
+      pp_leaks_if pd env fmt e;
       Format.fprintf fmt "@[<v>if (%a) {@   %a@ } else {@   %a@ }@]"
-        (pp_expr env) e (pp_cmd asmOp env) c1 (pp_cmd asmOp env) c2
+        (pp_expr pd env) e (pp_cmd pd asmOp env) c1 (pp_cmd pd asmOp env) c2
       
     | Cwhile(_, c1, e,c2) ->
       let pp_leak fmt e = 
-        Format.fprintf fmt "@ %a" (pp_leaks_if env) e in
+        Format.fprintf fmt "@ %a" (pp_leaks_if pd env) e in
       Format.fprintf fmt "@[<v>%a%a@ while (%a) {@   %a%a@ }@]"
-        (pp_cmd asmOp env) c1 pp_leak e (pp_expr env) e
-        (pp_cmd asmOp env) (c2@c1) pp_leak e
+        (pp_cmd pd asmOp env) c1 pp_leak e (pp_expr pd env) e
+        (pp_cmd pd asmOp env) (c2@c1) pp_leak e
 
     | Cfor(i, (d,e1,e2), c) ->
-      pp_leaks_for env fmt e1 e2;
+      pp_leaks_for pd env fmt e1 e2;
       let aux, env1 = 
         if for_safety env then 
           let auxs = get_aux env [tint;tint] in
@@ -1148,10 +1148,10 @@ module Leak = struct
       let pp_init, pp_e2 = 
         match e2 with
         (* Can be generalized to the case where e2 is not modified by c and i *)
-        | Pconst _ -> (fun _fmt () -> ()), (fun fmt () -> pp_expr env fmt e2)
+        | Pconst _ -> (fun _fmt () -> ()), (fun fmt () -> pp_expr pd env fmt e2)
         | _ -> 
           let pp_init fmt () = 
-            Format.fprintf fmt "@[%s <-@ %a@];@ " aux (pp_expr env) e2 in
+            Format.fprintf fmt "@[%s <-@ %a@];@ " aux (pp_expr pd env) e2 in
           let pp_e2 fmt () = pp_string fmt aux in
           pp_init, pp_e2 in
       let pp_i fmt () = pp_var env1 fmt (L.unloc i) in
@@ -1165,9 +1165,9 @@ module Leak = struct
       Format.fprintf fmt 
         "@[<v>%a%a <- %a;@ while (%a < %a) {@   @[<v>%a@ %a <- %a %s 1;@]@ }%a@]"
         pp_init () 
-        pp_i () (pp_expr env) e1 
+        pp_i () (pp_expr pd env) e1 
         pp_i1 () pp_i2 ()
-        (pp_cmd asmOp env1) c
+        (pp_cmd pd asmOp env1) c
         pp_i () pp_i () (if d = UpTo then "+" else "-")
         pp_restore ()
 
@@ -1178,12 +1178,12 @@ let pp_aux fmt env =
     Format.fprintf fmt "@[var %s:@ %a@];@ " aux (pp_ty env) ty in
   Mty.iter (fun ty -> List.iter (pp ty)) env.auxv
 
-let pp_safe_ret env fmt xs =
+let pp_safe_ret pd env fmt xs =
   if for_safety env then
     let es = List.map (fun x -> Pvar (gkvar x)) xs in
-    Leak.pp_safe_cond env fmt (Leak.safe_es env es)
+    Leak.pp_safe_cond pd env fmt (Leak.safe_es pd env es)
 
-let pp_fun asmOp env fmt f =
+let pp_fun pd asmOp env fmt f =
   let locals = Sv.elements (locals f) in
   (* initialize the env *)
   let env = List.fold_left (add_var false) env f.f_args in
@@ -1206,8 +1206,8 @@ let pp_fun asmOp env fmt f =
     (pp_rty env) f.f_tyout
     pp_aux env
     (pp_locals env) locals
-    (pp_cmd asmOp env) f.f_body
-    (pp_safe_ret env) f.f_ret 
+    (pp_cmd pd asmOp env) f.f_body
+    (pp_safe_ret pd env) f.f_ret
     (pp_ret env) f.f_ret
 
 let pp_glob_decl env fmt (x,d) =
@@ -1266,7 +1266,7 @@ let add_glob_arrsz env (x,d) =
     env.warrsz := Sint.add (arr_size ws n) !(env.warrsz); 
     env
 
-let pp_prog asmOp fmt model globs funcs arrsz warrsz =
+let pp_prog pd asmOp fmt model globs funcs arrsz warrsz =
 
   let env = empty_env model funcs arrsz warrsz in
   
@@ -1300,7 +1300,7 @@ let pp_prog asmOp fmt model globs funcs arrsz warrsz =
     (pp_arrays "WArray") !(env.warrsz)
     (pp_list "@ @ " (pp_glob_decl env)) globs 
     pp_leakages env 
-    (pp_list "@ @ " (pp_fun asmOp env)) funcs
+    (pp_list "@ @ " (pp_fun pd asmOp env)) funcs
     
 let rec used_func f = 
   used_func_c Ss.empty f.f_body 
@@ -1316,7 +1316,7 @@ and used_func_i used i =
   | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2
   | Ccall (_,_,f,_)   -> Ss.add f.fn_name used
 
-let extract asmOp fmt model ((globs,funcs):('info, 'asm) prog) tokeep =
+let extract pd asmOp fmt model ((globs,funcs):('info, 'asm) prog) tokeep =
   let funcs = List.map Regalloc.fill_in_missing_names funcs in
   let tokeep = ref (Ss.of_list tokeep) in
   let dofun f = 
@@ -1328,6 +1328,6 @@ let extract asmOp fmt model ((globs,funcs):('info, 'asm) prog) tokeep =
   let warrsz = ref Sint.empty in
   (* Do first a dummy printing to collect the Arrayi WArrayi *)
   let dummy_fmt = Format.make_formatter (fun _ _ _ -> ()) (fun _ -> ()) in 
-  pp_prog asmOp dummy_fmt model globs funcs arrsz warrsz;
-  pp_prog asmOp       fmt model globs funcs arrsz warrsz
+  pp_prog pd asmOp dummy_fmt model globs funcs arrsz warrsz;
+  pp_prog pd asmOp       fmt model globs funcs arrsz warrsz
 

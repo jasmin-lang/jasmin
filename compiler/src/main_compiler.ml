@@ -125,7 +125,7 @@ let main () =
       try 
         let env = Pretyping.Env.empty in
         let env = List.fold_left Pretyping.Env.add_from env !Glob_options.idirs in
-        Pretyping.tt_program Arch.asmOp_sopn env fname
+        Pretyping.tt_program Arch.reg_size Arch.asmOp_sopn env fname
       with
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
       | Syntax.ParseError (loc, msg) ->
@@ -159,7 +159,7 @@ let main () =
     let prog =
       begin try
         let prog = Insert_copy_and_fix_length.doit prog in
-        Typing.check_prog Arch.asmOp prog;
+        Typing.check_prog Arch.reg_size Arch.asmOp prog;
         prog
       with Typing.TyError(loc, code) ->
         hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
@@ -196,7 +196,7 @@ let main () =
       begin try
         BatPervasives.finally
           (fun () -> close ())
-          (fun () -> ToEC.extract Arch.asmOp fmt !model prog !ec_list)
+          (fun () -> ToEC.extract Arch.reg_size Arch.asmOp fmt !model prog !ec_list)
           ()
       with e ->
         BatPervasives.ignore_exceptions
@@ -214,7 +214,7 @@ let main () =
     if !do_compile then begin
   
     (* Now call the coq compiler *)
-    let all_vars = Prog.rip :: Arch.all_registers in
+    let all_vars = Arch.rip :: Arch.all_registers in
     let tbl, cprog = Conv.cuprog_of_prog all_vars () prog in
 
     if !debug then Printf.eprintf "translated to coq \n%!";
@@ -230,21 +230,23 @@ let main () =
             let _m, vs =
               (** TODO: allow to configure the initial stack pointer *)
 
+              let ptr_of_z z = Word0.wrepr Arch.reg_size (Conv.cz_of_z z) in
               let live =
                 List.map
-                  (fun (ptr, sz) -> Conv.int64_of_z ptr, Conv.cz_of_z sz)
+                  (fun (ptr, sz) -> ptr_of_z ptr, Conv.cz_of_z sz)
                   m
               in
               let m_init =
-                (Low_memory.Memory.coq_M U64).init
+                (Low_memory.Memory.coq_M Arch.reg_size).init
                   live
-                  (Conv.int64_of_z (Z.of_string "1024"))
+                  (ptr_of_z (Z.of_string "1024"))
               in
               (match m_init with
                  | Utils0.Ok m -> m
                  | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err)))
               |>
               Evaluator.exec
+                Arch.reg_size
                 Arch.asmOp
                 (Expr.to_uprog Arch.asmOp cprog)
                 (Conv.cfun_of_fun tbl f)
@@ -423,7 +425,7 @@ let main () =
       Compiler.renaming_fd = apply "alloc inline assgn" renaming_fd;
       Compiler.remove_phi_nodes_fd = apply "remove phi nodes" remove_phi_nodes_fd;
       Compiler.stack_register_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Arch.rsp_var);
-      Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip);
+      Compiler.global_static_data_symbol = Var0.Var.vname (Conv.cvar_of_var tbl Arch.rip);
       Compiler.stackalloc    = memory_analysis;
       Compiler.removereturn  = removereturn;
       Compiler.regalloc      = global_regalloc;

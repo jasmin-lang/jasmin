@@ -254,8 +254,6 @@ module Sv : Set.S  with type elt = var
 module Mv : Map.S  with type key = var
 module Hv : Hash.S with type key = var
 
-val rip : var
-
 (* -------------------------------------------------------------------- *)
 val kind_i : 'len gvar_i -> v_kind
 val ty_i   : 'len gvar_i -> 'len gty 
@@ -306,7 +304,6 @@ val refresh_i_loc_p : ('info,'asm) prog  -> ('info,'asm) prog
 val int_of_ws  : wsize -> int
 val string_of_ws : wsize -> string
 val size_of_ws : wsize -> int
-val uptr       : wsize 
 
 val wsize_lt : wsize -> wsize -> bool
 val wsize_le : wsize -> wsize -> bool
@@ -334,7 +331,6 @@ val ( ++ ) : 'len gexpr -> 'len gexpr -> 'len gexpr
 val ( ** ) : 'len gexpr -> 'len gexpr -> 'len gexpr
 val cnst   : Z.t -> 'len gexpr
 val icnst  : int -> 'len gexpr
-val cast64 : 'len gexpr -> 'len gexpr
 val is_var : 'len gexpr -> bool
 val get_ofs : Warray_.arr_access -> Wsize.wsize -> 'len gexpr -> int option
 
