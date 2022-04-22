@@ -44,14 +44,16 @@ Here are the main changes of the release.
   to instructions, variable declarations and return types. The concrete syntax
   is the following: `#[annotation]` or `#[annotation=value]`.
 
-- **Writing the lower bits of a register.** Instead of computing a small value
-  and writing it afterwards in a larger register, one can write to the lower
-  bits of a register and zero the higher bits in one go. Here is an example
+- **Writing to the lower bits of a register.** Instead of computing a small
+  value and writing it afterwards to a larger register, one can compute the
+  value, write it to the lower bits of the large register and zero the higher
+  bits in one go. This works only with certain assembly operators. The operator
+  must be prefixed with a cast to the right size. Here is an example
   illustrating the feature.
   ```
-  reg u64 x; reg u256 y;
-  y = (256u)#VMOV(x); // writes x in the lower bits of y
-                      // and zeroes the other bits of y
+  reg u64 x y; reg u256 z;
+  z = (256u)#VPAND(x, y); // writes the bitwise AND of x and y to the lower bits
+                          // of z, and zeroes the other bits of z
   ```
 
 - **An include system.** Including a Jasmin file in another one is now a native
@@ -104,6 +106,10 @@ Here are the main changes of the release.
   of an alternative extraction to EasyCrypt making leakages explicit. This
   extraction is more flexible, but in general the type system should be easier
   to use.
+
+- **No export of global variables anymore.** Global variables are no longer
+  visible outside of the Jasmin compilation unit, so they cannot be referred to
+  by other compilation units at link time.
 
 - **New tunneling pass.** At the end of the compilation, the compiler tries to
   replace a jump pointing to another jump by a single jump pointing to the
