@@ -1982,13 +1982,13 @@ Qed.
       move: (sem_pexprs_same dz e hz1); rewrite /sem_pexprs => -> /=.
       subst.
       case: (opn_no_imm_spec o) => [[sz [ho ->]] | ->].
-      + have hr' := hr.
-        move: hr; rewrite ho /exec_sopn /= /sopn_sem /= => -> /=.
-        rewrite /= h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= drop0 /=; subst.
-        move: hr'. rewrite /exec_sopn /=. t_xrbindP=> yt sz' hw wz' ht hm le hlo /= m1 m2 m3 m4 m5 m6 mle.
-        rewrite /leak_sopn /= hw /= ht /=. case: (unzip1 z1) hm=> //= hm. 
-      have hr' := hr. rewrite hr /= h1 /= h2 /= h3' /= h4 /= h5 /= h6 /= drop0. 
-      move: hr'. rewrite /exec_sopn /=. by t_xrbindP=> yt sz' lo -> /= _ _.
+      + move: (hr); rewrite ho /exec_sopn /= /sopn_sem /= => -> /=.
+        rewrite /= h1 /= h2 /= h3' /= h4 /= h5 /= h6 /=; subst.
+        move: hr; rewrite /exec_sopn; t_xrbindP => - [] ? [] ? [] ? [] ? [] ? ? ok_yt lo ok_lo *; subst.
+        move: ok_lo; rewrite /leak_sopn /=; t_xrbindP => ?? -> /= ? -> /=.
+        by case: (z1).
+      rewrite hr /= h1 /= h2 /= h3' /= h4 /= h5 /= h6 drop0 /=.
+      move: hr. rewrite /exec_sopn /=. by t_xrbindP=> yt sz' lo -> /= _ _.
     (* Opn5f_other *)
     case: ys hr hs=> // a' l hr /=. t_xrbindP.
     move=> -[s1 l1] s1' /= h1 [] <- <- h1'. case: l hr=> // a0 l hr. t_xrbindP=> -[s2 l2] /= h2 h2'.
@@ -2367,7 +2367,7 @@ Qed.
     (* LowerDivMod *) (* done *)
     + move=> d u w s p0 p1 /= [] [va] [vb] [wa] [la] [lb] [hva] hwa hdiv hty' hle1 hle2; subst ty.
       set vf := {| v_var := _ |}.
-      set lt := (X in LT_idouble X _).
+      set lt := (X in LT_iopn [:: X ; _ ]).
       set i1 := match u with Signed => _ | _ => _ end.
       move: hdiv; set va0 := Vword (match u with Signed => _ | _ => _ end) => hdiv.
       have Hs1'' := eq_exc_freshS Hs1'.
