@@ -16,8 +16,8 @@ val pp_pvar  : Format.formatter -> pvar -> unit
 val pp_ptype : Format.formatter -> pty -> unit
 val pp_plval : Format.formatter -> pexpr glval -> unit
 val pp_pexpr : Format.formatter -> pexpr -> unit
-val pp_pprog : 'asm Sopn.asmOp ->
-               Format.formatter -> ('info, 'asm) pprog -> unit
+val pp_pprog : ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
+               Format.formatter -> ('info, ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) pprog -> unit
 
 val pp_var   : debug:bool -> Format.formatter -> var -> unit
 
@@ -40,28 +40,28 @@ val pp_expr  : debug:bool -> Format.formatter -> expr -> unit
 val pp_lval  : debug:bool -> Format.formatter -> lval -> unit
 
 val pp_instr : debug:bool ->
-               'asm Sopn.asmOp ->
-               Format.formatter -> ('info, 'asm) instr -> unit
+               ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
+               Format.formatter -> ('info, ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) instr -> unit
 
 val pp_stmt  : debug:bool ->
-               'asm Sopn.asmOp ->
-               Format.formatter -> ('info, 'asm) stmt  -> unit
+               ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
+               Format.formatter -> ('info, ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) stmt  -> unit
 
 val pp_ifunc : debug:bool -> (Format.formatter -> 'info -> unit) ->
-               'asm Sopn.asmOp ->
-               Format.formatter -> ('info, 'asm) func -> unit
+               ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
+               Format.formatter -> ('info, ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) func -> unit
 
 val pp_func  : debug:bool ->
-               'asm Sopn.asmOp ->
-               Format.formatter -> ('info, 'asm) func -> unit
+               ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
+               Format.formatter -> ('info, ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) func -> unit
 
 val pp_iprog : debug:bool -> (Format.formatter -> 'info -> unit) ->
-               'asm Sopn.asmOp ->
-               Format.formatter -> ('info, 'asm) prog -> unit
+               ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
+               Format.formatter -> ('info, ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) prog -> unit
 
 val pp_prog  : debug:bool ->
-               'asm Sopn.asmOp ->
-               Format.formatter -> ('info, 'asm) prog -> unit
+               ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
+               Format.formatter -> ('info, ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) prog -> unit
 
 val pp_datas : Format.formatter -> Ssralg.GRing.ComRing.sort list -> unit
 
@@ -74,6 +74,6 @@ val pp_return_address : debug:bool -> 'a Conv.coq_tbl ->
 
 val pp_sprog : debug:bool -> 
                'a Conv.coq_tbl ->
-               'asm Sopn.asmOp ->
-               Format.formatter -> ('info, 'asm) sprog -> unit
+               ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op Sopn.asmOp ->
+               Format.formatter -> ('info, ('reg, 'xreg, 'rflag, 'cond, 'asm_op, 'extra_op) Arch_extra.extended_op) sprog -> unit
 
