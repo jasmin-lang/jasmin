@@ -124,7 +124,7 @@ Here are the main changes of the release.
 
 - **Printing in Jasmin syntax.** The compiler used to print programs in a syntax
   that was different from the Jasmin syntax, in general for no good reason. It
-  now tries to use Jasmin syntax. In particular, the output of option `-pcstexp`
+  now tries to use Jasmin syntax. In particular, the output of option `-ptyping`
   should always be syntactically valid. Please report an issue if it is not the
   case!
 
