@@ -592,9 +592,70 @@ Definition reduce_wconst sz (e: pexpr) : pexpr :=
   else e.
 
 #[local]
+Notation lt_lea_exp' b o :=
+  (match b, o with
+   | Some _, Some _ => LT_seq [:: LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_seq [:: LT_seq [:: LT_remove; LT_seq [:: LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_remove]; LT_remove]]; LT_remove]]; LT_remove]
+   | None, None => LT_seq [:: LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_seq [:: LT_seq [:: LT_seq [:: LT_remove; LT_remove] ; LT_seq [:: LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_seq [:: LT_remove; LT_remove]]; LT_remove]]; LT_remove]]; LT_remove]
+   | Some _, None => LT_seq [:: LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_seq [:: LT_seq [:: LT_remove; LT_seq [:: LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_seq [:: LT_remove; LT_remove]]; LT_remove]]; LT_remove]]; LT_remove]
+   | None, Some _ => LT_seq [:: LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_seq [:: LT_seq [:: LT_seq [:: LT_remove; LT_remove] ; LT_seq [:: LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_remove]; LT_remove]]; LT_remove]]; LT_remove]
+   end).
+
+#[local]
+Notation lt_lea_exp_sc b o :=
+  (match b, o with
+   | Some _, Some _ => LT_seq [:: LT_remove; LT_remove]
+   | None, None => LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_seq [:: LT_remove; LT_remove]]
+   | Some _, None => LT_seq [:: LT_remove; LT_seq [:: LT_remove; LT_remove]]
+   | None, Some _ => LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_remove]
+   end).
+
+#[local]
+Notation lt_lea_exp_b b :=
+  (match b with
+   | Some _ => LT_seq [:: LT_remove]
+   | None => LT_seq [:: LT_seq [:: LT_remove; LT_remove]]
+   end).
+
+#[local]
+Notation lt_lea_exp_b1 b :=
+  (match b with
+   | Some _ => LT_seq [:: LT_remove; LT_seq [:: LT_remove; LT_remove]]
+   | None => LT_seq [:: LT_seq [:: LT_remove; LT_remove]; LT_seq [:: LT_remove; LT_remove]]
+   end).
+
+#[local]
+Notation lt_lea_exp := (LT_seq [:: LT_remove; LT_seq [:: LT_remove; LT_seq [:: LT_remove; LT_remove]]]).
+
+#[local]
 Notation LT_ilmov1 := (LT_idouble (LT_seq [:: LT_seq [:: LT_subi 0 ] ; LT_remove ; LT_seq [:: LT_remove ] ]) (LT_seq [:: LT_seq [:: LT_remove]; LT_remove ; LT_seq [:: LT_subi 1]])).
 #[local]
+Notation LT_ilmov2 := (LT_isingle (LT_seq [:: LT_seq [::] ; LT_remove ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+#[local]
+Notation LT_ilmov3 := (LT_isingle (LT_seq [:: LT_seq [::] ; LT_remove ; LT_seq [::  LT_subi 1 ] ])).
+#[local]
+Notation LT_ilmov4 := (LT_isingle (LT_seq [:: LT_seq [:: LT_subi 0 ] ; LT_remove ; LT_seq [::  LT_subi 1 ] ])).
+#[local]
+Notation LT_ild b := (LT_isingle (LT_seq [:: lt_lea_exp_b b ; LT_remove ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+#[local]
+Notation LT_ildc b := (LT_isingle (LT_seq [:: lt_lea_exp_b1 b ; LT_remove ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+#[local]
 Notation LT_ildcn b := (LT_idouble (LT_seq [:: LT_seq [:: LT_seq [:: LT_remove ; LT_remove ] ]; LT_remove; LT_seq [:: LT_remove ] ]) (LT_seq [:: LT_seq [:: if b is Some _ then LT_remove else LT_seq [:: LT_remove ; LT_remove ]; LT_remove ]; LT_remove; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1]])).
+#[local]
+Notation LT_ilea b o := (LT_isingle (LT_seq [:: LT_seq [:: lt_lea_exp' b o ] ; LT_remove ; LT_seq [:: LT_subi 1 ] ])).
+#[local]
+Notation LT_ilsc b o := (LT_isingle (LT_seq [:: lt_lea_exp_sc b o ; LT_remove ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+#[local]
+Notation LT_ilasgn := (LT_isingle (LT_seq [:: LT_subi 0; LT_subi 1 ])).
+#[local]
+Notation LT_ilinc ltes := (LT_isingle (LT_seq [:: lt_compose (LT_subi 0) ltes ; LT_remove ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])).
+#[local]
+Notation LT_ilcopn ltes := (LT_isingle (LT_seq [:: lt_compose (LT_subi 0) ltes ; LT_remove ; LT_seq [:: LT_subi 1 ] ])).
+#[local]
+Notation LT_ileq ltes := (LT_isingle (LT_seq [:: lt_compose (LT_subi 0) ltes ; LT_remove ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1] ])).
+#[local]
+Notation LT_illt ltes := (LT_isingle (LT_seq [:: lt_compose (LT_subi 0) ltes; LT_remove ; LT_seq [:: LT_remove; LT_subi 1; LT_remove; LT_remove; LT_remove ] ])).
+#[local]
+Notation LT_ildiv s ltes := (LT_idouble (LT_seq [:: LT_seq [:: if s is Signed then LT_compose (LT_subi 0) (LT_compose (LT_subi 0) (LT_subi 0)) else LT_seq [:: LT_remove ; LT_remove ] ]; LT_remove ; LT_seq [:: LT_remove ] ]) (LT_seq [:: LT_seq [:: LT_remove; LT_compose (LT_subi 0) (LT_compose (LT_subi 0) (LT_subi 0)) ; LT_compose (LT_subi 0) (LT_compose (LT_subi 0) (LT_subi 1)) ] ; LT_compose (LT_subi 0) (LT_subi 1) ; lt_compose (LT_subi 1) ltes])).
 
 (** Need to fix this later: for now commenting it out **) 
 Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd * leak_i_tr :=
@@ -706,12 +767,11 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
       end in
     let i1 :=
       match s with
-      | Signed => (Copn [:: Lvar c ] tg (Ox86 (CQO sz)) [:: a], LT_ilds) (* Lopn (LSub [:: LSub [:: la]; LSub [:: LEmpty]]) *) 
-      | Unsigned => (Copn [:: Lvar c ] tg (Ox86 (MOV sz)) [:: Papp1 (Oword_of_int sz) (Pconst 0)], LT_ildus)
-        (* Lopn (LSub [:: LSub [:: LEmpty]; LSub [:: LEmpty]]) *) 
+      | Signed => Copn [:: Lvar c ] tg (Ox86 (CQO sz)) [:: a]
+      | Unsigned => Copn [:: Lvar c ] tg (Ox86 (MOV sz)) [:: Papp1 (Oword_of_int sz) (Pconst 0)]
       end in
     (* [:: leak for i1; Lopn (LSub [:: LSub [:: LEmpty; la ; lb] ; LSub lv.2]) *)
-    ([::MkI ii i1.1; MkI ii (Copn lv tg op [::Pvar c; a; b]) ], LT_ildiv i1.2 lte)
+    ([::MkI ii i1; MkI ii (Copn lv tg op [::Pvar c; a; b]) ], LT_ildiv s lte)
 
   | (LowerConcat h l, lte) =>
     ([:: MkI ii (Copn [:: x ] tg Oconcat128 [:: h ; l ]) ], LT_ilcopn lte)
@@ -772,16 +832,16 @@ Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r * leak_es_i_t
     | None => ([:: Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] tg (Ox86 (MUL sz)) es ], LT_imul3)
               (* [:: Lopn (LSub [:: LSub [:: le1; le2]; LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; yl; yl'']])] *)
     end end
-  | _, _ => ([:: Copn xs tg (Omulu sz) es ], LT_imul4)
+  | _, _ => ([:: Copn xs tg (Omulu sz) es ], LT_ianone)
   end
-  else ([:: Copn xs tg (Omulu sz) es ], LT_imul4).  (* [:: Lopn (LSub [:: LSub (unzip2 vs); LSub l1''])] *)
+  else ([:: Copn xs tg (Omulu sz) es ], LT_ianone).  (* [:: Lopn (LSub [:: LSub (unzip2 vs); LSub l1''])] *)
 
 Definition lower_copn (xs: lvals) tg (op: sopn) (es: pexprs) : seq instr_r * leak_es_i_tr :=
   match op with
   | Oaddcarry sz => lower_addcarry sz false xs tg es
   | Osubcarry sz => lower_addcarry sz true xs tg es
   | Omulu sz     => lower_mulu sz xs tg es
-  | _            => ([:: Copn xs tg op es], LT_imul4)
+  | _            => ([:: Copn xs tg op es], LT_ianone)
   end.
 
 

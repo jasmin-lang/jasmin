@@ -42,25 +42,6 @@ let rec pp_e_tr fmt =
   | LT_compose (e, f) -> fprintf fmt "%a ∘ %a" pp_e_tr e pp_e_tr f
   | LT_rev -> p "rev"
 
-let pp_i_tr_single fmt =
-  let p s = fprintf fmt "%s" s in
-  let q s a = fprintf fmt "%s %a" s pp_e_tr a in
-  function
-  | LT_ilmov2_ -> p "ilmov2"
-  | LT_ilmov3_ -> p "ilmov3"
-  | LT_ilmov4_ -> p "ilmov4"
-  | LT_ild_ _ -> p "ild"
-  | LT_ildc_ _ -> p "ildc"
-  | LT_ilea_ _ -> p "ilea"
-  | LT_ilsc_ _ -> p "ilsc"
-  | LT_ilds_ -> p "ilds"
-  | LT_ildus_ -> p "ildus"
-  | LT_ilasgn_ -> p "ilasgn"
-  | LT_ilinc_ a -> q "ilinc" a
-  | LT_ilcopn_ a -> q "ilcopn" a
-  | LT_ileq_ a -> q "ileq" a
-  | LT_illt_ a -> q "illt" a
-
 let pp_e_i_tr fmt =
   function
   | LT_iconditionl e -> pp_e_tr fmt e
@@ -103,8 +84,7 @@ let pp_i tbl fmt =
   | LT_ilfopn (e, f) -> p "ilfopn(TODO, TODO)"
   | LT_icondl (a, b, c, d) -> fprintf fmt "icondl(TODO, %a, %a, %a)" pp_e_tr b (pp_list ";" pp_i) c (pp_list ";" pp_i) d
   | LT_ilif (a, b) -> fprintf fmt "ilif(%a, %a)" pp_e_i_tr a pp_e_tr b
-  | LT_ildiv (a, b) -> fprintf fmt "ildiv(%a, TODO)" pp_i a
-  | LT_isingle a -> fprintf fmt "isingle(%a)" pp_i_tr_single a
+  | LT_isingle a -> fprintf fmt "isingle(%a)" pp_e_tr a
   | LT_idouble (a, b) -> p "idouble(TODO)"
   in pp_i fmt
 
