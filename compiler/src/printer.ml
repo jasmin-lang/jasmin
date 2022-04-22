@@ -209,12 +209,12 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
       (pp_tag tg)
 
   | Copn(x, t, o, e) ->
-    (*let pp_cast fmt = function
+    let pp_cast fmt = function
       | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (int_of_ws ws)
-      | _ -> () in*)
+      | _ -> () in
 
-    F.fprintf fmt "@[<hov 2>%a %s=@ %a(%a);@]"
-      (pp_glvs pp_len pp_var) x (pp_tag t) pp_opn o
+    F.fprintf fmt "@[<hov 2>%a %s=@ %a#%a(%a);@]"
+      (pp_glvs pp_len pp_var) x (pp_tag t) pp_cast o pp_opn o
       (pp_ges pp_len pp_var) e
 
   | Cif(e, c, []) ->

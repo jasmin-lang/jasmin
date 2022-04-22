@@ -69,9 +69,14 @@ let pp_remote_label tbl fmt (fn, lbl) =
 let pp_instr asmOp tbl fmt i =
   match i.li_i with
   | Lopn (lvs, op, es) ->
-    F.fprintf fmt "@[%a@] = %a@[(%a)@]"
+    let pp_cast fmt = function
+      | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (P.int_of_ws ws)
+      | _ -> () in
+
+    F.fprintf fmt "@[%a@] = %a%a@[(%a)@]"
       (pp_list ",@ " (pp_lval tbl)) lvs
-      Pr.pp_string0 (Sopn.string_of_sopn asmOp op)
+      pp_cast op
+      (Pr.pp_opn asmOp) op
       (pp_list ",@ " (pp_expr tbl)) es
   | Lalign     -> F.fprintf fmt "Align"
   | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl
