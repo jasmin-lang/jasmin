@@ -94,7 +94,7 @@ let find_var outs ins ap : _ option =
         | Pvar v -> if is_gkvar v then Some v.gv else None
         | _ -> None)
 
-let asm_equality_constraints ~loc asmop is_move_op (int_of_var: var_i -> int option) (k: int -> int -> unit)
+let asm_equality_constraints ~loc asmOp is_move_op (int_of_var: var_i -> int option) (k: int -> int -> unit)
     (k': int -> int -> unit)
     (lvs: 'ty glvals) (op: 'asm sopn) (es: 'ty gexprs) : unit =
   let assert_compatible_types x y =
@@ -117,7 +117,7 @@ let asm_equality_constraints ~loc asmop is_move_op (int_of_var: var_i -> int opt
                                               kind_i x = kind_i y.gv ->
     merge k' x y.gv
   | _, _, _ ->
-    let id = get_instr_desc asmop op in
+    let id = get_instr_desc asmOp op in
       find_equality_constraints id |>
       List.iter (fun constr ->
           constr |>
@@ -164,7 +164,7 @@ type ('info, 'asm) collect_equality_constraints_state =
   { mutable cac_friends : friend; mutable cac_eqc: Puf.t ; cac_trace: ('info, 'asm) instr list array }
 
 let collect_equality_constraints_in_func
-      (asmop:'asm Sopn.asmOp)
+      (asmOp:'asm Sopn.asmOp)
       is_move_op
       ~(with_call_sites: (funname -> ('info, 'asm) func) option)
       (msg: string)
@@ -187,7 +187,17 @@ let collect_equality_constraints_in_func
   let rec collect_instr_r ii =
     function
     | Cfor (_, _, s) -> collect_stmt s
-    | Copn (lvs, _, op, es) -> copn_constraints ~loc:(Lmore ii.i_loc) asmop is_move_op int_of_var (add ii) addf lvs op es
+    | Copn (lvs, _, op, es) ->
+        copn_constraints
+          ~loc:(Lmore ii.i_loc)
+          asmOp
+          is_move_op
+          int_of_var
+          (add ii)
+          addf
+          lvs
+          op
+          es
     | Cassgn (Lvar x, AT_phinode, _, Pvar y) when
           is_gkvar y && kind_i x = kind_i y.gv ->
        addv ii x y.gv
@@ -234,7 +244,7 @@ let normalize_friend (eqc: Puf.t) (fr: friend) : friend =
     ) fr
 
 let collect_equality_constraints
-    asmop
+    asmOp
     is_move_op
     (msg: string)
     copn_constraints
@@ -243,12 +253,12 @@ let collect_equality_constraints
     (f: ('info, 'asm) func) : Puf.t * ('info, 'asm) trace * friend =
   let int_of_var x = Hv.find_option tbl (L.unloc x) in
   let s = { cac_friends = IntMap.empty ; cac_eqc = Puf.create nv ; cac_trace = Array.make nv [] } in
-  collect_equality_constraints_in_func asmop is_move_op ~with_call_sites:None msg int_of_var copn_constraints s f;
+  collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:None msg int_of_var copn_constraints s f;
   let eqc = s.cac_eqc in
   eqc, normalize_trace eqc s.cac_trace, normalize_friend eqc s.cac_friends
 
 let collect_equality_constraints_in_prog
-      asmop
+      asmOp
       is_move_op
       (msg: string)
       copn_constraints
@@ -261,7 +271,7 @@ let collect_equality_constraints_in_prog
   let get_var n = Hf.find tbl n in
   let () = List.fold_right (fun f () ->
                Hf.add tbl f.f_name f;
-               collect_equality_constraints_in_func asmop is_move_op ~with_call_sites:(Some get_var) msg int_of_var copn_constraints s f)
+               collect_equality_constraints_in_func asmOp is_move_op ~with_call_sites:(Some get_var) msg int_of_var copn_constraints s f)
              f ()
   in
   let eqc = s.cac_eqc in
