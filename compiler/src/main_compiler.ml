@@ -13,6 +13,7 @@ let parse () =
   Arg.parse options set_in usage_msg;
   Glob_options.set_dfl_LeakOp ();
   if !infile = "" && (not !help_intrinsics) && (!safety_makeconfigdoc = None)
+     && (not !help_version)
   then error()
 
 (*--------------------------------------------------------------------- *)
@@ -184,6 +185,9 @@ let main () =
     if !help_intrinsics
     then (Help.show_intrinsics (); exit 0);
 
+    if !help_version
+    then (Format.printf "%s@." version_string; exit 0);
+
     let fname = !infile in
     let ast   = Parseio.parse_program ~name:fname in
     let ast   = BatFile.with_file_in fname ast in
@@ -249,43 +253,40 @@ let main () =
     if !debug then Printf.eprintf "translated to coq \n%!";
 
     let to_exec = Typing.Env.Exec.get env in
-    if to_exec <> [] then 
-      begin
-        let pp_range fmt (ptr, sz) =
-          Format.fprintf fmt "%a:%a" Z.pp_print ptr Z.pp_print sz in
-          
-        let eval f m = 
-          Format.printf "Evaluation of %s (@[<h>%a@]):@." f.fn_name
-            (pp_list ",@ " pp_range) m;
-          let _m, vs, lk =
-            (** TODO: allow to configure the initial stack pointer *)
-            let live = List.map (fun (ptr, sz) -> Conv.int64_of_z ptr, Conv.cz_of_z sz) m in
-            (match Low_memory.Memory.coq_M.init live (Conv.int64_of_z (Z.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
-              Evaluator.exec cprog (Conv.cfun_of_fun tbl f) in
-           vs, lk in
+    if to_exec <> [] then begin
+      let pp_range fmt (ptr, sz) =
+        Format.fprintf fmt "%a:%a" Z.pp_print ptr Z.pp_print sz in
 
-        let exec arg =
-          match arg with
-          | Typing.Env.Exec1(f, m) ->
-            begin 
-              try
-                let vs, lk = eval f m in
-                Format.printf "@[<v>%a@]@." (pp_list "@ " Evaluator.pp_val) vs;
-                Format.printf "Leakage: { %a }@." (pp_list "; " PrintLeak.pp_leak_i) lk
-              with Evaluator.Eval_error (ii,err) ->
-                hierror "%a" Evaluator.pp_error (tbl, ii, err)
-            end
+      let eval f m =
+        Format.printf "/* Evaluation of %s (@[<h>%a@]):@." f.fn_name
+          (pp_list ",@ " pp_range) m;
+        let _m, vs, lk =
+          (** TODO: allow to configure the initial stack pointer *)
+          let live = List.map (fun (ptr, sz) -> Conv.int64_of_z ptr, Conv.cz_of_z sz) m in
+          (match Low_memory.Memory.coq_M.init live (Conv.int64_of_z (Z.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
+          Evaluator.exec cprog (Conv.cfun_of_fun tbl f) in
+        vs, lk in
 
-          | Typing.Env.Exec2(f1,f2,m) ->
-             begin
-               try
-                 let _vs, lk1 = eval f1 m in
-                 let _vs, lk2 = eval f2 m in
-                 if lk1 = lk2 then Format.printf "The two leakages are equal@."
-                 else Format.printf "The two leakages are different@."
-              with Evaluator.Eval_error (ii,err) ->
-                hierror "%a" Evaluator.pp_error (tbl, ii, err)
-             end
+        let exec = function
+        | Typing.Env.Exec1(f, m) ->
+          begin try
+            let vs, lk = eval f m in
+            Format.printf "@[<v>%a@]@."
+              (pp_list "@ " Evaluator.pp_val) vs
+            ; Format.printf "Leakage: { %a }@."
+                (pp_list "; " PrintLeak.pp_leak_i) lk
+            ; Format.printf "*/@."
+            with Evaluator.Eval_error (ii,err) ->
+              hierror "%a" Evaluator.pp_error (tbl, ii, err)
+          end
+        | Typing.Env.Exec2 (f1, f2, m) ->
+          begin try
+            let _vs, lk1 = eval f1 m in
+            let _vs, lk2 = eval f2 m in
+            Format.printf "The two leakages are %s */@." (if lk1 = lk2 then "equal" else "different")
+            with Evaluator.Eval_error (ii,err) ->
+              hierror "%a" Evaluator.pp_error (tbl, ii, err)
+          end
         in
         List.iter exec to_exec
       end;

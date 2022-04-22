@@ -259,43 +259,47 @@ module Hf = Hash.Make(F)
 (* -------------------------------------------------------------------- *)
 (* used variables                                                       *)
 
-let rec rvars_e s = function
+let rec rvars_e f s = function
   | Pconst _ | Pbool _ | Parr_init _ | Pglobal _ -> s
-  | Pvar x         -> Sv.add (L.unloc x) s
-  | Pget(_,x,e)    -> rvars_e (Sv.add (L.unloc x) s) e
-  | Pload(_,x,e)   -> rvars_e (Sv.add (L.unloc x) s) e
-  | Papp1(_, e)    -> rvars_e s e
-  | Papp2(_,e1,e2) -> rvars_e (rvars_e s e1) e2
-  | PappN (_, es) -> rvars_es s es
-  | Pif(_,e,e1,e2)   -> rvars_e (rvars_e (rvars_e s e) e1) e2
+  | Pvar x         -> f (L.unloc x) s
+  | Pget(_,x,e)    -> rvars_e f (f (L.unloc x) s) e
+  | Pload(_,x,e)   -> rvars_e f (f (L.unloc x) s) e
+  | Papp1(_, e)    -> rvars_e f s e
+  | Papp2(_,e1,e2) -> rvars_e f (rvars_e f s e1) e2
+  | PappN (_, es) -> rvars_es f s es
+  | Pif(_,e,e1,e2)   -> rvars_e f (rvars_e f (rvars_e f s e) e1) e2
 
-and rvars_es s es = List.fold_left rvars_e s es
+and rvars_es f s es = List.fold_left (rvars_e f) s es
 
-let rvars_lv s = function
+let rvars_lv f s = function
  | Lnone _       -> s
- | Lvar x        -> Sv.add (L.unloc x) s
+ | Lvar x        -> f (L.unloc x) s
  | Lmem (_,x,e)
- | Laset (_,x,e) -> rvars_e (Sv.add (L.unloc x) s) e
+ | Laset (_,x,e) -> rvars_e f (f (L.unloc x) s) e
 
-let rvars_lvs s lvs = List.fold_left rvars_lv s lvs
+let rvars_lvs f s lvs = List.fold_left (rvars_lv f) s lvs
 
-let rec rvars_i s i =
+let rec rvars_i f s i =
   match i.i_desc with
-  | Cassgn(x, _, _, e)  -> rvars_e (rvars_lv s x) e
-  | Copn(x,_,_,e)    -> rvars_es (rvars_lvs s x) e
-  | Cif(e,c1,c2)   -> rvars_c (rvars_c (rvars_e s e) c1) c2
+  | Cassgn(x, _, _, e)  -> rvars_e f (rvars_lv f s x) e
+  | Copn(x,_,_,e)    -> rvars_es f (rvars_lvs f s x) e
+  | Cif(e,c1,c2)   -> rvars_c f (rvars_c f (rvars_e f s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
-    rvars_c (rvars_e (rvars_e (Sv.add (L.unloc x) s) e1) e2) c
-  | Cwhile(_,c,e,c')    -> rvars_c (rvars_e (rvars_c s c') e) c
-  | Ccall(_,x,_,e) -> rvars_es (rvars_lvs s x) e
+    rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
+  | Cwhile(_,c,e,c')    -> rvars_c f (rvars_e f (rvars_c f s c') e) c
+  | Ccall(_,x,_,e) -> rvars_es f (rvars_lvs f s x) e
 
-and rvars_c s c =  List.fold_left rvars_i s c
+and rvars_c f s c =  List.fold_left (rvars_i f) s c
 
+let fold_vars_fc f z fc =
+  let a  = List.fold_left (fun a x -> f (L.unloc x) a) z fc.f_ret in
+  rvars_c f a fc.f_body
 
-let vars_e e = rvars_e Sv.empty e
-let vars_es es = rvars_es Sv.empty es
-let vars_i i = rvars_i Sv.empty i
-let vars_c c = rvars_c Sv.empty c
+let vars_lv z x = rvars_lv Sv.add z x
+let vars_e e = rvars_e Sv.add Sv.empty e
+let vars_es es = rvars_es Sv.add Sv.empty es
+let vars_i i = rvars_i Sv.add Sv.empty i
+let vars_c c = rvars_c Sv.add Sv.empty c
 
 let params fc =
   List.fold_left (fun s v -> Sv.add v s) Sv.empty fc.f_args
@@ -303,7 +307,7 @@ let params fc =
 let vars_fc fc =
   let s = params fc in
   let s = List.fold_left (fun s v -> Sv.add (L.unloc v) s) s fc.f_ret in
-  rvars_c s fc.f_body
+  rvars_c Sv.add s fc.f_body
 
 let locals fc =
   let s1 = params fc in

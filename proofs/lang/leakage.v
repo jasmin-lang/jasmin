@@ -1,27 +1,3 @@
-(* ** License
- * -----------------------------------------------------------------------
- * Copyright 2016--2017 IMDEA Software Institute
- * Copyright 2016--2017 Inria
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * ----------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Psatz xseq.
@@ -221,15 +197,16 @@ Definition LT_iemptyl : seq leak_e_tr := [::].
 
 End Section.
 
-Inductive leak_es_i_tr :=
-  | LT_iopn5f_large : leak_es_i_tr
-  | LT_iaddcarryf : leak_es_i_tr -> leak_es_i_tr
-  | LT_iaddcarry : leak_es_i_tr -> leak_es_i_tr
-  | LT_ianone : leak_es_i_tr
-  | LT_imul1 : leak_es_i_tr
-  | LT_imul2 : leak_es_i_tr
-  | LT_imul3 : leak_es_i_tr
-  | LT_iemptysl : leak_es_i_tr.
+Variant lt_iopn5f := LT_iopn5f_large | LT_iopn5f_small.
+
+Variant leak_es_i_tr :=
+  | LT_iaddcarryf of lt_iopn5f
+  | LT_iaddcarry of lt_iopn5f
+  | LT_ianone
+  | LT_imul1
+  | LT_imul2
+  | LT_imul3
+  | LT_iemptysl.
 
 Inductive leak_i_tr :=
 (* structural transformation *)
@@ -251,9 +228,9 @@ Inductive leak_i_tr :=
 | LT_iwhilel :  seq leak_e_tr -> leak_e_tr -> seq leak_i_tr -> seq leak_i_tr -> leak_i_tr
 | LT_icopn : leak_es_i_tr -> leak_i_tr
 (* lowering assgn *)
-| LT_ilmul : leak_es_i_tr -> leak_e_tr -> option var_i -> leak_i_tr
+| LT_ilmul : lt_iopn5f-> leak_e_tr -> option var_i -> leak_i_tr
 | LT_ilif : seq leak_e_tr -> leak_e_tr -> leak_i_tr
-| LT_ilfopn : leak_es_i_tr -> leak_e_tr -> leak_i_tr
+| LT_ilfopn : lt_iopn5f -> leak_e_tr -> leak_i_tr
 .
 
 Notation LT_ile lt := (LT_iopn [:: lt ]).
@@ -267,18 +244,22 @@ Definition leak_EI (stk: pointer) (lti: seq leak_e_tr) (le: leak_e) : seq leak_i
   [seq Lopn (leak_E stk lte le) | lte <- lti ].
 
 (* Transformation from expressions (seq of expression) leakage to instruction leakage *)
-Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (lo: leak_e) (les': seq leak_e) : seq leak_i :=
-  match lti with 
-  | LT_iopn5f_large => 
-    [:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LEmpty; LSub [:: LEmpty]])] ++
-    [:: Lopn (LSub [:: LSub [:: nth LEmpty les 0, LEmpty & drop 2 les ] ; lo ; LSub les'])]
+Definition leak_lt_iopn5f (ltf: lt_iopn5f) (les: leak_es) (lo: leak_e) (les': leak_es) : seq leak_i :=
+  match ltf with
+  | LT_iopn5f_large =>
+      [:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LEmpty; LSub [:: LEmpty]]); Lopn (LSub [:: LSub [:: nth LEmpty les 0, LEmpty & drop 2 les ] ; lo ; LSub les'])]
+  | LT_iopn5f_small =>
+    [:: Lopn (LSub [:: LSub les ; lo ; LSub les'])]
+  end.
 
-  | LT_iaddcarryf ltes => 
-    leak_ESI stk ltes (List.removelast les) LEmpty
+Definition leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (lo: leak_e) (les': seq leak_e) : seq leak_i :=
+  match lti with
+  | LT_iaddcarryf ltes =>
+    leak_lt_iopn5f ltes (List.removelast les) LEmpty
       [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
 
-  | LT_iaddcarry ltes =>  
-    leak_ESI stk ltes les LEmpty
+  | LT_iaddcarry ltes =>
+    leak_lt_iopn5f ltes les LEmpty
       [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
 
   | LT_ianone => 
@@ -301,11 +282,12 @@ Fixpoint leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (lo: le
   end.
 
 (* computes the number of instructions added in lowering high-level constructs *)
-Fixpoint no_i_esi_tr (lt: leak_es_i_tr) : nat :=
-  match lt with 
-  | LT_iopn5f_large => 2
-  | LT_iaddcarryf ltes => no_i_esi_tr ltes 
-  | LT_iaddcarry ltes => no_i_esi_tr ltes
+Definition no_i_esi_tr (lt: leak_es_i_tr) : nat :=
+  match lt with
+  | LT_iaddcarryf LT_iopn5f_large
+  | LT_iaddcarry LT_iopn5f_large => 2
+  | LT_iaddcarryf LT_iopn5f_small
+  | LT_iaddcarry LT_iopn5f_small => 1
   | LT_ianone => 1
   | LT_imul1 => 2
   | LT_imul2 => 2
@@ -423,12 +405,12 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
                                 (leak_E stk (LT_subi 2) (leak_E stk (LT_subi 0) le))]; LEmpty;
                        LSub [:: leak_E stk (LT_subi 1) le]])]
 
-  | LT_ilmul lest ltes b, Lopn le =>  
-    leak_ESI stk lest (get_seq_leak_e (leak_E stk ltes (leak_lea_exp_b1 b))) LEmpty
+  | LT_ilmul lest ltes b, Lopn le =>
+    leak_lt_iopn5f lest (get_seq_leak_e (leak_E stk ltes (leak_lea_exp_b1 b))) LEmpty
               [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]
 
-  | LT_ilfopn lest lte, Lopn le => 
-    leak_ESI stk lest (leak_ES stk lte (leak_E stk (LT_subi 0) le)) LEmpty
+  | LT_ilfopn lest lte, Lopn le =>
+    leak_lt_iopn5f lest (leak_ES stk lte (leak_E stk (LT_subi 0) le)) LEmpty
               [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; leak_E stk (LT_subi 1) le]
 
   | _, _ => [:: l]

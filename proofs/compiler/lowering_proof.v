@@ -1944,7 +1944,7 @@ Qed.
     ∃ s'' lcf lr,
     [ /\ lws = [:: LEmpty; lcf; LEmpty; LEmpty; LEmpty; lr], 
     sem p'.1 s [seq MkI ii i | i <- (opn_5flags fv m vi cf r t o a).1] 
-     (leak_ESI stk (opn_5flags fv m vi cf r t o a).2 (unzip2 xs) ls lws) s'' &
+     (leak_lt_iopn5f (opn_5flags fv m vi cf r t o a).2 (unzip2 xs) ls lws) s'' &
     eq_exc_fresh s'' s'].
   Proof.
     move=> da dr hx hr hs; rewrite/opn_5flags. 

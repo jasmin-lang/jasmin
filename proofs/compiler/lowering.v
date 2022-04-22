@@ -576,14 +576,14 @@ Definition opn_no_imm op :=
   end.
 
 Definition opn_5flags (immed_bound: option wsize) (vi: var_info)
-           (cf: lval) (x: lval) tg (o: sopn) (a: pexprs) : seq instr_r * leak_es_i_tr :=
+           (cf: lval) (x: lval) tg (o: sopn) (a: pexprs) : seq instr_r * lt_iopn5f :=
   let f := Lnone_b vi in
   let fopn o a := [:: Copn [:: f ; cf ; f ; f ; f ; x ] tg o a ] in
   match opn_5flags_cases a immed_bound (wsize_of_sopn o) with
   | Opn5f_large_immed x y n z _ _ =>
     let c := {| v_var := {| vtype := sword U64; vname := fresh_multiplicand fv U64 |} ; v_info := vi |} in
     ((Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: y] :: fopn (opn_no_imm o) (x :: Pvar c :: z)), LT_iopn5f_large)
-  | Opn5f_other => (fopn o a, LT_ianone)
+  | Opn5f_other => (fopn o a, LT_iopn5f_small)
   end.
 
 Definition reduce_wconst sz (e: pexpr) : pexpr :=
