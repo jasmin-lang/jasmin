@@ -95,9 +95,8 @@ opam:
   cache:
     paths:
       - $OPAMROOT
-  before_script:
-  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'scripts/opam-setup.sh'
   script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'scripts/opam-setup.sh ALL'
   - >-
     nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run
     'eval $(opam env) &&
