@@ -106,6 +106,31 @@ opam:
     paths:
     - $PREFIX
 
+opam-compiler:
+  stage: build
+  variables:
+    OPAMROOTISOK: 'true'
+    OPAMROOT: mapo
+    EXTRA_NIX_ARGUMENTS: --arg opamDeps true
+  extends: .common
+  needs:
+  - coq
+  dependencies:
+  - coq
+  cache:
+    paths:
+      - $OPAMROOT
+  script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'scripts/opam-setup.sh'
+  - >-
+    nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run
+    'eval $(opam env) &&
+     make -C compiler -j$NIX_BUILD_CORES &&
+     (cd compiler && mkdir -p bin && cp _build/entry/jasminc.native bin/jasminc)'
+  artifacts:
+    paths:
+    - compiler/bin/jasminc
+
 tarball:
   stage: build
   variables:
