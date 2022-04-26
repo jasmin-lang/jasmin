@@ -652,7 +652,7 @@ let pp_lval1 env pp_e fmt (lv, (ety, e)) =
       let nws = n * int_of_ws xws in
       let nws8 = nws / 8 in
       Format.fprintf fmt 
-        "@[%a =@ @[Array%i.init@ (WArray%i.get%i (WArray%i.set%i %a %a %a));@]@]"
+        "@[%a <-@ @[Array%i.init@ (WArray%i.get%i (WArray%i.set%i %a %a %a));@]@]"
         (pp_var env) x n nws8 (int_of_ws xws) nws8 (int_of_ws ws)
         (pp_initi env) (x, n, xws) (pp_expr env) e1 pp_e e
  
