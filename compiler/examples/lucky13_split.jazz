@@ -184,7 +184,7 @@ ssl3_cbc_copy_mac_BL_CL(
     reg u64 rotated_mac
   )
 {
-  // assuming CBC_MAC_ROTATE_IN_PLACE is not defined
+  // assuming CBC_MAC_ROTATE_IN_PLACE is defined
   reg u32 mac_start, mac_end, scan_start;
   reg u64 i, j, zero, data;
   reg u32 rotate_offset, old, new, temp;
@@ -224,7 +224,7 @@ ssl3_cbc_copy_mac_TV_CL(
     reg u64 rotated_mac
   )
 {
-  // assuming CBC_MAC_ROTATE_IN_PLACE is not defined
+  // assuming CBC_MAC_ROTATE_IN_PLACE is defined
   reg u32 mac_start, mac_end, scan_start;
   reg u64 i, j, zero, data;
   reg u32 rotate_offset, old, new, temp;
@@ -237,6 +237,27 @@ ssl3_cbc_copy_mac_TV_CL(
 
 export
 fn
+ssl3_cbc_copy_mac_BL_CL32(
+    reg u64 out,
+    reg u64 rec,
+    reg u32 orig_len,
+    reg u32 md_size,
+    reg u64 rotated_mac
+  )
+{
+  // assuming CBC_MAC_ROTATE_IN_PLACE is defined
+  reg u32 mac_start, mac_end, scan_start;
+  reg u64 i, j, zero, data;
+  reg u32 rotate_offset, old, new, temp;
+
+  data, scan_start, mac_start, mac_end = init_scan_start(rec, orig_len, md_size);
+  init_rotated_mac_mem(rotated_mac, data, scan_start, mac_start, mac_end, orig_len, md_size);
+  rotate_offset = rotate_offset_BL(md_size, mac_start, scan_start);
+  rotate_mac_CL32(md_size, rotate_offset, out, rotated_mac);
+}
+
+export
+fn
 ssl3_cbc_copy_mac_TV_CL32(
     reg u64 out,
     reg u64 rec,
@@ -245,7 +266,7 @@ ssl3_cbc_copy_mac_TV_CL32(
     reg u64 rotated_mac
   )
 {
-  // assuming CBC_MAC_ROTATE_IN_PLACE is not defined
+  // assuming CBC_MAC_ROTATE_IN_PLACE is defined
   reg u32 mac_start, mac_end, scan_start;
   reg u64 i, j, zero, data;
   reg u32 rotate_offset, old, new, temp;
