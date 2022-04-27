@@ -95,7 +95,7 @@ module M = {
       c <- aux_0;
       aux_0 <- c;
       leakages <- LeakAddr([(W64.to_uint j)]) :: leakages;
-      s =
+      s <-
       Array2.init
       (WArray16.get64 (WArray16.set8 (WArray16.init64 (fun i => s.[i])) (W64.to_uint j) aux_0));
       aux <- (j + (W64.of_int 1));
@@ -105,7 +105,7 @@ module M = {
     }
     aux_0 <- (W8.of_int 1);
     leakages <- LeakAddr([(W64.to_uint j)]) :: leakages;
-    s =
+    s <-
     Array2.init
     (WArray16.get64 (WArray16.set8 (WArray16.init64 (fun i => s.[i])) (W64.to_uint j) aux_0));
     leakages <- LeakAddr([0] ++ [0]) :: leakages;
@@ -599,7 +599,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(0 + 0)]) :: leakages;
-    r44 =
+    r44 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r44.[i])) (0 + 0) aux_0));
     leakages <- LeakAddr([0]) :: leakages;
@@ -611,7 +611,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(0 + 2)]) :: leakages;
-    r44 =
+    r44 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r44.[i])) (0 + 2) aux_0));
     leakages <- LeakAddr([0]) :: leakages;
@@ -632,7 +632,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(0 + 4)]) :: leakages;
-    r44 =
+    r44 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r44.[i])) (0 + 4) aux_0));
     aux_0 <- h;
@@ -643,7 +643,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(0 + 6)]) :: leakages;
-    r44 =
+    r44 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r44.[i])) (0 + 6) aux_0));
     leakages <- LeakAddr([1]) :: leakages;
@@ -660,7 +660,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(0 + 8)]) :: leakages;
-    r44 =
+    r44 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r44.[i])) (0 + 8) aux_0));
     leakages <- LeakFor(0,5) :: LeakAddr([]) :: leakages;
@@ -673,7 +673,7 @@ module M = {
       leakages <- LeakAddr([i]) :: leakages;
       aux_0 <- t.[i];
       leakages <- LeakAddr([(1 + (2 * i))]) :: leakages;
-      r44 =
+      r44 <-
       Array5.init
       (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r44.[i])) (1 + (2 * i)) aux_0));
       i <- i + 1;
@@ -759,7 +759,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(1 + 0)]) :: leakages;
-    r12 =
+    r12 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r12.[i])) (1 + 0) aux_0));
     leakages <- LeakAddr([0]) :: leakages;
@@ -771,7 +771,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(1 + 2)]) :: leakages;
-    r12 =
+    r12 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r12.[i])) (1 + 2) aux_0));
     leakages <- LeakAddr([0]) :: leakages;
@@ -792,7 +792,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(1 + 4)]) :: leakages;
-    r12 =
+    r12 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r12.[i])) (1 + 4) aux_0));
     aux_0 <- h;
@@ -803,7 +803,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(1 + 6)]) :: leakages;
-    r12 =
+    r12 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r12.[i])) (1 + 6) aux_0));
     leakages <- LeakAddr([1]) :: leakages;
@@ -820,7 +820,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(1 + 8)]) :: leakages;
-    r12 =
+    r12 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r12.[i])) (1 + 8) aux_0));
     aux_6 <@ mulmod (rt, r);
@@ -834,7 +834,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(0 + 0)]) :: leakages;
-    r12 =
+    r12 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r12.[i])) (0 + 0) aux_0));
     leakages <- LeakAddr([0]) :: leakages;
@@ -846,7 +846,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(0 + 2)]) :: leakages;
-    r12 =
+    r12 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r12.[i])) (0 + 2) aux_0));
     leakages <- LeakAddr([0]) :: leakages;
@@ -867,7 +867,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(0 + 4)]) :: leakages;
-    r12 =
+    r12 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r12.[i])) (0 + 4) aux_0));
     aux_0 <- h;
@@ -878,7 +878,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(0 + 6)]) :: leakages;
-    r12 =
+    r12 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r12.[i])) (0 + 6) aux_0));
     leakages <- LeakAddr([1]) :: leakages;
@@ -895,7 +895,7 @@ module M = {
     l <- aux_0;
     aux_0 <- l;
     leakages <- LeakAddr([(0 + 8)]) :: leakages;
-    r12 =
+    r12 <-
     Array5.init
     (WArray80.get128 (WArray80.set64 (WArray80.init128 (fun i => r12.[i])) (0 + 8) aux_0));
     aux_7 <@ times_5 (r12);
