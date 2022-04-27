@@ -2,8 +2,7 @@ require import AllCore IntDiv CoreMap List.
 from Jasmin require import JModel.
 require import Leakage_models.
 
-require import Array64.
-require import WArray64.
+
 
 theory T.
 clone import ALeakageModel as LeakageModel.
