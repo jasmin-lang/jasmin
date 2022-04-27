@@ -129,9 +129,9 @@ Module INCL. Section INCL.
     Pi_r s1 (Copn xs t o es) (Lopn lo) s2.
   Proof.
     move=> s1 s2 ty o xs es lo;rewrite /sem_sopn.
-    t_xrbindP. move=> ys /(gd_incl_es hincl) h1 ve h2 [vws lws] /(gd_incl_wls hincl) h3 le hl <- <-.
+    t_xrbindP. move=> ys /(gd_incl_es hincl) h1 ve h2 [vws lws] /(gd_incl_wls hincl) h3 <- <-.
     econstructor. rewrite /sem_sopn. replace (p_globs P2) with gd2. rewrite h1 /=.
-    rewrite h2 /=. rewrite h3 hl /=. auto. constructor.
+    rewrite h2 /=. rewrite h3 /=. auto. constructor.
   Qed.
 
   Local Lemma Hif_true : forall (s1 s2 : estate) (e : pexpr) (c1 c2 : cmd) le lc,
@@ -630,7 +630,7 @@ Qed.
    move: hrm. t_xrbindP. move=> xs' /(remove_glob_lvsP hval) hxs' es' hes_es'.
    move: (hes_es') => /(remove_glob_esP hval) hes' <- <- <-.
    move: ho; rewrite /sem_sopn; t_xrbindP. move=> vs hes_vs. 
-   move: (hes_vs) => /hes' h1 vs' h2 [s3 lt3] /hxs' [s2' [hval' h]] le hl <- <-.
+   move: (hes_vs) => /hes' h1 vs' h2 [s3 lt3] /hxs' [s2' [hval' h]] <- <-.
    split. + constructor.
    exists s2'. split=> //.
    apply sem_seq1; constructor; constructor.
@@ -639,7 +639,7 @@ Qed.
      have <- := mapM_size hes_es'; have -> := mapM_size hes_vs.
      by rewrite minnn.
    rewrite /sem_sopn h1 /= unzip1_zip /=; last by rewrite heq.
-   rewrite h2 /= h /= unzip2_zip /= ?heq. by rewrite hl /=. auto.
+   by rewrite h2 /= h /= unzip2_zip /= // heq.
   Qed.
 
   Lemma MinclP m1 m2 x g :
