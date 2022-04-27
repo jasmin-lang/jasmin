@@ -139,9 +139,7 @@ proof.
   + apply W32.wordP => i hi; rewrite W32.zerowE W32.andwE.
     rewrite !W32.get_to_uint hi /=.
     case: (i < 8) => hi'.
-    + rewrite /md23 /(`<<`) /= W32.to_uint_shl 1:// IntDiv.modz_pow2_div.
-      + by apply divr_ge0; 1: smt(W32.to_uint_cmp).
-      + smt().
+    + rewrite /md23 /(`<<`) /= W32.to_uint_shl 1:// IntDiv.modz_pow2_div. + by smt. 
       have h21 : 2 = 2 ^ 1 by done.
       rewrite {6}h21 modz_dvd_pow 1:/#.
       have -> : 2 ^ 23 = 2 ^ (23 - i - 1) * 2 * 2 ^ i.
@@ -160,4 +158,3 @@ proof.
   have -> /# : leak_div (W32.of_int (2^23)) = 8.
   by rewrite /leak_div /w2bits /mkseq -iotaredE /= !W32.of_intwE; cbv delta.
 qed.
-
