@@ -7,7 +7,16 @@ all: modulo_ct.eco modulo_ct_proof.eco copy_mac_ct.eco leakage_models.eco \
 	copy_mac_ct_proof_BL_BL_CL.eco copy_mac_ct_proof_BL_BL_BL.eco copy_mac_ct_proof_BL_CL_CL.eco \
 	copy_mac_ct_proof_TV_CL_CL.eco copy_mac_ct_proof_TV_CL_TV_CL.eco copy_mac_ct_proof_TV_BL_CL.eco \
 	copy_mac_ct_proof_TV_BL_BL.eco copy_mac_ct_proof_TV_BL_TV_CL.eco copy_mac_ct_proof_TV_BL_TV.eco \
-	copy_mac_ct_proof_TV_CL32.eco check
+	copy_mac_ct_proof_TV_CL32.eco chacha20/chacha20_ref/chacha20_ref_proof_BL_BL.eco \
+	chacha20/chacha20_ref/chacha20_ref_proof_BL_CL32.eco chacha20/chacha20_ref/chacha20_ref_proof_BL_CL64.eco \
+	chacha20/chacha20_ref/chacha20_ref_proof_TV_BL.eco chacha20/chacha20_ref/chacha20_ref_proof_TV_CL32.eco \
+	chacha20/chacha20_ref/chacha20_ref_proof_TV_CL64.eco chacha20/chacha20_avx/chacha20_avx_proof_BL_BL.eco \
+	chacha20/chacha20_avx/chacha20_avx_proof_BL_CL32.eco chacha20/chacha20_avx/chacha20_avx_proof_BL_CL64.eco \
+	chacha20/chacha20_avx/chacha20_avx_proof_TV_BL.eco chacha20/chacha20_avx/chacha20_avx_proof_TV_CL32.eco \
+	chacha20/chacha20_avx/chacha20_avx_proof_TV_CL64.eco chacha20/chacha20_avx2/chacha20_avx2_proof_BL_BL.eco \
+	chacha20/chacha20_avx2/chacha20_avx2_proof_BL_CL32.eco chacha20/chacha20_avx2/chacha20_avx2_proof_BL_CL64.eco \
+	chacha20/chacha20_avx2/chacha20_avx2_proof_TV_BL.eco chacha20/chacha20_avx2/chacha20_avx2_proof_TV_CL32.eco \
+	chacha20/chacha20_avx2/chacha20_avx2_proof_TV_CL64.eco  check
 
 modulo_ct.ec: ../compiler/examples/mod_patch.jazz
 	$(JASMINC) -CT -ec mod_TV -oec $@ $^

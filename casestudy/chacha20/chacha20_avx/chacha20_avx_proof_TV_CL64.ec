@@ -1,10 +1,9 @@
 require import AllCore IntDiv CoreMap List.
 from Jasmin require import JModel.
-require import Leakage_models.
-require Chacha20_avx_TV_CL64.
+require import Leakage_models Chacha20_avx_ct.
 import StdOrder.IntOrder Ring.IntID.
 
-clone import Chacha20_avx_TV_CL64.T with
+clone import Chacha20_avx_ct.T with
 theory LeakageModel <-  LeakageModelCL.
 
 equiv chacha20_avx_ct :
