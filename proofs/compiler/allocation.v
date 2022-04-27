@@ -352,7 +352,7 @@ Section PROOF.
   Local Lemma Hopn : sem_Ind_opn p1 Pi_r.
   Proof.
     move => s1 s2 t o xs es lo. rewrite /sem_sopn.
-    t_xrbindP. move=> ves Hes [vo lo'] Hex [vw vl] Hws l Hl <- <- /=.
+    t_xrbindP. move=> ves Hes [vo lo'] Hex [vw vl] Hws <- <- /=.
     rewrite /Pi_r. move=> ii r1 [] //= xs1 t' o1 es1 r2 lti vm1 Hvm1.
     case: ifPn => //= /eqP <-. t_xrbindP. move=> [yv yl]. apply: add_iinfoP.
     move=> Hces [rv ltv]. apply: add_iinfoP. move=> Hcvs [] <- <-.
@@ -365,7 +365,7 @@ Section PROOF.
     move=> {Hcvs'} [] vm2 [] Hws' Hvm3. exists vm2; split=> //; apply sem_seq1. econstructor. econstructor.
     rewrite /sem_sopn Hes /= Hex' /=. 
     replace (p_globs p2) with gd. 
-    rewrite Hws' /=. rewrite Hls /=. by have -> /= := leak_sopn_eq Hvs Hl. 
+    by rewrite Hws' /= Hls.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p1 Pc Pi_r.
@@ -789,7 +789,7 @@ Section PROOF_WF.
   Local Lemma Hopn_WF : sem_Ind_opn p1 Pi_r.
   Proof.
     move => s1 s2 t o xs es lo. rewrite /sem_sopn.
-    t_xrbindP. move=> ves Hes vo Hex [vw vl] Hws l Hl <- <- /=.
+    t_xrbindP. move=> ves Hes vo Hex [vw vl] Hws <- <- /=.
     rewrite /Pi_r. move=> ii r1 [] //= xs1 t' o1 es1 r2 lti. 
     case: ifPn => //= /eqP _. t_xrbindP. move=> [yv yl]. apply: add_iinfoP.
     move=> Hces [rv ltv]. apply: add_iinfoP. move=> Hcvs [] _ <-.
@@ -1018,7 +1018,7 @@ Qed.
 Local Lemma Iopn : sem_Ind_opn p Pi_r.
 Proof.
  move=> [] s1 s1' s2 t o xs es lo. rewrite /sem_sopn /=.
- t_xrbindP. move=> vs Hes vo Hex -[vs' ls] Hws les Hl <- <- /=.
+ t_xrbindP. move=> vs Hes vo Hex -[vs' ls] Hws <- <- /=.
  rewrite /Pi_r /=. move=> ii [] // l t' s e' r rlt. case: eqP => // h.
  t_xrbindP. move=> -[r' lr']. apply: add_iinfoP=>/check_esP_id Hes'. move=> -[r'' lr''].
  apply: add_iinfoP=> /check_lvalsP_id Hvs' [] <- /=. move: (Hes' (unzip2 vs)). move=> ->.

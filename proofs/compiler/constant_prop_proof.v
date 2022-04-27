@@ -2056,7 +2056,7 @@ Section PROOF.
   Proof.
     move=> s1 s2 t o xs es lo H m ii Hm.
     apply: rbindP H=> vs Hes. t_xrbindP.
-    move=> [ves les] Ho [sw lw] Hw /= le Hlo Hs Hl.
+    move=> [ves les] Ho [sw lw] Hw /= Hs Hl.
     have /(_ LO) Hesc := (const_prop_esP). 
     move: (Hesc gd stk es s1 m Hm vs Hes). move=> [] vs' [] Hes' [] Hvc Hlc {Hesc}.
     have /(_ LO) Hwc := const_prop_rvsP. move: (Hwc gd stk s1 sw m xs ves lw).
@@ -2076,9 +2076,8 @@ Section PROOF.
     have /(_ LO) Ho' := vuincl_exec_opn_eq. 
     move: (Ho' o (unzip1 vs) (unzip1 vs2) (ves, les) (Forall2_trans value_uincl_trans Hvc Hee) Ho).
     move=> -> {Ho'} /=. rewrite Hw'' /=. rewrite -Hl Hs /=.
-    rewrite /= in Hlc. rewrite Hel in Hlc. case: Hlc => -> /=.
-    have Hlo' := leak_sopn_eq Hvc Hlo. by have -> /= := leak_sopn_eq Hee Hlo'.
-    by rewrite -Hs /=. 
+    rewrite /= in Hlc. rewrite Hel in Hlc. by case: Hlc => ->.
+    by rewrite -Hs /=.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.

@@ -496,7 +496,7 @@ Section PROOF.
   Proof.
     move => s1 s2 t o xs es lo.
     case: s1 s2 => sm1 svm1 [sm2 svm2]. rewrite /sem_sopn. t_xrbindP.
-    move=> vs Hse vs' Hso [s1 lt] Hw l Hl /= <- <- /= ii X1 X2 c' ltc' [] <- <- <- vm1.
+    move=> vs Hse vs' Hso [s1 lt] Hw /= <- <- /= ii X1 X2 c' ltc' [] <- <- <- vm1.
     rewrite read_i_opn => Hwf /= Hvm.
     have /sem_pexprs_uincl_on -/(_ _ _ _ Hse): svm1 <=[read_es es] vm1  by apply: vm_uincl_onI Hvm;SvD.fsetdec.
     move=> [v2 Hv2 [] Huv2 ->].
@@ -506,8 +506,7 @@ Section PROOF.
     exists vm2;split.
     + by apply: wf_write_lvals Hw'.
     + by apply: vm_uincl_onI Hvm2;SvD.fsetdec.
-    apply: sem_seq1;constructor;constructor;rewrite -eq_globs /sem_sopn Hv2 /= Hso' /= Hw' /=.
-    by have -> /= := leak_sopn_eq Huv2 Hl.
+    by apply: sem_seq1;constructor;constructor;rewrite -eq_globs /sem_sopn Hv2 /= Hso' /= Hw'.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
@@ -997,10 +996,9 @@ Section REMOVE_INIT.
     move=> s1 s2 t o xs es lo H ii vm1 Hvm1;move: H;rewrite /sem_sopn;t_xrbindP=> rs.
     move=> /(sem_pexprs_uincl Hvm1) [] vs' H1 [] H2 H2' vs.
     move=> /(vuincl_exec_opn H2) [] rs' [] H3 [H4 ->] [s1' lt'].
-    move=> /(writes_uincl Hvm1 H4) [] vm2 Hw Hm l Hl' <- <- /=.
+    move=> /(writes_uincl Hvm1 H4) [] vm2 Hw Hm <- <- /=.
     exists vm2;split => //=;last by apply: wf_write_lvals Hw.
-    apply sem_seq1;constructor;constructor;rewrite /sem_sopn eq_glob H1 /= H3 /= Hw /= H2'.
-    by have -> /= := leak_sopn_eq H2 Hl'.
+    by apply sem_seq1;constructor;constructor;rewrite /sem_sopn eq_glob H1 /= H3 /= Hw /= H2'.
   Qed.
 
   Local Lemma Rif_true : sem_Ind_if_true p Pc Pi_r.

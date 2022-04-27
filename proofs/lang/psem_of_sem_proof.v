@@ -305,7 +305,7 @@ apply: (@sem.sem_call_Ind _ p Pc Pi_r Pi Pfor Pfun) => {m fn va l m' vr}.
   split. auto.
   constructor. rewrite /sem_sopn. rewrite /sem_pexprs.
   rewrite /sem_pexprs in Hmm. rewrite Hmm /=. rewrite Hex /=.
-  rewrite Hww /=. move: Hex. rewrite /exec_sopn /=. by t_xrbindP=> yt happ lo' -> /= _ _.
+  by rewrite Hww.
 - move => s1 s2 e th el le lc /sem_pexpr_sim he _ ih s1' hss'1.
   case: (ih _ hss'1) => s2' [hss'2 hth].
   exists s2'; split; first exact hss'2.

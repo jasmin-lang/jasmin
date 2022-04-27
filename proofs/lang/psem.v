@@ -262,7 +262,6 @@ Definition sem_sopn gd o m lvs args :=
   Let vas := sem_pexprs gd m args in
   Let vs := exec_sopn o (unzip1 vas) in 
   Let ml := write_lvals gd m lvs vs.1 in
-  Let r := leak_sopn o (unzip1 vas) in
   ok (ml.1, LSub [:: LSub (unzip2 vas); vs.2; LSub ml.2]).
 
 Inductive sem : estate -> cmd -> leak_c -> estate -> Prop :=
@@ -1081,7 +1080,7 @@ Proof.
   + move=> s1 s2 x tag ty e v v'? hty Hw z w.
     by rewrite write_i_assgn;apply (vrvP w).
   + move=> s1 s2 t o xs es lo. rewrite /sem_sopn.
-    t_xrbindP => -vs /= Hes vs' Hvs' [s3 lw3] /vrvsP /= H1 l Hl <- _.
+    t_xrbindP => -vs /= Hes vs' Hvs' [s3 lw3] /vrvsP /= H1 <- _.
     by rewrite write_i_opn.
   + by move=> s1 s2 e c1 c2 l1 l2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
   + by move=> s1 s2 e c1 c2 l1 l2 _ _ Hrec z;rewrite write_i_if => Hnin;apply Hrec;SvD.fsetdec.
@@ -2574,12 +2573,11 @@ Proof.
   move=> s1 s2 t o xs es lo H vm1 Hvm1; apply: rbindP H.
   move => vs Hsem.
   move: (sem_pexprs_uincl Hvm1 Hsem) => [] vs' H1 [] H2 H3.
-  t_xrbindP => y Hon [v' l'] Hw /= l Hl <- <- /=.
+  t_xrbindP => y Hon [v' l'] Hw /= <- <- /=.
   move: (vuincl_exec_opn H2 Hon) => [] x Hop. case: Hop=> Hop [H3' ->].
   move: (writes_uincl Hvm1 H3' Hw) => [] vm2 Hws Hvms.
   exists vm2. split => //. constructor.
-  rewrite /sem_sopn. rewrite H1 /= Hop /= Hws /=. rewrite -H3 /=.
-  by have -> /=:= leak_sopn_eq H2 Hl.
+  by rewrite /sem_sopn H1 /= Hop /= Hws /= -H3.
 Qed.
 
 Local Lemma Hif_true : sem_Ind_if_true p Pc Pi_r.
@@ -2941,7 +2939,7 @@ Local Open Scope vmap.
       by apply: wf_write_lval ok_s2.
     + move=> xs t o es s1 li s2 /sem_iE.
       t_xrbindP => Ho. case Ho. rewrite /sem_sopn. t_xrbindP.
-      by move=> h yvs Hes h1 Hs [hv hl] /wf_write_lvals l Hl hvm <- Hl' /=.
+      by move=> h yvs Hes h1 Hs [hv hl] /wf_write_lvals hvm <- Hl' /=.
     + move=> e c1 c2 Hc1 Hc2 s1 lc0 s2 /sem_iE [b] [le] [lc1]. case: b => Hp. case Hp => Hp1 Hp2.
       by move: (Hc1 s1 lc1 s2 Hp2) => H. case Hp => Hp1 Hp2.
       by move: (Hc2 s1 lc1 s2 Hp2) => H.

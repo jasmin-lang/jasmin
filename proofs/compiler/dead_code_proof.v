@@ -254,15 +254,14 @@ Section PROOF.
     constructor; constructor; rewrite -eq_globs.
     rewrite /sem_sopn (@read_es_eq_on LO gd es Sv.empty (emem s1) vm1' (evm s1)).
     + have ->: {| emem := emem s1; evm := evm s1 |} = s1 by case: (s1).
-      rewrite Hexpr /= Hopn /= Hvm2' /=. rewrite /exec_sopn in Hopn.
-      move: Hopn. by t_xrbindP=> y happ lo -> /= <-.
+      by rewrite Hexpr /= Hopn /= Hvm2'.
     by rewrite read_esE; symmetry; apply: eq_onI Hvm;SvD.fsetdec.
   Qed.
 
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
   Proof.
    move => s1 s2 t o xs es lo. rewrite /sem_sopn /=.
-    t_xrbindP=> x0 Hexpr v Hopn [s2' lw] Hw l Hl /= hs2; rewrite hs2 in Hw; move=> {hs2} <- /=.
+    t_xrbindP=> x0 Hexpr v Hopn [s2' lw] Hw /= hs2; rewrite hs2 in Hw; move=> {hs2} <- /=.
     rewrite /Pi_r /= => ii s0.
     case: ifPn => _ /=; last by apply: Hopn_aux Hexpr Hopn Hw.
     case:ifPn => [ | _] /=.
@@ -275,8 +274,8 @@ Section PROOF.
     move=> Hwf vm1' Hvm.
     have [ -> Hs ] : emem s1 = emem s2 ∧ evm s1 =v evm s2;
     last by eexists; split; last exact: Eskip; apply: eq_onT _ Hvm.
-    case: x0 Hexpr Hopn Hl => [ | vx] /=; first by t_xrbindP.
-    case; t_xrbindP=> // -[vx' lx'] vx'' hgetx [] <- <- <- /= hs hlo.
+    case: x0 Hexpr Hopn => [ | vx] /=; first by t_xrbindP.
+    case; t_xrbindP=> // -[vx' lx'] vx'' hgetx [] <- <- <- /= hs.
     have hv : v = ([:: vx''], LEmpty).
     + case: ho hs => ->; rewrite /exec_sopn /=; t_xrbindP => v1 w1 /to_wordI [sz' [w' [hsz' ??]]]; subst vx'' w1.
       + rewrite /sopn_sem /= /x86_MOV; t_xrbindP => ? /assertP ha h1 lo' hlo' ?; subst v1 v.

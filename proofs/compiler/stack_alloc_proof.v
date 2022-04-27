@@ -1018,7 +1018,7 @@ Section PROOF.
   Local Lemma Hopn : sem_Ind_opn P Pi_r.
   Proof.
     move => s1 s2 t o xs es lo.
-    rewrite /sem_sopn;t_xrbindP => vs He va Hop [s lt] Hw /= lo' hlo <- <- ii1 ii2 i2 lti.
+    rewrite /sem_sopn;t_xrbindP => vs He va Hop [s lt] Hw /= <- <- ii1 ii2 i2 lti.
     move=> H. rewrite /= in H. move: H.
     t_xrbindP => -[i' lti'] x' ; apply: add_iinfoP => ha e'.
     apply: add_iinfoP => he [] h1 h2 h3 h4 h5 s1' hs1; subst i' i2 ii1.
@@ -1028,7 +1028,7 @@ Section PROOF.
     exists s2'; split=> //. rewrite /leak_I /=. rewrite -h2 in h5.
     rewrite /= in h5. rewrite -h5 /=. apply S.sem_seq1. apply S.EmkI.
     apply S.Eopn. rewrite /sem_sopn He' /= Hop' /=.
-    rewrite Hw' /=. have -> /= := leak_sopn_eq Uvv' hlo. by rewrite hl hv /=.
+    by rewrite Hw' /= hl hv.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true P Pc Pi_r.
@@ -1172,7 +1172,7 @@ Section WF_Proof.
   Local Lemma Hopn_WF : sem_Ind_opn P Pi_r.
   Proof.
     move => s1 s2 t o xs es lo.
-    rewrite /sem_sopn;t_xrbindP => vs He va Hop [s lt] Hw /= lo' hlo <- <- m ii1 ii2 i2 lti.
+    rewrite /sem_sopn;t_xrbindP => vs He va Hop [s lt] Hw /= <- <- m ii1 ii2 i2 lti.
     move=> H. rewrite /= in H. move: H.
     t_xrbindP => -[i' lti'] x' ; apply: add_iinfoP => ha e'.
     apply: add_iinfoP => he [] h1 <- h3 h4 <-; subst i' i2 ii1.

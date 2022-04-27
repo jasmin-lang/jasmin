@@ -637,7 +637,6 @@ Definition sem_sopn gd o m lvs args :=
   Let vas := sem_pexprs gd m args in
   Let vs := exec_sopn o (unzip1 vas) in 
   Let ml := write_lvals gd m lvs vs.1 in
-  (*Let r := leak_sopn o (unzip1 vas) in*)
   ok (ml.1, LSub [:: LSub (unzip2 vas); vs.2; LSub ml.2]).
 
 Inductive sem : estate -> cmd -> leak_c -> estate -> Prop :=
