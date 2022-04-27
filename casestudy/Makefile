@@ -16,7 +16,23 @@ all: modulo_ct.eco modulo_ct_proof.eco copy_mac_ct.eco leakage_models.eco \
 	chacha20/chacha20_avx/chacha20_avx_proof_TV_CL64.eco chacha20/chacha20_avx2/chacha20_avx2_proof_BL_BL.eco \
 	chacha20/chacha20_avx2/chacha20_avx2_proof_BL_CL32.eco chacha20/chacha20_avx2/chacha20_avx2_proof_BL_CL64.eco \
 	chacha20/chacha20_avx2/chacha20_avx2_proof_TV_BL.eco chacha20/chacha20_avx2/chacha20_avx2_proof_TV_CL32.eco \
-	chacha20/chacha20_avx2/chacha20_avx2_proof_TV_CL64.eco  check
+	chacha20/chacha20_avx2/chacha20_avx2_proof_TV_CL64.eco keccak1600/keccak1600_ref/keccak1600_ref_proof_BL_BL.eco \
+	keccak1600/keccak1600_ref/keccak1600_ref_proof_BL_CL32.eco keccak1600/keccak1600_ref/keccak1600_ref_proof_BL_CL64.eco \
+	keccak1600/keccak1600_ref/keccak1600_ref_proof_TV_BL.eco keccak1600/keccak1600_ref/keccak1600_ref_proof_TV_CL32.eco \
+	keccak1600/keccak1600_ref/keccak1600_ref_proof_TV_CL64.eco keccak1600/keccak1600_scalar/keccak1600_scalar_proof_BL_BL.eco \
+	keccak1600/keccak1600_scalar/keccak1600_scalar_proof_BL_CL32.eco keccak1600/keccak1600_scalar/keccak1600_scalar_proof_BL_CL64.eco \
+	keccak1600/keccak1600_scalar/keccak1600_scalar_proof_TV_BL.eco keccak1600/keccak1600_scalar/keccak1600_scalar_proof_TV_CL32.eco \
+	keccak1600/keccak1600_scalar/keccak1600_scalar_proof_TV_CL64.eco openSSL/pmac_verify_hmac/pmac_verify_hmac_proof_BL_CL32.eco \
+	openSSL/pmac_verify_hmac/pmac_verify_hmac_proof_BL_CL64.eco poly1305/poly1305_ref/poly1305_ref_proof_BL_BL.eco \
+	poly1305/poly1305_ref/poly1305_ref_proof_BL_CL32.eco poly1305/poly1305_ref/poly1305_ref_proof_BL_CL64.eco \
+	poly1305/poly1305_ref/poly1305_ref_proof_TV_BL.eco poly1305/poly1305_ref/poly1305_ref_proof_TV_CL32.eco \
+	poly1305/poly1305_ref/poly1305_ref_proof_TV_CL64.eco poly1305/poly1305_avx/poly1305_avx_proof_BL_BL.eco \
+	poly1305/poly1305_avx/poly1305_avx_proof_BL_CL32.eco poly1305/poly1305_avx/poly1305_avx_proof_BL_CL64.eco \
+	poly1305/poly1305_avx/poly1305_avx_proof_TV_BL.eco poly1305/poly1305_avx/poly1305_avx_proof_TV_CL32.eco \
+	poly1305/poly1305_avx/poly1305_avx_proof_TV_CL64.eco poly1305/poly1305_avx2/poly1305_avx2_proof_BL_BL.eco \
+	poly1305/poly1305_avx2/poly1305_avx2_proof_BL_CL32.eco poly1305/poly1305_avx2/poly1305_avx2_proof_BL_CL64.eco \
+	poly1305/poly1305_avx2/poly1305_avx2_proof_TV_BL.eco poly1305/poly1305_avx2/poly1305_avx2_proof_TV_CL32.eco \
+	poly1305/poly1305_avx2/poly1305_avx2_proof_TV_CL64.eco wolfSSL/coding_wolfSSL_proof_BL_CL64.eco check
 
 modulo_ct.ec: ../compiler/examples/mod_patch.jazz
 	$(JASMINC) -CT -ec mod_TV -oec $@ $^
@@ -55,6 +71,9 @@ poly1305_avx2_ct.ec: poly1305/poly1305_avx2/poly1305_avx2.jazz
 
 coding_wolfSSL_ct.ec: wolfSSL/coding_wolfSSL.jazz
 	$(JASMINC) -CT -ec Base64_Char2Val_jazz -oec wolfSSL/$@ $^
+
+pmac_verify_hmac_ct.ec: openSSL/pmac_verify_hmac/pmac_verify_hmac.jazz
+	$(JASMINC) -CT -ec verify_hmac_jazz -oec openSSL/pmac_verify_hmac/$@ $^
 
 %.eco: %.ec
 	$(EASYCRYPT) $^

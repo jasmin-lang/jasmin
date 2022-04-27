@@ -1,10 +1,10 @@
 require import AllCore IntDiv CoreMap List.
 from Jasmin require import JModel.
 require import Leakage_models.
-require Pmac_verify_hmac.
+require Pmac_verify_hmac_ct.
 import StdOrder.IntOrder Ring.IntID.
 
-clone import Pmac_verify_hmac.T with
+clone import Pmac_verify_hmac_ct.T with
 theory LeakageModel <-  LeakageModelCL.
 
 equiv l_final : M.verify_hmac_jazz ~ M.verify_hmac_jazz :
@@ -30,7 +30,7 @@ wp; skip=> />.
   + have hle := W64.to_uint_ule_andw ((i{1} + W64.one)%W64)
     (zeroextu64
     (invw (invw (truncateu32 j{2} - truncateu32 off{1} - (of_int 20)%W32 `>>`(of_int 31)%W8)))).
-    have hadd : 1 <= to_uint (i{1} + W64.one) < 21. 
+    have hadd : 1 <= to_uint (i{1} + W64.one) < 21.
     + split=> //=.
       + rewrite to_uintD_small. + by smt().
       rewrite /=. by smt().
@@ -41,18 +41,18 @@ wp; skip=> />.
     have hle := W64.to_uint_ule_andw ((i{1} + W64.one)%W64)
     (zeroextu64
     (invw (invw (truncateu32 j{2} - truncateu32 off{1} - (of_int 20)%W32 `>>`(of_int 31)%W8)))).
-    have hadd : 1 <= to_uint (i{1} + W64.one) < 21. 
+    have hadd : 1 <= to_uint (i{1} + W64.one) < 21.
     + split=> //=.
       + rewrite to_uintD_small. + by smt().
       rewrite /=. by smt().
     move=> hadd'. + rewrite to_uintD_small. + by smt().
     rewrite /=. by smt().
-    admit. 
-  + split=> //=; auto. 
+    admit.
+  + split=> //=; auto.
     + have hle := W64.to_uint_ule_andw ((i{2} + W64.one)%W64)
     (zeroextu64
     (invw (invw (truncateu32 j{2} - truncateu32 off{2} - (of_int 20)%W32 `>>`(of_int 31)%W8)))).
-    have hadd : 1 <= to_uint (i{2} + W64.one) < 21. 
+    have hadd : 1 <= to_uint (i{2} + W64.one) < 21.
     + split=> //=.
       + rewrite to_uintD_small. + by smt().
       rewrite /=. by smt().
@@ -63,7 +63,7 @@ wp; skip=> />.
     have hle := W64.to_uint_ule_andw ((i{2} + W64.one)%W64)
     (zeroextu64
     (invw (invw (truncateu32 j{2} - truncateu32 off{2} - (of_int 20)%W32 `>>`(of_int 31)%W8)))).
-    have hadd : 1 <= to_uint (i{2} + W64.one) < 21. 
+    have hadd : 1 <= to_uint (i{2} + W64.one) < 21.
     + split=> //=.
       + rewrite to_uintD_small. + by smt().
       rewrite /=. by smt().
