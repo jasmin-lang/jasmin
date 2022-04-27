@@ -11,6 +11,33 @@ modulo_ct.ec: ../compiler/examples/mod_patch.jazz
 copy_mac_ct.ec: ../compiler/examples/lucky13_split.jazz
 	$(JASMINC) -CT -ec ssl3_cbc_copy_mac_BL_BL -ec ssl3_cbc_copy_mac_BL_CL -ec ssl3_cbc_copy_mac_TV_BL -ec ssl3_cbc_copy_mac_TV_CL -ec ssl3_cbc_copy_mac_BL_CL32 -ec ssl3_cbc_copy_mac_TV_CL32 -oec $@ $^
 
+chacha20_ref_ct.ec: chacha20/chacha20_ref/chacha20_ref.jazz
+	$(JASMINC) -CT -ec chacha20_ref -oec chacha20/chacha20_ref/$@ $^
+
+chacha20_avx_ct.ec: chacha20/chacha20_avx/chacha20_avx.jazz
+	$(JASMINC) -CT -ec chacha20_avx -oec chacha20/chacha20_avx/$@ $^
+
+chacha20_avx2_ct.ec: chacha20/chacha20_avx2/chacha20_avx2.jazz
+	$(JASMINC) -CT -ec chacha20_avx2 -oec chacha20/chacha20_avx2/$@ $^
+
+keccak1600_ref_ct.ec: keccak1600/keccak1600_ref/keccak1600_ref.jazz
+	$(JASMINC) -CT -ec keccak1600_ref -oec keccak1600/keccak1600_ref/$@ $^
+
+keccak1600_avx_ct.ec: keccak1600/keccak1600_avx/keccak1600_avx.jazz
+	$(JASMINC) -CT -ec keccak1600_avx -oec keccak1600/keccak1600_avx/$@ $^
+
+keccak1600_scalar_ct.ec: keccak1600/keccak1600_scalar/keccak1600_scalar.jazz
+	$(JASMINC) -CT -ec keccak1600_scalar -oec keccak1600/keccak1600_scalar/$@ $^
+
+poly1305_ref_ct.ec: poly1305/poly1305_ref/poly1305_ref.jazz
+	$(JASMINC) -CT -ec poly1305_ref -oec poly1305/poly1305_ref/$@ $^
+
+poly1305_avx_ct.ec: poly1305/poly1305_avx/poly1305_avx.jazz
+	$(JASMINC) -CT -ec poly1305_avx -oec poly1305/poly1305_avx/$@ $^
+
+poly1305_avx2_ct.ec: poly1305/poly1305_avx2/poly1305_avx2.jazz
+	$(JASMINC) -CT -ec poly1305_avx2 -oec poly1305/poly1305_avx2/$@ $^
+
 %.eco: %.ec
 	$(EASYCRYPT) $^
 
