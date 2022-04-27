@@ -566,6 +566,11 @@ op copy_64  ['a] (x:'a) = x.
 op copy_128 ['a] (x:'a) = x.
 op copy_256 ['a] (x:'a) = x.
 
+(* ------------------------------------------------------------------- *)
+abbrev [-printing] adc_8  = W8.addc.
+abbrev [-printing] adc_16 = W16.addc.
+abbrev [-printing] adc_32 = W32.addc.
+abbrev [-printing] adc_64 = W64.addc.
 
 (* ------------------------------------------------------------------- *)
 (* Leakages                                                            *)
