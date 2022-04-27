@@ -423,7 +423,11 @@ module M = {
     }
     aux_3 <- r1;
     leakages <- LeakAddr([0]) :: leakages;
-    s0 <- Array16.init(WArray16.get8 (WArray16.set128 (WArray16.init8 (fun i => s0.[i])) 0 aux_3)); aux_1 <- (W64.of_int 0);j <- aux_1;
+    s0 <-
+    Array16.init
+    (WArray16.get8 (WArray16.set128 (WArray16.init8 (fun i => s0.[i])) 0 aux_3));
+    aux_1 <- (W64.of_int 0);
+    j <- aux_1;
     
     leakages <- LeakCond(((truncateu32 j) \ult len)) :: LeakAddr([]) :: leakages;
     
