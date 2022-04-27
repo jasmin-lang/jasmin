@@ -226,7 +226,7 @@ fn poly1305_ref3_last(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k, reg u64
 
 
 
-export fn poly1305_ref3(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k)
+export fn poly1305_ref(reg u64 out, reg u64 in, reg u64 inlen, reg u64 k)
 {
   reg u64[3] h;
   reg u64[3] r;
