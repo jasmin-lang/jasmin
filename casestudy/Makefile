@@ -79,7 +79,7 @@ pmac_verify_hmac_ct.ec: openSSL/pmac_verify_hmac/pmac_verify_hmac.jazz
 	$(EASYCRYPT) $^
 
 clean:
-	$(RM) modulo_ct.ec copy_mac_ct.ec *.eco *Array*.ec
+	$(RM) *.eco
 
 check:
 	$(JASMINC) 	-dlk=none	-mlk=div32	counter_examples/rotate_mac_CL_in_32CL.jazz; echo ""
