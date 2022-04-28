@@ -1,17 +1,11 @@
 #! -*- Makefile -*-
 
 # --------------------------------------------------------------------
-UNAME_S  := $(shell uname -s)
 SED      ?= sed
 DISTDIR  := jasmin
-DESTDIR  ?=
-PREFIX   ?= /usr/local
-BINDIR   := $(PREFIX)/bin
-LIBDIR   := $(PREFIX)/lib
-INSTALL  ?= scripts/install-sh
 
 # --------------------------------------------------------------------
-.PHONY: all build check clean dist distcheck
+.PHONY: all build check clean install uninstall dist distcheck
 
 all: build
 

@@ -26,7 +26,7 @@ SHRDIR   := $(PREFIX)/share
 INSTALL  ?= ../scripts/install-sh
 
 # --------------------------------------------------------------------
-.PHONY: default usage check check-xunit
+.PHONY: default usage check check-xunit install uninstall
 
 default: check
 

@@ -36,7 +36,8 @@ DISTDIR ?= jasmin-compiler
 OBELISK ?= obelisk
 
 # --------------------------------------------------------------------
-.PHONY: all build byte native CIL check __force__
+.PHONY: all build byte native CIL check check-ci __force__
+.PHONY: clean install uninstall dist
 .PHONY: %.ml %.mli %.inferred.mli
 
 .PRECIOUS: _c_build/%.s _c_build/%.o
