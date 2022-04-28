@@ -4,9 +4,9 @@ EASYCRYPT?=easycrypt
 .SUFFIXES: .jazz .ec .eco
 
 all: modulo_ct.eco modulo_ct_proof.eco copy_mac_ct.eco \
-	copy_mac_ct_proof_BL_BL_CL.eco copy_mac_ct_proof_BL_BL_BL.eco copy_mac_ct_proof_BL_CL_CL.eco \
-	copy_mac_ct_proof_TV_CL_CL.eco copy_mac_ct_proof_TV_CL_TV_CL.eco copy_mac_ct_proof_TV_BL_CL.eco \
-	copy_mac_ct_proof_TV_BL_BL.eco copy_mac_ct_proof_TV_BL_TV_CL.eco copy_mac_ct_proof_TV_BL_TV.eco \
+	copy_mac_ct_proof_BL_BL_CL32.eco copy_mac_ct_proof_BL_BL_CL64.eco copy_mac_ct_proof_BL_BL_BL.eco copy_mac_ct_proof_BL_CL64_CL64.eco \
+	copy_mac_ct_proof_TV_CL64_CL64.eco copy_mac_ct_proof_TV_CL64_TV_CL64.eco copy_mac_ct_proof_TV_BL_CL64.eco \
+	copy_mac_ct_proof_TV_BL_BL.eco copy_mac_ct_proof_TV_BL_TV_CL64.eco copy_mac_ct_proof_TV_BL_TV.eco \
 	copy_mac_ct_proof_TV_CL32.eco chacha20/chacha20_ref/chacha20_ref_proof_BL_BL.eco \
 	chacha20/chacha20_ref/chacha20_ref_proof_BL_CL32.eco chacha20/chacha20_ref/chacha20_ref_proof_BL_CL64.eco \
 	chacha20/chacha20_ref/chacha20_ref_proof_TV_BL.eco chacha20/chacha20_ref/chacha20_ref_proof_TV_CL32.eco \
