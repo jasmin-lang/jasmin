@@ -1,8 +1,5 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
-require import Leakage_models.
-
-
+from Jasmin require import JModel Leakage_models.
 
 theory T.
 clone import ALeakageModel as LeakageModel.
