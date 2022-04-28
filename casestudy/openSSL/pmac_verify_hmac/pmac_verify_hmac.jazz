@@ -17,6 +17,7 @@ export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad maxpad ret) -> reg 
     off = out;
     off -= p;
 
+    res = 0;
     i = 0;
     j = 0;
     maxpad += 20;           // j < maxpad + SHA_DIGEST_LENGTH; should deduct 20 later
@@ -30,7 +31,7 @@ export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad maxpad ret) -> reg 
         cmask = j;
         cmask -= off;
         cmask -= 20;
-        cmask >>= 31;       // >> (sizeof(int) * 8 - 1);
+        cmask >>s= 31;       // >> (sizeof(int) * 8 - 1);
 
         // res |= (c ^ pad) & ~cmask;
         temp = c;
@@ -44,7 +45,8 @@ export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad maxpad ret) -> reg 
         temp = off;
         temp -= 1;
         temp -= j;
-        temp >>= 31;
+        temp >>s= 31;
+        cmask &= temp;
 
         // res |= (c ^ pmac->c[i]) & cmask;
         temp = c;
@@ -53,9 +55,9 @@ export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad maxpad ret) -> reg 
         res |= temp;
 
         // i += 1 & cmask;
-        i += 1;
         temp_64 = (64u)cmask;
-        i &= temp_64;
+        temp_64 &= 1;
+        i += temp_64;
 
         // j++
         j += 1;
@@ -64,14 +66,13 @@ export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad maxpad ret) -> reg 
     // res = 0 - ((0 - res) >> (sizeof(res) * 8 - 1));
     temp = 0;
     temp -= res;
-    temp >>= 31;
-    res = temp;
+    temp >>s= 31;
+    res = temp;     // computed ((0 - res) >> (sizeof(res) * 8 - 1))
     temp = 0;
     temp -= res;
     res = temp;
 
     // ret &= (int)~res;
-    temp = !res;
     ret &= !res;
 
     return ret;
