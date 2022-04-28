@@ -41,11 +41,11 @@ export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad ret, reg u64 maxpad
 
         // cmask &= ((int)(off - 1 - j)) >> (sizeof(int) * 8 - 1);
         cmask = !cmask;     // reverted back to original value
-        temp = off;
-        temp -= 1;
-        temp -= j;
-        temp >>s= 63;
-        cmask &= temp;
+        temp_64 = off;
+        temp_64 -= 1;
+        temp_64 -= j;
+        temp_64 >>s= 63;
+        cmask &= temp_64;
 
         // res |= (c ^ pmac->c[i]) & cmask;
         temp = c;
