@@ -1,6 +1,5 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
-require import Leakage_models.
+from Jasmin require import JModel Leakage_models.
 require Modulo_ct.
 import StdOrder.IntOrder Ring.IntID.
 
@@ -21,7 +20,7 @@ import BitEncoding.BS2Int.
 
 lemma leak_div0 (x:W64.t) :  2^63 <= to_uint x <=> leak_div x = 0.
 proof.
-rewrite /leak_div W64.to_uintE /= W64.w2bitsE /=. 
+rewrite /leak_div W64.to_uintE /= W64.w2bitsE /=.
 have := lzcnt_bound (mkseq ("_.[_]"x) 64).
 rewrite size_mkseq /max /=.
 case: (64 = lzcnt (rev (mkseq ("_.[_]" x) 64))) => [<- /= /#| hdiff].
@@ -31,33 +30,33 @@ move=> h0 h1; have /= /#: 2 ^ (64 - n) <= 2^63.
 apply ler_weexpn2l => //. smt (lzcnt_size size_mkseq size_rev).
 qed.
 
-lemma shift_leak_div (b:W64.t) : 
-  b <> W64.zero => 
+lemma shift_leak_div (b:W64.t) :
+  b <> W64.zero =>
   to_uint (b `<<<` leak_div b) = to_uint b * 2 ^ leak_div b.
 proof.
   move=> hz; rewrite W64.to_uint_shl. smt (leak_div_bound).
-  rewrite modz_small 2://. 
+  rewrite modz_small 2://.
   split.
   + apply mulr_ge0; 1: smt(W64.to_uint_cmp).
     by apply expr_ge0.
   move=> _; rewrite W64.to_uintE.
   have := lzcnt_bound (w2bits b).
-  rewrite /leak_div size_w2bits (eq_sym 64) leak_div64 //= => -[] _. 
+  rewrite /leak_div size_w2bits (eq_sym 64) leak_div64 //= => -[] _.
   rewrite -(ltr_pmul2r (2 ^ lzcnt (rev (w2bits b)))).
   + by apply expr_gt0.
   rewrite -exprD_nneg //; 1,2: smt(leak_div_bound).
   by rewrite subrK.
 qed.
 
-lemma shift_ZLCNT (b:W64.t) : 
-  b <> W64.zero => 
+lemma shift_ZLCNT (b:W64.t) :
+  b <> W64.zero =>
   to_uint (b `<<<` to_uint (LZCNT_64 b).`6) = to_uint b * 2 ^ leak_div b.
 proof.
   rewrite /LZCNT_64 /= W64.to_uint_small; 1: smt (leak_div_bound); apply shift_leak_div.
 qed.
 
-lemma shift_zlcnt (b:W64.t) : 
-  b <> W64.zero => 
+lemma shift_zlcnt (b:W64.t) :
+  b <> W64.zero =>
   2^63 <= to_uint (b `<<<` to_uint (LZCNT_64 b).`6) < 2^64.
 proof.
   move=> hz; split; last first.
@@ -109,8 +108,8 @@ proof.
   rewrite modz_small /= 1:/# W64.shlw_add 1:/# 1:// /=.
   apply leak_div0.
   have heq: to_uint b * 2 ^ (leak_div b - 1) * 2 = to_uint b * 2 ^ leak_div b.
-  + have {2}-> : 2 = 2 ^ 1 by done. 
-    rewrite mulzA -exprD_nneg //; 1: smt(leak_div_bound). 
+  + have {2}-> : 2 = 2 ^ 1 by done.
+    rewrite mulzA -exprD_nneg //; 1: smt(leak_div_bound).
   have h :  to_uint (b `<<<` leak_div b - 1) * 2 = to_uint (b `<<<` leak_div b).
   + have := shift_zlcnt b hb.
     rewrite shift_ZLCNT 1:// shift_leak_div 1:// => h.
@@ -150,7 +149,7 @@ proof.
   rewrite /LZCNT_64 /ZF_of /= W64.to_uint_eq /= to_uint_lzcnt => w_not_big.
   have := lzcnt_bound (w2bits w).
   have := lzcnt_size (rev (w2bits w)); rewrite size_rev size_w2bits -to_uintE.
-  have /# := ler_weexpn2l 2 _ (64 - lzcnt (rev (w2bits w))) 63=> //. 
+  have /# := ler_weexpn2l 2 _ (64 - lzcnt (rev (w2bits w))) 63=> //.
 qed.
 
 hoare mod_TV_correct x y : M.mod_TV : arg = (x, y) /\ y <> W64.zero ==> res = x \umod y.
@@ -169,15 +168,15 @@ proof.
   rewrite /LZCNT_64 /truncateu8 /=.
   rewrite modz_dvd 1://.
   rewrite to_uint_small; 1: smt (lzcnt_size size_rev size_w2bits).
-  rewrite (modz_small _ 64) /=; 1: smt (lzcnt_size size_rev size_w2bits). 
+  rewrite (modz_small _ 64) /=; 1: smt (lzcnt_size size_rev size_w2bits).
   have heq: to_uint y * 2 ^ (leak_div y - 1) * 2 = to_uint y * 2 ^ leak_div y.
-  + have {2}-> : 2 = 2 ^ 1 by done. 
+  + have {2}-> : 2 = 2 ^ 1 by done.
     rewrite mulzA -exprD_nneg //; 1: smt(leak_div_bound).
   have heq1 :  to_uint (y `<<<` leak_div y) = to_uint y * 2 ^ leak_div y.
   + by rewrite -(shift_ZLCNT y y_nz) /LZCNT_64 /= to_uint_lzcnt.
   have heq2 :  to_uint (y `<<<` leak_div y - 1) = to_uint y * 2 ^ (leak_div y - 1).
   + have := shift_zlcnt y y_nz.
-    rewrite shift_ZLCNT 1:// => h. 
+    rewrite shift_ZLCNT 1:// => h.
     rewrite W64.to_uint_shl; 1: smt (leak_div_bound).
     by rewrite modz_small //; move: heq h => /= /#.
   have := shift_zlcnt y y_nz.

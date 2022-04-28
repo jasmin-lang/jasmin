@@ -1,10 +1,9 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
+from Jasmin require import JModel Leakage_models.
 
 require import Array64 WArray64.
 
 require Copy_mac_ct.
-require import Leakage_models.
 
 clone import Copy_mac_ct.T with
 theory LeakageModel <- LeakageModelCL.
@@ -12,7 +11,7 @@ theory LeakageModel <- LeakageModelCL.
 equiv l_rotate_offset_TVCL md_size_ : M.rotate_offset_TV ~ M.rotate_offset_TV:
   ={M.leakages, md_size, scan_start} /\ md_size{1} = md_size_ /\
   (16 <= to_uint md_size <= 64){1}
-  ==> 
+  ==>
   ={M.leakages} /\ to_uint res{1} < to_uint md_size_ /\ to_uint res{2} < to_uint md_size_.
 proof.
   proc; wp; skip => />; smt (W32.to_uint_small W32.to_uint_cmp).
@@ -39,14 +38,14 @@ proof.
   have hlt1 : to_uint (ro{1} + W64.one) < W32.modulus by rewrite heq1 /= /#.
   have heq2 : to_uint (ro{2} + W64.one) = to_uint ro{2} + 1 by rewrite W64.to_uintD_small //= /#.
   have hlt2 : to_uint (ro{2} + W64.one) < W32.modulus by rewrite heq2 /= /#.
-  case: (md_size{2} \ule truncateu32 (ro{1} + W64.one)); 
+  case: (md_size{2} \ule truncateu32 (ro{1} + W64.one));
   rewrite uleE to_uint_truncateu32_small // heq1 /=;
-  case: (md_size{2} \ule truncateu32 (ro{2} + W64.one)); 
+  case: (md_size{2} \ule truncateu32 (ro{2} + W64.one));
   rewrite uleE to_uint_truncateu32_small // heq2 /= /#.
 qed.
 
-equiv l_init_rotated_mac_mem : 
-  M.init_rotated_mac_mem ~ M.init_rotated_mac_mem : 
+equiv l_init_rotated_mac_mem :
+  M.init_rotated_mac_mem ~ M.init_rotated_mac_mem :
   ={md_size, rotated_mac, data, orig_len, scan_start, M.leakages} ==> ={M.leakages}.
 proof. by proc; sim. qed.
 
@@ -54,7 +53,7 @@ equiv l_final : M.ssl3_cbc_copy_mac_TV_CL ~ M.ssl3_cbc_copy_mac_TV_CL :
   ={M.leakages, md_size, orig_len, out, rec, rotated_mac} /\
   (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){1} = (loadW64 Glob.mem (to_uint (rec + (of_int 16)%W64))){2} /\
   to_uint rotated_mac{2} + 64 <= W64.modulus /\ 64 %| to_uint rotated_mac{2} /\
-  16 <= to_uint md_size{2} <= 64 
+  16 <= to_uint md_size{2} <= 64
   ==> ={M.leakages}.
 proof.
   proc.

@@ -1,5 +1,5 @@
-from Jasmin require import JModel.
-require import AllCore IntDiv CoreMap List Leakage_models Poly1305_ref_ct.
+from Jasmin require import JModel Leakage_models.
+require import AllCore IntDiv CoreMap List Poly1305_ref_ct.
 
 clone import Poly1305_ref_ct.T with theory LeakageModel <-  LeakageModelCL.
 

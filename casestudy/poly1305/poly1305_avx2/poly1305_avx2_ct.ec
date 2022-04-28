@@ -1,6 +1,5 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
-require import Leakage_models.
+from Jasmin require import JModel Leakage_models.
 
 require import Array2 Array3 Array4 Array5.
 require import WArray16 WArray24 WArray64 WArray96 WArray128 WArray160.
@@ -21,10 +20,10 @@ clone import ALeakageModel as LeakageModel.
 
 module M = {
   var leakages : leakages_t
-  
+
   proc load2 (p:W64.t) : W64.t Array2.t = {
     var aux: W64.t;
-    
+
     var x:W64.t Array2.t;
     x <- witness;
     leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (p + (W64.of_int 0))))]) :: leakages;
@@ -37,14 +36,14 @@ module M = {
     x.[1] <- aux;
     return (x);
   }
-  
+
   proc load_add (h:W64.t Array3.t, in_0:W64.t) : W64.t Array3.t = {
     var aux: bool;
     var aux_0: W64.t;
-    
+
     var cf:bool;
     var  _0:bool;
-    
+
     leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (in_0 + (W64.of_int 0))))]
                          ++ [0]) :: leakages;
     (aux, aux_0) <- adc_64 h.[0]
@@ -66,12 +65,12 @@ module M = {
     h.[2] <- aux_0;
     return (h);
   }
-  
+
   proc load_last_add (h:W64.t Array3.t, in_0:W64.t, len:W64.t) : W64.t Array3.t = {
     var aux_1: bool;
     var aux_0: W8.t;
     var aux: W64.t;
-    
+
     var s:W64.t Array2.t;
     var j:W64.t;
     var c:W8.t;
@@ -86,9 +85,9 @@ module M = {
     s.[1] <- aux;
     aux <- (W64.of_int 0);
     j <- aux;
-    
+
     leakages <- LeakCond((j \ult len)) :: LeakAddr([]) :: leakages;
-    
+
     while ((j \ult len)) {
       leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (in_0 + j)))]) :: leakages;
       aux_0 <- (loadW8 Glob.mem (W64.to_uint (in_0 + j)));
@@ -101,7 +100,7 @@ module M = {
       aux <- (j + (W64.of_int 1));
       j <- aux;
     leakages <- LeakCond((j \ult len)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux_0 <- (W8.of_int 1);
     leakages <- LeakAddr([(W64.to_uint j)]) :: leakages;
@@ -125,12 +124,12 @@ module M = {
     h.[2] <- aux;
     return (h);
   }
-  
+
   proc store2 (p:W64.t, x:W64.t Array2.t) : unit = {
     var aux: W64.t;
-    
-    
-    
+
+
+
     leakages <- LeakAddr([0]) :: leakages;
     aux <- x.[0];
     leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (p + (W64.of_int 0))))]) :: leakages;
@@ -141,10 +140,10 @@ module M = {
     Glob.mem <- storeW64 Glob.mem (W64.to_uint (p + (W64.of_int 8))) aux;
     return ();
   }
-  
+
   proc clamp (k:W64.t) : W64.t Array3.t = {
     var aux: W64.t;
-    
+
     var r:W64.t Array3.t;
     r <- witness;
     leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (k + (W64.of_int 0))))]) :: leakages;
@@ -177,14 +176,14 @@ module M = {
     r.[2] <- aux;
     return (r);
   }
-  
+
   proc add2 (h:W64.t Array2.t, s:W64.t Array2.t) : W64.t Array2.t = {
     var aux: bool;
     var aux_0: W64.t;
-    
+
     var cf:bool;
     var  _0:bool;
-    
+
     leakages <- LeakAddr([0] ++ [0]) :: leakages;
     (aux, aux_0) <- adc_64 h.[0] s.[0] false;
     cf <- aux;
@@ -197,12 +196,12 @@ module M = {
     h.[1] <- aux_0;
     return (h);
   }
-  
+
   proc mulmod (h:W64.t Array3.t, r:W64.t Array3.t) : W64.t Array3.t = {
     var aux_1: bool;
     var aux_0: W64.t;
     var aux: W64.t;
-    
+
     var t2:W64.t;
     var rax:W64.t;
     var rdx:W64.t;
@@ -212,7 +211,7 @@ module M = {
     var  _0:bool;
     var  _1:bool;
     var  _2:bool;
-    
+
     leakages <- LeakAddr([2]) :: leakages;
     aux_0 <- r.[2];
     t2 <- aux_0;
@@ -320,11 +319,11 @@ module M = {
     h.[2] <- aux_0;
     return (h);
   }
-  
+
   proc freeze (h:W64.t Array3.t) : W64.t Array2.t = {
     var aux_0: bool;
     var aux: W64.t;
-    
+
     var g:W64.t Array2.t;
     var g2:W64.t;
     var cf:bool;
@@ -385,13 +384,13 @@ module M = {
     g.[1] <- aux;
     return (g);
   }
-  
+
   proc poly1305_ref3_setup (k:W64.t) : W64.t Array3.t * W64.t Array3.t *
                                        W64.t = {
     var aux: int;
     var aux_0: W64.t;
     var aux_1: W64.t Array3.t;
-    
+
     var h:W64.t Array3.t;
     var r:W64.t Array3.t;
     var i:int;
@@ -411,18 +410,18 @@ module M = {
     k <- aux_0;
     return (h, r, k);
   }
-  
+
   proc poly1305_ref3_update (in_0:W64.t, inlen:W64.t, h:W64.t Array3.t,
                              r:W64.t Array3.t) : W64.t * W64.t *
                                                  W64.t Array3.t = {
     var aux_0: W64.t;
     var aux: W64.t Array3.t;
-    
-    
-    
-    
+
+
+
+
     leakages <- LeakCond(((W64.of_int 16) \ule inlen)) :: LeakAddr([]) :: leakages;
-    
+
     while (((W64.of_int 16) \ule inlen)) {
       aux <@ load_add (h, in_0);
       h <- aux;
@@ -433,16 +432,16 @@ module M = {
       aux_0 <- (inlen - (W64.of_int 16));
       inlen <- aux_0;
     leakages <- LeakCond(((W64.of_int 16) \ule inlen)) :: LeakAddr([]) :: leakages;
-    
+
     }
     return (in_0, inlen, h);
   }
-  
+
   proc poly1305_ref3_last (out:W64.t, in_0:W64.t, inlen:W64.t, k:W64.t,
                            h:W64.t Array3.t, r:W64.t Array3.t) : unit = {
     var aux_0: W64.t Array2.t;
     var aux: W64.t Array3.t;
-    
+
     var h2:W64.t Array2.t;
     var s:W64.t Array2.t;
     h2 <- witness;
@@ -454,7 +453,7 @@ module M = {
       aux <@ mulmod (h, r);
       h <- aux;
     } else {
-      
+
     }
     aux_0 <@ freeze (h);
     h2 <- aux_0;
@@ -465,13 +464,13 @@ module M = {
     store2 (out, h2);
     return ();
   }
-  
+
   proc poly1305_ref3_local (out:W64.t, in_0:W64.t, inlen:W64.t, k:W64.t) : unit = {
     var aux_2: W64.t;
     var aux_1: W64.t;
     var aux_0: W64.t Array3.t;
     var aux: W64.t Array3.t;
-    
+
     var h:W64.t Array3.t;
     var r:W64.t Array3.t;
     var len:W64.t;
@@ -490,11 +489,11 @@ module M = {
     poly1305_ref3_last (out, in_0, len, k, h, r);
     return ();
   }
-  
+
   proc times_5 (r1234:W256.t Array5.t) : W256.t Array4.t = {
     var aux_0: int;
     var aux: W256.t;
-    
+
     var r1234x5:W256.t Array4.t;
     var five:W256.t;
     var i:int;
@@ -515,12 +514,12 @@ module M = {
     }
     return (r1234x5);
   }
-  
-  proc broadcast_r4 (r1234:W256.t Array5.t, r1234x5:W256.t Array4.t) : 
+
+  proc broadcast_r4 (r1234:W256.t Array5.t, r1234x5:W256.t Array4.t) :
   W256.t Array5.t * W256.t Array4.t = {
     var aux: int;
     var aux_0: W256.t;
-    
+
     var r4444:W256.t Array5.t;
     var r4444x5:W256.t Array4.t;
     var i:int;
@@ -560,7 +559,7 @@ module M = {
     }
     return (r4444, r4444x5);
   }
-  
+
   proc poly1305_avx2_setup (r:W64.t Array3.t) : W256.t Array5.t *
                                                 W256.t Array4.t *
                                                 W256.t Array5.t *
@@ -575,7 +574,7 @@ module M = {
     var aux_6: W64.t Array3.t;
     var aux_7: W256.t Array4.t;
     var aux_8: W256.t Array5.t;
-    
+
     var r4444:W256.t Array5.t;
     var r4444x5:W256.t Array4.t;
     var r1234:W256.t Array5.t;
@@ -782,12 +781,12 @@ module M = {
     r4444x5 <- aux_7;
     return (r4444, r4444x5, r1234, r1234x5);
   }
-  
+
   proc load_avx2 (in_0:W64.t, mask26:W256.t, s_bit25:W256.t) : W256.t Array5.t *
                                                                W64.t = {
     var aux_0: W64.t;
     var aux: W256.t;
-    
+
     var m:W256.t Array5.t;
     var t:W256.t;
     m <- witness;
@@ -866,13 +865,13 @@ module M = {
     m.[1] <- aux;
     return (m, in_0);
   }
-  
+
   proc pack_avx2 (h:W256.t Array5.t) : W64.t Array3.t = {
     var aux_2: bool;
     var aux_1: W64.t;
     var aux_0: W128.t;
     var aux: W256.t;
-    
+
     var r:W64.t Array3.t;
     var t:W256.t Array3.t;
     var u:W256.t Array2.t;
@@ -1029,10 +1028,10 @@ module M = {
     r.[2] <- aux_1;
     return (r);
   }
-  
+
   proc carry_reduce_avx2 (x:W256.t Array5.t, mask26:W256.t) : W256.t Array5.t = {
     var aux: W256.t;
-    
+
     var z:W256.t Array2.t;
     var t:W256.t;
     z <- witness;
@@ -1129,12 +1128,12 @@ module M = {
     x.[4] <- aux;
     return (x);
   }
-  
+
   proc add_mulmod_avx2 (h:W256.t Array5.t, m:W256.t Array5.t,
                         s_r:W256.t Array5.t, s_rx5:W256.t Array4.t,
                         s_mask26:W256.t, s_bit25:W256.t) : W256.t Array5.t = {
     var aux: W256.t;
-    
+
     var r0:W256.t;
     var r1:W256.t;
     var r4x5:W256.t;
@@ -1373,7 +1372,7 @@ module M = {
     h.[4] <- aux;
     return (h);
   }
-  
+
   proc mainloop_avx2_v1 (h:W256.t Array5.t, m:W256.t Array5.t, in_0:W64.t,
                          s_r:W256.t Array5.t, s_rx5:W256.t Array4.t,
                          s_mask26:W256.t, s_bit25:W256.t) : W256.t Array5.t *
@@ -1381,7 +1380,7 @@ module M = {
                                                             W64.t = {
     var aux_0: W64.t;
     var aux: W256.t;
-    
+
     var r0:W256.t;
     var r1:W256.t;
     var r4x5:W256.t;
@@ -1787,15 +1786,15 @@ module M = {
     m.[1] <- aux;
     return (h, m, in_0);
   }
-  
+
   proc final_avx2_v0 (h:W256.t Array5.t, m:W256.t Array5.t,
                       s_r:W256.t Array5.t, s_rx5:W256.t Array4.t,
                       s_mask26:W256.t, s_bit25:W256.t) : W256.t Array5.t = {
     var aux_0: W256.t;
     var aux: W256.t Array5.t;
-    
+
     var mask26:W256.t;
-    
+
     aux <@ add_mulmod_avx2 (h, m, s_r, s_rx5, s_mask26, s_bit25);
     h <- aux;
     aux_0 <- s_mask26;
@@ -1804,7 +1803,7 @@ module M = {
     h <- aux;
     return (h);
   }
-  
+
   proc poly1305_avx2_update (in_0:W64.t, len:W64.t, r4444:W256.t Array5.t,
                              r4444x5:W256.t Array4.t, r1234:W256.t Array5.t,
                              r1234x5:W256.t Array4.t) : W64.t * W64.t *
@@ -1815,7 +1814,7 @@ module M = {
     var aux_4: W64.t Array3.t;
     var aux_3: W256.t Array5.t;
     var aux_1: W256.t Array5.t;
-    
+
     var h64:W64.t Array3.t;
     var i:int;
     var h:W256.t Array5.t;
@@ -1848,9 +1847,9 @@ module M = {
     (aux_3, aux_2) <@ load_avx2 (in_0, mask26, s_bit25);
     m <- aux_3;
     in_0 <- aux_2;
-    
+
     leakages <- LeakCond(((W64.of_int 128) \ule len)) :: LeakAddr([]) :: leakages;
-    
+
     while (((W64.of_int 128) \ule len)) {
       (aux_3, aux_1, aux_2) <@ mainloop_avx2_v1 (h, m, in_0, r4444, r4444x5,
       s_mask26, s_bit25);
@@ -1860,7 +1859,7 @@ module M = {
       aux_2 <- (len - (W64.of_int 64));
       len <- aux_2;
     leakages <- LeakCond(((W64.of_int 128) \ule len)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux_2 <- (len - (W64.of_int 64));
     len <- aux_2;
@@ -1870,7 +1869,7 @@ module M = {
     h64 <- aux_4;
     return (in_0, len, h64);
   }
-  
+
   proc poly1305_avx2_wrapper (out:W64.t, in_0:W64.t, inlen:W64.t, k:W64.t) : unit = {
     var aux_6: W64.t;
     var aux: W64.t;
@@ -1880,7 +1879,7 @@ module M = {
     var aux_3: W256.t Array4.t;
     var aux_4: W256.t Array5.t;
     var aux_2: W256.t Array5.t;
-    
+
     var len:W64.t;
     var h:W64.t Array3.t;
     var r:W64.t Array3.t;
@@ -1917,11 +1916,11 @@ module M = {
     poly1305_ref3_last (out, in_0, len, k, h, r);
     return ();
   }
-  
+
   proc poly1305_avx2 (out:W64.t, in_0:W64.t, inlen:W64.t, k:W64.t) : unit = {
-    
-    
-    
+
+
+
     leakages <- LeakCond((inlen \ult (W64.of_int 257))) :: LeakAddr([]) :: leakages;
     if ((inlen \ult (W64.of_int 257))) {
       poly1305_ref3_local (out, in_0, inlen, k);
@@ -1932,4 +1931,3 @@ module M = {
   }
 }.
 end T.
-

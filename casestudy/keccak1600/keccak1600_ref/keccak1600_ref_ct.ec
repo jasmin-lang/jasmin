@@ -1,6 +1,5 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
-require import Leakage_models.
+from Jasmin require import JModel Leakage_models.
 
 require import Array5 Array24 Array25.
 require import WArray40 WArray192 WArray200.
@@ -11,23 +10,23 @@ clone import ALeakageModel as LeakageModel.
 
 module M = {
   var leakages : leakages_t
-  
+
   proc index (x:int, y:int) : int = {
     var aux: int;
-    
+
     var r:int;
-    
+
     aux <- ((x %% 5) + (5 * (y %% 5)));
     r <- aux;
     return (r);
   }
-  
+
   proc theta (a:W64.t Array25.t) : W64.t Array25.t = {
     var aux_2: bool;
     var aux_1: bool;
     var aux: int;
     var aux_0: W64.t;
-    
+
     var x:int;
     var c:W64.t Array5.t;
     var y:int;
@@ -88,16 +87,16 @@ module M = {
     }
     return (a);
   }
-  
+
   proc keccakRhoOffsets (i:int) : int = {
     var aux: int;
-    
+
     var r:int;
     var x:int;
     var y:int;
     var t:int;
     var z:int;
-    
+
     aux <- 0;
     r <- aux;
     aux <- 1;
@@ -112,7 +111,7 @@ module M = {
         aux <- ((((t + 1) * (t + 2)) %/ 2) %% 64);
         r <- aux;
       } else {
-        
+
       }
       aux <- (((2 * x) + (3 * y)) %% 5);
       z <- aux;
@@ -124,20 +123,20 @@ module M = {
     }
     return (r);
   }
-  
+
   proc rho (a:W64.t Array25.t) : W64.t Array25.t = {
     var aux_1: bool;
     var aux_0: bool;
     var aux: int;
     var aux_2: W64.t;
-    
+
     var x:int;
     var y:int;
     var i:int;
     var z:int;
     var  _0:bool;
     var  _1:bool;
-    
+
     leakages <- LeakFor(0,5) :: LeakAddr([]) :: leakages;
     x <- 0;
     while (x < 5) {
@@ -160,11 +159,11 @@ module M = {
     }
     return (a);
   }
-  
+
   proc pi (a:W64.t Array25.t) : W64.t Array25.t = {
     var aux: int;
     var aux_0: W64.t;
-    
+
     var i:int;
     var t:W64.t;
     var b:W64.t Array25.t;
@@ -202,11 +201,11 @@ module M = {
     }
     return (a);
   }
-  
+
   proc chi (a:W64.t Array25.t) : W64.t Array25.t = {
     var aux: int;
     var aux_0: W64.t;
-    
+
     var x:int;
     var y:int;
     var i:int;
@@ -255,24 +254,24 @@ module M = {
     }
     return (a);
   }
-  
+
   proc iota_0 (a:W64.t Array25.t, c:W64.t) : W64.t Array25.t = {
     var aux: W64.t;
-    
-    
-    
+
+
+
     leakages <- LeakAddr([0]) :: leakages;
     aux <- (a.[0] `^` c);
     leakages <- LeakAddr([0]) :: leakages;
     a.[0] <- aux;
     return (a);
   }
-  
+
   proc keccakP1600_round (state:W64.t Array25.t, c:W64.t) : W64.t Array25.t = {
     var aux: W64.t Array25.t;
-    
-    
-    
+
+
+
     aux <@ theta (state);
     state <- aux;
     aux <@ rho (state);
@@ -285,10 +284,10 @@ module M = {
     state <- aux;
     return (state);
   }
-  
+
   proc keccakRoundConstants () : W64.t Array24.t = {
     var aux: W64.t;
-    
+
     var constants:W64.t Array24.t;
     var t:W64.t;
     constants <- witness;
@@ -414,12 +413,12 @@ module M = {
     constants.[23] <- aux;
     return (constants);
   }
-  
+
   proc __keccakf1600_ref (state:W64.t Array25.t) : W64.t Array25.t = {
     var aux_0: int;
     var aux: W64.t Array24.t;
     var aux_1: W64.t Array25.t;
-    
+
     var constants:W64.t Array24.t;
     var round:int;
     constants <- witness;
@@ -435,11 +434,11 @@ module M = {
     }
     return (state);
   }
-  
+
   proc st0 () : W64.t Array25.t = {
     var aux: int;
     var aux_0: W64.t;
-    
+
     var state:W64.t Array25.t;
     var i:int;
     state <- witness;
@@ -453,24 +452,24 @@ module M = {
     }
     return (state);
   }
-  
+
   proc add_full_block (state:W64.t Array25.t, in_0:W64.t, inlen:W64.t,
                        r8:W64.t) : W64.t Array25.t * W64.t * W64.t = {
     var aux: W64.t;
-    
+
     var r64:W64.t;
     var i:W64.t;
     var t:W64.t;
-    
+
     aux <- r8;
     r64 <- aux;
     aux <- (r64 `>>` (W8.of_int 3));
     r64 <- aux;
     aux <- (W64.of_int 0);
     i <- aux;
-    
+
     leakages <- LeakCond((i \ult r64)) :: LeakAddr([]) :: leakages;
-    
+
     while ((i \ult r64)) {
       leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (in_0 + ((W64.of_int 8) * i))))]) :: leakages;
       aux <- (loadW64 Glob.mem (W64.to_uint (in_0 + ((W64.of_int 8) * i))));
@@ -482,7 +481,7 @@ module M = {
       aux <- (i + (W64.of_int 1));
       i <- aux;
     leakages <- LeakCond((i \ult r64)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux <- (in_0 + r8);
     in_0 <- aux;
@@ -490,26 +489,26 @@ module M = {
     inlen <- aux;
     return (state, in_0, inlen);
   }
-  
+
   proc add_final_block (state:W64.t Array25.t, in_0:W64.t, inlen:W64.t,
                         trail_byte:W8.t, r8:W64.t) : W64.t Array25.t = {
     var aux_0: W8.t;
     var aux: W64.t;
-    
+
     var inlen8:W64.t;
     var i:W64.t;
     var t:W64.t;
     var c:W8.t;
-    
+
     aux <- inlen;
     inlen8 <- aux;
     aux <- (inlen8 `>>` (W8.of_int 3));
     inlen8 <- aux;
     aux <- (W64.of_int 0);
     i <- aux;
-    
+
     leakages <- LeakCond((i \ult inlen8)) :: LeakAddr([]) :: leakages;
-    
+
     while ((i \ult inlen8)) {
       leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (in_0 + ((W64.of_int 8) * i))))]) :: leakages;
       aux <- (loadW64 Glob.mem (W64.to_uint (in_0 + ((W64.of_int 8) * i))));
@@ -521,13 +520,13 @@ module M = {
       aux <- (i + (W64.of_int 1));
       i <- aux;
     leakages <- LeakCond((i \ult inlen8)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux <- (i `<<` (W8.of_int 3));
     i <- aux;
-    
+
     leakages <- LeakCond((i \ult inlen)) :: LeakAddr([]) :: leakages;
-    
+
     while ((i \ult inlen)) {
       leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (in_0 + i)))]) :: leakages;
       aux_0 <- (loadW8 Glob.mem (W64.to_uint (in_0 + i)));
@@ -542,7 +541,7 @@ module M = {
       aux <- (i + (W64.of_int 1));
       i <- aux;
     leakages <- LeakCond((i \ult inlen)) :: LeakAddr([]) :: leakages;
-    
+
     }
     leakages <- LeakAddr([(W64.to_uint i)]) :: leakages;
     aux_0 <- ((get8 (WArray200.init64 (fun i => state.[i])) (W64.to_uint i)) `^` trail_byte);
@@ -562,24 +561,24 @@ module M = {
     (WArray200.get64 (WArray200.set8 (WArray200.init64 (fun i => state.[i])) (W64.to_uint i) aux_0));
     return (state);
   }
-  
+
   proc xtr_full_block (state:W64.t Array25.t, out:W64.t, outlen:W64.t,
                        rate:W64.t) : W64.t * W64.t = {
     var aux: W64.t;
-    
+
     var rate64:W64.t;
     var i:W64.t;
     var t:W64.t;
-    
+
     aux <- rate;
     rate64 <- aux;
     aux <- (rate64 `>>` (W8.of_int 3));
     rate64 <- aux;
     aux <- (W64.of_int 0);
     i <- aux;
-    
+
     leakages <- LeakCond((i \ult rate64)) :: LeakAddr([]) :: leakages;
-    
+
     while ((i \ult rate64)) {
       leakages <- LeakAddr([(W64.to_uint i)]) :: leakages;
       aux <- state.[(W64.to_uint i)];
@@ -591,7 +590,7 @@ module M = {
       aux <- (i + (W64.of_int 1));
       i <- aux;
     leakages <- LeakCond((i \ult rate64)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux <- (out + rate);
     out <- aux;
@@ -599,25 +598,25 @@ module M = {
     outlen <- aux;
     return (out, outlen);
   }
-  
+
   proc xtr_bytes (state:W64.t Array25.t, out:W64.t, outlen:W64.t) : unit = {
     var aux_0: W8.t;
     var aux: W64.t;
-    
+
     var outlen8:W64.t;
     var i:W64.t;
     var t:W64.t;
     var c:W8.t;
-    
+
     aux <- outlen;
     outlen8 <- aux;
     aux <- (outlen8 `>>` (W8.of_int 3));
     outlen8 <- aux;
     aux <- (W64.of_int 0);
     i <- aux;
-    
+
     leakages <- LeakCond((i \ult outlen8)) :: LeakAddr([]) :: leakages;
-    
+
     while ((i \ult outlen8)) {
       leakages <- LeakAddr([(W64.to_uint i)]) :: leakages;
       aux <- state.[(W64.to_uint i)];
@@ -629,13 +628,13 @@ module M = {
       aux <- (i + (W64.of_int 1));
       i <- aux;
     leakages <- LeakCond((i \ult outlen8)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux <- (i `<<` (W8.of_int 3));
     i <- aux;
-    
+
     leakages <- LeakCond((i \ult outlen)) :: LeakAddr([]) :: leakages;
-    
+
     while ((i \ult outlen)) {
       leakages <- LeakAddr([(W64.to_uint i)]) :: leakages;
       aux_0 <- (get8 (WArray200.init64 (fun i => state.[i])) (W64.to_uint i));
@@ -646,18 +645,18 @@ module M = {
       aux <- (i + (W64.of_int 1));
       i <- aux;
     leakages <- LeakCond((i \ult outlen)) :: LeakAddr([]) :: leakages;
-    
+
     }
     return ();
   }
-  
+
   proc __keccak1600_ref (s_out:W64.t, s_outlen:W64.t, in_0:W64.t,
                          inlen:W64.t, s_trail_byte:W64.t, rate:W64.t) : unit = {
     var aux_2: W8.t;
     var aux_1: W64.t;
     var aux_0: W64.t;
     var aux: W64.t Array25.t;
-    
+
     var state:W64.t Array25.t;
     var s_in:W64.t;
     var s_inlen:W64.t;
@@ -669,9 +668,9 @@ module M = {
     state <- witness;
     aux <@ st0 ();
     state <- aux;
-    
+
     leakages <- LeakCond((rate \ule inlen)) :: LeakAddr([]) :: leakages;
-    
+
     while ((rate \ule inlen)) {
       (aux, aux_1, aux_0) <@ add_full_block (state, in_0, inlen, rate);
       state <- aux;
@@ -692,7 +691,7 @@ module M = {
       aux_1 <- s_rate;
       rate <- aux_1;
     leakages <- LeakCond((rate \ule inlen)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux_1 <- s_trail_byte;
     t <- aux_1;
@@ -702,9 +701,9 @@ module M = {
     state <- aux;
     aux_1 <- s_outlen;
     outlen <- aux_1;
-    
+
     leakages <- LeakCond((rate \ult outlen)) :: LeakAddr([]) :: leakages;
-    
+
     while ((rate \ult outlen)) {
       aux_1 <- outlen;
       s_outlen <- aux_1;
@@ -726,7 +725,7 @@ module M = {
       aux_1 <- out;
       s_out <- aux_1;
     leakages <- LeakCond((rate \ult outlen)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux <@ __keccakf1600_ref (state);
     state <- aux;
@@ -737,17 +736,17 @@ module M = {
     xtr_bytes (state, out, outlen);
     return ();
   }
-  
+
   proc keccak1600_ref (out:W64.t, outlen:W64.t, in_0:W64.t, inlen:W64.t,
                        config:W64.t) : unit = {
     var aux: W64.t;
-    
+
     var s_out:W64.t;
     var s_outlen:W64.t;
     var trail_byte:W64.t;
     var s_trail_byte:W64.t;
     var rate:W64.t;
-    
+
     aux <- out;
     s_out <- aux;
     aux <- outlen;
@@ -765,4 +764,3 @@ module M = {
   }
 }.
 end T.
-

@@ -1,6 +1,5 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
-require import Leakage_models.
+from Jasmin require import JModel Leakage_models.
 
 require import Array2 Array4 Array8 Array16.
 require import WArray32 WArray64 WArray128 WArray256.
@@ -42,15 +41,15 @@ clone import ALeakageModel as LeakageModel.
 
 module M = {
   var leakages : leakages_t
-  
+
   proc load_shufb_cmd () : W128.t * W128.t = {
     var aux: W128.t;
-    
+
     var s_r16:W128.t;
     var s_r8:W128.t;
     var r16:W128.t;
     var r8:W128.t;
-    
+
     aux <- g_r16;
     r16 <- aux;
     aux <- g_r8;
@@ -61,10 +60,10 @@ module M = {
     s_r8 <- aux;
     return (s_r16, s_r8);
   }
-  
+
   proc init_x1 (key:W64.t, nonce:W64.t, counter:W32.t) : W128.t Array4.t = {
     var aux: W128.t;
-    
+
     var st:W128.t Array4.t;
     st <- witness;
     aux <- g_sigma;
@@ -99,13 +98,13 @@ module M = {
     st.[3] <- aux;
     return (st);
   }
-  
+
   proc init_x4 (k:W64.t, n1:W64.t, ctr:W32.t) : W128.t Array16.t = {
     var aux_1: int;
     var aux: W32.t;
     var aux_0: W128.t;
     var aux_2: W128.t Array16.t;
-    
+
     var st:W128.t Array16.t;
     var s_ctr:W32.t;
     var s:W128.t Array16.t;
@@ -155,21 +154,21 @@ module M = {
     st <- aux_2;
     return (st);
   }
-  
+
   proc copy_state_x1 (st:W128.t Array4.t) : W128.t Array4.t = {
     var aux: W128.t Array4.t;
-    
+
     var k:W128.t Array4.t;
     k <- witness;
     aux <- st;
     k <- aux;
     return (k);
   }
-  
+
   proc copy_state_x2 (st:W128.t Array4.t) : W128.t Array4.t * W128.t Array4.t = {
     var aux_0: W128.t;
     var aux: W128.t Array4.t;
-    
+
     var k1:W128.t Array4.t;
     var k2:W128.t Array4.t;
     k1 <- witness;
@@ -184,23 +183,23 @@ module M = {
     k2.[3] <- aux_0;
     return (k1, k2);
   }
-  
+
   proc copy_state_x4 (st:W128.t Array16.t) : W128.t Array16.t = {
     var aux: W128.t Array16.t;
-    
+
     var k:W128.t Array16.t;
     k <- witness;
     aux <- st;
     k <- aux;
     return (k);
   }
-  
+
   proc sum_states_x1 (k:W128.t Array4.t, st:W128.t Array4.t) : W128.t Array4.t = {
     var aux: int;
     var aux_0: W128.t;
-    
+
     var i:int;
-    
+
     leakages <- LeakFor(0,4) :: LeakAddr([]) :: leakages;
     i <- 0;
     while (i < 4) {
@@ -212,14 +211,14 @@ module M = {
     }
     return (k);
   }
-  
+
   proc sum_states_x2 (k1:W128.t Array4.t, k2:W128.t Array4.t,
                       st:W128.t Array4.t) : W128.t Array4.t * W128.t Array4.t = {
     var aux_0: W128.t;
     var aux: W128.t Array4.t;
-    
-    
-    
+
+
+
     aux <@ sum_states_x1 (k1, st);
     k1 <- aux;
     aux <@ sum_states_x1 (k2, st);
@@ -230,13 +229,13 @@ module M = {
     k2.[3] <- aux_0;
     return (k1, k2);
   }
-  
+
   proc sum_states_x4 (k:W128.t Array16.t, st:W128.t Array16.t) : W128.t Array16.t = {
     var aux: int;
     var aux_0: W128.t;
-    
+
     var i:int;
-    
+
     leakages <- LeakFor(0,16) :: LeakAddr([]) :: leakages;
     i <- 0;
     while (i < 16) {
@@ -248,10 +247,10 @@ module M = {
     }
     return (k);
   }
-  
+
   proc sub_rotate (t:W128.t Array8.t) : W128.t Array8.t = {
     var aux: W128.t;
-    
+
     var x:W128.t Array8.t;
     x <- witness;
     leakages <- LeakAddr([1] ++ [0]) :: leakages;
@@ -288,12 +287,12 @@ module M = {
     x.[7] <- aux;
     return (x);
   }
-  
+
   proc rotate (x:W128.t Array8.t) : W128.t Array8.t = {
     var aux: int;
     var aux_0: W128.t;
     var aux_1: W128.t Array8.t;
-    
+
     var i:int;
     var t:W128.t Array8.t;
     t <- witness;
@@ -314,12 +313,12 @@ module M = {
     x <- aux_1;
     return (x);
   }
-  
+
   proc rotate_stack (s:W128.t Array8.t) : W128.t Array8.t = {
     var aux: int;
     var aux_0: W128.t;
     var aux_1: W128.t Array8.t;
-    
+
     var x:W128.t Array8.t;
     var i:int;
     var t:W128.t Array8.t;
@@ -351,13 +350,13 @@ module M = {
     x <- aux_1;
     return (x);
   }
-  
+
   proc rotate_first_half_x8 (k:W128.t Array16.t) : W128.t Array8.t *
                                                    W128.t Array8.t = {
     var aux: int;
     var aux_0: W128.t;
     var aux_1: W128.t Array8.t;
-    
+
     var k0_7:W128.t Array8.t;
     var s_k8_15:W128.t Array8.t;
     var i:int;
@@ -385,20 +384,20 @@ module M = {
     k0_7 <- aux_1;
     return (k0_7, s_k8_15);
   }
-  
+
   proc rotate_second_half_x8 (s_k8_15:W128.t Array8.t) : W128.t Array8.t = {
     var aux: W128.t Array8.t;
-    
+
     var k8_15:W128.t Array8.t;
     k8_15 <- witness;
     aux <@ rotate_stack (s_k8_15);
     k8_15 <- aux;
     return (k8_15);
   }
-  
+
   proc interleave_0 (s:W128.t Array8.t, k:W128.t Array8.t, o:int) : W128.t Array8.t = {
     var aux: W128.t;
-    
+
     var sk:W128.t Array8.t;
     sk <- witness;
     leakages <- LeakAddr([(o + 0)]) :: leakages;
@@ -435,15 +434,15 @@ module M = {
     sk.[7] <- aux;
     return (sk);
   }
-  
+
   proc update_ptr (output:W64.t, plain:W64.t, len:W32.t, n:int) : W64.t *
                                                                   W64.t *
                                                                   W32.t = {
     var aux_0: W32.t;
     var aux: W64.t;
-    
-    
-    
+
+
+
     aux <- (output + (W64.of_int n));
     output <- aux;
     aux <- (plain + (W64.of_int n));
@@ -452,16 +451,16 @@ module M = {
     len <- aux_0;
     return (output, plain, len);
   }
-  
-  proc store (output:W64.t, plain:W64.t, len:W32.t, k:W128.t Array2.t) : 
+
+  proc store (output:W64.t, plain:W64.t, len:W32.t, k:W128.t Array2.t) :
   W64.t * W64.t * W32.t * W128.t Array2.t = {
     var aux_2: W32.t;
     var aux_1: W64.t;
     var aux_0: W64.t;
     var aux: W128.t;
-    
-    
-    
+
+
+
     leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (plain + (W64.of_int 0))))]
                          ++ [0]) :: leakages;
     aux <- (k.[0] `^` (loadW128 Glob.mem (W64.to_uint (plain + (W64.of_int 0)))));
@@ -488,18 +487,18 @@ module M = {
     len <- aux_2;
     return (output, plain, len, k);
   }
-  
+
   proc store_last (output:W64.t, plain:W64.t, len:W32.t, k:W128.t Array2.t) : unit = {
     var aux_3: W8.t;
     var aux_2: W32.t;
     var aux_1: W64.t;
     var aux_0: W64.t;
     var aux: W128.t;
-    
+
     var r1:W128.t;
     var r2:W64.t;
     var r3:W8.t;
-    
+
     leakages <- LeakAddr([0]) :: leakages;
     aux <- k.[0];
     r1 <- aux;
@@ -520,7 +519,7 @@ module M = {
       aux <- k.[1];
       r1 <- aux;
     } else {
-      
+
     }
     aux_1 <- VPEXTR_64 r1 (W8.of_int 0);
     r2 <- aux_1;
@@ -540,11 +539,11 @@ module M = {
       aux_1 <- VPEXTR_64 r1 (W8.of_int 1);
       r2 <- aux_1;
     } else {
-      
+
     }
-    
+
     leakages <- LeakCond(((W32.of_int 0) \ult len)) :: LeakAddr([]) :: leakages;
-    
+
     while (((W32.of_int 0) \ult len)) {
       aux_1 <- r2;
       r3 <- (truncateu8 aux_1);
@@ -562,21 +561,21 @@ module M = {
       plain <- aux_0;
       len <- aux_2;
     leakages <- LeakCond(((W32.of_int 0) \ult len)) :: LeakAddr([]) :: leakages;
-    
+
     }
     return ();
   }
-  
-  proc store_x1 (output:W64.t, plain:W64.t, len:W32.t, k:W128.t Array4.t) : 
+
+  proc store_x1 (output:W64.t, plain:W64.t, len:W32.t, k:W128.t Array4.t) :
   W64.t * W64.t * W32.t * W128.t Array4.t = {
     var aux: int;
     var aux_3: W32.t;
     var aux_2: W64.t;
     var aux_1: W64.t;
     var aux_0: W128.t;
-    
+
     var i:int;
-    
+
     leakages <- LeakFor(0,4) :: LeakAddr([]) :: leakages;
     i <- 0;
     while (i < 4) {
@@ -603,14 +602,14 @@ module M = {
     len <- aux_3;
     return (output, plain, len, k);
   }
-  
+
   proc store_x1_last (output:W64.t, plain:W64.t, len:W32.t, k:W128.t Array4.t) : unit = {
     var aux_2: W32.t;
     var aux_1: W64.t;
     var aux_0: W64.t;
     var aux: W128.t;
     var aux_3: W128.t Array2.t;
-    
+
     var r:W128.t Array2.t;
     r <- witness;
     leakages <- LeakAddr([0]) :: leakages;
@@ -637,22 +636,22 @@ module M = {
       leakages <- LeakAddr([1]) :: leakages;
       r.[1] <- aux;
     } else {
-      
+
     }
     store_last (output, plain, len, r);
     return ();
   }
-  
-  proc store_x2 (output:W64.t, plain:W64.t, len:W32.t, k:W128.t Array8.t) : 
+
+  proc store_x2 (output:W64.t, plain:W64.t, len:W32.t, k:W128.t Array8.t) :
   W64.t * W64.t * W32.t = {
     var aux: int;
     var aux_3: W32.t;
     var aux_2: W64.t;
     var aux_1: W64.t;
     var aux_0: W128.t;
-    
+
     var i:int;
-    
+
     leakages <- LeakFor(0,8) :: LeakAddr([]) :: leakages;
     i <- 0;
     while (i < 8) {
@@ -679,7 +678,7 @@ module M = {
     len <- aux_3;
     return (output, plain, len);
   }
-  
+
   proc store_x2_last (output:W64.t, plain:W64.t, len:W32.t, k:W128.t Array8.t) : unit = {
     var aux: int;
     var aux_3: W32.t;
@@ -687,7 +686,7 @@ module M = {
     var aux_1: W64.t;
     var aux_0: W128.t;
     var aux_4: W128.t Array4.t;
-    
+
     var i:int;
     var r:W128.t Array4.t;
     r <- witness;
@@ -717,19 +716,19 @@ module M = {
         i <- i + 1;
       }
     } else {
-      
+
     }
     store_x1_last (output, plain, len, r);
     return ();
   }
-  
+
   proc store_half_x4 (output:W64.t, plain:W64.t, len:W32.t,
                       k:W128.t Array8.t, o:int) : unit = {
     var aux: int;
     var aux_0: W128.t;
-    
+
     var i:int;
-    
+
     leakages <- LeakFor(0,4) :: LeakAddr([]) :: leakages;
     i <- 0;
     while (i < 4) {
@@ -762,15 +761,15 @@ module M = {
     }
     return ();
   }
-  
-  proc store_x4 (output:W64.t, plain:W64.t, len:W32.t, k:W128.t Array16.t) : 
+
+  proc store_x4 (output:W64.t, plain:W64.t, len:W32.t, k:W128.t Array16.t) :
   W64.t * W64.t * W32.t = {
     var aux_3: W32.t;
     var aux_2: W64.t;
     var aux_1: W64.t;
     var aux_0: W128.t Array8.t;
     var aux: W128.t Array8.t;
-    
+
     var k0_7:W128.t Array8.t;
     var s_k8_15:W128.t Array8.t;
     var k8_15:W128.t Array8.t;
@@ -790,7 +789,7 @@ module M = {
     len <- aux_3;
     return (output, plain, len);
   }
-  
+
   proc store_x4_last (output:W64.t, plain:W64.t, len:W32.t,
                       k:W128.t Array16.t) : unit = {
     var aux_3: W32.t;
@@ -798,7 +797,7 @@ module M = {
     var aux_1: W64.t;
     var aux_0: W128.t Array8.t;
     var aux: W128.t Array8.t;
-    
+
     var k0_7:W128.t Array8.t;
     var s_k8_15:W128.t Array8.t;
     var s_k0_7:W128.t Array8.t;
@@ -827,17 +826,17 @@ module M = {
       aux_0 <@ interleave_0 (s_k0_7, k8_15, 4);
       i0_7 <- aux_0;
     } else {
-      
+
     }
     store_x2_last (output, plain, len, i0_7);
     return ();
   }
-  
+
   proc increment_counter_x4 (s:W128.t Array16.t) : W128.t Array16.t = {
     var aux: W128.t;
-    
+
     var t:W128.t;
-    
+
     aux <- g_cnt_inc;
     t <- aux;
     leakages <- LeakAddr([12]) :: leakages;
@@ -848,13 +847,13 @@ module M = {
     s.[12] <- aux;
     return (s);
   }
-  
-  proc rotate_x4 (k:W128.t Array4.t, i:int, r:int, r16:W128.t, r8:W128.t) : 
+
+  proc rotate_x4 (k:W128.t Array4.t, i:int, r:int, r16:W128.t, r8:W128.t) :
   W128.t Array4.t = {
     var aux: W128.t;
-    
+
     var t:W128.t;
-    
+
     leakages <- LeakCond((r = 16)) :: LeakAddr([]) :: leakages;
     if ((r = 16)) {
       leakages <- LeakAddr([i]) :: leakages;
@@ -884,14 +883,14 @@ module M = {
     }
     return (k);
   }
-  
+
   proc line_x4 (k:W128.t Array4.t, a:int, b:int, c:int, r:int, r16:W128.t,
                 r8:W128.t) : W128.t Array4.t = {
     var aux: W128.t;
     var aux_0: W128.t Array4.t;
-    
-    
-    
+
+
+
     leakages <- LeakAddr([(b %/ 4)] ++ [(a %/ 4)]) :: leakages;
     aux <- (k.[(a %/ 4)] \vadd32u128 k.[(b %/ 4)]);
     leakages <- LeakAddr([(a %/ 4)]) :: leakages;
@@ -904,12 +903,12 @@ module M = {
     k <- aux_0;
     return (k);
   }
-  
+
   proc round_x1 (k:W128.t Array4.t, r16:W128.t, r8:W128.t) : W128.t Array4.t = {
     var aux: W128.t Array4.t;
-    
-    
-    
+
+
+
     aux <@ line_x4 (k, 0, 4, 12, 16, r16, r8);
     k <- aux;
     aux <@ line_x4 (k, 8, 12, 4, 12, r16, r8);
@@ -920,12 +919,12 @@ module M = {
     k <- aux;
     return (k);
   }
-  
+
   proc shuffle_state_x1 (k:W128.t Array4.t) : W128.t Array4.t = {
     var aux: W128.t;
-    
-    
-    
+
+
+
     leakages <- LeakAddr([1]) :: leakages;
     aux <- VPSHUFD_128 k.[1]
     (W8.of_int (1 %% 2^2 + 2^2 * (2 %% 2^2 + 2^2 * (3 %% 2^2 + 2^2 * 0))));
@@ -943,12 +942,12 @@ module M = {
     k.[3] <- aux;
     return (k);
   }
-  
+
   proc reverse_shuffle_state_x1 (k:W128.t Array4.t) : W128.t Array4.t = {
     var aux: W128.t;
-    
-    
-    
+
+
+
     leakages <- LeakAddr([1]) :: leakages;
     aux <- VPSHUFD_128 k.[1]
     (W8.of_int (3 %% 2^2 + 2^2 * (0 %% 2^2 + 2^2 * (1 %% 2^2 + 2^2 * 2))));
@@ -966,23 +965,23 @@ module M = {
     k.[3] <- aux;
     return (k);
   }
-  
+
   proc column_round_x1 (k:W128.t Array4.t, r16:W128.t, r8:W128.t) : W128.t Array4.t = {
     var aux: W128.t Array4.t;
-    
-    
-    
+
+
+
     aux <@ round_x1 (k, r16, r8);
     k <- aux;
     return (k);
   }
-  
-  proc diagonal_round_x1 (k:W128.t Array4.t, r16:W128.t, r8:W128.t) : 
+
+  proc diagonal_round_x1 (k:W128.t Array4.t, r16:W128.t, r8:W128.t) :
   W128.t Array4.t = {
     var aux: W128.t Array4.t;
-    
-    
-    
+
+
+
     aux <@ shuffle_state_x1 (k);
     k <- aux;
     aux <@ round_x1 (k, r16, r8);
@@ -991,25 +990,25 @@ module M = {
     k <- aux;
     return (k);
   }
-  
+
   proc rounds_x1 (k:W128.t Array4.t) : W128.t Array4.t = {
     var aux_0: W64.t;
     var aux: W128.t;
     var aux_1: W128.t Array4.t;
-    
+
     var r16:W128.t;
     var r8:W128.t;
     var c:W64.t;
-    
+
     aux <- g_r16;
     r16 <- aux;
     aux <- g_r8;
     r8 <- aux;
     aux_0 <- (W64.of_int 0);
     c <- aux_0;
-    
+
     leakages <- LeakCond((c \ult (W64.of_int 10))) :: LeakAddr([]) :: leakages;
-    
+
     while ((c \ult (W64.of_int 10))) {
       aux_1 <@ column_round_x1 (k, r16, r8);
       k <- aux_1;
@@ -1018,18 +1017,18 @@ module M = {
       aux_0 <- (c + (W64.of_int 1));
       c <- aux_0;
     leakages <- LeakCond((c \ult (W64.of_int 10))) :: LeakAddr([]) :: leakages;
-    
+
     }
     return (k);
   }
-  
+
   proc inlined_round_x2 (k1:W128.t Array4.t, k2:W128.t Array4.t, r16:W128.t,
                          r8:W128.t) : W128.t Array4.t * W128.t Array4.t = {
     var aux: W128.t;
     var aux_0: W128.t Array4.t;
-    
+
     var t1:W128.t;
-    
+
     leakages <- LeakAddr([1] ++ [0]) :: leakages;
     aux <- (k1.[0] \vadd32u128 k1.[1]);
     leakages <- LeakAddr([0]) :: leakages;
@@ -1130,53 +1129,53 @@ module M = {
     k2 <- aux_0;
     return (k1, k2);
   }
-  
+
   proc column_round_x2 (k1:W128.t Array4.t, k2:W128.t Array4.t, r16:W128.t,
                         r8:W128.t) : W128.t Array4.t * W128.t Array4.t = {
     var aux_0: W128.t Array4.t;
     var aux: W128.t Array4.t;
-    
-    
-    
+
+
+
     (aux_0, aux) <@ inlined_round_x2 (k1, k2, r16, r8);
     k1 <- aux_0;
     k2 <- aux;
     return (k1, k2);
   }
-  
+
   proc shuffle_state_x2 (k1:W128.t Array4.t, k2:W128.t Array4.t) : W128.t Array4.t *
                                                                    W128.t Array4.t = {
     var aux: W128.t Array4.t;
-    
-    
-    
+
+
+
     aux <@ shuffle_state_x1 (k1);
     k1 <- aux;
     aux <@ shuffle_state_x1 (k2);
     k2 <- aux;
     return (k1, k2);
   }
-  
-  proc reverse_shuffle_state_x2 (k1:W128.t Array4.t, k2:W128.t Array4.t) : 
+
+  proc reverse_shuffle_state_x2 (k1:W128.t Array4.t, k2:W128.t Array4.t) :
   W128.t Array4.t * W128.t Array4.t = {
     var aux: W128.t Array4.t;
-    
-    
-    
+
+
+
     aux <@ reverse_shuffle_state_x1 (k1);
     k1 <- aux;
     aux <@ reverse_shuffle_state_x1 (k2);
     k2 <- aux;
     return (k1, k2);
   }
-  
+
   proc diagonal_round_x2 (k1:W128.t Array4.t, k2:W128.t Array4.t, r16:W128.t,
                           r8:W128.t) : W128.t Array4.t * W128.t Array4.t = {
     var aux_0: W128.t Array4.t;
     var aux: W128.t Array4.t;
-    
-    
-    
+
+
+
     (aux_0, aux) <@ shuffle_state_x2 (k1, k2);
     k1 <- aux_0;
     k2 <- aux;
@@ -1188,27 +1187,27 @@ module M = {
     k2 <- aux;
     return (k1, k2);
   }
-  
+
   proc rounds_x2 (k1:W128.t Array4.t, k2:W128.t Array4.t) : W128.t Array4.t *
                                                             W128.t Array4.t = {
     var aux_0: W64.t;
     var aux: W128.t;
     var aux_2: W128.t Array4.t;
     var aux_1: W128.t Array4.t;
-    
+
     var r16:W128.t;
     var r8:W128.t;
     var c:W64.t;
-    
+
     aux <- g_r16;
     r16 <- aux;
     aux <- g_r8;
     r8 <- aux;
     aux_0 <- (W64.of_int 0);
     c <- aux_0;
-    
+
     leakages <- LeakCond((c \ult (W64.of_int 10))) :: LeakAddr([]) :: leakages;
-    
+
     while ((c \ult (W64.of_int 10))) {
       (aux_2, aux_1) <@ column_round_x2 (k1, k2, r16, r8);
       k1 <- aux_2;
@@ -1219,17 +1218,17 @@ module M = {
       aux_0 <- (c + (W64.of_int 1));
       c <- aux_0;
     leakages <- LeakCond((c \ult (W64.of_int 10))) :: LeakAddr([]) :: leakages;
-    
+
     }
     return (k1, k2);
   }
-  
-  proc rotate_x4_s (k:W128.t Array16.t, i:int, r:int, r16:W128.t, r8:W128.t) : 
+
+  proc rotate_x4_s (k:W128.t Array16.t, i:int, r:int, r16:W128.t, r8:W128.t) :
   W128.t Array16.t = {
     var aux: W128.t;
-    
+
     var t:W128.t;
-    
+
     leakages <- LeakCond((r = 16)) :: LeakAddr([]) :: leakages;
     if ((r = 16)) {
       leakages <- LeakAddr([i]) :: leakages;
@@ -1259,14 +1258,14 @@ module M = {
     }
     return (k);
   }
-  
+
   proc line_x4_v (k:W128.t Array16.t, a0:int, b0:int, c0:int, r0:int, a1:int,
                   b1:int, c1:int, r1:int, r16:W128.t, r8:W128.t) : W128.t Array16.t = {
     var aux: W128.t;
     var aux_0: W128.t Array16.t;
-    
-    
-    
+
+
+
     leakages <- LeakAddr([b0] ++ [a0]) :: leakages;
     aux <- (k.[a0] \vadd32u128 k.[b0]);
     leakages <- LeakAddr([a0]) :: leakages;
@@ -1289,14 +1288,14 @@ module M = {
     k <- aux_0;
     return (k);
   }
-  
+
   proc double_quarter_round_x4 (k:W128.t Array16.t, a0:int, b0:int, c0:int,
                                 d0:int, a1:int, b1:int, c1:int, d1:int,
                                 r16:W128.t, r8:W128.t) : W128.t Array16.t = {
     var aux: W128.t Array16.t;
-    
-    
-    
+
+
+
     aux <@ line_x4_v (k, a0, b0, d0, 16, a1, b1, d1, 16, r16, r8);
     k <- aux;
     aux <@ line_x4_v (k, c0, d0, b0, 12, c1, d1, b1, 12, r16, r8);
@@ -1307,14 +1306,14 @@ module M = {
     k <- aux;
     return (k);
   }
-  
+
   proc column_round_x4 (k:W128.t Array16.t, k15:W128.t, s_r16:W128.t,
                         s_r8:W128.t) : W128.t Array16.t * W128.t = {
     var aux_0: W128.t;
     var aux: W128.t Array16.t;
-    
+
     var k_:W128.t;
-    
+
     aux <@ double_quarter_round_x4 (k, 0, 4, 8, 12, 2, 6, 10, 14, s_r16,
     s_r8);
     k <- aux;
@@ -1329,14 +1328,14 @@ module M = {
     k <- aux;
     return (k, k_);
   }
-  
+
   proc diagonal_round_x4 (k:W128.t Array16.t, k14:W128.t, s_r16:W128.t,
                           s_r8:W128.t) : W128.t Array16.t * W128.t = {
     var aux_0: W128.t;
     var aux: W128.t Array16.t;
-    
+
     var k_:W128.t;
-    
+
     aux <@ double_quarter_round_x4 (k, 1, 6, 11, 12, 0, 5, 10, 15, s_r16,
     s_r8);
     k <- aux;
@@ -1351,7 +1350,7 @@ module M = {
     k <- aux;
     return (k, k_);
   }
-  
+
   proc rounds_x4 (k:W128.t Array16.t, s_r16:W128.t, s_r8:W128.t) : W128.t Array16.t = {
     var aux_5: bool;
     var aux_4: bool;
@@ -1360,7 +1359,7 @@ module M = {
     var aux_0: W64.t;
     var aux: W128.t;
     var aux_1: W128.t Array16.t;
-    
+
     var k15:W128.t;
     var c:W64.t;
     var zf:bool;
@@ -1368,7 +1367,7 @@ module M = {
     var  _0:bool;
     var  _1:bool;
     var  _2:bool;
-    
+
     leakages <- LeakAddr([15]) :: leakages;
     aux <- k.[15];
     k15 <- aux;
@@ -1387,7 +1386,7 @@ module M = {
     zf <- aux_2;
     c <- aux_0;
     leakages <- LeakCond((! zf)) :: LeakAddr([]) :: leakages;
-    
+
     while ((! zf)) {
       (aux_1, aux) <@ column_round_x4 (k, k15, s_r16, s_r8);
       k <- aux_1;
@@ -1402,14 +1401,14 @@ module M = {
       zf <- aux_2;
       c <- aux_0;
     leakages <- LeakCond((! zf)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux <- k15;
     leakages <- LeakAddr([15]) :: leakages;
     k.[15] <- aux;
     return (k);
   }
-  
+
   proc chacha20_more_than_128 (output:W64.t, plain:W64.t, len:W32.t,
                                key:W64.t, nonce:W64.t, counter:W32.t) : unit = {
     var aux_4: W32.t;
@@ -1418,7 +1417,7 @@ module M = {
     var aux_0: W128.t;
     var aux: W128.t;
     var aux_1: W128.t Array16.t;
-    
+
     var s_r16:W128.t;
     var s_r8:W128.t;
     var st:W128.t Array16.t;
@@ -1430,9 +1429,9 @@ module M = {
     s_r8 <- aux;
     aux_1 <@ init_x4 (key, nonce, counter);
     st <- aux_1;
-    
+
     leakages <- LeakCond(((W32.of_int 256) \ule len)) :: LeakAddr([]) :: leakages;
-    
+
     while (((W32.of_int 256) \ule len)) {
       aux_1 <@ copy_state_x4 (st);
       k <- aux_1;
@@ -1447,7 +1446,7 @@ module M = {
       aux_1 <@ increment_counter_x4 (st);
       st <- aux_1;
     leakages <- LeakCond(((W32.of_int 256) \ule len)) :: LeakAddr([]) :: leakages;
-    
+
     }
     leakages <- LeakCond(((W32.of_int 0) \ult len)) :: LeakAddr([]) :: leakages;
     if (((W32.of_int 0) \ult len)) {
@@ -1459,11 +1458,11 @@ module M = {
       k <- aux_1;
       store_x4_last (output, plain, len, k);
     } else {
-      
+
     }
     return ();
   }
-  
+
   proc chacha20_less_than_129 (output:W64.t, plain:W64.t, len:W32.t,
                                key:W64.t, nonce:W64.t, counter:W32.t) : unit = {
     var aux_3: W32.t;
@@ -1471,7 +1470,7 @@ module M = {
     var aux_1: W64.t;
     var aux_0: W128.t Array4.t;
     var aux: W128.t Array4.t;
-    
+
     var st:W128.t Array4.t;
     var k1:W128.t Array4.t;
     var k2:W128.t Array4.t;
@@ -1508,12 +1507,12 @@ module M = {
     }
     return ();
   }
-  
+
   proc chacha20_avx (output:W64.t, plain:W64.t, len:W32.t, key:W64.t,
                      nonce:W64.t, counter:W32.t) : unit = {
-    
-    
-    
+
+
+
     leakages <- LeakCond((len \ult (W32.of_int 129))) :: LeakAddr([]) :: leakages;
     if ((len \ult (W32.of_int 129))) {
       chacha20_less_than_129 (output, plain, len, key, nonce, counter);
@@ -1524,4 +1523,3 @@ module M = {
   }
 }.
 end T.
-

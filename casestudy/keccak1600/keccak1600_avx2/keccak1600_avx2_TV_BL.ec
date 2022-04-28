@@ -1,6 +1,5 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
-require import Leakage_models.
+from Jasmin require import JModel Leakage_models.
 
 require import Array7 Array9 Array28.
 require import WArray224 WArray288.
@@ -12,7 +11,7 @@ clone import ALeakageModel as LeakageModel.
 
 module M = {
   var leakages : leakages_t
-  
+
   proc __keccakf1600_avx2 (state:W256.t Array7.t, _rhotates_left:W64.t,
                            _rhotates_right:W64.t, _iotas:W64.t) : W256.t Array7.t = {
     var aux_5: bool;
@@ -22,7 +21,7 @@ module M = {
     var aux_0: W32.t;
     var aux: W64.t;
     var aux_1: W256.t;
-    
+
     var rhotates_left:W64.t;
     var rhotates_right:W64.t;
     var iotas:W64.t;
@@ -733,7 +732,7 @@ module M = {
     zf <- aux_2;
     r <- aux_0;
     leakages <- LeakCond((! zf)) :: LeakAddr([]) :: leakages;
-    
+
     while ((! zf)) {
       leakages <- LeakAddr([2]) :: leakages;
       aux_1 <- VPSHUFD_256 state.[2]
@@ -1423,15 +1422,15 @@ module M = {
       zf <- aux_2;
       r <- aux_0;
     leakages <- LeakCond((! zf)) :: LeakAddr([]) :: leakages;
-    
+
     }
     return (state);
   }
-  
+
   proc keccak_init () : W256.t Array7.t = {
     var aux_0: int;
     var aux: W256.t;
-    
+
     var state:W256.t Array7.t;
     var i:int;
     state <- witness;
@@ -1449,11 +1448,11 @@ module M = {
     }
     return (state);
   }
-  
+
   proc init_s_state () : W64.t Array28.t = {
     var aux_0: int;
     var aux: W256.t;
-    
+
     var s_state:W64.t Array28.t;
     var zero:W256.t;
     var i:int;
@@ -1472,29 +1471,29 @@ module M = {
     }
     return (s_state);
   }
-  
+
   proc add_full_block (state:W256.t Array7.t, s_state:W64.t Array28.t,
-                       a_jagged:W64.t, in_0:W64.t, inlen:W64.t, rate:W64.t) : 
+                       a_jagged:W64.t, in_0:W64.t, inlen:W64.t, rate:W64.t) :
   W256.t Array7.t * W64.t Array28.t * W64.t * W64.t = {
     var aux_0: int;
     var aux: W64.t;
     var aux_1: W256.t;
-    
+
     var rate8:W64.t;
     var j:W64.t;
     var t:W64.t;
     var l:W64.t;
     var i:int;
-    
+
     aux <- rate;
     rate8 <- aux;
     aux <- (rate8 `>>` (W8.of_int 3));
     rate8 <- aux;
     aux <- (W64.of_int 0);
     j <- aux;
-    
+
     leakages <- LeakCond((j \ult rate8)) :: LeakAddr([]) :: leakages;
-    
+
     while ((j \ult rate8)) {
       leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (in_0 + ((W64.of_int 8) * j))))]) :: leakages;
       aux <- (loadW64 Glob.mem (W64.to_uint (in_0 + ((W64.of_int 8) * j))));
@@ -1508,7 +1507,7 @@ module M = {
       aux <- (j + (W64.of_int 1));
       j <- aux;
     leakages <- LeakCond((j \ult rate8)) :: LeakAddr([]) :: leakages;
-    
+
     }
     leakages <- LeakAddr([0]) :: leakages;
     aux <- s_state.[0];
@@ -1538,7 +1537,7 @@ module M = {
     inlen <- aux;
     return (state, s_state, in_0, inlen);
   }
-  
+
   proc add_final_block (state:W256.t Array7.t, s_state:W64.t Array28.t,
                         a_jagged:W64.t, in_0:W64.t, inlen:W64.t,
                         trail_byte:W8.t, rate:W64.t) : W256.t Array7.t = {
@@ -1547,14 +1546,14 @@ module M = {
     var aux_0: W64.t;
     var aux_3: W256.t;
     var aux: W64.t Array28.t;
-    
+
     var inlen8:W64.t;
     var j:W64.t;
     var t:W64.t;
     var l:W64.t;
     var c:W8.t;
     var i:int;
-    
+
     aux <@ init_s_state ();
     s_state <- aux;
     aux_0 <- inlen;
@@ -1563,9 +1562,9 @@ module M = {
     inlen8 <- aux_0;
     aux_0 <- (W64.of_int 0);
     j <- aux_0;
-    
+
     leakages <- LeakCond((j \ult inlen8)) :: LeakAddr([]) :: leakages;
-    
+
     while ((j \ult inlen8)) {
       leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (in_0 + ((W64.of_int 8) * j))))]) :: leakages;
       aux_0 <- (loadW64 Glob.mem (W64.to_uint (in_0 + ((W64.of_int 8) * j))));
@@ -1579,7 +1578,7 @@ module M = {
       aux_0 <- (j + (W64.of_int 1));
       j <- aux_0;
     leakages <- LeakCond((j \ult inlen8)) :: LeakAddr([]) :: leakages;
-    
+
     }
     leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (a_jagged + ((W64.of_int 8) * j))))]) :: leakages;
     aux_0 <- (loadW64 Glob.mem (W64.to_uint (a_jagged + ((W64.of_int 8) * j))));
@@ -1588,9 +1587,9 @@ module M = {
     l <- aux_0;
     aux_0 <- (j `<<` (W8.of_int 3));
     j <- aux_0;
-    
+
     leakages <- LeakCond((j \ult inlen)) :: LeakAddr([]) :: leakages;
-    
+
     while ((j \ult inlen)) {
       leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (in_0 + j)))]) :: leakages;
       aux_1 <- (loadW8 Glob.mem (W64.to_uint (in_0 + j)));
@@ -1605,7 +1604,7 @@ module M = {
       aux_0 <- (l + (W64.of_int 1));
       l <- aux_0;
     leakages <- LeakCond((j \ult inlen)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux_1 <- trail_byte;
     leakages <- LeakAddr([(W64.to_uint l)]) :: leakages;
@@ -1662,13 +1661,13 @@ module M = {
     }
     return (state);
   }
-  
+
   proc xtr_full_block (state:W256.t Array7.t, a_jagged:W64.t, out:W64.t,
                        len:W64.t) : W64.t = {
     var aux: int;
     var aux_1: W64.t;
     var aux_0: W256.t;
-    
+
     var i:int;
     var s_state:W64.t Array28.t;
     var len8:W64.t;
@@ -1693,9 +1692,9 @@ module M = {
     len8 <- aux_1;
     aux_1 <- (W64.of_int 0);
     j <- aux_1;
-    
+
     leakages <- LeakCond((j \ult len8)) :: LeakAddr([]) :: leakages;
-    
+
     while ((j \ult len8)) {
       leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (a_jagged + ((W64.of_int 8) * j))))]) :: leakages;
       aux_1 <- (loadW64 Glob.mem (W64.to_uint (a_jagged + ((W64.of_int 8) * j))));
@@ -1710,20 +1709,20 @@ module M = {
       aux_1 <- (j + (W64.of_int 1));
       j <- aux_1;
     leakages <- LeakCond((j \ult len8)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux_1 <- (out + len);
     out <- aux_1;
     return (out);
   }
-  
-  proc xtr_bytes (state:W256.t Array7.t, a_jagged:W64.t, out:W64.t, len:W64.t) : 
+
+  proc xtr_bytes (state:W256.t Array7.t, a_jagged:W64.t, out:W64.t, len:W64.t) :
   W64.t = {
     var aux: int;
     var aux_2: W8.t;
     var aux_1: W64.t;
     var aux_0: W256.t;
-    
+
     var i:int;
     var s_state:W64.t Array28.t;
     var len8:W64.t;
@@ -1749,9 +1748,9 @@ module M = {
     len8 <- aux_1;
     aux_1 <- (W64.of_int 0);
     j <- aux_1;
-    
+
     leakages <- LeakCond((j \ult len8)) :: LeakAddr([]) :: leakages;
-    
+
     while ((j \ult len8)) {
       leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (a_jagged + ((W64.of_int 8) * j))))]) :: leakages;
       aux_1 <- (loadW64 Glob.mem (W64.to_uint (a_jagged + ((W64.of_int 8) * j))));
@@ -1766,7 +1765,7 @@ module M = {
       aux_1 <- (j + (W64.of_int 1));
       j <- aux_1;
     leakages <- LeakCond((j \ult len8)) :: LeakAddr([]) :: leakages;
-    
+
     }
     leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (a_jagged + ((W64.of_int 8) * j))))]) :: leakages;
     aux_1 <- (loadW64 Glob.mem (W64.to_uint (a_jagged + ((W64.of_int 8) * j))));
@@ -1775,9 +1774,9 @@ module M = {
     j <- aux_1;
     aux_1 <- (l `<<` (W8.of_int 3));
     l <- aux_1;
-    
+
     leakages <- LeakCond((j \ult len)) :: LeakAddr([]) :: leakages;
-    
+
     while ((j \ult len)) {
       leakages <- LeakAddr([(W64.to_uint l)]) :: leakages;
       aux_2 <- (get8 (WArray224.init64 (fun i => s_state.[i]))
@@ -1791,13 +1790,13 @@ module M = {
       aux_1 <- (l + (W64.of_int 1));
       l <- aux_1;
     leakages <- LeakCond((j \ult len)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux_1 <- (out + len);
     out <- aux_1;
     return (out);
   }
-  
+
   proc absorb (state:W256.t Array7.t, rhotates_left:W64.t,
                rhotates_right:W64.t, iotas:W64.t, a_jagged:W64.t, in_0:W64.t,
                inlen:W64.t, trail_byte:W8.t, rate:W64.t) : W256.t Array7.t = {
@@ -1805,14 +1804,14 @@ module M = {
     var aux_1: W64.t;
     var aux: W64.t Array28.t;
     var aux_0: W256.t Array7.t;
-    
+
     var s_state:W64.t Array28.t;
     s_state <- witness;
     aux <@ init_s_state ();
     s_state <- aux;
-    
+
     leakages <- LeakCond((rate \ule inlen)) :: LeakAddr([]) :: leakages;
-    
+
     while ((rate \ule inlen)) {
       (aux_0, aux, aux_2, aux_1) <@ add_full_block (state, s_state, a_jagged,
       in_0, inlen, rate);
@@ -1824,25 +1823,25 @@ module M = {
       iotas);
       state <- aux_0;
     leakages <- LeakCond((rate \ule inlen)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux_0 <@ add_final_block (state, s_state, a_jagged, in_0, inlen,
     trail_byte, rate);
     state <- aux_0;
     return (state);
   }
-  
+
   proc squeeze (state:W256.t Array7.t, rhotates_left:W64.t,
                 rhotates_right:W64.t, iotas:W64.t, a_jagged:W64.t, out:W64.t,
                 outlen:W64.t, rate:W64.t) : unit = {
     var aux_0: W64.t;
     var aux: W256.t Array7.t;
-    
-    
-    
-    
+
+
+
+
     leakages <- LeakCond((rate \ult outlen)) :: LeakAddr([]) :: leakages;
-    
+
     while ((rate \ult outlen)) {
       aux <@ __keccakf1600_avx2 (state, rhotates_left, rhotates_right,
       iotas);
@@ -1852,7 +1851,7 @@ module M = {
       aux_0 <- (outlen - rate);
       outlen <- aux_0;
     leakages <- LeakCond((rate \ult outlen)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux <@ __keccakf1600_avx2 (state, rhotates_left, rhotates_right, iotas);
     state <- aux;
@@ -1860,13 +1859,13 @@ module M = {
     out <- aux_0;
     return ();
   }
-  
+
   proc __keccak1600_avx2 (out:W64.t, outlen:W64.t, rhotates_left:W64.t,
                           rhotates_right:W64.t, iotas:W64.t, a_jagged:W64.t,
                           in_0:W64.t, inlen:W64.t, trail_byte:W8.t,
                           rate:W64.t) : unit = {
     var aux: W256.t Array7.t;
-    
+
     var state:W256.t Array7.t;
     state <- witness;
     aux <@ keccak_init ();
@@ -1878,19 +1877,19 @@ module M = {
     outlen, rate);
     return ();
   }
-  
+
   proc keccak1600_avx2 (out:W64.t, outlen:W64.t, in_0:W64.t, inlen:W64.t,
                         config:W64.t, glob_0:W64.t) : unit = {
     var aux: W8.t;
     var aux_0: W64.t;
-    
+
     var trail_byte:W8.t;
     var rate:W64.t;
     var rhotates_left:W64.t;
     var rhotates_right:W64.t;
     var iotas:W64.t;
     var a_jagged:W64.t;
-    
+
     leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (config + (W64.of_int (8 * 0)))))]) :: leakages;
     aux <- (loadW8 Glob.mem (W64.to_uint (config + (W64.of_int (8 * 0)))));
     trail_byte <- aux;
@@ -1915,4 +1914,3 @@ module M = {
   }
 }.
 end T.
-

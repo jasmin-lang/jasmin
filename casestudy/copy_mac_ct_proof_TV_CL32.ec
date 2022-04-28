@@ -1,10 +1,9 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
+from Jasmin require import JModel Leakage_models.
 
 require import Array64 WArray64.
 
 require Copy_mac_ct.
-require import Leakage_models.
 
 clone import Copy_mac_ct.T with
 theory LeakageModel <- LeakageModelTVCL32.
@@ -56,7 +55,7 @@ proof.
   by apply W64.orw_disjoint; rewrite -W64.andwA (W64.andwC (invw y)) W64.andw_invw W64.andw0.
 qed.
 
-lemma and_invw32 (x:W64.t) : 
+lemma and_invw32 (x:W64.t) :
   0 <= to_uint x < 64 =>
   0 <= to_uint (x `&` invw (W64.of_int 32)) < 32.
 proof.
@@ -71,7 +70,7 @@ proof.
   rewrite -(b2i_eq1 x.[i + 5])  -(b2i_eq1 (W64.of_int 32).[i + 5]) !W64.b2i_get 1,2://.
   rewrite to_uint_small 1://.
   case (i = 0) => [-> // | hi0].
-  rewrite divz_small 2://. 
+  rewrite divz_small 2://.
   have /= /#: 2 ^ 6 <= 2 ^ (i + 5).
   apply StdOrder.IntOrder.ler_weexpn2l => // /#.
 qed.
@@ -95,8 +94,8 @@ lemma offset_div_or (p offset : W64.t) :
   32 %| to_uint p =>
   0 <= to_uint offset < 64 =>
   to_uint (p + (offset `|` (W64.of_int 32))) %/ 32  = to_uint p %/ 32 + 1.
-proof. 
-  move=> /= h1 h2 h3. 
+proof.
+  move=> /= h1 h2 h3.
   rewrite or_add_and (W64.WRingA.addrC ( offset `&` _)) W64.WRingA.addrA.
   have heq : to_uint (p + W64.of_int 32) = to_uint p + 32.
   + by rewrite W64.to_uintD_small /= 1:/#.
@@ -127,7 +126,7 @@ proof.
          0 <= to_uint ro{1} < to_uint md_size{1}  /\ 0 <= to_uint ro{2} < to_uint md_size{1});
   wp; skip => />; last by rewrite !to_uint_zeroextu64.
   move => &1 &2 hmod nover h1 h2 h3 h4 h5 h6 hi.
-  rewrite /leak_mem /leak_mem_CL32. 
+  rewrite /leak_mem /leak_mem_CL32.
   have hro1 : 0 <= to_uint ro{1} && to_uint ro{1} < 64 by smt().
   have hro2 : 0 <= to_uint ro{2} && to_uint ro{2} < 64 by smt().
   have h32 : 32 %| to_uint rotated_mac{2} by smt().
@@ -138,14 +137,14 @@ proof.
   have hlt1 : to_uint (ro{1} + W64.one) < W32.modulus by rewrite heq1 /= /#.
   have heq2 : to_uint (ro{2} + W64.one) = to_uint ro{2} + 1 by rewrite W64.to_uintD_small //= /#.
   have hlt2 : to_uint (ro{2} + W64.one) < W32.modulus by rewrite heq2 /= /#.
-  case: (md_size{2} \ule truncateu32 (ro{1} + W64.one)); 
+  case: (md_size{2} \ule truncateu32 (ro{1} + W64.one));
   rewrite uleE to_uint_truncateu32_small // heq1 /=;
-  case: (md_size{2} \ule truncateu32 (ro{2} + W64.one)); 
+  case: (md_size{2} \ule truncateu32 (ro{2} + W64.one));
   rewrite uleE to_uint_truncateu32_small // heq2 /= /#.
 qed.
 
-equiv l_init_rotated_mac_mem : 
-  M.init_rotated_mac_mem ~ M.init_rotated_mac_mem : 
+equiv l_init_rotated_mac_mem :
+  M.init_rotated_mac_mem ~ M.init_rotated_mac_mem :
   ={md_size, rotated_mac, data, orig_len, scan_start, M.leakages} ==> ={M.leakages}.
 proof. by proc; sim. qed.
 

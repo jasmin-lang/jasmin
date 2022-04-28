@@ -1,10 +1,9 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
+from Jasmin require import JModel Leakage_models.
 
 require import Array64 WArray64.
 
 require Copy_mac_ct.
-require import Leakage_models.
 
 clone import Copy_mac_ct.T with
 theory LeakageModel <- LeakageModelCL.
@@ -38,14 +37,14 @@ proof.
   have hlt1 : to_uint (ro{1} + W64.one) < W32.modulus by rewrite heq1 /= /#.
   have heq2 : to_uint (ro{2} + W64.one) = to_uint ro{2} + 1 by rewrite W64.to_uintD_small //= /#.
   have hlt2 : to_uint (ro{2} + W64.one) < W32.modulus by rewrite heq2 /= /#.
-  case: (md_size{2} \ule truncateu32 (ro{1} + W64.one)); 
+  case: (md_size{2} \ule truncateu32 (ro{1} + W64.one));
   rewrite uleE to_uint_truncateu32_small // heq1 /=;
-  case: (md_size{2} \ule truncateu32 (ro{2} + W64.one)); 
+  case: (md_size{2} \ule truncateu32 (ro{2} + W64.one));
   rewrite uleE to_uint_truncateu32_small // heq2 /= /#.
 qed.
 
-equiv l_init_rotated_mac_mem : 
-  M.init_rotated_mac_mem ~ M.init_rotated_mac_mem : 
+equiv l_init_rotated_mac_mem :
+  M.init_rotated_mac_mem ~ M.init_rotated_mac_mem :
   ={md_size, rotated_mac, data, orig_len, scan_start, M.leakages} ==> ={M.leakages}.
 proof. by proc; sim. qed.
 

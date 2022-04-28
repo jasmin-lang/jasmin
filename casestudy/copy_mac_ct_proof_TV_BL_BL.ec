@@ -1,10 +1,9 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
+from Jasmin require import JModel Leakage_models.
 
 require import Array64 WArray64.
 
 require Copy_mac_ct.
-require import Leakage_models.
 
 clone import Copy_mac_ct.T with
 theory LeakageModel <- LeakageModelBL.
@@ -15,7 +14,7 @@ proof. by proc; auto. qed.
 equiv l_rotate_mac_BL : M.rotate_mac_BL ~ M.rotate_mac_BL : ={M.leakages, out, md_size} ==> ={M.leakages}.
 proof. by proc; inline *; sim. qed.
 
-equiv l_init_rotated_mac_stk : M.init_rotated_mac_stk ~ M.init_rotated_mac_stk : 
+equiv l_init_rotated_mac_stk : M.init_rotated_mac_stk ~ M.init_rotated_mac_stk :
   ={md_size, data, orig_len, scan_start, M.leakages} ==> ={M.leakages}.
 proof. by proc; sim. qed.
 

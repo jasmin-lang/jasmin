@@ -1,5 +1,5 @@
-from Jasmin require import JModel.
-require import AllCore IntDiv CoreMap List Array64 WArray64 Leakage_models Copy_mac_ct.
+from Jasmin require import JModel Leakage_models.
+require import AllCore IntDiv CoreMap List Array64 WArray64 Copy_mac_ct.
 
 clone import Copy_mac_ct.T with theory LeakageModel <- LeakageModelBL.
 
@@ -10,7 +10,7 @@ equiv l_final : M.ssl3_cbc_copy_mac_BL_BL ~ M.ssl3_cbc_copy_mac_BL_BL :
 proof.
   proc => /=.
   call (: ={M.leakages, out, md_size} ==> ={M.leakages}); 1: by proc; inline *; sim.
-  wp; call (: ={M.leakages, md_size, scan_start} ==> ={M.leakages}); 1: by proc; wp; skip. 
+  wp; call (: ={M.leakages, md_size, scan_start} ==> ={M.leakages}); 1: by proc; wp; skip.
   wp; call (: ={ M.leakages, data, scan_start, orig_len, md_size } ==> ={ M.leakages }); 1: by proc; sim.
   by inline *; auto.
 qed.

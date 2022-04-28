@@ -1,5 +1,5 @@
-from Jasmin require import JModel.
-require import List Int IntDiv CoreMap Leakage_models Keccak1600_ref_ct.
+from Jasmin require import JModel Leakage_models.
+require import List Int IntDiv CoreMap Keccak1600_ref_ct.
 
 clone import Keccak1600_ref_ct.T with theory LeakageModel <-  LeakageModelTVCL32.
 

@@ -1,6 +1,5 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
-require import Leakage_models.
+from Jasmin require import JModel Leakage_models.
 
 
 
@@ -9,16 +8,16 @@ clone import ALeakageModel as LeakageModel.
 
 module M = {
   var leakages : leakages_t
-  
+
   proc base64_Char2Val_jazz (c:W8.t, base64Decode:W64.t) : W8.t = {
     var aux: W8.t;
     var aux_0: W64.t;
-    
+
     var v:W8.t;
     var mask:W8.t;
     var temp_8:W8.t;
     var temp_64:W64.t;
-    
+
     aux <- (c - (W8.of_int 43));
     c <- aux;
     aux <- (W8.of_int 63);
@@ -59,4 +58,3 @@ module M = {
   }
 }.
 end T.
-

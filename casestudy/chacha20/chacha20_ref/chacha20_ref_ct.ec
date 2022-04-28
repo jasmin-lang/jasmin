@@ -1,6 +1,5 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
-require import Leakage_models.
+from Jasmin require import JModel Leakage_models.
 
 require import Array3 Array8 Array16.
 require import WArray12 WArray32 WArray64.
@@ -11,11 +10,11 @@ clone import ALeakageModel as LeakageModel.
 
 module M = {
   var leakages : leakages_t
-  
+
   proc init (key:W64.t, nonce:W64.t, counter:W32.t) : W32.t Array16.t = {
     var aux_0: int;
     var aux: W32.t;
-    
+
     var st:W32.t Array16.t;
     var i:int;
     var k:W32.t Array8.t;
@@ -66,11 +65,11 @@ module M = {
     }
     return (st);
   }
-  
+
   proc copy_state (st:W32.t Array16.t) : W32.t Array16.t * W32.t = {
     var aux_0: int;
     var aux: W32.t;
-    
+
     var k:W32.t Array16.t;
     var s_k15:W32.t;
     var k15:W32.t;
@@ -92,14 +91,14 @@ module M = {
     }
     return (k, s_k15);
   }
-  
+
   proc inlined_double_quarter_round (k:W32.t Array16.t, a0:int, b0:int,
                                      c0:int, d0:int, a1:int, b1:int, c1:int,
                                      d1:int) : W32.t Array16.t = {
     var aux_1: bool;
     var aux_0: bool;
     var aux: W32.t;
-    
+
     var  _0:bool;
     var  _1:bool;
     var  _2:bool;
@@ -116,7 +115,7 @@ module M = {
     var  _13:bool;
     var  _14:bool;
     var  _15:bool;
-    
+
     leakages <- LeakAddr([b0] ++ [a0]) :: leakages;
     aux <- (k.[a0] + k.[b0]);
     leakages <- LeakAddr([a0]) :: leakages;
@@ -231,7 +230,7 @@ module M = {
     k.[b1] <- aux;
     return (k);
   }
-  
+
   proc rounds (k:W32.t Array16.t, k15:W32.t) : W32.t Array16.t * W32.t = {
     var aux_4: bool;
     var aux_3: bool;
@@ -239,14 +238,14 @@ module M = {
     var aux_1: bool;
     var aux: W32.t;
     var aux_0: W32.t Array16.t;
-    
+
     var c:W32.t;
     var zf:bool;
     var k14:W32.t;
     var  _0:bool;
     var  _1:bool;
     var  _2:bool;
-    
+
     aux <- (W32.of_int 10);
     c <- aux;
     aux_0 <@ inlined_double_quarter_round (k, 0, 4, 8, 12, 2, 6, 10, 14);
@@ -276,7 +275,7 @@ module M = {
     zf <- aux_1;
     c <- aux;
     leakages <- LeakCond((! zf)) :: LeakAddr([]) :: leakages;
-    
+
     while ((! zf)) {
       aux_0 <@ inlined_double_quarter_round (k, 0, 4, 8, 12, 2, 6, 10, 14);
       k <- aux_0;
@@ -305,20 +304,20 @@ module M = {
       zf <- aux_1;
       c <- aux;
     leakages <- LeakCond((! zf)) :: LeakAddr([]) :: leakages;
-    
+
     }
     return (k, k15);
   }
-  
-  proc sum_states (k:W32.t Array16.t, k15:W32.t, st:W32.t Array16.t) : 
+
+  proc sum_states (k:W32.t Array16.t, k15:W32.t, st:W32.t Array16.t) :
   W32.t Array16.t * W32.t = {
     var aux: int;
     var aux_0: W32.t;
-    
+
     var i:int;
     var k14:W32.t;
     var t:W32.t;
-    
+
     leakages <- LeakFor(0,15) :: LeakAddr([]) :: leakages;
     i <- 0;
     while (i < 15) {
@@ -343,15 +342,15 @@ module M = {
     k.[14] <- aux_0;
     return (k, k15);
   }
-  
+
   proc update_ptr (output:W64.t, plain:W64.t, len:W32.t, n:int) : W64.t *
                                                                   W64.t *
                                                                   W32.t = {
     var aux_0: W32.t;
     var aux: W64.t;
-    
-    
-    
+
+
+
     aux <- (output + (W64.of_int n));
     output <- aux;
     aux <- (plain + (W64.of_int n));
@@ -360,15 +359,15 @@ module M = {
     len <- aux_0;
     return (output, plain, len);
   }
-  
+
   proc sum_states_store (s_output:W64.t, s_plain:W64.t, s_len:W32.t,
-                         k:W32.t Array16.t, k15:W32.t, st:W32.t Array16.t) : 
+                         k:W32.t Array16.t, k15:W32.t, st:W32.t Array16.t) :
   W64.t * W64.t * W32.t = {
     var aux_2: int;
     var aux_0: W32.t;
     var aux_3: W64.t;
     var aux_1: W64.t;
-    
+
     var kk:W64.t Array8.t;
     var aux:W64.t;
     var plain:W64.t;
@@ -450,7 +449,7 @@ module M = {
         leakages <- LeakAddr([((2 * i) + 1)]) :: leakages;
         k.[((2 * i) + 1)] <- aux_0;
       } else {
-        
+
       }
       leakages <- LeakAddr([((2 * i) + 1)] ++ [((2 * i) + 1)]) :: leakages;
       aux_0 <- (k.[((2 * i) + 1)] + st.[((2 * i) + 1)]);
@@ -506,14 +505,14 @@ module M = {
     s_len <- aux_0;
     return (s_output, s_plain, s_len);
   }
-  
+
   proc store_last (s_output:W64.t, s_plain:W64.t, s_len:W32.t,
                    k:W32.t Array16.t, k15:W32.t) : unit = {
     var aux: int;
     var aux_2: W8.t;
     var aux_0: W32.t;
     var aux_1: W64.t;
-    
+
     var i:int;
     var s_k:W32.t Array16.t;
     var u:W32.t;
@@ -551,9 +550,9 @@ module M = {
     len8 <- aux_0;
     aux_1 <- (W64.of_int 0);
     j <- aux_1;
-    
+
     leakages <- LeakCond(((truncateu32 j) \ult len8)) :: LeakAddr([]) :: leakages;
-    
+
     while (((truncateu32 j) \ult len8)) {
       leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (plain + ((W64.of_int 8) * j))))]) :: leakages;
       aux_1 <- (loadW64 Glob.mem (W64.to_uint (plain + ((W64.of_int 8) * j))));
@@ -569,13 +568,13 @@ module M = {
       aux_1 <- (j + (W64.of_int 1));
       j <- aux_1;
     leakages <- LeakCond(((truncateu32 j) \ult len8)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux_1 <- (j `<<` (W8.of_int 3));
     j <- aux_1;
-    
+
     leakages <- LeakCond(((truncateu32 j) \ult len)) :: LeakAddr([]) :: leakages;
-    
+
     while (((truncateu32 j) \ult len)) {
       leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (plain + j)))]) :: leakages;
       aux_2 <- (loadW8 Glob.mem (W64.to_uint (plain + j)));
@@ -590,16 +589,16 @@ module M = {
       aux_1 <- (j + (W64.of_int 1));
       j <- aux_1;
     leakages <- LeakCond(((truncateu32 j) \ult len)) :: LeakAddr([]) :: leakages;
-    
+
     }
     return ();
   }
-  
+
   proc increment_counter (st:W32.t Array16.t) : W32.t Array16.t = {
     var aux: W32.t;
-    
+
     var t:W32.t;
-    
+
     aux <- (W32.of_int 1);
     t <- aux;
     leakages <- LeakAddr([12]) :: leakages;
@@ -610,14 +609,14 @@ module M = {
     st.[12] <- aux;
     return (st);
   }
-  
+
   proc chacha20_ref (output:W64.t, plain:W64.t, len:W32.t, key:W64.t,
                      nonce:W64.t, counter:W32.t) : unit = {
     var aux_0: W32.t;
     var aux_2: W64.t;
     var aux: W64.t;
     var aux_1: W32.t Array16.t;
-    
+
     var s_output:W64.t;
     var s_plain:W64.t;
     var s_len:W32.t;
@@ -634,9 +633,9 @@ module M = {
     s_len <- aux_0;
     aux_1 <@ init (key, nonce, counter);
     st <- aux_1;
-    
+
     leakages <- LeakCond(((W32.of_int 64) \ule s_len)) :: LeakAddr([]) :: leakages;
-    
+
     while (((W32.of_int 64) \ule s_len)) {
       (aux_1, aux_0) <@ copy_state (st);
       k <- aux_1;
@@ -652,7 +651,7 @@ module M = {
       aux_1 <@ increment_counter (st);
       st <- aux_1;
     leakages <- LeakCond(((W32.of_int 64) \ule s_len)) :: LeakAddr([]) :: leakages;
-    
+
     }
     leakages <- LeakCond(((W32.of_int 0) \ult s_len)) :: LeakAddr([]) :: leakages;
     if (((W32.of_int 0) \ult s_len)) {
@@ -667,10 +666,9 @@ module M = {
       k15 <- aux_0;
       store_last (s_output, s_plain, s_len, k, k15);
     } else {
-      
+
     }
     return ();
   }
 }.
 end T.
-
