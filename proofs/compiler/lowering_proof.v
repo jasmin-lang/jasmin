@@ -1934,6 +1934,10 @@ Qed.
     opn_no_imm o = o.
   Proof. case: o => /=; auto => -[] => /= *; eauto. Qed.
 
+  Lemma leak_map_id z le :
+    map2 (leak_E stk) [seq LT_id | _ <- iota z (size le) ] le = le.
+  Proof. by elim: le z => // a le ih z /=; congr (_ :: _). Qed.
+
   Lemma opn_5flags_correct vi ii s a t o cf r xs ys ls m s' lws:
     disj_fvars (read_es a) →
     disj_fvars (vars_lvals [:: cf ; r ]) →
@@ -1944,7 +1948,7 @@ Qed.
     ∃ s'' lcf lr,
     [ /\ lws = [:: LEmpty; lcf; LEmpty; LEmpty; LEmpty; lr], 
     sem p'.1 s [seq MkI ii i | i <- (opn_5flags fv m vi cf r t o a).1] 
-     (leak_lt_iopn5f (opn_5flags fv m vi cf r t o a).2 (unzip2 xs) ls lws) s'' &
+     (leak_EI stk (opn_5flags fv m vi cf r t o a).2 (LSub [:: LSub (unzip2 xs) ; ls ; LSub lws ])) s'' &
     eq_exc_fresh s'' s'].
   Proof.
     move=> da dr hx hr hs; rewrite/opn_5flags. 
@@ -1983,8 +1987,9 @@ Qed.
       subst.
       case: (opn_no_imm_spec o) => [[sz [ho ->]] | ->].
       + move: (hr); rewrite ho /exec_sopn /= /sopn_sem /= => -> /=.
-        by rewrite /= h1 /= h2 /= h3' /= h4 /= h5 /= h6 drop0 /=.
-      by rewrite hr /= h1 /= h2 /= h3' /= h4 /= h5 /= h6 drop0 /=.
+      2: rewrite hr.
+      1-2: rewrite /= h1 /= h2 /= h3' /= h4 /= h5 /= h6 /=.
+      1-2: by rewrite (mapM_size hz1) -(size_map snd) -/(unzip2 z1) leak_map_id.
     (* Opn5f_other *)
     case: ys hr hs=> // a' l hr /=. t_xrbindP.
     move=> -[s1 l1] s1' /= h1 [] <- <- h1'. case: l hr=> // a0 l hr. t_xrbindP=> -[s2 l2] /= h2 h2'.

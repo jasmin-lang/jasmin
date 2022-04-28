@@ -575,14 +575,20 @@ Definition opn_no_imm op :=
   | _ => op
   end.
 
+#[local]
+Notation LT_iopn5f_large z := ([:: LT_seq [:: LT_seq [:: LT_compose (LT_subi 0) (LT_subi 1) ]; LT_remove; LT_seq [:: LT_remove ] ];
+                                LT_map [:: LT_map [:: LT_id, LT_remove & [seq LT_id | _ <- iota 0 z ]] ; LT_id ; LT_id ] ]).
+#[local]
+Notation LT_iopn5f_small := ([:: LT_id ]).
+
 Definition opn_5flags (immed_bound: option wsize) (vi: var_info)
-           (cf: lval) (x: lval) tg (o: sopn) (a: pexprs) : seq instr_r * lt_iopn5f :=
+           (cf: lval) (x: lval) tg (o: sopn) (a: pexprs) : seq instr_r * seq leak_e_tr :=
   let f := Lnone_b vi in
   let fopn o a := [:: Copn [:: f ; cf ; f ; f ; f ; x ] tg o a ] in
   match opn_5flags_cases a immed_bound (wsize_of_sopn o) with
   | Opn5f_large_immed x y n z _ _ =>
     let c := {| v_var := {| vtype := sword U64; vname := fresh_multiplicand fv U64 |} ; v_info := vi |} in
-    ((Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: y] :: fopn (opn_no_imm o) (x :: Pvar c :: z)), LT_iopn5f_large)
+    ((Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: y] :: fopn (opn_no_imm o) (x :: Pvar c :: z)), LT_iopn5f_large (size z))
   | Opn5f_other => (fopn o a, LT_iopn5f_small)
   end.
 
