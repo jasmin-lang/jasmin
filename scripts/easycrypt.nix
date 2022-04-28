@@ -1,16 +1,13 @@
 { lib, stdenv, fetchFromGitHub, ocamlPackages, python3Packages, why3 }:
 
 let
-  rev = "b13fb54e49840bd81ed3d872883c212cc6bab273";
-  version = "20220315";
-in
-
-let
+  version = "2022.04";
+  rev = "r${version}";
   src = fetchFromGitHub {
     owner = "easycrypt";
     repo = "easycrypt";
     inherit rev;
-    sha256 = "sha256:10kcpmfkhmws4al3shba8sr8m67fqzf9sklcbxqlibprs8ipk459";
+    sha256 = "sha256:09rdwcj70lkamkhd895p284rfpz4bcnsf55mcimhiqncd2a21ml7";
   };
 in
 
