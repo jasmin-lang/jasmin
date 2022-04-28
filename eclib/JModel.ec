@@ -35,7 +35,7 @@ lemma rotate8_128_E w :
 proof.
   have h : W128.all_eq
     (VPSHUFB_128 w const_rotate8_128) (W4u32.map (fun w => W32.rol w 8) w).
-  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8 edivz.
+  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8.
   by apply (W128.all_eq_eq _ _ h).
 qed.
 
@@ -53,7 +53,7 @@ lemma rotate24_128_E w :
 proof.
   have h : W128.all_eq
     (VPSHUFB_128 w const_rotate24_128) (W4u32.map (fun w => W32.rol w 24) w).
-  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8 edivz.
+  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8.
   by apply (W128.all_eq_eq _ _ h).
 qed.
 hint simplify (rotate8_128_E, rotate16_128_E, rotate24_128_E).
