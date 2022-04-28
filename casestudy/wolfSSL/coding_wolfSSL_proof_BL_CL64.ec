@@ -13,7 +13,7 @@ to_uint p + 128 <= W64.modulus =>
 64 <= to_uint offset < 128 => to_uint (p + offset) %/ 64 = to_uint p %/ 64 + 1.
 proof.
 move=> /= p offset h1 h2 [] h3 h4. rewrite W64.to_uintD_small /=.
-+ smt (W128.to_uint_cmp). by smt.
++ smt (W128.to_uint_cmp). by smt().
 qed.
 
 lemma bitand_assoc a b c: a `&` (b `&` c)%W8 = a `&` b `&` c.
