@@ -96,6 +96,10 @@ opam:
     EXTRA_NIX_ARGUMENTS: --arg opamDeps true
   extends: .common
   cache:
+    key:
+      files:
+        - scripts/nixpkgs.nix
+      prefix: opam
     paths:
       - $OPAMROOT
   script:
@@ -121,6 +125,10 @@ opam-compiler:
   dependencies:
   - coq
   cache:
+    key:
+      files:
+        - scripts/nixpkgs.nix
+      prefix: opam
     paths:
       - $OPAMROOT
   script:
