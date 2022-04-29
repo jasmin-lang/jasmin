@@ -1,0 +1,54 @@
+export fn Base64_Char2Val_jazz(reg u8 c, reg u64 base64Decode) -> reg u8 {
+
+    // getting 64-byte aligned base64Decode pointer of len 80
+    reg u8 v, mask;
+    reg u8 temp_8;
+    reg u64 temp_64;
+    // BASE64_MIN  = 0x2B
+    c -= 0x2B;
+
+    mask = 0x3f;
+    mask -= c;
+    mask >>= 7;
+    mask -= 1;
+
+    // touch first line
+    // v  = base64Decode[ c & 0x3f ] & mask ;
+    temp_8 = c;
+    temp_8 &= 0x3f;
+    temp_64 = (64u)temp_8;
+    v = (u8)[base64Decode + temp_64];
+    v &= mask;
+
+    // touch second line
+    // v |= base64Decode[(c & 0x0f) | 0x40] & (~mask);
+    temp_8 = c & 0x0f;
+    temp_8 |= 0x40;
+    temp_64 = (64u)temp_8;
+    temp_8 = (u8)[base64Decode + temp_64];
+    mask = !mask;
+    temp_8 &= mask;
+    v |= temp_8;
+
+    return v;
+}
+
+inline
+fn test_with_coding_wolfSSL(reg u8 secret_c) {
+    reg u64 base64Decode;
+    inline int i;
+
+    base64Decode = 0x2000;
+
+    for i = 0 to 80 {
+        (u8)[base64Decode + i] = 0;
+    }
+
+    Base64_Char2Val_jazz(secret_c, base64Decode);
+
+}
+
+inline fn test_XX() {test_with_coding_wolfSSL(43);}
+inline fn test_YY() {test_with_coding_wolfSSL(76);}
+
+exec test_XX test_YY (0x2000 : 80)
