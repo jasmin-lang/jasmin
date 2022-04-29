@@ -601,3 +601,7 @@ type leakage_t = [
 ].
 
 type leakages_t = leakage_t list.
+
+
+op zlog2 : int -> int.
+
