@@ -3,9 +3,9 @@
 More information about this compiler (build instructions in particular) can be
 found on the online [wiki](https://github.com/jasmin-lang/jasmin/wiki).
 
-The Jasmin compiler itself is free software. All files in this distribution are,
-unless specified otherwise, licensed under the [MIT license](LICENSE). The
-exceptions are given below.
+The Jasmin compiler is free software. All files in this distribution are, by
+default, licensed under the [MIT license](LICENSE). The exceptions are given
+below.
 
 The files `src/puf.ml` and `src/puf.mli` are distributed under the terms of the
 GNU Library General Public License version 2.1, with the special exception on
