@@ -2604,7 +2604,7 @@ Qed.
     write_lvals gd si' xs v = ok (so, lws) →
     ∃ so',
       sem p'.1 si' (map (MkI ii) (lower_addcarry fv sz sub xs t es).1) 
-      (leak_ESI stk (lower_addcarry fv sz sub xs t es).2 (unzip2 x) le lws)
+      (leak_ESI stk (lower_addcarry fv sz sub xs t es).2 (LSub [:: LSub (unzip2 x) ; le ; LSub lws]))
        so' ∧
       eq_exc_fresh so' so.
     Proof.
@@ -2622,8 +2622,8 @@ Qed.
           disj_fvars (read_es es') ∧
             ∃ x',
             sem_pexprs gd si' es' = ok x' ∧
-            ∃ v' le',
-            exec_sopn (Ox86 (op sz)) (unzip1 x') = ok (v', le') ∧
+            ∃ v',
+            exec_sopn (Ox86 (op sz)) (unzip1 x') = ok (v', LEmpty) ∧
             write_lvals gd si' [:: Lnone_b vi ; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r ] v' = 
             ok (so,  [:: LEmpty; get_nth_leak lws 0; LEmpty; LEmpty; LEmpty; get_nth_leak lws 1])) as D.
         {
@@ -2641,14 +2641,14 @@ Qed.
           + by rewrite hx' /= hy' /=.
           + rewrite /= /sopn_sem /= /truncate_word hsz1 hsz2 /= /x86_SUB /x86_ADD /check_size_8_64 hsz64.
             rewrite /leak_sopn /= /truncate_word /= hsz2 /= hsz1 /=.
-            eexists; eexists; split; first reflexivity. rewrite /=.
+            eexists; split; first reflexivity. rewrite /=.
             rewrite Z.sub_0_r sub_underflow wrepr_sub !wrepr_unsigned in ho.
             move: ho. rewrite /write_lvals /=. t_xrbindP=> -[s l] -> /= [s' l'] [s'' l''] -> /=.
             by move=> [] <- <- <- <- /=.
           + by rewrite hx' /= hy' /=.
           + rewrite /= /sopn_sem /= /truncate_word hsz1 hsz2 /= /x86_SUB /x86_ADD /check_size_8_64 hsz64.
             rewrite /leak_sopn /= /truncate_word /= hsz2 /= hsz1 /=.
-            eexists; eexists; split; first reflexivity. rewrite /=.
+            eexists; split; first reflexivity. rewrite /=.
             rewrite Z.add_0_r add_overflow wrepr_add !wrepr_unsigned in ho.
             move: ho. rewrite /write_lvals /=. t_xrbindP=> -[s l] -> /= [s' l'] [s'' l''] -> /=.
             by move=> [] <- <- <- <- /=.
@@ -2656,47 +2656,34 @@ Qed.
         move: hv;rewrite /exec_sopn; t_xrbindP; case: sub => y hy;
         have {hy} := app_wwb_dec hy=> -[sz1] [w1] [sz2] [w2] [b] [hsz1] [hsz2] [h1] [h2] lo hlo hlv hle; subst.
         + rewrite h1 /sopn_sem /leak_sopn /= /truncate_word hsz1 hsz2 /x86_SBB /x86_ADC /check_size_8_64 hsz64 /=.
-          eexists; eexists; split; first reflexivity.        
+          eexists; split; first reflexivity.
           rewrite /= sub_borrow_underflow in ho. move: ho. t_xrbindP.
           move=> [s l] hw /= [s' l'] [s'' l''] hw' /= [] <- <- <- <- /=.
           by rewrite hw /= hw' /=.
         rewrite /= add_carry_overflow in ho. move: ho. t_xrbindP.
         rewrite /leak_sopn.
         move=> [s l] hw [s' l'] [s'' l''] hw' [] <- <- <- <-; subst.
-        eexists; eexists; split.
+        eexists; split.
         + by rewrite h1 /= /truncate_word /= hsz1 hsz2 /= /sopn_sem /= /x86_ADC /check_size_8_64 hsz64 /=.
         by rewrite /write_lvals /= hw /= hw' /=.
       }
-      + case: D => des' [ xs' [ hxs' [ v' [lo [hv' ho'] ] ] ] ].
-        have hv'' := hv'.
-        case: (opn_5flags_correct ii t (Some U32) des' dxs hxs' hv' ho') => {hv' ho'} so'.
-        intuition eauto using eq_exc_freshT. move: p0. move=> [lcf] [lr] [hws] Hop Hex.
-        (* b is false *)
-        + exists so'; split=> //=. rewrite H3 /= in hxs'. rewrite /= in hx. move: hxs'. t_xrbindP.
-          move=> [v1 l1] hx' vs' [v2 l2] hy' hvs' hxs'. move: hx; t_xrbindP. rewrite hx' /= hy' /=. 
-          move=> y [] <- /= vss vss' [] <- vss1 [vb bl] hb <-. 
-          move=> <- <- /=. rewrite H0 /= in hb. case: hb=> hb <- /=. rewrite -hvs' in hxs'. rewrite H3 /=. 
-          rewrite -hxs' H3 /= in Hop. move: Hop. move: hv''; rewrite /exec_sopn /= /leak_sopn /=; subst. t_xrbindP.
-          case: ifP=> //= _. 
-          + move=> yt'. t_xrbindP=> wsz -> wsz' -> /= hs l3 l4 l5 [] <- wsz'' [] <- /=.
-            rewrite /sopn_leak /=. move=> [] <- <- _ hlo Hop. by rewrite -hlo in Hop.
-          move=> yt'. t_xrbindP=> wsz -> wsz' -> /= hs l3 l4 l5 [] <- wsz'' [] <- /=.
-          rewrite /sopn_leak /=. move=> [] <- <- _ hlo Hop. by rewrite -hlo in Hop.
-        (* b is some var *)
-        move: H. move=> [cfi] [] hb [hvi] [hop] hes'.
-        move: p0. move=> [lcf] [lr] [hws] Hop Hex.
-        exists so'; split=> //=. rewrite hes' /= in hxs'. rewrite /= in hx. move: hxs'. t_xrbindP.
-        move=> [v1 l1] hx' vs' [v2 l2] hy' hvs' hxs'. 
-        move: hx; t_xrbindP. rewrite hx' /= hy' /=. move=> y [] <- /= vss vss' [] <- vss1 [vb bl] -> <-. 
-        move=> <- <- /= [] <- <- <- /= hxs''. rewrite hes' /=. rewrite -hxs'' hes' /= in Hop.
-        move: Hop. move: hv''; rewrite /exec_sopn /= /leak_sopn /=; subst. t_xrbindP.
-        case: ifP=> //= _. 
-        + move=> yt'. t_xrbindP=> wsz -> wsz' -> /= b -> /=. rewrite /sopn_leak /=. 
-          move=> hs l3 l4 l5 [] _ wsz'' [] _ b' [] _ [] <- <- _ hlo Hop. 
-          by rewrite -hlo in Hop.
-        move=> yt'. t_xrbindP=> wsz -> wsz' -> /= b -> /=. rewrite /sopn_leak /=. 
-        move=> hs l3 l4 l5 [] _ wsz'' [] _ b' [] _ [] <- <- _ hlo Hop. 
-        by rewrite -hlo in Hop.
+      case: D => des' [ xs' [ hxs' [ v' [hv' ho'] ] ] ].
+      case: (opn_5flags_correct ii t (Some U32) des' dxs hxs' hv' ho') => {hv' ho'} so'.
+      move=> [lcf] [lr] [hws] Hop Hex.
+      exists so'; split=> //.
+      case: C => [ | [cfi] ]; case => ? [] ? [] ??; subst b vi op es'.
+      (* b is false *)
+      + move: hxs' hx; rewrite /=; t_xrbindP.
+        move=> [v1 l1] -> _ [v2 l2] -> <- ?; subst xs'.
+        t_xrbindP => _ <- _ _ <- <- ?; subst x.
+        move: (sem _ _ _) Hop => P.
+        by rewrite /leak_EI -map_comp.
+      (* b is some var *)
+      move: hx hxs' Hop; rewrite /=; t_xrbindP.
+      case => ?? -> _ ? -> _ _ ? -> <- <- <- ?; subst x.
+      t_xrbindP => _ <- _ _ <- _ _ _ <- <- <- <- ?; subst xs'.
+      move: (sem _ _ _) => P.
+      by rewrite /leak_EI -map_comp.
    Qed.
 
   Opaque lower_addcarry.

@@ -1,5 +1,5 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
+require import JModel.
 
 (* Leakage models TV, BL, TV+CL, CL                                           *) 
 (* Strongest on top                                                           *)
