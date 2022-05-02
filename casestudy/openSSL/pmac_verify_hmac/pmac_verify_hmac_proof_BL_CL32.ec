@@ -82,29 +82,37 @@ proof.
 qed.
 
 equiv l_final : M.verify_hmac_jazz ~ M.verify_hmac_jazz :
-  ={M.leakages, pmac, len, maxpad, out} /\ 
-     to_uint pmac{2} + 32 <= W64.modulus /\ 32 %| to_uint pmac{2} /\ to_uint maxpad{1} < 256  /\
-     (to_uint len <= to_uint maxpad + 21){1} 
+  ={M.leakages, pmac, maxpad} /\ (out + len){1} = (out + len){2} /\
+     to_uint pmac{2} + 32 <= W64.modulus /\ 32 %| to_uint pmac{2} /\ 
+     to_uint maxpad{1} < 256  /\
+     (to_uint len <= to_uint maxpad + 21){1} /\
+     (to_uint len <= to_uint maxpad + 21){2}
      ==> ={M.leakages}.
 proof.
 proc; wp => /=.
-while (={maxpad, j, p, M.leakages, len, pmac, maxpad, off} /\ 
-       inv j{1} off{1} i{1} /\ inv j{2} off{2} i{2} /\ to_uint j{1} <= to_uint maxpad{1} < 256 + 20 /\ 
+while (={maxpad, j, p, M.leakages, pmac, maxpad} /\ 
+       inv j{1} off{1} i{1} /\ inv j{2} off{2} i{2} /\ 
+       to_uint j{1} <= to_uint maxpad{1} < 256 + 20 /\ 
        to_uint pmac{2} + 32 <= W64.modulus /\ 32 %| to_uint pmac{2} /\ 
-       (off = (maxpad+ W64.one) - len){1} /\ (to_uint len <= to_uint maxpad + 1){1}).
-+ wp; skip=> |> &1 &2 h1 h2 hjm hmax hpmac dpmac hlen; rewrite ultE => hj.
+       (off = (maxpad+ W64.one) - len){1} /\ (to_uint len <= to_uint maxpad + 1){1} /\
+       (off = (maxpad+ W64.one) - len){2} /\ (to_uint len <= to_uint maxpad + 1){2}).
++ wp; skip=> |> &1 &2 h1 h2 hjm hmax hpmac dpmac hlen1 hlen2; rewrite ultE => hj.
   split; 1: by rewrite /leak_mem /leak_mem_CL32 !offset_div_32 // 1,2:/#.
-  split; 1: by apply (inv_incr len{2} maxpad{2}) => // /#. 
+  split; 1: by apply (inv_incr len{1} maxpad{2}) => // /#. 
   split; 1: by apply (inv_incr len{2} maxpad{2}) => // /#. 
   by rewrite (W64.to_uintD_small j{2} W64.one) /#.
-auto => |> &1 hpmac dmac hmax hlen.
-rewrite (W64.to_uintD_small maxpad{1}) /= 1:/# hlen /=.
-have -> : out{1} - (out{1} + len{1} - W64.one - maxpad{1} - W64.of_int 20) = 
-          (maxpad{1} + W64.of_int 21) - len{1} by ring.
-have -> /= : inv W64.zero (maxpad{1} + (of_int 21)%W64 - len{1}) W64.zero; last by smt(W64.to_uint_cmp).
-have ? : to_sint (maxpad{1} + (of_int 21)%W64) = to_uint maxpad{1} + 21.
-+ rewrite to_sintD_small to_sint_small // /to_sint /smod /=; smt(W64.to_uint_cmp).
-have ? : to_sint len{1} = to_uint len{1} by rewrite /to_sint /smod /=; smt(W64.to_uint_cmp).
-rewrite /inv to_sintB_small /=; 1: smt(W64.to_uint_cmp).
-by rewrite to_sint_small // /#.
+auto => |> &1 &2 houtlen hpmac dmac hmax hlen1 hlen2.
+rewrite {1}houtlen /= (W64.to_uintD_small maxpad{2}) /= 1:/# hlen1 hlen2 /=.
+have -> : out{1} - (out{1} + len{1} - W64.one - maxpad{2} - W64.of_int 20) = 
+          (maxpad{2} + W64.of_int 21) - len{1} by ring.
+have -> /= : out{2} - (out{2} + len{2} - W64.one - maxpad{2} - W64.of_int 20) = 
+          (maxpad{2} + W64.of_int 21) - len{2} by ring.
+have ? : to_sint (maxpad{2} + (of_int 21)%W64) = to_uint maxpad{2} + 21.
++ by rewrite to_sintD_small to_sint_small // /to_sint /smod /=; smt(W64.to_uint_cmp).
+split.
++ have ? : to_sint len{1} = to_uint len{1} by rewrite /to_sint /smod /=; smt(W64.to_uint_cmp).
+  by rewrite /inv to_sintB_small /= ?to_sint_small //; smt(W64.to_uint_cmp).
+split; last by smt(W64.to_uint_cmp).
+have ? : to_sint len{2} = to_uint len{2} by rewrite /to_sint /smod /=; smt(W64.to_uint_cmp).
+by rewrite /inv to_sintB_small /= ?to_sint_small //; smt(W64.to_uint_cmp).
 qed.
