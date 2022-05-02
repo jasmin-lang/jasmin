@@ -23,7 +23,7 @@ export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad ret, reg u64 maxpad
     while (j < maxpad) {
 
         // c = p[j];
-        c = (u32)[p + j];
+        c = (u32)[p + j * 4];
 
         // cmask = ((int)(j - off - SHA_DIGEST_LENGTH)) >> (sizeof(int) *
         //                                                         8 - 1);
@@ -49,7 +49,7 @@ export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad ret, reg u64 maxpad
 
         // res |= (c ^ pmac->c[i]) & cmask;
         temp = c;
-        temp ^= (u32)[pmac + i];            // i is secret
+        temp ^= (u32)[pmac + i * 4];            // i is secret
         temp &= cmask;
         res |= temp;
 
