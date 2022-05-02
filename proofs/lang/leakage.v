@@ -242,35 +242,26 @@ Definition leak_EI (stk: pointer) (lti: seq leak_e_tr) (le: leak_e) : seq leak_i
   [seq Lopn (leak_E stk lte le) | lte <- lti ].
 
 (* Transformation from expressions (seq of expression) leakage to instruction leakage *)
-Notation leak_lt_iopn5f stk ltf les lo les' := (leak_EI stk ltf (LSub [:: LSub les ; lo ; LSub les' ])).
-
-Definition leak_ESI (stk : pointer) (lti : leak_es_i_tr) (les: seq leak_e) (lo: leak_e) (les': seq leak_e) : seq leak_i :=
+Definition leak_ESI (stk : pointer) (lti : leak_es_i_tr) (le: leak_e) : seq leak_i :=
   match lti with
   | LT_iaddcarryf ltes =>
-    leak_lt_iopn5f stk ltes (List.removelast les) LEmpty
-      [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
+      let ltes' := map (LT_compose (LT_map [:: LT_seq [:: LT_subi 0; LT_subi 1 ]; LT_remove; LT_seq [:: LT_remove ; LT_subi 0; LT_remove ; LT_remove ; LT_remove ; LT_subi 1] ])) ltes in
+    leak_EI stk ltes' le
 
   | LT_iaddcarry ltes =>
-    leak_lt_iopn5f stk ltes les LEmpty
-      [:: LEmpty; get_nth_leak les' 0; LEmpty; LEmpty; LEmpty; get_nth_leak les' 1]
+      let ltes' := map (LT_compose (LT_map [:: LT_id; LT_remove; LT_seq [:: LT_remove ; LT_subi 0; LT_remove ; LT_remove ; LT_remove ; LT_subi 1] ])) ltes in
+    leak_EI stk ltes' le
 
-  | LT_ianone => 
-    [:: Lopn (LSub [:: LSub les ; lo; LSub les'])]
+  | LT_ianone => leak_EI stk [:: LT_id ] le
 
-  | LT_imul1 => 
-    [:: Lopn (LSub [:: LSub [:: nth LEmpty les 0]; LEmpty; LSub [:: LEmpty]])] ++
-    [:: Lopn (LSub [:: LSub [:: nth LEmpty les 1; LEmpty]; LEmpty; 
-                       LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])]
-  | LT_imul2 => 
-    [:: Lopn (LSub [:: LSub [:: nth LEmpty les 1]; LEmpty; LSub [:: LEmpty]])] ++
-    [:: Lopn (LSub [:: LSub [:: nth LEmpty les 0; LEmpty];  LEmpty;
-              LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])]
+  | LT_imul1 => leak_EI stk [:: LT_seq [:: LT_seq [:: LT_compose (LT_subi 0) (LT_subi 0) ] ; LT_remove ; LT_seq [:: LT_remove ] ];
+   LT_seq [::LT_seq [:: LT_compose (LT_subi 0) (LT_subi 1); LT_remove ]; LT_remove ; LT_seq [::LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove; LT_compose (LT_subi 2) (LT_subi 0) ; LT_compose (LT_subi 2) (LT_subi 1)] ]] le
 
-  | LT_imul3 => 
-    [:: Lopn (LSub [:: LSub les; LEmpty;
-                LSub [:: LEmpty; LEmpty; LEmpty; LEmpty; LEmpty; nth LEmpty les' 0; nth LEmpty les' 1]])]
+  | LT_imul2 => leak_EI stk [:: LT_seq [:: LT_seq [:: LT_compose (LT_subi 0) (LT_subi 1) ] ; LT_remove ; LT_seq [:: LT_remove ] ] ; LT_seq [::LT_seq [:: LT_compose (LT_subi 0) (LT_subi 0); LT_remove ]; LT_remove ; LT_seq [::LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove; LT_compose (LT_subi 2) (LT_subi 0) ; LT_compose (LT_subi 2) (LT_subi 1)] ]] le
 
-  | LT_iemptysl => [::]
+  | LT_imul3 => leak_EI stk [:: LT_seq [:: LT_subi 0 ; LT_remove ; LT_seq [:: LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove; LT_compose (LT_subi 2) (LT_subi 0) ; LT_compose (LT_subi 2) (LT_subi 1) ] ] ] le
+
+  | LT_iemptysl => leak_EI stk [::] le
   end.
 
 (* computes the number of instructions added in lowering high-level constructs *)
@@ -306,6 +297,7 @@ Definition dummy_lit := Lopn LEmpty.
 Definition leak_assgn := 
   Lopn (LSub [:: LEmpty ; LEmpty]).
 
+Notation leak_lt_iopn5f stk ltf les lo les' := (leak_EI stk ltf (LSub [:: LSub les; lo ; LSub les'])).
 Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq leak_i :=
   match lt, l with
   | LT_ikeep, _ => 
@@ -383,9 +375,7 @@ Fixpoint leak_I (stk:pointer) (l : leak_i) (lt : leak_i_tr) {struct l} : seq lea
     [::Lwhile_false ((leak_Is leak_I stk ltis lts) ++ (leak_EI stk lti le)) (leak_E stk lte le)]
 
 
-  | LT_icopn ltes, Lopn le => 
-    leak_ESI stk ltes (get_seq_leak_e (leak_E stk (LT_subi 0) le)) (leak_E stk (LT_subi 1) le)
-                                      (get_seq_leak_e (leak_E stk (LT_subi 2) le))
+  | LT_icopn ltes, Lopn le => leak_ESI stk ltes le
 
     (* lti converts cond expression to Copn leakage *)
   | LT_ilif lti le', Lopn le => 

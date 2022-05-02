@@ -2604,7 +2604,7 @@ Qed.
     write_lvals gd si' xs v = ok (so, lws) →
     ∃ so',
       sem p'.1 si' (map (MkI ii) (lower_addcarry fv sz sub xs t es).1) 
-      (leak_ESI stk (lower_addcarry fv sz sub xs t es).2 (unzip2 x) le lws)
+      (leak_ESI stk (lower_addcarry fv sz sub xs t es).2 (LSub [:: LSub (unzip2 x) ; le ; LSub lws]))
        so' ∧
       eq_exc_fresh so' so.
     Proof.
@@ -2676,12 +2676,14 @@ Qed.
       + move: hxs' hx; rewrite /=; t_xrbindP.
         move=> [v1 l1] -> _ [v2 l2] -> <- ?; subst xs'.
         t_xrbindP => _ <- _ _ <- <- ?; subst x.
-        done.
+        move: (sem _ _ _) Hop => P.
+        by rewrite /leak_EI -map_comp.
       (* b is some var *)
       move: hx hxs' Hop; rewrite /=; t_xrbindP.
       case => ?? -> _ ? -> _ _ ? -> <- <- <- ?; subst x.
       t_xrbindP => _ <- _ _ <- _ _ _ <- <- <- <- ?; subst xs'.
-      done.
+      move: (sem _ _ _) => P.
+      by rewrite /leak_EI -map_comp.
    Qed.
 
   Opaque lower_addcarry.
