@@ -12,6 +12,7 @@ module M = {
   
   proc verify_hmac_jazz (pmac:W64.t, out:W64.t, len:W64.t, pad:W32.t,
                          ret:W32.t, maxpad:W64.t) : W32.t = {
+    var aux_1: W8.t;
     var aux_0: W32.t;
     var aux: W64.t;
     
@@ -20,10 +21,12 @@ module M = {
     var res_0:W32.t;
     var i:W64.t;
     var j:W64.t;
-    var c:W32.t;
+    var c:W8.t;
     var cmask:W64.t;
     var temp:W32.t;
     var temp_64:W64.t;
+    var temp_8:W8.t;
+    var temp2:W32.t;
     
     aux <- out;
     p <- aux;
@@ -51,9 +54,9 @@ module M = {
     leakages <- LeakCond((j \ult maxpad)) :: LeakAddr([]) :: leakages;
     
     while ((j \ult maxpad)) {
-      leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (p + (j * (W64.of_int 4)))))]) :: leakages;
-      aux_0 <- (loadW32 Glob.mem (W64.to_uint (p + (j * (W64.of_int 4)))));
-      c <- aux_0;
+      leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (p + j)))]) :: leakages;
+      aux_1 <- (loadW8 Glob.mem (W64.to_uint (p + j)));
+      c <- aux_1;
       aux <- j;
       cmask <- aux;
       aux <- (cmask - off);
@@ -62,7 +65,7 @@ module M = {
       cmask <- aux;
       aux <- (cmask `|>>` (W8.of_int 63));
       cmask <- aux;
-      aux_0 <- c;
+      aux_0 <- (zeroextu32 c);
       temp <- aux_0;
       aux_0 <- (temp `^` pad);
       temp <- aux_0;
@@ -84,10 +87,14 @@ module M = {
       temp_64 <- aux;
       aux <- (cmask `&` temp_64);
       cmask <- aux;
-      aux_0 <- c;
+      aux_0 <- (zeroextu32 c);
       temp <- aux_0;
-      leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (pmac + (i * (W64.of_int 4)))))]) :: leakages;
-      aux_0 <- (temp `^` (loadW32 Glob.mem (W64.to_uint (pmac + (i * (W64.of_int 4))))));
+      leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (pmac + i)))]) :: leakages;
+      aux_1 <- (loadW8 Glob.mem (W64.to_uint (pmac + i)));
+      temp_8 <- aux_1;
+      aux_0 <- (zeroextu32 temp_8);
+      temp2 <- aux_0;
+      aux_0 <- (temp `^` temp2);
       temp <- aux_0;
       aux_0 <- (temp `&` (truncateu32 cmask));
       temp <- aux_0;
