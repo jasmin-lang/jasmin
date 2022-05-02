@@ -2,7 +2,7 @@ export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad ret, reg u64 maxpad
 
     // pmac is a 32-byte aligned buffer with len 20
     reg u64 p, off, cmask;
-    reg u32 c, res, temp, temp2;
+    reg u32 res, temp, temp2;
     reg u8 c, temp_8;
     reg u64 i, j, temp_64;          // i is secret
 

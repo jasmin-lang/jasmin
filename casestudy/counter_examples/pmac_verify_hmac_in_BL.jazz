@@ -2,7 +2,8 @@ export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad ret, reg u64 maxpad
 
     // pmac is a 32-byte aligned buffer with len 20
     reg u64 p, off, cmask;
-    reg u32 c, res, temp;
+    reg u32 res, temp, temp2;
+    reg u8 c, temp_8;
     reg u64 i, j, temp_64;          // i is secret
 
     // unsigned char *p = out + len - 1 - maxpad - SHA_DIGEST_LENGTH;
@@ -23,7 +24,7 @@ export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad ret, reg u64 maxpad
     while (j < maxpad) {
 
         // c = p[j];
-        c = (u32)[p + j];
+        c = (u8)[p + j];
 
         // cmask = ((int)(j - off - SHA_DIGEST_LENGTH)) >> (sizeof(int) *
         //                                                         8 - 1);
@@ -33,7 +34,7 @@ export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad ret, reg u64 maxpad
         cmask >>s= 63;       // >> (sizeof(int) * 8 - 1);
 
         // res |= (c ^ pad) & ~cmask;
-        temp = c;
+        temp = (32u)c;
         temp ^= pad;
         cmask = !cmask;     // need to revert later
         temp &= cmask;
@@ -48,8 +49,10 @@ export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad ret, reg u64 maxpad
         cmask &= temp_64;
 
         // res |= (c ^ pmac->c[i]) & cmask;
-        temp = c;
-        temp ^= (u32)[pmac + i];            // i is secret
+        temp = (32u)c;
+        temp_8 = (u8)[pmac + i];
+        temp2 = (32u)temp_8;
+        temp ^=  temp2;           // i is secret
         temp &= cmask;
         res |= temp;
 
@@ -85,15 +88,16 @@ fn test_with_pmac_verify_hmac(reg u64 out len, reg u32 pad) {
 
     ret = 0;
     pmac = 0xc2e0;
-    maxpad = 47;
+    maxpad = 27;
     p = 0x71e0;
 
     for i = 0 to 47 {
         (u8)[p + i] = 0;
     }
 
-
-
+    for i = 0 to 20 {
+       (u8)[pmac + i] = 0;
+    }
 
     verify_hmac_jazz(pmac, out, len, pad, ret, maxpad);
 }
@@ -101,4 +105,4 @@ fn test_with_pmac_verify_hmac(reg u64 out len, reg u32 pad) {
 inline fn test_XX() {test_with_pmac_verify_hmac(0x71f0, 32, 11);}
 inline fn test_YY() {test_with_pmac_verify_hmac(0x71f0, 32, 11);}
 
-exec test_XX test_YY (0x71e0: 47, 0x71f0: 32)
+exec test_XX test_YY (0x71e0: 50, 0xc2e0: 21)
