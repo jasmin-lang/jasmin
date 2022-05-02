@@ -1,0 +1,104 @@
+export fn verify_hmac_jazz(reg u64 pmac out len, reg u32 pad ret, reg u64 maxpad) -> reg u32 {
+
+    // pmac is a 32-byte aligned buffer with len 20
+    reg u64 p, off, cmask;
+    reg u32 c, res, temp;
+    reg u64 i, j, temp_64;          // i is secret
+
+    // unsigned char *p = out + len - 1 - maxpad - SHA_DIGEST_LENGTH;
+    p = out;
+    p += len;
+    p -= 1;
+    p -= maxpad;
+    p -= 20;                // SHA_DIGEST_LENGTH = 20
+
+    // size_t off = out - p;
+    off = out;
+    off -= p;
+
+    res = 0;
+    i = 0;
+    j = 0;
+    maxpad += 20;           // j < maxpad + SHA_DIGEST_LENGTH; should deduct 20 later
+    while (j < maxpad) {
+
+        // c = p[j];
+        c = (u32)[p + j];
+
+        // cmask = ((int)(j - off - SHA_DIGEST_LENGTH)) >> (sizeof(int) *
+        //                                                         8 - 1);
+        cmask = j;
+        cmask -= off;
+        cmask -= 20;
+        cmask >>s= 63;       // >> (sizeof(int) * 8 - 1);
+
+        // res |= (c ^ pad) & ~cmask;
+        temp = c;
+        temp ^= pad;
+        cmask = !cmask;     // need to revert later
+        temp &= cmask;
+        res |= temp;
+
+        // cmask &= ((int)(off - 1 - j)) >> (sizeof(int) * 8 - 1);
+        cmask = !cmask;     // reverted back to original value
+        temp_64 = off;
+        temp_64 -= 1;
+        temp_64 -= j;
+        temp_64 >>s= 63;
+        cmask &= temp_64;
+
+        // res |= (c ^ pmac->c[i]) & cmask;
+        temp = c;
+        temp ^= (u32)[pmac + i];            // i is secret
+        temp &= cmask;
+        res |= temp;
+
+        // i += 1 & cmask;
+        temp_64 = cmask;
+        temp_64 &= 1;
+        i += temp_64;
+
+        // j++
+        j += 1;
+    }
+
+    // res = 0 - ((0 - res) >> (sizeof(res) * 8 - 1));
+    temp = 0;
+    temp -= res;
+    temp >>s= 31;
+    res = temp;     // computed ((0 - res) >> (sizeof(res) * 8 - 1))
+    temp = 0;
+    temp -= res;
+    res = temp;
+
+    // ret &= (int)~res;
+    ret &= !res;
+
+    return ret;
+}
+
+inline
+fn test_with_pmac_verify_hmac(reg u64 out len, reg u32 pad) {
+    reg u64 pmac, maxpad, p;
+    reg u32 ret;
+    inline int i;
+
+    ret = 0;
+    pmac = 0xc2e0;
+    maxpad = 47;
+    p = 0x71e0;
+
+    for i = 0 to 47 {
+        (u8)[p + i] = 0;
+    }
+
+
+
+
+    verify_hmac_jazz(pmac, out, len, pad, ret, maxpad);
+}
+
+inline fn test_XX() {test_with_pmac_verify_hmac(0x71f0, 32, 11);}
+inline fn test_YY() {test_with_pmac_verify_hmac(0x71f0, 32, 11);}
+
+exec test_XX test_YY (0x71e0: 47, 0x71f0: 32)
