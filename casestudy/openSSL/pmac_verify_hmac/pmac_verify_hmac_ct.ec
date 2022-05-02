@@ -1,5 +1,8 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel Leakage_models.
+from Jasmin require import JModel.
+require import Leakage_models.
+
+
 
 theory T.
 clone import ALeakageModel as LeakageModel.
@@ -48,8 +51,8 @@ module M = {
     leakages <- LeakCond((j \ult maxpad)) :: LeakAddr([]) :: leakages;
     
     while ((j \ult maxpad)) {
-      leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (p + j)))]) :: leakages;
-      aux_0 <- (loadW32 Glob.mem (W64.to_uint (p + j)));
+      leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (p + (j * (W64.of_int 4)))))]) :: leakages;
+      aux_0 <- (loadW32 Glob.mem (W64.to_uint (p + (j * (W64.of_int 4)))));
       c <- aux_0;
       aux <- j;
       cmask <- aux;
@@ -83,8 +86,8 @@ module M = {
       cmask <- aux;
       aux_0 <- c;
       temp <- aux_0;
-      leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (pmac + i)))]) :: leakages;
-      aux_0 <- (temp `^` (loadW32 Glob.mem (W64.to_uint (pmac + i))));
+      leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (pmac + (i * (W64.of_int 4)))))]) :: leakages;
+      aux_0 <- (temp `^` (loadW32 Glob.mem (W64.to_uint (pmac + (i * (W64.of_int 4))))));
       temp <- aux_0;
       aux_0 <- (temp `&` (truncateu32 cmask));
       temp <- aux_0;
