@@ -1,6 +1,5 @@
 require import AllCore IntDiv CoreMap List.
-from Jasmin require import JModel.
-require import Leakage_models.
+from Jasmin require import JModel Leakage_models.
 
 
 
@@ -9,13 +8,13 @@ clone import ALeakageModel as LeakageModel.
 
 module M = {
   var leakages : leakages_t
-  
+
   proc verify_hmac_jazz (pmac:W64.t, out:W64.t, len:W64.t, pad:W32.t,
                          ret:W32.t, maxpad:W64.t) : W32.t = {
     var aux_1: W8.t;
     var aux_0: W32.t;
     var aux: W64.t;
-    
+
     var p:W64.t;
     var off:W64.t;
     var res_0:W32.t;
@@ -27,7 +26,7 @@ module M = {
     var temp_64:W64.t;
     var temp_8:W8.t;
     var temp2:W32.t;
-    
+
     aux <- out;
     p <- aux;
     aux <- (p + len);
@@ -50,9 +49,9 @@ module M = {
     j <- aux;
     aux <- (maxpad + (W64.of_int 20));
     maxpad <- aux;
-    
+
     leakages <- LeakCond((j \ult maxpad)) :: LeakAddr([]) :: leakages;
-    
+
     while ((j \ult maxpad)) {
       leakages <- LeakAddr([LeakageModel.leak_mem ((W64.to_uint (p + j)))]) :: leakages;
       aux_1 <- (loadW8 Glob.mem (W64.to_uint (p + j)));
@@ -109,7 +108,7 @@ module M = {
       aux <- (j + (W64.of_int 1));
       j <- aux;
     leakages <- LeakCond((j \ult maxpad)) :: LeakAddr([]) :: leakages;
-    
+
     }
     aux_0 <- (W32.of_int 0);
     temp <- aux_0;
@@ -131,4 +130,3 @@ module M = {
   }
 }.
 end T.
-
