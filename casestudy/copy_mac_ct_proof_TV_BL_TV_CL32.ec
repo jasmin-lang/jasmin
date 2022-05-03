@@ -1,7 +1,7 @@
 from Jasmin require import JModel Leakage_models.
 require import AllCore IntDiv CoreMap List Array64 WArray64 Copy_mac_ct.
 
-clone import Copy_mac_ct.T with theory LeakageModel <- LeakageModelTVCL.
+clone import Copy_mac_ct.T with theory LeakageModel <- LeakageModelTVCL32.
 
 equiv l_rotate_offset_TV : M.rotate_offset_TV ~ M.rotate_offset_TV:
   ={M.leakages, md_size, scan_start} /\

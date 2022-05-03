@@ -1,13 +1,8 @@
-require import AllCore IntDiv CoreMap List.
 from Jasmin require import JModel Leakage_models.
+require import AllCore IntDiv CoreMap List Array64 WArray64 Copy_mac_ct.
 
-require import Array64 WArray64.
+clone import Copy_mac_ct.T with theory LeakageModel <- LeakageModelTV.
 
-require Copy_mac_ct.
-
-clone import Copy_mac_ct.T with
-theory LeakageModel <- LeakageModelTV.
-(* For the number of line we count the size of the proof of l_rotate_offset_div_core *)
 equiv l_rotate_offset_TV : M.rotate_offset_TV ~ M.rotate_offset_TV:
   ={M.leakages, md_size, scan_start} /\
   (to_uint (mac_start - scan_start) < 2^8){1} /\
