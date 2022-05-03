@@ -2627,8 +2627,8 @@ Qed.
             ∃ v',
             exec_sopn (Ox86 (op sz)) (unzip1 x') = ok (v', LEmpty) ∧
             write_lvals gd si' [:: Lnone_b vi ; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r ] v' = 
-            ok (so,  [:: LEmpty; get_nth_leak lws 0; LEmpty; LEmpty; LEmpty; get_nth_leak lws 1])) as D.
-        {
+            ok (so,  [:: LEmpty; nth LEmpty lws 0; LEmpty; LEmpty; LEmpty; nth LEmpty lws 1])) as D.
+      {
         clear - hsz64 des hx hv C ho.
         case: C => [ [? [? [? ?]]] | [cfi [?[?[? ?]]]]]; subst; apply (conj des).
         + move: hv hx; rewrite /exec_sopn; t_xrbindP; case: sub => y hy;

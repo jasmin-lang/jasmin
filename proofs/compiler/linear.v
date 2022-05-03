@@ -133,9 +133,9 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) : ciexec (label * lcmd * leak_
     if ty is sword sz
     then
       let op := if (sz ≤ U64)%CMP then (MOV sz) else (VMOVDQU sz) in
-      ok (lbl, MkLI ii (Liopn [:: x ] (Ox86 op) [:: e]) :: lc, LT_ilkeepa)
+      ok (lbl, MkLI ii (Liopn [:: x ] (Ox86 op) [:: e]) :: lc, LT_ilopn (LT_seq [:: LT_seq [:: LT_subi 0 ]; LT_remove; LT_seq [:: LT_subi 1 ] ]))
     else cierror ii (Cerr_linear "assign not a word")
-  | Copn xs _ o es => ok (lbl, MkLI ii (Liopn xs o es) :: lc, LT_ilkeep)
+  | Copn xs _ o es => ok (lbl, MkLI ii (Liopn xs o es) :: lc, LT_ilopn LT_id)
 
     (* Licond e L1; c2; Lilabel L1 *)
     (* Lcondl le b :: (if b = true ==> [::] 

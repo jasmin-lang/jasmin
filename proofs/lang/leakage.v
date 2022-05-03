@@ -53,37 +53,12 @@ Notation leak_for := (seq leak_c) (only parsing).
 
 Notation leak_fun := (funname * leak_c)%type.
 
-Section Eq_leak_e.
-
-Variable eq_leak_e : leak_e -> leak_e -> bool.
-
-Fixpoint eq_leak_es (les: seq leak_e) (les': seq leak_e) : bool :=
-match les, les' with 
-| [::], [::] => true
-| x::xs, y::ys=> eq_leak_e x y && eq_leak_es xs ys
-| _,_=> false
-end.
-
-End Eq_leak_e.
-
-Fixpoint eq_leak_e (le: leak_e) (le' : leak_e) : bool :=
-match le, le' with 
- | LEmpty, LEmpty=> true
- | LIdx z, LIdx z'=> z==z'
- | LAdr p, LAdr p'=> p==p'
- | LSub le, LSub le'=> eq_leak_es eq_leak_e le le'
- | _, _=> false
-end.
-
 (* ------------------------------------------------------------------------ *)
 Definition get_seq_leak_e (l : leak_e) : seq leak_e := 
   match l with 
   | LSub le => le
   | _ => [::]
   end.
-
-Definition get_nth_leak (m: leak_es) n : leak_e :=
-  nth LEmpty m n.
 
 (* ------------------------------------------------------------------------ *)
 (* Leakage trees and leakage transformations. *)
@@ -432,9 +407,7 @@ Notation leak_funl := (funname * seq leak_il).
 Definition leak_cl := seq leak_il.
 
 Inductive leak_i_il_tr : Type :=
-  (*| LT_ilremove : leak_i_il_tr*)
-  | LT_ilkeep : leak_i_il_tr
-  | LT_ilkeepa : leak_i_il_tr
+  | LT_ilopn : leak_e_tr -> leak_i_il_tr
   | LT_ilcond_0 : leak_e_tr -> seq leak_i_il_tr -> leak_i_il_tr (*c1 is empty*)
   | LT_ilcond_0' : leak_e_tr -> seq leak_i_il_tr -> leak_i_il_tr (*c2 is empty*)
   | LT_ilcond : leak_e_tr -> seq leak_i_il_tr -> seq leak_i_il_tr -> leak_i_il_tr (* c1 and c2 are not empty *)
@@ -463,9 +436,8 @@ Definition get_linear_size_c (f : leak_i_il_tr -> nat) (ltc : seq leak_i_il_tr) 
 foldr (fun lti n => f lti + n) 0 ltc. 
 
 Fixpoint get_linear_size (lti : leak_i_il_tr) : nat :=
-  match lti with 
-  | LT_ilkeep => 1
-  | LT_ilkeepa => 1
+  match lti with
+  | LT_ilopn _ => 1
   | LT_ilcond_0 lte lti => get_linear_size_c get_linear_size lti + 2
   | LT_ilcond_0' lte lti => get_linear_size_c get_linear_size lti + 2
   | LT_ilcond lte lti lti' => get_linear_size_c get_linear_size lti + get_linear_size_c get_linear_size lti' + 4
@@ -513,18 +485,9 @@ Section Leak_IL.
 End Leak_IL.
 
 Fixpoint leak_i_iL (stk:pointer) (li : leak_i) (l : leak_i_il_tr) {struct li} : seq leak_il :=
-  match l, li with 
-  (*| LT_ilremove, _ => 
-    [:: Lempty]*)
-
-  | LT_ilkeepa, Lopn le => 
-    let r := (LSub (map (fun x => LSub [:: x]) (get_seq_leak_e le))) in 
-    let r1 := leak_E stk (LT_subi 0) r in 
-    let r2 := leak_E stk (LT_subi 1) r in 
-    [:: Lopnl (LSub [:: r1 ; LEmpty; r2])]
-
-  | LT_ilkeep, Lopn le => 
-    [:: Lopnl le]
+  match l, li with
+  | LT_ilopn tr , Lopn le =>
+    [:: Lopnl (leak_E stk tr le) ]
 
     (*if e then [::] else c2*) (* Licond e l; c2; label l (n+2)*)
   | LT_ilcond_0 lte lti, Lcond le b lis => 
@@ -595,8 +558,7 @@ Notation leak_c_il_tr := (seq leak_i_il_tr).
 Definition leak_f_lf_tr := seq (funname * seq leak_i_il_tr).
 
 Inductive leak_i_WF : leak_i_il_tr -> leak_i -> Prop :=
-| LT_ilkeepaWF : forall le, leak_i_WF LT_ilkeepa (Lopn le)
-| LT_ilkeepWF : forall le, leak_i_WF LT_ilkeep (Lopn le)
+| LT_ilopnWF : forall tr le, leak_i_WF (LT_ilopn tr) (Lopn le)
 | LT_ilcond_0tWF : forall le lte lti,
                   leak_i_WF (LT_ilcond_0 lte lti) (Lcond le true [::])
 | LT_ilcond_0fWF : forall le lis lte lti,
