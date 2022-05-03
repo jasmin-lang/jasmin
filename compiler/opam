@@ -1,9 +1,8 @@
 opam-version: "2.0"
 name: "jasmin"
-version: "0.1"
 maintainer: "Jasmin Team <jasmin@example.com>"
 authors: [ "Jasmin Team <jasmin@example.com>" ]
-homepage: "http://jasmin-lang.github.io/"
+homepage: "https://github.com/jasmin-lang/jasmin"
 bug-reports: "https://github.com/jasmin-lang/jasmin/issues"
 synopsis: "High-Assurance and High-Speed Cryptography"
 license: "MIT"
@@ -12,10 +11,8 @@ build: [
   make "build"
 ]
 install: [
-  make "PREFIX=%{prefix}%" "install"
-]
-remove: [
-  make "PREFIX=%{prefix}%" "uninstall"
+  mkdir -p "%{prefix}%/bin"
+  cp "_build/entry/jasminc.native" "%{prefix}%/bin/jasminc"
 ]
 depends: [
   "batteries" {>= "2.6"}
@@ -26,8 +23,4 @@ depends: [
   "yojson"
   "ocamlbuild"
   "ocamlfind"
-  "coq" {>= "8.14.0" & < "8.16"}
-  "coq-mathcomp-ssreflect" {>= "1.12" & < "1.15"}
-  "coq-mathcomp-algebra"
-  "coq-mathcomp-word"
 ]

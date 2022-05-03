@@ -35,7 +35,7 @@ lemma rotate8_128_E w :
 proof.
   have h : W128.all_eq
     (VPSHUFB_128 w const_rotate8_128) (W4u32.map (fun w => W32.rol w 8) w).
-  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8 edivz.
+  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8.
   by apply (W128.all_eq_eq _ _ h).
 qed.
 
@@ -53,7 +53,7 @@ lemma rotate24_128_E w :
 proof.
   have h : W128.all_eq
     (VPSHUFB_128 w const_rotate24_128) (W4u32.map (fun w => W32.rol w 24) w).
-  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8 edivz.
+  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8.
   by apply (W128.all_eq_eq _ _ h).
 qed.
 hint simplify (rotate8_128_E, rotate16_128_E, rotate24_128_E).
@@ -130,6 +130,25 @@ abbrev [-printing] mulu_64 = W64.mulu.
 op mulu64 (w1 w2 : W64.t) =
   (W2u32.zeroextu64 (W2u32.truncateu32 w1)) *
   (W2u32.zeroextu64 (W2u32.truncateu32 w2)).
+
+(* -------------------------------------------------------------------- *)
+op BSWAP_32: W32.t -> W32.t =
+  W4u8.pack4 \o rev \o W4u8.Pack.to_list \o W4u8.unpack8.
+
+op BSWAP_64: W64.t -> W64.t =
+  W8u8.pack8 \o rev \o W8u8.Pack.to_list \o W8u8.unpack8.
+
+lemma bswap32K: involutive BSWAP_32.
+proof.
+move=> v; rewrite /BSWAP_32 /(\o) /=.
+by rewrite of_listK 2:revK 1:size_rev 1:size_to_list.
+qed.
+
+lemma bswap64K: involutive BSWAP_64.
+proof.
+move=> v; rewrite /BSWAP_64 /(\o) /=.
+by rewrite of_listK 2:revK 1:size_rev 1:size_to_list.
+qed.
 
 (* -------------------------------------------------------------------- *)
 op VMOV_32 (v:W32.t) =

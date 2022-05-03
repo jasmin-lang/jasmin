@@ -6,6 +6,7 @@
 , testDeps ? !inCI
 , devTools ? !inCI
 , ecDeps ? false
+, opamDeps ? false
 , enableFramePointers ? false
 }:
 
@@ -47,5 +48,6 @@ stdenv.mkDerivation {
          menhir (oP.menhirLib or null) zarith camlidl apron yojson ]))
     ++ optionals devTools (with oP; [ merlin ])
     ++ optionals ecDeps [ easycrypt easycrypt.runtest alt-ergo z3.out ]
+    ++ optionals opamDeps [ rsync git pkg-config perl ppl mpfr opam ]
     ;
 }
