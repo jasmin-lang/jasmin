@@ -87,7 +87,8 @@ openSSL/pmac_verify_hmac/pmac_verify_hmac_ct.ec: openSSL/pmac_verify_hmac/pmac_v
 	$(EASYCRYPT) $^
 
 clean:
-	$(FIND) . -name \*.eco -type f -delete; $(FIND) . -name \*_ct.ec -type f -delete
+	$(FIND) . -name \*.eco -type f -delete; $(FIND) . -name \*_ct.ec -type f -delete; \
+	rm -f *Array*.ec
 
 check:
 	$(JASMINC) 	-dlk=none	-mlk=div32	counter_examples/rotate_mac_CL_in_32CL.jazz; echo ""
