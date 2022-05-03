@@ -663,6 +663,29 @@ Notation LT_illt ltes := (LT_iopn [:: LT_seq [:: lt_compose (LT_subi 0) ltes; LT
 #[local]
 Notation LT_ildiv s ltes := (LT_iopn [:: LT_seq [:: LT_seq [:: if s is Signed then LT_compose (LT_subi 0) (LT_compose (LT_subi 0) (LT_subi 0)) else LT_seq [:: LT_remove ; LT_remove ] ]; LT_remove ; LT_seq [:: LT_remove ] ] ; LT_seq [:: LT_seq [:: LT_remove; LT_compose (LT_subi 0) (LT_compose (LT_subi 0) (LT_subi 0)) ; LT_compose (LT_subi 0) (LT_compose (LT_subi 0) (LT_subi 1)) ] ; LT_compose (LT_subi 0) (LT_subi 1) ; lt_compose (LT_subi 1) ltes] ]).
 
+#[local]
+Notation LT_iaddcarryf ltes := (map (LT_compose (LT_map [:: LT_seq [:: LT_subi 0; LT_subi 1 ]; LT_remove; LT_seq [:: LT_remove ; LT_subi 0; LT_remove ; LT_remove ; LT_remove ; LT_subi 1] ])) ltes).
+#[local]
+Notation LT_iaddcarry ltes := (map (LT_compose (LT_map [:: LT_id; LT_remove; LT_seq [:: LT_remove ; LT_subi 0; LT_remove ; LT_remove ; LT_remove ; LT_subi 1] ])) ltes).
+#[local]
+Notation LT_ianone := ([:: LT_id ]).
+#[local]
+Notation LT_imul1 := ([:: LT_seq [:: LT_seq [:: LT_compose (LT_subi 0) (LT_subi 0) ] ; LT_remove ; LT_seq [:: LT_remove ] ];
+   LT_seq [::LT_seq [:: LT_compose (LT_subi 0) (LT_subi 1); LT_remove ]; LT_remove ; LT_seq [::LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove; LT_compose (LT_subi 2) (LT_subi 0) ; LT_compose (LT_subi 2) (LT_subi 1)] ]]).
+#[local]
+Notation LT_imul2 := ([:: LT_seq [:: LT_seq [:: LT_compose (LT_subi 0) (LT_subi 1) ] ; LT_remove ; LT_seq [:: LT_remove ] ] ; LT_seq [::LT_seq [:: LT_compose (LT_subi 0) (LT_subi 0); LT_remove ]; LT_remove ; LT_seq [::LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove; LT_compose (LT_subi 2) (LT_subi 0) ; LT_compose (LT_subi 2) (LT_subi 1)] ]]).
+#[local]
+Notation LT_imul3 := ([:: LT_seq [:: LT_subi 0 ; LT_remove ; LT_seq [:: LT_remove ; LT_remove ; LT_remove ; LT_remove ; LT_remove; LT_compose (LT_subi 2) (LT_subi 0) ; LT_compose (LT_subi 2) (LT_subi 1) ] ] ]).
+#[local]
+Notation LT_iemptysl := ([::]).
+
+#[local]
+Notation LT_ilmul lest ltes b := (LT_icopn (map (LT_compose (LT_seq [:: lt_compose (lt_lea_exp_b1 b) ltes ; LT_remove; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])) lest)).
+#[local]
+Notation LT_ilfopn lest lte := (LT_icopn (map (LT_compose (LT_seq [:: lt_compose (LT_subi 0) lte ; LT_remove ; LT_seq [:: LT_remove; LT_remove; LT_remove; LT_remove; LT_remove; LT_subi 1 ] ])) lest)).
+#[local]
+Notation LT_ilif lti le' := (LT_icopn ((map (LT_compose (LT_compose (LT_subi 0) (LT_subi 0))) lti) ++ [:: LT_seq [:: LT_seq [:: lt_compose (LT_compose (LT_subi 0) (LT_subi 0)) le'; LT_compose (LT_subi 0) (LT_subi 1) ; LT_compose (LT_subi 0) (LT_subi 2)] ; LT_remove ; LT_seq [:: LT_subi 1 ] ] ])).
+
 (** Need to fix this later: for now commenting it out **) 
 Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd * leak_i_tr :=
   (* x = a == b *)
@@ -802,7 +825,7 @@ Definition lower_addcarry_classify (sub: bool) (xs: lvals) (es: pexprs) : option
   | _, _ => None
   end.
 
-Definition lower_addcarry sz (sub: bool) (xs: lvals) tg (es: pexprs) : seq instr_r * leak_es_i_tr :=
+Definition lower_addcarry sz (sub: bool) (xs: lvals) tg (es: pexprs) : seq instr_r * seq leak_e_tr :=
   if (sz ≤ U64)%CMP then
   match lower_addcarry_classify sub xs es with
   | Some (vi, o, es, cf, r) => if ((List.length es) == 2) 
@@ -814,7 +837,7 @@ Definition lower_addcarry sz (sub: bool) (xs: lvals) tg (es: pexprs) : seq instr
   end
   else ([:: Copn xs tg ((if sub then Osubcarry else Oaddcarry) sz) es ], LT_ianone).
 
-Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r * leak_es_i_tr :=
+Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r * seq leak_e_tr :=
   if check_size_16_64 sz is Ok _ then
   match xs, es with
   | [:: r1; r2 ], [:: x ; y ] =>
@@ -842,7 +865,7 @@ Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r * leak_es_i_t
   end
   else ([:: Copn xs tg (Omulu sz) es ], LT_ianone).  (* [:: Lopn (LSub [:: LSub (unzip2 vs); LSub l1''])] *)
 
-Definition lower_copn (xs: lvals) tg (op: sopn) (es: pexprs) : seq instr_r * leak_es_i_tr :=
+Definition lower_copn (xs: lvals) tg (op: sopn) (es: pexprs) : seq instr_r * seq leak_e_tr :=
   match op with
   | Oaddcarry sz => lower_addcarry sz false xs tg es
   | Osubcarry sz => lower_addcarry sz true xs tg es
