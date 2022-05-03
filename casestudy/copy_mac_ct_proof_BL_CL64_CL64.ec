@@ -1,12 +1,7 @@
-require import AllCore IntDiv CoreMap List.
 from Jasmin require import JModel Leakage_models.
+require import AllCore IntDiv CoreMap List Array64 WArray64 Copy_mac_ct.
 
-require import Array64 WArray64.
-
-require Copy_mac_ct.
-
-clone import Copy_mac_ct.T with
-theory LeakageModel <- LeakageModelCL.
+clone import Copy_mac_ct.T with theory LeakageModel <- LeakageModelCL.
 
 equiv l_rotate_offset_BLCL md_size_ : M.rotate_offset_BL ~ M.rotate_offset_BL:
 ={M.leakages, md_size, scan_start} /\ md_size{1} = md_size_ /\
@@ -27,8 +22,7 @@ proof.
   proc.
   while (={out, rotated_mac, md_size, i, M.leakages, zero} /\ 64 %| W64.to_uint rotated_mac{1} /\
          to_uint rotated_mac{1} + 64 <= W64.modulus /\
-         16 <= to_uint md_size{1} <= 64 /\
-         zero{1} = W64.zero /\
+         16 <= to_uint md_size{1} <= 64 /\ zero{1} = W64.zero /\
          0 <= to_uint ro{1} < to_uint md_size{1}  /\ 0 <= to_uint ro{2} < to_uint md_size{1});
   wp; skip => />; last by rewrite !to_uint_zeroextu64.
   move => &1 &2 hmod nover h1 h2 h3 h4 h5 h6 hi.
@@ -55,8 +49,7 @@ to_uint rotated_mac{2} + 64 <= W64.modulus /\ 64 %| to_uint rotated_mac{2} /\
 16 <= to_uint md_size{2} <= 64
 ==> ={M.leakages}.
 proof.
-  proc.
-  call l_rotate_mac_CL; wp.
+  proc; call l_rotate_mac_CL; wp.
   ecall (l_rotate_offset_BLCL md_size{1}); wp.
   call l_init_rotated_mac_mem; wp.
   by inline *; auto.
