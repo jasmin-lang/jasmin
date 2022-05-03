@@ -1,7 +1,7 @@
 from Jasmin require import JModel Leakage_models.
 require import AllCore IntDiv CoreMap List Array64 WArray64 Copy_mac_ct.
 
-clone import Copy_mac_ct.T with theory LeakageModel <- LeakageModelCL32.
+clone import Copy_mac_ct.T with theory LeakageModel <- LeakageModelCL.
 
 equiv l_rotate_offset_BLCL md_size_ : M.rotate_offset_TV ~ M.rotate_offset_TV:
 ={M.leakages, md_size, scan_start} /\ md_size{1} = md_size_ /\
@@ -93,6 +93,9 @@ proof.
   rewrite offset_div_and ?heq //= /#.
 qed.
 
+lemma div64_32_2 (x:int) : x %/ 64 = x %/32 %/2.
+proof. smt(). qed.
+
 lemma to_uint_truncateu32_small (x: W64.t) :
     to_uint x < W32.modulus =>
     to_uint (truncateu32 x) = to_uint x.
@@ -116,13 +119,13 @@ proof.
          0 <= to_uint ro{1} < to_uint md_size{1}  /\ 0 <= to_uint ro{2} < to_uint md_size{1});
   wp; skip => />; last by rewrite !to_uint_zeroextu64.
   move => &1 &2 hmod nover h1 h2 h3 h4 h5 h6 hi.
-  rewrite /leak_mem /leak_mem_CL32.
+  rewrite /leak_mem /leak_mem_CL.
   have hro1 : 0 <= to_uint ro{1} && to_uint ro{1} < 64 by smt().
   have hro2 : 0 <= to_uint ro{2} && to_uint ro{2} < 64 by smt().
   have h32 : 32 %| to_uint rotated_mac{2} by smt().
-  rewrite !offset_div_or //=.
+  rewrite div64_32_2 offset_div_or //= div64_32_2 offset_div_or //=.
   have hle32: to_uint rotated_mac{2} + 32 <= W64.modulus by smt().
-  rewrite !offset_div_and //=.
+  rewrite div64_32_2 offset_div_and //= div64_32_2 offset_div_and //=.
   have heq1 : to_uint (ro{1} + W64.one) = to_uint ro{1} + 1 by rewrite W64.to_uintD_small //= /#.
   have hlt1 : to_uint (ro{1} + W64.one) < W32.modulus by rewrite heq1 /= /#.
   have heq2 : to_uint (ro{2} + W64.one) = to_uint ro{2} + 1 by rewrite W64.to_uintD_small //= /#.
