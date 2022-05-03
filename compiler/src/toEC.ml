@@ -1181,8 +1181,7 @@ let pp_prog fmt model globs funcs =
   Format.fprintf fmt 
      "@[<v>%s.@ %s.@ %s.@ @ %a%a@ %a@ %s@ module M = {@   @[<v>%a%a@]@ }.@ %s@ @]@."
     "require import AllCore IntDiv CoreMap List"
-    "from Jasmin require import JModel"
-    "require import Leakage_models"
+    "from Jasmin require import JModel Leakage_models"
     (pp_arrays "Array") env.arrsz
     (pp_arrays "WArray") env.warrsz
     (pp_list "@ @ " (pp_glob_decl env)) globs
