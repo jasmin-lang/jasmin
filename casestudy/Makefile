@@ -105,3 +105,5 @@ check:
 	$(JASMINC) 	-dlk=none 	-mlk=div32	counter_examples/coding_wolfSSL_in_CL32.jazz; echo ""
 	$(JASMINC) 	-dlk=log 	-mlk=div32	counter_examples/coding_wolfSSL_in_TV_CL32.jazz; echo ""
 	$(JASMINC) 	-dlk=log 	-mlk=full	counter_examples/coding_wolfSSL_in_TV.jazz; echo ""
+	$(JASMINC) 	-dlk=none 	-mlk=full	counter_examples/pmac_verify_hmac_in_BL.jazz; echo ""
+	$(JASMINC) 	-dlk=log 	-mlk=full	counter_examples/pmac_verify_hmac_in_TV.jazz; echo ""
