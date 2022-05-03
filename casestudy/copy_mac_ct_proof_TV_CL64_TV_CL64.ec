@@ -1,13 +1,8 @@
-require import AllCore IntDiv CoreMap List.
 from Jasmin require import JModel Leakage_models.
+require import AllCore IntDiv CoreMap List Array64 WArray64 Copy_mac_ct.
 
-require import Array64 WArray64.
+clone import Copy_mac_ct.T with theory LeakageModel <- LeakageModelTVCL.
 
-require Copy_mac_ct.
-
-clone import Copy_mac_ct.T with
-theory LeakageModel <- LeakageModelTVCL.
-(* For the number of line we count the size of the proof of l_rotate_offset_div_core *)
 equiv l_rotate_offset_TVCL md_size_ : M.rotate_offset_TV ~ M.rotate_offset_TV:
 ={M.leakages, md_size, scan_start} /\ md_size{1} = md_size_ /\
 (to_uint (mac_start - scan_start) < 2^8){1} /\
@@ -24,7 +19,6 @@ qed.
 (* orig_len : length of record : header + data + mac tag + padding --> public *)
 (* out : mac tag is stored in out --> public *)
 (* rec : whole message including header, message, tag, padding --> public *)
-
 op wf_rec mem (rec:W64.t) (orig_len md_size : W32.t) =
   let mac_end = loadW32 mem (to_uint (rec + W64.of_int 4)) in
   to_uint md_size <= to_uint mac_end /\
