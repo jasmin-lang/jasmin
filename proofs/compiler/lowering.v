@@ -577,7 +577,7 @@ Definition opn_no_imm op :=
 
 #[local]
 Notation LT_iopn5f_large z := ([:: LT_seq [:: LT_seq [:: LT_compose (LT_subi 0) (LT_subi 1) ]; LT_remove; LT_seq [:: LT_remove ] ];
-                                LT_map [:: LT_map [:: LT_id, LT_remove & [seq LT_id | _ <- iota 0 z ]] ; LT_id ; LT_id ] ]).
+                                LT_map [:: LT_map [:: LT_id, LT_remove & nseq z LT_id] ; LT_id ; LT_id ] ]).
 #[local]
 Notation LT_iopn5f_small := ([:: LT_id ]).
 

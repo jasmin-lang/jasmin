@@ -1934,9 +1934,9 @@ Qed.
     opn_no_imm o = o.
   Proof. case: o => /=; auto => -[] => /= *; eauto. Qed.
 
-  Lemma leak_map_id z le :
-    map2 (leak_E stk) [seq LT_id | _ <- iota z (size le) ] le = le.
-  Proof. by elim: le z => // a le ih z /=; congr (_ :: _). Qed.
+  Lemma leak_map_id le :
+    map2 (leak_E stk) (nseq (size le) LT_id) le = le.
+  Proof. by elim: le => // a le ih /=; congr (_ :: _). Qed.
 
   Lemma opn_5flags_correct vi ii s a t o cf r xs ys ls m s' lws:
     disj_fvars (read_es a) →
