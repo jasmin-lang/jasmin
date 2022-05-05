@@ -72,7 +72,7 @@ Module S.
     sem_pexprs gd s1 args = ok vargs ->
     sem_call s1.(emem) f (unzip1 vargs) lf m2 vs ->
     write_lvals gd {|emem:= m2; evm := s1.(evm) |} xs vs = ok (s2, l2) ->
-    sem_i s1 (Ccall ii xs f args) (Lcall (LSub (unzip2 vargs)) lf (LSub l2)) s2
+    sem_i s1 (Ccall ii xs f args) (Lcall (unzip2 vargs) lf l2) s2
 
   with sem_call : mem -> funname -> seq value -> leak_fun -> mem -> seq value -> Prop :=
   | EcallRun m1 m2 fn sf vargs vargs' s1 s2 m2' vm2 vres vres' m1' lc:
@@ -187,7 +187,7 @@ Lemma sem_iE' p gd s1 i s2 li:
     exists vs m2 rs lf l2,
     [/\ sem_pexprs gd s1 es = ok vs, sem_call p gd s1.(emem) f (unzip1 vs) lf m2 rs, 
        write_lvals gd {|emem:= m2; evm := s1.(evm) |} xs rs = ok (s2, l2) 
-     & li = (Lcall (LSub (unzip2 vs)) lf (LSub l2))]
+     & li = (Lcall (unzip2 vs) lf l2)]
   end.
 Proof.
   case => {s1 i li s2} //.

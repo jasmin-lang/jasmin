@@ -846,7 +846,7 @@ Fixpoint lower_i (i:instr) : cmd * leak_i_tr :=
      let rc := lower_cmd lower_i c in 
      let rc' := lower_cmd lower_i c' in 
        (map (MkI ii) [:: Cwhile a (rc.1 ++ map (MkI xH) pre.1) e.1 rc'.1], LT_iwhilel pre.2 e.2 rc.2 rc'.2)
-  | Ccall _ _ f _ =>   (map (MkI ii) [:: ir], LT_icall f LT_id LT_id)
+  | Ccall _ xs f es =>   (map (MkI ii) [:: ir], lt_icall_id f xs es)
   end.
 
 Definition lower_fd (fd: fundef) : fundef * leak_c_tr :=

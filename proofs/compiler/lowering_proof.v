@@ -2756,8 +2756,10 @@ Qed.
     rewrite Hcall. constructor. rewrite /Pfun in Hfun. move: Hfun.
     move=> [] Hwf Hfun. rewrite hlf Hcall in Hwf. apply Hwf.
     exists s2'; split=> //.
-    apply: sem_seq1; apply: EmkI; apply: Ecall; eauto.
-    rewrite (sem_pexprs_same Hargs Hs1' Harg) //.
+    apply: sem_seq1; apply: EmkI.
+    rewrite (size_write_lvals Hs2'1) (mapM_size Harg) -(size_map snd) !leak_map_id.
+    apply: Ecall; last by eauto.
+    - by rewrite (sem_pexprs_same Hargs Hs1' Harg).
     move: Hs1'=> [-> _]. rewrite /Pfun in Hfun. rewrite /= in Hfun. rewrite hlf in Hfun.
     rewrite /=.  apply Hfun.
   Qed.

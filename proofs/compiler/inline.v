@@ -126,7 +126,7 @@ Fixpoint inline_i (p:fun_decls) (i:instr) (X:Sv.t) : ciexec (Sv.t * cmd * leak_i
                   assgn_tuple iinfo xs AT_rename fd'.(f_tyout) (map Pvar fd'.(f_res))),
               LT_icall_inline (size es) f (size init_array) (size xs))
 
-      else ciok (X, [::i], LT_icall f LT_id LT_id)
+      else ciok (X, [::i], lt_icall_id f xs es)
     end
   end.
 
@@ -192,7 +192,7 @@ Fixpoint remove_init_i i : (cmd * leak_i_tr) :=
                        let ri := remove_init_i i in 
                        ((ri.1 ++ r.1), ri.2 :: r.2)) ([::], [::]) c' in
       ([:: MkI ii (Cwhile a r1.1 e r2.1) ], LT_iwhile r1.2 LT_id r2.2)
-    | Ccall _ _ f _  => ([::i], LT_icall f LT_id LT_id)
+    | Ccall _ xs f es => ([::i], lt_icall_id f xs es)
     end
   end.
 

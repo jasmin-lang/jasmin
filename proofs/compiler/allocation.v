@@ -161,7 +161,7 @@ Fixpoint check_i iinfo i1 i2 r : ciexec (M.t * leak_i_tr) :=
     if f1 == f2 then
       Let res := add_iinfo iinfo (check_es arg1 arg2 r) in
       Let rls := add_iinfo iinfo (check_lvals x1 x2 res.1) in 
-      ciok (rls.1, (LT_icall f2 (LT_map res.2) (LT_map rls.2)))
+      ciok (rls.1, (LT_icall f2 res.2 rls.2))
     else cierror iinfo (Cerr_neqfun f1 f2 salloc)
   | Cif e1 c11 c12, Cif e2 c21 c22 =>
     Let res := add_iinfo iinfo (check_e e1 e2 r) in

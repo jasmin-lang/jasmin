@@ -112,7 +112,7 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : ciexec (Sv.t * cmd * leak_i
     ciok (s, [:: MkI ii (Cwhile a c e c') ], LT_iwhile Fc LT_id Fc')
 
   | Ccall _ xs f es =>
-    ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i], LT_icall f LT_id LT_id)
+    ciok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i], lt_icall_id f xs es)
   end.
 
 Definition dead_code_fd (fd: fundef) :=
