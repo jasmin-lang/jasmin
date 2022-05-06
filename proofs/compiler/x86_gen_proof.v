@@ -490,7 +490,7 @@ case: i => ii [] /=.
   rewrite get_fd /=.
   do 2 (eexists; first reflexivity).
   by constructor.
-- case => // x lbl.
+- move => x lbl.
   case ok_r_x: (of_var x) => [r|//]; move /of_varI in ok_r_x.
   move=> /= [<-]{j}.
   rewrite eqfn.
