@@ -1,6 +1,6 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import expr linearization.
-Require Import x86_decl x86_instr_decl x86_extra x86_linear_sem.
+Require Import x86_decl x86_instr_decl x86_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

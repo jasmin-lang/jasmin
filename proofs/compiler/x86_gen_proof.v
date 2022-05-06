@@ -2,7 +2,7 @@ From mathcomp
 Require Import all_ssreflect all_algebra.
 Require Import psem compiler_util asm_gen_proof.
 Require Import arch_extra linear_sem.
-Require Import x86_instr_decl x86_extra x86_gen x86_linear_sem.
+Require Import x86_instr_decl x86_extra x86_gen.
 
 Import Utf8.
 Import Relation_Operators.
