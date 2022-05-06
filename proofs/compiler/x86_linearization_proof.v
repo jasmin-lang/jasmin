@@ -1,6 +1,6 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import expr psem psem_facts sem_one_varmap linear linear_sem linearization_proof.
-Require Import x86_decl x86_instr_decl x86_extra x86_linear_sem x86_linearization.
+Require Import x86_decl x86_instr_decl x86_extra x86_linearization.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
