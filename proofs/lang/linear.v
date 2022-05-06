@@ -20,7 +20,7 @@ Variant linstr_r :=
   | Llabel : label -> linstr_r
   | Lgoto  : remote_label -> linstr_r
   | Ligoto : pexpr -> linstr_r (* Absolute indirect jump *)
-  | LstoreLabel : lval -> label -> linstr_r
+  | LstoreLabel : var -> label -> linstr_r
   | Lcond  : pexpr -> label -> linstr_r
 .
 
@@ -68,7 +68,7 @@ Definition eqb_r i1 i2 :=
   | Llabel l1, Llabel l2 => l1 == l2
   | Lgoto l1, Lgoto l2 => l1 == l2
   | Ligoto e1, Ligoto e2 => e1 == e2
-  | LstoreLabel lv1 lbl1, LstoreLabel lv2 lbl2 => (lv1 == lv2) && (lbl1 == lbl2)
+  | LstoreLabel x1 lbl1, LstoreLabel x2 lbl2 => (x1 == x2) && (lbl1 == lbl2)
   | Lcond e1 l1, Lcond e2 l2 => (e1 == e2) && (l1 == l2)
   | _, _ => false
   end.

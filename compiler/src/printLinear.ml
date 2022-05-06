@@ -77,7 +77,7 @@ let pp_instr tbl fmt i =
   | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl
   | Lgoto lbl -> F.fprintf fmt "Goto %a" (pp_remote_label tbl) lbl
   | Ligoto e -> F.fprintf fmt "IGoto %a" (pp_expr tbl) e
-  | LstoreLabel (lv, lbl) -> F.fprintf fmt "%a = Label %a" (pp_lval tbl) lv pp_label lbl
+  | LstoreLabel (x, lbl) -> F.fprintf fmt "%a = Label %a" (pp_var tbl) x pp_label lbl
   | Lcond (e, lbl) -> F.fprintf fmt "If %a goto %a" (pp_expr tbl) e pp_label lbl
 
 let pp_param tbl fmt x =
