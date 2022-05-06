@@ -442,7 +442,7 @@ Lemma assemble_iP i j ls ls' lc xs :
   omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
   match_state rip ls lc xs →
   assemble_i rip i = ok j →
-  linear_sem.eval_instr p x86_mov_eop i ls = ok ls' →
+  linear_sem.eval_instr p i ls = ok ls' →
   exists2 xs': x86_state,
     arch_sem.eval_instr p' j xs = ok xs'  &
     exists2 lc',
@@ -497,16 +497,15 @@ case: i => ii [] /=.
   case ptr_eq: encode_label => [ ptr | ] //.
   replace (encode_label _ _) with (Some ptr);
     last by rewrite -(assemble_prog_labels ok_p').
-  rewrite /=.
-  rewrite /sem_sopn /=.
-  t_xrbindP => s' q ok_s' ? ?; subst ls' q.
+  t_xrbindP => vm ok_vm <-{ls'}.
   eexists; first reflexivity.
   rewrite /= -eqfn.
   exists lc; first exact: omap_lc.
   constructor => //=; last by congr _.+1.
-  move: ok_s' ok_r_x.
-  rewrite to_estate_of_estate zero_extend_u wrepr_unsigned.
-  exact: lom_eqv_write_var.
+  move: ok_r_x.
+  change x with (v_var (VarI x xH)).
+  apply: lom_eqv_write_var; first exact: eqm.
+  by rewrite /write_var ok_vm.
 - t_xrbindP => cnd lbl cndt ok_c <- b v ok_v ok_b.
   case: eqm => eqm hrip hd eqr eqx eqf.
   have [v' [ok_v' hvv']] := eval_assemble_cond eqf ok_c ok_v.
@@ -530,7 +529,7 @@ Lemma match_state_step ls ls' lc xs :
   let: rip := mk_rip (lp_rip p) in
   omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
   match_state rip ls lc xs →
-  step p x86_mov_eop ls = ok ls' →
+  step p ls = ok ls' →
   exists2 xs',
     fetch_and_eval p' xs = ok xs' &
     exists2 lc',
@@ -549,7 +548,7 @@ Qed.
 Lemma match_state_sem ls ls' lc xs :
   let: rip := mk_rip (lp_rip p) in
   omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
-  lsem p x86_mov_eop ls ls' →
+  lsem p ls ls' →
   match_state rip ls lc xs →
   ∃ xs' lc',
     [/\ x86sem p' xs xs' ,
@@ -587,7 +586,7 @@ by apply: hxr; rewrite rx.
 Qed.
 
 Lemma x86gen_exportcall fn m vm m' vm' :
-  lsem_exportcall p x86_mov_eop (sv_of_list to_var x86_callee_saved) m fn vm m' vm' →
+  lsem_exportcall p (sv_of_list to_var x86_callee_saved) m fn vm m' vm' →
   vm_initialized_on vm (map to_var x86_callee_saved) →
   ∀ xm,
     lom_eqv rip {| emem := m ; evm := vm |} xm →

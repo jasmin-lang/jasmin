@@ -301,8 +301,8 @@ Proof.
   move => /(valid_disjoint_labels) - /(_ lbl (lbl + 1)%positive) V R; apply: V; lia.
 Qed.
 
-Definition LSem_step p lparams s1 s2 :
-  lsem1 p lparams s1 s2 -> lsem p lparams s1 s2 := rt_step _ _ s1 s2.
+Definition LSem_step p s1 s2 :
+  lsem1 p s1 s2 -> lsem p s1 s2 := rt_step _ _ s1 s2.
 
 Lemma snot_spec gd s e b :
   sem_pexpr gd s e = ok (Vbool b) →
@@ -332,21 +332,9 @@ Proof. by case: a. Qed.
 
 Section LINEARIZE_PARAMS.
 
-Context (mov_op : asm_op) (lparams : linearization_params).
-
-(* Maybe we want to just have [Context (mov_eop : extended_op)]? *)
-Let mov_eop : extended_op := BaseOp (None, mov_op).
+Context (lparams : linearization_params).
 
 Record h_linearization_params := {
-  spec_mov_op : forall lp (s: estate) fn pc x lbl ptr ii,
-    vtype x == sword Uptr
-    -> encode_label (label_in_lprog lp) (fn, lbl) = Some ptr
-    -> let i := LstoreLabel {| v_var := x; v_info := xH; |} lbl in
-       let vm := evm s in
-       let s' := with_vm s (vm.[x <- pof_val (vtype x) (Vword ptr)])%vmap in
-       eval_instr lp mov_eop (MkLI ii i) (of_estate s fn pc)
-       = ok (of_estate s' fn pc.+1);
-
   spec_lp_allocate_stack_frame :
     forall (lp: lprog) (s: estate) sp_rsp ii fn pc ts sz,
       let rsp := vid sp_rsp in
@@ -358,7 +346,7 @@ Record h_linearization_params := {
       let ts' := pword_of_word (ts + wrepr Uptr sz) in
       let s' := with_vm s (vm.[rsp <- ok ts'])%vmap in
       (vm.[rsp])%vmap = ok (pword_of_word ts)
-      -> eval_instr lp mov_eop i (of_estate s fn pc)
+      -> eval_instr lp i (of_estate s fn pc)
          = ok (of_estate s' fn pc.+1);
 
   spec_lp_free_stack_frame :
@@ -372,7 +360,7 @@ Record h_linearization_params := {
       let ts' := pword_of_word (ts - wrepr Uptr sz) in
       let s' := with_vm s (vm.[rsp <- ok ts'])%vmap in
       (vm.[rsp])%vmap = ok (pword_of_word ts)
-      -> eval_instr lp mov_eop i (of_estate s fn pc)
+      -> eval_instr lp i (of_estate s fn pc)
          = ok (of_estate s' fn pc.+1);
 
   spec_lp_ensure_rsp_alignment :
@@ -390,7 +378,6 @@ Record h_linearization_params := {
       exists vm', [/\
          eval_instr
            lp
-           mov_eop
            i
            (of_estate s1 fn pc)
          = ok (of_estate (with_vm s1 vm') fn pc.+1),
@@ -410,7 +397,6 @@ Record h_linearization_params := {
       -> write_lval [::] x (Vword w) s1 = ok s2
       -> eval_instr
            lp
-           mov_eop
            i
            (of_estate s1 fn pc)
          = ok (of_estate s2 fn pc.+1);
@@ -426,7 +412,6 @@ Section HLPARAMS.
     write_lval [::] x (Vword w) s1 = ok s2 ->
     eval_instr
       lp
-      mov_eop
       (lassign lparams ii x ws e)
       (of_estate s1 fn pc)
     = ok (of_estate s2 fn pc.+1).
@@ -438,7 +423,6 @@ Section HLPARAMS.
       -> write_var x (Vword w) s1 = ok s2
       -> eval_instr
            lp
-           mov_eop
            (lmove lparams ii x ws y)
            (of_estate s1 fn pc)
          = ok (of_estate s2 fn pc.+1).
@@ -459,9 +443,8 @@ Section VALIDITY.
     (p: sprog)
     (extra_free_registers: instr_info -> option var)
     (lp: lprog)
-    (mov_op : asm_op)
     (lparams: linearization_params)
-    (hlparams: h_linearization_params mov_op lparams).
+    (hlparams: h_linearization_params lparams).
 
   Let Pr (i: instr_r) : Prop :=
     ∀ ii fn lbl,
@@ -603,11 +586,8 @@ Section PROOF.
     (p: sprog)
     (extra_free_registers: instr_info -> option var)
     (p': lprog)
-    (mov_op : asm_op)
     (lparams: linearization_params)
-    (hlparams: h_linearization_params mov_op lparams).
-
-  Let mov_eop := BaseOp (None, mov_op).
+    (hlparams: h_linearization_params lparams).
 
   Let vgd : var := vid p.(p_extra).(sp_rip).
   Let vrsp : var := vid p.(p_extra).(sp_rsp).
@@ -1082,7 +1062,6 @@ Section PROOF.
        ex2_6
        (λ m2 vm2, lsem
                     p'
-                    mov_eop
                     (Lstate m1 vm1 fn (size P))
                     (Lstate m2 vm2 fn (size (P ++ li)))
        )
@@ -1108,7 +1087,6 @@ Section PROOF.
        ex2_6
        (λ m2 vm2, lsem
                     p'
-                    mov_eop
                     (Lstate m1 vm1 fn (size P))
                     (Lstate m2 vm2 fn (size (P ++ li)))
        )
@@ -1131,7 +1109,6 @@ Section PROOF.
        ex2_6
        (λ m2 vm2, lsem
                     p'
-                    mov_eop
                     (Lstate m1 vm1 fn (size P))
                     (Lstate m2 vm2 fn (size (P ++ lc)))
        )
@@ -1163,8 +1140,8 @@ Section PROOF.
       ex2_6
       (λ m2 vm2,
       if lret is Some ((caller, lbl), _cbody, pc)
-      then lsem p' mov_eop (Lstate m1 vm1 fn 1) (Lstate m2 vm2 caller pc.+1)
-      else lsem p' mov_eop (Lstate m1 vm1 fn 0) (Lstate m2 vm2 fn (size body)))
+      then lsem p' (Lstate m1 vm1 fn 1) (Lstate m2 vm2 caller pc.+1)
+      else lsem p' (Lstate m1 vm1 fn 0) (Lstate m2 vm2 fn (size body)))
       (λ _ vm2, vm1 = vm2 [\ if ra is RAnone then Sv.diff k (sv_of_list id callee_saved) else Sv.union k (extra_free_registers_at extra_free_registers ii)])
       (λ _ vm2, wf_vm vm2)
       (λ _ vm2, s2.[vrsp <- ok (pword_of_word sp)] <=[\ sv_of_list id callee_saved ] vm2)
@@ -1476,8 +1453,8 @@ Section PROOF.
   (* Inversion lemmas about lsem: can skip align and label instructions *)
   Lemma lsem_skip_align m vm fn P m' vm' n ii a Q :
     is_linear_of fn (P ++ add_align ii a [::] ++ Q) →
-    lsem p' mov_eop {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size P |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) + n |} →
-    lsem p' mov_eop {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) + n |}.
+    lsem p' {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size P |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) + n |} →
+    lsem p' {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) + n |}.
   Proof.
     case: a; last by rewrite cats0.
     move => C /lsem_split_start[].
@@ -1492,8 +1469,8 @@ Section PROOF.
 
   Lemma lsem_skip_label m vm fn P m' vm' n ii lbl Q :
     is_linear_of fn (P ++ [:: {| li_ii := ii ; li_i := Llabel lbl |} ] ++ Q) →
-    lsem p' mov_eop {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size P |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size P + n.+1 |} →
-    lsem p' mov_eop {| lmem := m ; lvm := vm ; lfn := fn ; lpc := (size P).+1 |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size P + n.+1 |}.
+    lsem p' {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size P |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size P + n.+1 |} →
+    lsem p' {| lmem := m ; lvm := vm ; lfn := fn ; lpc := (size P).+1 |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size P + n.+1 |}.
   Proof.
     move => C /lsem_split_start[].
     - case => _ _ K; exfalso; move: K; clear.
@@ -1508,8 +1485,8 @@ Section PROOF.
     is_linear_of fn (P ++ [:: {| li_ii := ii ; li_i := Lgoto (fn, lbl) |} ] ++ Q ++ [:: {| li_ii := jj ; li_i := Llabel lbl |} ] ++ R ) →
     ~~ has (is_label lbl) P →
     ~~ has (is_label lbl) Q →
-    lsem p' mov_eop {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size P |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size P + n.+1 |} →
-    lsem p' mov_eop {| lmem := m ; lvm := vm ; lfn := fn ; lpc := (size P + size Q).+2 |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size P + n.+1 |}.
+    lsem p' {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size P |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size P + n.+1 |} →
+    lsem p' {| lmem := m ; lvm := vm ; lfn := fn ; lpc := (size P + size Q).+2 |} {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size P + n.+1 |}.
   Proof.
     move => C Dp Dq /lsem_split_start[].
     - case => _ _ K; exfalso; move: K; clear.
@@ -1588,7 +1565,7 @@ Section PROOF.
         exact: sem_stack_stable Ec.
       apply: lsem_trans; last apply: (lsem_trans E1); last apply: (lsem_trans E2).
       - (* align; label *)
-        apply: (@lsem_step_end _ _ _ p' _ {| lfn := fn; lpc := size (P ++ add_align ii a [::]) |}); last first.
+        apply: (@lsem_step_end _ _ _ p' {| lfn := fn; lpc := size (P ++ add_align ii a [::]) |}); last first.
         + move: C.
           rewrite -!catA catA -{1}(addn0 (size _)) /lsem1 /step => /find_instr_skip ->.
           rewrite /eval_instr /= /setpc /= addn0 !size_cat addnA addn1.
@@ -1651,7 +1628,7 @@ Section PROOF.
         exact: sem_validw_stable Ec.
       apply: lsem_trans; last apply: (lsem_trans E1).
       - (* align; label *)
-        apply: (@lsem_step_end _ _ _ p' _ {| lfn := fn; lpc := size (P ++ add_align ii a [::]) |}); last first.
+        apply: (@lsem_step_end _ _ _ p' {| lfn := fn; lpc := size (P ++ add_align ii a [::]) |}); last first.
         + move: C.
           rewrite -!catA catA -{1}(addn0 (size _)) /lsem1 /step => /find_instr_skip ->.
           rewrite /eval_instr /= /setpc /= addn0 !size_cat addnA addn1.
@@ -1817,7 +1794,7 @@ Section PROOF.
       exists m' vm'; [ | | exact: W' | exact: X' | exact: H' | exact: M' ]; last first.
       - apply: vmap_eq_exceptI K; SvD.fsetdec.
       apply: lsem_trans; last apply: (lsem_trans E).
-      - apply: (@lsem_trans _ _ _ _ _ {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) |}).
+      - apply: (@lsem_trans _ _ _ _ {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) |}).
         + subst prefix; case: a C {E} => C; last by rewrite cats0; exact: rt_refl.
           apply: LSem_step.
           move: C.
@@ -1959,11 +1936,8 @@ Section PROOF.
         case => m' vm' exec_fn' K' W' /vmap_uincl_ex_empty X' H' M' ?; subst k.
         eexists; first apply: lsem_step; only 2: apply: lsem_step.
         + rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) addn0 /=.
-          by apply (hlparams.(spec_mov_op)
-                        {| emem := m1; evm := vm2; |}
-                        _ _
-                        ok_ret_addr
-                        ok_ptr).
+          rewrite /eval_instr /= ok_ptr set_well_typed_var //.
+          exact/eqP.
         + rewrite /lsem1 /step -addn1 (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE ok_body').
           rewrite /lfd' find_entry_label; last by rewrite ra_eq.
           by rewrite /setcpc /=.
@@ -2027,7 +2001,8 @@ Section PROOF.
           apply (hlparams.(spec_lp_free_stack_frame) p' (s:={|emem:=_; evm:=_|})).
           by rewrite vm2_rsp pword_of_wordE.
         * rewrite /lsem1 /step -addn1 (find_instr_skip C) addn1 /=.
-          by apply (hlparams.(spec_mov_op) {|emem:=_; evm:=_|} _ _ ok_ret_addr ok_ptr).
+          rewrite /eval_instr /= ok_ptr set_well_typed_var //.
+          exact/eqP.
         * rewrite /lsem1 /step -addn2 (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE ok_body').
           rewrite /lfd' find_entry_label; last by rewrite ra_eq.
           by rewrite /setcpc /=.
@@ -2042,7 +2017,6 @@ Section PROOF.
         rewrite pword_of_wordE in Hvm'.
 
         rewrite (@spec_lp_allocate_stack_frame
-                   _
                    _
                    hlparams
                    _
@@ -2170,10 +2144,10 @@ Section PROOF.
         rewrite /of_estate -addn1 -addnA add0n.
         reflexivity.
       + rewrite /lsem1 /step (find_instr_skip C) /=.
-        rewrite (hlparams.(spec_mov_op) {| emem := m1; evm := _; |} _ _ _ ok_ptr); last done.
-        rewrite /pof_val /vtype to_pword_u.
+        rewrite /eval_instr /= ok_ptr.
         rewrite addn1 -addn2.
         rewrite -wrepr_opp -(@top_stack_after_aligned_alloc arch_pd); last by [].
+        rewrite sumbool_of_boolET pword_of_wordE.
         reflexivity.
       + rewrite /lsem1 /step (find_instr_skip C) /=.
         rewrite /lstore /lassign.
@@ -2182,7 +2156,7 @@ Section PROOF.
         set r := Var _ fr.
         set lx := Lmem _ _ _.
         set e := Pvar _.
-        set ls := of_estate _ _ _.
+        set ls := {| lmem := m1 |}.
 
         have Hsem_pexpr : sem_pexpr [::] (to_estate ls) e = ok (Vword ptr).
         * by rewrite /= /get_gvar /= /get_var Fv.setP_eq.
@@ -2602,7 +2576,6 @@ Section PROOF.
           ∃ vm, [/\
             lsem
               p'
-              mov_eop
               {|
                 lmem := m1;
                 lvm := vm_save;
@@ -2652,7 +2625,7 @@ Section PROOF.
               by rewrite pword_of_wordE.
 
             rewrite (@spec_lp_free_stack_frame
-                       _ _
+                       _
                        hlparams
                        _
                        {| emem := m1; evm := vm_save; |}
@@ -2677,7 +2650,7 @@ Section PROOF.
         case => vm [] lexec_alloc ok_vm vm_old vm_rsp.
         set rsp' := top_stack m1'.
         have [vm'' [heval hvm'' hdefvm'' wf_vm'']]:=
-          (@spec_lp_ensure_rsp_alignment _ _ hlparams p' {|evm:=vm; emem:=m1|} _
+          (@spec_lp_ensure_rsp_alignment _ hlparams p' {|evm:=vm; emem:=m1|} _
             (sf_align (f_extra fd)) _ xH fn ((size alloc).+1 + 0) vm_rsp ok_vm).
 
        have X' :
@@ -2887,7 +2860,7 @@ Section PROOF.
         have wf_vm_rsp: wf_vm vm_rsp.
         + by do 2 apply wf_vm_set.
         have [vm_rsp_aligned [heval hvmrsp hdefvmrsp wf_vm_rsp_aligned]] :=
-          @spec_lp_ensure_rsp_alignment _ _ hlparams p' {|evm:=vm_rsp; emem:=m1|} _
+          @spec_lp_ensure_rsp_alignment _ hlparams p' {|evm:=vm_rsp; emem:=m1|} _
             (sf_align (f_extra fd)) _ xH fn ((1 + 0).+1) vm_rsp_rsp wf_vm_rsp.
         rewrite /wtop -/(align_word _ _) -wrepr_opp -/(top_stack_after_alloc _ _ _) -/top in hvmrsp.
 
@@ -2934,7 +2907,7 @@ Section PROOF.
                         write m (top + wrepr Uptr ofs)%R v) m2 (sf_to_save (f_extra fd)) = ok m3,
                  preserved_metadata s1 m2 m3,
                  match_mem s1 m3 &
-                 lsem p' mov_eop {| lmem := m2; lvm := vm_rsp_aligned; lfn := fn; lpc := 4 |}
+                 lsem p' {| lmem := m2; lvm := vm_rsp_aligned; lfn := fn; lpc := 4 |}
                       {| lmem := m3 ; lvm := vm_rsp_aligned ; lfn := fn ; lpc := size P |}
                       ].
         + {
@@ -2985,7 +2958,7 @@ Section PROOF.
           rewrite /lsem1 /step.
           rewrite -{1}(addn0 (size prefix)) (find_instr_skip ok_body).
           move /to_wordI : ok_w => [ws' [w' [hle ??]]]; subst v w => /=.
-          apply: (@spec_lassign _ _ hlparams p' {|emem:=_; evm:=_|} {|emem:=_; evm:=_|} _ _ _ _ _ w') => //.
+          apply: (@spec_lassign _ hlparams p' {|emem:=_; evm:=_|} {|emem:=_; evm:=_|} _ _ _ _ _ w') => //.
           + by rewrite /truncate_word hle.
           rewrite /= /get_var.
           rewrite (hvmrsp vrsp); last by move=> /sv_of_flagsP /(mapP (T1:=ceqT_eqType)) [].
@@ -3028,7 +3001,7 @@ Section PROOF.
           by rewrite -topE (writeP_eq ok_m2).
         have : ∃ vm5,
             [/\
-             lsem p' mov_eop {| lmem := m4; lvm := vm4 ; lfn := fn ; lpc := size (P ++ lbody) |}
+             lsem p' {| lmem := m4; lvm := vm4 ; lfn := fn ; lpc := size (P ++ lbody) |}
                   {| lmem := m4; lvm := vm5 ; lfn := fn ; lpc := size (P ++ lbody ++ pop_to_save p lparams xH (sf_to_save (f_extra fd))) |},
              wf_vm vm5 &
              ∀ x, vm5.[x] = if x \in (map fst (sf_to_save (f_extra fd))) then vm_rsp_aligned.[x] else vm4.[x]
@@ -3087,7 +3060,7 @@ Section PROOF.
             rewrite -{1}(addn0 (size prefix)) -catA => /find_instr_skip -> /=.
             rewrite /lload.
             rewrite size_rcons.
-            apply: (@spec_lassign _ _ hlparams p' {|emem:=_; evm:=_|} {|emem:=_; evm:=_|}).
+            apply: (@spec_lassign _ hlparams p' {|emem:=_; evm:=_|} {|emem:=_; evm:=_|}).
             + rewrite /= vm4_get_rsp truncate_word_u /=.
               have : read m4 (top + wrepr Uptr ofs)%R ws = get_var vm_rsp_aligned {| vname := x; vtype := sword ws |} >>= to_word ws.
               * rewrite -(@eq_read _ _ _ _ m3); last first.
@@ -3138,14 +3111,14 @@ Section PROOF.
         eexists.
         + apply: lsem_step.
           * rewrite /lsem1 /step /find_instr ok_fd' /=.
-            apply: (@spec_lmove _ _ hlparams p' {|emem:=_; evm:=_|} {|emem:=_; evm:=_|}).
+            apply: (@spec_lmove _ hlparams p' {|emem:=_; evm:=_|} {|emem:=_; evm:=_|}).
             + by rewrite /= /get_gvar /= ok_rsp.
             by rewrite /= /write_var /= sumbool_of_boolET.
           apply: lsem_step.
           * rewrite /lsem1 /step.
             move: ok_body.
             rewrite /P -cat1s -catA -(addn0 1) => /find_instr_skip -> /=.
-            apply: (@spec_lp_free_stack_frame _ _ hlparams p').
+            apply: (@spec_lp_free_stack_frame _ hlparams p').
             rewrite Fv.setP_neq; last by move /negbT: (not_magic_neq_rsp var_tmp_not_magic).
             move: ok_rsp; rewrite /get_var.
             apply: on_vuP => //= -[???] ->.
@@ -3175,7 +3148,7 @@ Section PROOF.
               last by rewrite /P catA.
             move => /find_instr_skip -> /=.
             rewrite /lstore.
-            apply: (@spec_lassign _ _ hlparams p').
+            apply: (@spec_lassign _ hlparams p').
             + rewrite /= /get_gvar /= /get_var.
               rewrite (hvmrsp var_tmp); last by move=> /sv_of_flagsP /(mapP (T1:=ceqT_eqType)) [].
               do 2 (rewrite Fv.setP_neq; last by rewrite eq_sym; apply/negbT; exact: not_magic_neq_rsp var_tmp_not_magic).
@@ -3196,7 +3169,7 @@ Section PROOF.
           move/find_instr_skip: ok_body; rewrite -catA => -> /=.
           rewrite /lload.
           rewrite !size_cat /= addn0 addn1 !addnS !addnA.
-          apply: (@spec_lassign _ _ hlparams p' {|emem:=_; evm:=_|} {|emem:=_; evm:=_|}).
+          apply: (@spec_lassign _ hlparams p' {|emem:=_; evm:=_|} {|emem:=_; evm:=_|}).
           + rewrite /= vm5_get_rsp /= truncate_word_u /=.
             by rewrite read_saved_rsp /=.
           + by rewrite truncate_word_u.
@@ -3436,7 +3409,7 @@ Section PROOF.
         ∃ vm' lm' res',
           (* TODO: vm = vm' [\ k ] ; stack_stable m m' ; etc. *)
           [/\
-            lsem_exportcall p' mov_eop callee_saved lm fn vm lm' vm',
+            lsem_exportcall p' callee_saved lm fn vm lm' vm',
             match_mem m' lm',
             mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
             List.Forall2 value_uincl res res' &

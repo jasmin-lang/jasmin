@@ -384,7 +384,7 @@ Lemma compiler_back_endP callee_saved entries (p: sprog) (tp: lprog) (rip: word 
         all2 check_ty_val fd.(lfd_tyin) args' ∧
         ∃ vm' lm' res',
           [/\
-            lsem_exportcall tp x86_linear_sem.x86_mov_eop callee_saved lm fn vm lm' vm',
+            lsem_exportcall tp callee_saved lm fn vm lm' vm',
             match_mem m' lm',
             mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
             List.Forall2 value_uincl res res' &
