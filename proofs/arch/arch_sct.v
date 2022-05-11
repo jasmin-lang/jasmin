@@ -166,23 +166,19 @@ Section Expr.
 Context (c:constraints) (env:env).
 
 Definition wt_oreg (o:option reg_t) (S:Ssty.t) := 
-  match 
+  match o with 
+  | Some r => 
+      let (lr, ws') := env.(e_reg) r in
+      Ssty.for_all (fun l => is_le c lr l) S && (reg_size <= ws')%CMP
+  | None => true
+  end.
+  
 Definition wt_addr (a:address) (S:Ssty.t) := 
   match a with
-  | Areg ra =>
+  | Areg ra => wt_oreg ra.(ad_base) S && wt_oreg ra.(ad_offset) S
+               
      
   | Arip _ => Ssty.for_all (fun l => is_le c public l) S
-  Definition decode_reg_addr (s : asmmem) (a : reg_address) : pointer := nosimpl (
-  let: disp   := a.(ad_disp) in
-  let: base   := odflt 0%R (Option.map (s.(asm_reg)) a.(ad_base)) in
-  let: scale  := word_of_scale a.(ad_scale) in
-  let: offset := odflt 0%R (Option.map (s.(asm_reg)) a.(ad_offset)) in
-  disp + base + scale * offset)%R.
-
-Definition decode_addr (s:asmmem) (a:address) : pointer := 
-  match a with
-  | Areg ra => decode_reg_addr s ra
-  | Arip ofs => (s.(asm_rip) + ofs)%R
   end.
 
 Definition wt_asm_arg (k:addr_kind) (a:asm_arg) (ty:stype) (S:Ssty.t) := 
@@ -202,24 +198,10 @@ Definition wt_asm_arg (k:addr_kind) (a:asm_arg) (ty:stype) (S:Ssty.t) :=
       Ssty.for_all (fun l => is_le c lr l) S && (ws <= ws')%CMP
 
   | Addr a, sword ws =>
-      
       if k is AK_compute then 
         wt_addr a S
-      else 
+      else false (* FIXME *)
 
   | _, _ => false
   end.
 
-
-Variant asm_arg : Type :=
-  | Condt  of cond_t
-  | Imm ws of word ws
-  | Reg    of reg_t
-  | Regx   of regx_t
-  | Addr   of address
-  | XReg   of xreg_t.
-
-
-
-
- 
