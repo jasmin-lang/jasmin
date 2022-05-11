@@ -452,7 +452,7 @@ Section LEMMA.
     rewrite /check_instr_r; t_xrbindP =>  ? hce hlv _ hpre hsim.
     move: eval_op; rewrite /sem_sopn; t_xrbindP => rs vs ok_vs ok_rs ok_s2.
     have [w ok_w vw] := check_esP hce hsim ok_vs.
-    have [rs' [ok_w' urs]] := vuincl_exec_opn vw ok_rs.
+    have [rs' ok_w' urs ] := vuincl_exec_opn vw ok_rs.
     have [t2 ok_t2 hsim'] := check_lvsP hlv hsim ok_s2 urs.
     exists t2=> //; eexists; last reflexivity.
     by econstructor; eauto; rewrite /sem_sopn ok_w /= ok_w' /=.

@@ -1,28 +1,3 @@
-(* ** License
- * -----------------------------------------------------------------------
- * Copyright 2016--2017 IMDEA Software Institute
- * Copyright 2016--2017 Inria
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * ----------------------------------------------------------------------- *)
-
 (* * Syntax and semantics of the Jasmin source language *)
 
 (* ** Imports and settings *)
@@ -353,3 +328,24 @@ Proof.
   move=> /= vs vs' v; rewrite /app_sopn_v /= => -[] {vs vs'} // v1 v2 ?? hu []; t_xrbindP => //=.
   by move=> t a /(value_uincl_arr hu) /= [a'] -> hut /= /(WArray.uincl_copy hut) -> <-.
 Qed.
+
+Lemma ok_values_uincl_refl (f: exec values) v :
+  f = ok v →
+  exists2 v', f = ok v' & List.Forall2 value_uincl v v'.
+Proof. move => ?; exists v => //; exact: List_Forall2_refl value_uincl_refl. Qed.
+
+Definition vuincl_app_sopn_v tin tout (semi: sem_prod tin (exec (sem_tuple tout))) :
+  all is_not_sarr tin ->
+  forall vs vs' v,
+  List.Forall2 value_uincl vs vs' ->
+  app_sopn_v semi vs = ok v ->
+  _ :=
+  λ A vs vs' v B C, ok_values_uincl_refl (vuincl_app_sopn_v_eq A B C).
+
+Definition vuincl_copy ws p :
+  let sz := Z.to_pos (arr_size ws p) in
+  forall vs vs' v,
+  List.Forall2 value_uincl vs vs' ->
+  @app_sopn_v [::sarr sz] [::sarr sz] (@WArray.copy ws p) vs = ok v ->
+  _ :=
+  λ vs vs' v A B, ok_values_uincl_refl (vuincl_copy_eq A B).

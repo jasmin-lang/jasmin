@@ -120,12 +120,6 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma eq_get_gvar m x y vx vy: 
-  v_var (gv x) = v_var (gv y) -> get_gvar [::] m x = ok vx -> get_gvar [::] m y = ok vy -> vx = vy.
-Proof.
-  by rewrite /get_gvar; case:ifP => //; case: ifP => // ?? -> -> [->].
-Qed.
-
 Context (assemble_cond : instr_info -> pexpr -> cexec cond_t).
 Hypothesis eval_assemble_cond : forall ii m rf e c v,
   eqflags m rf →

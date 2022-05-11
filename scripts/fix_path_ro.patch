@@ -1,0 +1,8 @@
+@@ -87,6 +87,7 @@ add_dune_cache_mount() {
+   add_mount rw "$u_dune_cache" "$dune_cache"
+ }
+ 
++OPAM_USER_PATH_RO="$OPAM_USER_PATH_RO:$OPAMROOT"
+ # mount unusual path in ro
+ if  [ -n "${OPAM_USER_PATH_RO-}" ]; then
+    add_mounts ro $(echo "${OPAM_USER_PATH_RO}" | sed 's|:| |g')

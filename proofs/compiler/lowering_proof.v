@@ -341,12 +341,6 @@ Proof. apply and3_iff_morphism. Qed.
   by move => ->; apply: on_arr_varP.
   Qed.
 
-  Lemma lower_cond_app ii o e1 e2 q x y:
-    lower_cond_classify fv ii (Papp2 o e1 e2) = Some (q, x, y) -> e1 = x /\ e2 = y.
-  Proof.
-  by case: o => // -[] // => [ | | [] | [] | [] | [] ] sz [] _ <- <-.
-  Qed.
-
   Lemma between_ZR (a b c: Z) :
     (a <= b < c)%R →
     (a <= b < c)%Z.
@@ -379,8 +373,6 @@ Proof. apply and3_iff_morphism. Qed.
   fold m in hα', hβ'.
   suff: z = (- z1)%Z; Psatz.nia.
   Qed.
-
-  Definition sbool5 := [:: sbool;sbool;sbool;sbool;sbool].
 
   (* TODO : move in word *)
   Lemma wltsE (sz : wsize) (α β : word sz) :

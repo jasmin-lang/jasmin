@@ -1,29 +1,3 @@
-(* ** License
- * -----------------------------------------------------------------------
- * Copyright 2016--2017 IMDEA Software Institute
- * Copyright 2016--2017 Inria
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * ----------------------------------------------------------------------- *)
-
-
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
@@ -104,7 +78,7 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
     ; i_out    := map sopn_arg_desc id.(id_out)
     ; tout     := id.(id_tout)
     ; semi     := id.(id_semi)
-    ; semu     := @vuincl_app_sopn_v_eq _ _ id.(id_semi) id.(id_tin_narr)
+    ; semu     := @vuincl_app_sopn_v _ _ id.(id_semi) id.(id_tin_narr)
     ; wsizei   := id.(id_wsize)
     ; i_safe   := id.(id_safe) |}
  | ExtOp o => asm_op_instr o

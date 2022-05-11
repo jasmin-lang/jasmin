@@ -86,26 +86,6 @@ Proof.
   by rewrite Lex_lex=> /lex_eq /= [] /(@cmp_eq _ _ asciiO) -> /Hs1 ->.
 Qed.
 
-
-
-(* -------------------------------------------------------------------- *)
-
-Fixpoint code (s : string) :=
-  if s is String a s then a :: code s else [::].
-
-Fixpoint decode (s : seq Ascii.ascii) :=
-  if s is a :: s then String a (decode s) else EmptyString.
-
-Lemma codeK : cancel code decode.
-Proof. by elim=> //= a s ->. Qed.
-
-Definition string_choiceMixin := CanChoiceMixin codeK.
-Canonical  string_choiceType  := ChoiceType string string_choiceMixin.
-
-Definition string_countMixin := CanCountMixin codeK.
-Canonical  string_countType  := CountType string string_countMixin.
-
-
 (* -------------------------------------------------------------------- *)
 (*
 Definition a2P_app c n :=

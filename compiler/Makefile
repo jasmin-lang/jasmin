@@ -13,7 +13,6 @@ endif
 OCAMLBUILD_OPTS += $(OCAMLBUILD_EXTRA)
 
 OCAMLBUILD := $(OCAMLBUILD_BIN) $(OCAMLBUILD_OPTS)
-INSTALL    := scripts/install-sh
 
 # --------------------------------------------------------------------
 JSJOBS    ?= 2
@@ -23,10 +22,12 @@ CHECK     += config/tests.config
 CHECKCATS ?= all safety CCT nolea print
 
 # --------------------------------------------------------------------
-PREFIX ?= /usr/local
-BINDIR := $(PREFIX)/bin
-LIBDIR := $(PREFIX)/lib/jasmin
-SHRDIR := $(PREFIX)/share/jasmin
+DESTDIR  ?=
+PREFIX   ?= /usr/local
+BINDIR   := $(PREFIX)/bin
+LIBDIR   := $(PREFIX)/lib
+SHRDIR   := $(PREFIX)/share
+INSTALL  ?= ../scripts/install-sh
 
 # --------------------------------------------------------------------
 DISTDIR ?= jasmin-compiler
@@ -35,7 +36,8 @@ DISTDIR ?= jasmin-compiler
 OBELISK ?= obelisk
 
 # --------------------------------------------------------------------
-.PHONY: all build byte native CIL check __force__
+.PHONY: all build byte native CIL check check-ci __force__
+.PHONY: clean install uninstall dist
 .PHONY: %.ml %.mli %.inferred.mli
 
 .PRECIOUS: _c_build/%.s _c_build/%.o
@@ -80,6 +82,13 @@ clean:
 	$(OCAMLBUILD) -clean -classic-display
 	rm -rf _c_build
 	rm -f jasminc.native jasminc.byte lib*.a
+
+install:
+	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
+	$(INSTALL) -m 0755 -T jasminc.native $(DESTDIR)$(BINDIR)/jasminc
+
+uninstall:
+	rm -f $(DESTDIR)$(BINDIR)/jasminc
 
 # --------------------------------------------------------------------
 dist: $(DISTDIR).tgz

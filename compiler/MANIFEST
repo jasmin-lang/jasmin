@@ -1,3 +1,4 @@
+LICENSE
 MANIFEST
 README.md
 
@@ -16,3 +17,6 @@ find:src:*.mll
 find:src:*.mly
 
 src/LICENSE.puf
+CIL/LICENSE.coq
+CIL/LICENSE.coqword
+CIL/LICENSE.mathcomp

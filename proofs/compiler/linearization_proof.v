@@ -1,28 +1,3 @@
-(* ** License
- * -----------------------------------------------------------------------
- * Copyright 2016--2017 IMDEA Software Institute
- * Copyright 2016--2017 Inria
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * ----------------------------------------------------------------------- *)
-
 (* * Syntax and semantics of the linear language *)
 
 (* ** Imports and settings *)
@@ -253,13 +228,6 @@ Proof.
   all: by case/andP => -> /h.
 Qed.
 
-Lemma find_label_cat_tl c2 c1 lbl p:
-  find_label lbl c1 = ok p -> find_label lbl (c1++c2) = ok p.
-Proof.
-  rewrite /find_label;case:ifPn => // Hs [<-].
-  by rewrite find_cat size_cat has_find Hs (ltn_addr _ Hs).
-Qed.
-
 Lemma find_labelE lbl c :
   find_label lbl c =
   if c is i :: c'
@@ -364,14 +332,6 @@ Qed.
 
 Lemma add_align_nil ii a c : add_align ii a c = add_align ii a [::] ++ c.
 Proof. by case: a. Qed.
-
-Lemma find_label_add_align lbl ii a c :
-  find_label lbl (add_align ii a c) =
-  Let n := find_label lbl c in ok ((a == Align) + n).
-Proof.
-  case: a => /=;last by case: find_label.
-  by rewrite /add_align -cat1s find_label_cat_hd.
-Qed.
 
 Section LINEARIZE_PARAMS.
 
@@ -1351,7 +1311,7 @@ Section PROOF.
     move => fn lbl /checked_iE[] fd ok_fd chk.
     move => fr_undef m1 vm1 P Q W1 M1 X1 D1 C1.
     have [ vs' /(match_mem_sem_pexprs M1) ok_vs' vs_vs' ] := sem_pexprs_uincl X1 ok_vs.
-    have [ rs' [ ok_rs' rs_rs' ] ] := vuincl_exec_opn vs_vs' ok_rs.
+    have [ rs' ok_rs' rs_rs' ] := vuincl_exec_opn vs_vs' ok_rs.
     have [ vm2 /(match_mem_write_lvals M1) [ m2 ok_s2' M2 ] ok_vm2 ] := writes_uincl X1 rs_rs' ok_s2.
     exists m2 vm2; [ | | | exact: ok_vm2 | | exact: M2 ]; last first.
     + exact: write_lvals_preserves_metadata ok_s2 ok_s2' _ X1 M1.
@@ -2423,11 +2383,6 @@ Section PROOF.
       exact: ok_m.
     exact: M'.
   Qed.
-
-  Lemma vm_uincl_set_RSP m vm vm' :
-    vm_uincl vm vm' →
-    vm_uincl (set_RSP p m vm) (set_RSP p m vm').
-  Proof. move => h; apply: (set_vm_uincl h); exact: pval_uincl_refl. Qed.
 
   Lemma RSP_in_magic :
     Sv.In vrsp (magic_variables p).

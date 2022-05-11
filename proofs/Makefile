@@ -11,6 +11,9 @@ include Makefile.common
 install: Makefile.coq
 	$(MAKE) -f Makefile.coq install
 
+uninstall: Makefile.coq
+	$(MAKE) -f Makefile.coq uninstall
+
 extraction: Makefile.coq
 	rm -f lang/ocaml/*.ml lang/ocaml/*.mli
 	rm -f lang/extraction.vo
