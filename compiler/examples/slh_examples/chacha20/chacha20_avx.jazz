@@ -90,7 +90,7 @@ inline fn __init_x4_avx(reg u64 k n1, reg u32 ctr) -> stack u128[16]
   for i=0 to 3
   { s[13+i] = #VPBROADCAST_4u32((u32)[n1 + 4*i]); }
 
-  st = s;
+  st = #copy_128(s);
 
   //  st
   //  0 { ... , sigma0     , sigma0     }
@@ -110,15 +110,15 @@ inline fn __init_x4_avx(reg u64 k n1, reg u32 ctr) -> stack u128[16]
 inline fn __copy_state_x1_avx(reg u128[4] st) -> reg u128[4]
 {
   reg u128[4] k;
-  k = st;
+  k = #copy_128(st);
   return k;
 }
 
 inline fn __copy_state_x2_avx(reg u128[4] st) -> reg u128[4], reg u128[4]
 {
   reg u128[4] k1 k2;
-  k1 = st;
-  k2 = st;
+  k1 = #copy_128(st);
+  k2 = #copy_128(st);
   k2[3] +4u32= g_p1;
 
   // k2             k1
@@ -132,7 +132,7 @@ inline fn __copy_state_x2_avx(reg u128[4] st) -> reg u128[4], reg u128[4]
 inline fn __copy_state_x4_avx(stack u128[16] st) -> reg u128[16]
 {
   reg u128[16] k;
-  k = st;
+  k = #copy_128(st);
   return k;
 }
 
@@ -435,7 +435,7 @@ inline fn __store_x4_last_avx( reg u64 output plain,  reg u32 len,  reg u128[16]
   reg   u128[8] k0_7 k8_15 i0_7;
 
   k0_7, s_k8_15 = __rotate_first_half_x8_avx(k);
-  s_k0_7 = k0_7;
+  s_k0_7 = #copy_128(k0_7);
   k8_15 = __rotate_second_half_x8_avx(s_k8_15);
   i0_7 = __interleave_avx(s_k0_7, k8_15, i_0);
 
