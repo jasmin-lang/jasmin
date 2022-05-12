@@ -570,18 +570,18 @@ Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r :=
 
 Definition Lnone_w vi sz := Lnone vi (sword sz).
 
-Definition lower_protect sz (xs:lvals) tg (es:pexprs) : seq instr_r := 
-  match xs with
-  | [:: r] => 
+Definition lower_protect sz (xs: lvals) tg (es:pexprs) : seq instr_r :=
+  if xs is [:: r]
+  then
       let vi := var_info_of_lval r in
-      if check_size_8_64 sz is Ok _ then
-        let f := Lnone_b vi in
-        [:: Copn [:: f; f; f; f; f; r] tg (Oasm (ExtOp (x86_extra.Oprotect sz))) es]
-      else
-        let f := Lnone_w vi sz in
-        [:: Copn [:: f; r] tg (Oasm (ExtOp (x86_extra.Oprotect sz))) es]
-  | _ => [::Copn xs tg (sopn.Oprotect sz) es]
-  end.
+      let ys :=
+        if (sz ≤ U64)%CMP then
+          let f := Lnone_b vi in [:: f; f; f; f; f; r ]
+        else
+          let f := Lnone_w vi sz in [:: f; r ]
+      in
+      [:: Copn ys tg (Oasm (ExtOp (x86_extra.Oprotect sz))) es]
+  else [::] (* Absurd case *).
 
 Definition lower_set_msf (xs:lvals) tg (es:pexprs) : seq instr_r := 
   match xs with
