@@ -3,11 +3,11 @@ param int CHACHA_ROUNDS=20;
 // nonce : 8 bytes
 // key : 32 bytes
 // counter : 8 bytes (starts at 0)
-inline fn __init_ref1(#public reg u64 nonce key, #msf reg u64 ms) ->  #secret stack u32[16], #msf reg u64
+inline fn __init_ref1( reg u64 nonce key, #msf reg u64 ms) ->   stack u32[16], #msf reg u64
 {
-  #public inline int i, j;
-  #secret stack u32[16] st;
-  #secret reg u32 t;
+   inline int i, j;
+   stack u32[16] st;
+   reg u32 t;
 
   st[0] = 0x61707865;
   st[1] = 0x3320646e;
@@ -34,7 +34,7 @@ inline fn __init_ref1(#public reg u64 nonce key, #msf reg u64 ms) ->  #secret st
 
 
 // increments 64-bit counter
-inline fn __increment_counter_ref1(#secret stack u32[16] st, #msf reg u64 ms) -> #secret stack u32[16], #msf reg u64
+inline fn __increment_counter_ref1( stack u32[16] st, #msf reg u64 ms) ->  stack u32[16], #msf reg u64
 {
   reg u64 t;
 
@@ -49,7 +49,7 @@ inline fn __increment_counter_ref1(#secret stack u32[16] st, #msf reg u64 ms) ->
 ///////////////////////////////////////////////////////////////////////////////
 // store 'xor' ////////////////////////////////////////////////////////////////
 
-inline fn __update_ptr_xor_ref1(#public reg u64 output plain len, #public inline int n, #msf reg u64 ms) -> #public reg u64, #public reg u64, #public reg u64, #msf reg u64
+inline fn __update_ptr_xor_ref1( reg u64 output plain len,  inline int n, #msf reg u64 ms) ->  reg u64,  reg u64,  reg u64, #msf reg u64
 {
   output += n;
   plain += n;
@@ -59,19 +59,19 @@ inline fn __update_ptr_xor_ref1(#public reg u64 output plain len, #public inline
 
 
 inline fn __sum_states_store_xor_ref1(
-  #transient stack u64 s_output s_plain s_len,
-  #secret reg u32[16] k, #secret stack u32 k14 k15,
-  #secret stack u32[16] st,
+   stack u64 s_output s_plain s_len,
+   reg u32[16] k,  stack u32 k14 k15,
+   stack u32[16] st,
   #msf reg u64 ms
-) -> #transient stack u64, #transient stack u64, #transient stack u64, #msf reg u64
+) ->  stack u64,  stack u64,  stack u64, #msf reg u64
 {
-  #public inline int i;
-  #secret reg u64[8] kk;
-  #public reg u64 output plain len;
-  #secret reg u64 aux;
-  #transient reg u64 trans;
-  #public inline bool b;
-  #public reg u64 temp;
+   inline int i;
+   reg u64[8] kk;
+   reg u64 output plain len;
+   reg u64 aux;
+   reg u64 trans;
+   inline bool b;
+   reg u64 temp;
 
   // store                        // sum states
   // i = 0 : 1 dead
@@ -84,7 +84,7 @@ inline fn __sum_states_store_xor_ref1(
 
   //plain = s_plain;
   trans = s_plain;
-  _, _, _, _, _, plain = #protect(trans, ms);
+  plain = #protect(trans, ms);
   kk[0] ^= (u64)[plain + 8*0];
 
   // i = 1 : 2 dead
@@ -98,7 +98,7 @@ inline fn __sum_states_store_xor_ref1(
 
   // output = s_output;
   trans = s_output;
-  _, _, _, _, _, output = #protect(trans, ms);
+  output = #protect(trans, ms);
   (u64)[output + 8*0] = kk[0];
 
   for i=2 to 8
@@ -126,7 +126,7 @@ inline fn __sum_states_store_xor_ref1(
 
   // len = s_len;
   trans = s_len;
-  _, _, _, _, _, len = #protect(trans, ms);
+  len = #protect(trans, ms);
 
   output, plain, len, ms = __update_ptr_xor_ref1(output, plain, len, 64, ms);
 
@@ -138,15 +138,15 @@ inline fn __sum_states_store_xor_ref1(
 }
 
 
-inline fn __store_xor_last_ref1(#transient stack u64 s_output s_plain s_len, #secret reg u32[16] k, #secret stack u32 k14 k15, #msf reg u64 ms)
+inline fn __store_xor_last_ref1( stack u64 s_output s_plain s_len,  reg u32[16] k,  stack u32 k14 k15, #msf reg u64 ms)
 {
-  #public inline int i;
-  #public reg u64 j output plain len len8;
-  #secret reg u64 t;
+   inline int i;
+   reg u64 j output plain len len8;
+   reg u64 t;
   reg u32 u;
   stack u32[16] s_k;
   reg u8 pi;
-  #transient reg u64 trans;
+   reg u64 trans;
 
   // copy k to stack
   for i=0 to 14
@@ -160,15 +160,15 @@ inline fn __store_xor_last_ref1(#transient stack u64 s_output s_plain s_len, #se
 
   //output = s_output;
   trans = s_output;
-  _, _, _, _, _, output = #protect(output, ms);
+  output = #protect(output, ms);
 
   //plain = s_plain;
   trans = s_plain;
-  _, _, _, _, _, plain = #protect(trans, ms);
+  plain = #protect(trans, ms);
 
   //len = s_len;
   trans = s_len;
-  _, _, _, _, _, len = #protect(trans, ms);
+  len = #protect(trans, ms);
 
   // u64 at a time
   len8 = len;
@@ -200,12 +200,12 @@ inline fn __store_xor_last_ref1(#transient stack u64 s_output s_plain s_len, #se
 // - inline fn __increment_counter_ref1(stack u32[16] state) -> stack u32[16] (check chacha_state.jinc)
 
 // used;
-inline fn __copy_state_ref1(#secret stack u32[16] st, #msf reg u64 ms) -> #secret reg u32[16], #secret stack u32, #secret stack u32, #msf reg u64
+inline fn __copy_state_ref1( stack u32[16] st, #msf reg u64 ms) ->  reg u32[16],  stack u32,  stack u32, #msf reg u64
 {
-  #public inline int i;
-  #secret reg u32 k14 k15;
-  #secret reg u32[16] k;
-  #secret stack u32 s_k14 s_k15;
+   inline int i;
+   reg u32 k14 k15;
+   reg u32[16] k;
+   stack u32 s_k14 s_k15;
 
   k14 = st[14];
   s_k14 = k14;
@@ -222,8 +222,8 @@ inline fn __copy_state_ref1(#secret stack u32[16] st, #msf reg u64 ms) -> #secre
 
 // used; performs two quarter rounds, inlined 'line's;
 inline fn __half_round_inline_ref1(
-  #secret reg u32[16] k,
-  #public inline int a0 b0 c0 d0
+   reg u32[16] k,
+   inline int a0 b0 c0 d0
              a1 b1 c1 d1,
   #msf reg u64 ms
 ) -> reg u32[16], #msf reg u64
@@ -274,7 +274,7 @@ inline fn __half_round_inline_ref1(
 
 
 // used;
-inline fn __double_round_inline_ref1(#secret reg u32[16] k, #secret stack u32 k1 k2 k14 k15, #msf reg u64 ms) -> #secret reg u32[16], #secret stack u32, #secret stack u32, #secret stack u32, #secret stack u32, #msf reg u64
+inline fn __double_round_inline_ref1( reg u32[16] k,  stack u32 k1 k2 k14 k15, #msf reg u64 ms) ->  reg u32[16],  stack u32,  stack u32,  stack u32,  stack u32, #msf reg u64
 {
   k[2] = k2; k[14] = k14;
 
@@ -302,13 +302,13 @@ inline fn __double_round_inline_ref1(#secret reg u32[16] k, #secret stack u32 k1
 
 
 // used;
-inline fn __rounds_inline_ref1(#secret reg u32[16] k, #secret stack u32 k14 k15, #msf reg u64 ms) -> #secret reg u32[16], #secret stack u32, #secret stack u32, #msf reg u64
+inline fn __rounds_inline_ref1( reg u32[16] k,  stack u32 k14 k15, #msf reg u64 ms) ->  reg u32[16],  stack u32,  stack u32, #msf reg u64
 {
   stack u32 k1 k2;
-  #transient stack u32 s_c;
-  #public reg u32 c;
-  #transient reg u32 trans;
-  #public inline bool b;
+   stack u32 s_c;
+   reg u32 c;
+   reg u32 trans;
+   inline bool b;
 
   k1 = k[1];
   k2 = k[2];
@@ -323,13 +323,13 @@ inline fn __rounds_inline_ref1(#secret reg u32[16] k, #secret stack u32 k14 k15,
 
     //c = s_c;
     trans = s_c;
-    _, _, _, _, _, c = #protect_32(trans, ms);
+    c = #protect_32(trans, ms);
     (_,_,_,_,c) = #DEC_32(c);
     b = c > 0;
   } (b) {
-    _, ms = #set_msf(b, ms);
+    ms = #set_msf(b, ms);
   }
-  _, ms = #set_msf(!b, ms);
+  ms = #set_msf(!b, ms);
 
   k[1] = k1;
   k[2] = k2;
@@ -339,7 +339,7 @@ inline fn __rounds_inline_ref1(#secret reg u32[16] k, #secret stack u32 k14 k15,
 
 
 // used;
-inline fn __sum_states_ref1(#secret reg u32[16] k, #secret stack u32 k14 k15, #secret stack u32[16] st, #msf reg u64 ms) -> #secret reg u32[16], #secret stack u32, #secret stack u32, #msf reg u64
+inline fn __sum_states_ref1( reg u32[16] k,  stack u32 k14 k15,  stack u32[16] st, #msf reg u64 ms) ->  reg u32[16],  stack u32,  stack u32, #msf reg u64
 {
   inline int i;
   stack u32 k13;
@@ -363,16 +363,16 @@ inline fn __sum_states_ref1(#secret reg u32[16] k, #secret stack u32 k14 k15, #s
 }
 
 
-export fn chacha_xor_ref1(#public reg u64 output plain len nonce key)
+export fn chacha_xor_ref1( #transient reg u64 output plain len nonce key)
 {
-  #transient stack u64 s_output s_plain s_len;
+   stack u64 s_output s_plain s_len;
   stack u32[16] st;
   reg u32[16] k;  // the full state is in k[0..14] and k15;
   stack u32 k14 k15;
   #msf reg u64 ms;
-  #public inline bool b;
-  #transient reg u64 trans;
-  #public inline int i;
+   inline bool b;
+   reg u64 trans;
+   inline int i;
 
   s_output = output;
   s_plain = plain;
@@ -384,22 +384,22 @@ export fn chacha_xor_ref1(#public reg u64 output plain len nonce key)
   while {
     //len = s_len;
     trans = s_len;
-    _, _, _, _, _, len = #protect(trans, ms);
+    len = #protect(trans, ms);
     b = len >= 64;
   } (b)
   {
-    _, ms = #set_msf(b, ms);
+    ms = #set_msf(b, ms);
     k, k14, k15, ms = __copy_state_ref1(st, ms);
     k, k14, k15, ms = __rounds_inline_ref1(k, k14, k15, ms);
     s_output, s_plain, s_len, ms = __sum_states_store_xor_ref1(s_output, s_plain, s_len, k, k14, k15, st, ms);
     st, ms = __increment_counter_ref1(st, ms);
   }
-  _, ms = #set_msf(!b, ms);
+  ms = #set_msf(!b, ms);
 
   b = len > 0;
   if(b)
   {
-    _, ms = #set_msf(b, ms);
+    ms = #set_msf(b, ms);
     k, k14, k15, ms = __copy_state_ref1(st, ms);
     k, k14, k15, ms = __rounds_inline_ref1(k, k14, k15, ms);
     k, k14, k15, ms = __sum_states_ref1(k, k14, k15, st, ms);

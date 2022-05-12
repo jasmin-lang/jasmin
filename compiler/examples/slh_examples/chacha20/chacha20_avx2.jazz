@@ -19,7 +19,7 @@ param int i_0  = 0;
 param int i_4  = 4;
 param int i_32 = 32;
 
-inline fn __load_shufb_cmd_avx2() -> #secret stack u256, #secret stack u256
+inline fn __load_shufb_cmd_avx2() ->  stack u256,  stack u256
 {
   reg   u256   r16,   r8;
   stack u256 s_r16, s_r8;
@@ -33,7 +33,7 @@ inline fn __load_shufb_cmd_avx2() -> #secret stack u256, #secret stack u256
 }
 
 // init
-inline fn __init_x2_avx2(#public reg u64 key nonce, #secret reg u32 counter) -> #secret reg u256[4]
+inline fn __init_x2_avx2( reg u64 key nonce,  reg u32 counter) ->  reg u256[4]
 {
   reg u256[4] st;
   reg u128 nc;
@@ -59,7 +59,7 @@ inline fn __init_x2_avx2(#public reg u64 key nonce, #secret reg u32 counter) -> 
   return st;
 }
 
-inline fn __init_x8_avx2(#public reg u64 key nonce, #secret reg u32 counter) -> #secret stack u256[16]
+inline fn __init_x8_avx2( reg u64 key nonce,  reg u32 counter) ->  stack u256[16]
 {
   inline int i;
   stack u256[16] st_;
@@ -99,14 +99,14 @@ inline fn __init_x8_avx2(#public reg u64 key nonce, #secret reg u32 counter) -> 
 }
 
 // copy state
-inline fn __copy_state_x2_avx2(#secret reg u256[4] st) -> #secret reg u256[4]
+inline fn __copy_state_x2_avx2( reg u256[4] st) ->  reg u256[4]
 {
   reg u256[4] k;
   k = st;
   return k;
 }
 
-inline fn __copy_state_x4_avx2(#secret reg u256[4] st) -> #secret reg u256[4], #secret reg u256[4]
+inline fn __copy_state_x4_avx2( reg u256[4] st) ->  reg u256[4],  reg u256[4]
 {
   reg u256[4] k1 k2;
   k1 = st;
@@ -121,7 +121,7 @@ inline fn __copy_state_x4_avx2(#secret reg u256[4] st) -> #secret reg u256[4], #
   return k1, k2;
 }
 
-inline fn __copy_state_x8_avx2(#secret stack u256[16] st) -> #secret reg u256[16]
+inline fn __copy_state_x8_avx2( stack u256[16] st) ->  reg u256[16]
 {
   reg u256[16] k;
   k = st;
@@ -129,7 +129,7 @@ inline fn __copy_state_x8_avx2(#secret stack u256[16] st) -> #secret reg u256[16
 }
 
 // sum states
-inline fn __sum_states_x2_avx2(#secret reg u256[4] k st) -> #secret reg u256[4]
+inline fn __sum_states_x2_avx2( reg u256[4] k st) ->  reg u256[4]
 {
   inline int i;
   for i=0 to 4
@@ -137,7 +137,7 @@ inline fn __sum_states_x2_avx2(#secret reg u256[4] k st) -> #secret reg u256[4]
   return k;
 }
 
-inline fn __sum_states_x4_avx2(#secret reg u256[4] k1 k2 st) -> #secret reg u256[4], #secret reg u256[4]
+inline fn __sum_states_x4_avx2( reg u256[4] k1 k2 st) ->  reg u256[4],  reg u256[4]
 {
   k1 = __sum_states_x2_avx2(k1, st);
   k2 = __sum_states_x2_avx2(k2, st);
@@ -145,7 +145,7 @@ inline fn __sum_states_x4_avx2(#secret reg u256[4] k1 k2 st) -> #secret reg u256
   return k1, k2;
 }
 
-inline fn __sum_states_x8_avx2(#secret reg u256[16] k, #secret stack u256[16] st) -> #secret reg u256[16]
+inline fn __sum_states_x8_avx2( reg u256[16] k,  stack u256[16] st) ->  reg u256[16]
 {
   inline int i;
   for i=0 to 16
@@ -154,7 +154,7 @@ inline fn __sum_states_x8_avx2(#secret reg u256[16] k, #secret stack u256[16] st
 }
 
 // increment
-inline fn __increment_counter_x8_avx2(#secret stack u256[16] s) -> #secret stack u256[16]
+inline fn __increment_counter_x8_avx2( stack u256[16] s) ->  stack u256[16]
 {
   reg u256 t;
   t = g_cnt_inc;
@@ -164,7 +164,7 @@ inline fn __increment_counter_x8_avx2(#secret stack u256[16] s) -> #secret stack
 }
 
 // store auxiliary functions
-inline fn __update_ptr_avx2(#public reg u64 output plain, #public reg u32 len, #public inline int n) -> #public reg u64, #public reg u64, #public reg u32
+inline fn __update_ptr_avx2( reg u64 output plain,  reg u32 len,  inline int n) ->  reg u64,  reg u64,  reg u32
 {
   output += n;
   plain += n;
@@ -187,7 +187,7 @@ inline fn __update_ptr_avx2(#public reg u64 output plain, #public reg u32 len, #
 //   pk[2] = { k2[7],  k2[6],  k2[5],  k2[4],    k2[3],  k2[2],  k2[1],  k2[0] }
 //   pk[2] = { k2[15], k2[14], k2[13], k2[12],   k2[11], k2[10], k2[9],  k2[8] }
 //
-inline fn __perm_x2_avx2(#secret reg u256[4] k) -> #secret reg u256[4]
+inline fn __perm_x2_avx2( reg u256[4] k) ->  reg u256[4]
 {
   reg u256[4] pk;
   pk[0] = #VPERM2I128(k[0], k[1], (2u4)[2, 0]);
@@ -199,7 +199,7 @@ inline fn __perm_x2_avx2(#secret reg u256[4] k) -> #secret reg u256[4]
 
 // perm_x4 is the same as perm_x2, only difference is that it works for 4 blocks
 // of stream
-inline fn __perm_x4_avx2(#secret reg u256[4] k1 k2) -> #secret reg u256[4], #secret reg u256[4]
+inline fn __perm_x4_avx2( reg u256[4] k1 k2) ->  reg u256[4],  reg u256[4]
 {
   reg u256[4] pk1 pk2;
   pk1 = __perm_x2_avx2(k1);
@@ -210,7 +210,7 @@ inline fn __perm_x4_avx2(#secret reg u256[4] k1 k2) -> #secret reg u256[4], #sec
 // store functions
 
 // stores 64 bytes
-inline fn __store_avx2(#public reg u64 output plain, #public reg u32 len, #secret reg u256[2] k) -> #public reg u64, #public reg u64, #public reg u32, #secret reg u256[2]
+inline fn __store_avx2( reg u64 output plain,  reg u32 len,  reg u256[2] k) ->  reg u64,  reg u64,  reg u32,  reg u256[2]
 {
   k[0] ^= (u256)[plain +  0];
   k[1] ^= (u256)[plain + 32];
@@ -224,12 +224,12 @@ inline fn __store_avx2(#public reg u64 output plain, #public reg u32 len, #secre
 }
 
 // stores up to 64 bytes
-inline fn __store_last_avx2(#public reg u64 output plain, #public reg u32 len, #secret reg u256[2] k)
+inline fn __store_last_avx2( reg u64 output plain,  reg u32 len,  reg u256[2] k)
 {
   reg u256     r0;
   reg u128     r1;
   reg u64      r2;
-  #public reg u64 j;
+   reg u64 j;
   reg u8       r3;
   stack u8[16] s0;
 
@@ -270,7 +270,7 @@ inline fn __store_last_avx2(#public reg u64 output plain, #public reg u32 len, #
 }
 
 // stores 128 bytes
-inline fn __store_x2_avx2(#public reg u64 output plain, #public reg u32 len, #secret reg u256[4] k) -> #public reg u64, #public reg u64, #public reg u32, #secret reg u256[4]
+inline fn __store_x2_avx2( reg u64 output plain,  reg u32 len,  reg u256[4] k) ->  reg u64,  reg u64,  reg u32,  reg u256[4]
 {
   inline int i;
 
@@ -286,7 +286,7 @@ inline fn __store_x2_avx2(#public reg u64 output plain, #public reg u32 len, #se
 }
 
 // stores up to 128 bytes
-inline fn __store_x2_last_avx2(#public reg u64 output plain, #public reg u32 len, #secret reg u256[4] k)
+inline fn __store_x2_last_avx2( reg u64 output plain,  reg u32 len,  reg u256[4] k)
 {
   reg u256[2] r;
 
@@ -304,7 +304,7 @@ inline fn __store_x2_last_avx2(#public reg u64 output plain, #public reg u32 len
 }
 
 // stores 256 bytes
-inline fn __store_x4_avx2(#public reg u64 output plain, #public reg u32 len, #secret reg u256[8] k) -> #public reg u64, #public reg u64, #public reg u32
+inline fn __store_x4_avx2( reg u64 output plain,  reg u32 len,  reg u256[8] k) ->  reg u64,  reg u64,  reg u32
 {
   inline int i;
 
@@ -320,7 +320,7 @@ inline fn __store_x4_avx2(#public reg u64 output plain, #public reg u32 len, #se
 }
 
 // stores up to 256 bytes
-inline fn __store_x4_last_avx2(#public reg u64 output plain, #public reg u32 len, #secret reg u256[8] k)
+inline fn __store_x4_last_avx2( reg u64 output plain,  reg u32 len,  reg u256[8] k)
 {
   inline int i;
   reg u256[4] r;
@@ -337,7 +337,7 @@ inline fn __store_x4_last_avx2(#public reg u64 output plain, #public reg u32 len
 }
 
 // stores 512 bytes auxiliary functions
-inline fn __store_half_x8_avx2(#public reg u64 output plain, #public reg u32 len, #secret reg u256[8] k, #public inline int o)
+inline fn __store_half_x8_avx2( reg u64 output plain,  reg u32 len,  reg u256[8] k,  inline int o)
 {
   inline int i;
 
@@ -347,7 +347,7 @@ inline fn __store_half_x8_avx2(#public reg u64 output plain, #public reg u32 len
   { (u256)[output + o + 64*i] = k[i]; }
 }
 
-inline fn __sub_rotate_avx2(#secret reg u256[8] t) -> #secret reg u256[8]
+inline fn __sub_rotate_avx2( reg u256[8] t) ->  reg u256[8]
 {
   inline int i;
   reg u256[8] x;
@@ -369,7 +369,7 @@ inline fn __sub_rotate_avx2(#secret reg u256[8] t) -> #secret reg u256[8]
   return t;
 }
 
-inline fn __rotate_avx2(#secret reg u256[8] x) -> #secret reg u256[8]
+inline fn __rotate_avx2( reg u256[8] x) ->  reg u256[8]
 {
   inline int i;
   reg u256[8] t;
@@ -383,7 +383,7 @@ inline fn __rotate_avx2(#secret reg u256[8] x) -> #secret reg u256[8]
   return t;
 }
 
-inline fn __rotate_stack_avx2(#secret stack u256[8] s) -> #secret reg u256[8]
+inline fn __rotate_stack_avx2( stack u256[8] s) ->  reg u256[8]
 {
   inline int i;
   reg u256[8] t x;
@@ -400,7 +400,7 @@ inline fn __rotate_stack_avx2(#secret stack u256[8] s) -> #secret reg u256[8]
   return t;
 }
 
-inline fn __rotate_first_half_x8_avx2(#secret reg u256[16] k) -> #secret reg u256[8], #secret stack u256[8]
+inline fn __rotate_first_half_x8_avx2( reg u256[16] k) ->  reg u256[8],  stack u256[8]
 {
   inline int i;
   stack u256[8] s_k8_15;
@@ -417,7 +417,7 @@ inline fn __rotate_first_half_x8_avx2(#secret reg u256[16] k) -> #secret reg u25
   return k0_7, s_k8_15;
 }
 
-inline fn __rotate_second_half_x8_avx2(#secret stack u256[8] s_k8_15) -> #secret reg u256[8]
+inline fn __rotate_second_half_x8_avx2( stack u256[8] s_k8_15) ->  reg u256[8]
 {
   inline int i;
   reg u256[8] k8_15;
@@ -425,7 +425,7 @@ inline fn __rotate_second_half_x8_avx2(#secret stack u256[8] s_k8_15) -> #secret
   return k8_15;
 }
 
-inline fn __interleave_avx2(#secret stack u256[8] s, #secret reg u256[8] k, #public inline int o) -> #secret reg u256[8]
+inline fn __interleave_avx2( stack u256[8] s,  reg u256[8] k,  inline int o) ->  reg u256[8]
 {
   inline int i;
   reg u256[8] sk;
@@ -438,7 +438,7 @@ inline fn __interleave_avx2(#secret stack u256[8] s, #secret reg u256[8] k, #pub
 }
 
 // stores 512 bytes
-inline fn __store_x8_avx2(#public reg u64 output plain, #public reg u32 len, #secret reg u256[16] k) -> #public reg u64, #public reg u64, #public reg u32
+inline fn __store_x8_avx2( reg u64 output plain,  reg u32 len,  reg u256[16] k) ->  reg u64,  reg u64,  reg u32
 {
   stack u256[8] s_k8_15;
   reg   u256[8] k0_7, k8_15;
@@ -454,7 +454,7 @@ inline fn __store_x8_avx2(#public reg u64 output plain, #public reg u32 len, #se
 }
 
 // stores up to 512 bytes
-inline fn __store_x8_last_avx2(#public reg u64 output plain, #public reg u32 len, #secret reg u256[16] k)
+inline fn __store_x8_last_avx2( reg u64 output plain,  reg u32 len,  reg u256[16] k)
 {
   inline int i;
   stack u256[8] s_k0_7 s_k8_15;
@@ -552,7 +552,7 @@ inline fn __store_x8_last_avx2(#public reg u64 output plain, #public reg u32 len
 // in order to rotate by 12 and 7 it is necessary to perform a shift left, right and then or or xor
 // we can define a rotate_x8 function to abstract the previously described behaviours:
 
-inline fn __rotate_x8_avx2(#secret reg u256[4] k, #public inline int i r, #secret reg u256 r16 r8) -> #secret reg u256[4]
+inline fn __rotate_x8_avx2( reg u256[4] k,  inline int i r,  reg u256 r16 r8) ->  reg u256[4]
 {
   reg u256 t;
 
@@ -574,7 +574,7 @@ inline fn __rotate_x8_avx2(#secret reg u256[4] k, #public inline int i r, #secre
 
 // line_x8 function performs 8 lines computations across "quarter_round's" and
 // "blocks" as previously described
-inline fn __line_x8_avx2(#secret reg u256[4] k, #public inline int a b c r, #secret reg u256 r16 r8) -> #secret reg u256[4]
+inline fn __line_x8_avx2( reg u256[4] k,  inline int a b c r,  reg u256 r16 r8) ->  reg u256[4]
 {
   k[a/4] +8u32= k[b/4];
   k[c/4] ^= k[a/4];
@@ -589,7 +589,7 @@ inline fn __line_x8_avx2(#secret reg u256[4] k, #public inline int a b c r, #sec
 //
 // since we wrote line_x8 with /4 at the indexes we can just define round_x2 as:
 //
-inline fn __round_x2_avx2(#secret reg u256[4] k, #secret reg u256 r16 r8) -> #secret reg u256[4]
+inline fn __round_x2_avx2( reg u256[4] k,  reg u256 r16 r8) ->  reg u256[4]
 {
   k = __line_x8_avx2(k, 0, 4, 12, 16, r16, r8);
   k = __line_x8_avx2(k, 8, 12, 4, 12, r16, r8);
@@ -599,7 +599,7 @@ inline fn __round_x2_avx2(#secret reg u256[4] k, #secret reg u256 r16 r8) -> #se
 }
 
 // and the function column_round_x2 consists in just a call to round_x2
-inline fn __column_round_x2_avx2(#secret reg u256[4] k, #secret reg u256 r16 r8) -> #secret reg u256[4]
+inline fn __column_round_x2_avx2( reg u256[4] k,  reg u256 r16 r8) ->  reg u256[4]
 {
   k = __round_x2_avx2(k, r16, r8);
   return k;
@@ -635,7 +635,7 @@ inline fn __column_round_x2_avx2(#secret reg u256[4] k, #secret reg u256 r16 r8)
 //
 // this transformation of the state can be achieved with the following function:
 
-inline fn __shuffle_state_avx2(#secret reg u256[4] k) -> #secret reg u256[4]
+inline fn __shuffle_state_avx2( reg u256[4] k) ->  reg u256[4]
 {
   k[1] = #VPSHUFD_256(k[1], (4u2)[0,3,2,1]);
   k[2] = #VPSHUFD_256(k[2], (4u2)[1,0,3,2]);
@@ -644,7 +644,7 @@ inline fn __shuffle_state_avx2(#secret reg u256[4] k) -> #secret reg u256[4]
 }
 
 // and we also need the inverse function to put everything back into its place:
-inline fn __reverse_shuffle_state_avx2(#secret reg u256[4] k) -> #secret reg u256[4]
+inline fn __reverse_shuffle_state_avx2( reg u256[4] k) ->  reg u256[4]
 {
   k[1] = #VPSHUFD_256(k[1], (4u2)[2,1,0,3]);
   k[2] = #VPSHUFD_256(k[2], (4u2)[1,0,3,2]);
@@ -653,7 +653,7 @@ inline fn __reverse_shuffle_state_avx2(#secret reg u256[4] k) -> #secret reg u25
 }
 
 // finally, diagonal_round_x2 can be defined as:
-inline fn __diagonal_round_x2_avx2(#secret reg u256[4] k, #secret reg u256 r16 r8) -> #secret reg u256[4]
+inline fn __diagonal_round_x2_avx2( reg u256[4] k,  reg u256 r16 r8) ->  reg u256[4]
 {
   k = __shuffle_state_avx2(k);
   k = __round_x2_avx2(k, r16, r8);
@@ -662,9 +662,9 @@ inline fn __diagonal_round_x2_avx2(#secret reg u256[4] k, #secret reg u256 r16 r
 }
 
 // and the rounds_x2 function as:
-inline fn __rounds_x2_avx2(#secret reg u256[4] k) -> #secret reg u256[4]
+inline fn __rounds_x2_avx2( reg u256[4] k) ->  reg u256[4]
 {
-  #public reg u64 c;
+   reg u64 c;
   reg u256 r16 r8;
 
   r16 = g_r16;
@@ -686,7 +686,7 @@ inline fn __rounds_x2_avx2(#secret reg u256[4] k) -> #secret reg u256[4]
 // one described for round_x2.
 //
 // round_x4 goes through 4 blocks at a time:
-inline fn __round_x4_avx2(#secret reg u256[4] k1 k2, #secret reg u256 r16 r8) -> #secret reg u256[4], #secret reg u256[4]
+inline fn __round_x4_avx2( reg u256[4] k1 k2,  reg u256 r16 r8) ->  reg u256[4],  reg u256[4]
 {
   k1 = __round_x2_avx2(k1, r16, r8);
   k2 = __round_x2_avx2(k2, r16, r8);
@@ -694,27 +694,27 @@ inline fn __round_x4_avx2(#secret reg u256[4] k1 k2, #secret reg u256 r16 r8) ->
 }
 
 // the following functions are just reusing previous definitions for rounds_x2
-inline fn __column_round_x4_avx2(#secret reg u256[4] k1 k2, #secret reg u256 r16 r8) -> #secret reg u256[4], #secret reg u256[4]
+inline fn __column_round_x4_avx2( reg u256[4] k1 k2,  reg u256 r16 r8) ->  reg u256[4],  reg u256[4]
 {
   k1, k2 = __round_x4_avx2(k1, k2, r16, r8);
   return k1, k2;
 }
 
-inline fn __shuffle_state_x2_avx2(#secret reg u256[4] k1 k2) -> #secret reg u256[4], #secret reg u256[4]
+inline fn __shuffle_state_x2_avx2( reg u256[4] k1 k2) ->  reg u256[4],  reg u256[4]
 {
   k1 = __shuffle_state_avx2(k1);
   k2 = __shuffle_state_avx2(k2);
   return k1, k2;
 }
 
-inline fn __reverse_shuffle_state_x2_avx2(#secret reg u256[4] k1 k2) -> #secret reg u256[4], #secret reg u256[4]
+inline fn __reverse_shuffle_state_x2_avx2( reg u256[4] k1 k2) ->  reg u256[4],  reg u256[4]
 {
   k1 = __reverse_shuffle_state_avx2(k1);
   k2 = __reverse_shuffle_state_avx2(k2);
   return k1, k2;
 }
 
-inline fn __diagonal_round_x4_avx2(#secret reg u256[4] k1 k2, #secret reg u256 r16 r8) -> #secret reg u256[4], #secret reg u256[4]
+inline fn __diagonal_round_x4_avx2( reg u256[4] k1 k2,  reg u256 r16 r8) ->  reg u256[4],  reg u256[4]
 {
   k1, k2 = __shuffle_state_x2_avx2(k1, k2);
   k1, k2 = __round_x4_avx2(k1, k2, r16, r8);
@@ -722,9 +722,9 @@ inline fn __diagonal_round_x4_avx2(#secret reg u256[4] k1 k2, #secret reg u256 r
   return k1, k2;
 }
 
-inline fn __rounds_x4_avx2(#secret reg u256[4] k1 k2) -> #secret reg u256[4], #secret reg u256[4]
+inline fn __rounds_x4_avx2( reg u256[4] k1 k2) ->  reg u256[4],  reg u256[4]
 {
-  #public reg u64 c;
+   reg u64 c;
   reg u256 r16 r8;
 
   r16 = g_r16;
@@ -775,7 +775,7 @@ inline fn __rounds_x4_avx2(#secret reg u256[4] k1 k2) -> #secret reg u256[4], #s
 // since we want to have as much free registers as possible we just need an alternative
 // definition of rotate_x8 that receives r16 and r8 as stack values (instead of registers):
 
-inline fn __rotate_x8_s_avx2(#secret reg u256[16] k, #public inline int i r, #secret stack u256 r16 r8) -> #secret reg u256[16]
+inline fn __rotate_x8_s_avx2( reg u256[16] k,  inline int i r,  stack u256 r16 r8) ->  reg u256[16]
 {
   reg u256 t;
 
@@ -796,7 +796,7 @@ inline fn __rotate_x8_s_avx2(#secret reg u256[16] k, #public inline int i r, #se
 }
 
 // we can now define a function _line_x8_v such that:
-inline fn ___line_x8_v_avx2(#secret reg u256[16] k, #public inline int a b c r, #secret stack u256 r16 r8) -> #secret reg u256[16]
+inline fn ___line_x8_v_avx2( reg u256[16] k,  inline int a b c r,  stack u256 r16 r8) ->  reg u256[16]
 {
   k[a] +8u32= k[b];
   k[c] ^= k[a];
@@ -807,7 +807,7 @@ inline fn ___line_x8_v_avx2(#secret reg u256[16] k, #public inline int a b c r, 
 // and now a quarter_round function: (not used for compilation, just here for the
 // sake of the explanation):
 /*
-fn _quarter_round_x8(#secret reg u256[16] k, #public inline int a b c d, #secret stack u256 r16 r8) -> #secret reg u256[16]
+fn _quarter_round_x8( reg u256[16] k,  inline int a b c d,  stack u256 r16 r8) ->  reg u256[16]
 {
   k = _line_x8_v(k, a, b, d, 16, r16, r8);
   k = _line_x8_v(k, c, d, b, 12, r16, r8);
@@ -820,10 +820,10 @@ fn _quarter_round_x8(#secret reg u256[16] k, #public inline int a b c d, #secret
 // you can check the definition of rounds_x8 down bellow. But imagine that you want to
 // do some micro optimizations: let's say you wanted to merge both _quarter_round_x8 into
 // one double_quarter_round_x8 such that line_x8_v performs as follows:
-inline fn __line_x8_v_avx2(#secret reg u256[16] k,
-                           #public inline int a0 b0 c0 r0
+inline fn __line_x8_v_avx2( reg u256[16] k,
+                            inline int a0 b0 c0 r0
                                       a1 b1 c1 r1,
-                           #secret stack u256 r16 r8) -> #secret reg u256[16]
+                            stack u256 r16 r8) ->  reg u256[16]
 {
   k[a0] +8u32= k[b0];
   k[a1] +8u32= k[b1];
@@ -840,8 +840,8 @@ inline fn __line_x8_v_avx2(#secret reg u256[16] k,
 // and double quarter_round could be defined as (not used for compilation, just
 // here for the sake of the explanation):
 /*
-fn _double_quarter_round_x8(#secret reg u256[16] k, #public inline int a0 b0 c0 d0
-                                                       a1 b1 c1 d1, stack u256 r16 r8) -> #secret reg u256[16]
+fn _double_quarter_round_x8( reg u256[16] k,  inline int a0 b0 c0 d0
+                                                       a1 b1 c1 d1, stack u256 r16 r8) ->  reg u256[16]
 {
   k = line_x8_v(k, a0, b0, d0, 16, a1, b1, d1, 16, r16, r8);
   k = line_x8_v(k, c0, d0, b0, 12, c1, d1, b1, 12, r16, r8);
@@ -855,10 +855,10 @@ fn _double_quarter_round_x8(#secret reg u256[16] k, #public inline int a0 b0 c0 
 // but imagine that you don't want to execute 2 shuffles (from memory operands)
 // next to each other...
 // we can just define a variant of the double_quarter_round_x8 such that:
-inline fn __double_quarter_round_x8_avx2(#secret reg u256[16] k,
-                                         #public inline int a0 b0 c0 d0
+inline fn __double_quarter_round_x8_avx2( reg u256[16] k,
+                                          inline int a0 b0 c0 d0
                                                     a1 b1 c1 d1,
-                                         #secret stack u256 r16 r8) -> #secret reg u256[16]
+                                          stack u256 r16 r8) ->  reg u256[16]
 {
   k = ___line_x8_v_avx2(k, a0, b0, d0, 16,                 r16, r8);
   k =  __line_x8_v_avx2(k, c0, d0, b0, 12, a1, b1, d1, 16, r16, r8);
@@ -869,7 +869,7 @@ inline fn __double_quarter_round_x8_avx2(#secret reg u256[16] k,
   return k;
 }
 
-inline fn __column_round_x8_avx2(#secret reg u256[16] k, #secret stack u256 k15 s_r16 s_r8) -> #secret reg u256[16], stack u256
+inline fn __column_round_x8_avx2( reg u256[16] k,  stack u256 k15 s_r16 s_r8) ->  reg u256[16], stack u256
 {
   stack u256 k_;
 
@@ -883,7 +883,7 @@ inline fn __column_round_x8_avx2(#secret reg u256[16] k, #secret stack u256 k15 
   return k, k_;
 }
 
-inline fn __diagonal_round_x8_avx2(#secret reg u256[16] k, #secret stack u256 k14 s_r16 s_r8) -> #secret reg u256[16], stack u256
+inline fn __diagonal_round_x8_avx2( reg u256[16] k,  stack u256 k14 s_r16 s_r8) ->  reg u256[16], stack u256
 {
   stack u256 k_;
 
@@ -897,9 +897,9 @@ inline fn __diagonal_round_x8_avx2(#secret reg u256[16] k, #secret stack u256 k1
   return k, k_;
 }
 
-inline fn __rounds_x8_avx2(#secret reg u256[16] k, #secret stack u256 s_r16 s_r8) -> #secret reg u256[16]
+inline fn __rounds_x8_avx2( reg u256[16] k,  stack u256 s_r16 s_r8) ->  reg u256[16]
 {
-  #public reg u64 c;
+   reg u64 c;
   //reg bool zf;
   stack u256 k15 k14;
 
@@ -917,7 +917,7 @@ inline fn __rounds_x8_avx2(#secret reg u256[16] k, #secret stack u256 s_r16 s_r8
   return k;
 }
 
-inline fn __chacha_more_than_256_avx2(#public reg u64 output plain, #public reg u32 len, #public reg u64 key nonce, #secret reg u32 counter)
+inline fn __chacha_more_than_256_avx2( reg u64 output plain,  reg u32 len,  reg u64 key nonce,  reg u32 counter)
 {
   stack u256[16] st;
   reg   u256[16]  k;
@@ -945,7 +945,7 @@ inline fn __chacha_more_than_256_avx2(#public reg u64 output plain, #public reg 
   }
 }
 
-inline fn __chacha_less_than_257_avx2(#public reg u64 output plain, #public reg u32 len, #public reg u64 key nonce, #secret reg u32 counter)
+inline fn __chacha_less_than_257_avx2( reg u64 output plain,  reg u32 len,  reg u64 key nonce,  reg u32 counter)
 {
   reg u256[4] st k1 k2;
 
@@ -970,13 +970,12 @@ inline fn __chacha_less_than_257_avx2(#public reg u64 output plain, #public reg 
   }
 }
 
-export fn chacha_avx2(#public reg u64 output plain, #public reg u32 len, #public reg u64 key nonce, #secret reg u32 counter)
+export fn chacha_avx2(#transient reg u64 output plain, #transient reg u32 len, #transient reg u64 key nonce, #secret reg u32 counter)
 {
   #msf reg u64 ms;
-  _ = #init_msf();     // LFENCE
+  ms = #init_msf();     // LFENCE
   if(len < 257)
   { __chacha_less_than_257_avx2(output, plain, len, key, nonce, counter); }
   else
   { __chacha_more_than_256_avx2(output, plain, len, key, nonce, counter); }
-  _ = #init_msf();     // LFENCE
 }
