@@ -94,7 +94,7 @@ inline fn __init_x8_avx2( reg u64 key nonce,  reg u32 counter) ->  stack u256[16
   // 13 { ... , n[31:0]    , n[31:0]    }
   // ...
   // 15 { ... , n[95:64]   , n[95:64]   }
-  st_ = st;
+  st_ = #copy_256(st);
   return st_;
 }
 
@@ -102,15 +102,15 @@ inline fn __init_x8_avx2( reg u64 key nonce,  reg u32 counter) ->  stack u256[16
 inline fn __copy_state_x2_avx2( reg u256[4] st) ->  reg u256[4]
 {
   reg u256[4] k;
-  k = st;
+  k = #copy_256(st);
   return k;
 }
 
 inline fn __copy_state_x4_avx2( reg u256[4] st) ->  reg u256[4],  reg u256[4]
 {
   reg u256[4] k1 k2;
-  k1 = st;
-  k2 = st;
+  k1 = #copy_256(st);
+  k2 = #copy_256(st);
   k2[3] +8u32= g_p2;
 
   // k2                         k1
@@ -124,7 +124,7 @@ inline fn __copy_state_x4_avx2( reg u256[4] st) ->  reg u256[4],  reg u256[4]
 inline fn __copy_state_x8_avx2( stack u256[16] st) ->  reg u256[16]
 {
   reg u256[16] k;
-  k = st;
+  k = #copy_256(st);
   return k;
 }
 
@@ -461,7 +461,7 @@ inline fn __store_x8_last_avx2( reg u64 output plain,  reg u32 len,  reg u256[16
   reg   u256[8] k0_7 k8_15 i0_7;
 
   k0_7, s_k8_15 = __rotate_first_half_x8_avx2(k);
-  s_k0_7 = k0_7;
+  s_k0_7 = #copy_256(k0_7);
   k8_15 = __rotate_second_half_x8_avx2(s_k8_15);
   i0_7 = __interleave_avx2(s_k0_7, k8_15, i_0);
 
