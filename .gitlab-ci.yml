@@ -197,12 +197,10 @@ cryptolib:
   dependencies:
   - coq
   - ocaml
-  before_script:
+  script:
   - nix-env -iA nixpkgs.git
-  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'echo done'
   - git clone --depth 1 --branch cryptolib https://github.com/formosa-crypto/libjade.git cryptolib
   - echo $CASE
-  script:
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -C cryptolib/src/$CASE JASMIN=$PWD/compiler/jasminc.native'
   parallel:
     matrix:
