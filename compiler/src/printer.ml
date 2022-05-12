@@ -251,7 +251,7 @@ let rec pp_gi pp_info pp_len pp_var fmt i =
       (pp_cblock pp_info pp_len pp_var) c (pp_ge pp_len pp_var) e
 
   | Cwhile(a, c, e, c') ->
-    F.fprintf fmt "@[<v>%awhile %a %a %a@]"
+    F.fprintf fmt "@[<v>%awhile %a (%a) %a@]"
       pp_align a
       (pp_cblock pp_info pp_len pp_var) c (pp_ge pp_len pp_var) e
       (pp_cblock pp_info pp_len pp_var) c'

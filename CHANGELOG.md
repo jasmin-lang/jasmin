@@ -1,3 +1,10 @@
+
+# [unreleased]
+
+## Bug fixes
+
+- Fix printing of `while` loops [PR #131](https://github.com/jasmin-lang/jasmin/pull/131).
+
 # Jasmin 22.0
 
 This release is the result of more than two years of active development. It thus
