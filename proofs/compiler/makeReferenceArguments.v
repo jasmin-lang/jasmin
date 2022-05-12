@@ -63,7 +63,7 @@ Fixpoint make_prologue ii (X:Sv.t) xtys es :=
   | _, _ => Error (make_ref_error ii "assert false (prologue)")
   end.
 
-Inductive pseudo_instr := 
+Variant pseudo_instr :=
   | PI_lv of lval
   | PI_i  of lval & stype & var_i.
 

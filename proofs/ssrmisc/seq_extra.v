@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect.
-Require Import Utf8 oseq nat_extra.
+Require Import Utf8 oseq.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -324,46 +324,21 @@ Section OnthProps.
 End OnthProps.
 
 
-Section TakeDropInd.
+Lemma take_onth (T : Type) n (s : seq T) :
+  take n.+1 s =
+  match onth s n with
+  | Some x => rcons (take n s) x
+  | None   => take n s
+  end.
+Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?take0 ?IHs //; case: (onth _ _). Qed.
 
-  Lemma take_onth (T : Type) n (s : seq T) :
-    take n.+1 s =
-    match onth s n with
-    | Some x => rcons (take n s) x
-    | None   => take n s
-    end.
-  Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?take0 ?IHs //; case: (onth _ _). Qed.
-
-  Lemma drop_onth (T : Type) n (s : seq T) :
-    drop n s =
-    match onth s n with
-    | Some x => x :: (drop n.+1 s)
-    | None   => drop n.+1 s
-    end.
-  Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?drop0. Qed.
-
-  Lemma take_ind (T : Type) (P : seq T -> seq T -> Prop) (s : seq T) :
-    P [::] s -> (forall n, n < size s -> P (take n s) s -> P (take n.+1 s) s) -> P s s.
-  Proof.
-    move => HP0 IHP; rewrite -{1}(take_size s).
-    pattern (size s); set Q:= (fun _ => _).
-    apply/(@nat_le_ind_eq Q (size s)); rewrite /Q //.
-    by rewrite take0.
-  Qed.
-
-  Lemma take_drop_ind (T : Type) (P : seq T -> seq T -> seq T -> Prop) (s : seq T) :
-    P [::] s s ->
-    (forall n, n < size s -> P (take n s) (drop n s) s -> P (take n.+1 s) (drop n.+1 s) s) ->
-    P s [::] s.
-  Proof.
-    move => HP0 IHP; rewrite -{1}(take_size s) -(drop_size s).
-    pattern (size s); set Q:= (fun _ => _).
-    apply/(@nat_le_ind_eq Q (size s)); rewrite /Q //.
-    by rewrite take0 drop0.
-  Qed.
-
-End TakeDropInd.
-
+Lemma drop_onth (T : Type) n (s : seq T) :
+  drop n s =
+  match onth s n with
+  | Some x => x :: (drop n.+1 s)
+  | None   => drop n.+1 s
+  end.
+Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?drop0. Qed.
 
 Section AllProps.
 

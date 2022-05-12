@@ -21,7 +21,6 @@
 -R lang Jasmin
 -R ssrmisc Jasmin
 
-ssrmisc/nat_extra.v
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
 ssrmisc/xseq_extra.v

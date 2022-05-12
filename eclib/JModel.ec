@@ -35,7 +35,7 @@ lemma rotate8_128_E w :
 proof.
   have h : W128.all_eq
     (VPSHUFB_128 w const_rotate8_128) (W4u32.map (fun w => W32.rol w 8) w).
-  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8 edivz.
+  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8.
   by apply (W128.all_eq_eq _ _ h).
 qed.
 
@@ -53,7 +53,7 @@ lemma rotate24_128_E w :
 proof.
   have h : W128.all_eq
     (VPSHUFB_128 w const_rotate24_128) (W4u32.map (fun w => W32.rol w 24) w).
-  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8 edivz.
+  + by cbv W128.all_eq VPSHUFB_128 VPSHUFB_128_B W16u8.unpack8.
   by apply (W128.all_eq_eq _ _ h).
 qed.
 hint simplify (rotate8_128_E, rotate16_128_E, rotate24_128_E).
@@ -585,6 +585,11 @@ op copy_64  ['a] (x:'a) = x.
 op copy_128 ['a] (x:'a) = x.
 op copy_256 ['a] (x:'a) = x.
 
+(* ------------------------------------------------------------------- *)
+abbrev [-printing] adc_8  = W8.addc.
+abbrev [-printing] adc_16 = W16.addc.
+abbrev [-printing] adc_32 = W32.addc.
+abbrev [-printing] adc_64 = W64.addc.
 
 (* ------------------------------------------------------------------- *)
 (* Leakages                                                            *)
@@ -596,3 +601,7 @@ type leakage_t = [
 ].
 
 type leakages_t = leakage_t list.
+
+
+op zlog2 : int -> int.
+

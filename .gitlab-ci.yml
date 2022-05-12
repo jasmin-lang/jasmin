@@ -33,7 +33,7 @@ cache dependencies:
   stage: prepare
   extends: .common
   variables:
-    EXTRA_NIX_ARGUMENTS: --arg coqDeps true --arg ocamlDeps true --arg testDeps true --arg ecDeps true
+    EXTRA_NIX_ARGUMENTS: --arg coqDeps true --arg ocamlDeps true --arg testDeps true --arg ecDeps true --arg opamDeps true
   environment: cachix
   only:
     variables:
@@ -91,25 +91,54 @@ opam:
     OPAMROOTISOK: 'true'
     OPAMROOT: mapo
     PREFIX: jasmin-$CI_COMMIT_REF_NAME-$CI_COMMIT_SHORT_SHA
+    EXTRA_NIX_ARGUMENTS: --arg opamDeps true
+  extends: .common
   cache:
+    key:
+      files:
+        - scripts/nixpkgs.nix
+      prefix: opam
     paths:
       - $OPAMROOT
-  before_script:
-  - nix-shell -p opam git pkg-config perl ppl mpfr --run 'echo Let’s go!'
-  - nix-shell -p opam --run 'opam init --no-setup --compiler=4.12.1'
-  - nix-shell -p opam --run 'opam repo add coq-released https://coq.inria.fr/opam/released'
-  - nix-shell -p opam git --run 'opam pin --yes --no-action add coq-mathcomp-word https://github.com/jasmin-lang/coqword.git'
-  - nix-shell -p opam git --run 'opam pin --yes --no-depexts --no-action add .'
-  - nix-shell -p opam git pkg-config perl ppl mpfr --run 'opam install --yes --no-depexts --deps-only jasmin'
   script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'scripts/opam-setup.sh ALL'
   - >-
-    nix-shell -p opam ppl mpfr --run
+    nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run
     'eval $(opam env) &&
      make -j$NIX_BUILD_CORES &&
      make install'
   artifacts:
     paths:
     - $PREFIX
+
+opam-compiler:
+  stage: build
+  variables:
+    OPAMROOTISOK: 'true'
+    OPAMROOT: mapo
+    EXTRA_NIX_ARGUMENTS: --arg opamDeps true
+  extends: .common
+  needs:
+  - coq
+  dependencies:
+  - coq
+  cache:
+    key:
+      files:
+        - scripts/nixpkgs.nix
+      prefix: opam
+    paths:
+      - $OPAMROOT
+  script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'scripts/opam-setup.sh'
+  - >-
+    nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run
+    'eval $(opam env) &&
+     make -C compiler -j$NIX_BUILD_CORES &&
+     (cd compiler && mkdir -p bin && cp _build/entry/jasminc.native bin/jasminc)'
+  artifacts:
+    paths:
+    - compiler/bin/jasminc
 
 tarball:
   stage: build

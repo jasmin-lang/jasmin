@@ -36,20 +36,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-
-Lemma zip_nil S T (m: seq T) : zip [::] m = @ nil (S * T).
-Proof. by case: m. Qed.
-
 Local Open Scope Z_scope.
-
-Lemma aligned_factor s n :
-  s != 0 →
-  reflect (∃ q, n = q * s) (n mod s == 0).
-Proof.
-  move => /eqP s_pos; case: eqP => /Zmod_divides => - /(_ s_pos) h; constructor.
-  - case: h => c; exists c; Psatz.lia.
-  case => c ?; apply: h; exists c; Psatz.lia.
-Qed.
 
 Lemma orX (a b: bool) (P: Prop) :
   (a → P) →
@@ -61,10 +48,6 @@ Proof. by case: a => // _ /(_ erefl); case: b. Qed.
 
 Section WITH_POINTER_DATA.
 Context {pd: PointerData}.
-
-Lemma subxx p :
-  sub p p = 0.
-Proof. by rewrite -{1}(add_0 p) sub_add. Qed.
 
 Lemma add_p_opp_sub_add_p (p q: pointer) (n: Z) :
   add p (- sub (add p n) q + n) = q.

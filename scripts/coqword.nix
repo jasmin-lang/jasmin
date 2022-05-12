@@ -38,7 +38,7 @@ stdenv.mkDerivation rec {
 
   meta = {
     description = "Yet Another Coq Library on Machine Words";
-    license = lib.licenses.cecill-b;
+    license = lib.licenses.mit;
     inherit (src.meta) homepage;
     inherit (coq.meta) platforms;
   };
