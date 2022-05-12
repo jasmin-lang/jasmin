@@ -52,7 +52,8 @@ coq:
     EXTRA_NIX_ARGUMENTS: --arg coqDeps true
   extends: .common
   script:
-  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C proofs'
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C proofs Makefile.coq'
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C proofs compiler/compiler.vo'
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler CIL'
   artifacts:
     paths:
