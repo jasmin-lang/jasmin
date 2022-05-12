@@ -1111,8 +1111,9 @@ Proof. apply and3_iff_morphism. Qed.
       fold (sem_pexprs gd s) in hz1.
       rewrite /get_gvar /get_var /on_vu Fv.setP_eq /= -/(sem_pexprs gd ℓ).
       rewrite (sem_pexprs_same dz e hz1) /= /exec_sopn /sopn_sem /=.
-      case: o hr => //= -[]; rewrite /exec_sopn //=;
+      case: o hr => //; rewrite /exec_sopn //=;
         try (move => ?? -> || move => ? -> || move => -> ) => //.
+      case; last by move => ? ->.
       case. case => [ws | ];
       case => //=;
         try (move => ?? -> || move => ? -> || move => -> ) => //.
