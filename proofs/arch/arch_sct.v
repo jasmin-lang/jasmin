@@ -205,3 +205,15 @@ Definition wt_asm_arg (k:addr_kind) (a:asm_arg) (ty:stype) (S:Ssty.t) :=
   | _, _ => false
   end.
 
+Definition wt_arg_desc (a:arg_desc) (ty:stype) (S:Ssty.t) :=
+  match a, ty with 
+   | ADImplicit (IAreg r), sword ws => 
+       let (lr, ws') := env.(e_reg) r in
+       Ssty.for_all (fun l => is_le c lr l) S && (ws <= ws')%CMP
+   | ADImplicit (IArflag f), _ => 
+       let lf := env.(e_flag) f in 
+       Ssty.for_all (fun l => is_le c lf l) S
+   | ADExplicit k i or, _ => false (* FIXME *)
+   | _, _ => false
+  end.
+
