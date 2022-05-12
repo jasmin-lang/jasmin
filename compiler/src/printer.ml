@@ -212,6 +212,11 @@ let rec pp_gi pp_info pp_len pp_var fmt i =
       (pp_tag tg)
 
   | Copn(x, t, o, e) ->
+    (* special case for LFENCE *)
+    if x = [] && e = []
+    then F.fprintf fmt "@[<hov 2>? #%s;@]" (pp_opn o)
+    else
+
     let pp_cast fmt = function
       | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (int_of_ws ws)
       | _ -> () in
