@@ -1479,7 +1479,7 @@ op rflags_of_aluop_w (w : t) (vu vs : int) =
 op rflags_of_bwop_w (w : t) =
   flags_w (rflags_of_bwop w) w.
 
-op set0_XX = (false,false,false,false,false, of_int 0).
+op set0_XX_ = (false,false,false,false,false, of_int 0).
 
 op ADD_XX (v1 v2 : t)  =
   rflags_of_aluop_w 
