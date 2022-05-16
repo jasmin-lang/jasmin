@@ -602,6 +602,12 @@ abbrev [-printing] adc_32 = W32.addc.
 abbrev [-printing] adc_64 = W64.addc.
 
 (* ------------------------------------------------------------------- *)
+abbrev [-printing] sbb_8  = W8.subc.
+abbrev [-printing] sbb_16 = W16.subc.
+abbrev [-printing] sbb_32 = W32.subc.
+abbrev [-printing] sbb_64 = W64.subc.
+
+(* ------------------------------------------------------------------- *)
 (* Leakages                                                            *)
 
 type leakage_t = [
