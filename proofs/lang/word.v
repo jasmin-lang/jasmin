@@ -768,6 +768,18 @@ Proof.
   by rewrite wandE wN1E ltn_ord.
 Qed.
 
+Lemma worC sz : commutative (@wor sz).
+Proof.
+  by move => x y; apply/eqP/eq_from_wbit => i;
+  rewrite /wor !CoqWord.word.worE orbC.
+Qed.
+
+Lemma wor0 sz (x: word sz) : wor 0 x = x.
+Proof. by apply/eqP/eq_from_wbit. Qed.
+
+Lemma wor_xx sz (x: word sz) : wor x x = x.
+Proof. by apply/eqP/eq_from_wbit; rewrite /= Z.lor_diag. Qed.
+
 Lemma wxor0 sz (x: word sz) : wxor 0 x = x.
 Proof. by apply/eqP/eq_from_wbit. Qed.
 
