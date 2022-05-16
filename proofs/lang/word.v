@@ -1230,6 +1230,15 @@ Definition wpbroadcast ve sz (w: word ve) : word sz :=
   let r := nseq (sz %/ ve) w in
   make_vec sz r.
 
+Lemma wpbroadcast0 ve sz :
+  @wpbroadcast ve sz 0%R = 0%R.
+Proof.
+  rewrite /wpbroadcast/make_vec.
+  suff -> : wcat_r (nseq _ 0%R) = 0.
+  - by rewrite wrepr0.
+  by move => q; elim => // n /= ->; rewrite Z.shiftl_0_l.
+Qed.
+
 (* -------------------------------------------------------------------*)
 Fixpoint seq_dup_hi T (m: seq T) : seq T :=
   if m is _ :: a :: m' then a :: a :: seq_dup_hi m' else [::].
