@@ -58,11 +58,6 @@ Therefore, [lsem s] represents all states reachable from [s].
 A maximal execution (i.e., terminated without error) is caracterized by the fact that
 the reached state has no instruction left to execute.
 *)
-Section LSEM.
-
-(* Architecture-dependent way of storing a pointer. *)
-Context (mov_op : asm_op).
-
 Definition eval_jump d s :=
   let: (fn, lbl) := d in
   Let body :=
@@ -95,8 +90,8 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   | LstoreLabel x lbl =>
     if encode_label labels (lfn s1, lbl) is Some p
     then
-      Let s2 := sem_sopn [::] (Oasm mov_op) (to_estate s1) [:: x ] [:: wconst p ] in
-      ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
+      Let vm := set_var s1.(lvm) x (Vword p) in
+      ok {| lscs := s1.(lscs) ; lmem := s1.(lmem) ; lvm := vm ; lfn := s1.(lfn) ; lpc := s1.(lpc).+1 |}
     else type_error
   | Lcond e lbl =>
     Let b := sem_pexpr [::] (to_estate s1) e >>= to_bool in
@@ -251,8 +246,6 @@ Variant lsem_exportcall (scs:syscall_state) (m: mem) (fn: funname) (vm: vmap) (s
   & vm =[ callee_saved ] vm'
 .
 
-End LSEM.
-
 End SEM.
 
-Arguments lsem_split_start {_ _ _ _ _ _ _}.
+Arguments lsem_split_start {_ _ _ _ _ _}.

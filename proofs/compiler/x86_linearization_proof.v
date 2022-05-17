@@ -1,28 +1,10 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import expr psem psem_facts sem_one_varmap linear linear_sem linearization_proof.
-Require Import x86_decl x86_instr_decl x86_extra x86_linear_sem x86_linearization.
+Require Import x86_decl x86_instr_decl x86_extra x86_linearization.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-Lemma spec_x86_mov_op :
-  forall (lp : lprog) (s : estate) (fn : funname) (pc : nat) (x : var) (lbl : label.label) 
-    (ptr : word Uptr) (ii : instr_info),
-  vtype x == sword Uptr ->
-  label.encode_label (label_in_lprog lp) (fn, lbl) = Some ptr ->
-  let i := LstoreLabel {| v_var := x; v_info := 1%positive |} lbl in
-  let vm := evm s in
-  let s' := with_vm s (vm.[x <- pof_val (vtype x) (Vword ptr)])%vmap in
-  eval_instr lp x86_mov_eop {| li_ii := ii; li_i := i |} (of_estate s fn pc) =
-  ok (of_estate s' fn pc.+1).
-Proof.
-  move=> lp s fn pc x lbl ptr ii /eqP hty hlabel.
-  rewrite /= /eval_instr /= /sem_sopn /= /exec_sopn /= hlabel.
-  rewrite /write_var /= /set_var /=.
-  case: x hty => _ xn /= -> /=.
-  by rewrite !zero_extend_u wrepr_unsigned.
-Qed.
 
 Lemma spec_x86_allocate_stack_frame :
   forall (lp: lprog) (s: estate) sp_rsp ii fn pc ts sz,
@@ -35,7 +17,7 @@ Lemma spec_x86_allocate_stack_frame :
     let ts' := pword_of_word (ts + wrepr Uptr sz) in
     let s' := with_vm s (vm.[rsp <- ok ts'])%vmap in
     (vm.[rsp])%vmap = ok (pword_of_word ts)
-    -> eval_instr lp x86_mov_eop i (of_estate s fn pc)
+    -> eval_instr lp i (of_estate s fn pc)
        = ok (of_estate s' fn pc.+1).
 Proof.
   move=> lp s sp_rsp ii fn pc ts sz.
@@ -58,7 +40,7 @@ Lemma spec_x86_free_stack_frame :
     let ts' := pword_of_word (ts - wrepr Uptr sz) in
     let s' := with_vm s (vm.[rsp <- ok ts'])%vmap in
     (vm.[rsp])%vmap = ok (pword_of_word ts)
-    -> eval_instr lp x86_mov_eop i (of_estate s fn pc)
+    -> eval_instr lp i (of_estate s fn pc)
        = ok (of_estate s' fn pc.+1).
 Proof.
   move=> lp s sp_rsp ii fn pc ts sz.
@@ -85,7 +67,6 @@ Definition spec_x86_ensure_rsp_alignment :
     exists vm', [/\
        eval_instr
          lp
-         x86_mov_eop
          i
          (of_estate s1 fn pc)
        = ok (of_estate (with_vm s1 vm') fn pc.+1),
@@ -129,7 +110,6 @@ Lemma spec_x86_lassign :
     -> write_lval [::] x (Vword w) s1 = ok s2
     -> eval_instr
          lp
-         x86_mov_eop
          i
          (of_estate s1 fn pc)
        = ok (of_estate s2 fn pc.+1).
@@ -147,10 +127,9 @@ Proof.
     done.
 Qed.
 
-Definition h_x86_linearization_params : h_linearization_params x86_linear_sem.x86_mov_eop x86_linearization_params.
+Definition h_x86_linearization_params : h_linearization_params x86_linearization_params.
 Proof.
   split.
-  - exact: spec_x86_mov_op.
   - exact: spec_x86_allocate_stack_frame.
   - exact: spec_x86_free_stack_frame.
   - exact: spec_x86_ensure_rsp_alignment.

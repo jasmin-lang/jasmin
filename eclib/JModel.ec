@@ -576,6 +576,16 @@ abbrev [-printing] (\vmul16u256) (w1 w2:W256.t) = VPMUL_16u16 w1 w2.
 abbrev [-printing] (\vmul32u256) (w1 w2:W256.t) = VPMUL_8u32 w1 w2.
 abbrev [-printing] (\vmul64u256) (w1 w2:W256.t) = VPMUL_4u64 w1 w2.
 
+
+(* ------------------------------------------------------------------- *)
+
+abbrev [-printing] set0_8   = W8.ALU.set0_8_.
+abbrev [-printing] set0_16  = W16.ALU.set0_16_.
+abbrev [-printing] set0_32  = W32.ALU.set0_32_.
+abbrev [-printing] set0_64  = W64.ALU.set0_64_.
+abbrev [-printing] set0_128 = W128.zero. 
+abbrev [-printing] set0_256 = W256.zero.
+
 (* ------------------------------------------------------------------- *)
 (* Notation used for array copy                                        *)
 op copy_8   ['a] (x:'a) = x.
@@ -590,6 +600,12 @@ abbrev [-printing] adc_8  = W8.addc.
 abbrev [-printing] adc_16 = W16.addc.
 abbrev [-printing] adc_32 = W32.addc.
 abbrev [-printing] adc_64 = W64.addc.
+
+(* ------------------------------------------------------------------- *)
+abbrev [-printing] sbb_8  = W8.subc.
+abbrev [-printing] sbb_16 = W16.subc.
+abbrev [-printing] sbb_32 = W32.subc.
+abbrev [-printing] sbb_64 = W64.subc.
 
 (* ------------------------------------------------------------------- *)
 (* Leakages                                                            *)

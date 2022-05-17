@@ -386,7 +386,7 @@ Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr)
         all2 check_ty_val fd.(lfd_tyin) args' ∧
         ∃ vm' lm' res',
           [/\
-            lsem_exportcall tp x86_linear_sem.x86_mov_eop scs lm fn vm scs' lm' vm',
+            lsem_exportcall tp scs lm fn vm scs' lm' vm',
             match_mem m' lm',
             mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
             List.Forall2 value_uincl res res' &
