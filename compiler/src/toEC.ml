@@ -475,7 +475,7 @@ let out_ty_opN op =
 let ty_expr = function
   | Pconst _       -> tint 
   | Pbool _        -> tbool
-  | Parr_init _    -> assert false 
+  | Parr_init len  -> Arr (U8, len)
   | Pvar x         -> x.gv.L.pl_desc.v_ty
   | Pload (sz,_,_) -> tu sz
   | Pget  (_,sz,_,_) -> tu sz
@@ -522,8 +522,7 @@ let rec pp_expr env fmt (e:expr) =
 
   | Pbool b -> Format.fprintf fmt "%a" Printer.pp_bool b
 
-  | Parr_init _n -> 
-    assert false
+  | Parr_init _n -> Format.fprintf fmt "witness"
 
   | Pvar x ->
     pp_ovar env fmt (L.unloc x.gv)
@@ -750,7 +749,7 @@ module Normal = struct
   let check_lvals lvs = 
     match lvs with
     | [] -> assert false
-    | [lv] -> begin match lv with Lvar _ | Laset _ -> true | _ -> false end
+    | [lv] -> begin match lv with Lvar _ -> true | _ -> false end
     | _ -> all_vars lvs 
 
   let rec init_aux_i env i = 
