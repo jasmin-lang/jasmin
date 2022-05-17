@@ -1,4 +1,3 @@
-open Utils
 open Prog
 open Apron
 open ToEC

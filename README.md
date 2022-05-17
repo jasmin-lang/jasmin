@@ -24,16 +24,8 @@ This repository contains the following subdirectories:
 
 # Building the Jasmin compiler and the cost analyzer:
 
-1. To compile, first compile the proofs:
-   - `$ cd proofs; make)`
+1. To compile, simply run:
    - `$ make`
-   - `$ cd ..`
-   Then, back at the root directory, build the compiler:    
-   - `$ cd compiler`
-   - `$ make CIL build`
-   - `$ make`
-   Optionally, test the compiler:
-   - `$ make tests`
 2. To test the pipeline analyzer, once the compiler is built:
    - `$ cd compiler/pipeline-examples/`
    - `$ ./run-analysis` (bash version >= 4 required)
