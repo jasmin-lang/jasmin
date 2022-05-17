@@ -750,7 +750,7 @@ module Normal = struct
   let check_lvals lvs = 
     match lvs with
     | [] -> assert false
-    | [lv] -> begin match lv with Lvar _ | Laset _ -> true | _ -> false end
+    | [lv] -> begin match lv with Lvar _ -> true | _ -> false end
     | _ -> all_vars lvs 
 
   let rec init_aux_i env i = 
