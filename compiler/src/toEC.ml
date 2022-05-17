@@ -759,6 +759,16 @@ let base_op = function
   | Sopn.Oasm (Arch_extra.BaseOp (_, o)) -> Sopn.Oasm (Arch_extra.BaseOp(None,o))
   | o -> o
 
+let ty_sopn op = 
+  match op with
+  (* Do a special case for copy since the Coq type loose information  *)
+  | Sopn.Ocopy(ws, p) ->  
+    let l = [Arr(ws, Conv.int_of_pos p)] in
+    l, l
+  | _ ->
+    List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op), 
+    List.map Conv.ty_of_cty (Sopn.sopn_tin (Arch_extra.asm_opI X86_extra.x86_extra) op)
+
 module Normal = struct  
 
   let all_vars lvs = 
@@ -820,9 +830,9 @@ module Normal = struct
 
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
-      (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op), List.map Conv.ty_of_cty (Sopn.sopn_tin (Arch_extra.asm_opI X86_extra.x86_extra) op) in
-      let otys' = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op') in
+         (* Since we do not have merge for the moment only the output type can change *)
+      let otys,itys = ty_sopn op in
+      let otys', _ = ty_sopn op' in  
       let pp_e fmt (op,es) = 
         Format.fprintf fmt "%a %a" pp_opn op 
           (pp_list "@ " (pp_wcast env)) (List.combine itys es) in
@@ -1101,8 +1111,8 @@ module Leak = struct
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op), List.map Conv.ty_of_cty (Sopn.sopn_tin (Arch_extra.asm_opI X86_extra.x86_extra) op) in
-      let otys' = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op') in
+      let otys,itys = ty_sopn op in 
+      let otys', _ = ty_sopn op' in 
       let pp fmt (op, es) = 
         Format.fprintf fmt "<- %a %a" pp_opn op 
           (pp_list "@ " (pp_wcast env)) (List.combine itys es) in
