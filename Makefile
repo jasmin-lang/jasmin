@@ -3,6 +3,11 @@
 # --------------------------------------------------------------------
 SED      ?= sed
 DISTDIR  := jasmin
+PREFIX   ?= /usr/local
+# we compute the absolute path, otherwise it does not make sense when
+# given to the sub-Makefiles
+PREFIX   := $(abspath $(PREFIX))
+export PREFIX
 
 # --------------------------------------------------------------------
 .PHONY: all build check clean install uninstall dist distcheck

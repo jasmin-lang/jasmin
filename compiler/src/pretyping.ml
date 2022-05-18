@@ -586,9 +586,8 @@ let tt_var_global (mode:tt_mode) (env : Env.env) v =
   let lc = v.L.pl_loc in
   let x, k = 
     try tt_var mode env v, E.Slocal
-    with TyError _ -> 
+    with TyError _ when mode <> `OnlyParam ->
       let x = v.L.pl_desc in
-      if mode = `OnlyParam then rs_tyerror ~loc:lc (UnknownVar x);
       match Env.Globals.find x env with
       | Some v -> v, E.Sglob
       | None -> rs_tyerror ~loc:lc (UnknownVar x) in

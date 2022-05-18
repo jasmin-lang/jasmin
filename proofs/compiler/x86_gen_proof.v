@@ -4,7 +4,7 @@ Require Import psem sem_one_varmap compiler_util asm_gen_proof.
 (* FIXME syscall : this is needed for write_lvars_escs write_lvars_emem *)
 Require Import merge_varmaps_proof.
 Require Import arch_extra linear_sem.
-Require Import x86_instr_decl x86_extra x86_gen x86_linear_sem.
+Require Import x86_instr_decl x86_extra x86_gen.
 
 Import Utf8.
 Import Relation_Operators.
@@ -585,7 +585,7 @@ Lemma assemble_iP i j ls ls' lc xs :
   omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
   match_state rip ls lc xs →
   assemble_i rip i = ok j →
-  linear_sem.eval_instr p x86_mov_eop i ls = ok ls' →
+  linear_sem.eval_instr p i ls = ok ls' →
   exists2 xs': x86_state,
     arch_sem.eval_instr p' j xs = ok xs'  &
     exists2 lc',
@@ -710,23 +710,22 @@ case: i => ii [] /=.
   rewrite get_fd /=.
   do 2 (eexists; first reflexivity).
   by constructor.
-- case => // x lbl.
+- move => x lbl.
   case ok_r_x: (of_var x) => [r|//]; move /of_varI in ok_r_x.
   move=> /= [<-]{j}.
   rewrite eqfn.
   case ptr_eq: encode_label => [ ptr | ] //.
   replace (encode_label _ _) with (Some ptr);
     last by rewrite -(assemble_prog_labels ok_p').
-  rewrite /=.
-  rewrite /sem_sopn /=.
-  t_xrbindP => s' q ok_s' ? ?; subst ls' q.
+  t_xrbindP => vm ok_vm <-{ls'}.
   eexists; first reflexivity.
   rewrite /= -eqfn.
   exists lc; first exact: omap_lc.
   constructor => //=; last by congr _.+1.
-  move: ok_s' ok_r_x.
-  rewrite to_estate_of_estate zero_extend_u wrepr_unsigned.
-  exact: lom_eqv_write_var.
+  move: ok_r_x.
+  change x with (v_var (VarI x xH)).
+  apply: lom_eqv_write_var; first exact: eqm.
+  by rewrite /write_var ok_vm.
 - t_xrbindP => cnd lbl cndt ok_c <- b v ok_v ok_b.
   case: eqm => eqscs eqm hrip hd eqr eqrx eqx eqf.
   have [v' [ok_v' hvv']] := eval_assemble_cond eqf ok_c ok_v.
@@ -750,7 +749,7 @@ Lemma match_state_step ls ls' lc xs :
   let: rip := mk_rip (lp_rip p) in
   omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
   match_state rip ls lc xs →
-  step p x86_mov_eop ls = ok ls' →
+  step p ls = ok ls' →
   exists2 xs',
     fetch_and_eval p' xs = ok xs' &
     exists2 lc',
@@ -769,7 +768,7 @@ Qed.
 Lemma match_state_sem ls ls' lc xs :
   let: rip := mk_rip (lp_rip p) in
   omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc ->
-  lsem p x86_mov_eop ls ls' →
+  lsem p ls ls' →
   match_state rip ls lc xs →
   ∃ xs' lc',
     [/\ x86sem p' xs xs' ,
@@ -809,7 +808,7 @@ by apply: hxr; rewrite rx.
 Qed.
 
 Lemma x86gen_exportcall fn scs m vm scs' m' vm' :
-  lsem_exportcall p x86_mov_eop scs m fn vm scs' m' vm' →
+  lsem_exportcall p scs m fn vm scs' m' vm' →
   vm_initialized_on vm (map to_var x86_callee_saved) →
   ∀ xm,
     lom_eqv rip {| escs := scs; emem := m ; evm := vm |} xm →
