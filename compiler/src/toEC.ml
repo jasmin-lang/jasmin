@@ -33,8 +33,8 @@ type env = {
     vars : (string * bool) Mv.t;  (* true means option type *)
     glob : (string * ty) Ms.t;
     funs : (string * (ty list * ty list)) Mf.t;  
-    arrsz  : Sint.t;
-    warrsz : Sint.t;
+    arrsz  : Sint.t ref;
+    warrsz : Sint.t ref;
     auxv  : string list Mty.t;
   }
 
@@ -295,7 +295,7 @@ let mkfunname env fn =
   in
   create_name env s
 
-let empty_env model fds = 
+let empty_env model fds arrsz warrsz = 
 
   let env = { 
     model;
@@ -303,8 +303,8 @@ let empty_env model fds =
     vars = Mv.empty;
     glob = Ms.empty;
     funs = Mf.empty;
-    arrsz = Sint.empty;
-    warrsz = Sint.empty;
+    arrsz;
+    warrsz;
     auxv  = Mty.empty ;
   } in
 
@@ -329,12 +329,26 @@ let ty_lval = function
   | Lasub (_,ws, len, _, _) -> Arr(ws, len) 
 
 
-let pp_ty _option fmt ty = 
+let add_Array env n =
+  env.arrsz := Sint.add n !(env.arrsz)
+
+let pp_Array env fmt n = 
+  add_Array env n;
+  Format.fprintf fmt "Array%i" n
+
+let add_WArray env n =
+  env.warrsz := Sint.add n !(env.warrsz)
+
+let pp_WArray env fmt n = 
+  add_WArray env n;
+  Format.fprintf fmt "WArray%i" n
+
+let pp_ty env fmt ty = 
   match ty with
   | Bty Bool -> Format.fprintf fmt "bool"
   | Bty Int  -> Format.fprintf fmt "int"
   | Bty (U ws) -> pp_sz_t fmt ws
-  | Arr(ws,n) -> Format.fprintf fmt "%a Array%i.t" pp_sz_t ws n
+  | Arr(ws,n) -> Format.fprintf fmt "%a %a.t" pp_sz_t ws (pp_Array env) n
 
 let add_aux env tys = 
   let tbl = Hashtbl.create 10 in
@@ -385,7 +399,7 @@ let pp_ovar env fmt (x:var) =
     let ty = x.v_ty in
     if is_ty_arr ty then
       let (_ws,n) = array_kind ty in
-      Format.fprintf fmt "(Array%i.map oget %s)" n s
+      Format.fprintf fmt "(%a.map oget %s)" (pp_Array env) n s
     else pp_oget true pp_string fmt s
   else pp_string fmt s
 
@@ -489,13 +503,13 @@ let ty_expr = function
 
 let check_array env x = 
   match (L.unloc x).v_ty with
-  | Arr(ws, n) -> Sint.mem n env.arrsz && Sint.mem (arr_size ws n) env.warrsz
+  | Arr(ws, n) -> Sint.mem n !(env.arrsz) && Sint.mem (arr_size ws n) !(env.warrsz)
   | _ -> true
 
-let pp_initi pp fmt (x, n, ws) =
+let pp_initi env pp fmt (x, n, ws) =
   Format.fprintf fmt 
-    "@[(WArray%i.init%i (fun i => %a.[i]))@]"
-    (arr_size ws n) (int_of_ws ws) pp x
+    "@[(%a.init%i (fun i => %a.[i]))@]"
+    (pp_WArray env) (arr_size ws n) (int_of_ws ws) pp x
     
 let pp_print_i fmt z = 
   if Z.leq Z.zero z then Z.pp_print fmt z 
@@ -503,7 +517,7 @@ let pp_print_i fmt z =
 
 let pp_access aa = if aa = Warray_.AAdirect then "_direct" else ""
 
-let pp_cast pp fmt (ty,ety,e) = 
+let pp_cast env pp fmt (ty,ety,e) = 
   if ety = ty then pp fmt e 
   else 
     match ty with
@@ -512,10 +526,10 @@ let pp_cast pp fmt (ty,ety,e) =
     | Arr(ws, n) ->
       let wse, ne = array_kind ety in
       Format.fprintf fmt 
-        "@[(Array%i.init@ (fun i => get%i@ %a@ i))@]"
-        n
+        "@[(%a.init@ (fun i => get%i@ %a@ i))@]"
+        (pp_Array env) n
         (int_of_ws ws)
-        (pp_initi pp) (e, ne, wse)
+        (pp_initi env pp) (e, ne, wse)
 
 
 let rec pp_expr env fmt (e:expr) = 
@@ -541,7 +555,7 @@ let rec pp_expr env fmt (e:expr) =
         Format.fprintf fmt "@[(get%i%s@ %a@ %a)@]" 
           (int_of_ws ws) 
           (pp_access aa)
-          (pp_initi (pp_var env)) (x, n, xws) (pp_expr env) e in
+          (pp_initi env (pp_var env)) (x, n, xws) (pp_expr env) e in
     let option = 
       for_safety env && snd (Mv.find (L.unloc x.gv) env.vars) in
     pp_oget option pp fmt (x,e)
@@ -553,20 +567,20 @@ let rec pp_expr env fmt (e:expr) =
     let x = L.unloc x in
     let (xws,n) = array_kind x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
-      Format.fprintf fmt "@[(Array%i.init (fun %s => %a.[%a + %s]))@]"
-        len
+      Format.fprintf fmt "@[(%a.init (fun %s => %a.[%a + %s]))@]"
+        (pp_Array env) len
         i
         (pp_var env) x
         (pp_expr env) e
         i
     else 
       Format.fprintf fmt 
-        "@[(Array%i.init (fun %s => (get%i%s@ %a@ (%a + %s))))@]" 
-        len
+        "@[(%a.init (fun %s => (get%i%s@ %a@ (%a + %s))))@]" 
+        (pp_Array env) len
         i
         (int_of_ws ws) 
         (pp_access aa)
-        (pp_initi (pp_var env)) (x, n, xws) 
+        (pp_initi env (pp_var env)) (x, n, xws) 
         (pp_expr env) e 
         i 
 
@@ -609,16 +623,16 @@ let rec pp_expr env fmt (e:expr) =
       (pp_expr env) e1 (pp_wcast env) (ty,et) (pp_wcast env) (ty,ef)
 
 and pp_wcast env fmt (ty, e) = 
-  pp_cast (pp_expr env) fmt (ty, ty_expr e, e)
+  pp_cast env (pp_expr env) fmt (ty, ty_expr e, e)
 
-let pp_vdecl env option fmt x = 
+let pp_vdecl env fmt x = 
   Format.fprintf fmt "%a:%a" 
     (pp_var env) x 
-    (pp_ty option) x.v_ty
+    (pp_ty env) x.v_ty
   
 let pp_params env fmt params = 
   Format.fprintf fmt "@[%a@]"
-    (pp_list ",@ " (pp_vdecl env false)) params 
+    (pp_list ",@ " (pp_vdecl env)) params 
 
 let pp_locals env fmt locals = 
   let locarr = 
@@ -627,7 +641,7 @@ let pp_locals env fmt locals =
   let locarr = 
     List.sort (fun x1 x2 -> compare x1.v_name x2.v_name) locarr in 
 
-  let pp_vdecl = pp_vdecl env (for_safety env) in
+  let pp_vdecl = pp_vdecl env in
   let pp_loc fmt x = Format.fprintf fmt "var %a;" pp_vdecl x in
 
   let pp_init fmt x = 
@@ -672,19 +686,23 @@ let pp_lval1 env pp_e fmt (lv, (ety, e)) =
       let nws = n * int_of_ws xws in
       let nws8 = nws / 8 in
       Format.fprintf fmt 
-        "@[%a <-@ @[Array%i.init@ (WArray%i.get%i (WArray%i.set%i%s %a %a %a));@]@]"
-        (pp_var env) x n nws8 (int_of_ws xws) nws8 (int_of_ws ws)
+        "@[%a <-@ @[%a.init@ (%a.get%i (%a.set%i%s %a %a %a));@]@]"
+        (pp_var env) x 
+        (pp_Array env) n 
+        (pp_WArray env) nws8 
+        (int_of_ws xws) 
+        (pp_WArray env) nws8 (int_of_ws ws)
         (pp_access aa)
-        (pp_initi (pp_var env)) (x, n, xws) (pp_expr env) e1 pp_e e
+        (pp_initi env (pp_var env)) (x, n, xws) (pp_expr env) e1 pp_e e
   | Lasub (aa, ws, len, x, e1) -> 
     assert (check_array env x);
     let x = L.unloc x in
     let (xws, n) = array_kind x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
       Format.fprintf fmt 
-      "@[%a <- @[Array%i.init@ @[(fun i => if %a <= i < %a + %i@ then %a.[i-%a]@ else %a.[i]);@]@]@]"
+      "@[%a <- @[%a.init@ @[(fun i => if %a <= i < %a + %i@ then %a.[i-%a]@ else %a.[i]);@]@]@]"
       (pp_var env) x 
-      n 
+      (pp_Array env) n 
       (pp_expr env) e1 (pp_expr env) e1 len 
       pp_e e (pp_expr env) e1
       (pp_var env) x
@@ -699,18 +717,18 @@ let pp_lval1 env pp_e fmt (lv, (ety, e)) =
       let len8 = len * int_of_ws ws / 8 in
       let pp_a fmt () =
         Format.fprintf fmt 
-          "@[(WArray%i.init8@ (fun i =>@ if %a <= i < %a + %i@ then WArray%i.get8 %a (i - %a)@ else WArray%i.get8 %a i))@]"
-        nws8
+          "@[(%a.init8@ (fun i =>@ if %a <= i < %a + %i@ then %a.get8 %a (i - %a)@ else %a.get8 %a i))@]"
+        (pp_WArray env) nws8
         pp_start () pp_start () len8
-        len8 (pp_initi pp_e) (e, len, ws) pp_start () 
-        nws8 (pp_initi (pp_var env)) (x,nws8,U8)
+        (pp_WArray env) len8 (pp_initi env pp_e) (e, len, ws) pp_start () 
+        (pp_WArray env) nws8 (pp_initi env (pp_var env)) (x,nws8,U8)
         
         in
         
-      Format.fprintf fmt "@[%a <- @[Array%i.init@ @[(WArray%i.get%i %a);@]"
+      Format.fprintf fmt "@[%a <- @[%a.init@ @[(%a.get%i %a);@]"
        (pp_var env) x 
-       n 
-       nws8 (int_of_ws ws)
+       (pp_Array env) n 
+       (pp_WArray env) nws8 (int_of_ws ws)
        pp_a ()
        
 let pp_lval env fmt = function
@@ -741,6 +759,16 @@ let pp_wzeroext pp_e fmt tyo tyi e =
 let base_op = function
   | Sopn.Oasm (Arch_extra.BaseOp (_, o)) -> Sopn.Oasm (Arch_extra.BaseOp(None,o))
   | o -> o
+
+let ty_sopn op = 
+  match op with
+  (* Do a special case for copy since the Coq type loose information  *)
+  | Sopn.Ocopy(ws, p) ->  
+    let l = [Arr(ws, Conv.int_of_pos p)] in
+    l, l
+  | _ ->
+    List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op), 
+    List.map Conv.ty_of_cty (Sopn.sopn_tin (Arch_extra.asm_opI X86_extra.x86_extra) op)
 
 module Normal = struct  
 
@@ -780,7 +808,7 @@ module Normal = struct
   let pp_assgn_i env fmt lv ((etyo, etyi), aux) =
     let pp_e fmt aux =
       pp_wzeroext pp_string fmt etyo etyi aux in
-    Format.fprintf fmt "@ %a" (pp_lval1 env (pp_cast pp_e)) (lv, (etyo,aux))
+    Format.fprintf fmt "@ %a" (pp_lval1 env (pp_cast env pp_e)) (lv, (etyo,aux))
 
 
   let pp_call env fmt lvs etyso etysi pp a =
@@ -799,21 +827,21 @@ module Normal = struct
   and pp_instr env fmt i = 
     match i.i_desc with 
     | Cassgn (lv, _, _ty, e) ->
-      let pp_e = pp_cast (pp_expr env) in
+      let pp_e = pp_cast env (pp_expr env) in
       pp_lval1 env pp_e fmt (lv , (ty_expr e, e))
 
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
-      (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op), List.map Conv.ty_of_cty (Sopn.sopn_tin (Arch_extra.asm_opI X86_extra.x86_extra) op) in
-      let otys' = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op') in
+         (* Since we do not have merge for the moment only the output type can change *)
+      let otys,itys = ty_sopn op in
+      let otys', _ = ty_sopn op' in  
       let pp_e fmt (op,es) = 
         Format.fprintf fmt "%a %a" pp_opn op 
           (pp_list "@ " (pp_wcast env)) (List.combine itys es) in
       if List.length lvs = 1 then
         let pp_e fmt (op, es) =
           pp_wzeroext pp_e fmt (List.hd otys) (List.hd otys') (op, es) in
-        let pp_e  = pp_cast pp_e in
+        let pp_e  = pp_cast env pp_e in
         pp_lval1 env pp_e fmt (List.hd lvs , (List.hd otys,  (op',es)))
       else
         let pp fmt (op, es) = 
@@ -960,7 +988,7 @@ module Leak = struct
     | Initv x -> Format.fprintf fmt "is_init %a" (pp_var env) x
     | Initai(ws, x,e) -> Format.fprintf fmt "is_init%i %a %a" 
                            (int_of_ws ws) (pp_var env) x (pp_expr env) e
-    | Inita(x,n) -> Format.fprintf fmt "Array%i.is_init %a" n (pp_var env) x 
+    | Inita(x,n) -> Format.fprintf fmt "%a.is_init %a" (pp_Array env) n (pp_var env) x 
     | Valid (sz, e) -> Format.fprintf fmt "is_valid Glob.mem %a W%a" (pp_expr env) e pp_size sz 
     | NotZero(sz,e) -> Format.fprintf fmt "%a <> W%a.zeros" (pp_expr env) e pp_size sz
     | InBound(ws, n,e)  -> Format.fprintf fmt "in_bound %a %i %i" 
@@ -1053,7 +1081,7 @@ module Leak = struct
           let ty = x.v_ty in
           if is_ty_arr ty then
             let (_ws,n) = array_kind ty in
-            Format.fprintf fmt "(Array%i.map Some %a)" n pp e
+            Format.fprintf fmt "(%a.map Some %a)" (pp_Array env) n pp e
           else Format.fprintf fmt "(Some %a)" pp e 
         else pp fmt e 
       | Lmem _ -> pp fmt e
@@ -1065,7 +1093,7 @@ module Leak = struct
     Format.fprintf fmt "@ "; pp_leaks_lv env fmt lv;
     let pp_e fmt aux =
       pp_wzeroext pp_string fmt etyo etyi aux in
-    let pp_e = pp_some env (pp_cast pp_e) lv in
+    let pp_e = pp_some env (pp_cast env pp_e) lv in
     pp_lval1 env pp_e fmt (lv, (etyo,aux))
 
   let pp_call env fmt lvs etyso etysi pp a =
@@ -1088,8 +1116,8 @@ module Leak = struct
     | Copn(lvs, _, op, es) ->
       let op' = base_op op in
       (* Since we do not have merge for the moment only the output type can change *)
-      let otys,itys = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op), List.map Conv.ty_of_cty (Sopn.sopn_tin (Arch_extra.asm_opI X86_extra.x86_extra) op) in
-      let otys' = List.map Conv.ty_of_cty (Sopn.sopn_tout (Arch_extra.asm_opI X86_extra.x86_extra) op') in
+      let otys,itys = ty_sopn op in 
+      let otys', _ = ty_sopn op' in 
       let pp fmt (op, es) = 
         Format.fprintf fmt "<- %a %a" pp_opn op 
           (pp_list "@ " (pp_wcast env)) (List.combine itys es) in
@@ -1159,7 +1187,7 @@ end
 
 let pp_aux fmt env = 
   let pp ty aux = 
-    Format.fprintf fmt "@[var %s:@ %a@];@ " aux (pp_ty false) ty in
+    Format.fprintf fmt "@[var %s:@ %a@];@ " aux (pp_ty env) ty in
   Mty.iter (fun ty -> List.iter (pp ty)) env.auxv
 
 let pp_safe_ret env fmt xs =
@@ -1187,7 +1215,7 @@ let pp_fun env fmt f =
     "@[<v>proc %a (%a) : %a = {@   @[<v>%a@ %a@ %a@ %a%a@]@ }@]"
     (pp_fname env) f.f_name
     (pp_params env) f.f_args 
-    (pp_rty false) f.f_tyout
+    (pp_rty env) f.f_tyout
     pp_aux env
     (pp_locals env) locals
     (pp_cmd env) f.f_body
@@ -1203,8 +1231,8 @@ let pp_glob_decl env fmt (x,d) =
     let wz, t = Conv.to_array x.v_ty p t in
     let pp_elem fmt z = 
       Format.fprintf fmt "%a.of_int %a" pp_Tsz wz pp_print_i z in
-    Format.fprintf fmt "@[abbrev %a = Array%i.of_list witness [%a].@]@ "
-       (pp_var env) x (Array.length t) 
+    Format.fprintf fmt "@[abbrev %a = %a.of_list witness [%a].@]@ "
+       (pp_var env) x (pp_Array env) (Array.length t) 
        (pp_list ";@ " pp_elem) (Array.to_list t)
 
 
@@ -1220,8 +1248,9 @@ let add_arrsz env f =
     | _ -> sz in
     
   let vars = vars_fc f in
-  {env with arrsz = Sv.fold add_sz vars env.arrsz;
-            warrsz = Sv.fold add_wsz vars env.warrsz; }
+  env.arrsz := Sv.fold add_sz vars !(env.arrsz);
+  env.warrsz := Sv.fold add_wsz vars !(env.warrsz);
+  env
 
 let pp_array_decl i = 
   let file = Format.sprintf "Array%i.ec" i in
@@ -1245,20 +1274,21 @@ let add_glob_arrsz env (x,d) =
   | Global.Garr(p,t) ->
     let ws, t = Conv.to_array x.v_ty p t in
     let n = Array.length t in
-    { env with arrsz = Sint.add n env.arrsz;
-               warrsz = Sint.add (arr_size ws n) env.warrsz; }
+    env.arrsz := Sint.add n !(env.arrsz);
+    env.warrsz := Sint.add (arr_size ws n) !(env.warrsz); 
+    env
 
-let pp_prog fmt model globs funcs = 
+let pp_prog fmt model globs funcs arrsz warrsz = 
 
-  let env = empty_env model funcs in
+  let env = empty_env model funcs arrsz warrsz in
   
   let env = 
     List.fold_left (fun env (x, d) -> let env = add_glob_arrsz env (x,d) in add_glob env x)
       env globs in
   let env = List.fold_left add_arrsz env funcs in
 
-  Sint.iter pp_array_decl env.arrsz;
-  Sint.iter pp_warray_decl env.warrsz;
+  Sint.iter pp_array_decl !(env.arrsz);
+  Sint.iter pp_warray_decl !(env.warrsz);
 
   let pp_arrays arr fmt s = 
     let l = Sint.elements s in
@@ -1278,8 +1308,8 @@ let pp_prog fmt model globs funcs =
      "@[<v>%s.@ %s.@ @ %a%a@ %a@ @ module M = {@   @[<v>%a%a@]@ }.@ @]@." 
     "require import AllCore IntDiv CoreMap List"
     "from Jasmin require import JModel"
-    (pp_arrays "Array") env.arrsz
-    (pp_arrays "WArray") env.warrsz
+    (pp_arrays "Array") !(env.arrsz)
+    (pp_arrays "WArray") !(env.warrsz)
     (pp_list "@ @ " (pp_glob_decl env)) globs 
     pp_leakages env 
     (pp_list "@ @ " (pp_fun env)) funcs 
@@ -1306,6 +1336,12 @@ let extract fmt model ((globs,funcs):'a prog) tokeep =
     if Ss.mem f.f_name.fn_name !tokeep then
       (tokeep := Ss.union (used_func f) !tokeep; true)
     else false in
-  let funcs = List.filter dofun funcs in
-  pp_prog fmt model globs (List.rev funcs)
+  let funcs = List.rev (List.filter dofun funcs) in
+  let arrsz = ref Sint.empty in
+  let warrsz = ref Sint.empty in
+  (* Do first a dummy printing to collect the Arrayi WArrayi *)
+  let dummy_fmt = Format.make_formatter (fun _ _ _ -> ()) (fun _ -> ()) in 
+  pp_prog dummy_fmt model globs funcs arrsz warrsz;
+  pp_prog       fmt model globs funcs arrsz warrsz
+
 
