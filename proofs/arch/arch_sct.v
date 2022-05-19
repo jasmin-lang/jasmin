@@ -18,7 +18,7 @@ label
 values.
 
 (* FIXME remove this: it is needed due to find_label. so move find label *)
-Require Import arch_sem.
+Require Import arch_sem_no_spec.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -135,7 +135,7 @@ Definition set_reg env r lw :=
      e_xreg := env.(e_xreg);
      e_flag := env.(e_flag);
      e_pt   := env.(e_pt);
-  |}.
+  |}. 
 
 Definition set_regx env r lw := 
   {| e_reg  := env.(e_reg);
@@ -170,13 +170,13 @@ Definition set_pt env r l :=
   |}.
 
 Definition le_ws c (lw1 lw2 : lvl * wsize) := 
-  is_le c lw1.1 lw2.1 && (lw1.2 <= lw2.2)%CMP.
+  is_le c lw1.1 lw2.1 && (lw2.2 <= lw1.2)%CMP.
 
 Definition le_env c (env1 env2: env_t) := 
-  [/\ forall r, le_ws c (env1.(e_reg) r) (env1.(e_reg) r), 
-      forall r, le_ws c (env1.(e_regx) r) (env1.(e_regx) r), 
-      forall r, le_ws c (env1.(e_xreg) r) (env1.(e_xreg) r), 
-      forall r, is_le c (env1.(e_flag) r) (env1.(e_flag) r) &
+  [/\ forall r, le_ws c (env1.(e_reg) r) (env2.(e_reg) r), 
+      forall r, le_ws c (env1.(e_regx) r) (env2.(e_regx) r), 
+      forall r, le_ws c (env1.(e_xreg) r) (env2.(e_xreg) r), 
+      forall r, is_le c (env1.(e_flag) r) (env2.(e_flag) r) &
       forall r, is_le c (get_pt env1 r) (get_pt env2 r)].
 
 (* pt_size : size in bytes of a points-to *)
@@ -387,7 +387,50 @@ Section Typing.
 
 Context (fn:funname).
 
-Definition wt_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (seq pt_info * seq pt_info)) (code: asm_code) (pc:nat) : Prop := 
+Inductive WT_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (seq pt_info * seq pt_info)) (code: asm_code) (pc:nat) : Prop := 
+  | WT_AsmOp : forall o args env env' dpt apt env1,
+        oseq.onth code pc = Some (AsmOp o args) ->
+        oseq.onth Env pc  = Some env -> 
+        oseq.onth Env (pc.+1) = Some env' -> 
+        nth ([::], [::]) Pt_info pc = (dpt, apt) ->
+        let odesc := instr_desc_op o in
+        let ls := dests_lvl env' args dpt odesc.(id_out) in
+        wt_args_in c env args (of_list ls) odesc.(id_in) apt odesc.(id_tin) -> 
+        ty_dests c pts odesc.(id_msb_flag) args odesc.(id_out) dpt ls odesc.(id_tout) env = ok env1 ->
+        le_env c env1 env' -> 
+        WT_pc c pts Env Pt_info code pc
+  | WT_ALIGN : forall env env',
+        oseq.onth code pc = Some ALIGN ->
+        oseq.onth Env pc  = Some env -> 
+        oseq.onth Env (pc.+1) = Some env' -> 
+        le_env c env env' ->
+        WT_pc c pts Env Pt_info code pc
+  | WT_LABEL : forall env env' lbl,
+        oseq.onth code pc = Some (LABEL lbl) ->
+        oseq.onth Env pc  = Some env -> 
+        oseq.onth Env (pc.+1) = Some env' -> 
+        le_env c env env' ->
+        WT_pc c pts Env Pt_info code pc
+  | WT_JMP : forall env env' fn' lbl ip,
+        oseq.onth code pc = Some (JMP (fn', lbl)) ->
+        oseq.onth Env pc  = Some env -> 
+        fn == fn' ->
+        find_label lbl code = ok ip -> 
+        (*oseq.onth Env ip = Some env' -> *)
+        oseq.onth Env ip.+1 = Some env' ->
+        le_env c env env' ->
+        WT_pc c pts Env Pt_info code pc
+  | WT_JCC : forall env envf envt lbl ip ct,
+        oseq.onth code pc = Some (Jcc lbl ct) ->
+        oseq.onth Env pc  = Some env -> 
+        wt_cond c env ct spublic ->
+        find_label lbl code = ok ip -> 
+        oseq.onth Env (pc.+1) = Some envf -> 
+        oseq.onth Env ip = Some envt -> 
+        le_env c env envf /\ le_env c env envt ->
+        WT_pc c pts Env Pt_info code pc.
+
+(*Definition wt_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (seq pt_info * seq pt_info)) (code: asm_code) (pc:nat) : Prop := 
   if oseq.onth code pc is Some i then 
     if oseq.onth Env pc is Some env then 
        match i with 
@@ -434,25 +477,10 @@ Definition wt_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq 
        | _ => false
        end
     else false     
-  else false.
-
-(*
-Inductive WT_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (seq pt_info * seq pt_info)) (code: asm_code) (pc:nat) : Prop := 
-  | WT_AsmOp : forall o args env env' dpt apt env1,
-        oseq.onth code pc = Some (AsmOp o args) ->
-        oseq.onth Env pc = Some env -> 
-        oseq.onth Env (pc.+1) = Some env' -> 
-        nth ([::], [::]) Pt_info pc = (dpt, apt) ->
-        let odesc := instr_desc_op o in
-        let ls := dests_lvl env' args dpt odesc.(id_out) in
-        wt_args_in c env args (of_list ls) odesc.(id_in) apt odesc.(id_tin) -> 
-        ty_dests c pts odesc.(id_msb_flag) args odesc.(id_out) dpt ls odesc.(id_tout) env = ok env1 ->
-        le_env c env1 env' -> 
-        WT_pc c pts Env Pt_info code pc.
-*)
+  else false.*)
 
 Definition wt_code (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (seq pt_info * seq pt_info)) (code: asm_code) := 
-  forall pc,  0 <= pc < size code -> wt_pc c pts Env Pt_info code pc.
+  forall pc,  0 <= pc < size code -> WT_pc c pts Env Pt_info code pc.
 
 (* Proofs *)
 
@@ -463,23 +491,242 @@ Definition valid_valuation (c:constraints) (rho: valuation) :=
   rho secret = Secret /\
   forall l s, is_le c l s -> (rho l <= rho s)%CMP.
 
+(* starting address of pointsto *)
+Definition vpointsto := pointsto -> option pointer. 
 
-vpointsto : poinsto -> option pointer 
+(* two memory areas should be disjoint *) 
+Definition wf_vpointsto (vp:vpointsto) :=
+forall (pt1:pointsto) (pt2:pointsto) a1 a2 (pts:pt_size),
+(pt1 <> pt2)%positive ->
+vp pt1 = Some a1 /\ vp pt2 = Some a2 ->
+disjoint_zrange a1 (get_size pts pt1) a2 (get_size pts pt2).
 
-Definition wf_vpointsto (vp:vpointsto) := 
-forall pt1 pt2 a1 a2:
-   vpointsto pt1 = a1 -> 
-   vpointsto pt2 = a2 -> 
-   disjoint a1 (pt_size pt1) a2 (pt_size pt2).
+(* state equivalence *) 
+Inductive state_equiv (rho: valuation) (s1 s2:asm_state) (env: env_t): Prop :=
+| asm_st_equiv : 
+  s1.(asm_c) = s2.(asm_c) -> 
+  s1.(asm_ip) = s2.(asm_ip) -> 
+  (forall r l ws, env.(e_reg) r = (l, ws) -> 
+   rho l = Public -> 
+   zero_extend ws (s1.(asm_m).(asm_reg) r) =
+   zero_extend ws (s2.(asm_m).(asm_reg) r)) ->
+  (forall r l ws, env.(e_regx) r = (l, ws) -> 
+   rho l = Public -> 
+   zero_extend ws (s1.(asm_m).(asm_regx) r) =
+   zero_extend ws (s2.(asm_m).(asm_regx) r)) ->
+  (forall r l ws, env.(e_xreg) r = (l, ws) -> 
+   rho l = Public -> 
+   zero_extend ws (s1.(asm_m).(asm_xreg) r) =
+   zero_extend ws (s2.(asm_m).(asm_xreg) r)) ->
+  (forall f l, env.(e_flag) f = l -> 
+   rho l = Public -> 
+   (s1.(asm_m).(asm_flag) f) = (s2.(asm_m).(asm_flag) f)) ->
+  (forall pt l a vp pts, 
+   wf_vpointsto vp ->
+   vp pt = Some a ->
+   get_pt env pt = l -> 
+   rho l = Public ->
+   (forall i, (0 <= i <= get_size pts pt)%Z -> 
+    read (s1.(asm_m).(asm_mem)) (a+word_of_scale (Z.to_nat i))%R = 
+    read (s2.(asm_m).(asm_mem)) (a+word_of_scale (Z.to_nat i))%R)) ->
+  state_equiv rho s1 s2 env. 
+
+Lemma zero_extend_small_size : forall s sz sz' (w1: word s) (w2: word s),
+(sz <= sz')%CMP -> 
+zero_extend sz' w1 = zero_extend sz' w2 ->
+zero_extend sz  w1 = zero_extend sz  w2.
+Proof.
+move=> s sz sz' w1 w2 hsz ht.
+have hz := zero_extend_idem. move: (hz s sz sz' w1 hsz)=> <-.
+move: (hz s sz sz' w2 hsz)=> <-. by rewrite ht /=.
+Qed.
+
+(* constant-time ---single step *) 
+Definition constant_time (env: env_t) (s1 s2: asm_state) :=
+forall c code s1' s2' l1 l2,
+state_equiv c s1 s2 env ->
+asmsem1 code s1 l1 s1' ->
+asmsem1 code s2 l2 s2' ->
+l1 = l2.
+
+Lemma Public_only_less_than_Public : forall t, (t <= Public)%CMP -> t = Public.
+Proof.
+move=> t ht. by case: t ht=> //=.
+Qed.
+
+Lemma state_equiv_env_env' : forall c rho s1 s2 env env',
+state_equiv rho s1 s2 env ->
+valid_valuation c rho ->
+le_env c env env' ->
+state_equiv rho s1 s2 env'. 
+Proof.
+move=> c rho [] m1 fn1 code1 ip1 [] m2 fn2 code2 ip2 env env' hequiv hvalid hle.
+case: hequiv=> /= hcode hpc hreg hregx hxreg hflag hmem; subst.
+constructor; auto; rewrite /=; subst.
++ move=> r l ws hregty hrho.
+  rewrite /le_env /= in hle. case: hle=> [] hr hrx hxr hf hm.
+  move: (hr r)=> /= hle. rewrite hregty /= in hle. rewrite /le_ws /= in hle.
+  case: hle=> /andP [/= hle hsz]. 
+  inversion hvalid. case: H0=> hsecret hl. move: (hl (e_reg env r).1 l hle)=> /= hl'.
+  rewrite hrho /= in hl'. have hpub := Public_only_less_than_Public hl'. 
+  have henv : e_reg env r = ((e_reg env r).1, (e_reg env r).2). + by case: (e_reg env r)=> //=.
+  move: (hreg r (e_reg env r).1 (e_reg env r).2 henv hpub)=> htenv. 
+  by have := zero_extend_small_size hsz htenv.
++ move=> r l ws hregxty hrho.
+  rewrite /le_env /= in hle. case: hle=> [] hr hrx hxr hf hm.
+  move: (hrx r)=> /= hle. rewrite hregxty /= in hle. rewrite /le_ws /= in hle.
+  case: hle=> /andP [/= hle hsz]. 
+  inversion hvalid. case: H0=> hsecret hl. move: (hl (e_regx env r).1 l hle)=> /= hl'.
+  rewrite hrho /= in hl'. have hpub := Public_only_less_than_Public hl'. 
+  have henv : e_regx env r = ((e_regx env r).1, (e_regx env r).2). + by case: (e_regx env r)=> //=.
+  move: (hregx r (e_regx env r).1 (e_regx env r).2 henv hpub)=> htenv. 
+  by have := zero_extend_small_size hsz htenv.
++ move=> r l ws hxregty hrho.
+  rewrite /le_env /= in hle. case: hle=> [] hr hrx hxr hf hm.
+  move: (hxr r)=> /= hle. rewrite hxregty /= in hle. rewrite /le_ws /= in hle.
+  case: hle=> /andP [/= hle hsz]. 
+  inversion hvalid. case: H0=> hsecret hl. move: (hl (e_xreg env r).1 l hle)=> /= hl'.
+  rewrite hrho /= in hl'. have hpub := Public_only_less_than_Public hl'. 
+  have henv : e_xreg env r = ((e_xreg env r).1, (e_xreg env r).2). + by case: (e_xreg env r)=> //=.
+  move: (hxreg r (e_xreg env r).1 (e_xreg env r).2 henv hpub)=> htenv. 
+  by have := zero_extend_small_size hsz htenv.
++ move=> f l hfty hrho. rewrite /le_env /= in hle. case: hle=> [] hr hrx hxr hf hm.
+  move: (hf f)=> /= hle. rewrite hfty /= in hle. rewrite /le_ws /= in hle.
+  inversion hvalid. case: H0=> hsecret hl. move: (hl (e_flag env f) l hle)=> /= hl'.
+  rewrite hrho /= in hl'. have hpub := Public_only_less_than_Public hl'. 
+  have henv : e_flag env f = e_flag env f. + by auto. 
+  by move: (hflag f (e_flag env f) henv hpub).
+move=> pt l adr vp pts hwvp hvp hpty hrho i hi.
+rewrite /le_env /= in hle. case: hle=> [] hr hrx hxr hf hm.
+move: (hm pt)=> /= hle. rewrite hpty /= in hle. rewrite /le_ws /= in hle.
+inversion hvalid. case: H0=> hsecret hl. move: (hl (get_pt env pt) l hle)=> /= hl'.
+rewrite hrho /= in hl'. have hpub := Public_only_less_than_Public hl'. 
+have henv : get_pt env pt = get_pt env pt. + by auto.
+by move: (hmem pt (get_pt env pt) adr vp pts hwvp hvp henv hpub i hi).
+Qed.
+
+(* Type preserves state equivalence *) 
+Lemma type_prev_state_equivalence : forall Env env env' rho s1 s2 c P Pt_info pts s1' s2' l1 l2, 
+wt_code c pts Env Pt_info s1.(asm_c) ->
+oseq.onth Env s1.(asm_ip) = Some env -> 
+valid_valuation c rho ->
+state_equiv rho s1 s2 env ->
+asmsem1 P s1 l1 s1' ->
+asmsem1 P s2 l2 s2' ->
+oseq.onth Env s1'.(asm_ip) = Some env' ->
+state_equiv rho s1' s2' env'.
+Proof.
+move=> Env env env' rho [] /= m1 fn1 code1 pc1 [] m2 fn2 code2 pc2 c P Pt_info pts s1' s2' l1 l2 hwt hpcenv hvalid hequiv.
+have hequivcopy := hequiv. move: hequiv.
+move=> [] /= hcode hpc hreg hregx hxreg hflag hmem hstep1 hstep2 hpcenv'; subst.
+rewrite /wt_code /= in hwt.
+move: (hwt pc2)=> /= hwtpc2. 
+have hpc : pc2 < size code2. + admit. 
+move: (hwtpc2 hpc)=> {hwtpc2} hwtpc2.
+move: env env' hpcenv hpcenv' hreg hregx hxreg hflag hmem hequivcopy.
+case: hwtpc2.
+(* AsmOp *)
++ admit.
+(* ALIGN *)
++ move=> env env' hpci hpcenv hpcenv' hle. rewrite hpcenv /=.
+  move=> env1 env2 [] henv; subst. move=> hpcenv'' hreg hregx hxreg hflag hmem hequivcopy; subst.
+  inversion hstep1; inversion hstep2. rewrite /fetch_and_eval /= hpci /= in H0 H1.
+  case: H0=> h h'; case: H1=> h'' h'''; subst.
+  constructor; auto.
+  + move=> r l ws hregty hrho /=. rewrite /= in hpcenv''. 
+    rewrite hpcenv' in hpcenv''. case: hpcenv''=> h; subst.
+    have hequiv' := state_equiv_env_env' hequivcopy hvalid hle. 
+    case: hequiv'=> /= hcode hpc' hreg' hregx' hxreg' hflag' hmem'.
+    by move: (hreg' r l ws hregty hrho).
+  + move=> r l ws hregxty hrho /=. rewrite /= in hpcenv''. 
+    rewrite hpcenv' in hpcenv''. case: hpcenv''=> h; subst.
+    have hequiv' := state_equiv_env_env' hequivcopy hvalid hle. 
+    case: hequiv'=> /= hcode hpc' hreg' hregx' hxreg' hflag' hmem'.
+    by move: (hregx' r l ws hregxty hrho).
+  + move=> r l ws hxregty hrho /=. rewrite /= in hpcenv''. 
+    rewrite hpcenv' in hpcenv''. case: hpcenv''=> h; subst.
+    have hequiv' := state_equiv_env_env' hequivcopy hvalid hle. 
+    case: hequiv'=> /= hcode hpc' hreg' hregx' hxreg' hflag' hmem'.
+    by move: (hxreg' r l ws hxregty hrho).
+  + move=> f l hfty hrho /=. rewrite /= in hpcenv''. 
+    rewrite hpcenv' in hpcenv''. case: hpcenv''=> h. rewrite h in hle.
+    have hequiv' := state_equiv_env_env' hequivcopy hvalid hle. 
+    case: hequiv'=> /= hcode hpc' hreg' hregx' hxreg' hflag' hmem'.
+    by move: (hflag' f l hfty hrho).
+  move=> pt l adr vp pts' hwvp hvp hpt hrho i hi. rewrite /= in hpcenv''. 
+  rewrite hpcenv' in hpcenv''. case: hpcenv''=> h. rewrite h in hle.
+  have hequiv' := state_equiv_env_env' hequivcopy hvalid hle. 
+  case: hequiv'=> /= hcode hpc' hreg' hregx' hxreg' hflag' hmem'.
+  by move: (hmem' pt l adr vp pts' hwvp hvp hpt hrho i hi).
+(* LABEL lbl *)
++ move=> env env' lbl hpci hpcenv hpcenv' hle. rewrite hpcenv /=.
+  move=> env1 env2 [] henv; subst. move=> hpcenv'' hreg hregx hxreg hflag hmem hequivcopy; subst.
+  inversion hstep1; inversion hstep2. rewrite /fetch_and_eval /= hpci /= in H0 H1.
+  case: H0=> h h'; case: H1=> h'' h'''; subst.
+  constructor; auto.
+  + move=> r l ws hregty hrho /=. rewrite /= in hpcenv''. 
+    rewrite hpcenv' in hpcenv''. case: hpcenv''=> h; subst.
+    have hequiv' := state_equiv_env_env' hequivcopy hvalid hle. 
+    case: hequiv'=> /= hcode hpc' hreg' hregx' hxreg' hflag' hmem'.
+    by move: (hreg' r l ws hregty hrho).
+  + move=> r l ws hregxty hrho /=. rewrite /= in hpcenv''. 
+    rewrite hpcenv' in hpcenv''. case: hpcenv''=> h; subst.
+    have hequiv' := state_equiv_env_env' hequivcopy hvalid hle. 
+    case: hequiv'=> /= hcode hpc' hreg' hregx' hxreg' hflag' hmem'.
+    by move: (hregx' r l ws hregxty hrho).
+  + move=> r l ws hxregty hrho /=. rewrite /= in hpcenv''. 
+    rewrite hpcenv' in hpcenv''. case: hpcenv''=> h; subst.
+    have hequiv' := state_equiv_env_env' hequivcopy hvalid hle. 
+    case: hequiv'=> /= hcode hpc' hreg' hregx' hxreg' hflag' hmem'.
+    by move: (hxreg' r l ws hxregty hrho).
+  + move=> f l hfty hrho /=. rewrite /= in hpcenv''. 
+    rewrite hpcenv' in hpcenv''. case: hpcenv''=> h. rewrite h in hle.
+    have hequiv' := state_equiv_env_env' hequivcopy hvalid hle. 
+    case: hequiv'=> /= hcode hpc' hreg' hregx' hxreg' hflag' hmem'.
+    by move: (hflag' f l hfty hrho).
+  move=> pt l adr vp pts' hwvp hvp hpt hrho i hi. rewrite /= in hpcenv''. 
+  rewrite hpcenv' in hpcenv''. case: hpcenv''=> h. rewrite h in hle.
+  have hequiv' := state_equiv_env_env' hequivcopy hvalid hle. 
+  case: hequiv'=> /= hcode hpc' hreg' hregx' hxreg' hflag' hmem'.
+  by move: (hmem' pt l adr vp pts' hwvp hvp hpt hrho i hi).
+(* JMP (fn, lbl) *)
++ move=> env env' fn' lbl pc hpci hpcenv /eqP hfn.
+  inversion hstep1; inversion hstep2. rewrite /fetch_and_eval /= hpci /= in H0 H1; subst.
+  case: (get_fundef (asm_funcs P) fn) H0 H1=> //= fundef /= H0 H1; subst.
+  move: H0. t_xrbindP=> pc' hlb' /= hs1' hleak; subst. move: H1. t_xrbindP=> pc'' hlb'' /= hs2' hleak'; subst.
+  rewrite hlb' in hlb''. case: hlb''=> h; subst. 
+  move=> hlbl hpcenv' hle env1 env2. rewrite hpcenv. move=> [] h; subst.   
+  move=> hpcenv'' hreg hregx hxreg hflag hmem hequivcopy; subst.
+  constructor; auto; subst.
+  + move=> r l ws hregty hrho /=. admit.
+  + admit.
+  + admit.
+  + admit.
+  admit. 
+(* JCC lbl ct *)
++ move=> env envf envt lbl ip ct hpci hpcenv hwct hlbl henvf henvt [hlef hlet] env1 env2.
+  rewrite hpcenv. move=> [] h; subst. move=> hpcenv' hreg hregx hxreg hflag hmem hequivcopy.
+  inversion hstep1; inversion hstep2. rewrite /fetch_and_eval /= hpci /= in H0 H1; subst.
+  rewrite /eval_Jcc /= in H0 H1. move: H0. t_xrbindP=> b hevalm pc hb hs1' hleak; subst.
+  move: H1. t_xrbindP=> b' hevalm' pc' hb' hs2' hleak'; subst. rewrite /= in hpcenv'. 
+Admitted.
 
 
-equiv rho (env:env_t) (s1 s2:state) 
-  (forall r l ws, env.(e_reg) r = (l, ws) -> rho l = Public -> truncate ws (s1 r) = truncate ws (s2 r) ). 
-  (forall pt a, vpointsto pt = Some a ->  
-       env.(e_pt) pt = Public -> forall i, 0 <= i <= pt_size pt -> load s1 (a + i) = load s2 (a + i).
+(* Type preserves constant-time *) Print asm_state.
+Lemma type_prev_constant_time : forall Env env rho s1 s2 c P Pt_info pts s1' s2' l1 l2, 
+wt_code c pts Env Pt_info s1.(asm_c) ->
+oseq.onth Env s1.(asm_ip) = Some env -> 
+valid_valuation c rho ->
+state_equiv rho s1 s2 env ->
+asmsem1 P s1 l1 s1' ->
+asmsem1 P s2 l2 s2' ->
+l1 = l2 /\ state_equiv rho s1' s2' env.
+Proof.
+Admitted.
 
 
   
+
 
 
 
