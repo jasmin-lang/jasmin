@@ -335,7 +335,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     | Ovsub ve sz =>
       kb (U128 <= sz)%CMP sz (LowerCopn (Ox86 (VPSUB ve sz)) [::a; b])
     | Ovmul ve sz =>
-      kb ((U32 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPMULL ve sz)) [::a; b])
+      kb ((U16 ≤ ve) && (wsize_of_velem ve ≤ U32) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPMULL ve sz)) [::a; b])
     | Ovlsl ve sz =>
       kb ((U16 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPSLL ve sz)) [::a; b])
     | Ovlsr ve sz =>
