@@ -129,15 +129,9 @@ Definition assemble_i (rip:var) (i: linstr) : cexec (seq asm_i) :=
     ok [:: JMPI arg]
 
   | LstoreLabel x lbl =>
-   
-    Let dst := match x with
-    | Lvar x => if of_var x is Some r then ok r else Error (fail ii "bad var")
-    | Lmem _ _ _ => Error (fail ii "set mem")
-    | Laset _ _ _ _ => Error (fail ii "set array")
-    | Lasub _ _ _ _ _ => Error (fail ii "sub array")
-    | Lnone _ _ => Error (fail ii "none")
-    end%string in
+    Let dst := if of_var x is Some r then ok r else Error (fail ii "bad var") in
     ok [:: STORELABEL dst lbl]
+
   | Lcond e l =>
       Let cond := assemble_cond ii e in
       ok [:: Jcc l cond]

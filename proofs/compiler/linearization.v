@@ -435,7 +435,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
            * 6. Continue.
            *)
           (lbl, before
-                  ++ MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret)
+                  ++ MkLI ii (LstoreLabel ra lret)
                   :: MkLI ii (Lgoto lcall)
                   :: MkLI ii (Llabel lret)
                   :: after
@@ -455,7 +455,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
           if extra_free_registers ii is Some ra
           then let glob_ra := Gvar (VarI ra xH) Slocal in
                (lbl, before
-                       ++ MkLI ii (LstoreLabel (Lvar (VarI ra xH)) lret)
+                       ++ MkLI ii (LstoreLabel ra lret)
                        :: lstore ii rspi z Uptr glob_ra
                        :: MkLI ii (Lgoto lcall)
                        :: MkLI ii (Llabel lret)

@@ -84,7 +84,6 @@ compiler/x86_extra.v
 compiler/x86_gen.v
 compiler/x86_gen_proof.v
 compiler/x86_instr_decl.v
-compiler/x86_linear_sem.v
 compiler/x86_linearization.v
 compiler/x86_linearization_proof.v
 compiler/x86_params.v

@@ -768,6 +768,18 @@ Proof.
   by rewrite wandE wN1E ltn_ord.
 Qed.
 
+Lemma worC sz : commutative (@wor sz).
+Proof.
+  by move => x y; apply/eqP/eq_from_wbit => i;
+  rewrite /wor !CoqWord.word.worE orbC.
+Qed.
+
+Lemma wor0 sz (x: word sz) : wor 0 x = x.
+Proof. by apply/eqP/eq_from_wbit. Qed.
+
+Lemma wor_xx sz (x: word sz) : wor x x = x.
+Proof. by apply/eqP/eq_from_wbit; rewrite /= Z.lor_diag. Qed.
+
 Lemma wxor0 sz (x: word sz) : wxor 0 x = x.
 Proof. by apply/eqP/eq_from_wbit. Qed.
 
@@ -1217,6 +1229,15 @@ Definition wpblendd sz (w1 w2: word sz) (m: u8) : word sz :=
 Definition wpbroadcast ve sz (w: word ve) : word sz :=
   let r := nseq (sz %/ ve) w in
   make_vec sz r.
+
+Lemma wpbroadcast0 ve sz :
+  @wpbroadcast ve sz 0%R = 0%R.
+Proof.
+  rewrite /wpbroadcast/make_vec.
+  suff -> : wcat_r (nseq _ 0%R) = 0.
+  - by rewrite wrepr0.
+  by move => q; elim => // n /= ->; rewrite Z.shiftl_0_l.
+Qed.
 
 (* -------------------------------------------------------------------*)
 Fixpoint seq_dup_hi T (m: seq T) : seq T :=

@@ -1279,9 +1279,9 @@ Section TunnelingSem.
     by rewrite find_label_tunnel_lcmd_pc.
   Qed.
 
-  Lemma eval_instr_tunnel_lprog_pc (mov_op : asm_op) p fn pc :
+  Lemma eval_instr_tunnel_lprog_pc p fn pc :
     uniq (map fst (lp_funcs p)) ->
-    eval_instr (tunnel_lprog_pc p fn pc) mov_op =2 eval_instr p mov_op.
+    eval_instr (tunnel_lprog_pc p fn pc) =2 eval_instr p.
   Proof.
     move => Huniq [ii i] s; case: i => [ | | | |[fn' l]|pe|lv l|pe l] //=.
     + rewrite /eval_instr /= /tunnel_funcs_pc; case Hgfd: (get_fundef (lp_funcs p) fn) => [fd|//].
@@ -1354,14 +1354,12 @@ End TunnelingSem.
 
 Section TunnelingProof.
 
-  Context (mov_op : asm_op).
-
   Lemma tunnel_lprog_pc_lsem1 p fn pc s1 s2 :
     well_formed_lprog p ->
-    lsem1 (tunnel_lprog_pc p fn pc) mov_op s1 s2 ->
-    lsem1 p mov_op s1 s2 \/
-    exists s3, lsem1 p mov_op s1 s3 /\
-           lsem1 p mov_op s3 s2.
+    lsem1 (tunnel_lprog_pc p fn pc) s1 s2 ->
+    lsem1 p s1 s2 \/
+    exists s3, lsem1 p s1 s3 /\
+           lsem1 p s3 s2.
   Proof.
     move => Hwf; move: (Hwf) => /andP [Huniq Hall]; rewrite /lsem1 /step.
     case: find_instr_tunnel_lprog_pcP =>
@@ -1438,24 +1436,24 @@ Section TunnelingProof.
 
   Lemma tunnel_lprog_pc_lsem p fn pc s1 s2 :
     well_formed_lprog p ->
-    lsem (tunnel_lprog_pc p fn pc) mov_op s1 s2 ->
-    lsem p mov_op s1 s2.
+    lsem (tunnel_lprog_pc p fn pc) s1 s2 ->
+    lsem p s1 s2.
   Proof.
     move => Hwf Htlsem12; pattern s1, s2; set Q:= (fun _ => _); move: Htlsem12; apply: lsem_ind_r.
     + by rewrite /Q => s; apply Relation_Operators.rt_refl.
     rewrite /Q => {Q} s3 s4 s5 Htlsem34 Htlsem145 Hlsem34.
     apply (lsem_trans Hlsem34); case: (tunnel_lprog_pc_lsem1 Hwf Htlsem145).
     + by move => Hlsem145; apply Relation_Operators.rt_step.
-    by case => s6 [Hlsem146 Hlsem165]; apply (@lsem_trans _ _ _ _ p _ s6);
+    by case => s6 [Hlsem146 Hlsem165]; apply (@lsem_trans _ _ _ _ p s6);
     apply Relation_Operators.rt_step.
   Qed.
 
   Lemma lsem1_tunnel_lprog_pc p fn pc s1 s2 :
     well_formed_lprog p ->
-    lsem1 p mov_op s1 s2 ->
-    lsem1 (tunnel_lprog_pc p fn pc) mov_op s1 s2 \/
-    exists s3, lsem1 p mov_op s2 s3 /\
-           lsem1 (tunnel_lprog_pc p fn pc) mov_op s1 s3.
+    lsem1 p s1 s2 ->
+    lsem1 (tunnel_lprog_pc p fn pc) s1 s2 \/
+    exists s3, lsem1 p s2 s3 /\
+           lsem1 (tunnel_lprog_pc p fn pc) s1 s3.
   Proof.
     move => Hwf; move: (Hwf) => /andP [Huniq Hall]; rewrite /lsem1 /step.
     case: find_instr_tunnel_lprog_pcP =>
@@ -1550,9 +1548,9 @@ Section TunnelingProof.
 
   Lemma lsem_tunnel_lprog_pc p s1 s2 fn pc :
     well_formed_lprog p ->
-    lsem p mov_op s1 s2 ->
-    exists s3, lsem p mov_op s2 s3 /\
-           lsem (tunnel_lprog_pc p fn pc) mov_op s1 s3.
+    lsem p s1 s2 ->
+    exists s3, lsem p s2 s3 /\
+           lsem (tunnel_lprog_pc p fn pc) s1 s3.
   Proof.
     move => Hwf Hlsem12; pattern s1, s2; set Q:= (fun _ => _); move: Hlsem12; apply: lsem_ind_r.
     + by rewrite /Q => s; exists s; split; apply Relation_Operators.rt_refl.
@@ -1568,12 +1566,12 @@ Section TunnelingProof.
   Lemma lsem_tunnel_lprog_lsem p :
     well_formed_lprog p ->
     (forall s1 s2,
-      lsem (tunnel_lprog p) mov_op s1 s2 ->
-      lsem p mov_op s1 s2) /\
+      lsem (tunnel_lprog p) s1 s2 ->
+      lsem p s1 s2) /\
     forall s1 s2, 
-      lsem p mov_op s1 s2 ->
-      exists s3, lsem p mov_op s2 s3 /\
-             lsem (tunnel_lprog p) mov_op s1 s3.
+      lsem p s1 s2 ->
+      exists s3, lsem p s2 s3 /\
+             lsem (tunnel_lprog p) s1 s3.
   Proof.
     move => Hwf; pattern p, (tunnel_lprog p); set P:= (fun _ => _).
     move: Hwf; apply tunnel_lprog_ind => //; rewrite /P => {p P}.
@@ -1592,28 +1590,28 @@ Section TunnelingProof.
 
   Lemma tunnel_lprog_lsem p s1 s2:
     well_formed_lprog p ->
-    lsem (tunnel_lprog p) mov_op s1 s2 ->
-    lsem p mov_op s1 s2.
+    lsem (tunnel_lprog p) s1 s2 ->
+    lsem p s1 s2.
   Proof. by move => Hwf; move : (lsem_tunnel_lprog_lsem Hwf) => [HP _]; apply HP. Qed.
 
   Lemma lsem_tunnel_lprog p s1 s2 :
     well_formed_lprog p ->
-    lsem p mov_op s1 s2 ->
-    exists s3, lsem p mov_op s2 s3 /\
-           lsem (tunnel_lprog p) mov_op s1 s3.
+    lsem p s1 s2 ->
+    exists s3, lsem p s2 s3 /\
+           lsem (tunnel_lprog p) s1 s3.
   Proof. by move => Hwf; move : (lsem_tunnel_lprog_lsem Hwf) => [_ HQ]; apply HQ. Qed.
 
   Theorem lsem_tunnel_program p tp s1 s2 :
     tunnel_program p = ok tp ->
-    lsem p mov_op s1 s2 ->
-    exists s3, lsem p mov_op s2 s3 /\ lsem tp mov_op s1 s3.
+    lsem p s1 s2 ->
+    exists s3, lsem p s2 s3 /\ lsem tp s1 s3.
   Proof. by rewrite /tunnel_program; case: ifP => // Hwf [<-]; apply lsem_tunnel_lprog. Qed.
 
   Corollary lsem_run_tunnel_program p tp s1 s2 :
     tunnel_program p = ok tp →
-    lsem p mov_op s1 s2 →
+    lsem p s1 s2 →
     lsem_final p s2 →
-    lsem tp mov_op s1 s2 ∧ lsem_final tp s2.
+    lsem tp s1 s2 ∧ lsem_final tp s2.
   Proof.
     move => Htp Hlsem12 Hfinal2; case: (lsem_tunnel_program Htp Hlsem12) => s3 [Hlsem23 Htlsem13].
     have ?:= (lsem_final_stutter Hlsem23 Hfinal2); subst s3; split => //.
