@@ -1,29 +1,29 @@
 
-export fn f1(reg u64 i, #transient reg u64 p) -> () { 
-   reg u64 ms; 
-   ms =#init_msf(); 
-   [p] = i; 
+export fn f1(reg u64 i, #transient reg u64 p) -> () {
+   reg u64 ms;
+   ms =#init_msf();
+   [p] = i;
 }
 
 /*
-fn f2(#strict #transient reg u64 i, reg u64 p) -> reg u64 { 
+fn f2(#strict #transient reg u64 i, reg u64 p) -> reg u64 {
   reg u64 j, ms;
-  
-  j = i;    
+
+  j = i;
   ms = #init_msf ();  // FIXME init_msf should not change the type of strict variable
-  [p] = i;  // 
+  [p] = i;  //
   i = [p];
   return j;
 }
 */
 
-fn init_pub () -> reg u64 { 
-  reg u64[2] p;   
+fn init_pub () -> reg u64 {
+  reg u64[2] p;
   reg u64 r;
-  p[0] = 0;    
-  p[1] = 1;    
-  r = p[1];   
-  return r;   
+  p[0] = 0;
+  p[1] = 1;
+  r = p[1];
+  return r;
 }
 
 fn spill_ptr (reg u64 ms) -> reg u64 {
@@ -32,12 +32,12 @@ fn spill_ptr (reg u64 ms) -> reg u64 {
    stack ptr u64[1] sp;      // lsp lse,   transient <= lsp
    reg u64 r;
    s[0] = 1;                 // ls , ls0 <= ls, pub <= ls
-   p = s;                    // pub, ls    
-   sp = p; // check sp = s   // lsp lse=ls, transient <= lsp pub <= lsp   
-   p = sp;                   // lsp ls,     
+   p = s;                    // pub, ls
+   sp = p; // check sp = s   // lsp lse=ls, transient <= lsp pub <= lsp
+   p = sp;                   // lsp ls,
    p = #protect_ptr(p, ms);  // pub ls, lsp <= transient
    r = p[0];                 // ls, pub <= pub
-   r = #protect(r, ms);      // pub, ls <= transient 
+   r = #protect(r, ms);      // pub, ls <= transient
    return r;
 }
 
@@ -56,7 +56,7 @@ export fn foo (#transient reg u64 i) -> reg u64 {
      ms = 0;
   */
   ms = #init_msf();
-  // Not needed because i is known to be public at this point  
+  // Not needed because i is known to be public at this point
   // i = #protect(i, ms);
   p[0] = 1;
   si = i; // spill i into si
@@ -75,7 +75,7 @@ export fn foo (#transient reg u64 i) -> reg u64 {
 }
 
 
-/* This fail can we make it work ? 
+/* This fail can we make it work ?
 
 export fn foo_infer (reg u64 i) -> reg u64 {
   stack u64[1] p;
@@ -93,11 +93,11 @@ export fn foo_infer (reg u64 i) -> reg u64 {
   // i : l
   ms = #init_msf();
   // i : l',  l=pub -> l <= transient
-  //i = #protect(i, ms); //  works but not needed 
+  //i = #protect(i, ms); //  works but not needed
   p[0] = 1;
   si = i; // spill i into si
   b = i == 0;   // l'
-  if (b) {     // l' <= pub 
+  if (b) {     // l' <= pub
      ms = #set_msf(b, ms);
      i = si;
      i = #protect(i, ms);
@@ -124,7 +124,7 @@ export fn foo_infer_v1 (reg u64 i) -> reg u64 {
      ms = 0;
   */
   ms = #init_msf();
-  i = #protect(i, ms); //  works but not needed 
+  i = #protect(i, ms); //  works but not needed
   p[0] = 1;
   si = i; // spill i into si
   b = i == 0;
@@ -154,7 +154,7 @@ export fn foo_infer_half (#transient reg u64 i) -> reg u64 {
      ms = 0;
   */
   ms = #init_msf();
-  // i = #protect(i, ms); //  works but not needed 
+  // i = #protect(i, ms); //  works but not needed
   p[0] = 1;
   si = i; // spill i into si
   b = i == 0;
@@ -167,7 +167,7 @@ export fn foo_infer_half (#transient reg u64 i) -> reg u64 {
      ms = #set_msf(!b, ms);
      r = p[0];
   }
-  ms = #init_msf(); 
+  ms = #init_msf();
   return r;
 }
 
@@ -225,7 +225,7 @@ fn aux(#msf reg u64 ms, #public reg u64 p, #public reg u64 i) -> #msf reg u64, #
 
 /* This loop, need to fix the case of while */
 
-/* This should fail 
+/* This should fail
 fn aux1(#msf reg u64 ms, #public reg u64 p, #public reg u64 i) -> #msf reg u64, #public reg u64 {
 
    #public reg bool b;
@@ -332,3 +332,31 @@ fn usenomod() -> #public reg u64 {
    return r;
 }
 */
+
+// inline if
+inline fn __keccak_rho_offsets(inline int i, #msf reg u64 ms) -> inline int, #msf reg u64
+{
+  inline int r x y z t;
+
+  r = 0;
+  x = 1;
+  y = 0;
+
+  for t = 0 to 24 {
+    #inline if (i == x + 5 * y) {
+      r = ((t + 1) * (t + 2) / 2) % 64;
+    }
+    z = (2 * x + 3 * y) % 5;
+    x = y;
+    y = z;
+  }
+
+  return r, ms;
+}
+
+fn call___keccak_rho_offsets(#msf reg u64 ms) -> #msf reg u64
+{
+  inline int i r;
+  r, ms = __keccak_rho_offsets(i, ms);
+  return ms;
+}
