@@ -170,7 +170,7 @@ check:
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './compiler/jasminc.native -version'
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -j$NIX_BUILD_CORES -C compiler check-ci'
 
-cryptolib:
+libjade:
   stage: test
   variables:
     EXTRA_NIX_ARGUMENTS: --arg testDeps true
@@ -182,49 +182,10 @@ cryptolib:
   - coq
   - ocaml
   script:
-  - nix-env -iA nixpkgs.git
-  - git clone --depth 1 --branch master https://github.com/jasmin-lang/cryptolib.git
-  - echo $CASE
-  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -C cryptolib/src/$CASE JASMIN=$PWD/compiler/jasminc.native'
-  parallel:
-    matrix:
-    - CASE:
-      - crypto_hash/sha256/amd64/ref
-      - crypto_hash/sha3-224/amd64/avx2
-      - crypto_hash/sha3-224/amd64/ref
-      - crypto_hash/sha3-256/amd64/avx2
-      - crypto_hash/sha3-256/amd64/ref
-      - crypto_hash/sha3-384/amd64/avx2
-      - crypto_hash/sha3-384/amd64/ref
-      - crypto_hash/sha3-512/amd64/avx2
-      - crypto_hash/sha3-512/amd64/ref
-      #- crypto_kem/kyber/kyber512/amd64/avx2 # Need randombytes
-      #- crypto_kem/kyber/kyber768/amd64/avx2
-      - crypto_onetimeauth/poly1305/amd64/ref
-      - crypto_stream/chacha/chacha12/amd64/avx2
-      - crypto_stream/chacha/chacha12/amd64/avx
-      - crypto_stream/chacha/chacha12/amd64/ref
-      - crypto_stream/chacha/chacha20/amd64/avx2
-      - crypto_stream/chacha/chacha20/amd64/avx
-      - crypto_stream/chacha/chacha20/amd64/ref
-      - crypto_stream/chacha/chacha20-ietf/amd64/avx2
-      - crypto_stream/chacha/chacha20-ietf/amd64/avx
-      - crypto_stream/chacha/chacha20-ietf/amd64/ref
-      - crypto_stream/salsa20/salsa2012/amd64/avx2
-      - crypto_stream/salsa20/salsa2012/amd64/avx
-      - crypto_stream/salsa20/salsa2012/amd64/ref
-      - crypto_stream/salsa20/salsa20/amd64/avx2
-      - crypto_stream/salsa20/salsa20/amd64/avx
-      - crypto_stream/salsa20/salsa20/amd64/ref
-      - crypto_stream/xsalsa20/amd64/avx2
-      - crypto_stream/xsalsa20/amd64/avx
-      - crypto_stream/xsalsa20/amd64/ref
-      - crypto_xof/shake128/amd64/avx2
-      - crypto_xof/shake128/amd64/ref
-      - crypto_xof/shake256/amd64/avx2
-      - crypto_xof/shake256/amd64/ref1
-      - crypto_xof/shake256/amd64/ref
-      - crypto_xof/shake256/amd64/spec
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './scripts/test-libjade.sh'
+  artifacts:
+    paths:
+    - results/
 
 push-compiler-code:
   stage: deploy

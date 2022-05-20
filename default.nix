@@ -41,7 +41,7 @@ stdenv.mkDerivation {
   src = null;
   buildInputs = []
     ++ optionals coqDeps [ coqPackages.coq coqword coqPackages.coq.ocamlPackages.ocaml ]
-    ++ optionals testDeps ([ ocamlPackages.apron.out ] ++ (with python3Packages; [ python pyyaml ]))
+    ++ optionals testDeps ([ curl.bin ocamlPackages.apron.out ] ++ (with python3Packages; [ python pyyaml ]))
     ++ optionals ocamlDeps ([ mpfr ppl ] ++ (with oP; [
          ocaml findlib ocamlbuild
          (batteries.overrideAttrs (o: { doCheck = false; }))
