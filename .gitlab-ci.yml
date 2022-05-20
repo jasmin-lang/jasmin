@@ -182,7 +182,7 @@ libjade:
   - coq
   - ocaml
   script:
-  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './scripts/test-libjade.sh'
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run './scripts/test-libjade.sh src'
   artifacts:
     paths:
     - results/
