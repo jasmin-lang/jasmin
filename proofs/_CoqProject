@@ -35,6 +35,7 @@ arch/asm_gen_proof.v
 arch/label.v
 compiler/allocation.v
 compiler/arch_params.v
+compiler/arch_params_proof.v
 compiler/array_expansion.v
 compiler/array_expansion_proof.v
 compiler/array_copy.v
@@ -81,6 +82,7 @@ compiler/x86_instr_decl.v
 compiler/x86_lowering.v
 compiler/x86_lowering_proof.v
 compiler/x86_params.v
+compiler/x86_params_proof.v
 compiler/x86_sem.v
 lang/array.v
 lang/expr.v

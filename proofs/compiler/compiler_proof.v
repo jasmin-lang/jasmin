@@ -1,6 +1,6 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import
-  arch_params
+  arch_params_proof
   compiler
   compiler_util
   psem
