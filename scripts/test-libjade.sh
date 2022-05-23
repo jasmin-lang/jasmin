@@ -9,7 +9,7 @@ DIR=$NAME-$BRANCH
 OUT=results
 
 # Exclude primitives that are known not to build
-export EXCLUDE="./crypto_kem/kyber/kyber512/amd64/avx2/ ./crypto_kem/kyber/kyber768/amd64/avx2/"
+export EXCLUDE="crypto_kem/kyber/kyber512/amd64/avx2/ crypto_kem/kyber/kyber768/amd64/avx2/"
 
 curl -v -o $FILE https://codeload.github.com/formosa-crypto/$NAME/tar.gz/refs/heads/$BRANCH
 tar xvf $FILE
