@@ -34,6 +34,8 @@ arch/arch_sem.v
 arch/leakage.v
 arch/arch_sem_no_spec.v
 arch/arch_sem_spec.v
+arch/arch_sct.v
+arch/arch_sct_proofs.v
 arch/asm_gen.v
 arch/asm_gen_proof.v
 arch/label.v
