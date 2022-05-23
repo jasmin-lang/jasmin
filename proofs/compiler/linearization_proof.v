@@ -13,6 +13,7 @@ Import ssrZ.
 Import ssrring.
 Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts.
 Require Import constant_prop constant_prop_proof.
+Require Import fexpr fexpr_sem.
 Require Export linearization linear_sem.
 Import Memory.
 Require Import arch_decl arch_extra.
@@ -390,9 +391,9 @@ Record h_linearization_params :=
              (w : word ws) (w' : word ws'),
         let args := lip_lassign liparams x ws e in
         let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
-        sem_pexpr [::] s1 e = ok (Vword w')
+        sem_rexpr s1.(emem) s1.(evm) e = ok (Vword w')
         -> truncate_word ws w' = ok w
-        -> write_lval [::] x (Vword w) s1 = ok s2
+        -> write_lexpr x (Vword w) s1 = ok s2
         -> eval_instr lp i (of_estate s1 fn pc)
            = ok (of_estate s2 fn pc.+1);
   }.
@@ -403,16 +404,16 @@ Section HLIPARAMS.
 
   Lemma spec_lassign
     lp s1 s2 x e ws ws' (w : word ws) (w' : word ws') ii fn pc :
-    sem_pexpr [::] s1 e = ok (Vword w')
+    sem_rexpr s1.(emem) s1.(evm) e = ok (Vword w')
     -> truncate_word ws w' = ok w
-    -> write_lval [::] x (Vword w) s1 = ok s2
+    -> write_lexpr x (Vword w) s1 = ok s2
     -> eval_instr lp (lassign liparams ii x ws e) (of_estate s1 fn pc)
        = ok (of_estate s2 fn pc.+1).
   Proof. exact: spec_lip_lassign. Qed.
 
   Lemma spec_lmove :
-    forall (lp : lprog) (s1 s2 : estate) x ws (w : word ws) y ii fn pc,
-      get_gvar [::] (evm s1) y = ok (Vword w)
+    forall (lp : lprog) (s1 s2 : estate) x ws (w : word ws) (y: var_i) ii fn pc,
+      get_var (evm s1) y = ok (Vword w)
       -> write_var x (Vword w) s1 = ok s2
       -> eval_instr
            lp
@@ -423,7 +424,7 @@ Section HLIPARAMS.
     move=> lp s1 s2 x ws w y ii fn pc.
     move=> Hsem_pexpr.
     rewrite /lmove.
-    apply (spec_lassign lp (x := Lvar _) (e := Pvar _) _ _ _ Hsem_pexpr).
+    apply (spec_lassign lp (x := LLvar _) (e := Rexpr (Fvar _)) _ _ _ Hsem_pexpr).
     by rewrite truncate_word_u.
   Qed.
 End HLIPARAMS.
@@ -1244,10 +1245,97 @@ Section PROOF.
     rewrite ltnNge leq_addr /=;f_equal;rewrite -minusE -plusE; lia.
   Qed.
 
+  Lemma check_fexprP ii u gd e s v :
+    check_fexpr ii e = ok u →
+    sem_pexpr gd s e = ok v →
+    sem_fexpr s (fexpr_of_pexpr e) = ok v.
+  Proof.
+    clear.
+    case: u; elim: e v => //=.
+    - by case => ? [].
+    - by t_xrbindP => op a ih {} v /ih {}ih ? /ih ->.
+    - by t_xrbindP => op a ha b hb {} v [] /ha{}ha /hb{}hb ? /ha -> /= ? /hb ->.
+    - case => // a ha b hb c hc {} v.
+      t_xrbindP => - [] [] /ha{}ha /hb{}hb/hc{}hc z ? /ha -> /= -> ? ? /hb -> /=.
+      rewrite /truncate_val /=; t_xrbindP => ? -> <- ?? /hc -> /= ? -> /= <- <-.
+      by case: z.
+  Qed.
+
+  Lemma check_rexprP ii u gd e s v :
+    check_rexpr ii e = ok u →
+    sem_pexpr gd s e = ok v →
+    sem_rexpr s s (rexpr_of_pexpr e) = ok v.
+  Proof.
+    clear.
+    case: u.
+    rewrite /check_rexpr /rexpr_of_pexpr.
+    case: e.
+    1-4: move => ?; exact: check_fexprP.
+    4, 6: move => ??; exact: check_fexprP.
+    4: move => ???; exact: check_fexprP.
+    1, 4: move => ????; exact: check_fexprP.
+    1: move => ?????; exact: check_fexprP.
+    rewrite /=; t_xrbindP => sz x ofs checked_ofs a b -> /= -> ? ? ok_ofs.
+    have -> := check_fexprP checked_ofs ok_ofs.
+    by move => /= -> /= ? -> <-.
+  Qed.
+
+  Lemma check_rexprsP ii gd es s vs :
+    allM (check_rexpr ii) es = ok tt →
+    sem_pexprs gd s es = ok vs →
+    sem_rexprs s (map rexpr_of_pexpr es) = ok vs.
+  Proof.
+    clear.
+    move => /allMP.
+    elim: es vs => // e es rec /=; t_xrbindP => ? ih ? /check_rexprP he ? /rec ->; last first.
+    - by move => ? x ; apply: ih; rewrite inE x orbT.
+    by move: ih => /(_ e); rewrite inE eqxx => /(_ erefl) /he -> <-.
+  Qed.
+
+  Lemma check_lexprP ii u gd x v s s' :
+    check_lexpr ii x = ok u →
+    write_lval gd x v s = ok s' →
+    write_lexpr (lexpr_of_lval p x) v s = ok s'.
+  Proof.
+    clear.
+    case: u; case: x => //=.
+    t_xrbindP => sz x ofs checked_ofs ?? -> /= -> ?? ok_ofs.
+    have -> := check_fexprP checked_ofs ok_ofs.
+    by move => /= -> ? -> /= ? -> <-.
+  Qed.
+
+  Lemma check_lexprsP ii gd xs vs s s' :
+    allM (check_lexpr ii) xs = ok tt →
+    write_lvals gd s xs vs = ok s' →
+    write_lexprs (map (lexpr_of_lval p) xs) vs s = ok s'.
+  Proof.
+    clear.
+    move => /allMP.
+    elim: xs vs s => // x xs rec /=; t_xrbindP => - [] // v vs s ih.
+    t_xrbindP => s1 /check_lexprP hx {}/rec rec.
+    move: (ih) => /(_ x); rewrite inE eqxx => /(_ erefl) /hx -> /=.
+    rewrite rec // => ? h; apply: ih.
+    by rewrite inE h orbT.
+  Qed.
+
+  Lemma check_fexpr_snot ii e u :
+    check_fexpr ii e = ok u →
+    check_fexpr ii (snot e) = ok tt.
+  Proof.
+    clear.
+    case: u.
+    elim: e => //=.
+    - by case.
+    - by case => //; t_xrbindP => a ha b hb [] /= /ha -> /hb.
+    by case => //; t_xrbindP => a ha b hb c hc [] [] -> /hb ->.
+  Qed.
+
   Local Lemma Hasgn : sem_Ind_assgn p Pi_r.
   Proof.
     move => ii s1 s2 x tg ty e v v'; rewrite p_globs_nil => ok_v ok_v' ok_s2.
     move => fn lbl /checked_iE[] fd ok_fd.
+    apply: rbindP => - [] ok_e.
+    apply: rbindP => - [] ok_x.
     case: ty ok_v' ok_s2 => // sz.
     apply: rbindP => w /of_val_word [sz'] [w'] [hle ? ?]; subst v w => -[<-] {v'} ok_s2 chk.
     move => fr_undef m1 vm1 P Q W1 M1 X1 D1 C1.
@@ -1263,14 +1351,11 @@ Section PROOF.
     apply: LSem_step.
     rewrite -(addn0 (size P)) /lsem1 /step /= (find_instr_skip C1) /=.
     rewrite /of_estate size_cat addn1 addn0.
-    apply:
-      (spec_lassign
-         (s1 := {| evm := _; emem := _; |})
-         hliparams
-         _ _ _ _
-        (match_mem_sem_pexpr M1 ok_v')
-        _
-        ok_s2').
+    have {} ok_v' := match_mem_sem_pexpr M1 ok_v'.
+    have {} ok_v' := check_rexprP ok_e ok_v'.
+    have {} ok_s2' := check_lexprP ok_x ok_s2'.
+    apply: (spec_lassign hliparams _ (s1:={|evm:=_; emem:=_|}) (s2:={|evm:=_; emem:=_|}))
+      ok_v' _ ok_s2'.
     by rewrite /truncate_word (cmp_le_trans hle hle').
   Qed.
 
@@ -1278,7 +1363,8 @@ Section PROOF.
   Proof.
     move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => rs vs.
     rewrite p_globs_nil => ok_vs ok_rs ok_s2.
-    move => fn lbl /checked_iE[] fd ok_fd chk.
+    move => fn lbl /checked_iE[] fd ok_fd.
+    rewrite /check_i; t_xrbindP => - [] checked_es checked_xs.
     move => fr_undef m1 vm1 P Q W1 M1 X1 D1 C1.
     have [ vs' /(match_mem_sem_pexprs M1) ok_vs' vs_vs' ] := sem_pexprs_uincl X1 ok_vs.
     have [ rs' ok_rs' rs_rs' ] := vuincl_exec_opn vs_vs' ok_rs.
@@ -1290,6 +1376,8 @@ Section PROOF.
       by have := vrvsP ok_s2'.
     apply: LSem_step.
     rewrite -(addn0 (size P)) /lsem1 /step /= (find_instr_skip C1) /= /eval_instr /to_estate /=.
+    have {} ok_vs' := check_rexprsP checked_es ok_vs'.
+    have {} ok_s2' := check_lexprsP checked_xs ok_s2'.
     by rewrite /sem_sopn ok_vs' /= ok_rs' /= ok_s2' /= size_cat addn0 addn1.
   Qed.
 
@@ -1309,7 +1397,9 @@ Section PROOF.
 
   Local Lemma Hif_true : sem_Ind_if_true p extra_free_registers var_tmp Pc Pi_r.
   Proof.
-    move => ii k s1 s2 e c1 c2; rewrite p_globs_nil => ok_e E1 Hc1 fn lbl /checked_iE[] fd ok_fd /=; apply: rbindP => -[] chk_c1 _.
+    move => ii k s1 s2 e c1 c2; rewrite p_globs_nil => ok_e E1 Hc1 fn lbl /checked_iE[] fd ok_fd /=.
+    apply: rbindP => -[].
+    apply: rbindP => -[] chk_e chk_c1 _.
     case: c1 E1 Hc1 chk_c1 => [ | i1 c1 ] E1 Hc1 chk_c1; last case: c2 => [ | i2 c2 ].
     + case/semE: E1 => hk ?; subst s2.
       rewrite /= linear_c_nil; case: (linear_c fn) (valid_c fn c2 (next_lbl lbl)) => lbl2 lc2.
@@ -1318,6 +1408,7 @@ Section PROOF.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       exists m1 vm1; [ | | exact: W1 | exact: X1 | by [] | exact: M1 ]; last by [].
       apply: LSem_step.
+      have {} ok_e' := check_fexprP chk_e ok_e'.
       rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C1) /= /eval_instr /to_estate /li_i (eval_jumpE C1) /to_estate /= ok_e' /=.
       rewrite find_label_cat_hd; last by apply: D; lia.
       rewrite find_labelE /= -catA find_label_cat_hd; last first.
@@ -1328,7 +1419,7 @@ Section PROOF.
       case: (linear_c fn) (Hc1 fn (next_lbl lbl)) => lbl1 lc1.
       rewrite /checked_c ok_fd chk_c1 => /(_ erefl) S.
       move => fr_undef m1 vm1 P Q W1 M1 X1 D C1.
-      set P' := rcons P (MkLI ii (Lcond (snot e) lbl)).
+      set P' := rcons P (MkLI ii (Lcond (fexpr_of_pexpr (snot e)) lbl)).
       have D' : disjoint_labels (next_lbl lbl) lbl1 P'.
       - rewrite /P' -cats1; apply: disjoint_labels_cat; last by [].
         apply: disjoint_labels_wL _ D; rewrite /next_lbl; lia.
@@ -1341,7 +1432,9 @@ Section PROOF.
       exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
       2: exact: E.
-      - by rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C1) /= /eval_instr /li_i (eval_jumpE C1) /to_estate /= (snot_spec ok_e') /= ok_e' /= /setpc /= addn0 /P' /Q' size_rcons.
+      - have /= := snot_spec ok_e'.
+        rewrite ok_e' => /(check_fexprP (check_fexpr_snot chk_e)) {} ok_e'.
+        by rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C1) /= /eval_instr /li_i (eval_jumpE C1) /to_estate /= ok_e' /= /setpc /= addn0 /P' /Q' size_rcons.
       apply: LSem_step.
       rewrite catA in C'.
       rewrite /lsem1 /step -(addn0 (size (P' ++ lc1))) (find_instr_skip C') /= /eval_instr /= /setpc /=.
@@ -1354,7 +1447,7 @@ Section PROOF.
     case: (linear_c fn) (valid_c fn (i2 :: c2) lbl1) => lbl2 lc2 [L2 V2].
     move => fr_undef m1 vm1 P Q W1 M1 X1 D C.
     have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
-    set P' := P ++ {| li_ii := ii; li_i := Lcond e lbl |} :: lc2 ++ [:: {| li_ii := ii; li_i := Lgoto (fn, (lbl + 1)%positive) |}; {| li_ii := ii; li_i := Llabel lbl |} ].
+    set P' := P ++ {| li_ii := ii; li_i := Lcond (fexpr_of_pexpr e) lbl |} :: lc2 ++ [:: {| li_ii := ii; li_i := Lgoto (fn, (lbl + 1)%positive) |}; {| li_ii := ii; li_i := Llabel lbl |} ].
     have D' : disjoint_labels (lbl + 1 + 1) lbl1 P'.
     + apply: disjoint_labels_cat; first by apply: disjoint_labels_w _ _ D; lia.
       apply: disjoint_labels_cat; first by apply: (valid_disjoint_labels V2); lia.
@@ -1367,7 +1460,8 @@ Section PROOF.
     exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
     apply: lsem_step; last apply: lsem_trans.
     2: exact: E.
-    - rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i  (eval_jumpE C) /to_estate /= ok_e' /=.
+    - have {} ok_e' := check_fexprP chk_e ok_e'.
+      rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i  (eval_jumpE C) /to_estate /= ok_e' /=.
       rewrite find_label_cat_hd; last by apply: D; lia.
       rewrite find_labelE /= -catA find_label_cat_hd; last first.
       * apply: (valid_has_not_label V2); lia.
@@ -1380,13 +1474,15 @@ Section PROOF.
 
   Local Lemma Hif_false : sem_Ind_if_false p extra_free_registers var_tmp Pc Pi_r.
   Proof.
-    move => ii k s1 s2 e c1 c2; rewrite p_globs_nil => ok_e E2 Hc2 fn lbl /checked_iE[] fd ok_fd /=; apply: rbindP => -[] _ chk_c2.
+    move => ii k s1 s2 e c1 c2; rewrite p_globs_nil => ok_e E2 Hc2 fn lbl /checked_iE[] fd ok_fd /=.
+    apply: rbindP => -[].
+    apply: rbindP => -[] chk_e _ chk_c2.
     case: c1 => [ | i1 c1 ]; last case: c2 E2 Hc2 chk_c2 => [ | i2 c2 ].
     + rewrite linear_c_nil.
       case: (linear_c fn) (Hc2 fn (next_lbl lbl)) => lbl2 lc2.
       rewrite /checked_c ok_fd chk_c2 => /(_ erefl) S.
       move => fr_undef m1 vm1 P Q W1 M1 X1 D C.
-      set P' := rcons P (MkLI ii (Lcond e lbl)).
+      set P' := rcons P (MkLI ii (Lcond (fexpr_of_pexpr e) lbl)).
       have D' : disjoint_labels (next_lbl lbl) lbl2 P'.
       - rewrite /P' -cats1; apply: disjoint_labels_cat; last by [].
         apply: disjoint_labels_wL _ D; rewrite /next_lbl; lia.
@@ -1399,7 +1495,8 @@ Section PROOF.
       exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
       2: exact: E.
-      - by rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= ok_e' /= /setpc /= addn0 /P' /Q' size_rcons.
+      - have {} ok_e' := check_fexprP chk_e ok_e'.
+        by rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= ok_e' /= /setpc /= addn0 /P' /Q' size_rcons.
       apply: LSem_step.
       rewrite catA in C'.
       rewrite /lsem1 /step -(addn0 (size (P' ++ lc2))) (find_instr_skip C') /= /eval_instr /= /setpc /=.
@@ -1411,7 +1508,9 @@ Section PROOF.
       have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       exists m1 vm1; [ | | exact: W1 | exact: X1 | by [] | exact: M1 ]; last by [].
       apply: LSem_step.
-      rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= (snot_spec ok_e') /= ok_e' /=.
+      have /= := snot_spec ok_e'.
+      rewrite ok_e' => /(check_fexprP (check_fexpr_snot chk_e)) {} ok_e'.
+      rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= ok_e' /=.
       rewrite find_label_cat_hd; last by apply: D; lia.
       rewrite find_labelE /= -catA find_label_cat_hd; last first.
       - apply: (valid_has_not_label V); left; rewrite /next_lbl; lia.
@@ -1425,7 +1524,7 @@ Section PROOF.
     rewrite /checked_c ok_fd chk_c2 => /(_ erefl) E.
     move => fr_undef m1 vm1 P Q W1 M1 X1 D C.
     have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
-    set P' := rcons P {| li_ii := ii; li_i := Lcond e lbl |}.
+    set P' := rcons P {| li_ii := ii; li_i := Lcond (fexpr_of_pexpr e) lbl |}.
     have D' : disjoint_labels lbl1 lbl2 P'.
     + rewrite /P' -cats1; apply: disjoint_labels_cat; last by [].
       apply: disjoint_labels_wL _ D; lia.
@@ -1437,7 +1536,8 @@ Section PROOF.
     exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
     apply: lsem_step; last apply: lsem_trans.
     2: exact: E.
-    + rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= ok_e' /= /setpc /=.
+    + have {} ok_e' := check_fexprP chk_e ok_e'.
+      rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= ok_e' /= /setpc /=.
       by rewrite /P' /Q' /= size_rcons addn0.
     apply: LSem_step.
     rewrite catA in C'.
@@ -1510,15 +1610,14 @@ Section PROOF.
     rewrite /checked_i ok_fd /=.
     case: eqP.
     - by move => ?; subst e.
-    t_xrbindP => e_neq_false Hw [] ok_c ok_c'.
-    move: Hw.
-    rewrite ok_c ok_c' => /(_ erefl).
-    move: ok_e Ew e_neq_false.
-    rewrite p_globs_nil.
-    case: is_boolP.
+    move => e_neq_false.
+    case: eqP.
     { (* expression is the “true” literal *)
       (* The context is inconsistent, but well, do the proof nonetheless *)
-      case => // _ Ew _.
+      move => ?; subst e.
+      t_xrbindP => Hw [] ok_c ok_c'.
+      move: Hw.
+      rewrite ok_c ok_c' => /(_ erefl).
       rewrite linear_c_nil.
       move: {Hc'} (Hc' fn (next_lbl lbl)).
       rewrite /checked_c ok_fd ok_c' => /(_ erefl).
@@ -1594,7 +1693,11 @@ Section PROOF.
       exact.
     }
     (* arbitrary expression *)
-    move => {} e ok_e Ew e_neq_false.
+    rewrite p_globs_nil in ok_e.
+    t_xrbindP => e_neq_true Hw [] [] chk_e ok_c ok_c'.
+    move: Hw; rewrite chk_e ok_c ok_c' => /(_ erefl).
+    replace (is_bool e) with (@None bool);
+      last by case: is_boolP e_neq_true e_neq_false => // - [].
     case: c' Ec' Hc' ok_c' Ew => [ | i c' ].
     { (* second body is empty *)
       move => /semE[] ??; subst k' s2 => _ _ Ew.
@@ -1605,7 +1708,7 @@ Section PROOF.
       rewrite /next_lbl => - [L V] Hc /= Hw _.
       rewrite add_align_nil.
       move => m vm P Q W M X D C.
-      have {Hc} := Hc m vm (P ++ add_align ii a [::] ++ [:: ι (Llabel lbl) ]) ([:: ι (Lcond e lbl) ] ++ Q) W M X.
+      have {Hc} := Hc m vm (P ++ add_align ii a [::] ++ [:: ι (Llabel lbl) ]) ([:: ι (Lcond (fexpr_of_pexpr e) lbl) ] ++ Q) W M X.
       case.
       - apply: disjoint_labels_cat; last apply: disjoint_labels_cat.
         + apply: disjoint_labels_wL D; rewrite /next_lbl; lia.
@@ -1641,6 +1744,7 @@ Section PROOF.
       apply: lsem_step.
       - move: (C).
         rewrite /lsem1 /step -{1}(addn0 (size _)) -cat1s !catA -catA => /find_instr_skip ->.
+        have {} ok_e := check_fexprP chk_e ok_e.
         rewrite /eval_instr /= /to_estate ok_e /= (get_fundef_p' ok_fd) /=.
         case: C; rewrite (get_fundef_p' ok_fd) => _ /Some_inj <- /= ->.
         rewrite -!catA  find_label_cat_hd; last by apply: D; lia.
@@ -1668,7 +1772,7 @@ Section PROOF.
     case: (linear_c fn (i :: c') lblc [::]) (valid_c fn (i :: c') lblc) => lblc' lc' [L' V'] Hc' /= Hw _.
     rewrite add_align_nil.
     move => m vm P Q W M X D C.
-    have {Hc} := Hc m vm (P ++ ι (Lgoto (fn, lbl)) :: add_align ii a [::] ++ [:: ι (Llabel (lbl + 1)) ] ++ lc' ++ [:: ι (Llabel lbl) ]) ([:: ι (Lcond e (lbl + 1)) ] ++ Q) W M X.
+    have {Hc} := Hc m vm (P ++ ι (Lgoto (fn, lbl)) :: add_align ii a [::] ++ [:: ι (Llabel (lbl + 1)) ] ++ lc' ++ [:: ι (Llabel lbl) ]) ([:: ι (Lcond (fexpr_of_pexpr e) (lbl + 1)) ] ++ Q) W M X.
     case.
     - apply: disjoint_labels_cat; last apply: disjoint_labels_cat.
       + apply: disjoint_labels_w D; lia.
@@ -1680,7 +1784,7 @@ Section PROOF.
     - move: C; rewrite -!/(ι _) /= -!catA -!cat_cons -!catA -(cat1s _ lc) -(cat1s _ Q); exact.
     move => m1 vm1 E1 K1 W1 X1 H1 M1.
     have [ b /(match_mem_sem_pexpr M1) {} ok_e /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
-    have {Hc'} := Hc' m1 vm1 (P ++ ι (Lgoto (fn, lbl)) :: add_align ii a [::] ++ [:: ι (Llabel (lbl + 1)) ]) (ι (Llabel lbl) :: lc ++ ι (Lcond e (lbl + 1)) :: Q) W1 M1 X1.
+    have {Hc'} := Hc' m1 vm1 (P ++ ι (Lgoto (fn, lbl)) :: add_align ii a [::] ++ [:: ι (Llabel (lbl + 1)) ]) (ι (Llabel lbl) :: lc ++ ι (Lcond (fexpr_of_pexpr e) (lbl + 1)) :: Q) W1 M1 X1.
     case.
     - apply: disjoint_labels_cat; last apply: disjoint_labels_cat.
       + apply: disjoint_labels_wL D; lia.
@@ -1720,6 +1824,7 @@ Section PROOF.
       rewrite /lsem1 /step -{1}(addn0 (size _)) => /find_instr_skip ->.
       rewrite /eval_instr /= (get_fundef_p' ok_fd) /=.
       case: C; rewrite (get_fundef_p' ok_fd) => _ /Some_inj <- /= ->.
+      have {} ok_e := check_fexprP chk_e ok_e.
       rewrite /to_estate ok_e /= /setcpc /=.
       rewrite find_label_cat_hd; last by apply: D; lia.
       rewrite -!catA find_labelE /= find_label_cat_hd; last by case: (a).
@@ -1731,7 +1836,7 @@ Section PROOF.
       rewrite /lsem1 /step -{1}(addn0 (size _)) => /find_instr_skip ->.
       rewrite /eval_instr /= /setpc /=.
       reflexivity.
-    have {} C : is_linear_of fn (P ++ [:: ι (Lgoto (fn, lbl)) ] ++ (add_align ii a [::] ++ ι (Llabel (lbl + 1)) :: lc') ++ [:: ι (Llabel lbl)] ++ lc ++ ι (Lcond e (lbl + 1)) :: Q).
+    have {} C : is_linear_of fn (P ++ [:: ι (Lgoto (fn, lbl)) ] ++ (add_align ii a [::] ++ ι (Llabel (lbl + 1)) :: lc') ++ [:: ι (Llabel lbl)] ++ lc ++ ι (Lcond (fexpr_of_pexpr e) (lbl + 1)) :: Q).
     - move: C; clear.
       rewrite -!cat_cons -!catA -(cat1s _ (add_align _ _ _)) -(cat1s _ lc) -(cat1s _ Q) -!catA.
       exact.
@@ -1764,9 +1869,10 @@ Section PROOF.
       apply: vmap_eq_exceptI K; SvD.fsetdec.
     }
     (* arbitrary expression *)
-    t_xrbindP => e_not_trivial [] ok_c ok_c'.
+    case: eqP ok_e; first by move => ->.
+    t_xrbindP => e_neq_true ok_e e_neq_false [] [] chk_e ok_c ok_c'.
     replace (is_bool e) with (@None bool);
-      last by case: is_boolP ok_e e_not_trivial => // - [].
+      last by case: is_boolP ok_e e_neq_true e_neq_false => // - [].
     case: c' ok_c' => [ | i c' ] ok_c'.
     { (* second body is empty *)
       rewrite linear_c_nil.
@@ -1806,6 +1912,7 @@ Section PROOF.
       apply: LSem_step.
       move: C.
       rewrite /lsem1 /step catA -(addn0 (size _)) => /find_instr_skip ->.
+      have {} ok_e := check_fexprP chk_e ok_e.
       by rewrite /eval_instr /= /to_estate /= ok_e /= (size_cat _ [:: _]) addn0 addn1.
     }
     (* general case *)
@@ -1853,6 +1960,7 @@ Section PROOF.
     apply: LSem_step.
     move: (C).
     rewrite /lsem1 /step -(addn0 (size _)) catA => /find_instr_skip ->.
+    have {} ok_e := check_fexprP chk_e ok_e.
     rewrite /eval_instr /= ok_e /=.
     by rewrite !size_cat /= !size_cat /= !addnS !addnA !addn0 !addSn.
   Qed.
@@ -2158,18 +2266,18 @@ Section PROOF.
         set ts' := top_stack_after_alloc _ _ _.
         set x := Var _ p.(p_extra).(sp_rsp).
         set r := Var _ fr.
-        set lx := Lmem _ _ _.
-        set e := Pvar _.
+        set lx := Store _ _ _.
+        set e := Rexpr _.
         set ls := {| lmem := m1 |}.
 
-        have Hsem_pexpr : sem_pexpr [::] (to_estate ls) e = ok (Vword ptr).
+        have Hsem_pexpr : sem_rexpr (to_estate ls) (to_estate ls) e = ok (Vword ptr).
         * by rewrite /= /get_gvar /= /get_var Fv.setP_eq.
 
         have Htruncate_word : truncate_word Uptr ptr = ok ptr.
         * by rewrite truncate_word_u.
 
         have Hwrite_lval :
-          write_lval [::] lx (Vword ptr) (to_estate ls)
+          write_lexpr lx (Vword ptr) (to_estate ls)
           = ok {|
                 emem := m1';
                 evm := (vm2
@@ -3187,7 +3295,7 @@ Section PROOF.
             with
               (take 2 P
               ++ [:: ensure_rsp_alignment p liparams xH (sf_align (f_extra fd)),
-                     lstore liparams xH (VarI vrsp xH) stack_saved_rsp Uptr (mk_lvar var_tmp) &
+                     lstore liparams xH (VarI vrsp xH) stack_saved_rsp Uptr var_tmp &
                      push_to_save p liparams xH (sf_to_save (f_extra fd)) ] ++ lbody ++ Q);
               last by rewrite /P catA.
             move => /find_instr_skip -> /=.
@@ -3199,7 +3307,7 @@ Section PROOF.
             replace (P ++ lbody ++ Q)
             with
               (take 3 P
-              ++ [:: lstore liparams xH (VarI vrsp xH) stack_saved_rsp Uptr (mk_lvar var_tmp) &
+              ++ [:: lstore liparams xH (VarI vrsp xH) stack_saved_rsp Uptr var_tmp &
                       push_to_save p liparams xH (sf_to_save (f_extra fd)) ] ++ lbody ++ Q);
               last by rewrite /P catA.
             move => /find_instr_skip -> /=.

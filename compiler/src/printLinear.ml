@@ -1,4 +1,5 @@
 open Utils
+open Fexpr
 open Linear
 
 module W = Wsize
@@ -29,36 +30,24 @@ let pp_var tbl fmt x =
 let pp_var_i tbl fmt x =
   pp_var tbl fmt x.E.v_var
 
-let rec pp_expr tbl fmt =
-  let pp_expr = pp_expr tbl in
+let rec pp_fexpr tbl fmt =
+  let pp_fexpr = pp_fexpr tbl in
   function
-  | E.Pconst z -> Z.pp_print fmt (Conv.z_of_cz z)
-  | E.Pbool b -> Pr.pp_bool fmt b
-  | E.Parr_init n -> F.fprintf fmt "arr_init(%a)" Z.pp_print (Conv.z_of_pos n)
-  | E.Pvar x -> pp_var_i tbl fmt x.gv
-  | E.Pget (aa, ws, x, e) -> 
-    Pr.pp_arr_access (pp_var_i tbl) pp_expr Pr.pp_len fmt aa ws x.gv e None
-  | E.Psub (aa, ws, len, x, e) -> 
-    Pr.pp_arr_access (pp_var_i tbl) pp_expr Pr.pp_len fmt aa ws x.gv e 
-      (Some (Conv.int_of_pos len))
+  | Fconst z -> Z.pp_print fmt (Conv.z_of_cz z)
+  | Fvar x -> pp_var_i tbl fmt x
+  | Fapp1 (op, e) -> F.fprintf fmt "(%s %a)" (Pr.string_of_op1 op) pp_fexpr e
+  | Fapp2 (op, e1, e2) -> F.fprintf fmt "(%a %s %a)" pp_fexpr e1 (Pr.string_of_op2 op) pp_fexpr e2
+  | Fif (c, e1, e2) -> F.fprintf fmt "(%a ? %a : %a)" pp_fexpr c pp_fexpr e1 pp_fexpr e2
 
-  | E.Pload (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x pp_expr e
-  | E.Papp1 (op, e) -> F.fprintf fmt "(%s %a)" (Pr.string_of_op1 op) pp_expr e
-  | E.Papp2 (op, e1, e2) -> F.fprintf fmt "(%a %s %a)" pp_expr e1 (Pr.string_of_op2 op) pp_expr e2
-  | E.PappN (_op, _es) -> assert false
-  | E.Pif (_, c, e1, e2) -> F.fprintf fmt "(%a ? %a : %a)" pp_expr c pp_expr e1 pp_expr e2
-
-let pp_lval tbl fmt =
+let pp_rexpr tbl fmt =
   function
-  | E.Lnone (_, ty) -> F.fprintf fmt "(_: %a)" pp_stype ty
-  | E.Lvar x -> pp_var_i tbl fmt x
-  | E.Lmem (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x (pp_expr tbl) e
-  | E.Laset (aa, ws, x, e) -> 
-    Pr.pp_arr_access (pp_var_i tbl) (pp_expr tbl) Pr.pp_len fmt aa ws x e None
-  | E.Lasub (aa, ws, len, x, e) -> 
-    Pr.pp_arr_access (pp_var_i tbl) (pp_expr tbl) Pr.pp_len fmt aa ws x e 
-    (Some (Conv.int_of_pos len))
+  | Load (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x (pp_fexpr tbl) e
+  | Rexpr e -> pp_fexpr tbl fmt e
 
+let pp_lexpr tbl fmt =
+  function
+  | LLvar x -> pp_var_i tbl fmt x
+  | Store (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x (pp_fexpr tbl) e
 
 let pp_label fmt lbl =
   F.fprintf fmt "%a" Z.pp_print (Conv.z_of_pos lbl)
@@ -69,21 +58,16 @@ let pp_remote_label tbl fmt (fn, lbl) =
 let pp_instr asmOp tbl fmt i =
   match i.li_i with
   | Lopn (lvs, op, es) ->
-    let pp_cast fmt = function
-      | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (P.int_of_ws ws)
-      | _ -> () in
-
-    F.fprintf fmt "@[%a@] = %a%a@[(%a)@]"
-      (pp_list ",@ " (pp_lval tbl)) lvs
-      pp_cast op
+    F.fprintf fmt "@[%a@] = %a@[(%a)@]"
+      (pp_list ",@ " (pp_lexpr tbl)) lvs
       (Pr.pp_opn asmOp) op
-      (pp_list ",@ " (pp_expr tbl)) es
+      (pp_list ",@ " (pp_rexpr tbl)) es
   | Lalign     -> F.fprintf fmt "Align"
   | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl
   | Lgoto lbl -> F.fprintf fmt "Goto %a" (pp_remote_label tbl) lbl
-  | Ligoto e -> F.fprintf fmt "IGoto %a" (pp_expr tbl) e
+  | Ligoto e -> F.fprintf fmt "IGoto %a" (pp_rexpr tbl) e
   | LstoreLabel (x, lbl) -> F.fprintf fmt "%a = Label %a" (pp_var tbl) x pp_label lbl
-  | Lcond (e, lbl) -> F.fprintf fmt "If %a goto %a" (pp_expr tbl) e pp_label lbl
+  | Lcond (e, lbl) -> F.fprintf fmt "If %a goto %a" (pp_fexpr tbl) e pp_label lbl
 
 let pp_param tbl fmt x =
   let y = Conv.var_of_cvar tbl x.E.v_var in

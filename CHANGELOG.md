@@ -1,6 +1,12 @@
 
 # [unreleased]
 
+## Compiler
+
+- The linear uses simpler expressions: memory accesses cannot be nested (this
+  is now syntactically enforced).  See [PR
+  #133](https://github.com/jasmin-lang/jasmin/pull/133).
+
 ## Bug fixes
 
 - Fix printing of `while` loops [PR #131](https://github.com/jasmin-lang/jasmin/pull/131).

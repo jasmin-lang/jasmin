@@ -7,7 +7,7 @@ Require Import ZArith.
 Require Import Utf8.
 Import Relations.
 
-Require Import expr compiler_util label constant_prop.
+Require Import expr fexpr compiler_util label constant_prop.
 Require Export linear.
 Import ssrZ.
 
@@ -44,6 +44,42 @@ Definition internal_error (msg:string) :=
 End E.
 
 (* --------------------------------------------------------------------------- *)
+Section EXPR.
+  Context (ii: instr_info).
+
+  Fixpoint check_fexpr (e: pexpr) : cexec unit :=
+    match e with
+    | Pconst _
+    | Pvar {| gs := Slocal |}
+      => ok tt
+    | Papp1 _ a => check_fexpr a
+    | Papp2 _ a b => check_fexpr a >> check_fexpr b
+    | Pif sbool a b c => check_fexpr a >> check_fexpr b >> check_fexpr c
+    | Pbool _
+    | Parr_init _
+    | Pvar {| gs := Sglob |}
+    | Pget _ _ _ _
+    | Psub _ _ _ _ _
+    | Pload _ _ _
+    | PappN _ _
+    | Pif _ _ _ _
+      => Error (E.gen_error true (Some ii) "check_fexpr")
+    end.
+
+  Definition check_rexpr (e: pexpr) : cexec unit :=
+    if e is Pload _ _ e then check_fexpr e else check_fexpr e.
+
+  Definition check_lexpr (x: lval) : cexec unit :=
+    match x with
+    | Lvar _ => ok tt
+    | Lmem _ _ a => check_fexpr a
+    | Lnone _ _ | Laset _ _ _ _ | Lasub _ _ _ _ _
+      => Error (E.gen_error true (Some ii) "check_lexpr")
+    end.
+
+End EXPR.
+
+(* --------------------------------------------------------------------------- *)
 Section PROG.
 Context {pd: PointerData}.
 Context `{asmop: asmOp}.
@@ -73,17 +109,20 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
     let (ii,ir) := i in
     match ir with
     | Cassgn x tag ty e =>
+      Let _ := check_rexpr ii e in
+      Let _ := check_lexpr ii x in
       if ty is sword sz then ok tt
       else Error (E.ii_error ii "assign not a word")
     | Copn xs tag o es =>
-      ok tt
+      allM (check_rexpr ii) es >> allM (check_lexpr ii) xs
     | Cif b c1 c2 =>
-      check_c check_i c1 >> check_c check_i c2
+      check_fexpr ii b >> check_c check_i c1 >> check_c check_i c2
     | Cfor _ _ _ =>
       Error (E.ii_error ii "for found in linear")
     | Cwhile _ c e c' =>
       if e == Pbool false then check_c check_i c
-      else check_c check_i c >> check_c check_i c'
+      else if e == Pbool true then check_c check_i c >> check_c check_i c'
+      else check_fexpr ii e >> check_c check_i c >> check_c check_i c'
     | Ccall _ xs fn es =>
       Let _ := assert (fn != this) (E.ii_error ii "call to self") in
       if get_fundef (p_funcs p) fn is Some fd then
@@ -178,7 +217,7 @@ Record linearization_params :=
     lip_allocate_stack_frame :
       var_i    (* Variable with stack pointer register. *)
       -> Z     (* Amount of space to allocate. *)
-      -> lvals * sopn * pexprs;
+      -> lexprs * sopn * rexprs;
 
     (* Return a linear instruction that frees a stack frame.
        The linear instruction `lip_free_stack_frame rspi sz` decreases the
@@ -189,7 +228,7 @@ Record linearization_params :=
     lip_free_stack_frame :
       var_i    (* Variable with stack pointer register. *)
       -> Z     (* Amount of space to free. *)
-      -> lvals * sopn * pexprs;
+      -> lexprs * sopn * rexprs;
 
     (* Return a linear instruction that ensures the stack pointer is aligned.
        The linear instruction `lip_ensure_rsp_alignment rspi ws` ensures that
@@ -201,17 +240,17 @@ Record linearization_params :=
     lip_ensure_rsp_alignment :
       var_i       (* Variable with stack pointer register. *)
       -> wsize    (* Size of the unit to align to. *)
-      -> lvals * sopn * pexprs;
+      -> lexprs * sopn * rexprs;
 
     (* Return a linear instruction that corresponds to assignment.
        In symbols, the linear instruction `lip_lassign x ws e` corresponds to:
                x := (ws)e
      *)
     lip_lassign :
-      lval        (* Value to overwrite. *)
+      lexpr        (* Value to overwrite. *)
       -> wsize    (* Size of the value to assign. *)
-      -> pexpr    (* Value to assign. *)
-      -> lvals * sopn * pexprs;
+      -> rexpr    (* Value to assign. *)
+      -> lexprs * sopn * rexprs;
   }.
 
 Context
@@ -263,9 +302,9 @@ Definition lmove
   (ii: instr_info) (* Instruction information. *)
   (rd: var_i)      (* Destination register. *)
   (ws: wsize)      (* Size of the value to copy. *)
-  (r0: gvar)       (* Source register. *)
+  (r0: var_i)       (* Source register. *)
   : linstr :=
-  lassign ii (Lvar rd) ws (Pvar r0).
+  lassign ii (LLvar rd) ws (Rexpr (Fvar r0)).
 
 (* Return a linear instruction that corresponds to loading from memory.
  * The linear instruction `lload ii rd ws r0 ofs` corresponds to
@@ -278,7 +317,7 @@ Definition lload
   (r0: var_i)      (* Base register. *)
   (ofs: Z)         (* Offset. *)
   : linstr :=
-  lassign ii (Lvar rd) ws (Pload ws r0 (cast_const ofs)).
+  lassign ii (LLvar rd) ws (Load ws r0 (fconst Uptr ofs)).
 
 (* Return a linear instruction that corresponds to storing to memory.
  * The linear instruction `lstore ii rd ofs ws r0` corresponds to
@@ -289,9 +328,9 @@ Definition lstore
   (rd: var_i)      (* Base register. *)
   (ofs: Z)         (* Offset. *)
   (ws: wsize)      (* Size of the value to copy. *)
-  (r0: gvar)       (* Source register. *)
+  (r0: var_i)       (* Source register. *)
   : linstr :=
-  lassign ii (Lmem ws rd (cast_const ofs)) ws (Pvar r0).
+  lassign ii (Store ws rd (fconst Uptr ofs)) ws (Rexpr (Fvar r0)).
 
 Definition allocate_stack_frame (free: bool) (ii: instr_info) (sz: Z) : lcmd :=
   if sz == 0%Z
@@ -319,7 +358,7 @@ Definition push_to_save
   : lcmd :=
   let mkli '(x, ofs) :=
     if is_word_type x.(vtype) is Some ws
-    then lstore ii rspi ofs ws {| gv := VarI x xH; gs := Slocal; |}
+    then lstore ii rspi ofs ws (VarI x xH)
     else MkLI ii Lalign (* Absurd case. *)
   in List.map mkli to_save.
 
@@ -341,31 +380,53 @@ Definition pop_to_save
     else MkLI ii Lalign (* Absurd case. *)
   in List.map mkli to_save.
 
+(* -------------------------------------------------------------------------- *)
+Fixpoint fexpr_of_pexpr (e: pexpr) : fexpr :=
+  match e with
+  | Pconst z => Fconst z
+  | Pvar {| gs := Slocal ; gv := x |} => Fvar x
+  | Papp1 op a => Fapp1 op (fexpr_of_pexpr a)
+  | Papp2 op a b => Fapp2 op (fexpr_of_pexpr a) (fexpr_of_pexpr b)
+  | Pif _ a b c => Fif (fexpr_of_pexpr a) (fexpr_of_pexpr b) (fexpr_of_pexpr c)
+  | _ => Fconst 0 (* absurd case *)
+  end.
+
+Definition rexpr_of_pexpr (e: pexpr) : rexpr :=
+  if e is Pload ws p e then Load ws p (fexpr_of_pexpr e) else Rexpr (fexpr_of_pexpr e).
+
+Definition lexpr_of_lval (e: lval) : lexpr :=
+  match e with
+  | Lvar x => LLvar x
+  | Lmem ws p e => Store ws p (fexpr_of_pexpr e)
+  | _ => LLvar rspi (* absurd case *)
+  end.
+
+(* -------------------------------------------------------------------------- *)
 Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
   | Cassgn x _ ty e =>
     let lc' := if ty is sword sz
-               then lassign ii x sz e :: lc
+               then lassign ii (lexpr_of_lval x) sz (rexpr_of_pexpr e) :: lc
                else lc
     in (lbl, lc')
-  | Copn xs _ o es => (lbl, MkLI ii (Lopn xs o es) :: lc)
+  | Copn xs _ o es => (lbl, MkLI ii (Lopn (map lexpr_of_lval xs) o (map rexpr_of_pexpr es)) :: lc)
 
   | Cif e [::] c2 =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
-    MkLI ii (Lcond e L1) >; linear_c linear_i c2 lbl (MkLI ii (Llabel L1) :: lc)
+    MkLI ii (Lcond (fexpr_of_pexpr e) L1) >; linear_c linear_i c2 lbl (MkLI ii (Llabel L1) :: lc)
 
   | Cif e c1 [::] =>
     let L1 := lbl in
     let lbl := next_lbl L1 in
-    MkLI ii (Lcond (snot e) L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc)
+    MkLI ii (Lcond (fexpr_of_pexpr (snot e)) L1) >; linear_c linear_i c1 lbl (MkLI ii (Llabel L1) :: lc)
 
   | Cif e c1 c2 =>
     let L1 := lbl in
     let L2 := next_lbl L1 in
     let lbl := next_lbl L2 in
-                           MkLI ii (Lcond e L1) >;
+                           MkLI ii (Lcond (fexpr_of_pexpr e) L1) >;
                            linear_c linear_i c2 ;;
                            MkLI ii (Lgoto (fn, L2)) >;
     MkLI ii (Llabel L1) >; linear_c linear_i c1 lbl
@@ -390,7 +451,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
       let L1 := lbl in
       let lbl := next_lbl L1 in
       align ii a (MkLI ii (Llabel L1) >; linear_c linear_i c lbl
-                             (MkLI ii (Lcond e L1) :: lc))
+                             (MkLI ii (Lcond (fexpr_of_pexpr e) L1) :: lc))
       | _ =>
       let L1 := lbl in
       let L2 := next_lbl L1 in
@@ -398,7 +459,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
                              MkLI ii (Lgoto (fn, L1)) >;
       align ii a (MkLI ii (Llabel L2) >; linear_c linear_i c' ;;
       MkLI ii (Llabel L1) >; linear_c linear_i c lbl
-                             (MkLI ii (Lcond e L2) :: lc))
+                             (MkLI ii (Lcond (fexpr_of_pexpr e) L2) :: lc))
       end
     end
 
@@ -446,10 +507,10 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
            * 7. Continue.
            *)
           if extra_free_registers ii is Some ra
-          then let glob_ra := Gvar (VarI ra xH) Slocal in
+          then let rai := VarI ra xH in
                (lbl, before
                        ++ MkLI ii (LstoreLabel ra lret)
-                       :: lstore ii rspi z Uptr glob_ra
+                       :: lstore ii rspi z Uptr rai
                        :: MkLI ii (Lgoto lcall)
                        :: MkLI ii (Llabel lret)
                        :: after
@@ -466,12 +527,12 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
   let: (tail, head, lbl) :=
      match sf_return_address e with
      | RAreg r =>
-       ( [:: MkLI xH (Ligoto (Pvar (Gvar (VarI r xH) Slocal))) ]
+       ( [:: MkLI xH (Ligoto (Rexpr (Fvar (VarI r xH)))) ]
        , [:: MkLI xH (Llabel 1) ]
        , 2%positive
        )
      | RAstack z =>
-       ( [:: MkLI xH (Ligoto (Pload Uptr rspi (cast_const z))) ]
+       ( [:: MkLI xH (Ligoto (Load Uptr rspi (fconst Uptr z))) ]
        , [:: MkLI xH (Llabel 1) ]
        , 2%positive
        )
@@ -485,8 +546,8 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
           *       Setup stack.
           *)
          let r := VarI x xH in
-         ( [:: lmove xH rspi Uptr (Gvar r Slocal) ]
-         , lmove xH r Uptr rspg
+         ( [:: lmove xH rspi Uptr r ]
+         , lmove xH r Uptr rspi
              :: allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
              ++ [:: ensure_rsp_alignment xH e.(sf_align) ]
          , 1%positive
@@ -502,10 +563,10 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
          let tmp := VarI var_tmp xH in
          ( pop_to_save xH e.(sf_to_save)
              ++ [:: lload xH rspi Uptr rspi ofs ]
-         , lmove xH tmp Uptr rspg
+         , lmove xH tmp Uptr rspi
              :: allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
              ++ ensure_rsp_alignment xH e.(sf_align)
-             :: lstore xH rspi ofs Uptr (Gvar tmp Slocal)
+             :: lstore xH rspi ofs Uptr tmp
              :: push_to_save xH e.(sf_to_save)
          , 1%positive)
        end

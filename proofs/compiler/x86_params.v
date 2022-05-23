@@ -5,6 +5,8 @@ Require Import
   arch_params
   compiler_util
   expr
+  fexpr
+  fexpr_sem
   psem
   psem_facts
   sem_one_varmap.
@@ -74,23 +76,21 @@ Definition x86_saparams : stack_alloc_params :=
 (* Linearization parameters. *)
 
 Definition x86_allocate_stack_frame (rspi: var_i) (sz: Z) :=
-  let rspg := Gvar rspi Slocal in
-  let p := Papp2 (Oadd (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
-  ([:: Lvar rspi ], Ox86 (LEA Uptr), [:: p ]).
+  let p := Fapp2 (Oadd (Op_w Uptr)) (Fvar rspi) (fconst Uptr sz) in
+  ([:: LLvar rspi ], Ox86 (LEA Uptr), [:: Rexpr p ]).
 
 Definition x86_free_stack_frame (rspi: var_i) (sz: Z) :=
-  let rspg := Gvar rspi Slocal in
-  let p := Papp2 (Osub (Op_w Uptr)) (Pvar rspg) (cast_const sz) in
-  ([:: Lvar rspi ], Ox86 (LEA Uptr), [:: p ]).
+  let p := Fapp2 (Osub (Op_w Uptr)) (Fvar rspi) (fconst Uptr sz) in
+  ([:: LLvar rspi ], Ox86 (LEA Uptr), [:: Rexpr p ]).
 
 Definition x86_ensure_rsp_alignment (rspi: var_i) (al: wsize) :=
-  let to_lvar x := Lvar (VarI (to_var x) xH) in
+  let to_lvar x := LLvar (VarI (to_var x) xH) in
   let eflags := List.map to_lvar [:: OF ; CF ; SF ; PF ; ZF ] in
-  let p0 := Pvar (Gvar rspi Slocal) in
-  let p1 := Papp1 (Oword_of_int Uptr) (Pconst (- wsize_size al)) in
-  (eflags ++ [:: Lvar rspi ], Ox86 (AND Uptr), [:: p0; p1 ]).
+  let p0 := Fvar rspi  in
+  let p1 := fconst Uptr (- wsize_size al) in
+  (eflags ++ [:: LLvar rspi ], Ox86 (AND Uptr), [:: Rexpr p0; Rexpr p1 ]).
 
-Definition x86_lassign (x: lval) (ws: wsize) (e: pexpr) :=
+Definition x86_lassign (x: lexpr) (ws: wsize) (e: rexpr) :=
   let op := if (ws <= U64)%CMP
             then MOV ws
             else VMOVDQU ws
@@ -157,10 +157,10 @@ Definition and_condt ii e c1 c2 :=
   | _, _ => Error (E.berror ii e "Invalid condition (AND)")
   end.
 
-Fixpoint assemble_cond_r ii (e : pexpr) : cexec condt :=
+Fixpoint assemble_cond_r ii (e : fexpr) : cexec condt :=
   match e with
-  | Pvar v =>
-      Let r := of_var_e ii (gv v) in
+  | Fvar v =>
+      Let r := of_var_e ii v in
       match r with
       | OF => ok O_ct
       | CF => ok B_ct
@@ -170,41 +170,41 @@ Fixpoint assemble_cond_r ii (e : pexpr) : cexec condt :=
       | DF => Error (E.berror ii e "Cannot branch on DF")
       end
 
-  | Papp1 Onot e =>
+  | Fapp1 Onot e =>
       Let c := assemble_cond_r ii e in
       ok (not_condt c)
 
-  | Papp2 Oor e1 e2 =>
+  | Fapp2 Oor e1 e2 =>
       Let c1 := assemble_cond_r ii e1 in
       Let c2 := assemble_cond_r ii e2 in
       or_condt ii e c1 c2
 
-  | Papp2 Oand e1 e2 =>
+  | Fapp2 Oand e1 e2 =>
       Let c1 := assemble_cond_r ii e1 in
       Let c2 := assemble_cond_r ii e2 in
       and_condt ii e c1 c2
 
-  | Papp2 Obeq (Pvar x1) (Pvar x2) =>
-      Let r1 := of_var_e ii (gv x1) in
-      Let r2 := of_var_e ii (gv x2) in
+  | Fapp2 Obeq (Fvar x1) (Fvar x2) =>
+      Let r1 := of_var_e ii x1 in
+      Let r2 := of_var_e ii x2 in
       if ((r1 == SF) && (r2 == OF)) || ((r1 == OF) && (r2 == SF))
       then ok NL_ct
       else Error (E.berror ii e "Invalid condition (NL)")
 
   (* FIXME: We keep this by compatibility but it will be nice to remove it. *)
-  | Pif _ (Pvar v1) (Papp1 Onot (Pvar vn2)) (Pvar v2) =>
-      Let r1 := of_var_e ii (gv v1) in
-      Let rn2 := of_var_e ii (gv vn2) in
-      Let r2 := of_var_e ii (gv v2) in
+  | Fif (Fvar v1) (Fapp1 Onot (Fvar vn2)) (Fvar v2) =>
+      Let r1 := of_var_e ii v1 in
+      Let rn2 := of_var_e ii vn2 in
+      Let r2 := of_var_e ii v2 in
       if [&& r1 == SF, rn2 == OF & r2 == OF]
          || [&& r1 == OF, rn2 == SF & r2 == SF]
       then ok L_ct
       else Error (E.berror ii e "Invalid condition (L)")
 
-  | Pif _ (Pvar v1) (Pvar v2) (Papp1 Onot (Pvar vn2)) =>
-      Let r1 := of_var_e ii (gv v1) in
-      Let r2 := of_var_e ii (gv v2) in
-      Let rn2 := of_var_e ii (gv vn2) in
+  | Fif (Fvar v1) (Fvar v2) (Fapp1 Onot (Fvar vn2)) =>
+      Let r1 := of_var_e ii v1 in
+      Let r2 := of_var_e ii v2 in
+      Let rn2 := of_var_e ii vn2 in
       if [&& r1 == SF, rn2 == OF & r2 == OF]
          || [&& r1 == OF, rn2 == SF & r2 == SF]
       then ok NL_ct
@@ -214,7 +214,7 @@ Fixpoint assemble_cond_r ii (e : pexpr) : cexec condt :=
 
   end.
 
-Definition assemble_cond ii (e: pexpr) : cexec condt :=
+Definition assemble_cond ii (e: fexpr) : cexec condt :=
   assemble_cond_r ii e.
 
 Definition x86_agparams : asm_gen_params :=

@@ -2,6 +2,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import xseq strings utils var type values sopn expr arch_decl.
+Require Import fexpr.
 Require Import compiler_util.
 
 Set   Implicit Arguments.
@@ -101,7 +102,7 @@ End ARCH.
 Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) :=
   { _asm   :> asm reg regx xreg rflag cond asm_op
   ; _extra :> asmOp extra_op (* description of extra ops *)
-  ; to_asm : instr_info -> extra_op -> lvals -> pexprs -> cexec (asm_op_msb_t * lvals * pexprs)
+  ; to_asm : instr_info -> extra_op -> lexprs -> rexprs -> cexec (asm_op_msb_t * lexprs * rexprs)
       (* how to compile extra ops into asm op *)
   }.
 

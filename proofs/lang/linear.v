@@ -1,12 +1,14 @@
 (* * Syntax of the linear language *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import expr label sopn.
+From CoqWord Require Import ssrZ.
+Require Import expr label sopn fexpr.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+(* --------------------------------------------------------------------------- *)
 Section ASM_OP.
 
 Context `{asmop:asmOp}.
@@ -15,13 +17,13 @@ Context `{asmop:asmOp}.
 (* Syntax                                                                      *)
 
 Variant linstr_r :=
-  | Lopn   : lvals -> sopn -> pexprs -> linstr_r
+  | Lopn   : lexprs -> sopn -> rexprs -> linstr_r
   | Lalign : linstr_r
   | Llabel : label -> linstr_r
   | Lgoto  : remote_label -> linstr_r
-  | Ligoto : pexpr -> linstr_r (* Absolute indirect jump *)
+  | Ligoto : rexpr -> linstr_r (* Absolute indirect jump *)
   | LstoreLabel : var -> label -> linstr_r
-  | Lcond  : pexpr -> label -> linstr_r
+  | Lcond  : fexpr -> label -> linstr_r
 .
 
 Record linstr : Type := MkLI { li_ii : instr_info; li_i : linstr_r }.

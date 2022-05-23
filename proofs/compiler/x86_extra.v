@@ -4,6 +4,7 @@ From CoqWord Require Import ssrZ.
 Require Import Utf8.
 Require Import compiler_util.
 Require Import wsize sopn expr arch_decl x86_decl x86_instr_decl x86_sem.
+Require Import fexpr.
 Require Export arch_extra.
 Import sopn.
 
@@ -92,27 +93,27 @@ Definition error (ii:instr_info) (msg:string) :=
 
 End E.
 
-Definition assemble_extra ii o outx inx : cexec (asm_op_msb_t * lvals * pexprs) :=
+Definition assemble_extra ii o outx inx : cexec (asm_op_msb_t * lexprs * rexprs) :=
   match o with
   | Oset0 sz =>
     let op := if (sz <= U64)%CMP then (XOR sz) else (VPXOR sz) in
-    Let x := 
-      match rev outx with 
-      | Lvar x :: _ =>  ok x
+    Let x :=
+      match rev outx with
+      | LLvar x :: _ =>  ok (Rexpr (Fvar x))
       | _ => Error (E.error ii "set0 : destination is not a register")
       end in
-    ok ((None, op), outx, [::Plvar x; Plvar x])
+    ok ((None, op), outx, [:: x ; x ])
   | Ox86MOVZX32 =>
-    Let x := 
-      match outx with 
-      | [::Lvar x] =>  ok x
+    Let _ :=
+      match outx with
+      | [::LLvar _] =>  ok tt
       | _ => Error (E.error ii "Ox86MOVZX32: destination is not a register")
       end in
     ok ((None, MOV U32), outx, inx)
   | Oconcat128 =>
     Let inx := 
         match inx with
-        | [:: h; Pvar _ as l] => ok [:: l; h; @wconst U8 1%R]
+        | [:: h; Rexpr (Fvar _) as l] => ok [:: l; h; Rexpr (fconst U8 1%Z)]
         |  _ => Error (E.error ii "Oconcat: assert false")
         end in
     ok ((None, VINSERTI128), outx, inx)

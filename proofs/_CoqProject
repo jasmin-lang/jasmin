@@ -88,6 +88,8 @@ lang/array.v
 lang/expr.v
 lang/expr_facts.v
 lang/extraction.v
+lang/fexpr.v
+lang/fexpr_sem.v
 lang/gen_map.v
 lang/global.v
 lang/ident.v

@@ -6,7 +6,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.
-Require Import psem compiler_util label linear.
+Require Import psem compiler_util label linear fexpr_sem.
 
 Import Memory.
 
@@ -40,6 +40,7 @@ Record lstate := Lstate
     lfn : funname;
     lpc  : nat; }.
 
+(* --------------------------------------------------------------------------- *)
 Definition to_estate (s:lstate) : estate := Estate s.(lmem) s.(lvm).
 Definition of_estate (s:estate) fn pc := Lstate s.(emem) s.(evm) fn pc.
 Definition setpc (s:lstate) pc :=  Lstate s.(lmem) s.(lvm) s.(lfn) pc.
@@ -71,13 +72,16 @@ Definition eval_jump d s :=
 Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   match li_i i with
   | Lopn xs o es =>
-    Let s2 := sem_sopn [::] o (to_estate s1) xs es in
+    let s := to_estate s1 in
+    Let args := sem_rexprs s es in
+    Let res := exec_sopn o args in
+    Let s2 := write_lexprs xs res s in
     ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
   | Lalign   => ok (setpc s1 s1.(lpc).+1)
   | Llabel _ => ok (setpc s1 s1.(lpc).+1)
   | Lgoto d => eval_jump d s1
   | Ligoto e =>
-    Let p := sem_pexpr [::] (to_estate s1) e >>= to_pointer in
+    Let p := sem_rexpr s1.(lmem) s1.(lvm) e >>= to_pointer in
     if decode_label labels p is Some d then
       eval_jump d s1
     else type_error
@@ -88,7 +92,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
       ok {| lmem := s1.(lmem) ; lvm := vm ; lfn := s1.(lfn) ; lpc := s1.(lpc).+1 |}
     else type_error
   | Lcond e lbl =>
-    Let b := sem_pexpr [::] (to_estate s1) e >>= to_bool in
+    Let b := sem_fexpr s1.(lvm) e >>= to_bool in
     if b then
       eval_jump (s1.(lfn),lbl) s1
     else ok (setpc s1 s1.(lpc).+1)
