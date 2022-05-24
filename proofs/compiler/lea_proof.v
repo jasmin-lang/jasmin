@@ -1,12 +1,8 @@
-(* * Correctness proof of the lowering pass *)
-
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
-Require Import ZArith psem compiler_util.
+Require Import psem compiler_util.
 Require Export lea.
 Import Utf8.
-Import Psatz.
 Import ssrring.
 
 Set Implicit Arguments.
@@ -18,11 +14,7 @@ Local Open Scope seq_scope.
 
 Section PROOF.
   Context {pd:PointerData}.
-  Context `{asmop : asmOp}.
-  Context {T:eqType} {pT:progT T}.
-
-  Variable p : prog.
-  Notation gd := (p_globs p).
+  Context (gd: glob_decls).
 
   (* ---------------------------------------------------------- *)
 
