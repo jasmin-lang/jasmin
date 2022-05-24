@@ -1530,21 +1530,24 @@ op IMULri_XX = IMULt_XX.
 op DIV_XX (hi lo dv: t) =
   let dd = wdwordu hi lo in
   let dv = to_uint dv in
-  let q  = dd  %/  dv in
+  let q  = dd %/ dv in
   let r  = dd %% dv in
-  let ov = max_uint < q in
+(* The next lines are commented:
+   The point is that the (Coq) semantic raise an error if "dv = 0 || ov".
+   But the extraction need to be correct only on safe program, so it is not necessary. *)
+(*let ov = max_uint < q in
+  let (q, r) = if dv = 0 || ov then (0, 0) else (q, r) in *)
   flags_w2 rflags_undefined (of_int q) (of_int r).
-(*
-(* FIXME *)
-op IDIV (hi lo dv: t) =
-  let dd := wdwords hi lo in
-  let dv := to_sint dv in
-  let q  := (Z.quot dd dv)%Z in
-  let r  := (Z.rem  dd dv)%Z in
-  let ov := (q <? wmin_signed sz)%Z || (q >? wmax_signed sz)%Z in
-  if (dv == 0)%Z || ov then type_error else
-  ok (flags_w2 (rflags_of_div) (:: (wrepr sz q) & (wrepr sz r))).
-*)
+
+op IDIV_XX (hi lo dv: t) =
+  let dd = wdwords hi lo in
+  let dv = to_sint dv in
+  let q  = dd %/ dv in
+  let r  = dd %/ dv in
+(* Same comment than for DIV_XX *)
+(*let ov = (q <? wmin_signed sz)%Z || (q >? wmax_signed sz)%Z in
+  let (q, r) = if dv = 0 || ov then (0,0) else (q, r) in *)
+  flags_w2 rflags_undefined (of_int q) (of_int r). 
 
 op CQO_XX (w:t) =
   of_int (if SF_of w then -1 else 0).

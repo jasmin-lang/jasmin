@@ -192,10 +192,7 @@ op MOVZX_u32_u64 (x:W32.t) = W64.of_int (W32.to_uint x).
 
 (* Remark: W8.ALU W16.ALU W32.ALU W64.ALU are exported *)
 (* ALU defines the operators: 
-   ADD SUB IMUL IMUL_r IMUL_ri DIV CQO ADC SBB NEG INC DEC LZCNT
-
-FIXME Missing: IDIV
-
+   ADD SUB IMUL IMUL_r IMUL_ri DIV IDIV CQO ADC SBB NEG INC DEC LZCNT
 *)
 
 (* Flag *)
