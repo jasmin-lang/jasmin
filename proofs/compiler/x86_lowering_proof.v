@@ -712,7 +712,7 @@ Section PROOF.
           split => //; split => //=.
           eexists; split; first reflexivity.
           rewrite -(zero_extend_u (_ + _)).
-          apply: (mk_leaP (p:=p) _ (cmp_le_refl _) hlea) => //.
+          apply: (mk_leaP (gd := gd) _ (cmp_le_refl _) hlea) => //.
           by rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word hle1 hle2.
         move => {Heq}.
         have /= := @add_inc_dec_classifyP s sz e1 e2.
@@ -747,7 +747,7 @@ Section PROOF.
           split => //; split => //=.
           eexists; split; first reflexivity.
           rewrite -(zero_extend_u (_ * _)).
-          apply: (mk_leaP (p:=p) _ (cmp_le_refl _) hlea) => //.
+          apply: (mk_leaP (gd := gd) _ (cmp_le_refl _) hlea) => //.
           by rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word hle1 hle2.
         move => {Heq}.
         case Heq : mulr => [o e'].
@@ -768,7 +768,7 @@ Section PROOF.
           split => //; split => //=.
           eexists; split; first reflexivity.
           rewrite -(zero_extend_u (_ - _)).
-          apply: (mk_leaP (p:=p) _ (cmp_le_refl _) hlea) => //.
+          apply: (mk_leaP (gd := gd) _ (cmp_le_refl _) hlea) => //.
           by rewrite /= ok_v1 ok_v2 /= /sem_sop2 /= /truncate_word hle1 hle2.
         have := sub_inc_dec_classifyP sz e2.
         case: (sub_inc_dec_classify _ _)=> [He2|He2|//]; try subst e2.
