@@ -75,6 +75,12 @@ Definition public : lvl := 1%positive.
 (* Definition transient : lvl := 2%positive. *)
 Definition secret : lvl := 3%positive.
 
+Definition lvl_of_sty (sty: sec_ty) := 
+  match sty with
+  | Public => public 
+  | Secret => secret
+  end.
+
 Module Ml := Mmake CmpPos.
 
 Module Sl := Smake CmpPos.
@@ -250,7 +256,8 @@ Definition wt_implicit_arg (a:implicit_arg) (ty:stype) (S:Sl.t) :=
   | _, _ => false
   end.
 
-Definition wt_arg_in (args:asm_args) (S:Sl.t) (a:arg_desc) (pt: pt_info) (ty : stype) := 
+Definition wt_arg_in (args:asm_args) (S:Sl.t) (a:arg_desc) (pt: pt_info) (ty : stype) (sty:sec_ty) :=
+  let S := Sl.add (lvl_of_sty sty) S in  
   match a with
   | ADImplicit a => wt_implicit_arg a ty S
   | ADExplicit k i _ => 
@@ -261,21 +268,21 @@ Definition wt_arg_in (args:asm_args) (S:Sl.t) (a:arg_desc) (pt: pt_info) (ty : s
   end.
 
 (* move this to util *)
-Section ALL3.
+Section ALL4.
 
-Context (A B C:Type) (f:A -> B -> C -> bool).
+Context (A B C D:Type) (f:A -> B -> C -> D -> bool).
 
-Fixpoint all3 la lb lc := 
-  match la, lb, lc with
-  | [::], [::], [::] => true
-  | a::la, b::lb, c::lc => f a b c && all3 la lb lc
-  | _, _, _ => false
+Fixpoint all4 la lb lc ld := 
+  match la, lb, lc, ld with
+  | [::], [::], [::], [::] => true
+  | a::la, b::lb, c::lc, d::ld => f a b c d && all4 la lb lc ld
+  | _, _, _, _ => false
   end.
 
-End ALL3.
+End ALL4.
 
-Definition wt_args_in (args:asm_args) (S:Sl.t) (a:seq arg_desc) (pt: seq pt_info) (ty:seq stype) :=
-  all3 (wt_arg_in args S) a pt ty.
+Definition wt_args_in (args:asm_args) (S:Sl.t) (a:seq arg_desc) (pt: seq pt_info) (ty:seq stype) (sty:seq sec_ty):=
+  all4 (wt_arg_in args S) a pt ty sty.
   
 End Expr.
 
@@ -386,6 +393,7 @@ Definition of_list (l:seq lvl) :=
 Section Typing.
 
 Context (fn:funname).
+Context (sec_ty_op : asm_op_t' -> seq sec_ty).
 
 Inductive WT_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (seq pt_info * seq pt_info)) (code: asm_code) (pc:nat) : Prop := 
   | WT_AsmOp : forall o args env env' dpt apt env1,
@@ -395,7 +403,7 @@ Inductive WT_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (
         nth ([::], [::]) Pt_info pc = (dpt, apt) ->
         let odesc := instr_desc_op o in
         let ls := dests_lvl env' args dpt odesc.(id_out) in
-        wt_args_in c env args (of_list ls) odesc.(id_in) apt odesc.(id_tin) -> 
+        wt_args_in c env args (of_list ls) odesc.(id_in) apt odesc.(id_tin) (sec_ty_op o)-> 
         ty_dests c pts odesc.(id_msb_flag) args odesc.(id_out) dpt ls odesc.(id_tout) env = ok env1 ->
         le_env c env1 env' -> 
         WT_pc c pts Env Pt_info code pc
@@ -546,10 +554,10 @@ asmsem1 code s1 l1 s1' ->
 asmsem1 code s2 l2 s2' ->
 l1 = l2.
 
-(* state equivalence for arg *)
-Definition value_equiv (v1 v2: value) (sty:sec_ty) : Prop :=
+(* state equivalence for value *)
+Definition value_equiv (v1 v2: value) (sty:sec_ty) (ty: stype) : Prop :=
 sty = Public ->
-v1 = v2.
+of_val ty v1 = of_val ty v2.
 
 End TY_SYS.
 

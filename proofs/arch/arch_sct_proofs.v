@@ -57,6 +57,8 @@ Context (wt_cond : constraints -> env_t -> cond_t -> Sl.t -> bool).
 
 Context (fn: funname).
 
+Context (sec_ty_op : asm_op_t' -> seq sec_ty).
+
 Lemma state_equiv_env_env' : forall c rho s1 s2 env env',
 state_equiv rho s1 s2 env ->
 valid_valuation c rho ->
@@ -108,22 +110,22 @@ have henv : get_pt env pt = get_pt env pt. + by auto.
 by move: (hmem pt (get_pt env pt) adr vp pts hwvp hvp henv hpub i hi).
 Qed.
 
-Lemma foo: forall l S S',
+Lemma foo: forall l S S' S'',
 Sl.mem l S ->
-Sl.subset S S' ->
-Sl.mem l S'.
+Sl.subset (Sl.add S' S) S'' ->
+Sl.mem l S''.
 Proof.
 Admitted.
 
-Lemma type_prev_implicit_args : forall c env a S ad pt ty s1 s2 rho v1 leak1 v2 leak2,
-wt_arg_in wt_cond c env a S ad pt ty ->
+Lemma type_prev_args : forall c env a S ad pt ty sty s1 s2 rho v1 leak1 v2 leak2,
+wt_arg_in wt_cond c env a S ad pt ty sty ->
 state_equiv rho s1 s2 env ->
 valid_valuation c rho ->
 eval_arg_in_v s1.(asm_m) a ad ty = ok (v1, leak1) ->
 eval_arg_in_v s2.(asm_m) a ad ty = ok (v2, leak2) ->
-(forall l, Sl.mem l S -> value_equiv v1 v2 (rho l)) /\ leak1 = leak2.
+(forall l, Sl.mem l S -> value_equiv v1 v2 (rho l) ty) /\ leak1 = leak2.
 Proof.
-move=> c env a S ad pt ty [] m1 fn' code1 ip1 [] m2 fn'' code2 ip2 rho 
+move=> c env a S ad pt ty sty [] m1 fn' code1 ip1 [] m2 fn'' code2 ip2 rho 
 v1 leak1 v2 leak2 hwt hequiv hvalid hstep hstep'.
 case: hequiv=> /= hcode hip hreg hregx hxreg hflag hmem; subst.
 case: hvalid=> hpub [hsec hle'].
@@ -153,8 +155,8 @@ case: ad H0 H1 hwt=> //=.
   move: (hle' (e_reg env r).1 l foo')=> hle1. rewrite hrho /= in hle1. 
   apply Public_only_less_than_Public in hle1.
   move: (hreg r (e_reg env r).1 (e_reg env r).2 henv hle1)=> {hreg} hreg. 
-  have hz :=  zero_extend_word. (*move: (hz (e_reg env r).2 ws (asm_reg m1 r)).*)
-  admit. 
+  rewrite /of_val /= /truncate_word /=. case: ifP=> //= hsz. 
+  have hreg' := zero_extend_small_size hws hreg. by rewrite hreg'.
 (* explicit *)
 move=> ak n o /=. case: (onth a n)=> //=.
 move=> asm_arg /=. t_xrbindP=> ut hassert heval ut' hassert' heval' hwt.
@@ -178,7 +180,8 @@ case: asm_arg hassert heval hassert' heval' hwt=> //=.
   move: (hle' (e_reg env r).1 l foo')=> hle1. rewrite hrho /= in hle1. 
   apply Public_only_less_than_Public in hle1.
   move: (hreg r (e_reg env r).1 (e_reg env r).2 henv hle1)=> {hreg} hreg. 
-  admit.
+  rewrite /of_val /= /truncate_word /=. case: ifP=> //= hsz. 
+  have hreg' := zero_extend_small_size hws hreg. by rewrite hreg'.
 (* Regx *)
 + move=> r hassert [] hv1 hleak1 hassert' [] hv2 hleak2; subst. case: ty=> //=.
   move=> ws hregxty. rewrite /value_equiv. split=> //=.
@@ -190,7 +193,8 @@ case: asm_arg hassert heval hassert' heval' hwt=> //=.
   move: (hle' (e_regx env r).1 l foo')=> hle1. rewrite hrho /= in hle1. 
   apply Public_only_less_than_Public in hle1.
   move: (hregx r (e_regx env r).1 (e_regx env r).2 henv hle1)=> {hregx} hregx. 
-  admit.
+  rewrite /of_val /= /truncate_word /=. case: ifP=> //= hsz. 
+  have hregx' := zero_extend_small_size hws hregx. by rewrite hregx'.
 (* Addr *)
 + move=> adr hassert. case: ty=> //=.
   move=> ws. case: ak=> //=.
@@ -218,7 +222,8 @@ case: asm_arg hassert heval hassert' heval' hwt=> //=.
           have foo'' := foo hl hle''.
           move: (hle' (e_reg env ao).1 l foo'')=> hle1'. rewrite hrho /= in hle1'. 
           apply Public_only_less_than_Public in hle1'.
-          move: (hreg ao (e_reg env ao).1 (e_reg env ao).2 henv' hle1')=> hreg2. admit.
+          move: (hreg ao (e_reg env ao).1 (e_reg env ao).2 henv' hle1')=> hreg2. 
+          rewrite /of_val /= /truncate_word /=. case: ifP=> //= hsz. admit.
         (* none *)
         move=> ht. have henv : e_reg env ar = ((e_reg env ar).1, (e_reg env ar).2). 
         + by case: (e_reg env ar)=> //=. rewrite henv in har. move: har.
@@ -261,12 +266,22 @@ move: (hxreg r (e_xreg env r).1 (e_xreg env r).2 henv hle1)=> {hxreg} hxreg.
 admit.
 Admitted.
 
+Lemma type_prev_dest : forall c pts msb args a pti l ty env env' s1 s2 rho m1 m2 ps1 ps2 v,
+ty_dest c pts msb args a pti l ty env = ok env' ->
+state_equiv rho s1 s2 env ->
+valid_valuation c rho ->
+mem_write_val msb args (a, ty) v s1.(asm_m) = ok (m1, ps1) ->
+mem_write_val msb args (a, ty) v s2.(asm_m) = ok (m2, ps2) ->
+ps1 = ps2.
+Proof.
+Admitted.
+
 (*find_label lbl code2 = ok pc
 find_label lbl (asm_fd_body fundef) = ok pc''*)
 
 (* Type preserves state equivalence *) 
 Lemma type_prev_state_equivalence : forall Env env env' rho s1 s2 c P Pt_info pts s1' s2' l1 l2, 
-wt_code wt_cond fn c pts Env Pt_info s1.(asm_c) ->
+wt_code wt_cond fn sec_ty_op c pts Env Pt_info s1.(asm_c) ->
 oseq.onth Env s1.(asm_ip) = Some env ->
 valid_valuation c rho ->
 state_equiv rho s1 s2 env ->
@@ -387,7 +402,7 @@ Admitted.
 
 (* Type preserves constant-time *) 
 Lemma type_prev_leakage : forall Env env rho s1 s2 c P Pt_info pts s1' s2' l1 l2, 
-wt_code wt_cond fn c pts Env Pt_info s1.(asm_c) ->
+wt_code wt_cond fn sec_ty_op c pts Env Pt_info s1.(asm_c) ->
 oseq.onth Env s1.(asm_ip) = Some env -> 
 valid_valuation c rho ->
 state_equiv rho s1 s2 env ->
