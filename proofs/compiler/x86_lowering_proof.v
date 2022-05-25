@@ -1,3 +1,4 @@
+
 (* * Correctness proof of the lowering pass *)
 
 (* ** Imports and settings *)
@@ -1000,7 +1001,7 @@ Section PROOF.
         move => ?; subst v.
         move: Hv'; rewrite /truncate_val /= /truncate_word cmp_le_refl zero_extend_u => /ok_inj ?; subst v'.
         rewrite ok_v1 /= ok_v2 /= /x86_VPMULL /x86_u128_binop /=.
-        rewrite (check_size_32_64_ve hle1) (check_size_128_256_ge hle2).
+        rewrite /check_size_16_32 hle1 (check_size_128_256_ge hle2).
         by rewrite /truncate_word hw1 hw2.
       (* Ovlsr ve sz *)
       + case: ifP => // /andP [/andP [hle1 hle2] /eqP ?]; subst ty.

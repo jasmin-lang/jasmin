@@ -670,7 +670,7 @@ Definition x86_VPSUB (ve: velem) sz :=
   x86_u128_binop (lift2_vec ve (fun x y => x - y)%R sz).
 
 Definition x86_VPMULL (ve: velem) sz v1 v2 :=
-  Let _ := check_size_32_64 ve in
+  Let _ := check_size_16_32 ve in
   x86_u128_binop (lift2_vec ve *%R sz) v1 v2.
 
 Definition x86_VPMULU sz := x86_u128_binop (@wpmulu sz).
@@ -691,9 +691,7 @@ Definition x86_VPMULHRS ve sz v1 v2 :=
 
 (* ---------------------------------------------------------------- *)
 Definition x86_VPEXTR (ve: wsize) (v: u128) (i: u8) : ex_tpl (w_ty ve) :=
-  (* This instruction is valid for smaller ve, but semantics is unusual,
-      hence compiler correctness would not be provable. *)
-  Let _ := check_size_32_64 ve in
+  Let _ := check_size_8_64 ve in
   ok (nth (0%R: word ve) (split_vec ve v) (Z.to_nat (wunsigned i))).
 
 (* ---------------------------------------------------------------- *)

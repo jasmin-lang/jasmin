@@ -1101,13 +1101,13 @@ Definition wpshufl_u64 (w:u64) (z:Z) : u64 :=
 
 Definition wpshufl_u128 (w:u128) (z:Z) :=
   match split_vec 64 w with
-  | [::h;l] => make_vec U128 [::(h:u64); wpshufl_u64 l z]
+  | [::l;h] => make_vec U128 [::wpshufl_u64 l z; (h:u64)]
   | _       => w
   end.
 
 Definition wpshufh_u128 (w:u128) (z:Z) :=
   match split_vec 64 w with
-  | [::h;l] => make_vec U128 [::wpshufl_u64 h z; (l:u64)]
+  | [::l;h] => make_vec U128 [::(l:u64); wpshufl_u64 h z]
   | _       => w
   end.
 
