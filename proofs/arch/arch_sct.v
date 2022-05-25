@@ -84,6 +84,8 @@ Definition lvl_of_sty (sty: sec_ty) :=
 Module Ml := Mmake CmpPos.
 
 Module Sl := Smake CmpPos.
+Module SlP := MSetEqProperties.EqProperties Sl.
+Module SlD := MSetDecide.WDecide Sl.
 
 Definition spublic := Sl.singleton public.
 
@@ -514,13 +516,10 @@ forall (pt1:pointsto) (pt2:pointsto) a1 a2 (pts:pt_size),
 vp pt1 = Some a1 /\ vp pt2 = Some a2 ->
 disjoint_zrange a1 (get_size pts pt1) a2 (get_size pts pt2).
 
-(* State equivalence and Constant-time *)
 
-(* state equivalence *) 
-Inductive state_equiv (rho: valuation) (s1 s2:asm_state) (env: env_t): Prop :=
-| asm_st_equiv : 
-  s1.(asm_c) = s2.(asm_c) -> 
-  s1.(asm_ip) = s2.(asm_ip) -> 
+(* Memory equivalence *)
+Inductive mem_equiv (rho:valuation) (s1 s2:asm_state) (env:env_t): Prop :=
+| m_equiv :
   (forall r l ws, env.(e_reg) r = (l, ws) -> 
    rho l = Public -> 
    zero_extend ws (s1.(asm_m).(asm_reg) r) =
@@ -544,6 +543,17 @@ Inductive state_equiv (rho: valuation) (s1 s2:asm_state) (env: env_t): Prop :=
    (forall i, (0 <= i <= get_size pts pt)%Z -> 
     read (s1.(asm_m).(asm_mem)) (a+word_of_scale (Z.to_nat i))%R = 
     read (s2.(asm_m).(asm_mem)) (a+word_of_scale (Z.to_nat i))%R)) ->
+   mem_equiv rho s1 s2 env. 
+
+(* State equivalence and Constant-time *)
+
+(* state equivalence *) 
+Inductive state_equiv (rho: valuation) (s1 s2:asm_state) (env: env_t): Prop :=
+| asm_st_equiv : 
+  s1.(asm_c) = s2.(asm_c) -> 
+  s1.(asm_ip) = s2.(asm_ip) ->
+  s1.(asm_m).(asm_rip) = s2.(asm_m).(asm_rip) -> 
+  mem_equiv rho s1 s2 env ->
   state_equiv rho s1 s2 env. 
 
 (* constant-time ---single step *) 
