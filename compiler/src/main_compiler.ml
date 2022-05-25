@@ -93,6 +93,7 @@ let check_sct _s p _source_p =
   
 (* -------------------------------------------------------------------- *)
 let main () =
+  let is_regx tbl x = is_regx (Conv.var_of_cvar tbl x) in
   try
     parse();
 
@@ -250,6 +251,7 @@ let main () =
         ; fresh_PF = (b "PF").vname
         ; fresh_ZF = (b "ZF").vname
         ; fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname)
+        ; is_regx = is_regx tbl
         }) in
 
     let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef tbl (fn,cfd) in
@@ -264,7 +266,7 @@ let main () =
 
     let translate_var = Conv.var_of_cvar tbl in
 
- let fresh_id _gd x =
+    let fresh_id _gd x =
       let x = Conv.var_of_cvar tbl x in
       let x' = Prog.V.clone x in
       let cx = Conv.cvar_of_var tbl x' in
@@ -455,6 +457,7 @@ let main () =
       Compiler.is_reg_ptr  = is_reg_ptr;
       Compiler.is_ptr      = is_ptr;
       Compiler.is_reg_array = is_reg_array;
+      Compiler.is_regx      = is_regx tbl;
     } in
 
     let export_functions, subroutines =

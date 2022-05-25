@@ -2,7 +2,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import expr memory_model stack_alloc.
 Require Import arch_decl.
-Require Import x86_decl x86_instr_decl x86_extra.
+Require Import x86_decl x86_instr_decl x86_extra lowering.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -24,10 +24,10 @@ Definition mk_mov vpk :=
   | _ => MK_MOV
   end.
 
-Definition x86_mov_ofs x tag vpk y ofs :=
+Definition x86_mov_ofs (is_regx : var -> bool) x tag vpk y ofs :=
   let addr := if mk_mov vpk is MK_LEA
               then lea_ptr x tag y ofs
               else if ofs == 0%Z
-                   then mov_ptr x tag y
+                   then mov_ws is_regx Uptr x y tag
                    else lea_ptr x tag y ofs in
   Some addr.

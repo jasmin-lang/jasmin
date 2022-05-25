@@ -154,6 +154,7 @@ Record compiler_params := {
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
+  is_regx          : var -> bool;
 }.
 
 (* Architecture-dependent functions *)
@@ -265,7 +266,7 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
   Let _ := check_no_ptr entries ao.(ao_stack_alloc) in
   Let ps := stack_alloc.alloc_prog
        true
-       mov_ofs
+       (mov_ofs cparams.(is_regx))
        protect_ptr 
        cparams.(fresh_reg)
        cparams.(global_static_data_symbol)

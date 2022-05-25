@@ -160,9 +160,10 @@ let memory_analysis pp_err ~debug tbl fresh_reg_ptr is_move_op up =
     Format.eprintf "%a@.@.@." (pp_oracle tbl up) saos
   end;
 
+  let is_regx x = is_regx (Conv.var_of_cvar tbl x) in
   let sp' = 
     match Stack_alloc.alloc_prog U64 (Arch_extra.asm_opI X86_extra.x86_extra) false 
-            x86_mov_ofs Compiler.protect_ptr
+            (x86_mov_ofs is_regx) Compiler.protect_ptr
             fresh_reg_ptr crip crsp gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->

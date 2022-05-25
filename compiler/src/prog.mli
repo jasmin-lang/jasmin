@@ -259,10 +259,14 @@ module Sv : Set.S  with type elt = var
 module Mv : Map.S  with type key = var
 module Hv : Hash.S with type key = var
 
+
 val expr_equal : expr -> expr -> bool 
 
 val rip : var
 val rsp : var 
+
+val is_regx : var -> bool
+
 
 (* -------------------------------------------------------------------- *)
 val kind_i : 'len gvar_i -> v_kind

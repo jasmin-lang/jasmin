@@ -1,9 +1,8 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Utf8.
-Require Import compiler_util expr expr_facts low_memory lea.
+Require Import compiler_util expr expr_facts low_memory lowering lea.
 Require Import x86_decl x86_instr_decl x86_extra.
-
 
 Section IS_REGX.
 
@@ -36,7 +35,7 @@ Record fresh_vars : Type :=
     fresh_ZF : Equality.sort Ident.ident;
 
     fresh_multiplicand : wsize → Equality.sort Ident.ident;
-    is_regx : var -> bool;
+    is_regx            : var -> bool
   }.
 
 Record lowering_options : Type :=
@@ -104,12 +103,6 @@ Definition wsize_of_lval (lv: lval) : wsize :=
   | Lasub _ _ _ _ _ => U64
   end.
 
-Definition enot e := Papp1 Onot e.
-Definition eq_f  e1 e2 := Papp2 Obeq e1 e2. 
-Definition neq_f e1 e2 := enot (eq_f e1 e2).
-Definition eor e1 e2   := Papp2 Oor e1 e2.
-Definition eand e1 e2  := Papp2 Oand e1 e2.
-
 Definition lower_cond_classify vi (e: pexpr) :=
   let nil := Lnone vi sbool in
   let fr n := {| v_var := {| vtype := sbool; vname := n fv |} ; v_info := vi |} in
@@ -127,7 +120,7 @@ Definition lower_cond_classify vi (e: pexpr) :=
   let ecf := Plvar vcf in
   let esf := Plvar vsf in
   let ezf := Plvar vzf in
-  
+
   let l := [:: lof ; lcf ; lsf ; nil ; lzf ] in
   match e with
   | Papp2 op x y =>
@@ -137,19 +130,19 @@ Definition lower_cond_classify vi (e: pexpr) :=
     | Oneq (Op_w sz) =>
       Some (l, sz, enot ezf, x, y)
     | Olt (Cmp_w Signed sz) =>
-      Some (l, sz, neq_f eof esf, x, y)
+      Some (l, sz, eneq eof esf, x, y)
     | Olt (Cmp_w Unsigned sz) =>
       Some (l, sz, ecf, x, y)
     | Ole (Cmp_w Signed sz) =>
-      Some (l, sz, eor (neq_f eof esf) ezf, x, y)
+      Some (l, sz, eor (eneq eof esf) ezf, x, y)
     | Ole (Cmp_w Unsigned sz) =>
       Some (l, sz, eor ecf ezf, x, y)
     | Ogt (Cmp_w Signed sz) =>
-      Some (l, sz, eand (eq_f eof esf) (enot ezf), x, y)
+      Some (l, sz, eand (eeq eof esf) (enot ezf), x, y)
     | Ogt (Cmp_w Unsigned sz) =>
       Some (l, sz, eand (enot ecf) (enot ezf), x, y)
     | Oge (Cmp_w Signed sz) =>
-      Some (l, sz, eq_f eof esf, x, y)
+      Some (l, sz, eeq eof esf, x, y)
     | Oge (Cmp_w Unsigned sz) =>
       Some (l, sz, enot ecf, x, y)
     | _ => None
@@ -205,23 +198,14 @@ Variant lower_cassgn_t : Type :=
   | LowerInc  of sopn & pexpr
   | LowerLea of wsize & lea
   | LowerFopn of sopn & list pexpr & option wsize
-  | LowerCond 
+  | LowerCond
   | LowerIf   of stype & pexpr & pexpr & pexpr
   | LowerDivMod of divmod_pos & signedness & wsize & sopn & pexpr & pexpr
   | LowerConcat of pexpr & pexpr
   | LowerAssgn.
 
 Context (is_var_in_memory : var_i → bool).
-
-Definition is_lval_in_memory (x: lval) : bool :=
-  match x with
-  | Lnone _ _ => false
-  | Lvar v
-  | Laset _ _ v _ 
-  | Lasub _ _ _ v _
-    => is_var_in_memory v
-  | Lmem _ _ _ => true
-  end.
+Notation is_lval_in_memory := (is_lval_in_memory is_var_in_memory).
 
 (* -------------------------------------------------------------------- *)
 
@@ -372,7 +356,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     | Ovsub ve sz =>
       kb (U128 <= sz)%CMP sz (LowerCopn (Ox86 (VPSUB ve sz)) [::a; b])
     | Ovmul ve sz =>
-      kb ((U32 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPMULL ve sz)) [::a; b])
+      kb ((U16 ≤ ve) && (wsize_of_velem ve ≤ U32) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPMULL ve sz)) [::a; b])
     | Ovlsl ve sz =>
       kb ((U16 <= ve) && (U128 <= sz))%CMP sz (LowerCopn (Ox86 (VPSLL ve sz)) [::a; b])
     | Ovlsr ve sz =>
@@ -467,7 +451,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
       if (e == @wconst szty 0) && ~~ is_lval_in_memory x && options.(use_set0) then
         if (szty <= U64)%CMP then
           [:: MkI ii (Copn [:: f ; f ; f ; f ; f ; x] tg (Oasm (ExtOp (Oset0 szty))) [::]) ]
-        else 
+        else
           [:: MkI ii (Copn [:: x] tg (Oasm (ExtOp (Oset0 szty))) [::]) ]
       else 
         [:: MkI ii (mov_ws fv.(is_regx) szty x e tg)]
@@ -512,7 +496,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
               [:: MkI ii (Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: de]);
                  MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; Plvar c ])]
       else lea tt
-  
+
   | LowerCond =>
     let (i,e') := lower_condition vi e in
     map (MkI ii) (i ++ [::Cassgn x AT_inline ty e'])
@@ -591,47 +575,13 @@ Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r :=
   end
   else [:: Copn xs tg (Omulu sz) es ].
 
-Definition Lnone_w vi sz := Lnone vi (sword sz).
-
-Definition lower_protect sz (xs: lvals) tg (es:pexprs) : seq instr_r :=
-  if xs is [:: r]
-  then
-      let vi := var_info_of_lval r in
-      let ys :=
-        if (sz ≤ U64)%CMP then
-          let f := Lnone_b vi in [:: f; f; f; f; f; r ]
-        else
-          let f := Lnone_w vi sz in [:: f; r ]
-      in
-      [:: Copn ys tg (Oasm (ExtOp (x86_extra.Oprotect sz))) es]
-  else [::] (* Absurd case *).
-
-Definition lower_set_msf (xs:lvals) tg (es:pexprs) : seq instr_r := 
-  match xs with
-  | [:: r] => 
-      let vi := var_info_of_lval r in
-      let f := Lnone_w vi Uptr in
-      [:: Copn [:: f; r] tg (Oasm (ExtOp x86_extra.Oset_msf)) es]
-  | _ => [::Copn xs tg (sopn.Oset_msf) es]
-  end.
-
 Definition lower_copn (xs: lvals) tg (op: sopn) (es: pexprs) : seq instr_r :=
   match op with
   | Oaddcarry sz => lower_addcarry sz false xs tg es
   | Osubcarry sz => lower_addcarry sz true xs tg es
   | Omulu sz     => lower_mulu sz xs tg es
-  (* ----------------------------------- *)
-  | sopn.Oprotect  sz      => lower_protect sz xs tg es 
-  | sopn.Oset_msf          => lower_set_msf xs tg es 
-  | sopn.Omov_msf          => [:: Copn xs tg (Oasm (ExtOp x86_extra.Omov_msf)) es]
-  | sopn.Oinit_msf         => [:: Copn xs tg (Oasm (ExtOp x86_extra.Oinit_msf)) es]
-  (* | sopn.Oprotect_ptr p : do nothing this is done by stack_alloc *)
-  (* ------------------------------------*)
   | _            => [:: Copn xs tg op es]
   end.
-
-Definition lower_cmd (lower_i: instr -> cmd) (c:cmd) : cmd :=
-  List.fold_right (fun i c' => lower_i i ++ c') [::] c.
 
 Fixpoint lower_i (i:instr) : cmd :=
   let (ii, ir) := i in
@@ -640,25 +590,13 @@ Fixpoint lower_i (i:instr) : cmd :=
   | Copn l t o e => map (MkI ii) (lower_copn l t o e)
   | Cif e c1 c2  =>
      let '(pre, e) := lower_condition xH e in
-       map (MkI ii) (rcons pre (Cif e (lower_cmd lower_i c1) (lower_cmd lower_i c2)))
+       map (MkI ii) (rcons pre (Cif e (conc_map lower_i c1) (conc_map lower_i c2)))
   | Cfor v (d, lo, hi) c =>
-     [:: MkI ii (Cfor v (d, lo, hi) (lower_cmd lower_i c))]
+     [:: MkI ii (Cfor v (d, lo, hi) (conc_map lower_i c))]
   | Cwhile a c e c' =>
      let '(pre, e) := lower_condition xH e in
-       map (MkI ii) [:: Cwhile a ((lower_cmd lower_i c) ++ map (MkI xH) pre) e (lower_cmd lower_i c')]
+       map (MkI ii) [:: Cwhile a ((conc_map lower_i c) ++ map (MkI xH) pre) e (conc_map lower_i c')]
   | _ =>   map (MkI ii) [:: ir]
   end.
-
-Definition lower_fd (fd: fundef) : fundef :=
-  {| f_info := f_info fd;
-     f_tyin := f_tyin fd;
-     f_params := f_params fd;
-     f_body := lower_cmd lower_i (f_body fd);
-     f_tyout := f_tyout fd;
-     f_res := f_res fd;
-     f_extra := f_extra fd;
-  |}.
-
-Definition lower_prog (p: prog) := map_prog lower_fd p.
 
 End LOWERING.

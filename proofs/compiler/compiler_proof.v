@@ -199,7 +199,7 @@ Qed.
 (* TODO: move *)
 
 Remark sp_globs_stack_alloc rip rsp data ga la (p: uprog) (p': sprog) :
-  alloc_prog mov_ofs (compiler.fresh_reg cparams) rip rsp data ga la p = ok p' →
+  alloc_prog (mov_ofs (is_regx cparams)) (compiler.fresh_reg cparams) rip rsp data ga la p = ok p' →
   sp_globs (p_extra p') = data.
 Proof.
   rewrite /alloc_prog; t_xrbindP => ??.
