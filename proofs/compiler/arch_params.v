@@ -7,14 +7,11 @@ Require Import
   arch_decl
   arch_extra
   arch_sem
-  asm_gen
-  asm_gen_proof.
+  asm_gen.
 Require
   linearization
-  linearization_proof
   lowering
-  stack_alloc
-  stack_alloc_proof.
+  stack_alloc.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -47,7 +44,7 @@ Record architecture_params
   (fresh_vars lowering_options : Type) :=
   {
     (* Stack alloc parameters. See stack_alloc.v. *)
-    ap_sap : stack_alloc.stack_alloc_params;
+    ap_sap : (var -> bool) -> stack_alloc.stack_alloc_params;
 
     (* Linearization parameters. See linearization.v. *)
     ap_lip : linearization.linearization_params;

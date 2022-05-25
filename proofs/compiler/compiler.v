@@ -171,6 +171,7 @@ Record compiler_params
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
+  is_regx          : var -> bool;
 }.
 
 Context
@@ -179,7 +180,7 @@ Context
   (aparams : architecture_params fresh_vars lowering_options)
   (cparams : compiler_params fresh_vars lowering_options).
 
-Notation saparams := (ap_sap aparams).
+Notation saparams := (ap_sap aparams cparams.(is_regx)).
 Notation liparams := (ap_lip aparams).
 Notation loparams := (ap_lop aparams).
 Notation agparams := (ap_agp aparams).
