@@ -7,14 +7,11 @@ Require Import
   arch_decl
   arch_extra
   arch_sem
-  asm_gen
-  asm_gen_proof.
+  asm_gen.
 Require
   linearization
-  linearization_proof
   lowering
-  stack_alloc
-  stack_alloc_proof.
+  stack_alloc.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

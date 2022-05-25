@@ -10,23 +10,19 @@ Require Import
   sem_one_varmap.
 Require Import
   linearization
-  linearization_proof
   lowering
-  stack_alloc
-  stack_alloc_proof.
+  stack_alloc.
 Require
   arch_sem.
 Require Import
   arch_decl
   arch_extra
-  asm_gen
-  asm_gen_proof.
+  asm_gen.
 Require Import
   x86_decl
   x86_extra
   x86_instr_decl
-  x86_lowering
-  x86_lowering_proof.
+  x86_lowering.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
