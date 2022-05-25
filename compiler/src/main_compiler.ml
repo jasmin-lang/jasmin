@@ -80,7 +80,9 @@ let check_safety_p asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
 (* -------------------------------------------------------------------- *)
 let main () =
 
+  let is_regx tbl x = is_regx (Conv.var_of_cvar tbl x) in
   let lowering_vars tbl = X86_lowering.(
+
     let f ty n = 
       let v = V.mk n (Reg(Normal, Direct)) ty L._dummy [] in
       Conv.cvar_of_var tbl v in
@@ -91,6 +93,7 @@ let main () =
     ; fresh_PF = (b "PF").vname
     ; fresh_ZF = (b "ZF").vname
     ; fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname)
+    ; is_regx = is_regx tbl
     }) in
   let lowering_opt =
     X86_lowering.{ use_lea = !Glob_options.lea;
@@ -448,6 +451,7 @@ let main () =
       Compiler.is_reg_ptr  = is_reg_ptr;
       Compiler.is_ptr      = is_ptr;
       Compiler.is_reg_array = is_reg_array;
+      Compiler.is_regx      = is_regx tbl;
     } in
 
     let export_functions, subroutines =

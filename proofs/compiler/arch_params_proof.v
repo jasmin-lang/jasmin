@@ -61,7 +61,7 @@ Record h_architecture_params
   (aparams : architecture_params fresh_vars lowering_options) :=
   {
     (* Stack alloc hypotheses. See stack_alloc_proof.v. *)
-    hap_hsap : stack_alloc_proof.h_stack_alloc_params (ap_sap aparams);
+    hap_hsap : forall is_regx, stack_alloc_proof.h_stack_alloc_params (ap_sap aparams is_regx);
 
     (* Linearization hypotheses. See linearization_proof.v. *)
     hap_hlip :

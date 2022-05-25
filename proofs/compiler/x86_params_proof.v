@@ -39,7 +39,7 @@ Unset Printing Implicit Defensive.
 
 Section STACK_ALLOC.
 
-  Variable (P' : sprog).
+  Variable (is_regx : var -> bool) (P' : sprog).
   Hypothesis P'_globs : P'.(p_globs) = [::].
 
   Lemma lea_ptrP s1 e i x tag ofs w s2 :
@@ -54,24 +54,12 @@ Section STACK_ALLOC.
     by rewrite !zero_extend_u hx.
   Qed.
 
-  Lemma mov_ptrP s1 e tag i x w s2 :
-    (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
-    -> write_lval [::] x (Vword i) s1 = ok s2
-    -> psem.sem_i P' w s1 (mov_ptr x e tag) s2.
-  Proof.
-    move=> he hx.
-    constructor.
-    rewrite /sem_sopn P'_globs /= /exec_sopn /=.
-    move: he; t_xrbindP=> _ -> /= -> /=.
-    by rewrite hx.
-  Qed.
-
 End STACK_ALLOC.
 
-Lemma x86_mov_ofsP (P' : sprog) s1 e i x tag ofs w vpk s2 ins :
+Lemma x86_mov_ofsP (is_regx : var -> bool) (P' : sprog) s1 e i x tag ofs w vpk s2 ins :
   p_globs P' = [::]
   -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
-  -> sap_mov_ofs x86_saparams x tag vpk e ofs = Some ins
+  -> sap_mov_ofs (x86_saparams is_regx) x tag vpk e ofs = Some ins
   -> write_lval [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
   -> psem.sem_i P' w s1 ins s2.
 Proof.
@@ -79,14 +67,14 @@ Proof.
   rewrite /x86_saparams /= /x86_mov_ofs.
   case: (mk_mov vpk).
   - move=> [<-]. by apply lea_ptrP.
-  - case: eqP => [-> | _] [<-].
-    + rewrite wrepr0 GRing.addr0. by apply mov_ptrP.
-    + by apply lea_ptrP.
+  case: eqP => [-> | _] [<-].
+  + by rewrite wrepr0 GRing.addr0 -P'_globs; apply mov_wsP; rewrite // P'_globs.
+  by apply lea_ptrP.
 Qed.
 
-Definition x86_hsaparams : h_stack_alloc_params (ap_sap x86_params) :=
+Definition x86_hsaparams is_regx : h_stack_alloc_params (ap_sap x86_params is_regx) :=
   {|
-    mov_ofsP := x86_mov_ofsP;
+    mov_ofsP := @x86_mov_ofsP is_regx;
   |}.
 
 (* ------------------------------------------------------------------------ *)

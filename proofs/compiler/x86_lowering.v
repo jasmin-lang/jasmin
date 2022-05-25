@@ -4,6 +4,26 @@ Require Import Utf8.
 Require Import compiler_util expr expr_facts low_memory lowering lea.
 Require Import x86_decl x86_instr_decl x86_extra.
 
+Section IS_REGX.
+
+Context (is_regx : var -> bool).
+
+Definition is_regx_e (e:pexpr) := 
+  if e is Pvar x then is_regx x.(gv)
+  else false.
+
+Definition is_regx_l (x:lval) := 
+  if x is Lvar x then is_regx x
+  else false.
+
+Definition mov_ws ws x y tag :=
+  if (is_regx_e y || is_regx_l x) && (U32 ≤ ws)%CMP then 
+    Copn [:: x] tag (Ox86 (MOVX ws)) [:: y]
+  else
+    Copn [:: x] tag (Ox86 (MOV ws)) [:: y].
+
+End IS_REGX.
+
 Section LOWERING.
 
 Record fresh_vars : Type :=
@@ -15,6 +35,7 @@ Record fresh_vars : Type :=
     fresh_ZF : Equality.sort Ident.ident;
 
     fresh_multiplicand : wsize → Equality.sort Ident.ident;
+    is_regx            : var -> bool
   }.
 
 Record lowering_options : Type :=
@@ -432,7 +453,8 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
           [:: MkI ii (Copn [:: f ; f ; f ; f ; f ; x] tg (Oasm (ExtOp (Oset0 szty))) [::]) ]
         else
           [:: MkI ii (Copn [:: x] tg (Oasm (ExtOp (Oset0 szty))) [::]) ]
-      else copn (Ox86 (MOV szty)) [:: e ]
+      else 
+        [:: MkI ii (mov_ws fv.(is_regx) szty x e tg)]
   | LowerCopn o e => copn o e
   | LowerInc o e => inc o e
   | LowerFopn o es m => map (MkI ii) (opn_5flags m vi f x tg o es)

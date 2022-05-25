@@ -1123,6 +1123,18 @@ Section PROOF.
     by move => hle; rewrite !zero_extend_wrepr.
   Qed.
 
+  Lemma mov_wsP p1 is_regx s1 e ws tag i x w s2 :
+    (ws <= U64)%CMP -> 
+    (Let i' := sem_pexpr (p_globs p1) s1 e in to_word ws i') = ok i
+    -> write_lval (p_globs p1) x (Vword i) s1 = ok s2
+    -> sem_i p1 w s1 (mov_ws is_regx ws x e tag) s2.
+  Proof.
+    by move=> hws he hx; rewrite /mov_ws; case: ifP => [ /andP [] _ h | _];
+     constructor; rewrite /sem_sopn /= /exec_sopn /=;
+     move: he; t_xrbindP => _ -> /= -> /=;  
+     rewrite /sopn_sem /= /x86_MOVX /x86_MOV /check_size_32_64 /check_size_8_64 hws ?h /= hx.
+  Qed.
+
   Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
   Proof.
     move => s1 s2 l tag ty e v v' Hv hty Hw ii /= Hdisj s1' Hs1'.
@@ -1153,8 +1165,9 @@ Section PROOF.
         by eauto using eq_exc_freshT.
       * exists s2'; split=> //=.
         case: ifP => [/andP [] /andP [] /eqP he ??| _ ];first last.
-        - apply: sem_seq1; apply: EmkI; apply: Eopn.
-          by rewrite /sem_sopn /= /sem_pexprs /= h /= /exec_sopn /sopn_sem /= /truncate_word hsz /x86_MOV /check_size_8_64 hle' /= -hw Hw'.
+        - apply/sem_seq1/EmkI/mov_wsP => //.
+          + by rewrite h /= /truncate_word hsz.
+          by rewrite -hw.
         move: h; rewrite he => /ok_word_inj [?]; subst => /= ?; subst vw.
         rewrite hw zero_extend_u wrepr0 in Hw' => {hw}.
         by case: ifP => hsz64; apply: sem_seq1; apply: EmkI; apply: Eopn;

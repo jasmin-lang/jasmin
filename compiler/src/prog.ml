@@ -117,6 +117,11 @@ let is_ptr k =
   | Stack k | Reg(_, k) -> k <> Direct 
   | _ -> false
 
+let is_regx x = 
+  match x.v_kind with 
+  | Reg (Extra, _) -> true
+  | _ -> false
+
 (* ------------------------------------------------------------------------ *)
 
 type 'len glval =

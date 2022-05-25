@@ -256,6 +256,8 @@ module Sv : Set.S  with type elt = var
 module Mv : Map.S  with type key = var
 module Hv : Hash.S with type key = var
 
+val is_regx : var -> bool
+
 (* -------------------------------------------------------------------- *)
 val kind_i : 'len gvar_i -> v_kind
 val ty_i   : 'len gvar_i -> 'len gty 
