@@ -610,7 +610,7 @@ let rec pp_expr pd env fmt (e:expr) =
             (pp_expr pd env) e i i aux es in
       Format.fprintf fmt "(W%a.of_int %a)" pp_size ws aux (List.rev es)
     | Ocombine_flags c -> 
-      Format.fprintf fmt "@[<1,2>(%s %a)@]"
+      Format.fprintf fmt "@[(%s@ %a)@]"
         (Printer.string_of_combine_flags c) 
         (pp_list "@ " (pp_expr pd env)) es
     end
