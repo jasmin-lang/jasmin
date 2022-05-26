@@ -31,6 +31,19 @@ op flags_w2 (fs:bool * bool * bool * bool * bool) (w1 w2: 't) =
   let (OF, CF, SF, PF, ZF) = fs in
   (OF, CF, SF, PF, ZF, w1, w2).
 
+(* ------------------------------------------------------------------- *)
+
+op _sLT (OF CF SF ZF :bool) =  OF <> SF.       (* CFC_L  OF CF SF ZF *)
+op _uLT (OF CF SF ZF :bool) =  CF.             (* CFC_B  OF CF SF ZF. *)
+op _sLE (OF CF SF ZF :bool) =  (OF<>SF) || ZF. (* CFC_LE OF CF SF ZF. *)
+op _uLE (OF CF SF ZF :bool) =  CF || ZF.       (* CFC_BE OF CF SF ZF. *)
+op _EQ  (OF CF SF ZF :bool) =  ZF.             (* CFC_E  OF CF SF ZF. *)
+op _NEQ (OF CF SF ZF :bool) = !_EQ  OF CF SF ZF.
+op _sGE (OF CF SF ZF :bool) = !_sLT OF CF SF ZF.
+op _uGE (OF CF SF ZF :bool) = !_uLT OF CF SF ZF.
+op _sGT (OF CF SF ZF :bool) = !_sLE OF CF SF ZF.
+op _uGT (OF CF SF ZF :bool) = !_uLE OF CF SF ZF.
+
 (* -------------------------------------------------------------------- *)
 
 abstract theory BitWord.
