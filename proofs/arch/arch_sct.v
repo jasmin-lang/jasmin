@@ -234,7 +234,7 @@ Definition wt_asm_arg (k:addr_kind) (a:asm_arg) (ty:stype) (pti:pt_info) (S:Sl.t
     le_all c lr S && (ws <= ws')%CMP
 
   | Addr a, sword ws =>
-    if k is AK_compute then wt_addr ws a S
+    if k is AK_compute then (ws <= reg_size)%CMP && wt_addr ws a S
     else 
       wt_addr Uptr a spublic &&
       match pti with
@@ -516,34 +516,33 @@ forall (pt1:pointsto) (pt2:pointsto) a1 a2 (pts:pt_size),
 vp pt1 = Some a1 /\ vp pt2 = Some a2 ->
 disjoint_zrange a1 (get_size pts pt1) a2 (get_size pts pt2).
 
-
 (* Memory equivalence *)
-Inductive mem_equiv (rho:valuation) (s1 s2:asm_state) (env:env_t): Prop :=
+Inductive mem_equiv (rho:valuation) (m1 m2:asmmem) (env:env_t): Prop :=
 | m_equiv :
   (forall r l ws, env.(e_reg) r = (l, ws) -> 
    rho l = Public -> 
-   zero_extend ws (s1.(asm_m).(asm_reg) r) =
-   zero_extend ws (s2.(asm_m).(asm_reg) r)) ->
+   zero_extend ws (m1.(asm_reg) r) =
+   zero_extend ws (m2.(asm_reg) r)) ->
   (forall r l ws, env.(e_regx) r = (l, ws) -> 
    rho l = Public -> 
-   zero_extend ws (s1.(asm_m).(asm_regx) r) =
-   zero_extend ws (s2.(asm_m).(asm_regx) r)) ->
+   zero_extend ws (m1.(asm_regx) r) =
+   zero_extend ws (m2.(asm_regx) r)) ->
   (forall r l ws, env.(e_xreg) r = (l, ws) -> 
    rho l = Public -> 
-   zero_extend ws (s1.(asm_m).(asm_xreg) r) =
-   zero_extend ws (s2.(asm_m).(asm_xreg) r)) ->
+   zero_extend ws (m1.(asm_xreg) r) =
+   zero_extend ws (m2.(asm_xreg) r)) ->
   (forall f l, env.(e_flag) f = l -> 
    rho l = Public -> 
-   (s1.(asm_m).(asm_flag) f) = (s2.(asm_m).(asm_flag) f)) ->
+   (m1.(asm_flag) f) = (m2.(asm_flag) f)) ->
   (forall pt l a vp pts, 
    wf_vpointsto vp ->
    vp pt = Some a ->
    get_pt env pt = l -> 
    rho l = Public ->
    (forall i, (0 <= i <= get_size pts pt)%Z -> 
-    read (s1.(asm_m).(asm_mem)) (a+word_of_scale (Z.to_nat i))%R = 
-    read (s2.(asm_m).(asm_mem)) (a+word_of_scale (Z.to_nat i))%R)) ->
-   mem_equiv rho s1 s2 env. 
+    read (m1.(asm_mem)) (a + wrepr Uptr i)%R = 
+    read (m2.(asm_mem)) (a + wrepr Uptr i)%R)) ->
+   mem_equiv rho m1 m2 env. 
 
 (* State equivalence and Constant-time *)
 
@@ -553,7 +552,7 @@ Inductive state_equiv (rho: valuation) (s1 s2:asm_state) (env: env_t): Prop :=
   s1.(asm_c) = s2.(asm_c) -> 
   s1.(asm_ip) = s2.(asm_ip) ->
   s1.(asm_m).(asm_rip) = s2.(asm_m).(asm_rip) -> 
-  mem_equiv rho s1 s2 env ->
+  mem_equiv rho s1.(asm_m) s2.(asm_m) env ->
   state_equiv rho s1 s2 env. 
 
 (* constant-time ---single step *) 
