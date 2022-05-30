@@ -270,21 +270,21 @@ Definition wt_arg_in (args:asm_args) (S:Sl.t) (a:arg_desc) (pt: pt_info) (ty : s
   end.
 
 (* move this to util *)
-Section ALL4.
+Section ALL3.
 
 Context (A B C D:Type) (f:A -> B -> C -> D -> bool).
 
-Fixpoint all4 la lb lc ld := 
-  match la, lb, lc, ld with
-  | [::], [::], [::], [::] => true
-  | a::la, b::lb, c::lc, d::ld => f a b c d && all4 la lb lc ld
-  | _, _, _, _ => false
+Fixpoint all3 la lb lc d := 
+  match la, lb, lc with
+  | [::], [::], [::] => true
+  | a::la, b::lb, c::lc => f a b c d && all3 la lb lc d
+  | _, _, _ => false
   end.
 
-End ALL4.
+End ALL3.
 
-Definition wt_args_in (args:asm_args) (S:Sl.t) (a:seq arg_desc) (pt: seq pt_info) (ty:seq stype) (sty:seq sec_ty):=
-  all4 (wt_arg_in args S) a pt ty sty.
+Definition wt_args_in (args:asm_args) (S:Sl.t) (a:seq arg_desc) (pt: seq pt_info) (ty:seq stype) (sty:sec_ty):=
+  all3 (wt_arg_in args S) a pt ty sty.
   
 End Expr.
 
@@ -395,7 +395,7 @@ Definition of_list (l:seq lvl) :=
 Section Typing.
 
 Context (fn:funname).
-Context (sec_ty_op : asm_op_t' -> seq sec_ty).
+Context (sec_ty_op : asm_op_t' -> sec_ty).
 
 Inductive WT_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (seq pt_info * seq pt_info)) (code: asm_code) (pc:nat) : Prop := 
   | WT_AsmOp : forall o args env env' dpt apt env1,
@@ -501,10 +501,22 @@ End Typing.
 
 Definition valuation := lvl -> sec_ty.
 
+Fixpoint valuations (rhos : seq valuation) (l : lvl) (ls : Sl.t) : seq sec_ty :=
+match rhos with 
+| [::] => [::]
+| r :: rs => r l :: valuations rs l ls
+end.
+
 Definition valid_valuation (c:constraints) (rho: valuation) := 
   rho public = Public /\
   rho secret = Secret /\
   forall l s, is_le c l s -> (rho l <= rho s)%CMP.
+
+Fixpoint valid_valuations (c:constraints) (rhos: seq valuation) : Prop := 
+match rhos with 
+| [::] => True 
+| r :: rhos => valid_valuation c r /\ valid_valuations c rhos
+end.
 
 (* starting address of pointsto *)
 Definition vpointsto := pointsto -> option pointer. 
@@ -542,7 +554,7 @@ Inductive mem_equiv (rho:valuation) (m1 m2:asmmem) (env:env_t): Prop :=
    (forall i, (0 <= i <= get_size pts pt)%Z -> 
     read (m1.(asm_mem)) (a + wrepr Uptr i)%R = 
     read (m2.(asm_mem)) (a + wrepr Uptr i)%R)) ->
-   mem_equiv rho m1 m2 env. 
+   mem_equiv rho m1 m2 env.    
 
 (* State equivalence and Constant-time *)
 
@@ -567,6 +579,14 @@ l1 = l2.
 Definition value_equiv (v1 v2: value) (sty:sec_ty) (ty: stype) : Prop :=
 sty = Public ->
 of_val ty v1 = of_val ty v2.
+
+(* state equivalence for values *)
+Fixpoint values_equiv (vs1 vs2: seq value) (sty:sec_ty) (tys:seq stype) : Prop :=
+match vs1, vs2, tys with 
+| [::], [::], [::] => True 
+| x :: xs, y :: ys, t :: ts => value_equiv x y sty t /\ values_equiv xs ys sty ts
+| _, _, _ => False
+end. 
 
 End TY_SYS.
 
