@@ -15,10 +15,9 @@ sem_type
 syscall
 arch_decl
 label
-values.
-
-(* FIXME remove this: it is needed due to find_label. so move find label *)
-Require Import arch_sem_no_spec.
+values
+arch_sem
+arch_sem_no_spec.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -571,8 +570,8 @@ Inductive state_equiv (rho: valuation) (s1 s2:asm_state) (env: env_t): Prop :=
 Definition constant_time (env: env_t) (s1 s2: asm_state) :=
 forall c code s1' s2' l1 l2,
 state_equiv c s1 s2 env ->
-asmsem1 code s1 l1 s1' ->
-asmsem1 code s2 l2 s2' ->
+asmsem1_leak code s1 l1 s1' ->
+asmsem1_leak code s2 l2 s2' ->
 l1 = l2.
 
 (* state equivalence for value *)

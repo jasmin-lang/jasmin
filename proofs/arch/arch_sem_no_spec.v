@@ -41,72 +41,22 @@ arch_decl
 label
 trelation_no_spec
 values
-leakage.
+leakage
+arch_sem.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 (* -------------------------------------------------------------------- *)
-Section SEM.
+Section SEM_LEAK.
 
 Context {reg regx xreg rflag cond asm_op} {asm_d : asm reg regx xreg rflag cond asm_op}. 
 
-Record asm_state := AsmState {
-  asm_m  :> asmmem;
-  asm_f  : funname;
-  asm_c  : asm_code;
-  asm_ip : nat;
-}.
-
-Notation asm_result := (result error asmmem).
-Notation asm_result_state := (result error (asm_state * leak_asm)).
+Notation asm_result_state_leak := (result error (asm_state * leak_asm)).
 
 (* -------------------------------------------------------------------- *)
-Definition st_get_rflag (s : asmmem) (rf : rflag_t) :=
-  if s.(asm_flag) rf is Def b then ok b else undef_error.
-
-(* -------------------------------------------------------------------- *)
-
-Definition eval_cond_mem (s : asmmem) (c : cond_t) :=
-  eval_cond (st_get_rflag s) c.
-
-(* -------------------------------------------------------------------- *)
-Definition st_write_ip (ip : nat) (s : asm_state) :=
-  {| asm_m := s.(asm_m)
-   ; asm_f := s.(asm_f)
-   ; asm_c := s.(asm_c)
-   ; asm_ip  := ip |}.
-
-(* -------------------------------------------------------------------- *)
-Definition st_update_next (m:asmmem) (s : asm_state) :=
-  {| asm_m   := m
-   ; asm_f   := s.(asm_f)
-   ; asm_c   := s.(asm_c)
-   ; asm_ip  := s.(asm_ip).+1 |}.
-
-(* -------------------------------------------------------------------- *)
-Definition is_label (lbl: label) (i: asm_i) : bool :=
-  match i with
-  | LABEL lbl' => lbl == lbl'
-  | _ => false
-  end.
-
-(* -------------------------------------------------------------------- *)
-Fixpoint is_labels (lbl: label) (i: seq asm_i) : bool :=
-  match i with
-  | [::] => true
-  | LABEL lbl' :: lbls => (lbl == lbl') && is_labels lbl lbls
-  | _ => false
-  end.
-
-(* -------------------------------------------------------------------- *)
-Definition find_label (lbl : label) (c : asm_code) :=
-  let idx := seq.find (is_label lbl) c in
-  if idx < size c then ok idx else type_error.
-
-(* -------------------------------------------------------------------- *)
-Definition eval_JMP p lptr dst (s: asm_state) : asm_result_state :=
+Definition eval_JMP_leak p lptr dst (s: asm_state) : asm_result_state_leak :=
   let: (fn, lbl) := dst in
   if get_fundef (asm_funcs p) fn is Some fd then
     let body := asm_fd_body fd in
@@ -115,31 +65,14 @@ Definition eval_JMP p lptr dst (s: asm_state) : asm_result_state :=
   else type_error.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_Jcc lbl ct (s : asm_state) : asm_result_state :=
+Definition eval_Jcc_leak lbl ct (s : asm_state) : asm_result_state_leak :=
   Let b := eval_cond_mem s ct in
   let cpc := s.(asm_ip) in 
   Let ip := if b then find_label lbl s.(asm_c) else ok cpc in
   ok ({| asm_m := s.(asm_m); asm_f := s.(asm_f); asm_c := s.(asm_c); asm_ip := ip.+1 |}, Ljumpc b).
 
 (* -------------------------------------------------------------------- *)
-Definition word_of_scale (n:nat) : pointer := wrepr Uptr (2%Z^n)%R.
-
-(* -------------------------------------------------------------------- *)
-Definition decode_reg_addr (s : asmmem) (a : reg_address) : pointer := nosimpl (
-  let: disp   := a.(ad_disp) in
-  let: base   := odflt 0%R (Option.map (s.(asm_reg)) a.(ad_base)) in
-  let: scale  := word_of_scale a.(ad_scale) in
-  let: offset := odflt 0%R (Option.map (s.(asm_reg)) a.(ad_offset)) in
-  disp + base + scale * offset)%R.
-
-Definition decode_addr (s:asmmem) (a:address) : pointer := 
-  match a with
-  | Areg ra => decode_reg_addr s ra
-  | Arip ofs => (s.(asm_rip) + ofs)%R
-  end.
-
-(* -------------------------------------------------------------------- *)
-Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec (value * seq pointer) :=
+Definition eval_asm_arg_leak k (s: asmmem) (a: asm_arg) (ty: stype) : exec (value * seq pointer) :=
   match a with
   | Condt c   => Let b := eval_cond_mem s c in ok ((Vbool b), [::])
   | Imm sz' w =>
@@ -162,7 +95,7 @@ Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec (value * s
   | XReg x     => ok (Vword (s.(asm_xreg) x), [::])
   end.
 
-Definition eval_arg_in_v (s:asmmem) (args:asm_args) (a:arg_desc) (ty:stype) : exec (value * seq pointer) :=
+Definition eval_arg_in_v_leak (s:asmmem) (args:asm_args) (a:arg_desc) (ty:stype) : exec (value * seq pointer) :=
   match a with
   | ADImplicit (IAreg r)   => ok (Vword (s.(asm_reg) r), [::])
   | ADImplicit (IArflag f) => Let b := st_get_rflag s f in ok (Vbool b, [::])
@@ -171,94 +104,21 @@ Definition eval_arg_in_v (s:asmmem) (args:asm_args) (a:arg_desc) (ty:stype) : ex
     | None => type_error
     | Some a =>
       Let _ := assert (check_oreg or a) ErrType in
-      eval_asm_arg k s a ty
+      eval_asm_arg_leak k s a ty
     end
   end.
 
-Definition eval_args_in (s:asmmem) (args:asm_args) (ain : seq arg_desc) (tin : seq stype) :=
-  Let r := mapM2 ErrType (eval_arg_in_v s args) ain tin in ok (unzip1 r, flatten (unzip2 r)).
+Definition eval_args_in_leak (s:asmmem) (args:asm_args) (ain : seq arg_desc) (tin : seq stype) :=
+  Let r := mapM2 ErrType (eval_arg_in_v_leak s args) ain tin in ok (unzip1 r, flatten (unzip2 r)).
 
-Definition eval_instr_op idesc args (s:asmmem) :=
+Definition eval_instr_op_leak idesc args (s:asmmem) :=
   Let _   := assert (check_i_args_kinds idesc.(id_args_kinds) args) ErrType in
-  Let vs  := eval_args_in s args idesc.(id_in) idesc.(id_tin) in
+  Let vs  := eval_args_in_leak s args idesc.(id_in) idesc.(id_tin) in
   Let t   := app_sopn _ idesc.(id_semi) vs.1 in
   ok (list_ltuple t, vs.2).
 
 (* -------------------------------------------------------------------- *)
-
-Definition o2rflagv (b:option bool) : rflagv :=
-  if b is Some b then Def b else Undef.
-
-Definition mem_write_rflag (s : asmmem) (f:rflag_t) (b:option bool) :=
-  {| asm_rip  := s.(asm_rip);
-     asm_scs  := s.(asm_scs);
-     asm_mem  := s.(asm_mem);
-     asm_reg  := s.(asm_reg);
-     asm_regx := s.(asm_regx);
-     asm_xreg := s.(asm_xreg);
-     asm_flag := RflagMap.set s.(asm_flag) f (o2rflagv b);
-   |}.
-
-(* -------------------------------------------------------------------- *)
-Definition mem_write_mem (l : pointer) sz (w : word sz) (s : asmmem) :=
-  Let m := write s.(asm_mem) l w in ok
-  {| asm_rip  := s.(asm_rip);
-     asm_scs  := s.(asm_scs);
-     asm_mem  := m;
-     asm_reg  := s.(asm_reg);
-     asm_regx  := s.(asm_regx); 
-     asm_xreg := s.(asm_xreg);
-     asm_flag := s.(asm_flag);
-  |}.
-
-(* -------------------------------------------------------------------- *)
-
-Definition mask_word (f : msb_flag) (sz szr : wsize) (old : word szr) : word szr :=
-  let mask := if f is MSB_MERGE then wshl (-1)%R (wsize_bits sz)
-              else 0%R in
-  wand old mask.
-
-Definition word_extend
-   (f:msb_flag) (sz szr : wsize) (old : word szr) (new : word sz) : word szr :=
- wxor (mask_word f sz old) (zero_extend szr new).
-
-(* -------------------------------------------------------------------- *)
-Definition mem_write_reg (f: msb_flag) (r: reg_t) sz (w: word sz) (m: asmmem) :=
-  {|
-    asm_rip   := m.(asm_rip);
-    asm_scs   := m.(asm_scs);
-    asm_mem   := m.(asm_mem);
-    asm_reg   := RegMap.set m.(asm_reg) r (word_extend f (m.(asm_reg) r) w);
-    asm_regx  := m.(asm_regx); 
-    asm_xreg  := m.(asm_xreg);
-    asm_flag  := m.(asm_flag);
-  |}.
-
-(* -------------------------------------------------------------------- *)
-Definition mem_write_regx (f: msb_flag) (r: regx_t) sz (w: word sz) (m: asmmem) :=
-  {|
-    asm_rip  := m.(asm_rip); 
-    asm_scs  := m.(asm_scs);
-    asm_mem  := m.(asm_mem);
-    asm_reg := m.(asm_reg);
-    asm_regx  := RegXMap.set m.(asm_regx) r (word_extend f (m.(asm_regx) r) w);
-    asm_xreg := m.(asm_xreg);
-    asm_flag := m.(asm_flag);
-  |}.
-
-(* -------------------------------------------------------------------- *)
-Definition mem_write_xreg (f: msb_flag) (r: xreg_t) sz (w: word sz) (m: asmmem) :=
-  {| asm_rip  := m.(asm_rip);
-     asm_scs  := m.(asm_scs);
-     asm_mem  := m.(asm_mem);
-     asm_reg  := m.(asm_reg);
-     asm_regx := m.(asm_regx);
-     asm_xreg := XRegMap.set m.(asm_xreg) r (word_extend f (m.(asm_xreg) r) w);
-     asm_flag := m.(asm_flag);
-  |}.
-
-(* -------------------------------------------------------------------- *)
-Definition mem_write_word (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) (sz:wsize) (w: word sz) : exec (asmmem * seq pointer) :=
+Definition mem_write_word_leak (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) (sz:wsize) (w: word sz) : exec (asmmem * seq pointer) :=
   match ad with
   | ADImplicit (IAreg r)   => ok (mem_write_reg f r w s, [::])
   | ADImplicit (IArflag f) => type_error
@@ -279,62 +139,50 @@ Definition mem_write_word (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) 
     end
   end.
 
-Definition mem_write_bool(s:asmmem) (args:asm_args) (ad:arg_desc) (b:option bool) : exec (asmmem * seq pointer) :=
+Definition mem_write_bool_leak (s:asmmem) (args:asm_args) (ad:arg_desc) (b:option bool) : exec (asmmem * seq pointer) :=
   match ad with
   | ADImplicit (IArflag f) => ok (mem_write_rflag s f b, [::])
   | _ => type_error
   end.
 
-Definition mem_write_ty (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) (ty:stype) : sem_ot ty -> exec (asmmem * seq pointer) :=
+Definition mem_write_ty_leak (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) (ty:stype) : sem_ot ty -> exec (asmmem * seq pointer) :=
   match ty return sem_ot ty -> exec (asmmem * seq pointer) with
-  | sword sz => @mem_write_word f s args ad sz
-  | sbool    => mem_write_bool s args ad
+  | sword sz => @mem_write_word_leak f s args ad sz
+  | sbool    => mem_write_bool_leak s args ad
   | sint     => fun _ => type_error
   | sarr _   => fun _ => type_error
   end.
 
-Definition oof_val (ty: stype) (v:value) : exec (sem_ot ty) :=
-  match ty return exec (sem_ot ty) with
-  | sbool =>
-    match v with
-    | Vbool b => ok (Some b)
-    | Vundef sbool _ => ok None
-    | _ => type_error
-    end
-  | sword ws => to_word ws v
-  | _ => type_error
-  end.
-
-Definition mem_write_val (f:msb_flag) (args:asm_args) (aty: arg_desc * stype) (v:value) (s:asmmem) : exec (asmmem * seq pointer) :=
+Definition mem_write_val_leak (f:msb_flag) (args:asm_args) (aty: arg_desc * stype) (v:value) (s:asmmem) : exec (asmmem * seq pointer) :=
   Let v := oof_val aty.2 v in
-  mem_write_ty f s args aty.1 v.
+  mem_write_ty_leak f s args aty.1 v.
 
-Fixpoint mem_write_vals  (f:msb_flag) (s:asmmem) (args:asm_args) (a: seq arg_desc) (ty: seq stype) (vs:values) :=
+Fixpoint mem_write_vals_leak  (f:msb_flag) (s:asmmem) (args:asm_args) (a: seq arg_desc) (ty: seq stype) (vs:values) :=
 match a, ty, vs with 
   | [::], [::], [::] => ok(s, [::])
-  | a1 :: a, ty1 :: ty, v :: vs => Let m := mem_write_val f args (a1, ty1) v s in 
-                                   Let ms := mem_write_vals f m.1 args a ty vs in 
+  | a1 :: a, ty1 :: ty, v :: vs => Let m := mem_write_val_leak f args (a1, ty1) v s in 
+                                   Let ms := mem_write_vals_leak f m.1 args a ty vs in 
                                    ok(ms.1, m.2 ++ ms.2)
   | _, _, _ => Error ErrType 
 end.
 
-Definition exec_instr_op idesc args (s:asmmem) : exec (asmmem * leak_asm) :=
-  Let vs := eval_instr_op idesc args s in
-  Let ms := mem_write_vals idesc.(id_msb_flag) s args idesc.(id_out) idesc.(id_tout) vs.1 in 
+Definition exec_instr_op_leak idesc args (s:asmmem) : exec (asmmem * leak_asm) :=
+  Let vs := eval_instr_op_leak idesc args s in
+  Let ms := mem_write_vals_leak idesc.(id_msb_flag) s args idesc.(id_out) idesc.(id_tout) vs.1 in 
   ok(ms.1, Lop (vs.2 ++ ms.2)).
 
-Definition eval_op o args m := 
-  exec_instr_op (instr_desc_op o) args m.
+Definition eval_op_leak o args m := 
+  exec_instr_op_leak (instr_desc_op o) args m.
 
 (* -------------------------------------------------------------------- *)
-Definition eval_POP (s: asm_state) : exec (asm_state * wreg * seq pointer) :=
+Definition eval_POP_leak (s: asm_state) : exec (asm_state * wreg * seq pointer) :=
   Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) stack_pointer_register) in
   Let v := read s.(asm_m).(asm_mem) sp reg_size in
   let m := mem_write_reg MSB_CLEAR stack_pointer_register (sp + wrepr Uptr (wsize_size Uptr))%R s.(asm_m) in
   ok ({| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}, v, 
        [:: (sp + wrepr Uptr (wsize_size Uptr))%R]).
 
-Definition eval_PUSH (w: wreg) (s: asm_state) : exec (asm_state * seq pointer) :=
+Definition eval_PUSH_leak (w: wreg) (s: asm_state) : exec (asm_state * seq pointer) :=
   Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) stack_pointer_register) in
   Let m := mem_write_mem sp w s.(asm_m) in
   let m := mem_write_reg MSB_CLEAR stack_pointer_register (sp - wrepr Uptr (wsize_size Uptr))%R m in
@@ -342,7 +190,7 @@ Definition eval_PUSH (w: wreg) (s: asm_state) : exec (asm_state * seq pointer) :
       [:: (sp - wrepr Uptr (wsize_size Uptr))%R]).
 
 (* -------------------------------------------------------------------- *)
-Section PROG.
+Section PROG_LEAK.
 
 Context  (p: asm_prog).
 
@@ -360,7 +208,7 @@ Definition return_address_from (s: asm_state) : option (word Uptr) :=
     encode_label labels (asm_f s, lbl)
   else None.
 
-Definition eval_instr (i : asm_i) (s: asm_state) : asm_result_state  :=
+Definition eval_instr_leak (i : asm_i) (s: asm_state) : asm_result_state_leak  :=
   match i with
   | ALIGN => ok (st_write_ip (asm_ip s).+1 s, lempty)
   | LABEL _ => ok (st_write_ip (asm_ip s).+1 s, lempty)
@@ -369,31 +217,31 @@ Definition eval_instr (i : asm_i) (s: asm_state) : asm_result_state  :=
       let m := mem_write_reg MSB_MERGE dst p s.(asm_m)in
       ok (st_update_next m s, lempty)
     else type_error
-  | JMP lbl => eval_JMP p [::] lbl s
+  | JMP lbl => eval_JMP_leak p [::] lbl s
   | JMPI d =>
-    Let v :=  eval_asm_arg AK_mem s d (sword Uptr) in
+    Let v :=  eval_asm_arg_leak AK_mem s d (sword Uptr) in
     Let vp := to_pointer v.1 in 
     if decode_label labels vp is Some lbl then
-      eval_JMP p v.2 lbl s
+      eval_JMP_leak p v.2 lbl s
     else type_error
-  | Jcc lbl ct => eval_Jcc lbl ct s
+  | Jcc lbl ct => eval_Jcc_leak lbl ct s
   | JAL d lbl =>
       if return_address_from s is Some ra then
         let s' := st_update_next (mem_write_reg MSB_CLEAR d ra s) s in
-        eval_JMP p [::] lbl s'
+        eval_JMP_leak p [::] lbl s'
       else type_error
   | CALL lbl =>
       if return_address_from s is Some ra then
-      Let vp := eval_PUSH ra s in
-      eval_JMP p vp.2 lbl vp.1 
+      Let vp := eval_PUSH_leak ra s in
+      eval_JMP_leak p vp.2 lbl vp.1 
       else type_error
   | POPPC =>
-    Let: (s', dst, sp) := eval_POP s in
+    Let: (s', dst, sp) := eval_POP_leak s in
     if decode_label labels dst is Some lbl then
-      eval_JMP p sp lbl s'
+      eval_JMP_leak p sp lbl s'
     else type_error
   | AsmOp o args =>
-    Let m := eval_op o args s.(asm_m) in
+    Let m := eval_op_leak o args s.(asm_m) in
     ok (st_update_next m.1 s, m.2) 
   | SysCall o => 
     Let m := eval_syscall o s.(asm_m) in
@@ -401,15 +249,15 @@ Definition eval_instr (i : asm_i) (s: asm_state) : asm_result_state  :=
   end.
 
 (* -------------------------------------------------------------------- *)
-Definition fetch_and_eval (s: asm_state) :=
+Definition fetch_and_eval_leak (s: asm_state) :=
   if oseq.onth s.(asm_c) s.(asm_ip) is Some i then
-    eval_instr i s
+    eval_instr_leak i s
   else type_error.
 
-Definition asmsem1 (s1: asm_state) (l: leak_asm) (s2: asm_state) : Prop :=
-  fetch_and_eval s1 = ok (s2, l).
+Definition asmsem1_leak (s1: asm_state) (l: leak_asm) (s2: asm_state) : Prop :=
+  fetch_and_eval_leak s1 = ok (s2, l).
 
-Definition asmsem := @trace_closure asm_state leak_asm asmsem1.
+Definition asmsem_leak := @trace_closure asm_state leak_asm asmsem1_leak.
 
 (* ---------------------------------------------------------------- *)
 (*Record asmsem_invariant (x y: asmmem) : Prop :=
@@ -503,7 +351,7 @@ Proof.
   by elim/Operators_Properties.clos_refl_trans_ind_left => {s'} // ? ? _ -> /asmsem1_invariant.
 Qed.*)
 
-End PROG.
+End PROG_LEAK.
 
 (* -------------------------------------------------------------------- *)
 (* TODO: flags may be preserved *)
@@ -533,4 +381,4 @@ Variant asmsem_fd (P: xprog) (wrip: pointer) fn st st' : Prop :=
   asmsem P s1 l1 s2 -> asmsem P s2 l2 s3 -> asmsem P s1 (l1++l2) s3 :=
   @tc_trans _ _ _ _ _ _ _ _ _ .*) (*FIXME*)
 
-End SEM.
+End SEM_LEAK.
