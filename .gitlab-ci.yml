@@ -147,6 +147,19 @@ tarball:
     paths:
     - compiler/$TARBALL.tgz
 
+build-from-tarball:
+  stage: test
+  variables:
+    TARBALL: jasmin-compiler-$CI_COMMIT_SHORT_SHA
+  needs:
+  - tarball
+  dependencies:
+  - tarball
+  script:
+  - tar xvf compiler/$TARBALL.tgz
+  - nix build -o out -f $TARBALL
+  - ./out/bin/jasminc -version
+
 check:
   stage: test
   variables:
