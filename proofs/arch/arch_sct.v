@@ -381,7 +381,8 @@ Fixpoint foldM4 (la:seq A) (lb: seq B) (lc: seq C) (ld: seq D) r :=
 
 End FoldM4.
 
-Definition ty_dests (c:constraints) (pts:pt_size) (msb:msb_flag) (args:asm_args) (a:seq arg_desc) (pti:seq pt_info) (l:seq lvl) (ty:seq stype) (env:env_t) :=
+Definition ty_dests (c:constraints) (pts:pt_size) (msb:msb_flag) (args:asm_args) 
+(a:seq arg_desc) (pti:seq pt_info) (l:seq lvl) (ty:seq stype) (env:env_t) :=
   foldM4 (ty_dest c pts msb args) tt a pti l ty env.
 
 (* FIXME add of_list in Smake *)
@@ -585,6 +586,14 @@ match vs1, vs2, tys with
 | [::], [::], [::] => True 
 | x :: xs, y :: ys, t :: ts => value_equiv x y sty t /\ values_equiv xs ys sty ts
 | _, _, _ => False
+end. 
+
+
+Fixpoint values_equivs (vs1 vs2: seq value) (sty:seq sec_ty) (tys:seq stype) : Prop :=
+match vs1, vs2, sty, tys with 
+| [::], [::], [::], [::] => True 
+| x :: xs, y :: ys, s :: ss, t :: ts => value_equiv x y s t /\ values_equivs xs ys ss ts
+| _, _, _, _ => False
 end. 
 
 End TY_SYS.
