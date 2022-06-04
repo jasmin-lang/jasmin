@@ -450,6 +450,26 @@ Record pp_asm_op := mk_pp_asm_op {
   pp_aop_args : seq (wsize * asm_arg);
 }.
 
+Section CT_OP.
+
+Context (A:Type).
+
+Definition eq_exec (e1 e2: exec A) := 
+  match e1, e2 with
+  | Ok _, Ok _ => True
+  | Error _, Error _ => True
+  | _, _ => False
+  end.
+
+Fixpoint constant_time_op (l:seq stype) : sem_prod l (exec A) -> sem_prod l (exec A) -> Prop := 
+  match l as l0 return  sem_prod l0 (exec A) -> sem_prod l0 (exec A) -> Prop with
+  | [::] => eq_exec
+  | t :: l => fun (f1 f2 : sem_prod (t :: l) (exec A)) =>
+      forall v1 v2, @constant_time_op l (f1 v1) (f2 v2)  
+  end.
+
+End CT_OP.
+
 Record instr_desc_t := mk_instr_desc {
   (* Info for x86 sem *)
   id_msb_flag   : msb_flag;
@@ -468,6 +488,8 @@ Record instr_desc_t := mk_instr_desc {
   id_safe       : seq safe_cond;
   id_wsize      : wsize;  (* ..... *)
   id_pp_asm     : asm_args -> pp_asm_op;
+  id_ct         : bool;  (* the instruction is constant time *)
+  id_ct_spec    : id_ct -> constant_time_op id_semi id_semi;        
 }.
 
 Variant prim_constructor (asm_op:Type) :=
@@ -588,7 +610,9 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_check_dest := instr_desc_aux2 ws d.(id_check_dest);
        id_safe       := d.(id_safe);
        id_wsize      := d.(id_wsize);
-       id_pp_asm     := d.(id_pp_asm); |}
+       id_pp_asm     := d.(id_pp_asm);
+       id_ct         := d.(id_ct);
+       id_ct_spec    := d.(id_ct_spec);  |}
     else d (* FIXME do the case for MSB_KEEP *)
   else
     d.
