@@ -17,7 +17,10 @@ arch_decl
 label
 values
 arch_sem
-arch_sem_no_spec.
+arch_sem_no_spec
+asm_gen_proof
+memory_model
+memory_example.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -489,6 +492,7 @@ Inductive WT_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (
 
        | _ => false
        end
+
     else false     
   else false.*)
 
@@ -528,6 +532,22 @@ forall (pt1:pointsto) (pt2:pointsto) a1 a2 (pts:pt_size),
 vp pt1 = Some a1 /\ vp pt2 = Some a2 ->
 disjoint_zrange a1 (get_size pts pt1) a2 (get_size pts pt2).
 
+(* Memory Shape equivalence *) 
+
+Inductive mem_shape_equiv (m1 m2:asmmem) : Prop := 
+| ms_equiv : 
+   (forall p, valid8 (m1.(asm_mem)) p = valid8 (m2.(asm_mem)) p) ->
+   mem_shape_equiv m1 m2.
+
+(* Flag equivalence *) (* FIX ME *)
+Inductive flag_equiv (m1 m2:asmmem) : Prop := 
+| f_equiv : (forall f,  eq_exec (fun _ _ => True) (st_get_rflag m1 f) (st_get_rflag m2 f))->
+            flag_equiv m1 m2.
+
+Axiom eq_exec_eval_cond_mem : forall m1 m2 c,
+flag_equiv m1 m2 ->
+eq_exec (fun _ _ => True) (eval_cond_mem m1 c) (eval_cond_mem m2 c).
+
 (* Memory equivalence *)
 Inductive mem_equiv (rho:valuation) (m1 m2:asmmem) (env:env_t): Prop :=
 | m_equiv :
@@ -564,6 +584,8 @@ Inductive state_equiv (rho: valuation) (s1 s2:asm_state) (env: env_t): Prop :=
   s1.(asm_c) = s2.(asm_c) -> 
   s1.(asm_ip) = s2.(asm_ip) ->
   s1.(asm_m).(asm_rip) = s2.(asm_m).(asm_rip) -> 
+  mem_shape_equiv s1.(asm_m) s2.(asm_m) ->
+  flag_equiv s1.(asm_m) s2.(asm_m) ->
   mem_equiv rho s1.(asm_m) s2.(asm_m) env ->
   state_equiv rho s1 s2 env. 
 

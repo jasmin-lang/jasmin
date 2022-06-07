@@ -452,11 +452,11 @@ Record pp_asm_op := mk_pp_asm_op {
 
 Section CT_OP.
 
-Context (A:Type).
+Context (A:Type) (eqA:A -> A -> Prop).
 
 Definition eq_exec (e1 e2: exec A) := 
   match e1, e2 with
-  | Ok _, Ok _ => True
+  | Ok e1, Ok e2 => eqA e1 e2
   | Error _, Error _ => True
   | _, _ => False
   end.
@@ -468,7 +468,33 @@ Fixpoint constant_time_op (l:seq stype) : sem_prod l (exec A) -> sem_prod l (exe
       forall v1 v2, @constant_time_op l (f1 v1) (f2 v2)  
   end.
 
+Definition eq_option (e1 e2 : option A) := 
+  match e1, e2 with
+  | None, None => True
+  | Some _, Some _ => True 
+  | _, _ => False
+  end.
+
 End CT_OP.
+
+Definition eq_on_t (t:stype) : sem_ot t -> sem_ot t -> Prop := 
+  match t with 
+  | sbool => @eq_option bool 
+  | _ => fun _ _ => True
+  end.
+
+
+Fixpoint eq_tuple (l:seq stype) : sem_tuple l -> sem_tuple l -> Prop := 
+  match l with
+  | [::] => fun _ _ => True
+  | t1 :: l => 
+    match l as l0 return (sem_tuple l0 -> sem_tuple l0 -> Prop) -> 
+                         sem_tuple (t1 :: l0) -> sem_tuple (t1 :: l0) -> Prop with
+    | [::] => fun _ v1 v2 => @eq_on_t t1 v1 v2
+    | t2::l' => fun test (p1 p2 : sem_ot t1 * sem_tuple (t2::l')) => @eq_on_t t1 p1.1 p2.1 /\ test p1.2 p2.2
+    end (@eq_tuple l)
+  end.
+ 
 
 Record instr_desc_t := mk_instr_desc {
   (* Info for x86 sem *)
@@ -489,7 +515,7 @@ Record instr_desc_t := mk_instr_desc {
   id_wsize      : wsize;  (* ..... *)
   id_pp_asm     : asm_args -> pp_asm_op;
   id_ct         : bool;  (* the instruction is constant time *)
-  id_ct_spec    : id_ct -> constant_time_op id_semi id_semi;        
+  id_ct_spec    : id_ct -> constant_time_op (@eq_tuple id_tout) id_semi id_semi;        
 }.
 
 Variant prim_constructor (asm_op:Type) :=
@@ -589,8 +615,36 @@ Definition exclude_mem_aux (cond : i_args_kinds) (d : seq arg_desc) :=
 Definition exclude_mem (cond : i_args_kinds) (d : seq arg_desc) : i_args_kinds :=
   filter (fun c => [::] \notin c) (exclude_mem_aux cond d).
 
+Lemma eq_on_t_wextend t (a1 a2 : sem_ot t) ws : eq_on_t a1 a2 → eq_on_t (wextend_size ws a1) (wextend_size ws a2).
+Proof. by case: t a1 a2 => //= w a1 a2 _; case: ((w ≤ ws)%CMP). Qed.
+
+Lemma aux 
+  ws
+  (id_tin        : seq stype)
+  (id_tout       : seq stype)
+  (id_semi       : sem_prod id_tin (exec (sem_tuple id_tout)))
+  (id_ct0         : bool)
+  (id_ct_spec    : id_ct0 -> constant_time_op (@eq_tuple id_tout) id_semi id_semi) :
+  let  id_semi' := 
+    apply_lprod (Result.map (@extend_tuple ws id_tout)) id_semi in 
+  id_ct0 -> constant_time_op (@eq_tuple [seq extend_size ws i | i <- id_tout]) id_semi' id_semi'.
+Proof.
+ move=> /= /id_ct_spec {id_ct_spec id_ct0}.
+ move: {2 4} id_semi.
+ move: {1 2} id_semi => {id_semi}.
+ elim: id_tin => /=.  
+ + rewrite /sem_prod /= => -[ a1 | e1] [a2 | e2] //=.
+   elim: id_tout a1 a2 => //= t1 [ | t2 lt] hrec /=.
+   + by move=> a1 a2; apply: eq_on_t_wextend.
+   move=> a1 a2 [hap1 hap2]; split; first by apply: eq_on_t_wextend hap1.
+   by apply hrec.
+ move=> t lt hrec sem1 sem2 hct v1 v2.
+ by have /hrec := hct v1 v2.
+Qed.
+
+
 (* An extension of [instr_desc] that deals with msb flags *)
-Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
+Definition instr_desc (o:asm_op_msb_t) : instr_desc_t  :=
   let (ws, o) := o in
   let d := instr_desc_op o in
   if ws is Some ws then
@@ -612,7 +666,7 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_wsize      := d.(id_wsize);
        id_pp_asm     := d.(id_pp_asm);
        id_ct         := d.(id_ct);
-       id_ct_spec    := d.(id_ct_spec);  |}
+       id_ct_spec    := @aux ws d.(id_tin) d.(id_tout) d.(id_semi) d.(id_ct) (@id_ct_spec d); |}
     else d (* FIXME do the case for MSB_KEEP *)
   else
     d.

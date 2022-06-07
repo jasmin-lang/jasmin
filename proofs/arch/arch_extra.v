@@ -31,7 +31,7 @@ Definition vxregisters := sv_of_list to_var xregisters.
 Definition all_vars_def := 
   Sv.union (Sv.union vregisters vxregisters) vflags.
 
-End ARCH.
+End ARCH. 
 
 (* Extra ops are non-existing architecture-specific asm instructions that we
    replace by real asm instructions during the asmgen pass.
