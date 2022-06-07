@@ -127,13 +127,6 @@ have hmem : Sl.mem public (Sl.singleton public). + by auto.
 by have := SlP.subset_mem_2 (Sl.singleton public) S hsub public hmem.
 Qed.
 
-
-(*Lemma type_prev_arg_sem : forall c env a S ad pt ty sty s1 s2 rho v1 leak1 v2 leak2,
-wt_arg_in wt_cond c env a S ad pt ty sty ->
-state_equiv rho s1 s2 env ->
-valid_valuation c rho ->  
-eq_exec (fun _ _ => True) (eval_arg_in_v_leak s1.(asm_m) a ad ty) (eval_arg_in_v_leak s2.(asm_m) a ad ty).*) 
-
 Lemma type_prev_arg : forall c env a S ad pt ty sty s1 s2 rho v1 leak1 v2 leak2,
 wt_arg_in wt_cond c env a S ad pt ty sty ->
 state_equiv rho s1 s2 env ->
@@ -475,6 +468,52 @@ rewrite hpub /= in hle1'. apply Public_only_less_than_Public in hle1'.
 move: (hxreg r (e_xreg env r).1 (e_xreg env r).2 henv hle1')=> {hxreg} hxreg. 
 rewrite /truncate_word /=. case: ifP=> //= hsz. 
 have hxreg' := zero_extend_small_size hws hxreg. by rewrite hxreg'.
+Admitted.
+
+Axiom eq_exec_eval_cond_mem : forall m1 m2 c,
+flag_equiv m1 m2 ->
+eq_exec (fun _ _ => True) (eval_cond_mem m1 c) (eval_cond_mem m2 c).
+
+Lemma eval_arg_exec_equiv : forall c env a S ad pt ty sty s1 s2 rho,
+wt_arg_in wt_cond c env a S ad pt ty sty ->
+state_equiv rho s1 s2 env ->
+valid_valuation c rho ->
+eq_exec (fun _ _ => True) (eval_arg_in_v_leak s1.(asm_m) a ad ty) (eval_arg_in_v_leak s2.(asm_m) a ad ty).
+Proof.
+move=> c env a S ad pt ty sty [] m1 fn1 code1 ip1 [] m2 fn2 code2 ip2 rho hwt hequiv hvalid /=.
+rewrite /eq_exec.
+have /= hrec := type_prev_arg hwt hequiv hvalid. move=> {hwt}.
+rewrite /eval_arg_in_v_leak /= in hrec. rewrite /eval_arg_in_v_leak /=.
+case: hequiv=> /= hcode hip hrip hms hfeq hmem.
+case: ad hrec=> //=.
+(* implicit *)
++ move=> [].
+  (* flag *)
+  + move=> f. case: hfeq=> hfeq. move: (hfeq f). rewrite /eq_exec /=. case: (st_get_rflag m1 f)=> //=.
+    (* ok *)
+    + by case: (st_get_rflag m2 f)=> //=.
+    (* error *)
+    by case: (st_get_rflag m2 f)=> //=.
+  (* reg *)
+  + by move=> r hrec.
+(* explicit *)
+move=> adrk n o. case: (onth a n)=> //= arg. case: (check_oreg o arg)=> //=.
+rewrite /eval_asm_arg_leak. case: arg=> //=.
+(* cond *)
++ move=> ct. have := eq_exec_eval_cond_mem ct hfeq. rewrite /eq_exec.
+  case: (eval_cond_mem m1 ct)=> //=.
+  (* ok *)
+  + by case: (eval_cond_mem m2 ct)=> //=.
+  (* error *)
+  by case: (eval_cond_mem m2 ct)=> //=.
+(* imm *)
++ move=> ws s. by case: ty=> //=.
+(* addr *)
+move=> adr. case: ty=> //=. case: adrk=> //= w.
+case: hms=> hms. move: (hms (decode_addr m1 adr))=> hms1.
+move: (hms (decode_addr m2 adr))=> hms2. 
+rewrite !valid8_validw in hms1 hms2.
+admit.
 Admitted.
 
 Lemma type_prev_args : forall c env a S ad pt ty sty s1 s2 rho v1 leak1 v2 leak2,
