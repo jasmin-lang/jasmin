@@ -346,7 +346,7 @@ Record h_linearization_params :=
       forall (lp : lprog) (s : estate) sp_rsp ii fn pc ts sz,
         let rsp := vid sp_rsp in
         let vm := evm s in
-        let args := lip_allocate_stack_frame liparams (VarI rsp xH) sz in
+        let args := lip_allocate_stack_frame liparams (VarI rsp dummy_var_info) sz in
         let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
         let ts' := pword_of_word (ts + wrepr Uptr sz) in
         let s' := with_vm s (vm.[rsp <- ok ts'])%vmap in
@@ -358,7 +358,7 @@ Record h_linearization_params :=
       forall (lp : lprog) (s : estate) sp_rsp ii fn pc ts sz,
         let rsp := vid sp_rsp in
         let vm := evm s in
-        let args := lip_free_stack_frame liparams (VarI rsp xH) sz in
+        let args := lip_free_stack_frame liparams (VarI rsp dummy_var_info) sz in
         let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
         let ts' := pword_of_word (ts - wrepr Uptr sz) in
         let s' := with_vm s (vm.[rsp <- ok ts'])%vmap in
@@ -369,7 +369,7 @@ Record h_linearization_params :=
     spec_lip_ensure_rsp_alignment :
       forall (lp : lprog) (s : estate) rsp_id ii fn pc ws ts',
         let vrsp := Var (sword Uptr) rsp_id in
-        let vrspi := VarI vrsp xH in
+        let vrspi := VarI vrsp dummy_var_info in
         let rsp' := align_word ws ts' in
         let args := lip_ensure_rsp_alignment liparams vrspi ws in
         let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
@@ -1312,7 +1312,7 @@ Section PROOF.
       mapM (get_var vm2) xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
   Proof.
     move=> h1 h2;
-    have := get_vars_uincl (xs := map (fun x => {| v_var := x; v_info := xH |}) xs) h1.
+    have := get_vars_uincl (xs := map (fun x => {| v_var := x; v_info := dummy_var_info |}) xs) h1.
     by rewrite !mapM_map => /(_ _ h2).
   Qed.
 
@@ -3303,7 +3303,7 @@ Section PROOF.
             with
               (take 2 P
               ++ [:: ensure_rsp_alignment p liparams xH (sf_align (f_extra fd)),
-                     lstore liparams xH (VarI vrsp xH) stack_saved_rsp Uptr (mk_lvar var_tmp) &
+                     lstore liparams xH (VarI vrsp dummy_var_info) stack_saved_rsp Uptr (mk_lvar var_tmp) &
                      push_to_save p liparams xH (sf_to_save (f_extra fd)) ] ++ lbody ++ Q);
               last by rewrite /P catA.
             move => /find_instr_skip -> /=.
@@ -3315,7 +3315,7 @@ Section PROOF.
             replace (P ++ lbody ++ Q)
             with
               (take 3 P
-              ++ [:: lstore liparams xH (VarI vrsp xH) stack_saved_rsp Uptr (mk_lvar var_tmp) &
+              ++ [:: lstore liparams xH (VarI vrsp dummy_var_info) stack_saved_rsp Uptr (mk_lvar var_tmp) &
                       push_to_save p liparams xH (sf_to_save (f_extra fd)) ] ++ lbody ++ Q);
               last by rewrite /P catA.
             move => /find_instr_skip -> /=.

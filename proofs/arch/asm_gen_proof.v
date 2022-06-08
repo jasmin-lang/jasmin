@@ -234,7 +234,7 @@ Qed.
 
 Variant check_sopn_argI rip ii args e : arg_desc -> stype -> Prop :=
 | CSA_Implicit i ty :
-       (eq_expr e (Plvar {| v_var := var_of_implicit i; v_info := 1%positive |}))
+       (eq_expr e (Plvar {| v_var := var_of_implicit i; v_info := dummy_var_info |}))
     -> check_sopn_argI rip ii args e (ADImplicit i) ty
 
 | CSA_Explicit k n o a a' ty :
@@ -1572,7 +1572,7 @@ Proof.
     exists lc; first exact: omap_lc.
     constructor => //=; last by congr _.+1.
     move: ok_r_x.
-    change x with (v_var (VarI x xH)).
+    change x with (v_var (VarI x dummy_var_info)).
     apply: lom_eqv_write_var; first exact: eqm.
     by rewrite /write_var ok_vm.
   - t_xrbindP => cnd lbl cndt ok_c <- b v ok_v ok_b.

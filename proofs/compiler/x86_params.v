@@ -80,7 +80,7 @@ Definition x86_free_stack_frame (rspi: var_i) (sz: Z) :=
   ([:: Lvar rspi ], Ox86 (LEA Uptr), [:: p ]).
 
 Definition x86_ensure_rsp_alignment (rspi: var_i) (al: wsize) :=
-  let to_lvar x := Lvar (VarI (to_var x) xH) in
+  let to_lvar x := Lvar (VarI (to_var x) dummy_var_info) in
   let eflags := List.map to_lvar [:: OF ; CF ; SF ; PF ; ZF ] in
   let p0 := Pvar (Gvar rspi Slocal) in
   let p1 := Papp1 (Oword_of_int Uptr) (Pconst (- wsize_size al)) in

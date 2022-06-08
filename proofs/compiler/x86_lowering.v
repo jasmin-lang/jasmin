@@ -590,12 +590,12 @@ Fixpoint lower_i (i:instr) : cmd :=
   | Cassgn l tg ty e => lower_cassgn ii l tg ty e
   | Copn l t o e => map (MkI ii) (lower_copn l t o e)
   | Cif e c1 c2  =>
-     let '(pre, e) := lower_condition xH e in
+     let '(pre, e) := lower_condition dummy_var_info e in
        map (MkI ii) (rcons pre (Cif e (conc_map lower_i c1) (conc_map lower_i c2)))
   | Cfor v (d, lo, hi) c =>
      [:: MkI ii (Cfor v (d, lo, hi) (conc_map lower_i c))]
   | Cwhile a c e c' =>
-     let '(pre, e) := lower_condition xH e in
+     let '(pre, e) := lower_condition dummy_var_info e in
        map (MkI ii) [:: Cwhile a ((conc_map lower_i c) ++ map (MkI xH) pre) e (conc_map lower_i c')]
   | _ =>   map (MkI ii) [:: ir]
   end.
