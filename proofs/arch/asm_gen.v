@@ -289,7 +289,7 @@ Definition compile_arg rip ii (ade: (arg_desc * stype) * pexpr) (m: nmap asm_arg
   match ad.1 with
   | ADImplicit i =>
     Let _ :=
-      assert (eq_expr (Plvar (VarI (var_of_implicit i) xH)) e)
+      assert (eq_expr (Plvar (VarI (var_of_implicit i) dummy_var_info)) e)
              (E.internal_error ii "(compile_arg) bad implicit register") in
     ok m
   | ADExplicit k n o =>
@@ -316,7 +316,7 @@ Definition compat_imm ty a' a :=
 
 Definition check_sopn_arg rip ii (loargs : seq asm_arg) (x : pexpr) (adt : arg_desc * stype) :=
   match adt.1 with
-  | ADImplicit i => eq_expr x (Plvar (VarI (var_of_implicit i) xH))
+  | ADImplicit i => eq_expr x (Plvar (VarI (var_of_implicit i) dummy_var_info))
   | ADExplicit k n o =>
     match onth loargs n with
     | Some a =>
@@ -328,7 +328,7 @@ Definition check_sopn_arg rip ii (loargs : seq asm_arg) (x : pexpr) (adt : arg_d
 
 Definition check_sopn_dest rip ii (loargs : seq asm_arg) (x : pexpr) (adt : arg_desc * stype) :=
   match adt.1 with
-  | ADImplicit i => eq_expr x (Plvar (VarI (var_of_implicit i) xH))
+  | ADImplicit i => eq_expr x (Plvar (VarI (var_of_implicit i) dummy_var_info))
   | ADExplicit _ n o =>
     match onth loargs n with
     | Some a =>

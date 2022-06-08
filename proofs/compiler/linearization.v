@@ -236,7 +236,7 @@ Context
   (fn_align : wsize).
 
 Let rsp : var := Var (sword Uptr) (sp_rsp (p_extra p)).
-Let rspi : var_i := VarI rsp xH.
+Let rspi : var_i := VarI rsp dummy_var_info.
 Let rspg : gvar := Gvar rspi Slocal.
 Let var_tmp : var := Var (sword Uptr) (lip_tmp liparams).
 
@@ -335,7 +335,7 @@ Definition push_to_save
   : lcmd :=
   let mkli '(x, ofs) :=
     if is_word_type x.(vtype) is Some ws
-    then lstore ii rspi ofs ws {| gv := VarI x xH; gs := Slocal; |}
+    then lstore ii rspi ofs ws {| gv := VarI x dummy_var_info; gs := Slocal; |}
     else MkLI ii Lalign (* Absurd case. *)
   in List.map mkli to_save.
 
@@ -353,7 +353,7 @@ Definition pop_to_save
   : lcmd :=
   let mkli '(x, ofs) :=
     if is_word_type x.(vtype) is Some ws
-    then lload ii (VarI x xH) ws rspi ofs
+    then lload ii (VarI x dummy_var_info) ws rspi ofs
     else MkLI ii Lalign (* Absurd case. *)
   in List.map mkli to_save.
 
@@ -464,7 +464,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
            * 7. Continue.
            *)
           if extra_free_registers ii is Some ra
-          then let glob_ra := Gvar (VarI ra xH) Slocal in
+          then let glob_ra := Gvar (VarI ra dummy_var_info) Slocal in
                (lbl, before
                        ++ MkLI ii (LstoreLabel ra lret)
                        :: lstore ii rspi z Uptr glob_ra
@@ -484,7 +484,7 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
   let: (tail, head, lbl) :=
      match sf_return_address e with
      | RAreg r =>
-       ( [:: MkLI xH (Ligoto (Pvar (Gvar (VarI r xH) Slocal))) ]
+       ( [:: MkLI xH (Ligoto (Pvar (Gvar (VarI r dummy_var_info) Slocal))) ]
        , [:: MkLI xH (Llabel 1) ]
        , 2%positive
        )
@@ -502,7 +502,7 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
           * Head: R[x] := R[rsp]
           *       Setup stack.
           *)
-         let r := VarI x xH in
+         let r := VarI x dummy_var_info in
          ( [:: lmove xH rspi Uptr (Gvar r Slocal) ]
          , lmove xH r Uptr rspg
              :: allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
@@ -517,7 +517,7 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
           *       M[R[rsp] + ofs] := R[r]
           *       Push registers to save to the stack.
           *)
-         let tmp := VarI var_tmp xH in
+         let tmp := VarI var_tmp dummy_var_info in
          ( pop_to_save xH e.(sf_to_save)
              ++ [:: lload xH rspi Uptr rspi ofs ]
          , lmove xH tmp Uptr rspg

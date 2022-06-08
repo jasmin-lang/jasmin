@@ -95,7 +95,7 @@ Context
   (pc : nat).
 
 Let vrsp : var := mk_ptr sp_rsp.
-Let vrspi : var_i := VarI vrsp xH.
+Let vrspi : var_i := VarI vrsp dummy_var_info.
 Let vm := evm s.
 
 Definition x86_spec_lip_allocate_stack_frame ts sz :

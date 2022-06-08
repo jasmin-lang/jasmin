@@ -101,14 +101,11 @@ Section Section.
 
 Context (is_ptr : var -> bool).
 
-(* TODO: move *)
-Definition dummy_info := xH.
-
-Definition add_init_aux ii x c := 
+Definition add_init_aux ii x c :=
   match x.(vtype) with
   | sarr n =>
     if ~~ is_ptr x then
-      let x := VarI x dummy_info in
+      let x := VarI x dummy_var_info in
       MkI ii (Cassgn (Lvar x) AT_none (sarr n) (Parr_init n)) :: c
     else c
   | _ => c

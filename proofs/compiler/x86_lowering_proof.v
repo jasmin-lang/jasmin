@@ -1718,7 +1718,7 @@ Section PROOF.
     move=> s1 s2 e c1 c2 Hz _ Hc ii /= Hdisj s1' Hs1' /=.
     move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_if=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
-    have Hcond: x = lower_condition fv xH e by [].
+    have Hcond: x = lower_condition fv dummy_var_info e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 [Hs2'2 Hs2'3]]] := lower_condition_corr ii Hcond Hs1' (sem_pexpr_same Hdisje Hs1' Hz).
     have [s3' [Hs3'1 Hs3'2]] := Hc Hc1 _ Hs2'2.
@@ -1736,7 +1736,7 @@ Section PROOF.
     move=> s1 s2 e c1 c2 Hz _ Hc ii /= Hdisj s1' Hs1' /=.
     move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_if=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
-    have Hcond: x = lower_condition fv xH e by [].
+    have Hcond: x = lower_condition fv dummy_var_info e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 [Hs2'2 Hs2'3]]] := lower_condition_corr ii Hcond Hs1' (sem_pexpr_same Hdisje Hs1' Hz).
     have [s3' [Hs3'1 Hs3'2]] := Hc Hc2 _ Hs2'2.
@@ -1754,7 +1754,7 @@ Section PROOF.
     move=> s1 s2 s3 s4 a c e c' _ Hc Hz _ Hc' _ Hwhile ii Hdisj s1' Hs1' /=.
     have := Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_while=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
-    have Hcond: x = lower_condition fv xH e by [].
+    have Hcond: x = lower_condition fv dummy_var_info e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
     have [s3' [Hs3'1 [Hs3'2 Hs3'3]]] := lower_condition_corr xH Hcond Hs2'2 (sem_pexpr_same Hdisje Hs2'2 Hz).
@@ -1775,7 +1775,7 @@ Section PROOF.
     move=> s1 s2 a c e c' _ Hc Hz ii Hdisj s1' Hs1' /=.
     move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_while=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
-    have Hcond: x = lower_condition fv xH e by [].
+    have Hcond: x = lower_condition fv dummy_var_info e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
     have [s3' [Hs3'1 [Hs3'2 Hs3'3]]] := lower_condition_corr xH Hcond Hs2'2 (sem_pexpr_same Hdisje Hs2'2 Hz).
