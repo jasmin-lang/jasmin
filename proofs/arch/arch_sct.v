@@ -91,7 +91,19 @@ Module SlD := MSetDecide.WDecide Sl.
 
 Definition spublic := Sl.singleton public.
 
+(* FIXME *)
 Definition pointsto := positive.
+  (* | UserMem 
+     | Cell of cell : positive * positive
+               name     * size        
+               /!\ use a record 
+
+valid_pt : 
+   UserMem -> ensemble de pointer
+   interp Cell <> ensemble UserMem.
+   disjoint p1 p2,  
+
+  *)
 
 (* Set of constraints *)
 Definition constraints := Ml.t Sl.t.
@@ -221,7 +233,7 @@ Definition wt_asm_arg (k:addr_kind) (a:asm_arg) (ty:stype) (pti:pt_info) (S:Sl.t
   match a, ty with
   | Condt cond, sbool => wt_cond c env cond S
 
-  | Imm _ _, sword _ => le_all c public S
+  | Imm _ _, sword _ => le_all c public S (* FIXME this should be allways true *)
 
   | Reg r, sword ws  => 
     let (lr, ws') := env.(e_reg) r in
@@ -526,6 +538,7 @@ end.
 Definition vpointsto := pointsto -> option pointer. 
 
 (* two memory areas should be disjoint *) 
+(* FIXME: pts should be an argument *)
 Definition wf_vpointsto (vp:vpointsto) :=
 forall (pt1:pointsto) (pt2:pointsto) a1 a2 (pts:pt_size),
 (pt1 <> pt2)%positive ->
@@ -534,12 +547,13 @@ disjoint_zrange a1 (get_size pts pt1) a2 (get_size pts pt2).
 
 (* Memory Shape equivalence *) 
 
+(* FIXME: Use a definition here *)
 Inductive mem_shape_equiv (m1 m2:asmmem) : Prop := 
 | ms_equiv : 
    (forall p, valid8 (m1.(asm_mem)) p = valid8 (m2.(asm_mem)) p) ->
    mem_shape_equiv m1 m2.
 
-(* Flag equivalence *) (* FIX ME *)
+(* Flag equivalence *) (* FIXME : idem *)
 Inductive flag_equiv (m1 m2:asmmem) : Prop := 
 | f_equiv : (forall f,  eq_exec (fun _ _ => True) (st_get_rflag m1 f) (st_get_rflag m2 f))->
             flag_equiv m1 m2.
@@ -566,6 +580,7 @@ Inductive mem_equiv (rho:valuation) (m1 m2:asmmem) (env:env_t): Prop :=
   (forall f l, env.(e_flag) f = l -> 
    rho l = Public -> 
    (m1.(asm_flag) f) = (m2.(asm_flag) f)) ->
+  (* FIXME: vp should be an argument of the inductive, idem for pts *)
   (forall pt l a vp pts, 
    wf_vpointsto vp ->
    vp pt = Some a ->
@@ -590,12 +605,16 @@ Inductive state_equiv (rho: valuation) (s1 s2:asm_state) (env: env_t): Prop :=
   state_equiv rho s1 s2 env. 
 
 (* constant-time ---single step *) 
+(* FIXME: what is code : p ?, this should be an argument of constant_time *)
 Definition constant_time (env: env_t) (s1 s2: asm_state) :=
-forall c code s1' s2' l1 l2,
+forall c code l1 l2,
 state_equiv c s1 s2 env ->
-asmsem1_leak code s1 l1 s1' ->
-asmsem1_leak code s2 l2 s2' ->
-l1 = l2.
+(* FIXME : define stuck *)
+(* (stuck s1 /\ stuck s2) \/ *)
+(forall s1' s2',
+   asmsem1_leak code s1 l1 s1' ->
+   asmsem1_leak code s2 l2 s2' ->
+   l1 = l2).
 
 (* state equivalence for value *)
 Definition value_equiv (v1 v2: value) (sty:sec_ty) (ty: stype) : Prop :=
@@ -609,7 +628,6 @@ match vs1, vs2, tys with
 | x :: xs, y :: ys, t :: ts => value_equiv x y sty t /\ values_equiv xs ys sty ts
 | _, _, _ => False
 end. 
-
 
 Fixpoint values_equivs (vs1 vs2: seq value) (sty:seq sec_ty) (tys:seq stype) : Prop :=
 match vs1, vs2, sty, tys with 
