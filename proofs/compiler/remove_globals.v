@@ -327,7 +327,7 @@ Section REMOVE.
     Definition remove_glob_fundef (f:ufundef) :=
       let env := Mvar.empty _ in
       let check_var xi :=
-        if is_glob xi.(v_var) then Error (rm_glob_error xH xi) else ok tt in
+        if is_glob xi.(v_var) then Error (rm_glob_error dummy_instr_info xi) else ok tt in
       Let _ := mapM check_var f.(f_params) in
       Let _ := mapM check_var f.(f_res) in
       Let envc := remove_glob remove_glob_i env f.(f_body) in

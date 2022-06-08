@@ -1151,7 +1151,7 @@ Qed.
 
 Lemma write_iP i s1 s2 :
    sem_i P ev s1 i s2 -> s1.(evm) = s2.(evm) [\ write_i i].
-Proof. by move=> h; have /write_IP := EmkI 1%positive h. Qed.
+Proof. by move=> h; have /write_IP := EmkI dummy_instr_info h. Qed.
 
 End Write.
 

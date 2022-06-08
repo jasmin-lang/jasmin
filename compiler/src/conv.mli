@@ -51,7 +51,7 @@ val fun_of_cfun : 'info coq_tbl -> BinNums.positive -> funname
 
 val string_of_funname : 'info coq_tbl -> BinNums.positive -> string
 
-val get_iinfo   : 'info coq_tbl -> BinNums.positive -> L.i_loc * 'info * Syntax.annotations
+val get_iinfo   : 'info coq_tbl -> Expr.instr_info -> L.i_loc * 'info * Syntax.annotations
 
 val get_finfo   : 'info coq_tbl -> BinNums.positive -> L.t * f_annot * call_conv * Syntax.annotations list
 

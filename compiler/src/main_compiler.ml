@@ -267,7 +267,7 @@ let main () =
               in
               (match m_init with
                  | Utils0.Ok m -> m
-                 | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err)))
+                 | Utils0.Error err -> raise (Evaluator.Eval_error (Expr.dummy_instr_info, err)))
               |>
               Evaluator.exec
                 Arch.reg_size
