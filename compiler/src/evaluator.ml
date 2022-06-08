@@ -149,7 +149,7 @@ let init_state scs0 p fn m =
   { s_prog = p;
     s_cmd = f.f_body;
     s_estate = {escs = scs0; emem = m; evm = vmap0 };
-    s_stk = Sempty(Coq_xO Coq_xH, f) }
+    s_stk = Sempty(dummy_instr_info, f) }
 
 
 let exec pd sc_sem asmOp scs0 p fn m =

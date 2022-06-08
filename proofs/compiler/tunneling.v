@@ -58,7 +58,7 @@ End LprogSem.
 
 Section Tunneling.
 
-  Definition Linstr_align := (MkLI xH Lalign).
+  Definition Linstr_align := (MkLI dummy_instr_info Lalign).
 
   Definition tunnel_chart fn uf c c' :=
     match c, c' with

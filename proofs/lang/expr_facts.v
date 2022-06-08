@@ -271,7 +271,7 @@ Lemma write_I_recE s i : Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)).
 Proof. by apply (write_c_recE s [:: i]). Qed.
 
 Lemma write_i_recE s i : Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)).
-Proof. by apply (write_I_recE s (MkI 1%positive i)). Qed.
+Proof. by apply (write_I_recE s (MkI dummy_instr_info i)). Qed.
 
 Lemma write_c_nil : write_c [::] = Sv.empty.
 Proof. done. Qed.
@@ -390,7 +390,7 @@ Lemma read_IE s i : Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)).
 Proof. by apply (read_cE s [:: i]). Qed.
 
 Lemma read_iE s i : Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)).
-Proof. by apply (read_IE s (MkI 1%positive i)). Qed.
+Proof. by apply (read_IE s (MkI dummy_instr_info i)). Qed.
 
 Lemma read_c_nil : read_c [::] = Sv.empty.
 Proof. done. Qed.

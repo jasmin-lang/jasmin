@@ -596,7 +596,7 @@ Fixpoint lower_i (i:instr) : cmd :=
      [:: MkI ii (Cfor v (d, lo, hi) (conc_map lower_i c))]
   | Cwhile a c e c' =>
      let '(pre, e) := lower_condition dummy_var_info e in
-       map (MkI ii) [:: Cwhile a ((conc_map lower_i c) ++ map (MkI xH) pre) e (conc_map lower_i c')]
+       map (MkI ii) [:: Cwhile a ((conc_map lower_i c) ++ map (MkI dummy_instr_info) pre) e (conc_map lower_i c')]
   | _ =>   map (MkI ii) [:: ir]
   end.
 

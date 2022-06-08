@@ -2697,7 +2697,7 @@ Section PROOF.
           by case: _.[_]%vmap => //= - [] sz w ? /pword_of_word_uincl[] /= ? -> {w}; subst.
         set vm_save := vm1.[{| vtype := spointer; vname := saved_stack |} <- ok (pword_of_word (top_stack (emem s1)))]%vmap.
         set sf_sz := (sf_stk_sz _ + _)%Z.
-        set alloc := allocate_stack_frame p liparams false xH sf_sz.
+        set alloc := allocate_stack_frame p liparams false dummy_instr_info sf_sz.
         have :
           ∃ vm, [/\
             lsem
@@ -2713,7 +2713,7 @@ Section PROOF.
                  lvm := vm;
                  lfn := fn;
                  lpc := size
-                   ((head {| li_ii := xH; li_i := Lalign; |} P) :: alloc) + 0;
+                   ((head {| li_ii := dummy_instr_info; li_i := Lalign; |} P) :: alloc) + 0;
               |}
             , wf_vm vm
             , vm = vm_save [\ Sv.singleton vrsp ]
@@ -2781,7 +2781,7 @@ Section PROOF.
             (s := {| escs:= escs s1; evm := vm; emem := m1; |})
             hliparams
             p'
-            xH
+            dummy_instr_info
             fn
             ((size alloc).+1 + 0)
             (sf_align (f_extra fd))
@@ -2860,9 +2860,9 @@ Section PROOF.
             set ws := sf_align (f_extra fd).
             replace (P ++ lbody ++ Q) with
                 ((head
-                    {| li_ii := xH; li_i := Lalign; |}
-                    P :: allocate_stack_frame p liparams false xH sz)
-                  ++ [:: ensure_rsp_alignment p liparams xH ws ]
+                    {| li_ii := dummy_instr_info; li_i := Lalign; |}
+                    P :: allocate_stack_frame p liparams false dummy_instr_info sz)
+                  ++ [:: ensure_rsp_alignment p liparams dummy_instr_info ws ]
                   ++ lbody
                   ++ Q);
               last by rewrite /P /= -catA.
@@ -2992,7 +2992,7 @@ Section PROOF.
             (s := {| escs:= escs s1; evm := vm_rsp; emem := m1; |})
             hliparams
             p'
-            xH
+            dummy_instr_info
             fn
             ((1 + 0).+1)
             (sf_align (f_extra fd))
@@ -3147,7 +3147,7 @@ Section PROOF.
           rewrite read_in_m3; last lia.
           by rewrite -topE (writeP_eq ok_m2).
         have :
-          let: tail := pop_to_save p liparams xH (sf_to_save (f_extra fd)) in
+          let: tail := pop_to_save p liparams dummy_instr_info (sf_to_save (f_extra fd)) in
           exists vm5,
             [/\
                lsem
@@ -3302,9 +3302,9 @@ Section PROOF.
             replace (P ++ lbody ++ Q)
             with
               (take 2 P
-              ++ [:: ensure_rsp_alignment p liparams xH (sf_align (f_extra fd)),
-                     lstore liparams xH (VarI vrsp dummy_var_info) stack_saved_rsp Uptr (mk_lvar var_tmp) &
-                     push_to_save p liparams xH (sf_to_save (f_extra fd)) ] ++ lbody ++ Q);
+              ++ [:: ensure_rsp_alignment p liparams dummy_instr_info (sf_align (f_extra fd)),
+                     lstore liparams dummy_instr_info (VarI vrsp dummy_var_info) stack_saved_rsp Uptr (mk_lvar var_tmp) &
+                     push_to_save p liparams dummy_instr_info (sf_to_save (f_extra fd)) ] ++ lbody ++ Q);
               last by rewrite /P catA.
             move => /find_instr_skip -> /=.
             rewrite -/vm_save -/vm_rsp.
@@ -3315,8 +3315,8 @@ Section PROOF.
             replace (P ++ lbody ++ Q)
             with
               (take 3 P
-              ++ [:: lstore liparams xH (VarI vrsp dummy_var_info) stack_saved_rsp Uptr (mk_lvar var_tmp) &
-                      push_to_save p liparams xH (sf_to_save (f_extra fd)) ] ++ lbody ++ Q);
+              ++ [:: lstore liparams dummy_instr_info (VarI vrsp dummy_var_info) stack_saved_rsp Uptr (mk_lvar var_tmp) &
+                      push_to_save p liparams dummy_instr_info (sf_to_save (f_extra fd)) ] ++ lbody ++ Q);
               last by rewrite /P catA.
             move => /find_instr_skip -> /=.
             rewrite /lstore.
@@ -3601,7 +3601,7 @@ Section PROOF.
     set k' := Sv.union k (Sv.union match fd.(f_extra).(sf_return_address) with RAreg ra => Sv.singleton ra | RAstack _ => Sv.empty | RAnone => Sv.add var_tmp vflags end (if fd.(f_extra).(sf_save_stack) is SavedStackReg r then Sv.singleton r else Sv.empty)).
     set s1 := {| escs := scs; emem := m ; evm := vm |}.
     set s2 := {| escs := scs'; emem := free_stack m2 ; evm := set_RSP p (free_stack m2) vm2 |}.
-    have {sexec} /linear_fdP : sem_call p extra_free_registers var_tmp 1%positive k' s1 fn s2.
+    have {sexec} /linear_fdP : sem_call p extra_free_registers var_tmp dummy_instr_info k' s1 fn s2.
     - econstructor.
       + exact: ok_fd.
       + by rewrite /ra_valid; move/eqP: Export => ->.

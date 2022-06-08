@@ -484,13 +484,13 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
   let: (tail, head, lbl) :=
      match sf_return_address e with
      | RAreg r =>
-       ( [:: MkLI xH (Ligoto (Pvar (Gvar (VarI r dummy_var_info) Slocal))) ]
-       , [:: MkLI xH (Llabel 1) ]
+       ( [:: MkLI dummy_instr_info (Ligoto (Pvar (Gvar (VarI r dummy_var_info) Slocal))) ]
+       , [:: MkLI dummy_instr_info (Llabel 1) ]
        , 2%positive
        )
      | RAstack z =>
-       ( [:: MkLI xH (Ligoto (Pload Uptr rspi (cast_const z))) ]
-       , [:: MkLI xH (Llabel 1) ]
+       ( [:: MkLI dummy_instr_info (Ligoto (Pload Uptr rspi (cast_const z))) ]
+       , [:: MkLI dummy_instr_info (Llabel 1) ]
        , 2%positive
        )
      | RAnone =>
@@ -503,10 +503,10 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
           *       Setup stack.
           *)
          let r := VarI x dummy_var_info in
-         ( [:: lmove xH rspi Uptr (Gvar r Slocal) ]
-         , lmove xH r Uptr rspg
-             :: allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
-             ++ [:: ensure_rsp_alignment xH e.(sf_align) ]
+         ( [:: lmove dummy_instr_info rspi Uptr (Gvar r Slocal) ]
+         , lmove dummy_instr_info r Uptr rspg
+             :: allocate_stack_frame false dummy_instr_info (sf_stk_sz e + sf_stk_extra_sz e)
+             ++ [:: ensure_rsp_alignment dummy_instr_info e.(sf_align) ]
          , 1%positive
          )
        | SavedStackStk ofs =>
@@ -518,13 +518,13 @@ Definition linear_body (e: stk_fun_extra) (body: cmd) : lcmd :=
           *       Push registers to save to the stack.
           *)
          let tmp := VarI var_tmp dummy_var_info in
-         ( pop_to_save xH e.(sf_to_save)
-             ++ [:: lload xH rspi Uptr rspi ofs ]
-         , lmove xH tmp Uptr rspg
-             :: allocate_stack_frame false xH (sf_stk_sz e + sf_stk_extra_sz e)
-             ++ ensure_rsp_alignment xH e.(sf_align)
-             :: lstore xH rspi ofs Uptr (Gvar tmp Slocal)
-             :: push_to_save xH e.(sf_to_save)
+         ( pop_to_save dummy_instr_info e.(sf_to_save)
+             ++ [:: lload dummy_instr_info rspi Uptr rspi ofs ]
+         , lmove dummy_instr_info tmp Uptr rspg
+             :: allocate_stack_frame false dummy_instr_info (sf_stk_sz e + sf_stk_extra_sz e)
+             ++ ensure_rsp_alignment dummy_instr_info e.(sf_align)
+             :: lstore dummy_instr_info rspi ofs Uptr (Gvar tmp Slocal)
+             :: push_to_save dummy_instr_info e.(sf_to_save)
          , 1%positive)
        end
      end

@@ -347,6 +347,7 @@ Definition wrange d (n1 n2 : Z) :=
   end.
 
 Definition instr_info := positive.
+Definition dummy_instr_info : instr_info := 1%positive.
 
 Variant assgn_tag :=
   | AT_none       (* assignment introduced by the developer that can be removed *)
