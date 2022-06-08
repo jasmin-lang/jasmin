@@ -71,6 +71,7 @@ End CmpSecTy.
 
 (* ----------------------------------------------------------------- *)
 
+
 Definition lvl := positive.
 
 Definition public : lvl := 1%positive.
@@ -121,8 +122,7 @@ Definition check_clos_trans (c:constraints) :=
 
 Record valid_c (c: constraints) := {
   vc_ct : is_clos_trans c;
-  vc_bla (* FIXME *) : ~(is_le c secret public)
-    (* ~(is_le c transient public) /\ ~(is_le c secret transient) *)
+  vc_spec : ~(is_le c secret public)
 }.
 
 Section TY_SYS.
@@ -221,7 +221,7 @@ Definition wt_asm_arg (k:addr_kind) (a:asm_arg) (ty:stype) (pti:pt_info) (S:Sl.t
   match a, ty with
   | Condt cond, sbool => wt_cond c env cond S
 
-  | Imm _ _, sword _ => le_all c public S
+  | Imm _ _, sword _ => true
 
   | Reg r, sword ws  => 
     let (lr, ws') := env.(e_reg) r in
@@ -260,8 +260,8 @@ Definition wt_implicit_arg (a:implicit_arg) (ty:stype) (S:Sl.t) :=
   | _, _ => false
   end.
 
-Definition wt_arg_in (args:asm_args) (S:Sl.t) (a:arg_desc) (pt: pt_info) (ty : stype) (sty:sec_ty) :=
-  let S := Sl.add (lvl_of_sty sty) S in  
+Definition wt_arg_in (args:asm_args) (S:Sl.t) (a:arg_desc) (pt: pt_info) (ty : stype) (sty:lvl) :=
+  let S := Sl.add sty S in  
   match a with
   | ADImplicit a => wt_implicit_arg a ty S
   | ADExplicit k i _ => 
@@ -285,7 +285,7 @@ Fixpoint all3 la lb lc d :=
 
 End ALL3.
 
-Definition wt_args_in (args:asm_args) (S:Sl.t) (a:seq arg_desc) (pt: seq pt_info) (ty:seq stype) (sty:sec_ty):=
+Definition wt_args_in (args:asm_args) (S:Sl.t) (a:seq arg_desc) (pt: seq pt_info) (ty:seq stype) (sty:lvl):=
   all3 (wt_arg_in args S) a pt ty sty.
   
 End Expr.
@@ -393,60 +393,18 @@ Definition ty_dests (c:constraints) (pts:pt_size) (msb:msb_flag) (args:asm_args)
 Definition of_list (l:seq lvl) := 
   foldl (fun S l => Sl.add l S) Sl.empty l.
 
+Definition sec_ty_op (o:asm_op_t') : lvl :=
+ let d := instr_desc_op o in 
+ let ct := d.(id_ct) in 
+ if ct then secret else public.
+
 (* *************************************** *)
 
 Section Typing.
 
 Context (fn:funname).
-Context (sec_ty_op : asm_op_t' -> sec_ty).
 
-Inductive WT_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (seq pt_info * seq pt_info)) (code: asm_code) (pc:nat) : Prop := 
-  | WT_AsmOp : forall o args env env' dpt apt env1,
-        oseq.onth code pc = Some (AsmOp o args) ->
-        oseq.onth Env pc  = Some env -> 
-        oseq.onth Env (pc.+1) = Some env' -> 
-        nth ([::], [::]) Pt_info pc = (dpt, apt) ->
-        let odesc := instr_desc_op o in
-        let ls := dests_lvl env' args dpt odesc.(id_out) in
-        wt_args_in c env args (of_list ls) odesc.(id_in) apt odesc.(id_tin) (sec_ty_op o)-> 
-        ty_dests c pts odesc.(id_msb_flag) args odesc.(id_out) dpt ls odesc.(id_tout) env = ok env1 ->
-        le_env c env1 env' -> 
-        WT_pc c pts Env Pt_info code pc
-  | WT_ALIGN : forall env env',
-        oseq.onth code pc = Some ALIGN ->
-        oseq.onth Env pc  = Some env -> 
-        oseq.onth Env (pc.+1) = Some env' -> 
-        le_env c env env' ->
-        WT_pc c pts Env Pt_info code pc
-  | WT_LABEL : forall env env' lbl,
-        oseq.onth code pc = Some (LABEL lbl) ->
-        oseq.onth Env pc  = Some env -> 
-        oseq.onth Env (pc.+1) = Some env' -> 
-        le_env c env env' ->
-        WT_pc c pts Env Pt_info code pc
-  | WT_JMP : forall env env' fn' lbl ip,
-        oseq.onth code pc = Some (JMP (fn', lbl)) ->
-        oseq.onth Env pc  = Some env -> 
-        fn == fn' ->
-        (*get_fundef (asm_funcs P) fn = Some fundef -> *)
-(*if (onth code2 s1.(asm_ip) = Some (JMP (fn, lbl))) then 
-   (get_fundef (asm_funcs P) fn) = s1.(asm_c) =  *)
-        find_label lbl code = ok ip -> 
-        (*oseq.onth Env ip = Some env' -> *)
-        oseq.onth Env ip.+1 = Some env' ->
-        le_env c env env' ->
-        WT_pc c pts Env Pt_info code pc
-  | WT_JCC : forall env envf envt lbl ip ct,
-        oseq.onth code pc = Some (Jcc lbl ct) ->
-        oseq.onth Env pc  = Some env -> 
-        wt_cond c env ct spublic ->
-        find_label lbl code = ok ip -> 
-        oseq.onth Env (pc.+1) = Some envf -> 
-        oseq.onth Env ip = Some envt -> 
-        le_env c env envf /\ le_env c env envt ->
-        WT_pc c pts Env Pt_info code pc.
-
-(*Definition wt_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (seq pt_info * seq pt_info)) (code: asm_code) (pc:nat) : Prop := 
+Definition wt_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (seq pt_info * seq pt_info)) (code: asm_code) (pc:nat) : Prop := 
   if oseq.onth code pc is Some i then 
     if oseq.onth Env pc is Some env then 
        match i with 
@@ -455,7 +413,7 @@ Inductive WT_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (
              let (dpt, apt) := nth ([::], [::]) Pt_info pc in 
              let odesc := instr_desc_op o in
              let ls := dests_lvl env' args dpt odesc.(id_out) in
-             if wt_args_in c env args (of_list ls) odesc.(id_in) apt odesc.(id_tin) then
+             if wt_args_in c env args (of_list ls) odesc.(id_in) apt odesc.(id_tin) (sec_ty_op o) then
                match ty_dests c pts odesc.(id_msb_flag) args odesc.(id_out) dpt ls odesc.(id_tout) env with
                | Ok env1 => le_env c env1 env' 
                | _ => false
@@ -494,129 +452,12 @@ Inductive WT_pc (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (
        end
 
     else false     
-  else false.*)
+  else false.
 
 Definition wt_code (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : seq (seq pt_info * seq pt_info)) (code: asm_code) := 
-  forall pc,  0 <= pc < size code -> WT_pc c pts Env Pt_info code pc.
+  forall pc,  0 <= pc < size code -> wt_pc c pts Env Pt_info code pc.
 
 End Typing.
-
-(* Interpretation for labels *)
-
-Definition valuation := lvl -> sec_ty.
-
-Fixpoint valuations (rhos : seq valuation) (l : lvl) (ls : Sl.t) : seq sec_ty :=
-match rhos with 
-| [::] => [::]
-| r :: rs => r l :: valuations rs l ls
-end.
-
-Definition valid_valuation (c:constraints) (rho: valuation) := 
-  rho public = Public /\
-  rho secret = Secret /\
-  forall l s, is_le c l s -> (rho l <= rho s)%CMP.
-
-Fixpoint valid_valuations (c:constraints) (rhos: seq valuation) : Prop := 
-match rhos with 
-| [::] => True 
-| r :: rhos => valid_valuation c r /\ valid_valuations c rhos
-end.
-
-(* starting address of pointsto *)
-Definition vpointsto := pointsto -> option pointer. 
-
-(* two memory areas should be disjoint *) 
-Definition wf_vpointsto (vp:vpointsto) :=
-forall (pt1:pointsto) (pt2:pointsto) a1 a2 (pts:pt_size),
-(pt1 <> pt2)%positive ->
-vp pt1 = Some a1 /\ vp pt2 = Some a2 ->
-disjoint_zrange a1 (get_size pts pt1) a2 (get_size pts pt2).
-
-(* Memory Shape equivalence *) 
-
-Inductive mem_shape_equiv (m1 m2:asmmem) : Prop := 
-| ms_equiv : 
-   (forall p, valid8 (m1.(asm_mem)) p = valid8 (m2.(asm_mem)) p) ->
-   mem_shape_equiv m1 m2.
-
-(* Flag equivalence *) (* FIX ME *)
-Inductive flag_equiv (m1 m2:asmmem) : Prop := 
-| f_equiv : (forall f,  eq_exec (fun _ _ => True) (st_get_rflag m1 f) (st_get_rflag m2 f))->
-            flag_equiv m1 m2.
-
-Axiom eq_exec_eval_cond_mem : forall m1 m2 c,
-flag_equiv m1 m2 ->
-eq_exec (fun _ _ => True) (eval_cond_mem m1 c) (eval_cond_mem m2 c).
-
-(* Memory equivalence *)
-Inductive mem_equiv (rho:valuation) (m1 m2:asmmem) (env:env_t): Prop :=
-| m_equiv :
-  (forall r l ws, env.(e_reg) r = (l, ws) -> 
-   rho l = Public -> 
-   zero_extend ws (m1.(asm_reg) r) =
-   zero_extend ws (m2.(asm_reg) r)) ->
-  (forall r l ws, env.(e_regx) r = (l, ws) -> 
-   rho l = Public -> 
-   zero_extend ws (m1.(asm_regx) r) =
-   zero_extend ws (m2.(asm_regx) r)) ->
-  (forall r l ws, env.(e_xreg) r = (l, ws) -> 
-   rho l = Public -> 
-   zero_extend ws (m1.(asm_xreg) r) =
-   zero_extend ws (m2.(asm_xreg) r)) ->
-  (forall f l, env.(e_flag) f = l -> 
-   rho l = Public -> 
-   (m1.(asm_flag) f) = (m2.(asm_flag) f)) ->
-  (forall pt l a vp pts, 
-   wf_vpointsto vp ->
-   vp pt = Some a ->
-   get_pt env pt = l -> 
-   rho l = Public ->
-   (forall i, (0 <= i <= get_size pts pt)%Z -> 
-    read (m1.(asm_mem)) (a + wrepr Uptr i)%R = 
-    read (m2.(asm_mem)) (a + wrepr Uptr i)%R)) ->
-   mem_equiv rho m1 m2 env.    
-
-(* State equivalence and Constant-time *)
-
-(* state equivalence *) 
-Inductive state_equiv (rho: valuation) (s1 s2:asm_state) (env: env_t): Prop :=
-| asm_st_equiv : 
-  s1.(asm_c) = s2.(asm_c) -> 
-  s1.(asm_ip) = s2.(asm_ip) ->
-  s1.(asm_m).(asm_rip) = s2.(asm_m).(asm_rip) -> 
-  mem_shape_equiv s1.(asm_m) s2.(asm_m) ->
-  flag_equiv s1.(asm_m) s2.(asm_m) ->
-  mem_equiv rho s1.(asm_m) s2.(asm_m) env ->
-  state_equiv rho s1 s2 env. 
-
-(* constant-time ---single step *) 
-Definition constant_time (env: env_t) (s1 s2: asm_state) :=
-forall c code s1' s2' l1 l2,
-state_equiv c s1 s2 env ->
-asmsem1_leak code s1 l1 s1' ->
-asmsem1_leak code s2 l2 s2' ->
-l1 = l2.
-
-(* state equivalence for value *)
-Definition value_equiv (v1 v2: value) (sty:sec_ty) (ty: stype) : Prop :=
-sty = Public ->
-of_val ty v1 = of_val ty v2.
-
-(* state equivalence for values *)
-Fixpoint values_equiv (vs1 vs2: seq value) (sty:sec_ty) (tys:seq stype) : Prop :=
-match vs1, vs2, tys with 
-| [::], [::], [::] => True 
-| x :: xs, y :: ys, t :: ts => value_equiv x y sty t /\ values_equiv xs ys sty ts
-| _, _, _ => False
-end. 
-
-
-Fixpoint values_equivs (vs1 vs2: seq value) (sty:seq sec_ty) (tys:seq stype) : Prop :=
-match vs1, vs2, sty, tys with 
-| [::], [::], [::], [::] => True 
-| x :: xs, y :: ys, s :: ss, t :: ts => value_equiv x y s t /\ values_equivs xs ys ss ts
-| _, _, _, _ => False
-end. 
 
 End TY_SYS.
 
