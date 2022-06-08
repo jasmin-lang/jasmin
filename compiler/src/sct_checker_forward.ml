@@ -515,7 +515,7 @@ end = struct
         IsNormal ty in
     List.map doty tyfun.tyout, List.map doty tyfun.tyin
 
-  let pp_venv fmt venv = 
+  let pp_venv fmt venv =
     Format.fprintf fmt "@[<v>";
     Mv.iter (fun v vty -> Format.fprintf fmt "%a -> %a@ " (Printer.pp_var ~debug:false) v pp_vty vty) venv.vtype;
     Format.fprintf fmt "@]";
@@ -944,6 +944,11 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
     let fty = FEnv.get_fty fenv f in
     let modmsf = fty.modmsf in
     let tyout, tyin = Env.clone env fty in
+    Format.eprintf "After clone in call@.";
+    Format.eprintf "@[%a@] -> @[%a@]@."
+    (pp_list " *@ " pp_vfty) tyin
+    (pp_list " *@ " pp_vfty) tyout;
+    Format.eprintf "%a@." C.pp (Env.constraints env);
     (* check the input types *)
     let doin e vfty =
       match vfty with
@@ -969,7 +974,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       let (msf, venv) = ty_lval env msf_e x ty in
       let msf = if vfty = IsMsf then MSF.add (reg_lval ~direct:true loc x) msf else msf in
       (msf, venv) in
-    let (msf,venv) = 
+    let (msf,venv) =
       List.fold_left2 doout ((if modmsf then MSF.toinit else msf), venv) xs tyout in
     Format.eprintf "After call@.";
     Format.eprintf "%a@." Env.pp_venv venv;

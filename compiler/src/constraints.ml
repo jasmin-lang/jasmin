@@ -12,12 +12,12 @@ let rec pp_list sep pp fmt xs =
 end
 (* ---------------------------------------------------------------------- *)
 (* FIXME remove this code of Francois Pottier and add external dependency *)
-module UnionFind : sig 
+module UnionFind : sig
   type 'a elem
   val make : 'a -> 'a elem
   val eq : 'a elem -> 'a elem -> bool
   val find : 'a elem -> 'a elem
-  val get : 'a elem -> 'a 
+  val get : 'a elem -> 'a
   val set : 'a elem -> 'a -> unit
   val union : 'a elem -> 'a elem -> 'a elem
   val merge : ('a -> 'a -> 'a ) -> 'a elem -> 'a elem -> 'a elem
@@ -120,7 +120,7 @@ module Vl : sig
   val equal   : t -> t -> bool
   val hash    : t -> int
 
-  val public    : t 
+  val public    : t
   val transient : t
   val secret    : t
 
@@ -145,11 +145,11 @@ end = struct
     uid : int;
   }
 
-  let name t = t.name 
+  let name t = t.name
 
   let uid = ref (-1)
 
-  let fresh ?(name="?") _ = 
+  let fresh ?(name="?") _ =
     incr uid;
     { name; uid = !uid; }
 
@@ -165,14 +165,14 @@ end = struct
 
   let is_uni vl = vl.name = "?"
 
-  let to_string vl = 
+  let to_string vl =
     if is_uni vl then vl.name ^ (string_of_int vl.uid)
     else vl.name
 
-  let pp fmt vl = 
+  let pp fmt vl =
     Format.fprintf fmt "%s" (to_string vl)
 
-  let constants = [public; transient; secret] 
+  let constants = [public; transient; secret]
 
   let is_constant vl = List.exists (equal vl) constants
 
@@ -191,11 +191,11 @@ let constants = Svl.of_list Vl.constants
 (* --------------------------------------------------------- *)
 (* Inequalities                                              *)
 
-module Lvl : sig 
-  type t 
-  val vlevel : t -> Vl.t 
+module Lvl : sig
+  type t
+  val vlevel : t -> Vl.t
   val successors : t -> t list
-  val fresh : Vl.t -> t list -> t 
+  val fresh : Vl.t -> t list -> t
 
   val equal : t -> t -> bool
   val le : t -> t -> bool
@@ -208,7 +208,7 @@ module Lvl : sig
   val iter : (t -> unit) -> t -> unit
 
  (* val clear_successors : t -> unit *)
-  
+
   (* Warning use this function only when you are sure to not create cycle *)
   val add_successors : t -> t list -> unit
 
@@ -221,17 +221,17 @@ module Lvl : sig
 
   val simplify : tokeep:(t-> bool) -> t -> unit
 
-end = struct 
+end = struct
 
-  type level = 
+  type level =
     { vlevel : Vl.t; (* l *)
       succ   : t list;   (* l' \in succ => l <= l' *)
     }
   and t = level UnionFind.elem
 
-  let repr (e:t) = UnionFind.find e 
+  let repr (e:t) = UnionFind.find e
 
-  let fresh vlevel succ = UnionFind.make { vlevel; succ } 
+  let fresh vlevel succ = UnionFind.make { vlevel; succ }
 
   let vlevel (e:t) = (UnionFind.get e).vlevel
   let successors (e:t) = (UnionFind.get e).succ
@@ -241,106 +241,106 @@ end = struct
   let is_secret    (e:t) = Vl.is_secret    (vlevel e)
 
 
-  let visited = Hvl.create 97 
+  let visited = Hvl.create 97
   let clear_visited () = Hvl.clear visited
-  let is_visited vl = Hvl.mem visited vl 
-  let set_visited vl = Hvl.add visited vl () 
+  let is_visited vl = Hvl.mem visited vl
+  let set_visited vl = Hvl.add visited vl ()
 
   let equal (e1:t) (e2:t) = Vl.equal (vlevel e1) (vlevel e2)
 
-  let le (e1:t) (e2:t) = 
+  let le (e1:t) (e2:t) =
     let vl1 = vlevel e1 in
     let vl2 = vlevel e2 in
-    if Vl.is_public vl1 || Vl.is_secret vl2 then true 
+    if Vl.is_public vl1 || Vl.is_secret vl2 then true
     else begin
       clear_visited();
-      let rec find e = 
+      let rec find e =
         let vl = vlevel e in
-        Vl.equal vl vl2 || 
+        Vl.equal vl vl2 ||
           (not (is_visited vl) && (set_visited vl; List.exists find (successors e))) in
-      find e1  
+      find e1
     end
 
-  let iter (f : t -> unit) e = 
+  let iter (f : t -> unit) e =
     clear_visited ();
-    let rec iter e = 
+    let rec iter e =
       let vl = vlevel e in
-      if not (is_visited vl) then 
+      if not (is_visited vl) then
         (f e; set_visited vl; List.iter iter (successors e)) in
-    iter e  
-         
-  let path = Hvl.create 97 
+    iter e
+
+  let path = Hvl.create 97
   let clear_path () = Hvl.clear path
   let add_path vl e = Hvl.add path vl (Some (repr e)); true
   let add_nopath vl = Hvl.add path vl None; false
- 
-  (* [between l l' = s ] 
-        forall l1 \in s, l <= l1 <= l' *)        
+
+  (* [between l l' = s ]
+        forall l1 \in s, l <= l1 <= l' *)
   let between (e:t) (e':t) =
     clear_path();
     let vl' = vlevel e' in
     (* e <= e1 *)
-    let rec find e1 = 
+    let rec find e1 =
       let vl1 = vlevel e1 in
       match Hvl.find path vl1 with
       | None -> false (* no path from e1 to e' *)
       | Some _ -> true (* e1 <= e' *)
-      | exception Not_found ->    
+      | exception Not_found ->
         if vl1 = vl' then  (* e <= e1 = e' *)
-          add_path vl1 e1 
+          add_path vl1 e1
         else
           let tests = List.map find (successors e1) in
           if List.exists (fun b -> b) tests then (* e1 <= s <= e' *)
-            add_path vl1 e1 
+            add_path vl1 e1
           else add_nopath vl1 in
      ignore (find e);
      Hvl.fold (fun _ e1 l -> match e1 with None -> l | Some e1 -> e1 :: l) path []
 
-  let succ = Hvl.create 97 
+  let succ = Hvl.create 97
   let clear_succ () = Hvl.clear succ
   let add_succ vl e = Hvl.replace succ vl (UnionFind.find e)
 
-  let merge (e1:t) (e2:t) = 
+  let merge (e1:t) (e2:t) =
     clear_succ ();
-    let merge_level (l1:level) (l2:level) = 
+    let merge_level (l1:level) (l2:level) =
       (* (vl1, succ1) (vl2, succ2) *)
-      let add e = 
+      let add e =
         let vl = vlevel e in
         if Vl.equal l1.vlevel vl || Vl.equal l2.vlevel vl then ()
         else add_succ vl e in
-      List.iter add l1.succ; 
+      List.iter add l1.succ;
       List.iter add l2.succ;
-      let vlevel = 
-        if Vl.is_constant l2.vlevel || 
+      let vlevel =
+        if Vl.is_constant l2.vlevel ||
            Vl.is_uni l1.vlevel && not (Vl.is_uni l2.vlevel) then l2.vlevel
         else l1.vlevel in
-      let succ = 
-        if Hvl.length succ = 1 then 
+      let succ =
+        if Hvl.length succ = 1 then
           Hvl.fold (fun _ e s -> e :: s) succ []
         else (* remove secret *)
           Hvl.fold (fun vl e s -> if Vl.equal vl Vl.secret then s else e :: s) succ [] in
       { vlevel; succ } in
     UnionFind.merge merge_level e1 e2
 
- (* let clear_successors (e:t) = 
+ (* let clear_successors (e:t) =
     clear_succ ();
     let lvl = UnionFind.get e in
     List.iter (fun s -> add_succ (vlevel s) s) lvl.succ;
     UnionFind.set e { lvl with succ = Hvl.fold (fun _ e s -> e :: s) succ [] } *)
 
-  let add_successors (e:t) succ = 
+  let add_successors (e:t) succ =
     let lvl = UnionFind.get e in
     UnionFind.set e { lvl with succ = List.fold_left (fun ss s -> repr s :: ss) lvl.succ succ }
-    
+
   exception Unsat of (Svl.t * t list * t * t)
   (* Add the constraint l1 <= l2 *)
 
-  let add_le (l1:t) (l2:t) = 
+  let add_le (l1:t) (l2:t) =
     if le l1 l2 then ()  (* constraint already present do nothing *)
-    else 
+    else
       match between l2 l1 with
       | [] -> (* no cycle, add the constraint *)
-        let lvl = UnionFind.get l1 in  
+        let lvl = UnionFind.get l1 in
         let lvl = { lvl with succ = l2 :: lvl.succ } in
         UnionFind.set l1 lvl;
       | e :: es as ees -> (* cycle found *)
@@ -351,7 +351,7 @@ end = struct
 
   let pp fmt l = Vl.pp fmt (vlevel l)
 
-  let pp_s ?(debug=false) fmt l = 
+  let pp_s ?(debug=false) fmt l =
     let vl = vlevel l in
     let succ = successors l in
     let pp succ =
@@ -359,22 +359,22 @@ end = struct
         (Utils.pp_list "@ " (fun fmt s -> Vl.pp fmt (vlevel s))) succ in
     if debug then pp succ
     else
-      let succ = 
+      let succ =
         if Vl.is_public vl then [] else List.filter (fun s -> not (is_secret s)) succ in
       if succ <> [] then pp succ
 
-  let simplify ~(tokeep:t -> bool) (l:t) = 
+  let simplify ~(tokeep:t -> bool) (l:t) =
     let long = true and short = false in
     let _R = Hvl.create 97 in
     let rec visite x =
       let vx = vlevel x in
-      try Hvl.find _R vx 
-      with Not_found -> 
+      try Hvl.find _R vx
+      with Not_found ->
         let _M : (t * bool) Hvl.t = Hvl.create 23 in
-        let add_M z (ez, p) = 
+        let add_M z (ez, p) =
           let p' = p || (try snd (Hvl.find _M z) with Not_found -> short) in
-          Hvl.replace _M z (ez, p') in  
-        let do_s y = 
+          Hvl.replace _M z (ez, p') in
+        let do_s y =
           let yin = tokeep y in
           Hvl.iter (if yin then (fun z (ez, _p) -> Hvl.replace _M z (ez,long))
                     else (fun z ep -> add_M z ep)) (visite y);
@@ -382,7 +382,7 @@ end = struct
         List.iter do_s (successors x);
         Hvl.add _R vx _M;
         (* now clear the successor of x *)
-        let succ = 
+        let succ =
           Hvl.fold (fun _ (s, p) succ -> if p = short then s :: succ else succ) _M [] in
         let lvl = UnionFind.get x in
         UnionFind.set x { lvl with succ };
@@ -395,8 +395,8 @@ end
 (* ----------------------------------------------------------- *)
 
 module C : sig
-  type constraints 
-  
+  type constraints
+
   val init : unit -> constraints
 
   val public    : constraints -> Lvl.t
@@ -413,8 +413,8 @@ module C : sig
   val optimize : constraints -> tomax:Lvl.t list -> tomin:Lvl.t list -> unit
   val clone    : constraints -> constraints -> (Lvl.t -> Lvl.t)
   val is_instance : (Lvl.t -> Lvl.t) -> constraints -> constraints -> bool
-  
-end = struct 
+
+end = struct
 
   type constraints = {
     (* FIXME : repr is not needed it can be remove, it is useful only for printing *)
@@ -428,26 +428,26 @@ end = struct
   let transient c = c.transient
   let secret c = c.secret
 
-  let add_vl tbl vl successors = 
+  let add_vl tbl vl successors =
     let l = Lvl.fresh vl successors in
     Hvl.add tbl vl l;
     l
-    
-  let init () = 
-    let repr = Hvl.create 257 in 
+
+  let init () =
+    let repr = Hvl.create 257 in
     let secret    = add_vl repr Vl.secret    [] in
     let transient = add_vl repr Vl.transient [secret] in
     let public    = add_vl repr Vl.public    [transient] in
     { repr; public; transient; secret }
 
-  let fresh ?name c = 
+  let fresh ?name c =
     (* FIXME: can we remove secret if we do a special case for "add_le secret l" ?
        i.e. set l and all variable greater than l to secret *)
     let l = add_vl c.repr (Vl.fresh ?name ()) [c.secret] in
     Lvl.add_successors c.public [l];
     l
 
-  let pp_debug fmt c = 
+  let pp_debug fmt c =
     (* print equalities *)
     Format.fprintf fmt "@[<v>";
     Hvl.iter (fun vl l ->
@@ -457,66 +457,66 @@ end = struct
     Lvl.iter (Lvl.pp_s ~debug:true fmt) c.public;
     Format.fprintf fmt "@]"
 
-  let pp fmt c = 
+  let pp fmt c =
     (* Do not print equalities or public <= l or l <= secret *)
     Format.fprintf fmt "@[";
     Lvl.iter (Lvl.pp_s ~debug:false fmt) c.public;
     Format.fprintf fmt "@]"
 
-  (* [simplify c] simplify the graph by removing the transitive edge *)      
-  let simplify (c:constraints) = 
-    Lvl.simplify ~tokeep:(fun _ -> true) c.public 
+  (* [simplify c] simplify the graph by removing the transitive edge *)
+  let simplify (c:constraints) =
+    Lvl.simplify ~tokeep:(fun _ -> true) c.public
 
-  let prune (c:constraints) (ltokeep: Lvl.t list) = 
+  let prune (c:constraints) (ltokeep: Lvl.t list) =
     let tokeep = Hvl.create 31 in
     List.iter (fun l -> Hvl.replace tokeep (Lvl.vlevel l) ()) (c.public :: c.transient :: c.secret :: ltokeep);
     Lvl.simplify ~tokeep:(fun l -> Hvl.mem tokeep (Lvl.vlevel l)) c.public
-         
-  type minmax = 
-    | Minimize 
-    | Maximize 
+
+  type minmax =
+    | Minimize
+    | Maximize
     | MinMax
 
   (*
   let pp_minmax fmt = function
     | Maximize -> Format.fprintf fmt "Maximize"
     | MinMax   -> Format.fprintf fmt "MinMax"
-    | Minimize -> Format.fprintf fmt "Minimize" 
+    | Minimize -> Format.fprintf fmt "Minimize"
   *)
-  
-  let optimize (c:constraints) ~(tomax : Lvl.t list) ~(tomin : Lvl.t list) = 
+
+  let optimize (c:constraints) ~(tomax : Lvl.t list) ~(tomin : Lvl.t list) =
     let minmax = Hvl.create 97 in
-    let add mm l = 
+    let add mm l =
       let vl = Lvl.vlevel l in
       match Hvl.find minmax vl with
-      | mm' -> if mm <> mm' then Hvl.replace minmax vl MinMax 
+      | mm' -> if mm <> mm' then Hvl.replace minmax vl MinMax
       | exception Not_found -> Hvl.add minmax vl mm in
     add MinMax (public c); add MinMax (transient c); add MinMax (secret c);
     List.iter (add Maximize) tomax; List.iter (add Minimize) tomin;
-    
-    let get_minmax l = 
-      try Hvl.find minmax (Lvl.vlevel l) with Not_found -> MinMax in 
 
-    let merge_minmax l s = 
+    let get_minmax l =
+      try Hvl.find minmax (Lvl.vlevel l) with Not_found -> MinMax in
+
+    let merge_minmax l s =
       let lmm = get_minmax l in
       let smm = get_minmax s in
       let mm = if lmm = smm then lmm else MinMax in
       add mm l; add mm s in
 
- 
+
     let progress = ref true in
-    while !progress do 
+    while !progress do
       progress := false;
       (* try to maximize first *)
-      Lvl.iter (fun l -> 
+      Lvl.iter (fun l ->
           if get_minmax l = Maximize then
             match Lvl.successors l with
-            | [s] -> 
-              progress := true; 
-              merge_minmax l s; 
+            | [s] ->
+              progress := true;
+              merge_minmax l s;
               ignore (Lvl.merge l s)
             | _ -> ()) (public c);
-      if not !progress then 
+      if not !progress then
         begin
           (* Compute the table of predessors *)
           let pred = Hvl.create 97 in
@@ -524,63 +524,63 @@ end = struct
           let add_pred p s = Hvl.replace pred (Lvl.vlevel s) (Svl.add (Lvl.vlevel p) (get_pred s)) in
           Lvl.iter (fun l -> List.iter (add_pred l) (Lvl.successors l)) (public c);
           (* minimize *)
-          Lvl.iter (fun l -> 
+          Lvl.iter (fun l ->
               if get_minmax l = Minimize then
                 let p = get_pred l in
                 if Svl.cardinal p = 1 then
                   let p = Hvl.find c.repr (Svl.choose p) in
                   progress := true;
-                  merge_minmax p l; 
+                  merge_minmax p l;
                   ignore (Lvl.merge p l)) (public c);
         end;
       if !progress then simplify c
     done
-                
-    
 
-      
-     
 
- (* let norm (c:constraints) = 
+
+
+
+
+ (* let norm (c:constraints) =
     Lvl.iter Lvl.clear_successors c.public *)
-    
+
   (* clone c and add the constraints in c' *)
-  let clone (c:constraints) (c':constraints) = 
+  let clone (c:constraints) (c':constraints) =
     let subst = Hvl.create 31 in
-    let rec do_l l = 
+    let rec do_l l =
       let vl = Lvl.vlevel l in
-      try Hvl.find subst vl 
+      try Hvl.find subst vl
       with Not_found ->
         let successors = List.map do_l (Lvl.successors l) in
-        let l = 
-          if Vl.is_public vl  then c'.public 
-          else if Vl.is_transient vl then c'.transient 
-          else if Vl.is_secret vl then c'.secret 
-          else begin 
+        let l =
+          if Vl.is_public vl  then c'.public
+          else if Vl.is_transient vl then c'.transient
+          else if Vl.is_secret vl then c'.secret
+          else begin
             assert (not (Vl.is_constant vl));
-            add_vl c'.repr (Vl.fresh ~name:(Vl.name vl) ()) [] 
+            add_vl c'.repr (Vl.fresh ~name:(Vl.name vl) ()) []
           end in
         Lvl.add_successors l successors;
         l in
     ignore (do_l c.public);
-    do_l 
+    do_l
     (* t | C *)
 
   let is_instance (rho : Lvl.t (* c *) -> Lvl.t (* cu *) ) _cu c =
-    try 
-      Lvl.iter (fun l -> 
+    try
+      Lvl.iter (fun l ->
           let lu = rho l in
           if List.for_all (fun s -> Lvl.le lu (* rho l*) (rho s)) (Lvl.successors l) then ()
           else raise Not_found) c.public;
       true
-    with Not_found -> false 
+    with Not_found -> false
 
-end 
- 
-(*           
-let _ = 
-  try 
-  let c = C.init () in 
+end
+
+(*
+let _ =
+  try
+  let c = C.init () in
   let pp s = Format.printf "%s@.%a@.@." s C.pp_debug c in
   pp "0";
 
@@ -591,8 +591,8 @@ let _ =
   let l5 = C.fresh ~name:"l5" c in
   pp "1";
 
-  Lvl.add_le l2 l1; pp "2"; 
-  Lvl.add_le l2 l3; pp "3"; 
+  Lvl.add_le l2 l1; pp "2";
+  Lvl.add_le l2 l3; pp "3";
   Lvl.add_le l2 l4; pp "4";
   Lvl.add_le l3 l5; pp "5";
   Lvl.add_le l5 l2; pp "6";
@@ -603,9 +603,9 @@ let _ =
 
   with Lvl.Unsat _ -> Format.printf "Unsat@."
 
-let _ = 
-  try 
-  let c = C.init () in 
+let _ =
+  try
+  let c = C.init () in
   let pp s = Format.printf "%s@.%a@.@." s C.pp_debug c in
   pp "0";
 
@@ -621,7 +621,7 @@ let _ =
   Lvl.add_le l2 l3; pp "3";
   Lvl.add_le l2 l1; pp "4";
   Lvl.add_le l3 l5; pp "5";
-  Lvl.add_le l1 l5; pp "6"; 
+  Lvl.add_le l1 l5; pp "6";
   Lvl.add_le l6 l3; pp "7";
   C.prune c [l6;l2;l1;l5];
   pp "prune";
@@ -631,19 +631,19 @@ let _ =
 
 
 
-Rajouter une info sur les levels qui dise que si l doit etre public 
+Rajouter une info sur les levels qui dise que si l doit etre public
 alors l1 doit etre <= transient.
 On doit generaliser cela a un ensemble de level.
 
 Si on fait un init_msf:
   Pour tout les registres on peut faire la chose suivante:
-  soit l le niveau du registre r 
+  soit l le niveau du registre r
     si l = secret || l = public on fait rien
     si l <= transient alors le nouveau type de r est public
     sinon on cree un nouveau level l' qui contient les contraintes:
        l' <= l
        l' = public => l <= transient
-    si par la suite l'ajout de nouvelle contrainte force l' a etre public alors 
+    si par la suite l'ajout de nouvelle contrainte force l' a etre public alors
     on doit rajouter la contrainte l = transient i.e l <= transient && transient <= l
 
   On doit pouvoir faire de meme pour les variables de stack, mais attention
@@ -651,7 +651,7 @@ Si on fait un init_msf:
 
   Une solution c'est d'avoir un flag dans MSF qui indique qu'on est sur de pas etre en mod speculatif.
 
-Il faut ajouter ces contraintes: 
+Il faut ajouter ces contraintes:
 
 lj' = pub   => lj <= trans
 lj' = trans => false
@@ -659,5 +659,5 @@ lj' = sec   => lj = sec
 
 lj = sec   => lj' = sec
 lj = trans => lj' = pub
-lj' = pub  => lj  = pub     
+lj' = pub  => lj  = pub
 *)
