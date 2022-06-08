@@ -92,7 +92,19 @@ Module SlD := MSetDecide.WDecide Sl.
 
 Definition spublic := Sl.singleton public.
 
+(* FIXME *)
 Definition pointsto := positive.
+  (* | UserMem 
+     | Cell of cell : positive * positive
+               name     * size        
+               /!\ use a record 
+
+valid_pt : 
+   UserMem -> ensemble de pointer
+   interp Cell <> ensemble UserMem.
+   disjoint p1 p2,  
+
+  *)
 
 (* Set of constraints *)
 Definition constraints := Ml.t Sl.t.
@@ -458,7 +470,6 @@ Definition wt_code (c:constraints) (pts: pt_size) (Env: seq env_t) (Pt_info : se
   forall pc,  0 <= pc < size code -> wt_pc c pts Env Pt_info code pc.
 
 End Typing.
-
 End TY_SYS.
 
 

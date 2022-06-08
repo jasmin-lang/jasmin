@@ -673,13 +673,13 @@ move=> pti ptis t ts /andP [] hwt hwts /=.
 t_xrbindP=> ys -[y yl] heval ys' hevals h1 h2 h3 ys1 -[y' yl'] heval' ys1' hevals' h4 h5 h6 /=; subst.
 have hvalid' := hvalid. case: hvalid=> hpub [] hsec hl. 
 have /= Hwt := type_prev_arg_leak hwt hequivcopy hvalid'.  
-move: (Hwt y yl y' yl' heval heval')=> [] ->. 
+move: (Hwt y yl y' yl' heval heval')=> ->. 
 rewrite /eval_args_in_leak /= in hin. 
 move: (hin ptis ts sty {| asm_m := m1; asm_f := fn1; asm_c := code2; asm_ip := ip2 |}
        {| asm_m := m2; asm_f := fn2; asm_c := code2; asm_ip := ip2 |} rho)=> {hin} hin.
 rewrite hevals /= hevals' /= in hin.
 by move: (hin (unzip1 ys') (flatten (unzip2 ys')) (unzip1 ys1') (flatten (unzip2 ys1')) hwts hequivcopy hvalid' erefl erefl)
-=> {} [] ->. 
+=> ->. 
 Qed.
 
 Lemma type_prev_args_value : forall c env vp pts a S ad pt ty sty s1 s2 rho v1 leak1 v2 leak2,
@@ -856,7 +856,7 @@ case: a hwt hmw hmw' v' hv' H0 v'' hv'' H1=> //=.
      + move=> hf; subst. rewrite /set_flag /= in hrho'. rewrite /FinMap.set /= !ffunE in hrho'.
        move: hrho'. case: ifP=> //=. 
        + move=> /eqP hfeq' hrho'. rewrite /value_equiv /of_val /to_bool /= in hvalequiv. 
-         move: (hvalequiv hrho')=> {} hvalequiv. by case: hvalequiv.
+         by move: (hvalequiv hrho')=> {} hvalequiv. 
        (* f != f' *)
        by move=> /eqP []. 
     (* f != f' *)
@@ -892,8 +892,8 @@ case: a hwt hmw hmw' v' hv' H0 v'' hv'' H1=> //=.
      move=> /andP [] _ /eqP <-. 
      have := word_uincl_word_extend MSB_MERGE (asm_reg m2 r) hsz hveq. rewrite /word_uincl /=.
      by move=> /andP [] _ /eqP <-.
-   move=> hsz. rewrite !word_extend_big; auto. + unfold not. move=> hsz'. rewrite hsz' /= in hsz. by case: hsz. 
-   + unfold not. move=> hsz'. rewrite hsz' /= in hsz. by case: hsz. 
+   move=> hsz. rewrite !word_extend_big; auto. + unfold not. move=> hsz'. by rewrite hsz' /= in hsz. 
+   + unfold not. move=> hsz'. by rewrite hsz' /= in hsz. 
  (* r != r' *)
  move=> /eqP hneq hregty hrho. by move: (hreg r' l' ws hregty hrho)=> ->.
 (* Explicit *)
@@ -921,8 +921,8 @@ case: (onth args n)=> //= a. case: a=> //=.
       have := word_uincl_word_extend MSB_MERGE (asm_reg m2 r') hsz hveq. 
       rewrite /word_uincl /=. by move=> /andP [] _ /eqP <-.
     rewrite !word_extend_big; auto. 
-    + unfold not. move=> hsz'. rewrite hsz' /= in hsz. by case: hsz. 
-    unfold not. move=> hsz'. rewrite hsz' /= in hsz. by case: hsz.
+    + unfold not. move=> hsz'. by rewrite hsz' /= in hsz. 
+    unfold not. move=> hsz'. by rewrite hsz' /= in hsz. 
   (* r != r' *)
   move=> /eqP hrneq henv hrho. by move: (hreg r' l' ws henv hrho).
 (* regx *)
@@ -1011,8 +1011,8 @@ case: ifP=> //=.
     have := word_uincl_word_extend MSB_MERGE (asm_xreg m2 r') hsz hveq. 
     rewrite /word_uincl /=. by move=> /andP [] _ /eqP <-. 
   rewrite !word_extend_big; auto. 
-  + unfold not. move=> hsz'. rewrite hsz' /= in hsz. by case: hsz. 
-  unfold not. move=> hsz'. rewrite hsz' /= in hsz. by case: hsz. 
+  + unfold not. move=> hsz'. by rewrite hsz' /= in hsz. 
+  unfold not. move=> hsz'. by rewrite hsz' /= in hsz.
 (* r != r' *)
 move=> /eqP hrneq henv hrho. by move: (hxreg r' l' ws henv hrho).
 Admitted.
@@ -1210,7 +1210,7 @@ have hequiv' : state_equiv rho {| asm_m := m; asm_f := f1; asm_c := code1; asm_i
 + constructor; auto; rewrite /=. case: hml=> hr hrx hxr hf hm.
   + by have := mem_write_val_rip_eq hequiv hmw hmw'. + admit. admit.
 by move: (hi ptis ls ts env'' env2 {| asm_m := m; asm_f := f1; asm_c := code1; asm_ip := ip1 |}
-{| asm_m := m''; asm_f := f1; asm_c := code1; asm_ip := ip1 |} rho vs1s vs2s m' m''' ml' ml''' hwts hequiv' hvalid hvalues hmws hmws')=> [] ->. 
+{| asm_m := m''; asm_f := f1; asm_c := code1; asm_ip := ip1 |} rho vs1s vs2s m' m''' ml' ml''' hwts hequiv' hvalid hvalues hmws hmws')=> ->. 
 Admitted.
 
 Lemma type_prev_dests_value : 
