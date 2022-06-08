@@ -327,8 +327,6 @@ module Env : sig
 
   val clone : env -> ty_fun -> vfty list * vfty list (* output type, input type *)
 
-  val pp_venv : Format.formatter -> venv -> unit
-
 end = struct
 
   type env = {
@@ -514,11 +512,6 @@ end = struct
           | Indirect(lp, le) -> Indirect(subst lp, subst le) in
         IsNormal ty in
     List.map doty tyfun.tyout, List.map doty tyfun.tyin
-
-  let pp_venv fmt venv = 
-    Format.fprintf fmt "@[<v>";
-    Mv.iter (fun v vty -> Format.fprintf fmt "%a -> %a@ " (Printer.pp_var ~debug:false) v pp_vty vty) venv.vtype;
-    Format.fprintf fmt "@]";
 
 end
 
@@ -937,10 +930,6 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
     MSF.enter_if msf' (Papp1(Onot, e)), venv1
 
   | Ccall (_, xs, f, es) ->
-    Format.eprintf "Before call@.";
-    Format.eprintf "%a@." Env.pp_venv venv;
-    Format.eprintf "%a@." C.pp (Env.constraints env);
-
     let fty = FEnv.get_fty fenv f in
     let modmsf = fty.modmsf in
     let tyout, tyin = Env.clone env fty in
@@ -969,12 +958,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       let (msf, venv) = ty_lval env msf_e x ty in
       let msf = if vfty = IsMsf then MSF.add (reg_lval ~direct:true loc x) msf else msf in
       (msf, venv) in
-    let (msf,venv) = 
-      List.fold_left2 doout ((if modmsf then MSF.toinit else msf), venv) xs tyout in
-    Format.eprintf "After call@.";
-    Format.eprintf "%a@." Env.pp_venv venv;
-    Format.eprintf "%a@." C.pp (Env.constraints env);
-    (msf, venv)
+    List.fold_left2 doout ((if modmsf then MSF.toinit else msf), venv) xs tyout
 
 and ty_cmd fenv env msf_e c =
   List.fold_left (ty_instr fenv env) msf_e c
