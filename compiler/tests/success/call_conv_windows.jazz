@@ -1,0 +1,16 @@
+export fn foo () -> reg u256 { 
+  reg u256[16] xmm;
+  reg u256 xmm0;
+  inline int i;
+  for i = 0 to 16 {
+    xmm[i] = #set0_256();
+  }
+
+  for i = 0 to 16 { 
+    xmm[0] ^= xmm[i];
+  }
+  
+  xmm0 = xmm[0];
+  return xmm0;
+
+}

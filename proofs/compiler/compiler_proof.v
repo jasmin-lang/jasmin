@@ -500,8 +500,7 @@ Proof.
   have [xd ->] := ok_get_fundef ok_xp ok_fd.
   have [disj_rip ok_lp_rsp ok_globs get_xfun] := assemble_progP ok_xp.
   case/assemble_fdI =>
-    rsp_not_arg
-    /allP ok_callee_saved
+    rsp_not_arg /allP ok_callee_saved
     [] xbody
     [] xargs
     [] xres
@@ -565,10 +564,11 @@ Proof.
       rewrite (XM (ARReg _)).
       by rewrite /get_typed_reg_value /= truncate_word_u.
 
-    apply/allP => x /ok_callee_saved.
-    rewrite /is_arreg /=.
-    case hx: asm_typed_reg_of_var => [ [ r | | | ] | ] // _.
-    by rewrite (asm_typed_reg_of_varI hx) XM /= truncate_word_u.
+    apply/allP => x /ok_callee_saved hin.
+    have [r ->]: exists2 r, x = (var_of_asm_typed_reg r) & vtype x != sbool.
+    + by move/andP: hin => [->] /is_okP [] r /asm_typed_reg_of_varI ->; exists r.
+    rewrite XM /=.
+    by case: r => //= ?; rewrite truncate_word_u.
   move=>
       _wt_largs
       [] vm'
@@ -583,8 +583,10 @@ Proof.
       _
       LM.
   case.
-  - apply/allP => _ /in_map[] r _ ->.
-    by rewrite (XM (ARReg r)) /= truncate_word_u.
+  - apply/allP => ? /mapP [] r hin ->.
+    rewrite (XM r) /=. 
+    assert (H:= callee_saved_not_bool); move/allP: H => /(_ _ hin) {hin}.
+    by case: r => //= r _; rewrite truncate_word_u.
 
   move=> xm' xp_call LM'.
 

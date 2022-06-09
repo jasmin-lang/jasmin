@@ -549,8 +549,25 @@ Variant asm_typed_reg :=
   | ARegX of regx_t
   | AXReg of xreg_t
   | ABReg of rflag_t.
-
 Notation asm_typed_regs := (seq asm_typed_reg).
+
+Definition asm_typed_reg_beq r1 r2 := 
+  match r1, r2 with
+  | ARReg r1, ARReg r2 => r1 == r2 ::>
+  | ARegX r1, ARegX r2 => r1 == r2 ::>
+  | AXReg r1, AXReg r2 => r1 == r2 ::>
+  | ABReg r1, ABReg r2 => r1 == r2 ::>
+  | _       , _        => false
+  end.
+
+Lemma asm_typed_reg_eq_axiom : Equality.axiom asm_typed_reg_beq.
+Proof. case => r1 [] r2 /=; try by (constructor || apply: reflect_inj eqP => ?? []). Qed.
+
+Definition asm_typed_reg_eqMixin := Equality.Mixin asm_typed_reg_eq_axiom.
+Canonical asm_typed_reg_eqType := EqType asm_typed_reg asm_typed_reg_eqMixin.
+
+(* -------------------------------------------------------------------- *)
+(* Function declaration                                                 *)
 
 Record asm_fundef := XFundef
   { asm_fd_align : wsize
@@ -566,19 +583,33 @@ Record asm_prog : Type :=
   ; asm_funcs : seq (funname * asm_fundef)
   }.
 
+(* -------------------------------------------------------------------- *)
+(* Calling Convention                                                   *)
+
+Definition is_ABReg r := 
+  match r with
+  | ABReg _ => true
+  | _ => false
+  end.
+
 Class calling_convention := 
-  { callee_saved   : seq reg_t
+  { callee_saved   : seq asm_typed_reg
+  ; callee_saved_not_bool : all (fun r => ~~is_ABReg r) callee_saved
   ; call_reg_args  : seq reg_t
   ; call_xreg_args : seq xreg_t
   ; call_reg_ret   : seq reg_t 
   ; call_xreg_ret  : seq xreg_t
-(*  ; call_conv_ok   : all 
-    (fun x => negb (mem_seq (T:= @ceqT_eqType _ _) callee_saved x)) (call_reg_args ++ call_reg_ret) *)
   }.
 
 Definition get_ARReg (a:asm_typed_reg) := 
   match a with
   | ARReg r => Some r
+  | _ => None
+  end.
+
+Definition get_ARegX (a:asm_typed_reg) := 
+  match a with
+  | ARegX r => Some r
   | _ => None
   end.
 
@@ -597,7 +628,7 @@ Definition check_call_conv {call_conv:calling_convention} (fd:asm_fundef) :=
     [&& check_list get_ARReg fd.(asm_fd_arg) call_reg_args,
         check_list get_AXReg fd.(asm_fd_arg) call_xreg_args,
         check_list get_ARReg fd.(asm_fd_res) call_reg_ret &
-        check_list get_AXReg fd.(asm_fd_arg) call_xreg_ret].
+        check_list get_AXReg fd.(asm_fd_res) call_xreg_ret].
 
 End DECL.
 

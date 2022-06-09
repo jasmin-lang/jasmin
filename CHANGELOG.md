@@ -15,6 +15,9 @@
 	             using intrasic : x = MOVX(m); m = MOVX(x);
 	add the instruction MOVX_32 and MOVX_64
 
+- new option
+	"-call-conv {windows|linux}": select calling convention (default depend on host architecture)
+
 # Jasmin 22.0
 
 This release is the result of more than two years of active development. It thus

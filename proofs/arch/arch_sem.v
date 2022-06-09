@@ -571,8 +571,13 @@ Definition asmsem_trans P s2 s1 s3 :
   asmsem P s1 s2 -> asmsem P s2 s3 -> asmsem P s1 s3 :=
   rt_trans _ _ s1 s2 s3.
 
-Definition preserved_register (r : reg_t) (m0 m1 : asmmem) :=
-  (asm_reg m0) r = (asm_reg m1) r.
+Definition preserved_register (r : asm_typed_reg) (m0 m1 : asmmem) :=
+  match r with
+  | ARReg r => (asm_reg  m0) r = (asm_reg  m1) r
+  | ARegX r => (asm_regx m0) r = (asm_regx m1) r
+  | AXReg r => (asm_xreg m0) r = (asm_xreg m1) r
+  | ABReg r => (asm_flag m0) r = (asm_flag m1) r
+  end.
 
 Variant asmsem_exportcall
   (p : asm_prog)
@@ -596,7 +601,7 @@ Variant asmsem_exportcall
                    |} in
          asmsem p s s'
       -> (forall r,
-           r \in (callee_saved : seq ceqT_eqType)
+           r \in callee_saved
            -> preserved_register r m m')
       -> asmsem_exportcall p fn m m'.
 
