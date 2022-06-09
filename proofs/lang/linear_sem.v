@@ -6,7 +6,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.
-Require Import psem compiler_util label linear.
+Require Import psem compiler_util label one_varmap linear.
 
 Import Memory.
 
@@ -19,7 +19,7 @@ Local Open Scope seq_scope.
 Section SEM.
 
 Context {pd: PointerData}.
-Context {asm_op} {asmop : asmOp asm_op}.
+Context {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info}.
 Variable P: lprog.
 
 Definition label_in_lcmd (body: lcmd) : seq label :=
@@ -230,7 +230,7 @@ Proof.
   by clear => s s' ? k _ _ /lsem_final_nostep /(_ k).
 Qed.
 
-Variant lsem_exportcall (callee_saved: Sv.t) (m: mem) (fn: funname) (vm: vmap) (m': mem) (vm': vmap) : Prop :=
+Variant lsem_exportcall (m: mem) (fn: funname) (vm: vmap) (m': mem) (vm': vmap) : Prop :=
 | Lsem_exportcall (fd: lfundef) of
     get_fundef P.(lp_funcs) fn = Some fd
   & lfd_export fd

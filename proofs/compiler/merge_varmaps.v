@@ -4,7 +4,6 @@ Require Import one_varmap expr_facts.
 Import Utf8.
 Import all_ssreflect.
 Import expr compiler_util.
-Require Import arch_decl arch_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -44,10 +43,9 @@ Definition ii_loop_iterator :=
 End E.
 
 Section PROG.
-
-Context `{asm_e : asm_extra}.
+Context {pd: PointerData} {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info}.
 Context (p: sprog) (extra_free_registers: instr_info → option var).
-Context (var_tmp : var) (callee_saved: Sv.t).
+Context (var_tmp : var).
 
 (** Set of variables written by a function (including RA and extra registers),
       assuming this information is known for the called functions. *)

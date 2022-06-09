@@ -575,7 +575,6 @@ Definition preserved_register (r : reg_t) (m0 m1 : asmmem) :=
   (asm_reg m0) r = (asm_reg m1) r.
 
 Variant asmsem_exportcall
-  (callee_saved : seq reg_t)
   (p : asm_prog)
   (fn : funname)
   (m m' : asmmem)
@@ -598,6 +597,6 @@ Variant asmsem_exportcall
       -> (forall r,
            r \in (callee_saved : seq ceqT_eqType)
            -> preserved_register r m m')
-      -> asmsem_exportcall callee_saved p fn m m'.
+      -> asmsem_exportcall p fn m m'.
 
 End SEM.

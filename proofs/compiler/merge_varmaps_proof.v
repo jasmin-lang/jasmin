@@ -7,7 +7,6 @@ Import ssrZ.
 Import psem.
 Import merge_varmaps.
 Import compiler_util.
-Require Import arch_decl arch_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -78,12 +77,10 @@ End ASM_OP.
 Section PROG.
 
 Context
-  {reg regx xreg rflag cond asm_op extra_op}
-  {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
+  {pd: PointerData} {asm_op} {asmop:asmOp asm_op} {ovm_i : one_varmap_info}
   (p: sprog)
   (extra_free_registers: instr_info -> option var)
   (id_tmp : Ident.ident)
-  (callee_saved: Sv.t)
   (global_data: pointer).
 
 Let var_tmp : var := vid id_tmp.
@@ -101,16 +98,16 @@ Let wmap := mk_wmap p extra_free_registers var_tmp.
 Notation wrf := (get_wmap wmap).
 
 Lemma checkP u (fn: funname) (fd: sfundef) :
-  check p extra_free_registers var_tmp callee_saved = ok u →
+  check p extra_free_registers var_tmp = ok u →
   get_fundef (p_funcs p) fn = Some fd →
-  valid_writefun wrf (fn, fd) ∧ check_fd p extra_free_registers var_tmp callee_saved wrf fn fd = ok tt.
+  valid_writefun wrf (fn, fd) ∧ check_fd p extra_free_registers var_tmp wrf fn fd = ok tt.
 Proof.
   rewrite /check; t_xrbindP => _ ok_wmap _ _ _ _ ? ok_prog _ ok_fd; split.
   - exact: check_wmapP ok_fd ok_wmap.
   by have [ [] ] := get_map_cfprog_name_gen ok_prog ok_fd.
 Qed.
 
-Hypothesis ok_p : check p extra_free_registers var_tmp callee_saved = ok tt.
+Hypothesis ok_p : check p extra_free_registers var_tmp = ok tt.
 
 Let vgd : var := vid p.(p_extra).(sp_rip).
 Let vrsp : var := vid p.(p_extra).(sp_rsp).
@@ -797,7 +794,7 @@ Section LEMMA.
       + move: hin ra_neq_magic checked_save_stack; clear => /SvD.F.union_1[].
         * rewrite /ra_vm; case: sf_return_address => [ | ra | rastack ]; last by SvD.fsetdec.
           - case/SvD.F.add_iff; first by move => <-.
-            by move => /sv_of_flagsP /in_map[] ? _ ->.
+            by move => /vflagsP ->.
           by move => /Sv.singleton_spec -> /and3P[] _ _ /eqP ->.
         rewrite /saved_stack_vm.
         case: sf_save_stack => [ | ra | ofs ] /=; only 1, 3: SvD.fsetdec.
@@ -845,7 +842,7 @@ Section LEMMA.
       + move: ok_wrf.
         rewrite /valid_writefun /write_fd /saved_stack_valid /=.
         case: sf_save_stack checked_save_stack => // r; t_xrbindP => _ _ _ /Sv_memP r_not_written.
-        rewrite /magic_variables /= /to_var /= => /Sv_memP.
+        rewrite /magic_variables /= => /Sv_memP.
         rewrite Sv.union_spec Sv.add_spec Sv.singleton_spec => ? /Sv.subset_spec ?.
         by apply/and3P; split;
           [apply/eqP | apply/eqP | apply/Sv_memP ];
@@ -901,7 +898,7 @@ End LEMMA.
 Lemma merge_varmaps_export_callP m fn args m' res :
   is_export p fn →
   psem.sem_call p global_data m fn args m' res →
-  sem_one_varmap.sem_export_call p extra_free_registers var_tmp callee_saved global_data m fn args m' res.
+  sem_one_varmap.sem_export_call p extra_free_registers var_tmp global_data m fn args m' res.
 Proof.
   case => fd ok_fd Export.
   move => /merge_varmaps_callP /(_ 1%positive fd _ _ ok_fd).

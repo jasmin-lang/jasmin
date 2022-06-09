@@ -3,6 +3,7 @@ Require Import
   oseq
   compiler_util
   expr
+  one_varmap
   linear
   low_memory
   lea.
@@ -569,6 +570,24 @@ Definition assemble_prog (p : lprog) : cexec asm_prog :=
     map_cfprog_linear (assemble_fd rip rsp) (lp_funcs p)
   in
   ok {| asm_globs := lp_globs p; asm_funcs := fds; |}.
+
+Definition vflags := sv_of_list to_var rflags.
+
+Lemma vflagsP x : Sv.In x vflags -> vtype x = sbool.
+Proof. by move=> /sv_of_listP /in_map [? _ ->]. Qed.
+
+Definition all_vars :=
+    Sv.union (sv_of_list to_var registers)
+   (Sv.union (sv_of_list to_var registerxs)
+   (Sv.union (sv_of_list to_var xregisters)
+             vflags)).
+
+#[global] Instance ovm_i : one_varmap.one_varmap_info := {
+  all_vars     := all_vars; 
+  callee_saved := sv_of_list to_var callee_saved;
+  vflags       := vflags;
+  vflagsP      := vflagsP;
+}.
 
 End ASM_EXTRA.
 
