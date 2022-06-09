@@ -264,7 +264,7 @@ Section Section.
   move=> x fty pe xs ftys pes ih X c args /=.
   case E: (is_reg_ptr_expr _ _ _ _ _) => [y|] /=; last first.
   + by t_xrbindP; case=> c' args' h [<- <-]; apply/PSNone/ih.
-  + t_xrbindP=> /= _ /assertP /and3P[/eqP h1 h2 h3] [c' args'].
+  + t_xrbindP=> /= _ /and3P[/eqP h1 h2 h3] [c' args'].
     by move=> h [<- <-]; apply/PSSome/ih.
   Qed.
   End MakePrologueInd.
@@ -356,7 +356,7 @@ Section Section.
   move=> x fty lv xs ftys lvs ih args /=.
   case E: (is_reg_ptr_lval _ _ _ _ _) => [y|] /=; last first.
   + by t_xrbindP => args' h <-; apply/PSNone/ih.
-  + t_xrbindP=> /= _ /assertP /and3P[/eqP h1 h2 h3] args'.
+  + t_xrbindP=> /= _ /and3P[/eqP h1 h2 h3] args'.
     by move=> h <-; apply/PSSome/ih.
   Qed.
   End MakeEpilogueInd.
@@ -707,9 +707,9 @@ Section Section.
       case/sem_pisE: h => v [] vs' [] s2' [] ? H H0; subst.
       have [s1' [vm2 [hws hsem]]] := ih _ _ H0.
       by exists s1', vm2 ; split => //=; rewrite H.
-    t_xrbindP => _ /assertP /Sv.is_empty_spec.
+    t_xrbindP => _ /Sv.is_empty_spec.
     rewrite /mk_ep_i /= /write_I /read_I /= -/vrv -/read_rv -Sv.is_empty_spec.
-    move=> hrw _ /assertP hwr _ /assertP wflv ?? h; subst c' lvs'.
+    move=> hrw _ hwr _ wflv ?? h; subst c' lvs'.
     case/sem_pisE: h => s3 /sem_IE/sem_iE[] v [] v' [] H ok_v' H3 H0.
     have [s1' [vm2 [hws hsem heqvm]]]:= ih _ _ H0.
     have heqr := eq_onS (disjoint_eq_on hrw H3).
@@ -994,7 +994,7 @@ Section Section.
     + by move=> i _ /to_intI ->.
     + move=> n t; case: v => //= n' t'.
       by rewrite /truncate_val /=; t_xrbindP => t1 hc <-; rewrite /to_arr WArray.castK => -[->].
-    move => w vt; rewrite /truncate_val /=; t_xrbindP => w' h <-.
+    move => w vt. rewrite /truncate_val /=. t_xrbindP => w' h <-.
     rewrite /to_pword.
     assert (h1 := cmp_le_refl w); case: Sumbool.sumbool_of_bool; last by rewrite h1.
     by move=> h2 [<-] /=.

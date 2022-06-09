@@ -204,8 +204,8 @@ Section CoreMem.
   Lemma readV m ptr sz w :
     read m ptr sz = ok w ->
     validw m ptr sz.
-  Proof. 
-    move=> h; apply /validwP; move: h; rewrite /read; t_xrbindP => _ /assertP -> l h _; split => //.
+  Proof.
+    move=> h; apply /validwP; move: h; rewrite /read; t_xrbindP => _ -> l h _; split => //.
     move=> k hk; have {hk}: k \in ziota 0 (wsize_size sz).
     + by rewrite in_ziota !zify.
     rewrite -valid8_validw.    
@@ -229,7 +229,7 @@ Section CoreMem.
     read m p s = ok v ->
     is_align p s /\ (forall i, 0 <= i < wsize_size s -> read m (add p i) U8 = ok (LE.wread8 v i)).
   Proof.
-    rewrite readE; t_xrbindP => _ /assertP ha l hl.
+    rewrite readE; t_xrbindP => _ ha l hl.
     rewrite -{1}(LE.decodeK v) => /LE.decode_inj.
     rewrite -(size_mapM hl) size_ziota LE.size_encode => /(_ refl_equal refl_equal) ?; subst l.
     rewrite LE.encodeE in hl.
@@ -239,7 +239,7 @@ Section CoreMem.
     t_xrbindP => w hw ws hws ??; subst w ws.
     by rewrite inE => /orP [/eqP -> | /(hrec hws)].
   Qed.
-    
+
   Lemma writeP_eq m m' p s (v :word s):
     write m p v = ok m' ->
     read m' p s = ok v.

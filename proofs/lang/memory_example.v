@@ -189,7 +189,7 @@ Module MemoryI : MemoryT.
     set m p w = ok m' ->
     get m' p' = if p == p' then ok w else get m p'.
   Proof.
-    rewrite /set /get; t_xrbindP => _ /assertP ha <- /=.
+    rewrite /set /get; t_xrbindP => _ ha <- /=.
     rewrite /is_init /is_alloc /=.
     case heq: is_zalloc => //=; last by move: ha heq; rewrite /is_alloc; case:eqP => // <- ->.
     rewrite /is_zalloc Mz.setP.
@@ -199,7 +199,7 @@ Module MemoryI : MemoryT.
   Qed.
 
   Lemma get_valid8 m p w : get m p = ok w -> is_alloc m p.
-  Proof. by rewrite /get; t_xrbindP => _ /assertP /andP []. Qed.
+  Proof. by rewrite /get; t_xrbindP => _ /andP []. Qed.
 
   #[ global ]
   Instance CM : coreMem pointer mem :=
@@ -553,7 +553,7 @@ Module MemoryI : MemoryT.
   Proof.
     move => K m p s v m'; rewrite /write; t_xrbindP => _ _.
     elim: ziota m => //=; first by move=> ? [->].
-    by move=> ?? hrec; rewrite {2}/set; t_xrbindP => ??? /assertP /K h <- /hrec <-.
+    by move=> ?? hrec; rewrite {2}/set; t_xrbindP => ??? /K h <- /hrec <-.
   Qed.
 
   Lemma top_stack_write_mem m p s (v: word s) m' :

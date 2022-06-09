@@ -123,7 +123,7 @@ Proof.
   rewrite print_uprogP => ok_pc [].
   rewrite !print_uprogP => ok_pd pe ok_pe.
   rewrite !print_uprogP => pf ok_pf pg.
-  rewrite !print_uprogP => ok_pg ph ok_ph _ /assertP.
+  rewrite !print_uprogP => ok_pg ph ok_ph _.
   rewrite print_uprogP => ok_fvars.
   rewrite print_uprogP => pp ok_pp.
   rewrite print_uprogP => <- {p'} ok_fn exec_p.
@@ -241,7 +241,7 @@ Lemma check_no_ptrP entries ao u fn :
 Proof.
   clear.
   case: u => /allMP h ok_fn; move: (h _ ok_fn).
-  by t_xrbindP => _ /assertP -> /assertP.
+  by t_xrbindP => _ ->.
 Qed.
 
 Lemma allNone_nth {A} (m: seq (option A)) i :
@@ -799,7 +799,7 @@ Lemma compile_prog_to_x86P entries (p: prog) (xp: xprog) m1 fn va m2 vr :
     List.Forall2 value_uincl vr (get_arg_values st2 fd'.(xfd_res)) ∧
     extend_mem m2 st2.(xmem) wrip xp.(xp_globs).
 Proof.
-apply: rbindP=> lp hlp; t_xrbindP => /= _ /assertP /allP ok_sig hxp hfn hsem m1' rip Hex hsafe.
+apply: rbindP=> lp hlp; t_xrbindP => /= _ /allP ok_sig hxp hfn hsem m1' rip Hex hsafe.
 have heq: xp_globs xp = lp_globs lp.
 + by move: hxp; rewrite /assemble_prog; t_xrbindP => _ _; case: x86_variables.reg_of_string => //; t_xrbindP => _ ? _ <-.
 rewrite heq in Hex.

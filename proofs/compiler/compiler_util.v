@@ -260,6 +260,12 @@ Ltac t_xrbindP :=
       let y := fresh "y" in
       apply: rbindP=> y; t_xrbindP; move: y
 
+  | [ |- Result.map _ _ = Ok _ _ -> _ ] =>
+      rewrite /rmap; t_xrbindP
+
+  | [ |- assert _ _ = Ok _ _ -> _ ] =>
+      move=> /assertP; t_xrbindP
+
   | [ |- add_finfo _ _ = ok _ -> _] => 
       move=> /add_finfoP; t_xrbindP
 

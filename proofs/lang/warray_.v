@@ -119,7 +119,7 @@ Module WArray.
     Qed.
  
     Lemma get_valid8 m p w : get8 m p = ok w -> in_bound m p.
-    Proof. by rewrite /get8; t_xrbindP => _ /assertP. Qed.
+    Proof. by rewrite /get8; t_xrbindP. Qed.
 
     Lemma valid8_set m p w m' p' : set8 m p w = ok m' -> in_bound m' p' = in_bound m p'.
     Proof. by rewrite /set8; t_xrbindP => _ _ <-. Qed.
@@ -128,7 +128,7 @@ Module WArray.
       set8 m p w = ok m' ->
       get8 m' p' = if p == p' then ok w else get8 m p'.
     Proof.
-      rewrite /get8 /set8 => /dup[] /valid8_set ->; t_xrbindP => _ /assertP hb <-.
+      rewrite /get8 /set8 => /dup[] /valid8_set ->; t_xrbindP => _ hb <-.
       case heq: in_bound => //=; last by case: eqP => // h;move: heq; rewrite -h hb.
       by rewrite /is_init /= Mz.setP; case: eqP.
     Qed.
