@@ -195,13 +195,22 @@ Qed.
 End LINEARIZATION.
 
 Definition x86_hliparams :
-  h_linearization_params (ap_lip x86_params) :=
+  @h_linearization_params _ _ _ ovm_i (ap_lip x86_params).
+constructor.
+exact x86_spec_lip_allocate_stack_frame.
+exact x86_spec_lip_free_stack_frame.
+exact  x86_spec_lip_ensure_rsp_alignment.
+exact x86_spec_lip_lassign.
+(* FIXME
+  @h_linearization_params (ap_lip x86_params).:=
   {|
     spec_lip_allocate_stack_frame := x86_spec_lip_allocate_stack_frame;
     spec_lip_free_stack_frame := x86_spec_lip_free_stack_frame;
     spec_lip_ensure_rsp_alignment := x86_spec_lip_ensure_rsp_alignment;
     spec_lip_lassign := x86_spec_lip_lassign;
   |}.
+*)
+Defined.
 
 Lemma x86_ok_lip_tmp :
   exists r : reg_t, of_string (lip_tmp (ap_lip x86_params)) = Some r.

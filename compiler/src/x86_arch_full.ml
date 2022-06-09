@@ -13,54 +13,42 @@ module X86 (Lowering_params : sig val lowering_vars : 'a Conv.coq_tbl -> X86_low
 
   let asm_e = X86_extra.x86_extra
   let aparams = X86_params.x86_params
+  let call_conv = X86_decl.x86_linux_call_conv
 
-  (* val rip : reg ?? *)
   let rsp = RSP
 
-  let allocatable = [
-      RAX; RCX; RDX;
-      RSI; RDI;
-      R8; R9; R10; R11;
-      RBP;
-      RBX;
-      R12; R13; R14; R15
-    ]
+  let callee_save = call_conv.callee_saved
 
-  let extra_allocatable = [
-      MM0; MM1; MM2; MM3; MM4; MM5; MM6; MM7
-    ]
+  (* Remark the order is very important this register allocation use this list to 
+     allocate register. The lasts in the list are taken only when needed. 
+     So it is better to have callee_saved at the end *)
+  let allocatable = 
+    let good_order = 
+      List.filter (fun r -> not (List.mem r callee_save)) (Arch_decl.registers x86_decl) 
+      @
+      callee_save in
+    (* be sure that rsp is not used *)
+    List.filter (fun r -> r <> rsp) good_order  
 
-  let xmm_allocatable = [
-    XMM0; XMM1; XMM2; XMM3; XMM4; XMM5; XMM6; XMM7;
-    XMM8; XMM9; XMM10; XMM11; XMM12; XMM13; XMM14; XMM15
-  ]
+  let extra_allocatable = Arch_decl.registerxs x86_decl
 
-  let arguments = [
-    RDI; RSI; RDX; RCX;
-    R8; R9
-  ]
+  let xmm_allocatable = Arch_decl.xregisters x86_decl
 
-  let xmm_arguments = [
-    XMM0; XMM1; XMM2; XMM3; XMM4; XMM5; XMM6; XMM7
-  ]
+  let arguments = call_conv.call_reg_args
 
-  let ret = [
-    RAX; RDX
-  ]
+  let xmm_arguments = call_conv.call_xreg_args
 
-  let xmm_ret = [
-    XMM0; XMM1
-  ]
+  let ret = call_conv.call_reg_ret
 
+  let xmm_ret = call_conv.call_xreg_ret
+
+  (* FIXME: this seems to be not used *)
   let reserved = [
     RSP
   ]
 
-  (* rsp does not need to be saved since it is an invariant
-     of jasmin program *)
-  let callee_save = [
-    RBP; RBX; R12; R13; R14; R15
-  ]
+
+
 
   include Lowering_params
 

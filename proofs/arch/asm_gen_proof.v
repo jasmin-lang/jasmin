@@ -21,7 +21,7 @@ Unset Printing Implicit Defensive.
 
 Section ASM_EXTRA.
 
-Context `{asm_e : asm_extra}.
+Context `{asm_e : asm_extra} {call_conv: calling_convention}.
 
 (* -------------------------------------------------------------------- *)
 Lemma xreg_of_varI {ii x y} :
@@ -1086,17 +1086,26 @@ Lemma assemble_fdI fd fd' :
            [/\ assemble_c agparams rip (lfd_body fd) = ok c
              , mapM typed_reg_of_vari (lfd_arg fd) = ok arg
              , mapM typed_reg_of_vari (lfd_res fd) = ok res
-             & fd' = {| asm_fd_align := lfd_align fd
+             , fd' = {| asm_fd_align := lfd_align fd
                       ; asm_fd_arg := arg
                       ; asm_fd_body := c
                       ; asm_fd_res := res
                       ; asm_fd_export := lfd_export fd
                       ; asm_fd_total_stack := lfd_total_stack fd
                      |}
+             & check_call_conv fd'
            ]
     ].
 Proof.
-  rewrite /assemble_fd; t_xrbindP=> c ok_c _ ok_rsp _ ok_callee_saved arg ok_arg res ok_res <-;
+  rewrite /assemble_fd;
+    t_xrbindP=>
+      c ok_c _
+      ok_rsp _
+      ok_callee_saved
+      arg ok_arg
+      res ok_res
+      _ ok_call_conv
+      <-;
     split.
   - exact: ok_rsp.
   - exact: ok_callee_saved.
@@ -1123,7 +1132,7 @@ Lemma assemble_fd_labels (fn : funname) (fd : lfundef) (fd' : asm_fundef) :
   -> [seq (fn, lbl) | lbl <- label_in_lcmd (lfd_body fd)]
      = [seq (fn, lbl) | lbl <- label_in_asm (asm_fd_body fd')].
 Proof.
-  case/assemble_fdI => _ _ [] c [] _ [] _ [] ok_c _ _ -> /=.
+  case/assemble_fdI => _ _ [] c [] _ [] _ [] ok_c _ _ -> _ /=.
   by rewrite (assemble_c_labels ok_c).
 Qed.
 
@@ -1337,7 +1346,7 @@ Proof.
   - case => fn lbl [<-] /=; t_xrbindP => body.
     case ok_fd: get_fundef => [ fd | // ] [ ] <-{body} pc ok_pc <-{ls'}.
     case/ok_get_fundef: (ok_fd) => fd' ->.
-    case/assemble_fdI => rsp_not_in_args ok_callee_saved [] xc [] _ [] _ [] ok_xc _ _ ->{fd'} /=.
+    case/assemble_fdI => rsp_not_in_args ok_callee_saved [] xc [] _ [] _ [] ok_xc _ _ ->{fd'} _ /=.
     rewrite -(assemble_c_find_label lbl ok_xc) ok_pc /=.
     rewrite ok_fd /=.
     do 2 (eexists; first reflexivity).
@@ -1352,7 +1361,7 @@ Proof.
     rewrite /=.
     case get_fd: (get_fundef _) => [ fd | // ].
     have [fd' -> ] := ok_get_fundef get_fd.
-    case/assemble_fdI => rsp_not_in_args ok_callee_saved [] xc [] _ [] _ [] ok_xc _ _ ->{fd'} /=.
+    case/assemble_fdI => rsp_not_in_args ok_callee_saved [] xc [] _ [] _ [] ok_xc _ _ ->{fd'} _ /=.
     t_xrbindP => pc ok_pc <-{ls'}.
     rewrite -(assemble_c_find_label lbl ok_xc) ok_pc.
     rewrite get_fd /=.
@@ -1482,7 +1491,7 @@ Lemma asm_gen_exportcall fn m vm m' vm' :
 Proof.
   case=> fd ok_fd export lexec saved_registers /allP ok_vm xm M.
   have [ fd' ok_fd' ] := ok_get_fundef ok_fd.
-  case/assemble_fdI => ok_sp ok_callee_saved [] c [] ? [] ? [] ok_c ? ? ?;
+  case/assemble_fdI => ok_sp ok_callee_saved [] c [] ? [] ? [] ok_c ? ? ? ok_call_conv;
     subst fd'.
   set s := {| asm_m := xm; asm_f := fn; asm_c := c; asm_ip := 0; |}.
   have /= := match_state_sem _ lexec.
@@ -1492,6 +1501,7 @@ Proof.
   exists xm'; last exact: M'.
   eexists; first exact: ok_fd'.
   - exact: export.
+  - exact: ok_call_conv. 
   - rewrite /= -(size_mapM ok_c); exact: xexec.
 
   move=> r hr.

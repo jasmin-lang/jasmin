@@ -80,7 +80,7 @@ Notation rflagmap := RflagMap.map.
 (* -------------------------------------------------------------------- *)
 Section SEM.
 
-Context `{asm_d : asm}.
+Context `{asm_d : asm} {call_conv: calling_convention}.
 
 Record asmmem : Type := AsmMem {
   asm_rip  : pointer;
@@ -583,6 +583,7 @@ Variant asmsem_exportcall
     forall (fd : asm_fundef),
       get_fundef (asm_funcs p) fn = Some fd
       -> asm_fd_export fd
+      -> check_call_conv fd
       -> let s := {| asm_m := m
                    ; asm_f := fn
                    ; asm_c := asm_fd_body fd

@@ -40,7 +40,6 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; toS_x :> ToString (sword xreg_size) xreg
   ; toS_f :> ToString sbool rflag
   ; reg_size_neq_xreg_size : reg_size != xreg_size
-  ; callee_saved : seq reg
   ; ad_rsp : reg
   ; inj_toS_reg_regx : forall (r:reg) (rx:regx), to_string r <> to_string rx
   }.
@@ -566,6 +565,39 @@ Record asm_prog : Type :=
   { asm_globs : seq u8
   ; asm_funcs : seq (funname * asm_fundef)
   }.
+
+Class calling_convention := 
+  { callee_saved   : seq reg_t
+  ; call_reg_args  : seq reg_t
+  ; call_xreg_args : seq xreg_t
+  ; call_reg_ret   : seq reg_t 
+  ; call_xreg_ret  : seq xreg_t
+(*  ; call_conv_ok   : all 
+    (fun x => negb (mem_seq (T:= @ceqT_eqType _ _) callee_saved x)) (call_reg_args ++ call_reg_ret) *)
+  }.
+
+Definition get_ARReg (a:asm_typed_reg) := 
+  match a with
+  | ARReg r => Some r
+  | _ => None
+  end.
+
+Definition get_AXReg (a:asm_typed_reg) := 
+  match a with
+  | AXReg r => Some r
+  | _ => None
+  end.
+
+Definition check_list {T} {eqc : eqTypeC T} (get : asm_typed_reg -> option T) (l:asm_typed_regs) (expected:seq T) := 
+  let r := pmap get l in
+  (r : seq (@ceqT_eqType T eqc)) == take (size r) expected.
+
+Definition check_call_conv {call_conv:calling_convention} (fd:asm_fundef) :=
+  implb fd.(asm_fd_export) 
+    [&& check_list get_ARReg fd.(asm_fd_arg) call_reg_args,
+        check_list get_AXReg fd.(asm_fd_arg) call_xreg_args,
+        check_list get_ARReg fd.(asm_fd_res) call_reg_ret &
+        check_list get_AXReg fd.(asm_fd_arg) call_xreg_ret].
 
 End DECL.
 
