@@ -515,7 +515,7 @@ Record instr_desc_t := mk_instr_desc {
   id_wsize      : wsize;  (* ..... *)
   id_pp_asm     : asm_args -> pp_asm_op;
   id_ct         : bool;  (* the instruction is constant time *)
-  id_ct_spec    : id_ct -> constant_time_op (@eq_tuple id_tout) id_semi id_semi;        
+  (*id_ct_spec    : id_ct -> constant_time_op (@eq_tuple id_tout) id_semi id_semi; *)       
 }.
 
 Variant prim_constructor (asm_op:Type) :=
@@ -666,7 +666,7 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t  :=
        id_wsize      := d.(id_wsize);
        id_pp_asm     := d.(id_pp_asm);
        id_ct         := d.(id_ct);
-       id_ct_spec    := @aux ws d.(id_tin) d.(id_tout) d.(id_semi) d.(id_ct) (@id_ct_spec d); |}
+       (*id_ct_spec    := @aux ws d.(id_tin) d.(id_tout) d.(id_semi) d.(id_ct) (@id_ct_spec d);*) |}
     else d (* FIXME do the case for MSB_KEEP *)
   else
     d.
