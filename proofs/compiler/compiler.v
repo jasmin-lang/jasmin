@@ -324,10 +324,10 @@ Definition check_export entries (p: sprog) : cexec unit :=
           else Error (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "unknown export function")))
        ) entries.
 
-Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
+Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
-  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp callee_saved in
+  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp in
   Let pl := linear_prog pd cparams.(extra_free_registers) liparams in
   let pl := cparams.(print_linear) Linearization pl in
   (* tunneling                         *)
@@ -337,8 +337,7 @@ Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
   ok pl.
 
 Definition compiler_back_end_to_asm (entries: seq funname) (p: sprog) :=
-  let callee_saved := sv_of_list to_var callee_saved in
-  Let lp := compiler_back_end callee_saved entries p in
+  Let lp := compiler_back_end entries p in
   assemble_prog agparams lp.
 
 Definition compile_prog_to_asm entries subroutines (p: prog): cexec asm_prog :=

@@ -1471,13 +1471,13 @@ Proof.
   by apply: hxr; rewrite rx.
 Qed.
 
-Lemma asm_gen_exportcall callee_saved fn m vm m' vm' :
-  lsem_exportcall p (sv_of_list to_var callee_saved) m fn vm m' vm'
+Lemma asm_gen_exportcall fn m vm m' vm' :
+  lsem_exportcall p m fn vm m' vm'
   -> vm_initialized_on vm (map to_var callee_saved)
   -> forall xm,
       lom_eqv rip {| emem := m; evm := vm; |} xm
       -> exists2 xm',
-           asmsem_exportcall callee_saved p' fn xm xm'
+           asmsem_exportcall p' fn xm xm'
            & lom_eqv rip {| emem := m'; evm := vm'; |} xm'.
 Proof.
   case=> fd ok_fd export lexec saved_registers /allP ok_vm xm M.

@@ -138,9 +138,9 @@ Definition x86_spec_lip_ensure_rsp_alignment ws ts' :
       [/\ eval_instr lp i (of_estate s fn pc)
           = ok (of_estate (with_vm s vm') fn pc.+1)
         , vm' = (evm s).[vrsp <- ok (pword_of_word al)]%vmap
-              [\sv_of_flags rflags]
+              [\sv_of_list to_var rflags]
         , forall x,
-            Sv.In x (sv_of_flags rflags)
+            Sv.In x (sv_of_list to_var rflags)
             -> ~ is_ok (vm'.[x]%vmap)
             -> (evm s).[x]%vmap = vm'.[x]%vmap
         & wf_vm vm'
@@ -159,12 +159,12 @@ Proof.
     have hneq: forall (f : rflag), to_var f != x.
     + move=> f.
       apply/eqP => heq.
-      apply /hin /sv_of_flagsP /mapP.
+      apply /hin /sv_of_listP /mapP.
       exists f => //.
       rewrite /rflags /x86_decl.rflags.
       by rewrite (mem_cenum (cfinT := finC_rflag)).
     by rewrite !Fv.setP_neq.
-  + move=> x /sv_of_flagsP /mapP [f _ ->].
+  + move=> x /sv_of_listP /mapP [f _ ->].
     by case f;
       repeat (rewrite Fv.setP_eq || rewrite Fv.setP_neq //).
   by do! apply wf_vm_set.

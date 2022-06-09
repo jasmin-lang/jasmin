@@ -6,7 +6,6 @@ Import all_ssreflect.
 Export one_varmap.
 Import psem var.
 Import low_memory.
-Require Import arch_decl arch_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -34,10 +33,6 @@ The semantics also ensures some properties:
 The semantic predicates are indexed by a set of variables which is *precisely* the set of variables that are written during the execution.
  *)
 
-Section ASM_EXTRA.
-
-Context {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}.
-
 Definition get_pvar (e: pexpr) : exec var :=
   if e is Pvar {| gv := x ; gs := Slocal |} then ok (v_var x) else type_error.
 
@@ -47,13 +42,10 @@ Definition get_lvar (x: lval) : exec var :=
 Definition kill_var (x: var) (vm: vmap) : vmap :=
   vm.[x <- pundef_addr (vtype x)].
 
-End ASM_EXTRA.
-
 Notation kill_vars := (Sv.fold kill_var).
 
-Section ASM_EXTRA.
-
-Context {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}.
+Definition vm_after_syscall {ovm_i : one_varmap_info} (vm:vmap) := 
+  kill_vars syscall_kill vm.
 
 Lemma kill_varE vm y x :
   ((kill_var x vm).[y] = if x == y then pundef_addr (vtype y) else vm.[y])%vmap.
@@ -83,11 +75,11 @@ Qed.
 
 Section SEM.
 
-Context
+Context {pd: PointerData} {asm_op} {asmop:asmOp asm_op} {ovm_i : one_varmap_info}
   (p: sprog)
-  (extra_free_registers: instr_info -> option var)
+  (extra_free_registers: instr_info → option var)
   (var_tmp: var)
-  (callee_saved: Sv.t).
+.
 
 Local Notation gd := (p_globs p).
 
@@ -125,7 +117,7 @@ Definition ra_valid fd ii (k: Sv.t) (x: var) : bool :=
   end.
 
 Definition ra_undef_none (ss: saved_stack) (x: var) :=
-  Sv.union (Sv.add x (sv_of_flags rflags)) (savedstackreg ss).
+  Sv.union (Sv.add x vflags) (savedstackreg ss).
 
 Definition ra_undef_vm_none (ss: saved_stack) (x: var) vm : vmap :=
   kill_vars (ra_undef_none ss x) vm.
@@ -353,13 +345,6 @@ Proof.
 Qed.
 
 (*---------------------------------------------------*)
-Lemma sv_of_flagsE x l : Sv.mem x (sv_of_flags l) = (x \in map (fun r => to_var r) l).
-Proof. exact: sv_of_listE. Qed.
-
-Lemma sv_of_flagsP x l : reflect (Sv.In x (sv_of_flags l)) (x \in map (fun r => to_var r) l).
-Proof. exact: sv_of_listP. Qed.
-
-(*---------------------------------------------------*)
 (* Induction principle *)
 Section SEM_IND.
   Variables
@@ -513,5 +498,3 @@ Section SEM_IND.
 End SEM_IND.
 
 End SEM.
-
-End ASM_EXTRA.

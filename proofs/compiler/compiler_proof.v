@@ -327,8 +327,8 @@ Proof.
   exact: m'_mi'.
 Qed.
 
-Lemma compiler_back_end_meta callee_saved entries (p: sprog) (tp: lprog) :
-  compiler_back_end aparams cparams callee_saved entries p = ok tp →
+Lemma compiler_back_end_meta entries (p: sprog) (tp: lprog) :
+  compiler_back_end aparams cparams entries p = ok tp →
   [/\
      lp_rip tp = p.(p_extra).(sp_rip),
      lp_rsp tp = p.(p_extra).(sp_rsp) &
@@ -391,8 +391,8 @@ Qed.
 
 Import sem_one_varmap.
 
-Lemma compiler_back_endP callee_saved entries (p: sprog) (tp: lprog) (rip: word Uptr) (m m':mem) (fn: funname) args res :
-  compiler_back_end aparams cparams callee_saved entries p = ok tp →
+Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) (m m':mem) (fn: funname) args res :
+  compiler_back_end aparams cparams entries p = ok tp →
   fn \in entries →
   psem.sem_call p rip m fn args m' res →
   ∃ fd : lfundef,
@@ -410,7 +410,7 @@ Lemma compiler_back_endP callee_saved entries (p: sprog) (tp: lprog) (rip: word 
         all2 check_ty_val fd.(lfd_tyin) args' ∧
         ∃ vm' lm' res',
           [/\
-            lsem_exportcall tp callee_saved lm fn vm lm' vm',
+            lsem_exportcall tp lm fn vm lm' vm',
             match_mem m' lm',
             mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
             List.Forall2 value_uincl res res' &
@@ -424,7 +424,7 @@ Proof.
   have vtmp_not_magic : ~~ Sv.mem vtmp (magic_variables p).
   - apply/Sv_memP; exact: var_tmp_not_magic checked_p.
   have p_call :
-    sem_export_call p (extra_free_registers cparams) vtmp callee_saved rip m fn args m' res.
+    sem_export_call p (extra_free_registers cparams) vtmp rip m fn args m' res.
   - apply: (merge_varmaps_export_callP checked_p _ exec_p).
     move/allMP: ok_export => /(_ _ ok_fn).
     rewrite /is_export.
@@ -486,7 +486,7 @@ Lemma compiler_back_end_to_asmP
             -> List.Forall2 value_uincl args args'
   (* FIXME: well-typed? all2 check_ty_val fd.(asm_fd_tyin) args' ∧ *)
             -> exists xm' res',
-                [/\ asmsem_exportcall callee_saved xp fn xm xm'
+                [/\ asmsem_exportcall xp fn xm xm'
                   , match_mem m' xm'.(asm_mem)
                   , get_typed_reg_values xm' xd.(asm_fd_res) = ok res'
                     & List.Forall2 value_uincl res res'
@@ -624,6 +624,7 @@ Qed.
    Expressed in a way that streamlines the composition of compiler-correctness theorems (front-end and back-end).
   TODO: There might be an equivalent definition that is clearer.
 *)
+
 Record mem_agreement (m m': mem) (gd: pointer) (data: seq u8) : Prop :=
   { ma_ghost : mem
   ; ma_extend_mem : extend_mem m ma_ghost gd data
@@ -657,7 +658,7 @@ Lemma compile_prog_to_asmP
             -> List.Forall2 value_uincl va args'
   (* FIXME: see comment in compiler_back_end_to_x86P *)
             -> exists xm' res',
-                [/\ asmsem_exportcall callee_saved xp fn xm xm'
+                [/\ asmsem_exportcall xp fn xm xm'
                   , mem_agreement m' (asm_mem xm') (asm_rip xm') (asm_globs xp)
                   , get_typed_reg_values xm' (asm_fd_res xd) = ok res'
                   & List.Forall2 value_uincl vr res'
