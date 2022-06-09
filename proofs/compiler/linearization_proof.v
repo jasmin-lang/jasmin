@@ -643,14 +643,14 @@ Section PROOF.
 
   Local Lemma p_globs_nil : p_globs p = [::].
   Proof.
-    by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ /assertP /eqP /size0nil.
+    by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ /eqP /size0nil.
   Qed.
 
   Local Lemma checked_prog fn fd :
     get_fundef (p_funcs p) fn = Some fd →
     check_fd p extra_free_registers liparams fn fd = ok tt.
   Proof.
-    move: linear_ok; rewrite /linear_prog; t_xrbindP => ? ok_p _ /assertP /eqP _ hp'.
+    move: linear_ok; rewrite /linear_prog; t_xrbindP => ? ok_p _ /eqP _ hp'.
     move: ok_p; rewrite /check_prog; t_xrbindP => r C _ M.
     by have [[]]:= get_map_cfprog_name_gen C M.
   Qed.
@@ -1869,13 +1869,13 @@ Section PROOF.
     move => fr_undef m1 vm2 P Q W M X D C.
     move: chk_call => /=.
     apply rbindP => _ /assertP /negbTE fn'_neq_fn.
-    case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => _ /assertP ok_ra _ /assertP ok_align _.
+    case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => _ ok_ra _ ok_align _.
     have := get_fundef_p' ok_fd'.
     set lfd' := linear_fd _ _ _ _ fd'.
     move => ok_lfd'.
     move: linear_eq; rewrite /= ok_fd' fn'_neq_fn.
     move: (checked_prog ok_fd') => /=; rewrite /check_fd.
-    t_xrbindP => -[] chk_body [] ok_to_save _ /assertP ok_stk_sz _ /assertP ok_ret_addr _ /assertP ok_save_stack _.
+    t_xrbindP => -[] chk_body [] ok_to_save _ ok_stk_sz _ ok_ret_addr _ ok_save_stack _.
     have ok_body' : is_linear_of fn' (lfd_body lfd').
     - by rewrite /is_linear_of; eauto.
     move: ih; rewrite /Pfun; move => /(_ _ _ _ _ _ _ _ _ _ _ ok_body') ih A.
@@ -2293,9 +2293,9 @@ Section PROOF.
     apply: rbindP => last /=.
     apply: rbindP => mid.
     case: (slot a) => // - [] ofs ws /=.
-    t_xrbindP => _ /assertP /lezP lo_le_ofs _ /assertP ok_ws _ /assertP aligned_ofs <-{mid} ih last_le_hi.
+    t_xrbindP => _ /lezP lo_le_ofs _ ok_ws _ aligned_ofs <-{mid} ih last_le_hi.
     exists ofs, ws; split => //.
-    by rewrite /all_disjoint_aligned_between ih.
+    by rewrite /all_disjoint_aligned_between ih /= /assert ifT.
   Qed.
 
   Lemma all_disjoint_aligned_between_range (lo hi: Z) (al: wsize) A (m: seq A) (slot: A → cexec (Z * wsize)) :
@@ -2306,7 +2306,7 @@ Section PROOF.
     apply: Z.le_trans last_le_hi.
     elim: m lo h.
     - by move => ? /ok_inj ->; reflexivity.
-    move => a m ih lo /=; t_xrbindP => mid [] ofs x _; t_xrbindP => _ /assertP /lezP lo_le_ofs _ _ _ /assertP _ <-{mid} /ih.
+    move => a m ih lo /=; t_xrbindP => mid [] ofs x _; t_xrbindP => _ /lezP lo_le_ofs _ _ _ _ <-{mid} /ih.
     have := wsize_size_pos x.
     lia.
   Qed.
@@ -2497,7 +2497,7 @@ Section PROOF.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_sp.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_callee_saved.
     move: (checked_prog ok_fd); rewrite /check_fd /=.
-    t_xrbindP => - [] chk_body [] ok_to_save _ /assertP ok_stk_sz _ /assertP ok_ret_addr _ /assertP ok_save_stack _.
+    t_xrbindP => - [] chk_body [] ok_to_save _ ok_stk_sz _ ok_ret_addr _ ok_save_stack _.
     have ? : fd' = linear_fd p extra_free_registers liparams fn fd.
     - have := get_fundef_p' ok_fd.
       by rewrite ok_fd' => /Some_inj.

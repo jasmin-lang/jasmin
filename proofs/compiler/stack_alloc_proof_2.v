@@ -1251,10 +1251,10 @@ Proof.
   case: (hpmap) => /= hrip hrsp hnew1 hnew2 hglobals hlocals hnew.
   move: hparam => /=.
   set wf_pmap := wf_pmap. (* hack due to typeclass interacting badly *)
-  t_xrbindP=> _ /assertP /Sv_memP hnnew.
+  t_xrbindP=> _ /Sv_memP hnnew.
   case heq: Mvar.get => //.
   case: sao_param => [pi|[<- <- _ _] //].
-  t_xrbindP=> _ /assertP /eqP hregty _ /assertP /Sv_memP hnnew2 _ /assertP harrty.
+  t_xrbindP=> _ /eqP hregty _ /Sv_memP hnnew2 _ harrty.
   case heq1: Mvar.get => //.
   case heq2: Mvar.get => //.
   case heq3: Mvar.get => //.
@@ -1318,7 +1318,7 @@ Proof.
   move=> hpmap hvs hparam.
   have hpmap2 := init_param_wf_pmap hparam hpmap.
   move: hparam => /=.
-  t_xrbindP=> _ /assertP /Sv_memP hnnew.
+  t_xrbindP=> _ /Sv_memP hnnew.
   case heq1: Mvar.get => [//|].
   case: sao_param => [pi|]; last first.
   + move=> [<- <- <- <-].
@@ -1327,7 +1327,7 @@ Proof.
     rewrite /write_var; t_xrbindP => vm1 hvm1 <- /=.
     by apply: set_varP hvm1 => [v' hv <- | hb hv <-]; rewrite /write_var /set_var hv /= ?hb /=;
       eexists;(split;first by reflexivity); apply valid_state_set_var.
-  t_xrbindP=> _ /assertP /eqP hty1 _ /assertP /Sv_memP hnnew2 _ /assertP /is_sarrP [n hty2].
+  t_xrbindP=> _ /eqP hty1 _ /Sv_memP hnnew2 _ /is_sarrP [n hty2].
   case heq2: Mvar.get => //.
   case heq3: Mvar.get => //.
   case heq4: Mvar.get => //.
@@ -1513,7 +1513,7 @@ Proof.
   t_xrbindP=> _ _.
   case: Mvar.get => //.
   case: opi => [pi|//].
-  by t_xrbindP=> _ _ _ _ _ /assertP.
+  by t_xrbindP.
 Qed.
 
 (* [m2] is (at least) [m1] augmented with data [data] at address [rip]. *)
@@ -1979,7 +1979,7 @@ Proof.
   rewrite /alloc_fd /alloc_fd_aux /=.
   t_xrbindP=> ?? hlayout [[??]?] hlocal_map.
   t_xrbindP=> -[[[??]?]?] hparams.
-  t_xrbindP=> _ /assertP /ZleP hextra _ /assertP /ZleP hmax _ _ _ _.
+  t_xrbindP=> _ /ZleP hextra _ /ZleP hmax _ _ _ _.
   have hsize := init_stack_layout_size_ge0 hlayout.
   case: is_RAnone hmax.
   + have := wsize_size_pos (local_alloc fn).(sao_align).
@@ -2002,9 +2002,9 @@ Proof.
   move=> s1 m1 s1' ii rs fn args vargs1 vres1 hvargs1 hsem1 Hf hs1'.
   move=> pmap rsp Slots Addr Writable Align rmap0 rmap2 ii1 ii2 i2 hpmap hwfsl sao /=.
   t_xrbindP=> -[rmap2' i2'] /= halloc ? {ii1 ii2} _ ? m0 s2 hvs hext hsao; subst rmap2' i2'.
-  move: halloc; rewrite /alloc_call.
+  move: halloc; rewrite /alloc_call /assert_check.
   t_xrbindP=> -[rmap1 es] hcargs.
-  t_xrbindP=> -[{rmap2}rmap2 rs2] hcres _ /assertP /ZleP hsize _ /assertP hle /= <- <-.
+  t_xrbindP=> -[{rmap2}rmap2 rs2] hcres _ /ZleP hsize _ hle /= <- <-.
 
   (* evaluation of the arguments *)
   have [vargs2 [hvargs2 hargs hdisj haddr hclear]] :=
@@ -2509,7 +2509,7 @@ Proof.
   move: halloc; rewrite /alloc_fd /alloc_fd_aux /=.
   t_xrbindP=> fd2' stack hlayout [[locals1 rmap1] vnew1] hlocal_map.
   t_xrbindP=> -[[[vnew2 locals2] rmap2] alloc_params] hparams.
-  t_xrbindP=> _ /assertP /ZleP hextra _ /assertP /ZleP hmax.
+  t_xrbindP=> _ /ZleP hextra _ /ZleP hmax.
   move=> [rmap3 c] halloc.
   t_xrbindP=> res hcresults ??; subst fd2 fd2'.
 

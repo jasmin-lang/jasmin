@@ -45,7 +45,7 @@ Let X := vars_p (p_funcs p1).
 
 Lemma viX : ~Sv.In vi X.
 Proof.
-  by move: Hp; rewrite /array_copy_prog; t_xrbindP => fds /assertP /Sv_memP.
+  by move: Hp; rewrite /array_copy_prog; t_xrbindP => fds /Sv_memP.
 Qed.
 
 Let Pi s1 (i1:instr) s2 := 
@@ -126,7 +126,7 @@ Proof.
   move=> [ws n] /(_ _ _ refl_equal) ?; subst o.
   case: is_Pvar (@is_PvarP es) => // y /(_ _ refl_equal) ?; subst es.
   case: is_Lvar (@is_LvarP xs) => // x /(_ _ refl_equal) ?; subst xs.
-  t_xrbindP => _ _ /assertP /eqP htx <- vm1 hvm1.
+  t_xrbindP => _ _ /eqP htx <- vm1 hvm1.
   move: htx hsub hves hw.
   rewrite read_rvs_cons vrvs_cons /vrvs read_rvs_nil read_es_cons /read_es /=.
   rewrite !(SvP.MP.empty_union_2 _ Sv.empty_spec) !(SvP.MP.empty_union_1 _ Sv.empty_spec).

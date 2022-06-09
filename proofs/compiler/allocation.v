@@ -203,7 +203,7 @@ Module CheckBS (C:CheckB) <: CheckBE.
       eq_alloc r s1.(evm) vm2.
   Proof.
     rewrite /init_alloc /init_state /= /init_stk_state /check_vars.
-    t_xrbindP => _ /assertP -/eqP heq _ /assertP -/eqP heeq _ /assertP -/eqP hal hc m' ha; rewrite (@write_vars_lvals _ [::]) => hw.
+    t_xrbindP => _ -/eqP heq _ -/eqP heeq _ -/eqP hal hc m' ha; rewrite (@write_vars_lvals _ [::]) => hw.
     have [vm2 [hvm2 heq2]]:= check_lvalsP (s1 := (Estate m' vmap0)) hc eq_alloc_empty 
                            (List_Forall2_refl _ (@value_uincl_refl)) hw.
     Opaque write_vars.

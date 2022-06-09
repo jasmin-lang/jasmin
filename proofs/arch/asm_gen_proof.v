@@ -199,12 +199,12 @@ Lemma addr_of_pexprP rip ii sz sz' (w:word sz') e adr m s:
   zero_extend sz (decode_addr s adr) = zero_extend sz w.
 Proof.
   rewrite /addr_of_pexpr => hsz lom he.
-  t_xrbindP => _ /assertP hsz64.
+  t_xrbindP => _ hsz64.
   case heq: mk_lea => [lea | //].
   have hsemlea := mk_leaP hsz64 hsz heq he.
   case hb: lea_base => [b | ]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
   case: eqP => [ | _]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
-  t_xrbindP => hbrip _ /assertP /eqP ho <- /=.
+  t_xrbindP => hbrip _ /eqP ho <- /=.
   case: lom => _ hrip _ _ _.
   move: hsemlea; rewrite /sem_lea ho hb /= hbrip hrip /= /truncate_word hsz64 /= => h.
   have <- := ok_inj h.
@@ -319,7 +319,7 @@ Proof.
     rewrite (addr_of_pexprP hws eqm he hadr); eexists; first reflexivity.
     by rewrite /= truncate_word_u.
   case: e => //=.
-  + rewrite /get_gvar /eval_asm_arg => x; t_xrbindP => _ /assertP => ->.
+  + rewrite /get_gvar /eval_asm_arg => x; t_xrbindP => _ => ->.
     case: eqm => _ _ _ eqr eqrx eqx _.
     move=> /xreg_of_varI; case: a' hcomp => // r; rewrite /compat_imm orbF => /eqP <- {a} xr w ok_v ok_w;
     (eexists; first reflexivity);
@@ -327,13 +327,13 @@ Proof.
     + by apply: eqr; rewrite (of_varI xr). 
     + by apply: eqrx; rewrite (of_varI xr). 
     by apply: eqx; rewrite (of_varI xr).
-  + move=> sz x p; t_xrbindP => _ /assertP /eqP <- r hr ?; subst a'.
+  + move=> sz x p; t_xrbindP => _ /eqP <- r hr ?; subst a'.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
     move=> w1 wp vp hget htop wp' vp' hp hp' wr hwr <- /= htr.
     have -> := addr_of_xpexprP eqm hr hget htop hp hp'.
     by case: eqm => <- ?????; rewrite hwr /=; eauto.
   case => //= w' [] //= z.
-  t_xrbindP => _ /assertP /eqP _ h; move: hcomp; rewrite -h /compat_imm /eval_asm_arg => -/orP [/eqP <- | ].
+  t_xrbindP => _ /eqP _ h; move: hcomp; rewrite -h /compat_imm /eval_asm_arg => -/orP [/eqP <- | ].
   + move=> w [] <- /truncate_wordP [hsz ->].
     eexists; first reflexivity.
     by rewrite /to_word truncate_word_u sign_extend_truncate.
@@ -1051,9 +1051,9 @@ Lemma assemble_asm_opP rip ii op lvs args op' asm_args s m m' :
   exists2 s', eval_op op' asm_args s = ok s' & lom_eqv rip m' s'.
 Proof.
   rewrite /assemble_asm_op /eval_op => hsem.
-  t_xrbindP => asm_args' ? _ /assertP hc.
+  t_xrbindP => asm_args' ? _ hc.
   case hci: enforce_imm_i_args_kinds =>
-    {asm_args} [asm_args|//] _ [<-] _ /assertP /andP [hca hcd] <- <- hlo.
+    {asm_args} [asm_args|//] _ [<-] _ /andP [hca hcd] <- <- hlo.
   have hidc := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
   have [s' he' hlo'] := compile_asm_opn hsem hca hcd hidc hlo.
   exists s'; last done.
@@ -1096,14 +1096,7 @@ Lemma assemble_fdI fd fd' :
            ]
     ].
 Proof.
-  rewrite /assemble_fd;
-    t_xrbindP=>
-      c ok_c _
-      /assertP ok_rsp _
-      /assertP ok_callee_saved
-      arg ok_arg
-      res ok_res
-      <-;
+  rewrite /assemble_fd; t_xrbindP=> c ok_c _ ok_rsp _ ok_callee_saved arg ok_arg res ok_res <-;
     split.
   - exact: ok_rsp.
   - exact: ok_callee_saved.
@@ -1175,7 +1168,7 @@ Lemma eval_assemble_word ii sz e a s xs v :
 Proof.
   rewrite /assemble_word /eval_asm_arg => eqm.
   case: e => //=; t_xrbindP.
-  - move=> x _ _ /assertP ok_x /xreg_of_varI h.
+  - move=> x _ _ ok_x /xreg_of_varI h.
     rewrite /get_gvar ok_x => ok_v.
     case: a h => // r ok_r; eexists.
     + reflexivity.
@@ -1221,7 +1214,7 @@ Lemma assemble_progP :
 Proof.
   move: ok_p'.
   rewrite /assemble_prog.
-  t_xrbindP => _ /assertP /andP [/eqP ok_rip /eqP ok_ripx] _ /assertP /eqP ok_rsp fds ok_fds <-.
+  t_xrbindP => _ /andP [/eqP ok_rip /eqP ok_ripx] _ /eqP ok_rsp fds ok_fds <-.
   split => //.
   split => r heq //.
   - move: ok_rip.
@@ -1349,7 +1342,7 @@ Proof.
     rewrite ok_fd /=.
     do 2 (eexists; first reflexivity).
     by constructor.
-  - t_xrbindP=> e _ /assertP /eqP ok_e d ok_d <- ptr v ok_v ok_ptr.
+  - t_xrbindP=> e _ /eqP ok_e d ok_d <- ptr v ok_v ok_ptr.
     change reg_size with Uptr in ptr.
     have [v' ok_v' hvv'] := eval_assemble_word eqm ok_e ok_d ok_v.
     rewrite ok_v' /= (value_uincl_word hvv' ok_ptr) /=.
