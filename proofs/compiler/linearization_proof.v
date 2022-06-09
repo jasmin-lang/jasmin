@@ -2419,8 +2419,8 @@ Section PROOF.
            write m (top + wrepr Uptr ofs)%R v)
           m1 to_spill = ok m2 →
     [/\
-     ∀ ofs ws, (0 <= ofs)%Z → (ofs + wsize_size ws <= lo)%Z → read m2 (top + wrepr Uptr ofs)%R ws = read m1 (top + wrepr Uptr ofs)%R ws
-     &
+     ∀ ofs ws, ((0 <= ofs)%Z /\ (ofs + wsize_size ws <= lo)%Z) \/ (hi <= ofs /\ wunsigned top + ofs + wsize_size ws <= wbase Uptr)%Z → read m2 (top + wrepr Uptr ofs)%R ws = read m1 (top + wrepr Uptr ofs)%R ws
+     & 
      ∀ x ofs, (x, ofs) \in to_spill → exists2 ws, is_word_type x.(vtype) = Some ws & exists2 v, get_var vm x >>= to_word ws = ok v & read m2 (top + wrepr Uptr ofs)%R ws = ok v
     ].
   Proof.
@@ -2435,19 +2435,20 @@ Section PROOF.
     have lo'_pos : (0 <= ofs + wsize_size ws)%Z by lia.
     have {ih} [ih1 ih2] := ih _ _ lo'_pos ok_to_spill rec.
     split.
-    - move => i n i_pos i_n_le_lo.
-      rewrite ih1; only 2-3: lia.
-      have n_pos := wsize_size_pos n.
+    - move => ofs' ws' hofs'.
+      rewrite ih1; last lia.
+      have n_pos := wsize_size_pos ws.
+      have n_pos' := wsize_size_pos ws'.
       have [top_lo _] := wunsigned_range top.
-      rewrite (writeP_neq ok_m1) //; split; last right.
-      1-2: rewrite !zify.
-      1-3: rewrite !wunsigned_add; lia.
+      rewrite (writeP_neq ok_m1) //; split.
+      1-2: rewrite !zify !wunsigned_add; lia. 
+      rewrite !wunsigned_add; lia.
     move => y ofs_y; rewrite inE; case: eqP.
     - case => ->{y} ->{ofs_y} _ /=.
       eexists; first reflexivity.
       exists w; first by rewrite ok_v.
-      rewrite ih1; only 2-3: lia.
-      exact: (writeP_eq ok_m1).
+      rewrite ih1; first by exact: (writeP_eq ok_m1). 
+      lia.
     by move => _ /ih2.
   Qed.
 
@@ -2857,12 +2858,12 @@ Section PROOF.
         set vm_rsp := vm_save.[vrsp <- ok (pword_of_word (top_stack (emem s1) - wrepr Uptr (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))))]%vmap.
         case/and4P: ok_save_stack => /lezP rsp_slot_lo /lezP rsp_slot_hi aligned_frame rsp_slot_aligned.
         have A := alloc_stackP ok_m1'.
-        have can_spill := mm_can_write_after_alloc _ ok_m1' stk_sz_pos stk_extra_pos (cmp_le_trans _ aligned_frame).
+        have can_spill := mm_can_write_after_alloc _ ok_m1' stk_sz_pos stk_extra_pos.
         set top := (top_stack_after_alloc (top_stack (emem s1)) (sf_align (f_extra fd)) (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))).
         have topE : top_stack m1' = top.
         + by rewrite (alloc_stack_top_stack ok_m1').
         set ts := top_stack (emem s1). rewrite /ts. rewrite /= in ts.
-        have [ m2 [] ok_m2 H2 M2 ] := can_spill _ _ _ ts (cmp_le_refl _) rsp_slot_aligned rsp_slot_lo rsp_slot_hi M.
+        have [ m2 [] ok_m2 H2 M2 ] := can_spill _ _ _ ts aligned_frame rsp_slot_aligned rsp_slot_lo rsp_slot_hi M.
 
         set wtop := (X in pword_of_word X) in vm_rsp.
         have vm_rsp_rsp: get_var vm_rsp vrsp = ok (Vword wtop).
@@ -2916,6 +2917,7 @@ Section PROOF.
           rewrite Fv.setP.
           case: eqP => ?; first by (subst; rewrite /= truncate_word_u).
           by case: (_.[_]%vmap).
+        move: ok_to_save; t_xrbindP => _ /ZleP hle_rsp ok_to_save.
         have :
           ∃ m3, [/\
                  foldM (λ '(x, ofs) m,
@@ -2936,9 +2938,9 @@ Section PROOF.
           set prefix := (X in is_linear_of _ (X ++ _ ++ suffix)).
           change 4 with (size prefix).
           move: prefix.
-          have : (sf_stk_sz (f_extra fd) + wsize_size Uptr <= stack_saved_rsp + wsize_size Uptr)%Z.
-          * move: (sf_stk_sz _) rsp_slot_lo; clear => ??; lia.
-          elim: (sf_to_save (f_extra fd)) (stack_saved_rsp + _)%Z wf_to_save ok_to_save m2 H2 M2
+          have : (sf_stk_sz (f_extra fd) <= sf_stk_sz (f_extra fd))%Z by lia.
+          move: wf_to_save ok_to_save m2 H2 M2.
+          elim: (sf_to_save (f_extra fd)) {-2}(sf_stk_sz (f_extra fd))
             => [ sz' _ _ | [x ofs] to_save ih lo /= wf_to_save ok_to_save ] m2 H2 M2 sz'_le_lo prefix ok_body.
           * by exists m2; split; last exact: rt_refl.
           case/andP: wf_to_save => wf_x wf_to_save.
@@ -2955,13 +2957,15 @@ Section PROOF.
             etransitivity; last exact: sz'_le_lo.
             assert (h := wsize_size_pos Uptr).
             move: (sf_stk_sz _) => ?; lia.
-          * exact: all_disjoint_aligned_between_range ok_to_save.
+          * have := all_disjoint_aligned_between_range ok_to_save. 
+            move: hle_rsp. assert (H := wsize_size_pos Uptr).
+            move: (sf_stk_sz _) (sf_stk_extra_sz _) => ?; lia.
           rewrite topE => acc [] ok_acc Hacc ACC.
           have : preserved_metadata s1 m1 acc.
           * transitivity m2; assumption.
           move: ih => /(_ _ _ ACC) ih /ih {} ih.
           rewrite wt_x /= in ok_body.
-          have : (sf_stk_sz (f_extra fd) + wsize_size Uptr <= ofs + wsize_size ws)%Z.
+          have : (sf_stk_sz (f_extra fd) <= ofs + wsize_size ws)%Z.
           * move: (sf_stk_sz _) sz'_le_lo lo_ofs (wsize_size_pos ws) => /=; lia.
           move => /ih {} ih.
           move: (ok_body); rewrite -cat_rcons => /ih{ih} [] m3 [] ok_m3 H3 M3.
@@ -2997,13 +3001,16 @@ Section PROOF.
             by rewrite Fv.setP_eq /= truncate_word_u.
           have /disjointP K := sem_RSP_GD_not_written var_tmp_not_magic exec_body.
           move => /K; apply; exact: RSP_in_magic.
-        have top_no_overflow : (wunsigned top + (sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd)) < wbase Uptr)%Z.
+        have top_no_overflow1 : (wunsigned top + stack_saved_rsp + wsize_size Uptr < wbase Uptr)%Z. 
         + apply: Z.le_lt_trans; last exact: proj2 (wunsigned_range (top_stack (emem s1))).
           etransitivity; last exact: (proj2 A.(ass_above_limit)).
-          rewrite topE; lia.
+          rewrite topE; assert (h :=  wsize_size_pos Uptr). 
+          move: (sf_stk_sz _) (sf_stk_extra_sz _) hle_rsp => ?; lia.
+        have top_no_overflow : (wunsigned top + stack_saved_rsp < wbase Uptr)%Z. 
+        + assert (h := wsize_size_pos Uptr); lia.
         have rsp_slot_pos : (0 <= stack_saved_rsp + wsize_size Uptr)%Z.
         + assert (h := wsize_size_pos Uptr); lia.
-        have [read_in_m3 read_spilled] := read_after_spill top_no_overflow rsp_slot_pos ok_to_save ok_m3.
+        have [read_in_m3 read_spilled] := read_after_spill top_no_overflow stk_sz_pos ok_to_save ok_m3.
         have read_saved_rsp : read m4 (top + wrepr Uptr stack_saved_rsp)%R Uptr = ok (top_stack (emem s1)).
         + rewrite -(@eq_read _ _ _ _ m3); last first.
           * move => i i_range.
@@ -3020,7 +3027,7 @@ Section PROOF.
             change (wsize_size U8) with 1%Z.
             move: (sf_stk_sz _) (sf_stk_extra_sz _) stk_sz_pos stk_extra_pos rsp_range => n n' n_pos n'_pos rsp_range h [] _.
             lia.
-          rewrite read_in_m3; [ | lia | reflexivity ].
+          rewrite read_in_m3; last lia.
           by rewrite -topE (writeP_eq ok_m2).
         have :
           let: tail := pop_to_save p liparams xH (sf_to_save (f_extra fd)) in
@@ -3052,9 +3059,8 @@ Section PROOF.
           rewrite !catA.
           move: [:: _] => suffix.
           move: (P ++ lbody).
-          have : (sf_stk_sz (f_extra fd) + wsize_size Uptr <= stack_saved_rsp + wsize_size Uptr)%Z.
-          * move: (sf_stk_sz _) rsp_slot_lo; clear => ??; lia.
-          elim: (sf_to_save _) (stack_saved_rsp + _)%Z vm4 W4 vm4_get_rsp
+          have : (sf_stk_sz (f_extra fd) <= sf_stk_sz (f_extra fd))%Z by lia.
+          elim: (sf_to_save _) {-1} (sf_stk_sz (f_extra fd))%Z vm4 W4 vm4_get_rsp
           => [ | [ x ofs ] to_save ih ] lo vm4 W4 vm4_get_rsp sz'_le_lo prefix ok_body /all_disjoint_aligned_betweenP ok_to_save wf_to_save read_spilled.
           * exists vm4; split => //.
             rewrite cats0; exact: rt_refl.
@@ -3084,7 +3090,7 @@ Section PROOF.
           move: ih => /(_ _ _ W5 vm5_get_rsp) ih.
           move: (ok_body).
           rewrite -cat_rcons => /ih {} ih.
-          have : (sf_stk_sz (f_extra fd) + wsize_size Uptr <= ofs + wsize_size ws)%Z.
+          have : (sf_stk_sz (f_extra fd) <= ofs + wsize_size ws)%Z. 
           * etransitivity; first exact: sz'_le_lo.
             clear -lo_ofs.
             have := wsize_size_pos ws.
@@ -3114,7 +3120,10 @@ Section PROOF.
                   + move: (sf_stk_sz _) sz'_le_lo lo_ofs => n.
                     assert (h := wsize_size_pos Uptr).
                     lia.
-                  have ofs_hi := all_disjoint_aligned_between_range ok_to_save.
+                  have ofs_hi : (ofs + wsize_size ws <= sf_stk_sz (f_extra fd) + sf_stk_extra_sz (f_extra fd))%Z.
+                  + have := all_disjoint_aligned_between_range ok_to_save. 
+                    assert (h := wsize_size_pos Uptr). 
+                    move: (sf_stk_sz _) (sf_stk_extra_sz _) hle_rsp; lia.
                   have rsp_range := stack_slot_in_bounds ok_m1' stk_sz_pos stk_extra_pos ofs_lo ofs_hi i_range.
                   apply: (preserved_metadata_w ok_m1') => //.
                   - rewrite -topE; move: (sf_stk_sz _) stk_sz_pos rsp_range; lia.

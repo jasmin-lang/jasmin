@@ -16,17 +16,6 @@ module type Core_arch = sig
   val asm_e : (reg, regx, xreg, rflag, cond, asm_op, extra_op) asm_extra
   val aparams : (reg, regx, xreg, rflag, cond, asm_op, extra_op, fresh_vars, lowering_options) Arch_params.architecture_params
   val call_conv : (reg, regx, xreg, rflag, cond) calling_convention
-  val rsp : reg
-
-  val allocatable : reg list
-  val extra_allocatable : regx list
-  val xmm_allocatable : xreg list
-  val arguments : reg list
-  val xmm_arguments : xreg list
-  val ret : reg list
-  val xmm_ret : xreg list
-  val reserved : reg list
-  val callee_save : reg list
 
   val lowering_vars : 'a Conv.coq_tbl -> fresh_vars
   val lowering_opt : lowering_options

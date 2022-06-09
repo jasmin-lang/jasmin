@@ -1080,8 +1080,8 @@ Context (rip rsp : var).
 
 Lemma assemble_fdI fd fd' :
   assemble_fd agparams rip rsp fd = ok fd'
-  -> [/\ rsp \notin [seq v_var x | x <- lfd_arg fd ]
-       , all is_arreg (lfd_callee_saved fd)
+  -> [/\ rsp \notin [seq v_var x | x <- lfd_arg fd ],
+      all is_typed_reg (lfd_callee_saved fd)
        & exists c arg res,
            [/\ assemble_c agparams rip (lfd_body fd) = ok c
              , mapM typed_reg_of_vari (lfd_arg fd) = ok arg
@@ -1106,9 +1106,7 @@ Proof.
       res ok_res
       _ ok_call_conv
       <-;
-    split.
-  - exact: ok_rsp.
-  - exact: ok_callee_saved.
+    split => //.
   by exists c, arg, res.
 Qed.
 
@@ -1151,8 +1149,8 @@ Proof.
   rewrite /assemble_c.
   elim: lc ac.
   - by move => ac [<-].
-    move => li lc ih i' /=; t_xrbindP=> ai ok_ai ac ok_ac <- {i'} /=.
-    by rewrite (ih ac ok_ac) (assemble_i_is_label lbl ok_ai).
+  move => li lc ih i' /=; t_xrbindP=> ai ok_ai ac ok_ac <- {i'} /=.
+  by rewrite (ih ac ok_ac) (assemble_i_is_label lbl ok_ai).
 Qed.
 
 Lemma assemble_c_find_label (lc : lcmd) (ac : asm_code) lbl :
@@ -1346,7 +1344,7 @@ Proof.
   - case => fn lbl [<-] /=; t_xrbindP => body.
     case ok_fd: get_fundef => [ fd | // ] [ ] <-{body} pc ok_pc <-{ls'}.
     case/ok_get_fundef: (ok_fd) => fd' ->.
-    case/assemble_fdI => rsp_not_in_args ok_callee_saved [] xc [] _ [] _ [] ok_xc _ _ ->{fd'} _ /=.
+    case/assemble_fdI => rsp_not_in_args _ [] xc [] _ [] _ [] ok_xc _ _ ->{fd'} _ /=.
     rewrite -(assemble_c_find_label lbl ok_xc) ok_pc /=.
     rewrite ok_fd /=.
     do 2 (eexists; first reflexivity).
@@ -1361,7 +1359,7 @@ Proof.
     rewrite /=.
     case get_fd: (get_fundef _) => [ fd | // ].
     have [fd' -> ] := ok_get_fundef get_fd.
-    case/assemble_fdI => rsp_not_in_args ok_callee_saved [] xc [] _ [] _ [] ok_xc _ _ ->{fd'} _ /=.
+    case/assemble_fdI => rsp_not_in_args _ [] xc [] _ [] _ [] ok_xc _ _ ->{fd'} _ /=.
     t_xrbindP => pc ok_pc <-{ls'}.
     rewrite -(assemble_c_find_label lbl ok_xc) ok_pc.
     rewrite get_fd /=.
@@ -1482,7 +1480,7 @@ Qed.
 
 Lemma asm_gen_exportcall fn m vm m' vm' :
   lsem_exportcall p m fn vm m' vm'
-  -> vm_initialized_on vm (map to_var callee_saved)
+  -> vm_initialized_on vm (map var_of_asm_typed_reg callee_saved)
   -> forall xm,
       lom_eqv rip {| emem := m; evm := vm; |} xm
       -> exists2 xm',
@@ -1491,7 +1489,7 @@ Lemma asm_gen_exportcall fn m vm m' vm' :
 Proof.
   case=> fd ok_fd export lexec saved_registers /allP ok_vm xm M.
   have [ fd' ok_fd' ] := ok_get_fundef ok_fd.
-  case/assemble_fdI => ok_sp ok_callee_saved [] c [] ? [] ? [] ok_c ? ? ? ok_call_conv;
+  case/assemble_fdI => ok_sp _ [] c [] ? [] ? [] ok_c ? ? ? ok_call_conv;
     subst fd'.
   set s := {| asm_m := xm; asm_f := fn; asm_c := c; asm_ip := 0; |}.
   have /= := match_state_sem _ lexec.
@@ -1505,25 +1503,24 @@ Proof.
   - rewrite /= -(size_mapM ok_c); exact: xexec.
 
   move=> r hr.
-
-  have {} hr : to_var r \in map to_var callee_saved.
-  - apply/in_map. exists r => //. by apply/(InP (T := ceqT_eqType)).
-
+  assert (H: var_of_asm_typed_reg r \in map var_of_asm_typed_reg callee_saved).
+  + by apply/in_map; exists r => //; apply/InP.
+  move: H => {} hr.
   have /saved_registers E :
-    Sv.In (to_var r) (sv_of_list to_var callee_saved).
+    Sv.In (var_of_asm_typed_reg r) (sv_of_list var_of_asm_typed_reg callee_saved).
   - by apply/sv_of_listP.
-
+  case: M => /= _ _ _ Mr Mrx Mxr Mf.
+  case: M' => /= _ _ _ Mr' Mrx' Mxr' Mf'.
   move/ok_vm: hr.
-  case: M => /= _ _ _ M _ _.
-  case: M' => /= _ _ _ M' _ _.
-  move: M => /(_ r); move: M' => /(_ r).
-  rewrite /get_var E.
-  case: _.[_]%vmap => [ | [] // ] /= [] sz w sz_le /(_ _ erefl) /= X' /(_ _ erefl) /= X.
-  rewrite /truncate_word; case: ifP => // /(cmp_le_antisym sz_le) ? _; subst sz.
-  rewrite /preserved_register.
-  move/word_uincl_eq: X => <-.
-  move/word_uincl_eq: X' => <-.
-  by [].
+  case: r E => r /= E;
+    [ move: (Mr' r) (Mr r) | move: (Mrx' r) (Mrx r) | move: (Mxr' r) (Mxr r) | move: (Mf' r) (Mf r) ];
+    rewrite /get_var E.
+  1-3: by case: _.[_]%vmap => [ | [] // ] /= [] sz w sz_le /(_ _ erefl) /= X' /(_ _ erefl) /= X;
+       rewrite /truncate_word; case: ifP => // /(cmp_le_antisym sz_le) ? _; subst sz;
+       rewrite -(word_uincl_eq X) -(word_uincl_eq X').
+  case: _.[_]%vmap => [ | [] // ] /= b /(_ _ erefl) /= X' /(_ _ erefl) /= X _.
+  case: (asm_flag xm' r) X' => //= _ <-.   
+  by case: (asm_flag xm r) X => //= _ <-.
 Qed.
 
 Section VMAP_SET_VARS.

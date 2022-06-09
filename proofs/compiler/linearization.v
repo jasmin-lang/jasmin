@@ -21,6 +21,16 @@ Module E.
 
 Definition pass_name := "linearization"%string.
 
+Definition my_error (msg:pp_error) :=
+  {| pel_msg      := msg
+   ; pel_fn       := None
+   ; pel_fi       := None
+   ; pel_ii       := None
+   ; pel_vi       := None
+   ; pel_pass     := Some pass_name
+   ; pel_internal := false
+  |}.
+
 (* FIXME: are there internal errors? *)
 Definition gen_error (internal:bool) (ii:option instr_info) (msg:string) :=
   {| pel_msg      := pp_s msg
@@ -113,7 +123,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
   Definition all_disjoint_aligned_between (lo hi: Z) (al: wsize) A (m: seq A) (slot: A → cexec (Z * wsize)) : cexec unit :=
     Let last := foldM (λ a base,
                        Let: (ofs, ws) := slot a in
-                       Let _ := assert (base <=? ofs)%Z (E.error "to-save: overlap") in
+                       Let _ := assert (base <=? ofs)%Z (E.my_error (pp_hov [::pp_s "to-save: overlap"; pp_e (Pconst base); pp_e (Pconst ofs)])) in
                        Let _ := assert (ws ≤ al)%CMP (E.error "to-save: bad frame alignement") in
                        Let _ := assert (is_align (wrepr Uptr ofs) ws) (E.error "to-save: bad slot alignement") in
                        ok (ofs + wsize_size ws)%Z
@@ -123,9 +133,13 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
   Definition check_to_save (e: stk_fun_extra) : cexec unit :=
     if sf_return_address e is RAnone
     then
+      let stk_size := (sf_stk_sz e + sf_stk_extra_sz e)%Z in
+      Let _ := assert (if sf_save_stack e is SavedStackStk ofs then (ofs + wsize_size Uptr <=? stk_size)%Z else true) 
+                      (E.error "stack size to small") in
       all_disjoint_aligned_between
-        (if sf_save_stack e is SavedStackStk ofs then ofs + wsize_size Uptr else sf_stk_sz e)
-        (sf_stk_sz e + sf_stk_extra_sz e) Uptr (sf_to_save e)
+        (sf_stk_sz e) 
+        (if sf_save_stack e is SavedStackStk ofs then ofs else (sf_stk_sz e + sf_stk_extra_sz e))
+        e.(sf_align) (sf_to_save e)
         (λ '(x, ofs), if is_word_type x.(vtype) is Some ws then ok (ofs, ws) else (Error (E.error "to-save: not a word")))
     else ok tt.
 

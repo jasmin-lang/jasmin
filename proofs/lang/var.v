@@ -290,7 +290,7 @@ End MvMake.
 
 
 Module Var := MvMake Ident.
-Export Var. (* Enrico: On pert les structures canoniques si pas de import *)
+Export Var. 
 Notation var   := Var.var.
 Notation vtype := Var.vtype.
 Notation vname := Var.vname.

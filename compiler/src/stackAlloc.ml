@@ -210,7 +210,7 @@ let memory_analysis pp_err ~debug tbl up =
     let extra =
       let extra = to_save in
       let extra = if rastack then ra :: extra else extra in
-      if has_stack && ro.ro_rsp = None then rsp :: extra
+      if has_stack && ro.ro_rsp = None then extra @ [rsp]
       else extra in
     let extra_size, align, extrapos = Varalloc.extend_sao sao extra in
     let align, max_stk = 

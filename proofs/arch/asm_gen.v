@@ -89,14 +89,61 @@ Proof. by move => /of_var_eP h1 /of_var_eP; apply: inj_of_var. Qed.
 
 End TOSTRING.
 
-Section ASM_EXTRA.
+(* -------------------------------------------------------------------- *)
 
-Context `{asm_e : asm_extra} {call_conv: calling_convention}.
+Section OF_TO.
+
+Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond}.
 
 Definition to_reg   : var -> option reg_t   := of_var.
 Definition to_regx  : var -> option regx_t  := of_var.
 Definition to_xreg  : var -> option xreg_t  := of_var.
 Definition to_rflag : var -> option rflag_t := of_var.
+
+Definition asm_typed_reg_of_var (x: var) : cexec asm_typed_reg :=
+  match to_reg x with
+  | Some r => ok (ARReg r)
+  | None =>
+  match to_regx x with
+  | Some r => ok (ARegX r)
+  | None => 
+  match to_xreg x with
+  | Some r => ok (AXReg r)
+  | None =>
+  match to_rflag x with
+  | Some f => ok (ABReg f)
+  | None =>  Error (E.gen_error true None None (pp_s "can not map variable to a register"))
+  end end end end.
+
+Definition var_of_asm_typed_reg (x : asm_typed_reg) : var :=
+  match x with
+  | ARReg r => to_var r
+  | ARegX r => to_var r
+  | AXReg r => to_var r
+  | ABReg r => to_var r
+  end.
+
+Lemma asm_typed_reg_of_varI x r :
+  asm_typed_reg_of_var x = ok r
+  -> x = var_of_asm_typed_reg r:> var.
+Proof.
+  move=> h;apply/sym_eq; move:h;rewrite /asm_typed_reg_of_var.
+  case heqr: (to_reg x) => [ ? | ].
+  + by move=> [<-]; apply:of_varI.
+  case heqrx: (to_regx x) => [ ? | ].
+  + by move=> [<-]; apply: of_varI.
+  case heqx: (to_xreg x) => [ ? | ].
+  + by move=> [<-]; apply: of_varI.
+  case heqf: (to_rflag x) => [ ? | //].
+  by move=> [<-]; apply: of_varI.
+Qed.
+
+End OF_TO.
+
+Section ASM_EXTRA.
+
+Context `{asm_e : asm_extra} {call_conv: calling_convention}.
+
 
 (* -------------------------------------------------------------------- *)
 (* Compilation of pexprs *)
@@ -481,50 +528,9 @@ Definition assemble_c rip (lc: lcmd) : cexec (seq asm_i) :=
 
 (* -------------------------------------------------------------------- *)
 
-Definition asm_typed_reg_of_var (x: var) : cexec asm_typed_reg :=
-  match to_reg x with
-  | Some r => ok (ARReg r)
-  | None =>
-  match to_regx x with
-  | Some r => ok (ARegX r)
-  | None => 
-  match to_xreg x with
-  | Some r => ok (AXReg r)
-  | None =>
-  match to_rflag x with
-  | Some f => ok (ABReg f)
-  | None =>  Error (E.gen_error true None None (pp_s "can not map variable to a register"))
-  end end end end.
-
-Definition var_of_asm_typed_reg (x : asm_typed_reg) : var :=
-  match x with
-  | ARReg r => to_var r
-  | ARegX r => to_var r
-  | AXReg r => to_var r
-  | ABReg r => to_var r
-  end.
-
-Lemma asm_typed_reg_of_varI x r :
-  asm_typed_reg_of_var x = ok r
-  -> x = var_of_asm_typed_reg r:> var.
-Proof.
-  move=> h;apply/sym_eq; move:h;rewrite /asm_typed_reg_of_var.
-  case heqr: (to_reg x) => [ ? | ].
-  + by move=> [<-]; apply:of_varI.
-  case heqrx: (to_regx x) => [ ? | ].
-  + by move=> [<-]; apply: of_varI.
-  case heqx: (to_xreg x) => [ ? | ].
-  + by move=> [<-]; apply: of_varI.
-  case heqf: (to_rflag x) => [ ? | //].
-  by move=> [<-]; apply: of_varI.
-Qed.
-
-(* -------------------------------------------------------------------- *)
-
-Definition is_arreg x :=
-  if asm_typed_reg_of_var x is Ok (ARReg _)
-  then true
-  else false.
+Definition is_typed_reg x := 
+   (vtype x != sbool) &&
+   is_ok (asm_typed_reg_of_var x).
 
 Definition typed_reg_of_vari xi :=
   let '{| v_var := x; |} := xi in asm_typed_reg_of_var x.
@@ -535,8 +541,8 @@ Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
     (rsp \notin map v_var fd.(lfd_arg))
     (E.gen_error true None None (pp_s "Stack pointer is an argument")) in
   Let _ := assert
-    (all is_arreg fd.(lfd_callee_saved))
-    (E.gen_error true None None (pp_s "Saved variable is not a register")) in
+    (all is_typed_reg fd.(lfd_callee_saved))
+    (E.gen_error true None None (pp_s "Saved variable is not a register")) in 
   Let arg := mapM typed_reg_of_vari fd.(lfd_arg) in
   Let res := mapM typed_reg_of_vari fd.(lfd_res) in
   let fd := 
@@ -547,6 +553,7 @@ Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
      ; asm_fd_export := lfd_export fd
      ; asm_fd_total_stack := lfd_total_stack fd
     |} in
+
   Let _ := assert (check_call_conv fd) 
                   (E.gen_error true None None (pp_s "export function does not respect the calling convention")) in
   ok fd.
@@ -575,6 +582,12 @@ Definition assemble_prog (p : lprog) : cexec asm_prog :=
   in
   ok {| asm_globs := lp_globs p; asm_funcs := fds; |}.
 
+End ASM_EXTRA.
+
+Section OVM_I.
+
+Context {reg regx xreg rflag cond} {ad : arch_decl reg regx xreg rflag cond} {call_conv: calling_convention}.
+
 Definition vflags := sv_of_list to_var rflags.
 
 Lemma vflagsP x : Sv.In x vflags -> vtype x = sbool.
@@ -588,11 +601,11 @@ Definition all_vars :=
 
 #[global] Instance ovm_i : one_varmap.one_varmap_info := {
   all_vars     := all_vars; 
-  callee_saved := sv_of_list to_var callee_saved;
+  callee_saved := sv_of_list var_of_asm_typed_reg callee_saved;
   vflags       := vflags;
   vflagsP      := vflagsP;
 }.
 
-End ASM_EXTRA.
+End OVM_I.
 
 Notation map_cfprog_linear := (map_cfprog_gen lfd_info).

@@ -86,6 +86,20 @@ let set_idirs s =
   | [s1; s2] -> idirs := (s1,s2)::!idirs
   | _ -> hierror ~loc:Lnone ~kind:"parsing arguments" "bad format for -I : ident:path expected"
 
+type call_conv = Linux | Windows 
+
+let call_conv = 
+  ref (if Arch.os = Some `Windows then Windows 
+       else Linux)
+
+let set_cc cc = 
+  let cc = 
+    match cc with
+    | "windows" -> Windows
+    | "linux" -> Linux
+    | _ -> assert false
+  in call_conv := cc
+
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
@@ -161,6 +175,7 @@ let options = [
     "-print-dependencies", Arg.Set print_dependencies, ": print dependencies and exit";
     "-intel", Arg.Unit (set_syntax `Intel), "use intel syntax (default is AT&T)"; 
     "-ATT", Arg.Unit (set_syntax `ATT), "use AT&T syntax (default is AT&T)"; 
+    "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), ": select calling convention (default depend on host architecture)";
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"

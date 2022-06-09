@@ -7,6 +7,7 @@ Require Import
   expr
   psem
   psem_facts
+  one_varmap
   sem_one_varmap.
 Require Import
   linearization
@@ -83,6 +84,7 @@ Definition x86_hsaparams is_regx : h_stack_alloc_params (ap_sap x86_params is_re
 Section LINEARIZATION.
 
 Context
+  {call_conv : calling_convention}
   (lp : lprog)
   (s : estate)
   (sp_rsp : Ident.ident)
@@ -138,9 +140,9 @@ Definition x86_spec_lip_ensure_rsp_alignment ws ts' :
       [/\ eval_instr lp i (of_estate s fn pc)
           = ok (of_estate (with_vm s vm') fn pc.+1)
         , vm' = (evm s).[vrsp <- ok (pword_of_word al)]%vmap
-              [\sv_of_list to_var rflags]
+              [\one_varmap.vflags]
         , forall x,
-            Sv.In x (sv_of_list to_var rflags)
+            Sv.In x (one_varmap.vflags)
             -> ~ is_ok (vm'.[x]%vmap)
             -> (evm s).[x]%vmap = vm'.[x]%vmap
         & wf_vm vm'
@@ -194,23 +196,13 @@ Qed.
 
 End LINEARIZATION.
 
-Definition x86_hliparams :
-  @h_linearization_params _ _ _ ovm_i (ap_lip x86_params).
-constructor.
-exact x86_spec_lip_allocate_stack_frame.
-exact x86_spec_lip_free_stack_frame.
-exact  x86_spec_lip_ensure_rsp_alignment.
-exact x86_spec_lip_lassign.
-(* FIXME
-  @h_linearization_params (ap_lip x86_params).:=
+Definition x86_hliparams {call_conv : calling_convention} : h_linearization_params (ap_lip x86_params) :=
   {|
     spec_lip_allocate_stack_frame := x86_spec_lip_allocate_stack_frame;
     spec_lip_free_stack_frame := x86_spec_lip_free_stack_frame;
     spec_lip_ensure_rsp_alignment := x86_spec_lip_ensure_rsp_alignment;
     spec_lip_lassign := x86_spec_lip_lassign;
   |}.
-*)
-Defined.
 
 Lemma x86_ok_lip_tmp :
   exists r : reg_t, of_string (lip_tmp (ap_lip x86_params)) = Some r.
@@ -536,7 +528,7 @@ Qed.
 
 (* ------------------------------------------------------------------------ *)
 
-Definition x86_h_params : h_architecture_params x86_params :=
+Definition x86_h_params {call_conv : calling_convention} : h_architecture_params x86_params :=
   {|
     hap_hsap := x86_hsaparams;
     hap_hlip := x86_hliparams;
