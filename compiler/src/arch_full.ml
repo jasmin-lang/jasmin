@@ -1,3 +1,4 @@
+open Arch_decl
 open Arch_extra
 open Prog
 
@@ -16,6 +17,7 @@ module type Core_arch = sig
 
   val asm_e : (reg, regx, xreg, rflag, cond, asm_op, extra_op) asm_extra
   val aparams : (reg, regx, xreg, rflag, cond, asm_op, extra_op, fresh_vars, lowering_options) Arch_params.architecture_params
+  val call_conv : (reg, regx, xreg, rflag, cond) calling_convention
 
   val rsp : reg
 

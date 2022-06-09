@@ -144,7 +144,7 @@ Record stack_alloc_oracles : Type :=
   }.
 
 Record compiler_params
-  `{asm_e : asm_extra}
+  `{asm_e : asm_extra} 
   (fresh_vars lowering_options : Type) := {
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
   expand_fd        : funname -> _ufundef -> expand_info;
@@ -175,7 +175,7 @@ Record compiler_params
 }.
 
 Context
-  `{asm_e : asm_extra}
+  `{asm_e : asm_extra} {call_conv: calling_convention}
   {fresh_vars lowering_options : Type}
   (aparams : architecture_params fresh_vars lowering_options)
   (cparams : compiler_params fresh_vars lowering_options).

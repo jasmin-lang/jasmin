@@ -469,6 +469,7 @@ let main () =
     begin match
       Compiler.compile_prog_to_asm
         Arch.asm_e
+        Arch.call_conv
         Arch.aparams
         cparams
         export_functions

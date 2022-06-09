@@ -23,7 +23,7 @@ Unset Printing Implicit Defensive.
 
 
 Record h_lowering_params
-  `{asm_e : asm_extra}
+  `{asm_e : asm_extra} 
   (fresh_vars lowering_options : Type)
   (loparams : lowering_params fresh_vars lowering_options) :=
   {
@@ -56,7 +56,7 @@ Record h_lowering_params
   }.
 
 Record h_architecture_params
-  `{asm_e : asm_extra}
+  `{asm_e : asm_extra} {call_conv:calling_convention}
   (fresh_vars lowering_options : Type)
   (aparams : architecture_params fresh_vars lowering_options) :=
   {

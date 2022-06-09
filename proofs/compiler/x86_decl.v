@@ -387,9 +387,6 @@ Instance eqC_condt : eqTypeC condt :=
 
 (* -------------------------------------------------------------------- *)
 
-Definition x86_callee_saved : seq register :=
-  [:: RBX; RBP; RSP; R12; R13; R14; R15 ].
-
 Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
   { reg_size := U64
   ; xreg_size := U256
@@ -398,9 +395,14 @@ Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
   ; toS_x := x86_xreg_toS
   ; toS_f := x86_rflag_toS
   ; reg_size_neq_xreg_size := refl_equal
-  ; callee_saved := x86_callee_saved
   ; ad_rsp := RSP
   ; inj_toS_reg_regx := x86_inj_toS_reg_regx
   }.
 
-
+Instance x86_linux_call_conv : calling_convention := 
+  {| callee_saved   := [:: RBX; RBP; RSP; R12; R13; R14; R15 ]
+   ; call_reg_args  := [:: RDI; RSI; RDX; RCX; R8; R9]
+   ; call_xreg_args := [:: XMM0; XMM1; XMM2; XMM3; XMM4; XMM5; XMM6; XMM7]
+   ; call_reg_ret   := [:: RAX; RDX]
+   ; call_xreg_ret  := [:: XMM0; XMM1]
+  |}.

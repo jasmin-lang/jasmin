@@ -91,7 +91,7 @@ End TOSTRING.
 
 Section ASM_EXTRA.
 
-Context `{asm_e : asm_extra}.
+Context `{asm_e : asm_extra} {call_conv: calling_convention}.
 
 Definition to_reg   : var -> option reg_t   := of_var.
 Definition to_regx  : var -> option regx_t  := of_var.
@@ -539,13 +539,17 @@ Definition assemble_fd (rip rsp : var) (fd : lfundef) :=
     (E.gen_error true None None (pp_s "Saved variable is not a register")) in
   Let arg := mapM typed_reg_of_vari fd.(lfd_arg) in
   Let res := mapM typed_reg_of_vari fd.(lfd_res) in
-  ok {| asm_fd_align := lfd_align fd
-      ; asm_fd_arg := arg
-      ; asm_fd_body := fd'
-      ; asm_fd_res := res
-      ; asm_fd_export := lfd_export fd
-      ; asm_fd_total_stack := lfd_total_stack fd
-     |}.
+  let fd := 
+    {| asm_fd_align := lfd_align fd
+     ; asm_fd_arg := arg
+     ; asm_fd_body := fd'
+     ; asm_fd_res := res
+     ; asm_fd_export := lfd_export fd
+     ; asm_fd_total_stack := lfd_total_stack fd
+    |} in
+  Let _ := assert (check_call_conv fd) 
+                  (E.gen_error true None None (pp_s "export function does not respect the calling convention")) in
+  ok fd.
 
 (* -------------------------------------------------------------------- *)
 
