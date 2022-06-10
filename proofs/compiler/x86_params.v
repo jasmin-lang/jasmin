@@ -5,9 +5,7 @@ Require Import
   arch_params
   compiler_util
   expr
-  psem
-  psem_facts
-  sem_one_varmap.
+  psem.
 Require Import
   linearization
   lowering
