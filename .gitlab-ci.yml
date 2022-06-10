@@ -17,6 +17,13 @@ variables:
 
   VERSION: development version at commit $CI_COMMIT_SHA on branch $CI_COMMIT_REF_NAME
 
+workflow:
+  rules:
+  - if: $CI_MERGE_REQUEST_IID
+  - if: $CI_OPEN_MERGE_REQUESTS
+    when: never
+  - if: $CI_COMMIT_BRANCH
+
 .common:
   before_script:
   - nix-shell -p nix-info --run 'nix-info -m'
