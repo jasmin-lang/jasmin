@@ -521,8 +521,8 @@ Qed.
 (* -------------------------------------------------------------------- *)
 
 Definition is_arreg x :=
-  if asm_typed_reg_of_var x is Ok (ARReg _)
-  then true
+  if asm_typed_reg_of_var x is Ok r
+  then if r is ABReg _ then false else true
   else false.
 
 Definition typed_reg_of_vari xi :=

@@ -567,8 +567,9 @@ Proof.
 
     apply/allP => x /ok_callee_saved.
     rewrite /is_arreg /=.
-    case hx: asm_typed_reg_of_var => [ [ r | | | ] | ] // _.
-    by rewrite (asm_typed_reg_of_varI hx) XM /= truncate_word_u.
+    case hx: asm_typed_reg_of_var =>  [ r | // ] r_not_bool.
+    rewrite (asm_typed_reg_of_varI hx) XM /= /var_of_asm_typed_reg.
+    by case: r  r_not_bool {hx} => // ? /=; rewrite truncate_word_u.
   move=>
       _wt_largs
       [] vm'
