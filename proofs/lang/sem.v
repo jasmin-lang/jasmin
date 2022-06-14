@@ -241,21 +241,6 @@ Record estate {pd: PointerData} := Estate {
   evm  : vmap
 }.
 
-Definition Varr_inj n n' t t' (e: @Varr n t = @Varr n' t') :
-  ∃ (en: n = n'),
-      eq_rect n (λ s, WArray.array s) t n' en = t' :=
-  let 'Logic.eq_refl := e in
-    (ex_intro _ erefl erefl).
-
-Lemma Varr_inj1 n t t' : @Varr n t = @Varr n t' -> t = t'.
-Proof.
-  by move => /Varr_inj [en ]; rewrite (Eqdep_dec.UIP_dec Pos.eq_dec en erefl).
-Qed.
-
-Definition Vword_inj sz sz' w w' (e: @Vword sz w = @Vword sz' w') :
-  ∃ e : sz = sz', eq_rect sz (λ s, (word s)) w sz' e = w' :=
-  let 'Logic.eq_refl := e in (ex_intro _ erefl erefl).
-
 Definition get_global_value (gd: glob_decls) (g: var) : option glob_value :=
   assoc gd g.
 
@@ -337,9 +322,6 @@ Proof.
   have h := type_of_get_gvar hx; case: vx h hx => // len t h.
   by apply: H;rewrite -h.
 Qed.
-
-Definition is_defined (v: value) : bool :=
-  if v is Vundef _ _ then false else true.
 
 Section SEM_PEXPR.
 
@@ -426,18 +408,6 @@ Definition write_lvals (s:estate) xs vs :=
    fold2 ErrType write_lval xs vs s.
 
 End SEM_PEXPR.
-
-
-(* ---------------------------------------------------------------- *)
-Definition is_word (sz: wsize) (v: value) : exec unit :=
-  match v with
-  | Vword _ _ | Vundef (sword _) _ => ok tt
-  | _ => type_error end.
-
-Lemma is_wordI sz v u :
-  is_word sz v = ok u →
-  subtype (vundef_type (sword sz)) (type_of_val v).
-Proof. case: v => // [ sz' w | [] // ] _; exact: wsize_le_U8. Qed.
 
 (* ---------------------------------------------------------------- *)
 
@@ -732,39 +702,6 @@ Section SEM_IND.
     end.
 
 End SEM_IND.
-
-Lemma of_val_undef t t' hn:
-  of_val t (Vundef t' hn) =
-    Error (if subtype t t' then ErrAddrUndef else ErrType).
-Proof. by case: t t' hn => //= [ | | p | s] []. Qed.
-
-Lemma of_val_undef_ok t t' hn v:
-  of_val t (Vundef t' hn) <> ok v.
-Proof. by rewrite of_val_undef. Qed.
-
-Lemma of_varr t n (a:WArray.array n) z :
-  of_val t (Varr a) = ok z -> subtype t (sarr n).
-Proof.
-  by case: t z => //= n' z; rewrite /WArray.cast; case: ifP.
-Qed.
-
-Lemma of_vword t s (w: word s) z :
-  of_val t (Vword w) = ok z -> exists s', (s' <= s)%CMP /\ t = sword s'.
-Proof.
-  case: t z => //= s' w' H.
-  exists s';split => //=.
-  by move: H; rewrite /truncate_word;  case: (s' <= s)%CMP => //=.
-Qed.
-
-Lemma of_vint t n z :
-  of_val t (Vint n) = ok z -> t = sint.
-Proof.
-  case: t z => //= s' w'.
-Qed.
-
-Lemma of_vbool ty b v :
-  of_val ty (Vbool b) = ok v → ∃ e : ty = sbool, ecast ty (sem_t ty) e v = b.
-Proof. by case: ty v => // _ /ok_inj <-; exists erefl. Qed.
 
 End SEM.
 
