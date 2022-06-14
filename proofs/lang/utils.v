@@ -241,16 +241,17 @@ Ltac t_rbindP := do? (apply: rbindP => ??).
 Ltac t_xrbindP :=
   match goal with
   | [ |- Result.bind _ _ = Ok _ _ -> _ ] =>
-      let y := fresh "y" in
-      apply: rbindP=> y; t_xrbindP; move: y
+      apply: rbindP; t_xrbindP
   | [ |- Result.map _ _ = Ok _ _ -> _ ] =>
       rewrite /rmap; t_xrbindP
   | [ |- assert _ _ = Ok _ _ -> _ ] =>
       move=> /assertP; t_xrbindP
+  | [ |- unit -> _ ] =>
+      case; t_xrbindP
   | [ |- ok _ = ok _ -> _ ] =>
       case; t_xrbindP
-  | [ |- _ -> _ ] =>
-      let h := fresh "h" in move=> h; t_xrbindP; move: h
+  | [ |- forall h, _ ] =>
+      let hh := fresh h in move=> hh; t_xrbindP; move: hh
   | _ => idtac
   end.
 
@@ -531,8 +532,8 @@ Section ALLM.
   Proof.
     rewrite /allM.
     elim: m => // a' m' ih; rewrite inE; case: eqP.
-    - by move => <- _ /=; t_xrbindP => - [].
-    by move => _ {}/ih /=; t_xrbindP => ih [] _ /ih.
+    - by move => <- _ /=; t_xrbindP.
+    by move => _ {}/ih /=; t_xrbindP.
   Qed.
 
 End ALLM.

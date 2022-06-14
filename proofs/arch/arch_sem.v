@@ -488,11 +488,11 @@ Proof.
   - by move => ? _; case: d.1 => // - [] // ? /ok_inj <-.
   move => ? ? _; case: d.1 => [ [] | ] //=.
   - by move => ? /ok_inj <-.
-  move => _ ? ?; case: onth => //; t_xrbindP => - [] //.
-  - by move => ? _ _ /ok_inj <-.
-  - by move => ? _ _ /ok_inj <-.
-  - move => ? ? _; exact: mem_write_mem_invariant.
-  by move => ? _ _ /ok_inj <-.
+  move => _ ? ?; case: onth => //; t_xrbindP => - [] // ? _.
+  - by move=> /ok_inj <-.
+  - by move=> /ok_inj <-.
+  - by exact: mem_write_mem_invariant.
+  by move => /ok_inj <-.
 Qed.
 
 Lemma mem_write_vals_invariant f xs ys tys zs (s s': asmmem) :

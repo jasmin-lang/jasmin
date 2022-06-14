@@ -29,7 +29,7 @@ Local Definition vi :=
   {| vtype := sint ; vname := fresh_counter |}.
 
 Lemma eq_globs : gd = p_globs p2.
-Proof. by move: Hp; rewrite /array_copy_prog; t_xrbindP => ???? <-. Qed.
+Proof. by move: Hp; rewrite /array_copy_prog; t_xrbindP => ??? <-. Qed.
 
 Lemma all_checked fn fd1 :
   get_fundef (p_funcs p1) fn = Some fd1 ->
@@ -37,7 +37,7 @@ Lemma all_checked fn fd1 :
     array_copy_fd fresh_counter fd1 = ok fd2 & 
     get_fundef (p_funcs p2) fn = Some fd2.
 Proof.
-  move: Hp; rewrite /array_copy_prog; t_xrbindP => ? h fds h1 <- hf.
+  move: Hp; rewrite /array_copy_prog; t_xrbindP => h fds h1 <- hf.
   apply: (get_map_cfprog_gen h1 hf).
 Qed.
 
@@ -45,7 +45,7 @@ Let X := vars_p (p_funcs p1).
 
 Lemma viX : ~Sv.In vi X.
 Proof.
-  by move: Hp; rewrite /array_copy_prog; t_xrbindP => fds /Sv_memP.
+  by move: Hp; rewrite /array_copy_prog; t_xrbindP => /Sv_memP.
 Qed.
 
 Let Pi s1 (i1:instr) s2 := 
@@ -126,7 +126,7 @@ Proof.
   move=> [ws n] /(_ _ _ refl_equal) ?; subst o.
   case: is_Pvar (@is_PvarP es) => // y /(_ _ refl_equal) ?; subst es.
   case: is_Lvar (@is_LvarP xs) => // x /(_ _ refl_equal) ?; subst xs.
-  t_xrbindP => _ _ /eqP htx <- vm1 hvm1.
+  t_xrbindP => _ /eqP htx <- vm1 hvm1.
   move: htx hsub hves hw.
   rewrite read_rvs_cons vrvs_cons /vrvs read_rvs_nil read_es_cons /read_es /=.
   rewrite !(SvP.MP.empty_union_2 _ Sv.empty_spec) !(SvP.MP.empty_union_1 _ Sv.empty_spec).
@@ -308,7 +308,7 @@ Proof.
   move=> vargs vargs' s0 s1 s2 vres vres' hget hca hi hw _ hc hres hcr hfi vargs1 hva.
   have [fd2 hfd hget']:= all_checked hget.
   have hpex : p_extra p1 = p_extra p2.
-  + by move: Hp; rewrite /array_copy_prog; t_xrbindP => ???? <-.
+  + by move: Hp; rewrite /array_copy_prog; t_xrbindP => ??? <-.
   have [vargs1' hca' uvargs'] := mapM2_truncate_val hca hva.
   have [vm2 hw' hvm2] := write_vars_uincl (vm_uincl_refl (evm s0)) uvargs' hw.
   have := vars_pP hget; rewrite /vars_fd -/X => /= hsub.

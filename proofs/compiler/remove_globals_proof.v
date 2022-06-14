@@ -739,7 +739,7 @@ Module RGP. Section PROOFS.
     subst m2; case: (hs2') => /= hmem hm _ _.
     have hres2 : mapM (fun x : var_i => get_var (evm s2') x) (f_res f) = ok vres.
     + elim: (f_res f) (vres) res1 hres1 hres => //= x xs hrec vres0 res1.
-      t_xrbindP => ?; case: ifPn => hglob // [<-] ? /hrec hres1 ? v hx vs /hres1 hxs ?.
+      t_xrbindP; case: ifPn => hglob // _ ? /hrec hres1 ? v hx vs /hres1 hxs ?.
       by subst res1 vres0; rewrite -hm //= hx /= hxs.
     econstructor; eauto.
   Qed.

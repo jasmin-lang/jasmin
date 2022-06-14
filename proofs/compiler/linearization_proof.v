@@ -636,19 +636,19 @@ Section PROOF.
       checked_c fn (i :: c) →
       checked_i fn i ∧ checked_c fn c.
     Proof.
-      by case/checked_cE => fd ok_fd; rewrite /checked_c /checked_i ok_fd /= ; t_xrbindP => - [] -> ->.
+      by case/checked_cE => fd ok_fd; rewrite /checked_c /checked_i ok_fd /= ; t_xrbindP => -> ->.
     Qed.
 
   Local Lemma p_globs_nil : p_globs p = [::].
   Proof.
-    by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ /eqP /size0nil.
+    by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ /eqP /size0nil.
   Qed.
 
   Local Lemma checked_prog fn fd :
     get_fundef (p_funcs p) fn = Some fd →
     check_fd p extra_free_registers liparams fn fd = ok tt.
   Proof.
-    move: linear_ok; rewrite /linear_prog; t_xrbindP => ? ok_p _ /eqP _ hp'.
+    move: linear_ok; rewrite /linear_prog; t_xrbindP => ok_p /eqP _ hp'.
     move: ok_p; rewrite /check_prog; t_xrbindP => r C _ M.
     by have [[]]:= get_map_cfprog_name_gen C M.
   Qed.
@@ -658,18 +658,18 @@ Section PROOF.
     get_fundef (lp_funcs p') f
     = Some (linear_fd p extra_free_registers liparams f fd).
   Proof.
-    move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ _ <- /=.
+    move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ <- /=.
     by rewrite /get_fundef assoc_map2 => ->.
   Qed.
 
   Lemma lp_ripE : lp_rip p' = sp_rip p.(p_extra).
-  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ _ <-. Qed.
+  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ <-. Qed.
 
   Lemma lp_rspE : lp_rsp p' = sp_rsp p.(p_extra).
-  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ _ <-. Qed.
+  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ <-. Qed.
 
   Lemma lp_globsE : lp_globs p' = sp_globs p.(p_extra).
-  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ _ _ <-. Qed.
+  Proof. by move: linear_ok; rewrite /linear_prog; t_xrbindP => _ _ <-. Qed.
 
   Local Coercion emem : estate >-> mem.
   Local Coercion evm : estate >-> vmap.
@@ -1508,7 +1508,7 @@ Section PROOF.
     rewrite /checked_i ok_fd /=.
     case: eqP.
     - by move => ?; subst e.
-    t_xrbindP => e_neq_false Hw [] ok_c ok_c'.
+    t_xrbindP => e_neq_false Hw ok_c ok_c'.
     move: Hw.
     rewrite ok_c ok_c' => /(_ erefl).
     move: ok_e Ew e_neq_false.
@@ -1762,7 +1762,7 @@ Section PROOF.
       apply: vmap_eq_exceptI K; SvD.fsetdec.
     }
     (* arbitrary expression *)
-    t_xrbindP => e_not_trivial [] ok_c ok_c'.
+    t_xrbindP => e_not_trivial ok_c ok_c'.
     replace (is_bool e) with (@None bool);
       last by case: is_boolP ok_e e_not_trivial => // - [].
     case: c' ok_c' => [ | i c' ] ok_c'.
@@ -1866,14 +1866,14 @@ Section PROOF.
     case linear_eq: linear_i => [lbli li].
     move => fr_undef m1 vm2 P Q W M X D C.
     move: chk_call => /=.
-    apply rbindP => _ /assertP /negbTE fn'_neq_fn.
-    case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => _ ok_ra _ ok_align _.
+    t_xrbindP => /negbTE fn'_neq_fn.
+    case ok_fd': (get_fundef _ fn') => [ fd' | ] //; t_xrbindP => ok_ra ok_align _.
     have := get_fundef_p' ok_fd'.
     set lfd' := linear_fd _ _ _ _ fd'.
     move => ok_lfd'.
     move: linear_eq; rewrite /= ok_fd' fn'_neq_fn.
     move: (checked_prog ok_fd') => /=; rewrite /check_fd.
-    t_xrbindP => -[] chk_body [] ok_to_save _ ok_stk_sz _ ok_ret_addr _ ok_save_stack _.
+    t_xrbindP => chk_body ok_to_save ok_stk_sz ok_ret_addr ok_save_stack _.
     have ok_body' : is_linear_of fn' (lfd_body lfd').
     - by rewrite /is_linear_of; eauto.
     move: ih; rewrite /Pfun; move => /(_ _ _ _ _ _ _ _ _ _ _ ok_body') ih A.
@@ -2291,7 +2291,7 @@ Section PROOF.
     apply: rbindP => last /=.
     apply: rbindP => mid.
     case: (slot a) => // - [] ofs ws /=.
-    t_xrbindP => _ /lezP lo_le_ofs _ ok_ws _ aligned_ofs <-{mid} ih last_le_hi.
+    t_xrbindP => /lezP lo_le_ofs ok_ws aligned_ofs <-{mid} ih last_le_hi.
     exists ofs, ws; split => //.
     by rewrite /all_disjoint_aligned_between ih /= /assert ifT.
   Qed.
@@ -2300,11 +2300,11 @@ Section PROOF.
     all_disjoint_aligned_between lo hi al m slot = ok tt →
     (lo <= hi)%Z.
   Proof.
-    apply: rbindP => last h /assertP /lezP last_le_hi.
+    rewrite /all_disjoint_aligned_between; t_xrbindP => last h /lezP last_le_hi.
     apply: Z.le_trans last_le_hi.
     elim: m lo h.
     - by move => ? /ok_inj ->; reflexivity.
-    move => a m ih lo /=; t_xrbindP => mid [] ofs x _; t_xrbindP => _ /lezP lo_le_ofs _ _ _ _ <-{mid} /ih.
+    move => a m ih lo /=; t_xrbindP => mid [] ofs x _; t_xrbindP => /lezP lo_le_ofs _ _ <-{mid} /ih.
     have := wsize_size_pos x.
     lia.
   Qed.
@@ -2496,7 +2496,7 @@ Section PROOF.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_sp.
     case; rewrite ok_fd => _ /Some_inj <- /= ok_callee_saved.
     move: (checked_prog ok_fd); rewrite /check_fd /=.
-    t_xrbindP => - [] chk_body [] ok_to_save _ ok_stk_sz _ ok_ret_addr _ ok_save_stack _.
+    t_xrbindP => chk_body ok_to_save ok_stk_sz ok_ret_addr ok_save_stack _.
     have ? : fd' = linear_fd p extra_free_registers liparams fn fd.
     - have := get_fundef_p' ok_fd.
       by rewrite ok_fd' => /Some_inj.
@@ -2917,7 +2917,7 @@ Section PROOF.
           rewrite Fv.setP.
           case: eqP => ?; first by (subst; rewrite /= truncate_word_u).
           by case: (_.[_]%vmap).
-        move: ok_to_save; t_xrbindP => _ /ZleP hle_rsp ok_to_save.
+        move: ok_to_save; t_xrbindP => /ZleP hle_rsp ok_to_save.
         have :
           ∃ m3, [/\
                  foldM (λ '(x, ofs) m,

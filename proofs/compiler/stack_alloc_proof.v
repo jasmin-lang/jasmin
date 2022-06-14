@@ -853,7 +853,7 @@ Section EXPR.
     check_align x sr ws = ok tt ->
     is_align (sub_region_addr sr) ws.
   Proof.
-    move=> hwf; rewrite /check_align; t_xrbindP => ? halign /eqP halign2.
+    move=> hwf; rewrite /check_align; t_xrbindP => halign /eqP halign2.
     have: is_align (Addr sr.(sr_region).(r_slot)) ws.
     + apply (is_align_m halign).
       rewrite -hwf.(wfr_align).
@@ -879,7 +879,7 @@ Section EXPR.
       ByteSet.mem bytes isub_ofs].
   Proof.
     rewrite /check_valid /check_gvalid.
-    t_xrbindP=> sr'' /get_sub_regionP -> _ hmem ? <-; subst sr''.
+    t_xrbindP=> sr'' /get_sub_regionP -> hmem ? <-; subst sr''.
     by eexists.
   Qed.
 
@@ -1111,9 +1111,9 @@ Section EXPR.
     + by move=> b ?? [<-] [<-].
     + by move=> n ?? [<-] [<-].
     + move=> x e' v; t_xrbindP => -[ vpk | ] hgvk; last first.
-      + by t_xrbindP=> _ /check_diffP hnnew <-; apply: get_var_kindP.
+      + by t_xrbindP=> /check_diffP hnnew <-; apply: get_var_kindP.
       case hty: is_word_type => [ws | //]; move /is_word_typeP in hty.
-      t_xrbindP => ? hcheck [xi ei] haddr <- hget /=.
+      t_xrbindP => hcheck [xi ei] haddr <- hget /=.
       have h0: Let x := sem_pexpr [::] s' 0 in to_int x = ok 0 by done.
       have h1: 0 <= 0 /\ wsize_size ws <= size_slot x.(gv).
       + by rewrite hty /=; lia.
@@ -1137,9 +1137,9 @@ Section EXPR.
       have h0 : sem_pexpr [::] s' e1' >>= to_int = ok i.
       + by rewrite he1'.
       move=> [vpk | ]; last first.
-      + t_xrbindP => h _ /check_diffP h1 <- /=.
+      + t_xrbindP => h /check_diffP h1 <- /=.
         by rewrite (get_var_kindP h h1 hget) /= h0 /= hw.
-      t_xrbindP => hgvk ? hcheck [xi ei] haddr <- /=.
+      t_xrbindP => hgvk hcheck [xi ei] haddr <- /=.
       have [h1 h2 h3] := WArray.get_bound hw.
       have h4: 0 <= i * mk_scale aa sz /\ i * mk_scale aa sz + wsize_size sz <= size_slot x.(gv).
       + by rewrite hty.
@@ -1157,7 +1157,7 @@ Section EXPR.
       rewrite (eq_sub_region_val_read_word hwf hread hmem (mk_ofsiP h0) (w:=w)) //.
       by rewrite (is_align_addE halign) WArray.arr_is_align h3.
     + move=> sz1 v1 e1 IH e2 v.
-      t_xrbindP => _ /check_varP hc _ /check_diffP hnnew e1' /IH hrec <- wv1 vv1 /= hget hto' we1 ve1.
+      t_xrbindP => /check_varP hc /check_diffP hnnew e1' /IH hrec <- wv1 vv1 /= hget hto' we1 ve1.
       move=> /hrec -> hto wr hr ?; subst v.
       have := get_var_kindP hc hnnew hget; rewrite /get_gvar /= => -> /=.
       by rewrite hto' hto /= -(eq_mem_source_word hvalid (readV hr)) hr.
@@ -1566,7 +1566,7 @@ Lemma set_wordP rmap (x:var_i) sr ws rmap2 :
     is_align (sub_region_addr sr) ws /\
     set_sub_region rmap x sr (Some 0) (size_slot x) = ok rmap2.
 Proof.
-  by rewrite /set_word; t_xrbindP=> hwf _ /(check_alignP hwf).
+  by rewrite /set_word; t_xrbindP=> hwf /(check_alignP hwf).
 Qed.
 
 (* TODO: better name? *)
@@ -1633,7 +1633,7 @@ Proof.
   move=> hvs.
   rewrite /set_arr_word; t_xrbindP=> sr /get_sub_regionP hget.
   have /wfr_wf hwf := hget.
-  move=> _ /(check_alignP hwf) halign.
+  move=> /(check_alignP hwf) halign.
   by exists sr; split.
 Qed.
 
@@ -1708,7 +1708,7 @@ Proof.
   (* Lvar *)
   + move=> x.
     case hlx: get_local => [pk | ]; last first.
-    + t_xrbindP=> _ /check_diffP hnnew <- s1' /=.
+    + t_xrbindP=> /check_diffP hnnew <- s1' /=.
       rewrite /write_var; t_xrbindP => vm1 hvm1 <- /=.
       by apply: set_varP hvm1=> [v' hv <- | hb hv <-]; rewrite /write_var /set_var hv /= ?hb /=;
         eexists;(split;first by reflexivity); apply valid_state_set_var.
@@ -1749,7 +1749,7 @@ Proof.
     by rewrite -(get_val_byte_word _ hoff).
 
   (* Lmem *)
-  + move=> ws x e1 /=; t_xrbindP => _ /check_varP hx _ /check_diffP hnnew e1' /(alloc_eP hvs) he1 <-.
+  + move=> ws x e1 /=; t_xrbindP => /check_varP hx /check_diffP hnnew e1' /(alloc_eP hvs) he1 <-.
     move=> s1' xp ? hgx hxp w1 v1 /he1 he1' hv1 w hvw mem1 hmem1 <- /=.
     have := get_var_kindP hvs hx hnnew; rewrite /get_gvar /= => /(_ _ hgx) -> /=.
     rewrite he1' hxp /= hv1 /= hvw /=.
@@ -1794,7 +1794,7 @@ Proof.
   move=> hr2 s1'; apply on_arr_varP => n t hty hxt.
   rewrite /write_var; t_xrbindP => i1 v1 /he1 he1' hi1 w hvw t' htt' vm1 hvm1 ?; subst s1'.
   case hlx: get_local hr2 => [pk | ]; last first.
-  + t_xrbindP=> _ /check_diffP hnnew <-.
+  + t_xrbindP=> /check_diffP hnnew <-.
     have /get_var_kindP -/(_ _ hnnew hxt) : get_var_kind pmap (mk_lvar x) = ok None.
     + by rewrite /get_var_kind /= hlx.
     rewrite /get_gvar /= => hxt2.
@@ -1927,7 +1927,7 @@ Lemma set_arr_subP rmap x ofs len sr_from rmap2 :
     set_move_sub rmap x (sub_region_at_ofs sr (Some ofs) len) = rmap2].
 Proof.
   rewrite /set_arr_sub.
-  t_xrbindP=> sr /get_sub_regionP -> _ /eqP heqsub hmove.
+  t_xrbindP=> sr /get_sub_regionP -> /eqP heqsub hmove.
   by exists sr.
 Qed.
 
@@ -2047,7 +2047,7 @@ Proof.
   + by t_xrbindP=> -[x' ofs'] /(addr_from_vpkP hvs hwfpk hpk) haddr <- <-.
   move /is_stack_ptrP in heq; subst vpk.
   rewrite /= in hpk hwfpk.
-  t_xrbindP=> _ /hpk hread <- <- /=.
+  t_xrbindP=> /hpk hread <- <- /=.
   rewrite (sub_region_addr_stkptr hwfpk) in hread.
   rewrite
     truncate_word_u /=
@@ -2506,7 +2506,7 @@ Proof.
     rewrite -(WArray.castK ax).
 
     case: pk hlx hlocal.
-    + t_xrbindP=> s ofs' ws z sc hlx hlocal _ /eqP heqsub <- <-.
+    + t_xrbindP=> s ofs' ws z sc hlx hlocal /eqP heqsub <- <-.
       exists s2; split; first by constructor.
       (* valid_state update *)
       by apply: (valid_state_set_move hvs hwf hlx _ (heqval _)).
@@ -2714,10 +2714,10 @@ Lemma alloc_call_arg_aux_not_None rmap0 rmap opi e rmap2 bsr e' :
 Proof.
   move=> halloc pi ?; subst opi.
   move: halloc; rewrite /alloc_call_arg_aux.
-  t_xrbindP=> x _ _ _.
+  t_xrbindP=> x _ _.
   case: get_local => [pk|//].
   case: pk => // p.
-  t_xrbindP=> -[sr ?] _ _ _ _ _ _ /= <- _.
+  t_xrbindP=> -[sr ?] _ _ _ _ _ /= <- _.
   by eexists.
 Qed.
 
@@ -2739,7 +2739,7 @@ Lemma set_clearP rmap x sr ofs len rmap2 :
   set_clear rmap x sr ofs len = ok rmap2 ->
   sr.(sr_region).(r_writable) /\
   rmap2 = set_clear_pure rmap sr ofs len.
-Proof. by rewrite /set_clear /writable; t_xrbindP=> _ -> <-. Qed.
+Proof. by rewrite /set_clear /writable; t_xrbindP=> -> <-. Qed.
 
 Lemma alloc_call_arg_aux_writable rmap0 rmap opi e rmap2 bsr e' :
   alloc_call_arg_aux pmap rmap0 rmap opi e = ok (rmap2, (bsr, e')) ->
@@ -2748,11 +2748,11 @@ Lemma alloc_call_arg_aux_writable rmap0 rmap opi e rmap2 bsr e' :
 Proof.
   move=> halloc sr ?; subst bsr.
   move: halloc; rewrite /alloc_call_arg_aux.
-  t_xrbindP=> x _ _ _.
+  t_xrbindP=> x _ _.
   case: opi => [pi|].
   + case: get_local => [pk|//].
     case: pk => // p.
-    t_xrbindP=> -[{sr}sr _] /= _ tt hclear _ _ _ hw <- _.
+    t_xrbindP=> -[{sr}sr _] /= _ tt hclear _ _ hw <- _.
     by move: hclear; rewrite hw => /set_clearP [? _].
   case: get_local => //.
   by t_xrbindP.
@@ -3086,11 +3086,11 @@ Lemma alloc_call_arg_aux_incl (rmap0 rmap:region_map) opi e rmap2 bsr e2 :
 Proof.
   move=> hincl.
   rewrite /alloc_call_arg_aux.
-  t_xrbindP=> x _ _ _.
+  t_xrbindP=> x _ _.
   case: opi => [pi|].
   + case: get_local => [pk|//].
     case: pk => // p.
-    t_xrbindP=> -[sr _] /check_validP [bytes [hgvalid -> hmem]] /= {rmap2}rmap2 hclear _ _ <- _ _.
+    t_xrbindP=> -[sr _] /check_validP [bytes [hgvalid -> hmem]] /= {rmap2}rmap2 hclear _ <- _ _.
     case: pp_writable hclear; last first.
     + move=> [<-]; split=> //.
       by apply incl_refl.
@@ -3110,7 +3110,7 @@ Proof.
     case: eqP => [//|_].
     by apply hincl.
   case: get_local => [//|].
-  t_xrbindP=> _ _ <- _ _.
+  t_xrbindP=> _ <- _ _.
   split=> //.
   by apply incl_refl.
 Qed.
@@ -3148,11 +3148,11 @@ Lemma alloc_call_arg_auxP m0 rmap0 rmap s1 s2 opi e1 rmap2 bsr e2 v1 :
 Proof.
   move=> hvs.
   rewrite /alloc_call_arg_aux.
-  t_xrbindP=> x /get_PvarP -> _.
+  t_xrbindP=> x /get_PvarP ->.
   case: x => x [] //= _.
   case: opi => [pi|]; last first.
   + case hlx: get_local => //.
-    t_xrbindP=> _ /check_diffP hnnew _ <- <- /= hget.
+    t_xrbindP=> /check_diffP hnnew _ <- <- /= hget.
     have hkind: get_var_kind pmap (mk_lvar x) = ok None.
     + by rewrite /get_var_kind /= hlx.
     rewrite (get_var_kindP hvs hkind hnnew hget).
@@ -3161,7 +3161,7 @@ Proof.
   case: pk hlx => // p hlx.
   t_xrbindP=> -[sr _] /check_validP [bytes [hgvalid -> hmem]] /=.
   have /(check_gvalid_wf wfr_wf) /= hwf := hgvalid.
-  move=> {rmap2}rmap2 hclear _ /(check_alignP hwf) halign <- <- <- hget /=.
+  move=> {rmap2}rmap2 hclear /(check_alignP hwf) halign <- <- <- hget /=.
   have /wfr_gptr := hgvalid.
   rewrite /get_var_kind /= hlx => -[_ [[<-] /=]].
   rewrite get_gvar_nglob // => ->.
@@ -3372,7 +3372,7 @@ Lemma alloc_call_argsE rmap sao_params args rmap2 l :
   check_all_disj [::] [::] l.
 Proof.
   rewrite /alloc_call_args.
-  by t_xrbindP=> -[{rmap2}rmap2 {l}l] halloc _ hdisj [<- <-].
+  by t_xrbindP=> -[{rmap2}rmap2 {l}l] halloc hdisj [<- <-].
 Qed.
 
 (* Full spec including [disjoint_values] *)
@@ -3552,7 +3552,7 @@ Proof.
     by left; exists ii, ty.
   move=> x.
   case heq: get_local => [//|].
-  t_xrbindP=> _ /check_diffP ? _.
+  t_xrbindP=> /check_diffP ? _.
   by right; exists x.
 Qed.
 
@@ -3643,7 +3643,7 @@ Proof.
   move: halloc; rewrite /alloc_lval_call.
   case: oi hresult => [i|]; last first.
   + move=> ->.
-    t_xrbindP=> _ /check_lval_reg_callP hcheck <- <-.
+    t_xrbindP=> /check_lval_reg_callP hcheck <- <-.
     case: hcheck.
     + move=> [ii [ty ?]]; subst r.
       move: hs1' => /= /write_noneP [->] h; exists s2; split => //.
@@ -3699,7 +3699,7 @@ Proof.
     case: r => //.
     + by move=> ii ty [_ <-].
     by t_xrbindP=> _ p _ _ _ _ <-.
-  t_xrbindP=> _ /check_lval_reg_callP hcheck _ <-.
+  t_xrbindP=> /check_lval_reg_callP hcheck _ <-.
   case: hcheck.
   + by move=> [_ [_ ->]] /=.
   by move=> [x [-> _ _]].
@@ -3744,8 +3744,8 @@ Proof.
   move: hresult; rewrite /check_result.
   case: sao_return => [i|].
   + case heq: nth => [sr|//].
-    t_xrbindP=> _ /eqP heqty -[sr' _] /check_validP [bytes [hgvalid -> hmem]].
-    move=> /= _ /eqP ? p /get_regptrP hlres1 <-; subst sr'.
+    t_xrbindP=> /eqP heqty -[sr' _] /check_validP [bytes [hgvalid -> hmem]].
+    move=> /= /eqP ? p /get_regptrP hlres1 <-; subst sr'.
     have /wfr_gptr := hgvalid.
     rewrite /get_var_kind /= /get_local hlres1 => -[_ [[<-] /= ->]].
     eexists; split; first by reflexivity.
@@ -3765,7 +3765,7 @@ Proof.
     rewrite -(sub_zone_at_ofs_compose _ _ _ (size_slot res1)).
     apply zbetween_zone_byte => //.
     by apply zbetween_zone_refl.
-  t_xrbindP=> _ /check_varP hlres1 _ /check_diffP hnnew <-.
+  t_xrbindP=> /check_varP hlres1 /check_diffP hnnew <-.
   exists vres1; split=> //.
   by have := get_var_kindP hvs hlres1 hnnew hget.
 Qed.
@@ -3783,7 +3783,7 @@ Lemma check_resultsP rmap m0 s1 s2 srs params sao_returns res1 res2 vargs1 vargs
 Proof.
   move=> hvs hsize haddr.
   rewrite /check_results.
-  t_xrbindP=> _ _.
+  t_xrbindP=> _.
   elim: sao_returns res1 res2.
   + move=> [|//] _ [<-] _ [<-] /=.
     eexists; split; first by reflexivity.
@@ -3803,7 +3803,7 @@ Lemma check_results_alloc_params_not_None rmap srs params sao_returns res1 res2 
   List.Forall (fun oi => forall i, oi = Some i -> nth None srs i <> None) sao_returns.
 Proof.
   rewrite /check_results.
-  t_xrbindP=> _ _.
+  t_xrbindP=> _.
   elim: sao_returns res1 res2 => //.
   move=> oi sao_returns ih [//|x1 res1] /=.
   t_xrbindP => _ x2 hresult res2 /ih{ih}ih _.

@@ -120,10 +120,10 @@ Proof.
   rewrite print_uprogP => ok_pa0 pa.
   rewrite print_uprogP => ok_pa pb.
   rewrite print_uprogP => ok_pb pc.
-  rewrite print_uprogP => ok_pc [].
+  rewrite print_uprogP => ok_pc.
   rewrite !print_uprogP => ok_pd pe ok_pe.
   rewrite !print_uprogP => pf ok_pf pg.
-  rewrite !print_uprogP => ok_pg ph ok_ph _.
+  rewrite !print_uprogP => ok_pg ph ok_ph.
   rewrite print_uprogP => ok_fvars.
   rewrite print_uprogP => pp ok_pp.
   rewrite print_uprogP => <- {p'} ok_fn exec_p.
@@ -180,8 +180,7 @@ Lemma compiler_third_partP entries (p: sprog) (p': sprog) :
       alloc_ok p' fn m → alloc_ok p fn m
   ].
 Proof.
-  rewrite /compiler_third_part; t_xrbindP.
-  move => _ /check_removereturnP ok_rr pa ok_pa [].
+  rewrite /compiler_third_part; t_xrbindP=> /check_removereturnP ok_rr pa ok_pa.
   rewrite !print_sprogP => ok_pb pc ok_pc.
   rewrite print_sprogP => <- {p'}.
   split.
@@ -213,7 +212,8 @@ Lemma compiler_third_part_meta entries (p p' : sprog) :
   compiler_third_part aparams cparams entries p = ok p' →
   p_extra p' = p_extra p.
 Proof.
-  rewrite /compiler_third_part; t_xrbindP => _ _ pa /dead_code_prog_tokeep_meta[] _ ok_pa _ _ pb /dead_code_prog_tokeep_meta[].
+  rewrite /compiler_third_part; t_xrbindP =>
+    _ pa /dead_code_prog_tokeep_meta [] _ ok_pa _ pb /dead_code_prog_tokeep_meta[].
   rewrite !print_sprogP /= => _ ok_pb <- {p'}.
   by rewrite ok_pb ok_pa.
 Qed.
@@ -241,7 +241,7 @@ Lemma check_no_ptrP entries ao u fn :
 Proof.
   clear.
   case: u => /allMP h ok_fn; move: (h _ ok_fn).
-  by t_xrbindP => _ ->.
+  by t_xrbindP.
 Qed.
 
 Lemma allNone_nth {A} (m: seq (option A)) i :
@@ -283,8 +283,8 @@ Lemma compiler_front_endP entries subroutines (p: prog) (p': sprog) (gd: pointer
      extend_mem m' mi' gd (sp_globs (p_extra p'))
     ].
 Proof.
-  rewrite /compiler_front_end; t_xrbindP.
-  move => p1 ok_p1 [] /check_no_ptrP checked_entries p2 ok_p2 p3.
+  rewrite /compiler_front_end;
+  t_xrbindP => p1 ok_p1 /check_no_ptrP checked_entries p2 ok_p2 p3.
   rewrite print_sprogP => ok_p3 <- {p'} ok_fn exec_p.
   rewrite (compiler_third_part_meta ok_p3) => m_mi ok_mi.
   have {ok_mi} ok_mi : alloc_ok p2 fn mi.
@@ -335,7 +335,7 @@ Lemma compiler_back_end_meta entries (p: sprog) (tp: lprog) :
      lp_globs tp = p.(p_extra).(sp_globs)
   ].
 Proof.
-  rewrite /compiler_back_end; t_xrbindP => _ _ _ _ lp ok_lp p2.
+  rewrite /compiler_back_end; t_xrbindP => _ _ lp ok_lp p2.
   rewrite !print_linearP => ok_tp ?; subst p2.
   have [ <- [] <- [] <- _ ] := tunnel_program_invariants ok_tp.
   split.
@@ -372,7 +372,7 @@ Lemma enough_stack_space_alloc_ok
   -> alloc_ok sp fn m.
 Proof.
   rewrite /compiler_back_end_to_asm /compiler_back_end.
-  t_xrbindP => ? [] /allMP ok_export _ _ lp ok_lp tp.
+  t_xrbindP => ? /allMP ok_export _ lp ok_lp tp.
   rewrite !print_linearP => ok_tp <- ok_xp ok_fn M S.
   move => fd ok_fd.
   move: ok_export => /(_ _ ok_fn); rewrite ok_fd => /assertP /eqP export.
@@ -418,7 +418,7 @@ Lemma compiler_back_endP entries (p: sprog) (tp: lprog) (rip: word Uptr) (m m':m
           ]
       ].
 Proof.
-  rewrite /compiler_back_end; t_xrbindP => - [] ok_export [] checked_p lp ok_lp tp'.
+  rewrite /compiler_back_end; t_xrbindP => ok_export checked_p lp ok_lp tp'.
   rewrite !print_linearP => ok_tp ? ok_fn exec_p; subst tp'.
   set vtmp := var_tmp aparams.
   have vtmp_not_magic : ~~ Sv.mem vtmp (magic_variables p).
