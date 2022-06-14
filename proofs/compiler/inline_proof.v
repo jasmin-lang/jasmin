@@ -59,7 +59,7 @@ Section INCL.
       by t_xrbindP => -[Xc1 c1] /Hc -> /= -[Xc1' c1'] /Hc' -> /= <- <-.
     move=> i xs f es ii X1 c' X2 /=.
     case: i => //; t_xrbindP => fd /get_funP -/Incl.
-    by rewrite /get_fun => -> ? h <- <- /=; rewrite h.
+    by rewrite /get_fun => -> h <- <- /=; rewrite h.
   Qed.
 
   Lemma inline_incl fd fd' :
@@ -458,7 +458,7 @@ Section PROOF.
       by apply sem_seq1;constructor;eapply Ecall;eauto;rewrite -eq_globs.
     t_xrbindP => fd' /get_funP Hfd'.
     have [fd [Hfd Hinline]] := inline_progP uniq_funname Hp Hfd'.
-    rewrite /check_rename => -[]; t_xrbindP => -[] Hcheckf /=.
+    rewrite /check_rename; t_xrbindP => Hcheckf /=.
     case:ifP => // Hdisj _ ??;subst X1 c' => vm1 Hwf1 Hvm1.
     have /(_ Sv.empty vm1) [|vargs' /= Hvargs' Huargs]:= sem_pexprs_uincl_on' _ Hes.
     + by apply: vmap_uincl_onI Hvm1;rewrite read_i_call;SvD.fsetdec.
@@ -562,4 +562,3 @@ Proof.
 Qed.
 
 End INLINE.
-

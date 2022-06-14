@@ -351,9 +351,9 @@ Proof.
     rewrite /Oset0_instr; case: ifP => /= hsz64.
     + t_xrbindP => ? []// ?? [<-] /= <-.
       move=> hw x hx <- <- <-; rewrite /assemble_asm_op.
-      t_xrbindP => asm_args' _ _ hc.
+      t_xrbindP => asm_args' _ hc.
       case hci: enforce_imm_i_args_kinds =>
-        {asm_args} [asm_args|//] _ [<-] _ /andP [hca hcd] <- <-.
+        {asm_args} [asm_args|//] _ [<-] /andP [hca hcd] <- <-.
       have {hci} hidc := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
       move: hca; rewrite /check_sopn_args /= => /and3P [].
       rewrite /check_sopn_arg /=.
@@ -373,9 +373,9 @@ Proof.
              (reg_msb_flag sz) (refl_equal _) hw hlo hcd id.(id_check_dest)).
     t_xrbindP => ? []// ?? [<-] /= <-.
     move=> hw x hx <- <- <-; rewrite /assemble_asm_op.
-    t_xrbindP => asm_args' _ _ hc.
+    t_xrbindP => asm_args' _ hc.
     case hci: enforce_imm_i_args_kinds =>
-      {asm_args} [asm_args|//] _ [<-] _ /andP [hca hcd] <- <-.
+      {asm_args} [asm_args|//] _ [<-] /andP [hca hcd] <- <-.
     have {hci} hidc := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
     move: hca; rewrite /check_sopn_args /= => /and3P [].
     rewrite /check_sopn_arg /=.
@@ -402,9 +402,9 @@ Proof.
     t_xrbindP => wh hwh wl hwl <- <- /= hwr <- <- <-.
     rewrite /assemble_asm_op.
 
-    t_xrbindP => asm_args' haux _ hc'.
+    t_xrbindP => asm_args' haux hc'.
     case hci: enforce_imm_i_args_kinds =>
-      {asm_args} [asm_args|//] _ [<-] _ /andP [hca hcd] <- <- hlow.
+      {asm_args} [asm_args|//] _ [<-] /andP [hca hcd] <- <- hlow.
     have {hci} hch := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
     have [s' hwm hlow'] :=
       compile_lvals (asm_e:=x86_extra)
@@ -463,9 +463,9 @@ Transparent eval_arg_in_v check_i_args_kinds.
   case: args h => /=; t_xrbindP; last by move=> *; subst.
   move => <- ? wa htwa [<-] <-; t_xrbindP => m1 hwx ? <- <- <-;subst m1.
   rewrite /assemble_asm_op.
-  t_xrbindP => asm_args' _ _ hc.
+  t_xrbindP => asm_args' _ hc.
   case hci: enforce_imm_i_args_kinds =>
-    {asm_args} [asm_args|//] _ [<-] _ /andP [hca hcd] <- <- hlo.
+    {asm_args} [asm_args|//] _ [<-] /andP [hca hcd] <- <- hlo.
   have {hci} hidc := filter_i_args_kinds_no_imm_correct (enforce_imm_i_args_kinds_correct hci).
   case: asm_args hidc hcd hca => // a0 [] // a1 []// hidc hcd;
     last by rewrite /check_args_kinds /= !andbF.
@@ -520,7 +520,7 @@ Proof.
     match goal with
     | |- ?f (zero_extend _ _) = _ -> _ => rewrite /f
     end;
-    t_xrbindP=> _ _ <- <-;
+    t_xrbindP=> _ <- <-;
     (constructor; last by constructor);
     by apply value_uincl_zero_ext.
 Qed.

@@ -241,7 +241,7 @@ Section CHECK.
             Sv.Subset D D1 /\ Sv.Subset D2 D1 ].
   Proof.
     rewrite /check_ir; case: eqP => // _; rewrite -/check_i.
-    elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 [] he D2 h2.
+    elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 he D2 h2.
     case: (equivP idP (Sv.subset_spec _ _)) => d.
     - case => ?; subst D1; exists D, D2; split => //; last by split.
       by rewrite h1 /= he /= h2 /=; move /Sv.subset_spec : d => ->.

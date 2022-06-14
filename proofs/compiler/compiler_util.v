@@ -257,14 +257,16 @@ End Loop.
 Ltac t_xrbindP :=
   match goal with
   | [ |- Result.bind _ _ = Ok _ _ -> _ ] =>
-      let y := fresh "y" in
-      apply: rbindP=> y; t_xrbindP; move: y
+      apply: rbindP; t_xrbindP
 
   | [ |- Result.map _ _ = Ok _ _ -> _ ] =>
       rewrite /rmap; t_xrbindP
 
   | [ |- assert _ _ = Ok _ _ -> _ ] =>
       move=> /assertP; t_xrbindP
+
+  | [ |- unit -> _ ] =>
+      case; t_xrbindP
 
   | [ |- add_finfo _ _ = ok _ -> _] => 
       move=> /add_finfoP; t_xrbindP
@@ -278,8 +280,8 @@ Ltac t_xrbindP :=
   | [ |- ok _ = ok _ -> _ ] =>
       case; t_xrbindP
 
-  | [ |- _ -> _ ] =>
-      let h := fresh "h" in move=> h; t_xrbindP; move: h
+  | [ |- forall h, _ ] =>
+      let hh := fresh h in move=> hh; t_xrbindP; move: hh
 
   | _ => idtac
   end.

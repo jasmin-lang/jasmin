@@ -145,7 +145,7 @@ Section CoreMem.
     forall p',
     valid8 m' p' = valid8 m p'.
   Proof.
-    rewrite /write; t_xrbindP => ? _ hfold p'; move: m hfold.
+    rewrite /write; t_xrbindP => ? hfold p'; move: m hfold.
     apply ziota_ind => /= [ m [->]//| i l _ hrec m]; t_xrbindP => ? h /hrec ->.
     by apply (valid8_set _ h).
   Qed.
@@ -165,7 +165,7 @@ Section CoreMem.
        if (0 <=? i) && (i <? wsize_size ws) then ok (LE.wread8 v i)
        else read m k U8.
   Proof.
-    rewrite /write; t_xrbindP => _ _ h k; move: h.
+    rewrite /write; t_xrbindP => _ h k; move: h.
     rewrite -(@in_ziota 0 (wsize_size ws)).
     move: m; apply ziota_ind => /=; first by move=> ? [<-].
     move=> i l hi hrec m; t_xrbindP => mi hset /hrec ->.
@@ -205,10 +205,10 @@ Section CoreMem.
     read m ptr sz = ok w ->
     validw m ptr sz.
   Proof.
-    move=> h; apply /validwP; move: h; rewrite /read; t_xrbindP => _ -> l h _; split => //.
+    move=> h; apply /validwP; move: h; rewrite /read; t_xrbindP => -> l h _; split => //.
     move=> k hk; have {hk}: k \in ziota 0 (wsize_size sz).
     + by rewrite in_ziota !zify.
-    rewrite -valid8_validw.    
+    rewrite -valid8_validw.
     move: l h;apply ziota_ind => //= i li hi hr ?.
     t_xrbindP => wi hwi; have ?:= get_valid8 hwi.
     by move=> l /hr{hr}hr _; rewrite inE => /orP [/eqP ->| /hr].
@@ -229,7 +229,7 @@ Section CoreMem.
     read m p s = ok v ->
     is_align p s /\ (forall i, 0 <= i < wsize_size s -> read m (add p i) U8 = ok (LE.wread8 v i)).
   Proof.
-    rewrite readE; t_xrbindP => _ ha l hl.
+    rewrite readE; t_xrbindP => ha l hl.
     rewrite -{1}(LE.decodeK v) => /LE.decode_inj.
     rewrite -(size_mapM hl) size_ziota LE.size_encode => /(_ refl_equal refl_equal) ?; subst l.
     rewrite LE.encodeE in hl.

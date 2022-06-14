@@ -524,11 +524,11 @@ Proof.
     first by move=> [|??] [|??] [|??].
   move=> opi sao_params ih [|x params'] [|varg1 vargs1'] [|varg2 vargs2'] //.
   move=> vnew0 locals0 rmap0 vnew2' locals2' rmap2' alloc_params' /=.
-  t_xrbindP=> -[[[vnew1' locals1'] rmap1'] alloc_param'] _ _.
+  t_xrbindP=> -[[[vnew1' locals1'] rmap1'] alloc_param'] _.
   case heq: Mvar.get => //.
   case: opi => [pi|]; last first.
-  + by move=> [<- <- <- <-] [[[??]?]?] /ih -/(_ vargs1' vargs2') [ih1 ih2] _ _.
-  t_xrbindP=> _ _ _ _ _ _.
+  + by move=> [<- <- <- <-] [[[??]?]?] /ih -/(_ vargs1' vargs2').
+  t_xrbindP => _ _ _.
   case: Mvar.get => //.
   case: Mvar.get => //.
   case: Mvar.get => //.
@@ -569,11 +569,11 @@ Proof.
     first by move=> [|??] [|??] [|??].
   move=> x params' ih [|opi2 sao_params] [|varg1 vargs1'] [|varg2 vargs2'] //.
   move=> vnew0 locals0 rmap0 vnew2' locals2' rmap2' alloc_params' /=.
-  t_xrbindP=> -[[[??]?]?] _ _.
+  t_xrbindP=> -[[[??]?]?] _.
   case: Mvar.get => //.
   case: opi2 => [pi2|]; last first.
   + by move=> [<- <- <- <-] [[[??]?]?] /ih{ih}ih _ _; apply ih.
-  t_xrbindP=> _ _ _ _ _ _.
+  t_xrbindP => _ _ _.
   case: Mvar.get => //.
   case heq1: Mvar.get => //.
   case heq2: Mvar.get => //.
@@ -1251,10 +1251,10 @@ Proof.
   case: (hpmap) => /= hrip hrsp hnew1 hnew2 hglobals hlocals hnew.
   move: hparam => /=.
   set wf_pmap := wf_pmap. (* hack due to typeclass interacting badly *)
-  t_xrbindP=> _ /Sv_memP hnnew.
+  t_xrbindP=> /Sv_memP hnnew.
   case heq: Mvar.get => //.
   case: sao_param => [pi|[<- <- _ _] //].
-  t_xrbindP=> _ /eqP hregty _ /Sv_memP hnnew2 _ harrty.
+  t_xrbindP=> /eqP hregty /Sv_memP hnnew2 harrty.
   case heq1: Mvar.get => //.
   case heq2: Mvar.get => //.
   case heq3: Mvar.get => //.
@@ -1318,7 +1318,7 @@ Proof.
   move=> hpmap hvs hparam.
   have hpmap2 := init_param_wf_pmap hparam hpmap.
   move: hparam => /=.
-  t_xrbindP=> _ /Sv_memP hnnew.
+  t_xrbindP=> /Sv_memP hnnew.
   case heq1: Mvar.get => [//|].
   case: sao_param => [pi|]; last first.
   + move=> [<- <- <- <-].
@@ -1327,7 +1327,7 @@ Proof.
     rewrite /write_var; t_xrbindP => vm1 hvm1 <- /=.
     by apply: set_varP hvm1 => [v' hv <- | hb hv <-]; rewrite /write_var /set_var hv /= ?hb /=;
       eexists;(split;first by reflexivity); apply valid_state_set_var.
-  t_xrbindP=> _ /eqP hty1 _ /Sv_memP hnnew2 _ /is_sarrP [n hty2].
+  t_xrbindP=> /eqP hty1 /Sv_memP hnnew2 /is_sarrP [n hty2].
   case heq2: Mvar.get => //.
   case heq3: Mvar.get => //.
   case heq4: Mvar.get => //.
@@ -1445,10 +1445,10 @@ Lemma init_param_alloc_param vnew1' locals1' rmap1' sao_param (param:var_i) vnew
   varg2 = Vword (sub_region_addr Addr sr).
 Proof.
   rewrite /init_param.
-  t_xrbindP=> _ _.
+  t_xrbindP=> _.
   case: Mvar.get => //.
   case: sao_param => [pi|].
-  + t_xrbindP => _ _ _ _ _ _.
+  + t_xrbindP => _ _ _.
     case: Mvar.get => //.
     case: Mvar.get => //.
     case: Mvar.get => //.
@@ -1492,7 +1492,7 @@ Proof.
   t_xrbindP=> -[[[??]?]?] /ih{ih}ih _ <- /=.
   constructor=> //.
   move: hparam.
-  t_xrbindP=> _ _.
+  t_xrbindP=> _.
   case: Mvar.get => //.
   case: opi => [//|].
   by move=> [_ _ _ <-].
@@ -1510,7 +1510,7 @@ Proof.
   t_xrbindP=> -[[[_ _] _] _] /ih{ih}ih _ _.
   constructor=> //.
   move: hparam.
-  t_xrbindP=> _ _.
+  t_xrbindP=> _.
   case: Mvar.get => //.
   case: opi => [pi|//].
   by t_xrbindP.
@@ -1979,7 +1979,7 @@ Proof.
   rewrite /alloc_fd /alloc_fd_aux /=.
   t_xrbindP=> ?? hlayout [[??]?] hlocal_map.
   t_xrbindP=> -[[[??]?]?] hparams.
-  t_xrbindP=> _ /ZleP hextra _ /ZleP hmax _ _ _ _.
+  t_xrbindP=> /ZleP hextra /ZleP hmax _ _ _ _.
   have hsize := init_stack_layout_size_ge0 hlayout.
   case: is_RAnone hmax.
   + have := wsize_size_pos (local_alloc fn).(sao_align).
@@ -2004,7 +2004,7 @@ Proof.
   t_xrbindP=> -[rmap2' i2'] /= halloc ? {ii1 ii2} _ ? m0 s2 hvs hext hsao; subst rmap2' i2'.
   move: halloc; rewrite /alloc_call /assert_check.
   t_xrbindP=> -[rmap1 es] hcargs.
-  t_xrbindP=> -[{rmap2}rmap2 rs2] hcres _ /ZleP hsize _ hle /= <- <-.
+  t_xrbindP=> -[{rmap2}rmap2 rs2] hcres /ZleP hsize hle /= <- <-.
 
   (* evaluation of the arguments *)
   have [vargs2 [hvargs2 hargs hdisj haddr hclear]] :=
@@ -2509,7 +2509,7 @@ Proof.
   move: halloc; rewrite /alloc_fd /alloc_fd_aux /=.
   t_xrbindP=> fd2' stack hlayout [[locals1 rmap1] vnew1] hlocal_map.
   t_xrbindP=> -[[[vnew2 locals2] rmap2] alloc_params] hparams.
-  t_xrbindP=> _ /ZleP hextra _ /ZleP hmax.
+  t_xrbindP=> /ZleP hextra /ZleP hmax.
   move=> [rmap3 c] halloc.
   t_xrbindP=> res hcresults ??; subst fd2 fd2'.
 
@@ -2823,10 +2823,11 @@ Lemma alloc_fd_checked_sao p_extra mglob oracle fn fd fd' :
   alloc_fd saparams p_extra mglob oracle fn fd = ok fd' →
   [/\ size (sao_params (oracle fn)) = size (f_params fd) & size (sao_return (oracle fn)) = size (f_res fd) ].
 Proof.
-  rewrite /alloc_fd/alloc_fd_aux/check_results; t_xrbindP => ?? _ [] [] ??? _.
-  t_xrbindP => [] [] [] [] ???? ok_params.
-  t_xrbindP => _ _ _ _ [] ?? _.
-  t_xrbindP => ? _ _ ok_results ??; subst.
+  rewrite /alloc_fd/alloc_fd_aux/check_results.
+  t_xrbindP => ?? _ [[? ?] ?] _.
+  t_xrbindP => [] [[[? ?] ?] ?] ok_params.
+  t_xrbindP => _ _ [? ?] _.
+  t_xrbindP => ? _ ok_results; subst.
   split.
   - by case: (size_fmapM2 ok_params).
   by case: (size_mapM2 ok_results).
