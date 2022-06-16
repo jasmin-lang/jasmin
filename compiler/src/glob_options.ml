@@ -86,11 +86,9 @@ let set_idirs s =
   | [s1; s2] -> idirs := (s1,s2)::!idirs
   | _ -> hierror ~loc:Lnone ~kind:"parsing arguments" "bad format for -I : ident:path expected"
 
-type call_conv = Linux | Windows 
+type call_conv = Linux | Windows
 
-let call_conv = 
-  ref (if Arch.os = Some `Windows then Windows 
-       else Linux)
+let call_conv = ref Linux (* Default value is chosen on start-up in `main_compiler` *)
 
 let set_cc cc = 
   let cc = 
