@@ -401,11 +401,6 @@ let pp_ovar env fmt (x:var) =
     else pp_oget true pp_string fmt s
   else pp_string fmt s
 
-let pp_glob env fmt x = 
-  Format.fprintf fmt "%s" (fst (Ms.find x env.glob))
-
-let ty_glob env x = snd (Ms.find x env.glob)
-
 let pp_zeroext fmt (szi, szo) = 
   let io, ii = int_of_ws szo, int_of_ws szi in
   if ii < io then Format.fprintf fmt "zeroextu%a" pp_size szo

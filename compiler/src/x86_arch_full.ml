@@ -24,8 +24,6 @@ module X86 (Lowering_params : X86_input) : Arch_full.Core_arch = struct
   let asm_e = X86_extra.x86_extra
   let aparams = X86_params.x86_params
 
-  let rsp = RSP
-
   include Lowering_params
 
   let pp_asm = Ppasm.pp_prog

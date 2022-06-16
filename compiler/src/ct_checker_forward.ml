@@ -197,9 +197,6 @@ end = struct
     { env_v  = Mv.empty
     ; env_vl = Svl.empty }
 
-  let is_public_vl env vl = 
-    Svl.mem vl env.env_vl
-
   let norm_lvl_aux env_vl = function
     | Secret -> Secret
     | Public -> Public

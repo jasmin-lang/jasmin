@@ -6,7 +6,6 @@ module L = Location
 
 module Name = struct
   type t = string
-  let equal (n1:t) (n2:t) = n1 = n2
 end
 
 type uid = int

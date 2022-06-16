@@ -6,7 +6,6 @@ type color = var
 type coloring = color Mv.t
 
 type name = var
-type date = int
 
 type event =
   | Start of name

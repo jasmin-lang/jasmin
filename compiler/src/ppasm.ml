@@ -229,7 +229,6 @@ let pp_instr_velem_long =
 
 (* -------------------------------------------------------------------- *)
 type 'a tbl = 'a Conv.coq_tbl
-type  gd_t  = Global.glob_decl list
 
 (* -------------------------------------------------------------------- *)
 
@@ -317,8 +316,6 @@ module Intel : BPrinter = struct
 
   (* -------------------------------------------------------------------- *)
   let pp_register = pp_register 
-
-  let pp_xmm_register = pp_xmm_register
 
   (* -------------------------------------------------------------------- *)
   let pp_reg_address (addr : (_, _, _, _, _) Arch_decl.reg_address) =

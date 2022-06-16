@@ -408,10 +408,6 @@ let pp_func ~debug asmOp fmt fd =
   let pp_var = pp_var ~debug in
   pp_fun pp_opn pp_var fmt fd
 
-let pp_glob fmt (ws, n, z) =
-  Format.fprintf fmt "%a %s = %a;"
-    pp_ty (Bty (U ws)) n Z.pp_print z
-
 let pp_glob pp_var fmt (x, gd) = 
   let pp_size fmt i = F.fprintf fmt "%i" i in
   let pp_vd =  pp_var_decl pp_var pp_size in

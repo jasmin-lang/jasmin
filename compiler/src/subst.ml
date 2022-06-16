@@ -80,9 +80,9 @@ let subst_func f fc =
 
 (* ---------------------------------------------------------------- *)
 
-type psubst = pexpr Mv.t
+type psubst = pexpr ggvar -> pexpr
 
-let rec psubst_e (f: pexpr ggvar -> pexpr) e = 
+let rec psubst_e (f: psubst) e =
   gsubst_e (psubst_e f) f e
   
 
