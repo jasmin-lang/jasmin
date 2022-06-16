@@ -519,7 +519,7 @@ end
 let error_unsat loc (_ : Svl.t * Lvl.t list * Lvl.t * Lvl.t) pp e ety ety' =
   Pt.rs_tyerror ~loc
     (Pt.string_error
-       "%a has type %a it should be a most %a, this leads to unsatisfiable constraints"
+       "%a has type %a it should be at most %a, this leads to unsatisfiable constraints"
        pp e pp_vty ety pp_vty ety')
 
 let ty_get_gen env pp_e loc e ety =
@@ -708,7 +708,7 @@ module MSF : sig
     if Sv.subset xs' xs then (xs', oe)
     else
       Pt.rs_tyerror ~loc:(loc.L.base_loc)
-        (Pt.string_error "current msf = %a, it should contains %a"
+        (Pt.string_error "current msf = %a, it should contain %a"
              pp msf pp_vset (Sv.diff xs' xs))
 
   let end_loop loc ((xsi, oei) as msfi) ((xso, oeo) as msfo)=
@@ -1121,10 +1121,10 @@ let init_constraint fenv f =
       l in
 
   let to_lvl = function
-      | Poly s -> add_lvl s
-      | Secret -> Env.secret env
-      | Transient -> Env.transient env
-      | Public | Msf -> Env.public env in
+    | Poly s -> add_lvl s
+    | Secret -> Env.secret env
+    | Transient -> Env.transient env
+    | Public | Msf -> Env.public env in
 
   let error_msf loc =
     Pt.rs_tyerror ~loc
@@ -1210,7 +1210,7 @@ let init_constraint fenv f =
           try Lvl.add_le (Env.transient env) l
           with Lvl.Unsat _unsat ->
             Pt.rs_tyerror ~loc:(x.v_dloc)
-              (Pt.string_error "security annotation for %a should be a leat %s"
+              (Pt.string_error "security annotation for %a should be at least %s"
                  pp_var x stransient)
         end
 
@@ -1242,7 +1242,7 @@ let init_constraint fenv f =
 
   let venv = List.fold_left do_local venv (Sv.elements (locals f)) in
 
-  (* infer modmsf and check consistancy with user info *)
+  (* infer modmsf and check consistency with user info *)
   let modmsf = modmsf_c fenv f.f_body in
   let umodmsf =
     Pretyping.Annot.ensure_uniq
@@ -1290,7 +1290,7 @@ and ty_fun_infer fenv fn =
         | _, _ -> assert false
       with Lvl.Unsat _unsat ->
         Pt.rs_tyerror ~loc:(L.loc x)
-          (Pt.string_error "return type for %a is %a it should be less that %a"
+          (Pt.string_error "return type for %a is %a it should be less than %a"
              pp_var_i x pp_vty ty1 pp_vty ty2) in
     match omsf with
     | Some true  -> MSF.check_msf_exact msf x; IsMsf
