@@ -10,6 +10,9 @@ let parse () =
   let set_in s =
     if !infile <> "" then error();
     infile := s  in
+  (* Set default option values *)
+  if Arch.os = Some `Windows then set_cc "windows";
+  (* Parse command-line arguments *)
   Arg.parse options set_in usage_msg;
   let c =
     match !color with
