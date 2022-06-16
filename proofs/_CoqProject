@@ -1,19 +1,11 @@
--arg -w
--arg -notation-overridden
--arg -w
--arg -extraction-reserved-identifier
--arg -w
--arg -extraction-opaque-accessed
--arg -w
--arg -ambiguous-paths
--arg -w
--arg -duplicate-clear
--arg -w
--arg -deprecated-hint-without-locality
--arg -w
--arg -deprecated-hint-rewrite-without-locality
--arg -w
--arg -deprecated-instance-without-locality
+-arg "-w -notation-overridden"
+-arg "-w -extraction-reserved-identifier"
+-arg "-w -extraction-opaque-accessed"
+-arg "-w -ambiguous-paths"
+-arg "-w -duplicate-clear"
+-arg "-w -deprecated-hint-without-locality"
+-arg "-w -deprecated-hint-rewrite-without-locality"
+-arg "-w -deprecated-instance-without-locality"
 
 -R 3rdparty Jasmin
 -R arch Jasmin
