@@ -115,26 +115,25 @@ let rec pp_simple_attribute fmt a =
   match L.unloc a with 
   | Aint i -> Z.pp_print fmt i
   | Aid s | Astring s -> Format.fprintf fmt "%s" s
-  | Aws ws -> Format.fprintf fmt "u%i" (bits_of_wsize ws)
+  | Aws ws -> Format.fprintf fmt "%a" ptype (string_of_wsize ws)
   | Astruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
 
 and pp_struct_attribute fmt struct_ =   
   Format.fprintf fmt "@[<hov 1 2>%a@]" (pp_list ",@ " pp_annotation) struct_
 
 and pp_attribute fmt = function
-  | Some a -> Format.fprintf fmt "=@ %a" pp_simple_attribute a
+  | Some a -> Format.fprintf fmt "@ =@ %a" pp_simple_attribute a
   | None -> ()
 
-and pp_annotation fmt (id,atr) = 
-  Format.fprintf fmt "@[%s = %a@]" (L.unloc id) pp_attribute atr
+and pp_annotation fmt (id, atr) =
+  Format.fprintf fmt "@[%s%a@]" (L.unloc id) pp_attribute atr
 
-let pp_top_annotations fmt annot = 
+let pp_top_annotations fmt annot =
   match annot with
   | []  -> ()
-  | [a] -> Format.fprintf fmt "#%a" pp_annotation a
+  | [a] -> Format.fprintf fmt "@[%a%a\\\\@]\n" sharp () pp_annotation a
   | _   -> Format.fprintf fmt "#[%a]" pp_struct_attribute annot
 
-  
 let rec pp_expr_rec prio fmt pe =
   match L.unloc pe with
   | PEParens e -> pp_expr_rec prio fmt e
@@ -214,13 +213,6 @@ let pp_storage fmt s =
 
 let pp_sto_ty fmt (sto, ty) =
   F.fprintf fmt "%a %a" pp_storage sto pp_type ty
-
-let pp_arg fmt (sty, x) =
-  F.fprintf
-    fmt
-    "%a %a"
-    pp_sto_ty sty
-    pp_var x
 
 let pp_args fmt (sty, xs) =
   F.fprintf
@@ -324,10 +316,11 @@ let pp_funbody fmt { pdb_instr ; pdb_ret } =
         (pp_list ", " pp_var) ret;
   ) fmt pdb_ret
 
-let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body } =
+let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body ; pdf_annot } =
   F.fprintf
     fmt
-    "%a%a %a(%a)%a %a"
+    "%a%a%a %a(%a)%a %a"
+    pp_top_annotations pdf_annot
     pp_cc pdf_cc
     kw "fn"
     dname (L.unloc pdf_name)
