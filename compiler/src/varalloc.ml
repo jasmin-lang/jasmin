@@ -120,7 +120,7 @@ let check_class f_name f_loc ptr_classes args x s =
 
 type alignment = wsize Hv.t
 
-let classes_alignment (onfun : funname -> param_info option list) gtbl alias c = 
+let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignment) alias c =
   let ltbl = Hv.create 117 in
   let calls = ref Sf.empty in
 

@@ -733,10 +733,6 @@ let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
 let remove_phi_nodes (f: ('info, 'asm) func) : (unit, 'asm) func =
   Ssa.remove_phi_nodes f
 
-let is_subroutine = function
-  | Subroutine _ -> true
-  | _            -> false
-
 (** Returns extra information (k, rsp) depending on the calling convention.
 
  - Subroutines:

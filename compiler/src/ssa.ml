@@ -51,10 +51,6 @@ let ir (m: names) (x: var) (y: var) : (unit, 'asm) instr =
   let i_desc = Cassgn (Lvar (v y), AT_phinode, y.v_ty, Pvar (gkvar (v x))) in
   { i_desc ; i_info = () ; i_loc = L.i_dummy ; i_annot = [] }
 
-let is_stack_array x = 
-  let x = L.unloc x in
-  is_ty_arr x.v_ty && x.v_kind = Stack Direct
-
 let split_live_ranges is_move_op (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) func =
   let f = Liveness.live_fd is_move_op false f in
   let rec instr_r (li: Sv.t) (lo: Sv.t) (m: names) =
