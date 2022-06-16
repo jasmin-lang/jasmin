@@ -90,8 +90,12 @@ let pp_param tbl fmt x =
   F.fprintf fmt "%a %a %s" Pr.pp_ty y.P.v_ty Pr.pp_kind y.P.v_kind y.P.v_name
 
 let pp_stackframe fmt (sz, ws) =
-  F.fprintf fmt "stack: %a, alignment = %s"
+  F.fprintf fmt "maximal stack usage: %a, alignment = %s"
     Z.pp_print (Conv.z_of_cz sz) (P.string_of_ws ws)
+
+let pp_meta fmt fd =
+  F.fprintf fmt "(* %a *)"
+    pp_stackframe (fd.lfd_total_stack, fd.lfd_align)
 
 let pp_return tbl is_export fmt =
   function
@@ -100,7 +104,8 @@ let pp_return tbl is_export fmt =
 
 let pp_lfun asmOp tbl fmt (fn, fd) =
   let name = Conv.fun_of_cfun tbl fn in
-  F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a%a@]@ }@]"
+  F.fprintf fmt "@[<v>%a@ fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a%a@]@ }@]"
+    pp_meta fd
     name.P.fn_name
     (pp_list ",@ " (pp_param tbl)) fd.lfd_arg
     (pp_list ",@ " pp_stype) fd.lfd_tyout
