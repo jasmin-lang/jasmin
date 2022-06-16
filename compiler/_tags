@@ -1,7 +1,7 @@
 # --------------------------------------------------------------------
 true : use_menhir, menhir_explain, menhir_table
 true : debug
-true : warn_Z, warn_Y, warn_+28, warn_-23, warn_+33, warn_-58, warn_error(+8)
+true : warn_Z, warn_Y, warn_+28, warn_-23, warn_+32, warn_+33, warn_+34, warn_-58, warn_error(+8)
 true : -traverse
 true : bin_annot
 
@@ -18,11 +18,11 @@ true : bin_annot
 # --------------------------------------------------------------------
 <src/**/*.{ml,mli}>: package(batteries, menhirLib, zarith, apron.octMPQ, apron.ppl, apron.boxMPQ, yojson)
 <src/*.cmx>               : for-pack(Jasmin)
-<src/safety/*.cmx>        : for-pack(Jasmin)
-<src/safety/domains/*.cmx>: for-pack(Jasmin)
+<src/safety{,/domains}/*.ml>: warn_-32
+<src/safety{,/domains}/*.cmx>: for-pack(Jasmin)
 
 <CIL/*.cmx>: for-pack(Jasmin)
-<CIL/*.{ml,mli}>: warn_-20, warn_-33
+<CIL/*.{ml,mli}>: warn_-20, warn_-32, warn_-33, warn_-34
 
 # --------------------------------------------------------------------
 <entry/*>: package(batteries, menhirLib, zarith, apron.octMPQ, apron.ppl, apron.boxMPQ, yojson)
