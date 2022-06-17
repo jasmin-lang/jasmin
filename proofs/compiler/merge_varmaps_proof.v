@@ -463,7 +463,7 @@ Section LEMMA.
   Proof.
     move => s1 s2 e c1 c2 eval_e exec_c1 ih sz ii I O t1.
     rewrite /check_instr_r -/check_instr; t_xrbindP => hce O1 hcc1 O2 hcc2 <- _ pre hsim.
-    have [v' hse' /value_uincl_bool1 ?]:= check_eP hce hsim eval_e; subst v'.
+    have [v' hse' /value_uinclE ?]:= check_eP hce hsim eval_e; subst v'.
     have pre1 : merged_vmap_precondition (write_c c1) sz (emem s1) (evm t1).
     - split.
       2: exact: mvp_top_stack pre.
@@ -482,7 +482,7 @@ Section LEMMA.
   Proof.
     move => s1 s2 e c1 c2 eval_e exec_c1 ih sz ii I O t1.
     rewrite /check_instr_r -/check_instr; t_xrbindP => hce O1 hcc1 O2 hcc2 <- _ pre hsim.
-    have [v' hse' /value_uincl_bool1 ?]:= check_eP hce hsim eval_e; subst v'.
+    have [v' hse' /value_uinclE ?]:= check_eP hce hsim eval_e; subst v'.
     have pre1 : merged_vmap_precondition (write_c c2) sz (emem s1) (evm t1).
     - split.
       2: exact: mvp_top_stack pre.
@@ -542,7 +542,7 @@ Section LEMMA.
     eexists.
     - apply: sem_one_varmap.Ewhile_true.
       + exact: texec_c.
-      + by have [v' hse' /value_uincl_bool1 ?] := check_eP check_e sim2 he; subst v'.
+      + by have [v' hse' /value_uinclE ?] := check_eP check_e sim2 he; subst v'.
       + exact: texec_c'.
       constructor.
       + by rewrite /efr_valid no_free_register.
@@ -581,7 +581,7 @@ Section LEMMA.
     exists t2 => //.
     eexists.
     - constructor; first exact: texec.
-      by have [v' hse' /value_uincl_bool1 ?] := check_eP check_e sim2 he; subst v'.
+      by have [v' hse' /value_uinclE ?] := check_eP check_e sim2 he; subst v'.
     rewrite write_i_while.
     move: (write_c c) (write_c c') hk; clear. (* SvD.fsetdec faster *)
     by SvD.fsetdec.

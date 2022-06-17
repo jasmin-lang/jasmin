@@ -324,9 +324,9 @@ move => st p hp e1 he1 e2 he2 b /=.
 t_xrbindP => bp vp -> /= -> trv1 v1 h1 htr1 trv2 v2 h2 htr2 /= h.
 have : exists (b1 b2:bool), st = sbool /\ sem_pexpr gd s e1 = ok (Vbool b1) /\ sem_pexpr gd s e2 = ok (Vbool b2).
 + rewrite h1 h2;case: bp h => ?;subst.
-  + have [??]:= truncate_val_boolI htr1;subst st v1.
+  + have [??]:= truncate_valI htr1;subst st v1.
     by move: htr2; rewrite /truncate_val; t_xrbindP => /= b2 /to_boolI -> ?;eauto.
-  have [??]:= truncate_val_boolI htr2;subst st v2.
+  have [??]:= truncate_valI htr2;subst st v2.
   by move: htr1; rewrite /truncate_val; t_xrbindP => /= b1 /to_boolI -> ?;eauto.
 move=> [b1 [b2 [-> []/dup[]hb1 /he1 -> /dup[]hb2 /he2 ->]]] /=.
 by rewrite hb1 hb2 /=; case bp.
@@ -976,12 +976,12 @@ Section PROOF.
       move => sz x e ok_s' ok_t' E X M; subst tscs.
       move: ok_s' => /=; t_xrbindP => a xv ok_xv ok_a ofs ev ok_ev ok_ofs w ok_w m' ok_m' _{s'}.
       move: ok_t' => /=.
-      have [ xv' -> /= xv_xv' ] := get_var_uincl X ok_xv.
-      rewrite (value_uincl_word xv_xv' ok_a) /=.
+      have [ xv' -> /= /of_value_uincl_te h ] := get_var_uincl X ok_xv.
+      have {h} /= -> /= := (h (sword _) _ ok_a).
       have /= ok_ev' := match_mem_sem_pexpr M ok_ev.
       have /(_ _ X) := sem_pexpr_uincl _ ok_ev'.
-      case => ev' -> ev_ev' /=.
-      rewrite (value_uincl_word ev_ev' ok_ofs) /=.
+      case => ev' -> /of_value_uincl_te h /=.
+      have {h} /= -> /= := (h (sword _) _ ok_ofs).
       t_xrbindP => w' ok_w' tm' ok_tm' <-{t'} /=.
       move => ptr ptr_range /negP ptr_not_valid.
       rewrite (CoreMem.writeP_neq ok_tm'); first reflexivity.
@@ -1256,11 +1256,10 @@ Section PROOF.
     move => ii s1 s2 x tg ty e v v'; rewrite p_globs_nil => ok_v ok_v' ok_s2.
     move => fn lbl /checked_iE[] fd ok_fd.
     case: ty ok_v' ok_s2 => // sz.
-    apply: rbindP => w /of_val_word [sz'] [w'] [hle ? ?]; subst v w => -[<-] {v'} ok_s2 chk.
+    move=> /truncate_val_typeE [w0 [sz' [w' [htw ??]]]]; subst v v' => ok_s2 chk.
     move => fr_undef m1 vm1 P Q W1 M1 X1 D1 C1.
     have [ v' ok_v' ] := sem_pexpr_uincl X1 ok_v.
     case/value_uinclE => [sz''] [w] [?]; subst v' => /andP[] hle' /eqP ?; subst w'.
-    rewrite (zero_extend_idem _ hle) in ok_s2.
     have [ vm2 /(match_mem_write_lval M1) [ m2 ok_s2' M2 ] ok_vm2 ] := write_uincl X1 (value_uincl_refl _) ok_s2.
     exists m2 vm2; [ | | | exact: ok_vm2 | | exact: M2]; last first.
     + exact: write_lval_preserves_metadata ok_s2 ok_s2' _ X1 M1.
@@ -1278,7 +1277,8 @@ Section PROOF.
         (match_mem_sem_pexpr M1 ok_v')
         _
         ok_s2').
-    by rewrite /truncate_word (cmp_le_trans hle hle').
+    case: (truncate_wordP htw) => hle ->.
+    by rewrite (zero_extend_idem _ hle) /truncate_word (ifT _ _ (cmp_le_trans hle hle')).
   Qed.
 
   Local Lemma Hopn : sem_Ind_opn p Pi_r.
@@ -1429,7 +1429,7 @@ Section PROOF.
       rewrite /= linear_c_nil; case: (linear_c fn) (valid_c fn c2 (next_lbl lbl)) => lbl2 lc2.
       rewrite /next_lbl => - [L V].
       move => fr_undef m1 vm1 P Q W1 M1 X1 D C1.
-      have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
+      have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       exists m1 vm1; [ | | exact: W1 | exact: X1 | by [] | exact: M1 ]; last by [].
       apply: LSem_step.
       rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C1) /= /eval_instr /to_estate /li_i (eval_jumpE C1) /to_estate /= ok_e' /=.
@@ -1450,7 +1450,7 @@ Section PROOF.
       have C' : is_linear_of fn (P' ++ lc1 ++ Q').
       - by move: C1; rewrite /P' /Q' -cats1 /= -!catA.
       have {S} [ m2 vm2 E K2 W2 X2 H2 M2 ] := S m1 vm1 P' Q' W1 M1 X1 D' C'.
-      have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
+      have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
       exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
@@ -1467,7 +1467,7 @@ Section PROOF.
     rewrite linear_c_nil.
     case: (linear_c fn) (valid_c fn (i2 :: c2) lbl1) => lbl2 lc2 [L2 V2].
     move => fr_undef m1 vm1 P Q W1 M1 X1 D C.
-    have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
+    have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
     set P' := P ++ {| li_ii := ii; li_i := Lcond e lbl |} :: lc2 ++ [:: {| li_ii := ii; li_i := Lgoto (fn, (lbl + 1)%positive) |}; {| li_ii := ii; li_i := Llabel lbl |} ].
     have D' : disjoint_labels (lbl + 1 + 1) lbl1 P'.
     + apply: disjoint_labels_cat; first by apply: disjoint_labels_w _ _ D; lia.
@@ -1508,7 +1508,7 @@ Section PROOF.
       have C' : is_linear_of fn (P' ++ lc2 ++ Q').
       - by move: C; rewrite /P' /Q' -cats1 /= -!catA.
       have {S} [ m2 vm2 E K2 W2 X2 H2 M2 ] := S m1 vm1 P' Q' W1 M1 X1 D' C'.
-      have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
+      have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       have K2' := vmap_eq_exceptI (@SvP.MP.union_subset_1 _ _) K2.
       exists m2 vm2; [ | exact: K2' | exact: W2 | exact: X2 | exact: H2 | exact: M2 ].
       apply: lsem_step; last apply: lsem_trans.
@@ -1522,7 +1522,7 @@ Section PROOF.
       rewrite linear_c_nil; case: (linear_c fn) (valid_c fn (i1 :: c1) (next_lbl lbl)) => lbl1 lc1.
       rewrite /next_lbl => - [L V].
       move => fr_undef m1 vm1 P Q W1 M1 X1 D C.
-      have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
+      have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       exists m1 vm1; [ | | exact: W1 | exact: X1 | by [] | exact: M1 ]; last by [].
       apply: LSem_step.
       rewrite /lsem1 /step -(addn0 (size P)) (find_instr_skip C) /= /eval_instr /li_i (eval_jumpE C) /to_estate /= (snot_spec ok_e') /= ok_e' /=.
@@ -1538,7 +1538,7 @@ Section PROOF.
     case: (linear_c fn) (valid_c fn (i2 :: c2) lbl1) (Hc2 fn lbl1) => lbl2 lc2 [L2 V2].
     rewrite /checked_c ok_fd chk_c2 => /(_ erefl) E.
     move => fr_undef m1 vm1 P Q W1 M1 X1 D C.
-    have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
+    have [ b /(match_mem_sem_pexpr M1) ok_e' /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
     set P' := rcons P {| li_ii := ii; li_i := Lcond e lbl |}.
     have D' : disjoint_labels lbl1 lbl2 P'.
     + rewrite /P' -cats1; apply: disjoint_labels_cat; last by [].
@@ -1727,7 +1727,7 @@ Section PROOF.
         rewrite /next_lbl => lbl' range; rewrite /is_label /= orbF; apply/eqP; lia.
       - by move: C; rewrite -!/(ι _) /= -!catA /= -!catA.
       move => m1 vm1 E1 K1 W1 X1 H1 M1.
-      have [ b /(match_mem_sem_pexpr M1) {} ok_e /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
+      have [ b /(match_mem_sem_pexpr M1) {} ok_e /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
       have {Hw} := Hw m1 vm1 P Q W1 M1 X1 D.
       case.
       - by rewrite add_align_nil.
@@ -1793,7 +1793,7 @@ Section PROOF.
       move => lbl' range; rewrite /is_label /= orbF; apply/eqP; lia.
     - move: C; rewrite -!/(ι _) /= -!catA -!cat_cons -!catA -(cat1s _ lc) -(cat1s _ Q); exact.
     move => m1 vm1 E1 K1 W1 X1 H1 M1.
-    have [ b /(match_mem_sem_pexpr M1) {} ok_e /value_uincl_bool1 ? ] := sem_pexpr_uincl X1 ok_e; subst b.
+    have [ b /(match_mem_sem_pexpr M1) {} ok_e /value_uinclE ? ] := sem_pexpr_uincl X1 ok_e; subst b.
     have {Hc'} := Hc' m1 vm1 (P ++ ι (Lgoto (fn, lbl)) :: add_align ii a [::] ++ [:: ι (Llabel (lbl + 1)) ]) (ι (Llabel lbl) :: lc ++ ι (Lcond e (lbl + 1)) :: Q) W1 M1 X1.
     case.
     - apply: disjoint_labels_cat; last apply: disjoint_labels_cat.
@@ -3095,7 +3095,7 @@ Section PROOF.
           apply: lsem_step; last exact: exec.
           rewrite /lsem1 /step.
           rewrite -{1}(addn0 (size prefix)) (find_instr_skip ok_body).
-          move /to_wordI : ok_w => [ws' [w' [hle ??]]]; subst v w => /=.
+          move /to_wordI' : ok_w => [ws' [w' [hle ??]]]; subst v w => /=.
           apply:
             (spec_lassign
                (s1 := {| emem := _; evm := _; |})

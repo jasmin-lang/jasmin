@@ -161,7 +161,7 @@ Section REMOVE_INIT.
   Local Lemma Rif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 H _ Hc ii vm1 Hvm1.
-    have [v' H1 /value_uincl_bool1 ?] := sem_pexpr_uincl Hvm1 H;subst => Hwf.
+    have [v' H1 /value_uinclE ?] := sem_pexpr_uincl Hvm1 H;subst => Hwf.
     have [vm2 [??]]:= Hc _ Hvm1 Hwf;exists vm2;split=>//.
     by apply sem_seq1;constructor;apply Eif_true;rewrite // H1.
   Qed.
@@ -169,7 +169,7 @@ Section REMOVE_INIT.
   Local Lemma Rif_false : sem_Ind_if_false p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 H _ Hc ii vm1 Hvm1.
-    have [v' H1 /value_uincl_bool1 ?] := sem_pexpr_uincl Hvm1 H;subst => Hwf.
+    have [v' H1 /value_uinclE ?] := sem_pexpr_uincl Hvm1 H;subst => Hwf.
     have [vm2 [??]]:= Hc _ Hvm1 Hwf;exists vm2;split=>//.
     by apply sem_seq1;constructor;apply Eif_false;rewrite // H1.
   Qed.
@@ -178,7 +178,7 @@ Section REMOVE_INIT.
   Proof.
     move=> s1 s2 s3 s4 a c e c' _ Hc H _ Hc' _ Hw ii vm1 Hvm1 Hwf;move: H.
     have [vm2 [Hs2 Hvm2 Hwf2]] := Hc _ Hvm1 Hwf.
-    move=> /(sem_pexpr_uincl Hvm2) [] v' H1 /value_uincl_bool1 H2;subst.
+    move=> /(sem_pexpr_uincl Hvm2) [] v' H1 /value_uinclE H2;subst.
     have [vm3 [H4 Hvm3 ]]:= Hc' _ Hvm2 Hwf2.
     move=> /(Hw ii _ Hvm3)  [vm4 [Hsem ??]]; exists vm4;split => //=.
     apply sem_seq1;constructor;eapply Ewhile_true;eauto.
@@ -189,15 +189,15 @@ Section REMOVE_INIT.
   Proof.
     move=> s1 s2 a c e c' _ Hc H ii vm1 Hvm1 Hwf; move: H.
     have [vm2 [Hs2 Hvm2 Hwf2]] := Hc _ Hvm1 Hwf.
-    move=> /(sem_pexpr_uincl Hvm2) [] v' H1 /value_uincl_bool1 ?;subst.
+    move=> /(sem_pexpr_uincl Hvm2) [] v' H1 /value_uinclE ?;subst.
     by exists vm2;split=> //=;apply sem_seq1;constructor;apply: Ewhile_false=> //;rewrite H1.
   Qed.
 
   Local Lemma Rfor : sem_Ind_for p ev Pi_r Pfor.
   Proof.
     move=> s1 s2 i d lo hi c vlo vhi H H' _ Hfor ii vm1 Hvm1 Hwf.
-    have [? H1 /value_uincl_int1 H2]:= sem_pexpr_uincl Hvm1 H;subst.
-    have [? H3 /value_uincl_int1 H4]:= sem_pexpr_uincl Hvm1 H';subst.
+    have [? H1 /value_uinclE H2]:= sem_pexpr_uincl Hvm1 H;subst.
+    have [? H3 /value_uinclE H4]:= sem_pexpr_uincl Hvm1 H';subst.
     have [vm2 []???]:= Hfor _ Hvm1 Hwf; exists vm2;split=>//=.
     by apply sem_seq1;constructor; econstructor;eauto;rewrite ?H1 ?H3.
   Qed.

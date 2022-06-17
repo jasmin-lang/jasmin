@@ -124,28 +124,25 @@ Section PROOF.
       have /Vword_inj[? ? /=] := ok_inj h; subst; rewrite lea_constP /=.
       by rewrite zero_extend_sign_extend // sign_extend_truncate.
     move=> [] //= [] //= sz1 e1 He1 e2 He2 l sz' w hsz'.
-    + case Heq1: mk_lea_rec => [l1|]//;case Heq2: mk_lea_rec => [l2|]// Hadd; rewrite /sem_sop2 /=.
-      apply: rbindP => v1 h1; apply: rbindP => v2 h2.
-      apply: rbindP=> w1' /of_val_word [sz1'] [w1] [hsz1 ??]; subst v1 w1'. 
-      apply: rbindP=> w2' /of_val_word [sz2'] [w2] [hsz2 ??] h; subst v2 w2'. 
-      have {h} /Vword_inj [? ?] := ok_inj h; subst w sz1 => /=.
-      rewrite wadd_zero_extend // !zero_extend_idem //.
+    + case Heq1: mk_lea_rec => [l1|]//; case Heq2: mk_lea_rec => [l2|]// Hadd.
+      rewrite /sem_sop2 /=; t_xrbindP=> > + ? + ?
+        /to_wordI' [? [? [hsz1 ? ->]]] ?
+        /to_wordI' [? [? [hsz2 ? ->]]] ?.
+      subst=> h1 h2 [<-]; rewrite wadd_zero_extend // !zero_extend_idem //.
       exact (lea_addP hsz (He1 _ _ _ (cmp_le_trans hsz' hsz1) Heq1 h1)
                            (He2 _ _ _ (cmp_le_trans hsz' hsz2) Heq2 h2) Hadd).
     + case Heq1: mk_lea_rec => [l1|]//;case Heq2: mk_lea_rec => [l2|]// Hmul.
-      apply: rbindP => v1 h1; apply: rbindP => v2 h2.
-      apply: rbindP=> w1' /of_val_word [sz1'] [w1] [hsz1 ??]; subst v1 w1'. 
-      apply: rbindP=> w2' /of_val_word [sz2'] [w2] [hsz2 ??] h; subst v2 w2'. 
-      have {h} /Vword_inj [? ?] := ok_inj h; subst w sz1 => /=.
-      rewrite wmul_zero_extend // !zero_extend_idem //.
+      rewrite /sem_sop2 /=; t_xrbindP=> > + ? + ?
+        /to_wordI' [? [? [hsz1 ? ->]]] ?
+        /to_wordI' [? [? [hsz2 ? ->]]] ?.
+      subst=> h1 h2 [<-]; rewrite wmul_zero_extend // !zero_extend_idem //.
       exact (lea_mulP hsz (He1 _ _ _ (cmp_le_trans hsz' hsz1) Heq1 h1)
                            (He2 _ _ _ (cmp_le_trans hsz' hsz2) Heq2 h2) Hmul).
     case Heq1: mk_lea_rec => [l1|]//;case Heq2: mk_lea_rec => [l2|]// Hsub.
-    apply: rbindP => v1 h1; apply: rbindP => v2 h2.
-    apply: rbindP=> w1' /of_val_word [sz1'] [w1] [hsz1 ??]; subst v1 w1'. 
-    apply: rbindP=> w2' /of_val_word [sz2'] [w2] [hsz2 ??] h; subst v2 w2'. 
-    have {h} /Vword_inj [? ?] := ok_inj h; subst w sz1 => /=.
-    rewrite wsub_zero_extend // !zero_extend_idem //.
+    rewrite /sem_sop2 /=; t_xrbindP=> > + ? + ?
+        /to_wordI' [? [? [hsz1 ? ->]]] ?
+        /to_wordI' [? [? [hsz2 ? ->]]] ?.
+      subst=> h1 h2 [<-]; rewrite wsub_zero_extend // !zero_extend_idem //.
     exact (lea_subP hsz (He1 _ _ _ (cmp_le_trans hsz' hsz1) Heq1 h1)
                            (He2 _ _ _ (cmp_le_trans hsz' hsz2) Heq2 h2) Hsub).
   Qed.
@@ -158,49 +155,23 @@ Section PROOF.
     + move=> o e1 he1 v.
       case: o; eauto.
       move=> sz' /=.
-      case: (@idP (sz <= sz')%CMP); last by eauto.
-      rewrite /sem_sop1 /=; t_xrbindP => hsz v1 v2 -> w2 /to_wordI [sz1 [w1 [???]]].
-      subst v2 w2 => <- _ [<-] <-.
-      exists (Vword w1); split => //=.
-      have -> : wrepr sz (wunsigned (zero_extend sz' w1)) = 
-                zero_extend sz (zero_extend sz' w1) by done.
-      rewrite zero_extend_idem //; apply word_uincl_zero_ext.
-      by apply: (cmp_le_trans hsz).
-    move=> o e1 he1 e2 he2 v.
-    case: o; eauto; case; eauto; rewrite /= /sem_sop2 /sem_sop1 /=; t_xrbindP.
-    + move=> _ v1 se1 v2 se2 i1 hi1 i2 hi2 <- _ [<-] <-.
-      case: (he1 (Vword (wrepr sz i1))) => [ | v1' [-> hv1']].
-      + by rewrite /= /sem_sop1 /= se1 /= hi1.
-      case: (he2 (Vword (wrepr sz i2))) => [ | v2' [-> hv2' /=]].
-      + by rewrite /= /sem_sop1 /= se2 /= hi2.
-      have /= := value_uincl_word (sz:= sz) hv1'.
-      rewrite truncate_word_u => /(_ _ refl_equal) ->.
-      have /= := value_uincl_word (sz:= sz) hv2'.
-      rewrite truncate_word_u => /(_ _ refl_equal) -> /=; rewrite wrepr_add.
-      eexists;split; first by eauto.
-      by apply word_uincl_refl.
-    + move=> _ v1 se1 v2 se2 i1 hi1 i2 hi2 <- _ [<-] <-.
-      case: (he1 (Vword (wrepr sz i1))) => [ | v1' [-> hv1']].
-      + by rewrite /= /sem_sop1 /= se1 /= hi1.
-      case: (he2 (Vword (wrepr sz i2))) => [ | v2' [-> hv2' /=]].
-      + by rewrite /= /sem_sop1 /= se2 /= hi2.
-      have /= := value_uincl_word (sz:= sz) hv1'.
-      rewrite truncate_word_u => /(_ _ refl_equal) ->.
-      have /= := value_uincl_word (sz:= sz) hv2'.
-      rewrite truncate_word_u => /(_ _ refl_equal) -> /=; rewrite wrepr_mul.
-      eexists;split; first by eauto.
-      by apply word_uincl_refl.
-    move=> _ v1 se1 v2 se2 i1 hi1 i2 hi2 <- _ [<-] <-.
-    case: (he1 (Vword (wrepr sz i1))) => [ | v1' [-> hv1']].
-    + by rewrite /= /sem_sop1 /= se1 /= hi1.
-    case: (he2 (Vword (wrepr sz i2))) => [ | v2' [-> hv2' /=]].
-    + by rewrite /= /sem_sop1 /= se2 /= hi2.
-    have /= := value_uincl_word (sz:= sz) hv1'.
-    rewrite truncate_word_u => /(_ _ refl_equal) ->.
-    have /= := value_uincl_word (sz:= sz) hv2'.
-    rewrite truncate_word_u => /(_ _ refl_equal) -> /=; rewrite wrepr_sub.
-    eexists;split; first by eauto.
-    by apply word_uincl_refl.
+      case: (@idP (sz <= sz')%CMP); last eauto; rewrite /sem_sop1 /=.
+      t_xrbindP=> hsz > -> ? /to_wordI' [? [? [? -> ->]]] <- ? [<-] <-.
+      eexists; split=> //=.
+      have -> : forall w, wrepr sz (wunsigned w) = zero_extend sz w by done.
+      rewrite zero_extend_idem //.
+      by apply: word_uincl_zero_ext (cmp_le_trans hsz _).
+    rewrite /= /sem_sop1 => o e1 he1 e2 he2 v.
+    case: o; eauto; case; eauto; rewrite /= /sem_sop2 /=;
+      t_xrbindP=> _ ? heq1 ? heq2 i1 /to_intI ? i2 /to_intI ? <- _ [<-] <-; subst;
+      move: (he1 (Vword (wrepr sz i1))) (he2 (Vword (wrepr sz i2))) => {he1 he2};
+      rewrite {}heq1 {}heq2 => [[//| ? [-> /value_uinclE [? [? [-> +]]]]]]
+        [//| ? [-> /value_uinclE [? [? [-> +]]]]] /=;
+      rewrite /word_uincl /truncate_word => /andP[-> /eqP <-] /andP[-> /eqP <-] /=;
+      eexists; split=> //=; apply/andP; split=> //.
+    + by rewrite -wrepr_add zero_extend_wrepr.
+    + by rewrite -wrepr_mul zero_extend_wrepr.
+    by rewrite -wrepr_sub zero_extend_wrepr.
   Qed.
 
   Lemma push_castP e s v :

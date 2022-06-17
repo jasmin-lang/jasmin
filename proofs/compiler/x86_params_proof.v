@@ -327,7 +327,7 @@ Proof.
     case: ifP => // /orP hor [<-] b1 vv1 /(gxgetflag eqv hf1) hvb1/hvb1{hvb1}hvb1.
     move=> vv2 vv2' /(gxgetflag eqv hf2) hvb2 ht2.
     move=> ?? vvn2 /(gxgetflag eqv hfn2) hvnb2 /sem_sop1I /= [nb2 /hvnb2{hvnb2}hvnb2 ->].
-    move=> /truncate_val_bool [??] ?; subst.
+    move=> /truncate_valE [??] ?; subst.
     move: ht2; rewrite /truncate_val /=; t_xrbindP => b2 /hvb2{hvb2}hvb2 ?; subst.
     exists (if b1 then Vbool b2 else ~~ nb2); last done.
     by case: hor => /and3P [/eqP ? /eqP ? /eqP ?]; subst; move: hvnb2; rewrite hvb1 hvb2 => -[<-] /=;
@@ -335,7 +335,7 @@ Proof.
   case: e2' => //= v2; case: e2 => // vn2; t_xrbindP => f1 /of_var_e_boolP hf1 f2 /of_var_e_boolP hf2 fn2 /of_var_e_boolP hfn2.
   case: ifP => // /orP hor [<-] b1 vv1 /(gxgetflag eqv hf1) hvb1/hvb1{hvb1}hvb1.
   move=> ? vv2 vv2' /(gxgetflag eqv hf2) hvb2 /sem_sop1I /= [b2 /hvb2{hvb2}hvb2 ->].
-  move=> /truncate_val_bool [??] ?; subst.
+  move=> /truncate_valE [??] ?; subst.
   move=> vvn2 /(gxgetflag eqv hfn2) hvnb2.
   rewrite /truncate_val /=; t_xrbindP => nb2 /hvnb2{hvnb2}hvnb2 ??; subst.
   exists (if b1 then Vbool (~~b2) else nb2); last done.
@@ -518,16 +518,16 @@ Definition x86_is_move_opP op vx v :
   -> exec_sopn (Oasm op) [:: vx ] = ok v
   -> List.Forall2 value_uincl v [:: vx ].
 Proof.
-  case: op => // -[] [] // [] //= ws _;
+  by case: op => // -[] [] // [] //= ws _;
     rewrite /exec_sopn /=;
-    t_xrbindP=> w ? /to_wordI [ws' [wx [hle -> ->]]];
+    t_xrbindP=> w ? /to_wordI' [ws' [wx [hle -> ->]]];
     rewrite /sopn_sem /=;
     match goal with
     | |- ?f (zero_extend _ _) = _ -> _ => rewrite /f
     end;
     t_xrbindP=> _ <- <-;
     (constructor; last by constructor);
-    by apply value_uincl_zero_ext.
+    apply word_uincl_zero_ext.
 Qed.
 
 

@@ -27,10 +27,6 @@ Definition sem_ot (t:stype) : Type :=
 
 Definition sem_tuple ts := ltuple (map sem_ot ts).
 
-(* -------------------------------------------------------------------------- *)
-Definition is_not_sarr t := ~~ is_sarr t.
-
-
 (* -------------------------------------------------------------------- *)
 
 Definition curry A B (n: nat) (f: seq (sem_t A) → B) : sem_prod (nseq n A) B :=

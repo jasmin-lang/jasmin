@@ -250,20 +250,40 @@ Proof. by apply wunsigned_inj; rewrite !wunsigned_repr Zmod_mod. Qed.
 Lemma wunsigned_repr_small ws z : 0 <= z < wbase ws -> wunsigned (wrepr ws z) = z.
 Proof. move=> h; rewrite wunsigned_repr; apply: Zmod_small h. Qed.
 
-(* TODO: the proof of [wunsigned_sub] seems far simpler, we could use the same idea *)
-Lemma wunsigned_add sz (p: word sz) (n: Z) :
-  0 <= wunsigned p + n < wbase sz →
-  wunsigned (p + wrepr sz n) = wunsigned p + n.
-Proof.
-case: p => p i h.
-change (toword (add_word (mkWord i) (wrepr sz n)) = p + n).
-rewrite/add_word mkwordK/= /urepr/=.
-rewrite Zplus_mod_idemp_r.
-exact: Zmod_small.
+Lemma wrepr_add sz (x y: Z) :
+  wrepr sz (x + y) = (wrepr sz x + wrepr sz y)%R.
+Proof. by apply: word_ext; rewrite /wrepr !mkwordK Zplus_mod. Qed.
+
+Lemma wrepr_sub sz (x y: Z) :
+  wrepr sz (x - y) = (wrepr sz x - wrepr sz y)%R.
+Proof. by apply: word_ext; rewrite /wrepr !mkwordK -Zminus_mod_idemp_r -Z.add_opp_r Zplus_mod. Qed.
+
+Lemma wrepr_mul sz (x y: Z) :
+  wrepr sz (x * y) = (wrepr sz x * wrepr sz y)%R.
+Proof. by apply: word_ext; rewrite /wrepr !mkwordK Zmult_mod. Qed.
+
+Lemma wrepr_m1 sz :
+  wrepr sz (-1) = (-1)%R.
+Proof. by apply /eqP; case sz. Qed.
+
+Lemma wrepr_opp sz (x: Z) :
+  wrepr sz (- x) = (- wrepr sz x)%R.
+Proof. 
+  have -> : (- x) = (- x)%R by done.
+  by rewrite -(mulN1r x) wrepr_mul wrepr_m1 mulN1r.
 Qed.
 
 Lemma wunsigned0 ws : @wunsigned ws 0 = 0.
 Proof. by rewrite -wrepr0 wunsigned_repr Zmod_0_l. Qed.
+
+Lemma wunsigned_add sz (p: word sz) (n: Z) :
+  0 <= wunsigned p + n < wbase sz →
+  wunsigned (p + wrepr sz n) = wunsigned p + n.
+Proof.
+  move=> h.
+  rewrite -{1}(wrepr_unsigned p).
+  by rewrite -wrepr_add wunsigned_repr Z.mod_small.
+Qed.
 
 Lemma wunsigned_add_if ws (a b : word ws) :
   wunsigned (a + b) = 
@@ -275,6 +295,14 @@ Proof.
   case: ZltP => hlt. 
   + by rewrite Zmod_small //;Psatz.lia.
   by rewrite -(Z_mod_plus_full _ (-1)) Zmod_small;Psatz.lia.
+Qed.
+
+Lemma wunsigned_sub (sz : wsize) (p : word sz) (n : Z):
+  0 <= wunsigned p - n < wbase sz → wunsigned (p - wrepr sz n) = wunsigned p - n.
+Proof.
+  move=> h.
+  rewrite -{1}(wrepr_unsigned p).
+  by rewrite -wrepr_sub wunsigned_repr Z.mod_small.
 Qed.
 
 Lemma wunsigned_sub_if ws (a b : word ws) : 
@@ -542,6 +570,9 @@ Definition zero_extend sz sz' (w: word sz') : word sz :=
 Definition sign_extend sz sz' (w: word sz') : word sz :=
   wrepr sz (wsigned w).
 
+Definition truncate_word s s' (w:word s') :=
+   if (s <= s')%CMP then ok (zero_extend s w) else type_error.
+
 Definition wbit sz (w i: word sz) : bool :=
   wbit_n w (Z.to_nat (wunsigned i mod wsize_bits sz)).
 
@@ -731,6 +762,19 @@ Qed.
 Lemma sign_extend_u sz (w: word sz) : sign_extend sz w = w.
 Proof. exact: sreprK. Qed.
 
+Lemma truncate_word_u s (a : word s) : truncate_word s a = ok a.
+Proof. by rewrite /truncate_word cmp_le_refl zero_extend_u. Qed.
+
+Lemma truncate_wordP s1 s2 (w1:word s1) (w2:word s2) :
+  truncate_word s1 w2 = ok w1 → (s1 <= s2)%CMP /\ w1 = zero_extend s1 w2.
+Proof. by rewrite /truncate_word; case: ifP => // ? []. Qed.
+
+Lemma truncate_word_errP s1 s2 (w: word s2) e :
+  truncate_word s1 w = Error e → e = ErrType ∧ (s2 < s1)%CMP.
+Proof.
+  by rewrite /truncate_word; case: ifP => // /negbT; rewrite cmp_nle_lt => ? [].
+Qed.
+
 Lemma wbase_n0 sz : wbase sz <> 0%Z.
 Proof. by case sz. Qed.
 
@@ -786,31 +830,8 @@ Proof. by apply/eqP/eq_from_wbit. Qed.
 Lemma wxor_xx sz (x: word sz) : wxor x x = 0%R.
 Proof. by apply/eqP/eq_from_wbit; rewrite /= Z.lxor_nilpotent. Qed.
 
-Lemma wrepr_add sz (x y: Z) :
-  wrepr sz (x + y) = (wrepr sz x + wrepr sz y)%R.
-Proof. by apply: word_ext; rewrite /wrepr !mkwordK Zplus_mod. Qed.
-
-Lemma wrepr_sub sz (x y: Z) :
-  wrepr sz (x - y) = (wrepr sz x - wrepr sz y)%R.
-Proof. by apply: word_ext; rewrite /wrepr !mkwordK -Zminus_mod_idemp_r -Z.add_opp_r Zplus_mod. Qed.
-
 Lemma wmulE sz (x y: word sz) : (x * y)%R = wrepr sz (wunsigned x * wunsigned y).
 Proof. by rewrite /wunsigned /wrepr; apply: word_ext. Qed.
-
-Lemma wrepr_mul sz (x y: Z) :
-  wrepr sz (x * y) = (wrepr sz x * wrepr sz y)%R.
-Proof. by apply: word_ext; rewrite /wrepr !mkwordK Zmult_mod. Qed.
-
-Lemma wrepr_m1 sz :
-  wrepr sz (-1) = (-1)%R.
-Proof. by apply /eqP; case sz. Qed.
-
-Lemma wrepr_opp sz (x: Z) :
-  wrepr sz (- x) = (- wrepr sz x)%R.
-Proof. 
-  have -> : (- x) = (- x)%R by done.
-  by rewrite -(mulN1r x) wrepr_mul wrepr_m1 mulN1r.
-Qed.
 
 Lemma wadd_zero_extend sz sz' (x y: word sz') :
   (sz ≤ sz')%CMP →
@@ -913,14 +934,6 @@ have him : (i <= m)%nat. by apply/leP; lia.
 rewrite him /=.
 have hi' : (i < m'.+1)%nat. apply /ltP. lia.
 by have /= -> := @wnotE sz' x (Ordinal hi') .
-Qed.
-
-Lemma wunsigned_sub (sz : wsize) (p : word sz) (n : Z):
-  0 <= wunsigned p - n < wbase sz → wunsigned (p - wrepr sz n) = wunsigned p - n.
-Proof.
-  move=> h.
-  rewrite -{1}(wrepr_unsigned p).
-  by rewrite -wrepr_sub wunsigned_repr Z.mod_small.
 Qed.
 
 (* -------------------------------------------------------------------*)
@@ -1590,4 +1603,16 @@ Lemma word_uincl_zero_extR sz sz' (w: word sz) :
 Proof.
   move => hle; apply /andP; split; first exact: hle.
   by rewrite zero_extend_idem // zero_extend_u.
+Qed.
+
+Lemma truncate_word_uincl sz1 sz2 w1 (w2: word sz2) :
+  truncate_word sz1 w2 = ok w1 → word_uincl w1 w2.
+Proof. by move=> /truncate_wordP[? ->]; exact: word_uincl_zero_ext. Qed.
+
+Lemma word_uincl_truncate sz1 (w1: word sz1) sz2 (w2: word sz2) sz w:
+  word_uincl w1 w2 -> truncate_word sz w1 = ok w -> truncate_word sz w2 = ok w.
+Proof.
+  rewrite /word_uincl => /andP[hc1 /eqP ->] /truncate_wordP[hc2 ->].
+  rewrite (zero_extend_idem _ hc2) /truncate_word ifT //.
+  exact: (cmp_le_trans hc2 hc1).
 Qed.

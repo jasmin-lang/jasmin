@@ -2189,16 +2189,12 @@ Lemma value_uincl_get_val_byte v1 v2 :
     get_val_byte v1 off = ok w ->
     get_val_byte v2 off = ok w.
 Proof.
-  move=> /value_uinclE; case: v1 => //=.
-  + move=> len a [len2 [a2 -> [_ hincl]]].
-    by apply hincl.
-  + move=> ws w [ws2 [w2 [-> /andP [hle /eqP ->]]]].
-    move=> off w' /=.
-    case: ifP => //; rewrite !zify => hoff.
-    have hle' := Z.divide_pos_le _ _ (wsize_size_pos _) (wsize_size_le hle).
-    case: ifPn => [_|]; last by rewrite !zify; lia.
-    move=> <-; f_equal; symmetry.
-    by apply zero_extend_wread8.
+  move=> /value_uinclE; case: v1 => //= > [? [? [-> H]]] >.
+  + by case: H => _; apply.
+  case: ifP => //=; rewrite !zify; move: H => /andP[hle /eqP ->] hoff.
+  have hle' := Z.divide_pos_le _ _ (wsize_size_pos _) (wsize_size_le hle).
+  move=> <-; rewrite ifT; last by rewrite !zify; lia.
+  by f_equal; symmetry; apply zero_extend_wread8.
 Qed.
 
 (* We don't need the hypothesis that [varg1] and [varg1'] are arrays, since

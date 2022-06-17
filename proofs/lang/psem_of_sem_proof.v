@@ -153,7 +153,7 @@ Section SEM_PEXPR_SIM.
   Local Ltac sem_pexpr_sim_t :=
   repeat match goal with
   | _ : ?a = ?b |- _ => subst a || subst b
-  | h : to_int _ = ok _ |- _ => apply of_val_int in h
+  | h : to_int _ = ok _ |- _ => apply of_valE in h
   | h : ∀ x, _ → _ , k : _ |- _ => specialize (h _ k) => {k}
   | h : ?p = ok _ |- _ => rewrite h /= => {h}
   | hm: sem.emem _ = _, h : context[sem.emem _] |- _ => rewrite hm in h

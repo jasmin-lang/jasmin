@@ -483,7 +483,7 @@ Section PROOF.
     move => s1 s2 e c1 c2.
     case: s1 => scs1 sm1 svm1 Hve _ Hc1 r1 [] //= e' c1' c2' r2 vm1 Hvm1.
     t_xrbindP => r1' /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
-    move=> /(_ _ _ _ Hve) [ve' [Hve' /value_uincl_bool1 ?]];subst ve'.
+    move=> /(_ _ _ _ Hve) [ve' [Hve' /value_uinclE ?]];subst ve'.
     move => r3 Hr3 r4 Hr4 <-.
     have [vm2 [Hvm2 Hsem]]:= Hc1 _ _ _ _ Hr1' Hr3;exists vm2;split.
     + by eapply eq_alloc_incl;eauto;apply M.merge_incl_l.
@@ -495,7 +495,7 @@ Section PROOF.
     move => s1 s2 e c1 c2.
     case: s1 => scs1 sm1 svm1 Hve _ Hc1 r1 [] //= e' c1' c2' r2 vm1 Hvm1.
     t_xrbindP => r1' /check_eP -/(_ gd _ _ Hvm1) [] Hr1'.
-    move=> /(_ _ _ _ Hve) [ve' [Hve' /value_uincl_bool1 ?]];subst ve'.
+    move=> /(_ _ _ _ Hve) [ve' [Hve' /value_uinclE ?]];subst ve'.
     move => r3 Hr3 r4 Hr4 <-.
     have [vm2 [Hvm2 Hsem]]:= Hc1 _ _ _ _ Hr1' Hr4;exists vm2;split.
     + by eapply eq_alloc_incl;eauto;apply M.merge_incl_r.
@@ -521,9 +521,8 @@ Section PROOF.
     apply: rbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] [?];subst r.
     have Hvmr2' := eq_alloc_incl Hir1 Hvm1.
     move: H; t_xrbindP => r0 Cc2; move /Hc: (Hvmr2') (Cc2) => H /H {H} [vm2 [Hvm2 /= Hc2]] re Hre.
-    have /= [Hrevm2 /(_ _ _ _ Hse) [vb' [Hse2]]]:= check_eP gd Hre Hvm2.
-    move=> /value_uincl_bool1?;subst vb'.
-    move=> r' Cc2' ??;subst r2 r3.
+    have /= [Hrevm2 /(_ _ _ _ Hse) [vb' [Hse2 /value_uinclE ?]]]:= check_eP gd Hre Hvm2.
+    subst vb' => r' Cc2' ??;subst r2 r3.
     move /Hc': (Hrevm2) (Cc2')=> H /H {H} [vm3 [Hvm3 /= Hc2']].
     have /Hw {Hw} Hw:= eq_alloc_incl Hir3 Hvm3.
     have : check_i (Cwhile a c e c') (Cwhile a2 c2 e2 c2') r2' = ok re.
@@ -539,9 +538,8 @@ Section PROOF.
     t_xrbindP => r /loop2P [r2' [r3 [H Hir1 Hir3]]] ?;subst r.
     have Hvmr2' := eq_alloc_incl Hir1 Hvm1.
     move: H; t_xrbindP=> r0 Cc2; move /Hc: (Hvmr2') (Cc2) => H /H {H} [vm2 [Hvm2 /= Hc2]] re Hre.
-    have /= [Hrevm2 /(_ _ _ _ Hse) [vb' [Hse2]]]:= check_eP gd Hre Hvm2.
-    move=> /value_uincl_bool1 ?;subst vb'.
-    move=> r' Cc2' ??;subst r2 r3.
+    have /= [Hrevm2 /(_ _ _ _ Hse) [vb' [Hse2 /value_uinclE ?]]]:= check_eP gd Hre Hvm2.
+    subst vb' => r' Cc2' ??;subst r2 r3.
     exists vm2;split => //.
     by apply: Ewhile_false;rewrite // -eq_globs Hse2.
   Qed.
@@ -565,10 +563,10 @@ Section PROOF.
     move=> Hlo Hhi Hc Hfor r1 [] //= i2 [[d2 lo2] hi2] c2 r2 vm1 Hvm1.
     case: eqP => //= ?;subst d2.
     t_xrbindP => r1' r1'' /check_eP -/(_ gd _ _ Hvm1) [Hr1'' Heqlo].
-    have [vlo'' [Hlo2 /value_uincl_int1 Hvlo']] := Heqlo _ _ _ Hlo;subst vlo''.
-    move=> /check_eP -/(_ gd _ _ Hr1'') [Hr1' Heqhi].
-    have [vhi'' [Hhi2 /value_uincl_int1 Hhi']] := Heqhi _ _ _ Hhi;subst vhi''.
-    move=> /loopP [r2'] []; t_xrbindP=> r2'' Hcv Hcc Hr2r1 Hr2r2.
+    have [vlo'' [Hlo2 /value_uinclE Hvlo']] := Heqlo _ _ _ Hlo.
+    subst vlo'' => /check_eP -/(_ gd _ _ Hr1'') [Hr1' Heqhi].
+    have [vhi'' [Hhi2 /value_uinclE Hhi']] := Heqhi _ _ _ Hhi.
+    subst vhi'' => /loopP [r2'] []; t_xrbindP=> r2'' Hcv Hcc Hr2r1 Hr2r2.
     have := Hfor _ _ _ _ _ _ (eq_alloc_incl Hr2r1 Hr1') Hcv Hcc Hr2r2.
     move=> [vm2 [Hvm2 Hsem2]];exists vm2;split=> //.
     econstructor; rewrite -?eq_globs ?Hlo2 ?Hhi2 /= ;eauto.
@@ -1350,7 +1348,7 @@ Module CBAreg.
 
     Lemma check_e_esP : (∀ e, P e) ∧ (∀ es, Q es).
     Proof.
-      apply: pexprs_ind_pair; split; subst P Q => //=.
+      apply: pexprs_ind_pair; split; subst P Q => /=.
       - case => // r _ vm1 _ [<-] h; split => // scs m _ [<-] /=; eauto.
       - move => e1 he1 es1 hes1 [] // e2 es2 r re vm1 err; t_xrbindP => r' ok_r' ok_re h.
         move: he1 => /(_ e2 r r' vm1 ok_r' h) [] h' he1.
@@ -1359,70 +1357,70 @@ Module CBAreg.
         move: he1 => /(_ _ _ _ ok_v1) [] v2 [] -> hv.
         move: hes1 => /(_ _ _ _ ok_vs1) [] vs2 [] -> hvs.
         eexists; split; first reflexivity. by constructor.
-    - move => z1 [] // z2 r re vm1.
-      by case: ifPn => // /eqP <- [->] ?; split=> // ??? [] <-; exists z1.
-    - move => b1 [] // b2 r re vm1.
-      by case: ifPn => // /eqP <- [->] ?;split=> // ??? [] <-; exists b1.
-    - move => n1 [] // n2 r re vm1.
-      by case: eqP => //= <- [<-] ?; split => // ??? [<-]; eauto.
-    - move => x1 [] // x2 r re vm1.
-      by move=> /check_gvP Hv /(Hv gd) [Hea H].
-    - move => aa1 sz1 x1 e1 He1 [] // aa2 sz2 x2 e2 r re vm1.
-      case: andP  => // -[/eqP ? /eqP ?]; subst aa2 sz2.
-      apply: rbindP => r' Hcv Hce Hea.
-      have [Hea' Hget]:= check_gvP gd Hcv Hea.
-      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
-      apply: on_arr_gvarP => n t Heqt /Hget [v2 []].
-      rewrite /on_arr_var; case: v2 => //= n' t' -> Ht.
-      apply: rbindP => w;apply: rbindP => ve /Hse1 [v2 [-> U2 Hto]].
-      have [_ -> /=]:= value_uincl_int U2 Hto.
-      by apply: rbindP => w' /(WArray.uincl_get Ht) -> [] <-; exists (Vword w').
-    - move => aa1 sz1 len1 x1 e1 He1 [] // aa2 sz2 len2 x2 e2 r re vm1.
-      case: andP => // -[] /andP[] /eqP ? /eqP ? /eqP ?; subst aa2 sz2 len2.
-      apply: rbindP => r' Hcv Hce Hea.
-      have [Hea' Hget]:= check_gvP gd Hcv Hea.
-      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
-      apply: on_arr_gvarP => n t Heqt /Hget [v2 []].
-      rewrite /on_arr_var; case: v2 => //= n' t' -> Ht.
-      apply: rbindP => w;apply: rbindP => ve /Hse1 [v2 [-> U2 Hto]].
-      have [_ -> /=]:= value_uincl_int U2 Hto.
-      apply: rbindP => t1 /(WArray.uincl_get_sub Ht) [t2] -> ? [] <- /=.
-      by exists (Varr t2).
-    - move => sz1 x1 e1 He1 [] // sz2 x2 e2 r re vm1.
-      case: eqP => // ->.
-      apply: rbindP => r' Hcv Hce Hea.
-      have [Hea' Hget]:= check_vP Hcv Hea.
-      have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
-      apply: rbindP => w1;apply: rbindP => ve1 /Hget [ve1' [->]].
-      move=> /value_uincl_word H/H{H} /= ->.
-      t_xrbindP => ?? /Hse1 [v2 [-> /value_uincl_word H/H{H} /= ->]] ? /= -> <-.
-      by eexists; split; first by reflexivity.
-    - move => op1 e1 He1 [] // op2 e2 r re vm1.
-      case: eqP => // <-. move=> H /(He1 _ _ _ _ H) [Hea Hse1];split=>//=.
-      move=> scs m v1;apply:rbindP => v /Hse1 [v1'] [-> U1].
-      by move=> /(vuincl_sem_sop1 U1);exists v1.
-    - move => op1 e11 He11 e12 He12 [] // op2 e21 e22 r re vm1.
-      case: eqP => // <-;apply:rbindP => r' Hs1 Hs2 Hea.
-      have [Hea' Hse1]:= He11 _ _ _ _ Hs1 Hea.
-      have [? Hse2]:= He12 _ _ _ _ Hs2 Hea'; split => //= scs m v.
-      apply: rbindP => v1 /Hse1 [v1' [-> U1]].
-      apply: rbindP => v2 /Hse2 [v2' [-> U2]].
-      by move=> /(vuincl_sem_sop2 U1 U2);exists v.
-    - move => op1 es1 Hes1 [] // op2 es2 r re vm1.
-      case: eqP => // <- {op2} ok_re hr.
-      move: Hes1 => /(_ _ _ _ _ _  ok_re hr) [] hre h.
-      split => //= scs m v1; t_xrbindP => vs1 ok_vs1 ok_v1.
-      rewrite -/(sem_pexprs _ _).
-      move: h => /(_ _ _ _ ok_vs1) [] vs2 [] -> hs /=.
-      by have [] := vuincl_sem_opN ok_v1 hs; eauto.
-    move => t e He e11 He11 e12 He12 [] // t' e2 e21 e22 r re vm1.
-    case: eqP => // <-.
-    t_xrbindP => r1 r' /He Hr' /He11 Hr1 /He12 Hr2 {He He11 He12}.
-    move=> /Hr'{Hr'}[] /Hr1{Hr1}[] /Hr2{Hr2}[] Hre Hs2 Hs1 Hs;split=>// scs m v1.
-    t_xrbindP => b w /Hs [w'] /= [->] /= /value_uincl_bool H/H{H}[? ->] /=.
-    move=> ?? /Hs1 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?].
-    move=> ?? /Hs2 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?] <- /=.
-    by eexists;split;eauto;case: (b).
+      - move => z1 [] // z2 r re vm1.
+        by case: ifPn => // /eqP <- [->] ?; split=> // ??? [] <-; exists z1.
+      - move => b1 [] // b2 r re vm1.
+        by case: ifPn => // /eqP <- [->] ?;split=> // ??? [] <-; exists b1.
+      - move => n1 [] // n2 r re vm1.
+        by case: eqP => //= <- [<-] ?; split => // ??? [<-]; eauto.
+      - move => x1 [] // x2 r re vm1.
+        by move=> /check_gvP Hv /(Hv gd) [Hea H].
+      - move => aa1 sz1 x1 e1 He1 [] // aa2 sz2 x2 e2 r re vm1.
+        case: andP  => // -[/eqP ? /eqP ?]; subst aa2 sz2.
+        apply: rbindP => r' Hcv Hce Hea.
+        have [Hea' Hget]:= check_gvP gd Hcv Hea.
+        have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
+        apply: on_arr_gvarP => n t Heqt /Hget [v2 []].
+        rewrite /on_arr_var; case: v2 => //= n' t' -> /WArray.uincl_get Ht.
+        t_xrbindP=> w ve /Hse1 [v2 [-> ]] /[swap] /to_intI -> /value_uinclE ->
+          ? /= /Ht -> /= <-.
+        by eauto.
+      - move => aa1 sz1 len1 x1 e1 He1 [] // aa2 sz2 len2 x2 e2 r re vm1.
+        case: andP => // -[] /andP[] /eqP ? /eqP ? /eqP ?; subst aa2 sz2 len2.
+        apply: rbindP => r' Hcv Hce Hea.
+        have [Hea' Hget]:= check_gvP gd Hcv Hea.
+        have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
+        apply: on_arr_gvarP => n t Heqt /Hget [v2 []].
+        rewrite /on_arr_var; case: v2 => //= n' t' -> /WArray.uincl_get_sub Ht.
+        t_xrbindP => w ve /Hse1 [v2 [-> ]] /[swap] /to_intI -> /value_uinclE ->
+          ? /= /Ht [? -> ?] <- /=.
+        by eauto.
+      - move => sz1 x1 e1 He1 [] // sz2 x2 e2 r re vm1.
+        case: eqP => // ->.
+        apply: rbindP => r' Hcv Hce Hea.
+        have [Hea' Hget]:= check_vP Hcv Hea.
+        have [Hre Hse1]:= He1 _ _ _ _ Hce Hea';split => //= scs m v1.
+        t_xrbindP => w1 ve1 /Hget [ve1' [->]] /[swap] /to_wordI [? [? [-> ]]]
+          /word_uincl_truncate h /value_uinclE [? [? [-> /h{h} /= ->]]]
+          > /Hse1{Hse1} [? [-> ]] /[swap] /to_wordI [? [? [-> ]]]
+          /word_uincl_truncate h /value_uinclE [? [? [-> /h{h} /= ->]]] ? /= -> /= ->.
+        by eauto.
+      - move => op1 e1 He1 [] // op2 e2 r re vm1.
+        case: eqP => // <-. move=> H /(He1 _ _ _ _ H) [Hea Hse1];split=>//=.
+        move=> scs m v1;apply:rbindP => v /Hse1 [v1'] [-> U1].
+        by move=> /(vuincl_sem_sop1 U1);exists v1.
+      - move => op1 e11 He11 e12 He12 [] // op2 e21 e22 r re vm1.
+        case: eqP => // <-;apply:rbindP => r' Hs1 Hs2 Hea.
+        have [Hea' Hse1]:= He11 _ _ _ _ Hs1 Hea.
+        have [? Hse2]:= He12 _ _ _ _ Hs2 Hea'; split => //= scs m v.
+        apply: rbindP => v1 /Hse1 [v1' [-> U1]].
+        apply: rbindP => v2 /Hse2 [v2' [-> U2]].
+        by move=> /(vuincl_sem_sop2 U1 U2);exists v.
+      - move => op1 es1 Hes1 [] // op2 es2 r re vm1.
+        case: eqP => // <- {op2} ok_re hr.
+        move: Hes1 => /(_ _ _ _ _ _  ok_re hr) [] hre h.
+        split => //= scs m v1; t_xrbindP => vs1 ok_vs1 ok_v1.
+        rewrite -/(sem_pexprs _ _).
+        move: h => /(_ _ _ _ ok_vs1) [] vs2 [] -> hs /=.
+        by have [] := vuincl_sem_opN ok_v1 hs; eauto.
+      move => t e He e11 He11 e12 He12 [] // t' e2 e21 e22 r re vm1.
+      case: eqP => // <-.
+      t_xrbindP => r1 r' /He Hr' /He11 Hr1 /He12 Hr2 {He He11 He12}.
+      move=> /Hr'{Hr'}[] /Hr1{Hr1}[] /Hr2{Hr2}[] Hre Hs2 Hs1 Hs;split=>// scs m v1.
+      t_xrbindP=> b > /Hs [_] /= [->] /= /[swap] /to_boolI -> /value_uinclE ->.
+      move=> ?? /Hs1 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?].
+      move=> ?? /Hs2 [?[-> /=]] /value_uincl_truncate H/H{H} [? -> ?] <- /=.
+      by eexists;split;eauto;case: (b).
   Qed.
 
   End CHECK_EP.
@@ -1513,7 +1511,7 @@ Module CBAreg.
     case: x1 v1' h Hv1' (h) => t1 x1 /= /eqP ?;subst t1.
     case: x2 => t2 x2 h;rewrite /M.v_wextendty => /to_bool_undef ? /=;subst v1.
     move=> h0; have ? := wextend_typeP_bool h0; subst t2; move: Hu => /eqP.
-    move=> /type_of_val_bool [? | [b ?]]; subst v2 => /=;
+    move=> /type_of_valI [? | [b ?]]; subst v2 => /=;
       eexists; (split; first reflexivity).
     + have hincl : @eval_uincl sbool sbool undef_error undef_error by done.
       by apply (eq_alloc_set h Hea hincl);eauto.
@@ -1607,50 +1605,44 @@ Module CBAreg.
       by move=> ? hc;have [vm2' [-> /= ?]]:= check_varcP Hvm1 hc Hset Hv;eexists;
        rewrite !with_vm_idem;eauto.
     + case: eqP => // -> /=.
-      apply: rbindP => r2 Hcv Hce Hvm1 Hv Happ.
-      apply: rbindP => wx;apply:rbindP => vx.
-      have [Hr2 H/H{H} [vx' [-> Hvx /=]]]:= check_vP Hcv Hvm1.
-      move=> /(value_uincl_word Hvx) /= -> /=.
-      apply: rbindP => we;apply:rbindP => ve.
+      t_xrbindP => r2 Hcv Hce Hvm1 Hv Happ wx vx.
+      have [Hr2 H/H{H} [vx' [-> ]]]:= check_vP Hcv Hvm1.
+      move=> /of_value_uincl_te h/(h (sword _) _){h} /= -> >.
       case: (s1) Hvm1 Hr2 => scs1 sm1 svm1 /= Hvm1 Hr2.
-      have [Hr1' H/H{H} [ve' [-> Hve]]]:= check_eP gd Hce Hr2.
-      move=> /(value_uincl_word Hve) /= -> /=.
-      apply: rbindP => w /(value_uincl_word Hv) -> /=.
-      by apply: rbindP => ? -> -[<-];exists vm1.
+      have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP gd Hce Hr2.
+      move=> /of_value_uincl_te h/(h (sword _) _){h} /= -> ?
+        /(@of_value_uincl_te (sword _) _ _ _ Hv) /= -> ? /= -> <-.
+      by eexists.
     + case: andP => // -[/eqP -> /eqP ->] /=.
-      apply: rbindP => r2;apply:rbindP=> r3 Hcv Hce Hcva Hvm1 Hv Happ.
+      t_xrbindP => r2 r3 Hcv Hce Hcva Hvm1 Hv Happ.
       apply: on_arr_varP => n t Htx;rewrite /on_arr_var /=.
       have [Hr3 H/H{H} [vx2 [->]]]:= check_vP Hcv Hvm1.
       case: vx2 => //= n0 t2 Ht.
-      apply: rbindP => we;apply:rbindP => ve.
+      t_xrbindP => we ve.
       case: (s1) Hvm1 Hr3 => scs1 sm1 svm1 /= Hvm1 Hr3.
-      have [Hr1' H/H{H} [ve' [-> Hve]]]:= check_eP gd Hce Hr3.
-      move=> /(value_uincl_int Hve) [_ ->] /=.
-      apply: rbindP => w /(value_uincl_word Hv) -> /=.
-      apply: rbindP => t1' Ht1'.
-      apply: rbindP => vm2 Hvm2 [<-] /=.
-      have [t2' [-> Ht2' /=]]:= WArray.uincl_set Ht Ht1'.
-      have Hu: value_uincl (Varr t1') (Varr t2') := Ht2'.
-      rewrite /write_var /=.
-      have [vm2' [-> ?] /=] := check_varcP Hr1' Hcva Hvm2 Hu.
-      by exists vm2'.
+      have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP gd Hce Hr3.
+      move=> /of_value_uincl_te h/(h sint _){h} /= -> ?
+        /(@of_value_uincl_te (sword _) _ _ _ Hv) /= -> ?
+        /(WArray.uincl_set Ht) [? [/= -> Ht2']].
+      have: value_uincl (Varr _) (Varr _) := Ht2'.
+      rewrite /write_var; t_xrbindP=> /(check_varcP Hr1' Hcva) h ?
+        /h{h} [vm2' [/= -> ?]] <-.
+      by eexists.
     case: andP => // -[] /andP[] /eqP -> /eqP -> /eqP -> /=.
-    apply: rbindP => r2;apply:rbindP=> r3 Hcv Hce Hcva Hvm1 Hv Happ.
+    t_xrbindP=> r2 r3 Hcv Hce Hcva Hvm1 Hv Happ.
     apply: on_arr_varP => n t Htx;rewrite /on_arr_var /=.
     have [Hr3 H/H{H} [vx2 [->]]]:= check_vP Hcv Hvm1.
     case: vx2 => //= n0 t2 Ht.
-    apply: rbindP => we;apply:rbindP => ve.
+    t_xrbindP => we ve.
     case: (s1) Hvm1 Hr3 => scs1 sm1 svm1 /= Hvm1 Hr3.
-    have [Hr1' H/H{H} [ve' [-> Hve]]]:= check_eP gd Hce Hr3.
-    move=> /(value_uincl_int Hve) [_ ->] /=.
-    apply: rbindP => w /(value_uincl_arr Hv) [w'] -> huw /=.
-    apply: rbindP => t1' Ht1'.
-    apply: rbindP => vm2 Hvm2 [<-] /=.    
-    have [t2' -> Ht2' /=]:= WArray.uincl_set_sub Ht huw Ht1'.
-    have Hu: value_uincl (Varr t1') (Varr t2') := Ht2'.
-    rewrite /write_var /=.
-    have [vm2' [-> ?] /=]:= check_varcP Hr1' Hcva Hvm2 Hu.
-    by exists vm2'.
+    have [Hr1' H/H{H} [ve' [-> ]]]:= check_eP gd Hce Hr3.
+      move=> /of_value_uincl_te h/(h sint _){h} /= -> ?
+        /(@of_value_uincl_te (sarr _) _ _ _ Hv) [? /= -> ]
+        /(WArray.uincl_set_sub Ht) h ? /h{h}[? /= -> Ht2'].
+    have: value_uincl (Varr _) (Varr _) := Ht2'.
+    rewrite /write_var; t_xrbindP=> /(check_varcP Hr1' Hcva) h ?
+      /h{h} [vm2' [/= -> ?]] <-.
+    by eexists.
   Qed.
 
   End WITH_POINTER_DATA.
