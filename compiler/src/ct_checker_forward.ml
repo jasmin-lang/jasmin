@@ -172,13 +172,13 @@ type ('info, 'asm) fenv = {
 let pp_kind fmt k =
   if k = Flexible then Format.fprintf fmt "#%s " (string_of_lvl_kind k)
 
-let pp_arg fmt (k, lvl) =
-  Format.fprintf fmt "%a%a" pp_kind k  Lvl.pp lvl
+let pp_arg fmt (x, (k, lvl)) =
+  Format.fprintf fmt "%a%a %a" pp_kind k  Lvl.pp lvl (Printer.pp_var ~debug:false) x
 
-let pp_signature fmt (fn, { tyin ; tyout }) =
+let pp_signature prog fmt (fn, { tyin ; tyout }) =
   Format.fprintf fmt "@[<h>@[%s(@[%a@]) ->@ @[%a@]@]@]@."
     fn.fn_name
-    (pp_list ",@ " pp_arg) tyin
+    (pp_list ",@ " pp_arg) (List.combine (List.find (fun f -> F.equal f.f_name fn) (snd prog)).f_args tyin)
     (pp_list ",@ " Lvl.pp) tyout
 
 (* -----------------------------------------------------------*)

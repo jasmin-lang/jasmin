@@ -3,7 +3,7 @@ open Prog
 type signature
 (** Security type of a function *)
 
-val pp_signature : Format.formatter -> funname * signature -> unit
+val pp_signature : _ prog -> Format.formatter -> funname * signature -> unit
 (** Human-readable form of a signature *)
 
 val ty_prog :
