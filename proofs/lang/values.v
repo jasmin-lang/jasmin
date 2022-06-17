@@ -388,6 +388,7 @@ Qed.
 
 Lemma val_uincl_refl t v: @val_uincl t t v v.
 Proof. by rewrite /val_uincl. Qed.
+
 #[global]
 Hint Resolve val_uincl_refl : core.
 
