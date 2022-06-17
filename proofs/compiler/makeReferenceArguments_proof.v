@@ -158,15 +158,15 @@ Section Section.
     exists w, pof_val ty vt = ok w /\ pto_val w = vt.
   Proof.
     case: v => [b | z | len a | s ws | ty' ?].
-    + by move=> /truncate_val_bool [??]; subst ty vt => /=; exists b.
-    + by move=> /truncate_val_int [??]; subst ty vt => /=; exists z.
+    + by move=> /truncate_valE [??]; subst ty vt => /=; exists b.
+    + by move=> /truncate_valE [??]; subst ty vt => /=; exists z.
     + rewrite /truncate_val; case: ty => //=.
       t_xrbindP=> len' a' hc <-; eexists;split; last reflexivity.
       by rewrite /to_arr WArray.castK.
-    + move=> /truncate_val_word [ws' [? hsub ?]]; subst ty vt => /=.
+    + move=> /truncate_valE [ws' [? [-> ?]]] -> /=.
       case: Sumbool.sumbool_of_bool; first by eauto.
       by rewrite cmp_le_refl.
-    by rewrite /truncate_val of_val_undef.
+    by move=> /truncate_valE.
   Qed.
 
   Lemma truncate_val_idem (t : stype) (v v' : value) :

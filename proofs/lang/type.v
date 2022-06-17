@@ -193,23 +193,14 @@ Definition is_sbool t := t == sbool.
 Lemma is_sboolP t : reflect (t=sbool) (is_sbool t).
 Proof. by rewrite /is_sbool;case:eqP => ?;constructor. Qed.
 
-Definition is_sword t :=
-  match t with
-  | sword _ => true
-  | _       => false
-  end.
+Definition is_sword t := if t is sword _ then true else false.
 
-Definition is_sarr t :=
-  match t with
-  | sarr _ => true
-  | _      => false
-  end.
+Definition is_sarr t := if t is sarr _ then true else false.
+
+Definition is_not_sarr t := ~~is_sarr t.
 
 Lemma is_sarrP ty : reflect (exists n, ty = sarr n) (is_sarr ty).
-Proof.
-  case: ty => /= [||n|ws]; constructor; try by move => -[].
-  by exists n.
-Qed.
+Proof. by case: ty; constructor; eauto => [[]]. Qed.
 
 Definition is_word_type (t:stype) :=
   if t is sword sz then Some sz else None.
@@ -257,8 +248,7 @@ Proof. by case t. Qed.
 Definition subtype (t t': stype) :=
   match t with
   | sword w => if t' is sword w' then (w ≤ w')%CMP else false
-  | sarr n =>
-    if t' is sarr n' then (n <=? n')%Z else false
+  | sarr n => if t' is sarr n' then (n <=? n')%Z else false
   | _ => t == t'
   end.
 
@@ -312,8 +302,3 @@ Proof.
   + by apply /ZleP; Psatz.lia.
   by apply wsize_le_U8.
 Qed.
-
-
-
-
-

@@ -806,9 +806,8 @@ Proof.
   case: e he => // -[] // ws //=.
   rewrite /sem_sop1 /=.
   case: eqP => [->|//].
-  move=> e he _; move: he; t_xrbindP => v v' -> w.
-  move=> /to_wordI [ws' [w' [hsw -> ->]]] <- [<-].
-  by exists ws', w'; split => //; rewrite /truncate_word hsw wrepr_unsigned.
+  move=> e + _; t_xrbindP => v v' -> w /to_wordI [ws' [w' [-> htw]]] <- /= [<-].
+  by exists ws', w'; split => //; rewrite htw wrepr_unsigned.
 Qed.
 
 Lemma mk_ofsP aa sz gd s2 ofs e i :
@@ -1086,10 +1085,8 @@ Section EXPR.
   Proof.
     move=> hty hget.
     have := type_of_get_gvar hget; rewrite hty => /subtypeE [ws' [hty' hsub]].
-    case /type_of_val_word : hty'.
-    + move=> [_ [??]]; subst v.
-      by have := get_gvar_undef hget erefl.
-    move=> [w ->].
+    case /type_of_valI : hty'; case=> w ?; subst.
+    + by have := get_gvar_undef hget erefl.
     by exists ws', w.
   Qed.
 

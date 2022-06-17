@@ -187,14 +187,12 @@ Proof.
   have <- := ok_inj heq.
   rewrite !(wadd_zero_extend, wmul_zero_extend) // GRing.addrA; do 2 f_equal.
   + case: lea_base hob hwb => /= [vo | [<-] [<-] /=]; last by apply zero_extend0.
-    t_xrbindP => r /of_var_eI <- <- v /hget hv /=.
-    move=> /(value_uincl_word hv) -/to_wordI [sz1 [w1 [hsz1]]] /Vword_inj [?];subst sz1.
-    by move=> /= <- ->.
+    by t_xrbindP => r /of_var_eI <- <- v /hget /[swap]
+      /to_wordI [? [? [-> /word_uincl_truncate h]]] /= /h /truncate_wordP [].
   + by rewrite (xscale_ok hsc).
   case: lea_offset hoo hwo => /= [vo | [<-] [<-] /=]; last by apply zero_extend0.
-  t_xrbindP => r /of_var_eI <- <- v /hget hv /=.
-  move=> /(value_uincl_word hv) -/to_wordI [sz1 [w1 [hsz1]]] /Vword_inj [?];subst sz1.
-  by move=> /= <- ->.
+  by t_xrbindP => r /of_var_eI <- <- v /hget /[swap]
+    /to_wordI [? [? [-> /word_uincl_truncate h]]] /= /h /truncate_wordP [].
 Qed.
 
 Lemma addr_of_pexprP rip ii sz sz' (w:word sz') e adr m s:
@@ -264,7 +262,7 @@ Lemma var_of_flagP rip m s f v ty vt:
       & of_val ty v' = ok vt.
 Proof.
   move=> [_ _ _ _ _ _ _ h].
-  rewrite get_varE; t_xrbindP => /= b ok_b <-{v} /of_vbool[] ??; subst.
+  rewrite get_varE; t_xrbindP => /= b ok_b <-{v} /of_valE[? ]; subst=> /= ->.
   move: (h f b); rewrite ok_b => /(_ erefl).
   rewrite /st_get_rflag.
   by case: (asm_flag s f) => // _ <-; exists b.
@@ -277,7 +275,7 @@ Lemma var_of_regP rip E m s r v ty vt:
   -> exists2 v' : value,
       Ok E (Vword ((asm_reg s) r)) = ok v'
       & of_val ty v' = ok vt.
-Proof. move=> [???? h ???] /h -/value_uincl_word_of_val h1 /h1; eauto. Qed.
+Proof. by move=> [???? h ???] /h /of_value_uincl h1 /h1 <-; eauto. Qed.
 
 Section EVAL_ASSEMBLE_COND.
 
@@ -314,25 +312,26 @@ Proof.
     rewrite /compat_imm orbF => /eqP <- -> /= b hb.
     case: eqm => ??????? eqf.
     have [v'] := eval_assemble_cond eqf hac hb.
-    rewrite /eval_cond_mem.
-    case: eval_cond => /= [ | [] // [] <- /value_uincl_undef [ty1 [he ->]] ]; last by case: ty1 he.
+    rewrite /eval_cond_mem; case: eval_cond => /=;
+      last by case=> // [[<-]] /[swap] /to_boolI ->.
     move=> b' [<-] {hb}; case: v => // [b1 | [] //] -> ?.
     by exists b'.
   move=> haw hcomp -> /=.
   case: k haw => /=.
-  + t_xrbindP => adr hadr ? w he /to_wordI [ws' [w' [hws ??]]]; subst a' v w.
+  + t_xrbindP=> adr hadr ? w he /to_wordI' [ws' [w' [hws ? ->]]].
+    subst a' v.
     move: hcomp; rewrite /compat_imm orbF => /eqP ?; subst a => /=.
     rewrite (addr_of_pexprP hws eqm he hadr); eexists; first reflexivity.
     by rewrite /= truncate_word_u.
   case: e => //=.
   + rewrite /get_gvar /eval_asm_arg => x; t_xrbindP => ->.
     case: eqm => _ _ _ _ eqr eqrx eqx _.
-    move=> /xreg_of_varI; case: a' hcomp => // r; rewrite /compat_imm orbF => /eqP <- {a} xr w ok_v ok_w;
-    (eexists; first reflexivity);
-    apply: (value_uincl_word _ ok_w).
-    + by apply: eqr; rewrite (of_varI xr). 
-    + by apply: eqrx; rewrite (of_varI xr). 
-    by apply: eqx; rewrite (of_varI xr).
+    move=> /xreg_of_varI; case: a' hcomp => // r;
+      rewrite /compat_imm orbF => /eqP <- {a} /of_varI <- w ok_v /to_wordI[? [? [? ok_w]]];
+      (eexists; first reflexivity); apply: (word_uincl_truncate _ ok_w); subst.
+    + exact: (eqr _ _ ok_v).
+    + exact: (eqrx _ _ ok_v).
+    exact: (eqx _ _ ok_v).
   + move=> sz x p; t_xrbindP => /eqP <- r hr ?; subst a'.
     move: hcomp; rewrite /compat_imm orbF => /eqP <-.
     move=> w1 wp vp hget htop wp' vp' hp hp' wr hwr <- /= htr.
@@ -1312,8 +1311,8 @@ Lemma value_of_bool_uincl (vb : value) (ve : exec bool) (b : bool) :
   -> (exists2 v', value_of_bool ve = ok v' & value_uincl vb v')
   -> ve = ok b.
 Proof.
-  move=> h [v' hvb /(value_uincl_bool) -/(_ _ h) [??]]; subst vb v'.
-  by case: ve hvb => /= [ ? [->] | []].
+  move=> /to_boolI -> [v' + /value_uinclE ?]; subst.
+  by case: ve => [? [->]| []].
 Qed.
 
 Variant match_state
@@ -1541,10 +1540,9 @@ Proof.
     rewrite ok_fd /=.
     do 2 (eexists; first reflexivity).
     by constructor.
-  - t_xrbindP=> e /eqP ok_e d ok_d <- ptr v ok_v ok_ptr.
+  - t_xrbindP=> e /eqP ok_e d ok_d <- ptr v ok_v /to_wordI[? [? [? /word_uincl_truncate hptr]]]; subst.
     change reg_size with Uptr in ptr.
-    have [v' ok_v' hvv'] := eval_assemble_word eqm ok_e ok_d ok_v.
-    rewrite ok_v' /= (value_uincl_word hvv' ok_ptr) /=.
+    have [v' -> /value_uinclE /=[? [? [-> /hptr /= ->]]]] := eval_assemble_word eqm ok_e ok_d ok_v.
     case ptr_eq: decode_label => [ [] fn lbl | // ] /=.
     replace (decode_label _ ptr) with (Some (fn, lbl));
       last by rewrite -assemble_prog_labels.

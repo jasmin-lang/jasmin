@@ -371,7 +371,7 @@ Section PROOF.
     apply sem_seq1;constructor;apply Eif_true => //.
     have h : svm1 <=[read_e e] vm1 by apply: vmap_uincl_onI Hvm1;SvD.fsetdec.
     have {h} := sem_pexpr_uincl_on' h Hse.
-    by rewrite -eq_globs => -[ve' -> /value_uincl_bool1 -> /=].
+    by rewrite -eq_globs => -[ve' -> /value_uinclE -> /=].
   Qed.
 
   Local Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
@@ -385,7 +385,7 @@ Section PROOF.
     apply sem_seq1;constructor;apply Eif_false => //.
     have h : svm1 <=[read_e e] vm1 by apply: vmap_uincl_onI Hvm1;SvD.fsetdec.
     have {h} := sem_pexpr_uincl_on' h Hse.
-    by rewrite -eq_globs => -[ve' -> /value_uincl_bool1 ->].
+    by rewrite -eq_globs => -[ve' -> /value_uinclE ->].
   Qed.
 
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
@@ -407,7 +407,7 @@ Section PROOF.
     have h : (evm s2) <=[read_e e] vm2 by apply: vmap_uincl_onI Hvm2;rewrite /X3 read_i_while;SvD.fsetdec.
     case: (s2) h Hse => ??? h Hse.
     have {h} := sem_pexpr_uincl_on' h Hse.
-    by rewrite -eq_globs => -[? -> /value_uincl_bool1 ->].
+    by rewrite -eq_globs => -[? -> /value_uinclE ->].
   Qed.
 
   Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
@@ -424,7 +424,7 @@ Section PROOF.
     apply sem_seq1;constructor;apply Ewhile_false => //.
     have h : svm2 <=[read_e e] vm2 by apply: vmap_uincl_onI Hvm2;rewrite /X3 read_i_while;SvD.fsetdec.
     have {h} := sem_pexpr_uincl_on' h Hse.
-    by rewrite -eq_globs => -[? -> /value_uincl_bool1 ->].
+    by rewrite -eq_globs => -[? -> /value_uinclE ->].
   Qed.
 
   Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
@@ -441,10 +441,10 @@ Section PROOF.
     apply sem_seq1;constructor;eapply Efor;eauto=> /=.
     + have h : svm1 <=[read_e lo] vm1 by apply: vmap_uincl_onI Hvm1; SvD.fsetdec.
       have := sem_pexpr_uincl_on' h Hlo.
-      by rewrite -eq_globs => -[? -> /value_uincl_int1 ->].
+      by rewrite -eq_globs => -[? -> /value_uinclE ->].
     have h: svm1 <=[read_e hi] vm1 by apply: vmap_uincl_onI Hvm1; SvD.fsetdec.
     have := sem_pexpr_uincl_on' h Hhi.
-    by rewrite -eq_globs => -[? -> /value_uincl_int1 ->].
+    by rewrite -eq_globs => -[? -> /value_uinclE ->].
   Qed.
 
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
