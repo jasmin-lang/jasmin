@@ -411,7 +411,8 @@ let ty_lvals1 env xs lvl =
 (* -----------------------------------------------------------*)
 
 let get_annot ensure_annot f =
-  let ain  = List.map (fun x -> Lvl.parse ~single:true ~kind_allowed:true x.v_annot) f.f_args in
+  let ain  = List.map (fun x -> x.v_name, Lvl.parse ~single:true ~kind_allowed:true x.v_annot) f.f_args in
+  let ainlevels = List.map (fun (_, (_, x)) -> x) ain in
   let aout = List.map (Lvl.parse ~single:false ~kind_allowed:false) f.f_outannot in
   let aout = List.map snd aout in
 
@@ -423,7 +424,7 @@ let get_annot ensure_annot f =
            msg) in
   if ensure_annot && f.f_cc = Export then
     (check_defined "result types" aout;
-     check_defined "function parameters" (List.map snd ain));
+     check_defined "function parameters" ainlevels);
   (* fill the missing input type *)
   (* we collect the existing levels, to avoid a name clash *)
   let used_lvls =
@@ -432,21 +433,26 @@ let get_annot ensure_annot f =
       | Some (Poly s) -> Svl.union s acc
       | _ -> acc
     in
-    let lvls = List.fold_left f Svl.empty (List.map snd ain) in
+    let lvls = List.fold_left f Svl.empty ainlevels in
     List.fold_left f lvls aout
   in
   let used_lvls = ref used_lvls in
-  let counter = ref 0 in
-  let rec fresh_lvl () =
-    let vl = Vl.mk_uni ("l" ^ (string_of_int !counter)) in
-    incr counter;
+  let counter = ref (-1) in
+  let rec fresh_lvl ?n () =
+    let vl =
+      let k =
+      match n with
+      | None -> incr counter; "l" ^ string_of_int !counter
+      | Some x -> x
+      in
+      Vl.mk_uni k in
     if Svl.mem vl !used_lvls then fresh_lvl ()
     else (used_lvls := Svl.add vl !used_lvls; vl)
   in
   let ain =
-    let doit (k, o) =
+    let doit (n, (k, o)) =
       match o with
-      | None -> Flexible, Lvl.poly1 (fresh_lvl ())
+      | None -> Flexible, Lvl.poly1 (fresh_lvl ~n ())
       | Some lvl -> odfl Strict k, lvl in
     List.map doit ain
   in
