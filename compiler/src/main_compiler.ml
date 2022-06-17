@@ -225,8 +225,11 @@ let main () =
     end;
 
     if !ct_list <> None then begin
-        begin try Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list)
-        with Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"constant type checker" "%a" Pretyping.pp_tyerror code end;
+        begin match Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list) with
+        | sigs ->
+           Format.printf "/* Security types:\n@[<v>%a@]*/@."
+              (pp_list "@ " Ct_checker_forward.pp_signature) sigs
+        | exception Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"constant type checker" "%a" Pretyping.pp_tyerror code end;
         donotcompile()
     end;
 

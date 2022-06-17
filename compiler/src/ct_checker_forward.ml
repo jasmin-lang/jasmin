@@ -157,16 +157,29 @@ end
 
 (* -----------------------------------------------------------*)
 
-type ty_fun = {
+type signature = {
     tyin : (lvl_kind * Lvl.t) list; (* Poly are ensured to be singleton *)
     tyout: Lvl.t list;
   }
 
 type ('info, 'asm) fenv = {
     ensure_annot : bool;
-    env_ty       : ty_fun Hf.t;
+    env_ty       : signature Hf.t;
     env_def      : ('info, 'asm) func list;
   }
+
+(* -----------------------------------------------------------*)
+let pp_kind fmt k =
+  if k = Flexible then Format.fprintf fmt "#%s " (string_of_lvl_kind k)
+
+let pp_arg fmt (k, lvl) =
+  Format.fprintf fmt "%a%a" pp_kind k  Lvl.pp lvl
+
+let pp_signature fmt (fn, { tyin ; tyout }) =
+  Format.fprintf fmt "@[<h>@[%s(@[%a@]) ->@ @[%a@]@]@]@."
+    fn.fn_name
+    (pp_list ",@ " pp_arg) tyin
+    (pp_list ",@ " Lvl.pp) tyout
 
 (* -----------------------------------------------------------*)
 
@@ -584,20 +597,9 @@ and ty_fun fenv fn =
   let tyout = List.map2 (do_r env) f.f_ret aout in
   (* Normalize the input type *)
   let tyin = List.map (fun (k, lvl) -> k, Env.norm_lvl env lvl) tyin in
-  let fty = {tyin; tyout} in
-  let pp_k fmt k =
-    if k = Flexible then Format.fprintf fmt "#%s " (string_of_lvl_kind k) else () in
-  let pp_arg fmt (x, (k, lvl)) =
-    Format.fprintf fmt "%a%a %a"
-      pp_k k  Lvl.pp lvl (Printer.pp_var ~debug:false) x in
-  Format.eprintf "security type for @[<h>@[%s(@[%a@]) ->@ @[%a@]@]@]@."
-    f.f_name.fn_name
-    (pp_list ",@ " pp_arg) (List.combine f.f_args tyin)
-    (pp_list ",@ " Lvl.pp) tyout;
-  fty
+  { tyin ; tyout }
 
-
-let ty_prog ~infer (prog:('info, 'asm) prog) fl =
+let ty_prog ~infer (prog: ('info, 'asm) prog) fl =
   let prog = snd prog in
   let fenv =
     { ensure_annot = not infer
@@ -611,4 +613,4 @@ let ty_prog ~infer (prog:('info, 'asm) prog) fl =
         try (List.find (fun f -> f.f_name.fn_name = fn) prog).f_name
         with Not_found -> hierror ~loc:Lnone ~kind:"constant type checker" "unknown function %s" fn in
       List.map get fl in
-  List.iter (fun fn -> ignore (get_fun fenv fn)) fl
+  List.map (fun fn -> fn, get_fun fenv fn) fl
