@@ -227,7 +227,7 @@ let main () =
     if !ct_list <> None then begin
         let sigs, status = Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list) in
            Format.printf "/* Security types:\n@[<v>%a@]*/@."
-              (pp_list "@ " Ct_checker_forward.pp_signature) sigs;
+              (pp_list "@ " (Ct_checker_forward.pp_signature source_prog)) sigs;
            Stdlib.Option.iter (fun (loc, code) ->
                hierror ~loc:(Lone loc) ~kind:"constant type checker" "%a" Pretyping.pp_tyerror code)
              status;
