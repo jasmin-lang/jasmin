@@ -1,14 +1,13 @@
 open BinNums
 open Utils0 
 open Type
-open Sem_type
 open Warray_
-open Var0
 open Low_memory
 open Expr
 open Sem
 open Values
-         
+open Varmap
+
 exception Eval_error of instr_info * Utils0.error 
 
 let pp_error fmt err =
@@ -36,7 +35,7 @@ let of_val_b ii v : bool =
 type 'asm stack = 
   | Sempty of instr_info * 'asm fundef
   | Scall of 
-      instr_info * 'asm fundef * lval list * sem_t exec Fv.t * 'asm instr list * 'asm stack
+      instr_info * 'asm fundef * lval list * Vmap.t * 'asm instr list * 'asm stack
   | Sfor of instr_info * var_i * coq_Z list * 'asm instr list * 'asm instr list * 'asm stack
 
 type ('syscall_state, 'asm) state =
@@ -55,16 +54,16 @@ let return pd (sc_sem: 'syscall_state Syscall.syscall_sem) s =
     let s2 = s.s_estate in
     let m2 = s2.emem and vm2 = s2.evm in
     let vres = 
-      exn_exec ii (mapM (fun (x:var_i) -> get_var vm2 x.v_var) f.f_res) in
-    let vres' = exn_exec ii (mapM2 ErrType truncate_val f.f_tyout vres) in
+      List.map (fun (x:var_i) -> Vmap.get_var vmr_eq vm2 x.v_var) f.f_res in
+    let vres' = exn_exec ii (mapM2 ErrType truncate_defined_val f.f_tyout vres) in
     raise (Final(m2, vres'))
     
   | Scall(ii,f,xs,vm1,c,stk) ->
     let gd = s.s_prog.p_globs in
     let {escs = scs2; emem = m2; evm = vm2} = s.s_estate in
     let vres = 
-      exn_exec ii (mapM (fun (x:var_i) -> get_var vm2 x.v_var) f.f_res) in
-    let vres' = exn_exec ii (mapM2 ErrType truncate_val f.f_tyout vres) in
+      List.map (fun (x:var_i) -> Vmap.get_var vmr_eq vm2 x.v_var) f.f_res in
+    let vres' = exn_exec ii (mapM2 ErrType truncate_defined_val f.f_tyout vres) in
     let s1 = exn_exec ii (write_lvals pd sc_sem gd {escs = scs2; emem = m2; evm = vm1 } xs vres') in
     { s with 
       s_cmd = c;
@@ -91,7 +90,7 @@ let small_step1 pd (sc_sem: 'syscall_state Syscall.syscall_sem) asmOp s =
 
     | Cassgn(x,_,ty,e) ->
       let v  = exn_exec ii (sem_pexpr pd sc_sem gd s1 e) in
-      let v' = exn_exec ii (truncate_val ty v) in
+      let v' = exn_exec ii (truncate_defined_val ty v) in
       let s2 = exn_exec ii (write_lval pd sc_sem gd x v' s1) in
       { s with s_cmd = c; s_estate = s2 }
 
@@ -127,11 +126,11 @@ let small_step1 pd (sc_sem: 'syscall_state Syscall.syscall_sem) asmOp s =
         match get_fundef s.s_prog.p_funcs fn with
         | Some f -> f
         | None -> assert false in
-      let vargs = exn_exec ii (mapM2 ErrType truncate_val f.f_tyin vargs') in
+      let vargs = exn_exec ii (mapM2 ErrType truncate_defined_val f.f_tyin vargs') in
       let {escs; emem = m1; evm = vm1}  = s1 in
       let stk = Scall(ii,f, xs, vm1, c, s.s_stk) in
       let sf = 
-        exn_exec ii (write_vars pd sc_sem f.f_params vargs {escs; emem = m1; evm = vmap0}) in
+        exn_exec ii (write_vars pd sc_sem f.f_params vargs {escs; emem = m1; evm = Vmap.empty vmr_eq }) in
       {s with s_cmd = f.f_body;
               s_estate = sf;
               s_stk = stk }
@@ -148,7 +147,7 @@ let init_state scs0 p fn m =
   assert (f.f_tyin = []);
   { s_prog = p;
     s_cmd = f.f_body;
-    s_estate = {escs = scs0; emem = m; evm = vmap0 };
+    s_estate = {escs = scs0; emem = m; evm = Vmap.empty vmr_eq };
     s_stk = Sempty(dummy_instr_info, f) }
 
 

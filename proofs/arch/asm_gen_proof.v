@@ -390,7 +390,7 @@ Lemma word_uincl_word_extend sz sz' szo (w: word sz) (w': word sz') fl (old:word
   word_uincl w w' →
   word_uincl w (word_extend fl old w').
 Proof.
-  move=> hsz' /dup [] /andP[hsz_sz' /eqP ->] h.
+  move=> hsz' /[dup] /andP[hsz_sz' /eqP ->] h.
   case: fl.
   + (* MSB_CLEAR *)
     rewrite word_extend_CLEAR; apply: (word_uincl_trans h).
@@ -981,7 +981,7 @@ Lemma exec_desc_desc_op op asm_args s :
   exec_instr_op (instr_desc op) asm_args s = exec_instr_op (instr_desc_op op.2) asm_args s.
 Proof.
   case: op => -[ws |] //= op.
-  case: eqP => //= hclear /dup[] hcheck /exclude_mem_correct [hc hnaddr].
+  case: eqP => //= hclear /[dup] hcheck /exclude_mem_correct [hc hnaddr].
   rewrite /exec_instr_op /= /eval_instr_op /= hcheck hc hclear /=.
   case heq : eval_args_in => [vargs | ] //=.
   rewrite app_sopn_apply_lprod.

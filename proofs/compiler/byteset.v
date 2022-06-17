@@ -249,13 +249,13 @@ Proof.
   elim: (tobytes t) (_wf t) => [ _ | n' t' ih] /=.
   + constructor => /(_ (imin n)); rewrite !zify => h1.
     by have : false by apply h1; lia.
-  rewrite wf_auxE => /and3P [] /ZleP ? /ZltP ? /dup[] /ih h1 /(@_memi_least (imax n' + 1)) hi.
+  rewrite wf_auxE => /and3P [] /ZleP ? /ZltP ? /[dup] /ih h1 /(@_memi_least (imax n' + 1)) hi.
   case: I.subsetP => [[??] | hs] /=.
   + by constructor => i; rewrite /I.memi !zify; lia.
   case: ZltP => /= => ?.
   + case: h1 => h2; constructor.
-    + by move=> i /dup []/h2 ->; rewrite andbT; rewrite !zify; lia.
-    by move=> h3; apply h2 => i /dup[] /h3; rewrite !zify => -[]; [ lia| case].
+    + by move=> i /[dup]/h2 ->; rewrite andbT; rewrite !zify; lia.
+    by move=> h3; apply h2 => i /[dup] /h3; rewrite !zify => -[]; [ lia| case].
   constructor => h3.
   move /I.subsetP : hs; rewrite /I.subset; case: ZleP => /= ?.
   + move=> /ZleP ?; have {hi}hi:= hi (imax n'). 
@@ -281,10 +281,10 @@ Lemma wf_add_aux n t :
 Proof.
   move => ok_n ok_t.
   elim: t ok_t n ok_n; first by move => _ n /= ->; rewrite Z.min_id.
-  move => n' t ih ok_t n /dup[] ok_n /ZleP hle_n /=; case: ZltP => hlt.
+  move => n' t ih ok_t n /[dup] ok_n /ZleP hle_n /=; case: ZltP => hlt.
   - split; first by move => _ /=; lia.
     by apply: wf_cons => //=; rewrite zify; lia.
-  case/andP: ok_t => /dup[] ok_n' /ZleP hle_n'; rewrite wf_auxE => /andP[] /ZltP h ok_t.
+  case/andP: ok_t => /[dup] ok_n' /ZleP hle_n'; rewrite wf_auxE => /andP[] /ZltP h ok_t.
   case: ZltP => hlt'.
   - split; first by move => _ /=; lia.
     have {ih}[ih1 ih2] := ih ok_t _ ok_n.
@@ -353,7 +353,7 @@ Lemma wf_push n t :
   (imin n <= imax n → imax n < least (imax n + 1) t) →
   wf (_push n t).
 Proof. 
-  rewrite /_push; case: ifPn => // /dup [] /ZleP hle.
+  rewrite /_push; case: ifPn => // /[dup] /ZleP hle.
   rewrite -/(I.wf n) /= wf_auxE => -> -> ?; rewrite /= andbT.
   apply/ZltP; lia.
 Qed.
@@ -501,8 +501,8 @@ elim : (_subset_eq h) (_wf t1) (_wf t2) => {t1 t2 h}.
   move: (wf1); rewrite /= wf_auxE => /and3P [] /ZleP h1 /ZltP h2 wf1'.
   move: wf2; rewrite /= wf_auxE => /and3P [] /ZleP h1' /ZltP h2' wf2.
   apply: (equivP (ih wf1 wf2)) => /=; split => hh i; have := hh i; rewrite !zify. 
-  + by move=> h /dup [] /h -> hh1; right; split => //; lia.
-  by move=> h /dup [] /h [ | [] //]; lia.
+  + by move=> h /[dup] /h -> hh1; right; split => //; lia.
+  by move=> h /[dup] /h [ | [] //]; lia.
 move=> n1 t1' n2 t2' /I.subsetP hh hh' wf1 wf2;constructor.
 move: wf1; rewrite /= wf_auxE => /and3P [] h1 /ZltP h2 wf1.
 move: wf2; rewrite /= wf_auxE => /and3P [] h1' /ZltP h2' wf2 hh1.
@@ -583,9 +583,9 @@ elim : (_disjoint_eq h) (_wf t1) (_wf t2) => {t1 t2 h}.
   move: (wf1); rewrite /= wf_auxE => /and3P [] /ZleP h1 /ZltP h2 wf1'.
   move: wf2; rewrite /= wf_auxE => /and3P [] /ZleP h1' /ZltP h2' wf2.
   apply: (equivP (ih wf1 wf2)) => /=; split => hh i; have := hh i; rewrite !zify.
-  + move=> h /dup[] /h{h}h.
+  + move=> h /[dup] /h{h}h.
     by move=> ? [|[_ ?] //]; lia.
-  move=> h /dup[] /h{h}h _ hmem2; apply h; right; split=> //.
+  move=> h /[dup] /h{h}h _ hmem2; apply h; right; split=> //.
   by have /(_ (imax n2 + 1) i hmem2) := _memi_least wf2; lia.
 move=> n1 t1' n2 t2' hlt1 hlt2 wf1 wf2;constructor.
 move: wf1; rewrite /= wf_auxE => /and3P [] h1 /ZltP h2 wf1.
@@ -835,12 +835,12 @@ Proof.
   + by move=> t2 _ wf2;split => //= d; apply: (@le_least (least d t2)); rewrite least_least; lia.
   + by move=> t1 wf1 _;split => //= d; apply: (@le_least (least d t1)); rewrite least_least; lia.
   + move=> n1 t1 n2 t2 t h1 _ ih wf1 wf2 /=.
-    move: wf1; rewrite /= !wf_auxE => /and3P[] /dup [] /ZleP ? -> /ZltP ? wf1.
+    move: wf1; rewrite /= !wf_auxE => /and3P[] /[dup] /ZleP ? -> /ZltP ? wf1.
     have [-> /= h]:= ih wf1 wf2; rewrite andbT; split. 
     + by apply/ZltP; apply: lt_least; apply: Z.lt_le_trans; last apply (h (imax n1 + 1)); lia.
     by move=> _; move: wf2; rewrite /= wf_auxE => /and3P [] /ZleP ???; lia.
   + move=> n1 t1 n2 t2 t h1 _ ih wf1 wf2 /=.
-    move: wf2; rewrite /= !wf_auxE => /and3P[] /dup [] /ZleP ? -> /ZltP ? wf2.
+    move: wf2; rewrite /= !wf_auxE => /and3P[] /[dup] /ZleP ? -> /ZltP ? wf2.
     have [-> /= h]:= ih wf1 wf2; rewrite andbT; split. 
     + by apply/ZltP; apply: lt_least; apply: Z.lt_le_trans; last apply: (h (imax n2 + 1)); lia.
     by move=> _; move: wf1; rewrite /= wf_auxE => /and3P [] /ZleP ???; lia.

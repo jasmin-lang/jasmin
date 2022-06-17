@@ -418,7 +418,7 @@ let alloc_stack_prog pd is_move_op (globs, fds) =
     let sao = alloc_stack_fd pd is_move_op get_info gtbl fd in
     set_info fd.f_name sao in
   List.iter doit (List.rev fds);
-  let gao =  alloc_mem gtbl globs in
+  let gao = alloc_mem gtbl globs in
   gao, ftbl 
 
 let extend_sao sao extra =

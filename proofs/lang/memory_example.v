@@ -812,7 +812,7 @@ Module MemoryI : MemoryT.
     validw (free_stack m) p U8 →
     read m p U8 = read (free_stack m) p U8.
   Proof.
-    move => /dup [] hv'; rewrite (fss_valid m) => /andP[] hv hp.
+    move => /[dup] hv'; rewrite (fss_valid m) => /andP[] hv hp.
     by move: hv' hv; rewrite -!valid8_validw -!get_read8 /memory_model.get /= /get => -> ->.  
   Qed.
 

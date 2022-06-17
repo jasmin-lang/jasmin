@@ -220,10 +220,10 @@ Proof.
       by apply: vuincl_sem_opN ho hu.
     move=> ho; have [v' ho' hu']:= vuincl_sem_opN ho hu.
     by rewrite -/(pi_es pi es) (scfcP hs' ho'); eauto.
-  move=> ?? hrec ? hrec1 ? hrec2 v; t_xrbindP.
-  move=> ?? /hrec [? -> /of_value_uincl_te h] /(h sbool) /= ->.
-  move=> ?? /hrec1 [? -> hu1] /= /(value_uincl_truncate hu1) [? -> hu1'].
-  move=> ?? /hrec2 [? -> hu2] /= /(value_uincl_truncate hu2) [? -> hu2'] <- /=.
+  move=> > hrec ? hrec1 ? hrec2 v.
+  t_xrbindP=> > /hrec [? -> /of_value_uincl_te h] /(h sbool) /= ->
+    > /hrec1 [? -> hu1] /= /(of_val_uincl hu1) [? -> hu1']
+    > /hrec2 [? -> hu2] /= /(of_val_uincl hu2) [? -> hu2'] <- /=.
   by eexists; first reflexivity; case: ifP.
 Qed.
 

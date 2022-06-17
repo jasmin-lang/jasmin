@@ -185,19 +185,57 @@ Canonical result_eqType := Eval hnf in EqType (result E A) result_eqMixin.
 
 End ResultEqType.
 
+Module Option.
+
+Variant option_spec X A o xs xn : option A -> X -> Prop :=
+| OptionSpecSome : forall a, o = Some a -> option_spec o xs xn (Some a) (xs a)
+| OptionSpecNone : o = None -> option_spec o xs xn None xn.
+
+Lemma oappP R A (f : A -> R) x u : option_spec u f x u (oapp f x u).
+Proof. by case: u; constructor. Qed.
+
+Lemma odfltP T (x : T) u : option_spec u id x u (odflt x u).
+Proof. by case: u; constructor. Qed.
+
+Lemma obindP A R (f : A -> option R) u : option_spec u f None u (obind f u).
+Proof. by case: u; constructor. Qed.
+
+Lemma omapP A R (f : A -> R) u :
+  option_spec u (fun x => Some (f x)) None u (Option.map f u).
+Proof. by case: u; constructor. Qed.
+
+End Option.
+
 Module Result.
+
+Variant result_spec X A E r xo xe : result E A -> X -> Prop :=
+| ResultSpecOk : forall a, r = Ok E a -> result_spec r xo xe (Ok E a) (xo a)
+| ResultSpecError : forall e, r = Error e -> result_spec r xo xe (Error e) (xe e).
 
 Definition apply eT aT rT (f : aT -> rT) (x : rT) (u : result eT aT) :=
   if u is Ok y then f y else x.
 
 Definition bind eT aT rT (f : aT -> result eT rT) g :=
   match g with
-  | Ok x    => f x
+  | Ok x => f x
   | Error s => Error s
   end.
 
 Definition map eT aT rT (f : aT -> rT) := bind (fun x => Ok eT (f x)).
 Definition default eT aT := @apply eT aT aT (fun x => x).
+
+Lemma rappP E A R f (x : R) (u : result E A) :
+  result_spec u f (fun=> x) u (apply f x u).
+Proof. by case: u; constructor. Qed.
+
+Lemma rdfltP E A x (u : result E A) : result_spec u id (fun=> x) u (default x u).
+Proof. by case: u; constructor. Qed.
+
+Lemma rbindP E A R (f : A -> result E R) u : result_spec u f Error u (bind f u).
+Proof. by case: u; constructor. Qed.
+
+Lemma rmapP E A R (f : A -> R) u : result_spec u (fun x => Ok E (f x)) Error u (map f u).
+Proof. by case: u; constructor. Qed.
 
 End Result.
 
@@ -321,6 +359,15 @@ Proof.
   by simpl; t_xrbindP => y0 -> h0 -> -> ->.
 Qed.
 
+Lemma mapM_ok aT eT bT xs (f : aT -> result eT bT) :
+  (forall x, List.In x xs -> exists y, f x = ok y) -> exists ys, mapM f xs = ok ys.
+Proof.
+  elim xs; first by eexists.
+  move=> x ? /[swap] /= h [y ?|? -> /=]; first by case: (h y); auto.
+  case: (h x); first by left.
+  by move=> ? ->; eexists.
+Qed.
+
 Lemma map_ext aT bT f g m :
   (forall a, List.In a m -> f a = g a) ->
   @map aT bT f m = map g m.
@@ -328,6 +375,9 @@ Proof.
 elim: m => //= a m ih ext.
 rewrite ext; [ f_equal | ]; eauto.
 Qed.
+
+Lemma map_const_nseq A B (l : list A) (c : B) : map (fun=> c) l = nseq (size l) c.
+Proof. by elim: l => // > ? /=; f_equal. Qed.
 
 Lemma mapM_ext eT aT bT (f1 f2: aT → result eT bT) (m: seq aT) :
   (∀ a, List.In a m → f1 a = f2 a) →
@@ -557,6 +607,22 @@ Section FOLD2.
     by elim : xs ys x0 => [|x xs ih] [|y ys] x0 //= ; t_xrbindP => // t _ /ih ->.
   Qed.
 
+  Lemma cat_fold2 ha ta hb tb x v v' :
+    fold2 ha hb x = ok v -> fold2 ta tb v = ok v' ->
+    fold2 (ha ++ ta) (hb ++ tb) x = ok v'.
+  Proof.
+    elim: ha hb x v => [[] // > [<-] | > hrec []] //= >.
+    by t_xrbindP => ? -> /hrec{hrec}h/h{h}.
+  Qed.
+
+  Lemma fold2_cat ha ta hb tb x v :
+    fold2 (ha ++ ta) (hb ++ tb) x = ok v -> size ha = size hb ->
+    exists2 v', fold2 ha hb x = ok v' & fold2 ta tb v' = ok v.
+  Proof.
+    elim: ha hb x v => [[]//= > <- _|> hrec []//=]; first by eexists.
+    by t_xrbindP=> > -> /hrec{hrec}h /Nat.succ_inj.
+  Qed.
+
 End FOLD2.
 
 (* ---------------------------------------------------------------- *)
@@ -632,6 +698,23 @@ Section MAP2.
     move=> a ma ih [//|b mb] /=.
     t_xrbindP=> _ r h mr /ih{ih}ih <-.
     by constructor.
+  Qed.
+
+  Lemma mapM2_cat ha ta hb tb l :
+    mapM2 (ha ++ ta) (hb ++ tb) = ok l -> size ha = size hb ->
+    exists hl tl, [/\ mapM2 ha hb = ok hl, mapM2 ta tb = ok tl & l = hl ++ tl].
+  Proof.
+    by elim: ha hb l => [[]//?->_|>hrec []//???/=];
+      last t_xrbindP=> ? -> ? /hrec{hrec}h<-[/h{h}[? [? [->->->]]]];
+      eexists _, _.
+  Qed.
+
+  Lemma cat_mapM2 ha ta hb tb hl tl :
+    mapM2 ha hb = ok hl -> mapM2 ta tb = ok tl ->
+    mapM2 (ha ++ ta) (hb ++ tb) = ok (hl ++ tl).
+  Proof.
+    elim: ha hb hl => [[]//?[<-]|> hrec []] //=.
+    by t_xrbindP=> > -> ? /hrec{hrec}hrec <- /hrec{hrec} ->.
   Qed.
 
 End MAP2.
@@ -1447,14 +1530,6 @@ Proof. by rewrite /Z.to_nat; case: z => //=; rewrite /Z.le. Qed.
 (* ** Some Extra tactics
  * -------------------------------------------------------------------- *)
 
-(* -------------------------------------------------------------------- *)
-Variant dup_spec (P : Prop) :=
-| Dup of P & P.
-
-Lemma dup (P : Prop) : P -> dup_spec P.
-Proof. by move=> ?; split. Qed.
-
-(* -------------------------------------------------------------------- *)
 Definition ZleP : ∀ x y, reflect (x <= y) (x <=? y) := Z.leb_spec0.
 Definition ZltP : ∀ x y, reflect (x < y) (x <? y) := Z.ltb_spec0.
 
@@ -1509,6 +1584,17 @@ Proof.
   by move=> hz;rewrite /ziota Z2Nat.inj_succ // -addn1 iotaD map_cat /= add0n Z2Nat.id.
 Qed.
 
+Lemma ziota_cat p y z: 0 <= y -> 0 <= z ->
+  ziota p y ++ ziota (p + y) z = ziota p (y + z).
+Proof.
+  move=> ? /Z2Nat.id <-; elim: (Z.to_nat _).
+  + by rewrite Z.add_0_r /= cats0.
+  move=> ? hrw; rewrite Nat2Z.inj_succ Z.add_succ_r !ziotaS_cat; last 2 first.
+  + exact: (Ztac.add_le _ _ _ (Zle_0_nat _)).
+  + exact: Zle_0_nat.
+  by rewrite catA hrw Z.add_assoc.
+Qed.
+
 Lemma in_ziota (p z i:Z) : (i \in ziota p z) = ((p <=? i) && (i <? p + z)).
 Proof.
   case: (ZleP 0 z) => hz.
@@ -1521,6 +1607,9 @@ Proof.
   rewrite ziota_neg;last Psatz.lia.
   rewrite in_nil;symmetry;apply /negP => /andP [/ZleP ? /ZltP ?]; Psatz.lia.
 Qed.
+
+Lemma In_ziota (p z i:Z) : List.In i (ziota p z) <-> p <= i < p + z.
+Proof. by rewrite (rwP (InP _ _)) in_ziota !zify. Qed.
 
 Lemma size_ziota p z: size (ziota p z) = Z.to_nat z.
 Proof. by rewrite size_map size_iota. Qed.
@@ -1555,6 +1644,13 @@ Lemma all_ziota p1 p2 (f1 f2: Z -> bool) :
   (forall i, (p1 <= i < p1 + p2)%Z -> f1 i = f2 i) ->
   all f1 (ziota p1 p2) = all f2 (ziota p1 p2).
 Proof. by move => h; apply ziota_ind => //= i l /h -> ->. Qed.
+
+Lemma cat_sync E (h t l : seq E) : size l = size (h ++ t) ->
+  exists h' t', [/\ l = h' ++ t', size h' = size h & size t' = size t].
+Proof.
+  elim: h l; first by eexists [::], _.
+  by move=> > hrec []//= > [/hrec{hrec}[? [? [-> <- <-]]]]; eexists (_::_), _.
+Qed.
 
 (* ------------------------------------------------------------------------- *)
 Lemma sumbool_of_boolET (b: bool) (h: b) :
@@ -1617,3 +1713,56 @@ Proof.
   rewrite ltnNge; apply /negP => hle.
   by rewrite nth_default in hnth.
 Qed.
+
+Lemma cat_inj_head T (x y z : seq T) : x ++ y = x ++ z -> y = z.
+Proof. by elim: x y z => // > hrec >; rewrite !cat_cons => -[/hrec]. Qed.
+
+Lemma cat_inj_tail T (x y z : seq T) : x ++ z = y ++ z -> x = y.
+Proof.
+  elim: z x y => >; first by rewrite !cats0.
+  by move=> hrec >; rewrite -!cat_rcons => /hrec /rcons_inj[].
+Qed.
+
+Fixpoint unzip12 A B (l: seq (A * B)) :=
+  match l with
+  | (el, er)::l => let lr := unzip12 l in (el::lr.1, er::lr.2)
+  | [::] => ([::], [::])
+  end.
+
+Lemma splitP A B l : @unzip12 A B l = List.split l.
+Proof.
+  by elim: l => //= -[] > ->; rewrite (surjective_pairing (List.split _)).
+Qed.
+
+Lemma unzip121 A B (a: seq (A * B)) : (unzip12 a).1 = unzip1 a.
+Proof. by elim a => // -[] > /= ->. Qed.
+
+Lemma unzip122 A B (a: seq (A * B)) : (unzip12 a).2 = unzip2 a.
+Proof. by elim a => // -[] > /= ->. Qed.
+
+Lemma zip_unzip12 A B (s : seq (A * B)) : uncurry zip (unzip12 s) = s.
+Proof.
+  have -> /= := surjective_pairing (unzip12 s).
+  by rewrite unzip121 unzip122 zip_unzip.
+Qed.
+
+Lemma unzip12_zip A B (a : seq A) (b : seq B) :
+  (size a = size b)%N → unzip12 (zip a b) = (a, b).
+Proof.
+  have -> /= := surjective_pairing (unzip12 (zip a b)) => h.
+  by rewrite unzip121 unzip122 unzip1_zip ?h // unzip2_zip ?h.
+Qed.
+
+Lemma size_unzip1 A B (l : seq (A * B)) : size (unzip1 l) = size l.
+Proof. by elim: l=> //= ?? ->. Qed.
+
+Lemma size_unzip2 A B (l : seq (A * B)) : size (unzip2 l) = size l.
+Proof. by elim: l=> //= ?? ->. Qed.
+
+Lemma unzip1_cat A B (lh lt: seq (A * B)) :
+  unzip1 (lh ++ lt) = unzip1 lh ++ unzip1 lt.
+Proof. by elim: lh => //= -[] > ->. Qed.
+
+Lemma unzip2_cat A B (lh lt: seq (A * B)) :
+  unzip2 (lh ++ lt) = unzip2 lh ++ unzip2 lt.
+Proof. by elim: lh => //= -[] > ->. Qed.

@@ -4,60 +4,12 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
 Require Import Psatz xseq.
-Require Export array type expr gen_map low_memory warray_ sem_type values.
+Require Export array type expr gen_map low_memory warray_ sem_type values varmap.
 Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-(* ** Variable map
- * -------------------------------------------------------------------- *)
-
-Notation vmap     := (Fv.t (fun t => exec (sem_t t))).
-
-Definition undef_addr t :=
-  match t return exec (sem_t t) with
-  | sbool | sint | sword _ => undef_error
-  | sarr n => ok (WArray.empty n)
-  end.
-
-Definition vmap0 : vmap :=
-  @Fv.empty (fun t => exec (sem_t t)) (fun x => undef_addr x.(vtype)).
-
-Definition on_vu t r (fv: t -> r) (fu:exec r) (v:exec t) : exec r :=
-  match v with
-  | Ok v => ok (fv v)
-  | Error ErrAddrUndef => fu
-  | Error e            => Error e
-  end.
-
-Lemma on_vuP T R (fv: T -> R) (fu: exec R) (v:exec T) r P:
-  (forall t, v = ok t -> fv t = r -> P) ->
-  (v = undef_error -> fu = ok r -> P) ->
-  on_vu fv fu v = ok r -> P.
-Proof. by case: v => [a | []] Hfv Hfu //=;[case; apply: Hfv | apply Hfu]. Qed.
-
-(* An access to a undefined value, leads to an error *)
-Definition get_var (m:vmap) x :=
-  on_vu (@to_val (vtype x)) undef_error (m.[x]%vmap).
-
-(* Assigning undefined value is allowed only for bool *)
-Definition set_var (m:vmap) x v : exec vmap :=
-  on_vu (fun v => m.[x<-ok v]%vmap)
-        (if is_sbool x.(vtype) then ok m.[x<-undef_addr x.(vtype)]%vmap
-         else type_error)
-        (of_val (vtype x) v).
-
-Lemma set_varP (m m':vmap) x v P :
-   (forall t, of_val (vtype x) v = ok t -> m.[x <- ok t]%vmap = m' -> P) ->
-   ( is_sbool x.(vtype) -> of_val (vtype x) v = undef_error ->
-     m.[x<-undef_addr x.(vtype)]%vmap = m' -> P) ->
-   set_var m x v = ok m' -> P.
-Proof.
-  move=> H1 H2;apply on_vuP => //.
-  by case:ifPn => // hb herr []; apply : H2.
-Qed.
 
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
@@ -236,10 +188,15 @@ Definition sem_opN (op: opN) (vs: values) : exec value :=
   Let w := app_sopn _ (sem_opN_typed op) vs in
   ok (to_val w).
 
-Record estate {pd: PointerData} {syscall_state : Type} {sc_sem: syscall_sem syscall_state} := Estate {
+Section WITH_VMREL.
+
+Context {vmr: VmapRel}.
+
+Record estate {pd: PointerData} {syscall_state : Type} {sc_sem: syscall_sem syscall_state} :=
+Estate {
   escs : syscall_state_t;
   emem : mem;
-  evm  : vmap
+  evm  : Vmap.t
 }.
 
 Arguments Estate {pd} {syscall_state}%type_scope {sc_sem} _ _ _.
@@ -268,38 +225,21 @@ Proof.
   by case:eqP => // <- [<-];exists gv.
 Qed.
 
-Definition get_gvar (gd: glob_decls) (vm: vmap) (x:gvar) :=
-  if is_lvar x then get_var vm x.(gv)
-  else get_global gd x.(gv).
+Definition get_gvar (gd: glob_decls) (vm: Vmap.t) (x:gvar) :=
+  if is_lvar x then ok (Vmap.get_var vm x.(gv)) else get_global gd x.(gv).
 
-Definition on_arr_var A (v:exec value) (f:forall n, WArray.array n -> exec A) :=
-  Let v := v  in
+Definition on_arr_var A (v: exec value) (f:forall n, WArray.array n -> exec A) :=
+  Let v := v in
   match v with
   | Varr n t => f n t
   | _ => type_error
   end.
 
-Notation "'Let' ( n , t ) ':=' s '.[' v ']' 'in' body" :=
-  (@on_arr_var _ (get_var s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
-
-Notation "'Let' ( n , t ) ':=' gd ',' s '.[' v ']' 'in' body" :=
-  (@on_arr_var _ (get_gvar gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
-
-Lemma type_of_get_var x vm v :
-  get_var vm x = ok v ->
-  type_of_val v = x.(vtype).
-Proof. by rewrite /get_var; apply : on_vuP => // t _ <-; apply type_of_to_val. Qed.
-
-Lemma on_arr_varP {pd: PointerData} {syscall_state : Type} {sc_sem: syscall_sem syscall_state}
-  A (f : forall n, WArray.array n -> exec A) v s x P :
-  (forall n t, vtype x = sarr n ->
-               get_var (evm s) x = ok (@Varr n t) ->
-               f n t = ok v -> P) ->
-  on_arr_var (get_var (evm s) x) f = ok v -> P.
+Lemma on_arr_varP A (f : forall n, WArray.array n -> exec A) v vm x P :
+  (forall n t, vm_rel (vtype x) (sarr n) -> Vmap.get_var vm x = @Varr n t -> f n t = ok v -> P) ->
+  on_arr_var (ok (Vmap.get_var vm x)) f = ok v -> P.
 Proof.
-  rewrite /on_arr_var=> H;apply: rbindP => vx hx.
-  have h := type_of_get_var hx; case: vx h hx => // len t h.
-  by apply: H;rewrite -h.
+  by move=> h; case: Vmap.get_var h (Vmap.get_varP vm x) => // ?? h/h; apply.
 Qed.
 
 Lemma type_of_get_global gd g v :
@@ -307,24 +247,39 @@ Lemma type_of_get_global gd g v :
 Proof. by move=> /get_globalI [?[]]. Qed.
 
 Lemma type_of_get_gvar x gd vm v :
-  get_gvar gd vm x = ok v ->
-  type_of_val v = vtype x.(gv).
-Proof. 
-  rewrite /get_gvar;case:ifP => ?.
-  + by apply type_of_get_var.
-  by apply type_of_get_global.
+  get_gvar gd vm x = ok v -> typerel_undef vm_rel (vtype x.(gv)) v.
+Proof.
+  rewrite /get_gvar;case:ifP => _.
+  + by case=> <-; exact: Vmap.get_varP.
+  by move=> /type_of_get_global <-; exact: typerel_undef_refl vm_relxx.
 Qed.
 
-Lemma on_arr_gvarP A (f : forall n, WArray.array n -> exec A) v gd s x P:
-  (forall n t, vtype x.(gv) = sarr n ->
-               get_gvar gd s x = ok (@Varr n t) ->
+Lemma on_arr_gvarP A (f : forall n, WArray.array n -> exec A) v gd vm x P:
+  (forall n t, vm_rel (vtype (gv x)) (sarr n) ->
+               get_gvar gd vm x = ok (@Varr n t) ->
                f n t = ok v -> P) ->
-  on_arr_var (get_gvar gd s x) f = ok v -> P.
+  on_arr_var (get_gvar gd vm x) f = ok v -> P.
 Proof.
-  rewrite /on_arr_var=> H;apply: rbindP => vx hx.
-  have h := type_of_get_gvar hx; case: vx h hx => // len t h.
-  by apply: H;rewrite -h.
+  move=> h; case: get_gvar h (@type_of_get_gvar x gd vm) => // -[] // > h ht.
+  by move: {ht} (ht _ erefl); rewrite /typerel_undef /= => /h{h}; apply.
 Qed.
+
+End WITH_VMREL.
+
+(* ** Variable map
+ * -------------------------------------------------------------------- *)
+
+#[global] Instance vmr_eq : VmapRel :=
+  {| vm_rel := @eq_op [eqType of stype]
+   ; vm_relxx := @eqxx [eqType of stype]
+   ; vm_supeq := fun _ _ x => x
+   ; vm_subcomp := fun x _ e => eq_rect _ (compat_type x) (compat_type_refl x) _ (eqP e) |}.
+
+Notation "'Let' ( n , t ) ':=' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (ok (Vmap.get_var s.(evm) v)) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
+
+Notation "'Let' ( n , t ) ':=' gd ',' s '.[' v ']' 'in' body" :=
+  (@on_arr_var _ (get_gvar gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
 
 Section SEM_PEXPR.
 
@@ -348,7 +303,7 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
       Let t' := WArray.get_sub aa ws len t i in
       ok (Varr t')
   | Pload sz x e =>
-    Let w1 := get_var s.(evm) x >>= to_pointer in
+    Let w1 := to_pointer (Vmap.get_var s.(evm) x) in
     Let w2 := sem_pexpr s e >>= to_pointer in
     Let w  := read s.(emem) (w1 + w2)%R sz in
     ok (@to_val (sword sz) w)
@@ -364,30 +319,26 @@ Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
     sem_opN op vs
   | Pif t e e1 e2 =>
     Let b := sem_pexpr s e >>= to_bool in
-    Let v1 := sem_pexpr s e1 >>= truncate_val t in
-    Let v2 := sem_pexpr s e2 >>= truncate_val t in
-    ok (if b then v1 else v2)
+    Let v1 := sem_pexpr s e1 >>= of_val t in
+    Let v2 := sem_pexpr s e2 >>= of_val t in
+    ok (to_val (if b then v1 else v2))
   end.
 
 Definition sem_pexprs s := mapM (sem_pexpr s).
 
 Definition write_var (x:var_i) (v:value) (s:estate) : exec estate :=
-  Let vm := set_var s.(evm) x v in
+  Let vm := Vmap.set_var s.(evm) x v in
   ok ({| escs := s.(escs); emem := s.(emem); evm := vm |}).
 
 Definition write_vars xs vs s :=
   fold2 ErrType write_var xs vs s.
 
-Definition write_none (s:estate) ty v :=
-  on_vu (fun v => s) (if is_sbool ty then ok s else type_error)
-          (of_val ty v).
-
 Definition write_lval (l:lval) (v:value) (s:estate) : exec estate :=
   match l with
-  | Lnone _ ty => write_none s ty v
+  | Lnone _ ty => if compat_type ty (type_of_val v) then ok s else type_error
   | Lvar x => write_var x v s
   | Lmem sz x e =>
-    Let vx := get_var (evm s) x >>= to_pointer in
+    Let vx := to_pointer (Vmap.get_var (evm s) x) in
     Let ve := sem_pexpr s e >>= to_pointer in
     let p := (vx + ve)%R in (* should we add the size of value, i.e vx + sz * se *)
     Let w := to_word sz v in
@@ -465,86 +416,85 @@ Definition exec_syscall (scs : syscall_state_t) (m:mem) (o:syscall_t) (vs:values
 
 Inductive sem : estate -> cmd -> estate -> Prop :=
 | Eskip s :
-    sem s [::] s
+  sem s [::] s
 
 | Eseq s1 s2 s3 i c :
-    sem_I s1 i s2 -> sem s2 c s3 -> sem s1 (i::c) s3
+  sem_I s1 i s2 -> sem s2 c s3 -> sem s1 (i::c) s3
 
 with sem_I : estate -> instr -> estate -> Prop :=
 | EmkI ii i s1 s2:
-    sem_i s1 i s2 ->
-    sem_I s1 (MkI ii i) s2
+  sem_i s1 i s2 ->
+  sem_I s1 (MkI ii i) s2
 
 with sem_i : estate -> instr_r -> estate -> Prop :=
 | Eassgn s1 s2 (x:lval) tag ty e v v':
-    sem_pexpr gd s1 e = ok v ->
-    truncate_val ty v = ok v' →
-    write_lval gd x v' s1 = ok s2 ->
-    sem_i s1 (Cassgn x tag ty e) s2
+  sem_pexpr gd s1 e = ok v ->
+  truncate_val ty v = ok v' ->
+  write_lval gd x v' s1 = ok s2 ->
+  sem_i s1 (Cassgn x tag ty e) s2
 
 | Eopn s1 s2 t o xs es:
-    sem_sopn gd o s1 xs es = ok s2 ->
-    sem_i s1 (Copn xs t o es) s2
+  sem_sopn gd o s1 xs es = ok s2 ->
+  sem_i s1 (Copn xs t o es) s2
 
 | Esyscall s1 scs m s2 xs o es ves vs:
-    sem_pexprs gd s1 es = ok ves →
-    exec_syscall s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
-    write_lvals gd {| escs := scs; emem := m; evm := s1.(evm) |} xs vs = ok s2 →
-    sem_i s1 (Csyscall xs o es) s2
+  sem_pexprs gd s1 es = ok ves →
+  exec_syscall s1.(escs) s1.(emem) o ves = ok (scs, m, vs) →
+  write_lvals gd {| escs := scs; emem := m; evm := s1.(evm) |} xs vs = ok s2 →
+  sem_i s1 (Csyscall xs o es) s2
 
 | Eif_true s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool true) ->
-    sem s1 c1 s2 ->
-    sem_i s1 (Cif e c1 c2) s2
+  sem_pexpr gd s1 e = ok (Vbool true) ->
+  sem s1 c1 s2 ->
+  sem_i s1 (Cif e c1 c2) s2
 
 | Eif_false s1 s2 e c1 c2 :
-    sem_pexpr gd s1 e = ok (Vbool false) ->
-    sem s1 c2 s2 ->
-    sem_i s1 (Cif e c1 c2) s2
+  sem_pexpr gd s1 e = ok (Vbool false) ->
+  sem s1 c2 s2 ->
+  sem_i s1 (Cif e c1 c2) s2
 
 | Ewhile_true s1 s2 s3 s4 a c e c' :
-    sem s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool true) ->
-    sem s2 c' s3 ->
-    sem_i s3 (Cwhile a c e c') s4 ->
-    sem_i s1 (Cwhile a c e c') s4
+  sem s1 c s2 ->
+  sem_pexpr gd s2 e = ok (Vbool true) ->
+  sem s2 c' s3 ->
+  sem_i s3 (Cwhile a c e c') s4 ->
+  sem_i s1 (Cwhile a c e c') s4
 
 | Ewhile_false s1 s2 a c e c' :
-    sem s1 c s2 ->
-    sem_pexpr gd s2 e = ok (Vbool false) ->
-    sem_i s1 (Cwhile a c e c') s2
+  sem s1 c s2 ->
+  sem_pexpr gd s2 e = ok (Vbool false) ->
+  sem_i s1 (Cwhile a c e c') s2
 
 | Efor s1 s2 (i:var_i) d lo hi c vlo vhi :
-    sem_pexpr gd s1 lo = ok (Vint vlo) ->
-    sem_pexpr gd s1 hi = ok (Vint vhi) ->
-    sem_for i (wrange d vlo vhi) s1 c s2 ->
-    sem_i s1 (Cfor i (d, lo, hi) c) s2
+  sem_pexpr gd s1 lo = ok (Vint vlo) ->
+  sem_pexpr gd s1 hi = ok (Vint vhi) ->
+  sem_for i (wrange d vlo vhi) s1 c s2 ->
+  sem_i s1 (Cfor i (d, lo, hi) c) s2
 
 | Ecall s1 scs2 m2 s2 ii xs f args vargs vs :
-    sem_pexprs gd s1 args = ok vargs ->
-    sem_call s1.(escs) s1.(emem) f vargs scs2 m2 vs ->
-    write_lvals gd {|escs := scs2; emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
-    sem_i s1 (Ccall ii xs f args) s2
+  sem_pexprs gd s1 args = ok vargs ->
+  sem_call s1.(escs) s1.(emem) f vargs scs2 m2 vs ->
+  write_lvals gd {|escs := scs2; emem:= m2; evm := s1.(evm) |} xs vs = ok s2 ->
+  sem_i s1 (Ccall ii xs f args) s2
 
 with sem_for : var_i -> seq Z -> estate -> cmd -> estate -> Prop :=
 | EForDone s i c :
-    sem_for i [::] s c s
+  sem_for i [::] s c s
 
 | EForOne s1 s1' s2 s3 i w ws c :
-    write_var i (Vint w) s1 = ok s1' ->
-    sem s1' c s2 ->
-    sem_for i ws s2 c s3 ->
-    sem_for i (w :: ws) s1 c s3
+  write_var i (Vint w) s1 = ok s1' ->
+  sem s1' c s2 ->
+  sem_for i ws s2 c s3 ->
+  sem_for i (w :: ws) s1 c s3
 
 with sem_call : syscall_state_t -> mem -> funname -> seq value -> syscall_state_t -> mem -> seq value -> Prop :=
-| EcallRun scs1 m1 scs2 m2 fn f vargs vargs' s1 vm2 vres vres' :
-    get_fundef (p_funcs P) fn = Some f ->
-    mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
-    write_vars f.(f_params) vargs (Estate scs1 m1 vmap0) = ok s1 ->
-    sem s1 f.(f_body) (Estate scs2 m2 vm2) ->
-    mapM (fun (x:var_i) => get_var vm2 x) f.(f_res) = ok vres ->
-    mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
-    sem_call scs1 m1 fn vargs' scs2 m2 vres'.
+| EcallRun scs1 m1 scs2 m2 fn f vargs vargs' s1 vm2 vres :
+  get_fundef (p_funcs P) fn = Some f ->
+  mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
+  write_vars f.(f_params) vargs (Estate scs1 m1 Vmap.empty) = ok s1 ->
+  sem s1 f.(f_body) (Estate scs2 m2 vm2) ->
+  mapM2 ErrType (fun ty (x:var_i) => truncate_val ty (Vmap.get_var vm2 x)) f.(f_tyout) f.(f_res) = ok vres ->
+  sem_call scs1 m1 fn vargs' scs2 m2 vres.
 
 (* -------------------------------------------------------------------- *)
 (* The generated scheme is borring to use *)
@@ -668,15 +618,14 @@ Section SEM_IND.
 
   Definition sem_Ind_proc : Prop :=
     forall (scs1 : syscall_state_t) (m1 : mem) (scs2 : syscall_state_t) (m2 : mem) (fn:funname) (f : fundef) (vargs vargs': seq value)
-           (s1 : estate) (vm2 : vmap) (vres vres': seq value),
+           (s1 : estate) (vm2 : Vmap.t) (vres : seq value),
       get_fundef (p_funcs P) fn = Some f ->
       mapM2 ErrType truncate_val f.(f_tyin) vargs' = ok vargs ->
-      write_vars (f_params f) vargs {| escs := scs1; emem := m1; evm := vmap0 |} = ok s1 ->
+      write_vars (f_params f) vargs {| escs := scs1; emem := m1; evm := Vmap.empty |} = ok s1 ->
       sem s1 (f_body f) {| escs := scs2; emem := m2; evm := vm2 |} ->
       Pc s1 (f_body f) {| escs := scs2; emem := m2; evm := vm2 |} ->
-      mapM (fun x : var_i => get_var vm2 x) (f_res f) = ok vres ->
-      mapM2 ErrType truncate_val f.(f_tyout) vres = ok vres' ->
-      Pfun scs1 m1 fn vargs' scs2 m2 vres'.
+      mapM2 ErrType (fun ty (x:var_i) => truncate_val ty (Vmap.get_var vm2 x)) f.(f_tyout) f.(f_res) = ok vres ->
+      Pfun scs1 m1 fn vargs' scs2 m2 vres.
 
   Hypotheses
     (Hcall: sem_Ind_call)
@@ -732,8 +681,8 @@ Section SEM_IND.
   with sem_call_Ind (scs : syscall_state_t) (m : mem) (f13 : funname) (l : seq value) (scs0 : syscall_state_t) (m0 : mem)
          (l0 : seq value) (s : sem_call scs m f13 l scs0 m0 l0) {struct s} : Pfun scs m f13 l scs0 m0 l0 :=
     match s with
-    | @EcallRun scs1 m1 scs2 m2 fn f vargs vargs' s1 vm2 vres vres' Hget Hctin Hw Hsem Hvres Hctout =>
-       @Hproc scs1 m1 scs2 m2 fn f vargs vargs' s1 vm2 vres vres' Hget Hctin Hw Hsem (sem_Ind Hsem) Hvres Hctout
+    | @EcallRun scs1 m1 scs2 m2 fn f vargs vargs' s1 vm2 vres Hget Hctin Hw Hsem Hvres =>
+       @Hproc scs1 m1 scs2 m2 fn f vargs vargs' s1 vm2 vres Hget Hctin Hw Hsem (sem_Ind Hsem) Hvres
     end.
 
 End SEM_IND.

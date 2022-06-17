@@ -129,7 +129,7 @@ Module WArray.
       set8 m p w = ok m' ->
       get8 m' p' = if p == p' then ok w else get8 m p'.
     Proof.
-      rewrite /get8 /set8 => /dup[] /valid8_set ->; t_xrbindP => hb <-.
+      rewrite /get8 /set8 => /[dup] /valid8_set ->; t_xrbindP => hb <-.
       case heq: in_bound => //=; last by case: eqP => // h;move: heq; rewrite -h hb.
       by rewrite /is_init /= Mz.setP; case: eqP.
     Qed.
@@ -246,7 +246,7 @@ Module WArray.
 
   Lemma cast_empty_ok len1 len2 t: 
     WArray.cast len1 (empty len2) = ok t -> t = empty len1.
-  Proof. by move=> /dup[]/cast_len/ZleP; rewrite cast_empty => -> [<-]. Qed.
+  Proof. by move=> /[dup]/cast_len/ZleP; rewrite cast_empty => -> [<-]. Qed.
 
   Lemma cast_get8 len1 len2 (m : array len2) m' :
     cast len1 m = ok m' ->
@@ -350,7 +350,7 @@ Module WArray.
 
   Lemma uincl_empty len len' (t:array len') : 
     Zpos len <= len' -> uincl (empty len) t.
-  Proof.  
+  Proof.
     split; first Psatz.lia.
     by move=> i w; rewrite get_empty; case: ifP.
   Qed.
@@ -369,7 +369,7 @@ Module WArray.
     rewrite /get => -[_ hu] hr; have {hr}[ha hr] := read_read8 hr.
     by rewrite (read8_read (v:=w)) ?ha // => k /hr /hu.
   Qed.
-  
+
   Lemma uincl_set {ws len1 len2} (a1 a1': array len1) (a2: array len2) aa i (w:word ws) :
     uincl a1 a2 ->
     set a1 aa i w = ok a1' ->
@@ -530,7 +530,7 @@ Module WArray.
     uincl a1 a2 ->
     get_sub aa ws len a1 i = ok t1 ->
     exists2 t2, get_sub aa ws len a2 i = ok t2 & uincl t1 t2.
-  Proof. 
+  Proof.
     move=> [hlen hu] hget.
     have := get_sub_get8 hget.
     have := @get_sub_get8 aa ws len2 a2 len i _.

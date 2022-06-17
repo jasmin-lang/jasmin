@@ -162,16 +162,16 @@ Lemma mem_equiv_mkI : sem_Ind_mkI P ev Pi_r Pi.
 Proof. by []. Qed.
 
 Lemma mem_equiv_assgn : sem_Ind_assgn P Pi_r.
-Proof. by move => s1 s2 x tg ty e v v' ok_v ok_v' /dup[] /write_lval_validw ? /write_lval_stack_stable. Qed.
+Proof. by move => s1 s2 x tg ty e v v' ok_v ok_v' /[dup] /write_lval_validw ? /write_lval_stack_stable. Qed.
 
 Lemma mem_equiv_opn : sem_Ind_opn P Pi_r.
-Proof. by move => s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /dup[] /write_lvals_validw ? /write_lvals_stack_stable. Qed.
+Proof. by move => s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /[dup] /write_lvals_validw ? /write_lvals_stack_stable. Qed.
 
 Lemma mem_equiv_syscall : sem_Ind_syscall P Pi_r.
 Proof. 
   move => s1 scs m s2 o xs es ves vs hes h. 
   have [ho1 ho2]:= exec_syscallS h.  
-  move=> /dup[] /write_lvals_validw ? /write_lvals_stack_stable ?.
+  move=> /[dup] /write_lvals_validw ? /write_lvals_stack_stable ?.
   by split; [rewrite ho1 | move=> ??; rewrite ho2].
 Qed.
 
@@ -205,7 +205,7 @@ Proof.
 Qed.
 
 Lemma mem_equiv_call : sem_Ind_call P ev Pi_r Pfun.
-Proof. move=> s1 scs2 m2 s2 ii xs fn args vargs vres _ _ ? /dup[] /write_lvals_validw ? /write_lvals_stack_stable ?; red; etransitivity; [|split]; eassumption. Qed.
+Proof. move=> s1 scs2 m2 s2 ii xs fn args vargs vres _ _ ? /[dup] /write_lvals_validw ? /write_lvals_stack_stable ?; red; etransitivity; [|split]; eassumption. Qed.
 
 Lemma mem_equiv_proc : sem_Ind_proc P ev Pc Pfun.
 Proof.

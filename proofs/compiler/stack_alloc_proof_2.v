@@ -151,7 +151,7 @@ Proof.
       by case: ltP; lia.
     by rewrite -hw LE.decodeK.
   move=> len a /andP [] /leP; rewrite size_drop => hle /allP hread.
-  move=> k w /dup[] /get_val_byte_bound /= hbound hw.
+  move=> k w /[dup] /get_val_byte_bound /= hbound hw.
   apply /eqP; rewrite Z2Nat.inj_add; try lia.
   move: (hread (Z.to_nat k)).
   rewrite Z2Nat.id; last by lia.
@@ -1045,7 +1045,7 @@ Proof.
       have ?: x <> p.
       + by move /is_sarrP: harr => [n]; congruence.
       by move=> /SvD.F.add_3; auto.
-    move=> ? /dup[] ? /hnew ?.
+    move=> ? /[dup] ? /hnew ?.
     have ?: p <> y by congruence.
     by move=> /SvD.F.add_3; auto.
   move=> s z f.
@@ -1102,7 +1102,7 @@ Proof.
   case: eqP.
   + move=> <- _.
     by move=> /SvD.F.add_3; auto.
-  move=> ? /dup[] ? /hnew ?.
+  move=> ? /[dup] ? /hnew ?.
   have ?: f <> y by congruence.
   by move=> /SvD.F.add_3; auto.
 Qed.
@@ -1315,7 +1315,7 @@ Proof.
     have ?: param.(v_var) <> pi.(pp_ptr).
     + by move /is_sarrP : harrty => [n]; congruence.
     by move=> /SvD.F.add_3; auto.
-  move=> ? /dup[] ? /hnew ?.
+  move=> ? /[dup] ? /hnew ?.
   have ?: pi.(pp_ptr) <> y by congruence.
   by move=> /SvD.F.add_3; auto.
 Qed.
@@ -2290,14 +2290,14 @@ Proof.
   move=> hargs hdisj vargs1' vargs2' hincl hptreq.
   move=> i1 pi1 w1 i2 pi2 w2 hpi1 hw1 hpi2 hw2 hneq hw.
   have := Forall3_nth hptreq None (Vbool true) (Vbool true).
-  move=> /dup[].
+  move=> /[dup].
   move=> /(_ _ (nth_not_default hpi1 ltac:(discriminate))); rewrite hpi1 => /(_ ltac:(discriminate)); rewrite hw1 => hw1'.
   move=> /(_ _ (nth_not_default hpi2 ltac:(discriminate))); rewrite hpi2 => /(_ ltac:(discriminate)); rewrite hw2 => hw2'.
   have := hdisj _ _ _ _ _ _ hpi1 hw1' hpi2 hw2' hneq hw.
   have := Forall2_nth hincl (Vbool true) (Vbool true).
   have -> := Forall2_size hincl.
   have [<- _] := Forall3_size hargs.
-  move=> /dup[].
+  move=> /[dup].
   move=> /(_ _ (nth_not_default hpi1 ltac:(discriminate))) /value_uincl_subtype /size_of_le hle1.
   move=> /(_ _ (nth_not_default hpi2 ltac:(discriminate))) /value_uincl_subtype /size_of_le hle2.
   by apply disjoint_zrange_incl; apply zbetween_le.
@@ -2387,7 +2387,7 @@ Proof.
   case: hargp => halign hover hvalid hfresh hwnglob hread.
   split=> //.
   + by move=> ??; rewrite hass.(ass_valid) hvalid.
-  move=> off w /dup[] /get_val_byte_bound hoff /hread.
+  move=> off w /[dup] /get_val_byte_bound hoff /hread.
   rewrite hass.(ass_read_old8) //.
   apply hvalid.
   apply: between_byte hoff => //.
@@ -2478,7 +2478,7 @@ Proof.
   case hpi: nth => [pi|//] _.
   case: (hresultp) => hrargs hsub hread.
   split=> //.
-  move=> off w /dup[] /get_val_byte_bound hoff.
+  move=> off w /[dup] /get_val_byte_bound hoff.
   rewrite -hfss.(fss_read_old8); first by apply hread.
   have := Forall3_nth hargs None (Vbool true) (Vbool true) (nth_not_default hpi ltac:(discriminate)).
   rewrite hpi /= hrargs.

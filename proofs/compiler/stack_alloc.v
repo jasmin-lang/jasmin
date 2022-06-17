@@ -585,7 +585,7 @@ Fixpoint alloc_e (e:pexpr) :=
     match vk with
     | None => Let _ := check_diff xv in ok e
     | Some vpk => 
-      if is_word_type (vtype xv) is Some ws then
+      if (vtype xv) is sword ws then
         Let _ := check_vpk_word rmap xv vpk (Some 0%Z) ws in
         Let pofs := mk_addr xv AAdirect ws vpk (Pconst 0) in
         ok (Pload ws pofs.1 pofs.2)
@@ -660,7 +660,7 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
     match get_local x with
     | None => Let _ := check_diff x in ok (rmap, r)
     | Some pk => 
-      if is_word_type (vtype x) is Some ws then 
+      if vtype x is sword ws then 
         if subtype (sword ws) ty then 
           Let pofs := mk_addr_ptr x AAdirect ws pk (Pconst 0) in
           Let sr   := sub_region_pk x pk in

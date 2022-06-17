@@ -142,7 +142,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
         (sf_stk_sz e) 
         (if sf_save_stack e is SavedStackStk ofs then ofs else (sf_stk_sz e + sf_stk_extra_sz e))
         e.(sf_align) (sf_to_save e)
-        (λ '(x, ofs), if is_word_type x.(vtype) is Some ws then ok (ofs, ws) else (Error (E.error "to-save: not a word")))
+        (λ '(x, ofs), if x.(vtype) is sword ws then ok (ofs, ws) else (Error (E.error "to-save: not a word")))
     else ok tt.
 
 (* --------------------------------------------------------------------------- *)
@@ -334,7 +334,7 @@ Definition push_to_save
   (to_save: seq (var * Z)) (* Variables to save and offsets in the stack. *)
   : lcmd :=
   let mkli '(x, ofs) :=
-    if is_word_type x.(vtype) is Some ws
+    if x.(vtype) is sword ws
     then lstore ii rspi ofs ws {| gv := VarI x dummy_var_info; gs := Slocal; |}
     else MkLI ii Lalign (* Absurd case. *)
   in List.map mkli to_save.
@@ -352,7 +352,7 @@ Definition pop_to_save
   (to_save: seq (var * Z)) (* Variables to load and offsets in the stack. *)
   : lcmd :=
   let mkli '(x, ofs) :=
-    if is_word_type x.(vtype) is Some ws
+    if x.(vtype) is sword ws
     then lload ii (VarI x dummy_var_info) ws rspi ofs
     else MkLI ii Lalign (* Absurd case. *)
   in List.map mkli to_save.

@@ -216,7 +216,7 @@ Definition check_no_ptr entries (ao: funname -> stk_alloc_oracle_t) : cexec unit
        assert (allNone sao.(sao_return)) (pp_at_fn fn (stack_alloc.E.stk_error_no_var "export functions don’t support “ptr” return values")))
     entries.
 
-Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
+Definition compiler_first_part (entries subroutines : seq funname) (p: prog) : cexec uprog :=
 
   Let p := array_copy_prog cparams.(fresh_counter) p in
   let p := cparams.(print_uprog) ArrayCopy p in
@@ -227,7 +227,10 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let p := inline_prog_err cparams.(inline_var) cparams.(rename_fd) p in
   let p := cparams.(print_uprog) Inlining p in
 
-  Let p := dead_calls_err_seq to_keep p in
+  (* why do we need to keep unused subroutines,
+    their body are removed later anyway only leaving a function
+    immediately returning and never called *)
+  Let p := dead_calls_err_seq (entries ++ subroutines) p in
   let p := cparams.(print_uprog) RemoveUnusedFunction p in
 
   Let p := unroll_loop (ap_is_move_op aparams) p in
@@ -246,7 +249,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   let pr := remove_init_prog cparams.(is_reg_array) pv in
   let pr := cparams.(print_uprog) RemoveArrInit pr in
 
-  Let pe := expand_prog cparams.(expand_fd) pr in
+  Let pe := expand_prog cparams.(expand_fd) entries pr in
   let pe := cparams.(print_uprog) RegArrayExpansion pe in
 
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
@@ -295,7 +298,7 @@ Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog 
 
 Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : cexec sprog :=
 
-  Let pl := compiler_first_part (entries ++ subroutines) p in
+  Let pl := compiler_first_part entries subroutines p in
 
   (* stack + register allocation *)
 

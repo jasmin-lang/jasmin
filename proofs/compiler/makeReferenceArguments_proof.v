@@ -156,7 +156,7 @@ Section Section.
   Lemma truncate_val_pof_val ty v vt:
     truncate_val ty v = ok vt ->
     exists w, pof_val ty vt = ok w /\ pto_val w = vt.
-  Proof.
+  Proof. (* NOT TRUE *)
     case: v => [b | z | len a | s ws | ty' ?].
     + by move=> /truncate_valE [??]; subst ty vt => /=; exists b.
     + by move=> /truncate_valE [??]; subst ty vt => /=; exists z.
@@ -166,18 +166,14 @@ Section Section.
     + move=> /truncate_valE [ws' [? [-> ?]]] -> /=.
       case: Sumbool.sumbool_of_bool; first by eauto.
       by rewrite cmp_le_refl.
-    by move=> /truncate_valE.
-  Qed.
+   (* by move=> /truncate_valE. *)
+  Admitted.
 
   Lemma truncate_val_idem (t : stype) (v v' : value) :
     truncate_val t v = ok v' -> truncate_val t v' = ok v'.
   Proof.
-  rewrite /truncate_val; case: t v => [||q|w].
-  + by move=> x; t_xrbindP=> b bE <-.
-  + by move=> x; t_xrbindP=> i iE <-.
-  + move=> x; t_xrbindP=> a aE <- /=.
-    by rewrite /WArray.cast Z.leb_refl /=; case: (a).
-  + move=> x; t_xrbindP=> w' w'E <- /=.
+    case: v' => > /truncate_valI[]/= => [->|->| ?[?[-> ?]] | ?[?[-> ?]] |->] _//.
+    + by rewrite WArray.castK.
     by rewrite truncate_word_u.
   Qed.
 
@@ -711,27 +707,21 @@ Section Section.
     case: (vtype x) vt htr hvt => /=.
     + by move=> b _ /to_boolI ->.
     + by move=> i _ /to_intI ->.
-    + move=> n t; case: v => //= n' t'.
-      by rewrite /truncate_val /=; t_xrbindP => t1 hc <-; rewrite /to_arr WArray.castK => -[->].
-    move => w vt; rewrite /truncate_val /=; t_xrbindP => w' h <-.
-    rewrite /to_pword.
-    assert (h1 := cmp_le_refl w); case: Sumbool.sumbool_of_bool; last by rewrite h1.
-    by move=> h2 [<-] /=.
-  Qed.
+    + move=> n t; case: v => //= n'.
+      + by t_xrbindP => t' t1 hc <-; rewrite /to_arr WArray.castK => -[->].
+      by rewrite compat_typeC /=; move=> /is_undef_t_not_sarr /negbTE ->.
+    (* modify get/set var *)
+  Admitted.
 
   Lemma is_reg_ptr_expr_ty b x ty lv y:
      is_reg_ptr_expr is_reg_ptr fresh_id b x ty lv = Some y -> vtype y = ty.
   Proof. by case: lv => //= [? | _ _ _ ? _ [<-] //]; case: ifP => // _ [<-]. Qed.
 
-  (* FIXME: move this *)
-  Definition is_Vundef v :=
-    if v is Vundef _ _ then true else false.
+  (* Lemma to_val_def t (v:sem_t t) : is_defined (to_val v).
+  Proof. case: t v => //. Qed. *)
 
-  Lemma to_val_def t (v:sem_t t) : ~~is_Vundef (to_val v).
-  Proof. case: t v => //. Qed.
-
-  Lemma pof_val_type_of_val (v: value) :
-    ~~is_Vundef v ->
+  (* Lemma pof_val_type_of_val (v: value) :
+    is_defined v ->
     exists2 x, pof_val (type_of_val v) v = ok x & pto_val x = v.
   Proof.
   case: v => //=; eauto.
@@ -740,7 +730,7 @@ Section Section.
     by move=> _; f_equal;case: a.
   move => sz w _; rewrite (sumbool_of_boolET (cmp_le_refl sz)).
   eexists; split; eauto.
-  Qed.
+  Qed. *)
   (* End FIXME: move this *)
 
   Lemma make_prologueP X ii s:
@@ -774,8 +764,8 @@ Section Section.
       by rewrite h2 -(make_referenceprog_globs Hp) hva.
     move=> /Sv_memP hnin [c args'] hmk [<- <-]{_pl _args'}.
     have ? := is_reg_ptr_expr_ty E; subst ty.
-    pose vm1' := vm1.[y <- pof_val (vtype y) v].
-    have v_def : ~~is_Vundef v.
+    pose vm1' := vm1.[y <- pof_val (vtype y) v]. (*
+    have v_def : is_defined v.
     + by move: (hv); rewrite /truncate_val; t_xrbindP => v' _ ?; subst v; apply to_val_def.
     have hset : set_var vm1 y v = ok vm1'.
     + rewrite /vm1'; have hty:= sym_eq (truncate_val_has_type hv); have := set_well_typed_var vm1 hty.
@@ -794,7 +784,8 @@ Section Section.
     + rewrite -hva -(make_referenceprog_globs Hp); apply eq_on_sem_pexpr => //.
       by rewrite evm_with_vm; apply/eq_onS/eq_onI/heqvm.
     by rewrite /write_lval /write_var hset /= with_vm_idem.
-  Qed.
+  Qed.*)
+  Admitted.
 
   Lemma make_epilogueP X ii s1 s2 xfty lv lv' ep vres vs vm1 :
     make_epilogue is_reg_ptr fresh_id ii X xfty lv = ok (lv', ep) ->
@@ -879,8 +870,8 @@ Section Section.
       mapM2 ErrType truncate_val [seq i.2 | i <- (get_syscall_sig o).2] vs = ok vs.
   Proof.
     case: o => len /=; t_xrbindP; rewrite /exec_getrandom => -[scs1 vs1] hex _ _ <- /=.
-    case: ves hex => // v [] //=; t_xrbindP => t ht t' hfill ??; subst scs1 vs1.
-    rewrite /truncate_val /= ht /= WArray.castK; eexists; eauto.
+    case: ves hex => // v [] //=; t_xrbindP => t /to_arrI [? [? [-> /= ->]]] t' hfill ??.
+    subst scs1 vs1; rewrite /= WArray.castK; eexists; eauto.
   Qed.
 
   Lemma exec_syscall_eq_tr scs m o ves ves' scs' m' vs :
@@ -890,11 +881,11 @@ Section Section.
     exec_syscall (pd:=pd) (pT := progUnit) scs m o ves' = ok (scs', m', vs).
   Proof.
     case: o => len /=; t_xrbindP; rewrite /exec_getrandom.
-    case: ves ves' => // v [] // ves' heq [scs1 vs'].
-    t_xrbindP => t ht t' hfill ?????; subst scs1 vs' scs' m' vs.
-    move: heq; rewrite /truncate_val /= ht /=.
-    case: ves' => // v' ves' h; have {h}:= sym_eq h.
-    by t_xrbindP => ?? h <- ?; case: ves' => // -[?] /Varr_inj [?] ??; subst; rewrite h hfill.
+    case: ves ves' => // v [] // ves' /= /esym heq [scs1 vs'].
+    t_xrbindP=> ? /to_arrI[? [? [? hc]]] t' hfill ?????; subst.
+    move: heq; rewrite /= {}hc /=; case: ves' => // v' ves'.
+    t_xrbindP=> ?+?+??; subst=> /truncate_valI[? [? [_ hc ->]]].
+    by case: ves' => // _ /=; rewrite hc hfill.
   Qed.
 
   Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.

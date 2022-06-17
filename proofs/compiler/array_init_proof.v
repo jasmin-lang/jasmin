@@ -102,7 +102,7 @@ Section REMOVE_INIT.
     + by move=> _ _; apply: assgn_uincl Hse hsub hwr Hvm1.
     move=> _ /is_array_initP [n e1];subst e.
     case: Hse => ?; subst v.
-    move: hsub;rewrite /truncate_val;case: ty => //= nty.
+    move: hsub;rewrite /truncate_val /rmap;case: ty => //= nty.
     t_xrbindP => empty /WArray.cast_empty_ok ??; subst v' empty.
     case: x hwr => [vi t | [[xt xn] xi] | ws x e | aa ws x e | aa ws len [[xt xn] xi] e] /=.
     + by move=> /write_noneP [->];exists vm1;split=> //;constructor.
@@ -460,28 +460,28 @@ Section ADD_INIT.
   Local Lemma RAif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 H _ [] hs Hc ii /=; split.
-    + move=> vm1 /dup[] heq1 /hs [vm2] ? hc; exists vm2 => //; constructor.
+    + move=> vm1 /[dup] heq1 /hs [vm2] ? hc; exists vm2 => //; constructor.
       by apply: Eif_true => //; rewrite -(sem_pexpr_ext_eq e heq1).
-    move=> I /dup [] hu1 /Hc [] /=.
+    move=> I /[dup] hu1 /Hc [] /=.
     case: (add_init_c _ _ c1)=> /= c1' O1; case: (add_init_c _ _ c2)=> /= c2' O2.
     move=> hu2 hsc'; split.
     + by move=> ??;rewrite hu2 //;SvD.fsetdec.
     apply add_initP => //.
-    move=> vm1 /dup[] heq1 /hsc' [vm2 he hs']; exists vm2 => //.
+    move=> vm1 /[dup] heq1 /hsc' [vm2 he hs']; exists vm2 => //.
     by constructor; apply: Eif_true => //; rewrite -(sem_pexpr_ext_eq e heq1).
   Qed.
 
   Local Lemma RAif_false : sem_Ind_if_false p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 H _ [] hs Hc ii /=; split.
-    + move=> vm1 /dup[] heq1 /hs [vm2] ? hc; exists vm2 => //; constructor.
+    + move=> vm1 /[dup] heq1 /hs [vm2] ? hc; exists vm2 => //; constructor.
       by apply: Eif_false => //; rewrite -(sem_pexpr_ext_eq e heq1).
-    move=> I /dup [] hu1 /Hc [] /=.
+    move=> I /[dup] hu1 /Hc [] /=.
     case: (add_init_c _ _ c1)=> /= c1' O1; case: (add_init_c _ _ c2)=> /= c2' O2.
     move=> hu2 hsc'; split.
     + by move=> ??;rewrite hu2 //;SvD.fsetdec.
     apply add_initP => //.
-    move=> vm1 /dup[] heq1 /hsc' [vm2 he hs']; exists vm2 => //.
+    move=> vm1 /[dup] heq1 /hsc' [vm2 he hs']; exists vm2 => //.
     by constructor; apply: Eif_false => //; rewrite -(sem_pexpr_ext_eq e heq1).
   Qed.
 
@@ -491,7 +491,7 @@ Section ADD_INIT.
     have [{Hi}Hi _]:= Hi ii.
     apply aux.
     + by constructor;apply: Ewhile_true;eauto.
-    move=> vm1 /Hc [vm2] /dup[] heq /Hc' [vm3] /Hi [vm4] ? /sem_IE h *; exists vm4 => //.
+    move=> vm1 /Hc [vm2] /[dup] heq /Hc' [vm3] /Hi [vm4] ? /sem_IE h *; exists vm4 => //.
     constructor;apply: Ewhile_true;eauto.
     by rewrite -(sem_pexpr_ext_eq e heq).
   Qed.
@@ -511,7 +511,7 @@ Section ADD_INIT.
     move=> s1 s2 i d lo hi c vlo vhi H H' hsf hf ii.
     apply aux.
     + by constructor; econstructor; eauto.
-    move=> vm1 /dup [] heq /hf [vm2] ? hs'; exists vm2 => //.
+    move=> vm1 /[dup] heq /hf [vm2] ? hs'; exists vm2 => //.
     by constructor; econstructor; eauto; rewrite -(sem_pexpr_ext_eq _ heq).
   Qed.
 

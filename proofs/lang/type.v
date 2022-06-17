@@ -37,6 +37,7 @@ Notation sword32  := (sword U32).
 Notation sword64  := (sword U64).
 Notation sword128 := (sword U128).
 Notation sword256 := (sword U256).
+Notation spointer := (sword Uptr) (only parsing).
 
 (* -------------------------------------------------------------------- *)
 Scheme Equality for stype.
@@ -191,94 +192,66 @@ Arguments Mt.set P m%mtype_scope k v.
 
 Definition is_sbool t := t == sbool.
 
-Lemma is_sboolP t : reflect (t=sbool) (is_sbool t).
-Proof. by rewrite /is_sbool;case:eqP => ?;constructor. Qed.
+Lemma is_sboolP t : reflect (t = sbool) (is_sbool t).
+Proof. by rewrite /is_sbool; case: eqP => ?; constructor. Qed.
 
 Definition is_sword t := if t is sword _ then true else false.
 
-Definition is_sarr t := if t is sarr _ then true else false.
+Lemma is_swordP t : reflect (exists n, t = sword n) (is_sword t).
+Proof. by case: t; constructor; eauto => [[]]. Qed.
 
+Definition is_sarr t := if t is sarr _ then true else false.
 Definition is_not_sarr t := ~~is_sarr t.
 
 Lemma is_sarrP ty : reflect (exists n, ty = sarr n) (is_sarr ty).
 Proof. by case: ty; constructor; eauto => [[]]. Qed.
 
-Definition is_word_type (t:stype) :=
-  if t is sword sz then Some sz else None.
-
-Lemma is_word_typeP ty ws :
-  is_word_type ty = Some ws -> ty = sword ws.
-Proof. by case: ty => //= w [->]. Qed.
-
-Definition vundef_type (t:stype) :=
-  match t with
-  | sword _ => sword8
-  | sarr _  => sarr 1
-  | _       => t
-  end.
-
 (* -------------------------------------------------------------------- *)
-Definition compat_type t1 t2 :=
-  match t1 with
-  | sint    => t2 == sint
-  | sbool   => t2 == sbool
-  | sword _ => is_sword t2
-  | sarr _  => is_sarr t2
-  end.
+
+Definition compat_type t1 t2 := (is_sword t1 && is_sword t2) || (t1 == t2).
 
 Lemma compat_typeC t1 t2 : compat_type t1 t2 = compat_type t2 t1.
-Proof. by case: t1 t2 => [||n1|wz1] [||n2|wz2]. Qed.
+Proof. by rewrite /compat_type andbC eq_sym. Qed.
 
 Lemma compat_type_refl t : compat_type t t.
-Proof. by case: t => [||n|wz]. Qed.
+Proof. by rewrite /compat_type eq_refl Bool.orb_true_r. Qed.
 #[global]
 Hint Resolve compat_type_refl : core.
 
+Lemma compat_typeE t1 t2 :
+  compat_type t1 t2 -> if is_sword t2 then is_true (is_sword t1) else t1 = t2.
+Proof. by case: t2 => /= >; rewrite /compat_type !zify => -[[]|] // /eqP ->. Qed.
+
+Lemma compat_typeEl t1 t2 :
+  compat_type t1 t2 -> if is_sword t1 then is_true (is_sword t2) else t2 = t1.
+Proof. by case: t2 => /= > /compat_typeE ->. Qed.
+
 Lemma compat_type_trans t2 t1 t3 : compat_type t1 t2 -> compat_type t2 t3 -> compat_type t1 t3.
 Proof.
-  case: t1 => /=.
-  + by move => /eqP -> /eqP ->.
-  + by move => /eqP -> /eqP ->.
-  + by case: t2.
-  by case: t2.
+  by case: t2 => > /compat_typeE => [|||/is_swordP[?]] -> /compat_typeEl
+    => [|||/is_swordP[?]] ->.
 Qed.
 
-Lemma compat_type_undef t : compat_type t (vundef_type t).
-Proof. by case t. Qed.
+Lemma is_sarr_compat ty ty' : compat_type ty ty' -> is_sarr ty = is_sarr ty'.
+Proof. by case: ty; case: ty'. Qed.
+
+Lemma is_sword_compat ty ty' : compat_type ty ty' -> is_sword ty = is_sword ty'.
+Proof. by case: ty; case: ty'. Qed.
 
 (* -------------------------------------------------------------------- *)
+
 Definition subtype (t t': stype) :=
-  match t with
-  | sword w => if t' is sword w' then (w ≤ w')%CMP else false
-  | sarr n => if t' is sarr n' then (n <=? n')%Z else false
-  | _ => t == t'
-  end.
+  if t is sword w then if t' is sword w' then (w ≤ w')%CMP else false else t == t'.
 
 Lemma subtypeE ty ty' :
   subtype ty ty' →
-  match ty' with
-  | sword sz' => ∃ sz, ty = sword sz ∧ (sz ≤ sz')%CMP
-  | sarr n'   => ∃ n, ty = sarr n ∧ (n <= n')%Z
-  | _         => ty = ty'
-end.
-Proof.
-  destruct ty; try by move/eqP => <-.
-  + by case: ty'=> //= p' /ZleP ?; eauto.
-  by case: ty' => //; eauto.
-Qed.
+  if ty' is sword sz' then exists2 sz, ty = sword sz & (sz ≤ sz')%CMP else ty = ty'.
+Proof. by destruct ty; try move/eqP => <- //; case: ty' => // ??; eauto. Qed.
 
 Lemma subtypeEl ty ty' :
   subtype ty ty' →
-  match ty with
-  | sword sz => ∃ sz', ty' = sword sz' ∧ (sz ≤ sz')%CMP
-  | sarr n   => ∃ n', ty' = sarr n' ∧ (n <= n')%Z
-  | _        => ty' = ty
-  end.
-Proof.
-  destruct ty; try by move/eqP => <-.
-  + by case: ty'=> //= p' /ZleP ?; eauto.
-  by case: ty' => //; eauto.
-Qed.
+  if ty is sword sz then exists2 sz', ty' = sword sz' & (sz ≤ sz')%CMP else ty' = ty.
+Proof. by destruct ty; try move/eqP => <- //; case: ty' => // ??; eauto. Qed.
 
 Lemma subtype_refl x : subtype x x.
 Proof. case: x => //= ?;apply Z.leb_refl. Qed.
@@ -287,21 +260,12 @@ Hint Resolve subtype_refl : core.
 
 Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.
 Proof.
-  case: x => //= [/eqP<-|/eqP<-|n1|sx] //.
-  + case: y => //= n2 /ZleP h1;case: z => //= n3 /ZleP h2.
-    by apply /ZleP;apply: Z.le_trans h1 h2.
-  case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
+  case: x => > /subtypeEl => [|||[?+ hle]] => -> /subtypeEl => [|||[?+ hle']] => -> //.
+  exact: cmp_le_trans hle hle'.
 Qed.
+
+Lemma subtype_antisym x y : subtype x y -> subtype y x -> x = y.
+Proof. by case x, y => //= [/eqP -> //|*]; f_equal; exact: cmp_le_antisym. Qed.
 
 Lemma subtype_compat t1 t2 : subtype t1 t2 -> compat_type t1 t2.
-Proof.
-  by case: t1 => [/eqP ->| /eqP -> | p | w] // ; case: t2.
-Qed.
-
-
-Lemma compat_subtype_undef t1 t2 : compat_type t1 t2 → subtype (vundef_type t1) t2.
-Proof.
-  case: t1 => [/eqP ->|/eqP ->|?|?] //=; case: t2 => // *.
-  + by apply /ZleP; Psatz.lia.
-  by apply wsize_le_U8.
-Qed.
+Proof. by case: t1 => > /subtypeEl => [|||[?]] ->. Qed.

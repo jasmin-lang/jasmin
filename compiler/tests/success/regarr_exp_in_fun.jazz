@@ -1,0 +1,52 @@
+fn unpack1(reg u32[1] x) -> reg u32 {
+	reg u32 y;
+	y = x[0];
+	return y;
+}
+fn unpack2(reg u32[2] x) -> reg u32, reg u32 {
+	reg u32 y, z;
+	y = x[0];
+	z = x[1];
+	return y, z;
+}
+fn pack1(reg u32 x) -> reg u32[1] {
+	reg u32[1] y;
+	y[0] = x;
+	return y;
+}
+fn pack2(reg u32 x0, reg u32 x1) -> reg u32[2] {
+	reg u32[2] y;
+	y[0] = x0;
+	y[1] = x1;
+	return y;
+}
+
+fn incr1(reg u32[1] x) -> reg u32[1] {
+	x[0] = x[0] + 1;
+	return x;
+}
+fn incr1_argoffset(reg u32[2] dummy, reg ptr u32[1] x) -> reg ptr u32[1] {
+	x[0] = x[0] + 1;
+	return x;
+}
+
+export fn g() -> reg u32, reg u32 {
+	reg u32 y, z;
+	reg u32[1] a;
+	reg u32[2] b;
+	stack u32[1] s;
+	y = 0;
+	z = 1;
+	s[0] = 2;
+	_ = pack2(y, z);
+	b = pack2(y, z);
+	(_, _) = unpack2(b);
+	(y, z) = unpack2(b);
+	_ = pack1(z);
+	a = pack1(z);
+	a = incr1(a);
+	s = incr1_argoffset(b, s);
+	_ = unpack1(a);
+	z = unpack1(a);
+	return y, z;
+}

@@ -217,3 +217,6 @@ Proof.
 Qed.
 
 End InPmap.
+
+Lemma zipP A B a b : @zip A B a b = List.combine a b.
+Proof. by elim: a b => [|> +] [] //= > => ->. Qed.

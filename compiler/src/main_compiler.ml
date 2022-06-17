@@ -375,7 +375,7 @@ let main () =
         Subst.extend_iinfo ii fd in
       apply "rename_fd" doit fn cfd in
 
-    let expand_fd fn cfd = 
+    let expand_fd fn cfd =
       let fd = Conv.fdef_of_cufdef tbl (fn, cfd) in
       let vars, harrs = Array_expand.init_tbl fd in
       let cvar = Conv.cvar_of_var tbl in
@@ -388,7 +388,20 @@ let main () =
             vi_s = ws;
             vi_n = List.map (fun x -> (cvar x).Var0.Var.vname) (Array.to_list xs); } :: !arrs in
       Hv.iter doarr harrs;
-      { Array_expansion.vars = vars; arrs = !arrs } in
+      let newcc = ref false in
+      let _, arg_cumsum = List.fold_left_map (fun sum x -> (match x.v_kind, x.v_ty with
+        | Reg (_, Direct), Arr (_, n) -> newcc:= true; sum + n | _ -> sum + 1), sum) 0 fd.f_args in
+      let f_cc = match fd.f_cc with
+        | Subroutine si -> Subroutine { returned_params = List.flatten (List.map2
+          (function Some i -> fun _ -> [Some (List.nth arg_cumsum i)]
+          | None -> fun (x: 'len gvar_i) -> match x.pl_desc.v_kind, x.pl_desc.v_ty with
+            | Reg (_, Direct), Arr (_, n) -> newcc:= true; List.init n (fun _ -> None) | _ -> [None])
+          si.returned_params fd.f_ret) }
+        | _ -> fd.f_cc in
+      let finfo = if !newcc then
+		  Conv.set_finfo tbl fd.f_loc fd.f_annot f_cc fd.f_outannot
+        else cfd.f_info in
+      { Array_expansion.vars = vars; arrs = !arrs; finfo = finfo } in
 
     let warning ii msg =
       if not !Glob_options.lea then begin
