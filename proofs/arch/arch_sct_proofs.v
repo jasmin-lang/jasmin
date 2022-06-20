@@ -791,6 +791,7 @@ move=> r w hvalequiv [] _ v' hv' /=. case: (check_oreg o (XReg r))=> //=.
 by move=> [] _ <- v'' hv'' [] _ <- /=.
 Admitted.
 
+
 Lemma type_prev_dest_value : forall c vp pts msb args a pti l ty env env' s1 s2 rho m1 m2 ps1 ps2 v1 v2,
 ty_dest c pts msb args a pti l ty env = ok env' ->
 state_equiv rho s1 s2 env vp pts ->
@@ -1137,10 +1138,87 @@ mem_shape_equiv m1 m2.
 Proof.
 Admitted.
 
-Lemma mem_write_val_flag_exec_eq : forall env vp pts rho msb args a ty v1 v2 s1 s2 m1 ps1 m2 ps2,
+Lemma mem_write_val_flag_exec_eq : forall c pts msb args a pti l ty env env' vp s1 s2 rho v1 v2 m1 ps1 m2 ps2,
+ty_dest c pts msb args a pti l ty env = ok env' ->
 state_equiv rho s1 s2 env vp pts ->
+valid_valuation c rho ->
+value_equiv rho v1 v2 l ty ->
 mem_write_val_leak msb args (a, ty) v1 s1.(asm_m) = ok (m1, ps1) ->
 mem_write_val_leak msb args (a, ty) v2 s2.(asm_m) = ok (m2, ps2) ->
+flag_exec_equiv m1 m2.
+Proof.
+move=> c pts msb args a pti l ty env env' vp [] m1 fn1 c1 ip1 [] m2 fn2 c2 ip2 rho v1 v2 m1' ps1 m2' 
+       ps2 hwt hequiv hvalid hv heval heval'.
+have hequivcopy := hequiv.
+case: hequiv=> /= hc hip hrip hms hfe hmem. move: hfe.
+rewrite /flag_exec_equiv /eq_exec /=. 
+move=> hfe f. move: (hfe f)=> {hfe} hfe.
+rewrite /value_equiv in hv.
+inversion heval; subst; inversion heval'; subst.
+have hme := mem_write_exec_equiv hwt hequivcopy hvalid hv.
+rewrite /st_get_rflag /=. rewrite /mem_write_val_leak /mem_write_ty_leak /= in H0 H1 hme.
+move=>{heval} {heval'}.
+case: ty hwt hv H0 H1 hme=> //=.
+(* bool *)
++ move=> hwt hv. t_xrbindP=> b hb hmb b' hb' hmb' hme.
+  rewrite /mem_write_bool_leak in hmb hmb'.
+  case: a hwt hmb hmb' hme=> //= i. case: i=> //=.
+  move=> f' [] henv [] <- hl [] <- hl' hme. 
+  rewrite /mem_write_rflag /= /RflagMap.set /FinMap.set /= !ffunE /=.
+  case: ifP=> //=. move=> /eqP hfeq; subst.
+  case: v1 hv hb hme=> //=.
+  + move=> b1 hv [] <-. case: v2 hb' hv=> //=.
+    + by move=> b2 [] <- hv _ /=.
+    move=> t ht. case: t ht=> //= _ [] <- hv _ /=. admit.
+  move=> t ht. case: t ht=> //= _ hv [] <- /=. case: v2 hb' hv=> //=.
+  + move=> b2 [] <- hv _ /=. admit.
+  move=> t ht. by case: t ht=> //= _ [] <- hv _ /=.
+(* word *)
+move=> wsz hwt hv /=. rewrite /mem_write_word_leak /=.
+case: a hwt=> //=.
+(* implicit *)
++ move=> i. case: i=> //=.
+  move=> r [] henv. 
+  t_xrbindP=> wsz' hw <- hl wsz'' hw' <- hl' /= hme. by rewrite /st_get_rflag /= in hfe. 
+(* explicit *)
+move=> adrk n o. case: (onth args n)=> //= arg. case: arg=> //=.
+(* reg *)
++ move=> r [] henv. t_xrbindP=> w hw u ha <- hl w' hw' u' ha' <- hl' /= hme.
+  by rewrite /st_get_rflag /= in hfe. 
+(* regx *)
++ move=> r [] henv. t_xrbindP=> w hw u ha <- hl w' hw' u' ha' <- hl' /= hme.
+  by rewrite /st_get_rflag /= in hfe.
+(* adr *)
++ move=> a. case: pti=> //= pti. case: ifP=> //= hpt [] henv.
+  t_xrbindP=> w hw u ha m1'' hm hmeq hl w' hw' u' ha' m2'' hm' hmeq' hl' hme; subst.
+  rewrite hw hw' /= hm hm' /=  ha /= in hme. case: hmem=> hregty hregxty hxregty hflagty hmty.
+  rewrite /mem_write_mem /= in hm hm'. move: hm hm'.
+  by t_xrbindP=> m3 hwr <- m4 hwr' <- /=.
+(* xreg *)
+move=> r [] henv. t_xrbindP=> w hw u ha <- hl w' hw' u' ha' <- hl' /= hme.
+by rewrite /st_get_rflag /= in hfe. 
+Admitted.
+
+Lemma mem_write_vals_ms_eq : 
+forall c vp pts msb args ads ptis ls tys env env' s1 s2 rho vs1 vs2 m1 m2 ps1 ps2,
+ty_dests c pts msb args ads ptis ls tys env = ok env' ->
+state_equiv rho s1 s2 env vp pts ->
+valid_valuation c rho ->
+values_equivs rho vs1 vs2 ls tys ->
+mem_write_vals_leak msb s1.(asm_m) args ads tys vs1 = ok (m1, ps1) ->
+mem_write_vals_leak msb s2.(asm_m) args ads tys vs2 = ok (m2, ps2) ->
+mem_shape_equiv m1 m2.
+Proof.
+Admitted.
+
+Lemma mem_write_vals_flag_exec_eq : 
+forall c vp pts msb args ads ptis ls tys env env' s1 s2 rho vs1 vs2 m1 m2 ps1 ps2,
+ty_dests c pts msb args ads ptis ls tys env = ok env' ->
+state_equiv rho s1 s2 env vp pts ->
+valid_valuation c rho ->
+values_equivs rho vs1 vs2 ls tys ->
+mem_write_vals_leak msb s1.(asm_m) args ads tys vs1 = ok (m1, ps1) ->
+mem_write_vals_leak msb s2.(asm_m) args ads tys vs2 = ok (m2, ps2) ->
 flag_exec_equiv m1 m2.
 Proof.
 Admitted.
@@ -1171,7 +1249,7 @@ have hequiv' : state_equiv rho {| asm_m := m3; asm_f := f1; asm_c := code1; asm_
 + have hrip' := mem_write_val_rip_eq hequiv hm hm'. 
   have hmem := type_prev_dest_value hwt hequiv hvalid hvalue hm hm'.
   have hms'' := mem_write_val_ms_eq hequiv hm hm'.
-  have hf'' := mem_write_val_flag_exec_eq hequiv hm hm'.
+  have hf'' := mem_write_val_flag_exec_eq  hwt hequiv hvalid hvalue hm hm'. 
   have hrip'' := mem_write_val_rip_eq hequiv hm hm'. 
   case: hequiv=> /= hc hip hrip hmsh hfeq [] hr hrx hxr hf hmem1. constructor; auto.
 by move: (hin env1 m3 m5 l4 l6 tys ptis ls vs1s vs2s hms hms' hequiv' hwts hvalid hvalues).
@@ -1206,7 +1284,7 @@ have hequiv' : state_equiv rho {| asm_m := m; asm_f := f1; asm_c := code1; asm_i
      {| asm_m := m''; asm_f := f1; asm_c := code1; asm_ip := ip1 |} env'' vp pts.
 + constructor; auto; rewrite /=. case: hml=> hr hrx hxr hf hm.
   + by have := mem_write_val_rip_eq hequiv hmw hmw'. + by have := mem_write_val_ms_eq hequiv hmw hmw'. 
-  by have := mem_write_val_flag_exec_eq hequiv hmw hmw'.
+  by have := mem_write_val_flag_exec_eq hwt hequiv hvalid hvalue hmw hmw'.
 by move: (hi ptis ls ts env'' env2 {| asm_m := m; asm_f := f1; asm_c := code1; asm_ip := ip1 |}
 {| asm_m := m''; asm_f := f1; asm_c := code1; asm_ip := ip1 |} rho vs1s vs2s m' m''' ml' ml''' hwts hequiv' hvalid hvalues hmws hmws')=> ->. 
 Qed.
@@ -1241,7 +1319,7 @@ have hequiv'' : state_equiv rho {| asm_m := m; asm_f := f1; asm_c := code2; asm_
      {| asm_m := m''; asm_f := f1; asm_c := code2; asm_ip := ip2 |} env'' vp pts.
 + constructor; auto; rewrite /=. + by have := mem_write_val_rip_eq hequiv' hmw hmw'.
   + by have := mem_write_val_ms_eq hequiv' hmw hmw'. 
-  by have := mem_write_val_flag_exec_eq hequiv' hmw hmw'. 
+  by have := mem_write_val_flag_exec_eq hwt hequiv' hvalid hvalue hmw hmw'. 
 by move: (hi ptis ls ts env'' env2 {| asm_m := m; asm_f := f1; asm_c := code2; asm_ip := ip2 |}
 {| asm_m := m''; asm_f := f1; asm_c := code2; asm_ip := ip2 |} rho vs1s vs2s m' m''' ml' ml''' hwts hequiv'' hvalid hvalues hmws hmws')=> [] hm hl.  
 Qed.
@@ -1250,13 +1328,15 @@ Qed.
 Lemma type_prev_state_equivalence : forall Env env env' rho s1 s2 c vp P Pt_info pts s1' s2' l1 l2, 
 wt_code wt_cond fn c pts Env Pt_info s1.(asm_c) ->
 valid_valuation c rho ->
+oseq.onth Env s1.(asm_ip) = Some env ->
 state_equiv rho s1 s2 env vp pts ->
 asmsem1_leak P s1 l1 s1' ->
 asmsem1_leak P s2 l2 s2' ->
+oseq.onth Env s1'.(asm_ip) = Some env' ->
 state_equiv rho s1' s2' env' vp pts.
 Proof.
 move=> Env env env' rho [] m1 fn1 c1 ip1 [] m2 fn2 c2 ip2 c vp P ptinfo pts s1' s2' l1 l2 hwt 
-/= hvalid hequiv heval heval'. rewrite /wt_code /= in hwt.
+/= hvalid henv hequiv heval heval' henv'. rewrite /wt_code /= in hwt.
 have hequivcopy := hequiv.
 case: hequiv=> /= hc hip hrip hms hfe hm; subst.
 have hpc : ip2 < size c2. + admit.
@@ -1264,13 +1344,44 @@ move: (hwt ip2 hpc)=> /= {hwt} hwt.
 rewrite /wt_pc in hwt.
 inversion heval; try discriminate; subst; inversion heval'; try discriminate; subst.
 rewrite /fetch_and_eval_leak /= in H0 H1.
-move: env env' hequivcopy hm hwt H0 H1.
-case: (onth c2 ip2)=> //= i. case: (onth Env ip2)=> //=.
-case: i=> //=.
+move: env env' henv henv' hequivcopy hm hwt H0 H1.
+case hi : (onth c2 ip2)=> [i| ]//=. case henv: (onth Env ip2)=> [env'| ] //=.
+case: i hi=> //=.
 (* Align *)
-+ move=> env1 env2 env3 hequivcopy hmem.
-  case: (onth Env ip2.+1)=> //= env4 hle [] <- _ [] <- _.
-  constructor; auto. constructor; auto; subst.
++ case hp: (onth Env ip2.+1)=> [env1|] env2 env1' env2' [] /= henv1 henv2 hequivcopy hmem hle [] hst _ [] hst' _ //=.
+  rewrite /st_write_ip /= in hst hst'; subst. rewrite hp in henv2. case: henv2=> h; subst.
+  have hequiv' := state_equiv_env_env' hequivcopy hvalid hle.
+  case: hequiv'=> /= _ _ hrip' hms' hfe' [] hreg' hregx' hxreg' hf' hm'.
+  by constructor; auto; constructor; auto; subst.
+(* Label *)
++ move=> lbl. case hp: (onth Env ip2.+1)=> [env1|] env2 env1' env2' [] /= henv1 henv2 hequivcopy 
+  hmem hle [] hst _ [] hst' _ //=.
+  rewrite /st_write_ip /= in hst hst'; subst. rewrite hp in henv2. case: henv2=> h; subst.
+  have hequiv' := state_equiv_env_env' hequivcopy hvalid hle.
+  case: hequiv'=> /= _ _ hrip' hms' hfe' [] hreg' hregx' hxreg' hf' hm'.
+  by constructor; auto; constructor; auto; subst.
+(* JMP *)
++ admit.
+(* JCC *)
++ admit.
+(* Op *)
+move=> op args hop env1 env2 [] heq /= henv' hequivcopy hmem.  
+case hp: (onth Env ip2.+1)=> [env1'|]. case: (nth ([::], [::]) ptinfo ip2)=> //= ptis ptis'.
+case: ifP=> //= hat.
+case hdt : ( ty_dests c pts (id_msb_flag (instr_desc_op op)) args (id_out (instr_desc_op op)) ptis
+      (dests_lvl env1' args ptis (id_out (instr_desc_op op))) (id_tout (instr_desc_op op)) env') hat=> [env1'' | ] //=.
+move=> hwt' hle. rewrite /eval_op_leak /= /exec_instr_op_leak /= /eval_instr_op_leak /=.
+t_xrbindP=> -[m1' l1'] -[vs1 ps1] u hassert -[vs2 ps2] harg t /= hop' [] <- <- -[m2' l2'] /= hw [] <- <-.
+move=> hst /= hl -[m3 l3] -[vs3 ps3] u' hassert' -[vs4 ps4] harg' t' /= hop'' [] <- <- -[m4 l4] /= hw' /=[] <- <- hst' hl'.
+constructor; subst; rewrite /=; auto.
+(* rip *)
++ have := mem_write_vals_rip_eq hdt hequivcopy hvalid. admit.
+(* mem shape *)
++ admit.
+(* flag exec *)
++ admit.
+(* mem equiv *)
+have := type_prev_dests_value hdt hequivcopy hvalid. admit.
 Admitted. 
 
 Lemma public_condt_equivalence : forall rho s1 s2 vp pts c env ct spublic b b',
