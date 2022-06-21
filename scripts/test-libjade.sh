@@ -15,7 +15,7 @@ DIR="$ROOT/$1"
 MAKELINE="-C $DIR CI=1 JASMIN=$PWD/compiler/jasminc.native"
 
 # Exclude primitives that are known not to build
-export EXCLUDE="crypto_kem/kyber/kyber512/amd64/avx2/ crypto_kem/kyber/kyber768/amd64/avx2/"
+export EXCLUDE=""
 
 echo "Info: $MAKELINE (EXCLUDE=$EXCLUDE)"
 
