@@ -30,8 +30,7 @@ with i_calls_r (c : Sp.t) (i : instr_r) {struct i} : Sp.t :=
   in
 
   match i with
-  | Cassgn _ _  _  _ => c
-  | Copn   _  _  _  _ => c
+  | Cassgn _ _ _ _ | Copn _ _ _ _ | Csyscall _ _ _ => c
   | Cif    _  c1 c2   => c_calls (c_calls c c1) c2
   | Cfor   _  _  c1   => c_calls c c1
   | Cwhile _ c1 _  c2   => c_calls (c_calls c c1) c2

@@ -129,6 +129,9 @@ Fixpoint dead_code_i (i:instr) (s:Sv.t) {struct i} : cexec (Sv.t * cmd) :=
       else ok (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, [:: i])
     else   ok (read_es_rec (read_rvs_rec (Sv.diff s w) xs) es, [:: i])
 
+  | Csyscall xs o es =>
+    ok (read_es_rec (read_rvs_rec (Sv.diff s (vrvs xs)) xs) es, [:: i])
+
   | Cif b c1 c2 =>
     Let sc1 := dead_code_c dead_code_i c1 s in
     Let sc2 := dead_code_c dead_code_i c2 s in

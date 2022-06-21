@@ -6,7 +6,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.
-Require Import psem compiler_util label one_varmap linear.
+Require Import psem compiler_util label one_varmap linear sem_one_varmap.
 
 Import Memory.
 
@@ -18,7 +18,7 @@ Local Open Scope seq_scope.
 
 Section SEM.
 
-Context {pd: PointerData}.
+Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
 Context {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info}.
 Variable P: lprog.
 
@@ -35,17 +35,18 @@ Notation labels := label_in_lprog.
 (* Semantic                                                                    *)
 
 Record lstate := Lstate
-  { lmem : mem;
+  { lscs : syscall_state_t;
+    lmem : mem;
     lvm  : vmap;
     lfn : funname;
     lpc  : nat; }.
 
-Definition to_estate (s:lstate) : estate := Estate s.(lmem) s.(lvm).
-Definition of_estate (s:estate) fn pc := Lstate s.(emem) s.(evm) fn pc.
-Definition setpc (s:lstate) pc :=  Lstate s.(lmem) s.(lvm) s.(lfn) pc.
-Definition setc (s:lstate) fn := Lstate s.(lmem) s.(lvm) fn s.(lpc).
-Definition setcpc (s:lstate) fn pc := Lstate s.(lmem) s.(lvm) fn pc.
-
+Definition to_estate (s:lstate) : estate := Estate s.(lscs) s.(lmem) s.(lvm).
+Definition of_estate (s:estate) fn pc := Lstate s.(escs) s.(emem) s.(evm) fn pc.
+Definition setpc (s:lstate) pc :=  Lstate s.(lscs) s.(lmem) s.(lvm) s.(lfn) pc.
+Definition setc (s:lstate) fn := Lstate s.(lscs) s.(lmem) s.(lvm) fn s.(lpc).
+Definition setcpc (s:lstate) fn pc := Lstate s.(lscs) s.(lmem) s.(lvm) fn pc.
+ 
 Lemma to_estate_of_estate es fn pc:
   to_estate (of_estate es fn pc) = es.
 Proof. by case: es. Qed.
@@ -73,6 +74,12 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   | Lopn xs o es =>
     Let s2 := sem_sopn [::] o (to_estate s1) xs es in
     ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
+  | Lsyscall o =>
+    Let ves := mapM (get_var s1.(lvm)) (syscall_sig o).(scs_vin) in 
+    Let: (scs, m, vs) := exec_syscall (semCallParams:= sCP_stack) s1.(lscs) s1.(lmem) o ves in 
+    Let s2 := write_lvals [::] {| escs := scs; emem := m; evm := vm_after_syscall s1.(lvm) |}
+                (to_lvals (syscall_sig o).(scs_vout)) vs in
+    ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
   | Lalign   => ok (setpc s1 s1.(lpc).+1)
   | Llabel _ => ok (setpc s1 s1.(lpc).+1)
   | Lgoto d => eval_jump d s1
@@ -85,7 +92,7 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     if encode_label labels (lfn s1, lbl) is Some p
     then
       Let vm := set_var s1.(lvm) x (Vword p) in
-      ok {| lmem := s1.(lmem) ; lvm := vm ; lfn := s1.(lfn) ; lpc := s1.(lpc).+1 |}
+      ok {| lscs := s1.(lscs) ; lmem := s1.(lmem) ; lvm := vm ; lfn := s1.(lfn) ; lpc := s1.(lpc).+1 |}
     else type_error
   | Lcond e lbl =>
     Let b := sem_pexpr [::] (to_estate s1) e >>= to_bool in
@@ -230,13 +237,13 @@ Proof.
   by clear => s s' ? k _ _ /lsem_final_nostep /(_ k).
 Qed.
 
-Variant lsem_exportcall (m: mem) (fn: funname) (vm: vmap) (m': mem) (vm': vmap) : Prop :=
+Variant lsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: vmap) (scs':syscall_state_t) (m': mem) (vm': vmap) : Prop :=
 | Lsem_exportcall (fd: lfundef) of
     get_fundef P.(lp_funcs) fn = Some fd
   & lfd_export fd
   & lsem
-         {| lmem := m ; lvm := vm ; lfn := fn ; lpc := 0 |}
-         {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (lfd_body fd) |}
+         {| lscs := scs; lmem := m ; lvm := vm ; lfn := fn ; lpc := 0 |}
+         {| lscs := scs'; lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (lfd_body fd) |}
   & vm =[ callee_saved ] vm'
 .
 

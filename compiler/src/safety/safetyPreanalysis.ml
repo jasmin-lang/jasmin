@@ -82,6 +82,8 @@ end = struct
       Cassgn (mk_lval fn lv, tag, ty, mk_expr fn e)
     | Copn (lvls, tag, opn, exprs) ->
       Copn (mk_lvals fn lvls, tag, opn, mk_exprs fn exprs)
+    | Csyscall (lvls, o, exprs) ->
+        Csyscall(mk_lvals fn lvls, o, mk_exprs fn exprs)
     | Cif (e, st, st') ->
       Cif (mk_expr fn e, mk_stmt fn st, mk_stmt fn st')
     | Cfor (v, r, st) ->
@@ -338,14 +340,14 @@ end = struct
     | Cwhile (_, c1, _, c2) ->
       pa_flag_setfrom v ((List.rev c1) @ (List.rev c2))
         
-    | Ccall (_, lvs, _, _) ->
+    | Ccall (_, lvs, _, _) | Csyscall(lvs, _, _) ->
       if flag_mem_lvs v lvs then raise Flag_set_from_failure else None
       
   let rec pa_instr fn (prog : ('info, 'asm) prog option) st instr =
     match instr.i_desc with
     | Cassgn (lv, _, _, e) -> pa_lv st lv e
 
-    | Copn (lvs, _, _, es) -> List.fold_left (fun st lv ->
+    | Copn (lvs, _, _, es) | Csyscall(lvs, _, es) -> List.fold_left (fun st lv ->
         List.fold_left (fun st e -> pa_lv st lv e) st es) st lvs
 
     | Cif (b, c1, c2) ->
@@ -501,7 +503,7 @@ end = struct
     | Cfor (v,(_,e1,e2),st) ->
       let sv = collect_vars_is (Sv.add (L.unloc v) sv) st in
       collect_vars_es sv [e1;e2]
-    | Copn (lvs, _, _, es) ->
+    | Copn (lvs, _, _, es) | Csyscall(lvs, _, es) ->
       let sv = collect_vars_lvs sv lvs in
       collect_vars_es sv es
     | Cassgn (lv, _, _, e) ->

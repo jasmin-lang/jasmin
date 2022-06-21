@@ -9,7 +9,7 @@ Unset Printing Implicit Defensive.
 Section PROOF.
 
 Context
-  {pd: PointerData}
+  {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
   `{asmop:asmOp}
   (p: uprog).
 
@@ -52,8 +52,18 @@ Lemma vmap0_sim : vmap_sim sem.vmap0 psem.vmap0.
 Proof. by move => x; rewrite !Fv.get0; case: (vtype _). Qed.
 
 Definition estate_sim (e: sem.estate) (e': psem.estate) : Prop :=
-  sem.emem e = psem.emem e' ∧ vmap_sim (sem.evm e) (psem.evm e').
+  [/\ sem.escs e = psem.escs e', sem.emem e = psem.emem e' & vmap_sim (sem.evm e) (psem.evm e')].
 
+Lemma estate_sim_scs e e' scs : estate_sim e e' -> 
+  estate_sim {| sem.escs := scs; sem.emem := sem.emem e; sem.evm := sem.evm e|}
+             (psem.with_scs e' scs).
+Proof. by case => *; constructor. Qed.
+
+Lemma estate_sim_mem e e' m : estate_sim e e' -> 
+  estate_sim {| sem.escs := sem.escs e; sem.emem := m; sem.evm := sem.evm e|}
+             (psem.with_mem e' m).
+Proof. by case => *; constructor. Qed.
+ 
 Lemma val_sim_to_val t x x' :
   @val_sim t x x' →
   to_val x = pto_val x'.
@@ -158,7 +168,7 @@ Section SEM_PEXPR_SIM.
 
   Lemma sem_pexpr_s_sim : (∀ e, P e) ∧ (∀ es, Q es).
   Proof.
-    case: hs => ??.
+    case: hs => ???.
     by apply: pexprs_ind_pair; subst P Q; split => //=; t_xrbindP => *;
       rewrite -/(sem_pexprs _ _); sem_pexpr_sim_t.
   Qed.
@@ -176,7 +186,7 @@ Lemma write_var_sim s1 x v s2 s1' :
   sem.write_var x v s1 = ok s2 →
   ∃ s2', estate_sim s2 s2' ∧ psem.write_var x v s1' = ok s2'.
 Proof.
-case => hm hvm; rewrite /sem.write_var /psem.write_var; t_xrbindP => vm hw <- {s2}.
+case => hscs hm hvm; rewrite /sem.write_var /psem.write_var; t_xrbindP => vm hw <- {s2}.
 case: (set_var_sim hvm hw) => vm' [hvm' ->].
 by eexists; split; split.
 Qed.
@@ -196,7 +206,7 @@ Lemma write_lval_sim s1 x v s2 s1' :
   sem.write_lval gd x v s1 = ok s2 →
   ∃ s2', estate_sim s2 s2' ∧ psem.write_lval gd x v s1' = ok s2'.
 Proof.
-case => hm hvm; case: x => /=.
+case => hscs hm hvm; case: x => /=.
 - move => _ ty; rewrite /sem.write_none /psem.write_none; apply: on_vuP.
   + move => w hw <- {s2}; exists s1'; split; first by [].
     by case /exec_val_simE: (of_val_sim hw) => v' [-> _].
@@ -205,17 +215,17 @@ case => hm hvm; case: x => /=.
   by exists s1'.
 - move => x; exact: write_var_sim.
 - move => sz x e; t_xrbindP => ? ?;
-    rewrite hm (get_var_sim hvm) => -> /= -> ?? /(sem_pexpr_sim (conj hm hvm))
+    rewrite hm (get_var_sim hvm) => -> /= -> ?? /(sem_pexpr_sim (And3 hscs hm hvm))
         -> /= -> ? -> ? /= -> <- /=.
   by eexists; split; split.
 - move => aa ws x e.
   rewrite /on_arr_var (get_var_sim hvm); rewrite /sem.write_var /write_var; t_xrbindP => t -> /=.
-  case: t => // n t; t_xrbindP => ?? /(sem_pexpr_sim (conj hm hvm)) -> /= -> ? -> /= ? -> ? /(set_var_sim hvm).
+  case: t => // n t; t_xrbindP => ?? /(sem_pexpr_sim (And3 hscs hm hvm)) -> /= -> ? -> /= ? -> ? /(set_var_sim hvm).
   case => vm' [] h /= -> <- /=.
   by eexists; split; split.
 move => aa ws ofs x e.
 rewrite /on_arr_var (get_var_sim hvm); rewrite /sem.write_var /write_var; t_xrbindP => t -> /=.
-case: t => // n t; t_xrbindP => ?? /(sem_pexpr_sim (conj hm hvm)) -> /= -> ? -> /= ? -> ? /(set_var_sim hvm).
+case: t => // n t; t_xrbindP => ?? /(sem_pexpr_sim (And3 hscs hm hvm)) -> /= -> ? -> /= ? -> ? /(set_var_sim hvm).
 case => vm' [] h /= -> <- /=.
 by eexists; split; split.
 Qed.
@@ -257,11 +267,11 @@ Let Pfor x ws s1 c s2 : Prop :=
 
 Let Pfun := psem.sem_call p tt.
 
-Lemma psem_call m fn va m' vr :
-  sem.sem_call p m fn va m' vr →
-  psem.sem_call p tt m fn va m' vr.
+Lemma psem_call scs m fn va scs' m' vr :
+  sem.sem_call p scs m fn va scs' m' vr →
+  psem.sem_call p tt scs m fn va scs' m' vr.
 Proof.
-apply: (@sem.sem_call_Ind _ _ _ p Pc Pi_r Pi Pfor Pfun) => {m fn va m' vr}.
+apply: (@sem.sem_call_Ind _ _ _ _ _ p Pc Pi_r Pi Pfor Pfun) => {m fn va m' vr}.
 - by move => s s' hss'; exists s'; split; first exact: hss'; constructor.
 - move => s1 s2 s3 [ii i] c [] {ii i s1 s2} ii i s1 s2 _ ihi _ ihc s1' hss'1.
   case: (ihi s1' hss'1) => s2' [hss'2 hi].
@@ -279,6 +289,11 @@ apply: (@sem.sem_call_Ind _ _ _ p Pc Pi_r Pi Pfor Pfun) => {m fn va m' vr}.
   case: (hw _ hss'1) => s2' [hss'2 hw']; exists s2'; split; first exact: hss'2.
   econstructor; eauto.
   by rewrite /sem_sopn (hva) //= hvr.
+- move=> s1 scs1 m1 s2 o xs es ves vs hes ho hw s1' hss'1.
+  have hes' := sem_pexprs_sim hss'1 hes.
+  have /= hss':= estate_sim_scs scs1 (estate_sim_mem m1 hss'1).
+  have [s2' [??]]:= write_lvals_sim hss' hw.
+  by exists s2'; split => //; econstructor; eauto; case: hss'1 => <- <-.
 - move => s1 s2 e th el /sem_pexpr_sim he _ ih s1' hss'1.
   case: (ih _ hss'1) => s2' [hss'2 hth].
   exists s2'; split; first exact hss'2.
@@ -308,22 +323,22 @@ apply: (@sem.sem_call_Ind _ _ _ p Pc Pi_r Pi Pfor Pfun) => {m fn va m' vr}.
   case: (ih' _ hss'3) => s4' [hss'4 hf].
   exists s4'; split; first exact: hss'4.
   econstructor; eauto.
-- move => s1 m2 s2 ii xs fn args vargs vs /sem_pexprs_sim hargs _ ih /write_lvals_sim hres s1' [hm hvm].
-  rewrite hm in ih.
-  case: (hres (with_mem s1' m2) (conj erefl hvm)) => s2' [hss'2 hw].
+- move => s1 scs2 m2 s2 ii xs fn args vargs vs /sem_pexprs_sim hargs _ ih /write_lvals_sim hres s1' [hscs hm hvm].
+  rewrite hscs hm in ih.
+  case: (hres (with_scs (with_mem s1' m2) scs2) (And3 erefl erefl hvm)) => s2' [hss'2 hw].
   exists s2'; split; first exact: hss'2.
   econstructor; eauto.
-  + by apply: hargs; split.
-move => m m2 fn fd va va' s1 vm2 vr vr' hfn htyin.
-move=> /write_vars_sim -/(_ {| emem := m |} (conj erefl vmap0_sim)). 
-case => s1' [hss'1 hargs] _ /(_ _ hss'1) [[m2' vm2']] [] [] /= <- {m2'} hvm ih.
+  by apply: hargs; split.
+move => scs1 m scs2 m2 fn fd va va' s1 vm2 vr vr' hfn htyin.
+move=> /write_vars_sim -/(_ {| escs := scs1; emem := m |} (And3 erefl erefl vmap0_sim)). 
+case => s1' [hss'1 hargs] _ /(_ _ hss'1) [[scs2' m2' vm2']] [] [] /= <- <- {scs2' m2'} hvm ih.
 rewrite (mapM_ext (λ x : var_i, get_var_sim hvm x) erefl) => hres htyout.
 by econstructor; eauto.
 Qed.
 
-Lemma sem_call_stack_stable (fn: funname) (m m': _) (vs vs': values) :
-  sem.sem_call p m fn vs m' vs' →
+Lemma sem_call_stack_stable (fn: funname) (scs scs': _) (m m': _) (vs vs': values) :
+  sem.sem_call p scs m fn vs scs' m' vs' →
   stack_stable m m'.
-Proof. by move => /psem_call /sem_call_stack_stable_uprog. Qed.
+Proof. move=> h; apply (sem_call_stack_stable_uprog (psem_call h)). Qed.
 
 End PROOF.

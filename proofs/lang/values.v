@@ -382,6 +382,51 @@ Definition app_sopn_v tin tout (semi: sem_prod tin (exec (sem_tuple tout))) vs :
   Let t := app_sopn _ semi vs in
   ok (list_ltuple t).
 
+Section FORALL.
+  Context  (T:Type) (P:T -> Prop).
+
+  Fixpoint mk_forall (l:seq stype) : sem_prod l (exec T) -> Prop := 
+    match l as l0 return sem_prod l0 (exec T) -> Prop with 
+    | [::] => fun o => forall t, o = ok t -> P t
+    | t::l => fun o => forall (x:sem_t t), @mk_forall l (o x)
+    end.
+
+  Lemma mk_forallP l f vargs t : @mk_forall l f -> app_sopn l f vargs = ok t -> P t.
+  Proof.
+    elim: l vargs f => [ | a l hrec] [ | v vs] //= f hall; first by apply hall.
+    by t_xrbindP => w _;apply: hrec.
+  Qed.
+
+  Context (P2:T -> T -> Prop).
+
+  Fixpoint mk_forall_ex (l:seq stype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop := 
+    match l as l0 return sem_prod l0 (exec T) -> sem_prod l0 (exec T) -> Prop with 
+    | [::] => fun o1 o2 => forall t, o1 = ok t -> exists2 t', o2 = ok t' & P2 t t' 
+    | t::l => fun o1 o2 => forall (x:sem_t t), @mk_forall_ex l (o1 x) (o2 x)
+    end.
+  
+  Lemma mk_forall_exP l f1 f2 vargs t : @mk_forall_ex l f1 f2 -> app_sopn l f1 vargs = ok t -> 
+    exists2 t', app_sopn l f2 vargs = ok t' & P2 t t'.
+  Proof.
+    elim: l vargs f1 f2 => [ | a l hrec] [ | v vs] //= f1 f2 hall; first by apply hall.
+    by t_xrbindP => w ->; apply/hrec.
+  Qed.
+
+  Fixpoint mk_forall2 (l:seq stype) : sem_prod l (exec T) -> sem_prod l (exec T) -> Prop := 
+    match l as l0 return sem_prod l0 (exec T) -> sem_prod l0 (exec T) -> Prop with 
+    | [::] => fun o1 o2 => forall t1 t2, o1 = ok t1 -> o2 = ok t2 -> P2 t1 t2
+    | t::l => fun o1 o2 => forall (x:sem_t t), @mk_forall2 l (o1 x) (o2 x)
+    end.
+  
+  Lemma mk_forall2P l f1 f2 vargs t1 t2 : @mk_forall2 l f1 f2 -> app_sopn l f1 vargs = ok t1 -> app_sopn l f2 vargs = ok t2 -> P2 t1 t2.
+  Proof.
+    elim: l vargs f1 f2 => [ | a l hrec] [ | v vs] //= f1 f2 hall; first by apply hall.
+    by t_xrbindP => w -> happ1 ? [<-]; apply: hrec happ1.
+  Qed.
+
+End FORALL.
+
+
 (* ----------------------------------------------------------------------- *)
 
 Definition value_uincl (v1 v2:value) :=

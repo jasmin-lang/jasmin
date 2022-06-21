@@ -187,3 +187,8 @@ Variant safe_cond :=
   | AllInit of wsize & positive & nat.         (* the nth argument of is an array ws[p] where all ceil are initialized *)
 
 
+(* -------------------------------------------------------------------- *)
+Class PointerData := {
+  Uptr : wsize;
+}.
+

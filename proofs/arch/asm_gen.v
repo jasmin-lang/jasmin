@@ -519,6 +519,9 @@ Definition assemble_i (rip : var) (i : linstr) : cexec asm_i :=
   | Lcond e l =>
       Let cond := assemble_cond ii e in
       ok (Jcc l cond)
+
+  | Lsyscall o =>
+      ok (SysCall o)
   end.
 
 (* -------------------------------------------------------------------- *)
@@ -600,6 +603,11 @@ Definition all_vars :=
              vflags)).
 
 #[global] Instance ovm_i : one_varmap.one_varmap_info := {
+  syscall_sig  :=
+    fun o =>
+      let sig := syscall_sig_s o in
+      {| scs_vin  := map to_var (take (size sig.(scs_tin)) call_reg_args);
+         scs_vout := map to_var (take (size sig.(scs_tout)) call_reg_ret) |};
   all_vars     := all_vars; 
   callee_saved := sv_of_list var_of_asm_typed_reg callee_saved;
   vflags       := vflags;

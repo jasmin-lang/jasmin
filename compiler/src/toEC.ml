@@ -36,6 +36,7 @@ type env = {
     arrsz  : Sint.t ref;
     warrsz : Sint.t ref;
     auxv  : string list Mty.t;
+    randombytes : Sint.t ref;
   }
 
 let for_safety    env = env.model = Utils.Safety
@@ -68,7 +69,7 @@ let write_mem_lvals = List.exists write_mem_lval
 let rec read_mem_i s i =
   match i.i_desc with
   | Cassgn (x, _, _, e) -> read_mem_lval x || read_mem_e e
-  | Copn (xs, _, _, es) -> read_mem_lvals xs || read_mem_es es
+  | Copn (xs, _, _, es) | Csyscall (xs, Syscall_t.RandomBytes _, es) -> read_mem_lvals xs || read_mem_es es
   | Cif (e, c1, c2)     -> read_mem_e e || read_mem_c s c1 || read_mem_c s c2
   | Cwhile (_, c1, e, c2)  -> read_mem_c s c1 || read_mem_e e || read_mem_c s c2
   | Ccall (_, xs, fn, es) -> read_mem_lvals xs || Sf.mem fn s || read_mem_es es
@@ -81,7 +82,7 @@ let read_mem_f s f = read_mem_c s f.f_body
 let rec write_mem_i s i =
   match i.i_desc with
   | Cassgn (x, _, _, _)  -> write_mem_lval x 
-  | Copn (xs, _, _, _)   -> write_mem_lvals xs 
+  | Copn (xs, _, _, _) | Csyscall(xs, Syscall_t.RandomBytes _, _) -> write_mem_lvals xs
   | Cif (_, c1, c2)      -> write_mem_c s c1 ||write_mem_c s c2
   | Cwhile (_, c1, _, c2)   -> write_mem_c s c1 ||write_mem_c s c2
   | Ccall (_, xs, fn, _) -> write_mem_lvals xs || Sf.mem fn s 
@@ -267,8 +268,11 @@ let ec_keyword =
  ; "expect"
  ; "interleave" ]
 
+let syscall_mod_arg = "SC"
+let syscall_mod_sig = "Syscall_t"
+let syscall_mod     = "Syscall"
 let internal_keyword = 
-  [ "safe"; "leakages"]
+  [ "safe"; "leakages"; syscall_mod_arg; syscall_mod_sig; syscall_mod ]
 
 let keywords = 
   Ss.union (Ss.of_list ec_keyword) (Ss.of_list internal_keyword)
@@ -303,7 +307,8 @@ let empty_env model fds arrsz warrsz =
     funs = Mf.empty;
     arrsz;
     warrsz;
-    auxv  = Mty.empty ;
+    auxv  = Mty.empty;
+    randombytes = ref Sint.empty;
   } in
 
 (*  let mk_tys tys = List.map Conv.cty_of_ty tys in *)
@@ -318,6 +323,13 @@ let empty_env model fds arrsz warrsz =
 let get_funtype env f = snd (Mf.find f env.funs)
 let get_funname env f = fst (Mf.find f env.funs) 
 let pp_fname env fmt f = Format.fprintf fmt "%s" (get_funname env f)
+
+let pp_syscall env fmt o =
+  match o with
+  | Syscall_t.RandomBytes p ->
+    let n = (Conv.int_of_pos p) in
+    env.randombytes := Sint.add n !(env.randombytes);
+    Format.fprintf fmt "%s.randombytes_%i" syscall_mod_arg n
 
 let ty_lval = function
   | Lnone (_, ty) -> ty
@@ -790,7 +802,14 @@ module Normal = struct
         let ltys = List.map ty_lval lvs in
         if (check_lvals lvs && ltys = tys) then env
         else add_aux env tys
-   
+    | Csyscall(lvs, o, _) ->
+      if lvs = [] then env
+      else
+        let tys = List.map Conv.ty_of_cty (Syscall.syscall_sig_u o).scs_tout in
+        let ltys = List.map ty_lval lvs in
+        if (check_lvals lvs && ltys = tys) then env
+        else add_aux env tys
+
   and init_aux asmOp env c = List.fold_left (init_aux_i asmOp) env c
 
   let pp_assgn_i pd env fmt lv ((etyo, etyi), aux) =
@@ -845,6 +864,19 @@ module Normal = struct
       else
         let pp fmt es = 
           Format.fprintf fmt "<%@ %a (%a)" (pp_fname env) f pp_args es in
+        pp_call pd env fmt lvs otys otys pp es
+
+    | Csyscall(lvs, o, es) ->
+      let s = Syscall.syscall_sig_u o in
+      let otys = List.map Conv.ty_of_cty s.scs_tout in
+      let itys =  List.map Conv.ty_of_cty s.scs_tin in
+      let pp_args fmt es =
+        pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es) in
+      if lvs = [] then
+        Format.fprintf fmt "@[%a (%a);@]" (pp_syscall env) o pp_args es
+      else
+        let pp fmt es =
+          Format.fprintf fmt "<%@ %a (%a)" (pp_syscall env) o pp_args es in
         pp_call pd env fmt lvs otys otys pp es
 
     | Cif(e,c1,c2) ->
@@ -1043,7 +1075,7 @@ module Leak = struct
     match i.i_desc with
     | Cassgn (lv, _, _, _) -> add_aux env [ty_lval lv]
     | Copn (lvs, _, _, _) -> add_aux env (List.map ty_lval lvs)
-    | Ccall(_, lvs, _, _) -> 
+    | Ccall(_, lvs, _, _) | Csyscall(lvs, _, _)->
       if lvs = [] then env 
       else add_aux env (List.map ty_lval lvs)
     | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux (init_aux env c1) c2
@@ -1119,6 +1151,21 @@ module Leak = struct
       else
         let pp fmt es = 
           Format.fprintf fmt "<%@ %a (%a)" (pp_fname env) f pp_args es in
+        pp_call pd env fmt lvs otys otys pp es
+
+    | Csyscall(lvs, o, es) ->
+      let s = Syscall.syscall_sig_u o in
+      let otys = List.map Conv.ty_of_cty s.scs_tout in
+      let itys =  List.map Conv.ty_of_cty s.scs_tin in
+
+      let pp_args fmt es =
+        pp_list ",@ " (pp_wcast pd env) fmt (List.combine itys es) in
+      pp_leaks_es pd env fmt es;
+      if lvs = [] then
+        Format.fprintf fmt "@[%a (%a);@]" (pp_syscall env) o pp_args es
+      else
+        let pp fmt es =
+          Format.fprintf fmt "<%@ %a (%a)" (pp_syscall env) o pp_args es in
         pp_call pd env fmt lvs otys otys pp es
 
     | Cif(e,c1,c2) ->
@@ -1287,13 +1334,35 @@ let pp_prog pd asmOp fmt model globs funcs arrsz warrsz =
       Format.fprintf fmt "var safe : bool@ @ " 
     | Normal -> () in
 
+  let pp_mod_arg fmt env =
+    if not (Sint.is_empty !(env.randombytes)) then
+      Format.fprintf fmt "(%s:%s)" syscall_mod_arg  syscall_mod_sig in
+
+  let pp_mod_arg_sig fmt env =
+    if not (Sint.is_empty !(env.randombytes)) then
+      let pp_randombytes_decl fmt n =
+        Format.fprintf fmt "proc randombytes_%i(_:%a.t) : %a.t" n (pp_WArray env) n (pp_WArray env) n in
+      Format.fprintf fmt "module type %s = {@   @[<v>%a@]@}.@ @ "
+        syscall_mod_sig
+        (pp_list "@ " pp_randombytes_decl) (Sint.elements !(env.randombytes));
+      let pp_randombytes_proc fmt n =
+        Format.fprintf fmt "proc randombytes_%i(a:%a.t) : %a.t = {@   a <$ %a.darray;@   return a;@ }"
+          n (pp_WArray env) n (pp_WArray env) n (pp_WArray env) n in
+      Format.fprintf fmt
+       "module %s : %s = {@   @[<v>%a@]@ }.@ @ "
+       syscall_mod syscall_mod_sig
+       (pp_list "@ @ " pp_randombytes_proc) (Sint.elements !(env.randombytes))
+  in
+
   Format.fprintf fmt 
-     "@[<v>%s.@ %s.@ @ %a%a@ %a@ @ module M = {@   @[<v>%a%a@]@ }.@ @]@." 
+     "@[<v>%s.@ %s.@ @ %a%a@ %a@ @ %amodule M%a = {@   @[<v>%a%a@]@ }.@ @]@."
     "require import AllCore IntDiv CoreMap List"
     "from Jasmin require import JModel"
     (pp_arrays "Array") !(env.arrsz)
     (pp_arrays "WArray") !(env.warrsz)
     (pp_list "@ @ " (pp_glob_decl env)) globs 
+    pp_mod_arg_sig env
+    pp_mod_arg env
     pp_leakages env 
     (pp_list "@ @ " (pp_fun pd asmOp env)) funcs
     
@@ -1305,7 +1374,7 @@ and used_func_c used c =
 
 and used_func_i used i = 
   match i.i_desc with
-  | Cassgn _ | Copn _ -> used
+  | Cassgn _ | Copn _ | Csyscall _ -> used
   | Cif (_,c1,c2)     -> used_func_c (used_func_c used c1) c2
   | Cfor(_,_,c)       -> used_func_c used c
   | Cwhile(_,c1,_,c2)   -> used_func_c (used_func_c used c1) c2

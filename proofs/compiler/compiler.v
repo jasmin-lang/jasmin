@@ -167,6 +167,8 @@ Record compiler_params
   lowering_opt     : lowering_options;
   is_glob          : var -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
+  fresh_reg        : string -> stype -> Ident.ident;
+  fresh_reg_ptr    : string -> stype -> Ident.ident;
   fresh_counter    : Ident.ident;
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
@@ -249,7 +251,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_id) pg in
+  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_reg_ptr) pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
   Let _ :=
@@ -302,6 +304,7 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
     stack_alloc.alloc_prog
       true
       saparams
+      cparams.(fresh_reg)
       (global_static_data_symbol cparams)
       (stack_register_symbol cparams)
       (ao_globals ao)

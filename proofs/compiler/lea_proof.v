@@ -13,7 +13,7 @@ Local Open Scope vmap_scope.
 Local Open Scope seq_scope.
 
 Section PROOF.
-  Context {pd:PointerData}.
+  Context {pd:PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
   Context (gd: glob_decls).
 
   (* ---------------------------------------------------------- *)

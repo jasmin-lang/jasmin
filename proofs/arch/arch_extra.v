@@ -17,14 +17,18 @@ Definition of_string (s : string) :=
   assoc strings s.
 
 (* -------------------------------------------------------------------- *)
+Lemma in_enum (r:T) : r \in enum cfinT_finType.
+Proof. apply (mem_enum (T:=cfinT_finType)). Qed.
+
+Hint Resolve in_enum : core.
+
 Lemma to_stringK : pcancel to_string of_string.
 Proof.
 move=> r; rewrite /of_string stringsE; apply /(@assocP _ ceqT_eqType).
 + rewrite -map_comp (map_inj_uniq (T1:=ceqT_eqType)) //.
   + by apply: (enum_uniq (T:=cfinT_finType)).
   by apply inj_to_string.
-apply: (map_f (T1:=ceqT_eqType) (T2:=prod_eqType _ ceqT_eqType)).
-by rewrite (mem_enum (T:=cfinT_finType)).
+by apply: (map_f (T1:=ceqT_eqType) (T2:=prod_eqType _ ceqT_eqType)).
 Qed.
 
 (* -------------------------------------------------------------------- *)

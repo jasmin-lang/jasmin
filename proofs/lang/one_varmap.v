@@ -9,7 +9,11 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Record ovm_syscall_sig_t := 
+  { scs_vin : seq var; scs_vout : seq var }.
+
 Class one_varmap_info := { 
+  syscall_sig  : syscall_t -> ovm_syscall_sig_t;
   all_vars     : Sv.t;
   callee_saved : Sv.t;
   vflags       : Sv.t;

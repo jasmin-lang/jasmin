@@ -7,6 +7,8 @@
 
 ## New features
 
+- Fill an array with “random” data using `p = #randombytes(p);`
+
 - provide access to mmx registers:
 	declaration:
 	  normal register:  #mmx reg u64 x

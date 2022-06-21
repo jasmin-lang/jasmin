@@ -18,7 +18,7 @@ Local Open Scope vmap_scope.
 Section Section.
 
 Context
-  {pd:PointerData}
+  {pd:PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
   `{asmop:asmOp}
   {T:eqType} {pT:progT T} {sCP: semCallParams}.
 
@@ -444,9 +444,9 @@ Section PROOF.
       [/\ vm_uincl (evm s2) vm2, valid_pi gd s2 pi
         & sem_for p2 ev i1 vs (with_vm s1 vm1) pc2.2 (with_vm s2 vm2) ].
 
-  Let Pfun m fn vargs m' vres :=
+  Let Pfun scs m fn vargs scs' m' vres :=
     forall vargs', List.Forall2 value_uincl vargs vargs' ->
-    exists2 vres', List.Forall2 value_uincl vres vres' & sem_call p2 ev m fn vargs' m' vres'.
+    exists2 vres', List.Forall2 value_uincl vres vres' & sem_call p2 ev scs m fn vargs' scs' m' vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
   Proof. move=> s pi pic2 vm1 [<-] ??; exists vm1; split => //; constructor. Qed.
@@ -517,6 +517,24 @@ Section PROOF.
     have [vm' []]:= pi_lvsP_uincl hu vs_vs' hv hws.
     rewrite heq /= => hu' hv' hws'; exists vm'; split => //.
     by do 2! constructor; rewrite /sem_sopn /= -eq_globs hes' /= ho' /= hws'.
+  Qed.
+
+  Lemma valid_pi_with_scs s pi scs : valid_pi gd s pi -> valid_pi gd (with_scs s scs) pi.
+  Proof.
+    move=> [] h; constructor => m c v h1 h2.
+    by have := h _ _ _ h1 h2; rewrite -sem_pexpr_with_scs.
+  Qed.
+
+  Local Lemma Hsyscall : sem_Ind_syscall p1 Pi_r.
+  Proof.
+    move => s1 scs m s2 o xs es ves vs hes ho hw ii pi pi2 vm1 /=.
+    case heq: pi_lvs => [pi0 xs0] [<-] hu hv /=.
+    have [ves' hes' hues]:= pi_esP_uincl hv hu hes.
+    have [vs' ho' hus] := exec_syscallP ho hues.
+    have hv' := valid_pi_with_scs scs (valid_pi_remove_m m hv).
+    have /(_ _ hu) [vm2 []]:= pi_lvsP_uincl _ hus hv' hw.
+    rewrite heq => ???; exists vm2; split => //.
+    constructor; econstructor; rewrite -?eq_globs; eauto.
   Qed.
 
   Lemma valid_pi_incl s pi1 pi2 : incl pi1 pi2 -> valid_pi gd s pi2 -> valid_pi gd s pi1.
@@ -654,11 +672,12 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
   Proof.
-    move=> s1 m2 s2 iif xs fn args vargs vs hargs _ hf hwr ii pi pi2 vm1 /=.
+    move=> s1 scs m2 s2 iif xs fn args vargs vs hargs _ hf hwr ii pi pi2 vm1 /=.
     case heq : pi_lvs => [pi' xs'] [<-] hu hv.
     have [vargs' hargs' hus]:= pi_esP_uincl hv hu hargs.
     have [vs' hvs' hc]:= hf _ hus.
-    have [vm2 ]:= pi_lvsP_uincl (s := with_mem s1 m2) hu hvs' (valid_pi_remove_m m2 hv) hwr.
+    have [vm2 ]:= pi_lvsP_uincl (s := with_scs (with_mem s1 m2) scs) hu hvs'
+          (valid_pi_with_scs scs (valid_pi_remove_m m2 hv)) hwr.
     rewrite heq /= => -[hu' hv' hwr'].
     exists vm2; split => //.
     by constructor; econstructor; eauto; rewrite -eq_globs.
@@ -666,8 +685,8 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
   Proof.
-    move=> m1 m2 fn [ii si p c so r ev0] /= vargs' vargs s0 s1 s2 vres vres'.
-    move=> hget htr hinit hwr _ hc hres hrtr hfin.
+    move=> scs1 m1 scs2 m2 fn [ii si p c so r ev0] /= vargs' vargs s0 s1 s2 vres vres'.
+    move=> hget htr hinit hwr _ hc hres hrtr hscs hfin.
     have [fd2 /=]:= all_checked hget.
     t_xrbindP => -[pi2 c'] hc_ ? hget2 vargs1 hvargs1; subst fd2.
     have [vargs1' {htr} htr hua] := mapM2_truncate_val htr hvargs1.
@@ -679,13 +698,13 @@ Section PROOF.
     by case: (s0) hinit => emem evm /=; rewrite eq_p_extra.
   Qed.
 
-  Lemma pi_callP f mem mem' va va' vr:
+  Lemma pi_callP f scs mem scs' mem' va va' vr:
     List.Forall2 value_uincl va va' ->
-    sem_call p1 ev mem f va mem' vr ->
-    exists vr', sem_call p2 ev mem f va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+    sem_call p1 ev scs mem f va scs' mem' vr ->
+    exists vr', sem_call p2 ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
     by move=>
-      /(@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+      /(@sem_call_Ind _ _ _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) 
       h /h [vr' h1 h2]; exists vr'.
   Qed.

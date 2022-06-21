@@ -16,6 +16,7 @@ Context `{asmop:asmOp}.
 
 Variant linstr_r :=
   | Lopn   : lvals -> sopn -> pexprs -> linstr_r
+  | Lsyscall : syscall_t -> linstr_r
   | Lalign : linstr_r
   | Llabel : label -> linstr_r
   | Lgoto  : remote_label -> linstr_r
@@ -64,6 +65,7 @@ Record lprog :=
 Definition eqb_r i1 i2 :=
   match i1, i2 with
   | Lopn lv1 o1 e1, Lopn lv2 o2 e2 => (lv1 == lv2) && (o1 == o2) && (e1 == e2)
+  | Lsyscall o1, Lsyscall o2 => o1 == o2
   | Lalign, Lalign => true
   | Llabel l1, Llabel l2 => l1 == l2
   | Lgoto l1, Lgoto l2 => l1 == l2
@@ -75,12 +77,10 @@ Definition eqb_r i1 i2 :=
 
 Lemma eqb_r_axiom : Equality.axiom eqb_r.
 Proof.
-  case => [lv1 o1 e1||l1|l1|e1|lv1 l1|e1 l1] [lv2 o2 e2||l2|l2|e2|lv2 l2|e2 l2] //=;try by constructor.
+  case => [lv1 o1 e1|o1||l1|l1|e1|lv1 l1|e1 l1] [lv2 o2 e2|o2||l2|l2|e2|lv2 l2|e2 l2] //=;try by constructor.
   + apply (@equivP (((lv1 == lv2) && (o1 == o2)) /\ e1 == e2 ));first by apply andP.
     by split => [ [] /andP [] /eqP -> /eqP -> /eqP -> //| [] -> -> ->];rewrite !eqxx.
-  + by apply: (equivP eqP); split; congruence.
-  + by apply: (equivP eqP); split; congruence.
-  + by apply: (equivP eqP); split; congruence.
+  1-4: by apply: (equivP eqP); split; congruence.
   + apply: (equivP andP); split.
     * by case=> /eqP <- /eqP <-.
     by case => <- <-; rewrite !eqxx.

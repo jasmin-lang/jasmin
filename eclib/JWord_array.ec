@@ -1,5 +1,5 @@
 (* -------------------------------------------------------------------- *)
-require import AllCore BitEncoding IntDiv SmtMap List StdOrder BitEncoding Bool.
+require import AllCore Distr DList BitEncoding IntDiv SmtMap List StdOrder BitEncoding Bool.
 (*---*) import Ring.IntID IntOrder BS2Int.
 require import JUtils JArray JWord.
 
@@ -8,6 +8,8 @@ abstract theory WArray.
   clone include MonoArray with
     type elem <- W8.t,
     op dfl    <- W8.zero.
+
+  op darray = dmap (dlist W8.dword size) of_list.
 
   op get8 (t:t) (i:int)  : W8.t = t.[i].
   abbrev [-printing] get8_direct = get8.

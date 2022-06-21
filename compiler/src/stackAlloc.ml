@@ -165,7 +165,7 @@ let memory_analysis pp_err ~debug tbl up =
 
   let is_regx x = is_regx (Conv.var_of_cvar tbl x) in
   let sp' = 
-    match Stack_alloc.alloc_prog Arch.reg_size Arch.asmOp false (Arch.aparams.ap_sap is_regx) crip crsp gao.gao_data cglobs cget_sao up with
+    match Stack_alloc.alloc_prog Arch.reg_size Arch.asmOp false (Arch.aparams.ap_sap is_regx) (Conv.fresh_reg_ptr tbl) crip crsp gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (pp_err tbl) tbl e in

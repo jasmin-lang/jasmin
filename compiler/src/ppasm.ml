@@ -404,6 +404,11 @@ module Printer (BP:BPrinter) = struct
     Printf.sprintf "%s%s" (Conv.string_of_string0 pp_op.pp_aop_name) (pp_ext pp_op.pp_aop_ext)
 
   (* -------------------------------------------------------------------- *)
+  let pp_syscall (o : Syscall_t.syscall_t) =
+    match o with
+    | Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
+
+  (* -------------------------------------------------------------------- *)
   let pp_instr tbl name (i : (_, _, _, _, _, _) Arch_decl.asm_i) =
     match i with
     | ALIGN ->
@@ -429,6 +434,11 @@ module Printer (BP:BPrinter) = struct
 
     | POPPC ->
        `Instr ("ret", [])
+
+    | SysCall(op) ->
+      let name = "call" in
+      let args = [pp_syscall op] in
+      `Instr(name, args)
 
     | AsmOp(op, args) ->
       let id = instr_desc X86_decl.x86_decl X86_instr_decl.x86_op_decl (None, op) in

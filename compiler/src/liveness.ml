@@ -76,6 +76,10 @@ and live_d is_move_op weak d (s_o: Sv.t) =
     let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
     s_i, (if weak then writev_lvals s_o xs else s_o), Ccall(ii,xs,f,es)
 
+  | Csyscall(xs,o,es) ->
+    let s_i = Sv.union (vars_es es) (dep_lvs s_o xs) in
+    s_i, (if weak then writev_lvals s_o xs else s_o), Csyscall(xs,o,es)
+
 and live_c is_move_op weak c s_o =
   List.fold_right
     (fun i (s_o, c) ->
@@ -93,14 +97,18 @@ let liveness is_move_op weak prog =
   let fds = List.map (live_fd is_move_op weak) (snd prog) in
   fst prog, fds
 
-let iter_call_sites (cb: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) (f: (Sv.t * Sv.t, 'asm) func) : unit =
+let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit)
+                    (cbs: L.i_loc -> Syscall_t.syscall_t -> lvals -> Sv.t * Sv.t -> unit)
+                    (f: (Sv.t * Sv.t, 'asm) func) : unit =
   let rec iter_instr_r loc ii =
     function
     | (Cassgn _ | Copn _) -> ()
     | (Cif (_, s1, s2) | Cwhile (_, s1, _, s2)) -> iter_stmt s1; iter_stmt s2
     | Cfor (_, _, s) -> iter_stmt s
     | Ccall (_, xs, fn, _) ->
-       cb loc fn xs ii
+       cbf loc fn xs ii
+    | Csyscall (xs, op, _) ->
+       cbs loc op xs ii
   and iter_instr { i_loc ; i_info ; i_desc } = iter_instr_r i_loc i_info i_desc
   and iter_stmt s = List.iter iter_instr s in
   iter_stmt f.f_body
@@ -121,7 +129,7 @@ let rec conflicts_i cf i =
   let cf = merge_class cf s1 in
 
   match i.i_desc with
-  | Cassgn _ | Copn _ | Ccall _ ->
+  | Cassgn _ | Copn _ | Csyscall _ | Ccall _ ->
     merge_class cf s2
   | Cfor( _, _, c) ->
     conflicts_c (merge_class cf s2) c

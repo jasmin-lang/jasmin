@@ -180,6 +180,11 @@ let pp_opn asmOp fmt o =
   pp_string0 fmt (Sopn.string_of_sopn asmOp o)
 
 (* -------------------------------------------------------------------- *)
+let pp_syscall (o:Syscall_t.syscall_t) =
+  match o with
+  | Syscall_t.RandomBytes _ -> "#randombytes"
+
+(* -------------------------------------------------------------------- *)
 let pp_tag = E.(function
   | AT_none    -> ""
   | AT_keep    -> ":k"
@@ -216,6 +221,10 @@ let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
     F.fprintf fmt "@[<hov 2>%a %s=@ %a#%a(%a);@]"
       (pp_glvs pp_len pp_var) x (pp_tag t) pp_cast o pp_opn o
       (pp_ges pp_len pp_var) e
+
+  | Csyscall(x, o, e) ->
+      F.fprintf fmt "@[<hov 2>%a =@ %s(%a);@]"
+        (pp_glvs pp_len pp_var) x (pp_syscall o) (pp_ges pp_len pp_var) e
 
   | Cif(e, c, []) ->
     F.fprintf fmt "@[<v>if %a %a@]"

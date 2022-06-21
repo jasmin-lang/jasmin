@@ -35,6 +35,8 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
+Section Section.
+Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state}. 
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc hypotheses. *)
 
@@ -213,7 +215,6 @@ Proof.
   exact: to_stringK.
 Qed.
 
-
 (* ------------------------------------------------------------------------ *)
 (* Lowering hypotheses. *)
 
@@ -366,7 +367,7 @@ Proof.
       rewrite /truncate_word /x86_XOR /check_size_8_64 hsz64 /= wxor_xx.
       set id := instr_desc_op (XOR sz) => hlo.
       rewrite /SF_of_word msb0.
-      by apply: (@compile_lvals _ _ _ _ _ _ _ _ _
+      by apply: (@compile_lvals _ _ _ _ _ _ _ _ _ _ _
              rip ii m lvs m' s [:: Reg r; Reg r]
              id.(id_out) id.(id_tout)
              (let vf := Some false in let: vt := Some true in (::vf, vf, vf, vt, vt & (0%R: word sz)))
@@ -390,7 +391,7 @@ Proof.
     rewrite /truncate_word /x86_VPXOR hidc /= /x86_u128_binop /check_size_128_256 wsize_ge_U256.
     have -> /= : (U128 ≤ sz)%CMP by case: (sz) hsz64.
     rewrite wxor_xx; set id := instr_desc_op (VPXOR sz) => hlo.
-    by apply: (@compile_lvals _ _ _ _ _ _ _ _ _
+    by apply: (@compile_lvals _ _ _ _ _ _ _ _ _ _ _ 
                rip ii m lvs m' s [:: a0; XReg r; XReg r]
                id.(id_out) id.(id_tout)
                (0%R: word sz)
@@ -428,7 +429,7 @@ Transparent eval_arg_in_v check_i_args_kinds.
       have heq := of_varI hr.
       move: hvl.
       rewrite /get_gvar /= -heq => hvl.
-      case: hlow => _ _ _ /(_ _ _ hvl) hu _ _ _.
+      case: hlow => _ _ _ _ /(_ _ _ hvl) hu _ _ _.
       move: hwl hu; rewrite /to_word.
       case: (vl) => // [ ws w /=| []//].
       rewrite /truncate_word /word_uincl.
@@ -438,7 +439,7 @@ Transparent eval_arg_in_v check_i_args_kinds.
       have heq := of_varI hr.
       move: hvl.
       rewrite /get_gvar /= -heq => hvl.
-      case: hlow => _ _ _ _ /(_ _ _ hvl) hu _ _.
+      case: hlow => _ _ _ _ _ /(_ _ _ hvl) hu _ _.
       move: hwl hu; rewrite /to_word.
       case: (vl) => // [ ws w /=| []//].
       rewrite /truncate_word /word_uincl.
@@ -480,7 +481,7 @@ Transparent eval_arg_in_v check_i_args_kinds.
   case: y hidc hca1 ok_y => // r hidc hca1 /of_varI xr.
   rewrite /mem_write_vals.
   eexists; first reflexivity.
-  case: hlo => h1 hrip hd h2 h2x h3 h4.
+  case: hlo => h0 h1 hrip hd h2 h2x h3 h4.
   move: hwx; rewrite /write_var /set_var.
   rewrite -xr => -[<-]{m'}.
   constructor => //=.
@@ -503,7 +504,6 @@ Definition x86_hagparams : h_asm_gen_params (ap_agp x86_params) :=
     hagp_eval_assemble_cond := eval_assemble_cond;
     hagp_assemble_extra_op := assemble_extra_op;
   |}.
-
 
 (* ------------------------------------------------------------------------ *)
 (* Shared hypotheses. *)
@@ -537,3 +537,5 @@ Definition x86_h_params {call_conv : calling_convention} : h_architecture_params
     hap_hagp := x86_hagparams;
     hap_is_move_opP := x86_is_move_opP;
   |}.
+
+End Section.

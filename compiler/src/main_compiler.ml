@@ -50,7 +50,7 @@ let rec warn_extra_i asmOp i =
   | Cfor _ ->
     hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
       "for loop remains"
-  | Ccall _ -> ()
+  | Ccall _ | Csyscall _ -> ()
 
 let warn_extra_fd asmOp (_, fd) =
   List.iter (warn_extra_i asmOp) fd.f_body
@@ -84,6 +84,7 @@ let check_safety_p asmOp analyze s (p : (_, 'asm) Prog.prog) source_p =
 let main () =
 
   let is_regx tbl x = is_regx (Conv.var_of_cvar tbl x) in
+
   let lowering_vars tbl = X86_lowering.(
 
     let f ty n = 
@@ -177,7 +178,7 @@ let main () =
 
     let prog =
       begin try
-        let prog = Insert_copy_and_fix_length.doit prog in
+        let prog = Insert_copy_and_fix_length.doit Arch.reg_size prog in
         Typing.check_prog Arch.reg_size Arch.asmOp prog;
         prog
       with Typing.TyError(loc, code) ->
@@ -270,7 +271,9 @@ let main () =
               |>
               Evaluator.exec
                 Arch.reg_size
+                Syscall_ocaml.sc_sem
                 Arch.asmOp
+                (Syscall_ocaml.initial_state ())
                 (Expr.to_uprog Arch.asmOp cprog)
                 (Conv.cfun_of_fun tbl f)
             in
@@ -409,6 +412,13 @@ let main () =
       let cx = Conv.cvar_of_var tbl x' in
       cx.Var0.Var.vname in
 
+    let fresh_reg name ty =
+      let name = Conv.string_of_string0 name in
+      let ty = Conv.ty_of_cty ty in
+      let p = Prog.V.mk name (Reg (Normal, Direct)) ty L._dummy [] in
+      let cp = Conv.cvar_of_var tbl p in
+      cp.Var0.Var.vname in
+
     let fresh_counter =
       let i = Prog.V.mk ("i__copy") Inline tint L._dummy [] in
       let ci = Conv.cvar_of_var tbl i in
@@ -468,6 +478,8 @@ let main () =
       Compiler.is_glob     = is_glob;
       Compiler.fresh_id    = fresh_id;
       Compiler.fresh_counter = fresh_counter;
+      Compiler.fresh_reg   = fresh_reg;
+      Compiler.fresh_reg_ptr = Conv.fresh_reg_ptr tbl;
       Compiler.is_reg_ptr  = is_reg_ptr;
       Compiler.is_ptr      = is_ptr;
       Compiler.is_reg_array = is_reg_array;

@@ -146,6 +146,7 @@ type ('len,'info,'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
   (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
   | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
+  | Csyscall of 'len glvals * Syscall_t.syscall_t * 'len gexprs
   | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
   | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
   | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
@@ -367,7 +368,7 @@ let rvars_lvs f s lvs = List.fold_left (rvars_lv f) s lvs
 let rec rvars_i f s i =
   match i.i_desc with
   | Cassgn(x, _, _, e)  -> rvars_e f (rvars_lv f s x) e
-  | Copn(x,_,_,e)    -> rvars_es f (rvars_lvs f s x) e
+  | Copn(x,_,_,e)  | Csyscall (x, _, e) -> rvars_es f (rvars_lvs f s x) e
   | Cif(e,c1,c2)   -> rvars_c f (rvars_c f (rvars_e f s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
@@ -407,7 +408,7 @@ let written_lv s =
 let rec written_vars_i ((v, f) as acc) i =
   match i.i_desc with
   | Cassgn(x, _, _, _) -> written_lv v x, f
-  | Copn(xs, _, _, _)
+  | Copn(xs, _, _, _) | Csyscall(xs, _, _)
     -> List.fold_left written_lv v xs, f
   | Ccall(_, xs, fn, _) ->
      List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
@@ -427,7 +428,7 @@ let written_vars_fc fc =
 let rec refresh_i_loc_i (i:('info,'asm) instr) : ('info,'asm) instr = 
   let i_desc = 
     match i.i_desc with
-    | Cassgn _ | Copn _ | Ccall _ -> i.i_desc
+    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
     | Cif(e, c1, c2) ->
         Cif(e, refresh_i_loc_c c1, refresh_i_loc_c c2)
     | Cfor(x, r, c) ->
@@ -565,6 +566,15 @@ let destruct_move i =
   match i.i_desc with
   | Cassgn(x, tag, ty, e) -> x, tag, ty, e
   | _                 -> assert false
+
+let rec has_syscall_i i =
+  match i.i_desc with
+  | Csyscall _ -> true
+  | Cassgn _ | Copn _ | Ccall _ -> false
+  | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_syscall c1 || has_syscall c2
+  | Cfor (_, _, c) -> has_syscall c
+
+and has_syscall c = List.exists has_syscall_i c
 
 (* -------------------------------------------------------------------- *)
 let clamp (sz : wsize) (z : Z.t) =
