@@ -53,6 +53,7 @@ module type Arch = sig
   val callee_save_vars : var list
   val rsp_var : var
   val all_registers : var list
+  val syscall_kill : Sv.t
 end
 
 module Arch_from_Core_arch (A : Core_arch) : Arch = struct
@@ -186,4 +187,5 @@ module Arch_from_Core_arch (A : Core_arch) : Arch = struct
 
   let all_registers = reg_vars @ regx_vars @ xreg_vars @ flag_vars
 
+  let syscall_kill = Sv.diff (Sv.of_list all_registers) (Sv.of_list callee_save_vars)
 end

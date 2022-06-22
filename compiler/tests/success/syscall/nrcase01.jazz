@@ -1,0 +1,19 @@
+param int KYBER_SYMBYTES = 8 * 1;
+
+export fn test2(reg u64 skp)
+{
+  inline int i;
+  stack u8[KYBER_SYMBYTES] rb;
+  reg u64 t64;
+  
+  skp = skp;
+
+  rb = #randombytes(rb);
+
+  for i=0 to KYBER_SYMBYTES/8
+  {
+    t64 = rb[u64 i];
+    (u64)[skp] = t64;
+    skp += 8;
+  }
+}

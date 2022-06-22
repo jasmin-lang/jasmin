@@ -32,6 +32,7 @@ let fill_in_missing_names (f: ('info, 'asm) func) : ('info, 'asm) func =
     function
     | Cassgn (lv, tg, ty, e) -> Cassgn (fill_lv lv, tg, ty, e)
     | Copn (lvs, tg, op, es) -> Copn (fill_lvs lvs, tg, op, es)
+    | Csyscall (lvs, op, es) -> Csyscall(fill_lvs lvs, op, es)
     | Cif (e, s1, s2) -> Cif (e, fill_stmt s1, fill_stmt s2)
     | Cfor (i, r, s) -> Cfor (i, r, fill_stmt s)
     | Cwhile (a, s, e, s') -> Cwhile (a, fill_stmt s, e, fill_stmt s')
@@ -198,6 +199,7 @@ let collect_equality_constraints_in_func
           lvs
           op
           es
+    | Csyscall (_lvs, _op, _es) -> ()
     | Cassgn (Lvar x, AT_phinode, _, Pvar y) when
           is_gkvar y && kind_i x = kind_i y.gv ->
        addv ii x y.gv
@@ -351,6 +353,7 @@ let collect_conflicts asmOp
       -> collect_stmt c s
     | Cassgn _
     | Copn _
+    | Csyscall _
     | Ccall _
       -> c
     | Cwhile (_, s1, _, s2)
@@ -370,7 +373,7 @@ let iter_variables (cb: var -> unit) (f: ('info, 'asm) func) : unit =
   let rec iter_instr_r =
     function
     | Cassgn (lv, _, _, e) -> iter_lv lv; iter_expr e
-    | (Ccall (_, lvs, _, es) | Copn (lvs, _, _, es)) -> iter_lvs lvs; iter_exprs es
+    | (Ccall (_, lvs, _, es) | Copn (lvs, _, _, es)) | Csyscall(lvs, _ , es) -> iter_lvs lvs; iter_exprs es
     | (Cwhile (_, s1, e, s2) | Cif (e, s1, s2)) -> iter_expr e; iter_stmt s1; iter_stmt s2
     | Cfor _ -> assert false
   and iter_instr { i_desc } = iter_instr_r i_desc
@@ -398,11 +401,18 @@ let collect_variables ~(allvars: bool) (excluded:Sv.t) (f: ('info, 'asm) func) :
   collect_variables_aux ~allvars excluded fresh tbl None f;
   tbl, total ()
 
-let collect_variables_in_prog ~(allvars: bool) (excluded:Sv.t) (extra: var Hf.t) (extras: ('k, var) Hashtbl.t) (f: ('info, 'asm) func list) : int Hv.t * int =
+let collect_variables_in_prog
+      ~(allvars: bool)
+      (excluded: Sv.t)
+      (extra: var Hf.t)
+      (extras: ('k, var) Hashtbl.t)
+      (all_reg: var list)
+      (f: ('info, 'asm) func list) : int Hv.t * int =
   let fresh, total = make_counter () in
   let tbl : int Hv.t = Hv.create 97 in
   List.iter (fun f -> collect_variables_aux ~allvars excluded fresh tbl (Hf.Exceptionless.find extra f.f_name) f) f;
   Hashtbl.iter (fun _ v -> collect_variables_cb ~allvars excluded fresh tbl v) extras;
+  List.iter (collect_variables_cb ~allvars excluded fresh tbl) all_reg;
   tbl, total ()
 
 let normalize_variables (tbl: int Hv.t) (eqc: Puf.t) : int Hv.t =
@@ -558,13 +568,19 @@ let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
       vs
     |> (ignore : var list * var list -> unit)
   in
-  let alloc_args loc = alloc_from_list loc ~ctxt:"parameters" Arch.argument_vars Arch.xmm_argument_vars identity in
-  let alloc_ret loc = alloc_from_list loc ~ctxt:"return values" Arch.ret_vars Arch.xmm_ret_vars L.unloc in
+  let alloc_args loc get = alloc_from_list loc ~ctxt:"parameters" Arch.argument_vars Arch.xmm_argument_vars get in
+  let alloc_ret loc get = alloc_from_list loc ~ctxt:"return values" Arch.ret_vars Arch.xmm_ret_vars get in
   let rec alloc_instr_r loc =
     function
     | Cfor (_, _, s)
       -> alloc_stmt s
     | Copn (lvs, _, op, es) -> forced_registers translate_var loc nv vars cnf lvs op es a
+    | Csyscall(lvs, _, es) ->
+       let get_a = function Pvar { gv ; gs = Slocal } -> L.unloc gv | _ -> assert false in
+       let get_r = function Lvar gv -> L.unloc gv | _ -> assert false in
+       alloc_args loc get_a es;
+       alloc_ret loc get_r lvs
+
     | Cwhile (_, s1, _, s2)
     | Cif (_, s1, s2)
         -> alloc_stmt s1; alloc_stmt s2
@@ -585,8 +601,8 @@ let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
   and alloc_stmt s = List.iter alloc_instr s
   in
   let loc = L.i_loc0 f.f_loc in
-  if f.f_cc = Export then alloc_args loc f.f_args;
-  if f.f_cc = Export then alloc_ret loc f.f_ret;
+  if f.f_cc = Export then alloc_args loc identity f.f_args;
+  if f.f_cc = Export then alloc_ret loc L.unloc f.f_ret;
   alloc_stmt f.f_body
 
 (* Returns a variable from [regs] that is allocated to a friend variable of [i]. Defaults to [dflt]. *)
@@ -820,7 +836,8 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
                 ) acc locs
             else acc
           ) cg Sv.empty in
-      Sv.union written killed_by_calls
+      let killed_by_syscalls = if has_syscall f.f_body then Arch.syscall_kill else Sv.empty in
+      Sv.union (Sv.union written killed_by_calls) killed_by_syscalls
     in
     Hf.add killed_map f.f_name written;
     f
@@ -830,20 +847,28 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
     Format.printf "Before REGALLOC:@.%a@."
       Printer.(pp_list "@ @ " (pp_func ~debug:true Arch.asmOp)) (List.rev funcs);
   (* Live variables at the end of each function, in addition to returned local variables *)
-  let get_liveness =
+  let get_liveness, slive =
     let live : Sv.t Hf.t = Hf.create 17 in
+    let slive : (Syscall_t.syscall_t, Sv.t) Hashtbl.t = Hashtbl.create 17 in
     List.iter (fun f ->
         let f_with_liveness = Hf.find liveness_table f.f_name in
         let live_when_calling_f = Hf.find_default live f.f_name Sv.empty in
-        Liveness.iter_call_sites (fun _loc fn xs (_, s) ->
-            let s = Sv.union live_when_calling_f s in
+        let cbf _loc fn xs (_, s) =
+          let s = Sv.union live_when_calling_f s in
+          let s = Liveness.dep_lvs s xs in
+          Hf.modify_def Sv.empty fn (Sv.union s) live in
+        let cbs _loc o xs (_, s) =
             let s = Liveness.dep_lvs s xs in
-            Hf.modify_def Sv.empty fn (Sv.union s) live) f_with_liveness
+            match Hashtbl.find slive o with
+            | s0 -> Hashtbl.replace slive o (Sv.union s s0)
+            | exception Not_found -> Hashtbl.add slive o s in
+
+        Liveness.iter_call_sites cbf cbs f_with_liveness
       ) funcs;
-    fun fn -> Hf.find_default live fn Sv.empty
+    (fun fn -> Hf.find_default live fn Sv.empty), slive
   in
   let excluded = Sv.of_list [Arch.rip; Arch.rsp_var] in
-  let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses extra_free_registers funcs in
+  let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses extra_free_registers Arch.all_registers funcs in
   let eqc, tr, fr = collect_equality_constraints_in_prog Arch.asmOp Arch.aparams.ap_is_move_op "Regalloc" asm_equality_constraints vars nv funcs in
   let vars = normalize_variables vars eqc in
   (* Intra-procedural conflicts *)
@@ -862,7 +887,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
             match Hashtbl.find extra_free_registers loc with
             | exception Not_found -> ()
             | r -> cnf := Sv.fold (conflicts_add_one Arch.asmOp vars tr (Lmore loc) r) s !cnf
-          ) f
+          ) (fun _ _ _ _ -> ()) f
       ) liveness_table;
     !cnf
   in
@@ -887,7 +912,22 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
         in
         cnf |> Sv.fold (add_conflicts vars) live
       ) funcs conflicts in
+
+  (* syscall conflicts *)
+  let conflicts =
+    let add_conflicts x = Sv.fold (conflicts_add_one Arch.asmOp vars tr Lnone x) Arch.syscall_kill in
+    Hashtbl.fold (fun _o live cnf -> cnf |> Sv.fold add_conflicts live) slive conflicts in
+
   let a = A.empty nv in
+
+  (* Allocate all_vars *)
+  let allocate_one x =
+    match Hv.find vars x with
+    | i -> allocate_one nv vars L.i_dummy conflicts x i x a
+    | exception Not_found -> ()
+  in
+  List.iter allocate_one Arch.all_registers;
+
   List.iter (fun f -> allocate_forced_registers translate_var nv vars conflicts f a) funcs;
   greedy_allocation vars nv conflicts fr a;
   let subst = var_subst_of_allocation vars a in

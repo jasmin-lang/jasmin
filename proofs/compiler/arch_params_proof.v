@@ -23,6 +23,7 @@ Unset Printing Implicit Defensive.
 
 
 Record h_lowering_params
+  {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} 
   (fresh_vars lowering_options : Type)
   (loparams : lowering_params fresh_vars lowering_options) :=
@@ -40,9 +41,10 @@ Record h_lowering_params
         (is_var_in_memory : var_i -> bool)
         (_ : lop_fvars_correct loparams fv (p_funcs p))
         (f : funname)
-        (mem mem' : low_memory.mem)
+        (scs: syscall_state_t) (mem : low_memory.mem)
+        (scs': syscall_state_t) (mem' : low_memory.mem)
         (va vr : seq value),
-        sem_call p ev mem f va mem' vr
+        sem_call p ev scs mem f va scs' mem' vr
         -> let lprog :=
              lowering.lower_prog
                (lop_lower_i loparams)
@@ -52,10 +54,11 @@ Record h_lowering_params
                is_var_in_memory
                p
            in
-           sem_call lprog ev mem f va mem' vr;
+           sem_call lprog ev scs mem f va scs' mem' vr;
   }.
 
 Record h_architecture_params
+  {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
   `{asm_e : asm_extra} {call_conv:calling_convention}
   (fresh_vars lowering_options : Type)
   (aparams : architecture_params fresh_vars lowering_options) :=

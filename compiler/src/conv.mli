@@ -72,3 +72,8 @@ val to_array :
 val error_of_cerror :
   (Format.formatter -> Compiler_util.pp_error -> unit) ->
   'info coq_tbl -> Compiler_util.pp_error_loc -> Utils.hierror
+
+
+(* ---------------------------------------------------- *)
+val fresh_reg_ptr :
+  'a coq_tbl -> 'b (* coq string *) -> Type.stype -> Eqtype.Equality.sort (* Var0.var *)

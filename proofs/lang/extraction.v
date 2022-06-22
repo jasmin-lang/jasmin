@@ -4,6 +4,10 @@ Require x86_params x86_sem.
 Require ExtrOcamlBasic.
 Require ExtrOcamlString.
 
+(* This is a hack to force the extraction to keep the singleton here,
+   This need should be removed if we add more constructor to syscall_t *)
+Extract Inductive syscall.syscall_t => "Syscall_t.syscall_t" ["Syscall_t.RandomBytes"].
+
 Extraction Inline ssrbool.is_left.
 Extraction Inline ssrbool.predT ssrbool.pred_of_argType.
 Extraction Inline ssrbool.idP.

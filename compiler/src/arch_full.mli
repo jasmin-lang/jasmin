@@ -51,6 +51,7 @@ module type Arch = sig
   val callee_save_vars : var list
   val rsp_var : var
   val all_registers : var list
+  val syscall_kill : Sv.t
 end
 
 module Arch_from_Core_arch (A : Core_arch) : Arch

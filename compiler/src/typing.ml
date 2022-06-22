@@ -183,6 +183,13 @@ let rec check_instr pd asmOp env i =
     check_exprs pd loc es tins;
     check_lvals pd loc xs tout
 
+  | Csyscall(xs, o, es) ->
+    let s = Syscall.syscall_sig_u o in
+    let tins = List.map Conv.ty_of_cty s.scs_tin in
+    let tout = List.map Conv.ty_of_cty s.scs_tout in
+    check_exprs pd loc es tins;
+    check_lvals pd loc xs tout
+
   | Cif(e,c1,c2) -> 
     check_expr pd loc e tbool;
     check_cmd pd asmOp env c1;

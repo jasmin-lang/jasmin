@@ -21,7 +21,7 @@ Local Notation cpm := (Mvar.t const_v).
 Section Section.
 
 Context
-  {pd: PointerData}
+  {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
   `{asmop:asmOp}
   {T:eqType}
   {pT:progT T}
@@ -828,6 +828,16 @@ Section PROPER.
     by do 3 f_equal;apply eq_in_map=> z _;rewrite Heq.
   Qed.
 
+  Local Lemma Wsyscall xs o es: Pr (Csyscall xs o es).
+  Proof.
+    move=> ii m1 m2 Heq /=;have := const_prop_rvs_m Heq (refl_equal xs).
+    rewrite /const_prop_ir.
+    case: const_prop_rvs => ??;case: const_prop_rvs => ?? [].
+    rewrite /RelationPairs.RelCompFun /= => -> ->.
+    split => //=; rewrite /RelationPairs.RelCompFun /=.
+    by do 3 f_equal;apply eq_in_map=> z _;rewrite Heq.
+  Qed.
+
   Local Lemma Wif e c1 c2: Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Proof.
     move=> Hc1 Hc2 ii m1 m2 Heq /=.
@@ -884,21 +894,21 @@ Lemma const_prop_i_m :
   Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) const_prop_i.
 Proof.
   move=> m1 m2 Hm i1 i2 <-.
-  apply : (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall i1) Hm.
+  apply : (instr_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall i1) Hm.
 Qed.
 
 Lemma const_prop_i_r_m :
   Proper (@Mvar_eq const_v ==> eq ==> eq ==> @Mvarc_eq const_v) const_prop_ir.
 Proof.
   move=> m1 m2 Hm ii1 ii2 <- i1 i2 <-.
-  apply : (instr_r_Rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall i1) Hm.
+  apply : (instr_r_Rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall i1) Hm.
 Qed.
 
 Lemma const_prop_m :
   Proper (@Mvar_eq const_v ==> eq ==> @Mvarc_eq const_v) (const_prop const_prop_i).
 Proof.
   move=> m1 m2 Hm c1 c2 <-.
-  apply : (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wif Wfor Wwhile Wcall c1) Hm.
+  apply : (cmd_rect Wmk Wnil Wcons Wasgn Wopn Wsyscall Wif Wfor Wwhile Wcall c1) Hm.
 Qed.
 
 Lemma valid_cpm_m :
@@ -955,11 +965,11 @@ Section PROOF.
          sem_for p' ev i zs (with_vm s1 vm1) (const_prop const_prop_i m c).2 (with_vm s2 vm2) /\
          vm_uincl (evm s2) vm2.
 
-  Let Pfun m1 fd vargs m2 vres :=
+  Let Pfun scs1 m1 fd vargs scs2 m2 vres :=
     forall vargs',
       List.Forall2 value_uincl vargs vargs' ->
       exists vres',
-        sem_call p' ev m1 fd vargs' m2 vres' /\
+        sem_call p' ev scs1 m1 fd vargs' scs2 m2 vres' /\
         List.Forall2 value_uincl vres vres'.
 
   Local Lemma Hskip : sem_Ind_nil Pc.
@@ -1010,6 +1020,19 @@ Section PROOF.
     exists vm2;split => //.
     apply sem_seq1; do 2 constructor.
     by rewrite /sem_sopn hs /= ho'.
+  Qed.
+
+  Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
+  Proof.
+    move=> s1 scs mem s2 o xs es ves vs hes ho hw m ii Hm.
+    have [ves' Hes' Us] := const_prop_esP Hm hes.
+    rewrite /const_prop_ir /=.
+    have /(_ _ Hm) [] := const_prop_rvsP _ hw.
+    case: const_prop_rvs => m' rvs' /= h1 h2; split => // vm1 hvm1.
+    have [vs2 hs u2]:= sem_pexprs_uincl hvm1 Hes'.
+    have [vs' ho' Us']:= exec_syscallP ho (Forall2_trans value_uincl_trans Us u2).
+    have /(_ _ hvm1) [vm2 hw' U]:= writes_uincl _ Us' h2.
+    exists vm2; split => //=; apply sem_seq1; constructor; econstructor; eauto.
   Qed.
 
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
@@ -1153,7 +1176,7 @@ Section PROOF.
 
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
-    move=> s1 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfun Hvs m ii' Hm.
+    move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hargs Hcall Hfun Hvs m ii' Hm.
     rewrite /const_prop_ir -/const_prop_i.
     have [vargs' Hargs' Hall] := const_prop_esP Hm Hargs.
     have /(_ _ Hm) [] /=:= const_prop_rvsP _ Hvs.
@@ -1168,8 +1191,8 @@ Section PROOF.
 
   Local Lemma Hproc : sem_Ind_proc p ev Pc Pfun.
   Proof.
-    move => m1 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
-    case: f=> fi ftin fparams fc ftout fres fex /= Hget Hargs Hi Hw _ Hc Hres Hfull Hfi.
+    move => scs1 m1 sc2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
+    case: f=> fi ftin fparams fc ftout fres fex /= Hget Hargs Hi Hw _ Hc Hres Hfull Hscs Hfi.
     have := (get_map_prog const_prop_fun p fn);rewrite Hget /=.
     have : valid_cpm (evm s1) empty_cpm by move=> x n;rewrite Mvar.get0.
     move=> /Hc [];case: const_prop => m c' /= hcpm hc' hget vargs1 hargs'.
@@ -1183,12 +1206,12 @@ Section PROOF.
     by move: hw;rewrite with_vm_same.
   Qed.
 
-  Lemma const_prop_callP f mem mem' va va' vr:
-    sem_call p ev mem f va mem' vr ->
+  Lemma const_prop_callP f scs mem scs' mem' va va' vr:
+    sem_call p ev scs mem f va scs' mem' vr ->
     List.Forall2 value_uincl va va' ->
-    exists vr', sem_call p' ev mem f va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+    exists vr', sem_call p' ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
-    move=> /(@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+    move=> /(@sem_call_Ind _ _ _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) h.
     apply h.
   Qed.

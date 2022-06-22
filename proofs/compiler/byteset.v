@@ -1001,6 +1001,13 @@ Proof.
   by rewrite /I.memi !zify; lia.
 Qed.
 
+Lemma subset_remove bytes i :
+  subset (remove bytes i) bytes.
+Proof.
+  apply /subsetP => i'.
+  by rewrite removeE => /andP [? _].
+Qed.
+
 Lemma disjoint_incl_l b1 b2 b :
   subset b1 b2 ->
   disjoint b2 b ->

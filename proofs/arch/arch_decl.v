@@ -1,7 +1,7 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
-Require Import utils oseq strings word memory_model global Utf8 Relation_Operators sem_type label.
+Require Import utils oseq strings word memory_model global Utf8 Relation_Operators sem_type syscall label.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -539,7 +539,8 @@ Variant asm_i : Type :=
   | CALL of remote_label (* Direct jump; return address is saved at the top of the stack *)
   | POPPC (* Pop a destination from the stack and jump there *)
   (* Instructions exposed at source-level *)
-  | AsmOp  of asm_op_t' & asm_args.
+  | AsmOp  of asm_op_t' & asm_args
+  | SysCall of syscall_t.
 
 Definition asm_code := seq asm_i.
 
@@ -599,6 +600,7 @@ Class calling_convention :=
   ; call_xreg_args : seq xreg_t
   ; call_reg_ret   : seq reg_t 
   ; call_xreg_ret  : seq xreg_t
+  ; call_reg_ret_uniq : uniq (T:= @ceqT_eqType _ _) call_reg_ret
   }.
 
 Definition get_ARReg (a:asm_typed_reg) := 

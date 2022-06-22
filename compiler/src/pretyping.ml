@@ -1649,6 +1649,26 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
           | P.Export | P.Subroutine _ -> E.DoNotInline in
       env, [mk_i (mk_call (L.loc pi) is_inline lvs f es)]
 
+  | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "randombytes" ->
+      (* FIXME syscall *)
+      (* This is dirty but ... *)
+      if ls <> None then rs_tyerror ~loc:(L.loc pi) (string_error "randombytes expects no implicit arguments");
+      let loc, x, ty =
+        match xs with
+        | [x] ->
+          let loc, x, oty = tt_lvalue pd env x in
+          let ty =
+            match oty with
+            | None -> rs_tyerror ~loc (string_error "_ lvalue not accepted here")
+            | Some ty -> ty in
+          loc, x ty, ty
+        | _ ->
+          rs_tyerror ~loc:(L.loc pi)
+            (string_error "only a single variable is allowed as destination of randombytes") in
+      let _ = tt_as_array (loc, ty) in
+      let es = tt_exprs_cast pd env (L.loc pi) args [ty] in
+      env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
+
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
       let p = tt_prim asmOp None f in
       let tlvs, tes, arguments = prim_sig asmOp p in

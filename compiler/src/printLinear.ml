@@ -78,6 +78,7 @@ let pp_instr asmOp tbl fmt i =
       pp_cast op
       (Pr.pp_opn asmOp) op
       (pp_list ",@ " (pp_expr tbl)) es
+  | Lsyscall o -> F.fprintf fmt "SysCall %s" (Printer.pp_syscall o)
   | Lalign     -> F.fprintf fmt "Align"
   | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl
   | Lgoto lbl -> F.fprintf fmt "Goto %a" (pp_remote_label tbl) lbl

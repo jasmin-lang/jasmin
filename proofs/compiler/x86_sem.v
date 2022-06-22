@@ -55,21 +55,14 @@ Instance x86 : asm register register_ext xmm_register rflag condt x86_op :=
   {| eval_cond := x86_eval_cond
    ; stack_pointer_register := RSP |}.
 
-Definition x86_mem := @asmmem _ _ _ _ _ _ x86.
+Section SEM.
+
+Context {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}  {call_conv: calling_convention} {asm_scsem : asm_syscall_sem}.
+
+Definition x86_mem := @asmmem _ _ _ _ _ _ _ _ x86.
 Definition x86_prog := @asm_prog register _ _ _ _ _ _ x86_op_decl.
-Definition x86_state := @asm_state _ _ _ _ _ _ x86.
-Definition x86sem := @asmsem _ _ _ _ _ _ x86.
+Definition x86_state := @asm_state _ _ _ _ _ _ _ _ x86.
+Definition x86sem := @asmsem _ _ _ _ _ _ _ _ x86.
 Definition x86_fundef := @asm_fundef _ _ _ _ _ _ _ x86_op_decl.
 
-(* Semantics of an export function
-FIXME: this is mostly independent of the architecture and may be partially moved to arch_sem
-
-  - The function exists and is “export”
-  - Execution runs from the initial state to the final state
-  - Callee-saved registers are preserved
-
-TODO: arguments / results are well-typed
- *)
-
-Definition x86_callee_saved : seq register :=
-  [:: RBX; RBP; RSP; R12; R13; R14; R15 ].
+End SEM.
