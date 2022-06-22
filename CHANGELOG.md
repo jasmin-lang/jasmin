@@ -9,6 +9,10 @@
   ([PR #177](https://github.com/jasmin-lang/jasmin/pull/177);
   fixes [#175](https://github.com/jasmin-lang/jasmin/issues/175)).
 
+- More precise pretyping for "reg const ptr" and function call.
+  ([PR #178](https://github.com/jasmin-lang/jasmin/pull/178);
+  fixes [#176](https://github.com/jasmin-lang/jasmin/issues/176)).
+
 ## New features
 
 - Fill an array with “random” data using `p = #randombytes(p);`

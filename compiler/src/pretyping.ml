@@ -1217,7 +1217,6 @@ let tt_lvalue pd (env : 'asm Env.env) { L.pl_desc = pl; L.pl_loc = loc; } =
 
   | S.PLVar x ->
     let x = tt_var `NoParam env x in
-    reject_constant_pointers loc x ;
     loc, (fun _ -> P.Lvar (L.mk_loc loc x)), Some x.P.v_ty
 
   | S.PLArray (aa, ws, ({ pl_loc = xlc } as x), pi, olen) ->
@@ -1595,18 +1594,39 @@ let check_lval_pointer loc x =
   | _ -> rs_tyerror ~loc (NotAPointer x)
 
 let mk_call loc is_inline lvs f es =
-  begin match f.P.f_cc with 
-  | P.Internal | P.Export -> ()
-  | P.Subroutine _ ->
+  let open P in
+  begin match f.f_cc with
+  | Internal -> ()
+  | Export -> if is_inline <> E.InlineFun then rs_tyerror ~loc (string_error "call to export function needs to be inlined")
+  | Subroutine _ ->
     let check_lval = function
-      | P.Lnone _ | Lvar _ | Lasub _ -> ()
+      | Lnone _ | Lvar _ | Lasub _ -> ()
       | Lmem _ | Laset _ -> rs_tyerror ~loc (string_error "memory/array assignment are not allowed here") in
-    let check_e = function
-      | P.Pvar _ | P.Psub _ -> ()
+    let rec check_e = function
+      | Pvar _ | Psub _ -> ()
+      | Pif (_, _, e1, e2) -> check_e e1; check_e e2
       | _ -> rs_tyerror ~loc (string_error "only variables and subarray are allowed in arguments of non-inlined function") in
     List.iter check_lval lvs;
     List.iter check_e es
   end;
+
+  (* Check writability *)
+  let check_ptr_writable x =
+     match x.v_kind with
+     | Stack (Pointer Writable) | Reg (_, Pointer Writable) -> true
+     | _ -> false in
+  let check_w x e =
+    if check_ptr_writable x then
+      let rec aux  = function
+        | Pvar y | Psub(_, _, _, y, _) ->
+          let y = L.unloc y.gv in
+          if not (check_ptr_writable y || y.v_kind = Stack Direct) then
+            rs_tyerror ~loc (string_error "argument %a needs to be writable" Printer.pp_pvar y)
+        | Pif (_, _, e1, e2) -> aux e1; aux e2
+        | _ -> assert false in
+      aux e in
+  List.iter2 check_w f.f_args es;
+
   P.Ccall (is_inline, lvs, f.P.f_name, es)
 
 let tt_annot_vardecls dfl_writable pd env (annot, (ty,vs)) = 
