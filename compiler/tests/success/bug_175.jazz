@@ -1,0 +1,49 @@
+param int N = 2;
+
+inline fn init() -> stack u64[N]
+{
+  inline int i;
+  stack u64[N] r;
+  for i=0 to N
+  { r[i] = i; }
+  return r;
+}
+
+inline fn add(reg ptr u64[N] a b) -> reg ptr u64[N]
+{
+  reg u64 i t;
+  i = 0;
+  while(i < N)
+  { t = a[(int)i];
+    t += b[(int)i];
+    a[(int) i] = t;
+    i += 1;
+  }
+  return a;
+}
+
+inline fn store(reg u64 p, reg ptr u64[N] x)
+{
+  reg u64 i t;
+  i = 0;
+  while(i < N)
+  { t = x[(int)i];
+    (u64)[p + 8*i] = t;
+    i += 1;
+  }
+}
+
+export fn test1(reg u64 p)
+{
+  inline int i;
+  stack u64[N] a b;
+  reg ptr u64[N] ap bp;
+
+  a = init(); ap = a;
+  b = init(); bp = b;
+
+  ap = add(ap, bp);
+  store(p, ap);
+  store(p, bp); 
+}
+
