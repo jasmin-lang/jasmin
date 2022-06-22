@@ -164,6 +164,32 @@ let set_friend i j (f: friend) : friend =
 type ('info, 'asm) collect_equality_constraints_state =
   { mutable cac_friends : friend; mutable cac_eqc: Puf.t ; cac_trace: ('info, 'asm) instr list array }
 
+(* Renaming assignments can be removed between variables of compatible kinds,
+where “compatibility” is defined below and allows the promotion of mutable
+pointers to constant pointers. *)
+let pointer_compatible (x: pointer) (y: pointer) : bool =
+  match x, y with
+  | Direct, Direct
+  | Pointer Writable, Pointer Writable
+  | Pointer Constant, Pointer _
+      -> true
+  | Direct, Pointer _
+  | Pointer _, Direct
+  | Pointer Writable, Pointer Constant
+    -> false
+
+let kind_compatible (x: v_kind) (y: v_kind) : bool =
+  match x, y with
+  | Const, Const
+  | Inline, Inline
+  | Global, Global
+    -> true
+  | Stack a, Stack b
+  | Reg (Normal, a), Reg (Normal, b)
+  | Reg (Extra, a), Reg (Extra, b)
+    -> pointer_compatible a b
+  | _, _ -> false
+
 let collect_equality_constraints_in_func
       (asmOp:'asm Sopn.asmOp)
       is_move_op
@@ -203,8 +229,10 @@ let collect_equality_constraints_in_func
     | Cassgn (Lvar x, AT_phinode, _, Pvar y) when
           is_gkvar y && kind_i x = kind_i y.gv ->
        addv ii x y.gv
-    | Cassgn (Lvar x, AT_rename, _, Pvar y) when is_gkvar y && kind_i x = kind_i y.gv &&
-                                                   not (is_stack_array x) ->
+    | Cassgn (Lvar x, AT_rename, _, Pvar y) when
+       is_gkvar y
+       && kind_compatible (kind_i x) (kind_i y.gv)
+       && not (is_stack_array x) ->
       addv ii x y.gv
 
     | Cassgn (Lvar x, _, _, Pvar y) when is_gkvar y && kind_i x = kind_i y.gv && 

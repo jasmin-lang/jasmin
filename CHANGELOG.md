@@ -5,6 +5,10 @@
 
 - Fix printing of `while` loops [PR #131](https://github.com/jasmin-lang/jasmin/pull/131).
 
+- Improved removal of assignments introduced by inlining
+  ([PR #177](https://github.com/jasmin-lang/jasmin/pull/177);
+  fixes [#175](https://github.com/jasmin-lang/jasmin/issues/175)).
+
 ## New features
 
 - Fill an array with “random” data using `p = #randombytes(p);`
