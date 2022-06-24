@@ -1436,6 +1436,12 @@ let pexpr_of_plvalue exn l =
   | S.PLMem(ty,x,e) -> L.mk_loc (L.loc l) (S.PEFetch(ty,x,e))
 
 
+let known_implicits = ["OF","_of_"; "CF", "_cf_"; "SF", "_sf_"; "ZF", "_zf_"] 
+
+let add_known_implicits env = 
+  List.fold_left (fun env (_, s) -> 
+      Env.Vars.push env (P.PV.mk s (Reg(Normal, Direct)) P.tbool L._dummy [])) env known_implicits
+
 let tt_lvalues pd env loc (pimp, pls) implicit tys =
   let loc = loc_of_tuples loc (List.map P.L.loc pls) in
   let ignore_ = L.mk_loc loc S.PLIgnore in
@@ -1503,7 +1509,9 @@ let tt_lvalues pd env loc (pimp, pls) implicit tys =
                                                    ~on_id:(fun loc _nid s -> mk loc s) 
                                                    error) pimp_f in
         match a with
-        | None -> L.mk_loc loc (S.PLIgnore)
+        | None -> 
+          (try mk loc (List.assoc i known_implicits)
+           with Not_found -> L.mk_loc loc (S.PLIgnore))
         | Some a -> a in
 
       let rec aux arguments pls = 
@@ -1880,6 +1888,7 @@ let tt_fundef pd asmOp (env : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env 
   let inret = odfl [] (omap (List.map L.unloc) pf.pdf_body.pdb_ret) in
   let dfl_mut x = List.mem x inret in
   let envb, args = 
+    let env = add_known_implicits env in
     let env, args = List.map_fold (tt_annot_vardecls dfl_mut pd) env pf.pdf_args in
     env, List.flatten args in
   let rty  = odfl [] (omap (List.map (tt_type pd env |- snd |- snd)) pf.pdf_rty) in
