@@ -1,0 +1,13 @@
+fn inc(reg u64 x) -> reg u64 {
+  x = #LEA(x + 1);
+  return x;
+}
+
+export
+fn one() -> reg u64 {
+  reg u64 r;
+  #inline r = inc(0);
+  return r;
+}
+
+exec one()
