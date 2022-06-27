@@ -23,8 +23,3 @@ curl -v -o $FILE https://codeload.github.com/formosa-crypto/$NAME/tar.gz/refs/he
 tar xvf $FILE
 
 make $MAKELINE
-
-mkdir -p $OUT
-(cd $OUT && tar xvf ../$DIR/check.tar.gz)
-
-make $MAKELINE err
