@@ -1,7 +1,7 @@
 opam-version: "2.0"
 name: "jasmin"
-maintainer: "Jasmin Team <jasmin@example.com>"
-authors: [ "Jasmin Team <jasmin@example.com>" ]
+maintainer: "Jean-Christophe Léchenet <jean-christophe.lechenet@inria.fr>"
+authors: "Jasmin authors and contributors"
 homepage: "https://github.com/jasmin-lang/jasmin"
 bug-reports: "https://github.com/jasmin-lang/jasmin/issues"
 synopsis: "High-Assurance and High-Speed Cryptography"
@@ -15,12 +15,15 @@ install: [
   cp "_build/entry/jasminc.native" "%{prefix}%/bin/jasminc"
 ]
 depends: [
-  "batteries" {>= "2.6"}
-  "menhir" {>= "20160825"}
-  "zarith"
-  "apron"
+  "ocaml" { >= "4.08" & build }
+  "batteries" {>= "3.2"}
+  "menhir" {>= "20160825" & build }
+  "menhirLib"
+  "camlidl"
+  "zarith" {>= "1.9"}
+  "apron" {>= "v0.9.12"}
   "conf-ppl"
-  "yojson"
-  "ocamlbuild"
-  "ocamlfind"
+  "yojson" {>= "1.6.0"}
+  "ocamlbuild" { build }
+  "ocamlfind" { build }
 ]

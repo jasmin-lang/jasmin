@@ -1,8 +1,8 @@
 opam-version: "2.0"
 name: "jasmin"
 version: "0.1"
-maintainer: "Jasmin Team <jasmin@example.com>"
-authors: [ "Jasmin Team <jasmin@example.com>" ]
+maintainer: "Jean-Christophe Léchenet <jean-christophe.lechenet@inria.fr>"
+authors: "Jasmin authors and contributors"
 homepage: "http://jasmin-lang.github.io/"
 bug-reports: "https://github.com/jasmin-lang/jasmin/issues"
 synopsis: "High-Assurance and High-Speed Cryptography"
@@ -18,14 +18,17 @@ remove: [
   make "PREFIX=%{prefix}%" "uninstall"
 ]
 depends: [
-  "batteries" {>= "2.6"}
-  "menhir" {>= "20160825"}
-  "zarith"
-  "apron"
+  "ocaml" { >= "4.08" & build }
+  "batteries" {>= "3.2"}
+  "menhir" {>= "20160825" & build }
+  "menhirLib"
+  "camlidl"
+  "zarith" {>= "1.9"}
+  "apron" {>= "v0.9.12"}
   "conf-ppl"
-  "yojson"
-  "ocamlbuild"
-  "ocamlfind"
+  "yojson" {>= "1.6.0"}
+  "ocamlbuild" { build }
+  "ocamlfind" {build }
   "coq" {>= "8.14.0" & < "8.16"}
   "coq-mathcomp-ssreflect" {>= "1.12" & < "1.15"}
   "coq-mathcomp-algebra"
