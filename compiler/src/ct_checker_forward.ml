@@ -9,7 +9,6 @@ module Pt = Pretyping
 module Vl : sig
   type t
   val compare : t -> t -> int
-  val is_flex : t -> bool
   val is_poly : t -> bool
   val mk_uni  : string -> t
   val mk_poly : string -> t
@@ -24,7 +23,6 @@ end = struct
 
   let compare vl1 vl2 = String.compare vl1.vl_name vl2.vl_name
 
-  let is_flex vl = vl.vl_flex
   let is_poly vl = not vl.vl_flex
 
 
@@ -188,7 +186,6 @@ module Env : sig
   type env
   val empty : env
   val norm_lvl : env -> Lvl.t -> Lvl.t
-  val lvl_le   : env -> Lvl.t -> Lvl.t -> bool
 
   val set  : env -> var_i -> Lvl.t -> env
   val add : env -> var -> (lvl_kind * Lvl.t) -> env
@@ -224,9 +221,6 @@ end = struct
       let k, lvl = Mv.find (L.unloc x) env.env_v in
       k, norm_lvl env lvl
     with Not_found -> Flexible, Public
-
-  let lvl_le env lvl1 lvl2 =
-    Lvl.le (norm_lvl env lvl1) (norm_lvl env lvl2)
 
   let max env1 env2 =
     let env_vl = Svl.union env1.env_vl env2.env_vl in
