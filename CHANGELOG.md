@@ -28,6 +28,10 @@
 - new option
 	"-call-conv {windows|linux}": select calling convention (default depend on host architecture)
 
+## Improvements
+
+- Lowering of a memory-to-memory copy always introduce an intermediate copy through a register
+
 # Jasmin 22.0
 
 This release is the result of more than two years of active development. It thus
