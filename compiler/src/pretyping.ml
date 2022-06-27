@@ -1623,7 +1623,7 @@ let mk_call loc is_inline lvs f es =
   begin match f.f_cc with
   | Internal -> ()
   | Export -> if is_inline <> E.InlineFun then rs_tyerror ~loc (string_error "call to export function needs to be inlined")
-  | Subroutine _ ->
+  | Subroutine _ when is_inline <> E.InlineFun ->
     let check_lval = function
       | Lnone _ | Lvar _ | Lasub _ -> ()
       | Lmem _ | Laset _ -> rs_tyerror ~loc (string_error "memory/array assignment are not allowed here") in
@@ -1633,6 +1633,7 @@ let mk_call loc is_inline lvs f es =
       | _ -> rs_tyerror ~loc (string_error "only variables and subarray are allowed in arguments of non-inlined function") in
     List.iter check_lval lvs;
     List.iter check_e es
+  | Subroutine _ -> ()
   end;
 
   (* Check writability *)
