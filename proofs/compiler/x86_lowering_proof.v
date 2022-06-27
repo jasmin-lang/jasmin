@@ -180,10 +180,12 @@ Section PROOF.
   Local Lemma HmkI : sem_Ind_mkI p ev Pi_r Pi.
   Proof. move=> ii i s1 s2 _ Hi; exact: Hi. Qed.
 
-  Lemma type_of_get_var vm sz vn v:
-    get_var vm {| vtype := sword sz; vname := vn |} = ok v ->
+  Lemma type_of_get_gvar vm sz vn vi vs v:
+    get_gvar gd vm {| gv := {| v_var := {| vtype := sword sz; vname := vn |} ; v_info := vi |} ; gs := vs |} = ok v ->
     ∃ sz', type_of_val v = sword sz' ∧ (sz' ≤ sz)%CMP.
   Proof.
+    rewrite /get_gvar; case: vs => /=; last first.
+    - by case/get_globalI => gv [] _ -> ->; exists sz.
     rewrite /get_var /on_vu.
     case Heq: (vm.[_])=> [a|[]] // [<-] /=; eauto.
     case: a {Heq} => /= sz' _; eauto.
@@ -651,8 +653,8 @@ Section PROOF.
   Proof.
     rewrite /lower_cassgn_classify.
     move: e Hs=> [z|b|n|x|aa ws x e | aa ws len x e |sz x e| o e|o e1 e2| op es |e e1 e2] //.
-    + case: x => - [] [] [] // sz vn vi [] //=.
-      rewrite /get_gvar /= => /type_of_get_var [sz'] [Hs Hs'].
+    + case: x => - [] [] [] // sz vn vi vs //=.
+      case/type_of_get_gvar => sz' [Hs Hs'].
       have := truncate_val_subtype Hv'. rewrite Hs -(truncate_val_has_type Hv').
       case hty: (type_of_val v') => [ | | | sz'' ] //= hle.
       case: (write_lval_undef Hw hty) => w ? {hty}; subst v'.
@@ -661,6 +663,14 @@ Section PROOF.
       case: ifP => // h; eexists; first reflexivity.
       split; first exact: (cmp_le_trans hle (cmp_le_trans Hs' h)).
       by eexists _, _; split; last reflexivity.
+    + rewrite /=; apply: rbindP => - [] // len a /= ok_a; t_xrbindP => i j ok_j ok_i w ok_w ?; subst v.
+      case: x ok_a => x xs ok_a.
+      case: ifP => // ws_small.
+      have {Hv'} [sz' [? hle ?]] := truncate_val_word Hv'.
+      subst v' ty => /=.
+      eexists; first reflexivity.
+      split; first exact: (cmp_le_trans hle).
+      by eauto.
     + rewrite /=; t_xrbindP => ???????? w _ ?; subst v; case: ifP => // ?.
       have {Hv'} [sz' [? hle ?]] := truncate_val_word Hv'.
       subst v' ty => /=.

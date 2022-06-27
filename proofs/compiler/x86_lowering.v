@@ -254,7 +254,8 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
   let k16 sz := kb ((U16 ≤ sz) && (sz ≤ U64))%CMP sz in
   let k32 sz := kb ((U32 ≤ sz) && (sz ≤ U64))%CMP sz in
   match e with
-  | Pvar {| gv := ({| v_var := {| vtype := sword sz |} |} as v); gs := Slocal |} =>
+  | Pget _ sz {| gv := v |} _
+  | Pvar {| gv := ({| v_var := {| vtype := sword sz |} |} as v) |} =>
     chk (sz ≤ U64)%CMP (LowerMov (if is_var_in_memory v then is_lval_in_memory x else false))
   | Pload sz _ _ => chk (sz ≤ U64)%CMP (LowerMov (is_lval_in_memory x))
 
