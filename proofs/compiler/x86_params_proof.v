@@ -270,6 +270,11 @@ Proof.
   by case: (rf SF) => //= ?; case: (rf _) => //= ? [<-]; case: (rf _) => //= ? [->]; rewrite andbC.
 Qed.
 
+Lemma of_var_e_boolP ii x f :
+  of_var_e_bool ii x = ok f ->
+  of_var_e ii x = ok f.
+Proof. by rewrite /of_var_e_bool /of_var_e; case: of_var. Qed.
+
 Lemma eval_assemble_cond ii m rf e c v:
   eqflags m rf
   -> agp_assemble_cond x86_agparams ii e = ok c
@@ -283,7 +288,7 @@ Lemma eval_assemble_cond ii m rf e c v:
 Proof.
   rewrite /x86_agparams /eval_cond /=.
   move=> eqv; elim: e c v => //.
-  + move=> x c v /=; t_xrbindP=> r ok_r ok_ct ok_v.
+  + move=> x c v /=; t_xrbindP=> r /of_var_e_boolP ok_r ok_ct ok_v.
     have := gxgetflag_ex eqv ok_r ok_v.
     case: {ok_r ok_v} r ok_ct => // -[<-] {c} /= h;
       eexists;

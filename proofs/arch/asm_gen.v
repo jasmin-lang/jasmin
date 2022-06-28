@@ -47,6 +47,9 @@ Definition invalid_name category ii (v:var_i) :=
 Definition invalid_ty category ii (v:var_i) :=
   verror true ("Invalid " ++ category ++ " type") ii v.
 
+Definition invalid_flag ii (v:var_i) :=
+   verror false ("Invalid name for rflag (check initialization?)") ii v.
+
 Definition berror ii e msg := 
   gen_error false (Some ii) None (pp_vbox [::pp_box [:: pp_s "not able to compile the condition"; pp_e e];
                                              pp_s msg]).
@@ -69,8 +72,8 @@ Definition of_var_e ii (v: var_i) :=
   match of_var v with
   | Some r => ok r
   | None =>
-    if vtype v == rtype then Error (E.invalid_ty category ii v)
-    else Error (E.invalid_name category ii v)
+    if vtype v == rtype then Error (E.invalid_name category ii v)
+    else Error (E.invalid_ty category ii v)
   end.
 
 Lemma of_var_eP {ii v r} :
