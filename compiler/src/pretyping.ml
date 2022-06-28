@@ -238,6 +238,12 @@ module Env : sig
 
   val dependencies : 'asm env -> Path.t list
 
+  val add_reserved : 'asm env -> string -> 'asm env
+  val is_reserved : 'asm env -> string -> bool
+
+  val set_known_implicits : 'asm env -> (string * string) list -> 'asm env
+  val get_known_implicits : 'asm env -> (string * string) list 
+
   module Vars : sig
     val push       : 'asm env -> P.pvar -> 'asm env
     val push_param : 'asm env -> (P.pvar * P.pexpr) -> 'asm env
@@ -274,6 +280,9 @@ end = struct
     e_decls   : (unit, 'asm) P.pmod_item list;
     e_exec    : (P.funname * (Z.t * Z.t) list) list;
     e_loader  : loader;
+    e_reserved : Ss.t;                           (* Set of string (variable name) declared by the user, 
+                                                    fresh variables introduced by the compiler should be disjoint from this set *) 
+    e_known_implicits : (string * string) list;  (* Association list for implicit flags *)
   }
 
   let empty_loader =
@@ -290,7 +299,18 @@ end = struct
     ; e_decls   = []
     ; e_exec    = []
     ; e_loader  = empty_loader
+    ; e_reserved = Ss.empty
+    ; e_known_implicits = [];
     }
+
+  let add_reserved env s = 
+    { env with e_reserved = Ss.add s env.e_reserved }
+
+  let is_reserved env s = 
+    Ss.mem s env.e_reserved 
+
+  let set_known_implicits env known_implicits = { env with e_known_implicits = known_implicits }
+  let get_known_implicits env = env.e_known_implicits
 
 
   let add_from env (name, filename) = 
@@ -349,7 +369,8 @@ end = struct
 
   module Vars = struct
     let push (env : 'asm env) (v : P.pvar) =
-      { env with e_vars = Map.add v.P.v_name v env.e_vars }
+      { env with e_vars = Map.add v.P.v_name v env.e_vars;
+                 e_reserved = Ss.add v.P.v_name env.e_reserved}
 
     let push_param env (x,_ as d) = 
       let env = push env x in
@@ -363,7 +384,9 @@ end = struct
 
     let push env (v,_ as d) = 
       { env with e_globals = Map.add v.P.v_name v env.e_globals;
-                 e_decls = P.MIglobal d :: env.e_decls }
+                 e_decls = P.MIglobal d :: env.e_decls;
+                 e_reserved = Ss.add v.P.v_name env.e_reserved
+      }
 
     let find (x : S.symbol) (env : 'asm env) =
       Map.Exceptionless.find x env.e_globals
@@ -1503,7 +1526,9 @@ let tt_lvalues pd env loc (pimp, pls) implicit tys =
                                                    ~on_id:(fun loc _nid s -> mk loc s) 
                                                    error) pimp_f in
         match a with
-        | None -> L.mk_loc loc (S.PLIgnore)
+        | None -> 
+          (try mk loc (List.assoc i (Env.get_known_implicits env))
+           with Not_found -> L.mk_loc loc (S.PLIgnore))
         | Some a -> a in
 
       let rec aux arguments pls = 
@@ -1873,14 +1898,57 @@ let process_f_annot annot =
     stack_size            = Annot.ensure_uniq1 "stacksize"      (Annot.pos_int None) annot; 
     stack_align           = Annot.ensure_uniq1 "stackalign"     (Annot.wsize None)   annot}
 
+
 (* -------------------------------------------------------------------- *)
+(* Compute the set of declared variables                                *)
+let rec add_reserved_i env (_,i) = 
+  match L.unloc i with 
+  | S.PIdecl (_, ids) -> 
+      List.fold_left (fun env id -> Env.add_reserved env (L.unloc id)) env ids 
+  | PIArrayInit _ | PIAssign _ -> env
+  | PIIf(_, c, oc) -> add_reserved_oc (add_reserved_c' env c) oc
+  | PIFor(_, _, c) -> add_reserved_c' env c
+  | PIWhile(oc1, _, oc2) -> add_reserved_oc (add_reserved_oc env oc1) oc2
+ 
+and add_reserved_c env c = 
+  List.fold_left add_reserved_i env c
+
+and add_reserved_c' env c = add_reserved_c env (L.unloc c) 
+
+and add_reserved_oc env oc = 
+  ofold (fun c env -> add_reserved_c' env c) env oc
+
+(* -------------------------------------------------------------------- *)
+
+let known_implicits = ["OF","_of_"; "CF", "_cf_"; "SF", "_sf_"; "ZF", "_zf_"] 
+
+let add_known_implicits env c = 
+  let env = add_reserved_c env c in
+  let create env s = 
+    if not (Env.is_reserved env s) then s
+    else
+      let rec aux i = 
+        let s' = Format.sprintf "%s_%i" s i in 
+        if not (Env.is_reserved env s') then s' 
+        else aux (i+1) in
+      aux 0 in  
+  let env, known_implicits = 
+    List.map_fold (fun env (s1, s2) ->
+        let s2 = create env s2 in
+        let env = Env.Vars.push env (P.PV.mk s2 (Reg(Normal, Direct)) P.tbool L._dummy []) in
+        env, (s1, s2)) env known_implicits in
+  Env.set_known_implicits env known_implicits 
+
+
 let tt_fundef pd asmOp (env : 'asm Env.env) loc (pf : S.pfundef) : 'asm Env.env =
   if is_combine_flags pf.pdf_name then
     rs_tyerror ~loc:(L.loc pf.pdf_name) (string_error "invalid function name");
   let inret = odfl [] (omap (List.map L.unloc) pf.pdf_body.pdb_ret) in
   let dfl_mut x = List.mem x inret in
+  
   let envb, args = 
     let env, args = List.map_fold (tt_annot_vardecls dfl_mut pd) env pf.pdf_args in
+    let env = add_known_implicits env pf.pdf_body.pdb_instr in
     env, List.flatten args in
   let rty  = odfl [] (omap (List.map (tt_type pd env |- snd |- snd)) pf.pdf_rty) in
   let oannot = odfl [] (omap (List.map fst) pf.pdf_rty) in
