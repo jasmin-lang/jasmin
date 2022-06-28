@@ -152,10 +152,16 @@ Definition and_condt ii e c1 c2 :=
   | _, _ => Error (E.berror ii e "Invalid condition (AND)")
   end.
 
+Definition of_var_e_bool ii (v: var_i) :=
+  match of_var v with
+  | Some r => ok r
+  | None => Error (asm_gen.E.invalid_flag ii v)
+  end.
+
 Fixpoint assemble_cond_r ii (e : pexpr) : cexec condt :=
   match e with
   | Pvar v =>
-      Let r := of_var_e ii (gv v) in
+      Let r := of_var_e_bool ii (gv v) in
       match r with
       | OF => ok O_ct
       | CF => ok B_ct
