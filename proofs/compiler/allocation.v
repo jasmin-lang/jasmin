@@ -100,15 +100,15 @@ Module Type CheckBE.
   #[ global ] Declare Instance pT  : progT eft.
   #[ global ] Declare Instance sCP : semCallParams.
 
-  Parameter init_alloc : 
-    extra_fun_t -> extra_prog_t -> extra_fun_t -> extra_prog_t -> cexec M.t.
+  Parameter init_alloc :
+    extra_fun_t -> extra_prog_t -> extra_prog_t -> cexec M.t.
 
-  Parameter init_allocP : 
-   forall (ef1 ef2:extra_fun_t) (ep1 ep2:extra_prog_t) ev s1 scs m r,
-     init_alloc ef1 ep1 ef2 ep2 = ok r ->
-     init_state ef1 ep1 ev (Estate scs m vmap0) = ok s1 ->
-     exists vm2, 
-       init_state ef2 ep2 ev (Estate scs m vmap0) = ok (with_vm s1 vm2) /\
+  Parameter init_allocP :
+   forall (ef: extra_fun_t) (ep1 ep2: extra_prog_t) ev s1 scs m r,
+     init_alloc ef ep1 ep2 = ok r ->
+     init_state ef ep1 ev (Estate scs m vmap0) = ok s1 ->
+     exists vm2,
+       init_state ef ep2 ev (Estate scs m vmap0) = ok (with_vm s1 vm2) /\
        eq_alloc r s1.(evm) vm2.
 
   End WITH_POINTER_DATA.
@@ -125,15 +125,14 @@ Module CheckBU (C:CheckB) <: CheckBE.
   #[ global ] Instance pT : progT eft := progUnit.
   #[ global ] Instance sCP : semCallParams := sCP_unit.
 
-  Definition init_alloc (ef1:extra_fun_t) (ep1:extra_prog_t)
-                        (ef2:extra_fun_t) (ep2:extra_prog_t) : cexec M.t :=
+  Definition init_alloc (ef: extra_fun_t) (ep1 ep2: extra_prog_t) : cexec M.t :=
     ok M.empty.
 
-  Lemma init_allocP (ef1 ef2:extra_fun_t) (ep1 ep2:extra_prog_t) ev s1 scs m r :
-    init_alloc ef1 ep1 ef2 ep2 = ok r ->
-    init_state ef1 ep1 ev (Estate scs m vmap0) = ok s1 ->
-    exists vm2, 
-      init_state ef2 ep2 ev (Estate scs m vmap0) = ok (with_vm s1 vm2) /\
+  Lemma init_allocP (ef: extra_fun_t) (ep1 ep2: extra_prog_t) ev s1 scs m r :
+    init_alloc ef ep1 ep2 = ok r ->
+    init_state ef ep1 ev (Estate scs m vmap0) = ok s1 ->
+    exists vm2,
+      init_state ef ep2 ev (Estate scs m vmap0) = ok (with_vm s1 vm2) /\
       eq_alloc r s1.(evm) vm2.
   Proof.
     by move=> [<-] [<-]; exists vmap0; split => //=; apply eq_alloc_empty.
@@ -178,37 +177,23 @@ Module CheckBS (C:CheckB) <: CheckBE.
     apply: Hrec Hcxs Hvm3 Hvs Hws.
   Qed.
 
-  Definition error1 := 
-    E.error "invalid stack size".
-
-  Definition error2 := 
-    alloc_error "invalid extra stack size".
-
-  Definition error3 := 
-    alloc_error "invalid stack alignment".
-
-  Definition init_alloc (ef1:extra_fun_t) (ep1:extra_prog_t)
-                        (ef2:extra_fun_t) (ep2:extra_prog_t) : cexec M.t :=
-    Let _ := assert (ef1.(sf_stk_sz) == ef2.(sf_stk_sz)) error1 in
-    Let _ := assert (ef1.(sf_stk_extra_sz) == ef2.(sf_stk_extra_sz)) error2 in
-    Let _ := assert (ef1.(sf_align) == ef2.(sf_align)) error3 in
+  Definition init_alloc (ef: extra_fun_t) (ep1 ep2: extra_prog_t) : cexec M.t :=
     check_vars [:: vid ep1.(sp_rsp); vid ep1.(sp_rip)]
                [:: vid ep2.(sp_rsp); vid ep2.(sp_rip)] M.empty.
 
-  Lemma init_allocP (ef1 ef2:extra_fun_t) (ep1 ep2:extra_prog_t) ev s1 scs m r :
-    init_alloc ef1 ep1 ef2 ep2 = ok r ->
-    init_state ef1 ep1 ev (Estate scs m vmap0) = ok s1 ->
-    exists vm2, 
-      init_state ef2 ep2 ev (Estate scs m vmap0) = ok (with_vm s1 vm2) /\
+  Lemma init_allocP (ef: extra_fun_t) (ep1 ep2: extra_prog_t) ev s1 scs m r :
+    init_alloc ef ep1 ep2 = ok r ->
+    init_state ef ep1 ev (Estate scs m vmap0) = ok s1 ->
+    exists vm2,
+      init_state ef ep2 ev (Estate scs m vmap0) = ok (with_vm s1 vm2) /\
       eq_alloc r s1.(evm) vm2.
   Proof.
     rewrite /init_alloc /init_state /= /init_stk_state /check_vars.
-    t_xrbindP => -/eqP heq -/eqP heeq -/eqP hal hc m' ha; rewrite (@write_vars_lvals _ _ _ [::]) => hw.
-    have [vm2 [hvm2 heq2]]:= check_lvalsP (s1 := (Estate scs m' vmap0)) hc eq_alloc_empty
+    t_xrbindP => hc m' ha; rewrite (@write_vars_lvals _ _ _ [::]) => hw.
+    have [ vm2 [] ]:= check_lvalsP (s1 := (Estate scs m' vmap0)) hc eq_alloc_empty
                            (List_Forall2_refl _ (@value_uincl_refl)) hw.
-    Opaque write_vars.
-    by exists vm2; rewrite -heq -heeq -hal ha /= (@write_vars_lvals _ _ _ [::]).
-    Transparent write_vars.
+    rewrite ha -write_vars_lvals => ??.
+    by exists vm2.
   Qed.
 
   End WITH_POINTER_DATA.
@@ -316,7 +301,7 @@ Definition check_fundef (ep1 ep2 : extra_prog_t) (f1 f2: funname * fundef) (_:Da
   add_funname f1 (add_finfo fd1.(f_info) (
   if (f1 == f2) && (fd1.(f_tyin) == fd2.(f_tyin)) && (fd1.(f_tyout) == fd2.(f_tyout)) &&
       (fd1.(f_extra) == fd2.(f_extra)) then
-    Let r := init_alloc fd1.(f_extra) ep1 fd2.(f_extra) ep2 in
+    Let r := init_alloc fd1.(f_extra) ep1 ep2 in
     Let r := check_vars fd1.(f_params) fd2.(f_params) r in
     Let r := check_cmd fd1.(f_body) fd2.(f_body) r in
     let es1 := map Plvar fd1.(f_res) in
@@ -672,7 +657,7 @@ Section PROOF.
       have [vres2' ??]:= mapM2_truncate_val Hcr huincl.
       do 5 eexists;split;eauto.
       + by rewrite -htyin.
-      + split;eauto.
+      + rewrite -hextra; split; first by eauto.
         by rewrite (write_vars_lvals gd).
       + by rewrite -htyout;split;eauto.
       by rewrite -hextra.
@@ -699,6 +684,7 @@ Section PROOF.
     econstructor;split;eauto.
     econstructor;eauto.
     + by rewrite -htyin; eauto.
+    + by rewrite -hextra; eauto.
     + by rewrite (write_vars_lvals gd).
     + by rewrite -htyout.
     by rewrite -hextra.
