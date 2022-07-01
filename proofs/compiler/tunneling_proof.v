@@ -233,18 +233,6 @@ Section LprogSemProps.
     by rewrite /fst /snd /=; case: ifP => // /eqP ?; subst fn'.
   Qed.
 
-  Lemma onth_goto_targets fb i x :
-    oseq.onth (goto_targets fb) i = Some x ->
-    exists j ii_x r, oseq.onth fb j = Some (MkLI ii_x x) /\ Lgoto r = x.
-  Proof.
-    elim: fb i => // -[ii_x i_x] tfb IHfb i.
-    rewrite /goto_targets /=.
-    case: ifP => [|_ Hoseq].
-    + case: i_x => // r _; case: i => [/= [?]|i Hoseq]; first by exists 0; exists ii_x; exists r; subst x; split.
-      by case: (IHfb i Hoseq) => j Hj; exists j.+1.
-    by case: (IHfb i Hoseq) => j Hj; exists j.+1.
-  Qed.
-
   Lemma map_foldr (T R : Type) (s1 : seq R) (s2 : seq T) f :
     map (fun x => foldr f x s2) s1 = foldr (fun s => map (f s)) s1 s2.
   Proof.
@@ -256,24 +244,6 @@ Section LprogSemProps.
   Lemma map_fst_map_pair1 (g : funname -> lfundef -> lfundef) lf :
     map fst (map (fun f => (f.1, g f.1 f.2)) lf) = map fst lf.
   Proof. by rewrite -map_comp; set h:= (_ \o _); rewrite (@eq_map _ _ h fst). Qed.
-
-  Lemma map_foldr_setfunc g lf :
-    uniq (map fst lf) ->
-    map (fun f => (f.1, g f.1 f.2)) lf = foldr (fun f l => setfunc l f.1 (g f.1 f.2)) lf lf.
-  Proof.
-    move => Huniq; apply eq_from_onth => i; rewrite onth_map /setfunc -map_foldr onth_map.
-    case Honth: (onth _ _) => [[fn fd]|//]; rewrite {1 2}/fst {1}/snd /=; f_equal.
-    set f:= (fun _ => _); have Hfoldr1: forall lf' fn' fd', (foldr f (fn', fd') lf').1 = fn'.
-    + by move => lf' fn' fd'; elim: lf'.
-    elim: lf Huniq i Honth => //= -[fn' fd'] lf IHlf /andP [Hnotin Huniq].
-    rewrite {1}/fst /= in Hnotin; case => [[? ?]|i Honth].
-    + subst fn' fd'; rewrite {1}/f {2}/fst /=; f_equal; first by rewrite Hfoldr1.
-      by rewrite Hfoldr1 eq_refl.
-    rewrite {1}/f Hfoldr1; f_equal; rewrite -(IHlf Huniq _ Honth) /fst /snd /=.
-    case: ifP => // /eqP ?; subst fn'; move: (onth_map fst lf i).
-    rewrite Honth {2}/fst /= => {Honth} Honth; exfalso.
-    by move: Hnotin => /negP Hnotin; apply/Hnotin/onth_mem; exists i.
-  Qed.
 
 End LprogSemProps.
 
@@ -350,15 +320,14 @@ Section TunnelingProps.
 
   Lemma labels_of_body_rcons lc c :
     labels_of_body (rcons lc c) =
-    if li_is_label c
-    then rcons (labels_of_body lc) (li_i c)
+    if li_i c is Llabel lbl
+    then rcons (labels_of_body lc) lbl
     else labels_of_body lc.
-  Proof. by rewrite /labels_of_body map_rcons filter_rcons; case c => ii []. Qed.
+  Proof. by rewrite /labels_of_body -cats1 pmap_cat -!/(labels_of_body _); case: c => ii [] //= *; rewrite ?cats0 ?cats1. Qed.
 
   Lemma labels_of_body_tunnel_head fn fb uf :
     labels_of_body (tunnel_head fn uf fb) = labels_of_body fb.
   Proof.
-    rewrite /labels_of_body /tunnel_head; rewrite -map_comp.
     elim: fb => //= -[ii i] fb ->.
     rewrite /tunnel_bore; case: i => // -[fn' fd'] /=.
     by case: ifP => //; case: ifP.
@@ -481,7 +450,7 @@ Section TunnelingProps.
   Proof. by rewrite /tunnel_plan pairfoldl_rcons last_rcons. Qed.
 
   Lemma find_tunnel_plan_rcons_id fn lc c l :
-    Llabel l \notin labels_of_body lc ->
+    l \notin labels_of_body lc ->
     uniq (labels_of_body (rcons lc c)) ->
     LUF.find (tunnel_plan fn LUF.empty (rcons lc c)) l = l.
   Proof.
@@ -520,13 +489,13 @@ Section TunnelingProps.
   Qed.
 
   Lemma find_tunnel_plan_id fn lc l :
-    Llabel l \notin labels_of_body lc ->
+    l \notin labels_of_body lc ->
     uniq (labels_of_body lc) ->
     LUF.find (tunnel_plan fn LUF.empty lc) l = l.
   Proof.
     case/lastP: lc => //= lc c /negP Hnotin; apply/find_tunnel_plan_rcons_id.
-    apply/negP => Hin; apply: Hnotin; rewrite labels_of_body_rcons; case: ifP => // _.
-    by rewrite mem_rcons in_cons Hin; case: (_ == _).
+    apply/negP => Hin; apply: Hnotin; rewrite labels_of_body_rcons; case: li_i => // ?.
+    by rewrite mem_rcons in_cons Hin orbT.
   Qed.
 
   Variant tunnel_bore_weak_spec fn uf : linstr -> linstr -> Type :=
@@ -663,17 +632,22 @@ Section TunnelingProps.
     tunnel_lcmd_fn_partial fn lc 0 = lc.
   Proof. by rewrite /tunnel_lcmd_fn_partial take0 /tunnel_engine /tunnel_plan /= tunnel_head_empty. Qed.
 
+  Lemma subseq_pmap_take {aT: Type} {rT: eqType} (f: aT → option rT) n m :
+    subseq (pmap f (take n m)) (pmap f m).
+  Proof.
+    elim: n m; first by move => ?; rewrite take0 sub0seq.
+    move => n ih [] // a m; rewrite /take -/(take n m) /pmap -!/(pmap f _).
+    case: (f a); last exact: ih.
+    by move => r; rewrite /= eqxx.
+  Qed.
+
   Lemma tunnel_lcmd_fn_partial_pc fn lc pc :
     uniq (labels_of_body lc) ->
     tunnel_lcmd_fn_partial fn lc pc.+1 = tunnel_lcmd_pc fn (tunnel_lcmd_fn_partial fn lc pc) pc.
   Proof.
     rewrite /tunnel_lcmd_fn_partial /tunnel_lcmd_pc /tunnel_engine => Huniq.
     have Hsubseq: subseq (labels_of_body (take pc.+1 lc)) (labels_of_body lc).
-    + rewrite /labels_of_body subseq_filter; apply/andP; split.
-      - by rewrite all_filter (@eq_all _ _ predT) ?all_predT //; case.
-      set a := (fun _ => _); set st:= map _ _; set s:= map _ _.
-      apply: (@subseq_trans _ st (filter a st) s); first by apply filter_subseq.
-      by rewrite /st /s => {st s}; apply/map_subseq/take_subseq.
+    + exact: subseq_pmap_take.
     move: (subseq_uniq Hsubseq Huniq) => {Hsubseq Huniq}.
     case Hsize: (pc < size lc); last first.
     + move: (negbT Hsize); rewrite -leqNgt => {Hsize} Hsize.
@@ -885,47 +859,20 @@ Section TunnelingWFProps.
       |Hneg Heq].
     3-4:
       by rewrite -!Heq.
-    + clear Heq Htunnel_lcmd; rewrite /goto_targets !all_filter.
-      move => /allP Hall; apply/allP => i; move: (Hall i).
-      case: i => //= -[fn' l''] Himp Hin.
-      move: Hin => /mapP [[ii []]] //= [fn''' l'''] Hin [? ?]; subst fn''' l'''.
-      move: Hin => /mapP [[ii' []]] //= [fn''' l'''] Hin [?]; subst ii'.
-      have {Hin} Hin: Lgoto (fn''', l''') \in map li_i fb.
-      - by apply/mapP; eexists; eauto.
-      case: ifP => [/eqP ?|_] [? ?]; subst fn''' l''; last by apply/Himp.
-      subst fn'; move: Himp; rewrite LUF.find_union !LUF.find_empty.
-      case: ifP => [/eqP ?|_]; last by move=> Himp; apply/Himp.
-      subst l'''; rewrite eq_refl /= => _ {Hpc Hall Hin ii l}.
-      move: HSpc; rewrite /is_label -nth_behead /behead /=.
-      case Hnth: (nth _ _ _) => [ii i] /=; case: i Hnth => //=.
-      move => l Hnth /eqP ?; subst l'; move: (@mem_nth _ Linstr_align fb pc).
-      case Hsize: (pc < size fb) => //; rewrite Hnth; last first.
-      - move: (negbT Hsize); rewrite -leqNgt => {Hsize} Hsize.
-        by rewrite nth_default in Hnth.
-      move => /(_ isT) => Hin {Hnth Hsize fn pc}.
-      rewrite /labels_of_body mem_filter /=.
-      by apply/mapP; eexists; eauto.
-    clear Heq Htunnel_lcmd; rewrite /goto_targets !all_filter.
-    move => /allP Hall; apply/allP => i; move: (Hall i).
-    case: i => //= -[fn' l''] Himp Hin.
-    move: Hin => /mapP [[ii []]] //= [fn''' l'''] Hin [? ?]; subst fn''' l'''.
-    move: Hin => /mapP [[ii' []]] //= [fn''' l'''] Hin [?]; subst ii'.
-    have {Hin} Hin: Lgoto (fn''', l''') \in map li_i fb.
-    + by apply/mapP; eexists; eauto.
-    case: ifP => [/eqP ?|_] [? ?]; subst fn''' l''; last by apply/Himp.
-    subst fn'; move: Himp; rewrite LUF.find_union !LUF.find_empty.
-    case: ifP => [/eqP ?|_]; last by move=> Himp; apply/Himp.
-    subst l'''; rewrite eq_refl /= => _; move: (Hall (Lgoto (fn, l'))) => /=.
-    rewrite eq_refl /=; move => Himp; apply: Himp => {Hpc Hall Hin l ii}.
-    move: HSpc; rewrite /is_goto -nth_behead /behead /=.
-    case Hnth: (nth _ _ _) => [ii i] /=; case: i Hnth => //=.
-    move => [fn' l] Hnth /andP [/eqP ? /eqP ?]; subst fn' l'.
-    move: (@mem_nth _ Linstr_align fb pc).
-    case Hsize: (pc < size fb) => //; rewrite Hnth; last first.
-    + move: (negbT Hsize); rewrite -leqNgt => {Hsize} Hsize.
-      by rewrite nth_default in Hnth.
-    move => /(_ isT) => Hin {Hnth Hsize pc}.
-    by apply/mapP; eexists; eauto.
+    + clear Heq Htunnel_lcmd.
+      all: rewrite !all_pmap all_map => /allE/List.Forall_forall h; apply/allE/List.Forall_forall => i hi.
+      all: move/h: (hi).
+      all: case: i hi => ii [] // [] /= f lbl hi.
+      all: case: ifP => /= -> //=.
+      all: rewrite LUF.find_union !LUF.find_empty.
+      all: case: eqP => // ? _; subst lbl.
+      { case/is_label_nth_onth: HSpc => jj /= /(@onth_In _ _); clear.
+        elim: fb; first by [].
+        case => ii /= i m ih [].
+        - by case => _{ii} ->{i}; rewrite inE eqxx.
+       by move/ih; case: i => //= ?; rewrite inE => ->; rewrite orbT. }
+      case/is_goto_nth_onth: HSpc => jj /= /(@onth_In _ _ _ _) /h.
+      by rewrite /= eqxx.
   Qed.
 
   Lemma well_formed_tunnel_lcmd fn fb :
@@ -1239,8 +1186,8 @@ Section TunnelingSem.
   Proof.
     rewrite /find_label /tunnel_lcmd_pc /tunnel_engine /tunnel_head.
     rewrite size_map seq.find_map; set p:= preim _ _.
-    rewrite (@eq_in_find _ p (is_label l) lc) //.
-    move => [ii i] _; rewrite /p => {p} /=.
+    rewrite (@eq_find _ p (is_label l)) //.
+    move => [ii i]; rewrite /p => {p} /=.
     by case: i => //= -[fn' l']; case: ifP.
   Qed.
 
@@ -1308,11 +1255,12 @@ Section TunnelingSem.
     + rewrite ltn0Sn; move: Hislabel; case: i => //= l'.
       move => {IHlc} /eqP ?; subst l' => /andP [/negP Hnotin _].
       case: pc => // pc /= Hislabel; exfalso; apply: Hnotin.
-      rewrite mem_filter /=; move: Hislabel.
+      move: Hislabel.
       elim: lc pc => [|[{ii} ii i] lc IHlc] pc //=; first by rewrite nth_nil.
-      rewrite in_cons; case: pc => [|pc] //=.
-      - by case: i => //= l' /eqP ?; subst l'; rewrite eq_refl.
-      by move => Hislabel; rewrite (IHlc _ Hislabel); apply/orP; right.
+      case: pc => [|pc] //=.
+      - by case: i => // l' /eqP ?; subst l'; rewrite /= inE eqxx.
+      move/IHlc; clear.
+      by case: i => //= ? hi; rewrite inE hi orbT.
     case: pc => [|pc] //=; first by rewrite Hislabel.
     move => Huniq {Hislabel} Hislabel.
     rewrite -(addn1 (find _ _)) -(addn1 (size _)) ltn_add2r.
@@ -1325,6 +1273,27 @@ Section TunnelingSem.
     by move: Huniq {Hfind IHlc}; case: i => //= l' /andP [].
   Qed.
 
+  Lemma find_labelI lbl c pc :
+    find_label lbl c = ok pc →
+    find (is_label lbl) c = pc ∧ pc < size c.
+  Proof. by rewrite /find_label; case: ifP => // pc_in_bounds /ok_inj <-. Qed.
+
+  Lemma find_label_of_body c lbl :
+    lbl \in labels_of_body c →
+    ∃ pc : nat, find_label lbl c = ok pc.
+  Proof.
+    elim: c => // - [] ii a c ih /=.
+    case: a; cycle 4.
+    1-7: move => > /ih[] pc /find_labelI[] ? ok_pc; exists pc.+1; subst pc.
+    1-7: by rewrite /find_label /= ltnS ok_pc.
+    move => lbl'; rewrite /= inE; case: eqP => lbl_lbl'.
+    - subst; exists 0.
+      by rewrite /find_label /is_label /= eqxx lt0n.
+    case/ih => pc /find_labelI[] ? ok_pc; exists pc.+1; subst pc.
+    rewrite /find_label /is_label /=.
+    by case: eqP lbl_lbl' => // _ _; rewrite ltnS ok_pc.
+  Qed.
+
   Lemma local_goto_find_label p s c fd l :
     find_instr p s = Some c ->
     get_fundef (lp_funcs p) (lfn s) = Some fd ->
@@ -1332,22 +1301,12 @@ Section TunnelingSem.
     is_goto (lfn s) l c ->
     exists pc, find_label l (lfd_body fd) = ok pc.
   Proof.
-    case: c => ii [] //= -[fn l'] Hfindinstr Hgfd /andP [_ Hall].
+    case: c => ii [] //= -[fn l'] Hfindinstr Hgfd /andP[] _.
+    rewrite all_pmap => /allE /List.Forall_forall Hall.
     move => /andP [/eqP ? /eqP ?]; subst fn l'.
-    move: Hfindinstr; rewrite /find_instr Hgfd => Honth.
-    move: Hall => /allP /(_ (Lgoto (lfn s, l))); rewrite mem_filter /=.
-    set c:= MkLI _ _ in Honth; have: c \in lfd_body fd.
-    + by apply/onth_mem; exists (lpc s).
-    rewrite /c; rewrite /c in Honth => {c} Hin.
-    move: (map_f li_i Hin) => /= {Hin} Hin /(_ Hin).
-    rewrite eq_refl /= => {Hin Honth Hgfd}.
-    rewrite /find_label; case: ifP; first by intros; eexists; eauto.
-    move => /negP Hnfind Hin; exfalso; apply: Hnfind; move: Hin.
-    rewrite /labels_of_body mem_filter /=.
-    elim: (lfd_body fd) => //= -[{ii fd} ii i] lc IHlc /=.
-    rewrite -(addn1 (find _ _)) -(addn1 (size _)) in_cons.
-    case: ifP; last by rewrite ltn_add2r; case: i => //= l' /eqP Hneq /orP [/eqP [?]|//]; subst l'.
-    by move => _ _; rewrite addn1 ltn0Sn.
+    move: Hfindinstr; rewrite /find_instr Hgfd => /(@onth_In _ _) /Hall.
+    rewrite /= eqxx.
+    exact: find_label_of_body.
   Qed.
 
 End TunnelingSem.
