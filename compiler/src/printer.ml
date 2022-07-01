@@ -498,7 +498,7 @@ let pp_warning_msg fmt = function
 let pp_err ~debug tbl fmt (pp_e : Compiler_util.pp_error) =
   let pp_var tbl fmt v =
     let v = Conv.var_of_cvar tbl v in
-    Format.fprintf fmt "%a (defined at %a)" (pp_var ~debug) v L.pp_sloc v.v_dloc
+    Format.fprintf fmt "%a (defined at %a)" (pp_var ~debug) v L.pp_loc v.v_dloc
   in
   let rec pp_err fmt pp_e =
     match pp_e with
