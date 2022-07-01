@@ -208,31 +208,6 @@ Section LprogSemProps.
     by apply List.Exists_cons; right; apply IHlf.
   Qed.
 
-  Lemma eq_from_get_fundef (lf lf' : seq (funname * lfundef)) :
-    uniq (map fst lf) ->
-    map fst lf = map fst lf' ->
-    (forall fn, get_fundef lf fn = get_fundef lf' fn) ->
-    lf = lf'.
-  Proof.
-    elim: lf lf' => [|[fn fd] lf IHlf] [|[fn' fd'] lf'] //=.
-    move => /andP [Hnotin Huniq] [? Heqfns] Heqfd; subst fn'.
-    move: (Heqfd fn); rewrite eq_refl => // -[?]; subst fd'; f_equal.
-    apply IHlf => // fn'; move: (Heqfd fn'); case: ifP => //.
-    move => /eqP ?; subst fn' => _; move: (Hnotin); rewrite Heqfns.
-    by move: Hnotin; rewrite -!get_fundef_in; do 2!(case: (get_fundef _ _)).
-  Qed.
-
-  Lemma onth_setfunc lf fn fd i :
-    onth (setfunc lf fn fd) i =
-    match onth lf i with
-    | Some (fn', fd') => if fn == fn' then Some (fn, fd) else Some (fn', fd')
-    | None => None
-    end.
-  Proof.
-    rewrite /setfunc onth_map; case Honth: (onth _ _) => [[fn' fd']|//].
-    by rewrite /fst /snd /=; case: ifP => // /eqP ?; subst fn'.
-  Qed.
-
   Lemma map_foldr (T R : Type) (s1 : seq R) (s2 : seq T) f :
     map (fun x => foldr f x s2) s1 = foldr (fun s => map (f s)) s1 s2.
   Proof.
@@ -340,14 +315,6 @@ Section TunnelingProps.
   Lemma labels_of_body_tunnel_lcmd_pc fn fb pc :
     labels_of_body (tunnel_lcmd_pc fn fb pc) = labels_of_body fb.
   Proof. by rewrite /tunnel_lcmd_pc labels_of_body_tunnel_engine. Qed.
-
-  Lemma labels_of_body_tunnel_lcmd_fn_partial fn fb pc :
-    labels_of_body (tunnel_lcmd_fn_partial fn fb pc) = labels_of_body fb.
-  Proof. by rewrite /tunnel_lcmd_fn_partial labels_of_body_tunnel_engine. Qed.
-
-  Lemma labels_of_body_tunnel_lcmd fn fb :
-    labels_of_body (tunnel_lcmd fn fb) = labels_of_body fb.
-  Proof. by rewrite /tunnel_lcmd labels_of_body_tunnel_engine. Qed.
 
   Lemma funnames_setfunc lf fn fd :
     map fst (setfunc lf fn fd) = map fst lf.
