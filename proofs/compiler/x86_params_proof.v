@@ -303,7 +303,7 @@ Proof.
     by exists (~~b).
   + case => //=.
     + move=> e1 _ e2 _ c v.
-      case: e1 => //= x1; case: e2 => //= x2; t_xrbindP => f1 ok_f1 f2 ok_f2.
+      case: e1 => //= x1; case: e2 => //= x2; t_xrbindP => f1 /of_var_e_boolP ok_f1 f2 /of_var_e_boolP ok_f2.
       case: ifP => // /orP hor [<-] v1 /(gxgetflag eqv ok_f1) hv1 v2 /(gxgetflag eqv ok_f2) hv2.
       move=> /sem_sop2I /= [b1 [b2 [b3 [hb1 hb2 [<-] ->]]]].
       move: (hv1 _ hb1) (hv2 _ hb2) => hfb1 hfb2.
@@ -323,7 +323,7 @@ Proof.
     by exists (b1 || b2).
   move=> t e _ e1 _ e2 _ c v /=.
   case: e => //= v1; case: e1 => //= [v2 | [] //= e2'].
-  + case: e2 => //= -[] // [] //= vn2; t_xrbindP => f1 hf1 f2 hf2 fn2 hfn2.
+  + case: e2 => //= -[] // [] //= vn2; t_xrbindP => f1 /of_var_e_boolP hf1 f2 /of_var_e_boolP hf2 fn2 /of_var_e_boolP hfn2.
     case: ifP => // /orP hor [<-] b1 vv1 /(gxgetflag eqv hf1) hvb1/hvb1{hvb1}hvb1.
     move=> vv2 vv2' /(gxgetflag eqv hf2) hvb2 ht2.
     move=> ?? vvn2 /(gxgetflag eqv hfn2) hvnb2 /sem_sop1I /= [nb2 /hvnb2{hvnb2}hvnb2 ->].
@@ -332,7 +332,7 @@ Proof.
     exists (if b1 then Vbool b2 else ~~ nb2); last done.
     by case: hor => /and3P [/eqP ? /eqP ? /eqP ?]; subst; move: hvnb2; rewrite hvb1 hvb2 => -[<-] /=;
       case: (b1); case: (b2).
-  case: e2' => //= v2; case: e2 => // vn2; t_xrbindP => f1 hf1 f2 hf2 fn2 hfn2.
+  case: e2' => //= v2; case: e2 => // vn2; t_xrbindP => f1 /of_var_e_boolP hf1 f2 /of_var_e_boolP hf2 fn2 /of_var_e_boolP hfn2.
   case: ifP => // /orP hor [<-] b1 vv1 /(gxgetflag eqv hf1) hvb1/hvb1{hvb1}hvb1.
   move=> ? vv2 vv2' /(gxgetflag eqv hf2) hvb2 /sem_sop1I /= [b2 /hvb2{hvb2}hvb2 ->].
   move=> /truncate_val_bool [??] ?; subst.
