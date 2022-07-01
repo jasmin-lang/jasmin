@@ -185,7 +185,7 @@ Definition check_align x (sr:sub_region) ws :=
 
 Definition writable (x:var_i) (r:region) :=
   assert r.(r_writable)
-    (stk_error x (pp_box [:: pp_s "cannot write to the constant pointer"; pp_var x])).
+    (stk_error x (pp_box [:: pp_s "cannot write to the constant pointer"; pp_var x; pp_s "targetting"; pp_var r.(r_slot) ])).
 
 Module Region.
 
