@@ -391,6 +391,15 @@ end = struct
 
 end
 
+(* paired types. Essentially a shorthand for adding inequalities *)
+module VlPairs = struct
+  let add_le (n1, s1) (n2, s2) =
+    Lvl.add_le n1 n2; Lvl.add_le s1 s2
+
+  let eq (n1, s1) (n2, s2) =
+    Lvl.eq n1 n2 && Lvl.eq s1 s2
+end
+
 
 (* ----------------------------------------------------------- *)
 
