@@ -294,7 +294,7 @@ module Env : sig
   type venv (* type variables association *)
 
   val init : unit -> env
-  val empty : venv
+  val empty : env -> venv
   val constraints : env -> C.constraints
   val add_var : env -> venv -> var -> var_kind -> vty -> venv
 
@@ -323,31 +323,32 @@ module Env : sig
   val get_msf_oracle : env -> (L.i_loc, Sv.t) Hashtbl.t
   val msf_oracle : env -> L.i_loc -> Sv.t
 
-  val freshen : env -> Sv.t -> venv -> venv
+  val freshen : ?min:Constraints.VlPairs.t -> env -> Sv.t -> venv -> venv
   val ensure_le : L.t -> venv -> venv -> unit
   val clone : env -> ty_fun -> vfty list * vfty list (* output type, input type *)
+
+  val corruption : env -> venv -> VlPairs.t -> venv
+  val corruption_speculative : env -> venv -> VlPairs.t -> venv
 
 end = struct
 
   type env = {
       constraints : C.constraints;
-      speculative_max : Lvl.t;
       strictness  : unit Hv.t;
       msf_oracle  : (L.i_loc, Sv.t) Hashtbl.t;
     }
 
   type venv = {
       vtype : vty Mv.t;
+      vars : Sv.t;
+      max_corruption : VlPairs.t;
     }
 
   let init () =
     let constraints = C.init () in
     { constraints;
-      speculative_max = C.fresh constraints;
       strictness = Hv.create 97;
       msf_oracle = Hashtbl.create 97; }
-
-  let empty = { vtype = Mv.empty }
 
   let constraints env = env.constraints
 
@@ -360,6 +361,12 @@ end = struct
 
   let dpublic   env = Direct (public2 env)
   let dsecret   env = Direct (secret2 env)
+
+  let empty env = {
+    vtype = Mv.empty;
+    vars = Sv.empty;
+    max_corruption = public2 env
+  }
 
   (* TODO: is the catch necessary, as a Not_found exception is more informative than
      an assert false problem? *)
@@ -396,7 +403,10 @@ end = struct
 
       | _, _ -> assert false
     in
-    { venv with vtype = Mv.add x nxty venv.vtype }
+    { venv with 
+        vtype = Mv.add x nxty venv.vtype;
+        vars = Sv.add x venv.vars
+    }
 
   let add_var env venv x vk vty =
     assert (not (Hv.mem env.strictness x || Mv.mem x venv.vtype));
@@ -429,7 +439,7 @@ end = struct
         | Direct le -> Direct (VlPairs.normalise le)
         | Indirect(lp, le) -> Indirect(VlPairs.normalise lp, VlPairs.normalise le)
     in
-    { vtype = Mv.mapi operate_fence venv.vtype }
+    { venv with vtype = Mv.mapi operate_fence venv.vtype }
 
 
   let max env venv1 venv2 =
@@ -449,7 +459,11 @@ end = struct
       | Indirect(lp1, le1), Indirect(lp2, le2) -> Some (Indirect (merge lp1 lp2, merge le1 le2))
       | _ -> assert false
     in
-    { vtype = Mv.merge merge_var venv1.vtype venv2.vtype }
+    {
+      vtype = Mv.merge merge_var venv1.vtype venv2.vtype;
+      vars = venv1.vars;
+      max_corruption = merge venv1.max_corruption venv2.max_corruption
+    }
 
   let get_msf_oracle env = env.msf_oracle
 
@@ -457,11 +471,15 @@ end = struct
     try Hashtbl.find env.msf_oracle loc with Not_found -> assert false
 
   (* freshen variables in list xs in environment env, venv *)
-  let freshen env xs venv =
+  let freshen ?min env xs venv =
     let fresh le =
       let l = fresh2 env in
-      VlPairs.add_le le l; l in
-    { vtype = Sv.fold (fun x vtype -> let ty =
+      VlPairs.add_le le l;
+      begin match min with
+      | None -> ()
+      | Some ty -> VlPairs.add_le ty l
+      end; l in
+    { venv with vtype = Sv.fold (fun x vtype -> let ty =
           match Mv.find x vtype with
           | Direct le -> Direct (fresh le)
           | Indirect(lp, le) -> Indirect(fresh lp, fresh le) in
@@ -486,6 +504,8 @@ end = struct
           IsNormal ty in
     List.map subst_ty tyfun.tyout, List.map subst_ty tyfun.tyin
 
+  let corruption env venv ty = freshen ?min:(Some ty) env venv.vars venv
+  let corruption_speculative env venv (n, s) = corruption env venv (public env, s)
 end
 
 
@@ -496,30 +516,15 @@ let error_unsat loc (_ : Svl.t * Lvl.t list * Lvl.t * Lvl.t) pp e ety ety' =
        "%a has type %a but should be at most %a"
        pp e pp_vty ety pp_vty ety')
 
-let ty_get_gen env pp_e loc e ety =
-  match ety with
-  | Direct _ -> ety
-  | Indirect (lp, lx) -> try VlPairs.add_le lp (Env.public2 env); Direct lx
-    with Lvl.Unsat unsat ->
-      error_unsat loc unsat pp_e e ety (Indirect(Env.public2 env, lx))
-
 let ssafe_test x i =
-  match (L.unloc x.gv).v_ty, i with
-  | Arr (ws, len), Parr_init v -> v < len
+  match (L.unloc x).v_ty, i with
+  | Arr (ws, len), Pconst v ->
+      let v = Conv.int_of_pos (Conv.pos_of_z v) in v < len
   | _ -> false
+
 
 (* --------------------------------------------------------- *)
 (* Type checking of expressions                              *)
-
-let ty_get env x xty = ty_get_gen env pp_var_i (L.loc x) x xty
-
-let ensure_public_address env x xty =
-  match xty with
-  | Indirect _ -> assert false (* x should have type u64, it cannot be a reg/stack ptr *)
-  | Direct l ->
-    try VlPairs.add_le l (Env.public2 env)
-    with Lvl.Unsat unsat ->
-      error_unsat (L.loc x) unsat  pp_var_i x xty (Direct(Env.public2 env))
 
 let rec ty_expr env venv loc (e:expr) : vty =
   match e with
@@ -527,35 +532,32 @@ let rec ty_expr env venv loc (e:expr) : vty =
 
   | Pvar x -> Env.gget venv x
 
-    (* TODO make distinction clear between Pget and Pload *)
   | Pget (_, _, x, i) ->
-    let xty = Env.gget venv x in
-    let ty = Env.fresh2 env in
-    if not (ssafe_test x i) then VlPairs.add_le_speculative (Env.secret env) ty;
-    ensure_public env venv loc i;
-    VlPairs.add_le xty ty;
-    ty_get env x.gv ty
+      begin match Env.gget venv x with
+      | Direct _ -> assert false
+      | Indirect (_, lv) -> 
+          ensure_public_address env venv loc x.gv;
+          ensure_public env venv loc i;
+          let ty = Env.fresh2 env in
+          if not (ssafe_test x.gv i) then VlPairs.add_le_speculative (Env.secret env) ty;
+          VlPairs.add_le lv ty;
+          Direct ty
+      end
 
-    (* in the case of sub-arrays, no operations are performed, and there is now
+    (* in the case of sub-arrays, no operation is performed, and there is now
        an alias on the values. Thus the type must be *equal* *)
   | Psub (_, _, _, x, i) ->
-    let xty = Env.gget venv x in
-    ensure_public env venv loc i;
-    xty
+      ensure_public env venv loc i;
+      Env.gget venv x
 
-    (* TODO why is x a var_i here but a gvar in Pget? Removing this difference
-       could allow to merge some code *)
   | Pload (_, x, i) ->
-    let xty = Env.get_i venv x in
-    let ty = Env.fresh2 env in
-    if not (ssafe_test x i) then VlPairs.add_le_speculative (Env.secret env) ty;
-    ensure_public env venv loc i;
-    VlPairs.add_le xty ty;
-    ty_get env x.gv ty
+      ensure_public_address env venv loc x;
+      ensure_public env venv loc i;
+      Env.dsecret env
 
-  | Papp1(_, e)        -> ty_expr env venv loc e
-  | Papp2(_, e1, e2)   -> ty_exprs_max env venv loc [e1; e2]
-  | PappN(_, es)       -> ty_exprs_max env venv loc es
+  | Papp1(_, e)      -> ty_expr env venv loc e
+  | Papp2(_, e1, e2) -> ty_exprs_max env venv loc [e1; e2]
+  | PappN(_, es)     -> ty_exprs_max env venv loc es
 
   | Pif(_, e1, e2, e3) ->
       let ty1 = ty_expr env venv loc e1 in
@@ -586,13 +588,18 @@ let rec ty_expr env venv loc (e:expr) : vty =
 and ensure_smaller env venv loc e l =
   let ety = ty_expr env venv loc e in
   match ety with
-  | Direct le -> (try VlPairs.add_le le l
-      with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety (Direct l))
-  | Indirect _ ->
-      Pt.rs_tyerror ~loc (Pt.string_error
-       "expression %a may not be a reg/stack ptr" pp_expr e)
+  | Direct le | Indirect (le, _) -> try VlPairs.add_le le l
+      with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety (Direct l)
 
 and ensure_public env venv loc e = ensure_smaller env venv loc e (Env.public2 env)
+(* this needed extra function is due to the fact that Pget expect a gvar and
+   Pload a var_i, which prevents embedding the variable in a Pvar in order to
+   use ensure_public *)
+and ensure_public_address env venv loc x = 
+  let ety = Env.get_i venv x in
+  match ety with
+  | Direct le | Indirect (le, _) -> try VlPairs.add_le le (Env.public2 env)
+      with Lvl.Unsat unsat -> error_unsat loc unsat pp_var_i x ety (Direct (Env.public2 env))
 
 and ty_exprs_max env venv loc es : vty =
   let l = Env.fresh2 env in
@@ -713,72 +720,69 @@ module MSF : sig
         (Pt.string_error "msf is %a it should be be at least %a"
            pp msfo pp msfi)
 
-
 end
+
 
 (* --------------------------------------------------------- *)
 (* Type checking of lvalue                                   *)
 type msf_e = MSF.t * Env.venv
+
+let content_ty = function
+  | Direct le | Indirect (_, le) -> le
 
 let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
   (* First path the type ety to make it consistant with the variable info *)
   match x with
   | Lnone _ -> msf_e
   | Lvar x ->
-    let k = kind_i x in
-    let xty =
+      (* TODO assumption: p = e when p is a pointer and e a direct value means p
+         points to a new position, where the expression is *)
+      (* as opposed to assigning the pointer directly to the given value *)
+      (* likewise, assuming x = p means storing the value pointed by p in x *)
       let lp, le =
         match ety with
-        | Direct le -> Env.public env, le
+        | Direct le -> Env.public2 env, le
         | Indirect(lp, le) -> lp, le in
-      if is_ptr k then
-        let lp = if is_reg_ptr_kind k then lp else Env.transient env in
-        Indirect(lp, le)
-      else
-        if is_stack_kind k then
-          let l = Env.fresh2 env in
-          VlPairs.add_le (Env.transient env) l;
-          VlPairs.add_le le l;
-          Direct l
-        else Direct le in
-    let msf = MSF.update msf (L.unloc x) in
-    let venv = Env.set_ty env venv x xty in
-    msf, venv
-
-  | Lmem(_, x, i) ->
-    let xty = Env.get_i venv x in
-    check_pub_addr env x xty;
-    ignore (check_ty_expr ~indirect_allowed:false env venv (L.loc x) i (Env.public env));
-    msf_e
-
-  | Laset(_, _, x, i) ->
-    let xty = Env.get_i venv x in
-    ignore (check_ty_expr ~indirect_allowed:false env venv (L.loc x) i (Env.public env));
-    let le = match ety with Direct le | Indirect(_, le) -> le in
-    let xty =
-      let l = Env.fresh2 env in
-      match xty with
-      | Direct lx -> VlPairs.add_le lx l; VlPairs.add_le le l; Direct l
-      | Indirect (lp, lx) ->
-          VlPairs.add_le lx l; VlPairs.add_le le l;
-          let xty = Indirect (lp, l) in
-          ignore (ty_get env x xty);
-          xty in
-
+      let xty = if is_ptr (kind_i x)
+          then Indirect(lp, le)
+          else Direct le in
+      let msf = MSF.update msf (L.unloc x) in
       let venv = Env.set_ty env venv x xty in
       msf, venv
 
+  | Lmem(_, x, i) ->
+      ensure_public_address env venv (L.loc x) x;
+      ensure_public env venv (L.loc x) i;
+      msf, Env.corruption env venv (content_ty ety)
+
+  | Laset(_, _, x, i) ->
+      ensure_public_address env venv (L.loc x) x;
+      ensure_public env venv (L.loc x) i;
+      let le = content_ty ety in
+      if ssafe_test x i then
+        let l = Env.fresh2 env in
+        let xty =
+          match Env.get_i venv x with
+          | Direct lx -> VlPairs.add_le lx l; VlPairs.add_le le l; Direct l
+          | Indirect (lp, lx) -> VlPairs.add_le lx l; VlPairs.add_le le l;
+              Indirect (lp, l)
+        in
+        msf, Env.set_ty env venv x xty
+      else (* mispeculation has necessarily occured *)
+        msf, Env.corruption_speculative env venv le
+
   | Lasub(_, _, _, x, i) ->
-    let xty = Env.get_i venv x in
-    ignore (check_ty_expr ~indirect_allowed:false env venv (L.loc x) i (Env.public env));
-    let le = match ety with Direct le | Indirect(_, le) -> le in
-    let xty =
+      ensure_public_address env venv (L.loc x) x;
+      ensure_public env venv (L.loc x) i;
+      let le = content_ty ety in
       let l = Env.fresh2 env in
-      match xty with
-      | Direct lx -> VlPairs.add_le lx l; VlPairs.add_le le l; Direct l
-      | Indirect (lp, lx) -> VlPairs.add_le lx l; VlPairs.add_le le l; Indirect (lp, l) in
-    let venv = Env.set_ty env venv x xty in
-    msf, venv
+      let xty =
+        match Env.get_i venv x with
+        | Direct lx -> VlPairs.add_le lx l; VlPairs.add_le le l; Direct l
+        | Indirect (lp, lx) -> VlPairs.add_le lx l; VlPairs.add_le le l;
+            Indirect (lp, l)
+      in
+      msf, Env.set_ty env venv x xty
 
 let ty_lvals1 env (msf_e : msf_e) xs ety : msf_e =
   List.fold_left (fun msf_e x -> ty_lval env msf_e x ety) msf_e xs
@@ -1089,7 +1093,7 @@ let parse_user_constraints (a:Syntax.annotations) : (string * string) list =
 
 let init_constraint fenv f =
   let env = Env.init () in
-  let venv = Env.empty in
+  let venv = Env.empty env in
   let tbl = Hashtbl.create 97 in
   Hashtbl.add tbl spublic    (Env.public env);
   Hashtbl.add tbl stransient (Env.transient env);
