@@ -592,7 +592,8 @@ and ensure_smaller env venv loc e l =
       with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety (Direct l)
 
 and ensure_public env venv loc e = ensure_smaller env venv loc e (Env.public2 env)
-(* this needed extra function is due to the fact that Pget expect a gvar and
+
+(* this extra function is needed due to the fact that Pget expect a gvar and
    Pload a var_i, which prevents embedding the variable in a Pvar in order to
    use ensure_public *)
 and ensure_public_address env venv loc x = 
@@ -797,20 +798,18 @@ let sdeclassify = "declassify"
 let is_declasify annot =
   Pt.Annot.ensure_uniq1 sdeclassify Pt.Annot.none annot <> None
 
-let declassify_lvl env l =
-  if Lvl.is_public l then l
-  else Env.transient env
+let declassify_lvl env (n, s) = (Env.public env, s)
 
 let declassify env = function
   | Direct le          -> Direct (declassify_lvl env le)
   | Indirect (lp, le)  -> Indirect (lp, declassify_lvl env le)
 
-let declassify_ty env annot ty =
-  if is_declasify annot then declassify env ty
+let declassify_ty env annot ty = if is_declasify annot
+  then declassify env ty
   else ty
 
-let declassify_tys env annot tys =
-  if is_declasify annot then List.map (declassify env) tys
+let declassify_tys env annot tys = if is_declasify annot
+  then List.map (declassify env) tys
   else tys
 
 (* --------------------------------------------------------------- *)
@@ -821,10 +820,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
   match i.i_desc with
   | Csyscall (xs, _o, es) ->
     (* FIXME make the constraints on es dependant of the syscall _o *)
-    let check_pub_ptr e =
-      let ety = ty_expr env venv loc e in
-      ignore (ty_get_gen env pp_expr loc e ety) in
-    List.iter check_pub_ptr es;
+    List.iter (ensure_public env venv loc) es;
     (* We don't known what happen to MSF after external function call *)
     ty_lvals1 env (MSF.toinit, venv) xs (Env.dsecret env)
   | Cassgn(x, _, _, e) ->
@@ -860,11 +856,11 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       let _ = reg_lval ~direct:false loc x and _ = reg_expr ~direct:false loc e and
           ms = reg_expr ~direct:true loc ms in
       MSF.check_msf_exact msf ms;
-      let ety = check_ty_expr ~indirect_allowed:true env venv loc e (Env.transient env) in
       let xty =
-        match ety with
-        | Direct _ -> Env.dpublic env
-        | Indirect (_, le) -> Indirect (Env.public env, le) in
+        match ty_expr env venv loc e with
+        | Direct (n, s) -> Direct (n, Env.public env)
+        | Indirect ((n, s), le) -> Indirect ((n, Env.public env), le) in
+
       ty_lval env msf_e x xty
 
     | Protect, _, _ -> assert false
@@ -880,24 +876,25 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       let msf1, venv1 = ty_cmd fenv env (msf, venv) c1 in
       let msf2, venv2 = ty_cmd fenv env (msf, venv) c2 in
       MSF.max msf1 msf2, Env.max env venv1 venv2
-    else
-      let _ = check_ty_expr ~indirect_allowed:false env venv loc e (Env.public env) in
+    else begin
+      ensure_public env venv loc e;
       let msf1, venv1 = ty_cmd fenv env (MSF.enter_if msf e, venv) c1 in
       let msf2, venv2 = ty_cmd fenv env (MSF.enter_if msf (Papp1(Onot, e)), venv) c2 in
       MSF.max msf1 msf2, Env.max env venv1 venv2
+    end
 
   | Cfor(x, (_, e1, e2), c) ->
-    let _ = ignore (check_ty_expr ~indirect_allowed:false env venv loc e1 (Env.public env)) in
-    let _ = ignore (check_ty_expr ~indirect_allowed:false env venv loc e2 (Env.public env)) in
+      ensure_public env venv loc e1;
+      ensure_public env venv loc e2;
 
-    let msf = MSF.loop env i.i_loc msf in
-    let w, _ = written_vars [i] in
-    let venv1 = Env.fresh2 env w venv in (* venv <= venv1 *)
-    let msf_e = ty_lval env (msf, venv1) (Lvar x) (Env.dpublic env) in
-    let (msf', venv') = ty_cmd fenv env msf_e c in
-    let msf' = MSF.end_loop loc msf msf' in
-    Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
-    msf', venv1
+      let msf = MSF.loop env i.i_loc msf in
+      let w, _ = written_vars [i] in
+      let venv1 = Env.freshen env w venv in (* venv <= venv1 *)
+      let msf_e = ty_lval env (msf, venv1) (Lvar x) (Env.dpublic env) in
+      let (msf', venv') = ty_cmd fenv env msf_e c in
+      let msf' = MSF.end_loop loc msf msf' in
+      Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
+      msf', venv1
 
   | Cwhile(_, c1, e, c2) ->
     (* c1; while e do c2; c1 *)
@@ -907,12 +904,11 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
        --------------------------------------------------------------------------------
        env, msf |- while c1 e c2 : enter_if e msf1
      *)
-
+    ensure_public env venv loc e;
     let msf1 = MSF.loop env i.i_loc msf in
     let w, _ = written_vars [i] in
     let venv1 = Env.freshen env w venv in (* venv <= venv1 *)
     let (msf2, venv2) = ty_cmd fenv env (msf1, venv1) c1 in
-    let _ = ignore (check_ty_expr ~indirect_allowed:false env venv2 loc e (Env.public env)) in
     let (msf', venv') = ty_cmd fenv env (MSF.enter_if msf2 e, venv2) c2 in
     let msf' = MSF.end_loop loc msf1 msf' in
     Env.ensure_le loc venv' venv1; (* venv' <= venv1 *)
