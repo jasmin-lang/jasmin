@@ -2224,8 +2224,10 @@ abstract theory W_WS.
    op VPMUL_'Ru'S (w1 : WB.t) (w2 : WB.t) =
      map2 WS.( * ) w1 w2. 
 
+(* conflict with JModel
    op VPMULH_'Ru'S (w1 : WB.t) (w2 : WB.t) =
      map2 WS.( * ) w1 w2. 
+*)
 
    op VPSLL_'Ru'S (w : WB.t) (cnt : W8.t) =
      map (fun (w:WS.t) => w `<<` cnt) w.

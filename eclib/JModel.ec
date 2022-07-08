@@ -782,19 +782,19 @@ op VPERMQ (w:W256.t) (i:W8.t) : W256.t =
 (*
 | VPMOVMSKB of wsize & wsize (* source size (U128/256) & dest. size (U32/64) *)
 *)
-op VPMOVMSKB_u128_u32 (v: W128.t) =
+op VPMOVMSKB_u128u32 (v: W128.t) =
    let vb = W16u8.to_list v in
    W32.bits2w (map W8.msb vb).
 
-op VPMOVMSKB_u128_u64 (v: W128.t) =
+op VPMOVMSKB_u128u64 (v: W128.t) =
    let vb = W16u8.to_list v in
    W64.bits2w (map W8.msb vb).
 
-op VPMOVMSKB_u256_u32 (v: W256.t) =
+op VPMOVMSKB_u256u32 (v: W256.t) =
   let vb = W32u8.to_list v in
   W32.bits2w (map W8.msb vb).
 
-op VPMOVMSKB_u256_u64 (v: W256.t) =
+op VPMOVMSKB_u256u64 (v: W256.t) =
   let vb = W32u8.to_list v in
   W64.bits2w (map W8.msb vb).
 
