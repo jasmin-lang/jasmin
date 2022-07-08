@@ -2221,7 +2221,7 @@ abstract theory W_WS.
    op VPSUB_'Ru'S (w1 : WB.t) (w2 : WB.t) =
      map2 (fun (x y:WS.t) => x + (- y)) w1 w2. 
 
-   op VPMUL_'Ru'S (w1 : WB.t) (w2 : WB.t) =
+   op VPMULL_'Ru'S (w1 : WB.t) (w2 : WB.t) =
      map2 WS.( * ) w1 w2. 
 
 (* conflict with JModel
