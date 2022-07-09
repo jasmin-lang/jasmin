@@ -3515,6 +3515,14 @@ lemma W8u32_W16u16 ws1 ws2 ws3 ws4 ws5 ws6 ws7 ws8:
          ws5.[0]; ws5.[1]; ws6.[0]; ws6.[1]; ws7.[0]; ws7.[1]; ws8.[0]; ws8.[1]].
 proof. by apply W16u16.allP => /=. qed.
 
+lemma W2u128_W16u16 ws1 ws2 ws3 ws4 ws5 ws6 ws7 ws8
+                    ws9 ws10 ws11 ws12 ws13 ws14 ws15 ws16 :
+  pack2 [W8u16.pack8 [ws1; ws2; ws3; ws4; ws5; ws6; ws7; ws8];
+         W8u16.pack8 [ws9; ws10; ws11; ws12; ws13; ws14; ws15; ws16] ] =
+  pack16 [ws1; ws2; ws3; ws4; ws5; ws6; ws7; ws8;
+         ws9; ws10; ws11; ws12; ws13; ws14; ws15; ws16].
+proof. by apply W16u16.allP => /=. qed.
+
 hint simplify W2u32_W4u16, W4u32_W8u16, W8u32_W16u16.
 
 lemma W2u64_W8u16 ws1 ws2:

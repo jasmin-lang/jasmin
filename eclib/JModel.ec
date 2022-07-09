@@ -522,26 +522,26 @@ op VPSHUFLW_256 (w:W256.t) (x:W8.t) =
 *)
 op VPBLENDW_128 (w1 w2: W128.t) (i: W8.t) : W128.t =
   let choose = fun n =>
-    let w = if i.[n] then w2 else w1 in
+    let w = if i.[n %% 8] then w2 else w1 in
     w \bits16 n in
   pack8 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7].
 
 op VPBLENDW_256 (w1 w2: W256.t) (i: W8.t) : W256.t =
   let choose = fun n =>
-    let w = if i.[n] then w2 else w1 in
+    let w = if i.[n %% 8] then w2 else w1 in
     w \bits16 n in
   pack16 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7;
           choose 8; choose 9; choose 10; choose 11; choose 12; choose 13; choose 14; choose 15].
 
 op VPBLENDD_128 (w1 w2: W128.t) (i:W8.t) : W128.t =
   let choose = fun n =>
-     let w = if i.[n] then w2 else w1 in
+     let w = if i.[n %% 8] then w2 else w1 in
      w \bits32 n in
   pack4 [choose 0; choose 1; choose 2; choose 3].
 
 op VPBLENDD_256 (w1 w2: W256.t) (i:W8.t) : W256.t =
   let choose = fun n =>
-     let w = if i.[n] then w2 else w1 in
+     let w = if i.[n %% 8] then w2 else w1 in
      w \bits32 n in
   pack8 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7].
 
