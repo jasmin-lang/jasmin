@@ -332,6 +332,8 @@ module Env : sig
   val corruption : env -> venv -> VlPairs.t -> venv
   val corruption_speculative : env -> venv -> VlPairs.t -> venv
 
+  val get_resulting_corruption : venv -> VlPairs.t
+
 end = struct
 
   type env = {
@@ -387,7 +389,7 @@ end = struct
   let add_le_var ty1 ty2 =
     match ty1, ty2 with
     | Direct ty1, Direct ty2 -> VlPairs.add_le ty1 ty2
-    | Indirect (l1, x1), Indirect (l2, x2) -> VlPairs.add_le l1 l2; VlPairs.add_le x2 x2
+    | Indirect (l1, x1), Indirect (l2, x2) -> VlPairs.add_le l1 l2; VlPairs.add_le x1 x2
     | _ -> assert false
 
   let init_ty env venv x xty =
@@ -412,7 +414,7 @@ end = struct
 
   let add_var env venv x vk vty =
     assert (not (Hv.mem env.strictness x || Mv.mem x venv.vtype));
-    Hv.add env.strictness x ();
+    if vk = Strict then Hv.add env.strictness x ();
     try init_ty env venv x vty
     with Lvl.Unsat _unsat ->
       Pt.rs_tyerror ~loc:(x.v_dloc)
@@ -437,7 +439,7 @@ end = struct
   (* Initialises type for InitMsf operations. Acts as a Fence operator *)
   let set_init_msf env venv ms =
     let venv = set_ty env venv ms (dpublic env) in
-    let operate_fence x = function
+    let operate_fence _ = function
         | Direct le -> Direct (VlPairs.normalise le)
         | Indirect(lp, le) -> Indirect(VlPairs.normalise lp, VlPairs.normalise le)
     in
@@ -513,7 +515,9 @@ end = struct
     VlPairs.add_le ty venv.resulting_corruption; (* update corruption level *)
     freshen ?min:(Some ty) env venv.vars venv
 
-  let corruption_speculative env venv (n, s) = corruption env venv (public env, s)
+  let corruption_speculative env venv (_, s) = corruption env venv (public env, s)
+
+  let get_resulting_corruption venv = venv.resulting_corruption
 end
 
 
@@ -526,7 +530,7 @@ let error_unsat loc (_ : Svl.t * Lvl.t list * Lvl.t * Lvl.t) pp e ety ety' =
 
 let ssafe_test x i =
   match (L.unloc x).v_ty, i with
-  | Arr (ws, len), Pconst v ->
+  | Arr (_ (* word size. should be used ? *), len), Pconst v ->
       let v = Conv.int_of_pos (Conv.pos_of_z v) in v < len
   | _ -> false
 
@@ -810,7 +814,7 @@ let sdeclassify = "declassify"
 let is_declasify annot =
   Pt.Annot.ensure_uniq1 sdeclassify Pt.Annot.none annot <> None
 
-let declassify_lvl env (n, s) = (Env.public env, s)
+let declassify_lvl env (_, s) = (Env.public env, s)
 
 let declassify env = function
   | Direct le          -> Direct (declassify_lvl env le)
@@ -871,8 +875,8 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       MSF.check_msf_exact msf ms;
       let xty =
         match ty_expr env venv loc e with
-        | Direct (n, s) -> Direct (n, Env.public env)
-        | Indirect ((n, s), le) -> Indirect ((n, Env.public env), le) in
+        | Direct (n, _) -> Direct (n, Env.public env)
+        | Indirect ((n, _), le) -> Indirect ((n, Env.public env), le) in
 
       ty_lval env msf_e x xty
 
@@ -1105,9 +1109,10 @@ let init_constraint fenv f =
   let env = Env.init () in
   let venv = Env.empty env in
   let tbl = Hashtbl.create 97 in
-  Hashtbl.add tbl spublic    (Env.public env);
-  Hashtbl.add tbl ssecret    (Env.secret env);
+  Hashtbl.add tbl spublic    (Env.public2 env);
+  Hashtbl.add tbl ssecret    (Env.secret2 env);
   (* export function: all input type should be at most transient and msf is not allowed *)
+  (* the new version does not take that into accout, does it? *)
   let export = f.f_cc = Export in
 
   let add_lvl s =
@@ -1151,9 +1156,9 @@ let init_constraint fenv f =
         | Reg (_, Direct) -> Direct (Env.fresh2 env)
         | Reg (_, Pointer _) -> Indirect(Env.fresh2 env, Env.fresh2 env)
         | Inline -> Env.dpublic env
-        | Global -> Env.dtransient env
+        | Global -> Env.dpublic env (* unsure *)
         end
-      | Some ty ->
+      | Some ty -> (* this partly has the same role as Env.init_ty. Remove one occurence? *)
         begin match x.v_kind, ty with
         | Const, Direct _ -> ()
         | Stack Direct, Direct _ -> ()
@@ -1173,6 +1178,7 @@ let init_constraint fenv f =
     let ls, _ = parse_var_annot ~kind_allowed:false ~msf:(not export) annot in
     mk_vty loc ~msf:(not export) x ls in
 
+  (* process function outputs *)
   let tyout = List.map2 process_return f.f_ret f.f_outannot in
 
   (* infer msf_oracle info *)
@@ -1187,6 +1193,7 @@ let init_constraint fenv f =
       (Pt.string_error
          "%a need to be a msf, this is not allowed in export function" pp_vset msfs);
 
+  (* process function inputs *)
   let process_param venv x =
     let ls, vk = parse_var_annot ~kind_allowed:true ~msf:(not export) x.v_annot in
     let msf, vty = mk_vty x.v_dloc ~msf:(not export) x ls in
@@ -1202,7 +1209,7 @@ let init_constraint fenv f =
       begin match vty with
       | Direct l ->
         begin
-          try Lvl.add_le (Env.transient env) l
+          try VlPairs.add_le (Env.public env, Env.secret env) l
           with Lvl.Unsat _unsat ->
             Pt.rs_tyerror ~loc:(x.v_dloc)
               (Pt.string_error "security annotation for %a should be at least %s"
@@ -1223,7 +1230,7 @@ let init_constraint fenv f =
       try Hashtbl.find tbl s
       with Not_found ->
         Pt.rs_tyerror ~loc:f.f_loc (Pt.string_error "unbound security level %s" s) in
-    try Lvl.add_le (get s1) (get s2)
+    try VlPairs.add_le (get s1) (get s2)
     with Lvl.Unsat _unsat ->
       Pt.rs_tyerror ~loc:f.f_loc
         (Pt.string_error "cannot add constraint %s <= %s, it is inconsistant" s1 s2) in
@@ -1279,9 +1286,9 @@ and ty_fun_infer fenv fn =
     let le_ty ty1 ty2 =
       try
         match ty1, ty2 with
-        | Direct le1, Direct le2 -> Lvl.add_le le1 le2
+        | Direct le1, Direct le2 -> VlPairs.add_le le1 le2
         | Indirect(lp1, le1), Indirect(lp2, le2) ->
-          Lvl.add_le lp1 lp2; Lvl.add_le le1 le2
+          VlPairs.add_le lp1 lp2; VlPairs.add_le le1 le2
         | _, _ -> assert false
       with Lvl.Unsat _unsat ->
         Pt.rs_tyerror ~loc:(L.loc x)
@@ -1305,12 +1312,13 @@ and ty_fun_infer fenv fn =
   let add ls vty =
     match vty with
     | IsMsf -> ls
-    | IsNormal (Direct le) -> le::ls
-    | IsNormal (Indirect(lp,le)) -> lp::le::ls in
+    | IsNormal (Direct (n, s)) -> n :: s :: ls
+    | IsNormal (Indirect ((np, sp), (ne, se))) -> np :: sp :: ne :: se :: ls in
   let to_keep = List.fold_left add (List.fold_left add [] tyin) tyout in
 
   C.prune constraints to_keep;
-  let fty = { modmsf; tyin; tyout; constraints } in
+  let resulting_corruption = Env.get_resulting_corruption venv in
+  let fty = { modmsf; tyin; tyout; constraints; resulting_corruption } in
   Format.eprintf "%a@." pp_funty (f.f_name.fn_name, fty);
   let tomax = List.fold_left add [] tyin in
   let tomin = List.fold_left add [] tyout in
