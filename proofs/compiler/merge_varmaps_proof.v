@@ -1,6 +1,7 @@
 (*
 *)
 Require Import sem_one_varmap sem_one_varmap_facts merge_varmaps psem_facts.
+Require Import seq_extra.
 Import Utf8.
 Import all_ssreflect all_algebra.
 Import ssrZ.
@@ -102,7 +103,7 @@ Lemma check_wmapP (wm: Mp.t Sv.t) (fn: funname) (fd: sfundef) :
   get_fundef (p_funcs p) fn = Some fd →
   check_wmap p extra_free_registers var_tmp wm →
   valid_writefun (get_wmap wm) (fn, fd).
-Proof. by move /get_fundef_in' /(@InP [eqType of sfun_decl]) => h /allP /(_ _ h). Qed.
+Proof. by move /get_fundef_in' => h /allE/List.Forall_forall /(_ _ h). Qed.
 
 Let wmap := mk_wmap p extra_free_registers var_tmp.
 Notation wrf := (get_wmap wmap).
