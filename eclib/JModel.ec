@@ -767,7 +767,7 @@ op VPERM2I128 (w1 w2: W256.t) (i:W8.t) : W256.t =
 op permd (v: W256.t) (i: W32.t) : W32.t =
   v \bits32 (to_uint i %% 8).
 
-op VPERMD (w: W256.t) (i: W256.t) : W256.t =
+op VPERMD (i: W256.t) (w: W256.t) : W256.t =
   map (permd w) i.
 
 (* ------------------------------------------------------------------- *)
