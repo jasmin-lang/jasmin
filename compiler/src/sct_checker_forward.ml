@@ -377,9 +377,10 @@ end = struct
       resulting_corruption = fresh2 env
     }
 
-  (* TODO: is the catch necessary, as a Not_found exception is more informative than
-     an assert false problem? *)
-  let get venv x = try Mv.find x venv.vtype with Not_found -> assert false
+  let get venv x = try 
+      (* TODO debug command *)
+       warning Always (L.i_loc0 x.v_dloc) "lookup for variable %a" pp_var x;
+    Mv.find x venv.vtype with Not_found -> assert false
   let get_i venv x = get venv (L.unloc x)
   let gget venv x = get_i venv x.gv
 
@@ -530,10 +531,13 @@ let error_unsat loc (_ : Svl.t * Lvl.t list * Lvl.t * Lvl.t) pp e ety ety' =
 
 let ssafe_test x i =
   match (L.unloc x).v_ty, i with
+    (* TODO are array pointers assigned Arr types? *)
   | Arr (_ (* word size. should be used ? *), len), Pconst v ->
       let v = Conv.int_of_pos (Conv.pos_of_z v) in v < len
   | _ -> false
 
+let content_ty = function
+  | Direct le | Indirect (_, le) -> le
 
 (* --------------------------------------------------------- *)
 (* Type checking of expressions                              *)
@@ -545,16 +549,13 @@ let rec ty_expr env venv loc (e:expr) : vty =
   | Pvar x -> Env.gget venv x
 
   | Pget (_, _, x, i) ->
-      begin match Env.gget venv x with
-      | Direct _ -> assert false
-      | Indirect (_, lv) -> 
-          ensure_public_address env venv loc x.gv;
-          ensure_public env venv loc i;
-          let ty = Env.fresh2 env in
-          if not (ssafe_test x.gv i) then VlPairs.add_le_speculative (Env.secret env) ty;
-          VlPairs.add_le lv ty;
-          Direct ty
-      end
+      ensure_public_address env venv loc x.gv;
+      ensure_public env venv loc i;
+      let ty = Env.fresh2 env
+      and xty = Env.gget venv x in
+      if not (ssafe_test x.gv i) then VlPairs.add_le_speculative (Env.secret env) ty;
+      VlPairs.add_le (content_ty xty) ty;
+      Direct ty
 
     (* in the case of sub-arrays, no operation is performed, and there is now
        an alias on the values. Thus the type must be *equal* *)
@@ -739,9 +740,6 @@ end
 (* --------------------------------------------------------- *)
 (* Type checking of lvalue                                   *)
 type msf_e = MSF.t * Env.venv
-
-let content_ty = function
-  | Direct le | Indirect (_, le) -> le
 
 let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
   (* First path the type ety to make it consistant with the variable info *)
