@@ -90,6 +90,7 @@ type ty_fun = {
     tyin        : vfty list;
     tyout       : vfty list;
     constraints : C.constraints;
+    resulting_corruption : VlPairs.t (* resulting memory corruption after function call *)
   }
 
 type 'info fenv = {
@@ -325,7 +326,8 @@ module Env : sig
 
   val freshen : ?min:Constraints.VlPairs.t -> env -> Sv.t -> venv -> venv
   val ensure_le : L.t -> venv -> venv -> unit
-  val clone : env -> ty_fun -> vfty list * vfty list (* output type, input type *)
+  val clone_for_call : env -> ty_fun -> vfty list * vfty list * VlPairs.t
+          (* output type, input type, output corruption *)
 
   val corruption : env -> venv -> VlPairs.t -> venv
   val corruption_speculative : env -> venv -> VlPairs.t -> venv
@@ -341,7 +343,7 @@ end = struct
   type venv = {
       vtype : vty Mv.t;
       vars : Sv.t;
-      max_corruption : VlPairs.t;
+      resulting_corruption : VlPairs.t;
     }
 
   let init () =
@@ -362,22 +364,22 @@ end = struct
   let dpublic   env = Direct (public2 env)
   let dsecret   env = Direct (secret2 env)
 
+  let fresh ?name env = C.fresh ?name env.constraints
+
+  let fresh2 ?name env = (C.fresh ?name env.constraints,
+                          C.fresh ?name env.constraints)
+
   let empty env = {
-    vtype = Mv.empty;
-    vars = Sv.empty;
-    max_corruption = public2 env
-  }
+      vtype = Mv.empty;
+      vars = Sv.empty;
+      resulting_corruption = fresh2 env
+    }
 
   (* TODO: is the catch necessary, as a Not_found exception is more informative than
      an assert false problem? *)
   let get venv x = try Mv.find x venv.vtype with Not_found -> assert false
   let get_i venv x = get venv (L.unloc x)
   let gget venv x = get_i venv x.gv
-
-  let fresh ?name env = C.fresh ?name env.constraints
-
-  let fresh2 ?name env = (C.fresh ?name env.constraints,
-                          C.fresh ?name env.constraints)
 
   let kind env x = if Hv.mem env.strictness (L.unloc x)
     then Strict else Flexible
@@ -462,7 +464,7 @@ end = struct
     {
       vtype = Mv.merge merge_var venv1.vtype venv2.vtype;
       vars = venv1.vars;
-      max_corruption = merge venv1.max_corruption venv2.max_corruption
+      resulting_corruption = merge venv1.resulting_corruption venv2.resulting_corruption
     }
 
   let get_msf_oracle env = env.msf_oracle
@@ -472,14 +474,16 @@ end = struct
 
   (* freshen variables in list xs in environment env, venv *)
   let freshen ?min env xs venv =
-    let fresh le =
+    let fresh kind le =
       let l = fresh2 env in
       VlPairs.add_le le l;
-      begin match min with
-      | None -> ()
-      | Some ty -> VlPairs.add_le ty l
+      begin match kind, min with
+      | Reg _, _ -> ()
+      | _ (* in memory *), Some ty -> VlPairs.add_le ty l
+      | _ -> ()
       end; l in
     { venv with vtype = Sv.fold (fun x vtype -> let ty =
+          let fresh = fresh x.v_kind in
           match Mv.find x vtype with
           | Direct le -> Direct (fresh le)
           | Indirect(lp, le) -> Indirect(fresh lp, fresh le) in
@@ -492,7 +496,7 @@ end = struct
       Pt.rs_tyerror ~loc
         (Pt.string_error "constraints caused by the loop/branch cannot be satisfied")
 
-  let clone (env:env) (tyfun:ty_fun) =
+  let clone_for_call (env:env) (tyfun:ty_fun) =
     let subst1 = C.clone tyfun.constraints env.constraints in
     let subst (n, s) = (subst1 n, subst1 s) in
     let subst_ty = function
@@ -502,9 +506,13 @@ end = struct
             | Direct le -> Direct (subst le)
             | Indirect(lp, le) -> Indirect(subst lp, subst le) in
           IsNormal ty in
-    List.map subst_ty tyfun.tyout, List.map subst_ty tyfun.tyin
+    List.map subst_ty tyfun.tyout, List.map subst_ty tyfun.tyin,
+    subst tyfun.resulting_corruption
 
-  let corruption env venv ty = freshen ?min:(Some ty) env venv.vars venv
+  let corruption env venv ty =
+    VlPairs.add_le ty venv.resulting_corruption; (* update corruption level *)
+    freshen ?min:(Some ty) env venv.vars venv
+
   let corruption_speculative env venv (n, s) = corruption env venv (public env, s)
 end
 
@@ -791,8 +799,12 @@ let ty_lvals1 env (msf_e : msf_e) xs ety : msf_e =
 let ty_lvals env (msf_e : msf_e) xs tys : msf_e =
   List.fold_left2 (ty_lval env) msf_e xs tys
 
+
 (* -------------------------------------------------------------- *)
 (* declassify                                                     *)
+(* TODO ensure declassify cannot occur on potentially corrupted   *)
+(* stack values                                                   *)
+
 let sdeclassify = "declassify"
 
 let is_declasify annot =
@@ -811,6 +823,7 @@ let declassify_ty env annot ty = if is_declasify annot
 let declassify_tys env annot tys = if is_declasify annot
   then List.map (declassify env) tys
   else tys
+
 
 (* --------------------------------------------------------------- *)
 (* [ty_instr env msf i] return msf' such that env, msf |- i : msf' *)
@@ -917,9 +930,10 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
   | Ccall (_, xs, f, es) ->
     let fty = FEnv.get_fty fenv f in
     let modmsf = fty.modmsf in
-    let tyout, tyin = Env.clone env fty in
-    (* check the input types *)
-    let doin e vfty =
+    let tyout, tyin, corruption_level = Env.clone_for_call env fty in
+    let venv = Env.corruption env venv corruption_level in
+
+    let input_ty e vfty =
       match vfty with
       | IsMsf ->
         (* we don't check that e is public, it is ensured by being msf *)
@@ -928,14 +942,15 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       | IsNormal ety' ->
         let ety = ty_expr env venv loc e in
         try match ety, ety' with
-        | Direct le, Direct le' -> Lvl.add_le le le'
-        | Direct le, Indirect (_, le') -> Lvl.add_le le le'
-        | Indirect(lp, le), Direct le' -> Lvl.add_le lp (Env.public env); Lvl.add_le le le'
-        | Indirect(lp, le), Indirect(lp', le') -> Lvl.add_le lp lp'; Lvl.add_le le le'
+        | Direct le, Direct le' -> VlPairs.add_le le le'
+        | Direct le, Indirect (_, le') -> VlPairs.add_le le le'
+        | Indirect(lp, le), Direct le' -> VlPairs.add_le lp (Env.public2 env); VlPairs.add_le le le'
+        | Indirect(lp, le), Indirect(lp', le') -> VlPairs.add_le lp lp'; VlPairs.add_le le le'
         with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety ety' in
-    List.iter2 doin es tyin;
+    List.iter2 input_ty es tyin;
+
     (* compute the resulting venv *)
-    let doout msf_e x vfty =
+    let output_ty msf_e x vfty =
       let ty =
         match vfty with
         | IsMsf -> Env.dpublic env
@@ -943,11 +958,10 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       let (msf, venv) = ty_lval env msf_e x ty in
       let msf = if vfty = IsMsf then MSF.add (reg_lval ~direct:true loc x) msf else msf in
       (msf, venv) in
-    List.fold_left2 doout ((if modmsf then MSF.toinit else msf), venv) xs tyout
+    List.fold_left2 output_ty ((if modmsf then MSF.toinit else msf), venv) xs tyout
 
 and ty_cmd fenv env msf_e c =
   List.fold_left (ty_instr fenv env) msf_e c
-
 
 
 (* ------------------------------------------------------------------- *)
@@ -961,7 +975,7 @@ and ty_cmd fenv env msf_e c =
 let parse_var_annot ~(kind_allowed:bool) ~(msf:bool) (annot: S.annotations) : ulevel list * var_kind =
   let module A = Pt.Annot in
   let kind =
-    let check_allowed (id,_) =
+    let check_allowed (id, _) =
       if not kind_allowed then
         Pt.rs_tyerror ~loc:(L.loc id)
           (Pt.string_error "%s not allowed here" (L.unloc id))
@@ -996,10 +1010,10 @@ let parse_var_annot ~(kind_allowed:bool) ~(msf:bool) (annot: S.annotations) : ul
     [spublic, (fun a -> A.none a; Public);
      ssecret, (fun a -> A.none a; Secret);
      stransient, (fun a -> A.none a; Transient);
-     spoly  , poly] in
+     spoly, poly] in
 
   let filters =
-    if msf then (smsf, (fun a -> A.none a; Msf))::filters else filters in
+    if msf then (smsf, (fun a -> A.none a; Msf)) :: filters else filters in
 
   let lvls = A.process_annot filters annot in
 
@@ -1085,14 +1099,13 @@ let parse_user_constraints (a:Syntax.annotations) : (string * string) list =
           (Pt.string_error "attribute for %s should be a string" sconstraints) in
 
    List.flatten
-     (List.map snd (A.process_annot [ sconstraints, A.on_attribute ~on_string error] a))
+     (List.map snd (A.process_annot [sconstraints, A.on_attribute ~on_string error] a))
 
 let init_constraint fenv f =
   let env = Env.init () in
   let venv = Env.empty env in
   let tbl = Hashtbl.create 97 in
   Hashtbl.add tbl spublic    (Env.public env);
-  Hashtbl.add tbl stransient (Env.transient env);
   Hashtbl.add tbl ssecret    (Env.secret env);
   (* export function: all input type should be at most transient and msf is not allowed *)
   let export = f.f_cc = Export in
@@ -1107,9 +1120,9 @@ let init_constraint fenv f =
 
   let to_lvl = function
     | Poly s -> add_lvl s
-    | Secret -> Env.secret env
-    | Transient -> Env.transient env
-    | Public | Msf -> Env.public env in
+    | Secret -> Env.secret2 env
+    | Transient -> (Env.public env, Env.secret env)
+    | Public | Msf -> Env.public2 env in
 
   let error_msf loc =
     Pt.rs_tyerror ~loc
@@ -1134,12 +1147,9 @@ let init_constraint fenv f =
         begin match x.v_kind with
         | Const -> Env.dpublic env
         | Stack Direct -> Direct (Env.fresh2 env)
-        | Stack (Pointer _) -> Indirect(Env.transient env, Env.fresh2 env)
+        | Stack (Pointer _) -> Indirect(Env.fresh2 env, Env.fresh2 env)
         | Reg (_, Direct) -> Direct (Env.fresh2 env)
-        | Reg (_, Pointer _) ->
-          let lp = Env.fresh2 env in
-          Lvl.add_le lp (Env.transient env);
-          Indirect(lp, Env.fresh2 env)
+        | Reg (_, Pointer _) -> Indirect(Env.fresh2 env, Env.fresh2 env)
         | Inline -> Env.dpublic env
         | Global -> Env.dtransient env
         end
