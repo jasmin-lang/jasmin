@@ -635,22 +635,6 @@ Definition fun_decl := (funname * fundef)%type.
 
 Definition prog := _prog extra_fun_t extra_prog_t.
 
-Definition fundef_beq (fd1 fd2:fundef) :=
-  match fd1, fd2 with
-  | MkFun ii1 tin1 x1 c1 tout1 r1 e1, MkFun ii2 tin2 x2 c2 tout2 r2 e2 =>
-    (ii1 == ii2) && (tin1 == tin2) && (x1 == x2) && (c1 == c2) && (tout1 == tout2) && (r1 == r2) && (e1 == e2)
-  end.
-
-Lemma fundef_eq_axiom : Equality.axiom fundef_beq.
-Proof.
-  move=> [i1 tin1 p1 c1 tout1 r1 e1] [i2 tin2 p2 c2 tout2 r2 e2] /=.
-  by apply (iffP idP) => [/andP[]/andP[]/andP[]/andP[]/andP[]/andP[] | []]
-    /eqP->/eqP->/eqP->/eqP->/eqP->/eqP->/eqP->.
-Qed.
-
-Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
-Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
-
 Definition Build_prog p_funcs p_globs p_extra : prog := Build__prog p_funcs p_globs p_extra.
 
 End PROG.
