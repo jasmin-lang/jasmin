@@ -919,11 +919,11 @@ Section LEMMA.
       + have -> : scs = escs s0 by done.
         exact: texec.
       + etransitivity; last exact: ok_tres.
-        apply: eq_mapM => x hx.
+        apply: mapM_ext => // x hx.
         rewrite {2}/get_var Fv.setP_neq //.
         apply/eqP => K.
         move: RSP_not_result.
-        rewrite /res sv_of_listE => /mapP; apply.
+        rewrite /res sv_of_listE => /in_map; apply.
         by exists x.
       + apply: all2_check_ty_val res_uincl.
         elim: (mapM2_Forall3 ok_vres'); first by [].
@@ -989,10 +989,10 @@ Proof.
   move: ok_xa; rewrite ok_args' => /ok_inj ?; subst xa.
   have /ok_inj ? : ok xr = ok res' :> exec values.
   { rewrite -ok_xr -ok_res'.
-    apply: eq_mapM => /= r hr.
+    apply: mapM_ext => /= r hr.
     rewrite {2}/get_var Fv.setP_neq //; apply/eqP => K.
     move: RSP_not_result.
-    rewrite /results sv_of_listE => /mapP; apply.
+    rewrite /results sv_of_listE => /in_map; apply.
     by exists r.
   } subst xr.
   exists m0 k' m1 vm1 res' => //; last first.

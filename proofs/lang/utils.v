@@ -322,11 +322,14 @@ elim: m => //= a m ih ext.
 rewrite ext; [ f_equal | ]; eauto.
 Qed.
 
-Lemma mapM_ext eT aT bT :
-  Proper (@eqfun (result eT bT) aT ==> eq ==> eq) (@mapM eT aT bT).
+Lemma mapM_ext eT aT bT (f1 f2: aT → result eT bT) (m: seq aT) :
+  (∀ a, List.In a m → f1 a = f2 a) →
+  mapM f1 m = mapM f2 m.
 Proof.
-move => f g ext xs xs' <-{xs'}.
-by elim: xs => //= a xs ->; rewrite (ext a); case: (g a).
+  elim: m => // a m ih ext /=.
+  rewrite (ext a); last by left.
+  case: (f2 _) => //= b; rewrite ih //.
+  by move => ? h; apply: ext; right.
 Qed.
 
 Lemma eq_mapM eT (aT: eqType) bT (f1 f2: aT -> result eT bT) (l:list aT) :

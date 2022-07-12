@@ -824,10 +824,10 @@ Section Section.
     rewrite /= /get_sig fnE.
     have heqin : map snd (map2 (mk_info is_reg_ptr) (f_params fnd) (f_tyin fnd)) = f_tyin fnd.
     + have [_ h] := size_mapM2 vsE; rewrite -(size_fold2 hwrinit) in h.
-      by rewrite map2E -map_comp -{2}(unzip2_zip (eq_leq h)); apply eq_in_map.
+      by rewrite map2E -map_comp -{2}(unzip2_zip (eq_leq h)); apply map_ext.
     have heqout : map snd (map2 (mk_info is_reg_ptr) (f_res fnd) (f_tyout fnd)) = f_tyout fnd.
     + have [h _] := size_mapM2 aoutE; rewrite -(size_mapM hgetout) in h.
-      by rewrite map2E -map_comp -{2}(unzip2_zip (eq_leq h)); apply eq_in_map.
+      by rewrite map2E -map_comp -{2}(unzip2_zip (eq_leq h)); apply map_ext.
     move=> {s1' s2' s3' hwrinit hgetout}.
     t_xrbindP=> -[pl eargs] plE; t_xrbindP=> -[lvaout ep] epE [] <-.
     rewrite -heqin in vsE.
