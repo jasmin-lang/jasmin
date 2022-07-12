@@ -50,48 +50,45 @@ Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
 Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
 
-Section IS_MOVE_OP.
-
-Lemma unroll1P (fn : funname) (p p' : uprog) ev scs mem va va' scs' mem' vr :
-  unroll1 (ap_is_move_op aparams) p = ok p'
-  -> sem_call p ev scs mem fn va scs' mem' vr
-  -> List.Forall2 value_uincl va va'
-  -> exists2 vr',
-       sem_call p' ev scs mem fn va' scs' mem' vr'
-       & List.Forall2 value_uincl vr vr'.
+Lemma postprocessP (p p': uprog) ev scs m fn va scs' m' vr va' :
+  dead_code_prog (ap_is_move_op aparams) (const_prop_prog p) false = ok p' →
+  sem_call p ev scs m fn va scs' m' vr →
+  List.Forall2 value_uincl va va' →
+  exists2 vr',
+    sem_call p' ev scs m fn va' scs' m' vr'
+    & List.Forall2 value_uincl vr vr'.
 Proof.
-  rewrite /unroll1=> Heq Hsem Hall.
-  have hsemu := unroll_callP Hsem.
-  have [vr' [hsemc hall']] := const_prop_callP hsemu Hall.
-  have Hall'' : List.Forall2 value_uincl va' va'. by apply List_Forall2_refl.
-  have [vr'' [hsemc' hv]] :=
-    dead_code_callPu (hap_is_move_opP haparams) Heq Hall'' hsemc.
-  exists vr'' => //. apply: Forall2_trans hall' hv.
-  move=> v1 v2 v3 h1 h2. by apply: value_uincl_trans h1 h2.
+  move => ok_p' E A.
+  have [ vr1 [ {} E R1 ] ] := const_prop_callP E A.
+  have [ vr2 [ {} E R2 ] ] := dead_code_callPu (hap_is_move_opP haparams) ok_p' (List_Forall2_refl _ value_uincl_refl) E.
+  exists vr2; first exact: E.
+  apply: Forall2_trans R1 R2.
+  exact: value_uincl_trans.
 Qed.
 
 Lemma unrollP (fn : funname) (p p' : prog) ev scs mem va va' scs' mem' vr :
-  unroll (ap_is_move_op aparams) Loop.nb p = ok p'
+  unroll_loop (ap_is_move_op aparams) p = ok p'
   -> sem_call p ev scs mem fn va scs' mem' vr
   -> List.Forall2 value_uincl va va'
   -> exists vr',
        sem_call p' ev scs mem fn va' scs' mem' vr'
        /\ List.Forall2 value_uincl vr vr'.
 Proof.
-  elim: Loop.nb p va va' vr => /= [p //|n Hn] p va va' vr.
-  apply: rbindP=> z Hz.
-  case: ifP=> [_ [] ->|_ Hu Hs Hall].
-  - move=> h hu; have [vr' [? ?]] := sem_call_uincl hu h. by exists vr'.
-  have [vr' hsem1 hall1] := unroll1P Hz Hs Hall.
-  have [vr'' [hsem2 hall2]] :=
-    Hn _ _ _ _ Hu hsem1 (List_Forall2_refl _ value_uincl_refl).
-  exists vr''; split; first done.
-  by apply: Forall2_trans value_uincl_trans hall1 hall2.
+  rewrite /unroll_loop; t_xrbindP.
+  elim: Loop.nb p va va' vr => //= n Hn p va va' vr p1 ok_p1.
+  case e: unroll_prog => [ p2 [] ]; last first.
+  { move/ok_inj => {n Hn} <- E A.
+    have [ vr' {} E R ] := postprocessP ok_p1 E A.
+    by exists vr'. }
+  t_xrbindP => p3 ok_p3 ok_p' E A.
+  have [ vr1 {} E R1 ] := postprocessP ok_p1 E (List_Forall2_refl _ value_uincl_refl).
+  have := unroll_callP E.
+  rewrite e /= => {} E.
+  have [ vr2 [] {} E R2 ] := Hn _ _ _ _ _ ok_p3 ok_p' E A.
+  exists vr2; split; first exact: E.
+  apply: Forall2_trans R1 R2.
+  exact: value_uincl_trans.
 Qed.
-
-End IS_MOVE_OP.
-
-Opaque Loop.nb.
 
 Definition compose_pass : ∀ vr (P Q: _ → Prop),
         (∀ vr', P vr' → Q vr') →

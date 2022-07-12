@@ -42,8 +42,7 @@ Context
   `{asmop : asmOp}
   (is_move_op : asm_op_t -> bool).
 
-Definition unroll1 (p:uprog) : cexec uprog:=
-  let p := unroll_prog p in
+Let postprocess (p: uprog) : cexec uprog :=
   let p := const_prop_prog p in
   dead_code_prog is_move_op p false.
 
@@ -51,16 +50,18 @@ Definition unroll1 (p:uprog) : cexec uprog:=
 (* TODO: command line option to specify the unrolling depth,
    the error should suggest increasing the number
 *)
-Fixpoint unroll (n:nat) (p:uprog) :=
-  match n with
-  | O   => Error (loop_iterator "unrolling")
-  | S n =>
-    Let p' := unroll1 p in
-    if ((p_funcs p: ufun_decls) == (p_funcs p': ufun_decls)) then ok p
-    else unroll n p'
-  end.
+Fixpoint unroll (n: nat) (p: uprog) : cexec uprog :=
+  if n is S n' then
+    let: (p', repeat) := unroll_prog p in
+    if repeat then
+      Let: p'' := postprocess p' in
+      unroll n' p''
+    else ok p
+  else Error (loop_iterator "unrolling").
 
-Definition unroll_loop (p:prog) := unroll Loop.nb p.
+Definition unroll_loop (p: prog) :=
+  Let p := postprocess p in
+  unroll Loop.nb p.
 
 End IS_MOVE_OP.
 
@@ -229,7 +230,7 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let p := dead_calls_err_seq to_keep p in
   let p := cparams.(print_uprog) RemoveUnusedFunction p in
 
-  Let p := unroll (ap_is_move_op aparams) Loop.nb p in
+  Let p := unroll_loop (ap_is_move_op aparams) p in
   let p := cparams.(print_uprog) Unrolling p in
 
   let pv := split_live_ranges_prog p in
