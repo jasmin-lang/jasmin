@@ -254,20 +254,6 @@ Notation vid ident :=
     v_info := xH;
   |}.
 
-Definition var_i_beq x1 x2 :=
-  match x1, x2 with
-  | VarI x1 i1, VarI x2 i2 => (x1 == x2) && (i1 == i2)
-  end.
-
-Lemma var_i_eq_axiom : Equality.axiom var_i_beq.
-Proof.
-  move=> [x xi] [y yi] /=.
-  by apply (iffP andP) => -[] /eqP-> /eqP->.
-Qed.
-
-Definition var_i_eqMixin     := Equality.Mixin var_i_eq_axiom.
-Canonical  var_i_eqType      := Eval hnf in EqType var_i var_i_eqMixin.
-
 Record var_attr := VarA {
   va_pub : bool
 }.
@@ -296,18 +282,6 @@ Definition mk_lvar x := {| gv := x; gs := Slocal |}.
 Definition is_lvar (x:gvar) := x.(gs) == Slocal.
 Definition is_glob (x:gvar) := x.(gs) == Sglob.
 
-Definition gvar_beq (x1 x2:gvar) := 
-  (x1.(gs) == x2.(gs)) && (x1.(gv) == x2.(gv)).
-
-Lemma gvar_eq_axiom : Equality.axiom gvar_beq.
-Proof.
-  move=> [x1 k1] [x2 k2] /=; apply (equivP andP) => /=.
-  by split => [[]/eqP -> /eqP -> |[] -> ->].
-Qed.
-
-Definition gvar_eqMixin := Equality.Mixin gvar_eq_axiom.
-Canonical gvar_eqType := Eval hnf in EqType gvar gvar_eqMixin.
-
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
@@ -331,48 +305,6 @@ Definition eand e1 e2 := Papp2 Oand e1 e2.
 Definition eeq e1 e2 := Papp2 Obeq e1 e2.
 Definition eneq e1 e2 := enot (eeq e1 e2).
 
-Fixpoint pexpr_beq (e1 e2:pexpr) : bool :=
-  match e1, e2 with
-  | Pconst n1   , Pconst n2    => n1 == n2
-  | Pbool  b1   , Pbool  b2    => b1 == b2
-  | Parr_init n1, Parr_init n2 => n1 == n2
-  | Pvar   x1   , Pvar   x2    => (x1 == x2)
-  | Pget aa1 sz1 x1 e1, Pget aa2 sz2 x2 e2 => (aa1 == aa2) && (sz1 == sz2) && (x1 == x2) && pexpr_beq e1 e2
-  | Psub aa1 sz1 len1 x1 e1, Psub aa2 sz2 len2 x2 e2 => (aa1 == aa2) && (sz1 == sz2) && (len1 == len2) && (x1 == x2) && pexpr_beq e1 e2
-  | Pload sz1 x1 e1, Pload sz2 x2 e2 => (sz1 == sz2) && (x1 == x2) && pexpr_beq e1 e2
-  | Papp1 o1 e1 , Papp1  o2 e2 => (o1 == o2) && pexpr_beq e1 e2
-  | Papp2 o1 e11 e12, Papp2 o2 e21 e22  =>
-     (o1 == o2) && pexpr_beq e11 e21 && pexpr_beq e12 e22
-  | PappN o1 es1, PappN o2 es2 =>
-    (o1 == o2) && all2 pexpr_beq es1 es2
-  | Pif t1 b1 e11 e12, Pif t2 b2 e21 e22  =>
-     (t1 == t2) && pexpr_beq b1 b2 && pexpr_beq e11 e21 && pexpr_beq e12 e22
-  | _, _ => false
-  end.
-
-Lemma pexpr_eq_axiom : Equality.axiom pexpr_beq.
-Proof.
-  rewrite /Equality.axiom.
-  fix Hrec 1; move =>
-    [n1|b1|n1|x1|aa1 w1 x1 e1|aa1 w1 x1 e1 len1|w1 x1 e1|o1 e1|o1 e11 e12|o1 es1|st1 t1 e11 e12]
-    [n2|b2|n2|x2|aa2 w2 x2 e2|aa2 w2 x2 e2 len2|w2 x2 e2|o2 e2|o2 e21 e22|o2 es2|st2 t2 e21 e22] /=;
-  try by constructor.
-  + by apply (iffP idP) => [|[]] /eqP ->.
-  + by apply (iffP idP) => [|[]] /eqP ->.
-  + by apply (iffP idP) => [|[]] /eqP ->.
-  + by apply (iffP idP) => [|[]] /eqP ->.
-  + by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /Hrec ->.
-  + by apply (iffP idP) => [/andP[]/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP -> /Hrec ->.
-  + by apply (iffP idP) => [/andP[]/andP[] | []] /eqP -> /eqP -> /Hrec ->.
-  + by apply (iffP idP) => [/andP[] | []] /eqP -> /Hrec ->.
-  + by apply (iffP idP) => [/andP[]/andP[] | []] /eqP -> /Hrec -> /Hrec ->.
-  + by apply (iffP idP) => [/andP[] | []] /eqP -> /(reflect_all2_eqb Hrec) ->.
-  by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /Hrec -> /Hrec -> /Hrec ->.
-Qed.
-
-Definition pexpr_eqMixin := Equality.Mixin pexpr_eq_axiom.
-Canonical  pexpr_eqType  := Eval hnf in EqType pexpr pexpr_eqMixin.
-
 (* ** Left values
  * -------------------------------------------------------------------- *)
 
@@ -386,32 +318,6 @@ Variant lval : Type :=
 Coercion Lvar : var_i >-> lval.
 
 Notation lvals := (seq lval).
-
-Definition lval_beq (x1:lval) (x2:lval) :=
-  match x1, x2 with
-  | Lnone i1 t1, Lnone i2 t2 => (i1 == i2) && (t1 == t2)
-  | Lvar  x1   , Lvar  x2    => x1 == x2
-  | Lmem w1 x1 e1, Lmem w2 x2 e2 => (w1 == w2) && (x1 == x2) && (e1 == e2)
-  | Laset aa1 w1 x1 e1, Laset aa2 w2 x2 e2 => (aa1 == aa2) && (w1 == w2) && (x1 == x2) && (e1 == e2)
-  | Lasub aa1 w1 len1 x1 e1, Lasub aa2 w2 len2 x2 e2 => (aa1 == aa2) && (w1 == w2) && (len1 == len2) && (x1 == x2) && (e1 == e2)
-  | _          , _           => false
-  end.
-
-Lemma lval_eq_axiom : Equality.axiom lval_beq.
-Proof.
-  case=>
-    [i1 t1|x1|w1 x1 e1|aa1 w1 x1 e1|aa1 w1 len1 x1 e1]
-    [i2 t2|x2|w2 x2 e2|aa2 w2 x2 e2|aa2 w2 len2 x2 e2] /=;
-  try by constructor.
-  + by apply (iffP idP) => [/andP[] | []] /eqP -> /eqP ->.
-  + by apply (iffP idP) => [| []] /eqP ->.
-  + by apply (iffP idP) => [/andP[]/andP[] | []] /eqP -> /eqP -> /eqP ->.
-  + by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP ->.
-  by apply (iffP idP) => [/andP[]/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP -> /eqP ->.
-Qed.
-
-Definition lval_eqMixin     := Equality.Mixin lval_eq_axiom.
-Canonical  lval_eqType      := Eval hnf in EqType lval lval_eqMixin.
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)
