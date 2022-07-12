@@ -75,7 +75,6 @@ let pp_vty fmt = function
   | Indirect ((n1, s1), (n2, s2))  ->
       Format.fprintf fmt "Address: (n: %a, s: %a); Value: (n: %a, s: %a)"
         Lvl.pp n1 Lvl.pp s1 Lvl.pp n2 Lvl.pp s2
-    (* TODO: ensure first component is address and second value *)
 
 type vfty =
   | IsMsf
@@ -90,6 +89,7 @@ type ty_fun = {
     tyin        : vfty list;
     tyout       : vfty list;
     constraints : C.constraints;
+    input_corruption : VlPairs.t; (* resulting memory corruption after function call *)
     resulting_corruption : VlPairs.t (* resulting memory corruption after function call *)
   }
 
@@ -110,11 +110,17 @@ let pp_modmsf fmt modmsf =
   Format.fprintf fmt "%s" (if modmsf then "modmsf" else "nomodmsf")
 
 let pp_funty fmt (fname, tyfun) =
-  Format.fprintf fmt "@[<v>%a %s : @[%a@] -> @[%a@]@   constraints: @[%a@]@]"
+  Format.fprintf fmt
+    "@[<v>%a %s : @[%a@] -> @[%a@]@ \
+      input corruption: %a@.\
+      output corruption: %a@.\
+      @ constraints: @[%a@]@]@."
     pp_modmsf tyfun.modmsf
     fname
     (pp_list " *@ " pp_vfty) tyfun.tyin
     (pp_list " *@ " pp_vfty) tyfun.tyout
+    pp_vty (Direct (tyfun.input_corruption))
+    pp_vty (Direct (tyfun.resulting_corruption))
     C.pp tyfun.constraints
 
 
@@ -324,15 +330,16 @@ module Env : sig
   val get_msf_oracle : env -> (L.i_loc, Sv.t) Hashtbl.t
   val msf_oracle : env -> L.i_loc -> Sv.t
 
-  val freshen : ?min:Constraints.VlPairs.t -> env -> Sv.t -> venv -> venv
+  val freshen : ?min:Constraints.VlPairs.t -> env -> venv -> venv
   val ensure_le : L.t -> venv -> venv -> unit
-  val clone_for_call : env -> ty_fun -> vfty list * vfty list * VlPairs.t
-          (* output type, input type, output corruption *)
+  val clone_for_call : env -> ty_fun -> vfty list * vfty list * VlPairs.t * VlPairs.t
+          (* output type, input type, input corruption, output corruption *)
 
   val corruption : env -> venv -> VlPairs.t -> venv
   val corruption_speculative : env -> venv -> VlPairs.t -> venv
 
   val get_resulting_corruption : venv -> VlPairs.t
+  val get_input_corruption : venv -> VlPairs.t
 
 end = struct
 
@@ -345,12 +352,13 @@ end = struct
   type venv = {
       vtype : vty Mv.t;
       vars : Sv.t;
+      input_corruption : VlPairs.t; (* only used for global variables, as they
+      are the only ones that have been potentially affected by caller function *)
       resulting_corruption : VlPairs.t;
     }
 
   let init () =
-    let constraints = C.init () in
-    { constraints;
+    { constraints = C.init ();
       strictness = Hv.create 97;
       msf_oracle = Hashtbl.create 97; }
 
@@ -374,13 +382,16 @@ end = struct
   let empty env = {
       vtype = Mv.empty;
       vars = Sv.empty;
-      resulting_corruption = fresh2 env
+      resulting_corruption = fresh2 env;
+      input_corruption = fresh2 env;
     }
 
-  let get venv x = try 
-      (* TODO debug command *)
-       warning Always (L.i_loc0 x.v_dloc) "lookup for variable %a" pp_var x;
-    Mv.find x venv.vtype with Not_found -> assert false
+  let get venv x =
+    try match x.v_kind with
+    | Global -> Direct venv.input_corruption
+    | _ -> Mv.find x venv.vtype
+    with Not_found -> assert false
+
   let get_i venv x = get venv (L.unloc x)
   let gget venv x = get_i venv x.gv
 
@@ -394,13 +405,17 @@ end = struct
     | _ -> assert false
 
   let init_ty env venv x xty =
-    let public2 = public2 env in
+      (* TODO debug command *)
+      (* warning Always (L.i_loc0 x.v_dloc) "initialisaing variable %a" pp_var x; *)
     let nxty =
+      let public2 = public2 env in
       match x.v_kind, xty with
       | Const, Direct le -> VlPairs.add_le le public2; xty
       | Inline, Direct le -> VlPairs.add_le le public2; xty
+      (* likely unused as global definitions are not part of functions and thus
+         not parsed by the parser below *)
+      | Global, Direct le  -> VlPairs.add_le venv.input_corruption le; xty
 
-      | Global, Direct _ 
       | Stack Direct, Direct _ 
       | Stack (Pointer _), Indirect _
       | Reg (_, Direct), Direct _
@@ -434,7 +449,7 @@ end = struct
     with Lvl.Unsat _unsat ->
       Pt.rs_tyerror ~loc:(L.loc x)
         (Pt.string_error
-           "%a has strict type %a it cannot receive a value of type %a, this leads to unsatisfiable constraints"
+           "%a has strict type %a, it cannot receive a value of type %a"
            pp_var_i x pp_vty xty pp_vty nxty)
 
   (* Initialises type for InitMsf operations. Acts as a Fence operator *)
@@ -464,9 +479,8 @@ end = struct
       | Indirect(lp1, le1), Indirect(lp2, le2) -> Some (Indirect (merge lp1 lp2, merge le1 le2))
       | _ -> assert false
     in
-    {
+    { venv1 with
       vtype = Mv.merge merge_var venv1.vtype venv2.vtype;
-      vars = venv1.vars;
       resulting_corruption = merge venv1.resulting_corruption venv2.resulting_corruption
     }
 
@@ -475,14 +489,13 @@ end = struct
   let msf_oracle env loc =
     try Hashtbl.find env.msf_oracle loc with Not_found -> assert false
 
-  (* freshen variables in list xs in environment env, venv *)
-  let freshen ?min env xs venv =
+  (* freshen variables in set xs in environment env, venv *)
+  let freshen ?min env venv =
     let fresh kind le =
       let l = fresh2 env in
-      VlPairs.add_le le l;
       begin match kind, min with
-      | Reg _, _ -> ()
-      | _ (* in memory *), Some ty -> VlPairs.add_le ty l
+      | Global, Some ty (* likely unused as global variables are not in venv.vars *)
+      | Stack _, Some ty -> VlPairs.add_le ty l; VlPairs.add_le le l
       | _ -> ()
       end; l in
     { venv with vtype = Sv.fold (fun x vtype -> let ty =
@@ -490,14 +503,14 @@ end = struct
           match Mv.find x vtype with
           | Direct le -> Direct (fresh le)
           | Indirect(lp, le) -> Indirect(fresh lp, fresh le) in
-        Mv.add x ty vtype) xs venv.vtype }
+        Mv.add x ty vtype) venv.vars venv.vtype }
 
   let ensure_le loc venv1 venv2 =
     let add_le_silent _ oty1 oty2 = add_le_var (oget oty1) (oget oty2); None in
     try ignore (Mv.merge add_le_silent venv1.vtype venv2.vtype)
     with Lvl.Unsat _unsat ->
       Pt.rs_tyerror ~loc
-        (Pt.string_error "constraints caused by the loop/branch cannot be satisfied")
+        (Pt.string_error "constraints caused by the loop cannot be satisfied")
 
   let clone_for_call (env:env) (tyfun:ty_fun) =
     let subst1 = C.clone tyfun.constraints env.constraints in
@@ -510,15 +523,16 @@ end = struct
             | Indirect(lp, le) -> Indirect(subst lp, subst le) in
           IsNormal ty in
     List.map subst_ty tyfun.tyout, List.map subst_ty tyfun.tyin,
-    subst tyfun.resulting_corruption
+    subst tyfun.input_corruption, subst tyfun.resulting_corruption
 
   let corruption env venv ty =
     VlPairs.add_le ty venv.resulting_corruption; (* update corruption level *)
-    freshen ?min:(Some ty) env venv.vars venv
+    freshen ?min:(Some ty) env venv
 
   let corruption_speculative env venv (_, s) = corruption env venv (public env, s)
 
   let get_resulting_corruption venv = venv.resulting_corruption
+  let get_input_corruption venv = venv.input_corruption
 end
 
 
@@ -606,13 +620,11 @@ and ensure_smaller env venv loc e l =
 
 and ensure_public env venv loc e = ensure_smaller env venv loc e (Env.public2 env)
 
-(* this extra function is needed due to the fact that Pget expect a gvar and
-   Pload a var_i, which prevents embedding the variable in a Pvar in order to
-   use ensure_public *)
 and ensure_public_address env venv loc x = 
   let ety = Env.get_i venv x in
   match ety with
-  | Direct le | Indirect (le, _) -> try VlPairs.add_le le (Env.public2 env)
+  | Direct _ -> () (* stack or reg arrays have public addresses by definition *)
+  | Indirect (le, _) -> try VlPairs.add_le le (Env.public2 env)
       with Lvl.Unsat unsat -> error_unsat loc unsat pp_var_i x ety (Direct (Env.public2 env))
 
 and ty_exprs_max env venv loc es : vty =
@@ -750,6 +762,7 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
          points to a new position, where the expression is *)
       (* as opposed to assigning the pointer directly to the given value *)
       (* likewise, assuming x = p means storing the value pointed by p in x *)
+      (* what with p = [ x ]? I believe it does not compile *)
       let lp, le =
         match ety with
         | Direct le -> Env.public2 env, le
@@ -903,8 +916,8 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       ensure_public env venv loc e2;
 
       let msf = MSF.loop env i.i_loc msf in
-      let w, _ = written_vars [i] in
-      let venv1 = Env.freshen env w venv in (* venv <= venv1 *)
+      (* let w, _ = written_vars [i] in *)
+      let venv1 = Env.freshen env venv in (* venv <= venv1 *)
       let msf_e = ty_lval env (msf, venv1) (Lvar x) (Env.dpublic env) in
       let (msf', venv') = ty_cmd fenv env msf_e c in
       let msf' = MSF.end_loop loc msf msf' in
@@ -912,7 +925,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
       msf', venv1
 
   | Cwhile(_, c1, e, c2) ->
-    (* c1; while e do c2; c1 *)
+    (* c1; while e do (c2; c1) *)
     (* env, msf <= env1, msf1
        env1, msf1 |- c1 : msf2, env2   env2 |- e : public
        env2, enter_if e msf2 |- c2 : env1, msf1
@@ -921,8 +934,13 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
      *)
     ensure_public env venv loc e;
     let msf1 = MSF.loop env i.i_loc msf in
-    let w, _ = written_vars [i] in
-    let venv1 = Env.freshen env w venv in (* venv <= venv1 *)
+    (* let w, _ = written_vars [i] in *)
+    (* NOTE cannot restrict refreshed variables to local modified vars 
+       because of memory corruption: if loop body corrupts some stack variable
+       constrained to public, the test fails, while marking all stack variables
+       as secret is sufficient *)
+
+    let venv1 = Env.freshen env venv in (* venv <= venv1 *)
     let (msf2, venv2) = ty_cmd fenv env (msf1, venv1) c1 in
     let (msf', venv') = ty_cmd fenv env (MSF.enter_if msf2 e, venv2) c2 in
     let msf' = MSF.end_loop loc msf1 msf' in
@@ -932,9 +950,13 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
   | Ccall (_, xs, f, es) ->
     let fty = FEnv.get_fty fenv f in
     let modmsf = fty.modmsf in
-    let tyout, tyin, corruption_level = Env.clone_for_call env fty in
-    let venv = Env.corruption env venv corruption_level in
+    let tyout, tyin, input_corruption, resulting_corruption = Env.clone_for_call env fty in
 
+    (* corruption so far has effect on callee function *)
+    VlPairs.add_le (Env.get_resulting_corruption venv) input_corruption;
+
+    (* callee function has its own effect on this function corruption *)
+    let venv = Env.corruption env venv resulting_corruption in
     let input_ty e vfty =
       match vfty with
       | IsMsf ->
@@ -1305,6 +1327,9 @@ and ty_fun_infer fenv fn =
       else (le_ty (Env.get_i venv x) ty; IsNormal ty) in
 
   let tyout = List.map2 doout f.f_ret tyout in
+  let resulting_corruption = Env.get_resulting_corruption venv in
+  let input_corruption = Env.get_input_corruption venv in
+  let (n1, s1), (n2, s2) = resulting_corruption, input_corruption in
 
   let constraints = Env.constraints env in
   let add ls vty =
@@ -1312,14 +1337,13 @@ and ty_fun_infer fenv fn =
     | IsMsf -> ls
     | IsNormal (Direct (n, s)) -> n :: s :: ls
     | IsNormal (Indirect ((np, sp), (ne, se))) -> np :: sp :: ne :: se :: ls in
-  let to_keep = List.fold_left add (List.fold_left add [] tyin) tyout in
+  let to_keep = List.fold_left add (List.fold_left add [n1; s1; n2; s2] tyin) tyout in
 
   C.prune constraints to_keep;
-  let resulting_corruption = Env.get_resulting_corruption venv in
-  let fty = { modmsf; tyin; tyout; constraints; resulting_corruption } in
+  let fty = { modmsf; tyin; tyout; constraints; resulting_corruption; input_corruption } in
   Format.eprintf "%a@." pp_funty (f.f_name.fn_name, fty);
-  let tomax = List.fold_left add [] tyin in
-  let tomin = List.fold_left add [] tyout in
+  let tomax = List.fold_left add [n2; s2] tyin in
+  let tomin = List.fold_left add [n1; s1] tyout in
   C.optimize constraints ~tomin ~tomax;
   Format.eprintf "after optimization:@.%a@." pp_funty (f.f_name.fn_name, fty);
   fty
