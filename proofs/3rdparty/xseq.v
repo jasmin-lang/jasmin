@@ -131,7 +131,18 @@ End InjAssoc.
 
 (* -------------------------------------------------------------------- *)
 Section AssocMap.
-Context (T: eqType) (U V: Type) (f: U → V) (g: T → U → V).
+Context (T: eqType) (U V: Type) (f: U → V) (g: T → U → V) (h: T * U → T * V).
+
+Lemma assoc_mapE m n :
+  (∀ n u, (h (n, u)).1 = n) →
+  assoc (map h m) n = omap (λ u, (h (n, u)).2) (assoc m n).
+Proof.
+  move => E.
+  elim: m => // - [] t u m /= ->.
+  case htu: h (E t u) => [ ? v ] /= ?; subst.
+  case: eqP => //= ->.
+  by rewrite htu.
+Qed.
 
 Lemma assoc_map m (n: T) :
   assoc [seq (x.1, f x.2) | x <- m] n = omap f (assoc m n).
