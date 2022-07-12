@@ -30,10 +30,7 @@ Section LprogSemProps.
     end.
 
   Definition is_cond pe l c :=
-    match li_i c with
-    | Lcond pe' l' => (pe == pe') && (l == l')
-    | _ => false
-    end.
+    li_i c = Lcond pe l.
 
   Definition li_is_label c :=
     if li_i c is Llabel _ then true else false.
@@ -1099,7 +1096,7 @@ Section TunnelingSem.
         by rewrite eq_sym in Hneq; rewrite Hneq Bool.andb_false_r.
       subst l''; set c:= MkLI _ _.
       move: (@FT_CondLabelLabel p s (lfn s) pc (Some c) fd c pe l l').
-      by rewrite eq_refl /= => HFT; apply HFT => //; rewrite /c /is_cond /= !eq_refl.
+      by rewrite eq_refl /= => HFT; apply: HFT.
     + rewrite /tunnel_head onth_map; case Honth: (onth _ _) => [[ii i]|]; last first.
       - by move => Hpc HSpc; apply FT_Otherwise; rewrite Hgfd eq_refl.
       case: i Honth => [? ? ?|?| |?|[fn l'']|?|? ?|pe l''] /= Honth Hpc HSpc /=.
@@ -1129,7 +1126,7 @@ Section TunnelingSem.
         by rewrite eq_sym in Hneq; rewrite Hneq Bool.andb_false_r.
       subst l''; set c:= MkLI _ _.
       move: (@FT_CondLabelGoto p s (lfn s) pc (Some c) fd c pe l l').
-      by rewrite eq_refl /= => HFT; apply HFT => //; rewrite /c /is_cond /= !eq_refl.
+      by rewrite eq_refl /= => HFT; apply: HFT.
     + apply FT_Otherwise; rewrite Hgfd eq_refl /=; move: Hpc HSpc => /=.
       set c:= nth _ _ _; set c':= nth _ _ _; move: c c' => [ii i] [ii' i'].
       case: i => //= l'' /eqP ?; subst l''.
@@ -1297,7 +1294,7 @@ Section TunnelingProof.
       have Hwfb:= (get_fundef_well_formed_funcs_body Hgfd Hwf).
       move: (Hwfb) => /andP [Huniql Hallg].
       rewrite eval_instr_tunnel_lprog_pc //; case: c Hfindinstr => ii [] //=.
-      move => pe' l'' Hfindinstr /andP [/eqP ? /eqP ?]; subst pe' l''.
+      move => pe' l'' Hfindinstr [ ? ? ]; subst pe' l''.
       rewrite {1 2 3}/eval_instr /= => Hpc HSpc; t_xrbindP => b v Hv Hb.
       rewrite Hv /= Hb /=; case: ifP => [HisTb|]; last by left.
       rewrite Hgfd /=; case: pc Hpc HSpc => [//=|pc] Hpc HSpc; rewrite /= in Hpc.
@@ -1330,7 +1327,7 @@ Section TunnelingProof.
       have Hwfb:= (get_fundef_well_formed_funcs_body Hgfd Hwf).
       move: (Hwfb) => /andP [Huniql Hallg].
       rewrite eval_instr_tunnel_lprog_pc //; case: c Hfindinstr => ii [] //=.
-      move => pe' l'' Hfindinstr /andP [/eqP ? /eqP ?]; subst pe' l''.
+      move => pe' l'' Hfindinstr [ ? ? ]; subst pe' l''.
       rewrite {1 2 3}/eval_instr /= => Hpc HSpc; t_xrbindP => b v Hv Hb.
       rewrite Hv /= Hb /=; case: ifP => [HisTb|]; last by left.
       rewrite Hgfd /=; case: pc Hpc HSpc => [//=|pc] Hpc HSpc; rewrite /= in Hpc.
@@ -1391,7 +1388,7 @@ Section TunnelingProof.
       have Hwfb:= (get_fundef_well_formed_funcs_body Hgfd Hwf).
       move: (Hwfb) => /andP [Huniql Hallg].
       rewrite eval_instr_tunnel_lprog_pc //; case: c Hfindinstr => ii [] //=.
-      move => pe' l'' Hfindinstr /andP [/eqP ? /eqP ?]; subst pe' l''.
+      move => pe' l'' Hfindinstr [ ? ? ]; subst pe' l''.
       rewrite {1 2 4}/eval_instr /= => Hpc HSpc; t_xrbindP => b v Hv Hb.
       rewrite Hv /= Hb /=; case: ifP => [HisTb|]; last by left.
       rewrite Hgfd /=; case: pc Hpc HSpc => [//=|pc] Hpc HSpc; rewrite /= in Hpc.
@@ -1442,7 +1439,7 @@ Section TunnelingProof.
       have Hwfb:= (get_fundef_well_formed_funcs_body Hgfd Hwf).
       move: (Hwfb) => /andP [Huniql Hallg].
       rewrite eval_instr_tunnel_lprog_pc //; case: c Hfindinstr => ii [] //=.
-      move => pe' l'' Hfindinstr /andP [/eqP ? /eqP ?]; subst pe' l''.
+      move => pe' l'' Hfindinstr [ ? ? ]; subst pe' l''.
       rewrite {1 2 4}/eval_instr /= => Hpc HSpc; t_xrbindP => b v Hv Hb.
       rewrite Hv /= Hb /=; case: ifP => [HisTb|]; last by left.
       rewrite Hgfd /=; case: pc Hpc HSpc => [//=|pc] Hpc HSpc; rewrite /= in Hpc.
