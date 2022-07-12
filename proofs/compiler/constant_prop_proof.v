@@ -714,8 +714,8 @@ Proof.
   + by move=> ?? -> ? ->.
   + move => op es h; f_equal.
     elim: es h => // e es ih rec /=; f_equal.
-    - by apply: rec; rewrite in_cons eqxx.
-    by apply: ih => e' he'; apply: rec; rewrite in_cons he' orbT.
+    - by apply: rec; left.
+    by apply: ih => e' he'; apply: rec; right.
   by move=> ?? -> ? -> ? ->.
 Qed.
 

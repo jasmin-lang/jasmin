@@ -21,21 +21,16 @@ Section PEXPR_IND.
     (Hload: ∀ sz x e, P e → P (Pload sz x e))
     (Happ1: ∀ op e, P e → P (Papp1 op e))
     (Happ2: ∀ op e1, P e1 → ∀ e2, P e2 → P (Papp2 op e1 e2))
-    (HappN: ∀ op es, (∀ e, e \in es → P e) → P (PappN op es))
+    (HappN: ∀ op es, (∀ e, List.In e es → P e) → P (PappN op es))
     (Hif: ∀ t e, P e → ∀ e1, P e1 → ∀ e2, P e2 → P (Pif t e e1 e2))
   .
 
-  Definition pexpr_ind_rec (f: ∀ e, P e) : ∀ es : pexprs, ∀ e, e \in es → P e.
-  refine
-    (fix loop es :=
-       if es is e :: es'
-       then λ (e: pexpr), _
-       else λ e (k: e \in [::]), False_ind _ (Bool.diff_false_true k)
-    ).
-  rewrite in_cons; case/orP.
-  + move => /eqP -> ; exact: f.
-  apply: loop.
-  Defined.
+  Definition pexpr_ind_rec (f: ∀ e, P e) : ∀ es : pexprs, ∀ e, List.In e es → P e :=
+    fix loop es :=
+      if es is e' :: es'
+      then λ (e: pexpr) (k: List.In e (e' :: es')),
+        match  List.in_inv k with or_introl a => ecast x (P x) a (f e') | or_intror b => loop _ _ b end
+      else λ e (k: List.In e [::]), False_ind _ (List.in_nil k).
 
   Fixpoint pexpr_ind (e: pexpr) : P e :=
     match e with
@@ -341,10 +336,10 @@ Proof.
     + rewrite ih.
       + by clear; SvD.fsetdec.
       move => e' he' s'; apply: Hes.
-      by rewrite in_cons he' orbT.
-    by rewrite in_cons eqxx.
+      by right.
+    by left.
   move => e' he' s'; apply: Hes.
-  by rewrite in_cons he' orbT.
+  by right.
 Qed.
 
 Lemma read_e_var (x:gvar) : Sv.Equal (read_e (Pvar x))(read_gvar x).
@@ -515,8 +510,8 @@ Proof.
 elim: e => //= [ ? | ???? -> | ????? -> |??? -> | ?? -> | ?? -> ? -> | ? es ih | ??-> ? -> ? -> ] //=;
   rewrite ?eqxx ?eq_gvar_refl //=.
 elim: es ih => // e es ih h /=; rewrite h.
-+ by apply: ih => e' he'; apply: h; rewrite in_cons he' orbT.
-by rewrite in_cons eqxx.
++ by apply: ih => e' he'; apply: h; right.
+by left.
 Qed.
 
 Lemma eq_gvar_trans x2 x1 x3 : eq_gvar x1 x2 → eq_gvar x2 x3 → eq_gvar x1 x3.
@@ -548,8 +543,8 @@ Proof.
   + move=> o es1 hrec [] //= ? es2 [] ? es3 //=.
     move=> /andP[]/eqP-> h1 /andP[]/eqP-> h2;rewrite eqxx /=.
     elim: es1 hrec es2 es3 h1 h2 => [ | e1 es1 hrecs] hrec [] // e2 es2 [] //= e3 es3.
-    move=> /andP[]/hrec h1 /hrecs hs /andP[] /h1 ->; last by rewrite inE eqxx.
-    by move=> /hs -> // e hin; apply hrec; rewrite inE hin orbT.
+    move=> /andP[]/hrec h1 /hrecs hs /andP[] /h1 ->; last by left.
+    by move=> /hs -> // e hin; apply hrec; right.
   move=> ?? hrec ? hrec1 ? hrec2 []//= ???? []//= ????.
   move=> /andP[]/andP[]/andP[] /eqP-> /hrec h /hrec1 h1 /hrec2 h2.
   by move=> /andP[]/andP[]/andP[] /eqP-> /h -> /h1 -> /h2 ->; rewrite eqxx.

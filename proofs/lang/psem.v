@@ -1627,7 +1627,7 @@ Qed.
 Lemma sem_pexpr_uincl_on_rec gd s1 vm2 es vs1 :
   vmap_uincl_on (read_es es) s1.(evm) vm2 →
   sem_pexprs gd s1 es = ok vs1 →
-  (∀ e : pexpr, e \in es →
+  (∀ e : pexpr, List.In e es →
    ∀ v1 : value,
      vmap_uincl_on (read_e e) (evm s1) vm2 →
      sem_pexpr gd s1 e = ok v1 →
@@ -1644,10 +1644,10 @@ Proof.
   rewrite read_es_cons => /vmap_uincl_on_union[] hvm /ih{ih}ih /=.
   t_xrbindP => v ok_v vs ok_vs <-{vs1} rec.
   move: ih => /(_ _ ok_vs) [].
-  + by move => e' he'; apply: rec; rewrite in_cons he' orbT.
+  + by move => e' he'; apply: rec; right.
   move => vs' ok_vs' hs.
   move: rec => /(_ e _ _ hvm ok_v) [].
-  + by rewrite in_cons eqxx.
+  + by left.
   move => v' ok_v' h.
   exists (v' :: vs').
   + by rewrite ok_v' ok_vs'.
@@ -2046,7 +2046,7 @@ Qed.
 
 Lemma  get_vars_uincl_on dom (xs: seq var_i) vm1 vm2 vs1:
   vmap_uincl_on dom vm1 vm2 ->
-  (∀ x, x \in xs → Sv.mem x dom) →
+  (∀ x, List.In x xs → Sv.mem x dom) →
   mapM (fun x => get_var vm1 (v_var x)) xs = ok vs1 ->
   exists2 vs2,
     mapM (fun x => get_var vm2 (v_var x)) xs = ok vs2 & List.Forall2 value_uincl vs1 vs2.
@@ -2054,10 +2054,10 @@ Proof.
   move => hvm; elim: xs vs1 => [ | x xs Hrec] /= ? hdom.
   + by move=> [<-]; exists [::].
   apply: rbindP => v1 /get_var_uincl_at - /(_ vm2) [ | v2 -> ? ].
-  + by apply: hvm; rewrite -Sv.mem_spec; apply: hdom; rewrite inE eqxx.
+  + by apply: hvm; rewrite -Sv.mem_spec; apply: hdom; left.
   apply: rbindP => vs1 /Hrec{Hrec}ih [<-] /=.
   case: ih.
-  + by move => y hy; apply: hdom; rewrite inE hy orbT.
+  + by move => y hy; apply: hdom; right.
   move => vs2 -> ih; exists (v2 :: vs2); first reflexivity.
   by constructor.
 Qed.
@@ -2070,7 +2070,8 @@ Lemma get_vars_uincl (xs:seq var_i) vm1 vm2 vs1:
 Proof.
   move => hvm; apply: (@get_vars_uincl_on (sv_of_list v_var xs)).
   + exact: vm_uincl_vmap_uincl_on hvm.
-  by move => /= y hy; rewrite sv_of_listE; apply map_f.
+  move => /= y hy; rewrite sv_of_listE; apply/in_map.
+  by exists y.
 Qed.
 
 (* can be merged with sem_pexpr_uincl_on *)
@@ -2451,17 +2452,17 @@ Qed.
 End UNDEFINCL.
 
 Lemma eq_expr_recP gd s (es es': pexprs) :
-  (∀ e : pexpr, e \in es →
+  (∀ e : pexpr, List.In e es →
    ∀ e' : pexpr, eq_expr e e' → sem_pexpr gd s e = sem_pexpr gd s e') →
   all2 eq_expr es es' →
   sem_pexprs gd s es = sem_pexprs gd s es'.
 Proof.
   elim: es es'; first by case.
   move => e es ih [] //= e' es' rec /andP [] he hes.
-  rewrite (rec e _ e' he); last by rewrite in_cons eqxx.
+  rewrite (rec e _ e' he); last by left.
   case: (sem_pexpr _ _ e') => //= v.
   rewrite (ih es') // => q hq q' hq'.
-  by apply: rec => //; rewrite in_cons hq orbT.
+  by apply: rec => //; right.
 Qed.
 
 Lemma eq_gvarP gd vm x x' : eq_gvar x x' → get_gvar gd vm x = get_gvar gd vm x'.
