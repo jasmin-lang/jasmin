@@ -501,7 +501,7 @@ Section LEMMA.
   Lemma Hwhile_true: sem_Ind_while_true p global_data Pc Pi_r.
   Proof.
     move => s1 s2 s3 s4 a c e c' sexec ih he sexec' ih' sexec_loop rec sz ii I O t1 /check_ir_CwhileP.
-    case: eqP; first by move => ?; subst e.
+    case: is_falseP; first by move => ?; subst e.
     move => _ [D1] [D2] [ check_c check_e check_c' checked [X Y] ] no_free_register pre sim.
     have pre1 : merged_vmap_precondition (write_c c) sz (emem s1) (evm t1).
     - apply: merged_vmap_preconditionI pre.
@@ -564,7 +564,7 @@ Section LEMMA.
       rewrite write_i_while.
       move: (write_c c) (write_c c'); clear. (* SvD.fsetdec faster *)
       by SvD.fsetdec.
-    case: eqP checked.
+    case: is_falseP checked.
     { (* Condition is litteral “false” *)
       move => ? checked; subst e.
       have [ t2 [ k texec hk ] sim2 ] := ih sz I O t1 checked pre1 sim.

@@ -581,3 +581,22 @@ Lemma eq_expr_app1 o1 o2 e1 e2 :
      eq_expr (Papp1 o1 e1) (Papp1 o2 e2)
   -> [/\ o1 = o2 & eq_expr e1 e2].
 Proof. by move=> /= /andP[/eqP-> ->]. Qed.
+
+(* ------------------------------------------------------------------- *)
+Lemma is_falseP e : reflect (e = Pbool false) (is_false e).
+Proof.
+  case: e; try by right.
+  by case; constructor.
+Qed.
+
+Lemma is_zeroP sz e : reflect (e = @wconst sz 0) (is_zero sz e).
+Proof.
+  case: e; try by right.
+  case; try by right.
+  move => sz' []; try by right.
+  case; try by right.
+  rewrite /=.
+  case: eqP.
+  - by move => <-; left.
+  by move => ne; right => - [].
+Qed.

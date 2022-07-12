@@ -449,7 +449,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
        ; MkI ii (Copn [:: x ] tg (Ox86 (MOV szty)) [:: Plvar c ]) ]
     else
       (* IF e is 0 then use Oset0 instruction *)
-      if (e == @wconst szty 0) && ~~ is_lval_in_memory x && options.(use_set0) then
+      if (is_zero szty e) && ~~ is_lval_in_memory x && options.(use_set0) then
         if (szty <= U64)%CMP then
           [:: MkI ii (Copn [:: f ; f ; f ; f ; f ; x] tg (Oasm (ExtOp (Oset0 szty))) [::]) ]
         else
@@ -478,12 +478,12 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
         if sc == 1%R then
           (* b + o *)
           [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; o])]
-        else if b == @wconst sz 0 then
+        else if is_zero sz b then
           (* sc * o *)
           let (op, args) := mulr sz o sce in
           map (MkI ii) (opn_5flags (Some U32) vi f x tg (Ox86 op) args)
         else lea tt
-      else if o == @wconst sz 0 then
+      else if is_zero sz o then
           (* d + b *)
           if d == 1%R then inc (Ox86 (INC sz)) b
           else

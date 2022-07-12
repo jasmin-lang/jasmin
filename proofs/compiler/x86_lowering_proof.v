@@ -1187,7 +1187,7 @@ Section PROOF.
           by rewrite /sem_sopn /sem_pexprs/= /get_gvar /get_var Fv.setP_eq /= /exec_sopn /sopn_sem /= /truncate_word cmp_le_refl /x86_MOV /check_size_8_64 hle' /= zero_extend_u /= -/ℓ -hw hℓ'.
         by eauto using eq_exc_freshT.
       * exists s2'; split=> //=.
-        case: ifP => [/andP [] /andP [] /eqP he ??| _ ];first last.
+        case: ifP => [/andP [] /andP [] /is_zeroP he ??| _ ];first last.
         - apply/sem_seq1/EmkI/mov_wsP => //.
           + by rewrite h /= /truncate_word hsz.
           by rewrite -hw.
@@ -1240,7 +1240,7 @@ Section PROOF.
         + subst sc; exists s2'; split => //; apply sem_seq1; constructor; constructor.
           move: Hw'; rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /= Hvb Hvo /= Hwb Hwo /= /x86_ADD /=.
           by rewrite /check_size_8_64 hsz2 /= zero_extend0 zero_extend1 GRing.add0r GRing.mul1r => ->.
-        case: eqP => [ Eob | _ ]; last by exists s2'.
+        case: is_zeroP => [ Eob | _ ]; last by exists s2'.
         case Heq : mulr => [o1 e'].
         move: Hvb; rewrite Eob /= /sem_sop1 /= => -[?]; subst vb.
         have [sz1 [w1 [hle1 ??]]]:= to_wordI' Hwo;subst vo wo.
@@ -1258,7 +1258,7 @@ Section PROOF.
           by case: (o) => [ ?|]; rewrite /= /read_e /=;SvD.fsetdec.
         + by apply Hdisjl.
         by move=> s2'' []; eauto using eq_exc_freshT.
-      case: eqP => [ Eoo | _]; last by exists s2'.
+      case: is_zeroP => [ Eoo | _]; last by exists s2'.
       move: Hvo Hwo Hw'; rewrite Eoo => - [<-] {Eoo oo elea Hlea Hlea'}.
       rewrite wrepr_unsigned /= truncate_word_u => - [?]; subst wo.
       rewrite GRing.mulr0 GRing.addr0 GRing.addrC => Hw'.

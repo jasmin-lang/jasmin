@@ -1622,7 +1622,7 @@ Section PROOF.
     set ι := λ i, {| li_ii := ii ; li_i := i |}.
     have {Hw} := Hw fn lbl.
     rewrite /checked_i ok_fd /=.
-    case: eqP.
+    case: is_falseP.
     - by move => ?; subst e.
     t_xrbindP => e_neq_false Hw ok_c ok_c'.
     move: Hw.
@@ -1864,7 +1864,7 @@ Section PROOF.
   Local Lemma Hwhile_false : sem_Ind_while_false p extra_free_registers var_tmp Pc Pi_r.
   Proof.
     move => ii k s1 s2 a c e c' Ec Hc; rewrite p_globs_nil => ok_e fn lbl /checked_iE[] fd ok_fd /=.
-    case: eqP.
+    case: is_falseP.
     { (* expression is the “false” literal *)
       move => ?; subst e.
       move => ok_c /=.
