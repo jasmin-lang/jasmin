@@ -94,7 +94,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
     | Cfor _ _ _ =>
       Error (E.ii_error ii "for found in linear")
     | Cwhile _ c e c' =>
-      if e == Pbool false then check_c check_i c
+      if is_false e then check_c check_i c
       else check_c check_i c >> check_c check_i c'
     | Ccall _ xs fn es =>
       Let _ := assert (fn != this) (E.ii_error ii "call to self") in

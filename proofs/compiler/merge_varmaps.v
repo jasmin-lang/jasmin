@@ -221,7 +221,7 @@ Section CHECK.
     | Cfor _ _ _ =>
       Error (E.internal_error ii "for loop should be unrolled")
     | Cwhile _ c e c' =>
-      if e == Pbool false then check_c (check_i sz) D c
+      if is_false e then check_c (check_i sz) D c
       else wloop (check_i sz) ii c (read_e e) c' Loop.nb D
 
     | Ccall _ xs fn es =>
@@ -245,7 +245,7 @@ Section CHECK.
 
   Lemma check_ir_CwhileP sz ii aa c e c' D D' :
     check_ir sz ii D (Cwhile aa c e c') = ok D' →
-    if e == Pbool false
+    if is_false e
     then check_c (check_i sz) D c = ok D'
     else
       ∃ D1 D2,
@@ -255,7 +255,7 @@ Section CHECK.
             check_ir sz ii D1 (Cwhile aa c e c') = ok D' &
             Sv.Subset D D1 /\ Sv.Subset D2 D1 ].
   Proof.
-    rewrite /check_ir; case: eqP => // _; rewrite -/check_i.
+    rewrite /check_ir; case: is_falseP => // _; rewrite -/check_i.
     elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 he D2 h2.
     case: (equivP idP (Sv.subset_spec _ _)) => d.
     - case => ?; subst D1; exists D, D2; split => //; last by split.

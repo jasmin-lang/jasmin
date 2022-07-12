@@ -1039,3 +1039,10 @@ Definition eq_lval (x x': lval) : bool :=
 
 Definition to_lvals (l:seq var) : seq lval := 
   map (fun x => Lvar {|v_var := x; v_info := xH|}) l.
+
+(* ------------------------------------------------------------------- *)
+Definition is_false (e: pexpr) : bool :=
+  if e is Pbool false then true else false.
+
+Definition is_zero sz (e: pexpr) : bool :=
+  if e is Papp1 (Oword_of_int sz') (Pconst Z0) then sz' == sz else false.
