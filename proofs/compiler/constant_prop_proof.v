@@ -818,7 +818,7 @@ Section PROPER.
     case: const_prop_rvs => ??;case: const_prop_rvs => ?? [].
     rewrite /RelationPairs.RelCompFun /= => -> ->.
     split => //=; rewrite /RelationPairs.RelCompFun /=.
-    by do 3 f_equal;apply eq_in_map=> z _;rewrite Heq.
+    by do 3 f_equal; apply: map_ext => z _; rewrite Heq.
   Qed.
 
   Local Lemma Wsyscall xs o es: Pr (Csyscall xs o es).
@@ -828,7 +828,7 @@ Section PROPER.
     case: const_prop_rvs => ??;case: const_prop_rvs => ?? [].
     rewrite /RelationPairs.RelCompFun /= => -> ->.
     split => //=; rewrite /RelationPairs.RelCompFun /=.
-    by do 3 f_equal;apply eq_in_map=> z _;rewrite Heq.
+    by do 3 f_equal; apply: map_ext => z _; rewrite Heq.
   Qed.
 
   Local Lemma Wif e c1 c2: Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
@@ -878,7 +878,7 @@ Section PROPER.
     case: const_prop_rvs => ??;case: const_prop_rvs => ?? [].
     rewrite /RelationPairs.RelCompFun /= => -> ->.
     split => //=; rewrite /RelationPairs.RelCompFun /=.
-    by do 3 f_equal;apply eq_in_map=> z _;rewrite Heq.
+    by do 3 f_equal; apply: map_ext => z _; rewrite Heq.
   Qed.
 
 End PROPER.

@@ -332,7 +332,7 @@ apply: (@sem.sem_call_Ind _ _ _ _ _ p Pc Pi_r Pi Pfor Pfun) => {m fn va m' vr}.
 move => scs1 m scs2 m2 fn fd va va' s1 vm2 vr vr' hfn htyin.
 move=> /write_vars_sim -/(_ {| escs := scs1; emem := m |} (And3 erefl erefl vmap0_sim)). 
 case => s1' [hss'1 hargs] _ /(_ _ hss'1) [[scs2' m2' vm2']] [] [] /= <- <- {scs2' m2'} hvm ih.
-rewrite (mapM_ext (λ x : var_i, get_var_sim hvm x) erefl) => hres htyout.
+rewrite (mapM_ext (λ (x : var_i) _, get_var_sim hvm x)) => hres htyout.
 by econstructor; eauto.
 Qed.
 
