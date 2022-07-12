@@ -3638,17 +3638,17 @@ Section PROOF.
       by move/eqP: Export => /= ->.
     - by move: safe_registers; rewrite /= Export {1}/vm_initialized_on /= => /andP[] _.
     move => lmo vmo texec vm_eq_vmo ? s2_vmo ? M'.
-    have vm2_vmo : ∀ r, r \in f_res fd → (eval_uincl vm2.[r] vmo.[r])%vmap.
+    have vm2_vmo : ∀ r, List.In r (f_res fd) → (eval_uincl vm2.[r] vmo.[r])%vmap.
     - move => r r_in_result.
       have r_not_saved : ¬ Sv.In r (sv_of_list id (map fst fd.(f_extra).(sf_to_save))).
       + apply/Sv_memP.
         rewrite sv_of_listE map_id -sv_of_listE; apply/Sv_memP => K.
         move/disjointP: to_save_not_result => /(_ _ K).
-        by apply; apply/Sv_memP; rewrite sv_of_listE; apply/map_f.
+        by apply; apply/Sv_memP; rewrite sv_of_listE; apply/in_map; exists r.
       apply: eval_uincl_trans (s2_vmo r r_not_saved).
       have r_not_rsp : vrsp != r.
       + apply/eqP => K.
-        by move: RSP_not_result; rewrite sv_of_listE; apply/negP/negPn/mapP; exists r.
+        by move: RSP_not_result; rewrite sv_of_listE; apply/negP/negPn/in_map; exists r.
       by rewrite !Fv.setP_neq.
     have : ∃ lres : values,
         [/\ mapM (λ x : var_i, get_var vmo x) (f_res fd) = ok lres, List.Forall2 value_uincl res lres & all2 check_ty_val (f_tyout fd) lres ].
@@ -3660,12 +3660,12 @@ Section PROOF.
         by exists [::].
       move => _ _ /List_Forall2_inv_r[] d [] ds [] -> [] ok_r' ok_res' /List_Forall2_inv_r[] r [] res [] -> [] r_r' res_res'.
       case => // ty tys /= /andP[] wt_r' wt_res' vm2_vmo.
-      have := vm2_vmo d; rewrite inE eqxx => /(_ erefl).
+      have := vm2_vmo d (or_introl _ erefl).
       move: ok_r'; rewrite {1 3}/get_var.
       case: vm2.[d]%vmap => [ | [] // ] /= v /ok_inj ?; subst r'.
       case: vmo.[d]%vmap => // v' v_v' /=.
       move: ih => /(_ _ _ ok_res' res_res' _ wt_res')[].
-      + by move => x hx; apply: vm2_vmo; rewrite inE hx orbT.
+      + by move => x hx; apply: vm2_vmo; right.
       move => lres [] -> /= res_lres wt_lres.
       eexists; split; first reflexivity.
       + constructor; last by [].

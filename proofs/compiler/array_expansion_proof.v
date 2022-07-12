@@ -90,7 +90,7 @@ Proof. by case. Qed.
 Lemma expand_esP_aux (s1 s2 : estate) es1 es2: 
   eq_alloc m s1 s2 ->
   expand_es m es1 = ok es2 -> 
-  (∀ e, e \in es1 → 
+  (∀ e, List.In e es1 →
    ∀ e2, expand_e m e = ok e2 → 
    ∀ v, sem_pexpr gd s1 e = ok v → sem_pexpr gd s2 e2 = ok v) -> 
   forall vs, sem_pexprs gd s1 es1 = ok vs -> sem_pexprs gd s2 es2 = ok vs.
@@ -99,10 +99,10 @@ Proof.
   elim: es1 es2 => [ | e1 es1 hrec] es' /=.
   + by move=> [<-] _ ? [<-].
   t_xrbindP => e2 he1 es2 /hrec hes1 <- he ?? se1 ? /hes1 hes2 <- /=.
-  rewrite (he _ _ _ he1 _ se1) ?mem_head //= hes2 // => e he'; apply: he.  
-  by rewrite in_cons he' orbT.
+  rewrite (he _ _ _ he1 _ se1); last by left.
+  by rewrite /= hes2 // => e he'; apply: he; right.
 Qed.
-  
+
 Lemma expand_eP (s1 s2: estate) : 
   eq_alloc m s1 s2 ->
   forall e1 e2, expand_e m e1 = ok e2 -> 
