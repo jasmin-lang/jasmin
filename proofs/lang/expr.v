@@ -526,69 +526,6 @@ Section ASM_OP.
 
 Context `{asmop:asmOp}.
 
-Fixpoint instr_r_beq (i1 i2:instr_r) :=
-  match i1, i2 with
-  | Cassgn x1 tag1 ty1 e1, Cassgn x2 tag2 ty2 e2 =>
-     (tag1 == tag2) && (ty1 == ty2) && (x1 == x2) && (e1 == e2)
-  | Copn x1 tag1 o1 e1, Copn x2 tag2 o2 e2 =>
-     (x1 == x2) && (tag1 == tag2) && (o1 == o2) && (e1 == e2)
-  | Csyscall xs1 o1 es1, Csyscall xs2 o2 es2 => 
-     (xs1 == xs2) && (o1 == o2) && (es1 == es2)
-  | Cif e1 c11 c12, Cif e2 c21 c22 =>
-    (e1 == e2) && all2 instr_beq c11 c21 && all2 instr_beq c12 c22
-  | Cfor i1 (dir1,lo1,hi1) c1, Cfor i2 (dir2,lo2,hi2) c2 =>
-    (i1 == i2) && (dir1 == dir2) && (lo1 == lo2) && (hi1 == hi2) && all2 instr_beq c1 c2
-  | Cwhile a1 c1 e1 c1' , Cwhile a2 c2 e2 c2' =>
-    (a1 == a2) && all2 instr_beq c1 c2 && (e1 == e2) && all2 instr_beq c1' c2'
-  | Ccall ii1 x1 f1 arg1, Ccall ii2 x2 f2 arg2 =>
-    (ii1 == ii2) && (x1==x2) && (f1 == f2) && (arg1 == arg2)
-  | _, _ => false
-  end
-with instr_beq i1 i2 :=
-  match i1, i2 with
-  | MkI if1 i1, MkI if2 i2 => (if1 == if2) && (instr_r_beq i1 i2)
-  end.
-
-Section EQI.
-  Variable Heq : forall (x y:instr_r), reflect (x=y) (instr_r_beq x y).
-
-  Lemma instr_eq_axiom_ : Equality.axiom instr_beq.
-  Proof.
-    move=> [ii1 ir1] [ii2 ir2] /=.
-    by apply (iffP andP) => -[] /eqP -> /Heq ->.
-  Defined.
-End EQI.
-
-Lemma instr_r_eq_axiom : Equality.axiom instr_r_beq.
-Proof.
-  rewrite /Equality.axiom.
-  fix Hrec 1; move =>
-    [x1 t1 ty1 e1|x1 t1 o1 e1|p1 x1 e1|e1 c11 c12|x1 [[dir1 lo1] hi1] c1|a1 c1 e1 c1'|ii1 x1 f1 arg1 ]
-    [x2 t2 ty2 e2|x2 t2 o2 e2|p2 x2 e2|e2 c21 c22|x2 [[dir2 lo2] hi2] c2|a2 c2 e2 c2'|ii2 x2 f2 arg2 ] /=;
-  try by constructor.
-  + by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP ->.
-  + by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP ->.
-  + by apply (iffP idP) => [/andP[]/andP[] | []] /eqP -> /eqP -> /eqP ->.
-  + have Hrec2 := reflect_all2_eqb (instr_eq_axiom_ Hrec).
-    by apply (iffP idP) => [/andP[]/andP[] | []] /eqP -> /Hrec2 -> /Hrec2 ->.
-  + have Hrec2 := reflect_all2_eqb (instr_eq_axiom_ Hrec).
-    by apply (iffP idP) => [/andP[]/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP -> /Hrec2 ->.
-  + have Hrec2 := reflect_all2_eqb (instr_eq_axiom_ Hrec).
-    by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /Hrec2 -> /eqP -> /Hrec2 ->.
-  by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP ->.
-Qed.
-
-Definition instr_r_eqMixin     := Equality.Mixin instr_r_eq_axiom.
-Canonical  instr_r_eqType      := Eval hnf in EqType instr_r instr_r_eqMixin.
-
-Lemma instr_eq_axiom : Equality.axiom instr_beq.
-Proof.
-  apply: instr_eq_axiom_ instr_r_eq_axiom .
-Qed.
-
-Definition instr_eqMixin     := Equality.Mixin instr_eq_axiom.
-Canonical  instr_eqType      := Eval hnf in EqType instr instr_eqMixin.
-
 (* ** Functions
  * -------------------------------------------------------------------- *)
 
