@@ -193,6 +193,9 @@ Definition assemble_lea ii lea :=
       ad_offset := offset
     |}).
 
+Let is_none {A: Type} (m: option A) : bool :=
+      if m is None then true else false.
+
 Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) :=
   Let _ := assert (sz <= Uptr)%CMP
                   (E.error ii (pp_s "Bad type for address")) in
@@ -201,7 +204,7 @@ Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) :=
      match lea.(lea_base) with
      | Some r =>
         if r.(v_var) == rip then
-          Let _ := assert (lea.(lea_offset) == None)
+          Let _ := assert (is_none lea.(lea_offset))
                           (E.error ii (pp_box [::pp_s "Invalid global address :"; pp_e e])) in
           ok (Arip lea.(lea_disp))
         else assemble_lea ii lea
@@ -511,7 +514,7 @@ Definition assemble_i (rip : var) (i : linstr) : cexec asm_i :=
       ok (JMP lbl)
 
   | Ligoto e =>
-      Let _ := assert (is_app1 e == None) (E.werror ii e "Ligoto/JMPI") in
+      Let _ := assert (is_none (is_app1 e)) (E.werror ii e "Ligoto/JMPI") in
       Let arg := assemble_word AK_mem rip ii Uptr e in
       ok (JMPI arg)
 

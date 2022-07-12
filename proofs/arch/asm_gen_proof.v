@@ -208,7 +208,8 @@ Proof.
   have hsemlea := mk_leaP hsz64 hsz heq he.
   case hb: lea_base => [b | ]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
   case: eqP => [ | _]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
-  t_xrbindP => hbrip /eqP ho <- /=.
+  t_xrbindP => hbrip.
+  case ho: lea_offset => [ // | ] _ <- /=.
   case: lom => _ _ hrip _ _ _.
   move: hsemlea; rewrite /sem_lea ho hb /= hbrip hrip /= /truncate_word hsz64 /= => h.
   have <- := ok_inj h.
@@ -1540,7 +1541,9 @@ Proof.
     rewrite ok_fd /=.
     do 2 (eexists; first reflexivity).
     by constructor.
-  - t_xrbindP=> e /eqP ok_e d ok_d <- ptr v ok_v /to_wordI[? [? [? /word_uincl_truncate hptr]]]; subst.
+  - t_xrbindP=> e.
+    case ok_e: is_app1 => [ // | ] _.
+    move => d ok_d <- ptr v ok_v /to_wordI[? [? [? /word_uincl_truncate hptr]]]; subst.
     change reg_size with Uptr in ptr.
     have [v' -> /value_uinclE /=[? [? [-> /hptr /= ->]]]] := eval_assemble_word eqm ok_e ok_d ok_v.
     case ptr_eq: decode_label => [ [] fn lbl | // ] /=.
