@@ -1085,6 +1085,20 @@ Section PROOF.
   Definition pwrepr64 n :=
     {| pw_size := U64 ; pw_word := wrepr _ n ; pw_proof := erefl (U64 ≤ U64)%CMP |}.
 
+  Lemma opn_no_immP (P: sopn → sopn → Prop) :
+    (∀ ws sz, P (Oasm (BaseOp (ws, IMULri sz))) (Oasm (BaseOp (ws, IMULr sz)))) →
+    (∀ op, (∀ ws sz, op ≠ Oasm (BaseOp (ws, IMULri sz))) → P op op) →
+    ∀ op, P op (opn_no_imm op).
+  Proof.
+    clear => A B.
+    case.
+    1-5: move => >; exact: B.
+    case; last by move => >; exact: B.
+    case => ws.
+    case; try by move => >; exact: B.
+    move => sz; exact: A.
+  Qed.
+
   Lemma opn_5flags_correct vi ii s a t o cf r xs ys m s' :
     disj_fvars (read_es a) →
     disj_fvars (vars_lvals [:: cf ; r ]) →
@@ -1118,13 +1132,12 @@ Section PROOF.
       fold (sem_pexprs gd s) in hz1.
       rewrite /get_gvar /get_var /on_vu Fv.setP_eq /= -/(sem_pexprs gd ℓ).
       rewrite (sem_pexprs_same dz e hz1) /= /exec_sopn /sopn_sem /=.
-      case: o hr => //= -[]; rewrite /exec_sopn //=;
-        try (move => ?? -> || move => ? -> || move => -> ) => //.
-      case. case => [ws | ];
-      case => //=;
-        try (move => ?? -> || move => ? -> || move => -> ) => //.
-      + by move=> w; rewrite /sopn_sem /=; case: (reg_msb_flag w == MSB_CLEAR) => //= ->.
-      1-4: by t_xrbindP.
+      move: hr.
+      apply opn_no_immP.
+      - rewrite /exec_sopn /sopn_sem; case.
+        + by move => ws sz /=; case: eqP => /= ? ->.
+        by move => sz /= ->.
+      by rewrite /exec_sopn => op _ ->.
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
   Qed.
 
