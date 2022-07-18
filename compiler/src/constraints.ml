@@ -391,6 +391,21 @@ end = struct
 
 end
 
+(* ----------------------------------------------------------- *)
+(* paired types. Essentially a shorthand for adding inequalities *)
+module VlPairs = struct
+  type t = Lvl.t * Lvl.t
+
+  let add_le (n1, s1) (n2, s2) =
+    Lvl.add_le n1 n2; Lvl.add_le s1 s2
+  let add_le_speculative s' (_, s) = Lvl.add_le s' s
+
+  let equal (n1, s1) (n2, s2) =
+    Lvl.equal n1 n2 && Lvl.equal s1 s2
+
+  let normalise (l, _) = (l, l)
+end
+
 
 (* ----------------------------------------------------------- *)
 

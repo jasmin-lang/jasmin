@@ -63,3 +63,10 @@ module C : sig
   val is_instance : (Lvl.t -> Lvl.t) -> constraints -> constraints -> bool
   
 end
+
+module VlPairs : sig
+  type t = Lvl.t * Lvl.t
+  val add_le : t -> t -> unit
+  val add_le_speculative : Lvl.t -> t -> unit
+  val normalise : t -> t
+end
