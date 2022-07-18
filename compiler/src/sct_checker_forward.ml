@@ -499,7 +499,7 @@ end = struct
       begin match kind, min with
       | Global, Some ty (* likely unused as global variables are not in venv.vars *)
       | Stack _, Some ty -> VlPairs.add_le ty l; VlPairs.add_le le l
-      | _ -> ()
+      | _ -> VlPairs.add_le le l
       end; l in
     { venv with vtype = Sv.fold (fun x vtype -> let ty =
           let fresh = fresh x.v_kind in
@@ -547,9 +547,10 @@ let error_unsat loc (_ : Svl.t * Lvl.t list * Lvl.t * Lvl.t) pp e ety ety' =
        pp e pp_vty ety pp_vty ety')
 
 let ssafe_test x i =
-  match (L.unloc x).v_ty, i with
-    (* TODO are array pointers assigned Arr types? *)
-  | Arr (_ (* word size. should be used ? *), len), Pconst v ->
+  let x = L.unloc x in
+  match x.v_kind, x.v_ty, i with
+  | Reg (_, Direct), _, _ -> true
+  | _, Arr (_ (* word size. should be used ? *), len), Pconst v ->
       let v = Conv.int_of_pos (Conv.pos_of_z v) in v < len
   | _ -> false
 
@@ -581,7 +582,7 @@ let rec ty_expr env venv loc (e:expr) : vty =
       Env.gget venv x
 
   | Pload (_, x, i) ->
-      ensure_public_address env venv loc x;
+      ensure_public env venv loc (Pvar (gkvar x));
       ensure_public env venv loc i;
       Env.dsecret env
 
@@ -778,7 +779,7 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
       msf, venv
 
   | Lmem(_, x, i) ->
-      ensure_public_address env venv (L.loc x) x;
+      ensure_public env venv (L.loc x) (Pvar (gkvar x));
       ensure_public env venv (L.loc x) i;
         (* programmes are assumed to be safe, thus corruption from memory store
            with [x + i] is speculative only *)
@@ -960,8 +961,6 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
     (* corruption so far has effect on callee function *)
     VlPairs.add_le (Env.get_resulting_corruption venv) input_corruption;
 
-    (* callee function has its own effect on this function corruption *)
-    let venv = Env.corruption env venv resulting_corruption in
     let input_ty e vfty =
       match vfty with
       | IsMsf ->
@@ -977,6 +976,9 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
         | Indirect(lp, le), Indirect(lp', le') -> VlPairs.add_le lp lp'; VlPairs.add_le le le'
         with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety ety' in
     List.iter2 input_ty es tyin;
+
+    (* callee function has its own effect on this function corruption *)
+    let venv = Env.corruption env venv resulting_corruption in
 
     (* compute the resulting venv *)
     let output_ty msf_e x vfty =
