@@ -237,8 +237,19 @@ Definition type_of_opN (op: opN) : seq stype * stype :=
 (* ** Expressions
  * -------------------------------------------------------------------- *)
 (* Used only by the ocaml compiler *)
-Definition var_info := positive.
-Definition dummy_var_info : var_info := 1%positive.
+(** A “tag” is a non-empty type, extracted to plain OCaml [int] *)
+Module Type TAG.
+  Parameter t : Type.
+  Parameter witness : t.
+End TAG.
+
+Module VarInfo : TAG.
+  Definition t := positive.
+  Definition witness : t := 1%positive.
+End VarInfo.
+
+Definition var_info := VarInfo.t.
+Definition dummy_var_info : var_info := VarInfo.witness.
 
 Record var_i := VarI {
   v_var :> var;
@@ -346,8 +357,10 @@ Definition wrange d (n1 n2 : Z) :=
   | DownTo => [seq (Z.sub n2 (Z.of_nat i)) | i <- iota 0 n]
   end.
 
-Definition instr_info := positive.
-Definition dummy_instr_info : instr_info := 1%positive.
+Module InstrInfo : TAG := VarInfo.
+
+Definition instr_info := InstrInfo.t.
+Definition dummy_instr_info : instr_info := InstrInfo.witness.
 
 Variant assgn_tag :=
   | AT_none       (* assignment introduced by the developer that can be removed *)
