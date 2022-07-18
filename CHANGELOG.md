@@ -32,6 +32,9 @@
 
 - Lowering of a memory-to-memory copy always introduce an intermediate copy through a register
 
+- `var_info` and `instr_info` are now plain OCaml `int`
+   ([PR #209](https://github.com/jasmin-lang/jasmin/pull/209)).
+
 # Jasmin 22.0
 
 This release is the result of more than two years of active development. It thus

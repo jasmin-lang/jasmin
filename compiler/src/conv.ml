@@ -122,13 +122,13 @@ let var_of_cvar tbl cv =
 (* ------------------------------------------------------------------------ *)
 
 let get_loc tbl p =
-  try Hashtbl.find tbl.vari (int_of_pos p)
+  try Hashtbl.find tbl.vari p
   with Not_found -> L._dummy
 
 let set_loc tbl loc =
   let n = new_count tbl in
   Hashtbl.add tbl.vari n loc;
-  pos_of_int n
+  n
 
 let cvari_of_vari tbl v =
   let p = set_loc tbl (L.loc v) in
@@ -230,10 +230,9 @@ let string_of_funname tbl p =
 let set_iinfo tbl loc ii ia =
   let n = new_count tbl in
   Hashtbl.add tbl.iinfo n (loc, ii, ia);
-  pos_of_int n
+  n
 
 let get_iinfo tbl n =
-  let n = int_of_pos n in
   try Hashtbl.find tbl.iinfo n
   with Not_found ->
     Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." n;
