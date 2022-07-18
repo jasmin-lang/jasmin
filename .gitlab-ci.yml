@@ -33,7 +33,7 @@ cache dependencies:
   stage: prepare
   extends: .common
   variables:
-    EXTRA_NIX_ARGUMENTS: --arg coqDeps true --arg ocamlDeps true --arg testDeps true --arg ecDeps true --arg opamDeps true
+    EXTRA_NIX_ARGUMENTS: --arg coqDeps true --arg ocamlDeps true --arg testDeps true --argstr ecRef release --arg opamDeps true
   environment: cachix
   only:
     variables:
@@ -76,8 +76,11 @@ ocaml:
 
 eclib:
   stage: prove
+  parallel:
+    matrix:
+      - EASYCRYPT_REF: [release, dev]
   variables:
-    EXTRA_NIX_ARGUMENTS: --arg ecDeps true
+    EXTRA_NIX_ARGUMENTS: --argstr ecRef $EASYCRYPT_REF
   extends: .common
   script:
   - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'easycrypt why3config -why3 eclib/why3.conf'
@@ -204,7 +207,7 @@ libjade-compile-to-asm:
 libjade-extract-to-ec:
   stage: test
   variables:
-    EXTRA_NIX_ARGUMENTS: --arg testDeps true --arg ecDeps true
+    EXTRA_NIX_ARGUMENTS: --arg testDeps true --argstr ecRef release
     WHY3_CONF: $CI_PROJECT_DIR/why3.conf
     ECARGS: -why3 $WHY3_CONF -I Jasmin:$CI_PROJECT_DIR/eclib
     ECJOBS: '$(NIX_BUILD_CORES)'
