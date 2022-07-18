@@ -85,11 +85,11 @@ let pp_vfty fmt = function
   | IsNormal ty -> pp_vty fmt ty
 
 type ty_fun = {
-    modmsf      : bool;
-    tyin        : vfty list;
-    tyout       : vfty list;
-    constraints : C.constraints;
-    input_corruption : VlPairs.t; (* resulting memory corruption after function call *)
+    modmsf               : bool;
+    tyin                 : vfty list;
+    tyout                : vfty list;
+    constraints          : C.constraints;
+    input_corruption     : VlPairs.t; (* input memory corruption before function call *)
     resulting_corruption : VlPairs.t (* resulting memory corruption after function call *)
   }
 
@@ -354,6 +354,8 @@ end = struct
       vars : Sv.t;
       input_corruption : VlPairs.t; (* only used for global variables, as they
       are the only ones that have been potentially affected by caller function *)
+      (* TODO if global variables can successfully be compiled in .text, then no
+         execution can alter them, which makes input_corruption redundant and removable *)
       resulting_corruption : VlPairs.t;
     }
 
@@ -489,7 +491,8 @@ end = struct
   let msf_oracle env loc =
     try Hashtbl.find env.msf_oracle loc with Not_found -> assert false
 
-  (* freshen variables in set xs in environment env, venv *)
+  (* freshen all variables in environment env, venv, with 
+     possibly a minimum (typically memory corruption) *)
   let freshen ?min env venv =
     let fresh kind le =
       let l = fresh2 env in
@@ -777,7 +780,9 @@ let ty_lval env ((msf, venv) as msf_e : msf_e) x ety : msf_e =
   | Lmem(_, x, i) ->
       ensure_public_address env venv (L.loc x) x;
       ensure_public env venv (L.loc x) i;
-      msf, Env.corruption env venv (content_ty ety)
+        (* programmes are assumed to be safe, thus corruption from memory store
+           with [x + i] is speculative only *)
+      msf, Env.corruption_speculative env venv (content_ty ety)
 
   | Laset(_, _, x, i) ->
       ensure_public_address env venv (L.loc x) x;
