@@ -180,7 +180,7 @@ let pp_opn asmOp fmt o =
   pp_string0 fmt (Sopn.string_of_sopn asmOp o)
 
 (* -------------------------------------------------------------------- *)
-let pp_syscall (o:Syscall_t.syscall_t) =
+let pp_syscall (o: 'a Syscall_t.syscall_t) =
   match o with
   | Syscall_t.RandomBytes _ -> "#randombytes"
 

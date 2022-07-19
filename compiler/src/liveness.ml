@@ -98,7 +98,7 @@ let liveness is_move_op weak prog =
   fst prog, fds
 
 let iter_call_sites (cbf: L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit)
-                    (cbs: L.i_loc -> Syscall_t.syscall_t -> lvals -> Sv.t * Sv.t -> unit)
+                    (cbs: L.i_loc -> BinNums.positive Syscall_t.syscall_t -> lvals -> Sv.t * Sv.t -> unit)
                     (f: (Sv.t * Sv.t, 'asm) func) : unit =
   let rec iter_instr_r loc ii =
     function

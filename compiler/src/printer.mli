@@ -25,7 +25,7 @@ val string_of_op1 : Expr.sop1 -> string
 val string_of_op2 : Expr.sop2 -> string
 val string_of_combine_flags : Expr.combine_flags -> string
 val pp_opn   : 'asm Sopn.asmOp -> Format.formatter -> 'asm Sopn.sopn -> unit
-val pp_syscall : Syscall_t.syscall_t -> string
+val pp_syscall : BinNums.positive Syscall_t.syscall_t -> string
 
 val pp_ty : Format.formatter -> ty -> unit
 
