@@ -19,9 +19,11 @@ Extraction Inline Datatypes.implb.
 Extract Constant strings.ascii_beq => "Char.equal".
 Extract Constant strings.ascii_cmp => "(fun x y -> let c = Char.compare x y in if c = 0 then Datatypes.Eq else if c < 0 then Datatypes.Lt else Datatypes.Gt)".
 
-Extract Constant expr.VarInfo.t => "Stdlib.Int.t".
-Extract Constant expr.VarInfo.witness => "(-1)".
-Extract Constant expr.var_info => "Stdlib.Int.t".
+Extract Constant expr.VarInfo.t => "Location.t".
+Extract Constant expr.VarInfo.witness => "Location._dummy".
+Extract Constant expr.var_info => "Location.t".
+Extract Constant expr.InstrInfo.t => "Stdlib.Int.t".
+Extract Constant expr.InstrInfo.witness => "(-1)".
 Extract Constant expr.instr_info => "Stdlib.Int.t".
 
 Cd  "lang/ocaml".

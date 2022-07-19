@@ -34,9 +34,8 @@ val z_of_word : wsize -> Obj.t -> Z.t
 (* -------------------------------------------------------------------- *)
 val cty_of_ty : Prog.ty -> Type.stype
 val ty_of_cty : Type.stype -> Prog.ty
-(* -------------------------------------------------------------------- *)
-val get_loc : 'a coq_tbl -> Expr.var_info -> L.t
 
+(* -------------------------------------------------------------------- *)
 val cvar_of_var : 'a coq_tbl -> var -> Var0.Var.var
 val var_of_cvar : 'a coq_tbl -> Var0.Var.var -> var
 val vari_of_cvari : 'a coq_tbl -> Expr.var_i -> var L.located
