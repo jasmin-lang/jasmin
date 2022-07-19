@@ -32,7 +32,8 @@
 
 - Lowering of a memory-to-memory copy always introduce an intermediate copy through a register
 
-- `var_info` and `instr_info` are now plain OCaml `int`
+- `instr_info` are now plain OCaml `int` and `var_info` are `Location.t`;
+   this removes costly translations with `positive` and a big conversion table
    ([PR #209](https://github.com/jasmin-lang/jasmin/pull/209)).
 
 # Jasmin 22.0

@@ -70,7 +70,6 @@ type 'info coq_tbl = {
      mutable count : int;
      var           : (Var.var, var) Hashtbl.t;
      cvar          : Var.var Hv.t;
-     vari          : (int, L.t) Hashtbl.t;
      iinfo         : (int, L.i_loc * 'info * Syntax.annotations) Hashtbl.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
@@ -87,7 +86,6 @@ let empty_tbl info = {
     count    = 1;
     var      = Hashtbl.create 101;
     cvar     = Hv.create 101;
-    vari     = Hashtbl.create 1000;
     iinfo    = Hashtbl.create 1000;
     funname  = Hashtbl.create 101;
     cfunname = Hashtbl.create 101;
@@ -121,23 +119,13 @@ let var_of_cvar tbl cv =
 
 (* ------------------------------------------------------------------------ *)
 
-let get_loc tbl p =
-  try Hashtbl.find tbl.vari p
-  with Not_found -> L._dummy
-
-let set_loc tbl loc =
-  let n = new_count tbl in
-  Hashtbl.add tbl.vari n loc;
-  n
-
 let cvari_of_vari tbl v =
-  let p = set_loc tbl (L.loc v) in
+  let p = L.loc v in
   let cv = cvar_of_var tbl (L.unloc v) in
   { C.v_var = cv; C.v_info = p }
 
 let vari_of_cvari tbl v =
-  let loc =  get_loc tbl v.C.v_info in
-  L.mk_loc loc (var_of_cvar tbl v.C.v_var)
+  L.mk_loc v.C.v_info (var_of_cvar tbl v.C.v_var)
 
 let cgvari_of_gvari tbl v = 
   { C.gv = cvari_of_vari tbl v.gv;
@@ -184,7 +172,7 @@ let rec expr_of_cexpr tbl = function
 (* ------------------------------------------------------------------------ *)
 
 let clval_of_lval tbl = function
-  | Lnone(loc, ty)  -> C.Lnone (set_loc tbl loc, cty_of_ty ty)
+  | Lnone(loc, ty)  -> C.Lnone (loc, cty_of_ty ty)
   | Lvar x          -> C.Lvar  (cvari_of_vari tbl x)
   | Lmem (ws, x, e) -> C.Lmem (ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Laset(aa,ws,x,e)-> C.Laset (aa, ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
@@ -192,7 +180,7 @@ let clval_of_lval tbl = function
     C.Lasub (aa, ws, pos_of_int len, cvari_of_vari tbl x, cexpr_of_expr tbl e)
 
 let lval_of_clval tbl = function
-  | C.Lnone(p,ty)   -> Lnone (get_loc tbl p, ty_of_cty ty)
+  | C.Lnone(p, ty)  -> Lnone (p, ty_of_cty ty)
   | C.Lvar x        -> Lvar (vari_of_cvari tbl x)
   | C.Lmem(ws,x,e)  -> Lmem (ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Laset(aa,ws,x,e) -> Laset (aa,ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
@@ -411,12 +399,11 @@ let to_array ty p t =
 (* ---------------------------------------------------------------------------- *)
 
 (* This avoids printing dummy locations. Hope that it will not hide errors. *)
-let patch_vi_loc tbl (e : Compiler_util.pp_error_loc) =
+let patch_vi_loc (e : Compiler_util.pp_error_loc) =
   match e.Compiler_util.pel_vi with
   | None -> e
   | Some vi ->
-    let l = get_loc tbl vi in
-    if L.isdummy l then { e with Compiler_util.pel_vi = None }
+    if L.isdummy vi then { e with Compiler_util.pel_vi = None }
     else e
 
 (* do we want more complex logic, e.g. if both vi and ii are <> None,
@@ -425,10 +412,9 @@ let patch_vi_loc tbl (e : Compiler_util.pp_error_loc) =
 *)
 let iloc_of_loc tbl e =
   let open Utils in
-  let e = patch_vi_loc tbl e in
+  let e = patch_vi_loc e in
   match e.pel_vi with
-  | Some vi ->
-    let loc = get_loc tbl vi in
+  | Some loc ->
     begin match e.pel_ii with
     | None -> Lone loc
     | Some ii ->

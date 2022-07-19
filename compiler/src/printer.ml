@@ -504,8 +504,7 @@ let pp_err ~debug tbl fmt (pp_e : Compiler_util.pp_error) =
     match pp_e with
     | Compiler_util.PPEstring s -> Format.fprintf fmt "%a" pp_string0 s
     | Compiler_util.PPEvar v -> Format.fprintf fmt "%a" (pp_var tbl) v
-    | Compiler_util.PPEvarinfo vi ->
-      let loc = Conv.get_loc tbl vi in
+    | Compiler_util.PPEvarinfo loc ->
       Format.fprintf fmt "%a" L.pp_loc loc
     | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" (Conv.fun_of_cfun tbl fn).fn_name
     | Compiler_util.PPEiinfo ii ->

@@ -357,7 +357,10 @@ Definition wrange d (n1 n2 : Z) :=
   | DownTo => [seq (Z.sub n2 (Z.of_nat i)) | i <- iota 0 n]
   end.
 
-Module InstrInfo : TAG := VarInfo.
+Module InstrInfo : TAG.
+  Definition t := positive.
+  Definition witness : t := 1%positive.
+End InstrInfo.
 
 Definition instr_info := InstrInfo.t.
 Definition dummy_instr_info : instr_info := InstrInfo.witness.
