@@ -156,8 +156,8 @@ hint simplify of_int_mod_red.
 lemma to_uint_small i : 0 <= i < modulus => to_uint (of_int i) = i.
 proof. by move=> h; rewrite of_uintK modz_small;solve. qed.
 
-lemma to_uint0 : to_uint (of_int 0) = 0 by [].
-lemma to_uint1 : to_uint (of_int 1) = 1 by [].
+lemma to_uint0 : to_uint (of_int 0) = 0 by rewrite of_uintK.
+lemma to_uint1 : to_uint (of_int 1) = 1 by rewrite to_uint_small; smt (ge2_modulus).
 
 hint simplify (to_uint0, to_uint1)@0.
 hint simplify to_uint_small@1.
