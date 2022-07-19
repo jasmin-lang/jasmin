@@ -170,7 +170,7 @@ let assign_arr params a x e =
   | None, _ | _, None -> a
   | Some d, Some s -> merge_slices params a d s
 
-let syscall_cc (o : Syscall_t.syscall_t) =
+let syscall_cc (o : 'a Syscall_t.syscall_t) =
   match o with
   | Syscall_t.RandomBytes _ -> [Some 0]
 

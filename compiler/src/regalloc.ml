@@ -877,7 +877,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   (* Live variables at the end of each function, in addition to returned local variables *)
   let get_liveness, slive =
     let live : Sv.t Hf.t = Hf.create 17 in
-    let slive : (Syscall_t.syscall_t, Sv.t) Hashtbl.t = Hashtbl.create 17 in
+    let slive : (BinNums.positive Syscall_t.syscall_t, Sv.t) Hashtbl.t = Hashtbl.create 17 in
     List.iter (fun f ->
         let f_with_liveness = Hf.find liveness_table f.f_name in
         let live_when_calling_f = Hf.find_default live f.f_name Sv.empty in

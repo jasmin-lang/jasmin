@@ -404,7 +404,7 @@ module Printer (BP:BPrinter) = struct
     Printf.sprintf "%s%s" (Conv.string_of_string0 pp_op.pp_aop_name) (pp_ext pp_op.pp_aop_ext)
 
   (* -------------------------------------------------------------------- *)
-  let pp_syscall (o : Syscall_t.syscall_t) =
+  let pp_syscall (o : 'a Syscall_t.syscall_t) =
     match o with
     | Syscall_t.RandomBytes _ -> "__jasmin_syscall_randombytes__"
 

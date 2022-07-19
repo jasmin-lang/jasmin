@@ -1,2 +1,2 @@
-type syscall_t =
-  | RandomBytes of BinNums.positive
+type 'a syscall_t =
+  | RandomBytes of 'a

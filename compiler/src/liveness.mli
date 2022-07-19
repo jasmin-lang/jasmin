@@ -20,7 +20,7 @@ val liveness : ('asm -> bool) -> bool -> ('info, 'asm) prog -> (Sv.t * Sv.t, 'as
 *)
 val iter_call_sites :
   (L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) ->
-  (L.i_loc -> Syscall_t.syscall_t -> lvals -> Sv.t * Sv.t -> unit) ->
+  (L.i_loc -> BinNums.positive Syscall_t.syscall_t -> lvals -> Sv.t * Sv.t -> unit) ->
   (Sv.t * Sv.t, 'asm) func -> unit
 
 val pp_info : Format.formatter -> Sv.t * Sv.t -> unit
