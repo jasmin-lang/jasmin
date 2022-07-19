@@ -198,7 +198,7 @@ let pp_glob_data fmt gd =
     let m = mangle global_datas in
     begin
       pp_gens fmt ([
-            `Instr (".data", []);
+            `Instr (".text", []);
             `Instr (".p2align", [pp_align U256]);
             `Label m;
             `Label n]);

@@ -89,7 +89,6 @@ type ty_fun = {
     tyin                 : vfty list;
     tyout                : vfty list;
     constraints          : C.constraints;
-    input_corruption     : VlPairs.t; (* input memory corruption before function call *)
     resulting_corruption : VlPairs.t (* resulting memory corruption after function call *)
   }
 
@@ -112,14 +111,12 @@ let pp_modmsf fmt modmsf =
 let pp_funty fmt (fname, tyfun) =
   Format.fprintf fmt
     "@[<v>%a %s : @[%a@] -> @[%a@]@ \
-      input corruption: %a@.\
       output corruption: %a@.\
       @ constraints: @[%a@]@]@."
     pp_modmsf tyfun.modmsf
     fname
     (pp_list " *@ " pp_vfty) tyfun.tyin
     (pp_list " *@ " pp_vfty) tyfun.tyout
-    pp_vty (Direct (tyfun.input_corruption))
     pp_vty (Direct (tyfun.resulting_corruption))
     C.pp tyfun.constraints
 
@@ -332,14 +329,13 @@ module Env : sig
 
   val freshen : ?min:Constraints.VlPairs.t -> env -> venv -> venv
   val ensure_le : L.t -> venv -> venv -> unit
-  val clone_for_call : env -> ty_fun -> vfty list * vfty list * VlPairs.t * VlPairs.t
-          (* output type, input type, input corruption, output corruption *)
+  val clone_for_call : env -> ty_fun -> vfty list * vfty list * VlPairs.t
+          (* output type, input type, output corruption *)
 
   val corruption : env -> venv -> VlPairs.t -> venv
   val corruption_speculative : env -> venv -> VlPairs.t -> venv
 
   val get_resulting_corruption : venv -> VlPairs.t
-  val get_input_corruption : venv -> VlPairs.t
 
 end = struct
 
@@ -352,11 +348,10 @@ end = struct
   type venv = {
       vtype : vty Mv.t;
       vars : Sv.t;
-      input_corruption : VlPairs.t; (* only used for global variables, as they
-      are the only ones that have been potentially affected by caller function *)
-      (* TODO if global variables can successfully be compiled in .text, then no
-         execution can alter them, which makes input_corruption redundant and removable *)
       resulting_corruption : VlPairs.t;
+      public2 : VlPairs.t (* needed in 'get'. This is dirty.
+        Ideally, env and venv should be merged, but this requires
+        some work and restructuring of the module signature. *)
     }
 
   let init () =
@@ -385,12 +380,12 @@ end = struct
       vtype = Mv.empty;
       vars = Sv.empty;
       resulting_corruption = fresh2 env;
-      input_corruption = fresh2 env;
-    }
+      public2 = public2 env;
+  }
 
   let get venv x =
     try match x.v_kind with
-    | Global -> Direct venv.input_corruption
+    | Global -> Direct venv.public2
     | _ -> Mv.find x venv.vtype
     with Not_found -> assert false
 
@@ -407,18 +402,15 @@ end = struct
     | _ -> assert false
 
   let init_ty env venv x xty =
-      (* TODO debug command *)
-      (* warning Always (L.i_loc0 x.v_dloc) "initialisaing variable %a" pp_var x; *)
+      (* warning Always (L.i_loc0 x.v_dloc) "initialising variable %a" pp_var x; *)
     let nxty =
       let public2 = public2 env in
       match x.v_kind, xty with
       | Const, Direct le -> VlPairs.add_le le public2; xty
       | Inline, Direct le -> VlPairs.add_le le public2; xty
-      (* likely unused as global definitions are not part of functions and thus
-         not parsed by the parser below *)
-      | Global, Direct le  -> VlPairs.add_le venv.input_corruption le; xty
 
-      | Stack Direct, Direct _ 
+      | Global, Direct _
+      | Stack Direct, Direct _
       | Stack (Pointer _), Indirect _
       | Reg (_, Direct), Direct _
       | Reg (_, Pointer _), Indirect _ -> xty
@@ -526,7 +518,7 @@ end = struct
             | Indirect(lp, le) -> Indirect(subst lp, subst le) in
           IsNormal ty in
     List.map subst_ty tyfun.tyout, List.map subst_ty tyfun.tyin,
-    subst tyfun.input_corruption, subst tyfun.resulting_corruption
+    subst tyfun.resulting_corruption
 
   let corruption env venv ty =
     VlPairs.add_le ty venv.resulting_corruption; (* update corruption level *)
@@ -535,7 +527,6 @@ end = struct
   let corruption_speculative env venv (_, s) = corruption env venv (public env, s)
 
   let get_resulting_corruption venv = venv.resulting_corruption
-  let get_input_corruption venv = venv.input_corruption
 end
 
 
@@ -956,10 +947,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
   | Ccall (_, xs, f, es) ->
     let fty = FEnv.get_fty fenv f in
     let modmsf = fty.modmsf in
-    let tyout, tyin, input_corruption, resulting_corruption = Env.clone_for_call env fty in
-
-    (* corruption so far has effect on callee function *)
-    VlPairs.add_le (Env.get_resulting_corruption venv) input_corruption;
+    let tyout, tyin, resulting_corruption = Env.clone_for_call env fty in
 
     let input_ty e vfty =
       match vfty with
@@ -1335,8 +1323,7 @@ and ty_fun_infer fenv fn =
 
   let tyout = List.map2 doout f.f_ret tyout in
   let resulting_corruption = Env.get_resulting_corruption venv in
-  let input_corruption = Env.get_input_corruption venv in
-  let (n1, s1), (n2, s2) = resulting_corruption, input_corruption in
+  let (n1, s1) = resulting_corruption in
 
   let constraints = Env.constraints env in
   let add ls vty =
@@ -1344,12 +1331,12 @@ and ty_fun_infer fenv fn =
     | IsMsf -> ls
     | IsNormal (Direct (n, s)) -> n :: s :: ls
     | IsNormal (Indirect ((np, sp), (ne, se))) -> np :: sp :: ne :: se :: ls in
-  let to_keep = List.fold_left add (List.fold_left add [n1; s1; n2; s2] tyin) tyout in
+  let to_keep = List.fold_left add (List.fold_left add [n1; s1] tyin) tyout in
 
   C.prune constraints to_keep;
-  let fty = { modmsf; tyin; tyout; constraints; resulting_corruption; input_corruption } in
+  let fty = { modmsf; tyin; tyout; constraints; resulting_corruption; } in
   Format.eprintf "%a@." pp_funty (f.f_name.fn_name, fty);
-  let tomax = List.fold_left add [n2; s2] tyin in
+  let tomax = List.fold_left add [] tyin in
   let tomin = List.fold_left add [n1; s1] tyout in
   C.optimize constraints ~tomin ~tomax;
   Format.eprintf "after optimization:@.%a@." pp_funty (f.f_name.fn_name, fty);
