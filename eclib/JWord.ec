@@ -2225,7 +2225,8 @@ abstract theory W_WS.
      map2 WS.( * ) w1 w2. 
    
    op VPMULH_'Ru'S (w1 : WB.t) (w2 : WB.t) =
-     map2 WS.( * ) w1 w2. 
+     map2 (fun (x y:WS.t) => wmulhs x y) w1 w2.
+
    op VPSLL_'Ru'S (w : WB.t) (cnt : W8.t) =
      map (fun (w:WS.t) => w `<<` cnt) w.
 
