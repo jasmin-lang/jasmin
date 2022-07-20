@@ -255,7 +255,7 @@ let pp_sidecond fmt =
   F.fprintf fmt " %a %a" kw "if" pp_expr
 
 let pp_vardecls fmt d =
-  F.fprintf fmt "%a%a;" indent 1 pp_args d; F.fprintf fmt eol
+  F.fprintf fmt "%a;" pp_args d
 
 (* TODO: print annot *)
 let rec pp_instr depth fmt (_annot, p) =
@@ -331,7 +331,7 @@ let pp_fundef fmt { pdf_cc ; pdf_name ; pdf_args ; pdf_rty ; pdf_body ; pdf_anno
     pp_cc pdf_cc
     kw "fn"
     dname (L.unloc pdf_name)
-    (pp_list ", " (fun fmt (_annot, d) -> pp_vardecls fmt d)) pdf_args
+    (pp_list ", " (fun fmt (_annot, d) -> pp_args fmt d)) pdf_args
     pp_rty pdf_rty
     (pp_inbraces 0 pp_funbody) pdf_body;
   F.fprintf fmt eol
