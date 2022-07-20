@@ -1430,6 +1430,9 @@ move=> *.
 by apply (ler_lt_trans (to_uint w)); smt(leq_trunc_div gt0_pow2 to_uint_cmp).
 qed.
 
+op wmulhs (v1 v2: t) = 
+  of_int (to_sint v1 * to_sint v2 %/ modulus).
+
 theory ALU.
 
 op SF_of (w : t) = w.[size - 1].
@@ -1521,9 +1524,6 @@ op MUL_XX (v1 v2: t) =
 op IMUL_overflow (hi lo: t) : bool =
   let ov = wdwords hi lo in
   (ov < -modulus) || (modulus - 1 < ov).
-
-op wmulhs (v1 v2: t) = 
-  of_int (to_sint v1 * to_sint v2 %/ modulus).
 
 op IMUL_XX (v1 v2: t) =
   let lo = v1 * v2 in
@@ -1822,6 +1822,8 @@ abstract theory WT.
   op orw  : t -> t -> t.
   op (+^) : t -> t -> t.
   op invw : t -> t.
+
+  op wmulhs : t -> t -> t.
 
   op (+) : t -> t -> t.
   op [-] : t -> t. 
