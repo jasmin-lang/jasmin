@@ -672,7 +672,7 @@ let pp_lval1 pd env pp_e fmt (lv, (ety, e)) =
   match lv with 
   | Lnone _ -> assert false
   | Lmem(ws, x, e1) -> 
-    Format.fprintf fmt "@[Glob.mem <-@ storeW%a Glob.mem (W64.to_uint %a) %a;@]" pp_size ws
+    Format.fprintf fmt "@[Glob.mem <-@ storeW%a Glob.mem (W64.to_uint %a) (%a);@]" pp_size ws
       (pp_wcast pd env) (add_ptr pd (gkvar x) e1) pp_e e
   | Lvar x  -> 
     Format.fprintf fmt "@[%a <-@ %a;@]" (pp_var env) (L.unloc x) pp_e e
@@ -687,7 +687,7 @@ let pp_lval1 pd env pp_e fmt (lv, (ety, e)) =
       let nws = n * int_of_ws xws in
       let nws8 = nws / 8 in
       Format.fprintf fmt 
-        "@[%a <-@ @[%a.init@ (%a.get%i (%a.set%i%s %a %a %a));@]@]"
+        "@[%a <-@ @[%a.init@ (%a.get%i (%a.set%i%s %a %a (%a)));@]@]"
         (pp_var env) x 
         (pp_Array env) n 
         (pp_WArray env) nws8 
@@ -722,14 +722,14 @@ let pp_lval1 pd env pp_e fmt (lv, (ety, e)) =
         (pp_WArray env) nws8
         pp_start () pp_start () len8
         (pp_WArray env) len8 (pp_initi env pp_e) (e, len, ws) pp_start () 
-        (pp_WArray env) nws8 (pp_initi env (pp_var env)) (x,nws8,U8)
+        (pp_WArray env) nws8 (pp_initi env (pp_var env)) (x,n,xws)
         
         in
         
       Format.fprintf fmt "@[%a <- @[%a.init@ @[(%a.get%i %a);@]"
        (pp_var env) x 
        (pp_Array env) n 
-       (pp_WArray env) nws8 (int_of_ws ws)
+       (pp_WArray env) nws8 (int_of_ws xws)
        pp_a ()
        
 let pp_lval env fmt = function

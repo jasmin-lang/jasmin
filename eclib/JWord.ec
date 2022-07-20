@@ -1430,6 +1430,9 @@ move=> *.
 by apply (ler_lt_trans (to_uint w)); smt(leq_trunc_div gt0_pow2 to_uint_cmp).
 qed.
 
+op wmulhs (v1 v2: t) = 
+  of_int (to_sint v1 * to_sint v2 %/ modulus).
+
 theory ALU.
 
 op SF_of (w : t) = w.[size - 1].
@@ -1521,9 +1524,6 @@ op MUL_XX (v1 v2: t) =
 op IMUL_overflow (hi lo: t) : bool =
   let ov = wdwords hi lo in
   (ov < -modulus) || (modulus - 1 < ov).
-
-op wmulhs (v1 v2: t) = 
-  of_int (to_sint v1 * to_sint v2 %/ modulus).
 
 op IMUL_XX (v1 v2: t) =
   let lo = v1 * v2 in
@@ -1822,6 +1822,8 @@ abstract theory WT.
   op orw  : t -> t -> t.
   op (+^) : t -> t -> t.
   op invw : t -> t.
+
+  op wmulhs : t -> t -> t.
 
   op (+) : t -> t -> t.
   op [-] : t -> t. 
@@ -2221,11 +2223,11 @@ abstract theory W_WS.
    op VPSUB_'Ru'S (w1 : WB.t) (w2 : WB.t) =
      map2 (fun (x y:WS.t) => x + (- y)) w1 w2. 
 
-   op VPMUL_'Ru'S (w1 : WB.t) (w2 : WB.t) =
+   op VPMULL_'Ru'S (w1 : WB.t) (w2 : WB.t) =
      map2 WS.( * ) w1 w2. 
-
+   
    op VPMULH_'Ru'S (w1 : WB.t) (w2 : WB.t) =
-     map2 WS.( * ) w1 w2. 
+     map2 (fun (x y:WS.t) => wmulhs x y) w1 w2.
 
    op VPSLL_'Ru'S (w : WB.t) (cnt : W8.t) =
      map (fun (w:WS.t) => w `<<` cnt) w.
@@ -3511,6 +3513,14 @@ lemma W8u32_W16u16 ws1 ws2 ws3 ws4 ws5 ws6 ws7 ws8:
          W2u16.pack2_t ws5; W2u16.pack2_t ws6; W2u16.pack2_t ws7; W2u16.pack2_t ws8 ] =
   pack16 [ws1.[0]; ws1.[1]; ws2.[0]; ws2.[1]; ws3.[0]; ws3.[1]; ws4.[0]; ws4.[1];
          ws5.[0]; ws5.[1]; ws6.[0]; ws6.[1]; ws7.[0]; ws7.[1]; ws8.[0]; ws8.[1]].
+proof. by apply W16u16.allP => /=. qed.
+
+lemma W2u128_W16u16 ws1 ws2 ws3 ws4 ws5 ws6 ws7 ws8
+                    ws9 ws10 ws11 ws12 ws13 ws14 ws15 ws16 :
+  pack2 [W8u16.pack8 [ws1; ws2; ws3; ws4; ws5; ws6; ws7; ws8];
+         W8u16.pack8 [ws9; ws10; ws11; ws12; ws13; ws14; ws15; ws16] ] =
+  pack16 [ws1; ws2; ws3; ws4; ws5; ws6; ws7; ws8;
+         ws9; ws10; ws11; ws12; ws13; ws14; ws15; ws16].
 proof. by apply W16u16.allP => /=. qed.
 
 hint simplify W2u32_W4u16, W4u32_W8u16, W8u32_W16u16.

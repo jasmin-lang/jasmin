@@ -32,10 +32,10 @@ abbrev [-printing] (\vsub16u128) (w1 w2:W128.t) = VPSUB_8u16 w1 w2.
 abbrev [-printing] (\vsub32u128) (w1 w2:W128.t) = VPSUB_4u32 w1 w2.
 abbrev [-printing] (\vsub64u128) (w1 w2:W128.t) = VPSUB_2u64 w1 w2.
 
-abbrev [-printing] (\vmul8u128)  (w1 w2:W128.t) = VPMUL_16u8 w1 w2.
-abbrev [-printing] (\vmul16u128) (w1 w2:W128.t) = VPMUL_8u16 w1 w2.
-abbrev [-printing] (\vmul32u128) (w1 w2:W128.t) = VPMUL_4u32 w1 w2.
-abbrev [-printing] (\vmul64u128) (w1 w2:W128.t) = VPMUL_2u64 w1 w2.
+abbrev [-printing] (\vmul8u128)  (w1 w2:W128.t) = VPMULL_16u8 w1 w2.
+abbrev [-printing] (\vmul16u128) (w1 w2:W128.t) = VPMULL_8u16 w1 w2.
+abbrev [-printing] (\vmul32u128) (w1 w2:W128.t) = VPMULL_4u32 w1 w2.
+abbrev [-printing] (\vmul64u128) (w1 w2:W128.t) = VPMULL_2u64 w1 w2.
 
 abbrev [-printing] (\vshr8u256)  (w1:W256.t) (w2:W8.t) = VPSRL_32u8 w1 w2.
 abbrev [-printing] (\vshr16u256) (w1:W256.t) (w2:W8.t) = VPSRL_16u16 w1 w2.
@@ -62,10 +62,10 @@ abbrev [-printing] (\vsub16u256) (w1 w2:W256.t) = VPSUB_16u16 w1 w2.
 abbrev [-printing] (\vsub32u256) (w1 w2:W256.t) = VPSUB_8u32 w1 w2.
 abbrev [-printing] (\vsub64u256) (w1 w2:W256.t) = VPSUB_4u64 w1 w2.
 
-abbrev [-printing] (\vmul8u256)  (w1 w2:W256.t) = VPMUL_32u8 w1 w2.
-abbrev [-printing] (\vmul16u256) (w1 w2:W256.t) = VPMUL_16u16 w1 w2.
-abbrev [-printing] (\vmul32u256) (w1 w2:W256.t) = VPMUL_8u32 w1 w2.
-abbrev [-printing] (\vmul64u256) (w1 w2:W256.t) = VPMUL_4u64 w1 w2.
+abbrev [-printing] (\vmul8u256)  (w1 w2:W256.t) = VPMULL_32u8 w1 w2.
+abbrev [-printing] (\vmul16u256) (w1 w2:W256.t) = VPMULL_16u16 w1 w2.
+abbrev [-printing] (\vmul32u256) (w1 w2:W256.t) = VPMULL_8u32 w1 w2.
+abbrev [-printing] (\vmul64u256) (w1 w2:W256.t) = VPMULL_4u64 w1 w2.
 
 (* ------------------------------------------------------------------- *)
 (* Semantic of sopn *)
@@ -371,23 +371,6 @@ abbrev [-printing] VPXOR_256 = W256.(`^`).
 | VPMULL   `(velem) `(wsize)
 | VPMULH   `(velem) `(wsize)   (* signed multiplication of 16-bits*)
 *)
-op VPMULL_8u16 (w1 w2: W128.t) : W128.t =
-  map2 (fun (x y:W16.t) => x * y) w1 w2.
-
-op VPMULL_16u16 (w1 w2: W256.t) : W256.t =
-  map2 (fun (x y:W16.t) => x * y) w1 w2.
-
-op VPMULL_4u32 (w1 w2: W128.t) : W128.t =
-  map2 (fun (x y:W32.t) => x * y) w1 w2.
-
-op VPMULL_8u32 (w1 w2: W256.t) : W256.t =
-  map2 (fun (x y:W32.t) => x * y) w1 w2.
-
-op VPMULH_8u16 (w1 w2: W128.t) : W128.t =
-  map2 (fun (x y:W16.t) => wmulhs x y) w1 w2.
-
-op VPMULH_16u16 (w1 w2: W256.t) : W256.t =
-  map2 (fun (x y:W16.t) => wmulhs x y) w1 w2.
 
 (* ------------------------------------------------------------------- *)
 (*
@@ -527,11 +510,7 @@ op VPBLENDW_128 (w1 w2: W128.t) (i: W8.t) : W128.t =
   pack8 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7].
 
 op VPBLENDW_256 (w1 w2: W256.t) (i: W8.t) : W256.t =
-  let choose = fun n =>
-    let w = if i.[n] then w2 else w1 in
-    w \bits16 n in
-  pack16 [choose 0; choose 1; choose 2; choose 3; choose 4; choose 5; choose 6; choose 7;
-          choose 8; choose 9; choose 10; choose 11; choose 12; choose 13; choose 14; choose 15].
+  map2 (fun (w1 w2: W128.t) => VPBLENDW_128 w1 w2 i) w1 w2.
 
 op VPBLENDD_128 (w1 w2: W128.t) (i:W8.t) : W128.t =
   let choose = fun n =>
@@ -767,7 +746,7 @@ op VPERM2I128 (w1 w2: W256.t) (i:W8.t) : W256.t =
 op permd (v: W256.t) (i: W32.t) : W32.t =
   v \bits32 (to_uint i %% 8).
 
-op VPERMD (w: W256.t) (i: W256.t) : W256.t =
+op VPERMD (i: W256.t) (w: W256.t) : W256.t =
   map (permd w) i.
 
 (* ------------------------------------------------------------------- *)
@@ -782,19 +761,19 @@ op VPERMQ (w:W256.t) (i:W8.t) : W256.t =
 (*
 | VPMOVMSKB of wsize & wsize (* source size (U128/256) & dest. size (U32/64) *)
 *)
-op VPMOVMSKB_u128_u32 (v: W128.t) =
+op VPMOVMSKB_u128u32 (v: W128.t) =
    let vb = W16u8.to_list v in
    W32.bits2w (map W8.msb vb).
 
-op VPMOVMSKB_u128_u64 (v: W128.t) =
+op VPMOVMSKB_u128u64 (v: W128.t) =
    let vb = W16u8.to_list v in
    W64.bits2w (map W8.msb vb).
 
-op VPMOVMSKB_u256_u32 (v: W256.t) =
+op VPMOVMSKB_u256u32 (v: W256.t) =
   let vb = W32u8.to_list v in
   W32.bits2w (map W8.msb vb).
 
-op VPMOVMSKB_u256_u64 (v: W256.t) =
+op VPMOVMSKB_u256u64 (v: W256.t) =
   let vb = W32u8.to_list v in
   W64.bits2w (map W8.msb vb).
 
