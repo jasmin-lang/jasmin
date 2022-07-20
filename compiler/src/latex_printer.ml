@@ -339,8 +339,11 @@ let pp_param fmt { ppa_ty ; ppa_name ; ppa_init } =
 
 let pp_pgexpr fmt = function
   | GEword e -> pp_expr fmt e 
-  | GEarray es -> 
-    Format.fprintf fmt "{@[%a@]}" (pp_list ",@ " pp_expr) es
+  | GEarray es ->
+    F.fprintf fmt "%a @[%a@] %a"
+      openbrace ()
+      (pp_list ",@ " pp_expr) es
+      closebrace ()
 
 let pp_global fmt { pgd_type ; pgd_name ; pgd_val } =
   F.fprintf fmt "%a %a = %a;"
