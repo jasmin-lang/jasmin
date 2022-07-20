@@ -13,6 +13,10 @@
   ([PR #178](https://github.com/jasmin-lang/jasmin/pull/178);
   fixes [#176](https://github.com/jasmin-lang/jasmin/issues/176)).
 
+- Various fixes to the LATEX printer
+  ([PR #212](https://github.com/jasmin-lang/jasmin/pull/212);
+  fixes [#197](https://github.com/jasmin-lang/jasmin/issues/197)).
+
 ## New features
 
 - Fill an array with “random” data using `p = #randombytes(p);`
