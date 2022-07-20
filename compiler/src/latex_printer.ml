@@ -111,6 +111,11 @@ let pp_svsize fmt (vs,s,ve) =
 let pp_space fmt _ =
   F.fprintf fmt " "
 
+let pp_attribute_key fmt s =
+  if String.for_all (function 'a' .. 'z' | 'A' .. 'Z' -> true | _ -> false) s
+  then F.fprintf fmt "%s" s
+  else F.fprintf fmt "%S" s
+
 let rec pp_simple_attribute fmt a = 
   match L.unloc a with 
   | Aint i -> Z.pp_print fmt i
@@ -118,15 +123,15 @@ let rec pp_simple_attribute fmt a =
   | Aws ws -> Format.fprintf fmt "%a" ptype (string_of_wsize ws)
   | Astruct struct_ -> Format.fprintf fmt "(%a)" pp_struct_attribute struct_
 
-and pp_struct_attribute fmt struct_ =   
-  Format.fprintf fmt "@[<hov 1 2>%a@]" (pp_list ",@ " pp_annotation) struct_
+and pp_struct_attribute fmt struct_ =
+  Format.fprintf fmt "@[<hov 2>%a@]" (pp_list ",@ " pp_annotation) struct_
 
 and pp_attribute fmt = function
   | Some a -> Format.fprintf fmt "@ =@ %a" pp_simple_attribute a
   | None -> ()
 
 and pp_annotation fmt (id, atr) =
-  Format.fprintf fmt "@[%s%a@]" (L.unloc id) pp_attribute atr
+  Format.fprintf fmt "@[%a%a@]" pp_attribute_key (L.unloc id) pp_attribute atr
 
 let pp_top_annotations fmt annot =
   match annot with
@@ -262,9 +267,11 @@ let rec pp_instr depth fmt (_annot, p) =
     begin match pimp, lvs with
     | None, [] -> ()
     | None, _ -> F.fprintf fmt "%a %a " (pp_list ", " pp_lv) lvs pp_eqop op 
-    | Some pimp, _ -> 
-      F.fprintf fmt "?{%a}, %a %a " 
+    | Some pimp, _ ->
+      F.fprintf fmt "?%a%a%a %a %a "
+        openbrace ()
         pp_struct_attribute (L.unloc pimp)
+        closebrace ()
         (pp_list ", " pp_lv) lvs 
         pp_eqop op
       
