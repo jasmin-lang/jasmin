@@ -17,6 +17,10 @@
   ([PR #212](https://github.com/jasmin-lang/jasmin/pull/212);
   fixes [#197](https://github.com/jasmin-lang/jasmin/issues/197)).
 
+- Conditional function calls now produce a clearer error message
+  ([PR #215](https://github.com/jasmin-lang/jasmin/pull/215);
+  fixes [#199](https://github.com/jasmin-lang/jasmin/issues/199)).
+
 ## New features
 
 - Fill an array with “random” data using `p = #randombytes(p);`

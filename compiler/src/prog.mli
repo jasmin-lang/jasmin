@@ -347,8 +347,6 @@ val expr_of_lval : 'len glval -> 'len gexpr option
 (* -------------------------------------------------------------------- *)
 (* Functions over instruction                                           *)
 
-val destruct_move : ('len, 'info, 'asm) ginstr -> 'len glval * E.assgn_tag * 'len gty * 'len gexpr
-
 val has_syscall : ('len, 'info, 'asm) gstmt -> bool
 
 (* -------------------------------------------------------------------- *)
