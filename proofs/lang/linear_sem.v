@@ -69,6 +69,18 @@ Definition eval_jump d s :=
   Let pc := find_label lbl body in
   ok (setcpc s fn pc.+1).
 
+Definition find_instr (s:lstate) :=
+  if get_fundef (lp_funcs P) s.(lfn) is Some fd then
+    let body := lfd_body fd in
+    oseq.onth body s.(lpc)
+  else None.
+
+Definition get_label_after_pc (s:lstate) :=
+  if find_instr (setpc s s.(lpc).+1) is Some i then
+    if li_i i is Llabel l then ok l
+    else type_error
+  else type_error.
+
 Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   match li_i i with
   | Lopn xs o es =>
@@ -80,6 +92,37 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
     Let s2 := write_lvals [::] {| escs := scs; emem := m; evm := vm_after_syscall s1.(lvm) |}
                 (to_lvals (syscall_sig o).(scs_vout)) vs in
     ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
+  | Lcall d =>
+    let vrsp := v_var (vid (lp_rsp P)) in
+    Let sp := get_var s1.(lvm) vrsp >>= to_pointer in
+    let nsp := (sp - wrepr Uptr (wsize_size Uptr))%R in
+    Let vm := set_var s1.(lvm) vrsp (Vword nsp) in
+    Let lbl := get_label_after_pc s1 in
+    if encode_label labels (lfn s1, lbl) is Some p then
+      Let m :=  write s1.(lmem) nsp p in
+      let s1' :=
+        {| lscs := s1.(lscs);
+           lmem := m;
+           lvm  := vm;
+           lfn  := s1.(lfn);
+           lpc  := s1.(lpc) |} in
+      eval_jump d s1'
+    else type_error
+  | Lret =>
+    let vrsp := v_var (vid (lp_rsp P)) in
+    Let sp := get_var s1.(lvm) vrsp >>= to_pointer in
+    let nsp := (sp + wrepr Uptr (wsize_size Uptr))%R in
+    Let p  := read s1.(lmem) sp Uptr in
+    Let vm := set_var s1.(lvm) vrsp (Vword nsp) in
+    let s1' :=
+      {| lscs := s1.(lscs);
+         lmem := s1.(lmem);
+         lvm  := vm;
+         lfn  := s1.(lfn);
+         lpc  := s1.(lpc) |} in
+    if decode_label labels p is Some d then
+      eval_jump d s1'
+    else type_error
   | Lalign   => ok (setpc s1 s1.(lpc).+1)
   | Llabel _ => ok (setpc s1 s1.(lpc).+1)
   | Lgoto d => eval_jump d s1
@@ -100,12 +143,6 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
       eval_jump (s1.(lfn),lbl) s1
     else ok (setpc s1 s1.(lpc).+1)
   end.
-
-Definition find_instr (s:lstate) :=
-  if get_fundef (lp_funcs P) s.(lfn) is Some fd then
-    let body := lfd_body fd in
-    oseq.onth body s.(lpc)
-  else None.
 
 Definition step (s: lstate) : exec lstate :=
   if find_instr s is Some i then

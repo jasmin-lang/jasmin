@@ -17,6 +17,8 @@ Context `{asmop:asmOp}.
 Variant linstr_r :=
   | Lopn   : lvals -> sopn -> pexprs -> linstr_r
   | Lsyscall : syscall_t -> linstr_r
+  | Lcall    : remote_label -> linstr_r
+  | Lret     : linstr_r
   | Lalign : linstr_r
   | Llabel : label -> linstr_r
   | Lgoto  : remote_label -> linstr_r

@@ -190,12 +190,13 @@ Definition valid_labels (fn: funname) (lo hi: label) (i: linstr) : bool :=
   | Lsyscall _
   | Lalign
   | Ligoto _
+  | Lret
     => true
   | Llabel lbl
   | LstoreLabel _ lbl
   | Lcond _ lbl
     => (lo <=? lbl) && (lbl <? hi)
-  | Lgoto (fn', lbl) =>
+  | Lgoto (fn', lbl) | Lcall (fn', lbl) =>
     if fn' == fn then (lo <=? lbl) && (lbl <? hi) else lbl == 1
   end%positive.
 
@@ -215,8 +216,8 @@ Lemma valid_le_min min2 fn min1 max lc :
   valid fn min2 max lc ->
   valid fn min1 max lc.
 Proof.
-  move => /Pos_leb_trans h; apply: sub_all; rewrite /valid_labels => -[_/=] [] // => [ lbl | [ fn' lbl ] | _ lbl | _ lbl ].
-  2: case: ifP => // _.
+  move => /Pos_leb_trans h; apply: sub_all; rewrite /valid_labels => -[_/=] [] // => [ [fn' lbl] | lbl | [ fn' lbl ] | _ lbl | _ lbl ].
+  1,3: case: ifP => // _.
   all: by case/andP => /h ->.
 Qed.
 
@@ -225,8 +226,8 @@ Lemma valid_le_max max1 fn max2 min lc :
   valid fn min max1 lc ->
   valid fn min max2 lc.
 Proof.
-  move => /Pos_lt_leb_trans h; apply: sub_all; rewrite /valid_labels => -[_/=] [] // => [ lbl | [ fn' lbl ] | _ lbl | _ lbl ].
-  2: case: ifP => // _.
+  move => /Pos_lt_leb_trans h; apply: sub_all; rewrite /valid_labels => -[_/=] [] // => [ [fn' lbl] | lbl | [ fn' lbl ] | _ lbl | _ lbl ].
+  1,3: case: ifP => // _.
   all: by case/andP => -> /h.
 Qed.
 
