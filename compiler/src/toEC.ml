@@ -512,9 +512,10 @@ let check_array env x =
   | _ -> true
 
 let pp_initi env pp fmt (x, n, ws) =
+  let i = create_name env "i" in
   Format.fprintf fmt 
-    "@[(%a.init%i (fun i => %a.[i]))@]"
-    (pp_WArray env) (arr_size ws n) (int_of_ws ws) pp x
+    "@[(%a.init%i (fun %s => %a.[%s]))@]"
+    (pp_WArray env) (arr_size ws n) (int_of_ws ws) i pp x i
     
 let pp_print_i fmt z = 
   if Z.leq Z.zero z then Z.pp_print fmt z 
@@ -530,11 +531,14 @@ let pp_cast env pp fmt (ty,ety,e) =
       Format.fprintf fmt "(%a %a)" pp_zeroext (ws_of_ty ety, ws_of_ty ty) pp e 
     | Arr(ws, n) ->
       let wse, ne = array_kind ety in
+      let i = create_name env "i" in
       Format.fprintf fmt 
-        "@[(%a.init@ (fun i => get%i@ %a@ i))@]"
+        "@[(%a.init@ (fun %s => get%i@ %a@ %s))@]"
         (pp_Array env) n
+        i
         (int_of_ws ws)
         (pp_initi env pp) (e, ne, wse)
+        i
 
 
 let rec pp_expr pd env fmt (e:expr) = 
@@ -700,13 +704,20 @@ let pp_lval1 pd env pp_e fmt (lv, (ety, e)) =
     let x = L.unloc x in
     let (xws, n) = array_kind x.v_ty in
     if ws = xws && aa = Warray_.AAscale then
+      let i = create_name env "i" in
       Format.fprintf fmt 
-      "@[%a <- @[%a.init@ @[(fun i => if %a <= i < %a + %i@ then %a.[i-%a]@ else %a.[i]);@]@]@]"
+      "@[%a <- @[%a.init@ @[(fun %s => if %a <= %s < %a + %i@ then %a.[%s-%a]@ else %a.[%s]);@]@]@]"
       (pp_var env) x 
       (pp_Array env) n 
-      (pp_expr pd env) e1 (pp_expr pd env) e1 len 
-      pp_e e (pp_expr pd env) e1
+      i
+      (pp_expr pd env) e1 
+      i
+      (pp_expr pd env) e1 len
+      pp_e e 
+      i
+      (pp_expr pd env) e1
       (pp_var env) x
+      i
     else 
       let nws = n * int_of_ws xws in
       let nws8 = nws / 8 in
@@ -717,12 +728,14 @@ let pp_lval1 pd env pp_e fmt (lv, (ety, e)) =
           Format.fprintf fmt "%a" (pp_expr pd env) e1 in
       let len8 = len * int_of_ws ws / 8 in
       let pp_a fmt () =
+        let i = create_name env "i" in
         Format.fprintf fmt 
-          "@[(%a.init8@ (fun i =>@ if %a <= i < %a + %i@ then %a.get8 %a (i - %a)@ else %a.get8 %a i))@]"
+          "@[(%a.init8@ (fun %s =>@ if %a <= %s < %a + %i@ then %a.get8 %a (%s - %a)@ else %a.get8 %a %s))@]"
         (pp_WArray env) nws8
-        pp_start () pp_start () len8
-        (pp_WArray env) len8 (pp_initi env pp_e) (e, len, ws) pp_start () 
-        (pp_WArray env) nws8 (pp_initi env (pp_var env)) (x,n,xws)
+        i
+        pp_start () i pp_start () len8
+        (pp_WArray env) len8 (pp_initi env pp_e) (e, len, ws) i pp_start () 
+        (pp_WArray env) nws8 (pp_initi env (pp_var env)) (x,n,xws) i
         
         in
         
