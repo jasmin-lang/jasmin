@@ -52,8 +52,7 @@ Definition x86_eval_cond (get : rflag -> result error bool) (c : condt) :=
   end.
 
 Instance x86 : asm register register_ext xmm_register rflag condt x86_op :=
-  {| eval_cond := x86_eval_cond
-   ; stack_pointer_register := RSP |}.
+  {| eval_cond := x86_eval_cond |}.
 
 Section SEM.
 

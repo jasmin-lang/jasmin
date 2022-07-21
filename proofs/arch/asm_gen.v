@@ -528,6 +528,13 @@ Definition assemble_i (rip : var) (i : linstr) : cexec asm_i :=
 
   | Lsyscall o =>
       ok (SysCall o)
+
+  | Lcall l =>
+      ok (CALL l)
+
+  | Lret =>
+      ok POPPC
+
   end.
 
 (* -------------------------------------------------------------------- *)

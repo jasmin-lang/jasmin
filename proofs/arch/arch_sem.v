@@ -390,15 +390,15 @@ Definition eval_op o args m :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_POP (s: asm_state) : exec (asm_state * wreg) :=
-  Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) stack_pointer_register) in
+  Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) ad_rsp) in
   Let v := read s.(asm_m).(asm_mem) sp reg_size in
-  let m := mem_write_reg MSB_CLEAR stack_pointer_register (sp + wrepr Uptr (wsize_size Uptr))%R s.(asm_m) in
+  let m := mem_write_reg MSB_CLEAR ad_rsp (sp + wrepr Uptr (wsize_size Uptr))%R s.(asm_m) in
   ok ({| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}, v).
 
 Definition eval_PUSH (w: wreg) (s: asm_state) : exec asm_state :=
-  Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) stack_pointer_register) in
-  Let m := mem_write_mem sp w s.(asm_m) in
-  let m := mem_write_reg MSB_CLEAR stack_pointer_register (sp - wrepr Uptr (wsize_size Uptr))%R m in
+  Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) ad_rsp) in
+  Let m := mem_write_mem (sp - wrepr Uptr (wsize_size Uptr))%R w s.(asm_m) in
+  let m := mem_write_reg MSB_CLEAR ad_rsp (sp - wrepr Uptr (wsize_size Uptr))%R m in
   ok {| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}.
 
 (* -------------------------------------------------------------------- *)
@@ -547,8 +547,7 @@ Proof.
     by move => <-.
   - case: return_address_from => // ra /eval_JMP_invariant /=.
     by rewrite mem_write_reg_invariant.
-  - case: return_address_from => // ra; rewrite /eval_PUSH; t_xrbindP => ? ? _ ? /mem_write_mem_invariant -> <- /eval_JMP_invariant /=.
-    by rewrite mem_write_reg_invariant.
+  - by case: return_address_from => // ra; rewrite /eval_PUSH; t_xrbindP => ? ? _ ? /mem_write_mem_invariant -> <- /eval_JMP_invariant /=; rewrite mem_write_reg_invariant.
   - rewrite /eval_POP; t_xrbindP => _ ? _ ? _ <-.
     by case: decode_label => // ? /eval_JMP_invariant <-.
   - by rewrite /eval_op /exec_instr_op; t_xrbindP => ? ? ? /mem_write_vals_invariant -> <-.

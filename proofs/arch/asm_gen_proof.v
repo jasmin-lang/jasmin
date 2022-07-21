@@ -278,6 +278,16 @@ Lemma var_of_regP rip E m s r v ty vt:
       & of_val ty v' = ok vt.
 Proof. by move=> [???? h ???] /h /of_value_uincl h1 /h1 <-; eauto. Qed.
 
+Lemma var_of_regP_eq rip m s (r:reg_t) v vt:
+  lom_eqv rip m s
+  -> get_var (evm m) (to_var r) = ok v
+  -> to_pointer v = ok vt
+  -> asm_reg s r = vt.
+Proof.
+  move=> [???? h ???] /h /of_value_uincl h1 /(h1 (sword Uptr)) /=.
+  by rewrite truncate_word_u => -[].
+Qed.
+
 Section EVAL_ASSEMBLE_COND.
 
 Context
@@ -1153,7 +1163,7 @@ Lemma assemble_i_is_label (li : linstr) (ai : asm_i) lbl :
   -> linear.is_label lbl li = arch_sem.is_label lbl ai.
 Proof.
   by (rewrite /assemble_i /linear.is_label ; case li =>  ii []; t_xrbindP)
-    => /= [ > _ <- | > <- | <- | ? <- | ? <- | ? _ ? _ <- | > _ <- | > _ <-].
+    => /= [ > _ <- | > <- | > <- | <- | <- | ? <- | ? <- | ? _ ? _ <- | > _ <- | > _ <-].
 Qed.
 
 Lemma assemble_c_find_is_label (lc : lcmd) (ac : asm_code) lbl :
@@ -1409,6 +1419,45 @@ Qed.
 Lemma to_var_typed_flag r x : to_var r = var_of_asm_typed_reg x -> x = ABReg r.
 Proof. by case: x => //= r' /inj_to_var ->. Qed.
 
+
+Lemma to_var_rsp : {| vtype := sword reg_size; vname := lp_rsp p |} = to_var ad_rsp.
+Proof.
+  move: ok_p'; rewrite /assemble_prog; t_xrbindP => _ /eqP h _ _ _.
+  by symmetry; apply: of_varI; rewrite /of_var /= eqxx.
+Qed.
+
+Lemma eval_jumpP r (xs : asm_state) ls ls' :
+   lom_eqv rip (to_estate ls) xs ->
+   eval_jump p r ls = ok ls' ->
+   exists2 xs' : asm_state,
+      eval_JMP p' r xs = ok xs' &
+      exists2 lc' : lcmd,
+        ssrfun.omap lfd_body (get_fundef (lp_funcs p) (lfn ls')) = Some lc' & match_state rip ls' lc' xs'.
+Proof.
+  case: r => fn lbl /= heqm; t_xrbindP => body.
+  case ok_fd: get_fundef => [ fd | // ] [ ] <-{body} pc ok_pc <-{ls'}.
+  case/ok_get_fundef: (ok_fd) => fd' ->.
+  case/assemble_fdI => rsp_not_in_args _ [] xc [] _ [] _ [] ok_xc _ _ ->{fd'} _ /=.
+  rewrite -(assemble_c_find_label lbl ok_xc) ok_pc /=.
+  rewrite ok_fd /=.
+  do 2 (eexists; first reflexivity).
+  by constructor.
+Qed.
+
+Lemma assemble_get_label_after_pc lc xs ls l:
+ assemble_c agparams rip lc = ok (asm_c xs)
+  → lfn ls = asm_f xs
+    → lpc ls = asm_ip xs
+      → ssrfun.omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc
+        → get_label_after_pc p ls = ok l → onth (asm_c xs) (asm_ip xs).+1 = Some (LABEL l).
+Proof.
+  move=> eqc eqfn eqpc omap_lc; rewrite /get_label_after_pc /find_instr /= eqpc.
+  case: get_fundef omap_lc => // _ [->].
+  case onth_eq : onth => [ [ii_ i] | //].
+  have [i' [-> /= ]]:= mapM_onth eqc onth_eq.
+  by case: (i) => // ? [<-] [->].
+Qed.
+
 Lemma assemble_iP i j ls ls' lc xs :
   ssrfun.omap lfd_body (get_fundef (lp_funcs p) (lfn ls)) = Some lc
   -> match_state rip ls lc xs
@@ -1524,6 +1573,45 @@ Proof.
       rewrite /get_var /=.
       case: _.[_]%vmap => // - [] // _ /ok_inj <-.
       by case: (asm_flag _ _).
+  - move=> r [<-].
+    t_xrbindP => wsp vsp hsp htow_sp l hgetpc.
+    rewrite eqfn; case ptr_eq: encode_label => [ ptr | ] //.
+    rewrite /return_address_from.
+    have -> := assemble_get_label_after_pc eqc eqfn eqpc omap_lc hgetpc.
+    replace (encode_label _ _) with (Some ptr);
+      last by rewrite -assemble_prog_labels.
+    t_xrbindP => m1 hm1.
+    rewrite sumbool_of_boolET /eval_PUSH truncate_word_u /=.
+    rewrite to_var_rsp in hsp.
+    have -> := var_of_regP_eq eqm hsp htow_sp.
+    rewrite /mem_write_mem; case: (eqm) => /= _ <- _ _ _ _ _ _.
+    rewrite hm1 /=; apply: eval_jumpP.
+    set vi := {| v_var := to_var ad_rsp; v_info := dummy_var_info |}.
+    set ls1 := (X in to_estate X).
+    have : write_var vi (Vword (wsp -  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := lvm ls1 |}.
+    + rewrite /write_var /= sumbool_of_boolET /to_estate //= /with_vm /=.
+      by have [ ->] := to_var_rsp.
+    move=> /(lom_eqv_write_var MSB_CLEAR eqm) -/(_ ad_rsp erefl).
+    by case=> *; constructor => //.
+  - move=> [<-].
+    t_xrbindP => wsp vsp hsp htow_sp ptr ok_ptr.
+    case ptr_eq: decode_label => [ r | // ] /=.
+    rewrite sumbool_of_boolET /eval_POP truncate_word_u /=.
+    rewrite to_var_rsp in hsp.
+    have -> := var_of_regP_eq eqm hsp htow_sp.
+    case: (eqm) => /= _ <- _ _ _ _ _ _.
+    rewrite ok_ptr /=.
+    change reg_size with Uptr in ptr.
+    replace (decode_label _ ptr) with (Some r);
+      last by rewrite -assemble_prog_labels.
+    apply eval_jumpP.
+    set vi := {| v_var := to_var ad_rsp; v_info := dummy_var_info |}.
+    set ls1 := (X in to_estate X).
+    have : write_var vi (Vword (wsp +  wrepr reg_size (wsize_size reg_size))) (to_estate ls) = ok {| escs := lscs ls; emem := lmem ls; evm := lvm ls1 |}.
+    + rewrite /write_var /= sumbool_of_boolET /to_estate //= /with_vm /=.
+      by have [ ->] := to_var_rsp.
+    move=> /(lom_eqv_write_var MSB_CLEAR eqm) -/(_ ad_rsp erefl).
+    by case=> *; constructor => //.
   - move=> [<-] [?]; subst ls'.
     eexists; first reflexivity.
     eexists; first eassumption.
@@ -1533,31 +1621,16 @@ Proof.
     eexists; first eassumption.
     constructor => //.
     by rewrite /setpc /= eqpc.
-  - case => fn lbl [<-] /=; t_xrbindP => body.
-    case ok_fd: get_fundef => [ fd | // ] [ ] <-{body} pc ok_pc <-{ls'}.
-    case/ok_get_fundef: (ok_fd) => fd' ->.
-    case/assemble_fdI => rsp_not_in_args _ [] xc [] _ [] _ [] ok_xc _ _ ->{fd'} _ /=.
-    rewrite -(assemble_c_find_label lbl ok_xc) ok_pc /=.
-    rewrite ok_fd /=.
-    do 2 (eexists; first reflexivity).
-    by constructor.
+  - by move=> r [<-]; apply: eval_jumpP.
   - t_xrbindP=> e.
     case ok_e: is_app1 => [ // | ] _.
     move => d ok_d <- ptr v ok_v /to_wordI[? [? [? /word_uincl_truncate hptr]]]; subst.
     change reg_size with Uptr in ptr.
-    have [v' -> /value_uinclE /=[? [? [-> /hptr /= ->]]]] := eval_assemble_word eqm ok_e ok_d ok_v.
-    case ptr_eq: decode_label => [ [] fn lbl | // ] /=.
-    replace (decode_label _ ptr) with (Some (fn, lbl));
+    have [v' -> /value_uinclE /= [? [? [-> /hptr /= ->]]]] := eval_assemble_word eqm ok_e ok_d ok_v.
+    case ptr_eq: decode_label => [ r | // ] /=.
+    replace (decode_label _ ptr) with (Some r);
       last by rewrite -assemble_prog_labels.
-    rewrite /=.
-    case get_fd: (get_fundef _) => [ fd | // ].
-    have [fd' -> ] := ok_get_fundef get_fd.
-    case/assemble_fdI => rsp_not_in_args _ [] xc [] _ [] _ [] ok_xc _ _ ->{fd'} _ /=.
-    t_xrbindP => pc ok_pc <-{ls'}.
-    rewrite -(assemble_c_find_label lbl ok_xc) ok_pc.
-    rewrite get_fd /=.
-    do 2 (eexists; first reflexivity).
-    by constructor.
+    by apply eval_jumpP.
   - move => x lbl.
     case ok_r_x: (of_var x) => [r|//]; move /of_varI in ok_r_x.
     move=> /= [<-]{j}.
@@ -1565,7 +1638,6 @@ Proof.
     case ptr_eq: encode_label => [ ptr | ] //.
     replace (encode_label _ _) with (Some ptr);
       last by rewrite -assemble_prog_labels.
-
     t_xrbindP => vm ok_vm <-{ls'}.
     eexists; first reflexivity.
     rewrite /= -eqfn.
