@@ -1772,11 +1772,10 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       if peop2_of_eqop eqop <> None then rs_tyerror ~loc exn;
       let cpi = S.PIAssign (ls, eqop, e, None) in
       let env, i = tt_instr pd asmOp env (annot, L.mk_loc loc cpi) in
-      let i, is =
+      let x, ty, e, is =
         match i with
-        | [] -> assert false
-        | i :: is -> i, is in
-      let x, _, ty, e = P.destruct_move i in
+        | { i_desc = P.Cassgn (x, _, ty, e) ; _ } :: is -> x, ty, e, is
+        | _ -> rs_tyerror ~loc exn in
       let e' = ofdfl (fun _ -> rs_tyerror ~loc exn) (P.expr_of_lval x) in
       let c = tt_expr_bool pd env cp in
       env, mk_i (P.Cassgn (x, AT_none, ty, Pif (ty, c, e, e'))) :: is

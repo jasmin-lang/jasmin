@@ -562,11 +562,6 @@ let expr_of_lval = function
 (* -------------------------------------------------------------------- *)
 (* Functions over instruction                                           *)
 
-let destruct_move i =
-  match i.i_desc with
-  | Cassgn(x, tag, ty, e) -> x, tag, ty, e
-  | _                 -> assert false
-
 let rec has_syscall_i i =
   match i.i_desc with
   | Csyscall _ -> true
