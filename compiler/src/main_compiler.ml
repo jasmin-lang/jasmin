@@ -84,6 +84,13 @@ let check_safety_p s p source_p =
       (List.rev (snd p)) in
   ()
 
+
+let check_sct _s p _source_p = 
+  try Sct_checker_forward.ty_prog p (oget !sct_list)
+  with Pretyping.TyError (loc, code) -> 
+    hierror ~loc:(Lone loc) ~kind:"speculative constant type checker" "%a" 
+      Pretyping.pp_tyerror code 
+  
 (* -------------------------------------------------------------------- *)
 let main () =
   try
@@ -167,6 +174,9 @@ let main () =
       if s = SafetyConfig.sc_comp_pass () && !check_safety then
         check_safety_p s p source_prog
         |> donotcompile
+      else if s = !Glob_options.sct_comp_pass && !sct_list <> None then
+        check_sct s p source_prog
+        |> donotcompile
       else
         eprint s (Printer.pp_prog ~debug) p in
 
@@ -195,15 +205,6 @@ let main () =
         begin try Ct_checker_forward.ty_prog ~infer:!infer source_prog (oget !ct_list)
         with Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"constant type checker" "%a" Pretyping.pp_tyerror code end;
         donotcompile()
-    end; 
-
-    if !sct_list <> None then begin
-      begin try Sct_checker_forward.ty_prog source_prog (oget !sct_list)
-      with Pretyping.TyError (loc, code) -> 
-        hierror ~loc:(Lone loc) ~kind:"speculative constant type checker" "%a" 
-          Pretyping.pp_tyerror code 
-      end;
-      donotcompile()
     end; 
 
     if !do_compile then begin

@@ -85,6 +85,8 @@ let set_sct_on s =
           | None -> [s]
           | Some l -> s::l)
 
+let sct_comp_pass = ref Compiler.ParamsExpansion
+
 let parse_jasmin_path s =
   s |> String.split_on_char ':' |> List.map (String.split ~by:"=")
 
@@ -122,6 +124,17 @@ let print_strings = function
   | Compiler.Tunneling                   -> "tunnel"   , "tunneling"
   | Compiler.Assembly                    -> "asm"      , "generation of assembly"
 
+let compiler_step_symbol = 
+  List.map (fun s -> fst (print_strings s)) Compiler.compiler_step_list
+
+let symbol2pass = 
+  let tbl = Hashtbl.create 101 in
+  List.iter (fun s -> Hashtbl.add tbl (fst (print_strings s)) s) Compiler.compiler_step_list;
+  fun s -> Hashtbl.find tbl s
+
+let set_sct_comp_pass s = 
+ sct_comp_pass := symbol2pass s
+ 
 let print_option p =
   let s, msg = print_strings p in
   ("-p"^s, Arg.Unit (set_printing p), "print program after "^msg)
@@ -148,6 +161,7 @@ let options = [
     "-infer"    , Arg.Set infer         , "infers security level annotations of the constant time type system";          
     "-checkSCT", Arg.Unit set_sct       , ": checks that the full program is speculative constant time (using a type system)";
     "-checkSCTon", Arg.String set_sct_on, "[f]: checks that the function [f] is speculative constant time (using a type system)";
+    "-checkSCTafter", Arg.Symbol(compiler_step_symbol, set_sct_comp_pass), "start sct checker after given pass"; 
 
     "-safety", Arg.Unit set_safety      , ": generates model for safety verification";
     "-checksafety", Arg.Unit set_checksafety, ": automatically check for safety";
