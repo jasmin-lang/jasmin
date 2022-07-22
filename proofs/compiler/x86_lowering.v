@@ -350,7 +350,7 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     | Olsl (Op_w sz) => k8 sz (LowerFopn (Ox86 (SHL sz)) [:: a ; b ] (Some U8))
     | Oasr (Op_w sz) => k8 sz (LowerFopn (Ox86 (SAR sz)) [:: a ; b ] (Some U8))
 
-    | Olt _ | Ole _ | Oeq _ | Oge _ | Ogt _ => LowerCond
+    | Olt _ | Ole _ | Oeq _ | Oneq _ | Oge _ | Ogt _ => LowerCond
 
     | Ovadd ve sz =>
       kb (U128 <= sz)%CMP sz (LowerCopn (Ox86 (VPADD ve sz)) [::a; b])
