@@ -21,6 +21,10 @@
   ([PR #215](https://github.com/jasmin-lang/jasmin/pull/215);
   fixes [#199](https://github.com/jasmin-lang/jasmin/issues/199)).
 
+- Fix lowering of not-equal conditions in assignments
+  ([PR #216](https://github.com/jasmin-lang/jasmin/pull/216);
+  fixes [#200](https://github.com/jasmin-lang/jasmin/issues/200)).
+
 ## New features
 
 - Fill an array with “random” data using `p = #randombytes(p);`
