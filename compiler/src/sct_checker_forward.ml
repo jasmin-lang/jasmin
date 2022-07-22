@@ -837,6 +837,15 @@ let declassify_tys env annot tys = if is_declasify annot
   else tys
 
 
+(* right now only used by syscall, which only consists of randombytes
+   it is thus tailored for this specific function. *)
+let ensure_public_address_expr env venv loc e = 
+  let ety = ty_expr env venv loc e in
+  match ety with
+  | Direct _ -> ()
+  | Indirect (le, _) -> try VlPairs.add_le le (Env.public2 env)
+      with Lvl.Unsat unsat -> error_unsat loc unsat pp_expr e ety (Direct (Env.public2 env))
+
 (* --------------------------------------------------------------- *)
 (* [ty_instr env msf i] return msf' such that env, msf |- i : msf' *)
 
@@ -845,7 +854,7 @@ let rec ty_instr fenv env ((msf,venv) as msf_e :msf_e) i =
   match i.i_desc with
   | Csyscall (xs, _o, es) ->
     (* FIXME make the constraints on es dependant of the syscall _o *)
-    List.iter (ensure_public env venv loc) es;
+    List.iter (ensure_public_address_expr env venv loc) es;
     (* We don't known what happen to MSF after external function call *)
     ty_lvals1 env (MSF.toinit, venv) xs (Env.dsecret env)
   | Cassgn(x, _, _, e) ->
