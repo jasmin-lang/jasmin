@@ -12,10 +12,15 @@ Local Open Scope vmap.
 Local Open Scope seq_scope.
 
 Section SemInversion.
-Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-Context `{asmop:asmOp}.
-Context (T : eqType) (pT : progT T) (cs : semCallParams).
-Context (p : prog) (ev : extra_val_t).
+
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  (T : eqType)
+  (pT : progT T)
+  (cs : semCallParams)
+  (p : prog)
+  (ev : extra_val_t).
 
 Lemma sem_nilI s1 s2 (P : estate -> estate -> Prop) :
   P s2 s2 -> sem p ev s1 [::] s2 -> P s1 s2.
@@ -55,13 +60,13 @@ Section SemInversionSeq1.
 End SemInversionSeq1.
 End SemInversion.
 
-Section Section.
+Section WITH_PARAMS.
 
-  Context
-    {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
-    `{asmop:asmOp}
-    (is_reg_ptr : var -> bool)
-    (fresh_id : Ident.ident → stype → Ident.ident).
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  (is_reg_ptr : var -> bool)
+  (fresh_id : Ident.ident → stype → Ident.ident).
 
   Lemma make_referenceprog_globs (p p' : uprog) :
     makereference_prog is_reg_ptr fresh_id p = ok p' ->
@@ -873,7 +878,7 @@ Section Section.
   Qed.
 
   Lemma exec_syscall_truncate scs m o ves scs' m' vs:
-    exec_syscall (pd:=pd) (pT := progUnit) scs m o ves = ok (scs', m', vs) ->
+    exec_syscall (pT := progUnit) scs m o ves = ok (scs', m', vs) ->
     exists2 ves',
       mapM2 ErrType truncate_val [seq i.2 | i <- (get_syscall_sig o).1] ves = ok ves' &
       mapM2 ErrType truncate_val [seq i.2 | i <- (get_syscall_sig o).2] vs = ok vs.
@@ -886,8 +891,8 @@ Section Section.
   Lemma exec_syscall_eq_tr scs m o ves ves' scs' m' vs :
     mapM2 ErrType truncate_val [seq i.2 | i <- (get_syscall_sig o).1] ves =
       mapM2 ErrType truncate_val [seq i.2 | i <- (get_syscall_sig o).1] ves' ->
-    exec_syscall (pd:=pd) (pT := progUnit) scs m o ves = ok (scs', m', vs) ->
-    exec_syscall (pd:=pd) (pT := progUnit) scs m o ves' = ok (scs', m', vs).
+    exec_syscall (pT := progUnit) scs m o ves = ok (scs', m', vs) ->
+    exec_syscall (pT := progUnit) scs m o ves' = ok (scs', m', vs).
   Proof.
     case: o => len /=; t_xrbindP; rewrite /exec_getrandom.
     case: ves ves' => // v [] // ves' heq [scs1 vs'].
@@ -918,9 +923,9 @@ Section Section.
     sem_call p' ev scs mem f va scs' mem' vr.
   Proof.
     move=> Hsem; case: (sem_callE Hsem) => fd [hget _].
-    by apply (@sem_call_Ind _ _ _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
+    by apply (@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
                Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc
                scs mem f va scs' mem' vr Hsem _ _ hget).
   Qed.
 
-End Section.
+End WITH_PARAMS.

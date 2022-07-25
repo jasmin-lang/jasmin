@@ -2,6 +2,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import
   compiler_util
   expr
+  flag_combination
   psem.
 Require Import
   arch_decl
@@ -13,6 +14,7 @@ Require
   linearization
   linearization_proof
   lowering
+  propagate_inline_proof
   stack_alloc
   stack_alloc_proof.
 Require Export arch_params.
@@ -22,9 +24,13 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
+Existing Instance arch_extra.spp_of_asm_e.
+
 Record h_lowering_params
-  {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
-  `{asm_e : asm_extra} 
+  {syscall_state : Type}
+  {sc_sem : syscall.syscall_sem syscall_state}
+  {reg regx xreg rflag cond asm_op extra_op : Type}
+  {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
   (fresh_vars lowering_options : Type)
   (loparams : lowering_params fresh_vars lowering_options) :=
   {
@@ -58,15 +64,23 @@ Record h_lowering_params
   }.
 
 Record h_architecture_params
-  {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
-  `{asm_e : asm_extra} {call_conv:calling_convention}
+  {syscall_state : Type}
+  {sc_sem : syscall.syscall_sem syscall_state}
+  {reg regx xreg rflag cond asm_op extra_op : Type}
+  {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
+  {call_conv : calling_convention}
   (fresh_vars lowering_options : Type)
   (aparams : architecture_params fresh_vars lowering_options) :=
   {
-    (* Stack alloc hypotheses. See stack_alloc_proof.v. *)
-    hap_hsap : forall is_regx, stack_alloc_proof.h_stack_alloc_params (ap_sap aparams is_regx);
+    (* Propagate inline hypotheses. See [propagate_inline.v]. *)
+    hap_hpip : propagate_inline_proof.h_propagate_inline_params;
 
-    (* Linearization hypotheses. See linearization_proof.v. *)
+    (* Stack alloc hypotheses. See [stack_alloc_proof.v]. *)
+    hap_hsap :
+      forall is_regx,
+        stack_alloc_proof.h_stack_alloc_params (ap_sap aparams is_regx);
+
+    (* Linearization hypotheses. See [linearization_proof.v]. *)
     hap_hlip :
       linearization_proof.h_linearization_params
         (ap_lip aparams);
@@ -80,7 +94,7 @@ Record h_architecture_params
     (* Lowering hypotheses. Defined above. *)
     hap_hlop : h_lowering_params (ap_lop aparams);
 
-    (* Assembly generation hypotheses. See asm_gen_proof.v. *)
+    (* Assembly generation hypotheses. See [asm_gen_proof.v]. *)
     hap_hagp : h_asm_gen_params (ap_agp aparams);
 
     (* ------------------------------------------------------------------------ *)

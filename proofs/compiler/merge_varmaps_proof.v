@@ -15,10 +15,11 @@ Unset Printing Implicit Defensive.
 
 Local Open Scope vmap_scope.
 
-Section ASM_OP.
+Section WITH_PARAMS.
 
-Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-Context `{asmop:asmOp}.
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}.
 
 Lemma vrvs_Lvar xs :
   vrvs [seq Lvar x | x <- xs] = sv_of_list v_var xs.
@@ -82,17 +83,14 @@ Proof. by case: Q; rewrite !(orbT, orbF, andbT). Qed.
 Definition is_export (p: sprog) (fn: funname) : Prop :=
   exists2 fd, get_fundef p.(p_funcs) fn = Some fd & fd.(f_extra).(sf_return_address) = RAnone.
 
-End ASM_OP.
-
 Section PROG.
 
 Context
-  {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
-  {asm_op} {asmop:asmOp asm_op} {ovm_i : one_varmap_info}
-  (p: sprog)
-  (extra_free_registers: instr_info -> option var)
+  {ovm_i : one_varmap_info}
+  (p : sprog)
+  (extra_free_registers : instr_info -> option var)
   (id_tmp : Ident.ident)
-  (global_data: pointer).
+  (global_data : pointer).
 
 Let var_tmp : var := vid id_tmp.
 
@@ -953,7 +951,7 @@ Section LEMMA.
       _
     :=
       Eval hnf in
-      @sem_call_Ind _ _ _ _ _ _ _ _ p global_data Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hassgn Hopn Hsyscall Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc.
+      @sem_call_Ind _ _ _ _ _ _ p global_data Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hassgn Hopn Hsyscall Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc.
 
 End LEMMA.
 
@@ -1006,3 +1004,5 @@ Proof.
 Qed.
 
 End PROG.
+
+End WITH_PARAMS.

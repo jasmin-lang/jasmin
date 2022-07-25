@@ -5,6 +5,7 @@ Require Import
   arch_params_proof
   compiler_util
   expr
+  flag_combination
   psem
   psem_facts
   one_varmap
@@ -13,10 +14,10 @@ Require Import
   linearization
   linearization_proof
   lowering
+  propagate_inline_proof
   stack_alloc
   stack_alloc_proof.
-Require
-  arch_sem.
+Require arch_sem.
 Require Import
   arch_decl
   arch_extra
@@ -35,8 +36,48 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 
-Section Section.
-Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state}. 
+Section WITH_PARAMS.
+Context
+  {syscall_state : Type}
+  {sc_sem : syscall_sem syscall_state}.
+
+#[ local ]
+Existing Instance spp_of_asm_e.
+
+
+(* ------------------------------------------------------------------------ *)
+(* Flag combination hypotheses. *)
+
+Lemma x86_cf_xsemP gd s e0 e1 e2 e3 cf v :
+  let e := PappN (Ocombine_flags cf) [:: e0; e1; e2; e3 ] in
+  let e' := cf_xsem enot eand eor expr.eeq e0 e1 e2 e3 cf in
+  sem_pexpr gd s e = ok v
+  -> sem_pexpr gd s e' = ok v.
+Proof.
+  rewrite /=.
+
+  t_xrbindP=> vs0 v0 hv0 vs1 v1 hv1 vs2 v2 hv2 vs3 v3 hv3 ? ? ? ?;
+    subst vs0 vs1 vs2 vs3.
+  rewrite /sem_opN /=.
+  t_xrbindP=> b b0 hb0 b1 hb1 b2 hb2 b3 hb3 hb ?; subst v.
+  move: hb0 => /to_boolI ?; subst v0.
+  move: hb1 => /to_boolI ?; subst v1.
+  move: hb2 => /to_boolI ?; subst v2.
+  move: hb3 => /to_boolI ?; subst v3.
+
+  move: hb.
+  rewrite /sem_combine_flags.
+  rewrite /cf_xsem.
+
+  case: cf_tbl => -[] [] [?] /=; subst b.
+  all: by rewrite ?hv0 ?hv1 ?hv2 ?hv3.
+Qed.
+
+Definition x86_hpiparams : h_propagate_inline_params :=
+  {|
+    pip_cf_xsemP := x86_cf_xsemP;
+  |}.
+
 (* ------------------------------------------------------------------------ *)
 (* Stack alloc hypotheses. *)
 
@@ -48,7 +89,7 @@ Section STACK_ALLOC.
   Lemma lea_ptrP s1 e i x tag ofs w s2 :
     (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
     -> write_lval [::] x (Vword (i + wrepr _ ofs)) s1 = ok s2
-    -> psem.sem_i P' w s1 (lea_ptr x e tag ofs) s2.
+    -> psem.sem_i (spp := spp_of_asm_e) P' w s1 (lea_ptr x e tag ofs) s2.
   Proof.
     move=> he hx.
     constructor.
@@ -64,7 +105,7 @@ Lemma x86_mov_ofsP (is_regx : var -> bool) (P' : sprog) s1 e i x tag ofs w vpk s
   -> (Let i' := sem_pexpr [::] s1 e in to_pointer i') = ok i
   -> sap_mov_ofs (x86_saparams is_regx) x tag vpk e ofs = Some ins
   -> write_lval [::] x (Vword (i + wrepr Uptr ofs)) s1 = ok s2
-  -> psem.sem_i P' w s1 ins s2.
+  -> psem.sem_i (spp := spp_of_asm_e) P' w s1 ins s2.
 Proof.
   move=> P'_globs he.
   rewrite /x86_saparams /= /x86_mov_ofs.
@@ -535,6 +576,7 @@ Qed.
 
 Definition x86_h_params {call_conv : calling_convention} : h_architecture_params x86_params :=
   {|
+    hap_hpip := x86_hpiparams;
     hap_hsap := x86_hsaparams;
     hap_hlip := x86_hliparams;
     ok_lip_tmp := x86_ok_lip_tmp;
@@ -543,4 +585,4 @@ Definition x86_h_params {call_conv : calling_convention} : h_architecture_params
     hap_is_move_opP := x86_is_move_opP;
   |}.
 
-End Section.
+End WITH_PARAMS.

@@ -5,6 +5,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 From CoqWord Require Import ssrZ.
 Require Import Psatz xseq.
 Require Export array type expr gen_map low_memory warray_ sem_type values.
+Require Import flag_combination.
 Import Utf8.
 
 Set Implicit Arguments.
@@ -203,44 +204,40 @@ Proof.
   by rewrite /sem_sop2; t_xrbindP => w1 ok_w1 w2 ok_w2 w3 ok_w3 <- {v}; exists w1, w2, w3.
 Qed.
 
-Definition neg_f (n:bool) (f:bool) := 
-  if n then ~~f else f.
+Section WITH_PARAMS.
 
-Definition sem_cfc (n:bool) (o:combine_flags_core) (OF CF SF ZF : bool) : exec bool := 
-  let r :=
-    match o with
-    | CFC_O => OF
-    | CFC_B => CF
-    | CFC_E => ZF
-    | CFC_S => SF
-    | CFC_L => OF!=SF
-    | CFC_BE => CF || ZF
-    | CFC_LE => (OF!=SF) || ZF
-    end in
-  ok (neg_f n r).
+Context {cfcd : FlagCombinationParams}.
 
-Definition sem_combine_flags (o:combine_flags) : 
-  sem_prod tin_combine_flags (exec bool) := 
-    let c := cf_tbl o in
-    sem_cfc c.1 c.2.
+Definition sem_combine_flags
+  (o : combine_flags) (bof bcf bsf bzf : bool) : exec bool :=
+  let '(n, cfc) := cf_tbl o in
+  let b := cfc_xsem negb andb orb (fun x y => x == y) bof bcf bsf bzf cfc in
+  ok (if n then ~~ b else b).
 
 Definition sem_opN_typed (o: opN) :
   let t := type_of_opN o in
   sem_prod t.1 (exec (sem_t t.2)) :=
   match o with
   | Opack sz pe => curry (A := sint) (sz %/ pe) (λ vs, ok (wpack sz pe vs))
-  | Ocombine_flags o => sem_combine_flags o  
+  | Ocombine_flags o => sem_combine_flags o
   end.
 
 Definition sem_opN (op: opN) (vs: values) : exec value :=
   Let w := app_sopn _ (sem_opN_typed op) vs in
   ok (to_val w).
 
-Record estate {pd: PointerData} {syscall_state : Type} {sc_sem: syscall_sem syscall_state} := Estate {
-  escs : syscall_state_t;
-  emem : mem;
-  evm  : vmap
-}.
+End WITH_PARAMS.
+
+Record estate
+  {pd : PointerData}
+  {syscall_state : Type}
+  {sc_sem : syscall_sem syscall_state} :=
+  Estate
+    {
+      escs : syscall_state_t;
+      emem : mem;
+      evm  : vmap;
+    }.
 
 Arguments Estate {pd} {syscall_state}%type_scope {sc_sem} _ _ _.
 
@@ -326,10 +323,23 @@ Proof.
   by apply: H;rewrite -h.
 Qed.
 
+Class SemPexprParams (asm_op syscall_state : Type) :=
+  {
+    _pd :> PointerData;
+    _asmop :> asmOp asm_op;
+    _fcp :> FlagCombinationParams;
+    _sc_sem :> syscall_sem syscall_state;
+  }.
+
+Section WITH_PARAMS.
+
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}.
+
 Section SEM_PEXPR.
 
-Context {pd: PointerData} {syscall_state : Type} {sc_sem: syscall_sem syscall_state}.
-Context (gd: glob_decls).
+Context (gd : glob_decls).
 
 Fixpoint sem_pexpr (s:estate) (e : pexpr) : exec value :=
   match e with
@@ -413,11 +423,6 @@ Definition write_lvals (s:estate) xs vs :=
 End SEM_PEXPR.
 
 (* ---------------------------------------------------------------- *)
-
-Section ASM_OP.
-
-Context {pd:PointerData} {syscall_state : Type} {sc_sem: syscall_sem syscall_state}
-        {asm_op : Type} {asmop: asmOp asm_op}.
 
 Definition exec_sopn (o:sopn) (vs:values) : exec values :=
   let semi := sopn_sem o in
@@ -740,4 +745,4 @@ End SEM_IND.
 
 End SEM.
 
-End ASM_OP.
+End WITH_PARAMS.

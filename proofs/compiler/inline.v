@@ -4,6 +4,7 @@
 Require Import ZArith.
 From mathcomp Require Import all_ssreflect.
 Require Import expr compiler_util allocation.
+Require sem.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -33,9 +34,10 @@ End E.
 
 Section INLINE.
 
-Context {pd: PointerData}.
-Context `{asmop:asmOp}.
-Context (inline_var: var -> bool).
+Context
+  {asm_op syscall_state : Type}
+  {spp : sem.SemPexprParams asm_op syscall_state}
+  (inline_var : var -> bool).
 
 Definition get_flag (x:lval) flag :=
   match x with

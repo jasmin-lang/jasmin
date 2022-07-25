@@ -3,6 +3,7 @@ Require Import ZArith.
 Require Import Utf8.
 
 Require Import oseq expr_facts compiler_util label linear linear_sem.
+Require sem.
 Import ssrZ.
 
 Set Implicit Arguments.
@@ -16,10 +17,12 @@ Require Import linear_sem.
 
 
 
-Section ASM_OP.
+Section WITH_PARAMS.
 
-Context {pd:PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-Context {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap.one_varmap_info}.
+Context
+  {asm_op syscall_state : Type}
+  {spp : sem.SemPexprParams asm_op syscall_state}
+  {ovm_i : one_varmap.one_varmap_info}.
 
 Section LprogSemProps.
 
@@ -1368,7 +1371,7 @@ Section TunnelingProof.
     rewrite /Q => {Q} s3 s4 s5 Htlsem34 Htlsem145 Hlsem34.
     apply (lsem_trans Hlsem34); case: (tunnel_lprog_pc_lsem1 Hwf Htlsem145).
     + by move => Hlsem145; apply Relation_Operators.rt_step.
-    by case => s6 [Hlsem146 Hlsem165]; apply (@lsem_trans _ _ _ _ _ _ p s6);
+    by case => s6 [Hlsem146 Hlsem165]; apply (@lsem_trans _ _ _ _ p s6);
     apply Relation_Operators.rt_step.
   Qed.
 
@@ -1576,4 +1579,4 @@ Section TunnelingProof.
 End TunnelingProof.
 
 
-End ASM_OP.
+End WITH_PARAMS.

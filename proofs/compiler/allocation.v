@@ -64,8 +64,11 @@ Module Type CheckB.
     eq_alloc r1 vm vm' ->
     eq_alloc r2 vm vm'.
 
-  Section WITH_POINTER_DATA.
-  Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+  Section WITH_PARAMS.
+
+  Context
+    {asm_op syscall_state : Type}
+    {spp : SemPexprParams asm_op syscall_state}.
 
   Parameter check_eP : forall gd e1 e2 r re vm1 vm2,
     check_e e1 e2 r = ok re ->
@@ -85,16 +88,18 @@ Module Type CheckB.
       write_lval gd x2 v2 (with_vm s1 vm1) = ok (with_vm s1' vm1') /\
       eq_alloc r1' s1'.(evm) vm1'.
 
-  End WITH_POINTER_DATA.
+  End WITH_PARAMS.
 End CheckB.
 
 Module Type CheckBE.
   Include CheckB.
 
-  Section WITH_POINTER_DATA.
-  Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+  Section WITH_PARAMS.
+  Context
+    {asm_op syscall_state : Type}
+    {spp : SemPexprParams asm_op syscall_state}.
 
-  Parameter eft : PointerData -> eqType.
+  Parameter eft : SemPexprParams asm_op syscall_state -> eqType.
   #[ global ] Arguments eft {_}.
 
   #[ global ] Declare Instance pT  : progT eft.
@@ -111,17 +116,19 @@ Module Type CheckBE.
        init_state ef ep2 ev (Estate scs m vmap0) = ok (with_vm s1 vm2) /\
        eq_alloc r s1.(evm) vm2.
 
-  End WITH_POINTER_DATA.
+  End WITH_PARAMS.
 End CheckBE.
 
 Module CheckBU (C:CheckB) <: CheckBE.
 
   Include C.
 
-  Section WITH_POINTER_DATA.
-  Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+  Section WITH_PARAMS.
+  Context
+    {asm_op syscall_state : Type}
+    {spp : SemPexprParams asm_op syscall_state}.
 
-  Definition eft := fun {_: PointerData} => [eqType of unit].
+  Definition eft := fun {_: SemPexprParams asm_op syscall_state} => [eqType of unit].
   #[ global ] Instance pT : progT eft := progUnit.
   #[ global ] Instance sCP : semCallParams := sCP_unit.
 
@@ -138,7 +145,7 @@ Module CheckBU (C:CheckB) <: CheckBE.
     by move=> [<-] [<-]; exists vmap0; split => //=; apply eq_alloc_empty.
   Qed.
 
-  End WITH_POINTER_DATA.
+  End WITH_PARAMS.
 End CheckBU.
 
 Definition alloc_error := pp_internal_error_s "allocation".
@@ -147,8 +154,10 @@ Module CheckBS (C:CheckB) <: CheckBE.
 
   Include C.
 
-  Section WITH_POINTER_DATA.
-  Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+  Section WITH_PARAMS.
+  Context
+    {asm_op syscall_state : Type}
+    {spp : SemPexprParams asm_op syscall_state}.
 
   Definition eft := extra_fun_t (pT:= progStack).
   Instance pT : progT eft := progStack.
@@ -196,7 +205,7 @@ Module CheckBS (C:CheckB) <: CheckBE.
     by exists vm2.
   Qed.
 
-  End WITH_POINTER_DATA.
+  End WITH_PARAMS.
 End CheckBS.
 
 Module MakeCheckAlloc (C:CheckBE).
@@ -238,10 +247,10 @@ Definition check_var x1 x2 r := check_lval None (Lvar x1) (Lvar x2) r.
 
 Definition check_vars xs1 xs2 r := check_lvals (map Lvar xs1) (map Lvar xs2) r.
 
-Section ASM_OP.
-
-Context {pd:PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-Context `{asmop:asmOp}.
+Section WITH_PARAMS.
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}.
 
 Fixpoint check_i (i1 i2:instr_r) r :=
   match i1, i2 with
@@ -693,7 +702,7 @@ Section PROOF.
     exists vr', sem_call p2 ev scs mem f va scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
     move=>
-      /(@sem_call_Ind _ _ _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
+      /(@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
     move=> H;apply H.
     by apply List_Forall2_refl.
@@ -731,7 +740,7 @@ Lemma alloc_funP_eq p ev fn f f' scs1 m1 scs2 m2 vargs vargs' vres vres' s0 s1 s
             scs2 = s2.(escs) /\ m2 = finalize f'.(f_extra) s2.(emem) ].
   Proof. by apply alloc_funP_eq_aux. Qed.
 
-End ASM_OP.
+End WITH_PARAMS.
 
 End MakeCheckAlloc.
 
@@ -1321,8 +1330,10 @@ Module CBAreg.
     case:eqP => [-> [<-] ?| //]; split;eauto.
   Qed.
 
-  Section WITH_POINTER_DATA.
-  Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+  Section WITH_PARAMS.
+  Context
+    {asm_op syscall_state : Type}
+    {spp : SemPexprParams asm_op syscall_state}.
 
   Section CHECK_EP.
     Context (gd: glob_decls) (vm2: vmap).
@@ -1645,7 +1656,7 @@ Module CBAreg.
     by eexists.
   Qed.
 
-  End WITH_POINTER_DATA.
+  End WITH_PARAMS.
 End CBAreg.
 
 Module CBAregU := CheckBU CBAreg.

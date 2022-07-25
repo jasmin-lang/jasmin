@@ -122,6 +122,7 @@ let main () =
     let module Arch = Arch_full.Arch_from_Core_arch (Ocaml_params) in
     let module Regalloc = Regalloc.Regalloc (Arch) in
     let module StackAlloc = StackAlloc.StackAlloc (Arch) in
+    let spp = Arch_extra.spp_of_asm_e Arch.asm_e Syscall_ocaml.sc_sem in
 
     if !safety_makeconfigdoc <> None
     then (
@@ -270,9 +271,7 @@ let main () =
                  | Utils0.Error err -> raise (Evaluator.Eval_error (Expr.dummy_instr_info, err)))
               |>
               Evaluator.exec
-                Arch.reg_size
-                Syscall_ocaml.sc_sem
-                Arch.asmOp
+                spp
                 (Syscall_ocaml.initial_state ())
                 (Expr.to_uprog Arch.asmOp cprog)
                 (Conv.cfun_of_fun tbl f)
@@ -501,6 +500,7 @@ let main () =
     begin match
       Compiler.compile_prog_to_asm
         Arch.asm_e
+        Syscall_ocaml.sc_sem
         Arch.call_conv
         Arch.aparams
         cparams

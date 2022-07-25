@@ -24,9 +24,16 @@ Unset Printing Implicit Defensive.
 
 Section ASM_EXTRA.
 
-Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
-        `{asm_e : asm_extra} {call_conv: calling_convention}
-         {asm_scsem : asm_syscall_sem}.
+Context
+  {syscall_state : Type}
+  {sc_sem : syscall_sem syscall_state}
+  {reg regx xreg rflag cond asm_op extra_op : Type}
+  {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
+  {call_conv: calling_convention}
+  {asm_scsem : asm_syscall_sem}.
+
+#[ local ]
+Existing Instance arch_extra.spp_of_asm_e.
 
 (* -------------------------------------------------------------------- *)
 Lemma xreg_of_varI {ii x y} :
@@ -203,15 +210,15 @@ Lemma addr_of_pexprP rip ii sz sz' (w:word sz') e adr m s:
   zero_extend sz (decode_addr s adr) = zero_extend sz w.
 Proof.
   rewrite /addr_of_pexpr => hsz lom he.
-  t_xrbindP => hsz64.
+  t_xrbindP=> hszUptr.
   case heq: mk_lea => [lea | //].
-  have hsemlea := mk_leaP hsz64 hsz heq he.
-  case hb: lea_base => [b | ]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
-  case: eqP => [ | _]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
+  have hsemlea := mk_leaP (spp := spp_of_asm_e) hszUptr hsz heq he.
+  case hb: lea_base => [b | ]; last by apply (assemble_leaP hszUptr hsz lom hsemlea).
+  case: eqP => [ | _]; last by apply (assemble_leaP hszUptr hsz lom hsemlea).
   t_xrbindP => hbrip.
   case ho: lea_offset => [ // | ] _ <- /=.
   case: lom => _ _ hrip _ _ _.
-  move: hsemlea; rewrite /sem_lea ho hb /= hbrip hrip /= /truncate_word hsz64 /= => h.
+  move: hsemlea; rewrite /sem_lea ho hb /= hbrip hrip /= /truncate_word hszUptr /= => h.
   have <- := ok_inj h.
   by rewrite GRing.mulr0 GRing.addr0 GRing.addrC wadd_zero_extend.
 Qed.
@@ -1462,17 +1469,21 @@ Proof.
          {| evm := (vm_after_syscall (lvm ls)) |} h => //= r rs ih s1 /andP [hnin huniq].
       rewrite (sumbool_of_boolET (cmp_le_refl reg_size)) => hw r0 v.
       rewrite (in_cons (T:= @ceqT_eqType _ _)) => /orP []; last by apply: (ih _ huniq hw).
-      move=> /eqP ?; subst r0; rewrite -(get_var_eq_except _ (vrvsP hw));last first.
+      move=> /eqP ?.
+      subst r0.
+      rewrite -(get_var_eq_except _ (vrvsP (spp := spp_of_asm_e) hw));
+        last first.
       + rewrite vrvs_to_lvals => /sv_of_listP /(mapP (T1:= @ceqT_eqType _ _)) [r'] hr' /inj_to_var ?; subst r'.
         by rewrite hr' in hnin.
       rewrite /get_var /= Fv.setP_eq => -[] <-; apply value_uincl_refl.
     have hkill : forall x, Sv.In x syscall_kill -> ~Sv.In x R -> ~~is_sarr (vtype x) ->
       ~is_ok (get_var (evm s) x).
-    + move=> x /Sv_memP hin hnin; rewrite -(get_var_eq_except _ (vrvsP hw)) //=.
+    + move=> x /Sv_memP hin hnin.
+      rewrite -(get_var_eq_except _ (vrvsP (spp := spp_of_asm_e) hw)) //=.
       rewrite /get_var kill_varsE hin /on_vu; case: (vtype x) => //.
     constructor => //=.
-    + by rewrite (write_lvals_escs hw).
-    + by apply: write_lvals_emem hw; apply: get_lvar_to_lvals.
+    + by rewrite (write_lvals_escs (spp := spp_of_asm_e) hw).
+    + apply: (write_lvals_emem _ hw). by apply: get_lvar_to_lvals.
     + rewrite (get_var_eq_except _ heqx) // /X; first by rewrite hgetrip hrip.
       case: assemble_progP => -[] hripr hriprx hripxr hripf _ _ _.
       move=> /Sv.union_spec [] hin.
