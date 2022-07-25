@@ -171,9 +171,8 @@ export fn foo_infer_half (#transient reg u64 i) -> reg u64 {
   return r;
 }
 
-#constraints = "transient <= l2, l1 <= l1"
-inline fn test1(#poly=l1 stack u64[1] x) -> #poly=l2 reg u64 {
-   #poly=l2 reg u64 r;
+inline fn test1(stack u64[1] x) -> reg u64 {
+   reg u64 r;
    r = x[0];
    return r;
 }
@@ -357,6 +356,7 @@ inline fn __keccak_rho_offsets(inline int i, #msf reg u64 ms) -> inline int, #ms
 fn call___keccak_rho_offsets(#msf reg u64 ms) -> #msf reg u64
 {
   inline int i r;
+  i = 2;
   r, ms = __keccak_rho_offsets(i, ms);
   return ms;
 }
