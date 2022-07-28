@@ -22,6 +22,7 @@ src/Ppasm
 src/Pretyping
 src/Printer
 src/PrintLinear
+src/PrintStats
 src/Prog
 src/Puf
 src/Regalloc

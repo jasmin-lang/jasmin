@@ -15,6 +15,8 @@ let safety_config = ref None
 let stop_after = ref None
 let safety_makeconfigdoc = ref None   
 
+let print_stats = ref false
+
 let help_version = ref false
 let help_intrinsics = ref false
 type color = | Auto | Always | Never
@@ -186,6 +188,7 @@ let options = [
     "-lazy-regalloc", Arg.Set lazy_regalloc, "\tAllocate variables to registers in program order";
     "-pall"    , Arg.Unit set_all_print, "print program after each compilation steps";
     "-print-dependencies", Arg.Set print_dependencies, ": print dependencies and exit";
+    "-pstats", Arg.Set print_stats, "print SLH stats";
     "-intel", Arg.Unit (set_syntax `Intel), "use intel syntax (default is AT&T)"; 
     "-ATT", Arg.Unit (set_syntax `ATT), "use AT&T syntax (default is AT&T)"; 
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
