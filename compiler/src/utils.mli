@@ -358,3 +358,11 @@ val warning :
       warning -> Location.i_loc
    -> ('a, Format.formatter, unit) format -> 'a
 
+
+(* -------------------------------------------------------------------- *)
+
+type input_error =
+  | FileNotFound of string
+  | FileIsDirectory of string
+
+val pp_input_error : input_error -> string
