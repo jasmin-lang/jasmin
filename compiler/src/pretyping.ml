@@ -1720,7 +1720,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let tlvs, tes, arguments = prim_sig asmOp p in
       let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in
-      env, mk_i (P.Copn(lvs, AT_none, p, es)) :: einstr
+      env, mk_i (P.Copn(lvs, AT_keep, p, es)) :: einstr
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEOp1 (`Cast(`ToWord ct), {pl_desc = PEPrim (f, args) })} , None)
       ->
@@ -1731,7 +1731,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let tlvs, tes, arguments = prim_sig asmOp p in
       let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in
-      env, mk_i (P.Copn(lvs, AT_none, p, es)) :: einstr
+      env, mk_i (P.Copn(lvs, AT_keep, p, es)) :: einstr
 
   | PIAssign((None,[lv]), `Raw, pe, None) ->
       let _, flv, vty = tt_lvalue pd env lv in
