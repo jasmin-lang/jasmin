@@ -42,6 +42,10 @@
 
 ## Improvements
 
+- Intrinsics present at source-level can no longer be removed by dead-code elimination
+  ([PR #221](https://github.com/jasmin-lang/jasmin/pull/221);
+  fixes [#220](https://github.com/jasmin-lang/jasmin/issues/220)).
+
 - Lowering of a memory-to-memory copy always introduce an intermediate copy through a register
 
 - `instr_info` are now plain OCaml `int` and `var_info` are `Location.t`;
