@@ -14,6 +14,7 @@ Unset Printing Implicit Defensive.
 Module MvMake (I:IDENT).
 
   Import I Mid.
+#[global]
   Existing Instance K.cmpO.
 
   Record var := Var { vtype : stype; vname : ident }.
@@ -35,6 +36,7 @@ Module MvMake (I:IDENT).
   Definition var_cmp (x y:var) :=
     Lex (stype_cmp x.(vtype) y.(vtype)) (K.cmp x.(vname) y.(vname)).
 
+#[global]
   Instance varO : Cmp var_cmp.
   Proof.
     constructor=> [x y | y x z c | [??] [??]] ;rewrite /var_cmp !Lex_lex.
@@ -454,12 +456,14 @@ Proof. by apply: sameP (Sv_memP x s) (Sv_elemsP x s). Qed.
 
 Definition disjoint s1 s2 := Sv.is_empty (Sv.inter s1 s2).
 
+#[global]
 Instance disjoint_m :
   Proper (Sv.Equal ==> Sv.Equal ==> eq) disjoint.
 Proof.
   by move => s1 s1' Heq1 s2 s2' Heq2;rewrite /disjoint Heq1 Heq2.
 Qed.
 
+#[global]
 Instance disjoint_sym : Symmetric disjoint.
 Proof.
   move=> x y h; rewrite/disjoint.
@@ -553,6 +557,7 @@ Module Mvar :=  Mmake CmpVar.
 Definition Mvar_eq T (m1 m2:Mvar.t T) :=
   forall x, Mvar.get m1 x = Mvar.get m2 x.
 
+#[global]
 Polymorphic Instance equiv_Mvar_eq T : Equivalence (@Mvar_eq T).
 Proof.
   split=> //.
@@ -560,14 +565,17 @@ Proof.
   by move=> m1 m2 m3 Hm1 Hm2 z;rewrite Hm1 Hm2.
 Qed.
 
+#[global]
 Instance Mvar_get_m T:
   Proper (@Mvar_eq T ==> eq ==> eq) Mvar.get.
 Proof. by move=> m1 m2 Hm ?? <-. Qed.
 
+#[global]
 Instance Mvar_set_m T:
   Proper (@Mvar_eq T ==> eq ==> eq ==> @Mvar_eq T) Mvar.set.
 Proof. by move=> m1 m2 Hm ?? <- ?? <- z;rewrite !Mvar.setP;case:ifP. Qed.
 
+#[global]
 Instance Mvar_remove_m T:
   Proper (@Mvar_eq T ==> eq ==> @Mvar_eq T) Mvar.remove.
 Proof. by move=> m1 m2 Hm ?? <- z;rewrite !Mvar.removeP;case:ifP. Qed.

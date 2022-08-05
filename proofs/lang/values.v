@@ -152,6 +152,7 @@ Qed.
 
 Lemma subtype_refl x : subtype x x.
 Proof. case: x => //= ?;apply Z.leb_refl. Qed.
+#[global]
 Hint Resolve subtype_refl : core.
 
 Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.
@@ -234,6 +235,7 @@ Qed.
 Lemma value_uincl_refl v: @value_uincl v v.
 Proof. by case: v => //= *; apply compat_type_undef. Qed.
 
+#[global]
 Hint Resolve value_uincl_refl : core.
 
 Lemma value_uincl_trans v2 v1 v3 :

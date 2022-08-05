@@ -94,6 +94,7 @@ Module CmpR.
      (Lex (wsize_cmp r1.(r_align) r2.(r_align))
           (var_cmp r1.(r_slot) r2.(r_slot))).
 
+#[global]
   Instance cmpO : Cmp cmp.
   Proof.
     constructor => [x y | y x z c | [???] [???]]; rewrite /cmp !Lex_lex.

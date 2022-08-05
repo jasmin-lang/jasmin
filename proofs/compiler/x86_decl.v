@@ -205,12 +205,15 @@ Proof.
   by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
 Qed.
 
+#[global]
 Instance eqTC_register : eqTypeC register :=
   { ceqP := reg_eq_axiom }.
 
+#[global]
 Instance finC_register : finTypeC register := 
   { cenumP := registers_fin_axiom }.
 
+#[global]
 Instance x86_reg_toS : ToString sword64 register :=
   { category      := "register"
   ; to_string     := x86_string_of_register
@@ -245,12 +248,15 @@ Proof.
   by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
 Qed.
 
+#[global]
 Instance eqTC_xmm_register : eqTypeC xmm_register :=
   { ceqP := xreg_eq_axiom }.
 
+#[global]
 Instance finC_xmm_register : finTypeC xmm_register := 
   { cenumP := xmm_registers_fin_axiom }.
 
+#[global]
 Instance x86_xreg_toS : ToString sword256 xmm_register :=
   { category      := "ymm_register"
   ; to_string     := x86_string_of_xmm_register
@@ -275,12 +281,15 @@ Proof.
   by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
 Qed.
 
+#[global]
 Instance eqTC_rflag : eqTypeC rflag :=
   { ceqP := rflag_eq_axiom }.
 
+#[global]
 Instance finC_rflag : finTypeC rflag :=
   { cenumP := rflags_fin_axiom }.
 
+#[global]
 Instance x86_rflag_toS : ToString sbool rflag :=
   { category      := "rflag"
   ; to_string     := x86_string_of_rflag
@@ -291,9 +300,11 @@ Instance x86_rflag_toS : ToString sbool rflag :=
 
 (* -------------------------------------------------------------------- *)
 
+#[global]
 Instance eqC_condt : eqTypeC condt :=
   { ceqP := condt_eq_axiom }.
 
+#[global]
 Instance x86_decl : arch_decl register xmm_register rflag condt :=
   { reg_size  := U64
   ; xreg_size := U256
