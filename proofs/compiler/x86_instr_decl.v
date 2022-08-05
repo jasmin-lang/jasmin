@@ -1990,9 +1990,11 @@ Definition x86_prim_string :=
               if signedness is Signed then VPMINS ve sz else VPMINU ve sz))
  ].
 
+#[global]
 Instance eqC_x86_op : eqTypeC x86_op :=
   { ceqP := x86_op_eq_axiom }.
 
+#[global]
 Instance x86_op_decl : asm_op_decl x86_op := {
    instr_desc_op  := x86_instr_desc; 
    prim_string    := x86_prim_string;

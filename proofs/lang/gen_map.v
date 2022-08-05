@@ -40,6 +40,7 @@ End CmpType.
 
 Module MkOrdT (T:CmpType) <: OrderedType.
 
+#[global]
   Existing Instance T.cmpO | 1.
 
   Definition t := Equality.sort T.t.
@@ -725,6 +726,7 @@ Module Mz := Mmake CmpZ.
 Require Import MSets.
 
 Module MkMOrdT (T:CmpType) <: Orders.OrderedType.
+#[global]
   Existing Instance T.cmpO | 1.
 
   Definition t := Equality.sort T.t.

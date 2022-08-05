@@ -41,6 +41,7 @@ Definition ascii_cmp (c c': Ascii.ascii) :=
     (Lex (bool_cmp b7 b7') (bool_cmp b8 b8')))))))
   end.
 
+#[global]
 Instance asciiO : Cmp ascii_cmp.
 Proof.
   constructor=> [[]????????| []???????? []???????? | []????????][] ???????? /=;
@@ -74,6 +75,7 @@ Fixpoint string_cmp s1 s2 :=
   | String _  _ , EmptyString  => Gt
   end.
 
+#[global]
 Instance stringO: Cmp string_cmp.
 Proof.
   constructor.

@@ -118,6 +118,7 @@ Definition assemble_extra ii o outx inx : cexec (asm_op_msb_t * lvals * pexprs) 
     ok ((None, VINSERTI128), outx, inx)
   end.
 
+#[global]
 Instance eqC_x86_extra_op : eqTypeC x86_extra_op :=
   { ceqP := x86_extra_op_eq_axiom }.
 
@@ -125,10 +126,12 @@ Instance eqC_x86_extra_op : eqTypeC x86_extra_op :=
    meaning that extra ops are the only possible ops. With that priority,
    [arch_extra.asm_opI] is selected first and we have both base and extra ops.
 *)
+#[global]
 Instance x86_extra_op_decl : asmOp x86_extra_op | 1 :=
   { asm_op_instr := get_instr_desc;
     prim_string := prim_string }.
 
+#[global]
 Instance x86_extra : asm_extra register register_ext xmm_register rflag condt x86_op x86_extra_op :=
   { to_asm := assemble_extra }.
 

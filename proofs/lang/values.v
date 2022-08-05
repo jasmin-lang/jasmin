@@ -116,6 +116,7 @@ Proof. by case: v1 => >; case: v2 => > //=; eauto=> ->. Qed.
 Lemma value_uincl_refl v: value_uincl v v.
 Proof. by case: v => //= *; exact: compat_type_undef. Qed.
 
+#[global]
 Hint Resolve value_uincl_refl : core.
 
 Lemma value_uincl_subtype v1 v2 :
@@ -387,6 +388,7 @@ Qed.
 
 Lemma val_uincl_refl t v: @val_uincl t t v v.
 Proof. by rewrite /val_uincl. Qed.
+#[global]
 Hint Resolve val_uincl_refl : core.
 
 Lemma val_uincl_of_val ty v v' vt :
