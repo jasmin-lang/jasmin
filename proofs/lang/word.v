@@ -104,6 +104,7 @@ Definition wbase (s: wsize) : Z :=
 Lemma le0_wsize_size ws : 0 <= wsize_size ws.
 Proof. rewrite /wsize_size; lia. Qed.
 Arguments le0_wsize_size {ws}.
+#[global]
 Hint Resolve le0_wsize_size : core.
 
 Lemma wsize_size_is_pow2 sz :
@@ -1581,6 +1582,7 @@ Definition word_uincl sz1 sz2 (w1:word sz1) (w2:word sz2) :=
 
 Lemma word_uincl_refl s (w : word s): word_uincl w w.
 Proof. by rewrite /word_uincl zero_extend_u cmp_le_refl eqxx. Qed.
+#[global]
 Hint Resolve word_uincl_refl : core.
 
 Lemma word_uincl_eq s (w w': word s):

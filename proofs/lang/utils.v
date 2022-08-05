@@ -111,26 +111,32 @@ Proof. by move=> hinj heq; apply: (iffP heq) => [| /hinj ] ->. Qed.
 (* -------------------------------------------------------------------- *)
 (* Missing Instance in ssreflect for setoid rewrite                     *)
 
+#[global]
 Instance and3_impl_morphism :
   Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and3 | 1.
 Proof. by move=> ?? h1 ?? h2 ?? h3 [/h1 ? /h2 ? /h3 ?]. Qed.
 
+#[global]
 Instance and3_iff_morphism :
   Proper (iff ==> iff ==> iff ==> iff) and3.
 Proof. by move=> ?? h1 ?? h2 ?? h3; split => -[] /h1 ? /h2 ? /h3. Qed.
 
+#[global]
 Instance and4_impl_morphism :
   Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and4 | 1.
 Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 [/h1 ? /h2 ? /h3 ? /h4 ?]. Qed.
 
+#[global]
 Instance and4_iff_morphism :
   Proper (iff ==> iff ==> iff ==> iff ==> iff) and4.
 Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4; split => -[] /h1 ? /h2 ? /h3 ? /h4. Qed.
 
+#[global]
 Instance and5_impl_morphism :
   Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and5 | 1.
 Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 ?? h5 [/h1 ? /h2 ? /h3 ? /h4 ? /h5]. Qed.
 
+#[global]
 Instance and5_iff_morphism :
   Proper (iff ==> iff ==> iff ==> iff ==> iff ==> iff) and5.
 Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 ?? h5; split => -[] /h1 ? /h2 ? /h3 ? /h4 ? /h5 ?. Qed.
@@ -148,6 +154,7 @@ Definition is_ok (E A:Type) (r:result E A) := if r is Ok a then true else false.
 
 Lemma is_ok_ok (E A:Type) (a:A) : is_ok (Ok E a).
 Proof. done. Qed.
+#[global]
 Hint Resolve is_ok_ok : core.
 
 Lemma is_okP (E A:Type) (r:result E A) : reflect (exists (a:A), r = Ok E a) (is_ok r).
@@ -1257,6 +1264,7 @@ Notation "m <= n" := (cmp_le m n) : cmp_scope.
 Notation "m ≤ n" := (cmp_le m n) : cmp_scope.
 Delimit Scope cmp_scope with CMP.
 
+#[global]
 Hint Resolve cmp_le_refl : core.
 
 Section EqCMP.
@@ -1371,14 +1379,17 @@ Definition bool_cmp b1 b2 :=
   | true , false => Gt
   end.
 
+#[global]
 Instance boolO : Cmp bool_cmp.
 Proof.
   constructor=> [[] [] | [] [] [] c | [] []] //=; apply ctrans_Eq.
 Qed.
 
+#[global]
 Polymorphic Instance subrelation_iff_flip_arrow : subrelation iffT (flip arrow).
 Proof. by move=> ?? []. Qed.
 
+#[global]
 Instance reflect_m: Proper (iff ==> (@eq bool) ==> iffT) reflect.
 Proof. by move=> P1 P2 Hiff b1 b2 ->; split=> H; apply (equivP H);rewrite Hiff. Qed.
 
@@ -1404,6 +1415,7 @@ Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Pos.eqb_eq. Qed.
 Definition pos_eqMixin := EqMixin pos_eqP.
 Canonical  pos_eqType  := EqType positive pos_eqMixin.
 
+#[global]
 Instance positiveO : Cmp Pos.compare.
 Proof.
   constructor.
@@ -1416,6 +1428,7 @@ Proof.
   apply Pos.compare_eq.
 Qed.
 
+#[global]
 Instance ZO : Cmp Z.compare.
 Proof.
   constructor.

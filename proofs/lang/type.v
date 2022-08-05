@@ -72,6 +72,7 @@ Definition stype_cmp t t' :=
   | sarr _  , _             => Gt
   end.
 
+#[global]
 Instance stypeO : Cmp stype_cmp.
 Proof.
   constructor.
@@ -230,6 +231,7 @@ Proof. by case: t1 t2 => [||n1|wz1] [||n2|wz2]. Qed.
 
 Lemma compat_type_refl t : compat_type t t.
 Proof. by case: t => [||n|wz]. Qed.
+#[global]
 Hint Resolve compat_type_refl : core.
 
 Lemma compat_type_trans t2 t1 t3 : compat_type t1 t2 -> compat_type t2 t3 -> compat_type t1 t3.
@@ -280,6 +282,7 @@ Qed.
 
 Lemma subtype_refl x : subtype x x.
 Proof. case: x => //= ?;apply Z.leb_refl. Qed.
+#[global]
 Hint Resolve subtype_refl : core.
 
 Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.

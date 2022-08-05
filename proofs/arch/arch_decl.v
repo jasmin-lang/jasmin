@@ -44,6 +44,7 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; inj_toS_reg_regx : forall (r:reg) (rx:regx), to_string r <> to_string rx
   }.
 
+#[global]
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
 
 Definition mk_ptr `{arch_decl} name :=

@@ -3,9 +3,9 @@
 -arg "-w -extraction-opaque-accessed"
 -arg "-w -ambiguous-paths"
 -arg "-w -duplicate-clear"
--arg "-w -deprecated-hint-without-locality"
--arg "-w -deprecated-hint-rewrite-without-locality"
--arg "-w -deprecated-instance-without-locality"
+-arg "-w +deprecated-hint-without-locality"
+-arg "-w +deprecated-hint-rewrite-without-locality"
+-arg "-w +deprecated-instance-without-locality"
 
 -R 3rdparty Jasmin
 -R arch Jasmin

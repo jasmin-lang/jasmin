@@ -51,6 +51,7 @@ Definition x86_eval_cond (get : rflag -> result error bool) (c : condt) :=
       Let of_ := get OF in ok (~~ zf && (sf == of_))
   end.
 
+#[global]
 Instance x86 : asm register register_ext xmm_register rflag condt x86_op :=
   {| eval_cond := x86_eval_cond
    ; stack_pointer_register := RSP |}.

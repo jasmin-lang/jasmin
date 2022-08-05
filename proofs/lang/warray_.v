@@ -57,6 +57,7 @@ Module WArray.
   (* We set the priority to 1, so that memory_model.Pointer is selected by
      default.
   *)
+#[global]
   Instance PointerZ : pointer_op pointer | 1.
   Proof.
     refine {| add x y := (x + y)%Z
@@ -556,4 +557,5 @@ Module WArray.
 
 End WArray.
 
+#[global]
 Hint Resolve WArray.uincl_refl : core.
