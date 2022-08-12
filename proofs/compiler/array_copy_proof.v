@@ -101,64 +101,134 @@ Proof.
   apply sem_seq1; constructor; econstructor; eauto; rewrite -eq_globs //.
 Qed.
 
-Lemma is_copyP o ws n : is_copy o = Some(ws,n) -> o = Ocopy ws n.
-Proof. by case: o => // ??[-> ->]. Qed.
-
-Lemma is_PvarP es y : is_Pvar es = Some y -> es = [::Pvar y].
-Proof. by case: es => // -[] // ? [] // [->]. Qed.
-
-Lemma is_LvarP xs x : is_Lvar xs = Some x -> xs = [::Lvar x].
-Proof. by case: xs => //= -[] // ? [] // [->]. Qed.
-
 Local Lemma Hopn : sem_Ind_opn p1 Pi_r.
 Proof.
   Opaque arr_size.
   move => s1 s2 t o xs es; rewrite /sem_sopn; t_xrbindP => vs ves hves ho hw ii.
   rewrite /Pi vars_I_opn /vars_lvals => hsub /=.
-  case: is_copy (@is_copyP o); last first.
-  + move=> _ _ [<-] vm1 hvm1.
-    have [|ves' hves' uves]:= sem_pexprs_uincl_on (vmap_uincl_onI _ hvm1) hves; first by SvD.fsetdec.
-    have [ vs' ho' vs_vs' ] := vuincl_exec_opn uves ho.
-    have [| vm2 hvm2 hw']:= write_lvals_uincl_on _ vs_vs' hw hvm1; first by SvD.fsetdec.
-    exists vm2; first by apply: vmap_uincl_onI hvm2; SvD.fsetdec.
-    apply sem_seq1; constructor; econstructor; eauto.
+  case: o ho => [ws n|||||] >.
+  2-6: move=> ho _ [<-] vm1 hvm1;
+    have [|ves' hves' uves]:= sem_pexprs_uincl_on (vmap_uincl_onI _ hvm1) hves; first (by SvD.fsetdec);
+    have [ vs' ho' vs_vs' ] := vuincl_exec_opn uves ho;
+    have [| vm2 hvm2 hw']:= write_lvals_uincl_on _ vs_vs' hw hvm1; first (by SvD.fsetdec);
+    exists vm2; first (by apply: vmap_uincl_onI hvm2; SvD.fsetdec);
+    apply sem_seq1; constructor; econstructor; eauto;
     by rewrite /sem_sopn -eq_globs hves' /= ho' /=.
-  move=> [ws n] /(_ _ _ refl_equal) ?; subst o.
-  case: is_Pvar (@is_PvarP es) => // y /(_ _ refl_equal) ?; subst es.
-  case: is_Lvar (@is_LvarP xs) => // x /(_ _ refl_equal) ?; subst xs.
-  t_xrbindP => _ /eqP htx <- vm1 hvm1.
-  move: htx hsub hves hw.
+  t_xrbindP=> ho ? [[]] xx xe b hxs [] ex ee hes [<-] vm1 hvm1.
+  case: es xs vs hes hxs hsub hves ho hw => // e []// []// x []// []// v []/=;
+    t_xrbindP=> // he hx.
   rewrite read_rvs_cons vrvs_cons /vrvs read_rvs_nil read_es_cons /read_es /=.
-  rewrite !(SvP.MP.empty_union_2 _ Sv.empty_spec) !(SvP.MP.empty_union_1 _ Sv.empty_spec).
-  case: x => -[] /= _ xn xi ->.
+  Search Sv.union Sv.empty.
   rewrite /array_copy; set len := Z.to_pos _.
-  set vx := {| vname := xn |}; set x := {|v_var := vx|};  set i := {| v_var := _ |} => hsub.
-  t_xrbindP => vy hy ?; subst ves.
-  move: ho; rewrite /exec_sopn /=; t_xrbindP => tx ty hty.
-  rewrite /sopn_sem /= => hcopy ?; subst vs; t_xrbindP => s hw ?; subst s.
-  have [|v1 hv1 /value_uinclE uv1] := sem_pexpr_uincl_on (vm2:= vm1) (e:= Pvar y) _ hy.
-  + by apply: vmap_uincl_onI hvm1;SvD.fsetdec.
+  set i := {| v_var := _ |} => hsub vy hy ?; subst ves.
+  rewrite /exec_sopn /=; t_xrbindP => tx ty hty.
+  rewrite /sopn_sem => /= hcopy ?; subst v; t_xrbindP => s hw ?; subst s.
+  have [|v1 hv1 /value_uinclE uv1] := sem_pexpr_uincl_on (vm2:= vm1) (e:= e) _ hy.
+  + by apply: vmap_uincl_onI hvm1; SvD.fsetdec.
   have [ny [? [? ]]]:= to_arrI hty; subst vy.
   rewrite -/len => /WArray.cast_uincl utyty'.
   case: uv1 => n2 [ty1 [? ut]]; subst v1.
-  have {ut utyty' hty} ut:= WArray.uincl_trans utyty' ut.
-  set ipre := if _ then _ else _; set c := [:: MkI _ (Cassgn _ _ _ _) ].
-  have [vm1' [hvm1' [tx0 htx0]] hipre] : exists2 vm1', 
-    vm1 <=[Sv.union (read_e y) (Sv.remove x X)]  vm1' /\ exists tx, vm1'.[x] = ok tx & 
-    sem_I p2 ev (with_vm s1 vm1) (MkI ii ipre) (with_vm s1 vm1').
-  + rewrite /ipre; case: ifPn => hxy.
-    + exists vm1; last by constructor; econstructor.
-      split => //.
-      case/andP: hxy => /= /eqP hl /eqP /= heq; subst vx.
-      move: hv1; rewrite /= /get_gvar /is_lvar hl eqxx /get_var.
-      by apply: on_vuP; rewrite -heq //= => t0 h _; exists t0.
-    exists (vm1.[x <- ok (WArray.empty len)]).
-    + split; last by exists (WArray.empty len); rewrite Fv.setP_eq.
-      move=> z hz; rewrite Fv.setP_neq //; apply /eqP => heq; subst z.
-      have : Sv.In x (read_e y) by SvD.fsetdec.
-      by move: hxy; rewrite read_e_var /eq_gvar /= /read_gvar; case: (y) => /= vy [/= /eqP | /=]; SvD.fsetdec.
-    constructor; apply: Eassgn => //=; first by rewrite /truncate_val /= WArray.castK.
-    by rewrite /write_var /set_var /= /on_vu WArray.castK.
+  have {ut utyty' hty} ut := WArray.uincl_trans utyty' ut.
+  set c := [:: MkI _ (Cassgn _ _ _ _) ].
+  
+    have : (* TODO: Prove with Psub? *)
+    forall xn xi,
+    let x:= {| v_var := {| vtype := sarr len; vname := xn |}; v_info := xi |} in
+    forall (j:Z), 0 <= j -> j < n ->
+      forall vm1' (tx0 tx' : WArray.array len),
+      vm1 <=[Sv.union (read_e e) (Sv.remove x X)] vm1' ->
+      vm1'.[x] = ok tx0 -> WArray.fcopy ws ty tx0 (Zpos n - j) j = ok tx' ->
+      exists vm2, [/\
+        vm1 <=[Sv.union (read_e e) (Sv.remove x X)] vm2, vm2.[x] = ok tx' &
+        sem_for p2 ev i (ziota (Zpos n - j) j) (with_vm s1 vm1') c (with_vm s1 vm2)].
+  move=> ?? x0 {hy hcopy tx hx hw}.
+    apply: natlike_ind => [ | j hj hrec] hjn vm1' tx tx' hvm1' hx.
+    + by rewrite /WArray.fcopy ziota0 => /= -[?]; subst tx;
+        exists vm1'; split=> //; exact: EForDone.
+    Opaque Z.sub.
+    rewrite /WArray.fcopy ziotaS_cons //=; have -> : n - Z.succ j + 1 = n - j by ring.
+    t_xrbindP => tx1 w hget hset hcopy.
+    have [] := hrec _ (vm1'.[i <- ok (n - Z.succ j)].[x0 <- ok tx1]) tx1 tx' => //.
+    + by Psatz.lia.
+    + admit. (*rewrite read_e_var; move=> z hz.
+      case: (v_var x =P z) => hxz.
+      + subst z; rewrite Fv.setP_eq.
+        have [hxy hyl]: v_var (gv y) = v_var x /\ is_lvar y.
+        + by move: hz; rewrite /read_gvar; case: ifP => ?; first split => //; SvD.fsetdec.
+        move: hv1; rewrite /= /get_gvar hyl /get_gvar hxy /get_var; apply on_vuP => //=.
+        move=> _t heq /Varr_inj [?]; subst n2 => /= ?; subst _t.
+        rewrite heq /= /pval_uincl /value_uincl /=.
+        split; first by Psatz.lia.
+        move: hvm1'; rewrite read_e_var => /(_ _ hz) /=; rewrite hx heq /= /pval_uincl /= => hu k w8.
+        case: (hu) => _ h /h hw8; rewrite (write_read8 hset) /=.
+        rewrite WArray.subE; case: andP => //; rewrite !zify => hb.
+        have [_ htxy] := WArray.uincl_trans ut hu.
+        have [ _ /(_ _ hb) -/htxy <-] := read_read8 hget.
+        by rewrite -hw8  WArray.addE /mk_scale; f_equal; ring.
+      rewrite Fv.setP_neq; last by apply /eqP.
+      rewrite Fv.setP_neq; first by apply: hvm1'; rewrite read_e_var.
+      by apply /eqP; move: viX hsub hz; rewrite /vi read_e_var /=; SvD.fsetdec. *)
+    + by rewrite Fv.setP_eq.
+    move=> vm2 [h1 h2 h3]; exists vm2; split=> //.
+    apply: (EForOne (s1' := with_vm s1 vm1'.[i <- ok (n - Z.succ j)])) h3 => //.
+    apply sem_seq1; constructor; econstructor.
+    (* TODO: A case on e is needed at some point*)
+    + rewrite /= get_gvar_neq; last first.
+      + admit. (*by move=> _ heqy; move: hv1 => /= /type_of_get_gvar; rewrite -heqy.*)
+      case: (sem_pexpr_uincl_on (vm2 := vm1') _ hv1).
+      + by apply: vmap_uincl_onI hvm1'; SvD.fsetdec.
+      rewrite with_vm_idem => _v hv /value_uinclE [n' [ty' [? hty]]]; subst _v.
+      admit. (*rewrite -eq_globs; move: hv => /=. => -> /=.
+      by rewrite (@get_gvar_eq _ (mk_lvar i)) //= (WArray.uincl_get (WArray.uincl_trans ut hty) hget).*)
+    + admit. (*by rewrite /truncate_val /= truncate_word_u.*)
+    rewrite /= get_var_neq //= /get_var hx /= (@get_gvar_eq _ (mk_lvar i)) //= truncate_word_u /=.
+    by rewrite hset /= /write_var /set_var /= WArray.castK.
+  
+  (case: ifP => [|/negbT/norP];
+    first (have -> : forall a b, (a || b) = (a || (~~a && b)) by case))
+    => [/orP|][].
+  + move=> hb; case: x hb hx hw hsub => // > ->;
+      t_xrbindP=> //= /and3P[/eqP? /eqP? /eqP?] ??; subst.
+    apply: on_arr_varP=> > ht hgv; t_xrbindP=> > hxe /to_intI? ????? hsub.
+    admit. (*
+    eexists; last first.
+    + apply sem_seq1, EmkI; apply: Efor => //. apply: EForOne.
+      + exact: EForDone.
+      + *)
+  + move=> /andP[/negbTE hb ?]; case: x hb hx hw hsub => // > ->;
+      t_xrbindP=> //= /eqP???; subst=> ??. (*; eexists; last first.*)
+    admit.
+  move=> /negbTE hb ?; case: x hb hx hw hsub => // > ->;
+    t_xrbindP=> //= /eqP???; subst=> ? hsub; eexists; last first.
+  + econstructor.
+    + constructor; econstructor=> //=; first by rewrite /truncate_val /= WArray.castK.
+    by rewrite /write_var /= set_well_typed_var.
+  simpl in hsub.
+  apply: sem_seq1; constructor; apply: Efor => //.
+  have -> : wrange UpTo 0 n = ziota 0 n by rewrite /wrange Z.sub_0_r.
+  rewrite with_vm_idem.
+  (* Not the same vm for each case of ipre, so maybe you can add the smart array_init on slices *)
+  (* Probably better to do the rest before that *)
+
+  have: exists vm1', sem_I p2 ev (with_vm s1 vm1) (MkI ii ipre) (with_vm s1 vm1').
+  eexists; constructor; rewrite /ipre;
+    case: ifP => [|/negbT/norP[hnb hegv]]; econstructor=> //=.
+  + by rewrite /truncate_val /= WArray.castK.
+  case: x hx hw {hsub} => //; rewrite (negbTE hnb); t_xrbindP => //= ????; subst.
+  case: s1 s2 x hx hw {hsub hvm1 hy hv1} => ??? [???] [] //=; t_xrbindP=> > ????;
+    [| apply: on_arr_varP => > ??; t_xrbindP=> > ??????]
+    => /[dup]/write_var_memP/=? /write_var_scsP/=?; subst.
+
+  eexists. admit. constructor.
+
+(* TODO: case on x and e ALAP *)
+  move=> ho ?; case: xs vs es hw ho hves hsub => // -[]// => [?|?????] []// []//;
+    rewrite /= /write_var; t_xrbindP=> ? + []// []// => [+?|+?????] []// => -[];
+    t_xrbindP=> //. <-. case. case=> //. //.
+  t_xrbindP => _ /eqP htx <- vm1 hvm1.
+  rewrite !(SvP.MP.empty_union_2 _ Sv.empty_spec). !(SvP.MP.empty_union_1 _ Sv.empty_spec).
+  case: x => -[] /= _ xn xi ->.
+
   move: hcopy; rewrite /WArray.copy -/len => /(WArray.fcopy_uincl (WArray.uincl_empty tx0 (Z.le_refl _))) => -[tx'] hcopy hutx.
   have :
     forall (j:Z), 0 <= j -> j <= n ->
@@ -191,7 +261,7 @@ Proof.
         have [_ htxy] := WArray.uincl_trans ut hu.
         have [ _ /(_ _ hb) -/htxy <-] := read_read8 hget.
         by rewrite -hw8  WArray.addE /mk_scale; f_equal; ring.
-      rewrite Fv.setP_neq; last by apply /eqP. 
+      rewrite Fv.setP_neq; last by apply /eqP.
       rewrite Fv.setP_neq; first by apply: hvm1'; rewrite read_e_var.
       by apply /eqP; move: viX hsub hz; rewrite /vi read_e_var /=; SvD.fsetdec.
     + by rewrite Fv.setP_eq.
@@ -206,9 +276,9 @@ Proof.
       move=> _v hv /value_uinclE [n' [ty' [? hty]]]; subst _v.
       rewrite -eq_globs; move: hv => /= => -> /=.
       by rewrite (@get_gvar_eq _ (mk_lvar i)) //= (WArray.uincl_get (WArray.uincl_trans ut hty) hget).
-    + by rewrite /truncate_val /= truncate_word_u. 
+    + by rewrite /truncate_val /= truncate_word_u.
     rewrite /= get_var_neq //= /get_var hx /= (@get_gvar_eq _ (mk_lvar i)) //= truncate_word_u /=.
-    by rewrite hset /= /write_var /set_var /= WArray.castK. 
+    by rewrite hset /= /write_var /set_var /= WArray.castK.
   move=> /(_ n _ _ vm1' tx0 hvm1' htx0) [] => //;first by Psatz.lia.
   + by rewrite Z.sub_diag.
   rewrite Z.sub_diag => vm2 [] hvm2 htx' hfor; exists vm2.

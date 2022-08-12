@@ -219,7 +219,7 @@ Proof.
     case: is_constP => // i ; t_xrbindP => /eqP <- /eqP ->.
     case hxi: Mi.get => [xi | //] [<-] v s1'.
     apply on_arr_varP => n t hty hget /=.
-    rewrite /write_var; t_xrbindP => w hvw t' ht' vm' hs <-. 
+    rewrite /write_var; t_xrbindP => w hvw t' ht' vm' hs <-.
     have [_ /(_ _ _ hxi)]:= valid hai.
     case: xi hxi => txi nxi; set xi := {| vname := _ |} => hxi [] hnxi /= [] /eqP ? hd; subst txi.
     rewrite /write_var /set_var /= /on_vu (to_word_to_pword hvw) /=.

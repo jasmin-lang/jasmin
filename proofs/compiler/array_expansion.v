@@ -258,10 +258,10 @@ Definition expand_fd (fi : funname -> ufundef -> expand_info) (f : funname) (fd:
   Let m := init_map (fi f fd) in
   match fd with
   | MkFun fi tyin params c tyout res ef =>
-    Let _ := 
+    Let _ :=
       assert (all (fun x => Sv.mem (v_var x) m.(svars)) params)
              (reg_ferror fi "reg arrays are not allowed in parameters of non inlined function") in
-    Let _ := 
+    Let _ :=
       assert (all (fun x => Sv.mem (v_var x) m.(svars)) res)
              (reg_ferror fi "reg arrays are not allowed in the return type of non inlined function") in
 

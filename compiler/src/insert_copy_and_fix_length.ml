@@ -10,28 +10,40 @@ open Utils
 open Prog
 module L = Location
 
-let is_array_copy (x:lval) (e:expr) =
-  match x with
+let is_lv_array_copy =
+  function
   | Lvar x ->
-    let x = L.unloc x in
+	let x = L.unloc x in
     begin match x.v_ty with
-    | Arr (xws, xn) ->
-      begin match e with
-      | Pvar y ->
-        let y = L.unloc y.gv in
-        begin match y.v_ty with
-        | Arr(yws, yn) ->
-           assert (arr_size xws xn <= arr_size yws yn);
-           if x.v_kind = Reg(Normal, Direct) then Some (xws, xn)
-           else if y.v_kind = Reg(Normal, Direct) then Some (yws, arr_size xws xn / size_of_ws yws)
-           else None
-        | _ -> None
-        end
-      | _ -> None
-      end
+    | Arr (ws, n) -> Some (x, ws, n)
     | _ -> None
     end
+  | Lasub (_, ws, n, x, _) -> Some (L.unloc x, ws, n)
   | _ -> None
+
+let is_e_array_copy =
+  function
+  | Pvar x ->
+	let x = L.unloc x.gv in
+    begin match x.v_ty with
+    | Arr (ws, n) -> Some (x, ws, n)
+    | _ -> None
+    end
+  | Psub (_, ws, n, x, _) -> Some (L.unloc x.gv, ws, n)
+  | _ -> None
+
+let is_array_copy (x:lval) (e:expr) =
+  match is_lv_array_copy x with
+  | Some (x, xws, xn) ->
+    begin match is_e_array_copy e with
+    | Some (y, yws, yn) ->
+      assert (arr_size xws xn = arr_size yws yn);
+      if x.v_kind = Reg (Normal, Direct) then Some (xws, xn)
+      else if y.v_kind = Reg (Normal, Direct) then Some (yws, arr_size xws xn / size_of_ws yws)
+	  else None
+    | None -> None
+    end
+  | None -> None
 
 let rec iac_stmt pd is = List.map (iac_instr pd) is
 and iac_instr pd i = { i with i_desc = iac_instr_r pd i.i_loc i.i_desc }
@@ -51,16 +63,27 @@ and iac_instr_r pd loc ir =
   | Cwhile (a, c1, t, c2) -> Cwhile (a, iac_stmt pd c1, t, iac_stmt pd c2)
   | Copn (xs,t,o,es) ->
     begin match o, xs with
-    | Sopn.Ocopy(ws, _), [Lvar x] ->
+    | Sopn.Ocopy (ws, _), [Lvar x] ->
       (* Fix the size it is dummy for the moment *)
       let xn = size_of (L.unloc x).v_ty in
       let wsn = size_of_ws ws in
-      if xn mod wsn <> 0 then 
-        Typing.error loc 
+      if xn mod wsn <> 0 then
+        Typing.error loc
           "the variable %a has type %a, its size (%i) should be a multiple of %i"
           (Printer.pp_var ~debug:false) (L.unloc x)
-          Printer.pp_ty (L.unloc x).v_ty 
+          Printer.pp_ty (L.unloc x).v_ty
           xn wsn
+      else Copn(xs,t,Sopn.Ocopy(ws, Conv.pos_of_int (xn / wsn)), es)
+    | Sopn.Ocopy (ws, _), [Lasub (_, xws, xn, x, _)] ->
+      (* Fix the size it is dummy for the moment *)
+      let xlen = arr_size xws xn in
+      let wsn = size_of_ws ws in
+      if xlen mod wsn <> 0 then
+        Typing.error loc
+          "the subarray of %a has type %a, its size (%i) should be a multiple of %i"
+          (Printer.pp_var ~debug:false) (L.unloc x)
+          Printer.pp_ty (Arr (xws, xn))
+          xlen wsn
       else Copn(xs,t,Sopn.Ocopy(ws, Conv.pos_of_int (xn / wsn)), es)
     | Sopn.Ocopy _, _ -> assert false
     | _ -> ir

@@ -17,7 +17,8 @@ all y[i] is init (ok u)
 Module Import E.
   Definition pass : string := "array copy".
 
-  Definition error := pp_internal_error_s pass "fresh variables are not fresh ...". 
+  Definition error := pp_internal_error_s pass.
+  Definition error_at := pp_internal_error_s_at pass.
 
 End E.
 
@@ -33,81 +34,65 @@ Context (fresh_counter: Ident.ident).
   }
 *)
 
-Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
+Definition array_copy ii (x: var_i) xoff xsub (ws: wsize) (n: positive) (y: gvar) yoff :=
   let i_name := fresh_counter in
   let i := {| v_var := {| vtype := sint ; vname := i_name |}; v_info := v_info x |} in
   let ei := Pvar (mk_lvar i) in
   let sz := Z.to_pos (wsize_size ws * n) in
-  let pre := 
-    if eq_gvar (mk_lvar x) y then Copn [::] AT_none Onop [::]
-    else Cassgn (Lvar x) AT_none (sarr sz) (Parr_init sz) in
-  [:: MkI ii pre;
-      MkI ii 
-        (Cfor i (UpTo, Pconst 0, Pconst n) 
-           [:: MkI ii (Cassgn (Laset AAscale ws x ei) AT_none (sword ws) (Pget AAscale ws y ei))])
-    ].
+  let instr := [:: MkI ii (Cfor i (UpTo, Pconst 0, Pconst n)
+      [:: MkI ii (Cassgn (Laset AAscale ws x (Papp2 (Oadd Op_int) xoff ei))
+        AT_none (sword ws) (Pget AAscale ws y (Papp2 (Oadd Op_int) yoff ei)))])
+  ] in
+  if xsub || eq_gvar (mk_lvar x) y then instr
+  else MkI ii (Cassgn (Lvar x) AT_none (sarr sz) (Parr_init sz))::instr.
 
 Definition array_copy_c (array_copy_i : instr -> cexec cmd) (c:cmd) : cexec cmd := 
-  Let cs := mapM array_copy_i c in 
+  Let cs := mapM array_copy_i c in
   ok (flatten cs).
-
-Definition is_copy o := 
-  match o with 
-  | Ocopy ws p => Some (ws, p) 
-  | _ => None 
-  end.
-
-Definition is_Pvar es := 
-  match es with 
-  | [:: Pvar x] => Some x
-  | _ => None
-  end.
-
-Definition is_Lvar xs := 
-  match xs with 
-  | [:: Lvar x] => Some x 
-  | _ => None
-  end.
 
 Fixpoint array_copy_i (i:instr) : cexec cmd := 
   let:(MkI ii id) := i in
   match id with
-  | Cassgn _ _ _ _ => ok [:: i] 
-  | Copn xs _ o es => 
-    match is_copy o with
-    | Some (ws, n) => 
-      match is_Pvar es with
-      | Some y =>
-        match is_Lvar xs with
-        | Some x => 
-          (* FIXME error msg *)
-          Let _ := assert (vtype x == sarr (Z.to_pos (arr_size ws n))) 
-                          (pp_internal_error_s_at E.pass ii "bad type for copy") in
-          ok (array_copy ii x ws n y)
-        | None => 
-          (* FIXME error msg *)
-          Error (pp_internal_error_s_at E.pass ii "copy destination is not a var")
-        end 
-      | None => 
-        (* FIXME error msg *)
-        Error (pp_internal_error_s_at E.pass ii "copy source is not a var")
-      end
-      
-    | _ => ok [:: i] 
-    end
-  | Csyscall _ _ _ => ok [:: i]
-  | Cif e c1 c2    => 
-      Let c1 := array_copy_c array_copy_i c1 in
-      Let c2 := array_copy_c array_copy_i c2 in
-      ok [:: MkI ii (Cif e c1 c2)]
-  | Cfor i r c => 
-      Let c := array_copy_c array_copy_i c in
-      ok [:: MkI ii (Cfor i r c)]
-  | Cwhile a c1 e c2 => 
-      Let c1 := array_copy_c array_copy_i c1 in
-      Let c2 := array_copy_c array_copy_i c2 in
-      ok [:: MkI ii (Cwhile a c1 e c2)]
-  | Ccall _ _ _ _ => ok [:: i]
+  | Copn xs _ (Ocopy ws n) es =>
+    Let xp := if xs is [:: x] then match x with
+      | Lvar x =>
+        Let _ := assert (vtype x == sarr (Z.to_pos (arr_size ws n)))
+          (E.error_at ii "source variable type is incorrect") in
+        ok (x, Pconst 0, false)
+      | Lasub aa ws' n' x e =>
+        Let _ := assert [&& aa == AAscale, ws' == ws & n' == n]
+          (E.error_at ii "source subarray parameters are incorrect") in
+        ok (x, e, true)
+      | _ => Error (E.error_at ii "copy source should be a variable or a subarray")
+      end else Error (E.error "assertion failed")
+    in
+    Let ep := if es is [:: e] then match e with
+      | Pvar x =>
+        Let _ := assert (vtype (gv x) == sarr (Z.to_pos (arr_size ws n)))
+          (E.error_at ii "destination variable type is incorrect") in
+        ok (x, Pconst 0)
+      | Psub aa ws' n' x e =>
+        Let _ := assert [&& aa == AAscale, ws' == ws & n' == n]
+          (E.error_at ii "destination subarray parameters are incorrect") in
+        ok (x, e)
+      | _ => Error (E.error_at ii "copy destination should be a variable or a subarray")
+      end else Error (E.error "assertion failed")
+    in
+    let '(x, xoff, xsub) := xp in
+    let '(y, yoff) := ep in
+    ok (array_copy ii x xoff xsub ws n y yoff)
+  | Cif e c1 c2 =>
+    Let c1 := array_copy_c array_copy_i c1 in
+    Let c2 := array_copy_c array_copy_i c2 in
+    ok [:: MkI ii (Cif e c1 c2)]
+  | Cfor i r c =>
+    Let c := array_copy_c array_copy_i c in
+    ok [:: MkI ii (Cfor i r c)]
+  | Cwhile a c1 e c2 =>
+    Let c1 := array_copy_c array_copy_i c1 in
+    Let c2 := array_copy_c array_copy_i c2 in
+    ok [:: MkI ii (Cwhile a c1 e c2)]
+  | _ => ok [:: i]
   end.
 
 Context {T} {pT:progT T}.
@@ -120,7 +105,8 @@ Definition array_copy_fd (f:fundef) :=
 Definition array_copy_prog (p:prog) := 
   let V := vars_p (p_funcs p) in 
   Let _ := 
-    assert (~~ Sv.mem {| vtype := sint ; vname := fresh_counter |} V) E.error 
+    assert (~~ Sv.mem {| vtype := sint ; vname := fresh_counter |} V)
+      (E.error "fresh variables are not fresh ...")
   in
   Let fds := map_cfprog array_copy_fd (p_funcs p) in
   ok {| p_funcs := fds;
@@ -128,6 +114,3 @@ Definition array_copy_prog (p:prog) :=
         p_extra := p_extra p|}.
 
 End Section.
-
-
-
