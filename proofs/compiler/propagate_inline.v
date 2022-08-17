@@ -1,5 +1,5 @@
 (* ** Imports and settings *)
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import compiler_util expr ZArith constant_prop.
 Import all_ssreflect.
 Import Utf8.

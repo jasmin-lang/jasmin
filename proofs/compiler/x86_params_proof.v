@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 
 Require Import
   arch_params_proof

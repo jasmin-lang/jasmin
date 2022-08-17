@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import strings word utils.
 Import Utf8 ZArith.
 Import ssrring.
@@ -512,7 +512,7 @@ Lemma is_align_addE (ptr1:pointer) sz :
 Proof.
   have hn := wsize_size_pos sz.
   move => /is_align_mod h ptr2; rewrite -!is_align_modE.
-  by rewrite /wunsigned CoqWord.word.addwE -/(wbase Uptr) mod_wbase_wsize_size -Zplus_mod_idemp_l h.
+  by rewrite /wunsigned mathcomp.word.word.addwE -/(wbase Uptr) mod_wbase_wsize_size -Zplus_mod_idemp_l h.
 Qed.
 
 Lemma is_align_add (ptr1 ptr2:pointer) sz : 
