@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import xseq.
 Require Import compiler_util ZArith expr.
 

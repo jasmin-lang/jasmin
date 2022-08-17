@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import ZArith psem compiler_util.
 Require Export lowering.
 Import Utf8.
@@ -329,11 +329,11 @@ Section PROOF.
     have := add_inc_dec_classifyP' sz a b.
     case: (add_inc_dec_classify sz a b)=> [y|y|//].
     + case=> [[??]|[??]]; subst; rewrite /sem_pexprs /=; t_xrbindP.
-      + by move => z -> -> -> [<-]; exists w1, z1; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr CoqWord.word.mkword1E.
-      by move => ? z -> <- -> [<-] [->]; exists w2, z2; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr CoqWord.word.mkword1E GRing.addrC.
+      + by move => z -> -> -> [<-]; exists w1, z1; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr mathcomp.word.word.mkword1E.
+      by move => ? z -> <- -> [<-] [->]; exists w2, z2; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr mathcomp.word.word.mkword1E GRing.addrC.
     + case=> [[??]|[??]]; subst; rewrite /sem_pexprs /=; t_xrbindP.
-      + by move => z -> -> -> [<-]; exists w1, z1; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr CoqWord.word.mkwordN1E.
-      by move => ? z -> <- -> [<-] [->]; exists w2, z2; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr CoqWord.word.mkwordN1E GRing.addrC.
+      + by move => z -> -> -> [<-]; exists w1, z1; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr mathcomp.word.word.mkwordN1E.
+      by move => ? z -> <- -> [<-] [->]; exists w2, z2; do 2 (split; first by eauto); rewrite zero_extend_u /wrepr mathcomp.word.word.mkwordN1E GRing.addrC.
   Qed.
 
   Lemma sub_inc_dec_classifyP sz e:
@@ -377,7 +377,7 @@ Section PROOF.
   rewrite orbF /wunsigned /=.
   case: α β => α hα [] β hβ ne'.
   Transparent word.
-  repeat rewrite /CoqWord.word.urepr /=.
+  repeat rewrite /mathcomp.word.word.urepr /=.
   Opaque word.
   have ne : α ≠ β.
   - move => ?; subst; apply: ne'.
@@ -386,7 +386,7 @@ Section PROOF.
   elim_div => z a [] //.
   elim_div => z1 b [] //.
   set m := (wsize_size_minus_1 sz).+1.
-  have /ssrZ.ltzP := CoqWord.word.modulus_gt0 m.
+  have /ssrZ.ltzP := mathcomp.word.word.modulus_gt0 m.
   match goal with |- (?x < _)%Z → _ => have hz : x = 0%Z by [] end.
   rewrite hz in hα, hβ |- * => {hz}.
   move => hm /Z.eq_opp_r ?; subst α => - []; last Psatz.lia.
@@ -469,7 +469,7 @@ Section PROOF.
       rewrite /x86_CMP /check_size_8_64 Hsz.
       eexists _, _; split; first by reflexivity.
       do 2 split => //.
-      by rewrite -CoqWord.word.wltuE.
+      by rewrite -word.word.wltuE.
     (* Cond1 CondNotVar *)
     + case: o He => // -[] // => [ sz' | [] sz' | [] sz' | [] sz' | [] sz' ] //=;
       t_xrbindP => v1 ok_v1 v2 ok_v2 /sem_sop2I [w1'] [w2'] [w3'] [];
@@ -1278,13 +1278,13 @@ Section PROOF.
           rewrite ok_v1 /= /exec_sopn /sopn_sem /= /truncate_word hle1 /=.
           rewrite /x86_INC /check_size_8_64 hsz64 /rflags_of_aluop_nocf_w /flags_w /=.
           eexists _, _, _, _. repeat f_equal.
-          rewrite zero_extend_u /wrepr CoqWord.word.mkwordN1E.
+          rewrite zero_extend_u /wrepr mathcomp.word.word.mkwordN1E.
           ssring.
         (* SubDec *)
         * move: ok_v2 => /ok_word_inj [??]; subst.
           rewrite ok_v1 /= /exec_sopn /sopn_sem /= /truncate_word hle1 /=.
           rewrite /x86_DEC /check_size_8_64 hsz64 /rflags_of_aluop_nocf_w /flags_w /=.
-          by eexists _, _, _, _; repeat f_equal; rewrite zero_extend_u /wrepr CoqWord.word.mkword1E.
+          by eexists _, _, _, _; repeat f_equal; rewrite zero_extend_u /wrepr mathcomp.word.word.mkword1E.
         (* SubNone *)
         + split. by rewrite read_es_swap.
           by rewrite /= ok_v1 ok_v2 /= /exec_sopn /sopn_sem /= /truncate_word hle1 hle2 /x86_SUB /check_size_8_64 hsz64 /= Hw.
@@ -1494,7 +1494,7 @@ Section PROOF.
         rewrite ok_v1 ok_v2 /x86_CMP /rflags_of_aluop /= /truncate_word hw1 hw2 /=.
         rewrite /check_size_8_64 hsz64.
         eexists _, _, _, _; repeat f_equal.
-        by rewrite CoqWord.word.wltuE.
+        by rewrite word.word.wltuE.
       (* Ovadd ve sz *)
       + case: ifP => // /andP [hle /eqP ?]; subst ty.
         rewrite /= /sem_sop2 /exec_sopn /sopn_sem /=;t_xrbindP => v1 ok_v1 v2 ok_v2.
