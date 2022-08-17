@@ -1,6 +1,6 @@
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import utils oseq strings wsize memory_model global Utf8 Relation_Operators sem_type label.
 
 Set   Implicit Arguments.

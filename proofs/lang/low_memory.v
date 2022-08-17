@@ -4,7 +4,7 @@ From Coq Require Import RelationClasses.
 Require memory_example.
 
 Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Import Utf8 ZArith.
 Import ssrring.
 Import type word utils.

@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import Utf8.
 Require Import compiler_util expr expr_facts low_memory lea.
 Require Import x86_decl x86_instr_decl x86_extra.

@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import expr memory_model stack_alloc.
 Require Import arch_decl.
 Require Import x86_decl x86_instr_decl x86_extra.
