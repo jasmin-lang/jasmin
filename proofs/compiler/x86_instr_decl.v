@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import ZArith utils strings low_memory word sem_type global oseq.
 Import Utf8 Relation_Operators.
 Import Memory.
@@ -518,10 +518,10 @@ Definition x86_RCL sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
     | U16 => Zmod (wunsigned i) 17
     | _  => wunsigned i
     end in
-  let r := CoqWord.word.t2w [tuple of cf::CoqWord.word.w2t v] in
-  let r := CoqWord.word.rotl r (Z.to_nat im) in
-  let CF := CoqWord.word.msb r in
-  let r : word sz := CoqWord.word.t2w [tuple of behead (CoqWord.word.w2t r)] in
+  let r := mathcomp.word.word.t2w [tuple of cf::mathcomp.word.word.w2t v] in
+  let r := mathcomp.word.word.rotl r (Z.to_nat im) in
+  let CF := mathcomp.word.word.msb r in
+  let r : word sz := mathcomp.word.word.t2w [tuple of behead (mathcomp.word.word.w2t r)] in
   let OF := if i == 1%R then Some (msb r != CF) else None in
   ok (:: OF, Some CF & r ).
 
@@ -535,10 +535,10 @@ Definition x86_RCR sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
     | _  => wunsigned i
     end in
   let OF := if i == 1%R then Some (msb v != cf) else None in
-  let r := CoqWord.word.t2w [tuple of rcons (CoqWord.word.w2t v) cf] in
-  let r := CoqWord.word.rotr r (Z.to_nat im) in
-  let CF := CoqWord.word.lsb r in
-  let r : word sz := CoqWord.word.t2w [tuple of rev (behead (rev (CoqWord.word.w2t r)))] in
+  let r := mathcomp.word.word.t2w [tuple of rcons (mathcomp.word.word.w2t v) cf] in
+  let r := mathcomp.word.word.rotr r (Z.to_nat im) in
+  let CF := mathcomp.word.word.lsb r in
+  let r : word sz := mathcomp.word.word.t2w [tuple of rev (behead (rev (mathcomp.word.word.w2t r)))] in
   ok (:: OF, Some CF & r ).
 
 Definition rflags_OF {s} sz (i:word s) (r:word sz) rc OF : ex_tpl (b5w_ty sz) :=
@@ -765,7 +765,7 @@ Definition wpblendw (m : u8) (w1 w2 : word U128) :=
   let v1 := split_vec U16 w1 in
   let v2 := split_vec U16 w2 in
   let b := split_vec 1 m in
-  let r := map3 (λ (b0 : word.word_ringType 0) (v3 v4 : CoqWord.word.word U16), if b0 == 1%R then v4 else v3) b v1 v2 in
+  let r := map3 (λ (b0 : word.word_ringType 0) (v3 v4 : mathcomp.word.word.word U16), if b0 == 1%R then v4 else v3) b v1 v2 in
   make_vec U128 r.
 
 Definition x86_VPBLEND ve sz (v1 v2: word sz) (m: u8) : ex_tpl (w_ty sz) :=
