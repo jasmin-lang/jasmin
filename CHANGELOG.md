@@ -25,6 +25,10 @@
   ([PR #216](https://github.com/jasmin-lang/jasmin/pull/216);
   fixes [#200](https://github.com/jasmin-lang/jasmin/issues/200)).
 
+- Do not spuriously warn about missing “iinfo”
+  ([PR #225](https://github.com/jasmin-lang/jasmin/pull/225);
+  fixes [#224](https://github.com/jasmin-lang/jasmin/issues/224)).
+
 ## New features
 
 - Fill an array with “random” data using `p = #randombytes(p);`
