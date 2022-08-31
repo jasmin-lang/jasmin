@@ -69,7 +69,7 @@ type coq_tbl = {
      mutable count : int;
      var           : (Var.var, var) Hashtbl.t;
      cvar          : Var.var Hv.t;
-     iinfo         : (int, L.i_loc * unit * Syntax.annotations) Hashtbl.t;
+     iinfo         : (int, IInfo.t) Hashtbl.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
      finfo         : (int, L.t * f_annot * call_conv * Syntax.annotations list) Hashtbl.t;
@@ -215,14 +215,14 @@ let string_of_funname tbl p =
 
 let set_iinfo tbl loc ii ia =
   let n = new_count tbl in
-  Hashtbl.add tbl.iinfo n (loc, ii, ia);
+  Hashtbl.add tbl.iinfo n (IInfo.mk loc ii ia);
   n
 
 let get_iinfo tbl n =
   try Hashtbl.find tbl.iinfo n
   with Not_found ->
     Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." n;
-    (L.i_dummy), (), []
+    IInfo.dummy
 
 let rec cinstr_of_instr tbl i c =
   let n = set_iinfo tbl i.i_loc i.i_info i.i_annot in
@@ -273,7 +273,7 @@ and cstmt_of_stmt tbl c tl =
 let rec instr_of_cinstr tbl i =
   match i with
   | C.MkI(p, ir) ->
-    let (i_loc, i_info, i_annot) = get_iinfo tbl p in
+    let (i_loc, i_info, i_annot) = IInfo.split (get_iinfo tbl p) in
     let i_desc = instr_r_of_cinstr_r tbl ir in
     { i_desc; i_loc; i_info; i_annot }
 
@@ -417,13 +417,13 @@ let iloc_of_loc tbl e =
     | None -> Lone loc
     | Some ii ->
       (* if there are some locations coming from inlining, we print them *)
-      let ({L.stack_loc = locs}, _, _) = get_iinfo tbl ii in
+      let ({L.stack_loc = locs}, _, _) = IInfo.split (get_iinfo tbl ii) in
       Lmore (L.i_loc loc locs)
     end
   | None ->
     match e.pel_ii with
     | Some ii ->
-      let (i_loc, _, _) = get_iinfo tbl ii in
+      let (i_loc, _, _) = IInfo.split (get_iinfo tbl ii) in
       Lmore i_loc
     | None ->
       match e.pel_fi with
