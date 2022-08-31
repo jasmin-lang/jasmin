@@ -285,7 +285,7 @@ let main () =
               (pp_list "@ " Evaluator.pp_val) vs;
             Format.printf "*/@."
           with Evaluator.Eval_error (ii,err) ->
-            let (i_loc, _, _) = Conv.get_iinfo tbl ii in
+            let (i_loc, _, _) = IInfo.split (Conv.get_iinfo tbl ii) in
             hierror ~loc:(Lmore i_loc) ~kind:"evaluation error" "%a" Evaluator.pp_error err
         in
         List.iter exec to_exec
@@ -372,7 +372,7 @@ let main () =
       PrintLinear.pp_prog Arch.asmOp tbl fmt lp in
 
     let rename_fd ii fn cfd =
-      let ii, _, _ = Conv.get_iinfo tbl ii in
+      let ii, _, _ = IInfo.split (Conv.get_iinfo tbl ii) in
       let doit fd =
         let fd = Subst.clone_func fd in
         Subst.extend_iinfo ii fd in
@@ -395,7 +395,7 @@ let main () =
 
     let warning ii msg =
       if not !Glob_options.lea then begin
-          let loc, _, _ = Conv.get_iinfo tbl ii in
+          let loc, _, _ = IInfo.split (Conv.get_iinfo tbl ii) in
           warning UseLea loc "%a" Printer.pp_warning_msg msg
         end;
       ii in
@@ -466,7 +466,7 @@ let main () =
       Compiler.removereturn  = removereturn;
       Compiler.regalloc      = global_regalloc;
       Compiler.extra_free_registers = (fun ii ->
-        let loc, _, _ = Conv.get_iinfo tbl ii in
+        let loc, _, _ = IInfo.split (Conv.get_iinfo tbl ii) in
         !saved_extra_free_registers loc |> omap (Conv.cvar_of_var tbl)
       );
       Compiler.lowering_vars = Arch.lowering_vars tbl;

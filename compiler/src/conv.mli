@@ -50,7 +50,7 @@ val fun_of_cfun : coq_tbl -> BinNums.positive -> funname
 
 val string_of_funname : coq_tbl -> BinNums.positive -> string
 
-val get_iinfo   : coq_tbl -> Expr.instr_info -> L.i_loc * unit * Syntax.annotations
+val get_iinfo   : coq_tbl -> Expr.instr_info -> IInfo.t
 
 val get_finfo   : coq_tbl -> BinNums.positive -> L.t * f_annot * call_conv * Syntax.annotations list
 
