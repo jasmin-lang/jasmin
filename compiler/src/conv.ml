@@ -65,12 +65,11 @@ let ty_of_cty = function
 
 (* ------------------------------------------------------------------------ *)
 
-type 'info coq_tbl = {
-     dft_info      : 'info;
+type coq_tbl = {
      mutable count : int;
      var           : (Var.var, var) Hashtbl.t;
      cvar          : Var.var Hv.t;
-     iinfo         : (int, L.i_loc * 'info * Syntax.annotations) Hashtbl.t;
+     iinfo         : (int, L.i_loc * unit * Syntax.annotations) Hashtbl.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
      finfo         : (int, L.t * f_annot * call_conv * Syntax.annotations list) Hashtbl.t;
@@ -81,8 +80,7 @@ let new_count tbl =
   tbl.count <- n + 1;
   n
 
-let empty_tbl info = {
-    dft_info = info;
+let empty_tbl = {
     count    = 1;
     var      = Hashtbl.create 101;
     cvar     = Hv.create 101;
@@ -224,7 +222,7 @@ let get_iinfo tbl n =
   try Hashtbl.find tbl.iinfo n
   with Not_found ->
     Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." n;
-    (L.i_dummy), tbl.dft_info, []
+    (L.i_dummy), (), []
 
 let rec cinstr_of_instr tbl i c =
   let n = set_iinfo tbl i.i_loc i.i_info i.i_annot in
@@ -359,7 +357,7 @@ let gd_of_cgd tbl (x, gd) =
   (var_of_cvar tbl x, gd)
 
 let cuprog_of_prog (all_registers: var list) info p =
-  let tbl = empty_tbl info in
+  let tbl = empty_tbl in
   (* init dummy iinfo *)
   let _ = set_iinfo tbl (L.i_dummy) info [] in
   (* First add registers *)

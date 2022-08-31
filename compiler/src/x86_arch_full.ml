@@ -4,7 +4,7 @@ open X86_decl
 module type X86_input = sig
   
  val call_conv : (register, register_ext, xmm_register, rflag, condt) calling_convention 
- val lowering_vars : 'a Conv.coq_tbl -> X86_lowering.fresh_vars 
+ val lowering_vars : Conv.coq_tbl -> X86_lowering.fresh_vars
  val lowering_opt : X86_lowering.lowering_options
 
 end 

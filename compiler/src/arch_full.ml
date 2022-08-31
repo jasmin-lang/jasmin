@@ -19,10 +19,10 @@ module type Core_arch = sig
   val aparams : (reg, regx, xreg, rflag, cond, asm_op, extra_op, fresh_vars, lowering_options) Arch_params.architecture_params
   val call_conv : (reg, regx, xreg, rflag, cond) calling_convention
 
-  val lowering_vars : 'a Conv.coq_tbl -> fresh_vars
+  val lowering_vars : Conv.coq_tbl -> fresh_vars
   val lowering_opt : lowering_options
 
-  val pp_asm : 'info Conv.coq_tbl -> Format.formatter -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> unit
+  val pp_asm : Conv.coq_tbl -> Format.formatter -> (reg, regx, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> unit
   val analyze :
     (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.func ->
     (unit, (reg, regx, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.func ->

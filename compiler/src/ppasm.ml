@@ -228,7 +228,7 @@ let pp_instr_velem_long =
   | W.VE64 -> "qdq"
 
 (* -------------------------------------------------------------------- *)
-type 'a tbl = 'a Conv.coq_tbl
+type tbl = Conv.coq_tbl
 
 (* -------------------------------------------------------------------- *)
 
@@ -456,7 +456,7 @@ module Printer (BP:BPrinter) = struct
     List.iter (Format.fprintf fmt "%a\n%!" (pp_instr tbl name)) is
     
   (* -------------------------------------------------------------------- *)  
-  let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
+  let pp_prog (tbl: tbl) (fmt : Format.formatter)
      (asm : X86_sem.x86_prog) =
     pp_gens fmt
       [`Instr (pp_asm_syntax, []);
@@ -490,12 +490,12 @@ end
 module PATT = Printer(ATT)
 module PIntel = Printer(Intel)
 
-let pp_instr (tbl: 'info tbl) name fmt i = 
+let pp_instr (tbl: tbl) name fmt i =
     match !Glob_options.assembly_style with
     | `ATT -> PATT.pp_instr tbl name fmt i
     | `Intel -> PIntel.pp_instr tbl name fmt i
 
-let pp_prog (tbl: 'info tbl) (fmt : Format.formatter)
+let pp_prog (tbl: tbl) (fmt : Format.formatter)
      (asm : X86_sem.x86_prog) =
     match !Glob_options.assembly_style with
     | `ATT -> PATT.pp_prog tbl fmt asm 
