@@ -22,9 +22,9 @@ Extract Constant strings.ascii_cmp => "(fun x y -> let c = Char.compare x y in i
 Extract Constant expr.VarInfo.t => "Location.t".
 Extract Constant expr.VarInfo.witness => "Location._dummy".
 Extract Constant expr.var_info => "Location.t".
-Extract Constant expr.InstrInfo.t => "Stdlib.Int.t".
-Extract Constant expr.InstrInfo.witness => "1".
-Extract Constant expr.instr_info => "Stdlib.Int.t".
+Extract Constant expr.InstrInfo.t => "IInfo.t".
+Extract Constant expr.InstrInfo.witness => "IInfo.dummy".
+Extract Constant expr.instr_info => "IInfo.t".
 
 Cd  "lang/ocaml".
 

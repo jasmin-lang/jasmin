@@ -509,7 +509,7 @@ let pp_err ~debug tbl fmt (pp_e : Compiler_util.pp_error) =
       Format.fprintf fmt "%a" L.pp_loc loc
     | Compiler_util.PPEfunname fn -> Format.fprintf fmt "%s" (Conv.fun_of_cfun tbl fn).fn_name
     | Compiler_util.PPEiinfo ii ->
-      let (i_loc, _, _) = IInfo.split (Conv.get_iinfo tbl ii) in
+      let (i_loc, _, _) = IInfo.split (Conv.get_iinfo ii) in
       Format.fprintf fmt "%a" L.pp_iloc i_loc
     | Compiler_util.PPEfuninfo fi ->
       let (f_loc, _, _, _) = Conv.get_finfo tbl fi in

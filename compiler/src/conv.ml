@@ -69,7 +69,6 @@ type coq_tbl = {
      mutable count : int;
      var           : (Var.var, var) Hashtbl.t;
      cvar          : Var.var Hv.t;
-     iinfo         : (int, IInfo.t) Hashtbl.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
      finfo         : (int, L.t * f_annot * call_conv * Syntax.annotations list) Hashtbl.t;
@@ -84,7 +83,6 @@ let empty_tbl = {
     count    = 1;
     var      = Hashtbl.create 101;
     cvar     = Hv.create 101;
-    iinfo    = Hashtbl.create 1000;
     funname  = Hashtbl.create 101;
     cfunname = Hashtbl.create 101;
     finfo    = Hashtbl.create 101;
@@ -213,19 +211,13 @@ let string_of_funname tbl p =
 
 (* ------------------------------------------------------------------------ *)
 
-let set_iinfo tbl loc ii ia =
-  let n = new_count tbl in
-  Hashtbl.add tbl.iinfo n (IInfo.mk loc ii ia);
-  n
+let set_iinfo loc ii ia =
+  IInfo.mk loc ii ia
 
-let get_iinfo tbl n =
-  try Hashtbl.find tbl.iinfo n
-  with Not_found ->
-    Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." n;
-    IInfo.dummy
+let get_iinfo n = n
 
 let rec cinstr_of_instr tbl i c =
-  let n = set_iinfo tbl i.i_loc i.i_info i.i_annot in
+  let n = set_iinfo i.i_loc i.i_info i.i_annot in
   cinstr_r_of_instr_r tbl n i.i_desc c
 
 and cinstr_r_of_instr_r tbl p i tl =
@@ -273,7 +265,7 @@ and cstmt_of_stmt tbl c tl =
 let rec instr_of_cinstr tbl i =
   match i with
   | C.MkI(p, ir) ->
-    let (i_loc, i_info, i_annot) = IInfo.split (get_iinfo tbl p) in
+    let (i_loc, i_info, i_annot) = IInfo.split (get_iinfo p) in
     let i_desc = instr_r_of_cinstr_r tbl ir in
     { i_desc; i_loc; i_info; i_annot }
 
@@ -359,7 +351,7 @@ let gd_of_cgd tbl (x, gd) =
 let cuprog_of_prog (all_registers: var list) info p =
   let tbl = empty_tbl in
   (* init dummy iinfo *)
-  let _ = set_iinfo tbl (L.i_dummy) info [] in
+  let _ = set_iinfo L.i_dummy info [] in
   (* First add registers *)
   List.iter
     (fun x -> ignore (cvar_of_reg tbl x))
@@ -417,13 +409,13 @@ let iloc_of_loc tbl e =
     | None -> Lone loc
     | Some ii ->
       (* if there are some locations coming from inlining, we print them *)
-      let ({L.stack_loc = locs}, _, _) = IInfo.split (get_iinfo tbl ii) in
+      let ({L.stack_loc = locs}, _, _) = IInfo.split (get_iinfo ii) in
       Lmore (L.i_loc loc locs)
     end
   | None ->
     match e.pel_ii with
     | Some ii ->
-      let (i_loc, _, _) = IInfo.split (get_iinfo tbl ii) in
+      let (i_loc, _, _) = IInfo.split (get_iinfo ii) in
       Lmore i_loc
     | None ->
       match e.pel_fi with
