@@ -246,24 +246,24 @@ let init_slots pd stack_pointers alias coloring fv =
   !slots, lalloc
 
 (* --------------------------------------------------- *)
-let all_alignment pd ctbl alias params lalloc =
+let all_alignment pd ctbl alias ret params lalloc =
 
   let get_align c = try Hv.find ctbl c.Alias.in_var with Not_found -> U8 in
-  let doparam x =
+  let doparam i x =
     match x.v_kind with
     | Reg (_, Direct) -> None
-    | Reg (_, Pointer writable) ->
+    | Reg (_, Pointer _) ->
       let c = Alias.normalize_var alias x in
       assert (V.equal x c.in_var && c.scope = E.Slocal);
       let pi_ptr = 
         match Hv.find lalloc x with
         | RegPtr p -> p
         | _ | exception Not_found -> assert false in
-      let pi_writable = writable = Writable in
+      let pi_writable = List.mem (Some i) ret in
       let pi_align = get_align c in 
       Some { pi_ptr; pi_writable; pi_align } 
     | _ -> assert false in
-  let params = List.map doparam params in
+  let params = List.mapi doparam params in
 
   let atbl = Hv.create 1007 in
   let set slot ws = 
@@ -358,12 +358,13 @@ let alloc_stack_fd pd is_move_op get_info gtbl fd =
     try classes_alignment getfun gtbl alias fd.f_body
     with HiError e -> raise (HiError { e with err_funname = Some fd.f_name.fn_name })
   in
-  let sao_params, atbl = all_alignment pd ctbl alias fd.f_args lalloc in
-  let sao_return = 
+  let sao_return =
     match fd.f_cc with
-    | Export -> List.map (fun _ -> None) fd.f_ret 
+    | Export -> List.map (fun _ -> None) fd.f_ret
     | Subroutine {returned_params} -> returned_params
     | Internal -> assert false in
+
+  let sao_params, atbl = all_alignment pd ctbl alias sao_return fd.f_args lalloc in
 
   let sao_align, sao_slots, sao_size = alloc_local_stack 0 (Sv.elements slots) atbl in
     
