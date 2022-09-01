@@ -29,6 +29,10 @@
   ([PR #225](https://github.com/jasmin-lang/jasmin/pull/225);
   fixes [#224](https://github.com/jasmin-lang/jasmin/issues/224)).
 
+- Fix inference of mutability of `ptr` parameters during stack-allocation
+  ([PR #227](https://github.com/jasmin-lang/jasmin/pull/227);
+  fixes [#190](https://github.com/jasmin-lang/jasmin/issues/190)).
+
 ## New features
 
 - Fill an array with “random” data using `p = #randombytes(p);`
