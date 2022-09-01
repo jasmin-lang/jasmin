@@ -37,6 +37,10 @@
   ([PR #228](https://github.com/jasmin-lang/jasmin/pull/228);
   fixes [#58](https://github.com/jasmin-lang/jasmin/issues/58)).
 
+- Fix a failing assertion in extraction to EasyCrypt for constant-time
+  ([PR #229](https://github.com/jasmin-lang/jasmin/pull/229);
+  fixes [#202](https://github.com/jasmin-lang/jasmin/issues/202)).
+
 ## New features
 
 - Fill an array with “random” data using `p = #randombytes(p);`
