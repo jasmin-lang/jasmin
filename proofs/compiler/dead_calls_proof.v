@@ -8,10 +8,11 @@ Set   Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section ASM_OP.
+Section WITH_PARAMS.
 
-Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-Context `{asmop:asmOp}.
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}.
 
 (* -------------------------------------------------------------------- *)
 Fixpoint i_Calls (i : instr) {struct i} : Sp.t :=
@@ -316,7 +317,7 @@ Section PROOF.
     sem_call p' ev scs mem fd va scs' mem' vr.
   Proof.
     move=> Hincl H.
-    apply: (@sem_call_Ind _ _ _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
+    apply: (@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
            Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc)=> //.
     move => ??; SpD.fsetdec.
   Qed.
@@ -380,4 +381,4 @@ Qed.
 
 End Section.
 
-End ASM_OP.
+End WITH_PARAMS.

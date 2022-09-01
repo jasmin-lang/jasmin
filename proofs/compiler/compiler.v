@@ -5,8 +5,8 @@ Require Import Utf8.
 Require Import
   arch_params
   compiler_util
-  expr.
-Require merge_varmaps.
+  expr
+  flag_combination.
 Require Import
   arch_decl
   arch_extra
@@ -28,6 +28,7 @@ Require Import
   stack_alloc
   tunneling
   unrolling.
+Require merge_varmaps.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -40,6 +41,7 @@ Section IS_MOVE_OP.
 
 Context
   `{asmop : asmOp}
+  {fcp : FlagCombinationParams}
   (is_move_op : asm_op_t -> bool).
 
 Let postprocess (p: uprog) : cexec uprog :=
@@ -145,7 +147,8 @@ Record stack_alloc_oracles : Type :=
   }.
 
 Record compiler_params
-  `{asm_e : asm_extra} 
+  {asm_op : Type}
+  {asmop : asmOp asm_op}
   (fresh_vars lowering_options : Type) := {
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
   expand_fd        : funname -> _ufundef -> expand_info;
@@ -177,8 +180,15 @@ Record compiler_params
   is_regx          : var -> bool;
 }.
 
+
 Context
-  `{asm_e : asm_extra} {call_conv: calling_convention}
+  {reg regx xreg rflag cond asm_op extra_op : Type}
+  {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
+  {syscall_state : Type}
+  {scs : syscall_sem syscall_state}.
+
+Context
+  {call_conv: calling_convention}
   {fresh_vars lowering_options : Type}
   (aparams : architecture_params fresh_vars lowering_options)
   (cparams : compiler_params fresh_vars lowering_options).

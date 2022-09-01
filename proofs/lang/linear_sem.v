@@ -18,9 +18,11 @@ Local Open Scope seq_scope.
 
 Section SEM.
 
-Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-Context {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info}.
-Variable P: lprog.
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  {ovm_i : one_varmap_info}
+  (P : lprog).
 
 Definition label_in_lcmd (body: lcmd) : seq label :=
   pmap (λ i, if li_i i is Llabel lbl then Some lbl else None) body.
@@ -28,7 +30,6 @@ Definition label_in_lcmd (body: lcmd) : seq label :=
 Definition label_in_lprog : seq remote_label :=
   [seq (f.1, lbl) | f <- lp_funcs P, lbl <- label_in_lcmd (lfd_body f.2) ].
 
-#[local]
 Notation labels := label_in_lprog.
 
 (* --------------------------------------------------------------------------- *)

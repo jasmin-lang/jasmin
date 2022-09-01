@@ -13,6 +13,7 @@ Require
   linearization
   linearization_proof
   lowering
+  propagate_inline_proof
   stack_alloc
   stack_alloc_proof.
 Require Export arch_params.
@@ -63,10 +64,15 @@ Record h_architecture_params
   (fresh_vars lowering_options : Type)
   (aparams : architecture_params fresh_vars lowering_options) :=
   {
-    (* Stack alloc hypotheses. See stack_alloc_proof.v. *)
-    hap_hsap : forall is_regx, stack_alloc_proof.h_stack_alloc_params (ap_sap aparams is_regx);
+    (* Propagate inline hypotheses. See [propagate_inline_proof.v]. *)
+    hap_hpip : propagate_inline_proof.h_propagate_inline_params;
 
-    (* Linearization hypotheses. See linearization_proof.v. *)
+    (* Stack alloc hypotheses. See [stack_alloc_proof.v]. *)
+    hap_hsap :
+      forall is_regx,
+        stack_alloc_proof.h_stack_alloc_params (ap_sap aparams is_regx);
+
+    (* Linearization hypotheses. See [linearization_proof.v]. *)
     hap_hlip :
       linearization_proof.h_linearization_params
         (ap_lip aparams);
@@ -80,7 +86,7 @@ Record h_architecture_params
     (* Lowering hypotheses. Defined above. *)
     hap_hlop : h_lowering_params (ap_lop aparams);
 
-    (* Assembly generation hypotheses. See asm_gen_proof.v. *)
+    (* Assembly generation hypotheses. See [asm_gen_proof.v]. *)
     hap_hagp : h_asm_gen_params (ap_agp aparams);
 
     (* ------------------------------------------------------------------------ *)

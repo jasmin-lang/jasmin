@@ -12,15 +12,29 @@ Unset Printing Implicit Defensive.
 Local Open Scope seq_scope.
 Local Open Scope vmap_scope.
 
-(* ** proofs
- * -------------------------------------------------------------------- *)
 
-Section Section.
+Record h_propagate_inline_params
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state} :=
+  {
+    pip_cf_xsemP :
+      forall gd s e0 e1 e2 e3 cf v,
+        let e := PappN (Ocombine_flags cf) [:: e0; e1; e2; e3 ] in
+        let e' := cf_xsem enot eand eor expr.eeq e0 e1 e2 e3 cf in
+        sem_pexpr gd s e = ok v
+        -> sem_pexpr gd s e' = ok v;
+  }.
+
+Section WITH_PARAMS.
 
 Context
-  {pd:PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
-  `{asmop:asmOp}
-  {T:eqType} {pT:progT T} {sCP: semCallParams}.
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  {T : eqType}
+  {pT : progT T}
+  {sCP : semCallParams}
+  {hpip : h_propagate_inline_params}.
+
 
 Definition dfl_cel := 
   {| pi_def := Pconst 0; pi_fv := Sv.empty; pi_m := false; pi_fv_ok := erefl _; pi_m_ok := erefl _|}.
@@ -116,6 +130,19 @@ Lemma sbeqE e1 e2 b :
   sem_pexpr gd s (sbeq e1 e2) = ok (Vbool b).
 Proof. by move=> /sbeqP [v] [-> /value_uinclE ->]. Qed.
 
+Lemma sbeqE' e0 e1 b0 b1 :
+  sem_pexpr gd s e0 = ok (Vbool b0) ->
+  sem_pexpr gd s e1 = ok (Vbool b1) ->
+  sem_pexpr gd s (sbeq e0 e1) = ok (Vbool (b0 == b1)).
+Proof.
+  move=> h0 h1.
+  have : sem_pexpr gd s (Papp2 Obeq e0 e1) = ok (Vbool (b0 == b1)).
+  - by rewrite /= h0 h1.
+  clear h0 h1.
+  move=> /sbeqP [v [-> hincl]].
+  by move: hincl => /value_uinclE ?; subst v.
+Qed.
+
 Lemma sorE e1 e2 b1 b2 : 
   sem_pexpr gd s e1 = ok (Vbool b1) ->
   sem_pexpr gd s e2 = ok (Vbool b2) ->
@@ -136,35 +163,84 @@ Proof.
   by move=> /sandP [v] [-> /value_uinclE ->]. 
 Qed.
 
-Lemma scfcP c es vs v: 
-  sem_pexprs gd s es = ok vs → 
-  sem_opN (Ocombine_flags c) vs = ok v → 
-  sem_pexpr gd s (scfc c es) = ok v.
+Lemma fc_esem_ssem e0 e1 e2 e3 fc b :
+  let esem := fc_sem enot eand eor expr.eeq  in
+  let ssem := fc_sem snot sand sor sbeq in
+  sem_pexpr gd s (esem e0 e1 e2 e3 fc) = ok (Vbool b)
+  -> sem_pexpr gd s (ssem e0 e1 e2 e3 fc) = ok (Vbool b).
 Proof.
-  rewrite /scfc /lower_cfc.
-  case heq : cf_tbl => [n cfc] /=.
-  case: es => /= [ [<-] // | oe es].
-  t_xrbindP => ov hov ? h <-.
-  case: es h => /= [ [<-] | ce es]; first by rewrite hov.
-  t_xrbindP => cv hcv ? h <-.
-  case: es h => /= [ [<-] | se es]; first by rewrite hov hcv.
-  t_xrbindP => sv hsv ? h <-.
-  case: es h => /= [ [<-] | ze es]; first by rewrite hov hcv hsv.
-  t_xrbindP => zv hzv ? h <-.
-  case: es h => /= [ [<-] /= | ??]; last first.
-  + by t_xrbindP => ???? <-; rewrite /sem_opN /=; t_xrbindP.
+  rewrite /=.
+  elim: fc b
+    => //= [fc ih | fc0 ih0 fc1 ih1 | fc0 ih0 fc1 ih1 | fc0 ih0 fc1 ih1] b.
+  all: t_xrbindP.
+
+  - move=> v hv hnot.
+    move: hnot => /sem_sop1I /= [nb hnb [?]]; subst b.
+    move: hnb => /to_boolI ?; subst v.
+    apply: snotE.
+    exact: (ih nb hv).
+
+  all: move=> v0 hv0 v1 hv1 h.
+  all: move: h => /sem_sop2I /= [b0 [b1 [b' [hb0 hb1 hb [?]]]]]; subst b'.
+  all: move: hb0 => /to_boolI ?; subst v0.
+  all: move: hb1 => /to_boolI ?; subst v1.
+  all: move: hb => [?]; subst b.
+  all: have h0 := ih0 b0 hv0.
+  all: have h1 := ih1 b1 hv1.
+  all:
+    solve
+      [ exact: (sandE h0 h1) | exact: (sorE h0 h1) | exact: (sbeqE' h0 h1) ].
+Qed.
+
+Lemma cf_esem_ssem e0 e1 e2 e3 cf b :
+  let esem := cf_xsem enot eand eor expr.eeq  in
+  let ssem := cf_xsem snot sand sor sbeq in
+  sem_pexpr gd s (esem e0 e1 e2 e3 cf) = ok (Vbool b)
+  -> sem_pexpr gd s (ssem e0 e1 e2 e3 cf) = ok (Vbool b).
+Proof.
+  rewrite /cf_xsem.
+  case: cf_tbl => -[] cfc; last exact: fc_esem_ssem.
+  rewrite /=.
+  t_xrbindP=> v hv hnot.
+  move: hnot => /sem_sop1I /= [nb hnb [?]]; subst b.
+  move: hnb => /to_boolI ?; subst v.
+  apply: snotE.
+  exact: (fc_esem_ssem hv).
+Qed.
+
+Lemma scfcP c es vs v :
+  sem_pexprs gd s es = ok vs
+  -> sem_opN (Ocombine_flags c) vs = ok v
+  -> sem_pexpr gd s (scfc c es) = ok v.
+Proof.
+  rewrite /scfc.
+  case: es => /= [[<-] | eof es]; first done.
+  t_xrbindP=> vof hvof {vs} vs h <-.
+  case: es h => /= [[<-] | ecf es]; first by rewrite hvof.
+  t_xrbindP=> vcf hvcf {vs} vs h <-.
+  case: es h => /= [[<-] | esf es]; first by rewrite hvof hvcf.
+  t_xrbindP=> vsf hvsf {vs} vs h <-.
+  case: es h => /= [[<-] | ezf es]; first by rewrite hvof hvcf hvsf.
+  t_xrbindP=> vzf hvzf {vs} vs h <-.
+
+  case: es h => /= [[<-] | ? ?]; first last.
+  - t_xrbindP=> ???? <-. rewrite /sem_opN /=. by t_xrbindP.
+
+  move=> h.
+  have hv := h.
+  move: h.
   rewrite /sem_opN /=.
-  t_xrbindP => b ob /to_boolI hob cb /to_boolI hcb sb /to_boolI hsb zb /to_boolI hzb hs <-.
-  subst ov cv sv zv.
-  move: hs; rewrite /sem_combine_flags heq /= /sem_cfc /neg_f => -[<-].
-  set E := (X in snot X).
-  set B := (B in ~~ B).
-  have : sem_pexpr gd s E = ok (Vbool B).
-  + rewrite /E /B; case: (cfc) => //.
-    + by apply /snotE /sbeqE; rewrite /= hov hsv.
-    + by apply/sorE.
-    by apply/sorE => //; apply /snotE /sbeqE; rewrite /= hov hsv.
-  by move=> h; case: (n) => //; apply /snotE.
+  t_xrbindP=> b bof hof bcf hcf bsf hsf bzf hzf hb ?; subst v.
+  move: hof => /to_boolI ?; subst vof.
+  move: hcf => /to_boolI ?; subst vcf.
+  move: hsf => /to_boolI ?; subst vsf.
+  move: hzf => /to_boolI ?; subst vzf.
+
+  apply: cf_esem_ssem.
+  apply: (pip_cf_xsemP hpip).
+  rewrite /=.
+  rewrite hvof hvcf hvsf hvzf {hvof hvcf hvsf hvzf} /=.
+  exact: hv.
 Qed.
 
 End SCFC.
@@ -485,7 +561,7 @@ Section PROOF.
     have [vm' ] := pi_lvP_uincl hu hue' hv hwr.
     rewrite heq /= => -[hu' hv' hwr'].
     exists vm' => /=.
-    suff : valid_pi gd s2 (set_lv pi' x' tag (pi_e pi e)).
+    suff : valid_pi gd s2 (set_lv pi' x' tag (pi_e (spp := spp) pi e)).
     + by split => //; constructor; econstructor; eauto; rewrite -eq_globs. 
     case (set_lvE pi' x' tag (pi_e pi e)); last by move=> ->.
     move=> [x0 [?? ->]]; subst x' tag.
@@ -702,11 +778,11 @@ Section PROOF.
     exists vr', sem_call p2 ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
     by move=>
-      /(@sem_call_Ind _ _ _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
-            Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) 
+      /(@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
+            Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc)
       h /h [vr' h1 h2]; exists vr'.
   Qed.
 
 End PROOF.
 
-End Section.
+End WITH_PARAMS.

@@ -11,16 +11,17 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
-Section ASM_OP.
+Section WITH_PARAMS.
 
-Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-Context `{asmop : asmOp}.
-Context (is_move_op : asm_op_t -> bool).
-
-Hypothesis is_move_opP : forall op vx v,
-  is_move_op op ->
-  exec_sopn (Oasm op) [:: vx] = ok v ->
-  List.Forall2 value_uincl v [:: vx].
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  (is_move_op : asm_op_t -> bool)
+  (is_move_opP :
+    forall op vx v,
+      is_move_op op
+      -> exec_sopn (Oasm op) [:: vx ] = ok v
+      -> List.Forall2 value_uincl v [:: vx ]).
 
 Section Section.
 
@@ -599,7 +600,7 @@ Section PROOF.
       sem_call p' ev scs mem fn va' scs' mem' vr' /\  List.Forall2 value_uincl (fn_keep_only onfun fn vr) vr'.
   Proof.
     move=> Hall Hsem.
-    apply (@sem_call_Ind _ _ _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
+    apply (@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
             Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc scs mem fn va scs' mem' vr Hsem _ Hall).
   Qed.
 
@@ -666,4 +667,4 @@ Proof.
   by case: fd => /= ; t_xrbindP => /= ????????? <-.
 Qed.
 
-End ASM_OP.
+End WITH_PARAMS.

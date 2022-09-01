@@ -4,6 +4,7 @@ Require Import expr ZArith sem compiler_util.
 Import all_ssreflect all_algebra.
 Import Utf8.
 Import oseq.
+Require Import flag_combination.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -12,6 +13,11 @@ Unset Printing Implicit Defensive.
 Local Open Scope seq_scope.
 Local Open Scope vmap_scope.
 Local Open Scope Z_scope.
+
+
+Section WITH_PARAMS.
+
+Context {fcp : FlagCombinationParams}.
 
 Definition e2bool (e:pexpr) : exec bool := 
   match e with
@@ -515,3 +521,4 @@ Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p.
 End Section.
 
 End ASM_OP.
+End WITH_PARAMS.

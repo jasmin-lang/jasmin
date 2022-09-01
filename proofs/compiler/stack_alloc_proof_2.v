@@ -11,6 +11,7 @@ Require Import byteset.
 Require Import Psatz.
 Import Utf8.
 
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -35,14 +36,13 @@ Variable global_alloc : seq (var * wsize * Z).
 
 Let glob_size := Z.of_nat (size global_data).
 
-Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-Context `{asmop:asmOp}.
-Variable rip : pointer.
-Hypothesis no_overflow_glob_size : no_overflow rip glob_size.
-
-Variable mglob : Mvar.t (Z * wsize).
-
-Hypothesis hmap : init_map (Z.of_nat (size global_data)) global_alloc = ok mglob.
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  (rip : pointer)
+  (no_overflow_glob_size : no_overflow rip glob_size)
+  (mglob : Mvar.t (Z * wsize))
+  (hmap : init_map (Z.of_nat (size global_data)) global_alloc = ok mglob).
 
 Lemma init_mapP : forall x1 ofs1 ws1,
   Mvar.get mglob x1 = Some (ofs1, ws1) -> [/\
@@ -2718,7 +2718,7 @@ Qed.
 Lemma check_cP scs1 m1 fn vargs scs2 m2 vres : sem_call P ev scs1 m1 fn vargs scs2 m2 vres -> 
    Pfun scs1 m1 fn vargs scs2 m2 vres.
 Proof.
-  apply (@sem_call_Ind _ _ _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
+  apply (@sem_call_Ind _ _ _ _ _ _ _ _ Pc Pi_r Pi Pfor Pfun
                        Hskip
                        Hcons
                        HmkI
@@ -2743,10 +2743,8 @@ End INIT.
 Section HSAPARAMS.
 
 Context
-  {pd : PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
-  `{asmop : asmOp}.
-
-Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
   (saparams : stack_alloc_params)
   (hsaparams : h_stack_alloc_params saparams)
   (fresh_reg_ : Ident.ident -> stype -> Ident.ident).

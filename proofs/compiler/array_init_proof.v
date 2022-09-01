@@ -11,10 +11,11 @@ Unset Printing Implicit Defensive.
 Local Open Scope vmap.
 Local Open Scope seq_scope.
 
-Section ASM_OP.
+Section WITH_PARAMS.
 
-Context {pd:PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-Context `{asmop:asmOp}.
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}.
 
 Section Section.
 
@@ -244,7 +245,7 @@ Section REMOVE_INIT.
     sem_call p ev scs mem f va scs' mem' vr ->
     exists vr', sem_call p' ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
-    move=> /(@sem_call_Ind _ _ _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Rnil Rcons RmkI Rasgn Ropn Rsyscall
+    move=> /(@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Rnil Rcons RmkI Rasgn Ropn Rsyscall
              Rif_true Rif_false Rwhile_true Rwhile_false Rfor Rfor_nil Rfor_cons Rcall Rproc) H.
     by move=> /H.
   Qed.
@@ -559,10 +560,10 @@ Section ADD_INIT.
     sem_call p ev scs mem f va scs' mem' vr ->
     sem_call p' ev scs mem f va scs' mem' vr.
   Proof.
-    by apply (@sem_call_Ind _ _ _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun RAnil RAcons RAmkI RAasgn RAopn RAsyscall
+    by apply (@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun RAnil RAcons RAmkI RAasgn RAopn RAsyscall
                RAif_true RAif_false RAwhile_true RAwhile_false RAfor RAfor_nil RAfor_cons RAcall RAproc).
   Qed.
 
 End ADD_INIT.
 
-End ASM_OP.
+End WITH_PARAMS.

@@ -42,16 +42,17 @@ Definition eq_alloc_vm (m : t) (vm1 vm2 : vmap) :=
     eval_uincl (set_undef_e (t := sword ai.(ai_ty)) (eval_array vm1 ai.(ai_ty) x i)) 
                (set_undef_e vm2.[xi]).
 
-Definition eq_alloc {_: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state} (m : t) (s1 s2 : estate) :=
+Definition eq_alloc {asm_op syscall_state : Type} {spp : SemPexprParams asm_op syscall_state} (m : t) (s1 s2 : estate) :=
   [/\ eq_alloc_vm m s1.(evm) s2.(evm),
       s1.(escs) = s2.(escs) &  s1.(emem) = s2.(emem)].
-    
-Section Section.
 
-Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-Context `{asmop:asmOp}.
-Variable (fi : funname -> ufundef -> expand_info).
-Variable p1 p2:uprog.
+Section WITH_PARAMS.
+
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  (fi : funname -> ufundef -> expand_info)
+  (p1 p2 : uprog).
 
 Local Notation gd := (p_globs p1).
 
@@ -536,8 +537,8 @@ Qed.
 Lemma expand_callP f scs mem scs' mem' va vr:
   sem_call p1 ev scs mem f va scs' mem' vr -> sem_call p2 ev scs mem f va scs' mem' vr.
 Proof.
-  apply (@sem_call_Ind _ _ _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
+  apply (@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
           Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
 Qed.
 
-End Section.
+End WITH_PARAMS.

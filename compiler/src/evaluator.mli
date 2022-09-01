@@ -1,11 +1,9 @@
 exception Eval_error of Expr.instr_info * Utils0.error
 
 val exec :
-  Wsize.coq_PointerData ->
-  'a Syscall.syscall_sem ->
-  'b Sopn.asmOp ->
-  'a Syscall.syscall_state_t Syscall.syscall_state_t ->
-  'b Expr.prog ->
+  ('a, 'b) Sem_pexpr_params.coq_SemPexprParams ->
+  'b ->
+  'a Expr.prog ->
   Utils0.funname ->
   Low_memory.Memory.mem -> Low_memory.Memory.mem * Values.values
 

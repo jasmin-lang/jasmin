@@ -30,9 +30,9 @@ Section PROOF.
   Context (is_var_in_memory: var_i → bool).
 
   Notation lower_prog :=
-    (lower_prog lower_i options warning fv is_var_in_memory).
+    (lower_prog (asmop := _asmop) lower_i options warning fv is_var_in_memory).
   Notation lower_cmd :=
-    (lower_cmd lower_i options warning fv is_var_in_memory).
+    (lower_cmd (asmop := _asmop) lower_i options warning fv is_var_in_memory).
 
   Hypothesis fvars_correct: fvars_correct fv (p_funcs p).
 
@@ -1245,7 +1245,9 @@ Section PROOF.
       set elea := Papp2 (Oadd (Op_w sz)) (wconst (wrepr Uptr d)) (Papp2 (Oadd (Op_w sz)) ob (Papp2 (Omul (Op_w sz)) (wconst (wrepr Uptr sc)) oo)).
       case /andP: hsz => hsz1 hsz2.
       have Hlea :
-        sem_pexprs gd s1' [:: elea] >>= exec_sopn (Ox86 (LEA sz)) = ok [::Vword w].
+        Let vs := sem_pexprs gd s1' [:: elea ] in
+        exec_sopn (spp := spp_of_asm_e) (Ox86 (LEA sz)) vs
+        = ok [:: Vword w ].
       + rewrite /sem_pexprs /= Hvb Hvo /= /exec_sopn /sopn_sem /sem_sop2 /= /truncate_word hsz2 /=.
         rewrite Hwb Hwo /= truncate_word_u /= truncate_word_u /= truncate_word_u /= /x86_LEA /check_size_16_64 hsz1 hsz2 /=.
         by rewrite Ew -!/(zero_extend _ _) !zero_extend_wrepr.
@@ -1256,7 +1258,7 @@ Section PROOF.
       subst w.
       case: eqP => [ ? | _ ].
       + subst d; case: eqP => [ ? | _].
-        + subst sc; exists s2'; split => //; apply sem_seq1; constructor; constructor.
+        + subst sc; exists s2'; split => //; apply: sem_seq1; constructor; constructor.
           move: Hw'; rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /= Hvb Hvo /= Hwb Hwo /= /x86_ADD /=.
           by rewrite /check_size_8_64 hsz2 /= wrepr0 wrepr1 GRing.add0r GRing.mul1r => ->.
         case: is_zeroP => [ Eob | _ ]; last by exists s2'.
@@ -1283,16 +1285,16 @@ Section PROOF.
       rewrite wrepr_unsigned /= truncate_word_u => - [?]; subst wo.
       rewrite GRing.mulr0 GRing.addr0 GRing.addrC => Hw'.
       case: eqP => [ Ed | _ ].
-      + subst d; exists s2'; split => //; apply sem_seq1; constructor; constructor.
+      + subst d; exists s2'; split => //; apply: sem_seq1; constructor; constructor.
         by rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /= Hvb /= Hwb /= /x86_INC
           /check_size_8_64 hsz2 /= -(zero_extend1 sz sz) Hw'.
       case: ifP => [ hrange | _ ].
-      + exists s2'; split => //; apply sem_seq1; constructor; constructor.
+      + exists s2'; split => //; apply: sem_seq1; constructor; constructor.
         by rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /= Hvb /= Hwb /=
          /truncate_word hsz2 zero_extend_wrepr //= /x86_ADD /check_size_8_64 hsz2 /=
          -/(zero_extend _ _) zero_extend_wrepr // Hw'.
       case: eqP => [ Ed | _ ].
-      + exists s2'; split => //; apply sem_seq1; constructor; constructor.
+      + exists s2'; split => //; apply: sem_seq1; constructor; constructor.
         rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /= Hvb /= Hwb /=.
         rewrite truncate_word_u /x86_SUB /check_size_8_64 hsz2 /=.
         by rewrite wrepr_unsigned wrepr_opp GRing.opprK Hw'.
@@ -1330,7 +1332,7 @@ Section PROOF.
       have [s3 [hw3 heqex3]] := write_lval_same Hdisjl heqex Hw.
       exists s3; split => //.
       rewrite map_cat; apply: (sem_app hs2'') => /=.
-      apply sem_seq1; constructor; econstructor; eauto.
+      apply: sem_seq1; constructor; econstructor; eauto.
 
     (* LowerIf *)
     + move=> t cond e1 e2 [Hsz64] [He] [Hsz] [sz' Ht]; subst e.
@@ -1395,7 +1397,7 @@ Section PROOF.
       have [hwa1 [s3 [hsem heqe] {hdiv}]]:= hdiv _ heq1 Hdisjl Hdisje.
       exists s3;split.
       + econstructor;first by eassumption.
-        by case: d hsem => hsem;apply sem_seq1;apply: EmkI; apply: Eopn;
+        by case: d hsem => hsem;apply: sem_seq1;apply: EmkI; apply: Eopn;
            move: hsem; rewrite /sem_sopn /= /get_gvar hget /= hwa1 /=; t_xrbindP => ? -> ? /= ->.
       apply: eq_exc_freshT heqe Hs2'.
     (* LowerConcat *)
@@ -1717,7 +1719,7 @@ Section PROOF.
     + by rewrite /eq_exc_fresh /=; case: hs1' => ?? ->.
     have [s2' [hw' hs2']] := write_lvals_same hdisjx hs1'w hw.
     exists s2'; split => //.
-    apply sem_seq1; constructor; econstructor; eauto.
+    apply: sem_seq1; constructor; econstructor; eauto.
     by case: hs1' => -> ->.
   Qed.
  
@@ -1868,7 +1870,7 @@ Section PROOF.
     sem_call p  ev scs mem f va scs' mem' vr ->
     sem_call p' ev scs mem f va scs' mem' vr.
   Proof.
-    apply (@sem_call_Ind _ _ _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
+    apply (@sem_call_Ind _ _ spp_of_asm_e _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 

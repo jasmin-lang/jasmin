@@ -42,14 +42,14 @@ Qed.
 *)
 Notation spointer := (sword Uptr) (only parsing).
 
-Section Section.
+Section WITH_PARAMS.
 
 Context
-  {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
-  `{asmop:asmOp}
-  (pmap: pos_map)
-  (glob_size: Z)
-  (rsp rip: pointer).
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  (pmap : pos_map)
+  (glob_size : Z)
+  (rsp rip : pointer).
 
 Context
   (Slots : Sv.t)
@@ -4159,4 +4159,4 @@ Proof.
   by apply (valid_state_Incl hincl2).
 Qed.
 
-End Section.
+End WITH_PARAMS.
