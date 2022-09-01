@@ -164,8 +164,8 @@ Context
 Notation assemble_cond := (agp_assemble_cond agparams).
 
 (* -------------------------------------------------------------------- *)
-Definition scale_of_z' ii (z:pointer) : cexec nat :=
-  match wunsigned z with
+Definition scale_of_z ii (z: Z) : cexec nat :=
+  match z with
   | 1%Z => ok 0
   | 2%Z => ok 1
   | 4%Z => ok 2
@@ -185,9 +185,9 @@ Definition reg_of_ovar ii (x:option var_i) : cexec (option reg_t) :=
 Definition assemble_lea ii lea :=
   Let base := reg_of_ovar ii lea.(lea_base) in
   Let offset := reg_of_ovar ii lea.(lea_offset) in
-  Let scale := scale_of_z' ii lea.(lea_scale) in
+  Let scale := scale_of_z ii lea.(lea_scale) in
   ok (Areg {|
-      ad_disp := lea.(lea_disp);
+      ad_disp := wrepr Uptr lea.(lea_disp);
       ad_base := base;
       ad_scale := scale;
       ad_offset := offset
@@ -206,7 +206,7 @@ Definition addr_of_pexpr (rip:var) ii sz (e: pexpr) :=
         if r.(v_var) == rip then
           Let _ := assert (is_none lea.(lea_offset))
                           (E.error ii (pp_box [::pp_s "Invalid global address :"; pp_e e])) in
-          ok (Arip lea.(lea_disp))
+          ok (Arip (wrepr Uptr lea.(lea_disp)))
         else assemble_lea ii lea
       | None =>
         assemble_lea ii lea
