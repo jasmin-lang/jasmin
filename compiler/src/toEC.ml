@@ -1086,7 +1086,7 @@ module Leak = struct
 
   let rec init_aux_i env i = 
     match i.i_desc with
-    | Cassgn (lv, _, _, _) -> add_aux env [ty_lval lv]
+    | Cassgn (lv, _, _, e) -> add_aux (add_aux env [ty_lval lv]) [ty_expr e]
     | Copn (lvs, _, _, _) -> add_aux env (List.map ty_lval lvs)
     | Ccall(_, lvs, _, _) | Csyscall(lvs, _, _)->
       if lvs = [] then env 
