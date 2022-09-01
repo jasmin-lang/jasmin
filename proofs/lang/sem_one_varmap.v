@@ -75,11 +75,13 @@ Qed.
 
 Section SEM.
 
-Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state} {asm_op} {asmop:asmOp asm_op} {ovm_i : one_varmap_info}
-  (p: sprog)
-  (extra_free_registers: instr_info → option var)
-  (var_tmp: var)
-.
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  {ovm_i : one_varmap_info}
+  (p : sprog)
+  (extra_free_registers : instr_info → option var)
+  (var_tmp : var).
 
 Local Notation gd := (p_globs p).
 

@@ -18,14 +18,14 @@ Local Notation cpm := (Mvar.t const_v).
 (* ** proofs
  * -------------------------------------------------------------------- *)
 
-Section Section.
+Section WITH_PARAMS.
 
 Context
-  {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}
-  `{asmop:asmOp}
-  {T:eqType}
-  {pT:progT T}
-  {sCP: semCallParams}.
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  {T : eqType}
+  {pT : progT T}
+  {sCP : semCallParams}.
 
 Section GLOB_DEFS.
 
@@ -1186,7 +1186,7 @@ Section PROOF.
   Proof.
     move => scs1 m1 sc2 m2 fn f vargs vargs' s0 s1 s2 vres vres'.
     case: f=> fi ftin fparams fc ftout fres fex /= Hget Hargs Hi Hw _ Hc Hres Hfull Hscs Hfi.
-    have := (get_map_prog const_prop_fun p fn);rewrite Hget /=.
+    generalize (get_map_prog const_prop_fun p fn); rewrite Hget /=.
     have : valid_cpm (evm s1) empty_cpm by move=> x n;rewrite Mvar.get0.
     move=> /Hc [];case: const_prop => m c' /= hcpm hc' hget vargs1 hargs'.
     have [vargs1' htr hu1]:= mapM2_truncate_val Hargs hargs'.
@@ -1204,11 +1204,11 @@ Section PROOF.
     List.Forall2 value_uincl va va' ->
     exists vr', sem_call p' ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
   Proof.
-    move=> /(@sem_call_Ind _ _ _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
+    move=> /(@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) h.
     apply h.
   Qed.
 
 End PROOF.
 
-End Section.
+End WITH_PARAMS.

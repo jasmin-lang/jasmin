@@ -11,6 +11,7 @@ oseq
 Utf8
 Relation_Operators
 sem_type.
+Require Import flag_combination.
 Require Export arch_decl.
 
 (* Import Memory. *)
@@ -400,6 +401,30 @@ Instance eqC_condt : eqTypeC condt :=
 
 (* -------------------------------------------------------------------- *)
 
+Definition x86_fc_of_cfc (cfc : combine_flags_core) : flag_combination :=
+  let vof := FCVar0 in
+  let vcf := FCVar1 in
+  let vsf := FCVar2 in
+  let vzf := FCVar3 in
+  match cfc with
+  | CFC_O => vof
+  | CFC_B => vcf
+  | CFC_E => vzf
+  | CFC_S => vsf
+  | CFC_L => FCNot (FCEq vof vsf)
+  | CFC_BE => FCOr vcf vzf
+  | CFC_LE => FCOr (FCNot (FCEq vof vsf)) vzf
+  end.
+
+#[global]
+Instance x86_fcp : FlagCombinationParams :=
+  {
+    fc_of_cfc := x86_fc_of_cfc;
+  }.
+
+
+(* -------------------------------------------------------------------- *)
+
 #[global]
 Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
   { reg_size := U64
@@ -411,6 +436,7 @@ Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
   ; reg_size_neq_xreg_size := refl_equal
   ; ad_rsp := RSP
   ; inj_toS_reg_regx := x86_inj_toS_reg_regx
+  ; ad_fcp := x86_fcp
   }.
 
 Definition x86_linux_call_conv : calling_convention := 

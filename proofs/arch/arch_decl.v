@@ -2,6 +2,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
 Require Import utils oseq strings word memory_model global Utf8 Relation_Operators sem_type syscall label.
+Require Import flag_combination.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -42,6 +43,7 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; reg_size_neq_xreg_size : reg_size != xreg_size
   ; ad_rsp : reg
   ; inj_toS_reg_regx : forall (r:reg) (rx:regx), to_string r <> to_string rx
+  ; ad_fcp : FlagCombinationParams
   }.
 
 #[global]

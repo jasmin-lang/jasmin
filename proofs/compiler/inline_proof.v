@@ -13,10 +13,11 @@ Local Open Scope seq_scope.
 
 Section INLINE.
 
-Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-Context `{asmop:asmOp}.
-Context (inline_var: var -> bool).
-Variable rename_fd : instr_info -> funname -> ufundef -> ufundef.
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  (inline_var : var -> bool)
+  (rename_fd : instr_info -> funname -> ufundef -> ufundef).
 
 Lemma get_funP p f fd :
   get_fun p f = ok fd -> get_fundef p f = Some fd.
@@ -564,7 +565,7 @@ Section PROOF.
       sem_call p' ev scs mem f va' scs' mem' vr' /\  List.Forall2 value_uincl vr vr'.
   Proof.
     move=> Hall Hsem.
-    apply (@sem_call_Ind _ _ _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
+    apply (@sem_call_Ind _ _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
                Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc
                scs mem f va scs' mem' vr Hsem _ Hall).
   Qed.

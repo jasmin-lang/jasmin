@@ -80,6 +80,7 @@ lang/array.v
 lang/expr.v
 lang/expr_facts.v
 lang/extraction.v
+lang/flag_combination.v
 lang/gen_map.v
 lang/global.v
 lang/ident.v
@@ -94,6 +95,7 @@ lang/psem_facts.v
 lang/psem.v
 lang/sem.v
 lang/sem_one_varmap.v
+lang/sem_pexpr_params.v
 lang/sem_one_varmap_facts.v
 lang/sem_type.v
 lang/sopn.v

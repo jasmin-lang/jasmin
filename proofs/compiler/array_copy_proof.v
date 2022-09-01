@@ -13,11 +13,15 @@ Local Open Scope vmap.
 Local Open Scope seq_scope.
 Local Open Scope Z_scope.
 
-Section Section.
+Section WITH_PARAMS.
 
-Context {pd:PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-Context `{asmop:asmOp}.
-Context {T:eqType} {pT:progT T} {sCP: semCallParams} (wf_init: wf_init sCP).
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  {T : eqType}
+  {pT : progT T}
+  {sCP : semCallParams}
+  (wf_init : wf_init sCP).
 
 Context (fresh_counter: Ident.ident) (p1 p2: prog) (ev: extra_val_t).
 
@@ -342,10 +346,10 @@ Lemma array_copy_fdP f scs mem scs' mem' va va' vr:
   exists vr', sem_call p2 ev scs mem f va' scs' mem' vr' /\ List.Forall2 value_uincl vr vr'.
 Proof.
   move=> Hall Hsem.
-  have [vres' h1 h2] := @sem_call_Ind _ _ _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
+  have [vres' h1 h2] := @sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
                Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc
                scs mem f va scs' mem' vr Hsem _ Hall.
   by exists vres'.
 Qed.
 
-End Section.
+End WITH_PARAMS.

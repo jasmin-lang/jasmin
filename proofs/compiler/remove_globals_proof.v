@@ -17,8 +17,9 @@ Proof. by move=> h1 h2 g v /h1 /h2. Qed.
 
 Module INCL. Section INCL.
 
-  Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-  Context `{asmop:asmOp}.
+  Context
+    {asm_op syscall_state : Type}
+    {spp : SemPexprParams asm_op syscall_state}.
 
   Section INCL_E.
     Context (gd1 gd2: glob_decls) (s: estate) (hincl: gd_incl gd1 gd2).
@@ -180,7 +181,7 @@ Module INCL. Section INCL.
   Lemma gd_incl_fun scs m (fn : funname) (l : seq value) scs0 m0 vs:
       sem_call P1 ev scs m fn l scs0 m0 vs -> Pfun scs m fn l scs0 m0 vs.
   Proof.
-    apply: (@sem_call_Ind _ _ _ _ _ _ _ _ P1 ev Pc Pi_r Pi Pfor Pfun
+    apply: (@sem_call_Ind _ _ _ _ _ _ P1 ev Pc Pi_r Pi Pfor Pfun
              Hnil Hcons HmkI Hasgn Hopn Hsyscall Hif_true Hif_false Hwhile_true Hwhile_false
              Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
@@ -295,10 +296,11 @@ End EXTEND. Import EXTEND.
 
 Module RGP. Section PROOFS.
 
-  Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
-  Context `{asmop:asmOp}.
-  Context (is_glob : var -> bool).
-  Context (fresh_id : glob_decls -> var -> Ident.ident).
+  Context
+    {asm_op syscall_state : Type}
+    {spp : SemPexprParams asm_op syscall_state}
+    (is_glob : var -> bool)
+    (fresh_id : glob_decls -> var -> Ident.ident).
 
   Notation venv := (Mvar.t var).
 
@@ -770,7 +772,7 @@ Module RGP. Section PROOFS.
      sem_call P ev scs1 m1 f vargs scs2 m2 vres ->
      Pfun scs1 m1 f vargs scs2 m2 vres.
   Proof.
-    apply (@sem_call_Ind _ _ _ _ _ _ _ _ P ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall Hif_true Hif_false
+    apply (@sem_call_Ind _ _ _ _ _ _ P ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall Hif_true Hif_false
               Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 

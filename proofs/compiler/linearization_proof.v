@@ -21,10 +21,12 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section ASM_EXTRA.
+Section WITH_PARAMS.
 
 Context
-  {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state} {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info}.
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  {ovm_i : one_varmap_info}.
 
 Notation spointer := (sword Uptr) (only parsing).
 
@@ -1705,7 +1707,7 @@ Section PROOF.
         exact: sem_stack_stable Ec.
       apply: lsem_trans; last apply: (lsem_trans E1); last apply: (lsem_trans E2).
       - (* align; label *)
-        apply: (@lsem_step_end _ _ _ _ _ _ p' {| lfn := fn; lpc := size (P ++ add_align ii a [::]) |}); last first.
+        apply: (@lsem_step_end _ _ _ _ p' {| lfn := fn; lpc := size (P ++ add_align ii a [::]) |}); last first.
         + move: C.
           rewrite -!catA catA -{1}(addn0 (size _)) /lsem1 /step => /find_instr_skip ->.
           rewrite /eval_instr /= /setpc /= addn0 !size_cat addnA addn1.
@@ -1768,7 +1770,7 @@ Section PROOF.
         exact: sem_validw_stable Ec.
       apply: lsem_trans; last apply: (lsem_trans E1).
       - (* align; label *)
-        apply: (@lsem_step_end _ _ _ _ _ _ p' {| lfn := fn; lpc := size (P ++ add_align ii a [::]) |}); last first.
+        apply: (@lsem_step_end _ _ _ _ p' {| lfn := fn; lpc := size (P ++ add_align ii a [::]) |}); last first.
         + move: C.
           rewrite -!catA catA -{1}(addn0 (size _)) /lsem1 /step => /find_instr_skip ->.
           rewrite /eval_instr /= /setpc /= addn0 !size_cat addnA addn1.
@@ -1934,7 +1936,7 @@ Section PROOF.
       exists m' vm'; [ | | exact: W' | exact: X' | exact: H' | exact: M' ]; last first.
       - apply: vmap_eq_exceptI K; SvD.fsetdec.
       apply: lsem_trans; last apply: (lsem_trans E).
-      - apply: (@lsem_trans _ _ _ _ _ _ _ {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) |}).
+      - apply: (@lsem_trans _ _ _ _ _ {| lmem := m ; lvm := vm ; lfn := fn ; lpc := size (P ++ add_align ii a [::]) |}).
         + subst prefix; case: a C {E} => C; last by rewrite cats0; exact: rt_refl.
           apply: LSem_step.
           move: C.
@@ -3656,7 +3658,7 @@ Section PROOF.
     sem_call p extra_free_registers var_tmp ii k s1 fn s2 →
     Pfun ii k s1 fn s2.
   Proof.
-    exact: (@sem_call_Ind _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc).
+    exact: (@sem_call_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc).
   Qed.
 
   Lemma linear_exportcallP gd scs m fn args scs' m' res :
@@ -3791,4 +3793,4 @@ Section PROOF.
   Qed.
 
 End PROOF.
-End ASM_EXTRA.
+End WITH_PARAMS.

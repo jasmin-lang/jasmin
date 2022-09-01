@@ -248,20 +248,29 @@ Definition vm_initialized_on (vm: vmap) : seq var → Prop :=
 (* ** Parameter expressions
  * -------------------------------------------------------------------- *)
 
-Section WITH_POINTER_DATA.
-Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+Record estate
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state} :=
+  Estate
+    {
+      escs : syscall_state;
+      emem : mem;
+      evm  : vmap
+    }.
 
-Record estate := Estate {
-  escs : syscall_state_t;
-  emem : mem;
-  evm  : vmap
-}.
+Arguments Estate {_ _ _} _ _ _.
 
 Notation "'Let' ( n , t ) ':=' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_var s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
 
 Notation "'Let' ( n , t ) ':=' gd ',' s '.[' v ']' 'in' body" :=
   (@on_arr_var _ (get_gvar gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
+
+Section WITH_PARAMS.
+
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}.
 
 Section SEM_PEXPR.
 
@@ -413,7 +422,6 @@ End WITH_SCS.
 
 Section SEM.
 
-Context `{asmop:asmOp}.
 Context {T} {pT:progT T}.
 
 Class semCallParams := SemCallParams {
@@ -833,10 +841,6 @@ Qed.
 
 End SEM.
 
-Section ASM_OP.
-
-Context `{asmop:asmOp}.
-
 Lemma sopn_tinP o vs vs' : exec_sopn o vs = ok vs' ->
   all2 subtype (sopn_tin o) (List.map type_of_val vs).
 Proof.
@@ -846,8 +850,6 @@ Proof.
   elim: tin vs semi hp => /= [ | t tin hrec] [ | v vs] // semi.
   by t_xrbindP => sv /= /of_val_subtype -> /hrec.
 Qed.
-
-End ASM_OP.
 
 Lemma on_arr_varP A (f : forall n, WArray.array n -> exec A) v vm x P:
   (forall n t, vtype x = sarr n -> get_var vm x = ok (@Varr n t) ->
@@ -1104,7 +1106,6 @@ Qed.
 
 Section Write.
 
-Context `{asmop:asmOp}.
 Context {T} {pT:progT T} {sCP : semCallParams}.
 
 Variable P : prog.
@@ -1113,7 +1114,7 @@ Variable ev : extra_val_t.
 Lemma writeP c s1 s2 :
    sem P ev s1 c s2 -> s1.(evm) = s2.(evm) [\ write_c c].
 Proof.
-  apply (@sem_Ind _ _ _ _ sCP P ev (fun s1 c s2 => s1.(evm) = s2.(evm) [\ write_c c])
+  apply (@sem_Ind _ _ sCP P ev (fun s1 c s2 => s1.(evm) = s2.(evm) [\ write_c c])
                   (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_i i])
                   (fun s1 i s2 => s1.(evm) = s2.(evm) [\ write_I i])
                   (fun x ws s1 c s2 =>
@@ -1739,10 +1740,6 @@ Proof.
   move:Hd;rewrite /disjoint /is_true Sv.is_empty_spec;SvD.fsetdec.
 Qed.
 
-Section ASM_OP.
-
-Context `{asmop:asmOp}.
-
 Lemma vuincl_exec_opn o vs vs' v :
   List.Forall2 value_uincl vs vs' -> exec_sopn o vs = ok v ->
   exists2 v', exec_sopn o vs' = ok v' & List.Forall2  value_uincl v v'.
@@ -1750,8 +1747,6 @@ Proof.
   rewrite /exec_sopn /sopn_sem => vs_vs' ho.
   exact: (get_instr_desc o).(semu) vs_vs' ho.
 Qed.
-
-End ASM_OP.
 
 Lemma set_vm_uincl vm vm' x z z' :
   vm_uincl vm vm' ->
@@ -2236,7 +2231,6 @@ Qed.
 (* ---------------------------------------------------------------- *)
 Section UNDEFINCL.
 
-Context `{asmop:asmOp}.
 Context {T} {pT:progT T} {sCP : semCallParams}.
 Variable p : prog.
 Variable ev : extra_val_t.
@@ -2406,7 +2400,7 @@ Lemma sem_call_uincl vargs scs1 m1 f scs2 m2 vres vargs':
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_call_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
+    (@sem_call_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2419,7 +2413,7 @@ Lemma sem_i_uincl s1 i s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_i_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
+    (@sem_i_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2432,7 +2426,7 @@ Lemma sem_I_uincl s1 i s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_I_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
+    (@sem_I_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2445,7 +2439,7 @@ Lemma sem_uincl s1 c s2 vm1 :
 Proof.
   move=> H1 H2.
   by apply:
-    (@sem_Ind _ _ _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
+    (@sem_Ind _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hnil Hcons HmkI Hasgn Hopn Hsyscall
         Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc) H1.
 Qed.
 
@@ -2713,10 +2707,6 @@ Section WF.
     apply: rbindP => s1' /(wf_write_lval Hwf);apply Hrec.
   Qed.
 
-  Section ASM_OP.
-
-  Context `{asmop:asmOp}.
-
   Lemma wf_sem p ev s1 c s2 :
     sem p ev s1 c s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
   Proof.
@@ -2766,8 +2756,6 @@ Section WF.
     sem_I p0 ev0 s1 i s2 -> wf_vm (evm s1) -> wf_vm (evm s2).
   Proof. by move=> H;have := sem_seq1 H; apply: wf_sem. Qed.
 
-  End ASM_OP.
-
 End WF.
 
 #[ global ] Arguments wf_init { T pT }.
@@ -2781,15 +2769,9 @@ Proof.
   apply: wf_write_vars h1; apply wf_vmap0.
 Qed.
 
-End WITH_POINTER_DATA.
+End WITH_PARAMS.
 
 (* We redefine the notations outside the section so that we can use them in other files *)
-Notation "'Let' ( n , t ) ':=' s '.[' v ']' 'in' body" :=
-  (@on_arr_var _ (get_var s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, s at level 0).
-
-Notation "'Let' ( n , t ) ':=' gd ',' s '.[' v ']' 'in' body" :=
-  (@on_arr_var _ (get_gvar gd s.(evm) v) (fun n (t:WArray.array n) => body)) (at level 25, gd at level 0, s at level 0).
-
 Notation "vm1 '=[' s ']' vm2" := (eq_on s vm1 vm2) (at level 70, vm2 at next level,
   format "'[hv ' vm1  =[ s ]  '/'  vm2 ']'").
 

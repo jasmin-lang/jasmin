@@ -213,7 +213,7 @@ Proof.
   rewrite /addr_of_pexpr => hsz lom he.
   t_xrbindP => hsz64.
   case heq: mk_lea => [lea | //].
-  have hsemlea := mk_leaP hsz64 hsz heq he.
+  assert (hsemlea := mk_leaP hsz64 hsz heq he).
   case hb: lea_base => [b | ]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
   case: eqP => [ | _]; last by apply (assemble_leaP hsz64 hsz lom hsemlea).
   t_xrbindP => hbrip.
