@@ -509,7 +509,7 @@ Section PROOF.
     is_lea f sz x e = Some l ->
     [/\ (U16 ≤ sz)%CMP && (sz ≤ U64)%CMP,
          Sv.Subset (read_lea l) (read_e e),
-         mk_lea sz e = Some l & check_scale (wunsigned l.(lea_scale))].
+         mk_lea sz e = Some l & check_scale l.(lea_scale)].
   Proof.
     rewrite /is_lea; case: ifP => // /andP [-> _].
     case h: mk_lea => [[d b sc o]|] //.
@@ -642,7 +642,7 @@ Section PROOF.
     | LowerIf t a e1 e2 =>
       check_size_16_64 (wsize_of_lval l) = ok tt ∧ e = Pif t a e1 e2 ∧ wsize_of_lval l = wsize_of_stype ty ∧ ∃ sz', stype_of_lval l = sword sz'
     | LowerLea sz l =>
-      ((U16 ≤ sz)%CMP && (sz ≤ U64)%CMP ∧ check_scale (wunsigned (lea_scale l)) ∧
+      ((U16 ≤ sz)%CMP && (sz ≤ U64)%CMP ∧ check_scale (lea_scale l) ∧
        Sv.Subset (read_lea l) (read_e e) ∧
        exists w: word sz,
         v' = Vword w /\ sem_lea sz (evm s) l = ok w)
@@ -1224,7 +1224,7 @@ Section PROOF.
         exists (wb wo: word sz),
           [/\ sem_pexpr gd s1' ob >>= to_word sz = ok wb,
               sem_pexpr gd s1' oo >>= to_word sz = ok wo &
-              w = (zero_extend sz d + (wb + (zero_extend sz sc * wo)))%R].
+              w = (wrepr sz d + (wb + (wrepr sz sc * wo)))%R].
       + move: Hslea; rewrite /sem_lea /=; t_xrbindP => wb Hwb wo Hwo H.
         exists wb, wo; split.
         - subst ob; case: b Hwb {hrl} => [ b | ] /=; t_xrbindP.
@@ -1236,13 +1236,13 @@ Section PROOF.
         by subst.
       move: Hwb; apply: rbindP => vb Hvb Hwb.
       move: Hwo; apply: rbindP => vo Hvo Hwo.
-      set elea := Papp2 (Oadd (Op_w sz)) (wconst d) (Papp2 (Oadd (Op_w sz)) ob (Papp2 (Omul (Op_w sz)) (wconst sc) oo)).
+      set elea := Papp2 (Oadd (Op_w sz)) (wconst (wrepr Uptr d)) (Papp2 (Oadd (Op_w sz)) ob (Papp2 (Omul (Op_w sz)) (wconst (wrepr Uptr sc)) oo)).
       case /andP: hsz => hsz1 hsz2.
       have Hlea :
         sem_pexprs gd s1' [:: elea] >>= exec_sopn (Ox86 (LEA sz)) = ok [::Vword w].
       + rewrite /sem_pexprs /= Hvb Hvo /= /exec_sopn /sopn_sem /sem_sop2 /= /truncate_word hsz2 /=.
         rewrite Hwb Hwo /= truncate_word_u /= truncate_word_u /= truncate_word_u /= /x86_LEA /check_size_16_64 hsz1 hsz2 /=.
-        by rewrite Ew !zero_extend_wrepr.
+        by rewrite Ew -!/(zero_extend _ _) !zero_extend_wrepr.
       have Hlea' : sem p' ev s1'
                     [:: MkI (warning ii Use_lea) (Copn [:: l] tag (Ox86 (LEA sz)) [:: elea])] s2'.
       + by apply: sem_seq1; apply: EmkI; apply: Eopn; rewrite /sem_sopn Hlea /= Hw'.
@@ -1252,15 +1252,16 @@ Section PROOF.
       + subst d; case: eqP => [ ? | _].
         + subst sc; exists s2'; split => //; apply sem_seq1; constructor; constructor.
           move: Hw'; rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /= Hvb Hvo /= Hwb Hwo /= /x86_ADD /=.
-          by rewrite /check_size_8_64 hsz2 /= zero_extend0 zero_extend1 GRing.add0r GRing.mul1r => ->.
+          by rewrite /check_size_8_64 hsz2 /= wrepr0 wrepr1 GRing.add0r GRing.mul1r => ->.
         case: is_zeroP => [ Eob | _ ]; last by exists s2'.
         case Heq : mulr => [o1 e'].
         move: Hvb; rewrite Eob /= /sem_sop1 /= => -[?]; subst vb.
         have [sz1 [w1 [hle1 ??]]]:= to_wordI' Hwo;subst vo wo.
-        have Hsc1 : sem_pexpr gd s1' (wconst sc) = ok (Vword sc).
+        have Hsc1 : sem_pexpr gd s1' (wconst (wrepr Uptr sc)) = ok (Vword (wrepr Uptr sc)).
         + by rewrite /wconst /= /sem_sop1 /= wrepr_unsigned.
         move: Hwb; rewrite /= truncate_word_u wrepr_unsigned => -[?];subst wb.
-        rewrite zero_extend0 !GRing.add0r GRing.mulrC in Hw'.
+        rewrite wrepr0 !GRing.add0r GRing.mulrC in Hw'.
+        rewrite -(zero_extend_wrepr sc hsz2) in Hw'.
         have [] := mulr_ok Hvo Hsc1 hle1 hsz2 _ Hw' Heq; first by rewrite hsz1.
         move=> hsub; t_xrbindP => vo vs hvs hvo hw.
         case: (opn_5flags_correct ii tag (Some U32) _ _ hvs hvo hw).
@@ -1282,7 +1283,8 @@ Section PROOF.
       case: ifP => [ hrange | _ ].
       + exists s2'; split => //; apply sem_seq1; constructor; constructor.
         by rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /= Hvb /= Hwb /=
-         /truncate_word hsz2 zero_extend_wrepr //= /x86_ADD /check_size_8_64 hsz2 /= Hw'.
+         /truncate_word hsz2 zero_extend_wrepr //= /x86_ADD /check_size_8_64 hsz2 /=
+         -/(zero_extend _ _) zero_extend_wrepr // Hw'.
       case: eqP => [ Ed | _ ].
       + exists s2'; split => //; apply sem_seq1; constructor; constructor.
         rewrite /sem_sopn /sem_pexprs /exec_sopn /sopn_sem /= Hvb /= Hwb /=.
@@ -1290,7 +1292,7 @@ Section PROOF.
         by rewrite wrepr_unsigned wrepr_opp GRing.opprK Hw'.
       set si :=
         with_vm s1'
-            (evm s1').[{| vtype := sword64; vname := fresh_multiplicand fv U64 |} <- ok {| pw_size := U64 ; pw_word := d ; pw_proof := erefl (U64 ≤ U64)%CMP |}].
+            (evm s1').[{| vtype := sword64; vname := fresh_multiplicand fv U64 |} <- ok {| pw_size := U64 ; pw_word := wrepr U64 d ; pw_proof := erefl (U64 ≤ U64)%CMP |}].
       have hsi : eq_exc_fresh si s1'.
       + by rewrite /si; case: (s1') => ?? /=; split => //= k hk; rewrite Fv.setP_neq //; apply/eqP => ?; subst k; apply: hk; exact: multiplicand_in_fv.
       have [si' [Hwi hsi']] := write_lval_same Hdisjl hsi Hw'.
@@ -1299,7 +1301,7 @@ Section PROOF.
          apply: sem_seq1. repeat constructor.
          rewrite /sem_sopn /exec_sopn /sopn_sem /=.
          rewrite zero_extend_u wrepr_unsigned /get_gvar /get_var Fv.setP_eq /= (sem_pexpr_same _ _ Hvb) //=.
-         - by rewrite Hwb /= /truncate_word /= /x86_ADD /check_size_8_64 hsz2 /= Hwi.
+         - by rewrite Hwb /= /truncate_word /= /x86_ADD /check_size_8_64 hsz2 /= zero_extend_wrepr // Hwi.
          apply: (disj_fvars_subset _ Hdisje).
          apply: (SvD.F.Subset_trans _ hrl).
          rewrite /read_lea /=; subst ob; case: (b) => [ x | ] /=.

@@ -163,12 +163,18 @@ Context
 Notation assemble_cond := (agp_assemble_cond agparams).
 
 Lemma xscale_ok ii z sc :
-  scale_of_z' ii z = ok sc ->
-  z = word_of_scale sc.
+  scale_of_z ii z = ok sc ->
+  wunsigned (word_of_scale sc) = z.
 Proof.
-  rewrite /scale_of_z' -[X in _ -> X = _]wrepr_unsigned.
-  case: (wunsigned z) => //.
-  do! (case=> //; try by move=> <-).
+  case: z => //.
+  case => [ [] | [] | ] //.
+  case => //.
+  case => //.
+  all: move => /ok_inj <-.
+  all: rewrite wunsigned_repr_small //.
+  all: split => //.
+  all: apply: Z.lt_le_trans (wbase_m (wsize_le_U8 Uptr)).
+  all: done.
 Qed.
 
 Lemma assemble_leaP rip ii sz sz' (w:word sz') lea adr m s:
@@ -185,11 +191,13 @@ Proof.
   move: hsem; rewrite /sem_lea.
   apply rbindP => wb hwb; apply rbindP => wo hwo heq.
   have <- := ok_inj heq.
-  rewrite !(wadd_zero_extend, wmul_zero_extend) // GRing.addrA; do 2 f_equal.
+  rewrite !(wadd_zero_extend, wmul_zero_extend) // GRing.addrA.
+  congr (_ + _ + _ * _)%R.
+  + by rewrite zero_extend_wrepr.
   + case: lea_base hob hwb => /= [vo | [<-] [<-] /=]; last by apply zero_extend0.
     by t_xrbindP => r /of_var_eI <- <- v /hget /[swap]
       /to_wordI [? [? [-> /word_uincl_truncate h]]] /= /h /truncate_wordP [].
-  + by rewrite (xscale_ok hsc).
+  + by rewrite -(xscale_ok hsc).
   case: lea_offset hoo hwo => /= [vo | [<-] [<-] /=]; last by apply zero_extend0.
   by t_xrbindP => r /of_var_eI <- <- v /hget /[swap]
     /to_wordI [? [? [-> /word_uincl_truncate h]]] /= /h /truncate_wordP [].
@@ -213,7 +221,8 @@ Proof.
   case: lom => _ _ hrip _ _ _.
   move: hsemlea; rewrite /sem_lea ho hb /= hbrip hrip /= /truncate_word hsz64 /= => h.
   have <- := ok_inj h.
-  by rewrite GRing.mulr0 GRing.addr0 GRing.addrC wadd_zero_extend.
+  move => _ _.
+  by rewrite GRing.mulr0 GRing.addr0 GRing.addrC wadd_zero_extend // zero_extend_wrepr.
 Qed.
 
 Lemma addr_of_xpexprP rip m s ii x p r vx wx vp wp:

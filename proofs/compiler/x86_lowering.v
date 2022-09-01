@@ -215,7 +215,7 @@ Definition is_lea sz x e :=
     | Some (MkLea d b sc o) =>
       let check o := match o with Some x => ~~(is_var_in_memory x) | None => true end in
       (* FIXME: check that d is not to big *)
-      if check_scale (wunsigned sc) && check b && check o then  Some (MkLea d b sc o)
+      if check_scale sc && check b && check o then  Some (MkLea d b sc o)
       else None
     | None => None
     end
@@ -460,8 +460,8 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
   | LowerInc o e => inc o e
   | LowerFopn o es m => map (MkI ii) (opn_5flags m vi f x tg o es)
   | LowerLea sz (MkLea d b sc o) =>
-    let de := wconst d in
-    let sce := wconst sc in
+    let de := wconst (wrepr Uptr d) in
+    let sce := wconst (wrepr Uptr sc) in
     let b := oapp Plvar (@wconst sz 0) b in
     let o := oapp Plvar (@wconst sz 0) o in
     let lea tt :=
@@ -485,13 +485,12 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
         else lea tt
       else if is_zero sz o then
           (* d + b *)
-          if d == 1%R then inc (Ox86 (INC sz)) b
+          if d == 1%Z then inc (Ox86 (INC sz)) b
           else
-            let w := wunsigned d in
-            if check_signed_range (Some U32) sz w
+            if check_signed_range (Some U32) sz d
             then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; de ])]
-            else if w == (wbase U32 / 2)%Z
-            then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (SUB sz)) [:: b ; wconst (wrepr sz (-w)) ])]
+            else if d == (wbase U32 / 2)%Z
+            then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (SUB sz)) [:: b ; wconst (wrepr sz (-d)) ])]
             else
               let c := {| v_var := {| vtype := sword U64; vname := fresh_multiplicand fv U64 |} ; v_info := vi |} in
               [:: MkI ii (Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: de]);

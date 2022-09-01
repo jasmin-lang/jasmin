@@ -1,34 +1,30 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
 Require Import Utf8.
-Require Import expr low_memory.
+Require Import expr.
 
 (* -------------------------------------------------------------------- *)
 
-Section WITH_POINTER_DATA.
-
-Context {pd:PointerData}.
-
 (* disp + base + scale * offset *)
 Record lea := MkLea {
-  lea_disp   : pointer;
+  lea_disp   : Z;
   lea_base   : option var_i;
-  lea_scale  : pointer;
+  lea_scale  : Z;
   lea_offset : option var_i;
 }.
 
-Definition lea_const z := MkLea z None 1%R None.
+Definition lea_const z := MkLea z None 1%Z None.
 
-Definition lea_var x := MkLea 0%R (Some x) 1%R None.
+Definition lea_var x := MkLea 0%Z (Some x) 1%Z None.
 
 Definition mkLea d b sc o :=
-  if sc == 0%R then MkLea d b 1%R None
+  if sc == 0%Z then MkLea d b 1%Z None
   else MkLea d b sc o.
 
 Definition lea_mul l1 l2 :=
   let 'MkLea d1 b1 sc1 o1 := l1 in
   let 'MkLea d2 b2 sc2 o2 := l2 in
-  let d := (d1 * d2)%R in
+  let d := (d1 * d2)%Z in
   match b1, o1, b2, o2 with
   | None  , None  , None  , None   => Some (lea_const d)
   | Some _, None  , None  , None   => Some (mkLea d None d2 b1)
@@ -36,12 +32,12 @@ Definition lea_mul l1 l2 :=
   | None  , Some _, None  , None   => Some (mkLea d None (d2 * sc1) o1)
   | None  , None  , None  , Some _ => Some (mkLea d None (d1 * sc2) o2)
   | _     , _     , _     , _      => None
-  end%R.
+  end%Z.
 
 Definition lea_add l1 l2 :=
   let 'MkLea d1 b1 sc1 o1 := l1 in
   let 'MkLea d2 b2 sc2 o2 := l2 in
-  let disp := (d1 + d2)%R in
+  let disp := (d1 + d2)%Z in
   match b1, o1    , b2    , o2    with
   | None  , None  , _     , _      => Some (mkLea disp b2 sc2 o2)
   | _     , _     , None  , None   => Some (mkLea disp b1 sc1 o1)
@@ -53,12 +49,12 @@ Definition lea_add l1 l2 :=
     else if sc2 == 1 then Some (mkLea disp o2 sc1 o1)
     else None
   | _     , _     , _     , _      => None
-  end%R.
+  end%Z.
 
 Definition lea_sub l1 l2 :=
   let 'MkLea d1 b1 sc1 o1 := l1 in
   let 'MkLea d2 b2 sc2 o2 := l2 in
-  let disp := (d1 - d2)%R in
+  let disp := (d1 - d2)%Z in
   match b2, o2 with
   | None, None => Some (mkLea disp b1 sc1 o1)
   | _   , _    => None
@@ -66,9 +62,9 @@ Definition lea_sub l1 l2 :=
 
 Fixpoint mk_lea_rec (sz:wsize) e :=
   match e with
-  | Papp1 (Oword_of_int sz') (Pconst z) => 
-      Some (lea_const (sign_extend Uptr (wrepr sz' z)))
-  | Pvar  x          => 
+  | Papp1 (Oword_of_int sz') (Pconst z) =>
+      Some (lea_const (wunsigned (wrepr sz' z)))
+  | Pvar  x          =>
     if is_lvar x then Some (lea_var x.(gv))
     else None
   | Papp2 (Omul (Op_w sz')) e1 e2 =>
@@ -118,5 +114,3 @@ Fixpoint push_cast e :=
   end.
 
 Definition mk_lea sz e := mk_lea_rec sz (push_cast e).
-
-End WITH_POINTER_DATA.
