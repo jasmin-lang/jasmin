@@ -33,6 +33,10 @@
   ([PR #227](https://github.com/jasmin-lang/jasmin/pull/227);
   fixes [#190](https://github.com/jasmin-lang/jasmin/issues/190)).
 
+- Fix possible crashes of stack-allocation
+  ([PR #228](https://github.com/jasmin-lang/jasmin/pull/228);
+  fixes [#58](https://github.com/jasmin-lang/jasmin/issues/58)).
+
 ## New features
 
 - Fill an array with “random” data using `p = #randombytes(p);`
