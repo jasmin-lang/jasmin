@@ -446,6 +446,11 @@ End ASM_OP.
 
 Notation cmd := (seq instr).
 
+Module FunInfo : TAG.
+  Definition t := positive.
+  Definition witness : t := 1%positive.
+End FunInfo.
+
 Section ASM_OP.
 
 Context `{asmop:asmOp}.
@@ -453,7 +458,7 @@ Context `{asmop:asmOp}.
 (* ** Functions
  * -------------------------------------------------------------------- *)
 
-Definition fun_info := positive.
+Definition fun_info := FunInfo.t.
 
 Class progT (eft:eqType) := {
   extra_prog_t : Type;
