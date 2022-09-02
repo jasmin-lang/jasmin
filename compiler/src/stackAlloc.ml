@@ -204,7 +204,7 @@ let memory_analysis pp_err ~debug tbl up =
     let csao = get_sao fn in 
     let to_save = if fd.f_cc = Export then ro.ro_to_save else [] in
     let has_stack = has_stack fd || to_save <> [] in
-    let rastack = odfl OnReg fd.f_annot.retaddr_kind = OnStack in
+    let rastack = odfl Annotations.OnReg fd.f_annot.retaddr_kind = OnStack in
     let rsp = V.clone Arch.rsp_var in
     let ra = V.mk "RA" (Stack Direct) (tu Arch.reg_size) L._dummy [] in
     let extra =
