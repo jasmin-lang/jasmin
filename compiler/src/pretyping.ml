@@ -341,9 +341,9 @@ end = struct
               "cannot use absolute path in from %s require \"%s\"" 
                  (L.unloc name) filename;
           try Map.find (L.unloc name) env.e_loader.from 
-          with Not_found -> 
-            rs_tyerror ~loc:(L.loc name) (string_error "unkown name %s" (L.unloc name)) in 
-    let p = 
+          with Not_found ->
+            rs_tyerror ~loc:(L.loc name) (string_error "unknown name %s" (L.unloc name)) in
+    let p =
       if Path.is_absolute p then p
       else Path.concat current_dir p in
     let p = Path.normalize_in_tree p in
