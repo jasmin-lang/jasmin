@@ -179,7 +179,7 @@ type f_annot = {
     retaddr_kind  : returnaddress_kind option;
     stack_allocation_size : Z.t option;
     stack_size    : Z.t option;
-    stack_align   : wsize option;
+    stack_align   : Annotations.wsize option;
   }
 
 let f_annot_empty = {
