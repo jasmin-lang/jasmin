@@ -64,10 +64,11 @@
 
 - Lowering of a memory-to-memory copy always introduce an intermediate copy through a register
 
-- `instr_info` are now plain OCaml `IInfo.t` and `var_info` are `Location.t`;
+- `fun_info` are `FInfo.t`, `instr_info` are `IInfo.t`, and `var_info` are `Location.t`;
    this removes costly translations with `positive` and big conversion tables
    ([PR #209](https://github.com/jasmin-lang/jasmin/pull/209),
-   [PR #226](https://github.com/jasmin-lang/jasmin/pull/226)).
+   [PR #226](https://github.com/jasmin-lang/jasmin/pull/226),
+   [PR #233](https://github.com/jasmin-lang/jasmin/pull/233)).
 
 # Jasmin 22.0
 

@@ -50,8 +50,6 @@ val fun_of_cfun : coq_tbl -> BinNums.positive -> funname
 
 val string_of_funname : coq_tbl -> BinNums.positive -> string
 
-val get_finfo   : coq_tbl -> BinNums.positive -> L.t * Annotations.f_annot * call_conv * Annotations.annotations list
-
 val cufdef_of_fdef : coq_tbl -> (unit, 'asm) func -> BinNums.positive * 'asm Expr._ufundef
 val fdef_of_cufdef : coq_tbl -> BinNums.positive * 'asm Expr._ufundef -> (unit, 'asm) func
 

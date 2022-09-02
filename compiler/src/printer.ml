@@ -299,9 +299,9 @@ let pp_var_decl pp_var pp_size fmt v =
 
 let pp_call_conv fmt =
   function
-  | Export -> Format.fprintf fmt "export@ "
-  | Internal -> Format.fprintf fmt "inline@ "
-  | Subroutine _ -> ()
+  | FInfo.Export -> Format.fprintf fmt "export@ "
+  | FInfo.Internal -> Format.fprintf fmt "inline@ "
+  | FInfo.Subroutine _ -> ()
 
 let pp_gfun pp_info (pp_size:F.formatter -> 'size -> unit) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_size in
@@ -512,7 +512,7 @@ let pp_err ~debug tbl fmt (pp_e : Compiler_util.pp_error) =
       let i_loc, _ = ii in
       Format.fprintf fmt "%a" L.pp_iloc i_loc
     | Compiler_util.PPEfuninfo fi ->
-      let (f_loc, _, _, _) = Conv.get_finfo tbl fi in
+      let (f_loc, _, _, _) = fi in
       Format.fprintf fmt "%a" L.pp_sloc f_loc
     | Compiler_util.PPEexpr e ->
       let e = Conv.expr_of_cexpr tbl e in

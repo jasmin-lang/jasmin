@@ -71,7 +71,6 @@ type coq_tbl = {
      cvar          : Var.var Hv.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
-     finfo         : (int, L.t * Annotations.f_annot * call_conv * Annotations.annotations list) Hashtbl.t;
   }
 
 let new_count tbl =
@@ -85,7 +84,6 @@ let empty_tbl = {
     cvar     = Hv.create 101;
     funname  = Hashtbl.create 101;
     cfunname = Hashtbl.create 101;
-    finfo    = Hashtbl.create 101;
   }
 
 (* ------------------------------------------------------------------------ *)
@@ -296,19 +294,9 @@ and stmt_of_cstmt tbl c =
 
 
 (* ------------------------------------------------------------------------ *)
-
-let set_finfo tbl loc annot cc oannot =
-  let n = new_count tbl in
-  Hashtbl.add tbl.finfo n (loc, annot, cc, oannot);
-  pos_of_int n
-
-let get_finfo tbl n =
-  try Hashtbl.find tbl.finfo (int_of_pos n)
-  with Not_found -> assert false
-
 let cufdef_of_fdef tbl fd =
   let fn = cfun_of_fun tbl fd.f_name in
-  let f_info = set_finfo tbl fd.f_loc fd.f_annot fd.f_cc fd.f_outannot in
+  let f_info = fd.f_loc, fd.f_annot, fd.f_cc, fd.f_outannot in
   let f_params =
     List.map (fun x -> cvari_of_vari tbl (L.mk_loc L._dummy x)) fd.f_args in
   let f_body = cstmt_of_stmt tbl fd.f_body [] in
@@ -324,7 +312,7 @@ let cufdef_of_fdef tbl fd =
 
 
 let fdef_of_cufdef tbl (fn, fd) =
-  let f_loc, f_annot, f_cc, f_outannot = get_finfo tbl fd.C.f_info in
+  let f_loc, f_annot, f_cc, f_outannot = fd.C.f_info in
   { f_loc;
     f_annot;
     f_cc;
@@ -393,7 +381,7 @@ let patch_vi_loc (e : Compiler_util.pp_error_loc) =
    we could check whether they point to the same line. If not, we could
    decide to return both.
 *)
-let iloc_of_loc tbl e =
+let iloc_of_loc e =
   let open Utils in
   let e = patch_vi_loc e in
   match e.pel_vi with
@@ -413,7 +401,7 @@ let iloc_of_loc tbl e =
     | None ->
       match e.pel_fi with
       | Some fi ->
-        let (f_loc, _, _, _) = get_finfo tbl fi in
+        let (f_loc, _, _, _) = fi in
         Lone f_loc
       | None -> Lnone
 
@@ -423,7 +411,7 @@ let iloc_of_loc tbl e =
 let error_of_cerror pp_err tbl e =
   let open Utils in
   let msg = Format.dprintf "%a" pp_err e.Compiler_util.pel_msg in
-  let iloc = iloc_of_loc tbl e in
+  let iloc = iloc_of_loc e in
   let funname = omap (fun fn -> (fun_of_cfun tbl fn).fn_name) e.pel_fn in
   let pass = omap string_of_string0 e.pel_pass in
   { err_msg = msg;
