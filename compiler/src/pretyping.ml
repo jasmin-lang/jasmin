@@ -1692,8 +1692,8 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
         | Some () -> E.InlineFun
         | None -> 
           match f.P.f_cc with 
-          | P.Internal -> E.InlineFun
-          | P.Export | P.Subroutine _ -> E.DoNotInline in
+          | FInfo.Internal -> E.InlineFun
+          | FInfo.Export | FInfo.Subroutine _ -> E.DoNotInline in
       env, [mk_i (mk_call (L.loc pi) is_inline lvs f es)]
 
   | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "randombytes" ->
@@ -1831,8 +1831,7 @@ let tt_funbody pd asmOp (env : 'asm Env.env) (pb : S.pfunbody) =
       
 let tt_call_conv loc params returns cc =
   match cc with
-  | Some `Inline -> 
-    P.Internal
+  | Some `Inline -> FInfo.Internal
 
   | Some `Export ->
     let check s x = 
@@ -1845,7 +1844,7 @@ let tt_call_conv loc params returns cc =
     List.iter (check "result") returns;
     if 2 < List.length returns then
       rs_tyerror ~loc (string_error "export function should return at most two arguments");
-    P.Export 
+    FInfo.Export
 
   | None         -> 
     let check s x =
@@ -1885,7 +1884,7 @@ let tt_call_conv loc params returns cc =
           rs_tyerror ~loc (string_error "%a is mutable, it should be returned"
                              Printer.pp_pvar x) in
     List.iteri check_writable_param params;
-    P.Subroutine {returned_params}
+    FInfo.Subroutine { returned_params }
 
 (* -------------------------------------------------------------------- *)
 

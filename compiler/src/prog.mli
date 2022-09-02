@@ -127,19 +127,10 @@ and ('len,'info,'asm) ginstr = {
 and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 
 (* ------------------------------------------------------------------------ *)
-type subroutine_info = {
-    returned_params : int option list; 
-  }
-
-type call_conv =
-  | Export                 (* The function should be exported to the outside word *)
-  | Subroutine of subroutine_info (* internal function that should not be inlined *)
-  | Internal                   (* internal function that should be inlined *)
-
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
     f_annot: Annotations.f_annot;
-    f_cc   : call_conv;
+    f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
