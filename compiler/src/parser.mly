@@ -3,6 +3,7 @@
   module S = Syntax
 
   open Syntax
+  open Annotations
 
   let setsign c s = 
     match c with

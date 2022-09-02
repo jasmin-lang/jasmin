@@ -71,7 +71,7 @@ type coq_tbl = {
      cvar          : Var.var Hv.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
-     finfo         : (int, L.t * f_annot * call_conv * Syntax.annotations list) Hashtbl.t;
+     finfo         : (int, L.t * f_annot * call_conv * Annotations.annotations list) Hashtbl.t;
   }
 
 let new_count tbl =

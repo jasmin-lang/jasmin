@@ -3,6 +3,7 @@ open Utils
 module Path = BatPathGen.OfString
 module F = Format
 module L = Location
+module A = Annotations
 module S = Syntax
 module E = Expr
 module P = Prog
@@ -19,8 +20,8 @@ type typattern = TPBool | TPInt | TPWord | TPArray
 type sop = [ `Op2 of S.peop2 | `Op1 of S.peop1]
 
 type tyerror =
-  | UnknownVar          of S.symbol
-  | UnknownFun          of S.symbol
+  | UnknownVar          of A.symbol
+  | UnknownFun          of A.symbol
   | InvalidType         of P.pty * typattern
   | TypeMismatch        of P.pty pair
   | NoOperator          of sop * P.pty list
@@ -29,9 +30,9 @@ type tyerror =
   | InvalidReturnStatement of P.funname * int * int
   | InvalidArgCount     of int * int
   | InvalidLvalCount    of int * int
-  | DuplicateFun        of S.symbol * L.t
+  | DuplicateFun        of A.symbol * L.t
   | InvalidCast         of P.pty pair
-  | InvalidGlobal       of S.symbol
+  | InvalidGlobal       of A.symbol
   | InvalidTypeForGlobal of P.pty
   | NotAPointer         of P.plval
   | GlobArrayNotWord    
@@ -40,18 +41,18 @@ type tyerror =
   | CallNotAllowed
   | PrimNotAllowed
   | Unsupported         of string
-  | UnknownPrim         of S.symbol
-  | PrimNoSize of S.symbol
-  | PrimNotVector of S.symbol
-  | PrimIsVector of S.symbol
-  | PrimIsVectorVector of S.symbol
-  | PrimIsX of S.symbol
-  | PrimNotX of S.symbol
-  | ReturnLocalStack    of S.symbol
+  | UnknownPrim         of A.symbol
+  | PrimNoSize          of A.symbol
+  | PrimNotVector       of A.symbol
+  | PrimIsVector        of A.symbol
+  | PrimIsVectorVector  of A.symbol
+  | PrimIsX             of A.symbol
+  | PrimNotX            of A.symbol
+  | ReturnLocalStack    of A.symbol
   | PtrOnlyForArray
   | ArgumentNotVar      
   | BadVariableKind     of P.v_kind
-  | WriteToConstantPointer of S.symbol
+  | WriteToConstantPointer of A.symbol
   | PackSigned
   | PackWrongWS of int
   | PackWrongPE of int
@@ -233,7 +234,7 @@ module Env : sig
     
   val add_from : 'asm env -> string * string -> 'asm env
 
-  val enter_file : 'asm env -> S.pident option -> L.t option -> string -> ('asm env * string) option
+  val enter_file : 'asm env -> A.pident option -> L.t option -> string -> ('asm env * string) option
   val exit_file  : 'asm env -> 'asm env
 
   val dependencies : 'asm env -> Path.t list
@@ -247,17 +248,17 @@ module Env : sig
   module Vars : sig
     val push       : 'asm env -> P.pvar -> 'asm env
     val push_param : 'asm env -> (P.pvar * P.pexpr) -> 'asm env
-    val find       : S.symbol -> 'asm env -> P.pvar option
+    val find       : A.symbol -> 'asm env -> P.pvar option
   end
 
   module Globals : sig
     val push : 'asm env -> (P.pvar * P.pexpr P.ggexpr) -> 'asm env
-    val find : S.symbol -> 'asm env -> P.pvar option
+    val find : A.symbol -> 'asm env -> P.pvar option
   end
 
   module Funs : sig
     val push : 'asm env -> (unit, 'asm) P.pfunc -> P.pty list -> 'asm env 
-    val find : S.symbol -> 'asm env -> ((unit, 'asm) P.pfunc * P.pty list) option
+    val find : A.symbol -> 'asm env -> ((unit, 'asm) P.pfunc * P.pty list) option
   end
 
   module Exec : sig
@@ -270,13 +271,13 @@ end = struct
     { loaded : Path.t list (* absolute path *)
     ; idir   : Path.t      (* absolute initial path *)
     ; dirs   : Path.t list 
-    ; from   : (S.symbol, Path.t) Map.t
+    ; from   : (A.symbol, Path.t) Map.t
     } 
 
   type 'asm env = {
-    e_vars    : (S.symbol, P.pvar) Map.t;
-    e_globals : (S.symbol, P.pvar) Map.t;
-    e_funs    : (S.symbol, (unit, 'asm) P.pfunc * P.pty list) Map.t;
+    e_vars    : (A.symbol, P.pvar) Map.t;
+    e_globals : (A.symbol, P.pvar) Map.t;
+    e_funs    : (A.symbol, (unit, 'asm) P.pfunc * P.pty list) Map.t;
     e_decls   : (unit, 'asm) P.pmod_item list;
     e_exec    : (P.funname * (Z.t * Z.t) list) list;
     e_loader  : loader;
@@ -376,7 +377,7 @@ end = struct
       let env = push env x in
       { env with e_decls = P.MIparam d :: env.e_decls }
 
-    let find (x : S.symbol) (env : 'asm env) =
+    let find (x : A.symbol) (env : 'asm env) =
       Map.Exceptionless.find x env.e_vars
   end
 
@@ -388,12 +389,12 @@ end = struct
                  e_reserved = Ss.add v.P.v_name env.e_reserved
       }
 
-    let find (x : S.symbol) (env : 'asm env) =
+    let find (x : A.symbol) (env : 'asm env) =
       Map.Exceptionless.find x env.e_globals
   end
 
   module Funs = struct
-    let find (x : S.symbol) (env : 'asm env) =
+    let find (x : A.symbol) (env : 'asm env) =
       Map.Exceptionless.find x env.e_funs
 
     let push env (v : (unit, 'asm) P.pfunc) rty =
@@ -414,7 +415,7 @@ end = struct
 end
 
 (* -------------------------------------------------------------------- *)
-let tt_ws (ws : S.wsize) =
+let tt_ws (ws : A.wsize) =
   match ws with
   | `W8   -> W.U8
   | `W16  -> W.U16
@@ -438,11 +439,11 @@ module Annot = struct
     | Some a ->
       let loc = L.loc a in
       match L.unloc a with
-      | S.Aint i    -> doit loc on_int i 
-      | S.Aid id    -> doit loc on_id id
-      | S.Astring s -> doit loc on_string s 
-      | S.Aws ws    -> doit loc on_ws ws 
-      | S.Astruct s -> doit loc on_struct s
+      | A.Aint i    -> doit loc on_int i
+      | A.Aid id    -> doit loc on_id id
+      | A.Astring s -> doit loc on_string s
+      | A.Aws ws    -> doit loc on_ws ws
+      | A.Astruct s -> doit loc on_struct s
 
   let pp_dfl_attribute pp fmt dfl = 
     match dfl with
@@ -535,7 +536,7 @@ module Annot = struct
       ~on_ws 
       error arg 
   
-  let filter_attribute ?(case_sensitive=true) name (f: S.annotation -> 'a) (annot:S.annotations) = 
+  let filter_attribute ?(case_sensitive=true) name (f: A.annotation -> 'a) (annot: A.annotations) =
     let test = 
       if case_sensitive then fun id -> L.unloc id = name 
       else 
@@ -544,11 +545,11 @@ module Annot = struct
 
     List.pmap (fun (id,_ as arg) -> if test id then Some (id, f arg) else None) annot
 
-  let process_annot ?(case_sensitive=true) (filters: (string * (S.annotation -> 'a)) list) annot = 
+  let process_annot ?(case_sensitive=true) (filters: (string * (A.annotation -> 'a)) list) annot =
     List.flatten 
       (List.map (fun (name,f) -> filter_attribute ~case_sensitive name f annot) filters)
     
-  let ensure_uniq ?(case_sensitive=true) (filters: (string * (S.annotation -> 'a)) list) annot = 
+  let ensure_uniq ?(case_sensitive=true) (filters: (string * (A.annotation -> 'a)) list) annot =
     match process_annot ~case_sensitive filters annot with
     | [] -> None
     | [_, r] -> Some r

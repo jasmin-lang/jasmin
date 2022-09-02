@@ -1,6 +1,7 @@
 open Utils
 open Prog
 
+module A = Annotations
 module S = Syntax
 module Pt = Pretyping
 
@@ -69,7 +70,7 @@ module Lvl : sig
 
   val pp : Format.formatter -> t -> unit
 
-  val parse : single:bool -> kind_allowed:bool -> S.annotations ->
+  val parse : single:bool -> kind_allowed:bool -> A.annotations ->
               lvl_kind option * t option
 
 end = struct
@@ -117,9 +118,9 @@ end = struct
       end
     | Public -> Format.fprintf fmt "#%s" spublic
 
-  let parse ~(single:bool) ~(kind_allowed:bool) (annot: S.annotations) =
+  let parse ~(single:bool) ~(kind_allowed:bool) (annot: A.annotations) =
     let module A = Pt.Annot in
-    let on_struct loc _nid (s:S.annotations) =
+    let on_struct loc _nid s =
       List.iter A.none s;
       let s = List.fold_left (fun s (id, _) -> Svl.add (Vl.mk_poly (L.unloc id)) s) Svl.empty s in
       if single && Svl.cardinal s <> 1 then

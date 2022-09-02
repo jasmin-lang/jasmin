@@ -1,4 +1,5 @@
 src/Alias
+src/Annotations
 src/Arch
 src/Arch_full
 src/Array_expand

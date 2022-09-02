@@ -43,7 +43,7 @@ type 'len gvar = {
   v_kind : v_kind;
   v_ty   : 'len gty;
   v_dloc : L.t;   (* location where declared *)
-  v_annot : Syntax.annotations;
+  v_annot : Annotations.annotations;
 }
 
 type 'len gvar_i = 'len gvar L.located
@@ -156,7 +156,7 @@ and ('len,'info,'asm) ginstr = {
     i_desc : ('len,'info,'asm) ginstr_r;
     i_loc  : L.i_loc;
     i_info : 'info;
-    i_annot : Syntax.annotations;
+    i_annot : Annotations.annotations;
   }
 
 and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
@@ -198,7 +198,7 @@ type ('len,'info,'asm) gfunc = {
     f_args : 'len gvar list;
     f_body : ('len,'info,'asm) gstmt;
     f_tyout : 'len gty list;
-    f_outannot : Syntax.annotations list; (* annotation attach to return type *)
+    f_outannot : Annotations.annotations list; (* annotation attach to return type *)
     f_ret  : 'len gvar_i list
   }
 
