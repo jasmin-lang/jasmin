@@ -174,19 +174,20 @@ Proof.
   by do! apply wf_vm_set.
 Qed.
 
-Definition x86_spec_lip_lassign
-  (s1 s2 : estate) x e ws ws' (w : word ws) (w' : word ws') :
-  let args := lip_lassign x86_liparams x ws e in
-  let i := MkLI ii (Lopn args.1.1 args.1.2 args.2) in
-  sem_pexpr [::] s1 e = ok (Vword w')
+Definition x86_hlip_lassign
+  (s1 s2 : estate) x e ws li ws' (w : word ws) (w' : word ws') :
+  lassign x86_liparams x ws e = Some li
+  -> sem_pexpr [::] s1 e = ok (Vword w')
   -> truncate_word ws w' = ok w
   -> write_lval [::] x (Vword w) s1 = ok s2
-  -> eval_instr lp i (of_estate s1 fn pc)
+  -> eval_instr lp (MkLI ii li) (of_estate s1 fn pc)
      = ok (of_estate s2 fn pc.+1).
 Proof.
-  move=> /= Hsem_pexpr Htruncate_word Hwrite_lval.
+  move=> /= hlassign Hsem_pexpr Htruncate_word Hwrite_lval.
   rewrite /eval_instr /= /sem_sopn /=.
   rewrite to_estate_of_estate.
+  move: hlassign => [?]; subst li.
+  rewrite /=.
   rewrite Hsem_pexpr /=.
   rewrite /exec_sopn /=.
   case: ws w Htruncate_word Hwrite_lval
@@ -203,7 +204,7 @@ Definition x86_hliparams {call_conv : calling_convention} : h_linearization_para
     spec_lip_allocate_stack_frame := x86_spec_lip_allocate_stack_frame;
     spec_lip_free_stack_frame := x86_spec_lip_free_stack_frame;
     spec_lip_ensure_rsp_alignment := x86_spec_lip_ensure_rsp_alignment;
-    spec_lip_lassign := x86_spec_lip_lassign;
+    hlip_lassign := x86_hlip_lassign;
   |}.
 
 Lemma x86_ok_lip_tmp :

@@ -90,7 +90,7 @@ Definition x86_lassign (x: lval) (ws: wsize) (e: pexpr) :=
   let op := if (ws <= U64)%CMP
             then MOV ws
             else VMOVDQU ws
-  in ([:: x ], Ox86 op, [:: e ]).
+  in Some ([:: x ], Ox86 op, [:: e ]).
 
 Definition x86_liparams : linearization_params :=
   {|
