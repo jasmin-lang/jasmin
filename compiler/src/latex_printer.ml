@@ -1,6 +1,7 @@
 (* * Pretty-print Jasmin program (concrete syntax) as LATEX fragments *)
 
 open Utils
+open Annotations
 open Syntax
 
 module F = Format
