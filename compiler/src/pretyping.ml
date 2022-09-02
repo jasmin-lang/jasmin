@@ -513,23 +513,23 @@ module Annot = struct
         Z.pp_print dfl;
     i
         
-  let ws_of_string = 
-    let l = List.map (fun ws -> P.string_of_ws ws, ws) 
-              [U8;U16;U32;U64;U128;U256] in
-    fun s -> List.assoc s l 
+  let ws_of_string =
+    let l = List.map (fun ws -> P.string_of_ws (tt_ws ws), ws)
+        [`W8; `W16; `W32; `W64; `W128; `W256] in
+    fun s -> List.assoc s l
 
   let wsize dfl arg = 
     let error loc nid =
       error_attribute loc nid 
         Format.pp_print_string "a word size"
-        (fun fmt ws -> Format.fprintf fmt "%s" (P.string_of_ws ws)) dfl in
+        (fun fmt ws -> Format.fprintf fmt "%s" (P.string_of_ws (tt_ws ws))) dfl in
     let on_empty loc nid () = 
       match dfl with
       | Some ws -> ws
       | None -> error loc nid in
     let on_string loc nid s = 
       try ws_of_string s with Not_found -> error loc nid in
-    let on_ws _loc _nid ws = tt_ws ws in
+    let on_ws _loc _nid ws = ws in
     on_attribute 
       ~on_empty
       ~on_string 
