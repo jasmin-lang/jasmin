@@ -18,3 +18,21 @@ and attribute = simple_attribute Location.located
 and annotation = pident * attribute option
 
 and annotations = annotation list
+
+type returnaddress_kind =
+  | OnStack
+  | OnReg
+
+type f_annot = {
+    retaddr_kind  : returnaddress_kind option;
+    stack_allocation_size : Z.t option;
+    stack_size    : Z.t option;
+    stack_align   : wsize option;
+}
+
+let f_annot_empty = {
+    retaddr_kind  = None;
+    stack_allocation_size = None;
+    stack_size    = None;
+    stack_align   = None;
+  }

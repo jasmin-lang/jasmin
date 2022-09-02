@@ -1889,8 +1889,8 @@ let tt_call_conv loc params returns cc =
 
 (* -------------------------------------------------------------------- *)
 
-let process_f_annot annot = 
-  let open P in
+let process_f_annot annot =
+  let open A in
 
   let mk_ra = Annot.filter_string_list None ["stack", OnStack; "reg", OnReg] in
  

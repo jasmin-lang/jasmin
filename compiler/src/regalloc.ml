@@ -823,8 +823,8 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
     Initial 'info are preserved in the result.
    *)
   let count, _ = make_counter () in
-  let annot_table : f_annot Hf.t = Hf.create 17 in
-  let get_annot fn = Hf.find_default annot_table fn f_annot_empty in
+  let annot_table : Annotations.f_annot Hf.t = Hf.create 17 in
+  let get_annot fn = Hf.find_default annot_table fn Annotations.f_annot_empty in
   let liveness_table : (Sv.t * Sv.t, 'asm) func Hf.t = Hf.create 17 in
   let return_addresses : var Hf.t = Hf.create 17 in
   let extra_free_registers : (L.i_loc, var) Hashtbl.t = Hashtbl.create 137 in

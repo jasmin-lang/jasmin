@@ -171,27 +171,9 @@ type call_conv =
   | Subroutine of subroutine_info (* internal function that should not be inlined *)
   | Internal                   (* internal function that should be inlined *)
 
-type returnaddress_kind = 
-  | OnStack
-  | OnReg
-
-type f_annot = { 
-    retaddr_kind  : returnaddress_kind option;
-    stack_allocation_size : Z.t option;
-    stack_size    : Z.t option;
-    stack_align   : Annotations.wsize option;
-  }
-
-let f_annot_empty = {
-    retaddr_kind  = None;
-    stack_allocation_size = None;
-    stack_size    = None;
-    stack_align   = None;
-  } 
-    
 type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
-    f_annot : f_annot; 
+    f_annot: Annotations.f_annot;
     f_cc   : call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
