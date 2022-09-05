@@ -704,6 +704,8 @@ Section PROOF.
           by rewrite /= ok_x /= zero_extend_u /exec_sopn /= /truncate_word hle /sopn_sem /= /x86_MOVZX /check_size_16_64 hs.
         - case: andP => // - [] hs /eqP[] ?; subst sz.
           by rewrite /= ok_x /= zero_extend_u /exec_sopn /= /truncate_word hle /sopn_sem /= /x86_MOVZX /check_size_32_64 hs.
+        - case: sz Hw hle' => // Hw hle'; case: eqP => // - [] ?; subst sz'.
+          1-2: by rewrite /= ok_x /exec_sopn /= /truncate_word hle /= zero_extend_u.
         case: andP => // - [] /eqP ? /eqP[] /= ?; subst sz sz'.
         by rewrite ok_x /exec_sopn /= /truncate_word hle /= zero_extend_u.
       (* Olnot *)

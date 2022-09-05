@@ -273,7 +273,14 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     match szi with
     | U8 => k16 szo (LowerCopn (Ox86 (MOVZX szo szi)) [:: a])
     | U16 => k32 szo (LowerCopn (Ox86 (MOVZX szo szi)) [:: a])
-    | U32 => kb (szo == U64) szo (LowerCopn (Oasm (ExtOp Ox86MOVZX32)) [:: a])
+    | U32 =>
+        match szo with
+        | U64 => kb true szo (LowerCopn (Oasm (ExtOp Ox86MOVZX32)) [:: a])
+        | U128 => kb true szo (LowerCopn (Ox86 (MOVD szi)) [:: a])
+        | _ => LowerAssgn
+        end
+    | U64 =>
+        kb (szo == U128) szo (LowerCopn (Ox86 (MOVD szi)) [:: a])
     | _ => LowerAssgn
     end
 
