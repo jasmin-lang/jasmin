@@ -46,8 +46,8 @@ export
 fn test_u128(reg u64 ptr_, reg u64 v, reg u32 w) {
 reg u128 x, y;
 
-x = #MOVD(v);
-y = #MOVD_32(w);
+x = (128u)v;
+y = (128u)w;
 
 x ^= y;
 
