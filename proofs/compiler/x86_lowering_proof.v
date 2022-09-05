@@ -705,9 +705,13 @@ Section PROOF.
         - case: andP => // - [] hs /eqP[] ?; subst sz.
           by rewrite /= ok_x /= zero_extend_u /exec_sopn /= /truncate_word hle /sopn_sem /= /x86_MOVZX /check_size_32_64 hs.
         - case: sz Hw hle' => // Hw hle'; case: eqP => // - [] ?; subst sz'.
-          1-2: by rewrite /= ok_x /exec_sopn /= /truncate_word hle /= zero_extend_u.
-        case: andP => // - [] /eqP ? /eqP[] /= ?; subst sz sz'.
-        by rewrite ok_x /exec_sopn /= /truncate_word hle /= zero_extend_u.
+          1-3: rewrite /= ok_x /exec_sopn /= /truncate_word hle /= zero_extend_u //.
+          do 3 f_equal.
+          exact: zero_extend_cut.
+        case: sz Hw hle' => // Hw hle'; case: eqP => // - [] ?; subst sz'.
+        1-2: rewrite /= ok_x /exec_sopn /= /truncate_word hle /= zero_extend_u //.
+        do 3 f_equal.
+        exact: zero_extend_cut.
       (* Olnot *)
       + rewrite /= /sem_sop1 => sz; t_xrbindP => w Hz z' /to_wordI' [sz' [z [Hsz ? ->]]] ?; subst.
         case: andP => // - [hsz] /eqP ?; subst ty.
