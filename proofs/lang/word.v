@@ -725,6 +725,16 @@ Proof.
   by move=> hle;rewrite [X in (zero_extend _ X) = _]/zero_extend zero_extend_wrepr.
 Qed.
 
+Lemma zero_extend_cut (s1 s2 s3: wsize) (w: word s3) :
+  (s3 ≤ s2)%CMP →
+  zero_extend s1 (zero_extend s2 w) = zero_extend s1 w.
+Proof.
+  move => /wbase_m hle.
+  rewrite /zero_extend wunsigned_repr_small //.
+  have := wunsigned_range w.
+  lia.
+Qed.
+
 Lemma wbit_zero_extend s s' (w: word s') i :
   wbit_n (zero_extend s w) i = (i <= wsize_size_minus_1 s)%nat && wbit_n w i.
 Proof.
