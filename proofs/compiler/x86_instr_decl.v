@@ -84,7 +84,8 @@ Variant x86_op : Type :=
   (* MMX instructions *)
 | MOVX  of wsize 
   (* SSE instructions *)
-| MOVD     of wsize
+| MOVD     of wsize (* MOVD/MOVQ to wide registers *)
+| MOVV     of wsize (* MOVD/MOVQ from wide registers *)
 | VMOV     of wsize 
 | VMOVDQU  `(wsize)
 | VPMOVSX of velem & wsize & velem & wsize (* parallel sign-extension: sizes are source, source, target, target *)
@@ -1150,13 +1151,18 @@ Definition Ox86_MOV_instr               :=
 
 Definition check_movx (sz:wsize) := [:: [:: rx; rm true]; [:: rm true; rx]].
 
-Definition pp_movx sz args :=
- pp_name_ty (if sz == U64 then ("movq")%string else ("movd")%string)
-            ([::sz; sz]) args.
+Definition pp_movd name sz args :=
+ pp_name_ty (if sz == U64 then (name ++ "q")%string else (name ++ "d")%string)
+            match args with
+            | [:: XReg _ ; Reg _ ] => [:: U128 ; sz ]
+            | [:: Reg _ ; XReg _ ] => [:: sz ; U128 ]
+            | _ => [:: sz ; sz ]
+            end
+            args.
 
 Definition Ox86_MOVX_instr               :=
   mk_instr_w_w "MOVX" x86_MOVX [:: E 1] [:: E 0] 2
-               check_movx (primP MOVX) (pp_movx).
+               check_movx (primP MOVX) (pp_movd "mov").
 
 Definition check_movsx (_ _:wsize) := [:: r_rm ].
 
@@ -1336,13 +1342,12 @@ Definition Ox86_PEXT_instr :=
 
 (* Vectorized instruction *)
 
-Definition pp_movd name sz args :=
- pp_name_ty (if sz == U64 then (name ++ "q")%string else (name ++ "d")%string)
-            ([::U128; sz]) args.
-
 Definition check_movd (_:wsize) := [:: [::xmm; rm true]].
 Definition Ox86_MOVD_instr :=
   mk_instr_w_w128_10 "MOVD" MSB_MERGE x86_MOVD check_movd (primP MOVD) (pp_movd "mov").
+
+Definition Ox86_MOVV_instr :=
+  mk_instr_w_w "MOVV" x86_MOVX [:: E 1 ] [:: E 0 ] 2 (λ _, [:: [:: rm false; xmm ] ]) (primP MOVV) (pp_movd "mov").
 
 Definition Ox86_VMOV_instr :=
   mk_instr_w_w128_10 "VMOV" MSB_CLEAR x86_MOVD check_movd (primP VMOV) (pp_movd "vmov").
@@ -1785,6 +1790,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | SHRD sz            => Ox86_SHRD_instr.1 sz
   | MOVX sz            => Ox86_MOVX_instr.1 sz
   | MOVD sz            => Ox86_MOVD_instr.1 sz
+  | MOVV sz            => Ox86_MOVV_instr.1 sz
   | VMOV sz            => Ox86_VMOV_instr.1 sz
   | VPINSR sz          => Ox86_VPINSR_instr.1 sz
   | VEXTRACTI128       => Ox86_VEXTRACTI128_instr.1
@@ -1911,6 +1917,7 @@ Definition x86_prim_string :=
    Ox86_SHRD_instr.2;
    Ox86_MOVX_instr.2;
    Ox86_MOVD_instr.2;
+   Ox86_MOVV_instr.2;
    Ox86_VMOV_instr.2;
    Ox86_VPMOVSX_instr.2;
    Ox86_VPMOVZX_instr.2;
