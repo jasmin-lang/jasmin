@@ -653,24 +653,32 @@ Section PROOF.
   Proof.
     rewrite /lower_cassgn_classify.
     move: e Hs=> [z|b|n|x|aa ws x e | aa ws len x e |sz x e| o e|o e1 e2| op es |e e1 e2] //.
-    + case: x => - [] [] [] // sz vn vi vs //=.
+    + case: x => - [] [] [] // sz vn vi vs //= /dup[] ok_v.
       case/type_of_get_gvar => sz' [Hs Hs'].
       have := truncate_val_subtype Hv'. rewrite Hs -(truncate_val_has_type Hv').
       case hty: (type_of_val v') => [ | | | sz'' ] //= hle.
       case: (write_lval_undef Hw hty) => w ? {hty}; subst v'.
-      have [s'' [w'' [? ? _]]]:= truncate_valI Hv'; subst.
-      case: (type_of_valI Hs) => [] [??]; subst=> //.
-      case: ifP => // h; eexists; first reflexivity.
-      split; first exact: (cmp_le_trans hle (cmp_le_trans Hs' h)).
-      by eexists _, _; split; last reflexivity.
+      case/truncate_valI: Hv' => s'' [] w'' [] ? ok_w ?; subst.
+      case: Hs => ?; subst s''.
+      case: ifP.
+      * move => h; eexists; first reflexivity.
+        split; first exact: (cmp_le_trans hle (cmp_le_trans Hs' h)).
+        by eexists _, _; split; last reflexivity.
+      rewrite eqxx andbT => _.
+      case: ifP => // hsz''.
+      by rewrite /= ok_v /exec_sopn /sopn_sem /= /x86_MOVX /check_size_32_64 hsz'' ok_w.
     + rewrite /=; apply: rbindP => - [] // len a /= ok_a; t_xrbindP => i j ok_j ok_i w ok_w ?; subst v.
       case: x ok_a => x xs ok_a.
-      case: ifP => // ws_small.
-      have {Hv'} [sz' [? [? /truncate_wordP[hle ?] ?]]] := truncate_valE Hv'.
-      subst v' ty => /=.
-      eexists; first reflexivity.
-      split; first exact: (cmp_le_trans hle).
-      by eauto.
+      case/truncate_valE: Hv' => sz' [] w' [] -> {ty} ok_w' ?; subst v'.
+      case: ifP.
+      * move => h.
+        eexists; first reflexivity.
+        case/truncate_wordP: ok_w' => hle _.
+        split; first exact: (cmp_le_trans hle).
+        by eauto.
+      rewrite eqxx andbT => _.
+      case: ifP => // hsz''.
+      by rewrite /= ok_a ok_j /= ok_i /= ok_w /exec_sopn /sopn_sem /= /x86_MOVX /check_size_32_64 hsz'' ok_w'.
     + rewrite /=; t_xrbindP => ???????? w _ ?; subst v; case: ifP => // ?.
       have {Hv'} [sz' [? [? /truncate_wordP [hle _] ?]]] := truncate_valE Hv'.
       subst v' ty => /=.

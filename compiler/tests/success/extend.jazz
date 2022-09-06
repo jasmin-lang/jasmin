@@ -89,3 +89,32 @@ c = (32u) b;
 d = (64u) c;
 [p + 8] = d;
 }
+
+export
+fn test_truncate(reg u256 y) -> reg u32 {
+  reg u128 x;
+  reg u64 r s;
+  reg u32 e f;
+  x = y;
+
+  r = y;
+  s = x;
+  s ^= r;
+
+  e = y;
+  f = x;
+  f ^= e;
+
+  f ^= s;
+  return f;
+}
+
+export
+fn test_avx_to_mem(reg u64 p, reg u256 y) {
+  reg u128 x;
+  x = y;
+  (u32)[p] = x;
+  (u32)[p + 4] = y;
+  [p + 8] = x;
+  [p + 16] = y;
+}

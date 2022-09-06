@@ -256,7 +256,11 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
   match e with
   | Pget _ sz {| gv := v |} _
   | Pvar {| gv := ({| v_var := {| vtype := sword sz |} |} as v) |} =>
-    chk (sz ≤ U64)%CMP (LowerMov (if is_var_in_memory v then is_lval_in_memory x else false))
+    if (sz ≤ U64)%CMP
+    then LowerMov (if is_var_in_memory v then is_lval_in_memory x else false)
+    else if ty is sword szo
+    then k32 szo (LowerCopn (Ox86 (MOVV szo)) [:: e ])
+    else LowerAssgn
   | Pload sz _ _ => chk (sz ≤ U64)%CMP (LowerMov (is_lval_in_memory x))
 
   | Papp1 (Oword_of_int sz) (Pconst _) => chk (if ty is sword sz' then sz' ≤ U64 else false)%CMP (LowerMov false)
