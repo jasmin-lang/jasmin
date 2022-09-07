@@ -107,7 +107,7 @@ Section Section.
   End MakeEpilogueInd.
 
   Context (p p' : uprog).
-  Context (ev : unit).
+  Let ev : unit := tt.
 
   Hypothesis Hp : makereference_prog is_reg_ptr fresh_id p = ok p'.
 
