@@ -59,7 +59,7 @@ Fixpoint unroll (n: nat) (p: uprog) : cexec uprog :=
     else ok p
   else Error (loop_iterator "unrolling").
 
-Definition unroll_loop (p: prog) :=
+Definition unroll_loop (p: uprog) :=
   Let p := postprocess p in
   unroll Loop.nb p.
 
