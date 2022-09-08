@@ -1,0 +1,9 @@
+#[stackalign=u128]
+export
+fn randombyte() -> reg u8 {
+    stack u8[1] buf;
+    reg u8 r;
+    buf = #randombytes(buf);
+    r = buf[0];
+    return r;
+}
