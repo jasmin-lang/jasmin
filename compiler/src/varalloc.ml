@@ -370,7 +370,10 @@ let alloc_stack_fd pd is_move_op get_info gtbl fd =
   let sao_params, atbl = all_alignment pd ctbl alias sao_return fd.f_args lalloc in
 
   let sao_align, sao_slots, sao_size = alloc_local_stack 0 (Sv.elements slots) atbl in
-    
+
+  (* FIXME: 1- make this U128 arch (call-conv) dependent; 2- make it a semantic requirement. *)
+  let sao_align = if has_syscall fd.f_body && wsize_lt sao_align U128 then U128 else sao_align in
+
   let sao_alloc = List.iter (Hv.remove lalloc) fd.f_args; lalloc in
 
   let sao_modify_rsp = 
