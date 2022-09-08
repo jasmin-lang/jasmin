@@ -316,14 +316,10 @@ Lemma eval_assemble_cond ii m rf e c v:
   eqflags m rf
   -> agp_assemble_cond x86_agparams ii e = ok c
   -> sem_pexpr [::] m e = ok v
-  -> let get x :=
-       if rf x is Def b
-       then ok b
-       else undef_error
-     in
-     exists2 v', value_of_bool (eval_cond get c) = ok v' & value_uincl v v'.
+  -> exists2 v',
+       value_of_bool (eval_cond (get_rf rf) c) = ok v' & value_uincl v v'.
 Proof.
-  rewrite /x86_agparams /eval_cond /=.
+  rewrite /x86_agparams /eval_cond /get_rf /=.
   move=> eqv; elim: e c v => //.
   + move=> x c v /=; t_xrbindP=> r /of_var_e_boolP ok_r ok_ct ok_v.
     have := gxgetflag_ex eqv ok_r ok_v.

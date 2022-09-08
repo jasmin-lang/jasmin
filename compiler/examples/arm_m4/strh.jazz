@@ -1,0 +1,38 @@
+export
+fn strh(reg u32 arg) {
+    reg u32 x;
+    x = arg;
+
+    (u16)[arg] = x;
+
+    (u16)[x + 3] = x;
+
+    // Shifts.
+    (u16)[x + (arg * 1)] = x;
+    (u16)[x + (arg * 2)] = x;
+    (u16)[x + (arg * 4)] = x;
+    (u16)[x + (arg * 8)] = x;
+
+    // Set flags.
+    reg bool n, z, v, c;
+    n, z, c, v, _ = #MOVS(x);
+
+    // Conditions.
+    (u16)[x] = x if z;            // EQ
+    (u16)[x] = x if !z;           // NE
+    (u16)[x] = x if c;            // CS
+    (u16)[x] = x if !c;           // CC
+    (u16)[x] = x if n;            // MI
+    (u16)[x] = x if !n;           // PL
+    (u16)[x] = x if v;            // VS
+    (u16)[x] = x if !v;           // VC
+    (u16)[x] = x if c && !z;      // HI
+    (u16)[x] = x if !c || z;      // LS
+    (u16)[x] = x if n == v;       // GE
+    (u16)[x] = x if n != v;       // LT
+    (u16)[x] = x if !z && n == v; // GT
+    (u16)[x] = x if z || n != v;  // LE
+
+    (u16)[x + arg] = x if !z;
+    (u16)[x + arg * 4] = x if !z;
+}

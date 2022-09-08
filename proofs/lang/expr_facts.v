@@ -497,6 +497,13 @@ Proof.
   move=> _ /hrec; clear; SvD.fsetdec.
 Qed.
 
+Lemma vars_lval_Lvar i :
+  Sv.Equal (vars_lval (Lvar i)) (Sv.singleton i).
+Proof.
+  rewrite /vars_lval /=.
+  SvD.fsetdec.
+Qed.
+
 End ASM_OP.
 
 (* --------------------------------------------------------------------- *)

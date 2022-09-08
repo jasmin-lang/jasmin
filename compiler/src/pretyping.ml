@@ -1352,9 +1352,17 @@ let extract_size str : string * size_annotation =
     | SA -> str, SA
     | sz -> String.concat "_" (List.rev s), sz
 
-let tt_prim asmOp ws id =
+let tt_prim asmOp ws id args =
   let { L.pl_loc = loc ; L.pl_desc = s } = id in
   let name, sz = extract_size s in
+  (* TODO_ARM: Merge this. *)
+  match !Glob_options.target_arch with
+  | ARM_M4 ->
+      ofdfl
+        (fun () -> rs_tyerror ~loc (UnknownPrim s))
+        (Tt_arm_m4.tt_prim (prim_string asmOp) s args)
+  | X86_64 ->
+      let c =
   match List.assoc name (prim_string asmOp) with
   | PrimP (d, pr) ->
     pr ws (match sz with
@@ -1366,7 +1374,9 @@ let tt_prim asmOp ws id =
   | PrimV pr -> (match sz with SAv (s, ve, sz) -> pr ws s ve sz | _ -> rs_tyerror ~loc (PrimIsVector s))
   | PrimX pr -> (match sz with SAx(sz1, sz2) -> pr ws sz1 sz2 | _ -> rs_tyerror ~loc (PrimIsX s))
   | PrimVV pr -> (match sz with SAvv (ve, sz, ve', sz') -> pr ws ve sz ve' sz' | _ -> rs_tyerror ~loc (PrimIsVectorVector s))
+  | PrimARM _ -> failwith "tt_prim ARM M4"
   | exception Not_found -> rs_tyerror ~loc (UnknownPrim s)
+      in (c, args)
 
 let prim_of_op exn loc o =
   (* TODO: use context typing information when the operator is not annotated *)
@@ -1715,7 +1725,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       env, [mk_i (P.Csyscall([x], Syscall_t.RandomBytes (Conv.pos_of_int 1), es))]
 
   | S.PIAssign (ls, `Raw, { pl_desc = PEPrim (f, args) }, None) ->
-      let p = tt_prim asmOp None f in
+      let p, args = tt_prim asmOp None f args in
       let tlvs, tes, arguments = prim_sig asmOp p in
       let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in
@@ -1726,7 +1736,7 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let ws, s = ct in
       let ws = tt_ws ws in
       assert (s = `Unsigned); (* FIXME *)
-      let p = tt_prim asmOp (Some ws) f in
+      let p, args = tt_prim asmOp (Some ws) f args in
       let tlvs, tes, arguments = prim_sig asmOp p in
       let lvs, einstr = tt_lvalues pd env (L.loc pi) ls (Some arguments) tlvs in
       let es  = tt_exprs_cast pd env (L.loc pi) args tes in
@@ -1768,7 +1778,6 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
   | PIAssign (ls, eqop, e, Some cp) ->
       let loc = L.loc pi in
       let exn = Unsupported "if not allowed here" in
-      if peop2_of_eqop eqop <> None then rs_tyerror ~loc exn;
       let cpi = S.PIAssign (ls, eqop, e, None) in
       let env, i = tt_instr pd asmOp env (annot, L.mk_loc loc cpi) in
       let x, ty, e, is =

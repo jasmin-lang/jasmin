@@ -23,6 +23,7 @@ src/Main_compiler
 src/Parseio
 src/Parser
 src/Ppasm
+src/Pp_arm_m4
 src/Pretyping
 src/Printer
 src/PrintLinear
@@ -54,7 +55,9 @@ src/safety/domains/safetyPointsTo
 src/safety/domains/safetyProduct
 src/safety/domains/safetyProf
 src/safety/domains/safetySymEq
+src/Tt_arm_m4
 src/Typing
 src/Utils
 src/Varalloc
 src/X86_arch_full
+src/Arm_arch_full

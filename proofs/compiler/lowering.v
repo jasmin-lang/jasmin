@@ -19,7 +19,14 @@ Context
   (fv : fresh_vars)
   {eft : eqType}
   {pT : progT eft}
-  (is_var_in_memory : var_i -> bool).
+  (is_var_in_memory : var_i -> bool)
+  (all_fresh_vars : seq Ident.ident)
+  (fvars : Sv.t).
+
+Definition disj_fvars (x : Sv.t) : bool := disjoint x fvars.
+
+Definition fvars_correct (fds : fun_decls) : bool :=
+  disj_fvars (vars_p fds) && uniq all_fresh_vars.
 
 Definition is_lval_in_memory (x : lval) : bool :=
   match x with

@@ -1,0 +1,39 @@
+export
+fn add(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    x = #ROR(arg0, arg1);
+
+    // Immediates.
+    x = #ROR(x, 1);
+    x = #ROR(x, 3);
+
+    // Set flags.
+    reg bool n, z, c, v;
+    n, z, c, x = #RORS(x, arg0);
+    n, z, c, x = #RORS(x, 1);
+    n, z, c, v, _ = #MOVS(x); // ROR does not set V.
+
+    // Conditions.
+    x = #RORcc(x, arg0, z, x);            // EQ
+    x = #RORcc(x, arg0, !z, x);           // NE
+    x = #RORcc(x, arg0, c, x);            // CS
+    x = #RORcc(x, arg0, !c, x);           // CC
+    x = #RORcc(x, arg0, n, x);            // MI
+    x = #RORcc(x, arg0, !n, x);           // PL
+    x = #RORcc(x, arg0, v, x);            // VS
+    x = #RORcc(x, arg0, !v, x);           // VC
+    x = #RORcc(x, arg0, c && !z, x);      // HI
+    x = #RORcc(x, arg0, !c || z, x);      // LS
+    x = #RORcc(x, arg0, n == v, x);       // GE
+    x = #RORcc(x, arg0, n != v, x);       // LT
+    x = #RORcc(x, arg0, !z && n == v, x); // GT
+    x = #RORcc(x, arg0, z || n != v, x);  // LE
+
+    x = #RORcc(x, 1, !!!!z, x);
+    n, z, c, x = #RORScc(x, arg0, n == v, n, z, c, x);
+    n, z, c, x = #RORScc(x, 2, !c || z, n, z, c, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

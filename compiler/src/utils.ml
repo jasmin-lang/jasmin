@@ -353,6 +353,20 @@ module List = struct
   let ofind = Exceptionless.find
   let opick = Exceptionless.find_map
 
+  let opicki f xs =
+    let rec loop i f xs =
+      match xs with
+      | [] ->
+          None
+      | x :: xs ->
+          begin
+            match f i x with
+            | None -> loop (i + 1) f xs
+            | Some y -> Some (i, y)
+          end
+    in
+    loop 0 f xs
+
   let ocons o xs = match o with None -> xs | Some x -> x :: xs
 
   (* ------------------------------------------------------------------ *)
@@ -514,6 +528,17 @@ module List = struct
   (* ------------------------------------------------------------------ *)
   let fst xs = List.map fst xs
   let snd xs = List.map snd xs
+
+  let modify_last f xs = modify_at (length xs - 1) f xs
+
+  (* Like [List.span], but take at most [n] elements.
+     Raises [Invalid_argument] if [n] is negative. *)
+  let span_at_most p n xs =
+    let n = BatInt.min n (length xs) in
+    let pre, pos = split_at n xs in
+    let pre0, pre1 = span p pre in
+    (pre0, pre1 @ pos)
+
 end
 
 (* -------------------------------------------------------------------- *)
@@ -563,6 +588,9 @@ module String = struct
 
   let rev (s:string) = init (length s) (fun i -> s.[length s - 1 - i])
 
+  let drop n s = sub s n (length s - n)
+
+  let drop_end n s = sub s 0 (length s - n)
 end
 
 (* -------------------------------------------------------------------- *)

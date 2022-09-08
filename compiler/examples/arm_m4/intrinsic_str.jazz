@@ -1,0 +1,30 @@
+export
+fn str(reg u32 arg0, reg u32 arg1) {
+
+    [arg0] = #STR(arg0);
+    [arg0 + 2] = #STR(arg0);
+    [arg0 + arg1] = #STR(arg0);
+    [arg0 + (arg1 * 1)] = #STR(arg0);
+    [arg0 + (arg1 * 2)] = #STR(arg0);
+    [arg0 + (arg1 * 4)] = #STR(arg0);
+    [arg0 + (arg1 * 8)] = #STR(arg0);
+
+    reg bool n, z, v, c;
+    n, z, c, v, _ = #MOVS(arg0);
+
+    // Conditions.
+    [arg0] = #STRcc(arg0, z, [arg0]);            // EQ
+    [arg0] = #STRcc(arg0, !z, [arg0]);           // NE
+    [arg0] = #STRcc(arg0, c, [arg0]);            // CS
+    [arg0] = #STRcc(arg0, !c, [arg0]);           // CC
+    [arg0] = #STRcc(arg0, n, [arg0]);            // MI
+    [arg0] = #STRcc(arg0, !n, [arg0]);           // PL
+    [arg0] = #STRcc(arg0, v, [arg0]);            // VS
+    [arg0] = #STRcc(arg0, !v, [arg0]);           // VC
+    [arg0] = #STRcc(arg0, c && !z, [arg0]);      // HI
+    [arg0] = #STRcc(arg0, !c || z, [arg0]);      // LS
+    [arg0] = #STRcc(arg0, n == v, [arg0]);       // GE
+    [arg0] = #STRcc(arg0, n != v, [arg0]);       // LT
+    [arg0] = #STRcc(arg0, !z && n == v, [arg0]); // GT
+    [arg0] = #STRcc(arg0, z || n != v, [arg0]);  // LE
+}

@@ -643,7 +643,7 @@ Proof.
     + by move => /X /= h; eexists; first reflexivity.
     rewrite get_varE; t_xrbindP => /= b ok_b ?; subst v.
     have := F r b.
-    rewrite /= ok_b => /(_ erefl).
+    rewrite /= ok_b /get_rf => /(_ erefl).
     by case: (asm_flag xm' r) => // _ <-; exists b.
   case => res'' ok_res'' res'_res''.
   exists xm', res''; split => //.

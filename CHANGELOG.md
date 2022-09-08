@@ -1,6 +1,11 @@
 
 # [unreleased]
 
+## New features
+
+- Support ARMv7 (Cortex-M4) as target architecture
+  ([PR #242](https://github.com/jasmin-lang/jasmin/pull/242)).
+
 # Jasmin 2022.09.0
 
 ## Bug fixes

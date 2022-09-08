@@ -1,6 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import strings type var sem_type values.
+Require Import shift_kind.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -54,6 +55,7 @@ Variant prim_constructor (asm_op:Type) :=
   | PrimV of (option wsize -> signedness -> velem -> wsize -> asm_op)
   | PrimX of (option wsize -> wsize -> wsize -> asm_op)
   | PrimVV of (option wsize -> velem -> wsize -> velem -> wsize -> asm_op)
+  | PrimARM of (bool -> bool -> option shift_kind -> asm_op)
   .
 
 Class asmOp (asm_op : Type) := {
@@ -180,6 +182,7 @@ Definition sopn_prim_constructor (f:asm_op -> sopn) (p : prim_constructor asm_op
   | PrimV x => PrimV (fun ws1 s v ws2 => f (x ws1 s v ws2))
   | PrimX x => PrimX (fun ws1 ws2 ws3 => f (x ws1 ws2 ws3))
   | PrimVV x => PrimVV (fun ws1 v1 ws2 v2 ws3 => f (x ws1 v1 ws2 v2 ws3))
+  | PrimARM x => PrimARM (fun sf ic hs => f (x sf ic hs))
   end.
 
 Definition sopn_prim_string : seq (string * prim_constructor sopn) :=

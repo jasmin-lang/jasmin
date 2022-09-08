@@ -1617,3 +1617,32 @@ Proof.
   rewrite ltnNge; apply /negP => hle.
   by rewrite nth_default in hnth.
 Qed.
+
+Lemma all_behead {A} {p : A -> bool} {xs : seq A} :
+  all p xs -> all p (behead xs).
+Proof.
+  case: xs => // x xs.
+  by move=> /andP [] _.
+Qed.
+
+Lemma all2_behead {A B} {p: A -> B -> bool} {xs: seq A} {ys: seq B} :
+  all2 p xs ys
+  -> all2 p (behead xs) (behead ys).
+Proof.
+  case: xs; case: ys => //= y ys x xs.
+  by move=> /andP [] _.
+Qed.
+
+Lemma notin_cons (T : eqType) (x y : T) (s : seq T) :
+  (x \notin y :: s) = (x != y) && (x \notin s).
+Proof. by rewrite in_cons negb_or. Qed.
+
+(* Convert [ C |- uniq xs -> P ] into
+   [ C, ? : x0 <> x1, ? : x0 <> x2, ... |- P ]. *)
+Ltac t_elim_uniq :=
+  repeat (
+    move=> /andP [];
+    repeat (rewrite notin_cons; move=> /andP [] /eqP ?);
+    move=> _
+  );
+  move=> _.

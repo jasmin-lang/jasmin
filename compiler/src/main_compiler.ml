@@ -105,11 +105,12 @@ let main () =
   try
     parse();
 
-    let lowering_opt =
-      X86_lowering.{ use_lea = !Glob_options.lea;
-                     use_set0 = !Glob_options.set0; } in
     let (module Ocaml_params : Arch_full.Core_arch) = 
-      if true then 
+      match !target_arch with
+      | X86_64 ->
+        let lowering_opt =
+          X86_lowering.{ use_lea = !Glob_options.lea;
+                         use_set0 = !Glob_options.set0; } in
         let module Lowering_params = struct 
             let call_conv = 
               match !Glob_options.call_conv with 
@@ -121,7 +122,12 @@ let main () =
             let lowering_opt = lowering_opt
           end in
         (module X86_arch_full.X86(Lowering_params))
-      else assert false in
+      | ARM_M4 ->
+        let module Lowering_params = struct
+          let call_conv = Arm_decl.arm_linux_call_conv
+        end in
+        (module Arm_arch_full.Arm(Lowering_params))
+    in
     let module Arch = Arch_full.Arch_from_Core_arch (Ocaml_params) in
     let module Regalloc = Regalloc.Regalloc (Arch) in
     let module StackAlloc = StackAlloc.StackAlloc (Arch) in

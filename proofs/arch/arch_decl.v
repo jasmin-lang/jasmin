@@ -2,7 +2,9 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
 Require Import utils oseq strings word memory_model global Utf8 Relation_Operators sem_type syscall label.
-Require Import flag_combination.
+Require Import
+  flag_combination
+  shift_kind.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -29,8 +31,7 @@ Definition rtype {t T} `{ToString t T} := t.
 
 (* -------------------------------------------------------------------- *)
 (* Basic architecture declaration.
- * Parameterized by types for registers, extra registers, flags, conditions,
- * and shifts.
+ * Parameterized by types for registers, extra registers, flags, and conditions.
  *)
 Class arch_decl (reg regx xreg rflag cond : Type) :=
   { reg_size : wsize     (* Register size. Also used as pointer size. *)
@@ -59,18 +60,17 @@ Definition xreg_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg r
 Definition rflag_t {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := rflag.
 Definition cond_t  {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := cond.
 
-Definition wreg {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} :=
-  sem_t (sword reg_size).
-
-Definition wxreg {reg xreg rflag cond} `{arch : arch_decl reg xreg rflag cond} :=
-  sem_t (sword xreg_size).
-
 Section DECL.
 
 Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond}.
 
+Definition sreg := sword reg_size.
+Definition wreg := sem_t sreg.
+Definition sxreg := sword xreg_size.
+Definition wxreg := sem_t sxreg.
+
 Lemma sword_reg_neq_xreg :
-  sword reg_size != sword xreg_size.
+  sreg != sxreg.
 Proof.
   apply/eqP. move=> []. apply/eqP. exact: reg_size_neq_xreg_size.
 Qed.
@@ -142,6 +142,9 @@ Variant asm_arg : Type :=
 | XReg   of xreg_t.
 
 Definition asm_args := (seq asm_arg).
+
+Definition is_Condt (a : asm_arg) : option cond_t :=
+  if a is Condt c then Some c else None.
 
 Definition asm_arg_beq (a1 a2:asm_arg) :=
   match a1, a2 with
@@ -393,14 +396,17 @@ Record instr_desc_t := {
   (* Info for jasmin *)
   id_eq_size    : (size id_in == size id_tin) && (size id_out == size id_tout);
   id_tin_narr   : all is_not_sarr id_tin;
+  id_tout_narr  : all is_not_sarr id_tout;
   id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
   id_safe       : seq safe_cond;
-  id_wsize      : wsize;  (* ..... *)
+  id_wsize      : wsize;
   id_pp_asm     : asm_args -> pp_asm_op;
 }.
 
+
 (* -------------------------------------------------------------------- *)
+
 Variant prim_constructor (asm_op:Type) :=
   | PrimP of wsize & (wsize -> asm_op)
   | PrimM of asm_op
@@ -408,7 +414,12 @@ Variant prim_constructor (asm_op:Type) :=
   | PrimSV of (signedness -> velem -> wsize -> asm_op)
   | PrimX of (wsize -> wsize -> asm_op)
   | PrimVV of (velem → wsize → velem → wsize → asm_op)
-  .
+  | PrimARM of
+    (bool                 (* set_flags *)
+     -> bool              (* is_conditional *)
+     -> option shift_kind (* has_shift *)
+     -> asm_op).
+
 
 (* -------------------------------------------------------------------- *)
 (* Architecture operand declaration. *)
@@ -501,6 +512,16 @@ Definition exclude_mem_aux (cond : i_args_kinds) (d : seq arg_desc) :=
 Definition exclude_mem (cond : i_args_kinds) (d : seq arg_desc) : i_args_kinds :=
   filter (fun c => [::] \notin c) (exclude_mem_aux cond d).
 
+Lemma instr_desc_tout_narr ws xs :
+  all is_not_sarr xs -> all is_not_sarr (map (extend_size ws) xs).
+Proof.
+  move=> h.
+  rewrite all_map.
+  apply: (sub_all _ h).
+  move=> [] //= ws'.
+  by case: (ws' <= ws)%CMP.
+Qed.
+
 (* An extension of [instr_desc] that deals with msb flags *)
 Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
   let (ws, o) := o in
@@ -518,6 +539,7 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_nargs      := d.(id_nargs);
        id_eq_size    := instr_desc_aux1 ws d.(id_eq_size);
        id_tin_narr   := d.(id_tin_narr);
+       id_tout_narr  := instr_desc_tout_narr _ d.(id_tout_narr);
        id_str_jas    := d.(id_str_jas);
        id_check_dest := instr_desc_aux2 ws d.(id_check_dest);
        id_safe       := d.(id_safe);

@@ -48,7 +48,6 @@ Context (options : lowering_options).
 
 Context (warning: instr_info -> warning_msg -> instr_info).
 
-Definition vbool vn := {| vtype := sbool ; vname := vn |}.
 Definition vword vt vn := {| vtype := sword vt ; vname := vn |}.
 
 Context (fv: fresh_vars).

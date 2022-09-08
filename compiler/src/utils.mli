@@ -197,6 +197,8 @@ module String : sig
   include module type of BatString
 
   val split_lines : string -> string list
+  val drop : int -> string -> string
+  val drop_end : int -> string -> string
 end
 
 (* -------------------------------------------------------------------- *)
@@ -230,6 +232,7 @@ module List : sig
   val olast   : 'a list -> 'a option
   val ofind   : ('a -> bool) -> 'a list -> 'a option
   val opick   : ('a -> 'b option) -> 'a list -> 'b option
+  val opicki  : (int -> 'a -> 'b option) -> 'a list -> (int * 'b) option
   val oindex  : ('a -> bool) -> 'a list -> int option
   val orindex : ('a -> bool) -> 'a list -> int option
 
@@ -248,6 +251,8 @@ module List : sig
   (*------------------------------------------------------------------ *)
   val fst : ('a * 'b) list -> 'a list
   val snd : ('a * 'b) list -> 'b list
+  val modify_last : ('a -> 'a) -> 'a list -> 'a list
+  val span_at_most : ('a -> bool) -> int -> 'a list -> 'a list * 'a list
 
   val mbfilter   : ('a -> bool) -> 'a list -> 'a list
   val fusion     : ('a -> 'a -> 'a) -> 'a list -> 'a list -> 'a list
