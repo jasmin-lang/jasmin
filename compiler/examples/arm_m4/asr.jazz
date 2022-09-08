@@ -1,0 +1,37 @@
+export
+fn asr(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    x = arg0 >>s arg1;
+
+    // Immediates.
+    x >>s= 0;
+    x >>s= 1;
+    x >>s= 31;
+
+    // Set flags.
+    reg bool n, z, v, c;
+    n, z, c, v, _ = #MOVS(x);
+
+    // Conditions.
+    x >>s= arg0 if z;            // EQ
+    x >>s= arg0 if !z;           // NE
+    x >>s= arg0 if c;            // CS
+    x >>s= arg0 if !c;           // CC
+    x >>s= arg0 if n;            // MI
+    x >>s= arg0 if !n;           // PL
+    x >>s= arg0 if v;            // VS
+    x >>s= arg0 if !v;           // VC
+    x >>s= arg0 if c && !z;      // HI
+    x >>s= arg0 if !c || z;      // LS
+    x >>s= arg0 if n == v;       // GE
+    x >>s= arg0 if n != v;       // LT
+    x >>s= arg0 if !z && n == v; // GT
+    x >>s= arg0 if z || n != v;  // LE
+
+    x >>s= 1 if !!!!z;                  // EQ
+    x >>s= arg0 if !(!!z || !(n == v)); // GT
+
+    reg u32 res;
+    res = x;
+    return res;
+}

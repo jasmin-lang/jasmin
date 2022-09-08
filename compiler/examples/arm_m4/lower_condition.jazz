@@ -1,0 +1,242 @@
+export
+fn main(reg u32 x, reg u32 y) -> reg u32 {
+    reg u32 res;
+    res = 0;
+
+    res = 1 if (x == y);
+    res = 1 if (x == 6);
+    /*
+    res = 1 if (x == (y << 12));
+    res = 1 if (x == (y >> 8));
+    res = 1 if (x == (y >>s 9));
+    */
+    res = 1 if (x != y);
+    res = 1 if (x != 6);
+    /*
+    res = 1 if (x != (y << 12));
+    res = 1 if (x != (y >> 8));
+    res = 1 if (x != (y >>s 9));
+    */
+    res = 1 if (x <u y);
+    res = 1 if (x <u 6);
+    /*
+    res = 1 if (x <u (y << 12));
+    res = 1 if (x <u (y >> 8));
+    res = 1 if (x <u (y >>s 9));
+    */
+    res = 1 if (x <s y);
+    res = 1 if (x <s 6);
+    /*
+    res = 1 if (x <s (y << 12));
+    res = 1 if (x <s (y >> 8));
+    res = 1 if (x <s (y >>s 9));
+    */
+    res = 1 if (x <=u y);
+    res = 1 if (x <=u 6);
+    /*
+    res = 1 if (x <=u (y << 12));
+    res = 1 if (x <=u (y >> 8));
+    res = 1 if (x <=u (y >>s 9));
+    */
+    res = 1 if (x <=s y);
+    res = 1 if (x <=s 6);
+    /*
+    res = 1 if (x <=s (y << 12));
+    res = 1 if (x <=s (y >> 8));
+    res = 1 if (x <=s (y >>s 9));
+    */
+    res = 1 if (x >u y);
+    res = 1 if (x >u 6);
+    /*
+    res = 1 if (x >u (y << 12));
+    res = 1 if (x >u (y >> 8));
+    res = 1 if (x >u (y >>s 9));
+    */
+    res = 1 if (x >s y);
+    res = 1 if (x >s 6);
+    /*
+    res = 1 if (x >s (y << 12));
+    res = 1 if (x >s (y >> 8));
+    res = 1 if (x >s (y >>s 9));
+    */
+    res = 1 if (x >=u y);
+    res = 1 if (x >=u 6);
+    /*
+    res = 1 if (x >=u (y << 12));
+    res = 1 if (x >=u (y >> 8));
+    res = 1 if (x >=u (y >>s 9));
+    */
+    res = 1 if (x >=s y);
+    res = 1 if (x >=s 6);
+    /*
+    res = 1 if (x >=s (y << 12));
+    res = 1 if (x >=s (y >> 8));
+    res = 1 if (x >=s (y >>s 9));
+    */
+    res = 1 if (x & y == 0);
+    res = 1 if (x & 6 == 0);
+    /*
+    res = 1 if (x & (y << 12) == 0);
+    res = 1 if (x & (y >> 8) == 0);
+    res = 1 if (x & (y >>s 9) == 0);
+
+    */
+    if (x == y) { res = 1; }
+    if (x == 6) { res = 1; }
+    /*
+    if (x == (y << 12)) { res = 1; }
+    if (x == (y >> 8)) { res = 1; }
+    if (x == (y >>s 9)) { res = 1; }
+    */
+    if (x != y) { res = 1; }
+    if (x != 6) { res = 1; }
+    /*
+    if (x != (y << 12)) { res = 1; }
+    if (x != (y >> 8)) { res = 1; }
+    if (x != (y >>s 9)) { res = 1; }
+    */
+    if (x <u y) { res = 1; }
+    if (x <u 6) { res = 1; }
+    /*
+    if (x <u (y << 12)) { res = 1; }
+    if (x <u (y >> 8)) { res = 1; }
+    if (x <u (y >>s 9)) { res = 1; }
+    */
+    if (x <s y) { res = 1; }
+    if (x <s 6) { res = 1; }
+    /*
+    if (x <s (y << 12)) { res = 1; }
+    if (x <s (y >> 8)) { res = 1; }
+    if (x <s (y >>s 9)) { res = 1; }
+    */
+    if (x <=u y) { res = 1; }
+    if (x <=u 6) { res = 1; }
+    /*
+    if (x <=u (y << 12)) { res = 1; }
+    if (x <=u (y >> 8)) { res = 1; }
+    if (x <=u (y >>s 9)) { res = 1; }
+    */
+    if (x <=s y) { res = 1; }
+    if (x <=s 6) { res = 1; }
+    /*
+    if (x <=s (y << 12)) { res = 1; }
+    if (x <=s (y >> 8)) { res = 1; }
+    if (x <=s (y >>s 9)) { res = 1; }
+    */
+    if (x >u y) { res = 1; }
+    if (x >u 6) { res = 1; }
+    /*
+    if (x >u (y << 12)) { res = 1; }
+    if (x >u (y >> 8)) { res = 1; }
+    if (x >u (y >>s 9)) { res = 1; }
+    */
+    if (x >s y) { res = 1; }
+    if (x >s 6) { res = 1; }
+    /*
+    if (x >s (y << 12)) { res = 1; }
+    if (x >s (y >> 8)) { res = 1; }
+    if (x >s (y >>s 9)) { res = 1; }
+    */
+    if (x >=u y) { res = 1; }
+    if (x >=u 6) { res = 1; }
+    /*
+    if (x >=u (y << 12)) { res = 1; }
+    if (x >=u (y >> 8)) { res = 1; }
+    if (x >=u (y >>s 9)) { res = 1; }
+    */
+    if (x >=s y) { res = 1; }
+    if (x >=s 6) { res = 1; }
+    /*
+    if (x >=s (y << 12)) { res = 1; }
+    if (x >=s (y >> 8)) { res = 1; }
+    if (x >=s (y >>s 9)) { res = 1; }
+    */
+    if (x & y == 0) { res = 1; }
+    if (x & 6 == 0) { res = 1; }
+    /*
+    if (x & (y << 12) == 0) { res = 1; }
+    if (x & (y >> 8) == 0) { res = 1; }
+    if (x & (y >>s 9) == 0) { res = 1; }
+
+    */
+    while (x == y) { res = 1; }
+    while (x == 6) { res = 1; }
+    /*
+    while (x == (y << 12)) { res = 1; }
+    while (x == (y >> 8)) { res = 1; }
+    while (x == (y >>s 9)) { res = 1; }
+    */
+    while (x != y) { res = 1; }
+    while (x != 6) { res = 1; }
+    /*
+    while (x != (y << 12)) { res = 1; }
+    while (x != (y >> 8)) { res = 1; }
+    while (x != (y >>s 9)) { res = 1; }
+    */
+    while (x <u y) { res = 1; }
+    while (x <u 6) { res = 1; }
+    /*
+    while (x <u (y << 12)) { res = 1; }
+    while (x <u (y >> 8)) { res = 1; }
+    while (x <u (y >>s 9)) { res = 1; }
+    */
+    while (x <s y) { res = 1; }
+    while (x <s 6) { res = 1; }
+    /*
+    while (x <s (y << 12)) { res = 1; }
+    while (x <s (y >> 8)) { res = 1; }
+    while (x <s (y >>s 9)) { res = 1; }
+    */
+    while (x <=u y) { res = 1; }
+    while (x <=u 6) { res = 1; }
+    /*
+    while (x <=u (y << 12)) { res = 1; }
+    while (x <=u (y >> 8)) { res = 1; }
+    while (x <=u (y >>s 9)) { res = 1; }
+    */
+    while (x <=s y) { res = 1; }
+    while (x <=s 6) { res = 1; }
+    /*
+    while (x <=s (y << 12)) { res = 1; }
+    while (x <=s (y >> 8)) { res = 1; }
+    while (x <=s (y >>s 9)) { res = 1; }
+    */
+    while (x >u y) { res = 1; }
+    while (x >u 6) { res = 1; }
+    /*
+    while (x >u (y << 12)) { res = 1; }
+    while (x >u (y >> 8)) { res = 1; }
+    while (x >u (y >>s 9)) { res = 1; }
+    */
+    while (x >s y) { res = 1; }
+    while (x >s 6) { res = 1; }
+    /*
+    while (x >s (y << 12)) { res = 1; }
+    while (x >s (y >> 8)) { res = 1; }
+    while (x >s (y >>s 9)) { res = 1; }
+    */
+    while (x >=u y) { res = 1; }
+    while (x >=u 6) { res = 1; }
+    /*
+    while (x >=u (y << 12)) { res = 1; }
+    while (x >=u (y >> 8)) { res = 1; }
+    while (x >=u (y >>s 9)) { res = 1; }
+    */
+    while (x >=s y) { res = 1; }
+    while (x >=s 6) { res = 1; }
+    /*
+    while (x >=s (y << 12)) { res = 1; }
+    while (x >=s (y >> 8)) { res = 1; }
+    while (x >=s (y >>s 9)) { res = 1; }
+    */
+    while (x & y == 0) { res = 1; }
+    while (x & 6 == 0) { res = 1; }
+    /*
+    while (x & (y << 12) == 0) { res = 1; }
+    while (x & (y >> 8) == 0) { res = 1; }
+    while (x & (y >>s 9) == 0) { res = 1; }
+    */
+
+    res = res;
+    return res;
+}

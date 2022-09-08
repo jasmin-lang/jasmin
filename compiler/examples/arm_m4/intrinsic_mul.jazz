@@ -1,0 +1,30 @@
+export
+fn mul(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    x = #MUL(arg0, arg1);
+
+    // Set flags.
+    reg bool n, z, c, v;
+    n, z, x = #MULS(x, arg0);
+    n, z, c, v, _ = #MOVS(x);
+
+    // Conditions.
+    x = #MULcc(x, arg0, z, x);            // EQ
+    x = #MULcc(x, arg0, !z, x);           // NE
+    x = #MULcc(x, arg0, c, x);            // CS
+    x = #MULcc(x, arg0, !c, x);           // CC
+    x = #MULcc(x, arg0, n, x);            // MI
+    x = #MULcc(x, arg0, !n, x);           // PL
+    x = #MULcc(x, arg0, v, x);            // VS
+    x = #MULcc(x, arg0, !v, x);           // VC
+    x = #MULcc(x, arg0, c && !z, x);      // HI
+    x = #MULcc(x, arg0, !c || z, x);      // LS
+    x = #MULcc(x, arg0, n == v, x);       // GE
+    x = #MULcc(x, arg0, n != v, x);       // LT
+    x = #MULcc(x, arg0, !z && n == v, x); // GT
+    x = #MULcc(x, arg0, z || n != v, x);  // LE
+
+    reg u32 res;
+    res = x;
+    return res;
+}

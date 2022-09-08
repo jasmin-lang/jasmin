@@ -297,6 +297,7 @@ Notation var   := Var.var.
 Notation vtype := Var.vtype.
 Notation vname := Var.vname.
 Notation Var   := Var.Var.
+Notation vbool i := {| vtype := sbool; vname := i; |}.
 
 Declare Scope mvar_scope.
 Delimit Scope mvar_scope with mv.

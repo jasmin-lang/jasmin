@@ -28,6 +28,15 @@ arch/label.v
 compiler/allocation.v
 compiler/arch_params.v
 compiler/arch_params_proof.v
+compiler/arm_decl.v
+compiler/arm_extra.v
+compiler/arm_instr_decl.v
+compiler/arm_instr_decl_lemmas.v
+compiler/arm_lowering.v
+compiler/arm_lowering_proof.v
+compiler/arm_params.v
+compiler/arm_params_proof.v
+compiler/arm_sem.v
 compiler/array_expansion.v
 compiler/array_expansion_proof.v
 compiler/array_copy.v
@@ -87,6 +96,7 @@ lang/ident.v
 lang/linear.v
 lang/linear_sem.v
 lang/low_memory.v
+lang/lowering_lemmas.v
 lang/memory_example.v
 lang/memory_model.v
 lang/one_varmap.v
@@ -98,6 +108,7 @@ lang/sem_one_varmap.v
 lang/sem_pexpr_params.v
 lang/sem_one_varmap_facts.v
 lang/sem_type.v
+lang/shift_kind.v
 lang/sopn.v
 lang/strings.v
 lang/syscall.v

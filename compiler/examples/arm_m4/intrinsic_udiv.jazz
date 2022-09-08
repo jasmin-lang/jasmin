@@ -1,0 +1,30 @@
+export
+fn udiv(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    x = #UDIV(arg0, arg1);
+
+    // Set flags.
+    reg bool n, z, c, v;
+    n, z, c, v, _ = #MOVS(x);
+
+    // Conditions.
+    x = #UDIVcc(x, arg0, z, x);            // EQ
+    x = #UDIVcc(x, arg0, !z, x);           // NE
+    x = #UDIVcc(x, arg0, c, x);            // CS
+    x = #UDIVcc(x, arg0, !c, x);           // CC
+    x = #UDIVcc(x, arg0, n, x);            // MI
+    x = #UDIVcc(x, arg0, !n, x);           // PL
+    x = #UDIVcc(x, arg0, v, x);            // VS
+    x = #UDIVcc(x, arg0, !v, x);           // VC
+    x = #UDIVcc(x, arg0, c && !z, x);      // HI
+    x = #UDIVcc(x, arg0, !c || z, x);      // LS
+    x = #UDIVcc(x, arg0, n == v, x);       // GE
+    x = #UDIVcc(x, arg0, n != v, x);       // LT
+    x = #UDIVcc(x, arg0, !z && n == v, x); // GT
+    x = #UDIVcc(x, arg0, z || n != v, x);  // LE
+
+    reg u32 res;
+    res = x;
+    return res;
+}
+

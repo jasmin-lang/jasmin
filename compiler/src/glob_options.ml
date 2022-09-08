@@ -33,6 +33,19 @@ let introduce_array_copy = ref true
 let print_dependencies = ref false 
 let lazy_regalloc = ref false
 
+type architecture =
+  | X86_64
+  | ARM_M4
+let target_arch = ref X86_64
+
+let set_target_arch a =
+  let a' =
+    match a with
+    | "x86-64" -> X86_64
+    | "arm-m4" -> ARM_M4
+    | _ -> assert false
+  in target_arch := a'
+
 type x86_assembly_style = [`ATT | `Intel ]
 let assembly_style : x86_assembly_style ref = ref `ATT
 
@@ -179,6 +192,7 @@ let options = [
     "-intel", Arg.Unit (set_syntax `Intel), "use intel syntax (default is AT&T)"; 
     "-ATT", Arg.Unit (set_syntax `ATT), "use AT&T syntax (default is AT&T)"; 
     "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), ": select calling convention (default depend on host architecture)";
+    "-arch", Arg.Symbol (["x86-64"; "arm-m4"], set_target_arch), ": select target arch (default is x86-64)";
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"

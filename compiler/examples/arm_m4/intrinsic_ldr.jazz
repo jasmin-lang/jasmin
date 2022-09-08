@@ -1,0 +1,39 @@
+export
+fn ldr(reg u32 arg) -> reg u32 {
+    reg u32 x;
+
+    x = #LDR([arg]);
+    x = #LDR([x + 2]);
+    x = #LDR([x + arg]);
+    x = #LDR([x + (arg * 1)]);
+    x = #LDR([x + (arg * 2)]);
+    x = #LDR([x + (arg * 4)]);
+    x = #LDR([x + (arg * 8)]);
+
+    reg bool n, z, v, c;
+    n, z, c, v, x = #MOVS(x);
+
+    // Conditions.
+    x = #LDRcc([x], z, x);            // EQ
+    x = #LDRcc([x], !z, x);           // NE
+    x = #LDRcc([x], c, x);            // CS
+    x = #LDRcc([x], !c, x);           // CC
+    x = #LDRcc([x], n, x);            // MI
+    x = #LDRcc([x], !n, x);           // PL
+    x = #LDRcc([x], v, x);            // VS
+    x = #LDRcc([x], !v, x);           // VC
+    x = #LDRcc([x], c && !z, x);      // HI
+    x = #LDRcc([x], !c || z, x);      // LS
+    x = #LDRcc([x], n == v, x);       // GE
+    x = #LDRcc([x], n != v, x);       // LT
+    x = #LDRcc([x], !z && n == v, x); // GT
+    x = #LDRcc([x], z || n != v, x);  // LE
+
+    x = #LDRcc([x + 2], z, x);
+    x = #LDRcc([x + arg], z, x);
+    x = #LDRcc([x + (arg * 1)], z, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

@@ -1,0 +1,29 @@
+export
+fn sdiv(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    x = arg0 /32s arg1;
+
+    // Set flags.
+    reg bool n, z, v, c;
+    n, z, c, v, _ = #MOVS(x);
+
+    // Conditions.
+    x = x /32s arg0 if z;            // EQ
+    x = x /32s arg0 if !z;           // NE
+    x = x /32s arg0 if c;            // CS
+    x = x /32s arg0 if !c;           // CC
+    x = x /32s arg0 if n;            // MI
+    x = x /32s arg0 if !n;           // PL
+    x = x /32s arg0 if v;            // VS
+    x = x /32s arg0 if !v;           // VC
+    x = x /32s arg0 if c && !z;      // HI
+    x = x /32s arg0 if !c || z;      // LS
+    x = x /32s arg0 if n == v;       // GE
+    x = x /32s arg0 if n != v;       // LT
+    x = x /32s arg0 if !z && n == v; // GT
+    x = x /32s arg0 if z || n != v;  // LE
+
+    reg u32 res;
+    res = x;
+    return res;
+}
