@@ -1,5 +1,3 @@
-(* * Syntax and semantics of the dmasm source language *)
-
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith gen_map utils strings.
