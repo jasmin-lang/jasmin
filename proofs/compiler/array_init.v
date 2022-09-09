@@ -1,5 +1,3 @@
-(* * Prove properties about semantics of dmasm input language *)
-
 (* ** Imports and settings *)
 Require Import ZArith.
 From mathcomp Require Import all_ssreflect.
