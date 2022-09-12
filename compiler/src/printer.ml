@@ -7,6 +7,15 @@ module E = Expr
 module F = Format
 
 (* -------------------------------------------------------------------- *)
+let ws_of_ws = function
+    | `W8   -> W.U8
+    | `W16  -> W.U16
+    | `W32  -> W.U32
+    | `W64  -> W.U64
+    | `W128 -> W.U128
+    | `W256 -> W.U256
+
+(* -------------------------------------------------------------------- *)
 let pp_string0 fmt str =
   F.fprintf fmt "%a" (pp_list "" F.pp_print_char) str
 
@@ -185,6 +194,27 @@ let pp_syscall (o: 'a Syscall_t.syscall_t) =
   | Syscall_t.RandomBytes _ -> "#randombytes"
 
 (* -------------------------------------------------------------------- *)
+let rec pp_simple_attribute fmt =
+  function
+  | Annotations.Aint z -> Z.pp_print fmt z
+  | Aid s | Astring s -> F.fprintf fmt "%S" s
+  | Aws ws -> F.fprintf fmt "%s" (string_of_ws (ws_of_ws ws))
+  | Astruct a -> F.fprintf fmt "(%a)" pp_annotations a
+
+and pp_attribute fmt = function
+  | None -> ()
+  | Some a -> Format.fprintf fmt "=%a" pp_simple_attribute (L.unloc a)
+
+and pp_annotation fmt (k, v) =
+  F.fprintf fmt "%s%a" (L.unloc k) pp_attribute v
+
+and pp_annotations fmt a =
+  Format.fprintf fmt "%a" (pp_list ",@ " pp_annotation) a
+
+let pp_annotations fmt a =
+  if a != [] then F.fprintf fmt "#[@[<hov>%a@]]@ " pp_annotations a
+
+(* -------------------------------------------------------------------- *)
 let pp_tag = E.(function
   | AT_none    -> ""
   | AT_keep    -> ":k"
@@ -198,6 +228,7 @@ let pp_align fmt = function
 
 let rec pp_gi pp_info pp_len pp_opn pp_var fmt i =
   F.fprintf fmt "%a" pp_info i.i_info;
+  F.fprintf fmt "%a" pp_annotations i.i_annot;
   match i.i_desc with
   | Cassgn(x, tg, ty, Parr_init n) ->
     F.fprintf fmt "@[<hov 2>ArrayInit(%a); /* length=%a %a%s */@]"
