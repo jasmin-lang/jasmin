@@ -3,6 +3,7 @@ src/Annotations
 src/Arch
 src/Arch_full
 src/Array_expand
+src/CheckAnnot
 src/Conv
 src/CoreConv
 src/Ct_checker_forward
