@@ -70,9 +70,11 @@
    [PR #226](https://github.com/jasmin-lang/jasmin/pull/226),
    [PR #233](https://github.com/jasmin-lang/jasmin/pull/233)).
 
-- For loops that remain after “unrolling” yield a proper error message
+- For loops and “inline”-annotated instructions that remain after
+  “unrolling” yield a proper error message
   ([PR #243](https://github.com/jasmin-lang/jasmin/pull/243);
-  fixes [#29](https://github.com/jasmin-lang/jasmin/issues/29)).
+  fixes [#29](https://github.com/jasmin-lang/jasmin/issues/29),
+  fixes [#150](https://github.com/jasmin-lang/jasmin/issues/150)).
 
 # Jasmin 22.0
 

@@ -1,0 +1,13 @@
+export
+fn main(reg u64 x) -> reg u64 {
+  inline int i;
+  reg u64 y;
+  y = 0;
+  for i = 0 to 10 {
+    #inline
+    if (x == i) {
+      y = x;
+    }
+  }
+  return y;
+}

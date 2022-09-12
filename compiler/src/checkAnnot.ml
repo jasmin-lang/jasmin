@@ -70,3 +70,25 @@ let check_no_for_loop (_, fds) =
     (fun { f_name; f_body; _ } ->
       check_no_for_loop ~funname:f_name.fn_name f_body)
     fds
+
+let rec check_no_inline_instr ~funname s =
+  List.iter (check_no_inline_instr_i ~funname) s
+
+and check_no_inline_instr_i ~funname { i_desc; i_loc; i_annot; _ } =
+  if List.exists (fun (k, _) -> String.equal "inline" (L.unloc k)) i_annot then
+    hierror ~funname ~loc:(Lmore i_loc) ~internal:false
+      ~kind:"compilation error" ~sub_kind:"loop unrolling"
+      "“inline”-annotated instructions remain";
+  check_no_inline_instr_i_r ~funname i_desc
+
+and check_no_inline_instr_i_r ~funname = function
+  | Cassgn _ | Copn _ | Csyscall _ | Cfor _ | Ccall _ -> ()
+  | Cif (_, a, b) | Cwhile (_, a, _, b) ->
+      check_no_inline_instr ~funname a;
+      check_no_inline_instr ~funname b
+
+let check_no_inline_instr (_, fds) =
+  List.iter
+    (fun { f_name; f_body; _ } ->
+      check_no_inline_instr ~funname:f_name.fn_name f_body)
+    fds
