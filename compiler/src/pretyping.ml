@@ -559,7 +559,11 @@ module Annot = struct
 
   let ensure_uniq1 ?(case_sensitive=true) id f annot = 
     ensure_uniq ~case_sensitive [id, f] annot
-end 
+
+  let consume id annot : A.annotations =
+    List.filter (fun (k, _) -> not (String.equal id (L.unloc k))) annot
+
+end
 
 
 
@@ -1662,7 +1666,7 @@ let tt_annot_vardecls dfl_writable pd env (annot, (ty,vs)) =
   tt_vardecls_push dfl_writable pd env vars 
   
 let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm Env.env * (unit, 'asm) P.pinstr list  =
-  let mk_i instr = 
+  let mk_i ?(annot=annot) instr =
     { P.i_desc = instr; P.i_loc = L.of_loc pi; P.i_info = (); P.i_annot = annot} in
   match L.unloc pi with
   | S.PIdecl tvs -> 
@@ -1694,7 +1698,8 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
           match f.P.f_cc with 
           | FInfo.Internal -> E.InlineFun
           | FInfo.Export | FInfo.Subroutine _ -> E.DoNotInline in
-      env, [mk_i (mk_call (L.loc pi) is_inline lvs f es)]
+      let annot = Annot.consume "inline" annot in
+      env, [mk_i ~annot (mk_call (L.loc pi) is_inline lvs f es)]
 
   | S.PIAssign ((ls, xs), `Raw, { pl_desc = PEPrim (f, args) }, None) when L.unloc f = "randombytes" ->
       (* FIXME syscall *)
@@ -1802,7 +1807,8 @@ let rec tt_instr pd asmOp (env : 'asm Env.env) ((annot,pi) : S.pinstr) : 'asm En
       let s2 = omap_dfl (tt_block pd asmOp env) [] s2 in
       let a = 
         omap_dfl (fun () -> E.Align) E.NoAlign (Annot.ensure_uniq1 "align" Annot.none annot) in
-      env, [mk_i (P.Cwhile (a, s1, c, s2))]
+      let annot = Annot.consume "align" annot in
+      env, [mk_i ~annot (P.Cwhile (a, s1, c, s2))]
 
 (* -------------------------------------------------------------------- *)
 and tt_block pd asmOp (env : 'asm Env.env) (pb : S.pblock) =
