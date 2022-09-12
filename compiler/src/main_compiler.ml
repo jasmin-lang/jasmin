@@ -207,6 +207,7 @@ let main () =
         |> donotcompile
       else (
         if s == Unrolling then CheckAnnot.check_no_for_loop p;
+        if s == Unrolling then CheckAnnot.check_no_inline_instr p;
         eprint s (Printer.pp_prog ~debug Arch.asmOp) p
       ) in
 
