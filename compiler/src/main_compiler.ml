@@ -205,8 +205,10 @@ let main () =
       if s = SafetyConfig.sc_comp_pass () && !check_safety then
         check_safety_p Arch.asmOp Arch.analyze s p source_prog
         |> donotcompile
-      else
-        eprint s (Printer.pp_prog ~debug Arch.asmOp) p in
+      else (
+        if s == Unrolling then CheckAnnot.check_no_for_loop p;
+        eprint s (Printer.pp_prog ~debug Arch.asmOp) p
+      ) in
 
     visit_prog_after_pass ~debug:true Compiler.ParamsExpansion prog;
 

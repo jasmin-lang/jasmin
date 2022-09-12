@@ -49,3 +49,24 @@ let check_stack_size fds =
             hierror "the stack has alignment %s (expected: %s)"
               (string_of_ws actual) (string_of_ws expected))
     fds
+
+let rec check_no_for_loop ~funname s =
+  List.iter (check_no_for_loop_i ~funname) s
+
+and check_no_for_loop_i ~funname { i_desc; i_loc; _ } =
+  check_no_for_loop_i_r ~funname ~loc:i_loc i_desc
+
+and check_no_for_loop_i_r ~funname ~loc = function
+  | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> ()
+  | Cif (_, a, b) | Cwhile (_, a, _, b) ->
+      check_no_for_loop ~funname a;
+      check_no_for_loop ~funname b
+  | Cfor _ ->
+      hierror ~funname ~loc:(Lmore loc) ~kind:"compilation error"
+        ~sub_kind:"loop unrolling" ~internal:false "for loops remain"
+
+let check_no_for_loop (_, fds) =
+  List.iter
+    (fun { f_name; f_body; _ } ->
+      check_no_for_loop ~funname:f_name.fn_name f_body)
+    fds
