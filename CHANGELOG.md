@@ -56,6 +56,19 @@
 - new option
 	"-call-conv {windows|linux}": select calling convention (default depend on host architecture)
 
+- Added syntactic sugar for `else if` blocks
+  ([PR #224](https://github.com/jasmin-lang/jasmin/pull/244)).
+  I.e., you can now use constructions like:
+  ```
+  if x == 0 {
+    // (...)
+  } else if x == 1 {
+    // (...)
+  } else {
+    // (...)
+  }
+  ```
+
 ## Improvements
 
 - Intrinsics present at source-level can no longer be removed by dead-code elimination
