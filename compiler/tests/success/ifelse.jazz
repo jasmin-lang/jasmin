@@ -1,0 +1,12 @@
+export
+fn test(reg u64 x, reg u64 y) -> reg u64 {
+    reg u64 result;
+    if x != 0 {
+        result = x;
+    } else if y != 0 {
+        result = y;
+    } else {
+        result = 0;
+    }
+    return result;
+}
