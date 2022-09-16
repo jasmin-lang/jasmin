@@ -1295,17 +1295,19 @@ let add_arrsz env f =
   env.warrsz := Sv.fold add_wsz vars !(env.warrsz);
   env
 
-let pp_array_decl i = 
+let pp_array_decl ~prefix i =
   let file = Format.sprintf "Array%i.ec" i in
-  let out = open_out file in
+  let path = Filename.concat prefix file in
+  let out = open_out path in
   let fmt = Format.formatter_of_out_channel out in
   Format.fprintf fmt "@[<v>from Jasmin require import JArray.@ @ ";
   Format.fprintf fmt "clone export PolyArray as Array%i  with op size <- %i.@]@." i i;
   close_out out
 
-let pp_warray_decl i = 
+let pp_warray_decl ~prefix i =
   let file = Format.sprintf "WArray%i.ec" i in
-  let out = open_out file in
+  let path = Filename.concat prefix file in
+  let out = open_out path in
   let fmt = Format.formatter_of_out_channel out in
   Format.fprintf fmt "@[<v>from Jasmin require import JWord_array.@ @ ";
   Format.fprintf fmt "clone export WArray as WArray%i  with op size <- %i.@]@." i i;
@@ -1330,8 +1332,9 @@ let pp_prog pd asmOp fmt model globs funcs arrsz warrsz =
       env globs in
   let env = List.fold_left add_arrsz env funcs in
 
-  Sint.iter pp_array_decl !(env.arrsz);
-  Sint.iter pp_warray_decl !(env.warrsz);
+  let prefix = !Glob_options.ec_array_path in
+  Sint.iter (pp_array_decl ~prefix) !(env.arrsz);
+  Sint.iter (pp_warray_decl ~prefix) !(env.warrsz);
 
   let pp_arrays arr fmt s = 
     let l = Sint.elements s in

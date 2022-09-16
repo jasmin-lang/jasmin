@@ -69,6 +69,10 @@
   }
   ```
 
+- EasyCrypt extraction of array support libraries is controlled
+  through the “-oecarray dir” command line argument
+  ([PR #246](https://github.com/jasmin-lang/jasmin/pull/246)).
+
 ## Improvements
 
 - Intrinsics present at source-level can no longer be removed by dead-code elimination
