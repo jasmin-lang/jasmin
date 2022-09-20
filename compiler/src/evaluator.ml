@@ -140,20 +140,16 @@ let small_step1 spp s =
 let rec small_step spp s =
   small_step spp (small_step1 spp s)
 
-let init_state scs0 p fn m =
-  let f = 
-    match get_fundef p.p_funcs fn with
-    | Some f -> f
-    | None -> assert false in
-  assert (f.f_tyin = []);
-  { s_prog = p;
-    s_cmd = f.f_body;
-    s_estate = {escs = scs0; emem = m; evm = vmap0 };
-    s_stk = Sempty(dummy_instr_info, f) }
+let init_state spp scs0 p ii fn args m =
+  let f = Option.get (get_fundef p.p_funcs fn) in
+  let vargs = exn_exec ii (mapM2 ErrType truncate_val f.f_tyin args) in
+  let s_estate = { escs = scs0; emem = m; evm = vmap0 } in
+  let s_estate = exn_exec ii (write_vars spp f.f_params vargs s_estate) in
+  { s_prog = p; s_cmd = f.f_body; s_estate; s_stk = Sempty (ii, f) }
 
 
-let exec spp scs0 p fn m =
-  let s = init_state scs0 p fn m in
+let exec spp scs0 p ii fn args m =
+  let s = init_state spp scs0 p ii fn args m in
   try small_step spp s
   with Final(m,vs) -> m, vs 
 

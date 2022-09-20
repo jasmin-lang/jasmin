@@ -262,8 +262,8 @@ module Env : sig
   end
 
   module Exec : sig
-    val push : P.funname -> (Z.t * Z.t) list -> 'asm env -> 'asm env
-    val get  : 'asm env -> (P.funname * (Z.t * Z.t) list) list
+    val push : L.t -> P.funname -> (Z.t * Z.t) list -> 'asm env -> 'asm env
+    val get  : 'asm env -> (P.funname * (Z.t * Z.t) list) L.located list
   end
 
 end = struct
@@ -279,7 +279,7 @@ end = struct
     e_globals : (A.symbol, P.pvar) Map.t;
     e_funs    : (A.symbol, (unit, 'asm) P.pfunc * P.pty list) Map.t;
     e_decls   : (unit, 'asm) P.pmod_item list;
-    e_exec    : (P.funname * (Z.t * Z.t) list) list;
+    e_exec    : (P.funname * (Z.t * Z.t) list) L.located list;
     e_loader  : loader;
     e_reserved : Ss.t;                           (* Set of string (variable name) declared by the user, 
                                                     fresh variables introduced by the compiler should be disjoint from this set *) 
@@ -408,7 +408,7 @@ end = struct
   end
 
   module Exec = struct
-    let push f m env = { env with e_exec = (f, m) :: env.e_exec }
+    let push loc f m env = { env with e_exec = L.mk_loc loc (f, m) :: env.e_exec }
     let get env = List.rev env.e_exec
   end
 
@@ -2017,8 +2017,8 @@ let rec tt_item pd asmOp (env : 'asm Env.env) pt : 'asm Env.env =
   | S.PParam  pp -> tt_param  pd env (L.loc pt) pp
   | S.PFundef pf -> tt_fundef pd asmOp env (L.loc pt) pf
   | S.PGlobal pg -> tt_global pd env (L.loc pt) pg
-  | S.Pexec   pf -> 
-    Env.Exec.push (fst (tt_fun env pf.pex_name)).P.f_name pf.pex_mem env
+  | S.Pexec   pf ->
+    Env.Exec.push (L.loc pt) (fst (tt_fun env pf.pex_name)).P.f_name pf.pex_mem env
   | S.Prequire (from, fs) -> 
     List.fold_left (tt_file_loc pd asmOp from) env fs 
 

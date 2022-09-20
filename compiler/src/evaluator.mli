@@ -4,8 +4,11 @@ val exec :
   ('a, 'b) Sem_pexpr_params.coq_SemPexprParams ->
   'b ->
   'a Expr.prog ->
+  Expr.instr_info ->
   Utils0.funname ->
-  Low_memory.Memory.mem -> Low_memory.Memory.mem * Values.values
+  Values.values ->
+  Low_memory.Memory.mem ->
+  Low_memory.Memory.mem * Values.values
 
 val pp_val : Format.formatter -> Values.value -> unit
 
