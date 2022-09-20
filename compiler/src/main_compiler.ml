@@ -252,7 +252,8 @@ let main () =
 
     let to_exec = Pretyping.Env.Exec.get env in
     if to_exec <> [] then begin
-        let exec (f, m) =
+        let exec { L.pl_loc = loc ; L.pl_desc = (f, m) } =
+          let ii = L.i_loc0 loc, [] in
           try
             let pp_range fmt (ptr, sz) =
               Format.fprintf fmt "%a:%a" Z.pp_print ptr Z.pp_print sz in
@@ -274,13 +275,15 @@ let main () =
               in
               (match m_init with
                  | Utils0.Ok m -> m
-                 | Utils0.Error err -> raise (Evaluator.Eval_error (Expr.dummy_instr_info, err)))
+                 | Utils0.Error err -> raise (Evaluator.Eval_error (ii, err)))
               |>
               Evaluator.exec
                 spp
                 (Syscall_ocaml.initial_state ())
                 (Expr.to_uprog Arch.asmOp cprog)
+                ii
                 (Conv.cfun_of_fun tbl f)
+                []
             in
 
             Format.printf "@[<v>%a@]@."

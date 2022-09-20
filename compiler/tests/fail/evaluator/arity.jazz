@@ -1,0 +1,4 @@
+inline
+fn f(reg u64 x) {}
+
+exec f()
