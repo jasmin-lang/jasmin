@@ -1,4 +1,4 @@
-export fn test () -> () 
+export fn test () -> reg u64
 {
   reg u64 x1;
   reg u64 x2;
@@ -7,9 +7,9 @@ export fn test () -> ()
   x2    = 1;
   _, x1  += x2;
 //  x2    = x1;
-  x2    = x1 + 1;
+  x2    = #LEA(x1 + 1);
   x2   += x1;
-
+  return x2;
 }
 
 
