@@ -11,9 +11,7 @@ fn cswap(stack u64[4] x, stack u64[4] y, reg u64 swap)
     tmp1   = x[i];
     tmp1  ^= y[i];
     tmp1  &= mask;
-    tmp2   = x[i];
-    tmp2  ^= tmp1;
-    x[i] = tmp2;
+    x[i]  ^= tmp1;
     tmp2   = y[i];
     tmp2  ^= tmp1;
     y[i] = tmp2;
@@ -24,7 +22,6 @@ fn cswap(stack u64[4] x, stack u64[4] y, reg u64 swap)
 export
 fn swap4 (reg u64 xp, reg u64 yp, reg u64 swap, reg u64 sb) {
 stack u64[4] xc, yc;
-reg u64 tmp;
 inline int i;
 
 for i = 0 to 4 {
@@ -37,9 +34,7 @@ swap >>= sb;
 xc, yc = cswap(xc, yc, swap);
 
 for i = 0 to 4 {
-tmp = xc[i];
-[xp + 8 * i] = tmp;
-tmp = yc[i];
-[yp + 8 * i] = tmp;
+[xp + 8 * i] = xc[i];
+[yp + 8 * i] = yc[i];
 }
 }
