@@ -1,6 +1,0 @@
-export fn set0() -> reg u64 {
-reg u64 r;
-r = 0;
-r = #MOV(0);
-return r;
-}
