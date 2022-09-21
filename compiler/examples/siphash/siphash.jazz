@@ -2,7 +2,7 @@ param int cROUNDS = 2;
 param int dROUNDS = 4;
 
 inline fn rotl(reg u64 x, inline int n) -> reg u64 {
-  _, _, x = #ROL(x, n);
+  ?{}, x = #ROL(x, n);
   return x;
 }
 
@@ -66,7 +66,7 @@ fn siphash_jazz(
   b = inlen; b <<= 56;
   inlen &= 0xFFFFFFFFFFFFFFF8;
   /* Variant: inlen -= left;*/
-  end = in + inlen;
+  end = #LEA(in + inlen);
 
   while (in != end) {
     m = [in + 0 * 8];

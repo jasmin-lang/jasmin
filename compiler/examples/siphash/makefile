@@ -4,7 +4,7 @@ all: run
 	./run
 
 siphash.s: siphash.jazz
-	$(JASMINC) -lea -o $@ $<
+	$(JASMINC) -o $@ $<
 
 run: siphash.c siphash.s run.c
 	$(CC) -O2 -o $@ $^
