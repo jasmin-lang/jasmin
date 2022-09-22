@@ -297,7 +297,7 @@ let mkfunname env fn =
   in
   create_name env s
 
-let empty_env model fds arrsz warrsz = 
+let empty_env model fds arrsz warrsz randombytes= 
 
   let env = { 
     model;
@@ -308,7 +308,7 @@ let empty_env model fds arrsz warrsz =
     arrsz;
     warrsz;
     auxv  = Mty.empty;
-    randombytes = ref Sint.empty;
+    randombytes;
   } in
 
 (*  let mk_tys tys = List.map Conv.cty_of_ty tys in *)
@@ -1321,9 +1321,9 @@ let add_glob_arrsz env (x,d) =
     env.warrsz := Sint.add (arr_size ws n) !(env.warrsz); 
     env
 
-let pp_prog pd asmOp fmt model globs funcs arrsz warrsz =
+let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes =
 
-  let env = empty_env model funcs arrsz warrsz in
+  let env = empty_env model funcs arrsz warrsz randombytes in
   
   let env = 
     List.fold_left (fun env (x, d) -> let env = add_glob_arrsz env (x,d) in add_glob env x)
@@ -1403,8 +1403,9 @@ let extract pd asmOp fmt model ((globs,funcs):('info, 'asm) prog) tokeep =
   let funcs = List.rev (List.filter dofun funcs) in
   let arrsz = ref Sint.empty in
   let warrsz = ref Sint.empty in
-  (* Do first a dummy printing to collect the Arrayi WArrayi *)
+  let randombytes = ref Sint.empty in
+  (* Do first a dummy printing to collect the Arrayi WArrayi RandomBytes ... *)
   let dummy_fmt = Format.make_formatter (fun _ _ _ -> ()) (fun _ -> ()) in 
-  pp_prog pd asmOp dummy_fmt model globs funcs arrsz warrsz;
-  pp_prog pd asmOp       fmt model globs funcs arrsz warrsz
+  pp_prog pd asmOp dummy_fmt model globs funcs arrsz warrsz randombytes;
+  pp_prog pd asmOp       fmt model globs funcs arrsz warrsz randombytes
 

@@ -1,0 +1,11 @@
+export fn foo1() -> reg u64 {
+   reg u64 res;    
+   stack u64[1] r;
+   reg ptr u64[1] p;
+   p = r;
+   p = #randombytes(p);
+   /* FIXME syscall res = p[0]; fail */
+   r = p;
+   res = r[0];  
+   return res;
+}
