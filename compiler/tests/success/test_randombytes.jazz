@@ -1,0 +1,29 @@
+export fn foo1() -> reg u64 {
+   reg u64 res;    
+   stack u64[1] r;
+   reg ptr u64[1] p;
+   p = r;
+   p = #randombytes(p);
+   res = p[0];  
+   return res;
+}
+
+export fn foo2() -> reg u64 {
+   reg u64 res;    
+   stack u8[8] r;
+   reg ptr u8[8] p;
+   p = r;
+   p = #randombytes(p);
+   res = p[u64 0];  
+   return res;
+}
+
+export fn foo3() -> reg u8 {
+   reg u8 res;    
+   stack u8[10] r;
+   reg ptr u8[10] p;
+   p = r;
+   p = #randombytes(p);
+   res = p[0];  
+   return res;
+}
