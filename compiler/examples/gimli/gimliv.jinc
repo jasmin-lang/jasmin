@@ -1,0 +1,89 @@
+/* Depends on a “use_shufb” boolean parameter.
+   If set, parallel rotation by 24 bits is implemented
+   using the VPSHUFB instruction and a 128 constant.
+*/
+
+inline
+fn shift(reg u128 x, inline int count) -> reg u128 {
+  reg u128 r;
+  r = #VPSLL_4u32(x, count);
+  return r;
+}
+
+inline
+fn rotate(reg u128 r, inline int count) -> reg u128 {
+  reg u128 a, b;
+  if use_shufb && count == 24 {
+    global u128 rotate24pattern;
+    rotate24pattern = (16u8)[ 12, 15, 14, 13, 8, 11, 10, 9, 4, 7, 6, 5, 0, 3, 2, 1 ];
+    r = #VPSHUFB(r, rotate24pattern);
+  } else {
+    a = shift(r, count);
+    count = 32 - count;
+    b = #VPSRL_4u32(r, count);
+    r = a ^ b;
+  }
+  return r;
+}
+
+inline
+fn gimli_body (reg u128 x, reg u128 y, reg u128 z) -> reg u128, reg u128, reg u128 {
+  reg u128 a, b, c, d, e;
+  inline int round, pattern;
+
+  for round = 24 downto 0 {
+    x = rotate(x, 24);
+    y = rotate(y, 9);
+
+    a = shift(z, 1);
+    b = y & z;
+    c = shift(b, 2);
+    d = x ^ a;
+    e = d ^ c;
+
+    a = x | z;
+    b = shift(a, 1);
+    c = y ^ x;
+    d = c ^ b;
+
+    a = x & y;
+    b = shift(a, 3);
+    c = z ^ y;
+
+    x = c ^ b;
+    y = d;
+    z = e;
+
+    if (round % 4) == 0 { // small swap: pattern s...s...s... etc.
+      x = #VPSHUFD(x, (4u2)[2, 3, 0, 1]);
+    }
+
+    if (round % 4) == 2 { // big swap: pattern ..S...S...S. etc.
+      x = #VPSHUFD(x, (4u2)[1, 0, 3, 2]);
+    }
+
+    if (round % 4) == 0 { // add constant: pattern c...c...c... etc.
+      reg u32 m;
+      m = 0x9e377900 ^32u round;
+      a = (128u)m;
+      x ^= a;
+    }
+
+  }
+  return (x,y,z);
+}
+
+export
+fn gimli(reg u64 state) {
+  reg u128 x, y, z;
+
+  x = (u128)[state + 16 * 0];
+  y = (u128)[state + 16 * 1];
+  z = (u128)[state + 16 * 2];
+
+  (x,y,z) = gimli_body(x,y,z); 
+
+  (u128)[state + 16 * 0] = x;
+  (u128)[state + 16 * 1] = y;
+  (u128)[state + 16 * 2] = z;
+}
