@@ -297,7 +297,7 @@ let mkfunname env fn =
   in
   create_name env s
 
-let empty_env model fds arrsz warrsz = 
+let empty_env model fds arrsz warrsz randombytes =
 
   let env = { 
     model;
@@ -308,7 +308,7 @@ let empty_env model fds arrsz warrsz =
     arrsz;
     warrsz;
     auxv  = Mty.empty;
-    randombytes = ref Sint.empty;
+    randombytes;
   } in
 
 (*  let mk_tys tys = List.map Conv.cty_of_ty tys in *)
@@ -1323,9 +1323,9 @@ let add_glob_arrsz env (x,d) =
     env.warrsz := Sint.add (arr_size ws n) !(env.warrsz); 
     env
 
-let pp_prog pd asmOp fmt model globs funcs arrsz warrsz =
+let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes =
 
-  let env = empty_env model funcs arrsz warrsz in
+  let env = empty_env model funcs arrsz warrsz randombytes in
   
   let env = 
     List.fold_left (fun env (x, d) -> let env = add_glob_arrsz env (x,d) in add_glob env x)
@@ -1357,13 +1357,15 @@ let pp_prog pd asmOp fmt model globs funcs arrsz warrsz =
   let pp_mod_arg_sig fmt env =
     if not (Sint.is_empty !(env.randombytes)) then
       let pp_randombytes_decl fmt n =
-        Format.fprintf fmt "proc randombytes_%i(_:%a.t) : %a.t" n (pp_WArray env) n (pp_WArray env) n in
-      Format.fprintf fmt "module type %s = {@   @[<v>%a@]@}.@ @ "
+        Format.fprintf fmt "proc randombytes_%i(_:W8.t %a.t) : W8.t %a.t" n (pp_Array env) n (pp_Array env) n in
+      Format.fprintf fmt "module type %s = {@   @[<v>%a@]@ }.@ @ "
         syscall_mod_sig
         (pp_list "@ " pp_randombytes_decl) (Sint.elements !(env.randombytes));
       let pp_randombytes_proc fmt n =
-        Format.fprintf fmt "proc randombytes_%i(a:%a.t) : %a.t = {@   a <$ %a.darray;@   return a;@ }"
-          n (pp_WArray env) n (pp_WArray env) n (pp_WArray env) n in
+        Format.fprintf fmt "proc randombytes_%i(a:W8.t %a.t) : W8.t %a.t = {@   a <$ @[dmap %a.darray@ (fun a => %a.init (fun i => %a.get8 a i))@];@   return a;@ }"
+          n (pp_Array env) n (pp_Array env) n (pp_WArray env) n 
+          (pp_Array env) n (pp_WArray env) n
+      in
       Format.fprintf fmt
        "module %s : %s = {@   @[<v>%a@]@ }.@ @ "
        syscall_mod syscall_mod_sig
@@ -1372,7 +1374,7 @@ let pp_prog pd asmOp fmt model globs funcs arrsz warrsz =
 
   Format.fprintf fmt 
      "@[<v>%s.@ %s.@ @ %a%a@ %a@ @ %amodule M%a = {@   @[<v>%a%a@]@ }.@ @]@."
-    "require import AllCore IntDiv CoreMap List"
+    "require import AllCore IntDiv CoreMap List Distr"
     "from Jasmin require import JModel"
     (pp_arrays "Array") !(env.arrsz)
     (pp_arrays "WArray") !(env.warrsz)
@@ -1406,8 +1408,9 @@ let extract pd asmOp fmt model ((globs,funcs):('info, 'asm) prog) tokeep =
   let funcs = List.rev (List.filter dofun funcs) in
   let arrsz = ref Sint.empty in
   let warrsz = ref Sint.empty in
-  (* Do first a dummy printing to collect the Arrayi WArrayi *)
+  let randombytes = ref Sint.empty in
+  (* Do first a dummy printing to collect the Arrayi WArrayi RandomBytes ... *)
   let dummy_fmt = Format.make_formatter (fun _ _ _ -> ()) (fun _ -> ()) in 
-  pp_prog pd asmOp dummy_fmt model globs funcs arrsz warrsz;
-  pp_prog pd asmOp       fmt model globs funcs arrsz warrsz
+  pp_prog pd asmOp dummy_fmt model globs funcs arrsz warrsz randombytes;
+  pp_prog pd asmOp       fmt model globs funcs arrsz warrsz randombytes
 
