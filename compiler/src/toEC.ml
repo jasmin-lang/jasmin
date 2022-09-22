@@ -1354,13 +1354,15 @@ let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes =
   let pp_mod_arg_sig fmt env =
     if not (Sint.is_empty !(env.randombytes)) then
       let pp_randombytes_decl fmt n =
-        Format.fprintf fmt "proc randombytes_%i(_:%a.t) : %a.t" n (pp_WArray env) n (pp_WArray env) n in
-      Format.fprintf fmt "module type %s = {@   @[<v>%a@]@}.@ @ "
+        Format.fprintf fmt "proc randombytes_%i(_:W8.t %a.t) : W8.t %a.t" n (pp_Array env) n (pp_Array env) n in
+      Format.fprintf fmt "module type %s = {@   @[<v>%a@]@ }.@ @ "
         syscall_mod_sig
         (pp_list "@ " pp_randombytes_decl) (Sint.elements !(env.randombytes));
       let pp_randombytes_proc fmt n =
-        Format.fprintf fmt "proc randombytes_%i(a:%a.t) : %a.t = {@   a <$ %a.darray;@   return a;@ }"
-          n (pp_WArray env) n (pp_WArray env) n (pp_WArray env) n in
+        Format.fprintf fmt "proc randombytes_%i(a:W8.t %a.t) : W8.t %a.t = {@   a <$ @[dmap %a.darray@ %s@];@   return a;@ }"
+          n (pp_Array env) n (pp_Array env) n (pp_WArray env) n 
+          "(fun a => Array8.init (fun i => get8 a i))"
+      in
       Format.fprintf fmt
        "module %s : %s = {@   @[<v>%a@]@ }.@ @ "
        syscall_mod syscall_mod_sig
@@ -1369,7 +1371,7 @@ let pp_prog pd asmOp fmt model globs funcs arrsz warrsz randombytes =
 
   Format.fprintf fmt 
      "@[<v>%s.@ %s.@ @ %a%a@ %a@ @ %amodule M%a = {@   @[<v>%a%a@]@ }.@ @]@."
-    "require import AllCore IntDiv CoreMap List"
+    "require import AllCore IntDiv CoreMap List Distr"
     "from Jasmin require import JModel"
     (pp_arrays "Array") !(env.arrsz)
     (pp_arrays "WArray") !(env.warrsz)
