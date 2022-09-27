@@ -3,7 +3,8 @@
 
 ## Bug fixes
 
-- Fix printing of `while` loops [PR #131](https://github.com/jasmin-lang/jasmin/pull/131).
+- Fix printing of `while` loops
+  ([PR #131](https://github.com/jasmin-lang/jasmin/pull/131)).
 
 - Improved removal of assignments introduced by inlining
   ([PR #177](https://github.com/jasmin-lang/jasmin/pull/177);
@@ -47,18 +48,24 @@
 
 ## New features
 
-- Fill an array with “random” data using `p = #randombytes(p);`
+- Added instruction `#randombytes` to fill an array with “random” data
+  ([PR #171](https://github.com/jasmin-lang/jasmin/pull/171)).
+  The typical use is: `p = #randombytes(p);`.
 
-- provide access to mmx registers:
-	declaration:
-	  normal register:  #mmx reg u64 x
-	  mmx    register:       reg u64 m
-	move from/to normal register: x = m; m = x;
-	             using intrasic : x = MOVX(m); m = MOVX(x);
-	add the instruction MOVX_32 and MOVX_64
+- Added access to mmx registers
+  ([PR #142](https://github.com/jasmin-lang/jasmin/pull/142)).
+  + declaration:
+    ```
+         reg u64 x; // normal register
+    #mmx reg u64 m; // mmx register
+    ```
+  + move from/to normal register: `x = m; m = x;`
+  + move from/to normal register using intrinsics: `x = #MOVX(m); m = #MOVX(x);`
+  + supported sizes: `MOVX_32` and `MOVX_64`
 
-- new option
-	"-call-conv {windows|linux}": select calling convention (default depend on host architecture)
+- Added option `-call-conv {windows|linux}` to select calling convention
+  ([PR #163](https://github.com/jasmin-lang/jasmin/pull/163)).
+  Default depends on host architecture.
 
 - Added syntactic sugar for `else if` blocks
   ([PR #244](https://github.com/jasmin-lang/jasmin/pull/244)).
@@ -74,7 +81,7 @@
   ```
 
 - EasyCrypt extraction of array support libraries is controlled
-  through the “-oecarray dir” command line argument
+  through the `-oecarray dir` command line argument
   ([PR #246](https://github.com/jasmin-lang/jasmin/pull/246)).
 
 ## Improvements
@@ -84,6 +91,7 @@
   fixes [#220](https://github.com/jasmin-lang/jasmin/issues/220)).
 
 - Lowering of a memory-to-memory copy always introduce an intermediate copy through a register
+  ([PR #184](https://github.com/jasmin-lang/jasmin/pull/184)).
 
 - `fun_info` are `FInfo.t`, `instr_info` are `IInfo.t`, and `var_info` are `Location.t`;
    this removes costly translations with `positive` and big conversion tables
