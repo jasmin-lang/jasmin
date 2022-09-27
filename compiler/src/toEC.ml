@@ -1084,22 +1084,26 @@ module Leak = struct
     | Safety -> pp_safe_cond pd env fmt (safe_lval pd env lv)
     | _ -> ()
 
-  let rec init_aux_i env i = 
+  let rec init_aux_i asmOp env i =
     match i.i_desc with
     | Cassgn (lv, _, _, e) -> add_aux (add_aux env [ty_lval lv]) [ty_expr e]
-    | Copn (lvs, _, _, _) -> add_aux env (List.map ty_lval lvs)
+    | Copn (lvs, _, op, _) ->
+       let op = base_op op in
+       let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout asmOp op) in
+       let env = add_aux env tys in
+       add_aux env (List.map ty_lval lvs)
     | Ccall(_, lvs, _, _) | Csyscall(lvs, _, _)->
       if lvs = [] then env 
       else add_aux env (List.map ty_lval lvs)
-    | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux (init_aux env c1) c2
+    | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux asmOp (init_aux asmOp env c1) c2
     | Cfor(_,_,c) -> 
       if for_safety env then
-        init_aux (add_aux env [tint; tint]) c
+        init_aux asmOp (add_aux env [tint; tint]) c
       else
-        init_aux (add_aux env [tint]) c
-    
-  and init_aux env c = List.fold_left init_aux_i env c
- 
+        init_aux asmOp (add_aux env [tint]) c
+
+  and init_aux asmOp env c = List.fold_left (init_aux_i asmOp) env c
+
   let pp_some env pp lv fmt e = 
     if for_safety env then
       match lv with
@@ -1127,7 +1131,7 @@ module Leak = struct
     pp_lval1 pd env pp_e fmt (lv, (etyo,aux))
 
   let pp_call pd env fmt lvs etyso etysi pp a =
-    let auxs = get_aux env etyso in
+    let auxs = get_aux env etysi in
     Format.fprintf fmt "@[%a %a;@]" pp_aux_lvs auxs pp a;
     let tyauxs = List.combine (List.combine etyso etysi) auxs in
     List.iter2 (pp_assgn_i pd env fmt) lvs tyauxs
@@ -1246,7 +1250,7 @@ let pp_fun pd asmOp env fmt f =
   (* init auxiliary variables *) 
   let env = 
     if env.model = Normal then Normal.init_aux asmOp env f.f_body
-    else Leak.init_aux env f.f_body in
+    else Leak.init_aux asmOp env f.f_body in
 
   (* Print the function *)
   (* FIXME ajouter les conditions d'initialisation 

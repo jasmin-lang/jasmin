@@ -41,6 +41,10 @@
   ([PR #229](https://github.com/jasmin-lang/jasmin/pull/229);
   fixes [#202](https://github.com/jasmin-lang/jasmin/issues/202)).
 
+- Fix extraction to EasyCrypt for constant-time of intrinsics with zero-extend
+  ([PR #251](https://github.com/jasmin-lang/jasmin/pull/251);
+  fixes [#250](https://github.com/jasmin-lang/jasmin/issues/250)).
+
 ## New features
 
 - Fill an array with “random” data using `p = #randombytes(p);`
