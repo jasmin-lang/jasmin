@@ -52,7 +52,7 @@ fn gimli_body(stack u32[12] state) -> stack u32[12] {
    return state;
 }
 
-export
+inline
 fn gimli(reg u64 istate) {
   stack u32[12] state;
   inline int i;
