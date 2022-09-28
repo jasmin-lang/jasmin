@@ -219,9 +219,14 @@ op MOVZX_u32_u64 (x:W32.t) = W64.of_int (W32.to_uint x).
 *)
 
 (* ALU defines the operators: 
-   BT CLC STC LEA TEST CMP AND ANDN OR XOR NOT
+   BT LEA TEST CMP AND ANDN OR XOR NOT
 *)
- 
+(* -------------------------------------------------------------------- *)
+(* CLC/STC *)
+op CLC = false.
+op STC = true.
+
+(* -------------------------------------------------------------------- *)
   (* Bit shifts *)
 (*
 | ROR    of wsize    (* rotation / right *)
