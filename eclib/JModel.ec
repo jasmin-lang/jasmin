@@ -637,6 +637,12 @@ op VMOVSLDUP_4u32 (v: W128.t): W128.t =
 op VMOVSLDUP_8u32 (v: W256.t): W256.t =
   map VMOVSLDUP_4u32 v.
 
+op VMOVSHDUP_4u32 (v: W128.t): W128.t =
+  pack4 [v \bits32 1; v \bits32 1; v \bits32  3; v \bits32 3].
+
+op VMOVSHDUP_8u32 (v: W256.t): W256.t =
+  map VMOVSHDUP_4u32 v.
+
 (* ------------------------------------------------------------------- *)
 (*
 | VPALIGNR  `(wsize)
