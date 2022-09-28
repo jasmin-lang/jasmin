@@ -647,7 +647,11 @@ op VMOVSHDUP_8u32 (v: W256.t): W256.t =
 (*
 | VPALIGNR  `(wsize)
 *)
-(* FIXME: TODO *)
+op VPALIGNR_128 (w1 w2: W128.t) (m: W8.t) : W128.t =
+  pack2 [w2; w1] `>>>` (to_uint m * 8) \bits128 0.
+
+op VPALIGNR_256 (w1 w2: W256.t) (m: W8.t) : W256.t =
+  map2 (fun w1 w2 => VPALIGNR_128 w1 w2 m) w1 w2.
 
 (* ------------------------------------------------------------------- *)
 (*
