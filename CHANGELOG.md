@@ -105,6 +105,8 @@
   fixes [#29](https://github.com/jasmin-lang/jasmin/issues/29),
   fixes [#150](https://github.com/jasmin-lang/jasmin/issues/150)).
 
+- Using option `-oec` without option `-ec` extracts all functions.
+
 # Jasmin 22.0
 
 This release is the result of more than two years of active development. It thus
