@@ -846,6 +846,10 @@ module Normal = struct
 
   and pp_instr pd asmOp env fmt i =
     match i.i_desc with 
+    | Cassgn(v, _, _, Parr_init _) ->
+      let pp_e fmt _ = Format.fprintf fmt "witness" in
+      pp_lval1 pd env pp_e fmt (v, ((), ()))
+
     | Cassgn (lv, _, _ty, e) ->
       let pp_e = pp_cast env (pp_expr pd env) in
       pp_lval1 pd env pp_e fmt (lv , (ty_expr e, e))
@@ -1146,6 +1150,11 @@ module Leak = struct
 
   and pp_instr pd asmOp env fmt i =
     match i.i_desc with 
+    | Cassgn(v, _, _, (Parr_init _ as e)) ->
+      pp_leaks_e pd env fmt e;
+      let pp_e fmt _ = Format.fprintf fmt "witness" in
+      pp_lval1 pd env pp_e fmt (v, ((), ()))
+
     | Cassgn (lv, _, _, e) ->
       pp_leaks_e pd env fmt e;
       let pp fmt e = Format.fprintf fmt "<- %a" (pp_expr pd env) e in
