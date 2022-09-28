@@ -143,25 +143,25 @@ op MOV_16  (x:W16.t) = x.
 op MOV_32  (x:W32.t) = x.
 op MOV_64  (x:W64.t) = x.
 
-op MOVSX_u8_s16 (x:W8.t) = W16.of_int (W8.to_sint x).
-op MOVSX_u8_s32 (x:W8.t) = W32.of_int (W8.to_sint x).
-op MOVSX_u8_s64 (x:W8.t) = W64.of_int (W8.to_sint x).
+op MOVSX_u16s8 (x:W8.t) = W16.of_int (W8.to_sint x).
+op MOVSX_u32s8 (x:W8.t) = W32.of_int (W8.to_sint x).
+op MOVSX_u64s8 (x:W8.t) = W64.of_int (W8.to_sint x).
 
-op MOVSX_u16_s16 (x:W16.t) = W16.of_int (W16.to_sint x).
-op MOVSX_u16_s32 (x:W16.t) = W32.of_int (W16.to_sint x).
-op MOVSX_u16_s64 (x:W16.t) = W64.of_int (W16.to_sint x).
+op MOVSX_u16s16 (x:W16.t) = W16.of_int (W16.to_sint x).
+op MOVSX_u32s16 (x:W16.t) = W32.of_int (W16.to_sint x).
+op MOVSX_u64s16 (x:W16.t) = W64.of_int (W16.to_sint x).
 
-op MOVSX_u32_s32 (x:W32.t) = W32.of_int (W32.to_sint x).
-op MOVSX_u32_s64 (x:W32.t) = W64.of_int (W32.to_sint x).
+op MOVSX_u32s32 (x:W32.t) = W32.of_int (W32.to_sint x).
+op MOVSX_u64s32 (x:W32.t) = W64.of_int (W32.to_sint x).
 
-op MOVZX_u8_u16 (x:W8.t) = W16.of_int (W8.to_uint x).
-op MOVZX_u8_u32 (x:W8.t) = W32.of_int (W8.to_uint x).
-op MOVZX_u8_u64 (x:W8.t) = W64.of_int (W8.to_uint x).
+op MOVZX_u16u8 (x:W8.t) = W16.of_int (W8.to_uint x).
+op MOVZX_u32u8 (x:W8.t) = W32.of_int (W8.to_uint x).
+op MOVZX_u64u8 (x:W8.t) = W64.of_int (W8.to_uint x).
 
-op MOVZX_u16_u32 (x:W16.t) = W32.of_int (W16.to_uint x).
-op MOVZX_u16_u64 (x:W16.t) = W64.of_int (W16.to_uint x).
+op MOVZX_u32u16 (x:W16.t) = W32.of_int (W16.to_uint x).
+op MOVZX_u64u16 (x:W16.t) = W64.of_int (W16.to_uint x).
 
-op MOVZX_u32_u64 (x:W32.t) = W64.of_int (W32.to_uint x).
+op MOVZX_u64u32 (x:W32.t) = W64.of_int (W32.to_uint x).
 
 (* ------------------------------------------------------------------- *)
 
@@ -287,11 +287,22 @@ qed.
 *) 
 
 (* -------------------------------------------------------------------- *)
+    (* MMX instructions *)
+(*
+    | MOVX  of wsize
+*)
+op MOVX_32 (v: W32.t) = v.
+op MOVX_64 (v: W64.t) = v.
+
+(* -------------------------------------------------------------------- *)
   (* SSE instructions *)
 (*
 | MOVD     of wsize
-| VMOV     of wsize 
+| MOVV     of wsize
+| VMOV     of wsize
 *)
+op MOVV_32 (v: W32.t) = v.
+op MOVV_64 (v: W64.t) = v.
 
 op VMOV_32 (v:W32.t) =
   pack4 [v; W32.zero; W32.zero; W32.zero].
@@ -314,38 +325,38 @@ op VMOVDQU_256 (x:W256.t) = x.
 | VPMOVSX of velem & wsize & velem & wsize (* parallel sign-extension: sizes are source, source, target, target *)
 *)
 (* 128 *)
-op VPMOVSX_8u8_8u16   (w:W64.t) : W128.t = pack8 (map MOVSX_u8_s16  (W8u8.to_list w)).
-op VPMOVSX_4u8_4u32   (w:W32.t) : W128.t = pack4 (map MOVSX_u8_s32  (W4u8.to_list w)).
-op VPMOVSX_2u8_2u64   (w:W16.t) : W128.t = pack2 (map MOVSX_u8_s64  (W2u8.to_list w)).
-op VPMOVSX_4u16_4u32  (w:W64.t) : W128.t = pack4 (map MOVSX_u16_s32 (W4u16.to_list w)).
-op VPMOVSX_2u16_2u64  (w:W32.t) : W128.t = pack2 (map MOVSX_u16_s64 (W2u16.to_list w)).
-op VPMOVSX_2u32_2u64  (w:W64.t) : W128.t = pack2 (map MOVSX_u32_s64 (W2u32.to_list w)).
+op VPMOVSX_8u8_8u16   (w:W64.t) : W128.t = pack8 (map MOVSX_u16s8  (W8u8.to_list w)).
+op VPMOVSX_4u8_4u32   (w:W32.t) : W128.t = pack4 (map MOVSX_u32s8  (W4u8.to_list w)).
+op VPMOVSX_2u8_2u64   (w:W16.t) : W128.t = pack2 (map MOVSX_u64s8  (W2u8.to_list w)).
+op VPMOVSX_4u16_4u32  (w:W64.t) : W128.t = pack4 (map MOVSX_u32s16 (W4u16.to_list w)).
+op VPMOVSX_2u16_2u64  (w:W32.t) : W128.t = pack2 (map MOVSX_u64s16 (W2u16.to_list w)).
+op VPMOVSX_2u32_2u64  (w:W64.t) : W128.t = pack2 (map MOVSX_u64s32 (W2u32.to_list w)).
 (* 256 *)          
-op VPMOVSX_16u8_16u16 (w:W128.t) : W256.t = pack16 (map MOVSX_u8_s16  (W16u8.to_list w)).
-op VPMOVSX_8u8_8u32   (w:W64.t)  : W256.t = pack8  (map MOVSX_u8_s32  (W8u8.to_list w)).
-op VPMOVSX_4u8_4u64   (w:W32.t)  : W256.t = pack4  (map MOVSX_u8_s64  (W4u8.to_list w)).
-op VPMOVSX_8u16_8u32  (w:W128.t) : W256.t = pack8  (map MOVSX_u16_s32 (W8u16.to_list w)).
-op VPMOVSX_4u16_4u64  (w:W64.t)  : W256.t = pack4  (map MOVSX_u16_s64 (W4u16.to_list w)).
-op VPMOVSX_4u32_4u64  (w:W128.t)  : W256.t = pack4  (map MOVSX_u32_s64 (W4u32.to_list w)).   
+op VPMOVSX_16u8_16u16 (w:W128.t) : W256.t = pack16 (map MOVSX_u16s8  (W16u8.to_list w)).
+op VPMOVSX_8u8_8u32   (w:W64.t)  : W256.t = pack8  (map MOVSX_u32s8  (W8u8.to_list w)).
+op VPMOVSX_4u8_4u64   (w:W32.t)  : W256.t = pack4  (map MOVSX_u64s8  (W4u8.to_list w)).
+op VPMOVSX_8u16_8u32  (w:W128.t) : W256.t = pack8  (map MOVSX_u32s16 (W8u16.to_list w)).
+op VPMOVSX_4u16_4u64  (w:W64.t)  : W256.t = pack4  (map MOVSX_u64s16 (W4u16.to_list w)).
+op VPMOVSX_4u32_4u64  (w:W128.t)  : W256.t = pack4  (map MOVSX_u64s32 (W4u32.to_list w)).
 
 (* -------------------------------------------------------------------- *)
 (*
 | VPMOVZX of velem & wsize & velem & wsize (* parallel zero-extension: sizes are source, source, target, target *)
 *)
 
-op VPMOVZX_8u8_8u16   (w:W64.t) : W128.t = pack8 (map MOVZX_u8_u16  (W8u8.to_list w)).
-op VPMOVZX_4u8_4u32   (w:W32.t) : W128.t = pack4 (map MOVZX_u8_u32  (W4u8.to_list w)).
-op VPMOVZX_2u8_2u64   (w:W16.t) : W128.t = pack2 (map MOVZX_u8_u64  (W2u8.to_list w)).
-op VPMOVZX_4u16_4u32  (w:W64.t) : W128.t = pack4 (map MOVZX_u16_u32 (W4u16.to_list w)).
-op VPMOVZX_2u16_2u64  (w:W32.t) : W128.t = pack2 (map MOVZX_u16_u64 (W2u16.to_list w)).
-op VPMOVZX_2u32_2u64  (w:W64.t) : W128.t = pack2 (map MOVZX_u32_u64 (W2u32.to_list w)).
+op VPMOVZX_8u8_8u16   (w:W64.t) : W128.t = pack8 (map MOVZX_u16u8  (W8u8.to_list w)).
+op VPMOVZX_4u8_4u32   (w:W32.t) : W128.t = pack4 (map MOVZX_u32u8  (W4u8.to_list w)).
+op VPMOVZX_2u8_2u64   (w:W16.t) : W128.t = pack2 (map MOVZX_u64u8  (W2u8.to_list w)).
+op VPMOVZX_4u16_4u32  (w:W64.t) : W128.t = pack4 (map MOVZX_u32u16 (W4u16.to_list w)).
+op VPMOVZX_2u16_2u64  (w:W32.t) : W128.t = pack2 (map MOVZX_u64u16 (W2u16.to_list w)).
+op VPMOVZX_2u32_2u64  (w:W64.t) : W128.t = pack2 (map MOVZX_u64u32 (W2u32.to_list w)).
 (* 256 *)          
-op VPMOVZX_16u8_16u16 (w:W128.t) : W256.t = pack16 (map MOVZX_u8_u16  (W16u8.to_list w)).
-op VPMOVZX_8u8_8u32   (w:W64.t)  : W256.t = pack8  (map MOVZX_u8_u32  (W8u8.to_list w)).
-op VPMOVZX_4u8_4u64   (w:W32.t)  : W256.t = pack4  (map MOVZX_u8_u64  (W4u8.to_list w)).
-op VPMOVZX_8u16_8u32  (w:W128.t) : W256.t = pack8  (map MOVZX_u16_u32 (W8u16.to_list w)).
-op VPMOVZX_4u16_4u64  (w:W64.t)  : W256.t = pack4  (map MOVZX_u16_u64 (W4u16.to_list w)).
-op VPMOVZX_4u32_4u64  (w:W128.t)  : W256.t = pack4 (map MOVZX_u32_u64 (W4u32.to_list w)).   
+op VPMOVZX_16u8_16u16 (w:W128.t) : W256.t = pack16 (map MOVZX_u16u8  (W16u8.to_list w)).
+op VPMOVZX_8u8_8u32   (w:W64.t)  : W256.t = pack8  (map MOVZX_u32u8  (W8u8.to_list w)).
+op VPMOVZX_4u8_4u64   (w:W32.t)  : W256.t = pack4  (map MOVZX_u64u8  (W4u8.to_list w)).
+op VPMOVZX_8u16_8u32  (w:W128.t) : W256.t = pack8  (map MOVZX_u32u16 (W8u16.to_list w)).
+op VPMOVZX_4u16_4u64  (w:W64.t)  : W256.t = pack4  (map MOVZX_u64u16 (W4u16.to_list w)).
+op VPMOVZX_4u32_4u64  (w:W128.t)  : W256.t = pack4 (map MOVZX_u64u32 (W4u32.to_list w)).
 
 (* -------------------------------------------------------------------- *)
 (* 
