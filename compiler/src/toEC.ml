@@ -1092,7 +1092,12 @@ module Leak = struct
        let tys  = List.map Conv.ty_of_cty (Sopn.sopn_tout asmOp op) in
        let env = add_aux env tys in
        add_aux env (List.map ty_lval lvs)
-    | Ccall(_, lvs, _, _) | Csyscall(lvs, _, _)->
+    | Csyscall(lvs, o, _)->
+      let s = Syscall.syscall_sig_u o in
+      let otys = List.map Conv.ty_of_cty s.scs_tout in
+      let env = add_aux env otys in
+      add_aux env (List.map ty_lval lvs)
+    | Ccall(_, lvs, _, _) ->
       if lvs = [] then env 
       else add_aux env (List.map ty_lval lvs)
     | Cif(_, c1, c2) | Cwhile(_, c1, _, c2) -> init_aux asmOp (init_aux asmOp env c1) c2
