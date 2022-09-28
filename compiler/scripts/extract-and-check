@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+
+DIR=$(mktemp -d jasminXXXXXX)
+EC=${DIR}/jasmin.ec
+CT=${DIR}/jasmin_ct.ec
+
+trap "rm -r ${DIR}" EXIT
+
+set -x
+
+$(dirname $0)/../jasminc.native -oecarray ${DIR} -oec ${EC} "$@"
+$(dirname $0)/../jasminc.native -oecarray ${DIR} -CT -oec ${CT} "$@"
+
+easycrypt ${EC}
+easycrypt ${CT}
