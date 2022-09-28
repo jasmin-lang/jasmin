@@ -14,9 +14,6 @@ build: [
 install: [
   make "PREFIX=%{prefix}%" "install"
 ]
-remove: [
-  make "PREFIX=%{prefix}%" "uninstall"
-]
 depends: [
   "ocaml" { >= "4.08" & build }
   "batteries" {>= "3.2"}
