@@ -1710,7 +1710,7 @@ theory W8.
 
   op shift_mask i = to_uint i %% 32.
   
-  op ROR_XX (v: t) (i: W8.t) =
+  op ROR_8 (v: t) (i: W8.t) =
     let i = shift_mask i in
     if i = 0 then (undefined_flag, undefined_flag, v) 
     else
@@ -1718,9 +1718,9 @@ theory W8.
       let CF = ALU.SF_of r in
       let OF = if i = 1 then CF <> ALU.SF_of v else undefined_flag in
       (OF , CF,  r)
-  axiomatized by ROR_XX_E.
+  axiomatized by ROR_8_E.
   
-  op ROL_XX (v: t) (i: W8.t) =
+  op ROL_8 (v: t) (i: W8.t) =
     let i = shift_mask i in
     if i = 0 then(undefined_flag, undefined_flag, v)
     else
@@ -1728,14 +1728,14 @@ theory W8.
       let CF = ALU.PF_of r in
       let OF = if i = 1 then ALU.SF_of r <> CF else undefined_flag in
       (OF, CF, r)
-  axiomatized by ROL_XX_E.
+  axiomatized by ROL_8_E.
   
   op im i = 
     if size = 8 then i %% 9
     else if size = 16 then i %% 17
     else i.
 
-  op RCL_XX (v: t) (i: W8.t) (cf:bool) =
+  op RCL_8 (v: t) (i: W8.t) (cf:bool) =
     let i  = shift_mask i in
     let im = im i in
     let r  = fun j => if j = 0 then cf else v.[j-1] in
@@ -1745,7 +1745,7 @@ theory W8.
     let OF = if i = 1 then (ALU.SF_of r <> CF) else undefined_flag in
     (OF, CF, r).
   
-  op RCR_XX (v: t) (i: W8.t) (cf:bool) =
+  op RCR_8 (v: t) (i: W8.t) (cf:bool) =
     let i  = shift_mask i in
     let im = im i in
     let r  = fun j => if j = 0 then cf else v.[j-1] in
@@ -1763,7 +1763,7 @@ theory W8.
     let ZF = ALU.ZF_of r in
     (OF, CF, SF, PF, ZF, r).
 
-  op SHL_XX  (v: t) (i: W8.t) =
+  op SHL_8  (v: t) (i: W8.t) =
     let i = shift_mask i in
     if i = 0 then flags_w rflags_undefined v
     else
@@ -1771,7 +1771,7 @@ theory W8.
       let r  = v `<<<` i in
       rflags_OF i r rc (ALU.SF_of r ^^ rc).
 
-  op SHLD_XX (v1 v2: t) (i: W8.t) =
+  op SHLD_8 (v1 v2: t) (i: W8.t) =
     let i = shift_mask i in
     if i = 0 then flags_w rflags_undefined v1
     else
@@ -1781,7 +1781,7 @@ theory W8.
       let r  = r1 +^ r2 in
       rflags_OF i r rc (ALU.SF_of r ^^ rc).
   
-  op SHR_XX (v: t) (i: W8.t) =
+  op SHR_8 (v: t) (i: W8.t) =
     let i = shift_mask i in 
     if i = 0 then flags_w rflags_undefined v 
     else
@@ -1789,7 +1789,7 @@ theory W8.
       let r  = v `>>>` i in
       rflags_OF i r rc (ALU.SF_of r).
   
-  op SHRD_XX (v1 v2: t) (i: W8.t) = 
+  op SHRD_8 (v1 v2: t) (i: W8.t) =
     let i = shift_mask i in
     if i = 0 then flags_w rflags_undefined v1
     else
@@ -1799,7 +1799,7 @@ theory W8.
       let r  = r1 +^ r2 in
       rflags_OF i r rc (ALU.SF_of r ^^ ALU.SF_of v1).
   
-  op SAR_XX (v: t) (i: W8.t) = 
+  op SAR_8 (v: t) (i: W8.t) =
     let i = shift_mask i in 
     if i = 0 then flags_w rflags_undefined v
     else
