@@ -226,6 +226,31 @@ libjade-extract-to-ec:
     paths:
     - libjade-main/proof/check.tar.gz
 
+test-extract-to-ec:
+  stage: test
+  parallel:
+    matrix:
+      - EASYCRYPT_REF: [release, dev]
+  variables:
+    EXTRA_NIX_ARGUMENTS: --arg ocamlDeps true --arg testDeps true --argstr ecRef $EASYCRYPT_REF
+    WHY3_CONF: $CI_PROJECT_DIR/why3.conf
+    ECARGS: -why3 $WHY3_CONF -I Jasmin:$CI_PROJECT_DIR/eclib
+    JSJOBS: $(NIX_BUILD_CORES)
+  extends: .common
+  needs:
+  - coq
+  - ocaml
+  dependencies:
+  - coq
+  - ocaml
+  script:
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'easycrypt why3config -why3 $WHY3_CONF'
+  - nix-shell --arg inCI true $EXTRA_NIX_ARGUMENTS --run 'make -C compiler CHECKCATS=extraction check'
+  artifacts:
+    when: always
+    paths:
+    - compiler/report.log
+
 push-compiler-code:
   stage: deploy
   environment: deployment

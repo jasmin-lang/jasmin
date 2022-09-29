@@ -13,5 +13,5 @@ set -x
 $(dirname $0)/../jasminc.native -oecarray ${DIR} -oec ${EC} "$@"
 $(dirname $0)/../jasminc.native -oecarray ${DIR} -CT -oec ${CT} "$@"
 
-easycrypt ${EC}
-easycrypt ${CT}
+easycrypt ${ECARGS} ${EC}
+easycrypt ${ECARGS} ${CT}
