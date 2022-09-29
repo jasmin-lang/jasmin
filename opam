@@ -1,9 +1,9 @@
 opam-version: "2.0"
 name: "jasmin"
-version: "0.1"
+version: "dev"
 maintainer: "Jean-Christophe Léchenet <jean-christophe.lechenet@inria.fr>"
 authors: "Jasmin authors and contributors"
-homepage: "http://jasmin-lang.github.io/"
+homepage: "https://github.com/jasmin-lang/jasmin"
 bug-reports: "https://github.com/jasmin-lang/jasmin/issues"
 synopsis: "High-Assurance and High-Speed Cryptography"
 license: "MIT"
@@ -13,9 +13,6 @@ build: [
 ]
 install: [
   make "PREFIX=%{prefix}%" "install"
-]
-remove: [
-  make "PREFIX=%{prefix}%" "uninstall"
 ]
 depends: [
   "ocaml" { >= "4.08" & build }
@@ -28,7 +25,7 @@ depends: [
   "conf-ppl"
   "yojson" {>= "1.6.0"}
   "ocamlbuild" { build }
-  "ocamlfind" {build }
+  "ocamlfind" { build }
   "coq" {>= "8.14.0" & < "8.17"}
   "coq-mathcomp-ssreflect" {>= "1.12" & < "1.16"}
   "coq-mathcomp-algebra"
