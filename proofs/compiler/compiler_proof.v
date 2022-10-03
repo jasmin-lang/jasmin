@@ -1,89 +1,96 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import psem compiler_util compiler.
-Require Import allocation inline_proof dead_calls_proof
-               makeReferenceArguments_proof
-               array_copy array_copy_proof array_init_proof
-               unrolling_proof constant_prop_proof propagate_inline_proof dead_code_proof
-               array_expansion array_expansion_proof remove_globals_proof stack_alloc_proof_2
-               lowering_proof
-               tunneling_proof
-               linearization_proof
-               x86_linearization_proof
-               x86_gen_proof
-               merge_varmaps_proof
-               psem_of_sem_proof.
+Require Import sem.
+Require Import
+  arch_params_proof
+  compiler
+  compiler_util
+  psem
+  psem_facts.
+Require Import
+  allocation
+  inline_proof
+  dead_calls_proof
+  makeReferenceArguments_proof
+  array_copy
+  array_copy_proof
+  array_init_proof
+  unrolling_proof
+  constant_prop_proof
+  propagate_inline_proof
+  dead_code_proof
+  array_expansion
+  array_expansion_proof
+  remove_globals_proof
+  stack_alloc_proof_2
+  clear_stack_proof
+  tunneling_proof
+  linearization_proof
+  merge_varmaps_proof
+  psem_of_sem_proof.
+Require Import
+  arch_decl
+  arch_extra
+  arch_sem
+  asm_gen_proof.
 Import Utf8.
-Import arch_decl.
-Import psem_facts x86_sem x86_gen.
-Require x86_stack_alloc_proof x86_linearization_proof.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Record architecture_hyps (aparams : architecture_params) := mk_ahyps {
-  is_move_opP : forall op vx v,
-    aparams.(is_move_op) op->
-    exec_sopn (Oasm op) [:: vx] = ok v ->
-    List.Forall2 value_uincl v [:: vx]
-}.
-
-(* Parameters specific to the architecture. *)
-Definition mov_ofsP := x86_stack_alloc_proof.x86_mov_ofsP.
-Definition hlparams := x86_linearization_proof.h_x86_linearization_params.
-
 Section PROOF.
 
-Variable cparams : compiler_params.
-Variable aparams : architecture_params.
-Variable ahyps   : architecture_hyps aparams.
+Context
+  {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
+  `{asm_e : asm_extra} {call_conv : calling_convention} {asm_scsem : asm_syscall_sem}
+  {fresh_vars lowering_options : Type}
+  (aparams : architecture_params fresh_vars lowering_options)
+  (haparams : h_architecture_params aparams)
+  (cparams : compiler_params fresh_vars lowering_options).
 
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
 Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
 
-Section IS_MOVE_OP.
-
-Context (is_move_op : asm_op_t -> bool).
-Hypothesis is_move_opP : forall op vx v,
-  is_move_op op->
-  exec_sopn (Oasm op) [:: vx] = ok v ->
-  List.Forall2 value_uincl v [:: vx].
-
-Lemma unroll1P (fn: funname) (p p':uprog) ev mem va va' mem' vr:
-  unroll1 is_move_op p = ok p' ->
-  sem_call p ev mem fn va mem' vr ->
-  List.Forall2 value_uincl va va' ->
-  exists2 vr', sem_call p' ev mem fn va' mem' vr' & List.Forall2 value_uincl vr vr'.
+Lemma postprocessP (p p': uprog) ev scs m fn va scs' m' vr va' :
+  dead_code_prog (ap_is_move_op aparams) (const_prop_prog p) false = ok p' →
+  sem_call p ev scs m fn va scs' m' vr →
+  List.Forall2 value_uincl va va' →
+  exists2 vr',
+    sem_call p' ev scs m fn va' scs' m' vr'
+    & List.Forall2 value_uincl vr vr'.
 Proof.
-  rewrite /unroll1=> Heq Hsem Hall.
-  have hsemu := unroll_callP Hsem.
-  have [vr' [hsemc hall']]:= const_prop_callP hsemu Hall.
-  have Hall'' : List.Forall2 value_uincl va' va'. by apply List_Forall2_refl.
-  have [vr'' [hsemc' hv]] := dead_code_callPu is_move_opP Heq Hall'' hsemc.
-  exists vr'' => //. apply: Forall2_trans hall' hv.
-  move=> v1 v2 v3 h1 h2. by apply: value_uincl_trans h1 h2.
+  move => ok_p' E A.
+  have [ vr1 [ {} E R1 ] ] := const_prop_callP E A.
+  have [ vr2 [ {} E R2 ] ] := dead_code_callPu (hap_is_move_opP haparams) ok_p' (List_Forall2_refl _ value_uincl_refl) E.
+  exists vr2; first exact: E.
+  apply: Forall2_trans R1 R2.
+  exact: value_uincl_trans.
 Qed.
 
-Lemma unrollP (fn: funname) (p p': prog) ev mem va va' mem' vr:
-  unroll is_move_op Loop.nb p = ok p' ->
-  sem_call p ev mem  fn va mem' vr ->
-  List.Forall2 value_uincl va va' ->
-  exists vr', sem_call p' ev mem fn va' mem' vr' /\ List.Forall2 value_uincl vr vr'.
+Lemma unrollP (fn : funname) (p p' : prog) ev scs mem va va' scs' mem' vr :
+  unroll_loop (ap_is_move_op aparams) p = ok p'
+  -> sem_call p ev scs mem fn va scs' mem' vr
+  -> List.Forall2 value_uincl va va'
+  -> exists vr',
+       sem_call p' ev scs mem fn va' scs' mem' vr'
+       /\ List.Forall2 value_uincl vr vr'.
 Proof.
-  elim: Loop.nb p va va' vr => /= [p //|n Hn] p va va' vr.
-  apply: rbindP=> z Hz.
-  case: ifP=> [_ [] ->|_ Hu Hs Hall].
-  + by move=> /sem_call_uincl h/h{h}.
-  have [vr' hsem1 hall1]:= unroll1P Hz Hs Hall.
-  have [vr'' [hsem2 hall2]]:= Hn _ _ _ _ Hu hsem1 (List_Forall2_refl _ value_uincl_refl).
-  exists vr'';split => //.
-  by apply: Forall2_trans value_uincl_trans hall1 hall2.
+  rewrite /unroll_loop; t_xrbindP.
+  elim: Loop.nb p va va' vr => //= n Hn p va va' vr p1 ok_p1.
+  case e: unroll_prog => [ p2 [] ]; last first.
+  { move/ok_inj => {n Hn} <- E A.
+    have [ vr' {} E R ] := postprocessP ok_p1 E A.
+    by exists vr'. }
+  t_xrbindP => p3 ok_p3 ok_p' E A.
+  have [ vr1 {} E R1 ] := postprocessP ok_p1 E (List_Forall2_refl _ value_uincl_refl).
+  have := unroll_callP E.
+  rewrite e /= => {} E.
+  have [ vr2 [] {} E R2 ] := Hn _ _ _ _ _ ok_p3 ok_p' E A.
+  exists vr2; split; first exact: E.
+  apply: Forall2_trans R1 R2.
+  exact: value_uincl_trans.
 Qed.
-
-End IS_MOVE_OP.
-
-Opaque Loop.nb.
 
 Definition compose_pass : ∀ vr (P Q: _ → Prop),
         (∀ vr', P vr' → Q vr') →
@@ -101,37 +108,56 @@ Definition compose_pass_uincl : ∀ vr (P Q: _ → Prop),
       let 'ex_intro vr2 (conj q v) := h _ p in
       ex_intro2 _ _ vr2 (Forall2_trans value_uincl_trans u v) q.
 
-Lemma compiler_first_partP entries (p: prog) (p': uprog) m fn va m' vr :
-  compiler_first_part cparams aparams entries p = ok p' →
+Lemma compiler_first_partP entries (p: prog) (p': uprog) scs m fn va scs' m' vr :
+  compiler_first_part aparams cparams entries p = ok p' →
   fn \in entries →
-  sem.sem_call p m fn va m' vr →
+  sem.sem_call p scs m fn va scs' m' vr →
   exists2 vr',
     List.Forall2 value_uincl vr vr' &
-    psem.sem_call p' tt m fn va m' vr'.
+    psem.sem_call p' tt scs m fn va scs' m' vr'.
 Proof.
   rewrite /compiler_first_part; t_xrbindP => pa0.
   rewrite print_uprogP => ok_pa0 pa.
   rewrite print_uprogP => ok_pa pb.
   rewrite print_uprogP => ok_pb pc.
-  rewrite print_uprogP => ok_pc [].
+  rewrite print_uprogP => ok_pc.
   rewrite !print_uprogP => ok_pd pe ok_pe.
   rewrite !print_uprogP => pf ok_pf pg.
-  rewrite !print_uprogP => ok_pg ph ok_ph _ /assertP.
+  rewrite !print_uprogP => ok_pg ph ok_ph.
   rewrite print_uprogP => ok_fvars.
   rewrite print_uprogP => pp ok_pp.
   rewrite print_uprogP => <- {p'} ok_fn exec_p.
   have va_refl := List_Forall2_refl va value_uincl_refl.
-  apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (pi_callP (sCP := sCP_unit) ok_pp va_refl); exact Hvr'.
-  apply: compose_pass; first by move => vr'; apply: (lower_callP (lowering_opt cparams) (warning cparams) (is_var_in_memory cparams) ok_fvars).
-  apply: compose_pass; first by move => vr'; apply: (makeReferenceArguments_callP ok_ph).
+  apply: compose_pass_uincl.
+  - move=> vr' Hvr'.
+    apply: (pi_callP (sCP := sCP_unit) (hpip := hap_hpip haparams) ok_pp va_refl).
+    exact: Hvr'.
+  apply: compose_pass.
+  - move => vr'.
+    by apply:
+      (hlop_lower_callP
+         (hap_hlop haparams)
+         (lowering_opt cparams)
+         (warning cparams)
+         (is_var_in_memory cparams)
+         ok_fvars).
+  apply: compose_pass;
+    first by move=> vr';
+      apply: (makeReferenceArguments_callP (spp := spp_of_asm_e) ok_ph).
   apply: compose_pass; first by move => vr'; apply: (RGP.remove_globP ok_pg).
-  apply: compose_pass; first by move=> vr'; apply:(expand_callP ok_pf).
+  apply: compose_pass;
+    first by move=> vr'; apply:(expand_callP (spp := spp_of_asm_e) ok_pf).
   apply: compose_pass_uincl; first by move =>vr'; apply: (remove_init_fdPu _ va_refl).
-  apply: compose_pass_uincl; first by move => vr' Hvr'; apply: (dead_code_callPu ahyps.(is_move_opP) ok_pe va_refl); exact: Hvr'.
+  apply: compose_pass_uincl.
+  - move => vr' Hvr'.
+    apply: (dead_code_callPu (hap_is_move_opP haparams) ok_pe va_refl).
+    exact: Hvr'.
   apply: compose_pass_uincl; first by move => vr'; apply: (CheckAllocRegU.alloc_callP ok_pd).
   rewrite surj_prog.
-  apply: compose_pass_uincl; first by move => vr' Hvr'; apply: (unrollP ahyps.(is_move_opP) ok_pc _ va_refl); exact: Hvr'.
-  apply: compose_pass; first by move => vr'; exact: (dead_calls_err_seqP (sCP:= sCP_unit) ok_pb).
+  apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (unrollP ok_pc _ va_refl); exact: Hvr'.
+  apply: compose_pass;
+    first by move => vr';
+      exact: (dead_calls_err_seqP (spp := spp_of_asm_e) (sCP := sCP_unit) ok_pb).
   apply: compose_pass_uincl; first by move => vr' Hvr'; apply: (inline_call_errP ok_pa va_refl); exact: Hvr'.
   apply: compose_pass; first by move => vr'; apply: (add_init_fdP).
   apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (array_copy_fdP (sCP := sCP_unit) ok_pa0 va_refl); exact Hvr'.
@@ -149,37 +175,42 @@ Proof.
   by rewrite h.
 Qed.
 
-Lemma compiler_third_partP entries (p: sprog) (p': sprog) :
-  compiler_third_part cparams aparams entries p = ok p' →
+Lemma compiler_third_partP entries (p p' : @sprog _pd _ _asmop) :
+  compiler_third_part aparams cparams entries p = ok p' →
   [/\
-    ∀ fn (gd: pointer) m va m' vr,
+    ∀ fn (gd: pointer) scs m va scs' m' vr,
       fn \in entries →
-      psem.sem_call p gd m fn va m' vr →
+      psem.sem_call p gd scs m fn va scs' m' vr →
       exists2 vr',
       List.Forall2 value_uincl vr vr' &
-      psem.sem_call p' gd m fn va m' vr' &
+      psem.sem_call p' gd scs m fn va scs' m' vr' &
     ∀ fn m,
       alloc_ok p' fn m → alloc_ok p fn m
   ].
 Proof.
-  rewrite /compiler_third_part; t_xrbindP.
-  move => _ /check_removereturnP ok_rr pa ok_pa [].
+  rewrite /compiler_third_part; t_xrbindP=> /check_removereturnP ok_rr pa ok_pa.
   rewrite !print_sprogP => ok_pb pc ok_pc.
   rewrite print_sprogP => <- {p'}.
   split.
-  + move => fn gd m va m' vr ok_fn exec_p.
+  + move => fn gd scs m va scs' m' vr ok_fn exec_p.
     have va_refl : List.Forall2 value_uincl va va.
     - exact: List_Forall2_refl.
-    apply: compose_pass_uincl; first by move => vr' Hvr'; apply: (dead_code_callPs ahyps.(is_move_opP) ok_pc va_refl); exact: Hvr'.
+    apply: compose_pass_uincl.
+    - move => vr' Hvr'.
+      apply: (dead_code_callPs (hap_is_move_opP haparams) ok_pc va_refl).
+      exact: Hvr'.
     apply: compose_pass_uincl; first by move => vr'; apply: (CheckAllocRegS.alloc_callP ok_pb).
     rewrite surj_prog.
-    have [vr' [exec_pa]]:= dead_code_tokeep_callPs ahyps.(is_move_opP) ok_pa va_refl exec_p.
+    have [vr' [exec_pa]]:=
+      dead_code_tokeep_callPs (hap_is_move_opP haparams) ok_pa va_refl exec_p.
     rewrite /fn_keep_only (ok_rr _ ok_fn) => vr_vr'.
     by exists vr'.
   rewrite /alloc_ok => fn m alloc_pc fd get_fd.
-  have [fda ok_fda get_fda] := dead_code_prog_tokeep_get_fundef ok_pa get_fd.
+  have [fda ok_fda get_fda] :=
+    dead_code_prog_tokeep_get_fundef (spp := spp_of_asm_e) ok_pa get_fd.
   have [fdb [get_fdb ok_fdb]] := CheckAllocRegS.all_checked ok_pb get_fda.
-  have [fdc ok_fdc get_fdc] := dead_code_prog_tokeep_get_fundef ok_pc get_fdb.
+  have [fdc ok_fdc get_fdc] :=
+    dead_code_prog_tokeep_get_fundef (spp := spp_of_asm_e) ok_pc get_fdb.
   move: (alloc_pc _ get_fdc).
   have [_ _ ->]:= dead_code_fd_meta ok_fdc.
   have /=[_ _ _ <-] := CheckAllocRegS.check_fundef_meta ok_fdb.
@@ -188,25 +219,29 @@ Proof.
 Qed.
 
 Lemma compiler_third_part_meta entries (p p' : sprog) :
-  compiler_third_part cparams aparams entries p = ok p' →
+  compiler_third_part aparams cparams entries p = ok p' →
   p_extra p' = p_extra p.
 Proof.
-  rewrite /compiler_third_part; t_xrbindP => _ _ pa /dead_code_prog_tokeep_meta[] _ ok_pa _ _ pb /dead_code_prog_tokeep_meta[].
+  rewrite /compiler_third_part.
+  t_xrbindP => _ pa hpa _ pb hpb.
+  move: hpa => /(dead_code_prog_tokeep_meta (spp := spp_of_asm_e)) [] _ ok_pa.
+  move: hpb => /(dead_code_prog_tokeep_meta (spp := spp_of_asm_e)) [].
   rewrite !print_sprogP /= => _ ok_pb <- {p'}.
   by rewrite ok_pb ok_pa.
 Qed.
 
 (* TODO: move *)
 Remark sp_globs_stack_alloc rip rsp data ga la (p: uprog) (p': sprog) :
-  alloc_prog mov_ofs rip rsp data ga la p = ok p' →
+  alloc_prog (ap_sap aparams (is_regx cparams)) cparams.(fresh_reg) rip rsp data ga la p = ok p' →
   sp_globs (p_extra p') = data.
 Proof.
-  rewrite /alloc_prog; t_xrbindP => ?? _ _ _ _.
-  by move=> ? _ <-.
+  rewrite /alloc_prog; t_xrbindP => ??.
+  do 2 case: ifP => // _.
+  by t_xrbindP => ? _ <-.
 Qed.
 
 Lemma compiler_third_part_alloc_ok entries (p p' : sprog) (fn: funname) (m: mem) :
-  compiler_third_part cparams aparams entries p = ok p' →
+  compiler_third_part aparams cparams entries p = ok p' →
   alloc_ok p' fn m →
   alloc_ok p fn m.
 Proof. case/compiler_third_partP => _; exact. Qed.
@@ -218,7 +253,7 @@ Lemma check_no_ptrP entries ao u fn :
 Proof.
   clear.
   case: u => /allMP h ok_fn; move: (h _ ok_fn).
-  by t_xrbindP => _ /assertP -> /assertP.
+  by t_xrbindP.
 Qed.
 
 Lemma allNone_nth {A} (m: seq (option A)) i :
@@ -230,8 +265,8 @@ Proof.
   by case => // m ih [].
 Qed.
 
-Lemma sem_call_length (p: uprog) m fn va m' vr :
-  sem_call p tt m fn va m' vr →
+Lemma sem_call_length (p: uprog) scs m fn va scs' m' vr :
+  sem_call p tt scs m fn va scs' m' vr →
   ∃ fd,
     [/\ get_fundef (p_funcs p) fn = Some fd,
      size (f_params fd) = size va,
@@ -239,7 +274,7 @@ Lemma sem_call_length (p: uprog) m fn va m' vr :
      size (f_tyout fd) = size vr &
      size (f_res fd) = size vr].
 Proof.
-  case/sem_callE => fd [] -> [] va' [] ? [] ? [] ? [] vr' [] ok_args [] _ ok_va' _ [] /size_mapM ok_vr' ok_res _.
+  move=> h; have := sem_callE h => -[] fd [] -> [] va' [] ? [] ? [] ? [] vr' [] ok_args [] _ ok_va' _ [] /size_mapM ok_vr' ok_res _.
   have := size_fold2 ok_va'.
   have [<- <-] := size_mapM2 ok_args.
   have [size_vr' <-] := size_mapM2 ok_res.
@@ -247,24 +282,30 @@ Proof.
   by exists fd.
 Qed.
 
-Lemma compiler_front_endP entries subroutines (p: prog) (p': sprog) (gd: pointer) m mi fn va m' vr :
-  compiler_front_end cparams aparams entries subroutines p = ok p' →
+Lemma compiler_front_endP
+  entries
+  subroutines
+  (p: prog)
+  (p': @sprog _pd _ _asmop)
+  (gd : pointer)
+  scs m mi fn va scs' m' vr :
+  compiler_front_end aparams cparams entries subroutines p = ok p' →
   fn \in entries →
-  sem.sem_call p m fn va m' vr →
+  sem.sem_call p scs m fn va scs' m' vr →
   extend_mem m mi gd (sp_globs (p_extra p')) →
   alloc_ok p' fn mi →
   ∃ vr' mi',
     [/\
      List.Forall2 value_uincl vr vr',
-     psem.sem_call p' gd mi fn va mi' vr' &
+     psem.sem_call p' gd scs mi fn va scs' mi' vr' &
      extend_mem m' mi' gd (sp_globs (p_extra p'))
     ].
 Proof.
-  rewrite /compiler_front_end; t_xrbindP.
-  move => p1 ok_p1 [] /check_no_ptrP checked_entries p2 ok_p2 p3.
+  rewrite /compiler_front_end;
+  t_xrbindP => p1 ok_p1 /check_no_ptrP checked_entries p2 ok_p2 p3.
   rewrite print_sprogP => ok_p3 <- {p'} ok_fn exec_p.
   rewrite (compiler_third_part_meta ok_p3) => m_mi ok_mi.
-  have {ok_mi} ok_mi : alloc_ok p2 fn mi.
+  have {ok_mi} ok_mi : alloc_ok (spp := spp_of_asm_e) p2 fn mi.
   - exact: compiler_third_part_alloc_ok ok_p3 ok_mi.
   have := compiler_first_partP ok_p1 _ exec_p.
   rewrite mem_cat ok_fn => /(_ erefl).
@@ -272,9 +313,10 @@ Proof.
   have gd2 := sp_globs_stack_alloc ok_p2.
   rewrite -gd2 in ok_p2.
   case/sem_call_length: (exec_p1) => fd [] ok_fd size_params size_tyin size_tyout size_res.
-  case/alloc_prog_get_fundef: (ok_p2) => mglob ok_mglob /(_ _ _ ok_fd)[] fd' /alloc_fd_checked_sao[] ok_sao_p ok_sao_r ok_fd'.
+  have [mglob ok_mglob] := alloc_prog_get_fundef (spp := spp_of_asm_e) ok_p2.
+  move=> /(_ _ _ ok_fd)[] fd' /alloc_fd_checked_sao[] ok_sao_p ok_sao_r ok_fd'.
   move: checked_entries => /(_ _ ok_fn) [] params_noptr return_noptr.
-  have ok_va : wf_args (sp_globs (p_extra p2)) gd (ao_stack_alloc (stackalloc cparams p1)) m mi fn va va.
+  assert (ok_va : wf_args (sp_globs (p_extra p2)) gd (ao_stack_alloc (stackalloc cparams p1)) m mi fn va va).
   - move: params_noptr ok_sao_p.
     rewrite size_params /wf_args.
     move: (sao_params _); clear.
@@ -284,11 +326,11 @@ Proof.
   have disjoint_va : disjoint_values (sao_params (ao_stack_alloc (stackalloc cparams p1) fn)) va va.
   - rewrite /disjoint_values => i1 pi1 w1 i2 pi2 w2.
     by rewrite (allNone_nth _ params_noptr).
-  have := alloc_progP mov_ofsP ok_p2 exec_p1 m_mi.
+  have := alloc_progP (hap_hsap haparams (is_regx cparams)) ok_p2 exec_p1 m_mi.
   move => /(_ va ok_va disjoint_va ok_mi).
   case => mi' [] vr2 [] exec_p2 [] m'_mi' [] ok_vr2 ?.
   have [] := compiler_third_partP ok_p3.
-  case/(_ _ _ _ _ _ _ ok_fn exec_p2) => vr3 vr2_vr3 exec_p3.
+  case/(_ _ _ _ _ _ _ _ _ ok_fn exec_p2) => vr3 vr2_vr3 exec_p3.
   exists vr3, mi'; split.
   - apply: (Forall2_trans value_uincl_trans); first exact vr_vr1.
     apply: (Forall2_trans value_uincl_trans); last exact vr2_vr3.
@@ -304,72 +346,102 @@ Proof.
   exact: m'_mi'.
 Qed.
 
-Lemma compiler_back_end_meta callee_saved entries (p: sprog) (tp: lprog) :
-  compiler_back_end cparams callee_saved entries p = ok tp →
+Lemma compiler_back_end_meta entries (p: sprog) (tp: lprog) :
+  compiler_back_end aparams cparams entries p = ok tp →
   [/\
      lp_rip tp = p.(p_extra).(sp_rip),
      lp_rsp tp = p.(p_extra).(sp_rsp) &
      lp_globs tp = p.(p_extra).(sp_globs)
   ].
 Proof.
-  rewrite /compiler_back_end; t_xrbindP => _ _ _ _ lp ok_lp p2.
-  rewrite !print_linearP => ok_tp ?; subst p2.
-  have [ <- [] <- [] <- _ ] := tunnel_program_invariants ok_tp.
+  rewrite /compiler_back_end.
+  t_xrbindP=> _ _ lp ok_lp.
+  rewrite print_linearP => lp0 ok_lp0.
+  rewrite print_linearP => tp' ok_tp.
+  rewrite print_linearP => ?; subst tp'.
+  have [ <- [] <- [] <- _ ] := tunnel_program_invariants (spp := spp_of_asm_e) ok_tp.
+  have [<- <- <- _] := prog_clear_stack_lprog_invariants ok_lp0.
   split.
   - exact: lp_ripE ok_lp.
   - exact: lp_rspE ok_lp.
   exact: lp_globsE ok_lp.
 Qed.
 
-Lemma compiler_back_end_to_x86_meta entries (p: sprog) (xp: x86_prog) :
-  compiler_back_end_to_x86 cparams entries p = ok xp →
-  [/\
-    arch_extra.to_var x86_decl.RSP = {| vtype := sword64; vname := p.(p_extra).(sp_rsp) |}
-    & asm_globs xp = p.(p_extra).(sp_globs)
-  ].
+Lemma compiler_back_end_to_asm_meta entries (p : sprog) (xp : asm_prog) :
+  compiler_back_end_to_asm aparams cparams entries p = ok xp
+  -> asm_globs xp = (sp_globs (p_extra p)).
 Proof.
-  rewrite /compiler_back_end_to_x86; t_xrbindP => tp /compiler_back_end_meta[] A B C /assemble_progP/=[] D E F G.
-  by rewrite -B -C.
+  rewrite /compiler_back_end_to_asm.
+  t_xrbindP=> tp /compiler_back_end_meta[] _ _ <-.
+  by move=> /assemble_progP [_ <-].
 Qed.
 
 (* The memory has an allocated stack region that is large enough to hold the local variables of the function and all functions it may call.
   The stack region is described by two pointers: [top-stack m] at the bottom and [root] (held in RSP) at the top
  *)
-Definition enough_stack_space (xp: x86_prog) (fn: funname) (root: pointer) (m: mem) : Prop :=
-  ∀ fd : x86_fundef,
-    get_fundef xp.(asm_funcs) fn = Some fd →
-    (0 <= asm_fd_total_stack fd <= wunsigned root - wunsigned (top_stack m))%Z.
+Definition enough_stack_space
+  (xp : asm_prog) (fn : funname) (root : pointer) (m : mem) : Prop :=
+  forall fd : asm_fundef,
+    get_fundef xp.(asm_funcs) fn = Some fd
+    -> let stk_sz := (wunsigned root - wunsigned (top_stack m))%Z in
+       (0 <= asm_fd_total_stack fd <= stk_sz)%Z.
 
-Lemma enough_stack_space_alloc_ok entries (sp: sprog) (xp: x86_prog) (fn: funname) (m m': mem) :
-  compiler_back_end_to_x86 cparams entries sp = ok xp →
-  fn \in entries →
-  (wunsigned (stack_limit m) <= wunsigned (top_stack m'))%Z →
-  enough_stack_space xp fn (top_stack m) m' →
-  alloc_ok sp fn m.
+Lemma enough_stack_space_alloc_ok
+  entries (sp : sprog) (xp : asm_prog) (fn : funname) (m m' : mem) :
+  compiler_back_end_to_asm aparams cparams entries sp = ok xp
+  -> fn \in entries
+  -> (wunsigned (stack_limit m) <= wunsigned (top_stack m'))%Z
+  -> enough_stack_space xp fn (top_stack m) m'
+  -> alloc_ok sp fn m.
 Proof.
-  rewrite /compiler_back_end_to_x86 /compiler_back_end.
-  t_xrbindP => ? [] /allMP ok_export _ _ lp ok_lp tp.
-  rewrite !print_linearP => ok_tp <- ok_xp ok_fn M S.
+  rewrite /compiler_back_end_to_asm /compiler_back_end.
+  t_xrbindP => ? /allMP ok_export _ lp ok_lp.
+  rewrite print_linearP => lp0 ok_lp0.
+  rewrite print_linearP => tp ok_tp <-.
+  rewrite print_linearP => ok_xp ok_fn M S.
   move => fd ok_fd.
-  move: ok_export => /(_ _ ok_fn); rewrite ok_fd => /assertP /eqP Export.
-  split; last by rewrite Export.
-  move: ok_fd => /(get_fundef_p' ok_lp) /(get_fundef_tunnel_program ok_tp) /(ok_get_fundef ok_xp)[] fd' ok_fd'.
+  move: ok_export => /(_ _ ok_fn); rewrite ok_fd => /assertP /eqP export.
+  split; last by rewrite export.
+  move: ok_fd => /(get_fundef_p' (spp := spp_of_asm_e) ok_lp).
+  move=> /(get_fundef_prog_clear_stack ok_lp0) -[lfd' [? [? [h ok_lfd']]]].
+  move: h =>
+    /(get_fundef_tunnel_program (spp := spp_of_asm_e) ok_tp)
+    /(ok_get_fundef ok_xp)
+    [fd' ok_fd'].
   case/assemble_fdI => _ _ [] ? [] ? [] ? [] _ _ _ ?; subst fd'.
   move: ok_fd' => /S /=.
-  rewrite /allocatable_stack.
-  move: (wunsigned (stack_limit m)) (wunsigned (top_stack m)) (wunsigned (top_stack m')) M => L T T'.
+  move: ok_lfd' => /prog_clear_stack_aux_invariants [_ _ _ _ _ _ _ _ <- _].
+  rewrite /allocatable_stack /=.
+  move:
+    (wunsigned (stack_limit (pd := arch_pd) m))
+    (wunsigned (top_stack (pd := arch_pd) m))
+    (wunsigned (top_stack (pd := arch_pd) m'))
+    M => L T T'.
+  rewrite /check_call_conv /=.
+  rewrite /check_list /=.
   Lia.lia.
 Qed.
 
 Import sem_one_varmap.
-Import x86_linearization.
 
-Lemma compiler_back_endP callee_saved entries (p: sprog) (tp: lprog) (rip: word Uptr) (m m':mem) (fn: funname) args res :
-  compiler_back_end cparams callee_saved entries p = ok tp →
+Lemma compiler_back_endP
+  entries
+  (p : @sprog _pd _ _asmop)
+  (tp : lprog)
+  (rip : word Uptr)
+  (scs : syscall_state)
+  (m : mem)
+  (scs' : syscall_state)
+  (m' : mem)
+  (fn : funname)
+  args
+  res :
+  compiler_back_end aparams cparams entries p = ok tp →
   fn \in entries →
-  psem.sem_call p rip m fn args m' res →
+  psem.sem_call p rip scs m fn args scs' m' res →
   ∃ fd : lfundef,
     [/\
+      (* TODO_CS: This is not true. *)
       get_fundef tp.(lp_funcs) fn = Some fd,
       fd.(lfd_export) &
       ∀ lm vm args',
@@ -379,11 +451,11 @@ Lemma compiler_back_endP callee_saved entries (p: sprog) (tp: lprog) (rip: word 
         mapM (λ x : var_i, get_var vm x) fd.(lfd_arg) = ok args' →
         List.Forall2 value_uincl args args' →
         vm.[vid tp.(lp_rip)]%vmap = ok (pword_of_word rip) →
-        vm_initialized_on vm ((vid (lp_tmp lparams) : var) :: lfd_callee_saved fd) →
+        vm_initialized_on vm (var_tmp aparams :: lfd_callee_saved fd) →
         all2 check_ty_val fd.(lfd_tyin) args' ∧
         ∃ vm' lm' res',
           [/\
-            lsem_exportcall tp x86_linear_sem.x86_mov_eop callee_saved lm fn vm lm' vm',
+            lsem_exportcall tp scs lm fn vm scs' lm' vm',
             match_mem m' lm',
             mapM (λ x : var_i, get_var vm' x) fd.(lfd_res) = ok res',
             List.Forall2 value_uincl res res' &
@@ -391,24 +463,34 @@ Lemma compiler_back_endP callee_saved entries (p: sprog) (tp: lprog) (rip: word 
           ]
       ].
 Proof.
-  rewrite /compiler_back_end; t_xrbindP => - [] ok_export [] checked_p lp ok_lp tp'.
-  rewrite !print_linearP => ok_tp ? ok_fn exec_p; subst tp'.
-  have lp_tmp_not_magic : ~~ Sv.mem (vid (lp_tmp x86_linearization_params)) (magic_variables p).
+  rewrite /compiler_back_end; t_xrbindP => ok_export checked_p lp ok_lp lp'.
+  rewrite !print_linearP => ok_lp' tp' ok_tp.
+  rewrite !print_linearP => ? ok_fn exec_p; subst tp'.
+  set vtmp := var_tmp aparams.
+  have vtmp_not_magic : ~~ Sv.mem vtmp (magic_variables p).
   - apply/Sv_memP; exact: var_tmp_not_magic checked_p.
-  have p_call : sem_export_call p (extra_free_registers cparams) (vid (lp_tmp x86_linearization_params)) callee_saved rip m fn args m' res.
+  have p_call :
+    sem_export_call p (extra_free_registers cparams) vtmp rip scs m fn args scs' m' res.
   - apply: (merge_varmaps_export_callP checked_p _ exec_p).
     move/allMP: ok_export => /(_ _ ok_fn).
     rewrite /is_export.
     case: get_fundef => // fd /assertP /eqP Export.
     by exists fd.
-  have := linear_exportcallP h_x86_linearization_params lp_tmp_not_magic ok_lp p_call.
+  have :=
+    linear_exportcallP
+      (hap_hlip haparams)
+      vtmp_not_magic
+      ok_lp
+      p_call.
   case => fd [] ok_fd Export lp_call.
   exists (tunneling.tunnel_lfundef fn fd); split.
-  - exact: get_fundef_tunnel_program ok_tp ok_fd.
+  - have [lfd' [? [? [ok_fd' ok_lfd']]]] :=
+      get_fundef_prog_clear_stack ok_lp' ok_fd.
+  rewrite (get_fundef_tunnel_program ok_tp ok_fd').
   - exact: Export.
   move=> lm vm args' H H0 H1 H2 H3 H4 H5.
   have {lp_call} := lp_call lm vm args' H _ H1 H2 H3 _ H5.
-  have [ -> [] -> _ ] := tunnel_program_invariants ok_tp.
+  have [-> [-> _]] := tunnel_program_invariants (spp := spp_of_asm_e) ok_tp.
   move => /(_ H0 H4)[] wt_args' [] vm' [] lm' [] res' [] lp_call M' ok_res' res_res' wt_res'.
   split; first exact: wt_args'.
   exists vm', lm', res'; split; cycle 1.
@@ -421,96 +503,171 @@ Proof.
   exists (tunneling.tunnel_lfundef fn fd).
   - exact: get_fundef_tunnel_program ok_tp ok_fd.
   - exact: Export.
-  case: (lsem_run_tunnel_program ok_tp lp_exec).
+  case: (lsem_run_tunnel_program (spp := spp_of_asm_e) ok_tp lp_exec).
   - by exists fd.
   - move => tp_exec _.
-    rewrite /= size_tunnel_lcmd.
+    rewrite /lfd_body size_tunnel_lcmd.
     exact: tp_exec.
   exact: ok_callee_saved.
 Qed.
 
-Lemma compiler_back_end_to_x86P entries (p: sprog) (xp: x86_prog) (rip: word Uptr) (m m':mem) (fn: funname) args res :
-  compiler_back_end_to_x86 cparams entries p = ok xp →
-  fn \in entries →
-  psem.sem_call p rip m fn args m' res →
-  ∃ xd : x86_fundef,
-    [/\
-      get_fundef xp.(asm_funcs) fn = Some xd,
-      xd.(asm_fd_export) &
-      ∀ xm args',
-        xm.(asm_rip) = rip →
-        asm_reg xm x86_decl.RSP = top_stack m →
-        match_mem m xm.(asm_mem)  →
-        get_typed_reg_values xm xd.(asm_fd_arg) = ok args' →
-        List.Forall2 value_uincl args args' →
-        (* FIXME: well-typed? all2 check_ty_val fd.(asm_fd_tyin) args' ∧ *)
-        ∃ xm' res',
-          [/\ x86sem_exportcall xp fn xm xm'
-          , match_mem m' xm'.(asm_mem)
-          , get_typed_reg_values xm' xd.(asm_fd_res) = ok res'
-          & List.Forall2 value_uincl res res'
-          ]
-        ].
+Lemma compiler_back_end_to_asmP
+  entries
+  (p : @sprog _pd _ _asmop)
+  (xp : asm_prog)
+  (rip : word Uptr)
+  scs (m : mem) scs' (m' : mem)
+  (fn: funname)
+  args
+  res :
+  compiler_back_end_to_asm aparams cparams entries p = ok xp
+  -> fn \in entries
+  -> psem.sem_call p rip scs m fn args scs' m' res
+  -> exists xd : asm_fundef,
+      [/\ get_fundef (asm_funcs xp) fn = Some xd
+        , asm_fd_export xd
+        & forall xm args',
+               xm.(asm_scs) = scs
+            -> xm.(asm_rip) = rip
+            -> asm_reg xm ad_rsp = top_stack m
+            -> match_mem m xm.(asm_mem)
+            -> get_typed_reg_values xm xd.(asm_fd_arg) = ok args'
+            -> List.Forall2 value_uincl args args'
+  (* FIXME: well-typed? all2 check_ty_val fd.(asm_fd_tyin) args' ∧ *)
+            -> exists xm' res',
+                [/\ asmsem_exportcall xp fn xm xm'
+                  , match_mem m' xm'.(asm_mem), xm'.(asm_scs) = scs'
+                  , get_typed_reg_values xm' xd.(asm_fd_res) = ok res'
+                  & List.Forall2 value_uincl res res'
+                ]
+      ].
 Proof.
-  rewrite /compiler_back_end_to_x86; t_xrbindP => lp ok_lp ok_xp ok_fn p_call.
-  have [ fd [] ok_fd fd_export lp_call ] := compiler_back_endP ok_lp ok_fn p_call.
-  have [ xd -> ] := ok_get_fundef ok_xp ok_fd.
-  have [ disj_rip ok_lp_rsp ok_globs get_xfun ] := assemble_progP ok_xp.
-  case/assemble_fdI => rsp_not_arg /allP ok_callee_saved [] xbody [] xargs [] xres [] ok_xbody ok_xargs ok_xres -> {xd}.
+  rewrite /compiler_back_end_to_asm.
+  t_xrbindP=> lp ok_lp ok_xp.
+  move=> ok_fn p_call.
+  have [fd [] ok_fd fd_export lp_call] := compiler_back_endP ok_lp ok_fn p_call.
+  have [xd ->] := ok_get_fundef ok_xp ok_fd.
+  have [disj_rip ok_lp_rsp ok_globs get_xfun] := assemble_progP ok_xp.
+  case/assemble_fdI =>
+    rsp_not_arg /allP ok_callee_saved
+    [] xbody
+    [] xargs
+    [] xres
+    [] ok_xbody ok_xargs ok_xres
+    -> {xd}.
   eexists; split; first reflexivity.
   - by rewrite fd_export.
-  move => xm args' ok_rip ok_rsp M /= ok_args' ok_args.
-  set s := estate_of_x86_mem (top_stack m) (lp_rip lp) xm.
-  assert (LM := lom_eqv_estate_of_x86_mem (top_stack m) xm disj_rip).
-  assert (XM := get_var_vmap_of_x86_mem (top_stack m) (lp_rip lp) xm).
-  have wf_s : wf_vm s.(evm) by exact: wf_vmap_of_x86_mem.
+  move=> xm args' ok_scs ok_rip ok_rsp M /= ok_args' ok_args.
+
+  set s :=
+    estate_of_asm_mem
+      (top_stack m)
+      (lp_rip lp)
+      (lp_rsp lp)
+      xm.
+  have wf_s : wf_vm (evm s).
+  - exact: wf_vmap_of_asm_mem.
+
+  assert (LM :=
+    lom_eqv_estate_of_asm_mem
+      (top_stack m)
+      (lp_rsp lp)
+      xm
+      disj_rip).
+
+  assert (XM :=
+    get_var_vmap_of_asm_mem
+      (top_stack m)
+      (lp_rip lp)
+      (lp_rsp lp)
+      xm).
+
   have := lp_call _ _ _ wf_s _ M _ ok_args.
+
   case.
-  - have := XM (ARReg x86_decl.RSP).
-    rewrite /= ok_lp_rsp /get_var /=.
-    case: _.[_]%vmap => [ | [] // ] [] /= sz w sz_le_Uptr /ok_inj /Vword_inj[] ?; subst => /=.
+  - assert (Hrsp := XM (ARReg ad_rsp)).
+    move: Hrsp.
+    rewrite /= /get_var /to_var /=.
+    rewrite ok_lp_rsp /rtype /=.
+    case: _.[_]%vmap =>
+      [ | [] // ] [] /= sz w sz_le_Uptr /ok_inj /Vword_inj[] ?;
+      subst => /=.
     by rewrite pword_of_wordE ok_rsp => ->.
   - rewrite -ok_args'.
     apply: mapM_factorization ok_xargs.
-    by move => x r /asm_typed_reg_of_varI ->.
-  - case: LM => _ Y _ _ _ _.
+    rewrite /typed_reg_of_vari /=.
+    move => [x _] r /= h.
+    by rewrite (asm_typed_reg_of_varI h).
+  - case: LM => _ _ Y _ _ _ _.
     move: Y; rewrite /get_var /=.
-    case: _.[_]%vmap => [ | [] // ] [] /= sz w sz_le_Uptr /ok_inj /Vword_inj[] ?; subst => /=.
+    rewrite /mk_ptr /=.
+    case: _.[_]%vmap =>
+      /= [ | [] // ] [] /= sz w sz_le_Uptr /ok_inj /Vword_inj[] ?;
+      subst => /=.
     by rewrite pword_of_wordE => ->.
   - move => /=.
     apply/andP; split.
-    + by rewrite (XM (ARReg x86_decl.RAX)).
-    apply/allP => x /ok_callee_saved.
-    case hx: asm_typed_reg_of_var => [ [ r | | ] | ] // _.
-    by rewrite (asm_typed_reg_of_varI hx) XM.
-  move => _wt_largs [] vm' [] lm' [] res' [] {} lp_call M' ok_res' res_res' _wt_res'.
-  have := x86gen_exportcall ok_xp lp_call _ LM.
+    + rewrite /var_tmp.
+      have [tmp_r htmp] := ok_lip_tmp haparams.
+      rewrite -(of_stringI htmp).
+      rewrite (XM (ARReg _)).
+      by rewrite /get_typed_reg_value /= truncate_word_u.
+
+    apply/allP => x /ok_callee_saved hin.
+    have [r ->]: exists2 r, x = (var_of_asm_typed_reg r) & vtype x != sbool.
+    + by move/andP: hin => [->] /is_okP [] r /asm_typed_reg_of_varI ->; exists r.
+    rewrite XM /=.
+    by case: r => //= ?; rewrite truncate_word_u.
+  move=>
+      _wt_largs
+      [] vm'
+      [] lm'
+      [] res'
+      [] {} lp_call M' ok_res' res_res' _wt_res'.
+  subst scs.
+  have :=
+    asm_gen_exportcall
+      (hap_hagp haparams)
+      ok_xp
+      lp_call
+      _
+      LM.
   case.
-  - apply/allP => _ /in_map[] r _ ->.
-    by rewrite (XM (ARReg r)).
-  move => xm' xp_call LM'.
-  have : exists2 res'', get_typed_reg_values xm' xres = ok res'' & List.Forall2 value_uincl res' res''.
+  - apply/allP => ? /mapP [] r hin ->.
+    rewrite (XM r) /=. 
+    assert (H:= callee_saved_not_bool); move/allP: H => /(_ _ hin) {hin}.
+    by case: r => //= r _; rewrite truncate_word_u.
+
+  move=> xm' xp_call LM'.
+
+  have :
+    exists2 res'', get_typed_reg_values xm' xres = ok res''
+                   & List.Forall2 value_uincl res' res''.
   - move/mapM_Forall2: ok_res'.
     move/mapM_Forall2: ok_xres {res_res' _wt_res'} res'.
-    case: LM' => /=_ _ _; clear => R X F.
-    elim; first by move => _ /List_Forall2_inv_l ->; exists [::].
-    case => _ /= xi r xs rs /asm_typed_reg_of_varI /= -> xs_rs ih.
-    move => ? /List_Forall2_inv_l[] v [] vs [] ?; subst.
+    case: LM' => /=_ _ _ _; clear => R RX X F.
+    elim.
+    + move=> _ /List_Forall2_inv_l ->. by exists [::].
+    case => ? /= xi r xs rs.
+    move=> /asm_typed_reg_of_varI.
+    move=> /= -> xs_rs ih.
+    move=> ? /List_Forall2_inv_l[] v [] vs [] ?; subst.
     case => ok_v /ih [] vs' -> vs_vs'.
     suff : exists2 v', get_typed_reg_value xm' r = ok v' & value_uincl v v'.
     + case => v' /= -> v_v'; exists (v' :: vs'); first by [].
       by constructor.
     case: r ok_v => r.
     + by move => /R /= h; eexists; first reflexivity.
+    + by move => /RX /= h; eexists; first reflexivity.
     + by move => /X /= h; eexists; first reflexivity.
     rewrite get_varE; t_xrbindP => /= b ok_b ?; subst v.
     have := F r b.
     rewrite /= ok_b => /(_ erefl).
     by case: (asm_flag xm' r) => // _ <-; exists b.
   case => res'' ok_res'' res'_res''.
-  exists xm', res''; split; first exact: xp_call.
-  - by case: LM' => /= <-.
-  - exact: ok_res''.
+  exists xm', res''; split => //.
+  - by case: LM' => /= _ <-.
+  - by case: LM' => <-.
   apply: Forall2_trans res_res' res'_res''.
   exact: value_uincl_trans.
 Qed.
@@ -519,6 +676,7 @@ Qed.
    Expressed in a way that streamlines the composition of compiler-correctness theorems (front-end and back-end).
   TODO: There might be an equivalent definition that is clearer.
 *)
+
 Record mem_agreement (m m': mem) (gd: pointer) (data: seq u8) : Prop :=
   { ma_ghost : mem
   ; ma_extend_mem : extend_mem m ma_ghost gd data
@@ -527,189 +685,68 @@ Record mem_agreement (m m': mem) (gd: pointer) (data: seq u8) : Prop :=
   ; ma_stack_range : (wunsigned (stack_limit ma_ghost) <= wunsigned (top_stack m'))%Z
   }.
 
-Lemma compile_prog_to_x86P entries subroutine (p: prog) (xp: x86_prog) (m m':mem) (fn: funname) va vr xm :
-  compile_prog_to_x86 cparams aparams entries subroutine p = ok xp →
-  fn \in entries →
-  sem.sem_call p m fn va m' vr →
-  mem_agreement m xm.(asm_mem) xm.(asm_rip) xp.(asm_globs) →
-  enough_stack_space xp fn (top_stack m) xm.(asm_mem) →
-  ∃ xd : x86_fundef,
-    [/\
-      get_fundef xp.(asm_funcs) fn = Some xd,
-      xd.(asm_fd_export) &
-      ∀ args',
-        asm_reg xm x86_decl.RSP = top_stack m →
-        get_typed_reg_values xm xd.(asm_fd_arg) = ok args' →
-        List.Forall2 value_uincl va args' →
-        (* FIXME: see comment in compiler_back_end_to_x86P *)
-        ∃ xm' res',
-          [/\ x86sem_exportcall xp fn xm xm'
-          , mem_agreement m' xm'.(asm_mem) xm'.(asm_rip) xp.(asm_globs)
-          , get_typed_reg_values xm' xd.(asm_fd_res) = ok res'
-          & List.Forall2 value_uincl vr res'
-          ]
-        ].
+Lemma compile_prog_to_asmP
+  entries
+  subroutine
+  (p : prog)
+  (xp : asm_prog)
+  scs (m : mem) scs' (m' : mem)
+  (fn: funname)
+  va
+  vr
+  xm :
+  compile_prog_to_asm aparams cparams entries subroutine p = ok xp
+  -> fn \in entries
+  -> sem.sem_call p scs m fn va scs' m' vr
+  -> mem_agreement m (asm_mem xm) (asm_rip xm) (asm_globs xp)
+  -> enough_stack_space xp fn (top_stack m) (asm_mem xm)
+  -> exists xd : asm_fundef,
+      [/\
+         get_fundef (asm_funcs xp) fn = Some xd
+        , asm_fd_export xd
+        & forall args',
+               asm_scs xm = scs
+            -> asm_reg xm ad_rsp = top_stack m
+            -> get_typed_reg_values xm (asm_fd_arg xd) = ok args'
+            -> List.Forall2 value_uincl va args'
+  (* FIXME: see comment in compiler_back_end_to_x86P *)
+            -> exists xm' res',
+                [/\ asmsem_exportcall xp fn xm xm'
+                  , mem_agreement m' (asm_mem xm') (asm_rip xm') (asm_globs xp), asm_scs xm' = scs'
+                  , get_typed_reg_values xm' (asm_fd_res xd) = ok res'
+                  & List.Forall2 value_uincl vr res'
+                ]
+      ].
 Proof.
-  rewrite /compile_prog_to_x86; t_xrbindP => sp ok_sp ok_xp ok_fn p_call [] mi.
-  have [ rsp_eq -> ] := compiler_back_end_to_x86_meta ok_xp.
-  move => mi1 mi2 mi3 mi4.
+  rewrite /compile_prog_to_asm; t_xrbindP => sp ok_sp ok_xp ok_fn p_call [] mi.
+  have -> := compiler_back_end_to_asm_meta ok_xp.
+  move=> mi1 mi2 mi3 mi4.
   rewrite (ss_top_stack mi3).
-  move => /(enough_stack_space_alloc_ok ok_xp ok_fn mi4) ok_mi.
+  move=> /(enough_stack_space_alloc_ok ok_xp ok_fn mi4) ok_mi.
   have := compiler_front_endP ok_sp ok_fn p_call mi1 ok_mi.
   case => vr' [] mi' [] vr_vr' sp_call m1.
-  have := compiler_back_end_to_x86P ok_xp ok_fn sp_call.
-  case => xd [] ok_xd Export /(_ _ _ erefl _ mi2) xp_call.
+  have := compiler_back_end_to_asmP ok_xp ok_fn sp_call.
+  case => xd [] ok_xd export /(_ _ _ _ erefl _ mi2) xp_call.
   exists xd; split => //.
-  move => args' ok_RSP ok_args' va_args'.
-  have := xp_call _ ok_RSP ok_args' va_args'.
-  case => xm' [] res' [] {} xp_call m2 ok_res' vr'_res'.
-  exists xm', res'; split => //; last exact: Forall2_trans value_uincl_trans vr_vr' vr'_res'.
-  case: xp_call => _ _ _ /asmsem_invariantP/= xm_xm' _.
+  move=> args' ok_scs ok_rsp ok_args' va_args'.
+  have := xp_call _ ok_scs ok_rsp ok_args' va_args'.
+  case => xm' [] res' [] {} xp_call m2 ok_scs' ok_res' vr'_res'.
+  exists xm', res';
+    split => //;
+    last exact: Forall2_trans value_uincl_trans vr_vr' vr'_res'.
+  case: xp_call => _ _ _ /= _ /asmsem_invariantP /= xm_xm' _.
   exists mi'.
   - rewrite -(asmsem_invariant_rip xm_xm').
     exact: m1.
   - exact: m2.
-  - transitivity mi; last exact: sem_call_stack_stable_sprog sp_call.
+  - transitivity mi;
+      last exact: (sem_call_stack_stable_sprog sp_call).
     transitivity m; last exact: mi3.
-    symmetry; exact: sem_call_stack_stable p_call.
-  rewrite -(ss_limit (sem_call_stack_stable_sprog sp_call)) -(ss_top_stack (asmsem_invariant_stack_stable xm_xm')).
+    symmetry. exact: (sem_call_stack_stable p_call).
+  rewrite
+    -(ss_limit (sem_call_stack_stable_sprog sp_call))
+    -(ss_top_stack (asmsem_invariant_stack_stable xm_xm')).
   exact: mi4.
 Qed.
 
-(*
-Let Kj : ∀ rip glob m vr (P Q: _ → _ → Prop),
-        (∀ m' vr', P m' vr' → Q m' vr') →
-        (∃ m' vr', List.Forall2 value_uincl vr vr' ∧ extend_mem m m' rip glob ∧ P m' vr') →
-        (∃ m' vr', List.Forall2 value_uincl vr vr' ∧ extend_mem m m' rip glob ∧ Q m' vr')
-    := λ rip glob m vr P Q h x,
-      let 'ex_intro m' (ex_intro vr' (conj u (conj v p))) := x in
-      ex_intro _ m' (ex_intro _ vr' (conj u (conj v (h m' vr' p)))).
-
-Let Km : ∀ rip glob m vr (P: _ → Prop) (Q: _ → _ → Prop),
-        (∀ vr, P vr → ∃ m' vr', List.Forall2 value_uincl vr vr' ∧ extend_mem m m' rip glob ∧ Q m' vr') →
-        (∃ vr', List.Forall2 value_uincl vr vr' ∧ P vr') →
-        (∃ m' vr', List.Forall2 value_uincl vr vr' ∧ extend_mem m m' rip glob ∧ Q m' vr')
-  := λ rip glob m vr P Q h x,
-      let 'ex_intro vr' (conj u p) := x in
-      let 'ex_intro m' (ex_intro vr'' (conj u' q)) := h vr' p in
-      ex_intro _ m' (ex_intro _ vr'' (conj (Forall2_trans value_uincl_trans u u') q)).
-*)
-
-(*
-Lemma compile_progP entries (p: prog) (lp: lprog) mem fn va mem' vr:
-  compile_prog cparams entries p = cfok lp ->
-  fn \in entries ->
-  sem.sem_call p mem fn va mem' vr ->
-  forall meml rip, 
-    extend_mem mem meml rip lp.(lp_globs) ->
-    (forall f, get_fundef lp.(lp_funcs) fn = Some f -> 
-       exists p, alloc_stack meml (lfd_stk_size f) = ok p) ->
-  ∃ meml' vr',
-    List.Forall2 value_uincl vr vr' ∧
-    extend_mem mem' meml' rip lp.(lp_globs) /\
-    lsem_fd lp rip meml fn va meml' vr'.
-Proof.
-  rewrite /compile_prog.
-  apply: rbindP=> p0 Hp0. rewrite !print_uprogP.
-  apply: rbindP=> pca Hpca. rewrite !print_uprogP.
-  apply: rbindP=> p1 Hp1. rewrite !print_uprogP.
-  apply: rbindP => -[] Hv.
-  apply: rbindP=> pv Hpv. rewrite !print_uprogP.
-  apply: rbindP=> -[] Hps.
-  apply: rbindP=> ps' Hps'. rewrite !print_uprogP.
-  apply: rbindP=> -[] He.
-  apply: rbindP => pg Hpg. rewrite !print_uprogP.
-  apply: rbindP => _ /assertP Hlower.
-  apply: rbindP => pstk Hpstk. rewrite !print_sprogP.
-  apply: rbindP=> -[] He'.
-  apply: rbindP=> pd Hpd. rewrite !print_sprogP.
-  apply: rbindP=> pl Hpl [] <-. rewrite !print_linearP.
-  move=> Hin Hcall meml rip Hex Halloc.
- (* have Haok : alloc_ok pstk fn meml.
-  + rewrite /alloc_ok=> fd Hfd.
-    move: Hpl; rewrite /linear_prog; t_xrbindP => ?? lfuncs Hpl [] ?; subst pl.
-    move: (get_map_cfprog_gen Hpl Hfd)=> [f' [Hf'1 Hf'2]].
-    apply: rbindP Hf'1=> [fn' Hfn'] [] Hf'.
-    have := Halloc _ Hf'2.
-    by rewrite -Hf' /=. *)
-  have va_refl := List_Forall2_refl va value_uincl_refl.
-  have eqg : lp_globs pl = sp_globs pd.(p_extra).
-  + by move: Hpl; rewrite /linear_prog; t_xrbindP => ???? <-. 
-  move: Hex; rewrite eqg => Hex.
-  apply: Kj; first by exact: (linear_fdP Hpl).
-  apply: Km. 
-  + by move=> vr' Hvr'; apply: (stack_alloc_proof.alloc_progP (ev:= tt) Hpstk _ Hex Haok); exact: Hvr'.
-  apply: Ki; first by move => vr'; apply: (dead_code_callPu Hpd).
-  apply: K'; first by move => vr' Hvr'; apply: (CheckAllocRegU.alloc_callP He'); exact: Hvr'.
-  apply: Ki; first by move => vr'; exact: (lower_callP _ _ _ Hlower).
-  apply: Ki; first by move => vr';apply: (RGP.remove_globP Hpg).
-  apply: K'; first by move => vr' Hvr'; apply: (CheckExpansion.alloc_callP He); exact: Hvr'.
-  rewrite surj_prog.
-  apply: K'; first by move => vr' Hvr'; apply: (remove_init_fdPu va_refl); exact: Hvr'.
-  apply: Ki; first by move => vr'; exact: (dead_code_callPu Hps').
-  apply: K'; first by move => vr' Hvr'; apply: (CheckAllocRegU.alloc_callP Hps); exact: Hvr'.
-  rewrite surj_prog. 
-  apply: Ki; first by move => vr'; exact: (dead_code_callPu Hpv).
-  apply: K'; first by move => vr' Hvr'; apply: (CheckAllocRegU.alloc_callP Hv); exact: Hvr'.
-  rewrite surj_prog.
-  apply: K'; first by move => vr' Hvr'; apply: (const_prop_callP _ va_refl); exact: Hvr'.
-  apply: K'; first by move => vr' Hvr'; apply: (unrollP Hp1 _ va_refl); exact: Hvr'.
-  apply: Ki; first by move => vr'; exact: (dead_calls_err_seqP (sCP:= sCP_unit) Hpca).
-  apply: K'; first by move => vr' Hvr'; apply: (inline_call_errP Hp0 va_refl); exact: Hvr'.
-  apply: Ki; first by move => vr'; exact: psem_call.
-  exists vr; split => //.
-  exact: (List_Forall2_refl _ value_uincl_refl).
-Qed.
-
-Lemma compile_prog_to_x86P entries (p: prog) (xp: xprog) m1 fn va m2 vr :
-  compile_prog_to_x86 cparams entries p = cfok xp →
-  fn \in entries →
-  sem.sem_call p m1 fn va m2 vr →
-  forall m1' wrip, 
-  extend_mem m1 m1' wrip xp.(xp_globs) ->
-  (∀ f, get_fundef xp.(xp_funcs) fn = Some f →
-     ∃ p, alloc_stack m1' (xfd_stk_size f) = ok p) →
-  ∃ fd va',
-    get_fundef (p_funcs p) fn = Some fd ∧
-    mapM2 ErrType truncate_val (f_tyin fd) va = ok va' ∧
-  ∃ fd', get_fundef xp.(xp_funcs) fn = Some fd' ∧
-  ∀ st1,
-    List.Forall2 value_uincl va' (get_arg_values st1 fd'.(xfd_arg)) →
-    st1.(xmem) = m1' →
-  ∃ st2,
-    x86sem_fd xp wrip fn st1 st2 ∧
-    List.Forall2 value_uincl vr (get_arg_values st2 fd'.(xfd_res)) ∧
-    extend_mem m2 st2.(xmem) wrip xp.(xp_globs).
-Proof.
-apply: rbindP=> lp hlp; t_xrbindP => /= _ /assertP /allP ok_sig hxp hfn hsem m1' rip Hex hsafe.
-have heq: xp_globs xp = lp_globs lp.
-+ by move: hxp; rewrite /assemble_prog; t_xrbindP => _ _; case: x86_variables.reg_of_string => //; t_xrbindP => _ ? _ <-.
-rewrite heq in Hex.
-have hlsem := compile_progP hlp hfn hsem Hex.
-case: hlsem.
-- move => fd hfd.
-  move: hxp; rewrite /assemble_prog; t_xrbindP => _ _; case: x86_variables.reg_of_string => // sp; t_xrbindP => fs hfs ?; subst xp.
-  have [xfd hxfd] := get_map_cfprog_gen hfs hfd.
-  by move => /hsafe; rewrite (assemble_fd_stk_size hxfd).
-move/ok_sig: hfn.
-case: hsem => {m1 m2 hsafe fn va vr Hex} m1 m2 fn fd va va' st1 vm2 vr vr1 ok_fd ok_va _ _ _ _ hsig m2' [vr'] [ok_vr'] [hm2' hlsem].
-exists fd, va.
-split; first exact: ok_fd.
-split; first exact: ok_va.
-case: (assemble_fdP hxp hlsem) => fd' [va1] [ok_fd'] [ok_va1] [xd] [ok_xd h].
-move: ok_va1.
-have -> : lfd_tyin fd' = f_tyin fd.
-- by move: hsig; rewrite /check_signature ok_fd' ok_fd => /eqP [].
-rewrite ok_va => - [?]; subst va1.
-exists xd; split; first exact: ok_xd.
-move => st hva hm1.
-have [st2 [hxsem [hvr' hm2]]] := h st hva hm1.
-exists st2.
-split; first exact: hxsem.
-split; first exact: (Forall2_trans value_uincl_trans ok_vr' hvr').
-by rewrite heq hm2.
-Qed.
-*)
-
 End PROOF.
-

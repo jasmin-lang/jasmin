@@ -1,12 +1,12 @@
 opam-version: "2.0"
 name: "jasmin"
-version: "0.1"
-maintainer: "Jasmin Team <jasmin@example.com>"
-authors: [ "Jasmin Team <jasmin@example.com>" ]
-homepage: "http://jasmin-lang.github.io/"
+version: "dev"
+maintainer: "Jean-Christophe Léchenet <jean-christophe.lechenet@inria.fr>"
+authors: "Jasmin authors and contributors"
+homepage: "https://github.com/jasmin-lang/jasmin"
 bug-reports: "https://github.com/jasmin-lang/jasmin/issues"
 synopsis: "High-Assurance and High-Speed Cryptography"
-license: "CeCILL-B"
+license: "MIT"
 
 build: [
   make "build"
@@ -14,20 +14,20 @@ build: [
 install: [
   make "PREFIX=%{prefix}%" "install"
 ]
-remove: [
-  make "PREFIX=%{prefix}%" "uninstall"
-]
 depends: [
-  "batteries" {>= "2.6"}
-  "menhir" {>= "20160825"}
-  "zarith"
-  "apron"
+  "ocaml" { >= "4.08" & build }
+  "batteries" {>= "3.2"}
+  "menhir" {>= "20160825" & build }
+  "menhirLib"
+  "camlidl"
+  "zarith" {>= "1.9"}
+  "apron" {>= "v0.9.12"}
   "conf-ppl"
-  "yojson"
-  "ocamlbuild"
-  "ocamlfind"
-  "coq" {>= "8.14.0" & < "8.15"}
-  "coq-mathcomp-ssreflect" {>= "1.12" & < "1.14"}
+  "yojson" {>= "1.6.0"}
+  "ocamlbuild" { build }
+  "ocamlfind" { build }
+  "coq" {>= "8.14.0" & < "8.17"}
+  "coq-mathcomp-ssreflect" {>= "1.12" & < "1.16"}
   "coq-mathcomp-algebra"
-  "coq-mathcomp-word"
+  "coq-mathcomp-word" {>= "2.0"}
 ]

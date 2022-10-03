@@ -1,32 +1,6 @@
-(* ** License
- * -----------------------------------------------------------------------
- * Copyright 2016--2017 IMDEA Software Institute
- * Copyright 2016--2017 Inria
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * ----------------------------------------------------------------------- *)
-
-
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import Utf8.
 Require Import compiler_util.
 Require Import wsize sopn expr arch_decl x86_decl x86_instr_decl x86_sem.
@@ -94,6 +68,12 @@ Definition get_instr_desc o :=
   | Ox86MOVZX32 => Ox86MOVZX32_instr
   end.
 
+Definition prim_string :=
+  [::
+    ("set0"%string, PrimP U64 (fun _ sz => Oset0 sz));
+    ("concat_2u128"%string, PrimM (fun _ => Oconcat128))
+    (* Ox86MOVZX32 is ignored on purpose *)
+  ].
 
 (* TODO: to be removed? can we have one module for all asmgen errors? *)
 Module E.
@@ -138,6 +118,7 @@ Definition assemble_extra ii o outx inx : cexec (asm_op_msb_t * lvals * pexprs) 
     ok ((None, VINSERTI128), outx, inx)
   end.
 
+#[global]
 Instance eqC_x86_extra_op : eqTypeC x86_extra_op :=
   { ceqP := x86_extra_op_eq_axiom }.
 
@@ -145,14 +126,17 @@ Instance eqC_x86_extra_op : eqTypeC x86_extra_op :=
    meaning that extra ops are the only possible ops. With that priority,
    [arch_extra.asm_opI] is selected first and we have both base and extra ops.
 *)
+#[global]
 Instance x86_extra_op_decl : asmOp x86_extra_op | 1 :=
-  { asm_op_instr := get_instr_desc }.
+  { asm_op_instr := get_instr_desc;
+    prim_string := prim_string }.
 
-Instance x86_extra : asm_extra register xmm_register rflag condt x86_op x86_extra_op :=
+#[global]
+Instance x86_extra : asm_extra register register_ext xmm_register rflag condt x86_op x86_extra_op :=
   { to_asm := assemble_extra }.
 
 (* This concise name is convenient in OCaml code. *)
 Definition x86_extended_op :=
-  @extended_op _ _ _ _ _ _ x86_extra.
+  @extended_op _ _ _ _ _ _ _ x86_extra.
 
 Definition Ox86 o : @sopn x86_extended_op _ := Oasm (BaseOp (None, o)).

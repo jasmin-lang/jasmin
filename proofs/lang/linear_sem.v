@@ -1,28 +1,3 @@
-(* ** License
- * -----------------------------------------------------------------------
- * Copyright 2016--2017 IMDEA Software Institute
- * Copyright 2016--2017 Inria
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * ----------------------------------------------------------------------- *)
-
 (* * Syntax and semantics of the linear language *)
 
 (* ** Imports and settings *)
@@ -31,7 +6,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Utf8.
         Import Relations.
 Require oseq.
-Require Import psem compiler_util label linear.
+Require Import psem compiler_util label one_varmap linear sem_one_varmap.
 
 Import Memory.
 
@@ -43,9 +18,11 @@ Local Open Scope seq_scope.
 
 Section SEM.
 
-Context {pd: PointerData}.
-Context {asm_op} {asmop : asmOp asm_op}.
-Variable P: lprog.
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  {ovm_i : one_varmap_info}
+  (P : lprog).
 
 Definition label_in_lcmd (body: lcmd) : seq label :=
   pmap (λ i, if li_i i is Llabel lbl then Some lbl else None) body.
@@ -53,24 +30,24 @@ Definition label_in_lcmd (body: lcmd) : seq label :=
 Definition label_in_lprog : seq remote_label :=
   [seq (f.1, lbl) | f <- lp_funcs P, lbl <- label_in_lcmd (lfd_body f.2) ].
 
-#[local]
 Notation labels := label_in_lprog.
 
 (* --------------------------------------------------------------------------- *)
 (* Semantic                                                                    *)
 
 Record lstate := Lstate
-  { lmem : mem;
+  { lscs : syscall_state_t;
+    lmem : mem;
     lvm  : vmap;
     lfn : funname;
     lpc  : nat; }.
 
-Definition to_estate (s:lstate) : estate := Estate s.(lmem) s.(lvm).
-Definition of_estate (s:estate) fn pc := Lstate s.(emem) s.(evm) fn pc.
-Definition setpc (s:lstate) pc :=  Lstate s.(lmem) s.(lvm) s.(lfn) pc.
-Definition setc (s:lstate) fn := Lstate s.(lmem) s.(lvm) fn s.(lpc).
-Definition setcpc (s:lstate) fn pc := Lstate s.(lmem) s.(lvm) fn pc.
-
+Definition to_estate (s:lstate) : estate := Estate s.(lscs) s.(lmem) s.(lvm).
+Definition of_estate (s:estate) fn pc := Lstate s.(escs) s.(emem) s.(evm) fn pc.
+Definition setpc (s:lstate) pc :=  Lstate s.(lscs) s.(lmem) s.(lvm) s.(lfn) pc.
+Definition setc (s:lstate) fn := Lstate s.(lscs) s.(lmem) s.(lvm) fn s.(lpc).
+Definition setcpc (s:lstate) fn pc := Lstate s.(lscs) s.(lmem) s.(lvm) fn pc.
+ 
 Lemma to_estate_of_estate es fn pc:
   to_estate (of_estate es fn pc) = es.
 Proof. by case: es. Qed.
@@ -83,11 +60,6 @@ Therefore, [lsem s] represents all states reachable from [s].
 A maximal execution (i.e., terminated without error) is caracterized by the fact that
 the reached state has no instruction left to execute.
 *)
-Section LSEM.
-
-(* Architecture-dependent way of storing a pointer. *)
-Context (mov_op : asm_op).
-
 Definition eval_jump d s :=
   let: (fn, lbl) := d in
   Let body :=
@@ -98,11 +70,60 @@ Definition eval_jump d s :=
   Let pc := find_label lbl body in
   ok (setcpc s fn pc.+1).
 
+Definition find_instr (s:lstate) :=
+  if get_fundef (lp_funcs P) s.(lfn) is Some fd then
+    let body := lfd_body fd in
+    oseq.onth body s.(lpc)
+  else None.
+
+Definition get_label_after_pc (s:lstate) :=
+  if find_instr (setpc s s.(lpc).+1) is Some i then
+    if li_i i is Llabel l then ok l
+    else type_error
+  else type_error.
+
 Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   match li_i i with
   | Lopn xs o es =>
     Let s2 := sem_sopn [::] o (to_estate s1) xs es in
     ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
+  | Lsyscall o =>
+    Let ves := mapM (get_var s1.(lvm)) (syscall_sig o).(scs_vin) in 
+    Let: (scs, m, vs) := exec_syscall (semCallParams:= sCP_stack) s1.(lscs) s1.(lmem) o ves in 
+    Let s2 := write_lvals [::] {| escs := scs; emem := m; evm := vm_after_syscall s1.(lvm) |}
+                (to_lvals (syscall_sig o).(scs_vout)) vs in
+    ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
+  | Lcall d =>
+    let vrsp := v_var (vid (lp_rsp P)) in
+    Let sp := get_var s1.(lvm) vrsp >>= to_pointer in
+    let nsp := (sp - wrepr Uptr (wsize_size Uptr))%R in
+    Let vm := set_var s1.(lvm) vrsp (Vword nsp) in
+    Let lbl := get_label_after_pc s1 in
+    if encode_label labels (lfn s1, lbl) is Some p then
+      Let m :=  write s1.(lmem) nsp p in
+      let s1' :=
+        {| lscs := s1.(lscs);
+           lmem := m;
+           lvm  := vm;
+           lfn  := s1.(lfn);
+           lpc  := s1.(lpc) |} in
+      eval_jump d s1'
+    else type_error
+  | Lret =>
+    let vrsp := v_var (vid (lp_rsp P)) in
+    Let sp := get_var s1.(lvm) vrsp >>= to_pointer in
+    let nsp := (sp + wrepr Uptr (wsize_size Uptr))%R in
+    Let p  := read s1.(lmem) sp Uptr in
+    Let vm := set_var s1.(lvm) vrsp (Vword nsp) in
+    let s1' :=
+      {| lscs := s1.(lscs);
+         lmem := s1.(lmem);
+         lvm  := vm;
+         lfn  := s1.(lfn);
+         lpc  := s1.(lpc) |} in
+    if decode_label labels p is Some d then
+      eval_jump d s1'
+    else type_error
   | Lalign   => ok (setpc s1 s1.(lpc).+1)
   | Llabel _ => ok (setpc s1 s1.(lpc).+1)
   | Lgoto d => eval_jump d s1
@@ -114,8 +135,8 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
   | LstoreLabel x lbl =>
     if encode_label labels (lfn s1, lbl) is Some p
     then
-      Let s2 := sem_sopn [::] (Oasm mov_op) (to_estate s1) [:: x ] [:: wconst p ] in
-      ok (of_estate s2 s1.(lfn) s1.(lpc).+1)
+      Let vm := set_var s1.(lvm) x (Vword p) in
+      ok {| lscs := s1.(lscs) ; lmem := s1.(lmem) ; lvm := vm ; lfn := s1.(lfn) ; lpc := s1.(lpc).+1 |}
     else type_error
   | Lcond e lbl =>
     Let b := sem_pexpr [::] (to_estate s1) e >>= to_bool in
@@ -123,12 +144,6 @@ Definition eval_instr (i : linstr) (s1: lstate) : exec lstate :=
       eval_jump (s1.(lfn),lbl) s1
     else ok (setpc s1 s1.(lpc).+1)
   end.
-
-Definition find_instr (s:lstate) :=
-  if get_fundef (lp_funcs P) s.(lfn) is Some fd then
-    let body := lfd_body fd in
-    oseq.onth body s.(lpc)
-  else None.
 
 Definition step (s: lstate) : exec lstate :=
   if find_instr s is Some i then
@@ -260,18 +275,16 @@ Proof.
   by clear => s s' ? k _ _ /lsem_final_nostep /(_ k).
 Qed.
 
-Variant lsem_exportcall (callee_saved: Sv.t) (m: mem) (fn: funname) (vm: vmap) (m': mem) (vm': vmap) : Prop :=
+Variant lsem_exportcall (scs:syscall_state_t) (m: mem) (fn: funname) (vm: vmap) (scs':syscall_state_t) (m': mem) (vm': vmap) : Prop :=
 | Lsem_exportcall (fd: lfundef) of
     get_fundef P.(lp_funcs) fn = Some fd
   & lfd_export fd
   & lsem
-         {| lmem := m ; lvm := vm ; lfn := fn ; lpc := 0 |}
-         {| lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (lfd_body fd) |}
+         {| lscs := scs; lmem := m ; lvm := vm ; lfn := fn ; lpc := 0 |}
+         {| lscs := scs'; lmem := m' ; lvm := vm' ; lfn := fn ; lpc := size (lfd_body fd) |}
   & vm =[ callee_saved ] vm'
 .
 
-End LSEM.
-
 End SEM.
 
-Arguments lsem_split_start {_ _ _ _ _ _ _}.
+Arguments lsem_split_start {_ _ _ _ _ _}.

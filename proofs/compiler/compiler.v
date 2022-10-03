@@ -1,32 +1,51 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import x86_gen expr.
-Import ZArith.
+Require Import ZArith.
+Require Import Utf8.
+
+Require Import
+  arch_params
+  compiler_util
+  expr
+  flag_combination.
+Require Import
+  arch_decl
+  arch_extra
+  asm_gen.
+Require Import
+  allocation
+  array_copy
+  array_expansion
+  array_init
+  clear_stack
+  constant_prop
+  dead_calls
+  dead_code
+  inline
+  linearization
+  lowering
+  makeReferenceArguments
+  propagate_inline
+  remove_globals
+  stack_alloc
+  tunneling
+  unrolling.
 Require merge_varmaps.
-Require Import compiler_util allocation array_copy array_init inline dead_calls unrolling remove_globals
-   constant_prop propagate_inline dead_code array_expansion lowering makeReferenceArguments stack_alloc linearization tunneling.
-Require Import x86_decl x86_sem x86_extra.
-Require
-  x86_stack_alloc
-  x86_linearization
-  x86_instr_decl.
-Require Import clear_stack.
-Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* Parameters specific to the architecture. *)
-Definition mov_ofs := x86_stack_alloc.x86_mov_ofs.
-Definition var_tmp := to_var RAX.
-Definition lparams := x86_linearization.x86_linearization_params.
+(* FIXME: expr exports wsize, which overrides this. *)
+Definition pp_s := compiler_util.pp_s.
 
 Section IS_MOVE_OP.
 
-Context (is_move_op : asm_op_t -> bool).
+Context
+  `{asmop : asmOp}
+  {fcp : FlagCombinationParams}
+  (is_move_op : asm_op_t -> bool).
 
-Definition unroll1 (p:uprog) : cexec uprog:=
-  let p := unroll_prog p in
+Let postprocess (p: uprog) : cexec uprog :=
   let p := const_prop_prog p in
   dead_code_prog is_move_op p false.
 
@@ -34,16 +53,18 @@ Definition unroll1 (p:uprog) : cexec uprog:=
 (* TODO: command line option to specify the unrolling depth,
    the error should suggest increasing the number
 *)
-Fixpoint unroll (n:nat) (p:uprog) :=
-  match n with
-  | O   => Error (loop_iterator "unrolling")
-  | S n =>
-    Let p' := unroll1 p in
-    if ((p_funcs p: ufun_decls) == (p_funcs p': ufun_decls)) then ok p
-    else unroll n p'
-  end.
+Fixpoint unroll (n: nat) (p: uprog) : cexec uprog :=
+  if n is S n' then
+    let: (p', repeat) := unroll_prog p in
+    if repeat then
+      Let: p'' := postprocess p' in
+      unroll n' p''
+    else ok p
+  else Error (loop_iterator "unrolling").
 
-Definition unroll_loop (p:prog) := unroll Loop.nb p.
+Definition unroll_loop (p: uprog) :=
+  Let p := postprocess p in
+  unroll Loop.nb p.
 
 End IS_MOVE_OP.
 
@@ -72,6 +93,7 @@ Variant compiler_step :=
   | RegAllocation               : compiler_step
   | DeadCode_RegAllocation      : compiler_step
   | Linearization               : compiler_step
+  | ClearStack                  : compiler_step
   | Tunneling                   : compiler_step
   | Assembly                    : compiler_step.
 
@@ -101,6 +123,7 @@ Definition compiler_step_list := [::
   ; RegAllocation
   ; DeadCode_RegAllocation
   ; Linearization
+  ; ClearStack
   ; Tunneling
   ; Assembly
 ].
@@ -126,7 +149,10 @@ Record stack_alloc_oracles : Type :=
     ao_stack_alloc: funname → stk_alloc_oracle_t;
   }.
 
-Record compiler_params := {
+Record compiler_params
+  {asm_op : Type}
+  {asmop : asmOp asm_op}
+  (fresh_vars lowering_options : Type) := {
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
   expand_fd        : funname -> _ufundef -> expand_info;
   split_live_ranges_fd : funname -> _ufundef -> _ufundef;
@@ -148,32 +174,46 @@ Record compiler_params := {
   lowering_opt     : lowering_options;
   is_glob          : var -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
+  fresh_reg        : string -> stype -> Ident.ident;
+  fresh_reg_ptr    : string -> stype -> Ident.ident;
   fresh_counter    : Ident.ident;
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
   is_reg_array     : var -> bool;
-  is_clear_stack   : funname -> bool;
+  is_regx          : var -> bool;
+  css_of_fn        : funname -> option cs_strategy;
 }.
 
-(* Architecture-dependent functions *)
-Record architecture_params :=
-  {
-    is_move_op : asm_op_t -> bool;
-    ap_csp : clear_stack_params;
-  }.
+
+Context
+  {reg regx xreg rflag cond asm_op extra_op : Type}
+  {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
+  {syscall_state : Type}
+  {scs : syscall_sem syscall_state}.
+
+Context
+  {call_conv: calling_convention}
+  {fresh_vars lowering_options : Type}
+  (aparams : architecture_params fresh_vars lowering_options)
+  (cparams : compiler_params fresh_vars lowering_options).
+
+Notation saparams := (ap_sap aparams cparams.(is_regx)).
+Notation liparams := (ap_lip aparams).
+Notation loparams := (ap_lop aparams).
+Notation agparams := (ap_agp aparams).
 
 #[local]
 Existing Instance progUnit.
 
-Definition split_live_ranges_prog cp (p: _uprog) : _uprog :=
-  map_prog_name cp.(split_live_ranges_fd) p.
-Definition renaming_prog cp (p: _uprog) : _uprog :=
-  map_prog_name cp.(renaming_fd) p.
-Definition remove_phi_nodes_prog cp (p: _uprog) : _uprog :=
-  map_prog_name cp.(remove_phi_nodes_fd) p.
+Definition split_live_ranges_prog (p: _uprog) : _uprog :=
+  map_prog_name cparams.(split_live_ranges_fd) p.
+Definition renaming_prog (p: _uprog) : _uprog :=
+  map_prog_name cparams.(renaming_fd) p.
+Definition remove_phi_nodes_prog (p: _uprog) : _uprog :=
+  map_prog_name cparams.(remove_phi_nodes_fd) p.
 
-Variable cparams : compiler_params.
-Variable aparams : architecture_params.
+Definition var_tmp : var :=
+  {| vname := lip_tmp liparams; vtype := sword Uptr; |}.
 
 (* Ensure that export functions are preserved *)
 Definition check_removereturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=
@@ -204,17 +244,17 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let p := dead_calls_err_seq to_keep p in
   let p := cparams.(print_uprog) RemoveUnusedFunction p in
 
-  Let p := unroll aparams.(is_move_op) Loop.nb p in
+  Let p := unroll_loop (ap_is_move_op aparams) p in
   let p := cparams.(print_uprog) Unrolling p in
 
-  let pv := split_live_ranges_prog cparams p in
+  let pv := split_live_ranges_prog p in
   let pv := cparams.(print_uprog) Splitting pv in
-  let pv := renaming_prog cparams pv in
+  let pv := renaming_prog pv in
   let pv := cparams.(print_uprog) Renaming pv in
-  let pv := remove_phi_nodes_prog cparams pv in
+  let pv := remove_phi_nodes_prog pv in
   let pv := cparams.(print_uprog) RemovePhiNodes pv in
   Let _ := CheckAllocRegU.check_prog p.(p_extra) p.(p_funcs) pv.(p_extra) pv.(p_funcs) in
-  Let pv := dead_code_prog aparams.(is_move_op) pv false in
+  Let pv := dead_code_prog (ap_is_move_op aparams) pv false in
   let pv := cparams.(print_uprog) DeadCode_Renaming pv in
 
   let pr := remove_init_prog cparams.(is_reg_array) pv in
@@ -226,32 +266,43 @@ Definition compiler_first_part (to_keep: seq funname) (p: prog) : cexec uprog :=
   Let pg := remove_glob_prog cparams.(is_glob) cparams.(fresh_id) pe in
   let pg := cparams.(print_uprog) RemoveGlobal pg in
 
-  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_id) pg in
+  Let pa := makereference_prog cparams.(is_reg_ptr) cparams.(fresh_reg_ptr) pg in
   let pa := cparams.(print_uprog) MakeRefArguments pa in
 
-  Let _ := assert (fvars_correct cparams.(lowering_vars) (p_funcs pa)) 
-                  (pp_internal_error_s "lowering" "lowering check fails") in
+  Let _ :=
+    assert
+      (lop_fvars_correct loparams cparams.(lowering_vars) (p_funcs pa))
+      (pp_internal_error_s "lowering" "lowering check fails")
+  in
 
-  let pl := lower_prog cparams.(lowering_opt) cparams.(warning) cparams.(lowering_vars) cparams.(is_var_in_memory) pa in
+  let pl :=
+    lower_prog
+      (lop_lower_i loparams)
+      (lowering_opt cparams)
+      (warning cparams)
+      (lowering_vars cparams)
+      (is_var_in_memory cparams)
+      pa
+  in
   let pl := cparams.(print_uprog) LowerInstruction pl in
 
   Let pp := propagate_inline.pi_prog pl in
-  let pp := cparams.(print_uprog) PropagateInline pp in 
-  
+  let pp := cparams.(print_uprog) PropagateInline pp in
+
   ok pp.
 
 Definition compiler_third_part (entries: seq funname) (ps: sprog) : cexec sprog :=
 
   let rminfo := cparams.(removereturn) ps in
   Let _ := check_removereturn entries rminfo in
-  Let pr := dead_code_prog_tokeep aparams.(is_move_op) false rminfo ps in
+  Let pr := dead_code_prog_tokeep (ap_is_move_op aparams) false rminfo ps in
   let pr := cparams.(print_sprog) RemoveReturn pr in
 
   let pa := {| p_funcs := cparams.(regalloc) pr.(p_funcs) ; p_globs := pr.(p_globs) ; p_extra := pr.(p_extra) |} in
   let pa : sprog := cparams.(print_sprog) RegAllocation pa in
   Let _ := CheckAllocRegS.check_prog pr.(p_extra) pr.(p_funcs) pa.(p_extra) pa.(p_funcs) in
 
-  Let pd := dead_code_prog aparams.(is_move_op) pa true in
+  Let pd := dead_code_prog (ap_is_move_op aparams) pa true in
   let pd := cparams.(print_sprog) DeadCode_RegAllocation pd in
 
   ok pd.
@@ -264,13 +315,18 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
 
   let ao := cparams.(stackalloc) pl in
   Let _ := check_no_ptr entries ao.(ao_stack_alloc) in
-  Let ps := stack_alloc.alloc_prog
-       true
-       mov_ofs
-       cparams.(global_static_data_symbol)
-       cparams.(stack_register_symbol)
-       ao.(ao_globals) ao.(ao_global_alloc)
-       ao.(ao_stack_alloc) pl in
+  Let ps :=
+    stack_alloc.alloc_prog
+      true
+      saparams
+      cparams.(fresh_reg)
+      (global_static_data_symbol cparams)
+      (stack_register_symbol cparams)
+      (ao_globals ao)
+      (ao_global_alloc ao)
+      (ao_stack_alloc ao)
+      pl
+  in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in
 
   Let pd := compiler_third_part entries ps in
@@ -280,21 +336,22 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
 Definition check_export entries (p: sprog) : cexec unit :=
   allM (λ fn,
           if get_fundef (p_funcs p) fn is Some fd then
-            assert (fd.(f_extra).(sf_return_address) == RAnone)
-                   (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "export function expects a return address")))
+            assert
+              (fd.(f_extra).(sf_return_address) == RAnone)
+              (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "export function expects a return address")))
           else Error (pp_at_fn fn (merge_varmaps.E.gen_error true None (pp_s "unknown export function")))
        ) entries.
 
-Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
+Definition compiler_back_end entries (pd: sprog) :=
   Let _ := check_export entries pd in
   (* linearisation                     *)
-  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp callee_saved in
-  Let pl := linear_prog pd cparams.(extra_free_registers) lparams in
+  Let _ := merge_varmaps.check pd cparams.(extra_free_registers) var_tmp in
+  Let pl := linear_prog liparams pd cparams.(extra_free_registers) in
   let pl := cparams.(print_linear) Linearization pl in
 
   (* clear stack *)
-  let pl := prog_clear_stack (is_clear_stack cparams) (ap_csp aparams) pl in
-  let pl := cparams.(print_linear) Tunneling pl in
+  Let pl := prog_clear_stack (css_of_fn cparams) (ap_csp aparams) pl in
+  let pl := cparams.(print_linear) ClearStack pl in
 
   (* tunneling                         *)
   Let pl := tunnel_program pl in
@@ -302,11 +359,11 @@ Definition compiler_back_end (callee_saved: Sv.t) entries (pd: sprog) :=
 
   ok pl.
 
-Definition compiler_back_end_to_x86 (entries: seq funname) (p: sprog) :=
-  let callee_saved := sv_of_list to_var x86_callee_saved in
-  compiler_back_end callee_saved entries p >>= assemble_prog.
+Definition compiler_back_end_to_asm (entries: seq funname) (p: sprog) :=
+  Let lp := compiler_back_end entries p in
+  assemble_prog agparams lp.
 
-Definition compile_prog_to_x86 entries subroutines (p: prog): cexec x86_prog :=
-  compiler_front_end entries subroutines p >>= compiler_back_end_to_x86 entries.
+Definition compile_prog_to_asm entries subroutines (p: prog): cexec asm_prog :=
+  compiler_front_end entries subroutines p >>= compiler_back_end_to_asm entries.
 
 End COMPILER.

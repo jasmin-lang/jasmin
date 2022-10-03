@@ -1,17 +1,16 @@
 #! -*- Makefile -*-
 
 # --------------------------------------------------------------------
-UNAME_S  := $(shell uname -s)
 SED      ?= sed
 DISTDIR  := jasmin
-DESTDIR  ?=
 PREFIX   ?= /usr/local
-BINDIR   := $(PREFIX)/bin
-LIBDIR   := $(PREFIX)/lib
-INSTALL  ?= install
+# we compute the absolute path, otherwise it does not make sense when
+# given to the sub-Makefiles
+PREFIX   := $(abspath $(PREFIX))
+export PREFIX
 
 # --------------------------------------------------------------------
-.PHONY: all build check clean dist distcheck
+.PHONY: all build check clean install uninstall dist distcheck
 
 all: build
 
@@ -28,15 +27,14 @@ clean:
 	$(MAKE) -C compiler clean
 
 install:
-	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
-	$(INSTALL) -m 0755 -T compiler/jasminc.native $(DESTDIR)$(BINDIR)/jasminc
-	$(INSTALL) -m 0755 -d $(DESTDIR)$(LIBDIR)/jasmin/easycrypt
-	$(INSTALL) -m 0644 -t $(DESTDIR)$(LIBDIR)/jasmin/easycrypt eclib/*.ec
+	$(MAKE) -C compiler install
+	$(MAKE) -C eclib install
 	$(MAKE) -C proofs install
 
 uninstall:
-	rm -f  $(DESTDIR)$(BINDIR)/jasminc
-	rm -rf $(DESTDIR)$(LIBDIR)/jasmin
+	$(MAKE) -C compiler uninstall
+	$(MAKE) -C eclib uninstall
+	$(MAKE) -C proofs uninstall
 
 dist:
 	rm -rf jasmin jasmin.tar.gz

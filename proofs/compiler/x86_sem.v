@@ -1,6 +1,6 @@
 Require Import Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import ZArith utils strings low_memory word global oseq.
 Import Utf8 Relation_Operators.
 Import Memory.
@@ -51,41 +51,18 @@ Definition x86_eval_cond (get : rflag -> result error bool) (c : condt) :=
       Let of_ := get OF in ok (~~ zf && (sf == of_))
   end.
 
-Instance x86 : asm register xmm_register rflag condt x86_op :=
-  {| eval_cond := x86_eval_cond
-   ; stack_pointer_register := RSP |}.
+#[global]
+Instance x86 : asm register register_ext xmm_register rflag condt x86_op :=
+  {| eval_cond := x86_eval_cond |}.
 
-Definition x86_mem := @asmmem _ _ _ _ _ x86.
-Definition x86_prog := @asm_prog register _ _ _ _ _ x86_op_decl.
-Definition x86_state := @asm_state _ _ _ _ _ x86.
-Definition x86sem := @asmsem _ _ _ _ _ x86.
-Definition x86_fundef := @asm_fundef _ _ _ _ _ _ x86_op_decl.
+Section SEM.
 
-(* Semantics of an export function
-FIXME: this is mostly independent of the architecture and may be partially moved to arch_sem
+Context {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}  {call_conv: calling_convention} {asm_scsem : asm_syscall_sem}.
 
-  - The function exists and is “export”
-  - Execution runs from the initial state to the final state
-  - Callee-saved registers are preserved
+Definition x86_mem := @asmmem _ _ _ _ _ _ _ _ x86.
+Definition x86_prog := @asm_prog register _ _ _ _ _ _ x86_op_decl.
+Definition x86_state := @asm_state _ _ _ _ _ _ _ _ x86.
+Definition x86sem := @asmsem _ _ _ _ _ _ _ _ x86.
+Definition x86_fundef := @asm_fundef _ _ _ _ _ _ _ x86_op_decl.
 
-TODO: arguments / results are well-typed
- *)
-
-Definition x86_callee_saved : seq register :=
-  [:: RBX; RBP; RSP; R12; R13; R14; R15 ].
-
-Definition preserved_register (r: register) : relation x86_mem :=
-  λ s1 s2,
-    s1.(asm_reg) r = s2.(asm_reg) r.
-
-Variant x86sem_exportcall (p: asm_prog) (fn: funname) (m m': asmmem) : Prop :=
-  | X86sem_exportcall (fd: x86_fundef) of
-      get_fundef p.(asm_funcs) fn = Some fd
-    & fd.(asm_fd_export)
-    & x86sem p
-             {| asm_m := m ; asm_f := fn ; asm_c := asm_fd_body fd ; asm_ip := 0 |}
-             {| asm_m := m' ; asm_f := fn ; asm_c := asm_fd_body fd ; asm_ip := size fd.(asm_fd_body) |}
-    & {in x86_callee_saved, ∀ r, preserved_register r m m'}
-.
-
-(* TODO: not sure there needs to be a file [x86_sem], [arch_sem] seems enough. *)
+End SEM.

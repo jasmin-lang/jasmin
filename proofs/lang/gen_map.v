@@ -40,6 +40,7 @@ End CmpType.
 
 Module MkOrdT (T:CmpType) <: OrderedType.
 
+#[global]
   Existing Instance T.cmpO | 1.
 
   Definition t := Equality.sort T.t.
@@ -704,7 +705,7 @@ Module Mp := Mmake CmpPos.
 (* --------------------------------------------------------------------------
  ** Map of Z
  * -------------------------------------------------------------------------- *)
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Module CmpZ.
 
   Definition t := [eqType of Z].
@@ -725,6 +726,7 @@ Module Mz := Mmake CmpZ.
 Require Import MSets.
 
 Module MkMOrdT (T:CmpType) <: Orders.OrderedType.
+#[global]
   Existing Instance T.cmpO | 1.
 
   Definition t := Equality.sort T.t.

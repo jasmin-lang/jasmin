@@ -8,9 +8,9 @@ open Prog
  *)
 val dep_lvs : Sv.t -> lval list -> Sv.t
 
-val live_fd : bool -> 'info func -> (Sv.t * Sv.t) func
+val live_fd : ('asm -> bool) -> bool -> ('info, 'asm) func -> (Sv.t * Sv.t, 'asm) func
 
-val liveness : bool -> 'info prog -> (Sv.t * Sv.t) prog
+val liveness : ('asm -> bool) -> bool -> ('info, 'asm) prog -> (Sv.t * Sv.t, 'asm) prog
 
 (** [iter_call_sites cb f] runs the [cb] function for all call site in [f] with
       the location of the call instruction, the name of the called function, the
@@ -18,7 +18,10 @@ val liveness : bool -> 'info prog -> (Sv.t * Sv.t) prog
 
     Requires the function [f] to be annotated with liveness information
 *)
-val iter_call_sites : (L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) -> (Sv.t * Sv.t) func -> unit
+val iter_call_sites :
+  (L.i_loc -> funname -> lvals -> Sv.t * Sv.t -> unit) ->
+  (L.i_loc -> BinNums.positive Syscall_t.syscall_t -> lvals -> Sv.t * Sv.t -> unit) ->
+  (Sv.t * Sv.t, 'asm) func -> unit
 
 val pp_info : Format.formatter -> Sv.t * Sv.t -> unit
 
@@ -26,7 +29,7 @@ type conflicts = Sv.t Mv.t
 
 val merge_class : conflicts -> Sv.t -> conflicts
 
-val conflicts : (Sv.t * Sv.t) func -> conflicts
+val conflicts : (Sv.t * Sv.t, 'asm) func -> conflicts
 
 type var_classes
 

@@ -1,28 +1,3 @@
-(* ** License
- * -----------------------------------------------------------------------
- * Copyright 2016--2017 IMDEA Software Institute
- * Copyright 2016--2017 Inria
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * ----------------------------------------------------------------------- *)
-
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import strings type var sem_type values.
@@ -52,12 +27,14 @@ Record instruction_desc := mkInstruction {
   i_out    : seq arg_desc;
   semi     : sem_prod tin (exec (sem_tuple tout));
   semu     : forall vs vs' v,
-                List.Forall2 value_uincl vs vs' -> 
-                app_sopn_v semi vs = ok v -> 
-                app_sopn_v semi vs' = ok v;
+                List.Forall2 value_uincl vs vs' ->
+                app_sopn_v semi vs = ok v ->
+                exists2 v', app_sopn_v semi vs' = ok v' & List.Forall2 value_uincl v v';
   wsizei   : wsize;
   i_safe   : seq safe_cond;
 }.
+
+Arguments semu _ [vs vs' v] _ _.
 
 Notation mk_instr_desc str tin i_in tout i_out semi wsizei safe:=
   {| str      := str;
@@ -66,20 +43,30 @@ Notation mk_instr_desc str tin i_in tout i_out semi wsizei safe:=
      tout     := tout;
      i_out    := i_out;
      semi     := semi;
-     semu     := @vuincl_app_sopn_v_eq tin tout semi refl_equal;
+     semu     := @vuincl_app_sopn_v tin tout semi refl_equal;
      wsizei   := wsizei;
      i_safe   := safe;
   |}.
 
+Variant prim_constructor (asm_op:Type) :=
+  | PrimP of wsize & (option wsize -> wsize -> asm_op)
+  | PrimM of (option wsize -> asm_op)
+  | PrimV of (option wsize -> signedness -> velem -> wsize -> asm_op)
+  | PrimX of (option wsize -> wsize -> wsize -> asm_op)
+  | PrimVV of (option wsize -> velem -> wsize -> velem -> wsize -> asm_op)
+  .
+
 Class asmOp (asm_op : Type) := {
   _eqT           :> eqTypeC asm_op
   ; asm_op_instr : asm_op -> instruction_desc
+  ; prim_string   : list (string * prim_constructor asm_op)
 }.
 
 Definition asm_op_t {asm_op} {asmop : asmOp asm_op} := asm_op.
 
 Section ASM_OP.
 
+Context {pd: PointerData}.
 Context `{asmop : asmOp}.
 
 (* Instructions that must be present in all the architectures. *)
@@ -128,7 +115,7 @@ Definition Ocopy_instr ws p :=
      tout     := [:: sarr sz];
      i_out    := [:: E 0];
      semi     := @WArray.copy ws p;
-     semu     := @vuincl_copy_eq ws p;
+     semu     := @vuincl_copy ws p;
      wsizei   := U8; (* ??? *)
      i_safe   := [:: AllInit ws p 0];
   |}.
@@ -182,5 +169,32 @@ Definition sopn_tin o : list stype := tin (get_instr_desc o).
 Definition sopn_tout o : list stype := tout (get_instr_desc o).
 Definition sopn_sem  o := semi (get_instr_desc o).
 Definition wsize_of_sopn o : wsize := wsizei (get_instr_desc o).
+
+Instance eqC_sopn : eqTypeC sopn :=
+  { ceqP := sopn_eq_axiom }.
+
+Definition sopn_prim_constructor (f:asm_op -> sopn) (p : prim_constructor asm_op) : prim_constructor sopn :=
+  match p with
+  | PrimP x1 x2 => PrimP x1 (fun ws1 ws2 => f (x2 ws1 ws2))
+  | PrimM x => PrimM (fun ws => f (x ws))
+  | PrimV x => PrimV (fun ws1 s v ws2 => f (x ws1 s v ws2))
+  | PrimX x => PrimX (fun ws1 ws2 ws3 => f (x ws1 ws2 ws3))
+  | PrimVV x => PrimVV (fun ws1 v1 ws2 v2 ws3 => f (x ws1 v1 ws2 v2 ws3))
+  end.
+
+Definition sopn_prim_string : seq (string * prim_constructor sopn) :=
+  [::
+    ("copy", PrimP Uptr (fun _ws sz => Ocopy sz xH));
+    (* "NOP" is ignored on purpose *)
+    ("mulu", PrimP Uptr (fun _ws sz => Omulu sz));
+    ("adc", PrimP Uptr (fun _ws sz => Oaddcarry sz));
+    ("sbb", PrimP Uptr (fun _ws sz => Osubcarry sz))
+  ]%string
+  ++ map (fun '(s, p) => (s, sopn_prim_constructor Oasm p)) prim_string.
+
+(* used in the OCaml world, it could be a definition it seems *)
+Instance asmOp_sopn : asmOp sopn :=
+  { asm_op_instr := get_instr_desc;
+    prim_string := sopn_prim_string }.
 
 End ASM_OP.

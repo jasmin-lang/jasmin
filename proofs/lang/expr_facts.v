@@ -21,21 +21,16 @@ Section PEXPR_IND.
     (Hload: ∀ sz x e, P e → P (Pload sz x e))
     (Happ1: ∀ op e, P e → P (Papp1 op e))
     (Happ2: ∀ op e1, P e1 → ∀ e2, P e2 → P (Papp2 op e1 e2))
-    (HappN: ∀ op es, (∀ e, e \in es → P e) → P (PappN op es))
+    (HappN: ∀ op es, (∀ e, List.In e es → P e) → P (PappN op es))
     (Hif: ∀ t e, P e → ∀ e1, P e1 → ∀ e2, P e2 → P (Pif t e e1 e2))
   .
 
-  Definition pexpr_ind_rec (f: ∀ e, P e) : ∀ es : pexprs, ∀ e, e \in es → P e.
-  refine
-    (fix loop es :=
-       if es is e :: es'
-       then λ (e: pexpr), _
-       else λ e (k: e \in [::]), False_ind _ (Bool.diff_false_true k)
-    ).
-  rewrite in_cons; case/orP.
-  + move => /eqP -> ; exact: f.
-  apply: loop.
-  Defined.
+  Definition pexpr_ind_rec (f: ∀ e, P e) : ∀ es : pexprs, ∀ e, List.In e es → P e :=
+    fix loop es :=
+      if es is e' :: es'
+      then λ (e: pexpr) (k: List.In e (e' :: es')),
+        match  List.in_inv k with or_introl a => ecast x (P x) a (f e') | or_intror b => loop _ _ b end
+      else λ e (k: List.In e [::]), False_ind _ (List.in_nil k).
 
   Fixpoint pexpr_ind (e: pexpr) : P e :=
     match e with
@@ -117,6 +112,7 @@ Section CMD_RECT.
   Hypothesis Hcons: forall i c, Pi i -> Pc c -> Pc (i::c).
   Hypothesis Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
   Hypothesis Hopn : forall xs t o es, Pr (Copn xs t o es).
+  Hypothesis Hsyscall : forall xs o es, Pr (Csyscall xs o es).
   Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
   Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
   Hypothesis Hwhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
@@ -140,6 +136,7 @@ Section CMD_RECT.
     match i return Pr i with
     | Cassgn x tg ty e => Hasgn x tg ty e
     | Copn xs t o es => Hopn xs t o es
+    | Csyscall xs o es => Hsyscall xs o es
     | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
     | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
     | Cwhile a c e c'   => @Hwhile a c e c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
@@ -263,7 +260,7 @@ Proof.
            (fun i => forall s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
            (fun c => forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)))) =>
      /= {c s}
-    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | e c1 c2 Hc1 Hc2
+    [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
     rewrite /write_I /write_I_rec /write_i /write_i_rec -/write_i_rec -/write_I_rec /write_c /=
     ?Hc1 ?Hc2 /write_c_rec ?Hc ?Hc' ?Hi -?vrv_recE -?vrvs_recE //;
@@ -274,7 +271,7 @@ Lemma write_I_recE s i : Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)).
 Proof. by apply (write_c_recE s [:: i]). Qed.
 
 Lemma write_i_recE s i : Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)).
-Proof. by apply (write_I_recE s (MkI 1%positive i)). Qed.
+Proof. by apply (write_I_recE s (MkI dummy_instr_info i)). Qed.
 
 Lemma write_c_nil : write_c [::] = Sv.empty.
 Proof. done. Qed.
@@ -290,6 +287,9 @@ Lemma write_i_assgn x tag ty e : write_i (Cassgn x tag ty e) = vrv x.
 Proof. done. Qed.
 
 Lemma write_i_opn xs t o es : write_i (Copn xs t o es) = vrvs xs.
+Proof. done. Qed.
+
+Lemma write_i_syscall xs o es : write_i (Csyscall xs o es) = vrvs xs.
 Proof. done. Qed.
 
 Lemma write_i_if e c1 c2 :
@@ -336,10 +336,10 @@ Proof.
     + rewrite ih.
       + by clear; SvD.fsetdec.
       move => e' he' s'; apply: Hes.
-      by rewrite in_cons he' orbT.
-    by rewrite in_cons eqxx.
+      by right.
+    by left.
   move => e' he' s'; apply: Hes.
-  by rewrite in_cons he' orbT.
+  by right.
 Qed.
 
 Lemma read_e_var (x:gvar) : Sv.Equal (read_e (Pvar x))(read_gvar x).
@@ -379,7 +379,7 @@ Proof.
            (fun i => forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)))
            (fun c => forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c))))
            => /= {c s}
-   [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | e c1 c2 Hc1 Hc2
+   [ i ii Hi | | i c Hi Hc | x tg ty e | xs t o es | p x e | e c1 c2 Hc1 Hc2
     | v dir lo hi c Hc | a c e c' Hc Hc' | ii xs f es ] s;
     rewrite /read_I /read_I_rec /read_i /read_i_rec -/read_i_rec -/read_I_rec /read_c /=
      ?read_rvE ?read_eE ?read_esE ?read_rvE ?read_rvsE ?Hc2 ?Hc1 /read_c_rec ?Hc' ?Hc ?Hi //;
@@ -390,7 +390,7 @@ Lemma read_IE s i : Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)).
 Proof. by apply (read_cE s [:: i]). Qed.
 
 Lemma read_iE s i : Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)).
-Proof. by apply (read_IE s (MkI 1%positive i)). Qed.
+Proof. by apply (read_IE s (MkI dummy_instr_info i)). Qed.
 
 Lemma read_c_nil : read_c [::] = Sv.empty.
 Proof. done. Qed.
@@ -405,6 +405,10 @@ Proof. rewrite /read_i /read_i_rec read_rvE read_eE; clear; SvD.fsetdec. Qed.
 Lemma read_i_opn xs t o es:
   Sv.Equal (read_i (Copn xs t o es)) (Sv.union (read_rvs xs) (read_es es)).
 Proof. by rewrite /read_i /read_i_rec read_esE read_rvsE; clear; SvD.fsetdec. Qed.
+
+Lemma read_i_syscall xs o es:
+  Sv.Equal (read_i (Csyscall xs o es)) (Sv.union (read_rvs xs) (read_es es)).
+Proof. rewrite /read_i /write_i /read_i_rec read_esE read_rvsE; clear; SvD.fsetdec. Qed.
 
 Lemma read_i_if e c1 c2 :
    Sv.Equal (read_i (Cif e c1 c2)) (Sv.union (read_e e) (Sv.union (read_c c1) (read_c c2))).
@@ -458,6 +462,10 @@ Lemma vars_I_opn ii xs t o es:
   Sv.Equal (vars_I (MkI ii (Copn xs t o es))) (Sv.union (vars_lvals xs) (read_es es)).
 Proof. by rewrite /vars_I read_Ii write_Ii read_i_opn write_i_opn /vars_lvals; clear; SvD.fsetdec. Qed.
 
+Lemma vars_I_syscall ii xs o es:
+  Sv.Equal (vars_I (MkI ii (Csyscall xs o es))) (Sv.union (vars_lvals xs) (read_es es)).
+Proof. by rewrite /vars_I read_Ii write_Ii read_i_syscall write_i_syscall /vars_lvals; clear; SvD.fsetdec. Qed.
+
 Lemma vars_I_if ii e c1 c2:
   Sv.Equal (vars_I (MkI ii (Cif e c1 c2))) (Sv.union (read_e e) (Sv.union (vars_c c1) (vars_c c2))).
 Proof.
@@ -502,8 +510,8 @@ Proof.
 elim: e => //= [ ? | ???? -> | ????? -> |??? -> | ?? -> | ?? -> ? -> | ? es ih | ??-> ? -> ? -> ] //=;
   rewrite ?eqxx ?eq_gvar_refl //=.
 elim: es ih => // e es ih h /=; rewrite h.
-+ by apply: ih => e' he'; apply: h; rewrite in_cons he' orbT.
-by rewrite in_cons eqxx.
++ by apply: ih => e' he'; apply: h; right.
+by left.
 Qed.
 
 Lemma eq_gvar_trans x2 x1 x3 : eq_gvar x1 x2 → eq_gvar x2 x3 → eq_gvar x1 x3.
@@ -535,8 +543,8 @@ Proof.
   + move=> o es1 hrec [] //= ? es2 [] ? es3 //=.
     move=> /andP[]/eqP-> h1 /andP[]/eqP-> h2;rewrite eqxx /=.
     elim: es1 hrec es2 es3 h1 h2 => [ | e1 es1 hrecs] hrec [] // e2 es2 [] //= e3 es3.
-    move=> /andP[]/hrec h1 /hrecs hs /andP[] /h1 ->; last by rewrite inE eqxx.
-    by move=> /hs -> // e hin; apply hrec; rewrite inE hin orbT.
+    move=> /andP[]/hrec h1 /hrecs hs /andP[] /h1 ->; last by left.
+    by move=> /hs -> // e hin; apply hrec; right.
   move=> ?? hrec ? hrec1 ? hrec2 []//= ???? []//= ????.
   move=> /andP[]/andP[]/andP[] /eqP-> /hrec h /hrec1 h1 /hrec2 h2.
   by move=> /andP[]/andP[]/andP[] /eqP-> /h -> /h1 -> /h2 ->; rewrite eqxx.
@@ -568,3 +576,22 @@ Lemma eq_expr_app1 o1 o2 e1 e2 :
      eq_expr (Papp1 o1 e1) (Papp1 o2 e2)
   -> [/\ o1 = o2 & eq_expr e1 e2].
 Proof. by move=> /= /andP[/eqP-> ->]. Qed.
+
+(* ------------------------------------------------------------------- *)
+Lemma is_falseP e : reflect (e = Pbool false) (is_false e).
+Proof.
+  case: e; try by right.
+  by case; constructor.
+Qed.
+
+Lemma is_zeroP sz e : reflect (e = @wconst sz 0) (is_zero sz e).
+Proof.
+  case: e; try by right.
+  case; try by right.
+  move => sz' []; try by right.
+  case; try by right.
+  rewrite /=.
+  case: eqP.
+  - by move => <-; left.
+  by move => ne; right => - [].
+Qed.

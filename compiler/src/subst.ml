@@ -54,6 +54,7 @@ let rec gsubst_i flen f i =
     match i.i_desc with
     | Cassgn(x, tg, ty, e) -> Cassgn(gsubst_lval flen f x, tg, gsubst_ty flen ty, gsubst_e flen f e)
     | Copn(x,t,o,e)   -> Copn(gsubst_lvals flen f x, t, o, gsubst_es flen f e)
+    | Csyscall(x,o,e)   -> Csyscall(gsubst_lvals flen f x, o, gsubst_es flen f e)
     | Cif(e,c1,c2)  -> Cif(gsubst_e flen f e, gsubst_c flen f c1, gsubst_c flen f c2)
     | Cfor(x,(d,e1,e2),c) ->
         Cfor(gsubst_vdest f x, (d, gsubst_e flen f e1, gsubst_e flen f e2), gsubst_c flen f c)
@@ -80,9 +81,9 @@ let subst_func f fc =
 
 (* ---------------------------------------------------------------- *)
 
-type psubst = pexpr Mv.t
+type psubst = pexpr ggvar -> pexpr
 
-let rec psubst_e (f: pexpr ggvar -> pexpr) e = 
+let rec psubst_e (f: psubst) e =
   gsubst_e (psubst_e f) f e
   
 
@@ -121,7 +122,7 @@ let psubst_ge f = function
   | GEword e -> GEword (psubst_e f e)
   | GEarray es -> GEarray (List.map (psubst_e f) es)
 
-let psubst_prog (prog:'info pprog) =
+let psubst_prog (prog:('info, 'asm) pprog) =
   let subst = ref (Mpv.empty : pexpr Mpv.t) in
   let rec aux = function
     | [] -> [], []
@@ -312,7 +313,7 @@ let rec constant_of_expr (e: Prog.expr) : Z.t =
   | _ -> raise NotAConstantExpr
 
 
-let remove_params (prog : 'info pprog) =
+let remove_params (prog : ('info, 'asm) pprog) =
   let globals, prog = psubst_prog prog in
   let globals, prog = isubst_prog globals prog in
   let mk_word ws e =
@@ -370,7 +371,7 @@ let clone_func fc =
 let rec extend_iinfo_i pre i =
   let i_desc = 
     match i.i_desc with
-    | Cassgn _ | Copn _ | Ccall _ -> i.i_desc
+    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
     | Cif(e,c1,c2) -> 
       Cif(e, extend_iinfo_c pre c1, extend_iinfo_c pre c2)
     | Cfor(x,r,c) -> 

@@ -3,6 +3,7 @@
   module S = Syntax
 
   open Syntax
+  open Annotations
 
   let setsign c s = 
     match c with
@@ -337,11 +338,7 @@ pinstr_r:
     { let { L.pl_loc = loc; L.pl_desc = (f, args) } = fc in
       PIAssign ((None, []), `Raw, L.mk_loc loc (PECall (f, args)), c) }
 
-| IF c=pexpr i1s=pblock
-    { PIIf (c, i1s, None) }
-
-| IF c=pexpr i1s=pblock ELSE i2s=pblock
-    { PIIf (c, i1s, Some i2s) }
+| s=pif { s }
 
 | FOR v=var EQ ce1=pexpr TO ce2=pexpr is=pblock
     { PIFor (v, (`Up, ce1, ce2), is) }
@@ -357,6 +354,19 @@ pinstr_r:
 | vd=postfix(pvardecl(COMMA?), SEMICOLON) 
     { PIdecl vd }
 
+pif:
+| IF c=pexpr i1s=pblock
+    { PIIf (c, i1s, None) }
+
+| IF c=pexpr i1s=pblock ELSE i2s=pelse
+    { PIIf (c, i1s, Some i2s) }
+
+pelseif:
+| s=loc(pif) { [([], s)] }
+
+pelse:
+| s=loc(pelseif) { s }
+| s=pblock { s }
 
 pinstr:
 | a=annotations i=loc(pinstr_r)  { (a,i) }
@@ -391,7 +401,7 @@ ptr:
    } 
 
 storage:
-| REG    ptr=ptr { `Reg ptr}
+| REG    ptr=ptr { `Reg ptr }
 | STACK  ptr=ptr { `Stack ptr }
 | INLINE         { `Inline }
 | GLOBAL         { `Global }

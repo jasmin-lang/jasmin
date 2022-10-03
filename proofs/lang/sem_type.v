@@ -2,7 +2,7 @@
 
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import Psatz xseq.
 Require Export strings warray_.
 Import Utf8.
@@ -26,10 +26,6 @@ Definition sem_ot (t:stype) : Type :=
   else sem_t t.
 
 Definition sem_tuple ts := ltuple (map sem_ot ts).
-
-(* -------------------------------------------------------------------------- *)
-Definition is_not_sarr t := ~~ is_sarr t.
-
 
 (* -------------------------------------------------------------------- *)
 

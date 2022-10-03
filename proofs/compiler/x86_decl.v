@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require oseq.
 Require Import ZArith
 utils
@@ -11,6 +11,7 @@ oseq
 Utf8
 Relation_Operators
 sem_type.
+Require Import flag_combination.
 Require Export arch_decl.
 
 (* Import Memory. *)
@@ -24,6 +25,9 @@ Variant register : Type :=
   | RAX | RCX | RDX | RBX | RSP | RBP | RSI | RDI
   | R8  | R9  | R10 | R11 | R12 | R13 | R14 | R15.
 
+(* -------------------------------------------------------------------- *)
+Variant register_ext : Type :=
+  | MM0 | MM1 | MM2 | MM3 | MM4 | MM5 | MM6 | MM7.
 
 (* -------------------------------------------------------------------- *)
 Variant xmm_register : Type :=
@@ -69,6 +73,21 @@ Qed.
 
 Definition reg_eqMixin := Equality.Mixin reg_eq_axiom.
 Canonical reg_eqType := EqType register reg_eqMixin.
+
+
+(* -------------------------------------------------------------------- *)
+
+Scheme Equality for register_ext.
+
+Lemma regx_eq_axiom : Equality.axiom register_ext_beq.
+Proof.
+  move=> x y;apply:(iffP idP).
+  + by apply: internal_register_ext_dec_bl.
+  by apply: internal_register_ext_dec_lb.
+Qed.
+
+Definition regx_eqMixin := Equality.Mixin regx_eq_axiom.
+Canonical regx_eqType := EqType register_ext regx_eqMixin.
 
 (* -------------------------------------------------------------------- *)
 
@@ -136,10 +155,35 @@ Canonical reg_finType :=
   Eval hnf in FinType register reg_finMixin.
 
 (* -------------------------------------------------------------------- *)
+Definition regxs :=
+  [:: MM0; MM1 ; MM2 ; MM3 ; MM4 ; MM5 ; MM6 ; MM7].
+
+Lemma regxs_fin_axiom : Finite.axiom regxs.
+Proof. by case. Qed.
+
+Definition regx_choiceMixin :=
+  PcanChoiceMixin (FinIsCount.pickleK regxs_fin_axiom).
+Canonical regx_choiceType :=
+  Eval hnf in ChoiceType register_ext regx_choiceMixin.
+
+Definition regx_countMixin :=
+  PcanCountMixin (FinIsCount.pickleK regxs_fin_axiom).
+Canonical regx_countType :=
+  Eval hnf in CountType register_ext regx_countMixin.
+
+Definition regx_finMixin :=
+  FinMixin regxs_fin_axiom.
+Canonical regx_finType :=
+  Eval hnf in FinType register_ext regx_finMixin.
+
+(* -------------------------------------------------------------------- *)
 Definition xmm_registers :=
   [:: XMM0; XMM1; XMM2; XMM3; XMM4; XMM5; XMM6; XMM7; XMM8; XMM9; XMM10; XMM11; XMM12; XMM13; XMM14; XMM15 ].
 
 Lemma xmm_registers_fin_axiom : Finite.axiom xmm_registers.
+Proof. by case. Qed.
+
+Lemma mmx_registers_fin_axiom : Finite.axiom regxs.
 Proof. by case. Qed.
 
 Definition xreg_choiceMixin :=
@@ -158,23 +202,31 @@ Canonical xreg_finType :=
   Eval hnf in FinType xmm_register xreg_finMixin.
 
 (* -------------------------------------------------------------------- *)
+#[ local ]
 Definition rflags := [:: CF; PF; ZF; SF; OF; DF].
 
+#[ local ]
 Lemma rflags_fin_axiom : Finite.axiom rflags.
 Proof. by case. Qed.
 
+#[ local ]
 Definition rflag_choiceMixin :=
   PcanChoiceMixin (FinIsCount.pickleK rflags_fin_axiom).
+#[ local ]
 Canonical rflag_choiceType :=
   Eval hnf in ChoiceType rflag rflag_choiceMixin.
 
+#[ local ]
 Definition rflag_countMixin :=
   PcanCountMixin (FinIsCount.pickleK rflags_fin_axiom).
+#[ local ]
 Canonical rflag_countType :=
   Eval hnf in CountType rflag rflag_countMixin.
 
+#[ local ]
 Definition rflag_finMixin :=
   FinMixin rflags_fin_axiom.
+#[ local ]
 Canonical rflag_finType :=
   Eval hnf in FinType rflag rflag_finMixin.
 
@@ -205,17 +257,56 @@ Proof.
   by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
 Qed.
 
+#[global]
 Instance eqTC_register : eqTypeC register :=
   { ceqP := reg_eq_axiom }.
 
+#[global]
 Instance finC_register : finTypeC register := 
   { cenumP := registers_fin_axiom }.
 
+#[global]
 Instance x86_reg_toS : ToString sword64 register :=
   { category      := "register"
   ; to_string     := x86_string_of_register
   ; strings       := [seq (x86_string_of_register x, x) | x <- enum [finType of register]]
   ; inj_to_string := x86_string_of_register_inj
+  ; stringsE      := refl_equal
+  }.
+
+(* -------------------------------------------------------------------- *)
+
+Definition x86_string_of_regx r :=
+  match r with
+  | MM0 => "MM0"
+  | MM1 => "MM1"
+  | MM2 => "MM2"
+  | MM3 => "MM3"
+  | MM4 => "MM4"
+  | MM5 => "MM5"
+  | MM6 => "MM6"
+  | MM7 => "MM7"
+  end%string.
+
+Lemma x86_string_of_regx_inj : injective x86_string_of_regx.
+Proof.
+  by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
+Qed.
+
+#[global]
+Instance eqTC_regx : eqTypeC register_ext :=
+  { ceqP := regx_eq_axiom }.
+
+#[global]
+Instance finC_regx : finTypeC register_ext := 
+  { cenumP := regxs_fin_axiom }.
+
+#[global]
+Instance x86_regx_toS : ToString sword64 register_ext :=
+  { category      := "register"
+  ; to_string     := x86_string_of_regx
+  ; strings       := [seq (x86_string_of_regx x, x) | x <- enum [finType of register_ext]]
+  ; inj_to_string := x86_string_of_regx_inj
   ; stringsE      := refl_equal
   }.
 
@@ -245,12 +336,15 @@ Proof.
   by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
 Qed.
 
+#[global]
 Instance eqTC_xmm_register : eqTypeC xmm_register :=
   { ceqP := xreg_eq_axiom }.
 
+#[global]
 Instance finC_xmm_register : finTypeC xmm_register := 
   { cenumP := xmm_registers_fin_axiom }.
 
+#[global]
 Instance x86_xreg_toS : ToString sword256 xmm_register :=
   { category      := "ymm_register"
   ; to_string     := x86_string_of_xmm_register
@@ -275,12 +369,15 @@ Proof.
   by move=> r1 r2 /eqP h; apply/eqP; case: r1 r2 h => -[]; vm_compute.
 Qed.
 
+#[global]
 Instance eqTC_rflag : eqTypeC rflag :=
   { ceqP := rflag_eq_axiom }.
 
+#[global]
 Instance finC_rflag : finTypeC rflag :=
   { cenumP := rflags_fin_axiom }.
 
+#[global]
 Instance x86_rflag_toS : ToString sbool rflag :=
   { category      := "rflag"
   ; to_string     := x86_string_of_rflag
@@ -290,14 +387,75 @@ Instance x86_rflag_toS : ToString sbool rflag :=
   }.
 
 (* -------------------------------------------------------------------- *)
+Lemma x86_inj_toS_reg_regx (r:register) (rx: register_ext) : to_string r <> to_string rx.
+Proof.
+  by case:r; case: rx.
+Qed.
 
+(* -------------------------------------------------------------------- *)
+
+#[global]
 Instance eqC_condt : eqTypeC condt :=
   { ceqP := condt_eq_axiom }.
 
-Instance x86_decl : arch_decl register xmm_register rflag condt :=
-  { reg_size  := U64
-  ; xreg_size := U256
-  ; toS_r     := x86_reg_toS
-  ; toS_x     := x86_xreg_toS
-  ; toS_f     := x86_rflag_toS
+
+(* -------------------------------------------------------------------- *)
+
+Definition x86_fc_of_cfc (cfc : combine_flags_core) : flag_combination :=
+  let vof := FCVar0 in
+  let vcf := FCVar1 in
+  let vsf := FCVar2 in
+  let vzf := FCVar3 in
+  match cfc with
+  | CFC_O => vof
+  | CFC_B => vcf
+  | CFC_E => vzf
+  | CFC_S => vsf
+  | CFC_L => FCNot (FCEq vof vsf)
+  | CFC_BE => FCOr vcf vzf
+  | CFC_LE => FCOr (FCNot (FCEq vof vsf)) vzf
+  end.
+
+#[global]
+Instance x86_fcp : FlagCombinationParams :=
+  {
+    fc_of_cfc := x86_fc_of_cfc;
   }.
+
+
+(* -------------------------------------------------------------------- *)
+
+#[global]
+Instance x86_decl : arch_decl register register_ext xmm_register rflag condt :=
+  { reg_size := U64
+  ; xreg_size := U256
+  ; toS_r := x86_reg_toS
+  ; toS_rx:= x86_regx_toS
+  ; toS_x := x86_xreg_toS
+  ; toS_f := x86_rflag_toS
+  ; reg_size_neq_xreg_size := refl_equal
+  ; ad_rsp := RSP
+  ; inj_toS_reg_regx := x86_inj_toS_reg_regx
+  ; ad_fcp := x86_fcp
+  }.
+
+Definition x86_linux_call_conv : calling_convention := 
+  {| callee_saved   := map ARReg [:: RBX; RBP; RSP; R12; R13; R14; R15 ]
+   ; callee_saved_not_bool := erefl true
+   ; call_reg_args  := [:: RDI; RSI; RDX; RCX; R8; R9 ]
+   ; call_xreg_args := [:: XMM0; XMM1; XMM2; XMM3; XMM4; XMM5; XMM6; XMM7 ]
+   ; call_reg_ret   := [:: RAX; RDX ]
+   ; call_xreg_ret  := [:: XMM0; XMM1 ]
+   ; call_reg_ret_uniq := erefl true;
+  |}.
+
+Definition x86_windows_call_conv : calling_convention := 
+  {| callee_saved   := map ARReg [:: RBX; RBP; RDI; RSI; RSP; R12; R13; R14; R15 ] ++ 
+                       map AXReg [:: XMM6; XMM7; XMM8; XMM9; XMM10; XMM11; XMM12; XMM13; XMM14; XMM15]
+   ; callee_saved_not_bool := erefl true
+   ; call_reg_args  := [:: RCX; RDX; R8; R9 ]
+   ; call_xreg_args := [:: XMM0; XMM1; XMM2; XMM3 ]
+   ; call_reg_ret   := [:: RAX ]
+   ; call_xreg_ret  := [:: XMM0 ]
+   ; call_reg_ret_uniq := erefl true;                    
+  |}.

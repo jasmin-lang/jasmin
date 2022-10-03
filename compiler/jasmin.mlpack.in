@@ -1,10 +1,16 @@
 src/Alias
+src/Annotations
 src/Arch
+src/Arch_full
 src/Array_expand
+src/CheckAnnot
 src/Conv
+src/CoreConv
 src/Ct_checker_forward
 src/Evaluator
+src/FInfo
 src/Help
+src/IInfo
 src/Insert_copy_and_fix_length
 src/Interval
 src/IntervalGraphColoring
@@ -28,6 +34,8 @@ src/Ssa
 src/StackAlloc
 src/Subst
 src/Syntax
+src/Syscall_ocaml
+src/Syscall_t
 src/ToEC
 src/safety/safetyAbsExpr
 src/safety/safetyConfig
@@ -49,3 +57,4 @@ src/safety/domains/safetySymEq
 src/Typing
 src/Utils
 src/Varalloc
+src/X86_arch_full

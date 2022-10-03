@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import ZArith utils strings low_memory word sem_type global oseq.
 Import Utf8 Relation_Operators.
 Import Memory.
@@ -81,8 +81,11 @@ Variant x86_op : Type :=
 
 | PEXT   of wsize    (* parallel bits extract *)
 
+  (* MMX instructions *)
+| MOVX  of wsize 
   (* SSE instructions *)
-| MOVD     of wsize
+| MOVD     of wsize (* MOVD/MOVQ to wide registers *)
+| MOVV     of wsize (* MOVD/MOVQ from wide registers *)
 | VMOV     of wsize 
 | VMOVDQU  `(wsize)
 | VPMOVSX of velem & wsize & velem & wsize (* parallel sign-extension: sizes are source, source, target, target *)
@@ -516,10 +519,10 @@ Definition x86_RCL sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
     | U16 => Zmod (wunsigned i) 17
     | _  => wunsigned i
     end in
-  let r := CoqWord.word.t2w [tuple of cf::CoqWord.word.w2t v] in
-  let r := CoqWord.word.rotl r (Z.to_nat im) in
-  let CF := CoqWord.word.msb r in
-  let r : word sz := CoqWord.word.t2w [tuple of behead (CoqWord.word.w2t r)] in
+  let r := mathcomp.word.word.t2w [tuple of cf::mathcomp.word.word.w2t v] in
+  let r := mathcomp.word.word.rotl r (Z.to_nat im) in
+  let CF := mathcomp.word.word.msb r in
+  let r : word sz := mathcomp.word.word.t2w [tuple of behead (mathcomp.word.word.w2t r)] in
   let OF := if i == 1%R then Some (msb r != CF) else None in
   ok (:: OF, Some CF & r ).
 
@@ -533,10 +536,10 @@ Definition x86_RCR sz (v: word sz) (i: u8) (cf:bool) : ex_tpl (b2w_ty sz) :=
     | _  => wunsigned i
     end in
   let OF := if i == 1%R then Some (msb v != cf) else None in
-  let r := CoqWord.word.t2w [tuple of rcons (CoqWord.word.w2t v) cf] in
-  let r := CoqWord.word.rotr r (Z.to_nat im) in
-  let CF := CoqWord.word.lsb r in
-  let r : word sz := CoqWord.word.t2w [tuple of rev (behead (rev (CoqWord.word.w2t r)))] in
+  let r := mathcomp.word.word.t2w [tuple of rcons (mathcomp.word.word.w2t v) cf] in
+  let r := mathcomp.word.word.rotr r (Z.to_nat im) in
+  let CF := mathcomp.word.word.lsb r in
+  let r : word sz := mathcomp.word.word.t2w [tuple of rev (behead (rev (mathcomp.word.word.w2t r)))] in
   ok (:: OF, Some CF & r ).
 
 Definition rflags_OF {s} sz (i:word s) (r:word sz) rc OF : ex_tpl (b5w_ty sz) :=
@@ -617,6 +620,10 @@ Definition x86_PEXT sz (v1 v2: word sz): ex_tpl (w_ty sz) :=
   let _ := check_size_32_64 sz in
   ok (@pextr sz v1 v2).
 
+Definition x86_MOVX sz (x: word sz) : exec (word sz) :=
+  Let _ := check_size_32_64 sz in
+  ok x.
+
 (* ---------------------------------------------------------------- *)
 Definition x86_MOVD sz (v: word sz) : ex_tpl (w_ty U128) :=
   Let _ := check_size_32_64 sz in
@@ -664,7 +671,7 @@ Definition x86_VPSUB (ve: velem) sz :=
   x86_u128_binop (lift2_vec ve (fun x y => x - y)%R sz).
 
 Definition x86_VPMULL (ve: velem) sz v1 v2 :=
-  Let _ := check_size_32_64 ve in
+  Let _ := check_size_16_32 ve in
   x86_u128_binop (lift2_vec ve *%R sz) v1 v2.
 
 Definition x86_VPMULU sz := x86_u128_binop (@wpmulu sz).
@@ -685,9 +692,7 @@ Definition x86_VPMULHRS ve sz v1 v2 :=
 
 (* ---------------------------------------------------------------- *)
 Definition x86_VPEXTR (ve: wsize) (v: u128) (i: u8) : ex_tpl (w_ty ve) :=
-  (* This instruction is valid for smaller ve, but semantics is unusual,
-      hence compiler correctness would not be provable. *)
-  Let _ := check_size_32_64 ve in
+  Let _ := check_size_8_64 ve in
   ok (nth (0%R: word ve) (split_vec ve v) (Z.to_nat (wunsigned i))).
 
 (* ---------------------------------------------------------------- *)
@@ -761,7 +766,7 @@ Definition wpblendw (m : u8) (w1 w2 : word U128) :=
   let v1 := split_vec U16 w1 in
   let v2 := split_vec U16 w2 in
   let b := split_vec 1 m in
-  let r := map3 (λ (b0 : word.word_ringType 0) (v3 v4 : CoqWord.word.word U16), if b0 == 1%R then v4 else v3) b v1 v2 in
+  let r := map3 (λ (b0 : word.word_ringType 0) (v3 v4 : mathcomp.word.word.word U16), if b0 == 1%R then v4 else v3) b v1 v2 in
   make_vec U128 r.
 
 Definition x86_VPBLEND ve sz (v1 v2: word sz) (m: u8) : ex_tpl (w_ty sz) :=
@@ -1119,6 +1124,7 @@ Definition pp_cqo sz (args: asm_args) :=
 
 Definition c := [::CAcond].
 Definition r := [:: CAreg].
+Definition rx := [:: CAregx].
 Definition m b := [:: CAmem b].
 Definition i sz := [:: CAimm sz].
 Definition rm b := [:: CAreg; CAmem b].
@@ -1143,7 +1149,22 @@ Definition Ox86_MOV_instr               :=
   mk_instr_w_w "MOV" x86_MOV [:: E 1] [:: E 0] 2
                check_mov (primP MOV) (pp_iname "mov").
 
-Definition check_movx (_ _:wsize) := [:: r_rm ].
+Definition check_movx (sz:wsize) := [:: [:: rx; rm true]; [:: rm true; rx]].
+
+Definition pp_movd name sz args :=
+ pp_name_ty (if sz == U64 then (name ++ "q")%string else (name ++ "d")%string)
+            match args with
+            | [:: XReg _ ; Reg _ ] => [:: U128 ; sz ]
+            | [:: Reg _ ; XReg _ ] => [:: sz ; U128 ]
+            | _ => [:: sz ; sz ]
+            end
+            args.
+
+Definition Ox86_MOVX_instr               :=
+  mk_instr_w_w "MOVX" x86_MOVX [:: E 1] [:: E 0] 2
+               check_movx (primP MOVX) (pp_movd "mov").
+
+Definition check_movsx (_ _:wsize) := [:: r_rm ].
 
 Definition pp_movsx szs szd args :=
   let ext := if (szd == szs) || (szd == U64) && (szs == U32) then "xd"%string else "x"%string in
@@ -1152,7 +1173,7 @@ Definition pp_movsx szs szd args :=
      pp_aop_args := zip [::szd; szs] args; |}.
 
 Definition Ox86_MOVSX_instr             :=
-  mk_instr_w_w'_10 "MOVSX" true x86_MOVSX check_movx (PrimX MOVSX) pp_movsx.
+  mk_instr_w_w'_10 "MOVSX" true x86_MOVSX check_movsx (PrimX MOVSX) pp_movsx.
 
 Definition pp_movzx szs szd args :=
   {| pp_aop_name := "movz";
@@ -1160,7 +1181,7 @@ Definition pp_movzx szs szd args :=
      pp_aop_args := zip [::szd; szs] args; |}.
 
 Definition Ox86_MOVZX_instr             :=
-  mk_instr_w_w'_10 "MOVZX" false x86_MOVZX check_movx (PrimX MOVZX) pp_movzx.
+  mk_instr_w_w'_10 "MOVZX" false x86_MOVZX check_movsx (PrimX MOVZX) pp_movzx.
 
 Definition c_r_rm := [:: c; r; rm true].
 Definition Ox86_CMOVcc_instr            :=
@@ -1321,13 +1342,12 @@ Definition Ox86_PEXT_instr :=
 
 (* Vectorized instruction *)
 
-Definition pp_movd name sz args :=
- pp_name_ty (if sz == U64 then (name ++ "q")%string else (name ++ "d")%string)
-            ([::U128; sz]) args.
-
 Definition check_movd (_:wsize) := [:: [::xmm; rm true]].
 Definition Ox86_MOVD_instr :=
   mk_instr_w_w128_10 "MOVD" MSB_MERGE x86_MOVD check_movd (primP MOVD) (pp_movd "mov").
+
+Definition Ox86_MOVV_instr :=
+  mk_instr_w_w "MOVV" x86_MOVX [:: E 1 ] [:: E 0 ] 2 (λ _, [:: [:: rm false; xmm ] ]) (primP MOVV) (pp_movd "mov").
 
 Definition Ox86_VMOV_instr :=
   mk_instr_w_w128_10 "VMOV" MSB_CLEAR x86_MOVD check_movd (primP VMOV) (pp_movd "vmov").
@@ -1768,7 +1788,9 @@ Definition x86_instr_desc o : instr_desc_t :=
   | SAL sz             => Ox86_SAL_instr.1 sz
   | SHLD sz            => Ox86_SHLD_instr.1 sz
   | SHRD sz            => Ox86_SHRD_instr.1 sz
+  | MOVX sz            => Ox86_MOVX_instr.1 sz
   | MOVD sz            => Ox86_MOVD_instr.1 sz
+  | MOVV sz            => Ox86_MOVV_instr.1 sz
   | VMOV sz            => Ox86_VMOV_instr.1 sz
   | VPINSR sz          => Ox86_VPINSR_instr.1 sz
   | VEXTRACTI128       => Ox86_VEXTRACTI128_instr.1
@@ -1893,7 +1915,9 @@ Definition x86_prim_string :=
    Ox86_SAL_instr.2;
    Ox86_SHLD_instr.2;
    Ox86_SHRD_instr.2;
+   Ox86_MOVX_instr.2;
    Ox86_MOVD_instr.2;
+   Ox86_MOVV_instr.2;
    Ox86_VMOV_instr.2;
    Ox86_VPMOVSX_instr.2;
    Ox86_VPMOVZX_instr.2;
@@ -1973,9 +1997,11 @@ Definition x86_prim_string :=
               if signedness is Signed then VPMINS ve sz else VPMINU ve sz))
  ].
 
+#[global]
 Instance eqC_x86_op : eqTypeC x86_op :=
   { ceqP := x86_op_eq_axiom }.
 
+#[global]
 Instance x86_op_decl : asm_op_decl x86_op := {
    instr_desc_op  := x86_instr_desc; 
    prim_string    := x86_prim_string;

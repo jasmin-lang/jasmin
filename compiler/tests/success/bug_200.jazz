@@ -1,0 +1,9 @@
+export
+fn exp(reg u64 e) -> reg u64 {
+  reg u64 m;
+  reg bool c;
+    m = 1;
+    c = e != 0;
+    m = e if c;
+  return m;
+}

@@ -1,0 +1,36 @@
+export fn f(reg u64 x) -> reg u64 {
+  #mmx reg u64 e;
+  
+  e = #MOVX(x);
+  x = #MOVX(e);
+
+  e = x;
+  x = e; 
+  
+  #[mmx] reg u32 d;
+
+  reg u32 x1;
+
+  d = #MOVX_32(x);
+  x1 = #MOVX_32(d);
+  x  = (64u)x1; 
+
+  d = x;
+  x1 = d;
+  x  = (64u)x1; 
+
+  stack u64[1] s;
+  reg ptr u64[1] r;
+  #mmx reg ptr u64[1] rx;
+
+  s[0] = 0;
+  r = s;
+  r[0] += 1;
+  rx = r;
+  r = rx;
+  r[0] += 1;
+  s = r;
+  x += s[0];
+  
+  return x;     
+}

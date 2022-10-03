@@ -1,30 +1,5 @@
-(* ** License
- * -----------------------------------------------------------------------
- * Copyright 2016--2017 IMDEA Software Institute
- * Copyright 2016--2017 Inria
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * ----------------------------------------------------------------------- *)
-
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require oseq.
 Require Import ZArith
 utils
@@ -37,6 +12,7 @@ Utf8
 Relation_Operators
 sem_type
 arch_decl
+syscall syscall_sem
 label
 values.
 
@@ -57,6 +33,18 @@ Module RegMap. Section Section.
     FinMap.set m x y.
 
 End Section. End RegMap.
+
+Module RegXMap. Section Section.
+
+  Context `{arch : arch_decl }.
+
+  Definition map := (* {ffun reg_t -> wreg}. *)
+    FinMap.map (T:= regx_t) wreg.
+
+  Definition set (m : map) (x : regx_t) (y : wreg) : map :=
+    FinMap.set m x y.
+
+End Section. End RegXMap.
 
 (* -------------------------------------------------------------------- *)
 
@@ -86,18 +74,21 @@ End Section. End RflagMap.
 
 (* -------------------------------------------------------------------- *)
 Notation regmap   := RegMap.map.
+Notation regxmap  := RegXMap.map.
 Notation xregmap  := XRegMap.map.
 Notation rflagmap := RflagMap.map.
 
 (* -------------------------------------------------------------------- *)
 Section SEM.
 
-Context `{asm_d : asm}.
+Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state} `{asm_d : asm} {call_conv: calling_convention}.
 
 Record asmmem : Type := AsmMem {
   asm_rip  : pointer;
+  asm_scs : syscall_state_t;
   asm_mem  : mem;
   asm_reg  : regmap;
+  asm_regx : regxmap;
   asm_xreg : xregmap;
   asm_flag : rflagmap;
 }.
@@ -108,6 +99,33 @@ Record asm_state := AsmState {
   asm_c  : asm_code;
   asm_ip : nat;
 }.
+
+Definition preserved_register (r : asm_typed_reg) (m0 m1 : asmmem) :=
+  match r with
+  | ARReg r => (asm_reg  m0) r = (asm_reg  m1) r
+  | ARegX r => (asm_regx m0) r = (asm_regx m1) r
+  | AXReg r => (asm_xreg m0) r = (asm_xreg m1) r
+  | ABReg r => (asm_flag m0) r = (asm_flag m1) r
+  end.
+
+(* FIXME we need to generalize this *)
+Class asm_syscall_sem := {
+  eval_syscall : syscall_t -> asmmem -> exec asmmem;
+  eval_syscall_spec1 :
+    forall o s1 s2,
+      eval_syscall o s1 = ok s2 ->
+      let vargs := map (fun r => Vword (s1.(asm_reg) r)) (take (size (syscall_sig_s o).(scs_tin)) call_reg_args) in
+      let vres  := map (fun r => Vword (s2.(asm_reg) r)) (take (size (syscall_sig_s o).(scs_tout)) call_reg_ret) in
+      [/\ exec_syscall_s s1.(asm_scs) s1.(asm_mem) o vargs = ok (s2.(asm_scs), s2.(asm_mem), vres),
+          (forall r, r \in callee_saved -> preserved_register r s1 s2) &
+          s1.(asm_rip) = s2.(asm_rip)];
+  eval_syscall_spec2 :
+    forall o s1 vargs scs m vres,
+      exec_syscall_s s1.(asm_scs) s1.(asm_mem) o vargs = ok (scs, m, vres) ->
+      exists s2, eval_syscall o s1 = ok s2;
+}.
+
+Context {asm_scsem : asm_syscall_sem}.
 
 Notation asm_result := (result error asmmem).
 Notation asm_result_state := (result error asm_state).
@@ -153,15 +171,23 @@ Definition eval_JMP p dst (s: asm_state) : asm_result_state :=
   if get_fundef (asm_funcs p) fn is Some fd then
     let body := asm_fd_body fd in
     Let ip := find_label lbl body in
-    ok {| asm_m := s.(asm_m) ; asm_f := fn ; asm_c := body ; asm_ip := ip.+1 |}
+    ok
+      {| asm_m  := s.(asm_m)
+       ; asm_f  := fn
+       ; asm_c  := body
+       ; asm_ip := ip.+1 (* Jump to instruction immediately following lbl. *)
+      |}
   else type_error.
 
 (* -------------------------------------------------------------------- *)
 Definition eval_Jcc lbl ct (s : asm_state) : asm_result_state :=
   Let b := eval_cond_mem s ct in
-  if b then
+  if b
+  then
+    (* Jump to instruction immediately following lbl. *)
     Let ip := find_label lbl s.(asm_c) in ok (st_write_ip ip.+1 s)
-  else ok (st_write_ip s.(asm_ip).+1 s).
+  else
+    ok (st_write_ip s.(asm_ip).+1 s).
 
 (* -------------------------------------------------------------------- *)
 Definition word_of_scale (n:nat) : pointer := wrepr Uptr (2%Z^n)%R.
@@ -191,6 +217,7 @@ Definition eval_asm_arg k (s: asmmem) (a: asm_arg) (ty: stype) : exec value :=
     | _        => type_error
     end
   | Reg r     => ok (Vword (s.(asm_reg) r))
+  | Regx r    => ok (Vword (s.(asm_regx) r))
   | Addr addr =>
     let a := decode_addr s addr in
     match ty with
@@ -233,7 +260,9 @@ Definition o2rflagv (b:option bool) : rflagv :=
 
 Definition mem_write_rflag (s : asmmem) (f:rflag_t) (b:option bool) :=
   {| asm_mem  := s.(asm_mem);
+     asm_scs  := s.(asm_scs);
      asm_reg  := s.(asm_reg);
+     asm_regx := s.(asm_regx);
      asm_rip  := s.(asm_rip); 
      asm_xreg := s.(asm_xreg);
      asm_flag := RflagMap.set s.(asm_flag) f (o2rflagv b);
@@ -243,7 +272,9 @@ Definition mem_write_rflag (s : asmmem) (f:rflag_t) (b:option bool) :=
 Definition mem_write_mem (l : pointer) sz (w : word sz) (s : asmmem) :=
   Let m := write s.(asm_mem) l w in ok
   {| asm_mem  := m;
+     asm_scs  := s.(asm_scs);
      asm_reg  := s.(asm_reg);
+     asm_regx := s.(asm_regx);
      asm_rip  := s.(asm_rip); 
      asm_xreg := s.(asm_xreg);
      asm_flag := s.(asm_flag);
@@ -264,7 +295,21 @@ Definition word_extend
 Definition mem_write_reg (f: msb_flag) (r: reg_t) sz (w: word sz) (m: asmmem) :=
   {|
     asm_mem  := m.(asm_mem);
+    asm_scs  := m.(asm_scs);
     asm_reg  := RegMap.set m.(asm_reg) r (word_extend f (m.(asm_reg) r) w);
+    asm_regx := m.(asm_regx);
+    asm_rip  := m.(asm_rip); 
+    asm_xreg := m.(asm_xreg);
+    asm_flag := m.(asm_flag);
+  |}.
+
+(* -------------------------------------------------------------------- *)
+Definition mem_write_regx (f: msb_flag) (r: regx_t) sz (w: word sz) (m: asmmem) :=
+  {|
+    asm_mem  := m.(asm_mem);
+    asm_scs  := m.(asm_scs);
+    asm_reg  := m.(asm_reg);
+    asm_regx := RegXMap.set m.(asm_regx) r (word_extend f (m.(asm_regx) r) w);
     asm_rip  := m.(asm_rip); 
     asm_xreg := m.(asm_xreg);
     asm_flag := m.(asm_flag);
@@ -274,22 +319,13 @@ Definition mem_write_reg (f: msb_flag) (r: reg_t) sz (w: word sz) (m: asmmem) :=
 Definition mem_write_xreg (f: msb_flag) (r: xreg_t) sz (w: word sz) (m: asmmem) :=
   {|
     asm_mem  := m.(asm_mem);
+    asm_scs  := m.(asm_scs);
     asm_reg  := m.(asm_reg);
+    asm_regx := m.(asm_regx);
     asm_rip  := m.(asm_rip);
     asm_xreg := XRegMap.set m.(asm_xreg) r (word_extend f (m.(asm_xreg) r) w);
     asm_flag := m.(asm_flag);
   |}.
-
-(* -------------------------------------------------------------------- *)
-
-(*Lemma word_extend_reg_id r sz (w: word sz) m :
-  (U32 ≤ sz)%CMP →
-  word_extend_reg r w m = zero_extend U64 w.
-Proof.
-rewrite /word_extend_reg /merge_word.
-by case: sz w => //= w _; rewrite wand0 wxor0.
-Qed.
-*)
 
 (* -------------------------------------------------------------------- *)
 Definition mem_write_word (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) (sz:wsize) (w: word sz) : exec asmmem :=
@@ -303,6 +339,7 @@ Definition mem_write_word (f:msb_flag) (s:asmmem) (args:asm_args) (ad:arg_desc) 
       Let _ := assert (check_oreg or a) ErrType in
       match a with
       | Reg r   => ok (mem_write_reg  f r w s)
+      | Regx r  => ok (mem_write_regx  f r w s)
       | XReg x  => ok (mem_write_xreg f x w s)
       | Addr addr => mem_write_mem (decode_addr s addr) w s
       | _       => type_error
@@ -353,19 +390,20 @@ Definition eval_op o args m :=
 
 (* -------------------------------------------------------------------- *)
 Definition eval_POP (s: asm_state) : exec (asm_state * wreg) :=
-  Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) stack_pointer_register) in
+  Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) ad_rsp) in
   Let v := read s.(asm_m).(asm_mem) sp reg_size in
-  let m := mem_write_reg MSB_CLEAR stack_pointer_register (sp + wrepr Uptr (wsize_size Uptr))%R s.(asm_m) in
+  let m := mem_write_reg MSB_CLEAR ad_rsp (sp + wrepr Uptr (wsize_size Uptr))%R s.(asm_m) in
   ok ({| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}, v).
 
 Definition eval_PUSH (w: wreg) (s: asm_state) : exec asm_state :=
-  Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) stack_pointer_register) in
-  Let m := mem_write_mem sp w s.(asm_m) in
-  let m := mem_write_reg MSB_CLEAR stack_pointer_register (sp - wrepr Uptr (wsize_size Uptr))%R m in
+  Let sp := truncate_word Uptr (s.(asm_m).(asm_reg) ad_rsp) in
+  Let m := mem_write_mem (sp - wrepr Uptr (wsize_size Uptr))%R w s.(asm_m) in
+  let m := mem_write_reg MSB_CLEAR ad_rsp (sp - wrepr Uptr (wsize_size Uptr))%R m in
   ok {| asm_m := m ; asm_f := s.(asm_f) ; asm_c := s.(asm_c) ; asm_ip := s.(asm_ip).+1 |}.
 
 (* -------------------------------------------------------------------- *)
 Section PROG.
+
 
 Context  (p: asm_prog).
 
@@ -415,6 +453,9 @@ Definition eval_instr (i : asm_i) (s: asm_state) : exec asm_state :=
     else type_error
   | AsmOp o args =>
     Let m := eval_op o args s.(asm_m) in
+    ok (st_update_next m s)
+  | SysCall o =>
+    Let m := eval_syscall o s.(asm_m) in
     ok (st_update_next m s)
   end.
 
@@ -474,10 +515,11 @@ Proof.
   - by move => ? _; case: d.1 => // - [] // ? /ok_inj <-.
   move => ? ? _; case: d.1 => [ [] | ] //=.
   - by move => ? /ok_inj <-.
-  move => _ ? ?; case: onth => //; t_xrbindP => - [] //.
-  - by move => ? _ _ /ok_inj <-.
-  - move => ? ? _; exact: mem_write_mem_invariant.
-  by move => ? _ _ /ok_inj <-.
+  move => _ ? ?; case: onth => //; t_xrbindP => - [] // ? _.
+  - by move=> /ok_inj <-.
+  - by move=> /ok_inj <-.
+  - by exact: mem_write_mem_invariant.
+  by move => /ok_inj <-.
 Qed.
 
 Lemma mem_write_vals_invariant f xs ys tys zs (s s': asmmem) :
@@ -495,7 +537,7 @@ Lemma eval_instr_invariant (i: asm_i) (s s': asm_state) :
   eval_instr i s = ok s' →
   s ≡ s'.
 Proof.
-  case: i => [ | ? | ? ? | ? | ? | ? ? | ? ? | ? | | ? ? ] /=.
+  case: i => [ | ? | ? ? | ? | ? | ? ? | ? ? | ? | | ? ? | ?] /=.
   1, 2: by move => /ok_inj <-.
   - by case: encode_label => // ? /ok_inj <-.
   - exact: eval_JMP_invariant.
@@ -505,11 +547,13 @@ Proof.
     by move => <-.
   - case: return_address_from => // ra /eval_JMP_invariant /=.
     by rewrite mem_write_reg_invariant.
-  - case: return_address_from => // ra; rewrite /eval_PUSH; t_xrbindP => ? ? _ ? /mem_write_mem_invariant -> <- /eval_JMP_invariant /=.
-    by rewrite mem_write_reg_invariant.
+  - by case: return_address_from => // ra; rewrite /eval_PUSH; t_xrbindP => ? ? _ ? /mem_write_mem_invariant -> <- /eval_JMP_invariant /=; rewrite mem_write_reg_invariant.
   - rewrite /eval_POP; t_xrbindP => _ ? _ ? _ <-.
     by case: decode_label => // ? /eval_JMP_invariant <-.
-  by rewrite /eval_op /exec_instr_op; t_xrbindP => ? ? ? /mem_write_vals_invariant -> <-.
+  - by rewrite /eval_op /exec_instr_op; t_xrbindP => ? ? ? /mem_write_vals_invariant -> <-.
+  t_xrbindP => m hm <-.
+  have /= [h1 h2 h3]:= eval_syscall_spec1 hm; split => //.
+  by have [] := exec_syscallSs h1.
 Qed.
 
 Lemma asmsem1_invariant (s s': asm_state) :
@@ -530,30 +574,35 @@ Qed.
 End PROG.
 
 (* -------------------------------------------------------------------- *)
-(* TODO: flags may be preserved *)
-(* TODO: restore stack pointer of caller? *)
-(*
-Variant asmsem_fd (P: xprog) (wrip: pointer) fn st st' : Prop :=
-| ASMSem_fd fd mp st2
-   `(get_fundef P.(xp_funcs) fn = Some fd)
-   `(alloc_stack st.(xmem) fd.(xfd_align) fd.(xfd_stk_size) = ok mp)
-    (st1 := mem_write_reg fd.(xfd_nstk) (top_stack mp) 
-            {| xmem := mp; 
-               xreg := st.(xreg); 
-               xrip := wrip; 
-               xxreg := st.(xxreg); 
-               xrf := rflagmap0 |})
-    (c := fd.(xfd_body))
-    `(asmsem P {| xm := st1 ; xfn := fn ; xc := c ; xip := 0 |} {| xm := st2; xfn := fn ; xc := c; xip := size c |})
-    `(st' = {| xmem := free_stack st2.(xmem) fd.(xfd_stk_size); 
-               xreg := st2.(xreg);
-               xrip := st2.(xrip);
-               xxreg := st2.(xxreg) ; 
-               xrf := rflagmap0 |})
-    .
-*)
+
 Definition asmsem_trans P s2 s1 s3 :
   asmsem P s1 s2 -> asmsem P s2 s3 -> asmsem P s1 s3 :=
   rt_trans _ _ s1 s2 s3.
+
+Variant asmsem_exportcall
+  (p : asm_prog)
+  (fn : funname)
+  (m m' : asmmem)
+  : Prop :=
+  | Asmsem_exportcall :
+    forall (fd : asm_fundef),
+      get_fundef (asm_funcs p) fn = Some fd
+      -> asm_fd_export fd
+      -> check_call_conv fd
+      -> let s := {| asm_m := m
+                   ; asm_f := fn
+                   ; asm_c := asm_fd_body fd
+                   ; asm_ip := 0
+                  |} in
+         let s' := {| asm_m := m'
+                    ; asm_f := fn
+                    ; asm_c := asm_fd_body fd
+                    ; asm_ip := size (asm_fd_body fd)
+                   |} in
+         asmsem p s s'
+      -> (forall r,
+           r \in callee_saved
+           -> preserved_register r m m')
+      -> asmsem_exportcall p fn m m'.
 
 End SEM.

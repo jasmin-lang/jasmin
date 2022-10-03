@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import Psatz xseq.
 Require Export utils array gen_map type word low_memory.
 Import Utf8 ZArith.
@@ -57,6 +57,7 @@ Module WArray.
   (* We set the priority to 1, so that memory_model.Pointer is selected by
      default.
   *)
+#[global]
   Instance PointerZ : pointer_op pointer | 1.
   Proof.
     refine {| add x y := (x + y)%Z
@@ -119,16 +120,16 @@ Module WArray.
     Qed.
  
     Lemma get_valid8 m p w : get8 m p = ok w -> in_bound m p.
-    Proof. by rewrite /get8; t_xrbindP => _ /assertP. Qed.
+    Proof. by rewrite /get8; t_xrbindP. Qed.
 
     Lemma valid8_set m p w m' p' : set8 m p w = ok m' -> in_bound m' p' = in_bound m p'.
-    Proof. by rewrite /set8; t_xrbindP => _ _ <-. Qed.
+    Proof. by rewrite /set8; t_xrbindP => _ <-. Qed.
 
     Lemma set8P m p w p' m' :
       set8 m p w = ok m' ->
       get8 m' p' = if p == p' then ok w else get8 m p'.
     Proof.
-      rewrite /get8 /set8 => /dup[] /valid8_set ->; t_xrbindP => _ /assertP hb <-.
+      rewrite /get8 /set8 => /dup[] /valid8_set ->; t_xrbindP => hb <-.
       case heq: in_bound => //=; last by case: eqP => // h;move: heq; rewrite -h hb.
       by rewrite /is_init /= Mz.setP; case: eqP.
     Qed.
@@ -171,6 +172,14 @@ Module WArray.
 
   Definition copy ws p (a:array (Z.to_pos (arr_size ws p))) := 
     fcopy ws a (WArray.empty _) 0 p.
+
+  Definition fill len (l:list u8) : exec (array len) := 
+    Let _ := assert (Pos.to_nat len == size l) ErrType in 
+    Let pt := 
+      foldM (fun w pt =>
+             Let t := set pt.2 AAscale pt.1 w in
+             ok (pt.1 + 1, t)) (0%Z, empty len) l in
+    ok pt.2.
 
   Definition get_sub_data (aa:arr_access) ws len (a:Mz.t u8) p := 
      let size := arr_size ws len in 
@@ -395,6 +404,49 @@ Module WArray.
     t_xrbindP => a' w /(uincl_get hu) -> /= ->; apply: hrec.
   Qed.
 
+  Definition fill_size len l a :
+    fill len l = ok a ->
+    Pos.to_nat len = size l.
+  Proof. by rewrite /fill; t_xrbindP => /eqP. Qed.
+
+  Lemma fill_get8 len l a :
+    fill len l = ok a ->
+    forall k,
+      read a k U8 =
+        if (0 <=? k) && (k <? len) then ok (nth 0%R l (Z.to_nat k))
+        else Error ErrOob.
+  Proof.
+    rewrite /fill; t_xrbindP=> /eqP hsize -[z {a}a] /= hfold <- k.
+    have: forall z0 a0,
+      foldM (fun w pt => Let t := set pt.2 AAscale pt.1 w in ok (pt.1 + 1, t)) (z0, a0) l = ok (z, a) ->
+      read a k U8 =
+        let i := k - z0 in
+        if (0 <=? i) && (i <? Z.of_nat (size l)) then ok (nth 0%R l (Z.to_nat i))
+        else read a0 k U8;
+      last first.
+    + move=> /(_ _ _ hfold) ->.
+      rewrite Z.sub_0_r get_empty /=.
+      rewrite -hsize positive_nat_Z.
+      by case: andb.
+    elim: l {hsize hfold} => [ | w l ih] z0 a0 /=.
+    + move=> [_ <-].
+      by case: ifP => //; rewrite !zify; lia.
+    t_xrbindP=> _ a1 hset <- /ih -> /=.
+    have ->:
+      (0 <=? k - z0) && (k - z0 <? Pos.of_succ_nat (size l)) =
+      (k == z0) || (0 <=? k - (z0 + 1)) && (k - (z0 + 1) <? Z.of_nat (size l)).
+    + by apply /idP/idP; rewrite !zify (rwR2 (@eqP _)); lia.
+    have := setP k hset; rewrite !get8_read => ->.
+    rewrite orbC.
+    case: ifP => /=.
+    + rewrite !zify => h.
+      by have ->: Z.to_nat (k - z0) = S (Z.to_nat (k - (z0+1))) by lia.
+    move=> _.
+    rewrite eq_sym.
+    case: eqP => [<- | //].
+    by rewrite Z.sub_diag.
+  Qed.
+
   Lemma set_sub_data_get8 aa ws a len p t k: 
     Mz.get (@set_sub_data aa ws len a p t) k = 
       let i := (k - p * mk_scale aa ws)%Z in
@@ -505,4 +557,5 @@ Module WArray.
 
 End WArray.
 
+#[global]
 Hint Resolve WArray.uincl_refl : core.

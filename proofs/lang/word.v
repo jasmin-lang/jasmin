@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ word.
+From mathcomp.word Require Import ssrZ word.
 Require Import ssrring.
 Require Zquot.
 Require Import Psatz ZArith utils.
@@ -104,6 +104,7 @@ Definition wbase (s: wsize) : Z :=
 Lemma le0_wsize_size ws : 0 <= wsize_size ws.
 Proof. rewrite /wsize_size; lia. Qed.
 Arguments le0_wsize_size {ws}.
+#[global]
 Hint Resolve le0_wsize_size : core.
 
 Lemma wsize_size_is_pow2 sz :
@@ -250,20 +251,40 @@ Proof. by apply wunsigned_inj; rewrite !wunsigned_repr Zmod_mod. Qed.
 Lemma wunsigned_repr_small ws z : 0 <= z < wbase ws -> wunsigned (wrepr ws z) = z.
 Proof. move=> h; rewrite wunsigned_repr; apply: Zmod_small h. Qed.
 
-(* TODO: the proof of [wunsigned_sub] seems far simpler, we could use the same idea *)
-Lemma wunsigned_add sz (p: word sz) (n: Z) :
-  0 <= wunsigned p + n < wbase sz →
-  wunsigned (p + wrepr sz n) = wunsigned p + n.
-Proof.
-case: p => p i h.
-change (toword (add_word (mkWord i) (wrepr sz n)) = p + n).
-rewrite/add_word mkwordK/= /urepr/=.
-rewrite Zplus_mod_idemp_r.
-exact: Zmod_small.
+Lemma wrepr_add sz (x y: Z) :
+  wrepr sz (x + y) = (wrepr sz x + wrepr sz y)%R.
+Proof. by apply: word_ext; rewrite /wrepr !mkwordK Zplus_mod. Qed.
+
+Lemma wrepr_sub sz (x y: Z) :
+  wrepr sz (x - y) = (wrepr sz x - wrepr sz y)%R.
+Proof. by apply: word_ext; rewrite /wrepr !mkwordK -Zminus_mod_idemp_r -Z.add_opp_r Zplus_mod. Qed.
+
+Lemma wrepr_mul sz (x y: Z) :
+  wrepr sz (x * y) = (wrepr sz x * wrepr sz y)%R.
+Proof. by apply: word_ext; rewrite /wrepr !mkwordK Zmult_mod. Qed.
+
+Lemma wrepr_m1 sz :
+  wrepr sz (-1) = (-1)%R.
+Proof. by apply /eqP; case sz. Qed.
+
+Lemma wrepr_opp sz (x: Z) :
+  wrepr sz (- x) = (- wrepr sz x)%R.
+Proof. 
+  have -> : (- x) = (- x)%R by done.
+  by rewrite -(mulN1r x) wrepr_mul wrepr_m1 mulN1r.
 Qed.
 
 Lemma wunsigned0 ws : @wunsigned ws 0 = 0.
 Proof. by rewrite -wrepr0 wunsigned_repr Zmod_0_l. Qed.
+
+Lemma wunsigned_add sz (p: word sz) (n: Z) :
+  0 <= wunsigned p + n < wbase sz →
+  wunsigned (p + wrepr sz n) = wunsigned p + n.
+Proof.
+  move=> h.
+  rewrite -{1}(wrepr_unsigned p).
+  by rewrite -wrepr_add wunsigned_repr Z.mod_small.
+Qed.
 
 Lemma wunsigned_add_if ws (a b : word ws) :
   wunsigned (a + b) = 
@@ -271,10 +292,18 @@ Lemma wunsigned_add_if ws (a b : word ws) :
    else wunsigned a + wunsigned b - wbase ws.
 Proof.
   move: (wunsigned_range a) (wunsigned_range b).
-  rewrite /wunsigned CoqWord.word.addwE /GRing.add /= -/(wbase ws) => ha hb.
+  rewrite /wunsigned mathcomp.word.word.addwE /GRing.add /= -/(wbase ws) => ha hb.
   case: ZltP => hlt. 
   + by rewrite Zmod_small //;Psatz.lia.
   by rewrite -(Z_mod_plus_full _ (-1)) Zmod_small;Psatz.lia.
+Qed.
+
+Lemma wunsigned_sub (sz : wsize) (p : word sz) (n : Z):
+  0 <= wunsigned p - n < wbase sz → wunsigned (p - wrepr sz n) = wunsigned p - n.
+Proof.
+  move=> h.
+  rewrite -{1}(wrepr_unsigned p).
+  by rewrite -wrepr_sub wunsigned_repr Z.mod_small.
 Qed.
 
 Lemma wunsigned_sub_if ws (a b : word ws) : 
@@ -283,7 +312,7 @@ Lemma wunsigned_sub_if ws (a b : word ws) :
     else  wbase ws + wunsigned a - wunsigned b.
 Proof.
   move: (wunsigned_range a) (wunsigned_range b).
-  rewrite /wunsigned CoqWord.word.subwE -/(wbase ws) => ha hb.
+  rewrite /wunsigned mathcomp.word.word.subwE -/(wbase ws) => ha hb.
   have -> : (word.urepr a - word.urepr b)%R = word.urepr a - word.urepr b by done.
   case: ZleP => hle. 
   + by rewrite Zmod_small //;Psatz.lia.
@@ -495,7 +524,7 @@ Qed.
 Definition lsb {s} (w: word s) : bool := wbit_n w 0.
 Definition msb {s} (w: word s) : bool := wbit_n w (wsize_size_minus_1 s).
 
-Lemma msb_wordE {s} (w : word s) : msb w = CoqWord.word.msb w.
+Lemma msb_wordE {s} (w : word s) : msb w = mathcomp.word.word.msb w.
 Proof. by []. Qed.
 
 Definition wdwordu sz (hi lo: word sz) : Z :=
@@ -541,6 +570,9 @@ Definition zero_extend sz sz' (w: word sz') : word sz :=
 
 Definition sign_extend sz sz' (w: word sz') : word sz :=
   wrepr sz (wsigned w).
+
+Definition truncate_word s s' (w:word s') :=
+   if (s <= s')%CMP then ok (zero_extend s w) else type_error.
 
 Definition wbit sz (w i: word sz) : bool :=
   wbit_n w (Z.to_nat (wunsigned i mod wsize_bits sz)).
@@ -590,7 +622,7 @@ Lemma wltsE sz (α β: word sz) : α ≠ β →
   wlt Signed α β = (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
 Proof.
 move=> ne_ab; rewrite /= !msb_wordE /wsigned /srepr.
-rewrite !CoqWord.word.msbE /= !subZE; set w := (_ sz);
+rewrite !mathcomp.word.word.msbE /= !subZE; set w := (_ sz);
   case: (lerP (modulus _) (val α)) => ha;
   case: (lerP (modulus _) (val β)) => hb;
   case: (lerP (modulus _) (val _)) => hab.
@@ -693,6 +725,16 @@ Proof.
   by move=> hle;rewrite [X in (zero_extend _ X) = _]/zero_extend zero_extend_wrepr.
 Qed.
 
+Lemma zero_extend_cut (s1 s2 s3: wsize) (w: word s3) :
+  (s3 ≤ s2)%CMP →
+  zero_extend s1 (zero_extend s2 w) = zero_extend s1 w.
+Proof.
+  move => /wbase_m hle.
+  rewrite /zero_extend wunsigned_repr_small //.
+  have := wunsigned_range w.
+  lia.
+Qed.
+
 Lemma wbit_zero_extend s s' (w: word s') i :
   wbit_n (zero_extend s w) i = (i <= wsize_size_minus_1 s)%nat && wbit_n w i.
 Proof.
@@ -700,7 +742,7 @@ rewrite /zero_extend /wbit_n /wunsigned /wrepr.
 move: (urepr w) => {w} z.
 rewrite mkwordK.
 set m := wsize_size_minus_1 _.
-rewrite /CoqWord.word.wbit /=.
+rewrite /mathcomp.word.word.wbit /=.
 rewrite /modulus two_power_nat_equiv.
 case: leP => hi.
 + rewrite Z.mod_pow2_bits_low //; lia.
@@ -720,8 +762,8 @@ Lemma sign_extend_truncate s s' (w: word s') :
   sign_extend s w = zero_extend s w.
 Proof.
   rewrite /sign_extend /zero_extend /wsigned /wunsigned.
-  rewrite CoqWord.word.sreprE /= /wrepr.
-  move: (CoqWord.word.urepr w) => z hle.
+  rewrite mathcomp.word.word.sreprE /= /wrepr.
+  move: (mathcomp.word.word.urepr w) => z hle.
   apply/word_ext.
   have [n ->] := modulus_m (wsize_size_m hle).
   case: ssrZ.ltzP => // hgt.
@@ -730,6 +772,19 @@ Qed.
 
 Lemma sign_extend_u sz (w: word sz) : sign_extend sz w = w.
 Proof. exact: sreprK. Qed.
+
+Lemma truncate_word_u s (a : word s) : truncate_word s a = ok a.
+Proof. by rewrite /truncate_word cmp_le_refl zero_extend_u. Qed.
+
+Lemma truncate_wordP s1 s2 (w1:word s1) (w2:word s2) :
+  truncate_word s1 w2 = ok w1 → (s1 <= s2)%CMP /\ w1 = zero_extend s1 w2.
+Proof. by rewrite /truncate_word; case: ifP => // ? []. Qed.
+
+Lemma truncate_word_errP s1 s2 (w: word s2) e :
+  truncate_word s1 w = Error e → e = ErrType ∧ (s2 < s1)%CMP.
+Proof.
+  by rewrite /truncate_word; case: ifP => // /negbT; rewrite cmp_nle_lt => ? [].
+Qed.
 
 Lemma wbase_n0 sz : wbase sz <> 0%Z.
 Proof. by case sz. Qed.
@@ -750,7 +805,7 @@ Proof. by rewrite /sign_extend wsigned0 wrepr0. Qed.
 Lemma wandC sz : commutative (@wand sz).
 Proof.
   by move => x y; apply/eqP/eq_from_wbit => i;
-  rewrite /wand !CoqWord.word.wandE andbC.
+  rewrite /wand !mathcomp.word.word.wandE andbC.
 Qed.
 
 Lemma wandA sz : associative (@wand sz).
@@ -768,37 +823,26 @@ Proof.
   by rewrite wandE wN1E ltn_ord.
 Qed.
 
+Lemma worC sz : commutative (@wor sz).
+Proof.
+  by move => x y; apply/eqP/eq_from_wbit => i;
+  rewrite /wor !mathcomp.word.word.worE orbC.
+Qed.
+
+Lemma wor0 sz (x: word sz) : wor 0 x = x.
+Proof. by apply/eqP/eq_from_wbit. Qed.
+
+Lemma wor_xx sz (x: word sz) : wor x x = x.
+Proof. by apply/eqP/eq_from_wbit; rewrite /= Z.lor_diag. Qed.
+
 Lemma wxor0 sz (x: word sz) : wxor 0 x = x.
 Proof. by apply/eqP/eq_from_wbit. Qed.
 
 Lemma wxor_xx sz (x: word sz) : wxor x x = 0%R.
 Proof. by apply/eqP/eq_from_wbit; rewrite /= Z.lxor_nilpotent. Qed.
 
-Lemma wrepr_add sz (x y: Z) :
-  wrepr sz (x + y) = (wrepr sz x + wrepr sz y)%R.
-Proof. by apply: word_ext; rewrite /wrepr !mkwordK Zplus_mod. Qed.
-
-Lemma wrepr_sub sz (x y: Z) :
-  wrepr sz (x - y) = (wrepr sz x - wrepr sz y)%R.
-Proof. by apply: word_ext; rewrite /wrepr !mkwordK -Zminus_mod_idemp_r -Z.add_opp_r Zplus_mod. Qed.
-
 Lemma wmulE sz (x y: word sz) : (x * y)%R = wrepr sz (wunsigned x * wunsigned y).
 Proof. by rewrite /wunsigned /wrepr; apply: word_ext. Qed.
-
-Lemma wrepr_mul sz (x y: Z) :
-  wrepr sz (x * y) = (wrepr sz x * wrepr sz y)%R.
-Proof. by apply: word_ext; rewrite /wrepr !mkwordK Zmult_mod. Qed.
-
-Lemma wrepr_m1 sz :
-  wrepr sz (-1) = (-1)%R.
-Proof. by apply /eqP; case sz. Qed.
-
-Lemma wrepr_opp sz (x: Z) :
-  wrepr sz (- x) = (- wrepr sz x)%R.
-Proof. 
-  have -> : (- x) = (- x)%R by done.
-  by rewrite -(mulN1r x) wrepr_mul wrepr_m1 mulN1r.
-Qed.
 
 Lemma wadd_zero_extend sz sz' (x y: word sz') :
   (sz ≤ sz')%CMP →
@@ -903,14 +947,6 @@ have hi' : (i < m'.+1)%nat. apply /ltP. lia.
 by have /= -> := @wnotE sz' x (Ordinal hi') .
 Qed.
 
-Lemma wunsigned_sub (sz : wsize) (p : word sz) (n : Z):
-  0 <= wunsigned p - n < wbase sz → wunsigned (p - wrepr sz n) = wunsigned p - n.
-Proof.
-  move=> h.
-  rewrite -{1}(wrepr_unsigned p).
-  by rewrite -wrepr_sub wunsigned_repr Z.mod_small.
-Qed.
-
 (* -------------------------------------------------------------------*)
 Ltac wring :=
   rewrite ?zero_extend_u; ssring.
@@ -930,7 +966,7 @@ Lemma lsr0 n (w: n.-word) : lsr w 0 = w.
 Proof. by rewrite /lsr Z.shiftr_0_r ureprK. Qed.
 
 Lemma subword0 (ws ws' :wsize) (w: word ws') :
-   CoqWord.word.subword 0 ws w = zero_extend ws w.
+   mathcomp.word.word.subword 0 ws w = zero_extend ws w.
 Proof.
   apply/eqP/eq_from_wbit_n => i.
   rewrite wbit_zero_extend.
@@ -938,7 +974,7 @@ Proof.
   rewrite ltnS => -> /=.
   rewrite /subword lsr0.
   rewrite {1}/wbit_n /wunsigned mkwordK.
-  rewrite /CoqWord.word.wbit /modulus two_power_nat_equiv.
+  rewrite /mathcomp.word.word.wbit /modulus two_power_nat_equiv.
   rewrite Z.mod_pow2_bits_low //.
   have /leP := ltn_ord i.
   lia.
@@ -979,7 +1015,7 @@ have eq_st: wcat_r s = wcat t.
 + rewrite {}/s {}/t /=; pose F i := subword (i * U8) U8 wt.
   rewrite (map_comp F val) val_enum_ord {}/F.
   congr wcat_r; apply/eq_map => i; apply/eqP/eq_from_wbit.
-  move=> j; rewrite !subwordE; congr (CoqWord.word.wbit (t2w _) _).
+  move=> j; rewrite !subwordE; congr (mathcomp.word.word.wbit (t2w _) _).
   apply/val_eqP/eqP => /=; apply/eq_map=> k.
   suff ->: val wt = val w by done.
   by rewrite {}/wt; case: _ / sz_even.
@@ -1089,13 +1125,13 @@ Definition wpshufl_u64 (w:u64) (z:Z) : u64 :=
 
 Definition wpshufl_u128 (w:u128) (z:Z) :=
   match split_vec 64 w with
-  | [::h;l] => make_vec U128 [::(h:u64); wpshufl_u64 l z]
+  | [::l;h] => make_vec U128 [::wpshufl_u64 l z; (h:u64)]
   | _       => w
   end.
 
 Definition wpshufh_u128 (w:u128) (z:Z) :=
   match split_vec 64 w with
-  | [::h;l] => make_vec U128 [::wpshufl_u64 h z; (l:u64)]
+  | [::l;h] => make_vec U128 [::(l:u64); wpshufl_u64 h z]
   | _       => w
   end.
 
@@ -1218,6 +1254,15 @@ Definition wpbroadcast ve sz (w: word ve) : word sz :=
   let r := nseq (sz %/ ve) w in
   make_vec sz r.
 
+Lemma wpbroadcast0 ve sz :
+  @wpbroadcast ve sz 0%R = 0%R.
+Proof.
+  rewrite /wpbroadcast/make_vec.
+  suff -> : wcat_r (nseq _ 0%R) = 0.
+  - by rewrite wrepr0.
+  by move => q; elim => // n /= ->; rewrite Z.shiftl_0_l.
+Qed.
+
 (* -------------------------------------------------------------------*)
 Fixpoint seq_dup_hi T (m: seq T) : seq T :=
   if m is _ :: a :: m' then a :: a :: seq_dup_hi m' else [::].
@@ -1325,7 +1370,7 @@ Proof. vm_compute. by apply/eqP. Qed.
 
 (* -------------------------------------------------------------------*)
 Definition wpack sz pe (arg: seq Z) : word sz :=
-  let w := map (CoqWord.word.mkword pe) arg in
+  let w := map (mathcomp.word.word.mkword pe) arg in
   wrepr sz (word.wcat_r w).
 
 (* -------------------------------------------------------------------*)
@@ -1350,7 +1395,7 @@ Proof. have := pow2pos q; lia. Qed.
 Lemma wbit_n_pow2m1 sz (n i: nat) :
   wbit_n (wrepr sz (2 ^ Z.of_nat n - 1)) i = (i < Nat.min n (wsize_size_minus_1 sz).+1)%nat.
 Proof.
-  rewrite /wbit_n /CoqWord.word.wbit wunsigned_repr /modulus two_power_nat_equiv.
+  rewrite /wbit_n /mathcomp.word.word.wbit wunsigned_repr /modulus two_power_nat_equiv.
   case: (le_lt_dec (wsize_size_minus_1 sz).+1 i) => hi.
   - rewrite Z.mod_pow2_bits_high; last lia.
     symmetry; apply/negbTE/negP => /ltP.
@@ -1547,6 +1592,7 @@ Definition word_uincl sz1 sz2 (w1:word sz1) (w2:word sz2) :=
 
 Lemma word_uincl_refl s (w : word s): word_uincl w w.
 Proof. by rewrite /word_uincl zero_extend_u cmp_le_refl eqxx. Qed.
+#[global]
 Hint Resolve word_uincl_refl : core.
 
 Lemma word_uincl_eq s (w w': word s):
@@ -1569,4 +1615,16 @@ Lemma word_uincl_zero_extR sz sz' (w: word sz) :
 Proof.
   move => hle; apply /andP; split; first exact: hle.
   by rewrite zero_extend_idem // zero_extend_u.
+Qed.
+
+Lemma truncate_word_uincl sz1 sz2 w1 (w2: word sz2) :
+  truncate_word sz1 w2 = ok w1 → word_uincl w1 w2.
+Proof. by move=> /truncate_wordP[? ->]; exact: word_uincl_zero_ext. Qed.
+
+Lemma word_uincl_truncate sz1 (w1: word sz1) sz2 (w2: word sz2) sz w:
+  word_uincl w1 w2 -> truncate_word sz w1 = ok w -> truncate_word sz w2 = ok w.
+Proof.
+  rewrite /word_uincl => /andP[hc1 /eqP ->] /truncate_wordP[hc2 ->].
+  rewrite (zero_extend_idem _ hc2) /truncate_word ifT //.
+  exact: (cmp_le_trans hc2 hc1).
 Qed.

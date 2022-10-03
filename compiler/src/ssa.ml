@@ -36,6 +36,7 @@ let rec written_vars_instr_r allvars w =
     -> written_vars_stmt allvars w s
   | Cassgn (x, _, _, _) -> written_vars_lvar allvars w x
   | Copn (xs, _, _, _)
+  | Csyscall(xs,_,_)
   | Ccall (_, xs, _, _)
     -> written_vars_lvars allvars w xs
   | Cif (_, s1, s2)
@@ -45,18 +46,14 @@ and written_vars_instr allvars w { i_desc } = written_vars_instr_r allvars w i_d
 and written_vars_stmt allvars w s = List.fold_left (written_vars_instr allvars) w s
 
 (* Adds rename intruction y = m[x] *)
-let ir (m: names) (x: var) (y: var) : unit instr =
+let ir (m: names) (x: var) (y: var) : (unit, 'asm) instr =
   let x = Mv.find_default x x m in
   let v u = L.mk_loc L._dummy u in
   let i_desc = Cassgn (Lvar (v y), AT_phinode, y.v_ty, Pvar (gkvar (v x))) in
   { i_desc ; i_info = () ; i_loc = L.i_dummy ; i_annot = [] }
 
-let is_stack_array x = 
-  let x = L.unloc x in
-  is_ty_arr x.v_ty && x.v_kind = Stack Direct
-
-let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
-  let f = Liveness.live_fd false f in
+let split_live_ranges is_move_op (allvars: bool) (f: ('info, 'asm) func) : (unit, 'asm) func =
+  let f = Liveness.live_fd is_move_op false f in
   let rec instr_r (li: Sv.t) (lo: Sv.t) (m: names) =
     function
     | Cassgn (x, tg, ty, e) ->
@@ -67,6 +64,10 @@ let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in
       m, Copn (ys, tg, op, es)
+    | Csyscall (xs, op, es) ->
+      let es = List.map (rename_expr m) es in
+      let m, ys = rename_lvals allvars m xs in
+      m, Csyscall(ys, op, es)
     | Ccall (ii, xs, n, es) ->
       let es = List.map (rename_expr m) es in
       let m, ys = rename_lvals allvars m xs in
@@ -112,7 +113,7 @@ let split_live_ranges (allvars: bool) (f: 'info func) : unit func =
   let f_ret = List.map (Subst.vsubst_vi m) f.f_ret in
   { f with f_body ; f_ret }
 
-let remove_phi_nodes (f: 'info func) : 'info func =
+let remove_phi_nodes (f: ('info, 'asm) func) : ('info, 'asm) func =
   let rec instr_r =
     function
     | Cassgn (x, tg, _, e) as i ->
@@ -129,7 +130,7 @@ let remove_phi_nodes (f: 'info func) : 'info func =
        | _ -> [i])
     | Cif (b, s1, s2) -> [Cif (b, stmt s1, stmt s2)]
     | Cwhile (a, s1, b, s2) -> [Cwhile (a, stmt s1, b, stmt s2)]
-    | (Copn _ | Cfor _ | Ccall _) as i -> [i]
+    | (Copn _ | Csyscall _ | Cfor _ | Ccall _) as i -> [i]
   and instr i =
     try List.map (fun i_desc -> { i with i_desc }) (instr_r i.i_desc)
     with HiError e -> raise (HiError (add_iloc e i.i_loc))

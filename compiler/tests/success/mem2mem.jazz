@@ -1,0 +1,55 @@
+/* There are different source-level constructions that translate to memory accesses:
+  - user (aka external) memory
+  - global variables (scalars / arrays)
+  - stack variables (scalars / arrays)
+  - reg ptr (arrays)
+*/
+u64 z = 0;
+u64[2] g = { 42, 137 };
+
+export
+fn mem2mem(reg u64 m) -> reg u64 {
+  stack u64[2] s;
+  reg ptr u64[1] p q;
+  reg u64 r;
+  // init
+  r = 0;
+  s[0] = 0;
+  p = g[0:1];
+  // external → external
+  [m] = [m + 8];
+  // global → external
+  [m] = z;
+  [m + 8] = g[0];
+  // stack → external
+  [m + 16] = s[0];
+  // pointer → external
+  [m + 24] = p[0];
+  // external → stack
+  s[0] = [m];
+  r += s[0];
+  // global → stack
+  s[0] = g[0];
+  r += s[0];
+  // stack → stack
+  s[1] = s[0];
+  r += s[1];
+  // pointer → stack
+  s[0] = p[0];
+  r += s[0];
+
+  q = s[1:1];
+  // external → pointer
+  q[0] = [m];
+  r += q[0];
+  // global → pointer
+  q[0] = g[0];
+  r += q[0];
+  // stack → pointer
+  q[0] = s[0];
+  r += q[0];
+  // pointer → pointer
+  q[0] = p[0];
+  r += q[0];
+  return r;
+}

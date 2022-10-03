@@ -1,7 +1,7 @@
 (** This module defines common definitions related to the “one-varmap” intermediate language.
 This language is structured (as jasmin-source) and is used just before linearization: there is a single environment (varmap) shared across function calls.
 *)
-Require Import expr compiler_util arch_decl arch_extra.
+Require Import expr compiler_util.
 Import Utf8.
 Import all_ssreflect.
 
@@ -9,10 +9,23 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Record ovm_syscall_sig_t := 
+  { scs_vin : seq var; scs_vout : seq var }.
+
+Class one_varmap_info := { 
+  syscall_sig  : syscall_t -> ovm_syscall_sig_t;
+  all_vars     : Sv.t;
+  callee_saved : Sv.t;
+  vflags       : Sv.t;
+  vflagsP      : forall x, Sv.In x vflags -> vtype x = sbool
+}.
+
+Definition syscall_kill {ovm_i : one_varmap_info} :=
+  Sv.diff all_vars callee_saved.
+
 Section Section.
 
-Context
-  {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op}
+Context {pd: PointerData} {asm_op} {asmop:asmOp asm_op} {ovm_i : one_varmap_info}
   (p: sprog)
   (extra_free_registers: instr_info → option var)
 .
@@ -32,9 +45,6 @@ Definition savedstackreg (ss: saved_stack) :=
 Definition saved_stack_vm fd : Sv.t :=
   savedstackreg fd.(f_extra).(sf_save_stack).
 
-Definition sv_of_flags : seq rflag → Sv.t :=
-  sv_of_list to_var.
-
 Definition ra_vm (e: stk_fun_extra) (x: var) : Sv.t :=
   match e.(sf_return_address) with
   | RAreg ra =>
@@ -42,7 +52,7 @@ Definition ra_vm (e: stk_fun_extra) (x: var) : Sv.t :=
   | RAstack _ =>
     Sv.empty
   | RAnone =>
-    Sv.add x (sv_of_flags rflags)
+    Sv.add x vflags
   end.
 
 Definition ra_undef fd (x: var) :=

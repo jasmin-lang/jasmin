@@ -1,0 +1,24 @@
+inline
+fn read(reg const ptr u64[1] ro) -> reg u64 {
+  reg u64 v;
+  v = ro[0];
+  return v;
+}
+
+fn write(reg mut ptr u64[1] rw) -> reg ptr u64[1] {
+  reg u64 x;
+  rw[0] = 0;
+  x = read(rw);
+  rw[0] = x;
+  return rw;
+}
+
+
+export
+fn test() -> reg u64 {
+  reg u64 r;
+  stack u64[1] s;
+  s = write(s);
+  r = s[0];
+  return r;
+}

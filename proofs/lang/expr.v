@@ -2,8 +2,8 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import oseq.
 Require Export ZArith Setoid Morphisms.
-From CoqWord Require Import ssrZ.
-Require Export strings word utils type ident var global sem_type sopn.
+From mathcomp.word Require Import ssrZ.
+Require Export strings word utils type ident var global sem_type sopn syscall.
 Require Import xseq.
 Import Utf8 ZArith.
 
@@ -12,11 +12,6 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Local Unset Elimination Schemes.
-
-Notation spointer := (sword Uptr).
-
-Notation mk_ptr name :=
-  ({| vtype := spointer; vname := name; |}).
 
 
 (* ** Operators
@@ -82,16 +77,6 @@ Variant sop2 :=
 .
 
 (* N-ary operators *)
-Variant combine_flags_core := 
-| CFC_O       (* overflow:                                OF = 1 *)
-| CFC_B       (* below, not above or equal:               CF = 1 *)
-| CFC_E       (* equal, zero:                             ZF = 1 *)
-| CFC_S       (* sign:                                    SF = 1 *)
-| CFC_L       (* less than, not greater than or equal to: !(OF = SF) *)
-| CFC_BE      (* below or equal, not above:               CF = 1 \/ ZF = 1 *)
-| CFC_LE      (* less than or equal to, not greater than: (!(SF = OF) \/ ZF = 1 *)
-.
-
 Variant combine_flags :=
 | CF_LT    of signedness   (* Alias : signed => L  ; unsigned => B   *) 
 | CF_LE    of signedness   (* Alias : signed => LE ; unsigned => BE  *)
@@ -131,30 +116,6 @@ Qed.
 
 Definition sop2_eqMixin     := Equality.Mixin sop2_eq_axiom.
 Canonical  sop2_eqType      := Eval hnf in EqType sop2 sop2_eqMixin.
-
-Scheme Equality for combine_flags_core.
-
-Lemma combine_flags_core_eq_axiom : Equality.axiom combine_flags_core_beq.
-Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_combine_flags_core_dec_bl.
-  by apply: internal_combine_flags_core_dec_lb.
-Qed.
-
-Definition combine_flags_core_eqMixin     := Equality.Mixin combine_flags_core_eq_axiom.
-Canonical  combine_flags_core_eqType      := Eval hnf in EqType combine_flags_core combine_flags_core_eqMixin.
-
-Scheme Equality for combine_flags.
-
-Lemma combine_flags_eq_axiom : Equality.axiom combine_flags_beq.
-Proof.
-  move=> x y;apply:(iffP idP).
-  + by apply: internal_combine_flags_dec_bl.
-  by apply: internal_combine_flags_dec_lb.
-Qed.
-
-Definition combine_flags_eqMixin     := Equality.Mixin combine_flags_eq_axiom.
-Canonical  combine_flags_eqType      := Eval hnf in EqType combine_flags combine_flags_eqMixin.
 
 Scheme Equality for opN.
 
@@ -216,20 +177,6 @@ Definition type_of_op2 (o: sop2) : stype * stype * stype :=
 
 (* Type of n-ary operators: inputs, output *)
 
-Definition cf_tbl (c:combine_flags) := 
-  match c with
-  | CF_LT Signed   => (false, CFC_L)
-  | CF_LT Unsigned => (false, CFC_B)
-  | CF_LE Signed   => (false, CFC_LE)
-  | CF_LE Unsigned => (false, CFC_BE)
-  | CF_EQ          => (false, CFC_E)
-  | CF_NEQ         => (true , CFC_E)
-  | CF_GE Signed   => (true , CFC_L)
-  | CF_GE Unsigned => (true , CFC_B)
-  | CF_GT Signed   => (true , CFC_LE)
-  | CF_GT Unsigned => (true , CFC_BE)
-  end.
-  
 Definition tin_combine_flags := [:: sbool; sbool; sbool; sbool].
 
 Definition type_of_opN (op: opN) : seq stype * stype :=
@@ -243,7 +190,19 @@ Definition type_of_opN (op: opN) : seq stype * stype :=
 (* ** Expressions
  * -------------------------------------------------------------------- *)
 (* Used only by the ocaml compiler *)
-Definition var_info := positive.
+(** A “tag” is a non-empty type, extracted to plain OCaml [int] *)
+Module Type TAG.
+  Parameter t : Type.
+  Parameter witness : t.
+End TAG.
+
+Module VarInfo : TAG.
+  Definition t := positive.
+  Definition witness : t := 1%positive.
+End VarInfo.
+
+Definition var_info := VarInfo.t.
+Definition dummy_var_info : var_info := VarInfo.witness.
 
 Record var_i := VarI {
   v_var :> var;
@@ -257,22 +216,8 @@ Notation vid ident :=
         vtype := sword Uptr;
         vname := ident%string;
       |};
-    v_info := xH;
+    v_info := dummy_var_info;
   |}.
-
-Definition var_i_beq x1 x2 :=
-  match x1, x2 with
-  | VarI x1 i1, VarI x2 i2 => (x1 == x2) && (i1 == i2)
-  end.
-
-Lemma var_i_eq_axiom : Equality.axiom var_i_beq.
-Proof.
-  move=> [x xi] [y yi] /=.
-  by apply (iffP andP) => -[] /eqP-> /eqP->.
-Qed.
-
-Definition var_i_eqMixin     := Equality.Mixin var_i_eq_axiom.
-Canonical  var_i_eqType      := Eval hnf in EqType var_i var_i_eqMixin.
 
 Record var_attr := VarA {
   va_pub : bool
@@ -302,18 +247,6 @@ Definition mk_lvar x := {| gv := x; gs := Slocal |}.
 Definition is_lvar (x:gvar) := x.(gs) == Slocal.
 Definition is_glob (x:gvar) := x.(gs) == Sglob.
 
-Definition gvar_beq (x1 x2:gvar) := 
-  (x1.(gs) == x2.(gs)) && (x1.(gv) == x2.(gv)).
-
-Lemma gvar_eq_axiom : Equality.axiom gvar_beq.
-Proof.
-  move=> [x1 k1] [x2 k2] /=; apply (equivP andP) => /=.
-  by split => [[]/eqP -> /eqP -> |[] -> ->].
-Qed.
-
-Definition gvar_eqMixin := Equality.Mixin gvar_eq_axiom.
-Canonical gvar_eqType := Eval hnf in EqType gvar gvar_eqMixin.
-
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
@@ -331,47 +264,11 @@ Notation pexprs := (seq pexpr).
 
 Definition Plvar x := Pvar (mk_lvar x).
 
-Fixpoint pexpr_beq (e1 e2:pexpr) : bool :=
-  match e1, e2 with
-  | Pconst n1   , Pconst n2    => n1 == n2
-  | Pbool  b1   , Pbool  b2    => b1 == b2
-  | Parr_init n1, Parr_init n2 => n1 == n2
-  | Pvar   x1   , Pvar   x2    => (x1 == x2)
-  | Pget aa1 sz1 x1 e1, Pget aa2 sz2 x2 e2 => (aa1 == aa2) && (sz1 == sz2) && (x1 == x2) && pexpr_beq e1 e2
-  | Psub aa1 sz1 len1 x1 e1, Psub aa2 sz2 len2 x2 e2 => (aa1 == aa2) && (sz1 == sz2) && (len1 == len2) && (x1 == x2) && pexpr_beq e1 e2
-  | Pload sz1 x1 e1, Pload sz2 x2 e2 => (sz1 == sz2) && (x1 == x2) && pexpr_beq e1 e2
-  | Papp1 o1 e1 , Papp1  o2 e2 => (o1 == o2) && pexpr_beq e1 e2
-  | Papp2 o1 e11 e12, Papp2 o2 e21 e22  =>
-     (o1 == o2) && pexpr_beq e11 e21 && pexpr_beq e12 e22
-  | PappN o1 es1, PappN o2 es2 =>
-    (o1 == o2) && all2 pexpr_beq es1 es2
-  | Pif t1 b1 e11 e12, Pif t2 b2 e21 e22  =>
-     (t1 == t2) && pexpr_beq b1 b2 && pexpr_beq e11 e21 && pexpr_beq e12 e22
-  | _, _ => false
-  end.
-
-Lemma pexpr_eq_axiom : Equality.axiom pexpr_beq.
-Proof.
-  rewrite /Equality.axiom.
-  fix Hrec 1; move =>
-    [n1|b1|n1|x1|aa1 w1 x1 e1|aa1 w1 x1 e1 len1|w1 x1 e1|o1 e1|o1 e11 e12|o1 es1|st1 t1 e11 e12]
-    [n2|b2|n2|x2|aa2 w2 x2 e2|aa2 w2 x2 e2 len2|w2 x2 e2|o2 e2|o2 e21 e22|o2 es2|st2 t2 e21 e22] /=;
-  try by constructor.
-  + by apply (iffP idP) => [|[]] /eqP ->.
-  + by apply (iffP idP) => [|[]] /eqP ->.
-  + by apply (iffP idP) => [|[]] /eqP ->.
-  + by apply (iffP idP) => [|[]] /eqP ->.
-  + by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /Hrec ->.
-  + by apply (iffP idP) => [/andP[]/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP -> /Hrec ->.
-  + by apply (iffP idP) => [/andP[]/andP[] | []] /eqP -> /eqP -> /Hrec ->.
-  + by apply (iffP idP) => [/andP[] | []] /eqP -> /Hrec ->.
-  + by apply (iffP idP) => [/andP[]/andP[] | []] /eqP -> /Hrec -> /Hrec ->.
-  + by apply (iffP idP) => [/andP[] | []] /eqP -> /(reflect_all2_eqb Hrec) ->.
-  by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /Hrec -> /Hrec -> /Hrec ->.
-Qed.
-
-Definition pexpr_eqMixin := Equality.Mixin pexpr_eq_axiom.
-Canonical  pexpr_eqType  := Eval hnf in EqType pexpr pexpr_eqMixin.
+Definition enot e := Papp1 Onot e.
+Definition eor e1 e2 := Papp2 Oor e1 e2.
+Definition eand e1 e2 := Papp2 Oand e1 e2.
+Definition eeq e1 e2 := Papp2 Obeq e1 e2.
+Definition eneq e1 e2 := enot (eeq e1 e2).
 
 (* ** Left values
  * -------------------------------------------------------------------- *)
@@ -386,32 +283,6 @@ Variant lval : Type :=
 Coercion Lvar : var_i >-> lval.
 
 Notation lvals := (seq lval).
-
-Definition lval_beq (x1:lval) (x2:lval) :=
-  match x1, x2 with
-  | Lnone i1 t1, Lnone i2 t2 => (i1 == i2) && (t1 == t2)
-  | Lvar  x1   , Lvar  x2    => x1 == x2
-  | Lmem w1 x1 e1, Lmem w2 x2 e2 => (w1 == w2) && (x1 == x2) && (e1 == e2)
-  | Laset aa1 w1 x1 e1, Laset aa2 w2 x2 e2 => (aa1 == aa2) && (w1 == w2) && (x1 == x2) && (e1 == e2)
-  | Lasub aa1 w1 len1 x1 e1, Lasub aa2 w2 len2 x2 e2 => (aa1 == aa2) && (w1 == w2) && (len1 == len2) && (x1 == x2) && (e1 == e2)
-  | _          , _           => false
-  end.
-
-Lemma lval_eq_axiom : Equality.axiom lval_beq.
-Proof.
-  case=>
-    [i1 t1|x1|w1 x1 e1|aa1 w1 x1 e1|aa1 w1 len1 x1 e1]
-    [i2 t2|x2|w2 x2 e2|aa2 w2 x2 e2|aa2 w2 len2 x2 e2] /=;
-  try by constructor.
-  + by apply (iffP idP) => [/andP[] | []] /eqP -> /eqP ->.
-  + by apply (iffP idP) => [| []] /eqP ->.
-  + by apply (iffP idP) => [/andP[]/andP[] | []] /eqP -> /eqP -> /eqP ->.
-  + by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP ->.
-  by apply (iffP idP) => [/andP[]/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP -> /eqP ->.
-Qed.
-
-Definition lval_eqMixin     := Equality.Mixin lval_eq_axiom.
-Canonical  lval_eqType      := Eval hnf in EqType lval lval_eqMixin.
 
 (* ** Instructions
  * -------------------------------------------------------------------- *)
@@ -439,7 +310,13 @@ Definition wrange d (n1 n2 : Z) :=
   | DownTo => [seq (Z.sub n2 (Z.of_nat i)) | i <- iota 0 n]
   end.
 
-Definition instr_info := positive.
+Module InstrInfo : TAG.
+  Definition t := positive.
+  Definition witness : t := 1%positive.
+End InstrInfo.
+
+Definition instr_info := InstrInfo.t.
+Definition dummy_instr_info : instr_info := InstrInfo.witness.
 
 Variant assgn_tag :=
   | AT_none       (* assignment introduced by the developer that can be removed *)
@@ -508,13 +385,13 @@ Section ASM_OP.
 Context `{asmop:asmOp}.
 
 Inductive instr_r :=
-| Cassgn : lval -> assgn_tag -> stype -> pexpr -> instr_r
-| Copn   : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
-
-| Cif    : pexpr -> seq instr -> seq instr  -> instr_r
-| Cfor   : var_i -> range -> seq instr -> instr_r
-| Cwhile : align -> seq instr -> pexpr -> seq instr -> instr_r
-| Ccall  : inline_info -> lvals -> funname -> pexprs -> instr_r
+| Cassgn   : lval -> assgn_tag -> stype -> pexpr -> instr_r
+| Copn     : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
+| Csyscall : lvals -> syscall_t -> pexprs -> instr_r 
+| Cif      : pexpr -> seq instr -> seq instr  -> instr_r
+| Cfor     : var_i -> range -> seq instr -> instr_r
+| Cwhile   : align -> seq instr -> pexpr -> seq instr -> instr_r
+| Ccall    : inline_info -> lvals -> funname -> pexprs -> instr_r
 
 with instr := MkI : instr_info -> instr_r ->  instr.
 
@@ -522,74 +399,19 @@ End ASM_OP.
 
 Notation cmd := (seq instr).
 
+Module FunInfo : TAG.
+  Definition t := positive.
+  Definition witness : t := 1%positive.
+End FunInfo.
+
 Section ASM_OP.
 
 Context `{asmop:asmOp}.
 
-Fixpoint instr_r_beq (i1 i2:instr_r) :=
-  match i1, i2 with
-  | Cassgn x1 tag1 ty1 e1, Cassgn x2 tag2 ty2 e2 =>
-     (tag1 == tag2) && (ty1 == ty2) && (x1 == x2) && (e1 == e2)
-  | Copn x1 tag1 o1 e1, Copn x2 tag2 o2 e2 =>
-     (x1 == x2) && (tag1 == tag2) && (o1 == o2) && (e1 == e2)
-  | Cif e1 c11 c12, Cif e2 c21 c22 =>
-    (e1 == e2) && all2 instr_beq c11 c21 && all2 instr_beq c12 c22
-  | Cfor i1 (dir1,lo1,hi1) c1, Cfor i2 (dir2,lo2,hi2) c2 =>
-    (i1 == i2) && (dir1 == dir2) && (lo1 == lo2) && (hi1 == hi2) && all2 instr_beq c1 c2
-  | Cwhile a1 c1 e1 c1' , Cwhile a2 c2 e2 c2' =>
-    (a1 == a2) && all2 instr_beq c1 c2 && (e1 == e2) && all2 instr_beq c1' c2'
-  | Ccall ii1 x1 f1 arg1, Ccall ii2 x2 f2 arg2 =>
-    (ii1 == ii2) && (x1==x2) && (f1 == f2) && (arg1 == arg2)
-  | _, _ => false
-  end
-with instr_beq i1 i2 :=
-  match i1, i2 with
-  | MkI if1 i1, MkI if2 i2 => (if1 == if2) && (instr_r_beq i1 i2)
-  end.
-
-Section EQI.
-  Variable Heq : forall (x y:instr_r), reflect (x=y) (instr_r_beq x y).
-
-  Lemma instr_eq_axiom_ : Equality.axiom instr_beq.
-  Proof.
-    move=> [ii1 ir1] [ii2 ir2] /=.
-    by apply (iffP andP) => -[] /eqP -> /Heq ->.
-  Defined.
-End EQI.
-
-Lemma instr_r_eq_axiom : Equality.axiom instr_r_beq.
-Proof.
-  rewrite /Equality.axiom.
-  fix Hrec 1; move =>
-    [x1 t1 ty1 e1|x1 t1 o1 e1|e1 c11 c12|x1 [[dir1 lo1] hi1] c1|a1 c1 e1 c1'|ii1 x1 f1 arg1 ]
-    [x2 t2 ty2 e2|x2 t2 o2 e2|e2 c21 c22|x2 [[dir2 lo2] hi2] c2|a2 c2 e2 c2'|ii2 x2 f2 arg2 ] /=;
-  try by constructor.
-  + by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP ->.
-  + by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP ->.
-  + have Hrec2 := reflect_all2_eqb (instr_eq_axiom_ Hrec).
-    by apply (iffP idP) => [/andP[]/andP[] | []] /eqP -> /Hrec2 -> /Hrec2 ->.
-  + have Hrec2 := reflect_all2_eqb (instr_eq_axiom_ Hrec).
-    by apply (iffP idP) => [/andP[]/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP -> /Hrec2 ->.
-  + have Hrec2 := reflect_all2_eqb (instr_eq_axiom_ Hrec).
-    by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /Hrec2 -> /eqP -> /Hrec2 ->.
-  by apply (iffP idP) => [/andP[]/andP[]/andP[] | []] /eqP -> /eqP -> /eqP -> /eqP ->.
-Qed.
-
-Definition instr_r_eqMixin     := Equality.Mixin instr_r_eq_axiom.
-Canonical  instr_r_eqType      := Eval hnf in EqType instr_r instr_r_eqMixin.
-
-Lemma instr_eq_axiom : Equality.axiom instr_beq.
-Proof.
-  apply: instr_eq_axiom_ instr_r_eq_axiom .
-Qed.
-
-Definition instr_eqMixin     := Equality.Mixin instr_eq_axiom.
-Canonical  instr_eqType      := Eval hnf in EqType instr instr_eqMixin.
-
 (* ** Functions
  * -------------------------------------------------------------------- *)
 
-Definition fun_info := positive.
+Definition fun_info := FunInfo.t.
 
 Class progT (eft:eqType) := {
   extra_prog_t : Type;
@@ -631,22 +453,6 @@ Definition signature_of_fundef (fd: fundef) : function_signature :=
 Definition fun_decl := (funname * fundef)%type.
 
 Definition prog := _prog extra_fun_t extra_prog_t.
-
-Definition fundef_beq (fd1 fd2:fundef) :=
-  match fd1, fd2 with
-  | MkFun ii1 tin1 x1 c1 tout1 r1 e1, MkFun ii2 tin2 x2 c2 tout2 r2 e2 =>
-    (ii1 == ii2) && (tin1 == tin2) && (x1 == x2) && (c1 == c2) && (tout1 == tout2) && (r1 == r2) && (e1 == e2)
-  end.
-
-Lemma fundef_eq_axiom : Equality.axiom fundef_beq.
-Proof.
-  move=> [i1 tin1 p1 c1 tout1 r1 e1] [i2 tin2 p2 c2 tout2 r2 e2] /=.
-  by apply (iffP idP) => [/andP[]/andP[]/andP[]/andP[]/andP[]/andP[] | []]
-    /eqP->/eqP->/eqP->/eqP->/eqP->/eqP->/eqP->.
-Qed.
-
-Definition fundef_eqMixin     := Equality.Mixin fundef_eq_axiom.
-Canonical  fundef_eqType      := Eval hnf in EqType fundef fundef_eqMixin.
 
 Definition Build_prog p_funcs p_globs p_extra : prog := Build__prog p_funcs p_globs p_extra.
 
@@ -839,6 +645,11 @@ Definition is_bool (e:pexpr) :=
   | _ => None
   end.
 
+Definition is_app1 (e : pexpr) :=
+  if e is Papp1 op e
+  then Some (op, e)
+  else None.
+
 Definition cast_w ws := Papp1 (Oword_of_int ws).
 
 Definition pword_of_int ws z := cast_w ws (Pconst z).
@@ -892,11 +703,12 @@ Definition lv_write_mem (r:lval) : bool :=
 
 Fixpoint write_i_rec s (i:instr_r) :=
   match i with
-  | Cassgn x _ _ _    => vrv_rec s x
+  | Cassgn x _ _ _  => vrv_rec s x
   | Copn xs _ _ _   => vrvs_rec s xs
+  | Csyscall xs _ _ => vrvs_rec s xs 
   | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
   | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
-  | Cwhile _ c _ c'   => foldl write_I_rec (foldl write_I_rec s c') c
+  | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
   | Ccall _ x _ _   => vrvs_rec s x
   end
 with write_I_rec s i :=
@@ -955,6 +767,7 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
   match i with
   | Cassgn x _ _ e => read_rv_rec (read_e_rec s e) x
   | Copn xs _ _ es => read_es_rec (read_rvs_rec s xs) es
+  | Csyscall xs _ es => read_es_rec (read_rvs_rec s xs) es
   | Cif b c1 c2 =>
     let s := foldl read_I_rec s c1 in
     let s := foldl read_I_rec s c2 in
@@ -1041,3 +854,14 @@ Definition eq_lval (x x': lval) : bool :=
 
   | _, _ => false
   end.
+
+(* ------------------------------------------------------------------- *)
+Definition to_lvals (l:seq var) : seq lval := 
+  map (fun x => Lvar {|v_var := x; v_info := dummy_var_info |}) l.
+
+(* ------------------------------------------------------------------- *)
+Definition is_false (e: pexpr) : bool :=
+  if e is Pbool false then true else false.
+
+Definition is_zero sz (e: pexpr) : bool :=
+  if e is Papp1 (Oword_of_int sz') (Pconst Z0) then sz' == sz else false.

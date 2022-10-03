@@ -1,0 +1,32 @@
+/* Standalone program, to be linked with a standard C library.
+  Returns the length (modulo 2⁸) of its argument if called with one argument.
+  Returns 0xFF otherwise.
+
+Compile with `../jasminc -o strlen.s strlen.jazz && cc strlen.s -o strlen`
+and run with `./strlen "Hello World!"; echo $?`
+
+*/
+inline
+fn strlen(reg u64 str) -> reg u8 {
+  reg u8 len c;
+  len = 0;
+  while {
+    c = (u8)[str];
+  } (c != 0) {
+    str += 1;
+    len += 1;
+  }
+  return len;
+}
+
+export
+fn main(reg u64 argc argv) -> reg u8 {
+  reg u8 len;
+  len = -1;
+  if argc == 2 {
+    reg u64 input;
+    input = [argv + 8];
+    len = strlen(input);
+  }
+  return len;
+}

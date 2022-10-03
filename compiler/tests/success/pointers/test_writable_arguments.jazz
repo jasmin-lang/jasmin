@@ -1,0 +1,14 @@
+fn f(reg ptr u64[1] t) -> reg ptr u64[1] {
+   t[0] = 1;
+   return t;
+}
+
+export fn g() -> reg u64{
+  stack u64[1] s;
+  reg ptr u64[1] t;
+  t = s;
+  s = f((0 <= 1) ? t : t);
+  reg u64 r;
+  r = s[0];
+  return r;
+}

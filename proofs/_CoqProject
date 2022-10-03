@@ -1,19 +1,11 @@
--arg -w
--arg -notation-overridden
--arg -w
--arg -extraction-reserved-identifier
--arg -w
--arg -extraction-opaque-accessed
--arg -w
--arg -ambiguous-paths
--arg -w
--arg -duplicate-clear
--arg -w
--arg -deprecated-hint-without-locality
--arg -w
--arg -deprecated-hint-rewrite-without-locality
--arg -w
--arg -deprecated-instance-without-locality
+-arg "-w -notation-overridden"
+-arg "-w -extraction-reserved-identifier"
+-arg "-w -extraction-opaque-accessed"
+-arg "-w -ambiguous-paths"
+-arg "-w -duplicate-clear"
+-arg "-w +deprecated-hint-without-locality"
+-arg "-w +deprecated-hint-rewrite-without-locality"
+-arg "-w +deprecated-instance-without-locality"
 
 -R 3rdparty Jasmin
 -R arch Jasmin
@@ -21,9 +13,9 @@
 -R lang Jasmin
 -R ssrmisc Jasmin
 
-ssrmisc/nat_extra.v
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
+ssrmisc/sv_lemmas.v
 ssrmisc/xseq_extra.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
@@ -34,6 +26,8 @@ arch/asm_gen.v
 arch/asm_gen_proof.v
 arch/label.v
 compiler/allocation.v
+compiler/arch_params.v
+compiler/arch_params_proof.v
 compiler/array_expansion.v
 compiler/array_expansion_proof.v
 compiler/array_copy.v
@@ -42,6 +36,7 @@ compiler/array_init.v
 compiler/array_init_proof.v
 compiler/byteset.v
 compiler/clear_stack.v
+compiler/clear_stack_proof.v
 compiler/compiler_util.v
 compiler/compiler.v
 compiler/compiler_proof.v
@@ -58,7 +53,6 @@ compiler/lea_proof.v
 compiler/linearization.v
 compiler/linearization_proof.v
 compiler/lowering.v
-compiler/lowering_proof.v
 compiler/makeReferenceArguments.v
 compiler/makeReferenceArguments_proof.v
 compiler/merge_varmaps.v
@@ -78,21 +72,18 @@ compiler/unrolling.v
 compiler/unrolling_proof.v
 compiler/x86_decl.v
 compiler/x86_extra.v
-compiler/x86_gen.v
-compiler/x86_gen_proof.v
 compiler/x86_instr_decl.v
-compiler/x86_linear_sem.v
-compiler/x86_linearization.v
-compiler/x86_linearization_proof.v
+compiler/x86_lowering.v
+compiler/x86_lowering_proof.v
 compiler/x86_params.v
 compiler/x86_params_proof.v
 compiler/x86_sem.v
-compiler/x86_stack_alloc.v
-compiler/x86_stack_alloc_proof.v
 lang/array.v
+lang/clear_stack_strategy.v
 lang/expr.v
 lang/expr_facts.v
 lang/extraction.v
+lang/flag_combination.v
 lang/gen_map.v
 lang/global.v
 lang/ident.v
@@ -107,10 +98,13 @@ lang/psem_facts.v
 lang/psem.v
 lang/sem.v
 lang/sem_one_varmap.v
+lang/sem_pexpr_params.v
 lang/sem_one_varmap_facts.v
 lang/sem_type.v
 lang/sopn.v
 lang/strings.v
+lang/syscall.v
+lang/syscall_sem.v
 lang/type.v
 lang/utils.v
 lang/values.v

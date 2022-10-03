@@ -1,5 +1,5 @@
 From mathcomp Require Import all_ssreflect.
-Require Import Utf8 oseq nat_extra.
+Require Import Utf8 oseq utils.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -307,63 +307,33 @@ Section OnthProps.
     by apply IHs1 => i; move: (Heqonth i.+1) => /=.
   Qed.
 
-  Lemma onth_mem (T : eqType) (x : T) (s : seq T) :
-    reflect (exists i, onth s i = Some x) (x \in s).
+  Lemma onth_In {T : Type} (x : T) (s : seq T) i :
+    onth s i = Some x →
+    List.In x s.
   Proof.
-    elim: s => [//=|y s IHs].
-    + by rewrite in_nil; apply ReflectF => -[].
-    rewrite in_cons /=; case Heq: (x == y) => /=.
-    + by apply ReflectT; exists 0; move: Heq => /eqP ->.
-    elim: IHs => [Hexists|Hnexists].
-    + by apply ReflectT; case: Hexists => i Honth; exists (i.+1).
-    apply ReflectF => -[i] Hmatch; apply Hnexists.
-    case: i Hmatch => [[?]|i Honth]; last by exists i.
-    by subst y; rewrite eq_refl in Heq.
+    elim: s i => //= y s IHs [].
+    - by case => <-; left.
+    by move => i /IHs; right.
   Qed.
 
 End OnthProps.
 
 
-Section TakeDropInd.
+Lemma take_onth (T : Type) n (s : seq T) :
+  take n.+1 s =
+  match onth s n with
+  | Some x => rcons (take n s) x
+  | None   => take n s
+  end.
+Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?take0 ?IHs //; case: (onth _ _). Qed.
 
-  Lemma take_onth (T : Type) n (s : seq T) :
-    take n.+1 s =
-    match onth s n with
-    | Some x => rcons (take n s) x
-    | None   => take n s
-    end.
-  Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?take0 ?IHs //; case: (onth _ _). Qed.
-
-  Lemma drop_onth (T : Type) n (s : seq T) :
-    drop n s =
-    match onth s n with
-    | Some x => x :: (drop n.+1 s)
-    | None   => drop n.+1 s
-    end.
-  Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?drop0. Qed.
-
-  Lemma take_ind (T : Type) (P : seq T -> seq T -> Prop) (s : seq T) :
-    P [::] s -> (forall n, n < size s -> P (take n s) s -> P (take n.+1 s) s) -> P s s.
-  Proof.
-    move => HP0 IHP; rewrite -{1}(take_size s).
-    pattern (size s); set Q:= (fun _ => _).
-    apply/(@nat_le_ind_eq Q (size s)); rewrite /Q //.
-    by rewrite take0.
-  Qed.
-
-  Lemma take_drop_ind (T : Type) (P : seq T -> seq T -> seq T -> Prop) (s : seq T) :
-    P [::] s s ->
-    (forall n, n < size s -> P (take n s) (drop n s) s -> P (take n.+1 s) (drop n.+1 s) s) ->
-    P s [::] s.
-  Proof.
-    move => HP0 IHP; rewrite -{1}(take_size s) -(drop_size s).
-    pattern (size s); set Q:= (fun _ => _).
-    apply/(@nat_le_ind_eq Q (size s)); rewrite /Q //.
-    by rewrite take0 drop0.
-  Qed.
-
-End TakeDropInd.
-
+Lemma drop_onth (T : Type) n (s : seq T) :
+  drop n s =
+  match onth s n with
+  | Some x => x :: (drop n.+1 s)
+  | None   => drop n.+1 s
+  end.
+Proof. by elim: s n => [|x s IHs] //= [|n] /=; rewrite ?drop0. Qed.
 
 Section AllProps.
 
@@ -391,6 +361,18 @@ Section AllProps.
   Proof.
     move => Hcab; elim: s => //= hs ts IHs; case: ifP => //= Hchs /andP [Hahs Hats].
     by apply/andP; split; first rewrite -Hcab; last apply IHs.
+  Qed.
+
+  Lemma allE (T: Type) (p: pred T) m :
+    reflect (List.Forall p m) (all p m).
+  Proof.
+    elim: m; first by left.
+    move => a m ih /=.
+    case h: (p a); last first.
+    - by right => /List_Forall_inv[]; rewrite h.
+    case: ih => ih; constructor.
+    - by constructor.
+    by case/List_Forall_inv.
   Qed.
 
 End AllProps.

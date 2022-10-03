@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import expr.
 Require Import compiler_util ZArith.
 Import Utf8.
@@ -223,6 +223,11 @@ Fixpoint expand_i (m : t) (i : instr) : cexec instr :=
     Let xs := add_iinfo ii (expand_lvs m xs) in
     Let es := add_iinfo ii (expand_es m es) in
     ok (MkI ii (Copn xs tag o es))
+
+  | Csyscall xs o es =>
+    Let xs := add_iinfo ii (expand_lvs m xs) in
+    Let es := add_iinfo ii (expand_es m es) in
+    ok (MkI ii (Csyscall xs o es))
 
   | Cif b c1 c2 =>
     Let b  := add_iinfo ii (expand_e m b) in

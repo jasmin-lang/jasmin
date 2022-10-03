@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import xseq.
 Require Import expr compiler_util ZArith.
 
@@ -95,7 +95,7 @@ Section REMOVE.
         else ok gd
       | _ => ok gd
       end
-    | Copn _ _ _ _ | Ccall _ _ _ _ => ok gd
+    | Copn _ _ _ _ | Csyscall _ _ _ | Ccall _ _ _ _ => ok gd
     | Cif _ c1 c2 =>
       Let gd := foldM extend_glob_i gd c1 in
       foldM extend_glob_i gd c2
@@ -282,6 +282,10 @@ Section REMOVE.
           Let lvs := mapM (remove_glob_lv ii env) lvs in
           Let es  := mapM (remove_glob_e ii env) es in
           ok (env, [::MkI ii (Copn lvs tag o es)])
+        | Csyscall lvs o es =>
+          Let lvs := mapM (remove_glob_lv ii env) lvs in
+          Let es  := mapM (remove_glob_e ii env) es in
+          ok (env, [::MkI ii (Csyscall lvs o es)])
         | Cif e c1 c2 =>
           Let e := remove_glob_e ii env e in
           Let envc1 := remove_glob remove_glob_i env c1 in
@@ -323,7 +327,7 @@ Section REMOVE.
     Definition remove_glob_fundef (f:ufundef) :=
       let env := Mvar.empty _ in
       let check_var xi :=
-        if is_glob xi.(v_var) then Error (rm_glob_error xH xi) else ok tt in
+        if is_glob xi.(v_var) then Error (rm_glob_error dummy_instr_info xi) else ok tt in
       Let _ := mapM check_var f.(f_params) in
       Let _ := mapM check_var f.(f_res) in
       Let envc := remove_glob remove_glob_i env f.(f_body) in

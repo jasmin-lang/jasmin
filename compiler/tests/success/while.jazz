@@ -13,4 +13,16 @@ export fn test_while(reg u64 x) -> reg u64 {
 
   r = r + x;
   return r;
-}  
+}
+
+export fn zero(reg u64 y) -> reg u64 {
+  reg bool b;
+  reg u64 x;
+  x = y;
+  while {
+    b = x <s 0;
+  } (b) {
+    x += 1;
+  }
+  return x;
+}

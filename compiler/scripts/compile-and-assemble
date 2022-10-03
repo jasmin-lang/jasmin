@@ -17,4 +17,15 @@ $(dirname $0)/../jasminc.native -o ${ASM} "$@"
 (echo $@ | grep -q fail) && exit 0
 
 cc -c -o ${OBJ} ${ASM}
-cc -shared -o ${DLL} ${OBJ}
+
+# Compile as a shared library
+# Add an implementation of Jasmin syscalls to avoid “undefined reference” errors
+if grep -q __jasmin_syscall ${ASM}
+then
+	EXT=${DIR}/sys.o
+	cc -c -o ${EXT} $(dirname $0)/../syscall/jasmin_syscall.c
+else
+	EXT=""
+fi
+
+cc -shared -o ${DLL} ${OBJ} ${EXT}

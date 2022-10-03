@@ -66,18 +66,26 @@ let pp_label fmt lbl =
 let pp_remote_label tbl fmt (fn, lbl) =
   F.fprintf fmt "%s.%a" (Conv.string_of_funname tbl fn) pp_label lbl
 
-let pp_instr tbl fmt i =
+let pp_instr asmOp tbl fmt i =
   match i.li_i with
   | Lopn (lvs, op, es) ->
-    F.fprintf fmt "@[%a@] = %a@[(%a)@]"
+    let pp_cast fmt = function
+      | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%du)" (P.int_of_ws ws)
+      | _ -> () in
+
+    F.fprintf fmt "@[%a@] = %a%a@[(%a)@]"
       (pp_list ",@ " (pp_lval tbl)) lvs
-      Pr.pp_string0 (Sopn.string_of_sopn (Arch_extra.asm_opI X86_extra.x86_extra) op)
+      pp_cast op
+      (Pr.pp_opn asmOp) op
       (pp_list ",@ " (pp_expr tbl)) es
+  | Lsyscall o -> F.fprintf fmt "SysCall %s" (Printer.pp_syscall o)
+  | Lcall lbl  -> F.fprintf fmt "Call %a" (pp_remote_label tbl) lbl
+  | Lret       -> F.fprintf fmt "Return"
   | Lalign     -> F.fprintf fmt "Align"
   | Llabel lbl -> F.fprintf fmt "Label %a" pp_label lbl
   | Lgoto lbl -> F.fprintf fmt "Goto %a" (pp_remote_label tbl) lbl
   | Ligoto e -> F.fprintf fmt "IGoto %a" (pp_expr tbl) e
-  | LstoreLabel (lv, lbl) -> F.fprintf fmt "%a = Label %a" (pp_lval tbl) lv pp_label lbl
+  | LstoreLabel (x, lbl) -> F.fprintf fmt "%a = Label %a" (pp_var tbl) x pp_label lbl
   | Lcond (e, lbl) -> F.fprintf fmt "If %a goto %a" (pp_expr tbl) e pp_label lbl
 
 let pp_param tbl fmt x =
@@ -85,25 +93,30 @@ let pp_param tbl fmt x =
   F.fprintf fmt "%a %a %s" Pr.pp_ty y.P.v_ty Pr.pp_kind y.P.v_kind y.P.v_name
 
 let pp_stackframe fmt (sz, ws) =
-  F.fprintf fmt "stack: %a, alignment = %s"
+  F.fprintf fmt "maximal stack usage: %a, alignment = %s"
     Z.pp_print (Conv.z_of_cz sz) (P.string_of_ws ws)
+
+let pp_meta fmt fd =
+  F.fprintf fmt "(* %a *)"
+    pp_stackframe (fd.lfd_total_stack, fd.lfd_align)
 
 let pp_return tbl is_export fmt =
   function
   | [] -> if is_export then F.fprintf fmt "@ return"
   | res -> F.fprintf fmt "@ return %a" (pp_list ",@ " (pp_var_i tbl)) res
 
-let pp_lfun tbl fmt (fn, fd) =
+let pp_lfun asmOp tbl fmt (fn, fd) =
   let name = Conv.fun_of_cfun tbl fn in
-  F.fprintf fmt "@[<v>fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a%a@]@ }@]"
+  F.fprintf fmt "@[<v>%a@ fn %s @[(%a)@] -> @[(%a)@] {@   @[<v>%a%a@]@ }@]"
+    pp_meta fd
     name.P.fn_name
     (pp_list ",@ " (pp_param tbl)) fd.lfd_arg
     (pp_list ",@ " pp_stype) fd.lfd_tyout
-    (pp_list ";@ " (pp_instr tbl)) fd.lfd_body
+    (pp_list ";@ " (pp_instr asmOp tbl)) fd.lfd_body
     (pp_return tbl fd.lfd_export) fd.lfd_res
 
-let pp_prog tbl fmt lp =
+let pp_prog asmOp tbl fmt lp =
   F.fprintf fmt "@[<v>%a@ @ %a@]"
     Pr.pp_datas lp.lp_globs 
-    (pp_list "@ @ " (pp_lfun tbl)) (List.rev lp.lp_funcs)
+    (pp_list "@ @ " (pp_lfun asmOp tbl)) (List.rev lp.lp_funcs)
 

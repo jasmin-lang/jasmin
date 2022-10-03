@@ -28,15 +28,10 @@ Context `{asmop : asmOp}.
 Section LprogSem.
 
   Definition labels_of_body fb :=
-    filter 
-      (fun li => match li with
-               | Llabel _ => true
-               | _ => false
-               end)
-      (map li_i fb).
+    pmap (λ li, if li_i li is Llabel lbl then Some lbl else None) fb.
 
   Definition goto_targets fb :=
-    filter (fun li => if li is Lgoto _ then true else false) (map li_i fb).
+    pmap (λ li, if li_i li is Lgoto lbl then Some lbl else None) fb.
 
   Definition setfb fd fb : lfundef :=
     LFundef
@@ -64,7 +59,7 @@ End LprogSem.
 
 Section Tunneling.
 
-  Definition Linstr_align := (MkLI xH Lalign).
+  Definition Linstr_align := (MkLI dummy_instr_info Lalign).
 
   Definition tunnel_chart fn uf c c' :=
     match c, c' with
@@ -115,16 +110,13 @@ Section TunnelingWF.
     let lbls := labels_of_body fb in
     uniq lbls &&
     all
-      (fun li => 
-         if li is Lgoto (fn',l) then 
-            (fn != fn') || (Llabel l \in lbls)
-         else false)
+      (fun '(fn', l) => (fn != fn') || (l \in lbls))
       (goto_targets fb).
-  
+
   Definition well_formed_funcs lf :=
     uniq (map fst lf)
     && all (fun func => well_formed_body func.1 func.2.(lfd_body)) lf.
-  
+
   Definition well_formed_lprog p :=
     well_formed_funcs (lp_funcs p).
 

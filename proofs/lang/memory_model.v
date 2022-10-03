@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import strings word utils.
 Import Utf8 ZArith.
 Import ssrring.
@@ -131,6 +131,13 @@ Section CoreMem.
     by case: get => //= w; rewrite -LE.encode8E LE.decodeK.
   Qed.
 
+  Lemma set_write8 m p w: set m p w = write m p w.
+  Proof.
+    rewrite /write /= is_align8 /= add_0.
+    have := LE.encode8E w; rewrite LE.encodeE /= => -[->].
+    by case: set.
+  Qed.
+
   Lemma readE m p sz : 
     read m p sz = 
       Let _ := assert (is_align p sz) ErrAddrInvalid in
@@ -145,7 +152,7 @@ Section CoreMem.
     forall p',
     valid8 m' p' = valid8 m p'.
   Proof.
-    rewrite /write; t_xrbindP => ? _ hfold p'; move: m hfold.
+    rewrite /write; t_xrbindP => ? hfold p'; move: m hfold.
     apply ziota_ind => /= [ m [->]//| i l _ hrec m]; t_xrbindP => ? h /hrec ->.
     by apply (valid8_set _ h).
   Qed.
@@ -165,7 +172,7 @@ Section CoreMem.
        if (0 <=? i) && (i <? wsize_size ws) then ok (LE.wread8 v i)
        else read m k U8.
   Proof.
-    rewrite /write; t_xrbindP => _ _ h k; move: h.
+    rewrite /write; t_xrbindP => _ h k; move: h.
     rewrite -(@in_ziota 0 (wsize_size ws)).
     move: m; apply ziota_ind => /=; first by move=> ? [<-].
     move=> i l hi hrec m; t_xrbindP => mi hset /hrec ->.
@@ -204,11 +211,11 @@ Section CoreMem.
   Lemma readV m ptr sz w :
     read m ptr sz = ok w ->
     validw m ptr sz.
-  Proof. 
-    move=> h; apply /validwP; move: h; rewrite /read; t_xrbindP => _ /assertP -> l h _; split => //.
+  Proof.
+    move=> h; apply /validwP; move: h; rewrite /read; t_xrbindP => -> l h _; split => //.
     move=> k hk; have {hk}: k \in ziota 0 (wsize_size sz).
     + by rewrite in_ziota !zify.
-    rewrite -valid8_validw.    
+    rewrite -valid8_validw.
     move: l h;apply ziota_ind => //= i li hi hr ?.
     t_xrbindP => wi hwi; have ?:= get_valid8 hwi.
     by move=> l /hr{hr}hr _; rewrite inE => /orP [/eqP ->| /hr].
@@ -229,7 +236,7 @@ Section CoreMem.
     read m p s = ok v ->
     is_align p s /\ (forall i, 0 <= i < wsize_size s -> read m (add p i) U8 = ok (LE.wread8 v i)).
   Proof.
-    rewrite readE; t_xrbindP => _ /assertP ha l hl.
+    rewrite readE; t_xrbindP => ha l hl.
     rewrite -{1}(LE.decodeK v) => /LE.decode_inj.
     rewrite -(size_mapM hl) size_ziota LE.size_encode => /(_ refl_equal refl_equal) ?; subst l.
     rewrite LE.encodeE in hl.
@@ -239,7 +246,7 @@ Section CoreMem.
     t_xrbindP => w hw ws hws ??; subst w ws.
     by rewrite inE => /orP [/eqP -> | /(hrec hws)].
   Qed.
-    
+
   Lemma writeP_eq m m' p s (v :word s):
     write m p v = ok m' ->
     read m' p s = ok v.
@@ -295,10 +302,6 @@ End CoreMem.
 
 (* ** Memory
  * -------------------------------------------------------------------- *)
-
-Class PointerData := {
-  Uptr : wsize;
-}.
 
 Notation pointer := (word Uptr) (only parsing).
 
@@ -509,7 +512,7 @@ Lemma is_align_addE (ptr1:pointer) sz :
 Proof.
   have hn := wsize_size_pos sz.
   move => /is_align_mod h ptr2; rewrite -!is_align_modE.
-  by rewrite /wunsigned CoqWord.word.addwE -/(wbase Uptr) mod_wbase_wsize_size -Zplus_mod_idemp_l h.
+  by rewrite /wunsigned mathcomp.word.word.addwE -/(wbase Uptr) mod_wbase_wsize_size -Zplus_mod_idemp_l h.
 Qed.
 
 Lemma is_align_add (ptr1 ptr2:pointer) sz : 

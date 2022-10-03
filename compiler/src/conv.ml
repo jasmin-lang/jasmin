@@ -1,38 +1,10 @@
 open Var0
 open Prog
+include CoreConv
+
 module W = Wsize
 module T = Type
 module C = Expr
-
-let rec pos_of_z z =
-  let open Z.Compare in
-  if z <= Z.one then BinNums.Coq_xH
-  else
-    let p = pos_of_z (Z.shift_right z 1) in
-    if (Z.erem z (Z.of_int 2)) = Z.one
-    then BinNums.Coq_xI p
-    else BinNums.Coq_xO p
-
-let rec z_of_pos pos =
-  let open Z in
-  match pos with
-  | BinNums.Coq_xH   -> Z.one
-  | BinNums.Coq_xO p -> Z.shift_left (z_of_pos p) 1
-  | BinNums.Coq_xI p -> Z.shift_left (z_of_pos p) 1 + Z.one
-
-let cz_of_z z =
-  let open Z.Compare in
-  if z = Z.zero then BinNums.Z0
-  else if z < Z.zero then BinNums.Zneg (pos_of_z (Z.abs z))
-  else BinNums.Zpos (pos_of_z z)
-
-let z_of_cz z =
-  match z with
-  | BinNums.Zneg p -> Z.neg (z_of_pos p)
-  | BinNums.Z0     -> Z.zero
-  | BinNums.Zpos p -> z_of_pos p
-
-let cz_of_int i = cz_of_z (Z.of_int i)
 
 let z_of_nat n =
   z_of_cz (BinInt.Z.of_nat n)
@@ -93,16 +65,12 @@ let ty_of_cty = function
 
 (* ------------------------------------------------------------------------ *)
 
-type 'info coq_tbl = {
-     dft_info      : 'info;
+type coq_tbl = {
      mutable count : int;
      var           : (Var.var, var) Hashtbl.t;
      cvar          : Var.var Hv.t;
-     vari          : (int, L.t) Hashtbl.t;
-     iinfo         : (int, L.i_loc * 'info * Syntax.annotations) Hashtbl.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
-     finfo         : (int, L.t * f_annot * call_conv * Syntax.annotations list) Hashtbl.t;
   }
 
 let new_count tbl =
@@ -110,16 +78,12 @@ let new_count tbl =
   tbl.count <- n + 1;
   n
 
-let empty_tbl info = {
-    dft_info = info;
+let empty_tbl = {
     count    = 1;
     var      = Hashtbl.create 101;
     cvar     = Hv.create 101;
-    vari     = Hashtbl.create 1000;
-    iinfo    = Hashtbl.create 1000;
     funname  = Hashtbl.create 101;
     cfunname = Hashtbl.create 101;
-    finfo    = Hashtbl.create 101;
   }
 
 (* ------------------------------------------------------------------------ *)
@@ -149,23 +113,13 @@ let var_of_cvar tbl cv =
 
 (* ------------------------------------------------------------------------ *)
 
-let get_loc tbl p =
-  try Hashtbl.find tbl.vari (int_of_pos p)
-  with Not_found -> L._dummy
-
-let set_loc tbl loc =
-  let n = new_count tbl in
-  Hashtbl.add tbl.vari n loc;
-  pos_of_int n
-
 let cvari_of_vari tbl v =
-  let p = set_loc tbl (L.loc v) in
+  let p = L.loc v in
   let cv = cvar_of_var tbl (L.unloc v) in
   { C.v_var = cv; C.v_info = p }
 
 let vari_of_cvari tbl v =
-  let loc =  get_loc tbl v.C.v_info in
-  L.mk_loc loc (var_of_cvar tbl v.C.v_var)
+  L.mk_loc v.C.v_info (var_of_cvar tbl v.C.v_var)
 
 let cgvari_of_gvari tbl v = 
   { C.gv = cvari_of_vari tbl v.gv;
@@ -212,7 +166,7 @@ let rec expr_of_cexpr tbl = function
 (* ------------------------------------------------------------------------ *)
 
 let clval_of_lval tbl = function
-  | Lnone(loc, ty)  -> C.Lnone (set_loc tbl loc, cty_of_ty ty)
+  | Lnone(loc, ty)  -> C.Lnone (loc, cty_of_ty ty)
   | Lvar x          -> C.Lvar  (cvari_of_vari tbl x)
   | Lmem (ws, x, e) -> C.Lmem (ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Laset(aa,ws,x,e)-> C.Laset (aa, ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
@@ -220,7 +174,7 @@ let clval_of_lval tbl = function
     C.Lasub (aa, ws, pos_of_int len, cvari_of_vari tbl x, cexpr_of_expr tbl e)
 
 let lval_of_clval tbl = function
-  | C.Lnone(p,ty)   -> Lnone (get_loc tbl p, ty_of_cty ty)
+  | C.Lnone(p, ty)  -> Lnone (p, ty_of_cty ty)
   | C.Lvar x        -> Lvar (vari_of_cvari tbl x)
   | C.Lmem(ws,x,e)  -> Lmem (ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Laset(aa,ws,x,e) -> Laset (aa,ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
@@ -255,20 +209,8 @@ let string_of_funname tbl p =
 
 (* ------------------------------------------------------------------------ *)
 
-let set_iinfo tbl loc ii ia =
-  let n = new_count tbl in
-  Hashtbl.add tbl.iinfo n (loc, ii, ia);
-  pos_of_int n
-
-let get_iinfo tbl n =
-  let n = int_of_pos n in
-  try Hashtbl.find tbl.iinfo n
-  with Not_found ->
-    Format.eprintf "WARNING: CAN NOT FIND IINFO %i@." n;
-    (L.i_dummy), tbl.dft_info, []
-
 let rec cinstr_of_instr tbl i c =
-  let n = set_iinfo tbl i.i_loc i.i_info i.i_annot in
+  let n = i.i_loc, i.i_annot in
   cinstr_r_of_instr_r tbl n i.i_desc c
 
 and cinstr_r_of_instr_r tbl p i tl =
@@ -277,9 +219,15 @@ and cinstr_r_of_instr_r tbl p i tl =
     let ir  =
       C.Cassgn(clval_of_lval tbl x, t, cty_of_ty ty, cexpr_of_expr tbl e) in
     C.MkI(p, ir) :: tl
+
   | Copn(x,t,o,e) ->
     let ir =
       C.Copn(clval_of_lvals tbl x, t, o, cexpr_of_exprs tbl e) in
+    C.MkI(p, ir) :: tl
+
+  | Csyscall(x,o,e) ->
+    let ir =
+      C.Csyscall(clval_of_lvals tbl x, o, cexpr_of_exprs tbl e) in
     C.MkI(p, ir) :: tl
 
   | Cif(e,c1,c2) ->
@@ -310,9 +258,9 @@ and cstmt_of_stmt tbl c tl =
 let rec instr_of_cinstr tbl i =
   match i with
   | C.MkI(p, ir) ->
-    let (i_loc, i_info, i_annot) = get_iinfo tbl p in
+    let i_loc, i_annot = p in
     let i_desc = instr_r_of_cinstr_r tbl ir in
-    { i_desc; i_loc; i_info; i_annot }
+    { i_desc; i_loc; i_info = (); i_annot }
 
 and instr_r_of_cinstr_r tbl = function
   | C.Cassgn(x,t, ty,e) ->
@@ -320,6 +268,9 @@ and instr_r_of_cinstr_r tbl = function
 
   | C.Copn(x,t,o,e) ->
     Copn(lval_of_clvals tbl x, t, o, expr_of_cexprs tbl e)
+
+  | C.Csyscall(x,o,e) ->
+    Csyscall(lval_of_clvals tbl x, o, expr_of_cexprs tbl e)
 
   | C.Cif(e,c1,c2) ->
     let c1 = stmt_of_cstmt tbl c1 in
@@ -343,19 +294,9 @@ and stmt_of_cstmt tbl c =
 
 
 (* ------------------------------------------------------------------------ *)
-
-let set_finfo tbl loc annot cc oannot =
-  let n = new_count tbl in
-  Hashtbl.add tbl.finfo n (loc, annot, cc, oannot);
-  pos_of_int n
-
-let get_finfo tbl n =
-  try Hashtbl.find tbl.finfo (int_of_pos n)
-  with Not_found -> assert false
-
 let cufdef_of_fdef tbl fd =
   let fn = cfun_of_fun tbl fd.f_name in
-  let f_info = set_finfo tbl fd.f_loc fd.f_annot fd.f_cc fd.f_outannot in
+  let f_info = fd.f_loc, fd.f_annot, fd.f_cc, fd.f_outannot in
   let f_params =
     List.map (fun x -> cvari_of_vari tbl (L.mk_loc L._dummy x)) fd.f_args in
   let f_body = cstmt_of_stmt tbl fd.f_body [] in
@@ -371,7 +312,7 @@ let cufdef_of_fdef tbl fd =
 
 
 let fdef_of_cufdef tbl (fn, fd) =
-  let f_loc, f_annot, f_cc, f_outannot = get_finfo tbl fd.C.f_info in
+  let f_loc, f_annot, f_cc, f_outannot = fd.C.f_info in
   { f_loc;
     f_annot;
     f_cc;
@@ -390,10 +331,8 @@ let cgd_of_gd tbl (x, gd) =
 let gd_of_cgd tbl (x, gd) =
   (var_of_cvar tbl x, gd)
 
-let cuprog_of_prog (all_registers: var list) info p =
-  let tbl = empty_tbl info in
-  (* init dummy iinfo *)
-  let _ = set_iinfo tbl (L.i_dummy) info [] in
+let cuprog_of_prog (all_registers: var list) p =
+  let tbl = empty_tbl in
   (* First add registers *)
   List.iter
     (fun x -> ignore (cvar_of_reg tbl x))
@@ -407,7 +346,7 @@ let prog_of_cuprog tbl p =
   List.map (fdef_of_cufdef tbl) p.C.p_funcs
 
 
-let csfdef_of_fdef tbl ((fe,fd):'info sfundef) =
+let csfdef_of_fdef tbl ((fe,fd):('info, 'asm) sfundef) =
   let fn, fd = cufdef_of_fdef tbl fd in
   fn, { fd with C.f_extra = fe }
 
@@ -431,40 +370,38 @@ let to_array ty p t =
 (* ---------------------------------------------------------------------------- *)
 
 (* This avoids printing dummy locations. Hope that it will not hide errors. *)
-let patch_vi_loc tbl (e : Compiler_util.pp_error_loc) =
+let patch_vi_loc (e : Compiler_util.pp_error_loc) =
   match e.Compiler_util.pel_vi with
   | None -> e
   | Some vi ->
-    let l = get_loc tbl vi in
-    if L.isdummy l then { e with Compiler_util.pel_vi = None }
+    if L.isdummy vi then { e with Compiler_util.pel_vi = None }
     else e
 
 (* do we want more complex logic, e.g. if both vi and ii are <> None,
    we could check whether they point to the same line. If not, we could
    decide to return both.
 *)
-let iloc_of_loc tbl e =
+let iloc_of_loc e =
   let open Utils in
-  let e = patch_vi_loc tbl e in
+  let e = patch_vi_loc e in
   match e.pel_vi with
-  | Some vi ->
-    let loc = get_loc tbl vi in
+  | Some loc ->
     begin match e.pel_ii with
     | None -> Lone loc
     | Some ii ->
       (* if there are some locations coming from inlining, we print them *)
-      let ({L.stack_loc = locs}, _, _) = get_iinfo tbl ii in
+      let {L.stack_loc = locs}, _ = ii in
       Lmore (L.i_loc loc locs)
     end
   | None ->
     match e.pel_ii with
     | Some ii ->
-      let (i_loc, _, _) = get_iinfo tbl ii in
+      let i_loc, _ = ii in
       Lmore i_loc
     | None ->
       match e.pel_fi with
       | Some fi ->
-        let (f_loc, _, _, _) = get_finfo tbl fi in
+        let (f_loc, _, _, _) = fi in
         Lone f_loc
       | None -> Lnone
 
@@ -474,7 +411,7 @@ let iloc_of_loc tbl e =
 let error_of_cerror pp_err tbl e =
   let open Utils in
   let msg = Format.dprintf "%a" pp_err e.Compiler_util.pel_msg in
-  let iloc = iloc_of_loc tbl e in
+  let iloc = iloc_of_loc e in
   let funname = omap (fun fn -> (fun_of_cfun tbl fn).fn_name) e.pel_fn in
   let pass = omap string_of_string0 e.pel_pass in
   { err_msg = msg;
@@ -484,3 +421,11 @@ let error_of_cerror pp_err tbl e =
     err_sub_kind = pass;
     err_internal = e.pel_internal;
   }
+
+(* -------------------------------------------------------------------------- *)
+let fresh_reg_ptr tbl name ty =
+  let name = string_of_string0 name in
+  let ty = ty_of_cty ty in
+  let p = Prog.V.mk name (Reg (Normal, Pointer Writable)) ty L._dummy [] in
+  let cp = cvar_of_var tbl p in
+  cp.Var0.Var.vname

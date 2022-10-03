@@ -1,31 +1,6 @@
-(* ** License
- * -----------------------------------------------------------------------
- * Copyright 2016--2017 IMDEA Software Institute
- * Copyright 2016--2017 Inria
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * ----------------------------------------------------------------------- *)
-
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import psem array_expansion compiler_util ZArith.
 Import Utf8.
 
@@ -67,16 +42,17 @@ Definition eq_alloc_vm (m : t) (vm1 vm2 : vmap) :=
     eval_uincl (set_undef_e (t := sword ai.(ai_ty)) (eval_array vm1 ai.(ai_ty) x i)) 
                (set_undef_e vm2.[xi]).
 
-Definition eq_alloc {_: PointerData} (m : t) (s1 s2 : estate) :=
-  eq_alloc_vm m s1.(evm) s2.(evm) /\
-  s1.(emem) = s2.(emem).
-    
-Section Section.
+Definition eq_alloc {asm_op syscall_state : Type} {spp : SemPexprParams asm_op syscall_state} (m : t) (s1 s2 : estate) :=
+  [/\ eq_alloc_vm m s1.(evm) s2.(evm),
+      s1.(escs) = s2.(escs) &  s1.(emem) = s2.(emem)].
 
-Context {pd: PointerData}.
-Context `{asmop:asmOp}.
-Variable (fi : funname -> ufundef -> expand_info).
-Variable p1 p2:uprog.
+Section WITH_PARAMS.
+
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  (fi : funname -> ufundef -> expand_info)
+  (p1 p2 : uprog).
 
 Local Notation gd := (p_globs p1).
 
@@ -109,10 +85,13 @@ Proof. rewrite /get_gvar /check_gvar; case: is_lvar => //=; apply check_var_get.
 Lemma eq_alloc_mem s1 s2 : eq_alloc m s1 s2 -> emem s1 = emem s2.
 Proof. by case. Qed.
 
+Lemma eq_alloc_scs s1 s2 : eq_alloc m s1 s2 -> escs s1 = escs s2.
+Proof. by case. Qed.
+
 Lemma expand_esP_aux (s1 s2 : estate) es1 es2: 
   eq_alloc m s1 s2 ->
   expand_es m es1 = ok es2 -> 
-  (∀ e, e \in es1 → 
+  (∀ e, List.In e es1 →
    ∀ e2, expand_e m e = ok e2 → 
    ∀ v, sem_pexpr gd s1 e = ok v → sem_pexpr gd s2 e2 = ok v) -> 
   forall vs, sem_pexprs gd s1 es1 = ok vs -> sem_pexprs gd s2 es2 = ok vs.
@@ -121,10 +100,10 @@ Proof.
   elim: es1 es2 => [ | e1 es1 hrec] es' /=.
   + by move=> [<-] _ ? [<-].
   t_xrbindP => e2 he1 es2 /hrec hes1 <- he ?? se1 ? /hes1 hes2 <- /=.
-  rewrite (he _ _ _ he1 _ se1) ?mem_head //= hes2 // => e he'; apply: he.  
-  by rewrite in_cons he' orbT.
+  rewrite (he _ _ _ he1 _ se1); last by left.
+  by rewrite /= hes2 // => e he'; apply: he; right.
 Qed.
-  
+
 Lemma expand_eP (s1 s2: estate) : 
   eq_alloc m s1 s2 ->
   forall e1 e2, expand_e m e1 = ok e2 -> 
@@ -135,7 +114,7 @@ Proof.
   + by move=> z _ [<-] _ [<-].
   + by move=> b _ [<-] _ [<-].
   + by move=> n _ [<-] _ [<-].
-  + by move=> x e2; t_xrbindP => _ /assertP /check_gvar_get -/(_ _ _ h) -> <-.
+  + by move=> x e2; t_xrbindP => /check_gvar_get -/(_ _ _ h) -> <-.
   + move=> aa sz x e hrec e2.
     case heq : check_gvar.
     + have hx := check_gvar_get heq h.
@@ -144,7 +123,7 @@ Proof.
       by t_xrbindP => i vi /he -> /= -> /= w -> <-. 
     case hgetx : Mvar.get => [ai | //].
     case: (is_constP e) => // i.
-    t_xrbindP => _ /assertP /eqP <- _ /assertP /eqP ->.
+    t_xrbindP => /eqP <- /eqP ->.
     case hgeti : Mi.get => [xi | //] [<-] v.
     apply on_arr_gvarP => n t hty hx /=.
     t_xrbindP => w hw <-; case: h => -[] _ /(_ _ _ _ _ hgetx hgeti).
@@ -158,12 +137,12 @@ Proof.
     rewrite /word_uincl => /andP; case: wi => wsi wi h3 /= [] h4 /eqP -> _.
     by have <- := cmp_le_antisym h3 h4; rewrite zero_extend_u.
   + move=> aa sz len x e hrec e2.
-    t_xrbindP => _ /assertP he e1 /hrec hrec1 <- /=.
+    t_xrbindP => he e1 /hrec hrec1 <- /=.
     rewrite (check_gvar_get he h) => v.
     apply on_arr_gvarP => n t hty -> /=.
     by t_xrbindP => i vi /hrec1 -> /= -> t' /= -> <-.
   + move=> sz x e hrec e2.
-    t_xrbindP => _ /assertP hin e1 /hrec hrec1 <- /=.
+    t_xrbindP => hin e1 /hrec hrec1 <- /=.
     move=> v p vp; rewrite (check_var_get hin h) => -> /= -> /= i vi /hrec1 -> /= -> /=.
     by rewrite (eq_alloc_mem h) => ? -> <-.
   + by move=> o e1 hrec e2; t_xrbindP => e1' /hrec he1 <- /= ?? /he1 -> /= ->.
@@ -189,11 +168,11 @@ Lemma eq_alloc_write_var s1 s2 (x: var_i) v s1':
    write_var x v s1 = ok s1' ->
    ∃ s2' : estate, write_var x v s2 = ok s2' ∧ eq_alloc m s1' s2'.
 Proof.
-  move=> h; case: (h) => -[heq ha] hmem /=.
+  move=> h; case: (h) => -[heq ha] hscs hmem /=.
   move=> /Sv_memP hin hw.
   have [vm2 [heq2 hw2]]:= write_var_eq_on hw heq.
   exists (with_vm s1' vm2); split.
-  + have -> // : s2 = with_vm s1 (evm s2) by case: (s2) hmem => ?? /= <-.
+  + have -> // : s2 = with_vm s1 (evm s2) by case: (s2) hscs hmem => ??? /= <- <-.
   split => //; split; first by apply: eq_onI heq2; SvD.fsetdec.
   move=> x' ai i xi hai hxi.
   have [/negP /Sv_memP hnx' /(_ _ _ hxi) [] /negP /Sv_memP hnxi _]:= valid hai.
@@ -222,11 +201,11 @@ Lemma expand_lvP (s1 s2 : estate) :
      write_lval gd x1 v s1 = ok s1' ->
      exists s2', write_lval gd x2 v s2 = ok s2' /\ eq_alloc m s1' s2'.
 Proof.
-  move=> h; case: (h) => -[heq ha] hmem [] /=.
+  move=> h; case: (h) => -[heq ha] hscs hmem [] /=.
   + move=> ii ty _ [<-] /= ?? /dup [] /write_noneP [->] _ hn.
     by exists s2; split => //; apply: uincl_write_none hn.
-  + by move=> x; t_xrbindP => _ _ /assertP ? <- /= v1 s1'; apply eq_alloc_write_var.
-  + move=> ws x e x2; t_xrbindP => _ /assertP hin e' he <- v s1' vx p /=.
+  + by move=> x; t_xrbindP => _ ? <- /= v1 s1'; apply eq_alloc_write_var.
+  + move=> ws x e x2; t_xrbindP => hin e' he <- v s1' vx p /=.
     rewrite (check_var_get hin h) => -> /= -> /= pe ve.
     move=> /(expand_eP h he) -> /= -> /= ? -> /= mem.
     by rewrite -hmem => -> /= <-; exists (with_mem s2 mem).
@@ -238,7 +217,7 @@ Proof.
       t_xrbindP => i vi /(expand_eP h he) -> /= -> /= ? -> /= t' -> hw.
       by apply (eq_alloc_write_var h hin hw).
     case hai: Mvar.get => [ai | //].
-    case: is_constP => // i ; t_xrbindP => _ /assertP /eqP <- _ /assertP /eqP ->.
+    case: is_constP => // i ; t_xrbindP => /eqP <- /eqP ->.
     case hxi: Mi.get => [xi | //] [<-] v s1'.
     apply on_arr_varP => n t hty hget /=.
     rewrite /write_var; t_xrbindP => w hvw t' ht' vm' hs <-. 
@@ -249,10 +228,10 @@ Proof.
     split => //; split.
     + apply: (eq_onT (vm2:= evm s1)).
       + apply eq_onS.
-        apply (@disjoint_eq_on _ gd _ x _ _ (Varr t')).
+        apply (@disjoint_eq_on _ _ _ gd _ x _ _ (Varr t')).
         + by rewrite vrv_var; move/Sv_memP : hnin => hnin; apply/Sv.is_empty_spec; SvD.fsetdec.
         by rewrite /= /write_var hs.
-      apply: (eq_onT heq); apply (@disjoint_eq_on _ gd _ (VarI xi x.(v_info)) _ _ (Vword w)).
+      apply: (eq_onT heq); apply (@disjoint_eq_on _ _ _ gd _ (VarI xi x.(v_info)) _ _ (Vword w)).
       + by rewrite vrv_var; move/negP/Sv_memP:hnxi => hnxi /=; apply/Sv.is_empty_spec; SvD.fsetdec.
       by rewrite /= /write_var /set_var /= /on_vu (sumbool_of_boolET (cmp_le_refl _)).
     move=> x' ai' i' xi'.
@@ -268,7 +247,7 @@ Proof.
       by apply (hd _ _ _ _ hai hxi'); auto.
     move=> hai' hxi'; rewrite Fv.setP_neq; first by apply: ha hai' hxi'.
     by apply (hd _ _ _ _ hai' hxi'); auto.
-  move=> aa ws len x e x2; t_xrbindP => _ /assertP hin e' he <- /= v s1'.
+  move=> aa ws len x e x2; t_xrbindP => hin e' he <- /= v s1'.
   apply on_arr_varP => n t hty.
   rewrite (check_var_get hin h) => -> /=.
   t_xrbindP => i vi /(expand_eP h he) -> /= -> /= ? -> /= t' -> /= hw.
@@ -333,8 +312,8 @@ Let Pfor (i1:var_i) vs s1 c1 s2 :=
     mapM (expand_i m) c1 = ok c2 ->
   exists s2', eq_alloc m s2 s2' /\ sem_for p2 ev i1 vs s1' c2 s2'.
 
-Let Pfun m fn vargs m' vres :=
-  sem_call p2 ev m fn vargs m' vres.
+Let Pfun scs m fn vargs scs' m' vres :=
+  sem_call p2 ev scs m fn vargs scs' m' vres.
 
 Local Lemma Hskip : sem_Ind_nil Pc.
 Proof.
@@ -372,6 +351,17 @@ Proof.
   have := expand_lvsP hwf heqa hxs hws.
   rewrite -eq_globs => -[s2' [hws' ?]] hse'; exists s2'; split => //.
   by constructor; rewrite /sem_sopn hse' /= ho.
+Qed.
+
+Local Lemma Hsyscall : sem_Ind_syscall p1 Pi_r.
+Proof.
+  move => s1 scs2 m2 s2 o xs es vs ves hse ho hws.
+  move=> ii m ii' e2 s1' hwf heqa /=; t_xrbindP => xs' hxs es' hes _ <-.
+  have := expand_esP hwf heqa hes hse.
+  have heqa': eq_alloc m (with_scs (with_mem s1 m2) scs2) (with_scs (with_mem s1' m2) scs2) by case: heqa.
+  have := expand_lvsP hwf heqa' hxs hws.
+  rewrite -eq_globs => -[s2' [hws' ?]] hse'; exists s2'; split => //.
+  by econstructor; eauto; rewrite -(eq_alloc_mem heqa) -(eq_alloc_scs heqa).
 Qed.
 
 Local Lemma Hif_true : sem_Ind_if_true p1 ev Pc Pi_r.
@@ -416,7 +406,7 @@ Qed.
 Local Lemma Hfor : sem_Ind_for p1 ev Pi_r Pfor.
 Proof.
   move => s1 s2 i d lo hi c vlo vhi hslo hshi _ hfor ii m ii' ? s1' hwf heqa /=.
-  t_xrbindP => _ /assertP hin lo' hlo hi' hhi c' hc ? <-.
+  t_xrbindP => hin lo' hlo hi' hhi c' hc ? <-.
   have := expand_eP hwf heqa hlo hslo.
   have := expand_eP hwf heqa hhi hshi; rewrite -eq_globs => hshi' hslo'.
   have [s2' [??]]:= hfor _ _ _ hwf heqa hin hc.
@@ -439,13 +429,13 @@ Qed.
 
 Local Lemma Hcall : sem_Ind_call p1 ev Pi_r Pfun.
 Proof.
-  move=> s1 m2 s2 ii xs fn args vargs vs Hes Hsc Hfun Hw ii1 m ii2 i2 s1' hwf heqa /=.
+   move=> s1 scs2 m2 s2 ii xs fn args vargs vs Hes Hsc Hfun Hw ii1 m ii2 i2 s1' hwf heqa /=.
   t_xrbindP => xs' hxs es' hes ? <-.
   have := expand_esP hwf heqa hes Hes.
-  have heqa': eq_alloc m (with_mem s1 m2) (with_mem s1' m2) by case: heqa.
+  have heqa': eq_alloc m (with_scs (with_mem s1 m2) scs2) (with_scs (with_mem s1' m2) scs2) by case: heqa.
   have [s2' []]:= expand_lvsP hwf heqa' hxs Hw.
   rewrite -eq_globs => ???; exists s2'; split => //; econstructor; eauto.
-  by case: heqa => _ <-.
+  by case: heqa => _ <- <-.
 Qed.
 
 Lemma wf_init_map ffi m : init_map ffi = ok m -> wf_t m.
@@ -466,7 +456,7 @@ Proof.
   elim => /= [ ??? [<-] // | vi vis hrec svm svm' hwf].
   t_xrbindP => svm1 heq; apply: hrec.
   move: heq; rewrite /init_array_info.
-  case: svm hwf => sv1 m1 hwf; t_xrbindP => _ /assertP /Sv_memP hin [[sv2 m2] b].
+  case: svm hwf => sv1 m1 hwf; t_xrbindP => /Sv_memP hin [[sv2 m2] b].
   set ty := sword _.
   pose wf_sm := 
     fun (svmp : Sv.t * Mi.t var * Z) =>
@@ -479,7 +469,7 @@ Proof.
   suff : forall ids svmp svmp', 
      wf_sm svmp -> 
      foldM (init_elems ty) svmp ids = ok svmp' -> wf_sm svmp'.
-  + move=> h /h{h}h [<-].           
+  + move=> h /h{h}h [<-].
     have /h{h}[hsub hmi] : wf_sm (sv1, Mi.empty var, 0%Z) by split.
     case: hwf => hwf hsub' hget; split => //.
     + move=> x ai /=; rewrite Mvar.setP; case: eqP.
@@ -487,7 +477,7 @@ Proof.
         + by apply/negP/Sv_memP; SvD.fsetdec.
         move=> i xi /= hgeti; have [/= hnin heqt hj] := hmi _ _ hgeti; split.
         + by apply/negP/Sv_memP; SvD.fsetdec.
-        split => // x' ai' i' xi'. 
+        split => // x' ai' i' xi'.
         rewrite Mvar.setP; case: eqP => [<- [<-] /= hgeti' hd| hne].
         + by case: (hmi _ _ hgeti) => ??? h; apply/eqP/(h i') => //; case: hd.
         move=> h1 h2 ?; have /= ?:= hget _ _ _ _ h1 h2; apply /eqP => heq.
@@ -505,7 +495,7 @@ Proof.
     move=> ? h1 h2; have /= := hget _ _ _ _ h1 h2; SvD.fsetdec.
   elim => /= [???[<-] // | id ids hrec] [[sv mi] i] svmp' hwfsm.
   t_xrbindP => svmp'' hsvmp''; apply hrec; move: hsvmp''.
-  rewrite /init_elems; t_xrbindP => _ /assertP /Sv_memP hnin <-.
+  rewrite /init_elems; t_xrbindP => /Sv_memP hnin <-.
   case: hwfsm => h1 h2; split; first by SvD.fsetdec.
   move=> i1 xi1; rewrite Mi.setP; case: eqP => ?.
   + subst i1 => -[<-]; split => //; try SvD.fsetdec.
@@ -518,15 +508,15 @@ Qed.
 
 Local Lemma Hproc : sem_Ind_proc p1 ev Pc Pfun.
 Proof.
-  move=> m1 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hget Hca [?] Hw _ Hc Hres Hcr ?; subst s0 m2.
+  move=> scs1 m1 scs2 m2 fn f vargs vargs' s0 s1 s2 vres vres' Hget Hca [?] Hw _ Hc Hres Hcr ??; subst s0 scs2 m2.
   have [fd2 [Hget2 /=] {Hget}]:= all_checked Hget.
   rewrite /expand_fd; t_xrbindP=> m.
   case: f Hca Hw Hc Hres Hcr => /=.
   move=> finfo ftyin fparams fbody ftyout fres fextra.
   set fd := {| f_info := finfo |} => Hca Hw Hc Hres Hcr hinit.
-  t_xrbindP => _ /assertP hparams _ /assertP hres body' hbody hfd2; rewrite /Pfun.
+  t_xrbindP => hparams hres body' hbody hfd2; rewrite /Pfun.
   have hwf := wf_init_map hinit.
-  have heqa : eq_alloc m {| emem := m1; evm := vmap0 |} {| emem := m1; evm := vmap0 |}.
+  have heqa : eq_alloc m {| escs := scs1; emem := m1; evm := vmap0 |} {| escs := scs1; emem := m1; evm := vmap0 |}.
   + split => //; split => //.
     move=> x ai i xi hai hxi.
     rewrite /eval_array /= /get_var !Fv.get0.
@@ -544,11 +534,11 @@ Proof.
   by subst fd2; econstructor => /=; eauto; case: heqa2.
 Qed.
 
-Lemma expand_callP f mem mem' va vr:
-  sem_call p1 ev mem f va mem' vr -> sem_call p2 ev mem f va mem' vr.
+Lemma expand_callP f scs mem scs' mem' va vr:
+  sem_call p1 ev scs mem f va scs' mem' vr -> sem_call p2 ev scs mem f va scs' mem' vr.
 Proof.
-  apply (@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn
+  apply (@sem_call_Ind _ _ _ _ _ _ p1 ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
           Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
 Qed.
 
-End Section.
+End WITH_PARAMS.

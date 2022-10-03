@@ -72,6 +72,7 @@ Definition stype_cmp t t' :=
   | sarr _  , _             => Gt
   end.
 
+#[global]
 Instance stypeO : Cmp stype_cmp.
 Proof.
   constructor.
@@ -178,9 +179,6 @@ Module CEDecStype.
 
 End CEDecStype.
 
-Lemma pos_dec_n_n n: CEDecStype.pos_dec n n = left (erefl n).
-Proof. by elim: n=> // p0 /= ->. Qed.
-
 Module Mt := DMmake CmpStype CEDecStype.
 
 Declare Scope mtype_scope.
@@ -196,23 +194,14 @@ Definition is_sbool t := t == sbool.
 Lemma is_sboolP t : reflect (t=sbool) (is_sbool t).
 Proof. by rewrite /is_sbool;case:eqP => ?;constructor. Qed.
 
-Definition is_sword t :=
-  match t with
-  | sword _ => true
-  | _       => false
-  end.
+Definition is_sword t := if t is sword _ then true else false.
 
-Definition is_sarr t :=
-  match t with
-  | sarr _ => true
-  | _      => false
-  end.
+Definition is_sarr t := if t is sarr _ then true else false.
+
+Definition is_not_sarr t := ~~is_sarr t.
 
 Lemma is_sarrP ty : reflect (exists n, ty = sarr n) (is_sarr ty).
-Proof.
-  case: ty => /= [||n|ws]; constructor; try by move => -[].
-  by exists n.
-Qed.
+Proof. by case: ty; constructor; eauto => [[]]. Qed.
 
 Definition is_word_type (t:stype) :=
   if t is sword sz then Some sz else None.
@@ -242,6 +231,7 @@ Proof. by case: t1 t2 => [||n1|wz1] [||n2|wz2]. Qed.
 
 Lemma compat_type_refl t : compat_type t t.
 Proof. by case: t => [||n|wz]. Qed.
+#[global]
 Hint Resolve compat_type_refl : core.
 
 Lemma compat_type_trans t2 t1 t3 : compat_type t1 t2 -> compat_type t2 t3 -> compat_type t1 t3.
@@ -260,8 +250,7 @@ Proof. by case t. Qed.
 Definition subtype (t t': stype) :=
   match t with
   | sword w => if t' is sword w' then (w ≤ w')%CMP else false
-  | sarr n =>
-    if t' is sarr n' then (n <=? n')%Z else false
+  | sarr n => if t' is sarr n' then (n <=? n')%Z else false
   | _ => t == t'
   end.
 
@@ -293,6 +282,7 @@ Qed.
 
 Lemma subtype_refl x : subtype x x.
 Proof. case: x => //= ?;apply Z.leb_refl. Qed.
+#[global]
 Hint Resolve subtype_refl : core.
 
 Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.
@@ -315,8 +305,3 @@ Proof.
   + by apply /ZleP; Psatz.lia.
   by apply wsize_le_U8.
 Qed.
-
-
-
-
-

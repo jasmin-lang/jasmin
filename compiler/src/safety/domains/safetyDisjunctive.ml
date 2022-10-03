@@ -79,8 +79,6 @@ module Ptree = struct
         pp_cnstr node.constr
         (pp_ptree pp_leaf) node.n_unknwn
 
-  let flip c = flip_constr c |> otolist
-
   let rec same_shape t1 t2 = match t1, t2 with
     | Node n1, Node n2 -> same_shape_n n1 n2
     | Leaf _, Leaf _ -> true

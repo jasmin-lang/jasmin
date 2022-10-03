@@ -1,0 +1,64 @@
+export
+fn test_movd_to_xmm(
+  reg u32 e,
+  reg u64 r,
+  reg u64 p
+) -> reg u128 {
+  reg u128 x y;
+  x = #MOVD_32(e);
+  y = #MOVD(r);
+  x ^= y;
+  y = #MOVD_32((u32)[p]);
+  x ^= y;
+  y = #MOVD([p]);
+  x ^= y;
+  return x;
+}
+
+export
+fn test_movd_from_xmm(
+  reg u64 p,
+  reg u128 x,
+  reg u256 y
+) -> reg u32 {
+  reg u32 e f;
+  reg u64 r s;
+  e = #MOVV_32(x);
+  f = #MOVV_32(y);
+  e ^= f;
+  (u32)[p + 4] = #MOVV_32(x);
+  (u32)[p + 8] = #MOVV_32(y);
+  r = #MOVV(x);
+  s = #MOVV(y);
+  r ^= s;
+  [p + 16] = #MOVV(x);
+  [p + 24] = #MOVV(y);
+  e ^= r;
+  return e;
+}
+
+export
+fn test_vmov_to_xmm(
+  reg u32 e,
+  reg u64 r p
+) {
+  reg u128[2] x;
+  reg u256[2] y;
+  x[0] = #VMOV_32(e);
+  y[0] = (256u)#VMOV_32(e);
+  x[1] = #VMOV_32((u32)[p]);
+  y[1] = (256u)#VMOV_32((u32)[p]);
+  x[0] ^= x[1];
+  y[0] ^= y[1];
+  x[1] = #VMOV(r);
+  y[1] = (256u)#VMOV(r);
+  x[0] ^= x[1];
+  y[0] ^= y[1];
+  x[1] = #VMOV([p]);
+  y[1] = (256u)#VMOV([p]);
+  x[0] ^= x[1];
+  y[0] ^= y[1];
+
+  x[0] ^= y[0];
+  (u128)[p] = x[0];
+}

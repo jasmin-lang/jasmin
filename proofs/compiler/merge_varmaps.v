@@ -4,7 +4,6 @@ Require Import one_varmap expr_facts.
 Import Utf8.
 Import all_ssreflect.
 Import expr compiler_util.
-Require Import arch_decl arch_extra.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -44,10 +43,9 @@ Definition ii_loop_iterator :=
 End E.
 
 Section PROG.
-
-Context `{asm_e : asm_extra}.
+Context {pd: PointerData} {syscall_state : Type} {sc_sem : syscall_sem syscall_state} {asm_op} {asmop : asmOp asm_op} {ovm_i : one_varmap_info}.
 Context (p: sprog) (extra_free_registers: instr_info → option var).
-Context (var_tmp : var) (callee_saved: Sv.t).
+Context (var_tmp : var).
 
 (** Set of variables written by a function (including RA and extra registers),
       assuming this information is known for the called functions. *)
@@ -82,6 +80,7 @@ Section WRITE1.
     match i with
     | Cassgn x _ _ _  => vrv_rec s x
     | Copn xs _ _ _   => vrvs_rec s xs
+    | Csyscall xs o _  => vrvs_rec (Sv.union s syscall_kill) (to_lvals (syscall_sig o).(scs_vout))
     | Cif   _ c1 c2   => foldl write_I_rec (foldl write_I_rec s c2) c1
     | Cfor  x _ c     => foldl write_I_rec (Sv.add x s) c
     | Cwhile _ c _ c' => foldl write_I_rec (foldl write_I_rec s c') c
@@ -111,6 +110,7 @@ Section WRITE1.
     - by move => i c' hi hc' s; rewrite /write_c /= !hc' -/write_I hi; SvD.fsetdec.
     - by move => x tg ty e s; rewrite /write_i /= -vrv_recE.
     - by move => xs tg op es s; rewrite /write_i /= -vrvs_recE.
+    - by move => xs op es s; rewrite /write_i /= !vrvs_recE; SvD.fsetdec.
     - by move => e c1 c2 h1 h2 s; rewrite /write_i /= -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
     - by move => v d lo hi body h s; rewrite /write_i /= -!/write_c_rec !h; SvD.fsetdec.
     - by move => a c1 e c2  h1 h2 s; rewrite /write_i /= -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
@@ -200,6 +200,19 @@ Section CHECK.
     | Copn xs tag o es =>
       Let _ := check_es ii D es in
       check_lvs ii D xs
+    | Csyscall xs o es =>
+      let osig := syscall_sig o in
+      let o_params := osig.(scs_vin) in
+      let o_res := osig.(scs_vout) in
+      Let _ := check_es ii D es in
+      Let _ := assert
+        (all2 (λ e a, if e is Pvar (Gvar v Slocal) then v_var v == a else false) es o_params)
+        (E.internal_error ii "bad syscall args") in
+      Let _ := assert
+        (all2 (λ x r, if x is Lvar v then v_var v == r else false) xs o_res)
+        (E.internal_error ii "bad syscall dests") in
+      let W := syscall_kill in
+      ok (Sv.diff (Sv.union D W) (vrvs (to_lvals (syscall_sig o).(scs_vout))))
     | Cif b c1 c2 =>
       Let _ := check_e ii D b in
       Let D1 := check_c (check_i sz) D c1 in
@@ -208,7 +221,7 @@ Section CHECK.
     | Cfor _ _ _ =>
       Error (E.internal_error ii "for loop should be unrolled")
     | Cwhile _ c e c' =>
-      if e == Pbool false then check_c (check_i sz) D c
+      if is_false e then check_c (check_i sz) D c
       else wloop (check_i sz) ii c (read_e e) c' Loop.nb D
 
     | Ccall _ xs fn es =>
@@ -232,7 +245,7 @@ Section CHECK.
 
   Lemma check_ir_CwhileP sz ii aa c e c' D D' :
     check_ir sz ii D (Cwhile aa c e c') = ok D' →
-    if e == Pbool false
+    if is_false e
     then check_c (check_i sz) D c = ok D'
     else
       ∃ D1 D2,
@@ -242,8 +255,8 @@ Section CHECK.
             check_ir sz ii D1 (Cwhile aa c e c') = ok D' &
             Sv.Subset D D1 /\ Sv.Subset D2 D1 ].
   Proof.
-    rewrite /check_ir; case: eqP => // _; rewrite -/check_i.
-    elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 [] he D2 h2.
+    rewrite /check_ir; case: is_falseP => // _; rewrite -/check_i.
+    elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 he D2 h2.
     case: (equivP idP (Sv.subset_spec _ _)) => d.
     - case => ?; subst D1; exists D, D2; split => //; last by split.
       by rewrite h1 /= he /= h2 /=; move /Sv.subset_spec : d => ->.

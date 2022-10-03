@@ -6,7 +6,6 @@ module L = Location
 
 module Name = struct
   type t = string
-  let equal (n1:t) (n2:t) = n1 = n2
 end
 
 type uid = int
@@ -23,10 +22,12 @@ type base_ty =
 type writable = Constant | Writable
 type pointer = Direct | Pointer of writable
 
+type reg_kind = Normal | Extra
+
 type v_kind =
   | Const            (* global parameter  *)
   | Stack of pointer (* stack variable    *)
-  | Reg   of pointer (* register variable *)
+  | Reg   of reg_kind * pointer (* register variable *)
   | Inline           (* inline variable   *)
   | Global           (* global (in memory) constant *) 
 
@@ -42,7 +43,7 @@ type 'len gvar = {
   v_kind : v_kind;
   v_ty   : 'len gty;
   v_dloc : L.t;   (* location where declared *)
-  v_annot : Syntax.annotations;
+  v_annot : Annotations.annotations;
 }
 
 type 'len gvar_i = 'len gvar L.located
@@ -90,9 +91,19 @@ let is_reg_kind k =
   | Reg _ -> true
   | _     -> false
 
+let reg_kind k = 
+  match k with
+  | Reg (k, _) -> k
+  | _     -> assert false
+
+let is_reg_direct_kind k = 
+  match k with
+  | Reg (_, Direct) -> true
+  | _ -> false
+
 let is_reg_ptr_kind k = 
   match k with
-  | Reg (Pointer _) -> true
+  | Reg (_, Pointer _) -> true
   | _ -> false
 
 let is_stk_ptr_kind k = 
@@ -102,7 +113,12 @@ let is_stk_ptr_kind k =
 
 let is_ptr k = 
   match k with
-  | Stack k | Reg k -> k <> Direct 
+  | Stack k | Reg(_, k) -> k <> Direct 
+  | _ -> false
+
+let is_regx x = 
+  match x.v_kind with 
+  | Reg (Extra, _) -> true
   | _ -> false
 
 (* ------------------------------------------------------------------------ *)
@@ -126,67 +142,37 @@ type funname = {
 
 type 'len grange = E.dir * 'len gexpr * 'len gexpr
 
-type ('len,'info) ginstr_r =
+type ('len,'info,'asm) ginstr_r =
   | Cassgn of 'len glval * E.assgn_tag * 'len gty * 'len gexpr
-  | Copn   of 'len glvals * E.assgn_tag * X86_extra.x86_extended_op Sopn.sopn * 'len gexprs
-  | Cif    of 'len gexpr * ('len,'info) gstmt * ('len,'info) gstmt
-  | Cfor   of 'len gvar_i * 'len grange * ('len,'info) gstmt
-  | Cwhile of E.align * ('len,'info) gstmt * 'len gexpr * ('len,'info) gstmt
+  (* turn 'asm Sopn.sopn into 'sopn? could be useful to ensure that we remove things statically *)
+  | Copn   of 'len glvals * E.assgn_tag * 'asm Sopn.sopn * 'len gexprs
+  | Csyscall of 'len glvals * BinNums.positive Syscall_t.syscall_t * 'len gexprs
+  | Cif    of 'len gexpr * ('len,'info,'asm) gstmt * ('len,'info,'asm) gstmt
+  | Cfor   of 'len gvar_i * 'len grange * ('len,'info,'asm) gstmt
+  | Cwhile of E.align * ('len,'info,'asm) gstmt * 'len gexpr * ('len,'info,'asm) gstmt
   | Ccall  of E.inline_info * 'len glvals * funname * 'len gexprs
 
-and ('len,'info) ginstr = {
-    i_desc : ('len,'info) ginstr_r;
+and ('len,'info,'asm) ginstr = {
+    i_desc : ('len,'info,'asm) ginstr_r;
     i_loc  : L.i_loc;
     i_info : 'info;
-    i_annot : Syntax.annotations;
+    i_annot : Annotations.annotations;
   }
 
-and ('len,'info) gstmt = ('len,'info) ginstr list
+and ('len,'info,'asm) gstmt = ('len,'info,'asm) ginstr list
 
 (* ------------------------------------------------------------------------ *)
-type subroutine_info = {
-    returned_params : int option list; 
-  }
 
-type call_conv =
-  | Export                 (* The function should be exported to the outside word *)
-  | Subroutine of subroutine_info (* internal function that should not be inlined *)
-  | Internal                   (* internal function that should be inlined *)
-
-let is_subroutine = function
-  | Subroutine _ -> true
-  | _            -> false
-
-type returnaddress_kind = 
-  | OnStack
-  | OnReg
-
-type f_annot = { 
-    retaddr_kind  : returnaddress_kind option;
-    stack_allocation_size : Z.t option;
-    stack_size    : Z.t option;
-    stack_align   : wsize option;
-    clear_stack   : bool;
-  }
-
-let f_annot_empty = {
-    retaddr_kind  = None;
-    stack_allocation_size = None;
-    stack_size    = None;
-    stack_align   = None;
-    clear_stack   = false;
-  } 
-    
-type ('len,'info) gfunc = {
+type ('len,'info,'asm) gfunc = {
     f_loc  : L.t;
-    f_annot : f_annot; 
-    f_cc   : call_conv;
+    f_annot: Annotations.f_annot;
+    f_cc   : FInfo.call_conv;
     f_name : funname;
     f_tyin : 'len gty list;
     f_args : 'len gvar list;
-    f_body : ('len,'info) gstmt;
+    f_body : ('len,'info,'asm) gstmt;
     f_tyout : 'len gty list;
-    f_outannot : Syntax.annotations list; (* annotation attach to return type *)
+    f_outannot : Annotations.annotations list; (* annotation attach to return type *)
     f_ret  : 'len gvar_i list
   }
 
@@ -194,12 +180,12 @@ type 'len ggexpr =
   | GEword of 'len gexpr
   | GEarray of 'len gexprs
 
-type ('len,'info) gmod_item =
-  | MIfun   of ('len,'info) gfunc
+type ('len,'info,'asm) gmod_item =
+  | MIfun   of ('len,'info,'asm) gfunc
   | MIparam of ('len gvar * 'len gexpr)
   | MIglobal of ('len gvar * 'len ggexpr)
 
-type ('len,'info) gprog = ('len,'info) gmod_item list
+type ('len,'info,'asm) gprog = ('len,'info,'asm) gmod_item list
    (* first declaration occur at the end (i.e reverse order) *)
 
 (* ------------------------------------------------------------------------ *)
@@ -236,12 +222,12 @@ and  plval  = pexpr glval
 and  plvals = pexpr glvals
 and  pexpr  = pexpr gexpr
 
-type 'info pinstr = (pexpr,'info) ginstr
-type 'info pstmt  = (pexpr,'info) gstmt
+type ('info,'asm) pinstr = (pexpr,'info,'asm) ginstr
+type ('info,'asm) pstmt  = (pexpr,'info,'asm) gstmt
 
-type 'info pfunc     = (pexpr,'info) gfunc
-type 'info pmod_item = (pexpr,'info) gmod_item
-type 'info pprog     = (pexpr,'info) gprog
+type ('info,'asm) pfunc     = (pexpr,'info,'asm) gfunc
+type ('info,'asm) pmod_item = (pexpr,'info,'asm) gmod_item
+type ('info,'asm) pprog     = (pexpr,'info,'asm) gprog
 
 (* ------------------------------------------------------------------------ *)
 module PV = struct
@@ -288,13 +274,13 @@ type lvals = int glval list
 type expr  = int gexpr
 type exprs = int gexpr list
 
-type 'info instr = (int,'info) ginstr
-type 'info stmt  = (int,'info) gstmt
+type ('info,'asm) instr = (int,'info,'asm) ginstr
+type ('info,'asm) stmt  = (int,'info,'asm) gstmt
 
-type 'info func     = (int,'info) gfunc
-type 'info mod_item = (int,'info) gmod_item
-type global_decl    = var * Global.glob_value
-type 'info prog     = global_decl list * 'info func list
+type ('info,'asm) func     = (int,'info,'asm) gfunc
+type ('info,'asm) mod_item = (int,'info,'asm) gmod_item
+type global_decl           = var * Global.glob_value
+type ('info,'asm) prog     = global_decl list * ('info,'asm) func list
 
 module V = struct
   type t = var
@@ -305,8 +291,6 @@ module Sv = Set.Make  (V)
 module Mv = Map.Make  (V)
 module Hv = Hash.Make (V)
 
-let rip = V.mk "RIP" (Reg Direct) u64 L._dummy []
-let rsp = V.mk "RSP" (Reg Direct) u64 L._dummy []
 (* ------------------------------------------------------------------------ *)
 (* Function name                                                            *)
 
@@ -358,7 +342,7 @@ let rvars_lvs f s lvs = List.fold_left (rvars_lv f) s lvs
 let rec rvars_i f s i =
   match i.i_desc with
   | Cassgn(x, _, _, e)  -> rvars_e f (rvars_lv f s x) e
-  | Copn(x,_,_,e)    -> rvars_es f (rvars_lvs f s x) e
+  | Copn(x,_,_,e)  | Csyscall (x, _, e) -> rvars_es f (rvars_lvs f s x) e
   | Cif(e,c1,c2)   -> rvars_c f (rvars_c f (rvars_e f s e) c1) c2
   | Cfor(x,(_,e1,e2), c) ->
     rvars_c f (rvars_e f (rvars_e f (f (L.unloc x) s) e1) e2) c
@@ -398,7 +382,7 @@ let written_lv s =
 let rec written_vars_i ((v, f) as acc) i =
   match i.i_desc with
   | Cassgn(x, _, _, _) -> written_lv v x, f
-  | Copn(xs, _, _, _)
+  | Copn(xs, _, _, _) | Csyscall(xs, _, _)
     -> List.fold_left written_lv v xs, f
   | Ccall(_, xs, fn, _) ->
      List.fold_left written_lv v xs, Mf.modify_def [] fn (fun old -> i.i_loc :: old) f
@@ -415,10 +399,10 @@ let written_vars_fc fc =
 (* -------------------------------------------------------------------- *)
 (* Refresh i_loc, ensure that locations are uniq                        *)
 
-let rec refresh_i_loc_i (i:'info instr) : 'info instr = 
+let rec refresh_i_loc_i (i:('info,'asm) instr) : ('info,'asm) instr = 
   let i_desc = 
     match i.i_desc with
-    | Cassgn _ | Copn _ | Ccall _ -> i.i_desc
+    | Cassgn _ | Copn _ | Csyscall _ | Ccall _ -> i.i_desc
     | Cif(e, c1, c2) ->
         Cif(e, refresh_i_loc_c c1, refresh_i_loc_c c2)
     | Cfor(x, r, c) ->
@@ -428,13 +412,13 @@ let rec refresh_i_loc_i (i:'info instr) : 'info instr =
   in
   { i with i_desc; i_loc = L.refresh_i_loc i.i_loc }
 
-and refresh_i_loc_c (c:'info stmt) : 'info stmt = 
+and refresh_i_loc_c (c:('info,'asm) stmt) : ('info,'asm) stmt = 
   List.map refresh_i_loc_i c
 
-let refresh_i_loc_f (f:'info func) : 'info func = 
+let refresh_i_loc_f (f:('info,'asm) func) : ('info,'asm) func = 
   { f with f_body = refresh_i_loc_c f.f_body }
 
-let refresh_i_loc_p (p:'info prog) : 'info prog = 
+let refresh_i_loc_p (p:('info,'asm) prog) : ('info,'asm) prog = 
   fst p, List.map refresh_i_loc_f (snd p)
 
 
@@ -461,8 +445,6 @@ let string_of_ws ws = Format.sprintf "u%i" (int_of_ws ws)
 
 let wsize_lt ws1 ws2 = Wsize.wsize_cmp ws1 ws2 = Datatypes.Lt
 let wsize_le ws1 ws2 = Wsize.wsize_cmp ws1 ws2 <> Datatypes.Gt
-
-let uptr = U64 (* Warning this should be arch dependent *)
 
 let int_of_pe =
   function
@@ -505,7 +487,7 @@ let is_stack_var v =
   is_stack_kind v.v_kind 
 
 let is_reg_arr v =
-  v.v_kind = Reg Direct && is_ty_arr v.v_ty
+  is_reg_direct_kind v.v_kind && is_ty_arr v.v_ty
 
 let is_stack_array x =
   let x = L.unloc x in
@@ -526,8 +508,6 @@ let ( ** ) e1 e2 =
 
 let cnst i = Pconst i
 let icnst i = cnst (Z.of_int i)
-
-let cast64 e = Papp1 (Oword_of_int U64, e)
 
 let is_var = function
   | Pvar _ -> true
@@ -556,10 +536,14 @@ let expr_of_lval = function
 (* -------------------------------------------------------------------- *)
 (* Functions over instruction                                           *)
 
-let destruct_move i =
+let rec has_syscall_i i =
   match i.i_desc with
-  | Cassgn(x, tag, ty, e) -> x, tag, ty, e
-  | _                 -> assert false
+  | Csyscall _ -> true
+  | Cassgn _ | Copn _ | Ccall _ -> false
+  | Cif (_, c1, c2) | Cwhile(_, c1, _, c2) -> has_syscall c1 || has_syscall c2
+  | Cfor (_, _, c) -> has_syscall c
+
+and has_syscall c = List.exists has_syscall_i c
 
 (* -------------------------------------------------------------------- *)
 let clamp (sz : wsize) (z : Z.t) =
@@ -570,5 +554,5 @@ let clamp_pe (sz : pelem) (z : Z.t) =
 
 
 (* --------------------------------------------------------------------- *)
-type 'info sfundef = Expr.stk_fun_extra * 'info func 
-type 'info sprog   = 'info sfundef list * Expr.sprog_extra
+type ('info,'asm) sfundef = Expr.stk_fun_extra * ('info,'asm) func 
+type ('info,'asm) sprog   = ('info,'asm) sfundef list * Expr.sprog_extra

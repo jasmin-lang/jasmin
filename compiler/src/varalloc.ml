@@ -52,14 +52,14 @@ let incr_liverange r x d : liverange =
   let g = Mv.add x i g in
   Mint.add s g r
 
-let live_ranges_stmt (alias: Alias.alias) (ptr_classes: Sv.t) d c =
+let live_ranges_stmt pd (alias: Alias.alias) (ptr_classes: Sv.t) d c =
 
 let stack_pointers = Hv.create 117 in
 
-let get_stack_pointer x =
+let get_stack_pointer pd x =
   try Hv.find stack_pointers x
   with Not_found ->
-    let r = V.mk x.v_name (Stack Direct) u64 x.v_dloc x.v_annot in
+    let r = V.mk x.v_name (Stack Direct) (tu pd) x.v_dloc x.v_annot in
     Hv.add stack_pointers x r;
     r
 in
@@ -75,7 +75,7 @@ let preprocess_liveset (s: Sv.t) : Sv.t =
           else Sv.add r s
         in
         if is_stk_ptr_kind x.v_kind
-        then Sv.add (get_stack_pointer x) s
+        then Sv.add (get_stack_pointer pd x) s
         else s
       else
         if is_stack_kind x.v_kind
@@ -94,7 +94,7 @@ in
 
 let rec live_ranges_instr_r d_acc =
   function
-  | (Cassgn _ | Copn _ | Ccall _) -> d_acc
+  | (Cassgn _ | Copn _ | Csyscall _ | Ccall _) -> d_acc
   | Cif (_, s1, s2)
   | Cwhile (_, s1, _, s2) ->
      let d_acc = live_ranges_stmt d_acc s1 in
@@ -120,7 +120,7 @@ let check_class f_name f_loc ptr_classes args x s =
 
 type alignment = wsize Hv.t
 
-let classes_alignment (onfun : funname -> param_info option list) gtbl alias c = 
+let classes_alignment (onfun : funname -> param_info option list) (gtbl: alignment) alias c =
   let ltbl = Hv.create 117 in
   let calls = ref Sf.empty in
 
@@ -174,7 +174,7 @@ let classes_alignment (onfun : funname -> param_info option list) gtbl alias c =
   let rec add_ir i_desc =
     match i_desc with
     | Cassgn(x,_,_,e) -> add_lv x; add_e e
-    | Copn(xs,_,_,es) -> add_lvs xs; add_es es
+    | Copn(xs,_,_,es) | Csyscall(xs,_,es) -> add_lvs xs; add_es es
     | Cif(e,c1,c2) | Cwhile (_,c1,e,c2) -> 
       add_e e; add_c c1; add_c c2
     | Cfor _ -> assert false 
@@ -193,16 +193,19 @@ let classes_alignment (onfun : funname -> param_info option list) gtbl alias c =
   ltbl, !calls
  
 (* --------------------------------------------------- *)
-let get_slot coloring x = 
+let err_var_not_initialized x =
+  hierror ~loc:Lnone "variable “%a” (declared at %a) may not be initialized" (Printer.pp_var ~debug:true) x Location.pp_loc x.v_dloc
+
+let get_slot coloring x =
   let sz = size_of x.v_ty in
   try Mv.find x (Mint.find sz coloring)
-  with Not_found -> Format.eprintf "get_slot %a@." (Printer.pp_var ~debug:true) x; assert false 
+  with Not_found -> err_var_not_initialized x
 
 let get_stack_pointer stack_pointers x =
   try Hv.find stack_pointers x
   with Not_found -> assert false 
 
-let init_slots stack_pointers alias coloring fv =
+let init_slots pd stack_pointers alias coloring fv =
   let slots = ref Sv.empty in
   let lalloc = Hv.create 1017 in
   let add_slot slot = slots := Sv.add slot !slots in
@@ -234,11 +237,11 @@ let init_slots stack_pointers alias coloring fv =
       let sz = size_of xp.v_ty in
       let slot =
         try Mv.find xp (Mint.find sz coloring)
-        with Not_found -> assert false in
+        with Not_found -> err_var_not_initialized v in
       add_slot slot;
       add_local v (StackPtr slot)
-    | Reg (Pointer _) ->
-      let p = V.mk v.v_name (Reg Direct) u64 v.v_dloc v.v_annot in
+    | Reg (k, Pointer _) ->
+      let p = V.mk v.v_name (Reg(k, Direct)) (tu pd) v.v_dloc v.v_annot in
       add_local v (RegPtr p) 
     | _ -> () in
 
@@ -246,24 +249,24 @@ let init_slots stack_pointers alias coloring fv =
   !slots, lalloc
 
 (* --------------------------------------------------- *)
-let all_alignment ctbl alias params lalloc =
+let all_alignment pd ctbl alias ret params lalloc =
 
   let get_align c = try Hv.find ctbl c.Alias.in_var with Not_found -> U8 in
-  let doparam x =
+  let doparam i x =
     match x.v_kind with
-    | Reg Direct -> None
-    | Reg (Pointer writable) ->
+    | Reg (_, Direct) -> None
+    | Reg (_, Pointer _) ->
       let c = Alias.normalize_var alias x in
       assert (V.equal x c.in_var && c.scope = E.Slocal);
       let pi_ptr = 
         match Hv.find lalloc x with
         | RegPtr p -> p
         | _ | exception Not_found -> assert false in
-      let pi_writable = writable = Writable in
+      let pi_writable = List.mem (Some i) ret in
       let pi_align = get_align c in 
       Some { pi_ptr; pi_writable; pi_align } 
     | _ -> assert false in
-  let params = List.map doparam params in
+  let params = List.mapi doparam params in
 
   let atbl = Hv.create 1007 in
   let set slot ws = 
@@ -279,7 +282,7 @@ let all_alignment ctbl alias params lalloc =
         | _ -> assert false in
       set slot ws
     | StackPtr(slot) ->
-      set slot U64 in
+      set slot pd in
   Hv.iter doalloc lalloc;
   params, atbl
 
@@ -330,7 +333,7 @@ let alloc_local_stack size slots atbl =
   stk_align, slots, !size, !padding
 
 (* --------------------------------------------------- *)
-let alloc_stack_fd get_info gtbl fd =
+let alloc_stack_fd pd is_move_op get_info gtbl fd =
   if !Glob_options.debug then Format.eprintf "ALLOC STACK %s@." fd.f_name.fn_name;
   let alias =
     let get_cc fn = (get_info fn).sao_return in
@@ -347,28 +350,34 @@ let alloc_stack_fd get_info gtbl fd =
       classes Sv.empty in
   Mv.iter (check_class fd.f_name.fn_name fd.f_loc ptr_classes ptr_args) classes;
 
-  let fd = Live.live_fd false fd in
+  let fd = Live.live_fd is_move_op false fd in
   let (_, ranges), stack_pointers =
-    live_ranges_stmt alias ptr_classes (0, Mint.empty) fd.f_body in
+    live_ranges_stmt pd alias ptr_classes (0, Mint.empty) fd.f_body in
 
   let coloring = Mint.mapi G.solve ranges in
 
-  let slots, lalloc = init_slots stack_pointers alias coloring (vars_fc fd) in
+  let slots, lalloc = init_slots pd stack_pointers alias coloring (vars_fc fd) in
 
   let getfun fn = (get_info fn).sao_params in
   let ctbl, sao_calls =
     try classes_alignment getfun gtbl alias fd.f_body
     with HiError e -> raise (HiError { e with err_funname = Some fd.f_name.fn_name })
   in
-  let sao_params, atbl = all_alignment ctbl alias fd.f_args lalloc in
-  let sao_return = 
+  let sao_return =
     match fd.f_cc with
-    | Export -> List.map (fun _ -> None) fd.f_ret 
+    | Export -> List.map (fun _ -> None) fd.f_ret
     | Subroutine {returned_params} -> returned_params
     | Internal -> assert false in
+
+  let sao_params, atbl = all_alignment pd ctbl alias sao_return fd.f_args lalloc in
+
   let sao_align, sao_slots, sao_size, padding = alloc_local_stack 0 (Sv.elements slots) atbl in
+
   assert (padding = 0); (* we should not need padding for local variables *)
-    
+
+  (* FIXME: 1- make this U128 arch (call-conv) dependent; 2- make it a semantic requirement. *)
+  let sao_align = if has_syscall fd.f_body && wsize_lt sao_align U128 then U128 else sao_align in
+
   let sao_alloc = List.iter (Hv.remove lalloc) fd.f_args; lalloc in
 
   let sao_modify_rsp = 
@@ -412,13 +421,13 @@ let alloc_mem gtbl globs =
   List.iter doslot gao_slots;
   { gao_data = Array.to_list t; gao_align; gao_slots; gao_size }
 
-let alloc_stack_prog (globs, fds) =
+let alloc_stack_prog pd is_move_op (globs, fds) =
   let gtbl = Hv.create 107 in
   let ftbl = Hf.create 107 in
   let get_info fn = Hf.find ftbl fn in
   let set_info fn sao = Hf.add ftbl fn sao in
   let doit fd = 
-    let sao = alloc_stack_fd get_info gtbl fd in
+    let sao = alloc_stack_fd pd is_move_op get_info gtbl fd in
     set_info fd.f_name sao in
   List.iter doit (List.rev fds);
   let gao =  alloc_mem gtbl globs in

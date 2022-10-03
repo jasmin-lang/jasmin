@@ -1,0 +1,9 @@
+export
+fn asmgen_ice_20220828()
+   -> reg u8 {
+   reg bool unitialized;
+   reg u8 byte;
+   byte = #SETcc(unitialized);
+   return byte;
+
+}

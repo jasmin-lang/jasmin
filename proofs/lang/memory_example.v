@@ -36,20 +36,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-
-Lemma zip_nil S T (m: seq T) : zip [::] m = @ nil (S * T).
-Proof. by case: m. Qed.
-
 Local Open Scope Z_scope.
-
-Lemma aligned_factor s n :
-  s != 0 →
-  reflect (∃ q, n = q * s) (n mod s == 0).
-Proof.
-  move => /eqP s_pos; case: eqP => /Zmod_divides => - /(_ s_pos) h; constructor.
-  - case: h => c; exists c; Psatz.lia.
-  case => c ?; apply: h; exists c; Psatz.lia.
-Qed.
 
 Lemma orX (a b: bool) (P: Prop) :
   (a → P) →
@@ -61,10 +48,6 @@ Proof. by case: a => // _ /(_ erefl); case: b. Qed.
 
 Section WITH_POINTER_DATA.
 Context {pd: PointerData}.
-
-Lemma subxx p :
-  sub p p = 0.
-Proof. by rewrite -{1}(add_0 p) sub_add. Qed.
 
 Lemma add_p_opp_sub_add_p (p q: pointer) (n: Z) :
   add p (- sub (add p n) q + n) = q.
@@ -200,13 +183,13 @@ Module MemoryI : MemoryT.
   Qed.
 
   Lemma is_alloc_set m p w m' p' : set m p w = ok m' -> is_alloc m' p' = is_alloc m p'.
-  Proof. by rewrite /set; t_xrbindP => _ _ <-. Qed.
+  Proof. by rewrite /set; t_xrbindP => _ <-. Qed.
 
   Lemma setP m p w p' m' :
     set m p w = ok m' ->
     get m' p' = if p == p' then ok w else get m p'.
   Proof.
-    rewrite /set /get; t_xrbindP => _ /assertP ha <- /=.
+    rewrite /set /get; t_xrbindP => ha <- /=.
     rewrite /is_init /is_alloc /=.
     case heq: is_zalloc => //=; last by move: ha heq; rewrite /is_alloc; case:eqP => // <- ->.
     rewrite /is_zalloc Mz.setP.
@@ -216,7 +199,7 @@ Module MemoryI : MemoryT.
   Qed.
 
   Lemma get_valid8 m p w : get m p = ok w -> is_alloc m p.
-  Proof. by rewrite /get; t_xrbindP => _ /assertP /andP []. Qed.
+  Proof. by rewrite /get; t_xrbindP => /andP []. Qed.
 
   #[ global ]
   Instance CM : coreMem pointer mem :=
@@ -568,9 +551,9 @@ Module MemoryI : MemoryT.
       write m p v = ok m' →
       P m  = P m'.
   Proof.
-    move => K m p s v m'; rewrite /write; t_xrbindP => _ _.
+    move => K m p s v m'; rewrite /write; t_xrbindP => _.
     elim: ziota m => //=; first by move=> ? [->].
-    by move=> ?? hrec; rewrite {2}/set; t_xrbindP => ??? /assertP /K h <- /hrec <-.
+    by move=> ?? hrec; rewrite {2}/set; t_xrbindP => ?? /K h <- /hrec <-.
   Qed.
 
   Lemma top_stack_write_mem m p s (v: word s) m' :

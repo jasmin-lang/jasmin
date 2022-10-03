@@ -1,9 +1,10 @@
 (* ** Imports and settings *)
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import expr ZArith sem compiler_util.
 Import all_ssreflect all_algebra.
 Import Utf8.
 Import oseq.
+Require Import flag_combination.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -12,6 +13,11 @@ Unset Printing Implicit Defensive.
 Local Open Scope seq_scope.
 Local Open Scope vmap_scope.
 Local Open Scope Z_scope.
+
+
+Section WITH_PARAMS.
+
+Context {fcp : FlagCombinationParams}.
 
 Definition e2bool (e:pexpr) : exec bool := 
   match e with
@@ -454,6 +460,11 @@ Fixpoint const_prop_ir (m:cpm) ii (ir:instr_r) : cpm * cmd :=
     let (m,xs) := const_prop_rvs m xs in
     (m, [:: MkI ii (Copn xs t o es) ])
 
+  | Csyscall xs o es =>
+    let es := map (const_prop_e m) es in
+    let (m,xs) := const_prop_rvs m xs in
+    (m, [:: MkI ii (Csyscall xs o es) ])
+
   | Cif b c1 c2 =>
     let b := const_prop_e m b in
     match is_bool b with
@@ -510,3 +521,4 @@ Definition const_prop_prog (p:prog) : prog := map_prog const_prop_fun p.
 End Section.
 
 End ASM_OP.
+End WITH_PARAMS.

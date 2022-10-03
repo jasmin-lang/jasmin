@@ -170,16 +170,24 @@ let assign_arr params a x e =
   | None, _ | _, None -> a
   | Some d, Some s -> merge_slices params a d s
 
+let syscall_cc (o : 'a Syscall_t.syscall_t) =
+  match o with
+  | Syscall_t.RandomBytes _ -> [Some 0]
+
+let link_array_return params a xs es cc =
+  List.fold_left2 (fun a x ->
+          function
+          | None -> a
+          | Some n -> assign_arr params a x (List.nth es n)
+        )
+        a xs cc
+
+
 let rec analyze_instr_r params cc a =
   function
   | Cfor _ -> assert false
-  | Ccall (_, xs, fn, es) ->
-     List.fold_left2 (fun a x ->
-         function
-         | None -> a
-         | Some n -> assign_arr params a x (List.nth es n)
-       )
-       a xs (cc fn)
+  | Ccall (_, xs, fn, es) -> link_array_return params a xs es (cc fn)
+  | Csyscall (xs, o, es) -> link_array_return params a xs es (syscall_cc o)
   | Cassgn (x, _, ty, e) -> if is_ty_arr ty then assign_arr params a x e else a
   | Copn _ -> a
   | Cif(_, s1, s2) ->

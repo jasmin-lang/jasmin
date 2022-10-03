@@ -1,37 +1,24 @@
-(* ** License
- * -----------------------------------------------------------------------
- * Copyright 2016--2017 IMDEA Software Institute
- * Copyright 2016--2017 Inria
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * ----------------------------------------------------------------------- *)
-
 (* ** Imports and settings *)
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import compiler_util expr ZArith constant_prop.
+Require Import
+  flag_combination
+  sem_pexpr_params.
 Import all_ssreflect.
 Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+Module Import E.
+
+  Definition pass : string := "propagate inline".
+
+  Definition ii_loop_iterator := ii_loop_iterator pass.
+
+End E.
+
 
 Fixpoint use_mem (e : pexpr) :=
   match e with 
@@ -89,30 +76,19 @@ Definition incl (pi1 pi2:pimap) :=
 (* ** Transformation                                                          *)
 (* -------------------------------------------------------------------------- *)
 
+Section WITH_PARAMS.
+
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}.
+
 Definition sbneq e1 e2 := 
   snot (sbeq e1 e2).
 
-Definition lower_cfc c es := 
-  match es with
-  | [:: Of; Cf; Sf; Zf] =>
-    Some match c with
-    | CFC_O => Of
-    | CFC_B => Cf
-    | CFC_E => Zf
-    | CFC_S => Sf
-    | CFC_L => sbneq Of Sf
-    | CFC_BE => sor Cf Zf
-    | CFC_LE => sor (sbneq Of Sf) Zf
-    end
-  | _ => None
-  end.
-
-Definition scfc c es := 
-  let (n, cfc) := cf_tbl c in
-  match lower_cfc cfc es with
-  | Some e' => if n then snot e' else e'
-  | None    => (* never happen *) PappN (Ocombine_flags c) es
-  end.
+Definition scfc (cf : combine_flags) (es : seq pexpr) : pexpr :=
+  if es is [:: eof; ecf; esf; ezf ]
+  then cf_xsem snot sand sor sbeq eof ecf esf ezf cf
+  else PappN (Ocombine_flags cf) es. (* Never happens. *)
 
 Fixpoint pi_e (pi:pimap) (e:pexpr) := 
   match e with
@@ -173,18 +149,6 @@ Definition set_lv (pi:pimap) x tag (e:pexpr) :=
     else pi
   else pi.
 
-Module Import E.
-
-  Definition pass : string := "propagate inline".
-
-  Definition ii_loop_iterator := ii_loop_iterator pass.
-
-End E.
-
-Section ASM_OP.
-
-Context `{asmop:asmOp}.
-
 Section LOOP.
 
   Context (pi_i : pimap -> instr -> cexec (pimap * instr)). 
@@ -241,6 +205,13 @@ Fixpoint pi_i (pi:pimap) (i:instr) :=
     let (pi, xs) := pi_lvs pi xs in
     ok (pi, MkI ii (Copn xs tag o es))
 
+  | Csyscall xs o es =>
+    let es := pi_es pi es in
+    (* Remark: for uprog it is not necessary *)
+    let pi := remove_m pi in
+    let (pi, xs) := pi_lvs pi xs in
+    ok (pi, MkI ii (Csyscall xs o es))
+
   | Cif e c1 c2 => 
     let e := pi_e pi e in
     Let pic1 := pi_c pi_i pi c1 in
@@ -281,4 +252,4 @@ Definition pi_prog (p:prog) :=
 
 End Section.
 
-End ASM_OP.
+End WITH_PARAMS.

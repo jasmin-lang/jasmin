@@ -1,34 +1,9 @@
-(* ** License
- * -----------------------------------------------------------------------
- * Copyright 2016--2017 IMDEA Software Institute
- * Copyright 2016--2017 Inria
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sublicense, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
- * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- * ----------------------------------------------------------------------- *)
-
-
 (* -------------------------------------------------------------------- *)
 From mathcomp Require Import all_ssreflect all_algebra.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 Require Import xseq strings utils var type values sopn expr arch_decl.
 Require Import compiler_util.
+Require Import sem_pexpr_params.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -43,14 +18,18 @@ Definition of_string (s : string) :=
   assoc strings s.
 
 (* -------------------------------------------------------------------- *)
+Lemma in_enum (r:T) : r \in enum cfinT_finType.
+Proof. apply (mem_enum (T:=cfinT_finType)). Qed.
+
+Hint Resolve in_enum : core.
+
 Lemma to_stringK : pcancel to_string of_string.
 Proof.
 move=> r; rewrite /of_string stringsE; apply /(@assocP _ ceqT_eqType).
 + rewrite -map_comp (map_inj_uniq (T1:=ceqT_eqType)) //.
   + by apply: (enum_uniq (T:=cfinT_finType)).
   by apply inj_to_string.
-apply: (map_f (T1:=ceqT_eqType) (T2:=prod_eqType _ ceqT_eqType)).
-by rewrite (mem_enum (T:=cfinT_finType)).
+by apply: (map_f (T1:=ceqT_eqType) (T2:=prod_eqType _ ceqT_eqType)).
 Qed.
 
 (* -------------------------------------------------------------------- *)
@@ -61,12 +40,6 @@ Proof.
   apply : (assoc_inj (U:= ceqT_eqType) _ h).
   by rewrite stringsE -map_comp (map_inj_uniq (T1:=ceqT_eqType)) ?(enum_uniq (T:=cfinT_finType)).
 Qed.
-
-Lemma inj_of_string s1 s2 r :
-     of_string s1 = Some r
-  -> of_string s2 = Some r
-  -> s1 = s2.
-Proof. by move=> /of_stringI <- /of_stringI <-. Qed.
 
 (* -------------------------------------------------------------------- *)
 Definition to_var r :=
@@ -101,6 +74,18 @@ Section ARCH.
 
 Context `{arch : arch_decl}.
 
+Lemma to_var_reg_neq_regx (r : reg_t) (x : regx_t) :
+  to_var r <> to_var x.
+Proof. rewrite /to_var => -[]; apply: inj_toS_reg_regx. Qed.
+
+Lemma to_var_reg_neq_xreg (r : reg_t) (x : xreg_t) :
+  to_var r <> to_var x.
+Proof. move=> [] hsize _; apply/eqP/reg_size_neq_xreg_size:hsize. Qed.
+
+Lemma to_var_regx_neq_xreg (r : regx_t) (x : xreg_t) :
+  to_var r <> to_var x.
+Proof. move=> [] hsize _; apply/eqP/reg_size_neq_xreg_size:hsize. Qed.
+
 Definition sopn_implicit_arg (i: implicit_arg) :=
   match i with
   | IArflag r => sopn.IArflag (to_var r)
@@ -116,16 +101,16 @@ Definition sopn_arg_desc (ad:arg_desc) :=
 End ARCH.
 
 (* Extra ops are non-existing architecture-specific asm instructions that we
-   replace by real asm instructions during the asmgen pass.
-*)
-Class asm_extra (reg xreg rflag cond asm_op extra_op : Type) := 
-  { _asm   :> asm reg xreg rflag cond asm_op
+ * replace by real asm instructions during the asmgen pass.
+ *)
+Class asm_extra (reg regx xreg rflag cond asm_op extra_op : Type) :=
+  { _asm   :> asm reg regx xreg rflag cond asm_op
   ; _extra :> asmOp extra_op (* description of extra ops *)
   ; to_asm : instr_info -> extra_op -> lvals -> pexprs -> cexec (asm_op_msb_t * lvals * pexprs)
       (* how to compile extra ops into asm op *)
   }.
 
-Definition extra_op_t {reg xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg xreg rflag cond asm_op extra_op} := extra_op.
+Definition extra_op_t {reg regx xreg rflag cond asm_op extra_op} {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op} := extra_op.
 
 Section AsmOpI.
 
@@ -160,16 +145,65 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
     ; i_out    := map sopn_arg_desc id.(id_out)
     ; tout     := id.(id_tout)
     ; semi     := id.(id_semi)
-    ; semu     := @vuincl_app_sopn_v_eq _ _ id.(id_semi) id.(id_tin_narr)
+    ; semu     := @vuincl_app_sopn_v _ _ id.(id_semi) id.(id_tin_narr)
     ; wsizei   := id.(id_wsize)
     ; i_safe   := id.(id_safe) |}
  | ExtOp o => asm_op_instr o
  end.
 
+(* FIXME: remove this duplication (cf src/pretyping.ml) -> should be okay now *)
+Definition sopn_prim_constructor (f:option wsize -> asm_op -> extended_op) (p : prim_constructor asm_op) : sopn.prim_constructor extended_op :=
+  match p with
+  | PrimP x1 x2 => sopn.PrimP x1 (fun ws1 ws2 => f ws1 (x2 ws2))
+  | PrimM x => sopn.PrimM (fun ws => f ws x)
+  | PrimV x => sopn.PrimV (fun ws1 _ v ws2 => f ws1 (x v ws2))
+  | PrimSV x => sopn.PrimV (fun ws1 s v ws2 => f ws1 (x s v ws2))
+  | PrimX x => sopn.PrimX (fun ws1 ws2 ws3 => f ws1 (x ws2 ws3))
+  | PrimVV x => sopn.PrimVV (fun ws1 v1 ws2 v2 ws3 => f ws1 (x v1 ws2 v2 ws3))
+  end.
+(* duplication with lang/sopn.v -> maybe we can have one version to rule them all? *)
+Definition map_prim_constructor {A B} (f:A -> B) (p : sopn.prim_constructor A) :=
+  match p with
+  | sopn.PrimP x1 x2 => sopn.PrimP x1 (fun ws1 ws2 => f (x2 ws1 ws2))
+  | sopn.PrimM x => sopn.PrimM (fun ws => f (x ws))
+  | sopn.PrimV x => sopn.PrimV (fun ws1 s v ws2 => f (x ws1 s v ws2))
+  | sopn.PrimX x => sopn.PrimX (fun ws1 ws2 ws3 => f (x ws1 ws2 ws3))
+  | sopn.PrimVV x => sopn.PrimVV (fun ws1 v1 ws2 v2 ws3 => f (x ws1 v1 ws2 v2 ws3))
+  end.
+Definition sopn_prim_string_base (o : seq (string * prim_constructor asm_op)) :=
+  let to_ex ws o := BaseOp (ws, o) in
+  map (fun '(s, p) => (s, sopn_prim_constructor to_ex p)) o.
+Definition sopn_prim_string_extra (o : seq (string * sopn.prim_constructor extra_op)) :=
+  let to_ex o := ExtOp o in
+  map (fun '(s, p) => (s, map_prim_constructor to_ex p)) o.
+
+Definition get_prime_op : seq (string * sopn.prim_constructor extended_op) :=
+  sopn_prim_string_base prim_string ++ sopn_prim_string_extra sopn.prim_string.
+
 Instance eqTC_extended_op : eqTypeC extended_op :=
   { ceqP := extended_op_eq_axiom }.
 
 Global Instance asm_opI : asmOp extended_op :=
-  { sopn.asm_op_instr := get_instr_desc }.
+  { sopn.asm_op_instr := get_instr_desc;
+    sopn.prim_string := get_prime_op }.
 
 End AsmOpI.
+
+Section SEM_PEXPR_PARAMS.
+
+  Context
+    {reg regx xreg rflag cond asm_op extra_op : Type}
+    {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
+    {syscall_state : Type}
+    {scs : syscall_sem syscall_state}.
+
+  #[export]
+  Instance spp_of_asm_e : SemPexprParams extended_op syscall_state :=
+    {
+      _pd := arch_pd;
+      _asmop := asm_opI;
+      _fcp := ad_fcp;
+      _sc_sem := scs;
+    }.
+
+End SEM_PEXPR_PARAMS.

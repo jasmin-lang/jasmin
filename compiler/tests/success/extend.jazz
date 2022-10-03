@@ -46,8 +46,8 @@ export
 fn test_u128(reg u64 ptr_, reg u64 v, reg u32 w) {
 reg u128 x, y;
 
-x = #MOVD(v);
-y = #MOVD_32(w);
+x = (128u)v;
+y = (128u)w;
 
 x ^= y;
 
@@ -63,9 +63,9 @@ export
 fn test_u256(reg u64 ptr_, reg u64 v, reg u32 w) {
 reg u256 x, y;
 
-y = (256u)#VMOV(v);
+y = (256u)v;
 x ^= y;
-y = (256u)#VMOV_32(w);
+y = (256u)w;
 x ^= y;
 (u128)[ptr_ + 0] = x;
 (u256)[ptr_ + 16] = x;
@@ -88,4 +88,33 @@ b = (16u) a;
 c = (32u) b;
 d = (64u) c;
 [p + 8] = d;
+}
+
+export
+fn test_truncate(reg u256 y) -> reg u32 {
+  reg u128 x;
+  reg u64 r s;
+  reg u32 e f;
+  x = y;
+
+  r = y;
+  s = x;
+  s ^= r;
+
+  e = y;
+  f = x;
+  f ^= e;
+
+  f ^= s;
+  return f;
+}
+
+export
+fn test_avx_to_mem(reg u64 p, reg u256 y) {
+  reg u128 x;
+  x = y;
+  (u32)[p] = x;
+  (u32)[p + 4] = y;
+  [p + 8] = x;
+  [p + 16] = y;
 }

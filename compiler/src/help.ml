@@ -1,7 +1,8 @@
 open Pretyping
 
-let show_intrinsics fmt =
+let show_intrinsics asmOp fmt =
   let index =
+    let open Sopn in
     function
     | PrimM _ -> 0
     | PrimP _ -> 1
@@ -20,7 +21,7 @@ let show_intrinsics fmt =
   List.iter (fun (n, i) ->
       let j = index i in
       intrinsics.(j) <- n :: intrinsics.(j))
-    prim_string;
+    (prim_string asmOp);
   Array.iter2 (fun h m ->
       Format.fprintf fmt "Intrinsics accepting %s:@." h;
       m |>
@@ -29,5 +30,5 @@ let show_intrinsics fmt =
       Format.fprintf fmt "@."
     ) headers intrinsics
 
-let show_intrinsics () =
-  show_intrinsics Format.std_formatter
+let show_intrinsics asmOp () =
+  show_intrinsics asmOp Format.std_formatter

@@ -1,5 +1,7 @@
 open Utils
 (*--------------------------------------------------------------------- *)
+let version_string = "Jasmin Compiler @VERSION@"
+(*--------------------------------------------------------------------- *)
 let infile = ref ""
 let outfile = ref ""
 let latexfile = ref ""
@@ -7,11 +9,14 @@ let debug = ref false
 let print_list = ref []
 let ecfile = ref ""
 let ec_list = ref []
+let ec_array_path = ref Filename.current_dir_name
 let check_safety = ref false
 let safety_param = ref None
 let safety_config = ref None
 let stop_after = ref None
 let safety_makeconfigdoc = ref None   
+
+let help_version = ref false
 let help_intrinsics = ref false
 type color = | Auto | Always | Never
 let color = ref Auto
@@ -44,6 +49,9 @@ let set_all_print () =
 
 let set_ec f =
   ec_list := f :: !ec_list
+
+let set_ec_array_path p =
+  ec_array_path := p
 
 let set_constTime () = model := ConstantTime
 let set_safety () = model := Safety
@@ -82,6 +90,18 @@ let set_idirs s =
   | [s1; s2] -> idirs := (s1,s2)::!idirs
   | _ -> hierror ~loc:Lnone ~kind:"parsing arguments" "bad format for -I : ident:path expected"
 
+type call_conv = Linux | Windows
+
+let call_conv = ref Linux (* Default value is chosen on start-up in `main_compiler` *)
+
+let set_cc cc = 
+  let cc = 
+    match cc with
+    | "windows" -> Windows
+    | "linux" -> Linux
+    | _ -> assert false
+  in call_conv := cc
+
 let print_strings = function
   | Compiler.Typing                      -> "typing"   , "typing"
   | Compiler.ParamsExpansion             -> "cstexp"   , "param expansion"
@@ -105,6 +125,7 @@ let print_strings = function
   | Compiler.RegAllocation               -> "ralloc"   , "register allocation"
   | Compiler.DeadCode_RegAllocation      -> "rallocd"  , "dead code after register allocation"
   | Compiler.Linearization               -> "linear"   , "linearization"
+  | Compiler.ClearStack                  -> "clearstack", "stack clearing"
   | Compiler.Tunneling                   -> "tunnel"   , "tunneling"
   | Compiler.Assembly                    -> "asm"      , "generation of assembly"
 
@@ -117,6 +138,7 @@ let stop_after_option p =
   ("-until_"^s, Arg.Unit (set_stop_after p), "stop after "^msg)
 
 let options = [
+    "-version" , Arg.Set help_version  , "display version information about this compiler (and exits)";
     "-o"       , Arg.Set_string outfile, "[filename]: name of the output file";
     "-debug"   , Arg.Set debug         , ": print debug information";
     "-I"       , Arg.String set_idirs  , "[ident:path]: bind ident to path for from ident require ...";
@@ -127,6 +149,7 @@ let options = [
     "-noset0"   , Arg.Clear set0        , ": do not use set0 option";
     "-ec"       , Arg.String  set_ec    , "[f]: extract function [f] and its dependencies to an easycrypt file";
     "-oec"     ,  Arg.Set_string ecfile , "[filename]: use filename as output destination for easycrypt extraction";
+    "-oecarray" , Arg.String set_ec_array_path, "[dir]: output easycrypt array theories to the given path";
     "-CT" , Arg.Unit set_constTime      , ": generates model for constant time verification";
     "-checkCT", Arg.Unit set_ct         , ": checks that the full program is constant time (using a type system)";
     "-checkCTon", Arg.String set_ct_on  , "[f]: checks that the function [f] is constant time (using a type system)";
@@ -156,6 +179,7 @@ let options = [
     "-print-dependencies", Arg.Set print_dependencies, ": print dependencies and exit";
     "-intel", Arg.Unit (set_syntax `Intel), "use intel syntax (default is AT&T)"; 
     "-ATT", Arg.Unit (set_syntax `ATT), "use AT&T syntax (default is AT&T)"; 
+    "-call-conv", Arg.Symbol (["windows"; "linux"], set_cc), ": select calling convention (default depend on host architecture)";
   ] @  List.map print_option Compiler.compiler_step_list @ List.map stop_after_option Compiler.compiler_step_list
 
 let usage_msg = "Usage : jasminc [option] filename"

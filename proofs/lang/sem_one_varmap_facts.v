@@ -4,7 +4,6 @@ Require psem_facts sem_one_varmap.
 Import Utf8.
 Import all_ssreflect.
 Import low_memory.
-Require Import arch_decl arch_extra.
 Import psem psem_facts sem_one_varmap.
 
 Set Implicit Arguments.
@@ -14,10 +13,12 @@ Unset Printing Implicit Defensive.
 Section PROG.
 
 Context
-  `{asm_e : asm_extra}
-  (p: sprog)
-  (extra_free_registers: instr_info -> option var)
-  (var_tmp: var).
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  {ovm_i : one_varmap_info}
+  (p : sprog)
+  (extra_free_registers : instr_info -> option var)
+  (var_tmp : var).
 
 Lemma wf_kill_var x vm: wf_vm vm -> wf_vm (kill_var x vm).
 Proof.
@@ -55,6 +56,12 @@ Proof. by move => ii s1 s2 x tg ty e v v' ok_v ok_v' /write_lval_stack_stable. Q
 Lemma Hopn : sem_Ind_opn p Pi_r.
 Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_stack_stable. Qed.
 
+Lemma Hsyscall : sem_Ind_syscall p Pi_r.
+Proof. 
+  move => ii s1 s2 o xs es scs m ves vs hes h; have {h} := exec_syscallS h; move=> [ho _] /write_lvals_stack_stable hw.
+  by rewrite /Pi_r ho.
+Qed.
+
 Lemma Hif_true : sem_Ind_if_true p extra_free_registers var_tmp Pc Pi_r.
 Proof. by []. Qed.
 
@@ -91,32 +98,32 @@ Lemma sem_stack_stable k s1 c s2 :
   sem p extra_free_registers var_tmp k s1 c s2 → emem s1 ≡ emem s2.
 Proof.
   exact:
-    (@sem_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
-              Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc k s1 c s2).
+    (@sem_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
+              Hnil Hcons HmkI Hassgn Hopn Hsyscall Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc k s1 c s2).
 Qed.
 
 Lemma sem_I_stack_stable k s1 i s2 :
   sem_I p extra_free_registers var_tmp k s1 i s2 → emem s1 ≡ emem s2.
 Proof.
   exact:
-    (@sem_I_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
-              Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc k s1 i s2).
+    (@sem_I_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
+              Hnil Hcons HmkI Hassgn Hopn Hsyscall Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc k s1 i s2).
 Qed.
 
 Lemma sem_i_stack_stable ii k s1 i s2 :
   sem_i p extra_free_registers var_tmp ii k s1 i s2 → emem s1 ≡ emem s2.
 Proof.
   exact:
-    (@sem_i_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
-              Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc ii k s1 i s2).
+    (@sem_i_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
+              Hnil Hcons HmkI Hassgn Hopn Hsyscall Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc ii k s1 i s2).
 Qed.
 
 Lemma sem_call_stack_stable ii k s1 fn s2 :
   sem_call p extra_free_registers var_tmp ii k s1 fn s2 → emem s1 ≡ emem s2.
 Proof.
   exact:
-    (@sem_call_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
-              Hnil Hcons HmkI Hassgn Hopn Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc ii k s1 fn s2).
+    (@sem_call_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
+              Hnil Hcons HmkI Hassgn Hopn Hsyscall Hif_true Hif_false Hwhile_true Hwhile_false Hcall Hproc ii k s1 fn s2).
 Qed.
 
 End STACK_STABLE.
@@ -177,6 +184,15 @@ Proof. move => ii s1 s2 x tg ty e v v' ok_v ok_v'; exact: vrvP. Qed.
 Lemma Hopn_nw : sem_Ind_opn p Pi_r.
 Proof. move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => vs' vs ok_vs ok_vs'; exact: vrvsP. Qed.
 
+Lemma Hsyscall_nw : sem_Ind_syscall p Pi_r.
+Proof.
+  move => ii s1 s2 o xs es scs m ves vs hes ho hw.
+  have h1 := vrvsP hw; rewrite /Pi_r.
+  apply: vmap_eq_exceptT; last by apply: vmap_eq_exceptI h1; SvD.fsetdec.
+  apply: (vmap_eq_exceptI (s1:= syscall_kill)); first by SvD.fsetdec.
+  by move=> y /= /Sv_memP /negPf; rewrite /vm_after_syscall kill_varsE => ->.
+Qed.
+
 Lemma Hif_true_nw : sem_Ind_if_true p extra_free_registers var_tmp Pc Pi_r.
 Proof. by []. Qed.
 
@@ -221,8 +237,8 @@ Lemma sem_not_written k s1 c s2 :
   s1 = s2 [\k].
 Proof.
   exact:
-    (@sem_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
-              Hnil_nw Hcons_nw HmkI_nw Hassgn_nw Hopn_nw Hif_true_nw Hif_false_nw Hwhile_true_nw Hwhile_false_nw Hcall_nw Hproc_nw k s1 c s2).
+    (@sem_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
+              Hnil_nw Hcons_nw HmkI_nw Hassgn_nw Hopn_nw Hsyscall_nw Hif_true_nw Hif_false_nw Hwhile_true_nw Hwhile_false_nw Hcall_nw Hproc_nw k s1 c s2).
 Qed.
 
 Lemma sem_I_not_written k s1 i s2 :
@@ -230,8 +246,8 @@ Lemma sem_I_not_written k s1 i s2 :
   s1 = s2 [\k].
 Proof.
   exact:
-    (@sem_I_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
-              Hnil_nw Hcons_nw HmkI_nw Hassgn_nw Hopn_nw Hif_true_nw Hif_false_nw Hwhile_true_nw Hwhile_false_nw Hcall_nw Hproc_nw k s1 i s2).
+    (@sem_I_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
+              Hnil_nw Hcons_nw HmkI_nw Hassgn_nw Hopn_nw Hsyscall_nw Hif_true_nw Hif_false_nw Hwhile_true_nw Hwhile_false_nw Hcall_nw Hproc_nw k s1 i s2).
 Qed.
 
 Lemma sem_call_not_written ii k s1 fn s2 :
@@ -239,8 +255,8 @@ Lemma sem_call_not_written ii k s1 fn s2 :
   s1 = s2 [\k].
 Proof.
   exact:
-    (@sem_call_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
-              Hnil_nw Hcons_nw HmkI_nw Hassgn_nw Hopn_nw Hif_true_nw Hif_false_nw Hwhile_true_nw Hwhile_false_nw Hcall_nw Hproc_nw ii k s1 fn s2).
+    (@sem_call_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
+              Hnil_nw Hcons_nw HmkI_nw Hassgn_nw Hopn_nw Hsyscall_nw Hif_true_nw Hif_false_nw Hwhile_true_nw Hwhile_false_nw Hcall_nw Hproc_nw ii k s1 fn s2).
 Qed.
 
 End NOT_WRITTEN.
@@ -304,6 +320,9 @@ Proof. by []. Qed.
 Lemma Hopn_pm : sem_Ind_opn p Pi_r.
 Proof. by []. Qed.
 
+Lemma Hsyscall_pm : sem_Ind_syscall p Pi_r.
+Proof. by []. Qed.
+
 Lemma Hif_true_pm : sem_Ind_if_true p extra_free_registers var_tmp Pc Pi_r.
 Proof. by []. Qed.
 
@@ -320,17 +339,14 @@ Lemma Hcall_pm : sem_Ind_call p extra_free_registers var_tmp Pi_r Pfun.
 Proof. by []. Qed.
 
 Lemma flags_not_magic :
-  disjoint (sv_of_flags rflags) (magic_variables p).
+  disjoint vflags (magic_variables p).
 Proof.
   apply Sv.is_empty_spec => x X.
-  have x_bool : vtype x = sbool.
-  - have := SvD.F.inter_1 X.
-    by move=> /sv_of_flagsP -/(mapP (T1:=ceqT_eqType)) /= [? _ ->].
   have : vtype x = sword Uptr.
   - have := SvD.F.inter_2 X.
     rewrite /magic_variables SvD.F.add_iff Sv.singleton_spec.
     by case => [ <- | -> ].
-  by rewrite x_bool.
+  by rewrite vflagsP //; SvD.fsetdec.
 Qed.
 
 Lemma Hproc_pm : sem_Ind_proc p extra_free_registers var_tmp Pc Pfun.
@@ -355,16 +371,16 @@ Lemma sem_RSP_GD_not_written k s1 c s2 :
   sem p extra_free_registers var_tmp k s1 c s2 → disjoint k (magic_variables p).
 Proof.
   exact:
-    (@sem_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
-              Hnil_pm Hcons_pm HmkI_pm Hassgn_pm Hopn_pm Hif_true_pm Hif_false_pm Hwhile_true_pm Hwhile_false_pm Hcall_pm Hproc_pm k s1 c s2).
+    (@sem_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
+              Hnil_pm Hcons_pm HmkI_pm Hassgn_pm Hopn_pm Hsyscall_pm Hif_true_pm Hif_false_pm Hwhile_true_pm Hwhile_false_pm Hcall_pm Hproc_pm k s1 c s2).
 Qed.
 
 Lemma sem_I_RSP_GD_not_written k s1 i s2 :
   sem_I p extra_free_registers var_tmp k s1 i s2 → disjoint k (magic_variables p).
 Proof.
   exact:
-    (@sem_I_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
-              Hnil_pm Hcons_pm HmkI_pm Hassgn_pm Hopn_pm Hif_true_pm Hif_false_pm Hwhile_true_pm Hwhile_false_pm Hcall_pm Hproc_pm k s1 i s2).
+    (@sem_I_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
+              Hnil_pm Hcons_pm HmkI_pm Hassgn_pm Hopn_pm Hsyscall_pm Hif_true_pm Hif_false_pm Hwhile_true_pm Hwhile_false_pm Hcall_pm Hproc_pm k s1 i s2).
 Qed.
 
 Lemma sem_preserved_RSP_GD k s1 c s2 :
@@ -414,6 +430,9 @@ Proof. by move => ii s1 s2 x tg ty e v v' ok_v ok_v' /write_lval_validw. Qed.
 Lemma validw_stable_opn : sem_Ind_opn p Pi_r.
 Proof. by move => ii s1 s2 tg op xs es; rewrite /sem_sopn; t_xrbindP => ???? /write_lvals_validw. Qed.
 
+Lemma validw_stable_syscall : sem_Ind_syscall p Pi_r.
+Proof. by move => ii s1 s2 o xs es scs m ves vs _ h; have := exec_syscallS h; move=> [_ ho] /write_lvals_validw hw => ??; rewrite ho. Qed.
+
 Lemma validw_stable_if_true : sem_Ind_if_true p extra_free_registers var_tmp Pc Pi_r.
 Proof. by []. Qed.
 
@@ -447,32 +466,32 @@ Lemma sem_validw_stable k s1 c s2 :
   sem p extra_free_registers var_tmp k s1 c s2 → emem s1 ≡ emem s2.
 Proof.
   exact:
-    (@sem_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
-              validw_stable_nil validw_stable_cons validw_stable_mkI validw_stable_assgn validw_stable_opn validw_stable_if_true validw_stable_if_false validw_stable_while_true validw_stable_while_false validw_stable_call validw_stable_proc k s1 c s2).
+    (@sem_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
+              validw_stable_nil validw_stable_cons validw_stable_mkI validw_stable_assgn validw_stable_opn validw_stable_syscall validw_stable_if_true validw_stable_if_false validw_stable_while_true validw_stable_while_false validw_stable_call validw_stable_proc k s1 c s2).
 Qed.
 
 Lemma sem_I_validw_stable k s1 i s2 :
   sem_I p extra_free_registers var_tmp k s1 i s2 → emem s1 ≡ emem s2.
 Proof.
   exact:
-    (@sem_I_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
-              validw_stable_nil validw_stable_cons validw_stable_mkI validw_stable_assgn validw_stable_opn validw_stable_if_true validw_stable_if_false validw_stable_while_true validw_stable_while_false validw_stable_call validw_stable_proc k s1 i s2).
+    (@sem_I_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
+              validw_stable_nil validw_stable_cons validw_stable_mkI validw_stable_assgn validw_stable_opn validw_stable_syscall validw_stable_if_true validw_stable_if_false validw_stable_while_true validw_stable_while_false validw_stable_call validw_stable_proc k s1 i s2).
 Qed.
 
 Lemma sem_i_validw_stable ii k s1 i s2 :
   sem_i p extra_free_registers var_tmp ii k s1 i s2 → emem s1 ≡ emem s2.
 Proof.
   exact:
-    (@sem_i_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
-              validw_stable_nil validw_stable_cons validw_stable_mkI validw_stable_assgn validw_stable_opn validw_stable_if_true validw_stable_if_false validw_stable_while_true validw_stable_while_false validw_stable_call validw_stable_proc ii k s1 i s2).
+    (@sem_i_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
+              validw_stable_nil validw_stable_cons validw_stable_mkI validw_stable_assgn validw_stable_opn validw_stable_syscall validw_stable_if_true validw_stable_if_false validw_stable_while_true validw_stable_while_false validw_stable_call validw_stable_proc ii k s1 i s2).
 Qed.
 
 Lemma sem_call_validw_stable ii k s1 fn s2 :
   sem_call p extra_free_registers var_tmp ii k s1 fn s2 → emem s1 ≡ emem s2.
 Proof.
   exact:
-    (@sem_call_Ind _ _ _ _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
-              validw_stable_nil validw_stable_cons validw_stable_mkI validw_stable_assgn validw_stable_opn validw_stable_if_true validw_stable_if_false validw_stable_while_true validw_stable_while_false validw_stable_call validw_stable_proc ii k s1 fn s2).
+    (@sem_call_Ind _ _ _ _ p extra_free_registers var_tmp Pc Pi Pi_r Pfun
+              validw_stable_nil validw_stable_cons validw_stable_mkI validw_stable_assgn validw_stable_opn validw_stable_syscall validw_stable_if_true validw_stable_if_false validw_stable_while_true validw_stable_while_false validw_stable_call validw_stable_proc ii k s1 fn s2).
 Qed.
 
 End VALIDW_STABLE.

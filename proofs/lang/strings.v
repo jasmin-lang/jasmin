@@ -41,6 +41,7 @@ Definition ascii_cmp (c c': Ascii.ascii) :=
     (Lex (bool_cmp b7 b7') (bool_cmp b8 b8')))))))
   end.
 
+#[global]
 Instance asciiO : Cmp ascii_cmp.
 Proof.
   constructor=> [[]????????| []???????? []???????? | []????????][] ???????? /=;
@@ -74,6 +75,7 @@ Fixpoint string_cmp s1 s2 :=
   | String _  _ , EmptyString  => Gt
   end.
 
+#[global]
 Instance stringO: Cmp string_cmp.
 Proof.
   constructor.
@@ -85,26 +87,6 @@ Proof.
   elim=> [ | c1 s1 Hs1] [ | c2 s2] //=.
   by rewrite Lex_lex=> /lex_eq /= [] /(@cmp_eq _ _ asciiO) -> /Hs1 ->.
 Qed.
-
-
-
-(* -------------------------------------------------------------------- *)
-
-Fixpoint code (s : string) :=
-  if s is String a s then a :: code s else [::].
-
-Fixpoint decode (s : seq Ascii.ascii) :=
-  if s is a :: s then String a (decode s) else EmptyString.
-
-Lemma codeK : cancel code decode.
-Proof. by elim=> //= a s ->. Qed.
-
-Definition string_choiceMixin := CanChoiceMixin codeK.
-Canonical  string_choiceType  := ChoiceType string string_choiceMixin.
-
-Definition string_countMixin := CanCountMixin codeK.
-Canonical  string_countType  := CountType string string_countMixin.
-
 
 (* -------------------------------------------------------------------- *)
 (*

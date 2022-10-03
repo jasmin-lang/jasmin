@@ -4,6 +4,7 @@
 Require Import ZArith.
 From mathcomp Require Import all_ssreflect.
 Require Import expr compiler_util allocation.
+Require Import sem_pexpr_params.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -33,9 +34,10 @@ End E.
 
 Section INLINE.
 
-Context {pd: PointerData}.
-Context `{asmop:asmOp}.
-Context (inline_var: var -> bool).
+Context
+  {asm_op syscall_state : Type}
+  {spp : SemPexprParams asm_op syscall_state}
+  (inline_var : var -> bool).
 
 Definition get_flag (x:lval) flag :=
   match x with
@@ -85,6 +87,7 @@ Fixpoint inline_i (p:ufun_decls) (i:instr) (X:Sv.t) : cexec (Sv.t * cmd) :=
     match ir with
     | Cassgn _ _ _ _
     | Copn _ _ _ _
+    | Csyscall _ _ _
       => ok (Sv.union (read_i ir) X, [::i])
     | Cif e c1 c2  =>
       Let c1 := inline_c (inline_i p) c1 X in

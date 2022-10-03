@@ -1,8 +1,12 @@
 exception Eval_error of Expr.instr_info * Utils0.error
 
 val exec :
-  X86_extra.x86_extended_op Expr.prog ->
+  ('a, 'b) Sem_pexpr_params.coq_SemPexprParams ->
+  'b ->
+  'a Expr.prog ->
+  Expr.instr_info ->
   Utils0.funname ->
+  Values.values ->
   Low_memory.Memory.mem ->
   Low_memory.Memory.mem * Values.values
 

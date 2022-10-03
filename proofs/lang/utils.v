@@ -4,7 +4,7 @@ From Coq.Unicode Require Import Utf8.
 Require Import ZArith Setoid Morphisms CMorphisms CRelationClasses.
 Require Import xseq oseq.
 Require Psatz.
-From CoqWord Require Import ssrZ.
+From mathcomp.word Require Import ssrZ.
 
 
 Set Implicit Arguments.
@@ -76,6 +76,11 @@ Definition cfinT_finType :=
   Eval hnf in 
     (@Finite.pack T ceqT_eqMixin cfinT_finMixin cfinT_choiceType _ (fun x => x) _ (fun x => x)).
 
+Lemma mem_cenum : cenum =i ceqT_eqType.
+Proof.
+  move=> x. rewrite -has_pred1 has_count. by rewrite cenumP.
+Qed.
+
 End FinType.
 
 Module FinMap.
@@ -103,6 +108,39 @@ Lemma reflect_inj (T:eqType) (U:Type) (f:T -> U) a b :
   injective f -> reflect (a = b) (a == b) -> reflect (f a = f b) (a == b).
 Proof. by move=> hinj heq; apply: (iffP heq) => [| /hinj ] ->. Qed.
 
+(* -------------------------------------------------------------------- *)
+(* Missing Instance in ssreflect for setoid rewrite                     *)
+
+#[global]
+Instance and3_impl_morphism :
+  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and3 | 1.
+Proof. by move=> ?? h1 ?? h2 ?? h3 [/h1 ? /h2 ? /h3 ?]. Qed.
+
+#[global]
+Instance and3_iff_morphism :
+  Proper (iff ==> iff ==> iff ==> iff) and3.
+Proof. by move=> ?? h1 ?? h2 ?? h3; split => -[] /h1 ? /h2 ? /h3. Qed.
+
+#[global]
+Instance and4_impl_morphism :
+  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and4 | 1.
+Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 [/h1 ? /h2 ? /h3 ? /h4 ?]. Qed.
+
+#[global]
+Instance and4_iff_morphism :
+  Proper (iff ==> iff ==> iff ==> iff ==> iff) and4.
+Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4; split => -[] /h1 ? /h2 ? /h3 ? /h4. Qed.
+
+#[global]
+Instance and5_impl_morphism :
+  Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and5 | 1.
+Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 ?? h5 [/h1 ? /h2 ? /h3 ? /h4 ? /h5]. Qed.
+
+#[global]
+Instance and5_iff_morphism :
+  Proper (iff ==> iff ==> iff ==> iff ==> iff ==> iff) and5.
+Proof. by move=> ?? h1 ?? h2 ?? h3 ?? h4 ?? h5; split => -[] /h1 ? /h2 ? /h3 ? /h4 ? /h5 ?. Qed.
+
 (* ** Result monad
  * -------------------------------------------------------------------- *)
 
@@ -116,6 +154,7 @@ Definition is_ok (E A:Type) (r:result E A) := if r is Ok a then true else false.
 
 Lemma is_ok_ok (E A:Type) (a:A) : is_ok (Ok E a).
 Proof. done. Qed.
+#[global]
 Hint Resolve is_ok_ok : core.
 
 Lemma is_okP (E A:Type) (r:result E A) : reflect (exists (a:A), r = Ok E a) (is_ok r).
@@ -175,9 +214,9 @@ Notation rmap  := Result.map.
 Notation ok    := (@Ok _).
 
 Notation "m >>= f" := (rbind f m) (at level 25, left associativity).
-Notation "'Let' x ':=' m 'in' body" := (m >>= (fun x => body)) (x ident, at level 25).
+Notation "'Let' x ':=' m 'in' body" := (m >>= (fun x => body)) (x name, at level 25).
 Notation "'Let:' x ':=' m 'in' body" := (m >>= (fun x => body)) (x strict pattern, at level 25).
-Notation "m >> n" := (rbind (λ _, n) m) (at level 25, left associativity).
+Notation "m >> n" := (rbind (λ _, n) m) (at level 30, right associativity, n at next level).
 
 Lemma bindA eT aT bT cT (f : aT -> result eT bT) (g: bT -> result eT cT) m:
   m >>= f >>= g = m >>= (fun a => f a >>= g).
@@ -236,12 +275,17 @@ Ltac t_rbindP := do? (apply: rbindP => ??).
 Ltac t_xrbindP :=
   match goal with
   | [ |- Result.bind _ _ = Ok _ _ -> _ ] =>
-      let y := fresh "y" in
-      apply: rbindP=> y; t_xrbindP; move: y 
+      apply: rbindP; t_xrbindP
+  | [ |- Result.map _ _ = Ok _ _ -> _ ] =>
+      rewrite /rmap; t_xrbindP
+  | [ |- assert _ _ = Ok _ _ -> _ ] =>
+      move=> /assertP; t_xrbindP
+  | [ |- unit -> _ ] =>
+      case; t_xrbindP
   | [ |- ok _ = ok _ -> _ ] =>
       case; t_xrbindP
-  | [ |- _ -> _ ] =>
-      let h := fresh "h" in move=> h; t_xrbindP; move: h
+  | [ |- forall h, _ ] =>
+      let hh := fresh h in move=> hh; t_xrbindP; move: hh
   | _ => idtac
   end.
 
@@ -285,11 +329,14 @@ elim: m => //= a m ih ext.
 rewrite ext; [ f_equal | ]; eauto.
 Qed.
 
-Lemma mapM_ext eT aT bT :
-  Proper (@eqfun (result eT bT) aT ==> eq ==> eq) (@mapM eT aT bT).
+Lemma mapM_ext eT aT bT (f1 f2: aT → result eT bT) (m: seq aT) :
+  (∀ a, List.In a m → f1 a = f2 a) →
+  mapM f1 m = mapM f2 m.
 Proof.
-move => f g ext xs xs' <-{xs'}.
-by elim: xs => //= a xs ->; rewrite (ext a); case: (g a).
+  elim: m => // a m ih ext /=.
+  rewrite (ext a); last by left.
+  case: (f2 _) => //= b; rewrite ih //.
+  by move => ? h; apply: ext; right.
 Qed.
 
 Lemma eq_mapM eT (aT: eqType) bT (f1 f2: aT -> result eT bT) (l:list aT) :
@@ -522,8 +569,8 @@ Section ALLM.
   Proof.
     rewrite /allM.
     elim: m => // a' m' ih; rewrite inE; case: eqP.
-    - by move => <- _ /=; t_xrbindP => - [].
-    by move => _ {}/ih /=; t_xrbindP => ih [] _ /ih.
+    - by move => <- _ /=; t_xrbindP.
+    by move => _ {}/ih /=; t_xrbindP.
   Qed.
 
 End ALLM.
@@ -1053,13 +1100,6 @@ End FIND_MAP.
 (* ** Misc functions
  * -------------------------------------------------------------------- *)
 
-Definition isNone aT (o : option aT) :=
-  if o is None then true else false.
-
-Lemma isNoneE aT (o : option aT) :
-  isNone o -> o = None.
-Proof. by case: o. Qed.
-
 Definition isSome aT (o : option aT) :=
   if o is Some _ then true else false.
 
@@ -1070,26 +1110,6 @@ Fixpoint list_to_rev (ub : nat) :=
   end.
 
 Definition list_to ub := rev (list_to_rev ub).
-
-Definition list_from_to (lb : nat) (ub : nat) :=
-  map (fun x => x + lb)%nat (list_to (ub - lb)).
-
-Definition conc_map aT bT (f : aT -> seq bT) (l : seq aT) :=
-  flatten (map f l).
-
-Definition oeq aT (f : aT -> aT -> Prop) (o1 o2 : option aT) :=
-  match o1, o2 with
-  | Some x1, Some x2 => f x1 x2
-  | None,    None    => true
-  | _ ,      _       => false
-  end.
-
-Definition req eT aT (f : aT -> aT -> Prop) (o1 o2 : result eT aT) :=
-  match o1, o2 with
-  | Ok x1,   Ok x2 => f x1 x2
-  | Error _, Error _ => true
-  | _ ,       _      => false
-  end.
 
 Lemma Forall2_trans (A B C:Type) l2 (R1:A->B->Prop) (R2:B->C->Prop)
                     l1 l3 (R3:A->C->Prop)  :
@@ -1102,6 +1122,9 @@ Proof.
   + by move => ->.
    by case => ? [?] [->] [??]; constructor; eauto.
 Qed.
+
+Definition conc_map aT bT (f : aT -> seq bT) (l : seq aT) :=
+  flatten (map f l).
 
 (* -------------------------------------------------------------------------- *)
 (* Operators to build comparison                                              *)
@@ -1241,6 +1264,7 @@ Notation "m <= n" := (cmp_le m n) : cmp_scope.
 Notation "m ≤ n" := (cmp_le m n) : cmp_scope.
 Delimit Scope cmp_scope with CMP.
 
+#[global]
 Hint Resolve cmp_le_refl : core.
 
 Section EqCMP.
@@ -1355,25 +1379,17 @@ Definition bool_cmp b1 b2 :=
   | true , false => Gt
   end.
 
+#[global]
 Instance boolO : Cmp bool_cmp.
 Proof.
   constructor=> [[] [] | [] [] [] c | [] []] //=; apply ctrans_Eq.
 Qed.
 
-Polymorphic Instance equiv_iffT: Equivalence iffT.
-Proof.
-  split.
-  + by move=> x;split;apply id.
-  + by move=> x1 x2 []??;split.
-  move=> x1 x2 x3 [??] [??];constructor;auto.
-Qed.
-
-Polymorphic Instance subrelation_iff_arrow : subrelation iffT arrow.
-Proof. by move=> ?? []. Qed.
-
+#[global]
 Polymorphic Instance subrelation_iff_flip_arrow : subrelation iffT (flip arrow).
 Proof. by move=> ?? []. Qed.
 
+#[global]
 Instance reflect_m: Proper (iff ==> (@eq bool) ==> iffT) reflect.
 Proof. by move=> P1 P2 Hiff b1 b2 ->; split=> H; apply (equivP H);rewrite Hiff. Qed.
 
@@ -1393,16 +1409,13 @@ Lemma Pos_lt_leb_trans y x z:
   (x <? y)%positive -> (y <=? z)%positive -> (x <? z)%positive.
 Proof. move=> /P_ltP ? /P_leP ?;apply /P_ltP; Lia.lia. Qed.
 
-Lemma Pos_le_ltb_trans y x z:
-  (x <=? y)%positive -> (y <? z)%positive -> (x <? z)%positive.
-Proof. move=> /P_leP ? /P_ltP ?;apply /P_ltP; Lia.lia. Qed.
-
 Lemma pos_eqP : Equality.axiom Pos.eqb.
 Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Pos.eqb_eq. Qed.
 
 Definition pos_eqMixin := EqMixin pos_eqP.
 Canonical  pos_eqType  := EqType positive pos_eqMixin.
 
+#[global]
 Instance positiveO : Cmp Pos.compare.
 Proof.
   constructor.
@@ -1415,12 +1428,7 @@ Proof.
   apply Pos.compare_eq.
 Qed.
 
-Lemma Z_eqP : Equality.axiom Z.eqb.
-Proof. by move=> p1 p2;apply:(iffP idP);rewrite -Z.eqb_eq. Qed.
-
-(*Definition Z_eqMixin := EqMixin Z_eqP.
-Canonical  Z_eqType  := EqType Z Z_eqMixin. *)
-
+#[global]
 Instance ZO : Cmp Z.compare.
 Proof.
   constructor.
@@ -1431,20 +1439,6 @@ Proof.
     + by apply: Z.lt_trans H1 H2.
     by apply: Z.lt_trans H2 H1.
   apply Z.compare_eq.
-Qed.
-
-Lemma Z_to_nat_subn z1 z2 : 0 <= z1 -> 0 <= z2 -> z2 <= z1 ->
-  Z.to_nat (z1 - z2) = (Z.to_nat z1 - Z.to_nat z2)%nat.
-Proof.
-case: z1 z2 => [|n1|n1] [|n2|n2] //=; try by rewrite /Z.le.
-+ by move=> _ _ _; rewrite subn0.
-move=> _ _; rewrite -[_ <= _]/(n2 <= n1)%positive => le.
-have := Z.pos_sub_discr n1 n2; case: Z.pos_sub => /=.
-+ by move=> ->; rewrite subnn.
-+ move=> p ->; rewrite Pos2Nat.inj_add.
-  by rewrite -[plus _ _]/(addn _ _) addnC addnK.
-+ move=> p ->; apply/esym/eqP; rewrite subn_eq0.
-  by rewrite Pos2Nat.inj_add leq_addr.
 Qed.
 
 Lemma Z_to_nat_le0 z : z <= 0 -> Z.to_nat z = 0%N.
@@ -1461,31 +1455,8 @@ Lemma dup (P : Prop) : P -> dup_spec P.
 Proof. by move=> ?; split. Qed.
 
 (* -------------------------------------------------------------------- *)
-Lemma drop_add {T : Type} (s : seq T) (n m : nat) :
-  drop n (drop m s) = drop (n+m) s.
-Proof.
-elim: s n m => // x s ih [|n] [|m] //;
-  by rewrite !(drop0, drop_cons, addn0, addnS).
-Qed.
-
-(* -------------------------------------------------------------------- *)
-Lemma inj_drop {T : Type} (s : seq T) (n m : nat) :
-  (n <= size s)%nat -> (m <= size s)%nat -> drop n s = drop m s -> n = m.
-Proof.
-move => /leP hn /leP hm he; have := size_drop n s.
-rewrite he size_drop /subn /subn_rec; Psatz.lia.
-Qed.
-
 Definition ZleP : ∀ x y, reflect (x <= y) (x <=? y) := Z.leb_spec0.
 Definition ZltP : ∀ x y, reflect (x < y) (x <? y) := Z.ltb_spec0.
-
-Lemma eq_dec_refl
-           (T: Type) (dec: ∀ x y : T, { x = y } + { x ≠ y })
-           (x: T) : dec x x = left erefl.
-Proof.
-case: (dec _ _) => // e; apply: f_equal.
-exact: Eqdep_dec.UIP_dec.
-Qed.
 
 (* ------------------------------------------------------------------------- *)
 
@@ -1579,11 +1550,6 @@ Proof.
   + by apply/allP => i; rewrite in_ziota !zify.
   by elim/list_all_ind => // i l; rewrite !zify => *;apply hcons.
 Qed.
-  
-Lemma eq_map_ziota (T:Type) p1 p2 (f1 f2: Z -> T) :
-  (forall i, (p1 <= i < p1 + p2)%Z -> f1 i = f2 i) ->
-  map f1 (ziota p1 p2) = map f2 (ziota p1 p2).
-Proof. by move=> h; apply ziota_ind => //= i l /h -> ->. Qed.
 
 Lemma all_ziota p1 p2 (f1 f2: Z -> bool) :
   (forall i, (p1 <= i < p1 + p2)%Z -> f1 i = f2 i) ->
@@ -1651,3 +1617,29 @@ Proof.
   rewrite ltnNge; apply /negP => hle.
   by rewrite nth_default in hnth.
 Qed.
+
+Inductive and6 (P1 P2 P3 P4 P5 P6 : Prop) : Prop :=
+    And6 of P1 & P2 & P3 & P4 & P5 & P6.
+
+Inductive and7 (P1 P2 P3 P4 P5 P6 P7 : Prop) : Prop :=
+    And7 of P1 & P2 & P3 & P4 & P5 & P6 & P7.
+
+Inductive and8 (P1 P2 P3 P4 P5 P6 P7 P8 : Prop) : Prop :=
+    And8 of P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8.
+
+Inductive and9 (P1 P2 P3 P4 P5 P6 P7 P8 P9 : Prop) : Prop :=
+    And9 of P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8 & P9.
+
+Inductive and10 (P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 : Prop) : Prop :=
+    And10 of P1 & P2 & P3 & P4 & P5 & P6 & P7 & P8 & P9 & P10.
+
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 & P6 ]" :=
+    (and6 P1 P2 P3 P4 P5 P6) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 & P7 ]" :=
+    (and7 P1 P2 P3 P4 P5 P6 P7) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 , P7 & P8 ]" :=
+    (and8 P1 P2 P3 P4 P5 P6 P7 P8) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 , P7 , P8 & P9 ]" :=
+    (and9 P1 P2 P3 P4 P5 P6 P7 P8 P9) : type_scope.
+Notation "[ /\ P1 , P2 , P3 , P4 , P5 , P6 , P7 , P8 , P9 & P10 ]" :=
+    (and10 P1 P2 P3 P4 P5 P6 P7 P8 P9 P10) : type_scope.
