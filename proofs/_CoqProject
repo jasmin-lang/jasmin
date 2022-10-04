@@ -15,7 +15,6 @@
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
-ssrmisc/sv_lemmas.v
 ssrmisc/xseq_extra.v
 3rdparty/ssrring.v
 3rdparty/xseq.v

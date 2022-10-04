@@ -432,7 +432,9 @@ Module CmpVar.
 
 End CmpVar.
 
-Module Sv := Smake CmpVar.
+Module SExtra (T : CmpType).
+
+Module Sv := Smake T.
 Module SvP := MSetEqProperties.EqProperties Sv.
 Module SvD := MSetDecide.WDecide Sv.
 
@@ -510,7 +512,7 @@ Lemma in_disjoint_diff x a b c :
 Proof. rewrite /disjoint /is_true Sv.is_empty_spec; SvD.fsetdec. Qed.
 
 (* ---------------------------------------------------------------- *)
-Lemma Sv_mem_add (s: Sv.t) (x y: var) :
+Lemma Sv_mem_add (s: Sv.t) (x y: Sv.elt) :
   Sv.mem x (Sv.add y s) = (x == y) || Sv.mem x s.
 Proof.
   case: eqP.
@@ -527,10 +529,10 @@ Lemma Sv_Subset_union_right (a b c: Sv.t) :
 Proof. SvD.fsetdec. Qed.
 
 (* ---------------------------------------------------------------- *)
-Definition sv_of_list T (f: T → var) : seq T → Sv.t :=
+Definition sv_of_list T (f: T → Sv.elt) : seq T → Sv.t :=
   foldl (λ s r, Sv.add (f r) s) Sv.empty.
 
-Lemma sv_of_listE T (f: T → var) x m :
+Lemma sv_of_listE T (f: T → Sv.elt) x m :
   Sv.mem x (sv_of_list f m) = (x \in map f m).
 Proof.
   suff h : forall s, Sv.mem x (foldl (λ (s : Sv.t) (r : T), Sv.add (f r) s) s m) = (x \in map f m) || Sv.mem x s by rewrite h orbF.
@@ -540,17 +542,85 @@ Proof.
   by rewrite eq_sym => /negbTE ->.
 Qed.
 
-Lemma sv_of_listP T (f: T → var) x m :
+Lemma sv_of_listP T (f: T → Sv.elt) x m :
   reflect (Sv.In x (sv_of_list f m)) (x \in map f m).
 Proof. rewrite -sv_of_listE; apply Sv_memP. Qed.
 
-Lemma sv_of_list_map A B (f: A → B) (g: B → var) m :
+Lemma sv_of_list_map A B (f: A → B) (g: B → Sv.elt) m :
   sv_of_list g (map f m) = sv_of_list (g \o f) m.
 Proof.
   rewrite /sv_of_list.
   elim: m Sv.empty => // a m ih z.
   by rewrite /= ih.
 Qed.
+
+Lemma disjoint_subset_diff xs ys :
+  disjoint xs ys
+  -> Sv.Subset xs (Sv.diff xs ys).
+Proof.
+  move=> /disjoint_sym /disjoint_diff /SvP.MP.equal_sym.
+  exact: SvP.MP.subset_equal.
+Qed.
+
+Lemma in_add_singleton x y :
+  Sv.In x (Sv.add y (Sv.singleton x)).
+Proof. apply: SvD.F.add_2. exact: SvD.F.singleton_2. Qed.
+
+Lemma disjoint_equal_l xs ys zs:
+  Sv.Equal xs ys
+  -> disjoint xs zs
+  -> disjoint ys zs.
+Proof.
+  move=> heq /Sv.is_empty_spec h. apply/Sv.is_empty_spec. SvD.fsetdec.
+Qed.
+
+Lemma disjoint_equal_r xs ys zs:
+  Sv.Equal xs ys
+  -> disjoint ys zs
+  -> disjoint xs zs.
+Proof.
+  move=> heq /Sv.is_empty_spec h. apply/Sv.is_empty_spec. SvD.fsetdec.
+Qed.
+
+Lemma disjoint_union xs ys zs :
+  disjoint (Sv.union xs ys) zs
+  -> disjoint xs zs /\ disjoint ys zs.
+Proof.
+ move=> /Sv.is_empty_spec H.
+ split.
+ all: apply/Sv.is_empty_spec.
+ all: SvD.fsetdec.
+Qed.
+
+Lemma disjoint_add x xs ys :
+  disjoint (Sv.add x xs) ys
+  -> disjoint (Sv.singleton x) ys /\ disjoint xs ys.
+Proof.
+  move=> /Sv.is_empty_spec h.
+  split.
+  all: apply/Sv.is_empty_spec.
+  all: move: h.
+  all: SvD.fsetdec.
+Qed.
+
+Lemma union_disjoint xs ys zs :
+  disjoint xs zs
+  -> disjoint ys zs
+  -> disjoint (Sv.union xs ys) zs.
+Proof.
+  rewrite /disjoint.
+  move=> /Sv.is_empty_spec h0.
+  move=> /Sv.is_empty_spec h1.
+  apply/Sv.is_empty_spec.
+  move: h0 h1.
+  clear.
+  SvD.fsetdec.
+Qed.
+
+End SExtra.
+
+Module SvExtra := SExtra CmpVar.
+Export SvExtra.
 
 (* Non dependant map *)
 Module Mvar :=  Mmake CmpVar.

@@ -13,7 +13,6 @@ Require Import
   lowering
   lowering_lemmas
   psem
-  sv_lemmas
   utils.
 Require Import
   arch_extra.
