@@ -7,8 +7,7 @@ From mathcomp.word Require Import ssrZ.
 Require Import ZArith psem compiler_util lea_proof arch_extra x86_instr_decl x86_extra.
 Require Import
   lowering
-  lowering_lemmas
-  sv_lemmas.
+  lowering_lemmas.
 Require Export x86_lowering.
 Import Utf8.
 Import Psatz.

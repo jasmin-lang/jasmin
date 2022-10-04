@@ -7,8 +7,6 @@ Require Import
   low_memory
   lowering
   psem.
-Require Import
-  sv_lemmas.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

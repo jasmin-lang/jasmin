@@ -15,7 +15,6 @@ Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts.
 Require Import constant_prop constant_prop_proof.
 Require Export linearization linear_sem.
 Import Memory.
-Require Import sv_lemmas.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
