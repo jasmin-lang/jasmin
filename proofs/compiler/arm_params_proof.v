@@ -357,6 +357,9 @@ Definition arm_hloparams : h_lowering_params (ap_lop arm_params) :=
 
 Section ASM_GEN.
 
+(* FIXME: the following line fixes type inference with Coq 8.16 *)
+Local Instance the_asm : asm _ _ _ _ _ _ := _.
+
 Lemma condt_of_rflagP rf r :
   eval_cond (get_rf rf) (condt_of_rflag r) = to_bool (of_rbool (rf r)).
 Proof.
