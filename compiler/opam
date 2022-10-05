@@ -17,7 +17,7 @@ install: [
 ]
 depends: [
   "ocaml" { >= "4.08" & build }
-  "batteries" {>= "3.2"}
+  "batteries" {>= "3.4"}
   "menhir" {>= "20160825" & build }
   "menhirLib"
   "camlidl"
