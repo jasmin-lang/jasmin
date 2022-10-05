@@ -15,8 +15,8 @@ install: [
   make "PREFIX=%{prefix}%" "install"
 ]
 depends: [
-  "ocaml" { >= "4.08" & build }
-  "batteries" {>= "3.2"}
+  "ocaml" { >= "4.10" & build }
+  "batteries" {>= "3.4"}
   "menhir" {>= "20160825" & build }
   "menhirLib"
   "camlidl"
