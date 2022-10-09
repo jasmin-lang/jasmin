@@ -37,7 +37,7 @@ Definition clear_loop_positive_counter ws p n :=
   let ir2 :=
     Cassgn (Lvar n) AT_keep (sword Uptr) (Papp2 (Osub (Op_w Uptr)) (Pvar (mk_lvar n)) (pword_of_int Uptr 1)) in
   let body :=
-    map (MkI dummy_instr_info) [:: ir1; ir2] in
+    map (MkI dummy_instr_info) [:: ir2; ir1] in
   let ir := Cwhile NoAlign [::] (Papp2 (Olt (Cmp_w Signed Uptr)) (pword_of_int Uptr 0) (Pvar (mk_lvar n))) body in
   let i := MkI dummy_instr_info ir in
   i.
@@ -120,6 +120,12 @@ Lemma wsigned_sub_if (ws : wsize) (a b : word ws) :
 Proof.
 Admitted.
 
+Lemma wsigned_add sz p n :
+  (wmin_signed sz <= wsigned p + n <= wmax_signed sz)%Z ->
+  wsigned (p + wrepr sz n) = (wsigned p + n)%Z.
+Proof.
+Admitted.
+
 (* We use an ind principle tailored to our needs: in the inductive case, we want to consider
   only non-negative [x] but we want to allow the induction hypothesis to use negative [y].
   This is true because we request on top of that that [P] holds on all negative ints.
@@ -187,27 +193,27 @@ Proof.
   move: hbody => /semE [s1'' []].
   move=> /sem_IE /sem_iE.
   move=> [v [v' []]].
-  rewrite /= /sem_sop1 /= => -[<-].
-  rewrite /truncate_val /= truncate_word_u /= => -[<-].
-  rewrite /get_gvar hgetn /= !truncate_word_u /=.
-  t_xrbindP=> wp vp hgetp hwp ? _ _ _ m1'' hwrites1 ?; subst s1''.
+  rewrite /= /get_gvar /= hgetn /= /sem_sop2 /truncate_val /= !truncate_word_u /= => -[<-].
+  rewrite /to_word truncate_word_u /= => -[<-].
+  rewrite /write_var. t_xrbindP=> vm1 hset ?; subst s1''.
   move=> /semE [s1'' [hsemI hsem]].
   move: hsem => /semE ?; subst s1''.
   move: hsemI => /sem_IE /sem_iE /= [v0 [v0' []]].
-  rewrite /get_gvar /= hgetn /= /sem_sop2 /truncate_val /= !truncate_word_u /= => -[<-].
-  rewrite /to_word truncate_word_u /= => -[<-] hwn.
-  apply: (ih (wsigned w - 1)%Z _ (w-wrepr Uptr 1)%R _ s1').
+  rewrite /= /sem_sop1 /= => -[<-].
+  rewrite /truncate_val /= truncate_word_u /= => -[<-].
+  rewrite /get_gvar /= (get_var_set_var _ hset) eq_refl.
+  have /subtypeEl /= := type_of_get_var hgetn.
+  move=> [sz' [htyn hlen]].
+  rewrite htyn /=. rewrite sumbool_of_boolET /=.
+  t_xrbindP=> wp vp hgetp hwp ? _ _ _ ? _ m1'' hwrites1 ?; subst s1'.
+  apply: (ih (wsigned w - 1)%Z _ (w-wrepr Uptr 1)%R _ (with_mem (with_vm s1 vm1) m1'')).
   + by Lia.lia.
   + rewrite wsigned_sub. done.
     have := wsigned_range w.
     assert (hh := wmin_signed_m _ _ (wsize_le_U8 Uptr)).
     have := wsize_size_wmin_signed U8.
     rewrite /=. Lia.lia.
-  + move: hwn; rewrite /write_var.
-    t_xrbindP=> ? hset <- /=.
-    rewrite (get_var_set_var _ hset) eq_refl.
-    have /subtypeEl /= := type_of_get_var hgetn.
-    move=> [sz' [htyn hlen]].
+  + rewrite /= (get_var_set_var _ hset) eq_refl.
     rewrite htyn /=. rewrite sumbool_of_boolET /=. done.
   + rewrite wsigned_sub. Lia.lia.
     have := wsigned_range w.
@@ -233,49 +239,63 @@ Proof.
   by apply wunsigned_inj.
 Qed.
 
+Lemma wmin_signed_neg ws : (wmin_signed ws < 0)%Z.
+Proof.
+  have /= := wmin_signed_m _ _ (wsize_le_U8 ws).
+  have /= := wsize_size_wmin_signed U8. Lia.lia.
+Qed.
+
+(* TODO: imitate the proof of wmin_signed_neg *)
+Lemma wmax_signed_pos ws : (0 < wmax_signed ws)%Z.
+Proof.
+  by case: ws.
+Qed.
+
 Lemma clear_loop_positive_counter_spec : forall ws (p n:var_i) s1 s2 (w wp : word Uptr),
   p.(v_var) <> n.(v_var) ->
   get_var s1.(evm) n = ok (Vword w) ->
   get_var s1.(evm) p = ok (Vword wp) ->
   sem_I P ev s1 (clear_loop_positive_counter ws p n) s2 ->
   s2.(evm) = s1.(evm) [\ Sv.singleton n ] /\
-  forall i,
+  forall i, no_overflow wp i ->
     read s2.(emem) (wp + wrepr _ i)%R U8 =
       if (0 <=? i)%Z && (i <? wsigned w * wsize_size ws)%Z then ok 0%R
       else read s1.(emem) (wp + wrepr _ i)%R U8.
 Proof.
-  move=> ws p n s1 s2 w0 wp hneq hgetn hgetp hsem.
-  have: evm s2 = evm s1 [\ Sv.singleton n] /\
-    exists w,
-      get_var s2.(evm) n = ok (Vword w) /\
-      (forall i : Z,
+  move=> ws p n s0 s2 w0 wp hneq hgetn0 hgetp hsem.
+  have: (wsigned w0 < 0 -> wsigned w0 = wsigned w0)%Z ->
+    (0 <= wsigned w0 -> 0 <= wsigned w0)%Z ->
+    evm s2 = evm s0 [\ Sv.singleton n] /\
+      (forall i : Z, no_overflow wp i ->
         read (emem s2) (wp + wrepr Uptr i)%R U8 =
-         if (0 <=? i)%Z && (i <? wsigned (w0 - w) * wsize_size ws)%Z then ok 0%R
-         else read (emem s1) (wp + wrepr Uptr i)%R U8); last first.
-  + move=> [h1 [w [h2 h3]]]. split. done.
-    destruct (Z.le_gt_cases (wsigned w0) 0).
-    + move=> i. admit.
-    move=> i. rewrite h3.
-    have: w = 0%R.
-    + apply wsigned_inj. rewrite wsigned0.
-      have [] := clear_loop_positive_counter_eq_0 _ _ _ _ _ _ hgetn _ hsem; first by Lia.lia.
-      rewrite h2.
-      move=> ? [] [] <-. done.
-    move=> ->. rewrite GRing.subr0. done.
+         if (0 <=? i)%Z && (i <? wsigned w0 * wsize_size ws)%Z then ok 0%R
+         else read (emem s0) (wp + wrepr Uptr i)%R U8); last first.
+  + move=> /(_ (fun _ => refl_equal) (fun h => h)) [h1 h2]. split. done.
+    by move=> i; eauto.
 
   (* the administrative stuff is painful and ugly *)
-  move: w0 {2}(wsigned w0) (refl_equal (wsigned w0)) s1 hgetn hgetp hsem => w0 N; move: N w0.
+  move: {-3 5 6}(w0) {2}(wsigned w0) (refl_equal (wsigned w0)) (s0) (hgetn0) hgetp hsem => w N; move: N w.
   apply: Z_better_ind2 => [N hlt|N ih hle] w heq s1 hgetn hgetp; subst N.
   + move=> /sem_IE /= /sem_iE [_ [b []]] /semE -> /=.
     rewrite /get_gvar hgetn /= /sem_sop2 /= !truncate_word_u /=.
     rewrite wrepr0 -/(wsigned 0) wsigned0 -/(wsigned _).
     case: ssrZ.ltzP; first by Lia.lia.
-    move=> _ [<-] /= <-. split.
-    + done.
-    + exists w. split=> //. move=> i.
-      case: andP => //.
-      rewrite GRing.subrr wsigned0.
-      by rewrite !zify; Lia.lia.
+    move=> _ [<-] /= <-. move=> hneg hnneg. split=> //.
+    move=> i.
+    case: andP => //. rewrite !zify. (*
+    rewrite wsigned_sub_if.
+    case: ZltP.
+    + have := wsigned_range w0.
+      case: (Z.le_gt_cases 0 (wsigned w0)).
+      + by move=> /hnneg; Lia.lia.
+      move=> /hneg. assert (toto := wmax_signed_pos Uptr). Lia.lia.
+    move=> ?.
+    case: ZltP.
+    + have := wsigned_range w0.
+      case: (Z.le_gt_cases 0 (wsigned w0)).
+      + by move=> /hnneg; Lia.lia.
+      move=> /hneg. Lia.lia. *)
+    have := wsize_size_pos ws. by Lia.lia.
   move=> /sem_IE /= /sem_iE [_ [b []]] /semE -> /=.
   rewrite /get_gvar hgetn /= /sem_sop2 /= !truncate_word_u /=.
   rewrite wrepr0 -/(wsigned 0) wsigned0 -/(wsigned _).
@@ -285,76 +305,101 @@ Proof.
   move: hbody => /semE [s1'' []].
   move=> /sem_IE /sem_iE.
   move=> [v [v' []]].
+  rewrite /= /get_gvar /= hgetn /= /sem_sop2 /truncate_val /= !truncate_word_u /= => -[<-].
+  rewrite /to_word truncate_word_u /= => -[<-].
+  rewrite /write_var; t_xrbindP=> vm1 hset ?; subst s1''.
+  move=> /semE [] s1'' [].
+  move=> /sem_IE /sem_iE /= [v0 [v0' []]].
   rewrite /= /sem_sop1 /= => -[<-].
   rewrite /truncate_val /= truncate_word_u /= => -[<-].
-  rewrite /get_gvar hgetp hgetn /= !truncate_word_u /=.
-  rewrite /sem_sop2 /= !truncate_word_u /= !truncate_word_u /=.
-  t_xrbindP=> m1'' hwrites1 ?; subst s1''.
-  move=> /semE [s1'' [hsemI hsem]].
-  move: hsem => /semE ?; subst s1''.
-  move: hsemI => /sem_IE /sem_iE /= [v0 [v0' []]].
-  rewrite /get_gvar /= hgetn /= /sem_sop2 /truncate_val /= !truncate_word_u /= => -[<-].
-  rewrite /to_word truncate_word_u /= => -[<-] hwn.
-  have: evm s2 = evm s1' [\Sv.singleton n] /\
-    exists w' : word Uptr,
-        get_var (evm s2) n = ok (Vword (s:=Uptr) w') /\
-        (forall i : Z,
+  rewrite /get_gvar /= !(get_var_set_var _ hset) eq_refl.
+  case: eqP; first by congruence.
+  move=> _; rewrite hgetp /= !truncate_word_u /=.
+  rewrite /sem_sop2 /= !truncate_word_u /=.
+  have /subtypeEl /= := type_of_get_var hgetn.
+  move=> [sz' [htyn hlen]].
+  rewrite htyn /=. rewrite sumbool_of_boolET /= wrepr1.
+  rewrite truncate_word_u /= truncate_word_u /=.
+  t_xrbindP=> m1 hm1 ?; subst s1''.
+  move=> /semE ?; subst s1'.
+  move=> hneg hnneg.
+  have: evm s2 = vm1 [\Sv.singleton n] /\
+        (forall i : Z, no_overflow wp i ->
          read (emem s2) (wp + wrepr Uptr i)%R U8 =
-         (if (0 <=? i)%Z && (i <? wsigned (w - 1 - w') * wsize_size ws)%Z
+         (if (0 <=? i)%Z && (i <? wsigned (w-1) * wsize_size ws)%Z
           then ok 0%R
-          else read (emem s1') (wp + wrepr Uptr i)%R U8)).
-  + apply: (ih _ _ _ refl_equal).
+          else read m1 (wp + wrepr Uptr i)%R U8)).
+  + apply: (ih _ _ _ refl_equal (Estate _ _ _)).
     + rewrite -wrepr1. rewrite wsigned_sub.
       Lia.lia.
       have := wsigned_range w.
-      assert (toto := wmin_signed_m _ _ (wsize_le_U8 Uptr)).
-      have /= := wsize_size_wmin_signed U8. Lia.lia.
-    + move: hwn; rewrite /write_var; t_xrbindP=> ? /= hset <-.
+      assert (toto := wmin_signed_neg Uptr). by Lia.lia.
+    + rewrite /=.
       rewrite (get_var_set_var _ hset) eq_refl.
-      have /subtypeEl /= := type_of_get_var hgetn.
-      move=> [sz' [htyn hlen]].
       rewrite htyn /=. rewrite sumbool_of_boolET /= wrepr1. done.
-    + move: hwn; rewrite /write_var; t_xrbindP=> ? /= hset <-.
+    + rewrite /=.
       rewrite (get_var_set_var _ hset).
       case: eqP; congruence.
-    + done.
-  move=> [hvmeq [w' [hgetn' hmem']]].
+    + constructor. apply hwhile.
+    + move=> /[dup] /hneg. Lia.lia.
+    move=> _. rewrite -wrepr1 wsigned_sub. Lia.lia.
+    have := wsigned_range w.
+    assert (toto := wmin_signed_neg Uptr). Lia.lia.
+  move=> [hvmeq hmem'].
   split.
   + rewrite hvmeq.
     rewrite SvP.MP.singleton_equal_add.
     symmetry.
-    by apply: vrvP_var hwn.
-  exists w'; split=> //.
-  move=> i; rewrite hmem'.
-  move: hwn; rewrite /write_var; t_xrbindP => ? /= hset ? /=; subst s1'.
-  rewrite -GRing.addrA (GRing.addrC (-1)%R) GRing.addrA.
+    apply: (vrvP_var (v:=Vword (s:=Uptr) (w - wrepr Uptr 1)) (s2:=Estate _ _ _)).
+    rewrite /write_var. rewrite /= hset /=. reflexivity.
+  move=> i hover; rewrite hmem'.
   rewrite -wrepr1. rewrite wsigned_sub; last first.
-  + have : exists w2 : word Uptr, get_var (evm s2) n = ok (Vword (s:=Uptr) w2) /\ wsigned w2 = 0%Z.
-    + apply: clear_loop_positive_counter_eq_0. 3:constructor; eassumption.
-      rewrite (get_var_set_var _ hset) eq_refl.
-      have /subtypeEl /= := type_of_get_var hgetn.
-      move=> [sz' [htyn hlen]].
-      rewrite htyn /=. rewrite sumbool_of_boolET /=. done.
-    rewrite wsigned_sub; first by Lia.lia.
-    have := wsigned_range w.
-    assert (toto := wmin_signed_m _ _ (wsize_le_U8 Uptr)).
-    have /= := wsize_size_wmin_signed U8. Lia.lia.
-  rewrite hgetn'.
-  move=> [io [[] ?]]; subst io.
-  rewrite -(wsigned0 Uptr) => /wsigned_inj ?; subst w'.
-  rewrite GRing.subr0.
-  have := wsigned_range w.
-  assert (toto := wmin_signed_m _ _ (wsize_le_U8 Uptr)).
-  have /= := wsize_size_wmin_signed U8. Lia.lia.
-  
-    
-  
-   clear_loop_positive_counter_eq_0 _ _ _ _ _ _ _ _ hwhile.
-  Search w'.
+  + assert (toto := wmin_signed_neg Uptr).
+    have := wsigned_range w. Lia.lia.
   rewrite Z.mul_sub_distr_r Z.mul_1_l.
   case: andP; case: andP; rewrite !zify => //.
   + by have:=wsize_size_pos ws; Lia.lia.
-  + admit.
+  + move=> ??.
+    rewrite (write_read8 hm1).
+    rewrite subE {1}(GRing.addrC wp) GRing.addrKA.
+    rewrite -(wrepr_signed w) -wrepr1 -wrepr_sub -wrepr_mul -wrepr_sub.
+    rewrite Z.mul_comm. rewrite Z.mul_sub_distr_r Z.mul_1_l Z.sub_sub_distr.
+    rewrite wunsigned_repr.
+    rewrite Zmod_small; last first.
+    + split. Lia.lia. have := wsize_size_wbase ws.
+      assert (toto := wbase_m (wsize_le_U8 Uptr)).
+      rewrite -/(wbase _). Lia.lia.
+    move=> /=.
+    case: andP; rewrite !zify; last by Lia.lia.
+    move=> _.
+    rewrite /LE.wread8 /LE.encode /split_vec.
+    have hmod: forall (ws:wsize), ws %% U8 = 0%nat.
+    + by move=> [].
+    have hdiv: forall (ws:wsize), ws %/ U8 = Z.to_nat (wsize_size ws).
+    + by move=> [].
+    rewrite (nth_map 0); last first.
+    + rewrite size_iota. rewrite hmod hdiv. apply /ltP.
+      rewrite addn0. Lia.lia.
+    rewrite hmod hdiv.
+    rewrite /word.subword /=. rewrite Z.shiftr_0_l.
+    rewrite Zmod_0_l. f_equal. apply /(@eqP (word U8)). done.
+  move=> ??.
+  rewrite (write_read8 hm1).
+  rewrite subE {1}(GRing.addrC wp) GRing.addrKA.
+  rewrite -(wrepr_signed w) -wrepr1 -wrepr_sub -wrepr_mul -wrepr_sub.
+  rewrite Z.mul_comm. rewrite Z.mul_sub_distr_r Z.mul_1_l Z.sub_sub_distr.
+  rewrite wunsigned_repr. simpl.
+  case: andP => //.
+  rewrite !zify. rewrite -/(wbase _). 2:done. Lia.lia.
+  rewrite Zmod_small; last first.
+  
+  have: zbetween (wp + wrepr Uptr i) U8 (wp + wrepr Uptr (wsize_size ws) * (w
+  
+  apply: (disjoint_zrange_byte (sz2:=wsize_size ws)). zbetween
+    
+    
+     rewrite zify. ZleP Search leq Nat.leb. Nat.lt. apply Z2Nat.inj_lt. Search (Z.of_nat _ < _)%Z. Search (Z.to_nat _ < Z.to_nat _). apply  have := wsize_size_pos ws. Lia.lia.
+    rewrite ziota nth.
   move=> ??.
   rewrite (write_read8 hwrites1). rewrite subE.
   rewrite {1}(GRing.addrC wp) GRing.addrKA.
