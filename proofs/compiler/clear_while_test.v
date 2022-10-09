@@ -261,22 +261,15 @@ Lemma clear_loop_positive_counter_spec_disj : forall ws (p n:var_i) s1 s2 (w wp 
     read s2.(emem) p sz = read s1.(emem) p sz.
 Proof.
   move=> ws p n s0 s2 w0 wp hneq hgetn0 hgetp hsem.
-  have: (wsigned w0 < 0 -> wsigned w0 = wsigned w0)%Z ->
-    (0 <= wsigned w0 -> 0 <= wsigned w0)%Z ->
-    evm s2 = evm s0 [\ Sv.singleton n] /\
-      forall p sz, disjoint_zrange wp (wsigned w0 * wsize_size ws)%Z p (wsize_size sz) ->
-        read s2.(emem) p sz = read s0.(emem) p sz; last first.
-  + move=> /(_ (fun _ => refl_equal) (fun h => h)) [h1 h2]. split. done.
-    by move=> i; eauto.
 
   (* the administrative stuff is painful and ugly *)
-  move: {-3 5 6}(w0) {2}(wsigned w0) (refl_equal (wsigned w0)) (s0) (hgetn0) hgetp hsem => w N; move: N w.
+  move: (w0) {2}(wsigned w0) (refl_equal (wsigned w0)) (s0) (hgetn0) hgetp hsem => w N; move: N w.
   apply: Z_better_ind2 => [N hlt|N ih hle] w heq s1 hgetn hgetp; subst N.
   + move=> /sem_IE /= /sem_iE [_ [b []]] /semE -> /=.
     rewrite /get_gvar hgetn /= /sem_sop2 /= !truncate_word_u /=.
     rewrite wrepr0 -/(wsigned 0) wsigned0 -/(wsigned _).
     case: ssrZ.ltzP; first by Lia.lia.
-    move=> _ [<-] /= <-. move=> hneg hnneg. done.
+    move=> _ [<-] /= <-. done.
   move=> /sem_IE /= /sem_iE [_ [b []]] /semE -> /=.
   rewrite /get_gvar hgetn /= /sem_sop2 /= !truncate_word_u /=.
   rewrite wrepr0 -/(wsigned 0) wsigned0 -/(wsigned _).
@@ -303,7 +296,6 @@ Proof.
   rewrite truncate_word_u /= truncate_word_u /=.
   t_xrbindP=> m1 hm1 ?; subst s1''.
   move=> /semE ?; subst s1'.
-  move=> hneg hnneg.
   have: evm s2 = vm1 [\Sv.singleton n] /\
         forall (ptr : word Uptr) (sz : wsize),
           disjoint_zrange wp (wsigned (w-1) * wsize_size ws) ptr (wsize_size sz) ->
@@ -319,11 +311,7 @@ Proof.
     + rewrite /=.
       rewrite (get_var_set_var _ hset).
       case: eqP; congruence.
-    + constructor. eassumption.
-    + move=> /[dup] /hneg. Lia.lia.
-    move=> _. rewrite -wrepr1 wsigned_sub. Lia.lia.
-    have := wsigned_range w.
-    assert (toto := wmin_signed_neg Uptr). Lia.lia.
+    constructor. eassumption.
   move=> [hvmeq hmem'].
   split.
   + rewrite hvmeq.
@@ -360,36 +348,23 @@ Lemma clear_loop_positive_counter_spec : forall ws (p n:var_i) s1 s2 (w wp : wor
     read s2.(emem) (wp + wrepr _ i)%R U8 = ok 0%R.
 Proof.
   move=> ws p n s0 s2 w0 wp hneq hgetn0 hgetp hsem.
-  have: (wsigned w0 < 0 -> wsigned w0 = wsigned w0)%Z ->
-    (0 <= wsigned w0 -> 0 <= wsigned w0)%Z ->
+  have:
     (forall i, read s2.(emem) (wp + wrepr _ i)%R U8 = ok 0%R \/
                read s2.(emem) (wp + wrepr _ i)%R U8 = read s0.(emem) (wp + wrepr _ i)%R U8) /\
       (forall i, (0 <= i < wsigned w0 * wsize_size ws)%Z ->
         read s2.(emem) (wp + wrepr _ i)%R U8 = ok 0%R); last first.
-  + move=> /(_ (fun _ => refl_equal) (fun h => h)) [h1 h2]. done.
+  + move=> [h1 h2]. done.
 
   (* the administrative stuff is painful and ugly *)
-  move: {-3 5 6}(w0) {2}(wsigned w0) (refl_equal (wsigned w0)) (s0) (hgetn0) hgetp hsem => w N; move: N w.
+  move: (w0) {2}(wsigned w0) (refl_equal (wsigned w0)) (s0) (hgetn0) hgetp hsem => w N; move: N w.
   apply: Z_better_ind2 => [N hlt|N ih hle] w heq s1 hgetn hgetp; subst N.
   + move=> /sem_IE /= /sem_iE [_ [b []]] /semE -> /=.
     rewrite /get_gvar hgetn /= /sem_sop2 /= !truncate_word_u /=.
     rewrite wrepr0 -/(wsigned 0) wsigned0 -/(wsigned _).
     case: ssrZ.ltzP; first by Lia.lia.
-    move=> _ [<-] /= <-. move=> hneg hnneg. split.
+    move=> _ [<-] /= <-. split.
     + move=> i. right. done.
-    move=> i. (*
-    rewrite wsigned_sub_if.
-    case: ZltP.
-    + have := wsigned_range w0.
-      case: (Z.le_gt_cases 0 (wsigned w0)).
-      + by move=> /hnneg; Lia.lia.
-      move=> /hneg. assert (toto := wmax_signed_pos Uptr). Lia.lia.
-    move=> ?.
-    case: ZltP.
-    + have := wsigned_range w0.
-      case: (Z.le_gt_cases 0 (wsigned w0)).
-      + by move=> /hnneg; Lia.lia.
-      move=> /hneg. Lia.lia. *)
+    move=> i.
     have := wsize_size_pos ws. by Lia.lia.
   move=> /sem_IE /= /sem_iE [_ [b []]] /semE -> /=.
   rewrite /get_gvar hgetn /= /sem_sop2 /= !truncate_word_u /=.
@@ -417,7 +392,6 @@ Proof.
   rewrite truncate_word_u /= truncate_word_u /=.
   t_xrbindP=> m1 hm1 ?; subst s1''.
   move=> /semE ?; subst s1'.
-  move=> hneg hnneg.
   have: (forall i,
           read s2.(emem) (wp + wrepr _ i)%R U8 = ok 0%R \/
           read s2.(emem) (wp + wrepr _ i)%R U8 = read m1 (wp + wrepr _ i)%R U8
@@ -435,11 +409,7 @@ Proof.
     + rewrite /=.
       rewrite (get_var_set_var _ hset).
       case: eqP; congruence.
-    + constructor. apply hwhile.
-    + move=> /[dup] /hneg. Lia.lia.
-    move=> _. rewrite -wrepr1 wsigned_sub. Lia.lia.
-    have := wsigned_range w.
-    assert (toto := wmin_signed_neg Uptr). Lia.lia.
+    constructor. apply hwhile.
   move=> [hmem1 hmem2].
   split.
   + move=> i.
