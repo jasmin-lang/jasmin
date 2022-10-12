@@ -164,16 +164,7 @@ Definition sopn_prim_constructor (f:option wsize -> asm_op -> extended_op) (p : 
   | PrimVV x => sopn.PrimVV (fun ws1 v1 ws2 v2 ws3 => f ws1 (x v1 ws2 v2 ws3))
   | PrimARM x => sopn.PrimARM (fun sf ic hs => f None (x sf ic hs))
   end.
-(* duplication with lang/sopn.v -> maybe we can have one version to rule them all? *)
-Definition map_prim_constructor {A B} (f:A -> B) (p : sopn.prim_constructor A) :=
-  match p with
-  | sopn.PrimP x1 x2 => sopn.PrimP x1 (fun ws1 ws2 => f (x2 ws1 ws2))
-  | sopn.PrimM x => sopn.PrimM (fun ws => f (x ws))
-  | sopn.PrimV x => sopn.PrimV (fun ws1 s v ws2 => f (x ws1 s v ws2))
-  | sopn.PrimX x => sopn.PrimX (fun ws1 ws2 ws3 => f (x ws1 ws2 ws3))
-  | sopn.PrimVV x => sopn.PrimVV (fun ws1 v1 ws2 v2 ws3 => f (x ws1 v1 ws2 v2 ws3))
-  | sopn.PrimARM x => sopn.PrimARM (fun sf ic hs => f (x sf ic hs))
-  end.
+
 Definition sopn_prim_string_base (o : seq (string * prim_constructor asm_op)) :=
   let to_ex ws o := BaseOp (ws, o) in
   map (fun '(s, p) => (s, sopn_prim_constructor to_ex p)) o.
