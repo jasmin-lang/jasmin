@@ -6,6 +6,13 @@
 - Support ARMv7 (Cortex-M4) as target architecture
   ([PR #242](https://github.com/jasmin-lang/jasmin/pull/242)).
 
+## Other changes
+
+- Explicit if-then-else in flag combinations is no longer supported
+  in x86 assembly generation; conditions that used to be supported
+  can be expressed using equality and disequality tests
+  ([PR #270](https://github.com/jasmin-lang/jasmin/pull/270)).
+
 # Jasmin 2022.09.0
 
 ## Bug fixes
