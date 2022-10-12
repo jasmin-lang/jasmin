@@ -251,7 +251,7 @@ Lemma check_no_ptrP entries ao u fn :
   allNone (sao_params (ao fn)) ∧ allNone (sao_return (ao fn)).
 Proof.
   clear.
-  case: u => /allMP h ok_fn; move: (h _ ok_fn).
+  case: u => /allMP h /InP ok_fn; move: (h _ ok_fn).
   by t_xrbindP.
 Qed.
 
@@ -391,7 +391,7 @@ Lemma enough_stack_space_alloc_ok
 Proof.
   rewrite /compiler_back_end_to_asm /compiler_back_end.
   t_xrbindP => ? /allMP ok_export _ lp ok_lp tp.
-  rewrite !print_linearP => ok_tp <- ok_xp ok_fn M S.
+  rewrite !print_linearP => ok_tp <- ok_xp /InP ok_fn M S.
   move => fd ok_fd.
   move: ok_export => /(_ _ ok_fn); rewrite ok_fd => /assertP /eqP export.
   split; last by rewrite export.
@@ -448,7 +448,7 @@ Lemma compiler_back_endP
       ].
 Proof.
   rewrite /compiler_back_end; t_xrbindP => ok_export checked_p lp ok_lp tp'.
-  rewrite !print_linearP => ok_tp ? ok_fn exec_p; subst tp'.
+  rewrite !print_linearP => ok_tp ? /InP ok_fn exec_p; subst tp'.
   set vtmp := var_tmp aparams.
   have vtmp_not_magic : ~~ Sv.mem vtmp (magic_variables p).
   - apply/Sv_memP; exact: var_tmp_not_magic checked_p.
