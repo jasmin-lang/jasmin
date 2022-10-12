@@ -21,10 +21,6 @@ Context
   {asm_op syscall_state : Type}
   {spp : SemPexprParams asm_op syscall_state}.
 
-Lemma vrvs_Lvar xs :
-  vrvs [seq Lvar x | x <- xs] = sv_of_list v_var xs.
-Proof. rewrite /vrvs /sv_of_list; elim: xs Sv.empty => //=. Qed.
-
 Lemma init_stk_stateI fex pex gd s s' :
   pex.(sp_rip) != pex.(sp_rsp) →
   init_stk_state fex pex gd s = ok s' →
@@ -47,32 +43,6 @@ Proof.
     * by rewrite Fv.setP_eq.
     by apply /eqP; congruence.
   by move=> x /eqP ? /eqP ?; rewrite !Fv.setP_neq // eq_sym.
-Qed.
-
-(* TODO: move *)
-Lemma write_vars_eq_except xs vs s s' :
-  write_vars xs vs s = ok s' →
-  evm s = evm s' [\ sv_of_list v_var xs].
-Proof.
-  by rewrite (write_vars_lvals [::]) => /vrvsP; rewrite vrvs_Lvar.
-Qed.
-
-Lemma write_lvals_emem gd xs ys s vs s' :
-  mapM get_lvar xs = ok ys →
-  write_lvals gd s xs vs = ok s' →
-  emem s' = emem s.
-Proof.
-  elim: xs ys vs s; first by move => _ [] // ? _ [] ->.
-  move => x xs ih /=; t_xrbindP => _ [] // ???? X ? /ih{ih}ih _; t_xrbindP => ? Y /ih{ih}->.
-  by case: x X Y => // x _; rewrite /= /write_var; t_xrbindP => ?? <-.
-Qed.
-
-Lemma write_lvals_escs gd xs s vs s' :
-  write_lvals gd s xs vs = ok s' →
-  escs s' = escs s.
-Proof.
-  elim: xs vs s => [ | x xs ih] /= [] // => [ _ [->] //| v vs s].
-  by t_xrbindP => ? /lv_write_scsP -> /ih.
 Qed.
 
 Lemma orbX (P Q: bool):

@@ -4,11 +4,10 @@ Require Import
   oseq
   compiler_util
   psem
+  psem_facts
   label
   lea_proof
   one_varmap sem_one_varmap
-  (* FIXME syscall : this is needed for write_lvars_escs write_lvars_emem *)
-  merge_varmaps_proof
   linear
   linear_sem.
 Require Import
