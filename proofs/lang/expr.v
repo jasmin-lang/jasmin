@@ -283,6 +283,12 @@ Coercion Lvar : var_i >-> lval.
 
 Notation lvals := (seq lval).
 
+Definition get_pvar (e: pexpr) : exec var :=
+  if e is Pvar {| gv := x ; gs := Slocal |} then ok (v_var x) else type_error.
+
+Definition get_lvar (x: lval) : exec var :=
+  if x is Lvar x then ok (v_var x) else type_error.
+
 (* ** Instructions
  * -------------------------------------------------------------------- *)
 
