@@ -175,7 +175,7 @@ Definition wsize_of_sopn o : wsize := wsizei (get_instr_desc o).
 Instance eqC_sopn : eqTypeC sopn :=
   { ceqP := sopn_eq_axiom }.
 
-Definition sopn_prim_constructor (f:asm_op -> sopn) (p : prim_constructor asm_op) : prim_constructor sopn :=
+Definition map_prim_constructor {A B} (f: A -> B) (p : prim_constructor A) : prim_constructor B :=
   match p with
   | PrimP x1 x2 => PrimP x1 (fun ws1 ws2 => f (x2 ws1 ws2))
   | PrimM x => PrimM (fun ws => f (x ws))
@@ -193,7 +193,7 @@ Definition sopn_prim_string : seq (string * prim_constructor sopn) :=
     ("adc", PrimP Uptr (fun _ws sz => Oaddcarry sz));
     ("sbb", PrimP Uptr (fun _ws sz => Osubcarry sz))
   ]%string
-  ++ map (fun '(s, p) => (s, sopn_prim_constructor Oasm p)) prim_string.
+  ++ map (fun '(s, p) => (s, map_prim_constructor Oasm p)) prim_string.
 
 (* used in the OCaml world, it could be a definition it seems *)
 Instance asmOp_sopn : asmOp sopn :=
