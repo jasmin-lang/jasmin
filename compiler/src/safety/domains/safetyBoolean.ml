@@ -36,11 +36,11 @@ module Map2 (M : Map.S) = struct
   let merge2 : (unit -> 'a) -> (unit -> 'b) -> 'a M.t -> 'b M.t -> ('a M.t * 'b M.t)=
     fun fa fb mapa mapb ->
       (M.merge (fun _ aopt _ -> match aopt with
-           | None -> fa () |> some
+           | None -> fa () |> Option.some
            | Some a -> Some a)
           mapa mapb,
        M.merge (fun _ _ bopt -> match bopt with
-           | None -> fb () |> some
+           | None -> fb () |> Option.some
            | Some b -> Some b)
          mapa mapb)
 end

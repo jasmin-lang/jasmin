@@ -99,15 +99,15 @@ let false_tcons1 =
 let flip_constr c =
   let t = Mtcons.get_expr c in
   match Mtcons.get_typ c with
-  | Tcons1.EQ -> Mtcons.make t Tcons1.DISEQ |> some
-  | Tcons1.DISEQ -> Mtcons.make t Tcons1.EQ |> some
+  | Tcons1.EQ -> Mtcons.make t Tcons1.DISEQ |> Option.some
+  | Tcons1.DISEQ -> Mtcons.make t Tcons1.EQ |> Option.some
   | Tcons1.SUPEQ ->
     let mt = Mtexpr.unop Texpr1.Neg t in
-    Mtcons.make mt Tcons1.SUP |> some
+    Mtcons.make mt Tcons1.SUP |> Option.some
 
   | Tcons1.SUP ->
     let mt = Mtexpr.unop Texpr1.Neg t in
-    Mtcons.make mt Tcons1.SUPEQ |> some
+    Mtcons.make mt Tcons1.SUPEQ |> Option.some
 
   | Tcons1.EQMOD _ -> None (* Remark: For small i, we could do something *)
 
