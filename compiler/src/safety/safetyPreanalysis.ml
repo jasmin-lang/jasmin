@@ -260,10 +260,10 @@ end = struct
   let st_merge st1 st2 ct =
     let mdp = Mv.merge (fun _ osv1 osv2 ->
         let sv1,sv2 = odfl Sv.empty osv1, odfl Sv.empty osv2 in
-        Sv.union sv1 sv2 |> some) in
+        Sv.union sv1 sv2 |> Option.some) in
     let mcfg = Mf.merge (fun _ osf1 osf2 -> 
         let sf1,sf2 = odfl Sf.empty osf1, odfl Sf.empty osf2 in
-        Sf.union sf1 sf2 |> some) in
+        Sf.union sf1 sf2 |> Option.some) in
     { dp = mdp st1.dp st2.dp;
       cfg = mcfg st1.cfg st2.cfg;
       while_vars = Sv.union st1.while_vars st2.while_vars;
@@ -304,7 +304,7 @@ end = struct
   let rec pa_flag_setfrom v = function
     | [] -> None
     | i :: t -> let i_opt = pa_flag_setfrom_i v i in
-      if is_none i_opt then pa_flag_setfrom v t else i_opt
+      if Option.is_none i_opt then pa_flag_setfrom v t else i_opt
   
   and pa_flag_setfrom_i v i = match i.i_desc with
     | Cassgn _ -> None
