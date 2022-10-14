@@ -249,10 +249,10 @@ Definition is_glob (x:gvar) := x.(gs) == Sglob.
 Inductive pexpr : Type :=
 | Pconst :> Z -> pexpr
 | Pbool  :> bool -> pexpr
-| Parr_init : positive → pexpr
+| Parr_init : array_length → pexpr
 | Pvar   :> gvar -> pexpr
 | Pget   : arr_access -> wsize -> gvar -> pexpr -> pexpr
-| Psub   : arr_access -> wsize -> positive -> gvar -> pexpr -> pexpr 
+| Psub   : arr_access -> wsize -> array_length -> gvar -> pexpr -> pexpr 
 | Pload  : wsize -> var_i -> pexpr -> pexpr
 | Papp1  : sop1 -> pexpr -> pexpr
 | Papp2  : sop2 -> pexpr -> pexpr -> pexpr
@@ -277,7 +277,7 @@ Variant lval : Type :=
 | Lvar  `(var_i)
 | Lmem  `(wsize) `(var_i) `(pexpr)
 | Laset `(arr_access) `(wsize) `(var_i) `(pexpr)
-| Lasub `(arr_access) `(wsize) `(positive) `(var_i) `(pexpr).
+| Lasub `(arr_access) `(wsize) `(array_length) `(var_i) `(pexpr).
 
 Coercion Lvar : var_i >-> lval.
 
@@ -379,13 +379,15 @@ Canonical  align_eqType      := Eval hnf in EqType align align_eqMixin.
 
 (* ----------------------------------------------------------------------------- *)
 
+Section bla.
+Context (tmap : array_length_abstract -> positive).
 Section ASM_OP.
 
-Context `{asmop:asmOp}.
+Context `{asmop:asmOp tmap}.
 
 Inductive instr_r :=
 | Cassgn   : lval -> assgn_tag -> stype -> pexpr -> instr_r
-| Copn     : lvals -> assgn_tag -> sopn -> pexprs -> instr_r
+| Copn     : lvals -> assgn_tag -> sopn (tmap:=tmap) -> pexprs -> instr_r
 | Csyscall : lvals -> syscall_t -> pexprs -> instr_r 
 | Cif      : pexpr -> seq instr -> seq instr  -> instr_r
 | Cfor     : var_i -> range -> seq instr -> instr_r
@@ -395,8 +397,9 @@ Inductive instr_r :=
 with instr := MkI : instr_info -> instr_r ->  instr.
 
 End ASM_OP.
+End bla.
 
-Notation cmd := (seq instr).
+Notation cmd tmap := (seq (instr (tmap:=tmap))).
 
 Module FunInfo : TAG.
   Definition t := positive.
@@ -423,7 +426,7 @@ Record _fundef (extra_fun_t: Type) := MkFun {
   f_info   : fun_info;
   f_tyin   : seq stype;
   f_params : seq var_i;
-  f_body   : cmd;
+  f_body   : cmd tmap;
   f_tyout  : seq stype;
   f_res    : seq var_i;
   f_extra  : extra_fun_t;
@@ -474,10 +477,10 @@ Definition progUnit : progT [eqType of unit] :=
      extra_prog_t := unit;
   |}.
 
-Definition ufundef     := @fundef _ _ _ progUnit.
-Definition ufun_decl   := @fun_decl _ _ _ progUnit.
-Definition ufun_decls  := seq (@fun_decl _ _ _ progUnit).
-Definition uprog       := @prog _ _ _ progUnit.
+Definition ufundef     := @fundef _ _ _ _ progUnit.
+Definition ufun_decl   := @fun_decl _ _ _ _ progUnit.
+Definition ufun_decls  := seq (@fun_decl _ _ _ _ progUnit).
+Definition uprog       := @prog _ _ _ _ progUnit.
 
 (* For extraction *)
 Definition _ufundef    := _fundef unit. 
@@ -573,10 +576,10 @@ Definition progStack : progT [eqType of stk_fun_extra] :=
   {| extra_val_t := pointer;
      extra_prog_t := sprog_extra  |}.
 
-Definition sfundef     := @fundef _ _ _ progStack.
-Definition sfun_decl   := @fun_decl _ _ _ progStack.
-Definition sfun_decls  := seq (@fun_decl _ _ _ progStack).
-Definition sprog       := @prog _ _ _ progStack.
+Definition sfundef     := @fundef _ _ _ _ progStack.
+Definition sfun_decl   := @fun_decl _ _ _ _ progStack.
+Definition sfun_decls  := seq (@fun_decl _ _ _ _ progStack).
+Definition sprog       := @prog _ _ _ _ progStack.
 
 (* For extraction *)
 
@@ -683,7 +686,7 @@ Definition vrvs := (vrvs_rec Sv.empty).
 Definition lv_write_mem (r:lval) : bool :=
   if r is Lmem _ _ _ then true else false.
 
-Fixpoint write_i_rec s (i:instr_r) :=
+Fixpoint write_i_rec s (i:instr_r (tmap:=tmap)) :=
   match i with
   | Cassgn x _ _ _  => vrv_rec s x
   | Copn xs _ _ _   => vrvs_rec s xs
@@ -745,7 +748,7 @@ Definition read_rv := read_rv_rec Sv.empty.
 Definition read_rvs_rec := foldl read_rv_rec.
 Definition read_rvs := read_rvs_rec Sv.empty.
 
-Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
+Fixpoint read_i_rec (s:Sv.t) (i:instr_r (tmap:=tmap)) : Sv.t :=
   match i with
   | Cassgn x _ _ e => read_rv_rec (read_e_rec s e) x
   | Copn xs _ _ es => read_es_rec (read_rvs_rec s xs) es
@@ -763,7 +766,7 @@ Fixpoint read_i_rec (s:Sv.t) (i:instr_r) : Sv.t :=
     read_e_rec s e
   | Ccall _ xs _ es => read_es_rec (read_rvs_rec s xs) es
   end
-with read_I_rec (s:Sv.t) (i:instr) : Sv.t :=
+with read_I_rec (s:Sv.t) (i:instr (tmap:=tmap)) : Sv.t :=
   match i with
   | MkI _ i => read_i_rec s i
   end.
@@ -779,7 +782,7 @@ Definition read_c := read_c_rec Sv.empty.
 (* ** Compute occurring variables (= read + write)
  * -------------------------------------------------------------------------- *)
 
-Definition vars_I (i: instr) := Sv.union (read_I i) (write_I i).
+Definition vars_I (i: instr (tmap:=tmap)) := Sv.union (read_I i) (write_I i).
 
 Definition vars_c c := Sv.union (read_c c) (write_c c).
 

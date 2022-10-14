@@ -261,50 +261,6 @@ let main () =
     if !debug then Printf.eprintf "translated to coq \n%!";
 
     let to_exec = Pretyping.Env.Exec.get env in
-    if to_exec <> [] then begin
-        let exec { L.pl_loc = loc ; L.pl_desc = (f, m) } =
-          let ii = L.i_loc0 loc, [] in
-          try
-            let pp_range fmt (ptr, sz) =
-              Format.fprintf fmt "%a:%a" Z.pp_print ptr Z.pp_print sz in
-            Format.printf "/* Evaluation of %s (@[<h>%a@]):@." f.fn_name
-              (pp_list ",@ " pp_range) m;
-            let _m, vs =
-              (** TODO: allow to configure the initial stack pointer *)
-
-              let ptr_of_z z = Word0.wrepr Arch.reg_size (Conv.cz_of_z z) in
-              let live =
-                List.map
-                  (fun (ptr, sz) -> ptr_of_z ptr, Conv.cz_of_z sz)
-                  m
-              in
-              let m_init =
-                (Low_memory.Memory.coq_M Arch.reg_size).init
-                  live
-                  (ptr_of_z (Z.of_string "1024"))
-              in
-              (match m_init with
-                 | Utils0.Ok m -> m
-                 | Utils0.Error err -> raise (Evaluator.Eval_error (ii, err)))
-              |>
-              Evaluator.exec
-                spp
-                (Syscall_ocaml.initial_state ())
-                (Expr.to_uprog Arch.asmOp cprog)
-                ii
-                (Conv.cfun_of_fun tbl f)
-                []
-            in
-
-            Format.printf "@[<v>%a@]@."
-              (pp_list "@ " Evaluator.pp_val) vs;
-            Format.printf "*/@."
-          with Evaluator.Eval_error (ii,err) ->
-            let i_loc, _ = ii in
-            hierror ~loc:(Lmore i_loc) ~kind:"evaluation error" "%a" Evaluator.pp_error err
-        in
-        List.iter exec to_exec
-      end;
 
     let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef tbl (fn,cfd) in
     let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef tbl fd) in

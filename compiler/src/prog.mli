@@ -3,6 +3,7 @@ open Utils
 open Wsize
 module E = Expr
 module L = Location
+module C = Expr
 
 module Name : sig
   type t = string
@@ -197,19 +198,19 @@ val pexpr_equal : pexpr -> pexpr -> bool
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
-type ty    = int gty
-type var   = int gvar
-type var_i = int gvar_i
-type lval  = int glval
-type lvals = int glval list
-type expr  = int gexpr
-type exprs = int gexpr list
+type ty    = Expr.array_length gty
+type var   = Expr.array_length gvar
+type var_i = Expr.array_length gvar_i
+type lval  = Expr.array_length glval
+type lvals = Expr.array_length glval list
+type expr  = Expr.array_length gexpr
+type exprs = Expr.array_length gexpr list
 
-type ('info,'asm) instr = (int,'info,'asm) ginstr
-type ('info,'asm) stmt  = (int,'info,'asm) gstmt
+type ('info,'asm) instr = (Expr.array_length,'info,'asm) ginstr
+type ('info,'asm) stmt  = (Expr.array_length,'info,'asm) gstmt
 
-type ('info,'asm) func     = (int,'info,'asm) gfunc
-type ('info,'asm) mod_item = (int,'info,'asm) gmod_item
+type ('info,'asm) func     = (Expr.array_length,'info,'asm) gfunc
+type ('info,'asm) mod_item = (Expr.array_length,'info,'asm) gmod_item
 type global_decl           = var * Global.glob_value
 type ('info,'asm) prog     = global_decl list *('info,'asm) func list
 
@@ -231,9 +232,9 @@ module V : sig
   val is_glob : var -> bool
 end
 
-module Sv : Set.S  with type elt = var
-module Mv : Map.S  with type key = var
-module Hv : Hash.S with type key = var
+module Sv : Set.S  with type elt = C.array_length gvar
+module Mv : Map.S  with type key = C.array_length gvar
+module Hv : Hash.S with type key = C.array_length gvar
 
 val is_regx : var -> bool
 

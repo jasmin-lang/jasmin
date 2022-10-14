@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
-Require Import strings word utils gen_map type var expr low_memory sem.
+Require Import strings word utils gen_map type var expr low_memory.
 Require Import compiler_util byteset.
 Require Import ZArith.
 
@@ -723,7 +723,7 @@ Definition get_Lvar_sub lv :=
   | Lvar x => ok (x, None)
   | Lasub aa ws len x e1 =>
     Let ofs := get_ofs_sub aa ws x e1 in
-    ok (x, Some (ofs, arr_size ws len))
+    ok (x, Some (ofs, (* arr_size ws len *) 0%Z))
   | _      => Error (stk_ierror_no_var "get_Lvar_sub: variable/subarray expected")
   end.
 
@@ -732,7 +732,7 @@ Definition get_Pvar_sub e :=
   | Pvar x => ok (x, None)
   | Psub aa ws len x e1 =>
     Let ofs := get_ofs_sub aa ws x.(gv) e1 in
-    ok (x, Some (ofs, arr_size ws len))
+    ok (x, Some (ofs, (* arr_size ws len *) 0%Z))
   | _      => Error (stk_ierror_no_var "get_Pvar_sub: variable/subarray expected")
   end.
 

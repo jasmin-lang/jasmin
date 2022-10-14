@@ -11,11 +11,21 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Section toto.
+
+Context (tmap : array_length_abstract -> positive).
+
+Definition pos_of_length len :=
+  match len with
+  | AL_const p => p
+  | AL_abstract a => tmap a
+  end.
+
 Definition sem_t (t : stype) : Type :=
   match t with
   | sbool    => bool
   | sint     => Z
-  | sarr n   => WArray.array n
+  | sarr n   => WArray.array (pos_of_length n)
   | sword s  => word s
   end.
 
@@ -111,3 +121,5 @@ Definition behead_tuple tin tout :
           fun f => sem_prod_app f (fun x => Let: (r, p) := x in ok p)
       end
   end.
+
+End toto.

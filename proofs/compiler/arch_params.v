@@ -1,12 +1,10 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import
   compiler_util
-  expr
-  psem.
+  expr.
 Require Import
   arch_decl
   arch_extra
-  arch_sem
   asm_gen.
 Require
   linearization

@@ -1,6 +1,6 @@
 Require Import var compiler.
-Require arm_params arm_sem.
-Require x86_params x86_sem.
+Require arm_params.
+Require x86_params.
 
 Require ExtrOcamlBasic.
 Require ExtrOcamlString.
@@ -36,7 +36,6 @@ Separate Extraction
   utils
   sopn
   expr
-  sem
   arch_decl
   x86_decl
   x86_sem.x86_prog

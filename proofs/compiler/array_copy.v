@@ -40,7 +40,7 @@ Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
   let sz := Z.to_pos (wsize_size ws * n) in
   let pre := 
     if eq_gvar (mk_lvar x) y then Copn [::] AT_none Onop [::]
-    else Cassgn (Lvar x) AT_none (sarr sz) (Parr_init sz) in
+    else Cassgn (Lvar x) AT_none (sarr sz) (Parr_init (const_length sz)) in
   [:: MkI ii pre;
       MkI ii 
         (Cfor i (UpTo, Pconst 0, Pconst n) 
