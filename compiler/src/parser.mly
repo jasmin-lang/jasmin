@@ -443,7 +443,9 @@ pfundef:
 (* -------------------------------------------------------------------- *)
 pparam:
 | PARAM ty=ptype x=ident EQ pe=pexpr SEMICOLON
-    { { ppa_ty = ty; ppa_name = x; ppa_init = pe; } }
+    { { ppa_ty = ty; ppa_name = x; ppa_init = Some pe; } }
+| PARAM ty=ptype x=ident SEMICOLON
+    { { ppa_ty = ty; ppa_name = x; ppa_init = None; } }
 
 (* -------------------------------------------------------------------- *)
 pgexpr:

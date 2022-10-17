@@ -395,10 +395,19 @@ let pp_pprog asmOp fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem pp_pexpr pp_opn pp_pvar)) (List.rev p)
 
+let rec pp_array_length fmt len =
+  let open Array_length in
+  match len with
+  | Const n -> Z.pp_print fmt n
+  | Add (len1, len2) -> Format.fprintf fmt "(%a) + (%a)" pp_array_length len1 pp_array_length len2
+  | Sub (len1, len2) -> Format.fprintf fmt "(%a) - (%a)" pp_array_length len1 pp_array_length len2
+  | Mul (len1, len2) -> Format.fprintf fmt "(%a) * (%a)" pp_array_length len1 pp_array_length len2
+  | Var x -> Format.fprintf fmt "%s" x
+
 let pp_len fmt len =
   match len with
   | AL_const len -> Format.fprintf fmt "%i" len
-  | AL_abstract _ -> Format.fprintf fmt "<abstract>"
+  | AL_abstract a -> Format.fprintf fmt "%a" pp_array_length a
 
 let pp_fun ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in

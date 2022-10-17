@@ -342,7 +342,7 @@ let pp_param fmt { ppa_ty ; ppa_name ; ppa_init } =
     kw "param"
     pp_type ppa_ty
     dname (L.unloc ppa_name)
-    pp_expr ppa_init;
+    (F.pp_print_option pp_expr) ppa_init;
   F.fprintf fmt eol
 
 let pp_pgexpr fmt = function

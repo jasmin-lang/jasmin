@@ -101,7 +101,7 @@ let psubst_v subst =
     let e = 
       try Mpv.find v_ !subst
       with Not_found ->
-        assert (not (PV.is_glob v_));
+        (* assert (not (PV.is_glob v_)); *)
         let ty = psubst_ty aux v_.v_ty in
         let v' = PV.mk v_.v_name v_.v_kind ty v_.v_dloc v_.v_annot in
         let v = {v with L.pl_desc = v'} in

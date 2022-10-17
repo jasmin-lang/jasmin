@@ -24,7 +24,7 @@ let pp_stype fmt =
 let pp_atype fmt =
   function
   | T.Coq_concrete ty -> pp_stype fmt ty
-  | T.Coq_symbolic _a -> F.fprintf fmt "<symbolic>"
+  | T.Coq_symbolic a -> F.fprintf fmt "%a" Pr.pp_array_length a
 
 (* ---------------------------------------------------------------- *)
 let pp_var tbl fmt x =

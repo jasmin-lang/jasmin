@@ -248,6 +248,7 @@ module Env : sig
   module Vars : sig
     val push       : 'asm env -> P.pvar -> 'asm env
     val push_param : 'asm env -> (P.pvar * P.pexpr) -> 'asm env
+    val push_uparam : 'asm env -> P.pvar -> 'asm env
     val find       : A.symbol -> 'asm env -> P.pvar option
   end
 
@@ -376,6 +377,10 @@ end = struct
     let push_param env (x,_ as d) = 
       let env = push env x in
       { env with e_decls = P.MIparam d :: env.e_decls }
+
+    let push_uparam env x =
+      let env = push env x in
+      env
 
     let find (x : A.symbol) (env : 'asm env) =
       Map.Exceptionless.find x env.e_vars
@@ -1213,13 +1218,19 @@ let tt_vardecl_push dfl_writable pd (env : 'asm Env.env) px =
 (* -------------------------------------------------------------------- *)
 let tt_param pd (env : 'asm Env.env) _loc (pp : S.pparam) : 'asm Env.env =
   let ty = tt_type pd env pp.ppa_ty in
-  let pe, ety = tt_expr ~mode:`OnlyParam pd env pp.S.ppa_init in
+  begin match pp.S.ppa_init with
+  | Some init ->
+    let pe, ety = tt_expr ~mode:`OnlyParam pd env init in
+    check_ty_eq ~loc:(L.loc init) ~from:ty ~to_:ety;
+    let x = P.PV.mk (L.unloc pp.ppa_name) P.Const ty (L.loc pp.ppa_name) [] in
+    let env = Env.Vars.push_param env (x,pe) in
+    env
+  | None ->
+    let x = P.PV.mk (L.unloc pp.ppa_name) P.Const ty (L.loc pp.ppa_name) [] in
+    let env = Env.Vars.push_uparam env x in
+    env
+  end
 
-  check_ty_eq ~loc:(L.loc pp.ppa_init) ~from:ty ~to_:ety;
-
-  let x = P.PV.mk (L.unloc pp.ppa_name) P.Const ty (L.loc pp.ppa_name) [] in
-  let env = Env.Vars.push_param env (x,pe) in
-  env
 
 
 (* -------------------------------------------------------------------- *)

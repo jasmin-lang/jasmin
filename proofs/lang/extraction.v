@@ -32,7 +32,7 @@ Extract Constant type.array_length_abstract => "Array_length.t".
 Extract Constant type.array_length_abstract_beq => "Array_length.beq".
 Extract Constant type.array_length_abstract_eq_axiom => "(fun _ -> assert false)".
 Extract Constant type.array_length_abstract_dec => "(fun _al1 _al2 -> assert false)".
-Extract Constant type.array_length_abstract_cmp => "(fun _al1 _al2 -> assert false)".
+Extract Constant type.array_length_abstract_cmp => "Array_length.cmp".
 
 Cd  "lang/ocaml".
 

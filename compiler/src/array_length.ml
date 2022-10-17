@@ -13,3 +13,10 @@ let rec beq al1 al2 =
   | Mul (al11, al21), Mul (al12, al22) -> beq al11 al12 && beq al21 al22
   | Var x1, Var x2 -> x1 = x2
   | _, _ -> false
+
+let rec cmp al1 al2 =
+  let open Datatypes in
+  let res = compare al1 al2 in
+  if res < 0 then Lt
+  else if res = 0 then Eq
+  else Gt

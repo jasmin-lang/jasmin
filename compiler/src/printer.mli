@@ -7,6 +7,7 @@ val pp_err : debug:bool -> Conv.coq_tbl ->
              Format.formatter -> Compiler_util.pp_error -> unit
 
 val pp_bool : Format.formatter -> bool -> unit
+val pp_array_length : Format.formatter -> Array_length.t -> unit
 
 val pp_string0 : Format.formatter -> char list -> unit
 
