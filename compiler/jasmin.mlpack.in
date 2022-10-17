@@ -44,3 +44,4 @@ src/Utils
 src/Varalloc
 src/X86_arch_full
 src/Arm_arch_full
+src/Pp_stack_alloc

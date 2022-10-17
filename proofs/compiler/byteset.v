@@ -74,6 +74,8 @@ Module Type ByteSetType.
 
   Parameter t : Type.
 
+  Parameter to_list : t -> list interval.
+
   Parameter empty  : t.
   Parameter is_empty : t -> bool.
 
@@ -175,6 +177,8 @@ Record Bytes := mkBytes { tobytes :> bytes; _wf : wf tobytes; }.
 Definition t := Bytes.
 
 Canonical Bytes_subType := Eval hnf in [subType for tobytes].
+
+Definition to_list (b : t) : list interval := b.(tobytes).
 
 (* ----------------------------------------- *)
 Fixpoint _memi (t: bytes) i :=

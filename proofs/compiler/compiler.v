@@ -150,6 +150,7 @@ Record compiler_params
   {asm_op : Type}
   {asmop : asmOp asm_op}
   (fresh_vars lowering_options : Type) := {
+  print_rmap       : instr_info -> Region.region_map -> Region.region_map;
   rename_fd        : instr_info -> funname -> _ufundef -> _ufundef;
   expand_fd        : funname -> _ufundef -> expand_info;
   split_live_ranges_fd : funname -> _ufundef -> _ufundef;
@@ -321,6 +322,7 @@ Definition compiler_front_end (entries subroutines : seq funname) (p: prog) : ce
       (ao_globals ao)
       (ao_global_alloc ao)
       (ao_stack_alloc ao)
+      cparams.(print_rmap)
       pl
   in
   let ps : sprog := cparams.(print_sprog) StackAllocation ps in

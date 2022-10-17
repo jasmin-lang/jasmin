@@ -248,10 +248,6 @@ let main () =
 
     let translate_var = Conv.var_of_cvar tbl in
     
-    let memory_analysis up : Compiler.stack_alloc_oracles =
-      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl up
-    in
-
     let global_regalloc fds =
       if !debug then Format.eprintf "START regalloc@.";
       let fds = List.map (Conv.fdef_of_csfdef tbl) fds in
@@ -369,7 +365,28 @@ let main () =
         let (fds, _) = Conv.prog_of_csprog tbl p in
         List.iter (warn_extra_fd Arch.asmOp) fds in
 
+    let print_rmap ii rmap =
+      let open Pp_stack_alloc in
+      let pp_ii fmt ii =
+        let (loc, _) = ii in
+        Format.fprintf fmt "==========@,%a@,==========" Location.pp_iloc loc
+      in
+      Format.eprintf "@[<v>%a@,%a@]@." pp_ii ii (pp_rmap tbl) rmap
+    in
+
+    let print_rmap ii rmap =
+      if !Glob_options.print_stack_alloc_checker then print_rmap ii rmap;
+      rmap
+    in
+
+
+    let memory_analysis up : Compiler.stack_alloc_oracles =
+      StackAlloc.memory_analysis print_rmap (Printer.pp_err ~debug:!debug) ~debug:!debug tbl up
+    in
+
+
     let cparams = {
+      Compiler.print_rmap   = print_rmap;
       Compiler.rename_fd    = rename_fd;
       Compiler.expand_fd    = expand_fd;
       Compiler.split_live_ranges_fd = apply "split live ranges" split_live_ranges_fd;
