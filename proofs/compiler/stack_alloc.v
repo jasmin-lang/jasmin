@@ -738,7 +738,13 @@ Definition get_Lvar_sub lv :=
   | Lvar x => ok (x, None)
   | Lasub aa ws len x e1 =>
     Let ofs := get_ofs_sub aa ws x e1 in
-    ok (x, Some (ofs, (* arr_size ws len *) 0%Z))
+    let len :=
+      match len with
+      | AL_const len => len
+      | AL_abstract _ => 1%positive
+      end
+    in
+    ok (x, Some (ofs, arr_size ws len))
   | _      => Error (stk_ierror_no_var "get_Lvar_sub: variable/subarray expected")
   end.
 
@@ -747,7 +753,13 @@ Definition get_Pvar_sub e :=
   | Pvar x => ok (x, None)
   | Psub aa ws len x e1 =>
     Let ofs := get_ofs_sub aa ws x.(gv) e1 in
-    ok (x, Some (ofs, (* arr_size ws len *) 0%Z))
+    let len :=
+      match len with
+      | AL_const len => len
+      | AL_abstract _ => 1%positive
+      end
+    in
+    ok (x, Some (ofs, arr_size ws len))
   | _      => Error (stk_ierror_no_var "get_Pvar_sub: variable/subarray expected")
   end.
 

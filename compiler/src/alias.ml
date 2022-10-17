@@ -155,14 +155,27 @@ let normalize_asub a aa ws len x i =
 let slice_of_pexpr a =
   function
   | Parr_init _ -> None
-  | Pvar x -> Some (normalize_gvar a x)
-  | Psub (aa, ws, _len, x, i) -> Some (normalize_asub a aa ws 0 x i)
+  | Pvar x ->
+      Some (normalize_gvar a x)
+  | Psub (aa, ws, len, x, i) ->
+      let len =
+        match len with
+        | AL_const len -> len
+        | AL_abstract _a -> 1
+      in
+      Some (normalize_asub a aa ws len x i)
   | (Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _ | PappN _ | Pif _) -> assert false
 
 let slice_of_lval a =
   function
   | Lvar x -> Some (normalize_var a (L.unloc x))
-  | Lasub (aa, ws, _len, gv, i) -> Some (normalize_asub a aa ws 0 { gv ; gs = E.Slocal } i)
+  | Lasub (aa, ws, len, gv, i) ->
+      let len =
+        match len with
+        | AL_const len -> len
+        | AL_abstract _a -> 1
+      in
+      Some (normalize_asub a aa ws len { gv ; gs = E.Slocal } i)
   | (Lmem _ | Laset _ | Lnone _) -> None
 
 let assign_arr params a x e =
