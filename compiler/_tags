@@ -10,7 +10,6 @@ true : bin_annot
 <CIL>                : include
 <src>                : include
 <src/safety>         : include
-<src/safety/domains> : include
 <src>                : traverse
 <CIL>                : traverse
 <entry>              : traverse
@@ -18,8 +17,6 @@ true : bin_annot
 # --------------------------------------------------------------------
 <src/**/*.{ml,mli}>: package(batteries, menhirLib, zarith, apron.octMPQ, apron.ppl, apron.boxMPQ, yojson)
 <src/*.cmx>               : for-pack(Jasmin)
-<src/safety{,/domains}/*.ml>: warn_-32
-<src/safety{,/domains}/*.cmx>: for-pack(Jasmin)
 
 <CIL/*.cmx>: for-pack(Jasmin)
 <CIL/*.{ml,mli}>: warn_-20, warn_-32, warn_-33, warn_-34

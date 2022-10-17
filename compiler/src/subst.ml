@@ -170,19 +170,26 @@ let int_of_op2 ?loc o =
   | Expr.Omod Cmp_int -> Z.erem
   | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (Printer.string_of_op2 o)
 
+let op_of_op2 ?loc o x1 x2 =
+  match o with
+  | Expr.Oadd Op_int -> Array_length.Add (x1, x2)
+  | Expr.Omul Op_int -> Array_length.Mul (x1, x2)
+  | Expr.Osub Op_int -> Array_length.Sub (x1, x2)
+  | _ -> hierror ?loc "operator %s not allowed" (Printer.string_of_op2 o)
+
 let rec int_of_expr ?loc e =
   match e with
-  | Pconst i -> Pconst i
+  | Pconst i -> Array_length.Const i
   | Papp2 (o, e1, e2) ->
       let i1 = int_of_expr ?loc e1 in
       let i2 = int_of_expr ?loc e2 in
       begin match i1, i2 with
-      | Pconst i1, Pconst i2 ->
+      | Array_length.Const i1, Array_length.Const i2 ->
         let op = int_of_op2 ?loc o in
-        Pconst (op i1 i2)
-      | _, _ -> Papp2 (o, i1, i2)
+        Array_length.Const (op i1 i2)
+      | _, _ -> op_of_op2 ?loc o i1 i2
       end
-  | Pvar x -> Pvar x
+  | Pvar x -> Array_length.Var (L.unloc x.gv).v_name
   | Pbool _ | Parr_init _
   | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ ->
       hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions and vars are allowed)" Printer.pp_pexpr e
@@ -190,8 +197,8 @@ let rec int_of_expr ?loc e =
 
 let isubst_len ?loc e =
   match int_of_expr ?loc e with
-  | Pconst i -> AL_const (Z.to_int i)
-  | _ -> AL_abstract e
+  | Array_length.Const i -> AL_const (Z.to_int i)
+  | al -> AL_abstract al
 
 let isubst_ty ?loc = function
   | Bty ty -> Bty ty
@@ -332,14 +339,14 @@ let remove_params (prog : ('info, 'asm) pprog) =
     match x.v_ty, e with
     | Bty (U ws), GEword e ->
       x, Global.Gword (ws, mk_word ws e)
-    | Arr (_ws, n), GEarray es when List.length es <> n ->
+    | Arr (_ws, AL_const n), GEarray es when List.length es <> n ->
        let m = List.length es in
        hierror ~loc:x.v_dloc "array size mismatch for global variable %a: %d %s given (%d expected)"
          (Printer.pp_var ~debug:false) x
          (List.length es)
          (if m > 1 then "values" else "value")
          n
-    | Arr (ws, n), GEarray es ->
+    | Arr (ws, AL_const n), GEarray es ->
       let p = Conv.pos_of_int (n * size_of_ws ws) in
       let t = ref (Warray_.WArray.empty p) in
       let doit i e =

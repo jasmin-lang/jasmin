@@ -28,14 +28,6 @@ module X86 (Lowering_params : X86_input) : Arch_full.Core_arch = struct
 
   let pp_asm = Ppasm.pp_prog
 
-  let analyze source_f_decl f_decl p =
-    let module AbsInt = SafetyInterpreter.AbsAnalyzer(struct
-        let main_source = source_f_decl
-        let main = f_decl
-        let prog = p
-      end) in
-  (* FIXME: code duplication! already in arch_full.ml *)
-  let asmOp = Arch_extra.asm_opI asm_e in
-  AbsInt.analyze asmOp ()
+  let analyze _source_f_decl _f_decl _p = ()
 
 end

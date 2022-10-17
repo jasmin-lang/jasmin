@@ -1,1 +1,0 @@
-module AbsNumCongr : SafetyInterfaces.AbsNumType

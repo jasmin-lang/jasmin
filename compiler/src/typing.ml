@@ -20,7 +20,7 @@ let error loc fmt =
 let ty_var (x:var_i) = 
   let ty = (L.unloc x).v_ty in
   begin match ty with
-  | Arr(_, n) -> 
+  | Arr(_, AL_const n) -> 
       if (n < 1) then 
         error (L.i_loc0 (L.unloc x).v_dloc)
           "the variable %a has type %a, its array size should be positive"
@@ -30,7 +30,7 @@ let ty_var (x:var_i) =
   ty
 
 
-let ty_gvar (x:int ggvar) = ty_var x.gv
+let ty_gvar (x:_ ggvar) = ty_var x.gv
 
 (* -------------------------------------------------------------------- *)
 
@@ -46,7 +46,12 @@ let subtype t1 t2 =
   match t1, t2 with
   | Bty (U ws1), Bty (U ws2) -> wsize_le ws1 ws2
   | Bty bty1, Bty bty2 -> bty1 = bty2
-  | Arr(ws1,len1), Arr(ws2,len2) -> arr_size ws1 len1 == arr_size ws2 len2
+  | Arr(ws1,len1), Arr(ws2,len2) ->
+    begin match len1, len2 with
+    | AL_const len1, AL_const len2 -> arr_size ws1 len1 == arr_size ws2 len2
+    | AL_abstract a1, AL_abstract a2 -> ws1 == ws2 && Array_length.beq a1 a2
+    | _, _ -> false
+    end
   | _, _ -> false 
 
 let check_type loc e te ty = 
@@ -63,19 +68,19 @@ let check_ptr pd loc e te = check_type loc e te (tu pd)
 
 let type_of_op1 op = 
   let tin,tout = E.type_of_op1 op in
-  Conv.ty_of_cty tin, Conv.ty_of_cty tout
+  Conv.ty_of_cty (Coq_concrete tin), Conv.ty_of_cty (Coq_concrete tout)
 
 let type_of_op2 op = 
   let (tin1,tin2),tout = E.type_of_op2 op in
-  (Conv.ty_of_cty tin1, Conv.ty_of_cty tin2), Conv.ty_of_cty tout
+  (Conv.ty_of_cty (Coq_concrete tin1), Conv.ty_of_cty (Coq_concrete tin2)), Conv.ty_of_cty (Coq_concrete tout)
 
 let type_of_opN op = 
   let tins, tout = E.type_of_opN op in
-  List.map Conv.ty_of_cty tins, Conv.ty_of_cty tout
+  List.map (fun ty -> Conv.ty_of_cty (Coq_concrete ty)) tins, Conv.ty_of_cty (Coq_concrete tout)
 
 let type_of_sopn asmOp op = 
-  List.map Conv.ty_of_cty (Sopn.sopn_tin asmOp op),
-  List.map Conv.ty_of_cty (Sopn.sopn_tout asmOp op)
+  List.map (fun ty -> Conv.ty_of_cty (Coq_concrete ty)) (Sopn.sopn_tin asmOp op),
+  List.map (fun ty -> Conv.ty_of_cty (Coq_concrete ty)) (Sopn.sopn_tout asmOp op)
 
 (* -------------------------------------------------------------------- *)
 
@@ -185,8 +190,8 @@ let rec check_instr pd asmOp env i =
 
   | Csyscall(xs, o, es) ->
     let s = Syscall.syscall_sig_u o in
-    let tins = List.map Conv.ty_of_cty s.scs_tin in
-    let tout = List.map Conv.ty_of_cty s.scs_tout in
+    let tins = List.map (fun ty -> Conv.ty_of_cty (Coq_concrete ty)) s.scs_tin in
+    let tout = List.map (fun ty -> Conv.ty_of_cty (Coq_concrete ty)) s.scs_tout in
     check_exprs pd loc es tins;
     check_lvals pd loc xs tout
 
