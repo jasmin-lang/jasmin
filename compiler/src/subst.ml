@@ -172,16 +172,26 @@ let int_of_op2 ?loc o =
 
 let rec int_of_expr ?loc e =
   match e with
-  | Pconst i -> i
+  | Pconst i -> Pconst i
   | Papp2 (o, e1, e2) ->
-      let op = int_of_op2 ?loc o in
-      op (int_of_expr ?loc e1) (int_of_expr ?loc e2)
-  | Pbool _ | Parr_init _ | Pvar _ 
+      let i1 = int_of_expr ?loc e1 in
+      let i2 = int_of_expr ?loc e2 in
+      begin match i1, i2 with
+      | Pconst i1, Pconst i2 ->
+        let op = int_of_op2 ?loc o in
+        Pconst (op i1 i2)
+      | _, _ -> Papp2 (o, i1, i2)
+      end
+  | Pvar x -> Pvar x
+  | Pbool _ | Parr_init _
   | Pget _ | Psub _ | Pload _ | Papp1 _ | PappN _ | Pif _ ->
-      hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions are allowed)" Printer.pp_pexpr e
+      hierror ?loc "expression %a not allowed in array size (only constant arithmetic expressions and vars are allowed)" Printer.pp_pexpr e
 
 
-let isubst_len ?loc e = Z.to_int (int_of_expr ?loc e)
+let isubst_len ?loc e =
+  match int_of_expr ?loc e with
+  | Pconst i -> AL_const (Z.to_int i)
+  | _ -> AL_abstract e
 
 let isubst_ty ?loc = function
   | Bty ty -> Bty ty

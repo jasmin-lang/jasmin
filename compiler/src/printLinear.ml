@@ -21,6 +21,11 @@ let pp_stype fmt =
   | T.Coq_sarr n -> F.fprintf fmt "u%a[%a]" pp_wsize U8 Z.pp_print (Conv.z_of_pos n)
   | T.Coq_sword sz -> F.fprintf fmt "u%a" pp_wsize sz
 
+let pp_atype fmt =
+  function
+  | T.Coq_concrete ty -> pp_stype fmt ty
+  | T.Coq_symbolic _a -> F.fprintf fmt "<symbolic>"
+
 (* ---------------------------------------------------------------- *)
 let pp_var tbl fmt x =
   let y = Conv.var_of_cvar tbl x in
@@ -34,13 +39,13 @@ let rec pp_expr tbl fmt =
   function
   | E.Pconst z -> Z.pp_print fmt (Conv.z_of_cz z)
   | E.Pbool b -> Pr.pp_bool fmt b
-  | E.Parr_init n -> F.fprintf fmt "arr_init(%a)" Z.pp_print (Conv.z_of_pos n)
+  | E.Parr_init n -> F.fprintf fmt "arr_init(%a)" Pr.pp_len (Conv.array_length_of_carray_length n)
   | E.Pvar x -> pp_var_i tbl fmt x.gv
   | E.Pget (aa, ws, x, e) -> 
     Pr.pp_arr_access (pp_var_i tbl) pp_expr Pr.pp_len fmt aa ws x.gv e None
   | E.Psub (aa, ws, len, x, e) -> 
     Pr.pp_arr_access (pp_var_i tbl) pp_expr Pr.pp_len fmt aa ws x.gv e 
-      (Some (Conv.int_of_pos len))
+      (Some (Conv.array_length_of_carray_length len))
 
   | E.Pload (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x pp_expr e
   | E.Papp1 (op, e) -> F.fprintf fmt "(%s %a)" (Pr.string_of_op1 op) pp_expr e
@@ -50,14 +55,14 @@ let rec pp_expr tbl fmt =
 
 let pp_lval tbl fmt =
   function
-  | E.Lnone (_, ty) -> F.fprintf fmt "(_: %a)" pp_stype ty
+  | E.Lnone (_, ty) -> F.fprintf fmt "(_: %a)" pp_atype ty
   | E.Lvar x -> pp_var_i tbl fmt x
   | E.Lmem (sz, x, e) -> F.fprintf fmt "(%a)[%a + %a]" pp_wsize sz (pp_var_i tbl) x (pp_expr tbl) e
   | E.Laset (aa, ws, x, e) -> 
     Pr.pp_arr_access (pp_var_i tbl) (pp_expr tbl) Pr.pp_len fmt aa ws x e None
   | E.Lasub (aa, ws, len, x, e) -> 
     Pr.pp_arr_access (pp_var_i tbl) (pp_expr tbl) Pr.pp_len fmt aa ws x e 
-    (Some (Conv.int_of_pos len))
+    (Some (Conv.array_length_of_carray_length len))
 
 
 let pp_label fmt lbl =
@@ -111,7 +116,7 @@ let pp_lfun asmOp tbl fmt (fn, fd) =
     pp_meta fd
     name.P.fn_name
     (pp_list ",@ " (pp_param tbl)) fd.lfd_arg
-    (pp_list ",@ " pp_stype) fd.lfd_tyout
+    (pp_list ",@ " pp_atype) fd.lfd_tyout
     (pp_list ";@ " (pp_instr asmOp tbl)) fd.lfd_body
     (pp_return tbl fd.lfd_export) fd.lfd_res
 

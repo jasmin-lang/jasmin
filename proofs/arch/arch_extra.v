@@ -45,13 +45,13 @@ Qed.
 
 (* -------------------------------------------------------------------- *)
 Definition to_var r :=
-  {| vtype := rtype; vname := to_string r |}.
+  {| vtype := concrete rtype; vname := to_string r |}.
 
 Definition of_var (v:var) :=
-  if v.(vtype) == rtype then of_string v.(vname)
+  if v.(vtype) == concrete rtype then of_string v.(vname)
   else None.
 
-Lemma of_varP v r : of_var v = Some r <-> v.(vtype) = rtype /\ of_string v.(vname) = Some r.
+Lemma of_varP v r : of_var v = Some r <-> v.(vtype) = concrete rtype /\ of_string v.(vname) = Some r.
 Proof. by rewrite /of_var; split=> [ | []/eqP -> ?]; first case: eqP. Qed.
 
 Lemma to_varK : pcancel to_var of_var.

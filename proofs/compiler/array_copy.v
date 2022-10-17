@@ -35,16 +35,16 @@ Context (fresh_counter: Ident.ident).
 
 Definition array_copy ii (x: var_i) (ws: wsize) (n: positive) (y: gvar) :=
   let i_name := fresh_counter in
-  let i := {| v_var := {| vtype := sint ; vname := i_name |}; v_info := v_info x |} in
+  let i := {| v_var := {| vtype := concrete (sint) ; vname := i_name |}; v_info := v_info x |} in
   let ei := Pvar (mk_lvar i) in
   let sz := Z.to_pos (wsize_size ws * n) in
   let pre := 
     if eq_gvar (mk_lvar x) y then Copn [::] AT_none Onop [::]
-    else Cassgn (Lvar x) AT_none (sarr sz) (Parr_init (const_length sz)) in
+    else Cassgn (Lvar x) AT_none (concrete (sarr sz)) (Parr_init (const_length sz)) in
   [:: MkI ii pre;
       MkI ii 
         (Cfor i (UpTo, Pconst 0, Pconst n) 
-           [:: MkI ii (Cassgn (Laset AAscale ws x ei) AT_none (sword ws) (Pget AAscale ws y ei))])
+           [:: MkI ii (Cassgn (Laset AAscale ws x ei) AT_none (concrete (sword ws)) (Pget AAscale ws y ei))])
     ].
 
 Definition array_copy_c (array_copy_i : instr -> cexec cmd) (c:cmd) : cexec cmd := 
@@ -81,7 +81,7 @@ Fixpoint array_copy_i (i:instr) : cexec cmd :=
         match is_Lvar xs with
         | Some x => 
           (* FIXME error msg *)
-          Let _ := assert (vtype x == sarr (Z.to_pos (arr_size ws n))) 
+          Let _ := assert (vtype x == concrete (sarr (Z.to_pos (arr_size ws n))))
                           (pp_internal_error_s_at E.pass ii "bad type for copy") in
           ok (array_copy ii x ws n y)
         | None => 
@@ -120,7 +120,7 @@ Definition array_copy_fd (f:fundef) :=
 Definition array_copy_prog (p:prog) := 
   let V := vars_p (p_funcs p) in 
   Let _ := 
-    assert (~~ Sv.mem {| vtype := sint ; vname := fresh_counter |} V) E.error 
+    assert (~~ Sv.mem {| vtype := concrete sint ; vname := fresh_counter |} V) E.error 
   in
   Let fds := map_cfprog array_copy_fd (p_funcs p) in
   ok {| p_funcs := fds;

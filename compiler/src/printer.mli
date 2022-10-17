@@ -37,7 +37,7 @@ val pp_arr_access :
   (Format.formatter -> 'c -> unit) -> 
   Format.formatter -> Warray_.arr_access -> Wsize.wsize -> 'a -> 'b -> 'c option-> unit
 
-val pp_len   : Format.formatter -> int -> unit
+val pp_len   : Format.formatter -> array_length -> unit
 
 val pp_expr  : debug:bool -> Format.formatter -> expr -> unit
 val pp_lval  : debug:bool -> Format.formatter -> lval -> unit

@@ -289,7 +289,7 @@ Definition no_pre (ole : lowered_pexpr) :
 
 Definition lower_pexpr (ws : wsize) (e : pexpr) :
   option (seq instr_r * arm_op * seq pexpr) :=
-  if e is Pif (sword ws') c e0 e1 then
+  if e is Pif (concrete (sword ws')) c e0 e1 then
     if lower_pexpr_aux ws e0 is Some (ARM_op mn opts, es)
     then
       if ws == ws'
@@ -329,8 +329,8 @@ Definition lower_store (ws : wsize) (e : pexpr) : option (arm_op * seq pexpr) :=
 
 (* Convert an assignment into an architecture-specific operation. *)
 Definition lower_cassgn
-  (lv : lval) (ty : stype) (e : pexpr) : option (seq instr_r * copn_args) :=
-  if ty is sword ws
+  (lv : lval) (ty : atype) (e : pexpr) : option (seq instr_r * copn_args) :=
+  if ty is concrete (sword ws)
   then
     let le :=
       if is_lval_in_memory lv

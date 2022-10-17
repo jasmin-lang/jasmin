@@ -187,7 +187,7 @@ Section CHECK.
     Let _ :=
       if extra_free_registers ii is Some r
       then
-        assert (vtype r == sword Uptr) (E.internal_error ii "bad type for extra free register") >>
+        assert (vtype r == concrete (sword Uptr)) (E.internal_error ii "bad type for extra free register") >>
         assert (if ir is Cwhile _ _ _ _ then false else true) (E.internal_error ii "loops need no extra register")
       else ok tt in
     check_ir sz ii (add_extra_free_registers ii D) ir
@@ -271,7 +271,7 @@ Section CHECK.
 
   Let check_preserved_register W J name r :=
     Let _ :=
-      assert (vtype r == sword Uptr) (E.gen_error true None (pp_box [::pp_s "bad register type for"; pp_s name; pp_var r])) in
+      assert (vtype r == concrete (sword Uptr)) (E.gen_error true None (pp_box [::pp_s "bad register type for"; pp_s name; pp_var r])) in
     Let _ :=
       assert (~~ Sv.mem r W) (E.gen_error true None (pp_box [::pp_s "the function writes its"; pp_s name; pp_var r])) in
     assert (~~Sv.mem r J) (E.gen_error true None (pp_box [::pp_s "the function depends on its"; pp_s name; pp_var r])).
@@ -306,7 +306,7 @@ Section CHECK.
                     (E.gen_error true None (pp_s "the function returns a callee-saved register")) in
         Let _ := assert (Sv.subset (Sv.inter callee_saved W') to_save)
                     (E.gen_error true None (pp_s "the function kills some callee-saved registers")) in
-        assert (all (λ x : var_i, if vtype x is sword _ then true else false ) (f_params fd))
+        assert (all (λ x : var_i, if vtype x is concrete (sword _) then true else false ) (f_params fd))
             (E.gen_error true None (pp_s "the export function has non-word arguments"))
     end.
 

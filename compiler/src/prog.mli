@@ -3,7 +3,6 @@ open Utils
 open Wsize
 module E = Expr
 module L = Location
-module C = Expr
 
 module Name : sig
   type t = string
@@ -19,6 +18,10 @@ type base_ty =
   | U   of wsize (* U(n): unsigned n-bit integer *)
 
   [@@deriving compare,sexp]
+
+type array_length =
+  | AL_const of int
+  | AL_abstract of Type.array_length_abstract
 
 type 'len gty =
   | Bty of base_ty
@@ -198,19 +201,19 @@ val pexpr_equal : pexpr -> pexpr -> bool
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
-type ty    = Expr.array_length gty
-type var   = Expr.array_length gvar
-type var_i = Expr.array_length gvar_i
-type lval  = Expr.array_length glval
-type lvals = Expr.array_length glval list
-type expr  = Expr.array_length gexpr
-type exprs = Expr.array_length gexpr list
+type ty    = array_length gty
+type var   = array_length gvar
+type var_i = array_length gvar_i
+type lval  = array_length glval
+type lvals = array_length glval list
+type expr  = array_length gexpr
+type exprs = array_length gexpr list
 
-type ('info,'asm) instr = (Expr.array_length,'info,'asm) ginstr
-type ('info,'asm) stmt  = (Expr.array_length,'info,'asm) gstmt
+type ('info,'asm) instr = (array_length,'info,'asm) ginstr
+type ('info,'asm) stmt  = (array_length,'info,'asm) gstmt
 
-type ('info,'asm) func     = (Expr.array_length,'info,'asm) gfunc
-type ('info,'asm) mod_item = (Expr.array_length,'info,'asm) gmod_item
+type ('info,'asm) func     = (array_length,'info,'asm) gfunc
+type ('info,'asm) mod_item = (array_length,'info,'asm) gmod_item
 type global_decl           = var * Global.glob_value
 type ('info,'asm) prog     = global_decl list *('info,'asm) func list
 
@@ -232,9 +235,9 @@ module V : sig
   val is_glob : var -> bool
 end
 
-module Sv : Set.S  with type elt = C.array_length gvar
-module Mv : Map.S  with type key = C.array_length gvar
-module Hv : Hash.S with type key = C.array_length gvar
+module Sv : Set.S  with type elt = array_length gvar
+module Mv : Map.S  with type key = array_length gvar
+module Hv : Hash.S with type key = array_length gvar
 
 val is_regx : var -> bool
 
@@ -297,7 +300,7 @@ val int_of_pe  : pelem -> int
 val int_of_velem : velem -> int 
 
 val is_ty_arr : 'e gty -> bool
-val array_kind : ty -> wsize * int
+val array_kind : ty -> wsize * int (* succeeds only on const lengths *)
 val ws_of_ty   : 'e gty -> wsize
 val arr_size : wsize -> int -> int
 val size_of  : ty -> int

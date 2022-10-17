@@ -31,6 +31,10 @@ type v_kind =
   | Inline           (* inline variable   *)
   | Global           (* global (in memory) constant *) 
 
+type array_length =
+  | AL_const of int
+  | AL_abstract of Type.array_length_abstract
+
 type 'len gty =
   | Bty of base_ty
   | Arr of wsize * 'len (* Arr(n,de): array of n-bit integers with dim. *)
@@ -265,19 +269,19 @@ and pexpr_equal e1 e2 =
 (* ------------------------------------------------------------------------ *)
 (* Non parametrized expression                                              *)
 
-type ty    = int gty
-type var   = int gvar
-type var_i = int gvar_i
-type lval  = int glval
-type lvals = int glval list
-type expr  = int gexpr
-type exprs = int gexpr list
+type ty    = array_length gty
+type var   = array_length gvar
+type var_i = array_length gvar_i
+type lval  = array_length glval
+type lvals = array_length glval list
+type expr  = array_length gexpr
+type exprs = array_length gexpr list
 
-type ('info,'asm) instr = (int,'info,'asm) ginstr
-type ('info,'asm) stmt  = (int,'info,'asm) gstmt
+type ('info,'asm) instr = (array_length,'info,'asm) ginstr
+type ('info,'asm) stmt  = (array_length,'info,'asm) gstmt
 
-type ('info,'asm) func     = (int,'info,'asm) gfunc
-type ('info,'asm) mod_item = (int,'info,'asm) gmod_item
+type ('info,'asm) func     = (array_length,'info,'asm) gfunc
+type ('info,'asm) mod_item = (array_length,'info,'asm) gmod_item
 type global_decl           = var * Global.glob_value
 type ('info,'asm) prog     = global_decl list * ('info,'asm) func list
 
@@ -464,7 +468,7 @@ let is_ty_arr = function
   | _     -> false
 
 let array_kind = function
-  | Arr(ws, n) -> ws, n
+  | Arr(ws, AL_const n) -> ws, n
   | _ -> assert false
 
 let ws_of_ty = function
@@ -476,7 +480,7 @@ let arr_size ws i = size_of_ws ws * i
 let size_of t = 
   match t with
   | Bty (U ws) -> size_of_ws ws
-  | Arr (ws', n) -> arr_size ws' n 
+  | Arr (ws', AL_const n) -> arr_size ws' n 
   | _ -> assert false 
 
 (* -------------------------------------------------------------------- *)

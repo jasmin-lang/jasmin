@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp.word Require Import ssrZ.
-Require Import expr ZArith (* sem *) compiler_util.
+Require Import expr ZArith sem compiler_util.
 Import all_ssreflect all_algebra.
 Import Utf8.
 Import oseq.
@@ -53,14 +53,8 @@ Definition to_expr (t:stype) : sem_t t -> exec pexpr :=
   | sword sz => fun w => ok (wconst w)
   end.
 
-Axiom sem_sop1_typed : ∀ o : sop1, let t := type_of_op1 o in sem_t t.1 → sem_t t.2.
-Arguments sem_sop1_typed : clear implicits.
-Axiom sem_sop2_typed :
-∀ o : sop2, let t := type_of_op2 o in sem_t t.1.1 → sem_t t.1.2 → exec (sem_t t.2).
-Arguments sem_sop2_typed : clear implicits.
-
 Definition ssem_sop1 (o: sop1) (e: pexpr) : pexpr := 
-  let r := 
+  let r :=
     Let x := of_expr _ e in
     to_expr (sem_sop1_typed o x) in
   match r with 
@@ -290,15 +284,12 @@ Definition s_op2 o e1 e2 :=
   | Oge  ty => sge  ty e1 e2
   | _       => ssem_sop2 o e1 e2
   end.
-Require Import values.
+
 Definition force_int e :=
   if e is Pconst z then ok (Vint z) else type_error.
 
 Definition force_bool e := 
   if e is Pbool b then ok (Vbool b) else type_error.
-
-Axiom sem_opN : FlagCombinationParams → opN → values → exec value.
-Arguments sem_opN {_} _ _.
 
 Definition s_opN op es :=
   match op with
@@ -413,8 +404,8 @@ Fixpoint const_prop_rvs (m:cpm) (rvs:lvals) : cpm * lvals :=
     (m, rv::rvs)
   end.
 
-Definition wsize_of_stype (ty: stype) : wsize :=
-  if ty is sword sz then sz else U64.
+Definition wsize_of_stype (ty: atype) : wsize :=
+  if ty is concrete (sword sz) then sz else U64.
 
 Definition add_cpm (m:cpm) (rv:lval) tag ty e :=
   if rv is Lvar x then

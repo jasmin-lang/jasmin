@@ -45,10 +45,10 @@ Definition find_label (lbl : label) (c : seq linstr) :=
 Record lfundef := LFundef {
  lfd_info : fun_info;
  lfd_align : wsize;
- lfd_tyin : seq stype;
+ lfd_tyin : seq atype;
  lfd_arg  : seq var_i;
  lfd_body : lcmd;
- lfd_tyout : seq stype;
+ lfd_tyout : seq atype;
  lfd_res  : seq var_i;  (* /!\ did we really want to have "seq var_i" here *)
  lfd_export: bool;
  lfd_callee_saved: seq var; (* A list of variables that must be initialized before calling this function *)

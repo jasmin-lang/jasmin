@@ -168,11 +168,11 @@ Context
   (p : sprog)
   (extra_free_registers : instr_info -> option var).
 
-Notation rsp := {| vtype := sword Uptr; vname := sp_rsp (p_extra p); |}.
+Notation rsp := {| vtype := concrete (sword Uptr); vname := sp_rsp (p_extra p); |}.
 Notation rspi := {| v_var := rsp; v_info := dummy_var_info; |}.
 Notation rspg := {| gv := rspi; gs := Slocal; |}.
 
-Notation var_tmp := {| vtype := sword Uptr; vname := lip_tmp liparams; |}.
+Notation var_tmp := {| vtype := concrete (sword Uptr); vname := lip_tmp liparams; |}.
 Notation var_tmpi := {| v_var := var_tmp; v_info := dummy_var_info; |}.
 Notation var_tmpg := {| gv := var_tmpi; gs := Slocal; |}.
 
@@ -200,7 +200,7 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
     let (ii,ir) := i in
     match ir with
     | Cassgn x tag ty e =>
-      if ty is sword ws
+      if ty is concrete (sword ws)
       then
         if isSome (lassign x ws e)
         then ok tt
@@ -267,7 +267,13 @@ Definition stack_frame_allocation_size (e: stk_fun_extra) : Z :=
                       ) lo m in
     assert (last <=? hi)%Z (E.error "to-save: overflow in the stack frame").
 
-
+(* FIXME index : replace type.is_word_type with that? *)
+  Definition is_word_type a :=
+    match a with
+    | concrete (sword ws) => Some ws
+    | _ => None
+    end.
+ 
   Definition check_to_save_slot (p : var * Z) : cexec (Z * wsize) :=
     let '(x, ofs) := p in
     if is_word_type (vtype x) is Some ws
@@ -345,7 +351,7 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
                   (E.error "bad stack size") in
   Let _ := assert match sf_return_address e with
                   | RAnone => true
-                  | RAreg ra => vtype ra == sword Uptr
+                  | RAreg ra => vtype ra == concrete (sword Uptr)
                   | RAstack ofs => check_stack_ofs e ofs Uptr
                   end
                   (E.error "bad return-address") in
@@ -361,7 +367,7 @@ Definition check_fd (fn: funname) (fd:sfundef) :=
     | SavedStackReg x =>
         let xi := {| v_var := x; v_info := dummy_var_info; |} in
         let xg := {| gv := xi; gs := Slocal; |} in
-        [&& vtype x == sword Uptr
+        [&& vtype x == concrete (sword Uptr)
           , sf_to_save e == [::]
           , isSome (lmove rspi Uptr xg)
           & isSome (lmove xi Uptr rspg)
@@ -448,7 +454,7 @@ Fixpoint linear_i (i:instr) (lbl:label) (lc:lcmd) :=
   let (ii, ir) := i in
   match ir with
   | Cassgn x _ ty e =>
-    let lc' := if ty is sword sz
+    let lc' := if is_word_type ty is Some sz
                then of_olinstr_r ii (lassign x sz e) :: lc
                else lc
     in (lbl, lc')

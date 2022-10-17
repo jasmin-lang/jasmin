@@ -20,7 +20,7 @@ End E.
 Section Section.
 Context `{asmop:asmOp}.
 Context (is_reg_ptr : var -> bool)
-        (fresh_reg_ptr : Ident.ident -> stype -> Ident.ident).
+        (fresh_reg_ptr : Ident.ident -> atype -> Ident.ident).
 Context (p : uprog).
 
 Definition with_id vi id ty :=
@@ -65,7 +65,7 @@ Fixpoint make_prologue ii (X:Sv.t) xtys es :=
 
 Variant pseudo_instr :=
   | PI_lv of lval
-  | PI_i  of lval & stype & var_i.
+  | PI_i  of lval & atype & var_i.
 
 Fixpoint make_pseudo_epilogue (ii:instr_info) (X:Sv.t) xtys rs :=
   match xtys, rs with
@@ -130,7 +130,7 @@ Definition update_c (update_i : instr -> cexec cmd) (c:cmd) :=
   Let ls := mapM update_i c in
   ok (flatten ls).
 
-Definition mk_info (x:var_i) (ty:stype) :=
+Definition mk_info (x:var_i) (ty:atype) :=
   (is_reg_ptr x, x.(vname), ty).
 
 Definition get_sig fn :=
@@ -168,8 +168,8 @@ Fixpoint update_i (X:Sv.t) (i:instr) : cexec cmd :=
     ok (prologue ++ MkI ii (Ccall ini xs fn es) :: epilogue)
   | Csyscall xs o es =>
     let: (params,returns) := get_syscall_sig o in
-    Let: (prologue, es) := make_prologue ii X params es in
-    Let: (xs, epilogue) := make_epilogue ii X returns xs in
+    Let: (prologue, es) := make_prologue ii X (map (fun '(a, b, c) => (a, b, concrete c)) params) es in
+    Let: (xs, epilogue) := make_epilogue ii X (map (fun '(a, b, c) => (a, b, concrete c)) returns) xs in
     ok (prologue ++ MkI ii (Csyscall xs o es) :: epilogue)
   end.
 

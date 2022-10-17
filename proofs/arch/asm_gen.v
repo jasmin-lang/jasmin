@@ -72,7 +72,7 @@ Definition of_var_e ii (v: var_i) :=
   match of_var v with
   | Some r => ok r
   | None =>
-    if vtype v == rtype then Error (E.invalid_name category ii v)
+    if vtype v == concrete rtype then Error (E.invalid_name category ii v)
     else Error (E.invalid_ty category ii v)
   end.
 
@@ -545,7 +545,7 @@ Definition assemble_c rip (lc: lcmd) : cexec (seq asm_i) :=
 (* -------------------------------------------------------------------- *)
 
 Definition is_typed_reg x := 
-   (vtype x != sbool) &&
+   (vtype x != concrete sbool) &&
    is_ok (asm_typed_reg_of_var x).
 
 Definition typed_reg_of_vari xi :=
@@ -606,7 +606,7 @@ Context {reg regx xreg rflag cond} {ad : arch_decl reg regx xreg rflag cond} {ca
 
 Definition vflags := sv_of_list to_var rflags.
 
-Lemma vflagsP x : Sv.In x vflags -> vtype x = sbool.
+Lemma vflagsP x : Sv.In x vflags -> vtype x = concrete sbool.
 Proof. by move=> /sv_of_listP /in_map [? _ ->]. Qed.
 
 Definition all_vars :=

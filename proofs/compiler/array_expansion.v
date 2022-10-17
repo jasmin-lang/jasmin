@@ -96,7 +96,7 @@ Definition init_elems ty id (svmi : Sv.t * Mi.t var * Z) :=
 
 Definition init_array_info (x : varr_info) (svm:Sv.t * Mvar.t array_info) :=
   let (sv,m) := svm in
-  let ty := sword x.(vi_s) in
+  let ty := concrete (sword x.(vi_s)) in
   Let _ :=  assert (~~ Sv.mem x.(vi_v) sv) (reg_ierror_no_var "init_array_info") in
   Let svelems := foldM (init_elems ty) (sv,Mi.empty _,0%Z) x.(vi_n) in
   let '(sv, mi, _) := svelems in

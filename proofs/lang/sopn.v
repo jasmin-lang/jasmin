@@ -20,16 +20,13 @@ Variant arg_desc :=
 | ADImplicit  of implicit_arg
 | ADExplicit  of nat & option var.
 
-Section bla.
-Context (tmap : array_length_abstract -> positive).
-
 Record instruction_desc := mkInstruction {
   str      : unit -> string;
   tin      : list stype;
   i_in     : seq arg_desc;
   tout     : list stype;
   i_out    : seq arg_desc;
-  semi     : sem_prod tmap tin (exec (sem_tuple tmap tout));
+  semi     : sem_prod tin (exec (sem_tuple tout));
   semu     : forall vs vs' v,
                 List.Forall2 value_uincl vs vs' ->
                 app_sopn_v semi vs = ok v ->
@@ -47,7 +44,7 @@ Notation mk_instr_desc str tin i_in tout i_out semi wsizei safe:=
      tout     := tout;
      i_out    := i_out;
      semi     := semi;
-     semu     := @vuincl_app_sopn_v tmap tin tout semi refl_equal;
+     semu     := @vuincl_app_sopn_v tin tout semi refl_equal;
      wsizei   := wsizei;
      i_safe   := safe;
   |}.
@@ -115,12 +112,12 @@ Local Notation E n := (ADExplicit n None).
 Definition Ocopy_instr ws p := 
   let sz := Z.to_pos (arr_size ws p) in
   {| str      := pp_sz "copy" ws;
-     tin      := [:: sarr (const_length sz)];
+     tin      := [:: sarr sz];
      i_in     := [:: E 1];
-     tout     := [:: sarr (const_length sz)];
+     tout     := [:: sarr sz];
      i_out    := [:: E 0];
      semi     := @WArray.copy ws p;
-     semu     := @vuincl_copy tmap ws p;
+     semu     := @vuincl_copy ws p;
      wsizei   := U8; (* ??? *)
      i_safe   := [:: AllInit ws p 0];
   |}.
@@ -204,5 +201,3 @@ Instance asmOp_sopn : asmOp sopn :=
     prim_string := sopn_prim_string }.
 
 End ASM_OP.
-
-End bla.

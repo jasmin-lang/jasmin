@@ -64,7 +64,7 @@ Section REMOVE.
 
   Definition find_glob ii (xi:var_i) (gd:glob_decls) (ws:wsize) (w:word ws) :=
     let test (gv:glob_decl) := 
-      if (sword ws == vtype gv.1) && (check_data gv.2 w) then Some gv.1
+      if (concrete (sword ws) == vtype gv.1) && (check_data gv.2 w) then Some gv.1
       else None in 
     match myfind test gd with 
     | None => Error (rm_glob_error ii xi)
@@ -73,7 +73,7 @@ Section REMOVE.
 
   Definition add_glob ii (x:var) (gd:glob_decls) (ws:wsize) (w:word ws) :=
     let test (gv:glob_decl) := 
-       (sword ws == vtype gv.1) && (check_data gv.2 w) in
+       (concrete (sword ws) == vtype gv.1) && (check_data gv.2 w) in
     if has test gd then ok gd 
     else
       let gx := {| vtype := vtype x; vname := fresh_id gd x |} in
@@ -265,7 +265,7 @@ Section REMOVE.
             if is_glob x then 
               match e with
               | Papp1 (Oword_of_int ws) (Pconst z) =>
-                if (ty == sword ws) && (vtype x == sword ws) then
+                if (ty == concrete (sword ws)) && (vtype x == concrete (sword ws)) then
                   Let g := find_glob ii xi gd (wrepr ws z) in
                   ok (Mvar.set env x g, [::])
                 else Error (rm_glob_error ii xi)

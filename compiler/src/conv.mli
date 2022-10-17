@@ -32,8 +32,9 @@ val z_of_int8 : Obj.t -> Z.t
 val z_of_word : wsize -> Obj.t -> Z.t
 
 (* -------------------------------------------------------------------- *)
-val cty_of_ty : Prog.ty -> Type.stype
-val ty_of_cty : Type.stype -> Prog.ty
+val cty_of_ty : Prog.ty -> Type.atype
+val ty_of_cty : Type.atype -> Prog.ty
+val array_length_of_carray_length : Type.array_length -> Prog.array_length
 
 (* -------------------------------------------------------------------- *)
 val cvar_of_var : coq_tbl -> var -> Var0.Var.var
@@ -71,4 +72,4 @@ val error_of_cerror :
 
 (* ---------------------------------------------------- *)
 val fresh_reg_ptr :
-  coq_tbl -> 'b (* coq string *) -> Type.stype -> Eqtype.Equality.sort (* Var0.var *)
+  coq_tbl -> 'b (* coq string *) -> Type.atype -> Eqtype.Equality.sort (* Var0.var *)

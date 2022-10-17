@@ -46,7 +46,7 @@ Module Type CheckB.
 
   Parameter check_e    : pexpr -> pexpr -> M.t -> cexec M.t.
 
-  Parameter check_lval : option (stype * pexpr) -> lval -> lval -> M.t -> cexec M.t.
+  Parameter check_lval : option (atype * pexpr) -> lval -> lval -> M.t -> cexec M.t.
 
 End CheckB.
 
@@ -392,7 +392,7 @@ Module CBAreg.
     if true is true then check_var x1 x2 m
     else Error (cerr_varalloc xi1 xi2 "type mismatch").
 
-  Definition is_Pvar (e:option (stype * pexpr)) :=
+  Definition is_Pvar (e:option (atype * pexpr)) :=
     match e with
     | Some (ty, Pvar x) => if is_lvar x then Some (ty,x.(gv)) else None
     | _ => None
@@ -400,7 +400,7 @@ Module CBAreg.
 
   Definition error_lv := pp_internal_error_s "allocation" "lval not equal".
 
-  Definition check_lval (e2:option (stype * pexpr)) (x1 x2:lval) m : cexec M.t :=
+  Definition check_lval (e2:option (atype * pexpr)) (x1 x2:lval) m : cexec M.t :=
     match x1, x2 with
     | Lnone  _ t1, Lnone _ t2  =>
       if true then ok m else Error error_lv

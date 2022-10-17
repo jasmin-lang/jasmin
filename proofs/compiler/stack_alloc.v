@@ -59,7 +59,13 @@ Definition size_of (t:stype) :=
 
 Definition slot := var.
 
-Notation size_slot s := (size_of s.(vtype)).
+(* FIXME index : wrong fix, I just want to compile *)
+Definition size_of_a a :=
+  match a with
+  | concrete ty => size_of ty
+  | symbolic a => 1
+  end.
+Notation size_slot s := (size_of_a s.(vtype)).
 
 Record region :=
   { r_slot : slot;        (* the name of the region        *)
@@ -576,6 +582,13 @@ Definition check_vpk_word rmap x vpk ofs ws :=
   Let srs := check_vpk rmap x vpk ofs (wsize_size ws) in
   check_align x srs.1 ws.
 
+(* FIXME index : replace type.is_word_type with that? *)
+  Definition is_word_type a :=
+    match a with
+    | concrete (sword ws) => Some ws
+    | _ => None
+    end.
+
 Fixpoint alloc_e (e:pexpr) := 
   match e with
   | Pconst _ | Pbool _ | Parr_init _ => ok e
@@ -651,7 +664,7 @@ Definition sub_region_pk x pk :=
   | _ => Error (stk_ierror x (pp_box [:: pp_var x; pp_s "is not in the stack"]))
   end.
 
-Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
+Definition alloc_lval (rmap: region_map) (r:lval) (ty:atype) :=
   match r with
   | Lnone _ _ => ok (rmap, r)
 
@@ -660,13 +673,15 @@ Definition alloc_lval (rmap: region_map) (r:lval) (ty:stype) :=
     match get_local x with
     | None => Let _ := check_diff x in ok (rmap, r)
     | Some pk => 
-      if is_word_type (vtype x) is Some ws then 
-        if subtype (sword ws) ty then 
-          Let pofs := mk_addr_ptr x AAdirect ws pk (Pconst 0) in
-          Let sr   := sub_region_pk x pk in
-          let r := Lmem ws pofs.1 pofs.2 in
-          Let rmap := Region.set_word rmap x sr ws in
-          ok (rmap, r)
+      if is_word_type (vtype x) is Some ws then
+        if is_word_type ty is Some ws' then
+          if subtype (sword ws) (sword ws') then 
+            Let pofs := mk_addr_ptr x AAdirect ws pk (Pconst 0) in
+            Let sr   := sub_region_pk x pk in
+            let r := Lmem ws pofs.1 pofs.2 in
+            Let rmap := Region.set_word rmap x sr ws in
+            ok (rmap, r)
+          else Error (stk_ierror_basic x "invalid type for assignment")
         else Error (stk_ierror_basic x "invalid type for assignment")
       else Error (stk_ierror_basic x "not a word variable in assignment")
     end
@@ -1045,7 +1060,7 @@ Definition alloc_lval_call (srs:seq (option (bool * sub_region) * pexpr)) rmap (
     match nth (None, Pconst 0) srs i with
     | (Some (_,sr), _) =>
       match r with
-      | Lnone i _ => ok (rmap, Lnone i (sword Uptr))
+      | Lnone i _ => ok (rmap, Lnone i (concrete (sword Uptr)))
       | Lvar x =>
         Let p := get_regptr x in
         Let rmap := Region.set_arr_call rmap x sr in
@@ -1115,11 +1130,17 @@ Definition alloc_syscall ii rmap rs o es :=
       Let sr := get_sub_region rmap xe in
       Let rmap := set_sub_region rmap x sr (Some 0%Z) (Zpos len) in
       ok (rmap,
-          [:: MkI ii (Cassgn (Lvar xlen) AT_none (sword Uptr) (cast_const (Zpos len)));
+          [:: MkI ii (Cassgn (Lvar xlen) AT_none (concrete (sword Uptr)) (cast_const (Zpos len)));
               MkI ii (Csyscall [::Lvar xp] o [:: Plvar p; Plvar xlen])])
     | _, _ =>
       Error (stk_ierror_no_var "randombytes: invalid args or result")
     end
+  end.
+
+Definition is_sarr_a a :=
+  match a with
+  | concrete ty => is_sarr ty
+  | symbolic _ => true
   end.
 
 Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
@@ -1127,7 +1148,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
 
     match ir with
     | Cassgn r t ty e => 
-      if is_sarr ty then 
+      if is_sarr_a ty then 
         Let ri := add_iinfo ii (alloc_array_move_init rmap r t e) in
         ok (ri.1, [:: MkI ii ri.2]) 
       else
@@ -1137,7 +1158,7 @@ Fixpoint alloc_i sao (rmap:region_map) (i: instr) : cexec (region_map * cmd) :=
 
     | Copn rs t o e => 
       Let e  := add_iinfo ii (alloc_es rmap e) in
-      Let rs := add_iinfo ii (alloc_lvals rmap rs (sopn_tout o)) in
+      Let rs := add_iinfo ii (alloc_lvals rmap rs (map concrete (sopn_tout o))) in
       ok (rs.1, [:: MkI ii (Copn rs.2 t o e)])
 
     | Csyscall rs o es =>
@@ -1222,7 +1243,7 @@ Definition add_alloc globals stack (xpk:var * ptr_kind_init) (lrx: Mvar.t ptr_ki
           else Error (stk_ierror_no_var "invalid slot")
         end
       | PIstkptr x' z xp =>
-        if ~~ is_sarr x.(vtype) then
+        if ~~ is_sarr_a x.(vtype) then
           Error (stk_ierror_no_var "a stk ptr variable must be an array")
         else
         match Mvar.get stack x' with
@@ -1241,12 +1262,12 @@ Definition add_alloc globals stack (xpk:var * ptr_kind_init) (lrx: Mvar.t ptr_ki
           else Error (stk_ierror_no_var "invalid ptr kind")
         end
       | PIregptr p => 
-        if ~~ is_sarr x.(vtype) then
+        if ~~ is_sarr_a x.(vtype) then
           Error (stk_ierror_no_var "a reg ptr variable must be an array")
         else
         if Sv.mem p sv then Error (stk_ierror_no_var "invalid reg pointer already exists")
         else if Mvar.get locals p is Some _ then Error (stk_ierror_no_var "a pointer is equal to a program var")
-        else if vtype p != sword Uptr then Error (stk_ierror_no_var "invalid pointer type")
+        else if vtype p != concrete (sword Uptr) then Error (stk_ierror_no_var "invalid pointer type")
         else ok (Sv.add p sv, Pregptr p, rmap) 
       end in
     let '(sv,pk, rmap) := svrmap in
@@ -1324,9 +1345,9 @@ Definition init_param (mglob stack : Mvar.t (Z * wsize)) accu pi (x:var_i) :=
   match pi with
   | None => ok (accu, (None, x))
   | Some pi => 
-    Let _ := assert (vtype pi.(pp_ptr) == sword Uptr) (stk_ierror_no_var "bad ptr type") in
+    Let _ := assert (vtype pi.(pp_ptr) == concrete (sword Uptr)) (stk_ierror_no_var "bad ptr type") in
     Let _ := assert (~~Sv.mem pi.(pp_ptr) disj) (stk_ierror_no_var "duplicate region") in
-    Let _ := assert (is_sarr x.(vtype)) (stk_ierror_no_var "bad reg ptr type") in
+    Let _ := assert (is_sarr_a x.(vtype)) (stk_ierror_no_var "bad reg ptr type") in
     if Mvar.get lmap pi.(pp_ptr) is Some _ then Error (stk_ierror_no_var "a pointer is equal to a local var")
     else if Mvar.get mglob x is Some _ then Error (stk_ierror_no_var "a region is both glob and param")
     else if Mvar.get stack x is Some _ then Error (stk_ierror_no_var "a region is both stack and param")
@@ -1345,10 +1366,10 @@ Definition init_params mglob stack disj lmap rmap sao_params params :=
   fmapM2 (stk_ierror_no_var "invalid function info")
     (init_param mglob stack) (disj, lmap, rmap) sao_params params.
 
-Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> string) (local_alloc: funname -> stk_alloc_oracle_t) sao fd : cexec _ufundef :=
-  let vrip := {| vtype := sword Uptr; vname := p_extra.(sp_rip) |} in
-  let vrsp := {| vtype := sword Uptr; vname := p_extra.(sp_rsp) |} in
-  let vxlen := {| vtype := sword Uptr; vname := fresh_reg "__len__"%string (sword Uptr) |} in
+Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> atype -> string) (local_alloc: funname -> stk_alloc_oracle_t) sao fd : cexec _ufundef :=
+  let vrip := {| vtype := concrete (sword Uptr); vname := p_extra.(sp_rip) |} in
+  let vrsp := {| vtype := concrete (sword Uptr); vname := p_extra.(sp_rsp) |} in
+  let vxlen := {| vtype := concrete (sword Uptr); vname := fresh_reg "__len__"%string (concrete (sword Uptr)) |} in
   Let stack := init_stack_layout mglob sao in
   Let mstk := init_local_map vrip vrsp vxlen mglob stack sao in
   let '(locals, rmap, disj) := mstk in
@@ -1385,14 +1406,14 @@ Definition alloc_fd_aux p_extra mglob (fresh_reg : string -> stype -> string) (l
       check_results pmap rmap paramsi fd.(f_params) sao.(sao_return) fd.(f_res) in
   ok {|
     f_info := f_info fd;
-    f_tyin := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_params) fd.(f_tyin); 
+    f_tyin := map2 (fun o ty => if o is Some _ then concrete (sword Uptr) else ty) sao.(sao_params) fd.(f_tyin); 
     f_params := params;
     f_body := flatten body;
-    f_tyout := map2 (fun o ty => if o is Some _ then sword Uptr else ty) sao.(sao_return) fd.(f_tyout);
+    f_tyout := map2 (fun o ty => if o is Some _ then concrete (sword Uptr) else ty) sao.(sao_return) fd.(f_tyout);
     f_res := res;
     f_extra := f_extra fd |}.
 
-Definition alloc_fd p_extra mglob (fresh_reg : string -> stype -> string) (local_alloc: funname -> stk_alloc_oracle_t) fn fd :=
+Definition alloc_fd p_extra mglob (fresh_reg : string -> atype -> string) (local_alloc: funname -> stk_alloc_oracle_t) fn fd :=
   let: sao := local_alloc fn in
   Let fd := alloc_fd_aux p_extra mglob fresh_reg local_alloc sao fd in
   let f_extra := {|
@@ -1445,7 +1466,7 @@ Definition init_map (sz:Z) (l:list (var * wsize * Z)) : cexec (Mvar.t (Z*wsize))
   if (globals.2 <=? sz)%Z then ok globals.1
   else Error (stk_ierror_no_var "global size").
 
-Definition alloc_prog (fresh_reg:string -> stype -> Ident.ident) 
+Definition alloc_prog (fresh_reg:string -> atype -> Ident.ident) 
     rip rsp global_data global_alloc local_alloc (P:_uprog) : cexec _sprog :=
   Let mglob := init_map (Z.of_nat (size global_data)) global_alloc in
   let p_extra :=  {|

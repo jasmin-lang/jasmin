@@ -17,7 +17,7 @@ Class one_varmap_info := {
   all_vars     : Sv.t;
   callee_saved : Sv.t;
   vflags       : Sv.t;
-  vflagsP      : forall x, Sv.In x vflags -> vtype x = sbool
+  vflagsP      : forall x, Sv.In x vflags -> vtype x = concrete sbool
 }.
 
 Definition syscall_kill {ovm_i : one_varmap_info} :=

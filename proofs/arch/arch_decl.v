@@ -51,7 +51,7 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
 Instance arch_pd `{arch_decl} : PointerData := { Uptr := reg_size }.
 
 Definition mk_ptr `{arch_decl} name :=
-  {| vtype := sword Uptr; vname := name; |}.
+  {| vtype := concrete (sword Uptr); vname := name; |}.
 
 (* FIXME ARM : Try to not use this projection *)
 Definition reg_t   {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond} := reg.
@@ -65,9 +65,9 @@ Section DECL.
 Context {reg regx xreg rflag cond} `{arch : arch_decl reg regx xreg rflag cond}.
 
 Definition sreg := sword reg_size.
-Definition wreg := word reg_size.
+Definition wreg := sem_t sreg.
 Definition sxreg := sword xreg_size.
-Definition wxreg := word xreg_size.
+Definition wxreg := sem_t sxreg.
 
 Lemma sword_reg_neq_xreg :
   sreg != sxreg.
@@ -388,7 +388,7 @@ Record instr_desc_t := {
   (* Description of output arguments. *)
   id_out        : seq arg_desc;
   (* Semantics (only deals with values). *)
-  id_semi       : sem_prod tmap id_tin (exec (sem_tuple tmap id_tout));
+  id_semi       : sem_prod id_tin (exec (sem_tuple id_tout));
   (* Possible signatures for an instruction. *)
   id_args_kinds : i_args_kinds;
   (* Number of explicit arguments in assembly syntax. *)
@@ -441,25 +441,25 @@ Definition extend_size (ws: wsize) (t:stype) :=
   | _ => t
   end.
 
-Definition wextend_size (ws: wsize) (t:stype) : sem_ot tmap t -> sem_ot tmap (extend_size ws t) :=
-  match t return sem_ot tmap t -> sem_ot tmap (extend_size ws t) with
+Definition wextend_size (ws: wsize) (t:stype) : sem_ot t -> sem_ot (extend_size ws t) :=
+  match t return sem_ot t -> sem_ot (extend_size ws t) with
   | sword ws' =>
     fun (w: word ws') =>
-    match (ws' <= ws)%CMP as b return sem_ot tmap (if b then sword ws else sword ws') with
+    match (ws' <= ws)%CMP as b return sem_ot (if b then sword ws else sword ws') with
     | true => zero_extend ws w
     | false => w
     end
   | _ => fun x => x
   end.
 
-Fixpoint extend_tuple (ws:wsize) (id_tout : list stype) (t: sem_tuple tmap id_tout) :
-   sem_tuple tmap (map (extend_size ws) id_tout) :=
- match id_tout return sem_tuple tmap id_tout -> sem_tuple tmap (map (extend_size ws) id_tout) with
+Fixpoint extend_tuple (ws:wsize) (id_tout : list stype) (t: sem_tuple id_tout) :
+   sem_tuple (map (extend_size ws) id_tout) :=
+ match id_tout return sem_tuple id_tout -> sem_tuple (map (extend_size ws) id_tout) with
  | [::] => fun _ => tt
  | t :: ts =>
    match ts return
-     (sem_tuple tmap ts -> sem_tuple tmap (map (extend_size ws) ts)) ->
-     sem_tuple tmap (t::ts) -> sem_tuple tmap (map (extend_size ws) (t::ts)) with
+     (sem_tuple ts -> sem_tuple (map (extend_size ws) ts)) ->
+     sem_tuple (t::ts) -> sem_tuple (map (extend_size ws) (t::ts)) with
    | [::] => fun rec_ x => wextend_size ws x
    | t'::ts'    => fun rec_ p => (wextend_size ws p.1, rec_ p.2)
    end (@extend_tuple ws ts)
@@ -691,6 +691,6 @@ Canonical rflagv_eqType := EqType _ rflagv_eqMixin.
 
 Class asm (reg regx xreg rflag cond asm_op: Type) :=
   { _arch_decl   :> arch_decl reg regx xreg rflag cond
-  ; _asm_op_decl :> asm_op_decl tmap asm_op
+  ; _asm_op_decl :> asm_op_decl asm_op
   ; eval_cond   : (rflag_t -> exec bool) -> cond_t -> exec bool
   }.

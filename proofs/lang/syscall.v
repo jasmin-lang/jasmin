@@ -35,7 +35,7 @@ Record syscall_sig_t := {
 
 Definition syscall_sig_u (o : syscall_t) : syscall_sig_t := 
   match o with
-  | RandomBytes len => {| scs_tin := [:: sarr (const_length len)]; scs_tout := [:: sarr (const_length len)] |}
+  | RandomBytes len => {| scs_tin := [:: sarr len]; scs_tout := [:: sarr len] |}
   end.
 
 (* After stack alloc ie sprog *)

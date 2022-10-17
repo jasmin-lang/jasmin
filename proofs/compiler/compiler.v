@@ -171,8 +171,8 @@ Record compiler_params
   lowering_opt     : lowering_options;
   is_glob          : var -> bool;
   fresh_id         : glob_decls -> var -> Ident.ident;
-  fresh_reg        : string -> stype -> Ident.ident;
-  fresh_reg_ptr    : string -> stype -> Ident.ident;
+  fresh_reg        : string -> atype -> Ident.ident;
+  fresh_reg_ptr    : string -> atype -> Ident.ident;
   fresh_counter    : Ident.ident;
   is_reg_ptr       : var -> bool;
   is_ptr           : var -> bool;
@@ -209,7 +209,7 @@ Definition remove_phi_nodes_prog (p: _uprog) : _uprog :=
   map_prog_name cparams.(remove_phi_nodes_fd) p.
 
 Definition var_tmp : var :=
-  {| vname := lip_tmp liparams; vtype := sword Uptr; |}.
+  {| vname := lip_tmp liparams; vtype := concrete (sword Uptr); |}.
 
 (* Ensure that export functions are preserved *)
 Definition check_removereturn (entries: seq funname) (remove_return: funname → option (seq bool)) :=

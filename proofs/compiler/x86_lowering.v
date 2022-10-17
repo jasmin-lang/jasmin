@@ -48,7 +48,7 @@ Context (options : lowering_options).
 
 Context (warning: instr_info -> warning_msg -> instr_info).
 
-Definition vword vt vn := {| vtype := sword vt ; vname := vn |}.
+Definition vword vt vn := {| vtype := concrete (sword vt) ; vname := vn |}.
 
 Context (fv: fresh_vars).
 
@@ -82,7 +82,7 @@ Definition var_info_of_lval (x: lval) : var_info :=
   | Lvar x | Lmem _ x _ | Laset _ _ x _ | Lasub _ _ _ x _ => v_info x
   end.
 
-Definition stype_of_lval (x: lval) : stype :=
+Definition atype_of_lval (x: lval) : atype :=
   match x with
   | Lnone _ t => t
   | Lvar v | Lmem _ v _ | Laset _ _ v _ | Lasub _ _ _ v _ => v.(vtype)
@@ -94,17 +94,23 @@ Definition wsize_of_stype (ty: stype) : wsize :=
   | sbool | sint | sarr _ => U64
   end.
 
+Definition wsize_of_atype (a : atype) : wsize :=
+  match a with
+  | concrete ty => wsize_of_stype ty
+  | symbolic _ => U64
+  end.
+
 Definition wsize_of_lval (lv: lval) : wsize :=
   match lv with
   | Lnone _ ty
-  | Lvar {| v_var := {| vtype := ty |} |} => wsize_of_stype ty
+  | Lvar {| v_var := {| vtype := ty |} |} => wsize_of_atype ty
   | Laset _ sz _ _ | Lmem sz _ _ => sz
   | Lasub _ _ _ _ _ => U64
   end.
 
 Definition lower_cond_classify vi (e: pexpr) :=
-  let nil := Lnone vi sbool in
-  let fr n := {| v_var := {| vtype := sbool; vname := n fv |} ; v_info := vi |} in
+  let nil := Lnone vi (concrete sbool) in
+  let fr n := {| v_var := {| vtype := concrete sbool; vname := n fv |} ; v_info := vi |} in
   let vof := fr fresh_OF in
   let vcf := fr fresh_CF in
   let vsf := fr fresh_SF in
@@ -191,6 +197,7 @@ Variant divmod_pos :=
   | DM_Fst
   | DM_Snd.
 
+(* FIXME index : LowerIf does not need a field stype/atype *)
 Variant lower_cassgn_t : Type :=
   | LowerMov of bool (* whether it needs a intermediate register *)
   | LowerCopn of sopn & list pexpr
@@ -198,7 +205,7 @@ Variant lower_cassgn_t : Type :=
   | LowerLea of wsize & lea
   | LowerFopn of sopn & list pexpr & option wsize
   | LowerCond
-  | LowerIf   of stype & pexpr & pexpr & pexpr
+  | LowerIf   of pexpr & pexpr & pexpr
   | LowerDivMod of divmod_pos & signedness & wsize & sopn & pexpr & pexpr
   | LowerConcat of pexpr & pexpr
   | LowerAssgn.
@@ -246,23 +253,23 @@ Definition mulr sz a b :=
  end.
 
 (* x =(ty) e *)
-Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
+Definition lower_cassgn_classify (ty:atype) e x : lower_cassgn_t :=
   let chk (b: bool) r := if b then r else LowerAssgn in
-  let kb b sz := chk (b && (sword sz == ty)) in
+  let kb b sz := chk (b && (concrete (sword sz) == ty)) in
   let k8 sz := kb (sz ≤ U64)%CMP sz in
   let k16 sz := kb ((U16 ≤ sz) && (sz ≤ U64))%CMP sz in
   let k32 sz := kb ((U32 ≤ sz) && (sz ≤ U64))%CMP sz in
   match e with
   | Pget _ sz {| gv := v |} _
-  | Pvar {| gv := ({| v_var := {| vtype := sword sz |} |} as v) |} =>
+  | Pvar {| gv := ({| v_var := {| vtype := concrete (sword sz) |} |} as v) |} =>
     if (sz ≤ U64)%CMP
     then LowerMov (if is_var_in_memory v then is_lval_in_memory x else false)
-    else if ty is sword szo
+    else if ty is concrete (sword szo)
     then k32 szo (LowerCopn (Ox86 (MOVV szo)) [:: e ])
     else LowerAssgn
   | Pload sz _ _ => chk (sz ≤ U64)%CMP (LowerMov (is_lval_in_memory x))
 
-  | Papp1 (Oword_of_int sz) (Pconst _) => chk (if ty is sword sz' then sz' ≤ U64 else false)%CMP (LowerMov false)
+  | Papp1 (Oword_of_int sz) (Pconst _) => chk (if ty is concrete (sword sz') then sz' ≤ U64 else false)%CMP (LowerMov false)
   | Papp1 (Olnot sz) a => k8 sz (LowerCopn (Ox86 (NOT sz)) [:: a ])
   | Papp1 (Oneg (Op_w sz)) a => k8 sz (LowerFopn (Ox86 (NEG sz)) [:: a] None)
   | Papp1 (Osignext szo szi) a =>
@@ -384,18 +391,18 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
     end
 
   | Pif t e e1 e2 =>
-    if stype_of_lval x is sword _ then
-      k16 (wsize_of_lval x) (LowerIf t e e1 e2)
+    if atype_of_lval x is concrete (sword _) then
+      k16 (wsize_of_lval x) (LowerIf e e1 e2)
     else
       LowerAssgn
 
   | PappN (Opack U256 PE128) [:: Papp1 (Oint_of_word U128) h ; Papp1 (Oint_of_word U128) (Pvar _ as l) ] =>
-    if ty == sword U256 then LowerConcat h l else LowerAssgn
+    if ty == concrete (sword U256) then LowerConcat h l else LowerAssgn
 
   | _ => LowerAssgn
   end.
 
-Definition Lnone_b vi := Lnone vi sbool.
+Definition Lnone_b vi := Lnone vi (concrete sbool).
 
 (* TODO: other sizes than U64 *)
 (* TODO: remove dependent types *)
@@ -438,7 +445,7 @@ Definition opn_5flags (immed_bound: option wsize) (vi: var_info)
   let fopn o a := [:: Copn [:: f ; cf ; f ; f ; f ; x ] tg o a ] in
   match opn_5flags_cases a immed_bound (wsize_of_sopn o) with
   | Opn5f_large_immed x y n z _ _ =>
-    let c := {| v_var := {| vtype := sword U64; vname := fresh_multiplicand fv U64 |} ; v_info := vi |} in
+    let c := {| v_var := {| vtype := concrete (sword U64); vname := fresh_multiplicand fv U64 |} ; v_info := vi |} in
     Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: y] :: fopn (opn_no_imm o) (x :: Plvar c :: z)
   | Opn5f_other => fopn o a
   end.
@@ -448,18 +455,18 @@ Definition reduce_wconst sz (e: pexpr) : pexpr :=
   then Papp1 (Oword_of_int (cmp_min sz sz')) (Pconst z)
   else e.
 
-Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e: pexpr) : cmd :=
+Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: atype) (e: pexpr) : cmd :=
   let vi := var_info_of_lval x in
   let f := Lnone_b vi in
   let copn o a := [:: MkI ii (Copn [:: x ] tg o a) ] in
   let inc o a := [:: MkI ii (Copn [:: f ; f ; f ; f ; x ] tg o [:: a ]) ] in
   match lower_cassgn_classify ty e x with
   | LowerMov b =>
-    let szty := wsize_of_stype ty in
+    let szty := wsize_of_atype ty in
     let e := reduce_wconst szty e in
     if b
     then
-      let c := {| v_var := {| vtype := sword szty; vname := fresh_multiplicand fv szty |} ; v_info := vi |} in
+      let c := {| v_var := {| vtype := concrete (sword szty); vname := fresh_multiplicand fv szty |} ; v_info := vi |} in
       [:: MkI ii (Copn [:: Lvar c] tg (Ox86 (MOV szty)) [:: e ])
        ; MkI ii (Copn [:: x ] tg (Ox86 (MOV szty)) [:: Plvar c ]) ]
     else
@@ -507,7 +514,7 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
             else if d == (wbase U32 / 2)%Z
             then [::MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (SUB sz)) [:: b ; wconst (wrepr sz (-d)) ])]
             else
-              let c := {| v_var := {| vtype := sword U64; vname := fresh_multiplicand fv U64 |} ; v_info := vi |} in
+              let c := {| v_var := {| vtype := concrete (sword U64); vname := fresh_multiplicand fv U64 |} ; v_info := vi |} in
               [:: MkI ii (Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: de]);
                  MkI ii (Copn [:: f ; f ; f ; f ; f; x ] tg (Ox86 (ADD sz)) [:: b ; Plvar c ])]
       else lea tt
@@ -516,17 +523,17 @@ Definition lower_cassgn (ii:instr_info) (x: lval) (tg: assgn_tag) (ty: stype) (e
     let (i,e') := lower_condition vi e in
     map (MkI ii) (i ++ [::Cassgn x AT_inline ty e'])
 
-  | LowerIf t e e1 e2 =>
+  | LowerIf e e1 e2 =>
      let (l, e) := lower_condition vi e in
      let sz := wsize_of_lval x in
      map (MkI ii) (l ++ [:: Copn [:: x] tg (Ox86 (CMOVcc sz)) [:: e; e1; e2]])
 
   | LowerDivMod p s sz op a b =>
-    let c := {| v_var := {| vtype := sword sz; vname := fresh_multiplicand fv sz |} ; v_info := vi |} in
+    let c := {| v_var := {| vtype := concrete (sword sz); vname := fresh_multiplicand fv sz |} ; v_info := vi |} in
     let lv :=
       match p with
-      | DM_Fst => [:: f ; f ; f ; f ; f; x; Lnone vi (sword sz)]
-      | DM_Snd => [:: f ; f ; f ; f ; f; Lnone vi (sword sz) ; x]
+      | DM_Fst => [:: f ; f ; f ; f ; f; x; Lnone vi (concrete (sword sz))]
+      | DM_Snd => [:: f ; f ; f ; f ; f; Lnone vi (concrete (sword sz)) ; x]
       end in
     let i1 :=
       match s with
@@ -575,13 +582,13 @@ Definition lower_mulu sz (xs: lvals) tg (es: pexprs) : seq instr_r :=
     let f := Lnone_b vi in
     match is_wconst sz x with
     | Some _ =>
-      let c := {| v_var := {| vtype := sword sz; vname := fresh_multiplicand fv sz |} ; v_info := vi |} in
+      let c := {| v_var := {| vtype := concrete (sword sz); vname := fresh_multiplicand fv sz |} ; v_info := vi |} in
       [:: Copn [:: Lvar c ] tg (Ox86 (MOV sz)) [:: x ] ;
           Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] tg (Ox86 (MUL sz)) [:: y ; Plvar c ] ]
     | None =>
     match is_wconst sz y with
     | Some _ =>
-      let c := {| v_var := {| vtype := sword sz; vname := fresh_multiplicand fv sz |} ; v_info := vi |} in
+      let c := {| v_var := {| vtype := concrete (sword sz); vname := fresh_multiplicand fv sz |} ; v_info := vi |} in
       [:: Copn [:: Lvar c ] tg (Ox86 (MOV sz)) [:: y ] ;
           Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] tg (Ox86 (MUL sz)) [:: x ; Plvar c ] ]
     | None => [:: Copn [:: f ; f ; f ; f ; f ; r1 ; r2 ] tg (Ox86 (MUL sz)) es ]

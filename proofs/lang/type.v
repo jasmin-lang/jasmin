@@ -34,27 +34,7 @@ Definition array_length_eqMixin := Equality.Mixin array_length_eq_axiom.
 Canonical  array_length_abstract_eqType := Eval hnf in EqType array_length_abstract array_length_abstract_eqMixin.
 Canonical  array_length_eqType  := Eval hnf in EqType array_length array_length_eqMixin.
 Axiom array_length_abstract_cmp : array_length_abstract -> array_length_abstract -> comparison.
-Definition array_length_cmp len1 len2 :=
-  match len1, len2 with
-  | AL_const p1, AL_const p2 => Pos.compare p1 p2
-  | AL_const _, _ => Lt
-  | _, AL_const _ => Gt
-  | AL_abstract a1, AL_abstract a2 => array_length_abstract_cmp a1 a2
-  end.
 #[export] Declare Instance array_length_abstractO : Cmp array_length_abstract_cmp.
-#[export] Instance array_lengthO : Cmp array_length_cmp.
-Proof.
-  split.
-  + move=> [ p1 | a1 ] [ p2 | a2 ] //=.
-    + apply positiveO.
-    apply array_length_abstractO.
-  + move=> [ p1 | a1 ] [ p2 | a2 ] [ p3 | a3 ] //=;
-      try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt; apply cmp_ctrans.
-  move=> [ p1 | a1 ] [ p2 | a2 ] //= h.
-  + by rewrite (@cmp_eq _ _ positiveO _ _ h).
-  by rewrite (@cmp_eq _ _ array_length_abstractO _ _ h).
-Qed.
-(* Definition array_length_dec len1 len2 := Bool.reflect_dec _ _ (array_length_eq_axiom len1 len2). *)
 Axiom array_length_abstract_dec : forall (p1 p2:array_length_abstract), {p1 = p2} + {True}.
 Axiom array_length_abstract_dec_r : forall n1 n2 tt, array_length_abstract_dec n1 n2 = right tt -> n1 != n2.
 
@@ -64,8 +44,13 @@ Axiom array_length_abstract_dec_r : forall n1 n2 tt, array_length_abstract_dec n
 Variant stype : Type :=
 | sbool
 | sint
-| sarr  of array_length
+| sarr  of positive
 | sword of wsize.
+
+Variant atype : Type :=
+| concrete : stype -> atype
+| symbolic : array_length_abstract -> atype.
+
 
 (* -------------------------------------------------------------------- *)
 (*
@@ -87,28 +72,36 @@ Notation sword128 := (sword U128).
 Notation sword256 := (sword U256).
 
 (* -------------------------------------------------------------------- *)
-
-Definition stype_beq (ty1 ty2 : stype) :=
-  match ty1, ty2 with
-  | sbool, sbool => true
-  | sint, sint => true
-  | sarr len1, sarr len2 => len1 == len2
-  | sword ws1, sword ws2 => ws1 == ws2
-  | _, _ => false
-  end.
+Scheme Equality for stype.
 
 Lemma stype_axiom : Equality.axiom stype_beq.
 Proof.
   move=> x y;apply:(iffP idP).
-  + case: x; case: y => //=.
-    + move=> len1 len2 /eqP. congruence.
-    move=> ?? /eqP. congruence.
-  move=> <-. by case: x => //=.
+  + by apply: internal_stype_dec_bl.
+  by apply: internal_stype_dec_lb.
 Qed.
 
 Definition stype_eqMixin     := Equality.Mixin stype_axiom.
 Canonical  stype_eqType      := Eval hnf in EqType stype stype_eqMixin.
 
+Definition atype_beq a1 a2 :=
+  match a1, a2 with
+  | concrete ty1, concrete ty2 => ty1 == ty2
+  | symbolic a1, symbolic a2 => a1 == a2
+  | _, _ => false
+  end.
+
+Lemma atype_eq_axiom : Equality.axiom atype_beq.
+Proof.
+  move=> [ty1|a1] [ty2|a2] /=.
+  + apply (iffP eqP); congruence.
+  + by constructor.
+  + by constructor.
+  apply (iffP eqP); congruence.
+Qed.
+
+Definition atype_eqMixin := Equality.Mixin atype_eq_axiom.
+Canonical  atype_eqType  := Eval hnf in EqType atype atype_eqMixin.
 
 (* ** Comparison
  * -------------------------------------------------------------------- *)
@@ -126,7 +119,7 @@ Definition stype_cmp t t' :=
   | sword w , sword w'      => wsize_cmp w w'
   | sword _ , _             => Gt
 
-  | sarr n  , sarr n'        => array_length_cmp n n'
+  | sarr n  , sarr n'        => Pos.compare n n'
   | sarr _  , _             => Gt
   end.
 
@@ -138,8 +131,26 @@ Proof.
   + by move=> y x; case: x y=> [||n|w] [||n'|w'] [||n''|w''] c//=;
        try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt; apply cmp_ctrans.
   case=> [||n|w] [||n'|w'] //= h.
-  + by rewrite (@cmp_eq _ _ array_lengthO _ _ h).
+  + by rewrite (@cmp_eq _ _ positiveO _ _ h).
   by rewrite (@cmp_eq _ _ wsizeO _ _ h).
+Qed.
+
+Definition atype_cmp a1 a2 :=
+  match a1, a2 with
+  | concrete ty1, concrete ty2 => stype_cmp ty1 ty2
+  | concrete _, _ => Lt
+  | _, concrete _ => Gt
+  | symbolic a1, symbolic a2 => array_length_abstract_cmp a1 a2
+  end.
+
+#[global]
+Instance atypeO : Cmp atype_cmp.
+Proof.
+  constructor.
+  + by move=> [ty1|a1] [ty2|a2] //=; apply cmp_sym.
+  + move=> [ty1|a1] [ty2|a2] [ty3|a3] c //=;
+      try (by apply ctrans_Eq);eauto using ctrans_Lt, ctrans_Gt; apply cmp_ctrans.
+  by move=> [ty1|a1] [ty2|a2] //= /cmp_eq ->.
 Qed.
 
 Module CmpStype.
@@ -151,6 +162,16 @@ Module CmpStype.
   Definition cmpO : Cmp cmp := stypeO.
 
 End CmpStype.
+
+Module CmpAtype.
+
+  Definition t : eqType := [eqType of atype].
+
+  Definition cmp : t -> t -> comparison := atype_cmp.
+
+  Definition cmpO : Cmp cmp := atypeO.
+
+End CmpAtype.
 
 Module CEDecStype.
 
@@ -185,28 +206,6 @@ Module CEDecStype.
       end
     end.
 
-  Definition array_length_dec (len1 len2 : array_length) : {len1 = len2} + {True} :=
-    match len1 return { len1 = len2 } + {True} with
-    | AL_const n1 =>
-      match len2 with
-      | AL_const n2 =>
-        match pos_dec n1 n2 with
-        | left eqn => left (f_equal AL_const eqn)
-        | right _ => right I
-        end
-      | _ => right I
-      end
-    | AL_abstract a1 =>
-      match len2 return _ with
-      | AL_const _ => right I
-      | AL_abstract a2 =>
-        match array_length_abstract_dec a1 a2 with
-        | left eqn => left (f_equal AL_abstract eqn)
-        | right _ => right I
-        end
-      end
-    end.
-
   Definition eq_dec (t1 t2:t) : {t1 = t2} + {True} :=
     match t1 as t return {t = t2} + {True} with
     | sbool =>
@@ -222,7 +221,7 @@ Module CEDecStype.
     | sarr n1 =>
       match t2 as t0 return {sarr n1 = t0} + {True} with
       | sarr n2 =>
-        match array_length_dec n1 n2 with
+        match pos_dec n1 n2 with
         | left eqn => left (f_equal sarr eqn)
         | right _ => right I
         end
@@ -247,21 +246,10 @@ Module CEDecStype.
     by case: pos_dec (Hrec n2) => //= -[] /(_ (erefl _)).
   Qed.
 
-  Lemma array_length_dec_r len1 len2 tt: array_length_dec len1 len2 = right tt -> len1 != len2.
-  Proof.
-    case: tt; case: len1 len2 => [ p1 | a1 ] [ p2 | a2 ] //=.
-    + case: pos_dec (@pos_dec_r p1 p2 I) => [Heq _ | [] neq ] //=.
-      move=> _; apply/eqP => -[].
-      by move/eqP: (neq erefl).
-    case: array_length_abstract_dec (@array_length_abstract_dec_r a1 a2 I) => [Heq _ | [] neq ] //=.
-    move=> _; apply/eqP => -[].
-    by move/eqP: (neq erefl).
-  Qed.
-
   Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
   Proof.
     case: tt;case:t1 t2=> [||n|w] [||n'|w'] //=.
-    + case: array_length_dec (@array_length_dec_r n n' I) => [Heq _ | [] neq ] //=.
+    + case: pos_dec (@pos_dec_r n n' I) => [Heq _ | [] neq ] //=.
       move => _; apply/eqP => -[].
       by move/eqP: (neq erefl).
     case: wsize_eq_dec => // eqw.
@@ -270,7 +258,47 @@ Module CEDecStype.
 
 End CEDecStype.
 
-Module Mt := DMmake CmpStype CEDecStype.
+Module CEDecAtype.
+
+  Definition t := [eqType of atype].
+
+  Definition eq_dec (t1 t2:t) : {t1 = t2} + {True} :=
+    match t1 as t return {t = t2} + {True} with
+    | concrete ty1 =>
+      match t2 as t0 return _ with
+      | concrete ty2 =>
+        match CEDecStype.eq_dec ty1 ty2 with
+        | left h => left (f_equal concrete h)
+        | _ => right I
+        end
+      | _     => right I
+      end
+    | symbolic a1 =>
+      match t2 as t0 return _ with
+      | symbolic a2 =>
+        match array_length_abstract_dec a1 a2 with
+        | left h => left (f_equal symbolic h)
+        | _ => right I
+        end
+      | _     => right I
+      end
+    end.
+
+  Lemma eq_dec_r t1 t2 tt: eq_dec t1 t2 = right tt -> t1 != t2.
+  Proof.
+    case: tt;case:t1 t2=> [ty1|a1] [ty2|a2] //=.
+    + case: CEDecStype.eq_dec (@CEDecStype.eq_dec_r ty1 ty2 I) => [Heq _ | [] neq ] //=.
+      move => _; apply/eqP => -[].
+      by move/eqP: (neq erefl).
+    case: array_length_abstract_dec (@array_length_abstract_dec_r a1 a2 I) => [Heq _ | [] neq ] //=.
+    move => _; apply/eqP => -[].
+    by move/eqP: (neq erefl).
+  Qed.
+
+End CEDecAtype.
+
+(* Module Mt := DMmake CmpStype CEDecStype. *)
+Module Mt := DMmake CmpAtype CEDecAtype.
 
 Declare Scope mtype_scope.
 Delimit Scope mtype_scope with mt.
@@ -278,8 +306,14 @@ Notation "m .[ x ]" := (@Mt.get _ m x) : mtype_scope.
 Notation "m .[ x  <- v ]" := (@Mt.set _ m x v) : mtype_scope.
 Arguments Mt.get P m%mtype_scope k.
 Arguments Mt.set P m%mtype_scope k v.
-
-
+(*
+Declare Scope matype_scope.
+Delimit Scope matype_scope with ma.
+Notation "m .[ x ]" := (@Ma.get _ m x) : matype_scope.
+Notation "m .[ x  <- v ]" := (@Ma.set _ m x v) : matype_scope.
+Arguments Ma.get P m%matype_scope k.
+Arguments Ma.set P m%matype_scope k v.
+*)
 Definition is_sbool t := t == sbool.
 
 Lemma is_sboolP t : reflect (t=sbool) (is_sbool t).
@@ -304,7 +338,7 @@ Proof. by case: ty => //= w [->]. Qed.
 Definition vundef_type (t:stype) :=
   match t with
   | sword _ => sword8
-  | sarr _  => sarr (const_length 1)
+  | sarr _  => sarr 1
   | _       => t
   end.
 
@@ -341,7 +375,7 @@ Proof. by case t. Qed.
 Definition subtype (t t': stype) :=
   match t with
   | sword w => if t' is sword w' then (w ≤ w')%CMP else false
-  | sarr n => if t' is sarr n' then n == n' else false
+  | sarr n => if t' is sarr n' then (n <=? n')%Z else false
   | _ => t == t'
   end.
 
@@ -349,12 +383,12 @@ Lemma subtypeE ty ty' :
   subtype ty ty' →
   match ty' with
   | sword sz' => ∃ sz, ty = sword sz ∧ (sz ≤ sz')%CMP
-  | sarr n'   => ∃ n, ty = sarr n ∧ (n <= n')%CMP
+  | sarr n'   => ∃ n, ty = sarr n ∧ (n <= n')%Z
   | _         => ty = ty'
 end.
 Proof.
   destruct ty; try by move/eqP => <-.
-  + by case: ty'=> //= p' /eqP ->; eauto.
+  + by case: ty'=> //= p' /ZleP ?; eauto.
   by case: ty' => //; eauto.
 Qed.
 
@@ -362,25 +396,25 @@ Lemma subtypeEl ty ty' :
   subtype ty ty' →
   match ty with
   | sword sz => ∃ sz', ty' = sword sz' ∧ (sz ≤ sz')%CMP
-  | sarr n   => ∃ n', ty' = sarr n' ∧ (n <= n')%CMP
+  | sarr n   => ∃ n', ty' = sarr n' ∧ (n <= n')%Z
   | _        => ty' = ty
   end.
 Proof.
   destruct ty; try by move/eqP => <-.
-  + by case: ty'=> //= p' /eqP ->; eauto.
+  + by case: ty'=> //= p' /ZleP ?; eauto.
   by case: ty' => //; eauto.
 Qed.
 
 Lemma subtype_refl x : subtype x x.
-Proof. by case: x => /=. Qed.
+Proof. case: x => //= ?;apply Z.leb_refl. Qed.
 #[global]
 Hint Resolve subtype_refl : core.
 
 Lemma subtype_trans y x z : subtype x y -> subtype y z -> subtype x z.
 Proof.
   case: x => //= [/eqP<-|/eqP<-|n1|sx] //.
-  + case: y => //= n2 h1;case: z => //= n3 h2.
-    by apply: eq_op_trans h2.
+  + case: y => //= n2 /ZleP h1;case: z => //= n3 /ZleP h2.
+    by apply /ZleP;apply: Z.le_trans h1 h2.
   case: y => //= sy hle;case: z => //= sz;apply: cmp_le_trans hle.
 Qed.
 
@@ -389,15 +423,10 @@ Proof.
   by case: t1 => [/eqP ->| /eqP -> | p | w] // ; case: t2.
 Qed.
 
-Lemma array_length_cmp_1 len : (const_length 1 <= len)%CMP.
-Proof.
-  by case: len => // p; case: p.
-Qed.
-(*
+
 Lemma compat_subtype_undef t1 t2 : compat_type t1 t2 → subtype (vundef_type t1) t2.
 Proof.
   case: t1 => [/eqP ->|/eqP ->|?|?] //=; case: t2 => // *.
-  + by apply array_length_cmp_1.
+  + by apply /ZleP; Psatz.lia.
   by apply wsize_le_U8.
 Qed.
-*)

@@ -395,7 +395,10 @@ let pp_pprog asmOp fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem pp_pexpr pp_opn pp_pvar)) (List.rev p)
 
-let pp_len fmt len = Format.fprintf fmt "%i" len
+let pp_len fmt len =
+  match len with
+  | AL_const len -> Format.fprintf fmt "%i" len
+  | AL_abstract _ -> Format.fprintf fmt "<abstract>"
 
 let pp_fun ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
@@ -451,8 +454,7 @@ let pp_func ~debug asmOp fmt fd =
   pp_fun pp_opn pp_var fmt fd
 
 let pp_glob pp_var fmt (x, gd) = 
-  let pp_size fmt i = F.fprintf fmt "%i" i in
-  let pp_vd =  pp_var_decl pp_var pp_size in
+  let pp_vd =  pp_var_decl pp_var pp_len in
   let pp_gd fmt gd = 
     match gd with
     | Global.Gword(ws,w) -> 

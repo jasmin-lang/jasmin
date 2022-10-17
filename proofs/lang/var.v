@@ -17,7 +17,7 @@ Module MvMake (I:IDENT).
 #[global]
   Existing Instance K.cmpO.
 
-  Record var := Var { vtype : stype; vname : ident }.
+  Record var := Var { vtype : atype; vname : ident }.
 
   Definition var_beq (v1 v2:var) :=
     let (t1,n1) := v1 in
@@ -34,7 +34,7 @@ Module MvMake (I:IDENT).
   Canonical  var_eqType  := EqType var var_eqMixin.
 
   Definition var_cmp (x y:var) :=
-    Lex (stype_cmp x.(vtype) y.(vtype)) (K.cmp x.(vname) y.(vname)).
+    Lex (atype_cmp x.(vtype) y.(vtype)) (K.cmp x.(vname) y.(vname)).
 
 #[global]
   Instance varO : Cmp var_cmp.
@@ -42,7 +42,7 @@ Module MvMake (I:IDENT).
     constructor=> [x y | y x z c | [??] [??]] ;rewrite /var_cmp !Lex_lex.
     + by apply lex_sym;apply cmp_sym.
     + by apply lex_trans=> /=; apply cmp_ctrans.
-    by move=> /lex_eq [] /= /(@cmp_eq _ _ stypeO) -> /(@cmp_eq _ _ K.cmpO) ->.
+    by move=> /lex_eq [] /= /(@cmp_eq _ _ atypeO) -> /(@cmp_eq _ _ K.cmpO) ->.
   Qed.
 
   Lemma var_surj (x:var) : x = Var x.(vtype) x.(vname).
@@ -50,7 +50,7 @@ Module MvMake (I:IDENT).
 
   Module Mv.
 
-  Record rt_ (to:stype -> Type) := MkT {
+  Record rt_ (to:atype -> Type) := MkT {
     dft : forall (x:var) ,to x.(vtype);
     tbl : Mt.t (fun ty => Mid.t (to ty));
   }.
@@ -297,7 +297,7 @@ Notation var   := Var.var.
 Notation vtype := Var.vtype.
 Notation vname := Var.vname.
 Notation Var   := Var.Var.
-Notation vbool i := {| vtype := sbool; vname := i; |}.
+Notation vbool i := {| vtype := concrete sbool; vname := i; |}.
 
 Declare Scope mvar_scope.
 Delimit Scope mvar_scope with mv.
@@ -317,15 +317,15 @@ Proof. by apply: contra => /eqP ->. Qed.
  * -------------------------------------------------------------------- *)
 
 Module Type FvT.
-  Parameter t : (stype -> Type) -> Type.
+  Parameter t : (atype -> Type) -> Type.
   Parameter empty :
-    forall {to:stype -> Type} (dval : forall (x:var), to x.(vtype)), t to.
+    forall {to:atype -> Type} (dval : forall (x:var), to x.(vtype)), t to.
 
   Parameter get :
-    forall {to:stype -> Type} (vm:t to) (x:var), to x.(vtype).
+    forall {to:atype -> Type} (vm:t to) (x:var), to x.(vtype).
 
   Parameter set :
-    forall {to:stype -> Type} (vm : t to) x (v : to x.(vtype)), t to.
+    forall {to:atype -> Type} (vm : t to) x (v : to x.(vtype)), t to.
 
   Axiom get0 : forall to dval x, @get to (empty dval) x = dval x.
 
@@ -396,7 +396,7 @@ Arguments Fv.ext_eq to vm1%vmap_scope vm2%vmap_scope.
 
 Module Type Vmap.
 
-  Parameter t : (stype -> Type) -> Type.
+  Parameter t : (atype -> Type) -> Type.
 
   Parameter empty : forall to, (forall (x:var), to x.(vtype)) -> t to.
 

@@ -15,12 +15,12 @@ let is_array_copy (x:lval) (e:expr) =
   | Lvar x ->
     let x = L.unloc x in
     begin match x.v_ty with
-    | Arr (xws, xn) ->
+    | Arr (xws, Prog.AL_const xn) ->
       begin match e with
       | Pvar y ->
         let y = L.unloc y.gv in
         begin match y.v_ty with
-        | Arr(yws, yn) ->
+        | Arr(yws, Prog.AL_const yn) ->
            (* Ignore ill-typed copies: they are later rejected by “typing”. *)
            if arr_size yws yn < arr_size xws xn then None else
            if x.v_kind = Reg(Normal, Direct) then Some (xws, xn)

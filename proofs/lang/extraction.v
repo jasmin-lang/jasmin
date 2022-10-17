@@ -28,6 +28,11 @@ Extract Constant expr.InstrInfo.witness => "IInfo.dummy".
 Extract Constant expr.instr_info => "IInfo.t".
 Extract Constant expr.fun_info => "FInfo.t".
 
+Extract Constant type.array_length_abstract => "Prog.pexpr".
+Extract Constant type.array_length_abstract_beq => "Prog.pexpr_beq".
+(* Extract Constant type.array_length_abstract_eq_axiom
+      type.array_length_abstract_dec type.array_length_abstract_cmp *)
+
 Cd  "lang/ocaml".
 
 Extraction Blacklist String List Nat Utils Var Array.

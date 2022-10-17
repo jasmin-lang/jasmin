@@ -52,22 +52,37 @@ let string_of_string0 s0 =
 (* ------------------------------------------------------------------------ *)
 
 let cty_of_ty = function
-  | Bty Bool      -> T.Coq_sbool
-  | Bty Int       -> T.Coq_sint
-  | Bty (U sz)   -> T.Coq_sword(sz)
-  | Arr (_sz, len) -> T.Coq_sarr len
+  | Bty Bool      -> T.Coq_concrete T.Coq_sbool
+  | Bty Int       -> T.Coq_concrete T.Coq_sint
+  | Bty (U sz)   -> T.Coq_concrete (T.Coq_sword(sz))
+  | Arr (sz, len) ->
+    match len with
+    | AL_const len -> T.Coq_concrete (T.Coq_sarr (pos_of_int (size_of_ws sz * len)))
+    | AL_abstract a -> T.Coq_symbolic a (* FIXME index *)
 
-let ty_of_cty = function
+let ty_of_cty' = function
   | T.Coq_sbool  ->  Bty Bool
   | T.Coq_sint   ->  Bty Int
   | T.Coq_sword sz -> Bty (U sz)
-  | T.Coq_sarr p -> Arr (U8, int_of_pos p)
+  | T.Coq_sarr p -> Arr (U8, AL_const (int_of_pos p))
+
+let ty_of_cty = function
+  | T.Coq_concrete ty -> ty_of_cty' ty
+  | T.Coq_symbolic a -> Arr (U8, AL_abstract a)
+
+let carray_length_of_array_length = function
+  | AL_const len -> T.AL_const (pos_of_int len)
+  | AL_abstract a -> T.AL_abstract a
+
+let array_length_of_carray_length = function
+  | T.AL_const len -> AL_const (int_of_pos len)
+  | T.AL_abstract a -> AL_abstract a
 
 (* ------------------------------------------------------------------------ *)
 
 type coq_tbl = {
      mutable count : int;
-     var           : (Var.var, C.array_length gvar) Hashtbl.t;
+     var           : (Var.var, array_length gvar) Hashtbl.t;
      cvar          : Var.var Hv.t;
      funname       : (funname, BinNums.positive) Hashtbl.t;
      cfunname      : (BinNums.positive, funname) Hashtbl.t;
@@ -88,7 +103,7 @@ let empty_tbl = {
 
 (* ------------------------------------------------------------------------ *)
 
-let gen_cvar_of_var with_uid (tbl:coq_tbl) v =
+let gen_cvar_of_var with_uid (tbl:coq_tbl) (v:array_length Prog.gvar) =
   try Hv.find tbl.cvar v
   with Not_found ->
     let s =
@@ -121,7 +136,7 @@ let cvari_of_vari tbl v =
 let vari_of_cvari tbl v =
   L.mk_loc v.C.v_info (var_of_cvar tbl v.C.v_var)
 
-let cgvari_of_gvari tbl (v:C.array_length Prog.ggvar) : C.gvar = 
+let cgvari_of_gvari tbl (v:array_length Prog.ggvar) : C.gvar = 
   { C.gv = cvari_of_vari tbl v.gv;
     C.gs = v.gs }
 
@@ -130,14 +145,14 @@ let gvari_of_cgvari tbl v =
     gs = v.C.gs }
 
 (* ------------------------------------------------------------------------ *)
-let rec cexpr_of_expr tbl = function
+let rec cexpr_of_expr tbl = fun (v : array_length Prog.gexpr) -> match v with
   | Pconst z          -> C.Pconst (cz_of_z z)
   | Pbool  b          -> C.Pbool  b
-  | Parr_init n       -> C.Parr_init n
+  | Parr_init n       -> C.Parr_init (carray_length_of_array_length n)
   | Pvar x            -> C.Pvar (cgvari_of_gvari tbl x)
   | Pget (aa,ws, x,e) -> C.Pget (aa, ws, cgvari_of_gvari tbl x, cexpr_of_expr tbl e)
   | Psub (aa,ws,len, x,e) -> 
-    C.Psub (aa, ws, len, cgvari_of_gvari tbl x, cexpr_of_expr tbl e)
+    C.Psub (aa, ws, carray_length_of_array_length len, cgvari_of_gvari tbl x, cexpr_of_expr tbl e)
   | Pload (ws, x, e)  -> C.Pload(ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Papp1 (o, e)      -> C.Papp1(o, cexpr_of_expr tbl e)
   | Papp2 (o, e1, e2) -> C.Papp2(o, cexpr_of_expr tbl e1, cexpr_of_expr tbl e2)
@@ -150,10 +165,10 @@ let rec cexpr_of_expr tbl = function
 let rec expr_of_cexpr tbl = function
   | C.Pconst z          -> Pconst (z_of_cz z)
   | C.Pbool  b          -> Pbool  b
-  | C.Parr_init n       -> Parr_init n
+  | C.Parr_init n       -> Parr_init (array_length_of_carray_length n)
   | C.Pvar x            -> Pvar (gvari_of_cgvari tbl x)
   | C.Pget (aa,ws, x,e) -> Pget (aa, ws, gvari_of_cgvari tbl x, expr_of_cexpr tbl e)
-  | C.Psub (aa,ws,len,x,e) -> Psub (aa, ws, len, gvari_of_cgvari tbl x, expr_of_cexpr tbl e)
+  | C.Psub (aa,ws,len,x,e) -> Psub (aa, ws, array_length_of_carray_length len, gvari_of_cgvari tbl x, expr_of_cexpr tbl e)
   | C.Pload (ws, x, e)  -> Pload(ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Papp1 (o, e)      -> Papp1(o, expr_of_cexpr tbl e)
   | C.Papp2 (o, e1, e2) -> Papp2(o, expr_of_cexpr tbl e1, expr_of_cexpr tbl e2)
@@ -171,7 +186,7 @@ let clval_of_lval tbl = function
   | Lmem (ws, x, e) -> C.Lmem (ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Laset(aa,ws,x,e)-> C.Laset (aa, ws, cvari_of_vari tbl x, cexpr_of_expr tbl e)
   | Lasub(aa,ws,len,x,e)-> 
-    C.Lasub (aa, ws, pos_of_int len, cvari_of_vari tbl x, cexpr_of_expr tbl e)
+    C.Lasub (aa, ws, carray_length_of_array_length len, cvari_of_vari tbl x, cexpr_of_expr tbl e)
 
 let lval_of_clval tbl = function
   | C.Lnone(p, ty)  -> Lnone (p, ty_of_cty ty)
@@ -179,7 +194,7 @@ let lval_of_clval tbl = function
   | C.Lmem(ws,x,e)  -> Lmem (ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Laset(aa,ws,x,e) -> Laset (aa,ws, vari_of_cvari tbl x, expr_of_cexpr tbl e)
   | C.Lasub(aa,ws,len,x,e) -> 
-    Lasub (aa,ws, int_of_pos len, vari_of_cvari tbl x, expr_of_cexpr tbl e)
+    Lasub (aa,ws, array_length_of_carray_length len, vari_of_cvari tbl x, expr_of_cexpr tbl e)
 
 (* ------------------------------------------------------------------------ *)
 

@@ -131,7 +131,6 @@ let main () =
     let module Arch = Arch_full.Arch_from_Core_arch (Ocaml_params) in
     let module Regalloc = Regalloc.Regalloc (Arch) in
     let module StackAlloc = StackAlloc.StackAlloc (Arch) in
-    let spp = Arch_extra.spp_of_asm_e Arch.asm_e Syscall_ocaml.sc_sem in
 
     if !safety_makeconfigdoc <> None
     then (
@@ -259,8 +258,6 @@ let main () =
     let tbl, cprog = Conv.cuprog_of_prog all_vars prog in
 
     if !debug then Printf.eprintf "translated to coq \n%!";
-
-    let to_exec = Pretyping.Env.Exec.get env in
 
     let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef tbl (fn,cfd) in
     let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef tbl fd) in

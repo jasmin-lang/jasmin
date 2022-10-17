@@ -101,12 +101,13 @@ Section Section.
 
 Context (is_ptr : var -> bool).
 
+(* FIXME insert : should we deal with the symbolic case since we exclude ptr? *)
 Definition add_init_aux ii x c :=
   match x.(vtype) with
-  | sarr n =>
+  | concrete (sarr n) =>
     if ~~ is_ptr x then
       let x := VarI x dummy_var_info in
-      MkI ii (Cassgn (Lvar x) AT_none (sarr n) (Parr_init (const_length n))) :: c
+      MkI ii (Cassgn (Lvar x) AT_none (concrete (sarr n)) (Parr_init (const_length n))) :: c
     else c
   | _ => c
   end.
