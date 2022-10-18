@@ -8,6 +8,9 @@ let hierror = hierror ~kind:"compilation error" ~sub_kind:"stack allocation"
 let hierror_no_loc ?funname = hierror ~loc:Lnone ?funname
 
 (* Interval within a variable; [lo; hi[ *)
+(* index: we changed the interpretation of range: it is (offset, len) instead
+   of (min, max), this minimizes the arithmetic operations
+*)
 type slice = { in_var : var ; scope : E.v_scope ; range : int * array_length }
 
 type alias = slice Mv.t
@@ -35,23 +38,18 @@ let pp_alias fmt a =
     pp_aliasing a
 
 (* --------------------------------------------------- *)
-let size_of_range (lo, hi) =
-  match hi with
-  | AL_const hi -> AL_const (hi - lo)
-  | AL_abstract hi -> AL_abstract (Sub (hi, Const (Z.of_int lo)))
-
 let range_in_slice (lo, hi) s =
   let (u, v) = s.range in
   match hi, v with
   | AL_const hic, AL_const vc ->
-      if u + hic <= vc then { s with range = u + lo, AL_const (u + hic) }
+      if u + hic <= vc then { s with range = u + lo, AL_const (hic) }
       else hierror_no_loc "range [%a[ overflows slice %a" pp_range (lo, hi) pp_slice s
   | AL_const hic, AL_abstract _ ->
       (* no check because we don't know what to do *)
-      { s with range = u + lo, AL_const (u + hic) }
+      { s with range = u + lo, AL_const (hic) }
   | AL_abstract hi, _ ->
       (* no check because we don't know what to do *)
-    { s with range = u + lo, AL_abstract (Add (Const (Z.of_int u), hi)) }
+    { s with range = u + lo, AL_abstract (hi) }
 
 let range_of_var x =
   0, size_of x.v_ty
@@ -111,6 +109,14 @@ let compare_gvar params x gx y gy =
   if V.equal x y
   then (assert (gx = gy); 0)
   else
+    (* big hack: we don't want reg ptr to be greater *)
+    let is_local_reg_ptr x =
+      not (Sv.mem x params) && is_reg_ptr_kind x.v_kind
+    in
+    if is_local_reg_ptr x && not (is_local_reg_ptr y) then -1
+    else if not (is_local_reg_ptr x) && is_local_reg_ptr y then 1
+    else
+
     let sx = size_of x.v_ty in
     let sy = size_of y.v_ty in
     match gx, gy with
@@ -143,8 +149,9 @@ let compare_gvar params x gx y gy =
 (* Precondition: s1 and s2 are normal forms (aka roots) in a *)
 (* x1[e1:n1] = x2[e2:n2] *)
 let merge_slices params a s1 s2 =
-  if size_of_range s1.range <> size_of_range s2.range
+  if snd s1.range <> snd s2.range
      then hierror_no_loc "slices %a and %a do not have the same size: the cannot be merged@." pp_slice s1 pp_slice s2;
+  Format.eprintf "%a vs %a@." (Printer.pp_var ~debug:true) s1.in_var (Printer.pp_var ~debug:true) s2.in_var;
   let c = compare_gvar params s1.in_var s1.scope s2.in_var s2.scope in
   if c = 0 then
     if s1 = s2 then a
@@ -153,11 +160,7 @@ let merge_slices params a s1 s2 =
     let s1, s2 = if c < 0 then s1, s2 else s2, s1 in
     let x = s1.in_var in
     let lo = fst s2.range - fst s1.range in
-    let hi =
-      match size_of x.v_ty with
-      | AL_const len -> AL_const (lo + len)
-      | AL_abstract a -> AL_abstract (Add (Const (Z.of_int lo), a))
-    in
+    let hi = size_of x.v_ty in
     Mv.add x { s2 with range = lo, hi } a
 
 (* Precondition: both maps are normalized *)
@@ -174,8 +177,8 @@ let range_of_asub aa ws len { gv } i =
   | Some start ->
       let ofs =
         match len with
-        | AL_const len -> AL_const (start + arr_size ws len)
-        | AL_abstract len -> AL_abstract (Add (Const (Z.of_int start), Mul (Const (Z.of_int (size_of_ws ws)), len)))
+        | AL_const len -> AL_const (arr_size ws len)
+        | AL_abstract len -> AL_abstract (Mul (Const (Z.of_int (size_of_ws ws)), len))
       in
       start, ofs
 
@@ -247,8 +250,12 @@ and analyze_stmt params cc a s =
 
 let analyze_fd cc fd =
   let params = Sv.of_list fd.f_args in
-  try analyze_stmt params cc Mv.empty fd.f_body |> normalize_map
-  with (HiError e) -> raise (HiError { e with err_funname = Some fd.f_name.fn_name })
+  let a =
+    try analyze_stmt params cc Mv.empty fd.f_body |> normalize_map
+    with (HiError e) -> raise (HiError { e with err_funname = Some fd.f_name.fn_name })
+  in
+  Format.eprintf "Aliasing forest for function %s:@.%a@." fd.f_name.fn_name pp_alias a;
+  a
 
 let analyze_fd_ignore cc fd =
   let a = analyze_fd cc fd in

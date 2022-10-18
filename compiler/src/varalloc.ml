@@ -42,11 +42,17 @@ type glob_alloc_oracle_t =
  
 (* --------------------------------------------------- *)
 let incr_liverange r x d : liverange =
+  Format.eprintf "%a@." (Printer.pp_var ~debug:true) x;
   let s = size_of x.v_ty in
+      Mint.iter (fun n m ->
+        Format.eprintf "n: %d@." n;
+        Mv.iter (fun x s -> Format.eprintf "%a -> %d@." (Printer.pp_var ~debug:true) x (fst s)) m) r;
+        Format.eprintf "@.";
   let s =
     match s with
     | AL_const s -> s
-    | AL_abstract _ -> failwith "AL_abstract"
+    | AL_abstract _ -> Format.eprintf "%a@." (Printer.pp_var ~debug:true) x;
+      failwith "AL_abstract"
   in
   let g = Mint.find_default Mv.empty s r in
   let i =
@@ -224,7 +230,7 @@ let init_slots pd stack_pointers alias coloring fv =
   (* FIXME: move definition of interval in Alias *)
   let r2i (min,max) =
     match max with
-    | AL_const max -> Interval.{min;max}
+    | AL_const max -> Interval.{min;max=min+max}
     | AL_abstract _ -> failwith "r2i"
   in
   let dovar v =
