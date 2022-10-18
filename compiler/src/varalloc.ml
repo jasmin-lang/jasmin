@@ -43,6 +43,11 @@ type glob_alloc_oracle_t =
 (* --------------------------------------------------- *)
 let incr_liverange r x d : liverange =
   let s = size_of x.v_ty in
+  let s =
+    match s with
+    | AL_const s -> s
+    | AL_abstract _ -> failwith "AL_abstract"
+  in
   let g = Mint.find_default Mv.empty s r in
   let i =
     match Mv.find x g with
@@ -198,6 +203,11 @@ let err_var_not_initialized x =
 
 let get_slot coloring x =
   let sz = size_of x.v_ty in
+  let sz =
+    match sz with
+    | AL_const sz -> sz
+    | AL_abstract _ -> failwith "get_slot"
+  in
   try Mv.find x (Mint.find sz coloring)
   with Not_found -> err_var_not_initialized x
 
@@ -212,7 +222,11 @@ let init_slots pd stack_pointers alias coloring fv =
   let add_local x info = Hv.add lalloc x info in
 
   (* FIXME: move definition of interval in Alias *)
-  let r2i (min,max) = Interval.{min;max} in
+  let r2i (min,max) =
+    match max with
+    | AL_const max -> Interval.{min;max}
+    | AL_abstract _ -> failwith "r2i"
+  in
   let dovar v =
     match v.v_kind with
     | Stack Direct ->
@@ -235,6 +249,11 @@ let init_slots pd stack_pointers alias coloring fv =
     | Stack (Pointer _) ->
       let xp = get_stack_pointer stack_pointers v in
       let sz = size_of xp.v_ty in
+      let sz =
+        match sz with
+        | AL_const sz -> sz
+        | AL_abstract _ -> failwith "dovar"
+      in
       let slot =
         try Mv.find xp (Mint.find sz coloring)
         with Not_found -> err_var_not_initialized v in
@@ -321,6 +340,11 @@ let alloc_local_stack size slots atbl =
     let s = size_of_ws ws in
     let pos = !size in
     let n = size_of x.v_ty in
+    let n = 
+      match n with
+      | AL_const n -> n
+      | AL_abstract _ -> failwith "init_slot"
+    in
     let pos = 
       if pos mod s = 0 then pos
       else (pos/s + 1) * s in

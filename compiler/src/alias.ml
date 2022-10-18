@@ -8,7 +8,7 @@ let hierror = hierror ~kind:"compilation error" ~sub_kind:"stack allocation"
 let hierror_no_loc ?funname = hierror ~loc:Lnone ?funname
 
 (* Interval within a variable; [lo; hi[ *)
-type slice = { in_var : var ; scope : E.v_scope ; range : int * int }
+type slice = { in_var : var ; scope : E.v_scope ; range : int * array_length }
 
 type alias = slice Mv.t
 
@@ -19,7 +19,7 @@ let pp_scope fmt s =
   Format.fprintf fmt "%s" (if s = E.Slocal then "" else "#g:")
 
 let pp_range fmt (lo, hi) =
-  Format.fprintf fmt "%d; %d" lo hi
+  Format.fprintf fmt "%d; %a" lo Printer.pp_len hi
 
 let pp_slice fmt s =
   Format.fprintf fmt "%a%a[%a[" pp_scope s.scope pp_var s.in_var pp_range s.range
@@ -35,13 +35,23 @@ let pp_alias fmt a =
     pp_aliasing a
 
 (* --------------------------------------------------- *)
-let size_of_range (lo, hi) = hi - lo
+let size_of_range (lo, hi) =
+  match hi with
+  | AL_const hi -> AL_const (hi - lo)
+  | AL_abstract hi -> AL_abstract (Sub (hi, Const (Z.of_int lo)))
 
 let range_in_slice (lo, hi) s =
   let (u, v) = s.range in
-  if u + hi <= v
-  then { s with range = u + lo, u + hi }
-  else hierror_no_loc "range [%a[ overflows slice %a" pp_range (lo, hi) pp_slice s
+  match hi, v with
+  | AL_const hic, AL_const vc ->
+      if u + hic <= vc then { s with range = u + lo, AL_const (u + hic) }
+      else hierror_no_loc "range [%a[ overflows slice %a" pp_range (lo, hi) pp_slice s
+  | AL_const hic, AL_abstract _ ->
+      (* no check because we don't know what to do *)
+      { s with range = u + lo, AL_const (u + hic) }
+  | AL_abstract hi, _ ->
+      (* no check because we don't know what to do *)
+    { s with range = u + lo, AL_abstract (Add (Const (Z.of_int u), hi)) }
 
 let range_of_var x =
   0, size_of x.v_ty
@@ -91,7 +101,12 @@ let incl a1 a2 =
 (* Partial order on variables, by scope and size *)
 let compare_gvar params x gx y gy =
   let check_size x1 s1 x2 s2 =
-    if not (s1 <= s2) then hierror_no_loc "cannot merge variables %a (of size %i) and %a (of size %i): %a is too large" pp_var x1 s1 pp_var x2 s2 pp_var x1 in
+    match s1, s2 with
+    | AL_const s1, AL_const s2 ->
+    if not (s1 <= s2) then hierror_no_loc "cannot merge variables %a (of size %i) and %a (of size %i): %a is too large" pp_var x1 s1 pp_var x2 s2 pp_var x1 
+    | _, _ -> () (* ?? *)
+    
+    in
       
   if V.equal x y
   then (assert (gx = gy); 0)
@@ -116,7 +131,12 @@ let compare_gvar params x gx y gy =
       | true, false -> check_size y sy x sx; 1
       | false, true -> check_size x sx y sy; -1
       | false, false ->
-        let c = Stdlib.Int.compare sx sy in
+        let c =
+          match Array_length.cmp sx sy with
+          | Lt -> -1
+          | Eq -> 0
+          | Gt -> 1
+        in
         if c = 0 then V.compare x y
         else c
 
@@ -133,7 +153,12 @@ let merge_slices params a s1 s2 =
     let s1, s2 = if c < 0 then s1, s2 else s2, s1 in
     let x = s1.in_var in
     let lo = fst s2.range - fst s1.range in
-    Mv.add x { s2 with range = lo, lo + size_of x.v_ty } a
+    let hi =
+      match size_of x.v_ty with
+      | AL_const len -> AL_const (lo + len)
+      | AL_abstract a -> AL_abstract (Add (Const (Z.of_int lo), a))
+    in
+    Mv.add x { s2 with range = lo, hi } a
 
 (* Precondition: both maps are normalized *)
 let merge params a1 a2 =
@@ -146,7 +171,13 @@ let merge params a1 a2 =
 let range_of_asub aa ws len { gv } i =
   match get_ofs aa ws i with
   | None -> hierror ~loc:(Lone (L.loc gv)) "cannot compile sub-array %a that has a non-constant start index" pp_var (L.unloc gv)
-  | Some start -> start, start + arr_size ws len
+  | Some start ->
+      let ofs =
+        match len with
+        | AL_const len -> AL_const (start + arr_size ws len)
+        | AL_abstract len -> AL_abstract (Add (Const (Z.of_int start), Mul (Const (Z.of_int (size_of_ws ws)), len)))
+      in
+      start, ofs
 
 let normalize_asub a aa ws len x i =
   let s = normalize_gvar a x in
@@ -158,11 +189,6 @@ let slice_of_pexpr a =
   | Pvar x ->
       Some (normalize_gvar a x)
   | Psub (aa, ws, len, x, i) ->
-      let len =
-        match len with
-        | AL_const len -> len
-        | AL_abstract _a -> 1
-      in
       Some (normalize_asub a aa ws len x i)
   | (Pconst _ | Pbool _ | Pget _ | Pload _ | Papp1 _ | Papp2 _ | PappN _ | Pif _) -> assert false
 
@@ -170,11 +196,6 @@ let slice_of_lval a =
   function
   | Lvar x -> Some (normalize_var a (L.unloc x))
   | Lasub (aa, ws, len, gv, i) ->
-      let len =
-        match len with
-        | AL_const len -> len
-        | AL_abstract _a -> 1
-      in
       Some (normalize_asub a aa ws len { gv ; gs = E.Slocal } i)
   | (Lmem _ | Laset _ | Lnone _) -> None
 

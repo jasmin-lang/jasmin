@@ -303,7 +303,7 @@ val is_ty_arr : 'e gty -> bool
 val array_kind : ty -> wsize * int (* succeeds only on const lengths *)
 val ws_of_ty   : 'e gty -> wsize
 val arr_size : wsize -> int -> int
-val size_of  : ty -> int
+val size_of  : ty -> array_length
 (* -------------------------------------------------------------------- *)
 (* Functions on variables                                               *)
 

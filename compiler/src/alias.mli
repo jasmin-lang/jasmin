@@ -1,6 +1,6 @@
 open Prog
 
-type slice = { in_var : var ; scope : E.v_scope; range : int * int }
+type slice = { in_var : var ; scope : E.v_scope; range : int * Prog.array_length }
 
 type alias = slice Mv.t
 

@@ -479,8 +479,9 @@ let arr_size ws i = size_of_ws ws * i
 
 let size_of t = 
   match t with
-  | Bty (U ws) -> size_of_ws ws
-  | Arr (ws', AL_const n) -> arr_size ws' n 
+  | Bty (U ws) -> AL_const (size_of_ws ws)
+  | Arr (ws', AL_const n) -> AL_const (arr_size ws' n)
+  | Arr (ws', AL_abstract a) -> AL_abstract (Mul (Const (Z.of_int (size_of_ws ws')), a))
   | _ -> assert false 
 
 (* -------------------------------------------------------------------- *)

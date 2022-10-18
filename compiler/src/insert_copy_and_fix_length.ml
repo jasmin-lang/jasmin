@@ -56,6 +56,11 @@ and iac_instr_r pd loc ir =
       (* Fix the size it is dummy for the moment *)
       let xn = size_of (L.unloc x).v_ty in
       let wsn = size_of_ws ws in
+      let xn =
+        match xn with
+        | AL_const xn -> xn
+        | AL_abstract _ -> Typing.error loc "no abstract length allowed here"
+      in
       if xn mod wsn <> 0 then 
         Typing.error loc 
           "the variable %a has type %a, its size (%i) should be a multiple of %i"
@@ -75,7 +80,12 @@ and iac_instr_r pd loc ir =
         match xs with
         | [x] -> Typing.ty_lval pd loc x
         | _ -> assert false in
-      let p = Conv.pos_of_int (Prog.size_of ty) in
+      let p =
+        match Prog.size_of ty with
+        | AL_const len -> len
+        | AL_abstract _ -> Typing.error loc "no abstract length in syscalls"
+      in
+      let p = Conv.pos_of_int p in
       Csyscall(xs, Syscall_t.RandomBytes p, es)
     end
 
