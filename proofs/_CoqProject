@@ -25,6 +25,7 @@ arch/asm_gen.v
 arch/asm_gen_proof.v
 arch/label.v
 compiler/allocation.v
+compiler/allocation_proof.v
 compiler/arch_params.v
 compiler/arch_params_proof.v
 compiler/arm_decl.v
