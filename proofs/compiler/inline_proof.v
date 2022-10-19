@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 Require Import ZArith.
 From mathcomp Require Import all_ssreflect all_algebra.
-Require Import psem allocation compiler_util.
+Require Import psem allocation_proof compiler_util.
 Require Export inline.
 
 Set Implicit Arguments.
@@ -490,7 +490,7 @@ Section PROOF.
     rewrite Hfd' => /(@Some_inj _ _ _) <- {f}.
     case => vargs0 [s0] [s1] [svm2] [vres] [hvs' [hs0 hs1] hsvm2 [hvres hvres1] [hscs2 hm2]].
     have [vm0_ [vm1_ [vm2_ [vres2 [vres' [Htin [Hi Hwv] Hbody [Hvs Hall Htout] [hscs2' hm2']]]]]]] :=
-      CheckAllocRegU.alloc_funP_eq Hcheckf hvs' hs0 hs1 hsvm2 hvres hvres1 hscs2 hm2.
+      alloc_fun_uprogP_eq Hcheckf hvs' hs0 hs1 hsvm2 hvres hvres1 hscs2 hm2.
     move: hs0 Hi hm2'; rewrite /init_state /finalize /=.
     move=> [?]; subst s0 => -[] ? _; subst vm0_ m2. 
     move=> {hvs' hs1 hsvm2 Hfd' Hfd Hcheckf Hsc Hinline}.

@@ -7,7 +7,7 @@ Require Import
   psem
   psem_facts.
 Require Import
-  allocation
+  allocation_proof
   inline_proof
   dead_calls_proof
   makeReferenceArguments_proof
@@ -50,6 +50,9 @@ Context
 Hypothesis print_uprogP : forall s p, cparams.(print_uprog) s p = p.
 Hypothesis print_sprogP : forall s p, cparams.(print_sprog) s p = p.
 Hypothesis print_linearP : forall s p, cparams.(print_linear) s p = p.
+
+#[local]
+Existing Instance progUnit.
 
 Lemma postprocessP (p p': uprog) ev scs m fn va scs' m' vr va' :
   dead_code_prog (ap_is_move_op aparams) (const_prop_prog p) false = ok p' →
@@ -151,7 +154,7 @@ Proof.
   - move => vr' Hvr'.
     apply: (dead_code_callPu (hap_is_move_opP haparams) ok_pe va_refl).
     exact: Hvr'.
-  apply: compose_pass_uincl; first by move => vr'; apply: (CheckAllocRegU.alloc_callP ok_pd).
+  apply: compose_pass_uincl; first by move => vr'; apply: (alloc_call_uprogP ok_pd).
   rewrite surj_prog.
   apply: compose_pass_uincl; first by move=> vr' Hvr'; apply: (unrollP ok_pc _ va_refl); exact: Hvr'.
   apply: compose_pass;
@@ -198,7 +201,7 @@ Proof.
     - move => vr' Hvr'.
       apply: (dead_code_callPs (hap_is_move_opP haparams) ok_pc va_refl).
       exact: Hvr'.
-    apply: compose_pass_uincl; first by move => vr'; apply: (CheckAllocRegS.alloc_callP ok_pb).
+    apply: compose_pass_uincl; first by move => vr'; apply: (alloc_call_sprogP ok_pb).
     rewrite surj_prog.
     have [vr' [exec_pa]]:=
       dead_code_tokeep_callPs (hap_is_move_opP haparams) ok_pa va_refl exec_p.
@@ -207,12 +210,12 @@ Proof.
   rewrite /alloc_ok => fn m alloc_pc fd get_fd.
   have [fda ok_fda get_fda] :=
     dead_code_prog_tokeep_get_fundef (spp := spp_of_asm_e) ok_pa get_fd.
-  have [fdb [get_fdb ok_fdb]] := CheckAllocRegS.all_checked ok_pb get_fda.
+  have [fdb [get_fdb ok_fdb]] := allocation_proof.all_checked ok_pb get_fda.
   have [fdc ok_fdc get_fdc] :=
     dead_code_prog_tokeep_get_fundef (spp := spp_of_asm_e) ok_pc get_fdb.
   move: (alloc_pc _ get_fdc).
   have [_ _ ->]:= dead_code_fd_meta ok_fdc.
-  have /=[_ _ _ <-] := CheckAllocRegS.check_fundef_meta ok_fdb.
+  have /=[_ _ _ <-] := check_fundef_meta ok_fdb.
   have [_ _ ->]:= dead_code_fd_meta ok_fda.
   done.
 Qed.
