@@ -4,8 +4,7 @@ From mathcomp.word Require Import ssrZ.
 Require Import
   arch_params
   compiler_util
-  expr
-  psem.
+  expr.
 Require Import
   linearization
   lowering
