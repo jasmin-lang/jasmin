@@ -979,6 +979,18 @@ Section PROOF.
     move => sz; exact: A.
   Qed.
 
+  Lemma opn_5flags_casesP a m sz x y z :
+    opn_5flags_cases a m sz = Opn5f_large_immed x y z ->
+    exists2 n : Z, a = x :: y :: z & y = Papp1 (Oword_of_int U64) n.
+  Proof.
+    rewrite /opn_5flags_cases.
+    case: a => [//|] x' [//|] y' z'.
+    case: is_wconst_of_sizeP => [n|//].
+    case: check_signed_range => //.
+    move=> [] ???; subst x y z.
+    by eexists.
+  Qed.
+
   Lemma opn_5flags_correct vi ii s a t o cf r xs ys m s' :
     disj_fvars (read_es a) →
     disj_fvars (vars_lvals [:: cf ; r ]) →
@@ -990,8 +1002,9 @@ Section PROOF.
     ∧ eq_exc_fresh s'' s'.
   Proof.
     move=> da dr hx hr hs; rewrite/opn_5flags.
-    case: opn_5flags_cases.
-    + move=> x y n z ? ? /=; subst a y.
+    case hopn: opn_5flags_cases => [x y z|] /=.
+
+    + move: hopn => /opn_5flags_casesP [n ??]; subst a y.
       set ℓ :=
         with_vm s
         (evm s).[{| vtype := sword64; vname := fresh_multiplicand fv U64 |} <- ok (pwrepr64 n)].
