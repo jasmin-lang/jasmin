@@ -1,6 +1,6 @@
 (*
 *)
-Require Import one_varmap expr_facts.
+Require Import one_varmap.
 Import Utf8.
 Import all_ssreflect.
 Import expr compiler_util.
@@ -56,12 +56,6 @@ Definition add_extra_free_registers ii (D:Sv.t) :=
 
 Local Notation extra_free_registers_at := (extra_free_registers_at extra_free_registers).
 
-Lemma add_extra_free_registersE ii D :
-  Sv.Equal (add_extra_free_registers ii D) (Sv.union (extra_free_registers_at ii) D).
-Proof.
-  rewrite /add_extra_free_registers /extra_free_registers_at; case: extra_free_registers; SvD.fsetdec.
-Qed.
-
 Let magic_variables : Sv.t := magic_variables p.
 
 Section WRITE1.
@@ -98,29 +92,6 @@ Section WRITE1.
   Definition write_c := write_c_rec Sv.empty.
 
   Definition write_fd (fd: sfundef) := write_c fd.(f_body).
-
-  Lemma write_c_recE c : ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
-  Proof.
-    apply: (@cmd_rect _ _
-              (λ i, ∀ s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
-              (λ i, ∀ s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
-              (λ c, ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)))).
-    - by move => i ii ih s; rewrite /write_I /= !add_extra_free_registersE !ih; SvD.fsetdec.
-    - by SvD.fsetdec.
-    - by move => i c' hi hc' s; rewrite /write_c /= !hc' -/write_I hi; SvD.fsetdec.
-    - by move => x tg ty e s; rewrite /write_i /= -vrv_recE.
-    - by move => xs tg op es s; rewrite /write_i /= -vrvs_recE.
-    - by move => xs op es s; rewrite /write_i /= !vrvs_recE; SvD.fsetdec.
-    - by move => e c1 c2 h1 h2 s; rewrite /write_i /= -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
-    - by move => v d lo hi body h s; rewrite /write_i /= -!/write_c_rec !h; SvD.fsetdec.
-    - by move => a c1 e c2  h1 h2 s; rewrite /write_i /= -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
-    by move => i xs fn es s; rewrite /write_i /=; SvD.fsetdec.
-  Qed.
-
-  Lemma write_I_recE ii i s :
-    Sv.Equal (write_I_rec s (MkI ii i))
-             (Sv.union (write_i_rec s i) (extra_free_registers_at ii)).
-  Proof. rewrite /= add_extra_free_registersE; SvD.fsetdec. Qed.
 
 End WRITE1.
 
@@ -242,28 +213,6 @@ Section CHECK.
       else Error (E.internal_error ii "call to unknown function")
 
     end.
-
-  Lemma check_ir_CwhileP sz ii aa c e c' D D' :
-    check_ir sz ii D (Cwhile aa c e c') = ok D' →
-    if is_false e
-    then check_c (check_i sz) D c = ok D'
-    else
-      ∃ D1 D2,
-        [/\ check_c (check_i sz) D1 c = ok D',
-            check_e ii D' e = ok tt,
-            check_c (check_i sz) D' c' = ok D2,
-            check_ir sz ii D1 (Cwhile aa c e c') = ok D' &
-            Sv.Subset D D1 /\ Sv.Subset D2 D1 ].
-  Proof.
-    rewrite /check_ir; case: is_falseP => // _; rewrite -/check_i.
-    elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 he D2 h2.
-    case: (equivP idP (Sv.subset_spec _ _)) => d.
-    - case => ?; subst D1; exists D, D2; split => //; last by split.
-      by rewrite h1 /= he /= h2 /=; move /Sv.subset_spec : d => ->.
-    move => /ih{ih} [D4] [D3]; rewrite /check_e => -[ h he' h' heq [le le'] ].
-    exists D4, D3; split => //; last by split; SvD.fsetdec.
-    by rewrite h /= he' /= h' /=; move /Sv.subset_spec: le' => ->.
-  Qed.
 
   End CHECK_i.
 
