@@ -544,7 +544,7 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}.
+  {asmop:asmOp asm_op}.
 
 Fixpoint check_i (i1 i2:instr_r) r :=
   match i1, i2 with
@@ -639,6 +639,8 @@ Definition check_uprog := check_prog init_alloc_uprog.
 End UPROG.
 
 Section SPROG.
+
+Context {pd:PointerData}.
 
 #[local]
 Existing Instance progStack.
