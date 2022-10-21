@@ -1,16 +1,12 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
-Require Import psem.
-Require Import compiler_util ZArith.
+Require Import expr compiler_util ZArith.
 Import Utf8.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
-Local Open Scope vmap.
-Local Open Scope seq_scope.
 
 Module E.
 
@@ -34,6 +30,13 @@ Definition loop_iterator := loop_iterator pass_name.
 Definition fold2 := error "fold2".
 
 End E.
+
+Definition wextend_type t1 t2 :=
+  (t1 == t2) ||
+    match t1, t2 with
+    | sword s1, sword s2 => (s1 <= s2)%CMP
+    | _, _ => false
+    end.
 
 Module M.
 
