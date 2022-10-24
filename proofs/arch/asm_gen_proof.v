@@ -717,7 +717,7 @@ Proof.
   case: id Hargs Hdest =>
     /= msb_flag id_tin id_in id_tout id_out id_semi id_args_kinds id_nargs
     /andP[] /eqP hsin /eqP hsout
-    _ _ id_str_jas id_check_dest id_safe id_wsize id_pp
+    _ _ id_str_jas id_check_dest id_safe id_pp
     Hargs Hdest vt happ ?;
     subst x.
   elim: id_in id_tin hsin id_semi args vs Hargs happ Hvs; rewrite /sem_prod.

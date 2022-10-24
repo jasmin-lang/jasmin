@@ -40,26 +40,26 @@ Definition Oset0_instr sz  :=
              (let vf := Some false in
               let vt := Some true in
               ok (::vf, vf, vf, vt, vt & (0%R: word sz)))
-             sz [::]
+             [::]
   else 
     mk_instr_desc (pp_sz "set0" sz)
              [::] [::]  
              (w_ty sz) [::E 0] 
-             (ok (0%R: word sz)) sz [::].
+             (ok (0%R: word sz)) [::].
 
 Definition Oconcat128_instr := 
   mk_instr_desc (pp_s "concat_2u128") 
            [:: sword128; sword128 ] [:: E 1; E 2] 
            [:: sword256] [:: E 0] 
            (λ h l : u128, ok (make_vec U256 [::l;h]))
-           U128 [::].
+           [::].
 
 Definition Ox86MOVZX32_instr := 
   mk_instr_desc (pp_s "MOVZX32") 
            [:: sword32] [:: E 1] 
            [:: sword64] [:: E 0] 
            (λ x : u32, ok (zero_extend U64 x)) 
-           U32 [::].
+           [::].
 
 Definition get_instr_desc o :=
   match o with

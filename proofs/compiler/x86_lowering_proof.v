@@ -473,7 +473,7 @@ Section PROOF.
       sem_pexprs gd s a >>= exec_sopn o = ok [:: v' ]
     | LowerInc o a =>
       ∃ b1 b2 b3 b4, sem_pexprs gd s [:: a] >>= exec_sopn o = ok [:: Vbool b1; Vbool b2; Vbool b3; Vbool b4; v']
-    | LowerFopn o e' _ =>
+    | LowerFopn _ o e' _ =>
       let vi := var_info_of_lval l in
       let f  := Lnone vi sbool in
       Sv.Subset (read_es e') (read_e e) ∧
@@ -991,14 +991,14 @@ Section PROOF.
     by eexists.
   Qed.
 
-  Lemma opn_5flags_correct vi ii s a t o cf r xs ys m s' :
+  Lemma opn_5flags_correct vi ii s a t o cf r xs ys m sz s' :
     disj_fvars (read_es a) →
     disj_fvars (vars_lvals [:: cf ; r ]) →
     sem_pexprs gd s a = ok xs →
     exec_sopn o xs = ok ys →
     write_lvals gd s [:: Lnone_b vi ; cf ; Lnone_b vi ; Lnone_b vi ; Lnone_b vi ; r] ys = ok s' →
     ∃ s'',
-    sem p' ev s [seq MkI ii i | i <- opn_5flags fv m vi cf r t o a] s''
+    sem p' ev s [seq MkI ii i | i <- opn_5flags fv m sz vi cf r t o a] s''
     ∧ eq_exc_fresh s'' s'.
   Proof.
     move=> da dr hx hr hs; rewrite/opn_5flags.
@@ -1029,8 +1029,8 @@ Section PROOF.
       move: hr.
       apply opn_no_immP.
       - rewrite /exec_sopn /sopn_sem; case.
-        + by move => ws sz /=; case: eqP => /= ? ->.
-        by move => sz /= ->.
+        + by move => ws ? /=; case: eqP => /= ? ->.
+        by move => _ /= ->.
       by rewrite /exec_sopn => op _ ->.
 
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
@@ -1174,7 +1174,7 @@ Section PROOF.
         rewrite -(zero_extend_wrepr sc hsz2) in Hw'.
         have [] := mulr_ok Hvo Hsc1 hle1 hsz2 _ Hw' Heq; first by rewrite hsz1.
         move=> hsub; t_xrbindP => vo vs hvs hvo hw.
-        case: (opn_5flags_correct ii tag (Some U32) _ _ hvs hvo hw).
+        case: (opn_5flags_correct ii tag (Some U32) sz _ _ hvs hvo hw).
         + apply: disjoint_w Hdisje .
           apply: SvP.MP.subset_trans hrl.
           apply: (SvP.MP.subset_trans hsub).
@@ -1223,8 +1223,8 @@ Section PROOF.
 
     (* LowerFopn *)
     + set vi := var_info_of_lval _.
-      move=> o a m [] LE. t_xrbindP => ys xs hxs hys hs2.
-      case: (opn_5flags_correct ii tag m _ _ hxs hys hs2).
+      move=> sz o a m [] LE. t_xrbindP => ys xs hxs hys hs2.
+      case: (opn_5flags_correct ii tag m sz _ _ hxs hys hs2).
       move: LE Hdisje. apply disjoint_w.
       exact Hdisjl.
       exact: (aux_eq_exc_trans Hs2').
@@ -1503,7 +1503,7 @@ Section PROOF.
       }
       clear C.
       case: D => des' [ xs' [ hxs' [ v' [hv' ho'] ] ] ].
-      case: (opn_5flags_correct ii t (Some U32) des' dxs hxs' hv' ho') => {hv' ho'} so'.
+      case: (opn_5flags_correct ii t (Some U32) sz des' dxs hxs' hv' ho') => {hv' ho'} so'.
       intuition eauto using eeq_excT.
     Qed.
     Opaque lower_addcarry.
