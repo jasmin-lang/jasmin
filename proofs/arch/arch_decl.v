@@ -400,7 +400,6 @@ Record instr_desc_t := {
   id_str_jas    : unit -> string;
   id_check_dest : all2 check_arg_dest id_out id_tout;
   id_safe       : seq safe_cond;
-  id_wsize      : wsize;
   id_pp_asm     : asm_args -> pp_asm_op;
 }.
 
@@ -543,7 +542,6 @@ Definition instr_desc (o:asm_op_msb_t) : instr_desc_t :=
        id_str_jas    := d.(id_str_jas);
        id_check_dest := instr_desc_aux2 ws d.(id_check_dest);
        id_safe       := d.(id_safe);
-       id_wsize      := d.(id_wsize);
        id_pp_asm     := d.(id_pp_asm); |}
     else d (* FIXME do the case for MSB_KEEP *)
   else
