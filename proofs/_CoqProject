@@ -59,6 +59,7 @@ compiler/lea.v
 compiler/lea_proof.v
 compiler/linearization.v
 compiler/linearization_proof.v
+compiler/spec1_spec2.v
 compiler/lowering.v
 compiler/makeReferenceArguments.v
 compiler/makeReferenceArguments_proof.v
@@ -109,6 +110,8 @@ lang/sem_pexpr_params.v
 lang/sem_one_varmap_facts.v
 lang/sem_type.v
 lang/shift_kind.v
+lang/asm_op_spec1.v
+lang/asm_op_spec2.v
 lang/sopn.v
 lang/strings.v
 lang/syscall.v
