@@ -105,6 +105,7 @@ lang/psem_facts.v
 lang/psem.v
 lang/sem.v
 lang/sem_one_varmap.v
+lang/sem_op_typed.v
 lang/sem_pexpr_params.v
 lang/sem_one_varmap_facts.v
 lang/sem_type.v

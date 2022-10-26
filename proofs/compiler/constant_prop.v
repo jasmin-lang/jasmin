@@ -1,6 +1,6 @@
 (* ** Imports and settings *)
 From mathcomp.word Require Import ssrZ.
-Require Import expr ZArith sem compiler_util.
+Require Import expr ZArith sem_op_typed compiler_util.
 Import all_ssreflect all_algebra.
 Import Utf8.
 Import oseq.
@@ -285,24 +285,26 @@ Definition s_op2 o e1 e2 :=
   | _       => ssem_sop2 o e1 e2
   end.
 
-Definition force_int e :=
-  if e is Pconst z then ok (Vint z) else type_error.
+(* A copy of values.app_sopn that does not use values but pexprs *)
+Fixpoint app_sopn T ts : sem_prod ts (exec T) → pexprs → exec T :=
+  match ts return sem_prod ts (exec T) → pexprs → exec T with
+  | [::] => λ (o : exec T) (vs: pexprs), if vs is [::] then o else type_error
+  | t :: ts => λ (o: sem_t t → sem_prod ts (exec T)) (vs: pexprs),
+    if vs is v :: vs
+    then Let v := of_expr t v in app_sopn (o v) vs
+    else type_error
+  end.
 
-Definition force_bool e := 
-  if e is Pbool b then ok (Vbool b) else type_error.
+Arguments app_sopn {T} ts _ _.
 
-Definition s_opN op es :=
-  match op with
-  | Opack _ _ =>
-    match mapM force_int es >>= sem_opN op with
-    | Ok (Vword sz w) => Papp1 (Oword_of_int sz) (Pconst (wunsigned w))
-    | _ => PappN op es
-    end
-  | Ocombine_flags c => 
-    match mapM force_bool es >>= sem_opN op with
-    | Ok (Vbool b) => Pbool b
-    | _ => PappN (Ocombine_flags c) es 
-    end
+Definition s_opN (op:opN) (es:pexprs) : pexpr :=
+  match app_sopn _ (sem_opN_typed op) es with
+  | Ok r =>
+    match op return sem_t (type_of_opN op).2 -> _ with
+    | Opack ws _ => fun w => Papp1 (Oword_of_int ws) (Pconst (wunsigned w))
+    | Ocombine_flags _ => fun b => Pbool b
+    end r
+  | _ => PappN op es
   end.
 
 Definition s_if t e e1 e2 :=
