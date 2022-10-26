@@ -37,7 +37,7 @@ compiler/arm_lowering.v
 compiler/arm_lowering_proof.v
 compiler/arm_params.v
 compiler/arm_params_proof.v
-compiler/arm_sem.v
+compiler/arm.v
 compiler/array_expansion.v
 compiler/array_expansion_proof.v
 compiler/array_copy.v
@@ -85,7 +85,7 @@ compiler/x86_lowering.v
 compiler/x86_lowering_proof.v
 compiler/x86_params.v
 compiler/x86_params_proof.v
-compiler/x86_sem.v
+compiler/x86.v
 lang/array.v
 lang/expr.v
 lang/expr_facts.v

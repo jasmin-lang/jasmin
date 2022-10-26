@@ -21,7 +21,6 @@ Require Import
   arm_extra
   arm_instr_decl
   arm_instr_decl_lemmas
-  arm_sem
   arm_lowering.
 
 Set Implicit Arguments.

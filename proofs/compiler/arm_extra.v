@@ -13,7 +13,7 @@ Require Export
 Require Import
   arm_decl
   arm_instr_decl
-  arm_sem.
+  arm.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
