@@ -15,4 +15,4 @@ val print_instr :
   -> unit
 
 val print_prog :
-  Conv.coq_tbl -> Format.formatter -> Arm_sem.arm_prog -> unit
+  Conv.coq_tbl -> Format.formatter -> Arm_instr_decl.arm_prog -> unit

@@ -1,8 +1,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
-Require Import ZArith utils strings low_memory word sem_type global oseq.
+Require Import ZArith utils strings word sem_type global oseq.
 Import Utf8 Relation_Operators.
-Import Memory.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -2007,3 +2006,5 @@ Instance x86_op_decl : asm_op_decl x86_op := {
    instr_desc_op  := x86_instr_desc; 
    prim_string    := x86_prim_string;
 }.
+
+Definition x86_prog := @asm_prog register _ _ _ _ _ _ x86_op_decl.

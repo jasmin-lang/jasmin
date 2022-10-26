@@ -12,4 +12,4 @@ val pp_instr :
   unit
 
 val pp_prog  :
-  Conv.coq_tbl -> Format.formatter -> X86_sem.x86_prog -> unit
+  Conv.coq_tbl -> Format.formatter -> X86_instr_decl.x86_prog -> unit

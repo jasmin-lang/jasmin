@@ -1,11 +1,5 @@
-Require Import Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
-From mathcomp.word Require Import ssrZ.
-Require Import ZArith utils strings low_memory word global oseq.
-Import Utf8 Relation_Operators.
-Import Memory.
 Require Import sem_type arch_decl x86_decl x86_instr_decl.
-Require Export arch_sem.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -54,15 +48,3 @@ Definition x86_eval_cond (get : rflag -> result error bool) (c : condt) :=
 #[global]
 Instance x86 : asm register register_ext xmm_register rflag condt x86_op :=
   {| eval_cond := x86_eval_cond |}.
-
-Section SEM.
-
-Context {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}  {call_conv: calling_convention} {asm_scsem : asm_syscall_sem}.
-
-Definition x86_mem := @asmmem _ _ _ _ _ _ _ _ x86.
-Definition x86_prog := @asm_prog register _ _ _ _ _ _ x86_op_decl.
-Definition x86_state := @asm_state _ _ _ _ _ _ _ _ x86.
-Definition x86sem := @asmsem _ _ _ _ _ _ _ _ x86.
-Definition x86_fundef := @asm_fundef _ _ _ _ _ _ _ x86_op_decl.
-
-End SEM.

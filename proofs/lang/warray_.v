@@ -5,7 +5,7 @@ Require Export ZArith Setoid Morphisms.
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
 Require Import Psatz xseq.
-Require Export utils array gen_map type word low_memory.
+Require Export utils array gen_map type word memory_model.
 Import Utf8 ZArith.
 
 Set Implicit Arguments.

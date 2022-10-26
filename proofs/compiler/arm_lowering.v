@@ -14,8 +14,7 @@ Require Import
 Require Import
   arm_decl
   arm_extra
-  arm_instr_decl
-  arm_sem.
+  arm_instr_decl.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

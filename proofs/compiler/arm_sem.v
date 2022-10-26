@@ -3,7 +3,6 @@ From mathcomp Require Import
   all_algebra.
 
 Require Import utils.
-Require Export arch_sem.
 Require Import arch_decl.
 Require Import
   arm_decl
@@ -66,14 +65,3 @@ Instance arm : asm register register_ext xregister rflag condt arm_op :=
     eval_cond := eval_cond;
   }.
 
-Section SEM.
-
-Context {syscall_state : Type} {sc_sem : syscall.syscall_sem syscall_state}
-  {call_conv: calling_convention} {asm_scsem : asm_syscall_sem}.
-
-Definition arm_mem := @asmmem _ _ _ _ _ _ _ _ arm.
-Definition arm_prog := @asm_prog register _ _ _ _ _ _ arm_op_decl.
-Definition arm_state := @asm_state _ _ _ _ _ _ _ _ arm.
-Definition armsem := @asmsem _ _ _ _ _ _ _ _ arm _ _.
-
-End SEM.
