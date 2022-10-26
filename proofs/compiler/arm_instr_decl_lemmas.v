@@ -53,6 +53,7 @@ Proof. by case: mn. Qed.
 
 Section WITH_PARAMS.
 
+
 Context
   {syscall_state : Type}
   {sc_sem : syscall_sem syscall_state}
@@ -70,9 +71,8 @@ Lemma exec_sopn_conditional mn sf osk b vargs vprev vres0 vres1 :
   in
   let op := Oarm (ARM_op mn opts) in
   truncate_args op vprev = ok vres1
-  -> exec_sopn (spp := spp_of_asm_e) op vargs = ok vres0
+  -> exec_sopn op vargs = ok vres0
   -> exec_sopn
-       (spp := spp_of_asm_e)
        (Oarm (ARM_op mn (set_is_conditional opts)))
        (vargs ++ Vbool b :: vprev)
        = ok (if b then vres0 else vres1).

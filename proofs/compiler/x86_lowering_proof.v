@@ -1148,7 +1148,7 @@ Section PROOF.
       case /andP: hsz => hsz1 hsz2.
       have Hlea :
         Let vs := sem_pexprs gd s1' [:: elea ] in
-        exec_sopn (spp := spp_of_asm_e) (Ox86 (LEA sz)) vs
+        exec_sopn (spp := mk_spp) (Ox86 (LEA sz)) vs
         = ok [:: Vword w ].
       + rewrite /sem_pexprs /= Hvb Hvo /= /exec_sopn /sopn_sem /sem_sop2 /= /truncate_word hsz2 /=.
         rewrite Hwb Hwo /= truncate_word_u /= truncate_word_u /= truncate_word_u /= /x86_LEA /check_size_16_64 hsz1 hsz2 /=.
@@ -1789,7 +1789,7 @@ Section PROOF.
     sem_call p  ev scs mem f va scs' mem' vr ->
     sem_call p' ev scs mem f va scs' mem' vr.
   Proof.
-    apply (@sem_call_Ind _ _ spp_of_asm_e _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
+    apply (@sem_call_Ind _ _ mk_spp _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 
