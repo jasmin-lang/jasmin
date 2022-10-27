@@ -131,7 +131,7 @@ let main () =
     let module Arch = Arch_full.Arch_from_Core_arch (Ocaml_params) in
     let module Regalloc = Regalloc.Regalloc (Arch) in
     let module StackAlloc = StackAlloc.StackAlloc (Arch) in
-    let spp = Arch_extra.spp_of_asm_e Arch.asm_e Syscall_ocaml.sc_sem in
+    let spp = Spp_arch_extra.spp_of_asm_e Arch.asm_e Syscall_ocaml.sc_sem in
 
     if !safety_makeconfigdoc <> None
     then (
@@ -489,7 +489,6 @@ let main () =
     begin match
       Compiler.compile_prog_to_asm
         Arch.asm_e
-        Syscall_ocaml.sc_sem
         Arch.call_conv
         Arch.aparams
         cparams

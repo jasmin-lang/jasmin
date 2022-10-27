@@ -5,10 +5,7 @@ From mathcomp Require Import
 Require Import
   arch_params
   compiler_util
-  expr
-  psem
-  psem_facts
-  sem_one_varmap.
+  expr.
 Require Import
   linearization
   lowering

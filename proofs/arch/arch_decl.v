@@ -44,7 +44,7 @@ Class arch_decl (reg regx xreg rflag cond : Type) :=
   ; reg_size_neq_xreg_size : reg_size != xreg_size
   ; ad_rsp : reg
   ; inj_toS_reg_regx : forall (r:reg) (rx:regx), to_string r <> to_string rx
-  ; ad_fcp : FlagCombinationParams
+  ; ad_fcp :> FlagCombinationParams
   }.
 
 #[global]

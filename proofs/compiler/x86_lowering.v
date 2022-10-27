@@ -1,7 +1,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
 Require Import Utf8.
-Require Import compiler_util expr expr_facts low_memory lowering lea.
+Require Import compiler_util expr lowering lea.
 Require Import x86_decl x86_instr_decl x86_extra.
 
 Section IS_REGX.
@@ -398,13 +398,9 @@ Definition lower_cassgn_classify ty e x : lower_cassgn_t :=
 Definition Lnone_b vi := Lnone vi sbool.
 
 (* TODO: other sizes than U64 *)
-(* TODO: remove dependent types *)
-Variant opn_5flags_cases_t (a: pexprs) : Type :=
-| Opn5f_large_immed x y (n: Z) z `(a = x :: y :: z) `(y = Papp1 (Oword_of_int U64) n)
-| Opn5f_other.
-
-Arguments Opn5f_large_immed [a] {x y n z} _ _.
-Arguments Opn5f_other {a}.
+Variant opn_5flags_cases_t : Type :=
+| Opn5f_large_immed : pexpr -> pexpr -> pexprs -> opn_5flags_cases_t
+| Opn5f_other : opn_5flags_cases_t.
 
 Definition check_signed_range (m: option wsize) sz' (n: Z) : bool :=
   if m is Some ws then (
@@ -413,17 +409,16 @@ Definition check_signed_range (m: option wsize) sz' (n: Z) : bool :=
       if -h <=? z then z <? h else false)%Z
   else false.
 
-Definition opn_5flags_cases (a: pexprs) (m: option wsize) (sz: wsize) : opn_5flags_cases_t a :=
+Definition opn_5flags_cases (a: pexprs) (m: option wsize) (sz: wsize) : opn_5flags_cases_t :=
   match a with
-  | x :: y :: _ =>
-    match is_wconst_of_size U64 y as u return is_reflect (λ z : Z, Papp1 (Oword_of_int U64) z) y u → _ with
-    | None => λ _, Opn5f_other
+  | x :: y :: z =>
+    match is_wconst_of_size U64 y with
+    | None => Opn5f_other
     | Some n =>
-      λ W,
       if check_signed_range m sz n
       then Opn5f_other
-      else Opn5f_large_immed erefl (is_reflect_some_inv W)
-    end%Z (is_wconst_of_sizeP U64 y)
+      else Opn5f_large_immed x y z
+    end
   | _ => Opn5f_other end.
 
 Definition opn_no_imm op :=
@@ -437,7 +432,7 @@ Definition opn_5flags (immed_bound: option wsize) (vi: var_info)
   let f := Lnone_b vi in
   let fopn o a := [:: Copn [:: f ; cf ; f ; f ; f ; x ] tg o a ] in
   match opn_5flags_cases a immed_bound (wsize_of_sopn o) with
-  | Opn5f_large_immed x y n z _ _ =>
+  | Opn5f_large_immed x y z =>
     let c := {| v_var := {| vtype := sword U64; vname := fresh_multiplicand fv U64 |} ; v_info := vi |} in
     Copn [:: Lvar c ] tg (Ox86 (MOV U64)) [:: y] :: fopn (opn_no_imm o) (x :: Plvar c :: z)
   | Opn5f_other => fopn o a

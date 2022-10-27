@@ -109,13 +109,6 @@ Proof.
   by rewrite zero_extend_u.
 Qed.
 
-Definition wextend_type t1 t2 := 
-  (t1 == t2) ||
-    match t1, t2 with
-    | sword s1, sword s2 => (s1 <= s2)%CMP
-    | _, _ => false
-    end.
-
 (* ** Variable map
  * -------------------------------------------------------------------- *)
 

@@ -452,7 +452,6 @@ Proof.
   have hincl := gxgetflag_ex eqf hr hv.
   clear ii x m eqf hr hv.
 
-  change arm_sem.eval_cond with eval_cond.
   rewrite condt_of_rflagP.
 
   eexists; last exact: hincl.
@@ -474,7 +473,7 @@ Proof.
   have hc := value_uincl_to_bool_value_of_bool hincl hb hv1.
   clear v0 v1 hincl hb hv1.
 
-  change arm_sem.eval_cond with eval_cond.
+  change arm.eval_cond with eval_cond.
   rewrite (condt_notP hc) {hc}.
   by eexists.
 Qed.
@@ -534,7 +533,7 @@ Proof.
   have hc1 := value_uincl_to_bool_value_of_bool hincl1 hb1 hv1'.
   clear hincl0 hb0 hv0' hincl1 hb1 hv1'.
 
-  change arm_sem.eval_cond with eval_cond.
+  change arm.eval_cond with eval_cond.
   rewrite (condt_andP hand hc0 hc1) {hand hc0 hc1} /=.
   by eexists.
 Qed.
@@ -560,7 +559,7 @@ Proof.
   have hc1 := value_uincl_to_bool_value_of_bool hincl1 hb1 hv1'.
   clear hincl0 hb0 hv0' hincl1 hb1 hv1'.
 
-  change arm_sem.eval_cond with eval_cond.
+  change arm.eval_cond with eval_cond.
   rewrite (condt_orP hor hc0 hc1) {hor hc0 hc1} /=.
   by eexists.
 Qed.

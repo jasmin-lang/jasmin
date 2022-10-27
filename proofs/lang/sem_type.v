@@ -111,3 +111,18 @@ Definition behead_tuple tin tout :
           fun f => sem_prod_app f (fun x => Let: (r, p) := x in ok p)
       end
   end.
+
+Section APP.
+
+Context (T : Type) (of_T : forall t : stype, T -> exec (sem_t t)).
+
+Fixpoint app_sopn A ts : sem_prod ts (exec A) → seq T → exec A :=
+  match ts return sem_prod ts (exec A) → seq T → exec A with
+  | [::] => λ (o : exec A) (vs: seq T), if vs is [::] then o else type_error
+  | t :: ts => λ (o: sem_t t → sem_prod ts (exec A)) (vs: seq T),
+    if vs is v :: vs
+    then Let v := of_T t v in app_sopn (o v) vs
+    else type_error
+  end.
+
+End APP.

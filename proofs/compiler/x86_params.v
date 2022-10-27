@@ -4,14 +4,11 @@ From mathcomp.word Require Import ssrZ.
 Require Import
   arch_params
   compiler_util
-  expr
-  psem.
+  expr.
 Require Import
   linearization
   lowering
   stack_alloc.
-Require
-  arch_sem.
 Require Import
   arch_decl
   arch_extra

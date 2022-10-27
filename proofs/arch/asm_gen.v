@@ -5,7 +5,6 @@ Require Import
   expr
   one_varmap
   linear
-  low_memory
   lea.
 Require Import
   arch_decl

@@ -404,6 +404,51 @@ End ASM_OP.
 
 Notation cmd := (seq instr).
 
+Section CMD_RECT.
+
+  Context `{asmop:asmOp}.
+
+  Variables (Pr:instr_r -> Type) (Pi:instr -> Type) (Pc : cmd -> Type).
+  Hypothesis Hmk  : forall i ii, Pr i -> Pi (MkI ii i).
+  Hypothesis Hnil : Pc [::].
+  Hypothesis Hcons: forall i c, Pi i -> Pc c -> Pc (i::c).
+  Hypothesis Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
+  Hypothesis Hopn : forall xs t o es, Pr (Copn xs t o es).
+  Hypothesis Hsyscall : forall xs o es, Pr (Csyscall xs o es).
+  Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
+  Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
+  Hypothesis Hwhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
+  Hypothesis Hcall: forall i xs f es, Pr (Ccall i xs f es).
+
+  Section C.
+  Variable instr_rect : forall i, Pi i.
+
+  Fixpoint cmd_rect_aux (c:cmd) : Pc c :=
+    match c return Pc c with
+    | [::] => Hnil
+    | i::c => @Hcons i c (instr_rect i) (cmd_rect_aux c)
+    end.
+  End C.
+
+  Fixpoint instr_Rect (i:instr) : Pi i :=
+    match i return Pi i with
+    | MkI ii i => @Hmk i ii (instr_r_Rect i)
+    end
+  with instr_r_Rect (i:instr_r) : Pr i :=
+    match i return Pr i with
+    | Cassgn x tg ty e => Hasgn x tg ty e
+    | Copn xs t o es => Hopn xs t o es
+    | Csyscall xs o es => Hsyscall xs o es
+    | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
+    | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
+    | Cwhile a c e c'   => @Hwhile a c e c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
+    | Ccall ii xs f es => @Hcall ii xs f es
+    end.
+
+  Definition cmd_rect := cmd_rect_aux instr_Rect.
+
+End CMD_RECT.
+
 Module FunInfo : TAG.
   Definition t := positive.
   Definition witness : t := 1%positive.
