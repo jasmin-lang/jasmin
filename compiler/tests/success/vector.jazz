@@ -38,6 +38,27 @@ s = #VPADD_2u64(t, r);
 }
 
 export
+fn test_mul(reg u64 p) {
+reg u128 a, b, c;
+reg u256 x, y, z;
+
+a = (u128)[p + 0];
+b = (u128)[p + 16];
+
+c = #VPMUL(a, b);
+
+(u128)[p + 0] = c;
+
+x = (u256)[p + 0];
+y = (u256)[p + 32];
+
+z = #VPMUL_256(x, y);
+
+(u256)[p + 0] = z;
+
+}
+
+export
 fn test_mulu(reg u64 p) {
 reg u128 a, b, c;
 reg u256 x, y, z;

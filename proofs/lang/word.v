@@ -1080,6 +1080,12 @@ Definition pextr sz (w1 w2: word sz) :=
 Definition halve_list A : seq A → seq A :=
   fix loop m := if m is a :: _ :: m' then a :: loop m' else m.
 
+Definition wpmul sz (x y: word sz) : word sz :=
+  let xs := halve_list (split_vec U32 x) in
+  let ys := halve_list (split_vec U32 y) in
+  let f (a b: u32) : u64 := wrepr U64 (wsigned a * wsigned b) in
+  make_vec sz (map2 f xs ys).
+
 Definition wpmulu sz (x y: word sz) : word sz :=
   let xs := halve_list (split_vec U32 x) in
   let ys := halve_list (split_vec U32 y) in
