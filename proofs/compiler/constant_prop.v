@@ -285,17 +285,9 @@ Definition s_op2 o e1 e2 :=
   | _       => ssem_sop2 o e1 e2
   end.
 
-(* A copy of values.app_sopn that does not use values but pexprs *)
-Fixpoint app_sopn T ts : sem_prod ts (exec T) → pexprs → exec T :=
-  match ts return sem_prod ts (exec T) → pexprs → exec T with
-  | [::] => λ (o : exec T) (vs: pexprs), if vs is [::] then o else type_error
-  | t :: ts => λ (o: sem_t t → sem_prod ts (exec T)) (vs: pexprs),
-    if vs is v :: vs
-    then Let v := of_expr t v in app_sopn (o v) vs
-    else type_error
-  end.
+Definition app_sopn := app_sopn of_expr.
 
-Arguments app_sopn {T} ts _ _.
+Arguments app_sopn {A} ts _ _.
 
 Definition s_opN (op:opN) (es:pexprs) : pexpr :=
   match app_sopn _ (sem_opN_typed op) es with

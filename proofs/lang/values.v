@@ -551,16 +551,9 @@ Qed.
 
 (* ----------------------------------------------------------------------- *)
 
-Fixpoint app_sopn T ts : sem_prod ts (exec T) → values → exec T :=
-  match ts return sem_prod ts (exec T) → values → exec T with
-  | [::] => λ (o : exec T) (vs: values), if vs is [::] then o else type_error
-  | t :: ts => λ (o: sem_t t → sem_prod ts (exec T)) (vs: values),
-    if vs is v :: vs
-    then Let v := of_val t v in app_sopn (o v) vs
-    else type_error
-  end.
+Definition app_sopn := app_sopn of_val.
 
-Arguments app_sopn {T} ts _ _.
+Arguments app_sopn {A} ts _ _.
 
 Definition app_sopn_v tin tout (semi: sem_prod tin (exec (sem_tuple tout))) vs :=
   Let t := app_sopn _ semi vs in
