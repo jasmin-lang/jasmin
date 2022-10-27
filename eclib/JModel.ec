@@ -417,6 +417,20 @@ op VPMULHRS_16u16 (w1 w2: W256.t): W256.t =
 
 (* ------------------------------------------------------------------- *)
 (*
+| VPMUL    `(wsize)
+*)
+op mul64 (w1 w2 : W64.t) =
+  (W2u32.sigextu64 (W2u32.truncateu32 w1)) *
+  (W2u32.sigextu64 (W2u32.truncateu32 w2)).
+
+op VPMUL_128 (w1 w2: W128.t) =
+  map2 mul64 w1 w2.
+
+op VPMUL_256 (w1 w2: W256.t) =
+  map2 mul64 w1 w2.
+
+(* ------------------------------------------------------------------- *)
+(*
 | VPMULU   `(wsize)
 *)
 op mulu64 (w1 w2 : W64.t) =
