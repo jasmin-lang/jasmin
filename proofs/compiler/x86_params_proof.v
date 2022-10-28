@@ -15,7 +15,9 @@ Require Import
   lowering
   propagate_inline_proof
   stack_alloc
-  stack_alloc_proof.
+  stack_alloc_proof
+  clear_stack
+  clear_stack_proof.
 Require
   arch_sem.
 Require Import
@@ -37,7 +39,137 @@ Unset Printing Implicit Defensive.
 
 
 Section Section.
-Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state}. 
+Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
+
+Section bla.
+Context { ovmi : one_varmap_info }.
+
+(* FIXME: how to reason on all call conv at once ??????? *)
+Local Existing Instance x86_linux_call_conv.
+
+Lemma x86_hcsparams : h_clear_stack_params x86_csparams.
+Proof.
+  split.
+  move=> cs lbl max_stk cmd hcs lp fn lfd lc hnin hlfd scs m m' vm -> /= hrsp hsubset hsem hbody.
+  have: exists (vm'' : vmap) (m'' : mem),
+  lsem lp {| lscs := scs; lmem := m'; lvm := vm; lfn := fn; lpc := size lc |}
+    {| lscs := scs; lmem := m''; lvm := vm''; lfn := fn; lpc := size lc + size cmd |} /\
+  vm'' =[sv_of_list v_var (lfd_res lfd)] vm.
+  + move: hcs => /=.
+    rewrite /x86_clear_stack_cmd.
+    case: cs.
+    + admit.
+    move=> [?]; subst cmd.
+    have: exists vm'',
+          lsem lp {| lscs := scs; lmem := m'; lvm := vm; lfn := fn; lpc := size lc |}
+                  {| lscs := scs; lmem := m'; lvm := vm''; lfn := fn; lpc := size lc + 3 |} /\
+          vm'' =[sv_of_list v_var (lfd_res lfd)] vm /\
+          get_var vm'' (to_var XMM2) = ok (@Vword U256 0%R).
+    + have hlinear: is_linear_of lp fn (lc ++ x86_clear_stack_unrolled max_stk).
+      + by exists lfd.
+      eexists. split.
+      apply: lsem_step. rewrite /lsem1 /step.
+      rewrite -(addn0 (size lc)) (find_instr_skip hlinear) /=.
+      rewrite /eval_instr /=. reflexivity.
+      apply: lsem_step. rewrite /lsem1 /step.
+      rewrite addn0 -addn1 (find_instr_skip hlinear) /=.
+      rewrite /eval_instr /sem_sopn /=.
+      rewrite get_gvar_neq //.
+      rewrite get_gvar_nglob //=.
+      rewrite hrsp /=. reflexivity.
+      apply: LSem_step. rewrite /lsem1 /step.
+      rewrite -addnS (find_instr_skip hlinear) /=.
+      rewrite /eval_instr /=.
+      rewrite /sem_sopn /=.
+      rewrite (get_gvar_eq _ (x := {| gv := {| v_var := _; v_info := _ |}; gs := _ |})) //=.
+      rewrite -addnS.
+      reflexivity.
+      rewrite /=.
+      Search eq_on Sv.Subset.
+      apply Sv.subset_spec in hsubset.
+      split.
+      + apply: (eq_onI hsubset).
+        rewrite /to_var /sv_of_list /=.
+        move=> r. rewrite Sv.union_spec. case.
+        rewrite Sv.add_spec. case.
+        move=> ->. by rewrite !Fv.setP_neq.
+        rewrite Sv.add_spec. case; last by move=> /Sv.empty_spec.
+        move=> ->. by rewrite !Fv.setP_neq.
+        rewrite Sv.add_spec. case.
+        move=> ->. by rewrite !Fv.setP_neq.
+        rewrite Sv.add_spec. case; last by move=> /Sv.empty_spec.
+        move=> ->. by rewrite !Fv.setP_neq.
+      do 7 rewrite get_var_neq //.
+      by rewrite get_var_eq.
+
+      move=> [vm'' [hsem'' [hvm'' hzero]]].
+
+      move: hbody; rewrite /x86_clear_stack_unrolled.
+      rewrite map_cat.
+      set init_code := (X in lc ++ X ++ _).
+      rewrite -/init_code.
+      
+      have:
+        lfd_body lfd =
+        lc ++
+        init_code ++
+        [seq {| li_ii := dummy_instr_info; li_i := i |}
+           | i <- [seq Lopn
+                         [:: Lmem U256 (gv {| gv := {| v_var := to_var RSI; v_info := dummy_var_info |}; gs := Slocal |})
+                               (pword_of_int U64 (- off))] (Ox86 (VMOVDQU U256))
+                         [:: Pvar {| gv := {| v_var := to_var XMM2; v_info := dummy_var_info |}; gs := Slocal |}]
+                     | off <- [seq (x * 32)%Z | x <- ziota 0 (max_stk / 32 + 1)]]] ->
+        exists (vm''0 : vmap) (m'' : mem),
+          lsem lp {| lscs := scs; lmem := m'; lvm := vm; lfn := fn; lpc := size lc |}
+            {|
+              lscs := scs;
+              lmem := m'';
+              lvm := vm''0;
+              lfn := fn;
+              lpc :=
+                size lc +
+                size
+                  (init_code ++
+                   [seq {| li_ii := dummy_instr_info; li_i := i |}
+                      | i <- [seq Lopn
+                                    [:: Lmem U256
+                                          (gv {| gv := {| v_var := to_var RSI; v_info := dummy_var_info |}; gs := Slocal |})
+                                          (pword_of_int U64 (- off))] (Ox86 (VMOVDQU U256))
+                                    [:: Pvar {| gv := {| v_var := to_var XMM2; v_info := dummy_var_info |}; gs := Slocal |}]
+                                | off <- [seq (x * 32)%Z | x <- ziota 0 (max_stk / 32 + 1)]]])
+            |} /\ vm''0 =[sv_of_list v_var (lfd_res lfd)]  vm /\ get_var vm'' (to_var XMM2) = ok (@Vword U256 0%R).
+    + move=> hbody.
+      have hlinear: is_linear_of lp fn (lc ++
+        init_code ++
+        [seq {| li_ii := dummy_instr_info; li_i := i |}
+           | i <- [seq Lopn
+                         [:: Lmem U256
+                               (gv {| gv := {| v_var := to_var RSI; v_info := dummy_var_info |}; gs := Slocal |})
+                               (pword_of_int U64 (- off))] (Ox86 (VMOVDQU U256))
+                         [:: Pvar {| gv := {| v_var := to_var XMM2; v_info := dummy_var_info |}; gs := Slocal |}]
+                     | off <- [seq (x * 32)%Z | x <- ziota 0 (max_stk / 32 + 1)]]]).
+      + by exists lfd.
+      move: {hsubset hbody} lfd hvm'' hlfd hlinear.
+      apply ziota_ind.
+      + move=> /= lfd hvm'' _ _.
+        exists vm'', m'. by split.
+      move=> i l hi ih lfd hvm'' hlfd hlinear.
+      (* FIXME: aux lemma should be much cleaner *)
+      
+      lfd_res
+      
+      rewrite /= in hRSP. rewrite /to_var /= -hRSP. rewrite hrsp /=.
+      rewrite /exec_sopn /=. wrsp
+      Search ad_rsp lp_rsp.
+      have: to_var_rsp.
+      
+    apply ziota_ind.
+    - rewrite /=.
+      
+    
+  move=> [vm'' [m'' [h1 h2]]].
+  exists vm'', m''. split=> //.
+  eapply lsem_trans; eauto. apply hsem. done.
 
 
 (* ------------------------------------------------------------------------ *)

@@ -239,7 +239,7 @@ Let vlocal {t T} {_ : ToString t T} (x : T) : gvar :=
 
 Let tmp : gvar := vlocal RSI.
 Let off : gvar := vlocal RDI.
-Let vlr : gvar := vlocal XMM0.
+Let vlr : gvar := vlocal XMM2.
 
 Let rsp : gvar := vlocal RSP.
 Let zf : gvar := vlocal ZF.

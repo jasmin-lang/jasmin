@@ -18,6 +18,31 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Require Import linearization_proof linear_sem.
+Require Import psem arch_decl arch_extra.
+
+Record h_clear_stack_params {asm_op syscall_state : Type} {spp : SemPexprParams asm_op syscall_state}
+{ ovmi : one_varmap.one_varmap_info } { reg regx xreg rflag cond : Type } { ad : arch_decl reg regx xreg rflag cond }
+{call_conv:calling_convention}
+(csp : clear_stack_params) :=
+  {
+    hcs_clear_stack_cmd : forall cs lbl max_stk cmd,
+      csp.(cs_clear_stack_cmd) cs lbl max_stk = Some cmd ->
+      forall (lp : lprog) fn lfd lc, (fn, lbl) \notin label_in_lprog lp ->
+      get_fundef lp.(lp_funcs) fn = Some lfd ->
+      forall scs m m' vm,
+      lp.(lp_rsp) = to_string ad_rsp ->
+      get_var vm (vid lp.(lp_rsp)) = ok (Vword (top_stack m)) ->
+      Sv.subset (sv_of_list v_var lfd.(lfd_res)) (Sv.union (sv_of_list to_var call_reg_ret) (sv_of_list to_var call_xreg_ret)) ->
+      lsem lp (Lstate scs m vm fn 0)
+              (Lstate scs m' vm fn (size lc)) ->
+      lfd.(lfd_body) = lc ++ cmd ->
+      exists vm'' m'',
+        lsem lp (Lstate scs m vm fn 0)
+               (Lstate scs m'' vm'' fn (size lc+size cmd)) /\
+        vm'' =[sv_of_list v_var lfd.(lfd_res)] vm
+  }.
+
 Section FOLDM_ACC.
   Context
     (xT yT zT : Type)
