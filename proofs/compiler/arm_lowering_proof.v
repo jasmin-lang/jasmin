@@ -1166,18 +1166,130 @@ Qed.
 (* -------------------------------------------------------------------- *)
 (* Lowering of ARM-specific instructions. *)
 
-Lemma lower_copnP s0' s1' lvs tag op es lvs' op' es' :
-  sem_i p' ev s0' (Copn lvs tag op es) s1'
-  -> lower_copn lvs op es = Some (lvs', op', es')
-  -> sem_i p' ev s0' (Copn lvs' tag op' es') s1'.
+Lemma eq_true_b b :
+  (true = b) <-> b.
+Proof. by case: b. Qed.
+
+Lemma eq_false_b b :
+  (false = b) <-> ~~ b.
+Proof. by case: b. Qed.
+
+(* TODO_ARM: This lemma is similar to the one in x86_lowering, but not quite:
+   in x86 [res] is [wunsigned (wrepr (wunsigned w + wunsigned w' + Z.b2z b))].
+*)
+Lemma wunsigned_carry ws w w' b :
+  let: res := wunsigned (w + w' + wrepr ws (Z.b2z b))%R in
+  let: res' := (wunsigned w + wunsigned w' + Z.b2z b)%Z in
+  (wbase ws <=? res')%Z = (res != res')%Z.
 Proof.
-  move=> hcopn.
-  rewrite /lower_copn.
-  case: op hcopn => // [[[[] aop]|]] //.
-  move: aop => [mn opts] hcopn.
-  case: ifP => // hmn.
+  case: b => /=; first last.
+  - rewrite Z.add_0_r wrepr0 GRing.addr0. exact: add_overflow.
+
+  rewrite wunsigned_add_if.
+  rewrite wrepr1 wunsigned1.
+  case: ZltP.
+  - rewrite wunsigned_add_if.
+    case: ZltP.
+    + move=> _.
+      move=> /Z.lt_nge /ZleP /negPf ->.
+      apply/eq_false_b/negPn/eqP.
+      lia.
+
+    move=> h _.
+    have -> : (wbase ws <=? wunsigned w + wunsigned w' + 1)%Z.
+    + apply/ZleP. lia.
+    apply/eq_true_b/eqP.
+    have := wbase_pos ws.
+    lia.
+
+  rewrite wunsigned_add_if.
+  case: ZltP.
+  - move=> /Z.le_succ_l h0 /Z.le_ngt h1.
+    rewrite -(Z.le_antisymm _ _ h0 h1).
+    rewrite Z.leb_refl.
+    apply/eq_true_b/eqP.
+    have := wunsigned_range w.
+    lia.
+
+  move=> /Z.le_ngt h0 /Z.le_ngt h1.
+  have -> : (wbase ws <=? wunsigned w + wunsigned w' + 1)%Z.
+  - apply/ZleP. lia.
+  apply/eq_true_b/eqP.
+  have := wunsigned_range w.
+  lia.
+Qed.
+
+Lemma lower_add_carryP s0 s1 lvs tag es lvs' op' es' :
+  sem_i p' ev s0 (Copn lvs tag (Oaddcarry U32) es) s1
+  -> lower_add_carry lvs es = Some (lvs', op', es')
+  -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
+Proof.
+  case: lvs => [] // lv0 [] // lv1 [] //.
+  case: es => [] // e0 [] // e1 [] // e2 [] //.
+  move=> hsemi h.
+
+  move: hsemi => /sem_iE.
+  rewrite /sem_sopn /=.
+  t_xrbindP=> res _ v0 hseme0 _ v1 hseme1 _ v2 hseme2 <- <- <- hexec hwrite.
+
+  move: hexec.
+  rewrite /exec_sopn /=.
+  t_xrbindP=> /= res' w0 hw0 w1 hw1 b hb hsopn ?; subst res.
+  move: hw0 => /to_wordI [ws [w [? hw0]]]; subst v0.
+  move: hw0 => /truncate_wordP [hws ?]; subst w0.
+  move: hw1 => /to_wordI [ws' [w' [? hw1]]]; subst v1.
+  move: hw1 => /truncate_wordP [hws' ?]; subst w1.
+  move: hb => /to_boolI ?; subst v2.
+  move: hsopn => [?]; subst res'.
+  move: hwrite => /=.
+  t_xrbindP=> s00 hwrite00 s01 hwrite1 ?; subst s01.
+
+  apply: Eopn.
+  rewrite /sem_sopn /=.
+
+  move: hwrite1.
+  rewrite !wrepr_add !wrepr_unsigned.
+  move=> hwrite1.
+
+  move: h.
+  case: e2 hseme2 => [| [] || gx |||||||] //= hseme2 [???];
+    subst lvs' op' es'.
+  all: rewrite /= hseme0 hseme1 /= {hseme0 hseme1}.
+
+  2: rewrite hseme2 /= {hseme2}.
+
+  all: rewrite /exec_sopn /=.
+  all: rewrite /truncate_word hws hws' /=.
+  all: move: hwrite00 hwrite1.
+  all: rewrite wunsigned_carry.
+
+  1: move: hseme2 => [?]; subst b.
+  1: rewrite /= Z.add_0_r wrepr0 GRing.addr0.
+
+  all: by move=> -> /= ->.
+Qed.
+
+Lemma lower_base_op s0 s1 lvs tag aop es lvs' op' es' :
+  sem_i p' ev s0 (Copn lvs tag (Oasm (BaseOp (None, aop))) es) s1
+  -> lower_base_op lvs aop es = Some (lvs', op', es')
+  -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
+Proof.
+  move: aop => [mn opts].
+  move=> hsemi.
+  rewrite /lower_base_op.
+  case: (_ \in _) => //.
   move=> [? ? ?]; subst lvs' op' es'.
-  exact: hcopn.
+  exact: hsemi.
+Qed.
+
+Lemma lower_copnP s0 s1 lvs tag op es lvs' op' es' :
+  sem_i p' ev s0 (Copn lvs tag op es) s1
+  -> lower_copn lvs op es = Some (lvs', op', es')
+  -> sem_i p' ev s0 (Copn lvs' tag op' es') s1.
+Proof.
+  case: op => // [[] | [[[] aop]|]] //.
+  - exact: lower_add_carryP.
+  exact: lower_base_op.
 Qed.
 
 
