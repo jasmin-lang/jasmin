@@ -300,7 +300,7 @@ Definition x86_clear_stack_unrolled (max_stk_size : Z) : lcmd :=
       [:: Pvar vlr ]
   in
 
-  let offs := map (fun x => x * 32)%Z (ziota 0 (max_stk_size / 32 + 1)) in
+  let offs := map (fun x => x * 32)%Z (ziota 1 ((max_stk_size-1) / 32 + 1)) in
 
   map (MkLI dummy_instr_info) ([:: i0; i1; i2 ] ++ map f offs).
 
