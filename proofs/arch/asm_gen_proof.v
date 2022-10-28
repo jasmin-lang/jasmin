@@ -1233,7 +1233,7 @@ Qed.
 
 Lemma eval_assemble_word ii sz e a s xs v :
   lom_eqv rip s xs
-  -> is_app1 e = None
+  -> is_not_app1 e
   -> assemble_word_load rip ii sz e = ok a
   -> sem_pexpr [::] s e = ok v
   -> exists2 v',
@@ -1656,8 +1656,7 @@ Proof.
     constructor => //.
     by rewrite /setpc /= eqpc.
   - by move=> r [<-]; apply: eval_jumpP.
-  - t_xrbindP=> e.
-    case ok_e: is_app1 => [ // | ] _.
+  - t_xrbindP=> e ok_e.
     move => d ok_d <- ptr v ok_v /to_wordI[? [? [? /word_uincl_truncate hptr]]]; subst.
     change reg_size with Uptr in ptr.
     have [v' -> /value_uinclE /= [? [? [-> /hptr /= ->]]]] := eval_assemble_word eqm ok_e ok_d ok_v.
