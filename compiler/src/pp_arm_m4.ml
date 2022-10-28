@@ -128,6 +128,7 @@ let pp_shift (ARM_op (_, opts)) args =
 
 let pp_mnemonic_ext (ARM_op (mn, opts)) args =
   let mn = Conv.string_of_string0 (string_of_arm_mnemonic mn) in
+  let mn = String.lowercase_ascii mn in
   Printf.sprintf "%s%s%s" mn (pp_set_flags opts) (pp_conditional args)
 
 let pp_syscall (o : _ Syscall_t.syscall_t) =

@@ -7,7 +7,7 @@ module S = Syntax
 (* ARM parsing. *)
 
 let get_set_flags s =
-  if String.ends_with s "s" then (true, String.drop_end 1 s) else (false, s)
+  if String.ends_with s "S" then (true, String.drop_end 1 s) else (false, s)
 
 let get_is_conditional s =
   if String.ends_with s "cc" then (true, String.drop_end 2 s) else (false, s)
@@ -32,7 +32,6 @@ let get_has_shift args =
   | Some (i, (sk, sham)) -> (Some sk, List.modify_at i (fun _ -> sham) args)
 
 let get_arm_prim s =
-  let s = String.lowercase_ascii s in
   let is_conditional, s = get_is_conditional s in
   let set_flags, s = get_set_flags s in
   (s, set_flags, is_conditional)
@@ -42,4 +41,6 @@ let tt_prim ps s args =
   let has_shift, args = get_has_shift args in
   match List.assoc_opt name ps with
   | Some (Sopn.PrimARM pr) -> Some (pr set_flags is_conditional has_shift, args)
+  (* The following is for [copy], [mulu], [adc], and [sbb]. *)
+  | Some (Sopn.PrimP (ws, pr)) -> Some ((pr None ws), args)
   | _ -> None

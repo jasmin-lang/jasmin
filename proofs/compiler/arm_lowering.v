@@ -346,13 +346,44 @@ Definition lower_cassgn
 (* -------------------------------------------------------------------- *)
 (* Lowering of architecture-specific operations. *)
 
+Definition lower_add_carry
+  (lvs : seq lval) (es : seq pexpr) : option copn_args :=
+  match lvs, es with
+  | [:: cf; r ], [:: x; y; b ] =>
+      let args :=
+        match b with
+        | Pbool false => Some (ADD, [:: x; y ])
+        | Pvar _ => Some (ADC, es)
+        | _ => None
+        end
+      in
+      if args is Some (mn, es')
+      then
+        let opts :=
+          {| set_flags := true; is_conditional := false; has_shift := None; |}
+        in
+        let lnoneb := Lnone dummy_var_info sbool in
+        let lvs' := [:: lnoneb; lnoneb; cf; lnoneb; r ] in
+        Some (lvs', Oasm (BaseOp (None, ARM_op mn opts)), es')
+      else
+        None
+  | _, _ =>
+      None
+  end.
+
+(* TODO_ARM: Lower shifts. *)
+Definition lower_base_op
+  (lvs : seq lval) (aop : arm_op) (es : seq pexpr) : option copn_args :=
+  let '(ARM_op mn opts) := aop in
+  if mn \in has_shift_mnemonics
+  then Some (lvs, Oasm (BaseOp (None, ARM_op mn opts)), es)
+  else None.
+
 Definition lower_copn
   (lvs : seq lval) (op : sopn) (es : seq pexpr) : option copn_args :=
   match op with
-  | Oasm (BaseOp (None, ARM_op mn opts)) =>
-      if mn \in has_shift_mnemonics
-      then Some (lvs, op, es) (* TODO_ARM: Complete. *)
-      else None
+  | Oaddcarry U32 => lower_add_carry lvs es
+  | Oasm (BaseOp (None, aop)) => lower_base_op lvs aop es
   | _ => None
   end.
 

@@ -93,6 +93,7 @@ Definition unset_is_conditional (ao : arm_options) : arm_options :=
 Variant arm_mnemonic : Type :=
 (* Arithmetic *)
 | ADD                            (* Add without carry *)
+| ADC                            (* Add with carry *)
 | MUL                            (* Multiply and write the least significant
                                     32 bits of the result *)
 | SDIV                           (* Signed division *)
@@ -165,7 +166,7 @@ Instance eqTC_arm_mnemonic : eqTypeC arm_mnemonic :=
 Canonical arm_mnemonic_eqType := @ceqT_eqType _ eqTC_arm_mnemonic.
 
 Definition arm_mnemonics : seq arm_mnemonic :=
-  [:: ADD; MUL; SDIV; SUB; RSB; UDIV; UMULL
+  [:: ADD; ADC; MUL; SDIV; SUB; RSB; UDIV; UMULL
     ; AND; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR
     ; MOV; MOVT; UBFX; UXTB; UXTH; SBFX
@@ -187,14 +188,14 @@ Instance finTC_arm_mnemonic : finTypeC arm_mnemonic :=
 Canonical arm_mnemonic_finType := @cfinT_finType _ finTC_arm_mnemonic.
 
 Definition set_flags_mnemonics : seq arm_mnemonic :=
-  [:: ADD; MUL; SUB; RSB
+  [:: ADD; ADC; MUL; SUB; RSB
     ; AND; BIC; EOR; MVN; ORR
     ; ASR; LSL; LSR; ROR
     ; MOV
   ].
 
 Definition has_shift_mnemonics : seq arm_mnemonic :=
-  [:: ADD; SUB; RSB
+  [:: ADD; ADC; SUB; RSB
     ; AND; BIC; EOR; MVN; ORR
     ; CMP; TST
   ].
@@ -236,44 +237,40 @@ Definition wsize_of_store_mn (mn : arm_mnemonic) : option wsize :=
 
 Definition string_of_arm_mnemonic (mn : arm_mnemonic) : string :=
   match mn with
-  | ADD => "add"
-  | MUL => "mul"
-  | SDIV => "sdiv"
-  | SUB => "sub"
-  | RSB => "rsb"
-  | UDIV => "udiv"
-  | UMULL => "umull"
-  | AND => "and"
-  | BIC => "bic"
-  | EOR => "eor"
-  | MVN => "mvn"
-  | ORR => "orr"
-  | ASR => "asr"
-  | LSL => "lsl"
-  | LSR => "lsr"
-  | ROR => "ror"
-  | MOV => "mov"
-  | MOVT => "movt"
-  | UBFX => "ubfx"
-  | UXTB => "uxtb"
-  | UXTH => "uxth"
-  | SBFX => "sbfx"
-  | CMP => "cmp"
-  | TST => "tst"
-  | LDR => "ldr"
-  | LDRB => "ldrb"
-  | LDRH => "ldrh"
-  | LDRSB => "ldrsb"
-  | LDRSH => "ldrsh"
-  | STR => "str"
-  | STRB => "strb"
-  | STRH => "strh"
+  | ADD => "ADD"
+  | ADC => "ADC"
+  | MUL => "MUL"
+  | SDIV => "SDIV"
+  | SUB => "SUB"
+  | RSB => "RSB"
+  | UDIV => "UDIV"
+  | UMULL => "UMULL"
+  | AND => "AND"
+  | BIC => "BIC"
+  | EOR => "EOR"
+  | MVN => "MVN"
+  | ORR => "ORR"
+  | ASR => "ASR"
+  | LSL => "LSL"
+  | LSR => "LSR"
+  | ROR => "ROR"
+  | MOV => "MOV"
+  | MOVT => "MOVT"
+  | UBFX => "UBFX"
+  | UXTB => "UXTB"
+  | UXTH => "UXTH"
+  | SBFX => "SBFX"
+  | CMP => "CMP"
+  | TST => "TST"
+  | LDR => "LDR"
+  | LDRB => "LDRB"
+  | LDRH => "LDRH"
+  | LDRSB => "LDRSB"
+  | LDRSH => "LDRSH"
+  | STR => "STR"
+  | STRB => "STRB"
+  | STRH => "STRH"
   end.
-
-Lemma string_of_register_inj : injective string_of_register.
-Proof.
-  move=> x y /eqP h; apply/eqP; case: x y h => -[]; by vm_compute.
-Qed.
 
 
 (* -------------------------------------------------------------------- *)
@@ -612,12 +609,22 @@ Definition mk_semi1_shifted
     let sham := wunsigned shift_amount in
     semi (shift_op sk wn sham).
 
-Definition mk_semi2_shifted
-  {A} (sk : shift_kind) (semi : sem_prod [:: sreg; sreg ] (exec A)) :
-  sem_prod [:: sreg; sreg; sword8 ] (exec A) :=
-  fun wn wm shift_amount =>
+Definition mk_semi2_2_shifted
+  {A} {o : stype} (sk : shift_kind) (semi : sem_prod [:: o; sreg ] (exec A)) :
+  sem_prod [:: o; sreg; sword8 ] (exec A) :=
+  fun x wm shift_amount =>
     let sham := wunsigned shift_amount in
-    semi wn (shift_op sk wm sham).
+    semi x (shift_op sk wm sham).
+
+Definition mk_semi3_2_shifted
+  {A}
+  {o0 o1 : stype}
+  (sk : shift_kind)
+  (semi : sem_prod [:: o0; sreg; o1 ] (exec A)) :
+  sem_prod [:: o0; sreg; o1; sword8 ] (exec A) :=
+  fun x wm y shift_amount =>
+    let sham := wunsigned shift_amount in
+    semi x (shift_op sk wm sham) y.
 
 #[ local ]
 Lemma mk_shifted_eq_size {A B} {x y} {xs0 : seq A} {ys0 : seq B} {p} :
@@ -709,7 +716,7 @@ Definition arm_ADD_semi (wn wm : ty_r) : exec ty_nzcv_r :=
   let x :=
     nzcv_w_of_aluop
       (wn + wm)%R
-      (wunsigned wn + wunsigned wn)%Z
+      (wunsigned wn + wunsigned wm)%Z
       (wsigned wn + wsigned wm)%Z
   in
   ok x.
@@ -738,7 +745,49 @@ Definition arm_ADD_instr : instr_desc_t :=
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_shifted sk (id_semi x))
+    then mk_shifted sk x (mk_semi2_2_shifted sk (id_semi x))
+    else x
+  in
+  if set_flags opts
+  then x
+  else drop_nzcv x.
+
+Definition arm_ADC_semi (wn wm : ty_r) (cf : bool) : exec ty_nzcv_r :=
+  let c := Z.b2z cf in
+  let x :=
+    nzcv_w_of_aluop
+      (wn + wm + wrepr reg_size c)%R
+      (wunsigned wn + wunsigned wm + c)%Z
+      (wsigned wn + wsigned wm + c)%Z
+  in
+  ok x.
+
+Definition arm_ADC_instr : instr_desc_t :=
+  let mn := ADC in
+  let x :=
+    {|
+      id_msb_flag := MSB_MERGE;
+      id_tin := [:: sreg; sreg; sbool ];
+      id_in := [:: E 1; E 2; F CF ];
+      id_tout := snzcv_r;
+      id_out := ad_nzcv ++ [:: E 0 ];
+      id_semi := arm_ADC_semi;
+      id_nargs := 3;
+      id_args_kinds := ak_reg_reg_reg ++ ak_reg_reg_imm;
+      id_eq_size := refl_equal;
+      id_tin_narr := refl_equal;
+      id_tout_narr := refl_equal;
+      id_check_dest := refl_equal;
+      id_str_jas := pp_s (string_of_arm_mnemonic mn);
+      id_wsize := reg_size;
+      id_safe := [::]; (* TODO_ARM: Complete. *)
+      id_pp_asm := pp_arm_op mn opts;
+    |}
+  in
+  let x :=
+    if has_shift opts is Some sk
+    then
+      mk_shifted sk x (mk_semi3_2_shifted sk (id_semi x))
     else x
   in
   if set_flags opts
@@ -833,7 +882,7 @@ Definition arm_SUB_instr : instr_desc_t :=
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_shifted sk (id_semi x))
+    then mk_shifted sk x (mk_semi2_2_shifted sk (id_semi x))
     else x
   in
   if set_flags opts
@@ -865,7 +914,7 @@ Definition arm_RSB_instr : instr_desc_t :=
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_shifted sk (id_semi x))
+    then mk_shifted sk x (mk_semi2_2_shifted sk (id_semi x))
     else x
   in
   if set_flags opts
@@ -960,7 +1009,7 @@ Definition arm_AND_instr : instr_desc_t :=
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_shifted sk (id_semi x))
+    then mk_shifted sk x (mk_semi2_2_shifted sk (id_semi x))
     else x
   in
   if set_flags opts
@@ -991,7 +1040,7 @@ Definition arm_BIC_instr : instr_desc_t :=
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_shifted sk (id_semi x))
+    then mk_shifted sk x (mk_semi2_2_shifted sk (id_semi x))
     else x
   in
   if set_flags opts
@@ -1022,7 +1071,7 @@ Definition arm_EOR_instr : instr_desc_t :=
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_shifted sk (id_semi x))
+    then mk_shifted sk x (mk_semi2_2_shifted sk (id_semi x))
     else x
   in
   if set_flags opts
@@ -1092,7 +1141,7 @@ Definition arm_ORR_instr : instr_desc_t :=
   in
   let x :=
     if has_shift opts is Some sk
-    then mk_shifted sk x (mk_semi2_shifted sk (id_semi x))
+    then mk_shifted sk x (mk_semi2_2_shifted sk (id_semi x))
     else x
   in
   if set_flags opts
@@ -1435,7 +1484,7 @@ Definition arm_CMP_instr : instr_desc_t :=
     |}
   in
   if has_shift opts is Some sk
-  then mk_shifted sk x (mk_semi2_shifted sk (id_semi x))
+  then mk_shifted sk x (mk_semi2_2_shifted sk (id_semi x))
   else x.
 
 Definition arm_TST_semi (wn wm : ty_r) : exec ty_nzc :=
@@ -1469,7 +1518,7 @@ Definition arm_TST_instr : instr_desc_t :=
     |}
   in
   if has_shift opts is Some sk
-  then mk_shifted sk x (mk_semi2_shifted sk (id_semi x))
+  then mk_shifted sk x (mk_semi2_2_shifted sk (id_semi x))
   else x.
 
 Definition arm_extend_semi
@@ -1539,6 +1588,7 @@ Definition mn_desc (mn : arm_mnemonic) (opts : arm_options) : instr_desc_t :=
   let desc :=
     match mn with
     | ADD => arm_ADD_instr
+    | ADC => arm_ADC_instr
     | MUL => arm_MUL_instr
     | SDIV => arm_SDIV_instr
     | SUB => arm_SUB_instr

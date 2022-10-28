@@ -1346,27 +1346,6 @@ Section PROOF.
     by eexists _, w1, _, wx'.
   Qed.
 
-  Lemma unsigned_overflow sz (z: Z):
-    (0 <= z)%Z ->
-    (wunsigned (wrepr sz z) != z) = (wbase sz <=? z)%Z.
-  Proof.
-    move => hz.
-    rewrite wunsigned_repr; apply/idP/idP.
-    * apply: contraR => /negbTE /Z.leb_gt lt; apply/eqP.
-        by rewrite Z.mod_small //; lia.
-    * apply: contraL => /eqP <-; apply/negbT/Z.leb_gt.
-      by case: (Z_mod_lt z (wbase sz)).
-  Qed.
-
-  Lemma add_overflow sz (w1 w2: word sz) :
-    (wbase sz <=? wunsigned w1 + wunsigned w2)%Z =
-    (wunsigned (w1 + w2) != (wunsigned w1 + wunsigned w2)%Z).
-  Proof.
-    rewrite unsigned_overflow //; rewrite -!/(wunsigned _).
-    have := wunsigned_range w1; have := wunsigned_range w2.
-    lia.
-  Qed.
-
   Lemma add_carry_overflow sz (w1 w2: word sz) (b: bool) :
     (wbase sz <=? wunsigned w1 + wunsigned w2 + Z.b2z b)%Z =
     (wunsigned (add_carry sz (wunsigned w1) (wunsigned w2) (Z.b2z b)) != (wunsigned w1 + wunsigned w2 + Z.b2z b))%Z.

@@ -1,0 +1,35 @@
+export
+fn adc(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    reg bool c;
+
+    x = arg1;
+
+    _, x = arg0 + x;
+    c, x = arg0 + x;
+
+    _, x = x + 12;
+    c, x = x + 98;
+
+    c, x = arg0 + x + c;
+    _, x = arg0 + x + c;
+
+    c, x = arg0 + x + false;
+    _, x = arg0 + x + false;
+
+    _, x += arg0;
+    c, x += arg0;
+
+    _, x += 12;
+    c, x += 98;
+
+    c, x += arg0 + c;
+    _, x += arg0 + c;
+
+    c, x += arg0 + false;
+    _, x += arg0 + false;
+
+    reg u32 res;
+    res = x;
+    return res;
+}
