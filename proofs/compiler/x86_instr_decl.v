@@ -1,6 +1,6 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
-Require Import ZArith utils strings word sem_type global oseq.
+Require Import ZArith utils strings word waes sem_type global oseq.
 Import Utf8 Relation_Operators.
 
 Set   Implicit Arguments.
@@ -934,21 +934,14 @@ Parameter wAESENC          : u128 -> u128 -> u128.
 Parameter wAESENCLAST      : u128 -> u128 -> u128.
 Parameter wAESIMC          : u128 -> u128.
 Parameter wAESKEYGENASSIST : u128 -> u8 -> u128.
-
-Definition x86_AESDEC          (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wAESDEC          v1 v2).
-Definition x86_AESDECLAST      (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wAESDECLAST      v1 v2).
-Definition x86_AESENC          (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wAESENC          v1 v2).
-Definition x86_AESENCLAST      (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wAESENCLAST      v1 v2).
-Definition x86_AESIMC          (v1    : u128) : ex_tpl (w_ty U128) := ok (wAESIMC          v1).
-Definition x86_AESKEYGENASSIST (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wAESKEYGENASSIST v1 v2).
 *)
 
-Definition x86_AESDEC          (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
-Definition x86_AESDECLAST      (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
-Definition x86_AESENC          (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
-Definition x86_AESENCLAST      (v1 v2 : u128) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
-Definition x86_AESIMC          (v1    : u128) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
-Definition x86_AESKEYGENASSIST (v1 : u128) (v2 : u8) : ex_tpl (w_ty U128) := ok (wrepr U128 0).
+Definition x86_AESDEC          (v1 v2 : u128)           : ex_tpl (w_ty U128) := ok (wAESDEC          v1 v2).
+Definition x86_AESDECLAST      (v1 v2 : u128)           : ex_tpl (w_ty U128) := ok (wAESDECLAST      v1 v2).
+Definition x86_AESENC          (v1 v2 : u128)           : ex_tpl (w_ty U128) := ok (wAESENC          v1 v2).
+Definition x86_AESENCLAST      (v1 v2 : u128)           : ex_tpl (w_ty U128) := ok (wAESENCLAST      v1 v2).
+Definition x86_AESIMC          (v1    : u128)           : ex_tpl (w_ty U128) := ok (wAESIMC          v1).
+Definition x86_AESKEYGENASSIST (v1    : u128) (v2 : u8) : ex_tpl (w_ty U128) := ok (wAESKEYGENASSIST v1 v2).
 
 (* ----------------------------------------------------------------------------- *)
 
