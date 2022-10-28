@@ -37,6 +37,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Local Open Scope vmap_scope.
+
 
 Section Section.
 Context {syscall_state : Type} {sc_sem : syscall_sem syscall_state}.
@@ -46,6 +48,120 @@ Context { ovmi : one_varmap_info }.
 
 (* FIXME: how to reason on all call conv at once ??????? *)
 Local Existing Instance x86_linux_call_conv.
+
+Section CLEAR_STACK.
+
+Let vlocal {t T} {_ : ToString t T} (x : T) : gvar :=
+  {|
+    gv := {| v_info := dummy_var_info; v_var := to_var x; |};
+    gs := Slocal;
+  |}.
+
+Let tmp : gvar := vlocal RSI.
+Let off : gvar := vlocal RDI.
+Let vlr : gvar := vlocal XMM2.
+
+Let rsp : gvar := vlocal RSP.
+Let zf : gvar := vlocal ZF.
+Let tmpi : var_i := gv tmp.
+Let offi : var_i := gv off.
+Let vlri : var_i := gv vlr.
+Let zfi : var_i := gv zf.
+
+Let flags_lv :=
+  map
+    (fun f => Lvar {| v_info := dummy_var_info; v_var := to_var f; |})
+    [:: OF; CF; SF; PF; ZF ].
+
+Definition init_code : lcmd :=
+  (* ymm = #set0_256(); *)
+  let i0 := Lopn [:: Lvar vlri ] (Oasm (ExtOp (Oset0 U256))) [::] in
+
+  (* tmp = rsp; *)
+  let i1 := Lopn [:: Lvar tmpi ] (Ox86 (MOV U64)) [:: Pvar rsp ] in
+
+  (* tmp &= - (wsize_size x86_cs_max_ws); *)
+  let i2 :=
+    Lopn
+      (flags_lv ++ [:: Lvar tmpi ])
+      (Ox86 (AND U64))
+      [:: Pvar tmp; pword_of_int U64 (- wsize_size x86_cs_max_ws)%Z ]
+  in
+
+  map (MkLI dummy_instr_info) [:: i0; i1; i2 ].
+
+Lemma init_codeP lp fn lfd lc1 lc2 :
+  get_fundef lp.(lp_funcs) fn = Some lfd ->
+  lfd.(lfd_body) = lc1 ++ init_code ++ lc2 ->
+  forall scs m vm,
+  get_gvar [::] vm rsp = ok (Vword (top_stack m)) ->
+  exists vm',
+    lsem lp (Lstate scs m vm fn (size lc1))
+            (Lstate scs m vm' fn (size lc1 + size init_code)) /\
+    vm' = vm.[vlri <- ok (pword_of_word 0%R)]
+            .[tmpi <- ok (pword_of_word (align_word x86_cs_max_ws (top_stack m)))]
+          [\ sv_of_list to_var rflags].
+Proof.
+  move=> hlfd hbody scs m vm hrsp.
+  have hlinear: is_linear_of (spp := mk_spp) lp fn (lc1 ++ init_code ++ lc2).
+  + by exists lfd.
+  eexists _; split.
+  + apply: lsem_step.
+    + rewrite /lsem1 /step.
+      rewrite -(addn0 (size lc1)) (find_instr_skip hlinear) /=.
+      by rewrite /eval_instr /= /of_estate /with_vm /=.
+    apply: lsem_step.
+    + rewrite /lsem1 /step.
+      rewrite -addnS (find_instr_skip hlinear) /=.
+      rewrite /eval_instr /= /sem_sopn /=.
+      rewrite get_gvar_neq // hrsp /= zero_extend_u.
+      by rewrite /of_estate /with_vm /=.
+    apply: LSem_step.
+    rewrite /lsem1 /step.
+    rewrite -addnS (find_instr_skip hlinear) /=.
+    rewrite /eval_instr /= /sem_sopn /=.
+    rewrite (@get_gvar_eq _ tmp) //=.
+    rewrite /of_estate /with_vm /= !zero_extend_u.
+    by rewrite -addnS.
+  move=> v hnin.
+  rewrite !Fv.setP.
+  case: eqP => [|_].
+  + move=> ?; subst v.
+    by rewrite pword_of_wordE.
+  do 5 (case: eqP => [|_]; first by (move=> ?; subst v; case: hnin; apply /Sv_memP)).
+  case: eqP => //.
+  move=> ?; subst v.
+  by rewrite pword_of_wordE.
+Qed.
+
+Lemma test lp fn lfd lc lbl max_stk :
+  get_fundef lp.(lp_funcs) fn = Some lfd ->
+  lfd.(lfd_body) = lc ++ x86_clear_stack_loop lbl max_stk ->
+  forall scs m vm,
+  get_gvar [::] vm rsp = ok (Vword (top_stack m)) ->
+  exists m' vm',
+    lsem lp (Lstate scs m vm fn (size lc))
+            (Lstate scs m' vm' fn (size lc + size (x86_clear_stack_loop lbl max_stk))) /\
+    vm' = vm.[vlri <- ok (pword_of_word 0%R)]
+            .[tmpi <- ok (pword_of_word (align_word x86_cs_max_ws (top_stack m)))]
+          [\ sv_of_list to_var rflags] /\
+    forall p sz, disjoint_zrange (top_stack_after_alloc (top_stack m) x86_cs_max_ws max_stk) max_stk p (wsize_size sz) ->
+    read m' p sz = read m p sz.
+Proof.
+  move=> hlfd hbody scs m vm hrsp.
+  have hlinear: is_linear_of (spp := mk_spp) lp fn (lc ++ x86_clear_stack_loop lbl max_stk).
+  + by exists lfd.
+  eexists _, _; split.
+  + have [vm' [hinit hvm']] := init_codeP hlfd hbody scs hrsp.
+    apply: (lsem_trans hinit).
+    apply: lsem_step.
+    + rewrite /lsem1 /step.
+      rewrite (find_instr_skip hlinear) /=.
+      rewrite /eval_instr /=.
+      rewrite /of_estate /with_vm /= zero_extend_u pword_of_wordE.
+      by rewrite -addnS.
+    (* induction on the value hold in RDI... *)
+  
 
 Lemma x86_hcsparams : h_clear_stack_params x86_csparams.
 Proof.
