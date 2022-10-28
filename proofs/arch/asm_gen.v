@@ -495,6 +495,8 @@ Definition assemble_sopn rip ii (op:sopn) (outx : lvals) (inx : pexprs) :=
   end.
 
 (* -------------------------------------------------------------------- *)
+Definition is_not_app1 e : bool :=
+  if e is Papp1 _ _ then false else true.
 
 Definition assemble_i (rip : var) (i : linstr) : cexec asm_i :=
   let '{| li_ii := ii; li_i := ir; |} := i in
@@ -513,7 +515,7 @@ Definition assemble_i (rip : var) (i : linstr) : cexec asm_i :=
       ok (JMP lbl)
 
   | Ligoto e =>
-      Let _ := assert (is_none (is_app1 e)) (E.werror ii e "Ligoto/JMPI") in
+      Let _ := assert (is_not_app1 e) (E.werror ii e "Ligoto/JMPI") in
       Let arg := assemble_word AK_mem rip ii Uptr e in
       ok (JMPI arg)
 
