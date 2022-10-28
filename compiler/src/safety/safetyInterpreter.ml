@@ -1926,7 +1926,7 @@ end = struct
     let oec = AbsExpr.bexpr_to_btcons e state.abs in
 
     let labs, rabs =
-      if Config.sc_if_disj () && is_some (simpl_obtcons oec) then
+      if Config.sc_if_disj () && Option.is_some (simpl_obtcons oec) then
         let ec = simpl_obtcons oec |> oget in
         AbsDom.add_cnstr state.abs ~meet:true ec ginstr.i_loc
       else
@@ -2078,11 +2078,11 @@ module AbsAnalyzer (EW : ExportWrap) = struct
       let relationals =
         if rels = ""
         then Some []
-        else String.split_on_char ',' rels |> some in
+        else String.split_on_char ',' rels |> Option.some in
       let pointers =
         if pts = ""
         then Some []
-        else String.split_on_char ',' pts |> some in
+        else String.split_on_char ',' pts |> Option.some in
       { relationals = relationals;
         pointers = pointers; }
       

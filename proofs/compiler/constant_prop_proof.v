@@ -464,27 +464,37 @@ Proof.
                       s_eqP, sneqP, sltP, sleP, sgtP, sgeP, ssem_sop2P.
 Qed.
 
+Lemma app_sopnP T0 ts o es x s :
+  @app_sopn T0 ts o es = ok x ->
+  sem_pexprs gd s es >>= values.app_sopn ts o = ok x.
+Proof.
+  elim: ts es o => /= [ | t ts ih ].
+  + by case=> // _ -> [<-].
+  case=> //= e es ty.
+  t_xrbindP=> z hz /ih{ih}.
+  have := of_exprP s hz.
+  t_xrbindP=> v -> /= hval vs -> /=.
+  by rewrite hval.
+Qed.
+
 Lemma s_opNP op s es :
   sem_pexpr gd s (s_opN op es) = sem_pexpr gd s (PappN op es).
 Proof.
+
+Opaque app_sopn values.app_sopn.
   rewrite /s_opN.
-  case: op => [sz' pe | c];
-  case hi: (mapM _ _) => [ i | ] //=;
-  case heq: (sem_opN _ _) => [ v | ] //.
-  + case: v heq => // sz w'.
-    rewrite /sem_opN /=; apply: rbindP => w h /ok_word_inj [] ?; subst => /= <-{w'}.
-    rewrite /sem_sop1 /= wrepr_unsigned -/(sem_pexprs _ _).
-    have -> /= : sem_pexprs gd s es = ok i.
-    + elim: es i hi {h} => // - [] // z es ih /=; t_xrbindP => _ vs ok_vs <-.
-      by rewrite (ih _ ok_vs).
-    by rewrite h.
-  case: v heq => // b'.  
-  rewrite /sem_opN /=; apply: rbindP => b h [] <- {b'}.
-  rewrite -/(sem_pexprs _ _).
-  have -> /= : sem_pexprs gd s es = ok i.
-  + elim: es i hi {h} => // - [] // z es ih /=; t_xrbindP => _ vs ok_vs <-.
-    by rewrite (ih _ ok_vs).
-  by rewrite h.
+  case h: app_sopn => [r | //].
+  case: op r h => [sz' pe | c] /=.
+
+  + move=> w h.
+    rewrite /sem_sop1 /= wrepr_unsigned /sem_opN /=.
+    by rewrite -Let_Let (app_sopnP _ h).
+
+  move=> b h.
+  rewrite /sem_opN /=.
+  by rewrite -Let_Let (app_sopnP s h).
+Transparent app_sopn values.app_sopn.
+
 Qed.
 
 Definition vconst c :=

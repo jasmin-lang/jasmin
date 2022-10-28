@@ -1,0 +1,74 @@
+param int WORD_SIZE = 4;
+param int N_ROUND = 24;
+param int N_COLUMN = 4;
+param int ROUND_CONSTANT_HIGH = 0x9e37;
+param int ROUND_CONSTANT_LOW = 0x7900;
+
+inline
+fn rotate (reg u32 x, inline int bits) -> reg u32 {
+    x = #ror(x, bits);
+    return x;
+}
+
+inline
+fn swap(reg u32 state, inline int i, inline int j) {
+    reg u32 x y;
+
+    x = (u32)[state + WORD_SIZE * i];
+    y = (u32)[state + WORD_SIZE * j];
+    (u32)[state + WORD_SIZE * i] = y;
+    (u32)[state + WORD_SIZE * j] = x;
+}
+
+export
+fn gimli (reg u32 state) {
+    inline int round, column;
+    reg u32 x, y, z;
+    reg u32 a, b;
+    reg u32 rc;
+
+    rc = ROUND_CONSTANT_LOW;
+    rc = #movt(rc, ROUND_CONSTANT_HIGH);
+
+    for round = N_ROUND downto 0 {
+    for column = 0 to N_COLUMN {
+    x = (u32)[state + WORD_SIZE * (0 * WORD_SIZE + column)];
+    x = rotate(x, 24);
+    y = (u32)[state + WORD_SIZE * (1 * WORD_SIZE + column)];
+    y = rotate(y, 9);
+    z = (u32)[state + WORD_SIZE * (2 * WORD_SIZE + column)];
+
+    a = x ^ (z << 1);
+    b = y & z;
+    a ^= b << 2;
+    (u32)[state + WORD_SIZE * (2 * WORD_SIZE + column)] = a;
+
+    a = y ^ x;
+    b = x | z;
+    a ^= b << 1;
+    (u32)[state + WORD_SIZE * (1 * WORD_SIZE + column)] = a;
+
+    a = z ^ y;
+    b = x & y;
+    a ^= b << 3;
+    (u32)[state + WORD_SIZE * (0 * WORD_SIZE + column)] = a;
+    }
+
+    if (round % 4 == 0) {
+    swap(state, 0, 1);
+    swap(state, 2, 3);
+    }
+
+    if (round % 4 == 2) {
+    swap(state, 0, 2);
+    swap(state, 1, 3);
+    }
+
+    if (round % 4 == 0) {
+    a = (u32)[state + WORD_SIZE * 0];
+    b = rc | round;
+    a ^= b;
+    (u32)[state + WORD_SIZE * 0] = a;
+    }
+    }
+}

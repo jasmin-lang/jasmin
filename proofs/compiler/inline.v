@@ -4,7 +4,6 @@
 Require Import ZArith.
 From mathcomp Require Import all_ssreflect.
 Require Import expr compiler_util allocation.
-Require Import sem_pexpr_params.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -36,7 +35,7 @@ Section INLINE.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}
+  {asmop:asmOp asm_op}
   (inline_var : var -> bool).
 
 Definition get_flag (x:lval) flag :=
@@ -68,7 +67,7 @@ Definition locals fd :=
   Sv.diff (locals_p fd) (sparams fd).
 
 Definition check_rename f (fd1 fd2:ufundef) (s:Sv.t) :=
-  Let _ := CheckAllocRegU.check_fundef tt tt (f,fd1) (f,fd2) tt in
+  Let _ := check_ufundef tt tt (f,fd1) (f,fd2) tt in
   let s2 := locals_p fd2 in
   if disjoint s s2 then ok tt
   else Error (inline_error (pp_s "invalid refreshing in function")).

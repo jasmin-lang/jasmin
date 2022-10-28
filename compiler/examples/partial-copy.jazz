@@ -12,7 +12,7 @@ fn use(stack u32[17] t) -> reg u32 {
 export
 fn copy(reg u64 in, reg u64 inlen) -> reg u32 {
 
-reg bool of, cf, sf, zf;
+reg bool eq le;
 stack u32[17] t;
 reg u8 size;
 reg u32 one, r, tmp;
@@ -25,9 +25,9 @@ size &= 0xF;
 
 for i = 0 to 17 {
 tmp = #set0_32();
-of, cf, sf, _, zf = #CMP_8(size, i);
-tmp = (u32)[in + i] if ! zf && (sf ? of : !of); // size > i
-tmp = one if zf; // size == i
+?{ "==" = eq, "<=s" = le } = #CMP_8(size, i);
+tmp = (u32)[in + i] if !le; // size > i
+tmp = one if eq; // size == i
 t[i] = tmp;
 }
 

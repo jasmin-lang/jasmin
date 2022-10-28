@@ -3,7 +3,7 @@ From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
 Require Import Utf8.
 Require Import compiler_util.
-Require Import wsize sopn expr arch_decl x86_decl x86_instr_decl x86_sem.
+Require Import wsize sopn expr arch_decl x86_decl x86_instr_decl x86.
 Require Export arch_extra.
 Import sopn.
 

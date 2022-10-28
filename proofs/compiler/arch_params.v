@@ -1,18 +1,16 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import
   compiler_util
-  expr
-  psem.
+  expr.
 Require Import
   arch_decl
-  arch_extra
-  arch_sem
-  asm_gen.
+  arch_extra.
 Require
   clear_stack
   linearization
   lowering
-  stack_alloc.
+  stack_alloc
+  asm_gen.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -54,7 +52,7 @@ Record architecture_params
     ap_lop : lowering_params fresh_vars lowering_options;
 
     (* Assembly generation parameters. See asm_gen.v. *)
-    ap_agp : asm_gen_params;
+    ap_agp : asm_gen.asm_gen_params;
 
     (* Clear stack parameters. See clear_stack.v *)
     ap_csp : clear_stack.clear_stack_params;

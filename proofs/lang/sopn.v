@@ -1,6 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import strings type var sem_type values.
+Require Import shift_kind.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -54,6 +55,7 @@ Variant prim_constructor (asm_op:Type) :=
   | PrimV of (option wsize -> signedness -> velem -> wsize -> asm_op)
   | PrimX of (option wsize -> wsize -> wsize -> asm_op)
   | PrimVV of (option wsize -> velem -> wsize -> velem -> wsize -> asm_op)
+  | PrimARM of (bool -> bool -> option shift_kind -> asm_op)
   .
 
 Class asmOp (asm_op : Type) := {
@@ -173,13 +175,14 @@ Definition wsize_of_sopn o : wsize := wsizei (get_instr_desc o).
 Instance eqC_sopn : eqTypeC sopn :=
   { ceqP := sopn_eq_axiom }.
 
-Definition sopn_prim_constructor (f:asm_op -> sopn) (p : prim_constructor asm_op) : prim_constructor sopn :=
+Definition map_prim_constructor {A B} (f: A -> B) (p : prim_constructor A) : prim_constructor B :=
   match p with
   | PrimP x1 x2 => PrimP x1 (fun ws1 ws2 => f (x2 ws1 ws2))
   | PrimM x => PrimM (fun ws => f (x ws))
   | PrimV x => PrimV (fun ws1 s v ws2 => f (x ws1 s v ws2))
   | PrimX x => PrimX (fun ws1 ws2 ws3 => f (x ws1 ws2 ws3))
   | PrimVV x => PrimVV (fun ws1 v1 ws2 v2 ws3 => f (x ws1 v1 ws2 v2 ws3))
+  | PrimARM x => PrimARM (fun sf ic hs => f (x sf ic hs))
   end.
 
 Definition sopn_prim_string : seq (string * prim_constructor sopn) :=
@@ -190,7 +193,7 @@ Definition sopn_prim_string : seq (string * prim_constructor sopn) :=
     ("adc", PrimP Uptr (fun _ws sz => Oaddcarry sz));
     ("sbb", PrimP Uptr (fun _ws sz => Osubcarry sz))
   ]%string
-  ++ map (fun '(s, p) => (s, sopn_prim_constructor Oasm p)) prim_string.
+  ++ map (fun '(s, p) => (s, map_prim_constructor Oasm p)) prim_string.
 
 (* used in the OCaml world, it could be a definition it seems *)
 Instance asmOp_sopn : asmOp sopn :=

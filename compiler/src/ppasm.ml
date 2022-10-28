@@ -457,7 +457,7 @@ module Printer (BP:BPrinter) = struct
     
   (* -------------------------------------------------------------------- *)  
   let pp_prog (tbl: tbl) (fmt : Format.formatter)
-     (asm : X86_sem.x86_prog) =
+     (asm : X86_instr_decl.x86_prog) =
     pp_gens fmt
       [`Instr (pp_asm_syntax, []);
        `Instr (".text"   , []);
@@ -496,7 +496,7 @@ let pp_instr (tbl: tbl) name fmt i =
     | `Intel -> PIntel.pp_instr tbl name fmt i
 
 let pp_prog (tbl: tbl) (fmt : Format.formatter)
-     (asm : X86_sem.x86_prog) =
+     (asm : X86_instr_decl.x86_prog) =
     match !Glob_options.assembly_style with
     | `ATT -> PATT.pp_prog tbl fmt asm 
     | `Intel -> PIntel.pp_prog tbl fmt asm 

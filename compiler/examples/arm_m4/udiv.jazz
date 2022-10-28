@@ -1,0 +1,29 @@
+export
+fn udiv(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    x = arg0 / arg1;
+
+    // Set flags.
+    reg bool n, z, v, c;
+    n, z, c, v, _ = #MOVS(x);
+
+    // Conditions.
+    x = x / arg0 if z;            // EQ
+    x = x / arg0 if !z;           // NE
+    x = x / arg0 if c;            // CS
+    x = x / arg0 if !c;           // CC
+    x = x / arg0 if n;            // MI
+    x = x / arg0 if !n;           // PL
+    x = x / arg0 if v;            // VS
+    x = x / arg0 if !v;           // VC
+    x = x / arg0 if c && !z;      // HI
+    x = x / arg0 if !c || z;      // LS
+    x = x / arg0 if n == v;       // GE
+    x = x / arg0 if n != v;       // LT
+    x = x / arg0 if !z && n == v; // GT
+    x = x / arg0 if z || n != v;  // LE
+
+    reg u32 res;
+    res = x;
+    return res;
+}

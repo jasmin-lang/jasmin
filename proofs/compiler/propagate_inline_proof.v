@@ -561,7 +561,7 @@ Section PROOF.
     have [vm' ] := pi_lvP_uincl hu hue' hv hwr.
     rewrite heq /= => -[hu' hv' hwr'].
     exists vm' => /=.
-    suff : valid_pi gd s2 (set_lv pi' x' tag (pi_e (spp := spp) pi e)).
+    assert (h : valid_pi gd s2 (set_lv pi' x' tag (pi_e pi e))); last first.
     + by split => //; constructor; econstructor; eauto; rewrite -eq_globs. 
     case (set_lvE pi' x' tag (pi_e pi e)); last by move=> ->.
     move=> [x0 [?? ->]]; subst x' tag.

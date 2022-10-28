@@ -1,0 +1,36 @@
+export
+fn mov() -> reg u32 {
+    reg u32 x y;
+    y = #MOV(1);
+
+    x = #MOV(y);
+
+    // Set flags.
+    reg bool n, z, v, c;
+    n, z, c, v, x = #MOVS(x);
+    n, z, c, v, _ = #MOVS(1);
+
+    // Conditions.
+    x = #MOVcc(x, z, x);            // EQ
+    x = #MOVcc(x, !z, x);           // NE
+    x = #MOVcc(x, c, x);            // CS
+    x = #MOVcc(x, !c, x);           // CC
+    x = #MOVcc(x, n, x);            // MI
+    x = #MOVcc(x, !n, x);           // PL
+    x = #MOVcc(x, v, x);            // VS
+    x = #MOVcc(x, !v, x);           // VC
+    x = #MOVcc(x, c && !z, x);      // HI
+    x = #MOVcc(x, !c || z, x);      // LS
+    x = #MOVcc(x, n == v, x);       // GE
+    x = #MOVcc(x, n != v, x);       // LT
+    x = #MOVcc(x, !z && n == v, x); // GT
+    x = #MOVcc(x, z || n != v, x);  // LE
+
+    x = #MOVcc(1, !z, x);
+    n, z, c, v, x = #MOVScc(y, !z, n, z, c, v, x);
+    n, z, c, v, x = #MOVScc(49, !!z, n, z, c, v, x);
+
+    reg u32 res;
+    res = x;
+    return res;
+}

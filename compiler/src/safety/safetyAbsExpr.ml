@@ -822,7 +822,7 @@ module AbsExpr (AbsDom : AbsNumBoolType) = struct
         let lin_expr =
           try linearize_wexpr abs expr
               |> cast_if_overflows abs out_sw (int_of_ws in_sw)
-              |> some
+              |> Option.some
           with
           | Unop_not_supported _
           | Binop_not_supported _ ->

@@ -1,0 +1,32 @@
+export
+fn movt() -> reg u32 {
+    reg u32 x;
+    x = 0;
+
+    x = #MOVT(x, 0);
+    x = #MOVT(x, 1);
+    x = #MOVT(x, 0xffff);
+
+    reg bool n, z, v, c;
+    n, z, c, v, _ = #MOVS(x);
+
+    // Conditions.
+    x = #MOVTcc(x, 3, z, x);            // EQ
+    x = #MOVTcc(x, 3, !z, x);           // NE
+    x = #MOVTcc(x, 3, c, x);            // CS
+    x = #MOVTcc(x, 3, !c, x);           // CC
+    x = #MOVTcc(x, 3, n, x);            // MI
+    x = #MOVTcc(x, 3, !n, x);           // PL
+    x = #MOVTcc(x, 3, v, x);            // VS
+    x = #MOVTcc(x, 3, !v, x);           // VC
+    x = #MOVTcc(x, 3, c && !z, x);      // HI
+    x = #MOVTcc(x, 3, !c || z, x);      // LS
+    x = #MOVTcc(x, 3, n == v, x);       // GE
+    x = #MOVTcc(x, 3, n != v, x);       // LT
+    x = #MOVTcc(x, 3, !z && n == v, x); // GT
+    x = #MOVTcc(x, 3, z || n != v, x);  // LE
+
+    reg u32 res;
+    res = x;
+    return res;
+}

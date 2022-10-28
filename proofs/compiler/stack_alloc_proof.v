@@ -1,7 +1,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
-Require Import psem psem_facts compiler_util.
+Require Import psem psem_facts compiler_util low_memory.
 Require Export stack_alloc.
 Require Import byteset.
 Require Import Psatz.

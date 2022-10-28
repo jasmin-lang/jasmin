@@ -562,18 +562,17 @@ End FOLD2.
 (* ---------------------------------------------------------------- *)
 (* ALLM *)
 Section ALLM.
-  Context (A: eqType) (E: Type) (check: A → result E unit) (m: seq A).
+  Context (A E: Type) (check: A → result E unit) (m: seq A).
   Definition allM := foldM (λ a _, check a) tt m.
 
-  Lemma allMP a : a \in m → allM = ok tt → check a = ok tt.
+  Lemma allMP a : List.In a m → allM = ok tt → check a = ok tt.
   Proof.
     rewrite /allM.
-    elim: m => // a' m' ih; rewrite inE; case: eqP.
-    - by move => <- _ /=; t_xrbindP.
-    by move => _ {}/ih /=; t_xrbindP.
+    by elim: m => // a' m' ih /= [ ->{a'} | /ih ]; t_xrbindP.
   Qed.
 
 End ALLM.
+Arguments allMP {A E check m a} _ _.
 
 (* Forall3 *)
 (* -------------------------------------------------------------- *)
@@ -1617,6 +1616,35 @@ Proof.
   rewrite ltnNge; apply /negP => hle.
   by rewrite nth_default in hnth.
 Qed.
+
+Lemma all_behead {A} {p : A -> bool} {xs : seq A} :
+  all p xs -> all p (behead xs).
+Proof.
+  case: xs => // x xs.
+  by move=> /andP [] _.
+Qed.
+
+Lemma all2_behead {A B} {p: A -> B -> bool} {xs: seq A} {ys: seq B} :
+  all2 p xs ys
+  -> all2 p (behead xs) (behead ys).
+Proof.
+  case: xs; case: ys => //= y ys x xs.
+  by move=> /andP [] _.
+Qed.
+
+Lemma notin_cons (T : eqType) (x y : T) (s : seq T) :
+  (x \notin y :: s) = (x != y) && (x \notin s).
+Proof. by rewrite in_cons negb_or. Qed.
+
+(* Convert [ C |- uniq xs -> P ] into
+   [ C, ? : x0 <> x1, ? : x0 <> x2, ... |- P ]. *)
+Ltac t_elim_uniq :=
+  repeat (
+    move=> /andP [];
+    repeat (rewrite notin_cons; move=> /andP [] /eqP ?);
+    move=> _
+  );
+  move=> _.
 
 Inductive and6 (P1 P2 P3 P4 P5 P6 : Prop) : Prop :=
     And6 of P1 & P2 & P3 & P4 & P5 & P6.

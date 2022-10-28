@@ -15,7 +15,6 @@
 
 ssrmisc/oseq.v
 ssrmisc/seq_extra.v
-ssrmisc/sv_lemmas.v
 ssrmisc/xseq_extra.v
 3rdparty/ssrring.v
 3rdparty/xseq.v
@@ -25,9 +24,20 @@ arch/arch_sem.v
 arch/asm_gen.v
 arch/asm_gen_proof.v
 arch/label.v
+arch/spp_arch_extra.v
 compiler/allocation.v
+compiler/allocation_proof.v
 compiler/arch_params.v
 compiler/arch_params_proof.v
+compiler/arm_decl.v
+compiler/arm_extra.v
+compiler/arm_instr_decl.v
+compiler/arm_instr_decl_lemmas.v
+compiler/arm_lowering.v
+compiler/arm_lowering_proof.v
+compiler/arm_params.v
+compiler/arm_params_proof.v
+compiler/arm.v
 compiler/array_expansion.v
 compiler/array_expansion_proof.v
 compiler/array_copy.v
@@ -77,7 +87,7 @@ compiler/x86_lowering.v
 compiler/x86_lowering_proof.v
 compiler/x86_params.v
 compiler/x86_params_proof.v
-compiler/x86_sem.v
+compiler/x86.v
 lang/array.v
 lang/clear_stack_strategy.v
 lang/expr.v
@@ -90,6 +100,7 @@ lang/ident.v
 lang/linear.v
 lang/linear_sem.v
 lang/low_memory.v
+lang/lowering_lemmas.v
 lang/memory_example.v
 lang/memory_model.v
 lang/one_varmap.v
@@ -98,9 +109,11 @@ lang/psem_facts.v
 lang/psem.v
 lang/sem.v
 lang/sem_one_varmap.v
+lang/sem_op_typed.v
 lang/sem_pexpr_params.v
 lang/sem_one_varmap_facts.v
 lang/sem_type.v
+lang/shift_kind.v
 lang/sopn.v
 lang/strings.v
 lang/syscall.v

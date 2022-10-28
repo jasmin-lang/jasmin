@@ -3,7 +3,6 @@ From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
 Require Import xseq strings utils var type values sopn expr arch_decl.
 Require Import compiler_util.
-Require Import sem_pexpr_params.
 
 Set   Implicit Arguments.
 Unset Strict Implicit.
@@ -160,16 +159,9 @@ Definition sopn_prim_constructor (f:option wsize -> asm_op -> extended_op) (p : 
   | PrimSV x => sopn.PrimV (fun ws1 s v ws2 => f ws1 (x s v ws2))
   | PrimX x => sopn.PrimX (fun ws1 ws2 ws3 => f ws1 (x ws2 ws3))
   | PrimVV x => sopn.PrimVV (fun ws1 v1 ws2 v2 ws3 => f ws1 (x v1 ws2 v2 ws3))
+  | PrimARM x => sopn.PrimARM (fun sf ic hs => f None (x sf ic hs))
   end.
-(* duplication with lang/sopn.v -> maybe we can have one version to rule them all? *)
-Definition map_prim_constructor {A B} (f:A -> B) (p : sopn.prim_constructor A) :=
-  match p with
-  | sopn.PrimP x1 x2 => sopn.PrimP x1 (fun ws1 ws2 => f (x2 ws1 ws2))
-  | sopn.PrimM x => sopn.PrimM (fun ws => f (x ws))
-  | sopn.PrimV x => sopn.PrimV (fun ws1 s v ws2 => f (x ws1 s v ws2))
-  | sopn.PrimX x => sopn.PrimX (fun ws1 ws2 ws3 => f (x ws1 ws2 ws3))
-  | sopn.PrimVV x => sopn.PrimVV (fun ws1 v1 ws2 v2 ws3 => f (x ws1 v1 ws2 v2 ws3))
-  end.
+
 Definition sopn_prim_string_base (o : seq (string * prim_constructor asm_op)) :=
   let to_ex ws o := BaseOp (ws, o) in
   map (fun '(s, p) => (s, sopn_prim_constructor to_ex p)) o.
@@ -188,22 +180,3 @@ Global Instance asm_opI : asmOp extended_op :=
     sopn.prim_string := get_prime_op }.
 
 End AsmOpI.
-
-Section SEM_PEXPR_PARAMS.
-
-  Context
-    {reg regx xreg rflag cond asm_op extra_op : Type}
-    {asm_e : asm_extra reg regx xreg rflag cond asm_op extra_op}
-    {syscall_state : Type}
-    {scs : syscall_sem syscall_state}.
-
-  #[export]
-  Instance spp_of_asm_e : SemPexprParams extended_op syscall_state :=
-    {
-      _pd := arch_pd;
-      _asmop := asm_opI;
-      _fcp := ad_fcp;
-      _sc_sem := scs;
-    }.
-
-End SEM_PEXPR_PARAMS.

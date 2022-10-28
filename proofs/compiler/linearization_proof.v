@@ -11,11 +11,10 @@ Require Import ZArith Utf8.
 Require sem_one_varmap_facts label.
 Import ssrZ.
 Import ssrring.
-Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts.
+Import psem psem_facts sem_one_varmap compiler_util label sem_one_varmap_facts low_memory.
 Require Import constant_prop constant_prop_proof.
 Require Export linearization linear_sem.
 Import Memory.
-Require Import sv_lemmas.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

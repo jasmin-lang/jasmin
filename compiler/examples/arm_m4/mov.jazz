@@ -1,0 +1,32 @@
+export
+fn mov() -> reg u32 {
+    reg u32 x y;
+    x = 1;
+    y = x;
+
+    // Set flags.
+    reg bool n, z, v, c;
+    n, z, c, v, _ = #MOVS(x);
+
+    // Conditions.
+    x = y if z;            // EQ
+    x = y if !z;           // NE
+    x = y if c;            // CS
+    x = y if !c;           // CC
+    x = y if n;            // MI
+    x = y if !n;           // PL
+    x = y if v;            // VS
+    x = y if !v;           // VC
+    x = y if c && !z;      // HI
+    x = y if !c || z;      // LS
+    x = y if n == v;       // GE
+    x = y if n != v;       // LT
+    x = y if !z && n == v; // GT
+    x = y if z || n != v;  // LE
+
+    x = 1 if c;
+
+    reg u32 res;
+    res = x;
+    return res;
+}

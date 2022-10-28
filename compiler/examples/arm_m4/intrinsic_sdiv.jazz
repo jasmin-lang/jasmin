@@ -1,0 +1,30 @@
+export
+fn sdiv(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg u32 x;
+    x = #SDIV(arg0, arg1);
+
+    // Set flags.
+    reg bool n, z, c, v;
+    n, z, c, v, _ = #MOVS(x);
+
+    // Conditions.
+    x = #SDIVcc(x, arg0, z, x);            // EQ
+    x = #SDIVcc(x, arg0, !z, x);           // NE
+    x = #SDIVcc(x, arg0, c, x);            // CS
+    x = #SDIVcc(x, arg0, !c, x);           // CC
+    x = #SDIVcc(x, arg0, n, x);            // MI
+    x = #SDIVcc(x, arg0, !n, x);           // PL
+    x = #SDIVcc(x, arg0, v, x);            // VS
+    x = #SDIVcc(x, arg0, !v, x);           // VC
+    x = #SDIVcc(x, arg0, c && !z, x);      // HI
+    x = #SDIVcc(x, arg0, !c || z, x);      // LS
+    x = #SDIVcc(x, arg0, n == v, x);       // GE
+    x = #SDIVcc(x, arg0, n != v, x);       // LT
+    x = #SDIVcc(x, arg0, !z && n == v, x); // GT
+    x = #SDIVcc(x, arg0, z || n != v, x);  // LE
+
+    reg u32 res;
+    res = x;
+    return res;
+}
+

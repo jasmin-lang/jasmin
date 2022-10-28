@@ -2,8 +2,7 @@
 From mathcomp.word Require Import ssrZ.
 Require Import compiler_util expr ZArith constant_prop.
 Require Import
-  flag_combination
-  sem_pexpr_params.
+  flag_combination.
 Import all_ssreflect.
 Import Utf8.
 
@@ -80,7 +79,8 @@ Section WITH_PARAMS.
 
 Context
   {asm_op syscall_state : Type}
-  {spp : SemPexprParams asm_op syscall_state}.
+  {asmop:asmOp asm_op}
+  {fcp : FlagCombinationParams}.
 
 Definition sbneq e1 e2 := 
   snot (sbeq e1 e2).

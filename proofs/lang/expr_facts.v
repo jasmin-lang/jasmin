@@ -105,48 +105,6 @@ Section ASM_OP.
 Context `{asmop:asmOp}.
 Context {eft} {pT : progT eft}.
 
-Section CMD_RECT.
-  Variables (Pr:instr_r -> Type) (Pi:instr -> Type) (Pc : cmd -> Type).
-  Hypothesis Hmk  : forall i ii, Pr i -> Pi (MkI ii i).
-  Hypothesis Hnil : Pc [::].
-  Hypothesis Hcons: forall i c, Pi i -> Pc c -> Pc (i::c).
-  Hypothesis Hasgn: forall x tg ty e, Pr (Cassgn x tg ty e).
-  Hypothesis Hopn : forall xs t o es, Pr (Copn xs t o es).
-  Hypothesis Hsyscall : forall xs o es, Pr (Csyscall xs o es).
-  Hypothesis Hif  : forall e c1 c2, Pc c1 -> Pc c2 -> Pr (Cif e c1 c2).
-  Hypothesis Hfor : forall v dir lo hi c, Pc c -> Pr (Cfor v (dir,lo,hi) c).
-  Hypothesis Hwhile : forall a c e c', Pc c -> Pc c' -> Pr (Cwhile a c e c').
-  Hypothesis Hcall: forall i xs f es, Pr (Ccall i xs f es).
-
-  Section C.
-  Variable instr_rect : forall i, Pi i.
-
-  Fixpoint cmd_rect_aux (c:cmd) : Pc c :=
-    match c return Pc c with
-    | [::] => Hnil
-    | i::c => @Hcons i c (instr_rect i) (cmd_rect_aux c)
-    end.
-  End C.
-
-  Fixpoint instr_Rect (i:instr) : Pi i :=
-    match i return Pi i with
-    | MkI ii i => @Hmk i ii (instr_r_Rect i)
-    end
-  with instr_r_Rect (i:instr_r) : Pr i :=
-    match i return Pr i with
-    | Cassgn x tg ty e => Hasgn x tg ty e
-    | Copn xs t o es => Hopn xs t o es
-    | Csyscall xs o es => Hsyscall xs o es
-    | Cif e c1 c2  => @Hif e c1 c2 (cmd_rect_aux instr_Rect c1) (cmd_rect_aux instr_Rect c2)
-    | Cfor i (dir,lo,hi) c => @Hfor i dir lo hi c (cmd_rect_aux instr_Rect c)
-    | Cwhile a c e c'   => @Hwhile a c e c' (cmd_rect_aux instr_Rect c) (cmd_rect_aux instr_Rect c')
-    | Ccall ii xs f es => @Hcall ii xs f es
-    end.
-
-  Definition cmd_rect := cmd_rect_aux instr_Rect.
-
-End CMD_RECT.
-
 Lemma surj_prog (p:prog) : 
   {| p_globs := p_globs p; p_funcs := p_funcs p; p_extra := p_extra p |} = p.
 Proof. by case: p. Qed.
@@ -255,7 +213,7 @@ Proof. by rewrite /vrvs /= vrvs_recE. Qed.
 
 Lemma write_c_recE s c : Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
 Proof.
-  apply (@cmd_rect
+  apply (@cmd_rect _ _
            (fun i => forall s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
            (fun i => forall s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
            (fun c => forall s, Sv.Equal (foldl write_I_rec s c) (Sv.union s (write_c c)))) =>
@@ -374,7 +332,7 @@ Qed.
 
 Lemma read_cE s c : Sv.Equal (read_c_rec s c) (Sv.union s (read_c c)).
 Proof.
-  apply (@cmd_rect
+  apply (@cmd_rect _ _
            (fun i => forall s, Sv.Equal (read_i_rec s i) (Sv.union s (read_i i)))
            (fun i => forall s, Sv.Equal (read_I_rec s i) (Sv.union s (read_I i)))
            (fun c => forall s, Sv.Equal (foldl read_I_rec s c) (Sv.union s (read_c c))))
@@ -495,6 +453,13 @@ Lemma vars_pP p fn fd : get_fundef p fn = Some fd -> Sv.Subset (vars_fd fd) (var
 Proof.
   elim: p => //= -[fn' fd'] p hrec; case: eqP => [ _ [<-] | ]; first by clear; SvD.fsetdec.
   move=> _ /hrec; clear; SvD.fsetdec.
+Qed.
+
+Lemma vars_lval_Lvar i :
+  Sv.Equal (vars_lval (Lvar i)) (Sv.singleton i).
+Proof.
+  rewrite /vars_lval /=.
+  SvD.fsetdec.
 Qed.
 
 End ASM_OP.

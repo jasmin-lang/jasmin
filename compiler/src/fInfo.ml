@@ -5,5 +5,9 @@ type call_conv =
   | Subroutine of subroutine_info (** internal function that should not be inlined *)
   | Internal  (** internal function that should be inlined *)
 
+let is_subroutine = function
+  | Subroutine _ -> true
+  | _            -> false
+
 type t =
   Location.t * Annotations.f_annot * call_conv * Annotations.annotations list

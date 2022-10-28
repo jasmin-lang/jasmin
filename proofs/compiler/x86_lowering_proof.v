@@ -4,7 +4,10 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
-Require Import ZArith psem compiler_util lea_proof arch_extra x86_instr_decl x86_extra lowering.
+Require Import ZArith psem compiler_util lea_proof arch_extra x86_instr_decl x86_extra.
+Require Import
+  lowering
+  lowering_lemmas.
 Require Export x86_lowering.
 Import Utf8.
 Import Psatz.
@@ -80,29 +83,7 @@ Section PROOF.
   Local
   Definition p' := lower_prog p.
 
-  Definition eq_exc_fresh s1 s2 :=
-    [/\ s1.(escs) = s2.(escs), s1.(emem) = s2.(emem) & s1.(evm) = s2.(evm) [\ fvars]].
-
-  (* FIXME syscall : why it is needed to redeclare it here *)
-  #[global]
-  Instance and3_impl_morphism :
-    Proper (Basics.impl ==> Basics.impl ==> Basics.impl ==> Basics.impl) and3 | 1.
-  Proof. apply and3_impl_morphism. Qed.
-  
-  #[global]
-  Instance and3_iff_morphism :
-    Proper (iff ==> iff ==> iff ==> iff) and3.
-  Proof. apply and3_iff_morphism. Qed. 
-  (* END FIXME syscall *)
- 
-  Lemma eq_exc_freshT s1 s2 s3:
-    eq_exc_fresh s1 s2 -> eq_exc_fresh s2 s3 ->
-    eq_exc_fresh s1 s3.
-  Proof. by rewrite /eq_exc_fresh => -[-> -> ->]. Qed.
-
-  Lemma eq_exc_freshS s1 s2:
-    eq_exc_fresh s1 s2 -> eq_exc_fresh s2 s1.
-  Proof. by rewrite /eq_exc_fresh => -[-> -> ->]. Qed.
+  Definition eq_exc_fresh s1 s2 := estate_eq_except fvars s1 s2.
 
   Lemma disj_fvars_subset s1 s2 :
     Sv.Subset s1 s2 →
@@ -118,15 +99,6 @@ Section PROOF.
     by move=> s1 s2 Heq; split; rewrite /disj_fvars /x86_lowering.disj_fvars Heq.
   Qed.
 
-  Lemma disj_fvars_union v1 v2 :
-    disj_fvars (Sv.union v1 v2) ->
-    disj_fvars v1 /\ disj_fvars v2.
-  Proof.
-    rewrite /disj_fvars /x86_lowering.disj_fvars /disjoint SvP.MP.union_inter_1=> /Sv.is_empty_spec H; split.
-    apply/Sv.is_empty_spec; SvD.fsetdec.
-    apply/Sv.is_empty_spec; SvD.fsetdec.
-  Qed.
-
   Lemma fvars_fun fn f:
     get_fundef (p_funcs p) fn = Some f ->
     disj_fvars (vars_fd f).
@@ -135,7 +107,7 @@ Section PROOF.
     move: (p_funcs p) fn f.
     elim=> // [[fn0 fd0]] l Hl fn f.
     rewrite get_fundef_cons /=.
-    move=> /disj_fvars_union [Hq Hh].
+    move=> /disjoint_union [Hq Hh].
     case: ifP=> Hfn.
     + by move=> []<-.
     + move=> Hf.
@@ -170,7 +142,10 @@ Section PROOF.
   Proof.
     move=> s1 s2 s3 i c Hsi Hi Hsc Hc Hdisj s1' Hs1'.
     move: Hdisj.
-    rewrite /disj_fvars /x86_lowering.disj_fvars vars_c_cons=> /disj_fvars_union [Hdisji Hdisjc].
+    rewrite
+      /disj_fvars
+      /x86_lowering.disj_fvars vars_c_cons
+      => /disjoint_union [Hdisji Hdisjc].
     have [s2' [Hs2'1 Hs2'2]] := Hi Hdisji _ Hs1'.
     have [s3' [Hs3'1 Hs3'2]] := Hc Hdisjc _ Hs2'2.
     exists s3'; repeat split=> //.
@@ -189,106 +164,6 @@ Section PROOF.
     rewrite /get_var /on_vu.
     case Heq: (vm.[_])=> [a|[]] // [<-] /=; eauto.
     case: a {Heq} => /= sz' _; eauto.
-  Qed.
-
-  Lemma disj_eq_exc v s1 s2 :
-    disj_fvars v ->
-    eq_exc_fresh s1 s2 ->
-    [/\ escs s1 = escs s2, emem s1 = emem s2 & evm s1 =[v] evm s2].
-  Proof.
-    move=> Hdisj [/= -> -> Hvm]; split=> // x Hx.
-    apply: Hvm=> Habs.
-    rewrite /disj_fvars /disjoint in Hdisj.
-    move: Hdisj=> /Sv.is_empty_spec Hdisj.
-    SvD.fsetdec.
-  Qed.
-
-  Lemma sem_pexpr_same e v s1 s1':
-    disj_fvars (read_e e) ->
-    eq_exc_fresh s1' s1 ->
-    sem_pexpr gd s1 e = ok v ->
-    sem_pexpr gd s1' e = ok v.
-  Proof.
-    move=> Hdisj Heq.
-    have [/= h1 h2 h3] := (disj_eq_exc Hdisj (eq_exc_freshS Heq)).
-    by rewrite (read_e_eq_on gd h3) (surj_estate s1) (surj_estate s1') /with_vm /= h1 h2.    
-  Qed.
-
-  Lemma sem_pexprs_same es v s1 s1':
-    disj_fvars (read_es es) ->
-    eq_exc_fresh s1' s1 ->
-    sem_pexprs gd s1 es = ok v ->
-    sem_pexprs gd s1' es = ok v.
-  Proof.
-    move=> Hdisj Heq.
-    have [/= h1 h2 h3] := (disj_eq_exc Hdisj (eq_exc_freshS Heq)).
-    by rewrite (read_es_eq_on gd h3) (surj_estate s1) (surj_estate s1') /with_vm /= h1 h2.    
-  Qed.
-
-  Lemma write_lval_same s1 s1' s2 l v:
-    disj_fvars (vars_lval l) ->
-    eq_exc_fresh s1' s1 ->
-    write_lval gd l v s1 = ok s2 ->
-    exists s2', write_lval gd l v s1' = ok s2' /\ eq_exc_fresh s2' s2.
-  Proof.
-    move: s1 s1'=> [scs mem vm1] [scs' mem' vm1'] Hdisj Heq.
-    have [/= Hscs Hmem Hvm] := Heq; subst scs' mem'=> H.
-    have Hsub': Sv.Subset (read_rv l) (Sv.diff (read_rv l) fvars).
-      rewrite /vars_lval in Hdisj.
-      move: Hdisj=> /disj_fvars_union [Hsub _].
-      rewrite /disj_fvars /disjoint in Hsub.
-      move=> x Hx.
-      move: Hsub=> /Sv.is_empty_spec Hsub.
-      SvD.fsetdec.
-    have Hvm': vm1' =[Sv.diff (read_rv l) fvars] vm1.
-      move=> x Hx.
-      apply: Hvm=> Habs.
-      SvD.fsetdec.
-    have [vm2' /= [Hvm2' Hmem2']] := write_lval_eq_on Hsub' H (eq_onS Hvm').
-    have Hvm2'': evm s2 =[vrv l] vm2'.
-      move=> x Hx.
-      rewrite Hvm2' //.
-      SvD.fsetdec.
-    exists (with_vm s2 vm2'); split=> //.
-    split=> //=.
-    have /= H1 := vrvP Hmem2'.
-    have /= H2 := vrvP H.
-    move=> x Hx.
-    case Hxvrv: (Sv.mem x (vrv l)).
-    + by move: Hxvrv=> /Sv_memP Hxvrv; rewrite Hvm2'' //.
-    by move: Hxvrv=> /Sv_memP Hxvrv; rewrite -H1 // -H2 // -Hvm.
-  Qed.
-
-  Lemma write_lvals_same s1 s1' s2 ls vs:
-    disj_fvars (vars_lvals ls) ->
-    eq_exc_fresh s1' s1 ->
-    write_lvals gd s1 ls vs = ok s2 ->
-    exists s2', write_lvals gd s1' ls vs = ok s2' /\ eq_exc_fresh s2' s2.
-  Proof.
-    move: s1 s1'=> [scs mem vm1] [scs' mem' vm1'] Hdisj Heq.
-    have [/= Hscs Hmem Hvm] := Heq; subst scs' mem'=> H.
-    have Hsub': Sv.Subset (read_rvs ls) (Sv.diff (read_rvs ls) fvars).
-    + rewrite /vars_lvals in Hdisj.
-      move: Hdisj=> /disj_fvars_union [Hsub _].
-      rewrite /disj_fvars /disjoint in Hsub.
-      move=> x Hx.
-      move: Hsub=> /Sv.is_empty_spec Hsub.
-      by SvD.fsetdec.
-    have Hvm': vm1' =[Sv.diff (read_rvs ls) fvars] vm1.
-    + move=> x Hx.
-      apply: Hvm=> Habs.
-      by SvD.fsetdec.
-    have [vm2' /= [Hvm2' Hmem2']] := write_lvals_eq_on Hsub' H (eq_onS Hvm').
-    have Hvm2'': evm s2 =[vrvs ls] vm2'.
-    + by move=> x Hx; rewrite Hvm2' //; SvD.fsetdec.
-    exists (with_vm s2 vm2'); split=> //.
-    split=> //=.
-    have /= H1 := vrvsP Hmem2'.
-    have /= H2 := vrvsP H.
-    move=> x Hx.
-    case Hxvrv: (Sv.mem x (vrvs ls)).
-    + by move: Hxvrv=> /Sv_memP Hxvrv; rewrite Hvm2''.
-    by move: Hxvrv=> /Sv_memP Hxvrv; rewrite -H1 // -H2 // -Hvm.
   Qed.
 
   Lemma add_inc_dec_classifyP' sz a b:
@@ -381,15 +256,6 @@ Section PROOF.
   suff: z = (- z1)%Z; Psatz.nia.
   Qed.
 
-  (* TODO : move in word *)
-  Lemma wltsE (sz : wsize) (α β : word sz) :
-    wlt Signed α β =
-      (msb (α - β) != (wsigned (α - β) != (wsigned α - wsigned β)%Z)).
-  Proof.
-    case: (α =P β); last by apply wltsE.
-    by move=> <-; rewrite /= ltxx GRing.subrr Z.sub_diag wsigned0 msb0.
-  Qed.
-
   Lemma lower_condition_corr ii ii' i e e' s1 cond:
     (i, e') = lower_condition fv ii' e ->
     forall s1', eq_exc_fresh s1' s1 ->
@@ -457,7 +323,7 @@ Section PROOF.
       + apply: sem_seq1; econstructor; econstructor.
         rewrite /sem_sopn /= hv1 hv2 /= /exec_sopn /= hx hy /= /sopn_sem /= /x86_CMP.
         rewrite /check_size_8_64 hws //.
-      by apply: eq_exc_freshT Hs1'; apply eq_exc_freshS.
+      by apply: eeq_excT Hs1'; apply eeq_excS.
     case: o => //.
     + case=> // ws' /sem_sop2I /= [wx [wy [b [hw2 hw1]]]] hs ? [] ?????; subst cond e1 e2 ws' c lv.
       have [s2' [hsem heqe [hof hcf hsf hzf]]]:= hw _ _ hw1 hw2.
@@ -833,11 +699,11 @@ Section PROOF.
         split => //.
         exists v1, w1;split => //.
         move=> s1 hs1 hl he.
-        have -> /= := sem_pexpr_same _ hs1 hv1; last first.
+        have -> /= := eeq_exc_sem_pexpr _ hs1 hv1; last first.
         + move: he; rewrite /read_e /= /disj_fvars /x86_lowering.disj_fvars !read_eE /disjoint.
           by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
         split => //.
-        have -> /= := sem_pexpr_same _ hs1 hv2; last first.
+        have -> /= := eeq_exc_sem_pexpr _ hs1 hv2; last first.
         + move: he; rewrite /read_e /= /disj_fvars /x86_lowering.disj_fvars !read_eE /disjoint.
           by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
         case: ifP hw3 => // hdiv []; simpl in * => {he}.
@@ -846,13 +712,13 @@ Section PROOF.
           rewrite /= /exec_sopn /sopn_sem /= /x86_IDIV /x86_DIV !truncate_word_u
              /check_size_16_64 /= hsz1 hsz2 /= hw2 /=.
         + rewrite hw1 /= wdwords0 (wsigned_quot_bound neq hdiv) /=.
-          move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
+          move: Hw;rewrite /wdivi zero_extend_u => /(eeq_exc_write_lval hl hs1) [s1' -> ?].
           by exists s1'.
         have hw2' : (wunsigned w2 == 0%Z) = false.
         + by apply /negbTE; apply /eqP => h; apply neq, wunsigned_inj.
         rewrite hw2' hw1 /= wdwordu0.
         move: hw2' => /negbT -/(wunsigned_div_bound w1) -/negbTE -> /=.
-        move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
+        move: Hw;rewrite /wdivi zero_extend_u => /(eeq_exc_write_lval hl hs1) [s1' -> ?].
         by exists s1'.
 
       (* Omod (Cmp_w u sz) *)
@@ -863,11 +729,11 @@ Section PROOF.
         split => //.
         exists v1, w1;split => //.
         move=> s1 hs1 hl he.
-        have -> /= := sem_pexpr_same _ hs1 hv1; last first.
+        have -> /= := eeq_exc_sem_pexpr _ hs1 hv1; last first.
         + move: he; rewrite /read_e /= /disj_fvars /x86_lowering.disj_fvars !read_eE /disjoint.
           by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
         split => //.
-        have -> /= := sem_pexpr_same _ hs1 hv2; last first.
+        have -> /= := eeq_exc_sem_pexpr _ hs1 hv2; last first.
         + move: he; rewrite /read_e /= /disj_fvars /x86_lowering.disj_fvars !read_eE /disjoint.
           by rewrite /is_true !Sv.is_empty_spec;SvD.fsetdec.
         case: ifP hw3 => // hdiv []; simpl in * => {he}.
@@ -876,13 +742,13 @@ Section PROOF.
           rewrite /= /exec_sopn /sopn_sem /= /x86_IDIV /x86_DIV !truncate_word_u
              /check_size_16_64 /= hsz1 hsz2 /= hw2 /=.
         + rewrite hw1 /= wdwords0 (wsigned_quot_bound neq hdiv) /=.
-          move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
+          move: Hw;rewrite /wdivi zero_extend_u => /(eeq_exc_write_lval hl hs1) [s1' -> ?].
           by exists s1'.
         have hw2' : (wunsigned w2 == 0%Z) = false.
         + by apply /negbTE; apply /eqP => h; apply neq, wunsigned_inj.
         rewrite hw2' hw1 /= wdwordu0.
         move: hw2' => /negbT -/(wunsigned_div_bound w1) -/negbTE -> /=.
-        move: Hw;rewrite /wdivi zero_extend_u => /(write_lval_same hl hs1) [s1' [->] ?].
+        move: Hw;rewrite /wdivi zero_extend_u => /(eeq_exc_write_lval hl hs1) [s1' -> ?].
         by exists s1'.
 
       (* Oland Op_w *)
@@ -1113,6 +979,18 @@ Section PROOF.
     move => sz; exact: A.
   Qed.
 
+  Lemma opn_5flags_casesP a m sz x y z :
+    opn_5flags_cases a m sz = Opn5f_large_immed x y z ->
+    exists2 n : Z, a = x :: y :: z & y = Papp1 (Oword_of_int U64) n.
+  Proof.
+    rewrite /opn_5flags_cases.
+    case: a => [//|] x' [//|] y' z'.
+    case: is_wconst_of_sizeP => [n|//].
+    case: check_signed_range => //.
+    move=> [] ???; subst x y z.
+    by eexists.
+  Qed.
+
   Lemma opn_5flags_correct vi ii s a t o cf r xs ys m s' :
     disj_fvars (read_es a) →
     disj_fvars (vars_lvals [:: cf ; r ]) →
@@ -1124,8 +1002,9 @@ Section PROOF.
     ∧ eq_exc_fresh s'' s'.
   Proof.
     move=> da dr hx hr hs; rewrite/opn_5flags.
-    case: opn_5flags_cases.
-    + move=> x y n z ? ? /=; subst a y.
+    case hopn: opn_5flags_cases => [x y z|] /=.
+
+    + move: hopn => /opn_5flags_casesP [n ??]; subst a y.
       set ℓ :=
         with_vm s
         (evm s).[{| vtype := sword64; vname := fresh_multiplicand fv U64 |} <- ok (pwrepr64 n)].
@@ -1135,24 +1014,39 @@ Section PROOF.
       assert (disj_fvars (read_e x) ∧ disj_fvars (read_es z)) as dxz.
       { eapply disj_fvars_m in da.
         2: apply SvP.MP.equal_sym; eapply read_es_cons.
-        apply disj_fvars_union in da;intuition. }
+        apply disjoint_union in da;intuition. }
       case: dxz => dx dz.
-      case:(write_lvals_same _ e hs). exact dr.
-      move=> s'' [] hs' e'.
+      case:(eeq_exc_write_lvals _ e hs). exact dr.
+      move=> s''  hs' e'.
       exists s''. refine (conj _ e'). repeat econstructor.
       rewrite /sem_sopn /= !zero_extend_u -/(pwrepr64 _) -/ℓ.
       move: hx; rewrite /sem_pexprs /=; t_xrbindP => y hy z' z1 hz1 ? ?; subst z' xs.
-      rewrite (sem_pexpr_same dx e hy) /=.
+      rewrite (eeq_exc_sem_pexpr dx e hy) /=.
       fold (sem_pexprs gd s) in hz1.
       rewrite /get_gvar /get_var /on_vu Fv.setP_eq /= -/(sem_pexprs gd ℓ).
-      rewrite (sem_pexprs_same dz e hz1) /= /exec_sopn /sopn_sem /=.
+
+      rewrite (eeq_exc_sem_pexprs dz e hz1) /= /exec_sopn /sopn_sem /=.
       move: hr.
       apply opn_no_immP.
       - rewrite /exec_sopn /sopn_sem; case.
         + by move => ws sz /=; case: eqP => /= ? ->.
         by move => sz /= ->.
       by rewrite /exec_sopn => op _ ->.
+
     + exists s'. repeat econstructor. by rewrite /sem_sopn hx /= hr.
+  Qed.
+
+  (* This situation comes up several times below. *)
+  Lemma aux_eq_exc_trans P r r' :
+    eq_exc_fresh r r'
+    -> forall s,
+        P s /\ eq_exc_fresh s r
+        -> exists s', P s' /\ eq_exc_fresh s' r'.
+  Proof.
+    move=> Hr' s [Ps Hs].
+    exists s.
+    split; first exact Ps.
+    exact: (eeq_excT Hs Hr').
   Qed.
 
   Lemma reduce_wconstP s e sz sz' (v: word sz') :
@@ -1188,9 +1082,9 @@ Section PROOF.
   Local Lemma Hassgn : sem_Ind_assgn p Pi_r.
   Proof.
     move => s1 s2 l tag ty e v v' Hv hty Hw ii /= Hdisj s1' Hs1'.
-    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_assgn=> /disj_fvars_union [Hdisjl Hdisje].
-    have Hv' := sem_pexpr_same Hdisje Hs1' Hv.
-    have [s2' [Hw' Hs2']] := write_lval_same Hdisjl Hs1' Hw.
+    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_assgn=> /disjoint_union [Hdisjl Hdisje].
+    have Hv' := eeq_exc_sem_pexpr Hdisje Hs1' Hv.
+    have [s2' Hw' Hs2'] := eeq_exc_write_lval Hdisjl Hs1' Hw.
     rewrite /= /lower_cassgn.
     have := lower_cassgn_classifyP Hv' hty Hw'.
     case: (lower_cassgn_classify is_var_in_memory _ e l).
@@ -1206,13 +1100,13 @@ Section PROOF.
         assert (eq_exc_fresh ℓ s1') as dℓ.
         + subst ℓ; case:(s1') => ?? /=; split => //.
           by apply vmap_eq_except_set, multiplicand_in_fv.
-        case: (write_lval_same Hdisjl dℓ Hw') => ℓ' [ hℓ' dℓ' ].
+        case: (eeq_exc_write_lval Hdisjl dℓ Hw') => ℓ' hℓ' dℓ'.
         eexists; split.
           repeat econstructor.
           by rewrite /sem_sopn /sem_pexprs /= h /= /exec_sopn /sopn_sem /= /truncate_word hsz
              /x86_MOV /check_size_8_64 hle' /= /write_var /set_var /= sumbool_of_boolET.
           by rewrite /sem_sopn /sem_pexprs/= /get_gvar /get_var Fv.setP_eq /= /exec_sopn /sopn_sem /= /truncate_word cmp_le_refl /x86_MOV /check_size_8_64 hle' /= zero_extend_u /= -/ℓ -hw hℓ'.
-        by eauto using eq_exc_freshT.
+        exact: (eeq_excT dℓ' Hs2').
       * exists s2'; split=> //=.
         case: ifP => [/andP [] /andP [] /is_zeroP he ??| _ ];first last.
         - apply/sem_seq1/EmkI/mov_wsP => //.
@@ -1254,7 +1148,7 @@ Section PROOF.
       case /andP: hsz => hsz1 hsz2.
       have Hlea :
         Let vs := sem_pexprs gd s1' [:: elea ] in
-        exec_sopn (spp := spp_of_asm_e) (Ox86 (LEA sz)) vs
+        exec_sopn (spp := mk_spp) (Ox86 (LEA sz)) vs
         = ok [:: Vword w ].
       + rewrite /sem_pexprs /= Hvb Hvo /= /exec_sopn /sopn_sem /sem_sop2 /= /truncate_word hsz2 /=.
         rewrite Hwb Hwo /= truncate_word_u /= truncate_word_u /= truncate_word_u /= /x86_LEA /check_size_16_64 hsz1 hsz2 /=.
@@ -1287,7 +1181,8 @@ Section PROOF.
           rewrite /read_e /= /read_lea /= /oo read_eE.
           by case: (o) => [ ?|]; rewrite /= /read_e /=;SvD.fsetdec.
         + by apply Hdisjl.
-        by move=> s2'' []; eauto using eq_exc_freshT.
+        exact: (aux_eq_exc_trans Hs2').
+
       case: is_zeroP => [ Eoo | _]; last by exists s2'.
       move: Hvo Hwo Hw'; rewrite Eoo => - [<-] {Eoo oo elea Hlea Hlea'}.
       rewrite wrepr_unsigned /= truncate_word_u => - [?]; subst wo.
@@ -1311,19 +1206,20 @@ Section PROOF.
             (evm s1').[{| vtype := sword64; vname := fresh_multiplicand fv U64 |} <- ok {| pw_size := U64 ; pw_word := wrepr U64 d ; pw_proof := erefl (U64 ≤ U64)%CMP |}].
       have hsi : eq_exc_fresh si s1'.
       + by rewrite /si; case: (s1') => ?? /=; split => //= k hk; rewrite Fv.setP_neq //; apply/eqP => ?; subst k; apply: hk; exact: multiplicand_in_fv.
-      have [si' [Hwi hsi']] := write_lval_same Hdisjl hsi Hw'.
+      have [si' Hwi hsi'] := eeq_exc_write_lval Hdisjl hsi Hw'.
       eexists; split.
       + apply: Eseq; first by repeat constructor.
          apply: sem_seq1. repeat constructor.
          rewrite /sem_sopn /exec_sopn /sopn_sem /=.
-         rewrite zero_extend_u wrepr_unsigned /get_gvar /get_var Fv.setP_eq /= (sem_pexpr_same _ _ Hvb) //=.
+         rewrite zero_extend_u wrepr_unsigned /get_gvar /get_var Fv.setP_eq /=.
+         rewrite (eeq_exc_sem_pexpr (xs := fvars) _ _ Hvb) //=.
          - by rewrite Hwb /= /truncate_word /= /x86_ADD /check_size_8_64 hsz2 /= zero_extend_wrepr // Hwi.
          apply: (disj_fvars_subset _ Hdisje).
          apply: (SvD.F.Subset_trans _ hrl).
          rewrite /read_lea /=; subst ob; case: (b) => [ x | ] /=.
          - SvD.fsetdec.
          exact: SvP.MP.subset_empty.
-       by eauto using eq_exc_freshT.
+       exact: (eeq_excT hsi' Hs2').
 
     (* LowerFopn *)
     + set vi := var_info_of_lval _.
@@ -1331,13 +1227,13 @@ Section PROOF.
       case: (opn_5flags_correct ii tag m _ _ hxs hys hs2).
       move: LE Hdisje. apply disjoint_w.
       exact Hdisjl.
-      move=> s2'' []; eauto using eq_exc_freshT.
+      exact: (aux_eq_exc_trans Hs2').
 
     (* LowerCond *)
     + move=> _.
       case heq: lower_condition => [i e'].
       have [s2'' [hs2'' [ heqex he']]]:= lower_condition_corr ii (sym_eq heq) Hs1' Hv'.
-      have [s3 [hw3 heqex3]] := write_lval_same Hdisjl heqex Hw.
+      have [s3 hw3 heqex3] := eeq_exc_write_lval Hdisjl heqex Hw.
       exists s3; split => //.
       rewrite map_cat; apply: (sem_app hs2'') => /=.
       apply: sem_seq1; constructor; econstructor; eauto.
@@ -1350,7 +1246,7 @@ Section PROOF.
       clear s2' Hw' Hs2'.
       move: Hv' => /=; t_xrbindP=> b bv Hbv Hb trv1 v1 Hv1 Htr1 trv2 v2 Hv2 Htr2 ?;subst v.
       have [s2' [Hs2'1 [Hs2'2 Hs2'3]]] := lower_condition_corr ii Hcond Hs1' Hbv.
-      have [s3' [Hw' Hs3']] := write_lval_same Hdisjl Hs2'2 Hw.
+      have [s3' Hw' Hs3'] := eeq_exc_write_lval Hdisjl Hs2'2 Hw.
       exists s3'; split=> //.
       rewrite map_cat.
       apply: sem_app.
@@ -1359,11 +1255,11 @@ Section PROOF.
       move: bv Hbv Hb Hs2'3=> [] //=; last by case.
       move=> b0 Hb [?] Hb'; subst b0.
       rewrite /sem_sopn /sem_pexprs /= Hb' /=.
-      have Heq' := (eq_exc_freshT Hs2'2 (eq_exc_freshS Hs1')).
+      have Heq' := eeq_excT Hs2'2 (eeq_excS Hs1').
       rewrite /read_e /= /disj_fvars /x86_lowering.disj_fvars in Hdisje; move: Hdisje.
       rewrite read_eE read_eE -/(read_e _).
-      move=> /disj_fvars_union [He /disj_fvars_union [He1 He2]].
-      rewrite (sem_pexpr_same He1 Heq' Hv1) (sem_pexpr_same He2 Heq' Hv2) /=.
+      move=> /disjoint_union [He /disjoint_union [He1 He2]].
+      rewrite (eeq_exc_sem_pexpr He1 Heq' Hv1) (eeq_exc_sem_pexpr He2 Heq' Hv2) /=.
       have [sz Hvt] := write_lval_word Ht Hw'.
       have [w Hvw] := write_lval_undef Hw' Hvt; subst.
       rewrite /exec_sopn /sopn_sem /= /x86_CMOVcc.
@@ -1407,7 +1303,7 @@ Section PROOF.
       + econstructor;first by eassumption.
         by case: d hsem => hsem;apply: sem_seq1;apply: EmkI; apply: Eopn;
            move: hsem; rewrite /sem_sopn /= /get_gvar hget /= hwa1 /=; t_xrbindP => ? -> ? /= ->.
-      apply: eq_exc_freshT heqe Hs2'.
+      apply: eeq_excT heqe Hs2'.
     (* LowerConcat *)
     + t_xrbindP => hi lo vs ok_vs ok_v'.
       exists s2'; split; last exact: Hs2'.
@@ -1629,7 +1525,7 @@ Section PROOF.
       clear C.
       case: D => des' [ xs' [ hxs' [ v' [hv' ho'] ] ] ].
       case: (opn_5flags_correct ii t (Some U32) des' dxs hxs' hv' ho') => {hv' ho'} so'.
-      intuition eauto using eq_exc_freshT.
+      intuition eauto using eeq_excT.
     Qed.
     Opaque lower_addcarry.
 
@@ -1637,8 +1533,8 @@ Section PROOF.
   Proof.
     move => s1 s2 t o xs es.
     apply: rbindP=> v; apply: rbindP=> x Hx Hv Hw ii Hdisj s1' Hs1'.
-    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_opn=> /disj_fvars_union [Hdisjl Hdisje].
-    have Hx' := sem_pexprs_same Hdisje Hs1' Hx; have [s2' [Hw' Hs2']] := write_lvals_same Hdisjl Hs1' Hw.
+    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_opn=> /disjoint_union [Hdisjl Hdisje].
+    have Hx' := eeq_exc_sem_pexprs Hdisje Hs1' Hx; have [s2' Hw' Hs2'] := eeq_exc_write_lvals Hdisjl Hs1' Hw.
     have default : ∃ s2', sem p' ev s1' [:: MkI ii (Copn xs t o es)] s2' ∧ eq_exc_fresh s2' s2.
     + by exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn; rewrite /sem_sopn Hx' /=; rewrite /= in Hv; by rewrite Hv.
     case: o Hv default => //; (move => sz Hv default || move => Hv default).
@@ -1667,12 +1563,12 @@ Section PROOF.
           rewrite /s2'' /= => x Hx.
           rewrite Fv.setP_neq //.
           apply/eqP=> Habs; apply: Hx; rewrite -Habs //.
-        have [s3'' [Hw'' Hs3'']] := write_lvals_same Hdisjl Heq Hw'.
+        have [s3'' Hw'' Hs3''] := eeq_exc_write_lvals Hdisjl Heq Hw'.
         have Hd2 : disj_fvars (read_e e2).
         - move: Hdisje.
-          rewrite (disj_fvars_m (read_es_cons _ _)) => /disj_fvars_union [_].
-          rewrite (disj_fvars_m (read_es_cons _ _)) => /disj_fvars_union [//].
-        have He2' := sem_pexpr_same Hd2 Heq He2.
+          rewrite (disj_fvars_m (read_es_cons _ _)) => /disjoint_union [_].
+          rewrite (disj_fvars_m (read_es_cons _ _)) => /disjoint_union [//].
+        have He2' := eeq_exc_sem_pexpr Hd2 Heq He2.
         eexists; split.
         + apply: Eseq.
           + apply: EmkI; apply: Eopn; eauto.
@@ -1683,7 +1579,7 @@ Section PROOF.
             rewrite /sem_sopn /sem_pexprs /= He2' /=.
             rewrite /get_gvar /get_var /on_vu /= Fv.setP_eq /= /exec_sopn /sopn_sem /= /truncate_word hsz2 cmp_le_refl /x86_MUL hsz /= zero_extend_u wmulhuE Z.mul_comm GRing.mulrC wmulE.
             exact Hw''.
-        + exact: (eq_exc_freshT Hs3'' Hs2').
+        + exact: (eeq_excT Hs3'' Hs2').
       have := @is_wconstP _ _ _ gd s1' sz e2; case: is_wconst => [ n2 | _ ].
       + move => /(_ _ erefl) /=; rewrite He2 /= /truncate_word hsz2 => - [?]; subst n2.
         set s2'' := with_vm s1' (evm s1').[vword sz (fv.(fresh_multiplicand) sz) <- ok (pword_of_word (zero_extend _ w2)) ].
@@ -1692,10 +1588,10 @@ Section PROOF.
           rewrite /s2'' /= => x Hx.
           rewrite Fv.setP_neq //.
           apply/eqP=> Habs; apply: Hx; rewrite -Habs //.
-        have [s3'' [Hw'' Hs3'']] := write_lvals_same Hdisjl Heq Hw'.
+        have [s3'' Hw'' Hs3''] := eeq_exc_write_lvals Hdisjl Heq Hw'.
         have Hd1 : disj_fvars (read_e e1).
-        * by move: Hdisje; rewrite (disj_fvars_m (read_es_cons _ _)) => /disj_fvars_union [].
-        have He1' := sem_pexpr_same Hd1 Heq He1.
+        * by move: Hdisje; rewrite (disj_fvars_m (read_es_cons _ _)) => /disjoint_union [].
+        have He1' := eeq_exc_sem_pexpr Hd1 Heq He1.
         eexists; split.
         + apply: Eseq.
           + apply: EmkI; apply: Eopn; eauto.
@@ -1706,39 +1602,40 @@ Section PROOF.
             rewrite /sem_sopn /sem_pexprs /= He1' /=.
             rewrite /get_gvar /get_var /on_vu /= Fv.setP_eq /= /exec_sopn /sopn_sem /= /truncate_word hsz1 cmp_le_refl /x86_MUL hsz /= zero_extend_u wmulhuE wmulE.
             exact: Hw''.
-        + exact: (eq_exc_freshT Hs3'' Hs2').
+        + exact: (eeq_excT Hs3'' Hs2').
       exists s2'; split=> //; apply: sem_seq1; apply: EmkI; apply: Eopn.
       rewrite /sem_sopn Hx' /= /exec_sopn /sopn_sem /= /truncate_word hsz1 hsz2 /x86_MUL hsz /=.
       by rewrite /wumul -wmulhuE in Hw'.
     (* Oaddcarry *)
     + case: (lower_addcarry_correct ii t (sub:= false) Hs1' Hdisjl Hdisje Hx' Hv Hw').
-      by intuition eauto using eq_exc_freshT.
+      exact: (aux_eq_exc_trans Hs2').
+
     (* Osubcarry *)
     + case: (lower_addcarry_correct ii t (sub:= true) Hs1' Hdisjl Hdisje Hx' Hv Hw').
-      by intuition eauto using eq_exc_freshT.
+      exact: (aux_eq_exc_trans Hs2').
   Qed.
 
   Local Lemma Hsyscall : sem_Ind_syscall p Pi_r.
   Proof.
     move=> s1 scs m s2 o xs es ves vs hes ho hw ii hdisj s1' hs1' /=.
-    move: hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_syscall => /disj_fvars_union [hdisjx hdisje].
-    have hes' := sem_pexprs_same hdisje hs1' hes.
+    move: hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_syscall => /disjoint_union [hdisjx hdisje].
+    have hes' := eeq_exc_sem_pexprs hdisje hs1' hes.
     have hs1'w: eq_exc_fresh (with_scs (with_mem s1' m) scs) (with_scs (with_mem s1 m) scs). 
-    + by rewrite /eq_exc_fresh /=; case: hs1' => ?? ->.
-    have [s2' [hw' hs2']] := write_lvals_same hdisjx hs1'w hw.
+    + by rewrite /eq_exc_fresh /estate_eq_except /=; case: hs1' => ?? ->.
+    have [s2' hw' hs2'] := eeq_exc_write_lvals hdisjx hs1'w hw.
     exists s2'; split => //.
     apply: sem_seq1; constructor; econstructor; eauto.
     by case: hs1' => -> ->.
   Qed.
- 
+
   Local Lemma Hif_true : sem_Ind_if_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 Hz _ Hc ii /= Hdisj s1' Hs1' /=.
-    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_if=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
+    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_if=> /disjoint_union [Hdisje /disjoint_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
     have Hcond: x = lower_condition fv dummy_var_info e by [].
     move: x Hcond=> [i e'] Hcond.
-    have [s2' [Hs2'1 [Hs2'2 Hs2'3]]] := lower_condition_corr ii Hcond Hs1' (sem_pexpr_same Hdisje Hs1' Hz).
+    have [s2' [Hs2'1 [Hs2'2 Hs2'3]]] := lower_condition_corr ii Hcond Hs1' (eeq_exc_sem_pexpr Hdisje Hs1' Hz).
     have [s3' [Hs3'1 Hs3'2]] := Hc Hc1 _ Hs2'2.
     exists s3'; split=> //.
     rewrite -cats1.
@@ -1752,11 +1649,11 @@ Section PROOF.
   Local Lemma Hif_false : sem_Ind_if_false p ev Pc Pi_r.
   Proof.
     move=> s1 s2 e c1 c2 Hz _ Hc ii /= Hdisj s1' Hs1' /=.
-    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_if=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
+    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_if=> /disjoint_union [Hdisje /disjoint_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
     have Hcond: x = lower_condition fv dummy_var_info e by [].
     move: x Hcond=> [i e'] Hcond.
-    have [s2' [Hs2'1 [Hs2'2 Hs2'3]]] := lower_condition_corr ii Hcond Hs1' (sem_pexpr_same Hdisje Hs1' Hz).
+    have [s2' [Hs2'1 [Hs2'2 Hs2'3]]] := lower_condition_corr ii Hcond Hs1' (eeq_exc_sem_pexpr Hdisje Hs1' Hz).
     have [s3' [Hs3'1 Hs3'2]] := Hc Hc2 _ Hs2'2.
     exists s3'; split=> //.
     rewrite -cats1.
@@ -1770,12 +1667,18 @@ Section PROOF.
   Local Lemma Hwhile_true : sem_Ind_while_true p ev Pc Pi_r.
   Proof.
     move=> s1 s2 s3 s4 a c e c' _ Hc Hz _ Hc' _ Hwhile ii Hdisj s1' Hs1' /=.
-    have := Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_while=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
+    have := Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_while=> /disjoint_union [Hdisje /disjoint_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
     have Hcond: x = lower_condition fv dummy_var_info e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
-    have [s3' [Hs3'1 [Hs3'2 Hs3'3]]] := lower_condition_corr dummy_instr_info Hcond Hs2'2 (sem_pexpr_same Hdisje Hs2'2 Hz).
+    have [s3' [Hs3'1 [Hs3'2 Hs3'3]]] :=
+      lower_condition_corr
+        dummy_instr_info
+        Hcond
+        Hs2'2
+        (eeq_exc_sem_pexpr Hdisje Hs2'2 Hz).
+
     have [s4' [Hs4'1 Hs4'2]] := Hc' Hc2 _ Hs3'2.
     have [s5' [Hs5'1 Hs5'2]] := Hwhile ii Hdisj _ Hs4'2.
     exists s5'; split=> //.
@@ -1791,12 +1694,17 @@ Section PROOF.
   Local Lemma Hwhile_false : sem_Ind_while_false p ev Pc Pi_r.
   Proof.
     move=> s1 s2 a c e c' _ Hc Hz ii Hdisj s1' Hs1' /=.
-    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_while=> /disj_fvars_union [Hdisje /disj_fvars_union [Hc1 Hc2]].
+    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_while=> /disjoint_union [Hdisje /disjoint_union [Hc1 Hc2]].
     set x := lower_condition _ _ _.
     have Hcond: x = lower_condition fv dummy_var_info e by [].
     move: x Hcond=> [i e'] Hcond.
     have [s2' [Hs2'1 Hs2'2]] := Hc Hc1 _ Hs1'.
-    have [s3' [Hs3'1 [Hs3'2 Hs3'3]]] := lower_condition_corr dummy_instr_info Hcond Hs2'2 (sem_pexpr_same Hdisje Hs2'2 Hz).
+    have [s3' [Hs3'1 [Hs3'2 Hs3'3]]] :=
+      lower_condition_corr
+        dummy_instr_info
+        Hcond
+        Hs2'2
+        (eeq_exc_sem_pexpr Hdisje Hs2'2 Hz).
     exists s3'; split=> //.
     apply: sem_seq1; apply: EmkI; apply: Ewhile_false.
     exact: (sem_app Hs2'1 Hs3'1).
@@ -1806,12 +1714,12 @@ Section PROOF.
   Local Lemma Hfor : sem_Ind_for p ev Pi_r Pfor.
   Proof.
     move=> s1 s2 i d lo hi c vlo vhi Hlo Hhi _ Hfor ii Hdisj s1' Hs1' /=.
-    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_for=> /disj_fvars_union [Hdisjc /disj_fvars_union [Hdisjlo Hdisjhi]].
+    move: Hdisj; rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_for=> /disjoint_union [Hdisjc /disjoint_union [Hdisjlo Hdisjhi]].
     have [s2' [Hs2'1 Hs2'2]] := Hfor Hdisjc _ Hs1'.
     exists s2'; split=> //.
     apply: sem_seq1; apply: EmkI; apply: Efor; eauto.
-    + by rewrite (sem_pexpr_same Hdisjlo Hs1' Hlo).
-    by rewrite (sem_pexpr_same Hdisjhi Hs1' Hhi).
+    + by rewrite (eeq_exc_sem_pexpr Hdisjlo Hs1' Hlo).
+    by rewrite (eeq_exc_sem_pexpr Hdisjhi Hs1' Hhi).
   Qed.
 
   Local Lemma Hfor_nil : sem_Ind_for_nil Pfor.
@@ -1820,9 +1728,9 @@ Section PROOF.
   Local Lemma Hfor_cons : sem_Ind_for_cons p ev Pc Pfor.
   Proof.
     move=> s1 s1' s2 s3 i w ws c Hw _ Hc _ Hfor Hdisj s1'' Hs1''.
-    have := Hdisj=> /disj_fvars_union [Hdisjc Hdisji].
+    have := Hdisj=> /disjoint_union [Hdisjc Hdisji].
     have Hw1: write_lval gd (Lvar i) w s1 = ok s1' by exact: Hw.
-    have [|s2'' [Hs2''1 Hs2''2]] := write_lval_same _ Hs1'' Hw1.
+    have [|s2'' Hs2''1 Hs2''2] := eeq_exc_write_lval _ Hs1'' Hw1.
     rewrite /=; have H: Sv.Equal (Sv.union Sv.empty (Sv.add i Sv.empty)) (Sv.singleton i).
       by SvD.fsetdec.
     rewrite /vars_lval /= /disj_fvars.
@@ -1836,13 +1744,13 @@ Section PROOF.
   Local Lemma Hcall : sem_Ind_call p ev Pi_r Pfun.
   Proof.
     move=> s1 scs m2 s2 ii xs fn args vargs vs Harg _ Hfun Hret ii' Hdisj s1' Hs1'; move: Hdisj.
-    rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_call=> /disj_fvars_union [Hxs Hargs].
+    rewrite /disj_fvars /x86_lowering.disj_fvars vars_I_call=> /disjoint_union [Hxs Hargs].
     have Heq: eq_exc_fresh (with_scs (with_mem s1' m2) scs) (with_scs (with_mem s1 m2) scs).
     + by case: Hs1' => * /=.
-    have [s2' [Hs2'1 Hs2'2]] := write_lvals_same Hxs Heq Hret.
+    have [s2' Hs2'1 Hs2'2] := eeq_exc_write_lvals Hxs Heq Hret.
     exists s2'; split=> //.
     apply: sem_seq1; apply: EmkI; apply: Ecall; eauto.
-    rewrite (sem_pexprs_same Hargs Hs1' Harg) //.
+    rewrite (eeq_exc_sem_pexprs Hargs Hs1' Harg) //.
     move: Hs1'=> [-> -> _]; exact: Hfun.
   Qed.
 
@@ -1852,7 +1760,7 @@ Section PROOF.
     have H: eq_exc_fresh s1 s1 by [].
     have Hdisj := fvars_fun Hget.
     rewrite /vars_fd in Hdisj.
-    move: Hdisj=> /disj_fvars_union [Hdisjp /disj_fvars_union [Hdisjr Hdisjc]].
+    move: Hdisj=> /disjoint_union [Hdisjp /disjoint_union [Hdisjr Hdisjc]].
     have [[scs1' m1' vm1'] [Hs1'1 [/= ? Hs1'2 Hs1'3]]] := Hc Hdisjc _ H; subst scs1' m1'.
     apply: EcallRun=> //.
     + by rewrite get_map_prog Hget.
@@ -1864,12 +1772,15 @@ Section PROOF.
       have ->: vm1' = evm (with_vm s2 vm1') by rewrite evm_with_vm.
       rewrite -(sem_pexprs_get_var gd).
       rewrite -(sem_pexprs_get_var gd) in Hres.
-      apply: (sem_pexprs_same _ _ Hres)=> //=.
+
       have H': forall l, Sv.Equal (read_es (map Plvar l)) (vars_l l).
       + elim=> // a l /= Hl.
         rewrite read_es_cons Hl /read_e /= /mk_lvar /read_gvar /=.
         by SvD.fsetdec.
-      by rewrite /disj_fvars /x86_lowering.disj_fvars H'.
+
+      apply: (eeq_exc_sem_pexprs _ _ Hres).
+      * rewrite /disj_fvars /x86_lowering.disj_fvars H'. exact: Hdisjr.
+      done.
     + exact: Htyr.
     done. done.
   Qed.
@@ -1878,7 +1789,7 @@ Section PROOF.
     sem_call p  ev scs mem f va scs' mem' vr ->
     sem_call p' ev scs mem f va scs' mem' vr.
   Proof.
-    apply (@sem_call_Ind _ _ spp_of_asm_e _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
+    apply (@sem_call_Ind _ _ mk_spp _ _ _ p ev Pc Pi_r Pi Pfor Pfun Hskip Hcons HmkI Hassgn Hopn Hsyscall
              Hif_true Hif_false Hwhile_true Hwhile_false Hfor Hfor_nil Hfor_cons Hcall Hproc).
   Qed.
 

@@ -1,0 +1,40 @@
+export
+fn ldr(reg u32 arg) -> reg u32 {
+    reg u32 x;
+    x = [arg];
+
+    x = [x + 3];
+
+    // Shifts.
+    x = [x + arg * 1];
+    x = [x + arg * 2];
+    x = [x + arg * 4];
+    x = [x + arg * 8];
+
+    // Set flags.
+    reg bool n, z, v, c;
+    n, z, c, v, _ = #MOVS(x);
+
+    // Conditions.
+    x = [x] if z;            // EQ
+    x = [x] if !z;           // NE
+    x = [x] if c;            // CS
+    x = [x] if !c;           // CC
+    x = [x] if n;            // MI
+    x = [x] if !n;           // PL
+    x = [x] if v;            // VS
+    x = [x] if !v;           // VC
+    x = [x] if c && !z;      // HI
+    x = [x] if !c || z;      // LS
+    x = [x] if n == v;       // GE
+    x = [x] if n != v;       // LT
+    x = [x] if !z && n == v; // GT
+    x = [x] if z || n != v;  // LE
+
+    x = [x + arg] if !z;
+    x = [x + arg * 4] if !z;
+
+    reg u32 res;
+    res = x;
+    return res;
+}

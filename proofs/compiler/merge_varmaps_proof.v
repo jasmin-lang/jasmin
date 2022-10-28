@@ -21,10 +21,6 @@ Context
   {asm_op syscall_state : Type}
   {spp : SemPexprParams asm_op syscall_state}.
 
-Lemma vrvs_Lvar xs :
-  vrvs [seq Lvar x | x <- xs] = sv_of_list v_var xs.
-Proof. rewrite /vrvs /sv_of_list; elim: xs Sv.empty => //=. Qed.
-
 Lemma init_stk_stateI fex pex gd s s' :
   pex.(sp_rip) != pex.(sp_rsp) →
   init_stk_state fex pex gd s = ok s' →
@@ -47,32 +43,6 @@ Proof.
     * by rewrite Fv.setP_eq.
     by apply /eqP; congruence.
   by move=> x /eqP ? /eqP ?; rewrite !Fv.setP_neq // eq_sym.
-Qed.
-
-(* TODO: move *)
-Lemma write_vars_eq_except xs vs s s' :
-  write_vars xs vs s = ok s' →
-  evm s = evm s' [\ sv_of_list v_var xs].
-Proof.
-  by rewrite (write_vars_lvals [::]) => /vrvsP; rewrite vrvs_Lvar.
-Qed.
-
-Lemma write_lvals_emem gd xs ys s vs s' :
-  mapM get_lvar xs = ok ys →
-  write_lvals gd s xs vs = ok s' →
-  emem s' = emem s.
-Proof.
-  elim: xs ys vs s; first by move => _ [] // ? _ [] ->.
-  move => x xs ih /=; t_xrbindP => _ [] // ???? X ? /ih{ih}ih _; t_xrbindP => ? Y /ih{ih}->.
-  by case: x X Y => // x _; rewrite /= /write_var; t_xrbindP => ?? <-.
-Qed.
-
-Lemma write_lvals_escs gd xs s vs s' :
-  write_lvals gd s xs vs = ok s' →
-  escs s' = escs s.
-Proof.
-  elim: xs vs s => [ | x xs ih] /= [] // => [ _ [->] //| v vs s].
-  by t_xrbindP => ? /lv_write_scsP -> /ih.
 Qed.
 
 Lemma orbX (P Q: bool):
@@ -162,20 +132,50 @@ Proof. rewrite /disjoint /magic_variables /is_true Sv.is_empty_spec; SvD.fsetdec
 
 Section LEMMA.
 
+  Notation write_c_rec := (merge_varmaps.write_c_rec p extra_free_registers var_tmp wrf).
   Notation write_c := (merge_varmaps.write_c p extra_free_registers var_tmp wrf).
+  Notation write_I_rec := (merge_varmaps.write_I_rec p extra_free_registers var_tmp wrf).
   Notation write_I := (merge_varmaps.write_I p extra_free_registers var_tmp wrf).
+  Notation write_i_rec := (merge_varmaps.write_i_rec p extra_free_registers var_tmp wrf).
   Notation write_i := (merge_varmaps.write_i p extra_free_registers var_tmp wrf).
+
+  Lemma add_extra_free_registersE ii D :
+    Sv.Equal (add_extra_free_registers extra_free_registers ii D) (Sv.union (extra_free_registers_at extra_free_registers ii) D).
+  Proof.
+    rewrite /add_extra_free_registers /extra_free_registers_at; case: extra_free_registers; SvD.fsetdec.
+  Qed.
+
+  Lemma write_c_recE c : ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)).
+  Proof.
+    apply: (@cmd_rect _ _
+              (λ i, ∀ s, Sv.Equal (write_i_rec s i) (Sv.union s (write_i i)))
+              (λ i, ∀ s, Sv.Equal (write_I_rec s i) (Sv.union s (write_I i)))
+              (λ c, ∀ s, Sv.Equal (write_c_rec s c) (Sv.union s (write_c c)))).
+    - by move => i ii ih s; rewrite /write_I /write_I_rec -/write_i_rec !add_extra_free_registersE !ih; SvD.fsetdec.
+    - by SvD.fsetdec.
+    - by move => i c' hi hc' s; rewrite /write_c /= !hc' -/write_I hi; SvD.fsetdec.
+    - by move => x tg ty e s; rewrite /write_i /write_i_rec -vrv_recE.
+    - by move => xs tg op es s; rewrite /write_i /write_i_rec -vrvs_recE.
+    - by move => xs op es s; rewrite /write_i /write_i_rec !vrvs_recE; SvD.fsetdec.
+    - by move => e c1 c2 h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
+    - by move => v d lo hi body h s; rewrite /write_i /write_i_rec -!/write_c_rec !h; SvD.fsetdec.
+    - by move => a c1 e c2  h1 h2 s; rewrite /write_i /write_i_rec -!/write_c_rec -/write_c !h1 h2; SvD.fsetdec.
+    by move => i xs fn es s; rewrite /write_i /write_i_rec; SvD.fsetdec.
+  Qed.
+
+  Lemma write_I_recE ii i s :
+    Sv.Equal (write_I_rec s (MkI ii i))
+             (Sv.union (write_i_rec s i) (extra_free_registers_at extra_free_registers ii)).
+  Proof. by rewrite /write_I_rec -/write_i_rec add_extra_free_registersE; SvD.fsetdec. Qed.
 
   Lemma write_c_cons i c :
     Sv.Equal (write_c (i :: c)) (Sv.union (write_I i) (write_c c)).
-  Proof. by rewrite /write_c /= merge_varmaps.write_c_recE. Qed.
+  Proof. by rewrite /write_c /= write_c_recE. Qed.
 
   Lemma write_i_if e c1 c2 :
     Sv.Equal (write_i (Cif e c1 c2)) (Sv.union (write_c c1) (write_c c2)).
   Proof.
-    rewrite /merge_varmaps.write_i /merge_varmaps.write_i_rec /=
-            -/(merge_varmaps.write_c_rec _ _ _ _ _ c1) -/(merge_varmaps.write_c_rec _ _ _ _ _ c2)
-            !merge_varmaps.write_c_recE.
+    rewrite /write_i /write_i_rec -/write_c_rec !write_c_recE.
     move: (write_c c2) (write_c c1). (* SvD.fsetdec faster *)
     SvD.fsetdec.
   Qed.
@@ -187,6 +187,28 @@ Section LEMMA.
   Notation check_instr := (check_i p extra_free_registers var_tmp wrf).
   Notation check_instr_r := (check_ir p extra_free_registers var_tmp wrf).
   Notation check_cmd sz := (check_c (check_instr sz)).
+
+  Lemma check_instr_r_CwhileP sz ii aa c e c' D D' :
+    check_instr_r sz ii D (Cwhile aa c e c') = ok D' →
+    if is_false e
+    then check_c (check_instr sz) D c = ok D'
+    else
+      ∃ D1 D2,
+        [/\ check_c (check_instr sz) D1 c = ok D',
+            check_e ii D' e = ok tt,
+            check_c (check_instr sz) D' c' = ok D2,
+            check_instr_r sz ii D1 (Cwhile aa c e c') = ok D' &
+            Sv.Subset D D1 /\ Sv.Subset D2 D1 ].
+  Proof.
+    rewrite /check_instr_r -/check_instr; case: is_falseP => // _.
+    elim: Loop.nb D => // n ih /=; t_xrbindP => D D1 h1 he D2 h2.
+    case: (equivP idP (Sv.subset_spec _ _)) => d.
+    - case => ?; subst D1; exists D, D2; split => //; last by split.
+      by rewrite h1 /= he /= h2 /=; move /Sv.subset_spec : d => ->.
+    move => /ih{ih} [D4] [D3]; rewrite /check_e => -[ h he' h' heq [le le'] ].
+    exists D4, D3; split => //; last by split; SvD.fsetdec.
+    by rewrite h /= he' /= h' /=; move /Sv.subset_spec: le' => ->.
+  Qed.
 
   Lemma check_instrP sz ii i D D' :
     check_instr sz D (MkI ii i) = ok D' →
@@ -328,7 +350,7 @@ Section LEMMA.
     move => ii i s1 s2 exec_i h sz I O t1 /check_instrP[] I' [] ok_i hextra heq ok_W sim.
     set t1' := kill_extra_register extra_free_registers ii t1.
     move: (mvp_not_written ok_W).
-    rewrite {1}/write_I merge_varmaps.write_I_recE -/write_i => dis.
+    rewrite {1}/write_I write_I_recE -/write_i => dis.
     have vrsp_not_extra : ¬ Sv.In vrsp (extra_free_registers_at extra_free_registers ii).
     - apply: (proj2 (not_written_magic _)).
       apply: disjoint_w dis.
@@ -369,7 +391,7 @@ Section LEMMA.
         case: extra_free_registers hextra => // r /andP[] -> ->; rewrite !andbT.
         by clear; rewrite !Sv.singleton_spec => ??; apply/andP; split; apply/eqP => ?; subst.
       by apply: disjoint_w dis; move: (write_i i) hk; clear (* SvD.fsetdec faster *); SvD.fsetdec.
-    by rewrite /write_I merge_varmaps.write_I_recE -/write_i;
+    by rewrite /write_I write_I_recE -/write_i;
       move: (write_i i) hk; clear (* SvD.fsetdec faster *); SvD.fsetdec.
   Qed.
 
@@ -498,7 +520,7 @@ Section LEMMA.
 
   Lemma Hwhile_true: sem_Ind_while_true p global_data Pc Pi_r.
   Proof.
-    move => s1 s2 s3 s4 a c e c' sexec ih he sexec' ih' sexec_loop rec sz ii I O t1 /check_ir_CwhileP.
+    move => s1 s2 s3 s4 a c e c' sexec ih he sexec' ih' sexec_loop rec sz ii I O t1 /check_instr_r_CwhileP.
     case: is_falseP; first by move => ?; subst e.
     move => _ [D1] [D2] [ check_c check_e check_c' checked [X Y] ] no_free_register pre sim.
     have pre1 : merged_vmap_precondition (write_c c) sz (emem s1) (evm t1).
@@ -556,7 +578,7 @@ Section LEMMA.
 
   Lemma Hwhile_false: sem_Ind_while_false p global_data Pc Pi_r.
   Proof.
-    move => s1 s2 a c e c' _ ih he sz ii I O t1 /check_ir_CwhileP checked _ pre sim.
+    move => s1 s2 a c e c' _ ih he sz ii I O t1 /check_instr_r_CwhileP checked _ pre sim.
     have pre1 : merged_vmap_precondition (write_c c) sz (emem s1) (evm t1).
     - apply: merged_vmap_preconditionI pre.
       rewrite write_i_while.

@@ -33,12 +33,6 @@ The semantics also ensures some properties:
 The semantic predicates are indexed by a set of variables which is *precisely* the set of variables that are written during the execution.
  *)
 
-Definition get_pvar (e: pexpr) : exec var :=
-  if e is Pvar {| gv := x ; gs := Slocal |} then ok (v_var x) else type_error.
-
-Definition get_lvar (x: lval) : exec var :=
-  if x is Lvar x then ok (v_var x) else type_error.
-
 Definition kill_var (x: var) (vm: vmap) : vmap :=
   vm.[x <- pundef_addr (vtype x)].
 

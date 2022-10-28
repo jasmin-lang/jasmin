@@ -27,6 +27,35 @@ Proof.
   by move => v vs a /=; t_xrbindP => b /write_var_emem -> /ih.
 Qed.
 
+Lemma vrvs_Lvar xs :
+  vrvs [seq Lvar x | x <- xs] = sv_of_list v_var xs.
+Proof. rewrite /vrvs /sv_of_list; elim: xs Sv.empty => //=. Qed.
+
+Lemma write_vars_eq_except xs vs s s' :
+  write_vars xs vs s = ok s' →
+  evm s = evm s' [\ sv_of_list v_var xs].
+Proof.
+  by rewrite (write_vars_lvals [::]) => /vrvsP; rewrite vrvs_Lvar.
+Qed.
+
+Lemma write_lvals_emem gd xs ys s vs s' :
+  mapM get_lvar xs = ok ys →
+  write_lvals gd s xs vs = ok s' →
+  emem s' = emem s.
+Proof.
+  elim: xs ys vs s; first by move => _ [] // ? _ [] ->.
+  move => x xs ih /=; t_xrbindP => _ [] // ???? X ? /ih{ih}ih _; t_xrbindP => ? Y /ih{ih}->.
+  by case: x X Y => // x _; rewrite /= /write_var; t_xrbindP => ?? <-.
+Qed.
+
+Lemma write_lvals_escs gd xs s vs s' :
+  write_lvals gd s xs vs = ok s' →
+  escs s' = escs s.
+Proof.
+  elim: xs vs s => [ | x xs ih] /= [] // => [ _ [->] //| v vs s].
+  by t_xrbindP => ? /lv_write_scsP -> /ih.
+Qed.
+
 (* sem_stack_stable and sem_validw_stable both for uprog and sprog *)
 (* inspired by sem_one_varmap_facts *)
 

@@ -1,0 +1,30 @@
+export
+fn tst(reg u32 arg0, reg u32 arg1) -> reg u32 {
+    reg bool n, z, c, v;
+    n, z, c = #TST(arg0, arg1);
+
+    // Set flags.
+    n, z, c, v, _ = #MOVS(arg0);
+
+    // Conditions.
+    n, z, c = #TSTcc(arg0, arg1, z, n, z, c);            // EQ
+    n, z, c = #TSTcc(arg0, arg1, !z, n, z, c);           // NE
+    n, z, c = #TSTcc(arg0, arg1, c, n, z, c);            // CS
+    n, z, c = #TSTcc(arg0, arg1, !c, n, z, c);           // CC
+    n, z, c = #TSTcc(arg0, arg1, n, n, z, c);            // MI
+    n, z, c = #TSTcc(arg0, arg1, !n, n, z, c);           // PL
+    n, z, c = #TSTcc(arg0, arg1, v, n, z, c);            // VS
+    n, z, c = #TSTcc(arg0, arg1, !v, n, z, c);           // VC
+    n, z, c = #TSTcc(arg0, arg1, c && !z, n, z, c);      // HI
+    n, z, c = #TSTcc(arg0, arg1, !c || z, n, z, c);      // LS
+    n, z, c = #TSTcc(arg0, arg1, n == v, n, z, c);       // GE
+    n, z, c = #TSTcc(arg0, arg1, n != v, n, z, c);       // LT
+    n, z, c = #TSTcc(arg0, arg1, !z && n == v, n, z, c); // GT
+    n, z, c = #TSTcc(arg0, arg1, z || n != v, n, z, c);  // LE
+
+    arg0 = 0 if n;
+    arg0 = 0 if z;
+    arg0 = 0 if c;
+
+    return arg0;
+}

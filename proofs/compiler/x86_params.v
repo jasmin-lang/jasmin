@@ -4,15 +4,12 @@ From mathcomp.word Require Import ssrZ.
 Require Import
   arch_params
   compiler_util
-  expr
-  psem.
+  expr.
 Require Import
   clear_stack
   linearization
   lowering
   stack_alloc.
-Require
-  arch_sem.
 Require Import
   arch_decl
   arch_extra
@@ -191,25 +188,6 @@ Fixpoint assemble_cond_r ii (e : pexpr) : cexec condt :=
       Let r1 := of_var_e_bool ii (gv x1) in
       Let r2 := of_var_e_bool ii (gv x2) in
       if ((r1 == SF) && (r2 == OF)) || ((r1 == OF) && (r2 == SF))
-      then ok NL_ct
-      else Error (E.berror ii e "Invalid condition (NL)")
-
-  (* FIXME: We keep this by compatibility but it will be nice to remove it. *)
-  | Pif _ (Pvar v1) (Papp1 Onot (Pvar vn2)) (Pvar v2) =>
-      Let r1 := of_var_e_bool ii (gv v1) in
-      Let rn2 := of_var_e_bool ii (gv vn2) in
-      Let r2 := of_var_e_bool ii (gv v2) in
-      if [&& r1 == SF, rn2 == OF & r2 == OF]
-         || [&& r1 == OF, rn2 == SF & r2 == SF]
-      then ok L_ct
-      else Error (E.berror ii e "Invalid condition (L)")
-
-  | Pif _ (Pvar v1) (Pvar v2) (Papp1 Onot (Pvar vn2)) =>
-      Let r1 := of_var_e_bool ii (gv v1) in
-      Let r2 := of_var_e_bool ii (gv v2) in
-      Let rn2 := of_var_e_bool ii (gv vn2) in
-      if [&& r1 == SF, rn2 == OF & r2 == OF]
-         || [&& r1 == OF, rn2 == SF & r2 == SF]
       then ok NL_ct
       else Error (E.berror ii e "Invalid condition (NL)")
 
