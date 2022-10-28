@@ -282,13 +282,16 @@ Definition var_of_implicit (i:implicit_arg) :=
   | IAreg r   => to_var r
   end.
 
+Definition is_implicit (i: implicit_arg) (e: pexpr) : bool :=
+  if e is Pvar {| gs := Slocal ; gv := x |} then x.(v_var) == var_of_implicit i else false.
+
 Definition compile_arg rip ii (ade: (arg_desc * stype) * pexpr) (m: nmap asm_arg) : cexec (nmap asm_arg) :=
   let ad := ade.1 in
   let e := ade.2 in
   match ad.1 with
   | ADImplicit i =>
     Let _ :=
-      assert (eq_expr (Plvar (VarI (var_of_implicit i) dummy_var_info)) e)
+      assert (is_implicit i e)
              (E.internal_error ii "(compile_arg) bad implicit register") in
     ok m
   | ADExplicit k n o =>
@@ -315,7 +318,7 @@ Definition compat_imm ty a' a :=
 
 Definition check_sopn_arg rip ii (loargs : seq asm_arg) (x : pexpr) (adt : arg_desc * stype) :=
   match adt.1 with
-  | ADImplicit i => eq_expr x (Plvar (VarI (var_of_implicit i) dummy_var_info))
+  | ADImplicit i => is_implicit i x
   | ADExplicit k n o =>
     match onth loargs n with
     | Some a =>
@@ -327,7 +330,7 @@ Definition check_sopn_arg rip ii (loargs : seq asm_arg) (x : pexpr) (adt : arg_d
 
 Definition check_sopn_dest rip ii (loargs : seq asm_arg) (x : pexpr) (adt : arg_desc * stype) :=
   match adt.1 with
-  | ADImplicit i => eq_expr x (Plvar (VarI (var_of_implicit i) dummy_var_info))
+  | ADImplicit i => is_implicit i x
   | ADExplicit _ n o =>
     match onth loargs n with
     | Some a =>
