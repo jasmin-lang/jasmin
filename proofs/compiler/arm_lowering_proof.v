@@ -1166,14 +1166,6 @@ Qed.
 (* -------------------------------------------------------------------- *)
 (* Lowering of ARM-specific instructions. *)
 
-Lemma eq_true_b b :
-  (true = b) <-> b.
-Proof. by case: b. Qed.
-
-Lemma eq_false_b b :
-  (false = b) <-> ~~ b.
-Proof. by case: b. Qed.
-
 (* TODO_ARM: This lemma is similar to the one in x86_lowering, but not quite:
    in x86 [res] is [wunsigned (wrepr (wunsigned w + wunsigned w' + Z.b2z b))].
 *)
@@ -1192,13 +1184,12 @@ Proof.
     case: ZltP.
     + move=> _.
       move=> /Z.lt_nge /ZleP /negPf ->.
-      apply/eq_false_b/negPn/eqP.
-      lia.
+      by symmetry; apply/negPn.
 
     move=> h _.
     have -> : (wbase ws <=? wunsigned w + wunsigned w' + 1)%Z.
     + apply/ZleP. lia.
-    apply/eq_true_b/eqP.
+    symmetry; apply/eqP.
     have := wbase_pos ws.
     lia.
 
@@ -1207,14 +1198,14 @@ Proof.
   - move=> /Z.le_succ_l h0 /Z.le_ngt h1.
     rewrite -(Z.le_antisymm _ _ h0 h1).
     rewrite Z.leb_refl.
-    apply/eq_true_b/eqP.
+    symmetry; apply/eqP.
     have := wunsigned_range w.
     lia.
 
   move=> /Z.le_ngt h0 /Z.le_ngt h1.
   have -> : (wbase ws <=? wunsigned w + wunsigned w' + 1)%Z.
   - apply/ZleP. lia.
-  apply/eq_true_b/eqP.
+  symmetry; apply/eqP.
   have := wunsigned_range w.
   lia.
 Qed.
