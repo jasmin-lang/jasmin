@@ -278,7 +278,7 @@ Qed.
 
 Variant check_sopn_argI rip ii args e : arg_desc -> stype -> Prop :=
 | CSA_Implicit i ty :
-       (eq_expr e (Plvar {| v_var := var_of_implicit i; v_info := dummy_var_info |}))
+       is_implicit i e
     -> check_sopn_argI rip ii args e (ADImplicit i) ty
 
 | CSA_Explicit k n o a a' ty :
@@ -332,6 +332,11 @@ Proof.
   by rewrite truncate_word_u => -[].
 Qed.
 
+Lemma is_implicitP i e :
+  is_implicit i e →
+  ∃ vi, e = Pvar {| gs := Slocal ; gv := {| v_var := var_of_implicit i ; v_info := vi |} |}.
+Proof. by case: e => // - [] [] x vi [] //= /eqP ->; exists vi. Qed.
+
 Section EVAL_ASSEMBLE_COND.
 
 Definition get_rf (rf : rflagmap) (x : rflag) : exec bool :=
@@ -363,7 +368,7 @@ Lemma check_sopn_arg_sem_eval rip m s ii args e ad ty v vt :
 Proof.
   move=> eqm /check_sopn_argP /= h.
   case: h vt.
-  + move=> i {ty} ty /eq_exprP -> vt /=.
+  + move=> i {ty} ty /is_implicitP[] vi -> vt /=.
     case: i => /= [f | r]; first by apply: var_of_flagP eqm.
     by apply: var_of_regP eqm.
   move=> k n o a a' [ | | | ws] //= ->.
