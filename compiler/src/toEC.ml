@@ -1,6 +1,7 @@
 open Utils
 open Wsize
 open Prog
+open PrintCommon
 module E = Expr
 
 let pp_size fmt sz =
@@ -547,7 +548,7 @@ let rec pp_expr pd env fmt (e:expr) =
   match e with
   | Pconst z -> Format.fprintf fmt "%a" pp_print_i z
 
-  | Pbool b -> Format.fprintf fmt "%a" Printer.pp_bool b
+  | Pbool b -> Format.fprintf fmt "%a" pp_bool b
 
   | Parr_init _n -> Format.fprintf fmt "witness"
 
@@ -862,7 +863,7 @@ module Normal = struct
       let otys,itys = ty_sopn asmOp op in
       let otys', _ = ty_sopn asmOp op' in  
       let pp_e fmt (op,es) = 
-        Format.fprintf fmt "%a %a" (Printer.pp_opn asmOp) op
+        Format.fprintf fmt "%a %a" (pp_opn asmOp) op
           (pp_list "@ " (pp_wcast pd env)) (List.combine itys es) in
       if List.length lvs = 1 then
         let pp_e fmt (op, es) =
@@ -1170,7 +1171,7 @@ module Leak = struct
       let otys,itys = ty_sopn asmOp op in 
       let otys', _ = ty_sopn asmOp op' in 
       let pp fmt (op, es) = 
-        Format.fprintf fmt "<- %a %a" (Printer.pp_opn asmOp) op
+        Format.fprintf fmt "<- %a %a" (pp_opn asmOp) op
           (pp_list "@ " (pp_wcast pd env)) (List.combine itys es) in
       pp_leaks_opn pd asmOp env fmt op' es;
       pp_call pd env fmt lvs otys otys' pp (op, es)

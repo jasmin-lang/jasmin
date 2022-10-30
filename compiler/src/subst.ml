@@ -168,7 +168,7 @@ let int_of_op2 ?loc o =
   | Expr.Osub Op_int -> Z.sub
   | Expr.Odiv Cmp_int -> Z.div
   | Expr.Omod Cmp_int -> Z.erem
-  | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (Printer.string_of_op2 o)
+  | _     -> hierror ?loc "operator %s not allowed in array size (only standard arithmetic operators and modulo are allowed)" (PrintCommon.string_of_op2 o)
 
 let rec int_of_expr ?loc e =
   match e with

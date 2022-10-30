@@ -202,7 +202,7 @@ let pp_glob_data fmt gd =
             `Instr (".p2align", [pp_align U256]);
             `Label m;
             `Label n]);
-      Format.fprintf fmt "      %a\n%!" Printer.pp_datas gd
+      Format.fprintf fmt "      %a\n%!" PrintCommon.pp_datas gd
     end
 
 let pp_instr_wsize (ws : W.wsize) =

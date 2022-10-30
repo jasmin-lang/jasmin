@@ -38,7 +38,7 @@ let pp_s_env fmt env =
   Format.printf fmt "@[<v>global variables:@;%a@]"
     (pp_list (fun fmt (_,(x,sw)) ->
          Format.fprintf fmt "@[%s: %a@]@,"
-           x Printer.pp_ty (Conv.ty_of_cty sw)))
+           x PrintCommon.pp_ty (Conv.ty_of_cty sw)))
     (Sv.to_list env.s_glob)
     (pp_list (fun fmt i -> Format.fprintf fmt "%d" i))
 
@@ -1277,7 +1277,7 @@ end = struct
     | _ ->
       debug (fun () ->
           Format.eprintf "Warning: unknown opn %a, default to ⊤.@."
-            (Printer.pp_opn asmOp) opn);
+            (PrintCommon.pp_opn asmOp) opn);
       opn_dflt n
 
 
@@ -1336,7 +1336,7 @@ end = struct
     | _ ->
       debug (fun () ->
           Format.eprintf "No heuristic for the return flags of %a@."
-            (Printer.pp_opn asmOp) opn);
+            (PrintCommon.pp_opn asmOp) opn);
       None
 
   exception Heuristic_failed

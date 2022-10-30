@@ -174,7 +174,7 @@ let print_not_word_expr e =
   Format.eprintf "@[<v>Should be a word expression:@;\
                   @[%a@]@;Type:@;@[%a@]@]@."
     (Printer.pp_expr ~debug:(!Glob_options.debug)) e
-    (Printer.pp_ty) (Conv.ty_of_cty (Conv.cty_of_ty (ty_expr e)))
+    (PrintCommon.pp_ty) (Conv.ty_of_cty (Conv.cty_of_ty (ty_expr e)))
 
 let check_is_int v =
   let gv = L.unloc v.gv in
@@ -182,7 +182,7 @@ let check_is_int v =
   | Bty Int -> ()
   | _ ->
     Format.eprintf "%s should be an int but is a %a@."
-      gv.v_name Printer.pp_ty gv.v_ty;
+      gv.v_name PrintCommon.pp_ty gv.v_ty;
     raise (Aint_error "Bad type")
 
 let check_is_word v =
@@ -191,7 +191,7 @@ let check_is_word v =
   | Bty (U _) -> ()
   | _ ->
     Format.eprintf "%s should be a word but is a %a@."
-      gv.v_name Printer.pp_ty gv.v_ty;
+      gv.v_name PrintCommon.pp_ty gv.v_ty;
     raise (Aint_error "Bad type")
 
 
