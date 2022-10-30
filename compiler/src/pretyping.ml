@@ -204,7 +204,7 @@ let pp_tyerror fmt (code : tyerror) =
 
   | BadVariableKind kind ->
     F.fprintf fmt "the variable should have kind %a"
-       Printer.pp_kind kind
+       PrintCommon.pp_kind kind
 
   | WriteToConstantPointer v ->
     F.fprintf fmt "Cannot write to the constant pointer %s" v
@@ -1864,7 +1864,7 @@ let tt_call_conv loc params returns cc =
         rs_tyerror ~loc:(L.loc x) 
           (string_error "%a has kind %a, only reg are allowed in %s of export function"
             Printer.pp_pvar (L.unloc x)
-            Printer.pp_kind (L.unloc x).P.v_kind s) in
+            PrintCommon.pp_kind (L.unloc x).P.v_kind s) in
     List.iter (check "parameter") params;
     List.iter (check "result") returns;
     if 2 < List.length returns then
@@ -1877,7 +1877,7 @@ let tt_call_conv loc params returns cc =
         rs_tyerror ~loc:(L.loc x) 
           (string_error "%a has kind %a, only reg or reg ptr are allowed in %s of non inlined function"
             Printer.pp_pvar (L.unloc x)
-            Printer.pp_kind (L.unloc x).P.v_kind s) in
+            PrintCommon.pp_kind (L.unloc x).P.v_kind s) in
     List.iter (check "parameter") params;
     List.iter (check "result") returns;
     let returned_params =

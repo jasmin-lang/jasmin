@@ -1,6 +1,7 @@
 (* -------------------------------------------------------------------- *)
 open Utils
 open Prog
+open PrintCommon
 module W = Wsize
 module T = Type
 module E = Expr
@@ -16,99 +17,13 @@ let ws_of_ws = function
     | `W256 -> W.U256
 
 (* -------------------------------------------------------------------- *)
-let pp_string0 fmt str =
-  F.fprintf fmt "%a" (pp_list "" F.pp_print_char) str
-
-(* -------------------------------------------------------------------- *)
-let pp_bool fmt b =
-  if b then F.fprintf fmt "true"
-  else F.fprintf fmt "false"
-
-(* -------------------------------------------------------------------- *)
 let pp_print_X fmt z =
   Format.fprintf fmt "%s" (Z.format "#X" z)
-
-(* -------------------------------------------------------------------- *)
-let pp_btype fmt = function
-  | Bool -> F.fprintf fmt "bool"
-  | U i  -> F.fprintf fmt "u%i" (int_of_ws i)
-  | Int  -> F.fprintf fmt "int"
-
-(* -------------------------------------------------------------------- *)
-let pp_gtype (pp_size:F.formatter -> 'size -> unit) fmt = function
-  | Bty ty -> pp_btype fmt ty
-  | Arr(ws,e) -> F.fprintf fmt "%a[%a]" pp_btype (U ws) pp_size e
 
 (* -------------------------------------------------------------------- *)
 let pp_gvar_i pp_var fmt v = pp_var fmt (L.unloc v)
 
 (* -------------------------------------------------------------------- *)
-
-let string_of_cmp_ty = function
-  | E.Cmp_w (W.Unsigned, _) -> "u"
-  | _        -> ""
-
-let string_of_cmp_kind = function
-  | E.Cmp_w (sg, sz) -> F.sprintf " %d%s" (int_of_ws sz) (match sg with W.Unsigned -> "u" | W.Signed -> "s")
-  | E.Cmp_int -> ""
-
-let string_of_op_kind = function
-  | E.Op_w ws -> Format.sprintf "%du" (int_of_ws ws)
-  | E.Op_int -> ""
-
-(* -------------------------------------------------------------------- *)
-
-let string_of_signess s = 
-  if s = W.Unsigned then "u" else "s"
-  
-let string_of_velem s ws ve = 
-  let nws = int_of_ws ws in
-  let nve = int_of_velem ve in
-  let s   = string_of_signess s in 
-  Format.sprintf "%d%s%d" (nws/nve) s nve
-
-let string_of_op2 = function
-  | E.Obeq   -> "=" 
-  | E.Oand   -> "&&"
-  | E.Oor    -> "||"
-  | E.Oadd _ -> "+"
-  | E.Omul _ -> "*"
-  | E.Osub _ -> "-"
-  | E.Odiv k -> "/"  ^ string_of_cmp_kind k
-  | E.Omod k -> "%"  ^ string_of_cmp_kind k
-
-  | E.Oland _ -> "&"
-  | E.Olor _ -> "|"
-  | E.Olxor _ -> "^"
-  | E.Olsr _ -> ">>"
-  | E.Olsl _ -> "<<"
-  | E.Oasr _ -> ">>s"
-  | E.Oror _ -> ">>r"
-  | E.Orol _ -> "<<r"
-
-  | E.Oeq  k -> "==" ^ string_of_op_kind k
-  | E.Oneq k -> "!=" ^ string_of_op_kind k
-  | E.Olt  k -> "<"  ^ string_of_cmp_ty k
-  | E.Ole  k -> "<=" ^ string_of_cmp_ty k
-  | E.Ogt  k -> ">"  ^ string_of_cmp_ty k
-  | E.Oge  k -> ">=" ^ string_of_cmp_ty k
-
-  | Ovadd (ve,ws) -> Format.sprintf "+%s"  (string_of_velem W.Unsigned ws ve)
-  | Ovsub (ve,ws) -> Format.sprintf "-%s"  (string_of_velem W.Unsigned ws ve)
-  | Ovmul (ve,ws) -> Format.sprintf "*%s"  (string_of_velem W.Unsigned ws ve)
-  | Ovlsr (ve,ws) -> Format.sprintf ">>%s" (string_of_velem W.Unsigned ws ve)
-  | Ovasr (ve,ws) -> Format.sprintf ">>%s" (string_of_velem W.Unsigned ws ve)
-  | Ovlsl (ve,ws) -> Format.sprintf "<<%s" (string_of_velem W.Signed   ws ve)
-
-
-let string_of_op1 = function
-  | E.Oint_of_word sz -> F.sprintf "(int /* of u%d */)" (int_of_ws sz)
-  | E.Osignext (szo, _) -> F.sprintf "(%ds)" (int_of_ws szo)
-  | E.Oword_of_int szo
-  | E.Ozeroext (szo, _) -> F.sprintf "(%du)" (int_of_ws szo)
-  | E.Olnot _ -> "!"
-  | E.Onot    -> "!"
-  | E.Oneg _ -> "-"
 
 let string_of_combine_flags = function
   | E.CF_LT s -> Format.sprintf "_%sLT" (string_of_signess s)
@@ -119,15 +34,6 @@ let string_of_combine_flags = function
   | E.CF_GT s -> Format.sprintf "_%sGT" (string_of_signess s)
 
 (* -------------------------------------------------------------------- *)
-
-let pp_arr_access pp_gvar pp_expr pp_len fmt aa ws x e olen =
-  let pp_len fmt = function
-    | None -> ()
-    | Some len -> Format.fprintf fmt " : %a" pp_len len in
-  F.fprintf fmt "%a%s[%a %a %a]" 
-    pp_gvar x 
-    (if aa = Warray_.AAdirect then "." else "")
-    pp_btype (U ws) pp_expr e pp_len olen
 
 let pp_ge pp_len pp_var =
   let pp_var_i = pp_gvar_i pp_var in
@@ -185,15 +91,6 @@ let pp_glvs pp_len pp_var fmt lvs =
   | [] -> F.fprintf fmt "()"
   | [x] -> pp_glv pp_len pp_var fmt x
   | _   -> F.fprintf fmt "(@[%a@])" (pp_list ",@ " (pp_glv pp_len pp_var)) lvs
-
-(* -------------------------------------------------------------------- *)
-let pp_opn asmOp fmt o =
-  pp_string0 fmt (Sopn.string_of_sopn asmOp o)
-
-(* -------------------------------------------------------------------- *)
-let pp_syscall (o: 'a Syscall_t.syscall_t) =
-  match o with
-  | Syscall_t.RandomBytes _ -> "#randombytes"
 
 (* -------------------------------------------------------------------- *)
 let rec pp_simple_attribute fmt =
@@ -309,21 +206,6 @@ and pp_cblock pp_info pp_len pp_opn pp_var fmt c =
   F.fprintf fmt "{@   %a@ }"  (pp_gc pp_info pp_len pp_opn pp_var) c
 
 (* -------------------------------------------------------------------- *)
-let pp_writable fmt = function
-  | Constant -> Format.fprintf fmt " const"
-  | Writable -> Format.fprintf fmt " mut"
-
-let pp_pointer fmt = function
-  | Direct  -> ()
-  | Pointer w -> Format.fprintf fmt "%a ptr" pp_writable w
-
-let pp_kind fmt = function
-  | Const  ->  F.fprintf fmt "param"
-  | Stack ptr ->  F.fprintf fmt "stack%a" pp_pointer ptr
-  | Reg(k, ptr) ->  F.fprintf fmt "%sreg%a" (if k = Normal then "" else "#mmx ") pp_pointer ptr
-  | Inline ->  F.fprintf fmt "inline"
-  | Global ->  F.fprintf fmt "global"
-
 let pp_ty_decl (pp_size:F.formatter -> 'size -> unit) fmt v =
   F.fprintf fmt "%a %a" pp_kind v.v_kind (pp_gtype pp_size) v.v_ty
 
@@ -397,8 +279,6 @@ let pp_pprog asmOp fmt p =
   Format.fprintf fmt "@[<v>%a@]"
     (pp_list "@ @ " (pp_pitem pp_pexpr pp_opn pp_pvar)) (List.rev p)
 
-let pp_len fmt len = Format.fprintf fmt "%i" len
-
 let pp_fun ?(pp_info=pp_noinfo) pp_opn pp_var fmt fd =
   let pp_vd =  pp_var_decl pp_var pp_len in
   let pp_locals fmt = Sv.iter (F.fprintf fmt "%a;@ " pp_vd) in
@@ -429,8 +309,6 @@ let pp_expr ~debug fmt e =
 
 let pp_lval ~debug fmt x = 
   pp_glv pp_len (pp_var ~debug) fmt x
-
-let pp_ty fmt = pp_gtype pp_len fmt
 
 let pp_instr ~debug asmOp fmt i =
   let pp_opn = pp_opn asmOp in
@@ -484,12 +362,6 @@ let pp_prog ~debug asmOp fmt ((gd, funcs):('info, 'asm) Prog.prog) =
   Format.fprintf fmt "@[<v>%a@ %a@]"
      (pp_globs pp_var) gd
      (pp_list "@ @ " (pp_fun pp_opn pp_var)) (List.rev funcs)
-
-let pp_datas fmt data = 
-  let pp_w fmt w = 
-    let w = Conv.z_of_int8 w in
-    Format.fprintf fmt ".byte %s" (Z.to_string w) in
-  Format.fprintf fmt "@[<v>%a@]" (pp_list "@ " pp_w) data
 
 let pp_to_save ~debug tbl fmt (x, ofs) =
   Format.fprintf fmt "%a/%a" (pp_var ~debug) (Conv.var_of_cvar tbl x) Z.pp_print (Conv.z_of_cz ofs)

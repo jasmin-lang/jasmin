@@ -534,7 +534,7 @@ module Regalloc (Arch : Arch_full.Arch)
           hierror_reg ~loc:(Lmore loc) "variable %a (declared at %a as “%a”) must be allocated to register %a but is unknown to the register allocator%s"
             (Printer.pp_var ~debug:true) x
             L.pp_sloc x.v_dloc
-            Printer.pp_kind x.v_kind
+            PrintCommon.pp_kind x.v_kind
             (Printer.pp_var ~debug:false) y
             (if is_reg_kind x.v_kind then "" else " (consider declaring this variable as “reg”)")
       in
@@ -587,7 +587,7 @@ let allocate_forced_registers translate_var nv (vars: int Hv.t) (cnf: conflicts)
             | Vector -> let d, xs = split ~ctxt xs in d, rs, xs
             | Unknown ty ->
               hierror_reg ~loc:(Lmore loc) "unknown type %a for forced register %a"
-                Printer.pp_ty ty (Printer.pp_var ~debug:true) p
+                PrintCommon.pp_ty ty (Printer.pp_var ~debug:true) p
           in
           allocate_one nv vars loc cnf p i d a;
           (rs, xs)

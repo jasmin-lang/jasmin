@@ -60,7 +60,7 @@ and iac_instr_r pd loc ir =
         Typing.error loc 
           "the variable %a has type %a, its size (%i) should be a multiple of %i"
           (Printer.pp_var ~debug:false) (L.unloc x)
-          Printer.pp_ty (L.unloc x).v_ty 
+          PrintCommon.pp_ty (L.unloc x).v_ty
           xn wsn
       else Copn(xs,t,Sopn.Ocopy(ws, Conv.pos_of_int (xn / wsn)), es)
     | Sopn.Ocopy _, _ -> assert false
