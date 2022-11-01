@@ -86,6 +86,7 @@ Definition x86_free_stack_frame (rspi: var_i) (sz: Z) :=
   let p := Fapp2 (Oadd (Op_w Uptr)) (Fvar rspi) (fconst Uptr sz) in
   ([:: LLvar rspi ], Ox86 (LEA Uptr), [:: Rexpr p ]).
 
+(* TODO: consider using VMOVDQA when the address is known to be aligned *)
 Definition x86_lassign (x: lexpr) (ws: wsize) (e: rexpr) :=
   let op := if (ws <= U64)%CMP
             then MOV ws
@@ -229,6 +230,7 @@ Definition x86_agparams : asm_gen_params :=
 Definition x86_is_move_op (o : asm_op_t) :=
   match o with
   | BaseOp (None, MOV _) => true
+  | BaseOp (None, VMOVDQA _) => true
   | BaseOp (None, VMOVDQU _) => true
   | _ => false
   end.
