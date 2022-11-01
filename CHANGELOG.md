@@ -19,7 +19,9 @@
   `CLFLUSH`, `LFENCE`, `MFENCE`, `SFENCE`
   ([PR #334](https://github.com/jasmin-lang/jasmin/pull/334)),
   `PDEP`
-  ([PR #328](https://github.com/jasmin-lang/jasmin/pull/328)).
+  ([PR #328](https://github.com/jasmin-lang/jasmin/pull/328)),
+  `VMOVDQA`
+  ([PR #279](https://github.com/jasmin-lang/jasmin/pull/279)).
 
 - Add bit rotation operators for expressions: `<<r` and `>>r`
   ([PR #290](https://github.com/jasmin-lang/jasmin/pull/290)).

@@ -87,6 +87,7 @@ Variant x86_op : Type :=
 | MOVD     of wsize (* MOVD/MOVQ to wide registers *)
 | MOVV     of wsize (* MOVD/MOVQ from wide registers *)
 | VMOV     of wsize 
+| VMOVDQA  of wsize
 | VMOVDQU  `(wsize)
 | VPMOVSX of velem & wsize & velem & wsize (* parallel sign-extension: sizes are source, source, target, target *)
 | VPMOVZX of velem & wsize & velem & wsize (* parallel zero-extension: sizes are source, source, target, target *)
@@ -666,7 +667,7 @@ Definition x86_VPMOVZX (ve: velem) (sz: wsize) (ve': velem) (sz': wsize) (w: wor
   ok (lift1_vec' (@zero_extend ve ve') sz' w).
 
 (* ---------------------------------------------------------------- *)
-Definition x86_VMOVDQU sz (v: word sz) : ex_tpl (w_ty sz) :=
+Definition x86_VMOVDQ sz (v: word sz) : ex_tpl (w_ty sz) :=
   Let _ := check_size_128_256 sz in ok v.
 
 (* ---------------------------------------------------------------- *)
@@ -1368,9 +1369,13 @@ Definition Ox86_MOVV_instr :=
 Definition Ox86_VMOV_instr :=
   mk_instr_w_w128_10 "VMOV" MSB_CLEAR x86_MOVD check_movd (primP VMOV) (pp_movd "vmov").
 
-Definition check_vmovdqu (_:wsize) := [:: xmm_xmmm; xmmm_xmm].
+Definition check_vmovdq (_:wsize) := [:: xmm_xmmm; xmmm_xmm].
+
+Definition Ox86_VMOVDQA_instr :=
+  mk_instr_w_w "VMOVDQA" x86_VMOVDQ [:: E 1] [:: E 0] 2 check_vmovdq (PrimP U128 VMOVDQA) (pp_name "vmovdqa").
+
 Definition Ox86_VMOVDQU_instr :=
-  mk_instr_w_w "VMOVDQU" x86_VMOVDQU [:: E 1] [:: E 0] 2 check_vmovdqu (PrimP U128 VMOVDQU) (pp_name "vmovdqu").
+  mk_instr_w_w "VMOVDQU" x86_VMOVDQ [:: E 1] [:: E 0] 2 check_vmovdq (PrimP U128 VMOVDQU) (pp_name "vmovdqu").
 
 Definition pp_vpmovx name ve sz ve' sz' args :=
   {| pp_aop_name := name;
@@ -1818,6 +1823,7 @@ Definition x86_instr_desc o : instr_desc_t :=
   | VMOV sz            => Ox86_VMOV_instr.1 sz
   | VPINSR sz          => Ox86_VPINSR_instr.1 sz
   | VEXTRACTI128       => Ox86_VEXTRACTI128_instr.1
+  | VMOVDQA sz         => Ox86_VMOVDQA_instr.1 sz
   | VMOVDQU sz         => Ox86_VMOVDQU_instr.1 sz
   | VPMOVSX ve sz ve' sz' => Ox86_VPMOVSX_instr.1 ve sz ve' sz'
   | VPMOVZX ve sz ve' sz' => Ox86_VPMOVZX_instr.1 ve sz ve' sz'
@@ -1954,6 +1960,7 @@ Definition x86_prim_string :=
    Ox86_VPMOVZX_instr.2;
    Ox86_VPINSR_instr.2;
    Ox86_VEXTRACTI128_instr.2;
+   Ox86_VMOVDQA_instr.2;
    Ox86_VMOVDQU_instr.2;
    Ox86_VPAND_instr.2;
    Ox86_VPANDN_instr.2;
