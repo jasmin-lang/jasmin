@@ -7,6 +7,22 @@ r = (u128)[p + 16 * 0];
 }
 
 export
+fn test_vmovdqa(reg u64 p) {
+reg u128 r;
+
+r = #VMOVDQA_128((u128)[p + 16 * 0]);
+(u128)[p + 16 * 1] = #VMOVDQA_128(r);
+}
+
+export
+fn test_vmovdqu(reg u64 p) {
+reg u128 r;
+
+r = #VMOVDQU_128((u128)[p + 16 * 0]);
+(u128)[p + 16 * 1] = #VMOVDQU_128(r);
+}
+
+export
 fn test_xor (reg u64 p) {
 reg u128 r, s, t, u;
 r = (u128)[p + 16 * 0];

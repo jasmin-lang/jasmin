@@ -11,7 +11,9 @@
   `CLFLUSH`, `LFENCE`, `MFENCE`, `SFENCE`
   ([PR #334](https://github.com/jasmin-lang/jasmin/pull/334)),
   `PDEP`
-  ([PR #328](https://github.com/jasmin-lang/jasmin/pull/328)).
+  ([PR #328](https://github.com/jasmin-lang/jasmin/pull/328)),
+  `VMOVDQA`
+  ([PR #279](https://github.com/jasmin-lang/jasmin/pull/279)).
 
 - Division and modulo operators can be used in compound assignments
   (e.g., `x /= y`)

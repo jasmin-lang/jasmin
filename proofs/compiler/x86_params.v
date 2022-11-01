@@ -86,6 +86,7 @@ Definition x86_ensure_rsp_alignment (rspi: var_i) (al: wsize) :=
   let p1 := Papp1 (Oword_of_int Uptr) (Pconst (- wsize_size al)) in
   (eflags ++ [:: Lvar rspi ], Ox86 (AND Uptr), [:: p0; p1 ]).
 
+(* TODO: consider using VMOVDQA when the address is known to be aligned *)
 Definition x86_lassign (x: lval) (ws: wsize) (e: pexpr) :=
   let op := if (ws <= U64)%CMP
             then MOV ws
@@ -230,6 +231,7 @@ Definition x86_agparams : asm_gen_params :=
 Definition x86_is_move_op (o : asm_op_t) :=
   match o with
   | BaseOp (None, MOV _) => true
+  | BaseOp (None, VMOVDQA _) => true
   | BaseOp (None, VMOVDQU _) => true
   | _ => false
   end.
