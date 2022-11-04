@@ -138,7 +138,7 @@ Section WHILE.
 
 Context (max_stk_size : Z).
 
-Definition init_code_loop : lcmd :=
+Definition init_code_loop lbl : lcmd :=
   (* ymm = #set0_256(); *)
   let i0 := Lopn [:: Lvar vlri ] (Oasm (ExtOp (Oset0 U256))) [::] in
 
@@ -161,23 +161,26 @@ Definition init_code_loop : lcmd :=
       [:: pword_of_int U64 (- max_stk_size)%Z ]
   in
 
-  map (MkLI dummy_instr_info) [:: i0; i1; i2; i3 ].
+  (* l1: *)
+  let i4 := Llabel lbl in
 
-Lemma init_code_loopP lp fn lfd lc1 lc2 :
+  map (MkLI dummy_instr_info) [:: i0; i1; i2; i3; i4 ].
+
+Lemma init_code_loopP lp fn lfd lc1 lc2 lbl :
   get_fundef lp.(lp_funcs) fn = Some lfd ->
-  lfd.(lfd_body) = lc1 ++ init_code_loop ++ lc2 ->
+  lfd.(lfd_body) = lc1 ++ init_code_loop lbl ++ lc2 ->
   forall scs m vm,
   get_gvar [::] vm rsp = ok (Vword (top_stack m)) ->
   exists vm',
     lsem lp (Lstate scs m vm fn (size lc1))
-            (Lstate scs m vm' fn (size lc1 + size init_code_loop)) /\
+            (Lstate scs m vm' fn (size lc1 + size (init_code_loop lbl))) /\
     vm' = vm.[vlri <- ok (pword_of_word 0%R)]
             .[tmpi <- ok (pword_of_word (align_word x86_cs_max_ws (top_stack m)))]
             .[offi <- ok (pword_of_word (wrepr Uptr (- max_stk_size)))]
           [\ sv_of_list to_var rflags].
 Proof.
   move=> hlfd hbody scs m vm hrsp.
-  have hlinear: is_linear_of (spp := mk_spp) lp fn (lc1 ++ init_code_loop ++ lc2).
+  have hlinear: is_linear_of (spp := mk_spp) lp fn (lc1 ++ (init_code_loop lbl) ++ lc2).
   + by exists lfd.
   eexists _; split.
   + apply: lsem_step.
@@ -196,10 +199,15 @@ Proof.
       rewrite /eval_instr /= /sem_sopn /=.
       rewrite (@get_gvar_eq _ tmp) /=; last by [].
       by rewrite /of_estate /= !zero_extend_u pword_of_wordE.
+    apply: lsem_step.
+    + rewrite /lsem1 /step.
+      rewrite -addnS (find_instr_skip hlinear) /=.
+      rewrite /eval_instr /= /of_estate /= zero_extend_u pword_of_wordE.
+      by rewrite -addnS.
     apply: LSem_step.
     rewrite /lsem1 /step.
-    rewrite -addnS (find_instr_skip hlinear) /=.
-    rewrite /eval_instr /= /of_estate /= zero_extend_u pword_of_wordE.
+    rewrite (find_instr_skip hlinear) /=.
+    rewrite /eval_instr /= /setpc /=.
     by rewrite -addnS.
   move=> v hnin.
   rewrite !Fv.setP.
@@ -412,6 +420,50 @@ Proof.
 Qed.
 
 End S1.
+
+Context (s0 : estate).
+Context (hstack : (0 <= wunsigned (align_word U256 (top_stack s0.(emem))) - max_stk_size)%Z).
+Context (hvalid : forall p, between (align_word U256 (top_stack (emem s0)) + wrepr U64 (- max_stk_size))
+                  max_stk_size p U8 -> validw (emem s0) p U8).
+Context (halign : is_align max_stk_size U256).
+
+Lemma init_code_loopP' :
+  get_gvar [::] s0.(evm) rsp = ok (Vword (top_stack s0.(emem))) ->
+  exists s1,
+    lsem lp (of_estate s0 fn (size lc)) (of_estate s1 fn (size lc + 5)) /\
+    state_rel s0 s1 (-max_stk_size).
+Proof.
+  move=> hrsp.
+  have [vm' [hsem hvm']] := init_code_loopP hlfd hbody s0.(escs) hrsp.
+  exists (with_vm s0 vm'); split=> //.
+  split=> //=.
+  + rewrite (get_var_eq_except _ hvm'); last by apply /Sv_memP.
+    rewrite get_var_neq //.
+    rewrite get_var_neq //.
+    by rewrite get_var_eq.
+  + rewrite (get_var_eq_except _ hvm'); last by apply /Sv_memP.
+    rewrite get_var_neq //.
+    by rewrite get_var_eq.
+  + rewrite (get_var_eq_except _ hvm'); last by apply /Sv_memP.
+    by rewrite get_var_eq.
+  + move: halign.
+    rewrite /is_align !WArray.p_to_zE.
+    by move=> /eqP /Z_mod_zero_opp_full /eqP.
+  Lia.lia.
+Qed.
+
+Lemma fullP :
+  get_gvar [::] s0.(evm) rsp = ok (Vword (top_stack s0.(emem))) ->
+  exists s2,
+    lsem lp (of_estate s0 fn (size lc)) (of_estate s2 fn (size lc + size (x86_clear_stack_loop lbl max_stk_size)))
+    /\ state_rel s0 s2 0.
+Proof.
+  move=> hrsp.
+  have [s1 [hsem1 hsr1]] := init_code_loopP' hrsp.
+  have [s2 [hsem2 hsr2]] := loopP hstack hsr1 ltac:(Lia.lia).
+  exists s2; split=> //.
+  by apply: (lsem_trans hsem1).
+Qed.
 
 Lemma x86_hcsparams : h_clear_stack_params x86_csparams.
 Proof.
