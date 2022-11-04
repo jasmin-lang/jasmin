@@ -3,7 +3,7 @@
 (* ** Imports and settings *)
 From mathcomp Require Import all_ssreflect all_algebra.
 Require Import ZArith Psatz.
-Require Export utils syscall wsize word type low_memory sem_type values.
+Require Export utils syscall wsize word type sem_type values low_memory.
 Import Utf8.
 
 Set Implicit Arguments.

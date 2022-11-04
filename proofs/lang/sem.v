@@ -4,7 +4,7 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
 Require Import Psatz xseq.
-Require Export array type expr gen_map low_memory warray_ sem_type sem_op_typed values.
+Require Export array type expr gen_map warray_ sem_type sem_op_typed values low_memory.
 Require Export
   flag_combination
   sem_pexpr_params.
