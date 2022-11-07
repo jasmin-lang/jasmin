@@ -633,6 +633,52 @@ Qed.
 
 End DETERMINISM.
 
+(* ------------------------------------------------------------------- *)
+Lemma cast_wP sz e gd s v :
+  sem_pexpr gd s (Papp1 (Oword_of_int sz) e) = ok v →
+  exists2 v', sem_pexpr gd s (cast_w sz e) = ok v' & value_uincl v v'.
+Proof.
+  elim: e v => /=; t_xrbindP => //.
+  1, 2: by move => > ->; eauto.
+  1, 2, 6: by move => > _ > -> /= ->; eauto.
+  1: by move => > _ > -> /= -> > -> /= -> > /= -> /= -> ->; eauto.
+  3: by move => > _ > _ > _ > -> /= -> > -> /= -> > -> /= -> /= -> ->; eauto.
+  - case.
+    7: case.
+    1, 3-6, 8: by move => > _ > /= -> /= -> /= ->; eauto.
+    + move => > _ >.
+      case: ifP; last by move => _ /= -> /= -> /= ->; eauto.
+      rewrite /sem_sop1; t_xrbindP => A -> /= ? /to_wordI[] ? [] ? [] -> /truncate_wordP[] B -> <- /=.
+      t_xrbindP => ? <- <-; eexists; first reflexivity.
+      rewrite -/(zero_extend sz _) zero_extend_idem //=.
+      apply: word_uincl_zero_ext.
+      exact: cmp_le_trans A B.
+    rewrite /= /sem_sop1 /=.
+    t_xrbindP => e ih > A > B ? > /to_intI h ?; subst; case: h => ?; subst.
+    move: ih.
+    rewrite A /= B => /(_ _ erefl)[] ? -> /value_uinclE[] ? [] ? [] -> /andP[] sz_le /eqP D.
+    rewrite /= /truncate_word sz_le -D.
+    eexists; first reflexivity.
+    apply/andP; split; first exact: cmp_le_refl.
+    by rewrite wopp_zero_extend // zero_extend_u wrepr_opp.
+  case.
+  all: try match goal with [ |- forall h : op_kind, _ ] => case end.
+  all: try by move => > _ > _ > /= -> > -> /= -> /= ->; eauto.
+  all: move => e1 ih1 e2 ih2 > h1 > h2.
+  all: rewrite /sem_sop2; t_xrbindP => /= ? A ? B ? [] <- <-.
+  all: move: ih1 ih2.
+  all: rewrite h1 h2 /= /sem_sop1 /= A B /=.
+  all: move => /(_ _ erefl) [] v1 -> /value_uinclE[] ? [] ? [] -> /andP[] le1 /eqP {} h1.
+  all: move => /(_ _ erefl) [] v2 -> /value_uinclE[] ? [] ? [] -> /andP[] le2 /eqP {} h2.
+  all: case => <- /=.
+  all: rewrite /sem_sop2 /= /truncate_word le1 -h1 le2 -h2 /=.
+  all: eexists; first reflexivity.
+  all: apply/andP; split; first by auto.
+  - by rewrite wadd_zero_extend // !zero_extend_u wrepr_add.
+  - by rewrite wmul_zero_extend // !zero_extend_u wrepr_mul.
+  by rewrite wsub_zero_extend // !zero_extend_u wrepr_sub.
+Qed.
+
 End WITH_PARAMS.
 
 (* TODO: move? *)
