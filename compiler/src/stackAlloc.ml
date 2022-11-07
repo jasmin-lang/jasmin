@@ -56,11 +56,12 @@ let pp_return fmt n =
 
 let pp_sao tbl fmt sao =
   let open Stack_alloc in
-    Format.fprintf fmt "alignment = %s; size = %a; extra size = %a; max size = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a@]"
-   (string_of_ws sao.sao_align)
+  Format.fprintf fmt "alignment = %s; size = %a; extra size = %a; max size = %a@;max call depth = %a@;params =@;<2 2>@[<v>%a@]@;return = @[<hov>%a@]@;slots =@;<2 2>@[<v>%a@]@;alloc= @;<2 2>@[<v>%a@]@;saved register = @[<hov>%a@]@;saved stack = %a@;return address = %a"
+    (string_of_ws sao.sao_align)
     Z.pp_print (Conv.z_of_cz sao.sao_size)
     Z.pp_print (Conv.z_of_cz sao.sao_extra_size)
     Z.pp_print (Conv.z_of_cz sao.sao_max_size)
+    Z.pp_print (Conv.z_of_cz sao.sao_max_call_depth)
     (pp_list "@;" (pp_param_info tbl)) sao.sao_params
     (pp_list "@;" pp_return) sao.sao_return
     (pp_list "@;" (pp_slot tbl)) sao.sao_slots
@@ -129,6 +130,7 @@ let memory_analysis pp_err ~debug tbl up =
         sao_size   = Conv.cz_of_int size;
         sao_extra_size = Z0;
         sao_max_size = Z0;
+        sao_max_call_depth = Z0;
         sao_params = List.map (omap conv_pi) sao.sao_params;
         sao_return = List.map (omap Conv.nat_of_int) sao.sao_return;
         sao_slots  = do_slots sao.sao_slots;
@@ -213,15 +215,17 @@ let memory_analysis pp_err ~debug tbl up =
       if has_stack && ro.ro_rsp = None then extra @ [rsp]
       else extra in
     let extra_size, align, extrapos = Varalloc.extend_sao sao extra in
-    let align, max_stk = 
-      Sf.fold (fun fn (align, max_stk) ->
+    let align, max_stk, max_call_depth =
+      Sf.fold (fun fn (align, max_stk, max_call_depth) ->
           let sao = get_sao fn in
-          let fn_algin = sao.Stack_alloc.sao_align in
-          let align = if wsize_lt align fn_algin then fn_algin else align in
+          let fn_align = sao.Stack_alloc.sao_align in
+          let align = if wsize_lt align fn_align then fn_align else align in
           let fn_max = Conv.z_of_cz (sao.Stack_alloc.sao_max_size) in
-          let max_stk = if Z.lt max_stk fn_max then fn_max else max_stk in
-          align, max_stk
-        ) sao.sao_calls (align, Z.zero) in
+          let max_stk = Z.max max_stk fn_max in
+          let fn_max_call_depth = Conv.z_of_cz (sao.Stack_alloc.sao_max_call_depth) in
+          let max_call_depth = Z.max max_call_depth fn_max_call_depth in
+          align, max_stk, max_call_depth
+        ) sao.sao_calls (align, Z.zero, Z.zero) in
     let max_size = 
       let stk_size = 
         Z.add (Conv.z_of_cz csao.Stack_alloc.sao_size)
@@ -233,6 +237,7 @@ let memory_analysis pp_err ~debug tbl up =
           Conv.z_of_cz (Memory_model.round_ws align (Conv.cz_of_z stk_size))
         | Internal -> assert false in
       Z.add max_stk stk_size in
+    let max_call_depth = Z.succ max_call_depth in
     let saved_stack = 
       if has_stack then
         match ro.ro_rsp with
@@ -257,6 +262,7 @@ let memory_analysis pp_err ~debug tbl up =
         sao_align = align;
         sao_extra_size = Conv.cz_of_int extra_size;
         sao_max_size = Conv.cz_of_z max_size;
+        sao_max_call_depth = Conv.cz_of_z max_call_depth;
         sao_to_save = convert_to_save ro.ro_to_save;
         sao_rsp  = saved_stack;
         sao_return_address =

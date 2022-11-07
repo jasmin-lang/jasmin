@@ -585,11 +585,12 @@ Qed.
 Definition return_address_location_eqMixin := Equality.Mixin return_address_location_eq_axiom.
 Canonical  return_address_location_eqType  := Eval hnf in EqType return_address_location return_address_location_eqMixin.
 
-Record stk_fun_extra := MkSFun { 
+Record stk_fun_extra := MkSFun {
   sf_align          : wsize;
   sf_stk_sz         : Z;
   sf_stk_extra_sz   : Z;
-  sf_stk_max        : Z; 
+  sf_stk_max        : Z;
+  sf_max_call_depth : Z;
   sf_to_save        : seq (var * Z);
   sf_save_stack     : saved_stack;
   sf_return_address : return_address_location;
@@ -598,7 +599,8 @@ Record stk_fun_extra := MkSFun {
 Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=
   (e1.(sf_align) == e2.(sf_align)) &&
   (e1.(sf_stk_sz) == e2.(sf_stk_sz)) &&
-  (e1.(sf_stk_max) == e2.(sf_stk_max)) && 
+  (e1.(sf_stk_max) == e2.(sf_stk_max)) &&
+  (e1.(sf_max_call_depth) == e2.(sf_max_call_depth)) &&
   (e1.(sf_stk_extra_sz) == e2.(sf_stk_extra_sz)) &&
   (e1.(sf_to_save) == e2.(sf_to_save)) &&
   (e1.(sf_save_stack) == e2.(sf_save_stack)) &&
@@ -606,9 +608,9 @@ Definition sfe_beq (e1 e2: stk_fun_extra) : bool :=
 
 Lemma sfe_eq_axiom : Equality.axiom sfe_beq.
 Proof.
-  case => a b c d e f g [] a' b' c' d' e' f' g'; apply: (equivP andP) => /=; split.
-  + by case => /andP[] /andP[] /andP[] /andP[] /andP [] /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <-.
-  by case => <- <- <- <- <- <- <-; rewrite !eqxx.
+  case => a b c d e f g h [] a' b' c' d' e' f' g' h'; apply: (equivP andP) => /=; split.
+  + by case => /andP[] /andP[] /andP[] /andP[] /andP[] /andP [] /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <- /eqP <-.
+  by case => <- <- <- <- <- <- <- <-; rewrite !eqxx.
 Qed.
 
 Definition sfe_eqMixin   := Equality.Mixin sfe_eq_axiom.
