@@ -684,7 +684,28 @@ Definition is_bool (e:pexpr) :=
   | _ => None
   end.
 
-Definition cast_w ws := Papp1 (Oword_of_int ws).
+Fixpoint cast_w ws (e: pexpr) : pexpr :=
+  match e with
+  | Papp2 (Oadd Op_int) e1 e2 =>
+      let: e1 := cast_w ws e1 in
+      let: e2 := cast_w ws e2 in
+      Papp2 (Oadd (Op_w ws)) e1 e2
+  | Papp2 (Osub Op_int) e1 e2 =>
+      let: e1 := cast_w ws e1 in
+      let: e2 := cast_w ws e2 in
+      Papp2 (Osub (Op_w ws)) e1 e2
+  | Papp2 (Omul Op_int) e1 e2 =>
+      let: e1 := cast_w ws e1 in
+      let: e2 := cast_w ws e2 in
+      Papp2 (Omul (Op_w ws)) e1 e2
+  | Papp1 (Oneg Op_int) e' =>
+      let: e' := cast_w ws e' in
+      Papp1 (Oneg (Op_w ws)) e'
+  | Papp1 (Oint_of_word ws') e' =>
+      if (ws ≤ ws')%CMP then e'
+      else Papp1 (Oword_of_int ws) e
+  | _ => Papp1 (Oword_of_int ws) e
+  end.
 
 Section WITH_POINTER_DATA.
 Context {pd: PointerData}.

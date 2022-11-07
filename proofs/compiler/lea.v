@@ -85,32 +85,4 @@ Fixpoint mk_lea_rec (sz:wsize) e :=
   | _ => None
   end.
 
-Fixpoint push_cast_sz sz e := 
-  match e with
-  | Papp2 (Oadd Op_int) e1 e2 => 
-    Papp2 (Oadd (Op_w sz)) (push_cast_sz sz e1) (push_cast_sz sz e2)
-
-  | Papp2 (Omul Op_int) e1 e2 => 
-    Papp2 (Omul (Op_w sz)) (push_cast_sz sz e1) (push_cast_sz sz e2)
-
-  | Papp2 (Osub Op_int) e1 e2 => 
-    Papp2 (Osub (Op_w sz)) (push_cast_sz sz e1) (push_cast_sz sz e2)
-
-(*  | Papp1 (Oneg Op_int) e1 =>
-    Papp1 (Oneg (Op_w sz)) (push_cast_sz sz e1) *)
-  
-  | Papp1 (Oint_of_word sz') e1 => 
-    if (sz <= sz')%CMP then e1
-    else Papp1 (Oword_of_int sz) e 
-  | _ => Papp1 (Oword_of_int sz) e
-  end.
-
-Fixpoint push_cast e :=
-  match e with
-  | Papp1 (Oword_of_int sz) e1 => push_cast_sz sz (push_cast e1)
-  | Papp1 o e1                 => Papp1 o (push_cast e1)
-  | Papp2 o e1 e2              => Papp2 o (push_cast e1) (push_cast e2)
-  | _                          => e
-  end.
-
-Definition mk_lea sz e := mk_lea_rec sz (push_cast e).
+Definition mk_lea sz e := mk_lea_rec sz e.

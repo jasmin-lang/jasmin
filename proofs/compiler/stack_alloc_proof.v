@@ -785,11 +785,13 @@ Proof.
   by case: Mvar.get => [_|//] [-> ?].
 Qed.
 
-Lemma cast_ptrP gd s e i : sem_pexpr gd s e >>= to_int = ok i ->
-  sem_pexpr gd s (cast_ptr e) = ok (Vword (wrepr Uptr i)).
+Lemma cast_ptrP gd s e i :
+  sem_pexpr gd s e >>= to_int = ok i ->
+  exists2 v, sem_pexpr gd s (cast_ptr e) = ok v & value_uincl (Vword (wrepr Uptr i)) v.
 Proof.
-  by t_xrbindP => v he hi;
-    rewrite /cast_ptr /cast_w /= he /sem_sop1 /= hi.
+  t_xrbindP => v he hi.
+  apply: cast_wP.
+  by rewrite /= he /sem_sop1 /= hi.
 Qed.
 
 Lemma cast_wordP gd s e i : 
@@ -797,17 +799,15 @@ Lemma cast_wordP gd s e i :
   exists sz (w:word sz), sem_pexpr gd s (cast_word e) = ok (Vword w) /\
                          truncate_word Uptr w = ok (wrepr Uptr i).
 Proof.
-  move=> he.
+  case/cast_ptrP => v he /value_uinclE[] sz [] w [] ? /andP[] uptr_le_sz /eqP h; subst.
   have: exists sz (w:word sz),
     sem_pexpr gd s (cast_ptr e) = ok (Vword w)
     /\ truncate_word Uptr w = ok (wrepr Uptr i).
-  - exists Uptr, (wrepr Uptr i); split; first by apply cast_ptrP.
-    by rewrite truncate_word_u.
+  - exists sz, w; split; first exact: he.
+    by rewrite /truncate_word uptr_le_sz h.
   case: e he => // -[] // ws //=.
-  rewrite /sem_sop1 /=.
   case: eqP => [->|//].
-  move=> e + _; t_xrbindP => v v' -> w /to_wordI [ws' [w' [-> htw]]] <- /= [<-].
-  by exists ws', w'; split => //; rewrite htw wrepr_unsigned.
+  by rewrite /cast_ptr /= cmp_le_refl => ? ->.
 Qed.
 
 Lemma mk_ofsP aa sz gd s2 ofs e i :
