@@ -120,20 +120,20 @@ let remove_phi_nodes (f: ('info, 'asm) func) : ('info, 'asm) func =
       (match tg with
        | AT_phinode ->
          (match x, e with
-          | Lvar v, Pvar v' when is_gkvar v' -> 
-            if L.unloc v = L.unloc v'.gv then [] else
+          | Lvar v, Pvar v' when is_gkvar v' ->
+            if L.unloc v = L.unloc v'.gv then None else
               let pv = Printer.pp_var ~debug:true in
               hierror ~loc:Lnone ~funname:f.f_name.fn_name ~internal:true
                 "cannot remove assignment %a = %a"
                 pv (L.unloc v) pv (L.unloc v'.gv)
-          | _, _ -> [i])
-       | _ -> [i])
-    | Cif (b, s1, s2) -> [Cif (b, stmt s1, stmt s2)]
-    | Cwhile (a, s1, b, s2) -> [Cwhile (a, stmt s1, b, stmt s2)]
-    | (Copn _ | Csyscall _ | Cfor _ | Ccall _) as i -> [i]
+          | _, _ -> Some i)
+       | _ -> Some i)
+    | Cif (b, s1, s2) -> Some (Cif (b, stmt s1, stmt s2))
+    | Cwhile (a, s1, b, s2) -> Some (Cwhile (a, stmt s1, b, stmt s2))
+    | (Copn _ | Csyscall _ | Cfor _ | Ccall _) as i -> Some i
   and instr i =
-    try List.map (fun i_desc -> { i with i_desc }) (instr_r i.i_desc)
+    try Option.map (fun i_desc -> { i with i_desc }) (instr_r i.i_desc)
     with HiError e -> raise (HiError (add_iloc e i.i_loc))
-  and stmt s = List.(flatten (map instr s)) in (* TODO: use List.concat_map with newer OCaml *)
+  and stmt s = List.filter_map instr s in
   let f_body = stmt f.f_body in
   { f with f_body }
