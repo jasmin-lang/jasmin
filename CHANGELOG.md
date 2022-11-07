@@ -6,6 +6,11 @@
 - Support ARMv7 (Cortex-M4) as target architecture
   ([PR #242](https://github.com/jasmin-lang/jasmin/pull/242)).
 
+- Compute the maximal call depth for each function; a function annotation
+  `#[calldepth=n]` can be used to check that the maximal call depth is exactly
+  `n`
+  ([PR #282](https://github.com/jasmin-lang/jasmin/pull/282)).
+
 ## Other changes
 
 - Explicit if-then-else in flag combinations is no longer supported
